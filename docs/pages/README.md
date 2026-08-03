@@ -45,6 +45,7 @@
 | 문서 | 범위 | 주요 FR |
 |---|---|---|
 | [settings.md](settings.md) | 설정 허브 — 계정·구독·콘텐츠·재생·알림·정보 | FR-02, FR-05, FR-06, FR-19 |
+| [profile.md](profile.md) | 프로필 — 관심사·커리어 설정, 이메일 인증, 현재 플랜 표시 | FR-02, FR-04, FR-05, FR-28 |
 | [interest-management.md](interest-management.md) | 관심 주제 일괄 편집, 커리어 수정, 자동 확장 토글 | FR-05, FR-06, FR-04 |
 | [notification.md](notification.md) | 드립 도착 푸시, 권한 요청, 수신 설정 | FR-19 |
 | [offline-download.md](offline-download.md) | 오프라인 저장 **(P1 이연 확정 — MVP 비대상)** | FR-26, FR-33 |
@@ -64,15 +65,15 @@
 | FR | 문서 | FR | 문서 |
 |---|---|---|---|
 | FR-01 | auth | FR-19 | notification, drip-scheduling, settings |
-| FR-02 | auth, settings | FR-20 | library |
+| FR-02 | auth, settings, profile | FR-20 | library |
 | FR-03 | onboarding, interest-management | FR-21 | explore |
-| FR-04 | onboarding, interest-management | FR-22 | explore |
-| FR-05 | interest-management | FR-23 | player |
+| FR-04 | onboarding, interest-management, profile | FR-22 | explore |
+| FR-05 | interest-management, profile | FR-23 | player |
 | FR-06 | interest-management, settings | FR-24 | player, library |
 | FR-07 | content-pipeline | FR-25 | player |
 | FR-08 | content-pipeline | FR-26 | offline-download |
 | FR-09 | content-pipeline | FR-27 | explore, player |
-| FR-10 | content-pipeline | FR-28 | subscription, paywall |
+| FR-10 | content-pipeline | FR-28 | subscription, paywall, profile |
 | FR-11 | content-pipeline | FR-29 | paywall |
 | FR-12 | content-pipeline, player | FR-30 | paywall, subscription |
 | FR-13 | content-pipeline | FR-31 | subscription, settings |
@@ -83,8 +84,9 @@
 | FR-18 | drip-scheduling | FR-36 | common-error-handling, splash |
 | | | FR-37 | admin, content-pipeline |
 | | | FR-38 | admin, interest-management, onboarding |
+| | | FR-39 | auth, profile, settings |
 
-FR-01 ~ FR-38 전부 커버됨.
+FR-01 ~ FR-39 전부 커버됨.
 
 ## 명세를 쓰면서 드러난 PRD 결정 포인트
 
@@ -136,6 +138,6 @@ FR-01 ~ FR-38 전부 커버됨.
    - 진입 흐름: splash → auth → onboarding
    - 핵심 루프: library → player → explore
    - 수익화: paywall
-   - 부가: settings → interest-management → notification
+   - 부가: settings → profile → interest-management → notification
 5. **[common-error-handling.md](common-error-handling.md)는 첫 화면 개발과 함께** — 나중에 붙이면 화면마다 오류 처리가 제각각이 된다
 6. **[content-pipeline.md](content-pipeline.md)는 MVP 구현 대상이 아니다** — 다만 4.2~4.5의 제작 기준(분할·환각 금지·출처 고지)은 **사람이 콘텐츠를 만들 때 그대로 지켜야 하는 규칙**이므로 제작 착수 전에 읽어야 한다
