@@ -28,7 +28,8 @@
 | 3. 콘텐츠 선택 | picked_content_ids: string[] | 선택(0개 허용) |
 | 4. 알림 권한 | OS 권한 응답 | — |
 
-- 주제 목록은 서버가 제공한다. **수급 콘텐츠에서 역산한 중분류만 노출**한다(FR-03) — 콘텐츠가 0건인 주제는 목록에서 제외한다.
+- 주제 목록은 서버가 제공한다. **수급 콘텐츠에서 역산한 중분류만 노출**한다(FR-03).
+- 노출 여부는 `topics.is_visible`로 결정되며 **이 값은 관리자만 변경한다**(FR-38). 콘텐츠가 0건인 주제는 시스템이 자동으로 내리지 않고 관리자가 판단해 숨긴다.
 
 ## 4. 처리 로직
 
@@ -47,7 +48,7 @@
 ### 단계별 로직
 
 **[1] 관심 주제 선택**
-- 서버에서 중분류 주제 목록 조회(콘텐츠 보유 건수 내림차순 + 인기 순)
+- 서버에서 중분류 주제 목록 조회(`is_visible = true`만, `display_order` 순)
 - 최소 1개 선택 전까지 [다음] 버튼 비활성
 - 선택 즉시 서버에 저장하지 않고, 단계 이탈(뒤로가기 아닌 앱 종료) 대비로 **로컬 임시 저장** → [다음] 탭 시 서버 저장 + `onboarding_step = career`
 
@@ -68,7 +69,7 @@
 - 서버는 이 시점에 `onboarding_completed = true` 처리 및 **첫 드립 편성을 즉시 트리거**한다(드립 명세 참조)
   - 라이브러리가 비어 있지 않도록, [3]에서 담은 수와 무관하게 첫 드립은 실행한다
   - 중복 적립 방지(FR-16)로 [3]에서 담은 콘텐츠는 드립 대상에서 제외
-- **무료 티어에도 첫 진입 시 라이브러리가 비지 않도록 초기 콘텐츠를 적립한다.** 무료 정책의 "드립 없음"(PRD 4.1)은 이후 일일 자동 적립을 하지 않는다는 뜻이며, 온보딩 초기 적립은 별개다 → *미결 사항 참조*
+- **무료(라이트) 티어도 온보딩 초기 적립과 이후의 일일 자동 드립을 모두 받는다.** 무료 티어의 드립 편수는 하루 2편으로 고정한다(PRD FR-14).
 
 **[5] 알림 권한 요청**
 - OS 권한 다이얼로그 직전에 사전 안내(프리퍼미션) 화면을 노출한다 — "드립 도착을 알려드릴까요?"
@@ -95,31 +96,16 @@
 
 ## 6. 데이터 모델
 
-```
-User {
-  onboarding_completed: boolean
-  onboarding_step: enum(topic|career|pick|done)
-  onboarding_completed_at: datetime
-}
+> **스키마는 [`docs/backend/domain.md`](../backend/domain.md)가 유일한 기준이다.** 이 문서에 테이블·컬럼을 중복 기재하지 않는다 — 두 벌을 유지하면 반드시 어긋나고, 수정 비용이 두 배가 된다.
+> 컬럼을 추가·변경해야 하면 `domain.md`를 먼저 고치고 이 문서에는 동작 규칙만 남긴다.
 
-UserInterest {
-  user_id, topic_id, source: enum(onboarding|manual|auto_expand),
-  is_active: boolean, created_at
-}
-
-UserCareer {
-  user_id, job_category, job_title, years_of_experience, updated_at
-}
-
-Topic {
-  topic_id, name, parent_category, content_count, is_visible
-}
-
-LibraryItem {
-  user_id, content_id, source: enum(drip|save|onboarding),
-  status: enum(unplayed|in_progress|completed), added_at
-}
-```
+| 사용하는 것 | domain.md |
+|---|---|
+| `users` — 온보딩 상태 + **커리어 필드**(별도 테이블 아님) | 3.1 |
+| `user_interests` | 4.2 |
+| `topics` | 4.1 |
+| `library_items` — `source = onboarding` | 6.1 |
+| `drip_excluded_contents` — 온보딩 담기분의 드립 중복 방지 | 7.1 |
 
 ## 7. 예외 상황
 
@@ -145,6 +131,6 @@ LibraryItem {
 
 ## 미결 사항
 
-- **무료 티어의 온보딩 초기 적립 허용 여부** — PRD 4.1은 "무료: 드립 없음"이지만, 그대로면 무료 사용자의 첫 라이브러리가 [3]에서 담은 것뿐이거나 비게 된다. 위 명세는 "온보딩 초기 적립은 허용, 일일 드립만 차단"으로 잠정 정의했다. **팀 확정 필요.**
+- ~~무료 티어의 온보딩 초기 적립 허용 여부~~ → **확정: 무료 티어도 온보딩 초기 적립과 일일 드립(하루 2편)을 모두 받는다.**
 - 3단계 추천 노출 건수(잠정 9건) 확정
 - 주제 선택 상한 도입 여부(너무 많이 고르면 드립 편성이 분산됨)

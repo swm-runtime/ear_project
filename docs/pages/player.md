@@ -27,7 +27,7 @@
 | 값 | 설명 | 필수 |
 |---|---|---|
 | content_id | 재생 대상 | 필수 |
-| start_position_sec | 시작 위치. 미지정 시 저장된 `resume_position_sec` | 선택 |
+| start_position_sec | 시작 위치. 미지정 시 저장된 `playback_progresses.position_sec` | 선택 |
 | autoplay | 진입 즉시 재생 여부(기본 true) | 선택 |
 
 **사용자 조작**: 재생/일시정지, 15초 뒤로 / 30초 앞으로, 시크바 드래그, 배속 선택, 스크립트 열기, 수면 타이머 설정, 더보기(공유·원문 보기·라이브러리에서 삭제)
@@ -37,14 +37,15 @@
 ### 4.1 재생 시작
 
 1. 플레이어 화면 진입과 동시에 콘텐츠 메타 + **재생 URL(단기 서명 URL)** 요청
-2. 오프라인 저장분이 있으면 로컬 파일을 우선 사용한다(오프라인 저장 명세)
+2. 오프라인 저장분이 있으면 로컬 파일을 우선 사용한다(오프라인 저장 명세) *(P1 이연 — FR-26)*
 3. 오디오 준비되는 즉시 `start_position_sec`부터 재생
    - **모든 콘텐츠는 사전 변환 완료 상태이므로 생성 대기가 없다**(PRD 1.3, 7). 클라이언트에 "생성 중" 상태는 존재하지 않는다
    - 목표: 탭 후 2초 내 재생 시작. 버퍼링이 2초를 넘으면 로딩 인디케이터 노출
 4. 재생이 실제로 시작된 시점에
-   - `LibraryItem.status`: `unplayed` → `in_progress`
-   - **무료 티어 재생 카운트 +1** (페이월 명세의 카운트 시점 규칙을 따름)
-   - `UserSignal(action = play)` 기록
+   - `library_items.status`: `unplayed` → `in_progress`
+   - **무료 티어 재생 카운트 +1** — `play_records`에 오늘 서비스 날짜(04시 경계) 기준 행을 upsert (페이월 명세 4.2)
+   - `user_signals(action = play)` 기록
+   - `drip_excluded_contents(reason = played)` 적재 — 재생한 콘텐츠는 드립 후보에서 제외된다(FR-16)
 
 ### 4.2 재생 컨트롤
 
@@ -62,6 +63,7 @@
 ### 4.3 재생 위치 저장 (FR-24)
 
 - 저장 시점: 5초 주기 / 일시정지 / 화면 이탈 / 앱 백그라운드 진입 / 재생 종료
+- 저장 대상은 `playback_progresses`의 `position_sec`과 `max_reached_sec` 두 값이다
 - 로컬에 먼저 쓰고 서버에 비동기 동기화(실패 시 큐에 적재, 다음 기회에 재전송)
 - 앱 재실행 시 마지막 재생 콘텐츠와 위치를 복원해 **미니플레이어를 일시정지 상태로 노출**한다(자동 재생하지 않음)
 
@@ -69,11 +71,20 @@
 
 - **완청**: 재생 위치가 길이의 90% 이상 도달 → `status = completed`, `UserSignal(action = complete)`
 - **스킵**: 재생 시작 후 20% 미만 지점에서 재생을 중단하고 다른 콘텐츠로 이동하거나 이탈 → `UserSignal(action = skip)`
-- 배속·구간 이동으로 건너뛴 구간은 "들은 것"으로 계산하지 않고, **최대 도달 위치**를 별도로 기록해 완청 판정에 사용한다(2배속으로 끝까지 재생한 것은 완청으로 인정, 시크로 끝까지 점프한 것은 완청으로 인정하지 않음)
+- 배속·구간 이동으로 건너뛴 구간은 "들은 것"으로 계산하지 않고, **최대 도달 위치(`max_reached_sec`)** 를 별도로 기록해 완청 판정에 사용한다(2배속으로 끝까지 재생한 것은 완청으로 인정, 시크로 끝까지 점프한 것은 완청으로 인정하지 않음)
+- **`seek`·`rate_change`는 신호로 기록하지 않는다.** 추천 스코어링에 쓰이지 않으면서 재생 1회당 수십 건씩 쌓인다. 필요하면 구조화 로그로만 남긴다
+- **수동 완료 표시 기능은 없다.** 상태는 실제 재생 결과로만 바뀐다
+
+### 4.4-1 실제 청취 시간 기록 (FR-34)
+
+- 재생 종료(일시정지·이탈·완청·백그라운드 진입) 시점마다 **그 구간에서 재생기가 실제로 소리를 낸 시간**을 `play_records.listened_sec`에 더한다
+- 도달 위치가 아니라 실제 경과 시간이다. 10분짜리를 2배속으로 끝까지 들으면 `max_reached_sec = 600`이지만 `listened_sec ≈ 300`이고, 시크로 건너뛴 구간은 포함되지 않는다
+- 하루·콘텐츠당 1행이므로 같은 날 여러 번 들으면 같은 행에 누적된다. 날짜 경계를 넘겨 재생하면 **재생 시작 시점의 서비스 날짜** 행에 누적한다
+- 이 값이 파트너 정산의 재생 점유율 근거가 된다(`partner-control.md` 4.6)
 
 ### 4.5 출처 고지 (FR-12)
 
-- 오디오 자체에 시작·종료 멘트로 출처·저자가 포함된다(파이프라인 책임)
+- 오디오 자체에 시작·종료 멘트로 출처·저자가 포함된다(제작 단계 책임 — MVP는 업로드 전 수작업)
 - 플레이어 화면에도 **저자·출처를 상시 노출**하고, `source_url`이 있으면 [원문 보기] 버튼을 제공한다 → 인앱 브라우저로 열기(파트너 유입 경로 — PRD 8.3 리스크 대응)
 
 ### 4.6 스크립트 (FR-25, P1)
@@ -91,7 +102,7 @@
 
 ### 4.8 재배포 방지 (FR-33)
 
-- 오디오 URL은 **짧은 만료 시간의 서명 URL**로 발급하고, 사용자·기기 단위로 발급 이력을 남긴다
+- 오디오 URL은 **짧은 만료 시간의 서명 URL**로 발급하고, 사용자·기기 단위로 발급 이력(`audio_access_logs`)을 남긴다. **서명 URL 자체는 저장하지 않는다** — DB에 남기면 그것이 곧 유출 경로가 된다
 - 원본 파일 경로를 클라이언트에 노출하지 않는다
 - 안드로이드/iOS 미디어 캐시는 앱 전용 저장소에 두고 외부 접근을 차단한다
 
@@ -113,35 +124,20 @@
 
 ## 6. 데이터 모델
 
-```
-PlaybackSession {
-  user_id, content_id,
-  position_sec: int
-  max_reached_sec: int              // 완청 판정용
-  playback_rate: float
-  started_at, updated_at, ended_at
-}
+> **스키마는 [`docs/backend/domain.md`](../backend/domain.md)가 유일한 기준이다.** 이 문서에 테이블·컬럼을 중복 기재하지 않는다 — 두 벌을 유지하면 반드시 어긋나고, 수정 비용이 두 배가 된다.
+> 컬럼을 추가·변경해야 하면 `domain.md`를 먼저 고치고 이 문서에는 동작 규칙만 남긴다.
 
-UserPlayerSetting {                 // 전역
-  user_id, default_playback_rate: float,
-  sleep_timer_last_choice: enum | null
-}
+| 사용하는 것 | domain.md |
+|---|---|
+| `playback_progresses` — `position_sec` · `max_reached_sec` | 6.2 |
+| `play_records` — 페이월 카운트 + **실제 청취 시간(`listened_sec`)** | 6.3 |
+| `user_signals` — `play` · `complete` · `skip` · `replay` | 6.4 |
+| `audio_access_logs` — 서명 URL **발급 사실만** 기록(URL 자체는 저장 안 함) | 6.5 |
+| `content_scripts` | 5.3 |
+| `user_settings` — `default_playback_rate` 등 전역 재생 설정 | 3.5 |
 
-ContentScript {                     // FR-25
-  content_id,
-  segments: [{ start_sec, end_sec, text }]
-}
-
-AudioAccessToken {                  // FR-33
-  content_id, user_id, signed_url, expires_at, issued_at
-}
-
-UserSignal {
-  user_id, content_id,
-  action: enum(play|complete|skip|seek|rate_change),
-  position_sec, max_reached_sec, created_at
-}
-```
+- `PlaybackSession`은 폐기됐다. 재생 위치·최대 도달 위치는 `playback_progresses` 하나가 갖는다(domain.md 14장).
+- `seek` · `rate_change`는 신호 테이블에 넣지 않는다. 추천 스코어링에 쓰이지 않는다.
 
 ## 7. 예외 상황
 
@@ -151,12 +147,12 @@ UserSignal {
 - **앱을 강제 종료했을 때의 위치**: 마지막 5초 주기 저장 값까지만 보존된다. 최대 5초 손실 허용.
 - **여러 기기에서 동시 재생**: 차단하지 않는다. 위치는 last-write-wins.
 - **재생 위치가 콘텐츠 길이를 초과**(콘텐츠 재발행으로 길이 변경): 위치를 0으로 리셋하고 처음부터 재생.
-- **콘텐츠가 재발행되어 오디오가 교체됨**: `content_version`이 다르면 저장된 위치를 폐기한다.
+- **콘텐츠가 재발행되어 오디오가 교체됨**: 재발행은 `content_id`를 유지한 채 `content_version`만 올린다. 클라이언트는 버전이 달라지면 저장된 재생 위치와 오프라인 파일을 폐기한다.
 - **수면 타이머 만료와 완청 시점이 겹침**: 완청 처리를 우선한다.
 - **2배속으로 끝까지 재생**: 완청으로 인정한다.
 - **시크바로 90% 지점까지 점프**: `max_reached_sec`이 연속적으로 도달하지 않았으므로 완청으로 인정하지 않는다.
 - **스크립트 데이터 없음**(P1 미구현 또는 생성 실패): 스크립트 버튼을 노출하지 않는다.
-- **오프라인 저장분 파일 손상**: 로컬 재생 실패 → 온라인 스트리밍으로 폴백하고, 저장분은 삭제 후 재다운로드를 안내한다.
+- **오프라인 저장분 파일 손상** *(P1)*: 로컬 재생 실패 → 온라인 스트리밍으로 폴백하고, 저장분은 삭제 후 재다운로드를 안내한다.
 
 ## 8. 완료 조건
 

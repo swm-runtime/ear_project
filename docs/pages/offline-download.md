@@ -2,14 +2,15 @@
 
 > 연결 PRD: FR-26, FR-33 / 범위 4.2(구현 이연) / 검증계획 9.2
 
-## ⚠️ 범위 상태 — PRD 내 충돌
+## ⚠️ 범위 상태 — **P1 이연 확정**
 
-PRD가 이 기능을 두 곳에서 다르게 다룬다.
+~~PRD 내 충돌(FR-26 P0 vs 4.2 이연)~~ → **확정: FR-26은 P1이다.** PRD 4.2와 6.5가 모두 P1로 정리됐다.
 
-- **FR-26은 (P0)** — "오프라인 저장(유료 전용): 저장한 콘텐츠는 오프라인에서 재생 가능하다"
-- **4.2 MVP 비포함**은 — "오프라인 저장(유료 기능으로 방향 확정, **구현은 이연**) — *현재 IA에 미반영, 도입 시점에 IA 추가 필요*"
+**본 명세는 도입 시점을 대비한 설계 문서이며 MVP 구현 대상이 아니다.**
 
-**본 명세는 도입 시점을 대비한 설계 문서로 작성하며, MVP 구현 대상으로는 보지 않는다.** 우선순위 확정은 팀 검토 사항이다(PRD 6장 서두).
+- 서버 테이블(`OfflineDownloadRecord`)과 `plans.offline_download_enabled` 컬럼은 **지금 만들지 않는다**(`domain.md` 14장).
+- 설정의 오프라인 저장 메뉴도 노출하지 않는다(`settings.md` 4.1).
+- 도입 시 `domain.md`에 테이블·컬럼을 먼저 추가한 뒤 이 명세를 실행 대상으로 승격한다.
 
 ## 1. 목적 & 연결
 
@@ -108,33 +109,21 @@ PRD가 이 기능을 두 곳에서 다르게 다룬다.
 
 ## 6. 데이터 모델
 
+> **스키마는 [`docs/backend/domain.md`](../backend/domain.md)가 유일한 기준이다.** 이 문서에 테이블·컬럼을 중복 기재하지 않는다 — 두 벌을 유지하면 반드시 어긋나고, 수정 비용이 두 배가 된다.
+> 컬럼을 추가·변경해야 하면 `domain.md`를 먼저 고치고 이 문서에는 동작 규칙만 남긴다.
+
+**이 기능은 P1 이연이므로 서버 테이블을 만들지 않는다.** `OfflineDownloadRecord` · `plans.offline_download_enabled`는 domain.md에 존재하지 않으며, 도입 시점에 추가한다(domain.md 14장).
+
+| 사용하는 것 | domain.md |
+|---|---|
+| `contents` — `content_version`(재발행 판정) · `status` | 5.1 |
+| `audio_access_logs` — 다운로드용 서명 URL 발급 이력 | 6.5 |
+
+- `OfflineItem` · `OfflineLicense`는 **클라이언트 로컬 전용**이다(domain.md 13.1). 아래 로컬 구조는 참고용이며 서버 스키마가 아니다.
+
 ```
-OfflineItem {                    // 로컬 DB
-  content_id (PK)
-  local_path: string             // 난수 파일명
-  file_size_bytes: int
-  status: enum(queued|downloading|completed|failed)
-  progress: float
-  downloaded_at, last_verified_at
-}
-
-OfflineLicense {                 // 로컬, 서명 검증
-  content_id, user_id,
-  valid_until: datetime,
-  signature: string
-}
-
-OfflineDownloadRecord {          // 서버 — 회수 반영 대상 파악
-  user_id, content_id, device_id, downloaded_at, deleted_at
-}
-
-WithdrawnContent {               // 서버 — 회수 목록
-  content_id, withdrawn_at
-}
-
-UserOfflineSetting {
-  user_id, network_policy: enum(wifi_only|all)
-}
+OfflineItem   { content_id(PK), local_path, file_size_bytes, status, progress, downloaded_at, last_verified_at }
+OfflineLicense{ content_id, user_id, valid_until, signature }
 ```
 
 ## 7. 예외 상황
@@ -163,8 +152,8 @@ UserOfflineSetting {
 
 ## 미결 사항
 
-- **MVP 포함 여부** — FR-26(P0)과 4.2(이연)가 충돌. 팀 확정 필요
-- 티어별 허용 범위 — "유료 전용"이 라이트·데일리도 포함인지, 프로 전용인지 미정(`subscription.md` 미결 사항과 동일)
+- ~~MVP 포함 여부~~ → **확정: P1 이연**
+- 티어별 허용 범위 — "유료 전용"이 데일리도 포함인지 프로 전용인지는 도입 시점에 결정 (라이트는 무료 티어이므로 제외)
 - 저장 개수·용량 상한 도입 여부
 - 오프라인 라이선스 유효 기간 30일 확정 필요 — 파트너 계약 조건에 종속
 - 무료 티어에 잠금 상태로 노출해 페이월 트리거로 쓸지 여부

@@ -48,16 +48,16 @@
 
 ### 4.1 사전 제외 지정
 
-- 파트너가 원문 단위로 오디오화 제외를 지정하면 `SourceDocument.excluded = true`
-- 이미 파이프라인에 진입한 건은 즉시 중단하고, 발행 전이면 폐기한다
-- 발행된 뒤라면 회수(4.3)와 동일하게 처리한다
+- 파트너가 원문 단위로 오디오화 제외를 지정하면 `content_control_requests(action = exclude)`로 기록한다
+- **MVP에는 파이프라인이 없으므로**(`content-pipeline.md` 범위 상태) 제외 지정은 "이 원문은 제작 대상에서 뺀다"는 운영 지시로 처리한다. 제작 착수 전 목록에서 제거한다
+- 이미 발행된 뒤라면 회수(4.3)와 동일하게 처리한다
 
-### 4.2 발행 전 검수
+### 4.2 발행 전 검수 — **MVP 범위 제외**
 
-- 파트너가 검수를 요구하는 경우, 해당 파트너의 콘텐츠는 `qa_passed` 이후 **`partner_review` 상태에서 대기**하고 자동 발행되지 않는다
-- 승인 → 발행 진행 / 반려 → 폐기 또는 재생성(반려 사유를 파이프라인 피드백으로 사용)
-- 검수 요구 여부는 **파트너 단위 설정**이다. 무검수 파트너는 자동 발행된다
-- 검수 대기 SLA를 두어(기준값: 7일) 초과 시 운영자에게 알린다. **자동 승인은 하지 않는다**
+~~파트너 검수 대기 상태~~ → **폐기됐다.** 관리자 업로드 = 즉시 발행 구조(FR-37)이므로 `Content.status`에 `partner_review`가 없고 `PartnerReview` 테이블도 만들지 않는다(`domain.md` 14장).
+
+- MVP에서 파트너 검수가 필요하면 **발행 전 단계, 즉 업로드 전에 운영자가 파트너와 오프라인으로 처리한다.** 시스템 상태로 관리하지 않는다.
+- 파트너 계약상 검수가 필수로 확정되면 그때 `Content.status`에 검수 대기 상태와 `PartnerReview`를 함께 도입한다(PRD 4.2).
 
 ### 4.3 회수 (FR-32) — 이 명세의 핵심
 
@@ -65,32 +65,34 @@
 
 | 노출면 | 반영 방법 | 시점 |
 |---|---|---|
-| 카탈로그 | `Content.status = withdrawn` | 즉시 |
+| 카탈로그 | `contents.status = withdrawn` + `withdrawn_at` | 즉시 |
 | 탐색 피드·검색 | 조회 쿼리에서 `status = published`만 반환 | 즉시(다음 조회부터) |
 | 드립 편성 후보 | 후보 필터에서 제외 | 즉시(다음 배치부터) |
-| **이미 적립된 라이브러리** | 해당 `LibraryItem` 제거 | 즉시(서버에서 삭제) |
+| **이미 적립된 라이브러리** | 해당 `library_items` 제거 | 즉시(서버에서 삭제) |
 | **재생 중인 세션** | 오디오 서명 URL 발급 차단. 진행 중 재생은 버퍼 소진 시 중단 | 즉시 |
-| **오프라인 저장분** | 회수 목록 동기화로 로컬 파일 삭제 | 기기가 온라인 될 때 |
+| **오프라인 저장분** *(P1 — FR-26 이연)* | 회수 목록 동기화로 로컬 파일 삭제 | 기기가 온라인 될 때 |
 | 푸시 발송 대기열 | 발송 직전 유효성 재확인으로 제외 | 즉시 |
 | 스크립트 | 조회 차단 | 즉시 |
 
 **처리 순서**
 
-1. `Content.status = withdrawn`, `withdrawn_at` 기록
+1. `contents.status = withdrawn`, `withdrawn_at` 기록
 2. 오디오 서명 URL 발급을 즉시 차단 (신규 발급 중단 + 기존 발급분은 짧은 만료로 자연 소멸)
-3. `LibraryItem` 일괄 삭제 (해당 콘텐츠를 가진 전체 사용자)
+3. `library_items` 일괄 삭제 (해당 콘텐츠를 가진 전체 사용자)
 4. 캐시(탐색 피드, 추천) 무효화
 5. 오프라인 회수 목록에 추가 → 클라이언트가 앱 실행·포그라운드 복귀 시 동기화
 6. 회수 처리 결과를 감사 로그에 기록
 
 **클라이언트 노출**: 사용자에게는 "제공이 종료된 콘텐츠예요"로만 안내한다. 파트너·계약 사정을 노출하지 않는다.
 
-**되돌리기**: `restore` 요청 시 `status = published`로 복구한다. 단 **삭제된 `LibraryItem`은 복구하지 않는다**(사용자 라이브러리를 임의로 되살리지 않음). 이후 드립·담기로 다시 들어올 수 있다.
+**되돌리기**: `restore` 요청 시 `status = published`로 복구한다. 단 **삭제된 `library_items`는 복구하지 않는다**(사용자 라이브러리를 임의로 되살리지 않음). 담기로는 다시 들어올 수 있으나, 드립으로는 다시 오지 않는다 — 회수로 삭제된 시점에 `drip_excluded_contents`에 남기 때문이다.
+
+**클라이언트 동기화**: 회수 목록은 별도 테이블 없이 `GET /contents/withdrawn?since=<timestamp>`로 `contents`에서 조회한다(`domain.md` 14장).
 
 ### 4.4 라이선스 범위·기간 통제 (FR-33)
 
-- `SourceDocument.license_scope`에 오디오화 허용 여부, 시작·만료일을 보관한다
-- **발행 게이트**: 허용되지 않거나 기간 밖이면 발행하지 않는다
+- 라이선스 만료일은 `contents.license_expires_at`에 보관한다. `SourceDocument`는 폐기됐으므로 발행 시점에 콘텐츠 행에 직접 기록한다
+- **발행 게이트**: 허용되지 않거나 기간 밖이면 업로드를 거부한다(관리자 업로드 검증 — `admin.md`)
 - **만료 자동 처리**: 만료일이 지나면 배치가 `status = expired`로 전환하고 회수와 동일한 노출 제외를 수행한다
   - 단 만료는 회수와 달리 `LibraryItem`을 즉시 삭제할지 여부가 계약에 따라 다를 수 있다 → 미결 사항
 
@@ -110,14 +112,21 @@
 
 파트너에게 제공하는 집계 지표.
 
-| 지표 | 정의 |
+| 지표 | 원천 |
 |---|---|
-| 재생 수 | 콘텐츠별 재생 시작 건수 |
-| 완청 수·완청률 | 90% 이상 도달 건수 / 재생 수 |
-| 총 청취 시간 | 실제 재생된 시간 합계 |
-| 담기 수 | 라이브러리 적립 건수 |
-| **원문 유입 수** | 플레이어의 [원문 보기] 탭 건수 — PRD 8.3 "원문 소비 감소" 리스크 대응 지표 |
-| 기간별 추이 | 일·주·월 단위 |
+| 재생 수 | `content_stats.play_count` |
+| 완청 수·완청률 | `complete_count` / `play_count` — **비율은 저장하지 않고 조회 시 계산한다**(비율은 합산이 불가능하므로) |
+| 총 청취 시간 | `content_stats.total_listen_sec` ← `play_records.listened_sec` 합계. **도달 위치가 아니라 실제 재생된 시간**이다 |
+| 담기 수 | `content_stats.save_count` |
+| **원문 유입 수** | `content_stats.source_link_click_count` — PRD 8.3 "원문 소비 감소" 리스크 대응 지표 |
+| 기간별 추이 | **주간·월간·전체** 3단위 (`period_type`) |
+
+**집계 규칙**
+
+- 갱신 주기: 주간은 매주 월요일 04:00, 월간은 매달 1일 04:00. 하루의 경계는 자정이 아니라 **04:00 KST**다(페이월 카운트와 같은 경계를 써야 숫자가 어긋나지 않는다).
+- **직전 확정 구간의 값으로 리포팅한다.** 5월에는 4월 집계를 보여준다. 진행 중인 구간은 표본이 부족해 순위가 무너진다.
+- 구간이 끝나면 `is_final = true`로 잠그고, **정산·리포팅은 확정된 행만 읽는다.** 돈이 나간 근거이므로 나중에 조회할 때 값이 달라지면 안 된다.
+- `PartnerReport` 별도 테이블은 만들지 않는다. `content_stats` 집계 + `contents.partner_id` 필터로 산출한다 — 같은 숫자를 두 곳에서 집계하면 정산 분쟁이 된다.
 
 - **개인 식별 정보를 절대 포함하지 않는다.** 집계값만 제공한다
 - 정산 연동 검증(PRD 10 "재생·완청 데이터의 저자 정산 구조 정합 검증")을 위해 원천 로그와 집계값이 재현 가능해야 한다
@@ -156,50 +165,21 @@ published ──withdraw──→ withdrawn ──restore──→ published
 
 ## 6. 데이터 모델
 
-```
-Partner {
-  partner_id, name,
-  requires_review: boolean,          // 발행 전 검수 요구 여부
-  contract_starts_at, contract_expires_at,
-  revenue_share_rate: float,         // 매출 % 풀 방식
-  contact_email, status
-}
+> **스키마는 [`docs/backend/domain.md`](../backend/domain.md)가 유일한 기준이다.** 이 문서에 테이블·컬럼을 중복 기재하지 않는다 — 두 벌을 유지하면 반드시 어긋나고, 수정 비용이 두 배가 된다.
+> 컬럼을 추가·변경해야 하면 `domain.md`를 먼저 고치고 이 문서에는 동작 규칙만 남긴다.
 
-ContentControlRequest {
-  request_id, partner_id,
-  action: enum(exclude|withdraw|restore),
-  target_content_ids[],
-  reason, effective_at,
-  requested_by, requested_at,
-  status: enum(pending|applied|failed),
-  applied_at, applied_surfaces: []   // 어느 노출면까지 반영됐는지
-}
+| 사용하는 것 | domain.md |
+|---|---|
+| `partners` — `status: active \| suspended \| terminated` | 10.1 |
+| `content_control_requests` — 제외·회수·복구 요청 이력 | 10.2 |
+| `audit_logs` | 10.3 |
+| `contents` — `status = withdrawn` + `withdrawn_at`이 회수 상태의 원천 | 5.1 |
+| `audio_access_logs` — 이상 접근 탐지 | 6.5 |
+| `content_stats` — 성과 리포팅(P1) | 5.4 |
 
-PartnerReview {
-  review_id, content_id, partner_id,
-  result: enum(pending|approved|rejected),
-  reject_reason, reviewed_by, reviewed_at, due_at
-}
-
-WithdrawnContent {                   // 클라이언트 동기화용 회수 목록
-  content_id, withdrawn_at
-}
-
-AudioAccessLog {                     // FR-33 이상 탐지·감사
-  content_id, user_id, device_id, issued_at, expires_at, ip_hash
-}
-
-PartnerReport {                      // FR-34
-  partner_id, content_id, period,
-  play_count, complete_count, total_listen_sec,
-  save_count, source_link_click_count,
-  generated_at
-}
-
-AuditLog {
-  actor, action, target, before, after, created_at
-}
-```
+- `PartnerReview`는 **폐기됐다.** 업로드 즉시 발행 구조라 발행 전 검수 상태가 존재하지 않는다.
+- `WithdrawnContent` 별도 테이블도 없다. `contents`에서 조회한다.
+- `PartnerReport` 별도 테이블도 없다. `content_stats` 집계 + `contents.partner_id` 필터로 산출한다.
 
 ## 7. 예외 상황
 

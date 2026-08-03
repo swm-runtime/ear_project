@@ -43,7 +43,7 @@
 [저장]        — 변경 사항이 있을 때만 활성
 ```
 
-- 주제 목록은 온보딩과 동일하게 **콘텐츠 보유 주제만** 노출한다(FR-03)
+- 주제 목록은 온보딩과 동일하게 `is_visible = true`인 주제만 노출한다(FR-03). **이 값은 관리자가 관리자 페이지에서 직접 제어하며 시스템이 자동으로 바꾸지 않는다**(FR-38)
 - 자동 확장(FR-18)으로 추가된 주제는 목록에서 "자동 추가됨" 배지로 구분한다. 사용자가 해제할 수 있고, 해제하면 자동 확장이 같은 주제를 다시 추가하지 않는다
 
 ### 4.2 저장 시 분기 — 변경 확인 팝업
@@ -75,7 +75,7 @@
 2. 서버에 최종 주제 목록 전체를 전송한다(델타가 아니라 전체 목록 — 멱등)
 3. 서버는 diff를 계산해 `UserInterest`를 갱신
    - 추가된 주제: `is_active = true`, `source = manual`
-   - 해제된 주제: `is_active = false` (레코드 삭제하지 않음 — 재선택 이력 추적)
+   - 해제된 주제: `is_active = false`, `is_user_removed = true` (레코드 삭제하지 않음 — 재선택 이력 추적, 자동 확장 재추가 금지)
 4. 추천·편성 캐시 무효화
 5. 성공 토스트 "관심사가 변경되었어요" → 이전 화면으로 복귀
 
@@ -98,32 +98,18 @@
 
 ## 6. 데이터 모델
 
-```
-UserInterest {
-  user_id, topic_id (복합 PK)
-  source: enum(onboarding|manual|auto_expand)
-  is_active: boolean
-  deactivated_at: datetime | null
-  user_removed: boolean          // 사용자가 직접 해제 → 자동 확장 재추가 금지
-  created_at, updated_at
-}
+> **스키마는 [`docs/backend/domain.md`](../backend/domain.md)가 유일한 기준이다.** 이 문서에 테이블·컬럼을 중복 기재하지 않는다 — 두 벌을 유지하면 반드시 어긋나고, 수정 비용이 두 배가 된다.
+> 컬럼을 추가·변경해야 하면 `domain.md`를 먼저 고치고 이 문서에는 동작 규칙만 남긴다.
 
-UserCareer {
-  user_id, job_category, job_title, years_of_experience, updated_at
-}
+| 사용하는 것 | domain.md |
+|---|---|
+| `user_interests` — `is_active` · `is_user_removed` | 4.2 |
+| `topics` — `is_visible`은 **관리자만** 변경 | 4.1 |
+| `users` — 커리어 필드(`UserCareer` 별도 테이블 없음) | 3.1 |
+| `user_settings.is_auto_expand_enabled` | 3.5 |
+| `topic_adjacencies` — 자동 확장(P1) | 4.3 |
 
-UserInterestSetting {
-  user_id, auto_expand_enabled: boolean, updated_at
-}
-
-Topic {
-  topic_id, name, parent_category, content_count, is_visible
-}
-
-InterestChangeLog {               // 변경 영향 분석용
-  user_id, added_topic_ids[], removed_topic_ids[], changed_at
-}
-```
+- `InterestChangeLog`는 테이블이 아니라 구조화 로그로 남긴다(domain.md 13.3).
 
 ## 7. 예외 상황
 
@@ -132,7 +118,7 @@ InterestChangeLog {               // 변경 영향 분석용
 - **해제한 주제의 콘텐츠가 이미 오늘 드립으로 편성 확정된 상태**: 그대로 적립된다. 사용자에게는 자연스러운 지연으로 보이므로 별도 안내하지 않는다.
 - **저장 도중 앱 종료**: 서버 트랜잭션 단위로 전부 반영 또는 전부 미반영. 부분 반영이 없어야 한다.
 - **여러 기기에서 동시에 관심사 편집**: 마지막 저장이 최종(전체 목록 전송 방식이라 자동으로 last-write-wins).
-- **주제가 서비스에서 제거된 경우**(콘텐츠 0건이 되어 `is_visible = false`): 목록에서 사라지지만 `UserInterest`는 유지한다. 콘텐츠가 다시 생기면 자동으로 되살아난다.
+- **관리자가 주제를 숨긴 경우**(`is_visible = false`): 목록에서 사라지지만 `user_interests` 레코드는 유지한다. 관리자가 다시 노출로 바꾸면 그대로 되살아난다. **자동 복구는 없다** — 노출 판단은 전적으로 관리자 몫이다.
 - **자동 확장으로 추가된 주제를 사용자가 해제**: `user_removed = true`를 세워 자동 확장 배치가 같은 주제를 다시 넣지 않게 한다.
 - **관심 주제 해제로 라이브러리가 사실상 갱신되지 않는 상태**: 라이브러리에 "새 콘텐츠가 도착하지 않고 있어요. 관심 주제를 추가해보세요" 안내를 노출한다.
 - **커리어 정보만 수정**: 확인 팝업 없이 저장하고 라이브러리에는 영향을 주지 않는다.
@@ -153,4 +139,5 @@ InterestChangeLog {               // 변경 영향 분석용
 
 - FR-06(자동 확장 토글)은 P1 — MVP에서 제외 시 토글 섹션을 숨기고 서버 기본값을 ON/OFF 중 무엇으로 둘지 결정 필요
 - 관심 주제 선택 개수 상한 도입 여부
+- 자동 확장(FR-18)은 P1이며 `topic_adjacencies` 테이블도 P1이다. MVP에서는 토글만 저장하고 배치는 돌지 않는다
 - 라이브러리 진입점(PRD 5.5의 "또는 라이브러리")의 구체 위치 — UI 설계에서 확정

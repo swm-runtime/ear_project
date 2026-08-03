@@ -33,24 +33,29 @@
 
 ### 4.1 티어 정의 및 기능 분기 (FR-28)
 
-| 티어 | 일 재생 한도 | 드립 | 광고 | 오프라인 저장 |
-|---|---|---|---|---|
-| free | 2편 | 없음 | 있음 | 불가 |
-| light | 서버 설정값 | 있음 | 없음 | 미정 |
-| daily | 서버 설정값 | 있음 | 없음 | 미정 |
-| pro | 무제한 | 있음 | 없음 | 가능 |
+**티어는 라이트·데일리·프로 3개이며, 라이트가 무료 티어다.** 무료 사용자는 `subscriptions` 행이 없고, 행이 없으면 라이트로 간주한다.
 
-- **모든 수치는 서버 설정값으로 관리한다.** 시범 운영 후 확정(PRD 4.1)되므로 앱 배포 없이 조정 가능해야 한다.
+| 티어 | 일 재생 한도 | 일 드립 편수 | 광고 | 결제 |
+|---|---|---|---|---|
+| **light (무료)** | **2편** | **2편** | 있음 | 없음 |
+| daily | 미정 | 미정 | 없음 | 구독 |
+| pro | 무제한 | 미정 | 없음 | 구독 |
+
+- **드립은 전 티어에 제공된다.** 무료 티어에 드립이 없다는 초기 정책은 폐기됐다(PRD FR-14).
+- **모든 수치는 `plans` 테이블의 값이다.** 시범 운영 후 확정(PRD 4.1)되므로 행의 값만 바꾸면 되고 앱 배포·마이그레이션이 필요 없다.
 - 클라이언트는 서버가 내려주는 `entitlements` 객체로 기능을 분기한다. 티어명을 클라이언트에 하드코딩하지 않는다.
 
 ```
-entitlements {
+entitlements {                      // 응답 DTO — 저장하는 컬럼이 아니다
   daily_play_limit: int | null      // null = 무제한
+  daily_drip_count: int
   drip_enabled: boolean
   ads_enabled: boolean
-  offline_download_enabled: boolean
 }
 ```
+
+- **`entitlements`는 `plans`에서 매번 조립해 내려주는 응답 필드다.** `users`에 `entitlements_cache` 같은 컬럼을 두지 않는다 — `users.tier` 캐시와 두 겹이 되면 반드시 어긋난다.
+- 오프라인 저장 권한(`offline_download_enabled`)은 P1 이연이므로 지금 넣지 않는다(FR-26).
 
 ### 4.2 구매 흐름 (FR-30)
 
@@ -80,11 +85,11 @@ entitlements {
 - 앱 내에서 해지를 직접 처리할 수 없다(스토어 구독). **스토어 구독 관리 화면으로 딥링크**한다.
   - iOS: `itms-apps://apps.apple.com/account/subscriptions`
   - Android: `https://play.google.com/store/account/subscriptions?sku=...&package=...`
-- 해지 후에도 **`expires_at`까지 혜택을 유지**한다(FR-31). 만료 시점에 서버 알림으로 `tier = free` 전환.
+- 해지 후에도 **`expires_at`까지 혜택을 유지**한다(FR-31). 만료 시점에 서버 알림으로 `tier = light`(무료) 전환하고 `subscriptions.status = expired`로 기록한다.
 - 만료 시 처리:
-  - 오프라인 저장분 재생 차단(FR-26)
-  - 라이브러리 콘텐츠는 삭제하지 않는다. 다만 무료 재생 한도(2편)가 적용된다
-  - 드립 편성 중단
+  - 라이브러리 콘텐츠는 삭제하지 않는다. 다만 무료 재생 한도(하루 2편)가 적용된다
+  - **드립은 중단되지 않고 무료 티어 편수(하루 2편)로 조정된다**
+  - 오프라인 저장분 재생 차단(FR-26) *(P1 이연)*
 
 ### 4.6 구매 복원
 
@@ -94,7 +99,7 @@ entitlements {
 
 ### 4.7 환불·결제 실패
 
-- 환불 알림 수신 → 즉시 `tier = free` 전환, 오프라인 저장분 재생 차단
+- 환불 알림 수신 → 즉시 `tier = light`(무료) 전환. 오프라인 저장분 재생 차단은 P1 도입 시 함께 적용
 - 갱신 결제 실패(유예 기간, billing retry): 스토어 유예 기간 동안 혜택 유지, 앱 내 배너로 결제 수단 확인 안내
 
 ## 5. 화면 상태
@@ -121,38 +126,19 @@ entitlements {
 
 ## 6. 데이터 모델
 
-```
-Plan {
-  plan_id, tier: enum(light|daily|pro), name, description,
-  daily_play_limit: int | null,
-  drip_enabled, ads_enabled, offline_download_enabled: boolean,
-  price_krw: int,
-  store_product_id_ios, store_product_id_android,
-  display_order, is_active
-}
+> **스키마는 [`docs/backend/domain.md`](../backend/domain.md)가 유일한 기준이다.** 이 문서에 테이블·컬럼을 중복 기재하지 않는다 — 두 벌을 유지하면 반드시 어긋나고, 수정 비용이 두 배가 된다.
+> 컬럼을 추가·변경해야 하면 `domain.md`를 먼저 고치고 이 문서에는 동작 규칙만 남긴다.
 
-Subscription {
-  subscription_id, user_id,
-  tier: enum(light|daily|pro),
-  store: enum(app_store|play_store),
-  original_transaction_id: string     // 유니크 — 계정 간 중복 연결 방지
-  latest_receipt: text
-  status: enum(active|grace|cancelled|expired|refunded)
-  auto_renew: boolean
-  started_at, expires_at, cancelled_at, updated_at
-}
+| 사용하는 것 | domain.md |
+|---|---|
+| `plans` | 8.1 |
+| `subscriptions` — **티어의 진실의 원천**. 행이 없으면 `light`(무료) | 8.2 |
+| `purchase_intents` — 결제 멱등키 | 8.3 |
+| `store_notification_logs` — S2S 알림 재처리 근거 | 8.4 |
+| `users.tier` — 비정규화 캐시. 갱신 경로는 `SubscriptionService` 한 곳 | 3.1 |
+| `archived_subscriptions` — 탈퇴 후 5년 보존, 재가입 복원 근거 | 11.5 |
 
-PurchaseIntent {
-  intent_id (멱등키), user_id, plan_id, platform,
-  status: enum(created|verified|failed), created_at
-}
-
-StoreNotificationLog {
-  notification_id, store, type, payload, processed_at
-}
-
-User { tier, entitlements_cache }
-```
+- `User.entitlements_cache` 컬럼은 **두지 않는다.** 권한은 `plans`에서 매번 조립해 응답 DTO로 내려준다.
 
 ## 7. 예외 상황
 
@@ -164,7 +150,7 @@ User { tier, entitlements_cache }
 - **국가·통화 차이**: 가격은 항상 스토어 SDK가 반환한 현지 표기를 노출한다. 서버의 `price_krw`는 참고값이다.
 - **요금제가 비활성화(is_active=false)된 뒤 기존 구독자**: 기존 구독은 만료까지 유지하고, 신규 구매 목록에서만 제외한다.
 - **다운그레이드 예약 상태에서 다시 업그레이드**: 스토어 상태를 따르고 서버는 S2S 알림으로 최종 상태를 반영한다.
-- **탈퇴 후 재가입 시 활성 구독 존재**: 구매 복원으로 새 계정에 연결한다(auth 명세 참조).
+- **탈퇴 후 재가입 시 활성 구독 존재**: `archived_subscriptions`에 보존된 `original_transaction_id`로 영수증을 검증해 새 계정에 티어를 연결한다. 복원은 앱 계정이 아니라 **스토어 영수증 기준**이므로 이전 계정이 파기됐어도 성립한다(auth 명세 4.3, `domain.md` 11.5).
 - **유예 기간 중 재생 한도**: 혜택을 유지한다(무료로 강등하지 않는다).
 
 ## 8. 완료 조건
@@ -172,18 +158,18 @@ User { tier, entitlements_cache }
 - Given 무료 사용자 / When 데일리 요금제를 결제 완료한다 / Then 서버 영수증 검증 후 티어가 즉시 데일리로 반영되고 재생 한도가 확장된다
 - Given 결제는 성공했으나 서버 검증이 일시 실패했다 / When 잠시 후 재시도가 수행된다 / Then 티어가 자동으로 반영되고 사용자가 재결제할 필요가 없다
 - Given 프로 구독 중인 사용자 / When 스토어에서 구독을 해지한다 / Then 만료일까지는 프로 혜택이 유지된다
-- Given 구독 만료일이 지났다 / When 앱을 실행한다 / Then 티어가 무료로 전환되고 하루 2편 제한이 적용된다
-- Given 구독 만료 상태 / When 오프라인 저장분을 재생 시도한다 / Then 재생이 차단된다
+- Given 구독 만료일이 지났다 / When 앱을 실행한다 / Then 티어가 라이트(무료)로 전환되고 하루 2편 제한이 적용된다
+- Given 구독 만료 상태 / When 오프라인 저장분을 재생 시도한다 / Then 재생이 차단된다 *(P1 — FR-26 도입 시)*
 - Given 앱을 재설치한 유료 사용자 / When [구매 복원]을 누른다 / Then 활성 구독이 검증되어 티어가 복원된다
 - Given 다른 계정에 연결된 스토어 구독 / When 복원을 시도한다 / Then 거부되고 안내 문구가 노출된다
-- Given 환불이 처리되었다 / When 스토어 알림이 수신된다 / Then 즉시 무료 티어로 전환된다
+- Given 환불이 처리되었다 / When 스토어 알림이 수신된다 / Then 즉시 라이트(무료) 티어로 전환된다
 - Given 라이트에서 프로로 업그레이드한다 / When 결제가 완료된다 / Then 즉시 프로 혜택이 적용된다
 - Given 프로에서 라이트로 다운그레이드한다 / When 결제 주기가 만료된다 / Then 그 시점부터 라이트 혜택이 적용된다
 
 ## 미결 사항
 
-- **티어 명칭·구성 불일치**: PRD 4.1(무료/베이직/프로) vs FR-28(라이트/데일리/프로). 확정 필요
-- 티어별 일 청취 편수·가격 — 1~2주 시범 운영 후 결정(PRD 4.1)
-- **라이트·데일리 티어의 오프라인 저장 허용 여부** — FR-26은 "유료 전용"이라고만 정의
+- ~~티어 명칭·구성 불일치~~ → **확정: 라이트(무료)/데일리/프로**
+- 데일리·프로의 일 청취 편수·드립 편수·가격 — 1~2주 시범 운영 후 결정(PRD 4.1). `plans` 행의 값만 채우면 되고 마이그레이션은 필요 없다
+- ~~라이트·데일리의 오프라인 저장 허용 여부~~ → **오프라인 저장 자체가 P1 이연이므로 도입 시점에 결정한다**
 - 무료 체험(free trial) 제공 여부 및 기간
 - 프로 티어의 "월 팩 크레딧 1개"(PRD 4.2)는 MVP 비범위 — 도입 시 본 명세 개정 필요

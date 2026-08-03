@@ -4,14 +4,26 @@
 
 > `next_doing.md` 1장 2번: **"제일 어려운 부분(콘텐츠 파이프라인)을 화면보다 먼저 설계"** — 이 서비스에서 유일하게 검증되지 않은 영역이다.
 
+## ⚠️ 범위 상태 — **자동화는 P1 이연**
+
+**MVP는 이 파이프라인을 시스템으로 운영하지 않는다.**
+
+- 대본 생성·QA 대조·TTS 변환은 **팀이 앱 밖에서 수행**하고, 완성된 오디오를 **관리자 계정으로 업로드하면 즉시 발행**된다(PRD FR-37 → [`admin.md`](admin.md)).
+- 업로드 이전 단계의 상태를 시스템에서 관리하지 않으므로 `SourceDocument` · `Episode` · `Script` · `QaReport` · `PipelineRun` 테이블을 **만들지 않는다**(`domain.md` 14장).
+- `Content.status`는 `published` · `withdrawn` · `expired` **3값뿐**이다. `qa_passed` · `partner_review` 같은 중간 상태는 존재하지 않는다.
+
+**이 문서는 자동화 도입 시점을 대비한 설계 문서이자, MVP 수작업의 제작 기준(4.2~4.5의 분할·생성·QA 규칙)으로 쓴다.** 사람이 수행해도 지켜야 하는 규칙이기 때문이다.
+
+자동화 도입 조건: 콘텐츠 볼륨이 수작업 한계를 넘는 시점(PRD 4.2).
+
 ## 1. 목적 & 연결
 
-파트너 원문과 AI 생성 소스를 **단일 표준 에피소드**로 바꿔 카탈로그에 올린다. 사람이 매건 검수하지 않아도 되도록 QA를 파이프라인 안에 내장하는 것이 핵심이며, 이것이 성립해야 "일일 발행"이 성립한다(PRD 2.1).
+파트너 원문과 AI 생성 소스를 **단일 표준 에피소드**로 바꿔 카탈로그에 올린다. 사람이 매건 검수하지 않아도 되도록 QA를 파이프라인 안에 내장하는 것이 장기 목표이며, 이것이 성립해야 "일일 발행"이 성립한다(PRD 2.1). **MVP는 그 전 단계로, 사람이 제작·검수하고 관리자 업로드로 발행한다.**
 
 - FR-07 (P0) 파트너 원문은 공식 제공 경로로만 수급, 협의된 주기로 최신성 유지
 - FR-08 (P0) 원문·AI 대본을 단일 표준 에피소드 형태로 변환. 변형(버전) 없음
 - FR-09 (P0) 원문·소스에 없는 사실을 생성·추가·변형하지 않음
-- FR-10 (P0) 발행 전 QA로 사실관계 대조, 이탈 시 자동 재생성
+- FR-10 (P0) 발행 전 QA로 사실관계 대조 — **MVP는 업로드 전 수동 검수**, 자동 대조·재생성은 P1
 - FR-11 (P0) AI 생성용 소스 수집은 적법 범위로 한정
 - FR-12 (P0) 원저자·출처 고지, 원문 연결 정보 제공
 - FR-13 (P0) 권장 길이 10~15분, 완결성 우선 분할
@@ -86,7 +98,7 @@
   - 10~15분 범위면 단일 에피소드
   - 15분 초과면 분할하되, **완결성을 우선한다**(FR-13) — 문단·소제목 경계에서만 자르고, 문장 중간에서 자르지 않는다
   - 분할 결과 각 편이 5분 미만이 되면 인접 편과 병합한다
-  - 분할된 에피소드는 `series_id`로 묶고 `episode_no`를 부여한다
+  - 분할된 에피소드는 `series_id`로 묶고 `episode_no`를 부여한다. **이 값들은 `contents` 테이블에 직접 들어간다**(별도 `Episode` 테이블 없음). 분할되지 않은 단일 콘텐츠는 `series_id = NULL`이다
 - 분할은 **대본 생성 전**에 결정한다(생성 후 자르면 도입·마무리 멘트가 어긋난다).
 
 ### 4.3 대본 생성 (FR-08, FR-09)
@@ -182,58 +194,19 @@ ingested → normalized → script_generated → qa_passed → audio_generated �
 
 ## 6. 데이터 모델
 
-```
-SourceDocument {
-  source_id, origin: enum(partner|ai_source),
-  partner_id, external_id,                    // (partner_id, external_id) 유니크
-  title, body_text, author_name, source_url,
-  published_at, updated_at, content_hash,
-  license_scope: { audio_allowed, starts_at, expires_at, redistribution: false },
-  collection_policy_checked: boolean,          // FR-11
-  ingested_at
-}
+> **스키마는 [`docs/backend/domain.md`](../backend/domain.md)가 유일한 기준이다.** 이 문서에 테이블·컬럼을 중복 기재하지 않는다 — 두 벌을 유지하면 반드시 어긋나고, 수정 비용이 두 배가 된다.
+> 컬럼을 추가·변경해야 하면 `domain.md`를 먼저 고치고 이 문서에는 동작 규칙만 남긴다.
 
-Episode {                                     // 분할 단위
-  episode_id, source_id,
-  series_id, episode_no, total_episodes,
-  body_segment: text,
-  estimated_duration_sec
-}
+**이 기능은 P1 이연이므로 파이프라인 테이블을 만들지 않는다.** `SourceDocument` · `Episode` · `Script` · `QaReport` · `PipelineRun`은 전부 폐기됐다(domain.md 14장). 자동화를 도입할 때 다시 정의한다.
 
-Script {
-  script_id, episode_id, version: int,
-  intro_text, body_text, outro_text,
-  generated_at, model_name, prompt_version
-}
+| MVP에서 사용하는 것 | domain.md |
+|---|---|
+| `contents` — **업로드 시점에 `published`로 생성**. `series_id` · `episode_no` · `total_episodes`가 여기 흡수됐다 | 5.1 |
+| `content_topics` | 5.2 |
+| `content_scripts` | 5.3 |
 
-QaReport {
-  qa_id, script_id, attempt: int,
-  result: enum(passed|failed),
-  checks: [{ type, passed, detail, evidence_span }],
-  failed_reasons[], checked_at
-}
-
-Content {                                     // 발행 산출물 = 앱에 노출되는 단위
-  content_id, episode_id, script_id,
-  content_version: int,
-  title, description, topic_ids[],
-  author_name, source_name, source_url,
-  origin: enum(partner|ai_generated),
-  partner_id: string | null,
-  audio_path, duration_sec, thumbnail_url,
-  status: enum(published|withdrawn|expired|superseded),
-  published_at, withdrawn_at
-}
-
-ContentScript {                               // 앱 스크립트 열람용 (FR-25)
-  content_id, segments: [{ start_sec, end_sec, text }]
-}
-
-PipelineRun {
-  run_id, source_id, stage, status,
-  started_at, finished_at, error_code, error_detail
-}
-```
+- `Content.status`는 `published` · `withdrawn` · `expired` **3값뿐**이다. `draft` · `partner_review` · `qa_failed` 같은 파이프라인 상태는 존재하지 않는다.
+- 재발행은 새 행을 만들지 않고 같은 행의 `content_version`을 올린다. `superseded` 상태는 없다.
 
 ## 7. 예외 상황
 

@@ -123,34 +123,16 @@ GET 요청은 기본 자동 재시도 대상, POST/PUT/DELETE는 멱등키가 �
 
 ## 6. 데이터 모델
 
+> **스키마는 [`docs/backend/domain.md`](../backend/domain.md)가 유일한 기준이다.** 이 문서에 테이블·컬럼을 중복 기재하지 않는다 — 두 벌을 유지하면 반드시 어긋나고, 수정 비용이 두 배가 된다.
+> 컬럼을 추가·변경해야 하면 `domain.md`를 먼저 고치고 이 문서에는 동작 규칙만 남긴다.
+
+이 문서가 다루는 것은 **서버 응답 규격과 클라이언트 로컬 큐**이며, DB 테이블이 아니다(domain.md 13.1·13.2).
+
 ```
-ApiError {                        // 서버 응답 규격
-  error_code: string              // 예: CONTENT_WITHDRAWN, PLAY_LIMIT_EXCEEDED
-  message: string | null          // 사용자 노출용
-  retryable: boolean
-  retry_after_sec: int | null
-}
-
-PendingRequest {                  // 로컬 큐
-  request_id (멱등키), type, payload,
-  created_at, retry_count, last_attempt_at
-}
-
-NetworkState {                    // 클라이언트 전역
-  reachable: boolean, connection_type: enum(wifi|cellular|none)
-}
+ApiError      { error_code, message, retryable, retry_after_sec }   // 서버 응답 규격
+PendingRequest{ request_id(멱등키), type, payload, created_at, retry_count, last_attempt_at }  // 로컬 큐
+NetworkState  { reachable, connection_type }                        // 클라이언트 전역
 ```
-
-**서버 에러 코드 규약**: 클라이언트가 분기해야 하는 상황은 반드시 `error_code`로 구분한다. HTTP 상태만으로 판단하지 않는다.
-
-| error_code | 상황 | 클라이언트 동작 |
-|---|---|---|
-| `PLAY_LIMIT_EXCEEDED` | 무료 한도 초과 | 페이월 노출 |
-| `CONTENT_WITHDRAWN` | 파트너 회수 | 안내 + 목록에서 제거 |
-| `SUBSCRIPTION_EXPIRED` | 구독 만료 | 구독 안내 |
-| `FORCE_UPDATE_REQUIRED` | 버전 미달 | 강제 업데이트 화면 |
-| `MAINTENANCE` | 점검 중 | 점검 안내 |
-| `RECEIPT_VERIFY_PENDING` | 영수증 검증 지연 | "반영 중" 안내 + 큐 적재 |
 
 ## 7. 예외 상황
 

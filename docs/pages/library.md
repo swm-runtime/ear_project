@@ -53,24 +53,24 @@
 
 - 카드 본문 탭 = **즉시 재생**(PRD 5.2). 상세 화면을 거치지 않는다.
 - 재생 전 **무료 티어 재생 제한 판정**을 수행한다 → 차단 시 페이월 바텀시트(페이월 명세)
-- 통과 시 플레이어를 열고 `resume_position_sec`부터 재생(0이면 처음부터)
+- 통과 시 플레이어를 열고 `playback_progresses.position_sec`부터 재생(0이면 처음부터). 재생 위치는 `library_items`가 아니라 `playback_progresses`가 소유하므로 목록 조회 시 조인해 가져온다
 
 ### 4.3 상태 관리
 
 - `unplayed` → 재생 시작 시 `in_progress`로 전환
 - `in_progress` → **완청 판정**을 만족하면 `completed`
   - 완청 기준: 재생 위치가 콘텐츠 길이의 **90% 이상**에 도달
-- 사용자가 수동으로 [완료로 표시] / [미청취로 되돌리기]를 할 수 있다(더보기 메뉴)
-  - 수동 완료 표시는 소비 신호(FR-15)로는 **완청과 구분해서** 기록한다
+- **수동 완료 표시 기능은 제공하지 않는다.** 상태는 실제 재생 결과로만 바뀐다 — 신호의 의미를 흐리지 않기 위해서다
 - 완료된 아이템은 목록에서 자동 제거하지 않는다(재청취 지표 수집 — PRD 10)
 
 ### 4.4 삭제
 
 - 스와이프 또는 더보기 > [라이브러리에서 삭제]
 - 확인 팝업 없이 즉시 삭제 + **[실행 취소] 스낵바 5초**
-- 삭제는 `LibraryItem`만 제거하며 콘텐츠 자체·재생 이력은 남긴다
-- 삭제된 콘텐츠는 **드립 재적립 대상에서 제외**한다(중복 적립 방지, FR-16). 단 탐색에서 사용자가 직접 다시 담는 것은 허용
-- 오프라인 저장분이 있으면 로컬 파일도 함께 삭제한다
+- 삭제는 `library_items`만 소프트 삭제하며 콘텐츠 자체·**재생 이력(`playback_progresses`)은 남긴다**
+- 삭제된 콘텐츠는 `drip_excluded_contents`에 적재되어 **드립 재적립 대상에서 영구 제외**된다(FR-16). 단 탐색에서 사용자가 직접 다시 담는 것은 허용한다
+  - **삭제 경로를 구분하지 않는다.** 라이브러리 삭제든 탐색 담기 해제든 결과는 동일하게 영구 제외다
+- 오프라인 저장분이 있으면 로컬 파일도 함께 삭제한다 *(오프라인 저장은 P1 이연 — FR-26)*
 
 ### 4.5 새로고침·드립 반영
 
@@ -102,29 +102,15 @@
 
 ## 6. 데이터 모델
 
-```
-LibraryItem {
-  user_id, content_id (복합 PK)
-  source: enum(drip|save|onboarding)
-  status: enum(unplayed|in_progress|completed)
-  resume_position_sec: int
-  added_at, last_played_at, completed_at
-  deleted_at: datetime | null      // 소프트 삭제 — 드립 재적립 방지용
-}
+> **스키마는 [`docs/backend/domain.md`](../backend/domain.md)가 유일한 기준이다.** 이 문서에 테이블·컬럼을 중복 기재하지 않는다 — 두 벌을 유지하면 반드시 어긋나고, 수정 비용이 두 배가 된다.
+> 컬럼을 추가·변경해야 하면 `domain.md`를 먼저 고치고 이 문서에는 동작 규칙만 남긴다.
 
-Content {
-  content_id, title, description, topic_ids[],
-  author_name, source_name, source_url,
-  duration_sec, audio_url, thumbnail_url,
-  origin: enum(partner|ai_generated),
-  status: enum(published|withdrawn),
-  published_at
-}
-
-PlaybackProgress {
-  user_id, content_id, position_sec, updated_at
-}
-```
+| 사용하는 것 | domain.md |
+|---|---|
+| `library_items` — 소프트 삭제, `(user_id, content_id)` 유니크가 중복 적립 방어선 | 6.1 |
+| `playback_progresses` — **재생 위치의 단독 소유자**(`library_items`에 위치 컬럼 없음) | 6.2 |
+| `contents` | 5.1 |
+| `drip_excluded_contents` — 삭제 시 여기에 적재 | 7.1 |
 
 - 클라이언트 로컬 캐시: 최근 목록 1페이지, 재생 위치(서버 동기화 실패 대비)
 
@@ -133,7 +119,7 @@ PlaybackProgress {
 - **삭제 후 [실행 취소]를 눌렀는데 이미 서버 삭제가 완료된 경우**: 재적립(`deleted_at = null`)으로 복구하며, 원래 `added_at`을 유지해 목록 순서가 바뀌지 않게 한다.
 - **여러 기기에서 같은 콘텐츠 재생**: 재생 위치는 `updated_at`이 최신인 값이 이긴다(last-write-wins). 충돌 UI는 두지 않는다.
 - **재생 중인 콘텐츠를 라이브러리에서 삭제**: 재생은 중단하지 않는다. 미니플레이어는 유지하되, 재생 종료 시 진행률을 저장하지 않는다.
-- **완청 판정 경계**(90% 도달 후 뒤로 되감아 다시 들음): 한 번 `completed`가 되면 되감아도 상태를 되돌리지 않는다. 단 `resume_position_sec`은 갱신한다.
+- **완청 판정 경계**(90% 도달 후 뒤로 되감아 다시 들음): 한 번 `completed`가 되면 되감아도 상태를 되돌리지 않는다. 단 `playback_progresses.position_sec`은 갱신한다.
 - **콘텐츠 길이 정보가 없거나 0인 경우**: 완청 판정 불가 → 재생 종료 이벤트로만 `completed` 처리.
 - **오프라인 상태에서 삭제**: 로컬에서만 제거하고 큐에 넣어 온라인 복귀 시 동기화한다.
 - **드립과 사용자 담기가 동시에 같은 콘텐츠를 적립**: `(user_id, content_id)` 유니크 제약으로 1건만 남기고, `source`는 먼저 적립된 값을 유지한다.
@@ -147,6 +133,7 @@ PlaybackProgress {
 - Given 콘텐츠를 90% 이상 재생했다 / When 라이브러리로 돌아온다 / Then 해당 아이템 상태가 완료로 표시된다
 - Given 아이템을 삭제했다 / When 5초 안에 [실행 취소]를 누른다 / Then 원래 순서 그대로 목록에 복구된다
 - Given 드립으로 받은 콘텐츠를 삭제했다 / When 다음 드립이 편성된다 / Then 삭제한 콘텐츠는 다시 적립되지 않는다
+- Given 탐색에서 담기를 해제한 콘텐츠가 있다 / When 다음 드립이 편성된다 / Then 그 콘텐츠도 다시 적립되지 않는다
 - Given 파트너가 회수한 콘텐츠가 라이브러리에 있다 / When 목록을 새로고침한다 / Then 해당 아이템이 목록에서 사라진다
 - Given 네트워크가 끊긴 상태 / When 라이브러리를 연다 / Then 캐시된 목록과 오프라인 배너가 노출된다
 - Given 라이브러리가 완전히 비어 있다 / When 화면을 연다 / Then 빈 상태 안내와 탐색 이동 버튼이 노출된다

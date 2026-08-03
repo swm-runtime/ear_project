@@ -67,28 +67,15 @@
 
 ## 6. 데이터 모델
 
-```
-AppConfig {
-  min_supported_version: string
-  latest_version: string
-  notice: { type: none|info|maintenance, title, body, until } | null
-}
+> **스키마는 [`docs/backend/domain.md`](../backend/domain.md)가 유일한 기준이다.** 이 문서에 테이블·컬럼을 중복 기재하지 않는다 — 두 벌을 유지하면 반드시 어긋나고, 수정 비용이 두 배가 된다.
+> 컬럼을 추가·변경해야 하면 `domain.md`를 먼저 고치고 이 문서에는 동작 규칙만 남긴다.
 
-Session {
-  access_token: string        // 보안 저장소
-  refresh_token: string       // 보안 저장소
-  expires_at: datetime
-}
+| 사용하는 것 | domain.md |
+|---|---|
+| `users` — `onboarding_completed` · `onboarding_step` · `tier` | 3.1 |
+| `sessions` — 토큰 검증 | 3.3 |
 
-User {
-  user_id: string
-  onboarding_completed: boolean
-  onboarding_step: enum(topic|career|pick|done)   // 중단 지점 재개용
-  tier: enum(free|light|daily|pro)
-}
-```
-
-- 로컬 저장: 토큰(암호화 저장소), 마지막 진입 화면, 마지막 권장 업데이트 안내 노출일(하루 1회 제한용)
+**`AppConfig`는 테이블이 아니다.** 최소 지원 버전·최신 버전·점검 공지는 **배포 설정에서 관리**하고 서버가 조회 API로 내려준다(domain.md 13.3). 플랫폼별로 값이 다르다.
 
 ## 7. 예외 상황
 
@@ -112,4 +99,4 @@ User {
 ## 미결 사항
 
 - 백그라운드 복귀 시 재검증 임계 시간(30분) 확정 필요
-- 점검 공지 운영 주체·경로(어드민 화면 필요 여부) 미정
+- ~~점검 공지 운영 주체·경로~~ → **확정: 배포 설정에서 관리한다.** 관리자 화면을 두지 않는다(`domain.md` 13.3). 배포 없이 공지를 켜야 하는 요구가 생기면 그때 테이블로 승격한다.

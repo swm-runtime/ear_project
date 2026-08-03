@@ -14,15 +14,15 @@
 
 ## 2. 진입 조건
 
-페이월 바텀시트는 아래 두 경우에만 노출된다.
+페이월 바텀시트는 **아래 한 경우에만** 노출된다.
 
-1. **재생 한도 초과** — `tier == free`이고 `daily_play_count >= 2`인 상태에서 콘텐츠 재생을 시도할 때 (라이브러리·탐색·미니플레이어·푸시 진입 모두 동일)
-2. **드립 접근 시도** — 무료 사용자가 드립 관련 기능에 접근할 때 (PRD 4.1 "페이월 트리거는 2편 소진 후 재생 시도 **및 드립 접근 시점**")
+1. **재생 한도 초과** — `tier == light`(무료)이고 오늘 재생한 고유 콘텐츠 수가 2편 이상인 상태에서 콘텐츠 재생을 시도할 때 (라이브러리·탐색·미니플레이어·푸시 진입 모두 동일)
 
 아래는 **트리거가 아니다**:
 - 담기 (무제한 — PRD 5.4 명시)
 - 탐색 피드 열람·검색
 - 라이브러리 열람
+- **드립 영역 접근** — 무료 티어도 드립을 받으므로(PRD FR-14) 잠금·페이월 대상이 아니다
 - 유료 티어 사용자의 한도 초과 → 페이월이 아니라 "오늘 청취 한도를 모두 사용했어요" 안내(업그레이드 유도는 선택적)
 
 ## 3. 입력값
@@ -30,11 +30,10 @@
 | 값 | 출처 | 필수 |
 |---|---|---|
 | user_id | 토큰 | 필수 |
-| tier | 서버(User) | 필수 |
-| daily_play_count | 서버 | 필수 |
-| count_reset_at | 서버 | 필수 |
+| tier | 서버(`users.tier`) | 필수 |
+| daily_play_count | 서버가 `play_records` 집계로 산출한 **파생값**(컬럼 아님) | 필수 |
 | blocked_content_id | 재생 시도한 콘텐츠 | 필수 |
-| entry_point | library / explore / miniplayer / push / drip | 필수(전환 분석용) |
+| entry_point | library / explore / miniplayer / push | 필수(전환 분석용) |
 | plans | 서버가 내려주는 요금제 목록 + 스토어 상품 ID | 필수 |
 
 ## 4. 처리 로직
@@ -44,17 +43,16 @@
 재생 시도마다 **서버가 판정한다**(클라이언트 카운트는 UI 힌트일 뿐, 최종 판정 근거가 아니다 — 우회 방지).
 
 ```
-if tier == free:
-    if daily_play_count >= 2  → BLOCKED (페이월)
-    else                      → ALLOW
-elif tier == light or daily:
-    if daily_play_count >= tier_limit → LIMIT_REACHED (한도 안내)
-    else                              → ALLOW
-elif tier == pro:
-    → ALLOW (무제한)
+limit = plans[user.tier].daily_play_limit     // null = 무제한
+
+if limit == null                → ALLOW
+if daily_play_count < limit     → ALLOW
+if user.tier == light (무료)     → BLOCKED (페이월)
+else                            → LIMIT_REACHED (한도 안내, 페이월 아님)
 ```
 
-- 티어별 한도는 서버 설정값으로 관리한다(1~2주 시범 운영 후 확정 — PRD 4.1)
+- 한도는 `plans.daily_play_limit`에서 읽는다. 티어명을 코드에 하드코딩하지 않는다.
+- **라이트(무료) = 2편 확정.** 데일리·프로 값은 1~2주 시범 운영 후 결정하며, `plans` 행의 값만 바꾸면 되고 앱 배포가 필요 없다(PRD FR-14).
 
 ### 4.2 카운트 시점 — **재생 시작 시점**
 
@@ -64,15 +62,18 @@ elif tier == pro:
   - 이유: 버튼 탭 후 로드 실패·즉시 취소한 경우까지 차감하면 사용자가 손해를 본다.
 - **같은 콘텐츠를 같은 날 다시 재생하면 카운트하지 않는다.** 카운트 단위는 "재생 횟수"가 아니라 **"오늘 재생한 고유 콘텐츠 수"** 다.
   - 이유: 이어듣기·되감기가 한도를 갉아먹으면 정상 사용이 불가능해진다.
-  - 즉 `daily_play_count = COUNT(DISTINCT content_id WHERE played_at >= count_reset_at)`
+  - 구현은 `play_records`의 `(user_id, content_id, play_date)` **유니크 제약이 보장한다.** 같은 날 같은 콘텐츠를 다시 재생해도 행이 늘지 않으므로 애플리케이션이 중복을 신경 쓸 필요가 없다
+  - 즉 `daily_play_count = COUNT(*) FROM play_records WHERE user_id = ? AND play_date = <오늘의 서비스 날짜>`
 - 재생 시작 후 3초 이내에 중단해도 카운트는 유지한다(어뷰징 방지).
 
 ### 4.3 카운트 초기화 — 04시 기준
 
 - 매일 **04:00 (Asia/Seoul)** 에 초기화된다(PRD 9.1).
-- 배치로 리셋하지 않고, **판정 시점에 `count_reset_at`을 계산**하는 방식으로 구현한다.
-  - `count_reset_at = 오늘 04:00 (현재 시각이 04:00 이전이면 어제 04:00)`
+- 배치로 리셋하지 않고, **판정 시점에 "오늘의 서비스 날짜"를 계산**하는 방식으로 구현한다.
+  - `서비스 날짜 = 현재 시각이 04:00 이전이면 어제, 이후면 오늘` → `play_records.play_date`에 저장되는 값과 같다
+  - `users`에 `daily_play_count`·`count_reset_at` 컬럼을 두지 않는다. 컬럼과 집계가 어긋나면 어느 쪽이 맞는지 판단할 수 없어진다
   - 이렇게 하면 배치 지연·시간대 이슈가 판정에 영향을 주지 않는다.
+  - **경계 계산 함수는 한 곳에만 두고 전 모듈이 그것만 호출한다.** `content_stats` 집계가 다른 경계를 쓰면 페이월 카운트와 통계가 영구히 어긋난다.
 - 기준 시간대는 **서버의 Asia/Seoul 고정**이다. 기기 시각·기기 시간대를 신뢰하지 않는다.
 
 ### 4.4 페이월 노출 → 결제 → 복귀
@@ -82,15 +83,10 @@ elif tier == pro:
 3. 결제 버튼 탭 → 스토어 인앱 결제 플로우(구독 명세 4.2 참조)
 4. 결제 성공 → 서버 영수증 검증 → `tier` 갱신
 5. 시트 자동 닫힘 → **`blocked_content_id`를 자동 재생**한다 (PRD 5.4 "막혔던 지점으로 복귀해 이어 진행")
-   - 재생 위치는 저장된 `resume_position_sec`을 따른다
+   - 재생 위치는 저장된 `playback_progresses.position_sec`을 따른다
 6. [닫기] 탭 → 원래 화면으로 복귀. 재생은 시작되지 않는다. `blocked_content_id`는 폐기
 
-### 4.5 드립 접근 트리거
-
-- 무료 사용자에게는 드립이 편성되지 않으므로(PRD 4.1), 라이브러리의 드립 관련 UI(예: "매일 도착하는 콘텐츠" 영역)를 **잠금 상태로 노출**하고 탭 시 페이월을 띄운다.
-- 이때 `blocked_content_id`는 없다 → 결제 완료 후 콘텐츠 자동 재생 대신 **드립 편성을 즉시 트리거**하고 라이브러리를 새로고침한다.
-
-### 4.6 노출 빈도
+### 4.5 노출 빈도
 
 - 재생 시도마다 노출한다(빈도 제한 없음). 한도 초과 상태에서 재생을 시도한 것 자체가 명확한 의도이므로.
 - 단 같은 세션에서 [닫기] 후 **3초 이내 재시도**는 중복 노출로 보고 무시한다(연타 방지).
@@ -102,7 +98,6 @@ elif tier == pro:
 | 무료 · count < 2 | 재생 버튼 → 즉시 재생 |
 | 무료 · count == 2 | 라이브러리·탐색 카드에 잔여 한도 힌트 표시("오늘 재생 0/2 남음") |
 | 무료 · count >= 2 · 재생 시도 | **페이월 바텀시트** — 제한 안내 + 3티어 비교표 + 결제 버튼 + [닫기] |
-| 무료 · 드립 영역 탭 | 페이월 바텀시트(드립 소구 문구 버전) |
 | 요금제 로딩 중 | 시트 내 스켈레톤 |
 | 요금제 조회 실패 | 시트 내 "요금제를 불러올 수 없어요" + [다시 시도] |
 | 결제 진행 중 | 전체 버튼 비활성 + 로딩. 시트 닫기 차단 |
@@ -112,41 +107,23 @@ elif tier == pro:
 | 영수증 검증 지연 | "구독을 확인하고 있어요" 상태 유지(최대 30초) → 초과 시 "잠시 후 자동 반영됩니다" 안내 후 시트 닫기 |
 | [닫기] | 원래 화면 복귀, 재생 시작 안 됨 |
 
-**바텀시트 구성**: 제한 안내 헤드라인 / 3티어 비교(가격·일 청취 편수·드립·광고·오프라인) / 티어별 [구독하기] / 복원 링크 / 약관·해지 안내 / [닫기]
+**바텀시트 구성**: 제한 안내 헤드라인 / 3티어 비교(가격·일 청취 편수·드립 편수·광고) / 티어별 [구독하기] / 복원 링크 / 약관·해지 안내 / [닫기]
+
+- 오프라인 저장은 P1 이연이므로 비교표에 넣지 않는다(FR-26).
 
 ## 6. 데이터 모델
 
-```
-User {
-  user_id
-  tier: enum(free|light|daily|pro)
-  daily_play_count: int          // 파생값 — PlayRecord에서 계산
-  count_reset_at: datetime       // 판정 시점 계산
-}
+> **스키마는 [`docs/backend/domain.md`](../backend/domain.md)가 유일한 기준이다.** 이 문서에 테이블·컬럼을 중복 기재하지 않는다 — 두 벌을 유지하면 반드시 어긋나고, 수정 비용이 두 배가 된다.
+> 컬럼을 추가·변경해야 하면 `domain.md`를 먼저 고치고 이 문서에는 동작 규칙만 남긴다.
 
-PlayRecord {                     // 카운트 근거
-  user_id, content_id, played_at   // (user_id, content_id, play_date) 유니크
-}
+| 사용하는 것 | domain.md |
+|---|---|
+| `play_records` — **카운트의 유일한 근거**. `daily_play_count` 컬럼은 존재하지 않는다 | 6.3 |
+| `plans` — 티어별 한도·드립 편수 | 8.1 |
+| `subscriptions` · `users.tier`(캐시) | 8.2 · 3.1 |
 
-Plan {
-  plan_id, tier, name,
-  daily_play_limit: int | null,   // null = 무제한
-  drip_enabled: boolean,
-  ads_enabled: boolean,
-  price_krw, store_product_id_ios, store_product_id_android,
-  is_active
-}
-
-Subscription {
-  user_id, tier, store, original_transaction_id,
-  started_at, expires_at, auto_renew: boolean, status
-}
-
-PaywallEvent {                   // 전환 분석
-  user_id, entry_point, blocked_content_id,
-  shown_at, action: enum(close|purchase_start|purchase_success|purchase_fail)
-}
-```
+- `User.daily_play_count` · `count_reset_at` 컬럼은 **없다.** 판정 시점에 `play_records`를 집계한다.
+- `PaywallEvent`는 테이블이 아니라 구조화 로그로 남긴다(domain.md 13.3).
 
 ## 7. 예외 상황
 
@@ -170,13 +147,13 @@ PaywallEvent {                   // 전환 분석
 - Given 무료 사용자가 03:59에 한도를 소진했다 / When 04:01에 재생을 시도한다 / Then 카운트가 초기화되어 재생된다
 - Given 페이월에서 결제 중 앱을 백그라운드로 보냈다 / When 결제를 완료하고 앱으로 복귀한다 / Then 티어가 반영되고 차단됐던 콘텐츠가 자동 재생된다
 - Given 페이월이 떠 있다 / When [닫기]를 누른다 / Then 원래 화면으로 돌아가고 재생은 시작되지 않는다
-- Given 무료 사용자 / When 라이브러리의 드립 영역을 탭한다 / Then 페이월이 노출된다
+- Given 무료 사용자 / When 라이브러리의 드립 영역을 탭한다 / Then 페이월 없이 드립 콘텐츠가 정상 노출된다(무료도 드립 대상)
 - Given 프로 티어 사용자 / When 하루에 20편을 재생한다 / Then 페이월이 한 번도 노출되지 않는다
 - Given 결제 버튼을 빠르게 두 번 탭한다 / When 결제가 진행된다 / Then 결제 요청은 1건만 발생한다
 
 ## 미결 사항
 
-- **티어 명칭 불일치**: PRD 4.1은 "베이직(하루 10편) / 프로(무제한)", FR-28은 "라이트 / 데일리 / 프로". 본 명세는 FR-28 기준(light/daily/pro)으로 작성했다. **팀 확정 필요.**
-- 티어별 일 청취 편수·가격은 1~2주 시범 운영 후 결정(PRD 4.1) — 서버 설정값으로 빼두어 코드 변경 없이 조정 가능해야 함
+- ~~티어 명칭 불일치~~ → **확정: 라이트 / 데일리 / 프로. 라이트가 무료 티어다.**
+- 데일리·프로의 일 청취 편수·가격은 1~2주 시범 운영 후 결정(PRD 4.1) — `plans` 행의 값만 바꾸면 되므로 코드 변경·마이그레이션이 필요 없다
 - 무료 티어 광고(PRD 4.1 "광고 제공")의 형태·삽입 지점 미정 — 오디오 프리롤인지 배너인지에 따라 플레이어 명세 개정 필요
 - 탈퇴·재가입을 통한 한도 우회 방지책 필요 여부

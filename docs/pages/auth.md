@@ -26,8 +26,11 @@
 | provider | kakao / google / naver | 필수 |
 | provider_token | 제공자 SDK가 반환한 인증 코드 또는 액세스 토큰 | 필수 |
 | device_id | 기기 식별자(푸시 토큰 매핑용) | 필수 |
-| agreed_terms | 약관·개인정보 처리방침 동의 여부 | 필수(신규 가입 시) |
+| agreed_terms | 이용약관 동의 + 약관 버전 | 필수(신규 가입 시) |
+| agreed_privacy | 개인정보 처리방침 동의 + 방침 버전 | 필수(신규 가입 시) |
 | agreed_marketing | 마케팅 수신 동의 | 선택 |
+
+- 동의 3종은 **개정 시점이 서로 다르므로 각각 별개로 기록한다**(`consents.consent_type`). 마케팅 동의만 껐다고 약관 동의 이력이 함께 갱신되면 안 된다.
 
 **탈퇴**
 
@@ -62,12 +65,15 @@
 
 1. 탈퇴 안내 화면 — 삭제되는 데이터, 구독 상태, 재가입 제한을 명시
 2. **구독 활성 상태 확인**
-   - 활성 구독이 있으면 "스토어에서 구독 해지를 먼저 진행해야 결제가 중단된다"는 안내를 노출한다(스토어 구독은 앱 탈퇴로 자동 해지되지 않음). 안내 후 탈퇴 자체는 진행 가능
+   - 활성 구독이 있으면 "스토어에서 구독 해지를 먼저 진행해야 결제가 중단된다"는 안내를 노출한다(스토어 구독은 앱 탈퇴로 자동 해지되지 않음)
+   - **구독 만료에 동의해야만 탈퇴를 진행할 수 있다.** 동의 체크 없이는 [탈퇴하기]를 활성화하지 않는다
 3. 사유 입력(선택) → 최종 확인 체크 → [탈퇴하기]
-4. 서버 처리
-   - 사용자 식별 정보·커리어 정보·관심사·라이브러리·재생 위치: **즉시 삭제**
-   - 재생·완청 로그: 개인 식별자를 제거한 **비식별 집계 형태로만 보존**(성공 지표·파트너 정산 검증 목적, PRD 10)
-   - 결제·거래 기록: 전자상거래법상 보존 의무 기간 동안 분리 보관
+4. 서버 처리 — **이관과 파기를 하나의 트랜잭션에서 수행한다** (상세: `domain.md` 12.3)
+   - **즉시 파기**: 라이브러리·관심사·커리어·재생 위치·재생 기록·소비 신호·설정·기기 토큰·세션·알림 로그·드립 제외 목록
+   - **아카이브 후 파기(5년)**: 계정 정보 → `archived_users`, 동의 이력 → `archived_consents`, 구독 이력 → `archived_subscriptions`
+     - 보존 범위는 **거래 주체 식별에 필요한 최소치**다 — 전자우편주소·제공자 계정 ID·구독 이력. 닉네임·커리어·관심사는 보존하지 않는다
+     - 운영 테이블과 **물리적으로 분리된 스키마**에 저장한다(개인정보보호법 제21조 제3항, 전자상거래법 시행령 제6조의 별도 보존 의무)
+   - `users` 행은 아카이브 이관 후 **삭제한다.** `status = withdrawn`으로 남겨두지 않는다
 5. 로컬 데이터 전량 삭제 → 시작 화면으로 이동
 6. 동일 소셜 계정으로 재가입은 즉시 허용하되, 신규 계정으로 취급한다(이전 데이터 복구 불가)
 
@@ -88,33 +94,17 @@
 
 ## 6. 데이터 모델
 
-```
-User {
-  user_id: string (PK)
-  provider: enum(kakao|google|naver)
-  provider_user_id: string          // provider와 복합 유니크
-  email: string | null
-  nickname: string
-  onboarding_completed: boolean
-  onboarding_step: enum(topic|career|pick|done)
-  tier: enum(free|light|daily|pro)
-  status: enum(active|withdrawn)
-  created_at, updated_at, withdrawn_at
-}
+> **스키마는 [`docs/backend/domain.md`](../backend/domain.md)가 유일한 기준이다.** 이 문서에 테이블·컬럼을 중복 기재하지 않는다 — 두 벌을 유지하면 반드시 어긋나고, 수정 비용이 두 배가 된다.
+> 컬럼을 추가·변경해야 하면 `domain.md`를 먼저 고치고 이 문서에는 동작 규칙만 남긴다.
 
-Consent {
-  user_id, terms_version, privacy_version,
-  agreed_marketing: boolean, agreed_at
-}
-
-Session {
-  refresh_token_hash, device_id, issued_at, expires_at, revoked_at
-}
-
-WithdrawalLog {
-  user_hash, reason_code, reason_text, withdrawn_at   // 식별자 없음
-}
-```
+| 사용하는 것 | domain.md |
+|---|---|
+| `users` — 계정·역할·티어 캐시 | [3.1](../backend/domain.md#31-users) |
+| `consents` — 동의 이력(append-only) | 3.2 |
+| `sessions` | 3.3 |
+| `withdrawal_logs` | 3.4 |
+| `archived_users` · `archived_consents` · `archived_subscriptions` — 탈퇴 후 보존 | 11장 |
+| 탈퇴 시 파기·보존 정책과 법적 근거 | 12장 |
 
 ## 7. 예외 상황
 
@@ -138,6 +128,6 @@ WithdrawalLog {
 
 ## 미결 사항
 
-- **FR-02의 "조사 필요"**: 재생 로그의 비식별 보존 범위와 보존 기간을 법무 검토로 확정해야 한다. 위 4.3은 잠정안이다.
+- **`archived_users`의 보존 범위** — 현재 전자우편주소·제공자 계정 ID만 보존한다. 전자상거래법상 "계약에 관한 기록"에 그 이상의 식별 정보가 필요한지는 **법무 확인이 필요하다**(`domain.md` 15.1-2).
 - 계정 연동(같은 이메일 다른 제공자 통합) 도입 여부 — 현재 비범위로 두었으나 CS 부담 발생 시 재검토
 - 재가입 쿨다운(어뷰징 방지) 필요 여부 — 무료 티어 하루 2편 제한을 탈퇴·재가입으로 우회할 수 있음

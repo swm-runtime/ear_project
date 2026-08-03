@@ -62,11 +62,11 @@
 |---|---|
 | 시점 | 드립 편성 완료 직후. 단 **방해금지 시간(22:00~08:00 KST)** 에는 발송하지 않고 08:00으로 지연 |
 | 빈도 | 하루 최대 1회. 드립이 2편이어도 알림은 1건으로 묶는다 |
-| 대상 | 유료 티어 + OS 권한 허용 + 앱 토글 ON |
+| 대상 | **전 티어**(무료 포함) + OS 권한 허용 + 앱 토글 ON |
 | 문구 | "오늘의 콘텐츠 N편이 도착했어요" + 대표 콘텐츠 제목 |
 | 딥링크 | 1편이면 해당 콘텐츠 플레이어, 2편 이상이면 라이브러리 |
 
-- 무료 티어는 드립이 없으므로(PRD 4.1) 드립 알림 대상이 아니다.
+- **무료(라이트) 티어도 드립을 받으므로 알림 대상이다**(PRD FR-14). 티어로 발송 대상을 가르지 않는다.
 
 ### 4.4 알림 탭 처리
 
@@ -96,34 +96,23 @@
 
 ## 6. 데이터 모델
 
-```
-DeviceToken {
-  user_id, device_id (복합 PK)
-  token: string
-  platform: enum(ios|android)
-  os_permission_granted: boolean
-  app_version, updated_at, invalidated_at
-}
+> **스키마는 [`docs/backend/domain.md`](../backend/domain.md)가 유일한 기준이다.** 이 문서에 테이블·컬럼을 중복 기재하지 않는다 — 두 벌을 유지하면 반드시 어긋나고, 수정 비용이 두 배가 된다.
+> 컬럼을 추가·변경해야 하면 `domain.md`를 먼저 고치고 이 문서에는 동작 규칙만 남긴다.
 
-NotificationSetting {
-  user_id, drip_arrival: boolean, updated_at
-}
+| 사용하는 것 | domain.md |
+|---|---|
+| `device_tokens` — `is_os_permission_granted`는 여기에만 존재 | 3.6 |
+| `notification_logs` — 중복 발송 방지. **탈퇴 시 즉시 파기** | 9.1 |
+| `user_settings.is_drip_notification_enabled` | 3.5 |
 
-NotificationLog {
-  notification_id, user_id, type, deep_link,
-  scheduled_at, sent_at,
-  status: enum(scheduled|sent|failed|skipped),
-  skip_reason: enum(no_permission|toggle_off|quiet_hours|daily_cap|free_tier) | null,
-  opened_at: datetime | null
-}
-```
+- `skip_reason`에 `free_tier`는 **없다.** 무료 티어도 드립을 받으므로 이 사유가 발생하지 않는다.
 
 ## 7. 예외 상황
 
 - **device_token 만료·무효**: 발송 실패 응답(FCM `UNREGISTERED`, APNs `410`)을 받으면 토큰을 무효화하고 다음 앱 실행 시 재등록한다.
 - **여러 기기 로그인**: 활성 토큰 전부에 발송한다.
 - **로그아웃**: 해당 기기 토큰을 무효화해 다른 사용자에게 알림이 가지 않게 한다.
-- **탈퇴**: 모든 토큰 삭제.
+- **탈퇴**: 모든 토큰 삭제. `notification_logs`도 함께 즉시 파기한다 — 보존할 법령 근거가 없고, 중복 발송 방지라는 목적이 탈퇴자에게는 성립하지 않는다(`domain.md` 12.3).
 - **방해금지 시간에 편성 완료**: 08:00으로 지연 발송한다. 지연 중 사용자가 이미 앱을 열어 콘텐츠를 확인했다면 발송을 취소한다.
 - **드립 편성은 됐는데 콘텐츠가 곧바로 회수됨**: 발송 직전 유효성을 재확인한다. 남은 콘텐츠가 0이면 발송하지 않는다.
 - **같은 날 드립이 두 번 편성됨**(재시도 등): 하루 1회 캡으로 두 번째는 발송하지 않는다.
@@ -133,7 +122,7 @@ NotificationLog {
 ## 8. 완료 조건
 
 - Given 온보딩 마지막 단계 / When [나중에]를 누른다 / Then OS 권한 다이얼로그가 뜨지 않고 라이브러리로 진입한다
-- Given 알림 권한을 허용한 유료 사용자 / When 드립 2편이 편성된다 / Then "오늘의 콘텐츠 2편이 도착했어요" 알림이 1건만 발송된다
+- Given 알림 권한을 허용한 사용자(무료 포함) / When 드립 2편이 편성된다 / Then "오늘의 콘텐츠 2편이 도착했어요" 알림이 1건만 발송된다
 - Given 알림을 탭한다 / When 앱이 실행된다 / Then 버전 체크·인증 판정을 거친 뒤 라이브러리로 이동한다
 - Given 드립 1편이 도착해 콘텐츠 딥링크 알림을 받았다 / When 알림을 탭한다 / Then 해당 콘텐츠 플레이어가 열린다
 - Given 무료 사용자가 콘텐츠 딥링크 알림을 탭했고 오늘 한도를 소진했다 / When 플레이어 진입을 시도한다 / Then 페이월이 노출된다

@@ -20,9 +20,9 @@
 
 | 트리거 | 설명 |
 |---|---|
-| 일일 편성 배치 | 매일 정해진 시각(기준값: 05:00 KST)에 유료 사용자 전체 대상 |
+| 일일 편성 배치 | 매일 정해진 시각(기준값: 05:00 KST)에 **전 티어 사용자** 대상. 서비스 날짜 경계(04시) 이후에 실행한다 |
 | 온보딩 완료 | 첫 드립 즉시 편성(`onboarding.md` 4번) |
-| 결제 완료 | 무료 → 유료 전환 시 즉시 첫 드립 편성 |
+| 결제 완료 | 무료 → 유료 전환 시 편수가 늘어나므로 즉시 재편성 |
 | 관심사 변경 | 편성 캐시 무효화. 다음 배치부터 반영 |
 | 재시도 | 편성 실패 건 재처리 |
 
@@ -36,21 +36,21 @@
 | active_interests[] | 활성 관심 주제 (`UserInterest.is_active = true`) |
 | career_info | 직군·연차 (보조 신호) |
 | signals[] | 최근 소비 신호 (play/complete/skip/save/unsave) |
-| library_content_ids[] | 이미 적립·삭제한 콘텐츠 (중복 방지용) |
+| excluded_content_ids[] | `library_items` + `drip_excluded_contents` 합집합 (중복 방지용) |
 | catalog | 발행 상태 콘텐츠 풀 |
-| drip_count_per_day | 티어별 일일 적립 편수(서버 설정값) |
+| drip_count_per_day | `plans.daily_drip_count` — 라이트(무료)는 2편 확정, 유료는 미정 |
 
 ## 4. 처리 로직
 
 ### 4.1 편성 대상 판정 (FR-14)
 
 ```
-if tier == free            → 편성하지 않음 (PRD 4.1 "무료: 드립 없음")
 if active_interests == 0   → 편성하지 않음 + 라이브러리에 관심사 추가 안내
-else                       → 편성 실행
+else                       → 편성 실행 (편수 = plans[tier].daily_drip_count)
 ```
 
-- **일일 적립 편수는 최대 2편**이다(PRD 1.3 "자동 드립은 하루 2편으로 제한"). 정확한 값은 1~2주 시범 운영 후 확정(FR-14)하므로 **서버 설정값**으로 둔다.
+- **티어로 편성 대상을 가르지 않는다.** 무료(라이트) 티어도 드립을 받는다(PRD FR-14). 초기 정책이던 "무료: 드립 없음"은 폐기됐다.
+- **라이트(무료)는 하루 2편으로 확정**이다. 데일리·프로 편수는 1~2주 시범 운영 후 결정하며, `plans.daily_drip_count` 값만 바꾸면 된다.
 - 편성은 **미청취 재고를 고려한다**: 라이브러리에 미청취 콘텐츠가 일정 수(기준값: 5편) 이상 쌓여 있으면 그날 적립을 건너뛴다.
   - 이유: 계속 쌓이기만 하면 라이브러리가 부담스러워지고 완청률(PRD 10 핵심 지표)이 떨어진다.
 
@@ -61,7 +61,13 @@ else                       → 편성 실행
    - 라이선스 유효 기간 내
    - 회수되지 않음 (FR-32)
    - `topic_ids`가 사용자의 활성 관심 주제와 교집합
-   - **중복 방지**(FR-16): 이미 라이브러리에 있거나, 과거에 적립했다가 삭제했거나, 이미 재생한 콘텐츠는 제외
+   - **중복 방지**(FR-16) — 아래 두 조건 중 하나라도 해당하면 제외한다
+     ```
+     library_items 에 행이 존재 (deleted_at 여부 무관)
+     OR drip_excluded_contents 에 행이 존재
+     ```
+     `drip_excluded_contents`에는 담기 해제(`unsave`) · 라이브러리 삭제(`library_delete`) · 재생(`played`) · 드립 적립(`dripped`)이 모두 적재되므로, 위 두 줄이 "이미 라이브러리에 있거나 / 들은 적 있거나 / 한 번 준 적 있는" 세 조건을 전부 덮는다
+     - **삭제 경로를 구분하지 않는다.** 라이브러리 삭제든 탐색 담기 해제든 결과는 동일하게 영구 제외다
 2. **스코어링** — 후보에 점수를 매긴다
 
 | 요소 | 방향 |
@@ -70,7 +76,7 @@ else                       → 편성 실행
 | 신호 기반 선호 | 완청한 콘텐츠와 유사한 주제·저자·출처에 가점 |
 | 스킵 회피 | 스킵이 잦았던 주제·저자·길이대에 감점 |
 | 신선도 | `published_at`이 최근일수록 가점 |
-| 인기도 | 전체 완청률·재생 수 가점 (콜드스타트에서 비중 확대) |
+| 인기도 | `content_stats(period_type = all)`의 완청률·재생 수 가점 (콜드스타트에서 비중 확대) |
 | 커리어 적합도 | 직군·연차와 맞는 콘텐츠에 소폭 가점 |
 | 시리즈 연속성 | 이미 1편을 완청한 시리즈의 다음 편에 강한 가점 |
 | 노출 피로 | 최근 편성에서 반복된 주제에 감점 |
@@ -86,7 +92,7 @@ else                       → 편성 실행
 | play 후 skip(20% 미만 이탈) | 부정 | 해당 주제·저자 가중치 하락 |
 | 중간 이탈(20~90%) | 약한 중립 | 소폭 반영 |
 | save (담기) | 긍정 | 주제 가중치 상승 (완청보다 약하게) |
-| unsave / 라이브러리 삭제 | 부정 | 해당 콘텐츠 재적립 영구 제외 + 주제 소폭 감점 |
+| unsave / 라이브러리 삭제 | 부정 | 해당 콘텐츠 재적립 **영구 제외**(`drip_excluded_contents` 적재) + 주제 소폭 감점 |
 | 재청취 | 강한 긍정 | 주제·저자 가중치 상승 |
 
 - 신호는 **최근성 가중**을 둔다(오래된 신호일수록 영향 감소).
@@ -116,16 +122,17 @@ else                       → 편성 실행
    - 사용자가 직접 해제한 주제(`user_removed = true`)는 제외
 3. 선정된 주제를 `UserInterest(source = auto_expand)`로 추가한다
 4. **사용자에게 알리지 않는다**(FR-18 "사용자 노출 없는 백그라운드 처리"). 다만 관심사 관리 화면에서는 "자동 추가됨" 배지로 확인할 수 있다
-5. 확장으로도 후보가 없으면 **AI 생성 파이프라인에 주제 요청을 보낸다**(`content-pipeline.md` 인입 트리거)
+5. 확장으로도 후보가 없으면 **운영 콘솔에 주제별 콘텐츠 부족을 알린다.** 자동 파이프라인이 P1 이연이므로 MVP에서는 팀이 직접 해당 주제 콘텐츠를 제작·업로드한다(FR-37)
 
 **확장 상한**: 1회 배치당 최대 1개 주제, 사용자당 자동 추가 주제는 최대 3개까지.
 
 ### 4.6 적립 실행
 
-1. 선정된 콘텐츠로 `LibraryItem(source = drip, status = unplayed)` 생성
-2. `DripSchedule` 기록 (편성 이력·중복 방지 근거)
+1. 선정된 콘텐츠로 `library_items(source = drip, status = unplayed)` 생성
+2. `drip_excluded_contents(reason = dripped)` 적재 — 재적립 방지 근거. **`DripSchedule` 테이블은 폐기됐다**(편성 이력은 `library_items.source = drip`으로 확인한다)
 3. 편성 완료 이벤트 → 푸시 발송 대상에 등록 (`notification.md`)
 4. 적립은 **원자적**으로 처리한다. 2편 중 1편만 적립되는 상태를 만들지 않는다
+5. 배치 중복 실행은 `drip_batch_runs.run_date` 유니크로, 사용자 단위 중복은 `library_items (user_id, content_id)` 유니크로 막는다
 
 ### 4.7 탐색 추천과의 관계
 
@@ -154,7 +161,6 @@ scheduled → running → completed
 | 재고 충분으로 건너뜀 | 아무 표시 없음 |
 | 후보 없음(고갈) | "새 콘텐츠를 준비하고 있어요" 안내 + [관심 주제 추가하기] |
 | 관심사 0개 | "관심 주제를 선택하면 콘텐츠가 도착해요" + 관심사 관리 진입점 |
-| 무료 티어 | 드립 영역이 잠금 상태 → 탭하면 페이월 (`paywall.md` 4.5) |
 | 편성 실패 | "콘텐츠를 준비하고 있어요" (실패를 노출하지 않음) |
 
 **운영 콘솔**
@@ -167,43 +173,19 @@ scheduled → running → completed
 
 ## 6. 데이터 모델
 
-```
-DripSchedule {
-  schedule_id, user_id, content_id,
-  scheduled_date: date,
-  reason: enum(interest|series|popular|coldstart|auto_expand),
-  score: float,
-  created_at
-}
-// (user_id, content_id) 유니크 — 중복 적립 방지의 최종 방어선 (FR-16)
+> **스키마는 [`docs/backend/domain.md`](../backend/domain.md)가 유일한 기준이다.** 이 문서에 테이블·컬럼을 중복 기재하지 않는다 — 두 벌을 유지하면 반드시 어긋나고, 수정 비용이 두 배가 된다.
+> 컬럼을 추가·변경해야 하면 `domain.md`를 먼저 고치고 이 문서에는 동작 규칙만 남긴다.
 
-UserSignal {
-  signal_id, user_id, content_id,
-  action: enum(play|complete|skip|save|unsave|delete|replay),
-  position_sec, max_reached_sec, created_at
-}
-
-UserPreferenceVector {              // 신호 집계 결과 (배치 갱신)
-  user_id,
-  topic_weights: { topic_id: float },
-  author_weights: { author: float },
-  signal_count: int,                // 콜드스타트 판정용
-  updated_at
-}
-
-TopicAdjacency {                    // FR-18
-  topic_id, adjacent_topic_id, similarity: float
-}
-
-ContentStat {
-  content_id, play_count, complete_count, complete_rate, save_count, period
-}
-
-DripBatchRun {
-  run_id, run_date, target_count, success_count,
-  skipped_count, failed_count, started_at, finished_at
-}
-```
+| 사용하는 것 | domain.md |
+|---|---|
+| `drip_excluded_contents` — **재적립 방지의 중심**. `DripSchedule`은 폐기됐다 | 7.1 |
+| `user_preference_vectors` — 신호 집계 결과(배치 갱신) | 7.2 |
+| `drip_batch_runs` — `run_date` 유니크로 배치 중복 실행 방지 | 7.3 |
+| `library_items` — `(user_id, content_id)` 유니크가 중복 적립 최종 방어선 | 6.1 |
+| `user_signals` — 스코어링 입력 | 6.4 |
+| `content_stats` — 인기도(`period_type = all`) | 5.4 |
+| `contents` — `series_id` · `episode_no`가 여기 비정규화되어 있다 | 5.1 |
+| `topic_adjacencies` — 자동 확장(P1) | 4.3 |
 
 ## 7. 예외 상황
 
