@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { IdempotencyModule } from '@/modules/idempotency/idempotency.module';
 import { UserModule } from '@/modules/user/user.module';
 
 import { AuthController } from './auth.controller';
@@ -15,7 +16,7 @@ import { TokenService } from './services/token.service';
 
 /** architecture.md 4.3 — Auth → User 단방향 */
 @Module({
-  imports: [TypeOrmModule.forFeature([Session]), UserModule],
+  imports: [TypeOrmModule.forFeature([Session]), UserModule, IdempotencyModule],
   controllers: [AuthController],
   providers: [
     AuthService,

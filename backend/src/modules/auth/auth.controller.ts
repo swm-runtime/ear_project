@@ -5,11 +5,13 @@ import {
   HttpStatus,
   Post,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 
 import type { AuthenticatedUser } from '@/common/decorators/current-user.decorator';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
+import { IdempotencyInterceptor } from '@/modules/idempotency/idempotency.interceptor';
 
 import { AuthService } from './services/auth.service';
 import { LogoutRequestDto } from './dto/logout-request.dto';
@@ -42,7 +44,9 @@ export class AuthController {
     return SocialLoginResponseDto.from(result);
   }
 
+  // 재시도로 계정이 두 개 생기지 않게 한다 (auth-api.md 3장 ★)
   @Post('sign-up')
+  @UseInterceptors(IdempotencyInterceptor)
   async signUp(@Body() request: SignUpRequestDto): Promise<SignUpResponseDto> {
     const result = await this.authService.signUp(
       {

@@ -6,6 +6,8 @@ import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { hmacSha256Hex } from '@/common/utils/hash.util';
 import { EnvironmentVariables } from '@/config/env.validation';
+import { toUserOwnerKey } from '@/modules/idempotency/idempotency.constant';
+import { IdempotencyService } from '@/modules/idempotency/idempotency.service';
 import { SubscriptionService } from '@/modules/subscription/subscription.service';
 
 import { ArchiveRepository } from '../repositories/archive.repository';
@@ -32,6 +34,11 @@ export interface WithdrawalPreview {
  *
  * 여러 도메인을 조합하는 유스케이스이므로 결제 이력 판정은
  * `subscription` 모듈이 노출한 Service로만 조회한다 (architecture.md 4.3).
+ *
+ * TODO(subscription 모듈 완성 시): 지금은 `user → subscription` 단방향이라 순환이 없다.
+ * 다만 결제 반영이 `SubscriptionService`에서 `users.tier`를 갱신하게 되면(domain.md 3.1)
+ * `subscription → user`가 생겨 순환이 된다. 그 시점에 **탈퇴를 Orchestrator로 올려**
+ * 위에서 user·subscription 두 Service를 조합한다 (architecture.md 3.3).
  */
 @Injectable()
 export class UserWithdrawalService {
@@ -42,6 +49,7 @@ export class UserWithdrawalService {
     private readonly consentService: ConsentService,
     private readonly emailVerificationService: EmailVerificationService,
     private readonly subscriptionService: SubscriptionService,
+    private readonly idempotencyService: IdempotencyService,
     private readonly archiveRepository: ArchiveRepository,
     private readonly withdrawalLogRepository: WithdrawalLogRepository,
     private readonly configService: ConfigService<EnvironmentVariables, true>,
@@ -199,6 +207,10 @@ export class UserWithdrawalService {
    * 해당 모듈이 생기는 시점에 각 모듈 Service의 purge 호출을 여기에 추가한다.
    */
   private async purge(userId: string, manager: EntityManager): Promise<void> {
+    await this.idempotencyService.purgeByOwnerKey(
+      toUserOwnerKey(userId),
+      manager,
+    );
     await this.emailVerificationService.purgeByUserId(userId, manager);
     await this.subscriptionService.purgeByUserId(userId, manager);
     await this.consentService.purgeByUserId(userId, manager);

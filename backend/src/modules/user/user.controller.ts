@@ -8,11 +8,13 @@ import {
   Param,
   Post,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 
 import type { AuthenticatedUser } from '@/common/decorators/current-user.decorator';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
+import { IdempotencyInterceptor } from '@/modules/idempotency/idempotency.interceptor';
 
 import { ConsentService } from './services/consent.service';
 import { GetActiveEmailVerificationResponseDto } from './dto/get-active-email-verification-response.dto';
@@ -71,6 +73,7 @@ export class UserController {
   }
 
   @Post('withdraw')
+  @UseInterceptors(IdempotencyInterceptor)
   @HttpCode(HttpStatus.NO_CONTENT)
   async withdrawUser(
     @CurrentUser() currentUser: AuthenticatedUser,
@@ -88,7 +91,9 @@ export class UserController {
     );
   }
 
+  // 연타로 발송 횟수가 소모되는 것을 막는다 (auth-api.md 4.8 ★)
   @Post('email-verifications')
+  @UseInterceptors(IdempotencyInterceptor)
   async sendEmailVerification(
     @CurrentUser() currentUser: AuthenticatedUser,
     @Body() request: SendEmailVerificationRequestDto,

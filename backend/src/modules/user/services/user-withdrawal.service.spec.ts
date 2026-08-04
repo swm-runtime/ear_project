@@ -3,6 +3,7 @@ import { DataSource, EntityManager } from 'typeorm';
 
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { EnvironmentVariables } from '@/config/env.validation';
+import { IdempotencyService } from '@/modules/idempotency/idempotency.service';
 import { Subscription } from '@/modules/subscription/subscription.entity';
 import { SubscriptionService } from '@/modules/subscription/subscription.service';
 
@@ -35,6 +36,7 @@ describe('UserWithdrawalService', () => {
   let consentService: jest.Mocked<ConsentService>;
   let emailVerificationService: jest.Mocked<EmailVerificationService>;
   let subscriptionService: jest.Mocked<SubscriptionService>;
+  let idempotencyService: jest.Mocked<IdempotencyService>;
   let archiveRepository: jest.Mocked<ArchiveRepository>;
   let withdrawalLogRepository: jest.Mocked<WithdrawalLogRepository>;
 
@@ -68,6 +70,10 @@ describe('UserWithdrawalService', () => {
       purgeByUserId: jest.fn(),
     } as unknown as jest.Mocked<SubscriptionService>;
 
+    idempotencyService = {
+      purgeByOwnerKey: jest.fn(),
+    } as unknown as jest.Mocked<IdempotencyService>;
+
     archiveRepository = {
       createUser: jest.fn((value: unknown) => value),
       createConsent: jest.fn((value: unknown) => value),
@@ -97,6 +103,7 @@ describe('UserWithdrawalService', () => {
       consentService,
       emailVerificationService,
       subscriptionService,
+      idempotencyService,
       archiveRepository,
       withdrawalLogRepository,
       configService,

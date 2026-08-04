@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { IdempotencyModule } from '@/modules/idempotency/idempotency.module';
 import { SubscriptionModule } from '@/modules/subscription/subscription.module';
 
 import { ArchiveRepository } from './repositories/archive.repository';
@@ -35,6 +36,7 @@ import { WithdrawalLogRepository } from './repositories/withdrawal-log.repositor
     ]),
     // 탈퇴가 결제 이력을 판정하려면 subscription 모듈의 Service가 필요하다 (auth-api.md 8장)
     SubscriptionModule,
+    IdempotencyModule,
   ],
   controllers: [UserController],
   providers: [
