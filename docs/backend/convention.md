@@ -149,11 +149,29 @@ modules/user/
 
 | 조건 | 조치 |
 |---|---|
-| Entity가 2개 이상 | `entities/` 디렉터리로 이동 (`entities/user.entity.ts`) |
-| Controller가 2개 이상 | 파일명으로 구분 (`user.controller.ts`, `user-admin.controller.ts`) |
+| **같은 역할의 파일이 2개 이상** | **그 역할의 복수형 디렉터리로 모은다** — `entities/` · `repositories/` · `services/` · `controllers/` |
 | Service가 커짐 | 유스케이스 단위로 분리 (`user.service.ts`, `user-withdrawal.service.ts`) |
 | enum·상수가 여러 파일에서 쓰임 | `<모듈>/user.constant.ts`, `user.enum.ts` |
 | 모듈 밖으로 공개할 타입 | `<모듈>/user.types.ts` — `exports`되는 것만 |
+
+**역할별 디렉터리 규칙 (2개 이상)**
+
+- **기준은 하나다 — 같은 역할이 2개 이상이면 폴더, 1개면 모듈 최상위에 그대로 둔다.** Entity만 예외로 두던 규칙을 Repository·Service·Controller까지 같은 숫자로 통일한다.
+- 이유: **파일명 접미사는 역할을 그룹핑하지 못한다.** 정렬이 `archive.repository.ts` → `consent.repository.ts` → `consent.service.ts` 순으로 도메인 명사 기준으로 섞여, "이 모듈의 Repository가 무엇무엇인지"를 한눈에 볼 수 없다.
+- **테스트는 대상과 같은 디렉터리에 둔다**(→ 7.1). 대상이 `services/`로 들어가면 spec도 함께 들어간다.
+- 모듈 조립 파일(`<모듈>.module.ts`)·`<모듈>.constant.ts`·`.enum.ts`·`.types.ts`·외부 연동 클라이언트는 개수와 무관하게 **모듈 최상위**에 둔다. 역할 디렉터리는 계층(Controller/Service/Repository/Entity)에만 적용한다.
+
+```
+modules/user/
+├── user.module.ts
+├── user.constant.ts  user.enum.ts  user.types.ts
+├── mail.client.ts
+├── user.controller.ts            # Controller 1개 → 최상위
+├── entities/                     # 2개 이상
+├── repositories/                 # 2개 이상
+├── services/                     # 2개 이상 (+ 각 spec 파일)
+└── dto/
+```
 
 ### 2.2 전체 구조
 
