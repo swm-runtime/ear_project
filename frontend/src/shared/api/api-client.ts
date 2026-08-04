@@ -1,4 +1,5 @@
 import axios, { AxiosError, type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
+import { Platform } from 'react-native';
 
 import { logger } from '@/shared/lib/logger';
 
@@ -13,7 +14,9 @@ const AUTO_RETRY_DELAYS_MS = [1_000, 3_000] as const;
 /** common-error-handling.md — 백오프 지터 ±20% */
 const AUTO_RETRY_JITTER_RATIO = 0.2;
 
-const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:3000/api/v1';
+// Android 에뮬레이터의 localhost는 에뮬레이터 자신이다 — 호스트(Mac)는 10.0.2.2로 접근한다
+const DEV_API_HOST = Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
+const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? `http://${DEV_API_HOST}:3000/api/v1`;
 
 /**
  * shared는 도메인을 모른다 — 토큰 동작은 이 인터페이스로만 접근하고,
