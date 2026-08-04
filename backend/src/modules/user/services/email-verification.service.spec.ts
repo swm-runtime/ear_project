@@ -48,6 +48,9 @@ describe('EmailVerificationService', () => {
         (value: Partial<EmailVerification>) => value as EmailVerification,
       ),
       save: jest.fn((value: EmailVerification) => Promise.resolve(value)),
+      saveIfNoActive: jest.fn((value: EmailVerification) =>
+        Promise.resolve(value),
+      ),
       findLatestByUserIdAndEmailForUpdate: jest.fn(),
       findActiveByUserId: jest.fn(),
       findByIdAndUserId: jest.fn(),
@@ -186,7 +189,9 @@ describe('EmailVerificationService', () => {
     it('메일 발송에 실패하면 인증 행을 남기지 않는다', async () => {
       // given
       repository.findLatestByUserIdAndEmailForUpdate.mockResolvedValue(null);
-      repository.save.mockResolvedValue(buildVerification({ id: '42' }));
+      repository.saveIfNoActive.mockResolvedValue(
+        buildVerification({ id: '42' }),
+      );
       mailClient.sendVerificationCode.mockRejectedValue(new Error('smtp down'));
 
       // when
@@ -197,6 +202,21 @@ describe('EmailVerificationService', () => {
         errorCode: ErrorCode.EMAIL_SEND_FAILED,
       });
       expect(repository.deleteById).toHaveBeenCalledWith('42');
+    });
+
+    it('동시 요청으로 활성 인증이 이미 있으면 쿨다운으로 흡수한다', async () => {
+      // given
+      repository.findLatestByUserIdAndEmailForUpdate.mockResolvedValue(null);
+      repository.saveIfNoActive.mockResolvedValue(null);
+
+      // when
+      const sending = service.sendCode(USER_ID, EMAIL, NOW);
+
+      // then
+      await expect(sending).rejects.toMatchObject({
+        errorCode: ErrorCode.EMAIL_VERIFICATION_RESEND_COOLDOWN,
+      });
+      expect(mailClient.sendVerificationCode).not.toHaveBeenCalled();
     });
 
     it('형식이 잘못된 주소는 발송 전에 거절한다', async () => {

@@ -1,8 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, IsNull, MoreThan, Repository } from 'typeorm';
+import {
+  EntityManager,
+  IsNull,
+  MoreThan,
+  QueryFailedError,
+  Repository,
+} from 'typeorm';
 
 import { EmailVerification } from '../entities/email-verification.entity';
+
+/** Postgres unique_violation */
+const UNIQUE_VIOLATION_CODE = '23505';
 
 @Injectable()
 export class EmailVerificationRepository {
@@ -24,6 +33,31 @@ export class EmailVerificationRepository {
     manager?: EntityManager,
   ): Promise<EmailVerification> {
     return this.scoped(manager).save(verification);
+  }
+
+  /**
+   * 활성 행이 이미 있으면 `uq_email_verifications_active`에 걸린다.
+   * 동시 요청 두 건 중 하나가 여기서 걸러지며, 예외로 만들지 않고 `null`로 흡수한다
+   * (architecture.md 8.4, domain.md 3.7).
+   */
+  async saveIfNoActive(
+    verification: EmailVerification,
+    manager?: EntityManager,
+  ): Promise<EmailVerification | null> {
+    try {
+      return await this.scoped(manager).save(verification);
+    } catch (error) {
+      if (error instanceof QueryFailedError && this.isUniqueViolation(error)) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  private isUniqueViolation(error: QueryFailedError): boolean {
+    return (
+      (error.driverError as { code?: string }).code === UNIQUE_VIOLATION_CODE
+    );
   }
 
   /**

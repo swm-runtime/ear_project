@@ -5,7 +5,6 @@ import {
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
-  Unique,
 } from 'typeorm';
 
 import { BaseEntity } from '@/database/base.entity';
@@ -24,13 +23,15 @@ import { User } from './user.entity';
   'sentAt',
 ])
 @Index('idx_email_verifications_expires_at', ['expiresAt'])
-// 동시 요청으로 같은 순번의 행이 두 개 생기는 것을 DB 제약으로 이중 방어한다 (domain.md 3.7)
-@Unique('uq_email_verifications_user_id_email_send_seq_sent_at', [
-  'userId',
-  'email',
-  'sendSeq',
-  'sentAt',
-])
+/**
+ * domain.md 3.7 — "유효한 코드는 항상 1개"를 제약으로 옮긴 **부분 유니크 인덱스**.
+ * 동시 요청 두 건은 둘 다 활성 행을 만들려 하므로 하나가 반드시 실패한다.
+ * `(user_id, email, send_seq)`는 창이 초기화되며 `send_seq`가 1로 돌아가 쓸 수 없다.
+ */
+@Index('uq_email_verifications_active', ['userId', 'email'], {
+  unique: true,
+  where: '"verified_at" IS NULL AND "invalidated_at" IS NULL',
+})
 export class EmailVerification extends BaseEntity {
   @PrimaryGeneratedColumn('increment', { type: 'bigint' })
   id: string;

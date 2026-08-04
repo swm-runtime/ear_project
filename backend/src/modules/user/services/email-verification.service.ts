@@ -113,7 +113,24 @@ export class EmailVerificationService {
             attemptCount: 0,
           });
 
-          return this.emailVerificationRepository.save(created, manager);
+          const saved = await this.emailVerificationRepository.saveIfNoActive(
+            created,
+            manager,
+          );
+
+          // 동시 요청 두 건 중 하나가 부분 유니크 인덱스에 걸린 경우다 (domain.md 3.7).
+          // 방금 다른 요청이 발송에 성공했다는 뜻이므로 쿨다운으로 흡수한다
+          if (!saved) {
+            throw new BusinessException({
+              status: HttpStatus.TOO_MANY_REQUESTS,
+              errorCode: ErrorCode.EMAIL_VERIFICATION_RESEND_COOLDOWN,
+              message: '잠시 후 다시 시도해주세요',
+              retryAfterSec: EMAIL_VERIFICATION_RESEND_COOLDOWN_SEC,
+              logLevel: 'info',
+            });
+          }
+
+          return saved;
         },
       );
 
