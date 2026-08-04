@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>이어 — 온보딩 화면 시안</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+
+<header class="masthead">
+  <div class="brandline">
+    <svg class="mark" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+      <path d="M9.5 13.5a6.5 6.5 0 0 1 13 0c0 3.2-1.9 4.6-3.2 5.9-1.1 1.1-1.8 1.9-1.8 3.6a2.8 2.8 0 0 1-5.6 0"/>
+      <circle cx="13.6" cy="13.8" r="2.2" fill="currentColor" stroke="none"/>
+    </svg>
+    <span class="nm">이어</span><span class="sep">/</span><span class="ctx">화면 시안</span>
+  </div>
+
+  <p class="eyebrow">Flow O · onboarding.md</p>
+  <h1>온보딩 — 첫 라이브러리를 채우기까지</h1>
+  <p class="lede">
+    목적은 정보 수집이 아니라 <b>라이브러리를 비어 있지 않게 만드는 것</b>입니다.
+    그래서 마지막 단계에서 첫 드립이 즉시 트리거되고, 중간 이탈에 대비해 단계마다 서버에 저장합니다.
+  </p>
+
+  <nav class="tabs" aria-label="화면 시안">
+    <a href="auth.html">계정</a>
+    <a href="onboarding.html" aria-current="page">온보딩</a>
+    <a href="library.html">라이브러리</a>
+  </nav>
+
+  <div class="notice">
+    <b>이 시안의 용도.</b> 범위 검증용입니다. 색·서체·간격은 <b>제안이며 확정된 아이덴티티가 아닙니다.</b>
+    각 요소의 번호는 명세 조항으로 연결됩니다. <span style="color:var(--doc-warn)">주황 번호</span>는 명세에 근거가 없거나 모순되는 지점입니다.
+  </div>
+</header>
+
+<!-- =================== 1~2단계 =================== -->
+<section class="section">
+  <div class="section-head">
+    <p class="sid">O1 – O6</p>
+    <h2>[1] 관심 주제 · [2] 커리어</h2>
+    <p>주제는 필수, 커리어는 선택입니다. 이 비대칭이 화면에 그대로 드러나야 합니다 — 주제 화면에는 건너뛰기가 없고, 커리어 화면에는 있습니다. 주제는 <b>최소 1개 · 최대 3개</b>이고, 인디케이터는 값을 입력하는 세 단계만 셉니다.</p>
+    <div class="flowbar">
+      <span>[1] 관심 주제 1/3</span><span class="ar">→</span>
+      <span>[2] 커리어 2/3</span><span class="ar">→</span>
+      <span>[3] 추천 담기 3/3</span><span class="ar">┊</span>
+      <span class="hi">인디케이터 종료</span><span class="ar">┊</span>
+      <span>[완료] 첫 드립 트리거</span><span class="ar">→</span>
+      <span>[알림] 권한</span><span class="ar">→</span>
+      <span class="hi">라이브러리</span>
+    </div>
+  </div>
+
+  <div class="shots">
+
+    <!-- O1 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">O1</span><h3>[1] 관심 주제 — 미선택</h3>
+        <p class="cap">건너뛰기 없음 · [다음] 비활성</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar">
+            <span class="t">7:26</span>
+            <span class="i">
+              <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor" aria-hidden="true"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg>
+              <svg width="15" height="11" viewBox="0 0 15 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M1 4.2a9 9 0 0 1 13 0"/><path d="M3.6 6.8a5.4 5.4 0 0 1 7.8 0"/><circle cx="7.5" cy="9.6" r="1" fill="currentColor" stroke="none"/></svg>
+              <svg width="24" height="11" viewBox="0 0 24 11" fill="none" aria-hidden="true"><rect x=".6" y=".6" width="20" height="9.8" rx="3" stroke="currentColor" stroke-opacity=".45"/><rect x="2.2" y="2.2" width="14" height="6.6" rx="1.8" fill="currentColor"/><path d="M22.2 4v3a2 2 0 0 0 0-3z" fill="currentColor" fill-opacity=".45"/></svg>
+            </span>
+          </div>
+          <div class="appbar"><span class="iconbtn"></span><span class="ttl"></span><span class="iconbtn"></span></div>
+          <div class="stepper">
+            <span class="seg on"></span><span class="seg"></span><span class="seg"></span>
+            <span class="num">1/3</span>
+          </div>
+          <div class="body">
+            <div class="stack" style="gap:8px">
+              <p class="h-lg" style="margin:0">어떤 이야기가<br>궁금하세요?</p>
+              <p class="t-sm" style="margin:0">최소 1개, 최대 3개까지 고를 수 있어요<span class="mk">1</span></p>
+            </div>
+            <div class="chips" style="margin-top:4px">
+              <span class="chip">커리어 전환</span><span class="chip">협업·소통</span>
+              <span class="chip">생산성</span><span class="chip">리더십</span>
+              <span class="chip">돈·재테크</span><span class="chip">글쓰기</span>
+              <span class="chip">데이터 리터러시</span><span class="chip">브랜딩</span>
+              <span class="chip">심리</span><span class="chip">과학 교양</span>
+              <span class="chip">스타트업</span><span class="chip">디자인</span>
+            </div>
+          </div>
+          <div class="dock">
+            <p class="t-xs" style="text-align:center; margin:0">관심 주제를 1개 이상 선택해주세요</p>
+            <div class="btn off">다음<span class="mk">2</span></div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">1</span><span>목록은 <code>is_visible = true</code>인 주제만, <code>display_order</code> 순. <b>이 값은 관리자만 바꾼다</b> — 콘텐츠가 0건이어도 시스템이 자동으로 숨기지 않는다. <span class="ref">onboarding 3 · FR-38</span></span></li>
+        <li><span class="n">2</span><span>1개 선택 전까지 비활성. 선택 상태는 <b>서버가 아니라 로컬에 임시 저장</b>되고 [다음] 탭 시점에 서버로 넘어간다 — 앱을 강제 종료해도 선택이 남는다. 임시 저장분이 3개를 넘으면 <b>앞의 3개만 복원</b>한다. <span class="ref">onboarding 4-[1] · 7</span></span></li>
+      </ul>
+    </article>
+
+    <!-- O2 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">O2</span><h3>[1] 관심 주제 — 선택됨(1~2개)</h3>
+        <p class="cap">"N/3 선택" 표시 · [다음] 활성</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:26</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar"><span class="iconbtn"></span><span class="ttl"></span><span class="iconbtn"></span></div>
+          <div class="stepper">
+            <span class="seg on"></span><span class="seg"></span><span class="seg"></span>
+            <span class="num">1/3</span>
+          </div>
+          <div class="body">
+            <div class="stack" style="gap:8px">
+              <p class="h-lg" style="margin:0">어떤 이야기가<br>궁금하세요?</p>
+              <p class="t-sm" style="margin:0"><b class="amber">2/3</b> 선택<span class="mk">3</span></p>
+            </div>
+            <div class="chips" style="margin-top:4px">
+              <span class="chip on">커리어 전환<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2l2.4 2.4L9.5 4"/></svg></span>
+              <span class="chip">협업·소통</span>
+              <span class="chip on">생산성<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2l2.4 2.4L9.5 4"/></svg></span>
+              <span class="chip">리더십</span>
+              <span class="chip">돈·재테크</span>
+              <span class="chip">글쓰기</span>
+              <span class="chip">데이터 리터러시</span><span class="chip">브랜딩</span>
+              <span class="chip">심리</span><span class="chip">과학 교양</span>
+              <span class="chip">스타트업</span><span class="chip">디자인</span>
+            </div>
+          </div>
+          <div class="dock">
+            <div class="btn primary">다음</div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">3</span><span>개수를 <code>N/3</code> 형태로 노출해 <b>남은 자리를 먼저 알린다</b> — 상한에 부딪힌 다음에 알리면 제약으로 읽힌다. 상한이 3개인 이유는 드립 편성이 분산되면 어느 주제도 쌓이지 않기 때문이다. <span class="ref">onboarding 3 · 미결(확정)</span></span></li>
+      </ul>
+    </article>
+
+    <!-- O3 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">O3</span><h3>[1] 3개 선택 완료 · 4번째 시도</h3>
+        <p class="cap">미선택 칩 비활성 + 토스트</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:26</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar"><span class="iconbtn"></span><span class="ttl"></span><span class="iconbtn"></span></div>
+          <div class="stepper">
+            <span class="seg on"></span><span class="seg"></span><span class="seg"></span>
+            <span class="num">1/3</span>
+          </div>
+          <div class="body">
+            <div class="stack" style="gap:8px">
+              <p class="h-lg" style="margin:0">어떤 이야기가<br>궁금하세요?</p>
+              <p class="t-sm" style="margin:0"><b class="amber">3/3</b> 선택<span class="mk">4</span></p>
+            </div>
+            <div class="chips" style="margin-top:4px">
+              <span class="chip on">커리어 전환<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2l2.4 2.4L9.5 4"/></svg></span>
+              <span class="chip" style="background:var(--surface-2); border-color:var(--line); color:#BFBDB6">협업·소통</span>
+              <span class="chip on">생산성<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2l2.4 2.4L9.5 4"/></svg></span>
+              <span class="chip" style="background:var(--surface-2); border-color:var(--line); color:#BFBDB6">리더십</span>
+              <span class="chip" style="background:var(--surface-2); border-color:var(--line); color:#BFBDB6">돈·재테크</span>
+              <span class="chip on">글쓰기<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2l2.4 2.4L9.5 4"/></svg></span>
+              <span class="chip" style="background:var(--surface-2); border-color:var(--line); color:#BFBDB6">데이터 리터러시</span>
+              <span class="chip" style="background:var(--surface-2); border-color:var(--line); color:#BFBDB6">브랜딩</span>
+              <span class="chip" style="background:var(--surface-2); border-color:var(--line); color:#BFBDB6">심리</span>
+              <span class="chip" style="background:var(--surface-2); border-color:var(--line); color:#BFBDB6">과학 교양</span>
+              <span class="chip" style="background:var(--surface-2); border-color:var(--line); color:#BFBDB6">스타트업</span>
+              <span class="chip" style="background:var(--surface-2); border-color:var(--line); color:#BFBDB6">디자인</span>
+            </div>
+          </div>
+          <div class="dock">
+            <div class="btn primary">다음</div>
+          </div>
+          <div class="toast">관심 주제는 3개까지 선택할 수 있어요<span class="mk">5</span></div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">4</span><span>3개를 채우면 <b>미선택 칩을 비활성 처리</b>한다. 선택을 바꾸려면 기존 선택을 해제하면 된다 — 선택된 칩은 계속 누를 수 있어야 한다. <span class="ref">onboarding 4-[1] · 5</span></span></li>
+        <li><span class="n">5</span><span>4번째를 탭하면 <b>무시하지 않고 토스트로 이유를 알린다.</b> 아무 반응이 없으면 오류로 읽힌다. 클라이언트 제한은 우회되므로 <b>서버도 저장 시 상한을 다시 검증</b>한다. <span class="ref">onboarding 3 · 4-[1] · 8</span></span></li>
+      </ul>
+    </article>
+
+    <!-- O3 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">O4</span><h3>[2] 커리어 정보</h3>
+        <p class="cap">전부 선택 입력 · 건너뛰기 있음</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:27</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <span class="iconbtn"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l-6 6 6 6"/></svg></span>
+            <span class="ttl"></span><span class="iconbtn"></span>
+          </div>
+          <div class="stepper">
+            <span class="seg on"></span><span class="seg on"></span><span class="seg"></span>
+            <span class="num">2/3</span>
+          </div>
+          <div class="body">
+            <div class="stack" style="gap:8px">
+              <p class="h-lg" style="margin:0">어떤 일을<br>하고 계세요?</p>
+              <p class="t-sm" style="margin:0">추천을 더 정확하게 하는 데만 쓰여요<span class="mk">6</span></p>
+            </div>
+            <div class="stack" style="gap:10px; margin-top:6px">
+              <div>
+                <p class="t-label" style="margin:0 0 6px">직군</p>
+                <div class="field filled">
+                  <span>기획·PM</span>
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l5 5 5-5"/></svg>
+                </div>
+              </div>
+              <div>
+                <p class="t-label" style="margin:0 0 6px">직무</p>
+                <div class="field"><span>예) 서비스 기획자</span></div>
+              </div>
+              <div>
+                <p class="t-label" style="margin:0 0 6px">연차</p>
+                <div class="chips">
+                  <span class="chip">0–1년</span><span class="chip on">2–3년</span>
+                  <span class="chip">4–6년</span><span class="chip">7년+</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="dock">
+            <p class="t-xs" style="text-align:center; margin:0">나중에 프로필에서 언제든 입력할 수 있어요<span class="mk">7</span></p>
+            <div class="btn primary">다음</div>
+            <div class="btn quiet">건너뛰기<span class="mk">8</span></div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">6</span><span>커리어는 <b>드립 편성의 보조 신호</b>일 뿐이다. 미입력이어도 편성이 정상 동작해야 한다. <span class="ref">onboarding 4-[2]</span></span></li>
+        <li><span class="n">7</span><span><b>건너뛰어도 손해가 없다는 것을 화면에서 알린다.</b> 이후 입력·수정은 프로필이 담당하므로(<code>profile.md</code> 4.4) 온보딩에서 못 받은 값을 다시 요구하는 유도 화면은 만들지 않는다. <span class="ref">onboarding 4-[2] · 5</span></span></li>
+        <li><span class="n">8</span><span>[건너뛰기]와 [다음]을 모두 제공. 어느 쪽이든 <code>onboarding_step = pick</code>으로 저장되어 재실행 시 3단계부터 재개된다. <span class="ref">onboarding 4-[2] · 7</span></span></li>
+      </ul>
+    </article>
+
+    <!-- O4 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">O5</span><h3>[1] 주제 목록 로딩</h3>
+        <p class="cap">주제 목록 스켈레톤</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:26</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar"><span class="iconbtn"></span><span class="ttl"></span><span class="iconbtn"></span></div>
+          <div class="stepper">
+            <span class="seg on"></span><span class="seg"></span><span class="seg"></span>
+            <span class="num">1/3</span>
+          </div>
+          <div class="body">
+            <div class="stack" style="gap:8px">
+              <p class="h-lg" style="margin:0">어떤 이야기가<br>궁금하세요?</p>
+            </div>
+            <div class="chips" style="margin-top:8px">
+              <span class="sk" style="width:96px; height:36px; border-radius:99px"></span>
+              <span class="sk" style="width:78px; height:36px; border-radius:99px"></span>
+              <span class="sk" style="width:64px; height:36px; border-radius:99px"></span>
+              <span class="sk" style="width:88px; height:36px; border-radius:99px"></span>
+              <span class="sk" style="width:70px; height:36px; border-radius:99px"></span>
+              <span class="sk" style="width:110px; height:36px; border-radius:99px"></span>
+              <span class="sk" style="width:60px; height:36px; border-radius:99px"></span>
+              <span class="sk" style="width:84px; height:36px; border-radius:99px"></span>
+            </div>
+          </div>
+          <div class="dock">
+            <div class="btn off">다음<span class="mk">9</span></div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">9</span><span>주제 목록은 서버에서 오므로 스켈레톤이 필요하다. 로딩 중에도 [다음]은 비활성이다. <span class="ref">onboarding 5</span></span></li>
+      </ul>
+    </article>
+
+    <!-- O6 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">O6</span><h3>[1] 목록 조회 실패</h3>
+        <p class="cap">온보딩은 오프라인 진행 불가</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:26</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar"><span class="iconbtn"></span><span class="ttl"></span><span class="iconbtn"></span></div>
+          <div class="stepper">
+            <span class="seg on"></span><span class="seg"></span><span class="seg"></span>
+            <span class="num">1/3</span>
+          </div>
+          <div class="body mid">
+            <div style="width:56px; height:56px; border-radius:99px; background:var(--surface-2); display:flex; align-items:center; justify-content:center">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9"/><path d="M12 8v5"/><circle cx="12" cy="16.4" r=".9" fill="var(--ink-3)" stroke="none"/></svg>
+            </div>
+            <p class="h-md" style="margin:0">주제를 불러오지 못했어요</p>
+            <p class="t-sm" style="margin:0; max-width:24ch">잠시 후 다시 시도해주세요<span class="mk">10</span></p>
+          </div>
+          <div class="dock">
+            <div class="btn primary">다시 시도</div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">10</span><span><b>온보딩은 서버 저장이 필수라 오프라인 진행이 불가능</b>하다 — 라이브러리와 다른 점이다. 그래서 건너뛰기 없이 [다시 시도]만 둔다. 목록 자체가 비어 있는 경우(콘텐츠 풀 미구축)는 실패가 아니라 <b>기본 주제 세트를 폴백으로 노출</b>한다. <span class="ref">onboarding 5 · 7</span></span></li>
+      </ul>
+    </article>
+
+  </div>
+</section>
+
+<!-- =================== 3~5단계 =================== -->
+<section class="section">
+  <div class="section-head">
+    <p class="sid">O7 – O11</p>
+    <h2>[3] 추천 담기 · 완료 · 알림</h2>
+    <p>여기서 첫 라이브러리가 만들어집니다. 사용자가 하나도 담지 않아도 <b>완료 시점의 첫 드립</b>이 라이브러리를 채웁니다. 3단계를 마치면 <b>인디케이터가 사라집니다</b> — 완료와 알림은 입력 단계가 아니라 결과 확인과 권한 요청이라, 단계로 세면 "아직 남았다"는 인상만 만듭니다.</p>
+  </div>
+
+  <div class="shots">
+
+    <!-- O5 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">O7</span><h3>[3] 추천 콘텐츠 담기</h3>
+        <p class="cap">관심 주제 6건 + 이번 달 인기 3건</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:27</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <span class="iconbtn"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l-6 6 6 6"/></svg></span>
+            <span class="ttl"></span><span class="iconbtn"></span>
+          </div>
+          <div class="stepper">
+            <span class="seg on"></span><span class="seg on"></span><span class="seg on"></span>
+            <span class="num">3/3</span>
+          </div>
+          <div class="body" style="overflow-y:auto; gap:12px">
+            <div class="stack" style="gap:6px">
+              <p class="h-lg" style="margin:0">먼저 들어볼<br>콘텐츠를 골라보세요</p>
+              <p class="t-sm" style="margin:0">지금 고르지 않아도 괜찮아요</p>
+            </div>
+            <div class="stack" style="gap:8px">
+              <p class="t-label" style="margin:0">관심 주제 추천 · 6<span class="mk">11</span></p>
+              <div class="gridpick">
+                <div class="pick on"><div class="art wide a1"></div><span class="mark"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2l2.4 2.4L9.5 4"/></svg></span><span class="nm">퇴사 전 점검할 5가지</span></div>
+                <div class="pick"><div class="art wide a9"></div><span class="nm">이직의 타이밍</span></div>
+                <div class="pick on"><div class="art wide a3"></div><span class="mark"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2l2.4 2.4L9.5 4"/></svg></span><span class="nm">몰입은 환경에서 온다</span></div>
+                <div class="pick"><div class="art wide a2"></div><span class="nm">회의를 30분에 끝내기</span></div>
+                <div class="pick"><div class="art wide a7"></div><span class="nm">주간 회고 쓰는 법</span></div>
+                <div class="pick"><div class="art wide a5"></div><span class="nm">문서로 일하는 팀</span></div>
+              </div>
+            </div>
+            <div class="stack" style="gap:8px">
+              <p class="t-label" style="margin:0">이번 달 인기 · 3<span class="mk">12</span></p>
+              <div class="gridpick">
+                <div class="pick"><div class="art wide a4"></div><span class="nm">첫 리더가 된 당신에게</span></div>
+                <div class="pick"><div class="art wide a6"></div><span class="nm">연봉 협상의 기술</span></div>
+                <div class="pick"><div class="art wide a8"></div><span class="nm">숫자로 말하기</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="dock">
+            <div class="btn primary">2개 담기<span class="mk">13</span></div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">11</span><span>1단계에서 고른 주제의 콘텐츠 6건. 인기·신규 우선(콜드스타트, FR-17)이고 <b>고른 주제에 고르게 배분</b>한다 — 3개를 골랐으면 2건씩이 기준, 재고가 부족하면 남은 주제에서 채운다. <span class="ref">onboarding 4-[3]</span></span></li>
+        <li><span class="n">12</span><span><b>고른 주제 밖에서</b> 뽑는 월간 인기 상위 3건. 관심사를 넓히는 자리라 주제 안에서 뽑으면 위 6건과 성격이 같아진다. 순위는 <b>직전 확정 구간</b>의 집계를 쓴다 — 진행 중인 달은 매일 흔들린다. 6건과 겹치면 다음 순위로 채워 <b>총 9건은 유지</b>한다. <span class="ref">onboarding 4-[3] · 7</span></span></li>
+        <li><span class="n">13</span><span>담기 시 <code>library_items(source = onboarding)</code> 생성. 담은 콘텐츠는 <code>drip_excluded_contents</code>에 적재되어 <b>첫 드립 후보에서 제외</b>된다. 여기서의 담기는 재생이 아니므로 <b>무료 티어 카운트와 무관</b>하다. <span class="ref">onboarding 4-[3] · FR-16</span></span></li>
+      </ul>
+    </article>
+
+    <!-- O8 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">O8</span><h3>[3] 하나도 담지 않은 상태</h3>
+        <p class="cap">[담기] 대신 [건너뛰기]</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:27</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <span class="iconbtn"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l-6 6 6 6"/></svg></span>
+            <span class="ttl"></span><span class="iconbtn"></span>
+          </div>
+          <div class="stepper">
+            <span class="seg on"></span><span class="seg on"></span><span class="seg on"></span>
+            <span class="num">3/3</span>
+          </div>
+          <div class="body" style="overflow-y:auto; gap:12px">
+            <div class="stack" style="gap:6px">
+              <p class="h-lg" style="margin:0">먼저 들어볼<br>콘텐츠를 골라보세요</p>
+              <p class="t-sm" style="margin:0">지금 고르지 않아도 괜찮아요</p>
+            </div>
+            <div class="stack" style="gap:8px">
+              <p class="t-label" style="margin:0">관심 주제 추천 · 6</p>
+              <div class="gridpick">
+                <div class="pick"><div class="art wide a1"></div><span class="nm">퇴사 전 점검할 5가지</span></div>
+                <div class="pick"><div class="art wide a9"></div><span class="nm">이직의 타이밍</span></div>
+                <div class="pick"><div class="art wide a3"></div><span class="nm">몰입은 환경에서 온다</span></div>
+                <div class="pick"><div class="art wide a2"></div><span class="nm">회의를 30분에 끝내기</span></div>
+                <div class="pick"><div class="art wide a7"></div><span class="nm">주간 회고 쓰는 법</span></div>
+                <div class="pick"><div class="art wide a5"></div><span class="nm">문서로 일하는 팀</span></div>
+              </div>
+            </div>
+            <div class="stack" style="gap:8px">
+              <p class="t-label" style="margin:0">이번 달 인기 · 3</p>
+              <div class="gridpick">
+                <div class="pick"><div class="art wide a4"></div><span class="nm">첫 리더가 된 당신에게</span></div>
+                <div class="pick"><div class="art wide a6"></div><span class="nm">연봉 협상의 기술</span></div>
+                <div class="pick"><div class="art wide a8"></div><span class="nm">숫자로 말하기</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="dock">
+            <div class="btn outline">건너뛰기<span class="mk">14</span></div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">14</span><span>0개도 진행 가능하므로 담기 버튼 자리를 [건너뛰기]로 바꾼다 — "0개 담기"는 누를 이유가 없는 버튼이다. 이 경우 <b>완료 시점의 자동 드립이 라이브러리를 채운다.</b> <b>추천 0건 화면은 두지 않는다</b> — 콘텐츠 풀이 없는 주제는 <code>is_visible = false</code>로 애초에 선택지에서 빠지므로, 0건이 오면 사용자 화면이 아니라 <b>운영 알림으로 다뤄야 할 데이터 정합성 오류</b>다. <span class="ref">onboarding 4-[3] · 5 · 7</span></span></li>
+      </ul>
+    </article>
+
+    <!-- O7 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">O9</span><h3>[완료] 주제 요약</h3>
+        <p class="cap">인디케이터 없음 · 첫 드립이 트리거되는 지점</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:28</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar"><span class="iconbtn"></span><span class="ttl"></span><span class="iconbtn"></span></div>
+          <div class="body mid">
+            <div style="width:62px; height:62px; border-radius:99px; background:var(--accent-soft); border:1px solid var(--accent-line); display:flex; align-items:center; justify-content:center">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+            </div>
+            <p class="h-lg" style="margin:0">준비됐어요</p>
+            <div class="chips" style="justify-content:center; margin-top:2px">
+              <span class="chip on sm">커리어 전환</span><span class="chip on sm">생산성</span><span class="chip on sm">글쓰기</span>
+            </div>
+            <p class="t-body" style="margin:6px 0 0; max-width:25ch">이 주제로 <b class="em">매일 2편</b>이 라이브러리에 도착합니다<span class="mk">15</span></p>
+            <div style="margin-top:6px; padding:11px 14px; background:var(--surface-2); border-radius:12px">
+              <p class="t-xs" style="margin:0">무료로 이용 중 · 하루 <b class="em">2편</b>까지 재생할 수 있어요<span class="mk">16</span></p>
+            </div>
+          </div>
+          <div class="dock">
+            <div class="btn primary">시작하기<span class="mk">17</span></div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">15</span><span><b>무료(라이트) 티어도 드립을 받는다.</b> 편수는 하루 2편 고정. "무료는 드립 없음" 정책은 폐기됐다. <span class="ref">onboarding 4-[완료] · FR-14</span></span></li>
+        <li><span class="n">16</span><span>드립 편수(2편)와 재생 한도(2편)가 같다는 점을 여기서 알려야 "받았는데 못 듣는" 오해가 없다. <span class="ref">domain 8.1</span></span></li>
+        <li><span class="n">17</span><span>탭 시점에 <code>onboarding_completed = true</code> + <b>첫 드립 즉시 트리거.</b> 서버 처리 중에는 버튼을 로딩 상태로 두고 중복 탭을 막는다. 트리거가 실패해도 완료 처리는 롤백하지 않고 재시도 큐로 넘긴다. <span class="ref">onboarding 4-[완료] · 5 · 7</span></span></li>
+      </ul>
+    </article>
+
+    <!-- O8 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">O10</span><h3>[알림] 사전 안내</h3>
+        <p class="cap">인디케이터 없음 · OS 다이얼로그를 소진하지 않는 장치</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:28</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar"><span class="iconbtn"></span><span class="ttl"></span><span class="iconbtn"></span></div>
+          <div class="body mid">
+            <div style="width:62px; height:62px; border-radius:20px; background:var(--brand); display:flex; align-items:center; justify-content:center">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8.5a6 6 0 1 0-12 0c0 6-2.5 7.5-2.5 7.5h17S18 14.5 18 8.5z"/><path d="M13.7 19.5a2 2 0 0 1-3.4 0"/></svg>
+            </div>
+            <p class="h-lg" style="margin:0">드립 도착을<br>알려드릴까요?</p>
+            <p class="t-body" style="margin:0; max-width:26ch">새 콘텐츠가 도착하면 알림 한 번만 보내드려요. 하루 1회를 넘지 않습니다<span class="mk">18</span></p>
+          </div>
+          <div class="dock">
+            <div class="btn primary">알림 받기<span class="mk">19</span></div>
+            <div class="btn quiet">나중에</div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">18</span><span>프리퍼미션 화면. OS 권한은 <b>한 번 거부되면 앱에서 재요청할 수 없어서</b> 사전 안내로 거부율을 낮춘다. <b>이미 권한이 허용된 상태(재설치 등)면 이 단계를 통째로 건너뛴다.</b> <span class="ref">onboarding 4-[알림] · 7</span></span></li>
+        <li><span class="n">19</span><span>[알림 받기]를 눌렀을 때만 OS 다이얼로그를 띄운다. [나중에]는 다이얼로그 대신 <b>재고 팝업(O11)으로 간다.</b> 허용·거부와 무관하게 라이브러리로 진입한다. <span class="ref">onboarding 4-[알림]</span></span></li>
+      </ul>
+    </article>
+
+    <!-- O11 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">O11</span><h3>[알림] 재고 팝업</h3>
+        <p class="cap">[나중에] 탭 시 · 온보딩 전체에서 1회</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:28</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar"><span class="iconbtn"></span><span class="ttl"></span><span class="iconbtn"></span></div>
+          <div class="body mid" style="opacity:.5">
+            <div style="width:62px; height:62px; border-radius:20px; background:var(--brand); display:flex; align-items:center; justify-content:center">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8.5a6 6 0 1 0-12 0c0 6-2.5 7.5-2.5 7.5h17S18 14.5 18 8.5z"/><path d="M13.7 19.5a2 2 0 0 1-3.4 0"/></svg>
+            </div>
+            <p class="h-lg" style="margin:0">드립 도착을<br>알려드릴까요?</p>
+          </div>
+          <div class="dock" style="opacity:.5">
+            <div class="btn primary">알림 받기</div>
+            <div class="btn quiet">나중에</div>
+          </div>
+          <div class="veil"></div>
+          <div class="dialog">
+            <div class="panel">
+              <p class="t-sm" style="margin:0">알림을 받는 분들이 평균 <b class="em">20% 이상</b> 더 많이 듣고 있어요.<span class="mk w">20</span></p>
+              <p class="h-md" style="margin:2px 0 0">정말 설정하지 않으시겠어요?</p>
+              <div class="btn-row" style="margin-top:10px">
+                <div class="btn outline">괜찮아요<span class="mk">21</span></div>
+                <div class="btn primary">알림 받기</div>
+              </div>
+            </div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n w">20</span><span>"20%"는 <b>실측 근거가 필요한 수치</b>다. 자체 데이터 없이 단정하면 표시광고법상 실증 책임이 생긴다. → V1</span></li>
+        <li><span class="n">21</span><span>두 선택지를 <b>같은 행·같은 크기로</b> 둔다. [괜찮아요]를 회색 처리하거나 작게 만들면 다크패턴이 되고 스토어 심사에서도 지적 대상이다 — 그래서 <code>.quiet</code>(회색 텍스트) 대신 <code>.outline</code>을 쓴다. <b>이 팝업은 온보딩 전체에서 1회만 뜬다</b> — [괜찮아요]를 누르거나 뒤로가기로 닫아도 노출 이력은 소진된 것으로 처리한다. [괜찮아요] 경로에서는 <b>OS 다이얼로그를 띄우지 않는다.</b> <span class="ref">onboarding 4-[알림] · 5 · 7</span></span></li>
+      </ul>
+    </article>
+
+  </div>
+</section>
+
+<!-- =================== 검증 =================== -->
+<section class="verify">
+  <p class="sid">검토 필요</p>
+  <h2>온보딩에서 남은 것</h2>
+  <p>인디케이터 단계 수(3개), 주제 상한(3개), 추천 구성(6+3), 알림 재고 팝업은 명세에서 확정되어 화면에 반영했습니다. 아직 화면만으로 닫히지 않는 것은 아래 셋입니다.</p>
+
+  <div class="vlist">
+    <div class="vitem">
+      <h3><span class="vid">V1</span>재고 팝업의 "20%" 근거</h3>
+      <p>"평균 20% 이상 더 많이 듣고 있어요"는 <b>실측 데이터가 있어야 쓸 수 있는 문장</b>입니다. 자체 근거 없이 단정하면 표시광고법상 실증 책임이 생깁니다. ① 출시 후 실측값으로 교체 ② 수치를 빼고 "알림을 받으면 놓치지 않아요" 같은 정성 문구로 대체 ③ 업계 통계를 출처와 함께 인용 — 중 하나를 정해야 하며, <b>출시 전에는 ②가 안전합니다.</b></p>
+      <p class="where">onboarding 4-[알림] · 미결 / 화면 O11</p>
+    </div>
+
+    <div class="vitem soft">
+      <h3><span class="vid">V2</span>월간 인기 집계의 최소 표본</h3>
+      <p>[이번 달 인기] 3건은 <b>직전 확정 구간</b>의 집계를 씁니다. 다만 서비스 초기에는 재생 데이터가 적어 "인기"가 우연에 좌우됩니다. 표본이 부족한 달에는 인기 대신 신규 콘텐츠로 채울지 정해야 하고, 그 경우 섹션 제목도 함께 바뀝니다.</p>
+      <p class="where">onboarding 4-[3] · 미결 / 화면 O7</p>
+    </div>
+
+    <div class="vitem soft">
+      <h3><span class="vid">V3</span>첫 드립 트리거가 실패한 경우의 완료 문구</h3>
+      <p>O9의 "매일 2편이 라이브러리에 도착합니다"는 첫 드립이 성공한다는 전제의 문장입니다. 트리거가 실패하면 완료 처리는 롤백하지 않고 재시도 큐로 넘어가는데, 그동안 라이브러리는 "콘텐츠를 준비하고 있어요" 상태입니다. <b>완료 문구를 조건부로 바꿀지</b> 정해야 합니다.</p>
+      <p class="where">onboarding 7 / library 5 / 화면 O9</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  근거 문서 — <code>docs/pages/onboarding.md</code> · <code>docs/backend/domain.md</code> 3장 · 4장 · 6장 · 7장<br>
+  시각 디자인은 제안입니다. 확정할 것은 <b>화면에 무엇이 있고 없는가</b>이며, 색·서체는 별도로 정합니다.
+</footer>
+
+</div>
+<style>
+.mk{
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:15px; height:15px; padding:0 4px; border-radius:99px; margin-left:5px;
+  background:var(--doc-note); color:#fff; font-family:var(--mono); font-size:9px;
+  font-weight:700; vertical-align:middle; letter-spacing:0; line-height:1;
+}
+.mk.w{background:var(--doc-warn)}
+</style>
+</body>
+</html>
