@@ -2,7 +2,7 @@
 
 > 이 문서는 '이어' 백엔드의 **구조 기준 문서**다. 코드 작성 규칙(네이밍·파일 구성·DTO 작성법 등)은 [convention.md](convention.md)에서 다룬다.
 >
-> 연결 문서: `docs/prd/ear_root_prd.md`, `docs/pages/common-error-handling.md`, `docs/pages/content-pipeline.md`, `docs/pages/drip-scheduling.md`
+> 연결 문서: `docs/backend/domain.md`(스키마의 유일한 기준), `docs/prd/ear_root_prd.md`, `docs/pages/common-error-handling.md`, `docs/pages/content-pipeline.md`, `docs/pages/drip-scheduling.md`
 >
 > **문서 운용 원칙**
 > - 이 문서와 충돌하는 구현은 리뷰에서 반려한다. 구현이 옳다면 문서를 먼저 고친다.
@@ -127,6 +127,7 @@ src/
 ├── common/                       # 도메인 지식이 없는 횡단 코드
 │   ├── filters/
 │   ├── interceptors/
+│   ├── middlewares/              # 라우팅 이전 단계(trace_id 발급 등)
 │   ├── guards/
 │   ├── decorators/
 │   ├── exceptions/
@@ -148,6 +149,7 @@ src/
 ```
 
 - `common/`에는 **도메인 지식이 들어가지 않는다.** 도메인을 아는 공용 코드는 별도 모듈로 만든다.
+- `middlewares/`에는 **Guard보다 먼저 실행되어야 하는 것만** 둔다. Nest의 실행 순서는 미들웨어 → Guard → 인터셉터이므로, Guard에서 발생한 예외도 갖고 있어야 하는 값(`trace_id`)은 인터셉터에 둘 수 없다. 그 외 요청 단위 횡단 처리는 인터셉터를 기본으로 한다.
 - 모듈 내부 파일 구성 규칙·네이밍은 convention.md를 따른다.
 
 ### 4.3 모듈 간 의존 규칙 (DI)
@@ -193,9 +195,11 @@ src/
 
 ## 6. Database Architecture
 
-> **작성 예정.** 도메인 확정 후 테이블·컬럼·인덱스·제약을 정의한다. 분량이 커지면 `docs/backend/domain.md`로 분리하고 이 장은 원칙·연결만 남긴다. **Entity 코드는 그 문서의 테이블·컬럼 정의를 따른다**(convention.md 4.1).
+> **스키마는 [`domain.md`](domain.md)가 유일한 기준이다.** 테이블·컬럼·인덱스·제약 정의는 그 문서에만 두고, 이 장에는 중복해서 적지 않는다. **Entity 코드는 domain.md의 정의를 따른다**(convention.md 4.1).
+>
+> 스키마를 바꿔야 하면 domain.md를 먼저 고친 뒤 Entity·마이그레이션을 작성한다. 코드에만 존재하는 컬럼을 만들지 않는다.
 
-확정 전이라도 아래 전제는 고정한다.
+domain.md와 별개로 아래 전제는 이 장에서 고정한다.
 
 - 스키마 변경은 **반드시 마이그레이션 파일**로 관리한다. `synchronize: true`는 어떤 환경에서도 사용하지 않는다.
 - 정합성이 중요한 규칙은 애플리케이션 검증에만 맡기지 않고 **DB 제약(unique·FK·not null·check)으로 이중 방어**한다 (→ 8.4).
@@ -217,12 +221,14 @@ src/
 ```
 Error
 └── HttpException (Nest)
-    └── BusinessException          # 우리가 던지는 모든 도메인 예외의 부모
-        ├── NotFoundException      # 예: CONTENT_NOT_FOUND
-        ├── ForbiddenException     # 예: PLAY_LIMIT_EXCEEDED, CONTENT_WITHDRAWN
-        ├── ConflictException      # 예: DUPLICATE_REQUEST
+    └── BusinessException              # 우리가 던지는 모든 도메인 예외의 부모
+        ├── BusinessNotFoundException  # 예: CONTENT_NOT_FOUND
+        ├── BusinessForbiddenException # 예: PLAY_LIMIT_EXCEEDED, CONTENT_WITHDRAWN
+        ├── BusinessConflictException  # 예: DUPLICATE_REQUEST
         └── ExternalServiceException   # AI 서버·스토어 연동 실패
 ```
+
+**`Business` 접두사를 붙이는 이유** — `NotFoundException` / `ForbiddenException` / `ConflictException`은 `@nestjs/common`에 같은 이름이 이미 있다. 접두사가 없으면 자동 import로 Nest 것이 섞여 들어오고, 그 예외는 `errorCode`를 갖지 않으므로 클라이언트가 기대한 `error_code` 대신 상태 코드 기본값이 내려간다. 이름이 겹치지 않는 `ExternalServiceException`은 접두사를 붙이지 않는다.
 
 `BusinessException`은 다음을 갖는다.
 
@@ -443,4 +449,4 @@ PRD FR-33 / 비기능 "저작권·파트너 계약 준수"에 직접 대응한�
 - 서명 URL 만료 시간 확정(회수 반영 지연 상한과 직결 — 파트너 계약 명시 대상)
 - 레이트 리밋 구체 수치, 회로 차단 도입 시점
 - 탈퇴 시 재생 로그 비식별 보존 범위·기간 (PRD FR-02 "조사 필요", 법무 검토)
-- 5장 Domain Responsibility / 6장 Database Architecture — 도메인 확정 후 작성
+- 5장 Domain Responsibility — 도메인별 책임 경계 작성 (스키마는 `domain.md`가 기준이므로 6장은 원칙만 유지한다)
