@@ -4,13 +4,14 @@ import { ConsentType } from './user.enum';
  * 현행 약관 버전. 동의 화면에 보여줄 버전을 서버가 내려주고,
  * 재동의 판정도 이 값과 `consents` 최신 행을 비교해서 한다 (auth-api.md 4.1).
  *
- * TODO(팀 확정): 실제 약관·개인정보 처리방침 버전 문자열. 문서에 값이 정해져 있지 않아 1.0으로 시작한다.
+ * 팀 확정: 정식 약관 확정 전이므로 `0.1`에서 시작한다.
+ * 이 값을 올리면 기존 사용자에게 재동의가 요구된다(`consents` 최신 행과 비교 — auth-api.md 4.1).
  */
 export const CURRENT_CONSENT_VERSIONS: Readonly<
   Record<ConsentType, string | null>
 > = {
-  [ConsentType.TERMS]: '1.0',
-  [ConsentType.PRIVACY]: '1.0',
+  [ConsentType.TERMS]: '0.1',
+  [ConsentType.PRIVACY]: '0.1',
   /** 마케팅 동의는 버전이 없다 (domain.md 3.2) */
   [ConsentType.MARKETING]: null,
 };
