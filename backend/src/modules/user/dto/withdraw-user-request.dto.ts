@@ -1,11 +1,19 @@
-import { IsBoolean, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsEnum,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
+
+import { WithdrawalReason } from '../user.enum';
 
 /** auth-api.md 4.7 */
 export class WithdrawUserRequestDto {
+  /** 선택형 사유 — 목록 밖의 값은 받지 않는다 (auth-api.md 9장) */
   @IsOptional()
-  @IsString()
-  @MaxLength(50)
-  readonly reason_code?: string;
+  @IsEnum(WithdrawalReason)
+  readonly reason_code?: WithdrawalReason;
 
   @IsOptional()
   @IsString()
