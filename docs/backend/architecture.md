@@ -180,8 +180,13 @@ src/
 
 | 모듈 | 의존하는 모듈 | 비고 |
 |---|---|---|
-| Auth | User | 로그인·토큰 발급 시 사용자 조회·생성 |
+| Auth | User, Idempotency | 로그인·토큰 발급 시 사용자 조회·생성 |
+| User | Subscription, Idempotency | 탈퇴 시 결제 이력 판정 — **한시적 방향**, 아래 참고 |
 | *(도메인 확정 시 계속 추가)* | | |
+
+**`User → Subscription`은 한시적이다.** `domain.md` 2장이 `Subscription → User`(결제 반영 시 `users.tier` 갱신)를 함께 정의하고 있어, 두 방향이 동시에 성립하면 순환이 된다. Subscription 모듈이 티어 갱신을 시작하는 시점에 **탈퇴를 Orchestrator로 올려**(→ 3.3) 두 Service를 위에서 조합하고 이 의존을 제거한다.
+
+**Idempotency 모듈**은 도메인이 없는 플랫폼 모듈이다(`idempotency_keys` 소유 — 8.4). Entity를 갖기 때문에 `common/`이 아니라 모듈로 둔다.
 
 ## 5. Domain Responsibility
 
@@ -269,6 +274,17 @@ class BusinessException extends HttpException {
 - `message`는 **사용자 노출용**이다. 내부 사유·스택·테이블명·쿼리를 절대 담지 않는다.
 - 예상하지 못한 5xx는 `error_code: "INTERNAL_ERROR"`, `message: "일시적인 오류가 발생했어요"`로 고정한다. 내부 정보 유출 방지.
 - `trace_id`는 요청 단위로 생성해 응답 헤더(`X-Trace-Id`)와 모든 로그에 함께 남긴다. 클라이언트는 문의 대응용으로 화면에 작게 노출할 수 있다.
+
+**규격 밖 추가 필드** — 클라이언트가 화면을 그리는 데 값이 더 필요한 에러에 한해, 위 5개 필드 옆에 **평면(flat)으로 추가 필드를 실을 수 있다.**
+
+```json
+{ "error_code": "EMAIL_VERIFICATION_CODE_MISMATCH", "...": "...", "attempts_remaining": 4 }
+```
+
+- **API 명세서가 요구하는 경우에만** 추가한다(예: `auth-api.md` 4.10의 `attempts_remaining` — 남은 시도 횟수를 못 내리면 클라이언트가 "남은 N회"를 표시할 수 없다).
+- 위 5개 필드는 **모든 에러에 항상 존재한다.** 추가 필드는 해당 `error_code`에서만 나타나므로, 클라이언트는 `error_code`로 분기한 뒤에만 읽는다.
+- 추가 필드에 **내부 사유·식별자·개인정보를 담지 않는다.** 판정 결과 숫자·시각 정도로 제한한다.
+- 새 필드를 만들 때는 그 API 명세서에 함께 적는다. 공통 규격(위 5개)에는 추가하지 않는다.
 
 ### 7.5 ErrorCode 관리
 
