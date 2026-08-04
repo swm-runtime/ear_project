@@ -12,7 +12,6 @@ import {
 import { ConsentType } from '@/modules/user/user.enum';
 import { UserService } from '@/modules/user/services/user.service';
 
-import { DEFAULT_NICKNAME } from '../auth.constant';
 import {
   AuthenticatedResult,
   IssuedTokens,
@@ -118,7 +117,8 @@ export class AuthService {
           providerUserId: payload.providerUserId,
           email: payload.email,
           isEmailVerified: payload.isEmailVerified,
-          nickname: payload.nickname ?? DEFAULT_NICKNAME,
+          // 제공자가 주지 않으면 비워 둔다 — 온보딩에서 채운다 (domain.md 3.1)
+          nickname: payload.nickname,
           consents: command.consents,
         },
         now,

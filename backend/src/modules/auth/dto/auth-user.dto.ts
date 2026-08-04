@@ -12,7 +12,8 @@ import {
  */
 export class AuthUserDto {
   readonly id: string;
-  readonly nickname: string;
+  /** 온보딩 전에는 null일 수 있다 (domain.md 3.1) */
+  readonly nickname: string | null;
   readonly email: string | null;
   /** `users` 컬럼 값이며 제공자 응답을 중계한 값이 아니다 (auth-api.md 4.1) */
   readonly is_email_verified: boolean;

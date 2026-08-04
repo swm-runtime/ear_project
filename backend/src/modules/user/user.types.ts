@@ -1,4 +1,4 @@
-import { ConsentType, SocialProvider } from './user.enum';
+import { ConsentType, SocialProvider, WithdrawalReason } from './user.enum';
 
 /**
  * convention.md 3.2 — Service 경계에는 HTTP DTO 대신 Command 타입을 쓴다.
@@ -12,7 +12,8 @@ export interface CreateUserCommand {
   /** 마스킹 주소는 null로 들어온다 */
   email: string | null;
   isEmailVerified: boolean;
-  nickname: string;
+  /** null = 제공자가 주지 않음. 온보딩에서 채운다 (domain.md 3.1) */
+  nickname: string | null;
   consents: ConsentInput[];
 }
 
@@ -24,7 +25,7 @@ export interface ConsentInput {
 
 export interface WithdrawUserCommand {
   userId: string;
-  reasonCode: string | null;
+  reasonCode: WithdrawalReason | null;
   reasonText: string | null;
   confirm: boolean;
   agreedSubscriptionExpiry: boolean;

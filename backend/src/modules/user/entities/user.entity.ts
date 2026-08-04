@@ -32,8 +32,13 @@ export class User extends BaseEntity {
   @Column({ name: 'is_email_verified', type: 'boolean', default: false })
   isEmailVerified: boolean;
 
-  @Column({ name: 'nickname', type: 'varchar', length: 50 })
-  nickname: string;
+  /**
+   * null = 아직 정해지지 않음. 제공자가 주면 초기값으로 쓰고, 없으면 비워 둔다.
+   * **값은 온보딩의 닉네임 입력 단계에서 채운다** (domain.md 3.1).
+   * 기본 문자열을 넣으면 "미정"과 "사용자가 그렇게 정함"이 구분되지 않는다.
+   */
+  @Column({ name: 'nickname', type: 'varchar', length: 50, nullable: true })
+  nickname: string | null;
 
   @Column({ name: 'role', type: 'varchar', length: 20, default: UserRole.USER })
   role: UserRole;
