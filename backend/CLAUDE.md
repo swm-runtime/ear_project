@@ -16,7 +16,15 @@
 - 규칙이 틀렸다고 판단되면 **코드가 아니라 문서를 먼저 고친다** — 단, 위 확인을 거친 뒤에.
 - `docs/spec/api/`, `docs/pages/`, `docs/prd/`는 **다른 파트가 소유한 계약 문서다.** 수정 대상이 아니라 전달 대상이다.
 
-## 3. 작업별로 봐야 할 문서
+## 3. 커밋·push는 매번 확인을 받는다
+
+- **커밋 전에 반드시 확인을 받는다.** 물어볼 때는 **어느 브랜치에 커밋할지**와 **무엇을 커밋할지(변경 요약)** 를 함께 제시한다. 승인 없이 커밋하지 않는다.
+- **커밋 승인은 push 승인이 아니다.** 커밋을 수락받은 뒤 push에 대해 **다시 한번 확인을 받는다.**
+- **지시받은 브랜치에서만 작업한다.** 다른 브랜치로 옮기거나, 다른 브랜치에 커밋·push하지 않는다. 현재 브랜치가 맞는지 커밋 전에 확인한다.
+- **PR은 요청받았을 때만 만든다.** 커밋·push 승인이 PR 승인을 뜻하지 않는다.
+- 커밋 자체의 형식은 `docs/backend/convention.md` 6장을 따른다 — 하나의 커밋은 하나의 목적만 담고, 본문에는 무엇이 아니라 **왜** 바꿨는지를 쓴다.
+
+## 4. 작업별로 봐야 할 문서
 
 | 작업 | 봐야 할 문서 |
 |---|---|
@@ -29,7 +37,7 @@
 
 `docs/pages/`의 기능 문서: `auth` `onboarding` `library` `explore` `player` `paywall` `subscription` `profile` `settings` `notification` `drip-scheduling` `content-pipeline` `partner-control` `admin` `splash` `offline-download` `common-error-handling`
 
-## 4. 규칙이 충돌할 때 우선순위
+## 5. 규칙이 충돌할 때 우선순위
 
 ```
 클라이언트 계약(docs/pages/*, docs/spec/api/*) > architecture.md > convention.md
@@ -37,7 +45,7 @@
 
 **스키마만은 예외로 `domain.md`가 항상 최상위다.** 다른 문서의 데이터 모델 서술과 어긋나면 `domain.md`를 따른다.
 
-## 5. 기능 하나를 만드는 순서
+## 6. 기능 하나를 만드는 순서
 
 1. PRD에서 해당 **FR 번호**와 목적을 확인한다
 2. `docs/pages/<기능>.md`에서 동작 규칙·예외 상황·완료 조건을 읽는다
@@ -47,7 +55,7 @@
 6. 정책 로직에는 단위 테스트를 반드시 붙인다(`convention.md` 7.2)
 7. **실행해서 확인한 뒤에** 완료라고 말한다 — 빌드·테스트 통과만으로 끝내지 않는다
 
-## 6. 개발 명령
+## 7. 개발 명령
 
 ```bash
 docker compose up -d          # 로컬 PostgreSQL (5433, DB: runtime)
@@ -61,7 +69,7 @@ npm run migration:run
 
 `synchronize`는 어떤 환경에서도 쓰지 않는다. 스키마 변경은 마이그레이션 파일로만 한다.
 
-## 7. 자주 틀리는 것
+## 8. 자주 틀리는 것
 
 - 다른 모듈의 **Repository를 주입받지 않는다.** 그 모듈이 `exports`한 Service만 쓴다
 - Controller는 **try/catch 하지 않는다.** 전역 Exception Filter가 변환한다
