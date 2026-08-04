@@ -90,7 +90,7 @@
 | `content` | `contents`, `content_topics`, `content_scripts`, `content_stats` |
 | `library` | `library_items` |
 | `playback` | `playback_progresses`, `play_records`, `user_signals`, `audio_access_logs` |
-| `drip` | `drip_excluded_contents`, `user_preference_vectors`, `drip_batch_runs` |
+| `drip` | `drip_excluded_contents`, `user_preference_vectors`, `drip_batch_runs`, `first_drip_jobs` |
 | `subscription` | `plans`, `subscriptions`, `purchase_intents`, `store_notification_logs` |
 | `notification` | `notification_logs` |
 | `partner` | `partners`, `content_control_requests`, `audit_logs` |
@@ -519,10 +519,27 @@ library_items
   deleted_at                timestamptz     NULL   ★소프트 삭제
 
 uq_library_items_user_id_content_id (user_id, content_id)
-idx_library_items_user_id_deleted_at_added_at (user_id, deleted_at, added_at DESC)
+idx_library_items_user_id_deleted_at_added_at_id (user_id, deleted_at, added_at DESC, id DESC)
+idx_library_items_user_id_deleted_at_last_played_at (user_id, deleted_at, last_played_at DESC)
+idx_library_items_content_id (content_id)
 ```
 
 - `uq_library_items_user_id_content_id`가 **중복 적립 방지의 최종 방어선이다** (A-5). 드립과 사용자 담기가 동시에 같은 콘텐츠를 적립해도 DB가 1건만 남긴다.
+
+**목록 인덱스에 `id`를 함께 넣는 이유** — 커서 페이지네이션의 tie-break다(`library-api.md` 4.1).
+
+- 커서는 `(added_at, id)` keyset이다. `added_at`만으로는 **같은 시각에 적립된 행들의 순서가 정해지지 않아** 페이지 경계에서 아이템이 중복되거나 누락된다. 드립 배치는 한 사용자에게 2편을 **같은 트랜잭션에서** 적립하므로 이 상황이 예외가 아니라 매일 발생한다.
+- 인덱스에 `id`가 없으면 정렬은 맞아도 tie 구간마다 추가 스캔이 붙는다.
+
+**`last_played_at` 인덱스는 미니플레이어 복원용이다**(`library.md` 4.2).
+
+- 복원 대상은 "완청하지 않은 것 중 `last_played_at`이 가장 최근인 1건"이라 **정렬 축이 목록(`added_at`)과 다르다.** 앱을 열 때마다 실행되는 조회이므로 자기 인덱스가 필요하다.
+
+**`content_id` 단독 인덱스는 회수 반영용이다.**
+
+- 파트너가 콘텐츠를 회수하면 그 콘텐츠를 담고 있는 **전 사용자의 라이브러리 행**을 찾아야 한다(`partner-control.md`). 유니크 인덱스는 `user_id`가 선두라 이 방향 조회에 쓸 수 없다.
+- 목록 조회에서 **회수 콘텐츠를 걸러내는 것은 인덱스 문제가 아니다.** `contents`를 `id`로 조인하면 PK 조회에 `status`가 함께 딸려 오므로 별도 인덱스를 만들 이유가 없다. `idx_contents_status_published_at`([5.1](#51-contents))은 발행 목록 조회용이지 이 경로용이 아니다.
+- **주제 필터도 새 인덱스가 필요 없다.** `idx_content_topics_topic_id`([5.2](#52-content_topics))로 주제에 속한 `content_id`를 뽑고, 위 `idx_library_items_content_id`로 라이브러리 행에 붙인다.
 - **`resume_position_sec`을 두지 않는다** (A-1). 재생 위치는 `playback_progresses`가 단독으로 소유하고, 목록 조회 시 조인한다. 라이브러리에서 삭제해도 재생 이력이 남아야 하기 때문이다(`library.md` 4.4).
 - **`deleted_reason`을 두지 않는다** (A-4). 삭제 경로(라이브러리 삭제 / 탐색 담기 해제)를 구분하지 않기로 했다. 어느 쪽이든 드립 재적립에서 영구 제외되며, 그 판정은 `drip_excluded_contents`가 담당한다.
 - `source = onboarding`은 유지한다. **무료 티어도 온보딩 초기 적립과 자동 드립을 받는다**(PRD 미확정 3번 결정).
@@ -698,6 +715,44 @@ uq_drip_batch_runs_run_date (run_date)
 
 - `uq_drip_batch_runs_run_date`가 **배치 중복 실행을 막는다** (A-5). 사용자 단위 중복은 `library_items` 유니크가 막는다.
 - 운영 콘솔 조회용으로 DB에 유지한다 (B-8).
+
+### 7.4 `first_drip_jobs`
+
+온보딩 3단계에서 **하나도 담지 않은 사용자**의 첫 드립 편성 1건을 추적한다. 클라이언트가 완료 대기 로딩을 걸어놓고 이 상태를 폴링한다(`onboarding.md` 4 [완료 대기], `onboarding-api.md` 4.8).
+
+```
+first_drip_jobs
+  id                        uuid            PK
+  user_id                   uuid            FK → users
+  status                    enum            pending | completed | no_candidates | queued | failed
+  attempt_count             smallint        DEFAULT 0   서버 내부 재시도 횟수
+  last_attempted_at         timestamptz     NULL
+  completed_at              timestamptz     NULL
+  item_count                int             DEFAULT 0   실제로 적립된 편수
+
+uq_first_drip_jobs_user_id (user_id)
+idx_first_drip_jobs_status_last_attempted_at (status, last_attempted_at)
+```
+
+**`drip_batch_runs`로 대신할 수 없는 이유** ([7.3](#73-drip_batch_runs))
+
+- `drip_batch_runs`는 `run_date` 유니크라 **하루 1행짜리 일일 배치 기록**이다. 온보딩 첫 드립은 가입 시점에 사용자별로 발생하므로 같은 날 여러 건이 생기고, 그 테이블에는 담을 자리가 없다.
+- **`library_items` 유무만으로는 상태를 구분할 수 없다.** 행이 없다는 사실 하나로 "아직 편성 중"인지 "후보가 고갈돼 만들 수 없었는지"를 가를 수 없어, 클라이언트가 영영 오지 않을 결과를 15초 내내 기다리게 된다.
+
+**상태값이 다섯인 이유**
+
+| 값 | 의미 | 클라이언트 |
+|---|---|---|
+| `pending` | 편성 진행 중 | 계속 폴링 |
+| `completed` | 적립 완료 | 완료 화면으로 |
+| `no_candidates` | 후보 고갈 — **실패가 아니다** | 즉시 완료 화면으로. **재시도하지 않는다** |
+| `queued` | 서버가 자체 재시도를 소진해 비동기 큐로 넘김 | 즉시 완료 화면으로 |
+| `failed` | 큐 적재까지 실패 | 즉시 완료 화면으로 + 운영 알림 |
+
+- **`no_candidates`를 실패로 뭉뚱그리지 않는다.** 재시도해도 결과가 바뀌지 않는 종료 상태이므로(`onboarding.md` 7), 실패로 취급하면 서버가 헛된 재시도를 하고 사용자는 상한까지 기다린다.
+- **사용자당 1행이다**(`uq_first_drip_jobs_user_id`). 온보딩은 계정 생애에 한 번뿐이고, 유니크가 완료 요청 재시도로 인한 **중복 편성 트리거를 막는 최종 방어선**이다.
+- `attempt_count`는 **서버 내부 재시도 횟수**다. 클라이언트가 보내는 값이 아니며, 사용자 화면에도 노출하지 않는다(`onboarding.md` 4).
+- 보존: 온보딩 완료 후 목적이 끝나므로 **`completed_at` 기준 30일 후 배치 삭제**한다. 운영 지표(0건 담기 비율·편성 실패율)는 그 전에 구조화 로그로 빠져나간다(B-8).
 
 ---
 
@@ -1014,6 +1069,7 @@ idx_archived_subscriptions_archived_at
 | `device_tokens` | **soft** (`invalidated_at`) | 발송 실패 원인 추적 |
 | `user_interests` | **soft** (`is_active`, `deactivated_at`) | 재활성화 가능 |
 | `email_verifications` | **hard** — 만료 24시간 후 배치 삭제 | 인증 목적 종료 후 보관 근거 없음 ([3.7](#37-email_verifications)) |
+| `first_drip_jobs` | **hard** — `completed_at` 30일 후 배치 삭제 | 온보딩 1회성 작업 기록. 지표는 구조화 로그로 빠진다 ([7.4](#74-first_drip_jobs)) |
 | 나머지 | hard | |
 
 ### 12.2 법적 근거
@@ -1076,7 +1132,7 @@ idx_archived_subscriptions_archived_at
 | 처리 | 대상 |
 |---|---|
 | **아카이브 후 파기** (5년) | `users` → `archived_users`, `consents` → `archived_consents`, `subscriptions` → `archived_subscriptions` |
-| **즉시 파기** | `library_items`, `playback_progresses`, `play_records`, `user_signals`, `user_interests`, `user_settings`, `device_tokens`, `sessions`, `user_preference_vectors`, `drip_excluded_contents`, `purchase_intents`, `notification_logs`, `email_verifications` |
+| **즉시 파기** | `library_items`, `playback_progresses`, `play_records`, `user_signals`, `user_interests`, `user_settings`, `device_tokens`, `sessions`, `user_preference_vectors`, `drip_excluded_contents`, `purchase_intents`, `notification_logs`, `email_verifications`, `first_drip_jobs` |
 | **그대로 유지** | `withdrawal_logs`(원래 해시만), `store_notification_logs`(개인 식별자 없음), `content_stats`(집계값) |
 
 **결제 이력이 없는 사용자 — 아카이브 없이 전량 즉시 파기**
@@ -1170,7 +1226,7 @@ idx_archived_subscriptions_archived_at
 | `AppConfig` | 15.3 — 배포 설정에서 관리 |
 | `Content.status` 중 `superseded` | 15.2 — 재발행 시 같은 행의 `content_version`을 올리므로 불필요 |
 
-**테이블 수**: MVP 필수 **32개** (+ P1 `topic_adjacencies`).
+**테이블 수**: MVP 필수 **33개** (+ P1 `topic_adjacencies`).
 
 | 영역 | 개수 | 테이블 |
 |---|---|---|
@@ -1178,7 +1234,7 @@ idx_archived_subscriptions_archived_at
 | 관심사 | 2 | `topics` `user_interests` |
 | 콘텐츠 | 4 | `contents` `content_topics` `content_scripts` `content_stats` |
 | 라이브러리·재생 | 5 | `library_items` `playback_progresses` `play_records` `user_signals` `audio_access_logs` |
-| 편성 | 3 | `drip_excluded_contents` `user_preference_vectors` `drip_batch_runs` |
+| 편성 | 4 | `drip_excluded_contents` `user_preference_vectors` `drip_batch_runs` `first_drip_jobs` |
 | 구독·결제 | 4 | `plans` `subscriptions` `purchase_intents` `store_notification_logs` |
 | 알림 | 1 | `notification_logs` |
 | 파트너 | 3 | `partners` `content_control_requests` `audit_logs` |
@@ -1195,6 +1251,10 @@ idx_archived_subscriptions_archived_at
 | 1 | **유료 티어 값** | `plans.daily_play_limit` · `daily_drip_count` · `price_krw`의 `daily`/`pro` 값이 미정. 1~2주 시범 운영 후 확정(FR-14). **컬럼은 이미 있으므로 값만 채우면 되고 마이그레이션은 필요 없다.** |
 | 2 | **결제 이력 없는 사용자의 `consents` 파기 — 법무 확인** | [12.3](#123-회원-탈퇴-처리)에서 `archived_consents`도 함께 파기하기로 했다. 동의 획득의 입증 책임은 사업자에게 있으므로, 탈퇴자가 나중에 동의 사실을 다투면 반박 근거가 남지 않는다. **입증 책임과 제21조 제1항 중 어느 쪽이 우선하는지 확인이 필요하다.** 보존이 필요하다는 판단이 나오면 `archived_consents`만 예외로 남긴다 — 스키마 변경은 없고 12.3의 분기만 바뀐다. |
 | 3 | **계정 단위 발송 상한(백스톱)** | [3.7](#37-email_verifications)의 발송 제한이 `(user_id, email)` 단위이므로 **계정 단위 총량 제한이 없다.** 주소를 갈아 끼우면 한 계정의 발송량에 상한이 없어 메일 발송기로 악용될 수 있다. 상한을 둘지, 둔다면 저장소를 어디로 할지(같은 테이블 집계 / Redis 카운터) 결정 필요. 발신 도메인 평판이 걸린 문제다 — `auth.md` 미결 사항 참조. |
+| 4 | **`users.years_of_experience` 타입 불일치** | [3.1](#31-users)은 `int`인데 `onboarding.md` 3장의 입력은 **구간 enum**(1년 미만 / 1–3년 / 4–6년 / 7년 이상)이다. 현재는 구간 하한값(0·2·4·7)으로 저장하는 것으로 읽히는데, **매핑이 문서 어디에도 없어 구간을 조정하면 기존 값의 의미가 조용히 바뀐다.** 구간 enum으로 바꾸거나, `int`를 유지하되 매핑을 이 문서에 못박아야 한다. |
+| 5 | **`drip_excluded_contents.reason`에 온보딩 담기 값이 없다** | enum이 `unsave \| library_delete \| played \| dripped`인데 `onboarding.md` 6장은 이 테이블을 온보딩 중복 방지 근거로 든다. 현재는 **행을 만들지 않고** `library_items` 유니크로 중복을 막는 것으로 정리했으나(`onboarding-api.md`), 문서와 enum 중 어느 쪽을 고칠지 결정 필요. |
+| 6 | **추천 세트 스냅샷 저장소 없음** | `onboarding.md`가 3단계 추천을 **사용자·세션 단위로 고정**하도록 요구하는데, 결정론적 시드만으로는 후보 풀이 세션 중간에 바뀌면 결과가 흔들린다. 스택에 캐시 계층이 없어(Postgres/TypeORM만) 스냅샷을 둘 자리가 없다. 흔들림을 허용할지, 캐시를 도입할지 결정 필요. |
+| 7 | **비동기 재시도 큐 미정** | [7.4](#74-first_drip_jobs)의 `queued`가 넘기는 대상이며 `onboarding.md`의 최종 폴백 경로인데, 큐 인프라 자체가 `architecture.md` 미결이다. 미정인 채로는 `queued` 상태가 종착지 없이 남는다. |
 
 ### 15.2 회의에서 확정된 사항 (반영 완료)
 
@@ -1206,6 +1266,8 @@ idx_archived_subscriptions_archived_at
 | 탈퇴 시 `subscriptions` | 구독 만료 동의 후 탈퇴, **5년 보존 후 파기** | `archived_subscriptions` (11.5), 12.3 |
 | 탈퇴 시 유저 데이터 | 별도 테이블로 **5년 보존 후 파기** — 단 결제 이력이 있는 사용자만 | `archived_users` (11.3), 12.3 |
 | **결제 이력 없는 탈퇴자** | **아카이브하지 않고 전량 즉시 파기.** 거래가 없으면 전자상거래법 시행령 제6조의 보존 대상이 성립하지 않으므로, 개인정보보호법 제21조 제1항의 원칙(지체 없는 파기)으로 돌아간다. 판정 기준은 `subscriptions` 행의 존재 여부 | 11.1, 12.2, 12.3 |
+| 온보딩 첫 드립 상태 저장소 | **`first_drip_jobs` 신설.** 0건 담기 사용자의 완료 대기 로딩이 폴링할 대상이다. `drip_batch_runs`는 `run_date` 유니크라 대신할 수 없고, `library_items` 유무만으로는 `pending`과 `no_candidates`를 구분할 수 없다 | 7.4 |
+| 라이브러리 목록 인덱스 | **커서 tie-break용 `id` 추가**(같은 트랜잭션에서 2편이 적립되므로 `added_at` 동률이 매일 발생), **미니플레이어 복원용 `last_played_at` 인덱스**, **회수 반영용 `content_id` 인덱스** 신설. 회수 필터·주제 필터는 기존 인덱스로 충분해 추가하지 않는다 | 6.1 |
 | 이메일 인증 저장소 | **`email_verifications` 신설.** 코드 해시·만료·검증 시도·마지막 시도 시각을 서버가 판정한다. 발송 5회 제한은 `(user_id, email)` 단위이며 `send_seq`로 창을 판정한다 | 3.7 |
 | 제공자 이메일 인증 여부 | **`users.is_email_verified`로 분리 저장.** 카카오는 `is_email_valid`·`is_email_verified`가 **둘 다 true일 때만** 인증으로 보고, `is_email_valid = false`(마스킹 주소)면 `email = NULL`로 둔다 | 3.1 |
 | `consents` 구조 | **`consent_type` 축으로 분리** | 3.2 |
