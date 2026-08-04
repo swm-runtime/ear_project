@@ -6,6 +6,7 @@ import {
   IsString,
   Max,
   Min,
+  MinLength,
   validateSync,
 } from 'class-validator';
 
@@ -55,6 +56,21 @@ export class EnvironmentVariables {
   @IsString()
   @IsNotEmpty()
   CORS_ORIGINS: string;
+
+  /** access token·signup token 서명 키 (architecture.md 9.1) */
+  @IsString()
+  @MinLength(32)
+  JWT_SECRET: string;
+
+  /** archived_* 테이블 간 조인 키 생성용 pepper (domain.md 11.2) */
+  @IsString()
+  @MinLength(32)
+  ARCHIVE_HASH_PEPPER: string;
+
+  /** withdrawal_logs 해시용 pepper. 아카이브와 **다른 키**여야 한다 (domain.md 11.2) */
+  @IsString()
+  @MinLength(32)
+  WITHDRAWAL_HASH_PEPPER: string;
 }
 
 /**

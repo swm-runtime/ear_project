@@ -91,6 +91,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
           retryable: exception.retryable,
           retry_after_sec: exception.retryAfterSec ?? null,
           trace_id: traceId,
+          // 클라이언트 계약이 요구하는 추가 필드만 실린다 (BusinessException.details 주석 참고)
+          ...exception.details,
         },
       };
     }

@@ -12,6 +12,13 @@ export interface BusinessExceptionOptions {
   retryable?: boolean;
   retryAfterSec?: number;
   logLevel?: ErrorLogLevel;
+  /**
+   * 에러 응답 본문에 함께 실을 추가 필드.
+   * 클라이언트 계약이 규격 밖 필드를 요구할 때만 쓴다
+   * (예: `EMAIL_VERIFICATION_CODE_MISMATCH`의 `attempts_remaining` — auth-api.md 4.10).
+   * 값은 그대로 노출되므로 내부 사유를 담지 않는다.
+   */
+  details?: Record<string, unknown>;
 }
 
 /**
@@ -23,6 +30,7 @@ export class BusinessException extends HttpException {
   readonly retryable: boolean;
   readonly retryAfterSec?: number;
   readonly logLevel: ErrorLogLevel;
+  readonly details?: Record<string, unknown>;
 
   constructor(options: BusinessExceptionOptions) {
     super(options.message, options.status);
@@ -30,6 +38,7 @@ export class BusinessException extends HttpException {
     this.retryable = options.retryable ?? false;
     this.retryAfterSec = options.retryAfterSec;
     this.logLevel = options.logLevel ?? 'warn';
+    this.details = options.details;
   }
 }
 

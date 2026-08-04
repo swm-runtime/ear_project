@@ -10,6 +10,9 @@ describe('validateEnv', () => {
     DB_PASSWORD: 'ear',
     DB_NAME: 'ear',
     CORS_ORIGINS: 'http://localhost:8081',
+    JWT_SECRET: 'test-jwt-secret-0123456789-0123456789',
+    ARCHIVE_HASH_PEPPER: 'test-archive-pepper-0123456789-0123456',
+    WITHDRAWAL_HASH_PEPPER: 'test-withdrawal-pepper-0123456789-0123',
   };
 
   it('필수 환경 변수가 모두 있으면 숫자 타입으로 변환된 설정을 반환한다', () => {
