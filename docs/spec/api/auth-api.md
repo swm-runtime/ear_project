@@ -94,7 +94,7 @@
 
 | 필드 | 타입 | 필수 | 비고 |
 | --- | --- | --- | --- |
-| provider | enum `kakao` | `google` | `naver` | 필수 |  |
+| provider | enum `kakao` | `naver` | `google` | 필수 |  |
 | provider_token | string | 필수 | 서버가 제공자 API로 **반드시 검증**한다 |
 | device_id | string | 필수 | 푸시 토큰 매핑용 |
 - **동의 값을 여기에 싣지 않는다.** 동의는 로그인 성공 이후 별도 화면에서 받는다(`auth.md` 4.1).
