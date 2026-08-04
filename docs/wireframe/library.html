@@ -76,6 +76,7 @@
 
           <div class="appbar">
             <h1>라이브러리</h1>
+            <span class="t-xs" style="margin-left:auto; padding:3px 9px; border-radius:99px; background:var(--surface-2); border:1px solid var(--line); color:var(--ink-2); font-weight:650; white-space:nowrap">오늘 재생 1/2 남음<span class="mk">A</span></span>
           </div>
 
           <div class="body pad-b" style="overflow-y:auto">
@@ -89,7 +90,7 @@
                 <span class="chip on sm">전체<span class="mk">2</span></span>
                 <span class="chip sm">미청취</span>
                 <span class="chip sm">완료</span>
-                <span class="chip sm">추천</span>
+                <span class="chip sm">이어 PICK</span>
               </div>
               <span class="iconbtn" style="width:32px; height:32px; position:relative">
                 <svg width="19" height="19" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 5.5h8.5M15 5.5h2.5M2.5 14.5h2.5M9 14.5h8.5"/><circle cx="13" cy="5.5" r="2"/><circle cx="7" cy="14.5" r="2"/></svg>
@@ -160,13 +161,14 @@
       </div>
       <ul class="notes">
         <li><span class="n">1</span><span>새 드립 도착 배너. <b>필터가 걸려 있어도 배너는 뜨지만 탭·주제 필터는 유지</b>한다. 푸시 알림(FR-19)과 중복 안내가 되지 않게 정리가 필요하다. <span class="ref">library 4.6 · 7 · 미결</span></span></li>
-        <li><span class="n">2</span><span>상단 탭 <b>4개 — 전체 · 미청취 · 완료 · 추천</b>. 서로 배타적이며 한 번에 하나만 선택된다. <b>[미청취]는 <code>unplayed</code>와 <code>in_progress</code>를 함께</b> 담고, <b>[추천]은 <code>source = drip</code>을 상태와 무관하게</b> 담는다. 담기 전용 탭은 두지 않는다. <span class="ref">library 4.1-1</span></span></li>
+        <li><span class="n">2</span><span>상단 탭 <b>4개 — 전체 · 미청취 · 완료 · 이어 PICK</b>. 서로 배타적이며 한 번에 하나만 선택된다. <b>[미청취]는 <code>unplayed</code>와 <code>in_progress</code>를 함께</b> 담고, <b>[이어 PICK]은 <code>source = drip</code>을 상태와 무관하게</b> 담는다. 담기 전용 탭은 두지 않는다. <span class="ref">library 4.1-1</span></span></li>
         <li><span class="n">3</span><span>주제는 탭 줄에 칩으로 늘어놓지 않고 <b>필터 아이콘 → 바텀시트</b>로 받는다(L2). 지금은 적용 중인 주제가 없어 <b>배지가 없는 기본 상태</b>다. <span class="ref">library 4.1-1 · 5</span></span></li>
         <li><span class="n">4</span><span><b>이어듣기 카드는 두지 않는다.</b> 앱을 실행하면 완청하지 않은 것 중 <code>last_played_at</code>이 가장 최근인 <b>1건</b>을 미니플레이어에 <b>일시정지 상태</b>로 띄운다 — 소리는 나지 않는다. 대상이 없으면 미니플레이어 자체를 노출하지 않는다(L6·L9). 재생 위치는 <code>playback_progresses</code>가 소유한다. <span class="ref">library 4.1 · 4.2</span></span></li>
         <li><span class="n">5</span><span>더보기 메뉴. <b>[라이브러리에서 삭제]가 유일한 항목</b>이다 — 수동 완료 표시 기능은 제공하지 않는다. <span class="ref">library 4.4 · 4.5</span></span></li>
         <li><span class="n">6</span><span>완료 아이템도 <b>목록에서 자동 제거하지 않는다</b>(재청취 지표 수집 — PRD 10). 목록이 길어질 때의 처리는 미결이다. <span class="ref">library 4.4 · 미결</span></span></li>
         <li><span class="n">7</span><span>하단 탭은 <b>라이브러리 / 탐색 / 프로필 3개</b>다. 설정 탭은 두지 않고 <b>프로필 우상단의 설정 아이콘</b>으로 들어간다. 그에 맞춰 라이브러리 앱바의 설정 아이콘도 제거했다. <span class="ref">library 2 · 5 · profile 2 · settings 2</span></span></li>
-        <li><span class="n w">A</span><span>paywall 5장은 무료 잔여가 0일 때 <b>카드에 "오늘 재생 0/2 남음" 힌트</b>를 규정하는데 library.md 5장에는 이 요소가 없어 자리를 잡지 못했다. → V1</span></li>
+        <li><span class="n">A</span><span><b>잔여 재생 횟수 — 앱바 우측에 상시 노출한다.</b> 재생 확인 팝업은 탭한 뒤에야 뜨고 [오늘은 그만 보기]로 억제까지 되므로, 팝업만으로는 <b>탭하기 전에</b> 남은 횟수를 알 방법이 없다. <b>카드마다 붙이지 않는다</b> — 잔여 횟수는 콘텐츠의 속성이 아니라 사용자의 하루 상태라, 카드마다 같은 숫자를 반복하면 콘텐츠별 제한처럼 읽히고 한 편을 재생할 때마다 화면의 숫자가 전부 동시에 바뀐다. <b>탭 줄에도 넣지 않는다</b> — 탭 4개와 필터 아이콘이 이미 그 줄을 다 쓰고 있어 [이어 PICK]과 숫자를 함께 넣으면 탭이 잘린다. <b>무제한 티어에는 아무것도 표시하지 않는다</b>("무제한" 배지도 두지 않는다). <b>0일 때 숨기지 않고</b> 주의색으로 유지하며 탭하면 페이월이 열린다. 이 배지는 <b>판정이 아니라 힌트</b>이며, 클라이언트가 임의로 1을 빼지 않는다 — 차감은 재생이 실제로 시작된 시점에만 일어난다. <span class="ref">paywall 5 · library 4.1-2</span></span></li>
+        <li><span class="n w">A2</span><span><b>이 배지는 L1·L3에만 그렸다.</b> 실제로는 라이브러리·탐색의 <b>모든 상태</b>에 나타나며, 화면마다 값이 다르다(빈 상태 <code>2/2</code>, 소진 <code>0/2</code>, 무제한 티어는 없음). 나머지 시안에 값을 임의로 채우면 틀린 숫자를 그리게 되어 남겨두었다. <b>탐색은 앱바가 없어(검색창 + 주제 칩) 이 배치가 그대로 옮겨가지 않는다</b> — 검색창 줄 우측에 둔다. <span class="ref">explore 4.4-1</span></span></li>
       </ul>
     </article>
 
@@ -184,7 +186,7 @@
           <div class="body" style="opacity:.45">
             <div style="display:flex; align-items:center; gap:6px">
               <div class="chips row" style="flex:1; min-width:0; margin:0; padding:0 0 2px">
-                <span class="chip on sm">전체</span><span class="chip sm">미청취</span><span class="chip sm">완료</span><span class="chip sm">추천</span>
+                <span class="chip on sm">전체</span><span class="chip sm">미청취</span><span class="chip sm">완료</span><span class="chip sm">이어 PICK</span>
               </div>
               <span class="iconbtn" style="width:32px; height:32px">
                 <svg width="19" height="19" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 5.5h8.5M15 5.5h2.5M2.5 14.5h2.5M9 14.5h8.5"/><circle cx="13" cy="5.5" r="2"/><circle cx="7" cy="14.5" r="2"/></svg>
@@ -238,11 +240,11 @@
         <div class="island"></div>
         <div class="screen">
           <div class="statusbar"><span class="t">7:33</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
-          <div class="appbar"><h1>라이브러리</h1></div>
+          <div class="appbar"><h1>라이브러리</h1><span class="t-xs" style="margin-left:auto; padding:3px 9px; border-radius:99px; background:var(--surface-2); border:1px solid var(--line); color:var(--ink-2); font-weight:650; white-space:nowrap">오늘 재생 1/2 남음</span></div>
           <div class="body">
             <div style="display:flex; align-items:center; gap:6px">
               <div class="chips row" style="flex:1; min-width:0; margin:0; padding:0 0 2px">
-                <span class="chip on sm">전체</span><span class="chip sm">미청취</span><span class="chip sm">완료</span><span class="chip sm">추천</span>
+                <span class="chip on sm">전체</span><span class="chip sm">미청취</span><span class="chip sm">완료</span><span class="chip sm">이어 PICK</span>
               </div>
               <span class="iconbtn" style="width:32px; height:32px">
                 <svg width="19" height="19" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 5.5h8.5M15 5.5h2.5M2.5 14.5h2.5M9 14.5h8.5"/><circle cx="13" cy="5.5" r="2"/><circle cx="7" cy="14.5" r="2"/></svg>
@@ -268,6 +270,7 @@
                 <div class="btn outline">취소<span class="mk">11</span></div>
                 <div class="btn primary">재생하기<span class="mk">12</span></div>
               </div>
+              <p class="t-sm" style="margin:10px 0 0; text-align:center; color:var(--ink-3)">오늘은 그만 보기<span class="mk">12b</span></p>
             </div>
           </div>
           <div class="homebar"></div>
@@ -277,6 +280,7 @@
         <li><span class="n">10</span><span>카드 본문 탭 = 즉시 재생이지만 <b>차감이 실제로 일어나는 재생 앞에는 확인 팝업</b>을 한 번 둔다. 문구는 <b>오늘 남은 횟수</b>와 <b>1회 차감</b> 두 가지만 알린다. <span class="ref">library 4.3 · paywall 5</span></span></li>
         <li><span class="n">11</span><span>[취소]는 라이브러리에 그대로 머문다 — <b>횟수도 차감되지 않는다.</b> 팝업이 뜨지 않는 경우는 셋이다: <b>무제한 티어</b>, <b>같은 날 이미 튼 콘텐츠</b>(<code>(사용자, 콘텐츠, 날짜)</code> 기준 1회), 그리고 <b>한도 소진 — 이때는 팝업 대신 페이월 바텀시트</b>가 뜬다. <span class="ref">library 4.3 · 5 · paywall 4.1~4.2</span></span></li>
         <li><span class="n">12</span><span>[재생하기] 시점에 <b>서버가 한도를 다시 판정</b>한다. 팝업에 표시된 남은 횟수를 믿고 통과시키지 않으며, 그 사이 소진됐다면 페이월로 전환된다. <b>미니플레이어에서 시작하는 재생도 같은 판정을 거친다.</b> <span class="ref">library 4.2 · 7 · paywall 5</span></span></li>
+        <li><span class="n">12b</span><span><b>[오늘은 그만 보기] — 텍스트 버튼이며 [취소]·[재생하기]와 나란히 세우지 않는다.</b> 세 버튼을 같은 크기로 두면 무엇이 기본 동작인지 흐려지고 잘못 눌러 하루치 고지를 끄게 된다. <b>누르면 팝업을 닫고 그대로 재생한다</b> — 재생 없이 닫히면 [취소]와 구분되지 않고, 다시 탭했을 때는 팝업이 없어 무엇이 바뀐 건지 알 수 없다. <b>억제 대상은 이 팝업 하나뿐이고 차감은 그대로 일어난다</b>; 페이월·한도 안내는 억제되지 않는다. 유효 기간은 <b>04:00 KST 경계</b>까지로 한도 리셋과 같은 경계를 쓰며, 상태는 <b>기기 로컬</b>에 둔다(서버 컬럼을 만들지 않는다). 같은 기기의 탐색·미니플레이어에도 함께 적용된다. <span class="ref">paywall 4.2 · library 4.3</span></span></li>
       </ul>
     </article>
 
@@ -339,7 +343,7 @@
           <div class="body">
             <div style="display:flex; align-items:center; gap:6px">
               <div class="chips row" style="flex:1; min-width:0; margin:0; padding:0 0 2px">
-                <span class="chip on sm">전체</span><span class="chip sm">미청취</span><span class="chip sm">완료</span><span class="chip sm">추천</span>
+                <span class="chip on sm">전체</span><span class="chip sm">미청취</span><span class="chip sm">완료</span><span class="chip sm">이어 PICK</span>
               </div>
               <span class="iconbtn" style="width:32px; height:32px">
                 <svg width="19" height="19" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 5.5h8.5M15 5.5h2.5M2.5 14.5h2.5M9 14.5h8.5"/><circle cx="13" cy="5.5" r="2"/><circle cx="7" cy="14.5" r="2"/></svg>
@@ -387,7 +391,7 @@
   <div class="section-head">
     <p class="sid">L6 – L11</p>
     <h2>빈 상태 · 예외</h2>
-    <p>빈 화면이 네 종류인 이유는 원인이 다르기 때문입니다 — <b>아직 안 온 것</b>, <b>필터 때문에 안 보이는 것</b>, <b>추천이 아직 없는 것</b>, <b>다 지운 것</b>은 각각 다른 안내와 다음 행동이 필요합니다.</p>
+    <p>빈 화면이 네 종류인 이유는 원인이 다르기 때문입니다 — <b>아직 안 온 것</b>, <b>필터 때문에 안 보이는 것</b>, <b>이어 PICK이 아직 없는 것</b>, <b>다 지운 것</b>은 각각 다른 안내와 다음 행동이 필요합니다.</p>
   </div>
 
   <div class="shots">
@@ -444,7 +448,7 @@
           <div class="body">
             <div style="display:flex; align-items:center; gap:6px">
               <div class="chips row" style="flex:1; min-width:0; margin:0; padding:0 0 2px">
-                <span class="chip sm">전체</span><span class="chip sm">미청취</span><span class="chip on sm">완료</span><span class="chip sm">추천</span>
+                <span class="chip sm">전체</span><span class="chip sm">미청취</span><span class="chip on sm">완료</span><span class="chip sm">이어 PICK</span>
               </div>
               <span class="iconbtn" style="width:32px; height:32px; position:relative; color:var(--ink)">
                 <svg width="19" height="19" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 5.5h8.5M15 5.5h2.5M2.5 14.5h2.5M9 14.5h8.5"/><circle cx="13" cy="5.5" r="2"/><circle cx="7" cy="14.5" r="2"/></svg>
@@ -473,7 +477,7 @@
     <!-- L8 -->
     <article class="shot">
       <div class="shot-head">
-        <span class="shot-id">L8</span><h3>빈 상태 — [추천] 탭</h3>
+        <span class="shot-id">L8</span><h3>빈 상태 — [이어 PICK] 탭</h3>
         <p class="cap">아직 드립이 도착하지 않음</p>
       </div>
       <div class="device">
@@ -484,7 +488,7 @@
           <div class="body">
             <div style="display:flex; align-items:center; gap:6px">
               <div class="chips row" style="flex:1; min-width:0; margin:0; padding:0 0 2px">
-                <span class="chip sm">전체</span><span class="chip sm">미청취</span><span class="chip sm">완료</span><span class="chip on sm">추천</span>
+                <span class="chip sm">전체</span><span class="chip sm">미청취</span><span class="chip sm">완료</span><span class="chip on sm">이어 PICK</span>
               </div>
               <span class="iconbtn" style="width:32px; height:32px">
                 <svg width="19" height="19" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 5.5h8.5M15 5.5h2.5M2.5 14.5h2.5M9 14.5h8.5"/><circle cx="13" cy="5.5" r="2"/><circle cx="7" cy="14.5" r="2"/></svg>
@@ -494,7 +498,7 @@
               <div style="width:60px; height:60px; border-radius:99px; background:var(--surface-2); display:flex; align-items:center; justify-content:center">
                 <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M15.6 8.4l-2 5.2-5.2 2 2-5.2z"/></svg>
               </div>
-              <p class="h-md" style="margin:0">아직 도착한<br>추천 콘텐츠가 없어요<span class="mk">18</span></p>
+              <p class="h-md" style="margin:0">아직 도착한<br>이어 PICK이 없어요<span class="mk">18</span></p>
             </div>
           </div>
           <div class="tabbar">
@@ -506,7 +510,7 @@
         </div>
       </div>
       <ul class="notes">
-        <li><span class="n">18</span><span>[추천] 탭은 <code>source = drip</code>만 담는 <b>같은 데이터의 다른 보기</b>다. 담기로 모은 콘텐츠가 있어도 드립이 없으면 이 탭은 비어 있다 — 그래서 "라이브러리가 비어 있어요"(L9)와 다른 문구를 쓴다. 여기서 아이템을 삭제하면 통합 목록에서도 함께 사라진다. <span class="ref">library 4.1-1 · 5 · 7</span></span></li>
+        <li><span class="n">18</span><span>[이어 PICK] 탭은 <code>source = drip</code>만 담는 <b>같은 데이터의 다른 보기</b>다. 담기로 모은 콘텐츠가 있어도 드립이 없으면 이 탭은 비어 있다 — 그래서 "라이브러리가 비어 있어요"(L9)와 다른 문구를 쓴다. 여기서 아이템을 삭제하면 통합 목록에서도 함께 사라진다. <span class="ref">library 4.1-1 · 5 · 7</span></span></li>
       </ul>
     </article>
 
@@ -524,7 +528,7 @@
           <div class="body">
             <div style="display:flex; align-items:center; gap:6px">
               <div class="chips row" style="flex:1; min-width:0; margin:0; padding:0 0 2px">
-                <span class="chip on sm">전체</span><span class="chip sm">미청취</span><span class="chip sm">완료</span><span class="chip sm">추천</span>
+                <span class="chip on sm">전체</span><span class="chip sm">미청취</span><span class="chip sm">완료</span><span class="chip sm">이어 PICK</span>
               </div>
               <span class="iconbtn" style="width:32px; height:32px">
                 <svg width="19" height="19" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 5.5h8.5M15 5.5h2.5M2.5 14.5h2.5M9 14.5h8.5"/><circle cx="13" cy="5.5" r="2"/><circle cx="7" cy="14.5" r="2"/></svg>
@@ -664,10 +668,10 @@
   <p>탭 구성 · 이어듣기 진입점 · 영구 제외 고지 · 주제 필터의 출처는 library.md에서 확정되어 이 시안에 반영했습니다. 아래는 아직 남은 것입니다.</p>
 
   <div class="vlist">
-    <div class="vitem">
-      <h3><span class="vid">V1</span>무료 잔여 재생 힌트가 없다</h3>
-      <p>paywall.md 5장은 무료 잔여가 0일 때 "라이브러리·탐색 카드에 <b>오늘 재생 0/2 남음</b> 힌트 표시"를 규정하는데 library.md 5장에는 이 요소가 없어 시안에도 넣지 못했습니다. 재생 확인 팝업이 남은 횟수를 알려주지만 <b>팝업은 탭한 뒤에야 뜹니다</b> — 탭 전에 알릴지, 알린다면 카드마다인지 상단에 한 번인지 정하고 library.md 5장에 반영해야 합니다.</p>
-      <p class="where">paywall 5 / library 5 / 화면 L1 · L3</p>
+    <div class="vitem soft">
+      <h3><span class="vid">V1</span>무료 잔여 재생 힌트 — <b>해소됨</b></h3>
+      <p>"소진 시에만 카드에"에서 <b>"한도가 있는 티어에 상시, 앱바 우측 한 곳에"</b> 로 확정했습니다. 카드가 아닌 이유는 잔여 횟수가 콘텐츠 속성이 아니라 사용자의 하루 상태이기 때문입니다. 문구는 <code>"오늘 재생 N/M 남음"</code> 한 문자열만 쓰고 <b><code>M</code>을 2로 하드코딩하지 않습니다</b> — 유료 티어에 한도가 생기면 그대로 깨집니다. 무제한 티어는 표시하지 않고, 0일 때는 숨기지 않고 주의색으로 유지하며 탭하면 페이월이 열립니다.</p>
+      <p class="where">paywall 5 / library 4.1-2 / explore 4.4-1 / 화면 L1 · L3</p>
     </div>
 
     <div class="vitem">
@@ -677,15 +681,27 @@
     </div>
 
     <div class="vitem soft">
-      <h3><span class="vid">V3</span>재생 확인 팝업의 마찰</h3>
-      <p>유료 티어에도 한도가 생기면 <b>매 재생마다 팝업</b>을 보게 됩니다. "오늘은 그만 보기" 같은 완화 장치를 둘지는 미결이며, 판정을 소유한 paywall.md에서 정합니다. 시안은 완화 장치 없는 기본형입니다.</p>
-      <p class="where">library 4.3 · 미결 / paywall 미결 / 화면 L3</p>
+      <h3><span class="vid">V3</span>재생 확인 팝업의 마찰 — <b>해소됨</b></h3>
+      <p><b>[오늘은 그만 보기]</b> 를 팝업 하단 텍스트 버튼으로 확정했습니다(paywall 4.2가 소유). 누르면 재생하면서 오늘의 서비스 날짜 동안 이 팝업만 억제하며, <b>차감·페이월·판정에는 영향을 주지 않습니다.</b> 기기 로컬 상태라 서버 컬럼이 늘지 않고, 04:00 KST 경계로 한도 리셋과 같은 시점에 풀립니다. → 대신 V7이 생겼습니다.</p>
+      <p class="where">paywall 4.2 · 4.6 / library 4.3 / 화면 L3</p>
     </div>
 
     <div class="vitem soft">
-      <h3><span class="vid">V4</span>[추천] 탭의 이름</h3>
-      <p>내부적으로는 드립이지만 사용자에게는 "추천"으로 노출합니다. <b>탐색의 추천 피드와 이름이 겹쳐</b> 같은 단어가 두 화면에서 다른 것을 가리킵니다. 카피 검토가 필요하며, 이름이 바뀌면 L1·L8의 탭 라벨과 빈 상태 문구가 함께 바뀝니다.</p>
-      <p class="where">library 4.1-1 · 미결 / explore / 화면 L1 · L8</p>
+      <h3><span class="vid">V4</span>[추천] 탭의 이름 — <b>해소됨</b></h3>
+      <p><b>"이어 PICK"</b> 으로 확정했습니다. 서비스 이름을 붙여 "이어가 골라 보내준 것"이라는 출처를 라벨 자체가 말하고, 내부 용어인 "드립"을 노출하지 않으면서 탐색의 추천 피드와도 구분됩니다. L1·L8의 탭 라벨과 빈 상태 문구를 함께 바꿨습니다. <b>다만 4개 탭 중 유일하게 한·영 혼용 6자</b>라, 360dp 등폭 탭 줄에서 이것만 잘릴 위험이 남습니다.</p>
+      <p class="where">library 4.1-1 / 화면 L1 · L8</p>
+    </div>
+
+    <div class="vitem">
+      <h3><span class="vid">V7</span>억제 버튼이 팝업의 존재 이유를 약화시킨다</h3>
+      <p>팝업의 목적은 "1편이 차감된다"는 고지입니다. 그런데 무료 티어는 하루 2편이라, 사용자가 <b>첫 재생에서 억제하면 두 번째 재생은 팝업 고지 없이 차감</b>됩니다 — 팝업은 사용자당 사실상 한 번만 뜨는 셈입니다. 지금은 상시 노출되는 잔여 횟수(V1)가 그 고지를 대신 맡는 구조라, <b>억제 버튼과 상시 표시는 한 쌍</b>입니다. 상시 표시를 빼면 고지 수단이 아예 없어집니다. 애초에 무료 티어의 마찰은 억제 없이도 최대 2회였으므로, <b>무료 티어에서는 팝업 자체를 빼고 유료 한도 티어에만 두는 쪽</b>이 더 단순할 수 있습니다. 유료 티어 한도 값이 정해질 때 함께 판단합니다.</p>
+      <p class="where">paywall 4.2 · 미결 / library 4.3 / 화면 L3</p>
+    </div>
+
+    <div class="vitem">
+      <h3><span class="vid">V8</span>"오늘은 그만 보기"는 "숨기기"로 읽힌다</h3>
+      <p>이 버튼은 <b>누르는 즉시 재생하고 차감</b>합니다. 그런데 라벨은 "그만 보기"라 <b>재생 없이 닫는 동작으로 읽힙니다</b> — 의도치 않은 재생과 차감이 생길 수 있습니다. 재생하지 않고 닫으면 [취소]와 구분되지 않는다는 이유로 지금 동작을 택했지만, 모호함은 라벨 자체에서 옵니다. 텍스트 버튼으로 비중을 낮춰 완화했을 뿐이라 <b>카피 재검토가 필요합니다</b>(예: "재생하고 오늘은 그만 묻기").</p>
+      <p class="where">paywall 4.2 / library 4.3 / 화면 L3</p>
     </div>
 
     <div class="vitem soft">

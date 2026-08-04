@@ -293,6 +293,7 @@
                 <span style="font-size:14px; font-weight:600">이메일</span>
                 <span style="display:flex; align-items:center; gap:6px; min-width:0">
                   <span class="t-xs" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap">jiwoo@example.com</span>
+                  <span class="t-xs" style="flex:none; padding:2px 7px; border-radius:99px; background:var(--surface-2); border:1px solid var(--line); color:var(--ink-2); font-weight:650">인증되지 않음<span class="mk w">D</span></span>
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
                 </span>
               </div>
@@ -315,7 +316,8 @@
         </div>
       </div>
       <ul class="notes">
-        <li><span class="n">9</span><span>제공자와 이메일을 함께 표시. 카카오 선택 동의를 거부하거나 <b>마스킹 주소</b>를 받으면 이메일이 없으므로 이 줄이 제공자만 남는 경우를 처리해야 한다. 아래 [이메일] 행이 <b>설정 &gt; 계정 &gt; 이메일</b> 진입점이며, 값이 없으면 "등록되지 않음"으로 표시하고 A10으로 간다. <span class="ref">auth 2 · 4.4 · 7</span></span></li>
+        <li><span class="n">9</span><span>제공자와 이메일을 함께 표시. 카카오 선택 동의를 거부하거나 <code>is_email_valid = false</code>인 <b>마스킹 주소</b>를 받으면 이메일이 없으므로 이 줄이 제공자만 남는 경우를 처리해야 한다. <span class="ref">auth 2 · 4.1 · 7</span></span></li>
+        <li><span class="n w">D</span><span>[이메일] 행은 <b>세 상태</b>를 구분한다 — <b>없음</b>("등록되지 않음" + [등록]) / <b>있음·미인증</b>(주소 + "인증되지 않음" 배지 + [인증하기]·[변경]) / <b>있음·인증됨</b>(주소 + [변경]). 카카오 <code>is_email_verified = false</code>인 주소가 미인증 상태다. 저장된 주소와 인증된 주소를 <b>같은 모양으로 보여주면</b> 사용자는 결제 직전에야 한 단계가 남았다는 것을 알게 된다. 배지는 <b>경고색이 아니라 중립색</b> — 잘못된 상태가 아니라 남은 단계다. <span class="ref">auth 4.1 · profile 4.3</span></span></li>
         <li><span class="n">10</span><span>로그아웃·탈퇴가 같은 섹션에 있다. 탈퇴는 <b>위험 액션이므로 색으로 구분</b>한다. <span class="ref">auth 2</span></span></li>
       </ul>
     </article>
@@ -363,8 +365,8 @@
     <!-- A7 -->
     <article class="shot">
       <div class="shot-head">
-        <span class="shot-id">A7</span><h3>탈퇴 안내 — 활성 구독 있음</h3>
-        <p class="cap">이 플로우에서 정보량이 가장 많은 화면</p>
+        <span class="shot-id">A7</span><h3>탈퇴 안내 (A7-a) — 결제 이력 있음 · 활성 구독 있음</h3>
+        <p class="cap">이 플로우에서 정보량이 가장 많은 화면 · 결제 이력이 없으면 A7-b</p>
       </div>
       <div class="device">
         <div class="island"></div>
@@ -418,7 +420,8 @@
       </div>
       <ul class="notes">
         <li><span class="n">12</span><span>즉시 파기 대상. 라이브러리·관심사·커리어·재생 위치·재생 기록·소비 신호·설정·기기 토큰·세션·알림 로그·드립 제외 목록. <span class="ref">auth 4.3 · domain 12.3</span></span></li>
-        <li><span class="n">B</span><span>보존 항목을 <b>삭제 항목과 나란히</b> 고지한다. 삭제 항목만 보여주면 "전부 지워진다"고 이해한 채 탈퇴하게 된다. 근거는 전자상거래법 시행령 제6조(거래기록 5년). <span class="ref">auth 4.3-1</span></span></li>
+        <li><span class="n">B</span><span><b>이 섹션은 결제 이력이 있을 때만 그린다.</b> 보존 항목을 <b>삭제 항목과 나란히</b> 고지한다 — 삭제 항목만 보여주면 "전부 지워진다"고 이해한 채 탈퇴하게 된다. 근거는 전자상거래법 시행령 제6조(거래기록 5년). <span class="ref">auth 4.3-1</span></span></li>
+        <li><span class="n w">E</span><span><b>결제 이력이 없으면 A7-b가 된다 (와이어프레임 미작성).</b> 보존 섹션이 통째로 사라지고 "모든 데이터가 즉시 삭제됩니다"만 남으며, 구독 만료 동의 체크(14번)도 없다. 거래가 없으면 전자상거래법 시행령 제6조의 보존 대상이 성립하지 않아 <b>전량 즉시 파기</b>하기 때문이다(개인정보보호법 제21조 제1항). 보존 섹션을 <b>회색 처리하거나 "해당 없음"으로 남기지 않는다 — 아예 그리지 않는다.</b> 어느 변형인지는 진입 시 <code>GET /users/me/withdrawal-preview</code>가 판정한다. 클라이언트가 <code>user.tier</code>로 추측하면 결제 후 만료돼 무료로 돌아온 사용자를 "결제 이력 없음"으로 잘못 안내한다. <span class="ref">auth 4.3 · domain 12.3 · auth-api 4.6</span></span></li>
         <li><span class="n">13</span><span>활성 구독이 있을 때만 노출. <b>스토어 구독은 앱 탈퇴로 자동 해지되지 않는다.</b> 안내는 <b>텍스트로만</b> 하고 스토어로 보내는 버튼·딥링크는 두지 않는다 — 탈퇴 도중 외부 앱으로 이탈시키면 돌아오지 못한다. 해지 진입점은 설정 &gt; 구독 관리에 이미 있다. <span class="ref">auth 4.3-2 · subscription 4.5</span></span></li>
         <li><span class="n">14</span><span><b>이 체크 없이는 [탈퇴하기]가 활성화되지 않는다.</b> 구독 만료 동의는 선택이 아니라 필수 조건이다. <span class="ref">auth 4.3-2</span></span></li>
         <li><span class="n">15</span><span>사유는 선택 입력. 식별자 없이 <code>withdrawal_logs</code>에 해시로만 남는다 — 아카이브와 <b>다른 해시 키</b>를 써서 개인과 연결되지 않게 한다. <span class="ref">domain 3.4 · 11.2</span></span></li>
@@ -625,7 +628,7 @@
     <article class="shot">
       <div class="shot-head">
         <span class="shot-id">A13</span><h3>인증 코드 확인</h3>
-        <p class="cap">6자리 · 3분 카운트다운 · 재전송 60초 쿨다운</p>
+        <p class="cap">6자리 · 3분 카운트다운 · 재전송 30초 쿨다운 · [메일 다시 입력]</p>
       </div>
       <div class="device">
         <div class="island"></div>
@@ -640,7 +643,7 @@
             <p class="h-lg" style="margin:6px 0 0">메일로 보낸<br>코드 6자리를 넣어주세요</p>
             <p class="t-sm" style="margin:0">
               <b class="em">jiwoo@example.com</b> 으로 보냈어요
-              <span style="color:var(--accent); font-weight:650; margin-left:6px">주소 변경<span class="mk w">C</span></span>
+              <span style="color:var(--accent); font-weight:650; margin-left:6px">메일 다시 입력<span class="mk w">C</span></span>
             </p>
 
             <div class="codebox" style="margin-top:2px">
@@ -654,7 +657,7 @@
 
             <div style="display:flex; align-items:center; justify-content:space-between; gap:10px">
               <span class="t-sm">남은 시간 <b class="em" style="font-family:var(--mono); font-variant-numeric:tabular-nums">02:41</b><span class="mk">25</span></span>
-              <span class="t-sm" style="color:var(--ink-3); font-variant-numeric:tabular-nums">47초 후 재전송<span class="mk">26</span></span>
+              <span class="t-sm" style="color:var(--ink-3); font-variant-numeric:tabular-nums">17초 후 재전송<span class="mk">26</span></span>
             </div>
 
             <p class="t-xs" style="margin:0">메일이 오지 않으면 스팸함을 확인해주세요.</p>
@@ -666,9 +669,9 @@
         </div>
       </div>
       <ul class="notes">
-        <li><span class="n w">C</span><span>주소를 잘못 넣었을 때 되돌아가는 동선. <b>명세에 규정이 없다.</b> 뒤로가기로만 처리하면 이미 쓴 발송 횟수와의 관계가 불명확하다. → V1</span></li>
+        <li><span class="n">C</span><span><b>[메일 다시 입력] — 항상 노출한다.</b> 오타를 낸 사용자의 유일한 탈출구이며, 이 버튼이 없으면 남는 선택지는 이탈뿐이다. 누르면 A9/A10으로 돌아가되 <b>직전 주소가 채워진 상태</b>로 시작한다(오타는 대개 한두 글자). 돌아가는 순간 <code>DELETE /users/me/email-verifications/:id</code>로 진행 중인 코드를 무효화한다. <b>발송 횟수 관계가 명확하다</b> — 카운터가 <code>(계정, 주소)</code> 단위이므로 <b>새 주소는 자기 몫의 5회를 새로 갖고</b>, 주소를 바꾸지 않고 그대로 다시 보내면 [재전송]과 동일하게 30초 쿨다운과 그 주소의 5회 제한이 걸린다. [재전송]을 주 액션, 이 버튼을 <b>텍스트 링크</b>로 둬서 "같은 주소로 다시"와 "주소를 바꾸러"를 구분한다. <span class="ref">auth 4.5 · auth-api 4.11</span></span></li>
         <li><span class="n">25</span><span><b>6자리 숫자, 유효 시간 3분.</b> 발송 시각 기준으로 <code>mm:ss</code> 카운트다운한다. 동시에 유효한 코드는 <b>1개</b>뿐이라 재발송하면 이전 코드는 즉시 무효다. 앱을 껐다 켜면 <b>서버가 준 만료 시각으로 다시 계산</b>하고 클라이언트 타이머를 복원하지 않는다. <span class="ref">auth 4.5 · 7</span></span></li>
-        <li><span class="n">26</span><span>재발송 쿨다운 <b>60초</b>. 그동안 [재전송]은 비활성이고 <code>N초 후 재전송</code>으로 남은 시간을 표시한다. <b>쿨다운도 서버가 함께 검사한다</b> — 클라이언트 타이머만으로 막으면 우회된다. <span class="ref">auth 4.5</span></span></li>
+        <li><span class="n">26</span><span>재발송 쿨다운 <b>30초</b>. 그동안 [재전송]은 비활성이고 <code>N초 후 재전송</code>으로 남은 시간을 표시한다. <b>쿨다운도 서버가 함께 검사한다</b> — 클라이언트 타이머만으로 막으면 우회된다. [메일 다시 입력]을 경유해도 같은 주소면 이 쿨다운을 회피할 수 없다. <span class="ref">auth 4.5</span></span></li>
       </ul>
     </article>
 
@@ -761,7 +764,7 @@
       </div>
       <ul class="notes">
         <li><span class="n">28</span><span>카운트다운이 <code>00:00</code>이 되면 입력을 비활성으로 바꾼다. 다만 <b>만료 판정은 서버가 한다</b> — 클라이언트 타이머는 표시용이며, 만료된 코드는 이후 정답이어도 통과시키지 않는다. <span class="ref">auth 4.5 · 7</span></span></li>
-        <li><span class="n">29</span><span>만료 상태에서 [재전송]은 <b>활성</b>이다(쿨다운 60초가 지난 뒤). 새 코드를 받으면 이전 코드는 즉시 무효가 되므로, 이전 코드를 넣으면 실패로 처리한다. <span class="ref">auth 4.5 · 7</span></span></li>
+        <li><span class="n">29</span><span>만료 상태에서 [재전송]은 <b>활성</b>이다(쿨다운 30초가 지난 뒤). 새 코드를 받으면 이전 코드는 즉시 무효가 되므로, 이전 코드를 넣으면 실패로 처리한다. <span class="ref">auth 4.5 · 7</span></span></li>
       </ul>
     </article>
 
@@ -812,8 +815,8 @@
     <!-- A17 -->
     <article class="shot">
       <div class="shot-head">
-        <span class="shot-id">A17</span><h3>발송 5회 소진</h3>
-        <p class="cap">계정 단위 · 세 경로 합산 · 1시간 후 초기화</p>
+        <span class="shot-id">A17</span><h3>발송 5회 소진 — 해당 주소</h3>
+        <p class="cap">이메일 주소 단위 · 세 경로 합산 · 1시간 후 초기화 · 다른 주소는 가능</p>
       </div>
       <div class="device">
         <div class="island"></div>
@@ -833,20 +836,22 @@
             </div>
 
             <div class="banner warn">
-              <span>인증 코드는 1시간에 5번까지 보낼 수 있어요<span class="mk">31</span></span>
+              <span>이 주소로는 1시간에 5번까지 보낼 수 있어요<span class="mk">31</span></span>
             </div>
-            <p class="t-sm" style="margin:-4px 0 0"><b class="em">약 43분 후</b> 다시 시도해주세요.</p>
+            <p class="t-sm" style="margin:-4px 0 0"><b class="em">약 43분 후</b> 다시 시도하거나, <b class="em">다른 메일</b>로 인증해주세요.</p>
             <p class="t-xs" style="margin:0">이미 받은 코드가 아직 살아 있다면 그 코드로는 인증할 수 있어요.<span class="mk">32</span></p>
           </div>
           <div class="dock">
             <div class="btn off">인증 코드 받기</div>
+            <p class="t-sm" style="margin:10px 0 0; text-align:center; color:var(--accent); font-weight:650">메일 다시 입력<span class="mk">33</span></p>
           </div>
           <div class="homebar"></div>
         </div>
       </div>
       <ul class="notes">
-        <li><span class="n">31</span><span>발송 가능 횟수 <b>5회</b>, 5회째 발송 시각 <b>+ 1시간</b>에 0으로 초기화. <b>남은 시간을 분 단위로 표시</b>한다 — "잠시 후 다시 시도해주세요"만으로는 언제 풀리는지 알 수 없어 그대로 CS 문의가 된다. 횟수는 <b>계정 단위</b>로 세고 결제·설정·프로필 <b>세 경로에 합산</b>되므로 화면을 옮겨 다녀도 회피할 수 없다. <span class="ref">auth 4.5</span></span></li>
-        <li><span class="n">32</span><span><b>잠기는 것은 발송이지 검증이 아니다.</b> 유효 시간이 남은 코드가 있으면 그 코드로 인증을 끝낼 수 있다. 반대로 이 상태에서 <b>결제를 시도하면 결제 자체를 막고</b> 남은 시간을 안내한다 — 이메일 없이 결제를 통과시키지 않는다. <span class="ref">auth 4.5 · 7</span></span></li>
+        <li><span class="n">31</span><span>발송 가능 횟수 <b>이메일 주소당 5회</b>, 그 주소의 5회째 발송 시각 <b>+ 1시간</b>에 0으로 초기화. <b>남은 시간을 분 단위로 표시</b>한다 — "잠시 후 다시 시도해주세요"만으로는 언제 풀리는지 알 수 없어 그대로 CS 문의가 된다. 카운트 키는 <code>(계정, 주소)</code>이며 결제·설정·프로필 <b>세 경로에 합산</b>되므로 <b>같은 주소라면</b> 화면을 옮겨 다녀도 회피할 수 없다. 계정 단위로 세지 않는 이유는 <b>오타로 잘못 넣은 주소가 맞는 주소의 기회까지 소진</b>하면 사용자가 잘못한 것 없이 1시간을 기다리게 되기 때문이다. <span class="ref">auth 4.5 · domain 3.7</span></span></li>
+        <li><span class="n">32</span><span><b>잠기는 것은 발송이지 검증이 아니다.</b> 유효 시간이 남은 코드가 있으면 그 코드로 인증을 끝낼 수 있다. 반대로 이 상태에서 <b>결제를 시도하면 그 주소로는 결제를 막고</b> 남은 시간을 안내한다 — 인증 없이 결제를 통과시키지 않는다. <span class="ref">auth 4.5 · 7</span></span></li>
+        <li><span class="n">33</span><span><b>[메일 다시 입력]은 이 화면에서도 활성이다.</b> 잠긴 것은 그 주소일 뿐 계정이 아니므로 다른 주소로는 바로 발송할 수 있다. 여기서 이 버튼까지 잠그면 사용자를 <b>막다른 곳에 가둔다</b>. 문구도 "인증 코드는 1시간에 5번까지" 같은 <b>계정 전체 제한처럼 읽히는 표현을 쓰지 않는다</b> — 다른 주소를 쓸 수 있다는 사실이 문구에서 사라지면 버튼이 있어도 아무도 누르지 않는다. <span class="ref">auth 4.5 · auth-uiux 4.14</span></span></li>
       </ul>
     </article>
 
@@ -873,7 +878,7 @@
             <p class="t-label" style="margin:6px 0 -4px">계정</p>
             <div class="stack" style="gap:0; background:var(--surface); border:1px solid var(--line); border-radius:14px; overflow:hidden">
               <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:14px 15px; border-bottom:1px solid var(--line)">
-                <span style="font-size:14px; font-weight:600">이메일<span class="mk">33</span></span>
+                <span style="font-size:14px; font-weight:600">이메일<span class="mk">34</span></span>
                 <span style="display:flex; align-items:center; gap:6px; min-width:0">
                   <span class="t-xs" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap">jiwoo@example.com</span>
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
@@ -889,13 +894,13 @@
               </div>
             </div>
           </div>
-          <div class="toast">이메일이 등록되었어요<span class="mk">34</span></div>
+          <div class="toast">이메일이 등록되었어요<span class="mk">35</span></div>
           <div class="homebar"></div>
         </div>
       </div>
       <ul class="notes">
-        <li><span class="n">33</span><span>클라이언트는 "인증 완료"를 서버에 보내지 않는다. <b>코드 검증에 성공한 서버가</b> <code>users.email</code>을 저장하고, 화면은 그 결과를 반영할 뿐이다. 인증이 끝난 건은 보존하지 않고 배치로 정리한다. <span class="ref">auth 3 · 6</span></span></li>
-        <li><span class="n">34</span><span>설정·프로필 경로는 <b>직전 화면으로 복귀 + 토스트</b>. 결제 경로는 토스트 없이 <b>원래 시도했던 결제 플로우로 바로 복귀</b>한다 — 세 경로에서 다른 것은 이 복귀 지점 하나뿐이다. <span class="ref">auth 4.4 · 5</span></span></li>
+        <li><span class="n">34</span><span>클라이언트는 "인증 완료"를 서버에 보내지 않는다. <b>코드 검증에 성공한 서버가</b> <code>users.email</code>과 <code>users.is_email_verified = true</code>를 <b>같은 트랜잭션에서</b> 저장하고, 화면은 그 결과를 반영할 뿐이다. 둘을 따로 쓰면 미인증 주소가 인증된 것으로 둔갑하거나 그 반대가 된다. A19를 거쳐 온 경우 <b>주소는 그대로이고 인증 상태만 바뀌므로</b>, 주소만 보고 갱신을 판단하면 배지가 남는다. 인증이 끝난 건은 보존하지 않고 배치로 정리한다. <span class="ref">auth 3 · 6 · auth-api 4.10</span></span></li>
+        <li><span class="n">35</span><span>설정·프로필 경로는 <b>직전 화면으로 복귀 + 토스트</b>. 결제 경로는 토스트 없이 <b>원래 시도했던 결제 플로우로 바로 복귀</b>한다 — 세 경로에서 다른 것은 이 복귀 지점 하나뿐이다. <span class="ref">auth 4.4 · 5</span></span></li>
       </ul>
     </article>
 
@@ -906,37 +911,49 @@
 <section class="verify">
   <p class="sid">검토 필요</p>
   <h2>계정 플로우에서 나온 것</h2>
-  <p>화면으로 옮기니 명세만 읽을 때는 보이지 않던 빈칸이 나왔습니다.</p>
+  <p>화면으로 옮기니 명세만 읽을 때는 보이지 않던 빈칸이 나왔습니다. <b>V1·V2·V4·V5는 이후 결정으로 해소됐고</b>, 그 결과 새로 생긴 것이 V6·V7입니다.</p>
 
   <div class="vlist">
-    <div class="vitem">
-      <h3><span class="vid">V1</span>코드 입력 중 주소를 고치는 동선</h3>
-      <p>A13에 [주소 변경]을 넣어뒀지만 <b>명세에 규정이 없습니다.</b> 오타 난 주소로 코드를 받은 사용자는 반드시 여기서 막힙니다. 뒤로 나가 다시 입력하게 하면 <b>이미 쓴 발송 횟수와의 관계</b>가 불명확하고(새 주소도 같은 5회를 나눠 쓰는지), 화면 안에서 고치게 하면 진행 중인 코드를 어느 시점에 무효화할지 정해야 합니다.</p>
-      <p class="where">auth 4.4 · 4.5 / 화면 A13</p>
-    </div>
-
-    <div class="vitem">
-      <h3><span class="vid">V2</span>마스킹 주소를 무엇으로 걸러낼까</h3>
-      <p>제공자 이메일은 그대로 신뢰해 저장하되 <b>발송이 불가능한 주소만</b> <code>null</code>로 두기로 했습니다. 남은 것은 판정 기준입니다 — 카카오 응답의 <code>is_email_verified</code>를 볼지, 주소 문자열의 <code>***</code> 패턴을 볼지. 잘못 판정하면 <b>보낼 수 없는 주소를 저장한 채 결제까지 통과</b>시켜 거래기록 보존 목적을 놓칩니다.</p>
-      <p class="where">auth 4.1 · 7 / 화면 A9</p>
+    <div class="vitem soft">
+      <h3><span class="vid">V1</span>코드 입력 중 주소를 고치는 동선 — <b>해소됨</b></h3>
+      <p>[주소 변경]을 <b>[메일 다시 입력]</b>으로 확정했습니다. 발송 횟수 카운터를 <b>계정 단위에서 <code>(계정, 주소)</code> 단위로 바꾸면서</b> "새 주소도 같은 5회를 나눠 쓰는지"가 함께 풀렸습니다 — <b>새 주소는 자기 몫의 5회를 새로 갖습니다.</b> 무효화 시점은 화면을 벗어나는 순간이며 <code>DELETE /users/me/email-verifications/:id</code>로 서버에 알립니다.</p>
+      <p class="where">auth 4.5 / auth-api 4.11 / 화면 A13 · A17</p>
     </div>
 
     <div class="vitem soft">
-      <h3><span class="vid">V3</span>검증 시도 5회 · 재발송 쿨다운 60초</h3>
-      <p>유효 시간(3분)·발송 횟수(5회)와 달리 이 두 수치는 <b>기본값으로 정한 것</b>이라고 명세가 밝히고 있습니다. 화면에는 "남은 시도 N회"(A14)와 "N초 후 재전송"(A13)으로 이미 노출되므로, 운영 중 조정하면 <b>문구가 함께 바뀝니다.</b> 조정 폭을 정할 때 이 두 화면을 같이 봐야 합니다.</p>
+      <h3><span class="vid">V2</span>마스킹 주소를 무엇으로 걸러낼까 — <b>해소됨</b></h3>
+      <p>카카오 <code>is_email_valid</code> 플래그로 판정합니다. <code>false</code>면 카카오가 주소를 마스킹해서 내려주므로 저장하지 않고 <code>null</code>로 둡니다. <b>문자열 <code>***</code> 패턴 매칭은 쓰지 않습니다</b> — 제공자가 마스킹 형식을 바꾸면 그대로 뚫립니다. 함께 오는 <code>is_email_verified</code>는 별개 축이며, <b>둘 다 참일 때만</b> 인증된 이메일로 취급합니다.</p>
+      <p class="where">auth 4.1 / domain 3.1 / 화면 A5 · A9 · A19</p>
+    </div>
+
+    <div class="vitem soft">
+      <h3><span class="vid">V3</span>검증 시도 5회 · 재발송 쿨다운 30초</h3>
+      <p>유효 시간(3분)·발송 횟수(5회)와 달리 이 두 수치는 <b>기본값으로 정한 것</b>입니다. 쿨다운은 60초에서 <b>30초로 조정됐습니다.</b> 화면에는 "남은 시도 N회"(A14)와 "N초 후 재전송"(A13)으로 이미 노출되므로, 추가 조정 시 <b>문구가 함께 바뀝니다.</b></p>
       <p class="where">auth 4.5 / 화면 A13 · A14</p>
     </div>
 
     <div class="vitem soft">
-      <h3><span class="vid">V4</span><code>email_verifications</code> 테이블 미등재</h3>
-      <p>A13~A17이 보여주는 유효 시간·검증 시도·발송 횟수·잠금 해제 시각은 전부 <b>서버가 판정</b>해야 하는데, 그 저장소가 아직 <code>domain.md</code>에 없습니다. 화면의 카운트다운과 비활성 버튼은 UX 보조일 뿐이라 <b>테이블이 생기기 전까지 이 섹션은 구현 불가</b>입니다.</p>
-      <p class="where">auth 4.5 · 6 / domain 3장 / 화면 A13 – A17</p>
+      <h3><span class="vid">V4</span><code>email_verifications</code> 테이블 — <b>해소됨</b></h3>
+      <p><code>domain.md</code> 3.7에 등재했습니다. 발송 1건 = 1행이며, 창 내 순번 <code>send_seq</code>로 5회 제한을 판정합니다. <b>누적 <code>COUNT(*)</code>를 쓰지 않는 이유</b>는 잠금이 풀린 뒤 카운트가 0으로 초기화돼야 하는데 단순 개수는 지나간 창의 행까지 세어 6회째부터 영구히 잠기기 때문입니다. 마지막 검증 시도 시각은 <code>last_attempted_at</code>에 남습니다.</p>
+      <p class="where">domain 3.7 / 화면 A13 – A17</p>
     </div>
 
     <div class="vitem soft">
-      <h3><span class="vid">V5</span>이메일이 없는 계정의 표시</h3>
-      <p>제공자가 이메일을 주지 않으면 이메일 없이 가입됩니다. 설정 계정 요약(A5)의 <b>이메일 자리를 어떻게 채울지</b> 정해야 합니다. 더 중요한 건 탈퇴 아카이브인데, 결제 전에 탈퇴하면 이메일이 끝내 없으므로 거래 주체 식별이 <code>provider_user_id</code>에만 의존합니다.</p>
-      <p class="where">auth 7 / domain 11.3 / 화면 A5 · A7</p>
+      <h3><span class="vid">V5</span>이메일이 없는 계정의 표시 — <b>해소됨</b></h3>
+      <p>A5는 <b>세 상태</b>(없음 / 있음·미인증 / 있음·인증됨)를 구분해 표시합니다. 탈퇴 아카이브 쪽 우려도 사라졌습니다 — <b>결제 이력이 없으면 아카이브 자체를 하지 않고 전량 즉시 파기</b>하기 때문입니다. 아카이브되는 사용자는 전원 결제자이고, 결제는 인증된 이메일 없이 시작되지 않으므로 <code>archived_users.email</code>은 <b><code>NOT NULL</code></b>이 됩니다.</p>
+      <p class="where">auth 4.1 · 4.3 / domain 11.3 · 12.3 / 화면 A5 · A7</p>
+    </div>
+
+    <div class="vitem">
+      <h3><span class="vid">V6</span>계정 단위 발송 상한이 사라졌습니다 — <b>P0</b></h3>
+      <p>발송 제한을 주소 단위로 바꾸면서(V1) <b>계정 단위 총량 제한이 없어졌습니다.</b> [메일 다시 입력]으로 주소를 계속 갈아 끼우면 한 계정이 보낼 수 있는 메일 수에 상한이 없고, 서비스가 <b>임의의 제3자에게 메일을 보내는 발송기</b>로 악용될 수 있습니다. 주소 단위 5회는 유지하되 그 위에 <b>계정 단위 상한</b>(예: 1시간 20회 / 하루 50회)을 얹을지 정해야 합니다. 발신 도메인 평판이 걸린 문제라 메일 인프라 선택보다 먼저 정하는 편이 좋습니다.</p>
+      <p class="where">auth 미결 / domain 15.1-3 / auth-api 9장 / 화면 A13 · A17</p>
+    </div>
+
+    <div class="vitem">
+      <h3><span class="vid">V7</span>미작성 화면 3개</h3>
+      <p>이 문서는 A1–A18까지만 그려져 있습니다. 이후 결정으로 <b>세 화면이 더 필요해졌습니다</b> — <b>A19</b>(인증 선택: 저장된 미인증 주소를 그대로 인증할지 다른 주소를 쓸지), <b>A7-b</b>(결제 이력 없는 탈퇴 안내: 보존 섹션 없음), 그리고 <b>A17의 [메일 다시 입력] 활성 상태</b>는 이번에 반영했지만 A19·A7-b는 아직 화면이 없습니다.</p>
+      <p class="where">auth-uiux 2장 · 4.5 · 4.7-1 / 화면 A7 · A19</p>
     </div>
   </div>
 </section>

@@ -149,9 +149,11 @@ scheduled → running → completed
                    → failed    (배치 전체 실패)
 
 사용자 단위: pending → candidates_selected → items_created → notified
-                    → skipped (무료 티어 / 관심사 0 / 재고 충분)
+                    → skipped (관심사 0 / 재고 충분 / 탈퇴)
                     → no_candidates (고갈)
 ```
+
+- **`skipped` 사유에 티어가 없다.** 무료(라이트) 티어도 편성 대상이다(4.1). 티어는 `plans.daily_drip_count`로 **편수만** 가르며, 편성 여부를 가르지 않는다.
 
 **사용자 앱에서 보이는 것**
 
@@ -205,7 +207,8 @@ scheduled → running → completed
 ## 8. 완료 조건
 
 - Given 관심 주제 2개를 가진 유료 사용자 / When 일일 편성 배치가 실행된다 / Then 관심 주제에 해당하는 콘텐츠가 최대 2편 라이브러리에 적립된다
-- Given 무료 티어 사용자 / When 일일 편성 배치가 실행된다 / Then 드립이 적립되지 않는다
+- Given 관심 주제 2개를 가진 **무료(라이트) 티어** 사용자 / When 일일 편성 배치가 실행된다 / Then **`plans.daily_drip_count`에 따라 하루 2편이 적립된다** — 티어는 편수만 가르고 편성 여부를 가르지 않는다(4.1)
+- Given 온보딩에서 추천 콘텐츠를 **하나도 담지 않은** 무료 티어 신규 사용자 / When 자동 드립 트리거가 발동한다 / Then 무료 티어여도 편성이 실행되어 완료 화면 전에 라이브러리가 채워진다(`onboarding.md` 4)
 - Given 이미 라이브러리에 있는 콘텐츠 / When 편성이 실행된다 / Then 해당 콘텐츠는 후보에서 제외되어 중복 적립되지 않는다
 - Given 드립으로 받았다가 삭제한 콘텐츠 / When 다음 편성이 실행된다 / Then 다시 적립되지 않는다
 - Given 미청취 콘텐츠가 5편 이상 쌓인 사용자 / When 배치가 실행된다 / Then 그날 적립은 건너뛰어진다

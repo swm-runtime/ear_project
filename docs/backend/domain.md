@@ -84,7 +84,7 @@
 
 | 모듈 | 소유 Entity |
 |---|---|
-| `user` | `users`, `consents`, `withdrawal_logs`, `user_settings`, `device_tokens` |
+| `user` | `users`, `consents`, `withdrawal_logs`, `user_settings`, `device_tokens`, `email_verifications` |
 | `auth` | `sessions` |
 | `interest` | `topics`, `user_interests`, `topic_adjacencies` |
 | `content` | `contents`, `content_topics`, `content_scripts`, `content_stats` |
@@ -124,7 +124,8 @@ users
   id                        uuid            PK
   provider                  enum            kakao | google | naver
   provider_user_id          varchar         제공자 고유 ID
-  email                     varchar         NULL 허용 (카카오 선택 동의 거부)
+  email                     varchar         NULL 허용 (미제공 · 마스킹 주소)
+  is_email_verified         boolean         DEFAULT false   ★소유 확인 완료 여부
   nickname                  varchar
   role                      enum            user | admin          DEFAULT 'user'
   tier                      enum            light | daily | pro   DEFAULT 'light'   ★캐시
@@ -147,6 +148,23 @@ idx_users_status
 - 커리어 3개 필드는 전부 선택 입력이므로 `users`에 병합한다 (C-2). 별도 `user_careers` 테이블을 만들지 않는다.
 - `role = admin` 계정만 콘텐츠 업로드·주제 관리 API를 호출할 수 있다. 관리자도 동일한 소셜 로그인을 사용한다(자체 아이디/비밀번호를 만들지 않는다 — `auth.md` 4.1).
 - **동일 이메일 다른 제공자는 별개 계정**이다. 계정 통합은 MVP 비범위(`auth.md` 4.1).
+
+**`email`과 `is_email_verified`는 별개 값이다** (`auth.md` 4.1)
+
+- **`email`이 있다고 해서 그 주소로 메일이 도달하는 것은 아니다.** 결제를 막는 기준은 `email IS NOT NULL`이 아니라 **`email IS NOT NULL AND is_email_verified = true`** 다. 두 조건을 한 곳(권한 판정 함수)에서만 조립하고 개별 쿼리에서 재작성하지 않는다.
+- 값이 정해지는 경로는 셋뿐이다.
+
+| 경로 | `email` | `is_email_verified` |
+|---|---|---|
+| 카카오 `is_email_valid = true` · `is_email_verified = true` | 받은 주소 | `true` |
+| 카카오 `is_email_valid = true` · `is_email_verified = false` | 받은 주소 | `false` |
+| 카카오 `is_email_valid = false` (마스킹 주소) | `NULL` | `false` |
+| 구글·네이버 | 받은 주소 | `true` (대응 플래그 없음 — `auth.md` 4.1) |
+| 우리 코드 인증 성공 (3.7) | 인증한 주소 | `true` |
+
+- **제공자 응답을 판정 시점에 다시 조회하지 않는다.** 가입 시점에 이 컬럼으로 환산해 저장한 값만 쓴다. 제공자 응답은 재로그인마다 달라질 수 있고, 우리 코드 인증으로 확인한 주소는 애초에 제공자와 무관하다.
+- **마스킹 여부를 문자열 패턴(`***`)으로 판정하지 않는다.** 카카오 `is_email_valid` 플래그가 기준이다 — 패턴 매칭은 제공자가 마스킹 형식을 바꾸면 그대로 뚫린다.
+- `email`은 **유니크가 아니다.** 식별자가 아니라 거래 주체 확인용 연락처이며, 계정 식별은 `provider + provider_user_id`가 한다(`auth.md` 7).
 
 ### 3.2 `consents`
 
@@ -241,6 +259,69 @@ device_tokens
 uq_device_tokens_user_id_device_id (user_id, device_id)
 idx_device_tokens_user_id
 ```
+
+### 3.7 `email_verifications`
+
+이메일 코드 인증 1건 = 1행이다. 발송할 때마다 행을 추가하고, 갱신하는 것은 검증 시도 관련 컬럼뿐이다. 규칙은 `auth.md` 4.5.
+
+```
+email_verifications
+  id                        bigserial       PK
+  user_id                   uuid            FK → users
+  email                     varchar         ★인증 대상 주소 — 카운트 키의 일부
+  code_hash                 varchar         ★원문 저장 금지
+  send_seq                  smallint        현재 발송 창에서 몇 번째인가 (1~5)
+  sent_at                   timestamptz     발송 시각 — 쿨다운·잠금 기산점
+  expires_at                timestamptz     sent_at + 3분
+  attempt_count             smallint        DEFAULT 0   코드당 검증 시도 (최대 5)
+  last_attempted_at         timestamptz     NULL   ★마지막 검증 시도 시각
+  verified_at               timestamptz     NULL
+  invalidated_at            timestamptz     NULL   재발송·메일 다시 입력 시 무효화
+
+idx_email_verifications_user_id_email_sent_at (user_id, email, sent_at DESC)
+idx_email_verifications_expires_at
+```
+
+**카운트 키는 `(user_id, email)`이다** (`auth.md` 4.5)
+
+- 발송 5회 제한을 **계정이 아니라 주소 단위로** 센다. 오타로 잘못 입력한 주소가 맞는 주소의 기회까지 소진하는 것을 막기 위해서다.
+- 따라서 `user_id` 단독 인덱스가 아니라 **`(user_id, email, sent_at DESC)` 복합 인덱스**가 판정 경로다. 발송 직전 이 인덱스로 **직전 1행만** 읽는다.
+
+**`send_seq` — 발송 창을 한 행으로 판정한다**
+
+`COUNT(*)`로 세지 않고 각 행에 창 내 순번을 기록한다. 발송 요청이 오면 같은 `(user_id, email)`의 **가장 최근 행 하나만** 보고 결정한다.
+
+| 직전 행 상태 | 처리 |
+|---|---|
+| 없음 | `send_seq = 1`로 발송 |
+| `send_seq < 5` 이고 `sent_at + 30초` 경과 | `send_seq + 1`로 발송 |
+| `send_seq < 5` 이고 30초 미경과 | **쿨다운 거절** — 남은 초를 응답에 담는다 |
+| `send_seq = 5` 이고 `sent_at + 1시간` 미경과 | **잠금 거절** — 남은 시간을 응답에 담는다 |
+| `send_seq = 5` 이고 `sent_at + 1시간` 경과 | 창이 끝났으므로 `send_seq = 1`로 다시 발송 |
+
+- **누적 개수를 세는 방식(`COUNT(*)`)을 쓰지 않는 이유**: 잠금이 풀린 뒤 카운트가 0으로 초기화돼야 하는데, 단순 개수는 지나간 창의 행까지 함께 세어 6회째부터 영구히 잠긴다. 슬라이딩 윈도우(`sent_at > now() - 1시간`)도 `auth.md` 4.5가 정한 "5회째 발송 시각 + 1시간"과 기산점이 다르다.
+- `send_seq`는 파생값이 아니라 **창 상태 그 자체**이므로 [1.4](#14-파생값을-컬럼으로-두지-않는다)에 걸리지 않는다. 지나간 창의 순번을 재계산할 방법이 없다.
+- 발송에 **실패하면 행을 만들지 않는다.** 인프라 장애로 사용자의 5회를 소진시키지 않기 위해서다(`auth.md` 4.5).
+
+**동시 요청 방지** — 발송 요청은 `(user_id, email)` 단위로 직렬화한다. 직전 행 조회와 삽입 사이에 다른 요청이 끼어들면 같은 `send_seq`를 가진 행이 두 개 생겨 제한이 새어 나간다. 조회 시 행 잠금을 걸거나 `(user_id, email, send_seq)` 유니크 제약으로 이중 방어한다([1.1](#11-모든-테이블에-공통으로-들어가는-것)).
+
+**유효한 코드는 항상 1개다**
+
+- 재발송하거나 `auth.md` 4.5의 [메일 다시 입력]으로 화면을 벗어나면, 직전 행에 `invalidated_at`을 찍는다.
+- 검증 대상은 `verified_at IS NULL AND invalidated_at IS NULL AND expires_at > now()`인 행 **하나**뿐이다.
+- **`code_hash`는 원문을 저장하지 않는다.** `sessions.refresh_token_hash`와 같은 규칙이다([3.3](#33-sessions)).
+
+**검증 시도**
+
+- 코드를 입력할 때마다 `attempt_count`를 올리고 `last_attempted_at`을 갱신한다. **행을 새로 만들지 않는다** — 발송 1건에 검증 여러 번이다.
+- `attempt_count = 5`가 되면 그 코드를 무효화한다(`invalidated_at`). 잠기는 것은 검증이며, 발송은 `send_seq` 규칙을 그대로 따른다.
+- 실패 응답에 "코드 불일치"와 "코드 만료"를 구분해 내려준다(`auth.md` 4.5).
+
+**보존**
+
+- 인증 목적이 끝난 행은 **보관 근거가 없다**(개인정보보호법 제21조 제1항). 배치가 `expires_at < now() - interval '24 hours'`인 행을 hard delete 한다.
+- 24시간을 두는 것은 발송 잠금(1시간)과 CS 문의 대응을 위한 여유일 뿐이며, 그 이상 남기지 않는다.
+- 탈퇴 시에는 **결제 이력 유무와 무관하게 즉시 파기한다**([12.3](#123-회원-탈퇴-처리)). 인증 사실은 `users.is_email_verified`로 충분하고, 아카이브 대상이 아니다.
 
 ---
 
@@ -805,6 +886,7 @@ idx_audit_logs_target_created_at (target, created_at DESC)
 
 ### 11.1 공통 규칙
 
+- **아카이브 대상은 결제 이력이 있는 탈퇴 사용자뿐이다.** 결제 이력이 없으면 세 테이블 어디에도 행을 만들지 않고 전량 즉시 파기한다([12.3](#123-회원-탈퇴-처리)). 보존을 허용하는 근거가 거래기록이므로, 거래가 없으면 이 스키마에 들어올 자격 자체가 없다.
 - **이 스키마는 익명 데이터가 아니라 "개인정보 보존 영역"이다.** `archived_users`가 거래 주체 식별 정보(전자우편주소·제공자 계정 ID)를 평문으로 보존하기 때문이다 — 근거는 [12.2](#122-법적-근거) 참조.
 - 따라서 **접근 통제를 운영 테이블과 다르게 건다.** 애플리케이션의 일반 조회 경로에서 이 스키마를 읽지 않는다. 읽는 경우는 (a) 재가입 시 구독 복원 판정, (b) 분쟁·감사 대응, (c) 보존 만료 파기 배치 셋뿐이며, 모든 조회를 `audit_logs`에 남긴다.
 - **`users`를 참조하는 FK를 두지 않는다.** 원본 행이 이미 파기되었기 때문이다. 아카이브 테이블끼리는 `user_hash`로 연결한다.
@@ -843,9 +925,9 @@ archived_users
   id                        uuid            PK
   user_hash                 varchar         아카이브 테이블 간 조인 키
   user_hash_version         smallint        DEFAULT 1
-  email                     varchar   NULL  ★거래 주체 식별 정보 (법 제6조 제2항)
+  email                     varchar   NOT NULL  ★거래 주체 식별 정보 (법 제6조 제2항)
   provider                  enum            kakao | google | naver
-  provider_user_id          varchar         ★email이 없을 때의 식별 수단
+  provider_user_id          varchar         ★재가입 매칭·보조 식별 수단
   tier                      enum            탈퇴 시점 티어
   joined_at                 timestamptz     원래 users.created_at
   withdrawn_at              timestamptz
@@ -862,7 +944,9 @@ idx_archived_users_archived_at
 
 거래기록은 "누구와의 거래인가"가 특정되어야 기록으로서 기능한다. 5년 뒤 소비자가 결제 분쟁을 제기했을 때 해시만 남아 있으면 그 사람의 거래기록을 찾아 제시할 수 없다. 원본 `user_id`가 이미 파기되어 해시를 재계산할 수도 없다.
 
-- **`email`이 `NULL`일 수 있다** — 카카오 선택 동의를 거부한 사용자다(`auth.md` 4.1). 이 경우 `provider` + `provider_user_id`가 유일한 식별 수단이므로 함께 보존한다. 재로그인 시 같은 값이 나오므로 매칭키로 정확하다.
+- **`email`은 `NOT NULL`이다.** 아카이브 대상이 결제 이력이 있는 사용자로 한정되고([11.1](#111-공통-규칙)), 결제는 인증된 이메일 없이 시작되지 않기 때문이다(`auth.md` 4.4). 따라서 "식별 수단이 없는 아카이브 행"은 생기지 않는다.
+  - 이관 시 `users.email IS NULL`이면 **탈퇴 트랜잭션을 실패시킨다.** 결제 이력이 있는데 이메일이 없다는 것은 4.4의 게이트가 뚫렸다는 뜻이므로, 조용히 `NULL`을 넣어 넘기지 않는다.
+- `provider` + `provider_user_id`는 **재가입 시 매칭과 보조 식별용**으로 함께 보존한다. 이메일은 사용자가 바꿀 수 있지만 이 조합은 고정이다.
 - **`nickname`은 담지 않는다.** 변경·중복이 가능해 "거래의 주체를 식별할 수 있는 정보"로 기능하지 않는다. 조문의 "만 해당"은 범위를 넓히는 표현이 아니라 좁히는 표현이다.
 - **주소는 애초에 수집하지 않는다.** 디지털 콘텐츠 구독이라 배송이 없다.
 - **담지 않는 것**: `nickname` · 커리어(`job_category`·`job_title`·`years_of_experience`) · 온보딩 상태 · 관심사. 거래 주체 식별과 무관하므로 보존 근거가 없다(개인정보보호법 제21조 제1항).
@@ -929,6 +1013,7 @@ idx_archived_subscriptions_archived_at
 | `sessions` | **soft** (`revoked_at`) | 폐기 이력 |
 | `device_tokens` | **soft** (`invalidated_at`) | 발송 실패 원인 추적 |
 | `user_interests` | **soft** (`is_active`, `deactivated_at`) | 재활성화 가능 |
+| `email_verifications` | **hard** — 만료 24시간 후 배치 삭제 | 인증 목적 종료 후 보관 근거 없음 ([3.7](#37-email_verifications)) |
 | 나머지 | hard | |
 
 ### 12.2 법적 근거
@@ -959,6 +1044,8 @@ idx_archived_subscriptions_archived_at
 
 - 탈퇴 시 결제 이력과 **거래 주체 식별 정보**를 남기는 직접 근거다 → `archived_users`가 전자우편주소·제공자 계정 ID를 보존하는 이유([11.3](#113-archived_users)).
 - 동시에 **범위를 좁히는 조문이다.** "거래의 주체를 식별할 수 있는 정보만 해당"이므로 닉네임·커리어·관심사처럼 식별과 무관한 필드는 보존 대상이 아니다.
+- **조문이 보존을 허용하는 대상은 "거래기록 및 그와 관련된 개인정보"다.** 거래가 없으면 보존 대상이 성립하지 않으므로, **결제 이력이 없는 탈퇴 사용자는 이 근거를 쓸 수 없다.** 이 경우 제21조 제1항 본문(지체 없는 파기)으로 되돌아간다 → [12.3](#123-회원-탈퇴-처리)의 분기.
+  - "혹시 재가입할 수도 있으니까" · "분쟁이 생길 수도 있으니까"는 근거가 아니다. 제21조 제1항 단서는 **다른 법령의 보존 의무**를 요구하며, 가능성은 법령이 아니다.
 
 **시행령 제6조 — 별도 보존 의무**
 
@@ -978,14 +1065,38 @@ idx_archived_subscriptions_archived_at
 
 **전제** — 활성 구독이 있는 사용자는 **구독 만료에 동의한 뒤에만 탈퇴할 수 있다.** 스토어 구독은 앱 탈퇴로 자동 해지되지 않으므로(`auth.md` 4.3), 탈퇴 화면에서 스토어 해지 안내와 만료 동의를 받는다.
 
+**처리는 결제 이력 유무로 갈린다.** 판정 기준은 **`subscriptions` 행의 존재 여부** 하나다.
+
+- 무료(`light`)는 구독 행이 생기지 않으므로([1.3](#13-티어)), 행이 하나라도 있으면 결제 이력이 있는 것으로 본다.
+- `status`는 보지 않는다. `refunded` · `expired` · `cancelled`도 모두 거래기록이다.
+- 판정은 **탈퇴 트랜잭션 안에서** 한다. 안내 화면에 내려준 값을 클라이언트가 되돌려 보내는 방식을 쓰지 않는다.
+
+**결제 이력이 있는 사용자**
+
 | 처리 | 대상 |
 |---|---|
 | **아카이브 후 파기** (5년) | `users` → `archived_users`, `consents` → `archived_consents`, `subscriptions` → `archived_subscriptions` |
-| **즉시 파기** | `library_items`, `playback_progresses`, `play_records`, `user_signals`, `user_interests`, `user_settings`, `device_tokens`, `sessions`, `user_preference_vectors`, `drip_excluded_contents`, `purchase_intents`, `notification_logs` |
+| **즉시 파기** | `library_items`, `playback_progresses`, `play_records`, `user_signals`, `user_interests`, `user_settings`, `device_tokens`, `sessions`, `user_preference_vectors`, `drip_excluded_contents`, `purchase_intents`, `notification_logs`, `email_verifications` |
 | **그대로 유지** | `withdrawal_logs`(원래 해시만), `store_notification_logs`(개인 식별자 없음), `content_stats`(집계값) |
 
+**결제 이력이 없는 사용자 — 아카이브 없이 전량 즉시 파기**
+
+| 처리 | 대상 |
+|---|---|
+| **즉시 파기** | 위 즉시 파기 목록 **전부 + `users` + `consents`** |
+| **아카이브** | **없음.** `archived_users` · `archived_consents` · `archived_subscriptions` 어디에도 행을 만들지 않는다 |
+| **그대로 유지** | `withdrawal_logs`, `store_notification_logs`, `content_stats` |
+
+- 근거: **제21조 제1항의 원칙은 파기이며, 보존은 다른 법령에 근거가 있을 때만 허용되는 예외다**([12.2](#122-법적-근거)). 거래가 없으면 전자상거래법 시행령 제6조가 보존을 허용하는 대상이 존재하지 않으므로, 5년 보관은 그 자체가 제21조 제1항 위반이 된다.
+- `consents`도 함께 파기한다. 동의 이력의 보존 근거는 거래기록이 아니라 **동의 획득의 입증 책임**인데, 이는 법령상 보존 의무가 아니므로 제21조 제1항 단서에 해당하지 않는다.
+  - 다만 이 판단은 **법무 확인 대상이다**([15.1](#151-남아-있는-결정)). 입증 책임을 우선한다는 결론이 나오면 동의 이력만 예외로 남기도록 바꾼다.
+- `withdrawal_logs`는 두 경우 모두 남긴다. 별도 pepper로 만든 해시라 개인을 식별하지 않는다([11.2](#112-user_hash-생성-규칙)).
+
+**공통**
+
 - 탈퇴 처리는 **하나의 트랜잭션**에서 이관 + 파기를 수행한다. 이관만 되고 파기가 실패하면 개인정보가 두 곳에 남는다.
-- `users` 행은 아카이브 이관 후 **삭제한다.** `status = withdrawn`으로 남겨두지 않는다 — 남기면 제21조 제3항의 분리 저장 요건을 충족하지 못한다.
+- `users` 행은 **두 경우 모두 삭제한다.** `status = withdrawn`으로 남겨두지 않는다 — 남기면 제21조 제3항의 분리 저장 요건을 충족하지 못한다.
+- 아카이브 이관 시 `users.email IS NULL`이면 **트랜잭션을 실패시킨다**([11.3](#113-archived_users)). 결제 이력이 있는데 이메일이 없다는 것은 `auth.md` 4.4의 게이트가 뚫렸다는 뜻이다.
 - 재가입 시에는 **신규 계정으로 온보딩부터 시작한다**(`auth.md` 7). 이전 계정은 복원되지 않는다.
 - 다만 **구독 권한은 복원된다.** 복원은 계정이 아니라 영수증의 `original_transaction_id`로 판정하므로, `archived_subscriptions`만 있으면 새 계정에 티어를 붙일 수 있다.
 - `purchase_intents`는 결제 멱등키일 뿐이고 결제 결과는 `subscriptions`에 남으므로 아카이브하지 않는다.
@@ -1059,11 +1170,11 @@ idx_archived_subscriptions_archived_at
 | `AppConfig` | 15.3 — 배포 설정에서 관리 |
 | `Content.status` 중 `superseded` | 15.2 — 재발행 시 같은 행의 `content_version`을 올리므로 불필요 |
 
-**테이블 수**: MVP 필수 **31개** (+ P1 `topic_adjacencies`).
+**테이블 수**: MVP 필수 **32개** (+ P1 `topic_adjacencies`).
 
 | 영역 | 개수 | 테이블 |
 |---|---|---|
-| 계정·인증 | 6 | `users` `consents` `sessions` `withdrawal_logs` `user_settings` `device_tokens` |
+| 계정·인증 | 7 | `users` `consents` `sessions` `withdrawal_logs` `user_settings` `device_tokens` `email_verifications` |
 | 관심사 | 2 | `topics` `user_interests` |
 | 콘텐츠 | 4 | `contents` `content_topics` `content_scripts` `content_stats` |
 | 라이브러리·재생 | 5 | `library_items` `playback_progresses` `play_records` `user_signals` `audio_access_logs` |
@@ -1082,6 +1193,8 @@ idx_archived_subscriptions_archived_at
 | # | 항목 | 내용 |
 |---|---|---|
 | 1 | **유료 티어 값** | `plans.daily_play_limit` · `daily_drip_count` · `price_krw`의 `daily`/`pro` 값이 미정. 1~2주 시범 운영 후 확정(FR-14). **컬럼은 이미 있으므로 값만 채우면 되고 마이그레이션은 필요 없다.** |
+| 2 | **결제 이력 없는 사용자의 `consents` 파기 — 법무 확인** | [12.3](#123-회원-탈퇴-처리)에서 `archived_consents`도 함께 파기하기로 했다. 동의 획득의 입증 책임은 사업자에게 있으므로, 탈퇴자가 나중에 동의 사실을 다투면 반박 근거가 남지 않는다. **입증 책임과 제21조 제1항 중 어느 쪽이 우선하는지 확인이 필요하다.** 보존이 필요하다는 판단이 나오면 `archived_consents`만 예외로 남긴다 — 스키마 변경은 없고 12.3의 분기만 바뀐다. |
+| 3 | **계정 단위 발송 상한(백스톱)** | [3.7](#37-email_verifications)의 발송 제한이 `(user_id, email)` 단위이므로 **계정 단위 총량 제한이 없다.** 주소를 갈아 끼우면 한 계정의 발송량에 상한이 없어 메일 발송기로 악용될 수 있다. 상한을 둘지, 둔다면 저장소를 어디로 할지(같은 테이블 집계 / Redis 카운터) 결정 필요. 발신 도메인 평판이 걸린 문제다 — `auth.md` 미결 사항 참조. |
 
 ### 15.2 회의에서 확정된 사항 (반영 완료)
 
@@ -1089,9 +1202,12 @@ idx_archived_subscriptions_archived_at
 |---|---|---|
 | `total_listen_sec` 원천 | 재생 종료 시 **실제 경과 시간을 별도 기록** | `play_records.listened_sec` (6.3), `content_stats.total_listen_sec` (5.4) |
 | `content_version` 증가 방식 | **같은 행의 버전을 올린다** | 5.1 — `status`에서 `superseded` 제거 |
-| 탈퇴 시 `consents` | **해시 보존** | `archived_consents` (11.3) |
-| 탈퇴 시 `subscriptions` | 구독 만료 동의 후 탈퇴, **5년 보존 후 파기** | `archived_subscriptions` (11.4), 12.3 |
-| 탈퇴 시 유저 데이터 | 별도 테이블로 **5년 보존 후 파기** | `archived_users` (11.2), 12.4 |
+| 탈퇴 시 `consents` | **해시 보존** — 단 결제 이력이 있는 사용자만 | `archived_consents` (11.4), 12.3 |
+| 탈퇴 시 `subscriptions` | 구독 만료 동의 후 탈퇴, **5년 보존 후 파기** | `archived_subscriptions` (11.5), 12.3 |
+| 탈퇴 시 유저 데이터 | 별도 테이블로 **5년 보존 후 파기** — 단 결제 이력이 있는 사용자만 | `archived_users` (11.3), 12.3 |
+| **결제 이력 없는 탈퇴자** | **아카이브하지 않고 전량 즉시 파기.** 거래가 없으면 전자상거래법 시행령 제6조의 보존 대상이 성립하지 않으므로, 개인정보보호법 제21조 제1항의 원칙(지체 없는 파기)으로 돌아간다. 판정 기준은 `subscriptions` 행의 존재 여부 | 11.1, 12.2, 12.3 |
+| 이메일 인증 저장소 | **`email_verifications` 신설.** 코드 해시·만료·검증 시도·마지막 시도 시각을 서버가 판정한다. 발송 5회 제한은 `(user_id, email)` 단위이며 `send_seq`로 창을 판정한다 | 3.7 |
+| 제공자 이메일 인증 여부 | **`users.is_email_verified`로 분리 저장.** 카카오는 `is_email_valid`·`is_email_verified`가 **둘 다 true일 때만** 인증으로 보고, `is_email_valid = false`(마스킹 주소)면 `email = NULL`로 둔다 | 3.1 |
 | `consents` 구조 | **`consent_type` 축으로 분리** | 3.2 |
 | `AppConfig` | **배포 설정에서 관리** | 13.3 — 테이블 폐기 |
 | `content_stats` 배치 소유 | **`playback` 모듈이 실행**, `content` Service에 기록 위임 | 2장 |

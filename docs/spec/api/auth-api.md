@@ -59,15 +59,18 @@
 | 3 | POST | `/auth/token/refresh` | 토큰 갱신(회전) | — | |
 | 4 | POST | `/auth/logout` | 이 기기 세션 폐기 | 필요 | |
 | 5 | POST | `/users/me/consents` | 약관 재동의 · 마케팅 수신 동의 변경 | 필요 | |
-| 6 | POST | `/users/me/withdraw` | 회원 탈퇴 | 필요 | ★ |
-| 7 | POST | `/users/me/email-verifications` | 인증 코드 발송 | 필요 | ★ |
-| 8 | GET | `/users/me/email-verifications/active` | 진행 중인 인증 조회(재진입용) | 필요 | |
-| 9 | POST | `/users/me/email-verifications/:id/verify` | 코드 검증 → `users.email` 저장 | 필요 | |
+| 6 | GET | `/users/me/withdrawal-preview` | 탈퇴 안내 화면에 쓸 파기·보존 범위 조회 | 필요 | |
+| 7 | POST | `/users/me/withdraw` | 회원 탈퇴 | 필요 | ★ |
+| 8 | POST | `/users/me/email-verifications` | 인증 코드 발송 | 필요 | ★ |
+| 9 | GET | `/users/me/email-verifications/active` | 진행 중인 인증 조회(재진입용) | 필요 | |
+| 10 | POST | `/users/me/email-verifications/:id/verify` | 코드 검증 → `users.email` 저장 | 필요 | |
+| 11 | DELETE | `/users/me/email-verifications/:id` | 진행 중인 인증 무효화 ([메일 다시 입력]) | 필요 | |
 
 **설계 메모**
 
 - **탈퇴가 `DELETE /users/me`가 아닌 이유**: 사유·확인 값·구독 만료 동의를 본문으로 받아야 하고, 서버가 이관과 파기를 하나의 트랜잭션으로 수행하는 **상태 전이**이기 때문이다. `convention.md` 5.2의 하위 액션 규칙을 따른다.
-- **이메일 인증이 두 단계인 이유**: `auth.md` 3장 — `email`과 `verification_code`를 한 번에 보내지 않는다. 발송(7)으로 인증 건을 만들고, 그 건에 대해 검증(9)한다.
+- **탈퇴 미리보기(6)를 따로 두는 이유**: `auth.md` 4.3이 **결제 이력 유무에 따라 고지 문구를 다르게** 하도록 확정했다. 결제 이력이 없으면 보존 항목이 없으므로 "5년 보관" 안내를 띄우면 사실과 다른 고지가 된다. **판정은 서버 몫이며 클라이언트가 로컬 구독 상태로 추측하지 않는다.**
+- **이메일 인증이 두 단계인 이유**: `auth.md` 3장 — `email`과 `verification_code`를 한 번에 보내지 않는다. 발송(8)으로 인증 건을 만들고, 그 건에 대해 검증(10)한다.
 - **진입 경로(결제 전·설정·프로필)별로 엔드포인트를 나누지 않는다.** `auth.md` 4.4가 세 경로에 같은 규칙을 적용하도록 확정했다. 경로를 나누면 **발송 횟수 제한이 경로별로 새는 구멍**이 된다. 복귀 지점은 클라이언트가 관리한다.
 
 ---
@@ -110,6 +113,7 @@
     "id": "uuid",
     "nickname": "지훈",
     "email": "user@example.com",
+    "is_email_verified": true,
     "provider": "kakao",
     "tier": "light",
     "role": "user",
@@ -140,7 +144,20 @@
 
 **`pending_consents`** — 기존 계정이라도 약관이 개정됐으면 재동의가 필요한 항목이 담긴다. 판정은 **서버가 `consents`의 최신 버전과 현행 버전을 비교해서** 한다. 클라이언트가 보낸 버전을 신뢰하지 않는다(`auth.md` 7). 재동의는 `/users/me/consents`로 처리한다.
 
-**이메일 처리** — 제공자가 이메일을 주면 **가입 시점에 그대로 저장**한다. 발송이 불가능한 마스킹 주소(`ka***@kakao.com`)는 저장하지 않고 `null`로 둔다(`auth.md` 4.1).
+**이메일 처리** — 제공자가 이메일을 주면 **주소와 인증 여부를 함께 판정해** `users.email` · `users.is_email_verified`에 저장한다(`auth.md` 4.1).
+
+**카카오는 `kakao_account`의 두 플래그를 모두 확인한다.**
+
+| `is_email_valid` | `is_email_verified` | `users.email` | `users.is_email_verified` |
+|---|---|---|---|
+| true | true | 받은 주소 | `true` |
+| true | false | 받은 주소 | `false` |
+| false | — | **`null`** (마스킹 주소) | `false` |
+
+- **`is_email_valid = false`면 카카오가 주소를 마스킹해서 내려준다**(`ka***@kakao.com`). 발송도 식별도 불가능하므로 저장하지 않는다. **마스킹 여부를 문자열 패턴(`***`)으로 판정하지 않는다** — 제공자가 형식을 바꾸면 그대로 뚫린다.
+- **구글·네이버는 대응 플래그가 없어 인증된 것으로 간주한다.** 구글이 `email_verified` 클레임을 내려주면 그 값을 쓴다.
+- 응답의 `is_email_verified`는 **`users` 컬럼 값이며 제공자 응답을 그대로 중계한 값이 아니다.** 우리 코드 인증(4.10)으로 확인한 주소도 `true`가 된다.
+- 클라이언트는 이 값으로 **결제 전 인증 화면 진입 여부**를 판단한다(`auth.md` 4.4). 다만 최종 판정은 결제 API가 서버에서 다시 한다.
 
 **에러**
 
@@ -246,7 +263,49 @@
 
 ---
 
-### 4.6 `POST /users/me/withdraw`
+### 4.6 `GET /users/me/withdrawal-preview`
+
+탈퇴 안내 화면이 **무엇을 고지할지** 서버에서 받아온다. `auth.md` 4.3의 1단계에 대응한다.
+
+**Response 200 — 결제 이력 있음**
+
+```json
+{
+  "has_payment_history": true,
+  "has_active_subscription": true,
+  "subscription_expiry_agreement_required": true,
+  "retained": {
+    "years": 5,
+    "items": ["email", "subscription_history", "consent_history"]
+  }
+}
+```
+
+**Response 200 — 결제 이력 없음**
+
+```json
+{
+  "has_payment_history": false,
+  "has_active_subscription": false,
+  "subscription_expiry_agreement_required": false,
+  "retained": null
+}
+```
+
+| 필드 | 의미 |
+|---|---|
+| `has_payment_history` | `subscriptions` 행이 하나라도 있는가. **`status`를 보지 않는다** — `refunded` · `expired` · `cancelled`도 거래기록이다 |
+| `has_active_subscription` | 만료 동의 안내를 띄울지. 스토어 해지 안내(텍스트만)의 조건이기도 하다 |
+| `subscription_expiry_agreement_required` | `withdraw` 요청에 `agreed_subscription_expiry`가 필수인지 |
+| `retained` | 보존 항목. **결제 이력이 없으면 `null`이며, 클라이언트는 "모든 데이터가 즉시 삭제됩니다"만 노출한다** |
+
+- **`retained`가 빈 배열이 아니라 `null`인 이유**: "보존할 항목이 0건"과 "보존 자체가 없음"은 화면이 달라진다. 빈 배열이면 클라이언트가 보존 섹션을 껍데기만 그리게 된다.
+- **판정은 서버가 한다.** 클라이언트가 로컬 구독 상태(`user.tier`)로 추측하면, 결제했다가 만료돼 `light`로 돌아온 사용자를 "결제 이력 없음"으로 잘못 안내한다.
+- 이 응답은 **안내용이다.** `withdraw`는 자기 트랜잭션 안에서 같은 판정을 다시 수행하며, 이 응답을 클라이언트가 되돌려 보내는 필드는 없다(`auth.md` 4.3).
+
+---
+
+### 4.7 `POST /users/me/withdraw`
 
 **Request** — `Idempotency-Key` 필수
 
@@ -268,11 +327,20 @@
 
 **Response 204**
 
-**서버 처리** — 이관과 파기를 **하나의 트랜잭션**에서 수행한다(`domain.md` 12.3).
+**서버 처리** — **결제 이력 유무로 갈린다.** 이관과 파기는 **하나의 트랜잭션**에서 수행한다(`domain.md` 12.3).
 
-- 즉시 파기: 라이브러리·관심사·커리어·재생 위치·재생 기록·소비 신호·설정·기기 토큰·세션·알림 로그·드립 제외 목록
-- 아카이브 후 파기(5년): `archived_users` · `archived_consents` · `archived_subscriptions`
-- `users` 행은 이관 후 **삭제한다.** `status = withdrawn`으로 남겨두지 않는다
+판정 기준은 **`subscriptions` 행의 존재 여부** 하나이며, **트랜잭션 안에서 다시 수행한다.** 4.6이 내려준 값을 신뢰하지 않는다 — 안내 화면 체류 중에 상태가 바뀔 수 있다.
+
+| | 결제 이력 있음 | 결제 이력 없음 |
+|---|---|---|
+| 즉시 파기 | 라이브러리·관심사·커리어·재생 위치·재생 기록·소비 신호·설정·기기 토큰·세션·알림 로그·드립 제외 목록·**이메일 인증 기록** | 왼쪽 전부 **+ `users` + `consents`** |
+| 아카이브 후 파기(5년) | `archived_users` · `archived_consents` · `archived_subscriptions` | **없음 — 행을 만들지 않는다** |
+| `withdrawal_logs` | 남긴다 | 남긴다 |
+| `users` 행 | 삭제 | 삭제 |
+
+- **결제 이력이 없으면 아카이브하지 않는다.** 개인정보보호법 제21조 제1항의 원칙은 파기이고 보존은 다른 법령의 근거가 있을 때만 허용되는 예외인데, 거래가 없으면 전자상거래법 시행령 제6조의 보존 대상이 성립하지 않는다(`domain.md` 12.2).
+- `users` 행은 두 경우 모두 **삭제한다.** `status = withdrawn`으로 남겨두지 않는다.
+- 아카이브 이관 시 `users.email IS NULL`이면 **트랜잭션을 실패시킨다**(`domain.md` 11.3). 결제 이력이 있는데 이메일이 없다는 것은 결제 전 이메일 게이트가 뚫렸다는 뜻이므로 조용히 넘기지 않는다.
 
 **에러**
 
@@ -280,13 +348,14 @@
 |---|---|---|
 | `WITHDRAWAL_CONFIRM_REQUIRED` | 400 | `confirm != true` |
 | `WITHDRAWAL_SUBSCRIPTION_EXPIRY_NOT_AGREED` | 400 | 활성 구독이 있는데 만료 동의 없음 |
+| `WITHDRAWAL_ARCHIVE_IDENTITY_MISSING` | 500 | 결제 이력이 있는데 `users.email`이 없음. **탈퇴를 진행하지 않는다** — 데이터 정합성 문제이므로 알림 대상이다 |
 
 - **스토어 구독은 탈퇴로 자동 해지되지 않는다.** 서버는 해지를 대행하지 않으며, 클라이언트는 안내를 **텍스트로만** 노출한다(스토어 이동 버튼·딥링크 금지 — `auth.md` 4.3).
 - 탈퇴 처리 중 앱이 종료돼도 서버 트랜잭션은 완료된다. 재실행 시 토큰 갱신이 실패해 시작 화면으로 간다.
 
 ---
 
-### 4.7 `POST /users/me/email-verifications` — 코드 발송
+### 4.8 `POST /users/me/email-verifications` — 코드 발송
 
 **Request** — `Idempotency-Key` 필수(연타로 발송 횟수가 소모되는 것을 막는다)
 
@@ -301,7 +370,7 @@
   "verification_id": "uuid",
   "email": "user@example.com",
   "expires_at": "2026-08-03T09:03:00Z",
-  "resend_available_at": "2026-08-03T09:01:00Z",
+  "resend_available_at": "2026-08-03T09:00:30Z",
   "send_count_used": 2,
   "send_count_limit": 5,
   "attempts_limit": 5
@@ -315,31 +384,36 @@
 | 코드 형식 | 6자리 숫자 |
 | 유효 시간 | **3분** (발송 시각 기준) |
 | 동시 유효 코드 | **1개** — 재발송 시 이전 코드 즉시 무효 |
-| 재발송 쿨다운 | **60초** |
-| 발송 가능 횟수 | **5회** |
-| 발송 횟수 초기화 | 5회째 발송 시각 + **1시간** |
+| 재발송 쿨다운 | **30초** |
+| 발송 가능 횟수 | **이메일 주소당 5회** |
+| 발송 횟수 초기화 | 그 주소의 5회째 발송 시각 + **1시간** |
 
 - **코드 원문을 저장하지 않는다.** 해시만 저장한다(`sessions.refresh_token_hash`와 같은 규칙).
-- **발송 횟수는 계정 단위로 센다.** 이메일 주소 단위가 아니다 — 주소를 바꿔가며 발송하는 우회를 막는다.
+- **발송 횟수는 `(계정, 이메일 주소)` 단위로 센다.** 계정 단위가 아니다 — 오타로 잘못 입력한 주소가 맞는 주소의 기회까지 소진하면 사용자가 잘못한 것 없이 1시간을 기다리게 된다.
+  - 따라서 `send_count_used` · `send_count_limit`은 **요청 본문의 `email`에 대한 값이다.** 다른 주소를 보내면 다른 카운터가 적용된다.
+  - 서버는 `email_verifications`의 `send_seq`로 발송 창을 판정한다(`domain.md` 3.7). `COUNT(*)` 누적으로 세지 않는다.
 - **발송에 성공한 건만 카운트한다.** 메일 발송 API 자체가 실패하면 차감하지 않는다. 인프라 장애로 사용자의 5회를 소진시키지 않기 위해서다.
 - 유효 시간·발송 횟수·쿨다운은 **전부 서버가 판정한다.** 앱을 재설치하거나 다른 기기에서 시도해도 제한이 그대로 적용돼야 한다.
-- 세 진입 경로(결제·설정·프로필)의 호출이 **같은 카운터에 합산**된다.
+- 세 진입 경로(결제·설정·프로필)의 호출은 **같은 주소라면 같은 카운터에 합산**된다.
+- **같은 `(계정, 주소)`의 동시 요청은 직렬화한다.** 조회와 삽입 사이에 다른 요청이 끼어들면 같은 `send_seq` 행이 두 개 생겨 제한이 샌다(`domain.md` 3.7).
 
 **에러**
 
 | 코드 | HTTP | `retry_after_sec` | 상황 |
 |---|---|---|---|
 | `EMAIL_FORMAT_INVALID` | 400 | — | 형식 검증 실패 |
-| `EMAIL_ALREADY_REGISTERED` | 409 | — | 현재 계정에 이미 등록된 것과 **같은 주소**. 코드를 보내지 않으며 **발송 횟수를 소모하지 않는다** |
-| `EMAIL_VERIFICATION_RESEND_COOLDOWN` | 429 | 남은 초 | 직전 발송으로부터 60초 미경과 |
-| `EMAIL_VERIFICATION_SEND_LIMIT` | 429 | **잠금 해제까지 남은 초** | 5회 소진. 클라이언트는 이 값을 **분 단위로** 환산해 안내한다 |
+| `EMAIL_ALREADY_REGISTERED` | 409 | — | 현재 계정에 이미 등록됐고 **인증까지 끝난** 같은 주소. 코드를 보내지 않으며 **발송 횟수를 소모하지 않는다** |
+| `EMAIL_VERIFICATION_RESEND_COOLDOWN` | 429 | 남은 초 | 같은 주소로 직전 발송한 지 30초 미경과 |
+| `EMAIL_VERIFICATION_SEND_LIMIT` | 429 | **잠금 해제까지 남은 초** | **그 주소로** 5회 소진. 클라이언트는 분 단위로 환산해 안내하고, **[메일 다시 입력]은 활성으로 둔다** — 다른 주소로는 발송할 수 있다 |
 | `EMAIL_SEND_FAILED` | 502 | — | 메일 발송 실패. `retryable: true`, **횟수 미차감** |
 
+- **`EMAIL_ALREADY_REGISTERED`는 인증까지 끝난 주소에만 적용한다.** `users.email`에 값이 있어도 `is_email_verified = false`면 **그 주소로 코드를 보내야 한다** — `auth.md` 4.4의 [이 주소로 인증] 경로가 바로 이 호출이다. 이 경우를 409로 막으면 미인증 사용자가 결제로 나아갈 방법이 사라진다.
 - **다른 계정이 이미 쓰는 이메일은 허용한다.** 이메일은 식별자가 아니라 거래 주체 확인용 연락처이며, 계정 식별은 `provider + provider_user_id`가 한다(`auth.md` 7).
+- **[메일 다시 입력]에 대응하는 별도 엔드포인트는 없다.** 클라이언트가 입력 화면으로 돌아가 다른 주소로 이 엔드포인트를 다시 호출할 뿐이다. 같은 주소로 다시 호출하면 재발송과 동일하게 쿨다운·횟수 제한이 걸린다(`auth.md` 4.5).
 
 ---
 
-### 4.8 `GET /users/me/email-verifications/active`
+### 4.9 `GET /users/me/email-verifications/active`
 
 코드 입력 중 앱이 종료됐다가 재진입한 경우, **재발송 없이 이어서 입력**하기 위한 조회다.
 
@@ -352,7 +426,7 @@
   "email": "user@example.com",
   "expires_at": "2026-08-03T09:03:00Z",
   "attempts_remaining": 4,
-  "resend_available_at": "2026-08-03T09:01:00Z",
+  "resend_available_at": "2026-08-03T09:00:30Z",
   "send_count_used": 2,
   "send_count_limit": 5,
   "send_locked_until": null
@@ -362,16 +436,20 @@
 **Response 200 — 없음**
 
 ```json
-{ "active": false, "send_count_used": 5, "send_count_limit": 5, "send_locked_until": "2026-08-03T10:03:00Z" }
+{ "active": false, "email": null, "send_count_used": null, "send_count_limit": 5, "send_locked_until": null }
 ```
 
 - **없음을 404로 응답하지 않는다.** 진행 중인 인증이 없는 것은 정상 상태이며, 클라이언트는 이 응답으로 **발송 잠금 여부까지** 판단해야 하기 때문이다.
+- **`send_count_used` · `send_locked_until`은 `email` 필드의 주소에 대한 값이다.** 카운터가 주소 단위이므로(4.8) 대상 주소 없이는 의미가 없다.
+  - 따라서 `active: false`일 때는 두 값이 `null`이다. **진행 중인 인증이 없으면 어느 주소를 기준으로 셀지 정해지지 않는다.**
+  - 클라이언트는 이 경우 잠금 안내를 미리 그리지 않고, 사용자가 주소를 입력해 4.8을 호출한 결과(`EMAIL_VERIFICATION_SEND_LIMIT`)로 판단한다.
 - 클라이언트는 남은 시간을 자체 타이머로 복원하지 않고 **`expires_at`으로 다시 계산한다**(`auth.md` 7).
 - **발송이 잠긴 상태여도 유효한 코드가 남아 있으면 `active: true`다.** 잠기는 것은 발송이지 검증이 아니다.
+- **[메일 다시 입력]으로 무효화된 건은 `active: false`다.** 화면을 벗어나는 순간 서버가 `invalidated_at`을 찍기 때문이다(`domain.md` 3.7).
 
 ---
 
-### 4.9 `POST /users/me/email-verifications/:id/verify` — 코드 검증
+### 4.10 `POST /users/me/email-verifications/:id/verify` — 코드 검증
 
 **Request**
 
@@ -382,11 +460,12 @@
 **Response 200**
 
 ```json
-{ "email": "user@example.com", "verified_at": "2026-08-03T09:01:20Z" }
+{ "email": "user@example.com", "is_email_verified": true, "verified_at": "2026-08-03T09:01:20Z" }
 ```
 
-- **검증에 성공한 서버가 `users.email`을 저장한다.** 클라이언트가 "인증 완료" 상태를 보내는 경로는 없다.
-- **성공 시점에만 값이 바뀐다.** 코드 발송까지 했더라도 검증 전에 이탈하면 기존 이메일이 그대로 남는다. 중간 상태를 `users.email`에 쓰지 않는다.
+- **검증에 성공한 서버가 `users.email`과 `users.is_email_verified = true`를 함께 저장한다.** 클라이언트가 "인증 완료" 상태를 보내는 경로는 없다.
+- **두 컬럼을 같은 트랜잭션에서 쓴다.** `email`만 바뀌고 `is_email_verified`가 이전 값으로 남으면, 미인증 주소가 인증된 것으로 둔갑하거나 그 반대가 된다.
+- **성공 시점에만 값이 바뀐다.** 코드 발송까지 했더라도 검증 전에 이탈하면 기존 이메일과 인증 상태가 그대로 남는다. 중간 상태를 `users`에 쓰지 않는다.
 
 **에러**
 
@@ -395,11 +474,25 @@
 | `EMAIL_VERIFICATION_CODE_MISMATCH` | 400 | `attempts_remaining` | 코드 불일치 |
 | `EMAIL_VERIFICATION_CODE_EXPIRED` | 400 | — | 3분 경과 |
 | `EMAIL_VERIFICATION_ATTEMPTS_EXCEEDED` | 400 | — | 검증 시도 5회 소진 → 코드 무효, 재발송 필요 |
-| `EMAIL_VERIFICATION_NOT_FOUND` | 404 | — | `:id`가 없거나 재발송으로 무효화된 이전 건 |
+| `EMAIL_VERIFICATION_NOT_FOUND` | 404 | — | `:id`가 없거나, **재발송 또는 [메일 다시 입력]으로 무효화된** 이전 건 |
 
 - **"코드가 틀림"과 "코드가 만료됨"을 반드시 다른 코드로 내려준다.** 둘을 뭉뚱그리면 사용자가 재발송해야 하는지 다시 입력해야 하는지 알 수 없다(`auth.md` 4.5).
 - **응답 시간을 일정하게 유지한다**(타이밍 공격 방지).
 - 재발송으로 새 코드를 받은 뒤 이전 코드를 입력하면 실패한다. 유효한 코드는 항상 마지막 1개다.
+
+---
+
+### 4.11 `DELETE /users/me/email-verifications/:id` — 무효화
+
+`auth.md` 4.5의 **[메일 다시 입력]** 에 대응한다. 코드 입력 화면을 벗어날 때 호출한다.
+
+**Response 204**
+
+- 서버는 해당 건에 `invalidated_at`을 찍는다(`domain.md` 3.7). 이후 그 코드로는 검증되지 않는다.
+- **발송 횟수를 되돌리지 않는다.** 메일은 이미 나갔고, 되돌리면 무효화를 반복해 제한을 무력화할 수 있다.
+- **이미 무효화·만료된 건에도 204를 반환한다.** 화면 이탈 시점에 호출하는 정리성 요청이므로 실패시킬 이유가 없다.
+- **호출이 실패해도 클라이언트는 입력 화면으로 되돌아간다.** 무효화되지 않은 코드는 3분 뒤 만료되고, 다음 발송이 어차피 이전 코드를 무효화한다(4.8).
+- 이 호출이 없으면 **재진입 시 4.9가 버려진 주소의 인증 건을 `active: true`로 돌려준다.** 사용자는 방금 포기한 주소의 코드 입력 화면을 다시 보게 된다.
 
 ---
 
@@ -418,10 +511,11 @@
 | `AUTH_REFRESH_TOKEN_REUSED` | 401 | false | 동일. 서버는 전 세션 무효화 |
 | `WITHDRAWAL_CONFIRM_REQUIRED` | 400 | false | 확인 체크박스 강조 |
 | `WITHDRAWAL_SUBSCRIPTION_EXPIRY_NOT_AGREED` | 400 | false | 구독 만료 동의 체크 강조 |
+| `WITHDRAWAL_ARCHIVE_IDENTITY_MISSING` | 500 | false | 공통 오류 화면. 탈퇴는 진행되지 않았음을 안내 |
 | `EMAIL_FORMAT_INVALID` | 400 | false | 인라인 "이메일 형식을 확인해주세요" |
 | `EMAIL_ALREADY_REGISTERED` | 409 | false | 인라인 "이미 등록된 이메일이에요" |
-| `EMAIL_VERIFICATION_RESEND_COOLDOWN` | 429 | false | [재전송] 비활성 + 남은 초 표시 |
-| `EMAIL_VERIFICATION_SEND_LIMIT` | 429 | false | 발송 버튼 비활성 + **분 단위** 잠금 안내 |
+| `EMAIL_VERIFICATION_RESEND_COOLDOWN` | 429 | false | [재전송] 비활성 + 남은 초 표시 (30초) |
+| `EMAIL_VERIFICATION_SEND_LIMIT` | 429 | false | 발송 버튼 비활성 + **분 단위** 잠금 안내. **[메일 다시 입력]은 활성 유지** |
 | `EMAIL_SEND_FAILED` | 502 | **true** | 토스트 + [다시 시도]. 횟수 미차감 안내 |
 | `EMAIL_VERIFICATION_CODE_MISMATCH` | 400 | false | 인라인 + 남은 시도 횟수 |
 | `EMAIL_VERIFICATION_CODE_EXPIRED` | 400 | false | 만료 안내 + [재전송] 활성화 |
@@ -442,13 +536,22 @@ POST /auth/sign-up               → 201 계정 생성 + 토큰
 **이메일 등록·인증** — 세 진입 경로 공통
 
 ```
-(재진입 시) GET  /users/me/email-verifications/active
-POST /users/me/email-verifications              → verification_id, expires_at
-POST /users/me/email-verifications/:id/verify   → users.email 저장
+(재진입 시) GET    /users/me/email-verifications/active
+POST   /users/me/email-verifications              → verification_id, expires_at
+  ├─ [메일 다시 입력] → DELETE /users/me/email-verifications/:id → 입력 화면으로, 다시 POST
+  └─ POST /users/me/email-verifications/:id/verify → users.email + is_email_verified 저장
 ```
 
 - 복귀 지점만 다르다: 결제 경로는 원래 결제 플로우로, 설정·프로필 경로는 직전 화면으로.
-- **결제 경로에서는 인증이 끝나기 전에 결제를 시작하지 않는다.** 결제만 되고 이메일이 없는 상태를 만들지 않기 위해서다(`auth.md` 4.4). 판정은 결제 API가 수행하며, 이메일이 없으면 `EMAIL_REQUIRED_FOR_PURCHASE`로 막는다 → **`subscription-api` 소관이므로 이 문서에서 정의하지 않는다.**
+- **결제 경로에서는 인증이 끝나기 전에 결제를 시작하지 않는다.** 결제만 되고 이메일이 없는 상태를 만들지 않기 위해서다(`auth.md` 4.4). 판정은 결제 API가 수행하며, 조건은 **`email IS NOT NULL AND is_email_verified = true`** 다. 충족하지 못하면 `EMAIL_REQUIRED_FOR_PURCHASE`로 막는다 → **`subscription-api` 소관이므로 이 문서에서 정의하지 않는다.**
+- **미인증 이메일을 가진 사용자**(`email` 있음 + `is_email_verified = false`)는 인증 선택 화면을 거친다(`auth.md` 4.4). [이 주소로 인증]은 저장된 주소로, [다른 메일 입력]은 새 주소로 같은 발송 엔드포인트를 호출할 뿐 **API가 갈라지지 않는다.**
+
+**회원 탈퇴**
+
+```
+GET  /users/me/withdrawal-preview   → has_payment_history로 고지 문구 분기
+POST /users/me/withdraw             → 204, 서버가 판정을 다시 수행
+```
 
 ## 7. 보안·검증 규칙
 
@@ -467,20 +570,23 @@ POST /users/me/email-verifications/:id/verify   → users.email 저장
 
 | 사용하는 것 | domain.md |
 |---|---|
-| `users` | 3.1 |
+| `users` — `email` · `is_email_verified` | 3.1 |
 | `consents` (append-only) | 3.2 |
 | `sessions` | 3.3 |
 | `withdrawal_logs` | 3.4 |
+| `email_verifications` — 코드 해시·만료·검증 시도·주소별 발송 순번 | 3.7 |
+| `subscriptions` — 결제 이력 판정(4.6·4.7) | 8.2 |
 | `archived_users` · `archived_consents` · `archived_subscriptions` | 11장 |
-| `email_verifications` | **미등재 — 추가 필요** |
 
-- **`email_verifications`가 아직 `domain.md`에 없다.** 4.7~4.9가 요구하는 값(코드 해시·발송 시각·만료 시각·검증 시도 횟수·계정별 발송 횟수·잠금 해제 시각)을 서버가 판정하려면 저장소가 필요하다. `domain.md` 3장에 추가한 뒤 이 표의 참조를 채운다.
-- 만료·완료된 인증 행은 배치로 정리한다(개인정보 최소보유).
+- **`is_email_verified`는 `users`의 컬럼이며 제공자 응답의 중계값이 아니다.** 가입 시점에 환산해 저장한 값만 쓰고, 판정 때마다 제공자 API를 다시 조회하지 않는다(`domain.md` 3.1).
+- **발송 횟수는 컬럼이 아니라 `email_verifications`의 행으로 센다.** `(user_id, email)`당 5행이 한 창이며 `send_seq`로 판정한다(`domain.md` 3.7).
+- 만료·완료된 인증 행은 배치로 정리한다 — `expires_at`으로부터 24시간 후 hard delete(`domain.md` 3.7).
+- **`subscriptions`는 `subscription` 모듈 소유다**(`domain.md` 2장). 탈퇴·미리보기는 그 모듈이 노출한 Service로 결제 이력 유무만 조회하고, Repository를 직접 주입받지 않는다(`architecture.md` 4.3).
 
 ## 9. 미결 사항
 
-- **`email_verifications` 테이블 추가** — 위 8장. 이것 없이는 4.7~4.9를 구현할 수 없다.
 - **메일 발송 인프라** — SES·SendGrid 등 제공자와 발신 도메인(SPF·DKIM·DMARC). 인증 메일이 스팸으로 분류되면 5회 제한이 그대로 이탈로 이어진다.
+- **계정 단위 발송 상한(백스톱) — P0** — 4.8의 카운터가 `(계정, 주소)` 단위라 **계정 단위 총량 제한이 없다.** 주소를 갈아 끼우면 한 계정의 발송량에 상한이 없어 메일 발송기로 악용될 수 있다. 상한을 둘지와 그때 쓸 에러 코드(`EMAIL_VERIFICATION_ACCOUNT_SEND_LIMIT` 신설 여부)를 정해야 한다. 발신 도메인 평판이 걸린 문제라 인프라 선택보다 먼저 결정하는 편이 좋다(`auth.md` 미결 사항).
 - **`signup_token` 수명** — 약관 동의 화면 체류 시간을 감안해 정해야 한다(잠정 10분).
 - **탈퇴 사유 `reason_code` 값 목록** — 화면 카피와 함께 확정 필요.
 - **레이트 리밋 구체 수치** — `architecture.md` 9.6이 "잠정"으로 두고 있다. 인증 요청 IP·계정 단위 임계값 확정 필요.
