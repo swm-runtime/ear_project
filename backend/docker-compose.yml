@@ -1,0 +1,25 @@
+# 로컬 개발용 PostgreSQL. 운영 인프라와 무관하다.
+# 값은 .env와 맞춘다 (.env.example 참고).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ear-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-ear}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-change-me}
+      POSTGRES_DB: ${DB_NAME:-ear}
+      TZ: UTC
+    ports:
+      - '${DB_PORT:-5432}:5432'
+    volumes:
+      - ear-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USERNAME:-ear} -d ${DB_NAME:-ear}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  ear-postgres-data:
