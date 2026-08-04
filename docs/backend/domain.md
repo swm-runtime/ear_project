@@ -66,7 +66,35 @@
 - `subscriptions`에는 실제로 `light` 행이 생기지 않는다(무료는 구독이 아니다). enum을 공유하는 이유는 세 곳의 값이 어긋나는 것을 막기 위해서다.
 - `plans`에는 `light` 행이 **존재한다**. 무료 정책(하루 재생 2편, 드립 2편)을 데이터로 표현하기 위해서다.
 
-### 1.4 파생값을 컬럼으로 두지 않는다
+### 1.4 멱등 요청 저장 — `idempotency_keys`
+
+중복 실행 부작용이 있는 POST는 `Idempotency-Key` 헤더를 필수로 받고, **같은 키의 재요청에는 저장된 첫 응답을 그대로 반환한다**(`architecture.md` 8.4, `convention.md` 5.5). 클라이언트가 오프라인 큐·자동 재시도로 같은 요청을 두 번 보내도(`common-error-handling.md` 4.2) 계정이 두 개 생기거나 탈퇴가 두 번 실행되지 않게 하는 최종 방어다.
+
+```
+idempotency_keys
+  id                        uuid            PK
+  owner_key                 varchar         ★스코프 — 인증 요청은 `user:<user_id>`, 인증 전(가입)은 `anonymous`
+  idempotency_key           varchar         클라이언트가 생성한 키
+  endpoint                  varchar         `POST /api/v1/auth/sign-up` — 메서드 + 경로
+  request_hash              varchar         요청 본문 해시. 같은 키에 다른 본문이면 충돌로 본다
+  status                    enum            in_progress | completed
+  response_status           smallint        NULL   완료된 요청의 HTTP 상태
+  response_body             text            NULL   완료된 요청의 응답 본문 **원문** (204는 NULL)
+  expires_at                timestamptz     보존 24시간
+
+uq_idempotency_keys_owner_key_endpoint_idempotency_key (owner_key, endpoint, idempotency_key)
+idx_idempotency_keys_expires_at
+```
+
+- **`user_id` FK를 두지 않는다.** 가입(`/auth/sign-up`)은 계정이 생기기 전에 호출되므로 참조할 행이 없다. 대신 `owner_key`로 스코프하며, `user_id`를 NULL 허용으로 두면 **유니크 제약이 동작하지 않는다**(Postgres는 NULL을 서로 다른 값으로 본다).
+- **`endpoint`를 유니크 키에 포함한다.** 클라이언트가 같은 키를 다른 엔드포인트에 재사용해도 서로의 응답이 섞이지 않는다.
+- **`request_hash`가 다르면 재요청으로 보지 않고 거절한다.** 같은 키에 다른 본문을 보내는 것은 클라이언트 버그이며, 첫 응답을 돌려주면 사용자가 요청한 적 없는 결과를 받는다.
+- **`response_body`는 `jsonb`가 아니라 `text`다.** `jsonb`는 파싱해 이진 구조로 저장하므로 키 순서·공백·숫자 표기가 정규화되어 **"첫 응답을 그대로 반환한다"가 성립하지 않는다.** 이 컬럼은 질의 대상이 아니라 원문 재현이 목적이므로 문자열로 보관한다(질의가 필요한 다른 컬럼은 `jsonb`를 그대로 쓴다).
+- **`in_progress` 상태의 키로 다시 들어오면 거절한다.** 동시에 도착한 두 요청이 모두 실행되는 것을 막는 것이 이 상태의 목적이다.
+- **처리에 실패하면 행을 남기지 않는다.** 실패한 요청은 같은 키로 다시 시도할 수 있어야 한다.
+- 보존은 **24시간**이며 배치가 `expires_at < now()`인 행을 hard delete 한다. 응답 본문에 개인정보가 포함될 수 있으므로 재시도 창을 넘겨 보관할 근거가 없다(개인정보보호법 제21조 제1항). 탈퇴 시에도 즉시 파기한다([12.3](#123-회원-탈퇴-처리)).
+
+### 1.5 파생값을 컬럼으로 두지 않는다
 
 집계로 구할 수 있는 값은 컬럼으로 만들지 않는다. 컬럼과 집계가 어긋나는 순간 어느 쪽이 맞는지 판단할 수 없게 된다(A-2에서 실제로 발생한 문제).
 
@@ -95,18 +123,26 @@
 | `notification` | `notification_logs` |
 | `partner` | `partners`, `content_control_requests`, `audit_logs` |
 | `user` (archive 스키마) | `archived_users`, `archived_consents`, `archived_subscriptions` |
+| `idempotency` | `idempotency_keys` — 도메인이 없는 플랫폼 모듈([1.4](#14-멱등-요청-저장--idempotency_keys)) |
 
 **의존 방향** (`architecture.md` 4.3 — 단방향, 순환 금지)
 
 | 모듈 | 의존하는 모듈 | 비고 |
 |---|---|---|
-| `auth` | `user` | |
+| `auth` | `user`, `idempotency` | |
+| `user` | `subscription`, `idempotency` | **탈퇴가 결제 이력을 판정**하려면 `subscriptions` 행의 존재 여부가 필요하다([12.3](#123-회원-탈퇴-처리)). ↓ 아래 주의 |
 | `library` | `content`, `user` | |
 | `playback` | `content`, `library`, `subscription` | `content_stats` 집계 배치를 `playback`이 실행한다 |
 | `drip` | `content`, `library`, `interest`, `subscription` | |
 | `subscription` | `user` | |
 | `notification` | `user` | |
 | `partner` | `content` | |
+
+**`user` ↔ `subscription` 주의** — 위 표에 `user → subscription`과 `subscription → user`가 함께 있지만 **동시에 성립시키면 순환이다**(`architecture.md` 4.3, `forwardRef` 금지).
+
+- 현재는 `user → subscription` 한 방향만 코드에 있다. 탈퇴가 결제 이력을 판정하는 경로다.
+- `subscription`이 결제 반영으로 `users.tier`를 갱신하기 시작하면([3.1](#31-users)) 반대 방향이 생겨 순환이 된다. **그 시점에 탈퇴를 Orchestrator로 올려**(`architecture.md` 3.3) 위에서 두 모듈의 Service를 조합하고, `user → subscription` 의존은 제거한다.
+- 즉 표의 `user → subscription`은 **subscription 모듈 완성 전까지의 한시적 상태**이며, 순환이 만들어지기 전에 해소해야 한다.
 
 **`content_stats` 갱신 경로** — 테이블 소유는 `content` 모듈이지만, 집계 원천(`play_records` · `user_signals`)은 `playback` 모듈이 소유한다. 따라서 **집계 배치는 `playback` 모듈이 실행한다.** 자기 Repository로 원천을 읽어 계산한 뒤, 결과를 `content` 모듈의 Service에 넘겨 기록한다.
 
@@ -126,7 +162,7 @@ users
   provider_user_id          varchar         제공자 고유 ID
   email                     varchar         NULL 허용 (미제공 · 마스킹 주소)
   is_email_verified         boolean         DEFAULT false   ★소유 확인 완료 여부
-  nickname                  varchar
+  nickname                  varchar         NULL 허용 (가입 시 미정 · 온보딩에서 입력)
   role                      enum            user | admin          DEFAULT 'user'
   tier                      enum            light | daily | pro   DEFAULT 'light'   ★캐시
   status                    enum            active | withdrawn    DEFAULT 'active'
@@ -146,6 +182,7 @@ idx_users_status
 - `entitlements_cache`는 두지 않는다. 캐시가 두 겹이면 반드시 어긋난다. 권한은 `plans`에서 매번 조립한다.
 - `daily_play_count` · `count_reset_at`은 **없다** (A-2). `play_records` 집계로만 판정한다.
 - 커리어 3개 필드는 전부 선택 입력이므로 `users`에 병합한다 (C-2). 별도 `user_careers` 테이블을 만들지 않는다.
+- **`nickname`은 NULL을 허용한다.** 제공자가 닉네임을 주지 않는 경우가 있고, 값은 **온보딩의 닉네임 입력 단계에서 채운다.** 기본 문자열을 넣어 두면 "아직 정하지 않았다"와 "사용자가 그 값으로 정했다"가 구분되지 않는다. 온보딩 완료(`onboarding_completed = true`) 시점에는 값이 있어야 하며, 그 보장은 온보딩 처리에서 한다. *(온보딩 단계 enum에 닉네임 단계를 어떻게 넣을지는 화면 확정 후 갱신한다)*
 - `role = admin` 계정만 콘텐츠 업로드·주제 관리 API를 호출할 수 있다. 관리자도 동일한 소셜 로그인을 사용한다(자체 아이디/비밀번호를 만들지 않는다 — `auth.md` 4.1).
 - **동일 이메일 다른 제공자는 별개 계정**이다. 계정 통합은 MVP 비범위(`auth.md` 4.1).
 
@@ -300,10 +337,23 @@ idx_email_verifications_expires_at
 | `send_seq = 5` 이고 `sent_at + 1시간` 경과 | 창이 끝났으므로 `send_seq = 1`로 다시 발송 |
 
 - **누적 개수를 세는 방식(`COUNT(*)`)을 쓰지 않는 이유**: 잠금이 풀린 뒤 카운트가 0으로 초기화돼야 하는데, 단순 개수는 지나간 창의 행까지 함께 세어 6회째부터 영구히 잠긴다. 슬라이딩 윈도우(`sent_at > now() - 1시간`)도 `auth.md` 4.5가 정한 "5회째 발송 시각 + 1시간"과 기산점이 다르다.
-- `send_seq`는 파생값이 아니라 **창 상태 그 자체**이므로 [1.4](#14-파생값을-컬럼으로-두지-않는다)에 걸리지 않는다. 지나간 창의 순번을 재계산할 방법이 없다.
+- `send_seq`는 파생값이 아니라 **창 상태 그 자체**이므로 [1.5](#15-파생값을-컬럼으로-두지-않는다)에 걸리지 않는다. 지나간 창의 순번을 재계산할 방법이 없다.
 - 발송에 **실패하면 행을 만들지 않는다.** 인프라 장애로 사용자의 5회를 소진시키지 않기 위해서다(`auth.md` 4.5).
 
-**동시 요청 방지** — 발송 요청은 `(user_id, email)` 단위로 직렬화한다. 직전 행 조회와 삽입 사이에 다른 요청이 끼어들면 같은 `send_seq`를 가진 행이 두 개 생겨 제한이 새어 나간다. 조회 시 행 잠금을 걸거나 `(user_id, email, send_seq)` 유니크 제약으로 이중 방어한다([1.1](#11-모든-테이블에-공통으로-들어가는-것)).
+**동시 요청 방지 — 부분 유니크 인덱스**
+
+발송 요청은 `(user_id, email)` 단위로 직렬화한다. 직전 행 조회와 삽입 사이에 다른 요청이 끼어들면 같은 `send_seq` 행이 두 개 생겨 제한이 새어 나간다. **최종 방어는 아래 부분 유니크 인덱스가 한다.**
+
+```
+uq_email_verifications_active (user_id, email)
+  WHERE verified_at IS NULL AND invalidated_at IS NULL
+```
+
+- **"유효한 코드는 항상 1개"라는 규칙을 그대로 제약으로 옮긴 것이다.** 발송 시 직전 행에 `invalidated_at`을 찍고 새 행을 넣으므로, 정상 흐름에서는 활성 행이 언제나 하나뿐이다. 동시 요청 두 건은 둘 다 활성 행을 만들려 하므로 **하나가 반드시 실패한다.**
+- 실패한 쪽은 예외로 노출하지 않고 **재발송 쿨다운으로 흡수한다**(`architecture.md` 8.4 — 유니크 위반을 도메인 흐름으로 흡수). 직전 발송이 방금 성공했다는 뜻이므로 쿨다운이 정확한 응답이다.
+- **`(user_id, email, send_seq)` 유니크는 쓸 수 없다.** 1시간 뒤 창이 초기화되면 `send_seq`가 다시 1부터 시작해 이전 창의 1번과 충돌하고, 정상 사용자가 영구히 막힌다. 여기에 `sent_at`을 더하면 충돌은 피하지만 밀리초가 다른 동시 요청이 그대로 통과해 **방어가 사라진다.**
+- **행 잠금만으로는 부족하다.** `SELECT … FOR UPDATE`는 존재하는 행에만 걸리므로, 그 주소로의 **첫 발송**에는 잠글 대상이 없다. 첫 발송이야말로 동시 요청이 겹치기 쉬운 지점이다.
+- 검증 성공(`verified_at`)·무효화(`invalidated_at`) 행은 조건에서 빠지므로 지난 이력은 인덱스에 쌓이지 않는다.
 
 **유효한 코드는 항상 1개다**
 
@@ -945,7 +995,7 @@ idx_audit_logs_target_created_at (target, created_at DESC)
 - **이 스키마는 익명 데이터가 아니라 "개인정보 보존 영역"이다.** `archived_users`가 거래 주체 식별 정보(전자우편주소·제공자 계정 ID)를 평문으로 보존하기 때문이다 — 근거는 [12.2](#122-법적-근거) 참조.
 - 따라서 **접근 통제를 운영 테이블과 다르게 건다.** 애플리케이션의 일반 조회 경로에서 이 스키마를 읽지 않는다. 읽는 경우는 (a) 재가입 시 구독 복원 판정, (b) 분쟁·감사 대응, (c) 보존 만료 파기 배치 셋뿐이며, 모든 조회를 `audit_logs`에 남긴다.
 - **`users`를 참조하는 FK를 두지 않는다.** 원본 행이 이미 파기되었기 때문이다. 아카이브 테이블끼리는 `user_hash`로 연결한다.
-- **`archived_at`이 보존 시작일이다.** 파기 배치는 `archived_at < now() - interval '5 years'`로 대상을 찾는다. 만료일 컬럼을 따로 두지 않는다(파생값 — [1.4](#14-파생값을-컬럼으로-두지-않는다)).
+- **`archived_at`이 보존 시작일이다.** 파기 배치는 `archived_at < now() - interval '5 years'`로 대상을 찾는다. 만료일 컬럼을 따로 두지 않는다(파생값 — [1.5](#15-파생값을-컬럼으로-두지-않는다)).
 - 아카이브 테이블은 **append-only**다. 이관 후 갱신하지 않는다.
 
 ### 11.2 `user_hash` 생성 규칙
@@ -1132,7 +1182,7 @@ idx_archived_subscriptions_archived_at
 | 처리 | 대상 |
 |---|---|
 | **아카이브 후 파기** (5년) | `users` → `archived_users`, `consents` → `archived_consents`, `subscriptions` → `archived_subscriptions` |
-| **즉시 파기** | `library_items`, `playback_progresses`, `play_records`, `user_signals`, `user_interests`, `user_settings`, `device_tokens`, `sessions`, `user_preference_vectors`, `drip_excluded_contents`, `purchase_intents`, `notification_logs`, `email_verifications`, `first_drip_jobs` |
+| **즉시 파기** | `library_items`, `playback_progresses`, `play_records`, `user_signals`, `user_interests`, `user_settings`, `device_tokens`, `sessions`, `user_preference_vectors`, `drip_excluded_contents`, `purchase_intents`, `notification_logs`, `email_verifications`, `first_drip_jobs`, `idempotency_keys`(해당 사용자 `owner_key`) |
 | **그대로 유지** | `withdrawal_logs`(원래 해시만), `store_notification_logs`(개인 식별자 없음), `content_stats`(집계값) |
 
 **결제 이력이 없는 사용자 — 아카이브 없이 전량 즉시 파기**
