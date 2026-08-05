@@ -1,6 +1,7 @@
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { BackHandler } from 'react-native';
 
 import { isApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
@@ -23,6 +24,27 @@ export const usePickScreen = () => {
 
   const sections = recommendationsQuery.data ?? [];
   const totalCount = sections.reduce((sum, section) => sum + section.items.length, 0);
+
+  // 재개 진입(onboarding_step = pick)은 스택에 이 화면 하나만 쌓여 goBack이 무시된다 —
+  // 이전 단계(Topic → Career)를 재구성해 명세의 복귀 경로를 복원한다(tickets: onboarding-resume-back-button-dead)
+  const handleBackPress = useCallback(() => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+    navigation.reset({ index: 1, routes: [{ name: 'Topic' }, { name: 'Career' }] });
+  }, [navigation]);
+
+  // 하드웨어 뒤로가기도 같은 경로를 탄다 — 스택이 1개일 때 기본 동작(앱 이탈)을 막는다
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+        handleBackPress();
+        return true;
+      });
+      return () => subscription.remove();
+    }, [handleBackPress]),
+  );
 
   /** 완료 요청을 발사하고 다음 화면으로 넘어간다 — 완료 이후 구간은 뒤로 올 수 없다(navigation.reset) */
   const proceed = (nextScreen: 'Complete' | 'FirstDripWaiting') => {
@@ -92,6 +114,6 @@ export const usePickScreen = () => {
     refetch: () => void recommendationsQuery.refetch(),
     toggleContent,
     handleProceedPress,
-    handleBackPress: () => navigation.goBack(),
+    handleBackPress,
   };
 };
