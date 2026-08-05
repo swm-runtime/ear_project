@@ -2,7 +2,7 @@
 
 > 이 문서는 '이어' 백엔드의 **코드 작성 규칙 문서**다. 시스템 구조·계층 책임·트랜잭션·보안 정책은 [architecture.md](architecture.md)에서 다룬다.
 >
-> 연결 문서: `architecture.md`, `docs/backend/domain.md`(작성 예정), `docs/pages/common-error-handling.md`
+> 연결 문서: `architecture.md`, `docs/backend/domain.md`(스키마의 유일한 기준), `docs/pages/common-error-handling.md`
 >
 > **문서 운용 원칙**
 > - 이 문서와 다른 코드는 리뷰에서 반려한다. 규칙이 틀렸다면 코드가 아니라 문서를 먼저 고친다.
@@ -27,6 +27,7 @@
 | 외부 연동 클라이언트 | `<대상>Client` | `AiServerClient`, `StoreReceiptClient` |
 | Guard / Filter / Interceptor / Pipe | `<목적><종류>` | `JwtAuthGuard`, `AllExceptionsFilter` |
 | 예외 | `<사유>Exception` | `PlayLimitExceededException` |
+| 예외 — Nest와 이름이 겹치는 것 | `Business<사유>Exception` | `BusinessNotFoundException` (→ architecture.md 7.2) |
 
 Entity만 접미사를 붙이지 않는다. Entity는 도메인 개념 그 자체이고, 코드에서 가장 자주 등장하는 타입이기 때문이다. (`UserEntity[]`보다 `User[]`가 읽힌다.)
 
@@ -148,11 +149,29 @@ modules/user/
 
 | 조건 | 조치 |
 |---|---|
-| Entity가 2개 이상 | `entities/` 디렉터리로 이동 (`entities/user.entity.ts`) |
-| Controller가 2개 이상 | 파일명으로 구분 (`user.controller.ts`, `user-admin.controller.ts`) |
+| **같은 역할의 파일이 2개 이상** | **그 역할의 복수형 디렉터리로 모은다** — `entities/` · `repositories/` · `services/` · `controllers/` |
 | Service가 커짐 | 유스케이스 단위로 분리 (`user.service.ts`, `user-withdrawal.service.ts`) |
 | enum·상수가 여러 파일에서 쓰임 | `<모듈>/user.constant.ts`, `user.enum.ts` |
 | 모듈 밖으로 공개할 타입 | `<모듈>/user.types.ts` — `exports`되는 것만 |
+
+**역할별 디렉터리 규칙 (2개 이상)**
+
+- **기준은 하나다 — 같은 역할이 2개 이상이면 폴더, 1개면 모듈 최상위에 그대로 둔다.** Entity만 예외로 두던 규칙을 Repository·Service·Controller까지 같은 숫자로 통일한다.
+- 이유: **파일명 접미사는 역할을 그룹핑하지 못한다.** 정렬이 `archive.repository.ts` → `consent.repository.ts` → `consent.service.ts` 순으로 도메인 명사 기준으로 섞여, "이 모듈의 Repository가 무엇무엇인지"를 한눈에 볼 수 없다.
+- **테스트는 대상과 같은 디렉터리에 둔다**(→ 7.1). 대상이 `services/`로 들어가면 spec도 함께 들어간다.
+- 모듈 조립 파일(`<모듈>.module.ts`)·`<모듈>.constant.ts`·`.enum.ts`·`.types.ts`·외부 연동 클라이언트는 개수와 무관하게 **모듈 최상위**에 둔다. 역할 디렉터리는 계층(Controller/Service/Repository/Entity)에만 적용한다.
+
+```
+modules/user/
+├── user.module.ts
+├── user.constant.ts  user.enum.ts  user.types.ts
+├── mail.client.ts
+├── user.controller.ts            # Controller 1개 → 최상위
+├── entities/                     # 2개 이상
+├── repositories/                 # 2개 이상
+├── services/                     # 2개 이상 (+ 각 spec 파일)
+└── dto/
+```
 
 ### 2.2 전체 구조
 
@@ -162,7 +181,7 @@ src/
 ├── app.module.ts                 # 최상위 조립만 (architecture.md 4.4)
 ├── config/
 ├── common/                       # 도메인 지식 없는 횡단 코드
-│   ├── filters/  interceptors/  guards/  decorators/  exceptions/  utils/
+│   ├── filters/  interceptors/  middlewares/  guards/  decorators/  exceptions/  utils/
 ├── database/
 │   ├── data-source.ts
 │   └── migrations/
@@ -172,12 +191,19 @@ src/
 
 - `common/`에 도메인 이름이 등장하면 잘못 둔 것이다. 해당 모듈로 옮긴다.
 - `utils/`는 순수 함수만 둔다. 상태·DI가 필요하면 Provider로 만든다.
+- `middlewares/`는 Guard보다 먼저 실행되어야 하는 것만 둔다(architecture.md 4.2).
 
 ### 2.3 Import 규칙
 
 - **모듈 간 import는 그 모듈이 `exports`한 것만** 사용한다. 다른 모듈의 내부 파일을 경로로 직접 import 하지 않는다.
 - 절대 경로(`src/` 기준 alias)를 사용한다. `../../../`은 금지한다. 같은 모듈 내부만 상대 경로를 허용한다.
 - import 순서: ① Node/외부 패키지 → ② `@nestjs/*` → ③ 프로젝트 절대 경로 → ④ 상대 경로. 그룹 사이에 빈 줄을 둔다.
+
+### 2.4 수정 범위 경계
+
+- **백엔드 코드 작업에서 수정할 수 있는 파일은 `backend/` 안의 파일뿐이다.** 그 밖의 디렉터리(프론트엔드 코드, AI 서버, 공용 설정 등)는 어떤 경우에도 수정하지 않는다.
+- `backend/` 밖은 **필요할 때 참조만 한다** — 클라이언트 계약(`docs/pages/*`) 확인, 에러 코드 대조, 화면 요구사항 확인 등 읽기 목적에 한한다.
+- 참조 결과 다른 파트의 코드·문서에 수정이 필요하다고 판단되면, 직접 고치지 않고 **해당 파트 담당에게 전달**한다(어긋남을 발견한 쪽이 고치는 게 아니라 소유한 쪽이 고친다).
 
 ## 3. DTO Convention
 
@@ -268,7 +294,7 @@ export class CreateNoteRequestDto {
 
 문서에 없는 컬럼을 임의로 추가하는 것을 금지한다. 스키마가 코드에만 존재하기 시작하면 도메인 문서가 즉시 무용지물이 된다.
 
-> `docs/backend/domain.md`는 도메인 확정 후 작성 예정이다. 그 전까지는 architecture.md 6장의 전제(마이그레이션 필수, DB 제약 이중화, 삭제 정책 명시)만 적용한다.
+> **`docs/backend/domain.md`가 스키마의 유일한 기준이다.** 다른 문서(architecture.md 6장, `docs/pages/*`의 데이터 모델)와 어긋나면 domain.md를 따른다. 코드·문서 어느 쪽도 domain.md 정의를 앞지르지 않는다.
 
 ### 4.2 작성 규칙
 
@@ -625,4 +651,3 @@ PRD 10장 지표와 연결되는 것은 별도 카운터·대시보드로 관측
 - 로깅 라이브러리 선정(Nest Logger 확장 / pino / winston)과 로그 수집·보존 기간
 - 감사 로그 보존 기간 — 파트너 계약·법무 검토 대상
 - lint·formatter 규칙 세부(ESLint 룰셋, Prettier 설정)과 커밋 훅 도입 여부
-- `docs/backend/domain.md` 작성 — Entity 작성의 전제 문서
