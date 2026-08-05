@@ -1,4 +1,9 @@
-import { ConsentType, SocialProvider, WithdrawalReason } from './user.enum';
+import {
+  ConsentType,
+  DevicePlatform,
+  SocialProvider,
+  WithdrawalReason,
+} from './user.enum';
 
 /**
  * convention.md 3.2 — Service 경계에는 HTTP DTO 대신 Command 타입을 쓴다.
@@ -43,4 +48,27 @@ export interface PendingConsent {
   consentType: ConsentType;
   version: string | null;
   isRequired: boolean;
+}
+
+/** 기기 토큰·OS 알림 권한 반영 (onboarding-api.md 4.9) */
+export interface RegisterDeviceCommand {
+  userId: string;
+  deviceId: string;
+  /** 권한이 거부되면 null. 발급받지 못한 토큰을 만들어 보내지 않는다 */
+  pushToken: string | null;
+  platform: DevicePlatform;
+  isOsPermissionGranted: boolean;
+  appVersion: string;
+}
+
+/**
+ * 커리어 부분 수정 (onboarding-api.md 4.4).
+ * **본문에 없는 필드는 변경하지 않고, `null`을 보낸 필드는 비운다** — PATCH의 기본 의미다.
+ * 그래서 "값 없음"을 `undefined`(미전송)와 `null`(비우기)로 구분한다.
+ */
+export interface UpdateCareerCommand {
+  jobCategory?: string | null;
+  jobTitle?: string | null;
+  /** 구간 enum을 하한값(0 / 2 / 4 / 7)으로 환산한 값 */
+  yearsOfExperience?: number | null;
 }
