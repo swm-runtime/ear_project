@@ -10,7 +10,6 @@ import { AppModule } from '@/app.module';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { traceIdMiddleware } from '@/common/middlewares/trace-id.middleware';
 import { toPreviousFinalMonthStart } from '@/common/utils/service-date.util';
-import { TokenService } from '@/modules/auth/services/token.service';
 import {
   ALL_TIME_PERIOD_START,
   ContentOrigin,
@@ -23,18 +22,19 @@ import { Content } from '@/modules/content/entities/content.entity';
 import { Topic } from '@/modules/interest/entities/topic.entity';
 import { LibraryItem } from '@/modules/library/library-item.entity';
 import { LibraryItemSource } from '@/modules/library/library.enum';
-import { ConsentType, SocialProvider } from '@/modules/user/user.enum';
-import { UserService } from '@/modules/user/services/user.service';
+import { SocialProvider } from '@/modules/user/user.enum';
 
 /**
- * PRD 9.2 — **E2E 핵심 루프**: 온보딩 → 첫 드립 적립 → 라이브러리 노출.
+ * PRD 9.2 — **E2E 핵심 루프**: 소셜 로그인·가입 → 온보딩 → 첫 드립 적립 → 라이브러리 노출.
+ *
+ * **계정 생성부터 HTTP로 밟는다.** 온보딩의 모든 판정이 토큰에서 꺼낸 `user_id`로
+ * 스코프되므로(architecture.md 9.2), 계정을 코드로 만들어 넣으면 그 경로가 검증에서 빠진다.
+ *
+ * 제공자 호출은 개발 대역(`DevClient`)이 받는다 — **실제 OAuth 연동을 검증하는 테스트가
+ * 아니다.** 제공자 SDK를 붙이는 시점에 `setup-e2e.ts`와 함께 다시 세운다.
  *
  * 라이브러리 조회 API가 아직 없으므로 마지막 단계는 `first-drip` 상태와 `library_items`
  * 적재로 확인한다. `library-api`가 생기면 그 조회까지 이어 붙인다.
- *
- * **소셜 로그인을 거치지 않고 계정을 직접 만든다.** 검증 대상은 온보딩이고, 제공자 대역은
- * `NODE_ENV=development`에서만 붙어 테스트 환경(`test`)에서는 실제 제공자 API를 호출하기
- * 때문이다. 계정 생성은 시나리오의 given이지 검증 대상이 아니다.
  *
  * 이 테스트는 **자기 데이터를 직접 심고 끝나면 지운다.** 개발용 목 시드(`npm run seed:mock`)가
  * 돌아 있든 아니든 같은 결과가 나와야 한다.
@@ -42,8 +42,6 @@ import { UserService } from '@/modules/user/services/user.service';
 describe('온보딩 E2E', () => {
   let app: INestApplication<App>;
   let dataSource: DataSource;
-  let userService: UserService;
-  let tokenService: TokenService;
 
   const topicIds: string[] = [];
   const contentIds: string[] = [];
@@ -73,8 +71,6 @@ describe('온보딩 E2E', () => {
     await app.init();
 
     dataSource = app.get(DataSource);
-    userService = app.get(UserService);
-    tokenService = app.get(TokenService);
 
     await seedCatalog();
   }, 60_000);
@@ -86,9 +82,9 @@ describe('온보딩 E2E', () => {
 
   // --- 시나리오 ---
 
-  it('추천을 담은 사용자는 대기 없이 완료되고, 담은 콘텐츠는 첫 드립에 중복 적립되지 않는다', async () => {
-    // given — 방금 가입해 온보딩 1단계에 있는 사용자
-    const { userId, auth } = await createUser('picked');
+  it('소셜 로그인·가입을 거친 사용자가 온보딩을 마치면 라이브러리가 비어 있지 않다', async () => {
+    // given — 소셜 로그인 → 약관 동의 → 가입까지 실제로 밟는다
+    const { userId, auth, providerToken } = await createUser('picked');
 
     const initialState = await get('/onboarding/state', auth).expect(
       HttpStatus.OK,
@@ -205,6 +201,16 @@ describe('온보딩 E2E', () => {
     expect(dripped.every((item) => !pickedIds.includes(item.contentId))).toBe(
       true,
     );
+
+    // 같은 제공자 계정으로 다시 로그인하면 온보딩을 다시 시키지 않는다
+    // (스플래시가 이 값으로 진입을 분기한다 — FR-35, splash.md 4)
+    const reLoggedIn = await reLogin(providerToken);
+    expect(reLoggedIn.status).toBe('authenticated');
+    expect(reLoggedIn.user).toMatchObject({
+      id: userId,
+      onboarding_completed: true,
+      onboarding_step: 'done',
+    });
   }, 60_000);
 
   it('하나도 담지 않은 사용자는 편성을 기다린 뒤 비어 있지 않은 라이브러리로 진입한다', async () => {
@@ -355,6 +361,28 @@ describe('온보딩 E2E', () => {
     library_item_count: number;
   }
 
+  interface AuthUserBody {
+    id: string;
+    nickname: string | null;
+    tier: string;
+    onboarding_completed: boolean;
+    onboarding_step: string;
+  }
+
+  interface SocialLoginBody {
+    status: string;
+    signup_token?: string;
+    access_token?: string;
+    user?: AuthUserBody;
+  }
+
+  interface SignUpBody {
+    status: string;
+    access_token: string;
+    refresh_token: string;
+    user: AuthUserBody;
+  }
+
   const path = (suffix: string) => `/api/v1${suffix}`;
 
   const get = (suffix: string, auth: string) =>
@@ -378,33 +406,83 @@ describe('온보딩 E2E', () => {
       .set('Authorization', auth)
       .send(body);
 
+  /**
+   * **소셜 로그인 → 약관 동의 → 가입**을 실제 엔드포인트로 밟는다(`auth-api.md` 4.1·4.2).
+   *
+   * 계정은 소셜 로그인이 아니라 **동의 버튼을 누른 시점에 생성된다.** 그래서
+   * `social-login`은 `consent_required` + `signup_token`만 주고, `sign-up`이 계정과
+   * 동의 이력을 하나의 트랜잭션에서 만든다.
+   *
+   * 제공자 호출은 개발 대역(`DevClient`)이 받는다 — 같은 토큰이면 같은 계정이 되므로
+   * 호출마다 다른 토큰을 만들어 새 계정을 얻는다(`setup-e2e.ts` 참조).
+   */
   async function createUser(
     label: string,
-  ): Promise<{ userId: string; auth: string }> {
-    const now = new Date();
-    const user = await userService.createUser(
-      {
-        provider: SocialProvider.KAKAO,
-        providerUserId: `e2e-onboarding-${label}-${Date.now()}-${Math.floor(
-          Math.random() * 1_000_000,
-        )}`,
-        email: null,
-        isEmailVerified: false,
-        nickname: null,
-        consents: [
-          { consentType: ConsentType.TERMS, version: '0.1', isAgreed: true },
-          { consentType: ConsentType.PRIVACY, version: '0.1', isAgreed: true },
-        ],
-      },
-      now,
-    );
+  ): Promise<{ userId: string; auth: string; providerToken: string }> {
+    const providerToken = `e2e-${label}-${Date.now()}-${Math.floor(
+      Math.random() * 1_000_000,
+    )}`;
+    const deviceId = `e2e-device-${label}`;
 
-    userIds.push(user.id);
+    const login = await request(app.getHttpServer())
+      .post(path('/auth/social-login'))
+      .send({
+        provider: SocialProvider.KAKAO,
+        provider_token: providerToken,
+        device_id: deviceId,
+      })
+      .expect(HttpStatus.OK);
+    const loginBody = login.body as SocialLoginBody;
+
+    // 처음 보는 제공자 계정이므로 아직 우리 계정이 없다
+    expect(loginBody.status).toBe('consent_required');
+    expect(loginBody.signup_token).toEqual(expect.any(String));
+    expect(loginBody.access_token).toBeUndefined();
+
+    const signUp = await request(app.getHttpServer())
+      .post(path('/auth/sign-up'))
+      .set('Idempotency-Key', `e2e-signup-${providerToken}`)
+      .send({
+        signup_token: loginBody.signup_token,
+        device_id: deviceId,
+        consents: [
+          { consent_type: 'terms', version: '0.1', is_agreed: true },
+          { consent_type: 'privacy', version: '0.1', is_agreed: true },
+        ],
+      })
+      .expect(HttpStatus.CREATED);
+    const signUpBody = signUp.body as SignUpBody;
+
+    // 가입 직후에는 온보딩 1단계이고, 닉네임·이메일은 비어 있다(domain.md 3.1)
+    expect(signUpBody.status).toBe('authenticated');
+    expect(signUpBody.user).toMatchObject({
+      onboarding_completed: false,
+      onboarding_step: 'topic',
+      nickname: null,
+      tier: 'light',
+    });
+
+    userIds.push(signUpBody.user.id);
 
     return {
-      userId: user.id,
-      auth: `Bearer ${tokenService.issueAccessToken(user, now).token}`,
+      userId: signUpBody.user.id,
+      auth: `Bearer ${signUpBody.access_token}`,
+      providerToken,
     };
+  }
+
+  /** 같은 제공자 계정으로 다시 로그인한다 — 이미 계정이 있으므로 바로 인증된다 */
+  async function reLogin(providerToken: string): Promise<SignUpBody> {
+    const response = await request(app.getHttpServer())
+      .post(path('/auth/social-login'))
+      .send({
+        provider: SocialProvider.KAKAO,
+        provider_token: providerToken,
+        device_id: 'e2e-device-relogin',
+      })
+      .expect(HttpStatus.OK);
+
+    return response.body as SignUpBody;
   }
 
   /**
@@ -515,6 +593,11 @@ describe('온보딩 E2E', () => {
     for (const userId of userIds) {
       await dataSource.query(`DELETE FROM users WHERE id = $1`, [userId]);
     }
+
+    // 멱등키는 `users` FK가 없다(가입은 계정이 생기기 전에 호출된다 — domain.md 1.4)
+    await dataSource.query(
+      `DELETE FROM idempotency_keys WHERE idempotency_key LIKE 'e2e-%'`,
+    );
 
     for (const contentId of contentIds) {
       await dataSource.query(`DELETE FROM contents WHERE id = $1`, [contentId]);
