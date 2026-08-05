@@ -168,7 +168,7 @@ feature가 늘어나면 아래 표를 갱신한다. 표에 없는 의존이 코�
 | paywall | subscription | 요금제 비교·결제 실행. **player를 알지 못한다** (→ 5.2) |
 | profile | interest, subscription, auth | 관심사·플랜 카드 / 이메일 인증 진입 |
 | settings | auth, subscription, notification, interest | 각 도메인 진입점 허브 |
-| onboarding | interest, library, notification | 주제 선택 / 첫 담기 / 알림 권한 |
+| onboarding | interest, library, notification, auth | 주제 선택 / 첫 담기 / 알림 권한 / 종료 시 세션 상태 갱신(라이브러리 진입 전환) |
 | notification | player | 푸시 딥링크 → 재생 게이트 |
 | splash | auth, onboarding | 진입 분기 판정 |
 
