@@ -12,7 +12,7 @@ import { BaseEntity } from '@/database/base.entity';
 import { User } from '@/modules/user/entities/user.entity';
 import { UserTier } from '@/modules/user/user.enum';
 
-import { SubscriptionStatus, SubscriptionStore } from './subscription.enum';
+import { SubscriptionStatus, SubscriptionStore } from '../subscription.enum';
 
 /**
  * domain.md 8.2 — 티어의 진실의 원천. `users.tier`는 이 테이블을 반영한 캐시다.

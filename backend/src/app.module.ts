@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
+import { ScheduleModule } from '@nestjs/schedule';
 
 import { AllExceptionsFilter } from '@/common/filters/all-exceptions.filter';
 import { LoggingInterceptor } from '@/common/interceptors/logging.interceptor';
@@ -9,6 +10,7 @@ import { EnvironmentVariables, validateEnv } from '@/config/env.validation';
 import { DatabaseModule } from '@/database/database.module';
 import { AuthModule } from '@/modules/auth/auth.module';
 import { HealthModule } from '@/modules/health/health.module';
+import { OnboardingModule } from '@/modules/onboarding/onboarding.module';
 import { UserModule } from '@/modules/user/user.module';
 
 /**
@@ -32,10 +34,14 @@ import { UserModule } from '@/modules/user/user.module';
         secret: configService.get('JWT_SECRET', { infer: true }),
       }),
     }),
+    // 첫 드립 재시도(`FirstDripRetryScheduler`)가 도는 근거.
+    // 별도 큐 인프라 대신 DB 작업 테이블 + 스케줄러를 쓴다 (architecture.md 미결 사항)
+    ScheduleModule.forRoot(),
     DatabaseModule,
     HealthModule,
     UserModule,
     AuthModule,
+    OnboardingModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

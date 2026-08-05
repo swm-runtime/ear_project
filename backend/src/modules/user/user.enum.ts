@@ -54,6 +54,12 @@ export enum WithdrawalReason {
   OTHER = 'other',
 }
 
+/** domain.md 3.6 — 기기 플랫폼 */
+export enum DevicePlatform {
+  IOS = 'ios',
+  ANDROID = 'android',
+}
+
 /** domain.md 3.2 — 동의 종류를 축으로 쪼갠다. 개정 시점이 서로 다르다 */
 export enum ConsentType {
   TERMS = 'terms',

@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Param,
   Post,
+  Put,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -17,6 +18,8 @@ import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
 import { IdempotencyInterceptor } from '@/modules/idempotency/idempotency.interceptor';
 
 import { ConsentService } from './services/consent.service';
+import { DeviceTokenService } from './services/device-token.service';
+import { RegisterDeviceRequestDto } from './dto/register-device-request.dto';
 import { GetActiveEmailVerificationResponseDto } from './dto/get-active-email-verification-response.dto';
 import { GetWithdrawalPreviewResponseDto } from './dto/get-withdrawal-preview-response.dto';
 import { SendEmailVerificationRequestDto } from './dto/send-email-verification-request.dto';
@@ -40,7 +43,33 @@ export class UserController {
     private readonly consentService: ConsentService,
     private readonly emailVerificationService: EmailVerificationService,
     private readonly userWithdrawalService: UserWithdrawalService,
+    private readonly deviceTokenService: DeviceTokenService,
   ) {}
+
+  /**
+   * onboarding-api.md 4.9 — 기기 토큰·OS 알림 권한 상태 반영.
+   *
+   * **거부했을 때도 호출한다.** 호출하지 않으면 서버는 "거부"와 "아직 안 물어봄"을
+   * 구분할 수 없어 발송 대상 판정의 근거가 사라진다.
+   *
+   * 최종 소유는 `notification-api`가 맞다. 그 문서가 생기면 이 라우트를 옮긴다.
+   */
+  @Put('devices/:deviceId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async registerDevice(
+    @CurrentUser() currentUser: AuthenticatedUser,
+    @Param('deviceId') deviceId: string,
+    @Body() request: RegisterDeviceRequestDto,
+  ): Promise<void> {
+    await this.deviceTokenService.register({
+      userId: currentUser.id,
+      deviceId,
+      pushToken: request.push_token ?? null,
+      platform: request.platform,
+      isOsPermissionGranted: request.is_os_permission_granted,
+      appVersion: request.app_version,
+    });
+  }
 
   @Post('consents')
   @HttpCode(HttpStatus.OK)
