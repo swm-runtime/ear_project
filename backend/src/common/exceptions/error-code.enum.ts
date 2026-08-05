@@ -48,4 +48,27 @@ export enum ErrorCode {
   EMAIL_VERIFICATION_CODE_EXPIRED = 'EMAIL_VERIFICATION_CODE_EXPIRED',
   EMAIL_VERIFICATION_ATTEMPTS_EXCEEDED = 'EMAIL_VERIFICATION_ATTEMPTS_EXCEEDED',
   EMAIL_VERIFICATION_NOT_FOUND = 'EMAIL_VERIFICATION_NOT_FOUND',
+
+  // --- 온보딩 (onboarding-api.md 5장) ---
+  /** 1단계는 건너뛸 수 없다 — `topic_ids`가 비었음 */
+  ONBOARDING_INTEREST_REQUIRED = 'ONBOARDING_INTEREST_REQUIRED',
+  /** 관심 주제 상한(3개) 초과. 초과분을 잘라내지 않고 거부한다 (onboarding-api.md 4.3) */
+  ONBOARDING_INTEREST_LIMIT_EXCEEDED = 'ONBOARDING_INTEREST_LIMIT_EXCEEDED',
+  /**
+   * 존재하지 않거나 `is_visible = false`인 주제.
+   * **두 경우를 구분하지 않는다** — 구분하면 임의 UUID로 비노출 주제의 존재를 탐침할 수 있다.
+   */
+  ONBOARDING_TOPIC_UNAVAILABLE = 'ONBOARDING_TOPIC_UNAVAILABLE',
+  /** 1단계를 마치지 않은 계정의 호출. 클라이언트는 1단계로 되돌린다 */
+  ONBOARDING_INTERESTS_NOT_SET = 'ONBOARDING_INTERESTS_NOT_SET',
+  /** 완료 요청 전에 첫 드립 상태를 조회함. 대기는 완료 이후에만 존재한다 */
+  ONBOARDING_NOT_COMPLETED = 'ONBOARDING_NOT_COMPLETED',
+  /** 완료된 계정의 온보딩 API 호출. 클라이언트는 라이브러리로 진입한다 */
+  ONBOARDING_ALREADY_COMPLETED = 'ONBOARDING_ALREADY_COMPLETED',
+
+  // --- 콘텐츠 (공용 — common-error-handling.md 4.1) ---
+  /** 담기 등에서 **건별 결과**로도 전달된다 (onboarding-api.md 4.6 `failed[]`) */
+  CONTENT_NOT_FOUND = 'CONTENT_NOT_FOUND',
+  /** 회수·만료된 콘텐츠 (`status != published`) */
+  CONTENT_WITHDRAWN = 'CONTENT_WITHDRAWN',
 }

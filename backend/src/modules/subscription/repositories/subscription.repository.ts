@@ -2,8 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, In, Repository } from 'typeorm';
 
-import { Subscription } from './subscription.entity';
-import { LIVE_SUBSCRIPTION_STATUSES } from './subscription.enum';
+import { Subscription } from '../entities/subscription.entity';
+import { LIVE_SUBSCRIPTION_STATUSES } from '../subscription.enum';
 
 /**
  * architecture.md 8.2 — 트랜잭션 컨텍스트는 마지막 인자로 명시적으로 전달받는다.

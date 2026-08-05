@@ -1,4 +1,15 @@
-import { ConsentType } from './user.enum';
+import { ConsentType, OnboardingStep } from './user.enum';
+
+/**
+ * 재개 지점의 순서. **`onboarding_step`은 앞으로만 전진한다**(onboarding-api.md 4.1)는
+ * 규칙을 비교 가능한 값으로 표현한 것이다.
+ */
+export const ONBOARDING_STEP_ORDER: Readonly<Record<OnboardingStep, number>> = {
+  [OnboardingStep.TOPIC]: 0,
+  [OnboardingStep.CAREER]: 1,
+  [OnboardingStep.PICK]: 2,
+  [OnboardingStep.DONE]: 3,
+};
 
 /**
  * 현행 약관 버전. 동의 화면에 보여줄 버전을 서버가 내려주고,

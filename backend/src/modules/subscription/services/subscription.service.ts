@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 
-import { Subscription } from './subscription.entity';
-import { SubscriptionRepository } from './subscription.repository';
+import { Subscription } from '../entities/subscription.entity';
+import { SubscriptionRepository } from '../repositories/subscription.repository';
 
 /**
  * `subscriptions`는 subscription 모듈 소유다(domain.md 2장).

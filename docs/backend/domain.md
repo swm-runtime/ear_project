@@ -287,7 +287,7 @@ device_tokens
   id                          uuid          PK
   user_id                     uuid          FK → users
   device_id                   varchar
-  token                       varchar
+  token                       varchar       NULL 허용 (권한 거부 — 발급받지 못함)
   platform                    enum          ios | android
   is_os_permission_granted    boolean       ★device 단위 값 (B-1)
   app_version                 varchar
@@ -296,6 +296,8 @@ device_tokens
 uq_device_tokens_user_id_device_id (user_id, device_id)
 idx_device_tokens_user_id
 ```
+
+- **`token`은 NULL을 허용한다.** OS 알림 권한을 거부한 기기는 토큰을 발급받지 못하지만, **거부했다는 사실 자체를 기록해야** 발송 대상 판정과 재노출 판단이 가능하다(`onboarding-api.md` 4.9 — "거부했을 때도 호출한다"). 만들어 낸 값이나 빈 문자열을 넣지 않는다 — "없음"과 "그 값으로 정해짐"이 구분되지 않게 된다(3.1 `nickname`과 같은 이유).
 
 ### 3.7 `email_verifications`
 
@@ -834,11 +836,12 @@ uq_plans_tier (tier)
 | tier | price_krw | daily_play_limit | daily_drip_count | is_drip_enabled |
 |---|---|---|---|---|
 | `light` (무료) | 0 | **2** | **2** | true |
-| `daily` | 미정 | 미정 | 미정 | true |
-| `pro` | 미정 | `NULL`(무제한) | 미정 | true |
+| `daily` | 미정 | 미정 | **2** | true |
+| `pro` | 미정 | `NULL`(무제한) | **2** | true |
 
-- **무료(`light`)만 하루 2편으로 확정했다.** 유료 티어의 가격·범위는 시범 운영 후 결정한다(PRD 미확정 4번).
-- `daily_drip_count`는 어느 명세에도 없던 컬럼이다. `drip-scheduling.md`가 "서버 설정값"이라고만 해서 소유처가 없었으므로 `plans`에 둔다 — 티어별로 달라질 값이기 때문이다.
+- **`daily_drip_count`는 전 티어 2편으로 확정됐다**(PRD 1.3·FR-14). 티어가 가르는 것은 드립 편수가 아니라 재생 한도(`daily_play_limit`)다. 미정으로 남은 것은 `price_krw`와 유료 티어의 `daily_play_limit`뿐이다.
+  - **그래도 `daily`·`pro` 행은 아직 만들 수 없다.** 편수는 확정됐지만 나머지 두 값이 비어 있어 행을 완성할 수 없다 — subscription 모듈에서 함께 넣는다.
+- `daily_drip_count`는 어느 명세에도 없던 컬럼이다. `drip-scheduling.md`가 "서버 설정값"이라고만 해서 소유처가 없었으므로 `plans`에 둔다 — **배포 없이 조정할 정책값이기 때문이다**(시범 운영 중 2편 → 3편 같은 조정). 전 티어 값이 같아진 뒤에도 코드 상수로 옮기지 않는 이유가 이것이다.
 - `offline_download_enabled`는 **두지 않는다.** 오프라인 저장이 P1 이연이라 지금 컬럼을 만들면 의미 없는 값이 채워진다.
 - **무료 티어도 드립을 받는다**(PRD 미확정 3번 결정). `drip-scheduling.md` 4.1의 "`tier == free`면 편성하지 않음"은 폐기된 규칙이다.
 
@@ -1298,7 +1301,7 @@ idx_archived_subscriptions_archived_at
 
 | # | 항목 | 내용 |
 |---|---|---|
-| 1 | **유료 티어 값** | `plans.daily_play_limit` · `daily_drip_count` · `price_krw`의 `daily`/`pro` 값이 미정. 1~2주 시범 운영 후 확정(FR-14). **컬럼은 이미 있으므로 값만 채우면 되고 마이그레이션은 필요 없다.** |
+| 1 | **유료 티어 값** | `plans.daily_play_limit` · `price_krw`의 `daily`/`pro` 값이 미정. 1~2주 시범 운영 후 확정. **`daily_drip_count`는 전 티어 2편으로 확정됐다**(PRD 1.3·FR-14) — 미정 대상에서 제외한다. **컬럼은 이미 있으므로 값만 채우면 되고 마이그레이션은 필요 없다.** |
 | 2 | **결제 이력 없는 사용자의 `consents` 파기 — 법무 확인** | [12.3](#123-회원-탈퇴-처리)에서 `archived_consents`도 함께 파기하기로 했다. 동의 획득의 입증 책임은 사업자에게 있으므로, 탈퇴자가 나중에 동의 사실을 다투면 반박 근거가 남지 않는다. **입증 책임과 제21조 제1항 중 어느 쪽이 우선하는지 확인이 필요하다.** 보존이 필요하다는 판단이 나오면 `archived_consents`만 예외로 남긴다 — 스키마 변경은 없고 12.3의 분기만 바뀐다. |
 | 3 | **계정 단위 발송 상한(백스톱)** | [3.7](#37-email_verifications)의 발송 제한이 `(user_id, email)` 단위이므로 **계정 단위 총량 제한이 없다.** 주소를 갈아 끼우면 한 계정의 발송량에 상한이 없어 메일 발송기로 악용될 수 있다. 상한을 둘지, 둔다면 저장소를 어디로 할지(같은 테이블 집계 / Redis 카운터) 결정 필요. 발신 도메인 평판이 걸린 문제다 — `auth.md` 미결 사항 참조. |
 | 4 | **`users.years_of_experience` 타입 불일치** | [3.1](#31-users)은 `int`인데 `onboarding.md` 3장의 입력은 **구간 enum**(1년 미만 / 1–3년 / 4–6년 / 7년 이상)이다. 현재는 구간 하한값(0·2·4·7)으로 저장하는 것으로 읽히는데, **매핑이 문서 어디에도 없어 구간을 조정하면 기존 값의 의미가 조용히 바뀐다.** 구간 enum으로 바꾸거나, `int`를 유지하되 매핑을 이 문서에 못박아야 한다. |

@@ -9,6 +9,10 @@ import { ConsentRepository } from './repositories/consent.repository';
 import { ConsentService } from './services/consent.service';
 import { EmailVerificationRepository } from './repositories/email-verification.repository';
 import { EmailVerificationService } from './services/email-verification.service';
+import { DeviceTokenRepository } from './repositories/device-token.repository';
+import { DeviceTokenService } from './services/device-token.service';
+import { UserOnboardingService } from './services/user-onboarding.service';
+import { DeviceToken } from './entities/device-token.entity';
 import { ArchivedConsent } from './entities/archived-consent.entity';
 import { ArchivedSubscription } from './entities/archived-subscription.entity';
 import { ArchivedUser } from './entities/archived-user.entity';
@@ -30,6 +34,7 @@ import { WithdrawalLogRepository } from './repositories/withdrawal-log.repositor
       Consent,
       WithdrawalLog,
       EmailVerification,
+      DeviceToken,
       ArchivedUser,
       ArchivedConsent,
       ArchivedSubscription,
@@ -45,13 +50,16 @@ import { WithdrawalLogRepository } from './repositories/withdrawal-log.repositor
     EmailVerificationRepository,
     WithdrawalLogRepository,
     ArchiveRepository,
+    DeviceTokenRepository,
     UserService,
     ConsentService,
     EmailVerificationService,
     UserWithdrawalService,
+    UserOnboardingService,
+    DeviceTokenService,
     // 발송 인프라가 확정되면 이 바인딩만 교체한다 (mail.client.ts 주석)
     { provide: MailClient, useClass: LoggingMailClient },
   ],
-  exports: [UserService, ConsentService],
+  exports: [UserService, ConsentService, UserOnboardingService],
 })
 export class UserModule {}
