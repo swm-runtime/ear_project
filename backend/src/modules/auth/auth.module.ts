@@ -6,6 +6,7 @@ import { UserModule } from '@/modules/user/user.module';
 
 import { AuthController } from './auth.controller';
 import { AuthService } from './services/auth.service';
+import { DevClient } from './providers/dev.client';
 import { GoogleClient } from './providers/google.client';
 import { KakaoClient } from './providers/kakao.client';
 import { NaverClient } from './providers/naver.client';
@@ -26,6 +27,8 @@ import { TokenService } from './services/token.service';
     KakaoClient,
     GoogleClient,
     NaverClient,
+    // 개발 환경에서만 레지스트리가 꺼내 쓴다 (dev.client.ts)
+    DevClient,
   ],
 })
 export class AuthModule {}

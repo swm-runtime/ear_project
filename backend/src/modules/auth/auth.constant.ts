@@ -10,3 +10,6 @@ export const PROVIDER_REQUEST_TIMEOUT_MS = 5000;
 
 export const ACCESS_TOKEN_TYPE = 'access';
 export const SIGNUP_TOKEN_TYPE = 'signup';
+
+/** 개발용 대역 계정의 provider_user_id 길이 — `users.provider_user_id`(varchar 255) 안에 고정한다 */
+export const DEV_PROVIDER_USER_ID_LENGTH = 32;
