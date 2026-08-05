@@ -7,6 +7,42 @@
 | 요청 파트 | 백엔드 |
 | 관련 작업 | 온보딩 백엔드 구현 (`feat(be)/onboarding`) |
 | 근거 문서 | `docs/spec/api/onboarding-api.md` 5장 · `docs/backend/architecture.md` 7.5 |
+| 상태 | **보류** (2026-08-05, 온보딩 통합 시점) — 아래 "보류 사유" 참조 |
+
+---
+
+## 보류 사유 — 대상인 "6장 에러 코드 표"가 존재하지 않는다
+
+> 2026-08-05 온보딩 통합 반영 중 확인한 내용이다. **이 문서를 그대로 실행할 수 없어 `pending/`에 둔다.**
+
+`common-error-handling.md`의 6장은 **"데이터 모델"** 이고, 담고 있는 것은 `ApiError`의 **필드 규격**뿐이다. 에러 코드 목록 표는 이 문서 어디에도 없다.
+
+```
+## 6. 데이터 모델
+ApiError { error_code, message, retryable, retry_after_sec }   // 서버 응답 규격
+```
+
+**이건 온보딩만의 문제가 아니다.** "6장 표"를 가리키는 곳이 이미 6군데인데, 그 표가 만들어진 적이 없다.
+
+| 참조하는 곳 | 문장 |
+|---|---|
+| `backend/architecture.md` 7.5 | 코드를 추가·변경하면 `common-error-handling.md` 6장 표를 함께 갱신한다 |
+| `backend/architecture.md` 7.4 | `common-error-handling.md` 6장의 `ApiError`를 그대로 따르며 (← 이쪽은 규격 참조라 정상) |
+| `backend/convention.md` | 클라이언트가 분기해야 하는 상황은 `error_code`로 구분한다(`common-error-handling.md` 6장) |
+| `spec/api/auth-api.md` 5장 · `library-api.md` 5장 · `onboarding-api.md` 5장 | 추가·변경 시 … `common-error-handling.md` 6장 표를 함께 갱신한다 |
+
+즉 **auth·library도 같은 지시를 받았지만 반영된 적이 없다.** 온보딩 8개만 넣으면 표는 생기지만 "온보딩 코드만 있는 중앙 표"가 되어, 다음 사람이 또 같은 판단을 해야 한다.
+
+### 결정이 필요한 것
+
+1. **표를 신설할 위치** — 6장(데이터 모델) 안에 넣을지, 별도 절로 뺄지. 코드 목록은 스키마가 아니라 계약이라 별도 절이 자연스럽다.
+2. **초기 범위** — 온보딩 8개만 넣을지, `auth-api`·`library-api` 5장의 코드까지 함께 옮겨 담아 실제로 "중앙 표"로 만들지.
+3. **`CONTENT_NOT_FOUND` · `CONTENT_WITHDRAWN`의 소유** — `onboarding-api.md` 5장은 이 둘을 "온보딩이 새로 만든 코드가 아니다"라고 적었는데, 중앙 표가 없으니 **실제로는 온보딩이 처음 도입하는 코드**다. 라이브러리·탐색·플레이어가 같은 코드를 쓰므로 공용 위치에 두어야 한다.
+4. **표와 각 api 문서 5장의 관계** — 중앙 표가 원본이고 api 문서가 발췌인지, 반대인지. 정하지 않으면 두 벌이 갈라진다(이 문서가 처음에 지적한 것과 같은 문제).
+
+**서버 구현에는 영향이 없다.** `error-code.enum.ts`에는 이미 반영돼 있고 응답도 그 값으로 나간다 — 문서 쪽 정리만 남은 상태다.
+
+---
 
 ## 왜 필요한가
 
