@@ -5,7 +5,8 @@ export type ConsentType = 'terms' | 'privacy' | 'marketing';
 
 export interface AuthUser {
   id: string;
-  nickname: string;
+  /** 온보딩 전에는 null이다(auth-api.md 4.1) */
+  nickname: string | null;
   email: string | null;
   isEmailVerified: boolean;
   provider: SocialProvider;

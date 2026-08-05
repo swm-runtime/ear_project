@@ -28,7 +28,7 @@ interface ConsentItemDto {
 
 interface UserDto {
   id: string;
-  nickname: string;
+  nickname: string | null;
   email: string | null;
   is_email_verified: boolean;
   provider: SocialProvider;
