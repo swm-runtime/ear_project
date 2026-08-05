@@ -4,8 +4,8 @@ import { DataSource, EntityManager } from 'typeorm';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { EnvironmentVariables } from '@/config/env.validation';
 import { IdempotencyService } from '@/modules/idempotency/idempotency.service';
-import { Subscription } from '@/modules/subscription/subscription.entity';
-import { SubscriptionService } from '@/modules/subscription/subscription.service';
+import { Subscription } from '@/modules/subscription/entities/subscription.entity';
+import { SubscriptionService } from '@/modules/subscription/services/subscription.service';
 
 import { ArchiveRepository } from '../repositories/archive.repository';
 import { ConsentService } from './consent.service';

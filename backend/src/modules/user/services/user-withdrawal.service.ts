@@ -8,7 +8,7 @@ import { hmacSha256Hex } from '@/common/utils/hash.util';
 import { EnvironmentVariables } from '@/config/env.validation';
 import { toUserOwnerKey } from '@/modules/idempotency/idempotency.constant';
 import { IdempotencyService } from '@/modules/idempotency/idempotency.service';
-import { SubscriptionService } from '@/modules/subscription/subscription.service';
+import { SubscriptionService } from '@/modules/subscription/services/subscription.service';
 
 import { ArchiveRepository } from '../repositories/archive.repository';
 import { ConsentService } from './consent.service';
