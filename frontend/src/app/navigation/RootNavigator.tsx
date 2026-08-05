@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSessionStore } from '@/features/auth';
 
 import AuthNavigator from './AuthNavigator';
+import OnboardingNavigator from './OnboardingNavigator';
 import PlaceholderScreen from './PlaceholderScreen';
 import type { RootStackParamList } from './types';
 
@@ -24,7 +25,7 @@ export default function RootNavigator() {
       ) : isOnboardingCompleted ? (
         <RootStack.Screen name="Main" component={PlaceholderScreen} />
       ) : (
-        <RootStack.Screen name="Onboarding" component={PlaceholderScreen} />
+        <RootStack.Screen name="Onboarding" component={OnboardingNavigator} />
       )}
     </RootStack.Navigator>
   );

@@ -8,6 +8,7 @@ interface SessionStore {
   status: SessionStatus;
   user: AuthUser | null;
   setSession: (user: AuthUser) => void;
+  updateUser: (patch: Partial<AuthUser>) => void;
   clearSession: () => void;
 }
 
@@ -19,5 +20,7 @@ export const useSessionStore = create<SessionStore>((set) => ({
   status: 'unauthenticated',
   user: null,
   setSession: (user) => set({ status: 'authenticated', user }),
+  updateUser: (patch) =>
+    set((prev) => (prev.user ? { user: { ...prev.user, ...patch } } : prev)),
   clearSession: () => set({ status: 'unauthenticated', user: null }),
 }));
