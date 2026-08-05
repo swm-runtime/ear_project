@@ -182,7 +182,16 @@ src/
 |---|---|---|
 | Auth | User, Idempotency | 로그인·토큰 발급 시 사용자 조회·생성 |
 | User | Subscription, Idempotency | 탈퇴 시 결제 이력 판정 — **한시적 방향**, 아래 참고 |
+| Interest | *(없음)* | `topics` · `user_interests` 소유. 다른 모듈을 모른다 |
+| Content | Interest | `content_topics`가 `topics`를 참조한다 |
+| Library | Content, User | |
+| Drip | Content, Library, Interest, Subscription, **User** | `domain.md` 2장의 네 방향 + 편성 편수 판정에 `users.tier`가 필요해 User를 더한다. `User`는 `Drip`을 모르므로 순환은 없다 |
+| Onboarding | User, Interest, Content, Library, Drip, Idempotency | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
 | *(도메인 확정 시 계속 추가)* | | |
+
+**Onboarding은 Entity를 갖지 않는다.** 온보딩은 화면 흐름이라 자기 데이터가 없고 `users` · `user_interests` · `contents` · `library_items` · `first_drip_jobs`를 횡단한다. 4.1의 "모듈은 Entity 기준으로 나눈다"의 예외이며, Repository 없이 **Orchestrator가 각 소유 모듈의 Service를 조합한다**(→ 3.3). 도메인 규칙 판정(주제 개수 상한, 발행 상태, 완료 여부)은 전부 소유 모듈의 Service에 있고 Orchestrator는 순서·조합만 담당한다.
+
+- 경로를 `/onboarding` 아래에 모으는 이유는 온보딩의 저장이 **단계 전이(`onboarding_step`)를 동반하기** 때문이다. 같은 데이터를 다루는 `interest-management` · `profile`의 엔드포인트에 이 부수 효과를 붙이면, 온보딩을 끝낸 사용자가 관심사를 고칠 때마다 재개 지점이 함께 움직인다(`onboarding-api.md` 3장).
 
 **`User → Subscription`은 한시적이다.** `domain.md` 2장이 `Subscription → User`(결제 반영 시 `users.tier` 갱신)를 함께 정의하고 있어, 두 방향이 동시에 성립하면 순환이 된다. Subscription 모듈이 티어 갱신을 시작하는 시점에 **탈퇴를 Orchestrator로 올려**(→ 3.3) 두 Service를 위에서 조합하고 이 의존을 제거한다.
 
@@ -460,9 +469,18 @@ PRD FR-33 / 비기능 "저작권·파트너 계약 준수"에 직접 대응한�
 ## 미결 사항
 
 - 트랜잭션 컨텍스트 전달 방식: 명시적 `EntityManager` 전달 vs AsyncLocalStorage 기반 데코레이터 도입
-- 비동기 작업 처리 방식: DB 기반 작업 테이블 + 스케줄러 vs 메시지 큐(BullMQ 등) 도입 여부와 시점
+- ~~비동기 작업 처리 방식: DB 기반 작업 테이블 + 스케줄러 vs 메시지 큐(BullMQ 등) 도입 여부와 시점~~ → **DB 기반 작업 테이블 + 스케줄러로 확정한다**(아래 참고). 메시지 큐 도입은 이 방식이 감당하지 못하는 부하가 확인된 뒤에 다시 논의한다
 - AI Server 연동 방식 확정: 동기 요청 / 비동기 콜백 / 폴링 중 어느 조합인지
 - 서명 URL 만료 시간 확정(회수 반영 지연 상한과 직결 — 파트너 계약 명시 대상)
 - 레이트 리밋 구체 수치, 회로 차단 도입 시점
 - 탈퇴 시 재생 로그 비식별 보존 범위·기간 (PRD FR-02 "조사 필요", 법무 검토)
 - 5장 Domain Responsibility — 도메인별 책임 경계 작성 (스키마는 `domain.md`가 기준이므로 6장은 원칙만 유지한다)
+
+**비동기 작업 처리 — DB 작업 테이블 + 스케줄러**
+
+`onboarding.md` 4가 요구하는 "서버의 비동기 재시도 큐"를 구현하면서 확정했다. 요청이 끝난 뒤에도 남아 있는 작업(온보딩 첫 드립 편성)은 **상태 컬럼을 가진 행으로 표현하고, 주기적으로 도는 스케줄러가 미처리 행을 집어 간다**(→ 8.5 최종 일관성).
+
+- 상태 테이블은 도메인이 소유한다. 첫 드립은 `first_drip_jobs`(`domain.md` 7.4)이며, 이 테이블의 `(status, last_attempted_at)` 인덱스가 폴러의 조회 경로다.
+- **선점은 원자적으로 한다** — `UPDATE ... WHERE id IN (SELECT ... FOR UPDATE SKIP LOCKED) RETURNING`. 서버가 여러 인스턴스로 떠도 한 인스턴스만 가져간다. 선점과 동시에 시도 횟수를 올려 두 번 세지 않는다.
+- 재시도 횟수 상한을 두고, 소진하면 자동 진행을 멈추고 운영 알림 대상으로 남긴다(무한 재시도는 장애를 늘린다).
+- Redis·BullMQ를 들이지 않는 이유: 대상이 방금 가입한 사용자 1명 단위의 작업이고 대기 구간이 십수 초다. 인프라를 하나 더 늘려 얻을 것보다 운영·장애 지점이 늘어나는 비용이 크다.
