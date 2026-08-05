@@ -21,9 +21,22 @@ prd/          무엇을·왜 만드는가 (FR-01~39)
        └─ wireframe/      화면 ID의 시각 참조 (HTML)
 backend/      서버 구조·스키마·코드 규칙 (스키마의 유일한 기준)
 frontend/     클라이언트 구조·코드 규칙
+changes/      상대 파트 문서에 반영해달라는 요청 (pending/ → archive/)
+tickets/      상대 파트 코드를 고쳐달라는 요청 (<파트>/pending/ → <파트>/archive/)
 ```
 
 문서 간 규칙이 충돌하면 **동작 규칙은 `pages/`가, 스키마는 `backend/domain.md`가, 통신 계약은 `spec/api/`가 기준**이다.
+
+### 요청 문서 — `changes/`와 `tickets/`
+
+"자기 파트 코드만 수정한다"는 원칙 때문에, 상대 파트에 넘길 수정은 **문서로 남긴다.** 고칠 대상이 문서면 `changes/`, 코드면 `tickets/<파트>/`다.
+
+- **끝난 요청은 `pending/`에서 `archive/`로 옮긴다.** `tickets/frontend/pending/` → `tickets/frontend/archive/`, `changes/pending/` → `changes/archive/`. 옮기지 않으면 `pending/`에 이미 처리된 항목이 쌓이고, 목록을 아무도 믿지 않게 된다.
+- **티켓은 그 수정을 담은 PR에서 함께 옮긴다.** 나중에 몰아서 정리하지 않는다 — 문서 반영은 대상 문서를 열면 확인되지만, 티켓은 코드가 고쳐졌는지 따로 봐야 해서 미루면 아무도 판단할 수 없다.
+- **모든 요청 문서에 "완료 조건"을 Given/When/Then으로 적는다**(`pages/`의 완료 조건과 같은 형식). 옮길지 말지가 취향이 아니라 확인 가능한 판정이 된다.
+- 반영하지 못하고 보류할 때는 **보류 사유와 남은 결정 항목을 문서 안에 덧붙인 뒤** `pending/`에 둔다. 다음에 집는 사람이 같은 조사를 반복하지 않게 한다.
+
+`ls docs/tickets/<파트>/pending`이 곧 그 파트의 할 일 목록이다.
 
 ### 상황별 참조 가이드
 
