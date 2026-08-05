@@ -25,6 +25,15 @@ class SessionService implements TokenProvider {
     useSessionStore.getState().setSession(user);
   }
 
+  /**
+   * 온보딩 종료(라이브러리 진입) 시점에 호출 — 서버는 완료 요청 시점에 이미 처리됐고(onboarding-api.md 4.7),
+   * 로컬 세션 상태를 뒤따라 갱신해 RootNavigator가 Main으로 전환하게 한다.
+   * 완료·알림 화면이 남아 있는 동안 스택이 교체되면 안 되므로 온보딩 feature가 종료 시점을 소유한다.
+   */
+  markOnboardingCompleted(): void {
+    useSessionStore.getState().updateUser({ onboardingCompleted: true, onboardingStep: 'done' });
+  }
+
   /** 로컬 토큰·세션 상태 정리. TODO: 라이브러리 캐시·재생 위치·오프라인 큐 삭제는 해당 feature 구현 시 연결(auth.md 4.2) */
   async clearSession(): Promise<void> {
     this.accessToken = null;

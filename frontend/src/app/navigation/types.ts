@@ -1,11 +1,11 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
 
 import type { AuthStackParamList } from '@/features/auth';
+import type { OnboardingStackParamList } from '@/features/onboarding';
 
 export type RootStackParamList = {
   Auth: NavigatorScreenParams<AuthStackParamList>;
-  /** TODO: onboarding feature 구현 시 파라미터 확정 */
-  Onboarding: undefined;
+  Onboarding: NavigatorScreenParams<OnboardingStackParamList>;
   /** TODO: MainTab(라이브러리·탐색·프로필) 구현 시 교체 */
   Main: undefined;
 };
