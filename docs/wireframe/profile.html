@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>이어 — 프로필 화면 시안</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+
+<header class="masthead">
+  <div class="brandline">
+    <svg class="mark" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+      <path d="M9.5 13.5a6.5 6.5 0 0 1 13 0c0 3.2-1.9 4.6-3.2 5.9-1.1 1.1-1.8 1.9-1.8 3.6a2.8 2.8 0 0 1-5.6 0"/>
+      <circle cx="13.6" cy="13.8" r="2.2" fill="currentColor" stroke="none"/>
+    </svg>
+    <span class="nm">이어</span><span class="sep">/</span><span class="ctx">화면 시안</span>
+  </div>
+
+  <p class="eyebrow">Flow P · profile.md</p>
+  <h1>프로필 — 내 계정의 요약</h1>
+  <p class="lede">
+    사용자 자신에 관한 값만 모은 화면입니다 — <b>현재 플랜 · 이메일 · 관심 주제 관리</b> 세 카드.
+    커리어는 별도 카드 없이 <b>관심 주제 관리 화면에서 주제와 함께</b> 입력·수정합니다.
+    이 화면은 <b>편집 로직을 갖지 않습니다.</b> 요약을 보여주고 각 소유 화면으로 보낼 뿐이며,
+    프로필에서 직접 서버에 쓰는 값은 하나도 없습니다.
+  </p>
+
+  <nav class="tabs" aria-label="화면 시안">
+    <a href="auth.html">계정</a>
+    <a href="onboarding.html">온보딩</a>
+    <a href="library.html">라이브러리</a>
+    <a href="explore.html">탐색</a>
+    <a href="profile.html" aria-current="page">프로필</a>
+    <a href="settings.html">설정</a>
+  </nav>
+
+  <div class="notice">
+    <b>이 시안의 용도.</b> 범위 검증용입니다. 색·서체·간격은 <b>제안이며 확정된 아이덴티티가 아닙니다.</b>
+    각 요소의 번호는 명세 조항으로 연결됩니다. <span style="color:var(--doc-warn)">주황 번호</span>는 명세에 근거가 없거나 다른 문서와 어긋나는 지점입니다.
+  </div>
+</header>
+
+<!-- =================== 정상 상태 =================== -->
+<section class="section">
+  <div class="section-head">
+    <p class="sid">P1 – P5</p>
+    <h2>정상 상태와 변형</h2>
+    <p>헤더는 표시 전용(닉네임·제공자), <b>설정 진입은 우상단 아이콘 하나</b>입니다. 위 두 카드는 계정·결제, 마지막 카드는 추천 입력 — 순서를 바꾸지 않습니다. 커리어 카드는 없습니다(→ V5).</p>
+    <div class="flowbar">
+      <span>요약 조회(1회)</span><span class="ar">→</span>
+      <span>카드 탭</span><span class="ar">→</span>
+      <span class="hi">소유 화면으로 이동</span><span class="ar">→</span>
+      <span>저장 복귀 시 재조회</span>
+    </div>
+  </div>
+
+  <div class="shots">
+
+    <!-- P1 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">P1</span><h3>정상 — 유료 · 인증된 이메일</h3>
+        <p class="cap">4개 카드 + 우상단 설정 아이콘</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:51</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <h1>수현<span class="mk">1</span></h1>
+            <span class="t-xs" style="display:inline-flex; align-items:center; gap:4px; color:var(--ink-3)"><span style="width:14px; height:14px; border-radius:99px; background:var(--kakao); display:inline-block"></span>카카오</span>
+            <span class="iconbtn"><svg width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="3.2"/><path d="M11 2.8v2.4M11 16.8v2.4M2.8 11h2.4M16.8 11h2.4M5.2 5.2l1.7 1.7M15.1 15.1l1.7 1.7M16.8 5.2l-1.7 1.7M6.9 15.1l-1.7 1.7"/></svg><span class="mk">2</span></span>
+          </div>
+          <div class="body pad-b">
+            <div class="field" style="flex-direction:column; align-items:stretch; gap:3px; padding:13px 15px">
+              <div style="display:flex; align-items:center; justify-content:space-between">
+                <span class="t-label">현재 플랜</span>
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+              </div>
+              <span style="font-size:14px; font-weight:700; color:var(--ink)">프로 · 다음 결제일 9월 1일<span class="mk">3</span></span>
+            </div>
+            <div class="field" style="flex-direction:column; align-items:stretch; gap:3px; padding:13px 15px">
+              <div style="display:flex; align-items:center; justify-content:space-between">
+                <span class="t-label">이메일</span>
+                <span class="t-xs" style="color:var(--ink-2); font-weight:650">변경</span>
+              </div>
+              <span style="font-size:14px; font-weight:600; color:var(--ink)">suhyeon@example.com</span>
+            </div>
+            <div style="height:1px; background:var(--line); margin:2px 0"></div>
+            <div class="field" style="flex-direction:column; align-items:stretch; gap:6px; padding:13px 15px">
+              <div style="display:flex; align-items:center; justify-content:space-between">
+                <span class="t-label">관심 주제 관리</span>
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+              </div>
+              <span style="font-size:13px; font-weight:650; color:var(--ink)">4개 선택<span class="mk">4</span></span>
+              <div class="chips" style="gap:5px">
+                <span class="chip sm" style="padding:4px 9px; font-size:11px">커리어</span>
+                <span class="chip sm" style="padding:4px 9px; font-size:11px">자기계발</span>
+                <span class="chip sm" style="padding:4px 9px; font-size:11px">경제</span>
+                <span class="t-xs" style="align-self:center">+1</span>
+              </div>
+            </div>
+            <div class="grow"></div>
+          </div>
+          <div class="tabbar">
+            <a href="#"><svg width="21" height="21" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5h11M4 11h11M4 16.5h7"/><circle cx="18" cy="16" r="2.4"/></svg>라이브러리</a>
+            <a href="#"><svg width="21" height="21" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M14.2 7.8l-1.8 4.6-4.6 1.8 1.8-4.6z"/></svg>탐색</a>
+            <a href="#" class="on"><svg width="21" height="21" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="7.5" r="3.4"/><path d="M4.2 18.6c0-3.3 3-5.3 6.8-5.3s6.8 2 6.8 5.3"/></svg>프로필</a>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">1</span><span>닉네임·로그인 제공자는 <b>표시만 한다.</b> 편집 진입점이 없다 — 닉네임 편집·프로필 이미지·계정 통합은 MVP 비범위. <span class="ref">profile 4.1 · 미결</span></span></li>
+        <li><span class="n">2</span><span><b>우상단 설정 아이콘이 설정 화면의 유일한 진입점</b>이다. 하단 탭에 설정을 두지 않고, 목록 항목이 아니라 헤더 아이콘인 이유는 설정이 프로필의 하위 항목이 아니라 별개 화면이기 때문. 로딩 중에도 이 아이콘은 즉시 노출된다. <span class="ref">profile 2 · 4.1 · settings 2</span></span></li>
+        <li><span class="n">3</span><span>플랜 카드는 <b>표시 전용.</b> 해지·요금제 변경 버튼을 두지 않는다 — 결제 조작의 진입점은 구독 관리 한 곳이다. 티어 판정은 <code>subscriptions</code> 기준으로 서버가 정규화해 내려준다(<code>users.tier</code> 캐시가 어긋나면 <code>subscriptions</code>가 이긴다). <span class="ref">profile 4.2 · profile-api 4.1 · domain 8.2</span></span></li>
+        <li><span class="n">4</span><span><b>[관심 주제 관리] 카드</b> — "N개 선택" + 대표 3개 + <code>+N</code>. 칩은 표시 전용이며 카드 전체가 관심사 관리 진입이다(개별 편집을 열면 저장 규칙이 두 벌이 된다). <b>커리어도 이 카드로 들어가 같은 화면에서 주제와 함께 입력·수정한다 — 별도 커리어 카드를 두지 않는다</b>(FE 확정). 관리자가 숨긴 주제도 <b>개수에 포함</b> — 편집 화면과 같은 기준. → V5 <span class="ref">profile 4.4 · 7 · interest-management 4.1 · 7</span></span></li>
+      </ul>
+    </article>
+
+    <!-- P2 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">P2</span><h3>무료 사용자</h3>
+        <p class="cap">한도를 함께 적는다 · 구독 안내 강조</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:52</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <h1>지우</h1>
+            <span class="t-xs" style="display:inline-flex; align-items:center; gap:4px; color:var(--ink-3)"><span style="width:14px; height:14px; border-radius:99px; background:var(--naver); display:inline-block"></span>네이버</span>
+            <span class="iconbtn"><svg width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="3.2"/><path d="M11 2.8v2.4M11 16.8v2.4M2.8 11h2.4M16.8 11h2.4M5.2 5.2l1.7 1.7M15.1 15.1l1.7 1.7M16.8 5.2l-1.7 1.7M6.9 15.1l-1.7 1.7"/></svg></span>
+          </div>
+          <div class="body pad-b">
+            <div class="field" style="flex-direction:column; align-items:stretch; gap:8px; padding:13px 15px">
+              <div style="display:flex; align-items:center; justify-content:space-between">
+                <span class="t-label">현재 플랜</span>
+              </div>
+              <span style="font-size:14px; font-weight:700; color:var(--ink)">무료 이용 중 · 하루 2편<span class="mk">6</span></span>
+              <div class="btn primary sm">구독 알아보기</div>
+            </div>
+            <div class="field" style="flex-direction:column; align-items:stretch; gap:3px; padding:13px 15px">
+              <div style="display:flex; align-items:center; justify-content:space-between">
+                <span class="t-label">이메일</span>
+                <span class="t-xs" style="color:var(--ink-2); font-weight:650">변경</span>
+              </div>
+              <span style="font-size:14px; font-weight:600; color:var(--ink)">jiwoo@example.com</span>
+            </div>
+            <div style="height:1px; background:var(--line); margin:2px 0"></div>
+            <div class="field" style="flex-direction:column; align-items:stretch; gap:6px; padding:13px 15px">
+              <div style="display:flex; align-items:center; justify-content:space-between">
+                <span class="t-label">관심 주제 관리</span>
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+              </div>
+              <span style="font-size:13px; font-weight:650; color:var(--ink)">3개 선택<span class="mk">7</span></span>
+              <div class="chips" style="gap:5px">
+                <span class="chip sm" style="padding:4px 9px; font-size:11px">몰입·습관</span>
+                <span class="chip sm" style="padding:4px 9px; font-size:11px">글쓰기</span>
+                <span class="chip sm" style="padding:4px 9px; font-size:11px">브랜딩</span>
+              </div>
+            </div>
+            <div class="grow"></div>
+          </div>
+          <div class="tabbar">
+            <a href="#"><svg width="21" height="21" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5h11M4 11h11M4 16.5h7"/><circle cx="18" cy="16" r="2.4"/></svg>라이브러리</a>
+            <a href="#"><svg width="21" height="21" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M14.2 7.8l-1.8 4.6-4.6 1.8 1.8-4.6z"/></svg>탐색</a>
+            <a href="#" class="on"><svg width="21" height="21" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="7.5" r="3.4"/><path d="M4.2 18.6c0-3.3 3-5.3 6.8-5.3s6.8 2 6.8 5.3"/></svg>프로필</a>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">6</span><span>무료 플랜은 <b>"무료 이용 중 · 하루 N편"</b> — 플랜명만으로는 무엇이 제한되는지 알 수 없어 한도를 함께 적는다. <b>N은 서버가 내려준 <code>daily_play_limit</code></b>이며 2를 하드코딩하지 않는다. [구독 알아보기]도 구독 화면 진입일 뿐 — 프로필에서 결제를 시작하지 않는다. <span class="ref">profile 4.2 · paywall 5 · profile-api 4.1</span></span></li>
+        <li><span class="n">7</span><span><b>커리어 카드가 없다</b> — 미입력 유도 문구("입력하면 추천이 정확해져요")도 프로필이 아니라 <b>관심사 관리 화면의 커리어 섹션</b> 몫으로 옮겨졌다. 관심 주제 0개 상태의 문구는 명세에 없어 미결이다. → V1 · V5 <span class="ref">profile-uiux 2 · 4.2 · interest-management 4.1</span></span></li>
+      </ul>
+    </article>
+
+    <!-- P3 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">P3</span><h3>이메일 미인증</h3>
+        <p class="cap">저장된 주소 ≠ 인증된 주소 — 배지로 구분</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:53</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <h1>수현</h1>
+            <span class="t-xs" style="display:inline-flex; align-items:center; gap:4px; color:var(--ink-3)"><span style="width:14px; height:14px; border-radius:99px; background:var(--kakao); display:inline-block"></span>카카오</span>
+            <span class="iconbtn"><svg width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="3.2"/><path d="M11 2.8v2.4M11 16.8v2.4M2.8 11h2.4M16.8 11h2.4M5.2 5.2l1.7 1.7M15.1 15.1l1.7 1.7M16.8 5.2l-1.7 1.7M6.9 15.1l-1.7 1.7"/></svg></span>
+          </div>
+          <div class="body pad-b">
+            <div class="field" style="flex-direction:column; align-items:stretch; gap:3px; padding:13px 15px">
+              <div style="display:flex; align-items:center; justify-content:space-between">
+                <span class="t-label">현재 플랜</span>
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+              </div>
+              <span style="font-size:14px; font-weight:700; color:var(--ink)">무료 이용 중 · 하루 2편</span>
+            </div>
+            <div class="field" style="flex-direction:column; align-items:stretch; gap:8px; padding:13px 15px">
+              <div style="display:flex; align-items:center; justify-content:space-between">
+                <span class="t-label">이메일</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:7px; flex-wrap:wrap">
+                <span style="font-size:14px; font-weight:600; color:var(--ink)">suhyeon@kakao.com</span>
+                <span class="t-xs" style="padding:2px 8px; border-radius:99px; background:var(--accent-soft); border:1px solid var(--accent-line); color:var(--accent); font-weight:700">인증되지 않음<span class="mk">8</span></span>
+              </div>
+              <div class="btn-row">
+                <div class="btn outline sm">인증하기</div>
+                <div class="btn outline sm">변경</div>
+              </div>
+              <span class="t-xs">결제하려면 인증된 이메일이 필요해요<span class="mk">9</span></span>
+            </div>
+            <div style="height:1px; background:var(--line); margin:2px 0"></div>
+            <div class="field" style="flex-direction:column; align-items:stretch; gap:3px; padding:13px 15px">
+              <div style="display:flex; align-items:center; justify-content:space-between">
+                <span class="t-label">관심 주제 관리</span>
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+              </div>
+              <span style="font-size:13px; font-weight:650; color:var(--ink)">3개 선택</span>
+            </div>
+            <div class="grow"></div>
+          </div>
+          <div class="tabbar">
+            <a href="#"><svg width="21" height="21" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5h11M4 11h11M4 16.5h7"/><circle cx="18" cy="16" r="2.4"/></svg>라이브러리</a>
+            <a href="#"><svg width="21" height="21" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M14.2 7.8l-1.8 4.6-4.6 1.8 1.8-4.6z"/></svg>탐색</a>
+            <a href="#" class="on"><svg width="21" height="21" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="7.5" r="3.4"/><path d="M4.2 18.6c0-3.3 3-5.3 6.8-5.3s6.8 2 6.8 5.3"/></svg>프로필</a>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">8</span><span><b>저장된 주소와 인증된 주소를 같은 것으로 보여주지 않는다.</b> 카카오가 준 미인증 주소를 그냥 표시하면 결제 직전에야 인증이 필요함을 알게 된다. [인증하기]는 저장된 주소로 바로 코드 발송, [변경]은 새 주소 입력 — <b>두 경로 모두 결제·설정과 같은 인증 화면(A 계열)</b>을 쓰고 발송 횟수는 <code>(계정, 주소)</code> 단위로 합산된다. <span class="ref">profile 4.3 · auth 4.4~4.5</span></span></li>
+        <li><span class="n">9</span><span>보조 문구 한 줄만 둔다. <b>인증을 강요하는 팝업·전면 배너를 띄우지 않는다</b> — 강제 지점은 첫 결제 하나뿐이다. 인증 화면에서 중도 이탈하면 기존 값이 그대로다. <span class="ref">profile 4.3 · 7 · auth 4.4</span></span></li>
+      </ul>
+    </article>
+
+    <!-- P4 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">P4</span><h3>이메일 미등록</h3>
+        <p class="cap">가입 조건이 아니다 — 등록을 강제하지 않는다</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:54</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <h1>수현</h1>
+            <span class="t-xs" style="display:inline-flex; align-items:center; gap:4px; color:var(--ink-3)"><span style="width:14px; height:14px; border-radius:99px; background:var(--kakao); display:inline-block"></span>카카오</span>
+            <span class="iconbtn"><svg width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="3.2"/><path d="M11 2.8v2.4M11 16.8v2.4M2.8 11h2.4M16.8 11h2.4M5.2 5.2l1.7 1.7M15.1 15.1l1.7 1.7M16.8 5.2l-1.7 1.7M6.9 15.1l-1.7 1.7"/></svg></span>
+          </div>
+          <div class="body pad-b">
+            <div class="field" style="flex-direction:column; align-items:stretch; gap:3px; padding:13px 15px">
+              <div style="display:flex; align-items:center; justify-content:space-between">
+                <span class="t-label">현재 플랜</span>
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+              </div>
+              <span style="font-size:14px; font-weight:700; color:var(--ink)">무료 이용 중 · 하루 2편</span>
+            </div>
+            <div class="field" style="flex-direction:column; align-items:stretch; gap:8px; padding:13px 15px">
+              <div style="display:flex; align-items:center; justify-content:space-between">
+                <span class="t-label">이메일</span>
+              </div>
+              <span style="font-size:14px; font-weight:600; color:var(--ink-3)">등록되지 않음<span class="mk">10</span></span>
+              <div class="btn outline sm">등록</div>
+              <span class="t-xs">결제하려면 인증된 이메일이 필요해요</span>
+            </div>
+            <div style="height:1px; background:var(--line); margin:2px 0"></div>
+            <div class="field" style="flex-direction:column; align-items:stretch; gap:3px; padding:13px 15px">
+              <div style="display:flex; align-items:center; justify-content:space-between">
+                <span class="t-label">관심 주제 관리</span>
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+              </div>
+              <span style="font-size:13px; font-weight:650; color:var(--ink)">3개 선택</span>
+            </div>
+            <div class="grow"></div>
+          </div>
+          <div class="tabbar">
+            <a href="#"><svg width="21" height="21" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5h11M4 11h11M4 16.5h7"/><circle cx="18" cy="16" r="2.4"/></svg>라이브러리</a>
+            <a href="#"><svg width="21" height="21" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M14.2 7.8l-1.8 4.6-4.6 1.8 1.8-4.6z"/></svg>탐색</a>
+            <a href="#" class="on"><svg width="21" height="21" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="7.5" r="3.4"/><path d="M4.2 18.6c0-3.3 3-5.3 6.8-5.3s6.8 2 6.8 5.3"/></svg>프로필</a>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">10</span><span>제공자가 이메일을 주지 않았거나 마스킹 주소였던 경우(<code>email = null</code>). "등록되지 않음"을 표시할 뿐 <b>진입을 막거나 등록을 강제하지 않는다.</b> [등록]으로 코드 인증을 완료하면 프로필로 복귀해 주소가 표시된다. 세 상태(미등록·미인증·인증됨)의 구분은 설정 화면과 완전히 같다. <span class="ref">profile 4.3 · 7 · auth 4.1 · settings 4.1</span></span></li>
+      </ul>
+    </article>
+
+    <!-- P5 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">P5</span><h3>해지 예약 · 결제 문제</h3>
+        <p class="cap">사용자의 결정은 중립 톤, 조치가 필요한 것만 경고</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:55</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <h1>수현</h1>
+            <span class="iconbtn" style="margin-left:auto"><svg width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="3.2"/><path d="M11 2.8v2.4M11 16.8v2.4M2.8 11h2.4M16.8 11h2.4M5.2 5.2l1.7 1.7M15.1 15.1l1.7 1.7M16.8 5.2l-1.7 1.7M6.9 15.1l-1.7 1.7"/></svg></span>
+          </div>
+          <div class="body pad-b">
+            <p class="t-label" style="margin:0 2px">변형 A — 해지 예약</p>
+            <div class="field" style="flex-direction:column; align-items:stretch; gap:3px; padding:13px 15px">
+              <div style="display:flex; align-items:center; justify-content:space-between">
+                <span class="t-label">현재 플랜</span>
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+              </div>
+              <span style="font-size:14px; font-weight:700; color:var(--ink)">프로 · 9월 1일까지 이용 가능<span class="mk">11</span></span>
+            </div>
+            <div class="sp"></div>
+            <p class="t-label" style="margin:0 2px">변형 B — 결제 문제(유예)</p>
+            <div class="field" style="flex-direction:column; align-items:stretch; gap:3px; padding:13px 15px; border-color:#F0D2CF; background:#FBEDEC">
+              <div style="display:flex; align-items:center; justify-content:space-between">
+                <span class="t-label" style="color:var(--danger)">현재 플랜</span>
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="var(--danger)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+              </div>
+              <span style="font-size:14px; font-weight:700; color:var(--danger)">프로 · 결제에 문제가 있어요<span class="mk">12</span></span>
+            </div>
+            <div class="grow"></div>
+          </div>
+          <div class="tabbar">
+            <a href="#"><svg width="21" height="21" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5h11M4 11h11M4 16.5h7"/><circle cx="18" cy="16" r="2.4"/></svg>라이브러리</a>
+            <a href="#"><svg width="21" height="21" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M14.2 7.8l-1.8 4.6-4.6 1.8 1.8-4.6z"/></svg>탐색</a>
+            <a href="#" class="on"><svg width="21" height="21" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="7.5" r="3.4"/><path d="M4.2 18.6c0-3.3 3-5.3 6.8-5.3s6.8 2 6.8 5.3"/></svg>프로필</a>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">11</span><span>해지 예약은 <b>중립 톤</b>이다 — 사용자가 스스로 내린 결정이지 장애가 아니다. "N월 N일까지 이용 가능"의 날짜는 <code>expires_at</code>이며, 상태 판정(<code>cancel_scheduled</code>)은 서버가 정규화해 내려준다 — 클라이언트가 기기 시각으로 재판정하지 않는다. <span class="ref">profile 4.2 · profile-api 4.1</span></span></li>
+        <li><span class="n">12</span><span>경고색은 <b>사용자가 조치해야 하는 상태(결제 실패 유예)에만</b> 쓴다. 카드를 탭하면 구독 관리로 이동 — 프로필에서 결제 수단 수정을 시도하지 않는다. 두 변형을 한 기기에 나란히 그린 것은 비교용이며 실제로는 한 번에 하나만 나타난다. <span class="ref">profile 4.2 · 5 · subscription 4.7</span></span></li>
+      </ul>
+    </article>
+
+  </div>
+</section>
+
+<!-- =================== 로딩 · 오류 =================== -->
+<section class="section">
+  <div class="section-head">
+    <p class="sid">P6 – P7</p>
+    <h2>로딩 · 조회 실패</h2>
+    <p>요약을 못 받아도 <b>화면은 열고 내비게이션은 살린다</b> — 하위 화면은 자기 데이터를 직접 조회하므로, 요약 실패가 편집까지 막을 이유가 없습니다.</p>
+  </div>
+
+  <div class="shots">
+
+    <!-- P6 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">P6</span><h3>로딩</h3>
+        <p class="cap">카드 3개 스켈레톤 · 설정 아이콘은 즉시</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:50</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <span class="sk" style="width:76px; height:24px; border-radius:7px"></span>
+            <span class="iconbtn" style="margin-left:auto"><svg width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="3.2"/><path d="M11 2.8v2.4M11 16.8v2.4M2.8 11h2.4M16.8 11h2.4M5.2 5.2l1.7 1.7M15.1 15.1l1.7 1.7M16.8 5.2l-1.7 1.7M6.9 15.1l-1.7 1.7"/></svg><span class="mk">13</span></span>
+          </div>
+          <div class="body pad-b">
+            <span class="sk" style="height:64px; border-radius:12px"></span>
+            <span class="sk" style="height:64px; border-radius:12px"></span>
+            <span class="sk" style="height:84px; border-radius:12px"></span>
+            <div class="grow"></div>
+          </div>
+          <div class="tabbar">
+            <a href="#"><svg width="21" height="21" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5h11M4 11h11M4 16.5h7"/><circle cx="18" cy="16" r="2.4"/></svg>라이브러리</a>
+            <a href="#"><svg width="21" height="21" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M14.2 7.8l-1.8 4.6-4.6 1.8 1.8-4.6z"/></svg>탐색</a>
+            <a href="#" class="on"><svg width="21" height="21" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="7.5" r="3.4"/><path d="M4.2 18.6c0-3.3 3-5.3 6.8-5.3s6.8 2 6.8 5.3"/></svg>프로필</a>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">13</span><span><b>설정 아이콘은 로딩 중에도 즉시 노출한다</b> — 설정 진입은 프로필 조회 결과와 무관하다. 스켈레톤은 0.3초 미만이면 표시하지 않는다. 편집 후 복귀 재조회에는 <b>스켈레톤을 다시 띄우지 않고</b> 기존 값을 유지한 채 카드만 갱신한다. <span class="ref">profile 5 · common-error-handling 5</span></span></li>
+      </ul>
+    </article>
+
+    <!-- P7 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">P7</span><h3>조회 실패 — 카드별 에러</h3>
+        <p class="cap">화면 전체를 에러로 덮지 않는다</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:56</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <h1>수현</h1>
+            <span class="iconbtn" style="margin-left:auto"><svg width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="3.2"/><path d="M11 2.8v2.4M11 16.8v2.4M2.8 11h2.4M16.8 11h2.4M5.2 5.2l1.7 1.7M15.1 15.1l1.7 1.7M16.8 5.2l-1.7 1.7M6.9 15.1l-1.7 1.7"/></svg></span>
+          </div>
+          <div class="body pad-b">
+            <div class="field" style="flex-direction:column; align-items:stretch; gap:8px; padding:13px 15px">
+              <span class="t-label">현재 플랜</span>
+              <span class="t-sm" style="margin:0">정보를 불러올 수 없어요<span class="mk">14</span></span>
+              <div class="btn outline sm">다시 시도</div>
+            </div>
+            <div class="field" style="flex-direction:column; align-items:stretch; gap:3px; padding:13px 15px">
+              <div style="display:flex; align-items:center; justify-content:space-between">
+                <span class="t-label">이메일</span>
+                <span class="t-xs" style="color:var(--ink-2); font-weight:650">변경</span>
+              </div>
+              <span style="font-size:14px; font-weight:600; color:var(--ink)">suhyeon@example.com</span>
+            </div>
+            <div style="height:1px; background:var(--line); margin:2px 0"></div>
+            <div class="field" style="flex-direction:column; align-items:stretch; gap:3px; padding:13px 15px">
+              <div style="display:flex; align-items:center; justify-content:space-between">
+                <span class="t-label">관심 주제 관리</span>
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+              </div>
+              <span style="font-size:13px; font-weight:650; color:var(--ink)">4개 선택<span class="mk">15</span></span>
+            </div>
+            <div class="grow"></div>
+          </div>
+          <div class="tabbar">
+            <a href="#"><svg width="21" height="21" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5h11M4 11h11M4 16.5h7"/><circle cx="18" cy="16" r="2.4"/></svg>라이브러리</a>
+            <a href="#"><svg width="21" height="21" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M14.2 7.8l-1.8 4.6-4.6 1.8 1.8-4.6z"/></svg>탐색</a>
+            <a href="#" class="on"><svg width="21" height="21" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="7.5" r="3.4"/><path d="M4.2 18.6c0-3.3 3-5.3 6.8-5.3s6.8 2 6.8 5.3"/></svg>프로필</a>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">14</span><span><b>구독 조회만 실패한 부분 실패</b>(<code>failed_sections: ["plan"]</code>). 실패한 카드만 에러 + [다시 시도]를 표시하고 나머지는 정상 노출한다. [다시 시도]는 전체 재조회이며 연타는 인플라이트 중 무시. <span class="ref">profile 4.5 · 7 · profile-api 4.1</span></span></li>
+        <li><span class="n">15</span><span><b>에러 카드여도 내비게이션은 동작한다</b> — 하위 화면(구독 관리·관심사 관리)은 자기 데이터를 직접 조회한다. 세션 만료면 공통 처리로 시작 화면 이동. 오프라인 진입 시에는 마지막 요약 + 오프라인 배너, 이메일 카드만 "온라인에서 인증할 수 있어요" 안내. <span class="ref">profile 4.5 · 7 · common-error-handling 4.1</span></span></li>
+      </ul>
+    </article>
+
+  </div>
+</section>
+
+<!-- =================== 검증 =================== -->
+<section class="verify">
+  <p class="sid">검토 필요</p>
+  <h2>프로필에서 나온 것</h2>
+  <p>설정 진입점(우상단 아이콘)·이메일 3상태 구분은 profile.md에서 확정되어 반영했습니다. 카드 구성은 FE 피드백(2026-08-06)으로 <b>3카드</b>로 변경되어 profile.md 개정 대기입니다.</p>
+
+  <div class="vlist">
+    <div class="vitem">
+      <h3><span class="vid">V5</span>카드 구성 변경 — profile.md 개정 필요 (변경 요청 기록)</h3>
+      <p><b>FE 확정(2026-08-06):</b> ① 커리어 카드를 제거하고 커리어 입력·수정은 <b>관심 주제 관리 화면에서 주제와 함께</b> 한다. ② 관심 주제 카드의 이름을 <b>"관심 주제 관리"</b>로 한다. 이에 따라 profile.md 4.1(4개 카드·순서 고정)·4.4(커리어 요약)·5장(커리어 미입력 상태)의 개정이 필요합니다. <b>changes/pending 파일은 아직 만들지 않는다</b> — 미결 검토가 끝난 뒤 일괄 기록하기로 했고, 그때까지는 이 문서와 profile-api.md·profile-uiux.md의 기록이 원본입니다. 함께 결정할 것: [관심 주제 관리] 카드에 <b>커리어 요약 한 줄을 표시할지</b>(표시 시 profile-api 응답에 필드 추가).</p>
+      <p class="where">profile 4.1 · 4.4 · 5 / profile-api 1 · 9 / profile-uiux 1 · 9 / 화면 P1 · P2</p>
+    </div>
+
+    <div class="vitem">
+      <h3><span class="vid">V1</span>관심 주제 0개 상태의 문구가 명세에 없다</h3>
+      <p>기존 초과 보유자가 관심사 관리에서 전부 해제하면 관심 주제가 0개인 상태가 생깁니다(interest-management 7의 허용 경로). profile.md 5장에는 이 상태의 정의가 없어, uiux 명세는 "관심 주제를 골라주세요" + [고르러 가기]를 <b>임의로 제안</b>했습니다. pages 확정이 필요합니다(changes/ 절차 대상).</p>
+      <p class="where">profile 5 / interest-management 7 / profile-uiux 4.2</p>
+    </div>
+
+    <div class="vitem soft">
+      <h3><span class="vid">V2</span>대표 주제 3개의 선정 기준</h3>
+      <p>요약의 "대표 주제 3개"를 <code>topics.display_order</code> 정렬로 정했지만, 의도가 선택 순서·최근 변경 순일 수도 있습니다. profile.md에 기준이 없어 API가 임의로 정한 상태입니다.</p>
+      <p class="where">profile 4.4 / profile-api 4.1 · 9</p>
+    </div>
+
+    <div class="vitem soft">
+      <h3><span class="vid">V3</span>커리어의 표시·라벨은 관심사 관리 소관으로 이동</h3>
+      <p>커리어 카드가 사라지면서 프로필은 커리어를 표시하지 않습니다(profile-api도 내려주지 않음). 커리어 유도 문구·연차 구간 라벨("4-6년") 정의는 <b>관심사 관리 화면의 uiux 명세(미작성)</b>가 소유해야 합니다. V5의 "카드 내 커리어 요약 표시"가 채택되면 라벨 정의를 그 문서와 한 곳으로 못 박습니다.</p>
+      <p class="where">profile-uiux 9 / interest-management 4.1 / profile-api 9</p>
+    </div>
+
+    <div class="vitem soft">
+      <h3><span class="vid">V4</span>청취 통계 카드</h3>
+      <p>이번 달 청취 시간·완청 편수 등은 <code>content_stats</code>·<code>play_records</code>로 계산 가능하지만 PRD에 요구가 없어 범위에서 뺐습니다. 도입되면 카드 순서 규칙(계정·결제 / 추천 입력의 2단 구성)의 재검토가 필요합니다.</p>
+      <p class="where">profile 미결 / 화면 P1</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  근거 문서 — <code>docs/pages/profile.md</code> · <code>docs/pages/auth.md</code> 4.4~4.5 · <code>docs/spec/api/profile-api.md</code> · <code>docs/backend/domain.md</code> 3장 · 8장<br>
+  시각 디자인은 제안입니다. 확정할 것은 <b>화면에 무엇이 있고 없는가</b>이며, 색·서체는 별도로 정합니다.
+</footer>
+
+</div>
+<style>
+.mk{
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:15px; height:15px; padding:0 4px; border-radius:99px; margin-left:5px;
+  background:var(--doc-note); color:#fff; font-family:var(--mono); font-size:9px;
+  font-weight:700; vertical-align:middle; letter-spacing:0; line-height:1;
+}
+.mk.w{background:var(--doc-warn)}
+</style>
+</body>
+</html>
