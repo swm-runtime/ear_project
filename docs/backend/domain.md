@@ -103,6 +103,7 @@ idx_idempotency_keys_expires_at
 | `daily_play_count` | 판정 시점 계산 | `play_records` COUNT |
 | `topics.content_count` | 관리자 화면에서만 필요 | `content_topics` COUNT |
 | `complete_rate` | 비율은 합산이 불가능 | `complete_count / play_count` |
+| 프로필 청취 통계 | **전부 파생값이다** (`profile.md` 4.5~4.7 — 누적 3지표·주간 요일별·주제 분포) | `play_records` · `library_items.status` · `content_topics` 집계 ([6.1](#61-library_items) · [6.3](#63-play_records)) |
 
 ---
 
@@ -117,7 +118,7 @@ idx_idempotency_keys_expires_at
 | `interest` | `topics`, `user_interests`, `topic_adjacencies` |
 | `content` | `contents`, `content_topics`, `content_scripts`, `content_stats` |
 | `library` | `library_items` |
-| `playback` | `playback_progresses`, `play_records`, `user_signals`, `audio_access_logs` |
+| `playback` | `playback_progresses`, `play_records`, `user_signals`, `audio_access_logs`, `source_link_clicks` |
 | `drip` | `drip_excluded_contents`, `user_preference_vectors`, `drip_batch_runs`, `first_drip_jobs` |
 | `subscription` | `plans`, `subscriptions`, `purchase_intents`, `store_notification_logs` |
 | `notification` | `notification_logs` |
@@ -144,7 +145,7 @@ idx_idempotency_keys_expires_at
 - `subscription`이 결제 반영으로 `users.tier`를 갱신하기 시작하면([3.1](#31-users)) 반대 방향이 생겨 순환이 된다. **그 시점에 탈퇴를 Orchestrator로 올려**(`architecture.md` 3.3) 위에서 두 모듈의 Service를 조합하고, `user → subscription` 의존은 제거한다.
 - 즉 표의 `user → subscription`은 **subscription 모듈 완성 전까지의 한시적 상태**이며, 순환이 만들어지기 전에 해소해야 한다.
 
-**`content_stats` 갱신 경로** — 테이블 소유는 `content` 모듈이지만, 집계 원천(`play_records` · `user_signals`)은 `playback` 모듈이 소유한다. 따라서 **집계 배치는 `playback` 모듈이 실행한다.** 자기 Repository로 원천을 읽어 계산한 뒤, 결과를 `content` 모듈의 Service에 넘겨 기록한다.
+**`content_stats` 갱신 경로** — 테이블 소유는 `content` 모듈이지만, 집계 원천(`play_records` · `user_signals` · `source_link_clicks`)은 `playback` 모듈이 소유한다. 따라서 **집계 배치는 `playback` 모듈이 실행한다.** 자기 Repository로 원천을 읽어 계산한 뒤, 결과를 `content` 모듈의 Service에 넘겨 기록한다.
 
 - `playback` → `content` 방향이므로 순환이 생기지 않는다.
 - **다른 모듈의 Repository를 직접 주입받지 않는다**(`architecture.md` 4.3). `content` 모듈이 노출한 Service만 호출한다.
@@ -224,6 +225,12 @@ idx_consents_user_id_consent_type_agreed_at (user_id, consent_type, agreed_at DE
   - **동의 획득 사실의 입증 책임이 사업자에게** 있는데, 컬럼은 덮어쓰면 과거 근거가 소멸한다.
   - **정보통신망법 제50조 제8항 · 시행령 제62조의3** — 마케팅 수신 동의는 **동의를 받은 날부터 2년마다** 수신동의 여부를 확인해야 한다. 기산점이 "동의를 받은 날"이므로 시점이 기록돼 있지 않으면 이 의무를 이행할 수 없다.
 - 행이 생기는 시점은 가입 1건 + 약관 개정 시 1건 + 마케팅 토글 시 1건뿐이라 크기 부담이 없다.
+
+**마케팅 수신 동의의 저장 위치는 이 테이블 하나다** (합의 2026-08-06 — `settings.md` 4.1, `auth.md` 3장)
+
+- 설정 화면의 마케팅 수신 동의 토글(즉시 저장)은 **`consents`에 행을 추가하는 것**이며, `user_settings`에 토글 컬럼을 두지 않는다. 상태를 두 곳에 두면 반드시 어긋난다(`users.tier` 캐시와 같은 문제 — 여기는 캐시가 필요할 만큼 자주 읽히지도 않는다). 현재 상태 = `consent_type = marketing`의 `agreed_at` 최신 1건.
+- **2년 재확인(정보통신망법 제50조 제8항)의 기산점은 최신 `is_agreed = true` 행의 `agreed_at`이다.** 재확인 통지 후 사용자가 다시 동의하면 새 행이 추가되어 기산점이 자연히 갱신된다 — "재확인 시각" 컬럼을 따로 두지 않는다(append-only 이력이 그 자체로 시각 기록이다).
+- 재확인 **통지를 보낸 사실**은 `notification_logs`(type으로 구분)에 남는다. 대상 판정(동의일 + 2년 경과)은 서버 배치가 이 테이블 집계로 수행한다 — 파생값이므로 컬럼을 만들지 않는다([1.5](#15-파생값을-컬럼으로-두지-않는다)).
 - 탈퇴 시 처리는 [12장](#12-삭제--보존-정책) 참조 — `archived_consents`로 해시 보존한다.
 
 ### 3.3 `sessions`
@@ -279,6 +286,9 @@ uq_user_settings_user_id (user_id)
 - `os_permission_granted`는 여기 **두지 않는다.** user가 아니라 **device 단위 값**이므로 `device_tokens`에만 존재한다.
 - `playback_rate`는 콘텐츠별이 아니라 사용자 전역 설정이다(`player.md` 4.2). `playback_progresses`에 두지 않는다.
 - 오프라인 저장 관련 설정(`network_policy`)은 **P1 이연**이므로 지금 두지 않는다.
+- **마케팅 수신 동의 토글 컬럼을 두지 않는다.** 그 상태의 소유자는 `consents`다([3.2](#32-consents) — 합의 2026-08-06). 설정 화면의 토글은 표시·철회 경로일 뿐 저장소가 아니다.
+- **방해금지(야간 발송 제한) 설정 컬럼은 없다 — 없음을 유지한다**(합의 2026-08-06 — `notification.md` 4.3, 방해금지 개념 자체 폐기). 드립 도착은 순수 정보성 알림이라 전역·사용자별 야간 제한을 두지 않는다.
+- `is_drip_notification_enabled`의 **사용자 노출 명칭은 "이어 PICK 알림"이다**(합의 2026-08-06 — `settings.md` 4.1). 화면 이름만 바뀐 것이므로 **컬럼명은 유지한다** — "드립"은 내부 용어라는 결정이지 데이터 의미가 바뀐 것이 아니다.
 
 ### 3.6 `device_tokens`
 
@@ -386,7 +396,7 @@ topics
   id                        uuid            PK
   name                      varchar
   parent_category           varchar
-  is_visible                boolean         DEFAULT true   ★관리자만 변경
+  is_visible                boolean         DEFAULT false  ★관리자만 변경 (합의 2026-08-06)
   display_order             int
 
 idx_topics_is_visible_display_order (is_visible, display_order)
@@ -394,7 +404,8 @@ idx_topics_is_visible_display_order (is_visible, display_order)
 
 - **`content_count` 컬럼을 두지 않는다** (B-7). 관리자 화면에서 필요할 때 `content_topics` COUNT로 집계한다. 주제 수가 수십 개 수준이라 비용 문제가 없다.
 - **`is_visible`은 관리자만 변경한다.** 시스템이 자동으로 내리지 않는다. 갱신 주체를 한 곳으로 고정해 어긋남을 없앤다.
-- 콘텐츠가 0건인 주제는 관리자가 판단해서 `is_visible = false`로 내린다.
+- **기본값은 `false`다** (합의 2026-08-06 — `admin.md` 4.5). 주제는 콘텐츠가 충분히 수급된 뒤에 노출을 시작한다. 기본 `true`면 생성 즉시 0건 주제가 온보딩·탐색에 노출되어 "고를 수는 있는데 볼 게 없는 주제"가 생긴다(PRD 8.1의 전제 위반).
+- **노출 통제(`is_visible`)는 신규 주제의 공개 전 단계에만 쓴다**(합의 2026-08-06). 이미 선택한 사용자가 있는 주제를 숨기는 운영은 하지 않으며, 품질 문제 콘텐츠는 숨김이 아니라 **회수**로 처리한다(`admin.md` 4.5).
 - **특정 주제의 콘텐츠를 사용자가 다 소비했더라도 목록에서 제외하지 않는다.** 소비 여부는 주제 노출과 무관하다.
 - 주제 추가·삭제·노출 제어는 전부 관리자 페이지에서 이뤄진다.
 
@@ -443,11 +454,11 @@ contents
   id                        uuid            PK
   title                     varchar
   description               text
-  author_name               varchar
-  source_name               varchar         ★파트너명 (B-5)
-  source_url                varchar
+  author_name               varchar         NULL 허용 — origin 분기 (합의 2026-08-06, 아래)
+  source_name               varchar         ★origin 분기 — partner: 파트너명 (B-5) / ai_generated: "참고한 자료" 표기
+  source_url                varchar         NULL 허용 — origin 분기 (합의 2026-08-06, 아래)
   origin                    enum            partner | ai_generated
-  partner_id                uuid            FK → partners, NULL 허용
+  partner_id                uuid            FK → partners, NULL 허용 (partner만 채운다)
   series_id                 uuid            NULL   ← Episode 흡수 (B-5)
   episode_no                int             NULL
   total_episodes            int             NULL
@@ -463,6 +474,11 @@ contents
 idx_contents_status_published_at (status, published_at DESC)
 idx_contents_series_id_episode_no (series_id, episode_no)
 idx_contents_partner_id
+
+chk_contents_partner_disclosure
+  origin <> 'partner'
+  OR (author_name IS NOT NULL AND source_url IS NOT NULL
+      AND partner_id IS NOT NULL AND license_expires_at IS NOT NULL)
 ```
 
 - **`audio_url`이 아니라 `audio_path`다** (B-5). 재생 URL은 매 요청 서명 발급이므로 컬럼이 아니라 응답 DTO 필드다. 서명 URL을 DB에 저장하면 그 자체가 유출 경로가 된다.
@@ -474,8 +490,24 @@ idx_contents_partner_id
   - 따라서 `status`에 `superseded`가 필요 없다. 이전 버전은 행에 남지 않는다.
   - 클라이언트는 `content_version`이 올라간 것을 보고 저장한 재생 위치·오프라인 파일을 폐기한다(`player.md` 7).
   - 재발행 이력이 필요해지면 그때 별도 이력 테이블을 만든다. 지금은 요구가 없다.
-- `source_name`에는 **파트너명**이 들어간다 (B-5). `partners.name`의 비정규화 사본이며, 발행 시점 값을 고정한다(파트너명이 나중에 바뀌어도 발행된 콘텐츠의 고지 문구는 변하면 안 된다).
 - `WithdrawnContent` 테이블은 만들지 않는다 (B-3). 클라이언트 동기화는 `GET /contents/withdrawn?since=<timestamp>`로 이 테이블에서 조회한다.
+
+**출처 필드는 `origin`으로 분기한다** (합의 2026-08-06 — `admin.md` 3.1)
+
+| origin | `author_name` | `source_name` | `source_url` | `partner_id` · `license_expires_at` |
+|---|---|---|---|---|
+| `partner` | **필수** (FR-12) | **필수 — 파트너명** | **필수** (FR-12) | **필수** |
+| `ai_generated` | 선택 | **필수 — "참고한 자료" 소스 표기** | 선택 | NULL |
+
+- `origin = partner`의 `source_name`에는 **파트너명**이 들어간다 (B-5). `partners.name`의 비정규화 사본이며, 발행 시점 값을 고정한다(파트너명이 나중에 바뀌어도 발행된 콘텐츠의 고지 문구는 변하면 안 된다).
+- `origin = ai_generated`의 `source_name`에는 **"참고한 자료" 소스 표기**가 들어간다(복수 소스 가능). 근거 소스가 단일 원문·단일 저자가 아니므로 `author_name`·`source_url`은 선택이다(`admin.md` 3.1 — `content-pipeline.md` 4.3의 AI 생성 고지 멘트와 같은 기준).
+- **복수 소스를 별도 테이블·배열로 정규화하지 않는다.** 이 값의 용도는 출처 고지 문구 표시(FR-12) 하나뿐이고, 소스 단위 질의·조인·집계 요구가 없다 — `content_topics`를 정규화한 이유(후보 필터 인덱스)가 여기에는 없다. 표기 문자열 하나로 담고, 소스 단위 관리 요구가 생기면 그때 테이블로 승격한다. 다만 **소스 목록·정책 확인 기록을 시스템 필드로 남길지는 미결이다**([15.1](#151-남아-있는-결정) — `admin.md` 4.2-1의 적법 수집 확인).
+- `chk_contents_partner_disclosure`가 파트너 콘텐츠의 필수 고지(FR-12 — 예외 없는 필수)를 DB에서 이중 방어한다([1.1](#11-모든-테이블에-공통으로-들어가는-것)). 업로드 검증이 뚫려도 고지 정보 없는 파트너 콘텐츠 행이 생기지 않는다.
+
+**검수 완료 확인(체크)은 컬럼으로 두지 않는다** (합의 2026-08-06 — `admin.md` 3.1·4.2-1의 이행 기록)
+
+- 업로드 검증이 체크 누락을 거부하므로(`admin.md` 4.2) 발행된 모든 행에서 **항상 참인 값**이 된다. "행이 존재한다 = 검수를 확인했다"라 컬럼이 정보를 더하지 않는다 — 집계로 구할 수 있는 값을 컬럼으로 두지 않는 것과 같은 이유다([1.5](#15-파생값을-컬럼으로-두지-않는다)).
+- 이행 기록(누가·언제 확인했는가)은 **업로드 감사 로그가 담당한다.** 모든 관리자 행위는 `audit_logs`에 남고(`admin.md` 4.1), 업로드 기록의 `actor` · `created_at` · `after`(검수 확인 입력값 포함)가 그대로 이행 증적이다. PRD 9.1의 이행률 검증도 이 로그로 산출한다.
 
 ### 5.2 `content_topics`
 
@@ -516,6 +548,7 @@ content_stats
   period_start              date            ★구간 시작일
   play_count                int             DEFAULT 0
   complete_count            int             DEFAULT 0
+  replay_count              int             DEFAULT 0    ★재청취 수 (PRD 10장, 합의 2026-08-06)
   total_listen_sec          bigint          DEFAULT 0    ★실제 청취 시간 합계 (FR-34)
   save_count                int             DEFAULT 0
   source_link_click_count   int             DEFAULT 0    ★FR-34 핵심 지표
@@ -548,6 +581,8 @@ idx_content_stats_period_type_period_start_play_count (period_type, period_start
 - **증분(`play_count += 1`)이 아니라 재집계 upsert로 갱신한다.** 원천(`play_records` / `user_signals`)에서 해당 구간을 다시 세어 통째로 덮어쓴다. 배치가 두 번 돌아도 결과가 같아야 한다.
 - **`complete_rate`를 저장하지 않는다.** 비율은 합산이 불가능해서(`avg(주별 완청률) ≠ 전체 완청률`) 상위 구간을 만들 때 조용히 틀린 값이 나온다. 조회 시 `complete_count / play_count`로 계산한다.
 - **`total_listen_sec`은 `play_records.listened_sec`의 합계다.** `max_reached_sec`(도달 위치) 합산으로 근사하지 않는다 — 2배속 청취와 반복 청취가 반영되지 않아 정산 근거로 쓸 수 없다.
+- **`replay_count`의 원천은 `user_signals`의 `replay` 신호다**(PRD 10장, `partner-control.md` 4.6 — 합의 2026-08-06). 다른 카운트와 마찬가지로 증분이 아니라 해당 구간 재집계 upsert로 채운다 — 배치가 두 번 돌아도 결과가 같다.
+- **`source_link_click_count`의 원천은 `source_link_clicks`다**([6.6](#66-source_link_clicks)). `user_signals`에는 넣지 않는다 — 이유는 6.6 참조.
 - 집계 배치는 `playback` 모듈이 실행한다([2장](#2-모듈별-entity-소유권) 참조).
 - 회수(`withdrawn`)된 콘텐츠의 통계도 삭제하지 않는다. 회수 전 재생분은 집계 대상이다.
 - `PartnerReport` 테이블은 만들지 않는다 (B-6). 파트너 리포팅은 이 테이블 집계 + `contents.partner_id` 필터로 산출한다.
@@ -595,6 +630,7 @@ idx_library_items_content_id (content_id)
 - **`resume_position_sec`을 두지 않는다** (A-1). 재생 위치는 `playback_progresses`가 단독으로 소유하고, 목록 조회 시 조인한다. 라이브러리에서 삭제해도 재생 이력이 남아야 하기 때문이다(`library.md` 4.4).
 - **`deleted_reason`을 두지 않는다** (A-4). 삭제 경로(라이브러리 삭제 / 탐색 담기 해제)를 구분하지 않기로 했다. 어느 쪽이든 드립 재적립에서 영구 제외되며, 그 판정은 `drip_excluded_contents`가 담당한다.
 - `source = onboarding`은 유지한다. **무료 티어도 온보딩 초기 적립과 자동 드립을 받는다**(PRD 미확정 3번 결정).
+- **프로필의 "누적 청취 콘텐츠 수"(완청 고유 콘텐츠 수 — `profile.md` 4.5)의 원천은 이 테이블이다.** `status = completed`인 고유 `content_id` COUNT로 구한다(`deleted_at` 무관 — soft delete라 행이 남는다). 파생값이므로 컬럼·집계 테이블을 만들지 않는다([1.5](#15-파생값을-컬럼으로-두지-않는다)).
 
 ### 6.2 `playback_progresses`
 
@@ -650,6 +686,11 @@ daily_play_count = COUNT(*) FROM play_records
 - 카운트(페이월)와 청취 시간(정산)이 같은 행에 있는 이유: 둘 다 "사용자 × 콘텐츠 × 서비스 날짜" 단위이고, 유니크 제약이 이미 그 축으로 걸려 있다. 별도 세션 테이블을 만들면 A-1에서 폐기한 `PlaybackSession`이 되살아난다.
 - 날짜 경계를 넘겨 재생한 경우 **재생 시작 시점의 서비스 날짜** 행에 누적한다.
 
+**프로필 청취 통계의 원천이다** (`profile.md` 4.5~4.7 — 합의 2026-08-06)
+
+- 누적 청취 시간 = `listened_sec` 총합, 연속 청취 일수 = `play_date` 연속 구간(그 서비스 날짜에 행 1건 이상이면 "들은 날"), 주간 요일별 그래프 = `play_date`별 `listened_sec` 합, 주제 분포 = `listened_sec` × `content_topics` 조인 비율.
+- **전부 파생값이므로 사용자 테이블에 컬럼을 만들지 않는다**([1.5](#15-파생값을-컬럼으로-두지-않는다)). 사용자 단위 통계 집계 테이블(캐시)을 신설할지는 매 조회 집계 비용을 보고 정한다 — [15.1](#151-남아-있는-결정) 결정 항목.
+
 ### 6.4 `user_signals`
 
 ```
@@ -666,6 +707,7 @@ idx_user_signals_user_id_created_at (user_id, created_at DESC)
 
 - **추천 스코어링 입력 전용이다** (A-7). `drip-scheduling.md` 4.3 신호 해석 표에 쓰이는 값만 담는다.
 - `seek` · `rate_change` · `share`는 **넣지 않는다.** 스코어링에 쓰이지 않으면서 재생 1회당 수십 건씩 쌓여 테이블 대부분을 차지한다. 필요하면 구조화 로그로 남긴다.
+- **원문 유입 클릭([원문 보기] 탭)도 넣지 않는다** (합의 2026-08-06). `drip-scheduling.md` 4.3 신호 해석 표에 없는 행동이라 스코어링 전용이라는 이 테이블의 목적(A-7)에 어긋난다. 다만 정산 지표의 원천이라 구조화 로그로도 보낼 수 없으므로 별도 테이블 `source_link_clicks`([6.6](#66-source_link_clicks))에 적재한다.
 - `manual_complete`도 **없다.** 수동 완료 표시 기능 자체를 삭제하기로 했다 (A-7).
 - 별도 테이블인 이유: `playback_progresses`·`library_items`는 "현재 상태"만 알고 있어서 추천 학습에 필요한 **행동 이력**을 표현할 수 없다. 특히 `skip`은 상태 테이블에서 "아직 듣는 중"과 구분되지 않고, `unsave`·`delete`는 행이 사라져 근거가 남지 않는다.
 - 최근성 가중(`drip-scheduling.md` 4.3)을 위해 `created_at`이 반드시 필요하다.
@@ -689,6 +731,27 @@ idx_audio_access_logs_user_id_issued_at (user_id, issued_at DESC)
 - B-4 결정: `AudioAccessToken`과 `AudioAccessLog`는 같은 것이므로 **하나로 통합**했다.
 - **`signed_url`을 저장하지 않는다.** 서명 URL을 DB에 남기면 그 자체가 유출 경로가 된다(`architecture.md` 9.4). 발급 사실만 기록한다.
 - FR-33 무단 재배포 방지의 이상 탐지·감사 근거다.
+
+### 6.6 `source_link_clicks`
+
+플레이어의 [원문 보기] 탭 1회 = 1행이다(`player.md` 4.5). `content_stats.source_link_click_count`의 유일한 원천이다(합의 2026-08-06).
+
+```
+source_link_clicks
+  id                        bigserial       PK
+  user_id                   uuid            FK → users
+  content_id                uuid            FK → contents
+
+idx_source_link_clicks_content_id_created_at (content_id, created_at)
+idx_source_link_clicks_user_id (user_id)
+```
+
+- 클릭 시각은 별도 컬럼 없이 `created_at`이다(행 생성 = 클릭).
+- **`user_signals`에 action을 추가하지 않고 별도 테이블을 두는 이유** — `user_signals`는 추천 스코어링 입력 전용이고(A-7), 원문 클릭은 스코어링에 쓰이지 않는다. `seek`·`rate_change`를 뺀 것과 같은 기준을 지키면서 목적이 다른 행만 별도로 담는다.
+- **구조화 로그로 보낼 수도 없다.** `content_stats`는 원천을 재집계하는 upsert로 갱신되고([5.4](#54-content_stats)), 이 값은 파트너 리포팅 지표라 "원천 로그와 집계값이 재현 가능해야 한다"(`partner-control.md` 4.6). 재집계·재현이 가능하려면 원천이 DB 테이블이어야 한다 — `play_records`·`user_signals`와 같은 지위다.
+- 재생 1회당 최대 몇 건 수준이라 적재량 부담이 없다(`seek`류와 다른 점).
+- `user_id`는 중복 클릭 분석·탈퇴 파기 경로용이다. 집계는 개인 식별 없이 카운트만 쓴다.
+- 탈퇴 시 **즉시 파기한다**([12.3](#123-회원-탈퇴-처리)) — 확정된 `content_stats` 집계값은 남는다(`play_records`와 같은 논리).
 
 ---
 
@@ -722,6 +785,8 @@ idx_drip_excluded_contents_user_id
 
 - **삭제 경로를 구분하지 않는다.** 라이브러리 삭제든 탐색 담기 해제든 결과는 동일하게 영구 제외다.
 - `reason`은 운영·디버깅용이며 필터 조건에는 쓰이지 않는다. 이미 행이 있으면 최초 사유를 유지한다(upsert 시 갱신하지 않음).
+- **`onboarding`을 reason에 추가하지 않는다** (확정 — 15.1 충돌 #5 해소). 온보딩 담기는 이 테이블에 행을 만들지 않는다 — 담기분은 `library_items(source = onboarding)` 행이 되므로 아래 후보 필터 첫 줄이 이미 제외하고, 중복 적립은 `library_items (user_id, content_id)` 유니크가 막는다(A-5와 같은 방어선). 이후 삭제하면 그때 `library_delete` 사유로 적재된다. 온보딩만의 사유가 필요한 상황이 없다.
+- **`withdraw`(파트너 회수)도 reason에 추가하지 않는다** (합의 2026-08-06 — `partner-control.md` 4.3). 회수로 인한 라이브러리 삭제는 사용자의 "관심 없음" 신호가 아니므로 영구 제외 사유가 아니다. 복구(restore)·재발행되면 **아직 받은 적 없는 사용자에게는 드립 후보로 복귀한다.** 이미 적립된 적이 있는 사용자는 기존 `dripped` 행(과 soft delete로 남은 `library_items` 행)이 그대로 재적립을 막는다.
 
 **드립 후보 필터** (`drip-scheduling.md` 4.2)
 
@@ -917,7 +982,7 @@ notification_logs
   scheduled_at              timestamptz
   sent_at                   timestamptz     NULL
   status                    enum            scheduled | sent | failed | skipped
-  skip_reason               enum            no_permission | toggle_off | quiet_hours | daily_cap
+  skip_reason               enum            no_permission | toggle_off | daily_cap
   opened_at                 timestamptz     NULL
 
 idx_notification_logs_user_id_scheduled_at (user_id, scheduled_at DESC)
@@ -925,6 +990,7 @@ idx_notification_logs_user_id_scheduled_at (user_id, scheduled_at DESC)
 
 - **중복 발송 방지에 필요하므로** 구조화 로그가 아니라 DB 테이블로 유지한다 (B-8).
 - `skip_reason`에서 `free_tier`를 **제거했다.** 무료 티어도 드립을 받으므로(PRD 미확정 3번) 이 사유가 발생하지 않는다.
+- `skip_reason`에서 `quiet_hours`도 **제거했다**(합의 2026-08-06 — `notification.md` 4.3). 방해금지 개념 자체를 폐기했으므로(전역·사용자별 모두) 이 사유가 발생하지 않는다. 드립 도착은 순수 정보성 알림이라 편성 직후(05:00 확정 배치) 야간 제한 없이 발송한다.
 - **탈퇴 시 즉시 파기한다.** 보존해야 할 법령 근거가 없고(개인정보보호법 제21조 제1항 — 원칙은 파기), 이 테이블의 목적인 중복 발송 방지는 탈퇴한 사용자에게 성립하지 않는다. 발송량·개봉률 같은 운영 지표가 필요하면 개인 식별자가 없는 집계로 따로 남긴다.
 
 ---
@@ -1185,7 +1251,7 @@ idx_archived_subscriptions_archived_at
 | 처리 | 대상 |
 |---|---|
 | **아카이브 후 파기** (5년) | `users` → `archived_users`, `consents` → `archived_consents`, `subscriptions` → `archived_subscriptions` |
-| **즉시 파기** | `library_items`, `playback_progresses`, `play_records`, `user_signals`, `user_interests`, `user_settings`, `device_tokens`, `sessions`, `user_preference_vectors`, `drip_excluded_contents`, `purchase_intents`, `notification_logs`, `email_verifications`, `first_drip_jobs`, `idempotency_keys`(해당 사용자 `owner_key`) |
+| **즉시 파기** | `library_items`, `playback_progresses`, `play_records`, `user_signals`, `source_link_clicks`, `user_interests`, `user_settings`, `device_tokens`, `sessions`, `user_preference_vectors`, `drip_excluded_contents`, `purchase_intents`, `notification_logs`, `email_verifications`, `first_drip_jobs`, `idempotency_keys`(해당 사용자 `owner_key`) |
 | **그대로 유지** | `withdrawal_logs`(원래 해시만), `store_notification_logs`(개인 식별자 없음), `content_stats`(집계값) |
 
 **결제 이력이 없는 사용자 — 아카이브 없이 전량 즉시 파기**
@@ -1246,8 +1312,9 @@ idx_archived_subscriptions_archived_at
 - 값이 바뀌는 시점이 곧 배포 시점이라 DB에 둘 이유가 없다. 관리자 화면도 필요 없어진다.
 - **플랫폼(iOS/Android)별로 값을 나눠야 한다.** 스토어 심사 주기가 달라 최소 지원 버전이 동시에 올라가지 않는다.
 - 점검 공지를 배포 없이 켜야 하는 요구가 생기면 그때 테이블로 승격한다.
+- **`latest_version` · `min_supported_version`의 원천이 배포 설정이라는 결정은 그대로 유효하다**(합의 2026-08-06 — `splash.md` 6, `settings.md` 4.1). 스플래시의 강제·권장 업데이트 판정과 설정 화면의 앱 버전 표시·[업데이트] 노출 판정이 **같은 원천을 쓰고, 판정은 서버가 한다.**
 
-### 13.3 구조화 로그로 대체 (B-8)
+### 13.4 구조화 로그로 대체 (B-8)
 
 | 개체 | 대체 |
 |---|---|
@@ -1276,17 +1343,20 @@ idx_archived_subscriptions_archived_at
 | `Topic.content_count` | B-7 — 조회 시 집계 |
 | `OfflineDownloadRecord` | PRD 2번 — 오프라인 저장 P1 이연 |
 | `UserSignal.action` 중 `seek` · `rate_change` · `share` · `manual_complete` | A-7 — 추천 스코어링 미사용 |
-| `AppConfig` | 15.3 — 배포 설정에서 관리 |
+| `AppConfig` | 13.3 — 배포 설정에서 관리 |
 | `Content.status` 중 `superseded` | 15.2 — 재발행 시 같은 행의 `content_version`을 올리므로 불필요 |
+| `Content`의 검수 완료 확인 필드 | 합의 2026-08-06 — 업로드 검증이 체크 누락을 거부하므로 항상 참인 값. 이행 기록은 `audit_logs`의 업로드 기록이 담당 (5.1) |
+| 방해금지 설정 필드 · 전역 방해금지 시간대 | 합의 2026-08-06 — 방해금지 개념 자체 폐기(`notification.md` 4.3). 순수 정보성 알림이라 야간 제한 없음 |
+| `NotificationLog.skip_reason` 중 `quiet_hours` · `free_tier` | 방해금지 폐기 · 무료 티어 드립 수신으로 발생하지 않는 사유 (9.1) |
 
-**테이블 수**: MVP 필수 **33개** (+ P1 `topic_adjacencies`).
+**테이블 수**: MVP 필수 **34개** (+ P1 `topic_adjacencies`).
 
 | 영역 | 개수 | 테이블 |
 |---|---|---|
 | 계정·인증 | 7 | `users` `consents` `sessions` `withdrawal_logs` `user_settings` `device_tokens` `email_verifications` |
 | 관심사 | 2 | `topics` `user_interests` |
 | 콘텐츠 | 4 | `contents` `content_topics` `content_scripts` `content_stats` |
-| 라이브러리·재생 | 5 | `library_items` `playback_progresses` `play_records` `user_signals` `audio_access_logs` |
+| 라이브러리·재생 | 6 | `library_items` `playback_progresses` `play_records` `user_signals` `audio_access_logs` `source_link_clicks` |
 | 편성 | 4 | `drip_excluded_contents` `user_preference_vectors` `drip_batch_runs` `first_drip_jobs` |
 | 구독·결제 | 4 | `plans` `subscriptions` `purchase_intents` `store_notification_logs` |
 | 알림 | 1 | `notification_logs` |
@@ -1305,9 +1375,11 @@ idx_archived_subscriptions_archived_at
 | 2 | **결제 이력 없는 사용자의 `consents` 파기 — 법무 확인** | [12.3](#123-회원-탈퇴-처리)에서 `archived_consents`도 함께 파기하기로 했다. 동의 획득의 입증 책임은 사업자에게 있으므로, 탈퇴자가 나중에 동의 사실을 다투면 반박 근거가 남지 않는다. **입증 책임과 제21조 제1항 중 어느 쪽이 우선하는지 확인이 필요하다.** 보존이 필요하다는 판단이 나오면 `archived_consents`만 예외로 남긴다 — 스키마 변경은 없고 12.3의 분기만 바뀐다. |
 | 3 | **계정 단위 발송 상한(백스톱)** | [3.7](#37-email_verifications)의 발송 제한이 `(user_id, email)` 단위이므로 **계정 단위 총량 제한이 없다.** 주소를 갈아 끼우면 한 계정의 발송량에 상한이 없어 메일 발송기로 악용될 수 있다. 상한을 둘지, 둔다면 저장소를 어디로 할지(같은 테이블 집계 / Redis 카운터) 결정 필요. 발신 도메인 평판이 걸린 문제다 — `auth.md` 미결 사항 참조. |
 | 4 | **`users.years_of_experience` 타입 불일치** | [3.1](#31-users)은 `int`인데 `onboarding.md` 3장의 입력은 **구간 enum**(1년 미만 / 1–3년 / 4–6년 / 7년 이상)이다. 현재는 구간 하한값(0·2·4·7)으로 저장하는 것으로 읽히는데, **매핑이 문서 어디에도 없어 구간을 조정하면 기존 값의 의미가 조용히 바뀐다.** 구간 enum으로 바꾸거나, `int`를 유지하되 매핑을 이 문서에 못박아야 한다. |
-| 5 | **`drip_excluded_contents.reason`에 온보딩 담기 값이 없다** | enum이 `unsave \| library_delete \| played \| dripped`인데 `onboarding.md` 6장은 이 테이블을 온보딩 중복 방지 근거로 든다. 현재는 **행을 만들지 않고** `library_items` 유니크로 중복을 막는 것으로 정리했으나(`onboarding-api.md`), 문서와 enum 중 어느 쪽을 고칠지 결정 필요. |
-| 6 | **추천 세트 스냅샷 저장소 없음** | `onboarding.md`가 3단계 추천을 **사용자·세션 단위로 고정**하도록 요구하는데, 결정론적 시드만으로는 후보 풀이 세션 중간에 바뀌면 결과가 흔들린다. 스택에 캐시 계층이 없어(Postgres/TypeORM만) 스냅샷을 둘 자리가 없다. 흔들림을 허용할지, 캐시를 도입할지 결정 필요. |
+| 5 | ~~`drip_excluded_contents.reason`에 온보딩 담기 값이 없다~~ | **해소 (2026-08-06)** — **reason에 `onboarding`을 추가하지 않는다.** 온보딩 담기는 이 테이블에 행을 만들지 않는다: 중복 적립은 `library_items (user_id, content_id)` 유니크가 막고, 후보 필터 첫 줄(`library_items` 행 존재)이 담기분을 이미 제외하며, 삭제 시에는 `library_delete` 사유가 커버한다 → [7.1](#71-drip_excluded_contents). `onboarding.md` 6장의 주석도 이 결론으로 갱신 완료(2026-08-06). |
+| 6 | ~~추천 세트 스냅샷 저장소 없음~~ | **해소 (2026-08-06)** — 사용자·세션 단위 고정(랜덤 배치 + 시드 고정) 규칙 자체가 폐기됐다(`pages/README.md` 결정 #12, `onboarding.md` 4장). 표본 크기와 무관하게 같은 선정 기준으로 정렬한 상위를 노출하므로 결과가 결정론적이고, 스냅샷·캐시가 필요 없다. |
 | 7 | **비동기 재시도 큐 미정** | [7.4](#74-first_drip_jobs)의 `queued`가 넘기는 대상이며 `onboarding.md`의 최종 폴백 경로인데, 큐 인프라 자체가 `architecture.md` 미결이다. 미정인 채로는 `queued` 상태가 종착지 없이 남는다. |
+| 8 | **`ai_generated` 근거 소스 목록·정책 확인 기록 필드 도입 여부** | 적법 수집 확인(FR-11)은 업로드 전 수동 확인뿐이고 확인 기록이 시스템에 남지 않는다(`admin.md` 4.2-1 미결). `source_name` 표기 문자열([5.1](#51-contents))은 고지용이지 소스 단위 기록이 아니다. 소스 단위 테이블로 승격할지, 감사 로그로 충분한지 결정 필요. |
+| 9 | **사용자 단위 청취 통계 집계 테이블 신설 여부** | 프로필 통계(`profile.md` 4.5~4.7)는 전부 파생값이라 컬럼을 두지 않는다([1.5](#15-파생값을-컬럼으로-두지-않는다) · [6.3](#63-play_records)). 다만 연속 일수·주제 분포는 매 조회 집계 비용이 사용자 이력에 비례하므로, 집계 캐시 테이블(또는 구체화 뷰)을 둘지는 실측 후 백엔드가 판단한다. 캐시를 두는 경우에도 진실의 원천은 `play_records`다. |
 
 ### 15.2 회의에서 확정된 사항 (반영 완료)
 
@@ -1330,3 +1402,20 @@ idx_archived_subscriptions_archived_at
 | `user_hash` 생성·키 관리 | **HMAC-SHA256 + 시크릿 매니저 pepper, 정기 로테이션 없음.** 유출 시에만 교체하고 `user_hash_version`으로 세대를 구분. `withdrawal_logs`는 **별도 pepper**로 연결을 차단 | 11.2 |
 | 아카이브 보존 범위 | **전자우편주소 + 제공자 계정 ID를 평문 보존.** 전자상거래법 제6조 제2항이 "거래의 주체를 식별할 수 있는 정보"를 보존 대상으로 명시한다. 닉네임·커리어·관심사는 제외 | 11.3, 12.2 |
 | 무료 티어 정책 | **의도한 설계다.** 드립은 추천·자동 적립일 뿐이며, 탐색에서 직접 담은 콘텐츠도 재생 한도 안에서 들을 수 있다. 드립받은 것을 반드시 들어야 하는 구조가 아니다 | — |
+
+**2026-08-06 합의·개정 반영분**
+
+| 항목 | 결정 | 반영 위치 |
+|---|---|---|
+| 검수 완료 확인 이행 기록 | **`contents` 컬럼을 만들지 않는다.** 업로드 검증이 체크 누락을 거부해 항상 참인 값이 되므로, 이행 증적은 `audit_logs`의 업로드 기록(actor·시각·입력값)이 담당한다 | 5.1, 14장 |
+| 출처 필드 `origin` 분기 | `ai_generated`는 `author_name`·`source_url` 선택, `source_name`은 "참고한 자료" 표기(복수 가능 — 표기 문자열, 정규화하지 않음). 파트너 필수 고지는 `chk_contents_partner_disclosure`로 이중 방어 | 5.1 |
+| `topics.is_visible` 기본값 | **`false`** — 콘텐츠 수급 후 노출을 시작한다. 노출 통제는 신규 주제 공개 전 단계 전용 | 4.1 |
+| 재청취 수 집계 | **`content_stats.replay_count` 신설.** 원천은 `user_signals`의 `replay` 신호, 재집계 upsert | 5.4 |
+| 원문 유입 클릭 적재 | **`source_link_clicks` 신설.** `user_signals`는 스코어링 전용(A-7)이라 넣지 않고, 정산 지표 재현성 때문에 구조화 로그로도 보낼 수 없다 | 6.6, 5.4, 2장, 12.3 |
+| 마케팅 수신 동의 저장 구조 | **`consents`가 단독 소유.** `user_settings`에 토글 컬럼을 두지 않고, 2년 재확인 기산점은 최신 동의 행의 `agreed_at`, 재동의는 행 추가로 기록 | 3.2, 3.5 |
+| 온보딩 담기의 제외 사유 | **reason에 `onboarding`을 추가하지 않는다** (충돌 #5 해소) | 7.1, 15.1-5 |
+| 파트너 회수의 제외 사유 | **reason에 `withdraw`를 추가하지 않는다.** 회수는 사용자의 관심 없음 신호가 아니며, 복구·재발행 시 미수신 사용자에게 후보 복귀 | 7.1 |
+| 프로필 청취 통계 | **전부 파생값 — 컬럼·테이블을 만들지 않는다.** 원천은 `play_records`(시간·연속 일수·주간·주제 분포)와 `library_items.status`(완청 고유 수). 집계 캐시 신설 여부만 15.1-9로 남김 | 1.5, 6.1, 6.3 |
+| 방해금지 폐기 | 설정 필드 없음 유지, `notification_logs.skip_reason`에서 `quiet_hours` 제거 | 3.5, 9.1, 14장 |
+| 이어 PICK 알림 명칭 | 사용자 노출명만 변경 — `user_settings.is_drip_notification_enabled` **컬럼명 유지** | 3.5 |
+| 버전 정보 원천 | `latest_version`·`min_supported_version`은 **배포 설정이 원천**(13.3 서술과 정합 확인) — 설정 화면의 버전 표시·업데이트 판정도 같은 원천, 판정은 서버 | 13.3 |
