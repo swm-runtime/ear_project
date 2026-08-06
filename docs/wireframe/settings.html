@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>이어 — 설정 화면 시안</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+
+<header class="masthead">
+  <div class="brandline">
+    <svg class="mark" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+      <path d="M9.5 13.5a6.5 6.5 0 0 1 13 0c0 3.2-1.9 4.6-3.2 5.9-1.1 1.1-1.8 1.9-1.8 3.6a2.8 2.8 0 0 1-5.6 0"/>
+      <circle cx="13.6" cy="13.8" r="2.2" fill="currentColor" stroke="none"/>
+    </svg>
+    <span class="nm">이어</span><span class="sep">/</span><span class="ctx">화면 시안</span>
+  </div>
+
+  <p class="eyebrow">Flow S · settings.md</p>
+  <h1>설정 — 하위 기능으로 보내는 허브</h1>
+  <p class="lede">
+    진입점은 <b>프로필 우상단 아이콘 하나</b>입니다(하단 탭이 아닙니다). 이 화면이 직접 소유하는 조작은
+    <b>토글과 배속 시트뿐</b>이고 — 낙관적으로 즉시 반영하고 실패하면 원복합니다 — 나머지는 전부 소유 화면으로 보냅니다.
+  </p>
+
+  <nav class="tabs" aria-label="화면 시안">
+    <a href="auth.html">계정</a>
+    <a href="onboarding.html">온보딩</a>
+    <a href="library.html">라이브러리</a>
+    <a href="explore.html">탐색</a>
+    <a href="profile.html">프로필</a>
+    <a href="settings.html" aria-current="page">설정</a>
+  </nav>
+
+  <div class="notice">
+    <b>이 시안의 용도.</b> 범위 검증용입니다. 색·서체·간격은 <b>제안이며 확정된 아이덴티티가 아닙니다.</b>
+    각 요소의 번호는 명세 조항으로 연결됩니다. <span style="color:var(--doc-warn)">주황 번호</span>는 명세에 근거가 없거나 다른 문서와 어긋나는 지점입니다.
+    설정은 프로필 스택 위의 push 화면이라 <b>하단 탭바를 그리지 않았습니다.</b>
+  </div>
+</header>
+
+<!-- =================== 정상 =================== -->
+<section class="section">
+  <div class="section-head">
+    <p class="sid">S1 – S3</p>
+    <h2>정상 상태와 변형</h2>
+    <p><b>프로필로 되돌아가는 계정 카드를 두지 않습니다</b> — 방금 지나온 화면으로 다시 보내는 항목은 경로만 헷갈리게 합니다. 이메일 3상태·구독 요약은 프로필과 같은 문구를 씁니다.</p>
+    <div class="flowbar">
+      <span>프로필 [⚙]</span><span class="ar">→</span>
+      <span>조회(상단 카드만 스켈레톤)</span><span class="ar">→</span>
+      <span class="hi">토글 = 낙관적 즉시 저장</span><span class="ar">→</span>
+      <span>실패 시 원복 + 토스트</span>
+    </div>
+  </div>
+
+  <div class="shots">
+
+    <!-- S1 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">S1</span><h3>정상 — 유료 · 이메일 인증됨</h3>
+        <p class="cap">섹션 구분 리스트 전체 구성</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">8:01</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <span class="iconbtn plain"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 4L6.5 10l6 6"/></svg></span>
+            <p class="ttl">설정<span class="mk">1</span></p>
+            <span style="width:20px"></span>
+          </div>
+          <div class="body pad-b" style="gap:8px; overflow-y:auto; font-size:12.5px">
+            <span class="t-label">계정</span>
+            <div style="display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--line)">
+              <span style="flex:1; font-weight:600">이메일</span><span class="t-xs">suhyeon@example.com</span><span class="t-xs" style="color:var(--ink-2); font-weight:650">변경<span class="mk">2</span></span>
+            </div>
+            <span class="t-label">구독</span>
+            <div style="display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--line)">
+              <span style="flex:1; font-weight:600">데일리 · 다음 결제일 9월 1일<span class="mk">3</span></span>
+              <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+            </div>
+            <span class="t-label">콘텐츠</span>
+            <div style="display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--line)">
+              <span style="flex:1; font-weight:600">관심 주제 관리</span><span class="t-xs">3개 선택</span>
+              <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--line)">
+              <span style="flex:1; font-weight:600">커리어 정보</span>
+              <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+              <span class="mk">4</span>
+            </div>
+            <span class="t-label">재생</span>
+            <div style="display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--line)">
+              <span style="flex:1; font-weight:600">기본 배속</span><span class="t-xs" style="font-weight:700; color:var(--ink)">1.2×<span class="mk">5</span></span>
+              <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+            </div>
+            <span class="t-label">알림</span>
+            <div style="display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--line)">
+              <span style="flex:1; font-weight:600">이어 PICK 알림<span class="mk">6</span></span>
+              <span style="width:34px; height:20px; border-radius:99px; background:var(--brand); position:relative; flex:none"><i style="position:absolute; top:2px; right:2px; width:16px; height:16px; border-radius:99px; background:#fff"></i></span>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--line)">
+              <span style="flex:1; font-weight:600">마케팅 수신 동의<span class="mk">20</span></span>
+              <span style="width:34px; height:20px; border-radius:99px; background:var(--brand); position:relative; flex:none"><i style="position:absolute; top:2px; right:2px; width:16px; height:16px; border-radius:99px; background:#fff"></i></span>
+            </div>
+            <span class="t-label">정보</span>
+            <div style="display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--line)">
+              <span style="flex:1; font-weight:600">공지사항 · 이용약관 · 개인정보처리방침<span class="mk">18</span></span>
+              <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--line)">
+              <span style="flex:1; font-weight:600">앱 버전</span><span class="t-xs">1.4.0</span>
+            </div>
+            <span class="t-label">지원</span>
+            <div style="display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--line)">
+              <span style="flex:1; font-weight:600">문의하기<span class="mk">7</span></span>
+              <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; padding:7px 0">
+              <span style="flex:1; font-weight:600">로그아웃</span>
+            </div>
+            <p class="t-xs" style="margin:2px 0 0; text-decoration:underline">회원 탈퇴<span class="mk">8</span></p>
+            <span class="t-label" style="margin-top:6px">관리자</span>
+            <div style="display:flex; align-items:center; gap:8px; padding:7px 0">
+              <span style="flex:1; font-weight:600">관리자<span class="mk">21</span></span>
+              <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+            </div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">1</span><span>설정은 하단 탭이 아니라 <b>프로필 우상단 아이콘으로 들어오는 push 화면</b>이다. <b>프로필로 되돌아가는 계정 카드(닉네임·제공자)를 두지 않는다.</b> 오프라인 저장 관리(P1 이연)는 메뉴 자체를 노출하지 않는다. <span class="ref">settings 2 · 4.1</span></span></li>
+        <li><span class="n">2</span><span>이메일 항목의 3상태(미등록/미인증/인증됨) 구분·버튼은 <b>프로필 4.3과 동일</b>하다. 세 진입 경로(결제·설정·프로필)가 같은 인증 화면·같은 발송 횟수를 공유한다. <span class="ref">settings 4.1 · profile 4.3 · auth 4.4~4.5</span></span></li>
+        <li><span class="n">3</span><span>구독 요약은 <b>프로필과 같은 문구·같은 조립 함수</b>를 쓴다("무료 이용 중 · 하루 N편" / "다음 결제일 N월 N일" / "N월 N일까지 이용 가능" / 결제 문제 경고). 두 화면이 같은 값을 다른 말로 표시하면 어느 쪽이 맞는지 사용자가 판단하게 된다. <span class="ref">settings 5 · settings-api 4.1 · profile-uiux 4.2·4.4</span></span></li>
+        <li><span class="n">4</span><span>관심 주제 관리·커리어 정보는 <b>interest-management의 편집 화면</b>으로 간다(커리어는 그 화면의 커리어 섹션으로 스크롤 진입). 주제 자동 확장 토글(FR-06)은 <b>P1 미구현 상태라 섹션을 그리지 않았다</b> — 도입 시 콘텐츠 섹션에 토글로 추가된다. <span class="ref">settings 4.1 · interest-management 3 · 5</span></span></li>
+        <li><span class="n">5</span><span>기본 배속은 현재 값을 항목에 상시 표시하고, 선택 시트에서 <b>고르는 즉시 저장 + 닫힘</b>이다. 허용값(0.8/1.0/1.2/1.5/2.0)은 서버도 검증한다. [저장] 버튼을 두지 않는다 — 일괄 편집인 관심사 관리 화면만 예외. <span class="ref">settings 4.1 · 4.2 · settings-api 4.2</span></span></li>
+        <li><span class="n">6</span><span>항목명은 합의(2026-08-06)로 <b>"이어 PICK 알림"</b>으로 확정 — "드립"은 내부 용어라 화면 노출 금지 원칙(library-uiux 6장)과 충돌하던 문제를 해소했다. <b>settings.md·notification.md 모두 반영 완료</b>(V1·V4 해소). 표기는 "PICK"(전부 대문자)이다 — "Pick"을 쓰지 않는다. <span class="ref">settings 4.1 · library-uiux 6 · notification 4.3</span></span></li>
+        <li><span class="n">7</span><span>문의하기는 <b>카카오톡 채널</b>을 연다(합의 2026-08-06으로 확정). <b>채널을 열 수 없으면(미설치·실패) 채널 링크를 복사할 수 있는 다이얼로그로 폴백</b>(settings.md 7장 반영 완료). <span class="ref">settings 4.1 · 7</span></span></li>
+        <li><span class="n">8</span><span>회원 탈퇴는 <b>로그아웃과 같은 무게로 나란히 두지 않는다</b> — 최하단에 낮은 시각 비중으로. 단 숨기지 않고 포커스 순서에서도 빼지 않는다. 탈퇴 화면(안내·확인)은 auth 소유이며, 스토어 해지 안내는 텍스트만(딥링크 금지). <span class="ref">settings-uiux 4.1 · auth 4.3</span></span></li>
+        <li><span class="n">18</span><span>공지사항은 <b>인앱 화면</b>으로 확정(합의 2026-08-06) — 목록·본문 화면의 명세는 추후 작성한다. 앱 버전 항목의 <code>latest_version</code> 원천도 확정(합의 2026-08-06) — <b>배포 시 입력된 버전(배포 설정)</b>이며, 업데이트 여부 판정은 서버가 한다(V5 해소). <span class="ref">settings 3 · 4.1 · settings-api 9</span></span></li>
+        <li><span class="n">20</span><span><b>[마케팅 수신 동의] 토글</b>(합의 2026-08-06) — 가입 시 받은 마케팅 동의(<code>agreed_marketing</code>)의 <b>철회 경로</b>다(정보통신망법 — 동의만 받고 철회 경로가 없으면 위법). 동의·철회·재동의는 모두 <code>consents</code> 행 추가로 이력 기록되고, <b>2년 재확인(기산점·통지)은 서버가 처리한다</b> — 최신 동의 행의 <code>agreed_at</code>이 기산점이다(auth.md 3장). 저장 규칙은 다른 토글과 동일 — 낙관적 즉시 반영, 실패 시 원복 + 토스트. <span class="ref">settings 4.1 · 5 · auth 3</span></span></li>
+        <li><span class="n">21</span><span><b>[관리자] — 관리자 계정에만 노출.</b> <code>users.role = admin</code>인 계정에만 리스트 맨 아래에 관리자 섹션이 나타나고, <b>일반 사용자에게는 행 자체가 없다</b>(섹션째 미노출). UI 은닉에 의존하지 않는다 — 서버가 모든 관리자 API를 403으로 거부한다. 탭하면 관리자 페이지(콘텐츠 업로드·주제 관리·회수)로 이동. 관리자 권한 부여는 앱에서 하지 않는다(DB 직접 변경만). <span class="ref">settings 4.1 · 5 · admin 2</span></span></li>
+      </ul>
+    </article>
+
+    <!-- S2 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">S2</span><h3>무료 · 이메일 미등록 · OS 권한 미결정</h3>
+        <p class="cap">구독 안내 강조 + [등록] · 알림 유도 배너</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">8:02</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <span class="iconbtn plain"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 4L6.5 10l6 6"/></svg></span>
+            <p class="ttl">설정</p>
+            <span style="width:20px"></span>
+          </div>
+          <div class="body pad-b" style="gap:8px; font-size:12.5px">
+            <span class="t-label">계정</span>
+            <div style="display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--line)">
+              <span style="flex:1; font-weight:600">이메일</span><span class="t-xs">등록되지 않음</span><span class="t-xs" style="color:var(--ink-2); font-weight:650">등록<span class="mk">9</span></span>
+            </div>
+            <span class="t-label">구독</span>
+            <div class="field" style="flex-direction:column; align-items:stretch; gap:8px; padding:12px 14px">
+              <span style="font-size:13px; font-weight:700; color:var(--ink)">무료 이용 중 · 하루 2편</span>
+              <div class="btn primary sm">구독 알아보기<span class="mk">10</span></div>
+            </div>
+            <span class="t-label">콘텐츠</span>
+            <div style="display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--line)">
+              <span style="flex:1; font-weight:600">관심 주제 관리</span><span class="t-xs">3개 선택</span>
+              <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--line)">
+              <span style="flex:1; font-weight:600">커리어 정보</span>
+              <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+            </div>
+            <span class="t-label">재생</span>
+            <div style="display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--line)">
+              <span style="flex:1; font-weight:600">기본 배속</span><span class="t-xs" style="font-weight:700; color:var(--ink)">1.0×</span>
+              <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+            </div>
+            <span class="t-label">알림</span>
+            <div style="display:flex; align-items:center; gap:8px; padding:7px 0">
+              <span style="flex:1; font-weight:600">이어 PICK 알림</span>
+              <span style="width:34px; height:20px; border-radius:99px; background:var(--line-2); position:relative; flex:none"><i style="position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:99px; background:#fff"></i></span>
+            </div>
+            <div class="banner" style="margin-top:2px; font-size:12px">
+              <span>알림을 켜면 새 콘텐츠가 도착할 때 알려드려요<span class="mk">19</span></span>
+              <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+            </div>
+            <div class="grow"></div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">9</span><span>이메일 미등록이어도 <b>등록을 강요하지 않는다.</b> [등록] 탭 시 인증 화면으로 이동하고, 성공하면 설정으로 복귀해 항목이 갱신된다. <span class="ref">settings 5 · auth 4.4</span></span></li>
+        <li><span class="n">10</span><span>무료 사용자는 구독 섹션이 카드 형태로 강조된다 — "무료 이용 중 · 하루 N편"의 N은 서버 값(<code>plans.daily_play_limit</code>). <b>무료 티어도 드립을 받으므로</b> 알림 토글은 티어와 무관하게 노출·동작한다. <span class="ref">settings 5 · paywall 5 · notification 4.3</span></span></li>
+        <li><span class="n">19</span><span><b>알림 사전 안내 유도 배너 — (b)안 채택(합의 2026-08-06).</b> 온보딩에서 사전 안내를 못 봐 <b>OS 권한이 미결정인 사용자에게만</b> 알림 섹션에 <b>상시 노출</b>한다. 배너 탭 → 사전 안내 → [알림 받기]에서 OS 다이얼로그. <b>권한이 결정되면(허용·거부) 배너를 숨긴다.</b> 규칙 소유는 notification.md — <b>(b)안 반영 완료</b>(settings 4.3 · notification, V1·V4 해소). <span class="ref">settings 4.3 · notification 4.1</span></span></li>
+      </ul>
+    </article>
+
+    <!-- S3 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">S3</span><h3>이메일 미인증 · 업데이트 · 결제 문제(유예)</h3>
+        <p class="cap">배지 2종 — 색 + 텍스트 · 유예 변형 병기</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">8:03</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <span class="iconbtn plain"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 4L6.5 10l6 6"/></svg></span>
+            <p class="ttl">설정</p>
+            <span style="width:20px"></span>
+          </div>
+          <div class="body pad-b" style="gap:8px; font-size:12.5px">
+            <span class="t-label">계정</span>
+            <div style="display:flex; flex-direction:column; gap:7px; padding:7px 0; border-bottom:1px solid var(--line)">
+              <div style="display:flex; align-items:center; gap:7px; flex-wrap:wrap">
+                <span style="font-weight:600">이메일</span>
+                <span class="t-xs">suhyeon@kakao.com</span>
+                <span class="t-xs" style="padding:2px 8px; border-radius:99px; background:var(--accent-soft); border:1px solid var(--accent-line); color:var(--accent); font-weight:700">인증되지 않음<span class="mk">11</span></span>
+              </div>
+              <div class="btn-row">
+                <div class="btn outline sm" style="padding:7px 0">인증하기</div>
+                <div class="btn outline sm" style="padding:7px 0">변경</div>
+              </div>
+            </div>
+            <span class="t-label">구독</span>
+            <div style="display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--line)">
+              <span style="flex:1; font-weight:600">무료 이용 중 · 하루 2편</span>
+              <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+            </div>
+            <p class="t-label" style="margin:4px 2px 0">변형 — 결제 문제(유예)</p>
+            <div class="field" style="align-items:center; gap:8px; padding:10px 14px; border-color:#F0D2CF; background:#FBEDEC">
+              <span style="flex:1; font-weight:700; color:var(--danger)">프로 · 결제에 문제가 있어요<span class="mk">22</span></span>
+              <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="var(--danger)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+            </div>
+            <span class="t-label">정보</span>
+            <div style="display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--line)">
+              <span style="flex:1; font-weight:600">앱 버전</span>
+              <span class="t-xs">1.3.0</span>
+              <span class="t-xs" style="padding:2px 8px; border-radius:99px; background:var(--accent-soft); border:1px solid var(--accent-line); color:var(--accent); font-weight:700">업데이트<span class="mk">12</span></span>
+            </div>
+            <div class="grow"></div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">11</span><span>미인증 상태는 <b>주소 + "인증되지 않음" 배지 + [인증하기]·[변경]</b> — profile.md 4.3과 같은 구분·같은 문구다. 배지는 색 + 텍스트(색만으로 구분하지 않는다). <span class="ref">settings 4.1 · 5 · profile 4.3</span></span></li>
+        <li><span class="n">12</span><span>업데이트 판정(<code>update_available</code>)은 <b>서버가 한다</b> — 클라이언트가 버전 문자열을 비교하지 않는다. 배지는 안내일 뿐 차단하지 않는다(강제 업데이트는 스플래시 소관). [업데이트] 탭 → 스토어. <span class="ref">settings 4.1 · 5 · settings-api 4.1 · splash</span></span></li>
+        <li><span class="n">22</span><span><b>결제 실패 유예 상태의 구독 섹션</b> — 경고색 + <b>"결제에 문제가 있어요"</b>. 프로필 P5(변형 B)와 <b>동일한 문법·같은 문구</b>다 — 경고색은 사용자가 조치해야 하는 상태에만 쓴다(해지 예약은 중립 톤). 탭하면 구독 관리로 이동하며 설정에서 결제 수단을 수정하지 않는다. 유예 변형을 병기한 것은 비교용이며 실제로는 티어 상태에 따라 한 형태만 나타난다. <span class="ref">settings 5 · profile 4.2 · subscription 4.7</span></span></li>
+      </ul>
+    </article>
+
+  </div>
+</section>
+
+<!-- =================== 다이얼로그 · 오류 =================== -->
+<section class="section">
+  <div class="section-head">
+    <p class="sid">S4 – S7</p>
+    <h2>다이얼로그 · 오류</h2>
+    <p>거부된 OS 권한은 앱에서 재요청할 수 없습니다 — 토글을 비활성으로 침묵시키지 않고, <b>탭하면 이유를 말하고 기기 설정으로 보냅니다.</b></p>
+  </div>
+
+  <div class="shots">
+
+    <!-- S4 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">S4</span><h3>알림 토글 — OS 권한 안내</h3>
+        <p class="cap">토글은 켜지지 않는다 · 서버 호출 없음</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">8:04</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <span class="iconbtn plain"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 4L6.5 10l6 6"/></svg></span>
+            <p class="ttl">설정</p>
+            <span style="width:20px"></span>
+          </div>
+          <div class="body" style="gap:8px; font-size:12.5px; opacity:.45">
+            <span class="t-label">알림</span>
+            <div style="display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--line)">
+              <span style="flex:1; font-weight:600">이어 PICK 알림</span>
+              <span style="width:34px; height:20px; border-radius:99px; background:var(--line-2); position:relative; flex:none"><i style="position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:99px; background:#fff"></i></span>
+            </div>
+          </div>
+          <div class="veil"></div>
+          <div class="dialog">
+            <div class="panel">
+              <p class="h-md" style="margin:0">기기 설정에서<br>알림을 허용해주세요<span class="mk">13</span></p>
+              <div class="btn-row" style="margin-top:8px">
+                <div class="btn outline">닫기</div>
+                <div class="btn primary">설정 열기</div>
+              </div>
+            </div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">13</span><span>OS 권한이 거부된 상태에서 토글 ON을 시도한 경우다. <b>토글은 켜지지 않고 서버 호출도 없다.</b> 토글을 비활성으로 두지 않는 이유 — 비활성 무반응은 오류로 읽힌다; 탭하면 이유를 말하는 쪽이 낫다. <b>OS 다이얼로그를 다시 띄우지 않는다</b>(거부된 권한은 앱에서 재요청 불가). [설정 열기] → OS 설정, <b>복귀 시 권한을 재확인해 서버에 동기화</b>하되 토글을 자동으로 켜지는 않는다. <span class="ref">settings 4.3 · notification 4.2 · settings-uiux 4.3</span></span></li>
+      </ul>
+    </article>
+
+    <!-- S5 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">S5</span><h3>로그아웃 확인</h3>
+        <p class="cap">질문 하나로 충분하다</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">8:05</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <span class="iconbtn plain"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 4L6.5 10l6 6"/></svg></span>
+            <p class="ttl">설정</p>
+            <span style="width:20px"></span>
+          </div>
+          <div class="body" style="gap:8px; font-size:12.5px; opacity:.45">
+            <span class="t-label">지원</span>
+            <div style="display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--line)">
+              <span style="flex:1; font-weight:600">문의하기</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; padding:7px 0">
+              <span style="flex:1; font-weight:600">로그아웃</span>
+            </div>
+          </div>
+          <div class="veil"></div>
+          <div class="dialog">
+            <div class="panel">
+              <p class="h-md" style="margin:0">로그아웃할까요?<span class="mk">14</span></p>
+              <div class="btn-row" style="margin-top:8px">
+                <div class="btn outline">취소</div>
+                <div class="btn primary">로그아웃</div>
+              </div>
+            </div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">14</span><span>보조 문구 없이 질문 하나만 — 로그아웃은 데이터가 사라지는 조작이 아니다. [로그아웃] → 서버 세션 폐기(실패해도 진행) → 로컬 토큰·캐시 삭제 → 푸시 토큰 등록 해제 → <b>시작 화면(스택 초기화)</b>. 처리 중에는 팝업 버튼만 비활성화한다. <span class="ref">settings 5 · auth 4.2</span></span></li>
+      </ul>
+    </article>
+
+    <!-- S6 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">S6</span><h3>조회 실패</h3>
+        <p class="cap">상단 카드만 에러 — 정적 메뉴는 동작</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">8:06</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <span class="iconbtn plain"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 4L6.5 10l6 6"/></svg></span>
+            <p class="ttl">설정</p>
+            <span style="width:20px"></span>
+          </div>
+          <div class="body pad-b" style="gap:8px; font-size:12.5px">
+            <div class="field" style="flex-direction:column; align-items:stretch; gap:8px; padding:12px 14px">
+              <span class="t-sm" style="margin:0">정보를 불러올 수 없어요<span class="mk">15</span></span>
+              <div class="btn outline sm" style="padding:7px 0">다시 시도</div>
+            </div>
+            <span class="t-label">정보</span>
+            <div style="display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--line)">
+              <span style="flex:1; font-weight:600">공지사항 · 이용약관 · 개인정보처리방침<span class="mk">16</span></span>
+              <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+            </div>
+            <span class="t-label">지원</span>
+            <div style="display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--line)">
+              <span style="flex:1; font-weight:600">문의하기</span>
+              <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; padding:7px 0">
+              <span style="flex:1; font-weight:600">로그아웃</span>
+            </div>
+            <p class="t-xs" style="margin:2px 0 0; text-decoration:underline">회원 탈퇴</p>
+            <div class="grow"></div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">15</span><span>계정·구독·관심사 요약과 토글 값이 실패한 영역만 에러 카드로 묶는다. 부분 실패(<code>failed_sections</code>)면 실패한 요약만 에러. 토글 값 조회 실패는 응답 전체 실패다 — <b>기준값 없는 낙관적 토글은 성립하지 않는다.</b> <span class="ref">settings 5 · settings-api 4.1</span></span></li>
+        <li><span class="n">16</span><span><b>서버 값이 필요 없는 메뉴(약관·문의·로그아웃·탈퇴)는 조회 실패와 무관하게 동작한다.</b> 로딩 중에도 이 메뉴들은 즉시 노출된다 — 상단 카드만 스켈레톤. <span class="ref">settings 5 · settings-uiux 4.6</span></span></li>
+      </ul>
+    </article>
+
+    <!-- S7 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">S7</span><h3>토글 저장 실패</h3>
+        <p class="cap">원복 + 토스트 — 조용히 되돌리지 않는다</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">8:07</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <span class="iconbtn plain"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 4L6.5 10l6 6"/></svg></span>
+            <p class="ttl">설정</p>
+            <span style="width:20px"></span>
+          </div>
+          <div class="body" style="gap:8px; font-size:12.5px">
+            <span class="t-label">알림</span>
+            <div style="display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--line)">
+              <span style="flex:1; font-weight:600">이어 PICK 알림</span>
+              <span style="width:34px; height:20px; border-radius:99px; background:var(--line-2); position:relative; flex:none"><i style="position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:99px; background:#fff"></i><span class="mk">17</span></span>
+            </div>
+            <div class="grow"></div>
+          </div>
+          <div class="toast">설정을 저장하지 못했어요</div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">17</span><span>낙관적으로 켰던 토글이 저장 실패로 <b>원래 상태로 되돌아온 순간</b>이다. 조용히 되돌리지 않고 토스트로 알린다 — 자기가 켠 것이 왜 꺼졌는지 알아야 한다. 연타는 <code>client_seq</code>로 마지막 조작이 최종. <b>오프라인 중의 조작은 실패가 아니라 지연</b> — 되돌리지 않고 큐에 적재해 복귀 시 동기화한다. <span class="ref">settings 4.2 · 7 · common-error-handling 4.4~4.5 · settings-api 4.2</span></span></li>
+      </ul>
+    </article>
+
+  </div>
+</section>
+
+<!-- =================== 검증 =================== -->
+<section class="verify">
+  <p class="sid">검토 필요</p>
+  <h2>설정에서 나온 것</h2>
+  <p>허브 구성(계정 카드 없음·오프라인 저장 미노출)과 토글 규칙은 settings.md에서 확정되어 반영했고, 미결 사항(알림 명칭·문의 채널·공지 형태·사전 안내 재노출·latest_version 원천)은 합의(2026-08-06)로 전부 확정되어 settings.md·notification.md와 이 시안에 반영을 마쳤습니다. 이번 개정으로 추가된 항목(마케팅 수신 동의 토글 · [관리자] · 유예 상태)도 S1·S3에 반영했고, settings-api·settings-uiux까지 2026-08-06 spec 최신화로 전부 반영돼 남은 열린 항목이 없습니다.</p>
+
+  <div class="vlist">
+    <div class="vitem">
+      <h3><span class="vid">V6</span>해소 — 마케팅 토글 · [관리자] · 유예 상태, spec까지 반영 완료</h3>
+      <p>합의(2026-08-06)로 settings.md 4.1·5장에 추가된 <b>[마케팅 수신 동의] 토글</b>(철회 경로 — <code>consents</code> 이력·2년 재확인은 서버), <b>[관리자] 항목</b>(관리자 계정 전용, admin.md 2장), <b>결제 문제(유예) 상태</b>가 <b>settings-api.md(`account.is_admin` · `POST /users/me/consents/marketing` · 구독 유예 표시)와 settings-uiux.md(화면 상태·카피)에 2026-08-06 spec 최신화로 전부 반영됐습니다.</b> 유도 배너의 노출 판정은 서버 필드 없이 기기(OS 권한 미결정)가 한다는 판단까지 settings-api 9장에 기록됐습니다.</p>
+      <p class="where">settings 4.1 · 5 / auth 3 / admin 2 / settings-api 4.1~4.2 · 9 / settings-uiux 4.1 / 화면 S1 · S3</p>
+    </div>
+
+    <div class="vitem soft">
+      <h3><span class="vid">해소</span>합의(2026-08-06)로 해소 — settings.md·notification.md·시안 반영 완료</h3>
+      <p>V1 알림 항목명 — <b>"이어 PICK 알림"</b>으로 확정(표기는 PICK 전부 대문자), 화면 전체(S1·S2·S4·S7) 라벨 교체. <b>notification.md 문구 개정도 반영 완료</b>되어 잔여 대기 없음.<br>
+      V2 문의 채널 — <b>카카오톡 채널</b>로 확정, 채널을 열 수 없으면(미설치·실패) 채널 링크 복사 다이얼로그 폴백(settings.md 7장).<br>
+      V3 공지사항 — <b>인앱 화면</b>으로 확정, 화면 명세는 추후 작성.<br>
+      V4 사전 안내 재노출 — <b>(b)안 채택</b>, OS 권한 미결정 사용자에게 알림 섹션 유도 배너 상시 노출(S2)·권한 결정 시 숨김. <b>notification.md 반영 완료.</b><br>
+      V5 앱 버전 <code>latest_version</code> 원천 — <b>배포 시 입력된 버전(배포 설정)으로 확정</b>(settings.md 3장), 업데이트 여부 판정은 서버.</p>
+      <p class="where">settings 3 · 4.1 · 4.3 · 7 / notification 4.1 · 4.3 / 화면 S1 · S2 · S3 · S4 · S7</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  근거 문서 — <code>docs/pages/settings.md</code> · <code>docs/pages/notification.md</code> 4.2 · <code>docs/pages/auth.md</code> 3장 · 4.2~4.3 · <code>docs/pages/admin.md</code> 2장 · <code>docs/spec/api/settings-api.md</code> · <code>docs/backend/domain.md</code> 3.5 · 3.6<br>
+  시각 디자인은 제안입니다. 확정할 것은 <b>화면에 무엇이 있고 없는가</b>이며, 색·서체는 별도로 정합니다.
+</footer>
+
+</div>
+<style>
+.mk{
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:15px; height:15px; padding:0 4px; border-radius:99px; margin-left:5px;
+  background:var(--doc-note); color:#fff; font-family:var(--mono); font-size:9px;
+  font-weight:700; vertical-align:middle; letter-spacing:0; line-height:1;
+}
+.mk.w{background:var(--doc-warn)}
+</style>
+</body>
+</html>
