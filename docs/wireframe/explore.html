@@ -362,8 +362,8 @@
         </div>
       </div>
       <ul class="notes">
-        <li><span class="n">13</span><span>소진돼도 <b>숨기지 않고 주의색으로 유지</b>한다. 이때만 탭 가능해지며 탭하면 <b>페이월 바텀시트</b>가 열린다(N &gt; 0일 때는 탭 대상이 아니다). <code>M</code>은 서버 값 — 2를 하드코딩하지 않는다. <span class="ref">paywall 5 · explore 5</span></span></li>
-        <li><span class="n">14</span><span>소진 상태에서 행을 탭하면 <b>확인 팝업 없이 곧바로 페이월</b>이다. 오늘 이미 튼 콘텐츠의 재생(차감 없음)과 <b>더보기의 담기·제거는 그대로 동작한다</b> — 막히는 것은 새 콘텐츠의 재생뿐이다. 페이월로 차단된 재생은 자동 적립도 하지 않는다. <span class="ref">paywall 4.2 · explore 4.3 · 7</span></span></li>
+        <li><span class="n">13</span><span>소진돼도 <b>숨기지 않고 주의색으로 유지</b>한다. 이때만 탭 가능해지며 탭하면 <b>페이월 바텀시트</b>가 열린다(N &gt; 0일 때는 탭 대상이 아니다). <b>최상위 티어는 페이월 대신 "오늘 청취 한도를 모두 사용했어요" 한도 안내 문구만</b> 띄운다(합의 2026-08-06 — 더 올라갈 티어가 없어 팔 것이 없다). <code>M</code>은 서버 값 — 2를 하드코딩하지 않는다. <span class="ref">paywall 4.1 · 5 · explore 5</span></span></li>
+        <li><span class="n">14</span><span>소진 상태에서 행을 탭하면 <b>확인 팝업 없이 곧바로 페이월</b>이다(최상위 티어는 페이월 없이 한도 안내만 — paywall 4.1). 오늘 이미 튼 콘텐츠의 재생(차감 없음)과 <b>더보기의 담기·제거는 그대로 동작한다</b> — 막히는 것은 새 콘텐츠의 재생뿐이다. 페이월로 차단된 재생은 자동 적립도 하지 않는다. <span class="ref">paywall 4.1 · 4.2 · explore 4.3 · 7</span></span></li>
       </ul>
     </article>
 
@@ -637,7 +637,7 @@
     <article class="shot">
       <div class="shot-head">
         <span class="shot-id">E12</span><h3>더보기 액션시트</h3>
-        <p class="cap">담기/제거의 유일한 진입점 (+ 공유 P1)</p>
+        <p class="cap">담기/제거의 유일한 진입점 · 공유 없음(MVP 제외)</p>
       </div>
       <div class="device">
         <div class="island"></div>
@@ -671,18 +671,14 @@
               <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5.5h13M8 5.5V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.5M5.5 5.5l.8 10a1.5 1.5 0 0 0 1.5 1.4h4.4a1.5 1.5 0 0 0 1.5-1.4l.8-10"/></svg>
               라이브러리에서 제거<span class="mk">24</span>
             </div>
-            <div class="row">
-              <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="10" r="2.4"/><circle cx="15" cy="4.5" r="2.4"/><circle cx="15" cy="15.5" r="2.4"/><path d="M7.2 8.9l5.6-3.2M7.2 11.1l5.6 3.2"/></svg>
-              공유<span class="mk">25</span>
-            </div>
-            <div class="btn outline" style="margin-top:2px">닫기</div>
+            <div class="btn outline" style="margin-top:2px">닫기<span class="mk">25</span></div>
           </div>
           <div class="homebar"></div>
         </div>
       </div>
       <ul class="notes">
         <li><span class="n">24</span><span><b>담기/제거의 유일한 진입점.</b> 시트 상단에 대상 콘텐츠를 다시 보여준다(딤 처리된 행을 눈으로 확인하지 못한 채 조작하게 하지 않는다). <code>library</code>가 <code>null</code>이면 <b>[라이브러리에 담기]</b>, 값이 있으면 <b>[라이브러리에서 제거]</b> — <b>출처(드립·온보딩 적립분)와 무관하게 제거를 허용한다.</b> 제거는 라이브러리 소프트 삭제 + 드립 영구 제외(<code>unsave</code>)와 같은 결과이며 고지하지 않는다. explore.md 4.1·4.3은 이 구성(더보기 시트 소유·행 담김 표시)으로 <b>개정 완료</b>(2026-08-06). <span class="ref">explore 4.3 · explore-api 4.3~4.4 · 9 · explore-uiux 4.4</span></span></li>
-        <li><span class="n">25</span><span>공유(FR-27)는 <b>P1</b>. 공유 텍스트는 제목 + 저자·출처 + <b>스토어 링크</b>(수신자용 웹 랜딩은 MVP 비범위). <b>시트 오픈·공유 취소는 신호로 기록하지 않는다</b>(<code>user_signals</code>에 <code>share</code>가 없다). 공유가 MVP에서 빠져도 담기/제거가 있으므로 더보기 버튼은 유지된다. "상세"는 합의(2026-08-06)에 따라 <b>추후 명세를 추가한 뒤 개발</b>한다 — 그 전까지 시트에 항목을 두지 않는다(explore.md 3장 정리 완료). <span class="ref">explore 4.6 · 7 · domain 6.4</span></span></li>
+        <li><span class="n">25</span><span><b>공유(FR-27)는 MVP 제외 확정</b>(합의 2026-08-06) — 시트에 [공유] 항목을 노출하지 않는다. 시트 구성은 <b>대상 요약 + [라이브러리에 담기/제거] + [닫기]뿐</b>이다. <b>공유는 P1 도입 시 시트에 복귀한다</b> — 그때의 공유 텍스트는 제목 + 저자·출처 + <b>스토어 링크</b>(수신자용 웹 랜딩은 MVP 비범위)이고, 시트 오픈·공유 취소는 신호로 기록하지 않는다(<code>user_signals</code>에 <code>share</code>가 없다). "상세"도 합의에 따라 <b>추후 명세를 추가한 뒤 개발</b>한다 — 그 전까지 시트에 항목을 두지 않는다. 공유·상세가 빠져도 담기/제거가 있으므로 더보기 버튼은 유지된다. <span class="ref">explore 4.6 · 7 · domain 6.4</span></span></li>
       </ul>
     </article>
 
@@ -709,8 +705,10 @@
       V4 검색창 — 검색은 P1 유지, MVP에서는 검색창을 비활성 상태로 노출(explore.md 4.5).<br>
       V5 잔여 표시 — 한도 미만 여부와 무관하게 상시 노출로 확정(explore.md 4.4-1).<br>
       V6 인기 섹션 첫 주 — 표본 크기와 무관하게 같은 선정 기준으로 정렬한 상위를 노출, 섹션을 숨기지 않음(explore.md 4.1).<br>
-      E10 오프라인 캐시 피드 — 사용하지 않기로 확정, 에러 화면 + [다시 시도]로 교체.</p>
-      <p class="where">explore 3 · 4.1 · 4.3 · 4.4-1 · 4.5 · 5 / 화면 E1 · E10 · E12</p>
+      E10 오프라인 캐시 피드 — 사용하지 않기로 확정, 에러 화면 + [다시 시도]로 교체.<br>
+      공유(FR-27) MVP 포함 여부 — <b>MVP 제외로 확정</b>(explore.md 4.6), E12 시트에서 [공유] 항목 제거·P1 도입 시 시트에 복귀. explore-uiux 4.4·explore-api도 MVP 미노출로 반영 완료(2026-08-06 spec 최신화).<br>
+      최상위 티어 소진 분기 — <b>페이월 대신 한도 안내 문구만</b>("오늘 청취 한도를 모두 사용했어요" — paywall.md 4.1), E5 노트 반영.</p>
+      <p class="where">explore 3 · 4.1 · 4.3 · 4.4-1 · 4.5 · 4.6 · 5 / paywall 4.1 / 화면 E1 · E5 · E10 · E12</p>
     </div>
   </div>
 </section>
