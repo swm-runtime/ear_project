@@ -201,15 +201,16 @@ export class UserWithdrawalService {
    * **`users` FK의 ON DELETE CASCADE로 함께 사라지는 것** — 아래는 purge 호출을 따로
    * 추가하지 않는다. 중복 삭제일 뿐이고, 호출을 빠뜨렸을 때의 방어선이 DB 제약이다.
    * `sessions` · `consents` · `user_interests` · `library_items` ·
-   * `drip_excluded_contents` · `first_drip_jobs` · `device_tokens`
+   * `drip_excluded_contents` · `first_drip_jobs` · `device_tokens` ·
+   * `playback_progresses` · `play_records` · `user_signals`
    *
    * **명시적으로 지우는 것** — FK가 없거나(`idempotency_keys`는 `owner_key` 스코프)
    * 아카이브 이관 순서가 있어야 하는 것(`subscriptions` · `consents`)이다.
    *
    * TODO(모듈 도입 시): domain.md 12.3의 나머지 즉시 파기 대상 중 **아직 테이블이 없는 것**
-   * (`playback_progresses` · `play_records` · `user_signals` · `user_settings` ·
-   * `user_preference_vectors` · `purchase_intents` · `notification_logs`)은,
-   * `user_id` FK에 ON DELETE CASCADE를 걸면 여기에 손댈 필요가 없다.
+   * (`user_settings` · `user_preference_vectors` · `purchase_intents` ·
+   * `notification_logs` · `source_link_clicks`)은, `user_id` FK에 ON DELETE CASCADE를
+   * 걸면 여기에 손댈 필요가 없다.
    */
   private async purge(userId: string, manager: EntityManager): Promise<void> {
     await this.idempotencyService.purgeByOwnerKey(

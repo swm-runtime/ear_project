@@ -23,4 +23,12 @@ export class PlanRepository {
   ): Promise<Plan | null> {
     return this.scoped(manager).findOneBy({ tier });
   }
+
+  /** 상위 티어 존재 여부 판정용 — 판매 중인 요금제만 센다 */
+  async findAllActive(manager?: EntityManager): Promise<Plan[]> {
+    return this.scoped(manager).find({
+      where: { isActive: true },
+      order: { displayOrder: 'ASC' },
+    });
+  }
 }

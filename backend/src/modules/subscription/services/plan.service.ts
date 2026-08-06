@@ -5,6 +5,7 @@ import { UserTier } from '@/modules/user/user.enum';
 
 import { Plan } from '../entities/plan.entity';
 import { PlanRepository } from '../repositories/plan.repository';
+import { PlayLimitPolicy } from '../subscription.types';
 
 /**
  * `plans`는 subscription 모듈 소유다(domain.md 2장).
@@ -22,6 +23,57 @@ export class PlanService {
     manager?: EntityManager,
   ): Promise<Plan | null> {
     return this.planRepository.findByTier(tier, manager);
+  }
+
+  /**
+   * `paywall.md` 4.1의 판정 입력. 한도 값은 `plans.daily_play_limit`에서 읽고
+   * **티어명을 코드에 하드코딩하지 않는다.**
+   *
+   * **최상위 티어 판정은 `display_order`만으로 하지 않는다.** `plans`에 아직 `light` 행만
+   * 있어서(유료 티어는 `price_krw` · `daily_play_limit`이 미정 — domain.md 8.1) 순서만
+   * 보면 무료 티어가 최상위로 판정되고, 무료 사용자에게 페이월 대신 한도 안내가 나간다.
+   *
+   * 그래서 **무료 요금제(`price_krw = 0`)는 어떤 경우에도 최상위가 아니다**로 못박는다.
+   * "더 팔 것이 없다"(합의 2026-08-06)가 최상위 티어의 정의인데, 무료보다 위가 없는 상태는
+   * 성립하지 않는다. 티어명이 아니라 가격으로 판정하므로 티어가 늘어도 그대로 동작한다.
+   *
+   * 해당 티어의 행이 없으면 `light` 값으로 내려 판정한다 —
+   * `getDailyDripCount`와 같은 폴백이며, 유료 행이 아직 없는 현재 상태에서 유일하게
+   * 안전한 방향(더 엄격한 쪽)이다. **`light`마저 없으면 예외로 기동을 알린다.**
+   * 한도를 모를 때 무제한으로 열어 주면 페이월이 조용히 꺼진 채 아무도 눈치채지 못한다.
+   */
+  async getPlayLimitPolicy(
+    tier: UserTier,
+    manager?: EntityManager,
+  ): Promise<PlayLimitPolicy> {
+    const [requested, activePlans] = await Promise.all([
+      this.findByTier(tier, manager),
+      this.planRepository.findAllActive(manager),
+    ]);
+
+    const plan = requested ?? (await this.findByTier(UserTier.LIGHT, manager));
+
+    if (!requested) {
+      this.logger.error('plan row is missing for tier', {
+        tier,
+        fallbackApplied: Boolean(plan),
+      });
+    }
+
+    if (!plan) {
+      throw new Error(
+        'plans 테이블에 요금제 행이 없어 재생 한도를 판정할 수 없다',
+      );
+    }
+
+    const hasHigherPlan = activePlans.some(
+      (candidate) => candidate.displayOrder > plan.displayOrder,
+    );
+
+    return {
+      dailyPlayLimit: plan.dailyPlayLimit,
+      isTopTier: plan.priceKrw > 0 && !hasHigherPlan,
+    };
   }
 
   /**
