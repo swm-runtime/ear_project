@@ -71,7 +71,7 @@ npm run build && bash scripts/subset-fonts.sh && npm run build
 
 ## 내용의 근거
 
-카피에 나오는 정책 수치는 `docs/prd/ear_root_prd.md`와 `docs/pages/`가 원본이다.
+카피에 나오는 정책 수치는 `docs/prd/ear_root_prd.md`와 `docs/features/`가 원본이다.
 
 - 하루 2편 드립(전 티어 동일) · 재생 한도만 티어로 갈림 — FR-14, FR-29
 - 관심 주제 최소 1개·최대 3개 — FR-03

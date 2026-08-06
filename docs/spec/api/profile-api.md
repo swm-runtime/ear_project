@@ -1,9 +1,9 @@
 # 프로필 API 명세서
 
-> 기준 문서: [`docs/pages/profile.md`](../../pages/profile.md)
-> 커리어 편집 화면: [`docs/pages/career.md`](../../pages/career.md) (합의 2026-08-06 — 관심사 관리에서 분리)
+> 기준 문서: [`docs/features/profile.md`](../../features/profile.md)
+> 커리어 편집 화면: [`docs/features/career.md`](../../features/career.md) (합의 2026-08-06 — 관심사 관리에서 분리)
 > 규약: [`docs/backend/convention.md`](../../backend/convention.md) 5장 · [`docs/backend/architecture.md`](../../backend/architecture.md) 7·9장
-> 오류·재시도: [`docs/pages/common-error-handling.md`](../../pages/common-error-handling.md)
+> 오류·재시도: [`docs/features/common-error-handling.md`](../../features/common-error-handling.md)
 > 스키마: [`docs/backend/domain.md`](../../backend/domain.md) 3장 · 4장 · 5장 · 6장 · 8장
 
 ## 1. 범위

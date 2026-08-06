@@ -2,12 +2,12 @@
 
 > 이 문서는 '이어' 프론트엔드의 **코드 작성 규칙 문서**다. 시스템 구조·계층 책임·상태 관리 전략·보안 정책은 [architecture.md](architecture.md)에서 다룬다.
 >
-> 연결 문서: `architecture.md`, `docs/backend/convention.md`, `docs/pages/common-error-handling.md`, `docs/spec/api/*`
+> 연결 문서: `architecture.md`, `docs/backend/convention.md`, `docs/features/common-error-handling.md`, `docs/spec/api/*`
 >
 > **문서 운용 원칙**
 > - 이 문서와 다른 코드는 리뷰에서 반려한다. 규칙이 틀렸다면 코드가 아니라 문서를 먼저 고친다.
 > - "취향 차이로 논쟁이 생기는 지점"을 없애는 것이 목적이다. 규칙에 없어서 매번 다르게 쓰고 있는 게 발견되면 여기에 추가한다.
-> - 규칙 간 충돌 시 우선순위: **클라이언트 계약(`docs/pages/*`, `docs/spec/*`) > architecture.md > convention.md**.
+> - 규칙 간 충돌 시 우선순위: **클라이언트 계약(`docs/features/*`, `docs/spec/*`) > architecture.md > convention.md**.
 > - Git 규칙(6장)은 `docs/backend/convention.md` 6장과 **동일 체계**를 쓴다. 한쪽만 바꾸지 않는다.
 
 ## 1. Naming Convention
@@ -83,7 +83,7 @@ export const LOADING_INDICATOR_DELAY_MS = 300;
 
 ### 1.5 Feature · 디렉터리 이름
 
-- feature 디렉터리는 **소문자 단수형**: `player`, `library`, `paywall`. 화면 명세 문서명과 대응시킨다(`docs/pages/library.md` ↔ `features/library`).
+- feature 디렉터리는 **소문자 단수형**: `player`, `library`, `paywall`. 화면 명세 문서명과 대응시킨다(`docs/features/library.md` ↔ `features/library`).
 - 하위 디렉터리는 고정 이름만 쓴다: `screens/ components/ hooks/ api/ services/ store/`. 새 종류가 필요하면 이 문서에 추가한 뒤 쓴다.
 
 ### 1.6 표기 경계 정리

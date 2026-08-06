@@ -1,9 +1,9 @@
 # 설정 API 명세서
 
-> 기준 문서: [`docs/pages/settings.md`](../../pages/settings.md)
-> 관련 규칙: [`docs/pages/notification.md`](../../pages/notification.md) 4.2(알림 토글)·4.1(사전 안내 유도 배너) · [`docs/pages/interest-management.md`](../../pages/interest-management.md) 3장(자동 확장 토글) · [`docs/pages/career.md`](../../pages/career.md)(커리어 정보 화면)
+> 기준 문서: [`docs/features/settings.md`](../../features/settings.md)
+> 관련 규칙: [`docs/features/notification.md`](../../features/notification.md) 4.2(알림 토글)·4.1(사전 안내 유도 배너) · [`docs/features/interest-management.md`](../../features/interest-management.md) 3장(자동 확장 토글) · [`docs/features/career.md`](../../features/career.md)(커리어 정보 화면)
 > 규약: [`docs/backend/convention.md`](../../backend/convention.md) 5장 · [`docs/backend/architecture.md`](../../backend/architecture.md) 7·9장
-> 오류·재시도: [`docs/pages/common-error-handling.md`](../../pages/common-error-handling.md)
+> 오류·재시도: [`docs/features/common-error-handling.md`](../../features/common-error-handling.md)
 > 스키마: [`docs/backend/domain.md`](../../backend/domain.md) 3.1 · 3.2 · 3.5 · 3.6 · 8장
 
 ## 1. 범위

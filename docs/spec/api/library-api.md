@@ -1,9 +1,9 @@
 # 라이브러리 API 명세서
 
-> 기준 문서: [`docs/pages/library.md`](../../pages/library.md)
-> 판정 소유: [`docs/pages/paywall.md`](../../pages/paywall.md) 4.1~4.3 (재생 한도·차감·확인 팝업)
+> 기준 문서: [`docs/features/library.md`](../../features/library.md)
+> 판정 소유: [`docs/features/paywall.md`](../../features/paywall.md) 4.1~4.3 (재생 한도·차감·확인 팝업)
 > 규약: [`docs/backend/convention.md`](../../backend/convention.md) 5장 · [`docs/backend/architecture.md`](../../backend/architecture.md) 7·9장
-> 오류·재시도: [`docs/pages/common-error-handling.md`](../../pages/common-error-handling.md)
+> 오류·재시도: [`docs/features/common-error-handling.md`](../../features/common-error-handling.md)
 > 스키마: [`docs/backend/domain.md`](../../backend/domain.md) 6장
 
 ## 1. 범위

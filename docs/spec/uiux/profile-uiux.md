@@ -1,6 +1,6 @@
 # 프로필 UI/UX 명세서
 
-> 기준 문서: [`docs/pages/profile.md`](../../pages/profile.md) · 이메일 인증 규칙은 [`docs/pages/auth.md`](../../pages/auth.md) 4.4~4.5, 커리어 편집 화면은 [`docs/pages/career.md`](../../pages/career.md), 로딩·오류 표현은 [`docs/pages/common-error-handling.md`](../../pages/common-error-handling.md)
+> 기준 문서: [`docs/features/profile.md`](../../features/profile.md) · 이메일 인증 규칙은 [`docs/features/auth.md`](../../features/auth.md) 4.4~4.5, 커리어 편집 화면은 [`docs/features/career.md`](../../features/career.md), 로딩·오류 표현은 [`docs/features/common-error-handling.md`](../../features/common-error-handling.md)
 > 와이어프레임: [`docs/wireframe/profile.html`](../../wireframe/profile.html) (화면 ID P1–P10)
 > API: [`profile-api.md`](../api/profile-api.md)
 
@@ -306,7 +306,7 @@ P1~P5 ─[⚙ 설정 아이콘]─> 설정 화면 (settings-uiux.md)
 
 ## 10. 합의 사항
 
-2026-08-06 합의로 확정되어 pages(`profile.md` · `career.md`)와 이 문서에 반영을 마친 항목들이다.
+2026-08-06 합의로 확정되어 features(`profile.md` · `career.md`)와 이 문서에 반영을 마친 항목들이다.
 
 - 관심사 관리 카드와 커리어 정보 카드를 분리한다. 편집 화면도 분리한다 — 관심사 관리 카드는 관심사 관리 페이지로, 커리어 정보 카드는 커리어 정보 페이지(`career.md`)로 이동한다.
 - 관심 주제 관리에서 관심 주제를 최소 1개는 선택해야 저장할 수 있도록 강제한다 — 프로필에 0개 요약 상태가 생기지 않는다.

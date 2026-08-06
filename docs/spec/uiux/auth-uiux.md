@@ -1,6 +1,6 @@
 # 인증·계정 UI/UX 명세서
 
-> 기준 문서: [`docs/pages/auth.md`](../../pages/auth.md)
+> 기준 문서: [`docs/features/auth.md`](../../features/auth.md)
 > 와이어프레임: [`docs/wireframe/auth.html`](../../wireframe/auth.html) (화면 ID A1–A18)
 > API: [`auth-api.md`](../api/auth-api.md)
 

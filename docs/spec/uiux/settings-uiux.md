@@ -1,6 +1,6 @@
 # 설정 UI/UX 명세서
 
-> 기준 문서: [`docs/pages/settings.md`](../../pages/settings.md) · 알림 토글·OS 권한·사전 안내는 [`docs/pages/notification.md`](../../pages/notification.md) 4.1~4.2, 로그아웃·탈퇴·이메일·동의는 [`docs/pages/auth.md`](../../pages/auth.md), 커리어 편집 화면은 [`docs/pages/career.md`](../../pages/career.md), 로딩·오류 표현은 [`docs/pages/common-error-handling.md`](../../pages/common-error-handling.md)
+> 기준 문서: [`docs/features/settings.md`](../../features/settings.md) · 알림 토글·OS 권한·사전 안내는 [`docs/features/notification.md`](../../features/notification.md) 4.1~4.2, 로그아웃·탈퇴·이메일·동의는 [`docs/features/auth.md`](../../features/auth.md), 커리어 편집 화면은 [`docs/features/career.md`](../../features/career.md), 로딩·오류 표현은 [`docs/features/common-error-handling.md`](../../features/common-error-handling.md)
 > 와이어프레임: [`docs/wireframe/settings.html`](../../wireframe/settings.html) (화면 ID S1–S7)
 > API: [`settings-api.md`](../api/settings-api.md)
 
@@ -236,7 +236,7 @@
 
 ## 10. 합의 사항
 
-2026-08-06 합의로 확정되어 pages(`settings.md` · `notification.md`)와 이 문서에 반영을 마친 항목들이다.
+2026-08-06 합의로 확정되어 features(`settings.md` · `notification.md`)와 이 문서에 반영을 마친 항목들이다.
 
 - 알림 토글의 사용자 노출 명칭은 **"이어 PICK 알림"** 이다 — "PICK"은 전부 대문자("이어 Pick" 표기는 정정됐다). "드립"은 내부 용어라 화면에 노출하지 않는다.
 - 문의 채널은 **카카오톡 채널**을 이용한다. 열 수 없으면 채널 링크 복사 다이얼로그로 폴백한다.

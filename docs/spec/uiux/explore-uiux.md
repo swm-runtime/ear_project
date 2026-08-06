@@ -1,6 +1,6 @@
 # 탐색 · 검색 UI/UX 명세서
 
-> 기준 문서: [`docs/pages/explore.md`](../../pages/explore.md) · 재생 판정·확인 팝업은 [`docs/pages/paywall.md`](../../pages/paywall.md), 로딩·오류 표현은 [`docs/pages/common-error-handling.md`](../../pages/common-error-handling.md)
+> 기준 문서: [`docs/features/explore.md`](../../features/explore.md) · 재생 판정·확인 팝업은 [`docs/features/paywall.md`](../../features/paywall.md), 로딩·오류 표현은 [`docs/features/common-error-handling.md`](../../features/common-error-handling.md)
 > 와이어프레임: [`docs/wireframe/explore.html`](../../wireframe/explore.html) (화면 ID E1–E12)
 > API: [`explore-api.md`](../api/explore-api.md)
 
@@ -294,7 +294,7 @@ E1·E2·검색 결과의 행 본문 탭 ──> 재생 한도 판정 (paywall.md
 - **재생 자동 적립의 문서 간 충돌** — `explore-api.md` 9장 참조(`library-api.md` 4.4 설계 메모의 문구 정리 필요). 동작 자체는 확정(재생 개시 후 `save(reason=auto_play)`).
 - **최상위 티어 한도 안내의 시각 형태** — 문구("오늘 청취 한도를 모두 사용했어요")는 `paywall.md` 4.1로 확정됐으나 표현 형태(토스트/다이얼로그/시트)가 미정이다. `paywall.md` 확정 대기 — 확정 전 임시 구현은 토스트를 권장(재시도를 유도할 후속 행동이 없다).
 - ~~와이어프레임 동기화~~ → **완료(2026-08-06)** — `explore.html` E12 시트에서 [공유] 행 제거(MVP 미노출), E5에 최상위 티어 한도 안내 분기 반영됨.
-- ~~pages(`explore.md`)의 담기 UI 서술 개정~~ → **해소(2026-08-06): `explore.md` 4.1·4.3이 더보기 시트 소유·행 담김 표시 구성으로 개정 완료.**
+- ~~features(`explore.md`)의 담기 UI 서술 개정~~ → **해소(2026-08-06): `explore.md` 4.1·4.3이 더보기 시트 소유·행 담김 표시 구성으로 개정 완료.**
 - ~~"상세" 진입점~~ → **확정(합의 2026-08-06): 상세 화면을 두지 않는다. 추후 명세를 추가한 뒤 개발하며, 그 전까지 더보기 시트에 상세 항목이 없다(`explore.md` 3장).**
 - ~~검색(P1) 제외 시 검색창 처리~~ → **확정(합의 2026-08-06): 검색은 P1 유지, 검색창은 비활성 상태로 노출한다(`explore.md` 4.5).** 잔여 표시 자리(검색창 줄 우측)도 그대로 유지된다.
 - ~~잔여 표시의 시각적 비중~~ → **확정(합의 2026-08-06): 한도 미만 여부와 무관하게 상시 노출한다(`explore.md` 4.4-1).**
@@ -303,7 +303,7 @@ E1·E2·검색 결과의 행 본문 탭 ──> 재생 한도 판정 (paywall.md
 
 ## 10. 합의 사항
 
-2026-08-06 합의로 확정되어 pages(`explore.md` · `paywall.md`)와 이 문서에 반영을 마친 항목들이다.
+2026-08-06 합의로 확정되어 features(`explore.md` · `paywall.md`)와 이 문서에 반영을 마친 항목들이다.
 
 - **오프라인 캐시 피드는 사용하지 않는다** — E10은 에러 화면 + [다시 시도]다(4.8).
 - 탐색에서 재생한 콘텐츠는 라이브러리에 담기가 되는 것이 맞고, 라이브러리에서 재생한 콘텐츠는 이미 라이브러리에 담겨 있으므로 추가 자동 담기가 동작하지 않는 것이 맞다.

@@ -1,6 +1,6 @@
 # 라이브러리 UI/UX 명세서
 
-> 기준 문서: [`docs/pages/library.md`](../../pages/library.md) · 재생 판정·확인 팝업은 [`docs/pages/paywall.md`](../../pages/paywall.md), 로딩·오류 표현은 [`docs/pages/common-error-handling.md`](../../pages/common-error-handling.md)
+> 기준 문서: [`docs/features/library.md`](../../features/library.md) · 재생 판정·확인 팝업은 [`docs/features/paywall.md`](../../features/paywall.md), 로딩·오류 표현은 [`docs/features/common-error-handling.md`](../../features/common-error-handling.md)
 > 와이어프레임: [`docs/wireframe/library.html`](../../wireframe/library.html) (화면 ID L1–L11)
 > API: [`library-api.md`](../api/library-api.md)
 

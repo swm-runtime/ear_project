@@ -2,7 +2,7 @@
 
 > 이 문서는 '이어' 프론트엔드(모바일 앱)의 **구조 기준 문서**다. 코드 작성 규칙(네이밍·파일 구성·컴포넌트 작성법 등)은 [convention.md](convention.md)에서 다룬다.
 >
-> 연결 문서: `docs/prd/ear_root_prd.md`, `docs/backend/architecture.md`, `docs/backend/convention.md`, `docs/pages/common-error-handling.md`, `docs/pages/*`, `docs/spec/*`
+> 연결 문서: `docs/prd/ear_root_prd.md`, `docs/backend/architecture.md`, `docs/backend/convention.md`, `docs/features/common-error-handling.md`, `docs/features/*`, `docs/spec/*`
 >
 > **문서 운용 원칙**
 > - 이 문서와 충돌하는 구현은 리뷰에서 반려한다. 구현이 옳다면 문서를 먼저 고친다.
@@ -15,7 +15,7 @@ Frontend는 다음 5가지를 책임진다.
 
 | 책임 | 내용 |
 |---|---|
-| **화면 렌더링·상호작용** | 명세(`docs/pages/*`, `docs/spec/uiux/*`)가 정의한 화면 상태·전이를 구현 |
+| **화면 렌더링·상호작용** | 명세(`docs/features/*`, `docs/spec/uiux/*`)가 정의한 화면 상태·전이를 구현 |
 | **서버 계약 준수** | API 계약(`docs/spec/api/*`)대로 요청·응답 처리. 에러 규격·재시도 정책(`common-error-handling.md`) 이행 |
 | **재생 경험** | 전역 오디오 재생(백그라운드·잠금화면 제어), 재생 위치·청취 시간 트래킹, 미니플레이어 |
 | **로컬 영속** | 토큰 보안 저장, 오프라인 큐, 재생 위치 로컬 우선 기록, 목록·피드 캐시 |
@@ -102,7 +102,7 @@ Hook (ViewModel)  ──▶  Query / Mutation (TanStack Query)  ──▶  api/ 
 
 ### 4.1 분리 기준
 
-**Feature는 화면 명세(`docs/pages/*`) 단위로 나눈다.** Backend가 Entity 소유권으로 나누듯, Frontend는 명세 문서가 정의한 도메인 화면 묶음이 소유권 단위다.
+**Feature는 화면 명세(`docs/features/*`) 단위로 나눈다.** Backend가 Entity 소유권으로 나누듯, Frontend는 명세 문서가 정의한 도메인 화면 묶음이 소유권 단위다.
 
 ```
 auth / onboarding / library / explore / player / paywall / subscription

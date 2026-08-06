@@ -1,6 +1,6 @@
 # 온보딩 UI/UX 명세서
 
-> 기준 문서: [`docs/pages/onboarding.md`](../../pages/onboarding.md)
+> 기준 문서: [`docs/features/onboarding.md`](../../features/onboarding.md)
 > 와이어프레임: [`docs/wireframe/onboarding.html`](../../wireframe/onboarding.html) (화면 ID O1–O11)
 > API: [`onboarding-api.md`](../api/onboarding-api.md)
 

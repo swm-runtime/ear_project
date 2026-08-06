@@ -2,7 +2,7 @@
 
 | 항목 | 값 |
 |---|---|
-| 대상 문서 | `docs/pages/common-error-handling.md` |
+| 대상 문서 | `docs/features/common-error-handling.md` |
 | 위치 | 6장 에러 코드 표 |
 | 요청 파트 | 백엔드 |
 | 관련 작업 | 온보딩 백엔드 구현 (`feat(be)/onboarding`) |

@@ -15,7 +15,7 @@ AI 생성 팟캐스트 서비스 '이어'의 저장소. 3인 팀, 백엔드는 N
 
 ```
 prd/          무엇을·왜 만드는가 (FR-01~39)
-  └─ pages/         화면·기능별 동작 규칙의 소유자 (판정·상태 전이·예외)
+  └─ features/         화면·기능별 동작 규칙의 소유자 (판정·상태 전이·예외)
        ├─ spec/api/       동작 규칙의 HTTP 계약 표현 (엔드포인트·DTO·에러 코드)
        ├─ spec/uiux/      동작 규칙의 화면 표현 (화면 ID·상태·카피·접근성)
        └─ wireframe/      화면 ID의 시각 참조 (HTML)
@@ -25,7 +25,7 @@ changes/      개발 중 발견한 문서 수정 사항의 기록 — 통합 과
 tickets/      통합 테스트 중 발견한 코드 수정 사항의 기록 — 테스트 종료 후 반영 (<파트>/pending/ → <파트>/archive/)
 ```
 
-문서 간 규칙이 충돌하면 **동작 규칙은 `pages/`가, 스키마는 `backend/domain.md`가, 통신 계약은 `spec/api/`가 기준**이다.
+문서 간 규칙이 충돌하면 **동작 규칙은 `features/`가, 스키마는 `backend/domain.md`가, 통신 계약은 `spec/api/`가 기준**이다.
 
 ### 요청 문서 — `changes/`와 `tickets/`
 
@@ -36,7 +36,7 @@ tickets/      통합 테스트 중 발견한 코드 수정 사항의 기록 — 
 
 - **끝난 요청은 `pending/`에서 `archive/`로 옮긴다.** `tickets/frontend/pending/` → `tickets/frontend/archive/`, `changes/pending/` → `changes/archive/`. 옮기지 않으면 `pending/`에 이미 처리된 항목이 쌓이고, 목록을 아무도 믿지 않게 된다.
 - **티켓은 그 수정을 담은 PR에서 함께 옮긴다.** 나중에 몰아서 정리하지 않는다 — 문서 반영은 대상 문서를 열면 확인되지만, 티켓은 코드가 고쳐졌는지 따로 봐야 해서 미루면 아무도 판단할 수 없다.
-- **모든 요청 문서에 "완료 조건"을 Given/When/Then으로 적는다**(`pages/`의 완료 조건과 같은 형식). 옮길지 말지가 취향이 아니라 확인 가능한 판정이 된다.
+- **모든 요청 문서에 "완료 조건"을 Given/When/Then으로 적는다**(`features/`의 완료 조건과 같은 형식). 옮길지 말지가 취향이 아니라 확인 가능한 판정이 된다.
 - 반영하지 못하고 보류할 때는 **보류 사유와 남은 결정 항목을 문서 안에 덧붙인 뒤** `pending/`에 둔다. 다음에 집는 사람이 같은 조사를 반복하지 않게 한다.
 
 `ls docs/tickets/<파트>/pending`이 곧 그 파트의 할 일 목록이다.
@@ -45,24 +45,24 @@ tickets/      통합 테스트 중 발견한 코드 수정 사항의 기록 — 
 
 | 상황 | 참조 순서 |
 |---|---|
-| 새 화면·기능 개발 시작 | `pages/<화면>.md`(규칙) → `spec/api/<화면>-api.md`(계약) → `spec/uiux/<화면>-uiux.md`(화면 상태·카피) → `wireframe/<화면>.html` |
-| API 계약 확인·DTO 작성 | `spec/api/<화면>-api.md` 그대로 선언. api 문서가 없는 화면은 `pages/<화면>.md` "데이터 모델" + `backend/domain.md`로 추정하되 확정 계약으로 취급하지 않는다 |
+| 새 화면·기능 개발 시작 | `features/<화면>.md`(규칙) → `spec/api/<화면>-api.md`(계약) → `spec/uiux/<화면>-uiux.md`(화면 상태·카피) → `wireframe/<화면>.html` |
+| API 계약 확인·DTO 작성 | `spec/api/<화면>-api.md` 그대로 선언. api 문서가 없는 화면은 `features/<화면>.md` "데이터 모델" + `backend/domain.md`로 추정하되 확정 계약으로 취급하지 않는다 |
 | 필드·테이블·enum 값 확인 | `backend/domain.md` (유일한 기준. 문서에 없는 컬럼을 코드에 임의로 추가하지 않는다) |
-| 에러 계약·재시도·오프라인 정책 | `pages/common-error-handling.md`(정책) + 구현 위치는 각 파트 architecture.md |
+| 에러 계약·재시도·오프라인 정책 | `features/common-error-handling.md`(정책) + 구현 위치는 각 파트 architecture.md |
 | 서버 구조·코드 작성 | `backend/architecture.md` · `backend/convention.md` |
 | 클라이언트 구조·코드 작성 | `frontend/architecture.md` · `frontend/convention.md` |
 | 커밋·브랜치·PR | `backend/convention.md` 6장(원본 기준) · `frontend/convention.md` 6장(FE 적용값) |
-| 정책 근거("왜 이렇게 동작?") | `prd/ear_root_prd.md`(FR·결정 포인트) → `pages/README.md`(확정된 결정 사항 목록) |
-| 재생 한도·페이월 판정 | `pages/paywall.md` (판정 소유자. 다른 화면 문서는 여는 지점만 소유) |
-| 드립(자동 편성) 동작 | `pages/drip-scheduling.md` |
+| 정책 근거("왜 이렇게 동작?") | `prd/ear_root_prd.md`(FR·결정 포인트) → `features/README.md`(확정된 결정 사항 목록) |
+| 재생 한도·페이월 판정 | `features/paywall.md` (판정 소유자. 다른 화면 문서는 여는 지점만 소유) |
+| 드립(자동 편성) 동작 | `features/drip-scheduling.md` |
 | 새 기능 명세 작성 | `prd/next_doing.md`의 8항목 템플릿 |
 
 ### 파일별 인덱스
 
 **`prd/`** — `ear_root_prd.md`(루트 PRD: FR-01~39, 티어 정책, 비기능 요구, 결정 포인트) · `next_doing.md`(명세 작성 템플릿)
 
-**`pages/`** — 동작 규칙의 원본. api·uiux와 충돌하면 이쪽이 기준.
-- `README.md` — pages 인덱스 + 확정된 결정 사항 목록
+**`features/`** — 동작 규칙의 원본. api·uiux와 충돌하면 이쪽이 기준.
+- `README.md` — features 인덱스 + 확정된 결정 사항 목록
 - `splash.md` 실행 관문 4단계 판정 · `auth.md` 소셜 로그인·이메일 인증·탈퇴 · `onboarding.md` 주제 선택→커리어→담기
 - `library.md` 첫 화면, 통합 목록·탭·삭제/실행취소 · `player.md` 재생·위치 저장·완청 판정 값 · `explore.md` 추천 피드·검색·담기
 - `paywall.md` **재생 한도 판정·차감·확인 팝업 소유** · `subscription.md` 구독·영수증 검증·복원

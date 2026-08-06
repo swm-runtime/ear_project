@@ -2,7 +2,7 @@
 
 # 인증·계정 API 명세서
 
-> 기준 문서: [`docs/pages/auth.md`](../../pages/auth.md)
+> 기준 문서: [`docs/features/auth.md`](../../features/auth.md)
 규약: [`docs/backend/convention.md`](../../backend/convention.md) 5장 · [`docs/backend/architecture.md`](../../backend/architecture.md) 7·9장
 스키마: [`docs/backend/domain.md`](../../backend/domain.md) 3장
 > 
