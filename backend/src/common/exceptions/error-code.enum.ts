@@ -3,7 +3,7 @@
  * 문자열 리터럴을 직접 던지지 않는다.
  *
  * 도메인 코드를 추가·변경하면 해당 API 명세와
- * `docs/pages/common-error-handling.md` 6장 표를 함께 갱신한다.
+ * `docs/features/common-error-handling.md` 6장 표를 함께 갱신한다.
  */
 export enum ErrorCode {
   // --- 기반 코드 (도메인 무관) ---
