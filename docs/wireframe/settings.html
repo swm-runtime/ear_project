@@ -99,12 +99,12 @@
             </div>
             <span class="t-label">알림</span>
             <div style="display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--line)">
-              <span style="flex:1; font-weight:600">드립 도착 알림<span class="mk w">6</span></span>
+              <span style="flex:1; font-weight:600">이어 Pick 알림<span class="mk">6</span></span>
               <span style="width:34px; height:20px; border-radius:99px; background:var(--brand); position:relative; flex:none"><i style="position:absolute; top:2px; right:2px; width:16px; height:16px; border-radius:99px; background:#fff"></i></span>
             </div>
             <span class="t-label">정보</span>
             <div style="display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--line)">
-              <span style="flex:1; font-weight:600">공지사항 · 이용약관 · 개인정보처리방침</span>
+              <span style="flex:1; font-weight:600">공지사항 · 이용약관 · 개인정보처리방침<span class="mk">18</span></span>
               <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
             </div>
             <div style="display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--line)">
@@ -129,17 +129,18 @@
         <li><span class="n">3</span><span>구독 요약은 <b>프로필과 같은 문구·같은 조립 함수</b>를 쓴다("무료 이용 중 · 하루 N편" / "다음 결제일 N월 N일" / "N월 N일까지 이용 가능" / 결제 문제 경고). 두 화면이 같은 값을 다른 말로 표시하면 어느 쪽이 맞는지 사용자가 판단하게 된다. <span class="ref">settings 5 · settings-api 4.1 · profile-uiux 4.2·4.4</span></span></li>
         <li><span class="n">4</span><span>관심 주제 관리·커리어 정보는 <b>interest-management의 편집 화면</b>으로 간다(커리어는 그 화면의 커리어 섹션으로 스크롤 진입). 주제 자동 확장 토글(FR-06)은 <b>P1 미구현 상태라 섹션을 그리지 않았다</b> — 도입 시 콘텐츠 섹션에 토글로 추가된다. <span class="ref">settings 4.1 · interest-management 3 · 5</span></span></li>
         <li><span class="n">5</span><span>기본 배속은 현재 값을 항목에 상시 표시하고, 선택 시트에서 <b>고르는 즉시 저장 + 닫힘</b>이다. 허용값(0.8/1.0/1.2/1.5/2.0)은 서버도 검증한다. [저장] 버튼을 두지 않는다 — 일괄 편집인 관심사 관리 화면만 예외. <span class="ref">settings 4.1 · 4.2 · settings-api 4.2</span></span></li>
-        <li><span class="n w">6</span><span>항목명 "드립 도착 알림"은 pages 표기 그대로지만 <b>"드립"은 내부 용어라 화면 노출 금지 원칙과 충돌</b>한다(라이브러리의 배지 "드립"과 같은 문제). 후보: "새 콘텐츠 알림". → V1 <span class="ref">settings 4.1 · library-uiux 6 · notification</span></span></li>
-        <li><span class="n">7</span><span>문의하기는 메일 앱을 연다(진단 정보 자동 첨부). <b>메일 앱이 없으면 문의 주소를 복사할 수 있는 다이얼로그로 폴백.</b> 채널 자체(메일/폼/채널톡)는 미결. → V2 <span class="ref">settings 4.1 · 7 · 미결</span></span></li>
+        <li><span class="n">6</span><span>항목명은 합의(2026-08-06)로 <b>"이어 Pick 알림"</b>으로 확정 — "드립"은 내부 용어라 화면 노출 금지 원칙(library-uiux 6장)과 충돌하던 문제를 해소했다. settings.md 반영 완료. <b>notification.md 자체의 문구 개정은 pages 담당 반영 대기.</b> → V1·V4 <span class="ref">settings 4.1 · library-uiux 6 · notification 4.3</span></span></li>
+        <li><span class="n">7</span><span>문의하기는 <b>카카오톡 채널</b>을 연다(합의 2026-08-06으로 확정). <b>채널을 열 수 없으면(미설치·실패) 채널 링크를 복사할 수 있는 다이얼로그로 폴백</b>(settings.md 7장 반영 완료). <span class="ref">settings 4.1 · 7</span></span></li>
         <li><span class="n">8</span><span>회원 탈퇴는 <b>로그아웃과 같은 무게로 나란히 두지 않는다</b> — 최하단에 낮은 시각 비중으로. 단 숨기지 않고 포커스 순서에서도 빼지 않는다. 탈퇴 화면(안내·확인)은 auth 소유이며, 스토어 해지 안내는 텍스트만(딥링크 금지). <span class="ref">settings-uiux 4.1 · auth 4.3</span></span></li>
+        <li><span class="n">18</span><span>공지사항은 <b>인앱 화면</b>으로 확정(합의 2026-08-06) — 목록·본문 화면의 명세는 추후 작성한다. 앱 버전 항목의 <code>latest_version</code> 원천(배포 설정 수동 기입 vs 스토어 조회)은 합의 범위 밖이라 미결로 남는다. → V5 <span class="ref">settings 4.1 · settings-api 9</span></span></li>
       </ul>
     </article>
 
     <!-- S2 -->
     <article class="shot">
       <div class="shot-head">
-        <span class="shot-id">S2</span><h3>무료 · 이메일 미등록</h3>
-        <p class="cap">구독 안내 강조 + [등록]</p>
+        <span class="shot-id">S2</span><h3>무료 · 이메일 미등록 · OS 권한 미결정</h3>
+        <p class="cap">구독 안내 강조 + [등록] · 알림 유도 배너</p>
       </div>
       <div class="device">
         <div class="island"></div>
@@ -176,8 +177,12 @@
             </div>
             <span class="t-label">알림</span>
             <div style="display:flex; align-items:center; gap:8px; padding:7px 0">
-              <span style="flex:1; font-weight:600">드립 도착 알림</span>
+              <span style="flex:1; font-weight:600">이어 Pick 알림</span>
               <span style="width:34px; height:20px; border-radius:99px; background:var(--line-2); position:relative; flex:none"><i style="position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:99px; background:#fff"></i></span>
+            </div>
+            <div class="banner" style="margin-top:2px; font-size:12px">
+              <span>알림을 켜면 새 콘텐츠가 도착할 때 알려드려요<span class="mk">19</span></span>
+              <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
             </div>
             <div class="grow"></div>
           </div>
@@ -187,6 +192,7 @@
       <ul class="notes">
         <li><span class="n">9</span><span>이메일 미등록이어도 <b>등록을 강요하지 않는다.</b> [등록] 탭 시 인증 화면으로 이동하고, 성공하면 설정으로 복귀해 항목이 갱신된다. <span class="ref">settings 5 · auth 4.4</span></span></li>
         <li><span class="n">10</span><span>무료 사용자는 구독 섹션이 카드 형태로 강조된다 — "무료 이용 중 · 하루 N편"의 N은 서버 값(<code>plans.daily_play_limit</code>). <b>무료 티어도 드립을 받으므로</b> 알림 토글은 티어와 무관하게 노출·동작한다. <span class="ref">settings 5 · paywall 5 · notification 4.3</span></span></li>
+        <li><span class="n">19</span><span><b>알림 사전 안내 유도 배너 — (b)안 채택(합의 2026-08-06).</b> 온보딩에서 사전 안내를 못 봐 <b>OS 권한이 미결정인 사용자에게만</b> 알림 섹션에 <b>상시 노출</b>한다. 배너 탭 → 사전 안내 → [알림 받기]에서 OS 다이얼로그. <b>권한이 결정되면(허용·거부) 배너를 숨긴다.</b> 규칙 소유는 notification.md — (b)안의 문서 반영은 pages 담당 대기. → V1·V4 <span class="ref">settings 4.3 · notification 4.1</span></span></li>
       </ul>
     </article>
 
@@ -271,7 +277,7 @@
           <div class="body" style="gap:8px; font-size:12.5px; opacity:.45">
             <span class="t-label">알림</span>
             <div style="display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--line)">
-              <span style="flex:1; font-weight:600">드립 도착 알림</span>
+              <span style="flex:1; font-weight:600">이어 Pick 알림</span>
               <span style="width:34px; height:20px; border-radius:99px; background:var(--line-2); position:relative; flex:none"><i style="position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:99px; background:#fff"></i></span>
             </div>
           </div>
@@ -398,7 +404,7 @@
           <div class="body" style="gap:8px; font-size:12.5px">
             <span class="t-label">알림</span>
             <div style="display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--line)">
-              <span style="flex:1; font-weight:600">드립 도착 알림</span>
+              <span style="flex:1; font-weight:600">이어 Pick 알림</span>
               <span style="width:34px; height:20px; border-radius:99px; background:var(--line-2); position:relative; flex:none"><i style="position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:99px; background:#fff"></i><span class="mk">17</span></span>
             </div>
             <div class="grow"></div>
@@ -419,31 +425,28 @@
 <section class="verify">
   <p class="sid">검토 필요</p>
   <h2>설정에서 나온 것</h2>
-  <p>허브 구성(계정 카드 없음·오프라인 저장 미노출)과 토글 규칙은 settings.md에서 확정되어 반영했습니다. 아래는 아직 남은 것입니다.</p>
+  <p>허브 구성(계정 카드 없음·오프라인 저장 미노출)과 토글 규칙은 settings.md에서 확정되어 반영했고, 미결 사항(알림 명칭·문의 채널·공지 형태·사전 안내 재노출)은 합의(2026-08-06)로 확정되어 settings.md와 이 시안에 반영을 마쳤습니다. 남은 것은 notification.md 반영 대기(V1·V4)와 V5입니다.</p>
 
   <div class="vlist">
     <div class="vitem">
-      <h3><span class="vid">V1</span>"드립 도착 알림" — 내부 용어가 화면에 노출된다</h3>
-      <p>"드립"은 내부 용어라 화면 노출 금지 원칙(library-uiux 6장)과 충돌합니다. 라이브러리의 출처 배지 "드립"과 같은 계열의 문제로, 알림 항목명·알림 문구("오늘의 콘텐츠 N편이 도착했어요"는 이미 중립적)의 정리가 필요합니다. 후보: "새 콘텐츠 알림". notification.md 확정 필요(changes/ 절차 대상).</p>
-      <p class="where">settings 4.1 / notification 4.3 / library-uiux 6 · 9 / 화면 S1</p>
+      <h3><span class="vid">V1·V4</span>notification.md 반영 대기 — "이어 Pick 알림" 문구 · (b)안</h3>
+      <p>합의(2026-08-06)로 알림 항목명은 <b>"이어 Pick 알림"</b>, 사전 안내 재노출은 <b>(b)안 — 설정 알림 섹션의 유도 배너 상시 노출</b>(OS 권한 미결정 사용자 대상, 권한 결정 시 숨김)로 확정됐고 pages/settings.md와 이 시안(S1·S2)에는 반영을 마쳤습니다. 다만 <b>규칙 소유 문서인 notification.md 자체의 문구 개정("드립 도착 알림" → "이어 Pick 알림")과 (b)안 반영은 pages 담당 반영 대기</b>입니다. settings-api 응답의 배너 노출 대상 여부 필드도 이 반영과 함께 확정됩니다.</p>
+      <p class="where">notification 4.1 · 4.3 / settings-api 9 / 화면 S1 · S2</p>
     </div>
 
     <div class="vitem">
-      <h3><span class="vid">V4</span>알림 사전 안내를 못 본 사용자의 재노출 — P0 미결</h3>
-      <p>0건 담기 사용자가 첫 드립 로딩 중 앱을 종료하면 온보딩의 알림 사전 안내를 영영 보지 못합니다(notification 4.1). 재노출 경로 (a) 라이브러리 첫 진입 시 1회 / <b>(b) 설정 알림 항목에 유도 배너 상시</b> 중 (b)가 채택되면 이 화면의 알림 섹션에 배너가 추가되고 settings-api 응답에 노출 대상 여부가 실려야 합니다. OS 권한은 거부되면 되돌릴 수 없어 미룰수록 손실이 확정됩니다.</p>
-      <p class="where">notification 4.1 · 미결(P0) / settings-api 9 / 화면 S1</p>
+      <h3><span class="vid">V5</span>앱 버전 latest_version 원천 미정</h3>
+      <p>공지사항이 인앱 화면으로 확정되면서 V3의 URL/API 질문은 닫혔지만, 앱 버전 항목의 <code>latest_version</code> 원천(배포 설정 수동 기입 vs 스토어 조회)은 합의 범위 밖이라 그대로 미결입니다.</p>
+      <p class="where">settings 미결 / settings-api 9 / 화면 S1 · S3</p>
     </div>
 
     <div class="vitem soft">
-      <h3><span class="vid">V2</span>문의 채널 미확정</h3>
-      <p>메일 앱 / 폼(진단 정보 자동 첨부) / 채널톡 중 미정입니다. 시안은 메일 앱 + 주소 복사 폴백 기준으로 그렸고, 폼으로 확정되면 settings-api에 엔드포인트가 추가됩니다.</p>
-      <p class="where">settings 4.1 · 미결 / settings-api 9 / 화면 S1</p>
-    </div>
-
-    <div class="vitem soft">
-      <h3><span class="vid">V3</span>공지사항 — 인앱 화면인가 웹뷰인가</h3>
-      <p>웹뷰면 URL(배포 설정)만으로 충분하고, 인앱 화면이면 목록 API가 필요합니다. 앱 버전 항목의 <code>latest_version</code> 원천(배포 설정 수동 기입 vs 스토어 조회)도 함께 미정입니다.</p>
-      <p class="where">settings 미결 / settings-api 9 / 화면 S1</p>
+      <h3><span class="vid">해소</span>합의(2026-08-06)로 해소 — settings.md·시안 반영 완료</h3>
+      <p>V1 알림 항목명 — <b>"이어 Pick 알림"</b>으로 확정, 화면 전체(S1·S2·S4·S7) 라벨 교체.<br>
+      V2 문의 채널 — <b>카카오톡 채널</b>로 확정, 채널을 열 수 없으면(미설치·실패) 채널 링크 복사 다이얼로그 폴백(settings.md 7장).<br>
+      V3 공지사항 — <b>인앱 화면</b>으로 확정, 화면 명세는 추후 작성.<br>
+      V4 사전 안내 재노출 — <b>(b)안 채택</b>, OS 권한 미결정 사용자에게 알림 섹션 유도 배너 상시 노출(S2)·권한 결정 시 숨김.</p>
+      <p class="where">settings 4.1 · 4.3 · 7 / 화면 S1 · S2 · S4 · S7</p>
     </div>
   </div>
 </section>
