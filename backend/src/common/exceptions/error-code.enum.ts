@@ -66,6 +66,30 @@ export enum ErrorCode {
   /** 완료된 계정의 온보딩 API 호출. 클라이언트는 라이브러리로 진입한다 */
   ONBOARDING_ALREADY_COMPLETED = 'ONBOARDING_ALREADY_COMPLETED',
 
+  // --- 라이브러리 (library-api.md 5장) ---
+  /** 커서 형식 오류, 또는 발급 시점과 다른 `filter`·`sort`·`topic_filter` */
+  LIBRARY_CURSOR_INVALID = 'LIBRARY_CURSOR_INVALID',
+  /**
+   * `:id`가 없거나 **요청자의 항목이 아님**.
+   * 남의 항목에 403을 주면 "그 항목이 존재한다"를 알려주게 되므로 404로 통일한다
+   * (library-api.md 7장 — IDOR 방지).
+   */
+  LIBRARY_ITEM_NOT_FOUND = 'LIBRARY_ITEM_NOT_FOUND',
+  /**
+   * 도달 위치가 완청 기준에 못 미침. **상태를 바꾸지 않는다.**
+   * 요청 형식이 아니라 현재 상태가 전이 조건을 만족하지 않는 것이라 400이 아니라 409다.
+   */
+  LIBRARY_COMPLETION_NOT_REACHED = 'LIBRARY_COMPLETION_NOT_REACHED',
+
+  // --- 재생 한도 (paywall.md 4.1 · library-api.md 5장) ---
+  /**
+   * 무료 티어 한도 소진 → 클라이언트는 **페이월 바텀시트**를 연다.
+   * 아래 `PLAY_LIMIT_REACHED`와 합치지 않는다 — 결제 유도와 안내는 화면이 다르다.
+   */
+  PLAY_LIMIT_EXCEEDED = 'PLAY_LIMIT_EXCEEDED',
+  /** 최상위 티어의 한도 소진 → 페이월이 아니라 한도 안내. 더 팔 것이 없다 */
+  PLAY_LIMIT_REACHED = 'PLAY_LIMIT_REACHED',
+
   // --- 콘텐츠 (공용 — common-error-handling.md 4.1) ---
   /** 담기 등에서 **건별 결과**로도 전달된다 (onboarding-api.md 4.6 `failed[]`) */
   CONTENT_NOT_FOUND = 'CONTENT_NOT_FOUND',
