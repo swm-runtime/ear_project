@@ -1,0 +1,28 @@
+.wrap {
+  display: grid;
+  place-items: center;
+  min-height: 62vh;
+  padding: clamp(72px, 12vw, 140px) 0;
+  text-align: center;
+}
+
+.code {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--brand-600);
+}
+
+.title {
+  margin-top: 16px;
+  font-size: clamp(28px, 4.6vw, 44px);
+}
+
+.lede {
+  margin: 18px auto 32px;
+  max-width: 44ch;
+  color: var(--text-2);
+  font-size: 16px;
+  line-height: 1.75;
+}

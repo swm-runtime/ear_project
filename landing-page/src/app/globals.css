@@ -1,0 +1,282 @@
+/* ============================================================
+   이어 랜딩페이지 — 전역 토큰과 기본 스타일
+   컴포넌트별 스타일은 각 *.module.css 가 갖는다. 여기에는
+   (1) 디자인 토큰, (2) 리셋·타이포 기본값, (3) 여러 섹션이 공유하는
+   레이아웃·버튼·섹션 헤더만 둔다.
+   ============================================================ */
+
+/* Pretendard 변수폰트 — 이 페이지에 실제로 쓰인 글자만 남긴 서브셋(≈86KB).
+   파일 하나로 100~900 굵기를 전부 커버한다. 문구를 고치면
+   `bash scripts/subset-fonts.sh`로 다시 만들어야 한다(빠진 글자는 시스템 글꼴로 떨어진다). */
+@font-face {
+  font-family: "Pretendard";
+  src: url("/fonts/pretendard-var.woff2") format("woff2-variations");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* --- 색: 잉크(짙은 남색 계열) --- */
+  --ink-950: #080a12;
+  --ink-900: #0c0f1a;
+  --ink-800: #141827;
+  --ink-700: #1d2233;
+  --ink-600: #2b3145;
+  --ink-400: #6e7590;
+  --ink-300: #949ab3;
+  --ink-200: #b9bdcd;
+
+  /* --- 색: 종이(따뜻한 흰 계열) --- */
+  --paper: #fbfaf7;
+  --paper-2: #f4f2ec;
+  --surface: #ffffff;
+  --line: #e7e4dc;
+  --line-2: #d6d2c7;
+
+  /* --- 색: 브랜드(새벽빛 앰버) --- */
+  --brand-700: #a45c17;
+  --brand-600: #c9761f;
+  --brand-500: #e29338;
+  --brand-400: #f2ab55;
+  --brand-300: #ffc98a;
+  --brand-100: #fbe6cd;
+  --brand-050: #fdf4e9;
+
+  --text: var(--ink-900);
+  --text-2: #4c5268;
+  --text-3: #767c92;
+
+  /* --- 타이포 --- */
+  --sans: "Pretendard", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+    "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  /* --- 형태 --- */
+  --r-sm: 8px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+  --r-pill: 999px;
+
+  --shadow-sm: 0 1px 2px rgba(12, 15, 26, 0.04), 0 6px 16px -10px rgba(12, 15, 26, 0.18);
+  --shadow-md: 0 2px 6px rgba(12, 15, 26, 0.05), 0 20px 42px -22px rgba(12, 15, 26, 0.3);
+  --shadow-lg: 0 4px 12px rgba(12, 15, 26, 0.07), 0 42px 80px -36px rgba(12, 15, 26, 0.45);
+
+  --container: 1140px;
+  --gutter: 24px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+  /* 앵커로 이동할 때 고정 헤더에 제목이 가리지 않게 한다. */
+  scroll-padding-top: 88px;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.7;
+  letter-spacing: -0.012em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* 한국어는 단어 중간에서도 줄이 바뀌므로 어절 단위 유지가 가독성에 크게 기여한다. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1.24;
+  text-wrap: balance;
+}
+
+p {
+  margin: 0;
+}
+
+ul,
+ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img,
+svg {
+  max-width: 100%;
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand-500);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* ---------- 공용 레이아웃 ---------- */
+
+.container {
+  width: 100%;
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+}
+
+.section {
+  padding: clamp(72px, 11vw, 132px) 0;
+}
+
+/* 어두운 배경 위 섹션에서 토큰만 갈아끼워 재사용한다. */
+.onDark {
+  background: var(--ink-900);
+  color: #f2f3f7;
+  --text: #f2f3f7;
+  --text-2: var(--ink-200);
+  --text-3: var(--ink-300);
+  --surface: rgba(255, 255, 255, 0.045);
+  --line: rgba(255, 255, 255, 0.11);
+  --line-2: rgba(255, 255, 255, 0.2);
+}
+
+/* ---------- 섹션 헤더 ---------- */
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--brand-600);
+}
+
+.eyebrow::before {
+  content: "";
+  width: 18px;
+  height: 2px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.onDark .eyebrow {
+  color: var(--brand-300);
+}
+
+.sectionTitle {
+  margin-top: 16px;
+  font-size: clamp(27px, 3.6vw, 40px);
+}
+
+.sectionLede {
+  margin-top: 16px;
+  max-width: 58ch;
+  color: var(--text-2);
+  font-size: clamp(15.5px, 1.5vw, 17.5px);
+}
+
+/* ---------- 버튼 ---------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 26px;
+  border: 1px solid transparent;
+  border-radius: var(--r-pill);
+  font-size: 15.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  transition: transform 0.18s ease, background-color 0.18s ease,
+    border-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
+}
+
+.btnPrimary {
+  background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
+  color: #241203;
+  box-shadow: 0 10px 26px -12px rgba(201, 118, 31, 0.85);
+}
+
+.btnPrimary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 34px -12px rgba(201, 118, 31, 0.95);
+}
+
+.btnGhost {
+  background: transparent;
+  border-color: var(--line-2);
+  color: var(--text);
+}
+
+.btnGhost:hover {
+  border-color: var(--text-3);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* ---------- 접근성 ---------- */
+
+.skipLink {
+  position: absolute;
+  left: 16px;
+  top: -60px;
+  z-index: 100;
+  padding: 10px 18px;
+  border-radius: var(--r-pill);
+  background: var(--ink-900);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  transition: top 0.18s ease;
+}
+
+.skipLink:focus {
+  top: 16px;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

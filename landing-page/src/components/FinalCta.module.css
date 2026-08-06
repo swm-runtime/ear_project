@@ -1,0 +1,56 @@
+.wrap {
+  padding: clamp(64px, 8vw, 104px) 0;
+}
+
+.panel {
+  position: relative;
+  overflow: hidden;
+  padding: clamp(48px, 7vw, 88px) clamp(28px, 5vw, 72px);
+  border-radius: clamp(24px, 3vw, 36px);
+  background: var(--ink-900);
+  color: #f2f3f7;
+  box-shadow: var(--shadow-lg);
+}
+
+.glow {
+  position: absolute;
+  inset: -50% -10% 20% 40%;
+  background: radial-gradient(
+    46% 46% at 50% 50%,
+    rgba(226, 147, 56, 0.34) 0%,
+    rgba(226, 147, 56, 0.1) 46%,
+    transparent 74%
+  );
+  pointer-events: none;
+}
+
+.content {
+  position: relative;
+  max-width: 46ch;
+}
+
+.title {
+  font-size: clamp(27px, 4vw, 44px);
+  line-height: 1.28;
+}
+
+.lede {
+  margin-top: 18px;
+  color: var(--ink-200);
+  font-size: clamp(15.5px, 1.6vw, 17px);
+  line-height: 1.75;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin-top: 32px;
+}
+
+.stores {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-300);
+}

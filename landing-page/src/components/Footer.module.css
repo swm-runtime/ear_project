@@ -1,0 +1,77 @@
+.footer {
+  background: var(--ink-950);
+  color: var(--ink-200);
+  padding: clamp(52px, 6vw, 76px) 0 32px;
+}
+
+.inner {
+  display: grid;
+  gap: 40px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: #fff;
+}
+
+.mark {
+  width: 26px;
+  height: 26px;
+  color: var(--brand-400);
+}
+
+.brandName {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+}
+
+.desc {
+  margin-top: 14px;
+  max-width: 38ch;
+  color: var(--ink-400);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.colTitle {
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+}
+
+.links ul {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.links a {
+  font-size: 14.5px;
+  color: var(--ink-200);
+  transition: color 0.18s ease;
+}
+
+.links a:hover {
+  color: var(--brand-300);
+}
+
+.bottom {
+  margin-top: clamp(40px, 5vw, 56px);
+  padding-top: 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 13px;
+  color: var(--ink-400);
+}
+
+@media (min-width: 820px) {
+  .inner {
+    grid-template-columns: minmax(0, 1.6fr) repeat(2, minmax(0, 1fr));
+    gap: 48px;
+  }
+}
