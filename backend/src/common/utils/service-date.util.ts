@@ -39,7 +39,7 @@ export function toServiceDate(date: Date): string {
  * **직전 확정 월**의 시작일 (`YYYY-MM-01`).
  *
  * 5월이면 4월을 가리킨다 — 진행 중인 달의 미확정 집계를 쓰면 순위가 매일 흔들린다
- * (domain.md 5.4, `pages/README.md` 결정 20번).
+ * (domain.md 5.4, `features/README.md` 결정 20번).
  */
 export function toPreviousFinalMonthStart(date: Date): string {
   const kst = toKstWallClock(date);

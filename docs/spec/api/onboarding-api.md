@@ -1,9 +1,9 @@
 # 온보딩 API 명세서
 
-> 기준 문서: [`docs/pages/onboarding.md`](../../pages/onboarding.md)
+> 기준 문서: [`docs/features/onboarding.md`](../../features/onboarding.md)
 > 규약: [`docs/backend/convention.md`](../../backend/convention.md) 5장 · [`docs/backend/architecture.md`](../../backend/architecture.md) 7·9장
 > 스키마: [`docs/backend/domain.md`](../../backend/domain.md) 3·4·5·6·7장
-> 연관: [`docs/pages/drip-scheduling.md`](../../pages/drip-scheduling.md) · [`docs/pages/common-error-handling.md`](../../pages/common-error-handling.md) 4.2
+> 연관: [`docs/features/drip-scheduling.md`](../../features/drip-scheduling.md) · [`docs/features/common-error-handling.md`](../../features/common-error-handling.md) 4.2
 
 ## 1. 범위
 

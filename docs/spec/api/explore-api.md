@@ -1,9 +1,9 @@
 # 탐색 · 검색 API 명세서
 
-> 기준 문서: [`docs/pages/explore.md`](../../pages/explore.md)
-> 판정 소유: [`docs/pages/paywall.md`](../../pages/paywall.md) 4.1~4.3 (재생 한도·차감·확인 팝업)
+> 기준 문서: [`docs/features/explore.md`](../../features/explore.md)
+> 판정 소유: [`docs/features/paywall.md`](../../features/paywall.md) 4.1~4.3 (재생 한도·차감·확인 팝업)
 > 규약: [`docs/backend/convention.md`](../../backend/convention.md) 5장 · [`docs/backend/architecture.md`](../../backend/architecture.md) 7·9장
-> 오류·재시도: [`docs/pages/common-error-handling.md`](../../pages/common-error-handling.md)
+> 오류·재시도: [`docs/features/common-error-handling.md`](../../features/common-error-handling.md)
 > 스키마: [`docs/backend/domain.md`](../../backend/domain.md) 5장 · 6장 · 7장
 
 ## 1. 범위
@@ -424,7 +424,7 @@ GET /explore/feed                       → 섹션형 피드 + daily_play_limit/
 
 ## 9. 미결 사항
 
-- ~~담기 UI의 pages 개정 필요~~ → **해소(2026-08-06): `explore.md` 4.3 개정 완료.** 담기/제거는 더보기 시트가 소유하고 행에는 담기 버튼이 없다("담김" 표시만) — 이 문서 4.3·4.4·6장이 그 확정과 정합한다.
+- ~~담기 UI의 features 개정 필요~~ → **해소(2026-08-06): `explore.md` 4.3 개정 완료.** 담기/제거는 더보기 시트가 소유하고 행에는 담기 버튼이 없다("담김" 표시만) — 이 문서 4.3·4.4·6장이 그 확정과 정합한다.
     - 제거는 `library`가 있는 모든 행에 **출처 무관**(`drip | save | onboarding` 전부 — `domain.md` 6.1) 허용으로 확정. 드립 적립분을 탐색에서 제거하면 `reason = unsave`로, 라이브러리에서 삭제하면 `library_delete`로 적재된다 — `reason`은 운영값이라 실질 차이는 없다(`domain.md` 7.1).
 - ~~"상세" 화면 처리~~ → **확정(합의 2026-08-06): 상세 화면을 두지 않는다**(`explore.md` 3장). 추후 명세를 추가한 뒤 개발하며, 그 전까지 더보기 시트에 상세 항목이 없고 **이 문서에도 상세 조회 엔드포인트를 두지 않는다.**
 - ~~검색창 처리~~ → **확정(합의 2026-08-06): 검색은 P1 유지, MVP에서는 검색창을 비활성 노출한다**(3장 설계 메모 · `explore.md` 4.5). 4.5 엔드포인트는 P1 착수 시 배포한다.

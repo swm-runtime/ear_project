@@ -2,7 +2,7 @@
 
 | 항목 | 값 |
 |---|---|
-| 대상 문서 | `docs/prd/ear_root_prd.md` · `docs/backend/domain.md` · `docs/pages/drip-scheduling.md` |
+| 대상 문서 | `docs/prd/ear_root_prd.md` · `docs/backend/domain.md` · `docs/features/drip-scheduling.md` |
 | 위치 | 아래 항목별 표기 (5개 지점) |
 | 요청 파트 | 백엔드 (팀 결정 전달) |
 | 성격 | **PRD 레벨 결정 정정** — 문서가 확정 사항과 다르게 적혀 있다 |

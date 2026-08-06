@@ -2,7 +2,7 @@
 
 > 이 문서는 '이어' 백엔드의 **구조 기준 문서**다. 코드 작성 규칙(네이밍·파일 구성·DTO 작성법 등)은 [convention.md](convention.md)에서 다룬다.
 >
-> 연결 문서: `docs/backend/domain.md`(스키마의 유일한 기준), `docs/prd/ear_root_prd.md`, `docs/pages/common-error-handling.md`, `docs/pages/content-pipeline.md`, `docs/pages/drip-scheduling.md`
+> 연결 문서: `docs/backend/domain.md`(스키마의 유일한 기준), `docs/prd/ear_root_prd.md`, `docs/features/common-error-handling.md`, `docs/features/content-pipeline.md`, `docs/features/drip-scheduling.md`
 >
 > **문서 운용 원칙**
 > - 이 문서와 충돌하는 구현은 리뷰에서 반려한다. 구현이 옳다면 문서를 먼저 고친다.
@@ -221,7 +221,7 @@ domain.md와 별개로 아래 전제는 이 장에서 고정한다.
 
 ## 7. Error Handling Architecture
 
-클라이언트가 기대하는 에러 응답 규격과 재시도 정책은 `docs/pages/common-error-handling.md`에 이미 정의되어 있다. **이 장은 그 규격을 서버가 어떻게 만들어 내는지**를 정의한다. 두 문서가 충돌하면 클라이언트 계약(에러 코드·응답 필드)은 `common-error-handling.md`가 기준이다.
+클라이언트가 기대하는 에러 응답 규격과 재시도 정책은 `docs/features/common-error-handling.md`에 이미 정의되어 있다. **이 장은 그 규격을 서버가 어떻게 만들어 내는지**를 정의한다. 두 문서가 충돌하면 클라이언트 계약(에러 코드·응답 필드)은 `common-error-handling.md`가 기준이다.
 
 ### 7.1 원칙
 

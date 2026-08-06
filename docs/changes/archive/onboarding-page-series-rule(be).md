@@ -2,7 +2,7 @@
 
 | 항목 | 값 |
 |---|---|
-| 대상 문서 | `docs/pages/onboarding.md` |
+| 대상 문서 | `docs/features/onboarding.md` |
 | 위치 | 4장 [3] 추천 콘텐츠 담기 — 후보 필터 |
 | 요청 파트 | 백엔드 |
 | 관련 작업 | 온보딩 백엔드 구현 (`feat(be)/onboarding`) |

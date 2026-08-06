@@ -5,7 +5,7 @@
 | 대상 | `frontend/src/features/onboarding` · `frontend/src/app/navigation/OnboardingNavigator.tsx` |
 | 요청 파트 | 통합 테스트 (BE·FE 공통 확인) |
 | 발견 시점 | 2026-08-05 온보딩 통합 테스트 (`integration/onboarding`) |
-| 근거 문서 | `spec/uiux/onboarding-uiux.md` O2·O3 · `pages/onboarding.md` 4·7 · `spec/api/onboarding-api.md` 4.1 |
+| 근거 문서 | `spec/uiux/onboarding-uiux.md` O2·O3 · `features/onboarding.md` 4·7 · `spec/api/onboarding-api.md` 4.1 |
 | 심각도 | 중 — 이탈로 이어지지는 않지만 명세가 요구하는 경로 하나가 막힌다 |
 
 ## 증상

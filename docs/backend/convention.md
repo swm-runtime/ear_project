@@ -2,12 +2,12 @@
 
 > 이 문서는 '이어' 백엔드의 **코드 작성 규칙 문서**다. 시스템 구조·계층 책임·트랜잭션·보안 정책은 [architecture.md](architecture.md)에서 다룬다.
 >
-> 연결 문서: `architecture.md`, `docs/backend/domain.md`(스키마의 유일한 기준), `docs/pages/common-error-handling.md`
+> 연결 문서: `architecture.md`, `docs/backend/domain.md`(스키마의 유일한 기준), `docs/features/common-error-handling.md`
 >
 > **문서 운용 원칙**
 > - 이 문서와 다른 코드는 리뷰에서 반려한다. 규칙이 틀렸다면 코드가 아니라 문서를 먼저 고친다.
 > - "취향 차이로 논쟁이 생기는 지점"을 없애는 것이 목적이다. 규칙에 없어서 매번 다르게 쓰고 있는 게 발견되면 여기에 추가한다.
-> - 규칙 간 충돌 시 우선순위: **클라이언트 계약(`docs/pages/*`) > architecture.md > convention.md**.
+> - 규칙 간 충돌 시 우선순위: **클라이언트 계약(`docs/features/*`) > architecture.md > convention.md**.
 
 ## 1. Naming Convention
 
@@ -121,7 +121,7 @@ user.repository.ts      jwt-auth.guard.ts
 DB (snake_case)  ──Entity 매핑──▶  TypeScript (camelCase)  ──DTO──▶  API JSON (snake_case)
 ```
 
-- **API JSON은 snake_case**로 통일한다. `docs/pages/*`의 데이터 모델·에러 규격(`error_code`, `retry_after_sec`, `daily_play_count`)이 이미 snake_case이므로 클라이언트 계약을 따른다.
+- **API JSON은 snake_case**로 통일한다. `docs/features/*`의 데이터 모델·에러 규격(`error_code`, `retry_after_sec`, `daily_play_count`)이 이미 snake_case이므로 클라이언트 계약을 따른다.
 - **TypeScript 내부 코드는 camelCase**를 쓴다.
 - 변환은 **DTO 경계에서만** 일어난다. 도메인 코드 안에서 snake_case 필드를 다루지 않는다.
 
@@ -202,7 +202,7 @@ src/
 ### 2.4 수정 범위 경계
 
 - **백엔드 코드 작업에서 수정할 수 있는 파일은 `backend/` 안의 파일뿐이다.** 그 밖의 디렉터리(프론트엔드 코드, AI 서버, 공용 설정 등)는 어떤 경우에도 수정하지 않는다.
-- `backend/` 밖은 **필요할 때 참조만 한다** — 클라이언트 계약(`docs/pages/*`) 확인, 에러 코드 대조, 화면 요구사항 확인 등 읽기 목적에 한한다.
+- `backend/` 밖은 **필요할 때 참조만 한다** — 클라이언트 계약(`docs/features/*`) 확인, 에러 코드 대조, 화면 요구사항 확인 등 읽기 목적에 한한다.
 - 참조 결과 다른 파트의 코드·문서에 수정이 필요하다고 판단되면, 직접 고치지 않고 **해당 파트 담당에게 전달**한다(어긋남을 발견한 쪽이 고치는 게 아니라 소유한 쪽이 고친다).
 
 ## 3. DTO Convention
@@ -294,7 +294,7 @@ export class CreateNoteRequestDto {
 
 문서에 없는 컬럼을 임의로 추가하는 것을 금지한다. 스키마가 코드에만 존재하기 시작하면 도메인 문서가 즉시 무용지물이 된다.
 
-> **`docs/backend/domain.md`가 스키마의 유일한 기준이다.** 다른 문서(architecture.md 6장, `docs/pages/*`의 데이터 모델)와 어긋나면 domain.md를 따른다. 코드·문서 어느 쪽도 domain.md 정의를 앞지르지 않는다.
+> **`docs/backend/domain.md`가 스키마의 유일한 기준이다.** 다른 문서(architecture.md 6장, `docs/features/*`의 데이터 모델)와 어긋나면 domain.md를 따른다. 코드·문서 어느 쪽도 domain.md 정의를 앞지르지 않는다.
 
 ### 4.2 작성 규칙
 

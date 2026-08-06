@@ -28,4 +28,4 @@ architecture.md 4.4는 "표에 없는 의존이 코드에 생기면 리뷰에서
 
 ## 영향 범위
 
-- 다른 문서에는 영향 없음. `pages/onboarding.md`·`spec/api/onboarding-api.md`의 동작 규칙과 충돌하지 않는다(화면 전환 방식은 클라이언트 구조 관심사).
+- 다른 문서에는 영향 없음. `features/onboarding.md`·`spec/api/onboarding-api.md`의 동작 규칙과 충돌하지 않는다(화면 전환 방식은 클라이언트 구조 관심사).
