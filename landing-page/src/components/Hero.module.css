@@ -1,0 +1,342 @@
+.hero {
+  position: relative;
+  overflow: hidden;
+  background: var(--ink-900);
+  color: #f2f3f7;
+  /* 고정 헤더 높이(68px)만큼 위로 끌어올려 히어로가 헤더 뒤까지 이어지게 한다.
+     이렇게 하지 않으면 반투명 헤더 뒤로 body의 크림색 배경이 비쳐 회색 띠처럼 보인다. */
+  margin-top: -68px;
+  padding: calc(68px + clamp(56px, 9vw, 104px)) 0 0;
+}
+
+/* 왼쪽 위에서 번지는 새벽빛. 히어로가 단색 블록으로 보이지 않게 하는 유일한 장치라 과하게 쓰지 않는다. */
+.glow {
+  position: absolute;
+  inset: -30% 30% 40% -25%;
+  background: radial-gradient(
+    52% 52% at 40% 45%,
+    rgba(226, 147, 56, 0.32) 0%,
+    rgba(226, 147, 56, 0.11) 42%,
+    transparent 72%
+  );
+  filter: blur(14px);
+  pointer-events: none;
+}
+
+.inner {
+  position: relative;
+  display: grid;
+  gap: clamp(48px, 7vw, 72px);
+  align-items: center;
+}
+
+.copy {
+  max-width: 620px;
+}
+
+.eyebrow {
+  display: inline-block;
+  padding: 6px 14px;
+  border: 1px solid rgba(255, 201, 138, 0.28);
+  border-radius: var(--r-pill);
+  background: rgba(226, 147, 56, 0.1);
+  color: var(--brand-300);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.title {
+  margin-top: 26px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 서비스 이름. 첫 화면에서 가장 큰 요소가 되도록 뷰포트에 따라 크게 붙는다. */
+.brand {
+  font-size: clamp(76px, 15vw, 152px);
+  line-height: 0.92;
+  letter-spacing: -0.075em;
+  background: linear-gradient(158deg, #ffe3bf 4%, var(--brand-300) 38%, var(--brand-500) 92%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  /* 그라데이션 글자가 배경에 묻히지 않게 아주 옅은 광을 준다. */
+  filter: drop-shadow(0 14px 40px rgba(226, 147, 56, 0.28));
+}
+
+.tagline {
+  margin-top: clamp(14px, 2vw, 22px);
+  font-size: clamp(23px, 3.4vw, 37px);
+  line-height: 1.3;
+  letter-spacing: -0.04em;
+  color: #f4f5f9;
+}
+
+.lede {
+  margin-top: 24px;
+  max-width: 50ch;
+  color: var(--ink-200);
+  font-size: clamp(15.5px, 1.6vw, 17.5px);
+  line-height: 1.75;
+}
+
+.lede strong {
+  color: #fff;
+  font-weight: 700;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 34px;
+}
+
+.ghost {
+  color: #eceef4;
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.note {
+  margin-top: 20px;
+  color: var(--ink-300);
+  font-size: 13.5px;
+}
+
+/* ---------- 앱 화면 예시 ---------- */
+
+.previewWrap {
+  display: flex;
+  justify-content: center;
+  perspective: 1400px;
+}
+
+.phone {
+  width: min(320px, 82vw);
+  padding: 11px;
+  border-radius: 42px;
+  background: linear-gradient(168deg, #2a3043, #12151f 62%);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 48px 90px -36px rgba(0, 0, 0, 0.95),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.phoneScreen {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px 16px 16px;
+  border-radius: 32px;
+  background: linear-gradient(180deg, #14182a, #0d1019);
+  min-height: 452px;
+}
+
+.phoneTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.phoneTitle {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: #fff;
+}
+
+.phoneBadge {
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
+  background: rgba(226, 147, 56, 0.16);
+  border: 1px solid rgba(255, 201, 138, 0.3);
+  color: var(--brand-300);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 13px 14px;
+  border-radius: var(--r-md);
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cardFaded {
+  opacity: 0.42;
+}
+
+.chip {
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.09);
+  color: var(--ink-200);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.cardTitle {
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.45;
+  letter-spacing: -0.03em;
+  color: #eef0f6;
+}
+
+.cardMeta {
+  font-size: 11px;
+  color: var(--ink-400);
+}
+
+.mini {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: auto;
+  padding: 11px 12px;
+  border-radius: var(--r-md);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.playBtn {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: linear-gradient(140deg, var(--brand-300), var(--brand-500));
+  color: #221202;
+}
+
+.miniText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.miniTitle {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: #eef0f6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.miniMeta {
+  font-size: 10.5px;
+  color: var(--ink-400);
+}
+
+.wave {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  margin-left: auto;
+  height: 18px;
+  flex: none;
+}
+
+.wave i {
+  display: block;
+  width: 2.5px;
+  height: 30%;
+  border-radius: 2px;
+  background: var(--brand-300);
+  animation: bar 1.15s ease-in-out infinite;
+}
+
+@keyframes bar {
+  0%,
+  100% {
+    height: 26%;
+    opacity: 0.55;
+  }
+  50% {
+    height: 100%;
+    opacity: 1;
+  }
+}
+
+/* ---------- 숫자 띠 ---------- */
+
+.statsWrap {
+  position: relative;
+  margin-top: clamp(56px, 8vw, 92px);
+}
+
+.stats {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.11);
+  background: rgba(255, 255, 255, 0.11);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 26px 4px 30px;
+  background: var(--ink-900);
+}
+
+.statLabel {
+  order: 2;
+  font-size: 14px;
+  font-weight: 700;
+  color: #e8eaf1;
+}
+
+.statValue {
+  order: 1;
+  margin: 0;
+  font-size: clamp(30px, 4.4vw, 42px);
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 1.1;
+  color: var(--brand-300);
+}
+
+.statNote {
+  order: 3;
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-400);
+}
+
+@media (min-width: 720px) {
+  .stats {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .stat {
+    padding: 30px 28px 34px;
+  }
+}
+
+@media (min-width: 1000px) {
+  .inner {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  }
+
+  .phone {
+    transform: rotate(-1.6deg);
+  }
+}

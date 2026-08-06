@@ -1,0 +1,148 @@
+.grid {
+  display: grid;
+  gap: 18px;
+  margin-top: clamp(40px, 5vw, 60px);
+  align-items: start;
+}
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 32px 28px 34px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.cardFeatured {
+  background: var(--ink-900);
+  color: #f2f3f7;
+  box-shadow: var(--shadow-lg);
+  border: 1.5px solid rgba(242, 171, 85, 0.42);
+}
+
+.tag {
+  position: absolute;
+  top: -12px;
+  left: 28px;
+  padding: 4px 13px;
+  border-radius: var(--r-pill);
+  background: linear-gradient(135deg, var(--brand-300), var(--brand-500));
+  color: #241203;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.name {
+  font-size: 21px;
+  letter-spacing: -0.045em;
+}
+
+.cardFeatured .name {
+  color: #fff;
+}
+
+.summary {
+  margin-top: 8px;
+  color: var(--text-3);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.cardFeatured .summary {
+  color: var(--ink-300);
+}
+
+.price {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--line);
+  font-size: 33px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 1.15;
+}
+
+.cardFeatured .price {
+  border-bottom-color: rgba(255, 255, 255, 0.14);
+  color: var(--brand-300);
+}
+
+.priceNote {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-3);
+}
+
+.cardFeatured .priceNote {
+  color: var(--ink-300);
+}
+
+.items {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  margin-top: 24px;
+}
+
+.item,
+.itemOff {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.item {
+  color: var(--text);
+}
+
+.cardFeatured .item {
+  color: #e9ebf2;
+}
+
+.itemOff {
+  color: var(--text-3);
+}
+
+.iconOk,
+.iconNo {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+}
+
+.iconOk {
+  color: var(--brand-600);
+}
+
+.cardFeatured .iconOk {
+  color: var(--brand-300);
+}
+
+.iconNo {
+  color: var(--line-2);
+}
+
+.note {
+  margin-top: clamp(28px, 3.5vw, 40px);
+  max-width: 70ch;
+  color: var(--text-3);
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+@media (min-width: 900px) {
+  .grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
