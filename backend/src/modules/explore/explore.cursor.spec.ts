@@ -1,7 +1,14 @@
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 
-import { decodeExploreCursor, encodeExploreCursor } from './explore.cursor';
+import { StatsPeriodType } from '@/modules/content/content.enum';
+
+import {
+  decodeExploreCursor,
+  decodePopularCursor,
+  encodeExploreCursor,
+  encodePopularCursor,
+} from './explore.cursor';
 
 const TOPIC_A = 'aaaaaaaa-1111-4111-8111-111111111111';
 const TOPIC_B = 'bbbbbbbb-1111-4111-8111-111111111111';
@@ -69,6 +76,57 @@ describe('exploreCursor', () => {
       // when
       const error = catchError(() =>
         decodeExploreCursor('not-a-cursor', [TOPIC_A]),
+      );
+
+      // then
+      expect(error.errorCode).toBe(ErrorCode.EXPLORE_CURSOR_INVALID);
+    });
+
+    it('인기 커서는 구간이 다르면 거절한다', () => {
+      // given — 구간이 바뀐 커서를 이어 쓰면 두 구간이 섞인 목록이 된다
+      const cursor = encodePopularCursor(
+        { ...POSITION, completeCount: 4 },
+        StatsPeriodType.WEEK,
+      );
+
+      // when
+      const error = catchError(() =>
+        decodePopularCursor(cursor, StatsPeriodType.MONTH),
+      );
+
+      // then
+      expect(error.errorCode).toBe(ErrorCode.EXPLORE_CURSOR_INVALID);
+    });
+
+    it('인기 커서는 완청 수까지 담아 되돌린다', () => {
+      // given — 확정 구간이 없으면 재생 수가 전부 0이라 완청 수가 실제 tie-break가 된다
+      const cursor = encodePopularCursor(
+        { ...POSITION, completeCount: 4 },
+        StatsPeriodType.ALL,
+      );
+
+      // when
+      const position = decodePopularCursor(cursor, StatsPeriodType.ALL);
+
+      // then
+      expect(position).toEqual({ ...POSITION, completeCount: 4 });
+    });
+
+    it('완청 수가 빠진 인기 커서를 받아들이지 않는다', () => {
+      // given — 정렬 키가 모자라면 페이지 경계가 어긋난다
+      const broken = Buffer.from(
+        JSON.stringify({
+          p: 3,
+          t: PUBLISHED_AT.toISOString(),
+          i: CONTENT_ID,
+          q: StatsPeriodType.ALL,
+        }),
+        'utf8',
+      ).toString('base64url');
+
+      // when
+      const error = catchError(() =>
+        decodePopularCursor(broken, StatsPeriodType.ALL),
       );
 
       // then

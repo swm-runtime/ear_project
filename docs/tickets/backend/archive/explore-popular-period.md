@@ -7,7 +7,20 @@
 | 발견 시점 | 2026-08-07 탐색 통합 (`integration/explore`) — 인기 구간 선택 문서 반영 중 |
 | 근거 문서 | `spec/api/explore-api.md` 3장·4.1·**4.2-1** · `features/explore.md` **4.1-1** · `spec/uiux/explore-uiux.md` **4.10** |
 | 심각도 | **중** — 기존 동작이 깨지지는 않는다. 다만 확정된 화면 규칙이 서버에 없어 FE가 구현을 시작할 수 없다 |
-| 상태 | 대기 |
+| 상태 | **완료** (2026-08-08) — `fix(be)/explore-period-and-topics` |
+
+> **2026-08-08 반영 결과** — "고쳐야 할 것" 5개 항목을 모두 반영했다.
+>
+> - `service-date.util.ts`는 **손대지 않았다.** 티켓이 예상한 대로 `toPreviousFinalWeekStart` · `toPreviousFinalMonthStart`로 충분했고, `all`은 `ALL_TIME_PERIOD_START` 고정값을 그대로 썼다
+> - `content.repository.ts` — `findPopular` → **`findPopularPage`**. `period_type`을 인자로 받고 커서를 붙였다. 정렬 키가 `(재생 수, 완청 수, published_at, id)` 넷이라 커서 payload도 그만큼 담고 **전부 내림차순**이라 행 비교 한 줄로 keyset이 표현된다. `all`에만 `is_final` 조건을 빼는 분기를 뒀다
+> - `content.service.ts` — **구간 → `period_start` 환산을 이 Service가 소유하게 했다.** 어느 구간이 "직전 확정"인지는 `content_stats`를 읽는 규칙이라(domain.md 5.4) 화면이 알 값이 아니고, 04시 경계 계산은 `service-date.util` 한 곳에 그대로 남는다. 티켓은 이 위치를 지정하지 않았다
+> - `explore` 모듈 — `GET /explore/popular`(Controller · Orchestrator · 쿼리/응답 DTO), 인기 전용 커서(`encodePopularCursor` / `decodePopularCursor`, 지문은 `period`), 기본 구간 상수(`DEFAULT_POPULAR_PERIOD = month`)
+> - 피드 — 인기 섹션이 **월간**으로 바뀌고 `sections[].period`를 함께 내려준다(`popular`만 값, 나머지는 `null`)
+> - 테스트 — 단위 192 → 203. 커서 지문·기본 구간·`period` 노출을 덮는다
+>
+> **로컬 DB로 세 구간을 각각 확인했다.** 시드가 마침 규칙을 가를 수 있는 모양이었다 — `all`은 `is_final = false`, `month`는 `is_final = true`(2026-07-01), `week`는 집계 행이 없다. `all`이 재생 수 순(52 → 48), `month`가 확정 구간 순(12 → 11, `all`과 순서가 뒤바뀜), `week`가 **빈 목록이 아니라 신선도 순**으로 내려오는 것을 DB 기대값과 대조했다. 커서 2페이지 이어받기, 구간이 바뀐 커서 → 400 `EXPLORE_CURSOR_INVALID`, `period=quarter` → 400 `VALIDATION_FAILED`도 확인했다.
+>
+> **인덱스는 손대지 않았다** — 티켓의 예상대로 `idx_content_stats_period_type_period_start_play_count`가 그대로 맞는다. `content_stats.replay_count` 누락도 이 티켓의 정렬(`play_count` · `complete_count`)과 무관해 남겨 뒀다.
 
 > **짝 티켓** — `tickets/frontend/pending/explore-popular-period.md`. **서버가 먼저 나가야 FE가 실서버 전환으로 확인할 수 있다**(`EXPO_PUBLIC_EXPLORE_API=real`). FE의 mock은 그대로 남는다.
 

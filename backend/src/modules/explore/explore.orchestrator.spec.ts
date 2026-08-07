@@ -2,12 +2,14 @@ import { DataSource } from 'typeorm';
 
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
-import { ContentStatus } from '@/modules/content/content.enum';
+import { ContentStatus, StatsPeriodType } from '@/modules/content/content.enum';
+import { RankedPopularContent } from '@/modules/content/content.types';
 import { Content } from '@/modules/content/entities/content.entity';
 import { ContentService } from '@/modules/content/services/content.service';
 import { DripExclusionReason } from '@/modules/drip/drip.enum';
 import { DripExclusionService } from '@/modules/drip/services/drip-exclusion.service';
 import { Topic } from '@/modules/interest/entities/topic.entity';
+import { UserInterest } from '@/modules/interest/entities/user-interest.entity';
 import { TopicService } from '@/modules/interest/services/topic.service';
 import { UserInterestService } from '@/modules/interest/services/user-interest.service';
 import { LibraryItem } from '@/modules/library/library-item.entity';
@@ -19,7 +21,11 @@ import { LibraryService } from '@/modules/library/library.service';
 import { UserSignalAction } from '@/modules/playback/playback.enum';
 import { PlaybackService } from '@/modules/playback/services/playback.service';
 
-import { decodeExploreCursor } from './explore.cursor';
+import {
+  decodeExploreCursor,
+  decodePopularCursor,
+  encodePopularCursor,
+} from './explore.cursor';
 import { ExploreSectionKey, SaveReason } from './explore.enum';
 import { ExploreOrchestrator } from './explore.orchestrator';
 
@@ -48,6 +54,15 @@ function buildContent(id: string, overrides: Partial<Content> = {}): Content {
     publishedAt: new Date('2026-08-01T00:00:00.000Z'),
     ...overrides,
   } as Content;
+}
+
+/** 인기 목록은 커서 발급 때문에 정렬 키를 함께 돌려준다 */
+function buildPopularRow(
+  id: string,
+  playCount = 0,
+  completeCount = 0,
+): RankedPopularContent {
+  return { content: buildContent(id), playCount, completeCount };
 }
 
 function buildLibraryItem(overrides: Partial<LibraryItem> = {}): LibraryItem {
@@ -88,7 +103,9 @@ describe('ExploreOrchestrator', () => {
     contentService = {
       findCandidates: jest.fn().mockResolvedValue([]),
       findRecent: jest.fn().mockResolvedValue([]),
-      findPopular: jest.fn().mockResolvedValue([]),
+      findPopularPage: jest
+        .fn()
+        .mockResolvedValue({ items: [], hasNext: false }),
       findExplorePage: jest
         .fn()
         .mockResolvedValue({ items: [], hasNext: false }),
@@ -117,10 +134,12 @@ describe('ExploreOrchestrator', () => {
 
     userInterestService = {
       findActiveTopicIds: jest.fn().mockResolvedValue([]),
+      findAllActive: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<UserInterestService>;
 
     topicService = {
       findAllByIds: jest.fn().mockResolvedValue([]),
+      findAllVisible: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<TopicService>;
 
     dripExclusionService = {
@@ -168,9 +187,10 @@ describe('ExploreOrchestrator', () => {
       contentService.findCandidates.mockResolvedValue([
         buildContent(CONTENT_ID),
       ]);
-      contentService.findPopular.mockResolvedValue([
-        buildContent(OTHER_CONTENT_ID),
-      ]);
+      contentService.findPopularPage.mockResolvedValue({
+        items: [buildPopularRow(OTHER_CONTENT_ID)],
+        hasNext: false,
+      });
       contentService.findRecent.mockResolvedValue([
         buildContent(OTHER_CONTENT_ID),
       ]);
@@ -249,18 +269,39 @@ describe('ExploreOrchestrator', () => {
       expect(result.quota).toEqual(QUOTA);
     });
 
-    it('인기 섹션은 직전 확정 주의 집계를 기준으로 조회한다', async () => {
-      // given — 진행 중인 구간을 쓰면 주초에 표본이 부족해 랭킹이 무너진다
+    it('피드의 인기 섹션은 기본 구간(월간)으로 만든다', async () => {
+      // given — 주간은 초기에 표본이 너무 적고, 온보딩 추천도 직전 확정 월을 쓴다
 
       // when
       await orchestrator.getFeed(USER_ID, NOW);
 
       // then
-      expect(contentService.findPopular).toHaveBeenCalledWith(
-        '2026-07-27',
-        expect.any(Number),
-        NOW,
+      expect(contentService.findPopularPage).toHaveBeenCalledWith(
+        expect.objectContaining({ periodType: StatsPeriodType.MONTH }),
       );
+    });
+
+    it('인기 섹션에만 period를 실어 보낸다', async () => {
+      // given — 클라이언트가 토글의 선택 상태를 그리는 근거다.
+      // 기본값을 양쪽에 두면 서버가 그것을 바꿀 때 토글만 옛 값에 머문다
+      contentService.findPopularPage.mockResolvedValue({
+        items: [buildPopularRow(OTHER_CONTENT_ID)],
+        hasNext: false,
+      });
+      contentService.findRecent.mockResolvedValue([buildContent(CONTENT_ID)]);
+
+      // when
+      const result = await orchestrator.getFeed(USER_ID, NOW);
+      const popular = result.sections.find(
+        (section) => section.key === ExploreSectionKey.POPULAR,
+      );
+      const recent = result.sections.find(
+        (section) => section.key === ExploreSectionKey.NEW,
+      );
+
+      // then
+      expect(popular?.period).toBe(StatsPeriodType.MONTH);
+      expect(recent?.period).toBeNull();
     });
 
     it('주제별 모아보기 섹션의 제목은 주제 이름이다', async () => {
@@ -282,6 +323,174 @@ describe('ExploreOrchestrator', () => {
       // then
       expect(topicGroup?.title).toBe('커리어');
       expect(topicGroup?.topic).toEqual({ id: TOPIC_ID, name: '커리어' });
+    });
+  });
+
+  describe('getPopular', () => {
+    const POPULAR_QUERY = {
+      period: StatsPeriodType.WEEK,
+      cursor: null,
+      limit: 20,
+    };
+
+    it('요청한 구간으로 조회하고 그 구간을 응답에 되돌린다', async () => {
+      // given — 클라이언트는 이 값으로 토글의 선택 상태를 그린다
+
+      // when
+      const result = await orchestrator.getPopular(USER_ID, POPULAR_QUERY, NOW);
+
+      // then
+      expect(contentService.findPopularPage).toHaveBeenCalledWith(
+        expect.objectContaining({ periodType: StatsPeriodType.WEEK }),
+      );
+      expect(result.period).toBe(StatsPeriodType.WEEK);
+    });
+
+    it('다음 페이지가 있으면 마지막 항목의 정렬 키로 커서를 발급한다', async () => {
+      // given — 확정 구간이 없으면 재생·완청 수가 전부 0이라 동점이 기본값이다
+      const lastContent = buildContent(OTHER_CONTENT_ID);
+      contentService.findPopularPage.mockResolvedValue({
+        items: [
+          buildPopularRow(CONTENT_ID, 9, 4),
+          { content: lastContent, playCount: 3, completeCount: 1 },
+        ],
+        hasNext: true,
+      });
+
+      // when
+      const result = await orchestrator.getPopular(USER_ID, POPULAR_QUERY, NOW);
+
+      // then
+      expect(
+        decodePopularCursor(result.nextCursor ?? '', StatsPeriodType.WEEK),
+      ).toEqual({
+        playCount: 3,
+        completeCount: 1,
+        publishedAt: lastContent.publishedAt,
+        id: OTHER_CONTENT_ID,
+      });
+    });
+
+    it('구간이 바뀐 커서는 거절한다', async () => {
+      // given — 구간이 섞인 목록이 만들어지면 안 된다
+      const cursor = encodePopularCursor(
+        {
+          playCount: 3,
+          completeCount: 1,
+          publishedAt: NOW,
+          id: CONTENT_ID,
+        },
+        StatsPeriodType.WEEK,
+      );
+
+      // when
+      const error = await catchError(
+        orchestrator.getPopular(
+          USER_ID,
+          { ...POPULAR_QUERY, period: StatsPeriodType.MONTH, cursor },
+          NOW,
+        ),
+      );
+
+      // then
+      expect(error.errorCode).toBe(ErrorCode.EXPLORE_CURSOR_INVALID);
+    });
+
+    it('인기 목록에도 잔여 재생 표시값을 싣는다', async () => {
+      // given — 이 응답이 최신값 갱신 시점이 된다
+
+      // when
+      const result = await orchestrator.getPopular(USER_ID, POPULAR_QUERY, NOW);
+
+      // then
+      expect(result.quota).toEqual(QUOTA);
+    });
+  });
+
+  describe('getTopicChips', () => {
+    const OTHER_TOPIC_ID = 'dddddddd-1111-4111-8111-111111111111';
+    const HIDDEN_TOPIC_ID = 'eeeeeeee-1111-4111-8111-111111111111';
+
+    function buildTopic(id: string, name: string, displayOrder = 0): Topic {
+      return { id, name, displayOrder } as Topic;
+    }
+
+    it('관심 주제를 선택한 순서로 앞에 두고 나머지를 뒤에 붙인다', async () => {
+      // given — `findAllActive`가 `created_at` 오름차순이라 이 순서가 곧 선택한 순서다
+      userInterestService.findAllActive.mockResolvedValue([
+        { topicId: OTHER_TOPIC_ID },
+        { topicId: TOPIC_ID },
+      ] as UserInterest[]);
+      topicService.findAllByIds.mockResolvedValue([
+        buildTopic(TOPIC_ID, '커리어'),
+        buildTopic(OTHER_TOPIC_ID, '생산성'),
+      ]);
+      topicService.findAllVisible.mockResolvedValue([
+        buildTopic(TOPIC_ID, '커리어'),
+        buildTopic(OTHER_TOPIC_ID, '생산성'),
+        buildTopic(HIDDEN_TOPIC_ID, 'IT·테크'),
+      ]);
+
+      // when
+      const chips = await orchestrator.getTopicChips(USER_ID);
+
+      // then
+      expect(chips).toEqual([
+        { id: OTHER_TOPIC_ID, name: '생산성', isInterest: true },
+        { id: TOPIC_ID, name: '커리어', isInterest: true },
+        { id: HIDDEN_TOPIC_ID, name: 'IT·테크', isInterest: false },
+      ]);
+    });
+
+    it('숨김 처리된 주제도 사용자의 관심 주제라면 포함한다', async () => {
+      // given — 걸러내면 자기가 고른 주제인데 필터를 걸 수 없다
+      userInterestService.findAllActive.mockResolvedValue([
+        { topicId: HIDDEN_TOPIC_ID },
+      ] as UserInterest[]);
+      topicService.findAllByIds.mockResolvedValue([
+        buildTopic(HIDDEN_TOPIC_ID, '숨겨진 주제'),
+      ]);
+      topicService.findAllVisible.mockResolvedValue([
+        buildTopic(TOPIC_ID, '커리어'),
+      ]);
+
+      // when
+      const chips = await orchestrator.getTopicChips(USER_ID);
+
+      // then
+      expect(chips[0]).toEqual({
+        id: HIDDEN_TOPIC_ID,
+        name: '숨겨진 주제',
+        isInterest: true,
+      });
+    });
+
+    it('관심 주제가 아닌 숨겨진 주제는 노출하지 않는다', async () => {
+      // given — 콘텐츠 풀이 없는 주제는 애초에 고를 수 없다(FR-38)
+      topicService.findAllVisible.mockResolvedValue([
+        buildTopic(TOPIC_ID, '커리어'),
+      ]);
+
+      // when
+      const chips = await orchestrator.getTopicChips(USER_ID);
+
+      // then
+      expect(chips.map((chip) => chip.id)).toEqual([TOPIC_ID]);
+    });
+
+    it('관심 주제가 없으면 노출 주제만 내려준다', async () => {
+      // given — 정상 상태는 아니지만 방어한다
+      topicService.findAllVisible.mockResolvedValue([
+        buildTopic(TOPIC_ID, '커리어'),
+        buildTopic(OTHER_TOPIC_ID, '생산성'),
+      ]);
+
+      // when
+      const chips = await orchestrator.getTopicChips(USER_ID);
+
+      // then
+      expect(chips.every((chip) => !chip.isInterest)).toBe(true);
+      expect(chips).toHaveLength(2);
     });
   });
 

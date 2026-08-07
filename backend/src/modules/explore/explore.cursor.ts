@@ -2,7 +2,11 @@ import { HttpStatus } from '@nestjs/common';
 
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
-import { ExploreCursorPosition } from '@/modules/content/content.types';
+import { StatsPeriodType } from '@/modules/content/content.enum';
+import {
+  ExploreCursorPosition,
+  PopularCursorPosition,
+} from '@/modules/content/content.types';
 
 /**
  * 커서는 **API 계약이지 도메인 개념이 아니다.** 그래서 Repository가 아니라 이 모듈이
@@ -71,6 +75,100 @@ export function decodeExploreCursor(
   }
 
   return { playCount: payload.p, publishedAt, id: payload.i };
+}
+
+/**
+ * 인기 목록 커서(explore-api.md 4.2-1). 정렬 키가 하나 더 많아 payload도 그만큼 담는다.
+ *
+ * **지문은 `period`다.** 구간이 바뀐 커서를 이어 쓰면 두 구간이 섞인 목록이 된다 —
+ * 주제 필터 목록이 `topic_ids`를 지문으로 쓰는 것과 같은 이유다.
+ */
+interface PopularCursorPayload {
+  /** 그 구간의 재생 수 */
+  p: number;
+  /** 그 구간의 완청 수 */
+  c: number;
+  /** `published_at` (ISO 8601) */
+  t: string;
+  /** tie-break용 `id` */
+  i: string;
+  /** 발급 시점의 집계 구간 */
+  q: string;
+}
+
+/**
+ * 인기 목록의 조회 조건 지문은 **구간 하나**다. 주제 필터 목록이 `topic_ids`를 지문으로 쓰는
+ * 것과 같은 자리이며, 지문을 문자열로 통일해 두 커서가 같은 판정 구조를 갖는다.
+ */
+function popularFingerprint(period: StatsPeriodType): string {
+  return period;
+}
+
+export function encodePopularCursor(
+  position: PopularCursorPosition,
+  period: StatsPeriodType,
+): string {
+  const payload: PopularCursorPayload = {
+    p: position.playCount,
+    c: position.completeCount,
+    t: position.publishedAt.toISOString(),
+    i: position.id,
+    q: popularFingerprint(period),
+  };
+
+  return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+}
+
+/** **발급 시점과 다른 `period`면 거절한다.** 클라이언트는 첫 페이지부터 다시 조회한다 */
+export function decodePopularCursor(
+  cursor: string,
+  period: StatsPeriodType,
+): PopularCursorPosition {
+  let decoded: unknown;
+
+  try {
+    decoded = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
+  } catch {
+    throw invalidCursor();
+  }
+
+  if (
+    !isPopularCursorPayload(decoded) ||
+    decoded.q !== popularFingerprint(period)
+  ) {
+    throw invalidCursor();
+  }
+
+  const publishedAt = new Date(decoded.t);
+
+  if (Number.isNaN(publishedAt.getTime())) {
+    throw invalidCursor();
+  }
+
+  return {
+    playCount: decoded.p,
+    completeCount: decoded.c,
+    publishedAt,
+    id: decoded.i,
+  };
+}
+
+function isPopularCursorPayload(value: unknown): value is PopularCursorPayload {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+
+  return (
+    typeof candidate.p === 'number' &&
+    Number.isFinite(candidate.p) &&
+    typeof candidate.c === 'number' &&
+    Number.isFinite(candidate.c) &&
+    typeof candidate.t === 'string' &&
+    typeof candidate.i === 'string' &&
+    typeof candidate.q === 'string'
+  );
 }
 
 function parse(cursor: string): CursorPayload {
