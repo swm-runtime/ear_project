@@ -4,4 +4,4 @@
  */
 export { default as LibraryScreen } from './screens/LibraryScreen';
 export { LIBRARY_COPY } from './library.copy';
-export type { LibraryFilter, LibraryItem, PlayEntryPoint } from './library.types';
+export type { LibraryFilter, LibraryItem } from './library.types';

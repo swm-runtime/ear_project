@@ -12,6 +12,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/shared/theme';
 import FullScreenError from '@/shared/ui/FullScreenError';
 
+import { PlayConfirmDialog, RemainingPlaysIndicator } from '@/features/player';
+
 import LibraryBanner from '../components/LibraryBanner';
 import LibraryEmptyState from '../components/LibraryEmptyState';
 import LibraryItemCard from '../components/LibraryItemCard';
@@ -19,8 +21,6 @@ import LibraryItemSkeleton from '../components/LibraryItemSkeleton';
 import LibraryTabs from '../components/LibraryTabs';
 import MiniPlayerBar from '../components/MiniPlayerBar';
 import MoreActionsSheet from '../components/MoreActionsSheet';
-import PlayConfirmDialog from '../components/PlayConfirmDialog';
-import RemainingPlaysIndicator from '../components/RemainingPlaysIndicator';
 import TopicFilterSheet from '../components/TopicFilterSheet';
 import UndoSnackbar from '../components/UndoSnackbar';
 import { useLibraryScreen } from '../hooks/useLibraryScreen';

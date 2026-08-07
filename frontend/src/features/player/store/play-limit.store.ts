@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 
-import type { PlayLimitSnapshot } from '../library.types';
+import type { PlayLimitSnapshot } from '../player.types';
 
-interface LibraryStore {
+interface PlayLimitStore {
   /**
    * 잔여 재생 표시값 — 목록·복원·재생 시작 응답의 서버 값으로만 덮어쓴다.
    * 클라이언트가 임의로 1을 빼거나 기기 시각으로 리셋하지 않는다(library.md 4.1-2).
@@ -33,7 +33,7 @@ const isFresher = (incoming: PlayLimitSnapshot, current: PlayLimitSnapshot | nul
   return (incoming.dailyPlayCount ?? 0) >= (current.dailyPlayCount ?? 0);
 };
 
-export const useLibraryStore = create<LibraryStore>((set) => ({
+export const usePlayLimitStore = create<PlayLimitStore>((set) => ({
   playLimit: null,
   suppressedServiceDate: null,
   applyPlayLimit: (incoming) =>

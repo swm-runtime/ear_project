@@ -8,6 +8,7 @@ export const STORAGE_KEYS = {
   /**
    * [오늘은 그만 보기]로 재생 확인 팝업을 억제한 서비스 날짜(library.md 4.3).
    * 타이머가 아니라 날짜 자체를 저장한다 — 서버 service_date와 다르면 억제가 풀린 것으로 본다.
+   * 기기 단위 하나의 키 — 진입점 화면별로 따로 저장하지 않는다(explore-uiux.md 8장).
    */
-  LIBRARY_PLAY_CONFIRM_SUPPRESSED_DATE: 'library.play_confirm_suppressed_date',
+  PLAY_CONFIRM_SUPPRESSED_DATE: 'player.play_confirm_suppressed_date',
 } as const;

@@ -1,17 +1,15 @@
 import { useNavigation } from '@react-navigation/native';
-import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { isApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
 import { useToastStore } from '@/shared/ui/toast.store';
 
-import { libraryKeys } from '../api/library.api';
-import { LIBRARY_COPY } from '../library.copy';
-import type { PlayEntryPoint } from '../library.types';
+import { PLAYER_COPY } from '../player.copy';
+import type { PlayEntryPoint } from '../player.types';
 import { useStartPlayMutation } from './useStartPlayMutation';
 import { suppressPlayConfirmForToday } from '../services/play-confirm-suppression.service';
-import { useLibraryStore } from '../store/library.store';
+import { usePlayLimitStore } from '../store/play-limit.store';
 
 export interface PlayGateTarget {
   contentId: string;
@@ -19,6 +17,14 @@ export interface PlayGateTarget {
   isCountedToday: boolean;
   /** CONTENT_WITHDRAWN(403) 시 진입점별 정리(목록 제거·미니플레이어 내림)에 쓴다 */
   onWithdrawn?: () => void;
+}
+
+interface PlayGateOptions {
+  /**
+   * 재생 성공·회수·404 등 서버 상태가 바뀌었을 때 호출된다 — 진입점 화면이 자기 목록을
+   * 재조회한다. player가 진입점의 쿼리 키를 알지 않기 위한 콜백 주입이다(architecture.md 4.3).
+   */
+  onServerStateChanged?: () => void;
 }
 
 interface ConfirmState {
@@ -29,22 +35,24 @@ interface ConfirmState {
 }
 
 /**
- * 재생 게이트 — 카드·미니플레이어 등 모든 진입점이 같은 판정·팝업을 거친다(library.md 4.2·4.3).
- * 팝업을 띄울지는 클라이언트가 정하고, 재생을 허용할지는 서버가 정한다(library-api.md 6장).
+ * 재생 시작 게이트(architecture.md 5.2) — 라이브러리·탐색·미니플레이어·푸시가 전부 이
+ * 게이트를 통과한다(paywall.md 4.2). 팝업을 띄울지는 클라이언트가 정하고, 재생을 허용할지는
+ * 서버가 정한다(library-api.md 6장).
  */
-export const usePlayGate = () => {
+export const usePlayGate = (options?: PlayGateOptions) => {
   const navigation = useNavigation();
-  const queryClient = useQueryClient();
   const showToast = useToastStore((s) => s.show);
-  const playLimit = useLibraryStore((s) => s.playLimit);
-  const suppressedServiceDate = useLibraryStore((s) => s.suppressedServiceDate);
-  const applyPlayLimit = useLibraryStore((s) => s.applyPlayLimit);
+  const playLimit = usePlayLimitStore((s) => s.playLimit);
+  const suppressedServiceDate = usePlayLimitStore((s) => s.suppressedServiceDate);
+  const applyPlayLimit = usePlayLimitStore((s) => s.applyPlayLimit);
   const startPlayMutation = useStartPlayMutation();
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
 
+  const notifyServerStateChanged = () => options?.onServerStateChanged?.();
+
   /* TODO(paywall feature): 페이월 바텀시트(paywall.md 4.5)로 교체한다 */
   const openPaywall = (message?: string) => {
-    showToast(message ?? LIBRARY_COPY.paywallPlaceholderToast);
+    showToast(message ?? PLAYER_COPY.paywallPlaceholderToast);
   };
 
   const startPlayback = (target: PlayGateTarget, entryPoint: PlayEntryPoint) => {
@@ -55,8 +63,8 @@ export const usePlayGate = () => {
         onSuccess: (result) => {
           // 표시값은 적재 이후의 서버 값으로 덮어쓴다 — 클라이언트가 1을 빼지 않는다
           applyPlayLimit(result.playLimit);
-          // 상태 전이(unplayed→in_progress)·카운트 반영은 다음 조회의 서버 값으로 맞춘다
-          void queryClient.invalidateQueries({ queryKey: libraryKeys.all });
+          // 상태 전이(unplayed→in_progress)·카운트 반영은 진입점 화면의 재조회로 맞춘다
+          notifyServerStateChanged();
           navigation.navigate('Main', {
             screen: 'Player',
             params: { contentId: target.contentId },
@@ -71,22 +79,22 @@ export const usePlayGate = () => {
                 return;
               case ERROR_CODES.PLAY_LIMIT_REACHED:
                 // 한도 있는 유료 티어 — 페이월이 아니라 안내다
-                showToast(LIBRARY_COPY.paidLimitReachedToast);
+                showToast(PLAYER_COPY.paidLimitReachedToast);
                 return;
               case ERROR_CODES.CONTENT_WITHDRAWN:
-                showToast(LIBRARY_COPY.withdrawnToast);
+                showToast(PLAYER_COPY.withdrawnToast);
                 target.onWithdrawn?.();
-                void queryClient.invalidateQueries({ queryKey: libraryKeys.all });
+                notifyServerStateChanged();
                 return;
               case ERROR_CODES.CONTENT_NOT_FOUND:
-                void queryClient.invalidateQueries({ queryKey: libraryKeys.all });
+                notifyServerStateChanged();
                 return;
               default:
                 showToast(error.message);
                 return;
             }
           }
-          showToast(LIBRARY_COPY.error.loadFailedDescription);
+          showToast(PLAYER_COPY.playFailedToast);
         },
       },
     );
