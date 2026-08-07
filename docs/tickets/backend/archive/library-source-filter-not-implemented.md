@@ -7,6 +7,19 @@
 | 발견 시점 | 2026-08-07 라이브러리 통합 (`integration/library`) — 카드·필터 개편 문서 반영 중 |
 | 근거 문서 | `spec/api/library-api.md` 4.1 · `features/library.md` 4.1-1 · `spec/uiux/library-uiux.md` 4.2 · 4.5 |
 | 심각도 | **상** — 실서버로 전환하는 순간 라이브러리 목록 조회가 400으로 실패한다 |
+| 상태 | **완료** (2026-08-07) — `fix(be)/library-source-filter` · PR #14 |
+
+> **2026-08-07 반영 결과** — "고쳐야 할 것" 4개 항목을 모두 반영했다.
+>
+> - `library.enum.ts` — `LibraryItemFilter`에서 `DRIP` 제거, `LibraryItemSourceFilter`(`drip`/`save`) 신설
+> - `library-item.repository.ts` — `applyFilter`의 `DRIP` 분기 제거, `applySourceFilter` + `SOURCES_BY_SOURCE_FILTER` 매핑 추가(`save` → `save`·`onboarding`)
+> - `library-item-query-request.dto.ts` · `library-screen.controller.ts` · 타입 3곳 — `source_filter` 전달. **미선택은 enum 값이 아니라 `null`** 로 뒀다. 계약이 "미전송 = 출처를 가리지 않음"이라, 전체를 뜻하는 값을 만들면 같은 상태가 두 가지로 표현된다
+> - `library-screen.cursor.ts` — 지문에 `sourceFilter` 포함. **미선택을 빈 문자열이 아니라 `-`로 인코딩**했다 — 빈 문자열은 구분자와 합쳐져 서로 다른 조건이 같은 지문을 갖게 만든다
+> - 테스트 — 단위 139 → 144, E2E 20 → 21
+>
+> **완료 조건 5개 중 4개는 자동 테스트로, 나머지 하나(FE 실서버 전환)는 에뮬레이터로 확인했다.** 신규 가입 → 온보딩 → 라이브러리를 완주해 `drip 2 + onboarding 3`이 DB에 남는 것을 확인했고, [내가 담은 콘텐츠] 필터가 온보딩 3건을 제목까지 일치하게 내려줬다. `filter=drip` → 400 `VALIDATION_FAILED`, 커서 발급 후 출처를 바꾸거나 해제하면 400 `LIBRARY_CURSOR_INVALID`인 것도 API로 직접 확인했다.
+>
+> **남긴 것 2건** — 인덱스에 `source` 축을 더하는 일은 `library-api.md` 9장 미결에 기록만 하고 손대지 않았다(마이그레이션이 걸리고, 나머지 세 건과 함께 `domain.md`에서 보는 편이 낫다). FE의 `library.dto.ts` TODO 주석 제거는 `backend/` 밖이라 FE 담당 몫이다.
 
 ## 증상
 

@@ -330,7 +330,7 @@ describe('라이브러리 E2E', () => {
     );
   }, 60_000);
 
-  it('탭·주제 필터와 커서 페이지네이션이 조합되고, 조건이 바뀐 커서는 거절한다', async () => {
+  it('탭·출처·주제 필터와 커서 페이지네이션이 조합되고, 조건이 바뀐 커서는 거절한다', async () => {
     // given — 드립 2건에 담기 2건을 더한다
     const { userId, auth } = await createOnboardedUser('filter');
     const dripped = await listItems(auth);
@@ -348,12 +348,31 @@ describe('라이브러리 E2E', () => {
       new Set([LibraryItemSource.DRIP, LibraryItemSource.SAVE]),
     );
 
-    // [이어 PICK] 탭은 드립만, 상태는 가리지 않는다
-    const dripTab = await get(
-      '/users/me/library-items?filter=drip',
+    // 출처 필터 [이어 PICK]은 드립만, 상태는 가리지 않는다
+    const dripOnly = await get(
+      '/users/me/library-items?source_filter=drip',
       auth,
     ).expect(HttpStatus.OK);
-    expect((dripTab.body as ListBody).items).toHaveLength(2);
+    expect((dripOnly.body as ListBody).items).toHaveLength(2);
+    expect(
+      new Set((dripOnly.body as ListBody).items.map((item) => item.source)),
+    ).toEqual(new Set([LibraryItemSource.DRIP]));
+
+    // 출처는 탭에서 빠졌다 — enum에 없는 값이므로 거절한다
+    const removedTab = await get(
+      '/users/me/library-items?filter=drip',
+      auth,
+    ).expect(HttpStatus.BAD_REQUEST);
+    expect(removedTab.body).toMatchObject({
+      error_code: ErrorCode.VALIDATION_FAILED,
+    });
+
+    // 상태 탭과 출처는 축이 달라 AND로 조합된다
+    const unplayedDrip = await get(
+      '/users/me/library-items?filter=unplayed&source_filter=drip',
+      auth,
+    ).expect(HttpStatus.OK);
+    expect((unplayedDrip.body as ListBody).items).toHaveLength(2);
 
     // 주제 필터 팝업은 **담긴 콘텐츠의 주제**를 개수와 함께 준다
     const topics = await get('/users/me/library-items/topics', auth).expect(
@@ -365,9 +384,9 @@ describe('라이브러리 E2E', () => {
       topicBody.topics.reduce((sum, topic) => sum + topic.item_count, 0),
     ).toBe(4);
 
-    // 탭과 주제 필터는 AND다
+    // 출처와 주제 필터도 AND다
     const combined = await get(
-      `/users/me/library-items?filter=drip&topic_filter=${topicBody.topics[0].id}`,
+      `/users/me/library-items?source_filter=drip&topic_filter=${topicBody.topics[0].id}`,
       auth,
     ).expect(HttpStatus.OK);
     expect((combined.body as ListBody).items.length).toBeLessThanOrEqual(2);
@@ -394,9 +413,10 @@ describe('라이브러리 E2E', () => {
       expect.arrayContaining(firstBody.items.map((i) => i.id)),
     );
 
-    // then — 조건이 바뀐 커서를 이어 쓰면 두 조건이 섞인 목록이 만들어진다
+    // then — 조건이 바뀐 커서를 이어 쓰면 두 조건이 섞인 목록이 만들어진다.
+    // 커서는 출처를 걸지 않은 상태에서 발급됐다 — 출처만 더해도 다른 조건이다
     const rejected = await get(
-      `/users/me/library-items?filter=drip&limit=2&cursor=${encodeURIComponent(
+      `/users/me/library-items?source_filter=drip&limit=2&cursor=${encodeURIComponent(
         firstBody.next_cursor as string,
       )}`,
       auth,
@@ -404,6 +424,46 @@ describe('라이브러리 E2E', () => {
     expect(rejected.body).toMatchObject({
       error_code: ErrorCode.LIBRARY_CURSOR_INVALID,
     });
+  }, 60_000);
+
+  it('출처 필터 [내가 담은 콘텐츠]는 온보딩에서 담은 것까지 함께 보여준다', async () => {
+    // given — 드립 2건 + 탐색 담기 1건 + 온보딩 담기 1건
+    const { userId, auth } = await createOnboardedUser('sourcefilter');
+    const dripped = await listItems(auth);
+    const spare = contentIds.filter(
+      (id) => !dripped.some((item) => item.content.id === id),
+    );
+    await addSavedItems(userId, spare.slice(0, 1), LibraryItemSource.SAVE);
+    await addSavedItems(
+      userId,
+      spare.slice(1, 2),
+      LibraryItemSource.ONBOARDING,
+    );
+
+    // when
+    const saved = await get(
+      '/users/me/library-items?source_filter=save',
+      auth,
+    ).expect(HttpStatus.OK);
+
+    // then — 사용자에게 온보딩은 제3의 출처가 아니라 자기가 고른 것이다
+    const savedItems = (saved.body as ListBody).items;
+    expect(savedItems).toHaveLength(2);
+    expect(new Set(savedItems.map((item) => item.source))).toEqual(
+      new Set([LibraryItemSource.SAVE, LibraryItemSource.ONBOARDING]),
+    );
+
+    // 드립은 빠진다 — 두 출처는 배타적이다
+    const drip = await get(
+      '/users/me/library-items?source_filter=drip',
+      auth,
+    ).expect(HttpStatus.OK);
+    expect(
+      new Set((drip.body as ListBody).items.map((item) => item.source)),
+    ).toEqual(new Set([LibraryItemSource.DRIP]));
+
+    // 미선택은 출처를 가리지 않는다
+    expect(await listItems(auth)).toHaveLength(4);
   }, 60_000);
 
   it('회수된 콘텐츠는 목록에서 빠지고 재생하면 제공 종료로 안내한다', async () => {
@@ -629,10 +689,15 @@ describe('라이브러리 E2E', () => {
     });
   }
 
-  /** 탐색 담기(`explore.md` 4.3)가 아직 없으므로 `source = save` 행만 직접 심는다 */
+  /**
+   * 탐색 담기(`explore.md` 4.3)와 온보딩 담기 API를 이 흐름에서 밟지 않으므로
+   * `source` 행을 직접 심는다. 출처를 인자로 받는 이유는 `source_filter=save`가
+   * `save`와 `onboarding`을 함께 덮는지 확인해야 하기 때문이다.
+   */
   async function addSavedItems(
     userId: string,
     savedContentIds: string[],
+    source: LibraryItemSource = LibraryItemSource.SAVE,
   ): Promise<void> {
     const repository = dataSource.getRepository(LibraryItem);
     const now = Date.now();
@@ -642,7 +707,7 @@ describe('라이브러리 E2E', () => {
         repository.create({
           userId,
           contentId,
-          source: LibraryItemSource.SAVE,
+          source,
           status: LibraryItemStatus.UNPLAYED,
           addedAt: new Date(now - (index + 1) * 60_000),
         }),

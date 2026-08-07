@@ -1,7 +1,11 @@
 /** convention.md 3.2 — 모듈 밖으로 공개되는 타입만 둔다 */
 
 import { LibraryItem } from './library-item.entity';
-import { LibraryItemFilter, LibraryItemSort } from './library.enum';
+import {
+  LibraryItemFilter,
+  LibraryItemSort,
+  LibraryItemSourceFilter,
+} from './library.enum';
 
 /**
  * 커서가 가리키는 위치. **`added_at`만으로는 부족하다** — 드립 배치는 한 사용자에게 2편을
@@ -15,7 +19,10 @@ export interface LibraryCursorPosition {
 
 export interface LibraryPageQuery {
   userId: string;
+  /** 상태 축 */
   filter: LibraryItemFilter;
+  /** 출처 축. `null`이면 출처를 가리지 않는다. **상태·주제와는 AND다** */
+  sourceFilter: LibraryItemSourceFilter | null;
   /** 비어 있으면 주제 조건을 적용하지 않는다. **선택한 주제끼리는 OR다** */
   topicIds: string[];
   sort: LibraryItemSort;

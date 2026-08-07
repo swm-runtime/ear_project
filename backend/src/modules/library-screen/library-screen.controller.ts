@@ -58,6 +58,8 @@ export class LibraryScreenController {
         currentUser.id,
         {
           filter: query.filter ?? LibraryItemFilter.ALL,
+          // 미전송은 기본값이 아니라 "출처를 가리지 않음"이다 — enum에 전체 값을 두지 않는다
+          sourceFilter: query.source_filter ?? null,
           topicIds: query.topic_filter ?? [],
           sort: query.sort ?? LibraryItemSort.ADDED_DESC,
           cursor: query.cursor ?? null,
