@@ -67,6 +67,7 @@ export class LibraryScreenOrchestrator {
   ): Promise<LibraryListResult> {
     const conditions = {
       filter: query.filter,
+      sourceFilter: query.sourceFilter,
       sort: query.sort,
       topicIds: query.topicIds,
     };

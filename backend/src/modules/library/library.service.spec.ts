@@ -41,6 +41,7 @@ function buildPageQuery(limit: number) {
   return {
     userId: USER_ID,
     filter: LibraryItemFilter.ALL,
+    sourceFilter: null,
     topicIds: [],
     sort: LibraryItemSort.ADDED_DESC,
     cursor: null,

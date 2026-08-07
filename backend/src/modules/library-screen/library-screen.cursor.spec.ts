@@ -3,6 +3,7 @@ import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import {
   LibraryItemFilter,
   LibraryItemSort,
+  LibraryItemSourceFilter,
 } from '@/modules/library/library.enum';
 
 import {
@@ -16,6 +17,7 @@ const ITEM_ID = 'aaaaaaaa-1111-4111-8111-111111111111';
 
 const CONDITIONS: CursorConditions = {
   filter: LibraryItemFilter.ALL,
+  sourceFilter: null,
   sort: LibraryItemSort.ADDED_DESC,
   topicIds: [],
 };
@@ -57,12 +59,65 @@ describe('libraryScreenCursor', () => {
       const error = catchError(() =>
         decodeLibraryCursor(cursor, {
           ...CONDITIONS,
-          filter: LibraryItemFilter.DRIP,
+          filter: LibraryItemFilter.UNPLAYED,
         }),
       );
 
       // then
       expect(error.errorCode).toBe(ErrorCode.LIBRARY_CURSOR_INVALID);
+    });
+
+    it('출처 필터가 바뀐 커서는 거절한다', () => {
+      // given — 탭을 그대로 두고 출처만 바꿔도 조건이 섞인 목록이 된다
+      const cursor = encodeLibraryCursor(
+        { addedAt: ADDED_AT, id: ITEM_ID },
+        { ...CONDITIONS, sourceFilter: LibraryItemSourceFilter.DRIP },
+      );
+
+      // when
+      const error = catchError(() =>
+        decodeLibraryCursor(cursor, {
+          ...CONDITIONS,
+          sourceFilter: LibraryItemSourceFilter.SAVE,
+        }),
+      );
+
+      // then
+      expect(error.errorCode).toBe(ErrorCode.LIBRARY_CURSOR_INVALID);
+    });
+
+    it('출처 필터를 해제한 커서는 거절한다', () => {
+      // given — 미선택은 "출처를 가리지 않음"이라 걸려 있던 것과 다른 조건이다
+      const cursor = encodeLibraryCursor(
+        { addedAt: ADDED_AT, id: ITEM_ID },
+        { ...CONDITIONS, sourceFilter: LibraryItemSourceFilter.DRIP },
+      );
+
+      // when
+      const error = catchError(() =>
+        decodeLibraryCursor(cursor, { ...CONDITIONS, sourceFilter: null }),
+      );
+
+      // then
+      expect(error.errorCode).toBe(ErrorCode.LIBRARY_CURSOR_INVALID);
+    });
+
+    it('출처 필터가 같으면 커서를 이어 쓸 수 있다', () => {
+      // given
+      const conditions: CursorConditions = {
+        ...CONDITIONS,
+        sourceFilter: LibraryItemSourceFilter.SAVE,
+      };
+      const cursor = encodeLibraryCursor(
+        { addedAt: ADDED_AT, id: ITEM_ID },
+        conditions,
+      );
+
+      // when
+      const position = decodeLibraryCursor(cursor, conditions);
+
+      // then
+      expect(position).toEqual({ addedAt: ADDED_AT, id: ITEM_ID });
     });
 
     it('주제 필터가 바뀐 커서는 거절한다', () => {

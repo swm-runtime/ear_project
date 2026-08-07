@@ -9,12 +9,28 @@ import {
   LibraryItemFilter,
   LibraryItemSort,
   LibraryItemSource,
+  LibraryItemSourceFilter,
   LibraryItemStatus,
 } from './library.enum';
 import { LibraryPageQuery } from './library.types';
 
 /** 목록·복원 조회가 공유하는 노출 조건 — 회수된 콘텐츠는 어느 쪽에도 나타나지 않는다 */
 const VISIBLE_CONTENT_CONDITION = 'content.status = :publishedStatus';
+
+/**
+ * 출처 필터 한 값이 덮는 `library_items.source` 값들(library-api.md 4.1).
+ * **`save`는 `onboarding`을 포함한다** — 화면의 출처는 둘뿐이고 `onboarding`은 유입 경로다.
+ */
+const SOURCES_BY_SOURCE_FILTER: Record<
+  LibraryItemSourceFilter,
+  LibraryItemSource[]
+> = {
+  [LibraryItemSourceFilter.DRIP]: [LibraryItemSource.DRIP],
+  [LibraryItemSourceFilter.SAVE]: [
+    LibraryItemSource.SAVE,
+    LibraryItemSource.ONBOARDING,
+  ],
+};
 
 @Injectable()
 export class LibraryItemRepository {
@@ -121,6 +137,7 @@ export class LibraryItemRepository {
       .where('item.user_id = :userId', { userId: query.userId });
 
     this.applyFilter(builder, query.filter);
+    this.applySourceFilter(builder, query.sourceFilter);
     this.applyTopicFilter(builder, query.topicIds);
 
     if (query.cursor) {
@@ -269,15 +286,29 @@ export class LibraryItemRepository {
           completedStatus: LibraryItemStatus.COMPLETED,
         });
         break;
-      case LibraryItemFilter.DRIP:
-        // [이어 PICK] 탭 — **상태를 가리지 않는다**
-        builder.andWhere('item.source = :dripSource', {
-          dripSource: LibraryItemSource.DRIP,
-        });
-        break;
       case LibraryItemFilter.ALL:
         break;
     }
+  }
+
+  /**
+   * 출처 축(library-api.md 4.1). **상태·주제와는 AND다.**
+   *
+   * `SAVE`가 `onboarding`까지 포함하는 이유는 온보딩의 [담기]도 사용자가 직접 고른
+   * 것이기 때문이다. `source`를 세 값으로 나눠 기록하는 것은 유입 경로 분석용이고,
+   * 화면의 출처는 "이어가 보내준 것"과 "내가 담은 것" 둘뿐이다.
+   */
+  private applySourceFilter(
+    builder: SelectQueryBuilder<LibraryItem>,
+    sourceFilter: LibraryItemSourceFilter | null,
+  ): void {
+    if (sourceFilter === null) {
+      return;
+    }
+
+    builder.andWhere('item.source IN (:...filteredSources)', {
+      filteredSources: SOURCES_BY_SOURCE_FILTER[sourceFilter],
+    });
   }
 
   /**

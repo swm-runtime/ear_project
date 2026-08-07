@@ -4,6 +4,7 @@ import {
   LibraryItemFilter,
   LibraryItemSort,
   LibraryItemSource,
+  LibraryItemSourceFilter,
   LibraryItemStatus,
 } from '@/modules/library/library.enum';
 import {
@@ -47,6 +48,8 @@ export interface LibraryItemView {
 
 export interface LibraryListQuery {
   filter: LibraryItemFilter;
+  /** `null`이면 출처를 가리지 않는다 */
+  sourceFilter: LibraryItemSourceFilter | null;
   topicIds: string[];
   sort: LibraryItemSort;
   cursor: string | null;

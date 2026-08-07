@@ -12,6 +12,7 @@ import {
   LibraryItemFilter,
   LibraryItemSort,
   LibraryItemSource,
+  LibraryItemSourceFilter,
   LibraryItemStatus,
 } from '@/modules/library/library.enum';
 import { LibraryService } from '@/modules/library/library.service';
@@ -38,6 +39,7 @@ const QUOTA = {
 
 const LIST_QUERY = {
   filter: LibraryItemFilter.ALL,
+  sourceFilter: null,
   topicIds: [],
   sort: LibraryItemSort.ADDED_DESC,
   cursor: null,
@@ -179,10 +181,55 @@ describe('LibraryScreenOrchestrator', () => {
       expect(
         decodeLibraryCursor(result.nextCursor as string, {
           filter: LIST_QUERY.filter,
+          sourceFilter: LIST_QUERY.sourceFilter,
           sort: LIST_QUERY.sort,
           topicIds: LIST_QUERY.topicIds,
         }),
       ).toEqual({ addedAt: ADDED_AT, id: 'item-2' });
+    });
+
+    it('발급한 커서에 출처 필터를 담는다', async () => {
+      // given — 담기지 않으면 출처만 바꾼 다음 페이지 요청이 그대로 통과한다
+      libraryService.findPage.mockResolvedValue({
+        items: [buildItem({ id: 'item-1' })],
+        hasNext: true,
+      });
+
+      // when
+      const result = await orchestrator.getItems(
+        USER_ID,
+        { ...LIST_QUERY, sourceFilter: LibraryItemSourceFilter.DRIP },
+        NOW,
+      );
+
+      // then
+      expect(() =>
+        decodeLibraryCursor(result.nextCursor as string, {
+          filter: LIST_QUERY.filter,
+          sourceFilter: LibraryItemSourceFilter.SAVE,
+          sort: LIST_QUERY.sort,
+          topicIds: LIST_QUERY.topicIds,
+        }),
+      ).toThrow();
+    });
+
+    it('출처 필터를 Service 조회 조건에 그대로 넘긴다', async () => {
+      // given — 판정은 Repository가 하고 Orchestrator는 조합만 한다
+      libraryService.findPage.mockResolvedValue({ items: [], hasNext: false });
+
+      // when
+      await orchestrator.getItems(
+        USER_ID,
+        { ...LIST_QUERY, sourceFilter: LibraryItemSourceFilter.SAVE },
+        NOW,
+      );
+
+      // then
+      expect(libraryService.findPage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sourceFilter: LibraryItemSourceFilter.SAVE,
+        }),
+      );
     });
 
     it('다음 페이지가 없으면 커서를 발급하지 않는다', async () => {
