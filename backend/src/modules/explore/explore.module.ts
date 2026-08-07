@@ -15,7 +15,7 @@ import { ExploreOrchestrator } from './explore.orchestrator';
  * architecture.md 3.3 · 4.5).
  *
  * 탐색 화면 하나에 다섯 모듈의 데이터가 함께 들어간다 — 콘텐츠·주제·집계(`content`),
- * 담김 표시와 담기/해제(`library`), 오늘 카운트·잔여 표시·소비 신호(`playback`),
+ * 라이브러리 상태와 담기/해제(`library`), 오늘 카운트·잔여 표시·소비 신호(`playback`),
  * 관심 주제(`interest`), 담기 해제 시의 드립 영구 제외(`drip`). 어느 한 모듈의 Entity로
  * 환원되지 않으므로 소유 모듈들 **위에서** Orchestrator로 조합한다.
  *

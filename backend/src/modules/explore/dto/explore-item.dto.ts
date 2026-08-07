@@ -19,7 +19,8 @@ class ExploreContentDto {
 
 /**
  * 이 콘텐츠의 라이브러리 상태. **담기지 않았으면 응답에서 `null`이다.**
- * 행의 "담김" 표시와 더보기 시트의 담기/제거 분기가 이 값 하나로 갈린다.
+ * 더보기 시트의 담기/제거 분기와 완청 체크 마킹이 이 값 하나로 갈린다.
+ * **행에 담김 표시는 두지 않는다** — 행에 나타나는 것은 `status == 'completed'`일 때의 체크뿐이다.
  */
 class ExploreLibraryDto {
   readonly item_id: string;

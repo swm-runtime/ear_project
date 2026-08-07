@@ -199,7 +199,7 @@ describe('ExploreOrchestrator', () => {
       expect(playbackService.findRecentSignals).not.toHaveBeenCalled();
     });
 
-    it('이미 라이브러리에 있는 콘텐츠도 담김 표시를 달고 그대로 노출된다', async () => {
+    it('이미 라이브러리에 있는 콘텐츠도 라이브러리 상태를 달고 그대로 노출된다', async () => {
       // given — 초기 콘텐츠 풀이 작아 제외하면 피드가 빈다(`explore.md` 4.1)
       contentService.findRecent.mockResolvedValue([buildContent(CONTENT_ID)]);
       libraryService.findActiveItems.mockResolvedValue([buildLibraryItem()]);

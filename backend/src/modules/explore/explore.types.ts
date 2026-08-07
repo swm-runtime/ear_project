@@ -25,9 +25,10 @@ export interface ExploreContentView {
 /**
  * 이 콘텐츠의 라이브러리 상태. **없으면 `null`** — 담기지 않은 상태다.
  *
- * 행의 "담김" 표시와 더보기 시트의 담기/제거 분기가 이 값 하나로 갈린다
- * (`explore-uiux.md` 4.1). 출처는 원값으로 내려주되 **탐색은 배지로 구분하지 않는다** —
- * 여기서 필요한 정보는 "이미 내 라이브러리에 있다" 하나뿐이다.
+ * 더보기 시트의 담기/제거 분기와 완청 체크 마킹이 이 값 하나로 갈린다
+ * (`explore-uiux.md` 4.1). **행에 담김 표시는 두지 않는다** — 담김 여부는 시트가 말해주고,
+ * 행에 나타나는 것은 `status == 'completed'`일 때의 완청 체크뿐이다.
+ * 출처는 원값으로 내려주되 **탐색은 구분해 표시하지 않는다.**
  */
 export interface ExploreLibraryView {
   itemId: string;
@@ -96,7 +97,7 @@ export interface SaveContentResult {
   quota: DailyPlayQuota;
 }
 
-/** 섹션 조립 중간 산물 — 표시값(담김·오늘 카운트)이 아직 붙지 않은 상태 */
+/** 섹션 조립 중간 산물 — 표시값(주제·라이브러리 상태·오늘 카운트)이 아직 붙지 않은 상태 */
 export interface ExploreSectionDraft {
   key: ExploreSectionKey;
   title: string;
