@@ -7,7 +7,13 @@
 | 요청 파트 | 백엔드 |
 | 관련 작업 | 탐색 백엔드 구현 (`feat(be)/explore`) |
 | 성격 | 잔여 재생 표시값 조립을 한 곳으로 모으면서 **의존 두 방향이 사라졌다** |
-| 상태 | **승인 완료 (2026-08-07) — 코드는 반영 완료.** 문서 반영만 남았다 |
+| 상태 | **반영 완료** (2026-08-07, 탐색 통합 시점) — 코드·문서 모두 반영 |
+
+> **2026-08-07 반영 결과**
+>
+> - `architecture.md` 4.5 — `LibraryScreen` 행에서 `Subscription` · `User` 제거(`Library, Playback, Content, Drip`)
+> - `LibraryScreen` 설명 문단에 "잔여 재생 표시값은 직접 조립하지 않는다" 불릿 추가. 한도 판정이 필요한 재생 시작은 이 함수를 쓰지 않는다는 단서도 함께 적었다
+> - 같은 표의 `Explore` 행 신설과 함께 반영했다 — `changes/archive/module-dependency-explore(be).md`
 
 > `changes/pending/module-dependency-explore(be).md`의 "함께 확인할 것"에서 별도 결정으로 미뤄 두었던 항목이다. **하기로 확정**되어 이 문서로 분리한다.
 

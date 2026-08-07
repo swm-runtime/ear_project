@@ -5,6 +5,15 @@
 | 대상 문서 | `docs/features/explore.md` 4.1(행 구성) · `docs/spec/uiux/explore-uiux.md` 4.1(행 구성)·7장(접근성) · `docs/wireframe/explore.html` |
 | 요청 파트 | 프론트엔드 (FE 확정 2026-08-07 — 구현 반영 완료) |
 | 백엔드 협의 | 불필요 — 피드 응답의 `library.status`가 이미 완청 정보를 담고 있다(explore-api.md 4.1) |
+| 상태 | **반영 완료** (2026-08-07, 탐색 통합 시점) — 문서·와이어프레임 반영. FE 구현은 이미 완료 |
+
+> **2026-08-07 반영 결과**
+>
+> - `explore.md` 4.1 — 완청 체크 마킹 불릿 추가(판정 근거 `library.status == 'completed'`), 5장 화면 상태에 "완청한 콘텐츠" 행 추가, 8장 완료 조건 1개 추가
+> - `explore-uiux.md` — 1장 확정 사항, 4.1 행 구성과 라이브러리 상태 표(`status`로 갈리게 재작성), 7장 접근성("완청한 콘텐츠" 낭독)
+> - `wireframe/explore.html` — 행 2개의 썸네일에 `done-mark` 추가(라이브러리 카드와 **같은 마크업**), 설명 문구 갱신
+> - **백엔드 변경은 없다** — `library.status`를 이미 내려주고 있다
+> - **담김 배지 제거**(`explore-row-saved-badge-removal(fe).md`)와 같은 자리를 건드려 함께 반영했다
 
 ## 왜 필요한가
 

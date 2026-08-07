@@ -7,7 +7,14 @@
 | 요청 파트 | 백엔드 |
 | 관련 작업 | 탐색 백엔드 구현 (`feat(be)/explore`) |
 | 성격 | **표에 없는 모듈·의존이 코드에 생겼다** — 문서 자신의 규칙상 리뷰 반려 대상이다 |
-| 상태 | 승인 대기 |
+| 상태 | **반영 완료** (2026-08-07, 탐색 통합 시점) — 문서를 고치는 쪽으로 확정. 코드는 바꾸지 않았다 |
+
+> **2026-08-07 반영 결과**
+>
+> - `architecture.md` 4.5 — `Explore` 행 추가(`Content, Library, Playback, Interest, Drip`) + "Explore도 Entity를 갖지 않는다" 설명 문단 추가
+> - 설명 문단에 세 가지를 함께 적었다 — `content` 모듈에 넣으면 순환이 되는 이유, `user` · `subscription`을 의존하지 않는 이유, 재생 시작이 Playback에 남는 이유
+> - **`domain.md` 2장은 고치지 않았다.** 유스케이스 모듈은 그 표의 대상이 아니며, "유스케이스 모듈은 이 표에 없다"는 문장이 이미 그 이유를 설명한다
+> - `LibraryScreen` 행도 같은 표에서 함께 바뀌었다 — `changes/archive/library-screen-quota-assembly(be).md`
 
 > **`domain.md` 2장은 고치지 않는다.** `explore`는 Entity를 소유하지 않으므로 그 표(Entity 소유 모듈의 의존 표)의 대상이 아니다 — `onboarding` · `library-screen`이 거기에 없는 것과 같은 이유이며, `domain.md` 2장이 "유스케이스 모듈은 위 두 표에 없다"고 이미 명시하고 있다.
 >
