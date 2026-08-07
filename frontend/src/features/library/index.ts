@@ -4,4 +4,14 @@
  */
 export { default as LibraryScreen } from './screens/LibraryScreen';
 export { LIBRARY_COPY } from './library.copy';
-export type { LibraryFilter, LibraryItem } from './library.types';
+/** libraryKeys — 탐색의 담기·재생이 라이브러리 목록을 재조회시킬 때 쓴다(architecture.md 4.4) */
+export { libraryKeys } from './api/library.api';
+export type { LibraryFilter, LibraryItem, LibraryItemStatus, LibrarySource } from './library.types';
+
+/* ── mock 브리지(dev 전용) — 탐색 mock이 라이브러리 mock 상태와 정합을 맞출 때 쓴다 ── */
+export {
+  getMockLibraryItemByContentId,
+  mockSaveLibraryItemByContent,
+  mockUnsaveLibraryItemByContent,
+} from './api/library.mock';
+export type { MockLibrarySaveMeta, MockLibrarySaveResult } from './api/library.mock';

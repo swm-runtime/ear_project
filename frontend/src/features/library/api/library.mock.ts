@@ -325,3 +325,101 @@ export const mockRestore = async (id: string): Promise<RestoreResponseDto> => {
   item.deleted = false;
   return { id: item.id, status: item.status, added_at: item.addedAt, deleted_at: null };
 };
+
+/* ── 탐색 mock 브리지(dev 전용) — 탐색의 담김 표시·담기·해제가 라이브러리 mock 상태와
+      정합하도록 탐색 mock이 가져다 쓴다(explore-api.md 4.3·4.4 서버 처리의 대역) ── */
+
+export interface MockLibraryStateByContent {
+  item_id: string;
+  source: LibraryItemDto['source'];
+  status: LibraryItemDto['status'];
+}
+
+/** 탐색 행의 library 필드(담김 표시·시트 분기)용 — 살아 있는 항목만 돌려준다 */
+export const getMockLibraryItemByContentId = (
+  contentId: string,
+): MockLibraryStateByContent | null => {
+  const item = visibleItems().find((i) => i.contentId === contentId);
+  return item ? { item_id: item.id, source: item.source, status: item.status } : null;
+};
+
+export interface MockLibrarySaveMeta {
+  title: string;
+  authorName: string;
+  sourceName: string;
+  durationSec: number;
+  topicIds: string[];
+}
+
+export interface MockLibrarySaveResult {
+  library_item: {
+    id: string;
+    source: LibraryItemDto['source'];
+    status: LibraryItemDto['status'];
+    added_at: string;
+  };
+  /** 새로 담김(201) 여부 — 이미 담긴 것을 다시 담으면 false(200)다 */
+  created: boolean;
+}
+
+/** 담기(explore-api.md 4.3 서버 처리) — upsert이며 살아 있는 행은 아무것도 바꾸지 않는다 */
+export const mockSaveLibraryItemByContent = (
+  contentId: string,
+  meta: MockLibrarySaveMeta,
+): MockLibrarySaveResult => {
+  const existing = state.items.find((i) => i.contentId === contentId);
+  if (existing && !existing.deleted) {
+    return {
+      library_item: {
+        id: existing.id,
+        source: existing.source,
+        status: existing.status,
+        added_at: existing.addedAt,
+      },
+      created: false,
+    };
+  }
+  if (existing) {
+    // 삭제된 행의 재활성 — 재담기는 새 담기 조작이므로 적립 시각을 새로 찍는다(복구와 다르다)
+    existing.deleted = false;
+    existing.source = 'save';
+    existing.addedAt = new Date().toISOString();
+    return {
+      library_item: {
+        id: existing.id,
+        source: existing.source,
+        status: existing.status,
+        added_at: existing.addedAt,
+      },
+      created: false,
+    };
+  }
+  const item: MockItem = {
+    id: `library-item-${contentId}`,
+    contentId,
+    source: 'save',
+    status: 'unplayed',
+    addedAt: new Date().toISOString(),
+    lastPlayedAt: null,
+    completedAt: null,
+    title: meta.title,
+    authorName: meta.authorName,
+    sourceName: meta.sourceName,
+    durationSec: meta.durationSec,
+    topicIds: meta.topicIds,
+    positionSec: 0,
+    maxReachedSec: 0,
+    deleted: false,
+  };
+  state.items.unshift(item);
+  return {
+    library_item: { id: item.id, source: item.source, status: item.status, added_at: item.addedAt },
+    created: true,
+  };
+};
+
+/** 담기 해제(explore-api.md 4.4 서버 처리) — 소프트 삭제. 대상이 없어도 실패하지 않는다 */
+export const mockUnsaveLibraryItemByContent = (contentId: string): void => {
+  const item = state.items.find((i) => i.contentId === contentId && !i.deleted);
+  if (item) item.deleted = true;
+};

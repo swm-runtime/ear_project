@@ -6,7 +6,7 @@ import { ERROR_CODES } from '@/shared/api/error-codes';
 import { useToastStore } from '@/shared/ui/toast.store';
 
 import { PLAYER_COPY } from '../player.copy';
-import type { PlayEntryPoint } from '../player.types';
+import type { PlayEntryPoint, PlayStartResult } from '../player.types';
 import { useStartPlayMutation } from './useStartPlayMutation';
 import { suppressPlayConfirmForToday } from '../services/play-confirm-suppression.service';
 import { usePlayLimitStore } from '../store/play-limit.store';
@@ -25,6 +25,11 @@ interface PlayGateOptions {
    * 재조회한다. player가 진입점의 쿼리 키를 알지 않기 위한 콜백 주입이다(architecture.md 4.3).
    */
   onServerStateChanged?: () => void;
+  /**
+   * 재생이 실제로 시작된 직후(200) 호출된다 — 탐색의 라이브러리 자동 적립(explore-api.md 4.6)
+   * 같은 진입점 고유의 후속 처리용. 게이트가 진입점의 규칙을 알지 않기 위한 콜백 주입이다.
+   */
+  onPlayStarted?: (result: PlayStartResult, target: PlayGateTarget) => void;
 }
 
 interface ConfirmState {
@@ -63,6 +68,7 @@ export const usePlayGate = (options?: PlayGateOptions) => {
         onSuccess: (result) => {
           // 표시값은 적재 이후의 서버 값으로 덮어쓴다 — 클라이언트가 1을 빼지 않는다
           applyPlayLimit(result.playLimit);
+          options?.onPlayStarted?.(result, target);
           // 상태 전이(unplayed→in_progress)·카운트 반영은 진입점 화면의 재조회로 맞춘다
           notifyServerStateChanged();
           navigation.navigate('Main', {

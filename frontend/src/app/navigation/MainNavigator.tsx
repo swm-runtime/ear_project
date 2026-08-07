@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { theme } from '@/shared/theme';
 
+import { ExploreScreen } from '@/features/explore';
 import { LibraryScreen } from '@/features/library';
 
 import PlaceholderScreen from './PlaceholderScreen';
@@ -31,12 +32,12 @@ function MainTabs() {
         component={LibraryScreen}
         options={{ tabBarLabel: '라이브러리' }}
       />
-      {/* TODO: explore·profile feature 구현 시 교체 */}
       <MainTab.Screen
         name="Explore"
-        component={PlaceholderScreen}
+        component={ExploreScreen}
         options={{ tabBarLabel: '탐색' }}
       />
+      {/* TODO: profile feature 구현 시 교체 */}
       <MainTab.Screen
         name="Profile"
         component={PlaceholderScreen}
