@@ -2,7 +2,7 @@ import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
 
-import { LIBRARY_COPY } from '../library.copy';
+import { PLAYER_COPY } from '../player.copy';
 
 interface PlayConfirmDialogProps {
   visible: boolean;
@@ -26,24 +26,24 @@ export default function PlayConfirmDialog({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <View style={styles.dim}>
         <View style={styles.dialog} accessibilityViewIsModal>
-          <Text style={styles.title}>{LIBRARY_COPY.playConfirm.title(remaining)}</Text>
-          <Text style={styles.body}>{LIBRARY_COPY.playConfirm.body}</Text>
+          <Text style={styles.title}>{PLAYER_COPY.playConfirm.title(remaining)}</Text>
+          <Text style={styles.body}>{PLAYER_COPY.playConfirm.body}</Text>
           <View style={styles.buttonRow}>
             <Pressable
               style={styles.cancelButton}
               onPress={onCancel}
               accessibilityRole="button"
-              accessibilityLabel={LIBRARY_COPY.playConfirm.cancel}
+              accessibilityLabel={PLAYER_COPY.playConfirm.cancel}
             >
-              <Text style={styles.cancelLabel}>{LIBRARY_COPY.playConfirm.cancel}</Text>
+              <Text style={styles.cancelLabel}>{PLAYER_COPY.playConfirm.cancel}</Text>
             </Pressable>
             <Pressable
               style={styles.playButton}
               onPress={onConfirm}
               accessibilityRole="button"
-              accessibilityLabel={LIBRARY_COPY.playConfirm.play}
+              accessibilityLabel={PLAYER_COPY.playConfirm.play}
             >
-              <Text style={styles.playLabel}>{LIBRARY_COPY.playConfirm.play}</Text>
+              <Text style={styles.playLabel}>{PLAYER_COPY.playConfirm.play}</Text>
             </Pressable>
           </View>
           {/* 텍스트 버튼 — [취소]·[재생하기]와 나란히 세우지 않는다(library-uiux.md 4.6) */}
@@ -51,9 +51,9 @@ export default function PlayConfirmDialog({
             style={styles.suppressButton}
             onPress={onSuppressToday}
             accessibilityRole="button"
-            accessibilityLabel={LIBRARY_COPY.playConfirm.suppressToday}
+            accessibilityLabel={PLAYER_COPY.playConfirm.suppressToday}
           >
-            <Text style={styles.suppressLabel}>{LIBRARY_COPY.playConfirm.suppressToday}</Text>
+            <Text style={styles.suppressLabel}>{PLAYER_COPY.playConfirm.suppressToday}</Text>
           </Pressable>
         </View>
       </View>

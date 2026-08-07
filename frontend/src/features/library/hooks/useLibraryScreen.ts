@@ -8,6 +8,8 @@ import { ERROR_CODES } from '@/shared/api/error-codes';
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { useToastStore } from '@/shared/ui/toast.store';
 
+import { hydrateSuppressedServiceDate, usePlayGate, usePlayLimitStore } from '@/features/player';
+
 import { libraryKeys } from '../api/library.api';
 import { DELETE_UNDO_DURATION_MS } from '../library.constants';
 import { LIBRARY_COPY } from '../library.copy';
@@ -20,10 +22,7 @@ import type {
 import { useDeleteLibraryItemMutation } from './useDeleteLibraryItemMutation';
 import { useLibraryItemsQuery } from './useLibraryItemsQuery';
 import { useLibraryTopicsQuery } from './useLibraryTopicsQuery';
-import { usePlayGate } from './usePlayGate';
 import { useResumeTargetQuery } from './useResumeTargetQuery';
-import { hydrateSuppressedServiceDate } from '../services/play-confirm-suppression.service';
-import { useLibraryStore } from '../store/library.store';
 
 /** 적용 시점의 주제 이름을 함께 보관한다 — L7 보조 문구에 걸린 조건을 그대로 적기 위해(uiux 4.8) */
 interface AppliedTopicFilter {
@@ -43,8 +42,8 @@ export const useLibraryScreen = () => {
   const navigation = useNavigation();
   const queryClient = useQueryClient();
   const showToast = useToastStore((s) => s.show);
-  const applyPlayLimit = useLibraryStore((s) => s.applyPlayLimit);
-  const storedPlayLimit = useLibraryStore((s) => s.playLimit);
+  const applyPlayLimit = usePlayLimitStore((s) => s.applyPlayLimit);
+  const storedPlayLimit = usePlayLimitStore((s) => s.playLimit);
 
   /* ── 필터 상태 — 앱을 종료하면 초기화된다(메모리 보관, library.md 7) ── */
   const [filter, setFilter] = useState<LibraryFilter>('all');
@@ -71,7 +70,10 @@ export const useLibraryScreen = () => {
   const resumeQuery = useResumeTargetQuery();
   const topicsQuery = useLibraryTopicsQuery(isTopicSheetVisible);
   const deleteMutation = useDeleteLibraryItemMutation();
-  const playGate = usePlayGate();
+  // 게이트는 라이브러리의 쿼리 키를 모른다 — 재조회는 콜백 주입으로 이 화면이 맡는다(architecture.md 4.3)
+  const playGate = usePlayGate({
+    onServerStateChanged: () => void queryClient.invalidateQueries({ queryKey: libraryKeys.all }),
+  });
 
   const pages = itemsQuery.data?.pages;
   const { error: itemsError, refetch: refetchItems } = itemsQuery;

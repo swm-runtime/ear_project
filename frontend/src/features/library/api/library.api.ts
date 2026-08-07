@@ -1,5 +1,7 @@
 import { apiClient } from '@/shared/api/api-client';
 
+import { toPlayLimitSnapshot } from '@/features/player';
+
 import { IS_LIBRARY_API_MOCKED } from '../library.constants';
 import type {
   LibraryFilter,
@@ -8,9 +10,6 @@ import type {
   LibraryProgress,
   LibrarySourceFilter,
   LibraryTopic,
-  PlayEntryPoint,
-  PlayLimitSnapshot,
-  PlayStartResult,
   ResumeResult,
 } from '../library.types';
 import type {
@@ -19,8 +18,6 @@ import type {
   LibraryItemsResponseDto,
   LibraryProgressDto,
   LibraryTopicsResponseDto,
-  PlayLimitFieldsDto,
-  PlayStartResponseDto,
   ResumeResponseDto,
   RestoreResponseDto,
 } from './library.dto';
@@ -31,7 +28,6 @@ import {
   mockFetchResume,
   mockFetchTopics,
   mockRestore,
-  mockStartPlay,
 } from './library.mock';
 
 /* ── Query Key factory(convention.md 4.1) ── */
@@ -44,13 +40,8 @@ export const libraryKeys = {
   resume: () => [...libraryKeys.all, 'resume'] as const,
 };
 
-/* ── 변환 — snake_case ↔ camelCase 변환은 이 모듈 안에서만 일어난다 ── */
-
-const toPlayLimit = (dto: PlayLimitFieldsDto): PlayLimitSnapshot => ({
-  dailyPlayLimit: dto.daily_play_limit,
-  dailyPlayCount: dto.daily_play_count,
-  serviceDate: dto.service_date,
-});
+/* ── 변환 — snake_case ↔ camelCase 변환은 이 모듈 안에서만 일어난다.
+      잔여 표시값 세 필드만 예외로 player의 공용 변환을 쓴다(library-api.md 2 — 공통 규약) ── */
 
 const toProgress = (dto: LibraryProgressDto | null): LibraryProgress | null =>
   dto ? { positionSec: dto.position_sec, maxReachedSec: dto.max_reached_sec } : null;
@@ -80,7 +71,7 @@ const toLibraryPage = (dto: LibraryItemsResponseDto): LibraryPage => ({
   items: dto.items.map(toLibraryItem),
   nextCursor: dto.next_cursor,
   hasNext: dto.has_next,
-  playLimit: toPlayLimit(dto),
+  playLimit: toPlayLimitSnapshot(dto),
 });
 
 const toResumeResult = (dto: ResumeResponseDto): ResumeResult => ({
@@ -100,20 +91,7 @@ const toResumeResult = (dto: ResumeResponseDto): ResumeResult => ({
         progress: toProgress(dto.resume_target.progress),
       }
     : null,
-  playLimit: toPlayLimit(dto),
-});
-
-const toPlayStartResult = (dto: PlayStartResponseDto): PlayStartResult => ({
-  counted: dto.counted,
-  libraryItem: dto.library_item
-    ? {
-        id: dto.library_item.id,
-        status: dto.library_item.status,
-        lastPlayedAt: dto.library_item.last_played_at,
-      }
-    : null,
-  progress: toProgress(dto.progress),
-  playLimit: toPlayLimit(dto),
+  playLimit: toPlayLimitSnapshot(dto),
 });
 
 /* ── 엔드포인트 — mock 분기는 각 함수 진입점 한 곳에서만 한다 ── */
@@ -155,26 +133,6 @@ export const fetchResumeTarget = async (): Promise<ResumeResult> => {
     ? await mockFetchResume()
     : (await apiClient.get<ResumeResponseDto>('/users/me/library-items/resume')).data;
   return toResumeResult(data);
-};
-
-/**
- * 재생 시작(library-api.md 4.4) — 한도 판정·카운트 적재가 서버에서 일어난다.
- * 사용자가 시작한 액션이고 403은 재시도로 풀리지 않으므로 자동 재시도를 끈다.
- */
-export const startPlay = async (input: {
-  contentId: string;
-  entryPoint: PlayEntryPoint;
-}): Promise<PlayStartResult> => {
-  const data = IS_LIBRARY_API_MOCKED
-    ? await mockStartPlay(input.contentId)
-    : (
-        await apiClient.post<PlayStartResponseDto>(
-          `/contents/${input.contentId}/play`,
-          { entry_point: input.entryPoint },
-          { noAutoRetry: true },
-        )
-      ).data;
-  return toPlayStartResult(data);
 };
 
 /**

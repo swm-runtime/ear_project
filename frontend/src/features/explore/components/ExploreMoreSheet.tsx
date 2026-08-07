@@ -2,21 +2,29 @@ import { Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
 
-import { LIBRARY_COPY } from '../library.copy';
-import type { LibraryItem } from '../library.types';
+import { EXPLORE_COPY } from '../explore.copy';
+import type { ExploreItem } from '../explore.types';
 
-interface MoreActionsSheetProps {
-  item: LibraryItem | null;
-  onDelete: (item: LibraryItem) => void;
+interface ExploreMoreSheetProps {
+  item: ExploreItem | null;
+  onSave: (item: ExploreItem) => void;
+  onRemove: (item: ExploreItem) => void;
   onDismiss: () => void;
 }
 
 /**
- * L4 더보기 액션시트 — 메뉴 항목은 삭제 하나뿐이다(library-uiux.md 4.7).
- * 어느 아이템에 대한 조작인지 시트 상단에 반드시 다시 보여준다 — 대상 요약(썸네일·제목·출처)
- * 구성은 탐색 더보기 시트와 통일한다(FE 확정 2026-08-07).
+ * E12 더보기 액션시트 — MVP 구성은 대상 요약 + 담기/제거 + 닫기가 전부다.
+ * [공유]·[상세]를 노출하지 않는다(explore.md 4.6 — MVP 제외 · 상세 명세 부재).
+ * 어느 콘텐츠에 대한 조작인지 상단에 다시 보여준다(library-uiux.md 4.7과 같은 규칙).
  */
-export default function MoreActionsSheet({ item, onDelete, onDismiss }: MoreActionsSheetProps) {
+export default function ExploreMoreSheet({
+  item,
+  onSave,
+  onRemove,
+  onDismiss,
+}: ExploreMoreSheetProps) {
+  const isSaved = item?.library !== null;
+
   return (
     <Modal visible={item !== null} transparent animationType="slide" onRequestClose={onDismiss}>
       <Pressable style={styles.dim} onPress={onDismiss} accessibilityRole="button">
@@ -34,24 +42,37 @@ export default function MoreActionsSheet({ item, onDelete, onDismiss }: MoreActi
                   </Text>
                 </View>
               </View>
-              <Pressable
-                style={styles.action}
-                onPress={() => onDelete(item)}
-                accessibilityRole="button"
-                accessibilityLabel={LIBRARY_COPY.moreSheet.delete}
-              >
-                <Text style={[styles.actionLabel, styles.deleteLabel]}>
-                  {LIBRARY_COPY.moreSheet.delete}
-                </Text>
-              </Pressable>
+              {/* 담기/제거는 library 값으로 가른다 — 출처와 무관하게 제거를 허용한다(uiux 4.4) */}
+              {isSaved ? (
+                <Pressable
+                  style={styles.action}
+                  onPress={() => onRemove(item)}
+                  accessibilityRole="button"
+                  accessibilityLabel={EXPLORE_COPY.sheet.remove}
+                >
+                  {/* 라이브러리에서 빼는 조작 — L4의 [삭제]와 같은 결과이므로 같은 위험색을 쓴다 */}
+                  <Text style={[styles.actionLabel, styles.removeLabel]}>
+                    {EXPLORE_COPY.sheet.remove}
+                  </Text>
+                </Pressable>
+              ) : (
+                <Pressable
+                  style={styles.action}
+                  onPress={() => onSave(item)}
+                  accessibilityRole="button"
+                  accessibilityLabel={EXPLORE_COPY.sheet.save}
+                >
+                  <Text style={styles.actionLabel}>{EXPLORE_COPY.sheet.save}</Text>
+                </Pressable>
+              )}
               <Pressable
                 style={styles.action}
                 onPress={onDismiss}
                 accessibilityRole="button"
-                accessibilityLabel={LIBRARY_COPY.moreSheet.close}
+                accessibilityLabel={EXPLORE_COPY.sheet.close}
               >
                 <Text style={[styles.actionLabel, styles.closeLabel]}>
-                  {LIBRARY_COPY.moreSheet.close}
+                  {EXPLORE_COPY.sheet.close}
                 </Text>
               </Pressable>
             </>
@@ -112,7 +133,7 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.md,
     color: theme.color.textPrimary,
   },
-  deleteLabel: {
+  removeLabel: {
     color: theme.color.danger,
     fontWeight: '600',
   },

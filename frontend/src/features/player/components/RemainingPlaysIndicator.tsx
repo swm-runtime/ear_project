@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, Text } from 'react-native';
 
 import { theme } from '@/shared/theme';
 
-import { LIBRARY_COPY } from '../library.copy';
+import { PLAYER_COPY } from '../player.copy';
 
 interface RemainingPlaysIndicatorProps {
   remaining: number;
@@ -26,10 +26,10 @@ export default function RemainingPlaysIndicator({
     return (
       <Text
         style={styles.label}
-        accessibilityLabel={LIBRARY_COPY.remaining.a11yLabel(remaining, limit)}
+        accessibilityLabel={PLAYER_COPY.remaining.a11yLabel(remaining, limit)}
         accessibilityLiveRegion="polite"
       >
-        {LIBRARY_COPY.remaining.label(remaining, limit)}
+        {PLAYER_COPY.remaining.label(remaining, limit)}
       </Text>
     );
   }
@@ -39,9 +39,9 @@ export default function RemainingPlaysIndicator({
       style={styles.exhaustedButton}
       onPress={onExhaustedPress}
       accessibilityRole="button"
-      accessibilityLabel={LIBRARY_COPY.remaining.a11yLabelExhausted}
+      accessibilityLabel={PLAYER_COPY.remaining.a11yLabelExhausted}
     >
-      <Text style={styles.exhaustedLabel}>{LIBRARY_COPY.remaining.label(0, limit)}</Text>
+      <Text style={styles.exhaustedLabel}>{PLAYER_COPY.remaining.label(0, limit)}</Text>
     </Pressable>
   );
 }

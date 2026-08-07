@@ -1,8 +1,15 @@
 import { create } from 'zustand';
 
+/** 토스트에 얹는 단일 액션 — 담기 완료의 [보러가기] 같은 이동 버튼(explore-uiux.md 4.4) */
+export interface ToastAction {
+  label: string;
+  onPress: () => void;
+}
+
 interface ToastStore {
   message: string | null;
-  show: (message: string) => void;
+  action: ToastAction | null;
+  show: (message: string, action?: ToastAction) => void;
   hide: () => void;
 }
 
@@ -12,6 +19,7 @@ interface ToastStore {
  */
 export const useToastStore = create<ToastStore>((set) => ({
   message: null,
-  show: (message) => set({ message }),
-  hide: () => set({ message: null }),
+  action: null,
+  show: (message, action) => set({ message, action: action ?? null }),
+  hide: () => set({ message: null, action: null }),
 }));
