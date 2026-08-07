@@ -9,7 +9,9 @@
 | 심각도 | **중** — 기존 화면이 깨지지는 않는다. 확정된 화면 규칙 하나가 통째로 빠져 있다 |
 | 상태 | 대기 |
 
-> **짝 티켓** — `tickets/backend/pending/explore-popular-period.md`. **서버가 먼저 나가야 mock을 벗을 수 있다.** 그 전까지는 mock으로 화면을 완성해 두면 된다(탐색 FE가 이미 그렇게 동작한다).
+> **짝 티켓** — `tickets/backend/pending/explore-popular-period.md`. **서버가 먼저 나가야 실서버 전환으로 확인할 수 있다.** 그 전까지는 mock으로 화면을 완성해 두면 된다(탐색 FE가 이미 그렇게 동작한다).
+>
+> **mock을 없애지 않는다.** 탐색도 다른 화면과 같이 `EXPO_PUBLIC_EXPLORE_API=real`로 실서버 전환을 켜고 끄며(`IS_EXPLORE_API_MOCKED`), **mock은 개발·테스트 경로로 그대로 남는다.**
 
 ## 증상
 
@@ -92,9 +94,9 @@ export interface ExplorePopularResponseDto extends PlayLimitFieldsDto {
 - 고른 구간은 **서버에 저장하지 않는다.** 탭 이탈·앱 재실행 시의 유지 범위는 화면이 정한다 — 화면 상태이지 사용자 상태가 아니다.
 - **확정 구간이 없다는 이유로 탭을 숨기거나 비활성화하지 않는다.** 세 구간 모두 항상 고를 수 있다(`explore-uiux.md` 8장).
 
-### 6. mock — `api/explore.mock.ts`
+### 6. mock 확장 — `api/explore.mock.ts`
 
-세 구간이 서로 다른 목록을 주도록 만든다. **전부 같은 목록이면 토글이 동작하는지 확인할 수 없다.** 전환 실패 시나리오도 하나 둬 인라인 에러 경로를 확인한다.
+**mock은 그대로 유지하고 새 조회를 더한다.** 세 구간이 서로 다른 목록을 주도록 만든다 — **전부 같은 목록이면 토글이 동작하는지 확인할 수 없다.** 전환 실패 시나리오도 하나 둬 인라인 에러 경로를 확인한다.
 
 ## 함께 확인할 것
 

@@ -9,7 +9,7 @@
 | 심각도 | **중** — 기존 동작이 깨지지는 않는다. 다만 확정된 화면 규칙이 서버에 없어 FE가 구현을 시작할 수 없다 |
 | 상태 | 대기 |
 
-> **짝 티켓** — `tickets/frontend/pending/explore-popular-period.md`. **서버가 먼저 나가야 FE가 mock을 벗을 수 있다.**
+> **짝 티켓** — `tickets/frontend/pending/explore-popular-period.md`. **서버가 먼저 나가야 FE가 실서버 전환으로 확인할 수 있다**(`EXPO_PUBLIC_EXPLORE_API=real`). FE의 mock은 그대로 남는다.
 
 ## 증상
 

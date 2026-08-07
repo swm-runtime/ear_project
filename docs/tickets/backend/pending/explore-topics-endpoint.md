@@ -9,7 +9,7 @@
 | 심각도 | **상** — 주제 필터 조회(`GET /explore/contents`)는 구현돼 있는데 **무엇으로 필터할지 고를 목록이 없다.** 탐색 칩 줄이 통째로 동작하지 않는다 |
 | 상태 | 대기 |
 
-> **짝 티켓** — `tickets/frontend/pending/explore-topics-endpoint.md`. FE는 이 계약으로 **mock을 이미 구현해 두었다**(`frontend/src/features/explore/api/explore.dto.ts`의 `ExploreTopicsResponseDto`). **서버가 나가면 FE는 mock만 벗으면 된다.**
+> **짝 티켓** — `tickets/frontend/pending/explore-topics-endpoint.md`. FE는 이 계약으로 **mock을 이미 구현해 두었다**(`frontend/src/features/explore/api/explore.dto.ts`의 `ExploreTopicsResponseDto`). **서버가 나가면 FE는 실서버 호출 경로만 붙이면 된다** — mock은 개발·테스트 경로로 그대로 남는다(`EXPO_PUBLIC_EXPLORE_API=real`로 전환).
 >
 > **계약이 아직 `explore-api.md`에 반영되지 않았다.** 두 `changes/pending` 문서가 근거이며, 통합 시 그 둘을 함께 `explore-api.md` 3·4장과 `explore.md` 4.2에 반영해야 한다. 구현과 문서 반영의 순서는 팀이 정한다.
 

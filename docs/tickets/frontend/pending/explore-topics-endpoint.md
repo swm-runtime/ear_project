@@ -1,4 +1,4 @@
-# [FE] 주제 칩 목록 — mock에만 있고 실서버 경로가 없다
+# [FE] 주제 칩 목록 — 실서버 호출 경로가 없다
 
 | 항목 | 값 |
 |---|---|
@@ -10,6 +10,8 @@
 | 상태 | 대기 |
 
 > **짝 티켓** — `tickets/backend/pending/explore-topics-endpoint.md`. **서버가 먼저 나가야 이 티켓을 닫을 수 있다.** 화면·mock은 이미 이 계약으로 동작하므로 FE 작업량은 작다.
+>
+> **mock을 없애지 않는다.** 탐색도 다른 화면과 같이 `EXPO_PUBLIC_EXPLORE_API=real`로 실서버 전환을 켜고 끄며(`IS_EXPLORE_API_MOCKED`), **mock은 개발·테스트 경로로 그대로 남는다.** 이 티켓이 더하는 것은 그 스위치의 실서버 쪽 갈래 하나다.
 
 ## 증상
 
@@ -53,9 +55,9 @@ export interface ExploreTopicsResponseDto {
 
 다른 다섯 호출과 같은 형태로 `IS_EXPLORE_API_MOCKED` 분기를 붙인다. `GET /explore/topics`, 파라미터 없음.
 
-### 3. mock 정리 — `api/explore.mock.ts`
+### 3. mock 데이터 정합 — `api/explore.mock.ts`
 
-계약이 확정됐으므로 mock 데이터가 **서버 규칙과 같은 순서**를 내도록 맞춘다.
+**mock은 그대로 유지한다.** 계약이 확정됐으므로 mock 데이터가 **서버 규칙과 같은 순서**를 내도록 맞추기만 한다 — 두 경로가 다른 순서를 내면 mock으로 확인한 화면이 실서버에서 달라진다.
 
 | 구분 | 규칙 |
 |---|---|
@@ -67,7 +69,7 @@ export interface ExploreTopicsResponseDto {
 
 ### 4. 훅 — `hooks/useExploreTopicsQuery.ts`
 
-이미 있으므로 **호출 대상만 실서버로 바뀐다.** 로딩·에러 처리는 기존 규칙(`common-error-handling.md`)을 따른다.
+이미 있으므로 **바뀌는 것이 없다.** 스위치가 mock과 실서버를 가르므로 훅은 그대로 두면 되고, 로딩·에러 처리도 기존 규칙(`common-error-handling.md`)을 따른다.
 
 ## 함께 확인할 것
 
