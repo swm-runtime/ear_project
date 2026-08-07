@@ -16,11 +16,13 @@ const toMinutes = (durationSec: number): number => Math.max(1, Math.round(durati
 
 /**
  * 콘텐츠 행 — 라이브러리 아이템 행과 같은 문법(썸네일·제목·출처·저자·길이).
- * 담김은 "담김" 텍스트 배지 하나로만 구분한다(색만으로 구분하지 않는다 — uiux 7).
- * 행에 담기 버튼을 두지 않는다 — 담기/제거는 더보기 시트 소유다(explore.md 4.3).
+ * 완청은 썸네일 좌상단 체크로 구분한다 — 탐색은 청취 여부와 무관하게 전부 노출되므로
+ * 완청 단서가 라이브러리 카드와 동일하게 필요하다(FE 확정 2026-08-07).
+ * 담김 배지는 두지 않는다 — 담김 여부는 더보기 시트의 담기/제거 분기로 확인한다
+ * (FE 확정 2026-08-07, 정보량 축소). 행에 담기 버튼도 없다(explore.md 4.3).
  */
 export default function ExploreContentRow({ item, onPress, onMorePress }: ExploreContentRowProps) {
-  const isSaved = item.library !== null;
+  const isCompleted = item.library?.status === 'completed';
   const minutes = toMinutes(item.content.durationSec);
 
   return (
@@ -33,25 +35,25 @@ export default function ExploreContentRow({ item, onPress, onMorePress }: Explor
           title: item.content.title,
           sourceName: item.content.sourceName,
           minutes,
-          saved: isSaved,
+          completed: isCompleted,
         })}
       >
-        <Image source={{ uri: item.content.thumbnailUrl }} style={styles.thumbnail} />
+        <View>
+          <Image source={{ uri: item.content.thumbnailUrl }} style={styles.thumbnail} />
+          {isCompleted ? (
+            <View style={styles.completedMark}>
+              <Text style={styles.completedGlyph}>✓</Text>
+            </View>
+          ) : null}
+        </View>
         <View style={styles.info}>
           <Text style={styles.title} numberOfLines={2}>
             {item.content.title}
           </Text>
-          <View style={styles.metaRow}>
-            <Text style={styles.meta} numberOfLines={1}>
-              {item.content.sourceName} · {item.content.authorName} ·{' '}
-              {EXPLORE_COPY.row.durationLabel(minutes)}
-            </Text>
-            {isSaved ? (
-              <View style={styles.savedBadge}>
-                <Text style={styles.savedBadgeLabel}>{EXPLORE_COPY.savedBadge}</Text>
-              </View>
-            ) : null}
-          </View>
+          <Text style={styles.meta} numberOfLines={1}>
+            {item.content.sourceName} · {item.content.authorName} ·{' '}
+            {EXPLORE_COPY.row.durationLabel(minutes)}
+          </Text>
         </View>
       </Pressable>
       <Pressable
@@ -85,6 +87,24 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.sm,
     backgroundColor: theme.color.surface,
   },
+  completedMark: {
+    position: 'absolute',
+    top: -theme.spacing.xs,
+    left: -theme.spacing.xs,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: theme.color.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: theme.color.background,
+  },
+  completedGlyph: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: theme.color.onPrimary,
+  },
   info: {
     flex: 1,
     gap: theme.spacing.xs,
@@ -95,27 +115,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.color.textPrimary,
   },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-  },
   meta: {
-    flexShrink: 1,
     fontSize: theme.font.size.xs,
-    color: theme.color.textSecondary,
-  },
-  savedBadge: {
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: 2,
-    borderRadius: theme.radius.sm,
-    backgroundColor: theme.color.surface,
-    borderWidth: 1,
-    borderColor: theme.color.border,
-  },
-  savedBadgeLabel: {
-    fontSize: theme.font.size.xs,
-    fontWeight: '600',
     color: theme.color.textSecondary,
   },
   moreButton: {

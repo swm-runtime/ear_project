@@ -50,7 +50,10 @@ export default function ExploreMoreSheet({
                   accessibilityRole="button"
                   accessibilityLabel={EXPLORE_COPY.sheet.remove}
                 >
-                  <Text style={styles.actionLabel}>{EXPLORE_COPY.sheet.remove}</Text>
+                  {/* 라이브러리에서 빼는 조작 — L4의 [삭제]와 같은 결과이므로 같은 위험색을 쓴다 */}
+                  <Text style={[styles.actionLabel, styles.removeLabel]}>
+                    {EXPLORE_COPY.sheet.remove}
+                  </Text>
                 </Pressable>
               ) : (
                 <Pressable
@@ -129,6 +132,10 @@ const styles = StyleSheet.create({
   actionLabel: {
     fontSize: theme.font.size.md,
     color: theme.color.textPrimary,
+  },
+  removeLabel: {
+    color: theme.color.danger,
+    fontWeight: '600',
   },
   closeLabel: {
     color: theme.color.textSecondary,

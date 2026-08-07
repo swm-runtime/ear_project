@@ -9,9 +9,6 @@ export const EXPLORE_COPY = {
     disabledA11y: '콘텐츠 검색, 사용할 수 없음',
   },
 
-  /** 담김 배지는 한 단어다 — 시트의 액션과 같은 개념("라이브러리")을 가리킨다(uiux 6장) */
-  savedBadge: '담김',
-
   /** E12 더보기 액션시트 — MVP에는 담기/제거뿐이다(공유·상세 없음, explore.md 4.6) */
   sheet: {
     save: '라이브러리에 담기',
@@ -50,13 +47,20 @@ export const EXPLORE_COPY = {
   row: {
     durationLabel: (minutes: number) => `${minutes}분`,
     moreA11y: '더보기, 담기·제거',
+    /** 완청 체크는 색이 아니라 형태 단서 + 스크린리더 텍스트로 전달한다(library 카드와 동일) */
+    completedA11y: '완청한 콘텐츠',
     /** 행은 하나의 탭 영역으로 읽힌다 — 값과 동작을 한 문장으로(uiux 7) */
-    a11yLabel: (parts: { title: string; sourceName: string; minutes: number; saved: boolean }) =>
+    a11yLabel: (parts: {
+      title: string;
+      sourceName: string;
+      minutes: number;
+      completed: boolean;
+    }) =>
       [
         parts.title,
         parts.sourceName,
         `${parts.minutes}분`,
-        ...(parts.saved ? ['담김'] : []),
+        ...(parts.completed ? ['완청한 콘텐츠'] : []),
         '재생',
       ].join(', '),
   },
