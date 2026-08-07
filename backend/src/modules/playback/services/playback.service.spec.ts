@@ -1,3 +1,7 @@
+import { PlanService } from '@/modules/subscription/services/plan.service';
+import { UserTier } from '@/modules/user/user.enum';
+import { UserService } from '@/modules/user/services/user.service';
+
 import { PlaybackProgressRepository } from '../repositories/playback-progress.repository';
 import { PlayRecordRepository } from '../repositories/play-record.repository';
 import { UserSignalRepository } from '../repositories/user-signal.repository';
@@ -15,6 +19,8 @@ describe('PlaybackService', () => {
   let progressRepository: jest.Mocked<PlaybackProgressRepository>;
   let playRecordRepository: jest.Mocked<PlayRecordRepository>;
   let userSignalRepository: jest.Mocked<UserSignalRepository>;
+  let userService: jest.Mocked<UserService>;
+  let planService: jest.Mocked<PlanService>;
 
   beforeEach(() => {
     progressRepository = {
@@ -32,12 +38,28 @@ describe('PlaybackService', () => {
 
     userSignalRepository = {
       insert: jest.fn(),
+      findAllRecentByUserId: jest.fn().mockResolvedValue([]),
+      countByUserIdAndAction: jest.fn().mockResolvedValue(0),
     } as unknown as jest.Mocked<UserSignalRepository>;
+
+    userService = {
+      getById: jest
+        .fn()
+        .mockResolvedValue({ id: USER_ID, tier: UserTier.LIGHT }),
+    } as unknown as jest.Mocked<UserService>;
+
+    planService = {
+      getPlayLimitPolicy: jest
+        .fn()
+        .mockResolvedValue({ dailyPlayLimit: 2, isTopTier: false }),
+    } as unknown as jest.Mocked<PlanService>;
 
     service = new PlaybackService(
       progressRepository,
       playRecordRepository,
       userSignalRepository,
+      userService,
+      planService,
     );
   });
 
@@ -115,6 +137,42 @@ describe('PlaybackService', () => {
       expect(
         playRecordRepository.countByUserIdAndPlayDate,
       ).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('buildQuotaForUser', () => {
+    it('사용자 티어의 요금제 한도로 잔여 표시값을 조립한다', async () => {
+      // given — 화면마다 다시 조립하면 같은 사용자에게 다른 숫자가 표시된다
+      playRecordRepository.countByUserIdAndPlayDate.mockResolvedValue(1);
+
+      // when
+      const quota = await service.buildQuotaForUser(USER_ID, AFTER_BOUNDARY);
+
+      // then
+      expect(planService.getPlayLimitPolicy).toHaveBeenCalledWith(
+        UserTier.LIGHT,
+        undefined,
+      );
+      expect(quota).toEqual({
+        dailyPlayLimit: 2,
+        dailyPlayCount: 1,
+        serviceDate: '2026-08-05',
+      });
+    });
+
+    it('무제한 티어면 카운트도 null로 내린다', async () => {
+      // given
+      planService.getPlayLimitPolicy.mockResolvedValue({
+        dailyPlayLimit: null,
+        isTopTier: true,
+      });
+
+      // when
+      const quota = await service.buildQuotaForUser(USER_ID, AFTER_BOUNDARY);
+
+      // then
+      expect(quota.dailyPlayLimit).toBeNull();
+      expect(quota.dailyPlayCount).toBeNull();
     });
   });
 

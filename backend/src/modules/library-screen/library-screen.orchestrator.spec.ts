@@ -18,9 +18,6 @@ import {
 import { LibraryService } from '@/modules/library/library.service';
 import { UserSignalAction } from '@/modules/playback/playback.enum';
 import { PlaybackService } from '@/modules/playback/services/playback.service';
-import { PlanService } from '@/modules/subscription/services/plan.service';
-import { UserService } from '@/modules/user/services/user.service';
-import { UserTier } from '@/modules/user/user.enum';
 
 import { decodeLibraryCursor } from './library-screen.cursor';
 import { LibraryScreenOrchestrator } from './library-screen.orchestrator';
@@ -93,8 +90,6 @@ describe('LibraryScreenOrchestrator', () => {
   let libraryService: jest.Mocked<LibraryService>;
   let playbackService: jest.Mocked<PlaybackService>;
   let contentService: jest.Mocked<ContentService>;
-  let planService: jest.Mocked<PlanService>;
-  let userService: jest.Mocked<UserService>;
   let dripExclusionService: jest.Mocked<DripExclusionService>;
 
   beforeEach(() => {
@@ -114,25 +109,13 @@ describe('LibraryScreenOrchestrator', () => {
       findProgresses: jest.fn().mockResolvedValue([]),
       findStartedContentIds: jest.fn().mockResolvedValue([]),
       findCountedContentIds: jest.fn().mockResolvedValue(new Set<string>()),
-      buildQuota: jest.fn().mockResolvedValue(QUOTA),
+      buildQuotaForUser: jest.fn().mockResolvedValue(QUOTA),
       recordSignal: jest.fn(),
     } as unknown as jest.Mocked<PlaybackService>;
 
     contentService = {
       findTopicViews: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<ContentService>;
-
-    planService = {
-      getPlayLimitPolicy: jest
-        .fn()
-        .mockResolvedValue({ dailyPlayLimit: 2, isTopTier: false }),
-    } as unknown as jest.Mocked<PlanService>;
-
-    userService = {
-      getById: jest
-        .fn()
-        .mockResolvedValue({ id: USER_ID, tier: UserTier.LIGHT }),
-    } as unknown as jest.Mocked<UserService>;
 
     dripExclusionService = {
       exclude: jest.fn(),
@@ -148,8 +131,6 @@ describe('LibraryScreenOrchestrator', () => {
       libraryService,
       playbackService,
       contentService,
-      planService,
-      userService,
       dripExclusionService,
       dataSource,
     );

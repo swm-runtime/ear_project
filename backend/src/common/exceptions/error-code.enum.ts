@@ -81,6 +81,17 @@ export enum ErrorCode {
    */
   LIBRARY_COMPLETION_NOT_REACHED = 'LIBRARY_COMPLETION_NOT_REACHED',
 
+  // --- 탐색 (explore-api.md 5장) ---
+  /**
+   * 커서 형식 오류, 또는 발급 시점과 다른 `topic_ids`.
+   * 조건이 바뀐 커서를 이어 쓰면 두 조건이 섞인 목록이 된다.
+   *
+   * 라이브러리와 코드를 공유하지 않는 이유는 **클라이언트가 복구하는 화면이 다르기**
+   * 때문이다 — 탐색은 필터 목록을 첫 페이지부터 다시 조회한다
+   * (`common-error-handling.md` 9.6에 이미 등재된 코드다).
+   */
+  EXPLORE_CURSOR_INVALID = 'EXPLORE_CURSOR_INVALID',
+
   // --- 재생 한도 (paywall.md 4.1 · library-api.md 5장) ---
   /**
    * 무료 티어 한도 소진 → 클라이언트는 **페이월 바텀시트**를 연다.

@@ -6,7 +6,12 @@ import { BusinessNotFoundException } from '@/common/exceptions/business-not-foun
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 
 import { ContentStatus } from '../content.enum';
-import { ContentCandidateQuery, ContentTopicView } from '../content.types';
+import {
+  ContentCandidateQuery,
+  ContentTopicView,
+  ExplorePage,
+  ExplorePageQuery,
+} from '../content.types';
 import { Content } from '../entities/content.entity';
 import { ContentRepository } from '../repositories/content.repository';
 import { ContentTopicRepository } from '../repositories/content-topic.repository';
@@ -40,6 +45,64 @@ export class ContentService {
     manager?: EntityManager,
   ): Promise<Content[]> {
     return this.contentRepository.findAllByIds(contentIds, manager);
+  }
+
+  /** 탐색 피드의 "새로 나온 콘텐츠" 섹션 (`explore.md` 4.1) */
+  async findRecent(
+    limit: number,
+    now: Date,
+    manager?: EntityManager,
+  ): Promise<Content[]> {
+    return this.contentRepository.findRecent(limit, now, manager);
+  }
+
+  /**
+   * 탐색 피드의 "인기 콘텐츠" 섹션 (`explore.md` 4.1).
+   * 구간은 호출부가 정한다 — 경계 계산은 `service-date.util`에만 둔다(domain.md 1.2).
+   */
+  async findPopular(
+    periodStart: string,
+    limit: number,
+    now: Date,
+    manager?: EntityManager,
+  ): Promise<Content[]> {
+    return this.contentRepository.findPopular(periodStart, limit, now, manager);
+  }
+
+  /**
+   * 탐색 주제 필터의 단일 목록 한 페이지(explore-api.md 4.2).
+   *
+   * Repository가 한 건 더 읽어 오므로 **여기서 잘라내고 다음 페이지 여부를 판정한다.**
+   * `has_next`가 `false`일 때 커서를 발급하지 않는 것은 호출부(응답 조립) 책임이다.
+   */
+  async findExplorePage(
+    query: ExplorePageQuery,
+    manager?: EntityManager,
+  ): Promise<ExplorePage> {
+    const rows = await this.contentRepository.findExplorePage(query, manager);
+    const hasNext = rows.length > query.limit;
+
+    return { items: hasNext ? rows.slice(0, query.limit) : rows, hasNext };
+  }
+
+  /**
+   * 존재 여부만 확인하는 단건 조회. **회수 여부를 판정하지 않는다.**
+   *
+   * 담기 해제(explore-api.md 4.4)가 이 경로를 쓴다 — 회수된 콘텐츠도 라이브러리에서 뺄 수
+   * 있어야 한다. 회수를 이유로 막으면 사용자는 목록에 남은 항목을 영영 치울 수 없다.
+   * 노출·재생 경로는 `getPublishedById`를 쓴다.
+   */
+  async getById(contentId: string, manager?: EntityManager): Promise<Content> {
+    const content = await this.contentRepository.findById(contentId, manager);
+
+    if (!content) {
+      throw new BusinessNotFoundException({
+        errorCode: ErrorCode.CONTENT_NOT_FOUND,
+        message: '콘텐츠를 찾을 수 없어요',
+      });
+    }
+
+    return content;
   }
 
   /**
