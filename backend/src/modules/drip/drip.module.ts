@@ -12,6 +12,7 @@ import { FirstDripJob } from './entities/first-drip-job.entity';
 import { FirstDripRetryScheduler } from './first-drip-retry.scheduler';
 import { DripExcludedContentRepository } from './repositories/drip-excluded-content.repository';
 import { FirstDripJobRepository } from './repositories/first-drip-job.repository';
+import { DripExclusionService } from './services/drip-exclusion.service';
 import { FirstDripService } from './services/first-drip.service';
 
 /**
@@ -31,9 +32,10 @@ import { FirstDripService } from './services/first-drip.service';
   providers: [
     DripExcludedContentRepository,
     FirstDripJobRepository,
+    DripExclusionService,
     FirstDripService,
     FirstDripRetryScheduler,
   ],
-  exports: [FirstDripService],
+  exports: [DripExclusionService, FirstDripService],
 })
 export class DripModule {}

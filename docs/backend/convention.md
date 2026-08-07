@@ -429,7 +429,7 @@ POST /auth/token/refresh         토큰 갱신
 | 429 | 레이트 리밋 |
 | 500 | 서버 오류 |
 
-**클라이언트가 분기해야 하는 상황은 상태 코드가 아니라 `error_code`로 구분한다**(`common-error-handling.md` 6장). 예: 403이어도 페이월인지 회수인지는 `PLAY_LIMIT_EXCEEDED` / `CONTENT_WITHDRAWN`으로 구분한다.
+**클라이언트가 분기해야 하는 상황은 상태 코드가 아니라 `error_code`로 구분한다**(`common-error-handling.md` 9장). 예: 403이어도 페이월인지 회수인지는 `PLAY_LIMIT_EXCEEDED` / `CONTENT_WITHDRAWN`으로 구분한다.
 
 ### 5.5 헤더·기타
 
