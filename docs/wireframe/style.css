@@ -311,6 +311,13 @@ footer code{font-family:var(--mono); font-size:11.5px}
   background:var(--accent-soft); color:var(--accent); border:1px solid var(--accent-line);
 }
 .tagpill.save{background:var(--surface-2); color:var(--ink-2); border-color:var(--line-2)}
+/* 완청 마킹 — 썸네일 좌상단. 밝은 이미지에서도 보이도록 딤 배경을 함께 둔다(library-uiux 7장) */
+.art .done-mark{
+  position:absolute; top:4px; left:4px; z-index:1;
+  width:16px; height:16px; border-radius:99px;
+  background:rgba(28,28,30,.72); border:1px solid rgba(255,255,255,.5);
+  display:flex; align-items:center; justify-content:center; color:#fff;
+}
 .state{display:flex; align-items:center; gap:5px; font-size:11px; color:var(--ink-3); font-weight:600}
 .state .pip{width:6px; height:6px; border-radius:99px; background:var(--accent); flex:none}
 .state.done{color:var(--ink-3)}

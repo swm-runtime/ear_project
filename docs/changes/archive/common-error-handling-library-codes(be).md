@@ -7,7 +7,12 @@
 | 요청 파트 | 백엔드 |
 | 관련 작업 | 라이브러리 백엔드 구현 (`feat(be)/library`) |
 | 근거 문서 | `docs/spec/api/library-api.md` 5장 · `docs/backend/architecture.md` 7.5 |
-| 선행 문서 | **`common-error-handling-onboarding-codes(be).md`** — 같은 표를 대상으로 하며 보류 중이다 |
+| 선행 문서 | **`common-error-handling-onboarding-codes(be).md`** — 같은 표를 대상으로 하며 함께 반영했다 |
+| 상태 | **반영 완료** (2026-08-07, 라이브러리 통합 시점) |
+
+> **2026-08-07 반영 결과** — `common-error-handling.md`에 **9장 "에러 코드 표"**를 신설하고 라이브러리 5개를 9.5에 등재했다. 이 문서가 권한 대로 초기 범위를 auth·onboarding·library로 잡았고, 실제로는 `spec/api/` 6개 문서 전체(+ enum 기반 코드 8개)로 넓혀 **총 40개**를 한 번에 담았다 — explore·profile을 빼면 같은 밀림이 한 번 더 반복되기 때문이다.
+>
+> "함께 확인할 것"에 적은 세 가지도 그대로 반영했다. `CONTENT_*`는 9.2에 각 한 행만, `PLAY_LIMIT_EXCEEDED`/`PLAY_LIMIT_REACHED`는 분리 유지(사유를 표 아래 주석으로), **4.1 분류 표에 409 행 추가**.
 
 ---
 

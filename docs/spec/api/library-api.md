@@ -10,7 +10,7 @@
 
 `library.md`가 정의한 동작을 HTTP 계약으로 옮긴 문서다. 다루는 것은 다음 여섯이다.
 
-- 라이브러리 목록 조회 — 탭 4개(전체·미청취·완료·이어 PICK) + 주제 필터 + 커서 페이지네이션
+- 라이브러리 목록 조회 — 상태 탭 3개(전체·미청취·완료) + 출처·주제 필터 + 커서 페이지네이션
 - 목록 응답에 실어 보내는 **잔여 재생 표시값**(`daily_play_limit` · `daily_play_count` · `service_date`)
 - 앱 실행 시 **미니플레이어 복원 대상** 조회
 - 재생 시작 — 카운트 적재와 상태 전이(`unplayed` → `in_progress`)
@@ -94,7 +94,7 @@
 
 | # | 메서드 | 경로 | 설명 | 인증 | 멱등키 |
 |---|---|---|---|---|---|
-| 1 | GET | `/users/me/library-items` | 목록 조회(탭·주제 필터·정렬·커서) + 잔여 재생 표시값 | 필요 |  |
+| 1 | GET | `/users/me/library-items` | 목록 조회(상태 탭·출처 필터·주제 필터·정렬·커서) + 잔여 재생 표시값 | 필요 |  |
 | 2 | GET | `/users/me/library-items/topics` | 주제 필터 팝업용 — **라이브러리에 실제로 담긴** 주제 목록 | 필요 |  |
 | 3 | GET | `/users/me/library-items/resume` | 미니플레이어 복원 대상 1건 | 필요 |  |
 | 4 | POST | `/contents/:content_id/play` | 재생 시작 — 한도 판정 + 카운트 적재 + 상태 전이 | 필요 |  |
@@ -131,15 +131,17 @@
 
 | 필드 | 타입 | 필수 | 비고 |
 |---|---|---|---|
-| filter | enum `all` / `unplayed` / `completed` / `drip` | 선택(기본 `all`) | 상단 탭. 서로 배타적이며 한 번에 하나만 |
+| filter | enum `all` / `unplayed` / `completed` | 선택(기본 `all`) | 상단 탭(**상태 전용**). 서로 배타적이며 한 번에 하나만 |
+| source_filter | enum `drip` / `save` | 선택 | 필터 시트의 출처 섹션. 단일 선택이며 미선택은 출처를 가리지 않음 |
 | topic_filter | string (uuid 콤마 구분) | 선택 | 주제 필터 팝업의 다중 선택 결과 |
 | sort | enum `added_desc` / `added_asc` | 선택(기본 `added_desc`) | `library_items.added_at` 기준 |
 | cursor | string(opaque) | 선택 | 직전 응답의 `next_cursor`. 클라이언트가 해석하지 않는다 |
 | limit | int | 선택(기본 `20`, 최대 `50`) | 상한을 서버가 강제한다(`architecture.md` 9.3) |
 
-- **`filter=drip`의 화면 라벨은 [이어 PICK]이지만 전송 값은 `drip`이다.** 라벨은 화면 문구이고 값은 `library_items.source`의 enum 값이다(`domain.md` 6.1).
-  - 라벨이 바뀌었다고 전송 값을 함께 바꾸면 이미 배포된 클라이언트가 보내는 값과 어긋난다. 탭 이름은 앞으로도 바뀔 수 있지만 `source` enum은 스키마다.
-- **탭과 주제 필터는 AND, 선택한 주제끼리는 OR다**(`library.md` 4.1-1).
+- **`filter`는 상태만, `source_filter`는 출처만 가린다**(`library.md` 4.1-1). 상단 탭이 상태 3개로 좁혀지고 출처가 필터 시트로 옮겨간 개편(2026-08-07)의 결과다.
+  - 개편 전에는 `filter=drip`이 있었다. **제거했다** — 같은 조회를 `filter`와 `source_filter` 두 가지로 표현할 수 있게 되면 커서 발급 조건에 두 축이 모두 들어가고, 어느 쪽이 맞는지 판단해야 하는 순간이 생긴다. 배포된 클라이언트가 없어 하위 호환을 지킬 이유도 없다.
+- **`source_filter`의 화면 라벨은 [이어 PICK] · [내가 담은 콘텐츠]이지만 전송 값은 `drip` · `save`다.** 라벨은 화면 문구이고 값은 `library_items.source` 계열 값이다(`domain.md` 6.1). 라벨은 앞으로도 바뀔 수 있지만 `source` enum은 스키마다.
+- **`filter` · `source_filter` · `topic_filter`는 전부 AND, 선택한 주제끼리만 OR다**(`library.md` 4.1-1).
   - 주제 사이를 AND로 걸면 선택한 주제를 **모두** 가진 콘텐츠만 남아 두 개만 골라도 대부분 빈 목록이 된다. 다중 선택의 의도는 "이 중 아무거나"다.
 - **`filter`별 조건**
 
@@ -148,7 +150,16 @@
 | `all` | 삭제되지 않은 전체 |
 | `unplayed` | `status IN ('unplayed', 'in_progress')` — 듣다 만 것도 아직 안 들은 것이다 |
 | `completed` | `status = 'completed'` |
-| `drip` | `source = 'drip'`. **상태를 가리지 않는다** |
+
+- **`source_filter`별 조건**
+
+| source_filter | 조건 |
+|---|---|
+| *(미선택)* | 출처를 가리지 않는다 |
+| `drip` | `source = 'drip'` |
+| `save` | `source IN ('save', 'onboarding')` — **온보딩 적립분을 포함한다** |
+
+- **`save`가 `onboarding`을 포함하는 이유**: 온보딩의 [담기]는 사용자가 직접 고른 것이다. `source`를 `onboarding`으로 따로 기록하는 것은 유입 경로 분석을 위해서지, 사용자에게 제3의 출처를 보여주기 위해서가 아니다. 화면의 출처는 "이어가 보내준 것"과 "내가 담은 것" 둘뿐이다(9장의 `source = 'onboarding'` 취급 미결이 이 방향으로 닫혔다).
 
 **Response 200**
 
@@ -210,7 +221,7 @@
 - `next_cursor`는 `(added_at, id)`를 인코딩한 **불투명 문자열**이다. 클라이언트는 저장·재전송만 하고 해석하지 않는다.
 - **offset이 아니라 keyset을 쓴다.** 드립이 적립되면 목록 앞쪽이 계속 밀리므로 offset은 중복·누락을 만든다(`convention.md` 5.3).
 - **`id`를 함께 넣는 이유**: 같은 배치로 적립된 드립은 `added_at`이 동일할 수 있다. 정렬 키가 유일하지 않으면 경계에서 항목이 반복되거나 사라진다.
-- **`filter` · `sort` · `topic_filter`가 커서를 발급할 때와 다르면 `LIBRARY_CURSOR_INVALID`로 거절한다.** 조건이 바뀐 커서를 이어 쓰면 두 조건이 섞인 목록이 만들어진다. 클라이언트는 첫 페이지부터 다시 조회한다.
+- **`filter` · `source_filter` · `sort` · `topic_filter`가 커서를 발급할 때와 다르면 `LIBRARY_CURSOR_INVALID`로 거절한다.** 조건이 바뀐 커서를 이어 쓰면 두 조건이 섞인 목록이 만들어진다. 클라이언트는 첫 페이지부터 다시 조회한다.
 - `has_next`는 다음 페이지 존재 여부이며, `false`일 때 `next_cursor`는 `null`이다.
 
 **새 콘텐츠 도착 배너**(`library.md` 4.6)
@@ -223,7 +234,7 @@
 
 | 코드 | HTTP | 상황 |
 |---|---|---|
-| `LIBRARY_CURSOR_INVALID` | 400 | 커서 형식 오류, 또는 발급 시점과 다른 `filter`·`sort`·`topic_filter` |
+| `LIBRARY_CURSOR_INVALID` | 400 | 커서 형식 오류, 또는 발급 시점과 다른 `filter`·`source_filter`·`sort`·`topic_filter` |
 
 - 네트워크 실패 시의 캐시 목록 노출은 클라이언트 규칙이다(`common-error-handling.md` 4.1). 이때 **잔여 재생 표시는 노출하지 않는다** — 캐시된 숫자는 이미 낡았을 수 있다(`library.md` 7).
 
@@ -472,7 +483,7 @@
 
 ## 5. 에러 코드 표
 
-**추가·변경 시 `architecture.md` 7.5에 따라 enum 한 곳에서 관리하고 `common-error-handling.md` 6장 표를 함께 갱신한다.** 이미 배포된 코드의 의미를 바꾸지 않는다.
+**이 표는 `common-error-handling.md` 9장 중앙 표의 라이브러리·재생 발췌(9.5)에 공용 콘텐츠 코드(9.2)를 더한 것이다** — 두 곳이 어긋나면 9장이 기준이다. 추가·변경 시 `architecture.md` 7.5에 따라 enum 한 곳에서 관리하고 **9장 표를 먼저 갱신한 뒤** 이 표를 맞춘다. 이미 배포된 코드의 의미를 바꾸지 않는다.
 
 | error_code | HTTP | retryable | 클라이언트 동작 |
 |---|---|---|---|
@@ -566,10 +577,7 @@ POST /users/me/library-items/:id/complete
 
 ## 9. 미결 사항
 
-- **`source = 'onboarding'`의 취급** — `library.md` 4.1-1은 [이어 PICK] 탭을 `source = 'drip'`으로만 정의했고, 출처 배지도 드립·담기 둘뿐이다. 온보딩 초기 적립분이 어느 탭·어느 배지에 속하는지 규정이 없다.
-    
-    → 이 문서는 **`filter=drip`을 `source = 'drip'`으로 엄격히 해석**했다. 온보딩 적립분은 [전체] 탭에서만 보인다. 포함시키려면 `library.md`를 먼저 고쳐야 한다.
-    
+- ~~**`source = 'onboarding'`의 취급**~~ — **해소(2026-08-07).** 카드·필터 개편으로 출처가 탭에서 필터로 옮겨가면서 `source_filter=save`가 `source IN ('save', 'onboarding')`으로 정의됐다(4.1). 온보딩 적립분은 [내가 담은 콘텐츠]에 포함된다. 출처 배지 자체가 사라졌으므로 배지 귀속 문제도 함께 없어졌다.
 - **`PLAY_LIMIT_EXCEEDED` / `PLAY_LIMIT_REACHED` 명칭** — 두 코드의 이름이 지나치게 비슷해 구현에서 뒤바뀔 여지가 있다. `PLAY_LIMIT_EXCEEDED`는 `architecture.md` 7.2·7.4에 이미 예시로 등장하므로 그대로 두고 유료 한도 쪽만 새 이름을 붙였다. 유료 티어 한도 값이 정해질 때(`plans` 미결) 다시 본다.
 - **잔여 표시 힌트 조건의 문서 간 불일치** — `paywall.md` 5장 표는 소진(`count == 2`) 행만 따로 규정하고, 상시 표시는 같은 장 아래 문단에서 정한다. `library.md` 미결 사항이 지적한 어긋남이다.
     
@@ -579,6 +587,7 @@ POST /users/me/library-items/:id/complete
 - **주제 목록(4.2)의 `item_count` 노출 여부** — 응답에는 담았으나 팝업이 개수를 표시할지는 화면 명세가 정한다. 표시하지 않기로 하면 필드를 뺀다.
 - **주제 필터·복원 조회의 인덱스** — 아래 세 조회가 현재 인덱스로는 지원되지 않는다. **컬럼 추가가 아니라 인덱스 문제이므로 `domain.md`에 인덱스를 보강해야 한다.**
     - 주제 필터: `library_items ⨝ content_topics`에 주제 축 인덱스가 없다
+    - **출처 필터: `source` 축이 없다**(2026-08-07 개편으로 추가된 조건). `idx_library_items_user_id_deleted_at_added_at`에 `source`가 없어 `source_filter`가 걸리면 필터링 후 정렬이 된다
     - 회수 제외: `contents.status` 조인이 매 페이지에 붙는다
     - 복원 조회(4.3): 정렬 키가 `last_played_at DESC`인데 `idx_library_items_user_id_deleted_at_added_at`은 `added_at` 기준이다
     - 커서 tie-break: 같은 인덱스에 `id`가 포함되지 않아 `added_at`이 같은 행에서 추가 스캔이 생긴다

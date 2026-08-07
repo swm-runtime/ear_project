@@ -21,7 +21,7 @@
 | 값 | 설명 |
 |---|---|
 | http_status | 200 / 4xx / 5xx |
-| error_code | 서버 정의 에러 코드(문자열) |
+| error_code | 서버 정의 에러 코드(문자열). 값의 전체 목록은 **9장** |
 | error_message | 서버가 내려준 사용자 노출용 문구(선택) |
 | network_reachable | OS 네트워크 상태 |
 | request_context | foreground_blocking / background_silent |
@@ -37,6 +37,7 @@
 | **인증 만료 (401)** | access_token 만료 | 토큰 갱신 후 **원 요청 자동 1회 재시도**. 갱신 실패 시 로그아웃 → 시작 화면 |
 | **권한 없음 (403)** | 티어 부족·콘텐츠 회수 | 자동 재시도 없음. 상황별 안내(페이월 / "제공이 종료된 콘텐츠예요") |
 | **없음 (404)** | 콘텐츠·리소스 삭제 | 목록에서 제거 + "찾을 수 없어요" |
+| **상태 충돌 (409)** | 요청 형식은 맞지만 현재 상태가 전이 조건을 만족하지 않음 | 자동 재시도 없음. **같은 요청을 다시 보내도 결과가 같다.** 사용자가 시작하지 않은 전이는 조용히 무시하고(4.3), 사용자가 시작한 전이는 상태를 다시 읽어 화면을 맞춘다 |
 | **요청 과다 (429)** | 레이트 리밋 | `Retry-After` 만큼 대기 후 자동 재시도(최대 2회) |
 | **서버 오류 (5xx)** | 서버 장애 | 지수 백오프 자동 재시도 후 실패 시 에러 UI |
 | **점검 중 (503 + maintenance)** | 계획 점검 | 점검 안내 전체 화면. 재시도 버튼만 제공 |
@@ -130,6 +131,8 @@ GET 요청은 기본 자동 재시도 대상, POST/PUT/DELETE는 멱등키 또�
 
 이 문서가 다루는 것은 **서버 응답 규격과 클라이언트 로컬 큐**이며, DB 테이블이 아니다(domain.md 13.1·13.2).
 
+> **`error_code`에 들어갈 값의 목록은 이 장이 아니라 9장이다.** 여기는 필드 규격만 정한다.
+
 ```
 ApiError      { error_code, message, retryable, retry_after_sec }   // 서버 응답 규격
 PendingRequest{ request_id(멱등키), type, payload, created_at, retry_count, last_attempt_at }  // 로컬 큐
@@ -161,9 +164,113 @@ NetworkState  { reachable, connection_type }                        // 클라이
 - Given 로딩이 0.2초 만에 끝난다 / When 화면을 본다 / Then 로딩 인디케이터가 깜빡이지 않는다
 - Given 결제 영수증 검증이 실패한다 / When 재시도가 수행된다 / Then 성공할 때까지 큐에 남아 있고 폐기되지 않는다
 
+## 9. 에러 코드 표
+
+> **이 표가 원본이고 `spec/api/*-api.md` 5장은 해당 화면분의 발췌다.** 두 곳이 어긋나면 이 표가 기준이다.
+> 코드를 추가·변경하면 **enum(`architecture.md` 7.5) → 이 표 → 해당 api 문서 5장** 순서로 갱신한다. 이미 배포된 코드의 의미는 바꾸지 않고 새 코드를 추가한다.
+>
+> 6장(데이터 모델)이 정하는 것은 `ApiError`의 **필드 규격**이고, 이 장이 정하는 것은 그 `error_code` 필드에 들어갈 **값의 목록과 클라이언트 동작**이다. 둘은 다른 것이라 절을 나눈다.
+
+**클라이언트가 분기해야 하는 상황은 상태 코드가 아니라 `error_code`로 구분한다.** 예를 들어 403 하나에 페이월·한도 안내·콘텐츠 회수가 겹치는데, 세 상황의 화면이 전부 다르다.
+
+### 9.1 공통 — 기반 코드
+
+도메인과 무관하며 모든 엔드포인트에서 나올 수 있다. HTTP 상태와 1:1로 대응하므로 별도 분기 없이 4.1의 분류대로 처리한다.
+
+| error_code | HTTP | retryable | 클라이언트 동작 |
+|---|---|---|---|
+| `VALIDATION_FAILED` | 400 | false | 재시도를 권하지 않는다. 인라인 오류 또는 일반 오류 안내 + 로그 수집(4.1) |
+| `UNAUTHORIZED` | 401 | false | 토큰 갱신 후 원 요청 1회 재시도. 갱신 실패 시 로그아웃 → 시작 화면(4.1) |
+| `FORBIDDEN` | 403 | false | 상황별 안내. **화면이 갈리는 403은 아래 도메인 코드로 내려온다** |
+| `NOT_FOUND` | 404 | false | 목록에서 제거 + "찾을 수 없어요" |
+| `CONFLICT` | 409 | false | 상태를 다시 읽어 화면을 맞춘다(4.1) |
+| `TOO_MANY_REQUESTS` | 429 | **true** | `Retry-After`만큼 대기 후 자동 재시도(최대 2회) |
+| `INTERNAL_ERROR` | 500 | **true** | 4.2 규칙대로 자동 재시도 → 소진 시 전체 화면 에러 + [다시 시도]. **서버는 내부 사유를 노출하지 않고 항상 이 코드로 고정한다** |
+| `EXTERNAL_SERVICE_ERROR` | 502 | **true** | 외부 연동 실패(AI 서버·스토어·스토리지). 4.2 규칙대로 자동 재시도 |
+
+### 9.2 공통 — 콘텐츠
+
+**특정 화면에 속하지 않는다.** 라이브러리·탐색·온보딩·플레이어가 같은 코드를 쓰므로 여기 한 번만 등재한다.
+
+| error_code | HTTP | retryable | 클라이언트 동작 |
+|---|---|---|---|
+| `CONTENT_NOT_FOUND` | 404 · **담기에서는 `—`** | false | 해당 카드를 목록에서 제거 |
+| `CONTENT_WITHDRAWN` | 403 · **담기에서는 `—`** | false | "제공이 종료된 콘텐츠예요" + 목록에서 제거, 미니플레이어면 내린다 |
+
+- **HTTP 열이 두 값인 것은 오타가 아니다.** 재생·조회에서는 응답 상태로 오지만, 여러 건을 한 번에 담는 요청(`POST /onboarding/picks`)에서는 **요청 전체가 실패한 것이 아니므로** 200 응답 본문의 `failed[]` 항목으로 전달된다.
+
+### 9.3 인증·계정 (`auth-api.md` 5장)
+
+| error_code | HTTP | retryable | 클라이언트 동작 |
+|---|---|---|---|
+| `AUTH_PROVIDER_TOKEN_INVALID` | 401 | false | 토스트 후 시작 화면 유지 |
+| `AUTH_PROVIDER_UNAVAILABLE` | 502 | **true** | [다시 시도] — 제공자 인증부터 재수행 |
+| `AUTH_SIGNUP_TOKEN_EXPIRED` | 401 | false | 시작 화면으로, 로그인부터 재시작 |
+| `CONSENT_REQUIRED` | 400 | false | 필수 동의 체크 유도 |
+| `CONSENT_VERSION_STALE` | 409 | false | 최신 약관 다시 조회 후 재동의 |
+| `AUTH_REFRESH_TOKEN_INVALID` | 401 | false | 로컬 세션 정리 → 시작 화면 |
+| `AUTH_REFRESH_TOKEN_REUSED` | 401 | false | 동일. 서버는 전 세션 무효화 |
+| `WITHDRAWAL_CONFIRM_REQUIRED` | 400 | false | 확인 체크박스 강조 |
+| `WITHDRAWAL_SUBSCRIPTION_EXPIRY_NOT_AGREED` | 400 | false | 구독 만료 동의 체크 강조 |
+| `WITHDRAWAL_ARCHIVE_IDENTITY_MISSING` | 500 | false | 공통 오류 화면. **탈퇴는 진행되지 않았음을 안내** |
+| `EMAIL_FORMAT_INVALID` | 400 | false | 인라인 "이메일 형식을 확인해주세요" |
+| `EMAIL_ALREADY_REGISTERED` | 409 | false | 인라인 "이미 등록된 이메일이에요" |
+| `EMAIL_VERIFICATION_RESEND_COOLDOWN` | 429 | false | [재전송] 비활성 + 남은 초 표시(30초) |
+| `EMAIL_VERIFICATION_SEND_LIMIT` | 429 | false | 발송 버튼 비활성 + **분 단위** 잠금 안내. **[메일 다시 입력]은 활성 유지** |
+| `EMAIL_SEND_FAILED` | 502 | **true** | 토스트 + [다시 시도]. 횟수 미차감 안내 |
+| `EMAIL_VERIFICATION_CODE_MISMATCH` | 400 | false | 인라인 + 남은 시도 횟수 |
+| `EMAIL_VERIFICATION_CODE_EXPIRED` | 400 | false | 만료 안내 + [재전송] 활성화 |
+| `EMAIL_VERIFICATION_ATTEMPTS_EXCEEDED` | 400 | false | "코드를 다시 받아주세요" + [재전송] |
+| `EMAIL_VERIFICATION_NOT_FOUND` | 404 | false | 입력 화면으로 되돌림 |
+
+### 9.4 온보딩 (`onboarding-api.md` 5장)
+
+| error_code | HTTP | retryable | 클라이언트 동작 |
+|---|---|---|---|
+| `ONBOARDING_INTEREST_REQUIRED` | 400 | false | [다음] 비활성 유지 + "관심 주제를 1개 이상 선택해주세요" |
+| `ONBOARDING_INTEREST_LIMIT_EXCEEDED` | 400 | false | 토스트 "관심 주제는 3개까지 선택할 수 있어요" + 선택 상태 재동기화 |
+| `ONBOARDING_TOPIC_UNAVAILABLE` | 400 | false | 주제 목록 재조회 후 선택 초기화 |
+| `ONBOARDING_INTERESTS_NOT_SET` | 409 | false | 1단계로 되돌림 |
+| `ONBOARDING_NOT_COMPLETED` | 409 | false | 폴링 중단. 완료 요청부터 다시 |
+| `ONBOARDING_ALREADY_COMPLETED` | 409 | false | 온보딩 스택 제거 후 라이브러리로 진입 |
+
+### 9.5 라이브러리·재생 (`library-api.md` 5장)
+
+| error_code | HTTP | retryable | 클라이언트 동작 |
+|---|---|---|---|
+| `LIBRARY_CURSOR_INVALID` | 400 | false | 커서를 버리고 첫 페이지부터 재조회. **사용자에게 노출하지 않는다** |
+| `LIBRARY_ITEM_NOT_FOUND` | 404 | false | 목록에서 해당 항목 제거 |
+| `LIBRARY_COMPLETION_NOT_REACHED` | 409 | false | **조용히 무시.** 상태를 바꾸지 않는다 |
+| `PLAY_LIMIT_EXCEEDED` | 403 | false | **페이월 바텀시트**(`paywall.md` 4.5) |
+| `PLAY_LIMIT_REACHED` | 403 | false | "오늘 청취 한도를 모두 사용했어요" 안내. **페이월 아님** |
+
+- **`PLAY_LIMIT_EXCEEDED`와 `PLAY_LIMIT_REACHED`를 합치지 않는다.** 한도 티어는 결제 유도, 최상위 티어는 안내다 — 더 팔 것이 없는 사용자에게 페이월을 띄우지 않는다.
+- **`LIBRARY_ITEM_NOT_FOUND`는 남의 항목에도 나간다.** 403을 주면 "그 항목이 존재한다"를 알려주게 되어, id를 넣어보는 것만으로 남의 라이브러리 구성을 탐지할 수 있다(`library-api.md` 7장).
+
+### 9.6 탐색 (`explore-api.md` 5장)
+
+| error_code | HTTP | retryable | 클라이언트 동작 |
+|---|---|---|---|
+| `EXPLORE_CURSOR_INVALID` | 400 | false | 커서를 버리고 첫 페이지부터 재조회. **사용자에게 노출하지 않는다** |
+
+- 탐색의 재생 계열 코드는 9.5를 그대로 따른다. 탐색이 재정의하지 않는다.
+
+### 9.7 프로필 (`profile-api.md` 5장)
+
+| error_code | HTTP | retryable | 클라이언트 동작 |
+|---|---|---|---|
+| `STATS_WEEK_OUT_OF_RANGE` | 400 | false | 사용자에게 노출하지 않고 현재 표시 주 유지. 화살표 활성 상태를 직전 정상 응답 기준으로 되돌린다 |
+
+### 9.8 이 표를 읽는 규칙
+
+- **`retryable: true`는 5xx·429·외부 연동 실패뿐이다.** 나머지는 전부 형식·상태·권한 문제라 같은 요청을 다시 보내도 결과가 같다. 자동 재시도 대상은 4.2가 정한다.
+- **설정(`settings-api.md`)은 고유 코드가 없다.** `VALIDATION_FAILED`만 쓰며 9.1을 따른다.
+- **api 문서가 아직 없는 화면**(플레이어·구독·알림 등)의 코드는 그 문서를 작성할 때 여기에 함께 등재한다.
+- **`EXPLORE_CURSOR_INVALID` · `STATS_WEEK_OUT_OF_RANGE`는 계약만 있고 서버 enum에는 아직 없다.** 탐색·프로필이 구현되지 않았기 때문이며, 구현 시 enum에 추가한다. 나머지 40개는 `error-code.enum.ts`와 1:1로 일치한다.
+
 ## 미결 사항
 
 - 타임아웃 기준값(일반 10초 / 미디어 20초) 확정
 - 오프라인 큐 상한 및 폐기 정책 확정
 - 크래시·에러 수집 도구 선정(Sentry, Firebase Crashlytics 등)
-- 서버 에러 코드 전체 목록은 API 설계 시 확정 — 위 표는 클라이언트 분기가 필요한 최소 집합
+- 9장은 `spec/api/` 6개 문서(auth·onboarding·library·explore·profile·settings)가 확정한 범위까지다. 플레이어·구독·알림·오프라인 저장의 코드는 각 api 문서가 작성될 때 등재한다

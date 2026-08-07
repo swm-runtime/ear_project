@@ -133,11 +133,13 @@ idx_idempotency_keys_expires_at
 | `auth` | `user`, `idempotency` | |
 | `user` | `subscription`, `idempotency` | **탈퇴가 결제 이력을 판정**하려면 `subscriptions` 행의 존재 여부가 필요하다([12.3](#123-회원-탈퇴-처리)). ↓ 아래 주의 |
 | `library` | `content`, `user` | |
-| `playback` | `content`, `library`, `subscription` | `content_stats` 집계 배치를 `playback`이 실행한다 |
-| `drip` | `content`, `library`, `interest`, `subscription` | |
+| `playback` | `content`, `library`, `subscription`, `user`, `drip` | `content_stats` 집계 배치를 `playback`이 실행한다. 재생 한도 판정에 `users.tier`가([8.1](#81-plans)), 재생 시 드립 영구 제외 적재에 `drip_excluded_contents`가([7.1](#71-drip_excluded_contents)) 필요하다 |
+| `drip` | `content`, `library`, `interest`, `subscription`, `user` | 편성 편수 판정에 `users.tier`가 필요하다(`architecture.md` 4.5) |
 | `subscription` | `user` | |
 | `notification` | `user` | |
 | `partner` | `content` | |
+
+**유스케이스 모듈은 위 두 표에 없다.** `onboarding` · `library-screen`은 Entity를 소유하지 않고 각 소유 모듈의 Service만 조합한다. 이 장은 Entity 소유 모듈의 표이므로, 그쪽 의존 방향은 `architecture.md` 4.5가 관리한다.
 
 **`user` ↔ `subscription` 주의** — 위 표에 `user → subscription`과 `subscription → user`가 함께 있지만 **동시에 성립시키면 순환이다**(`architecture.md` 4.3, `forwardRef` 금지).
 

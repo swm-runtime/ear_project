@@ -185,13 +185,19 @@ src/
 | Interest | *(없음)* | `topics` · `user_interests` 소유. 다른 모듈을 모른다 |
 | Content | Interest | `content_topics`가 `topics`를 참조한다 |
 | Library | Content, User | |
+| Playback | Content, Library, Subscription, **User**, **Drip** | `domain.md` 2장의 세 방향 + 재생 한도 판정에 `users.tier`가 필요해 User를, 재생 시 드립 영구 제외 적재(`drip_excluded_contents`)에 Drip을 더한다. 두 모듈 모두 `Playback`을 모르므로 순환은 없다 |
 | Drip | Content, Library, Interest, Subscription, **User** | `domain.md` 2장의 네 방향 + 편성 편수 판정에 `users.tier`가 필요해 User를 더한다. `User`는 `Drip`을 모르므로 순환은 없다 |
 | Onboarding | User, Interest, Content, Library, Drip, Idempotency | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
+| LibraryScreen | Library, Playback, Content, Subscription, User, Drip | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
 | *(도메인 확정 시 계속 추가)* | | |
 
 **Onboarding은 Entity를 갖지 않는다.** 온보딩은 화면 흐름이라 자기 데이터가 없고 `users` · `user_interests` · `contents` · `library_items` · `first_drip_jobs`를 횡단한다. 4.1의 "모듈은 Entity 기준으로 나눈다"의 예외이며, Repository 없이 **Orchestrator가 각 소유 모듈의 Service를 조합한다**(→ 3.3). 도메인 규칙 판정(주제 개수 상한, 발행 상태, 완료 여부)은 전부 소유 모듈의 Service에 있고 Orchestrator는 순서·조합만 담당한다.
 
 - 경로를 `/onboarding` 아래에 모으는 이유는 온보딩의 저장이 **단계 전이(`onboarding_step`)를 동반하기** 때문이다. 같은 데이터를 다루는 `interest-management` · `profile`의 엔드포인트에 이 부수 효과를 붙이면, 온보딩을 끝낸 사용자가 관심사를 고칠 때마다 재개 지점이 함께 움직인다(`onboarding-api.md` 3장).
+
+**LibraryScreen도 Entity를 갖지 않는다.** 라이브러리 화면의 응답에는 재생 위치·오늘 카운트(`playback` 소유)와 재생 한도(`subscription` 소유)가 함께 나가고, 삭제는 드립 영구 제외(`drip` 소유)까지 건드린다. 그런데 `library-api.md` 8장이 **`playback` → `library`** 방향과 "`library` 모듈은 `content` · `user`에만 의존한다"를 함께 정하고 있어, `library`가 `playback`을 의존하면 순환이 된다(`forwardRef` 금지 — 4.3). 그래서 두 모듈 **위에서** Orchestrator가 조합한다(→ 3.3). `/users/me/library-items`의 6개 엔드포인트가 여기에 속한다.
+
+- **재생 시작(`POST /contents/:content_id/play`)은 LibraryScreen이 아니라 Playback 모듈에 남는다.** `library-api.md` 8장이 지정한 위치이고, 라이브러리·탐색·미니플레이어·푸시가 같은 엔드포인트를 쓰기 때문이다. 화면별 유스케이스 모듈로 올리면 한도 판정이 진입점마다 갈라진다.
 
 **`User → Subscription`은 한시적이다.** `domain.md` 2장이 `Subscription → User`(결제 반영 시 `users.tier` 갱신)를 함께 정의하고 있어, 두 방향이 동시에 성립하면 순환이 된다. Subscription 모듈이 티어 갱신을 시작하는 시점에 **탈퇴를 Orchestrator로 올려**(→ 3.3) 두 Service를 위에서 조합하고 이 의존을 제거한다.
 
@@ -300,7 +306,7 @@ class BusinessException extends HttpException {
 - 모든 코드는 **enum 한 곳**에서 관리한다. 문자열 리터럴을 직접 던지지 않는다.
 - 네이밍: `대상_사유` 형태의 SCREAMING_SNAKE_CASE. (`CONTENT_WITHDRAWN`, `SUBSCRIPTION_EXPIRED`)
 - **클라이언트가 다르게 동작해야 할 때만 새 코드를 만든다.** 서버 내부 사유 구분은 로그로 남기고 코드를 늘리지 않는다.
-- 코드를 추가·변경하면 `common-error-handling.md` 6장 표를 함께 갱신한다. 이미 배포된 코드의 의미를 바꾸는 것은 금지하며, 새 코드를 추가한다.
+- 코드를 추가·변경하면 **enum → `common-error-handling.md` 9장 표 → 해당 `spec/api/*-api.md` 5장** 순서로 갱신한다. **9장 표가 원본이고 api 문서 5장은 화면분 발췌다.** 이미 배포된 코드의 의미를 바꾸는 것은 금지하며, 새 코드를 추가한다.
 
 ### 7.6 로깅
 

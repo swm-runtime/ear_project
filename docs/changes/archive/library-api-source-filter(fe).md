@@ -5,7 +5,18 @@
 | 대상 문서 | `docs/spec/api/library-api.md` 4.1 (목록 조회 Request) · 3장 설계 메모 |
 | 요청 파트 | 프론트엔드 |
 | 관련 작업 | 라이브러리 FE 구현 (`feat(fe)/library`, 2026-08-07) — 카드·필터 개편(`library-card-and-filter-redesign(fe).md`)의 후속 |
-| 백엔드 협의 | **필요** — 서버 쿼리 구현·인덱스 영향. FE는 mock에만 선반영했다 |
+| 백엔드 협의 | ~~필요~~ → **완료 (2026-08-07)** |
+| 상태 | **반영 완료** (2026-08-07, 라이브러리 통합 시점) |
+
+> **2026-08-07 협의 결과** — 제안대로 `source_filter`를 추가하고, "함께 결정할 것" 3건을 다음과 같이 닫았다.
+>
+> 1. **`filter=drip` 존치** → **제거.** 같은 조회를 두 파라미터로 표현할 수 있게 되면 커서 발급 조건에 두 축이 들어가고 어느 쪽이 맞는지 판단해야 하는 순간이 생긴다. 배포된 클라이언트가 없어 하위 호환을 지킬 이유도 없다. `filter`는 상태 전용(`all`/`unplayed`/`completed`)이 됐다.
+> 2. **인덱스 영향** → `library-api.md` 9장의 인덱스 미결에 **`source` 축을 항목으로 추가**했다. 나머지 세 건과 함께 `domain.md`에서 보기로 하고 이번에 고치지 않았다.
+> 3. **응답 변경 없음** → 그대로. `is_counted_today`·잔여 표시값은 손대지 않았다.
+>
+> 반영한 문서는 `spec/api/library-api.md` 4.1(Request 표 · `source_filter` 조건 표 · 커서 조건 · 3장 엔드포인트 설명 · 1장 범위)과 9장 미결 2건이다. `source = 'onboarding'` 취급 미결도 **`save`에 포함**으로 닫혔다.
+>
+> **서버 구현은 아직 없다** — `tickets/backend/pending/library-source-filter-not-implemented.md`로 발행했다. FE의 `library.dto.ts` TODO 주석은 그 티켓이 닫힐 때 함께 지운다.
 
 ## 왜 필요한가
 
