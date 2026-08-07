@@ -10,7 +10,9 @@ import { EnvironmentVariables, validateEnv } from '@/config/env.validation';
 import { DatabaseModule } from '@/database/database.module';
 import { AuthModule } from '@/modules/auth/auth.module';
 import { HealthModule } from '@/modules/health/health.module';
+import { LibraryScreenModule } from '@/modules/library-screen/library-screen.module';
 import { OnboardingModule } from '@/modules/onboarding/onboarding.module';
+import { PlaybackModule } from '@/modules/playback/playback.module';
 import { UserModule } from '@/modules/user/user.module';
 
 /**
@@ -42,6 +44,8 @@ import { UserModule } from '@/modules/user/user.module';
     UserModule,
     AuthModule,
     OnboardingModule,
+    PlaybackModule,
+    LibraryScreenModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

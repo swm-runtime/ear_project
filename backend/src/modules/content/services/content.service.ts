@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 
+import { BusinessForbiddenException } from '@/common/exceptions/business-forbidden.exception';
+import { BusinessNotFoundException } from '@/common/exceptions/business-not-found.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 
 import { ContentStatus } from '../content.enum';
@@ -38,6 +40,37 @@ export class ContentService {
     manager?: EntityManager,
   ): Promise<Content[]> {
     return this.contentRepository.findAllByIds(contentIds, manager);
+  }
+
+  /**
+   * 노출·재생 대상 단건 조회. **없음과 회수를 다른 코드로 가른다** —
+   * 클라이언트가 "찾을 수 없어요"가 아니라 "제공이 종료된 콘텐츠예요"로 안내하고 목록에서
+   * 제거해야 하기 때문이다(convention.md 5.5 · library-api.md 4.4).
+   *
+   * 회수를 404가 아니라 403으로 응답하는 것도 같은 이유다.
+   */
+  async getPublishedById(
+    contentId: string,
+    manager?: EntityManager,
+  ): Promise<Content> {
+    const content = await this.contentRepository.findById(contentId, manager);
+
+    if (!content) {
+      throw new BusinessNotFoundException({
+        errorCode: ErrorCode.CONTENT_NOT_FOUND,
+        message: '콘텐츠를 찾을 수 없어요',
+      });
+    }
+
+    if (content.status !== ContentStatus.PUBLISHED) {
+      throw new BusinessForbiddenException({
+        errorCode: ErrorCode.CONTENT_WITHDRAWN,
+        message: '제공이 종료된 콘텐츠예요',
+        logLevel: 'info',
+      });
+    }
+
+    return content;
   }
 
   async findTopicViews(
