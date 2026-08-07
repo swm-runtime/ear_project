@@ -1,6 +1,18 @@
 /** convention.md 3.2 — 모듈 밖으로 공개되는 타입만 둔다 */
 
-import { PlayEntryPoint } from './playback.enum';
+import { PlayEntryPoint, UserSignalAction } from './playback.enum';
+
+/**
+ * 추천 랭킹에 쓰는 행동 이력 한 줄(domain.md 6.4).
+ *
+ * **최근성 가중(`drip-scheduling.md` 4.3)에 `createdAt`이 반드시 필요하다** — 같은 신호라도
+ * 오래된 것은 영향이 작아야 한다. 스코어링 자체는 이 모듈이 하지 않고 값만 넘긴다.
+ */
+export interface UserSignalView {
+  contentId: string;
+  action: UserSignalAction;
+  createdAt: Date;
+}
 
 /** `playback_progresses` 조회 결과. **행이 없으면 `null`이며 0으로 채우지 않는다** */
 export interface ProgressView {

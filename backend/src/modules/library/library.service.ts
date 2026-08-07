@@ -9,7 +9,11 @@ import { LibraryItem } from './library-item.entity';
 import { LibraryItemRepository } from './library-item.repository';
 import { COMPLETION_REACHED_RATIO } from './library.constant';
 import { LibraryItemSource, LibraryItemStatus } from './library.enum';
-import { LibraryPage, LibraryPageQuery } from './library.types';
+import {
+  LibraryPage,
+  LibraryPageQuery,
+  LibrarySaveResult,
+} from './library.types';
 
 /**
  * `library_items`는 library 모듈 소유다(domain.md 2장).
@@ -56,6 +60,121 @@ export class LibraryService {
       );
 
     return stored.map((item) => item.contentId);
+  }
+
+  /**
+   * 탐색 담기(explore-api.md 4.3). **횟수 제한이 없고 페이월을 노출하지 않는다**(PRD 5.4).
+   *
+   * 세 갈래로 갈리며, 어느 쪽이든 **결과가 수렴한다** — 그래서 `Idempotency-Key`가 필요 없다.
+   *
+   * | 상태 | 처리 | 응답 | 신호 |
+   * |---|---|---|---|
+   * | 행 없음 | `source = save`로 생성 | 201 | 남긴다 |
+   * | 살아 있는 행 | **아무것도 바꾸지 않는다** | 200 | **남기지 않는다** |
+   * | 삭제된 행 | 되살리고 `added_at`을 새로 찍는다 | 200 | 남긴다 |
+   *
+   * 신호 적재 여부는 호출부가 `created` · `reactivated`로 판정한다. **라이브러리 상태가
+   * 바뀌지 않았는데 신호만 쌓이면 추천 스코어가 왜곡되기 때문이다** — 사용자가 화면에서
+   * 같은 담기를 두 번 누를 수는 없고(시트가 [제거]로 바뀐다), 오프라인 큐 재전송이 그 경로다.
+   *
+   * **이미 담긴 것에 `added_at`을 갱신하지 않는 이유**: 다시 담아도 목록 순서가 바뀌면 안
+   * 된다. 반대로 삭제분의 재담기는 **새 담기 조작**이므로 적립 시각을 새로 찍는다 — 삭제
+   * 실행 취소(4.7)가 `added_at`을 유지하는 것과 되돌린 대상이 다르다.
+   */
+  async save(
+    userId: string,
+    contentId: string,
+    now: Date,
+    manager?: EntityManager,
+  ): Promise<LibrarySaveResult> {
+    const existing =
+      await this.libraryItemRepository.findByUserIdAndContentIdWithDeleted(
+        userId,
+        contentId,
+        manager,
+      );
+
+    if (!existing) {
+      const created = await this.libraryItemRepository.insertIfAbsent(
+        {
+          userId,
+          contentId,
+          source: LibraryItemSource.SAVE,
+          status: LibraryItemStatus.UNPLAYED,
+          addedAt: now,
+        },
+        manager,
+      );
+
+      // 졌더라도(동시 요청) 행은 존재한다 — 방금 이긴 쪽이 넣었다
+      const item =
+        await this.libraryItemRepository.findByUserIdAndContentIdWithDeleted(
+          userId,
+          contentId,
+          manager,
+        );
+
+      return { item: this.assertFound(item), created, reactivated: false };
+    }
+
+    if (!existing.deletedAt) {
+      return { item: existing, created: false, reactivated: false };
+    }
+
+    await this.libraryItemRepository.reactivateById(
+      existing.id,
+      now,
+      LibraryItemSource.SAVE,
+      manager,
+    );
+    existing.deletedAt = null;
+    existing.addedAt = now;
+    existing.source = LibraryItemSource.SAVE;
+
+    return { item: existing, created: false, reactivated: true };
+  }
+
+  /**
+   * 탐색 담기 해제(explore-api.md 4.4) — **라이브러리 삭제와 동일한 결과**를 만든다(FR-16).
+   *
+   * **해제할 대상이 없어도 실패시키지 않는다.** 오프라인 큐가 같은 해제를 다시 보낼 수 있다
+   * (`common-error-handling.md` 4.5). 다만 그때는 `false`를 돌려 **드립 영구 제외·신호 적재를
+   * 건너뛰게 한다** — 없던 담기의 해제로 제외와 부정 신호가 쌓이면 추천이 왜곡된다.
+   *
+   * @returns 이번 요청으로 실제 해제가 일어났는지
+   */
+  async unsave(
+    userId: string,
+    contentId: string,
+    now: Date,
+    manager?: EntityManager,
+  ): Promise<boolean> {
+    const item = await this.libraryItemRepository.findByUserIdAndContentId(
+      userId,
+      contentId,
+      manager,
+    );
+
+    if (!item) {
+      return false;
+    }
+
+    await this.libraryItemRepository.softDeleteById(item.id, now, manager);
+
+    return true;
+  }
+
+  /** 탐색 피드의 "담김" 표시용(explore-api.md 4.1) — 삭제분은 담겨 있지 않은 것으로 본다 */
+  async findActiveItems(
+    userId: string,
+    contentIds: string[],
+    manager?: EntityManager,
+  ): Promise<LibraryItem[]> {
+    return this.libraryItemRepository.findAllActiveByUserIdAndContentIds(
+      userId,
+      contentIds,
+      manager,
+    );
   }
 
   async countBySource(

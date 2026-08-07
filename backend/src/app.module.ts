@@ -9,6 +9,7 @@ import { LoggingInterceptor } from '@/common/interceptors/logging.interceptor';
 import { EnvironmentVariables, validateEnv } from '@/config/env.validation';
 import { DatabaseModule } from '@/database/database.module';
 import { AuthModule } from '@/modules/auth/auth.module';
+import { ExploreModule } from '@/modules/explore/explore.module';
 import { HealthModule } from '@/modules/health/health.module';
 import { LibraryScreenModule } from '@/modules/library-screen/library-screen.module';
 import { OnboardingModule } from '@/modules/onboarding/onboarding.module';
@@ -46,6 +47,7 @@ import { UserModule } from '@/modules/user/user.module';
     OnboardingModule,
     PlaybackModule,
     LibraryScreenModule,
+    ExploreModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

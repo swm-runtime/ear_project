@@ -36,6 +36,26 @@ export interface LibraryPage {
   hasNext: boolean;
 }
 
+/**
+ * 탐색 담기 결과(explore-api.md 4.3).
+ *
+ * **두 값을 따로 돌려주는 이유가 다르다.**
+ *
+ * - `created` — 응답 상태가 **201과 200으로 갈린다.** 새로 담긴 것과 이미 담겨 있던 것을
+ *   클라이언트가 구분할 수 있어야 한다.
+ * - `reactivated` — **`user_signals` 적재 여부를 가른다.** 지웠다 다시 담은 것은 사용자의
+ *   진짜 담기 조작이라 신호를 남겨야 하는데, 행을 새로 만들지 않으므로 `created`는 거짓이다.
+ *
+ * 라이브러리 행 자체는 세 경우 모두 같은 모양이라 Entity만으로는 어느 쪽인지 판정할 수 없다.
+ */
+export interface LibrarySaveResult {
+  item: LibraryItem;
+  /** 행을 새로 만들었는가 */
+  created: boolean;
+  /** 삭제돼 있던 행을 되살렸는가 */
+  reactivated: boolean;
+}
+
 /** 주제 필터 팝업의 한 줄(library-api.md 4.2) */
 export interface LibraryTopicView {
   topicId: string;
