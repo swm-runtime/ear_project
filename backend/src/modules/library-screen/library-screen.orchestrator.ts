@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { DataSource, EntityManager } from 'typeorm';
+import { DataSource } from 'typeorm';
 
 import { ContentService } from '@/modules/content/services/content.service';
 import { ContentStatus } from '@/modules/content/content.enum';
@@ -10,14 +10,9 @@ import { DripExclusionService } from '@/modules/drip/services/drip-exclusion.ser
 import { LibraryItem } from '@/modules/library/library-item.entity';
 import { LibraryTopicView } from '@/modules/library/library.types';
 import { UserSignalAction } from '@/modules/playback/playback.enum';
-import {
-  DailyPlayQuota,
-  ProgressView,
-} from '@/modules/playback/playback.types';
+import { ProgressView } from '@/modules/playback/playback.types';
 import { PlaybackService } from '@/modules/playback/services/playback.service';
 import { LibraryService } from '@/modules/library/library.service';
-import { PlanService } from '@/modules/subscription/services/plan.service';
-import { UserService } from '@/modules/user/services/user.service';
 
 import {
   encodeLibraryCursor,
@@ -40,6 +35,12 @@ import {
  * `content` · `user`에만 의존한다"를 함께 못박고 있다. `library`가 `playback`을 의존하면
  * 순환이 되므로(`forwardRef` 금지 — architecture.md 4.3) 두 모듈 **위에서** 조합한다.
  * `onboarding`과 같은, Entity를 소유하지 않는 유스케이스 모듈이다.
+ *
+ * **잔여 재생 표시값은 직접 조립하지 않는다.** 티어 조회 → 요금제 한도 → `play_records`
+ * 집계까지를 `PlaybackService.buildQuotaForUser`가 한 번에 하고, 탐색 화면도 **같은 함수를
+ * 호출한다**(`explore-api.md` 2장). 화면마다 조립하면 같은 사용자에게 서로 다른 숫자가
+ * 표시되고, 어느 쪽이 맞는지 사용자가 판단하게 된다. 그래서 이 모듈은 `subscription` ·
+ * `user`를 알 필요가 없다.
  */
 @Injectable()
 export class LibraryScreenOrchestrator {
@@ -47,8 +48,6 @@ export class LibraryScreenOrchestrator {
     private readonly libraryService: LibraryService,
     private readonly playbackService: PlaybackService,
     private readonly contentService: ContentService,
-    private readonly planService: PlanService,
-    private readonly userService: UserService,
     private readonly dripExclusionService: DripExclusionService,
     private readonly dataSource: DataSource,
   ) {}
@@ -83,7 +82,7 @@ export class LibraryScreenOrchestrator {
 
     const [items, quota] = await Promise.all([
       this.toItemViews(userId, page.items, now),
-      this.buildQuota(userId, now),
+      this.playbackService.buildQuotaForUser(userId, now),
     ]);
 
     const lastItem = page.items.at(-1);
@@ -156,7 +155,7 @@ export class LibraryScreenOrchestrator {
 
     const [item, quota] = await Promise.all([
       this.libraryService.findResumeTarget(userId, startedContentIds),
-      this.buildQuota(userId, now),
+      this.playbackService.buildQuotaForUser(userId, now),
     ]);
 
     if (!item) {
@@ -267,29 +266,6 @@ export class LibraryScreenOrchestrator {
 
       return this.libraryService.restore(item, manager);
     });
-  }
-
-  /**
-   * 한도는 `plans.daily_play_limit`에서 읽고 카운트는 `play_records` 집계로 구한다.
-   * **잔여 횟수를 저장하는 컬럼을 만들지 않는다**(domain.md 1.5).
-   */
-  private async buildQuota(
-    userId: string,
-    now: Date,
-    manager?: EntityManager,
-  ): Promise<DailyPlayQuota> {
-    const user = await this.userService.getById(userId, manager);
-    const policy = await this.planService.getPlayLimitPolicy(
-      user.tier,
-      manager,
-    );
-
-    return this.playbackService.buildQuota(
-      userId,
-      policy.dailyPlayLimit,
-      now,
-      manager,
-    );
   }
 
   /**
