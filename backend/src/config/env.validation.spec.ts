@@ -13,6 +13,8 @@ describe('validateEnv', () => {
     JWT_SECRET: 'test-jwt-secret-0123456789-0123456789',
     ARCHIVE_HASH_PEPPER: 'test-archive-pepper-0123456789-0123456',
     WITHDRAWAL_HASH_PEPPER: 'test-withdrawal-pepper-0123456789-0123',
+    LATEST_APP_VERSION: '1.0.0',
+    MIN_SUPPORTED_APP_VERSION: '1.0.0',
   };
 
   it('필수 환경 변수가 모두 있으면 숫자 타입으로 변환된 설정을 반환한다', () => {
