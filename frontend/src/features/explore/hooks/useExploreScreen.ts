@@ -1,7 +1,7 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState } from 'react-native';
+import { AccessibilityInfo, AppState } from 'react-native';
 
 import { isApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
@@ -18,9 +18,12 @@ import type {
   ExploreFeed,
   ExploreItem,
   ExploreLibraryState,
+  ExplorePeriod,
+  ExplorePopularPage,
 } from '../explore.types';
 import { useExploreContentsQuery } from './useExploreContentsQuery';
 import { useExploreFeedQuery } from './useExploreFeedQuery';
+import { explorePopularQueryOptions, useExplorePopularQuery } from './useExplorePopularQuery';
 import { useExploreTopicsQuery } from './useExploreTopicsQuery';
 import { useSaveContentMutation } from './useSaveContentMutation';
 import { useUnsaveContentMutation } from './useUnsaveContentMutation';
@@ -42,6 +45,15 @@ export const useExploreScreen = () => {
   const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>([]);
   const isFiltered = selectedTopicIds.length > 0;
 
+  /* ── 인기 구간 상태(E13) — 화면 상태이지 사용자 상태가 아니다. 서버에 저장하지 않는다(explore.md 4.1-1).
+     null이면 사용자가 아직 고르지 않은 상태 — 선택 표시는 피드 응답의 period가 정한다.
+     필터(E2) 전환·복귀에도 초기화하지 않는다 — 되돌아온 화면이 조작 이전과 같아야 한다 ── */
+  const [activePeriod, setActivePeriod] = useState<ExplorePeriod | null>(null);
+  /** 전환 중인 구간 — 값이 있는 동안 토글 중복 탭을 차단하고 직전 목록을 유지한다 */
+  const [pendingPeriod, setPendingPeriod] = useState<ExplorePeriod | null>(null);
+  /** 전환에 실패한 구간 — 인라인 에러 + [다시 시도]의 대상이다 */
+  const [failedPeriod, setFailedPeriod] = useState<ExplorePeriod | null>(null);
+
   /* ── 화면 로컬 상태 ── */
   const [moreSheetItem, setMoreSheetItem] = useState<ExploreItem | null>(null);
   /** 회수(403)로 화면에서 걷어낸 행 — 서버 재조회 전까지 로컬로 가린다 */
@@ -59,6 +71,8 @@ export const useExploreScreen = () => {
 
   const feedQuery = useExploreFeedQuery(!isFiltered);
   const contentsQuery = useExploreContentsQuery(selectedTopicIds);
+  // 확정된 구간만 구독한다 — 전환 중 목록은 이 캐시(직전 구간)가 유지하고, 새 구간은 선조회로 채운다
+  const popularQuery = useExplorePopularQuery(activePeriod);
   const topicsQuery = useExploreTopicsQuery();
   const saveMutation = useSaveContentMutation();
   const unsaveMutation = useUnsaveContentMutation();
@@ -81,6 +95,21 @@ export const useExploreScreen = () => {
       );
       queryClient.setQueriesData<InfiniteData<ExploreContentsPage>>(
         { queryKey: [...exploreKeys.all, 'contents'] },
+        (old) =>
+          old
+            ? {
+                ...old,
+                pages: old.pages.map((page) => ({
+                  ...page,
+                  items: page.items.map((item) =>
+                    item.content.id === contentId ? { ...item, library } : item,
+                  ),
+                })),
+              }
+            : old,
+      );
+      queryClient.setQueriesData<InfiniteData<ExplorePopularPage>>(
+        { queryKey: [...exploreKeys.all, 'popular'] },
         (old) =>
           old
             ? {
@@ -148,6 +177,13 @@ export const useExploreScreen = () => {
     applyPlayLimit(contentsPages[contentsPages.length - 1].playLimit);
   }, [contentsPages, applyPlayLimit]);
 
+  // 인기 목록 응답도 라이브러리·피드와 같은 세 필드를 싣는다 — 새 갱신 시점이 될 뿐 규칙은 같다
+  const popularPages = popularQuery.data?.pages;
+  useEffect(() => {
+    if (!popularPages || popularPages.length === 0) return;
+    applyPlayLimit(popularPages[popularPages.length - 1].playLimit);
+  }, [popularPages, applyPlayLimit]);
+
   /* ── 포그라운드·화면 복귀 시 조용한 재조회 — 인디케이터 없음(explore-uiux.md 4.1) ── */
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => {
@@ -173,16 +209,41 @@ export const useExploreScreen = () => {
     }
   }, [contentsError, refetchContents]);
 
+  // 인기 목록도 같은 규칙(explore-api.md 4.2-1). 구간 간 커서 혼입은 구간별 쿼리 키가 구조로 막고,
+  // 여기 걸리는 것은 재조회 사이 서버 목록이 바뀐 경우다
+  const { error: popularError, refetch: refetchPopular } = popularQuery;
+  useEffect(() => {
+    if (isApiError(popularError) && popularError.errorCode === ERROR_CODES.EXPLORE_CURSOR_INVALID) {
+      void refetchPopular();
+    }
+  }, [popularError, refetchPopular]);
+
   /* ── 목록 파생값 ── */
+  // 사용자가 구간을 고른 뒤의 인기 목록 — 전환 중에는 placeholder가 직전 구간 목록을 유지한다
+  const popularFetchedItems = useMemo(
+    () => (popularQuery.data ? popularQuery.data.pages.flatMap((page) => page.items) : null),
+    [popularQuery.data],
+  );
+
   const sections = useMemo(() => {
     if (!feedData) return [];
     return feedData.sections
-      .map((section) => ({
-        ...section,
-        items: section.items.filter((item) => !hiddenContentIds.has(item.content.id)),
-      }))
+      .map((section) => {
+        // 토글 노출·교체 대상 판정은 key가 아니라 period로 한다(explore-api.md 4.1)
+        const isPopular = section.period !== null;
+        const items =
+          isPopular && activePeriod !== null && popularFetchedItems !== null
+            ? popularFetchedItems
+            : section.items;
+        return {
+          ...section,
+          // 토글 선택 상태 — 전환 중이면 그 구간, 확정했으면 그 구간, 아니면 피드 응답의 period
+          period: isPopular ? pendingPeriod ?? activePeriod ?? section.period : null,
+          items: items.filter((item) => !hiddenContentIds.has(item.content.id)),
+        };
+      })
       .filter((section) => section.items.length > 0);
-  }, [feedData, hiddenContentIds]);
+  }, [feedData, hiddenContentIds, popularFetchedItems, pendingPeriod, activePeriod]);
 
   const filteredItems = useMemo(
     () =>
@@ -302,6 +363,8 @@ export const useExploreScreen = () => {
       await Promise.all([
         isFiltered ? contentsQuery.refetch() : feedQuery.refetch(),
         topicsQuery.refetch(),
+        // 사용자가 고른 구간의 인기 목록도 함께 최신화한다 — 안 골랐으면 피드가 그 섹션을 든다
+        ...(activePeriod !== null ? [popularQuery.refetch()] : []),
       ]);
     } finally {
       setIsManualRefreshing(false);
@@ -319,6 +382,60 @@ export const useExploreScreen = () => {
     isFiltered &&
     contentsQuery.isFetchNextPageError &&
     !(isApiError(contentsError) && contentsError.errorCode === ERROR_CODES.EXPLORE_CURSOR_INVALID);
+
+  /* ── 인기 구간 토글(E13) — 전환은 그 섹션만 갈아끼우고 피드는 다시 부르지 않는다(explore.md 4.1-1) ── */
+  const feedPopularPeriod = useMemo(
+    () => feedData?.sections.find((section) => section.period !== null)?.period ?? null,
+    [feedData],
+  );
+
+  /**
+   * 전환은 명령형 선조회다 — 성공해야 구독 구간(activePeriod)을 옮긴다. 실패하면 구독이 직전
+   * 구간에 그대로 남아 있으므로 목록·선택 상태의 되돌림이 따로 필요 없다(uiux 4.10).
+   */
+  const switchPopularPeriod = (period: ExplorePeriod) => {
+    setFailedPeriod(null);
+    setPendingPeriod(period);
+    queryClient
+      .fetchInfiniteQuery(explorePopularQueryOptions(period))
+      .then((result) => {
+        setActivePeriod(period);
+        // 전환 완료를 한 번만 알린다 — aria-live polite의 대역(uiux 7)
+        const count = result.pages.reduce((sum, page) => sum + page.items.length, 0);
+        AccessibilityInfo.announceForAccessibility(
+          EXPLORE_COPY.popular.switchedA11y(EXPLORE_COPY.popular.periodLabels[period], count),
+        );
+      })
+      .catch(() => setFailedPeriod(period))
+      .finally(() => setPendingPeriod(null));
+  };
+
+  const selectPopularPeriod = (period: ExplorePeriod) => {
+    if (pendingPeriod !== null) return; // 전환 중 중복 탭 차단(uiux 4.10)
+    // 이미 보고 있는 구간이면 아무것도 하지 않는다 — 목록이 그 구간으로 이미 그려져 있다
+    if (period === (activePeriod ?? feedPopularPeriod)) {
+      setFailedPeriod(null);
+      return;
+    }
+    switchPopularPeriod(period);
+  };
+
+  const retryPopularSwitch = () => {
+    if (failedPeriod === null || pendingPeriod !== null) return;
+    switchPopularPeriod(failedPeriod);
+  };
+
+  const loadMorePopular = () => {
+    // 구간을 고르기 전에는 커서가 없다 — 피드 섹션 목록은 서버가 정한 개수가 전부다
+    if (activePeriod === null || pendingPeriod !== null) return;
+    if (!popularQuery.hasNextPage || popularQuery.isFetchingNextPage || popularQuery.isFetching)
+      return;
+    void popularQuery.fetchNextPage();
+  };
+
+  const isPopularLoadMoreFailed =
+    popularQuery.isFetchNextPageError &&
+    !(isApiError(popularError) && popularError.errorCode === ERROR_CODES.EXPLORE_CURSOR_INVALID);
 
   /* ── 주제 칩 — 다중 선택 OR. 선택이 생기면 단일 목록, 전부 해제하면 섹션형 복귀 ── */
   const toggleTopic = (topicId: string) => {
@@ -363,6 +480,15 @@ export const useExploreScreen = () => {
     isFetchingNextPage: contentsQuery.isFetchingNextPage,
     isLoadMoreFailed,
     retryLoadMore: () => void contentsQuery.fetchNextPage(),
+    // 인기 구간 토글(E13)
+    selectPopularPeriod,
+    isPopularSwitching: pendingPeriod !== null,
+    isPopularSwitchFailed: failedPeriod !== null,
+    retryPopularSwitch,
+    loadMorePopular,
+    isFetchingPopularNextPage: popularQuery.isFetchingNextPage,
+    isPopularLoadMoreFailed,
+    retryPopularLoadMore: () => void popularQuery.fetchNextPage(),
     // 잔여 표시·페이월
     remainingDisplay,
     openPaywall: playGate.openPaywall,

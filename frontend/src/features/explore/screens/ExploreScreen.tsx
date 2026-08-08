@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useRef } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -7,6 +8,7 @@ import {
   StyleSheet,
   Text,
   View,
+  type ViewToken,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -20,13 +22,40 @@ import ExploreEmptyState from '../components/ExploreEmptyState';
 import ExploreMoreSheet from '../components/ExploreMoreSheet';
 import ExploreSearchBarRow from '../components/ExploreSearchBarRow';
 import ExploreSkeleton from '../components/ExploreSkeleton';
+import PopularPeriodToggle from '../components/PopularPeriodToggle';
 import TopicChips from '../components/TopicChips';
 import { EXPLORE_COPY } from '../explore.copy';
+import type { ExploreItem, ExploreSection } from '../explore.types';
 import { useExploreScreen } from '../hooks/useExploreScreen';
 
-/** 탐색 탭(E1~E12) — 화면은 뷰만 담당하고 로직은 useExploreScreen이 소유한다 */
+type FeedSection = ExploreSection & { data: ExploreItem[] };
+
+const VIEWABILITY_CONFIG = { itemVisiblePercentThreshold: 50 };
+
+/** 탐색 탭(E1~E13) — 화면은 뷰만 담당하고 로직은 useExploreScreen이 소유한다 */
 export default function ExploreScreen() {
   const screen = useExploreScreen();
+
+  /* 인기 섹션 추가 로딩 트리거 — 섹션이 목록 중간에 있어 onEndReached로는 잡히지 않는다.
+     마지막 인기 행이 보이면 커서로 이어 받는다(uiux 4.10). 콜백 prop은 교체가 금지라 ref로 최신을 든다 */
+  const loadMorePopularRef = useRef(screen.loadMorePopular);
+  useEffect(() => {
+    loadMorePopularRef.current = screen.loadMorePopular;
+  });
+  const handleViewableItemsChanged = useCallback(
+    ({ viewableItems }: { viewableItems: ViewToken<ExploreItem>[] }) => {
+      const reachedPopularEnd = viewableItems.some((token) => {
+        const section = (token as { section?: FeedSection }).section;
+        if (!section || section.period === null) return false;
+        const lastItem = section.data[section.data.length - 1];
+        // 헤더 위치의 토큰은 item에 content가 없다 — keyExtractor의 방어와 같은 이유
+        const tokenItem = token.item as Partial<ExploreItem> | undefined;
+        return lastItem !== undefined && tokenItem?.content?.id === lastItem.content.id;
+      });
+      if (reachedPopularEnd) loadMorePopularRef.current();
+    },
+    [],
+  );
 
   // E10은 검색창 줄·주제 칩·잔여 표시까지 그리지 않는다 — 화면 전체가 에러다(uiux 4.8)
   if (screen.isFullError) {
@@ -50,25 +79,42 @@ export default function ExploreScreen() {
   // E8(콘텐츠 풀 0건)은 주제 칩 줄을 숨긴다 — 어떤 칩을 골라도 결과가 없다(uiux 4.7)
   const showChips = screen.emptyKind !== 'feed';
 
+  // 인라인 에러 — 기존 목록을 유지한 채 그 자리에서만 알린다(common-error-handling.md 4.3)
+  const renderInlineError = (message: string, onRetry: () => void) => (
+    <View style={styles.footer}>
+      <Text style={styles.footerText}>{message}</Text>
+      <Pressable
+        onPress={onRetry}
+        accessibilityRole="button"
+        accessibilityLabel={EXPLORE_COPY.error.retry}
+        style={styles.footerRetry}
+      >
+        <Text style={styles.footerRetryLabel}>{EXPLORE_COPY.error.retry}</Text>
+      </Pressable>
+    </View>
+  );
+
   const renderFooter = () => {
     if (screen.isFetchingNextPage) {
       return <ActivityIndicator style={styles.footer} color={theme.color.primary} />;
     }
-    // 추가 로딩 실패 — 인라인 에러. 기존 목록을 유지한다(common-error-handling.md 4.3)
     if (screen.isLoadMoreFailed) {
-      return (
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>{EXPLORE_COPY.error.loadMoreFailed}</Text>
-          <Pressable
-            onPress={screen.retryLoadMore}
-            accessibilityRole="button"
-            accessibilityLabel={EXPLORE_COPY.error.retry}
-            style={styles.footerRetry}
-          >
-            <Text style={styles.footerRetryLabel}>{EXPLORE_COPY.error.retry}</Text>
-          </Pressable>
-        </View>
-      );
+      return renderInlineError(EXPLORE_COPY.error.loadMoreFailed, screen.retryLoadMore);
+    }
+    return null;
+  };
+
+  // E13 인기 섹션의 인라인 상태 — 전환 중 로딩 · 전환 실패 · 추가 로딩(uiux 4.10)
+  const renderPopularSectionFooter = (section: FeedSection) => {
+    if (section.period === null) return null;
+    if (screen.isPopularSwitching || screen.isFetchingPopularNextPage) {
+      return <ActivityIndicator style={styles.footer} color={theme.color.primary} />;
+    }
+    if (screen.isPopularSwitchFailed) {
+      return renderInlineError(EXPLORE_COPY.popular.switchFailed, screen.retryPopularSwitch);
+    }
+    if (screen.isPopularLoadMoreFailed) {
+      return renderInlineError(EXPLORE_COPY.error.loadMoreFailed, screen.retryPopularLoadMore);
     }
     return null;
   };
@@ -122,21 +168,50 @@ export default function ExploreScreen() {
 
     // E1 — 섹션형 피드. 섹션 구성·순서·제목은 서버 응답 그대로다(explore.md 4.1)
     return (
-      <SectionList
+      <SectionList<ExploreItem, FeedSection>
         sections={screen.sections.map((section) => ({ ...section, data: section.items }))}
-        keyExtractor={(item) => item.content.id}
-        renderItem={({ item }) => (
-          <ExploreContentRow
-            item={item}
-            onPress={screen.handleRowPress}
-            onMorePress={screen.openMoreSheet}
-          />
-        )}
-        renderSectionHeader={({ section }) => (
-          <Text style={styles.sectionTitle} accessibilityRole="header">
-            {section.title}
-          </Text>
-        )}
+        // 뷰어빌리티 콜백을 켜면 RN VirtualizedSectionList가 섹션 헤더 위치에도 keyExtractor를
+        // 호출하는데, 그때의 item은 행이 아니라 섹션 객체 등이라 content가 없다(업스트림 동작).
+        // 렌더 경로에서는 항상 실제 행 item이다 — 표시용 키에는 영향이 없다
+        keyExtractor={(item: Partial<ExploreItem> | undefined, index) =>
+          item?.content?.id ?? `section-boundary-${index}`
+        }
+        renderItem={({ item, section }) => {
+          const row = (
+            <ExploreContentRow
+              item={item}
+              onPress={screen.handleRowPress}
+              onMorePress={screen.openMoreSheet}
+            />
+          );
+          // 구간 전환 중에는 직전 목록을 흐리게 유지한다 — 그 섹션의 행만이다(uiux 4.10)
+          if (section.period !== null && screen.isPopularSwitching) {
+            return <View style={styles.dimmed}>{row}</View>;
+          }
+          return row;
+        }}
+        renderSectionHeader={({ section }) =>
+          // 토글 노출은 key가 아니라 period 값으로 가른다 — popular 섹션만 값이 있다(explore-api.md 4.1)
+          section.period !== null ? (
+            <View style={styles.sectionHeaderRow}>
+              <Text style={[styles.sectionTitle, styles.sectionHeaderTitle]} accessibilityRole="header">
+                {section.title}
+              </Text>
+              <PopularPeriodToggle
+                selected={section.period}
+                onSelect={screen.selectPopularPeriod}
+                disabled={screen.isPopularSwitching}
+              />
+            </View>
+          ) : (
+            <Text style={styles.sectionTitle} accessibilityRole="header">
+              {section.title}
+            </Text>
+          )
+        }
+        renderSectionFooter={({ section }) => renderPopularSectionFooter(section)}
+        onViewableItemsChanged={handleViewableItemsChanged}
+        viewabilityConfig={VIEWABILITY_CONFIG}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         ListEmptyComponent={
           screen.emptyKind === 'feed' ? (
@@ -209,6 +284,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     paddingTop: theme.spacing.lg,
     paddingBottom: theme.spacing.xs,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingRight: theme.spacing.md,
+  },
+  sectionHeaderTitle: {
+    // 토글과 공간을 나눈다 — 동적 텍스트 200%에서도 제목이 토글을 밀어내지 않게(uiux 7)
+    flexShrink: 1,
+  },
+  dimmed: {
+    opacity: 0.5,
   },
   separator: {
     height: StyleSheet.hairlineWidth,

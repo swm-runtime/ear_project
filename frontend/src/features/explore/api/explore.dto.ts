@@ -5,6 +5,8 @@
 import type { LibraryItemStatus, LibrarySource } from '@/features/library';
 import type { PlayLimitFieldsDto } from '@/features/player';
 
+import type { ExplorePeriod } from '../explore.types';
+
 export interface ExploreContentDto {
   id: string;
   title: string;
@@ -34,6 +36,8 @@ export interface ExploreSectionDto {
   key: string;
   title: string;
   topic: { id: string; name: string } | null;
+  /** popular 섹션만 값이 있다 — 구간 토글 선택 상태의 근거. 다른 섹션은 생략 또는 null(explore-api.md 4.1) */
+  period?: ExplorePeriod | null;
   items: ExploreItemDto[];
 }
 
@@ -51,6 +55,21 @@ export interface ExploreContentsRequestDto {
 }
 
 export interface ExploreContentsResponseDto extends PlayLimitFieldsDto {
+  items: ExploreItemDto[];
+  next_cursor: string | null;
+  has_next: boolean;
+}
+
+/** GET /explore/popular (explore-api.md 4.2-1) — period 미전송이면 서버가 month로 해석한다 */
+export interface ExplorePopularRequestDto {
+  period?: ExplorePeriod;
+  cursor?: string;
+  limit?: number;
+}
+
+export interface ExplorePopularResponseDto extends PlayLimitFieldsDto {
+  /** 서버가 되돌린 값 — 토글 선택 상태의 근거. 기본값을 클라이언트가 알 필요가 없게 한다 */
+  period: ExplorePeriod;
   items: ExploreItemDto[];
   next_cursor: string | null;
   has_next: boolean;
@@ -80,8 +99,9 @@ export interface UnsaveContentResponseDto {
 }
 
 /**
- * 주제 칩 목록 — 제안 계약(TODO: explore-api.md 미반영, 백엔드 협의 필요).
- * 서버가 관심 주제(is_interest)를 앞쪽으로 정렬해 내려준다(explore.md 4.2). mock에만 구현되어 있다.
+ * GET /explore/topics (explore-api.md 4.2-2) — 확정 계약(합의 2026-08-07).
+ * 앞쪽은 활성 관심 주제 전부(선택 순서, 숨김 처리돼도 포함), 뒤쪽은 노출 주제(display_order 순).
+ * 정렬은 서버 소유다 — 클라이언트는 재배열하지 않는다.
  */
 export interface ExploreTopicsResponseDto {
   topics: { id: string; name: string; is_interest: boolean }[];

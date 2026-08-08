@@ -69,4 +69,15 @@ export const EXPLORE_COPY = {
     /** 주제 칩은 다중 선택 토글이다(uiux 7) */
     a11yHint: '주제 필터',
   },
+
+  /** E13 인기 구간 토글 — 라벨은 화면 문구이고 week·month·all은 전송값이다(uiux 6장) */
+  popular: {
+    periodLabels: { week: '주간', month: '월간', all: '전체' },
+    toggleA11y: '인기 콘텐츠 집계 구간',
+    /** 전환 실패 — 직전 목록을 유지한 채 섹션 안에서만 알린다(uiux 4.10) */
+    switchFailed: '목록을 불러오지 못했어요',
+    /** 전환 완료를 스크린리더에 한 번 알린다 — "월간 인기 콘텐츠, 10개"(uiux 7) */
+    switchedA11y: (periodLabel: string, count: number) =>
+      `${periodLabel} 인기 콘텐츠, ${count}개`,
+  },
 } as const;
