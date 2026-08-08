@@ -37,6 +37,20 @@ export class SubscriptionService {
     return count > 0;
   }
 
+  /**
+   * 화면 표시용 현재 구독 — 없으면 `null`(무료 티어).
+   *
+   * **`users.tier` 캐시가 아니라 이 행이 진실의 원천이다**(domain.md 3.1 · 8.2).
+   * 프로필·설정의 플랜 카드는 이 값으로 조립하고, 캐시 갱신은 이 모듈이 결제 반영 시점에
+   * 한 곳에서만 수행한다 — 조회 경로가 캐시를 고치기 시작하면 갱신 지점이 흩어진다.
+   */
+  async findCurrent(
+    userId: string,
+    manager?: EntityManager,
+  ): Promise<Subscription | null> {
+    return this.subscriptionRepository.findLatestByUserId(userId, manager);
+  }
+
   /** 탈퇴 아카이브 이관용 조회 (domain.md 12.3) */
   async findAllByUserId(
     userId: string,

@@ -12,11 +12,3 @@ export enum RecommendationSectionType {
   /** 월간 표본이 부족할 때 같은 자리에 놓는 랜덤 3건 */
   TOPIC_DISCOVERY = 'topic_discovery',
 }
-
-/** onboarding-api.md 4.4 — 정수 연차가 아니라 **구간값**으로 주고받는다 */
-export enum YearsOfExperienceRange {
-  ZERO_TO_ONE = '0-1',
-  TWO_TO_THREE = '2-3',
-  FOUR_TO_SIX = '4-6',
-  SEVEN_PLUS = '7+',
-}

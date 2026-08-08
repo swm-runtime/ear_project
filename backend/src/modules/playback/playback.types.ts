@@ -60,3 +60,14 @@ export interface StartPlayResult {
   progress: ProgressView | null;
   quota: DailyPlayQuota;
 }
+
+/**
+ * 콘텐츠별 누적 청취 시간 — 주제 분포 집계의 중간 산출물(`profile.md` 4.7).
+ *
+ * 주제까지 붙이지 않는 이유는 `content_topics`가 content 모듈 소유이기 때문이다
+ * (domain.md 2장). 이 모듈은 콘텐츠 축까지만 접어서 넘긴다.
+ */
+export interface ContentListenedSecView {
+  contentId: string;
+  listenedSec: number;
+}

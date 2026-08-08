@@ -1,6 +1,6 @@
 import { OnboardingStep } from '@/modules/user/user.enum';
 
-import { YearsOfExperienceRange } from '../onboarding.enum';
+import { YearsOfExperienceRange } from '@/modules/user/user.enum';
 import { OnboardingState } from '../onboarding.types';
 
 class OnboardingCareerDto {

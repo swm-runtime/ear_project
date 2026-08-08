@@ -92,6 +92,20 @@ export enum ErrorCode {
    */
   EXPLORE_CURSOR_INVALID = 'EXPLORE_CURSOR_INVALID',
 
+  // --- 프로필 통계 (profile-api.md 5장 · common-error-handling.md 9.7) ---
+  /**
+   * 주간 그래프에서 **가입 주 이전 또는 미래 주**를 조회했다.
+   *
+   * 정상 UI에서는 도달하지 않는다 — 화살표가 `previous_week_start` · `next_week_start`의
+   * `null` 여부로 비활성화되기 때문이다(`profile.md` 4.6). 방어적 거절이므로 클라이언트는
+   * 사용자에게 노출하지 않고 현재 표시 주를 유지한다.
+   *
+   * `VALIDATION_FAILED`와 나누는 이유는 **클라이언트 동작이 다르기** 때문이다 — 형식 오류는
+   * 요청을 고쳐야 하지만 이쪽은 요청이 옳고 범위만 벗어난 것이라 화살표 상태를 되돌린다
+   * (`common-error-handling.md` 9.7에 계약이 이미 등재돼 있다).
+   */
+  STATS_WEEK_OUT_OF_RANGE = 'STATS_WEEK_OUT_OF_RANGE',
+
   // --- 재생 한도 (paywall.md 4.1 · library-api.md 5장) ---
   /**
    * 무료 티어 한도 소진 → 클라이언트는 **페이월 바텀시트**를 연다.

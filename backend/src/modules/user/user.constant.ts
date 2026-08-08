@@ -1,4 +1,8 @@
-import { ConsentType, OnboardingStep } from './user.enum';
+import {
+  ConsentType,
+  OnboardingStep,
+  YearsOfExperienceRange,
+} from './user.enum';
 
 /**
  * 재개 지점의 순서. **`onboarding_step`은 앞으로만 전진한다**(onboarding-api.md 4.1)는
@@ -55,3 +59,47 @@ export const EMAIL_VERIFICATION_MIN_RESPONSE_MS = 150;
 
 /** 아카이브·탈퇴 로그 해시 버전 (domain.md 11.2 — 키 교체 시에만 올린다) */
 export const USER_HASH_VERSION = 1;
+
+/**
+ * 구간 enum을 `users.years_of_experience`(int)에 저장할 때 쓰는
+ * **구간 하한값**이다. 1:1이라 되돌릴 수 있다(`onboarding-api.md` 4.4 · `career.md` 3장).
+ *
+ * 컬럼 타입(int)과 화면 입력 방식(구간)이 어긋나 있어, **구간 정의가 바뀌면 환산표와
+ * 저장된 값이 조용히 어긋난다.** 컬럼을 varchar enum으로 바꿀지는 미결이다
+ * (`domain.md` 15.1 #4 · `profile-api.md` 9장).
+ *
+ * **컬럼을 소유한 이 모듈에 둔다.** 온보딩·커리어·프로필이 같은 환산을 쓰는데 화면 모듈마다
+ * 복제하면 구간이 바뀔 때 한쪽만 고쳐지고, 저장된 값과 화면 표시가 조용히 어긋난다.
+ */
+export const YEARS_OF_EXPERIENCE_LOWER_BOUND: Readonly<
+  Record<YearsOfExperienceRange, number>
+> = {
+  [YearsOfExperienceRange.ZERO_TO_ONE]: 0,
+  [YearsOfExperienceRange.TWO_TO_THREE]: 2,
+  [YearsOfExperienceRange.FOUR_TO_SIX]: 4,
+  [YearsOfExperienceRange.SEVEN_PLUS]: 7,
+};
+
+/** 저장된 하한값을 구간으로 되돌린다. 경계 밖 값은 가장 가까운 아래 구간으로 본다 */
+export function toYearsOfExperienceRange(
+  value: number | null,
+): YearsOfExperienceRange | null {
+  if (value === null) {
+    return null;
+  }
+
+  const ranges = Object.entries(YEARS_OF_EXPERIENCE_LOWER_BOUND) as [
+    YearsOfExperienceRange,
+    number,
+  ][];
+
+  let matched: YearsOfExperienceRange | null = null;
+
+  for (const [range, lowerBound] of ranges) {
+    if (value >= lowerBound) {
+      matched = range;
+    }
+  }
+
+  return matched;
+}

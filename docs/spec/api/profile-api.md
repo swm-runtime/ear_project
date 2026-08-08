@@ -132,10 +132,21 @@
 | `status` | 판정(서버) | 화면(`profile.md` 4.2) |
 |---|---|---|
 | `free` | 유효한 `subscriptions` 행 없음(행 자체가 없거나 `expired` · `refunded`뿐) | "무료 이용 중 · 하루 N편" + [구독 알아보기] |
-| `subscribed` | `status = 'active'` 이고 `is_auto_renew = true` | 플랜명 + "다음 결제일 N월 N일"(`renews_at`) |
-| `cancel_scheduled` | 해지 예약 — `is_auto_renew = false`이고 만료 전 | 플랜명 + "N월 N일까지 이용 가능"(`expires_at`) |
+| `subscribed` | `status`가 `active`이고 `is_auto_renew = true` | 플랜명 + "다음 결제일 N월 N일"(`renews_at`) |
+| `cancel_scheduled` | 해지 예약 — `is_auto_renew = false`이고 만료 전. **`status = 'cancelled'`가 여기다** | 플랜명 + "N월 N일까지 이용 가능"(`expires_at`) |
 | `grace` | `status = 'grace'`(결제 실패 유예) | 플랜명 + "결제에 문제가 있어요" 경고 → `has_payment_issue = true` |
 
+- **`subscriptions.status` 다섯 값이 모두 어느 분기로 가는지 정해져 있다**(확정 2026-08-08 — 값의 의미는 `domain.md` 8.2가 소유한다).
+
+| `subscriptions.status` | 이 표의 `status` |
+|---|---|
+| 행 없음 · `expired` · `refunded` | `free` |
+| `active` (`is_auto_renew = true`) | `subscribed` |
+| `active` (`is_auto_renew = false`) · `cancelled` | `cancel_scheduled` |
+| `grace` | `grace` |
+
+  - **`cancelled`는 별도 분기가 아니다.** 해지 예약(만료일까지 유효)이므로 `free`가 아니고, 화면이 갈라야 하는 것은 "다음 결제일이 있는가 / 이용 종료일이 있는가"뿐이다. **환불·철회는 `refunded`가 맡아 `free`로 간다**(`domain.md` 8.2 — 두 값을 반드시 구분한다).
+  - **만료 시각을 비교해 앞질러 판정하지 않는다.** 만료 반영은 S2S가 `status`를 바꿔서 하는 일이므로(`domain.md` 8.2), 조회 쪽이 `expires_at`을 시각 비교하면 진실의 원천이 둘이 된다.
 - **`subscriptions`의 raw `status` enum을 그대로 내려주지 않는다.** 화면이 필요한 것은 위 4분기뿐이고, raw 값을 내려주면 해지 예약 판정(`is_auto_renew` 조합)이 클라이언트마다 재작성된다 — 판정은 서버가 한다.
 - `renews_at`과 `expires_at`은 **같은 `subscriptions.expires_at`에서 온 값이지만 의미가 달라 필드를 나눈다.** 자동 갱신이면 그 시각이 다음 결제일이고, 해지 예약이면 이용 종료일이다. 한 필드로 내려주면 화면이 `status`를 보고 라벨을 갈아 끼워야 한다.
 - `status = free`일 때 `tier = "light"` · `plan_name` · `daily_play_limit`(무료 한도)을 채워 내려준다. **"하루 N편"의 N은 `plans.daily_play_limit` 서버 값이다 — 2를 하드코딩하지 않는다**(`profile.md` 4.2 · `paywall.md` 5장과 같은 규칙).
@@ -145,7 +156,10 @@
 
 - `count`는 `user_interests`의 `is_active = true` 개수다. **관리자가 숨긴 주제(`topics.is_visible = false`)도 개수에 포함한다** — 편집 화면과 같은 기준을 써야 개수가 어긋나지 않는다(`profile.md` 7장 · `interest-management.md` 7장).
 - **`count`는 항상 1 이상이다.** 편집 화면이 최소 1개 선택을 강제하므로(합의 2026-08-06 — `interest-management.md` 4.2) 관심 주제 0개인 요약 상태는 생기지 않는다(`profile.md` 4.4).
-- `top_topics`는 **최대 3개 — 별도 선정 기준 없이 서버 응답 순서의 앞 3개다**(확정 2026-08-06, `profile.md` 4.4). 관심사 관리 목록과 같은 정렬(현행 `topics.display_order`)을 그대로 쓰며, "대표"를 위한 추가 규칙을 두지 않는다.
+- `top_topics`는 **최대 3개 — 별도 선정 기준 없이 서버 응답 순서의 앞 3개다**(확정 2026-08-06, `profile.md` 4.4). "대표"를 위한 추가 규칙을 두지 않는다.
+- **정렬은 `user_interests.created_at` 오름차순 — 사용자가 선택한 순서다**(개정 2026-08-08). `explore-api.md` 4.2-2의 주제 칩과 **같은 규칙**이며, 같은 데이터(`user_interests`)를 읽는 화면끼리 순서가 갈리지 않게 한다.
+  - 개정 전에는 "관심사 관리 목록과 같은 정렬(현행 `topics.display_order`)"이라고 적혀 있었다. **관심사 관리 화면은 아직 없고 API 명세도 없어**, 만들어지지 않은 화면의 정렬을 추측한 문장이었다. 그 상태로 두면 관심사 관리를 만드는 사람이 이 문장을 근거로 `display_order`를 택해 세 화면이 어긋난다.
+  - **관심사 관리 명세를 쓸 때도 이 규칙을 따른다.** 관심 주제의 순서는 화면이 아니라 데이터가 정하며, 기준은 사용자가 고른 순서 하나다.
 - 나머지는 화면이 `+N`으로 접는다(`N = count - top_topics.length`). 상한이 3개이므로 **`+N`은 상한 도입 이전 초과 보유자에게만 나타난다**(`interest-management.md` 7장).
 
 **`career` — 커리어 카드 요약** (합의 2026-08-06 — 카드 복원)
@@ -310,7 +324,7 @@
 
 - **`plan.status` 정규화 enum의 소유** — 이 4분기(`free` / `subscribed` / `cancel_scheduled` / `grace`)는 설정 화면의 구독 요약(`settings-api.md`)과 구독 관리 화면도 그대로 쓰게 된다. `subscription.md`의 API 명세가 작성될 때 그쪽으로 소유를 옮기고 이 문서는 참조로 바꾼다.
 - **`renews_at`의 정확성** — 다음 결제일을 `subscriptions.expires_at`으로 표현했다. 스토어 유예 기간·플랜 변경 예약이 겹치면 실제 결제일과 어긋날 수 있어, 구독 API 설계 시 스토어 S2S 값과 대조가 필요하다.
-- ~~`top_topics` 정렬 기준~~ → **확정(합의 2026-08-06): 별도 선정 기준 없이 서버 응답 순서의 앞 3개**(4.1 · `profile.md` 4.4). 현행 정렬(`topics.display_order`)을 그대로 쓴다.
+- ~~`top_topics` 정렬 기준~~ → **확정(합의 2026-08-06): 별도 선정 기준 없이 서버 응답 순서의 앞 3개**(4.1 · `profile.md` 4.4). **정렬은 `user_interests.created_at`(선택한 순서)이며 `explore-api.md` 4.2-2와 같은 규칙이다**(개정 2026-08-08 — 개정 전 `topics.display_order`는 아직 없는 관심사 관리 화면의 정렬을 추측한 것이었다).
 - ~~프로필 카드 구성(커리어 카드 제거 · `profile.md` 개정 필요)~~ → **확정(합의 2026-08-06): 4카드로 복원.** 커리어는 별도 카드·별도 화면(`career.md`)이다. `profile.md` 4.1·4.4 개정 완료 — 이 문서의 이전 판(커리어 미포함·3카드)은 폐기됐고, 응답에 `career` 요약이 복원됐다(4.1).
 - ~~[관심 주제 관리] 카드의 커리어 요약 표시 여부~~ → **해소(합의 2026-08-06): 커리어가 별도 카드로 분리**되면서 질문 자체가 소멸했다. 관심 주제 카드에는 주제 요약만 둔다.
 - **`years_of_experience`의 전송 표현** — 이 계약은 구간 라벨(`"0-1" | "2-3" | "4-6" | "7+"`)을 쓴다(`career.md` 3장). `domain.md` 3.1은 `int`라 저장 매핑이 미결이다(`domain.md` 15.1 #4). 매핑이 확정돼도 이 응답은 라벨을 유지한다 — 저장 표현은 백엔드 소관.

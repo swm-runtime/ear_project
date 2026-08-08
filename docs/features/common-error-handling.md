@@ -266,7 +266,7 @@ NetworkState  { reachable, connection_type }                        // 클라이
 - **`retryable: true`는 5xx·429·외부 연동 실패뿐이다.** 나머지는 전부 형식·상태·권한 문제라 같은 요청을 다시 보내도 결과가 같다. 자동 재시도 대상은 4.2가 정한다.
 - **설정(`settings-api.md`)은 고유 코드가 없다.** `VALIDATION_FAILED`만 쓰며 9.1을 따른다.
 - **api 문서가 아직 없는 화면**(플레이어·구독·알림 등)의 코드는 그 문서를 작성할 때 여기에 함께 등재한다.
-- **`EXPLORE_CURSOR_INVALID` · `STATS_WEEK_OUT_OF_RANGE`는 계약만 있고 서버 enum에는 아직 없다.** 탐색·프로필이 구현되지 않았기 때문이며, 구현 시 enum에 추가한다. 나머지 40개는 `error-code.enum.ts`와 1:1로 일치한다.
+- **9장 표의 42개는 `error-code.enum.ts`와 1:1로 일치한다.** 탐색(`EXPLORE_CURSOR_INVALID`)·프로필(`STATS_WEEK_OUT_OF_RANGE`)이 구현되면서 마지막까지 계약에만 있던 두 코드가 enum에 등재됐다. 앞으로 코드를 추가할 때는 `architecture.md` 7.5의 순서를 따른다 — **enum → 9장 표 → 해당 `spec/api/*-api.md` 5장.**
 
 ## 미결 사항
 

@@ -190,6 +190,7 @@ src/
 | Onboarding | User, Interest, Content, Library, Drip, Idempotency | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
 | LibraryScreen | Library, Playback, Content, Drip | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
 | Explore | Content, Library, Playback, Interest, Drip | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
+| Profile | User, Subscription, Interest, Library, Playback, Content | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
 | *(도메인 확정 시 계속 추가)* | | |
 
 **Onboarding은 Entity를 갖지 않는다.** 온보딩은 화면 흐름이라 자기 데이터가 없고 `users` · `user_interests` · `contents` · `library_items` · `first_drip_jobs`를 횡단한다. 4.1의 "모듈은 Entity 기준으로 나눈다"의 예외이며, Repository 없이 **Orchestrator가 각 소유 모듈의 Service를 조합한다**(→ 3.3). 도메인 규칙 판정(주제 개수 상한, 발행 상태, 완료 여부)은 전부 소유 모듈의 Service에 있고 Orchestrator는 순서·조합만 담당한다.
@@ -206,6 +207,13 @@ src/
 - **`content` 모듈에 넣을 수 없다.** 담기·해제가 `library_items`를 쓰고 영구 제외가 `drip_excluded_contents`를 건드리는데, `content` 모듈은 `interest`에만 의존한다(`domain.md` 2장). 거기에 `library` · `drip` · `playback`을 더하면 세 모듈이 이미 갖고 있는 `→ content` 방향과 부딪쳐 순환이 된다.
 - **`user` · `subscription`을 직접 의존하지 않는다.** 잔여 재생 표시값은 LibraryScreen과 같은 이유로 `playback`이 조립해 내려준다.
 - **재생 시작은 여기에 없다.** 담기·해제와 경로 계층이 같지만(`/contents/:content_id/...`) 재생은 `library-api.md` 8장이 지정한 대로 Playback 모듈에 남는다 — 진입점마다 모듈이 갈리면 한도 판정이 경로별로 새는 구멍이 된다.
+
+**Profile도 Entity를 갖지 않는다.** 프로필 응답에는 계정·커리어(`user` 소유), 구독 상태·요금제(`subscription` 소유), 관심 주제 요약(`interest` 소유), 완청 고유 콘텐츠 수(`library` 소유), 청취 시간·연속 일수·주간 그래프(`playback` 소유), 주제 분포의 주제 매핑(`content` 소유)이 함께 나간다. `profile.md` 6장이 **전용 테이블을 만들지 않는다**고 정하고 있어 조립할 자기 Entity가 애초에 없다. 소유 모듈들 **위에서** Orchestrator가 조합한다(→ 3.3). `/users/me/profile`과 `/users/me/profile/weekly-listening`이 여기에 속한다.
+
+- **`user` 모듈에 넣을 수 없다.** 통계가 `library_items` · `play_records` · `content_topics`를 읽는데, `user` 모듈에 그 셋을 더하면 `library → user` · `playback → user`와 부딪쳐 순환이 된다.
+- **`user` · `subscription`을 직접 의존한다 — `LibraryScreen` · `Explore`와 다른 점이다.** 저 둘이 두 모듈을 피한 이유는 잔여 재생 표시값을 `PlaybackService`가 조립해 주기 때문인데, **프로필은 그 값을 응답에 싣지 않는다**(`profile-api.md` 4.1에 세 필드가 없다). 프로필이 필요한 것은 계정 정보와 플랜 카드이며, 특히 플랜은 `users.tier` 캐시가 아니라 **`subscriptions`를 기준으로 조립하라**고 계약이 요구한다(`profile-api.md` 3장).
+- **캐시를 고치지 않는다.** 조회 시점에 `users.tier`가 `subscriptions`와 어긋나 있어도 응답만 `subscriptions` 기준으로 내려주고, 캐시 갱신은 `SubscriptionService` 한 곳이 한다(`domain.md` 3.1 — 갱신 경로를 한 곳으로 제한).
+- **쓰기 경로가 없다.** 프로필에서 직접 서버에 쓰는 값은 하나도 없고(`profile.md` 1장), 각 카드의 편집은 소유 화면의 API가 담당한다 — 같은 데이터를 두 화면이 각자 저장하면 규칙이 갈라진다.
 
 **`User → Subscription`은 한시적이다.** `domain.md` 2장이 `Subscription → User`(결제 반영 시 `users.tier` 갱신)를 함께 정의하고 있어, 두 방향이 동시에 성립하면 순환이 된다. Subscription 모듈이 티어 갱신을 시작하는 시점에 **탈퇴를 Orchestrator로 올려**(→ 3.3) 두 Service를 위에서 조합하고 이 의존을 제거한다.
 

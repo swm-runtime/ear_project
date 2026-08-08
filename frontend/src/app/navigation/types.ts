@@ -15,6 +15,16 @@ export type MainStackParamList = {
   Tabs: NavigatorScreenParams<MainTabParamList>;
   /** TODO: player feature 구현 시 교체(player.md). 지금은 플레이스홀더다 */
   Player: { contentId: string };
+  /** TODO: settings feature 구현 시 교체(settings.md). 진입점은 프로필 우상단 아이콘뿐이다 */
+  Settings: undefined;
+  /** TODO: subscription 화면 구현 시 교체(subscription.md) — 플랜 카드·[구독 알아보기]의 목적지 */
+  Subscription: undefined;
+  /** TODO: 이메일 인증 화면(A 계열, auth.md 4.4~4.5) 구현 시 교체 — [등록]·[인증하기]·[변경] 공통 목적지 */
+  EmailVerification: undefined;
+  /** TODO: 관심사 관리 화면 구현 시 교체(interest-management.md) */
+  InterestManagement: undefined;
+  /** TODO: 커리어 정보 화면 구현 시 교체(career.md) — 관심사 관리와 별도 화면이다 */
+  Career: undefined;
 };
 
 export type RootStackParamList = {

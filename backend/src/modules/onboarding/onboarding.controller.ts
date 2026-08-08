@@ -14,6 +14,7 @@ import {
 import type { AuthenticatedUser } from '@/common/decorators/current-user.decorator';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
+import { YearsOfExperienceRange } from '@/modules/user/user.enum';
 import { IdempotencyInterceptor } from '@/modules/idempotency/idempotency.interceptor';
 
 import { CompleteOnboardingResponseDto } from './dto/complete-onboarding-response.dto';
@@ -28,7 +29,6 @@ import { ReplaceOnboardingInterestsResponseDto } from './dto/replace-onboarding-
 import { UpdateOnboardingCareerRequestDto } from './dto/update-onboarding-career-request.dto';
 import { UpdateOnboardingCareerResponseDto } from './dto/update-onboarding-career-response.dto';
 import { OnboardingOrchestrator } from './onboarding.orchestrator';
-import { YearsOfExperienceRange } from './onboarding.enum';
 
 /**
  * onboarding-api.md 3장 — 온보딩 API는 **전부 인증이 필요하다.**

@@ -10,6 +10,7 @@ import { PlayRecordRepository } from '../repositories/play-record.repository';
 import { UserSignalRepository } from '../repositories/user-signal.repository';
 import { UserSignalAction } from '../playback.enum';
 import {
+  ContentListenedSecView,
   DailyPlayQuota,
   ProgressView,
   UserSignalView,
@@ -116,6 +117,54 @@ export class PlaybackService {
     return this.playRecordRepository.countByUserIdAndPlayDate(
       userId,
       toServiceDate(now),
+      manager,
+    );
+  }
+
+  /**
+   * 누적 청취 시간(초) — 프로필 통계의 `total_listened_sec`(`profile-api.md` 4.1).
+   * `play_records`는 이 모듈 소유이므로 집계도 여기를 거친다(architecture.md 4.3).
+   */
+  async sumListenedSec(
+    userId: string,
+    manager?: EntityManager,
+  ): Promise<number> {
+    return this.playRecordRepository.sumListenedSecByUserId(userId, manager);
+  }
+
+  /**
+   * 재생 기록이 있는 서비스 날짜(최신순, 중복 제거) — 연속 청취 일수 판정의 입력.
+   *
+   * 판정 자체를 여기서 하지 않는 이유는 규칙의 소유자가 프로필 화면이기 때문이다
+   * (`profile.md` 4.5). 이 모듈은 원천만 내어 준다.
+   */
+  async findPlayDates(
+    userId: string,
+    manager?: EntityManager,
+  ): Promise<string[]> {
+    return this.playRecordRepository.findAllPlayDatesByUserId(userId, manager);
+  }
+
+  /** 지정한 서비스 날짜들의 청취 시간 합 — 주간 그래프(`profile.md` 4.6) */
+  async sumListenedSecByDates(
+    userId: string,
+    playDates: string[],
+    manager?: EntityManager,
+  ): Promise<Map<string, number>> {
+    return this.playRecordRepository.sumListenedSecByPlayDates(
+      userId,
+      playDates,
+      manager,
+    );
+  }
+
+  /** 콘텐츠별 누적 청취 시간 — 주제 분포의 원천(`profile.md` 4.7) */
+  async sumListenedSecByContent(
+    userId: string,
+    manager?: EntityManager,
+  ): Promise<ContentListenedSecView[]> {
+    return this.playRecordRepository.sumListenedSecGroupByContentId(
+      userId,
       manager,
     );
   }
