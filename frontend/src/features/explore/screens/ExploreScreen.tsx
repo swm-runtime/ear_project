@@ -25,10 +25,12 @@ import ExploreSkeleton from '../components/ExploreSkeleton';
 import PopularPeriodToggle from '../components/PopularPeriodToggle';
 import TopicChips from '../components/TopicChips';
 import { EXPLORE_COPY } from '../explore.copy';
+import { buildSectionListKey } from '../explore.section-key';
 import type { ExploreItem, ExploreSection } from '../explore.types';
 import { useExploreScreen } from '../hooks/useExploreScreen';
 
-type FeedSection = ExploreSection & { data: ExploreItem[] };
+/** key는 SectionList가 소비하는 React key — 서버 값이 아니라 buildSectionListKey가 만든 유일 값이다 */
+type FeedSection = ExploreSection & { key: string; data: ExploreItem[] };
 
 const VIEWABILITY_CONFIG = { itemVisiblePercentThreshold: 50 };
 
@@ -169,7 +171,12 @@ export default function ExploreScreen() {
     // E1 — 섹션형 피드. 섹션 구성·순서·제목은 서버 응답 그대로다(explore.md 4.1)
     return (
       <SectionList<ExploreItem, FeedSection>
-        sections={screen.sections.map((section) => ({ ...section, data: section.items }))}
+        sections={screen.sections.map((section) => ({
+          ...section,
+          // topic_group이 주제 수만큼 반복돼도 유일해야 한다 — 서버 sectionKey를 그대로 쓰지 않는다
+          key: buildSectionListKey(section),
+          data: section.items,
+        }))}
         // 뷰어빌리티 콜백을 켜면 RN VirtualizedSectionList가 섹션 헤더 위치에도 keyExtractor를
         // 호출하는데, 그때의 item은 행이 아니라 섹션 객체 등이라 content가 없다(업스트림 동작).
         // 렌더 경로에서는 항상 실제 행 item이다 — 표시용 키에는 영향이 없다
