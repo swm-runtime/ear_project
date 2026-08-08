@@ -16,3 +16,15 @@ export interface TopicView {
   name: string;
   parentCategory: string;
 }
+
+/**
+ * 관심 주제 요약(`profile-api.md` 4.1 · `settings-api.md` 4.1) — **두 화면이 같은 규칙을 쓴다.**
+ *
+ * `count`는 **관리자가 숨긴 주제(`topics.is_visible = false`)도 포함한다** — 편집 화면과 같은
+ * 기준을 써야 개수가 어긋나지 않는다. `topTopics`는 별도 선정 기준 없이 앞 3개이며, 정렬은
+ * **선택한 순서**(`user_interests.created_at`)다 — 탐색 칩과 같은 규칙(`explore-api.md` 4.2-2).
+ */
+export interface InterestSummaryView {
+  count: number;
+  topTopics: { id: string; name: string }[];
+}
