@@ -7,6 +7,8 @@ import type {
   ExploreContentsPage,
   ExploreFeed,
   ExploreItem,
+  ExplorePeriod,
+  ExplorePopularPage,
   ExploreTopic,
   SaveReason,
 } from '../explore.types';
@@ -14,6 +16,7 @@ import type {
   ExploreContentsResponseDto,
   ExploreFeedResponseDto,
   ExploreItemDto,
+  ExplorePopularResponseDto,
   ExploreTopicsResponseDto,
   SaveContentResponseDto,
   UnsaveContentResponseDto,
@@ -21,6 +24,7 @@ import type {
 import {
   mockFetchContents,
   mockFetchFeed,
+  mockFetchPopular,
   mockFetchTopics,
   mockSaveContent,
   mockUnsaveContent,
@@ -33,6 +37,8 @@ export const exploreKeys = {
   feed: () => [...exploreKeys.all, 'feed'] as const,
   contents: (topicIds: string[]) =>
     [...exploreKeys.all, 'contents', [...topicIds].sort()] as const,
+  /** 구간별로 키가 갈린다 — 커서가 구간을 넘어 이어지지 않게 하는 구조적 방어다(explore-api.md 4.2-1) */
+  popular: (period: ExplorePeriod | null) => [...exploreKeys.all, 'popular', period] as const,
   topics: () => [...exploreKeys.all, 'topics'] as const,
 };
 
@@ -60,12 +66,21 @@ const toExploreFeed = (dto: ExploreFeedResponseDto): ExploreFeed => ({
     key: section.key,
     title: section.title,
     topic: section.topic,
+    period: section.period ?? null,
     items: section.items.map(toExploreItem),
   })),
   playLimit: toPlayLimitSnapshot(dto),
 });
 
 const toContentsPage = (dto: ExploreContentsResponseDto): ExploreContentsPage => ({
+  items: dto.items.map(toExploreItem),
+  nextCursor: dto.next_cursor,
+  hasNext: dto.has_next,
+  playLimit: toPlayLimitSnapshot(dto),
+});
+
+const toPopularPage = (dto: ExplorePopularResponseDto): ExplorePopularPage => ({
+  period: dto.period,
   items: dto.items.map(toExploreItem),
   nextCursor: dto.next_cursor,
   hasNext: dto.has_next,
@@ -97,8 +112,26 @@ export const fetchExploreContents = async (input: {
 };
 
 /**
- * 주제 칩 목록 — 제안 계약(TODO: explore-api.md 미반영, 백엔드 협의 필요).
- * 관심 주제 우선 정렬은 서버 소유다(explore.md 4.2). 합의 전까지 실서버 전환 시 미구현 상태다.
+ * 인기 콘텐츠 목록(explore-api.md 4.2-1) — 구간 토글·추가 로딩만 호출하고 피드는 다시 부르지 않는다.
+ * 첫 진입은 이 호출을 하지 않는다 — 기본 구간 목록은 피드 응답의 popular 섹션에 이미 들어 있다.
+ * period는 토글이 고른 값을 그대로 보낸다(기본 구간의 소유자는 서버 — 클라이언트 상수를 두지 않는다).
+ */
+export const fetchExplorePopular = async (input: {
+  period: ExplorePeriod;
+  cursor?: string;
+}): Promise<ExplorePopularPage> => {
+  const params: Record<string, string> = { period: input.period };
+  if (input.cursor !== undefined) params.cursor = input.cursor;
+
+  const data = IS_EXPLORE_API_MOCKED
+    ? await mockFetchPopular({ period: input.period, cursor: input.cursor })
+    : (await apiClient.get<ExplorePopularResponseDto>('/explore/popular', { params })).data;
+  return toPopularPage(data);
+};
+
+/**
+ * 주제 칩 목록(explore-api.md 4.2-2) — 탐색 탭 진입 시 한 번 조회한다.
+ * 정렬은 서버 소유다(관심 주제가 앞쪽) — 클라이언트는 순서를 재배열하지 않는다.
  */
 export const fetchExploreTopics = async (): Promise<ExploreTopic[]> => {
   const data = IS_EXPLORE_API_MOCKED

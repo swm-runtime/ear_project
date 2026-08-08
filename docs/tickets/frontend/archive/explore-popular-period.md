@@ -7,7 +7,16 @@
 | 발견 시점 | 2026-08-07 탐색 통합 (`integration/explore`) — 인기 구간 선택 문서 반영 중 |
 | 근거 문서 | `spec/uiux/explore-uiux.md` **4.10(E13)** · 2장·4.1·5~8장 · `features/explore.md` **4.1-1** · `spec/api/explore-api.md` **4.2-1**·4.1 |
 | 심각도 | **중** — 기존 화면이 깨지지는 않는다. 확정된 화면 규칙 하나가 통째로 빠져 있다 |
-| 상태 | 대기 |
+| 상태 | **완료(2026-08-08)** — FE 반영 + mock 화면에서 완료 조건 확인(토글·전환·필터 상호작용·추가 로딩·실패 시나리오) |
+
+> **진행 기록 (2026-08-08, FE)** — "고쳐야 할 것" 1~6을 모두 반영했다.
+> ① DTO: `ExplorePeriod` · `ExplorePopularRequestDto/ResponseDto` · `ExploreSectionDto.period` 추가
+> ② 기본 구간 상수 없음 — 첫 진입은 `/explore/popular`를 부르지 않고 피드 응답의 `period`로 선택 상태를 그린다
+> ③ `PopularPeriodToggle` 신설 — 인기 섹션(`period != null`로 판정, `key` 분기 없음) 제목 줄 우측, 라디오 그룹 낭독·44pt·형태 단서
+> ④ `useExplorePopularQuery`(구간별 키 커서 무한 스크롤) + 전환은 명령형 선조회(`fetchInfiniteQuery`) — 성공 시에만 구독 구간을 옮겨 실패 시 직전 목록·선택 상태가 그대로 남는다. 전환 중 그 섹션만 흐림+인라인 로딩, 실패 시 인라인 에러+[다시 시도], 커서 무효는 무음 재조회(구간 간 커서 혼입은 키 분리로 구조적 차단)
+> ⑤ E2 전환 시 토글 소멸(섹션 구조 소멸), E1 복귀 시 직전 구간 유지(상태 미초기화), 서버 미저장
+> ⑥ mock: 세 구간이 서로 다른 목록(month·all은 20건 초과로 커서 검증 가능) + `EXPO_PUBLIC_EXPLORE_MOCK_SCENARIO=popular-error` 전환 실패 시나리오
+> 행은 `ExploreContentRow` 재사용, 잔여 표시값은 인기 응답으로도 갱신. 남은 것: mock 화면에서 완료 조건 확인 후 이 티켓을 archive로 옮긴다(수정을 담은 PR에서 함께).
 
 > **짝 티켓** — `tickets/backend/pending/explore-popular-period.md`. **서버가 먼저 나가야 실서버 전환으로 확인할 수 있다.** 그 전까지는 mock으로 화면을 완성해 두면 된다(탐색 FE가 이미 그렇게 동작한다).
 >

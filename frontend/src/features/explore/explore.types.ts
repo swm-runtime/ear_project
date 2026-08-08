@@ -32,6 +32,12 @@ export interface ExploreItem {
 }
 
 /**
+ * 인기 콘텐츠 집계 구간(explore.md 4.1-1) — week·month·all은 전송값이고 화면 라벨은 copy가 가진다.
+ * 기본 구간 상수를 클라이언트에 두지 않는다 — 미전송 시 서버가 정하고, 선택 상태는 응답의 period로 그린다.
+ */
+export type ExplorePeriod = 'week' | 'month' | 'all';
+
+/**
  * 섹션 key는 분석·로깅용이다 — 화면 분기에 쓰지 않는다(explore-api.md 4.1).
  * union으로 좁히지 않는 이유: 서버가 무배포로 섹션을 추가할 수 있어야 한다(9장 미결).
  */
@@ -41,6 +47,11 @@ export interface ExploreSection {
   title: string;
   /** topic_group 섹션만 값이 있다 */
   topic: { id: string; name: string } | null;
+  /**
+   * popular 섹션만 값이 있다 — 이 섹션이 어느 구간으로 만들어졌는지이며, 구간 토글의
+   * 선택 상태를 그리는 근거다(explore-api.md 4.1). key가 아니라 이 값으로 토글 노출을 가른다.
+   */
+  period: ExplorePeriod | null;
   items: ExploreItem[];
 }
 
@@ -57,9 +68,18 @@ export interface ExploreContentsPage {
   playLimit: PlayLimitSnapshot;
 }
 
+/** 인기 목록 한 페이지(explore-api.md 4.2-1) — period는 서버가 되돌린 값(토글 선택 상태의 근거)이다 */
+export interface ExplorePopularPage {
+  period: ExplorePeriod;
+  items: ExploreItem[];
+  nextCursor: string | null;
+  hasNext: boolean;
+  playLimit: PlayLimitSnapshot;
+}
+
 /**
- * 주제 칩 항목 — 서버가 관심 주제를 앞쪽으로 정렬해 내려준다(explore.md 4.2).
- * TODO(계약 제안): explore-api.md에 주제 칩 목록 엔드포인트가 없다 — 백엔드 협의 필요.
+ * 주제 칩 항목 — 정렬은 서버 소유다(explore-api.md 4.2-2). 관심 주제(선택 순서)가 앞쪽이며
+ * 클라이언트는 재배열하지 않는다. isInterest는 관심 주제 칩을 시각적으로 구분할 근거다.
  */
 export interface ExploreTopic {
   id: string;
