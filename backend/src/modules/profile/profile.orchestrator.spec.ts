@@ -1,3 +1,5 @@
+import { Logger } from '@nestjs/common';
+
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { ContentService } from '@/modules/content/services/content.service';
@@ -201,6 +203,54 @@ describe('ProfileOrchestrator', () => {
         renewsAt: null,
         expiresAt: new Date('2026-09-01T00:00:00.000Z'),
       });
+    });
+
+    it('해지 예약(cancelled) 행은 만료 전이므로 무료로 내리지 않는다', async () => {
+      // given — domain.md 8.2: cancelled는 해지 예약이라 만료일까지 혜택이 살아 있다.
+      // 즉시 무효인 환불·철회는 refunded가 맡는다
+      subscriptionService.findCurrent.mockResolvedValue(
+        buildSubscription({
+          status: SubscriptionStatus.CANCELLED,
+          isAutoRenew: false,
+        }),
+      );
+      planService.findByTier.mockResolvedValue(buildPlan());
+
+      // when
+      const result = await orchestrator.getSummary(USER_ID, NOW);
+
+      // then
+      expect(result.plan).toMatchObject({
+        status: PlanStatus.CANCEL_SCHEDULED,
+        tier: UserTier.PRO,
+        expiresAt: new Date('2026-09-01T00:00:00.000Z'),
+      });
+    });
+
+    it('cancelled인데 자동 갱신이 켜져 있으면 경고를 남기되 화면은 그대로 그린다', async () => {
+      // given — 생기면 안 되는 조합이다(domain.md 8.2). S2S 환산이 잘못된 경우다
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      subscriptionService.findCurrent.mockResolvedValue(
+        buildSubscription({
+          status: SubscriptionStatus.CANCELLED,
+          isAutoRenew: true,
+        }),
+      );
+      planService.findByTier.mockResolvedValue(buildPlan());
+
+      // when
+      const result = await orchestrator.getSummary(USER_ID, NOW);
+
+      // then — 만료 전이라 혜택은 살아 있으므로 조회를 막지 않는다
+      expect(result.plan?.status).toBe(PlanStatus.SUBSCRIBED);
+      expect(warn).toHaveBeenCalledWith(
+        'cancelled subscription has auto renew on',
+        expect.objectContaining({ userId: USER_ID }),
+      );
+
+      warn.mockRestore();
     });
 
     it('결제 유예 상태면 경고 플래그를 세운다', async () => {

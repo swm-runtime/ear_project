@@ -147,6 +147,9 @@ export class ProfileOrchestrator {
    */
   private async buildPlan(userId: string): Promise<ProfilePlanView> {
     const subscription = await this.subscriptionService.findCurrent(userId);
+
+    this.warnIfContradictoryCancellation(userId, subscription);
+
     const status = toPlanStatus(subscription);
     const tier =
       status === PlanStatus.FREE ? UserTier.LIGHT : subscription!.tier;
@@ -310,6 +313,36 @@ export class ProfileOrchestrator {
     );
 
     return buildTopicDistribution(listenedByContent, topicViews);
+  }
+
+  /**
+   * **`cancelled`인데 자동 갱신이 켜져 있는 행은 생기면 안 된다**(domain.md 8.2 —
+   * `cancelled`는 해지 예약이므로 정의상 `is_auto_renew = false`다).
+   *
+   * 생겼다면 S2S 환산이 잘못된 것이다 — 스토어마다 "cancel"이 가리키는 사건이 달라서
+   * (Play는 해지 예약, Apple은 환불·철회) 필드명을 그대로 옮기면 이 조합이 만들어진다.
+   *
+   * 조회를 막지는 않는다. 만료 전이라 혜택이 살아 있는 것은 맞으므로 화면은 그대로 그리고,
+   * **데이터가 어긋났다는 사실만 남긴다** — 결제가 붙은 뒤 이 로그가 실제로 찍히는지가
+   * 판정을 고칠지 연동을 고칠지 가르는 근거가 된다.
+   */
+  private warnIfContradictoryCancellation(
+    userId: string,
+    subscription: Subscription | null,
+  ): void {
+    if (
+      subscription?.status !== SubscriptionStatus.CANCELLED ||
+      !subscription.isAutoRenew
+    ) {
+      return;
+    }
+
+    this.logger.warn('cancelled subscription has auto renew on', {
+      userId,
+      subscriptionId: subscription.id,
+      status: subscription.status,
+      isAutoRenew: subscription.isAutoRenew,
+    });
   }
 
   private logSectionFailure(
