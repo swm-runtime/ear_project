@@ -6,7 +6,7 @@ import {
   ValidateIf,
 } from 'class-validator';
 
-import { YearsOfExperienceRange } from '../onboarding.enum';
+import { YearsOfExperienceRange } from '@/modules/user/user.enum';
 
 /**
  * onboarding-api.md 4.4 — 세 필드가 전부 선택 입력이라 **보낸 필드만 반영**한다.

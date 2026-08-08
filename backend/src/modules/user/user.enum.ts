@@ -22,6 +22,20 @@ export enum UserStatus {
   WITHDRAWN = 'withdrawn',
 }
 
+/**
+ * 커리어 연차 — 정수가 아니라 **구간값**으로 주고받는다
+ * (`career.md` 3장 · `onboarding-api.md` 4.4 · `profile-api.md` 4.1).
+ *
+ * `users.years_of_experience`가 이 모듈 소유이므로 값 체계도 여기에 둔다. 온보딩·커리어
+ * 화면·프로필이 **같은 구간 정의**를 봐야 같은 컬럼에 다른 체계가 쌓이지 않는다.
+ */
+export enum YearsOfExperienceRange {
+  ZERO_TO_ONE = '0-1',
+  TWO_TO_THREE = '2-3',
+  FOUR_TO_SIX = '4-6',
+  SEVEN_PLUS = '7+',
+}
+
 export enum OnboardingStep {
   TOPIC = 'topic',
   CAREER = 'career',

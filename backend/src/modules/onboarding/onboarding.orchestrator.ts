@@ -16,20 +16,22 @@ import { UserInterestService } from '@/modules/interest/services/user-interest.s
 import { LibraryItemSource } from '@/modules/library/library.enum';
 import { LibraryService } from '@/modules/library/library.service';
 import { UserOnboardingService } from '@/modules/user/services/user-onboarding.service';
-import { OnboardingStep } from '@/modules/user/user.enum';
+import {
+  YEARS_OF_EXPERIENCE_LOWER_BOUND,
+  toYearsOfExperienceRange,
+} from '@/modules/user/user.constant';
+import {
+  OnboardingStep,
+  YearsOfExperienceRange,
+} from '@/modules/user/user.enum';
 
 import {
   DISCOVERY_CANDIDATE_POOL_SIZE,
   INTEREST_SECTION_SIZE,
   RECOMMENDATION_TOTAL_SIZE,
   SECTION_TITLES,
-  YEARS_OF_EXPERIENCE_LOWER_BOUND,
-  toYearsOfExperienceRange,
 } from './onboarding.constant';
-import {
-  RecommendationSectionType,
-  YearsOfExperienceRange,
-} from './onboarding.enum';
+import { RecommendationSectionType } from './onboarding.enum';
 import {
   CompleteResult,
   OnboardingState,
