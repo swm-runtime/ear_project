@@ -1,0 +1,65 @@
+# [BE] domain.md 3.5 — `sleep_timer_last_choice`의 값 집합이 정의돼 있지 않다
+
+| 항목 | 값 |
+|---|---|
+| 대상 문서 | `docs/backend/domain.md` 3.5(`user_settings`) — 필요하면 15.1 미결 사항에도 함께 등재 |
+| 요청 파트 | 백엔드 |
+| 관련 작업 | 설정 백엔드 구현 (`feat(be)/settings`) — `user_settings` 테이블 신설 중 발견 |
+| 근거 문서 | `docs/backend/convention.md` 4.2(enum은 varchar + TypeScript enum) · `docs/features/player.md`(수면 타이머 소유, P1) |
+| 성격 | **누락.** 컬럼 타입은 `enum`이라 적혀 있는데 값이 어디에도 없다 |
+| 상태 | 대기 — 값을 정하는 것이 아니라 **"아직 정하지 않았다"는 사실을 기록**하자는 요청이다 |
+
+> **코드는 이미 있고 동작한다.** 컬럼을 만들었고 설정 API는 이 값을 조회·변경 모두 하지 않는다(`settings-api.md` 8장). **급한 건이 아니며**, 수면 타이머(P1)를 구현할 때 값을 정하면 된다.
+
+---
+
+## 어긋난 지점
+
+`domain.md` 3.5의 `user_settings` 정의는 이렇다.
+
+```
+sleep_timer_last_choice     enum          NULL
+```
+
+**`enum`이라고만 적혀 있고 값 집합이 없다.** 다른 enum 컬럼(`users.provider` · `subscriptions.status` 등)은 전부 값이 나열돼 있는데 이것만 비어 있다.
+
+찾아본 곳 어디에도 없다.
+
+| 찾은 곳 | 결과 |
+|---|---|
+| `domain.md` 3.5 | 타입만 `enum`, 값 없음 |
+| `domain.md` 15.1 미결 사항 | **항목 자체가 없다** |
+| `features/player.md` | 수면 타이머가 P1이라 선택지 미확정 |
+
+수면 타이머가 **P1으로 이연**돼 있어(PRD FR-25) 선택지가 정해지지 않은 것으로 보인다 — 잘못이 아니라 **아직 정할 때가 아닌 값**이다. 문제는 그 사실이 문서에 없다는 것이다.
+
+## 구현이 택한 것
+
+**`varchar(20)` nullable로 만들고 코드 주석에 사유를 남겼다.**
+
+- `convention.md` 4.2가 "**DB enum 타입을 쓰지 않고** `varchar` + TypeScript enum으로 관리한다"고 정하므로 **물리 타입은 varchar가 규칙대로다.** 문서의 `enum`은 논리 타입 표기다.
+- **TypeScript enum은 만들지 않았다.** 만들 값이 없다. 타입은 `string | null`이며, 값이 확정되면 enum을 만들어 좁힌다.
+- **컬럼을 빼지 않았다.** `domain.md`에 있는 컬럼을 코드에서 생략하면 스키마와 문서가 어긋난다(`convention.md` 4.1 — 코드·문서 어느 쪽도 domain.md 정의를 앞지르지 않는다).
+
+## 기록할 내용
+
+`domain.md` 3.5의 컬럼 표 아래 불릿에 한 줄 추가한다.
+
+> - **`sleep_timer_last_choice`의 값 집합은 아직 정하지 않았다.** 수면 타이머가 P1이라(FR-25) 선택지가 확정되지 않았기 때문이다. 현재 컬럼은 `varchar`이며(`convention.md` 4.2 — DB enum 타입을 쓰지 않는다) TypeScript enum도 없다. **값의 소유는 `player.md`이며**, 수면 타이머 구현 시 값을 정하고 타입을 좁힌다. 설정 API는 이 컬럼을 조회·변경 모두 하지 않는다(`settings-api.md` 8장).
+
+15.1 미결 사항에도 항목으로 올릴지는 문서 소유자가 판단한다 — 3.5 불릿만으로 충분하면 굳이 두 곳에 두지 않아도 된다.
+
+## 왜 지금 기록하는가
+
+**컬럼은 이미 존재하고, 다음에 이 문서를 여는 사람은 값을 찾게 된다.** `enum`이라고 적혀 있으면 어딘가에 목록이 있다고 읽는 것이 자연스럽다. 없다는 사실이 적혀 있지 않으면 `player.md` · `settings-api.md` · 코드를 차례로 뒤진 뒤에야 "아직 안 정했구나"에 도달한다 — 이번 구현에서 실제로 그 경로를 밟았다.
+
+## 함께 확인할 것
+
+- **값이 정해지면 마이그레이션이 필요할 수 있다.** 지금은 `varchar(20)`이라 대부분의 선택지(`15m` · `30m` · `end_of_episode` 등)를 담지만, 길이를 넘는 값이 나오면 컬럼 변경이 따른다. 값을 정할 때 길이를 함께 본다.
+- **설정 API의 계약은 바뀌지 않는다.** `settings-api.md` 8장이 이미 "`sleep_timer_last_choice`는 플레이어 소관이라 이 API가 다루지 않는다"고 명시하고 있어, 값이 정해져도 설정 응답·요청에 나타나지 않는다.
+
+## 완료 조건
+
+- Given `domain.md` 3.5를 읽는다 / When `sleep_timer_last_choice`를 찾는다 / Then 값 집합이 아직 정해지지 않았다는 사실과 그 이유(수면 타이머 P1), 값의 소유(`player.md`)가 적혀 있다
+- Given 백엔드 개발자가 이 컬럼을 처음 본다 / When 값 목록을 찾는다 / Then `player.md`·코드를 뒤지지 않고 `domain.md`에서 "아직 없다"를 바로 확인한다
+- Given 수면 타이머를 구현한다 / When 값을 정한다 / Then `domain.md` 3.5에 값 집합을 채우고 TypeScript enum으로 타입을 좁힌다
