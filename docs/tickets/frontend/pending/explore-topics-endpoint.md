@@ -7,7 +7,14 @@
 | 발견 시점 | 2026-08-07 탐색 FE 구현 (`feat(fe)/explore`) — 계약에 없는 엔드포인트를 mock으로 선반영 |
 | 근거 문서 | `changes/pending/explore-api-topics-endpoint(fe).md`(계약) · `changes/pending/explore-topic-chip-list(be).md`(서버 규칙) · `features/explore.md` 4.2 |
 | 심각도 | **상** — 실서버로 전환하면 주제 칩 줄이 채워지지 않고, 칩을 고를 수 없으니 주제 필터(E2) 경로가 통째로 막힌다 |
-| 상태 | 대기 |
+| 상태 | **FE 반영 완료(2026-08-08) — 서버 배포 대기** |
+
+> **진행 기록 (2026-08-08, FE)** — "고쳐야 할 것" 1~4를 모두 반영했다.
+> ① `explore.dto.ts`·`explore.types.ts`·`explore.api.ts`의 "백엔드 협의 필요" TODO 제거(확정 계약 주석으로 교체, 타입 무변경)
+> ② 실서버 갈래는 구현돼 있었음을 확인(`fetchExploreTopics` — `GET /explore/topics`, `IS_EXPLORE_API_MOCKED` 분기)
+> ③ mock 데이터를 서버 순서 규칙과 일치시킴 — 앞쪽: 활성 관심 주제 전부(선택 순서, **숨김 처리된 관심 주제 `topic-mindfulness` 케이스 포함**) / 뒤쪽: 노출 주제 `display_order` 순. 재배열 없이 배열 순서가 곧 응답이다
+> ④ 훅 무변경. 클라이언트 재정렬 코드 없음.
+> **보류 사유**: 완료 조건의 실서버 검증(Given 서버에 배포됐다)은 짝 티켓(`tickets/backend/pending/explore-topics-endpoint.md`) 배포 후에만 가능하다 — 서버가 나가면 `EXPO_PUBLIC_EXPLORE_API=real`로 확인 후 archive로 옮긴다.
 
 > **짝 티켓** — `tickets/backend/pending/explore-topics-endpoint.md`. **서버가 먼저 나가야 이 티켓을 닫을 수 있다.** 화면·mock은 이미 이 계약으로 동작하므로 FE 작업량은 작다.
 >
