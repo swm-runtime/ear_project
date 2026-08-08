@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 
-import { toPreviousFinalWeekStart } from '@/common/utils/service-date.util';
 import { ContentTopicView } from '@/modules/content/content.types';
 import { Content } from '@/modules/content/entities/content.entity';
 import { ContentService } from '@/modules/content/services/content.service';
@@ -16,13 +15,19 @@ import { PlaybackService } from '@/modules/playback/services/playback.service';
 
 import {
   COLD_START_COMPLETE_SIGNAL_COUNT,
+  DEFAULT_POPULAR_PERIOD,
   EXPLORE_RANKING_POOL_SIZE,
   EXPLORE_SECTION_ITEM_COUNT,
   EXPLORE_SECTION_TITLES,
   MAX_RECENT_SIGNAL_COUNT,
   SIGNAL_RECENCY_WINDOW_DAYS,
 } from './explore.constant';
-import { decodeExploreCursor, encodeExploreCursor } from './explore.cursor';
+import {
+  decodeExploreCursor,
+  decodePopularCursor,
+  encodeExploreCursor,
+  encodePopularCursor,
+} from './explore.cursor';
 import { ExploreSectionKey, SaveReason } from './explore.enum';
 import { rankByTopicWeights, toTopicWeights } from './explore.ranking';
 import {
@@ -30,8 +35,11 @@ import {
   ExploreContentListResult,
   ExploreFeedResult,
   ExploreItemView,
+  ExplorePopularListQuery,
+  ExplorePopularListResult,
   ExploreSectionDraft,
   ExploreSectionView,
+  ExploreTopicChipView,
   SaveContentCommand,
   SaveContentResult,
 } from './explore.types';
@@ -77,15 +85,18 @@ export class ExploreOrchestrator {
 
     const isColdStart = completeSignalCount < COLD_START_COMPLETE_SIGNAL_COUNT;
 
-    const [interestContents, recentContents, popularContents, topicGroups] =
+    const [interestContents, recentContents, popularPage, topicGroups] =
       await Promise.all([
         this.findInterestContents(userId, activeTopicIds, isColdStart, now),
         this.contentService.findRecent(EXPLORE_SECTION_ITEM_COUNT, now),
-        this.contentService.findPopular(
-          toPreviousFinalWeekStart(now),
-          EXPLORE_SECTION_ITEM_COUNT,
+        // 피드는 **기본 구간**으로만 만든다. 구간을 바꾸면 피드를 다시 부르지 않고
+        // `getPopular`가 그 섹션만 갈아끼운다(`explore.md` 4.1-1)
+        this.contentService.findPopularPage({
+          periodType: DEFAULT_POPULAR_PERIOD,
+          cursor: null,
+          limit: EXPLORE_SECTION_ITEM_COUNT,
           now,
-        ),
+        }),
         this.findTopicGroupDrafts(activeTopicIds, now),
       ]);
 
@@ -93,19 +104,23 @@ export class ExploreOrchestrator {
       key: ExploreSectionKey.INTEREST,
       title: EXPLORE_SECTION_TITLES[ExploreSectionKey.INTEREST],
       topic: null,
+      period: null,
       contents: interestContents,
     };
     const recent: ExploreSectionDraft = {
       key: ExploreSectionKey.NEW,
       title: EXPLORE_SECTION_TITLES[ExploreSectionKey.NEW],
       topic: null,
+      period: null,
       contents: recentContents,
     };
     const popular: ExploreSectionDraft = {
       key: ExploreSectionKey.POPULAR,
       title: EXPLORE_SECTION_TITLES[ExploreSectionKey.POPULAR],
       topic: null,
-      contents: popularContents,
+      // 어느 구간으로 만들었는지 알려야 클라이언트가 토글의 선택 상태를 그린다
+      period: DEFAULT_POPULAR_PERIOD,
+      contents: popularPage.items.map((ranked) => ranked.content),
     };
 
     // 신호가 부족한 신규 사용자는 **인기·신규 섹션 비중을 높인다**(콜드스타트 — FR-17).
@@ -181,6 +196,111 @@ export class ExploreOrchestrator {
       hasNext: page.hasNext,
       quota,
     };
+  }
+
+  /**
+   * explore-api.md 4.2-1 — 인기 콘텐츠의 구간을 바꿨을 때의 단일 목록.
+   *
+   * **피드를 다시 부르지 않는다.** 구간만 바뀌었는데 관심사 섹션의 소비 신호 랭킹까지
+   * 재계산될 이유가 없다(`explore.md` 4.1-1).
+   *
+   * **요청 구간을 응답에 되돌린다.** 미전송 시 서버가 채운 기본값을 클라이언트가 알아야
+   * 토글의 선택 상태를 그릴 수 있고, 기본값을 양쪽에 두면 서버가 그것을 바꿀 때 어긋난다.
+   */
+  async getPopular(
+    userId: string,
+    query: ExplorePopularListQuery,
+    now: Date,
+  ): Promise<ExplorePopularListResult> {
+    const page = await this.contentService.findPopularPage({
+      periodType: query.period,
+      cursor: query.cursor
+        ? decodePopularCursor(query.cursor, query.period)
+        : null,
+      limit: query.limit,
+      now,
+    });
+
+    const [items, quota] = await Promise.all([
+      this.decorate(
+        userId,
+        page.items.map((ranked) => ranked.content),
+        now,
+      ),
+      this.playbackService.buildQuotaForUser(userId, now),
+    ]);
+
+    const lastItem = page.items.at(-1);
+
+    return {
+      period: query.period,
+      items,
+      nextCursor:
+        page.hasNext && lastItem
+          ? encodePopularCursor(
+              {
+                playCount: lastItem.playCount,
+                completeCount: lastItem.completeCount,
+                publishedAt: lastItem.content.publishedAt,
+                id: lastItem.content.id,
+              },
+              query.period,
+            )
+          : null,
+      hasNext: page.hasNext,
+      quota,
+    };
+  }
+
+  /**
+   * explore-api.md 4.2-2 — 주제 칩 줄.
+   *
+   * **관심 주제를 앞쪽에 선택한 순서로, 나머지 노출 주제를 뒤에 `display_order` 순으로** 둔다
+   * (`explore.md` 4.2). 정렬을 서버가 소유하는 이유는 규칙이 두 곳에 생기면 화면마다 칩
+   * 순서가 달라지기 때문이다.
+   *
+   * **관심 주제는 `is_visible = false`여도 포함한다.** 관리자가 나중에 내린 주제를 이미 고른
+   * 사용자가 있고, 걸러내면 자기가 고른 주제인데 필터를 걸 수 없다. 반대로 관심 주제가 아닌
+   * 숨겨진 주제는 노출하지 않는다(FR-38).
+   *
+   * 두 목록을 합쳐 정렬하는 것은 **탐색 화면의 규칙**이라 `interest` 모듈이 아니라 여기서 한다.
+   */
+  async getTopicChips(userId: string): Promise<ExploreTopicChipView[]> {
+    // `findAllActive`가 이미 `created_at` 오름차순이라 이 순서가 곧 사용자가 고른 순서다
+    const interests = await this.userInterestService.findAllActive(userId);
+    const interestTopicIds = interests.map((interest) => interest.topicId);
+
+    const [interestTopics, visibleTopics] = await Promise.all([
+      // 숨김 주제가 섞여 있어 `findAllVisible` 결과만으로는 이름을 채울 수 없다
+      this.topicService.findAllByIds(interestTopicIds),
+      this.topicService.findAllVisible(),
+    ]);
+
+    const interestTopicById = new Map(
+      interestTopics.map((topic) => [topic.id, topic]),
+    );
+    const interestTopicIdSet = new Set(interestTopicIds);
+
+    const chips: ExploreTopicChipView[] = [];
+
+    for (const topicId of interestTopicIds) {
+      const topic = interestTopicById.get(topicId);
+
+      // 관심 주제의 `topic_id`는 FK라 정상 상태에서는 비지 않는다. 방어적으로 건너뛴다
+      if (topic) {
+        chips.push({ id: topic.id, name: topic.name, isInterest: true });
+      }
+    }
+
+    for (const topic of visibleTopics) {
+      if (!interestTopicIdSet.has(topic.id)) {
+        chips.push({ id: topic.id, name: topic.name, isInterest: false });
+      }
+    }
+
+    // 노출할 주제가 하나도 없으면 빈 배열이다. **404가 아니다** —
+    // 그때는 피드도 비어 클라이언트가 칩 줄 자체를 숨긴다
+    return chips;
   }
 
   /**
@@ -363,6 +483,7 @@ export class ExploreOrchestrator {
             key: ExploreSectionKey.TOPIC_GROUP,
             title: topic.name,
             topic: { id: topic.id, name: topic.name },
+            period: null,
             contents,
           };
         },
@@ -399,6 +520,7 @@ export class ExploreOrchestrator {
       key: draft.key,
       title: draft.title,
       topic: draft.topic,
+      period: draft.period,
       items: draft.contents
         .map((content) => itemByContentId.get(content.id))
         .filter((item): item is ExploreItemView => item !== undefined),

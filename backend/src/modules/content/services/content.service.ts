@@ -5,12 +5,23 @@ import { BusinessForbiddenException } from '@/common/exceptions/business-forbidd
 import { BusinessNotFoundException } from '@/common/exceptions/business-not-found.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 
-import { ContentStatus } from '../content.enum';
+import {
+  toPreviousFinalMonthStart,
+  toPreviousFinalWeekStart,
+} from '@/common/utils/service-date.util';
+
+import {
+  ALL_TIME_PERIOD_START,
+  ContentStatus,
+  StatsPeriodType,
+} from '../content.enum';
 import {
   ContentCandidateQuery,
   ContentTopicView,
   ExplorePage,
   ExplorePageQuery,
+  PopularPage,
+  PopularPageQuery,
 } from '../content.types';
 import { Content } from '../entities/content.entity';
 import { ContentRepository } from '../repositories/content.repository';
@@ -57,16 +68,26 @@ export class ContentService {
   }
 
   /**
-   * 탐색 피드의 "인기 콘텐츠" 섹션 (`explore.md` 4.1).
-   * 구간은 호출부가 정한다 — 경계 계산은 `service-date.util`에만 둔다(domain.md 1.2).
+   * 탐색 인기 콘텐츠 한 페이지(`explore.md` 4.1-1). 피드의 인기 섹션과 구간 토글이 함께 쓴다.
+   *
+   * **구간을 `period_start`로 환산하는 것은 이 Service의 몫이다.** 어느 구간이 "직전 확정"인지는
+   * `content_stats`를 읽는 규칙이라(domain.md 5.4) 화면이 알아야 할 값이 아니고, 04시 경계
+   * 계산은 `service-date.util` 한 곳에만 둔다(domain.md 1.2).
+   *
+   * Repository가 한 건 더 읽어 오므로 **여기서 잘라내고 다음 페이지 여부를 판정한다.**
    */
-  async findPopular(
-    periodStart: string,
-    limit: number,
-    now: Date,
+  async findPopularPage(
+    query: PopularPageQuery,
     manager?: EntityManager,
-  ): Promise<Content[]> {
-    return this.contentRepository.findPopular(periodStart, limit, now, manager);
+  ): Promise<PopularPage> {
+    const rows = await this.contentRepository.findPopularPage(
+      query,
+      toPeriodStart(query.periodType, query.now),
+      manager,
+    );
+    const hasNext = rows.length > query.limit;
+
+    return { items: hasNext ? rows.slice(0, query.limit) : rows, hasNext };
   }
 
   /**
@@ -183,5 +204,22 @@ export class ContentService {
     }
 
     return { available, failed };
+  }
+}
+
+/**
+ * 집계 구간 → `content_stats.period_start` (domain.md 5.4).
+ *
+ * **`all`은 경계 계산이 아니라 고정값이다** — `period_start`를 NULL로 두면 유니크가 중복을
+ * 막지 못하므로 `1970-01-01`로 못박혀 있다. 주간·월간만 04시 경계 계산을 거친다.
+ */
+function toPeriodStart(periodType: StatsPeriodType, now: Date): string {
+  switch (periodType) {
+    case StatsPeriodType.WEEK:
+      return toPreviousFinalWeekStart(now);
+    case StatsPeriodType.MONTH:
+      return toPreviousFinalMonthStart(now);
+    case StatsPeriodType.ALL:
+      return ALL_TIME_PERIOD_START;
   }
 }

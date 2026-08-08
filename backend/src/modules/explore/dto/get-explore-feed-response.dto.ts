@@ -1,3 +1,5 @@
+import { StatsPeriodType } from '@/modules/content/content.enum';
+
 import { ExploreSectionKey } from '../explore.enum';
 import { ExploreFeedResult } from '../explore.types';
 import { ExploreItemDto } from './explore-item.dto';
@@ -14,6 +16,8 @@ class ExploreSectionDto {
   readonly title: string;
   /** `topic_group` 섹션만 값이 있다 */
   readonly topic: ExploreSectionTopicDto | null;
+  /** **`popular` 섹션만 값이 있다** — 구간 토글의 선택 상태를 그리는 근거다 */
+  readonly period: StatsPeriodType | null;
   readonly items: ExploreItemDto[];
 }
 
@@ -44,6 +48,7 @@ export class GetExploreFeedResponseDto {
         topic: section.topic
           ? { id: section.topic.id, name: section.topic.name }
           : null,
+        period: section.period,
         items: section.items.map((item) => ExploreItemDto.from(item)),
       })),
       daily_play_limit: result.quota.dailyPlayLimit,

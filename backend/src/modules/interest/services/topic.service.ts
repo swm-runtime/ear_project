@@ -72,6 +72,18 @@ export class TopicService {
   ): Promise<Topic[]> {
     return this.topicRepository.findAllByIds(topicIds, manager);
   }
+
+  /**
+   * 노출 주제 목록, `display_order` 오름차순.
+   *
+   * **`getSelectableTopics`와 달리 폴백이 없다.** 그쪽은 온보딩 1단계가 통째로 막히는 것을
+   * 막으려고 노출 주제가 0건이면 전체를 내려보내지만(`onboarding.md` 7), 탐색 칩 줄에는 그
+   * 사정이 없다 — 고를 것이 없으면 피드도 비어 화면이 칩 줄 자체를 숨긴다
+   * (`explore-uiux.md` 4.7).
+   */
+  async findAllVisible(manager?: EntityManager): Promise<Topic[]> {
+    return this.topicRepository.findAllVisible(manager);
+  }
 }
 
 function toTopicView(topic: Topic) {

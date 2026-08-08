@@ -7,7 +7,19 @@
 | 발견 시점 | 2026-08-07 탐색 백엔드 구현 (`feat(be)/explore`) — 계약에 통로가 없다는 것을 발견 |
 | 근거 문서 | `changes/pending/explore-api-topics-endpoint(fe).md`(계약) · `changes/pending/explore-topic-chip-list(be).md`(서버 규칙) · `features/explore.md` 4.2 |
 | 심각도 | **상** — 주제 필터 조회(`GET /explore/contents`)는 구현돼 있는데 **무엇으로 필터할지 고를 목록이 없다.** 탐색 칩 줄이 통째로 동작하지 않는다 |
-| 상태 | 대기 |
+| 상태 | **완료** (2026-08-08) — `fix(be)/explore-period-and-topics` |
+
+> **2026-08-08 반영 결과** — "고쳐야 할 것" 5개 항목을 모두 반영했다.
+>
+> - `explore` 모듈 — `GET /explore/topics`(Controller · Orchestrator · 응답 DTO). 파라미터 없음, 필드명은 계약대로 **`is_interest`**
+> - **목록 구성은 `ExploreOrchestrator`가 조합한다** — `topics` · `user_interests`는 `interest` 모듈 소유지만 둘을 합쳐 정렬하는 것은 탐색 화면의 규칙이다. 의존 방향은 바뀌지 않았다(`ExploreModule`이 `InterestModule`을 이미 import 한다)
+> - `interest/topic.service.ts` — **`findAllVisible`을 새로 노출했다.** 기존 `getSelectableTopics`는 노출 주제가 0건이면 전체를 내려보내고 운영 알림을 남기는 온보딩용 폴백이 붙어 있어(`onboarding.md` 7) 칩 줄에 쓸 수 없다. 티켓의 "재료는 이미 있다" 표가 이 차이를 예상하지 못했던 부분이다
+> - 관심 주제의 이름은 `findAllByIds`로 따로 붙였다 — 숨김 주제가 섞여 있어 `findAllVisible` 결과만으로는 채울 수 없다는 티켓의 지적 그대로다
+> - 테스트 — 관심 주제가 앞·선택 순서, 숨김 관심 주제 포함, 숨김 비관심 주제 제외, 관심 주제 0개 방어까지 4건
+>
+> **로컬 DB로 확인했다.** 관심 주제를 **글쓰기 → 커리어** 순으로 저장한 뒤 조회하니 그 순서 그대로 앞에 오고(`display_order`로는 커리어가 먼저다), 나머지 8개가 `display_order` 순으로 뒤에 붙었다. 중복 없이 10건이다.
+>
+> **관심사 관리 화면과의 엔드포인트 공유는 손대지 않았다** — 티켓이 적어 둔 대로 그 화면의 API 명세를 쓸 때 정한다. 프로필과의 정렬 차이도 그대로 남겨 뒀다.
 
 > **짝 티켓** — `tickets/frontend/pending/explore-topics-endpoint.md`. FE는 이 계약으로 **mock을 이미 구현해 두었다**(`frontend/src/features/explore/api/explore.dto.ts`의 `ExploreTopicsResponseDto`). **서버가 나가면 FE는 실서버 호출 경로만 붙이면 된다** — mock은 개발·테스트 경로로 그대로 남는다(`EXPO_PUBLIC_EXPLORE_API=real`로 전환).
 >

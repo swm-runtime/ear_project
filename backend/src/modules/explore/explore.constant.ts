@@ -1,3 +1,4 @@
+import { StatsPeriodType } from '@/modules/content/content.enum';
 import { UserSignalAction } from '@/modules/playback/playback.enum';
 
 import { ExploreSectionKey } from './explore.enum';
@@ -24,6 +25,17 @@ export const EXPLORE_RANKING_POOL_SIZE = 60;
 /** explore-api.md 4.2 — 상한은 서버가 강제한다(architecture.md 9.3) */
 export const DEFAULT_EXPLORE_PAGE_SIZE = 20;
 export const MAX_EXPLORE_PAGE_SIZE = 50;
+
+/**
+ * `explore.md` 4.1-1 — 인기 콘텐츠의 기본 집계 구간.
+ *
+ * **주간이 아니라 월간이다.** 주간은 초기에 표본이 너무 적고, 온보딩 추천이 이미 직전 확정
+ * 월을 쓰고 있어 두 화면의 "인기"가 같은 구간을 보게 된다.
+ *
+ * **기본값을 클라이언트가 갖지 않는다**(explore-api.md 4.2-1). `period` 미전송이면 서버가 이
+ * 값으로 해석하고 응답에 되돌려 준다 — 기본 구간이 바뀔 때 앱 배포를 기다리지 않아야 한다.
+ */
+export const DEFAULT_POPULAR_PERIOD = StatsPeriodType.MONTH;
 
 /**
  * 한 번에 보낼 수 있는 주제 필터 수의 상한.

@@ -1,5 +1,6 @@
 /** convention.md 3.2 — 모듈 밖으로 공개되는 타입만 둔다 */
 
+import { StatsPeriodType } from '@/modules/content/content.enum';
 import { Content } from '@/modules/content/entities/content.entity';
 import { LibraryItem } from '@/modules/library/library-item.entity';
 import {
@@ -54,6 +55,13 @@ export interface ExploreSectionView {
   title: string;
   /** `topic_group` 섹션만 값이 있다. 탭 시 그 주제로 단일 목록을 조회하는 데 쓴다 */
   topic: ExploreTopicView | null;
+  /**
+   * `popular` 섹션만 값이 있다 — 그 섹션이 어느 구간으로 만들어졌는가.
+   *
+   * **구간 토글의 선택 상태를 그리는 근거다**(explore-api.md 4.1). 기본값을 클라이언트에도
+   * 두면 서버가 그것을 바꿀 때 토글만 옛 값에 머문다.
+   */
+  period: StatsPeriodType | null;
   items: ExploreItemView[];
 }
 
@@ -73,6 +81,34 @@ export interface ExploreContentListQuery {
   topicIds: string[];
   cursor: string | null;
   limit: number;
+}
+
+export interface ExplorePopularListQuery {
+  /** 미전송이면 Controller가 기본 구간을 채운다 — 클라이언트에 기본값을 두지 않는다 */
+  period: StatsPeriodType;
+  cursor: string | null;
+  limit: number;
+}
+
+export interface ExplorePopularListResult {
+  /** **요청 구간을 그대로 되돌린다** — 토글의 선택 상태를 그리는 근거다 */
+  period: StatsPeriodType;
+  items: ExploreItemView[];
+  nextCursor: string | null;
+  hasNext: boolean;
+  quota: DailyPlayQuota;
+}
+
+/**
+ * 주제 칩 한 줄(explore-api.md 4.2-2).
+ *
+ * `isInterest`를 함께 내려주는 이유는 **순서만으로는 어디까지가 관심 주제인지 알 수 없기**
+ * 때문이다. 화면이 관심 주제 칩을 시각적으로 구분할 근거다.
+ */
+export interface ExploreTopicChipView {
+  id: string;
+  name: string;
+  isInterest: boolean;
 }
 
 export interface ExploreContentListResult {
@@ -102,5 +138,6 @@ export interface ExploreSectionDraft {
   key: ExploreSectionKey;
   title: string;
   topic: ExploreTopicView | null;
+  period: StatsPeriodType | null;
   contents: Content[];
 }

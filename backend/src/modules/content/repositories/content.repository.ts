@@ -10,16 +10,21 @@ import {
 import {
   ContentCandidateQuery,
   ExplorePageQuery,
+  PopularPageQuery,
   RankedContent,
+  RankedPopularContent,
 } from '../content.types';
 import { Content } from '../entities/content.entity';
 
-/** 커서에 담기는 랭킹 1순위 값. `content_stats` 조인 결과이지 `contents`의 컬럼이 아니다 */
+/** 커서에 담기는 랭킹 값. `content_stats` 조인 결과이지 `contents`의 컬럼이 아니다 */
 const RANKING_PLAY_COUNT = 'COALESCE(stat.play_count, 0)';
 const RANKING_PLAY_COUNT_ALIAS = 'ranking_play_count';
+const RANKING_COMPLETE_COUNT = 'COALESCE(stat.complete_count, 0)';
+const RANKING_COMPLETE_COUNT_ALIAS = 'ranking_complete_count';
 
 interface RankingRow {
   [RANKING_PLAY_COUNT_ALIAS]: string | number;
+  [RANKING_COMPLETE_COUNT_ALIAS]?: string | number;
 }
 
 @Injectable()
@@ -176,42 +181,72 @@ export class ContentRepository {
   }
 
   /**
-   * 탐색 피드의 "인기 콘텐츠" 섹션(`explore.md` 4.1) — **직전 확정 구간**의 재생·완청 수 기준.
+   * 탐색 인기 콘텐츠(`explore.md` 4.1-1) — **사용자가 고른 집계 구간**의 재생·완청 수 기준.
+   * 피드의 인기 섹션과 구간 토글(explore-api.md 4.2-1)이 같은 조회를 쓴다.
    *
-   * 진행 중인 구간을 쓰면 주초에 표본이 부족해 랭킹이 무너지므로 `is_final = true` 행만
-   * 조인한다(domain.md 5.4).
+   * **`week` · `month`는 확정된 구간만 읽는다**(domain.md 5.4 — `is_final`). 진행 중인 구간을
+   * 쓰면 주초·월초에 표본이 부족해 랭킹이 무너진다. **`all`에는 그 조건을 걸지 않는다** —
+   * 전체 구간은 끝나는 시점이 없어 확정·진행 중 구분 자체가 없고, 걸면 아무것도 나오지 않는다.
    *
-   * **직전 확정 구간이 없는 배포 첫 주에도 섹션을 비우지 않는다**(합의 2026-08-06 —
-   * `explore-api.md` 4.1). `LEFT JOIN`이라 집계 행이 하나도 없으면 전부 0으로 동점이 되고,
-   * 그때는 뒤의 정렬 키(신선도)가 순서를 정한다 — 값이 모두 같아도 정렬상 앞서는 콘텐츠는
-   * 존재하므로 응답 모양이 첫 주에만 달라지지 않는다.
+   * **직전 확정 구간이 없는 배포 첫 주·첫 달에도 목록을 비우지 않는다**(합의 2026-08-06을 세
+   * 구간 각각에 적용 — `explore.md` 4.1-1). `LEFT JOIN`이라 집계 행이 하나도 없으면 전부 0으로
+   * 동점이 되고, 그때는 뒤의 정렬 키(신선도)가 순서를 정한다.
+   *
+   * 정렬 키를 **전부 내림차순으로 맞춘다.** 방향이 섞이면 아래 행 비교로 keyset을 표현할 수
+   * 없다(`findExplorePage`와 같은 구조, 키가 하나 더 많다).
    */
-  async findPopular(
+  async findPopularPage(
+    query: PopularPageQuery,
     periodStart: string,
-    limit: number,
-    now: Date,
     manager?: EntityManager,
-  ): Promise<Content[]> {
-    return this.applyVisibility(
+  ): Promise<RankedPopularContent[]> {
+    // 전체 구간에는 확정 개념이 없다 — `findCandidates`가 `all`을 조인할 때와 같은 방식이다
+    const isFinalCondition =
+      query.periodType === StatsPeriodType.ALL
+        ? ''
+        : ' AND stat.is_final = true';
+
+    const builder = this.applyVisibility(
       this.scoped(manager)
         .createQueryBuilder('content')
         .leftJoin(
           'content_stats',
           'stat',
           `stat.content_id = content.id
-             AND stat.period_type = :weekPeriod
-             AND stat.period_start = :periodStart
-             AND stat.is_final = true`,
-          { weekPeriod: StatsPeriodType.WEEK, periodStart },
-        ),
-      now,
-    )
+             AND stat.period_type = :periodType
+             AND stat.period_start = :periodStart${isFinalCondition}`,
+          { periodType: query.periodType, periodStart },
+        )
+        .addSelect(RANKING_PLAY_COUNT, RANKING_PLAY_COUNT_ALIAS)
+        .addSelect(RANKING_COMPLETE_COUNT, RANKING_COMPLETE_COUNT_ALIAS),
+      query.now,
+    );
+
+    if (query.cursor) {
+      builder.andWhere(
+        `(${RANKING_PLAY_COUNT}, ${RANKING_COMPLETE_COUNT}, content.published_at, content.id) < (:cursorPlayCount, :cursorCompleteCount, :cursorPublishedAt, :cursorId)`,
+        {
+          cursorPlayCount: query.cursor.playCount,
+          cursorCompleteCount: query.cursor.completeCount,
+          cursorPublishedAt: query.cursor.publishedAt,
+          cursorId: query.cursor.id,
+        },
+      );
+    }
+
+    const { entities, raw } = await builder
       .orderBy(RANKING_PLAY_COUNT, 'DESC')
-      .addOrderBy('COALESCE(stat.complete_count, 0)', 'DESC')
+      .addOrderBy(RANKING_COMPLETE_COUNT, 'DESC')
       .addOrderBy('content.published_at', 'DESC')
       .addOrderBy('content.id', 'DESC')
-      .limit(limit)
-      .getMany();
+      .limit(query.limit + 1)
+      .getRawAndEntities<RankingRow>();
+
+    return entities.map((content, index) => ({
+      content,
+      playCount: Number(raw[index]?.[RANKING_PLAY_COUNT_ALIAS] ?? 0),
+      completeCount: Number(raw[index]?.[RANKING_COMPLETE_COUNT_ALIAS] ?? 0),
+    }));
   }
 
   /**
