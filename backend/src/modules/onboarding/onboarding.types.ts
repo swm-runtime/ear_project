@@ -1,11 +1,11 @@
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { FirstDripJobStatus } from '@/modules/drip/drip.enum';
-import { OnboardingStep } from '@/modules/user/user.enum';
-
 import {
-  RecommendationSectionType,
+  OnboardingStep,
   YearsOfExperienceRange,
-} from './onboarding.enum';
+} from '@/modules/user/user.enum';
+
+import { RecommendationSectionType } from './onboarding.enum';
 
 /** convention.md 3.2 — Controller ↔ Orchestrator 경계 밖의 내부 타입 */
 
