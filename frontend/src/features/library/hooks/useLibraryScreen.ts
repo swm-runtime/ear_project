@@ -13,6 +13,7 @@ import { hydrateSuppressedServiceDate, usePlayGate, usePlayLimitStore } from '@/
 import { libraryKeys } from '../api/library.api';
 import { DELETE_UNDO_DURATION_MS } from '../library.constants';
 import { LIBRARY_COPY } from '../library.copy';
+import { evaluateDripArrivals } from '../library.new-arrival';
 import type {
   LibraryFilter,
   LibraryItem,
@@ -64,7 +65,8 @@ export const useLibraryScreen = () => {
 
   const pendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingDeleteRef = useRef<LibraryItem | null>(null);
-  const lastTopAddedAtRef = useRef<string | null>(null);
+  /** 직전에 노출한 목록에서 본 드립의 최대 addedAt — 배너 판정의 기준값(library-api.md 4.1) */
+  const dripBaselineRef = useRef<string | null>(null);
 
   const itemsQuery = useLibraryItemsQuery(filter, topicFilter.ids, sourceFilter);
   const resumeQuery = useResumeTargetQuery();
@@ -95,16 +97,16 @@ export const useLibraryScreen = () => {
     applyPlayLimit(resumeData.playLimit);
   }, [resumeData, applyPlayLimit]);
 
-  /* ── "새 콘텐츠 N개 도착" — 서버가 아니라 클라이언트가 직전 조회와 비교한다(library-api.md 4.1) ── */
+  /* ── "새 콘텐츠 N개 도착" — 클라이언트가 직전 조회와 비교하되 드립 도착만 센다
+     (library-api.md 4.1 개정 2026-08-08 — 담기·자동 적립은 사용자의 조작이라 알리지 않는다) ── */
   useEffect(() => {
     const firstPage = pages?.[0];
-    const top = firstPage?.items[0]?.addedAt ?? null;
-    if (top === null || !firstPage) return;
-    const prev = lastTopAddedAtRef.current;
-    if (prev !== null && top > prev) {
-      setNewArrivalCount(firstPage.items.filter((item) => item.addedAt > prev).length);
+    if (!firstPage) return;
+    const { baseline, newCount } = evaluateDripArrivals(firstPage.items, dripBaselineRef.current);
+    dripBaselineRef.current = baseline;
+    if (newCount > 0) {
+      setNewArrivalCount(newCount);
     }
-    lastTopAddedAtRef.current = top;
   }, [pages]);
 
   /* ── 포그라운드 복귀 시 조용한 재조회 — 인디케이터 없음(library.md 4.6) ── */
@@ -325,26 +327,27 @@ export const useLibraryScreen = () => {
     itemsQuery.isFetchNextPageError &&
     !(isApiError(itemsError) && itemsError.errorCode === ERROR_CODES.LIBRARY_CURSOR_INVALID);
 
-  /* ── 필터 조작 — 조건이 바뀌면 도착 비교 기준도 함께 버린다(다른 조건의 목록과 비교하지 않는다) ── */
-  const resetArrivalTracking = () => {
-    lastTopAddedAtRef.current = null;
+  /* ── 필터 조작 — 배너 표시는 접지만 드립 기준값은 유지한다(library-api.md 4.1 개정 2026-08-08).
+     기준값을 버리면 드립이 안 보이는 필터를 풀었을 때 그동안 도착한 드립을 놓친다 —
+     드립 0건 조회의 기준값 미갱신은 evaluateDripArrivals가 맡는다 ── */
+  const resetArrivalBanner = () => {
     setNewArrivalCount(0);
   };
 
   const changeFilter = (next: LibraryFilter) => {
-    resetArrivalTracking();
+    resetArrivalBanner();
     setFilter(next);
   };
 
   const applyTopicFilter = (selected: LibraryTopic[], source: LibrarySourceFilter | null) => {
-    resetArrivalTracking();
+    resetArrivalBanner();
     setTopicFilter({ ids: selected.map((t) => t.id), names: selected.map((t) => t.name) });
     setSourceFilter(source);
     setIsTopicSheetVisible(false);
   };
 
   const resetFilters = () => {
-    resetArrivalTracking();
+    resetArrivalBanner();
     setFilter('all');
     setTopicFilter(EMPTY_TOPIC_FILTER);
     setSourceFilter(null);

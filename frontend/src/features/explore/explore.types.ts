@@ -38,11 +38,15 @@ export interface ExploreItem {
 export type ExplorePeriod = 'week' | 'month' | 'all';
 
 /**
- * 섹션 key는 분석·로깅용이다 — 화면 분기에 쓰지 않는다(explore-api.md 4.1).
+ * 섹션 sectionKey는 분석·로깅용이다 — 화면 분기에 쓰지 않는다(explore-api.md 4.1).
  * union으로 좁히지 않는 이유: 서버가 무배포로 섹션을 추가할 수 있어야 한다(9장 미결).
+ *
+ * 계약 필드명은 `key`지만 화면 타입에서는 `sectionKey`로 옮긴다 — RN SectionList가 섹션 객체의
+ * `key` 필드를 React key로 소비하는 예약 필드라, 스프레드로 흘러들면 topic_group 섹션끼리
+ * 키가 충돌한다(2026-08-08 통합 테스트에서 발견). 화면용 유일 키는 explore.section-key.ts가 만든다.
  */
 export interface ExploreSection {
-  key: string;
+  sectionKey: string;
   /** 화면에 그대로 그린다 — 클라이언트가 key로 제목을 조립하지 않는다 */
   title: string;
   /** topic_group 섹션만 값이 있다 */

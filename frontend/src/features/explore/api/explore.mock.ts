@@ -156,6 +156,14 @@ export const mockFetchFeed = async (): Promise<ExploreFeedResponseDto> => {
       topic: { id: 'topic-career', name: '커리어' },
       items: itemsBySeqs([105, 10, 15, 110, 25]),
     },
+    // topic_group을 반드시 2개 이상 둔다 — 같은 key의 섹션이 반복되는 실서버 모양의 재현이며,
+    // 섹션 React key 충돌 회귀를 mock에서 잡기 위한 케이스다(2026-08-08 통합 테스트 발견)
+    {
+      key: 'topic_group',
+      title: '생산성',
+      topic: { id: 'topic-productivity', name: '생산성' },
+      items: itemsBySeqs([106, 1, 111, 16, 21]),
+    },
   ];
 
   return { sections, ...mockPlayLimitFields() };

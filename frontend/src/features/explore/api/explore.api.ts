@@ -63,7 +63,8 @@ const toExploreItem = (dto: ExploreItemDto): ExploreItem => ({
 
 const toExploreFeed = (dto: ExploreFeedResponseDto): ExploreFeed => ({
   sections: dto.sections.map((section) => ({
-    key: section.key,
+    // 계약의 key를 화면 타입에서는 sectionKey로 옮긴다 — RN SectionList의 예약 필드와 겹치지 않게
+    sectionKey: section.key,
     title: section.title,
     topic: section.topic,
     period: section.period ?? null,
