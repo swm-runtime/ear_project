@@ -8,9 +8,12 @@ import { ERROR_CODES } from '@/shared/api/error-codes';
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { useToastStore } from '@/shared/ui/toast.store';
 
+import { hydrateSuppressedServiceDate, usePlayGate, usePlayLimitStore } from '@/features/player';
+
 import { libraryKeys } from '../api/library.api';
 import { DELETE_UNDO_DURATION_MS } from '../library.constants';
 import { LIBRARY_COPY } from '../library.copy';
+import { evaluateDripArrivals } from '../library.new-arrival';
 import type {
   LibraryFilter,
   LibraryItem,
@@ -20,10 +23,7 @@ import type {
 import { useDeleteLibraryItemMutation } from './useDeleteLibraryItemMutation';
 import { useLibraryItemsQuery } from './useLibraryItemsQuery';
 import { useLibraryTopicsQuery } from './useLibraryTopicsQuery';
-import { usePlayGate } from './usePlayGate';
 import { useResumeTargetQuery } from './useResumeTargetQuery';
-import { hydrateSuppressedServiceDate } from '../services/play-confirm-suppression.service';
-import { useLibraryStore } from '../store/library.store';
 
 /** 적용 시점의 주제 이름을 함께 보관한다 — L7 보조 문구에 걸린 조건을 그대로 적기 위해(uiux 4.8) */
 interface AppliedTopicFilter {
@@ -43,8 +43,8 @@ export const useLibraryScreen = () => {
   const navigation = useNavigation();
   const queryClient = useQueryClient();
   const showToast = useToastStore((s) => s.show);
-  const applyPlayLimit = useLibraryStore((s) => s.applyPlayLimit);
-  const storedPlayLimit = useLibraryStore((s) => s.playLimit);
+  const applyPlayLimit = usePlayLimitStore((s) => s.applyPlayLimit);
+  const storedPlayLimit = usePlayLimitStore((s) => s.playLimit);
 
   /* ── 필터 상태 — 앱을 종료하면 초기화된다(메모리 보관, library.md 7) ── */
   const [filter, setFilter] = useState<LibraryFilter>('all');
@@ -65,13 +65,17 @@ export const useLibraryScreen = () => {
 
   const pendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingDeleteRef = useRef<LibraryItem | null>(null);
-  const lastTopAddedAtRef = useRef<string | null>(null);
+  /** 직전에 노출한 목록에서 본 드립의 최대 addedAt — 배너 판정의 기준값(library-api.md 4.1) */
+  const dripBaselineRef = useRef<string | null>(null);
 
   const itemsQuery = useLibraryItemsQuery(filter, topicFilter.ids, sourceFilter);
   const resumeQuery = useResumeTargetQuery();
   const topicsQuery = useLibraryTopicsQuery(isTopicSheetVisible);
   const deleteMutation = useDeleteLibraryItemMutation();
-  const playGate = usePlayGate();
+  // 게이트는 라이브러리의 쿼리 키를 모른다 — 재조회는 콜백 주입으로 이 화면이 맡는다(architecture.md 4.3)
+  const playGate = usePlayGate({
+    onServerStateChanged: () => void queryClient.invalidateQueries({ queryKey: libraryKeys.all }),
+  });
 
   const pages = itemsQuery.data?.pages;
   const { error: itemsError, refetch: refetchItems } = itemsQuery;
@@ -93,16 +97,16 @@ export const useLibraryScreen = () => {
     applyPlayLimit(resumeData.playLimit);
   }, [resumeData, applyPlayLimit]);
 
-  /* ── "새 콘텐츠 N개 도착" — 서버가 아니라 클라이언트가 직전 조회와 비교한다(library-api.md 4.1) ── */
+  /* ── "새 콘텐츠 N개 도착" — 클라이언트가 직전 조회와 비교하되 드립 도착만 센다
+     (library-api.md 4.1 개정 2026-08-08 — 담기·자동 적립은 사용자의 조작이라 알리지 않는다) ── */
   useEffect(() => {
     const firstPage = pages?.[0];
-    const top = firstPage?.items[0]?.addedAt ?? null;
-    if (top === null || !firstPage) return;
-    const prev = lastTopAddedAtRef.current;
-    if (prev !== null && top > prev) {
-      setNewArrivalCount(firstPage.items.filter((item) => item.addedAt > prev).length);
+    if (!firstPage) return;
+    const { baseline, newCount } = evaluateDripArrivals(firstPage.items, dripBaselineRef.current);
+    dripBaselineRef.current = baseline;
+    if (newCount > 0) {
+      setNewArrivalCount(newCount);
     }
-    lastTopAddedAtRef.current = top;
   }, [pages]);
 
   /* ── 포그라운드 복귀 시 조용한 재조회 — 인디케이터 없음(library.md 4.6) ── */
@@ -323,26 +327,27 @@ export const useLibraryScreen = () => {
     itemsQuery.isFetchNextPageError &&
     !(isApiError(itemsError) && itemsError.errorCode === ERROR_CODES.LIBRARY_CURSOR_INVALID);
 
-  /* ── 필터 조작 — 조건이 바뀌면 도착 비교 기준도 함께 버린다(다른 조건의 목록과 비교하지 않는다) ── */
-  const resetArrivalTracking = () => {
-    lastTopAddedAtRef.current = null;
+  /* ── 필터 조작 — 배너 표시는 접지만 드립 기준값은 유지한다(library-api.md 4.1 개정 2026-08-08).
+     기준값을 버리면 드립이 안 보이는 필터를 풀었을 때 그동안 도착한 드립을 놓친다 —
+     드립 0건 조회의 기준값 미갱신은 evaluateDripArrivals가 맡는다 ── */
+  const resetArrivalBanner = () => {
     setNewArrivalCount(0);
   };
 
   const changeFilter = (next: LibraryFilter) => {
-    resetArrivalTracking();
+    resetArrivalBanner();
     setFilter(next);
   };
 
   const applyTopicFilter = (selected: LibraryTopic[], source: LibrarySourceFilter | null) => {
-    resetArrivalTracking();
+    resetArrivalBanner();
     setTopicFilter({ ids: selected.map((t) => t.id), names: selected.map((t) => t.name) });
     setSourceFilter(source);
     setIsTopicSheetVisible(false);
   };
 
   const resetFilters = () => {
-    resetArrivalTracking();
+    resetArrivalBanner();
     setFilter('all');
     setTopicFilter(EMPTY_TOPIC_FILTER);
     setSourceFilter(null);

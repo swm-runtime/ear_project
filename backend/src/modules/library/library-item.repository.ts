@@ -64,6 +64,48 @@ export class LibraryItemRepository {
       .execute();
   }
 
+  /**
+   * 담기 1건. **유니크 위반을 예외로 만들지 않는다**(architecture.md 8.4) — 동시에 도착한
+   * 두 담기 요청 중 하나는 반드시 지고, 그 사용자에게는 성공으로 보여야 한다.
+   *
+   * @returns 이 요청으로 행이 **새로 생겼는지**. 응답 상태(201 / 200)가 이 값으로 갈린다.
+   */
+  async insertIfAbsent(
+    item: Partial<LibraryItem>,
+    manager?: EntityManager,
+  ): Promise<boolean> {
+    const result = await this.scoped(manager)
+      .createQueryBuilder()
+      .insert()
+      .into(LibraryItem)
+      .values(item)
+      .orIgnore()
+      .returning('id')
+      .execute();
+
+    return (result.raw as unknown[]).length > 0;
+  }
+
+  /**
+   * 담기 해제분을 되살린다(explore-api.md 4.3).
+   *
+   * **`added_at`을 새로 찍는다** — 재담기는 새 담기 조작이라 목록 맨 위에 오는 것이 맞다.
+   * 삭제 실행 취소(4.7)가 `added_at`을 유지하는 것과 반대이며, 되돌린 대상이 다르기 때문이다.
+   *
+   * **`status`는 건드리지 않는다.** 지웠다 다시 담아도 듣던 위치가 살아 있어야 한다.
+   */
+  async reactivateById(
+    id: string,
+    addedAt: Date,
+    source: LibraryItemSource,
+    manager?: EntityManager,
+  ): Promise<void> {
+    await this.scoped(manager).update(
+      { id },
+      { deletedAt: null, addedAt, source },
+    );
+  }
+
   /** 소프트 삭제분을 포함해 조회한다 — 드립 후보 필터가 `deleted_at` 여부를 보지 않는다 */
   async findAllByUserIdAndContentIds(
     userId: string,
@@ -242,6 +284,40 @@ export class LibraryItemRepository {
     manager?: EntityManager,
   ): Promise<LibraryItem | null> {
     return this.scoped(manager).findOneBy({ userId, contentId });
+  }
+
+  /**
+   * 담기(explore-api.md 4.3)가 쓰는 조회 — **"행이 없음"과 "삭제된 행이 있음"을 갈라야 한다.**
+   * 앞은 새로 만들어 201이고 뒤는 되살려 200이라, 삭제분을 감춘 조회로는 판정할 수 없다.
+   */
+  async findByUserIdAndContentIdWithDeleted(
+    userId: string,
+    contentId: string,
+    manager?: EntityManager,
+  ): Promise<LibraryItem | null> {
+    return this.scoped(manager).findOne({
+      where: { userId, contentId },
+      withDeleted: true,
+    });
+  }
+
+  /**
+   * 탐색 피드의 "담김" 표시용(explore-api.md 4.1) — **삭제분은 제외한다.**
+   * 지운 콘텐츠는 사용자에게 담겨 있지 않으므로, 담기 시트도 [담기]가 떠야 한다.
+   */
+  async findAllActiveByUserIdAndContentIds(
+    userId: string,
+    contentIds: string[],
+    manager?: EntityManager,
+  ): Promise<LibraryItem[]> {
+    if (contentIds.length === 0) {
+      return [];
+    }
+
+    return this.scoped(manager).findBy({
+      userId,
+      contentId: In(contentIds),
+    });
   }
 
   async save(item: LibraryItem, manager?: EntityManager): Promise<LibraryItem> {

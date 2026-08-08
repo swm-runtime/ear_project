@@ -77,6 +77,10 @@ describe('LibraryService', () => {
       softDeleteById: jest.fn(),
       restoreById: jest.fn(),
       insertIgnoringConflicts: jest.fn(),
+      insertIfAbsent: jest.fn().mockResolvedValue(true),
+      reactivateById: jest.fn(),
+      findByUserIdAndContentIdWithDeleted: jest.fn().mockResolvedValue(null),
+      findAllActiveByUserIdAndContentIds: jest.fn().mockResolvedValue([]),
       findAllByUserIdAndContentIds: jest.fn().mockResolvedValue([]),
       findAllContentIdsByUserId: jest.fn().mockResolvedValue([]),
       countByUserIdAndSource: jest.fn(),
@@ -254,6 +258,116 @@ describe('LibraryService', () => {
 
       // then
       expect(repository.restoreById).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('save', () => {
+    it('담긴 적 없는 콘텐츠는 새로 적립하고 새로 담겼음을 알린다', async () => {
+      // given — 응답 상태가 201로 갈린다 (explore-api.md 4.3)
+      repository.findByUserIdAndContentIdWithDeleted
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(
+          buildItem({ source: LibraryItemSource.SAVE, addedAt: NOW }),
+        );
+
+      // when
+      const result = await service.save(USER_ID, CONTENT_ID, NOW);
+
+      // then
+      expect(repository.insertIfAbsent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          source: LibraryItemSource.SAVE,
+          status: LibraryItemStatus.UNPLAYED,
+          addedAt: NOW,
+        }),
+        undefined,
+      );
+      expect(result.created).toBe(true);
+    });
+
+    it('이미 담긴 콘텐츠는 적립 시각을 갱신하지 않는다', async () => {
+      // given — 다시 담아도 목록 순서가 바뀌면 안 된다
+      repository.findByUserIdAndContentIdWithDeleted.mockResolvedValue(
+        buildItem({ source: LibraryItemSource.DRIP }),
+      );
+
+      // when
+      const result = await service.save(USER_ID, CONTENT_ID, NOW);
+
+      // then
+      expect(result.item.addedAt).toBe(ADDED_AT);
+      expect(result.item.source).toBe(LibraryItemSource.DRIP);
+      expect(result.created).toBe(false);
+      // 상태가 바뀌지 않았음을 호출부에 알린다 — 신호를 남길 근거가 없다
+      expect(result.reactivated).toBe(false);
+      expect(repository.reactivateById).not.toHaveBeenCalled();
+    });
+
+    it('지웠던 콘텐츠를 다시 담으면 되살리고 적립 시각을 새로 찍는다', async () => {
+      // given — 재담기는 새 담기 조작이다(삭제 실행 취소와 되돌린 대상이 다르다)
+      repository.findByUserIdAndContentIdWithDeleted.mockResolvedValue(
+        buildItem({ deletedAt: new Date('2026-08-04T00:00:00.000Z') }),
+      );
+
+      // when
+      const result = await service.save(USER_ID, CONTENT_ID, NOW);
+
+      // then
+      expect(repository.reactivateById).toHaveBeenCalledWith(
+        'item-1',
+        NOW,
+        LibraryItemSource.SAVE,
+        undefined,
+      );
+      expect(result.item.addedAt).toBe(NOW);
+      expect(result.item.deletedAt).toBeNull();
+      // 행을 새로 만들지 않았으므로 201은 아니지만, 상태는 바뀌었으므로 신호는 남겨야 한다
+      expect(result.created).toBe(false);
+      expect(result.reactivated).toBe(true);
+    });
+
+    it('동시 요청에 져서 행이 이미 있어도 성공으로 흡수한다', async () => {
+      // given — 재시도한 사용자에게 실패로 보이면 안 된다 (architecture.md 8.4)
+      repository.insertIfAbsent.mockResolvedValue(false);
+      repository.findByUserIdAndContentIdWithDeleted
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(buildItem());
+
+      // when
+      const result = await service.save(USER_ID, CONTENT_ID, NOW);
+
+      // then
+      expect(result.created).toBe(false);
+      expect(result.item.id).toBe('item-1');
+    });
+  });
+
+  describe('unsave', () => {
+    it('담겨 있으면 소프트 삭제하고 해제됐음을 알린다', async () => {
+      // given
+      repository.findByUserIdAndContentId.mockResolvedValue(buildItem());
+
+      // when
+      const removed = await service.unsave(USER_ID, CONTENT_ID, NOW);
+
+      // then
+      expect(repository.softDeleteById).toHaveBeenCalledWith(
+        'item-1',
+        NOW,
+        undefined,
+      );
+      expect(removed).toBe(true);
+    });
+
+    it('담긴 적 없으면 실패시키지 않고 해제가 없었음을 알린다', async () => {
+      // given — 없던 담기의 해제로 영구 제외와 부정 신호가 쌓이면 안 된다
+
+      // when
+      const removed = await service.unsave(USER_ID, CONTENT_ID, NOW);
+
+      // then
+      expect(removed).toBe(false);
+      expect(repository.softDeleteById).not.toHaveBeenCalled();
     });
   });
 

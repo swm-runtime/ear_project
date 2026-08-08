@@ -2,10 +2,13 @@
  * 라이브러리 API mock — 백엔드 엔드포인트가 구현되기 전 화면 테스트용 대역이다.
  * 온보딩 mock과 같은 관례로, 네트워크를 가로채지 않고 api 모듈 안에서 구현체만 갈아끼운다.
  *
- * 목록·삭제·복구·재생을 서버처럼 상태로 들고 있어 상태 전이·잔여 차감·페이지네이션을
- * 화면에서 검증할 수 있다. 앱 리로드 시 상태는 초기화된다.
+ * 목록·삭제·복구를 서버처럼 상태로 들고 있어 상태 전이·페이지네이션을 화면에서 검증할 수
+ * 있다. 앱 리로드 시 상태는 초기화된다. 잔여 재생 카운트 상태(play_records의 대역)는
+ * player mock이 소유하며(진입점 화면 간 정합 — explore-uiux.md 4.2), 이 mock은 잔여
+ * 표시값·is_counted_today를 거기서 가져다 얹고, 재생이 만드는 항목 상태 전이는 아래
+ * 브리지 등록으로 제공한다.
  *
- * 시나리오 전환(EXPO_PUBLIC_LIBRARY_MOCK_SCENARIO):
+ * 시나리오 전환(EXPO_PUBLIC_LIBRARY_MOCK_SCENARIO — player mock과 공유):
  * - (기본)      무료 티어(daily_play_limit=2, 오늘 1회 사용). 25건으로 무한 스크롤 검증
  * - fresh       가입 직후 첫 진입 — 온보딩 담기 2건 + 첫 드립 2건, 전부 미청취, 오늘 0회 사용
  * - unlimited   무제한 티어 — 잔여 표시·확인 팝업이 나타나지 않아야 한다(L1)
@@ -15,14 +18,18 @@
 import { ApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
 
+import {
+  isMockCountedToday,
+  mockPlayLimitFields,
+  registerPlayMockLibraryBridge,
+} from '@/features/player';
+
 import type {
   CompleteResponseDto,
   LibraryItemDto,
   LibraryItemsRequestDto,
   LibraryItemsResponseDto,
   LibraryTopicsResponseDto,
-  PlayLimitFieldsDto,
-  PlayStartResponseDto,
   ResumeResponseDto,
   RestoreResponseDto,
 } from './library.dto';
@@ -32,8 +39,6 @@ const SCENARIO = process.env.EXPO_PUBLIC_LIBRARY_MOCK_SCENARIO ?? 'default';
 /** 스켈레톤(0.3초 지연 규칙)이 실제로 보이도록 네트워크 지연을 흉내 낸다 */
 const RESPONSE_DELAY_MS = 600;
 const PAGE_SIZE = 20;
-/** 서비스 날짜는 서버가 04:00 KST 경계로 계산해 내려주는 값이다 — mock은 고정 라벨을 쓴다 */
-const SERVICE_DATE = '2026-08-07';
 
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -44,9 +49,6 @@ const MOCK_TOPICS = [
   { id: 'topic-ai', name: '인공지능' },
   { id: 'topic-psychology', name: '심리' },
 ];
-
-/** 파트너 회수 시뮬레이션 — 목록에는 남아 있지만 재생하면 CONTENT_WITHDRAWN이 난다(L13) */
-const WITHDRAWN_CONTENT_ID = 'content-12';
 
 interface MockItem {
   id: string;
@@ -123,32 +125,15 @@ const initialItems = (): MockItem[] => {
 
 interface MockServerState {
   items: MockItem[];
-  /** 오늘의 서비스 날짜에 카운트된 content_id 집합 — play_records의 mock */
-  playedToday: Set<string>;
 }
 
-const initialState = (): MockServerState => {
-  const items = initialItems();
-  const playedToday = new Set<string>();
-  if (SCENARIO === 'exhausted') {
-    playedToday.add('content-2').add('content-3');
-  } else if (SCENARIO !== 'unlimited' && SCENARIO !== 'empty' && SCENARIO !== 'fresh') {
-    playedToday.add('content-2');
-  }
-  return { items, playedToday };
-};
+const initialState = (): MockServerState => ({ items: initialItems() });
 
 let state = initialState();
 
 export const resetLibraryMock = (): void => {
   state = initialState();
 };
-
-const playLimitFields = (): PlayLimitFieldsDto => ({
-  daily_play_limit: SCENARIO === 'unlimited' ? null : 2,
-  daily_play_count: SCENARIO === 'unlimited' ? null : state.playedToday.size,
-  service_date: SERVICE_DATE,
-});
 
 const toItemDto = (item: MockItem): LibraryItemDto => ({
   id: item.id,
@@ -157,7 +142,7 @@ const toItemDto = (item: MockItem): LibraryItemDto => ({
   added_at: item.addedAt,
   last_played_at: item.lastPlayedAt,
   completed_at: item.completedAt,
-  is_counted_today: state.playedToday.has(item.contentId),
+  is_counted_today: isMockCountedToday(item.contentId),
   content: {
     id: item.contentId,
     title: item.title,
@@ -220,7 +205,7 @@ export const mockFetchItems = async (
     items: page.map(toItemDto),
     next_cursor: hasNext ? page[page.length - 1].id : null,
     has_next: hasNext,
-    ...playLimitFields(),
+    ...mockPlayLimitFields(),
   };
 };
 
@@ -254,7 +239,7 @@ export const mockFetchResume = async (): Promise<ResumeResponseDto> => {
           id: target.id,
           status: target.status,
           last_played_at: target.lastPlayedAt,
-          is_counted_today: state.playedToday.has(target.contentId),
+          is_counted_today: isMockCountedToday(target.contentId),
           content: {
             id: target.contentId,
             title: target.title,
@@ -265,58 +250,27 @@ export const mockFetchResume = async (): Promise<ResumeResponseDto> => {
           progress: { position_sec: target.positionSec, max_reached_sec: target.maxReachedSec },
         }
       : null,
-    ...playLimitFields(),
+    ...mockPlayLimitFields(),
   };
 };
 
-export const mockStartPlay = async (contentId: string): Promise<PlayStartResponseDto> => {
-  await delay(RESPONSE_DELAY_MS);
-
-  if (contentId === WITHDRAWN_CONTENT_ID) {
-    throw new ApiError(
-      ERROR_CODES.CONTENT_WITHDRAWN,
-      '제공이 종료된 콘텐츠예요',
-      false,
-      null,
-      null,
-      403,
-    );
-  }
-
-  const limit = playLimitFields().daily_play_limit;
-  const alreadyCounted = state.playedToday.has(contentId);
-  if (limit !== null && !alreadyCounted && state.playedToday.size >= limit) {
-    // 무료 티어 기준의 mock — 유료 한도(PLAY_LIMIT_REACHED) 경로는 백엔드 연동 후 검증한다
-    throw new ApiError(
-      ERROR_CODES.PLAY_LIMIT_EXCEEDED,
-      '오늘 들을 수 있는 콘텐츠를 모두 들었어요',
-      false,
-      null,
-      null,
-      403,
-    );
-  }
-
-  state.playedToday.add(contentId);
-
-  const item = visibleItems().find((i) => i.contentId === contentId) ?? null;
-  if (item) {
+/* ── 재생(player mock)이 만드는 라이브러리 상태 전이 — 실서버에서 playback 모듈이
+      library Service를 호출하는 구조(library-api.md 8장)의 mock 대응이다 ── */
+registerPlayMockLibraryBridge({
+  onPlayed: (contentId) => {
+    const item = visibleItems().find((i) => i.contentId === contentId) ?? null;
+    if (!item) return null;
     if (item.status === 'unplayed') item.status = 'in_progress';
     item.lastPlayedAt = new Date().toISOString();
-  }
-
-  return {
-    counted: !alreadyCounted,
-    library_item: item
-      ? { id: item.id, status: item.status, last_played_at: item.lastPlayedAt ?? '' }
-      : null,
-    progress:
-      item && item.maxReachedSec > 0
-        ? { position_sec: item.positionSec, max_reached_sec: item.maxReachedSec }
-        : null,
-    ...playLimitFields(),
-  };
-};
+    return {
+      library_item: { id: item.id, status: item.status, last_played_at: item.lastPlayedAt ?? '' },
+      progress:
+        item.maxReachedSec > 0
+          ? { position_sec: item.positionSec, max_reached_sec: item.maxReachedSec }
+          : null,
+    };
+  },
+});
 
 export const mockComplete = async (id: string): Promise<CompleteResponseDto> => {
   await delay(RESPONSE_DELAY_MS);
@@ -370,4 +324,102 @@ export const mockRestore = async (id: string): Promise<RestoreResponseDto> => {
   }
   item.deleted = false;
   return { id: item.id, status: item.status, added_at: item.addedAt, deleted_at: null };
+};
+
+/* ── 탐색 mock 브리지(dev 전용) — 탐색의 담김 표시·담기·해제가 라이브러리 mock 상태와
+      정합하도록 탐색 mock이 가져다 쓴다(explore-api.md 4.3·4.4 서버 처리의 대역) ── */
+
+export interface MockLibraryStateByContent {
+  item_id: string;
+  source: LibraryItemDto['source'];
+  status: LibraryItemDto['status'];
+}
+
+/** 탐색 행의 library 필드(담김 표시·시트 분기)용 — 살아 있는 항목만 돌려준다 */
+export const getMockLibraryItemByContentId = (
+  contentId: string,
+): MockLibraryStateByContent | null => {
+  const item = visibleItems().find((i) => i.contentId === contentId);
+  return item ? { item_id: item.id, source: item.source, status: item.status } : null;
+};
+
+export interface MockLibrarySaveMeta {
+  title: string;
+  authorName: string;
+  sourceName: string;
+  durationSec: number;
+  topicIds: string[];
+}
+
+export interface MockLibrarySaveResult {
+  library_item: {
+    id: string;
+    source: LibraryItemDto['source'];
+    status: LibraryItemDto['status'];
+    added_at: string;
+  };
+  /** 새로 담김(201) 여부 — 이미 담긴 것을 다시 담으면 false(200)다 */
+  created: boolean;
+}
+
+/** 담기(explore-api.md 4.3 서버 처리) — upsert이며 살아 있는 행은 아무것도 바꾸지 않는다 */
+export const mockSaveLibraryItemByContent = (
+  contentId: string,
+  meta: MockLibrarySaveMeta,
+): MockLibrarySaveResult => {
+  const existing = state.items.find((i) => i.contentId === contentId);
+  if (existing && !existing.deleted) {
+    return {
+      library_item: {
+        id: existing.id,
+        source: existing.source,
+        status: existing.status,
+        added_at: existing.addedAt,
+      },
+      created: false,
+    };
+  }
+  if (existing) {
+    // 삭제된 행의 재활성 — 재담기는 새 담기 조작이므로 적립 시각을 새로 찍는다(복구와 다르다)
+    existing.deleted = false;
+    existing.source = 'save';
+    existing.addedAt = new Date().toISOString();
+    return {
+      library_item: {
+        id: existing.id,
+        source: existing.source,
+        status: existing.status,
+        added_at: existing.addedAt,
+      },
+      created: false,
+    };
+  }
+  const item: MockItem = {
+    id: `library-item-${contentId}`,
+    contentId,
+    source: 'save',
+    status: 'unplayed',
+    addedAt: new Date().toISOString(),
+    lastPlayedAt: null,
+    completedAt: null,
+    title: meta.title,
+    authorName: meta.authorName,
+    sourceName: meta.sourceName,
+    durationSec: meta.durationSec,
+    topicIds: meta.topicIds,
+    positionSec: 0,
+    maxReachedSec: 0,
+    deleted: false,
+  };
+  state.items.unshift(item);
+  return {
+    library_item: { id: item.id, source: item.source, status: item.status, added_at: item.addedAt },
+    created: true,
+  };
+};
+
+/** 담기 해제(explore-api.md 4.4 서버 처리) — 소프트 삭제. 대상이 없어도 실패하지 않는다 */
+export const mockUnsaveLibraryItemByContent = (contentId: string): void => {
+  const item = state.items.find((i) => i.contentId === contentId && !i.deleted);
+  if (item) item.deleted = true;
 };

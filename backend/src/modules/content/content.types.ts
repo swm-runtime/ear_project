@@ -1,5 +1,8 @@
 /** convention.md 3.2 — 모듈 밖으로 공개되는 타입만 둔다 */
 
+import { StatsPeriodType } from './content.enum';
+import { Content } from './entities/content.entity';
+
 /** 추천·편성 후보 조회 조건 */
 export interface ContentCandidateQuery {
   /** 이 주제 중 하나라도 걸리는 콘텐츠만. 비우면 주제 조건을 적용하지 않는다 */
@@ -22,4 +25,77 @@ export interface ContentTopicView {
   contentId: string;
   topicId: string;
   name: string;
+}
+
+/**
+ * 탐색 필터 목록의 커서 위치(explore-api.md 4.2).
+ *
+ * **정렬 키 세 값을 모두 담는다.** 랭킹 1순위(전체 구간 재생 수)만으로는 동점 구간의 순서가
+ * 정해지지 않아 페이지 경계에서 항목이 반복되거나 사라진다 — 초기 콘텐츠 풀에서는 재생 수가
+ * 전부 0이라 동점이 예외가 아니라 기본값이다(PRD 8.1).
+ */
+export interface ExploreCursorPosition {
+  playCount: number;
+  publishedAt: Date;
+  id: string;
+}
+
+export interface ExplorePageQuery {
+  /** 비울 수 없다. 필터가 없는 상태는 피드(4.1)가 담당한다. **주제끼리는 OR다** */
+  topicIds: string[];
+  cursor: ExploreCursorPosition | null;
+  limit: number;
+  now: Date;
+}
+
+/**
+ * 랭킹 값이 붙은 콘텐츠 한 줄.
+ *
+ * `playCount`를 함께 돌려주는 이유는 **커서가 정렬 키를 담아야 하기 때문이다.** 이 값은
+ * `content_stats` 조인 결과이지 `contents`의 컬럼이 아니라(domain.md 1.5), Entity에 실어
+ * 보낼 자리가 없다.
+ */
+export interface RankedContent {
+  content: Content;
+  playCount: number;
+}
+
+export interface ExplorePage {
+  items: RankedContent[];
+  /** 다음 페이지 존재 여부. `false`면 커서를 발급하지 않는다 */
+  hasNext: boolean;
+}
+
+/**
+ * 인기 목록의 커서 위치(explore-api.md 4.2-1).
+ *
+ * **정렬 키 네 값을 모두 담는다.** 인기 랭킹은 그 구간의 재생 수 → 완청 수 → 신선도 순인데,
+ * 확정 구간이 없는 배포 첫 주·첫 달에는 앞의 두 값이 전부 0이라 **동점이 기본값**이다
+ * (`explore.md` 4.1-1). 뒤의 두 키가 없으면 페이지 경계에서 항목이 반복되거나 사라진다.
+ */
+export interface PopularCursorPosition {
+  playCount: number;
+  completeCount: number;
+  publishedAt: Date;
+  id: string;
+}
+
+export interface PopularPageQuery {
+  /** 사용자가 고른 집계 구간. `period_start`는 `ContentService`가 이 값으로 환산한다 */
+  periodType: StatsPeriodType;
+  cursor: PopularCursorPosition | null;
+  limit: number;
+  now: Date;
+}
+
+/** 인기 랭킹의 정렬 키가 붙은 콘텐츠 한 줄 — 커서 발급에 쓴다 */
+export interface RankedPopularContent {
+  content: Content;
+  playCount: number;
+  completeCount: number;
+}
+
+export interface PopularPage {
+  items: RankedPopularContent[];
+  hasNext: boolean;
 }

@@ -188,7 +188,8 @@ src/
 | Playback | Content, Library, Subscription, **User**, **Drip** | `domain.md` 2장의 세 방향 + 재생 한도 판정에 `users.tier`가 필요해 User를, 재생 시 드립 영구 제외 적재(`drip_excluded_contents`)에 Drip을 더한다. 두 모듈 모두 `Playback`을 모르므로 순환은 없다 |
 | Drip | Content, Library, Interest, Subscription, **User** | `domain.md` 2장의 네 방향 + 편성 편수 판정에 `users.tier`가 필요해 User를 더한다. `User`는 `Drip`을 모르므로 순환은 없다 |
 | Onboarding | User, Interest, Content, Library, Drip, Idempotency | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
-| LibraryScreen | Library, Playback, Content, Subscription, User, Drip | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
+| LibraryScreen | Library, Playback, Content, Drip | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
+| Explore | Content, Library, Playback, Interest, Drip | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
 | *(도메인 확정 시 계속 추가)* | | |
 
 **Onboarding은 Entity를 갖지 않는다.** 온보딩은 화면 흐름이라 자기 데이터가 없고 `users` · `user_interests` · `contents` · `library_items` · `first_drip_jobs`를 횡단한다. 4.1의 "모듈은 Entity 기준으로 나눈다"의 예외이며, Repository 없이 **Orchestrator가 각 소유 모듈의 Service를 조합한다**(→ 3.3). 도메인 규칙 판정(주제 개수 상한, 발행 상태, 완료 여부)은 전부 소유 모듈의 Service에 있고 Orchestrator는 순서·조합만 담당한다.
@@ -198,6 +199,13 @@ src/
 **LibraryScreen도 Entity를 갖지 않는다.** 라이브러리 화면의 응답에는 재생 위치·오늘 카운트(`playback` 소유)와 재생 한도(`subscription` 소유)가 함께 나가고, 삭제는 드립 영구 제외(`drip` 소유)까지 건드린다. 그런데 `library-api.md` 8장이 **`playback` → `library`** 방향과 "`library` 모듈은 `content` · `user`에만 의존한다"를 함께 정하고 있어, `library`가 `playback`을 의존하면 순환이 된다(`forwardRef` 금지 — 4.3). 그래서 두 모듈 **위에서** Orchestrator가 조합한다(→ 3.3). `/users/me/library-items`의 6개 엔드포인트가 여기에 속한다.
 
 - **재생 시작(`POST /contents/:content_id/play`)은 LibraryScreen이 아니라 Playback 모듈에 남는다.** `library-api.md` 8장이 지정한 위치이고, 라이브러리·탐색·미니플레이어·푸시가 같은 엔드포인트를 쓰기 때문이다. 화면별 유스케이스 모듈로 올리면 한도 판정이 진입점마다 갈라진다.
+- **잔여 재생 표시값은 직접 조립하지 않는다.** 티어 조회(`users.tier`) → 요금제 한도(`plans.daily_play_limit`) → `play_records` 집계까지를 `PlaybackService`의 조립 함수 하나가 수행하고, 탐색 화면도 **같은 함수를 호출한다**(`explore-api.md` 2장 — 화면마다 조립하면 같은 사용자에게 서로 다른 숫자가 표시된다). 그래서 이 모듈은 `subscription` · `user`를 의존하지 않는다. **한도 판정이 필요한 재생 시작은 이 함수를 쓰지 않는다** — 거기서는 최상위 티어 여부까지 있는 정책 자체가 필요하다.
+
+**Explore도 Entity를 갖지 않는다.** 탐색 응답에는 콘텐츠·주제·인기 집계(`content` 소유), 행의 라이브러리 상태와 담기·해제(`library` 소유), 오늘 카운트·잔여 재생 표시값·소비 신호(`playback` 소유), 관심 주제(`interest` 소유)가 함께 나가고, 담기 해제는 드립 영구 제외(`drip` 소유)까지 건드린다. 어느 한 모듈의 Entity로 환원되지 않으므로 소유 모듈들 **위에서** Orchestrator가 조합한다(→ 3.3). `/explore/*`와 담기·해제(`/contents/:content_id/save`)가 여기에 속한다.
+
+- **`content` 모듈에 넣을 수 없다.** 담기·해제가 `library_items`를 쓰고 영구 제외가 `drip_excluded_contents`를 건드리는데, `content` 모듈은 `interest`에만 의존한다(`domain.md` 2장). 거기에 `library` · `drip` · `playback`을 더하면 세 모듈이 이미 갖고 있는 `→ content` 방향과 부딪쳐 순환이 된다.
+- **`user` · `subscription`을 직접 의존하지 않는다.** 잔여 재생 표시값은 LibraryScreen과 같은 이유로 `playback`이 조립해 내려준다.
+- **재생 시작은 여기에 없다.** 담기·해제와 경로 계층이 같지만(`/contents/:content_id/...`) 재생은 `library-api.md` 8장이 지정한 대로 Playback 모듈에 남는다 — 진입점마다 모듈이 갈리면 한도 판정이 경로별로 새는 구멍이 된다.
 
 **`User → Subscription`은 한시적이다.** `domain.md` 2장이 `Subscription → User`(결제 반영 시 `users.tier` 갱신)를 함께 정의하고 있어, 두 방향이 동시에 성립하면 순환이 된다. Subscription 모듈이 티어 갱신을 시작하는 시점에 **탈퇴를 Orchestrator로 올려**(→ 3.3) 두 Service를 위에서 조합하고 이 의존을 제거한다.
 

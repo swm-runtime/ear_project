@@ -2,21 +2,15 @@
  * 서버 통신 DTO — library-api.md의 요청·응답을 snake_case 그대로 선언한다(convention.md 5.1).
  * camelCase 변환은 library.api.ts 안에서만 일어난다.
  */
+import type { PlayLimitFieldsDto } from '@/features/player';
+
 import type {
   LibraryFilter,
   LibraryItemStatus,
   LibrarySort,
   LibrarySource,
   LibrarySourceFilter,
-  PlayEntryPoint,
 } from '../library.types';
-
-/** 잔여 재생 표시값 — 목록·복원·재생 시작 응답에 같은 이름으로 얹힌다(library-api.md 2) */
-export interface PlayLimitFieldsDto {
-  daily_play_limit: number | null;
-  daily_play_count: number | null;
-  service_date: string;
-}
 
 export interface LibraryContentDto {
   id: string;
@@ -92,21 +86,6 @@ export interface ResumeTargetDto {
 /** GET /users/me/library-items/resume (library-api.md 4.3) — 대상 없음은 404가 아니라 null이다 */
 export interface ResumeResponseDto extends PlayLimitFieldsDto {
   resume_target: ResumeTargetDto | null;
-}
-
-/** POST /contents/:content_id/play (library-api.md 4.4) */
-export interface PlayStartRequestDto {
-  entry_point: PlayEntryPoint;
-}
-
-export interface PlayStartResponseDto extends PlayLimitFieldsDto {
-  counted: boolean;
-  library_item: {
-    id: string;
-    status: LibraryItemStatus;
-    last_played_at: string;
-  } | null;
-  progress: LibraryProgressDto | null;
 }
 
 /** POST /users/me/library-items/:id/complete (library-api.md 4.5) */
