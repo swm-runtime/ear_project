@@ -13,6 +13,9 @@ export const theme = {
     danger: '#E5484D',
     overlay: 'rgba(0, 0, 0, 0.4)',
     onPrimary: '#FFFFFF',
+    /** 분포 그래프 조각 색(임시값) — 순서대로 상위 항목에 배정하고 마지막은 "기타"용 중립색이다.
+        색만으로 구분하지 않는다는 규칙(범례 텍스트 병기)은 각 화면 uiux가 강제한다 */
+    chart: ['#4A6CF7', '#8A5CF6', '#39A9DB', '#4CBFA6', '#F2A65A', '#B8BCC9'],
   },
   spacing: {
     xs: 4,
