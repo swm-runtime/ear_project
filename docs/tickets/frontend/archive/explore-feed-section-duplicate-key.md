@@ -7,7 +7,14 @@
 | 발견 시점 | 2026-08-08 탐색 통합 테스트 (`integration/explore`, 실서버 전환 `EXPO_PUBLIC_EXPLORE_API=real`) |
 | 근거 문서 | `spec/api/explore-api.md` 4.1(`sections[].key`는 분석·로깅용) · `features/explore.md` 4.1(섹션 구성·순서는 서버 제어) |
 | 심각도 | **중** — 지금은 화면이 맞게 그려진다. 다만 React가 "duplicated and/or omitted"라고 경고하는 **미정의 동작**이고, 관심 주제 수만큼 매 렌더 반복된다 |
-| 상태 | pending |
+| 상태 | **완료(2026-08-08)** — FE 반영 + mock 확인(아래 기록) |
+
+> **처리 기록 (2026-08-08, FE)**
+> ① 화면 타입에서 `ExploreSection.key`를 `sectionKey`로 개명(DTO·변환기는 계약 필드명 `key` 유지) — 스프레드로 예약 필드에 흘러들 경로를 구조적으로 차단
+> ② `explore.section-key.ts` 신설 — `buildSectionListKey()`: `topic_group`은 `topic.id`로, 나머지는 섹션명 그대로(응답에 하나씩). 인덱스 미사용(순서 변경 시 재마운트 방지). SectionList에 명시적으로 `key`를 넣는다
+> ③ 토글 노출 판정은 `period` 분기 그대로 — 계약 규약 무변경
+> ④ mock 피드에 `topic_group` 2개(커리어·생산성) 케이스 추가 — 이 회귀는 이제 mock에서도 재현·검출된다
+> mock에서 확인: 두 topic_group 섹션 노출 상태로 진입·토글 전환·필터 선택/해제에 key 에러 0건, `key: section.sectionKey`로 되돌리면 에러 재현됨. 실서버 완료 조건(관심 주제 2개 이상 계정)은 다음 통합 테스트에서 같은 절차로 재확인한다.
 
 ## 증상
 
