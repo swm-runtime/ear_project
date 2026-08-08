@@ -14,6 +14,8 @@ import { User } from '../entities/user.entity';
 import { UserService } from './user.service';
 import { UserWithdrawalService } from './user-withdrawal.service';
 import { WithdrawalLogRepository } from '../repositories/withdrawal-log.repository';
+import { WithdrawalReason } from '../user.enum';
+import { WithdrawUserCommand } from '../user.types';
 
 const USER_ID = '22222222-2222-4222-8222-222222222222';
 const NOW = new Date('2026-08-04T09:00:00.000Z');
@@ -40,9 +42,14 @@ describe('UserWithdrawalService', () => {
   let archiveRepository: jest.Mocked<ArchiveRepository>;
   let withdrawalLogRepository: jest.Mocked<WithdrawalLogRepository>;
 
-  const command = {
+  /**
+   * **타입을 명시한다.** 없으면 `reasonCode`가 `string`으로 넓어져 `WithdrawUserCommand`에
+   * 대입되지 않는다 — 사유 목록이 바뀔 때 이 테스트가 먼저 깨져야 한다(`auth-api.md` 9장의
+   * 확정 목록이므로 문자열 리터럴로 두면 오타가 통과한다).
+   */
+  const command: WithdrawUserCommand = {
     userId: USER_ID,
-    reasonCode: 'low_usage',
+    reasonCode: WithdrawalReason.LOW_USAGE,
     reasonText: null,
     confirm: true,
     agreedSubscriptionExpiry: false,
