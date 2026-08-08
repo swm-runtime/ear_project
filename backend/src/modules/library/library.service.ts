@@ -190,6 +190,23 @@ export class LibraryService {
   }
 
   /**
+   * 완청한 고유 콘텐츠 수 — 프로필 통계의 `completed_content_count`(`profile.md` 4.5).
+   *
+   * 완청 **판정**은 이 모듈이 하지 않는다. `player`가 판정해 `status = completed`로 전이시킨
+   * 결과를 세기만 한다(`profile-api.md` 1장 — 완청 판정 값을 재정의하지 않는다).
+   * 삭제된 항목도 포함한다 — 들었다는 사실은 목록에서 지운다고 없어지지 않는다.
+   */
+  async countCompletedContents(
+    userId: string,
+    manager?: EntityManager,
+  ): Promise<number> {
+    return this.libraryItemRepository.countCompletedContentsByUserId(
+      userId,
+      manager,
+    );
+  }
+
+  /**
    * 드립 후보에서 제외할 콘텐츠 — **`deleted_at` 여부와 무관하다**
    * (`drip-scheduling.md` 4.2). 삭제한 콘텐츠도 재적립하지 않는다(FR-16).
    */

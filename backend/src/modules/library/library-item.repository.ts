@@ -144,6 +144,32 @@ export class LibraryItemRepository {
     return this.scoped(manager).countBy({ userId, source });
   }
 
+  /**
+   * 완청한 **고유 콘텐츠 수** — `profile-api.md` 4.1 `completed_content_count`.
+   *
+   * **`deleted_at`을 가리지 않는다**(`withDeleted`). 라이브러리에서 지웠다고 들었던 사실이
+   * 사라지지는 않으므로 누적 지표에서 빼지 않는다(`profile-api.md` 8장 — "deleted_at 무관").
+   *
+   * `(user_id, content_id)`가 유니크라 행 수가 곧 고유 콘텐츠 수이지만, **`DISTINCT`를
+   * 명시한다** — 제약이 바뀌면 조용히 중복이 세어지는 것보다 쿼리가 의도를 말하는 편이 낫다.
+   */
+  async countCompletedContentsByUserId(
+    userId: string,
+    manager?: EntityManager,
+  ): Promise<number> {
+    const row = await this.scoped(manager)
+      .createQueryBuilder('item')
+      .withDeleted()
+      .select('COUNT(DISTINCT item.content_id)', 'total')
+      .where('item.user_id = :userId', { userId })
+      .andWhere('item.status = :status', {
+        status: LibraryItemStatus.COMPLETED,
+      })
+      .getRawOne<{ total: string }>();
+
+    return Number(row?.total ?? 0);
+  }
+
   async deleteByUserId(userId: string, manager?: EntityManager): Promise<void> {
     await this.scoped(manager).delete({ userId });
   }
