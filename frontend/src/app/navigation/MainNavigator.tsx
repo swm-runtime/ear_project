@@ -5,6 +5,7 @@ import { theme } from '@/shared/theme';
 
 import { ExploreScreen } from '@/features/explore';
 import { LibraryScreen } from '@/features/library';
+import { ProfileScreen } from '@/features/profile';
 
 import PlaceholderScreen from './PlaceholderScreen';
 import type { MainStackParamList, MainTabParamList } from './types';
@@ -32,15 +33,10 @@ function MainTabs() {
         component={LibraryScreen}
         options={{ tabBarLabel: '라이브러리' }}
       />
-      <MainTab.Screen
-        name="Explore"
-        component={ExploreScreen}
-        options={{ tabBarLabel: '탐색' }}
-      />
-      {/* TODO: profile feature 구현 시 교체 */}
+      <MainTab.Screen name="Explore" component={ExploreScreen} options={{ tabBarLabel: '탐색' }} />
       <MainTab.Screen
         name="Profile"
-        component={PlaceholderScreen}
+        component={ProfileScreen}
         options={{ tabBarLabel: '프로필' }}
       />
     </MainTab.Navigator>
@@ -58,6 +54,33 @@ export default function MainNavigator() {
         name="Player"
         component={PlaceholderScreen}
         options={{ headerShown: true, headerTitle: '', headerBackTitle: '라이브러리' }}
+      />
+      {/* TODO: 프로필 카드 목적지 5종 — 각 화면 구현 시 컴포넌트만 교체한다(라우트 이름 유지).
+          플레이스홀더 동안은 기본 push + 헤더를 둔다: 화면 안에 돌아갈 수단이 있어야 한다 */}
+      <MainStack.Screen
+        name="Settings"
+        component={PlaceholderScreen}
+        options={{ headerShown: true, headerTitle: '', headerBackTitle: '프로필' }}
+      />
+      <MainStack.Screen
+        name="Subscription"
+        component={PlaceholderScreen}
+        options={{ headerShown: true, headerTitle: '', headerBackTitle: '프로필' }}
+      />
+      <MainStack.Screen
+        name="EmailVerification"
+        component={PlaceholderScreen}
+        options={{ headerShown: true, headerTitle: '', headerBackTitle: '프로필' }}
+      />
+      <MainStack.Screen
+        name="InterestManagement"
+        component={PlaceholderScreen}
+        options={{ headerShown: true, headerTitle: '', headerBackTitle: '프로필' }}
+      />
+      <MainStack.Screen
+        name="Career"
+        component={PlaceholderScreen}
+        options={{ headerShown: true, headerTitle: '', headerBackTitle: '프로필' }}
       />
     </MainStack.Navigator>
   );

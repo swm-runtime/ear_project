@@ -44,6 +44,10 @@ export const ERROR_CODES = {
   // explore-api.md 5장
   EXPLORE_CURSOR_INVALID: 'EXPLORE_CURSOR_INVALID',
 
+  // profile-api.md 5장
+  /** 가입 주 이전·미래 주 조회 — 사용자에게 노출하지 않고 현재 표시 주를 유지한다 */
+  STATS_WEEK_OUT_OF_RANGE: 'STATS_WEEK_OUT_OF_RANGE',
+
   // 공용 코드(common-error-handling.md 4.1)
   VALIDATION_FAILED: 'VALIDATION_FAILED',
   CONTENT_NOT_FOUND: 'CONTENT_NOT_FOUND',
