@@ -1,18 +1,36 @@
-# [BE] profile-api.md — 플랜 판정 표에 `cancelled` 상태가 빠져 있다
+# [BE] `cancelled` 상태의 의미 확정 — domain.md 8.2 신설 + profile-api.md 4.1 판정 명시
 
 | 항목 | 값 |
 |---|---|
-| 대상 문서 | `docs/spec/api/profile-api.md` |
-| 위치 | 4.1 `GET /users/me/profile` — **`plan` 4분기 판정 표**의 "판정(서버)" 열 |
+| 대상 문서 | `docs/backend/domain.md` 8.2 · `docs/spec/api/profile-api.md` 4.1 |
+| 위치 | `domain.md` 8.2 `subscriptions`(status 의미 표 신설) · `profile-api.md` 4.1 판정 표 + 설계 메모 |
 | 요청 파트 | 백엔드 |
 | 관련 작업 | 프로필 백엔드 구현 (`feat(be)/profile`) |
 | 근거 문서 | `docs/backend/domain.md` 8.2(`subscriptions.status` enum 5개) |
 | 성격 | **누락.** 실재하는 상태값 하나가 판정 규칙에 언급되지 않아, 구현이 판단해야 했다 |
-| 상태 | 대기 — 구현이 택한 방향을 표에 명시하는 것을 제안한다 |
+| 상태 | **반영 완료** (2026-08-08, 프로필 통합 시점) — **A안 확정**: 뿌리인 `domain.md`부터 고쳤다 |
 
 > **FE 대응은 없다.** 표는 3열(`status` / 판정(서버) / 화면)이고 이 요청이 건드리는 것은 **가운데 열 하나뿐**이다. FE가 받는 `status`는 여전히 `free` · `subscribed` · `cancel_scheduled` · `grace` **넷**이며, 새 값이 생기지 않는다.
 >
 > **다만 이 판단이 뒤집히면 FE 수정 건이 된다** — "함께 확인할 것" 참조.
+
+> **2026-08-08 반영 결과 — 논의 끝에 요청 범위를 넓혔다**
+>
+> 원안은 `profile-api.md` 4.1 판정 열만 고치는 것이었다. 그런데 파고들어 보니 **표가 빠진 것은 증상이고, 진짜 문제는 `cancelled`의 의미가 어디에도 정의돼 있지 않다는 것**이었다 — `domain.md` 8.2가 enum 값만 나열하고 뜻을 적지 않았다.
+>
+> **의미가 없으면 두 가지로 읽힌다.** 스토어마다 "cancel"이 다른 사건을 가리키기 때문이다 — Google Play의 `userCancellationTimeMillis`는 해지 예약(만료 전 유효)이고, Apple 영수증의 `cancellation_date`는 환불·철회(즉시 무효)다. 후자로 해석되면 **환불받은 사용자가 만료일까지 유료 혜택을 계속 쓴다.**
+>
+> **enum 안에서 답이 나왔다.** `refunded`가 이미 있으므로 환불·철회는 그 값이 가져가고, `cancelled`에 남는 뜻은 **해지 예약** 하나뿐이다. 세 값(`cancelled` · `refunded` · `expired`)이 각자 다른 사건을 가리키게 된다.
+>
+> **반영한 것**
+>
+> - **`domain.md` 8.2 — `status` 값의 의미 표를 신설했다.** 다섯 값의 뜻 · 만료 전 접근 권한 · `is_auto_renew` 관계를 적고, **`cancelled`와 `refunded`를 반드시 구분한다**는 것과 그 이유(스토어 필드명이 아니라 의미로 환산해 저장한다)를 함께 남겼다. `cancelled`는 정의상 `is_auto_renew = false`라는 것도 명시했다
+> - **`profile-api.md` 4.1 — 다섯 값이 각각 어느 분기로 가는지 대응표를 추가**하고, `cancel_scheduled` 행에 `status = 'cancelled'`가 여기라고 못박았다. 만료 시각을 앞질러 비교하지 않는 이유도 함께 적었다
+> - **`status` 열과 화면 열은 건드리지 않았다** — FE가 받는 값은 `free` · `subscribed` · `cancel_scheduled` · `grace` 넷 그대로다
+>
+> **코드는 바꾸지 않았다.** `toPlanStatus()`가 이미 이 규칙대로 판정한다. 결정 시점에 `subscriptions`에 행을 쓰는 코드가 아직 하나도 없어(결제 흐름 미구현) 잘못 저장된 데이터도 없다.
+>
+> **남은 것** — `cancelled`인데 `is_auto_renew = true`인 모순 조합에 방어 로그를 넣을지는 별도 판단이다. 지금은 조용히 `subscribed`로 보낸다.
 
 ---
 

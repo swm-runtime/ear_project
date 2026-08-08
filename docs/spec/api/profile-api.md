@@ -132,10 +132,21 @@
 | `status` | 판정(서버) | 화면(`profile.md` 4.2) |
 |---|---|---|
 | `free` | 유효한 `subscriptions` 행 없음(행 자체가 없거나 `expired` · `refunded`뿐) | "무료 이용 중 · 하루 N편" + [구독 알아보기] |
-| `subscribed` | `status = 'active'` 이고 `is_auto_renew = true` | 플랜명 + "다음 결제일 N월 N일"(`renews_at`) |
-| `cancel_scheduled` | 해지 예약 — `is_auto_renew = false`이고 만료 전 | 플랜명 + "N월 N일까지 이용 가능"(`expires_at`) |
+| `subscribed` | `status`가 `active`이고 `is_auto_renew = true` | 플랜명 + "다음 결제일 N월 N일"(`renews_at`) |
+| `cancel_scheduled` | 해지 예약 — `is_auto_renew = false`이고 만료 전. **`status = 'cancelled'`가 여기다** | 플랜명 + "N월 N일까지 이용 가능"(`expires_at`) |
 | `grace` | `status = 'grace'`(결제 실패 유예) | 플랜명 + "결제에 문제가 있어요" 경고 → `has_payment_issue = true` |
 
+- **`subscriptions.status` 다섯 값이 모두 어느 분기로 가는지 정해져 있다**(확정 2026-08-08 — 값의 의미는 `domain.md` 8.2가 소유한다).
+
+| `subscriptions.status` | 이 표의 `status` |
+|---|---|
+| 행 없음 · `expired` · `refunded` | `free` |
+| `active` (`is_auto_renew = true`) | `subscribed` |
+| `active` (`is_auto_renew = false`) · `cancelled` | `cancel_scheduled` |
+| `grace` | `grace` |
+
+  - **`cancelled`는 별도 분기가 아니다.** 해지 예약(만료일까지 유효)이므로 `free`가 아니고, 화면이 갈라야 하는 것은 "다음 결제일이 있는가 / 이용 종료일이 있는가"뿐이다. **환불·철회는 `refunded`가 맡아 `free`로 간다**(`domain.md` 8.2 — 두 값을 반드시 구분한다).
+  - **만료 시각을 비교해 앞질러 판정하지 않는다.** 만료 반영은 S2S가 `status`를 바꿔서 하는 일이므로(`domain.md` 8.2), 조회 쪽이 `expires_at`을 시각 비교하면 진실의 원천이 둘이 된다.
 - **`subscriptions`의 raw `status` enum을 그대로 내려주지 않는다.** 화면이 필요한 것은 위 4분기뿐이고, raw 값을 내려주면 해지 예약 판정(`is_auto_renew` 조합)이 클라이언트마다 재작성된다 — 판정은 서버가 한다.
 - `renews_at`과 `expires_at`은 **같은 `subscriptions.expires_at`에서 온 값이지만 의미가 달라 필드를 나눈다.** 자동 갱신이면 그 시각이 다음 결제일이고, 해지 예약이면 이용 종료일이다. 한 필드로 내려주면 화면이 `status`를 보고 라벨을 갈아 끼워야 한다.
 - `status = free`일 때 `tier = "light"` · `plan_name` · `daily_play_limit`(무료 한도)을 채워 내려준다. **"하루 N편"의 N은 `plans.daily_play_limit` 서버 값이다 — 2를 하드코딩하지 않는다**(`profile.md` 4.2 · `paywall.md` 5장과 같은 규칙).

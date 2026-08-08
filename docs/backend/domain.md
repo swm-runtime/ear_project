@@ -937,6 +937,21 @@ idx_subscriptions_user_id_status (user_id, status)
 - 실제 갱신 근거는 **스토어 서버 알림(S2S)**이다(`subscription.md` 4.3). 클라이언트가 보낸 값으로 티어를 바꾸지 않는다.
 - `uq_subscriptions_original_transaction_id`가 하나의 스토어 구독이 여러 계정에 연결되는 것을 막는다.
 
+**`status` 값의 의미** (확정 2026-08-08 — 프로필 구현 중 `cancelled`의 뜻이 정의된 곳이 없어 확정했다)
+
+| 값 | 뜻 | 만료 전 접근 권한 | `is_auto_renew` |
+|---|---|---|---|
+| `active` | 정상 이용 중 | 있음 | 보통 `true` |
+| `grace` | 결제 실패 유예 — 재청구를 기다리는 동안 혜택을 유지한다 | 있음 | `true` |
+| `cancelled` | **해지 예약** — 사용자가 자동 갱신을 껐고 **만료일까지는 유효하다** | **있음** | `false` |
+| `expired` | 기간이 끝나 만료됐다 | 없음 | `false` |
+| `refunded` | **환불·철회** — 거래가 취소돼 **즉시 무효**다 | **없음** | — |
+
+- **`cancelled`와 `refunded`를 반드시 구분한다.** 스토어마다 "cancel"이라는 단어가 다른 사건을 가리킨다 — Google Play의 `userCancellationTimeMillis`는 **해지 예약**(만료 전 유효)이고, Apple 영수증의 `cancellation_date`는 **환불·철회**(즉시 무효)다. 같은 단어를 그대로 받아 한 값에 담으면 **환불받은 사용자가 만료일까지 유료 혜택을 계속 쓴다.**
+  - 따라서 S2S 연동은 스토어 필드명이 아니라 **위 표의 의미로 환산해 저장한다.** Apple의 `cancellation_date`는 `refunded`로, Play의 사용자 해지는 `cancelled`로 간다.
+- **`cancelled`는 정의상 `is_auto_renew = false`다.** 두 값이 어긋난 행(`cancelled`인데 자동 갱신이 켜져 있음)은 생기지 않아야 하며, 생겼다면 S2S 환산이 잘못된 것이다.
+- 화면에 보여줄 때는 이 raw 값을 그대로 내려주지 않고 **4분기로 정규화한다**(`profile-api.md` 4.1 — `free` / `subscribed` / `cancel_scheduled` / `grace`). 해지 예약 판정이 클라이언트마다 재작성되는 것을 막기 위해서다.
+
 ### 8.3 `purchase_intents`
 
 ```
