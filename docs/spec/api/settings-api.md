@@ -78,6 +78,9 @@
 | 필드 | 타입 | 필수 | 비고 |
 |---|---|---|---|
 | app_version | string (semver) | 필수 | 업데이트 안내 판정용. **정책 판정이 아니라 표시 판정이다** |
+| platform | enum `ios` / `android` | 필수 | **어느 스토어의 최신 버전과 비교할지.** 값 집합은 기기 등록(`onboarding-api.md` 4.9)과 같다 |
+
+- **`platform`은 선택이 아니라 필수다.** 기본값을 두면 그 플랫폼에는 맞고 다른 쪽에는 **틀렸다는 사실이 드러나지 않는 판정**이 나간다.
 
 **Response 200**
 
@@ -147,6 +150,7 @@
 **`version`**
 
 - `latest_version` · `min_supported_version`의 원천은 **배포 시 입력된 버전(배포 설정)으로 확정됐다**(합의 2026-08-06 — `settings.md` 3장 · `domain.md` 13.3). 테이블이 아니다.
+- **두 값은 요청한 `platform`의 값이다**(`domain.md` 13.3 — 스토어 심사 주기가 달라 두 플랫폼의 값이 동시에 올라가지 않는다). 비교도 그 값으로 서버가 한다. 한쪽 심사가 밀리는 동안 단일 값으로 판정하면 **아직 배포되지 않은 플랫폼의 사용자에게 받을 것이 없는 [업데이트]가 노출된다.**
 - `update_available`은 요청의 `app_version < latest_version` 판정 결과다. **비교를 서버가 한다** — 클라이언트마다 semver 비교를 재작성하면 판정이 갈라진다. `true`면 앱 버전 항목에 배지 + [업데이트]를 노출한다.
 - **강제 업데이트(`app_version < min_supported_version`) 판정은 스플래시 소관이다**(`splash.md`). 설정까지 들어온 세션은 이미 그 관문을 통과했으므로 여기서는 안내만 한다.
 
@@ -264,7 +268,7 @@
 **설정 진입**
 
 ```
-프로필 [⚙] ──> GET /users/me/settings?app_version=1.3.0
+프로필 [⚙] ──> GET /users/me/settings?app_version=1.3.0&platform=ios
    ├─ 계정 섹션(이메일)         → auth-api 4.8~4.11 (이메일 인증 화면)
    ├─ 구독 섹션                 → 구독 관리 (subscription.md)
    ├─ 관심 주제 관리            → 관심사 관리 (interest-management.md)

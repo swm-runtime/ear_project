@@ -7,7 +7,32 @@
 | 관련 작업 | 설정 백엔드 구현 (`feat(be)/settings`) — 버전 판정 구현 중 발견 |
 | 근거 문서 | `docs/backend/domain.md` 13.3 · `docs/features/splash.md` 6장 |
 | 성격 | **문서 간 충돌.** 두 문서가 플랫폼별 값을 전제하는데 계약에 그것을 고를 입력이 없다 |
-| 상태 | 대기 — **FE가 설정 화면을 시작하기 전에 정하는 것을 권한다**(아래 "왜 지금인가") |
+| 상태 | **반영 완료** (2026-08-09, 설정 통합 시점) — **A안(`platform` 추가) 확정.** 코드는 티켓 2건으로 넘겼다 |
+
+> **2026-08-09 반영 결과 — A안(파라미터 추가)으로 확정했다**
+>
+> 갈래는 둘이었다. A는 `settings-api.md`에 `platform`을 더하는 것, B는 단일 값으로 확정하고 `domain.md` 13.3·`splash.md` 6장의 "플랫폼별" 문장을 걷어내는 것. **어느 쪽이든 문서 수정은 필요했다** — 지금이 유일하게 어긋난 상태였기 때문이다.
+>
+> A를 택한 이유는 **미루면 위험만 늘고 얻는 것이 없어서**다. 특히 **스플래시가 아직 구현 전**이라, 지금 정하면 차단 로직이 처음부터 맞게 만들어진다. FE 비용도 쿼리 파라미터 한 줄이고 응답 모양이 그대로라 화면 코드는 안 건드린다.
+>
+> **고친 문서 셋**
+>
+> - `settings-api.md` 4.1 — Request 표에 **`platform`(enum `ios`/`android`, 필수)** 추가 + **기본값을 두지 않는 이유**를 불릿으로. `version` 설명에 "두 값은 요청한 `platform`의 값이다"와 그 근거(심사 주기)를 넣었다
+> - `settings-api.md` 6장 흐름도 — 예시 호출을 `?app_version=1.3.0&platform=ios`로 고쳤다. 표만 고치고 흐름도를 두면 다음 사람이 두 벌을 보게 된다
+> - `splash.md` 6장 — **버전 조회 API가 같은 `platform` 규칙을 따른다**는 불릿을 넣었다. 원안 제안 3번이다. 스플래시 API 명세가 아직 없어 이 문서가 그 규칙이 남을 유일한 자리다
+>
+> **`domain.md` 13.3은 고치지 않았다.** 이미 "플랫폼별로 값을 나눠야 한다"고 정하고 있어 A안과 어긋나지 않는다 — B를 택했다면 이 문장을 걷어내야 했다.
+>
+> **에러 코드를 늘리지 않았다.** `platform` 누락·오타는 기존 400 `VALIDATION_FAILED`다. `settings-api.md` 5장이 "설정에는 고유 에러 코드가 없다"고 정하고 있다.
+>
+> **코드는 계약을 아직 따라가지 못한 상태다 — 티켓 2건을 발행했다.**
+>
+> | 티켓 | 내용 |
+> |---|---|
+> | `tickets/backend/pending/settings-version-platform-param.md` | env 2→4개 · DTO에 `platform` 필수(`DevicePlatform` 재사용) · `buildVersion` 분기 · 테스트 |
+> | `tickets/frontend/pending/settings-version-platform-param.md` | `fetchSettingsSummary`에 파라미터 추가 · `Platform.OS` 전달 |
+>
+> **배포 순서가 있다.** 서버가 `platform`을 필수로 만들기 전에 FE가 나가 있어야 한다 — 안 보내는 클라이언트는 400을 받고 설정 화면이 통째로 실패한다(`version`은 `failed_sections`가 흡수하지 않는다). 두 티켓 모두에 적어 뒀다.
 
 > **지금 당장 깨지지는 않는다.** iOS·Android의 최신 버전이 같은 동안에는 드러나지 않는다. 문제는 **한쪽 스토어 심사가 늦어지는 순간**이다.
 
