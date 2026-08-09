@@ -81,19 +81,34 @@ export class EnvironmentVariables {
    *
    * 설정 화면의 [업데이트] 배지 판정에 쓴다. **수동 기입이므로 배포 직후 갱신을 빠뜨리면
    * 배지가 늦게 뜬다** — 배포 체크리스트로 관리한다(운영 사항이지 계약이 아니다).
+   *
+   * **플랫폼별로 나눈다**(domain.md 13.3 — 스토어 심사 주기가 달라 두 값이 동시에
+   * 올라가지 않는다). 한쪽 심사가 밀리는 동안 단일 값으로 판정하면 **아직 배포되지 않은
+   * 플랫폼의 사용자에게 받을 것이 없는 [업데이트]가 노출된다.**
    */
   @IsString()
   @Matches(SEMVER_PATTERN)
-  LATEST_APP_VERSION: string;
+  LATEST_APP_VERSION_IOS: string;
+
+  @IsString()
+  @Matches(SEMVER_PATTERN)
+  LATEST_APP_VERSION_ANDROID: string;
 
   /**
    * 최소 지원 버전(semver). **강제 업데이트 판정은 스플래시 소관이고**(`splash.md`),
    * 설정 화면은 안내만 한다(`settings-api.md` 4.1) — 설정까지 들어온 세션은 이미 그 관문을
    * 통과했다. 값은 함께 내려주되 여기서 차단하지 않는다.
+   *
+   * 최신 버전과 같은 이유로 플랫폼별이다. **차단하는 쪽이라 위험이 더 크다** — 심사가
+   * 밀린 플랫폼의 값을 함께 올리면 그 사용자 전원이 업데이트할 수 없는 화면에 갇힌다.
    */
   @IsString()
   @Matches(SEMVER_PATTERN)
-  MIN_SUPPORTED_APP_VERSION: string;
+  MIN_SUPPORTED_APP_VERSION_IOS: string;
+
+  @IsString()
+  @Matches(SEMVER_PATTERN)
+  MIN_SUPPORTED_APP_VERSION_ANDROID: string;
 }
 
 /**

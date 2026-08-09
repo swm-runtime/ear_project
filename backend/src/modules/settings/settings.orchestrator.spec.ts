@@ -10,6 +10,7 @@ import { UserService } from '@/modules/user/services/user.service';
 import { UserSettingService } from '@/modules/user/services/user-setting.service';
 import {
   ConsentType,
+  DevicePlatform,
   PlaybackRate,
   SocialProvider,
   UserRole,
@@ -21,8 +22,21 @@ import { SettingsOrchestrator } from './settings.orchestrator';
 
 const USER_ID = '11111111-1111-4111-8111-111111111111';
 const NOW = new Date('2026-08-09T09:00:00.000Z');
-const LATEST_VERSION = '1.4.0';
-const MIN_SUPPORTED_VERSION = '1.1.0';
+/**
+ * **두 플랫폼의 값을 일부러 다르게 둔다.** 같은 값으로 두면 플랫폼을 잘못 골라도 테스트가
+ * 통과해, 이 분기가 실제로 동작하는지 확인할 수 없다 — Android 심사가 먼저 끝난 상황이다.
+ */
+const LATEST_VERSION_IOS = '1.4.0';
+const LATEST_VERSION_ANDROID = '1.5.0';
+const MIN_SUPPORTED_VERSION_IOS = '1.1.0';
+const MIN_SUPPORTED_VERSION_ANDROID = '1.2.0';
+
+const APP_VERSIONS: Record<string, string> = {
+  LATEST_APP_VERSION_IOS: LATEST_VERSION_IOS,
+  LATEST_APP_VERSION_ANDROID: LATEST_VERSION_ANDROID,
+  MIN_SUPPORTED_APP_VERSION_IOS: MIN_SUPPORTED_VERSION_IOS,
+  MIN_SUPPORTED_APP_VERSION_ANDROID: MIN_SUPPORTED_VERSION_ANDROID,
+};
 
 function buildUser(overrides: Partial<User> = {}): User {
   return {
@@ -91,9 +105,7 @@ describe('SettingsOrchestrator', () => {
     };
 
     const configService = {
-      get: jest.fn((key: string) =>
-        key === 'LATEST_APP_VERSION' ? LATEST_VERSION : MIN_SUPPORTED_VERSION,
-      ),
+      get: jest.fn((key: string) => APP_VERSIONS[key]),
     };
 
     orchestrator = new SettingsOrchestrator(
@@ -114,7 +126,11 @@ describe('SettingsOrchestrator', () => {
       );
 
       // when
-      const result = await orchestrator.getSummary(USER_ID, '1.4.0');
+      const result = await orchestrator.getSummary(
+        USER_ID,
+        '1.4.0',
+        DevicePlatform.IOS,
+      );
 
       // then
       expect(result.account).toMatchObject({
@@ -128,7 +144,11 @@ describe('SettingsOrchestrator', () => {
       userService.getById.mockResolvedValue(buildUser({ email: null }));
 
       // when
-      const result = await orchestrator.getSummary(USER_ID, '1.4.0');
+      const result = await orchestrator.getSummary(
+        USER_ID,
+        '1.4.0',
+        DevicePlatform.IOS,
+      );
 
       // then — null은 "등록되지 않음"이며 실패가 아니다
       expect(result.account?.email).toBeNull();
@@ -140,7 +160,11 @@ describe('SettingsOrchestrator', () => {
       userService.getById.mockResolvedValue(buildUser({ role: UserRole.USER }));
 
       // when
-      const result = await orchestrator.getSummary(USER_ID, '1.4.0');
+      const result = await orchestrator.getSummary(
+        USER_ID,
+        '1.4.0',
+        DevicePlatform.IOS,
+      );
 
       // then — role enum을 그대로 내려 클라이언트가 해석하게 하지 않는다
       expect(result.account?.isAdmin).toBe(false);
@@ -153,7 +177,11 @@ describe('SettingsOrchestrator', () => {
       );
 
       // when
-      const result = await orchestrator.getSummary(USER_ID, '1.4.0');
+      const result = await orchestrator.getSummary(
+        USER_ID,
+        '1.4.0',
+        DevicePlatform.IOS,
+      );
 
       // then
       expect(result.account?.isAdmin).toBe(true);
@@ -174,7 +202,11 @@ describe('SettingsOrchestrator', () => {
       ]);
 
       // when
-      const result = await orchestrator.getSummary(USER_ID, '1.4.0');
+      const result = await orchestrator.getSummary(
+        USER_ID,
+        '1.4.0',
+        DevicePlatform.IOS,
+      );
 
       // then
       expect(result.marketingConsent).toEqual({ isAgreed: true, agreedAt });
@@ -185,7 +217,11 @@ describe('SettingsOrchestrator', () => {
       consentService.findCurrentStates.mockResolvedValue([]);
 
       // when
-      const result = await orchestrator.getSummary(USER_ID, '1.4.0');
+      const result = await orchestrator.getSummary(
+        USER_ID,
+        '1.4.0',
+        DevicePlatform.IOS,
+      );
 
       // then
       expect(result.marketingConsent).toEqual({
@@ -198,19 +234,27 @@ describe('SettingsOrchestrator', () => {
   describe('getSummary — 버전', () => {
     it('앱 버전이 최신보다 낮으면 업데이트 안내를 켠다', async () => {
       // given / when
-      const result = await orchestrator.getSummary(USER_ID, '1.3.0');
+      const result = await orchestrator.getSummary(
+        USER_ID,
+        '1.3.0',
+        DevicePlatform.IOS,
+      );
 
       // then — 비교를 서버가 한다
       expect(result.version).toEqual({
-        latestVersion: LATEST_VERSION,
-        minSupportedVersion: MIN_SUPPORTED_VERSION,
+        latestVersion: LATEST_VERSION_IOS,
+        minSupportedVersion: MIN_SUPPORTED_VERSION_IOS,
         updateAvailable: true,
       });
     });
 
     it('앱 버전이 최신과 같으면 업데이트 안내를 끈다', async () => {
       // given / when
-      const result = await orchestrator.getSummary(USER_ID, LATEST_VERSION);
+      const result = await orchestrator.getSummary(
+        USER_ID,
+        LATEST_VERSION_IOS,
+        DevicePlatform.IOS,
+      );
 
       // then
       expect(result.version.updateAvailable).toBe(false);
@@ -218,11 +262,43 @@ describe('SettingsOrchestrator', () => {
 
     it('최소 지원 버전보다 낮아도 여기서 차단하지 않는다', async () => {
       // given — 강제 업데이트 판정은 스플래시 소관이고 설정은 안내만 한다
-      const result = await orchestrator.getSummary(USER_ID, '1.0.0');
+      const result = await orchestrator.getSummary(
+        USER_ID,
+        '1.0.0',
+        DevicePlatform.IOS,
+      );
 
       // then
       expect(result.version.updateAvailable).toBe(true);
       expect(result.settings).not.toBeNull();
+    });
+
+    it('android는 android의 값을 내려준다', async () => {
+      // given / when — 같은 요청을 플랫폼만 바꿔 보낸다
+      const result = await orchestrator.getSummary(
+        USER_ID,
+        '1.3.0',
+        DevicePlatform.ANDROID,
+      );
+
+      // then — 두 값 모두 android 것이다. 최소 지원만 ios에서 오면 화면이 두 값을 나란히 읽을 수 없다
+      expect(result.version).toEqual({
+        latestVersion: LATEST_VERSION_ANDROID,
+        minSupportedVersion: MIN_SUPPORTED_VERSION_ANDROID,
+        updateAvailable: true,
+      });
+    });
+
+    it('같은 앱 버전이라도 플랫폼에 따라 업데이트 안내가 갈린다', async () => {
+      // given — android만 1.5.0이 배포됐고 ios는 심사 대기다. 두 사용자 모두 1.4.0을 쓴다
+      const [ios, android] = await Promise.all([
+        orchestrator.getSummary(USER_ID, '1.4.0', DevicePlatform.IOS),
+        orchestrator.getSummary(USER_ID, '1.4.0', DevicePlatform.ANDROID),
+      ]);
+
+      // then — ios는 받을 것이 없으므로 배지를 띄우지 않는다. 단일 값 판정이 틀리는 지점이다
+      expect(ios.version.updateAvailable).toBe(false);
+      expect(android.version.updateAvailable).toBe(true);
     });
   });
 
@@ -232,7 +308,11 @@ describe('SettingsOrchestrator', () => {
       userSettingService.getSettings.mockResolvedValue(buildDefaultSettings());
 
       // when
-      const result = await orchestrator.getSummary(USER_ID, '1.4.0');
+      const result = await orchestrator.getSummary(
+        USER_ID,
+        '1.4.0',
+        DevicePlatform.IOS,
+      );
 
       // then
       expect(result.settings).toEqual({
@@ -249,7 +329,11 @@ describe('SettingsOrchestrator', () => {
       subscriptionService.buildPlanView.mockRejectedValue(new Error('db down'));
 
       // when
-      const result = await orchestrator.getSummary(USER_ID, '1.4.0');
+      const result = await orchestrator.getSummary(
+        USER_ID,
+        '1.4.0',
+        DevicePlatform.IOS,
+      );
 
       // then — 서버 값이 필요 없는 메뉴는 계속 동작해야 한다
       expect(result.plan).toBeNull();
@@ -263,7 +347,11 @@ describe('SettingsOrchestrator', () => {
       userService.getById.mockRejectedValue(new Error('db down'));
 
       // when
-      const result = await orchestrator.getSummary(USER_ID, '1.4.0');
+      const result = await orchestrator.getSummary(
+        USER_ID,
+        '1.4.0',
+        DevicePlatform.IOS,
+      );
 
       // then
       expect(result.account).toBeNull();
@@ -275,7 +363,9 @@ describe('SettingsOrchestrator', () => {
       userSettingService.getSettings.mockRejectedValue(new Error('db down'));
 
       // when / then
-      await expect(orchestrator.getSummary(USER_ID, '1.4.0')).rejects.toThrow();
+      await expect(
+        orchestrator.getSummary(USER_ID, '1.4.0', DevicePlatform.IOS),
+      ).rejects.toThrow();
     });
   });
 
