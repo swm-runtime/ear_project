@@ -10,6 +10,8 @@
  * - cancel-scheduled     해지 예약(중립 톤)
  * - grace                결제 문제(경고 톤)
  * - update-available     최신 아님 — S3 업데이트 배지 + [업데이트]
+ * - update-android-only  Android만 최신 아님 — platform 파라미터가 실제로 전달·판정에
+ *                        쓰이는지 화면에서 검증한다(iOS면 배지 없음, Android면 배지)
  * - admin                관리자 계정 — 리스트 맨 아래 관리자 섹션
  * - marketing-off        마케팅 수신 미동의 상태로 시작
  * - partial-error        account·plan·interest_summary 실패 — S6(상단 카드만 에러, 토글·메뉴는 동작)
@@ -21,6 +23,7 @@
  */
 import { ApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
+import type { DevicePlatform } from '@/shared/lib/device-platform';
 
 import type {
   MarketingConsentDto,
@@ -122,7 +125,29 @@ const planForScenario = (): SettingsPlanDto => {
   }
 };
 
-export const mockFetchSettingsSummary = async (): Promise<SettingsSummaryResponseDto> => {
+/**
+ * 버전 정보는 요청한 platform의 값이다(settings-api.md 4.1, 개정 2026-08-09) —
+ * 스토어 심사 주기가 달라 두 플랫폼의 최신 버전이 어긋날 수 있다. update-android-only가
+ * 그 어긋난 순간의 대역이다: platform 전달이 누락되면 두 플랫폼이 같은 판정을 받아 드러난다.
+ */
+const versionForScenario = (platform: DevicePlatform): SettingsSummaryResponseDto['version'] => {
+  if (SCENARIO === 'update-available') {
+    return { latest_version: '1.4.0', min_supported_version: '1.0.0', update_available: true };
+  }
+  if (SCENARIO === 'update-android-only') {
+    const isBehind = platform === 'android';
+    return {
+      latest_version: isBehind ? '1.4.0' : '1.0.0',
+      min_supported_version: '1.0.0',
+      update_available: isBehind,
+    };
+  }
+  return { latest_version: '1.0.0', min_supported_version: '1.0.0', update_available: false };
+};
+
+export const mockFetchSettingsSummary = async (
+  platform: DevicePlatform,
+): Promise<SettingsSummaryResponseDto> => {
   await delay(RESPONSE_DELAY_MS);
 
   if (SCENARIO === 'full-error') {
@@ -146,11 +171,7 @@ export const mockFetchSettingsSummary = async (): Promise<SettingsSummaryRespons
         },
     settings: { ...settingsState },
     marketing_consent: { ...marketingConsentState },
-    version: {
-      latest_version: SCENARIO === 'update-available' ? '1.4.0' : '1.0.0',
-      min_supported_version: '1.0.0',
-      update_available: SCENARIO === 'update-available',
-    },
+    version: versionForScenario(platform),
     failed_sections: partialFailed ? ['account', 'plan', 'interest_summary'] : [],
   };
 };

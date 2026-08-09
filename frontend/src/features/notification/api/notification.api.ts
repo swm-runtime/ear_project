@@ -1,6 +1,5 @@
-import { Platform } from 'react-native';
-
 import { apiClient } from '@/shared/api/api-client';
+import { getDevicePlatform } from '@/shared/lib/device-platform';
 
 import { IS_NOTIFICATION_API_MOCKED } from '../notification.constants';
 import type { SyncDeviceRequestDto } from './notification.dto';
@@ -22,7 +21,8 @@ export const syncDevicePermission = async (input: {
   }
   const body: SyncDeviceRequestDto = {
     push_token: input.pushToken,
-    platform: Platform.OS === 'android' ? 'android' : 'ios',
+    // 설정 조회(settings-api.md 4.1)와 같은 값 집합 — 공용 판정을 쓴다
+    platform: getDevicePlatform(),
     is_os_permission_granted: input.isOsPermissionGranted,
     app_version: input.appVersion,
   };
