@@ -1,3 +1,5 @@
+import { NOTIFICATION_COPY } from '@/features/notification';
+
 /**
  * 사용자 노출 문구(convention.md 3.5). 확정 카피는 onboarding-uiux.md와 1:1 대조한다.
  * TODO 표시 항목은 uiux 문서에 확정 카피가 없어 임시로 둔 것 — 확정 시 교체한다.
@@ -62,13 +64,12 @@ export const ONBOARDING_COPY = {
     tierNotice: '무료로 이용 중 · 하루 2편까지 재생할 수 있어요',
     start: '시작하기',
   },
-  /** O10 알림 사전 안내(onboarding-uiux.md 4.7) */
-  notification: {
-    title: '드립 도착을 알려드릴까요?',
-    description: '새 콘텐츠가 도착하면 알림 한 번만 보내드려요. 하루 1회를 넘지 않습니다',
-    allow: '알림 받기',
-    later: '나중에',
-  },
+  /**
+   * O10 알림 사전 안내 — 문구 소유는 notification.md 5장이라 그쪽 카피를 그대로 쓴다
+   * (헤드라인 "새 콘텐츠가 도착하면 알려드릴까요?" — "드립"은 카피에 쓰지 않는다, 합의 2026-08-06.
+   * onboarding-uiux.md 4.7의 옛 표기는 changes/pending에 개정 기록).
+   */
+  notification: NOTIFICATION_COPY.prePrompt,
   /**
    * O11 재고 팝업(onboarding-uiux.md 4.8).
    * 출처 있는 통계를 확보하지 못해 수치 없는 정성 문구를 쓴다(onboarding.md 4 [알림] —

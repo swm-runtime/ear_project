@@ -112,10 +112,4 @@ export interface FirstDripResponseDto {
   completed_at: string | null;
 }
 
-/** onboarding-api.md 4.9 */
-export interface SyncDeviceRequestDto {
-  push_token: string | null;
-  platform: 'ios' | 'android';
-  is_os_permission_granted: boolean;
-  app_version: string;
-}
+// 기기 동기화 DTO(onboarding-api.md 4.9)는 notification feature로 이관됐다(architecture.md 4.4)

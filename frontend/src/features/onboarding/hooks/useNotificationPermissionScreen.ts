@@ -2,15 +2,16 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
 import { BackHandler } from 'react-native';
 
+import { APP_VERSION } from '@/shared/lib/app-version';
 import { getDeviceId } from '@/shared/lib/device-id';
 import { logger } from '@/shared/lib/logger';
 
-import { APP_VERSION } from '../onboarding.constants';
-import { useSyncDevicePermissionMutation } from './useSyncDevicePermissionMutation';
 import {
   getPushToken,
   requestOsPermission,
-} from '../services/notification-permission.service';
+  useSyncDevicePermissionMutation,
+} from '@/features/notification';
+
 import { exitOnboarding } from '../services/onboarding-exit.service';
 import { useOnboardingStore } from '../store/onboarding.store';
 

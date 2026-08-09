@@ -81,7 +81,7 @@ export interface OnboardingCompleteResult {
   } | null;
 }
 
-export type OsPermissionStatus = 'granted' | 'denied' | 'undetermined';
+// OsPermissionStatus의 원 정의는 notification feature로 이관됐다(architecture.md 4.4)
 
 export type OnboardingStackParamList = {
   Topic: undefined;

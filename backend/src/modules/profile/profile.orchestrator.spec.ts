@@ -1,31 +1,23 @@
-import { Logger } from '@nestjs/common';
-
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { ContentService } from '@/modules/content/services/content.service';
-import { Topic } from '@/modules/interest/entities/topic.entity';
-import { UserInterest } from '@/modules/interest/entities/user-interest.entity';
-import { TopicService } from '@/modules/interest/services/topic.service';
 import { UserInterestService } from '@/modules/interest/services/user-interest.service';
 import { LibraryService } from '@/modules/library/library.service';
 import { PlaybackService } from '@/modules/playback/services/playback.service';
-import { Plan } from '@/modules/subscription/entities/plan.entity';
-import { Subscription } from '@/modules/subscription/entities/subscription.entity';
-import { PlanService } from '@/modules/subscription/services/plan.service';
 import { SubscriptionService } from '@/modules/subscription/services/subscription.service';
-import { SubscriptionStatus } from '@/modules/subscription/subscription.enum';
+import { PlanStatus } from '@/modules/subscription/subscription.enum';
+import { PlanView } from '@/modules/subscription/subscription.types';
 import { User } from '@/modules/user/entities/user.entity';
 import { UserService } from '@/modules/user/services/user.service';
 import { SocialProvider, UserTier } from '@/modules/user/user.enum';
 
-import { PlanStatus, ProfileSection } from './profile.enum';
+import { ProfileSection } from './profile.enum';
 import { ProfileOrchestrator } from './profile.orchestrator';
 
 /** 2026-08-08(토) 18:00 KST — 이번 주는 8-03(월)에 시작한다 */
 const NOW = new Date('2026-08-08T09:00:00.000Z');
 const USER_ID = '11111111-1111-4111-8111-111111111111';
 const TOPIC_ID = 'cccccccc-1111-4111-8111-111111111111';
-const HIDDEN_TOPIC_ID = 'dddddddd-1111-4111-8111-111111111111';
 
 function buildUser(overrides: Partial<User> = {}): User {
   return {
@@ -44,49 +36,28 @@ function buildUser(overrides: Partial<User> = {}): User {
   } as User;
 }
 
-function buildSubscription(
-  overrides: Partial<Subscription> = {},
-): Subscription {
+/** 무료 사용자 기본값 — 4분기 판정 자체는 SubscriptionService의 spec이 덮는다 */
+function buildPlanView(): PlanView {
   return {
-    id: 'sub-1',
-    userId: USER_ID,
-    tier: UserTier.PRO,
-    status: SubscriptionStatus.ACTIVE,
-    isAutoRenew: true,
-    startedAt: new Date('2026-08-01T00:00:00.000Z'),
-    expiresAt: new Date('2026-09-01T00:00:00.000Z'),
-    ...overrides,
-  } as Subscription;
-}
-
-function buildPlan(overrides: Partial<Plan> = {}): Plan {
-  return {
-    tier: UserTier.PRO,
-    name: '프로',
-    dailyPlayLimit: null,
-    ...overrides,
-  } as Plan;
-}
-
-function buildInterest(topicId: string): UserInterest {
-  return { userId: USER_ID, topicId, isActive: true } as UserInterest;
-}
-
-function buildTopic(id: string, name: string, isVisible = true): Topic {
-  return { id, name, isVisible } as Topic;
+    status: PlanStatus.FREE,
+    tier: UserTier.LIGHT,
+    planName: '라이트',
+    dailyPlayLimit: 2,
+    renewsAt: null,
+    expiresAt: null,
+    hasPaymentIssue: false,
+  };
 }
 
 describe('ProfileOrchestrator', () => {
   let orchestrator: ProfileOrchestrator;
   let userService: jest.Mocked<Pick<UserService, 'getById'>>;
   let subscriptionService: jest.Mocked<
-    Pick<SubscriptionService, 'findCurrent'>
+    Pick<SubscriptionService, 'buildPlanView'>
   >;
-  let planService: jest.Mocked<Pick<PlanService, 'findByTier'>>;
   let userInterestService: jest.Mocked<
-    Pick<UserInterestService, 'findAllActive'>
+    Pick<UserInterestService, 'buildSummary'>
   >;
-  let topicService: jest.Mocked<Pick<TopicService, 'findAllByIds'>>;
   let libraryService: jest.Mocked<
     Pick<LibraryService, 'countCompletedContents'>
   >;
@@ -103,18 +74,12 @@ describe('ProfileOrchestrator', () => {
 
   beforeEach(() => {
     userService = { getById: jest.fn().mockResolvedValue(buildUser()) };
-    subscriptionService = { findCurrent: jest.fn().mockResolvedValue(null) };
-    planService = {
-      findByTier: jest.fn().mockResolvedValue(
-        buildPlan({
-          tier: UserTier.LIGHT,
-          name: '라이트',
-          dailyPlayLimit: 2,
-        }),
-      ),
+    subscriptionService = {
+      buildPlanView: jest.fn().mockResolvedValue(buildPlanView()),
     };
-    userInterestService = { findAllActive: jest.fn().mockResolvedValue([]) };
-    topicService = { findAllByIds: jest.fn().mockResolvedValue([]) };
+    userInterestService = {
+      buildSummary: jest.fn().mockResolvedValue({ count: 0, topTopics: [] }),
+    };
     libraryService = { countCompletedContents: jest.fn().mockResolvedValue(0) };
     playbackService = {
       sumListenedSec: jest.fn().mockResolvedValue(0),
@@ -127,9 +92,7 @@ describe('ProfileOrchestrator', () => {
     orchestrator = new ProfileOrchestrator(
       userService as unknown as UserService,
       subscriptionService as unknown as SubscriptionService,
-      planService as unknown as PlanService,
       userInterestService as unknown as UserInterestService,
-      topicService as unknown as TopicService,
       libraryService as unknown as LibraryService,
       playbackService as unknown as PlaybackService,
       contentService as unknown as ContentService,
@@ -137,178 +100,44 @@ describe('ProfileOrchestrator', () => {
   });
 
   describe('getSummary — 플랜 카드', () => {
-    it('구독 행이 없으면 무료로 판정하고 요금제 한도를 함께 내려준다', async () => {
-      // given — 무료 사용자는 subscriptions 행이 없다(domain.md 8.2)
-      subscriptionService.findCurrent.mockResolvedValue(null);
-
-      // when
-      const result = await orchestrator.getSummary(USER_ID, NOW);
-
-      // then — "하루 N편"의 N은 하드코딩이 아니라 plans 값이다
-      expect(result.plan).toMatchObject({
-        status: PlanStatus.FREE,
-        tier: UserTier.LIGHT,
-        dailyPlayLimit: 2,
-        renewsAt: null,
-        expiresAt: null,
-        hasPaymentIssue: false,
-      });
-    });
-
-    it('만료·환불 행만 있으면 무료다', async () => {
-      // given
-      subscriptionService.findCurrent.mockResolvedValue(
-        buildSubscription({ status: SubscriptionStatus.EXPIRED }),
-      );
-
-      // when
-      const result = await orchestrator.getSummary(USER_ID, NOW);
-
-      // then
-      expect(result.plan?.status).toBe(PlanStatus.FREE);
-      expect(result.plan?.tier).toBe(UserTier.LIGHT);
-    });
-
-    it('자동 갱신 중이면 구독 상태이고 다음 결제일을 내려준다', async () => {
-      // given
-      subscriptionService.findCurrent.mockResolvedValue(buildSubscription());
-      planService.findByTier.mockResolvedValue(buildPlan());
-
-      // when
-      const result = await orchestrator.getSummary(USER_ID, NOW);
-
-      // then — renews_at과 expires_at은 같은 컬럼이지만 의미가 달라 필드를 나눈다
-      expect(result.plan).toMatchObject({
+    it('구독 모듈이 조립한 플랜을 그대로 싣는다', async () => {
+      // given — 4분기 판정은 SubscriptionService.buildPlanView가 소유한다.
+      // 프로필·설정이 같은 함수를 부르므로(settings-api.md 4.1) 여기서 다시 판정하지 않는다
+      const planView = {
         status: PlanStatus.SUBSCRIBED,
         tier: UserTier.PRO,
         planName: '프로',
+        dailyPlayLimit: null,
         renewsAt: new Date('2026-09-01T00:00:00.000Z'),
         expiresAt: null,
-      });
-    });
-
-    it('자동 갱신이 꺼져 있으면 해지 예약이고 이용 종료일을 내려준다', async () => {
-      // given
-      subscriptionService.findCurrent.mockResolvedValue(
-        buildSubscription({ isAutoRenew: false }),
-      );
-      planService.findByTier.mockResolvedValue(buildPlan());
+        hasPaymentIssue: false,
+      };
+      subscriptionService.buildPlanView.mockResolvedValue(planView);
 
       // when
       const result = await orchestrator.getSummary(USER_ID, NOW);
 
       // then
-      expect(result.plan).toMatchObject({
-        status: PlanStatus.CANCEL_SCHEDULED,
-        renewsAt: null,
-        expiresAt: new Date('2026-09-01T00:00:00.000Z'),
-      });
-    });
-
-    it('해지 예약(cancelled) 행은 만료 전이므로 무료로 내리지 않는다', async () => {
-      // given — domain.md 8.2: cancelled는 해지 예약이라 만료일까지 혜택이 살아 있다.
-      // 즉시 무효인 환불·철회는 refunded가 맡는다
-      subscriptionService.findCurrent.mockResolvedValue(
-        buildSubscription({
-          status: SubscriptionStatus.CANCELLED,
-          isAutoRenew: false,
-        }),
-      );
-      planService.findByTier.mockResolvedValue(buildPlan());
-
-      // when
-      const result = await orchestrator.getSummary(USER_ID, NOW);
-
-      // then
-      expect(result.plan).toMatchObject({
-        status: PlanStatus.CANCEL_SCHEDULED,
-        tier: UserTier.PRO,
-        expiresAt: new Date('2026-09-01T00:00:00.000Z'),
-      });
-    });
-
-    it('cancelled인데 자동 갱신이 켜져 있으면 경고를 남기되 화면은 그대로 그린다', async () => {
-      // given — 생기면 안 되는 조합이다(domain.md 8.2). S2S 환산이 잘못된 경우다
-      const warn = jest
-        .spyOn(Logger.prototype, 'warn')
-        .mockImplementation(() => undefined);
-      subscriptionService.findCurrent.mockResolvedValue(
-        buildSubscription({
-          status: SubscriptionStatus.CANCELLED,
-          isAutoRenew: true,
-        }),
-      );
-      planService.findByTier.mockResolvedValue(buildPlan());
-
-      // when
-      const result = await orchestrator.getSummary(USER_ID, NOW);
-
-      // then — 만료 전이라 혜택은 살아 있으므로 조회를 막지 않는다
-      expect(result.plan?.status).toBe(PlanStatus.SUBSCRIBED);
-      expect(warn).toHaveBeenCalledWith(
-        'cancelled subscription has auto renew on',
-        expect.objectContaining({ userId: USER_ID }),
-      );
-
-      warn.mockRestore();
-    });
-
-    it('결제 유예 상태면 경고 플래그를 세운다', async () => {
-      // given
-      subscriptionService.findCurrent.mockResolvedValue(
-        buildSubscription({ status: SubscriptionStatus.GRACE }),
-      );
-      planService.findByTier.mockResolvedValue(buildPlan());
-
-      // when
-      const result = await orchestrator.getSummary(USER_ID, NOW);
-
-      // then
-      expect(result.plan?.status).toBe(PlanStatus.GRACE);
-      expect(result.plan?.hasPaymentIssue).toBe(true);
+      expect(result.plan).toEqual(planView);
+      expect(subscriptionService.buildPlanView).toHaveBeenCalledWith(USER_ID);
     });
   });
 
   describe('getSummary — 관심 주제 요약', () => {
-    it('관리자가 숨긴 주제도 개수와 대표 목록에 포함한다', async () => {
-      // given — 편집 화면과 같은 기준을 써야 개수가 어긋나지 않는다
-      userInterestService.findAllActive.mockResolvedValue([
-        buildInterest(TOPIC_ID),
-        buildInterest(HIDDEN_TOPIC_ID),
-      ]);
-      topicService.findAllByIds.mockResolvedValue([
-        buildTopic(TOPIC_ID, '커리어'),
-        buildTopic(HIDDEN_TOPIC_ID, '숨긴 주제', false),
-      ]);
+    it('대표 주제 상한을 넘겨 interest 모듈에 조립을 맡긴다', async () => {
+      // given — 숨김 주제 포함·선택 순서 규칙은 UserInterestService.buildSummary가 소유한다
+      const summary = {
+        count: 3,
+        topTopics: [{ id: TOPIC_ID, name: '커리어' }],
+      };
+      userInterestService.buildSummary.mockResolvedValue(summary);
 
       // when
       const result = await orchestrator.getSummary(USER_ID, NOW);
 
-      // then
-      expect(result.interestSummary?.count).toBe(2);
-      expect(
-        result.interestSummary?.topTopics.map((topic) => topic.name),
-      ).toEqual(['커리어', '숨긴 주제']);
-    });
-
-    it('대표 주제는 앞 3개까지만 내려준다', async () => {
-      // given
-      const interests = Array.from({ length: 5 }, (_, index) =>
-        buildInterest(`topic-${index}`),
-      );
-      userInterestService.findAllActive.mockResolvedValue(interests);
-      topicService.findAllByIds.mockResolvedValue(
-        interests.map((interest, index) =>
-          buildTopic(interest.topicId, `주제${index}`),
-        ),
-      );
-
-      // when
-      const result = await orchestrator.getSummary(USER_ID, NOW);
-
-      // then — 나머지는 화면이 +N으로 접는다
-      expect(result.interestSummary?.count).toBe(5);
-      expect(result.interestSummary?.topTopics).toHaveLength(3);
+      // then — 상한(3)은 프로필 화면의 규칙이라 호출부가 정한다
+      expect(result.interestSummary).toEqual(summary);
+      expect(userInterestService.buildSummary).toHaveBeenCalledWith(USER_ID, 3);
     });
   });
 
@@ -361,7 +190,7 @@ describe('ProfileOrchestrator', () => {
   describe('getSummary — 부분 실패', () => {
     it('구독 조회만 실패하면 플랜만 비우고 나머지는 정상 응답한다', async () => {
       // given
-      subscriptionService.findCurrent.mockRejectedValue(new Error('db down'));
+      subscriptionService.buildPlanView.mockRejectedValue(new Error('db down'));
 
       // when
       const result = await orchestrator.getSummary(USER_ID, NOW);

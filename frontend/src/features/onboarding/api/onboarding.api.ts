@@ -1,5 +1,3 @@
-import { Platform } from 'react-native';
-
 import { apiClient } from '@/shared/api/api-client';
 import { generateId } from '@/shared/lib/generate-id';
 
@@ -28,7 +26,6 @@ import type {
   SaveInterestsResponseDto,
   SavePicksRequestDto,
   SavePicksResponseDto,
-  SyncDeviceRequestDto,
   TopicListResponseDto,
 } from './onboarding.dto';
 import {
@@ -40,7 +37,6 @@ import {
   mockSaveCareer,
   mockSaveInterests,
   mockSavePicks,
-  mockSyncDevice,
 } from './onboarding.mock';
 
 /* ── Query Key factory(convention.md 4.1) ── */
@@ -211,22 +207,5 @@ export const fetchFirstDripState = async (): Promise<FirstDripState> => {
   return toFirstDripState(data);
 };
 
-/** 알림 권한·푸시 토큰 반영 — 거부했을 때도 호출한다(onboarding-api.md 4.9) */
-export const syncDevicePermission = async (input: {
-  deviceId: string;
-  pushToken: string | null;
-  isOsPermissionGranted: boolean;
-  appVersion: string;
-}): Promise<void> => {
-  if (IS_ONBOARDING_API_MOCKED) {
-    await mockSyncDevice();
-    return;
-  }
-  const body: SyncDeviceRequestDto = {
-    push_token: input.pushToken,
-    platform: Platform.OS === 'android' ? 'android' : 'ios',
-    is_os_permission_granted: input.isOsPermissionGranted,
-    app_version: input.appVersion,
-  };
-  await apiClient.put(`/users/me/devices/${input.deviceId}`, body);
-};
+// 기기 동기화(onboarding-api.md 4.9)는 notification feature로 이관됐다 —
+// 온보딩·설정이 같은 엔드포인트를 쓴다(architecture.md 4.4). syncDevicePermission 참조.

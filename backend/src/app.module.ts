@@ -15,6 +15,7 @@ import { LibraryScreenModule } from '@/modules/library-screen/library-screen.mod
 import { OnboardingModule } from '@/modules/onboarding/onboarding.module';
 import { PlaybackModule } from '@/modules/playback/playback.module';
 import { ProfileModule } from '@/modules/profile/profile.module';
+import { SettingsModule } from '@/modules/settings/settings.module';
 import { UserModule } from '@/modules/user/user.module';
 
 /**
@@ -50,6 +51,7 @@ import { UserModule } from '@/modules/user/user.module';
     LibraryScreenModule,
     ExploreModule,
     ProfileModule,
+    SettingsModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

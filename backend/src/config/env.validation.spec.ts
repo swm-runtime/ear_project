@@ -13,6 +13,10 @@ describe('validateEnv', () => {
     JWT_SECRET: 'test-jwt-secret-0123456789-0123456789',
     ARCHIVE_HASH_PEPPER: 'test-archive-pepper-0123456789-0123456',
     WITHDRAWAL_HASH_PEPPER: 'test-withdrawal-pepper-0123456789-0123',
+    LATEST_APP_VERSION_IOS: '1.0.0',
+    LATEST_APP_VERSION_ANDROID: '1.0.0',
+    MIN_SUPPORTED_APP_VERSION_IOS: '1.0.0',
+    MIN_SUPPORTED_APP_VERSION_ANDROID: '1.0.0',
   };
 
   it('필수 환경 변수가 모두 있으면 숫자 타입으로 변환된 설정을 반환한다', () => {
@@ -61,5 +65,28 @@ describe('validateEnv', () => {
 
     // then
     expect(validate).toThrow(/environment validation failed/);
+  });
+
+  it('플랫폼별 버전 중 하나만 빠져도 기동을 실패시킨다', () => {
+    // given — 넷 다 필수다. 폴백을 두면 일부만 채운 배포에서 어느 값이 쓰였는지가 조용해진다
+    const config: Record<string, string> = { ...validEnv };
+    delete config.LATEST_APP_VERSION_ANDROID;
+
+    // when
+    const validate = () => validateEnv(config);
+
+    // then
+    expect(validate).toThrow(/LATEST_APP_VERSION_ANDROID/);
+  });
+
+  it('버전 값이 semver가 아니면 기동을 실패시킨다', () => {
+    // given
+    const config = { ...validEnv, MIN_SUPPORTED_APP_VERSION_IOS: '1.0' };
+
+    // when
+    const validate = () => validateEnv(config);
+
+    // then
+    expect(validate).toThrow(/MIN_SUPPORTED_APP_VERSION_IOS/);
   });
 });

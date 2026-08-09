@@ -5,9 +5,10 @@ import { BackHandler } from 'react-native';
 
 import { logger } from '@/shared/lib/logger';
 
+import { getOsPermissionStatus } from '@/features/notification';
+
 import type { OnboardingStackParamList } from '../onboarding.types';
 import { useOnboardingTopicsQuery } from './useOnboardingTopicsQuery';
-import { getOsPermissionStatus } from '../services/notification-permission.service';
 import { onboardingCompletionService } from '../services/onboarding-completion.service';
 import { exitOnboarding } from '../services/onboarding-exit.service';
 import { useOnboardingStore } from '../store/onboarding.store';

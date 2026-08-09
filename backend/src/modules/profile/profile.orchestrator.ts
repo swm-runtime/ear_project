@@ -10,21 +10,16 @@ import {
   toWeekDates,
 } from '@/common/utils/service-date.util';
 import { ContentService } from '@/modules/content/services/content.service';
-import { TopicService } from '@/modules/interest/services/topic.service';
 import { UserInterestService } from '@/modules/interest/services/user-interest.service';
 import { LibraryService } from '@/modules/library/library.service';
 import { PlaybackService } from '@/modules/playback/services/playback.service';
-import { Subscription } from '@/modules/subscription/entities/subscription.entity';
-import { SubscriptionStatus } from '@/modules/subscription/subscription.enum';
-import { PlanService } from '@/modules/subscription/services/plan.service';
 import { SubscriptionService } from '@/modules/subscription/services/subscription.service';
 import { User } from '@/modules/user/entities/user.entity';
 import { UserService } from '@/modules/user/services/user.service';
 import { toYearsOfExperienceRange } from '@/modules/user/user.constant';
-import { UserTier } from '@/modules/user/user.enum';
 
 import { TOP_TOPIC_LIMIT } from './profile.constant';
-import { PlanStatus, ProfileSection } from './profile.enum';
+import { ProfileSection } from './profile.enum';
 import {
   buildTopicDistribution,
   buildWeeklyBuckets,
@@ -32,8 +27,6 @@ import {
 } from './profile.stats';
 import {
   ProfileCareerView,
-  ProfileInterestSummaryView,
-  ProfilePlanView,
   ProfileStatsSummaryView,
   ProfileSummaryResult,
   ProfileUserView,
@@ -60,9 +53,7 @@ export class ProfileOrchestrator {
   constructor(
     private readonly userService: UserService,
     private readonly subscriptionService: SubscriptionService,
-    private readonly planService: PlanService,
     private readonly userInterestService: UserInterestService,
-    private readonly topicService: TopicService,
     private readonly libraryService: LibraryService,
     private readonly playbackService: PlaybackService,
     private readonly contentService: ContentService,
@@ -82,16 +73,22 @@ export class ProfileOrchestrator {
     const failedSections: ProfileSection[] = [];
 
     const [plan, interestSummary, stats] = await Promise.all([
-      this.buildPlan(userId).catch((error: unknown) => {
+      this.subscriptionService.buildPlanView(userId).catch((error: unknown) => {
         this.logSectionFailure(ProfileSection.PLAN, userId, error);
         failedSections.push(ProfileSection.PLAN);
         return null;
       }),
-      this.buildInterestSummary(userId).catch((error: unknown) => {
-        this.logSectionFailure(ProfileSection.INTEREST_SUMMARY, userId, error);
-        failedSections.push(ProfileSection.INTEREST_SUMMARY);
-        return null;
-      }),
+      this.userInterestService
+        .buildSummary(userId, TOP_TOPIC_LIMIT)
+        .catch((error: unknown) => {
+          this.logSectionFailure(
+            ProfileSection.INTEREST_SUMMARY,
+            userId,
+            error,
+          );
+          failedSections.push(ProfileSection.INTEREST_SUMMARY);
+          return null;
+        }),
       this.buildStats(user, now).catch((error: unknown) => {
         this.logSectionFailure(ProfileSection.STATS, userId, error);
         failedSections.push(ProfileSection.STATS);
@@ -137,69 +134,6 @@ export class ProfileOrchestrator {
   }
 
   // --- 섹션별 조립 ---
-
-  /**
-   * 플랜 카드 — **`users.tier` 캐시가 아니라 `subscriptions`를 기준으로 조립한다**
-   * (`profile-api.md` 3장 설계 메모 · domain.md 3.1).
-   *
-   * 캐시가 어긋나 있어도 여기서 고치지 않는다. 갱신 경로는 `SubscriptionService` 한 곳이며,
-   * 조회가 캐시를 쓰기 시작하면 갱신 지점이 흩어진다.
-   */
-  private async buildPlan(userId: string): Promise<ProfilePlanView> {
-    const subscription = await this.subscriptionService.findCurrent(userId);
-
-    this.warnIfContradictoryCancellation(userId, subscription);
-
-    const status = toPlanStatus(subscription);
-    const tier =
-      status === PlanStatus.FREE ? UserTier.LIGHT : subscription!.tier;
-    const plan = await this.planService.findByTier(tier);
-
-    return {
-      status,
-      tier,
-      // 요금제 행이 없으면 티어값을 그대로 보여준다 — 카드가 빈 채로 나가는 것보다 낫다
-      planName: plan?.name ?? tier,
-      dailyPlayLimit: plan?.dailyPlayLimit ?? null,
-      renewsAt:
-        status === PlanStatus.SUBSCRIBED ? subscription!.expiresAt : null,
-      expiresAt:
-        status === PlanStatus.CANCEL_SCHEDULED || status === PlanStatus.GRACE
-          ? subscription!.expiresAt
-          : null,
-      hasPaymentIssue: status === PlanStatus.GRACE,
-    };
-  }
-
-  /**
-   * 관심 주제 요약(`profile-api.md` 4.1).
-   *
-   * **숨김 주제(`topics.is_visible = false`)도 개수에 포함한다** — 편집 화면과 같은 기준을
-   * 써야 개수가 어긋나지 않는다. 그래서 노출 주제 목록이 아니라 `findAllByIds`로 이름을 붙인다.
-   *
-   * `topTopics`는 **별도 선정 기준 없이 앞 3개**다(확정 2026-08-06).
-   */
-  private async buildInterestSummary(
-    userId: string,
-  ): Promise<ProfileInterestSummaryView> {
-    const interests = await this.userInterestService.findAllActive(userId);
-    const topics = await this.topicService.findAllByIds(
-      interests.map((interest) => interest.topicId),
-    );
-    const byId = new Map(topics.map((topic) => [topic.id, topic]));
-
-    const named = interests
-      .map((interest) => byId.get(interest.topicId))
-      .filter((topic): topic is NonNullable<typeof topic> => Boolean(topic));
-
-    return {
-      // 이름을 못 붙인 주제도 사용자가 고른 것이므로 개수에서 빼지 않는다
-      count: interests.length,
-      topTopics: named
-        .slice(0, TOP_TOPIC_LIMIT)
-        .map((topic) => ({ id: topic.id, name: topic.name })),
-    };
-  }
 
   /**
    * 통계 3영역. **한 덩어리로 성공·실패한다** — 화면이 통계를 한 영역으로 실패 처리하므로
@@ -315,36 +249,6 @@ export class ProfileOrchestrator {
     return buildTopicDistribution(listenedByContent, topicViews);
   }
 
-  /**
-   * **`cancelled`인데 자동 갱신이 켜져 있는 행은 생기면 안 된다**(domain.md 8.2 —
-   * `cancelled`는 해지 예약이므로 정의상 `is_auto_renew = false`다).
-   *
-   * 생겼다면 S2S 환산이 잘못된 것이다 — 스토어마다 "cancel"이 가리키는 사건이 달라서
-   * (Play는 해지 예약, Apple은 환불·철회) 필드명을 그대로 옮기면 이 조합이 만들어진다.
-   *
-   * 조회를 막지는 않는다. 만료 전이라 혜택이 살아 있는 것은 맞으므로 화면은 그대로 그리고,
-   * **데이터가 어긋났다는 사실만 남긴다** — 결제가 붙은 뒤 이 로그가 실제로 찍히는지가
-   * 판정을 고칠지 연동을 고칠지 가르는 근거가 된다.
-   */
-  private warnIfContradictoryCancellation(
-    userId: string,
-    subscription: Subscription | null,
-  ): void {
-    if (
-      subscription?.status !== SubscriptionStatus.CANCELLED ||
-      !subscription.isAutoRenew
-    ) {
-      return;
-    }
-
-    this.logger.warn('cancelled subscription has auto renew on', {
-      userId,
-      subscriptionId: subscription.id,
-      status: subscription.status,
-      isAutoRenew: subscription.isAutoRenew,
-    });
-  }
-
   private logSectionFailure(
     section: ProfileSection,
     userId: string,
@@ -375,33 +279,4 @@ function toCareerView(user: User): ProfileCareerView {
     // 저장은 int, 계약은 구간 라벨이다(`profile-api.md` 9장 — 저장 표현은 백엔드 소관)
     yearsOfExperience: toYearsOfExperienceRange(user.yearsOfExperience),
   };
-}
-
-/**
- * `subscriptions` 행을 화면 4분기로 정규화한다(`profile-api.md` 4.1).
- *
- * **`status`와 `is_auto_renew`의 조합으로 판정하고 `expires_at`을 다시 보지 않는다.**
- * 만료 반영은 스토어 서버 알림(S2S)이 `status`를 바꿔서 하는 일이라(domain.md 8.2),
- * 조회 쪽에서 시각을 비교해 앞질러 판정하면 진실의 원천이 둘이 된다.
- */
-function toPlanStatus(subscription: Subscription | null): PlanStatus {
-  if (!subscription) {
-    return PlanStatus.FREE;
-  }
-
-  if (subscription.status === SubscriptionStatus.GRACE) {
-    return PlanStatus.GRACE;
-  }
-
-  if (
-    subscription.status === SubscriptionStatus.EXPIRED ||
-    subscription.status === SubscriptionStatus.REFUNDED
-  ) {
-    return PlanStatus.FREE;
-  }
-
-  // active · cancelled — 만료 전이며, 갈리는 것은 자동 갱신 여부뿐이다
-  return subscription.isAutoRenew
-    ? PlanStatus.SUBSCRIBED
-    : PlanStatus.CANCEL_SCHEDULED;
 }
