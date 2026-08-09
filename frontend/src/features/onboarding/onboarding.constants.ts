@@ -10,6 +10,3 @@ export const IS_ONBOARDING_API_MOCKED =
  * 이 값은 완료 응답이 도착하기 전 구간의 안전장치로만 쓴다 — 로딩 화면에 사용자를 가두지 않는다.
  */
 export const FIRST_DRIP_MAX_WAIT_FALLBACK_SEC = 15;
-
-/** TODO: expo-constants 도입 후 app.json version과 연결한다(onboarding-api.md 4.9) */
-export const APP_VERSION = '1.0.0';
