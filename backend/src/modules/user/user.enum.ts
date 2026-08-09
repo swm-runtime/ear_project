@@ -80,3 +80,18 @@ export enum ConsentType {
   PRIVACY = 'privacy',
   MARKETING = 'marketing',
 }
+
+/**
+ * domain.md 3.5 — 기본 배속의 허용값. **서버가 검증한다**(`settings-api.md` 7장) —
+ * 클라이언트를 우회해 임의 배속을 저장할 수 없어야 한다.
+ *
+ * `float` 컬럼에 저장하지만 값 집합이 닫혀 있으므로 enum으로 둔다. 숫자 enum인 이유는
+ * 저장 타입이 숫자이기 때문이다 — 문자열로 두면 DTO·Entity 경계마다 변환이 생긴다.
+ */
+export enum PlaybackRate {
+  SLOW = 0.8,
+  NORMAL = 1.0,
+  FAST = 1.2,
+  FASTER = 1.5,
+  FASTEST = 2.0,
+}

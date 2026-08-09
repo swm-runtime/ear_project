@@ -1,7 +1,9 @@
-import { SocialProvider, UserTier } from '@/modules/user/user.enum';
+import { InterestSummaryView } from '@/modules/interest/interest.types';
+import { PlanView } from '@/modules/subscription/subscription.types';
+import { SocialProvider } from '@/modules/user/user.enum';
 import { YearsOfExperienceRange } from '@/modules/user/user.enum';
 
-import { PlanStatus, ProfileSection } from './profile.enum';
+import { ProfileSection } from './profile.enum';
 
 /** convention.md 3.2 — Controller ↔ Orchestrator 경계 밖의 내부 타입 */
 
@@ -17,29 +19,9 @@ export interface ProfileUserView {
   isEmailVerified: boolean;
 }
 
-/** 플랜 카드 — `subscriptions`를 4분기로 정규화한 값(`profile-api.md` 4.1) */
-export interface ProfilePlanView {
-  status: PlanStatus;
-  tier: UserTier;
-  planName: string;
-  /** `null`은 무제한 티어. 무료 카드의 "하루 N편" 문구를 조립하는 값이다 */
-  dailyPlayLimit: number | null;
-  /** 자동 갱신 중일 때의 다음 결제일. 그 외에는 `null` */
-  renewsAt: Date | null;
-  /** 해지 예약·유예일 때의 이용 종료일. 그 외에는 `null` */
-  expiresAt: Date | null;
-  hasPaymentIssue: boolean;
-}
-
 export interface ProfileTopicView {
   id: string;
   name: string;
-}
-
-/** 관심 주제 요약 — 숨김 주제도 개수에 포함한다(`profile-api.md` 4.1) */
-export interface ProfileInterestSummaryView {
-  count: number;
-  topTopics: ProfileTopicView[];
 }
 
 /** 커리어 요약 — 세 값 모두 선택 입력이라 미입력이면 `null`이다 */
@@ -89,8 +71,8 @@ export interface TopicDistributionView {
  */
 export interface ProfileSummaryResult {
   user: ProfileUserView;
-  plan: ProfilePlanView | null;
-  interestSummary: ProfileInterestSummaryView | null;
+  plan: PlanView | null;
+  interestSummary: InterestSummaryView | null;
   career: ProfileCareerView;
   statsSummary: ProfileStatsSummaryView | null;
   weeklyListening: WeeklyListeningView | null;

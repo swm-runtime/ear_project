@@ -72,3 +72,23 @@ export interface UpdateCareerCommand {
   /** 구간 enum을 하한값(0 / 2 / 4 / 7)으로 환산한 값 */
   yearsOfExperience?: number | null;
 }
+
+/**
+ * `user_settings` 조회 결과(domain.md 3.5). **행이 없는 사용자도 기본값으로 채워진 이 모양을
+ * 받는다** — 화면이 토글 기준값 없이 낙관적 UI를 시작할 수 없기 때문이다.
+ *
+ * `sleep_timer_last_choice`는 담지 않는다 — 플레이어 소관이라 설정 경로가 다루지 않는다
+ * (`settings-api.md` 8장).
+ */
+export interface UserSettingView {
+  defaultPlaybackRate: number;
+  isAutoExpandEnabled: boolean;
+  isDripNotificationEnabled: boolean;
+}
+
+/** 부분 갱신 명령. **보내지 않은 필드는 건드리지 않는다**(`settings-api.md` 4.2) */
+export interface UpdateUserSettingCommand {
+  defaultPlaybackRate?: number;
+  isAutoExpandEnabled?: boolean;
+  isDripNotificationEnabled?: boolean;
+}

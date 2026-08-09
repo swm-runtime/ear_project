@@ -1,7 +1,8 @@
+import { PlanStatus } from '@/modules/subscription/subscription.enum';
 import { SocialProvider, UserTier } from '@/modules/user/user.enum';
 import { YearsOfExperienceRange } from '@/modules/user/user.enum';
 
-import { PlanStatus, ProfileSection } from '../profile.enum';
+import { ProfileSection } from '../profile.enum';
 import { ProfileSummaryResult } from '../profile.types';
 
 import { WeeklyListeningResponseDto } from './weekly-listening-response.dto';

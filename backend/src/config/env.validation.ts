@@ -4,11 +4,14 @@ import {
   IsInt,
   IsNotEmpty,
   IsString,
+  Matches,
   Max,
   Min,
   MinLength,
   validateSync,
 } from 'class-validator';
+
+import { SEMVER_PATTERN } from '@/common/utils/semver.util';
 
 export enum NodeEnv {
   DEVELOPMENT = 'development',
@@ -71,6 +74,26 @@ export class EnvironmentVariables {
   @IsString()
   @MinLength(32)
   WITHDRAWAL_HASH_PEPPER: string;
+
+  /**
+   * 스토어에 올라간 최신 앱 버전(semver). **테이블이 아니라 배포 설정이 원천이다**
+   * (합의 2026-08-06 — `settings-api.md` 4.1 · domain.md 13.3).
+   *
+   * 설정 화면의 [업데이트] 배지 판정에 쓴다. **수동 기입이므로 배포 직후 갱신을 빠뜨리면
+   * 배지가 늦게 뜬다** — 배포 체크리스트로 관리한다(운영 사항이지 계약이 아니다).
+   */
+  @IsString()
+  @Matches(SEMVER_PATTERN)
+  LATEST_APP_VERSION: string;
+
+  /**
+   * 최소 지원 버전(semver). **강제 업데이트 판정은 스플래시 소관이고**(`splash.md`),
+   * 설정 화면은 안내만 한다(`settings-api.md` 4.1) — 설정까지 들어온 세션은 이미 그 관문을
+   * 통과했다. 값은 함께 내려주되 여기서 차단하지 않는다.
+   */
+  @IsString()
+  @Matches(SEMVER_PATTERN)
+  MIN_SUPPORTED_APP_VERSION: string;
 }
 
 /**

@@ -11,6 +11,7 @@ import {
   MIN_SELECTABLE_TOPIC_COUNT,
 } from '../interest.constant';
 import { UserInterestSource } from '../interest.enum';
+import { InterestSummaryView } from '../interest.types';
 import { UserInterestRepository } from '../repositories/user-interest.repository';
 
 /**
@@ -32,6 +33,42 @@ export class UserInterestService {
     manager?: EntityManager,
   ): Promise<UserInterest[]> {
     return this.userInterestRepository.findAllActiveByUserId(userId, manager);
+  }
+
+  /**
+   * 관심 주제 요약 — **프로필·설정이 같은 함수를 호출한다**(`profile-api.md` 4.1 ·
+   * `settings-api.md` 4.1). 화면마다 조립하면 같은 사용자에게 다른 개수·다른 순서가 나간다.
+   *
+   * **숨김 처리된 관심 주제도 개수에 포함한다** — 편집 화면과 같은 기준을 써야 개수가 어긋나지
+   * 않는다(`interest-management.md` 7장). 그래서 노출 주제 목록이 아니라 `findAllByIds`로
+   * 이름을 붙인다.
+   *
+   * 정렬은 `findAllActive`가 주는 **선택한 순서**(`created_at`)를 그대로 쓴다 — 탐색 칩과 같은
+   * 규칙이다(`explore-api.md` 4.2-2). `topTopics`는 별도 선정 기준 없이 앞 3개다.
+   */
+  async buildSummary(
+    userId: string,
+    topTopicLimit: number,
+    manager?: EntityManager,
+  ): Promise<InterestSummaryView> {
+    const interests = await this.findAllActive(userId, manager);
+    const topics = await this.topicService.findAllByIds(
+      interests.map((interest) => interest.topicId),
+      manager,
+    );
+    const byId = new Map(topics.map((topic) => [topic.id, topic]));
+
+    const named = interests
+      .map((interest) => byId.get(interest.topicId))
+      .filter((topic): topic is NonNullable<typeof topic> => Boolean(topic));
+
+    return {
+      // 이름을 못 붙인 주제도 사용자가 고른 것이므로 개수에서 빼지 않는다
+      count: interests.length,
+      topTopics: named
+        .slice(0, topTopicLimit)
+        .map((topic) => ({ id: topic.id, name: topic.name })),
+    };
   }
 
   async findActiveTopicIds(
