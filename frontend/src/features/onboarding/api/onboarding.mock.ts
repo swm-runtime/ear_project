@@ -198,6 +198,3 @@ export const mockFetchFirstDrip = async (): Promise<FirstDripResponseDto> => {
   return { status: 'completed', library_item_count: 2, completed_at: new Date().toISOString() };
 };
 
-export const mockSyncDevice = async (): Promise<void> => {
-  await delay(RESPONSE_DELAY_MS);
-};
