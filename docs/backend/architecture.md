@@ -191,6 +191,7 @@ src/
 | LibraryScreen | Library, Playback, Content, Drip | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
 | Explore | Content, Library, Playback, Interest, Drip | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
 | Profile | User, Subscription, Interest, Library, Playback, Content | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
+| Settings | User, Subscription, Interest | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
 | *(도메인 확정 시 계속 추가)* | | |
 
 **Onboarding은 Entity를 갖지 않는다.** 온보딩은 화면 흐름이라 자기 데이터가 없고 `users` · `user_interests` · `contents` · `library_items` · `first_drip_jobs`를 횡단한다. 4.1의 "모듈은 Entity 기준으로 나눈다"의 예외이며, Repository 없이 **Orchestrator가 각 소유 모듈의 Service를 조합한다**(→ 3.3). 도메인 규칙 판정(주제 개수 상한, 발행 상태, 완료 여부)은 전부 소유 모듈의 Service에 있고 Orchestrator는 순서·조합만 담당한다.
@@ -214,6 +215,13 @@ src/
 - **`user` · `subscription`을 직접 의존한다 — `LibraryScreen` · `Explore`와 다른 점이다.** 저 둘이 두 모듈을 피한 이유는 잔여 재생 표시값을 `PlaybackService`가 조립해 주기 때문인데, **프로필은 그 값을 응답에 싣지 않는다**(`profile-api.md` 4.1에 세 필드가 없다). 프로필이 필요한 것은 계정 정보와 플랜 카드이며, 특히 플랜은 `users.tier` 캐시가 아니라 **`subscriptions`를 기준으로 조립하라**고 계약이 요구한다(`profile-api.md` 3장).
 - **캐시를 고치지 않는다.** 조회 시점에 `users.tier`가 `subscriptions`와 어긋나 있어도 응답만 `subscriptions` 기준으로 내려주고, 캐시 갱신은 `SubscriptionService` 한 곳이 한다(`domain.md` 3.1 — 갱신 경로를 한 곳으로 제한).
 - **쓰기 경로가 없다.** 프로필에서 직접 서버에 쓰는 값은 하나도 없고(`profile.md` 1장), 각 카드의 편집은 소유 화면의 API가 담당한다 — 같은 데이터를 두 화면이 각자 저장하면 규칙이 갈라진다.
+
+**Settings도 Entity를 갖지 않는다.** 설정 응답에는 계정·설정값·마케팅 동의 상태(`user` 소유 — `users` · `user_settings` · `consents`), 구독 요약(`subscription` 소유), 관심 주제 요약(`interest` 소유)이 함께 나간다. 설정은 대부분 **하위 기능으로 연결하는 허브**라(`settings-api.md` 1장) 이 모듈이 소유하는 것은 화면 조회 · 설정 값 변경 · 마케팅 동의·철회 셋뿐이고, 이메일 인증·로그아웃·탈퇴·구독 변경·관심사 변경은 각 소유 API가 담당한다. 소유 모듈들 **위에서** Orchestrator가 조합한다(→ 3.3). `/users/me/settings`와 `/users/me/consents/marketing`이 여기에 속한다.
+
+- **`user_settings`를 이 모듈이 소유하지 않는다.** 설정 화면이 그 테이블의 주 사용처이지만 **소유는 화면이 아니라 데이터 기준으로 나눈다**(→ 4.1) — `domain.md` 2장이 `user` 모듈로 지정하고 있고 Entity·Repository·Service가 전부 거기에 있다. 화면 기준으로 갈랐다면 어긋났을 근거가 둘이다: `default_playback_rate`는 **플레이어도 읽고**(`player.md` 4.2 — 사용자 전역 배속) 설정 모듈이 소유하면 플레이어가 화면 모듈에 의존하게 되며, `sleep_timer_last_choice`는 **이 화면이 아예 다루지 않는다**(`settings-api.md` 8장).
+- **`plan` · `interest_summary`는 소유 모듈의 조립 함수를 호출한다.** `settings-api.md` 4.1이 `profile-api.md` 4.1과 **같은 모양·같은 조립 함수**를 쓰라고 요구하므로 `SubscriptionService` · `UserInterestService`가 조립하고 두 화면이 그것을 부른다 — 화면마다 조립하면 같은 사용자에게 다른 구독 표시·다른 주제 개수가 나간다(`LibraryScreen`의 잔여 재생 표시값과 같은 논리).
+- **`playback`을 의존하지 않는다.** 설정 응답에는 잔여 재생 표시값이 없다 — 필요한 것은 구독 요약뿐이다.
+- **마케팅 동의를 설정 값 변경에 싣지 않는다.** 설정 값은 절대값 UPDATE인데 동의는 `consents`에 **행을 추가한다**(`domain.md` 3.2 — append-only). 저장 구조가 달라 실패·재전송 성질이 다르므로 엔드포인트를 나눈다.
 
 **`User → Subscription`은 한시적이다.** `domain.md` 2장이 `Subscription → User`(결제 반영 시 `users.tier` 갱신)를 함께 정의하고 있어, 두 방향이 동시에 성립하면 순환이 된다. Subscription 모듈이 티어 갱신을 시작하는 시점에 **탈퇴를 Orchestrator로 올려**(→ 3.3) 두 Service를 위에서 조합하고 이 의존을 제거한다.
 
