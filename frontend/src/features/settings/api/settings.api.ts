@@ -1,4 +1,5 @@
 import { apiClient } from '@/shared/api/api-client';
+import type { DevicePlatform } from '@/shared/lib/device-platform';
 
 import { IS_SETTINGS_API_MOCKED } from '../settings.constants';
 import type {
@@ -86,15 +87,20 @@ const toSettingsSummary = (dto: SettingsSummaryResponseDto): SettingsSummary => 
 
 /* ── 엔드포인트 — mock 분기는 각 함수 진입점 한 곳에서만 한다 ── */
 
-/** 설정 화면 조회(settings-api.md 4.1) — app_version은 업데이트 안내의 표시 판정용이다 */
+/**
+ * 설정 화면 조회(settings-api.md 4.1) — app_version은 업데이트 안내의 표시 판정용이다.
+ * platform은 필수다 — 최신·최소 지원 버전이 플랫폼별로 달라(스토어 심사 주기) 서버가
+ * 어느 쪽 값과 비교할지 이 값으로 정한다(domain.md 13.3, 개정 2026-08-09).
+ */
 export const fetchSettingsSummary = async (input: {
   appVersion: string;
+  platform: DevicePlatform;
 }): Promise<SettingsSummary> => {
   const data = IS_SETTINGS_API_MOCKED
-    ? await mockFetchSettingsSummary()
+    ? await mockFetchSettingsSummary(input.platform)
     : (
         await apiClient.get<SettingsSummaryResponseDto>('/users/me/settings', {
-          params: { app_version: input.appVersion },
+          params: { app_version: input.appVersion, platform: input.platform },
         })
       ).data;
   return toSettingsSummary(data);

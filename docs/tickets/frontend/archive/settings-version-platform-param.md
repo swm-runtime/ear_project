@@ -7,7 +7,27 @@
 | 발견 시점 | 2026-08-09 설정 백엔드 구현 (`feat(be)/settings`, PR #28) — 계약에 입력이 없다는 것을 백엔드가 발견 |
 | 근거 문서 | `changes/archive/settings-api-version-per-platform(be).md`(요청) · `spec/api/settings-api.md` 4.1(**반영 완료**) · `backend/domain.md` 13.3 |
 | 심각도 | **중** — 반영 전에는 화면이 정상으로 보인다. **서버가 필수로 바꾸는 순간 400이 되어 설정 화면 전체가 뜨지 않는다** |
-| 상태 | 대기 |
+| 상태 | **반영 완료** (2026-08-09, `feat(fe)/settings`) |
+
+## 처리 기록 (2026-08-09)
+
+고쳐야 할 것 1~4를 전부 반영했다.
+
+1. `fetchSettingsSummary` — `params`에 `platform` 추가. 응답 타입·변환 함수는 무변경
+2. `useSettingsQuery` — `getDevicePlatform()` 값 전달. queryKey에는 넣지 않음(티켓 지침대로)
+3. 플랫폼 판정을 **`shared/lib/device-platform.ts`로 공용화**(`DevicePlatform` 타입 + `getDevicePlatform()`).
+   `notification.api.ts`의 기존 `Platform.OS` 삼항식도 이걸로 교체 — 스플래시 구현 시 재사용한다
+4. mock — `mockFetchSettingsSummary(platform)` 시그니처 정합 + **`update-android-only` 시나리오 신설**
+   (Android만 최신 아님 — platform 전달 누락 회귀가 mock 단계에서 드러난다)
+
+**검증(에뮬레이터 실측, 2026-08-09)**
+
+- 실서버 경로: `GET /api/v1/users/me/settings?app_version=1.0.0&platform=android` 전송 확인(완료 조건 1·2)
+- mock 경로: `update-android-only`에서 Android 배지 노출 확인. 화면 코드 무변경(완료 조건 6)
+- ⚠️ **배포 순서 전제 정정** — 짝 티켓 미반영 서버는 `platform`을 "무시"하지 않고
+  **400 `VALIDATION_FAILED`로 거부한다**(전역 ValidationPipe `forbidNonWhitelisted`).
+  따라서 "FE 먼저"도 안전하지 않으며 **FE·BE가 같은 릴리스로 나가야 한다** — 통합 브랜치
+  동시 머지면 문제없다. 짝 티켓 반영 서버에서의 200 확인(완료 조건 4)은 통합 테스트에서 한다
 
 > **짝 티켓** — `tickets/backend/pending/settings-version-platform-param.md`. **이쪽이 먼저 나가거나 같은 릴리스에 함께 나가야 한다** — 서버가 `platform`을 필수로 만든 뒤에 클라이언트가 안 보내면 `VALIDATION_FAILED`다.
 >
