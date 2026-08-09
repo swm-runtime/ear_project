@@ -7,9 +7,29 @@
 | 발견 시점 | 2026-08-09 설정 백엔드 구현 (`feat(be)/settings`, PR #28) — 버전 판정 구현 중 계약에 입력이 없다는 것을 발견 |
 | 근거 문서 | `changes/archive/settings-api-version-per-platform(be).md`(요청) · `spec/api/settings-api.md` 4.1(**반영 완료**) · `backend/domain.md` 13.3 · `features/splash.md` 6장 |
 | 심각도 | **중** — 지금은 드러나지 않는다. **한쪽 스토어 심사가 밀리는 순간** 잘못된 안내가 나간다 |
-| 상태 | 대기 |
+| 상태 | **완료** (2026-08-09) — `fix(be)/settings-version-platform` |
 
-> **짝 티켓** — `tickets/frontend/pending/settings-version-platform-param.md`. **서버가 먼저 나가면 안 된다** — `platform`을 필수로 만드는 순간 값을 안 보내는 기존 클라이언트가 400을 받는다. 배포 순서는 아래 "함께 확인할 것" 참조.
+> **2026-08-09 반영 결과** — "고쳐야 할 것" 1~4를 모두 반영했다.
+>
+> - **환경 변수 2개 → 4개.** `LATEST_APP_VERSION` · `MIN_SUPPORTED_APP_VERSION`을 각각 `_IOS` / `_ANDROID`로 교체했다. **옛 이름을 폴백으로 남기지 않았다** — 넷 다 필수라 일부만 채운 배포는 기동 시점에 실패한다. `.env.example` 주석에는 왜 나눴는지(스토어 심사 주기)와 **한쪽만 배포된 동안에는 그쪽 값만 올린다**는 운영 규칙을 적었다
+> - **요청 DTO에 `platform` 필수.** `DevicePlatform`(`user.enum.ts:72`)을 그대로 재사용했다 — 티켓이 지적한 대로 기기 등록이 이미 쓰는 값 집합이라 새로 만들 것이 없었다
+> - **`buildVersion(appVersion, platform)`** — 분기는 이 메서드 안에만 있다. `semver.util.ts`는 손대지 않았다. **최소 지원 버전도 같은 플랫폼 값으로 고른다** — 두 값이 다른 플랫폼에서 오면 화면이 나란히 읽을 수 없다
+> - **테스트 4건 추가** — orchestrator 2건(android가 android 값을 받는지 / 같은 앱 버전이 플랫폼에 따라 갈리는지), env 2건(하나만 빠져도 기동 실패 / semver 아니면 실패). **두 플랫폼의 상수를 일부러 다르게 뒀다**(iOS 1.4.0 · Android 1.5.0) — 같은 값이면 분기를 잘못 타도 통과한다
+>
+> **실 서버로 확인했다.** iOS 1.4.0 / Android 1.5.0으로 어긋난 상태를 만들고 같은 `app_version=1.4.0`을 두 플랫폼으로 보냈다.
+>
+> | 요청 | latest | min | update_available |
+> |---|---|---|---|
+> | `1.4.0` + `ios` | 1.4.0 | 1.1.0 | **false** — 받을 게 없다 |
+> | `1.4.0` + `android` | 1.5.0 | 1.2.0 | **true** |
+>
+> 단일 값 판정이 틀리던 지점이 그대로 갈렸다. 에러 경로도 확인했다 — `platform` 누락 · `web` · 대문자 `IOS` · `app_version` 누락 · `1.4`(semver 아님) 전부 400 `VALIDATION_FAILED`, 인증 없음은 401이다. 환경 변수 하나를 지우고 띄우니 `environment validation failed` + 변수명만 남고 **값은 로그에 남지 않았다.**
+>
+> 단위 267 · E2E 21 · lint 0 errors · build 통과. 확인 후 테스트 계정과 `.env` 값(전부 1.0.0)은 원복했다.
+>
+> **문서는 건드리지 않았다.** 계약은 이 티켓 발행 시점에 이미 반영돼 있었다(`settings-api.md` 4.1).
+
+> **짝 티켓** — `tickets/frontend/pending/settings-version-platform-param.md`. **아직 대기다.** `platform`을 필수로 만들었으므로 **이 브랜치가 FE보다 먼저 배포되면 값을 안 보내는 클라이언트가 400을 받는다.** 통합 브랜치에서 함께 머지되면 문제가 없다 — 배포 순서는 아래 "함께 확인할 것" 참조.
 >
 > **계약은 이미 확정·반영됐다**(2026-08-09). `settings-api.md` 4.1 Request 표에 `platform`이 필수로 들어갔고, `splash.md` 6장도 같은 규칙을 따르도록 기재됐다. 이 티켓은 **코드를 계약에 맞추는 일**이다.
 

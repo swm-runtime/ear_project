@@ -50,6 +50,7 @@ export class SettingsController {
       await this.settingsOrchestrator.getSummary(
         currentUser.id,
         query.app_version,
+        query.platform,
       ),
     );
   }

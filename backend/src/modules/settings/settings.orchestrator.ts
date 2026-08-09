@@ -8,7 +8,11 @@ import { ConsentService } from '@/modules/user/services/consent.service';
 import { UserService } from '@/modules/user/services/user.service';
 import { UserSettingService } from '@/modules/user/services/user-setting.service';
 import { CURRENT_CONSENT_VERSIONS } from '@/modules/user/user.constant';
-import { ConsentType, UserRole } from '@/modules/user/user.enum';
+import {
+  ConsentType,
+  DevicePlatform,
+  UserRole,
+} from '@/modules/user/user.enum';
 import { UserSettingView } from '@/modules/user/user.types';
 
 import { ConfigService } from '@nestjs/config';
@@ -58,6 +62,7 @@ export class SettingsOrchestrator {
   async getSummary(
     userId: string,
     appVersion: string,
+    platform: DevicePlatform,
   ): Promise<SettingsSummaryResult> {
     const failedSections: SettingsSection[] = [];
 
@@ -96,7 +101,7 @@ export class SettingsOrchestrator {
       interestSummary,
       settings,
       marketingConsent,
-      version: this.buildVersion(appVersion),
+      version: this.buildVersion(appVersion, platform),
       failedSections,
     };
   }
@@ -182,16 +187,29 @@ export class SettingsOrchestrator {
   /**
    * 버전 안내. **원천은 테이블이 아니라 배포 설정이다**(합의 2026-08-06 — domain.md 13.3).
    *
+   * **두 값은 요청한 플랫폼의 것이다**(`settings-api.md` 4.1 — 스토어 심사 주기가 달라
+   * 두 플랫폼의 값이 동시에 올라가지 않는다). 단일 값으로 판정하면 한쪽 심사가 밀리는
+   * 동안 **아직 배포되지 않은 플랫폼의 사용자에게 받을 것이 없는 [업데이트]가 뜬다.**
+   *
    * **강제 업데이트 판정은 하지 않는다.** 설정까지 들어온 세션은 스플래시의 관문을 이미
    * 통과했으므로 여기서는 안내만 한다(`settings-api.md` 4.1). `minSupportedVersion`은
-   * 화면이 참고할 수 있게 함께 내려주되 이 응답이 차단하지 않는다.
+   * 화면이 참고할 수 있게 함께 내려주되 이 응답이 차단하지 않는다 — **같은 플랫폼의 값이어야
+   * 두 값을 나란히 읽을 수 있다.**
    */
-  private buildVersion(appVersion: string): AppVersionView {
-    const latestVersion = this.configService.get('LATEST_APP_VERSION', {
-      infer: true,
-    });
+  private buildVersion(
+    appVersion: string,
+    platform: DevicePlatform,
+  ): AppVersionView {
+    const isIos = platform === DevicePlatform.IOS;
+
+    const latestVersion = this.configService.get(
+      isIos ? 'LATEST_APP_VERSION_IOS' : 'LATEST_APP_VERSION_ANDROID',
+      { infer: true },
+    );
     const minSupportedVersion = this.configService.get(
-      'MIN_SUPPORTED_APP_VERSION',
+      isIos
+        ? 'MIN_SUPPORTED_APP_VERSION_IOS'
+        : 'MIN_SUPPORTED_APP_VERSION_ANDROID',
       { infer: true },
     );
 
