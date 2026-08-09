@@ -15,7 +15,7 @@ export type MainStackParamList = {
   Tabs: NavigatorScreenParams<MainTabParamList>;
   /** TODO: player feature 구현 시 교체(player.md). 지금은 플레이스홀더다 */
   Player: { contentId: string };
-  /** TODO: settings feature 구현 시 교체(settings.md). 진입점은 프로필 우상단 아이콘뿐이다 */
+  /** 설정(settings.md) — 진입점은 프로필 우상단 아이콘뿐이다 */
   Settings: undefined;
   /** TODO: subscription 화면 구현 시 교체(subscription.md) — 플랜 카드·[구독 알아보기]의 목적지 */
   Subscription: undefined;
@@ -25,6 +25,12 @@ export type MainStackParamList = {
   InterestManagement: undefined;
   /** TODO: 커리어 정보 화면 구현 시 교체(career.md) — 관심사 관리와 별도 화면이다 */
   Career: undefined;
+  /** TODO: 공지사항 인앱 화면 — 명세 작성 후 교체(settings.md 4.1, 합의 2026-08-06) */
+  Notice: undefined;
+  /** TODO: 탈퇴 화면(A 계열, auth.md 4.3) 구현 시 교체 — 설정 [회원 탈퇴]의 목적지 */
+  Withdrawal: undefined;
+  /** TODO: 관리자 페이지(admin.md 2장) 구현 시 교체 — 관리자 계정에만 진입점이 노출된다 */
+  Admin: undefined;
 };
 
 export type RootStackParamList = {

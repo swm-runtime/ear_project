@@ -6,6 +6,7 @@ import { theme } from '@/shared/theme';
 import { ExploreScreen } from '@/features/explore';
 import { LibraryScreen } from '@/features/library';
 import { ProfileScreen } from '@/features/profile';
+import { SettingsScreen } from '@/features/settings';
 
 import PlaceholderScreen from './PlaceholderScreen';
 import type { MainStackParamList, MainTabParamList } from './types';
@@ -55,13 +56,10 @@ export default function MainNavigator() {
         component={PlaceholderScreen}
         options={{ headerShown: true, headerTitle: '', headerBackTitle: '라이브러리' }}
       />
-      {/* TODO: 프로필 카드 목적지 5종 — 각 화면 구현 시 컴포넌트만 교체한다(라우트 이름 유지).
+      {/* 설정 — 앱바(뒤로 + "설정")를 화면이 직접 그린다(settings-uiux.md 4.1) */}
+      <MainStack.Screen name="Settings" component={SettingsScreen} />
+      {/* TODO: 프로필·설정 목적지 — 각 화면 구현 시 컴포넌트만 교체한다(라우트 이름 유지).
           플레이스홀더 동안은 기본 push + 헤더를 둔다: 화면 안에 돌아갈 수단이 있어야 한다 */}
-      <MainStack.Screen
-        name="Settings"
-        component={PlaceholderScreen}
-        options={{ headerShown: true, headerTitle: '', headerBackTitle: '프로필' }}
-      />
       <MainStack.Screen
         name="Subscription"
         component={PlaceholderScreen}
@@ -81,6 +79,22 @@ export default function MainNavigator() {
         name="Career"
         component={PlaceholderScreen}
         options={{ headerShown: true, headerTitle: '', headerBackTitle: '프로필' }}
+      />
+      {/* 설정 메뉴의 목적지 3종 — 공지(명세 추후)·탈퇴(auth A 계열)·관리자(admin.md) 플레이스홀더 */}
+      <MainStack.Screen
+        name="Notice"
+        component={PlaceholderScreen}
+        options={{ headerShown: true, headerTitle: '', headerBackTitle: '설정' }}
+      />
+      <MainStack.Screen
+        name="Withdrawal"
+        component={PlaceholderScreen}
+        options={{ headerShown: true, headerTitle: '', headerBackTitle: '설정' }}
+      />
+      <MainStack.Screen
+        name="Admin"
+        component={PlaceholderScreen}
+        options={{ headerShown: true, headerTitle: '', headerBackTitle: '설정' }}
       />
     </MainStack.Navigator>
   );
