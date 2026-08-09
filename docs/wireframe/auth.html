@@ -33,8 +33,11 @@
     <a href="onboarding.html">온보딩</a>
     <a href="library.html">라이브러리</a>
     <a href="explore.html">탐색</a>
+    <a href="player.html">플레이어</a>
     <a href="profile.html">프로필</a>
     <a href="settings.html">설정</a>
+    <a href="interest-management.html">관심사 관리</a>
+    <a href="career.html">커리어</a>
   </nav>
 
   <div class="notice">
@@ -424,10 +427,57 @@
       <ul class="notes">
         <li><span class="n">12</span><span>즉시 파기 대상. 라이브러리·관심사·커리어·재생 위치·재생 기록·소비 신호·설정·기기 토큰·세션·알림 로그·드립 제외 목록. <span class="ref">auth 4.3 · domain 12.3</span></span></li>
         <li><span class="n">B</span><span><b>이 섹션은 결제 이력이 있을 때만 그린다.</b> 보존 항목을 <b>삭제 항목과 나란히</b> 고지한다 — 삭제 항목만 보여주면 "전부 지워진다"고 이해한 채 탈퇴하게 된다. 근거는 전자상거래법 시행령 제6조(거래기록 5년). <span class="ref">auth 4.3-1</span></span></li>
-        <li><span class="n w">E</span><span><b>결제 이력이 없으면 A7-b가 된다 (와이어프레임 미작성).</b> 보존 섹션이 통째로 사라지고 "모든 데이터가 즉시 삭제됩니다"만 남으며, 구독 만료 동의 체크(14번)도 없다. 거래가 없으면 전자상거래법 시행령 제6조의 보존 대상이 성립하지 않아 <b>전량 즉시 파기</b>하기 때문이다(개인정보보호법 제21조 제1항). 보존 섹션을 <b>회색 처리하거나 "해당 없음"으로 남기지 않는다 — 아예 그리지 않는다.</b> 어느 변형인지는 진입 시 <code>GET /users/me/withdrawal-preview</code>가 판정한다. 클라이언트가 <code>user.tier</code>로 추측하면 결제 후 만료돼 무료로 돌아온 사용자를 "결제 이력 없음"으로 잘못 안내한다. <span class="ref">auth 4.3 · domain 12.3 · auth-api 4.6</span></span></li>
+        <li><span class="n">E</span><span><b>결제 이력이 없으면 A7-b(아래 별도 시안)가 된다.</b> 보존 섹션이 통째로 사라지고 "모든 데이터가 즉시 삭제됩니다"만 남으며, 구독 만료 동의 체크(14번)도 없다. 거래가 없으면 전자상거래법 시행령 제6조의 보존 대상이 성립하지 않아 <b>전량 즉시 파기</b>하기 때문이다(개인정보보호법 제21조 제1항). 보존 섹션을 <b>회색 처리하거나 "해당 없음"으로 남기지 않는다 — 아예 그리지 않는다.</b> 어느 변형인지는 진입 시 <code>GET /users/me/withdrawal-preview</code>가 판정한다. 클라이언트가 <code>user.tier</code>로 추측하면 결제 후 만료돼 무료로 돌아온 사용자를 "결제 이력 없음"으로 잘못 안내한다. <span class="ref">auth 4.3 · domain 12.3 · auth-api 4.6</span></span></li>
         <li><span class="n">13</span><span>활성 구독이 있을 때만 노출. <b>스토어 구독은 앱 탈퇴로 자동 해지되지 않는다.</b> 안내는 <b>텍스트로만</b> 하고 스토어로 보내는 버튼·딥링크는 두지 않는다 — 탈퇴 도중 외부 앱으로 이탈시키면 돌아오지 못한다. 해지 진입점은 설정 &gt; 구독 관리에 이미 있다. <span class="ref">auth 4.3-2 · subscription 4.5</span></span></li>
         <li><span class="n">14</span><span><b>이 체크 없이는 [탈퇴하기]가 활성화되지 않는다.</b> 구독 만료 동의는 선택이 아니라 필수 조건이다. <span class="ref">auth 4.3-2</span></span></li>
         <li><span class="n">15</span><span>사유는 선택 입력. 식별자 없이 <code>withdrawal_logs</code>에 해시로만 남는다 — 아카이브와 <b>다른 해시 키</b>를 써서 개인과 연결되지 않게 한다. <span class="ref">domain 3.4 · 11.2</span></span></li>
+      </ul>
+    </article>
+
+    <!-- A7-b -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">A7-b</span><h3>탈퇴 안내 (A7-b) — 결제 이력 없음</h3>
+        <p class="cap">보존 섹션을 그리지 않는다 · 구독 만료 동의 없음</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:24</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <span class="iconbtn"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l-6 6 6 6"/></svg></span>
+            <span class="ttl">회원 탈퇴</span>
+            <span class="iconbtn"></span>
+          </div>
+          <div class="body" style="overflow-y:auto; gap:12px">
+            <p class="h-lg" style="margin:2px 0 0">정말 떠나시나요?</p>
+
+            <div style="background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:14px">
+              <p class="t-label" style="margin:0 0 8px">바로 삭제돼요</p>
+              <p class="t-sm" style="margin:0; line-height:1.75">라이브러리에 담은 콘텐츠<br>관심 주제와 커리어 정보<br>재생 위치와 청취 기록<br>알림·재생 설정</p>
+            </div>
+
+            <p class="t-sm" style="margin:0"><b class="em">모든 데이터가 즉시 삭제됩니다.</b><span class="mk">F</span></p>
+
+            <div class="field" style="margin-top:2px">
+              <span>탈퇴 이유를 알려주세요 (선택)</span>
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l5 5 5-5"/></svg>
+            </div>
+
+            <div class="check">
+              <span class="tick on"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2l2.4 2.4L9.5 4"/></svg></span>
+              <span>안내 내용을 모두 확인했습니다</span>
+            </div>
+            <div class="sp"></div>
+          </div>
+          <div class="dock line">
+            <div class="btn" style="background:var(--danger); color:#fff">탈퇴하기</div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">F</span><span><b>보존 섹션이 화면에 없다</b> — 회색 처리·"해당 없음"이 아니라 <b>섹션 자체를 그리지 않는다.</b> 보존할 거래기록이 없으므로 5년 보관 고지는 사실과 다른 안내가 되기 때문이다(<code>retained</code>가 빈 배열이 아니라 <code>null</code>인 이유). 활성 구독이 있을 수 없으므로 <b>구독 만료 동의 체크(A7-a의 14번)도 없다</b> — 최종 확인 체크 하나로 [탈퇴하기]가 활성된다. 판정은 <code>has_payment_history: false</code>. <span class="ref">auth 4.3 · auth-api 4.6 · auth-uiux 4.5</span></span></li>
       </ul>
     </article>
 
@@ -462,7 +512,7 @@
 <!-- =================== 이메일 등록 · 코드 인증 =================== -->
 <section class="section">
   <div class="section-head">
-    <p class="sid">A9 – A18</p>
+    <p class="sid">A9 – A19</p>
     <h2>이메일 등록 · 코드 인증</h2>
     <p>제공자가 이메일을 주면 <b>가입 시점에 그대로 저장</b>되므로 그 사용자는 이 섹션의 화면을 한 번도 보지 않습니다. 여기 들어오는 사람은 이메일이 오지 않았거나 마스킹 주소(ka***@kakao.com)를 받아 <b>값이 비어 있는 계정</b>뿐입니다. 화면은 세 진입 경로(결제·설정·프로필)가 <b>그대로 공유</b>하고, 다른 것은 인증 성공 후 어디로 돌아가느냐 하나입니다.</p>
     <div class="flowbar">
@@ -663,10 +713,7 @@
               <span class="t-sm" style="color:var(--ink-3); font-variant-numeric:tabular-nums">17초 후 재전송<span class="mk">26</span></span>
             </div>
 
-            <p class="t-xs" style="margin:0">메일이 오지 않으면 스팸함을 확인해주세요.</p>
-          </div>
-          <div class="dock">
-            <div class="btn primary">확인</div>
+            <p class="t-xs" style="margin:0">메일이 오지 않으면 스팸함을 확인해주세요.<span class="mk">G</span></p>
           </div>
           <div class="homebar"></div>
         </div>
@@ -675,6 +722,7 @@
         <li><span class="n">C</span><span><b>[메일 다시 입력] — 항상 노출한다.</b> 오타를 낸 사용자의 유일한 탈출구이며, 이 버튼이 없으면 남는 선택지는 이탈뿐이다. 누르면 A9/A10으로 돌아가되 <b>직전 주소가 채워진 상태</b>로 시작한다(오타는 대개 한두 글자). 돌아가는 순간 <code>DELETE /users/me/email-verifications/:id</code>로 진행 중인 코드를 무효화한다. <b>발송 횟수 관계가 명확하다</b> — 카운터가 <code>(계정, 주소)</code> 단위이므로 <b>새 주소는 자기 몫의 5회를 새로 갖고</b>, 주소를 바꾸지 않고 그대로 다시 보내면 [재전송]과 동일하게 30초 쿨다운과 그 주소의 5회 제한이 걸린다. [재전송]을 주 액션, 이 버튼을 <b>텍스트 링크</b>로 둬서 "같은 주소로 다시"와 "주소를 바꾸러"를 구분한다. <span class="ref">auth 4.5 · auth-api 4.11</span></span></li>
         <li><span class="n">25</span><span><b>6자리 숫자, 유효 시간 3분.</b> 발송 시각 기준으로 <code>mm:ss</code> 카운트다운한다. 동시에 유효한 코드는 <b>1개</b>뿐이라 재발송하면 이전 코드는 즉시 무효다. 앱을 껐다 켜면 <b>서버가 준 만료 시각으로 다시 계산</b>하고 클라이언트 타이머를 복원하지 않는다. <span class="ref">auth 4.5 · 7</span></span></li>
         <li><span class="n">26</span><span>재발송 쿨다운 <b>30초</b>. 그동안 [재전송]은 비활성이고 <code>N초 후 재전송</code>으로 남은 시간을 표시한다. <b>쿨다운도 서버가 함께 검사한다</b> — 클라이언트 타이머만으로 막으면 우회된다. [메일 다시 입력]을 경유해도 같은 주소면 이 쿨다운을 회피할 수 없다. <span class="ref">auth 4.5</span></span></li>
+        <li><span class="n">G</span><span><b>[확인] 버튼이 없다</b> — 6칸이 모두 채워지면 <b>자동으로 검증을 요청한다</b>(uiux 확정). 6자리 붙여넣기도 지원해 메일에서 복사한 값이 한 번에 채워진다. 키보드는 숫자 전용, 백스페이스는 이전 칸으로. <span class="ref">auth-uiux 4.10</span></span></li>
       </ul>
     </article>
 
@@ -711,9 +759,6 @@
               <span class="t-sm">남은 시간 <b class="em" style="font-family:var(--mono); font-variant-numeric:tabular-nums">02:12</b></span>
               <span class="t-sm" style="color:var(--ink-3); font-variant-numeric:tabular-nums">18초 후 재전송</span>
             </div>
-          </div>
-          <div class="dock">
-            <div class="btn primary">확인</div>
           </div>
           <div class="homebar"></div>
         </div>
@@ -907,6 +952,45 @@
       </ul>
     </article>
 
+    <!-- A19 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">A19</span><h3>인증 선택 — 결제 전 · 미인증 이메일 보유</h3>
+        <p class="cap">오류 톤을 쓰지 않는다 · [이 주소로 인증]이 기본</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:24</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <span class="iconbtn"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l-6 6 6 6"/></svg></span>
+            <span class="ttl">이메일 인증</span>
+            <span class="iconbtn"></span>
+          </div>
+          <div class="body">
+            <p class="h-lg" style="margin:6px 0 0">이 주소로 메일이<br>도착하는지 확인이 필요해요<span class="mk">36</span></p>
+            <p class="t-sm" style="margin:0">결제 확인을 위해 인증된 이메일이 필요해요</p>
+
+            <div class="field filled" style="margin-top:2px">
+              <span>jiwoo@kakao.com<span class="mk">37</span></span>
+            </div>
+            <div class="grow"></div>
+          </div>
+          <div class="dock">
+            <div class="btn primary">이 주소로 인증<span class="mk">38</span></div>
+            <div class="btn quiet">다른 메일 입력<span class="mk">39</span></div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">36</span><span><code>users.email</code>에 값이 있지만 <code>is_email_verified = false</code>인 사용자가 <b>결제를 시도할 때</b> A9 대신 여기로 들어온다. <b>"인증되지 않은 이메일입니다" 같은 오류 톤을 쓰지 않는다</b> — 사용자가 뭘 잘못한 상태가 아니라 카카오가 확인해주지 않은 주소일 뿐이다. 뒤로가기로 이탈하면 결제를 진행하지 않고 인증 상태도 바뀌지 않는다 — 다음 결제 시도 시 이 화면부터 다시 시작한다. <span class="ref">auth 4.4 · auth-uiux 4.7-1</span></span></li>
+        <li><span class="n">37</span><span>저장된 주소를 <b>그대로 노출한다.</b> 어느 주소로 메일이 갈지 모른 채 [이 주소로 인증]을 누르게 하지 않는다. 이 화면은 <b>어느 주소를 쓸지만 고르는 화면</b>이다 — 두 갈래 모두 이후는 4.5의 같은 코드 규칙이다. <span class="ref">auth 4.4 · auth-uiux 4.7-1</span></span></li>
+        <li><span class="n">38</span><span><b>기본 액션.</b> 대부분은 그 주소를 그대로 쓴다. 누르면 <b>A9(입력)을 건너뛰고 바로 A12(발송)로 간다</b> — 이미 아는 주소를 다시 입력시키지 않는다. 미인증 주소로의 발송은 <code>EMAIL_ALREADY_REGISTERED</code>가 아니다 — 정상 발송된다. <span class="ref">auth-uiux 4.7-1 · 4.8 · auth-api 4.8</span></span></li>
+        <li><span class="n">39</span><span>보조 스타일. 누르면 A9으로 가되 <b>입력칸은 비워둔다</b> — 바꾸려고 누른 것이므로 기존 주소를 채워두면 지우는 수고만 늘어난다(A13의 [메일 다시 입력]이 직전 주소를 채워두는 것과 반대 — 그쪽은 오타 수정 경로다). <span class="ref">auth-uiux 4.7 · 4.7-1</span></span></li>
+      </ul>
+    </article>
+
   </div>
 </section>
 
@@ -914,7 +998,7 @@
 <section class="verify">
   <p class="sid">검토 필요</p>
   <h2>계정 플로우에서 나온 것</h2>
-  <p>화면으로 옮기니 명세만 읽을 때는 보이지 않던 빈칸이 나왔습니다. <b>V1·V2·V4·V5는 이후 결정으로 해소됐고</b>, 그 결과 새로 생긴 것이 V6·V7입니다.</p>
+  <p>화면으로 옮기니 명세만 읽을 때는 보이지 않던 빈칸이 나왔습니다. <b>V1·V2·V4·V5는 이후 결정으로, V7은 화면 보강(2026-08-09)으로 해소됐고</b>, 남은 열린 항목은 V6 하나입니다.</p>
 
   <div class="vlist">
     <div class="vitem soft">
@@ -953,10 +1037,10 @@
       <p class="where">auth 미결 / domain 15.1-3 / auth-api 9장 / 화면 A13 · A17</p>
     </div>
 
-    <div class="vitem">
-      <h3><span class="vid">V7</span>미작성 화면 3개</h3>
-      <p>이 문서는 A1–A18까지만 그려져 있습니다. 이후 결정으로 <b>세 화면이 더 필요해졌습니다</b> — <b>A19</b>(인증 선택: 저장된 미인증 주소를 그대로 인증할지 다른 주소를 쓸지), <b>A7-b</b>(결제 이력 없는 탈퇴 안내: 보존 섹션 없음), 그리고 <b>A17의 [메일 다시 입력] 활성 상태</b>는 이번에 반영했지만 A19·A7-b는 아직 화면이 없습니다.</p>
-      <p class="where">auth-uiux 2장 · 4.5 · 4.7-1 / 화면 A7 · A19</p>
+    <div class="vitem soft">
+      <h3><span class="vid">V7</span>미작성 화면 — <b>해소됨 (2026-08-09 보강)</b></h3>
+      <p><b>A19</b>(인증 선택)와 <b>A7-b</b>(결제 이력 없는 탈퇴 안내)를 이번 보강으로 작도해 A1–A19가 전부 채워졌습니다. 함께, A13·A14에 그려져 있던 <b>[확인] 버튼을 제거</b>했습니다 — auth-uiux 4.10이 "6칸이 채워지면 자동 검증, 별도 [확인] 버튼을 두지 않는다"로 확정한 것과 어긋나던 지점입니다(주석 G). <b>auth-uiux.md의 "와이어프레임 동기화 필요" 표기는 개정 발행·반영이 끝났습니다</b> — <code>changes/archive/auth-uiux-wireframe-sync-note(fe).md</code>(2026-08-09, 동기화 노트·9장 미결 갱신됨). A13의 [메일 다시 입력]은 그 표기와 달리 이미 반영돼 있었습니다.</p>
+      <p class="where">auth-uiux 2장 · 4.5 · 4.7-1 · 4.10 / 화면 A7-b · A13 · A14 · A19</p>
     </div>
   </div>
 </section>
