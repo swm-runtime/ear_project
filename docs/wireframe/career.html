@@ -75,7 +75,7 @@
           <div class="appbar">
             <span class="iconbtn plain"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 4L6.5 10l6 6"/></svg></span>
             <p class="ttl">커리어 정보<span class="mk">1</span></p>
-            <span style="width:20px"></span>
+            <span class="t-sm" style="color:var(--ink-2); font-weight:650">초기화<span class="mk">9</span></span>
           </div>
           <div class="body">
             <p class="t-sm" style="margin:2px 0 0">추천을 더 정확하게 하는 데만 쓰여요<span class="mk">2</span></p>
@@ -112,7 +112,8 @@
         <li><span class="n">2</span><span>용도 안내는 온보딩 O4와 같은 문구를 쓴다. 커리어는 추천 랭킹의 보조 신호일 뿐 — 드립 편성 대상(관심 주제)과 역할이 달라 화면도 분리됐다. <span class="ref">career 1 · onboarding 4-[2]</span></span></li>
         <li><span class="n">3</span><span>연차 구간 enum(0-1 / 2-3 / 4-6 / 7+)은 온보딩과 같은 값 체계다. 선택된 구간을 다시 탭하면 해제된다 — 값을 비우는 경로가 있어야 "비워 저장"(4.2)이 성립한다. <span class="ref">career 3 · 4.2</span></span></li>
         <li><span class="n">4</span><span>[저장]은 변경 사항이 있을 때만 활성. 저장 중에는 버튼 로딩 + 조작 차단. 성공 시 토스트 후 이전 화면 복귀 — 프로필·설정의 요약은 복귀 시 재조회된다. <span class="ref">career 4.1 · 4.2 · 5</span></span></li>
-        <li><span class="n w">A</span><span>직무의 입력 방식이 문서 간 어긋난다 — <b>career.md 4.1은 "선택형"</b>인데 온보딩 시안(O4)은 자유 입력 필드(placeholder "예) 서비스 기획자")로 그려져 있다. 두 화면은 같은 값 체계를 써야 하므로 어느 쪽인지 확정이 필요하다 — 검증 V1. 이 시안은 온보딩과의 일관을 우선해 입력 필드로 뒀다. <span class="ref">career 3 · 4.1 · onboarding-uiux 4.3</span></span></li>
+        <li><span class="n">A</span><span>직무는 <b>자유 입력</b>이다 — 검토 결정(2026-08-09, V1 해소): 온보딩과 동일하게 간다. 온보딩은 문서·계약 모두 입력형으로 일관하고(onboarding-uiux 4.3 "직무(입력)", api 100자 상한) career.md 4.1의 "선택형" 표기만 어긋나 있어 개정을 발행·반영했다(2026-08-09) — <code>changes/archive/career-job-title-input(fe).md</code>. <span class="ref">career 3 · 4.1 · onboarding-uiux 4.3 · onboarding-api 4.4</span></span></li>
+        <li><span class="n">9</span><span><b>[초기화] — 검토 결정(2026-08-09)으로 추가.</b> 탭하면 세 필드를 전부 비워 미입력 상태로 만든다. <b>확인 팝업 없이 즉시</b> — 저장 전의 로컬 편집 조작이라 재입력으로 복구되고, 실수로 비워도 저장하지 않고 나가면 서버 값이 그대로다. 비운 상태는 <b>변경 있음으로 취급</b>되어 [저장]이 활성되고, 빈 값 저장은 4.2가 이미 허용한다("미입력 상태로 되돌아간다"). [저장]과 오탭 거리를 두려고 dock이 아니라 앱바 우측에 둔다. <b>비울 것이 없으면(현재 값·편집 모두 빈 상태) 비활성</b>(CR2). 문서 개정 발행·반영 완료(2026-08-09, career.md 4.1·5장) — <code>changes/archive/career-reset-button(fe).md</code>. <span class="ref">career 4.1 · 4.2 · 검토 2026-08-09</span></span></li>
       </ul>
     </article>
 
@@ -129,7 +130,7 @@
           <div class="appbar">
             <span class="iconbtn plain"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 4L6.5 10l6 6"/></svg></span>
             <p class="ttl">커리어 정보</p>
-            <span style="width:20px"></span>
+            <span class="t-sm" style="color:var(--ink-3); opacity:.45; font-weight:650">초기화<span class="mk">10</span></span>
           </div>
           <div class="body">
             <p class="t-sm" style="margin:2px 0 0">입력하면 추천이 정확해져요<span class="mk">5</span></p>
@@ -163,6 +164,7 @@
       </div>
       <ul class="notes">
         <li><span class="n">5</span><span>미입력 변형의 유도 문구는 프로필 카드의 미입력 문구와 같은 문자열이다("입력하면 추천이 정확해져요"). <b>입력을 강제하는 지점은 어디에도 없다</b> — 온보딩에서 건너뛴 값을 다시 요구하는 유도 화면을 만들지 않는 원칙 그대로다. <span class="ref">career 3 · 5 · profile-uiux 4.5 · onboarding 4-[2]</span></span></li>
+        <li><span class="n">10</span><span>[초기화]는 <b>비울 것이 없으면 비활성</b>이다 — 미입력 상태에서 누를 수 있으면 아무 일도 안 하는 버튼이 된다. 무반응 비활성이지만 여기서는 이유가 화면에 이미 보인다(모든 필드가 비어 있음). <span class="ref">career 5 · 검토 2026-08-09</span></span></li>
       </ul>
     </article>
 
@@ -200,7 +202,7 @@
       </div>
       <ul class="notes">
         <li><span class="n">6</span><span>시트에 <b>[선택 안 함]을 둔다</b> — 값을 비워 저장하는 것이 허용되므로(미입력 상태로 되돌아감) 한 번 고른 값을 비우는 경로가 필요하다. 고르면 시트가 닫히고 필드에 반영되며, 이 시점에는 저장되지 않는다 — 반영은 [저장]에서 일괄이다. <span class="ref">career 4.2</span></span></li>
-        <li><span class="n w">B</span><span><b>직군·직무 선택지 목록의 원천(서버 제공 vs 클라이언트 상수)이 미결</b>이다(career.md 미결 — 온보딩과 공용이므로 온보딩 쪽 결정을 따른다). 시트의 항목은 예시이며 확정 목록이 아니다 — 검증 V1. <span class="ref">career 미결</span></span></li>
+        <li><span class="n w">B</span><span><b>직군 선택지 목록의 원천(서버 제공 vs 클라이언트 상수)이 미결</b>이다(career.md 미결 — 온보딩과 공용이므로 온보딩 쪽 결정을 따른다. 직무는 자유 입력으로 확정돼 목록이 없다 — 검증 V1 ①). 시트의 항목은 예시이며 확정 목록이 아니다. <span class="ref">career 미결</span></span></li>
       </ul>
     </article>
 
@@ -314,9 +316,9 @@
   <p>확인 팝업 없는 저장·비워 저장 허용·이탈 확인은 career.md에서 확정되어 화면에 반영했습니다. spec(api·uiux)은 이 시안 검토 후 작성합니다 — career.md 미결에도 "spec·와이어프레임 미작성"으로 기록돼 있던 항목 중 와이어프레임이 이 문서로 채워집니다.</p>
 
   <div class="vlist">
-    <div class="vitem">
-      <h3><span class="vid">V1</span>직군·직무 입력 방식과 선택지 원천</h3>
-      <p>두 가지가 열려 있다. ① career.md 4.1은 직무를 "선택형"이라 하는데 온보딩 시안(O4)은 자유 입력으로 그려져 있다 — 같은 컬럼을 쓰므로 한쪽으로 확정해야 한다(이 시안은 온보딩과의 일관을 우선해 입력 필드로 뒀다). ② 직군·직무 선택지 목록의 원천(서버 제공 vs 클라이언트 상수)이 미결이다 — 온보딩 쪽 결정을 따르기로 돼 있으나 온보딩도 아직 정하지 않았다. api 명세 작성 전에 확정이 필요하다.</p>
+    <div class="vitem soft">
+      <h3><span class="vid">V1</span>직군·직무 입력 방식과 선택지 원천 — ①은 해소 (검토 결정 2026-08-09)</h3>
+      <p>① <b>직무 입력 방식 — 해소.</b> 온보딩과 동일하게 <b>자유 입력</b>으로 확정했다. 온보딩은 문서·계약 모두 입력형으로 일관하고(onboarding-uiux 4.3 · onboarding-api 100자 상한) career.md 4.1의 "선택형" 표기만 어긋난 것이라, 개정을 발행·반영했다 — <code>changes/archive/career-job-title-input(fe).md</code>(2026-08-09, 반영 완료). ② <b>직군 선택지 목록의 원천</b>(서버 제공 vs 클라이언트 상수)은 여전히 미결이다 — 온보딩 쪽 결정을 따르기로 돼 있으나 온보딩도 아직 정하지 않았다. api 명세 작성 전에 확정이 필요하다.</p>
       <p class="where">career 3 · 4.1 · 미결 / onboarding 3 / 화면 CR1 · CR3</p>
     </div>
 

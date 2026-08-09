@@ -78,7 +78,7 @@
             <span class="iconbtn plain"><svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><circle cx="4" cy="10" r="1.7"/><circle cx="10" cy="10" r="1.7"/><circle cx="16" cy="10" r="1.7"/></svg><span class="mk">2</span></span>
           </div>
           <div class="body pad-b" style="gap:14px">
-            <div class="art a1" style="width:100%; height:206px; border-radius:18px"></div>
+            <div class="art a1" style="width:100%; aspect-ratio:1/1; border-radius:18px"></div>
             <div class="stack" style="gap:5px">
               <p class="h-lg" style="margin:0">출근길 30분, 협상의 심리학</p>
               <p class="t-sm" style="margin:0">
@@ -86,7 +86,8 @@
                 <span style="color:var(--accent); font-weight:650; margin-left:6px">원문 보기<span class="mk">3</span></span>
               </p>
             </div>
-            <div class="stack" style="gap:6px; margin-top:2px">
+            <div class="grow"></div>
+            <div class="stack" style="gap:6px">
               <div class="bar" style="height:4px"><i style="width:38%"></i></div>
               <div style="display:flex; justify-content:space-between">
                 <span class="t-xs" style="font-family:var(--mono); font-variant-numeric:tabular-nums">09:12</span>
@@ -105,8 +106,7 @@
                 <svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M13 4a9 9 0 1 0 8.6 6.4"/><path d="M22 4v6h-6" stroke-linejoin="round"/><text x="9" y="17" font-size="7.5" fill="currentColor" stroke="none" font-weight="700">30</text></svg>
               </span>
             </div>
-            <div class="grow"></div>
-            <div style="display:flex; align-items:center; justify-content:space-between; padding:0 6px">
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:0 6px; margin-top:4px">
               <span class="chip sm" style="font-family:var(--mono)">1.2×<span class="mk">6</span></span>
               <span class="chip sm">타이머<span class="mk">7</span></span>
               <span class="chip sm">스크립트<span class="mk">8</span></span>
@@ -116,8 +116,8 @@
         </div>
       </div>
       <ul class="notes">
-        <li><span class="n">1</span><span>상단 셰브론은 <b>플레이어를 내리는 조작</b>이다 — 재생은 유지되고 미니플레이어로 접힌다. 뒤로가기도 같다. 재생을 멈추는 조작은 일시정지뿐이다. <span class="ref">player 5 · library 4.2</span></span></li>
-        <li><span class="n">2</span><span>더보기(⋯) → PL7 시트. 공유 · 원문 보기 · 라이브러리에서 삭제. <span class="ref">player 3</span></span></li>
+        <li><span class="n">1</span><span>플레이어를 접는 조작은 셋이고 전부 같은 동작이다 — <b>상단 셰브론 탭 · 뒤로가기 · 화면을 아래로 스와이프</b>(검토 추가 2026-08-09, 풀스크린 플레이어의 표준 제스처). 재생은 유지되고 미니플레이어로 접힌다. 재생을 멈추는 조작은 일시정지뿐이다. 스와이프 축소는 player.md 3장 조작 목록에 반영됐다(개정 2026-08-09 — 검증 V3). <span class="ref">player 3 · 5 · library 4.2</span></span></li>
+        <li><span class="n">2</span><span>더보기(⋯) → PL7 시트. 원문 보기 · 라이브러리에서 삭제 — 공유(P1)는 미노출. <span class="ref">player 3</span></span></li>
         <li><span class="n">3</span><span><b>저자·출처는 상시 노출</b>이고(FR-12), <code>source_url</code>이 있을 때만 [원문 보기]를 노출한다 → 인앱 브라우저. 탭 이벤트는 <code>source_link_clicks</code>에 적재된다(확정 2026-08-06 — <code>user_signals</code>는 스코어링 전용이라 쓰지 않는다). 파트너 정산 지표(<code>content_stats.source_link_click_count</code>)의 원천이다. <span class="ref">player 4.5 · domain 6.6 · partner-control 4.6</span></span></li>
         <li><span class="n">4</span><span>시크바 드래그 중에는 <b>위치 라벨만 갱신</b>하고 손을 뗀 시점에 seek한다. 시크로 건너뛴 구간은 "들은 것"이 아니다 — 완청 판정은 <code>max_reached_sec</code>(연속 도달 최대 위치) 기준이라 <b>90% 지점으로 점프한 것은 완청이 아니다</b>(2배속으로 끝까지 들은 것은 완청이다). <code>seek</code>·<code>rate_change</code>는 신호로 기록하지 않는다. <span class="ref">player 4.2 · 4.4 · 7</span></span></li>
         <li><span class="n">5</span><span>재생이 <b>실제로 시작된 시점</b>에 서버가 묶어서 처리한다 — <code>unplayed → in_progress</code>, 무료 카운트 +1(<code>play_records</code> upsert, 04시 경계), <code>user_signals(play)</code>, 드립 제외 적재. 위치 저장은 5초 주기 + 일시정지·이탈·백그라운드 진입 시점. 실제 청취 시간(<code>listened_sec</code>)도 재생 종료 시점마다 누적한다(원천 로그는 MVP부터). <span class="ref">player 4.1 · 4.3 · 4.4-1 · paywall 4.3</span></span></li>
@@ -143,12 +143,13 @@
             <span class="iconbtn plain"><svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><circle cx="4" cy="10" r="1.7"/><circle cx="10" cy="10" r="1.7"/><circle cx="16" cy="10" r="1.7"/></svg></span>
           </div>
           <div class="body pad-b" style="gap:14px">
-            <div class="art a3" style="width:100%; height:206px; border-radius:18px"></div>
+            <div class="art a3" style="width:100%; aspect-ratio:1/1; border-radius:18px"></div>
             <div class="stack" style="gap:5px">
               <p class="h-lg" style="margin:0">스타트업 첫 90일의 실수들<span class="mk">9</span></p>
               <p class="t-sm" style="margin:0">박이어 · 이어 스튜디오 <span style="color:var(--accent); font-weight:650; margin-left:6px">원문 보기</span></p>
             </div>
-            <div class="stack" style="gap:6px; margin-top:2px">
+            <div class="grow"></div>
+            <div class="stack" style="gap:6px">
               <div class="bar" style="height:4px"><i style="width:12%"></i></div>
               <div style="display:flex; justify-content:space-between">
                 <span class="t-xs" style="font-family:var(--mono); font-variant-numeric:tabular-nums">02:58</span>
@@ -167,8 +168,7 @@
                 <svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M13 4a9 9 0 1 0 8.6 6.4"/><path d="M22 4v6h-6" stroke-linejoin="round"/><text x="9" y="17" font-size="7.5" fill="currentColor" stroke="none" font-weight="700">30</text></svg>
               </span>
             </div>
-            <div class="grow"></div>
-            <div style="display:flex; align-items:center; justify-content:space-between; padding:0 6px; opacity:.5">
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:0 6px; margin-top:4px; opacity:.5">
               <span class="chip sm" style="font-family:var(--mono)">1.2×</span>
               <span class="chip sm">타이머</span>
               <span class="chip sm">스크립트</span>
@@ -187,7 +187,7 @@
     <article class="shot">
       <div class="shot-head">
         <span class="shot-id">PL3</span><h3>재생 완료</h3>
-        <p class="cap">자동 이탈 없음 · [다시 듣기]</p>
+        <p class="cap">자동 이탈 없음 · 레이아웃 유지 · ▶ = 처음부터</p>
       </div>
       <div class="device">
         <div class="island"></div>
@@ -199,31 +199,44 @@
             <span class="iconbtn plain"><svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><circle cx="4" cy="10" r="1.7"/><circle cx="10" cy="10" r="1.7"/><circle cx="16" cy="10" r="1.7"/></svg></span>
           </div>
           <div class="body pad-b" style="gap:14px">
-            <div class="art a1" style="width:100%; height:206px; border-radius:18px">
+            <div class="art a1" style="width:100%; aspect-ratio:1/1; border-radius:18px">
               <span class="done-mark" style="width:22px; height:22px; top:8px; left:8px"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2l2.4 2.4L9.5 4"/></svg></span>
             </div>
             <div class="stack" style="gap:5px">
               <p class="h-lg" style="margin:0">출근길 30분, 협상의 심리학</p>
               <p class="t-sm" style="margin:0">김이어 · 이어 스튜디오 <span style="color:var(--accent); font-weight:650; margin-left:6px">원문 보기</span></p>
             </div>
-            <div class="stack" style="gap:6px; margin-top:2px">
+            <div class="grow"></div>
+            <div class="stack" style="gap:6px">
               <div class="bar" style="height:4px"><i style="width:100%"></i></div>
               <div style="display:flex; justify-content:space-between">
                 <span class="t-xs" style="font-family:var(--mono); font-variant-numeric:tabular-nums">24:30</span>
                 <span class="t-xs" style="font-family:var(--mono); font-variant-numeric:tabular-nums">24:30</span>
               </div>
             </div>
-            <div class="grow"></div>
-            <div class="btn primary">
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3a7 7 0 1 1-6.7 5"/><path d="M3 3v5h5"/></svg>
-              다시 듣기<span class="mk w">A</span>
+            <div style="display:flex; align-items:center; justify-content:center; gap:26px; margin-top:2px">
+              <span class="iconbtn" style="width:44px; height:44px; color:var(--ink)">
+                <svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M13 4a9 9 0 1 1-8.6 6.4"/><path d="M4 4v6h6" stroke-linejoin="round"/><text x="9" y="17" font-size="7.5" fill="currentColor" stroke="none" font-weight="700">15</text></svg>
+              </span>
+              <span class="playbtn" style="width:64px; height:64px">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path d="M6 3.8v12.4c0 .9 1 1.5 1.8 1L17 11a1.2 1.2 0 0 0 0-2L7.8 2.8c-.8-.5-1.8.1-1.8 1z"/></svg>
+                <span class="mk w">A</span>
+              </span>
+              <span class="iconbtn" style="width:44px; height:44px; color:var(--ink-3)">
+                <svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M13 4a9 9 0 1 0 8.6 6.4"/><path d="M22 4v6h-6" stroke-linejoin="round"/><text x="9" y="17" font-size="7.5" fill="currentColor" stroke="none" font-weight="700">30</text></svg>
+              </span>
+            </div>
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:0 6px; margin-top:4px">
+              <span class="chip sm" style="font-family:var(--mono)">1.2×</span>
+              <span class="chip sm">타이머</span>
+              <span class="chip sm">스크립트</span>
             </div>
           </div>
           <div class="homebar"></div>
         </div>
       </div>
       <ul class="notes">
-        <li><span class="n">A</span><span>90% 도달 → <code>status = completed</code> + <code>user_signals(complete)</code>. 완료돼도 <b>화면을 자동으로 닫지 않고</b> [다시 듣기]로 전환한다. 재청취는 <code>replay</code> 신호로 기록된다. <b>단, 완청 콘텐츠를 다른 서비스 날짜에 재청취할 때의 한도 차감 여부는 팀 결정 대기다</b>(changes/pending — 현행 규칙으로는 새로 차감되고, 한도 소진 시 재생 확인·페이월 게이트를 다시 거친다). 결정에 따라 이 버튼의 게이트 경유가 달라진다. <span class="ref">player 4.4 · 5 · paywall 4.3 · changes/pending</span></span></li>
+        <li><span class="n">A</span><span>90% 도달 → <code>status = completed</code> + <code>user_signals(complete)</code>. 완료돼도 <b>화면을 자동으로 닫지 않고, 레이아웃도 바꾸지 않는다</b> — 일시정지 상태와 같은 화면에 위치만 끝(100%)이고, <b>▶를 탭하면 처음(위치 0)부터 다시 재생된다</b>(검토 결정 2026-08-09 — player.md 5장에 반영 완료. 개정 기록: <code>changes/archive/player-complete-replay-control(fe).md</code>). [15초 뒤로]로 끝부분만 되짚는 것도 그대로 된다. 재청취는 <code>replay</code> 신호로 기록된다. <b>단, 완청 콘텐츠를 다른 서비스 날짜에 재청취할 때의 한도 차감 여부는 팀 결정 대기다</b>(changes/pending — 현행 규칙으로는 새로 차감되고, 한도 소진 시 재생 확인·페이월 게이트를 다시 거친다). 결정에 따라 이 ▶의 게이트 경유가 달라진다. <span class="ref">player 4.4 · 5 · paywall 4.3 · changes/pending</span></span></li>
       </ul>
     </article>
 
@@ -351,7 +364,7 @@
     <article class="shot">
       <div class="shot-head">
         <span class="shot-id">PL7</span><h3>더보기 시트</h3>
-        <p class="cap">공유 · 원문 보기 · 라이브러리에서 삭제</p>
+        <p class="cap">L4·E12와 같은 문법 — 대상 요약 · 액션 행 · [닫기] · 공유(P1) 미노출</p>
       </div>
       <div class="device">
         <div class="island"></div>
@@ -364,24 +377,27 @@
           <div class="veil"></div>
           <div class="sheet">
             <div class="grip"></div>
-            <div class="row">
-              <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="10" r="2.2"/><circle cx="15" cy="4.5" r="2.2"/><circle cx="15" cy="15.5" r="2.2"/><path d="M7 9l6-3.4M7 11l6 3.4"/></svg>
-              공유<span class="mk w">B</span>
+            <div class="item" style="padding:6px 2px 10px">
+              <div class="art sm a1"></div>
+              <div class="meta"><span class="ttl">출근길 30분, 협상의 심리학</span><span class="sub">이어 스튜디오<span class="dot"></span>김이어<span class="dot"></span>24분<span class="mk">D</span></span></div>
             </div>
+            <div style="height:1px; background:var(--line)"></div>
             <div class="row">
               <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 11.5L17 3M17 3h-5M17 3v5"/><path d="M15 11v5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 3 16V7a1.5 1.5 0 0 1 1.5-1.5H9"/></svg>
-              원문 보기
+              원문 보기<span class="mk w">B</span>
             </div>
             <div class="row danger">
               <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5.5h13M8 5.5V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.5M5.5 5.5l1 11a1.5 1.5 0 0 0 1.5 1.4h4a1.5 1.5 0 0 0 1.5-1.4l1-11"/></svg>
               라이브러리에서 삭제<span class="mk w">C</span>
             </div>
+            <div class="btn outline" style="margin-top:2px">닫기</div>
           </div>
           <div class="homebar"></div>
         </div>
       </div>
       <ul class="notes">
-        <li><span class="n w">B</span><span>더보기 구성은 명세의 조작 목록(공유·원문 보기·라이브러리에서 삭제) 그대로다. 다만 <b>공유의 대상·형식(딥링크·랜딩 페이지)이 어느 문서에도 정의돼 있지 않다</b> — 검증 V3. <span class="ref">player 3</span></span></li>
+        <li><span class="n">D</span><span><b>시트 문법을 L4·E12와 통일했다</b>(검토 결정 2026-08-09) — 대상 요약(썸네일·제목·출처·저자·길이) 상단 + 좌측 정렬 액션 행 + [닫기]. 대상 요약을 두는 근거도 같다 — 시트가 올라오면 화면이 딤 처리되므로, 삭제 대상을 눈으로 확인하지 못한 채 파괴적 액션을 누르게 하지 않는다. 라이브러리에서 빼는 조작은 세 화면 모두 위험색이다. <span class="ref">library-uiux 4.7 · explore-uiux 4.4</span></span></li>
+        <li><span class="n w">B</span><span><b>공유는 그리지 않았다</b> — FR-27(OS 공유)이 합의(2026-08-06)로 <b>MVP 제외 확정</b>이라 라이브러리·탐색 더보기와 통일했다(검토 결정 2026-08-09). player.md 3장 조작 목록의 "공유" 표기는 이 합의와 어긋나 개정 기록이 필요하다 — 검증 V3. <b>P1에서 공유가 활성화되면 형태는 탐색 정의를 따른다</b>(E12 — 담기/제거 아래 [공유] 추가, OS 공유 시트, 텍스트 = 제목 + 저자·출처 + 스토어 링크). <b>[원문 보기]는 화면 상시 노출(FR-12)과 중복이라 세 화면 더보기의 통일 방향이 열려 있다</b> — 검증 V6. <span class="ref">player 3 · 4.5 · explore 4.6 · explore-uiux 4.4 · library-uiux 4.7</span></span></li>
         <li><span class="n w">C</span><span>삭제 규칙(소프트 삭제 · 스낵바 5초 실행취소 · 진행 기록 유지)은 <b>라이브러리 소유</b>다. 삭제 직후 <b>플레이어 화면을 어떻게 할지(닫기 vs 재생 유지)는 명세에 없다</b> — 검증 V2. <span class="ref">library 4.5 · player 3</span></span></li>
       </ul>
     </article>
@@ -465,12 +481,13 @@
             <span class="ttl"></span><span style="width:20px"></span>
           </div>
           <div class="body pad-b" style="gap:14px">
-            <div class="art a6" style="width:100%; height:206px; border-radius:18px"></div>
+            <div class="art a6" style="width:100%; aspect-ratio:1/1; border-radius:18px"></div>
             <div class="stack" style="gap:5px">
               <p class="h-lg" style="margin:0">데이터로 말하는 회의의 기술</p>
               <p class="t-sm" style="margin:0">정이어 · 이어 스튜디오</p>
             </div>
-            <div class="stack" style="gap:6px; margin-top:2px">
+            <div class="grow"></div>
+            <div class="stack" style="gap:6px">
               <div class="bar" style="height:4px"><i style="width:64%"></i></div>
               <div style="display:flex; justify-content:space-between">
                 <span class="t-xs" style="font-family:var(--mono); font-variant-numeric:tabular-nums">15:40</span>
@@ -488,8 +505,7 @@
                 <svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M13 4a9 9 0 1 0 8.6 6.4"/><path d="M22 4v6h-6" stroke-linejoin="round"/><text x="9" y="17" font-size="7.5" fill="currentColor" stroke="none" font-weight="700">30</text></svg>
               </span>
             </div>
-            <div class="grow"></div>
-            <div class="banner calm">
+            <div class="banner calm" style="margin-top:4px">
               <span>네트워크를 확인해주세요<span class="mk">17</span></span>
             </div>
           </div>
@@ -538,7 +554,7 @@
         </div>
       </div>
       <ul class="notes">
-        <li><span class="n">18</span><span>앱 재실행 시 마지막 재생 콘텐츠·위치를 복원해 <b>일시정지 상태로만</b> 띄운다 — 소리는 나지 않는다(FR-24 자동 재생 금지). 탭하면 전체 화면으로 확대(<code>autoplay = false</code>), 스와이프로 종료. 노출·대상 판정 규칙(비완청 중 <code>last_played_at</code> 최신 1건, 없으면 미노출)은 <b>라이브러리 소유</b>고(L1·L6), 이 시안은 컴포넌트 상태만 정의한다. <b>미니플레이어에서 시작하는 재생도 한도 판정을 거친다.</b> <span class="ref">player 3 · 4.3 · library 4.2 · 7</span></span></li>
+        <li><span class="n">18</span><span>앱 재실행 시 마지막 재생 콘텐츠·위치를 복원해 <b>일시정지 상태로만</b> 띄운다 — 소리는 나지 않는다(FR-24 자동 재생 금지). 탭하면 전체 화면으로 확대(<code>autoplay = false</code>), 스와이프로 종료. 노출·대상 판정 규칙(비완청 중 <code>last_played_at</code> 최신 1건, 없으면 미노출)은 <b>라이브러리 소유</b>고(L1·L6), 이 시안은 컴포넌트 상태만 정의한다. <b>미니플레이어에서 시작하는 재생도 한도 판정을 거친다.</b> 스와이프 종료는 명세(player.md 5장) 그대로 두었으나 <b>존치·방향이 검토 대상이다</b> — 검증 V7. <span class="ref">player 3 · 4.3 · library 4.2 · 7</span></span></li>
       </ul>
     </article>
 
@@ -554,7 +570,7 @@
   <div class="vlist">
     <div class="vitem">
       <h3><span class="vid">V1</span>완청 콘텐츠 재청취의 한도 적용 — 팀 결정 대기</h3>
-      <p>PL3의 [다시 듣기]가 걸리는 지점. 현행 규칙(paywall 4.3)으로는 다른 서비스 날짜의 재청취가 <b>새로 차감</b>되고 한도 소진 시 재청취 자체가 막힌다. 라이브러리 통합 테스트(2026-08-07)에서 확인되어 <code>changes/pending/paywall-completed-replay-limit(fe).md</code>로 기록됐다 — A안(현행 유지) / B안(완청분 한도 미적용) 결정에 따라 이 버튼의 게이트·팝업 경유가 달라진다.</p>
+      <p>PL3의 완료 후 ▶(처음부터 재생)가 걸리는 지점. 현행 규칙(paywall 4.3)으로는 다른 서비스 날짜의 재청취가 <b>새로 차감</b>되고 한도 소진 시 재청취 자체가 막힌다. 라이브러리 통합 테스트(2026-08-07)에서 확인되어 <code>changes/pending/paywall-completed-replay-limit(fe).md</code>로 기록됐다 — A안(현행 유지) / B안(완청분 한도 미적용) 결정에 따라 이 버튼의 게이트·팝업 경유가 달라진다.</p>
       <p class="where">player 4.4 · paywall 4.1 · 4.3 / 화면 PL3</p>
     </div>
 
@@ -564,10 +580,22 @@
       <p class="where">player 3 · library 4.5 / 화면 PL7</p>
     </div>
 
+    <div class="vitem soft">
+      <h3><span class="vid">V3</span>player.md 3장 조작 목록 — 공유 제거 · 스와이프 축소 추가 <b>(반영 완료 2026-08-09)</b></h3>
+      <p>3장 조작 목록의 개정 대상이 둘이다. ① <b>공유 제거</b> — 공유(FR-27)는 합의(2026-08-06)로 <b>MVP 제외가 확정</b>돼 라이브러리·탐색 더보기에 없다. 플레이어 더보기도 같은 기준으로 그리지 않는 것으로 결정했다(PL7). "더보기(공유·…)" 표기가 이 합의와 어긋난다. ② <b>아래로 스와이프 축소 추가</b> — 셰브론·뒤로가기와 같은 동작(재생 유지·미니플레이어로 접힘)으로 결정했으나(PL1 주석 1) 조작 목록에 없다. <b>개정 발행·반영 완료</b> — <code>changes/archive/player-controls-share-and-swipe(fe).md</code>(2026-08-09). P1 도입 시 형태는 <b>탐색이 이미 정의해뒀다</b>(explore.md 4.6 · explore-uiux 4.4 — OS 공유 시트, 텍스트 = 제목 + 저자·출처 + <b>스토어 링크</b>. 딥링크가 아니다). 플레이어 공유도 같은 정의를 따르면 되므로 별도 정의 과제는 남지 않는다.</p>
+      <p class="where">player 3 / explore 4.6(합의) / 화면 PL7</p>
+    </div>
+
     <div class="vitem">
-      <h3><span class="vid">V3</span>공유의 대상·형식</h3>
-      <p>더보기 목록에 "공유"가 있지만(player.md 3장) 무엇을 공유하는지 — 딥링크 스킴, 미설치 사용자용 랜딩, 회수된 콘텐츠 링크의 처리 — 가 정의돼 있지 않다. 딥링크는 스플래시 관문 통과가 전제라(architecture 6.4) splash.md와 함께 정해야 한다.</p>
-      <p class="where">player 3 / 화면 PL7</p>
+      <h3><span class="vid">V6</span>더보기 시트의 [원문 보기] — 세 화면 통일 방향 (검토 보류 2026-08-09)</h3>
+      <p>플레이어 더보기에는 [원문 보기]가 있는데(player.md 3장) 라이브러리 L4·탐색 E12 더보기에는 없다. 플레이어는 화면에 원문 보기가 <b>상시 노출</b>(FR-12)이라 더보기 항목은 중복이기도 하다. 갈래는 둘 — ① 플레이어 더보기에서 제거(세 화면 더보기가 "라이브러리 조작만"으로 통일, 최소 변경) ② 세 화면 더보기에 모두 추가(파트너 유입 접점 <code>source_link_clicks</code> 증가, L4·E12 구성 합의 개정 필요). 검토(2026-08-09)에서 <b>결정을 보류</b>했다 — spec(uiux) 작성 전에 확정한다.</p>
+      <p class="where">player 3 · 4.5 / library-uiux 4.7 / explore-uiux 4.4 / 화면 PL7</p>
+    </div>
+
+    <div class="vitem">
+      <h3><span class="vid">V7</span>미니플레이어 스와이프 종료의 존치 (검토 보류 2026-08-09)</h3>
+      <p>player.md 5장이 미니플레이어에 "스와이프로 종료"를 정의하고 있으나 앱 관례가 갈린다 — YouTube Music·SoundCloud는 있고, Apple Music·Podcasts는 없으며, <b>Spotify는 좌우 스와이프가 곡 넘기기</b>라 익숙한 사용자의 오조작(의도치 않은 종료) 위험이 있다. 유지 논거: 이어는 재실행 시 마지막 콘텐츠를 일시정지로 <b>복원</b>하는데(FR-24) 종료 제스처가 없으면 이 미니플레이어를 치울 방법이 없다(플레이리스트가 없어 밀어내기도 없음). 제거 논거: 화면 단순화 — 단 "치우기" 요구의 답이 사라져 features 개정이 필요하다. 유지로 정하면 <b>방향·저항감(오조작 방지)</b>을 uiux 명세에서 함께 정한다.</p>
+      <p class="where">player 4.3 · 5 / 화면 PL11</p>
     </div>
 
     <div class="vitem soft">
