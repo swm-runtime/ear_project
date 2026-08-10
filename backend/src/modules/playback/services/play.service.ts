@@ -1,19 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DataSource, EntityManager } from 'typeorm';
+import { DataSource } from 'typeorm';
 
-import { BusinessForbiddenException } from '@/common/exceptions/business-forbidden.exception';
-import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { ContentService } from '@/modules/content/services/content.service';
 import { DripExclusionReason } from '@/modules/drip/drip.enum';
 import { DripExclusionService } from '@/modules/drip/services/drip-exclusion.service';
 import { LibraryService } from '@/modules/library/library.service';
-import { PlanService } from '@/modules/subscription/services/plan.service';
-import { PlayLimitPolicy } from '@/modules/subscription/subscription.types';
-import { UserService } from '@/modules/user/services/user.service';
 
-import { PlayDecision, UserSignalAction } from '../playback.enum';
+import { UserSignalAction } from '../playback.enum';
 import { StartPlayCommand, StartPlayResult } from '../playback.types';
 import { PlaybackService } from './playback.service';
+import { PlayPolicyService } from './play-policy.service';
 
 /**
  * 재생 시작(library-api.md 4.4) — **한도 판정과 카운트 적재가 여기서 일어난다.**
@@ -34,9 +30,8 @@ export class PlayService {
 
   constructor(
     private readonly playbackService: PlaybackService,
+    private readonly playPolicyService: PlayPolicyService,
     private readonly contentService: ContentService,
-    private readonly userService: UserService,
-    private readonly planService: PlanService,
     private readonly libraryService: LibraryService,
     private readonly dripExclusionService: DripExclusionService,
     private readonly dataSource: DataSource,
@@ -48,22 +43,32 @@ export class PlayService {
       // 1. 회수 여부는 목록에서 걸러도 이미 화면에 떠 있는 항목이 탭될 수 있다
       await this.contentService.getPublishedById(command.contentId, manager);
 
-      const user = await this.userService.getById(command.userId, manager);
-      const policy = await this.planService.getPlayLimitPolicy(
-        user.tier,
-        manager,
-      );
-
-      // 2. 한도 판정 — 클라이언트가 보낸 잔여 횟수·티어·진입점은 쓰지 않는다
-      await this.assertPlayable(command, policy, manager);
-
-      // 3. 유니크 제약이 하루 단위 중복을 막는다(domain.md 6.3)
-      const counted = await this.playbackService.recordPlay(
+      // 2. 한도 판정 — 클라이언트가 보낸 잔여 횟수·티어·진입점은 쓰지 않는다.
+      //    **발급(audio-urls)과 같은 함수를 쓴다**(`player-api.md` 3장 설계 메모)
+      const permission = await this.playPolicyService.assertPlayable(
         command.userId,
         command.contentId,
         command.now,
         manager,
       );
+
+      // 3. 유니크 제약이 하루 단위 중복을 막는다(domain.md 6.3).
+      //    창 안의 재청취는 차감 없이 행만 남긴다 — `listened_sec` 적산 대상이 필요하다
+      const inserted = await this.playbackService.recordPlay(
+        command.userId,
+        command.contentId,
+        permission.opensReplayWindow,
+        command.now,
+        manager,
+      );
+
+      /**
+       * 응답의 `counted`는 **"차감이 발생했는가"**이지 "행이 생겼는가"가 아니다
+       * (`library-api.md` 4.4 — 개정 2026-08-10). 재청취 창 안의 재생은 행이 새로 생겨도
+       * 차감이 아니므로 `false`고, **무제한 티어도 차감이 없으므로 `false`다** — 행의
+       * `is_counted`(창 기산점)와 이 값이 갈라지는 지점이다(결정 2026-08-11).
+       */
+      const counted = permission.deductsQuota && inserted;
 
       // 4. 라이브러리에 있으면 상태를 전이한다. 없으면 행을 만들지 않는다
       const libraryItem = await this.libraryService.markPlayStarted(
@@ -99,7 +104,7 @@ export class PlayService {
         // 적재 **이후의** 값을 내려준다 — 클라이언트는 이 값으로 표시를 덮어쓴다
         this.playbackService.buildQuota(
           command.userId,
-          policy.dailyPlayLimit,
+          permission.dailyPlayLimit,
           command.now,
           manager,
         ),
@@ -125,79 +130,5 @@ export class PlayService {
         quota,
       };
     });
-  }
-
-  /**
-   * `paywall.md` 4.1의 판정.
-   *
-   * ```
-   * limit == null                 → ALLOW (무제한)
-   * 오늘 이미 카운트된 콘텐츠        → ALLOW (차감이 없으므로 한도와 무관)
-   * count < limit                 → ALLOW
-   * 최상위 티어                     → LIMIT_REACHED (한도 안내만, 페이월 없음)
-   * 그 외 한도 티어(무료 포함)       → BLOCKED (페이월)
-   * ```
-   *
-   * **이미 카운트된 콘텐츠를 한도로 막지 않는다.** 한도를 소진한 상태여도 오늘 이미 튼
-   * 콘텐츠의 이어듣기는 허용된다(`paywall.md` 7) — 카운트 단위가 "재생 횟수"가 아니라
-   * "오늘 재생한 고유 콘텐츠 수"이므로 차감이 발생하지 않기 때문이다. 이걸 막으면
-   * 이어듣기·되감기가 한도에 걸려 정상 사용이 불가능해진다.
-   */
-  private async assertPlayable(
-    command: StartPlayCommand,
-    policy: PlayLimitPolicy,
-    manager: EntityManager,
-  ): Promise<void> {
-    if (policy.dailyPlayLimit === null) {
-      return;
-    }
-
-    const isCountedToday = await this.playbackService.isCountedToday(
-      command.userId,
-      command.contentId,
-      command.now,
-      manager,
-    );
-
-    if (isCountedToday) {
-      return;
-    }
-
-    const dailyPlayCount = await this.playbackService.countPlays(
-      command.userId,
-      command.now,
-      manager,
-    );
-
-    if (dailyPlayCount < policy.dailyPlayLimit) {
-      return;
-    }
-
-    const decision = policy.isTopTier
-      ? PlayDecision.LIMIT_REACHED
-      : PlayDecision.BLOCKED;
-
-    // 페이월 노출은 서비스가 의도한 정상 분기이므로 info다 (convention.md 8.2)
-    this.logger.log('play blocked by daily limit', {
-      userId: command.userId,
-      contentId: command.contentId,
-      entryPoint: command.entryPoint,
-      dailyPlayCount,
-      dailyPlayLimit: policy.dailyPlayLimit,
-      decision,
-    });
-
-    // **두 한도 에러를 하나로 합치지 않는다** — 무료는 페이월(결제 유도), 최상위는 안내다
-    throw decision === PlayDecision.LIMIT_REACHED
-      ? new BusinessForbiddenException({
-          errorCode: ErrorCode.PLAY_LIMIT_REACHED,
-          message: '오늘 청취 한도를 모두 사용했어요',
-          logLevel: 'info',
-        })
-      : new BusinessForbiddenException({
-          errorCode: ErrorCode.PLAY_LIMIT_EXCEEDED,
-          message: '오늘 들을 수 있는 콘텐츠를 모두 들었어요',
-          logLevel: 'info',
-        });
   }
 }

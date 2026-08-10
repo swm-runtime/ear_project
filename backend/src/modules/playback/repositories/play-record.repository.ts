@@ -36,35 +36,92 @@ export class PlayRecordRepository {
   /**
    * `daily_play_count` — **컬럼이 아니라 이 집계다**(domain.md 1.5 · 6.3).
    * 저장된 카운터를 읽지 않으므로 컬럼과 집계가 어긋날 여지가 없다.
+   *
+   * **`is_counted`가 참인 행만 센다**(domain.md 6.3의 집계식 그대로). 재청취 창 안의 재생도
+   * `listened_sec` 적산을 위해 행을 남기므로, 행 수를 그대로 세면 차감되지 않은 재생이
+   * 한도를 갉아먹는다.
    */
   async countByUserIdAndPlayDate(
     userId: string,
     playDate: string,
     manager?: EntityManager,
   ): Promise<number> {
-    return this.scoped(manager).countBy({ userId, playDate });
+    return this.scoped(manager).countBy({ userId, playDate, isCounted: true });
   }
 
-  async existsByUserIdAndContentIdAndPlayDate(
+  /**
+   * 재청취 창 판정(`paywall.md` 4.3-1) — 같은 콘텐츠에 **차감 행**이 `fromPlayDate` 이후로
+   * 하나라도 있는가.
+   *
+   * `is_counted = true`인 행만 본다. 창 안의 재청취가 만든 행(`false`)을 기산점으로 삼으면
+   * 창이 청취할 때마다 갱신되어 **영원히 닫히지 않는다.**
+   */
+  async existsCountedSince(
     userId: string,
     contentId: string,
-    playDate: string,
+    fromPlayDate: string,
     manager?: EntityManager,
   ): Promise<boolean> {
-    return this.scoped(manager).existsBy({ userId, contentId, playDate });
+    return this.scoped(manager)
+      .createQueryBuilder('record')
+      .where('record.user_id = :userId', { userId })
+      .andWhere('record.content_id = :contentId', { contentId })
+      .andWhere('record.is_counted = true')
+      .andWhere('record.play_date >= :fromPlayDate', { fromPlayDate })
+      .getExists();
   }
 
-  /** 목록의 `is_counted_today` — 오늘의 서비스 날짜에 행이 있는 `content_id` 집합 */
-  async findAllCountedContentIds(
+  /**
+   * `listened_sec` 적산 대상 — 그 (user, content)의 **가장 최근 행**(`player-api.md` 4.3).
+   *
+   * 재생 시작마다 그 서비스 날짜의 행이 upsert되므로 최근 행이 곧 **재생 시작 시점의 서비스
+   * 날짜** 행이다. 04시 경계를 넘겨 들어도 시작일 행에 누적된다(`player.md` 4.4-1).
+   *
+   * 오늘 날짜로 찾지 않는 이유가 그것이다 — 03:50에 시작해 04:10까지 들으면 저장 시점의
+   * 오늘은 이미 다음 서비스 날짜라 행이 없다.
+   */
+  async findLatestByUserIdAndContentId(
     userId: string,
-    playDate: string,
+    contentId: string,
+    manager?: EntityManager,
+  ): Promise<PlayRecord | null> {
+    return this.scoped(manager).findOne({
+      where: { userId, contentId },
+      order: { playDate: 'DESC' },
+    });
+  }
+
+  /**
+   * 실제 청취 시간 적산. **읽어서 더한 값을 쓰지 않고 DB에서 더한다** —
+   * 여러 기기가 같은 행에 적산하므로 read-modify-write는 서로의 증분을 덮어쓴다.
+   */
+  async incrementListenedSec(
+    id: string,
+    delta: number,
+    manager?: EntityManager,
+  ): Promise<void> {
+    await this.scoped(manager).increment({ id }, 'listenedSec', delta);
+  }
+
+  /**
+   * 목록의 `is_counted_today` — **재청취 창 안**의 `content_id` 집합
+   * (개정 2026-08-10 — `library-api.md` 4.1이 의미를 "오늘 카운트됨"에서 "창 안"으로 넓혔다).
+   *
+   * `existsCountedSince`(단건 판정)와 같은 조건의 집합 버전이다 — **차감 행만** 기산점이
+   * 된다. 창 안의 재청취가 만든 행(`is_counted = false`)을 세면 창이 청취할 때마다 갱신되어
+   * 영원히 닫히지 않는다.
+   */
+  async findAllCountedContentIdsSince(
+    userId: string,
+    fromPlayDate: string,
     manager?: EntityManager,
   ): Promise<string[]> {
     const rows = await this.scoped(manager)
       .createQueryBuilder('record')
-      .select('record.content_id', 'content_id')
+      .select('DISTINCT record.content_id', 'content_id')
       .where('record.user_id = :userId', { userId })
-      .andWhere('record.play_date = :playDate', { playDate })
+      .andWhere('record.is_counted = true')
+      .andWhere('record.play_date >= :fromPlayDate', { fromPlayDate })
       .getRawMany<{ content_id: string }>();
 
     return rows.map((row) => row.content_id);

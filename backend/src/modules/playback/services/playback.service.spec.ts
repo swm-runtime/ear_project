@@ -31,9 +31,9 @@ describe('PlaybackService', () => {
 
     playRecordRepository = {
       countByUserIdAndPlayDate: jest.fn().mockResolvedValue(0),
-      existsByUserIdAndContentIdAndPlayDate: jest.fn().mockResolvedValue(false),
-      findAllCountedContentIds: jest.fn().mockResolvedValue([]),
+      findAllCountedContentIdsSince: jest.fn().mockResolvedValue([]),
       insertIgnoringConflicts: jest.fn().mockResolvedValue(true),
+      existsCountedSince: jest.fn().mockResolvedValue(false),
     } as unknown as jest.Mocked<PlayRecordRepository>;
 
     userSignalRepository = {
@@ -68,7 +68,7 @@ describe('PlaybackService', () => {
       // given — 하루의 경계는 자정이 아니라 04:00 KST다 (domain.md 1.2)
 
       // when
-      await service.recordPlay(USER_ID, CONTENT_ID, BEFORE_BOUNDARY);
+      await service.recordPlay(USER_ID, CONTENT_ID, true, BEFORE_BOUNDARY);
 
       // then
       expect(playRecordRepository.insertIgnoringConflicts).toHaveBeenCalledWith(
@@ -81,7 +81,7 @@ describe('PlaybackService', () => {
       // given
 
       // when
-      await service.recordPlay(USER_ID, CONTENT_ID, AFTER_BOUNDARY);
+      await service.recordPlay(USER_ID, CONTENT_ID, true, AFTER_BOUNDARY);
 
       // then
       expect(playRecordRepository.insertIgnoringConflicts).toHaveBeenCalledWith(
@@ -98,6 +98,7 @@ describe('PlaybackService', () => {
       const counted = await service.recordPlay(
         USER_ID,
         CONTENT_ID,
+        true,
         AFTER_BOUNDARY,
       );
 
@@ -176,17 +177,62 @@ describe('PlaybackService', () => {
     });
   });
 
-  describe('isCountedToday', () => {
-    it('03시 59분의 판정은 전날의 서비스 날짜를 본다', async () => {
-      // given
+  describe('findCountedContentIds', () => {
+    it('목록 힌트도 단건 판정과 같은 창 시작일을 쓴다', async () => {
+      // given — 힌트와 판정이 다르면 팝업 없이 차감되거나 거짓 차감 고지가 나간다
+      playRecordRepository.findAllCountedContentIdsSince.mockResolvedValue([
+        CONTENT_ID,
+      ]);
 
       // when
-      await service.isCountedToday(USER_ID, CONTENT_ID, BEFORE_BOUNDARY);
+      const counted = await service.findCountedContentIds(
+        USER_ID,
+        AFTER_BOUNDARY,
+      );
 
       // then
       expect(
-        playRecordRepository.existsByUserIdAndContentIdAndPlayDate,
-      ).toHaveBeenCalledWith(USER_ID, CONTENT_ID, '2026-08-04', undefined);
+        playRecordRepository.findAllCountedContentIdsSince,
+      ).toHaveBeenCalledWith(USER_ID, '2026-07-22', undefined);
+      expect(counted.has(CONTENT_ID)).toBe(true);
+    });
+  });
+
+  describe('isWithinReplayWindow', () => {
+    it('15일 창의 시작일을 서비스 날짜 라벨 위에서 계산한다', async () => {
+      // given — 당일을 포함해 15일이므로 14일을 거슬러 올라간다 (paywall.md 4.3-1)
+      playRecordRepository.existsCountedSince.mockResolvedValue(true);
+
+      // when
+      const within = await service.isWithinReplayWindow(
+        USER_ID,
+        CONTENT_ID,
+        AFTER_BOUNDARY,
+      );
+
+      // then
+      expect(playRecordRepository.existsCountedSince).toHaveBeenCalledWith(
+        USER_ID,
+        CONTENT_ID,
+        '2026-07-22',
+        undefined,
+      );
+      expect(within).toBe(true);
+    });
+
+    it('03시 59분의 창도 전날의 서비스 날짜를 기준으로 잡는다', async () => {
+      // given — 시각에서 빼고 다시 환산하면 04시 경계가 두 번 적용돼 하루가 밀린다
+
+      // when
+      await service.isWithinReplayWindow(USER_ID, CONTENT_ID, BEFORE_BOUNDARY);
+
+      // then
+      expect(playRecordRepository.existsCountedSince).toHaveBeenCalledWith(
+        USER_ID,
+        CONTENT_ID,
+        '2026-07-21',
+        undefined,
+      );
     });
   });
 });

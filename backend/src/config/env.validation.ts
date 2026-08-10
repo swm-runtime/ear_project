@@ -6,6 +6,7 @@ import {
   IsString,
   Matches,
   Max,
+  MaxLength,
   Min,
   MinLength,
   validateSync,
@@ -109,6 +110,37 @@ export class EnvironmentVariables {
   @IsString()
   @Matches(SEMVER_PATTERN)
   MIN_SUPPORTED_APP_VERSION_ANDROID: string;
+
+  /**
+   * 오디오 서명 URL의 HMAC 키(`architecture.md` 9.4).
+   *
+   * **`JWT_SECRET`과 같은 값을 쓰지 않는다.** 용도가 다른 키를 겹쳐 쓰면 한쪽이 유출될 때
+   * 피해 범위가 함께 넓어진다(pepper 두 개를 분리한 것과 같은 이유 — domain.md 11.2).
+   */
+  @IsString()
+  @MinLength(32)
+  AUDIO_URL_SIGNING_KEY: string;
+
+  /**
+   * 서명 URL이 가리키는 스트리밍 경로의 앞부분.
+   *
+   * 지금은 우리 서버가 서명하고 우리 서버가 내보내므로 이 서버의 공개 주소다. 오브젝트
+   * 스토리지가 확정되면 CDN 도메인으로 바뀌며, 그때 바뀌는 것은 이 값과 `AudioUrlSigner`
+   * 구현뿐이다 — 계약(`player-api.md` 4.1)은 그대로다.
+   */
+  @IsString()
+  @MaxLength(2048)
+  AUDIO_URL_BASE_URL: string;
+
+  /**
+   * 오디오 원본이 놓인 로컬 디렉터리. `contents.audio_path`가 이 아래의 상대 키다.
+   *
+   * **오브젝트 스토리지 확정 전까지의 자리다**(`architecture.md` 미결). 스토리지가 붙으면
+   * 스트리밍 라우트째 CDN 서명 URL로 대체되며 이 변수도 함께 사라진다.
+   */
+  @IsString()
+  @MaxLength(512)
+  AUDIO_STORAGE_ROOT: string;
 }
 
 /**

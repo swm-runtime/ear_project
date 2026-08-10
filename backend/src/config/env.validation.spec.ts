@@ -17,6 +17,9 @@ describe('validateEnv', () => {
     LATEST_APP_VERSION_ANDROID: '1.0.0',
     MIN_SUPPORTED_APP_VERSION_IOS: '1.0.0',
     MIN_SUPPORTED_APP_VERSION_ANDROID: '1.0.0',
+    AUDIO_URL_SIGNING_KEY: 'test-audio-signing-key-0123456789-0123',
+    AUDIO_URL_BASE_URL: 'http://localhost:3000/api/v1/audio',
+    AUDIO_STORAGE_ROOT: './storage/audio',
   };
 
   it('필수 환경 변수가 모두 있으면 숫자 타입으로 변환된 설정을 반환한다', () => {

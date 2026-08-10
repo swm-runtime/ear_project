@@ -68,6 +68,17 @@ export class PlayRecord extends BaseEntity {
   playedAt: Date;
 
   /**
+   * **차감(카운트)이 발생한 행인가** — 재청취 창의 구분자(domain.md 6.3 · `paywall.md` 4.3-1).
+   *
+   * 창 안의 재청취도 `listened_sec` 적산을 위해 행이 필요하므로, **행의 존재만으로는 차감을
+   * 셀 수 없어** 플래그로 가른다. `daily_play_count` 집계는 이 값이 참인 행만 센다.
+   *
+   * 차감이 발생하면 그 행이 새 기산점이 되고, 거기서부터 15일이 다시 열린다.
+   */
+  @Column({ name: 'is_counted', type: 'boolean', default: true })
+  isCounted: boolean;
+
+  /**
    * 실제 청취 시간 누적(FR-34). 도달 위치가 아니라 **재생기가 실제로 소리를 낸 시간**이다 —
    * 2배속으로 10분짜리를 끝까지 들으면 `max_reached_sec = 600`이지만 이 값은 약 300이다.
    *
