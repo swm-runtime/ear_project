@@ -24,7 +24,7 @@
 | 대상 | 소유 문서 | 이 문서에서 하는 일 |
 |---|---|---|
 | 재생 한도 판정(`ALLOW` / `BLOCKED` / `LIMIT_REACHED`), 차감 단위, 확인 팝업 조건 | `paywall.md` 4.1~4.3 | **참조만 한다.** 판정 결과를 어떤 응답·에러 코드로 표현할지만 정의한다 |
-| 오디오 서명 URL 발급, 재생 위치 저장, `skip`·`complete` 신호 | `player.md` · `architecture.md` 9.4 | 재생 시작 응답에 **서명 URL을 담지 않는다** |
+| 오디오 서명 URL 발급, 재생 위치 저장, `complete`·`replay` 신호 (`skip`은 제거 확정 2026-08-10 — `player.md` 4.4) | `player.md` · `architecture.md` 9.4 | 재생 시작 응답에 **서명 URL을 담지 않는다** |
 | 담기(`source = save`) 생성·해제 | `explore.md` 4.3 | 담기 엔드포인트를 정의하지 않는다 |
 | 결제·페이월 시트·티어 변경 | `paywall.md` 4.5 · `subscription.md` | 티어 변경 후 값이 달라지는 것은 목록 재조회로 반영된다 |
 | 회수 콘텐츠 동기화(`GET /contents/withdrawn?since=`) | `partner-control.md` · `domain.md` 5.1 | 라이브러리 응답에서 회수분을 **제외**하는 규칙만 정의한다 |

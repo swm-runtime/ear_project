@@ -352,6 +352,11 @@ idx_email_verifications_expires_at
 
 - **누적 개수를 세는 방식(`COUNT(*)`)을 쓰지 않는 이유**: 잠금이 풀린 뒤 카운트가 0으로 초기화돼야 하는데, 단순 개수는 지나간 창의 행까지 함께 세어 6회째부터 영구히 잠긴다. 슬라이딩 윈도우(`sent_at > now() - 1시간`)도 `auth.md` 4.5가 정한 "5회째 발송 시각 + 1시간"과 기산점이 다르다.
 - `send_seq`는 파생값이 아니라 **창 상태 그 자체**이므로 [1.5](#15-파생값을-컬럼으로-두지-않는다)에 걸리지 않는다. 지나간 창의 순번을 재계산할 방법이 없다.
+
+**계정 단위 발송 상한 — 백스톱** (확정 2026-08-10 — `auth.md` 4.5)
+
+- 주소 단위 5회와 별개로 **계정 기준 최근 1시간 20회 / 최근 24시간 50회**를 발송 전에 함께 판정한다. 이 테이블의 발송 이력(`user_id, sent_at`) 슬라이딩 집계로 충분하므로 **컬럼 추가는 없다** — `send_seq`와 달리 창 초기화 개념이 없는 순수 총량 제한이라, `COUNT(*)`의 영구 잠금 문제(위)가 생기지 않는다.
+- **클라이언트 비노출** — 초과 시 일반 오류로 거절하고, 남은 횟수·해제 시각을 응답에 담지 않는다(`auth.md` 4.5 — 정상 사용자는 주소 단위 제한에 먼저 걸려 도달 불가).
 - 발송에 **실패하면 행을 만들지 않는다.** 인프라 장애로 사용자의 5회를 소진시키지 않기 위해서다(`auth.md` 4.5).
 
 **동시 요청 방지 — 부분 유니크 인덱스**
@@ -662,6 +667,7 @@ play_records
   content_id                uuid            FK → contents
   play_date                 date            ★04시 기준 서비스 날짜
   played_at                 timestamptz     최초 재생 시각
+  is_counted                boolean  DEFAULT true ★차감(카운트) 행 여부 — 재청취 창 (2026-08-10)
   listened_sec              int   DEFAULT 0 ★실제 청취 시간 누적 (FR-34)
 
 uq_play_records_user_id_content_id_play_date (user_id, content_id, play_date)
@@ -674,9 +680,16 @@ idx_play_records_content_id_play_date (content_id, play_date)
 ```
 daily_play_count = COUNT(*) FROM play_records
                    WHERE user_id = ? AND play_date = <오늘의 서비스 날짜>
+                     AND is_counted
 ```
 
 - `play_date`가 유니크 키에 포함되므로 **같은 날 같은 콘텐츠를 다시 재생해도 카운트가 늘지 않는 것을 DB가 보장한다**(`paywall.md` 4.2).
+
+**`is_counted` — 재청취 창(15일)의 차감 행 구분** (개정 2026-08-10 — `paywall.md` 4.3-1)
+
+- 차감이 발생한 재생의 행은 `true`, **재청취 창 안의 재생**(차감 없음)으로 다른 날짜에 만들어진 행은 `false`다. 창 안의 재청취도 `listened_sec` 적산을 위해 행이 필요하므로, 행의 존재만으로는 차감을 셀 수 없어 플래그로 가른다.
+- **재청취 창 판정**: 같은 `(user_id, content_id)`에 `is_counted = true`이고 `play_date`가 최근 15일(당일 포함) 안인 행이 있으면 창 안이다. 창이 지나 새로 차감되면 그 행(`true`)이 새 기산점이 된다.
+- 판정·기록 모두 서버가 한다. 같은 서비스 날짜 안에서 `daily_play_count`가 줄지 않는 단조 증가 성질은 유지된다 — `paywall.md` 5장 신선도 규칙의 전제 그대로다.
 - 04시 리셋 배치를 돌리지 않는다. 판정 시점에 계산한다(`paywall.md` 4.3).
 - 라이브러리에 "담기"만 하는 행위는 행을 만들지 않는다. **재생이 실제로 시작된 경우에만** 적재한다.
 
@@ -700,7 +713,7 @@ user_signals
   id                        bigserial       PK
   user_id                   uuid            FK → users
   content_id                uuid            FK → contents
-  action                    enum            play | complete | skip | save | unsave | delete | replay
+  action                    enum            play | complete | save | unsave | delete | replay   ★skip 제거 (2026-08-10)
   position_sec              int             NULL
   max_reached_sec           int             NULL
 
@@ -711,7 +724,8 @@ idx_user_signals_user_id_created_at (user_id, created_at DESC)
 - `seek` · `rate_change` · `share`는 **넣지 않는다.** 스코어링에 쓰이지 않으면서 재생 1회당 수십 건씩 쌓여 테이블 대부분을 차지한다. 필요하면 구조화 로그로 남긴다.
 - **원문 유입 클릭([원문 보기] 탭)도 넣지 않는다** (합의 2026-08-06). `drip-scheduling.md` 4.3 신호 해석 표에 없는 행동이라 스코어링 전용이라는 이 테이블의 목적(A-7)에 어긋난다. 다만 정산 지표의 원천이라 구조화 로그로도 보낼 수 없으므로 별도 테이블 `source_link_clicks`([6.6](#66-source_link_clicks))에 적재한다.
 - `manual_complete`도 **없다.** 수동 완료 표시 기능 자체를 삭제하기로 했다 (A-7).
-- 별도 테이블인 이유: `playback_progresses`·`library_items`는 "현재 상태"만 알고 있어서 추천 학습에 필요한 **행동 이력**을 표현할 수 없다. 특히 `skip`은 상태 테이블에서 "아직 듣는 중"과 구분되지 않고, `unsave`·`delete`는 행이 사라져 근거가 남지 않는다.
+- **`skip`도 없다** — 제거 확정(2026-08-10, README 결정 36 · `player.md` 4.4). 종전 "재생 시작 후 20% 미만 이탈 = skip" 잠정 규칙을 폐기했다. 초반·중간 이탈을 스코어링 감점에 다시 쓸지는 미결이며, 쓴다면 원천은 신호가 아니라 `playback_progresses.max_reached_sec`(상태)다(`drip-scheduling.md` 미결).
+- 별도 테이블인 이유: `playback_progresses`·`library_items`는 "현재 상태"만 알고 있어서 추천 학습에 필요한 **행동 이력**을 표현할 수 없다. 특히 `unsave`·`delete`는 행이 사라져 근거가 남지 않는다.
 - 최근성 가중(`drip-scheduling.md` 4.3)을 위해 `created_at`이 반드시 필요하다.
 
 ### 6.5 `audio_access_logs`
