@@ -1,0 +1,87 @@
+.list {
+  display: grid;
+  gap: 18px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  padding: 28px 26px 26px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.card:hover {
+  transform: translateY(-3px);
+  border-color: var(--brand-100);
+  box-shadow: var(--shadow-md);
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+
+.category {
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  background: var(--brand-050);
+  border: 1px solid var(--brand-100);
+  color: var(--brand-700);
+  font-weight: 700;
+}
+
+.dot {
+  color: var(--line-2);
+}
+
+.title {
+  margin-top: 16px;
+  font-size: clamp(19px, 2.2vw, 22px);
+  letter-spacing: -0.04em;
+  line-height: 1.4;
+}
+
+/* 카드 전체를 누를 수 있게 링크 히트 영역만 카드 크기로 늘린다. */
+.title a::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.card {
+  position: relative;
+}
+
+.desc {
+  margin-top: 12px;
+  color: var(--text-2);
+  font-size: 15px;
+  line-height: 1.72;
+}
+
+.more {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 22px;
+  color: var(--brand-700);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.card:hover .more {
+  gap: 9px;
+}
+
+@media (min-width: 760px) {
+  .list {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

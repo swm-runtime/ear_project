@@ -30,16 +30,26 @@ function Check({ ok }: { ok: boolean }) {
   );
 }
 
-export function Pricing() {
+/** 요금제 카드 3장. 요금제 페이지가 쓰고, 홈에서는 대신 `PricingTeaser`를 쓴다. */
+export function Pricing({
+  id,
+  eyebrow = "Pricing",
+  title,
+  lede,
+  note,
+}: {
+  id?: string;
+  eyebrow?: string;
+  title: string;
+  lede?: string;
+  note?: React.ReactNode;
+}) {
   return (
-    <section id="pricing" className="section">
+    <section id={id} className="section">
       <div className="container">
-        <p className="eyebrow">Pricing</p>
-        <h2 className="sectionTitle">요금제가 가르는 건 재생 한도뿐입니다</h2>
-        <p className="sectionLede">
-          매일 도착하는 콘텐츠는 무료 요금제도 똑같이 2편입니다. 요금제에 따라
-          달라지는 것은 하루에 재생할 수 있는 분량입니다.
-        </p>
+        <p className="eyebrow">{eyebrow}</p>
+        <h2 className="sectionTitle">{title}</h2>
+        {lede && <p className="sectionLede">{lede}</p>}
 
         <ul className={s.grid}>
           {plans.map((plan) => (
@@ -69,11 +79,7 @@ export function Pricing() {
           ))}
         </ul>
 
-        <p className={s.note}>
-          유료 요금제의 가격과 재생 한도는 시범 운영에서 실제 청취 데이터를 본 뒤
-          확정합니다. 정해지지 않은 숫자를 미리 적어 두지 않으려는 것이니,
-          확정되는 대로 이 페이지에 반영하겠습니다.
-        </p>
+        {note && <div className={s.note}>{note}</div>}
       </div>
     </section>
   );

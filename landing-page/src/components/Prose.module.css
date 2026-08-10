@@ -1,0 +1,151 @@
+/* 긴 글의 본문. 읽는 리듬을 위해 요소 사이 간격을 여기서만 정한다. */
+.prose {
+  font-size: 17px;
+  line-height: 1.85;
+  color: var(--text-2);
+}
+
+.prose > * + * {
+  margin-top: 22px;
+}
+
+.prose h2 {
+  margin-top: clamp(44px, 5vw, 64px);
+  font-size: clamp(21px, 2.6vw, 26px);
+  letter-spacing: -0.04em;
+  color: var(--text);
+  /* 고정 헤더에 제목이 가리지 않게 한다. 목차에서 눌러 이동할 때 필요하다. */
+  scroll-margin-top: 92px;
+}
+
+.prose h3 {
+  margin-top: clamp(30px, 3.5vw, 40px);
+  font-size: 18px;
+  letter-spacing: -0.035em;
+  color: var(--text);
+}
+
+.prose strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.ul,
+.ol {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-left: 4px;
+}
+
+.ul li {
+  position: relative;
+  padding-left: 20px;
+}
+
+.ul li::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 13px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--brand-500);
+}
+
+.ol {
+  counter-reset: item;
+}
+
+.ol li {
+  position: relative;
+  padding-left: 30px;
+  counter-increment: item;
+}
+
+.ol li::before {
+  content: counter(item);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 22px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.95;
+  color: var(--brand-600);
+}
+
+.quote {
+  margin-left: 0;
+  margin-right: 0;
+  padding: 4px 0 4px 22px;
+  border-left: 3px solid var(--brand-400);
+}
+
+.quote p {
+  font-size: 19px;
+  line-height: 1.7;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+
+.quote cite {
+  display: block;
+  margin-top: 10px;
+  font-size: 14px;
+  font-style: normal;
+  color: var(--text-3);
+}
+
+.note {
+  padding: 22px 24px;
+  border: 1px solid var(--brand-100);
+  border-radius: var(--r-lg);
+  background: var(--brand-050);
+  font-size: 15.5px;
+  line-height: 1.75;
+}
+
+.noteTitle {
+  margin-bottom: 6px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  color: var(--brand-700);
+}
+
+.dl {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-top: 1px solid var(--line);
+}
+
+.dl > div {
+  display: grid;
+  gap: 4px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.dl dt {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--text);
+}
+
+.dl dd {
+  margin: 0;
+  font-size: 15.5px;
+  line-height: 1.75;
+}
+
+@media (min-width: 760px) {
+  .dl > div {
+    grid-template-columns: minmax(0, 0.42fr) minmax(0, 1fr);
+    gap: 24px;
+    align-items: baseline;
+  }
+}

@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { LogoMark } from "./Logo";
-import { nav, site } from "@/content/site";
+import { footerGroups } from "@/content/routes";
+import { site } from "@/content/site";
 import s from "./Footer.module.css";
 
 export function Footer() {
@@ -9,40 +11,35 @@ export function Footer() {
     <footer className={s.footer}>
       <div className={`container ${s.inner}`}>
         <div className={s.brandCol}>
-          <div className={s.brand}>
+          <Link href="/" className={s.brand} aria-label={`${site.name} 홈`}>
             <LogoMark className={s.mark} />
             <span className={s.brandName}>{site.name}</span>
-          </div>
+          </Link>
           <p className={s.desc}>{site.shortDescription}</p>
+          <p className={s.contact}>
+            <a href={`mailto:${site.contactEmail}`}>{site.contactEmail}</a>
+          </p>
         </div>
 
-        <nav className={s.links} aria-label="바닥글 내비게이션">
-          <p className={s.colTitle}>둘러보기</p>
-          <ul>
-            {nav.map((item) => (
-              <li key={item.href}>
-                <a href={item.href}>{item.label}</a>
-              </li>
-            ))}
-          </ul>
-        </nav>
-
-        <div className={s.links}>
-          <p className={s.colTitle}>문의</p>
-          <ul>
-            <li>
-              <a href={`mailto:${site.contactEmail}`}>{site.contactEmail}</a>
-            </li>
-          </ul>
-        </div>
+        {footerGroups.map((group) => (
+          <nav key={group.title} className={s.links} aria-label={group.title}>
+            <p className={s.colTitle}>{group.title}</p>
+            <ul>
+              {group.items.map((r) => (
+                <li key={r.path}>
+                  <Link href={r.path}>{r.label}</Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        ))}
       </div>
 
       <div className={`container ${s.bottom}`}>
         <p>
           © {year} {site.name}. All rights reserved.
         </p>
-        {/* 정식 출시 전 이용약관·개인정보 처리방침 링크를 여기에 추가한다.
-            페이지가 없는 상태로 링크만 걸면 크롤러에 404가 잡히므로 지금은 비워 둔다. */}
+        <p className={s.pre}>정식 출시 준비 중입니다.</p>
       </div>
     </footer>
   );

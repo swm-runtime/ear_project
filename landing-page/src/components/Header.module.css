@@ -35,6 +35,8 @@
   letter-spacing: -0.05em;
 }
 
+/* ---------- 넓은 화면: 가로 내비게이션 ---------- */
+
 .nav {
   display: none;
   margin-left: auto;
@@ -57,8 +59,67 @@
 
 .cta {
   margin-left: auto;
-  padding: 10px 20px;
+  padding: 10px 18px;
   font-size: 14.5px;
+  flex: none;
+}
+
+.ctaFull {
+  display: none;
+}
+
+/* ---------- 좁은 화면: <details> 메뉴 ---------- */
+
+.menu {
+  flex: none;
+  margin-left: 2px;
+}
+
+/* 기본 삼각형 마커를 지운다. 브라우저마다 셀렉터가 달라 둘 다 적는다. */
+.menuBtn {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-md);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #eceef4;
+  cursor: pointer;
+  list-style: none;
+}
+
+.menuBtn::-webkit-details-marker {
+  display: none;
+}
+
+.menu[open] .menuBtn {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.menuPanel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 68px;
+  display: flex;
+  flex-direction: column;
+  padding: 8px var(--gutter) 16px;
+  /* 반투명으로 두면 뒤의 히어로 글자가 메뉴 사이로 비쳐 읽기 어려워진다. 불투명하게 덮는다. */
+  background: var(--ink-900);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 24px 40px -24px rgba(0, 0, 0, 0.9);
+}
+
+.menuLink {
+  padding: 13px 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  color: #e8eaf1;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.menuLink:last-child {
+  border-bottom: 0;
 }
 
 @media (min-width: 900px) {
@@ -68,5 +129,18 @@
 
   .cta {
     margin-left: 8px;
+    padding: 10px 20px;
+  }
+
+  .ctaFull {
+    display: inline;
+  }
+
+  .ctaShort {
+    display: none;
+  }
+
+  .menu {
+    display: none;
   }
 }

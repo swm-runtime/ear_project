@@ -47,6 +47,22 @@
   line-height: 1.72;
 }
 
+.footer {
+  margin-top: clamp(32px, 4vw, 44px);
+}
+
+/* 어두운 섹션에서는 카드가 배경보다 살짝 밝게만 뜨면 된다. */
+:global(.onDark) .icon {
+  background: rgba(226, 147, 56, 0.12);
+  border-color: rgba(255, 201, 138, 0.24);
+  color: var(--brand-300);
+}
+
+:global(.onDark) .card:hover {
+  border-color: rgba(255, 201, 138, 0.3);
+  box-shadow: none;
+}
+
 @media (min-width: 680px) {
   .grid {
     grid-template-columns: repeat(2, 1fr);

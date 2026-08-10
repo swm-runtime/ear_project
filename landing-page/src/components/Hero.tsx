@@ -1,4 +1,6 @@
-import { site, stats } from "@/content/site";
+import Link from "next/link";
+import { releaseMailto, site, stats } from "@/content/site";
+import { routes } from "@/content/routes";
 import s from "./Hero.module.css";
 
 /** 히어로 오른쪽의 앱 화면 예시. 순수 장식이라 스크린리더에는 캡션 한 줄만 남긴다. */
@@ -70,17 +72,21 @@ export function Hero() {
             </span>
           </h1>
 
+          {/* 히어로 문구에는 편수·한도 같은 정책 수치를 넣지 않는다. 정책이 바뀔 때마다
+              첫 화면을 고쳐야 하고, 무엇보다 여기서 할 말은 규격이 아니라 약속이다.
+              구체적인 숫자는 바로 아래 숫자 띠와 요금제 페이지가 맡는다. */}
           <p className={s.lede}>
-            관심 주제만 한 번 고르면, 자기계발·커리어·교양 콘텐츠가 매일 2편씩
-            오디오로 도착합니다. 무엇을 들을지 고르는 수고는 서비스가 대신합니다.
+            듣고 싶은 주제만 한 번 정해 두면 그다음은 이어가 합니다. 자기계발·커리어·교양
+            콘텐츠가 오디오로 준비된 채 기다리고 있으니, 무엇을 들을지 찾고 고를 필요가
+            없습니다.
             <strong> 이어폰만 꽂으면 됩니다.</strong>
           </p>
 
           <div className={s.actions}>
-            <a href="#cta" className="btn btnPrimary">
+            <a href={releaseMailto} className="btn btnPrimary">
               출시 소식 받기
             </a>
-            <a href="#how" className={`btn btnGhost ${s.ghost}`}>
+            <Link href={routes.features.path} className={`btn btnGhost ${s.ghost}`}>
               어떻게 작동하나요
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
                 <path
@@ -91,7 +97,7 @@ export function Hero() {
                   strokeLinejoin="round"
                 />
               </svg>
-            </a>
+            </Link>
           </div>
 
           <p className={s.note}>
