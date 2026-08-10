@@ -78,11 +78,11 @@ tickets/      통합 테스트 중 발견한 코드 수정 사항의 기록 — 
 - `pipeline.md` AI 자체 생성 콘텐츠 제작(주제 발굴 → 승인 → 소스 수집 → 대본 → QA → 업로드 패키지). **MVP 수작업 절차**이며, 겹치는 제작 기준의 원본은 `features/content-pipeline.md`(P1 자동화 설계)다
 - 제작 실행 산출물(대본 초안·QA 리포트)은 커밋하지 않는다
 
-**`spec/api/`** — HTTP 계약. 요청·응답·에러 코드의 확정본. 현재 `auth-api.md` · `library-api.md` · `onboarding-api.md` 3개, 화면별 순차 작성 중.
+**`spec/api/`** — HTTP 계약. 요청·응답·에러 코드의 확정본. 화면 9종 전부 작성됨 — `auth` · `onboarding` · `library` · `explore` · `player` · `profile` · `settings` · `interest-management` · `career` (각 `<화면>-api.md`).
 
-**`spec/uiux/`** — 화면 ID·상태·확정 카피·접근성. 사용자 노출 문구는 이 문서와 1:1 대조. 현재 `auth-uiux.md`(A1–A18) · `library-uiux.md`(L1–L11) · `onboarding-uiux.md`(O1–O11).
+**`spec/uiux/`** — 화면 ID·상태·확정 카피·접근성. 사용자 노출 문구는 이 문서와 1:1 대조. 화면 9종 전부 작성됨(각 `<화면>-uiux.md`) — 화면 ID는 `auth` A1–A19 · `library` L · `onboarding` O · `explore` E · `player` PL · `profile` P · `settings` S · `interest-management` IM · `career` CR 계열.
 
-**`wireframe/`** — `auth/library/onboarding.html` + `style.css`. uiux 화면 ID와 대응. **style.css 토큰 값은 임시값** — 디자인 확정 전까지 근거로 삼지 않는다.
+**`wireframe/`** — 화면 9종 html + `style.css`. uiux 화면 ID와 대응. **style.css 토큰 값은 임시값** — 디자인 확정 전까지 근거로 삼지 않는다.
 
 **`backend/`**
 - `domain.md` **스키마의 유일한 기준** (테이블·컬럼·enum·보존 정책)

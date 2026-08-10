@@ -352,6 +352,11 @@ idx_email_verifications_expires_at
 
 - **누적 개수를 세는 방식(`COUNT(*)`)을 쓰지 않는 이유**: 잠금이 풀린 뒤 카운트가 0으로 초기화돼야 하는데, 단순 개수는 지나간 창의 행까지 함께 세어 6회째부터 영구히 잠긴다. 슬라이딩 윈도우(`sent_at > now() - 1시간`)도 `auth.md` 4.5가 정한 "5회째 발송 시각 + 1시간"과 기산점이 다르다.
 - `send_seq`는 파생값이 아니라 **창 상태 그 자체**이므로 [1.5](#15-파생값을-컬럼으로-두지-않는다)에 걸리지 않는다. 지나간 창의 순번을 재계산할 방법이 없다.
+
+**계정 단위 발송 상한 — 백스톱** (확정 2026-08-10 — `auth.md` 4.5)
+
+- 주소 단위 5회와 별개로 **계정 기준 최근 1시간 20회 / 최근 24시간 50회**를 발송 전에 함께 판정한다. 이 테이블의 발송 이력(`user_id, sent_at`) 슬라이딩 집계로 충분하므로 **컬럼 추가는 없다** — `send_seq`와 달리 창 초기화 개념이 없는 순수 총량 제한이라, `COUNT(*)`의 영구 잠금 문제(위)가 생기지 않는다.
+- **클라이언트 비노출** — 초과 시 일반 오류로 거절하고, 남은 횟수·해제 시각을 응답에 담지 않는다(`auth.md` 4.5 — 정상 사용자는 주소 단위 제한에 먼저 걸려 도달 불가).
 - 발송에 **실패하면 행을 만들지 않는다.** 인프라 장애로 사용자의 5회를 소진시키지 않기 위해서다(`auth.md` 4.5).
 
 **동시 요청 방지 — 부분 유니크 인덱스**
@@ -662,6 +667,7 @@ play_records
   content_id                uuid            FK → contents
   play_date                 date            ★04시 기준 서비스 날짜
   played_at                 timestamptz     최초 재생 시각
+  is_counted                boolean  DEFAULT true ★차감(카운트) 행 여부 — 재청취 창 (2026-08-10)
   listened_sec              int   DEFAULT 0 ★실제 청취 시간 누적 (FR-34)
 
 uq_play_records_user_id_content_id_play_date (user_id, content_id, play_date)
@@ -674,9 +680,16 @@ idx_play_records_content_id_play_date (content_id, play_date)
 ```
 daily_play_count = COUNT(*) FROM play_records
                    WHERE user_id = ? AND play_date = <오늘의 서비스 날짜>
+                     AND is_counted
 ```
 
 - `play_date`가 유니크 키에 포함되므로 **같은 날 같은 콘텐츠를 다시 재생해도 카운트가 늘지 않는 것을 DB가 보장한다**(`paywall.md` 4.2).
+
+**`is_counted` — 재청취 창(15일)의 차감 행 구분** (개정 2026-08-10 — `paywall.md` 4.3-1)
+
+- 차감이 발생한 재생의 행은 `true`, **재청취 창 안의 재생**(차감 없음)으로 다른 날짜에 만들어진 행은 `false`다. 창 안의 재청취도 `listened_sec` 적산을 위해 행이 필요하므로, 행의 존재만으로는 차감을 셀 수 없어 플래그로 가른다.
+- **재청취 창 판정**: 같은 `(user_id, content_id)`에 `is_counted = true`이고 `play_date`가 최근 15일(당일 포함) 안인 행이 있으면 창 안이다. 창이 지나 새로 차감되면 그 행(`true`)이 새 기산점이 된다.
+- 판정·기록 모두 서버가 한다. 같은 서비스 날짜 안에서 `daily_play_count`가 줄지 않는 단조 증가 성질은 유지된다 — `paywall.md` 5장 신선도 규칙의 전제 그대로다.
 - 04시 리셋 배치를 돌리지 않는다. 판정 시점에 계산한다(`paywall.md` 4.3).
 - 라이브러리에 "담기"만 하는 행위는 행을 만들지 않는다. **재생이 실제로 시작된 경우에만** 적재한다.
 
@@ -700,7 +713,7 @@ user_signals
   id                        bigserial       PK
   user_id                   uuid            FK → users
   content_id                uuid            FK → contents
-  action                    enum            play | complete | skip | save | unsave | delete | replay
+  action                    enum            play | complete | save | unsave | delete | replay   ★skip 제거 (2026-08-10)
   position_sec              int             NULL
   max_reached_sec           int             NULL
 
@@ -711,7 +724,8 @@ idx_user_signals_user_id_created_at (user_id, created_at DESC)
 - `seek` · `rate_change` · `share`는 **넣지 않는다.** 스코어링에 쓰이지 않으면서 재생 1회당 수십 건씩 쌓여 테이블 대부분을 차지한다. 필요하면 구조화 로그로 남긴다.
 - **원문 유입 클릭([원문 보기] 탭)도 넣지 않는다** (합의 2026-08-06). `drip-scheduling.md` 4.3 신호 해석 표에 없는 행동이라 스코어링 전용이라는 이 테이블의 목적(A-7)에 어긋난다. 다만 정산 지표의 원천이라 구조화 로그로도 보낼 수 없으므로 별도 테이블 `source_link_clicks`([6.6](#66-source_link_clicks))에 적재한다.
 - `manual_complete`도 **없다.** 수동 완료 표시 기능 자체를 삭제하기로 했다 (A-7).
-- 별도 테이블인 이유: `playback_progresses`·`library_items`는 "현재 상태"만 알고 있어서 추천 학습에 필요한 **행동 이력**을 표현할 수 없다. 특히 `skip`은 상태 테이블에서 "아직 듣는 중"과 구분되지 않고, `unsave`·`delete`는 행이 사라져 근거가 남지 않는다.
+- **`skip`도 없다** — 제거 확정(2026-08-10, README 결정 36 · `player.md` 4.4). 종전 "재생 시작 후 20% 미만 이탈 = skip" 잠정 규칙을 폐기했다. 초반·중간 이탈을 스코어링 감점에 다시 쓸지는 미결이며, 쓴다면 원천은 신호가 아니라 `playback_progresses.max_reached_sec`(상태)다(`drip-scheduling.md` 미결).
+- 별도 테이블인 이유: `playback_progresses`·`library_items`는 "현재 상태"만 알고 있어서 추천 학습에 필요한 **행동 이력**을 표현할 수 없다. 특히 `unsave`·`delete`는 행이 사라져 근거가 남지 않는다.
 - 최근성 가중(`drip-scheduling.md` 4.3)을 위해 `created_at`이 반드시 필요하다.
 
 ### 6.5 `audio_access_logs`
@@ -1390,13 +1404,14 @@ idx_archived_subscriptions_archived_at
 |---|---|---|
 | 1 | **유료 티어 값** | `plans.daily_play_limit` · `price_krw`의 `daily`/`pro` 값이 미정. 1~2주 시범 운영 후 확정. **`daily_drip_count`는 전 티어 2편으로 확정됐다**(PRD 1.3·FR-14) — 미정 대상에서 제외한다. **컬럼은 이미 있으므로 값만 채우면 되고 마이그레이션은 필요 없다.** |
 | 2 | **결제 이력 없는 사용자의 `consents` 파기 — 법무 확인** | [12.3](#123-회원-탈퇴-처리)에서 `archived_consents`도 함께 파기하기로 했다. 동의 획득의 입증 책임은 사업자에게 있으므로, 탈퇴자가 나중에 동의 사실을 다투면 반박 근거가 남지 않는다. **입증 책임과 제21조 제1항 중 어느 쪽이 우선하는지 확인이 필요하다.** 보존이 필요하다는 판단이 나오면 `archived_consents`만 예외로 남긴다 — 스키마 변경은 없고 12.3의 분기만 바뀐다. |
-| 3 | **계정 단위 발송 상한(백스톱)** | [3.7](#37-email_verifications)의 발송 제한이 `(user_id, email)` 단위이므로 **계정 단위 총량 제한이 없다.** 주소를 갈아 끼우면 한 계정의 발송량에 상한이 없어 메일 발송기로 악용될 수 있다. 상한을 둘지, 둔다면 저장소를 어디로 할지(같은 테이블 집계 / Redis 카운터) 결정 필요. 발신 도메인 평판이 걸린 문제다 — `auth.md` 미결 사항 참조. |
+| 3 | ~~계정 단위 발송 상한(백스톱)~~ | **해소 (2026-08-10)** — **최근 1시간 20회 / 최근 24시간 50회**를 얹는 것으로 확정(`auth.md` 4.5). 저장소는 **같은 테이블 집계**(컬럼 추가 없음 — 슬라이딩 총량 제한이라 `send_seq` 방식의 창 초기화 문제가 없다). 클라이언트 비노출 → [3.7](#37-email_verifications) 반영 완료. |
 | 4 | **`users.years_of_experience` 타입 불일치** | [3.1](#31-users)은 `int`인데 `onboarding.md` 3장의 입력은 **구간 enum**(1년 미만 / 1–3년 / 4–6년 / 7년 이상)이다. 현재는 구간 하한값(0·2·4·7)으로 저장하는 것으로 읽히는데, **매핑이 문서 어디에도 없어 구간을 조정하면 기존 값의 의미가 조용히 바뀐다.** 구간 enum으로 바꾸거나, `int`를 유지하되 매핑을 이 문서에 못박아야 한다. |
 | 5 | ~~`drip_excluded_contents.reason`에 온보딩 담기 값이 없다~~ | **해소 (2026-08-06)** — **reason에 `onboarding`을 추가하지 않는다.** 온보딩 담기는 이 테이블에 행을 만들지 않는다: 중복 적립은 `library_items (user_id, content_id)` 유니크가 막고, 후보 필터 첫 줄(`library_items` 행 존재)이 담기분을 이미 제외하며, 삭제 시에는 `library_delete` 사유가 커버한다 → [7.1](#71-drip_excluded_contents). `onboarding.md` 6장의 주석도 이 결론으로 갱신 완료(2026-08-06). |
 | 6 | ~~추천 세트 스냅샷 저장소 없음~~ | **해소 (2026-08-06)** — 사용자·세션 단위 고정(랜덤 배치 + 시드 고정) 규칙 자체가 폐기됐다(`features/README.md` 결정 #12, `onboarding.md` 4장). 표본 크기와 무관하게 같은 선정 기준으로 정렬한 상위를 노출하므로 결과가 결정론적이고, 스냅샷·캐시가 필요 없다. |
 | 7 | **비동기 재시도 큐 미정** | [7.4](#74-first_drip_jobs)의 `queued`가 넘기는 대상이며 `onboarding.md`의 최종 폴백 경로인데, 큐 인프라 자체가 `architecture.md` 미결이다. 미정인 채로는 `queued` 상태가 종착지 없이 남는다. |
 | 8 | **`ai_generated` 근거 소스 목록·정책 확인 기록 필드 도입 여부** | 적법 수집 확인(FR-11)은 업로드 전 수동 확인뿐이고 확인 기록이 시스템에 남지 않는다(`admin.md` 4.2-1 미결). `source_name` 표기 문자열([5.1](#51-contents))은 고지용이지 소스 단위 기록이 아니다. 소스 단위 테이블로 승격할지, 감사 로그로 충분한지 결정 필요. |
 | 9 | **사용자 단위 청취 통계 집계 테이블 신설 여부** | 프로필 통계(`profile.md` 4.5~4.7)는 전부 파생값이라 컬럼을 두지 않는다([1.5](#15-파생값을-컬럼으로-두지-않는다) · [6.3](#63-play_records)). 다만 연속 일수·주제 분포는 매 조회 집계 비용이 사용자 이력에 비례하므로, 집계 캐시 테이블(또는 구체화 뷰)을 둘지는 실측 후 백엔드가 판단한다. 캐시를 두는 경우에도 진실의 원천은 `play_records`다. |
+| 10 | ~~직군 선택지 목록의 저장 형태~~ | **해소 (협의 2026-08-10)** — 원천은 서버 제공(`onboarding.md`·`career.md`, 공용), 저장 형태는 **서버 코드 상수로 시작한다**(스키마 변경·테이블 신설 없음). 관리자가 목록을 바꿀 요구가 생기면 관리 테이블로 승격하고, 그때 제거된 직군 값의 처리(`career-api.md` 미결)를 함께 정한다. 계약(`GET /job-categories`)은 형태와 무관하다. |
 
 ### 15.2 회의에서 확정된 사항 (반영 완료)
 
