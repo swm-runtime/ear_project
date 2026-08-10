@@ -24,7 +24,7 @@
 | 대상 | 소유 문서 | 이 문서에서 하는 일 |
 |---|---|---|
 | 재생 한도 판정(`ALLOW` / `BLOCKED` / `LIMIT_REACHED`), 차감 단위, 확인 팝업 조건 | `paywall.md` 4.1~4.3 | **참조만 한다.** 판정 결과를 어떤 응답·에러 코드로 표현할지만 정의한다 |
-| 오디오 서명 URL 발급, 재생 위치 저장, `complete`·`replay` 신호 (`skip`은 제거 확정 2026-08-10 — `player.md` 4.4) | `player.md` · `architecture.md` 9.4 | 재생 시작 응답에 **서명 URL을 담지 않는다** |
+| 오디오 서명 URL 발급, 재생 위치 저장, `complete`·`replay` 신호 (`skip`은 제거 확정 2026-08-10 — `player.md` 4.4), **원문 유입 클릭 기록**(L4 [원문 보기] — 세 화면 공용 계약은 `player-api.md` 소유) | `player.md` · `player-api.md` · `architecture.md` 9.4 | 재생 시작 응답에 **서명 URL을 담지 않는다** |
 | 담기(`source = save`) 생성·해제 | `explore.md` 4.3 | 담기 엔드포인트를 정의하지 않는다 |
 | 결제·페이월 시트·티어 변경 | `paywall.md` 4.5 · `subscription.md` | 티어 변경 후 값이 달라지는 것은 목록 재조회로 반영된다 |
 | 회수 콘텐츠 동기화(`GET /contents/withdrawn?since=`) | `partner-control.md` · `domain.md` 5.1 | 라이브러리 응답에서 회수분을 **제외**하는 규칙만 정의한다 |
@@ -202,16 +202,16 @@
 |---|---|
 | `source` | `drip` / `save` / `onboarding` — `library_items.source` 원값. 배지 매핑은 화면이 한다 |
 | `status` | `unplayed` / `in_progress` / `completed` |
-| `is_counted_today` | 오늘의 서비스 날짜에 이 콘텐츠의 `play_records` 행이 이미 있는가 |
+| `is_counted_today` | 이 콘텐츠가 **재청취 창 안**에 있는가 — 최근 15일(당일 포함) 내 차감 행(`play_records.is_counted = true`)이 있어, 재생해도 차감이 없는 상태(개정 2026-08-10 — `paywall.md` 4.3-1. 필드명은 유지하고 의미를 "오늘 카운트됨"에서 "창 안"으로 확장했다) |
 | `progress` | `playback_progresses` 조인 결과. **행이 없으면 `null`**(0으로 채우지 않는다) |
 | `content.content_version` | 재발행 판정용. 올라갔으면 클라이언트가 저장한 위치·오프라인 파일을 폐기한다(`domain.md` 5.1) |
 
 - **재생 위치를 `library_items`가 아니라 조인으로 가져온다.** 위치의 단독 소유자는 `playback_progresses`다(`domain.md` 6.2 — `resume_position_sec`은 폐기된 컬럼).
   - 별도 호출로 나누면 목록 20건에 위치 조회가 20번 붙는다. `library.md` 4.3이 "재생 위치는 목록 조회 시 조인해 가져온다"고 규정한 이유다.
 - **`is_counted_today`를 목록에 함께 내려준다.**
-  - 재생 확인 팝업은 **탭한 직후 즉시** 떠야 하는데, 팝업 조건 중 하나가 "오늘 아직 카운트되지 않은 콘텐츠"다(`paywall.md` 4.2). 이 값이 없으면 클라이언트는 팝업을 띄우기 위해 서버에 한 번 더 물어야 하고, 잔여 표시를 목록에 얹은 이유(왕복 2회로 시점이 어긋난다)가 그대로 재현된다.
-  - **컬럼이 아니라 `play_records` 조회 결과다**(`domain.md` 1.4 · 6.3). 저장하지 않는다.
-  - **이것도 힌트이지 판정이 아니다.** 차감 여부의 최종 판단은 재생 시작(4.4)이 하며, 이 값이 `true`여도 서버가 차감할 수 있다(다른 기기에서 오늘의 행이 지워질 일은 없으므로 실제로는 안전한 방향으로만 틀린다).
+  - 재생 확인 팝업은 **탭한 직후 즉시** 떠야 하는데, 팝업 조건 중 하나가 "재청취 창 밖의 콘텐츠"다(`paywall.md` 4.2 — 개정 2026-08-10). 이 값이 없으면 클라이언트는 팝업을 띄우기 위해 서버에 한 번 더 물어야 하고, 잔여 표시를 목록에 얹은 이유(왕복 2회로 시점이 어긋난다)가 그대로 재현된다.
+  - **컬럼이 아니라 `play_records` 조회 결과다**(`domain.md` 1.4 · 6.3 — 최근 15일 내 `is_counted = true` 행 존재 여부). 저장하지 않는다.
+  - **이것도 힌트이지 판정이 아니다.** 차감 여부의 최종 판단은 재생 시작(4.4)이 하며, 이 값이 `true`여도 서버가 다시 판정한다(창 만료는 서비스 날짜 경계에서만 일어나고 차감 행은 지워지지 않으므로, 실제로는 안전한 방향으로만 틀린다).
 - **회수된 콘텐츠는 응답에서 제외한다** — `contents.status = 'published'`인 것만 내려준다(`domain.md` 5.1 · `library.md` 4.7).
   - `library_items` 행은 남긴다. 회수가 해제되면 다시 보여야 하고, 사용자의 삭제와 파트너의 회수는 다른 사건이다.
 - **삭제된 항목(`deleted_at IS NOT NULL`)은 제외한다.** 복구는 클라이언트가 들고 있는 id로 4.7을 호출해 수행하므로 목록에 남길 이유가 없다.
@@ -340,7 +340,7 @@
 
 | 필드 | 타입 | 필수 | 비고 |
 |---|---|---|---|
-| entry_point | enum `library` / `explore` / `miniplayer` / `push` | 필수 | 전환 분석용(`paywall.md` 3장). **판정에 쓰지 않는다** |
+| entry_point | enum `library` / `explore` / `miniplayer` / `push` / `player` | 필수 | 전환 분석용(`paywall.md` 3장). `player`는 완료 후 ▶ 재청취(개정 2026-08-10 — `paywall.md` 4.2 예외). **판정에 쓰지 않는다** |
 
 - **`entry_point`가 판정을 바꾸지 않는다.** 어디서 시작하든 같은 규칙이다(`paywall.md` 4.2). 판정에 쓰이면 진입점을 위조해 한도를 우회할 수 있다.
 - **잔여 횟수·억제 여부·티어를 요청에 싣지 않는다.** 전부 서버가 조회한다(2장).
@@ -364,7 +364,7 @@
 
 | 필드 | 의미 |
 |---|---|
-| `counted` | 이 요청으로 `play_records` 행이 **새로 생겼는가**. 이미 오늘 카운트된 콘텐츠면 `false` |
+| `counted` | 이 요청으로 **차감이 발생했는가**(`is_counted = true` 행 신규 — 개정 2026-08-10). 재청취 창 내 재생이면 `false`다 — 청취 시간 적산용 행(`is_counted = false`)은 생길 수 있다(`domain.md` 6.3) |
 | `library_item` | 라이브러리에 없는 콘텐츠를 재생하면 **`null`** |
 | `progress` | 재생 시작 위치. 행이 없으면 `null`이며 클라이언트는 0부터 재생한다 |
 | `daily_play_count` | **적재 이후의 값**. 클라이언트는 이 값으로 표시를 덮어쓴다 |
@@ -372,8 +372,8 @@
 **서버 처리** — 하나의 트랜잭션에서 수행한다(`architecture.md` 8.1).
 
 1. 콘텐츠 조회 → `status != 'published'`면 `CONTENT_WITHDRAWN`(403)
-2. `paywall.md` 4.1 판정 → `BLOCKED` / `LIMIT_REACHED`면 403으로 종료
-3. `play_records`에 `(user_id, content_id, play_date)` upsert — 유니크 제약이 하루 단위 중복을 막는다(`domain.md` 6.3)
+2. `paywall.md` 4.1 판정 → `BLOCKED` / `LIMIT_REACHED`면 403으로 종료. **재청취 창(4.3-1) 내 콘텐츠는 한도 검사보다 먼저 허용된다**(개정 2026-08-10)
+3. `play_records`에 `(user_id, content_id, play_date)` upsert — 유니크 제약이 하루 단위 중복을 막는다(`domain.md` 6.3). **차감 재생이면 `is_counted = true`, 재청취 창 내 재생이면 `is_counted = false`**(청취 시간 적산용 행 — 개정 2026-08-10)
 4. 라이브러리 항목이 있고 `status = 'unplayed'`면 `in_progress`로 전환 + `last_played_at` 갱신
 5. `drip_excluded_contents`에 `reason = 'played'` upsert — 이미 행이 있으면 최초 사유를 유지한다(`domain.md` 7.1)
 6. `user_signals`에 `action = 'play'` 적재(`domain.md` 6.4)
@@ -580,7 +580,7 @@ POST /users/me/library-items/:id/complete
 | 파생값을 컬럼으로 두지 않는다 | 1.4 |
 
 - **잔여 재생 횟수를 저장하는 컬럼을 만들지 않는다.** `daily_play_count`는 판정 시점의 `play_records` 집계이며(`domain.md` 1.4 · 6.3), `users.daily_play_count` · `count_reset_at`은 **폐기된 개체다**(`domain.md` 14장). 이 API는 계산한 값을 응답에 실어 보낼 뿐이다.
-- **`is_counted_today`도 컬럼이 아니다.** `play_records`에 오늘의 행이 있는지를 조회한 결과다.
+- **`is_counted_today`도 컬럼이 아니다.** `play_records`에 최근 15일 내 차감 행(`is_counted = true`)이 있는지를 조회한 결과다(재청취 창 — `paywall.md` 4.3-1).
 - **재생 위치 컬럼을 `library_items`에 두지 않는다.** `resume_position_sec`은 폐기된 컬럼이다(`domain.md` 14장) — 라이브러리에서 삭제해도 재생 이력이 남아야 하기 때문이다.
 - **삭제 사유 컬럼을 두지 않는다.** `deleted_reason`은 폐기됐고(`domain.md` 14장), 경로 구분 없이 `drip_excluded_contents`가 영구 제외를 담당한다.
 - **`plans`는 `subscription` 모듈 소유다**(`domain.md` 2장). 한도 값은 그 모듈이 노출한 Service로 조회하고 Repository를 직접 주입받지 않는다(`architecture.md` 4.3).

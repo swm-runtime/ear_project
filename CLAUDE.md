@@ -71,11 +71,11 @@ tickets/      통합 테스트 중 발견한 코드 수정 사항의 기록 — 
 - `common-error-handling.md` **횡단 정책: 에러 계약·재시도·오프라인 큐·로딩 표현·401 갱신**
 - 백그라운드·운영 영역: `drip-scheduling.md`(편성 알고리즘) · `content-pipeline.md`(콘텐츠 수급→생성→QA→발행) · `admin.md`(운영 도구) · `partner-control.md`(파트너 정산·통제)
 
-**`spec/api/`** — HTTP 계약. 요청·응답·에러 코드의 확정본. 현재 `auth-api.md` · `library-api.md` · `onboarding-api.md` 3개, 화면별 순차 작성 중.
+**`spec/api/`** — HTTP 계약. 요청·응답·에러 코드의 확정본. 화면 9종 전부 작성됨 — `auth` · `onboarding` · `library` · `explore` · `player` · `profile` · `settings` · `interest-management` · `career` (각 `<화면>-api.md`).
 
-**`spec/uiux/`** — 화면 ID·상태·확정 카피·접근성. 사용자 노출 문구는 이 문서와 1:1 대조. 현재 `auth-uiux.md`(A1–A18) · `library-uiux.md`(L1–L11) · `onboarding-uiux.md`(O1–O11).
+**`spec/uiux/`** — 화면 ID·상태·확정 카피·접근성. 사용자 노출 문구는 이 문서와 1:1 대조. 화면 9종 전부 작성됨(각 `<화면>-uiux.md`) — 화면 ID는 `auth` A1–A19 · `library` L · `onboarding` O · `explore` E · `player` PL · `profile` P · `settings` S · `interest-management` IM · `career` CR 계열.
 
-**`wireframe/`** — `auth/library/onboarding.html` + `style.css`. uiux 화면 ID와 대응. **style.css 토큰 값은 임시값** — 디자인 확정 전까지 근거로 삼지 않는다.
+**`wireframe/`** — 화면 9종 html + `style.css`. uiux 화면 ID와 대응. **style.css 토큰 값은 임시값** — 디자인 확정 전까지 근거로 삼지 않는다.
 
 **`backend/`**
 - `domain.md` **스키마의 유일한 기준** (테이블·컬럼·enum·보존 정책)

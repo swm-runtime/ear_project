@@ -97,4 +97,4 @@
 ## 미결 사항
 
 - ~~직군·직무 선택지 목록의 원천(서버 제공 vs 클라이언트 상수)~~ → **확정(2026-08-10): 서버 제공.** 온보딩과 공용 목록을 쓴다(`onboarding.md` 미결 확정 표). 직무는 자유 입력이라 목록이 없다
-- 이 문서는 합의(2026-08-06)로 `interest-management.md`에서 분리해 신설했다. 와이어프레임은 작성됨(`wireframe/career.html`, 2026-08-09) — spec(api·uiux)은 미작성 상태다
+- 이 문서는 합의(2026-08-06)로 `interest-management.md`에서 분리해 신설했다. 산출물 전부 작성됨 — 와이어프레임(`wireframe/career.html`, 2026-08-09) · spec(`career-api.md`·`career-uiux.md`, 2026-08-10)

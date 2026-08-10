@@ -95,7 +95,7 @@
   "onboarding_step": "pick",
   "selected_topic_ids": ["uuid-a", "uuid-b"],
   "career": {
-    "job_category": "developer",
+    "job_category": "개발",
     "job_title": "백엔드 엔지니어",
     "years_of_experience": "2-3"
   },
@@ -120,7 +120,7 @@
 
 ### 4.2 `GET /onboarding/topics`
 
-1단계에 노출할 중분류 주제 목록이다.
+1단계에 노출할 중분류 주제 목록이다. **관심사 관리 화면도 이 계약을 공용한다**(`interest-management-api.md` — 같은 목록·같은 `display_order`. 경로는 현행 유지로 확정 — 협의 2026-08-10).
 
 **Response 200**
 
@@ -206,7 +206,7 @@
 
 ```json
 {
-  "job_category": "developer",
+  "job_category": "개발",
   "job_title": "백엔드 엔지니어",
   "years_of_experience": "2-3"
 }
@@ -222,7 +222,7 @@
 
 ```json
 {
-  "career": { "job_category": "developer", "job_title": "백엔드 엔지니어", "years_of_experience": "2-3" },
+  "career": { "job_category": "개발", "job_title": "백엔드 엔지니어", "years_of_experience": "2-3" },
   "onboarding_step": "pick"
 }
 ```
@@ -230,7 +230,9 @@
 - **[건너뛰기]도 같은 엔드포인트를 호출한다.** 전용 엔드포인트를 두면 "값 없이 단계만 전진"이라는 동일한 처리가 두 벌이 되고, `onboarding.md` 4가 요구하는 "미입력이어도 편성은 정상 동작"을 두 경로에서 각각 보장해야 한다.
 - **본문에 없는 필드는 변경하지 않고, `null`을 보낸 필드는 비운다.** PATCH의 기본 의미를 그대로 쓴다(`convention.md` 5.1).
 - **커리어 값은 편성의 보조 신호일 뿐이다**(`drip-scheduling.md` 4.2 — 커리어 적합도 소폭 가점). 저장 실패가 편성 가능 여부를 바꾸지 않으므로, 이 요청 실패로 온보딩을 막지 않는다.
-- **온보딩 이후의 커리어 입력·수정은 `profile.md` 4.4가 담당한다.** 온보딩에서 못 받은 값을 다시 요구하는 별도 엔드포인트는 만들지 않는다(`onboarding.md` 4 [2]).
+- **온보딩 이후의 커리어 입력·수정은 커리어 정보 화면이 담당한다**(`career.md` · `career-api.md` — `GET`/`PUT /users/me/career`). 온보딩에서 못 받은 값을 다시 요구하는 별도 엔드포인트는 만들지 않는다(`onboarding.md` 4 [2]).
+- **직군 선택지 목록은 서버가 제공한다**(확정 2026-08-10 — `onboarding.md` 미결 확정 표). 조회 계약은 **`GET /job-categories`**(`career-api.md` 소유 — 온보딩·커리어 공용)를 쓴다. 클라이언트 상수로 두지 않는다.
+- **`job_category` 값은 목록의 `name` 문자열 그대로다**(표시=전송=저장 — `career-api.md` 4.3. 코드/라벨을 분리하지 않는다). 이 문서의 예시값도 이 체계로 정합화했다(2026-08-10 — 종전 영문 코드 예시 폐기, `profile-api.md` 예시와 일치).
 - `years_of_experience`는 **구간 enum으로 주고받고, 서버가 `users.years_of_experience`(int)에 구간 하한값(`0` / `2` / `4` / `7`)으로 환산해 저장한다.** 환산이 1:1이라 되돌릴 수 있다. 컬럼 타입과 화면 입력 방식이 어긋나 있는 문제는 9장에 남긴다.
 
 **에러**
