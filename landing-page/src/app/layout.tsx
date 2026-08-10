@@ -1,53 +1,34 @@
 import type { Metadata, Viewport } from "next";
+import { Footer } from "@/components/Footer";
+import { Header } from "@/components/Header";
 import { JsonLd } from "@/components/JsonLd";
+import { routes } from "@/content/routes";
 import { site, SITE_URL } from "@/content/site";
+import { siteGraph } from "@/lib/schema";
 import "./globals.css";
 
 /**
- * 공유 미리보기 이미지. `scripts/og-image.mjs`가 빌드 전에 굽는다(package.json의 prebuild).
- * 확장자가 붙은 정적 파일이라 어느 호스팅에서도 Content-Type이 image/png로 나간다 —
- * 카카오톡·페이스북 크롤러가 썸네일을 만들려면 이게 맞아야 한다.
+ * 루트 레이아웃.
+ *
+ * 여기에는 **모든 페이지에 공통인 것만** 둔다. 제목·설명·canonical·OG 이미지는
+ * 페이지마다 달라야 하므로 각 page.tsx가 `lib/seo.ts`로 만들어 내보낸다.
+ * 여기서 openGraph를 정의해 두면 페이지가 덮어쓰지 않은 경우 홈 값이 그대로
+ * 새어 나가므로, 공통 기본값으로 둘 만한 것만 남겼다.
  */
-const OG_IMAGE = {
-  url: "/opengraph-image.png",
-  width: 1200,
-  height: 630,
-  alt: "이어 — 출근길에 열면, 오늘 들을 게 준비되어 있어요",
-  type: "image/png",
-};
-
 export const metadata: Metadata = {
   // canonical·OG·sitemap의 상대 경로가 절대 URL로 펼쳐지는 기준점.
   metadataBase: new URL(SITE_URL),
   title: {
-    default: site.title,
+    default: routes.home.title,
     template: `%s | ${site.name}`,
   },
-  description: site.description,
+  description: routes.home.description,
   keywords: [...site.keywords],
   applicationName: site.name,
   authors: [{ name: site.name }],
   creator: site.name,
   publisher: site.name,
   category: "education",
-  alternates: {
-    canonical: "/",
-  },
-  openGraph: {
-    type: "website",
-    locale: site.locale,
-    url: "/",
-    siteName: site.name,
-    title: site.title,
-    description: site.shortDescription,
-    images: [OG_IMAGE],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: site.title,
-    description: site.shortDescription,
-    images: [OG_IMAGE],
-  },
   robots: {
     index: true,
     follow: true,
@@ -86,7 +67,7 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <head>
-        {/* 본문 글꼴을 CSS 파싱보다 먼저 받기 시작한다. LCP(히어로 제목)가 폰트를 기다리지 않게 하는 것이 목적이다. */}
+        {/* 본문 글꼴을 CSS 파싱보다 먼저 받기 시작한다. LCP(제목)가 폰트를 기다리지 않게 하는 것이 목적이다. */}
         <link
           rel="preload"
           href="/fonts/pretendard-var.woff2"
@@ -94,9 +75,17 @@ export default function RootLayout({
           type="font/woff2"
           crossOrigin="anonymous"
         />
-        <JsonLd />
+        {/* 사이트 전역 개체(Organization·WebSite·MobileApplication). 페이지 고유 타입은 각 page가 더한다. */}
+        <JsonLd data={siteGraph()} />
       </head>
-      <body>{children}</body>
+      <body>
+        <a href="#main" className="skipLink">
+          본문 바로가기
+        </a>
+        <Header />
+        <main id="main">{children}</main>
+        <Footer />
+      </body>
     </html>
   );
 }

@@ -1,0 +1,77 @@
+.wrap {
+  position: relative;
+  overflow: hidden;
+  background: var(--ink-900);
+  color: #f2f3f7;
+  /* 고정 헤더(68px) 뒤까지 배경을 이어 붙인다. 안 그러면 반투명 헤더 뒤로
+     body의 크림색이 비쳐 회색 띠처럼 보인다. */
+  margin-top: -68px;
+  padding: calc(68px + clamp(44px, 6vw, 76px)) 0 clamp(44px, 6vw, 72px);
+}
+
+.glow {
+  position: absolute;
+  inset: -60% 40% 20% -20%;
+  background: radial-gradient(
+    50% 50% at 40% 55%,
+    rgba(226, 147, 56, 0.26) 0%,
+    rgba(226, 147, 56, 0.08) 45%,
+    transparent 72%
+  );
+  filter: blur(14px);
+  pointer-events: none;
+}
+
+.inner {
+  position: relative;
+}
+
+.crumbs ol {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-400);
+}
+
+.crumbs li + li::before {
+  content: "/";
+  margin-right: 8px;
+  color: var(--ink-600);
+}
+
+.crumbs a {
+  color: var(--ink-300);
+  transition: color 0.18s ease;
+}
+
+.crumbs a:hover {
+  color: var(--brand-300);
+}
+
+.crumbs span {
+  color: var(--brand-300);
+}
+
+.title {
+  margin-top: 18px;
+  max-width: 22ch;
+  font-size: clamp(32px, 5.2vw, 54px);
+  letter-spacing: -0.05em;
+  line-height: 1.2;
+}
+
+.lede {
+  margin-top: 20px;
+  max-width: 56ch;
+  color: var(--ink-200);
+  font-size: clamp(15.5px, 1.6vw, 18px);
+  line-height: 1.75;
+}
+
+.meta {
+  margin-top: 22px;
+  color: var(--ink-400);
+  font-size: 13.5px;
+}

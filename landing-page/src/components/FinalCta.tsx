@@ -1,11 +1,7 @@
-import { site } from "@/content/site";
+import { releaseMailto } from "@/content/site";
 import s from "./FinalCta.module.css";
 
 export function FinalCta() {
-  const mailto = `mailto:${site.contactEmail}?subject=${encodeURIComponent(
-    "이어 출시 소식 받고 싶어요"
-  )}`;
-
   return (
     <section id="cta" className={s.wrap}>
       <div className="container">
@@ -23,7 +19,7 @@ export function FinalCta() {
             </p>
 
             <div className={s.actions}>
-              <a href={mailto} className="btn btnPrimary">
+              <a href={releaseMailto} className="btn btnPrimary">
                 출시 소식 받기
               </a>
               <span className={s.stores} aria-label="앱 출시 준비 중">
