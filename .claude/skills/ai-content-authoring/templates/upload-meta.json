@@ -1,0 +1,37 @@
+{
+  "_설명": "docs/features/admin.md 3.1 업로드 필드 (origin = ai_generated 기준). 사람 검수 대기 상태이며 업로드 준비 완료가 아니다.",
+
+  "title": "",
+  "description": "",
+  "topic_names": [],
+
+  "origin": "ai_generated",
+  "source_name": "이어",
+  "author_name": null,
+  "source_url": null,
+  "partner_id": null,
+  "license_expires_at": null,
+
+  "series_id": null,
+  "episode_no": null,
+  "total_episodes": null,
+
+  "script_segments": [],
+
+  "_사람이_준비": {
+    "audio_file": "TTS 합성 후 첨부",
+    "thumbnail": "제작 필요",
+    "검수_완료_확인": "admin.md 4.2-1 체크리스트 이행 후 관리자 화면에서 체크"
+  },
+
+  "_서버가_채움": {
+    "duration_sec": "업로드된 오디오에서 서버가 추출한다. 수동 입력하지 않는다",
+    "topic_ids": "topic_names 에 대응하는 UUID를 관리자 화면에서 선택한다",
+    "series_id": "시리즈 생성 시 관리자 화면에서 발급한다"
+  },
+
+  "_넣지_않는_것": {
+    "소스_목록": "ai_generated 는 출처를 고지하지 않는다. sources.md 로 내부에만 남는다 (docs/ai/pipeline.md 4.4)",
+    "script_segments 의 시간": "start_sec·end_sec 은 TTS 합성 후에야 정해진다. 텍스트만 채운다 (FR-25 는 P1)"
+  }
+}

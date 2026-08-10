@@ -3,5 +3,8 @@ CLAUDE.local.md
 .claude/settings.local.json
 .claude/settings.json
 
+# 콘텐츠 제작 산출물 (docs/ai/pipeline.md 5장 — 레포 자산이 아니다)
+runs/
+
 # macOS
 .DS_Store

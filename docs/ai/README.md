@@ -6,6 +6,8 @@
 |---|---|
 | [pipeline.md](pipeline.md) | AI 자체 생성 콘텐츠 제작 — 주제 발굴 → 승인 → 소스 수집 → 대본 → QA → 업로드 패키지 |
 
+구현은 [`.claude/skills/ai-content-authoring/`](../../.claude/skills/ai-content-authoring/)에 있다. **명세가 기준이고 스킬이 그 구현이다** — 어긋나면 스킬이 틀린 것이다.
+
 명세는 `docs/prd/next_doing.md` 2장의 **8항목 템플릿**을 따른다. 사용자 화면이 없으므로 5번 항목은 [`features/README.md`](../features/README.md)의 규칙대로 **"상태 전이 · 운영 노출"** 로 대체한다.
 
 ## features/와의 경계
