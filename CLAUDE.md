@@ -19,6 +19,7 @@ prd/          무엇을·왜 만드는가 (FR-01~39)
        ├─ spec/api/       동작 규칙의 HTTP 계약 표현 (엔드포인트·DTO·에러 코드)
        ├─ spec/uiux/      동작 규칙의 화면 표현 (화면 ID·상태·카피·접근성)
        └─ wireframe/      화면 ID의 시각 참조 (HTML)
+ai/           앱 밖 콘텐츠 제작 절차 (주제 발굴·대본·QA — 제품 기능이 아니라 운영 절차)
 backend/      서버 구조·스키마·코드 규칙 (스키마의 유일한 기준)
 frontend/     클라이언트 구조·코드 규칙
 changes/      개발 중 발견한 문서 수정 사항의 기록 — 통합 과정에서 반영 (pending/ → archive/)
@@ -56,6 +57,7 @@ tickets/      통합 테스트 중 발견한 코드 수정 사항의 기록 — 
 | 정책 근거("왜 이렇게 동작?") | `prd/ear_root_prd.md`(FR·결정 포인트) → `features/README.md`(확정된 결정 사항 목록) |
 | 재생 한도·페이월 판정 | `features/paywall.md` (판정 소유자. 다른 화면 문서는 여는 지점만 소유) |
 | 드립(자동 편성) 동작 | `features/drip-scheduling.md` |
+| 콘텐츠 제작(대본·QA) | `ai/pipeline.md`(MVP 수작업 절차) → `features/content-pipeline.md`(P1 자동화 설계·제작 기준의 원본) → `features/admin.md` 3.1·4.2-1(업로드·검수) |
 | 새 기능 명세 작성 | `prd/next_doing.md`의 8항목 템플릿 |
 
 ### 파일별 인덱스
@@ -70,6 +72,11 @@ tickets/      통합 테스트 중 발견한 코드 수정 사항의 기록 — 
 - `settings.md` 설정 허브 · `profile.md` 프로필·통계 · `interest-management.md` 관심 주제 변경 · `notification.md` 푸시 규칙 · `offline-download.md` 오프라인 저장(P1)
 - `common-error-handling.md` **횡단 정책: 에러 계약·재시도·오프라인 큐·로딩 표현·401 갱신**
 - 백그라운드·운영 영역: `drip-scheduling.md`(편성 알고리즘) · `content-pipeline.md`(콘텐츠 수급→생성→QA→발행) · `admin.md`(운영 도구) · `partner-control.md`(파트너 정산·통제)
+
+**`ai/`** — 앱 밖 콘텐츠 제작 절차. 제품 기능이 아니라 운영 절차이므로 `features/`와 층을 분리했다.
+- `README.md` — ai 인덱스 + `features/`와의 경계
+- `pipeline.md` AI 자체 생성 콘텐츠 제작(주제 발굴 → 승인 → 소스 수집 → 대본 → QA → 업로드 패키지). **MVP 수작업 절차**이며, 겹치는 제작 기준의 원본은 `features/content-pipeline.md`(P1 자동화 설계)다
+- 제작 실행 산출물(대본 초안·QA 리포트)은 커밋하지 않는다
 
 **`spec/api/`** — HTTP 계약. 요청·응답·에러 코드의 확정본. 화면 9종 전부 작성됨 — `auth` · `onboarding` · `library` · `explore` · `player` · `profile` · `settings` · `interest-management` · `career` (각 `<화면>-api.md`).
 
