@@ -141,6 +141,21 @@ export class EnvironmentVariables {
   @IsString()
   @MaxLength(512)
   AUDIO_STORAGE_ROOT: string;
+
+  /**
+   * 앞단에서 신뢰하는 리버스 프록시(LB) 홉 수. Express `trust proxy`에 그대로 들어간다.
+   *
+   * **기본 0(끔)이고, 값은 배포 토폴로지가 정한다** — LB 뒤에 배포하면 홉 수만큼 올린다.
+   * 잘못 켜는 쪽이 안 켜는 쪽보다 위험하다: 프록시가 없는데 켜면 클라이언트가
+   * `X-Forwarded-For` 헤더로 **IP를 위조**할 수 있어, `audio_access_logs.ip_hash` 기반
+   * 이상 탐지(FR-33 — domain.md 6.5)와 향후 레이트 리밋(architecture.md 9.6)이
+   * 공격자 통제하에 들어간다. 안 켜면 모든 IP가 프록시 주소로 같아질 뿐이다.
+   */
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(10)
+  TRUST_PROXY_HOPS: number = 0;
 }
 
 /**
