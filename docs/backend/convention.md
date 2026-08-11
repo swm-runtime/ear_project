@@ -280,7 +280,7 @@ export class CreateNoteRequestDto {
 
 **검증에 두지 않는 것** — "존재하는 사용자인가", "구독 중인가", "회수된 콘텐츠인가" 같은 판정은 DTO가 아니라 Service의 책임이다. DTO는 **형식**만 본다.
 
-**금지** — `userId`를 요청 바디·쿼리로 받지 않는다. 인증 토큰에서 꺼낸다(architecture.md 9.2, IDOR 방지).
+**금지** — `userId`를 요청 바디·쿼리로 받지 않는다. 인증 토큰에서 꺼낸다(architecture.md 9.2, IDOR 방지). **예외는 오디오 스트리밍 라우트 하나다**(`GET /audio/:contentId` — 기록 2026-08-11): 호출자가 네이티브 재생기라 토큰을 실을 수 없어 서명 URL이 인증을 대신하며, `user`는 서명된 페이로드라 변조하면 검증이 깨진다(architecture.md 9.4).
 
 ## 4. Entity Convention
 

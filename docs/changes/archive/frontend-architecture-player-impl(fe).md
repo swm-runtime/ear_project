@@ -7,6 +7,15 @@
 | 발행 날짜 | 2026-08-11 |
 | 관련 작업 | player feature 구현(`feat(fe)/player`) — PL1~PL11, PlaybackService, 미니플레이어 공용 승격 |
 | 파급 | 코드는 이미 이 내용대로 구현됨. features/spec 문서에는 영향 없음(동작 규칙 무변경 — 구현 수단·의존 표만 개정) |
+| 상태 | **반영 완료** (2026-08-11, 플레이어 통합 시점) |
+
+> **2026-08-11 반영 결과** — "기록할 내용" 세 항목을 그대로 반영했다.
+>
+> - 2장 Tech Stack 오디오 행 — `react-native-track-player` → **`expo-audio`** (제안 문구 + 개정일·이 문서 참조 표기)
+> - 5.1 — PlaybackService 서술의 track-player를 expo-audio로 교체. **문서 전체에서 track-player 표기 잔존 0건** 확인
+> - 4.4 의존 표 `player` 행 — `settings` 의존과 사유(배속 저장·조회는 `settings-api.md` 4.2 계약 재사용 — 재선언하면 같은 엔드포인트의 DTO가 두 벌이 된다)를 추가했다. 코드의 `@/features/settings` import와 표가 일치한다
+>
+> player ↔ library 역방향 브리지는 원안이 밝힌 대로 표를 바꾸지 않는다(의존 방향 유지, bootstrap 주입). 완료 조건 두 건 모두 성립.
 
 ## 왜 기록하는가
 

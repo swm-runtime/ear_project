@@ -52,7 +52,7 @@ Frontend는 다음 5가지를 책임진다.
 | 서버 상태 | **TanStack Query** | 캐싱·커서 페이지네이션·낙관적 업데이트·재시도가 명세 요구와 일치 |
 | 클라이언트 상태 | **Zustand** | 전역 상태 최소한만. 서버 상태를 넣지 않는다 (→ 7.1) |
 | HTTP | **axios** | 인터셉터로 토큰 갱신·에러 정규화·trace 헤더 일괄 처리 (→ 8장) |
-| 오디오 | **react-native-track-player** | 백그라운드 재생, 잠금화면·알림센터 컨트롤, 오디오 포커스 |
+| 오디오 | **expo-audio** | SDK 57부터 백그라운드 재생·잠금화면 컨트롤·오디오 포커스 자체 지원. config plugin 필요(잠금화면·백그라운드는 dev build에서 활성) — 개정 2026-08-11, `changes/archive/frontend-architecture-player-impl(fe).md` |
 | 인앱 결제 | **react-native-iap** | 스토어 SDK 가격 조회, pending 트랜잭션 처리, 서버 검증 후 finish (→ `subscription.md`) |
 | 푸시 | **@react-native-firebase/messaging** | FCM 기반. APNs 연동 포함 |
 | 로컬 DB | **expo-sqlite** | 오프라인 큐·재생 위치 등 구조적 데이터 (→ 7.2) |
@@ -164,7 +164,7 @@ feature가 늘어나면 아래 표를 갱신한다. 표에 없는 의존이 코�
 |---|---|---|
 | library | player | 재생 시작 게이트 호출, 미니플레이어 상태 구독 |
 | explore | player, library | 게이트 호출 / 담기(라이브러리 적립) 호출 |
-| player | paywall, subscription | 차단 시 페이월 시트 표시 / entitlements 조회 |
+| player | paywall, subscription, settings | 차단 시 페이월 시트 표시 / entitlements 조회 / 배속 저장·조회(`user_settings` — `settings-api.md` 4.2 계약 재사용. player가 재선언하면 같은 엔드포인트의 DTO가 두 벌이 된다) |
 | paywall | subscription | 요금제 비교·결제 실행. **player를 알지 못한다** (→ 5.2) |
 | profile | interest, subscription, auth | 관심사·플랜 카드 / 이메일 인증 진입 |
 | settings | auth, subscription, notification, interest | 각 도메인 진입점 허브 |
@@ -178,7 +178,7 @@ feature가 늘어나면 아래 표를 갱신한다. 표에 없는 의존이 코�
 
 ### 5.1 PlaybackService (`features/player`)
 
-track-player를 감싸는 유일한 재생 제어 지점이다. 화면·미니플레이어·잠금화면 컨트롤이 전부 이 서비스로 명령을 보낸다.
+expo-audio를 감싸는 유일한 재생 제어 지점이다. 화면·미니플레이어·잠금화면 컨트롤이 전부 이 서비스로 명령을 보낸다.
 
 **책임**
 
