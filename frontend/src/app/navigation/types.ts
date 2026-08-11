@@ -28,7 +28,7 @@ export type MainStackParamList = {
   EmailVerification: undefined;
   /** 관심사 관리(interest-management.md) — 진입 경로는 셋(프로필 카드·설정 콘텐츠·드립 배너)이지만 화면은 하나다 */
   InterestManagement: undefined;
-  /** TODO: 커리어 정보 화면 구현 시 교체(career.md) — 관심사 관리와 별도 화면이다 */
+  /** 커리어 정보(career.md) — 관심사 관리와 별도 화면. 진입 경로는 둘(프로필 카드·설정 콘텐츠)이다 */
   Career: undefined;
   /** TODO: 공지사항 인앱 화면 — 명세 작성 후 교체(settings.md 4.1, 합의 2026-08-06) */
   Notice: undefined;

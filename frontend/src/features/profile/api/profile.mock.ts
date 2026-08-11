@@ -9,8 +9,10 @@
  * - email-unregistered   email null — P4
  * - cancel-scheduled     해지 예약(중립 톤) — P5
  * - grace                결제 문제(경고 톤) — P5
- * - career-empty         커리어 3필드 null — 카드 미입력 변형. "+2"(외 N개)는 관심사 원본이
- *                        interest mock으로 통합되어 EXPO_PUBLIC_INTEREST_MOCK_SCENARIO=over-limit과 조합해 본다
+ * - career-empty         커리어 3필드 null — 카드 미입력 변형. 기본 값의 원본은 career mock으로
+ *                        통합되어(EXPO_PUBLIC_CAREER_MOCK_SCENARIO) 저장 후 복귀 시 카드 갱신을 함께 본다.
+ *                        "+2"(외 N개)는 관심사 원본이 interest mock으로 통합되어
+ *                        EXPO_PUBLIC_INTEREST_MOCK_SCENARIO=over-limit과 조합해 본다
  * - partial-error        plan 섹션만 실패 — P7 부분(플랜 카드만 에러, 탭은 동작)
  * - full-error           요약 전체 500 — P7 전체(화면은 열림·설정 아이콘 즉시 노출)
  * - stats-empty          신규 사용자(3지표 0·빈 그래프·분포 없음) — P10 변형 A
@@ -21,6 +23,7 @@
 import { ApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
 
+import { getCareerMockSummary } from '@/features/career';
 import { getInterestMockSummary } from '@/features/interest';
 
 import type {
@@ -132,10 +135,11 @@ const userForScenario = (): ProfileUserDto => {
   }
 };
 
+// 커리어 원본은 career mock 하나다 — 카드와 편집 화면(커리어 정보)이 같은 상태를 읽는다
 const careerForScenario = (): ProfileCareerDto =>
   SCENARIO === 'career-empty'
     ? { job_category: null, job_title: null, years_of_experience: null }
-    : { job_category: '기획', job_title: '서비스 기획', years_of_experience: '4-6' };
+    : getCareerMockSummary();
 
 export const mockFetchProfileSummary = async (): Promise<ProfileSummaryResponseDto> => {
   await delay(RESPONSE_DELAY_MS);

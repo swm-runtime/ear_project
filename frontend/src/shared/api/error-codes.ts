@@ -49,6 +49,9 @@ export const ERROR_CODES = {
   INTEREST_LIMIT_EXCEEDED: 'INTEREST_LIMIT_EXCEEDED',
   INTEREST_TOPIC_UNAVAILABLE: 'INTEREST_TOPIC_UNAVAILABLE',
 
+  // career-api.md 5장 — 목록 밖 직군. 복구 경로가 목록 재조회라 VALIDATION_FAILED와 분리한다(common-error-handling.md 9.9)
+  CAREER_JOB_CATEGORY_UNAVAILABLE: 'CAREER_JOB_CATEGORY_UNAVAILABLE',
+
   // profile-api.md 5장
   /** 가입 주 이전·미래 주 조회 — 사용자에게 노출하지 않고 현재 표시 주를 유지한다 */
   STATS_WEEK_OUT_OF_RANGE: 'STATS_WEEK_OUT_OF_RANGE',
