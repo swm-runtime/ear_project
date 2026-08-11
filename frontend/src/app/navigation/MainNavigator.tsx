@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { theme } from '@/shared/theme';
 
 import { ExploreScreen } from '@/features/explore';
+import { InterestManagementScreen } from '@/features/interest';
 import { LibraryScreen } from '@/features/library';
 import { PlayerScreen } from '@/features/player';
 import { ProfileScreen } from '@/features/profile';
@@ -71,11 +72,9 @@ export default function MainNavigator() {
         component={PlaceholderScreen}
         options={{ headerShown: true, headerTitle: '', headerBackTitle: '프로필' }}
       />
-      <MainStack.Screen
-        name="InterestManagement"
-        component={PlaceholderScreen}
-        options={{ headerShown: true, headerTitle: '', headerBackTitle: '프로필' }}
-      />
+      {/* 관심사 관리 — 앱바(뒤로 + "관심 주제 관리")를 화면이 직접 그린다(interest-management-uiux.md 4.1).
+          변경 있음 상태의 이탈(뒤로가기·스와이프)은 화면이 beforeRemove로 가로챈다(IM7) */}
+      <MainStack.Screen name="InterestManagement" component={InterestManagementScreen} />
       <MainStack.Screen
         name="Career"
         component={PlaceholderScreen}

@@ -66,6 +66,17 @@ export enum ErrorCode {
   /** 완료된 계정의 온보딩 API 호출. 클라이언트는 라이브러리로 진입한다 */
   ONBOARDING_ALREADY_COMPLETED = 'ONBOARDING_ALREADY_COMPLETED',
 
+  // --- 관심사 관리 (interest-management-api.md 5장) ---
+  // `ONBOARDING_INTEREST_*`를 재사용하지 않는다 — 상한 판정 규칙이 다르다(온보딩은 상수 3,
+  // 여기는 "저장 전 활성 개수보다 늘지 않으면 통과"). 같은 코드가 화면에 따라 다른 조건에서
+  // 나오면 코드의 의미가 갈라진다(architecture.md 7.5).
+  /** `topic_ids`가 비었음 — 0개 저장의 서버 방어(정상 클라이언트는 [저장] 비활성이 선행) */
+  INTEREST_REQUIRED = 'INTEREST_REQUIRED',
+  /** 저장 전 활성 개수보다 늘면서 3개 초과. 초과분을 잘라내지 않고 거부한다 */
+  INTEREST_LIMIT_EXCEEDED = 'INTEREST_LIMIT_EXCEEDED',
+  /** 존재하지 않거나 숨겨진 주제 포함 — 두 경우를 구분하지 않는다(비노출 주제 탐침 방지) */
+  INTEREST_TOPIC_UNAVAILABLE = 'INTEREST_TOPIC_UNAVAILABLE',
+
   // --- 라이브러리 (library-api.md 5장) ---
   /** 커서 형식 오류, 또는 발급 시점과 다른 `filter`·`sort`·`topic_filter` */
   LIBRARY_CURSOR_INVALID = 'LIBRARY_CURSOR_INVALID',

@@ -24,18 +24,8 @@ export interface OnboardingStateDto {
   picked_count: number;
 }
 
-/** onboarding-api.md 4.2 */
-export interface TopicItemDto {
-  topic_id: string;
-  name: string;
-  parent_category: string;
-}
-
-export interface TopicListResponseDto {
-  items: TopicItemDto[];
-  max_selectable: number;
-  is_fallback: boolean;
-}
+// 주제 목록 DTO(onboarding-api.md 4.2)는 interest feature가 소유한다 — 관심사 관리와
+// 공용 계약이라 선언을 한 곳에 둔다(architecture.md 4.4 — onboarding → interest).
 
 /** onboarding-api.md 4.3 */
 export interface SaveInterestsRequestDto {

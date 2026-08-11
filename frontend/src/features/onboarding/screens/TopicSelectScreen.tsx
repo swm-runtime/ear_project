@@ -4,8 +4,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/shared/theme';
 import FullScreenError from '@/shared/ui/FullScreenError';
 
+import { TopicChip } from '@/features/interest';
+
 import StepIndicator from '../components/StepIndicator';
-import TopicChip from '../components/TopicChip';
 import { useTopicSelectScreen } from '../hooks/useTopicSelectScreen';
 import { ONBOARDING_COPY } from '../onboarding.copy';
 
@@ -68,6 +69,7 @@ export default function TopicSelectScreen() {
                 label={topic.name}
                 isSelected={topic.isSelected}
                 isDimmed={topic.isDimmed}
+                dimmedHint={ONBOARDING_COPY.topic.limitToast}
                 onPress={() => toggleTopic(topic.topicId)}
               />
             ))

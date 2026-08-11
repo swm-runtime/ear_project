@@ -1,6 +1,7 @@
 import { registerTokenProvider } from '@/shared/api/api-client';
 
 import { sessionService } from '@/features/auth';
+import { registerInterestSavedListener } from '@/features/interest';
 import {
   completeLibraryItem,
   deleteLibraryItem,
@@ -8,6 +9,8 @@ import {
   restoreLibraryItem,
 } from '@/features/library';
 import { registerPlayerLibraryBridge } from '@/features/player';
+import { profileKeys } from '@/features/profile';
+import { settingsKeys } from '@/features/settings';
 
 import { queryClient } from '../query-client';
 
@@ -19,6 +22,13 @@ import { queryClient } from '../query-client';
  */
 export const bootstrapApp = (): void => {
   registerTokenProvider(sessionService);
+
+  // 관심사 저장 성공 → 프로필·설정 요약 재조회(각 index.ts의 갱신 계약 — 저장 성공에만 호출).
+  // interest가 두 feature의 키를 직접 import하면 의존 표(4.4)와 순환이라 여기서 배선한다.
+  registerInterestSavedListener(() => {
+    void queryClient.invalidateQueries({ queryKey: profileKeys.summary() });
+    void queryClient.invalidateQueries({ queryKey: settingsKeys.summary() });
+  });
 
   registerPlayerLibraryBridge({
     deleteItem: async (itemId) => {

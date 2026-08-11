@@ -1,19 +1,8 @@
 /** 서버 계약의 onboarding_step 값 그대로 쓴다(domain.md 3.1) */
 export type OnboardingStep = 'topic' | 'career' | 'pick' | 'done';
 
-export interface OnboardingTopic {
-  topicId: string;
-  name: string;
-  parentCategory: string;
-}
-
-export interface OnboardingTopicList {
-  items: OnboardingTopic[];
-  /** 선택 상한. 클라이언트에 상수로 두지 않는다(onboarding-api.md 4.2) */
-  maxSelectable: number;
-  /** 기본 주제 세트 폴백 여부 — 정상 상태가 아니다(onboarding.md 7) */
-  isFallback: boolean;
-}
+// 주제 목록 타입(TopicItem·TopicList)은 interest feature가 소유한다(architecture.md 4.4 —
+// onboarding → interest). 1단계 화면은 '@/features/interest'의 useTopicsQuery로 조회한다.
 
 /** 구간 enum으로 주고받는다. 정수 연차를 받지 않는다(onboarding-api.md 4.4) */
 export type YearsOfExperience = '0-1' | '2-3' | '4-6' | '7+';
