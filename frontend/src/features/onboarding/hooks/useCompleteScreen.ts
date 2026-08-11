@@ -5,10 +5,10 @@ import { BackHandler } from 'react-native';
 
 import { logger } from '@/shared/lib/logger';
 
+import { useTopicsQuery } from '@/features/interest';
 import { getOsPermissionStatus } from '@/features/notification';
 
 import type { OnboardingStackParamList } from '../onboarding.types';
-import { useOnboardingTopicsQuery } from './useOnboardingTopicsQuery';
 import { onboardingCompletionService } from '../services/onboarding-completion.service';
 import { exitOnboarding } from '../services/onboarding-exit.service';
 import { useOnboardingStore } from '../store/onboarding.store';
@@ -21,7 +21,7 @@ import { useOnboardingStore } from '../store/onboarding.store';
 export const useCompleteScreen = () => {
   const navigation =
     useNavigation<NativeStackNavigationProp<OnboardingStackParamList, 'Complete'>>();
-  const topicsQuery = useOnboardingTopicsQuery();
+  const topicsQuery = useTopicsQuery();
   const selectedTopicIds = useOnboardingStore((s) => s.selectedTopicIds);
   const completionStatus = useOnboardingStore((s) => s.completionStatus);
   const [isRouting, setIsRouting] = useState(false);

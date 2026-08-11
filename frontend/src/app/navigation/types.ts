@@ -26,7 +26,7 @@ export type MainStackParamList = {
   Subscription: undefined;
   /** TODO: 이메일 인증 화면(A 계열, auth.md 4.4~4.5) 구현 시 교체 — [등록]·[인증하기]·[변경] 공통 목적지 */
   EmailVerification: undefined;
-  /** TODO: 관심사 관리 화면 구현 시 교체(interest-management.md) */
+  /** 관심사 관리(interest-management.md) — 진입 경로는 셋(프로필 카드·설정 콘텐츠·드립 배너)이지만 화면은 하나다 */
   InterestManagement: undefined;
   /** TODO: 커리어 정보 화면 구현 시 교체(career.md) — 관심사 관리와 별도 화면이다 */
   Career: undefined;

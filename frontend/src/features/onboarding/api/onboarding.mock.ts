@@ -12,6 +12,8 @@
  * - empty       추천 0건(데이터 정합성 오류 경로) — sections: []
  * - drip-queued 첫 드립이 서버 재시도 소진으로 queued 종료
  */
+import { INTEREST_MOCK_TOPICS, seedInterestMockFromOnboarding } from '@/features/interest';
+
 import type {
   CareerDto,
   CompleteResponseDto,
@@ -23,7 +25,6 @@ import type {
   SaveCareerResponseDto,
   SaveInterestsResponseDto,
   SavePicksResponseDto,
-  TopicListResponseDto,
 } from './onboarding.dto';
 import type { OnboardingStep } from '../onboarding.types';
 
@@ -36,18 +37,9 @@ const FIRST_DRIP_PENDING_POLLS = 2;
 
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-const MOCK_TOPICS: TopicListResponseDto['items'] = [
-  { topic_id: 'topic-career', name: '커리어', parent_category: '일' },
-  { topic_id: 'topic-productivity', name: '생산성', parent_category: '일' },
-  { topic_id: 'topic-economy', name: '경제·재테크', parent_category: '돈' },
-  { topic_id: 'topic-tech', name: 'IT·테크', parent_category: '기술' },
-  { topic_id: 'topic-ai', name: '인공지능', parent_category: '기술' },
-  { topic_id: 'topic-marketing', name: '마케팅', parent_category: '일' },
-  { topic_id: 'topic-design', name: '디자인', parent_category: '일' },
-  { topic_id: 'topic-startup', name: '스타트업', parent_category: '일' },
-  { topic_id: 'topic-psychology', name: '심리', parent_category: '삶' },
-  { topic_id: 'topic-leadership', name: '리더십', parent_category: '일' },
-];
+// 주제 fixture는 interest mock이 소유한다 — 1단계에서 고른 topic_id가 추천 생성에서
+// 이름을 잃지 않도록 같은 목록을 조인한다(주제 목록 조회 자체도 interest feature 몫이다)
+const MOCK_TOPICS = INTEREST_MOCK_TOPICS;
 
 interface MockServerState {
   step: OnboardingStep;
@@ -101,15 +93,12 @@ export const mockFetchState = async (): Promise<OnboardingStateDto> => {
   };
 };
 
-export const mockFetchTopics = async (): Promise<TopicListResponseDto> => {
-  await delay(RESPONSE_DELAY_MS);
-  return { items: MOCK_TOPICS, max_selectable: 3, is_fallback: false };
-};
-
 export const mockSaveInterests = async (topicIds: string[]): Promise<SaveInterestsResponseDto> => {
   await delay(RESPONSE_DELAY_MS);
   state.selectedTopicIds = topicIds;
   state.step = 'career';
+  // 관심사 원본(interest mock)을 갱신한다 — 온보딩에서 고른 주제가 프로필 카드·관심사 관리에 이어진다
+  seedInterestMockFromOnboarding(topicIds);
   return { selected_topic_ids: topicIds, onboarding_step: 'career' };
 };
 

@@ -25,6 +25,8 @@ import { ApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
 import type { DevicePlatform } from '@/shared/lib/device-platform';
 
+import { getInterestMockSummary } from '@/features/interest';
+
 import type {
   MarketingConsentDto,
   MarketingConsentRequestDto,
@@ -159,16 +161,8 @@ export const mockFetchSettingsSummary = async (
   return {
     account: partialFailed ? null : accountForScenario(),
     plan: partialFailed ? null : planForScenario(),
-    interest_summary: partialFailed
-      ? null
-      : {
-          count: 3,
-          top_topics: [
-            { id: 'topic-career', name: '커리어' },
-            { id: 'topic-selfdev', name: '자기계발' },
-            { id: 'topic-economy', name: '경제' },
-          ],
-        },
+    // 관심사 원본은 interest mock 하나다 — 설정의 요약 행과 편집 화면이 같은 상태를 읽는다
+    interest_summary: partialFailed ? null : getInterestMockSummary(),
     settings: { ...settingsState },
     marketing_consent: { ...marketingConsentState },
     version: versionForScenario(platform),

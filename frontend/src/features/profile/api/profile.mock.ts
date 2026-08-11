@@ -9,7 +9,8 @@
  * - email-unregistered   email null — P4
  * - cancel-scheduled     해지 예약(중립 톤) — P5
  * - grace                결제 문제(경고 톤) — P5
- * - career-empty         커리어 3필드 null + 관심 5개(칩 3 + "+2") — 카드 미입력 변형·"외 N개"
+ * - career-empty         커리어 3필드 null — 카드 미입력 변형. "+2"(외 N개)는 관심사 원본이
+ *                        interest mock으로 통합되어 EXPO_PUBLIC_INTEREST_MOCK_SCENARIO=over-limit과 조합해 본다
  * - partial-error        plan 섹션만 실패 — P7 부분(플랜 카드만 에러, 탭은 동작)
  * - full-error           요약 전체 500 — P7 전체(화면은 열림·설정 아이콘 즉시 노출)
  * - stats-empty          신규 사용자(3지표 0·빈 그래프·분포 없음) — P10 변형 A
@@ -19,6 +20,8 @@
  */
 import { ApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
+
+import { getInterestMockSummary } from '@/features/interest';
 
 import type {
   ProfileCareerDto,
@@ -156,15 +159,9 @@ export const mockFetchProfileSummary = async (): Promise<ProfileSummaryResponseD
   return {
     user: userForScenario(),
     plan: planFailed ? null : planForScenario(),
-    interest_summary: {
-      // career-empty에 5개를 실어 "+2"(외 2개)까지 함께 검증한다 — 상한 3개 도입 이전 초과 보유자 재현
-      count: SCENARIO === 'career-empty' ? 5 : 3,
-      top_topics: [
-        { id: 'topic-career', name: '커리어' },
-        { id: 'topic-selfdev', name: '자기계발' },
-        { id: 'topic-economy', name: '경제' },
-      ],
-    },
+    // 관심사 원본은 interest mock 하나다 — 카드와 편집 화면(관심사 관리)이 같은 상태를 읽는다.
+    // "+2"(외 N개)는 EXPO_PUBLIC_INTEREST_MOCK_SCENARIO=over-limit(5개 보유)과 조합해 본다
+    interest_summary: getInterestMockSummary(),
     career: careerForScenario(),
     stats_summary: statsFailed
       ? null
