@@ -17,20 +17,24 @@ import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
 import { IdempotencyInterceptor } from '@/modules/idempotency/idempotency.interceptor';
 
-import { ConsentService } from './services/consent.service';
-import { DeviceTokenService } from './services/device-token.service';
-import { RegisterDeviceRequestDto } from './dto/register-device-request.dto';
-import { GetActiveEmailVerificationResponseDto } from './dto/get-active-email-verification-response.dto';
-import { GetWithdrawalPreviewResponseDto } from './dto/get-withdrawal-preview-response.dto';
-import { SendEmailVerificationRequestDto } from './dto/send-email-verification-request.dto';
-import { SendEmailVerificationResponseDto } from './dto/send-email-verification-response.dto';
-import { UpdateConsentsRequestDto } from './dto/update-consents-request.dto';
-import { UpdateConsentsResponseDto } from './dto/update-consents-response.dto';
-import { VerifyEmailVerificationRequestDto } from './dto/verify-email-verification-request.dto';
-import { VerifyEmailVerificationResponseDto } from './dto/verify-email-verification-response.dto';
-import { WithdrawUserRequestDto } from './dto/withdraw-user-request.dto';
-import { EmailVerificationService } from './services/email-verification.service';
-import { UserWithdrawalService } from './services/user-withdrawal.service';
+import { ConsentService } from '../services/consent.service';
+import { DeviceTokenService } from '../services/device-token.service';
+import { GetCareerResponseDto } from '../dto/get-career-response.dto';
+import { ReplaceCareerRequestDto } from '../dto/replace-career-request.dto';
+import { ReplaceCareerResponseDto } from '../dto/replace-career-response.dto';
+import { UserCareerService } from '../services/user-career.service';
+import { RegisterDeviceRequestDto } from '../dto/register-device-request.dto';
+import { GetActiveEmailVerificationResponseDto } from '../dto/get-active-email-verification-response.dto';
+import { GetWithdrawalPreviewResponseDto } from '../dto/get-withdrawal-preview-response.dto';
+import { SendEmailVerificationRequestDto } from '../dto/send-email-verification-request.dto';
+import { SendEmailVerificationResponseDto } from '../dto/send-email-verification-response.dto';
+import { UpdateConsentsRequestDto } from '../dto/update-consents-request.dto';
+import { UpdateConsentsResponseDto } from '../dto/update-consents-response.dto';
+import { VerifyEmailVerificationRequestDto } from '../dto/verify-email-verification-request.dto';
+import { VerifyEmailVerificationResponseDto } from '../dto/verify-email-verification-response.dto';
+import { WithdrawUserRequestDto } from '../dto/withdraw-user-request.dto';
+import { EmailVerificationService } from '../services/email-verification.service';
+import { UserWithdrawalService } from '../services/user-withdrawal.service';
 
 /**
  * auth-api.md 3장 — 내 리소스는 `me`를 쓴다.
@@ -44,6 +48,7 @@ export class UserController {
     private readonly emailVerificationService: EmailVerificationService,
     private readonly userWithdrawalService: UserWithdrawalService,
     private readonly deviceTokenService: DeviceTokenService,
+    private readonly userCareerService: UserCareerService,
   ) {}
 
   /**
@@ -175,6 +180,36 @@ export class UserController {
       currentUser.id,
       verificationId,
       new Date(),
+    );
+  }
+
+  /** career-api.md 4.1 — 미입력이면 세 `null`이다(404가 아니다) */
+  @Get('career')
+  async getCareer(
+    @CurrentUser() currentUser: AuthenticatedUser,
+  ): Promise<GetCareerResponseDto> {
+    return GetCareerResponseDto.from(
+      await this.userCareerService.getCareer(currentUser.id),
+    );
+  }
+
+  /**
+   * career-api.md 4.2 — 3필드 전체 교체. 같은 본문의 재전송·재시도가 결과를 바꾸지 않아
+   * 멱등키가 없다. 온보딩의 `PATCH /onboarding/career`와 달리 `onboarding_step`을
+   * 건드리지 않는다 — 완료 후의 수정에 재개 지점이 움직이면 안 된다(3장 설계 메모).
+   */
+  @Put('career')
+  @HttpCode(HttpStatus.OK)
+  async replaceCareer(
+    @CurrentUser() currentUser: AuthenticatedUser,
+    @Body() request: ReplaceCareerRequestDto,
+  ): Promise<ReplaceCareerResponseDto> {
+    return ReplaceCareerResponseDto.from(
+      await this.userCareerService.replaceCareer(currentUser.id, {
+        jobCategory: request.job_category,
+        jobTitle: request.job_title,
+        yearsOfExperience: request.years_of_experience,
+      }),
     );
   }
 }

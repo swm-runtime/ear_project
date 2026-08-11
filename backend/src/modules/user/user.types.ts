@@ -3,6 +3,7 @@ import {
   DevicePlatform,
   SocialProvider,
   WithdrawalReason,
+  YearsOfExperienceRange,
 } from './user.enum';
 
 /**
@@ -71,6 +72,25 @@ export interface UpdateCareerCommand {
   jobTitle?: string | null;
   /** 구간 enum을 하한값(0 / 2 / 4 / 7)으로 환산한 값 */
   yearsOfExperience?: number | null;
+}
+
+/**
+ * 커리어 전체 교체 (career-api.md 4.2). 온보딩의 부분 수정과 달리 **세 키가 모두 있어야
+ * 한다** — 키 누락을 "유지"로 해석하면 PATCH가 몰래 되살아나 다중 기기 병합 문제가 돌아온다.
+ * 비움은 `null`이다.
+ */
+export interface ReplaceCareerCommand {
+  jobCategory: string | null;
+  jobTitle: string | null;
+  /** 구간 라벨(`"0-1"` 등). 하한값 환산은 Service가 한다 */
+  yearsOfExperience: YearsOfExperienceRange | null;
+}
+
+/** 커리어 조회·저장 응답의 재료 — 연차는 구간 라벨로 되돌린 값이다 */
+export interface CareerView {
+  jobCategory: string | null;
+  jobTitle: string | null;
+  yearsOfExperience: YearsOfExperienceRange | null;
 }
 
 /**

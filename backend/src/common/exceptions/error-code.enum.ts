@@ -77,6 +77,14 @@ export enum ErrorCode {
   /** 존재하지 않거나 숨겨진 주제 포함 — 두 경우를 구분하지 않는다(비노출 주제 탐침 방지) */
   INTEREST_TOPIC_UNAVAILABLE = 'INTEREST_TOPIC_UNAVAILABLE',
 
+  // --- 커리어 정보 (career-api.md 5장) ---
+  /**
+   * `job_category`가 직군 목록에 없는 값. `VALIDATION_FAILED`와 구분하는 이유 —
+   * 형식 위반은 입력을 고치라는 뜻이지만, 목록 밖 직군은 **클라이언트가 든 목록이 낡았다**는
+   * 뜻이라 목록 재조회가 복구 경로다(`ONBOARDING_TOPIC_UNAVAILABLE`과 같은 구분).
+   */
+  CAREER_JOB_CATEGORY_UNAVAILABLE = 'CAREER_JOB_CATEGORY_UNAVAILABLE',
+
   // --- 라이브러리 (library-api.md 5장) ---
   /** 커서 형식 오류, 또는 발급 시점과 다른 `filter`·`sort`·`topic_filter` */
   LIBRARY_CURSOR_INVALID = 'LIBRARY_CURSOR_INVALID',
