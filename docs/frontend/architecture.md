@@ -166,9 +166,9 @@ feature가 늘어나면 아래 표를 갱신한다. 표에 없는 의존이 코�
 | explore | player, library | 게이트 호출 / 담기(라이브러리 적립) 호출 |
 | player | paywall, subscription, settings | 차단 시 페이월 시트 표시 / entitlements 조회 / 배속 저장·조회(`user_settings` — `settings-api.md` 4.2 계약 재사용. player가 재선언하면 같은 엔드포인트의 DTO가 두 벌이 된다) |
 | paywall | subscription | 요금제 비교·결제 실행. **player를 알지 못한다** (→ 5.2) |
-| profile | interest, subscription, auth | 관심사·플랜 카드 / 이메일 인증 진입. 관심사 저장 후 요약 invalidate는 interest가 노출한 `registerInterestSavedListener`에 bootstrap이 주입한다(역방향 import 없음 — player ↔ library 브리지와 같은 방식) |
+| profile | interest, subscription, auth, career | 관심사·플랜 카드 / 이메일 인증 진입 / 커리어 카드(dev mock 요약 원본 `getCareerMockSummary`). 관심사·커리어 저장 후 요약 invalidate는 각 feature가 노출한 `registerInterestSavedListener` · `registerCareerSavedListener`에 bootstrap이 주입한다(역방향 import 없음 — player ↔ library 브리지와 같은 방식) |
 | settings | auth, subscription, notification, interest | 각 도메인 진입점 허브. 요약 invalidate 배선은 profile 행과 동일(`registerInterestSavedListener`) |
-| onboarding | interest, library, notification, auth | 주제 목록 조회(`useTopicsQuery` — 같은 계약·같은 캐시 `interestKeys.topics()`) · `TopicChip` 공용 · 저장 시 interest mock 원본 갱신 / 첫 담기 / 알림 권한 / 종료 시 세션 상태 갱신(라이브러리 진입 전환) |
+| onboarding | interest, library, notification, auth, career | 주제 목록 조회(`useTopicsQuery` — 같은 계약·같은 캐시 `interestKeys.topics()`) · `TopicChip` 공용 · 저장 시 interest mock 원본 갱신 / 커리어 단계 저장 시 career mock 원본 갱신(`seedCareerMockFromOnboarding`). 직군 목록 공용(`useJobCategoriesQuery` · `careerKeys.jobCategories()`)은 티켓 `onboarding-job-categories-server-list` 반영 시 실현 / 첫 담기 / 알림 권한 / 종료 시 세션 상태 갱신(라이브러리 진입 전환) |
 | notification | player | 푸시 딥링크 → 재생 게이트 |
 | splash | auth, onboarding | 진입 분기 판정 |
 

@@ -7,7 +7,12 @@
 | 발행 날짜 | 2026-08-11 |
 | 관련 작업 | career feature 구현(`feat(fe)/career`) — CR1~CR5, 직군 목록 소유권 |
 | 파급 | 코드는 이미 이 내용대로 구현됨. features/spec 문서에는 영향 없음(동작 규칙 무변경 — 의존 표만 갱신) |
-| 상태 | pending |
+| 상태 | **반영 완료** (2026-08-12, 커리어 통합 시점) |
+
+> **2026-08-12 반영 결과** — "기록할 내용" 2항목을 `frontend/architecture.md` 4.4에 반영했다.
+>
+> - `profile` 행 — 의존에 `career` 추가, 커리어 카드 mock 원본(`getCareerMockSummary`)과 `registerCareerSavedListener`(bootstrap 주입, 역방향 import 없음) 배선을 interest 브리지와 나란히 명시
+> - `onboarding` 행 — 의존에 `career` 추가, 커리어 단계 저장 시 mock 원본 갱신(`seedCareerMockFromOnboarding`)과 직군 목록 공용(`useJobCategoriesQuery`)이 티켓 `onboarding-job-categories-server-list` 반영 시 실현된다는 연결 기재
 
 ## 왜 기록하는가
 
