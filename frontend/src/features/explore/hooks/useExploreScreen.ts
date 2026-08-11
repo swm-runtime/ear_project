@@ -204,7 +204,10 @@ export const useExploreScreen = () => {
   /* ── 커서 무효 — 커서를 버리고 첫 페이지부터. 사용자에게 노출하지 않는다(explore-api.md 4.2) ── */
   const { error: contentsError, refetch: refetchContents } = contentsQuery;
   useEffect(() => {
-    if (isApiError(contentsError) && contentsError.errorCode === ERROR_CODES.EXPLORE_CURSOR_INVALID) {
+    if (
+      isApiError(contentsError) &&
+      contentsError.errorCode === ERROR_CODES.EXPLORE_CURSOR_INVALID
+    ) {
       void refetchContents();
     }
   }, [contentsError, refetchContents]);
@@ -238,7 +241,7 @@ export const useExploreScreen = () => {
         return {
           ...section,
           // 토글 선택 상태 — 전환 중이면 그 구간, 확정했으면 그 구간, 아니면 피드 응답의 period
-          period: isPopular ? pendingPeriod ?? activePeriod ?? section.period : null,
+          period: isPopular ? (pendingPeriod ?? activePeriod ?? section.period) : null,
           items: items.filter((item) => !hiddenContentIds.has(item.content.id)),
         };
       })
@@ -349,6 +352,14 @@ export const useExploreScreen = () => {
       {
         contentId: item.content.id,
         isCountedToday: item.isCountedToday,
+        // 목록이 이미 아는 메타 — 플레이어가 진입과 동시에 그린다(player-uiux.md 4.3)
+        meta: {
+          title: item.content.title,
+          authorName: item.content.authorName,
+          sourceName: item.content.sourceName,
+          thumbnailUrl: item.content.thumbnailUrl,
+          durationSec: item.content.durationSec,
+        },
         onWithdrawn: () => hideRow(item.content.id),
       },
       'explore',

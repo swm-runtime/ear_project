@@ -25,16 +25,11 @@ export enum PlayEntryPoint {
   EXPLORE = 'explore',
   MINIPLAYER = 'miniplayer',
   PUSH = 'push',
-}
-
-/**
- * `paywall.md` 4.1의 재생 가능 판정 결과.
- *
- * 한도 소진을 **티어의 위치로 가른다** — 최상위 티어를 제외한 한도 티어(무료 포함)는
- * 페이월(`BLOCKED`)이고, 최상위 티어는 더 팔 것이 없으므로 한도 안내(`LIMIT_REACHED`)다.
- */
-export enum PlayDecision {
-  ALLOW = 'allow',
-  BLOCKED = 'blocked',
-  LIMIT_REACHED = 'limit_reached',
+  /**
+   * 완료 화면의 ▶ 재청취(개정 2026-08-10 — `paywall.md` 4.2 예외 · `library-api.md` 4.4).
+   *
+   * 재생을 시작시키는 화면이 확인 팝업을 띄운다는 규칙의 **유일한 예외**다 — 재청취 창 밖의
+   * 새 차감 재생을 플레이어가 직접 시작시키므로 진입점도 플레이어다.
+   */
+  PLAYER = 'player',
 }

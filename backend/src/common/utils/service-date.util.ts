@@ -109,6 +109,25 @@ export function isWeekStartLabel(label: string): boolean {
   return !Number.isNaN(parsed.getTime()) && parsed.getUTCDay() === 1;
 }
 
+/**
+ * 서비스 날짜 라벨을 일 단위로 이동한다. `days`가 음수면 과거로 간다.
+ *
+ * 재청취 창(`paywall.md` 4.3-1)처럼 **날짜 라벨끼리 범위를 비교해야 하는** 판정에 쓴다.
+ * 시각에서 15일을 빼고 다시 서비스 날짜로 환산하면 04시 경계를 두 번 적용하게 되어
+ * 03:00~04:00 사이에 하루가 밀린다 — 라벨을 얻은 뒤 라벨 위에서 옮긴다.
+ */
+export function shiftServiceDate(serviceDate: string, days: number): string {
+  const shifted = new Date(
+    parseDateLabel(serviceDate).getTime() + days * DAY_MS,
+  );
+
+  return formatDate(
+    shifted.getUTCFullYear(),
+    shifted.getUTCMonth() + 1,
+    shifted.getUTCDate(),
+  );
+}
+
 /** 주 시작 라벨을 주 단위로 이동한다. `weeks`가 음수면 과거로 간다 */
 export function shiftWeekStart(weekStart: string, weeks: number): string {
   const shifted = new Date(

@@ -1,5 +1,6 @@
 /**
- * 재생 시작 API mock — 잔여 재생 상태(play_records의 대역)를 소유한다.
+ * 재생 API mock — 잔여 재생 상태(play_records의 대역)와 player 고유 계약(player-api.md —
+ * 서명 URL 발급·위치 저장·replay·원문 클릭)의 서버 대역을 소유한다.
  * 라이브러리·탐색이 같은 잔여 숫자를 봐야 하므로(explore-uiux.md 4.2) 카운트 상태는
  * 진입점 feature가 아니라 여기 한 곳에만 둔다.
  *
@@ -11,24 +12,40 @@
  * - exhausted   오늘 한도 소진(0/2) — 페이월 진입 검증
  * - empty       빈 라이브러리 — 오늘 0회 사용
  *
- * 재생 시 라이브러리 항목의 상태 전이(unplayed → in_progress)는 library mock이 담당한다 —
+ * 라이브러리 항목의 상태 전이·진행 저장·완청 판정(서버 대역)은 library mock이 담당한다 —
  * 실서버에서 playback 모듈이 library Service를 호출하는 구조(library-api.md 8장)의 대역으로,
  * library mock이 registerPlayMockLibraryBridge로 자신을 등록한다.
  */
 import { ApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
 
-import type { PlaybackProgressDto, PlayLimitFieldsDto, PlayStartResponseDto } from './player.dto';
+import type {
+  AudioUrlsResponseDto,
+  PlaybackProgressDto,
+  PlaybackProgressPutRequestDto,
+  PlaybackProgressPutResponseDto,
+  PlayLimitFieldsDto,
+  PlayStartResponseDto,
+} from './player.dto';
 
 const SCENARIO = process.env.EXPO_PUBLIC_LIBRARY_MOCK_SCENARIO ?? 'default';
 
 /** 스켈레톤(0.3초 지연 규칙)이 실제로 보이도록 네트워크 지연을 흉내 낸다 */
 const RESPONSE_DELAY_MS = 600;
+/** 발급은 "탭 후 2초 내 재생 시작"(PRD 7)의 경로다 — 목록 조회보다 짧은 지연을 준다 */
+const ISSUE_DELAY_MS = 300;
 /** 서비스 날짜는 서버가 04:00 KST 경계로 계산해 내려주는 값이다 — mock은 고정 라벨을 쓴다 */
 const SERVICE_DATE = '2026-08-07';
 
 /** 파트너 회수 시뮬레이션 — 목록에는 남아 있지만 재생하면 CONTENT_WITHDRAWN이 난다(L13) */
 const WITHDRAWN_CONTENT_ID = 'content-12';
+
+/**
+ * 서명 URL의 대역 — 공개 샘플 오디오(약 6분)를 쓴다. 실제 서명 URL처럼 만료를 흉내 내지는
+ * 않는다(만료 판정은 스토리지 몫 — player-api.md 4.1). 갱신 흐름은 expires_in_sec으로 검증한다.
+ */
+const SAMPLE_AUDIO_URL = 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3';
+const AUDIO_EXPIRES_IN_SEC = 300;
 
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -56,13 +73,28 @@ export const mockPlayLimitFields = (): PlayLimitFieldsDto => ({
 /** is_counted_today의 근거 — 컬럼이 아니라 play_records 조회 결과다(library-api.md 4.1) */
 export const isMockCountedToday = (contentId: string): boolean => playedToday.has(contentId);
 
-/** 재생이 만든 라이브러리 쪽 변화 — 실서버의 library Service 호출에 대응한다 */
+/** 재생이 만드는 라이브러리 쪽 변화 — 실서버의 library Service 호출에 대응한다 */
 export interface PlayMockLibraryBridge {
   /** 상태 전이(unplayed → in_progress)·last_played_at 갱신 후 응답용 스냅샷을 돌려준다 */
   onPlayed: (contentId: string) => {
     library_item: PlayStartResponseDto['library_item'];
     progress: PlaybackProgressDto | null;
   } | null;
+  /** 발급 응답의 콘텐츠 메타·항목 스냅샷(player-api.md 4.1) — 라이브러리에 없으면 null */
+  getContentSnapshot: (contentId: string) => {
+    content: Omit<AudioUrlsResponseDto['content'], 'source_url'>;
+    library_item: AudioUrlsResponseDto['library_item'];
+    progress: PlaybackProgressDto | null;
+  } | null;
+  /**
+   * 위치 저장 + 완청 판정의 서버 대역(player-api.md 4.3 서버 처리 4~6).
+   * max_reached가 길이의 90%에 닿으면 completed로 전이해 스냅샷을 돌려준다.
+   */
+  onProgressSaved: (
+    contentId: string,
+    positionSec: number,
+    maxReachedSec: number,
+  ) => PlaybackProgressPutResponseDto['library_item'];
 }
 
 let libraryBridge: PlayMockLibraryBridge | null = null;
@@ -72,9 +104,11 @@ export const registerPlayMockLibraryBridge = (bridge: PlayMockLibraryBridge): vo
   libraryBridge = bridge;
 };
 
-export const mockStartPlay = async (contentId: string): Promise<PlayStartResponseDto> => {
-  await delay(RESPONSE_DELAY_MS);
-
+/**
+ * 발급·재생 시작 공용 판정(paywall.md 4.1의 대역) — 판정 함수가 두 벌이면 발급은 되는데
+ * 재생은 막히는 어긋남이 생긴다(player-api.md 3장 설계 메모).
+ */
+const assertMockPlayable = (contentId: string): void => {
   if (contentId === WITHDRAWN_CONTENT_ID) {
     throw new ApiError(
       ERROR_CODES.CONTENT_WITHDRAWN,
@@ -87,6 +121,7 @@ export const mockStartPlay = async (contentId: string): Promise<PlayStartRespons
   }
 
   const limit = mockPlayLimitFields().daily_play_limit;
+  // 오늘 카운트된 콘텐츠는 재청취 창 내(paywall.md 4.3-1) — 한도 검사보다 먼저 ALLOW
   const alreadyCounted = playedToday.has(contentId);
   if (limit !== null && !alreadyCounted && playedToday.size >= limit) {
     // 무료 티어 기준의 mock — 유료 한도(PLAY_LIMIT_REACHED) 경로는 백엔드 연동 후 검증한다
@@ -99,7 +134,13 @@ export const mockStartPlay = async (contentId: string): Promise<PlayStartRespons
       403,
     );
   }
+};
 
+export const mockStartPlay = async (contentId: string): Promise<PlayStartResponseDto> => {
+  await delay(RESPONSE_DELAY_MS);
+  assertMockPlayable(contentId);
+
+  const alreadyCounted = playedToday.has(contentId);
   playedToday.add(contentId);
 
   const libraryResult = libraryBridge?.onPlayed(contentId) ?? null;
@@ -110,4 +151,71 @@ export const mockStartPlay = async (contentId: string): Promise<PlayStartRespons
     progress: libraryResult?.progress ?? null,
     ...mockPlayLimitFields(),
   };
+};
+
+/** 탐색 전용 콘텐츠 등 라이브러리 mock에 없는 대상의 폴백 메타 */
+const fallbackContentMeta = (
+  contentId: string,
+): Omit<AudioUrlsResponseDto['content'], 'source_url'> => ({
+  id: contentId,
+  title: '탐색에서 재생한 콘텐츠',
+  author_name: '저자 미상',
+  source_name: '이어 스튜디오',
+  duration_sec: 300,
+  thumbnail_url: `https://picsum.photos/seed/${contentId}/200`,
+  content_version: 1,
+});
+
+/** [원문 보기] 미노출 경로(uiux 4.1) 검증용 — 4의 배수 콘텐츠는 원문이 없는 AI 자체 생성분이다 */
+const mockSourceUrl = (contentId: string): string | null => {
+  const seq = Number(contentId.replace(/\D/g, ''));
+  if (Number.isFinite(seq) && seq % 4 === 0) return null;
+  return `https://example.com/articles/${contentId}`;
+};
+
+/** POST /contents/:id/audio-urls의 대역 — 판정은 하되 차감하지 않는다(player-api.md 4.1) */
+export const mockIssueAudioUrls = async (contentId: string): Promise<AudioUrlsResponseDto> => {
+  await delay(ISSUE_DELAY_MS);
+  assertMockPlayable(contentId);
+
+  const snapshot = libraryBridge?.getContentSnapshot(contentId) ?? null;
+  const content = snapshot?.content ?? fallbackContentMeta(contentId);
+
+  return {
+    content: { ...content, source_url: mockSourceUrl(contentId) },
+    library_item: snapshot?.library_item ?? null,
+    progress: snapshot?.progress ?? null,
+    audio: {
+      url: SAMPLE_AUDIO_URL,
+      expires_at: new Date(Date.now() + AUDIO_EXPIRES_IN_SEC * 1000).toISOString(),
+      expires_in_sec: AUDIO_EXPIRES_IN_SEC,
+    },
+  };
+};
+
+/** PUT /users/me/playback-progresses/:id의 대역 — 완청 판정은 여기(서버 대역)서만 일어난다 */
+export const mockSavePlaybackProgress = async (
+  contentId: string,
+  body: PlaybackProgressPutRequestDto,
+): Promise<PlaybackProgressPutResponseDto> => {
+  // 백그라운드 동기화라 화면 지연 검증이 필요 없다 — 짧은 지연만 준다
+  await delay(150);
+  const libraryItem =
+    libraryBridge?.onProgressSaved(contentId, body.position_sec, body.max_reached_sec) ?? null;
+  return {
+    position_sec: body.position_sec,
+    max_reached_sec: body.max_reached_sec,
+    content_version: body.content_version,
+    library_item: libraryItem,
+  };
+};
+
+/** POST /contents/:id/replay의 대역 — 신호 적재뿐이라 상태 변화가 없다(player-api.md 4.4) */
+export const mockSendReplaySignal = async (_contentId: string): Promise<void> => {
+  await delay(150);
+};
+
+/** POST /contents/:id/source-link-clicks의 대역 — 클릭 1회 = 1행 적재(player-api.md 4.5) */
+export const mockSendSourceLinkClick = async (_contentId: string): Promise<void> => {
+  await delay(150);
 };

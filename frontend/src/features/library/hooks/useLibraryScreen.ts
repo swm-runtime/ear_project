@@ -276,7 +276,18 @@ export const useLibraryScreen = () => {
       return;
     }
     playGate.requestPlay(
-      { contentId: item.content.id, isCountedToday: item.isCountedToday },
+      {
+        contentId: item.content.id,
+        isCountedToday: item.isCountedToday,
+        // 목록이 이미 아는 메타 — 플레이어가 진입과 동시에 그린다(player-uiux.md 4.3)
+        meta: {
+          title: item.content.title,
+          authorName: item.content.authorName,
+          sourceName: item.content.sourceName,
+          thumbnailUrl: item.content.thumbnailUrl,
+          durationSec: item.content.durationSec,
+        },
+      },
       'library',
     );
   };
@@ -292,6 +303,11 @@ export const useLibraryScreen = () => {
       {
         contentId: target.content.id,
         isCountedToday: target.isCountedToday,
+        meta: {
+          title: target.content.title,
+          thumbnailUrl: target.content.thumbnailUrl,
+          durationSec: target.content.durationSec,
+        },
         // 회수된 콘텐츠면 미니플레이어를 내리고 같은 안내를 띄운다(uiux 4.11)
         onWithdrawn: () => dismissResume(target.id),
       },
@@ -299,12 +315,23 @@ export const useLibraryScreen = () => {
     );
   };
 
+  /** 복원 본문 탭 — 확대는 재생을 시작시키지 않는다(uiux 4.4). autoplay 없이 연다(FR-24) */
   const handleMiniPlayerExpand = () => {
     if (!visibleResumeTarget) return;
     navigation.navigate('Main', {
       screen: 'Player',
-      params: { contentId: visibleResumeTarget.content.id },
+      params: {
+        contentId: visibleResumeTarget.content.id,
+        entryPoint: 'miniplayer',
+        autoplay: false,
+      },
     });
+  };
+
+  /** 복원 스냅샷의 스와이프 종료 — 이번 실행에서 치우는 조작. 다음 실행 복원은 영향 없다 */
+  const handleMiniPlayerDismiss = () => {
+    if (!visibleResumeTarget) return;
+    dismissResume(visibleResumeTarget.id);
   };
 
   /* ── 새로고침·추가 로딩 ── */
@@ -416,6 +443,7 @@ export const useLibraryScreen = () => {
     resumeTarget: visibleResumeTarget,
     handleMiniPlayerPlay,
     handleMiniPlayerExpand,
+    handleMiniPlayerDismiss,
     // 더보기·삭제
     moreSheetItem,
     openMoreSheet: setMoreSheetItem,

@@ -185,7 +185,8 @@ src/
 | Interest | *(없음)* | `topics` · `user_interests` 소유. 다른 모듈을 모른다 |
 | Content | Interest | `content_topics`가 `topics`를 참조한다 |
 | Library | Content, User | |
-| Playback | Content, Library, Subscription, **User**, **Drip** | `domain.md` 2장의 세 방향 + 재생 한도 판정에 `users.tier`가 필요해 User를, 재생 시 드립 영구 제외 적재(`drip_excluded_contents`)에 Drip을 더한다. 두 모듈 모두 `Playback`을 모르므로 순환은 없다 |
+| Playback | Content, Library, Subscription, **User**, **Drip**, **Idempotency** | `domain.md` 2장의 세 방향 + 재생 한도 판정에 `users.tier`가 필요해 User를, 재생 시 드립 영구 제외 적재(`drip_excluded_contents`)에 Drip을, `replay`·원문 클릭의 멱등키(`player-api.md` 4.4·4.5 — 신호 테이블에 유니크 제약이 없어 재전송 중복을 DB가 못 막는다)에 Idempotency를 더한다. 세 모듈 모두 `Playback`을 모르므로 순환은 없다 |
+| Subscription | *(없음)* | `plans` · `subscriptions` 소유. 다른 모듈을 모른다 |
 | Drip | Content, Library, Interest, Subscription, **User** | `domain.md` 2장의 네 방향 + 편성 편수 판정에 `users.tier`가 필요해 User를 더한다. `User`는 `Drip`을 모르므로 순환은 없다 |
 | Onboarding | User, Interest, Content, Library, Drip, Idempotency | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
 | LibraryScreen | Library, Playback, Content, Drip | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
@@ -468,6 +469,7 @@ PRD FR-33 / 비기능 "저작권·파트너 계약 준수"에 직접 대응한�
 - **파트너 회수는 발급 경로에서 즉시 차단된다.** 이미 발급된 URL은 만료 시간까지만 유효하며, 이것이 회수 반영 지연의 상한이다(오프라인 저장분은 별도 — `offline-download.md`의 라이선스 상한 30일).
 - 대본 텍스트도 동일한 접근 통제를 받는다. 오디오만 막고 텍스트를 열어두지 않는다.
 - 대량 다운로드 패턴(짧은 시간 내 다수 콘텐츠 URL 요청)은 레이트 리밋 + 이상 탐지 대상으로 둔다.
+- **스트리밍 라우트는 JWT Guard를 쓰지 않는다**(기록 2026-08-11). 네이티브 재생기는 URL만 받아 요청하므로 인증 헤더를 붙일 수 없다 — 서명(HMAC, `contentId:userId:expires` 전체를 덮음)이 인증이며, 값 하나만 바꿔도 검증이 깨져 IDOR가 성립하지 않는다. 이것이 convention.md 3.3 금지 규칙(쿼리로 `userId` 수신)의 유일한 예외다. **오브젝트 스토리지·CDN 전환 시 이 라우트와 예외가 함께 사라진다** — 그때 두 문서의 예외 문구도 걷어낸다.
 
 ### 9.5 통신·비밀 관리
 

@@ -14,6 +14,7 @@ import {
 } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { getTraceId } from '@/common/middlewares/trace-id.middleware';
+import { redactSensitiveQuery } from '@/common/utils/redact-url.util';
 
 /** architecture.md 7.4 — 클라이언트가 받는 에러 응답 규격 (`common-error-handling.md` 6장 ApiError + trace_id) */
 export interface ApiErrorResponse {
@@ -135,7 +136,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const fields = {
       trace_id: mapped.body.trace_id,
       method: request.method,
-      path: request.url,
+      // 민감 쿼리 마스킹 — LoggingInterceptor와 같은 목록(convention.md 8.4)
+      path: redactSensitiveQuery(request.url),
       status: mapped.status,
       error_code: mapped.body.error_code,
     };

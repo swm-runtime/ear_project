@@ -3,17 +3,30 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { ContentModule } from '@/modules/content/content.module';
 import { DripModule } from '@/modules/drip/drip.module';
+import { IdempotencyModule } from '@/modules/idempotency/idempotency.module';
 import { LibraryModule } from '@/modules/library/library.module';
 import { SubscriptionModule } from '@/modules/subscription/subscription.module';
 import { UserModule } from '@/modules/user/user.module';
 
+import { AudioUrlSigner } from './audio-url.signer';
+import { AudioStreamController } from './controllers/audio-stream.controller';
+import { PlaybackProgressController } from './controllers/playback-progress.controller';
+import { PlayController } from './controllers/play.controller';
+import { AudioAccessLog } from './entities/audio-access-log.entity';
 import { PlaybackProgress } from './entities/playback-progress.entity';
 import { PlayRecord } from './entities/play-record.entity';
+import { SourceLinkClick } from './entities/source-link-click.entity';
 import { UserSignal } from './entities/user-signal.entity';
-import { PlayController } from './play.controller';
+import { AudioAccessLogRepository } from './repositories/audio-access-log.repository';
 import { PlaybackProgressRepository } from './repositories/playback-progress.repository';
 import { PlayRecordRepository } from './repositories/play-record.repository';
+import { SourceLinkClickRepository } from './repositories/source-link-click.repository';
 import { UserSignalRepository } from './repositories/user-signal.repository';
+import { AudioStreamService } from './services/audio-stream.service';
+import { AudioUrlService } from './services/audio-url.service';
+import { PlaybackProgressService } from './services/playback-progress.service';
+import { PlaybackSignalService } from './services/playback-signal.service';
+import { PlayPolicyService } from './services/play-policy.service';
 import { PlayService } from './services/play.service';
 import { PlaybackService } from './services/playback.service';
 
@@ -27,23 +40,46 @@ import { PlaybackService } from './services/playback.service';
  *
  * 순환은 생기지 않는다 — `user`와 `drip` 어느 쪽도 `playback`을 모른다
  * (`drip` → `library`는 `playback` → `library`와 같은 방향이다).
+ *
+ * 플레이어 계약(`player-api.md`)을 구현하면서 **`audio_access_logs` · `source_link_clicks`
+ * 두 Entity와 `idempotency` 의존이 늘었다.** 멱등키는 `replay`·원문 클릭의 중복 적재를
+ * 흡수하는 데 필요하다(4.4 · 4.5) — 두 테이블 다 유니크 제약이 없어 DB가 막아 주지 않는다.
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([PlaybackProgress, PlayRecord, UserSignal]),
+    TypeOrmModule.forFeature([
+      PlaybackProgress,
+      PlayRecord,
+      UserSignal,
+      AudioAccessLog,
+      SourceLinkClick,
+    ]),
     ContentModule,
     LibraryModule,
     SubscriptionModule,
     UserModule,
     DripModule,
+    IdempotencyModule,
   ],
-  controllers: [PlayController],
+  controllers: [
+    PlayController,
+    PlaybackProgressController,
+    AudioStreamController,
+  ],
   providers: [
     PlaybackProgressRepository,
     PlayRecordRepository,
     UserSignalRepository,
+    AudioAccessLogRepository,
+    SourceLinkClickRepository,
+    AudioUrlSigner,
     PlaybackService,
+    PlayPolicyService,
     PlayService,
+    AudioUrlService,
+    AudioStreamService,
+    PlaybackProgressService,
+    PlaybackSignalService,
   ],
   exports: [PlaybackService],
 })

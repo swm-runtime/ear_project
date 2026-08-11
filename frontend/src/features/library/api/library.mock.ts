@@ -83,7 +83,8 @@ const makeItem = (seq: number, overrides: Partial<MockItem> = {}): MockItem => {
     title: `${topic.name} 이야기 ${seq} — 오래 일하는 사람들의 습관`,
     authorName: `저자 ${seq}`,
     sourceName: seq % 2 === 0 ? '폴인' : '롱블랙',
-    durationSec: 480 + (seq % 5) * 120,
+    // player mock의 샘플 오디오(약 6분) 안에서 재생 끝·완청(90%)까지 검증할 수 있는 길이로 둔다
+    durationSec: 240 + (seq % 5) * 30,
     topicIds: [topic.id],
     positionSec: 0,
     maxReachedSec: 0,
@@ -104,20 +105,20 @@ const initialItems = (): MockItem[] => {
     ];
   }
   const items = Array.from({ length: 25 }, (_, i) => makeItem(i + 1));
-  // 듣다 만 콘텐츠 — 미니플레이어 복원 대상(재생 위치 > 0)
+  // 듣다 만 콘텐츠 — 미니플레이어 복원 대상(재생 위치 > 0). 길이 300초 중 132초 지점
   items[1] = makeItem(2, {
     status: 'in_progress',
     lastPlayedAt: new Date(Date.UTC(2026, 7, 7, 1, 12)).toISOString(),
-    positionSec: 372,
-    maxReachedSec: 372,
+    positionSec: 132,
+    maxReachedSec: 132,
   });
-  // 완청 — 완료 탭·미니플레이어 제외 검증
+  // 완청 — 완료 탭·미니플레이어 제외 검증. 길이 240초를 끝까지 들은 상태
   items[4] = makeItem(5, {
     status: 'completed',
     lastPlayedAt: new Date(Date.UTC(2026, 7, 5, 22, 30)).toISOString(),
     completedAt: new Date(Date.UTC(2026, 7, 5, 22, 40)).toISOString(),
-    positionSec: 590,
-    maxReachedSec: 600,
+    positionSec: 230,
+    maxReachedSec: 240,
   });
   items[7] = makeItem(8, { source: 'onboarding' });
   return items;
@@ -254,8 +255,12 @@ export const mockFetchResume = async (): Promise<ResumeResponseDto> => {
   };
 };
 
-/* ── 재생(player mock)이 만드는 라이브러리 상태 전이 — 실서버에서 playback 모듈이
-      library Service를 호출하는 구조(library-api.md 8장)의 mock 대응이다 ── */
+/* ── 재생(player mock)이 만드는 라이브러리 상태 전이·진행 저장·완청 판정 — 실서버에서
+      playback 모듈이 library Service를 호출하는 구조(library-api.md 8장)의 mock 대응이다 ── */
+
+/** 완청 임계 90%(player.md 4.4) — 판정은 서버(대역)만 한다. 클라이언트는 판정하지 않는다 */
+const COMPLETE_THRESHOLD_RATIO = 0.9;
+
 registerPlayMockLibraryBridge({
   onPlayed: (contentId) => {
     const item = visibleItems().find((i) => i.contentId === contentId) ?? null;
@@ -269,6 +274,43 @@ registerPlayMockLibraryBridge({
           ? { position_sec: item.positionSec, max_reached_sec: item.maxReachedSec }
           : null,
     };
+  },
+  getContentSnapshot: (contentId) => {
+    const item = visibleItems().find((i) => i.contentId === contentId) ?? null;
+    if (!item) return null;
+    return {
+      content: {
+        id: item.contentId,
+        title: item.title,
+        author_name: item.authorName,
+        source_name: item.sourceName,
+        duration_sec: item.durationSec,
+        thumbnail_url: `https://picsum.photos/seed/${item.contentId}/200`,
+        content_version: 1,
+      },
+      library_item: { id: item.id, status: item.status },
+      progress:
+        item.maxReachedSec > 0
+          ? { position_sec: item.positionSec, max_reached_sec: item.maxReachedSec }
+          : null,
+    };
+  },
+  onProgressSaved: (contentId, positionSec, maxReachedSec) => {
+    const item = visibleItems().find((i) => i.contentId === contentId) ?? null;
+    if (!item) return null;
+    // 값 보정 — duration 초과분은 duration으로 저장한다(player-api.md 4.3 서버 처리 3)
+    item.positionSec = Math.min(positionSec, item.durationSec);
+    item.maxReachedSec = Math.min(maxReachedSec, item.durationSec);
+    // 완청 판정(서버 대역) — 이미 completed면 전이를 반복하지 않는다(completed_at 최초 값 유지)
+    if (
+      item.status !== 'completed' &&
+      item.durationSec > 0 &&
+      item.maxReachedSec >= item.durationSec * COMPLETE_THRESHOLD_RATIO
+    ) {
+      item.status = 'completed';
+      item.completedAt = new Date().toISOString();
+    }
+    return { id: item.id, status: item.status, completed_at: item.completedAt };
   },
 });
 

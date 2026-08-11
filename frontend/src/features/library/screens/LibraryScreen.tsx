@@ -12,14 +12,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/shared/theme';
 import FullScreenError from '@/shared/ui/FullScreenError';
 
-import { PlayConfirmDialog, RemainingPlaysIndicator } from '@/features/player';
+import { MiniPlayer, PlayConfirmDialog, RemainingPlaysIndicator } from '@/features/player';
 
 import LibraryBanner from '../components/LibraryBanner';
 import LibraryEmptyState from '../components/LibraryEmptyState';
 import LibraryItemCard from '../components/LibraryItemCard';
 import LibraryItemSkeleton from '../components/LibraryItemSkeleton';
 import LibraryTabs from '../components/LibraryTabs';
-import MiniPlayerBar from '../components/MiniPlayerBar';
 import MoreActionsSheet from '../components/MoreActionsSheet';
 import TopicFilterSheet from '../components/TopicFilterSheet';
 import UndoSnackbar from '../components/UndoSnackbar';
@@ -30,10 +29,20 @@ import { LIBRARY_COPY } from '../library.copy';
 export default function LibraryScreen() {
   const screen = useLibraryScreen();
 
-  // L6·L9는 목록 전체가 빈 상태 — 탭 줄·필터 아이콘·미니플레이어를 감춘다(uiux 4.8)
+  // L6·L9는 목록 전체가 빈 상태 — 탭 줄·필터 아이콘·복원 미니플레이어를 감춘다(uiux 4.8)
   const isWholeEmpty = screen.emptyKind === 'newUser' || screen.emptyKind === 'deletedAll';
   const showTabBar = !screen.isFullError && !isWholeEmpty;
-  const showMiniPlayer = screen.resumeTarget !== null && !screen.isFullError && !isWholeEmpty;
+  // 복원 스냅샷 폴백의 노출 조건 — 활성 재생 세션의 표시는 MiniPlayer가 스스로 판단한다
+  const resumeFallback =
+    screen.resumeTarget !== null && !screen.isFullError && !isWholeEmpty
+      ? {
+          contentId: screen.resumeTarget.content.id,
+          title: screen.resumeTarget.content.title,
+          thumbnailUrl: screen.resumeTarget.content.thumbnailUrl,
+          positionSec: screen.resumeTarget.progress?.positionSec ?? 0,
+          durationSec: screen.resumeTarget.content.durationSec,
+        }
+      : null;
 
   const renderEmpty = () => {
     switch (screen.emptyKind) {
@@ -171,13 +180,13 @@ export default function LibraryScreen() {
         />
       )}
 
-      {showMiniPlayer && screen.resumeTarget ? (
-        <MiniPlayerBar
-          target={screen.resumeTarget}
-          onPlayPress={screen.handleMiniPlayerPlay}
-          onExpandPress={screen.handleMiniPlayerExpand}
-        />
-      ) : null}
+      {/* 미니플레이어(PL11) — 활성 세션은 실시간, 없으면 복원 스냅샷을 일시정지로 표시한다 */}
+      <MiniPlayer
+        resumeFallback={resumeFallback}
+        onResumePlayPress={screen.handleMiniPlayerPlay}
+        onResumeExpandPress={screen.handleMiniPlayerExpand}
+        onResumeDismiss={screen.handleMiniPlayerDismiss}
+      />
 
       <TopicFilterSheet
         key={screen.topicSheetEpoch}

@@ -9,3 +9,10 @@
  */
 export { default as SettingsScreen } from './screens/SettingsScreen';
 export { settingsKeys } from './api/settings.api';
+/**
+ * 배속의 저장소는 user_settings 하나다(settings-api.md 4.2) — 플레이어의 배속 시트(PL4)가
+ * 같은 계약·같은 조회 캐시를 쓰도록 공개한다. 설정 화면과 어느 쪽에서 바꿔도 함께 바뀐다.
+ */
+export { updateUserSettings } from './api/settings.api';
+export { useSettingsQuery } from './hooks/useSettingsQuery';
+export type { PlaybackRate } from './settings.types';

@@ -6,6 +6,11 @@ export { default as LibraryScreen } from './screens/LibraryScreen';
 export { LIBRARY_COPY } from './library.copy';
 /** libraryKeys — 탐색의 담기·재생이 라이브러리 목록을 재조회시킬 때 쓴다(architecture.md 4.4) */
 export { libraryKeys } from './api/library.api';
+/**
+ * 삭제·복구·완청 트리거 — app/bootstrap이 player의 라이브러리 브리지 구현으로 주입한다
+ * (player → library 직접 의존은 순환이라 금지 — architecture.md 4.3·4.4).
+ */
+export { completeLibraryItem, deleteLibraryItem, restoreLibraryItem } from './api/library.api';
 export type { LibraryFilter, LibraryItem, LibraryItemStatus, LibrarySource } from './library.types';
 
 /* ── mock 브리지(dev 전용) — 탐색 mock이 라이브러리 mock 상태와 정합을 맞출 때 쓴다 ── */

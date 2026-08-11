@@ -1,20 +1,16 @@
 import { DataSource } from 'typeorm';
 
-import { BusinessException } from '@/common/exceptions/business.exception';
-import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { ContentService } from '@/modules/content/services/content.service';
 import { DripExclusionReason } from '@/modules/drip/drip.enum';
 import { DripExclusionService } from '@/modules/drip/services/drip-exclusion.service';
 import { LibraryItem } from '@/modules/library/library-item.entity';
 import { LibraryItemStatus } from '@/modules/library/library.enum';
 import { LibraryService } from '@/modules/library/library.service';
-import { PlanService } from '@/modules/subscription/services/plan.service';
-import { UserService } from '@/modules/user/services/user.service';
-import { UserTier } from '@/modules/user/user.enum';
 
 import { PlayEntryPoint, UserSignalAction } from '../playback.enum';
 import { PlayService } from './play.service';
 import { PlaybackService } from './playback.service';
+import { PlayPolicyService } from './play-policy.service';
 
 const NOW = new Date('2026-08-05T09:00:00.000Z');
 const USER_ID = '11111111-1111-4111-8111-111111111111';
@@ -31,31 +27,20 @@ function buildCommand() {
   };
 }
 
-async function catchError(
-  promise: Promise<unknown>,
-): Promise<BusinessException> {
-  try {
-    await promise;
-  } catch (error) {
-    return error as BusinessException;
-  }
-
-  throw new Error('예외가 발생하지 않았다');
-}
-
+/**
+ * **판정 자체는 여기서 테스트하지 않는다** — `PlayPolicyService`가 소유하며 그쪽 spec이
+ * 검증한다. 이 spec의 관심사는 판정 결과를 받아 **적재·전이·신호를 순서대로 수행하는가**다.
+ */
 describe('PlayService', () => {
   let service: PlayService;
   let playbackService: jest.Mocked<PlaybackService>;
+  let playPolicyService: jest.Mocked<PlayPolicyService>;
   let contentService: jest.Mocked<ContentService>;
-  let userService: jest.Mocked<UserService>;
-  let planService: jest.Mocked<PlanService>;
   let libraryService: jest.Mocked<LibraryService>;
   let dripExclusionService: jest.Mocked<DripExclusionService>;
 
   beforeEach(() => {
     playbackService = {
-      isCountedToday: jest.fn().mockResolvedValue(false),
-      countPlays: jest.fn().mockResolvedValue(0),
       recordPlay: jest.fn().mockResolvedValue(true),
       recordSignal: jest.fn(),
       findProgress: jest.fn().mockResolvedValue(null),
@@ -66,21 +51,17 @@ describe('PlayService', () => {
       }),
     } as unknown as jest.Mocked<PlaybackService>;
 
+    playPolicyService = {
+      assertPlayable: jest.fn().mockResolvedValue({
+        deductsQuota: true,
+        opensReplayWindow: true,
+        dailyPlayLimit: FREE_LIMIT,
+      }),
+    } as unknown as jest.Mocked<PlayPolicyService>;
+
     contentService = {
       getPublishedById: jest.fn().mockResolvedValue({ id: CONTENT_ID }),
     } as unknown as jest.Mocked<ContentService>;
-
-    userService = {
-      getById: jest
-        .fn()
-        .mockResolvedValue({ id: USER_ID, tier: UserTier.LIGHT }),
-    } as unknown as jest.Mocked<UserService>;
-
-    planService = {
-      getPlayLimitPolicy: jest
-        .fn()
-        .mockResolvedValue({ dailyPlayLimit: FREE_LIMIT, isTopTier: false }),
-    } as unknown as jest.Mocked<PlanService>;
 
     libraryService = {
       markPlayStarted: jest.fn().mockResolvedValue(null),
@@ -98,9 +79,8 @@ describe('PlayService', () => {
 
     service = new PlayService(
       playbackService,
+      playPolicyService,
       contentService,
-      userService,
-      planService,
       libraryService,
       dripExclusionService,
       dataSource,
@@ -108,11 +88,8 @@ describe('PlayService', () => {
   });
 
   describe('startPlay', () => {
-    it('무료 사용자가 한도를 남겨두었으면 재생되고 1회가 차감된다', async () => {
-      // given
-      playbackService.countPlays.mockResolvedValue(1);
-
-      // when
+    it('차감이 발생하는 재생이면 카운트 행을 차감 행으로 남긴다', async () => {
+      // given / when
       const result = await service.startPlay(buildCommand());
 
       // then
@@ -120,42 +97,38 @@ describe('PlayService', () => {
       expect(playbackService.recordPlay).toHaveBeenCalledWith(
         USER_ID,
         CONTENT_ID,
+        true,
         NOW,
         expect.anything(),
       );
     });
 
-    it('무료 한도를 모두 소진하면 페이월을 여는 코드로 막는다', async () => {
-      // given
-      playbackService.countPlays.mockResolvedValue(FREE_LIMIT);
-
-      // when
-      const error = await catchError(service.startPlay(buildCommand()));
-
-      // then
-      expect(error.errorCode).toBe(ErrorCode.PLAY_LIMIT_EXCEEDED);
-      expect(playbackService.recordPlay).not.toHaveBeenCalled();
-    });
-
-    it('최상위 티어가 한도를 소진하면 페이월이 아니라 한도 안내로 막는다', async () => {
-      // given — 더 올라갈 티어가 없어 팔 것이 없다 (paywall.md 4.1)
-      planService.getPlayLimitPolicy.mockResolvedValue({
-        dailyPlayLimit: 5,
-        isTopTier: true,
+    it('재청취 창 안이면 행은 생겨도 차감으로 알리지 않는다', async () => {
+      // given — 창 안의 재청취도 listened_sec 적산 대상이라 행 자체는 필요하지만,
+      //          `counted`는 "행이 생겼는가"가 아니라 "차감이 발생했는가"다
+      playPolicyService.assertPlayable.mockResolvedValue({
+        deductsQuota: false,
+        opensReplayWindow: false,
+        dailyPlayLimit: FREE_LIMIT,
       });
-      playbackService.countPlays.mockResolvedValue(5);
+      playbackService.recordPlay.mockResolvedValue(true);
 
       // when
-      const error = await catchError(service.startPlay(buildCommand()));
+      const result = await service.startPlay(buildCommand());
 
       // then
-      expect(error.errorCode).toBe(ErrorCode.PLAY_LIMIT_REACHED);
+      expect(playbackService.recordPlay).toHaveBeenCalledWith(
+        USER_ID,
+        CONTENT_ID,
+        false,
+        NOW,
+        expect.anything(),
+      );
+      expect(result.counted).toBe(false);
     });
 
-    it('한도를 소진했어도 오늘 이미 재생한 콘텐츠는 이어들을 수 있다', async () => {
-      // given — 차감이 없는 재생이라 한도와 무관하다 (paywall.md 7)
-      playbackService.countPlays.mockResolvedValue(FREE_LIMIT);
-      playbackService.isCountedToday.mockResolvedValue(true);
+    it('오늘 이미 재생한 콘텐츠는 행이 늘지 않아 차감도 아니다', async () => {
+      // given — 유니크 제약이 하루 단위 중복을 막는다 (paywall.md 4.3)
       playbackService.recordPlay.mockResolvedValue(false);
 
       // when
@@ -165,24 +138,19 @@ describe('PlayService', () => {
       expect(result.counted).toBe(false);
     });
 
-    it('무제한 티어는 카운트를 세지 않고 재생한다', async () => {
+    it('판정이 막으면 카운트를 적재하지 않는다', async () => {
       // given
-      planService.getPlayLimitPolicy.mockResolvedValue({
-        dailyPlayLimit: null,
-        isTopTier: true,
-      });
+      playPolicyService.assertPlayable.mockRejectedValue(new Error('blocked'));
 
       // when
-      await service.startPlay(buildCommand());
+      await expect(service.startPlay(buildCommand())).rejects.toThrow();
 
       // then
-      expect(playbackService.countPlays).not.toHaveBeenCalled();
+      expect(playbackService.recordPlay).not.toHaveBeenCalled();
     });
 
     it('재생한 콘텐츠는 드립 재적립에서 영구 제외된다', async () => {
-      // given
-
-      // when
+      // given / when
       await service.startPlay(buildCommand());
 
       // then
@@ -230,20 +198,22 @@ describe('PlayService', () => {
       });
     });
 
-    it('진입점이 달라도 판정 규칙은 바뀌지 않는다', async () => {
+    it('진입점을 판정에 넘기지 않는다', async () => {
       // given — 판정에 쓰이면 진입점을 위조해 한도를 우회할 수 있다
-      playbackService.countPlays.mockResolvedValue(FREE_LIMIT);
 
       // when
-      const error = await catchError(
-        service.startPlay({
-          ...buildCommand(),
-          entryPoint: PlayEntryPoint.PUSH,
-        }),
-      );
+      await service.startPlay({
+        ...buildCommand(),
+        entryPoint: PlayEntryPoint.PUSH,
+      });
 
       // then
-      expect(error.errorCode).toBe(ErrorCode.PLAY_LIMIT_EXCEEDED);
+      expect(playPolicyService.assertPlayable).toHaveBeenCalledWith(
+        USER_ID,
+        CONTENT_ID,
+        NOW,
+        expect.anything(),
+      );
     });
   });
 });

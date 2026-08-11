@@ -17,6 +17,9 @@ describe('validateEnv', () => {
     LATEST_APP_VERSION_ANDROID: '1.0.0',
     MIN_SUPPORTED_APP_VERSION_IOS: '1.0.0',
     MIN_SUPPORTED_APP_VERSION_ANDROID: '1.0.0',
+    AUDIO_URL_SIGNING_KEY: 'test-audio-signing-key-0123456789-0123',
+    AUDIO_URL_BASE_URL: 'http://localhost:3000/api/v1/audio',
+    AUDIO_STORAGE_ROOT: './storage/audio',
   };
 
   it('필수 환경 변수가 모두 있으면 숫자 타입으로 변환된 설정을 반환한다', () => {
@@ -65,6 +68,28 @@ describe('validateEnv', () => {
 
     // then
     expect(validate).toThrow(/environment validation failed/);
+  });
+
+  it('TRUST_PROXY_HOPS가 없으면 0(끔)이 기본이다', () => {
+    // given — 프록시가 없는 환경에서 켜져 있으면 IP 위조 구멍이 된다. 기본은 반드시 끔이다
+    const config = { ...validEnv };
+
+    // when
+    const result = validateEnv(config);
+
+    // then
+    expect(result.TRUST_PROXY_HOPS).toBe(0);
+  });
+
+  it('TRUST_PROXY_HOPS가 음수면 기동을 실패시킨다', () => {
+    // given
+    const config = { ...validEnv, TRUST_PROXY_HOPS: '-1' };
+
+    // when
+    const validate = () => validateEnv(config);
+
+    // then
+    expect(validate).toThrow(/TRUST_PROXY_HOPS/);
   });
 
   it('플랫폼별 버전 중 하나만 빠져도 기동을 실패시킨다', () => {

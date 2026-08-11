@@ -5,6 +5,7 @@ import { theme } from '@/shared/theme';
 
 import { ExploreScreen } from '@/features/explore';
 import { LibraryScreen } from '@/features/library';
+import { PlayerScreen } from '@/features/player';
 import { ProfileScreen } from '@/features/profile';
 import { SettingsScreen } from '@/features/settings';
 
@@ -49,12 +50,12 @@ export default function MainNavigator() {
   return (
     <MainStack.Navigator screenOptions={{ headerShown: false }}>
       <MainStack.Screen name="Tabs" component={MainTabs} />
-      {/* TODO: player feature 구현 시 교체(player.md) — 전체 화면 모달 전환도 그때 정한다.
-          플레이스홀더 동안은 기본 push + 헤더를 둔다: 화면 안에 돌아갈 수단이 있어야 한다 */}
+      {/* 플레이어 — 탭 위 풀스크린 모달(architecture.md 6.1). 앱바(셰브론·더보기)는 화면이
+          직접 그리고, 뒤로가기·아래로 스와이프는 축소다(재생 유지 — player-uiux.md 4.8) */}
       <MainStack.Screen
         name="Player"
-        component={PlaceholderScreen}
-        options={{ headerShown: true, headerTitle: '', headerBackTitle: '라이브러리' }}
+        component={PlayerScreen}
+        options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}
       />
       {/* 설정 — 앱바(뒤로 + "설정")를 화면이 직접 그린다(settings-uiux.md 4.1) */}
       <MainStack.Screen name="Settings" component={SettingsScreen} />
