@@ -2,6 +2,7 @@ import type { NavigatorScreenParams } from '@react-navigation/native';
 
 import type { AuthStackParamList } from '@/features/auth';
 import type { OnboardingStackParamList } from '@/features/onboarding';
+import type { PlayEntryPoint } from '@/features/player';
 
 /** 하단 탭 3개 — 라이브러리가 기본이고 설정은 탭이 아니라 프로필 안이다(library.md 2) */
 export type MainTabParamList = {
@@ -13,8 +14,12 @@ export type MainTabParamList = {
 /** Main 영역 — 탭 위에 얹히는 화면(플레이어 등)은 스택으로 겹친다 */
 export type MainStackParamList = {
   Tabs: NavigatorScreenParams<MainTabParamList>;
-  /** TODO: player feature 구현 시 교체(player.md). 지금은 플레이스홀더다 */
-  Player: { contentId: string };
+  /**
+   * 플레이어(player.md). 게이트 통과 진입은 contentId만 넘긴다(재생은 PlaybackService가 이미
+   * 시작). entryPoint·autoplay는 게이트를 거치지 않는 경로(미니플레이어 확대·푸시 딥링크)용 —
+   * 기본은 miniplayer·autoplay false다(FR-24 자동 재생 금지).
+   */
+  Player: { contentId: string; entryPoint?: PlayEntryPoint; autoplay?: boolean };
   /** 설정(settings.md) — 진입점은 프로필 우상단 아이콘뿐이다 */
   Settings: undefined;
   /** TODO: subscription 화면 구현 시 교체(subscription.md) — 플랜 카드·[구독 알아보기]의 목적지 */
