@@ -84,6 +84,7 @@ export const LOADING_INDICATOR_DELAY_MS = 300;
 ### 1.5 Feature · 디렉터리 이름
 
 - feature 디렉터리는 **소문자 단수형**: `player`, `library`, `paywall`. 화면 명세 문서명과 대응시킨다(`docs/features/library.md` ↔ `features/library`).
+  - 예외: `interest-management.md` ↔ **`features/interest`** — `architecture.md` 4.1·4.4의 모듈명(`interest`)과 코드가 일치하는 쪽을 우선했다(기록 2026-08-11). 새 폴더를 `interest-management`로 만들지 않는다.
 - 하위 디렉터리는 고정 이름만 쓴다: `screens/ components/ hooks/ api/ services/ store/`. 새 종류가 필요하면 이 문서에 추가한 뒤 쓴다.
 
 ### 1.6 표기 경계 정리

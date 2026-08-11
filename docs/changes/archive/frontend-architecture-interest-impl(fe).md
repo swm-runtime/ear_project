@@ -7,7 +7,12 @@
 | 발행 날짜 | 2026-08-11 |
 | 관련 작업 | interest feature 구현(`feat(fe)/interest-management`) — IM1~IM9, 주제 목록 소유권 이동 |
 | 파급 | 코드는 이미 이 내용대로 구현됨. features/spec 문서에는 영향 없음(동작 규칙 무변경 — 의존 표 비고만 개정) |
-| 상태 | pending |
+| 상태 | **반영 완료** (2026-08-11, 관심사 관리 통합 시점) |
+
+> **2026-08-11 반영 결과** — "기록할 내용" 3항목을 전부 반영했다(선택 항목 포함).
+>
+> - `frontend/architecture.md` 4.4 — `onboarding` 행 비고를 주제 목록 소유권 이동(같은 계약·같은 캐시 `interestKeys.topics()` · `TopicChip` 공용 · mock 원본 갱신)으로 구체화, `profile` · `settings` 행에 `registerInterestSavedListener`(bootstrap 주입, 역방향 import 없음) 배선을 명시
+> - (선택 항목 채택) `frontend/convention.md` 1.5 — `interest-management.md` ↔ `features/interest` 대응 예외를 명시했다. 안 적으면 다음 사람이 1.5 규칙대로 `interest-management` 폴더를 새로 만들어 두 벌이 된다
 
 ## 왜 기록하는가
 

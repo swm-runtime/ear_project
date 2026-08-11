@@ -7,7 +7,9 @@
 | 발행 날짜 | 2026-08-11 |
 | 관련 작업 | interest feature 구현(`feat(fe)/interest-management`) — 시뮬레이터 검증 중 발견 |
 | 파급 | 동작 규칙("변경이 있으면 확인 없이 이탈되지 않는다")은 유지. 스와이프에 한해 표현만 다르다 |
-| 상태 | pending |
+| 상태 | **반영 완료** (2026-08-11, 관심사 관리 통합 시점) |
+
+> **2026-08-11 반영 결과** — `interest-management-uiux.md` 4.6에 구현 제약 각주를 추가했다: 스와이프는 native-stack 제약으로 팝업 대신 `gestureEnabled: false` 비활성화(변경 없으면 정상 dismiss), 팝업은 뒤로가기 버튼·하드웨어 백. 동작 규칙의 목적 유지 문구까지 원안대로다. `features/interest-management.md` 5장은 요청대로 무변경.
 
 ## 왜 기록하는가
 

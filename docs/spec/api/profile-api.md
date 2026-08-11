@@ -154,8 +154,8 @@
 
 **`interest_summary`**
 
-- `count`는 `user_interests`의 `is_active = true` 개수다. **관리자가 숨긴 주제(`topics.is_visible = false`)도 개수에 포함한다** — 편집 화면과 같은 기준을 써야 개수가 어긋나지 않는다(`profile.md` 7장 · `interest-management.md` 7장).
-- **`count`는 항상 1 이상이다.** 편집 화면이 최소 1개 선택을 강제하므로(합의 2026-08-06 — `interest-management.md` 4.2) 관심 주제 0개인 요약 상태는 생기지 않는다(`profile.md` 4.4).
+- `count`는 `user_interests`의 `is_active = true`이면서 **주제가 노출 중(`topics.is_visible = true`)인** 개수다. 숨긴 주제는 개수·`top_topics`에서 제외한다(결정 2026-08-11 — 숨김 주제는 모든 사용자에게서 제거된다) — 편집 화면의 N/3과 같은 기준이라 두 화면의 숫자가 어긋나지 않는다(`profile.md` 7장 · `interest-management.md` 7장).
+- **`count`는 정상적으로 1 이상이다.** 편집 화면이 최소 1개 선택을 강제한다(합의 2026-08-06 — `interest-management.md` 4.2). 단 보유 주제가 전부 숨겨진 극단 상황에서는 0이 될 수 있다(숨김 제외 — 결정 2026-08-11. `interest-management-api.md` 4.2의 0개 상태와 같은 경우) — 화면은 0개여도 깨지지 않게 그린다(`profile.md` 4.4).
 - `top_topics`는 **최대 3개 — 별도 선정 기준 없이 서버 응답 순서의 앞 3개다**(확정 2026-08-06, `profile.md` 4.4). "대표"를 위한 추가 규칙을 두지 않는다.
 - **정렬은 `user_interests.created_at` 오름차순 — 사용자가 선택한 순서다**(개정 2026-08-08). `explore-api.md` 4.2-2의 주제 칩과 **같은 규칙**이며, 같은 데이터(`user_interests`)를 읽는 화면끼리 순서가 갈리지 않게 한다.
   - 개정 전에는 "관심사 관리 목록과 같은 정렬(현행 `topics.display_order`)"이라고 적혀 있었다. **관심사 관리 화면은 아직 없고 API 명세도 없어**, 만들어지지 않은 화면의 정렬을 추측한 문장이었다. 그 상태로 두면 관심사 관리를 만드는 사람이 이 문장을 근거로 `display_order`를 택해 세 화면이 어긋난다.
@@ -194,7 +194,7 @@
 - `topics`는 **상위 5개**(청취 시간 비율 내림차순), `others_ratio`는 6위 이하를 묶은 비율이다. 상위가 5개 미만이면 있는 만큼만 내려주고 `others_ratio = 0`이다.
 - 집계 규칙(서버): 원천은 `play_records.listened_sec` × `content_topics`. 여러 주제에 속한 콘텐츠는 **각 주제에 청취 시간을 그대로 더한 뒤** 전체 합 대비 정규화한다(분할 배분하지 않는다 — `profile.md` 4.7). **합이 정확히 100이 되도록 반올림 조정까지 서버가 한다** — 클라이언트는 재정규화하지 않고 그대로 그린다. 소수 자릿수 등 표기는 uiux 문서가 정한다.
 - "기타" 라벨 문자열은 내려주지 않는다 — `others_ratio > 0`일 때 클라이언트가 카피를 그린다(카피는 uiux 소유).
-- 숨겨진 주제(`topics.is_visible = false`)도 청취 기록이 있으면 집계에 포함한다(`profile.md` 4.7 — 관심 주제 요약과 같은 기준).
+- 숨겨진 주제(`topics.is_visible = false`)도 청취 기록이 있으면 집계에 포함한다(`profile.md` 4.7 — 주제 분포는 청취 이력 집계라 관심사 제거 결정(2026-08-11)의 대상이 아니다).
 - 청취 기록이 없으면 `topics: []` · `others_ratio: 0` → 클라이언트는 빈 상태 문구를 그린다.
 
 **`failed_sections` — 부분 실패의 표현**
