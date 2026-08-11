@@ -11,7 +11,11 @@ export const INTEREST_COPY = {
   /** "이 슬래시 삼"으로 읽히지 않게 낭독 라벨을 따로 둔다(uiux 7장) */
   countA11y: (count: number, max: number) => `${max}개 중 ${count}개 선택`,
   changeBadge: (n: number) => `변경 사항 ${n}개`,
-  limitToast: '관심 주제는 3개까지 선택할 수 있어요',
+  /**
+   * 상한 초과 사유 문구 — 탭을 막지 않고 저장만 막는다(변경 2026-08-11: 0개 사유와 같은
+   * 패턴으로 [저장] 위에 상시 노출). 문자열은 온보딩 상한 토스트와 동일하다.
+   */
+  limitNotice: '관심 주제는 3개까지 선택할 수 있어요',
   minRequired: '관심 주제를 1개 이상 선택해주세요',
   /** IM6 — N은 3을 초과한 개수다(5개 보유 → "2개를 해제하면") */
   overLimitBanner: (n: number) => `관심 주제는 3개까지예요. ${n}개를 해제하면 다시 추가할 수 있어요`,

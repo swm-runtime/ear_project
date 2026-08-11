@@ -30,3 +30,14 @@ export const computeInterestDiff = (baselineIds: string[], selectedIds: string[]
   const removedIds = [...baseline].filter((id) => !selected.has(id));
   return { addedIds, removedIds, changeCount: addedIds.length + removedIds.length };
 };
+
+/**
+ * 상한 초과 저장 게이트 — 탭은 제한하지 않고 저장만 막는다(변경 2026-08-11: 0개 상태와 같은
+ * 패턴). 판정식은 서버와 같은 max(상한, 저장 전 보유 개수)다(interest-management-api.md 4.3) —
+ * 초과 보유자(기존 5개)의 해제·재저장(5→4)을 막지 않기 위해 상수 3을 쓰지 않는다.
+ */
+export const isOverSelectionCap = (
+  selectedCount: number,
+  maxSelectable: number,
+  baselineCount: number,
+): boolean => maxSelectable > 0 && selectedCount > Math.max(maxSelectable, baselineCount);
