@@ -1,13 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 
-import { toServiceDate } from '@/common/utils/service-date.util';
+import {
+  shiftServiceDate,
+  toServiceDate,
+} from '@/common/utils/service-date.util';
 import { PlanService } from '@/modules/subscription/services/plan.service';
 import { UserService } from '@/modules/user/services/user.service';
 
 import { PlaybackProgressRepository } from '../repositories/playback-progress.repository';
 import { PlayRecordRepository } from '../repositories/play-record.repository';
 import { UserSignalRepository } from '../repositories/user-signal.repository';
+import { REPLAY_WINDOW_DAYS } from '../playback.constant';
 import { UserSignalAction } from '../playback.enum';
 import {
   ContentListenedSecView,
@@ -76,35 +80,59 @@ export class PlaybackService {
     );
   }
 
-  /** 오늘의 서비스 날짜에 이미 카운트된 `content_id` 집합 — 목록의 `is_counted_today` */
+  /**
+   * 목록의 `is_counted_today` — **재청취 창 안이라 지금 틀어도 차감이 없는** `content_id`
+   * 집합(`library-api.md` 4.1, 개정 2026-08-10 — 필드명은 유지하고 의미를 "오늘 카운트됨"
+   * 에서 "창 안"으로 넓혔다).
+   *
+   * 창 범위 계산은 `isWithinReplayWindow`(단건 판정)와 같아야 한다 — 목록의 힌트와 재생
+   * 시점의 판정이 다르면 팝업 없이 차감되거나 거짓 차감 고지가 나간다.
+   */
   async findCountedContentIds(
     userId: string,
     now: Date,
     manager?: EntityManager,
   ): Promise<Set<string>> {
-    const contentIds = await this.playRecordRepository.findAllCountedContentIds(
-      userId,
+    const fromPlayDate = shiftServiceDate(
       toServiceDate(now),
-      manager,
+      -(REPLAY_WINDOW_DAYS - 1),
     );
+
+    const contentIds =
+      await this.playRecordRepository.findAllCountedContentIdsSince(
+        userId,
+        fromPlayDate,
+        manager,
+      );
 
     return new Set(contentIds);
   }
 
   /**
-   * 이 콘텐츠가 오늘의 서비스 날짜에 이미 카운트됐는가.
-   * **차감 여부 판정의 근거이지 표시값이 아니다** — 이 값이 참이면 재생해도 차감이 없다.
+   * 재청취 창 안인가 — **차감 발생일로부터 15일(당일 포함)**(`paywall.md` 4.3-1).
+   *
+   * 창 안이면 차감도 차단도 없다. 한도 검사보다 **먼저** 판정되므로 한도를 소진한 상태에서도
+   * 재청취가 허용된다.
+   *
+   * 시각이 아니라 **서비스 날짜 라벨 위에서** 범위를 계산한다 — `play_date`가 이미 04시
+   * 경계로 계산된 값이라(domain.md 1.2) 시각으로 다시 자르면 경계가 두 번 적용된다.
    */
-  async isCountedToday(
+  async isWithinReplayWindow(
     userId: string,
     contentId: string,
     now: Date,
     manager?: EntityManager,
   ): Promise<boolean> {
-    return this.playRecordRepository.existsByUserIdAndContentIdAndPlayDate(
+    // 당일을 포함해 15일이므로 하루를 뺀 만큼만 거슬러 올라간다
+    const fromPlayDate = shiftServiceDate(
+      toServiceDate(now),
+      -(REPLAY_WINDOW_DAYS - 1),
+    );
+
+    return this.playRecordRepository.existsCountedSince(
       userId,
       contentId,
-      toServiceDate(now),
+      fromPlayDate,
       manager,
     );
   }
@@ -203,11 +231,15 @@ export class PlaybackService {
    * 재생 카운트를 적재한다. 유니크 제약이 하루 단위 멱등을 보장하므로
    * **같은 날 같은 콘텐츠를 두 번 눌러도 행이 늘지 않는다**(`paywall.md` 4.3).
    *
-   * @returns 이 요청으로 행이 새로 생겼는지 = 차감이 실제로 일어났는지
+   * **창 안의 재청취도 행을 만든다**(`isCounted = false`). 차감은 없지만 `listened_sec`
+   * 적산 대상이 필요하기 때문이다(domain.md 6.3).
+   *
+   * @returns 이 요청으로 행이 새로 생겼는지
    */
   async recordPlay(
     userId: string,
     contentId: string,
+    isCounted: boolean,
     now: Date,
     manager?: EntityManager,
   ): Promise<boolean> {
@@ -217,9 +249,73 @@ export class PlaybackService {
         contentId,
         playDate: toServiceDate(now),
         playedAt: now,
+        isCounted,
       },
       manager,
     );
+  }
+
+  /**
+   * `listened_sec` 적산(`player.md` 4.4-1) — 그 (user, content)의 **가장 최근 행**에 더한다.
+   *
+   * 행이 없으면 아무것도 하지 않는다. 정상 흐름에서는 재생 시작이 행을 먼저 만들지만,
+   * 오프라인 큐가 순서를 어겨 위치 저장이 먼저 도착할 수 있다(`player-api.md` 4.3) —
+   * 그때 행을 만들면 **재생하지 않은 날짜에 차감 없는 행이 생긴다.**
+   *
+   * @returns 실제로 적산했는지
+   */
+  async addListenedSec(
+    userId: string,
+    contentId: string,
+    delta: number,
+    manager?: EntityManager,
+  ): Promise<boolean> {
+    if (delta <= 0) {
+      return false;
+    }
+
+    const record =
+      await this.playRecordRepository.findLatestByUserIdAndContentId(
+        userId,
+        contentId,
+        manager,
+      );
+
+    if (!record) {
+      return false;
+    }
+
+    await this.playRecordRepository.incrementListenedSec(
+      record.id,
+      delta,
+      manager,
+    );
+
+    return true;
+  }
+
+  /**
+   * 위치 저장(`player-api.md` 4.3). user × content 당 1행이다.
+   *
+   * 반환값은 입력값 그대로다 — LWW에 서버 보정이 없어(domain.md 6.2) 저장 결과와 입력이
+   * 항상 같고, 재조회는 최다 빈도 쓰기 경로의 왕복만 더한다.
+   */
+  async saveProgress(
+    userId: string,
+    contentId: string,
+    positionSec: number,
+    maxReachedSec: number,
+    manager?: EntityManager,
+  ): Promise<ProgressView> {
+    await this.playbackProgressRepository.upsert(
+      userId,
+      contentId,
+      positionSec,
+      maxReachedSec,
+      manager,
+    );
+
+    return { contentId, positionSec, maxReachedSec };
   }
 
   async recordSignal(

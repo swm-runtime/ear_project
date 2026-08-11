@@ -164,6 +164,46 @@ export class LibraryService {
     return true;
   }
 
+  /**
+   * 콘텐츠 축의 단건 조회 — 플레이어가 쓴다(`player-api.md` 4.1 · 4.4).
+   *
+   * 플레이어는 **항목 id를 모른 채 콘텐츠 id로 들어온다**(탐색에서 담지 않은 콘텐츠도 재생할
+   * 수 있다). 라이브러리에 없으면 `null`이며 그것이 정상이다 — 발급·신호는 담기를 유발하지
+   * 않는다.
+   *
+   * **`content` 관계를 싣지 않는다.** 발급(`id` · `status`)과 `replay` 판정(`status`)이 쓰는
+   * 경로라 JOIN이 버려진다 — 완청 판정처럼 `duration_sec`이 필요한 곳은 아래
+   * `findItemWithContentByContentId`를 쓴다.
+   */
+  async findItemByContentId(
+    userId: string,
+    contentId: string,
+    manager?: EntityManager,
+  ): Promise<LibraryItem | null> {
+    return this.libraryItemRepository.findByUserIdAndContentId(
+      userId,
+      contentId,
+      manager,
+    );
+  }
+
+  /**
+   * 위와 같되 **`content` 관계를 함께 읽는다** — 완청 판정(`player-api.md` 4.3)이
+   * `contents.duration_sec`을 요구한다. 관계 없이 `completeItem`에 넘기면 길이를 0으로 보고
+   * **90% 검사를 건너뛴 채 완료 처리한다**(가짜 완청).
+   */
+  async findItemWithContentByContentId(
+    userId: string,
+    contentId: string,
+    manager?: EntityManager,
+  ): Promise<LibraryItem | null> {
+    return this.libraryItemRepository.findByUserIdAndContentIdWithContent(
+      userId,
+      contentId,
+      manager,
+    );
+  }
+
   /** 탐색 피드의 "담김" 표시용(explore-api.md 4.1) — 삭제분은 담겨 있지 않은 것으로 본다 */
   async findActiveItems(
     userId: string,

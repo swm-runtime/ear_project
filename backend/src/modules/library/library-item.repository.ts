@@ -313,6 +313,24 @@ export class LibraryItemRepository {
   }
 
   /**
+   * 콘텐츠 축으로 찾되 **`content` 관계를 함께 읽는다.**
+   *
+   * 플레이어의 위치 저장이 이 경로로 완청을 판정하는데(`player-api.md` 4.3), 판정에는
+   * `contents.duration_sec`이 필요하다. 관계를 안 읽으면 `LibraryService.completeItem`이
+   * 길이를 0으로 보고 **90% 검사를 건너뛴 채 완료 처리한다** — 가짜 완청이 된다.
+   */
+  async findByUserIdAndContentIdWithContent(
+    userId: string,
+    contentId: string,
+    manager?: EntityManager,
+  ): Promise<LibraryItem | null> {
+    return this.scoped(manager).findOne({
+      where: { userId, contentId },
+      relations: { content: true },
+    });
+  }
+
+  /**
    * 담기(explore-api.md 4.3)가 쓰는 조회 — **"행이 없음"과 "삭제된 행이 있음"을 갈라야 한다.**
    * 앞은 새로 만들어 201이고 뒤는 되살려 200이라, 삭제분을 감춘 조회로는 판정할 수 없다.
    */

@@ -11,10 +11,12 @@ import { Request, Response } from 'express';
 import { Observable, tap } from 'rxjs';
 
 import { getTraceId } from '@/common/middlewares/trace-id.middleware';
+import { redactSensitiveQuery } from '@/common/utils/redact-url.util';
 
 /**
  * convention.md 8.3 — 모든 API 요청의 종료를 인터셉터에서 일괄로 남긴다.
- * 요청 바디는 남기지 않는다 (convention.md 8.4).
+ * 요청 바디는 남기지 않고(convention.md 8.4), 민감 쿼리 값은 마스킹한다
+ * (`redact-url.util.ts` — AllExceptionsFilter와 같은 목록을 쓴다).
  */
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
@@ -51,7 +53,7 @@ export class LoggingInterceptor implements NestInterceptor {
     this.logger.log('request completed', {
       trace_id: getTraceId(request),
       method: request.method,
-      path: request.url,
+      path: redactSensitiveQuery(request.url),
       status,
       duration_ms: Math.round(durationMs),
     });
