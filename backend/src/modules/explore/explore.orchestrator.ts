@@ -259,9 +259,9 @@ export class ExploreOrchestrator {
    * (`explore.md` 4.2). 정렬을 서버가 소유하는 이유는 규칙이 두 곳에 생기면 화면마다 칩
    * 순서가 달라지기 때문이다.
    *
-   * **관심 주제는 `is_visible = false`여도 포함한다.** 관리자가 나중에 내린 주제를 이미 고른
-   * 사용자가 있고, 걸러내면 자기가 고른 주제인데 필터를 걸 수 없다. 반대로 관심 주제가 아닌
-   * 숨겨진 주제는 노출하지 않는다(FR-38).
+   * **숨겨진 주제(`is_visible = false`)는 관심 주제여도 노출하지 않는다**(팀 결정 2026-08-11 —
+   * 숨김 주제는 모든 사용자에게서 제거된다. 합의 2026-08-07의 보유자 예외를 뒤집었다).
+   * 필터는 `UserInterestService.findAllActive`가 한다 — 노출면마다 기준이 갈라지지 않는다.
    *
    * 두 목록을 합쳐 정렬하는 것은 **탐색 화면의 규칙**이라 `interest` 모듈이 아니라 여기서 한다.
    */
@@ -271,7 +271,6 @@ export class ExploreOrchestrator {
     const interestTopicIds = interests.map((interest) => interest.topicId);
 
     const [interestTopics, visibleTopics] = await Promise.all([
-      // 숨김 주제가 섞여 있어 `findAllVisible` 결과만으로는 이름을 채울 수 없다
       this.topicService.findAllByIds(interestTopicIds),
       this.topicService.findAllVisible(),
     ]);

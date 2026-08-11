@@ -43,7 +43,7 @@ async function expectErrorCode(
 }
 
 function buildTopic(id: string, isVisible = true): Topic {
-  return { id, isVisible } as Topic;
+  return { id, isVisible, name: `topic-${id.slice(0, 8)}` } as Topic;
 }
 
 describe('UserInterestService', () => {
@@ -196,6 +196,51 @@ describe('UserInterestService', () => {
       expect(rows[0].deactivatedAt).toBeNull();
       expect(rows[0].isUserRemoved).toBe(true);
       expect(repository.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('findAllActive', () => {
+    it('숨겨진 주제의 활성 관심사는 모든 소비처에서 걸러진다', async () => {
+      // given — 팀 결정 2026-08-11: 숨김 주제는 보유 여부와 무관하게 제거된다
+      repository.findAllActiveByUserId.mockResolvedValue([
+        buildInterest({ topicId: TOPIC_A }),
+        buildInterest({ id: 'row-2', topicId: TOPIC_B }),
+      ]);
+      topicService.findAllByIds.mockResolvedValue([
+        buildTopic(TOPIC_A),
+        buildTopic(TOPIC_B, false),
+      ]);
+
+      // when
+      const active = await service.findAllActive(USER_ID);
+
+      // then
+      expect(active).toHaveLength(1);
+      expect(active[0].topicId).toBe(TOPIC_A);
+    });
+  });
+
+  describe('buildSummary', () => {
+    it('숨겨진 주제는 요약 개수와 대표 주제에서 제외한다', async () => {
+      // given — 편집 화면의 N/3과 같은 기준을 쓴다(프로필 3개 ↔ 편집 2/3 어긋남 방지)
+      repository.findAllActiveByUserId.mockResolvedValue([
+        buildInterest({ topicId: TOPIC_A }),
+        buildInterest({ id: 'row-2', topicId: TOPIC_B }),
+        buildInterest({ id: 'row-3', topicId: TOPIC_C }),
+      ]);
+      topicService.findAllByIds.mockImplementation((ids: string[]) =>
+        Promise.resolve(ids.map((id) => buildTopic(id, id !== TOPIC_B))),
+      );
+
+      // when
+      const summary = await service.buildSummary(USER_ID, 3);
+
+      // then
+      expect(summary.count).toBe(2);
+      expect(summary.topTopics.map((topic) => topic.id)).toEqual([
+        TOPIC_A,
+        TOPIC_C,
+      ]);
     });
   });
 

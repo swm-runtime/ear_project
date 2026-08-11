@@ -34,20 +34,37 @@ export class UserInterestService {
     private readonly dataSource: DataSource,
   ) {}
 
+  /**
+   * 활성 관심사 — **숨겨진 주제(`topics.is_visible = false`)는 여기서 걸러진다**(팀 결정
+   * 2026-08-11: 관리자가 주제를 숨기면 보유 여부와 무관하게 모든 사용자에게서 해당 관심사가
+   * 제거되고 개수도 재계산된다).
+   *
+   * 이 메서드가 관심사 조회의 **단일 필터 지점**이다 — 편집 화면·프로필/설정 요약·탐색 칩·
+   * 드립 편성·온보딩 상태가 전부 이 결과를 소비하므로, 노출면마다 포함/제외 기준이 갈라지지
+   * 않는다. 행은 물리 삭제하지 않는다(숨김은 관리자 토글이라 삭제 훅이 없다).
+   */
   async findAllActive(
     userId: string,
     manager?: EntityManager,
   ): Promise<UserInterest[]> {
-    return this.userInterestRepository.findAllActiveByUserId(userId, manager);
+    const active = await this.userInterestRepository.findAllActiveByUserId(
+      userId,
+      manager,
+    );
+    const visibleTopicIds = await this.findVisibleTopicIdSet(
+      active.map((interest) => interest.topicId),
+      manager,
+    );
+
+    return active.filter((interest) => visibleTopicIds.has(interest.topicId));
   }
 
   /**
    * 관심 주제 요약 — **프로필·설정이 같은 함수를 호출한다**(`profile-api.md` 4.1 ·
    * `settings-api.md` 4.1). 화면마다 조립하면 같은 사용자에게 다른 개수·다른 순서가 나간다.
    *
-   * **숨김 처리된 관심 주제도 개수에 포함한다** — 편집 화면과 같은 기준을 써야 개수가 어긋나지
-   * 않는다(`interest-management.md` 7장). 그래서 노출 주제 목록이 아니라 `findAllByIds`로
-   * 이름을 붙인다.
+   * 숨겨진 주제는 `findAllActive`가 걸러 개수·대표 주제에서 빠진다 — 편집 화면의 N/3과 같은
+   * 기준이다(팀 결정 2026-08-11).
    *
    * 정렬은 `findAllActive`가 주는 **선택한 순서**(`created_at`)를 그대로 쓴다 — 탐색 칩과 같은
    * 규칙이다(`explore-api.md` 4.2-2). `topTopics`는 별도 선정 기준 없이 앞 3개다.
@@ -178,21 +195,12 @@ export class UserInterestService {
     userId: string,
     manager?: EntityManager,
   ): Promise<UserInterestSelectionView[]> {
-    const active = await this.userInterestRepository.findAllActiveByUserId(
-      userId,
-      manager,
-    );
-    const visibleTopicIds = await this.findVisibleTopicIdSet(
-      active.map((interest) => interest.topicId),
-      manager,
-    );
+    const active = await this.findAllActive(userId, manager);
 
-    return active
-      .filter((interest) => visibleTopicIds.has(interest.topicId))
-      .map((interest) => ({
-        topicId: interest.topicId,
-        source: interest.source,
-      }));
+    return active.map((interest) => ({
+      topicId: interest.topicId,
+      source: interest.source,
+    }));
   }
 
   /**
