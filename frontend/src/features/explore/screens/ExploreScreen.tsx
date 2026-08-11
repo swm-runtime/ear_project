@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/shared/theme';
 import FullScreenError from '@/shared/ui/FullScreenError';
 
-import { PlayConfirmDialog, RemainingPlaysIndicator } from '@/features/player';
+import { MiniPlayer, PlayConfirmDialog, RemainingPlaysIndicator } from '@/features/player';
 
 import ExploreContentRow from '../components/ExploreContentRow';
 import ExploreEmptyState from '../components/ExploreEmptyState';
@@ -201,7 +201,10 @@ export default function ExploreScreen() {
           // 토글 노출은 key가 아니라 period 값으로 가른다 — popular 섹션만 값이 있다(explore-api.md 4.1)
           section.period !== null ? (
             <View style={styles.sectionHeaderRow}>
-              <Text style={[styles.sectionTitle, styles.sectionHeaderTitle]} accessibilityRole="header">
+              <Text
+                style={[styles.sectionTitle, styles.sectionHeaderTitle]}
+                accessibilityRole="header"
+              >
                 {section.title}
               </Text>
               <PopularPeriodToggle
@@ -260,6 +263,9 @@ export default function ExploreScreen() {
       ) : null}
 
       {renderBody()}
+
+      {/* 미니플레이어(PL11) — 활성 재생 세션만 그린다. 복원 스냅샷 판정은 라이브러리 소유다 */}
+      <MiniPlayer />
 
       <ExploreMoreSheet
         item={screen.moreSheetItem}

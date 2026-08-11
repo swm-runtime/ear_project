@@ -106,9 +106,5 @@ export const LIBRARY_COPY = {
     moreA11y: (title: string) => `${title} 더보기`,
   },
 
-  miniPlayer: {
-    playA11y: '재생',
-    expandA11y: (title: string) => `${title} 플레이어 열기`,
-    progressA11y: (totalMin: number, currentMin: number) => `${totalMin}분 중 ${currentMin}분`,
-  },
+  // 미니플레이어 카피는 컴포넌트 승격과 함께 player feature로 이관됐다(PLAYER_COPY.miniPlayer)
 } as const;

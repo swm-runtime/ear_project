@@ -1,20 +1,22 @@
 import { useNavigation } from '@react-navigation/native';
 import { useState } from 'react';
 
-import { isApiError } from '@/shared/api/api-error';
-import { ERROR_CODES } from '@/shared/api/error-codes';
 import { useToastStore } from '@/shared/ui/toast.store';
 
 import { PLAYER_COPY } from '../player.copy';
-import type { PlayEntryPoint, PlayStartResult } from '../player.types';
-import { useStartPlayMutation } from './useStartPlayMutation';
+import type { PlaybackStartMeta, PlayEntryPoint, PlayStartResult } from '../player.types';
 import { suppressPlayConfirmForToday } from '../services/play-confirm-suppression.service';
+import { playbackService } from '../services/playback.service';
 import { usePlayLimitStore } from '../store/play-limit.store';
 
 export interface PlayGateTarget {
   contentId: string;
   /** 팝업 여부 힌트(library-api.md 4.1). 판정이 아니다 — 최종 판단은 서버가 한다 */
   isCountedToday: boolean;
+  /** 목록이 이미 들고 있는 메타 — 플레이어가 진입과 동시에 그린다(player-uiux.md 4.3) */
+  meta?: PlaybackStartMeta;
+  /** 완료 화면 ▶ 재청취 — 위치 0부터 재생 + replay 신호(player.md 5장) */
+  restartFromBeginning?: boolean;
   /** CONTENT_WITHDRAWN(403) 시 진입점별 정리(목록 제거·미니플레이어 내림)에 쓴다 */
   onWithdrawn?: () => void;
 }
@@ -42,18 +44,18 @@ interface ConfirmState {
 /**
  * 재생 시작 게이트(architecture.md 5.2) — 라이브러리·탐색·미니플레이어·푸시가 전부 이
  * 게이트를 통과한다(paywall.md 4.2). 팝업을 띄울지는 클라이언트가 정하고, 재생을 허용할지는
- * 서버가 정한다(library-api.md 6장).
+ * 서버가 정한다.
+ *
+ * 통과하면 PlaybackService.start + 플레이어 진입이다. 서버 판정은 발급(audio-urls — 차감
+ * 없음)과 실제 재생 시작(POST /play — 차감) 시점에 일어나고(paywall.md 4.3), 403 분기는
+ * 플레이어 화면이 세션 상태로 받아 처리한다(player-api.md 5장 — 발급 시점이면 닫고 전환).
  */
 export const usePlayGate = (options?: PlayGateOptions) => {
   const navigation = useNavigation();
   const showToast = useToastStore((s) => s.show);
   const playLimit = usePlayLimitStore((s) => s.playLimit);
   const suppressedServiceDate = usePlayLimitStore((s) => s.suppressedServiceDate);
-  const applyPlayLimit = usePlayLimitStore((s) => s.applyPlayLimit);
-  const startPlayMutation = useStartPlayMutation();
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
-
-  const notifyServerStateChanged = () => options?.onServerStateChanged?.();
 
   /* TODO(paywall feature): 페이월 바텀시트(paywall.md 4.5)로 교체한다 */
   const openPaywall = (message?: string) => {
@@ -61,54 +63,30 @@ export const usePlayGate = (options?: PlayGateOptions) => {
   };
 
   const startPlayback = (target: PlayGateTarget, entryPoint: PlayEntryPoint) => {
-    if (startPlayMutation.isPending) return;
-    startPlayMutation.mutate(
-      { contentId: target.contentId, entryPoint },
-      {
-        onSuccess: (result) => {
-          // 표시값은 적재 이후의 서버 값으로 덮어쓴다 — 클라이언트가 1을 빼지 않는다
-          applyPlayLimit(result.playLimit);
-          options?.onPlayStarted?.(result, target);
-          // 상태 전이(unplayed→in_progress)·카운트 반영은 진입점 화면의 재조회로 맞춘다
-          notifyServerStateChanged();
-          navigation.navigate('Main', {
-            screen: 'Player',
-            params: { contentId: target.contentId },
-          });
-        },
-        onError: (error) => {
-          if (isApiError(error)) {
-            switch (error.errorCode) {
-              case ERROR_CODES.PLAY_LIMIT_EXCEEDED:
-                // 무료 한도 소진 — 페이월(library-api.md 5장). 확인 팝업과 연달아 띄우지 않는다
-                openPaywall(error.message);
-                return;
-              case ERROR_CODES.PLAY_LIMIT_REACHED:
-                // 한도 있는 유료 티어 — 페이월이 아니라 안내다
-                showToast(PLAYER_COPY.paidLimitReachedToast);
-                return;
-              case ERROR_CODES.CONTENT_WITHDRAWN:
-                showToast(PLAYER_COPY.withdrawnToast);
-                target.onWithdrawn?.();
-                notifyServerStateChanged();
-                return;
-              case ERROR_CODES.CONTENT_NOT_FOUND:
-                notifyServerStateChanged();
-                return;
-              default:
-                showToast(error.message);
-                return;
-            }
-          }
-          showToast(PLAYER_COPY.playFailedToast);
-        },
+    playbackService.start({
+      contentId: target.contentId,
+      entryPoint,
+      autoplay: true,
+      restartFromBeginning: target.restartFromBeginning,
+      meta: target.meta,
+      callbacks: {
+        onPlayStarted: options?.onPlayStarted
+          ? (result) => options.onPlayStarted?.(result, target)
+          : undefined,
+        onServerStateChanged: () => options?.onServerStateChanged?.(),
+        onWithdrawn: target.onWithdrawn,
       },
-    );
+    });
+    navigation.navigate('Main', {
+      screen: 'Player',
+      params: { contentId: target.contentId },
+    });
   };
 
   /**
    * 진입점 공통의 재생 요청. 차감이 실제로 일어나는 재생에만 팝업을 띄운다(library.md 4.3).
-   * 소진(잔여 0) 힌트라도 클라이언트가 차단하지 않는다 — 그대로 요청해 403이면 페이월로 간다.
+   * 소진(잔여 0) 힌트라도 클라이언트가 차단하지 않는다 — 그대로 진입해 발급 403이면
+   * 플레이어가 닫고 페이월로 전환한다(경합·힌트 노후를 서버 판정이 흡수한다).
    */
   const requestPlay = (target: PlayGateTarget, entryPoint: PlayEntryPoint) => {
     const wouldDeduct =
@@ -131,7 +109,7 @@ export const usePlayGate = (options?: PlayGateOptions) => {
     startPlayback(target, entryPoint);
   };
 
-  /** [재생하기] — 누른 시점에 서버가 다시 판정한다. 팝업의 숫자를 근거로 통과시키지 않는다 */
+  /** [재생하기] — 허용 여부는 발급·재생 시작 시점에 서버가 다시 판정한다(paywall.md 4.2) */
   const confirmPlay = () => {
     if (!confirmState) return;
     setConfirmState(null);
@@ -156,6 +134,5 @@ export const usePlayGate = (options?: PlayGateOptions) => {
     cancelConfirm,
     suppressAndPlay,
     openPaywall,
-    isStartingPlay: startPlayMutation.isPending,
   };
 };
