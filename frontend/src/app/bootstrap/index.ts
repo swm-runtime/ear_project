@@ -1,6 +1,7 @@
 import { registerTokenProvider } from '@/shared/api/api-client';
 
 import { sessionService } from '@/features/auth';
+import { registerCareerSavedListener } from '@/features/career';
 import { registerInterestSavedListener } from '@/features/interest';
 import {
   completeLibraryItem,
@@ -28,6 +29,12 @@ export const bootstrapApp = (): void => {
   registerInterestSavedListener(() => {
     void queryClient.invalidateQueries({ queryKey: profileKeys.summary() });
     void queryClient.invalidateQueries({ queryKey: settingsKeys.summary() });
+  });
+
+  // 커리어 저장 성공 → 프로필 요약 재조회(profile.md 4.4 — 복귀 시 카드 요약 갱신).
+  // 설정은 커리어 값을 표시하지 않아(진입 행 라벨뿐 — settings.md 4.1) invalidate하지 않는다.
+  registerCareerSavedListener(() => {
+    void queryClient.invalidateQueries({ queryKey: profileKeys.summary() });
   });
 
   registerPlayerLibraryBridge({

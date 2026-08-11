@@ -21,7 +21,9 @@ import { EmailVerification } from './entities/email-verification.entity';
 import { User } from './entities/user.entity';
 import { WithdrawalLog } from './entities/withdrawal-log.entity';
 import { LoggingMailClient, MailClient } from './mail.client';
-import { UserController } from './user.controller';
+import { JobCategoryController } from './controllers/job-category.controller';
+import { UserController } from './controllers/user.controller';
+import { UserCareerService } from './services/user-career.service';
 import { UserRepository } from './repositories/user.repository';
 import { UserService } from './services/user.service';
 import { UserWithdrawalService } from './services/user-withdrawal.service';
@@ -47,7 +49,7 @@ import { WithdrawalLogRepository } from './repositories/withdrawal-log.repositor
     SubscriptionModule,
     IdempotencyModule,
   ],
-  controllers: [UserController],
+  controllers: [UserController, JobCategoryController],
   providers: [
     UserRepository,
     ConsentRepository,
@@ -61,6 +63,7 @@ import { WithdrawalLogRepository } from './repositories/withdrawal-log.repositor
     EmailVerificationService,
     UserWithdrawalService,
     UserOnboardingService,
+    UserCareerService,
     DeviceTokenService,
     UserSettingService,
     // 발송 인프라가 확정되면 이 바인딩만 교체한다 (mail.client.ts 주석)

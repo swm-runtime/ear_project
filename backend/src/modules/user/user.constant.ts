@@ -80,6 +80,27 @@ export const YEARS_OF_EXPERIENCE_LOWER_BOUND: Readonly<
   [YearsOfExperienceRange.SEVEN_PLUS]: 7,
 };
 
+/**
+ * 직군 선택지 목록 — **서버 코드 상수로 시작한다**(career-api.md 9장 확정 2026-08-10.
+ * 관리자가 목록을 바꿀 요구가 생기면 테이블로 승격한다). 온보딩 2단계와 커리어 정보 화면이
+ * `GET /job-categories`로 **같은 목록**을 쓴다 — 클라이언트 상수 금지.
+ *
+ * 값은 FE 온보딩이 지금까지 노출해 온 선택지 그대로다(카피 미확정 — 확정되면 이 상수만
+ * 바꾼다). 다른 목록으로 시작하면 온보딩에서 이미 저장된 `job_category`가 커리어 저장(PUT)의
+ * 목록 소속 검증에 걸려 **다른 필드만 고친 재저장까지 막힌다**(전체 교체 계약).
+ *
+ * **배열 정의 순서가 곧 응답 순서다**(career-api.md 4.3 — 정렬 기준 미정, 상수 순서 사용).
+ */
+export const JOB_CATEGORIES: readonly string[] = [
+  '개발',
+  '기획',
+  '디자인',
+  '마케팅·영업',
+  '운영·CS',
+  '연구·교육',
+  '기타',
+];
+
 /** 저장된 하한값을 구간으로 되돌린다. 경계 밖 값은 가장 가까운 아래 구간으로 본다 */
 export function toYearsOfExperienceRange(
   value: number | null,

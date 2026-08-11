@@ -82,9 +82,9 @@
             <div class="stack" style="gap:10px; margin-top:4px">
               <div>
                 <p class="t-label" style="margin:0 0 6px">직군</p>
-                <div class="field filled">
-                  <span>기획·PM</span>
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l5 5 5-5"/></svg>
+                <div class="chips">
+                  <span class="chip">개발</span><span class="chip on">기획</span><span class="chip">디자인</span>
+                  <span class="chip">마케팅·영업</span><span class="chip">운영·CS</span><span class="chip">연구·교육</span><span class="chip">기타</span>
                 </div>
               </div>
               <div>
@@ -94,8 +94,8 @@
               <div>
                 <p class="t-label" style="margin:0 0 6px">연차</p>
                 <div class="chips">
-                  <span class="chip">0–1년</span><span class="chip">2–3년</span>
-                  <span class="chip on">4–6년<span class="mk">3</span></span><span class="chip">7년+</span>
+                  <span class="chip">1년 이하</span><span class="chip">2–3년</span>
+                  <span class="chip on">4–6년<span class="mk">3</span></span><span class="chip">7년 이상</span>
                 </div>
               </div>
             </div>
@@ -137,9 +137,9 @@
             <div class="stack" style="gap:10px; margin-top:4px">
               <div>
                 <p class="t-label" style="margin:0 0 6px">직군</p>
-                <div class="field">
-                  <span>선택</span>
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l5 5 5-5"/></svg>
+                <div class="chips">
+                  <span class="chip">개발</span><span class="chip">기획</span><span class="chip">디자인</span>
+                  <span class="chip">마케팅·영업</span><span class="chip">운영·CS</span><span class="chip">연구·교육</span><span class="chip">기타</span>
                 </div>
               </div>
               <div>
@@ -149,8 +149,8 @@
               <div>
                 <p class="t-label" style="margin:0 0 6px">연차</p>
                 <div class="chips">
-                  <span class="chip">0–1년</span><span class="chip">2–3년</span>
-                  <span class="chip">4–6년</span><span class="chip">7년+</span>
+                  <span class="chip">1년 이하</span><span class="chip">2–3년</span>
+                  <span class="chip">4–6년</span><span class="chip">7년 이상</span>
                 </div>
               </div>
             </div>
@@ -171,38 +171,31 @@
     <!-- CR3 -->
     <article class="shot">
       <div class="shot-head">
-        <span class="shot-id">CR3</span><h3>변경 있음 · 직군 선택 시트</h3>
-        <p class="cap">[저장] 활성 · 선택지는 온보딩과 공용</p>
+        <span class="shot-id">CR3</span><h3>변경 있음</h3>
+        <p class="cap">[저장] 활성 · 직군은 칩 선택형(개정 2026-08-12) · 선택지는 온보딩과 공용</p>
       </div>
       <div class="device">
         <div class="island"></div>
         <div class="screen">
           <div class="statusbar"><span class="t">8:42</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
-          <div class="body" style="opacity:.35; gap:12px; padding-top:20px">
-            <p class="t-label" style="margin:0">직군</p>
-            <div class="field filled"><span>기획·PM</span></div>
+          <div class="body" style="gap:12px; padding-top:20px">
+            <p class="t-label" style="margin:0">직군<span class="mk w">B</span></p>
+            <div class="chips">
+              <span class="chip">개발</span><span class="chip on">기획<span class="mk">6</span></span><span class="chip">디자인</span>
+              <span class="chip">마케팅·영업</span><span class="chip">운영·CS</span><span class="chip">연구·교육</span><span class="chip">기타</span>
+            </div>
+            <p class="t-label" style="margin:6px 0 0">직무</p>
+            <div class="field filled"><span>서비스 기획자</span></div>
             <p class="t-label" style="margin:6px 0 0">연차</p>
             <div class="chips"><span class="chip on">2–3년</span><span class="chip">4–6년</span></div>
-          </div>
-          <div class="veil"></div>
-          <div class="sheet">
-            <div class="grip"></div>
-            <p class="t-label" style="margin:0">직군<span class="mk w">B</span></p>
-            <div class="row">개발</div>
-            <div class="row" style="color:var(--accent)">기획·PM
-              <span style="margin-left:auto"><svg width="15" height="15" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2l2.4 2.4L9.5 4"/></svg></span>
-            </div>
-            <div class="row">디자인</div>
-            <div class="row">마케팅</div>
-            <div class="row">데이터</div>
-            <div class="row" style="color:var(--ink-3)">선택 안 함<span class="mk">6</span></div>
+            <div class="btn" style="margin-top:auto">저장</div>
           </div>
           <div class="homebar"></div>
         </div>
       </div>
       <ul class="notes">
-        <li><span class="n">6</span><span>시트에 <b>[선택 안 함]을 둔다</b> — 값을 비워 저장하는 것이 허용되므로(미입력 상태로 되돌아감) 한 번 고른 값을 비우는 경로가 필요하다. 고르면 시트가 닫히고 필드에 반영되며, 이 시점에는 저장되지 않는다 — 반영은 [저장]에서 일괄이다. <span class="ref">career 4.2</span></span></li>
-        <li><span class="n">B</span><span><b>직군 선택지 목록은 서버가 제공한다</b>(검토 결정 2026-08-10 — 검증 V1 ② 해소. 온보딩과 공용 목록, 클라이언트 상수 금지). 시트의 항목은 예시이며 확정 목록은 서버 응답이 정한다. 직무는 자유 입력으로 확정돼 목록이 없다(검증 V1 ①). <span class="ref">career 4.1 · onboarding 4 [2]</span></span></li>
+        <li><span class="n">6</span><span><b>직군은 온보딩 O4와 같은 칩 선택형이다</b>(결정 2026-08-12 — 바텀시트·[선택 안 함] 폐기). 단일 선택이며 선택된 칩을 재탭하면 해제된다 — 값을 비워 저장하는 것이 허용되므로 비우는 경로가 재탭 해제다. 칩 탭 시점에는 저장되지 않는다 — 반영은 [저장]에서 일괄이다. <span class="ref">career 4.2 · career-uiux 4.4</span></span></li>
+        <li><span class="n">B</span><span><b>직군 선택지 목록은 서버가 제공한다</b>(확정 2026-08-10 — `GET /job-categories`, 온보딩과 공용 목록, 클라이언트 상수 금지). 칩 항목·순서는 서버 응답이 정한다. 직무는 자유 입력으로 확정돼 목록이 없다(검증 V1 ①). <span class="ref">career 4.1 · onboarding 4 [2]</span></span></li>
       </ul>
     </article>
 
@@ -239,9 +232,9 @@
             <div class="stack" style="gap:10px; margin-top:4px">
               <div>
                 <p class="t-label" style="margin:0 0 6px">직군</p>
-                <div class="field filled">
-                  <span>개발</span>
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l5 5 5-5"/></svg>
+                <div class="chips">
+                  <span class="chip on">개발</span><span class="chip">기획</span><span class="chip">디자인</span>
+                  <span class="chip">마케팅·영업</span><span class="chip">운영·CS</span><span class="chip">연구·교육</span><span class="chip">기타</span>
                 </div>
               </div>
               <div>
@@ -251,8 +244,8 @@
               <div>
                 <p class="t-label" style="margin:0 0 6px">연차</p>
                 <div class="chips">
-                  <span class="chip">0–1년</span><span class="chip on">2–3년</span>
-                  <span class="chip">4–6년</span><span class="chip">7년+</span>
+                  <span class="chip">1년 이하</span><span class="chip on">2–3년</span>
+                  <span class="chip">4–6년</span><span class="chip">7년 이상</span>
                 </div>
               </div>
             </div>
@@ -284,7 +277,7 @@
           <div class="statusbar"><span class="t">8:44</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
           <div class="body" style="opacity:.35; gap:12px; padding-top:20px">
             <p class="t-label" style="margin:0">직군</p>
-            <div class="field filled"><span>개발</span></div>
+            <div class="chips"><span class="chip on">개발</span><span class="chip">기획</span><span class="chip">디자인</span></div>
             <p class="t-label" style="margin:6px 0 0">연차</p>
             <div class="chips"><span class="chip on">2–3년</span><span class="chip">4–6년</span></div>
           </div>

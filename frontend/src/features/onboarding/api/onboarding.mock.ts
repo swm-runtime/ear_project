@@ -12,6 +12,7 @@
  * - empty       추천 0건(데이터 정합성 오류 경로) — sections: []
  * - drip-queued 첫 드립이 서버 재시도 소진으로 queued 종료
  */
+import { seedCareerMockFromOnboarding } from '@/features/career';
 import { INTEREST_MOCK_TOPICS, seedInterestMockFromOnboarding } from '@/features/interest';
 
 import type {
@@ -113,6 +114,8 @@ export const mockSaveCareer = async (body: SaveCareerRequestDto): Promise<SaveCa
         : state.career.years_of_experience,
   };
   state.step = 'pick';
+  // 커리어 원본(career mock)을 갱신한다 — 온보딩에서 입력한 값이 프로필 카드·커리어 정보 화면에 이어진다
+  seedCareerMockFromOnboarding(state.career);
   return { career: state.career, onboarding_step: 'pick' };
 };
 
