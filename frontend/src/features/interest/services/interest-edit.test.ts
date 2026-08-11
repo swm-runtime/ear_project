@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from '@jest/globals';
 
-import { computeInterestDiff, filterToVisible } from './interest-edit';
+import { computeInterestDiff, filterToVisible, isOverSelectionCap } from './interest-edit';
 
 describe('computeInterestDiff', () => {
   it('추가만 있으면 추가 목록만 채워지고 해제 목록은 빈다', () => {
@@ -40,6 +40,26 @@ describe('computeInterestDiff', () => {
     // then — 뒤로가기 시 이탈 확인 팝업이 뜨는 근거(변경 있음)가 된다
     expect(diff.removedIds).toEqual(['a', 'b']);
     expect(diff.changeCount).toBe(2);
+  });
+
+  describe('isOverSelectionCap — 상한 초과는 탭이 아니라 저장을 막는다(변경 2026-08-11)', () => {
+    it('일반 사용자(보유 3개 이하)는 3개 초과 선택에서 저장이 막힌다', () => {
+      // given/when/then — 4개째 선택 자체는 허용되고 저장 게이트만 잠긴다
+      expect(isOverSelectionCap(4, 3, 2)).toBe(true);
+      expect(isOverSelectionCap(3, 3, 2)).toBe(false);
+    });
+
+    it('초과 보유자(기존 5개)는 기존 개수까지 저장할 수 있다 — 5→4 해제 저장을 막지 않는다', () => {
+      // given — 서버 판정 max(3, 저장 전 개수)와 같은 식(interest-management-api.md 4.3)
+      expect(isOverSelectionCap(4, 3, 5)).toBe(false);
+      expect(isOverSelectionCap(5, 3, 5)).toBe(false);
+      // when — 기존 개수보다 늘리면 / then — 저장이 막힌다
+      expect(isOverSelectionCap(6, 3, 5)).toBe(true);
+    });
+
+    it('상한을 아직 모르면(목록 미도착) 게이트를 잠그지 않는다 — 로딩 중엔 저장 자체가 비활성이다', () => {
+      expect(isOverSelectionCap(4, 0, 2)).toBe(false);
+    });
   });
 
   describe('filterToVisible과의 조합 — 숨겨진 주제는 판정 범위에서 제외한다', () => {

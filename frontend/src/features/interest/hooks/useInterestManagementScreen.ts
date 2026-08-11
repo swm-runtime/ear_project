@@ -15,7 +15,11 @@ import { INTEREST_COPY } from '../interest.copy';
 import { useMyInterestsQuery } from './useMyInterestsQuery';
 import { useSaveInterestsMutation } from './useSaveInterestsMutation';
 import { useTopicsQuery } from './useTopicsQuery';
-import { computeInterestDiff, filterToVisible } from '../services/interest-edit';
+import {
+  computeInterestDiff,
+  filterToVisible,
+  isOverSelectionCap,
+} from '../services/interest-edit';
 
 /**
  * 관심사 관리 화면(IM1~IM9)의 로직 소유자 — 화면은 뷰만 담당한다.
@@ -83,10 +87,16 @@ export const useInterestManagementScreen = () => {
 
   const maxSelectable = topicsQuery.data?.maxSelectable ?? 0;
   const selectedCount = effectiveSelected.length;
-  /** 상한을 채우면 미선택 칩만 비활성 — 선택된 칩은 계속 눌러 해제할 수 있어야 한다(uiux 4.2) */
-  const isLimitReached = maxSelectable > 0 && selectedCount >= maxSelectable;
-  /** IM6 — 초과 보유자. 강제 축소 없이 추가만 막는다. N은 3을 초과한 개수다 */
-  const overLimitCount = maxSelectable > 0 ? Math.max(0, selectedCount - maxSelectable) : 0;
+  /**
+   * 상한 초과는 탭이 아니라 저장을 막는다(변경 2026-08-11 — 0개 상태와 같은 패턴).
+   * 판정식은 서버와 같은 max(상한, 기존 보유 개수)라 초과 보유자의 해제·재저장(5→4)은 통과한다.
+   */
+  const isOverLimit = isOverSelectionCap(selectedCount, maxSelectable, baseline.length);
+  /** IM6 — 초과 보유자(기존 4개 이상) 안내 배너. N은 3을 초과한 개수, 3개 이하로 내려가면 제거 */
+  const overLimitCount =
+    maxSelectable > 0 && baseline.length > maxSelectable
+      ? Math.max(0, selectedCount - maxSelectable)
+      : 0;
 
   const isLoading = topicsQuery.isPending || interestsQuery.isPending || selectedIds === null;
   const isError = topicsQuery.isError || interestsQuery.isError;
@@ -95,12 +105,14 @@ export const useInterestManagementScreen = () => {
   const hasChanges = diff.changeCount > 0;
   /** 0개 상태는 탭이 아니라 저장을 막는다(개정 2026-08-09) — 비활성 사유 문구는 상시 노출 */
   const isBelowMin = selectedCount < 1;
-  const canSave = hasChanges && !isBelowMin && !isLoading && !isError && !isSaving;
+  const canSave =
+    hasChanges && !isBelowMin && !isOverLimit && !isLoading && !isError && !isSaving;
 
-  const topics = (topicsQuery.data?.items ?? []).map((topic) => {
-    const isSelected = effectiveSelected.includes(topic.topicId);
-    return { ...topic, isSelected, isDimmed: !isSelected && isLimitReached };
-  });
+  // 선택 개수 제한으로 칩을 비활성 처리하지 않는다(변경 2026-08-11) — 막는 것은 탭이 아니라 저장이다
+  const topics = (topicsQuery.data?.items ?? []).map((topic) => ({
+    ...topic,
+    isSelected: effectiveSelected.includes(topic.topicId),
+  }));
 
   const toggleTopic = (topicId: string) => {
     // 저장 인플라이트 동안 화면 조작을 차단한다 — 보낸 목록과 화면이 어긋나면 안 된다(uiux 4.3)
@@ -111,11 +123,6 @@ export const useInterestManagementScreen = () => {
     setIsRemovalConfirmed(false);
     if (effectiveSelected.includes(topicId)) {
       setSelectedIds(selectedIds.filter((id) => id !== topicId));
-      return;
-    }
-    // 상한 도달 시 탭을 무반응으로 삼키지 않는다 — 토스트로 이유를 알린다(uiux 4.2·4.5 공통)
-    if (isLimitReached) {
-      showToast(INTEREST_COPY.limitToast);
       return;
     }
     setSelectedIds([...selectedIds, topicId]);
@@ -232,7 +239,7 @@ export const useInterestManagementScreen = () => {
     maxSelectable,
     changeCount: diff.changeCount,
     overLimitCount,
-    isLimitReached,
+    isOverLimit,
     isBelowMin,
     hasChanges,
     canSave,

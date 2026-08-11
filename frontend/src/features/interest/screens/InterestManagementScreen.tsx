@@ -96,18 +96,13 @@ export default function InterestManagementScreen() {
                 ))
               ) : null
             ) : (
+              // 선택 개수로 칩을 비활성 처리하지 않는다(변경 2026-08-11) — 상한은 저장 게이트가 안내한다
               screen.topics.map((topic) => (
                 <TopicChip
                   key={topic.topicId}
                   label={topic.name}
                   isSelected={topic.isSelected}
-                  isDimmed={topic.isDimmed}
-                  // IM6의 비활성 이유는 초과 안내 문구, IM2는 상한 토스트 문구다(uiux 7장)
-                  dimmedHint={
-                    screen.overLimitCount > 0
-                      ? INTEREST_COPY.overLimitBanner(screen.overLimitCount)
-                      : INTEREST_COPY.limitToast
-                  }
+                  isDimmed={false}
                   onPress={() => screen.toggleTopic(topic.topicId)}
                 />
               ))
@@ -118,6 +113,10 @@ export default function InterestManagementScreen() {
           <View style={styles.dock}>
             {screen.isBelowMin && !screen.isLoading ? (
               <Text style={styles.dockNotice}>{INTEREST_COPY.minRequired}</Text>
+            ) : null}
+            {/* 상한 초과 — 0개 사유와 같은 패턴으로 저장이 왜 잠겼는지 상시 노출한다(변경 2026-08-11) */}
+            {screen.isOverLimit && !screen.isLoading ? (
+              <Text style={styles.dockNotice}>{INTEREST_COPY.limitNotice}</Text>
             ) : null}
             {screen.saveErrorMessage !== null ? (
               <Text style={styles.dockError} accessibilityLiveRegion="polite">
