@@ -8,9 +8,10 @@ import { ERROR_CODES } from '@/shared/api/error-codes';
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { useToastStore } from '@/shared/ui/toast.store';
 
+import { useTopicsQuery } from '@/features/interest';
+
 import { ONBOARDING_COPY } from '../onboarding.copy';
 import type { OnboardingStackParamList } from '../onboarding.types';
-import { useOnboardingTopicsQuery } from './useOnboardingTopicsQuery';
 import { useSaveInterestsMutation } from './useSaveInterestsMutation';
 import { useOnboardingStore } from '../store/onboarding.store';
 
@@ -18,7 +19,8 @@ export const useTopicSelectScreen = () => {
   const navigation =
     useNavigation<NativeStackNavigationProp<OnboardingStackParamList, 'Topic'>>();
   const showToast = useToastStore((s) => s.show);
-  const topicsQuery = useOnboardingTopicsQuery();
+  // 주제 목록은 관심사 관리와 같은 계약·같은 캐시다(interest-management-api.md 4.1)
+  const topicsQuery = useTopicsQuery();
   const saveInterestsMutation = useSaveInterestsMutation();
   const selectedTopicIds = useOnboardingStore((s) => s.selectedTopicIds);
   const setSelectedTopicIds = useOnboardingStore((s) => s.setSelectedTopicIds);

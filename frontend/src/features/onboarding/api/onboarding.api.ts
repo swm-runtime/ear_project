@@ -8,7 +8,6 @@ import type {
   OnboardingCompleteResult,
   OnboardingState,
   OnboardingStep,
-  OnboardingTopicList,
   PickResult,
   RecommendationSection,
   YearsOfExperience,
@@ -26,14 +25,12 @@ import type {
   SaveInterestsResponseDto,
   SavePicksRequestDto,
   SavePicksResponseDto,
-  TopicListResponseDto,
 } from './onboarding.dto';
 import {
   mockComplete,
   mockFetchFirstDrip,
   mockFetchRecommendations,
   mockFetchState,
-  mockFetchTopics,
   mockSaveCareer,
   mockSaveInterests,
   mockSavePicks,
@@ -44,7 +41,7 @@ import {
 export const onboardingKeys = {
   all: ['onboarding'] as const,
   state: () => [...onboardingKeys.all, 'state'] as const,
-  topics: () => [...onboardingKeys.all, 'topics'] as const,
+  // 주제 목록 캐시는 interestKeys.topics()다 — 관심사 관리와 같은 목록·같은 캐시(architecture.md 4.4)
   recommendations: () => [...onboardingKeys.all, 'recommendations'] as const,
   firstDrip: () => [...onboardingKeys.all, 'first-drip'] as const,
 };
@@ -63,16 +60,6 @@ const toOnboardingState = (dto: OnboardingStateDto): OnboardingState => ({
   selectedTopicIds: dto.selected_topic_ids,
   career: toCareerInfo(dto.career),
   pickedCount: dto.picked_count,
-});
-
-const toTopicList = (dto: TopicListResponseDto): OnboardingTopicList => ({
-  items: dto.items.map((item) => ({
-    topicId: item.topic_id,
-    name: item.name,
-    parentCategory: item.parent_category,
-  })),
-  maxSelectable: dto.max_selectable,
-  isFallback: dto.is_fallback,
 });
 
 const toRecommendationSection = (dto: RecommendationSectionDto): RecommendationSection => ({
@@ -125,12 +112,8 @@ export const fetchOnboardingState = async (): Promise<OnboardingState> => {
   return toOnboardingState(data);
 };
 
-export const fetchOnboardingTopics = async (): Promise<OnboardingTopicList> => {
-  const data = IS_ONBOARDING_API_MOCKED
-    ? await mockFetchTopics()
-    : (await apiClient.get<TopicListResponseDto>('/onboarding/topics')).data;
-  return toTopicList(data);
-};
+// 주제 목록 조회(GET /onboarding/topics)는 interest feature의 fetchTopics를 쓴다 —
+// 관심사 관리와 공용 계약이라 선언·캐시를 한 곳에 둔다(interest-management-api.md 4.1).
 
 /** 1단계 저장 — 전체 교체 PUT이라 멱등키가 필요 없다(onboarding-api.md 3장) */
 export const saveInterests = async (input: {
