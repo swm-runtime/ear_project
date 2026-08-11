@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { theme } from '@/shared/theme';
 
+import { CareerInfoScreen } from '@/features/career';
 import { ExploreScreen } from '@/features/explore';
 import { InterestManagementScreen } from '@/features/interest';
 import { LibraryScreen } from '@/features/library';
@@ -75,11 +76,9 @@ export default function MainNavigator() {
       {/* 관심사 관리 — 앱바(뒤로 + "관심 주제 관리")를 화면이 직접 그린다(interest-management-uiux.md 4.1).
           변경 있음 상태의 이탈(뒤로가기·스와이프)은 화면이 beforeRemove로 가로챈다(IM7) */}
       <MainStack.Screen name="InterestManagement" component={InterestManagementScreen} />
-      <MainStack.Screen
-        name="Career"
-        component={PlaceholderScreen}
-        options={{ headerShown: true, headerTitle: '', headerBackTitle: '프로필' }}
-      />
+      {/* 커리어 정보 — 앱바(뒤로 + "커리어 정보" + [초기화])를 화면이 직접 그린다(career-uiux.md 4.1).
+          변경 있음 상태의 이탈(뒤로가기·스와이프)은 화면이 beforeRemove로 가로챈다(CR5) */}
+      <MainStack.Screen name="Career" component={CareerInfoScreen} />
       {/* 설정 메뉴의 목적지 3종 — 공지(명세 추후)·탈퇴(auth A 계열)·관리자(admin.md) 플레이스홀더 */}
       <MainStack.Screen
         name="Notice"
