@@ -1,12 +1,15 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
 
 import { LIBRARY_COPY } from '../library.copy';
 import type { LibraryFilter } from '../library.types';
+import FilterIcon from './FilterIcon';
 
 // 출처(이어 PICK·담은 콘텐츠)는 탭이 아니라 필터 팝업으로 이동했다(FE 개편 2026-08-07)
 const TABS: LibraryFilter[] = ['all', 'unplayed', 'completed'];
+
+const FILTER_ICON_SIZE = 22;
 
 interface LibraryTabsProps {
   filter: LibraryFilter;
@@ -17,8 +20,12 @@ interface LibraryTabsProps {
 }
 
 /**
- * 상단 탭 4개 + 주제 필터 아이콘(library-uiux.md 4.2).
- * 등폭 4분할·말줄임·축약을 쓰지 않는다 — 라벨 폭 + 고정 패딩, 넘치면 탭 줄만 가로 스크롤.
+ * 상단 상태 탭 3개 + 주제 필터 아이콘(library-uiux.md 4.2).
+ *
+ * **탭은 등폭 3분할이다.** 라벨이 전부 2–3자라 360dp에서 탭 하나가 90dp 이상 확보된다
+ * (2026-08-07 개편으로 [이어 PICK]이 필터 시트로 빠지면서 폭 문제가 없어졌다).
+ * **필터는 탭이 아니라 다른 축이므로 글자가 아닌 아이콘으로 둔다** — 같은 글자로 두면
+ * 상태 탭 옆에 네 번째 탭처럼 읽힌다.
  */
 export default function LibraryTabs({
   filter,
@@ -28,12 +35,7 @@ export default function LibraryTabs({
 }: LibraryTabsProps) {
   return (
     <View style={styles.container}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.tabRow}
-        accessibilityRole="tablist"
-      >
+      <View style={styles.tabRow} accessibilityRole="tablist">
         {TABS.map((tab) => {
           const isSelected = tab === filter;
           return (
@@ -51,7 +53,7 @@ export default function LibraryTabs({
             </Pressable>
           );
         })}
-      </ScrollView>
+      </View>
       <Pressable
         style={styles.filterButton}
         onPress={onFilterPress}
@@ -60,9 +62,11 @@ export default function LibraryTabs({
           topicFilterCount > 0 ? LIBRARY_COPY.topicFilter.a11yBadge(topicFilterCount) : '주제 필터'
         }
       >
-        <Text style={[styles.filterLabel, topicFilterCount > 0 && styles.filterLabelActive]}>
-          필터
-        </Text>
+        <FilterIcon
+          size={FILTER_ICON_SIZE}
+          color={topicFilterCount > 0 ? theme.color.primary : theme.color.textSecondary}
+        />
+        {/* 배지는 아이콘 위에 얹는다 — 옆에 두면 적용될 때 버튼이 넓어져 탭 폭이 흔들린다 */}
         {topicFilterCount > 0 ? (
           <View style={styles.filterBadge}>
             <Text style={styles.filterBadgeLabel}>
@@ -83,13 +87,17 @@ const styles = StyleSheet.create({
     borderBottomColor: theme.color.border,
     backgroundColor: theme.color.background,
   },
+  // 등폭 3분할 — 라벨 폭에 맡기면 탭이 왼쪽에 몰리고 우측 필터가 네 번째 탭처럼 보인다
   tabRow: {
-    paddingHorizontal: theme.spacing.sm,
+    flex: 1,
+    flexDirection: 'row',
   },
   tab: {
+    flex: 1,
     minHeight: theme.touchTarget.minHeight,
+    alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: theme.spacing.md,
+    paddingHorizontal: theme.spacing.xs,
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
   },
@@ -105,30 +113,22 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   filterButton: {
-    minWidth: theme.touchTarget.minWidth,
+    width: theme.touchTarget.minWidth,
     minHeight: theme.touchTarget.minHeight,
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: theme.spacing.sm,
-    gap: theme.spacing.xs,
-  },
-  filterLabel: {
-    fontSize: theme.font.size.sm,
-    color: theme.color.textSecondary,
-  },
-  filterLabelActive: {
-    color: theme.color.primary,
-    fontWeight: '700',
   },
   filterBadge: {
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
+    position: 'absolute',
+    top: 4,
+    right: 2,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: theme.color.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: theme.spacing.xs,
+    paddingHorizontal: 3,
   },
   filterBadgeLabel: {
     fontSize: theme.font.size.xs,

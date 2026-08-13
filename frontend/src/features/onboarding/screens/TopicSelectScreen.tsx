@@ -37,6 +37,12 @@ export default function TopicSelectScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
+        {/*
+          2·3단계에는 [이전] 버튼이 있어 인디케이터가 그 높이만큼 내려와 있다.
+          1단계는 되돌아갈 곳이 없지만(4.1) 같은 자리를 비워 위치를 맞춘다 —
+          단계를 넘길 때 진행 막대가 위아래로 튀면 진행이 아니라 다른 화면으로 읽힌다.
+        */}
+        <View style={styles.backPlaceholder} />
         <StepIndicator current={1} />
         <Text style={styles.title}>{ONBOARDING_COPY.topic.title}</Text>
         <Text style={styles.countGuide} accessibilityLiveRegion="polite">
@@ -111,6 +117,10 @@ const styles = StyleSheet.create({
   header: {
     paddingTop: theme.spacing.md,
     gap: theme.spacing.sm,
+  },
+  /** O4·O7의 [이전] 버튼과 같은 높이 — 인디케이터 위치를 세 단계에서 일치시킨다 */
+  backPlaceholder: {
+    height: theme.touchTarget.minHeight,
   },
   title: {
     fontSize: theme.font.size.lg,

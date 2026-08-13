@@ -3,12 +3,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { theme } from '@/shared/theme';
+import SettingsIcon from '@/shared/ui/SettingsIcon';
 
 import CareerCard from '../components/CareerCard';
-import EmailCard from '../components/EmailCard';
 import InterestCard from '../components/InterestCard';
-import PlanCard from '../components/PlanCard';
-import ProfileHeader from '../components/ProfileHeader';
+import ProfileHeader, { PROFILE_IDENTITY_ROW_HEIGHT } from '../components/ProfileHeader';
 import ProfileSkeleton from '../components/ProfileSkeleton';
 import StatsSummaryRow from '../components/StatsSummaryRow';
 import TopicDonut from '../components/TopicDonut';
@@ -16,10 +15,13 @@ import WeeklyChart from '../components/WeeklyChart';
 import { useProfileScreen } from '../hooks/useProfileScreen';
 import { PROFILE_COPY } from '../profile.copy';
 
+const SETTINGS_ICON_SIZE = 22;
+
 /**
  * 프로필 탭(P1~P10) — 화면은 뷰만 담당하고 로직은 useProfileScreen이 소유한다.
- * 하나의 세로 스크롤: 헤더 / 플랜 / 이메일 / 구분선 / 관심 주제 / 커리어 / 통계 3영역(profile-uiux.md 4.1).
- * 카드 순서는 바꾸지 않는다 — 위 둘은 계정·결제, 아래 둘은 추천에 쓰이는 값이다.
+ * 하나의 세로 스크롤: 헤더 / 플랜 / 관심 주제 / 커리어 / 통계 3영역(profile-uiux.md 4.1).
+ * 카드 순서는 바꾸지 않는다 — 위는 계정·결제, 아래 둘은 추천에 쓰이는 값이다.
+ * 구분선은 두지 않는다 — 이메일 카드가 빠져 위가 한 장뿐이라, 1대 2를 가르는 선이 됐다.
  */
 export default function ProfileScreen() {
   const screen = useProfileScreen();
@@ -28,16 +30,19 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* 설정 아이콘은 조회 결과와 무관하게 즉시 노출한다(P6) — 진입은 프로필 조회와 무관하다 */}
-      <View style={styles.topBar}>
+      {/*
+        설정 아이콘 — 헤더(프로필 줄)의 오른쪽 끝에 세로 가운데로 얹는다.
+        헤더 안에 넣지 않는 이유는 **조회 결과와 무관하게 즉시 노출해야** 하기 때문이다(P6).
+        헤더는 조회 실패·로딩 중에는 그려지지 않으므로, 그 안에 두면 설정 진입이 함께 사라진다.
+      */}
+      <View style={styles.settingsSlot}>
         <Pressable
           style={styles.settingsButton}
           onPress={screen.openSettings}
           accessibilityRole="button"
           accessibilityLabel={PROFILE_COPY.header.settingsA11y}
         >
-          {/* 아이콘 리소스 도입 전 글리프 표기(MainNavigator 탭 라벨과 같은 태도) */}
-          <Text style={styles.settingsGlyph}>⚙</Text>
+          <SettingsIcon size={SETTINGS_ICON_SIZE} color={theme.color.textPrimary} />
         </Pressable>
       </View>
 
@@ -64,28 +69,17 @@ export default function ProfileScreen() {
             accessible={false}
           >
             {screen.header !== null ? (
-              <ProfileHeader nickname={screen.header.nickname} provider={screen.header.provider} />
-            ) : null}
-
-            {screen.planCard !== null ? (
-              <PlanCard
-                state={screen.planCard}
-                onPress={screen.openPlan}
-                onRetry={screen.retry}
-                isRetrying={screen.isRetrying}
+              <ProfileHeader
+                nickname={screen.header.nickname}
+                provider={screen.header.provider}
+                email={screen.header.email}
+                plan={screen.planCard}
+                onPlanPress={screen.openPlan}
               />
             ) : null}
-            {screen.emailCard !== null ? (
-              <EmailCard
-                state={screen.emailCard}
-                onPress={screen.openEmail}
-                onRetry={screen.retry}
-                isRetrying={screen.isRetrying}
-              />
-            ) : null}
-
-            {/* 위 둘(계정·결제)과 아래 둘(추천용 값)의 성격 구분선(profile-uiux.md 4.1) */}
-            <View style={styles.divider} />
+            {/* 이메일 카드를 두지 않는다 — 주소는 헤더가 이미 보여준다. 같은 값을 한 화면에
+                두 번 쓰면 어느 쪽이 최신인지 묻게 된다. 등록·인증·변경 진입점은 설정의
+                이메일 행이 갖는다(settings-uiux.md — 설정은 허브다) */}
 
             {screen.interestCard !== null ? (
               <InterestCard
@@ -142,10 +136,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.color.background,
   },
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    paddingHorizontal: theme.spacing.sm,
+  /** 헤더 높이만큼만 차지하는 겹침 층 — 그 안에서 세로 가운데로 정렬된다 */
+  settingsSlot: {
+    position: 'absolute',
+    top: 0,
+    right: theme.spacing.sm,
+    height: PROFILE_IDENTITY_ROW_HEIGHT,
+    justifyContent: 'center',
+    // 스크롤 내용 위에 떠 있어야 눌린다
+    zIndex: 1,
   },
   settingsButton: {
     minHeight: theme.touchTarget.minHeight,
@@ -153,21 +152,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  settingsGlyph: {
-    fontSize: theme.font.size.lg,
-    color: theme.color.textPrimary,
-  },
   scrollContent: {
     paddingBottom: theme.spacing.xxl,
   },
   content: {
     gap: theme.spacing.sm,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: theme.color.border,
-    marginHorizontal: theme.spacing.md,
-    marginVertical: theme.spacing.sm,
   },
   statsArea: {
     gap: theme.spacing.lg,

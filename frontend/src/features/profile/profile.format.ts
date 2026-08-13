@@ -83,3 +83,16 @@ export const toBarRatios = (dailyListenedSec: number[]): number[] => {
   if (max === 0) return dailyListenedSec.map(() => 0);
   return dailyListenedSec.map((sec) => sec / max);
 };
+
+/**
+ * 하루 평균 청취 시간(초) — 주간 그래프의 기준선 값이다.
+ *
+ * **아직 오지 않은 요일은 분모에서 뺀다.** 이번 주 월요일에 7로 나누면 하루치 청취가
+ * 7분의 1로 눌려, 실제로는 평균만큼 들은 사람에게 "평균에 한참 못 미친다"고 보여준다.
+ * 지난 주(전체 7일 경과)는 elapsedDayCount로 7이 들어온다.
+ */
+export const toDailyAverageSec = (dailyListenedSec: number[], elapsedDayCount: number): number => {
+  const days = Math.max(1, Math.min(elapsedDayCount, dailyListenedSec.length));
+  const total = dailyListenedSec.reduce((sum, sec) => sum + sec, 0);
+  return Math.round(total / days);
+};

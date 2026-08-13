@@ -1,10 +1,11 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import ChevronIcon from '@/shared/ui/ChevronIcon';
 
 import type { WeeklyNavigation } from '../hooks/useWeeklyNavigation';
 import { PROFILE_COPY } from '../profile.copy';
-import { isWeekAllZero, toBarRatios } from '../profile.format';
+import { isWeekAllZero, toBarRatios, toDailyAverageSec } from '../profile.format';
 
 interface WeeklyChartProps {
   weekly: WeeklyNavigation;
@@ -17,14 +18,20 @@ const ZERO_BAR_HEIGHT = 3;
 /** 말풍선이 막대 최상단에서도 그래프 영역 안에 머물게 하는 상한 여유 */
 const TOOLTIP_HEIGHT = 26;
 
+/** 한 주의 요일 수 — 지난 주의 평균 분모다 */
+const DAYS_IN_WEEK = 7;
+
+/** 화살표 아이콘 크기 — 날짜 라벨과 나란히 읽히는 크기로 둔다 */
+const ARROW_ICON_SIZE = 18;
+
 interface ArrowButtonProps {
-  glyph: string;
+  direction: 'left' | 'right';
   a11yLabel: string;
   enabled: boolean;
   onPress: () => void;
 }
 
-function ArrowButton({ glyph, a11yLabel, enabled, onPress }: ArrowButtonProps) {
+function ArrowButton({ direction, a11yLabel, enabled, onPress }: ArrowButtonProps) {
   return (
     <Pressable
       style={styles.arrow}
@@ -35,7 +42,11 @@ function ArrowButton({ glyph, a11yLabel, enabled, onPress }: ArrowButtonProps) {
       // 비활성 상태가 라벨과 함께 읽힌다(profile-uiux.md 7장)
       accessibilityState={{ disabled: !enabled }}
     >
-      <Text style={[styles.arrowGlyph, !enabled && styles.arrowDisabled]}>{glyph}</Text>
+      <ChevronIcon
+        direction={direction}
+        size={ARROW_ICON_SIZE}
+        color={enabled ? theme.color.textPrimary : theme.color.border}
+      />
     </Pressable>
   );
 }
@@ -56,13 +67,25 @@ export default function WeeklyChart({ weekly }: WeeklyChartProps) {
   const todayIndex =
     displayed !== null && displayed.nextWeekStart === null ? (new Date().getDay() + 6) % 7 : null;
 
+  /**
+   * 평균 기준선 — 막대와 같은 최댓값 스케일 위에 얹는다.
+   * 이번 주는 오늘까지만 분모로 쓴다(toDailyAverageSec) — 아직 오지 않은 요일을 나누면
+   * 주 초반에 평균이 실제보다 훨씬 낮게 찍힌다. 지난 주는 7일 전체다.
+   */
+  const elapsedDayCount = todayIndex === null ? DAYS_IN_WEEK : todayIndex + 1;
+  const averageSec =
+    displayed === null ? 0 : toDailyAverageSec(displayed.dailyListenedSec, elapsedDayCount);
+  const maxSec = displayed === null ? 0 : Math.max(...displayed.dailyListenedSec, 0);
+  // 전체 0인 주는 빈 상태로 빠지므로 선을 그릴 일이 없다
+  const averageRatio = maxSec === 0 ? null : Math.min(1, averageSec / maxSec);
+
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <Text style={styles.title}>{PROFILE_COPY.stats.weeklyTitle}</Text>
         <View style={styles.weekControls}>
           <ArrowButton
-            glyph="◀"
+            direction="left"
             a11yLabel={PROFILE_COPY.stats.prevWeekA11y}
             enabled={weekly.canGoPrev}
             onPress={weekly.goPrev}
@@ -71,7 +94,7 @@ export default function WeeklyChart({ weekly }: WeeklyChartProps) {
             {weekLabelStart === null ? '' : PROFILE_COPY.stats.weekRange(weekLabelStart)}
           </Text>
           <ArrowButton
-            glyph="▶"
+            direction="right"
             a11yLabel={PROFILE_COPY.stats.nextWeekA11y}
             enabled={weekly.canGoNext}
             onPress={weekly.goNext}
@@ -106,59 +129,75 @@ export default function WeeklyChart({ weekly }: WeeklyChartProps) {
         </View>
       ) : (
         <View
-          style={styles.chartRow}
-          accessibilityLabel={PROFILE_COPY.stats.weeklyA11y(displayed.weekStart)}
+          style={styles.chartArea}
+          accessibilityLabel={`${PROFILE_COPY.stats.weeklyA11y(displayed.weekStart)}, ${PROFILE_COPY.stats.averageA11y(averageSec)}`}
         >
-          {ratios.map((ratio, dayIndex) => {
-            const barHeight =
-              ratio === 0 ? ZERO_BAR_HEIGHT : Math.max(ratio * CHART_HEIGHT, ZERO_BAR_HEIGHT);
-            const isSelected = dayIndex === weekly.selectedBarIndex;
-            return (
-              <Pressable
-                key={dayIndex}
-                style={styles.barColumn}
-                onPress={() => weekly.toggleBar(dayIndex)}
-                accessible
-                accessibilityRole="button"
-                // 막대별 개별 읽기 — "화요일, 32분"(profile-uiux.md 7장). 라벨이 이미 값을 읽으므로
-                // 말풍선은 보조기기에 별도 노출하지 않는다(4.6 개정)
-                accessibilityLabel={PROFILE_COPY.stats.dayBarA11y(
-                  dayIndex,
-                  displayed.dailyListenedSec[dayIndex],
-                )}
-              >
-                <View style={styles.barTrack}>
-                  {isSelected ? (
+          <View style={styles.chartRow}>
+            {ratios.map((ratio, dayIndex) => {
+              const barHeight =
+                ratio === 0 ? ZERO_BAR_HEIGHT : Math.max(ratio * CHART_HEIGHT, ZERO_BAR_HEIGHT);
+              const isSelected = dayIndex === weekly.selectedBarIndex;
+              return (
+                <Pressable
+                  key={dayIndex}
+                  style={styles.barColumn}
+                  onPress={() => weekly.toggleBar(dayIndex)}
+                  accessible
+                  accessibilityRole="button"
+                  // 막대별 개별 읽기 — "화요일, 32분"(profile-uiux.md 7장). 라벨이 이미 값을 읽으므로
+                  // 말풍선은 보조기기에 별도 노출하지 않는다(4.6 개정)
+                  accessibilityLabel={PROFILE_COPY.stats.dayBarA11y(
+                    dayIndex,
+                    displayed.dailyListenedSec[dayIndex],
+                  )}
+                >
+                  <View style={styles.barTrack}>
+                    {isSelected ? (
+                      <View
+                        style={[
+                          styles.tooltip,
+                          // 막대 위에 붙이되 최상단 막대에서도 그래프 영역 안에 머문다
+                          { bottom: Math.min(barHeight + 4, CHART_HEIGHT - TOOLTIP_HEIGHT) },
+                        ]}
+                        accessibilityElementsHidden
+                        importantForAccessibility="no-hide-descendants"
+                      >
+                        <Text style={styles.tooltipText}>
+                          {PROFILE_COPY.stats.dayValue(displayed.dailyListenedSec[dayIndex])}
+                        </Text>
+                      </View>
+                    ) : null}
                     <View
                       style={[
-                        styles.tooltip,
-                        // 막대 위에 붙이되 최상단 막대에서도 그래프 영역 안에 머문다
-                        { bottom: Math.min(barHeight + 4, CHART_HEIGHT - TOOLTIP_HEIGHT) },
+                        styles.bar,
+                        ratio === 0
+                          ? { height: ZERO_BAR_HEIGHT, backgroundColor: theme.color.border }
+                          : { height: barHeight },
+                        isSelected && styles.barSelected,
                       ]}
-                      accessibilityElementsHidden
-                      importantForAccessibility="no-hide-descendants"
-                    >
-                      <Text style={styles.tooltipText}>
-                        {PROFILE_COPY.stats.dayValue(displayed.dailyListenedSec[dayIndex])}
-                      </Text>
-                    </View>
-                  ) : null}
-                  <View
-                    style={[
-                      styles.bar,
-                      ratio === 0
-                        ? { height: ZERO_BAR_HEIGHT, backgroundColor: theme.color.border }
-                        : { height: barHeight },
-                      isSelected && styles.barSelected,
-                    ]}
-                  />
-                </View>
-                <Text style={[styles.dayName, dayIndex === todayIndex && styles.dayNameToday]}>
-                  {PROFILE_COPY.stats.dayNames[dayIndex]}
-                </Text>
-              </Pressable>
-            );
-          })}
+                    />
+                  </View>
+                  <Text style={[styles.dayName, dayIndex === todayIndex && styles.dayNameToday]}>
+                    {PROFILE_COPY.stats.dayNames[dayIndex]}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {/* 평균 기준선 — 막대 위에 얹되 탭은 막대가 받는다. 값은 컨테이너 라벨이 읽으므로
+              이 층은 보조기기에서 제외한다 */}
+          {averageRatio !== null ? (
+            <View
+              style={[styles.averageLayer, { top: (1 - averageRatio) * CHART_HEIGHT }]}
+              pointerEvents="none"
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
+              <View style={styles.averageRule} />
+              <Text style={styles.averageLabel}>{PROFILE_COPY.stats.averageLabel(averageSec)}</Text>
+            </View>
+          ) : null}
         </View>
       )}
     </View>
@@ -198,13 +237,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  arrowGlyph: {
-    fontSize: theme.font.size.sm,
-    color: theme.color.textPrimary,
-  },
-  arrowDisabled: {
-    color: theme.color.border,
-  },
   stateBox: {
     height: CHART_HEIGHT + theme.spacing.lg,
     borderRadius: theme.radius.md,
@@ -231,6 +263,31 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.sm,
     fontWeight: '600',
     color: theme.color.primary,
+  },
+  chartArea: {
+    // 평균선을 막대 위에 절대 배치하기 위한 기준
+    position: 'relative',
+  },
+  averageLayer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+  },
+  averageRule: {
+    height: 1,
+    backgroundColor: theme.color.textSecondary,
+    // 막대(검정)와 배경(흰색) 어느 쪽 위에서도 읽히도록 중간 톤으로 낮춘다
+    opacity: 0.5,
+  },
+  averageLabel: {
+    position: 'absolute',
+    right: 0,
+    bottom: 3,
+    fontSize: theme.font.size.xs,
+    color: theme.color.textSecondary,
+    // 막대 위에 겹쳐도 글자가 묻히지 않게 배경을 깐다
+    backgroundColor: theme.color.background,
+    paddingHorizontal: 4,
   },
   chartRow: {
     flexDirection: 'row',

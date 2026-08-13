@@ -28,12 +28,13 @@ export default function TopicChip({
       style={[styles.chip, isSelected && styles.chipSelected, isDimmed && styles.chipDimmed]}
       onPress={onPress}
       accessibilityRole="checkbox"
-      accessibilityState={{ checked: isSelected, disabled: isDimmed }}
+      // disabled를 선언하지 않는다 — 상한 도달 칩도 탭을 받아 토스트를 띄우는 것이 규칙인데(uiux 4.1),
+      // disabled로 알리면 낭독기 사용자는 "사용 안 함"으로 듣고 아예 누르지 않아 그 안내를 못 받는다.
+      // 이유는 아래 hint로 미리 알린다.
+      accessibilityState={{ checked: isSelected }}
       accessibilityLabel={label}
       accessibilityHint={isDimmed ? dimmedHint : undefined}
     >
-      {/* 색만으로 상태를 구분하지 않는다 — 선택 시 체크 마크를 함께 그린다(uiux 7장) */}
-      {isSelected ? <Text style={styles.check}>✓</Text> : null}
       <Text
         style={[styles.label, isSelected && styles.labelSelected, isDimmed && styles.labelDimmed]}
       >
@@ -47,7 +48,6 @@ const styles = StyleSheet.create({
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: theme.spacing.xs,
     // 칩은 글자 수에 따라 폭이 달라지므로 최소 높이를 고정한다(uiux 7장 — 터치 타깃 44pt)
     minHeight: theme.touchTarget.minHeight,
     paddingHorizontal: theme.spacing.md,
@@ -63,18 +63,15 @@ const styles = StyleSheet.create({
   chipDimmed: {
     backgroundColor: theme.color.surface,
   },
-  check: {
-    fontSize: theme.font.size.sm,
-    fontWeight: '700',
-    color: theme.color.onPrimary,
-  },
   label: {
     fontSize: theme.font.size.md,
+    // 선택 여부와 무관하게 굵기를 고정한다 — 선택 시 굵어지면 칩 폭이 변해
+    // flexWrap 그리드 전체가 재배치되고, 연속으로 고르는 동안 표적이 움직인다
+    fontWeight: '600',
     color: theme.color.textPrimary,
   },
   labelSelected: {
     color: theme.color.onPrimary,
-    fontWeight: '600',
   },
   labelDimmed: {
     color: theme.color.textSecondary,

@@ -303,10 +303,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingRight: theme.spacing.md,
+    // 세로 여백은 행이 갖는다. 제목에만 두면 제목 상자가 위아래로 비대칭하게 커져
+    // alignItems:center가 글자가 아니라 그 상자를 기준으로 맞춰 토글이 위로 뜬다
+    paddingTop: theme.spacing.lg,
+    paddingBottom: theme.spacing.xs,
   },
   sectionHeaderTitle: {
     // 토글과 공간을 나눈다 — 동적 텍스트 200%에서도 제목이 토글을 밀어내지 않게(uiux 7)
     flexShrink: 1,
+    paddingTop: 0,
+    paddingBottom: 0,
   },
   dimmed: {
     opacity: 0.5,

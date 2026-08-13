@@ -9,7 +9,7 @@ export const theme = {
     textPrimary: '#1A1A1E',
     textSecondary: '#6E6E76',
     border: '#E3E3E8',
-    primary: '#4A6CF7',
+    primary: '#000000',
     danger: '#E5484D',
     overlay: 'rgba(0, 0, 0, 0.4)',
     onPrimary: '#FFFFFF',
@@ -29,6 +29,8 @@ export const theme = {
     sm: 8,
     md: 12,
     lg: 16,
+    /** 알약(양 끝이 반원). 높이가 바뀌어도 항상 반원이 되도록 충분히 큰 값을 둔다 */
+    full: 999,
   },
   font: {
     size: {

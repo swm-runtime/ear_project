@@ -1,8 +1,11 @@
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import ChevronIcon from '@/shared/ui/ChevronIcon';
 
 import { SETTINGS_COPY } from '../settings.copy';
+
+const CHEVRON_SIZE = 18;
 
 interface NotificationBannerProps {
   onPress: () => void;
@@ -22,9 +25,9 @@ export default function NotificationBanner({ onPress }: NotificationBannerProps)
       accessibilityLabel={SETTINGS_COPY.notification.bannerA11y}
     >
       <Text style={styles.text}>{SETTINGS_COPY.notification.banner}</Text>
-      <Text style={styles.chevron} accessibilityElementsHidden importantForAccessibility="no">
-        ›
-      </Text>
+      <View accessibilityElementsHidden importantForAccessibility="no">
+        <ChevronIcon direction="right" size={CHEVRON_SIZE} color={theme.color.textSecondary} />
+      </View>
     </Pressable>
   );
 }
@@ -51,9 +54,5 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.color.textPrimary,
     flexShrink: 1,
-  },
-  chevron: {
-    fontSize: theme.font.size.lg,
-    color: theme.color.textSecondary,
   },
 });

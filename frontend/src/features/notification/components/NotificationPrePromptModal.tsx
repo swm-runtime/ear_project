@@ -8,7 +8,10 @@ import { theme } from '@/shared/theme';
 
 import { useSyncDevicePermissionMutation } from '../hooks/useSyncDevicePermissionMutation';
 import { NOTIFICATION_COPY } from '../notification.copy';
+import BellIcon from './BellIcon';
 import { getPushToken, requestOsPermission } from '../services/notification-permission.service';
+
+const BELL_SIZE = 72;
 
 interface NotificationPrePromptModalProps {
   isVisible: boolean;
@@ -67,9 +70,9 @@ export default function NotificationPrePromptModal({
     <Modal visible={isVisible} animationType="slide" onRequestClose={handleLaterPress}>
       <View style={styles.container}>
         <View style={styles.body}>
-          <Text style={styles.bell} accessibilityElementsHidden importantForAccessibility="no">
-            🔔
-          </Text>
+          <View accessibilityElementsHidden importantForAccessibility="no">
+            <BellIcon size={BELL_SIZE} color={theme.color.textPrimary} />
+          </View>
           <Text style={styles.title}>{NOTIFICATION_COPY.prePrompt.title}</Text>
           <Text style={styles.description}>{NOTIFICATION_COPY.prePrompt.description}</Text>
         </View>
@@ -116,9 +119,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: theme.spacing.md,
-  },
-  bell: {
-    fontSize: 48,
   },
   title: {
     fontSize: theme.font.size.lg,

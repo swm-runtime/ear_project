@@ -5,8 +5,6 @@
 import type { LibrarySourceFilter } from './library.types';
 
 export const LIBRARY_COPY = {
-  title: '라이브러리',
-
   /**
    * 상단 탭 — 상태 3개(FE 개편 2026-08-07: 카드 정보량 축소로 출처는 필터 팝업으로 이동).
    * drip 라벨은 필터 팝업의 출처 섹션에서 쓴다.

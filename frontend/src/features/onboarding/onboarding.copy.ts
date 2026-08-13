@@ -60,7 +60,7 @@ export const ONBOARDING_COPY = {
   /** O9 완료(onboarding-uiux.md 4.6) */
   complete: {
     title: '준비됐어요',
-    dripNotice: '이 주제로 매일 2편이 라이브러리에 도착합니다',
+    dripNotice: '이 주제로 매일 2편이 라이브러리에 도착해요',
     tierNotice: '무료로 이용 중 · 하루 2편까지 재생할 수 있어요',
     start: '시작하기',
   },

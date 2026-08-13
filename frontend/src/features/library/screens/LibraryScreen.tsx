@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
+import BrandMark from '@/shared/ui/BrandMark';
 import FullScreenError from '@/shared/ui/FullScreenError';
 
 import { MiniPlayer, PlayConfirmDialog, RemainingPlaysIndicator } from '@/features/player';
@@ -113,7 +114,8 @@ export default function LibraryScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.appBar}>
-        <Text style={styles.title}>{LIBRARY_COPY.title}</Text>
+        {/* 화면 이름(라이브러리) 대신 브랜드를 세운다 — 앱을 열면 항상 여기로 들어오는 기본 탭이다 */}
+        <BrandMark />
         {/* 무제한·캐시·값 없음이면 자리를 비운다 — "무제한" 배지도 없다(uiux 4.3) */}
         {screen.remainingDisplay ? (
           <RemainingPlaysIndicator
@@ -124,10 +126,6 @@ export default function LibraryScreen() {
         ) : null}
       </View>
 
-      {screen.banner ? (
-        <LibraryBanner banner={screen.banner} onPress={screen.handleBannerPress} />
-      ) : null}
-
       {showTabBar ? (
         <LibraryTabs
           filter={screen.filter}
@@ -135,6 +133,12 @@ export default function LibraryScreen() {
           topicFilterCount={screen.topicFilterCount}
           onFilterPress={screen.openTopicSheet}
         />
+      ) : null}
+
+      {/* 배너는 탭 아래 · 목록 바로 위에 둔다 — 세 배너 모두 "이 목록에 무슨 일이
+          있었나"를 알리므로 목록에 붙어 있어야 무엇에 대한 통지인지 읽힌다(uiux 4.1) */}
+      {screen.banner ? (
+        <LibraryBanner banner={screen.banner} onPress={screen.handleBannerPress} />
       ) : null}
 
       {screen.isFullError ? (
@@ -230,11 +234,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: theme.spacing.md,
     minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
-  },
-  title: {
-    fontSize: theme.font.size.xl,
-    fontWeight: '700',
-    color: theme.color.textPrimary,
   },
   separator: {
     height: StyleSheet.hairlineWidth,

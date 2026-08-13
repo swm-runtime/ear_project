@@ -12,6 +12,12 @@ interface SeekBarProps {
   durationSec: number;
   /** 오디오 준비 전에는 조작을 받지 않는다(player-uiux.md 4.3) */
   disabled: boolean;
+  /**
+   * 바깥 화면의 좌우 여백을 상쇄해 **바를 화면 끝까지 흘려보내는** 값.
+   * 서비스명이 "이어"인 만큼 재생 진행이 화면을 가로질러 이어지는 것이 브랜드 표현이다.
+   * 시간 라벨은 상쇄하지 않는다 — 글자가 화면 모서리에 붙으면 읽기 어렵다.
+   */
+  bleed?: number;
   onSeekTo: (targetSec: number) => void;
 }
 
@@ -20,7 +26,13 @@ interface SeekBarProps {
  * (player-uiux.md 4.2 — 드래그마다 오디오를 끊으면 위치를 고르는 동안 소리가 튄다).
  * 완청 기준선(90%) 등 판정 지점 표식은 그리지 않는다(8장 금지 사항).
  */
-export default function SeekBar({ positionSec, durationSec, disabled, onSeekTo }: SeekBarProps) {
+export default function SeekBar({
+  positionSec,
+  durationSec,
+  disabled,
+  onSeekTo,
+  bleed = 0,
+}: SeekBarProps) {
   const [trackWidth, setTrackWidth] = useState(0);
   const [dragPositionSec, setDragPositionSec] = useState<number | null>(null);
 
@@ -73,7 +85,7 @@ export default function SeekBar({ positionSec, durationSec, disabled, onSeekTo }
   return (
     <View>
       <View
-        style={styles.touchArea}
+        style={[styles.touchArea, { marginHorizontal: -bleed }]}
         onLayout={(event) => setTrackWidth(event.nativeEvent.layout.width)}
         {...panResponder.panHandlers}
         accessible
@@ -99,8 +111,22 @@ export default function SeekBar({ positionSec, durationSec, disabled, onSeekTo }
       >
         <View style={styles.track}>
           <View style={[styles.fill, { width: `${ratio * 100}%` }]} />
+          {/* 전체 폭으로 흘리면 0%·100%에서 손잡이 절반이 화면 밖으로 나간다 —
+              측정한 폭 안으로 가둬 항상 온전히 보이게 한다 */}
           <View
-            style={[styles.thumb, { left: `${ratio * 100}%` }, disabled && styles.thumbDisabled]}
+            style={[
+              styles.thumb,
+              {
+                left:
+                  trackWidth > 0
+                    ? Math.min(
+                        Math.max(ratio * trackWidth, THUMB_SIZE / 2),
+                        trackWidth - THUMB_SIZE / 2,
+                      )
+                    : 0,
+              },
+              disabled && styles.thumbDisabled,
+            ]}
           />
         </View>
       </View>
@@ -122,12 +148,11 @@ const styles = StyleSheet.create({
   },
   track: {
     height: 4,
-    borderRadius: 2,
+    // 화면 끝까지 이어지는 선이라 모서리를 둥글리지 않는다 — 둥글면 거기서 끊겨 보인다
     backgroundColor: theme.color.border,
   },
   fill: {
     height: '100%',
-    borderRadius: 2,
     backgroundColor: theme.color.primary,
   },
   thumb: {

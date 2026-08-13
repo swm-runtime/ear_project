@@ -1,4 +1,4 @@
-export type SocialProvider = 'kakao' | 'naver' | 'google';
+export type SocialProvider = 'kakao' | 'naver' | 'google' | 'apple';
 
 /** 서버 계약의 consent_type 값 그대로 쓴다(convention.md 1.6) */
 export type ConsentType = 'terms' | 'privacy' | 'marketing';

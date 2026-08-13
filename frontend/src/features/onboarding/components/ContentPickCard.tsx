@@ -15,7 +15,8 @@ const formatDurationLabel = (durationSec: number): string =>
 
 /**
  * 3단계 추천 카드. 탭은 선택이지 재생이 아니다 — 재생 버튼·미리듣기를 두지 않는다(onboarding-uiux.md 4.4).
- * 선택 표시는 체크 아이콘 + 테두리로, 색만으로 구분하지 않는다.
+ * 선택 표시는 테두리·배경 변화이며 체크 아이콘을 두지 않는다(onboarding-uiux.md 4.4 · 7장 예외).
+ * 낭독기에는 role="checkbox" + checked로 전달한다.
  */
 export default function ContentPickCard({ content, isSelected, onPress }: ContentPickCardProps) {
   return (
@@ -39,9 +40,6 @@ export default function ContentPickCard({ content, isSelected, onPress }: Conten
             {content.topics.map((topic) => topic.name).join(' · ')}
           </Text>
         ) : null}
-      </View>
-      <View style={[styles.checkCircle, isSelected && styles.checkCircleSelected]}>
-        {isSelected ? <Text style={styles.checkMark}>✓</Text> : null}
       </View>
     </Pressable>
   );
@@ -84,23 +82,5 @@ const styles = StyleSheet.create({
   topicBadge: {
     fontSize: theme.font.size.xs,
     color: theme.color.primary,
-  },
-  checkCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: theme.color.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkCircleSelected: {
-    borderColor: theme.color.primary,
-    backgroundColor: theme.color.primary,
-  },
-  checkMark: {
-    fontSize: theme.font.size.xs,
-    fontWeight: '700',
-    color: theme.color.onPrimary,
   },
 });
