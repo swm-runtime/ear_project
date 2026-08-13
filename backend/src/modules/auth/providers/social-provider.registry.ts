@@ -41,6 +41,10 @@ export class SocialProviderRegistry {
       return;
     }
 
+    // TODO(auth): AppleClient 미구현. 개발 환경은 위 대역이 받아내지만 **운영에서
+    // provider=apple이 오면 get()이 던진다.** 애플은 다른 제공자와 달리 identity token(JWT)을
+    // 애플 공개키로 서명 검증하고 nonce를 대조해야 한다 — 토큰을 그대로 신뢰하면 안 된다.
+    // iOS 심사 요건이므로(auth.md 1) 출시 전에 반드시 채운다.
     this.clients = new Map<SocialProvider, SocialProviderClient>([
       [kakaoClient.provider, kakaoClient],
       [googleClient.provider, googleClient],
