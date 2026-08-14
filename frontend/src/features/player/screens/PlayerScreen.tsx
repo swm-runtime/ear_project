@@ -238,7 +238,6 @@ export default function PlayerScreen() {
             durationSec={session.durationSec}
             disabled={isControlDisabled}
             onSeekTo={screen.seekTo}
-            bleed={theme.spacing.lg}
           />
 
           <View style={styles.controlRow}>
@@ -451,7 +450,9 @@ const styles = StyleSheet.create({
   },
   metaArea: {
     gap: theme.spacing.xs,
-    paddingVertical: theme.spacing.sm,
+    // 아트워크와 제목 사이를 아래보다 넓게 둔다 — 붙여 두면 제목이 이미지의 캡션처럼 읽힌다
+    paddingTop: theme.spacing.lg,
+    paddingBottom: theme.spacing.sm,
   },
   title: {
     fontSize: theme.font.size.xl,
