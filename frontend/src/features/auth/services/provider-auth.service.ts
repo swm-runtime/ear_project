@@ -10,9 +10,13 @@ export class ProviderAuthCancelledError extends Error {
 
 /**
  * 소셜 로그인 SDK 스텁 — SDK 선정이 미결이다(frontend/architecture.md 미결 사항).
- * TODO(auth): 카카오·네이버·구글 SDK 연동 시 교체한다.
+ * TODO(auth): 네이버·카카오·구글·애플 SDK 연동 시 교체한다.
  *  - 사용자 취소는 ProviderAuthCancelledError로 던진다.
  *  - 제공자 앱 미설치 시 웹 로그인 폴백(auth.md 7).
+ *  - **애플은 토큰 하나로 끝나지 않는다.** 요청마다 nonce를 만들어 **SHA-256 해시를
+ *    애플 인가 요청에 싣고, 원본을 `socialLogin`의 `nonce`로 함께 보내야 한다**
+ *    (auth-api.md 4.1). 서버가 해시해 identity token의 nonce 클레임과 대조하며,
+ *    **없으면 로그인이 거부된다.** 연동 시 이 함수의 반환형이 토큰 + nonce로 바뀐다.
  * 개발 빌드에서는 서버 연동 테스트를 위해 가짜 토큰을 반환한다.
  */
 export const authenticateWithProvider = async (provider: SocialProvider): Promise<string> => {
