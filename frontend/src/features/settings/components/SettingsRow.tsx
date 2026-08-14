@@ -2,6 +2,9 @@ import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import ChevronIcon from '@/shared/ui/ChevronIcon';
+
+const CHEVRON_SIZE = 18;
 
 interface SettingsRowProps {
   label: string;
@@ -52,9 +55,9 @@ export default function SettingsRow({
         {value !== undefined && value !== null ? <Text style={styles.value}>{value}</Text> : null}
         {rightSlot}
         {onPress !== undefined && rightSlot === undefined ? (
-          <Text style={styles.chevron} accessibilityElementsHidden importantForAccessibility="no">
-            ›
-          </Text>
+          <View accessibilityElementsHidden importantForAccessibility="no">
+            <ChevronIcon direction="right" size={CHEVRON_SIZE} color={theme.color.textSecondary} />
+          </View>
         ) : null}
       </View>
     </Pressable>
@@ -108,9 +111,5 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.xs,
     fontWeight: '600',
     color: theme.color.danger,
-  },
-  chevron: {
-    fontSize: theme.font.size.lg,
-    color: theme.color.textSecondary,
   },
 });

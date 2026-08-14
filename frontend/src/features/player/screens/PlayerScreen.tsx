@@ -7,15 +7,17 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  useAnimatedValue,
   useWindowDimensions,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { theme } from '@/shared/theme';
+import ChevronIcon from '@/shared/ui/ChevronIcon';
 
 import PlayConfirmDialog from '../components/PlayConfirmDialog';
+import { ExternalLinkIcon, MoreIcon, PauseIcon, PlayIcon } from '../components/PlayerIcons';
 import PlayerMoreSheet from '../components/PlayerMoreSheet';
 import PlayerRateSheet from '../components/PlayerRateSheet';
 import SeekBar from '../components/SeekBar';
@@ -172,7 +174,11 @@ export default function PlayerScreen() {
             accessibilityRole="button"
             accessibilityLabel={PLAYER_COPY.screen.collapseA11y}
           >
-            <Text style={styles.appBarGlyph}>⌄</Text>
+            <ChevronIcon
+              direction="down"
+              size={APP_BAR_ICON_SIZE}
+              color={theme.color.textPrimary}
+            />
           </Pressable>
           <Pressable
             style={styles.appBarButton}
@@ -180,7 +186,7 @@ export default function PlayerScreen() {
             accessibilityRole="button"
             accessibilityLabel={PLAYER_COPY.screen.moreA11y}
           >
-            <Text style={styles.appBarGlyph}>⋯</Text>
+            <MoreIcon size={APP_BAR_ICON_SIZE} color={theme.color.textPrimary} />
           </Pressable>
         </View>
 
@@ -207,23 +213,23 @@ export default function PlayerScreen() {
             {session.meta.title ?? ''}
           </Text>
           {/* 저자·출처 상시 노출(FR-12) — 오디오 멘트와 별개로 화면 고지를 생략하지 않는다 */}
-          <View style={styles.sourceRow}>
-            {metaLine.length > 0 ? (
-              <Text style={styles.sourceText} numberOfLines={1}>
-                {metaLine}
-              </Text>
-            ) : null}
-            {session.meta.sourceUrl !== null ? (
-              <Pressable
-                onPress={screen.openSourceLink}
-                accessibilityRole="button"
-                accessibilityLabel={PLAYER_COPY.screen.sourceLink}
-                style={styles.sourceLinkButton}
-              >
-                <Text style={styles.sourceLinkLabel}>{PLAYER_COPY.screen.sourceLink}</Text>
-              </Pressable>
-            ) : null}
-          </View>
+          {metaLine.length > 0 ? (
+            <Text style={styles.sourceText} numberOfLines={1}>
+              {metaLine}
+            </Text>
+          ) : null}
+          {/* 출처 텍스트에 붙여 두면 링크인지 메타의 일부인지 구분되지 않는다 — 칩으로 뗀다 */}
+          {session.meta.sourceUrl !== null ? (
+            <Pressable
+              onPress={screen.openSourceLink}
+              accessibilityRole="button"
+              accessibilityLabel={PLAYER_COPY.screen.sourceLink}
+              style={styles.sourceLinkChip}
+            >
+              <Text style={styles.sourceLinkLabel}>{PLAYER_COPY.screen.sourceLink}</Text>
+              <ExternalLinkIcon size={11} color={theme.color.textPrimary} />
+            </Pressable>
+          ) : null}
         </View>
 
         <View style={styles.controlArea}>
@@ -243,7 +249,7 @@ export default function PlayerScreen() {
               accessibilityLabel={PLAYER_COPY.screen.seekBackA11y}
             >
               <Text style={[styles.stepGlyph, isControlDisabled && styles.glyphDisabled]}>
-                ↺<Text style={styles.stepNumber}>10</Text>
+                ↺<Text style={styles.stepNumber}>{SEEK_STEP_SEC}</Text>
               </Text>
             </Pressable>
 
@@ -260,7 +266,10 @@ export default function PlayerScreen() {
                 // 로딩 표시는 재생 버튼 자리에만, 2초 초과 시만(uiux 4.3)
                 <ActivityIndicator color={theme.color.onPrimary} />
               ) : (
-                <Text style={styles.playGlyph}>{!isEnded && session.isPlaying ? '❚❚' : '▶'}</Text>
+                (() => {
+                  const Icon = !isEnded && session.isPlaying ? PauseIcon : PlayIcon;
+                  return <Icon size={PLAY_ICON_SIZE} color={theme.color.onPrimary} />;
+                })()
               )}
             </Pressable>
 
@@ -272,7 +281,7 @@ export default function PlayerScreen() {
               accessibilityLabel={PLAYER_COPY.screen.seekForwardA11y}
             >
               <Text style={[styles.stepGlyph, isControlDisabled && styles.glyphDisabled]}>
-                ↻<Text style={styles.stepNumber}>10</Text>
+                ↻<Text style={styles.stepNumber}>{SEEK_STEP_SEC}</Text>
               </Text>
             </Pressable>
           </View>
@@ -369,6 +378,12 @@ export default function PlayerScreen() {
   );
 }
 
+/** 앱바(닫기·더보기) 아이콘 */
+const APP_BAR_ICON_SIZE = 24;
+const PLAY_ICON_SIZE = 24;
+/** 화면에 적히는 이동 폭. player.constants의 실제 이동 값과 같아야 한다 */
+const SEEK_STEP_SEC = 10;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -389,23 +404,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  appBarGlyph: {
-    fontSize: theme.font.size.lg,
-    color: theme.color.textPrimary,
-  },
+  /**
+   * 아트워크는 위로 붙인다. 가운데 정렬하면 세로로 긴 화면에서 위아래로 큰 공백이 생겨
+   * 아트워크·제목·컨트롤이 서로 떨어진 세 덩어리로 보인다. 남는 공간은 아래 spacer가 먹는다.
+   */
+  /**
+   * 남는 세로 공간은 아트워크가 먹는다. 따로 빈 자리(spacer)를 두면 제목과 컨트롤 사이가
+   * 통째로 비어 화면이 성기게 보인다 — 정사각을 유지한 채 높이에 맞춰 커지고 줄어든다.
+   */
   artworkArea: {
     flex: 1,
+    alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: theme.spacing.md,
+    paddingTop: theme.spacing.sm,
   },
   artworkFrame: {
-    alignSelf: 'center',
-    width: '80%',
-    maxWidth: 360,
+    flex: 1,
+    aspectRatio: 1,
+    maxWidth: '100%',
   },
   artwork: {
-    width: '100%',
-    aspectRatio: 1,
+    flex: 1,
     borderRadius: theme.radius.lg,
     backgroundColor: theme.color.surface,
   },
@@ -431,31 +450,38 @@ const styles = StyleSheet.create({
   },
   metaArea: {
     gap: theme.spacing.xs,
-    paddingVertical: theme.spacing.sm,
+    // 아트워크와 제목 사이를 아래보다 넓게 둔다 — 붙여 두면 제목이 이미지의 캡션처럼 읽힌다
+    paddingTop: theme.spacing.lg,
+    paddingBottom: theme.spacing.sm,
   },
   title: {
-    fontSize: theme.font.size.lg,
+    fontSize: theme.font.size.xl,
     fontWeight: '700',
     color: theme.color.textPrimary,
+    // 두 줄까지 접히는 제목이라 줄 간격을 함께 잡는다 — 크기만 키우면 두 줄이 붙어 읽힌다
+    lineHeight: theme.font.size.xl * 1.3,
   },
-  sourceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-  },
+
   sourceText: {
     flexShrink: 1,
-    fontSize: theme.font.size.sm,
+    fontSize: theme.font.size.md,
     color: theme.color.textSecondary,
   },
-  sourceLinkButton: {
-    minHeight: theme.touchTarget.minHeight,
-    justifyContent: 'center',
+  sourceLinkChip: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    minHeight: theme.touchTarget.minHeight - theme.spacing.sm,
+    paddingHorizontal: theme.spacing.sm + theme.spacing.xs,
+    borderRadius: theme.radius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.color.border,
   },
   sourceLinkLabel: {
     fontSize: theme.font.size.sm,
     fontWeight: '600',
-    color: theme.color.primary,
+    color: theme.color.textPrimary,
   },
   controlArea: {
     paddingBottom: theme.spacing.md,
@@ -492,22 +518,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: theme.color.primary,
   },
-  playGlyph: {
-    fontSize: theme.font.size.lg,
-    color: theme.color.onPrimary,
-  },
   auxRow: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    gap: theme.spacing.xxl,
+    gap: theme.spacing.sm,
   },
   rateChip: {
+    // 셋을 등폭으로 나눈다 — 글자 수(1.0× · 타이머 · 스크립트)가 달라
+    // 내용에 맡기면 폭이 제각각이라 줄이 들쭉날쭉해 보인다
+    flex: 1,
     minHeight: theme.touchTarget.minHeight,
-    minWidth: theme.touchTarget.minWidth,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: theme.spacing.md,
-    borderRadius: theme.radius.lg,
+    paddingHorizontal: theme.spacing.sm,
+    borderRadius: theme.radius.full,
     backgroundColor: theme.color.surface,
   },
   rateChipLabel: {

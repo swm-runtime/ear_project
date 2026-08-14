@@ -15,6 +15,17 @@ export interface SocialLoginCommand {
   provider: SocialProvider;
   providerToken: string;
   deviceId: string;
+  /**
+   * 애플 전용. 클라이언트가 인가 요청에 실은 원본 nonce다 — 서버가 해시해서
+   * identity token의 `nonce` 클레임과 대조한다(`auth-api.md` 4.1).
+   * 다른 제공자는 쓰지 않는다.
+   */
+  nonce?: string;
+}
+
+/** 토큰 검증에 토큰 외의 값이 필요한 제공자를 위한 통로. 지금은 애플의 nonce뿐이다 */
+export interface ProviderAuthContext {
+  nonce?: string;
 }
 
 export interface SignUpCommand {

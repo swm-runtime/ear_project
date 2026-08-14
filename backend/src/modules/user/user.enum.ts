@@ -3,6 +3,8 @@ export enum SocialProvider {
   KAKAO = 'kakao',
   GOOGLE = 'google',
   NAVER = 'naver',
+  /** App Store 심사 가이드라인 4.8 — iOS에서 다른 소셜 로그인을 제공하면 필수다(auth.md 1) */
+  APPLE = 'apple',
 }
 
 export enum UserRole {

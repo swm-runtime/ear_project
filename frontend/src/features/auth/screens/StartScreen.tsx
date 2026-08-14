@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
@@ -19,19 +19,37 @@ export default function StartScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.intro}>
-        <Text style={styles.appName}>{AUTH_COPY.start.appName}</Text>
+        <Image
+          source={require('../../../../assets/logo.png')}
+          style={styles.logo}
+          resizeMode="contain"
+          accessibilityRole="image"
+          accessibilityLabel={AUTH_COPY.start.appName}
+        />
         <Text style={styles.tagline}>{AUTH_COPY.start.tagline}</Text>
+        <Text style={styles.description}>{AUTH_COPY.start.description}</Text>
       </View>
 
       <View style={styles.actions}>
-        {SOCIAL_PROVIDERS.map((provider) => (
-          <ProviderButton
-            key={provider}
-            provider={provider}
-            disabled={isAuthenticating}
-            onPress={handleProviderPress}
-          />
-        ))}
+        <View style={styles.divider}>
+          <View style={styles.dividerLine} />
+          {/* 장식이 아니라 아래 버튼 묶음을 설명하는 제목이므로 스크린리더에서 읽힌다 */}
+          <Text style={styles.dividerLabel} accessibilityRole="header">
+            {AUTH_COPY.start.providerSectionLabel}
+          </Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        <View style={styles.providers}>
+          {SOCIAL_PROVIDERS.map((provider) => (
+            <ProviderButton
+              key={provider}
+              provider={provider}
+              disabled={isAuthenticating}
+              onPress={handleProviderPress}
+            />
+          ))}
+        </View>
 
         <View style={styles.links}>
           <Pressable
@@ -68,12 +86,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  appName: {
+  logo: {
+    width: 200,
+    height: 200,
+  },
+  tagline: {
+    marginTop: theme.spacing.md,
     fontSize: theme.font.size.xl,
     fontWeight: '700',
     color: theme.color.textPrimary,
   },
-  tagline: {
+  description: {
     marginTop: theme.spacing.sm,
     fontSize: theme.font.size.md,
     color: theme.color.textSecondary,
@@ -81,6 +104,30 @@ const styles = StyleSheet.create({
   actions: {
     gap: theme.spacing.sm + theme.spacing.xs,
     paddingBottom: theme.spacing.lg,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.sm,
+    marginTop: theme.spacing.xs,
+  },
+  dividerLine: {
+    // 폭을 고정한다 — flex로 남는 폭을 다 채우면 문구보다 선이 주인공이 된다
+    width: 48,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: theme.color.border,
+  },
+  dividerLabel: {
+    fontSize: theme.font.size.xs,
+    color: theme.color.textSecondary,
+  },
+  providers: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    // 64pt 버튼 4개라 간격을 넓게 두면 좁은 기기에서 가로가 넘친다
+    gap: theme.spacing.md,
+    marginTop: theme.spacing.sm,
   },
   links: {
     flexDirection: 'row',

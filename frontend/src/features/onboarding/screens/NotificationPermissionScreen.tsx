@@ -3,9 +3,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
 
+import { BellIcon } from '@/features/notification';
+
 import ReconsiderDialog from '../components/ReconsiderDialog';
 import { useNotificationPermissionScreen } from '../hooks/useNotificationPermissionScreen';
 import { ONBOARDING_COPY } from '../onboarding.copy';
+
+const BELL_SIZE = 72;
 
 /**
  * O10 알림 사전 안내(프리퍼미션). OS 다이얼로그는 [알림 받기]에서만 띄운다(onboarding-uiux.md 4.7).
@@ -25,11 +29,11 @@ export default function NotificationPermissionScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.body}>
-        <Text style={styles.bell} accessibilityElementsHidden importantForAccessibility="no">
-          🔔
-        </Text>
+        <View accessibilityElementsHidden importantForAccessibility="no">
+          <BellIcon size={BELL_SIZE} color={theme.color.textPrimary} />
+        </View>
         <Text style={styles.title}>{ONBOARDING_COPY.notification.title}</Text>
-        {/* 발송 빈도를 문구에 명시한다 — 상한을 먼저 말하는 것이 허용률에 작용한다(onboarding-uiux.md 4.7) */}
+        {/* "한 번만"이 발송 빈도를 알린다 — 상한을 말하는 것이 허용률에 작용한다(onboarding-uiux.md 4.7) */}
         <Text style={styles.description}>{ONBOARDING_COPY.notification.description}</Text>
       </View>
 
@@ -81,9 +85,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: theme.spacing.md,
-  },
-  bell: {
-    fontSize: 48,
   },
   title: {
     fontSize: theme.font.size.lg,

@@ -7,15 +7,20 @@ import type { ConsentType, SocialProvider } from './auth.types';
 export const AUTH_COPY = {
   start: {
     /* TODO(카피 미확정): 시작 화면 서비스 소개 문구 */
+    /** 로고 이미지의 대체 텍스트 — 화면에 글자로는 보이지 않는다 */
     appName: '이어',
-    tagline: '매일 아침 도착하는 나만의 팟캐스트',
+    tagline: "당신의 귀를 '이어'주다",
+    description: '매일 출근길에 도착하는 나만의 팟캐스트',
     termsLink: '이용약관',
     privacyLink: '개인정보 처리방침',
     provider: {
       kakao: '카카오로 시작하기',
       naver: '네이버로 시작하기',
       google: 'Google로 시작하기',
+      apple: 'Apple로 시작하기',
     } satisfies Record<SocialProvider, string>,
+    /** 제공자 버튼 묶음 위에 붙는 구분선 문구 */
+    providerSectionLabel: '소셜로그인으로 시작하기',
   },
   /** auth-uiux.md 4.2 — 확정 카피 */
   loginFailed: '로그인에 실패했어요. 다시 시도해주세요',

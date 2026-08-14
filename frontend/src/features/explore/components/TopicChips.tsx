@@ -58,10 +58,11 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.sm,
   },
   chip: {
-    minHeight: theme.touchTarget.minHeight - theme.spacing.sm,
+    // 명세가 주제 칩을 콕 집어 44pt를 요구한다(explore-uiux.md 7) — 빼지 않는다
+    minHeight: theme.touchTarget.minHeight,
     justifyContent: 'center',
     paddingHorizontal: theme.spacing.md,
-    borderRadius: theme.radius.lg,
+    borderRadius: theme.radius.full,
     borderWidth: 1,
     borderColor: theme.color.border,
     backgroundColor: theme.color.background,
@@ -72,10 +73,13 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: theme.font.size.sm,
+    // 선택 여부와 무관하게 굵기를 고정한다 — 선택 시 굵어지면 칩 폭이 변해
+    // 뒤쪽 칩들이 옆으로 밀리고, 여러 개를 연속으로 고르는 동안 표적이 움직인다
+    // (features/interest/components/TopicChip.tsx도 같은 이유로 고정돼 있다)
+    fontWeight: '600',
     color: theme.color.textPrimary,
   },
   labelSelected: {
     color: theme.color.onPrimary,
-    fontWeight: '600',
   },
 });

@@ -16,6 +16,19 @@ interface PopularPeriodToggleProps {
 /** 라벨은 화면 문구, 값은 전송값 — 순서는 uiux 4.10의 "주간 · 월간 · 전체"다 */
 const PERIODS: ExplorePeriod[] = ['week', 'month', 'all'];
 
+/** 보이는 알약 높이 — 섹션 제목 글자 높이에 맞춘다 */
+const SEGMENT_HEIGHT = 28;
+
+/**
+ * 보이는 높이를 줄이는 대신 위아래로 넓힌 터치 영역. 명세 7장의 44×44pt는
+ * **눌리는 영역** 기준이므로 hitSlop으로 채운다 — 알약을 44pt로 그리면
+ * 제목 줄이 토글 높이에 끌려가 "인기 콘텐츠" 제목보다 커진다.
+ */
+const SEGMENT_HIT_SLOP = {
+  top: (theme.touchTarget.minHeight - SEGMENT_HEIGHT) / 2,
+  bottom: (theme.touchTarget.minHeight - SEGMENT_HEIGHT) / 2,
+};
+
 /**
  * E13 인기 구간 토글 — 인기 섹션 제목 줄에만 붙는 3택 1 세그먼트 컨트롤.
  * 확정 구간이 없어도 세 구간 모두 항상 고를 수 있다 — 탭을 숨기거나 비활성화하지 않는다
@@ -39,6 +52,7 @@ export default function PopularPeriodToggle({
             key={period}
             style={[styles.segment, isSelected && styles.segmentSelected]}
             onPress={() => onSelect(period)}
+            hitSlop={SEGMENT_HIT_SLOP}
             disabled={disabled}
             accessibilityRole="radio"
             accessibilityLabel={EXPLORE_COPY.popular.periodLabels[period]}
@@ -58,17 +72,18 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     backgroundColor: theme.color.surface,
-    borderRadius: theme.radius.md,
+    // 바깥 트랙도 알약으로 둔다 — 안쪽만 둥글면 모서리에 각진 여백이 남는다
+    borderRadius: theme.radius.full,
     padding: 2,
   },
   segment: {
-    // 터치 타깃 최소 44×44pt — 제목 줄이 살짝 높아지더라도 줄이지 않는다(uiux 7)
-    minHeight: theme.touchTarget.minHeight,
+    // 보이는 높이는 제목에 맞추고, 44pt는 위 SEGMENT_HIT_SLOP이 채운다(uiux 7)
+    height: SEGMENT_HEIGHT,
     minWidth: theme.touchTarget.minWidth,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: theme.spacing.sm,
-    borderRadius: theme.radius.md - 2,
+    borderRadius: theme.radius.full,
   },
   segmentSelected: {
     backgroundColor: theme.color.background,

@@ -99,8 +99,22 @@ export default function SeekBar({ positionSec, durationSec, disabled, onSeekTo }
       >
         <View style={styles.track}>
           <View style={[styles.fill, { width: `${ratio * 100}%` }]} />
+          {/* 전체 폭으로 흘리면 0%·100%에서 손잡이 절반이 화면 밖으로 나간다 —
+              측정한 폭 안으로 가둬 항상 온전히 보이게 한다 */}
           <View
-            style={[styles.thumb, { left: `${ratio * 100}%` }, disabled && styles.thumbDisabled]}
+            style={[
+              styles.thumb,
+              {
+                left:
+                  trackWidth > 0
+                    ? Math.min(
+                        Math.max(ratio * trackWidth, THUMB_SIZE / 2),
+                        trackWidth - THUMB_SIZE / 2,
+                      )
+                    : 0,
+              },
+              disabled && styles.thumbDisabled,
+            ]}
           />
         </View>
       </View>

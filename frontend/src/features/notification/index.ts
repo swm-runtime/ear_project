@@ -6,6 +6,7 @@
  * 온보딩과 설정이 함께 쓰는 소유물이라 먼저 이 feature로 모았다(architecture.md 4.4 —
  * settings → notification, onboarding → notification).
  */
+export { default as BellIcon } from './components/BellIcon';
 export { default as NotificationPrePromptModal } from './components/NotificationPrePromptModal';
 export {
   getOsPermissionStatus,

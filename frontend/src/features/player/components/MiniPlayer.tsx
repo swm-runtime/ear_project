@@ -1,16 +1,8 @@
 import { useNavigation } from '@react-navigation/native';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Animated,
-  Image,
-  PanResponder,
-  Pressable,
-  StyleSheet,
-  Text,
-  useAnimatedValue,
-  View,
-} from 'react-native';
+import { Animated, Image, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { theme } from '@/shared/theme';
 
 import {
@@ -19,8 +11,12 @@ import {
   MINI_PLAYER_SWIPE_START_DISTANCE,
 } from '../player.constants';
 import { PLAYER_COPY } from '../player.copy';
+import { PauseIcon, PlayIcon } from './PlayerIcons';
 import { playbackService } from '../services/playback.service';
 import { usePlaybackStore } from '../store/playback.store';
+
+/** 미니플레이어 재생 버튼 아이콘 — 전체 플레이어보다 작게 */
+const MINI_PLAY_ICON_SIZE = 20;
 
 /** 앱 재실행 복원 대상(library-api.md 4.3) — 노출·대상 판정은 라이브러리 소유(library.md 4.2) */
 export interface MiniPlayerResumeFallback {
@@ -227,7 +223,11 @@ export default function MiniPlayer({
             view.isPlaying ? PLAYER_COPY.miniPlayer.pauseA11y : PLAYER_COPY.miniPlayer.playA11y
           }
         >
-          <Text style={styles.playGlyph}>{view.isPlaying ? '❚❚' : '▶'}</Text>
+          {view.isPlaying ? (
+            <PauseIcon size={MINI_PLAY_ICON_SIZE} color={theme.color.textPrimary} />
+          ) : (
+            <PlayIcon size={MINI_PLAY_ICON_SIZE} color={theme.color.textPrimary} />
+          )}
         </Pressable>
       </View>
     </Animated.View>
@@ -277,9 +277,5 @@ const styles = StyleSheet.create({
     minHeight: theme.touchTarget.minHeight,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  playGlyph: {
-    fontSize: theme.font.size.lg,
-    color: theme.color.primary,
   },
 });

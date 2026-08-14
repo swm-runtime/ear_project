@@ -161,7 +161,7 @@ idx_idempotency_keys_expires_at
 ```
 users
   id                        uuid            PK
-  provider                  enum            kakao | google | naver
+  provider                  enum            kakao | google | naver | apple
   provider_user_id          varchar         제공자 고유 ID
   email                     varchar         NULL 허용 (미제공 · 마스킹 주소)
   is_email_verified         boolean         DEFAULT false   ★소유 확인 완료 여부
@@ -1132,7 +1132,7 @@ archived_users
   user_hash                 varchar         아카이브 테이블 간 조인 키
   user_hash_version         smallint        DEFAULT 1
   email                     varchar   NOT NULL  ★거래 주체 식별 정보 (법 제6조 제2항)
-  provider                  enum            kakao | google | naver
+  provider                  enum            kakao | google | naver | apple
   provider_user_id          varchar         ★재가입 매칭·보조 식별 수단
   tier                      enum            탈퇴 시점 티어
   joined_at                 timestamptz     원래 users.created_at

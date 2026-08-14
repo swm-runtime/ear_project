@@ -3,6 +3,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
 import FullScreenError from '@/shared/ui/FullScreenError';
+import ScrollFade from '@/shared/ui/ScrollFade';
 
 import ContentPickCard from '../components/ContentPickCard';
 import StepIndicator from '../components/StepIndicator';
@@ -58,37 +59,41 @@ export default function PickScreen() {
           onRetry={refetch}
         />
       ) : (
-        <ScrollView contentContainerStyle={styles.list}>
-          {isLoading ? (
-            showSkeleton ? (
-              // O12 — 섹션 제목도 스켈레톤으로 둔다. 표본 충분 여부는 응답이 와야 안다(onboarding-uiux.md 4.4)
-              <View style={styles.skeletonArea}>
-                <View style={styles.skeletonSectionTitle} />
-                {Array.from({ length: SKELETON_CARD_COUNT }, (_, index) => (
-                  <View key={index} style={styles.skeletonCard} />
-                ))}
-              </View>
-            ) : null
-          ) : (
-            sections.map((section) => (
-              <View key={section.sectionType} style={styles.section}>
-                <Text style={styles.sectionTitle} accessibilityRole="header">
-                  {section.title} · {section.items.length}
-                </Text>
-                <View style={styles.cardList}>
-                  {section.items.map((content) => (
-                    <ContentPickCard
-                      key={content.contentId}
-                      content={content}
-                      isSelected={selectedContentIds.includes(content.contentId)}
-                      onPress={() => toggleContent(content.contentId)}
-                    />
+        <View style={styles.listWrap}>
+          <ScrollView style={styles.scroll} contentContainerStyle={styles.list}>
+            {isLoading ? (
+              showSkeleton ? (
+                // O12 — 섹션 제목도 스켈레톤으로 둔다. 표본 충분 여부는 응답이 와야 안다(onboarding-uiux.md 4.4)
+                <View style={styles.skeletonArea}>
+                  <View style={styles.skeletonSectionTitle} />
+                  {Array.from({ length: SKELETON_CARD_COUNT }, (_, index) => (
+                    <View key={index} style={styles.skeletonCard} />
                   ))}
                 </View>
-              </View>
-            ))
-          )}
-        </ScrollView>
+              ) : null
+            ) : (
+              sections.map((section) => (
+                <View key={section.sectionType} style={styles.section}>
+                  <Text style={styles.sectionTitle} accessibilityRole="header">
+                    {section.title} · {section.items.length}
+                  </Text>
+                  <View style={styles.cardList}>
+                    {section.items.map((content) => (
+                      <ContentPickCard
+                        key={content.contentId}
+                        content={content}
+                        isSelected={selectedContentIds.includes(content.contentId)}
+                        onPress={() => toggleContent(content.contentId)}
+                      />
+                    ))}
+                  </View>
+                </View>
+              ))
+            )}
+          </ScrollView>
+          {/* 목록이 하단 독에 그대로 맞닿아 끝나면 마지막 카드와 버튼이 겹쳐 보인다 */}
+          <ScrollFade />
+        </View>
       )}
 
       {!isError && !isLoading ? (
@@ -157,8 +162,17 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.sm,
     color: theme.color.textSecondary,
   },
+  /** ScrollFade를 목록 바닥에 절대 배치하기 위한 기준 — 스크롤 영역 밖으로 나가지 않는다 */
+  listWrap: {
+    flex: 1,
+  },
+  scroll: {
+    flex: 1,
+  },
   list: {
     paddingVertical: theme.spacing.lg,
+    // 마지막 카드가 페이드에 가려 잘려 보이지 않도록 페이드 높이만큼 더 준다
+    paddingBottom: theme.spacing.lg + theme.spacing.xl,
     gap: theme.spacing.lg,
   },
   skeletonArea: {

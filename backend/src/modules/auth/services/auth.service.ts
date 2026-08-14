@@ -46,7 +46,9 @@ export class AuthService {
     now: Date,
   ): Promise<SocialLoginResult> {
     const client = this.socialProviderRegistry.get(command.provider);
-    const profile = await client.fetchProfile(command.providerToken);
+    const profile = await client.fetchProfile(command.providerToken, {
+      nonce: command.nonce,
+    });
 
     const user = await this.userService.findByProvider(
       command.provider,

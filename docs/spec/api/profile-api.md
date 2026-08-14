@@ -125,6 +125,8 @@
 **`user` — 표시 전용**
 
 - `nickname` · `provider`는 헤더에 그대로 그린다. **편집 진입점이 없다** — 닉네임 편집·제공자 변경은 MVP 비범위다(`profile.md` 미결).
+- **`nickname`은 `null`일 수 있다.** `domain.md` 3.1이 NULL을 허용한다 — 제공자가 닉네임을 주지 않는 경우가 있고, **애플은 이름을 최초 인가 때 한 번만 주며 사용자가 가릴 수도 있다**(`auth.md` 4.1). **서버가 기본 문자열로 채우지 않는다** — 채워 버리면 "아직 없다"와 "사용자가 그 값으로 정했다"가 구분되지 않는다(`email` · `device_tokens.token`과 같은 원칙). 화면 표기는 `profile-uiux.md` 4.1이 소유한다.
+- `provider`는 `kakao` · `naver` · `google` · `apple` 넷 중 하나다(`auth-api.md` 4.1과 같은 값).
 - `email`이 `null`이면 "등록되지 않음" 상태다. `email`이 있고 `is_email_verified = false`면 **"인증되지 않음" 배지** 상태다(`profile.md` 4.3). **두 값을 항상 함께 내려준다** — 한쪽만으로는 세 상태를 구분할 수 없다.
 
 **`plan` — 화면 분기용으로 정규화한 값**

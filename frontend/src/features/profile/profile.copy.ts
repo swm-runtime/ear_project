@@ -25,6 +25,7 @@ const PROVIDER_NAMES: Record<SocialProvider, string> = {
   kakao: '카카오',
   naver: '네이버',
   google: '구글',
+  apple: '애플',
 };
 
 const monthDay = (iso: string): string => {
@@ -41,6 +42,14 @@ const listenedDayValue = (sec: number): string => {
 export const PROFILE_COPY = {
   header: {
     settingsA11y: '설정 열기',
+    /**
+     * 제공자가 닉네임을 주지 않은 계정. 실제로 흔하다 — 카카오 닉네임은 선택 동의고
+     * 온보딩도 닉네임을 받지 않는다. 닉네임 편집 진입점은 둘 수 없으므로(8장 금지)
+     * 빈 자리를 남기지 않고 이 문구로 채운다
+     */
+    noNickname: '이름 없음',
+    /** 제공자가 이메일을 주지 않은 계정 — 등록 진입점은 아래 이메일 카드가 갖는다 */
+    noEmail: '이메일 미등록',
     /** 제공자 아이콘의 접근성 라벨(profile-uiux.md 4.1) */
     providerA11y: (provider: SocialProvider) => `${PROVIDER_NAMES[provider]} 계정으로 로그인`,
     providerName: (provider: SocialProvider) => PROVIDER_NAMES[provider],
@@ -133,6 +142,10 @@ export const PROFILE_COPY = {
     dayNames: ['월', '화', '수', '목', '금', '토', '일'],
     /** 막대 탭 말풍선의 값(changes/pending profile-uiux 4.6 개정 — 0인 요일도 "0분") */
     dayValue: listenedDayValue,
+    /** 평균 기준선 라벨 — 막대와 견줄 대상이 무엇인지 선 옆에 밝힌다 */
+    averageLabel: (sec: number) => `평균 ${listenedDayValue(sec)}`,
+    /** 기준선은 장식이 아니라 값이다 — 그래프 컨테이너 라벨 뒤에 이어 읽힌다 */
+    averageA11y: (sec: number) => `하루 평균 ${listenedDayValue(sec)}`,
     /** 막대 개별 읽기 — "화요일, 32분", 60분 이상이면 "N시간 N분"(profile-uiux.md 7장) */
     dayBarA11y: (dayIndex: number, sec: number) => {
       const dayFull = ['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일'][

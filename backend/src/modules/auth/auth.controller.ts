@@ -37,6 +37,7 @@ export class AuthController {
         provider: request.provider,
         providerToken: request.provider_token,
         deviceId: request.device_id,
+        nonce: request.nonce,
       },
       new Date(),
     );

@@ -9,7 +9,8 @@ export type YearsOfExperienceDto = '0-1' | '2-3' | '4-6' | '7+';
 export type ProfileFailedSectionDto = 'plan' | 'interest_summary' | 'stats';
 
 export interface ProfileUserDto {
-  nickname: string;
+  /** null 허용 — 제공자가 주지 않으면 비어 있다(domain.md 3.1: 가입 시 미정) */
+  nickname: string | null;
   provider: ProfileProviderDto;
   /** null = 미등록. is_email_verified와 항상 함께 온다(profile-api.md 4.1) */
   email: string | null;

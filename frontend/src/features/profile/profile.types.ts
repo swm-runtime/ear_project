@@ -19,7 +19,8 @@ export type PlanStatus = 'free' | 'subscribed' | 'cancel_scheduled' | 'grace';
 export type EmailStatus = 'unregistered' | 'unverified' | 'verified';
 
 export interface ProfileUser {
-  nickname: string;
+  /** null 허용 — 제공자가 닉네임을 주지 않은 계정 */
+  nickname: string | null;
   provider: SocialProvider;
   /** null이면 미등록 — isEmailVerified와 항상 함께 판정한다(profile-api.md 4.1) */
   email: string | null;

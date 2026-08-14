@@ -1,7 +1,9 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
+import TabBarIcon from '@/shared/ui/TabBarIcon';
 
 import { CareerInfoScreen } from '@/features/career';
 import { ExploreScreen } from '@/features/explore';
@@ -17,8 +19,18 @@ import type { MainStackParamList, MainTabParamList } from './types';
 const MainTab = createBottomTabNavigator<MainTabParamList>();
 const MainStack = createNativeStackNavigator<MainStackParamList>();
 
+/** 탭바에서 안전영역을 뺀 순수 콘텐츠 높이(기본값 약 49) */
+const TAB_BAR_CONTENT_HEIGHT = 60;
+
+/** 탭 아이콘 크기. 네비게이터가 넘겨주는 기본값(약 24)보다 키운다 */
+const TAB_ICON_SIZE = 28;
+
 /** 하단 탭 3개 — 라이브러리가 기본 탭이다. 앱을 실행하면 항상 여기로 들어온다(library.md 2) */
 function MainTabs() {
+  // 높이를 직접 정하면 기본 안전영역 처리가 덮이므로 홈 인디케이터 높이를 직접 더한다.
+  // 이걸 빼먹으면 인디케이터가 있는 기기에서 라벨이 인디케이터에 깔린다
+  const insets = useSafeAreaInsets();
+
   return (
     <MainTab.Navigator
       initialRouteName="Library"
@@ -26,22 +38,46 @@ function MainTabs() {
         headerShown: false,
         tabBarActiveTintColor: theme.color.primary,
         tabBarInactiveTintColor: theme.color.textSecondary,
-        // 아이콘 리소스 도입 전 라벨만으로 구성한다
-        tabBarIconStyle: { display: 'none' },
-        tabBarLabelStyle: { fontSize: theme.font.size.sm, fontWeight: '600' },
+        // 아이콘과 라벨을 함께 둔다 — 라벨을 빼면 어느 탭인지 아이콘 해석에만 기댄다
+        tabBarLabelStyle: { fontSize: theme.font.size.xs, fontWeight: '600' },
+        tabBarStyle: {
+          height: TAB_BAR_CONTENT_HEIGHT + insets.bottom,
+          // 안전영역만 아래에 두고 위쪽 여백은 주지 않는다 — paddingTop을 주면
+          // 아이콘·라벨이 그만큼 내려가 탭바 안에서 가운데가 아니게 된다
+          paddingBottom: insets.bottom,
+        },
         tabBarItemStyle: { justifyContent: 'center' },
       }}
     >
       <MainTab.Screen
         name="Library"
         component={LibraryScreen}
-        options={{ tabBarLabel: '라이브러리' }}
+        options={{
+          tabBarLabel: '라이브러리',
+          tabBarIcon: ({ color, focused }) => (
+            <TabBarIcon name="library" color={color} focused={focused} size={TAB_ICON_SIZE} />
+          ),
+        }}
       />
-      <MainTab.Screen name="Explore" component={ExploreScreen} options={{ tabBarLabel: '탐색' }} />
+      <MainTab.Screen
+        name="Explore"
+        component={ExploreScreen}
+        options={{
+          tabBarLabel: '탐색',
+          tabBarIcon: ({ color, focused }) => (
+            <TabBarIcon name="explore" color={color} focused={focused} size={TAB_ICON_SIZE} />
+          ),
+        }}
+      />
       <MainTab.Screen
         name="Profile"
         component={ProfileScreen}
-        options={{ tabBarLabel: '프로필' }}
+        options={{
+          tabBarLabel: '프로필',
+          tabBarIcon: ({ color, focused }) => (
+            <TabBarIcon name="profile" color={color} focused={focused} size={TAB_ICON_SIZE} />
+          ),
+        }}
       />
     </MainTab.Navigator>
   );

@@ -3,9 +3,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { profileKeys } from '../api/profile.api';
-import { deriveEmailStatus, isCareerEmpty, toInterestOverflowCount } from '../profile.format';
+import { isCareerEmpty, toInterestOverflowCount } from '../profile.format';
 import type {
-  EmailStatus,
   ProfileCareer,
   ProfileFailedSection,
   ProfilePlan,
@@ -28,11 +27,6 @@ export type PlanCardVM =
   | { kind: 'subscribed'; planName: string; renewsAt: string | null }
   | { kind: 'cancelScheduled'; planName: string; expiresAt: string | null }
   | { kind: 'grace'; planName: string };
-
-export interface EmailCardVM {
-  status: EmailStatus;
-  email: string | null;
-}
 
 export interface InterestCardVM {
   count: number;
@@ -66,8 +60,7 @@ const toPlanCardVM = (plan: ProfilePlan): PlanCardVM => {
 };
 
 /** 카드 탭·설정 아이콘의 목적지 — 전부 MainStack 위에 얹히는 화면들이다(현재 placeholder) */
-type ProfileDestination =
-  'Settings' | 'Subscription' | 'EmailVerification' | 'InterestManagement' | 'Career';
+type ProfileDestination = 'Settings' | 'Subscription' | 'InterestManagement' | 'Career';
 
 export const useProfileScreen = () => {
   const navigation = useNavigation();
@@ -115,20 +108,6 @@ export const useProfileScreen = () => {
     }
     return isFullError ? { kind: 'error' } : null;
   }, [summary, hasFailed, isFullError]);
-
-  // user는 부분 실패 대상이 아니다(profile-api.md 4.1) — 전체 실패에서만 에러
-  const emailCard: SectionState<EmailCardVM> | null = useMemo(() => {
-    if (summary) {
-      return {
-        kind: 'data',
-        data: {
-          status: deriveEmailStatus(summary.user.email, summary.user.isEmailVerified),
-          email: summary.user.email,
-        },
-      };
-    }
-    return isFullError ? { kind: 'error' } : null;
-  }, [summary, isFullError]);
 
   const interestCard: SectionState<InterestCardVM> | null = useMemo(() => {
     if (summary) {
@@ -198,9 +177,14 @@ export const useProfileScreen = () => {
     /** 최초 조회 스켈레톤 여부는 화면이 useDelayedVisible(0.3초 규칙)로 감싼다 */
     isInitialLoading: query.isPending,
     /** 헤더 — 전체 실패 시 null(닉네임 자리 비움). 설정 아이콘은 이 값과 무관하게 항상 노출 */
-    header: summary ? { nickname: summary.user.nickname, provider: summary.user.provider } : null,
+    header: summary
+      ? {
+          nickname: summary.user.nickname,
+          provider: summary.user.provider,
+          email: summary.user.email,
+        }
+      : null,
     planCard,
-    emailCard,
     interestCard,
     careerCard,
     stats,
@@ -211,7 +195,6 @@ export const useProfileScreen = () => {
     isManualRefreshing,
     openSettings: () => openDestination('Settings'),
     openPlan: () => openDestination('Subscription'),
-    openEmail: () => openDestination('EmailVerification'),
     openInterests: () => openDestination('InterestManagement'),
     openCareer: () => openDestination('Career'),
   };

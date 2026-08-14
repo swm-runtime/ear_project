@@ -18,6 +18,14 @@ interface SocialLoginRequestDto {
   provider: SocialProvider;
   provider_token: string;
   device_id: string;
+  /**
+   * **애플 전용 · 애플에서는 사실상 필수다**(auth-api.md 4.1).
+   *
+   * 애플 인가 요청에는 이 값의 SHA-256 해시를 싣고, 서버에는 **원본**을 보낸다.
+   * 서버가 해시해서 identity token의 `nonce` 클레임과 대조해 재전송을 막는다.
+   * 다른 제공자는 보내지 않는다.
+   */
+  nonce?: string;
 }
 
 interface ConsentItemDto {
@@ -126,11 +134,15 @@ export const socialLogin = async (input: {
   provider: SocialProvider;
   providerToken: string;
   deviceId: string;
+  /** 애플 인가에서 만든 원본 nonce. 다른 제공자는 넘기지 않는다 */
+  nonce?: string;
 }): Promise<SocialLoginResult> => {
   const body: SocialLoginRequestDto = {
     provider: input.provider,
     provider_token: input.providerToken,
     device_id: input.deviceId,
+    // 값이 없으면 키 자체를 싣지 않는다 — 다른 제공자 요청에 `nonce: undefined`가 남지 않게 한다
+    ...(input.nonce !== undefined && { nonce: input.nonce }),
   };
   const { data } = await apiClient.post<SocialLoginResponseDto>('/auth/social-login', body, {
     skipAuthRefresh: true,

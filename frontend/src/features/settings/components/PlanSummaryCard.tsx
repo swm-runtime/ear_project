@@ -1,9 +1,12 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import ChevronIcon from '@/shared/ui/ChevronIcon';
 
 import type { PlanRowVM, SectionState } from '../hooks/useSettingsScreen';
 import { SETTINGS_COPY } from '../settings.copy';
+
+const CHEVRON_SIZE = 18;
 
 interface PlanSummaryCardProps {
   state: SectionState<PlanRowVM>;
@@ -73,9 +76,9 @@ export default function PlanSummaryCard({
           <Text style={styles.freeActionText}>{SETTINGS_COPY.plan.freeAction}</Text>
         </View>
       ) : (
-        <Text style={styles.chevron} accessibilityElementsHidden importantForAccessibility="no">
-          ›
-        </Text>
+        <View accessibilityElementsHidden importantForAccessibility="no">
+          <ChevronIcon direction="right" size={CHEVRON_SIZE} color={theme.color.textSecondary} />
+        </View>
       )}
     </Pressable>
   );
@@ -133,9 +136,5 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.sm,
     fontWeight: '600',
     color: theme.color.onPrimary,
-  },
-  chevron: {
-    fontSize: theme.font.size.lg,
-    color: theme.color.textSecondary,
   },
 });
