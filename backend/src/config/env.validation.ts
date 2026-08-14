@@ -66,6 +66,17 @@ export class EnvironmentVariables {
   @MinLength(32)
   JWT_SECRET: string;
 
+  /**
+   * 애플 identity token의 `aud`로 실려 오는 값 — iOS 앱의 Bundle ID다(`auth-api.md` 4.1).
+   *
+   * **비밀값이 아니지만 검증에 반드시 필요하다.** 확인하지 않으면 다른 앱을 향해 발급된,
+   * 서명은 정상인 토큰으로 우리 계정에 로그인할 수 있다. 애플은 **제공자 API 호출 없이
+   * 토큰만으로 검증이 끝나므로**, `aud`가 사실상 유일한 "우리 앱을 향한 토큰인가" 판정이다.
+   */
+  @IsString()
+  @IsNotEmpty()
+  APPLE_CLIENT_ID: string;
+
   /** archived_* 테이블 간 조인 키 생성용 pepper (domain.md 11.2) */
   @IsString()
   @MinLength(32)

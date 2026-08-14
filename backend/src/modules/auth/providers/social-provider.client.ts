@@ -5,7 +5,7 @@ import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { SocialProvider } from '@/modules/user/user.enum';
 
 import { PROVIDER_REQUEST_TIMEOUT_MS } from '../auth.constant';
-import { SocialProfile } from '../auth.types';
+import { ProviderAuthContext, SocialProfile } from '../auth.types';
 
 /** `Response.status`는 number이므로 비교 대상도 number로 고정한다 */
 const UNAUTHORIZED_STATUS: number = HttpStatus.UNAUTHORIZED;
@@ -22,7 +22,14 @@ export abstract class SocialProviderClient {
 
   abstract readonly provider: SocialProvider;
 
-  abstract fetchProfile(providerToken: string): Promise<SocialProfile>;
+  /**
+   * `context`는 토큰만으로 검증이 끝나지 않는 제공자를 위한 통로다(애플의 nonce).
+   * 제공자 API 호출로 검증하는 구현은 무시하면 된다.
+   */
+  abstract fetchProfile(
+    providerToken: string,
+    context?: ProviderAuthContext,
+  ): Promise<SocialProfile>;
 
   protected async requestProvider(
     url: string,

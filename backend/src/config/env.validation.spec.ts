@@ -11,6 +11,7 @@ describe('validateEnv', () => {
     DB_NAME: 'ear',
     CORS_ORIGINS: 'http://localhost:8081',
     JWT_SECRET: 'test-jwt-secret-0123456789-0123456789',
+    APPLE_CLIENT_ID: 'com.example.ear',
     ARCHIVE_HASH_PEPPER: 'test-archive-pepper-0123456789-0123456',
     WITHDRAWAL_HASH_PEPPER: 'test-withdrawal-pepper-0123456789-0123',
     LATEST_APP_VERSION_IOS: '1.0.0',

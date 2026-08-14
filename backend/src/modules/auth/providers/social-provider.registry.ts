@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { EnvironmentVariables, NodeEnv } from '@/config/env.validation';
 import { SocialProvider } from '@/modules/user/user.enum';
 
+import { AppleClient } from './apple.client';
 import { DevClient } from './dev.client';
 import { GoogleClient } from './google.client';
 import { KakaoClient } from './kakao.client';
@@ -21,6 +22,7 @@ export class SocialProviderRegistry {
     kakaoClient: KakaoClient,
     googleClient: GoogleClient,
     naverClient: NaverClient,
+    appleClient: AppleClient,
     devClient: DevClient,
   ) {
     // 제공자 SDK 연동 전 통합 테스트를 위한 대역이다. 조립 지점에서만 갈라서
@@ -41,14 +43,13 @@ export class SocialProviderRegistry {
       return;
     }
 
-    // TODO(auth): AppleClient 미구현. 개발 환경은 위 대역이 받아내지만 **운영에서
-    // provider=apple이 오면 get()이 던진다.** 애플은 다른 제공자와 달리 identity token(JWT)을
-    // 애플 공개키로 서명 검증하고 nonce를 대조해야 한다 — 토큰을 그대로 신뢰하면 안 된다.
-    // iOS 심사 요건이므로(auth.md 1) 출시 전에 반드시 채운다.
+    // 애플은 다른 셋과 검증 수단이 다르다 — 제공자 API를 부르지 않고 identity token을
+    // 애플 공개키로 서명 검증하고 nonce를 대조한다(`apple.client.ts`).
     this.clients = new Map<SocialProvider, SocialProviderClient>([
       [kakaoClient.provider, kakaoClient],
       [googleClient.provider, googleClient],
       [naverClient.provider, naverClient],
+      [appleClient.provider, appleClient],
     ]);
   }
 
