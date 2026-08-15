@@ -24,8 +24,12 @@ export type MainStackParamList = {
   Settings: undefined;
   /** TODO: subscription 화면 구현 시 교체(subscription.md) — 플랜 카드·[구독 알아보기]의 목적지 */
   Subscription: undefined;
-  /** TODO: 이메일 인증 화면(A 계열, auth.md 4.4~4.5) 구현 시 교체 — [등록]·[인증하기]·[변경] 공통 목적지 */
-  EmailVerification: undefined;
+  /**
+   * 이메일 인증(A 계열, auth.md 4.4~4.5) — [등록]·[인증하기]·[변경]·프로필 헤더의 공통 목적지.
+   * currentEmail은 A10의 "현재 이메일" 표시용이다 — 진입 화면(설정·프로필)이 실어 보낸다
+   * (인증 화면이 프로필 요약을 재조회하지 않게 한다. 저장 규칙과 무관한 표시 값이다)
+   */
+  EmailVerification: { currentEmail?: string | null } | undefined;
   /** 관심사 관리(interest-management.md) — 진입 경로는 셋(프로필 카드·설정 콘텐츠·드립 배너)이지만 화면은 하나다 */
   InterestManagement: undefined;
   /** 커리어 정보(career.md) — 관심사 관리와 별도 화면. 진입 경로는 둘(프로필 카드·설정 콘텐츠)이다 */

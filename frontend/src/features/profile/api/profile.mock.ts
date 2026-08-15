@@ -23,6 +23,7 @@
 import { ApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
 
+import { getEmailMockAccount } from '@/features/auth';
 import { getCareerMockSummary } from '@/features/career';
 import { getInterestMockSummary } from '@/features/interest';
 
@@ -80,12 +81,13 @@ const toWeeklyDtoAt = (index: number): WeeklyListeningResponseDto => {
 
 /* ── 프로필 요약 — 시나리오별 조립 ── */
 
-const USER_BASE: ProfileUserDto = {
+// 이메일 원본은 auth의 email-verification mock 하나다 — 헤더 표시·배지와 인증 화면이
+// 같은 상태를 읽어, 인증 성공 후 복귀 시 갱신을 함께 본다(career mock과 같은 패턴)
+const USER_BASE = (): ProfileUserDto => ({
   nickname: '수현',
   provider: 'kakao',
-  email: 'user@example.com',
-  is_email_verified: true,
-};
+  ...getEmailMockAccount(),
+});
 
 const PLAN_SUBSCRIBED: ProfilePlanDto = {
   status: 'subscribed',
@@ -127,11 +129,11 @@ const planForScenario = (): ProfilePlanDto => {
 const userForScenario = (): ProfileUserDto => {
   switch (SCENARIO) {
     case 'email-unverified':
-      return { ...USER_BASE, is_email_verified: false };
+      return { ...USER_BASE(), is_email_verified: false };
     case 'email-unregistered':
-      return { ...USER_BASE, email: null, is_email_verified: false };
+      return { ...USER_BASE(), email: null, is_email_verified: false };
     default:
-      return USER_BASE;
+      return USER_BASE();
   }
 };
 

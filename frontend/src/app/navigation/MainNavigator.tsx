@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/shared/theme';
 import TabBarIcon from '@/shared/ui/TabBarIcon';
 
+import { EmailVerificationScreen } from '@/features/auth';
 import { CareerInfoScreen } from '@/features/career';
 import { ExploreScreen } from '@/features/explore';
 import { InterestManagementScreen } from '@/features/interest';
@@ -104,11 +105,9 @@ export default function MainNavigator() {
         component={PlaceholderScreen}
         options={{ headerShown: true, headerTitle: '', headerBackTitle: '프로필' }}
       />
-      <MainStack.Screen
-        name="EmailVerification"
-        component={PlaceholderScreen}
-        options={{ headerShown: true, headerTitle: '', headerBackTitle: '프로필' }}
-      />
+      {/* 이메일 인증 — 앱바(뒤로 + 타이틀)를 화면이 직접 그린다(auth-uiux.md 4.7~4.10).
+          설정·프로필 두 경로가 같은 화면이다(auth.md 4.5 — 발송 제한이 경로에 합산 적용) */}
+      <MainStack.Screen name="EmailVerification" component={EmailVerificationScreen} />
       {/* 관심사 관리 — 앱바(뒤로 + "관심 주제 관리")를 화면이 직접 그린다(interest-management-uiux.md 4.1).
           변경 있음 상태의 이탈(뒤로가기·스와이프)은 화면이 beforeRemove로 가로챈다(IM7) */}
       <MainStack.Screen name="InterestManagement" component={InterestManagementScreen} />
