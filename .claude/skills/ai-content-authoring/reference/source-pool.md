@@ -44,13 +44,30 @@ curl -sL -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 
 
 **HTTP 200인데 본문이 수백 자면 `추출불가`다** — JS로 그리는 사이트라 껍데기만 온 것이다. 실제 기사 페이지는 보통 5,000자를 넘는다.
 
+### 반복해서 걸린 함정 7개 (2026-08-16 실행 9회에서 수집)
+
+**전부 "열렸다"와 "제대로 읽었다"가 다르다는 데서 온다.**
+
+| # | 함정 | 증상 | 대응 |
+|---|---|---|---|
+| 1 | **`pdftotext`가 등호를 다른 문자로 읽는다** | `r(41) = .36` → `r(41) 5 .36` / `t(3) = 3.015` → `t(3) - 3.015`. **변형이 여럿이다**(숫자 5·하이픈) | **통계치를 인용하기 전에 반드시 확인.** 못 보면 그 문자가 통계치인 것처럼 대본에 들어간다 |
+| 2 | **퍼센트 기호 주변이 통째로 날아간다** | `"more than 20% ... during RAID reconstruction"` → `"more than 20RAID reconstruction"` | `-layout` 유무 **두 가지로 추출해 교차 대조**한다. 어긋나면 그 수치를 쓰지 않는다 |
+| 3 | **스캔 PDF는 텍스트 레이어가 없다** | 26페이지 4.6MB인데 추출 결과 26바이트 | poppler로 안 풀린다. **OCR이 별도로 필요하고 설치돼 있지 않다.** 다른 사본을 찾는다 |
+| 4 | **제3자 요약본이 논문인 척한다** | 검색 상위 PDF를 열었더니 개인이 쓴 요약문이었다 | **첫 화면에 저자·저널·권호·페이지가 있는지 먼저 본다.** 없으면 원문이 아니다 |
+| 5 | **철회된 문서가 같은 URL에 남아 있다** | NIST IR 8374 초판이 2026-06-11 철회됐는데 경로는 살아 있다 | **첫 장의 Withdrawal Notice를 확인**한다. 안 보면 죽은 문서를 인용한다 |
+| 6 | **깃 태그 날짜가 릴리스 날짜가 아니다** | 그라파나 `1.0.0` 태그가 2023년 커밋을 가리킨다(실제 공개는 2014년) | **태그를 연도 근거로 쓰지 않는다.** 공식 발표·논문으로 확인한다 |
+| 7 | **HTTP 200인데 봇 검사 페이지다** | `justice.gov`가 200을 주면서 본문은 2,553바이트짜리 인터스티셜 | **상태 코드만으로 못 거른다.** 본문 길이와 내용을 함께 본다 |
+
+**JS로 차트를 그리는 통계 사이트는 원자료 배포 링크를 먼저 찾는다.** ZIP·CSV 직배포가 있는 경우가 많다 — JetBrains 조사 수치를 살린 유일한 경로였고, PDF에 `curl`+`pdftotext`를 쓰는 것과 같은 성격의 우회로다.
+
 ---
 
 ## 전역 — 주제와 무관하게 먼저 두드리는 곳
 
 | 진입점 | 유형 | 상태 | 확인일 | 비고 |
 |---|---|---|---|---|
-| `pmc.ncbi.nlm.nih.gov/articles/*` | 1차 자료 (오픈액세스 논문) | `정상` | 2026-08-13 | **가장 두터운 경로.** CC BY 다수, 전문 열람. 의학·역학에 강하고 심리·인지·수리까지 닿는다 |
+| `pmc.ncbi.nlm.nih.gov/articles/*` | 1차 자료 (오픈액세스 논문) | `정상` | 2026-08-16 | **가장 두터운 경로.** CC BY 다수, 전문 열람. 의학·역학에 강하고 심리·인지·수리까지 닿는다. **다만 2026-08-16에 reCAPTCHA로 막힌 사례가 있다** — 아래 Europe PMC API로 우회한다 |
+| `www.ebi.ac.uk/europepmc/webservices/rest/{id}/fullTextXML` | 1차 자료 (본문 XML) | `정상` | **2026-08-16** | **PMC가 reCAPTCHA를 띄울 때의 우회로.** 같은 논문 전문을 XML로 준다. 등록부가 `europepmc.org` 웹페이지를 `추출불가`로 적어둔 것과 별개 경로다 |
 | `ncbi.nlm.nih.gov/books/*` | 전문가 해설 · 기관 보고서 | `정상` | 2026-08-12 | NCBI Bookshelf — StatPearls(개념 해설), NASEM 보고서(기관 1차 자료) |
 | `eric.ed.gov/?id=*` | 서지 레코드 · 초록 | `정상` | 2026-08-12 | 미국 교육부. 여기까지는 초록. 본문은 아래로 내려간다 |
 | `files.eric.ed.gov/fulltext/*.pdf` | 1차 자료 (본문) | `정상` | 2026-08-14 | ERIC 본문 PDF. curl+pdftotext |
@@ -61,6 +78,12 @@ curl -sL -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 
 | `nature.com/articles/*` | 1차 자료 | `정상` | **2026-08-14** | **오픈액세스 논문만.** Nature Communications·Scientific Reports는 열리고, 본지(Nature) 구독 논문은 초록까지만 |
 | `api.openalex.org/works?search=*` | 서지 색인 (JSON) | `정상` | **2026-08-14** | 논문 검색 + **오픈액세스 사본 위치**를 준다. 페이월 논문을 만났을 때 공개본을 찾는 1순위 도구 |
 | `api.crossref.org/works/{doi}` | 서지 메타 (JSON) | `정상` | **2026-08-14** | DOI로 저자·발행처·발행일을 정확히 확인. `sources.md`의 서지 항목을 채울 때 쓴다 |
+| `eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id={pmid}&rettype=abstract` | 서지·초록 (API) | `정상` | **2026-08-16** | **등록부가 `추출불가`로 적은 `pubmed`를 API로 우회한다.** 페이월 논문의 초록을 확보하는 경로 — 심리학의 APA 페이월 약점을 상당 부분 메운다 |
+| `usenix.org/legacy/event*/tech/**/*.pdf` · `usenix.org/system/files/conference/**/*.pdf` | 1차 자료 (본문) | `정상` | **2026-08-16** | **USENIX가 논문을 전문 무료 공개한다.** FAST·ATC·Security — 저장장치·시스템·보안 1차 자료가 통째로 열린다 |
+| `arxiv.org/pdf/{id}` | 프리프린트 (본문) | `정상` | **2026-08-16** | 초록 경로(`/abs/`)와 별개. **게재가 확인된 논문의 저자본이 여기 있는 경우가 많다**(아래 주의 참조) |
+| `ndownloader.figshare.com/files/*` | 1차 자료 (본문) | `정상` | **2026-08-16** | 복제연구 원고가 여기 많다. **`figshare.com/articles/*` 웹 페이지는 403**이므로 다운로드 경로로 간다 |
+| `archive.org/download/*/*_djvu.txt` | 1차 자료 (원전 평문) | `정상` | **2026-08-16** | 고서 OCR 평문. 1913년 문헌까지 닿는다 |
+| `api.github.com/repos/*/commits/*` | 1차 자료 (원본 기록) | `정상` | **2026-08-16** | 커밋 날짜·작성자·변경량 대조. **단 태그 날짜는 신뢰하지 않는다**(함정 6) |
 
 ## 전역 배제 — 검색 결과에 나와도 열지 않는다
 
@@ -79,6 +102,11 @@ curl -sL -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 
 | `europepmc.org` · `pubmed.ncbi.nlm.nih.gov` · `osf.io` | `추출불가` | **2026-08-14** | JS 렌더링·쿠키 요구. **`pmc.ncbi.nlm.nih.gov`가 같은 자료를 준다** |
 | `kosis.kr` · `s-space.snu.ac.kr` · `repository.kihasa.re.kr` · `ecos.bok.or.kr` | `추출불가` | **2026-08-14** | JS 렌더링. HTTP 200인데 본문이 200자 미만 |
 | `fred.stlouisfed.org` · `encykorea.aks.ac.kr` · `kornorms.korean.go.kr` | `403` | **2026-08-14** | 무응답 타임아웃(HTTP 000) |
+| `justice.gov` | `403` | **2026-08-16** | **HTTP 200을 주면서 본문은 봇 검사 인터스티셜 2,553바이트.** 상태 코드로 못 거른다 |
+| `gallica.bnf.fr` · `queue.acm.org` · `journals.humankinetics.com` · `figshare.com/articles/*` | `403` | **2026-08-16** | ACM Queue는 구글 리서치 PDF 미러로, figshare는 `ndownloader` 경로로 우회 |
+| `aeaweb.org/articles/pdf/doi/*` · `zora.uzh.ch` · `kar.kent.ac.uk` | `추출불가` | **2026-08-16** | `.pdf` 경로인데 HTML을 반환하거나 연결이 끊긴다 |
+| `www2.eecs.berkeley.edu/Pubs/TechRpts/**` · `psych.purdue.edu` PDF | `추출불가` | **2026-08-16** | **스캔 이미지라 텍스트 레이어가 없다**(함정 3). OCR 설치 시 뒤집힐 수 있다 |
+| `jetbrains.com/lp/devecosystem-*` · `devecosystem-*.jetbrains.com` | `추출불가` | **2026-08-16** | 차트가 JS 렌더링. **원자료 ZIP이 같은 자료를 준다**(아래 참조) |
 | Medium · Wikipedia · 요약 블로그 | — | — | 출처를 밝히지 않은 2차 요약. `source-policy.md`의 "피할 것" |
 
 ---
@@ -188,8 +216,11 @@ curl -sL -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 
 | `nimh.nih.gov` | 기관 해설·통계 | `정상` | **2026-08-14** | **유병률 수치의 기관 근거** |
 | `ncbi.nlm.nih.gov/books` | 해설 | `정상` | 2026-08-12 | StatPearls 정신건강 항목 |
 | `eric.ed.gov` · `files.eric.ed.gov` | 서지 → 본문 | `정상` | 2026-08-14 | 발달·교육심리 |
-| `psycnet.apa.org` | 1차 자료 | `페이월` | — | **이 주제의 최상급이 여기 묶여 있다.** OpenAlex로 공개본을 찾는다 |
-| `osf.io/preprints/psyarxiv` | 프리프린트 | `추출불가` | 2026-08-14 | JS. 재현성 위기 이후 이쪽으로 많이 옮겨갔는데 못 읽는다 |
+| `eutils.ncbi.nlm.nih.gov/.../efetch.fcgi?db=pubmed` | 서지·초록 (API) | `정상` | **2026-08-16** | **페이월 논문의 초록 확보 경로.** 아래 `psycnet` 약점을 메운다 |
+| `tlab.uchicago.edu/files/*` · `rule.psych.utoronto.ca/pubs/*` | 1차 자료 (저자 공개본) | `정상` | **2026-08-16** | 연구실 홈페이지가 자기 논문 전문 PDF를 공개한다. **페이월 심리학 논문의 가장 확실한 우회로** |
+| `eprints.whiterose.ac.uk/*` · `research-repository.uwa.edu.au/*` | 1차 자료 · 초록 | `정상` | **2026-08-16** | 대학 리포지터리. whiterose는 다운로드가 절단되는 경우가 있어 `--max-time`을 넉넉히 준다 |
+| `psycnet.apa.org` | 1차 자료 | `페이월` | — | **이 주제의 최상급이 여기 묶여 있다.** 위 저자 랩·PubMed API·OpenAlex 순으로 우회한다 |
+| `osf.io/preprints/psyarxiv` | 프리프린트 | `추출불가` | 2026-08-14 | JS. 재현성 위기 이후 이쪽으로 많이 옮겨갔는데 못 읽는다. **단 `osf.io/{id}/download`는 열린다** |
 
 ### 인문·교양
 
@@ -211,6 +242,28 @@ curl -sL -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 
 
 > **원전을 쓸 때의 제약** — 원전은 해석이 붙지 않은 자료다. **"누가 언제 무엇을 썼다"까지가 근거이고, "그것이 무슨 뜻인가"는 원전이 아니라 해설(SEP·IEP)에 근거해야 한다.** 원전 문장 하나로 사상 전체를 요약하면 QA 항목 '주장 강도 왜곡'(부분 → 전체 일반화)에 걸린다.
 
+### 개발·인프라 — **중분류가 없는 주제** (2026-08-16)
+
+> **이 절은 커버리지 계산에 넣지 않는다.** 도커·쿠버네티스·그라파나·VPN·NAS·맥북은 `topics` 8개 중분류 어디에도 자리가 없다(명세 2장 전제 위반). 진입점은 검증됐으나 **주제 배치가 정해지기 전까지 이 소스로 만든 산출물은 업로드 대상이 아니다.** 관리자 화면에서 중분류를 만들지, 기존 주제에 흡수할지가 먼저다.
+
+| 진입점 | 유형 | 상태 | 확인일 | 비고 |
+|---|---|---|---|---|
+| `storage.googleapis.com/gweb-research2023-media/pubtools/pdf/{id}.pdf` | 1차 자료 (논문 전문) | `정상` | 2026-08-16 | **구글 리서치 논문 미러.** `research.google/pubs/*`는 HTML 껍데기라 본문이 없는데 여기는 전문을 준다. Borg·Omega·Kubernetes 확보 |
+| `static.googleusercontent.com/media/research.google.com/**` | 1차 자료 | `정상` | 2026-08-16 | 위와 같은 파일을 주는 구 경로 |
+| `sre.google/sre-book/*` | 전문가 해설 (기관) | `정상` | 2026-08-16 | Google SRE Book 전문 무료. 운영·신뢰성 주제의 최상급 |
+| `kubernetes.io/docs/*` · `kubernetes.io/blog/*` | 1차 자료 (공식) | `정상` | 2026-08-16 | |
+| `grafana.com/docs/*` · `prometheus.io/docs/*` | 1차 자료 (OSS 공식) | `정상` | 2026-08-16 | **제작사가 자사 도구 사용을 말리는 대목**이 있어 통념 반박 근거로 쓸 수 있다 |
+| `cncf.io/wp-content/uploads/*.pdf` | 1차 자료 (연례 조사) | `정상` | 2026-08-16 | **표(Figure) 안 수치는 이미지라 텍스트에 안 잡힌다.** 본문 서술의 숫자만 인용 |
+| `ndss-symposium.org/wp-content/uploads/*.pdf` | 1차 자료 (논문 전문) | `정상` | 2026-08-16 | 보안 학회 |
+| `nvlpubs.nist.gov/nistpubs/**` | 1차 자료 (기관 표준) | `정상` | 2026-08-16 | **철회본이 같은 URL에 남는다**(함정 5). 첫 장 Withdrawal Notice 확인 |
+| `rfc-editor.org/rfc/*.txt` | 1차 자료 (표준) | `정상` | 2026-08-16 | |
+| `home.treasury.gov/news/press-releases/*` | 1차 자료 (기관 발표) | `정상` | 2026-08-16 | **`justice.gov`·`fbi.gov`가 막혔을 때의 대체 경로** |
+| `docs.github.com/en/billing/*` | 1차 자료 (공개 가격표) | `정상` | 2026-08-16 | 비용 비교의 검증 가능한 근거. **상시 갱신 문서라 확인 시점을 명시**할 것 |
+| `reactnative.dev/docs/*` · `docs.flutter.dev/*` | 전문가 해설 (공식) | `정상` | 2026-08-16 | 플랫폼 **강제 요건**의 벤더 중립 근거 |
+| `opengroup.org/openbrand/register/` | 1차 자료 (인증 등록부) | `정상` | 2026-08-16 | UNIX 인증 원 등록부 |
+| `survey.stackoverflow.co/{연도}/technology` | 1차 자료 (연례 조사) | `정상` | 2026-08-16 | **연도마다 추출 방식이 다르다** — 2025는 페이지 내장 JS 객체(`OpSys:{qid`), 2024는 인라인 SVG, 2023은 HTML 표이며 `/2023/technology`는 404 |
+| `resources.jetbrains.com/storage/products/research/DevEco{연도}/RawData.zip` | 1차 자료 (응답자 원자료) | `정상` | 2026-08-16 | CC BY 4.0, 24,534행 CSV. **국가·직군별 교차표를 직접 만들 수 있다.** 자사 채널 모집이라 편향 명시 필요 |
+
 ---
 
 ## 커버리지 요약
@@ -222,19 +275,21 @@ curl -sL -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 
 | 주제 | `정상` 진입점 | 판정 |
 |---|---|---|
 | 재테크 | 10 | 진행 |
+| 심리학 | 10 | 진행 |
 | 데이터·AI | 9 | 진행 |
 | 경제 상식 | 8 | 진행 |
 | 생산성 | 7 | 진행 |
-| 심리학 | 7 | 진행 |
 | 인문·교양 | 7 | 진행 |
 | 글쓰기 | 6 | 진행 |
 | 커뮤니케이션 | 5 | 진행 |
+
+> **개발·인프라 절(진입점 15곳)은 여기에 세지 않는다.** `topics`에 중분류가 없어 명세 2장의 전제를 충족하지 않기 때문이다.
 
 **8개 주제 전부 착수 가능하다.** 커버리지 하한(2곳)에 걸리는 주제는 없다.
 
 남은 약점은 개수가 아니라 **성격**이다.
 
-- **심리학** — 최상급(APA)이 페이월이라 열린 것은 OA 저널 중심이다. 고전 연구를 인용하려면 OpenAlex로 공개본을 찾아야 한다.
+- **심리학** — 최상급(APA)은 여전히 페이월이지만 **2026-08-16에 우회로가 셋 생겼다**(PubMed API 초록 · 저자 랩 공개본 · 대학 리포지터리). 고전 연구도 대부분 닿는다. 남은 제약은 **초록까지만 닿는 경우** 하위 수치·신뢰구간을 못 쓴다는 점이다.
 - **커뮤니케이션** — 5곳이지만 전부 학술 논문·교육 연구다. 실무 사례는 HBR이 페이월이라 닿지 않는다.
 - **인문·교양** — 원전은 두터워졌으나 **한국학 해설**(`encykorea` 403)이 없다. 원전만으로는 해석을 쓸 수 없다.
 
@@ -246,3 +301,4 @@ curl -sL -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 
 | 2026-08-14 | **`poppler` 설치** — PDF 본문 추출이 열렸다(curl+pdftotext). `nber.org` 본문 · `files.eric.ed.gov` · `unstats.un.org`가 `추출불가` → `정상` |
 | 2026-08-14 | **인문·교양 1차 검증** — `plato.stanford.edu` · `iep.utm.edu` · `gutenberg.org` 확보(0곳 → 3곳) |
 | 2026-08-14 | **대규모 진입점 조사** — 후보 70여 곳을 실제 문서 URL로 검증. 신규 `정상` 28곳 등재, 신규 배제 20여 곳 확정. **`sillok.history.go.kr`로 한국학 공백 해소**, `papers.nips.cc`·`proceedings.mlr.press`·`jmlr.org`로 데이터·AI 보강, `federalreserve.gov`·`ecb.europa.eu`·`law.go.kr`로 경제 계열 보강 |
+| 2026-08-16 | **실행 9회에서 수집한 결과 반영.** ① **함정 7개를 "검증 방법"에 명문화** — `pdftotext`의 등호·퍼센트 오독, 스캔 PDF, 제3자 요약본, 철회 문서, 깃 태그, 200 위장 봇 검사. ② **PubMed API 우회 확보** — 심리학 페이월 약점의 실질적 해법. ③ `usenix.org`·`arxiv.org/pdf`·`ndownloader.figshare.com`·`archive.org` 평문·저자 랩 페이지 등재. ④ **개발·인프라 절 신설** — 진입점 15곳을 검증했으나 `topics`에 자리가 없어 커버리지에서 제외. ⑤ 신규 배제 `justice.gov`·`gallica.bnf.fr`·`queue.acm.org` 등 |
