@@ -97,6 +97,20 @@ export class EmailVerificationRepository {
     });
   }
 
+  /**
+   * 계정 단위 발송 상한(백스톱) 판정용 슬라이딩 집계 (domain.md 3.7).
+   * 주소 무관 합산이며, 발송 실패 건은 행이 지워지므로 세지 않는다.
+   */
+  async countByUserIdSince(
+    userId: string,
+    since: Date,
+    manager?: EntityManager,
+  ): Promise<number> {
+    return this.scoped(manager).count({
+      where: { userId, sentAt: MoreThan(since) },
+    });
+  }
+
   async findByIdAndUserId(
     id: string,
     userId: string,
