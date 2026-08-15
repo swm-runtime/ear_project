@@ -13,8 +13,12 @@ interface ProfileHeaderProps {
   /** null = 제공자가 주지 않은 계정. 카카오 닉네임은 선택 동의라 실제로 흔하다 */
   nickname: string | null;
   provider: SocialProvider;
-  /** null = 제공자가 주지 않았거나 미등록. 등록·인증 진입점은 설정의 이메일 행이 갖는다 */
+  /** null = 제공자가 주지 않았거나 미등록 */
   email: string | null;
+  /** 미인증이면 배지를 붙인다 — 인증된 것과 같은 모양으로 그리지 않는다(auth-uiux.md 8장) */
+  isEmailVerified: boolean;
+  /** 이메일 줄이 등록·인증·변경의 프로필 쪽 진입점이다(profile.md 4.3 — 설정 경로와 같은 화면) */
+  onEmailPress: () => void;
   /** 플랜은 목록 항목이 아니라 "내가 누구인지"의 일부라 여기 붙인다. null이면 조회 중·실패 */
   plan: SectionState<PlanCardVM> | null;
   onPlanPress: () => void;
@@ -46,7 +50,8 @@ const AVATAR_ICON_SIZE = 36;
  * 제공자는 아바타 우하단 배지로 붙인다. 명세 4.1이 요구하는 표시를 유지하면서
  * 닉네임·이메일의 세로 정렬을 흐트러뜨리지 않는다.
  *
- * 표시만 한다 — 탭해도 아무 일도 일어나지 않는다(닉네임 편집·계정 통합은 MVP 비범위).
+ * 닉네임·아바타는 표시만 한다(닉네임 편집·계정 통합은 MVP 비범위). 이메일 줄만
+ * 진입점이다 — 프로필의 이메일 등록·인증 진입은 profile.md 4.3이 소유한다.
  */
 /** 상태별 문구 — 서버가 정규화한 4분기를 그대로 그린다(재판정 금지) */
 const planText = (vm: PlanCardVM): string => {
@@ -70,6 +75,8 @@ export default function ProfileHeader({
   nickname,
   provider,
   email,
+  isEmailVerified,
+  onEmailPress,
   plan,
   onPlanPress,
 }: ProfileHeaderProps) {
@@ -109,9 +116,35 @@ export default function ProfileHeader({
           <Text style={styles.nickname} numberOfLines={1}>
             {displayName}
           </Text>
-          <Text style={styles.email} numberOfLines={1}>
-            {email ?? PROFILE_COPY.header.noEmail}
-          </Text>
+          {/* 이메일 줄 — 등록·인증·변경의 프로필 진입점(profile.md 4.3). 줄 자체가 작아
+              hitSlop으로 터치 타깃 44pt를 채운다(profile-uiux.md 7장) */}
+          <Pressable
+            style={styles.emailRow}
+            onPress={onEmailPress}
+            hitSlop={{ top: theme.spacing.sm, bottom: theme.spacing.sm }}
+            accessibilityRole="button"
+            accessibilityLabel={PROFILE_COPY.cardA11y(
+              PROFILE_COPY.cardLabels.email,
+              email === null
+                ? PROFILE_COPY.header.noEmail
+                : isEmailVerified
+                  ? email
+                  : PROFILE_COPY.email.unverifiedValueA11y(email),
+              PROFILE_COPY.destinations.email,
+            )}
+          >
+            <Text style={styles.email} numberOfLines={1}>
+              {email ?? PROFILE_COPY.header.noEmail}
+            </Text>
+            {/* 미인증 배지 — 색 + 텍스트. 인증된 것과 같은 모양 금지(auth-uiux.md 8장) */}
+            {email !== null && !isEmailVerified ? (
+              <View style={styles.unverifiedBadge}>
+                <Text style={styles.unverifiedBadgeText}>
+                  {PROFILE_COPY.email.unverifiedBadge}
+                </Text>
+              </View>
+            ) : null}
+          </Pressable>
         </View>
       </View>
 
@@ -238,8 +271,26 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: theme.color.textPrimary,
   },
+  emailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
   email: {
+    flexShrink: 1,
     fontSize: theme.font.size.sm,
     color: theme.color.textSecondary,
+  },
+  unverifiedBadge: {
+    borderRadius: theme.radius.full,
+    borderWidth: 1,
+    borderColor: theme.color.danger,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 2,
+  },
+  unverifiedBadgeText: {
+    fontSize: theme.font.size.xs,
+    fontWeight: '600',
+    color: theme.color.danger,
   },
 });

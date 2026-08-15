@@ -1,5 +1,16 @@
 import type { SocialProvider } from './auth.types';
 
+/**
+ * 이메일 인증 API의 mock 전환(CLAUDE.local 개발 방식 — onboarding·career와 동일 패턴).
+ * `EXPO_PUBLIC_EMAIL_VERIFICATION_API=real`로 실서버 전환. 소셜 로그인은 SDK 스텁이
+ * 따로 담당하므로 이 플래그의 범위는 이메일 인증 엔드포인트(auth-api.md 4.8~4.11)뿐이다.
+ */
+export const IS_EMAIL_VERIFICATION_API_MOCKED =
+  __DEV__ && process.env.EXPO_PUBLIC_EMAIL_VERIFICATION_API !== 'real';
+
+/** 인증 코드 자릿수(auth.md 4.5 — 6자리 숫자) */
+export const EMAIL_CODE_LENGTH = 6;
+
 /** 시작 화면의 제공자 버튼 노출 순서 */
 export const SOCIAL_PROVIDERS: readonly SocialProvider[] = ['naver', 'kakao', 'google', 'apple'];
 

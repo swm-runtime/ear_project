@@ -182,6 +182,7 @@ export const useProfileScreen = () => {
           nickname: summary.user.nickname,
           provider: summary.user.provider,
           email: summary.user.email,
+          isEmailVerified: summary.user.isEmailVerified,
         }
       : null,
     planCard,
@@ -195,6 +196,12 @@ export const useProfileScreen = () => {
     isManualRefreshing,
     openSettings: () => openDestination('Settings'),
     openPlan: () => openDestination('Subscription'),
+    // A10의 "현재 이메일" 표시 값을 실어 보낸다 — 설정 경로와 같은 방식(auth.md 4.5 공통 화면)
+    openEmail: () =>
+      navigation.navigate('Main', {
+        screen: 'EmailVerification',
+        params: { currentEmail: summary?.user.email ?? null },
+      }),
     openInterests: () => openDestination('InterestManagement'),
     openCareer: () => openDestination('Career'),
   };

@@ -398,7 +398,12 @@ export const useSettingsScreen = () => {
 
     goBack: () => navigation.goBack(),
     openPlan: () => openDestination('Subscription'),
-    openEmail: () => openDestination('EmailVerification'),
+    // A10의 "현재 이메일" 표시 값을 실어 보낸다 — 인증 화면이 요약을 재조회하지 않게 한다
+    openEmail: () =>
+      navigation.navigate('Main', {
+        screen: 'EmailVerification',
+        params: { currentEmail: summary?.account?.email ?? null },
+      }),
     openInterests: () => openDestination('InterestManagement'),
     openCareer: () => openDestination('Career'),
     openNotice: () => openDestination('Notice'),
