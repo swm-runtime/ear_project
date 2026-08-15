@@ -59,3 +59,30 @@ export type AuthStackParamList = {
     requiredConsents: RequiredConsent[];
   };
 };
+
+/* ── 이메일 인증(auth.md 4.5 · auth-api.md 4.8~4.11) ── */
+
+/**
+ * 진행 중인 인증 건 — 발송 응답(4.8)과 재진입 조회(4.9)를 같은 모델로 받는다.
+ * 시각 값(expiresAt·resendAvailableAt·sendLockedUntil)은 전부 서버가 준 것이며,
+ * 클라이언트 타이머는 표시용이다(architecture.md 1 — 기기 시각 판정 금지).
+ */
+export interface ActiveEmailVerification {
+  verificationId: string;
+  email: string;
+  expiresAt: string;
+  attemptsRemaining: number;
+  resendAvailableAt: string;
+  /** 요청한 주소 기준 값이다 — 다른 주소는 다른 카운터를 갖는다(auth-api.md 4.8) */
+  sendCountUsed: number;
+  sendCountLimit: number;
+  /** 그 주소의 발송 잠금 해제 시각. 발송 응답(4.8)에는 없어 null이다 */
+  sendLockedUntil: string | null;
+}
+
+/** 검증 성공 결과(auth-api.md 4.10) — 서버가 users에 저장을 끝낸 뒤의 값이다 */
+export interface EmailVerifiedResult {
+  email: string;
+  isEmailVerified: boolean;
+  verifiedAt: string;
+}

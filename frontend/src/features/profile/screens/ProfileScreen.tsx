@@ -73,13 +73,15 @@ export default function ProfileScreen() {
                 nickname={screen.header.nickname}
                 provider={screen.header.provider}
                 email={screen.header.email}
+                isEmailVerified={screen.header.isEmailVerified}
+                onEmailPress={screen.openEmail}
                 plan={screen.planCard}
                 onPlanPress={screen.openPlan}
               />
             ) : null}
             {/* 이메일 카드를 두지 않는다 — 주소는 헤더가 이미 보여준다. 같은 값을 한 화면에
-                두 번 쓰면 어느 쪽이 최신인지 묻게 된다. 등록·인증·변경 진입점은 설정의
-                이메일 행이 갖는다(settings-uiux.md — 설정은 허브다) */}
+                두 번 쓰면 어느 쪽이 최신인지 묻게 된다. 프로필 쪽 등록·인증·변경 진입은
+                헤더의 이메일 줄이 갖는다(profile.md 4.3 — 설정 경로와 같은 화면) */}
 
             {screen.interestCard !== null ? (
               <InterestCard

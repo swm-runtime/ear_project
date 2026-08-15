@@ -177,6 +177,8 @@ export const PROFILE_COPY = {
     `${label}, ${value}, ${destination}`,
   destinations: {
     plan: '구독 관리 열기',
+    /* TODO(카피 미확정): 이메일 인증 화면 이름 확정 시 맞춘다 */
+    email: '이메일 인증 열기',
     interest: '관심사 관리 열기',
     career: '커리어 정보 열기',
   },

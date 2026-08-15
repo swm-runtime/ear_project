@@ -14,6 +14,10 @@ import { EmailVerificationRepository } from '../repositories/email-verification.
 import { EmailVerification } from '../entities/email-verification.entity';
 import { MailClient } from '../mail.client';
 import {
+  EMAIL_VERIFICATION_ACCOUNT_DAILY_SEND_LIMIT,
+  EMAIL_VERIFICATION_ACCOUNT_DAILY_WINDOW_SEC,
+  EMAIL_VERIFICATION_ACCOUNT_HOURLY_SEND_LIMIT,
+  EMAIL_VERIFICATION_ACCOUNT_HOURLY_WINDOW_SEC,
   EMAIL_VERIFICATION_ATTEMPT_LIMIT,
   EMAIL_VERIFICATION_CODE_LENGTH,
   EMAIL_VERIFICATION_CODE_TTL_SEC,
@@ -82,6 +86,8 @@ export class EmailVerificationService {
           message: '이미 등록된 이메일이에요',
         });
       }
+
+      await this.assertAccountSendBackstop(userId, now);
 
       const code = this.generateCode();
       const verification = await this.dataSource.transaction(
@@ -312,6 +318,50 @@ export class EmailVerificationService {
     );
 
     return { result: 'verified', email: verification.email, verifiedAt: now };
+  }
+
+  /**
+   * auth.md 4.5 — 계정 단위 발송 상한(백스톱). 최근 1시간 20회 / 최근 24시간 50회,
+   * 주소 무관 합산이다. **전용 코드·해제 시각을 내려주지 않는다** — 클라이언트 비노출
+   * 원칙이며, 노출하면 우회 힌트만 된다. 초과 사유 구분은 로그로만 남긴다(architecture.md 7.5).
+   */
+  private async assertAccountSendBackstop(
+    userId: string,
+    now: Date,
+  ): Promise<void> {
+    const [hourlyCount, dailyCount] = await Promise.all([
+      this.emailVerificationRepository.countByUserIdSince(
+        userId,
+        new Date(
+          now.getTime() - EMAIL_VERIFICATION_ACCOUNT_HOURLY_WINDOW_SEC * 1000,
+        ),
+      ),
+      this.emailVerificationRepository.countByUserIdSince(
+        userId,
+        new Date(
+          now.getTime() - EMAIL_VERIFICATION_ACCOUNT_DAILY_WINDOW_SEC * 1000,
+        ),
+      ),
+    ]);
+
+    if (
+      hourlyCount >= EMAIL_VERIFICATION_ACCOUNT_HOURLY_SEND_LIMIT ||
+      dailyCount >= EMAIL_VERIFICATION_ACCOUNT_DAILY_SEND_LIMIT
+    ) {
+      this.logger.warn('email send blocked by account backstop', {
+        user_id: userId,
+        hourly_count: hourlyCount,
+        daily_count: dailyCount,
+      });
+
+      throw new BusinessException({
+        status: HttpStatus.TOO_MANY_REQUESTS,
+        errorCode: ErrorCode.TOO_MANY_REQUESTS,
+        message: '요청이 많아요. 잠시 후 다시 시도해주세요',
+        retryable: true,
+        logLevel: 'warn',
+      });
+    }
   }
 
   /** domain.md 3.7 — 발송 창은 최신 1행의 `send_seq`와 `sent_at`으로 판정한다 */

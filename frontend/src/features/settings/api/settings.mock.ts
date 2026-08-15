@@ -25,6 +25,7 @@ import { ApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
 import type { DevicePlatform } from '@/shared/lib/device-platform';
 
+import { getEmailMockAccount } from '@/features/auth';
 import { getInterestMockSummary } from '@/features/interest';
 
 import type {
@@ -71,22 +72,22 @@ let marketingConsentState: MarketingConsentDto =
 
 /* ── 시나리오별 조립 ── */
 
-const ACCOUNT_BASE: SettingsAccountDto = {
-  email: 'user@example.com',
-  is_email_verified: true,
-  is_admin: false,
-};
-
+// 이메일 원본은 auth의 email-verification mock 하나다 — 계정 섹션과 인증 화면이 같은
+// 상태를 읽어, 인증 성공 후 복귀 시 행 갱신을 함께 본다(career mock과 같은 패턴).
+// email-* 시나리오는 원본 대신 고정 변형을 쓴다(EXPO_PUBLIC_EMAIL_VERIFICATION_MOCK_SCENARIO로도
+// 같은 상태를 만들 수 있다 — 그쪽은 인증 화면과 상태가 이어진다)
 const accountForScenario = (): SettingsAccountDto => {
+  const emailAccount = getEmailMockAccount();
+  const base: SettingsAccountDto = { ...emailAccount, is_admin: false };
   switch (SCENARIO) {
     case 'email-unregistered':
-      return { ...ACCOUNT_BASE, email: null, is_email_verified: false };
+      return { ...base, email: null, is_email_verified: false };
     case 'email-unverified':
-      return { ...ACCOUNT_BASE, is_email_verified: false };
+      return { ...base, is_email_verified: false };
     case 'admin':
-      return { ...ACCOUNT_BASE, is_admin: true };
+      return { ...base, is_admin: true };
     default:
-      return ACCOUNT_BASE;
+      return base;
   }
 };
 

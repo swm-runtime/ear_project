@@ -21,8 +21,8 @@
   <p class="eyebrow">Flow P · profile.md</p>
   <h1>프로필 — 내 계정의 요약</h1>
   <p class="lede">
-    사용자 자신에 관한 값만 모은 화면입니다 — <b>현재 플랜 · 이메일 · 관심 주제 관리 · 커리어 정보</b> 네 카드(합의 2026-08-06 — 커리어 카드 복원).
-    관심 주제와 커리어는 <b>별도 카드 · 별도 화면</b>입니다 — [커리어 정보]는 관심사 관리가 아니라 <b>커리어 정보 화면(career.md)</b>으로 갑니다.
+    사용자 자신에 관한 값만 모은 화면입니다 — <b>헤더(아바타 · 닉네임 · 이메일 줄 · 플랜 줄)</b>와 <b>관심 주제 관리 · 커리어 정보</b> 두 카드(개정 2026-08-15 — 플랜·이메일 카드를 헤더로 통합, <code>changes/archive/profile-email-entry-header(fe).md</code>).
+    <b>헤더의 이메일 줄이 프로필 쪽 인증 진입점</b>이며, 관심 주제와 커리어는 <b>별도 카드 · 별도 화면</b>입니다 — [커리어 정보]는 관심사 관리가 아니라 <b>커리어 정보 화면(career.md)</b>으로 갑니다.
     카드 아래로는 <b>청취 통계</b>(누적 3지표 · 주간 그래프 · 주제 분포)가 이어집니다(2026-08-06 추가) —
     모든 수치는 서버가 계산하고 클라이언트는 그리기만 합니다.
     이 화면은 <b>편집 로직을 갖지 않습니다.</b> 요약을 보여주고 각 소유 화면으로 보낼 뿐이며,
@@ -52,7 +52,7 @@
   <div class="section-head">
     <p class="sid">P1 – P5</p>
     <h2>정상 상태와 변형</h2>
-    <p>헤더는 표시 전용(닉네임·제공자), <b>설정 진입은 우상단 아이콘 하나</b>입니다. 위 두 카드는 계정·결제, 아래 두 카드(관심 주제·커리어)는 추천 입력 — 순서를 바꾸지 않습니다. 관심 주제와 커리어는 <b>별도 카드 · 별도 화면</b>입니다(합의 2026-08-06 — → V5). 카드 아래로 청취 통계 세 영역이 이어집니다(P8–P10).</p>
+    <p>헤더는 정체(아바타·닉네임·제공자 배지) + <b>이메일 줄</b> + <b>플랜 줄</b>의 블록이고(개정 2026-08-15 — 카드에서 헤더로 통합), <b>설정 진입은 우상단 아이콘 하나</b>입니다. 헤더에서 탭 가능한 것은 이메일 줄·플랜 줄·설정 아이콘 셋뿐입니다. 카드는 추천 입력 두 개(관심 주제·커리어) — <b>별도 카드 · 별도 화면</b>입니다(합의 2026-08-06 — → V5). 카드 아래로 청취 통계 세 영역이 이어집니다(P8–P10).</p>
     <div class="flowbar">
       <span>요약 조회(1회)</span><span class="ar">→</span>
       <span>카드 탭</span><span class="ar">→</span>
@@ -67,33 +67,29 @@
     <article class="shot">
       <div class="shot-head">
         <span class="shot-id">P1</span><h3>정상 — 유료 · 인증된 이메일</h3>
-        <p class="cap">카드 4개 + 청취 통계 · 우상단 설정 아이콘</p>
+        <p class="cap">헤더(정체·이메일 줄·플랜 줄) + 카드 2개 + 청취 통계</p>
       </div>
       <div class="device">
         <div class="island"></div>
         <div class="screen">
           <div class="statusbar"><span class="t">7:51</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
           <div class="appbar">
-            <h1>수현<span class="mk">1</span></h1>
-            <span class="t-xs" style="display:inline-flex; align-items:center; gap:4px; color:var(--ink-3)"><span style="width:14px; height:14px; border-radius:99px; background:var(--kakao); display:inline-block"></span>카카오</span>
-            <span class="iconbtn"><svg width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="3.2"/><path d="M11 2.8v2.4M11 16.8v2.4M2.8 11h2.4M16.8 11h2.4M5.2 5.2l1.7 1.7M15.1 15.1l1.7 1.7M16.8 5.2l-1.7 1.7M6.9 15.1l-1.7 1.7"/></svg><span class="mk">2</span></span>
+            <span class="iconbtn" style="margin-left:auto"><svg width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="3.2"/><path d="M11 2.8v2.4M11 16.8v2.4M2.8 11h2.4M16.8 11h2.4M5.2 5.2l1.7 1.7M15.1 15.1l1.7 1.7M16.8 5.2l-1.7 1.7M6.9 15.1l-1.7 1.7"/></svg><span class="mk">2</span></span>
           </div>
           <div class="body pad-b" style="overflow-y:auto">
-            <div class="field" style="flex-direction:column; align-items:stretch; gap:3px; padding:13px 15px">
-              <div style="display:flex; align-items:center; justify-content:space-between">
-                <span class="t-label">현재 플랜</span>
-                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+            <div style="display:flex; align-items:center; gap:12px; padding:2px 4px 0">
+              <div style="position:relative; flex-shrink:0">
+                <div style="width:46px; height:46px; border-radius:99px; background:var(--surface-2); display:flex; align-items:center; justify-content:center; font-size:17px; font-weight:750; color:var(--ink-2)">수</div>
+                <span style="position:absolute; right:-2px; bottom:-2px; width:15px; height:15px; border-radius:99px; background:var(--kakao); border:2px solid var(--surface); display:inline-block"></span>
               </div>
-              <span style="font-size:14px; font-weight:700; color:var(--ink)">프로 · 다음 결제일 9월 1일<span class="mk">3</span></span>
-            </div>
-            <div class="field" style="flex-direction:column; align-items:stretch; gap:3px; padding:13px 15px">
-              <div style="display:flex; align-items:center; justify-content:space-between">
-                <span class="t-label">이메일</span>
-                <span class="t-xs" style="color:var(--ink-2); font-weight:650">변경</span>
+              <div style="display:flex; flex-direction:column; gap:2px; min-width:0">
+                <span style="font-size:15px; font-weight:750; color:var(--ink)">수현<span class="mk">1</span></span>
+                <span style="font-size:12px; color:var(--ink-2)">suhyeon@example.com<span class="mk">25</span></span>
               </div>
-              <span style="font-size:14px; font-weight:600; color:var(--ink)">suhyeon@example.com</span>
             </div>
-            <div style="height:1px; background:var(--line); margin:2px 0"></div>
+            <div style="display:flex; align-items:center; gap:8px; padding:0 4px 4px 62px">
+              <span style="font-size:12px; font-weight:650; color:var(--ink-2)">프로 · 다음 결제일 9월 1일<span class="mk">3</span></span>
+            </div>
             <div class="field" style="flex-direction:column; align-items:stretch; gap:6px; padding:13px 15px">
               <div style="display:flex; align-items:center; justify-content:space-between">
                 <span class="t-label">관심 주제 관리</span>
@@ -140,9 +136,10 @@
         </div>
       </div>
       <ul class="notes">
-        <li><span class="n">1</span><span>닉네임·로그인 제공자는 <b>표시만 한다.</b> 편집 진입점이 없다 — 닉네임 편집·프로필 이미지·계정 통합은 MVP 비범위. <span class="ref">profile 4.1 · 미결</span></span></li>
+        <li><span class="n">1</span><span>닉네임·제공자 배지(아바타 우하단)는 <b>표시만 한다.</b> 편집 진입점이 없다 — 닉네임 편집·프로필 이미지·계정 통합은 MVP 비범위. 헤더에서 탭 가능한 것은 이메일 줄·플랜 줄·설정 아이콘 셋뿐이다. <span class="ref">profile 4.1 · profile-uiux 4.1</span></span></li>
         <li><span class="n">2</span><span><b>우상단 설정 아이콘이 설정 화면의 유일한 진입점</b>이다. 하단 탭에 설정을 두지 않고, 목록 항목이 아니라 헤더 아이콘인 이유는 설정이 프로필의 하위 항목이 아니라 별개 화면이기 때문. 로딩 중에도 이 아이콘은 즉시 노출된다. <span class="ref">profile 2 · 4.1 · settings 2</span></span></li>
-        <li><span class="n">3</span><span>플랜 카드는 <b>표시 전용.</b> 해지·요금제 변경 버튼을 두지 않는다 — 결제 조작의 진입점은 구독 관리 한 곳이다. 티어 판정은 <code>subscriptions</code> 기준으로 서버가 정규화해 내려준다(<code>users.tier</code> 캐시가 어긋나면 <code>subscriptions</code>가 이긴다). <span class="ref">profile 4.2 · profile-api 4.1 · domain 8.2</span></span></li>
+        <li><span class="n">25</span><span><b>헤더 이메일 줄 — 프로필 쪽 인증 진입점</b>(개정 2026-08-15, 카드에서 헤더로 통합). 줄 전체를 탭하면 이메일 인증 화면(A 계열)으로 이동하며, 상태별 버튼([등록]·[인증하기]·[변경])을 가르지 않는다. 인증됨이면 주소만·배지 없음. 줄이 작으므로 hitSlop으로 터치 타깃 44pt를 채운다. <span class="ref">profile 4.3 · profile-uiux 4.3 · auth 4.4</span></span></li>
+        <li><span class="n">3</span><span><b>헤더 플랜 줄</b>(카드에서 헤더로 통합 — PR #46)은 탭 시 구독 관리 진입. 해지·요금제 변경 버튼을 두지 않는다 — 결제 조작의 진입점은 구독 관리 한 곳이다. 티어 판정은 <code>subscriptions</code> 기준으로 서버가 정규화해 내려준다(<code>users.tier</code> 캐시가 어긋나면 <code>subscriptions</code>가 이긴다). <span class="ref">profile 4.2 · profile-api 4.1 · domain 8.2</span></span></li>
         <li><span class="n">4</span><span><b>[관심 주제 관리] 카드</b> — "N개 선택" + 대표 3개 + <code>+N</code>. <b>대표 3개는 별도 선정 기준 없이 서버 응답 순서의 앞 3개다</b>(확정 2026-08-06 — V2 해소). 칩은 표시 전용이며 카드 전체가 관심사 관리 화면 진입이다(개별 편집을 열면 저장 규칙이 두 벌이 된다). 관리자가 숨긴 주제도 <b>개수에 포함</b> — 편집 화면과 같은 기준. <span class="ref">profile 4.4 · 7 · interest-management 4.1 · 7</span></span></li>
         <li><span class="n">5</span><span>카드 아래부터 <b>청취 통계</b>가 이어진다(2026-08-06 추가) — 요약 3지표 · 주간 그래프 · 주제 분포 순서이며 화면은 세로 스크롤이다. 모두 <b>표시 전용</b>이고 탭 이동이 없다(주간 그래프의 주 이동 화살표만 예외). 상세는 P8–P10. <span class="ref">profile 4.1 · 4.5~4.7</span></span></li>
         <li><span class="n">23</span><span><b>[커리어 정보] 카드 — 합의(2026-08-06)로 복원.</b> 요약 "직군 · 직무 · 연차"를 표시하고, 목적지는 <b>관심사 관리가 아니라 별도의 커리어 정보 화면(career.md)</b>이다 — 두 편집을 한 화면에 합치지 않는다. 카드 순서는 관심 주제 관리 다음으로 고정. 저장 규칙은 career.md가 소유하고 프로필은 표시만 하며, 편집 화면에서 저장하고 돌아오면 요약을 재조회한다. → V5 <span class="ref">profile 4.1 · 4.4 · career 2 · 4.2</span></span></li>
@@ -160,26 +157,23 @@
         <div class="screen">
           <div class="statusbar"><span class="t">7:52</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
           <div class="appbar">
-            <h1>지우</h1>
-            <span class="t-xs" style="display:inline-flex; align-items:center; gap:4px; color:var(--ink-3)"><span style="width:14px; height:14px; border-radius:99px; background:var(--naver); display:inline-block"></span>네이버</span>
-            <span class="iconbtn"><svg width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="3.2"/><path d="M11 2.8v2.4M11 16.8v2.4M2.8 11h2.4M16.8 11h2.4M5.2 5.2l1.7 1.7M15.1 15.1l1.7 1.7M16.8 5.2l-1.7 1.7M6.9 15.1l-1.7 1.7"/></svg></span>
+            <span class="iconbtn" style="margin-left:auto"><svg width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="3.2"/><path d="M11 2.8v2.4M11 16.8v2.4M2.8 11h2.4M16.8 11h2.4M5.2 5.2l1.7 1.7M15.1 15.1l1.7 1.7M16.8 5.2l-1.7 1.7M6.9 15.1l-1.7 1.7"/></svg></span>
           </div>
           <div class="body pad-b" style="overflow-y:auto">
-            <div class="field" style="flex-direction:column; align-items:stretch; gap:8px; padding:13px 15px">
-              <div style="display:flex; align-items:center; justify-content:space-between">
-                <span class="t-label">현재 플랜</span>
+            <div style="display:flex; align-items:center; gap:12px; padding:2px 4px 0">
+              <div style="position:relative; flex-shrink:0">
+                <div style="width:46px; height:46px; border-radius:99px; background:var(--surface-2); display:flex; align-items:center; justify-content:center; font-size:17px; font-weight:750; color:var(--ink-2)">지</div>
+                <span style="position:absolute; right:-2px; bottom:-2px; width:15px; height:15px; border-radius:99px; background:var(--naver); border:2px solid var(--surface); display:inline-block"></span>
               </div>
-              <span style="font-size:14px; font-weight:700; color:var(--ink)">무료 이용 중 · 하루 2편<span class="mk">6</span></span>
-              <div class="btn primary sm">구독 알아보기</div>
-            </div>
-            <div class="field" style="flex-direction:column; align-items:stretch; gap:3px; padding:13px 15px">
-              <div style="display:flex; align-items:center; justify-content:space-between">
-                <span class="t-label">이메일</span>
-                <span class="t-xs" style="color:var(--ink-2); font-weight:650">변경</span>
+              <div style="display:flex; flex-direction:column; gap:2px; min-width:0">
+                <span style="font-size:15px; font-weight:750; color:var(--ink)">지우</span>
+                <span style="font-size:12px; color:var(--ink-2)">jiwoo@example.com</span>
               </div>
-              <span style="font-size:14px; font-weight:600; color:var(--ink)">jiwoo@example.com</span>
             </div>
-            <div style="height:1px; background:var(--line); margin:2px 0"></div>
+            <div style="display:flex; align-items:center; gap:8px; padding:0 4px 4px 62px">
+              <span style="font-size:12px; font-weight:650; color:var(--ink-2)">무료 이용 중 · 하루 2편<span class="mk">6</span></span>
+              <span class="btn primary sm" style="padding:4px 11px; font-size:11px">구독 알아보기</span>
+            </div>
             <div class="field" style="flex-direction:column; align-items:stretch; gap:6px; padding:13px 15px">
               <div style="display:flex; align-items:center; justify-content:space-between">
                 <span class="t-label">관심 주제 관리</span>
@@ -210,7 +204,7 @@
         </div>
       </div>
       <ul class="notes">
-        <li><span class="n">6</span><span>무료 플랜은 <b>"무료 이용 중 · 하루 N편"</b> — 플랜명만으로는 무엇이 제한되는지 알 수 없어 한도를 함께 적는다. <b>N은 서버가 내려준 <code>daily_play_limit</code></b>이며 2를 하드코딩하지 않는다. [구독 알아보기]도 구독 화면 진입일 뿐 — 프로필에서 결제를 시작하지 않는다. <span class="ref">profile 4.2 · paywall 5 · profile-api 4.1</span></span></li>
+        <li><span class="n">6</span><span>무료 플랜 줄은 <b>"무료 이용 중 · 하루 N편" + [구독 알아보기] 칩</b> — 칩과 줄 전체가 같은 목적지(구독 화면)다. 플랜명만으로는 무엇이 제한되는지 알 수 없어 한도를 함께 적는다. <b>N은 서버가 내려준 <code>daily_play_limit</code></b>이며 2를 하드코딩하지 않는다. 프로필에서 결제를 시작하지 않는다. <span class="ref">profile 4.2 · paywall 5 · profile-api 4.1</span></span></li>
         <li><span class="n">7</span><span>관심 주제는 <b>편집 화면이 최소 1개 선택을 강제</b>하므로(확정 2026-08-06) <b>0개 요약 상태가 생기지 않는다</b> — 0개 문구를 정의할 필요 자체가 없다(V1 해소). 상한이 3개라 <code>+N</code>은 상한 도입 이전 초과 보유자에게만 나타난다. <span class="ref">profile 4.4 · interest-management 4.2 · 7</span></span></li>
         <li><span class="n">24</span><span><b>커리어 미입력 — "입력하면 추천이 정확해져요" + [입력하기].</b> 유도 문구는 커리어 카드 복원(합의 2026-08-06)과 함께 프로필 카드 몫으로 돌아왔다(관심사 관리 화면 몫이 아니다). [입력하기] → <b>커리어 정보 화면(career.md)</b>. 입력을 강제하는 지점은 어디에도 없다 — 세 값(직군·직무·연차) 모두 선택이다. <span class="ref">profile 4.4 · 5 · career 3 · 5</span></span></li>
       </ul>
@@ -227,33 +221,25 @@
         <div class="screen">
           <div class="statusbar"><span class="t">7:53</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
           <div class="appbar">
-            <h1>수현</h1>
-            <span class="t-xs" style="display:inline-flex; align-items:center; gap:4px; color:var(--ink-3)"><span style="width:14px; height:14px; border-radius:99px; background:var(--kakao); display:inline-block"></span>카카오</span>
-            <span class="iconbtn"><svg width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="3.2"/><path d="M11 2.8v2.4M11 16.8v2.4M2.8 11h2.4M16.8 11h2.4M5.2 5.2l1.7 1.7M15.1 15.1l1.7 1.7M16.8 5.2l-1.7 1.7M6.9 15.1l-1.7 1.7"/></svg></span>
+            <span class="iconbtn" style="margin-left:auto"><svg width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="3.2"/><path d="M11 2.8v2.4M11 16.8v2.4M2.8 11h2.4M16.8 11h2.4M5.2 5.2l1.7 1.7M15.1 15.1l1.7 1.7M16.8 5.2l-1.7 1.7M6.9 15.1l-1.7 1.7"/></svg></span>
           </div>
           <div class="body pad-b">
-            <div class="field" style="flex-direction:column; align-items:stretch; gap:3px; padding:13px 15px">
-              <div style="display:flex; align-items:center; justify-content:space-between">
-                <span class="t-label">현재 플랜</span>
-                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+            <div style="display:flex; align-items:center; gap:12px; padding:2px 4px 0">
+              <div style="position:relative; flex-shrink:0">
+                <div style="width:46px; height:46px; border-radius:99px; background:var(--surface-2); display:flex; align-items:center; justify-content:center; font-size:17px; font-weight:750; color:var(--ink-2)">수</div>
+                <span style="position:absolute; right:-2px; bottom:-2px; width:15px; height:15px; border-radius:99px; background:var(--kakao); border:2px solid var(--surface); display:inline-block"></span>
               </div>
-              <span style="font-size:14px; font-weight:700; color:var(--ink)">무료 이용 중 · 하루 2편</span>
+              <div style="display:flex; flex-direction:column; gap:2px; min-width:0">
+                <span style="font-size:15px; font-weight:750; color:var(--ink)">수현</span>
+                <div style="display:flex; align-items:center; gap:7px; flex-wrap:wrap">
+                  <span style="font-size:12px; color:var(--ink-2)">suhyeon@kakao.com</span>
+                  <span class="t-xs" style="padding:1px 7px; border-radius:99px; background:var(--accent-soft); border:1px solid var(--accent-line); color:var(--accent); font-weight:700">인증되지 않음<span class="mk">8</span></span>
+                </div>
+              </div>
             </div>
-            <div class="field" style="flex-direction:column; align-items:stretch; gap:8px; padding:13px 15px">
-              <div style="display:flex; align-items:center; justify-content:space-between">
-                <span class="t-label">이메일</span>
-              </div>
-              <div style="display:flex; align-items:center; gap:7px; flex-wrap:wrap">
-                <span style="font-size:14px; font-weight:600; color:var(--ink)">suhyeon@kakao.com</span>
-                <span class="t-xs" style="padding:2px 8px; border-radius:99px; background:var(--accent-soft); border:1px solid var(--accent-line); color:var(--accent); font-weight:700">인증되지 않음<span class="mk">8</span></span>
-              </div>
-              <div class="btn-row">
-                <div class="btn outline sm">인증하기</div>
-                <div class="btn outline sm">변경</div>
-              </div>
-              <span class="t-xs">결제하려면 인증된 이메일이 필요해요<span class="mk">9</span></span>
+            <div style="display:flex; align-items:center; gap:8px; padding:0 4px 4px 62px">
+              <span style="font-size:12px; font-weight:650; color:var(--ink-2)">무료 이용 중 · 하루 2편<span class="mk">9</span></span>
             </div>
-            <div style="height:1px; background:var(--line); margin:2px 0"></div>
             <div class="field" style="flex-direction:column; align-items:stretch; gap:3px; padding:13px 15px">
               <div style="display:flex; align-items:center; justify-content:space-between">
                 <span class="t-label">관심 주제 관리</span>
@@ -272,8 +258,8 @@
         </div>
       </div>
       <ul class="notes">
-        <li><span class="n">8</span><span><b>저장된 주소와 인증된 주소를 같은 것으로 보여주지 않는다.</b> 카카오가 준 미인증 주소를 그냥 표시하면 결제 직전에야 인증이 필요함을 알게 된다. [인증하기]는 저장된 주소로 바로 코드 발송, [변경]은 새 주소 입력 — <b>두 경로 모두 결제·설정과 같은 인증 화면(A 계열)</b>을 쓰고 발송 횟수는 <code>(계정, 주소)</code> 단위로 합산된다. <span class="ref">profile 4.3 · auth 4.4~4.5</span></span></li>
-        <li><span class="n">9</span><span>보조 문구 한 줄만 둔다. <b>인증을 강요하는 팝업·전면 배너를 띄우지 않는다</b> — 강제 지점은 첫 결제 하나뿐이다. 인증 화면에서 중도 이탈하면 기존 값이 그대로다. <span class="ref">profile 4.3 · 7 · auth 4.4</span></span></li>
+        <li><span class="n">8</span><span><b>저장된 주소와 인증된 주소를 같은 것으로 보여주지 않는다</b> — 미인증이면 주소 옆에 "인증되지 않음" 배지(색+텍스트). 줄을 탭하면 인증 화면(A 계열)으로 가고, 저장된 주소를 그대로 인증하든 새 주소로 바꾸든 인증 화면 안에서 정한다 — <b>결제·설정과 같은 인증 화면</b>을 쓰고 발송 횟수는 <code>(계정, 주소)</code> 단위로 합산된다. 인증 성공 복귀 시 배지가 사라진다. <span class="ref">profile 4.3 · profile-uiux 4.3 · auth 4.4~4.5</span></span></li>
+        <li><span class="n">9</span><span>카드 시절의 보조 문구("결제하려면 인증된 이메일이 필요해요")는 헤더 통합과 함께 <b>두지 않는다</b> — 결제 필요 안내는 강제 지점인 첫 결제 흐름이 맡는다. <b>인증을 강요하는 팝업·전면 배너도 띄우지 않는다.</b> 인증 화면에서 중도 이탈하면 기존 값이 그대로다. <span class="ref">profile-uiux 4.3 · auth 4.4</span></span></li>
       </ul>
     </article>
 
@@ -288,27 +274,22 @@
         <div class="screen">
           <div class="statusbar"><span class="t">7:54</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
           <div class="appbar">
-            <h1>수현</h1>
-            <span class="t-xs" style="display:inline-flex; align-items:center; gap:4px; color:var(--ink-3)"><span style="width:14px; height:14px; border-radius:99px; background:var(--kakao); display:inline-block"></span>카카오</span>
-            <span class="iconbtn"><svg width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="3.2"/><path d="M11 2.8v2.4M11 16.8v2.4M2.8 11h2.4M16.8 11h2.4M5.2 5.2l1.7 1.7M15.1 15.1l1.7 1.7M16.8 5.2l-1.7 1.7M6.9 15.1l-1.7 1.7"/></svg></span>
+            <span class="iconbtn" style="margin-left:auto"><svg width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="3.2"/><path d="M11 2.8v2.4M11 16.8v2.4M2.8 11h2.4M16.8 11h2.4M5.2 5.2l1.7 1.7M15.1 15.1l1.7 1.7M16.8 5.2l-1.7 1.7M6.9 15.1l-1.7 1.7"/></svg></span>
           </div>
           <div class="body pad-b">
-            <div class="field" style="flex-direction:column; align-items:stretch; gap:3px; padding:13px 15px">
-              <div style="display:flex; align-items:center; justify-content:space-between">
-                <span class="t-label">현재 플랜</span>
-                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+            <div style="display:flex; align-items:center; gap:12px; padding:2px 4px 0">
+              <div style="position:relative; flex-shrink:0">
+                <div style="width:46px; height:46px; border-radius:99px; background:var(--surface-2); display:flex; align-items:center; justify-content:center; font-size:17px; font-weight:750; color:var(--ink-2)">수</div>
+                <span style="position:absolute; right:-2px; bottom:-2px; width:15px; height:15px; border-radius:99px; background:var(--kakao); border:2px solid var(--surface); display:inline-block"></span>
               </div>
-              <span style="font-size:14px; font-weight:700; color:var(--ink)">무료 이용 중 · 하루 2편</span>
-            </div>
-            <div class="field" style="flex-direction:column; align-items:stretch; gap:8px; padding:13px 15px">
-              <div style="display:flex; align-items:center; justify-content:space-between">
-                <span class="t-label">이메일</span>
+              <div style="display:flex; flex-direction:column; gap:2px; min-width:0">
+                <span style="font-size:15px; font-weight:750; color:var(--ink)">수현</span>
+                <span style="font-size:12px; color:var(--ink-3)">이메일 미등록<span class="mk">10</span></span>
               </div>
-              <span style="font-size:14px; font-weight:600; color:var(--ink-3)">등록되지 않음<span class="mk">10</span></span>
-              <div class="btn outline sm">등록</div>
-              <span class="t-xs">결제하려면 인증된 이메일이 필요해요</span>
             </div>
-            <div style="height:1px; background:var(--line); margin:2px 0"></div>
+            <div style="display:flex; align-items:center; gap:8px; padding:0 4px 4px 62px">
+              <span style="font-size:12px; font-weight:650; color:var(--ink-2)">무료 이용 중 · 하루 2편</span>
+            </div>
             <div class="field" style="flex-direction:column; align-items:stretch; gap:3px; padding:13px 15px">
               <div style="display:flex; align-items:center; justify-content:space-between">
                 <span class="t-label">관심 주제 관리</span>
@@ -327,7 +308,7 @@
         </div>
       </div>
       <ul class="notes">
-        <li><span class="n">10</span><span>제공자가 이메일을 주지 않았거나 마스킹 주소였던 경우(<code>email = null</code>). "등록되지 않음"을 표시할 뿐 <b>진입을 막거나 등록을 강제하지 않는다.</b> [등록]으로 코드 인증을 완료하면 프로필로 복귀해 주소가 표시된다. 세 상태(미등록·미인증·인증됨)의 구분은 설정 화면과 완전히 같다. <span class="ref">profile 4.3 · 7 · auth 4.1 · settings 4.1</span></span></li>
+        <li><span class="n">10</span><span>제공자가 이메일을 주지 않았거나 마스킹 주소였던 경우(<code>email = null</code>). 줄에 <b>"이메일 미등록"</b>을 표시할 뿐 <b>진입을 막거나 등록을 강제하지 않는다.</b> 줄을 탭해 코드 인증을 완료하면 프로필로 복귀해 주소가 표시된다. 세 상태(미등록·미인증·인증됨)의 구분은 설정 화면과 완전히 같다. <span class="ref">profile 4.3 · profile-uiux 4.3 · auth 4.1 · settings 4.1</span></span></li>
       </ul>
     </article>
 
@@ -346,22 +327,14 @@
             <span class="iconbtn" style="margin-left:auto"><svg width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="3.2"/><path d="M11 2.8v2.4M11 16.8v2.4M2.8 11h2.4M16.8 11h2.4M5.2 5.2l1.7 1.7M15.1 15.1l1.7 1.7M16.8 5.2l-1.7 1.7M6.9 15.1l-1.7 1.7"/></svg></span>
           </div>
           <div class="body pad-b">
-            <p class="t-label" style="margin:0 2px">변형 A — 해지 예약</p>
-            <div class="field" style="flex-direction:column; align-items:stretch; gap:3px; padding:13px 15px">
-              <div style="display:flex; align-items:center; justify-content:space-between">
-                <span class="t-label">현재 플랜</span>
-                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
-              </div>
-              <span style="font-size:14px; font-weight:700; color:var(--ink)">프로 · 9월 1일까지 이용 가능<span class="mk">11</span></span>
+            <p class="t-label" style="margin:0 2px">변형 A — 해지 예약 (헤더 플랜 줄)</p>
+            <div style="display:flex; align-items:center; gap:8px; padding:2px 4px 6px">
+              <span style="font-size:12px; font-weight:650; color:var(--ink-2)">프로 · 9월 1일까지 이용 가능<span class="mk">11</span></span>
             </div>
             <div class="sp"></div>
-            <p class="t-label" style="margin:0 2px">변형 B — 결제 문제(유예)</p>
-            <div class="field" style="flex-direction:column; align-items:stretch; gap:3px; padding:13px 15px; border-color:#F0D2CF; background:#FBEDEC">
-              <div style="display:flex; align-items:center; justify-content:space-between">
-                <span class="t-label" style="color:var(--danger)">현재 플랜</span>
-                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="var(--danger)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
-              </div>
-              <span style="font-size:14px; font-weight:700; color:var(--danger)">프로 · 결제에 문제가 있어요<span class="mk">12</span></span>
+            <p class="t-label" style="margin:0 2px">변형 B — 결제 문제(유예) (헤더 플랜 줄)</p>
+            <div style="display:flex; align-items:center; gap:8px; padding:2px 4px 6px">
+              <span style="font-size:12px; font-weight:700; color:var(--danger)">프로 · 결제에 문제가 있어요<span class="mk">12</span></span>
             </div>
             <div class="grow"></div>
           </div>
@@ -375,7 +348,7 @@
       </div>
       <ul class="notes">
         <li><span class="n">11</span><span>해지 예약은 <b>중립 톤</b>이다 — 사용자가 스스로 내린 결정이지 장애가 아니다. "N월 N일까지 이용 가능"의 날짜는 <code>expires_at</code>이며, 상태 판정(<code>cancel_scheduled</code>)은 서버가 정규화해 내려준다 — 클라이언트가 기기 시각으로 재판정하지 않는다. <span class="ref">profile 4.2 · profile-api 4.1</span></span></li>
-        <li><span class="n">12</span><span>경고색은 <b>사용자가 조치해야 하는 상태(결제 실패 유예)에만</b> 쓴다. 카드를 탭하면 구독 관리로 이동 — 프로필에서 결제 수단 수정을 시도하지 않는다. 두 변형을 한 기기에 나란히 그린 것은 비교용이며 실제로는 한 번에 하나만 나타난다. <span class="ref">profile 4.2 · 5 · subscription 4.7</span></span></li>
+        <li><span class="n">12</span><span>경고색은 <b>사용자가 조치해야 하는 상태(결제 실패 유예)에만</b> 쓴다. 줄을 탭하면 구독 관리로 이동 — 프로필에서 결제 수단 수정을 시도하지 않는다. 두 변형을 한 기기에 나란히 그린 것은 비교용이며 실제로는 한 번에 하나만 나타난다(헤더의 플랜 줄 위치에 그려진다). <span class="ref">profile 4.2 · 5 · subscription 4.7</span></span></li>
       </ul>
     </article>
 
@@ -407,8 +380,14 @@
             <span class="iconbtn" style="margin-left:auto"><svg width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="3.2"/><path d="M11 2.8v2.4M11 16.8v2.4M2.8 11h2.4M16.8 11h2.4M5.2 5.2l1.7 1.7M15.1 15.1l1.7 1.7M16.8 5.2l-1.7 1.7M6.9 15.1l-1.7 1.7"/></svg><span class="mk">13</span></span>
           </div>
           <div class="body pad-b">
-            <span class="sk" style="height:64px; border-radius:12px"></span>
-            <span class="sk" style="height:64px; border-radius:12px"></span>
+            <div style="display:flex; align-items:center; gap:12px; padding:2px 4px">
+              <span class="sk" style="width:46px; height:46px; border-radius:99px; flex-shrink:0"></span>
+              <div style="display:flex; flex-direction:column; gap:6px; flex:1">
+                <span class="sk" style="width:76px; height:14px; border-radius:6px"></span>
+                <span class="sk" style="width:140px; height:11px; border-radius:6px"></span>
+              </div>
+            </div>
+            <span class="sk" style="width:180px; height:12px; border-radius:6px; margin-left:62px"></span>
             <span class="sk" style="height:84px; border-radius:12px"></span>
             <span class="sk" style="height:56px; border-radius:12px"></span>
             <div style="display:flex; gap:8px">
@@ -428,7 +407,7 @@
         </div>
       </div>
       <ul class="notes">
-        <li><span class="n">13</span><span><b>설정 아이콘은 로딩 중에도 즉시 노출한다</b> — 설정 진입은 프로필 조회 결과와 무관하다. <b>통계 영역도 카드 4개와 함께 스켈레톤</b>을 그린다(카드 4개 + 요약 3지표 + 그래프 자리). 스켈레톤은 0.3초 미만이면 표시하지 않는다. 편집 후 복귀 재조회에는 <b>스켈레톤을 다시 띄우지 않고</b> 기존 값을 유지한 채 카드만 갱신한다. <span class="ref">profile 5 · common-error-handling 5</span></span></li>
+        <li><span class="n">13</span><span><b>설정 아이콘은 로딩 중에도 즉시 노출한다</b> — 설정 진입은 프로필 조회 결과와 무관하다. <b>헤더(닉네임·이메일 줄·플랜 줄 자리)·카드 2개·통계 영역이 함께 스켈레톤</b>을 그린다. 스켈레톤은 0.3초 미만이면 표시하지 않는다. 편집 후 복귀 재조회에는 <b>스켈레톤을 다시 띄우지 않고</b> 기존 값을 유지한 채 해당 카드·헤더 줄만 갱신한다. <span class="ref">profile 5 · common-error-handling 5</span></span></li>
       </ul>
     </article>
 
@@ -443,23 +422,22 @@
         <div class="screen">
           <div class="statusbar"><span class="t">7:56</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
           <div class="appbar">
-            <h1>수현</h1>
             <span class="iconbtn" style="margin-left:auto"><svg width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="3.2"/><path d="M11 2.8v2.4M11 16.8v2.4M2.8 11h2.4M16.8 11h2.4M5.2 5.2l1.7 1.7M15.1 15.1l1.7 1.7M16.8 5.2l-1.7 1.7M6.9 15.1l-1.7 1.7"/></svg></span>
           </div>
           <div class="body pad-b">
-            <div class="field" style="flex-direction:column; align-items:stretch; gap:8px; padding:13px 15px">
-              <span class="t-label">현재 플랜</span>
-              <span class="t-sm" style="margin:0">정보를 불러올 수 없어요<span class="mk">14</span></span>
-              <div class="btn outline sm">다시 시도</div>
-            </div>
-            <div class="field" style="flex-direction:column; align-items:stretch; gap:3px; padding:13px 15px">
-              <div style="display:flex; align-items:center; justify-content:space-between">
-                <span class="t-label">이메일</span>
-                <span class="t-xs" style="color:var(--ink-2); font-weight:650">변경</span>
+            <div style="display:flex; align-items:center; gap:12px; padding:2px 4px 0">
+              <div style="position:relative; flex-shrink:0">
+                <div style="width:46px; height:46px; border-radius:99px; background:var(--surface-2); display:flex; align-items:center; justify-content:center; font-size:17px; font-weight:750; color:var(--ink-2)">수</div>
+                <span style="position:absolute; right:-2px; bottom:-2px; width:15px; height:15px; border-radius:99px; background:var(--kakao); border:2px solid var(--surface); display:inline-block"></span>
               </div>
-              <span style="font-size:14px; font-weight:600; color:var(--ink)">suhyeon@example.com</span>
+              <div style="display:flex; flex-direction:column; gap:2px; min-width:0">
+                <span style="font-size:15px; font-weight:750; color:var(--ink)">수현</span>
+                <span style="font-size:12px; color:var(--ink-2)">suhyeon@example.com</span>
+              </div>
             </div>
-            <div style="height:1px; background:var(--line); margin:2px 0"></div>
+            <div style="display:flex; align-items:center; gap:8px; padding:0 4px 4px 62px">
+              <span style="font-size:12px; color:var(--ink-3)">정보를 불러올 수 없어요<span class="mk">14</span></span>
+            </div>
             <div class="field" style="flex-direction:column; align-items:stretch; gap:3px; padding:13px 15px">
               <div style="display:flex; align-items:center; justify-content:space-between">
                 <span class="t-label">관심 주제 관리</span>
@@ -485,8 +463,8 @@
         </div>
       </div>
       <ul class="notes">
-        <li><span class="n">14</span><span><b>구독 조회만 실패한 부분 실패</b>(<code>failed_sections: ["plan"]</code>). 실패한 카드만 에러 + [다시 시도]를 표시하고 나머지는 정상 노출한다. [다시 시도]는 전체 재조회이며 연타는 인플라이트 중 무시. <span class="ref">profile 4.5 · 7 · profile-api 4.1</span></span></li>
-        <li><span class="n">15</span><span><b>에러 카드여도 내비게이션은 동작한다</b> — 하위 화면(구독 관리·관심사 관리)은 자기 데이터를 직접 조회한다. 세션 만료면 공통 처리로 시작 화면 이동. 오프라인 진입 시에는 마지막 요약 + 오프라인 배너, 이메일 카드만 "온라인에서 인증할 수 있어요" 안내. <span class="ref">profile 4.5 · 7 · common-error-handling 4.1</span></span></li>
+        <li><span class="n">14</span><span><b>구독 조회만 실패한 부분 실패</b>(<code>failed_sections: ["plan"]</code>). 실패한 섹션(여기서는 헤더 플랜 줄)만 에러를 표시하고 나머지는 정상 노출한다. [다시 시도]는 전체 재조회이며 연타는 인플라이트 중 무시. <span class="ref">profile 4.5 · 7 · profile-api 4.1</span></span></li>
+        <li><span class="n">15</span><span><b>섹션이 에러여도 내비게이션은 동작한다</b> — 하위 화면(구독 관리·관심사 관리)은 자기 데이터를 직접 조회한다. 세션 만료면 공통 처리로 시작 화면 이동. 오프라인 진입 시에는 마지막 요약 + 오프라인 배너, 헤더 이메일 줄만 "온라인에서 인증할 수 있어요" 안내. <span class="ref">profile 4.5 · 7 · common-error-handling 4.1</span></span></li>
       </ul>
     </article>
 
@@ -519,7 +497,7 @@
         <div class="screen">
           <div class="statusbar"><span class="t">7:57</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
           <div class="body pad-b" style="overflow-y:auto">
-            <p class="t-xs" style="text-align:center; margin:0; color:var(--ink-3)">· 카드 영역 생략 (P1과 동일) ·</p>
+            <p class="t-xs" style="text-align:center; margin:0; color:var(--ink-3)">· 헤더·카드 영역 생략 (P1과 동일) ·</p>
             <div style="display:flex; gap:8px">
               <div class="field" style="flex:1; flex-direction:column; align-items:center; gap:2px; padding:10px 6px">
                 <span style="font-size:15px; font-weight:750; color:var(--ink)">128편</span>
@@ -686,7 +664,7 @@
       </div>
       <ul class="notes">
         <li><span class="n">21</span><span><b>청취 기록이 전혀 없어도 영역을 숨기지 않는다</b> — 요약은 0으로, 그래프 두 개(주간·주제 분포)는 빈 상태 문구로 표시한다. 숨기면 무엇이 채워질 자리인지 알 수 없다. <span class="ref">profile 5 · 7</span></span></li>
-        <li><span class="n">22</span><span><b>통계 조회만 실패하면 통계 영역만 에러</b> + [다시 시도]로 두고 카드 4개와 내비게이션은 정상 동작한다 — 반대(카드 실패·통계 정상)도 같다. 부분 실패가 화면 전체를 덮지 않는다. 두 변형을 한 기기에 그린 것은 비교용이며 실제로는 하나만 나타난다. <span class="ref">profile 4.8 · 5 · 7</span></span></li>
+        <li><span class="n">22</span><span><b>통계 조회만 실패하면 통계 영역만 에러</b> + [다시 시도]로 두고 헤더·카드 2개와 내비게이션은 정상 동작한다 — 반대(헤더·카드 실패·통계 정상)도 같다. 부분 실패가 화면 전체를 덮지 않는다. 두 변형을 한 기기에 그린 것은 비교용이며 실제로는 하나만 나타난다. <span class="ref">profile 4.8 · 5 · 7</span></span></li>
       </ul>
     </article>
 
@@ -697,11 +675,11 @@
 <section class="verify">
   <p class="sid">검토 필요</p>
   <h2>프로필에서 나온 것</h2>
-  <p>설정 진입점(우상단 아이콘)·이메일 3상태 구분은 profile.md에서 확정되어 반영했습니다. 카드 구성은 합의(2026-08-06)로 <b>커리어 카드 복원 — 4카드</b>로 재확정되어 <b>profile.md 개정 완료</b>, 이 시안(P1·P2·P6·P7)에 반영했습니다. 청취 통계도 세부 기준 3건까지 확정되어 profile.md 4.5~4.7 반영 완료(P8–P10). 남은 것은 spec(profile-api·profile-uiux) 반영뿐입니다(V4·V5).</p>
+  <p>설정 진입점(우상단 아이콘)·이메일 3상태 구분은 profile.md에서 확정되어 반영했습니다. 카드 구성은 합의(2026-08-06)로 4카드로 재확정됐다가, <b>개정(2026-08-15)으로 플랜·이메일 카드가 헤더로 통합되어 2카드 + 헤더 구성이 됐습니다</b>(<code>changes/archive/profile-email-entry-header(fe).md</code> — 이 시안 P1~P7 반영 완료). 청취 통계도 세부 기준 3건까지 확정되어 profile.md 4.5~4.7 반영 완료(P8–P10).</p>
 
   <div class="vlist">
     <div class="vitem">
-      <h3><span class="vid">V5</span>해소 — 카드 구성 4카드 재확정, features·spec·시안 전부 반영 완료</h3>
+      <h3><span class="vid">V5</span>해소 — 카드 구성 4카드 재확정 (이후 2026-08-15 개정으로 플랜·이메일은 헤더 통합 — 2카드 + 헤더)</h3>
       <p><b>합의(2026-08-06):</b> 커리어 카드를 복원해 <b>4카드</b>(현재 플랜 · 이메일 · 관심 주제 관리 · 커리어 정보)로 확정했다. [관심 주제 관리]는 관심사 관리 화면(interest-management.md)으로, [커리어 정보]는 <b>별도의 커리어 정보 화면(career.md 신설)</b>으로 — 두 편집을 한 화면에 합치지 않는다. <b>profile.md 4.1·4.4·5장 개정 완료(features 반영 완료)</b>, 시안 P1·P2·P6·P7 반영. <b>profile-api.md(career 응답 복원)·profile-uiux.md(4카드·커리어 카피)도 2026-08-06 spec 최신화로 반영 완료</b> — 남은 것 없음.</p>
       <p class="where">profile 4.1 · 4.4 · 5 / career 1 · 2 / profile-api 1 · 4.1 · 9 / profile-uiux 1 · 9 / 화면 P1 · P2 · P6 · P7</p>
     </div>

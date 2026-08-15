@@ -52,6 +52,7 @@ describe('EmailVerificationService', () => {
         Promise.resolve(value),
       ),
       findLatestByUserIdAndEmailForUpdate: jest.fn(),
+      countByUserIdSince: jest.fn(() => Promise.resolve(0)),
       findActiveByUserId: jest.fn(),
       findByIdAndUserId: jest.fn(),
       deleteById: jest.fn(),
@@ -150,6 +151,57 @@ describe('EmailVerificationService', () => {
 
       // then
       expect(view.sendCountUsed).toBe(1);
+    });
+
+    it('최근 1시간 계정 발송 합계가 20회에 도달했으면 일반 오류로 거절한다', async () => {
+      // given — 주소를 갈아 끼워도 계정 합산에 걸린다 (auth.md 4.5 백스톱).
+      // 두 창 모두 20건 — 24시간 상한(50)에는 여유가 있어도 1시간 상한(20)에 걸린다
+      repository.countByUserIdSince.mockResolvedValue(20);
+
+      // when
+      const sending = service.sendCode(USER_ID, 'another@example.com', NOW);
+
+      // then — 전용 코드·해제 시각 없이 일반 429로만 거절한다 (클라이언트 비노출)
+      await expect(sending).rejects.toMatchObject({
+        errorCode: ErrorCode.TOO_MANY_REQUESTS,
+        retryAfterSec: undefined,
+      });
+      expect(mailClient.sendVerificationCode).not.toHaveBeenCalled();
+    });
+
+    it('최근 24시간 계정 발송 합계가 50회에 도달했으면 일반 오류로 거절한다', async () => {
+      // given — 1시간 창은 여유가 있어도 24시간 총량에 걸린다
+      repository.countByUserIdSince.mockImplementation((_userId, since) =>
+        Promise.resolve(
+          since.getTime() === NOW.getTime() - 86_400_000 ? 50 : 3,
+        ),
+      );
+
+      // when
+      const sending = service.sendCode(USER_ID, EMAIL, NOW);
+
+      // then
+      await expect(sending).rejects.toMatchObject({
+        errorCode: ErrorCode.TOO_MANY_REQUESTS,
+      });
+      expect(mailClient.sendVerificationCode).not.toHaveBeenCalled();
+    });
+
+    it('계정 발송 합계가 상한 미만이면 정상 발송한다', async () => {
+      // given
+      repository.countByUserIdSince.mockImplementation((_userId, since) =>
+        Promise.resolve(
+          since.getTime() === NOW.getTime() - 3_600_000 ? 19 : 49,
+        ),
+      );
+      repository.findLatestByUserIdAndEmailForUpdate.mockResolvedValue(null);
+
+      // when
+      const view = await service.sendCode(USER_ID, EMAIL, NOW);
+
+      // then
+      expect(view.sendCountUsed).toBe(1);
+      expect(mailClient.sendVerificationCode).toHaveBeenCalledTimes(1);
     });
 
     it('이미 인증까지 끝난 같은 주소면 코드를 보내지 않는다', async () => {

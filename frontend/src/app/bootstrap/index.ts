@@ -1,6 +1,6 @@
 import { registerTokenProvider } from '@/shared/api/api-client';
 
-import { sessionService } from '@/features/auth';
+import { registerEmailVerifiedListener, sessionService } from '@/features/auth';
 import { registerCareerSavedListener } from '@/features/career';
 import { registerInterestSavedListener } from '@/features/interest';
 import {
@@ -35,6 +35,14 @@ export const bootstrapApp = (): void => {
   // 설정은 커리어 값을 표시하지 않아(진입 행 라벨뿐 — settings.md 4.1) invalidate하지 않는다.
   registerCareerSavedListener(() => {
     void queryClient.invalidateQueries({ queryKey: profileKeys.summary() });
+  });
+
+  // 이메일 인증 성공 → 프로필·설정 요약 재조회(auth-uiux.md 4.15 — 복귀 화면의
+  // 값과 미인증 배지가 함께 갱신돼야 한다. 주소가 같고 인증 상태만 바뀌는 경우가 있어
+  // 주소 비교로 갱신을 생략하면 배지가 남는다).
+  registerEmailVerifiedListener(() => {
+    void queryClient.invalidateQueries({ queryKey: profileKeys.summary() });
+    void queryClient.invalidateQueries({ queryKey: settingsKeys.summary() });
   });
 
   registerPlayerLibraryBridge({
