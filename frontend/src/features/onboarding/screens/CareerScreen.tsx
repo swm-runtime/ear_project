@@ -208,11 +208,13 @@ const styles = StyleSheet.create({
   },
   optionLabel: {
     fontSize: theme.font.size.sm,
+    // 선택 여부와 무관하게 굵기를 고정한다 — 선택 시 굵어지면 글자 폭이 변해
+    // flexWrap 줄의 뒤 칩들이 밀린다(주제 칩과 같은 규칙 — onboarding-uiux.md 7장)
+    fontWeight: '600',
     color: theme.color.textPrimary,
   },
   optionLabelSelected: {
     color: theme.color.onPrimary,
-    fontWeight: '600',
   },
   input: {
     minHeight: theme.touchTarget.minHeight,
