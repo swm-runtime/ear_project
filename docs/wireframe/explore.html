@@ -31,6 +31,7 @@
     <a href="onboarding.html">온보딩</a>
     <a href="library.html">라이브러리</a>
     <a href="explore.html" aria-current="page">탐색</a>
+    <a href="content-detail.html">콘텐츠 상세</a>
     <a href="player.html">플레이어</a>
     <a href="profile.html">프로필</a>
     <a href="settings.html">설정</a>
@@ -143,7 +144,7 @@
         </div>
       </div>
       <ul class="notes">
-        <li><span class="n">1</span><span>검색(FR-22)은 <b>P1 유지</b> — 합의(2026-08-06): <b>검색창은 비활성 상태로 노출</b>한다. 탭해도 검색 화면(E6)으로 전환하지 않으며, P1 도입 시 활성화된다. 검색창이 자리를 지키므로 잔여 표시의 배치도 그대로다. <span class="ref">explore 4.5</span></span></li>
+        <li><span class="n">1</span><span>검색(FR-22)은 <b>MVP 포함으로 격상됐다</b>(합의 2026-08-23 — 종전 "P1 유지·비활성 노출"(2026-08-06) 폐기). 검색창을 탭하면 검색 화면(E6)으로 전환한다. 잔여 표시의 배치는 그대로다. <span class="ref">explore 4.5 · 4.5-1</span></span></li>
         <li><span class="n">2</span><span><b>잔여 재생 표시 — 검색창 줄 우측 한 곳.</b> 탐색에는 앱바가 없어 라이브러리의 배치가 그대로 옮겨오지 않는다. 주제 칩 줄(스크롤을 따라 사라짐)에도, 행마다(콘텐츠 속성이 아닌 하루 상태)에도 넣지 않는다. 라이브러리와 <b>같은 서버 값</b>이라 두 화면의 숫자가 항상 같다. 무제한 티어·값 없음이면 표시하지 않는다. <b>한도 미만 여부와 무관하게 상시 노출</b>로 확정(합의 2026-08-06). <span class="ref">explore 4.4-1 · paywall 5</span></span></li>
         <li><span class="n">3</span><span>주제 칩은 <b>관심 주제를 앞쪽에</b> 배치한 가로 스크롤. 다중 선택은 <b>OR 조합</b>이며 선택하면 단일 목록(E2)으로 전환한다. <span class="ref">explore 4.2</span></span></li>
         <li><span class="n">4</span><span><b>섹션은 제목 + 세로 행 목록이다</b> — 가로 스크롤 카드·그리드를 쓰지 않는다(FE 확정). 섹션이 바뀌어도 행의 모양은 같다 — 목록의 밀도와 스캔 방향이 화면 전체에서 하나여야 한다. 섹션 구성·순서·제목·행 수는 <b>서버 제어</b>이고 클라이언트는 내려온 <code>title</code>을 그대로 그린다. <span class="ref">explore 4.1 · explore-uiux 4.1 · explore-api 4.1</span></span></li>
@@ -377,8 +378,8 @@
 <section class="section">
   <div class="section-head">
     <p class="sid">E6 – E12</p>
-    <h2>검색(P1) · 빈 상태 · 예외</h2>
-    <p>검색 화면(E6·E7)은 <b>P1 활성화 이후</b>의 모습입니다 — MVP에서 검색창은 비활성입니다(합의 2026-08-06). 검색 화면에서는 잔여 표시를 숨기지만 <b>판정은 동일하게</b> 거칩니다. 피드가 비는 것은 <b>발행 콘텐츠 풀이 0건일 때뿐</b> — 담김 여부로는 절대 비지 않습니다.</p>
+    <h2>검색 · 빈 상태 · 예외</h2>
+    <p>검색은 <b>MVP 포함으로 격상</b>됐습니다(합의 2026-08-23). 검색 화면에서는 잔여 표시를 숨기지만 <b>판정은 동일하게</b> 거칩니다. 결과 행은 피드 행과 같은 문법·같은 동작이며, 검색 상태는 피드 복귀 시 버립니다(재진입은 최근 검색어가 받습니다). 피드가 비는 것은 <b>발행 콘텐츠 풀이 0건일 때뿐</b> — 담김 여부로는 절대 비지 않습니다.</p>
   </div>
 
   <div class="shots">
@@ -419,8 +420,53 @@
         </div>
       </div>
       <ul class="notes">
-        <li><span class="n">15</span><span>검색창을 탭하면 검색 화면으로 전환하고 <b>잔여 재생 표시를 숨긴다</b> — 검색창이 입력 상태로 그 줄을 다 쓰고, 이 화면에서는 재생을 시작하지 않는다. <b>숨긴 것은 표시이지 규칙이 아니다</b> — 결과 재생은 판정·팝업을 동일하게 거친다. 2자 이상 입력 시 300ms 디바운스 자동 검색. <span class="ref">explore 4.4-1 · 4.5 · 7</span></span></li>
-        <li><span class="n">16</span><span>최근 검색어는 <b>기기 로컬 10건</b>(개별·전체 삭제). 서버에 보내지 않는다 — <code>SearchHistory</code>는 테이블이 아니다. <span class="ref">explore 4.5 · domain 13.1</span></span></li>
+        <li><span class="n">15</span><span>검색창을 탭하면 검색 화면으로 전환하고 <b>잔여 재생 표시를 숨긴다</b> — 검색창이 입력 상태로 그 줄을 다 쓰고, 이 화면에서는 재생을 시작하지 않는다. <b>숨긴 것은 표시이지 규칙이 아니다</b> — 결과 재생은 판정·팝업을 동일하게 거친다. 2자 이상 입력 시 300ms 디바운스 자동 검색, 키보드 [검색] 제출은 즉시 실행. [취소]·뒤로가기로 복귀하면 <b>피드 상태(필터·구간·스크롤)는 그대로, 검색 상태는 버린다</b>. <span class="ref">explore 4.4-1 · 4.5-1 · 4.5-2 · 7</span></span></li>
+        <li><span class="n">16</span><span>최근 검색어는 <b>기기 로컬 10건</b>(개별·전체 삭제). 서버에 보내지 않는다 — <code>SearchHistory</code>는 테이블이 아니다. <b>저장 시점은 [검색] 제출 또는 결과 행 탭</b> — 디바운스 자동 검색마다 저장하면 타이핑 중간어가 쌓인다. 추천 키워드는 <b>서버가 내려주는 주제명</b>(관심 주제 앞배치 — 칩 정렬 재사용)이고 탭하면 그 키워드로 즉시 검색된다. <span class="ref">explore 4.5-4 · domain 13.1</span></span></li>
+      </ul>
+    </article>
+
+    <!-- E6 변형 — 검색 결과 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">E6 변형</span><h3>검색 결과</h3>
+        <p class="cap">피드 행과 같은 문법의 단일 목록 · 커서 20건</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:45</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="body" style="padding-top:8px">
+            <div style="display:flex; align-items:center; gap:8px">
+              <div class="field filled" style="flex:1; padding:10px 13px; gap:8px; justify-content:flex-start">
+                <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="9" cy="9" r="6"/><path d="M13.6 13.6L17 17"/></svg>
+                <span class="t-sm" style="color:var(--ink); font-weight:600">글쓰기</span>
+              </div>
+              <span class="t-sm" style="color:var(--ink-2); font-weight:600">취소</span>
+            </div>
+            <div class="stack" style="gap:13px; margin-top:6px">
+              <div class="item">
+                <div class="art sm a8"></div>
+                <div class="meta"><span class="ttl">글이 안 써질 때 여는 문서<span class="mk">27</span></span><span class="sub">롱블랙<span class="dot"></span>정하늘<span class="dot"></span>11분</span></div>
+                <span class="iconbtn"><svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><circle cx="10" cy="4" r="1.6"/><circle cx="10" cy="10" r="1.6"/><circle cx="10" cy="16" r="1.6"/></svg></span>
+              </div>
+              <div class="item">
+                <div class="art sm a6"><span class="done-mark"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2l2.4 2.4L9.5 4"/></svg></span></div>
+                <div class="meta"><span class="ttl">숫자로 말하는 법 — 글쓰기 편</span><span class="sub">퍼블리<span class="dot"></span>박지우<span class="dot"></span>13분</span></div>
+                <span class="iconbtn"><svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><circle cx="10" cy="4" r="1.6"/><circle cx="10" cy="10" r="1.6"/><circle cx="10" cy="16" r="1.6"/></svg></span>
+              </div>
+              <div class="item">
+                <div class="art sm a4"></div>
+                <div class="meta"><span class="ttl">보고서 글쓰기 루틴<span class="mk">28</span></span><span class="sub">폴인<span class="dot"></span>이서준<span class="dot"></span>12분</span></div>
+                <span class="iconbtn"><svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><circle cx="10" cy="4" r="1.6"/><circle cx="10" cy="10" r="1.6"/><circle cx="10" cy="16" r="1.6"/></svg></span>
+              </div>
+            </div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">27</span><span>결과 행은 <b>피드 행과 완전히 같은 문법·같은 동작</b>이다 — 썸네일·제목·출처·저자·길이·완청 체크, 행 탭=재생 판정, 더보기 시트(담기/제거·원문 보기·상세 정보). 별도 화면 ID를 두지 않고 E6의 상태 변형으로 다룬다. <b>정렬은 서버가 정하고(관련도) 클라이언트는 재배열하지 않는다.</b> 커서 기반 20건 무한 스크롤(피드와 동일). <span class="ref">explore 4.5-3 · 5</span></span></li>
+        <li><span class="n">28</span><span>연속 입력으로 응답 순서가 뒤바뀌면 <b>최신 질의의 응답만 반영</b>한다 — 늦게 도착한 이전 질의 응답으로 화면을 덮지 않는다. 검색 중 네트워크가 끊기면 직전 결과를 유지하고 상단 배너로 알린다. <span class="ref">explore 4.5-2 · 7</span></span></li>
       </ul>
     </article>
 
@@ -640,7 +686,7 @@
     <article class="shot">
       <div class="shot-head">
         <span class="shot-id">E12</span><h3>더보기 액션시트</h3>
-        <p class="cap">원문 보기 · 담기/제거 — 공유 없음(MVP 제외)</p>
+        <p class="cap">상세 정보 · 원문 보기 · 담기/제거 — 공유 없음(MVP 제외)</p>
       </div>
       <div class="device">
         <div class="island"></div>
@@ -671,6 +717,10 @@
             </div>
             <div style="height:1px; background:var(--line)"></div>
             <div class="row">
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7.5"/><path d="M10 9v4.5"/><circle cx="10" cy="6.4" r=".2" fill="currentColor"/></svg>
+              상세 정보<span class="mk">29</span>
+            </div>
+            <div class="row">
               <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 11.5L17 3M17 3h-5M17 3v5"/><path d="M15 11v5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 3 16V7a1.5 1.5 0 0 1 1.5-1.5H9"/></svg>
               원문 보기<span class="mk">26</span>
             </div>
@@ -686,7 +736,8 @@
       <ul class="notes">
         <li><span class="n">24</span><span><b>담기/제거의 유일한 진입점.</b> 시트 상단에 대상 콘텐츠를 다시 보여준다(딤 처리된 행을 눈으로 확인하지 못한 채 조작하게 하지 않는다). <code>library</code>가 <code>null</code>이면 <b>[라이브러리에 담기]</b>, 값이 있으면 <b>[라이브러리에서 제거]</b> — <b>출처(드립·온보딩 적립분)와 무관하게 제거를 허용한다.</b> 제거는 라이브러리 소프트 삭제 + 드립 영구 제외(<code>unsave</code>)와 같은 결과이며 고지하지 않는다. explore.md 4.1·4.3은 이 구성(더보기 시트 소유·행 담김 표시)으로 <b>개정 완료</b>(2026-08-06). <span class="ref">explore 4.3 · explore-api 4.3~4.4 · 9 · explore-uiux 4.4</span></span></li>
         <li><span class="n">26</span><span><b>[원문 보기]가 추가됐다</b>(검토 결정 2026-08-10 — 라이브러리 L4·플레이어 PL7과 세 화면 통일, <code>changes/archive/more-sheet-source-link-unified(fe).md</code>). <code>source_url</code>이 있는 콘텐츠만 노출하고, 탭하면 인앱 브라우저로 열며 원문 유입 클릭을 <code>source_link_clicks</code>에 기록한다(player 4.5와 같은 규칙). <span class="ref">explore 4.3 · player 4.5 · domain 6.6</span></span></li>
-        <li><span class="n">25</span><span><b>공유(FR-27)는 MVP 제외 확정</b>(합의 2026-08-06) — 시트에 [공유] 항목을 노출하지 않는다. 시트 구성은 <b>대상 요약 + [원문 보기] + [라이브러리에 담기/제거] + [닫기]</b>다(원문 보기 추가 — 2026-08-10). <b>공유는 P1 도입 시 시트에 복귀한다</b> — 그때의 공유 텍스트는 제목 + 저자·출처 + <b>스토어 링크</b>(수신자용 웹 랜딩은 MVP 비범위)이고, 시트 오픈·공유 취소는 신호로 기록하지 않는다(<code>user_signals</code>에 <code>share</code>가 없다). "상세"도 합의에 따라 <b>추후 명세를 추가한 뒤 개발</b>한다 — 그 전까지 시트에 항목을 두지 않는다. 공유·상세가 빠져도 담기/제거가 있으므로 더보기 버튼은 유지된다. <span class="ref">explore 4.6 · 7 · domain 6.4</span></span></li>
+        <li><span class="n">25</span><span><b>공유(FR-27)는 MVP 제외 확정</b>(합의 2026-08-06) — 시트에 [공유] 항목을 노출하지 않는다. 시트 구성은 <b>대상 요약 + [상세 정보] + [원문 보기] + [라이브러리에 담기/제거] + [닫기]</b>다(상세 정보 추가 — 2026-08-23). <b>공유는 P1 도입 시 시트에 복귀한다</b> — 그때의 공유 텍스트는 제목 + 저자·출처 + <b>스토어 링크</b>(수신자용 웹 랜딩은 MVP 비범위)이고, 시트 오픈·공유 취소는 신호로 기록하지 않는다(<code>user_signals</code>에 <code>share</code>가 없다). <span class="ref">explore 4.6 · 7 · domain 6.4</span></span></li>
+        <li><span class="n">29</span><span><b>[상세 정보]가 추가됐다</b>(합의 2026-08-23 — 상세 화면 도입, FR-40 신설). 탭하면 시트가 닫히고 <b>콘텐츠 상세 화면</b>으로 이동한다. 라이브러리·플레이어 더보기와 세 화면 통일([원문 보기]와 같은 원칙 — README 결정 44·47). 규칙은 <code>content-detail.md</code>가 소유하며 시안은 <a href="content-detail.html">content-detail.html</a>. <span class="ref">content-detail 2 · explore 3 · 4.5-3</span></span></li>
       </ul>
     </article>
 
@@ -709,8 +760,8 @@
     <div class="vitem soft">
       <h3><span class="vid">해소</span>합의(2026-08-06)로 해소 — features·시안 반영 완료</h3>
       <p>V1 담기 UI — 더보기 시트 소유로 explore.md 4.1·4.3 개정 완료. V2(2026-08-07) — 행의 "담김" 표시를 폐지하고 <b>완청 체크</b>를 더했다.<br>
-      V3 "상세" — 추후 명세를 추가한 뒤 개발, 그 전까지 시트에 항목 없음(explore.md 3장 정리).<br>
-      V4 검색창 — 검색은 P1 유지, MVP에서는 검색창을 비활성 상태로 노출(explore.md 4.5).<br>
+      V3 "상세" — <b>재개정(2026-08-23): 상세 화면 도입 확정</b>(FR-40 신설, content-detail.md 작성). 시트에 [상세 정보] 항목 추가(E12).<br>
+      V4 검색창 — <b>재개정(2026-08-23): 검색 MVP 포함 격상</b>(explore.md 4.5 상세화 — 진입·이탈 4.5-1 · 질의 4.5-2 · 결과 4.5-3 · 최근 검색어 4.5-4). 종전 "P1 유지·비활성 노출"(2026-08-06) 폐기. spec/api·uiux의 P1 표기 개정은 추후 spec 작성 시 반영.<br>
       V5 잔여 표시 — 한도 미만 여부와 무관하게 상시 노출로 확정(explore.md 4.4-1).<br>
       V6 인기 섹션 첫 주 — 표본 크기와 무관하게 같은 선정 기준으로 정렬한 상위를 노출, 섹션을 숨기지 않음(explore.md 4.1).<br>
       E10 오프라인 캐시 피드 — 사용하지 않기로 확정, 에러 화면 + [다시 시도]로 교체.<br>
