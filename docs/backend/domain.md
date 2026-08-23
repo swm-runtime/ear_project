@@ -481,6 +481,9 @@ contents
 idx_contents_status_published_at (status, published_at DESC)
 idx_contents_series_id_episode_no (series_id, episode_no)
 idx_contents_partner_id
+idx_contents_title_trgm        GIN (title gin_trgm_ops)        ★검색 (FR-22)
+idx_contents_description_trgm  GIN (description gin_trgm_ops)  ★검색 (FR-22)
+idx_contents_author_name_trgm  GIN (author_name gin_trgm_ops)  ★검색 (FR-22)
 
 chk_contents_partner_disclosure
   origin <> 'partner'
@@ -510,6 +513,14 @@ chk_contents_partner_disclosure
 - `origin = ai_generated`의 `source_name`에는 **"참고한 자료" 소스 표기**가 들어간다(복수 소스 가능). 근거 소스가 단일 원문·단일 저자가 아니므로 `author_name`·`source_url`은 선택이다(`admin.md` 3.1 — `content-pipeline.md` 4.3의 AI 생성 고지 멘트와 같은 기준).
 - **복수 소스를 별도 테이블·배열로 정규화하지 않는다.** 이 값의 용도는 출처 고지 문구 표시(FR-12) 하나뿐이고, 소스 단위 질의·조인·집계 요구가 없다 — `content_topics`를 정규화한 이유(후보 필터 인덱스)가 여기에는 없다. 표기 문자열 하나로 담고, 소스 단위 관리 요구가 생기면 그때 테이블로 승격한다. 다만 **소스 목록·정책 확인 기록을 시스템 필드로 남길지는 미결이다**([15.1](#151-남아-있는-결정) — `admin.md` 4.2-1의 적법 수집 확인).
 - `chk_contents_partner_disclosure`가 파트너 콘텐츠의 필수 고지(FR-12 — 예외 없는 필수)를 DB에서 이중 방어한다([1.1](#11-모든-테이블에-공통으로-들어가는-것)). 업로드 검증이 뚫려도 고지 정보 없는 파트너 콘텐츠 행이 생기지 않는다.
+
+**검색(FR-22, MVP)은 `pg_trgm` 부분 일치다** (확정 2026-08-23 — `explore.md` 4.5-5)
+
+- 매칭·랭킹 규칙(필드 가중·동점 해소·미지원 범위)은 `explore.md` 4.5-5가 소유한다. 이 문서는 그것을 지탱하는 인덱스만 정의한다.
+- **확장 `pg_trgm`이 필요하다** — 마이그레이션에서 `CREATE EXTENSION IF NOT EXISTS pg_trgm`. tsvector는 한국어 사전이 없어 폐기했다.
+- 검색 대상 4필드(제목·설명·저자·주제명) 중 **`topics.name`에는 인덱스를 두지 않는다.** 주제 수가 수십 개 수준이라 순차 스캔으로 충분하다([4.1](#41-topics)이 `content_count` 컬럼을 두지 않은 것과 같은 규모 근거).
+- 2자 질의는 트라이그램(3자)을 추출하지 못해 이 인덱스를 타지 못한다 — 초기 콘텐츠 풀 규모에서는 허용하며, 대응 방침은 `explore.md` 4.5-5가 정한다(최소 길이 상향 금지).
+- NFC 정규화·소문자 통일은 **적재·질의 양쪽에서 애플리케이션 계층이 한다.** 정규화 사본 컬럼을 두지 않는다 — 파생값이다([1.5](#15-파생값을-컬럼으로-두지-않는다)).
 
 **검수 완료 확인(체크)은 컬럼으로 두지 않는다** (합의 2026-08-06 — `admin.md` 3.1·4.2-1의 이행 기록)
 
@@ -1452,3 +1463,9 @@ idx_archived_subscriptions_archived_at
 | 방해금지 폐기 | 설정 필드 없음 유지, `notification_logs.skip_reason`에서 `quiet_hours` 제거 | 3.5, 9.1, 14장 |
 | 이어 PICK 알림 명칭 | 사용자 노출명만 변경 — `user_settings.is_drip_notification_enabled` **컬럼명 유지** | 3.5 |
 | 버전 정보 원천 | `latest_version`·`min_supported_version`은 **배포 설정이 원천**(13.3 서술과 정합 확인) — 설정 화면의 버전 표시·업데이트 판정도 같은 원천, 판정은 서버 | 13.3 |
+
+**2026-08-23 확정 반영분**
+
+| 항목 | 결정 | 반영 위치 |
+|---|---|---|
+| 검색 매칭·인덱스 (FR-22, MVP 격상) | **`pg_trgm` 부분 일치 확정**(`explore.md` 4.5-5 — tsvector는 한국어 사전이 없어 폐기). `contents` 3필드(title·description·author_name)에 트라이그램 GIN 인덱스 신설, `topics.name`은 인덱스 없음(주제 수십 개 — 순차 스캔), 확장 `pg_trgm` 도입. NFC 정규화는 애플리케이션 계층 — 정규화 사본 컬럼을 두지 않는다 | 5.1 |
