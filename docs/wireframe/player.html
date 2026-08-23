@@ -31,6 +31,7 @@
     <a href="onboarding.html">온보딩</a>
     <a href="library.html">라이브러리</a>
     <a href="explore.html">탐색</a>
+    <a href="content-detail.html">콘텐츠 상세</a>
     <a href="player.html" aria-current="page">플레이어</a>
     <a href="profile.html">프로필</a>
     <a href="settings.html">설정</a>
@@ -117,7 +118,7 @@
       </div>
       <ul class="notes">
         <li><span class="n">1</span><span>플레이어를 접는 조작은 셋이고 전부 같은 동작이다 — <b>상단 셰브론 탭 · 뒤로가기 · 화면을 아래로 스와이프</b>(검토 추가 2026-08-09, 풀스크린 플레이어의 표준 제스처). 재생은 유지되고 미니플레이어로 접힌다. 재생을 멈추는 조작은 일시정지뿐이다. 스와이프 축소는 player.md 3장 조작 목록에 반영됐다(개정 2026-08-09 — 검증 V3). <span class="ref">player 3 · 5 · library 4.2</span></span></li>
-        <li><span class="n">2</span><span>더보기(⋯) → PL7 시트. 원문 보기 · 라이브러리에서 삭제 — 공유(P1)는 미노출. <span class="ref">player 3</span></span></li>
+        <li><span class="n">2</span><span>더보기(⋯) → PL7 시트. 상세 정보 · 원문 보기 · 라이브러리에서 삭제 — 공유(P1)는 미노출(상세 정보 추가 — 합의 2026-08-23). <span class="ref">player 3 · content-detail 2</span></span></li>
         <li><span class="n">3</span><span><b>저자·출처는 상시 노출</b>이고(FR-12), <code>source_url</code>이 있을 때만 [원문 보기]를 노출한다 → 인앱 브라우저. 탭 이벤트는 <code>source_link_clicks</code>에 적재된다(확정 2026-08-06 — <code>user_signals</code>는 스코어링 전용이라 쓰지 않는다). 파트너 정산 지표(<code>content_stats.source_link_click_count</code>)의 원천이다. <span class="ref">player 4.5 · domain 6.6 · partner-control 4.6</span></span></li>
         <li><span class="n">4</span><span>시크바 드래그 중에는 <b>위치 라벨만 갱신</b>하고 손을 뗀 시점에 seek한다. 시크로 건너뛴 구간은 "들은 것"이 아니다 — 완청 판정은 <code>max_reached_sec</code>(연속 도달 최대 위치) 기준이라 <b>90% 지점으로 점프한 것은 완청이 아니다</b>(2배속으로 끝까지 들은 것은 완청이다). <code>seek</code>·<code>rate_change</code>는 신호로 기록하지 않는다. <span class="ref">player 4.2 · 4.4 · 7</span></span></li>
         <li><span class="n">5</span><span>재생이 <b>실제로 시작된 시점</b>에 서버가 묶어서 처리한다 — <code>unplayed → in_progress</code>, 무료 카운트 +1(<code>play_records</code> upsert, 04시 경계), <code>user_signals(play)</code>, 드립 제외 적재. 위치 저장은 5초 주기 + 일시정지·이탈·백그라운드 진입 시점. 실제 청취 시간(<code>listened_sec</code>)도 재생 종료 시점마다 누적한다(원천 로그는 MVP부터). <span class="ref">player 4.1 · 4.3 · 4.4-1 · paywall 4.3</span></span></li>
@@ -364,7 +365,7 @@
     <article class="shot">
       <div class="shot-head">
         <span class="shot-id">PL7</span><h3>더보기 시트</h3>
-        <p class="cap">L4·E12와 같은 문법 — 대상 요약 · 액션 행 · [닫기] · 공유(P1) 미노출</p>
+        <p class="cap">L4·E12와 같은 문법 — 대상 요약 · 상세 정보 · 원문 보기 · 삭제 · [닫기] · 공유(P1) 미노출</p>
       </div>
       <div class="device">
         <div class="island"></div>
@@ -383,6 +384,10 @@
             </div>
             <div style="height:1px; background:var(--line)"></div>
             <div class="row">
+              <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7.5"/><path d="M10 9v4.5"/><circle cx="10" cy="6.4" r=".2" fill="currentColor"/></svg>
+              상세 정보<span class="mk">E</span>
+            </div>
+            <div class="row">
               <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 11.5L17 3M17 3h-5M17 3v5"/><path d="M15 11v5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 3 16V7a1.5 1.5 0 0 1 1.5-1.5H9"/></svg>
               원문 보기<span class="mk">B</span>
             </div>
@@ -399,6 +404,7 @@
         <li><span class="n">D</span><span><b>시트 문법을 L4·E12와 통일했다</b>(검토 결정 2026-08-09) — 대상 요약(썸네일·제목·출처·저자·길이) 상단 + 좌측 정렬 액션 행 + [닫기]. 대상 요약을 두는 근거도 같다 — 시트가 올라오면 화면이 딤 처리되므로, 삭제 대상을 눈으로 확인하지 못한 채 파괴적 액션을 누르게 하지 않는다. 라이브러리에서 빼는 조작은 세 화면 모두 위험색이다. <span class="ref">library-uiux 4.7 · explore-uiux 4.4</span></span></li>
         <li><span class="n">B</span><span><b>공유는 그리지 않았다</b> — FR-27(OS 공유)이 합의(2026-08-06)로 <b>MVP 제외 확정</b>이라 라이브러리·탐색 더보기와 통일했다(검토 결정 2026-08-09). player.md 3장 조작 목록의 "공유" 표기는 이 합의와 어긋나 개정 기록이 필요하다 — 검증 V3. <b>P1에서 공유가 활성화되면 형태는 탐색 정의를 따른다</b>(E12 — 담기/제거 아래 [공유] 추가, OS 공유 시트, 텍스트 = 제목 + 저자·출처 + 스토어 링크). <b>[원문 보기]는 세 화면(라이브러리 L4 · 탐색 E12 · 플레이어 PL7) 더보기에 모두 두는 것으로 확정됐다</b>(검토 결정 2026-08-10 — 검증 V6 해소, <code>changes/archive/more-sheet-source-link-unified(fe).md</code>). 화면 상시 노출(FR-12)과의 중복은 파트너 유입 접점 확대로 감수한다. <span class="ref">player 3 · 4.5 · explore 4.3 · explore-uiux 4.4 · library-uiux 4.7</span></span></li>
         <li><span class="n w">C</span><span>삭제 규칙(소프트 삭제 · 스낵바 5초 실행취소 · 진행 기록 유지)은 <b>라이브러리 소유</b>다. 삭제 직후의 플레이어는 <b>화면·재생 모두 유지로 확정됐다</b>(검토 결정 2026-08-10 — 검증 V2 해소, library 4.5 · player 7장 반영). 삭제 결과는 스낵바로만 알린다. <span class="ref">library 4.5 · player 7</span></span></li>
+        <li><span class="n">E</span><span><b>[상세 정보]가 추가됐다</b>(합의 2026-08-23 — 상세 화면 도입, FR-40 신설, L4·E12와 세 화면 통일). 탭하면 시트가 닫히고 콘텐츠 상세 화면으로 이동하며, <b>재생은 유지</b>되고 뒤로가기로 플레이어에 복귀한다. player.md 3장 조작 목록 반영 완료(2026-08-23). 규칙은 <code>content-detail.md</code>, 시안은 <a href="content-detail.html">content-detail.html</a>. <span class="ref">content-detail 2 · player 3</span></span></li>
       </ul>
     </article>
 
