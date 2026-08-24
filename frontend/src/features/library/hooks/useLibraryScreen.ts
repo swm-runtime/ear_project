@@ -1,14 +1,21 @@
 import { useNavigation } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Linking } from 'react-native';
 
 import { isApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
+import { generateId } from '@/shared/lib/generate-id';
+import { logger } from '@/shared/lib/logger';
 import { useToastStore } from '@/shared/ui/toast.store';
 
-import { hydrateSuppressedServiceDate, usePlayGate, usePlayLimitStore } from '@/features/player';
+import {
+  hydrateSuppressedServiceDate,
+  sendSourceLinkClick,
+  usePlayGate,
+  usePlayLimitStore,
+} from '@/features/player';
 
 import { libraryKeys } from '../api/library.api';
 import { DELETE_UNDO_DURATION_MS } from '../library.constants';
@@ -236,6 +243,31 @@ export const useLibraryScreen = () => {
       ? resumeTarget
       : null;
 
+  /** L4 [상세 정보] — 시트를 닫고 상세 화면으로 이동한다(content-detail.md 2장). 뒤로가기로
+      복귀하며 목록 스크롤 위치는 유지된다(화면이 스택 위에 쌓일 뿐 목록은 언마운트되지 않는다) */
+  const openDetail = (item: LibraryItem) => {
+    setMoreSheetItem(null);
+    navigation.navigate('Main', {
+      screen: 'ContentDetail',
+      params: { contentId: item.content.id, entryPoint: 'library' },
+    });
+  };
+
+  /** L4 [원문 보기](FR-12) — 클릭 기록과 브라우저 열기는 서로를 기다리지 않는다(player-api.md 4.5) */
+  const openSourceLink = (item: LibraryItem) => {
+    const url = item.content.sourceUrl;
+    if (!url) return;
+    setMoreSheetItem(null);
+    sendSourceLinkClick({ contentId: item.content.id, idempotencyKey: generateId() }).catch(
+      (clickError) => logger.debug('[library] source link click record failed', clickError),
+    );
+    // TODO(인앱 브라우저): architecture.md 9.3 — expo-web-browser 도입 검토. 현재는 플레이어와
+    // 같은 Linking 패턴을 쓴다
+    Linking.openURL(url).catch((linkError) =>
+      logger.warn('[library] open source link failed', linkError),
+    );
+  };
+
   const requestDelete = (item: LibraryItem) => {
     setMoreSheetItem(null);
     // 연속 삭제 — 이전 스낵바를 교체하고 이전 삭제를 즉시 확정한다(uiux 4.7)
@@ -444,10 +476,12 @@ export const useLibraryScreen = () => {
     handleMiniPlayerPlay,
     handleMiniPlayerExpand,
     handleMiniPlayerDismiss,
-    // 더보기·삭제
+    // 더보기·상세·원문·삭제
     moreSheetItem,
     openMoreSheet: setMoreSheetItem,
     closeMoreSheet: () => setMoreSheetItem(null),
+    openDetail,
+    openSourceLink,
     requestDelete,
     pendingDeleteItem,
     undoDelete,

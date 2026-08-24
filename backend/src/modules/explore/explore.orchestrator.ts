@@ -565,6 +565,7 @@ export class ExploreOrchestrator {
           title: content.title,
           authorName: content.authorName,
           sourceName: content.sourceName,
+          sourceUrl: content.sourceUrl,
           durationSec: content.durationSec,
           thumbnailUrl: content.thumbnailUrl,
           contentVersion: content.contentVersion,

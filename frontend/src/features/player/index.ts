@@ -16,6 +16,11 @@ export {
   suppressPlayConfirmForToday,
 } from './services/play-confirm-suppression.service';
 export { usePlayLimitStore } from './store/play-limit.store';
+/**
+ * 재생 세션 구독 전용 — 쓰기는 PlaybackService만 한다(playback.store.ts 규칙). 콘텐츠 상세가
+ * "현재 재생 중인 콘텐츠면 새 재생 없이 플레이어 복귀"(content-detail.md 4.4) 판정에 쓴다.
+ */
+export { usePlaybackStore } from './store/playback.store';
 export type {
   PlaybackProgress,
   PlayEntryPoint,
@@ -29,10 +34,14 @@ export type { PlayerLibraryBridge } from './services/player-library.bridge';
 
 /* ── 잔여 표시값 규약(library-api.md 2) — 목록·복원 응답을 다루는 feature가 재사용한다 ── */
 export { toPlaybackProgress, toPlayLimitSnapshot } from './api/player.api';
+/** 원문 유입 클릭(player-api.md 4.5) — 세 화면 공용 계약. 콘텐츠 상세가 네 번째 진입점이다 */
+export { sendSourceLinkClick } from './api/player.api';
 export type { PlaybackProgressDto, PlayLimitFieldsDto } from './api/player.dto';
 
-/* ── mock 브리지(dev 전용) — 잔여 카운트·재생 상태의 소유자는 player mock 한 곳이다 ── */
+/* ── mock 브리지(dev 전용) — 잔여 카운트·재생 상태·origin 규칙의 소유자는 player mock 한 곳이다 ── */
 export {
+  getMockSourceUrl,
+  isMockAiGeneratedContent,
   isMockCountedToday,
   mockPlayLimitFields,
   registerPlayMockLibraryBridge,

@@ -24,15 +24,20 @@ export class Content extends BaseEntity {
   @Column({ name: 'description', type: 'text' })
   description: string;
 
-  @Column({ name: 'author_name', type: 'varchar', length: 100 })
-  authorName: string;
+  /**
+   * origin 분기 — partner는 필수(FR-12), ai_generated는 선택이다 (domain.md 5.1).
+   * partner의 필수는 `chk_contents_partner_disclosure`가 DB에서 이중 방어한다.
+   */
+  @Column({ name: 'author_name', type: 'varchar', length: 100, nullable: true })
+  authorName: string | null;
 
   /** 파트너명의 비정규화 사본. 발행 시점 값을 고정한다 (domain.md 5.1 — B-5) */
   @Column({ name: 'source_name', type: 'varchar', length: 100 })
   sourceName: string;
 
-  @Column({ name: 'source_url', type: 'varchar', length: 2048 })
-  sourceUrl: string;
+  /** origin 분기 — partner 필수 / ai_generated 선택. null이면 [원문 보기] 미노출 */
+  @Column({ name: 'source_url', type: 'varchar', length: 2048, nullable: true })
+  sourceUrl: string | null;
 
   @Column({ name: 'origin', type: 'varchar', length: 20 })
   origin: ContentOrigin;

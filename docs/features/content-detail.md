@@ -62,7 +62,7 @@
 | `partner` (원문) | **저자**(`author_name`) · **제공**(`source_name` — 파트너명) · **[원문 보기]**(`source_url`) — 셋 다 필수라 항상 표시된다(체크 제약이 이중 방어). [원문 보기]는 더보기 시트와 같은 동작 — 인앱 브라우저 + `source_link_clicks` 기록 |
 | `ai_generated` (소스) | **참고한 소스 목록을 전부 나열한다 — 소스마다 제목 + 저자를 표시**하고, "외 N건" 같은 생략 표기를 쓰지 않는다(확정 2026-08-23). **URL 문자열은 화면에 노출하지 않는다** — 링크가 있는 소스는 **항목 자체를 탭하면 인앱 브라우저로 연다**(개정 2026-08-23). 링크 없는 소스는 탭 대상이 아니다 |
 
-> ⚠️ **소스 목록 나열은 현재 스키마로 불가능하다 — 백엔드 티켓 발행(2026-08-23).** `contents.source_name`은 표기 문자열 하나이고, domain.md 5.1이 "복수 소스를 별도 테이블·배열로 정규화하지 않는다"로 결정해둔 상태다(당시 용도가 고지 문구 표시 하나였기 때문). 이 화면이 소스 단위 표시(제목·저자·링크)를 요구하므로 그 전제가 깨졌다 — `tickets/backend/pending/content-sources-structured-list.md`. **FE는 `[{title, author|null, url|null}]`을 가정한 mock으로 선행 개발한다.**
+> **소스 목록의 스키마·계약은 확정됐다 (2026-08-24).** 저장 구조는 `content_sources` 테이블 승격(`domain.md` 5.5), 계약은 가정 계약 모양(`[{title, author|null, url|null}]`) 그대로다(`content-detail-api.md` 4.1) — FE mock에서 바꿀 필드가 없다. 소스 항목 탭의 클릭은 MVP에서 기록하지 않는다(같은 날 확정). 티켓 `tickets/backend/archive/content-sources-structured-list.md` 처리 완료.
 
 ### 4.3-1 조건부 항목 — 응답 값의 null 여부 하나로 판정한다
 
@@ -108,7 +108,7 @@
 
 `domain.md` 5.1 `contents` · 5.2 `content_topics` · 6.1 `library_items`(담김 여부·담기/삭제) 참조.
 
-- **`ai_generated`의 소스 목록(제목·저자·URL 배열)은 스키마에 없다** — 백엔드 티켓 `tickets/backend/pending/content-sources-structured-list.md`(4.3). 이것 외의 표시 항목은 기존 컬럼으로 성립한다
+- **`ai_generated`의 소스 목록은 `content_sources` 테이블이다** (확정 2026-08-24 — `domain.md` 5.5, 4.3). 나머지 표시 항목은 기존 컬럼으로 성립한다
 - 상세 응답에는 **담김 여부**([담기]/[삭제] 분기 근거)가 함께 실려야 한다
 - [원문 보기]의 클릭 기록은 `source_link_clicks`(기존 규칙 재사용). 담기·삭제의 신호 적재는 `user_signals`(explore 4.3 · library 4.5와 동일)
 
@@ -144,7 +144,7 @@
 
 ## 미결 사항
 
-- **`ai_generated` 소스 목록의 계약·스키마**(4.3) — **백엔드 티켓 발행(2026-08-23): `tickets/backend/pending/content-sources-structured-list.md`.** FE는 `[{title, author|null, url|null}]` 가정 mock으로 선행하고, 계약 확정 시 필드를 맞춘다
+- ~~**`ai_generated` 소스 목록의 계약·스키마**(4.3)~~ → **확정 (2026-08-24)**: `content_sources` 테이블 승격(`domain.md` 5.5), 계약은 가정 모양 그대로(`content-detail-api.md` 4.1 — FE mock에서 바꿀 필드 없음), 소스 항목 탭 클릭은 MVP 미기록. 티켓 `tickets/backend/archive/content-sources-structured-list.md` 처리 완료
 - ~~플레이어 더보기 시트 포함 여부~~ → **확정(2026-08-23): 포함한다**(2장 — 세 화면 더보기 통일)
 - ~~후보 항목 채택 범위~~ → **확정(2026-08-23): 주제 태그 채택, 나의 청취 상태 제외**(4.2)
 - ~~상세 화면 내 액션 추가 여부~~ → **확정(2026-08-23): [재생]·[담기]/[삭제]를 헤더에 둔다**(4.4 — 표시 전용 폐기)

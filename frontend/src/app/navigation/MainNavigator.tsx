@@ -7,6 +7,7 @@ import TabBarIcon from '@/shared/ui/TabBarIcon';
 
 import { EmailVerificationScreen } from '@/features/auth';
 import { CareerInfoScreen } from '@/features/career';
+import { ContentDetailScreen } from '@/features/content-detail';
 import { ExploreScreen } from '@/features/explore';
 import { InterestManagementScreen } from '@/features/interest';
 import { LibraryScreen } from '@/features/library';
@@ -96,6 +97,9 @@ export default function MainNavigator() {
         component={PlayerScreen}
         options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}
       />
+      {/* 콘텐츠 상세 — 앱바(뒤로 + 타이틀)를 화면이 직접 그린다(content-detail-uiux.md 4.1).
+          플레이어(모달) 위에도 쌓일 수 있다 — 진입해도 재생은 유지된다(content-detail.md 2장) */}
+      <MainStack.Screen name="ContentDetail" component={ContentDetailScreen} />
       {/* 설정 — 앱바(뒤로 + "설정")를 화면이 직접 그린다(settings-uiux.md 4.1) */}
       <MainStack.Screen name="Settings" component={SettingsScreen} />
       {/* TODO: 프로필·설정 목적지 — 각 화면 구현 시 컴포넌트만 교체한다(라우트 이름 유지).

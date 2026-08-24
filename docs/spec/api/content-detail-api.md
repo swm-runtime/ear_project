@@ -6,7 +6,7 @@
 > 오류·재시도: [`docs/features/common-error-handling.md`](../../features/common-error-handling.md)
 > 스키마: [`docs/backend/domain.md`](../../backend/domain.md) 5.1 · 5.2 · 6.1
 > 연관: [`library-api.md`](library-api.md) 4.4·4.6 · [`explore-api.md`](explore-api.md) 4.3·4.6 · [`player-api.md`](player-api.md) 4.5 (액션 계약 재사용)
-> 백엔드 티켓: [`tickets/backend/pending/content-sources-structured-list.md`](../../tickets/backend/pending/content-sources-structured-list.md) — `ai_generated` 소스 목록(**가정 계약**)
+> 백엔드 티켓: [`tickets/backend/archive/content-sources-structured-list.md`](../../tickets/backend/archive/content-sources-structured-list.md) — `ai_generated` 소스 목록(**확정 2026-08-24** — `content_sources` 테이블, `domain.md` 5.5)
 
 작성: 2026-08-23
 
@@ -29,7 +29,7 @@
 | [원문 보기] 클릭 기록 (`partner`) | `player-api.md` 4.5 (`POST /contents/:content_id/source-link-clicks`) | **세 화면 공용 계약을 그대로 호출한다.** 상세 화면이 네 번째 진입점이 될 뿐이다 |
 | 재생 확인 팝업·페이월·[오늘은 그만 보기] 억제 | `paywall.md` 4.1~4.2·4.5 | 참조만 한다. 억제 플래그는 로컬 전용이다 |
 | 화면 ID·레이아웃·카피·접근성 | `spec/uiux/` | 정의하지 않는다 |
-| `ai_generated` 소스 목록의 **저장 구조**(테이블 승격 vs 컬럼) | 백엔드(`domain.md` 15.1 #8 · 백엔드 티켓) | 응답의 **모양만** 가정 계약으로 표현한다(4.1 — ⚠️ 미확정) |
+| `ai_generated` 소스 목록의 **저장 구조** | 백엔드(`domain.md` 5.5 — `content_sources` 테이블, 확정 2026-08-24) | 응답의 **모양만** 표현한다(4.1 — 가정 계약이 그대로 확정됐다) |
 
 ---
 
@@ -145,11 +145,11 @@
 | `content.series` | **단일 콘텐츠는 `null`이다**(`domain.md` 5.1 — `series_id` · `episode_no` · `total_episodes` 셋 다 `null`). 값이 있으면 "N부작 중 M화" 줄을 그리고, `null`이면 줄을 통째로 생략한다 — **클라이언트가 별도 조건을 계산하지 않는다**(`content-detail.md` 4.3-1). 세 필드를 한 객체로 묶어 null 판정이 하나가 되게 한다 |
 | `content.origin` | `partner` / `ai_generated` — 출처 영역 분기(`content-detail.md` 4.3) |
 | `content.author_name` · `source_name` · `source_url` | `partner`는 셋 다 항상 값이 있다(`chk_contents_partner_disclosure` — `domain.md` 5.1). 저자·제공·[원문 보기]를 그린다. `ai_generated`는 `author_name` · `source_url`이 `null`일 수 있고, `source_name`은 고지 문구용 표기 문자열이라 **상세의 출처 영역에는 쓰지 않는다**(소스 나열은 `sources`가 담당) |
-| `content.sources[]` | ⚠️ **가정 계약 — 백엔드 티켓 미확정**(아래). `ai_generated`의 참고 소스 **전수** — 소스마다 `title`(필수) · `author`(선택 — 없으면 `null`) · `url`(선택 — 없으면 `null`). 서버가 정한 순서대로 나열하고 "외 N건" 생략이 없다. URL 문자열은 화면에 노출하지 않으며, `url`이 있는 항목만 탭 대상이다(`content-detail.md` 4.3). **`partner`는 `null`** — 제안값, 9장 |
+| `content.sources[]` | **확정 (2026-08-24 — `domain.md` 5.5 `content_sources`).** `ai_generated`의 참고 소스 **전수** — 소스마다 `title`(필수) · `author`(선택 — 없으면 `null`) · `url`(선택 — 없으면 `null`). 서버가 정한 순서(`content_sources.position`)대로 나열하고 "외 N건" 생략이 없다 — 클라이언트는 재배열하지 않는다. URL 문자열은 화면에 노출하지 않으며, `url`이 있는 항목만 탭 대상이다(`content-detail.md` 4.3). 소스 항목에 식별자(`id`)를 싣지 않는다 — 소스별 클릭 기록을 하지 않기 때문이다(4.2). **`partner`는 `null`이다** (확정 2026-08-24) |
 | `library_item` | 요청자의 라이브러리 상태. **`null`이면 미담김**(살아 있는 행 없음 — 소프트 삭제된 행 포함)이라 버튼이 [담기], 값이 있으면 [삭제]다(`content-detail.md` 4.4). **별도 `is_saved` 불리언을 두지 않는다** — null 판정 하나로 분기한다(4.3-1과 같은 원칙). `id`는 [삭제](`library-api.md` 4.6) 호출에 쓴다. `source` · `status`는 `library_items` 원값(`player-api.md` 4.1과 같은 모양) |
 | `is_counted_today` | 이 콘텐츠가 **재청취 창 안**에 있는가 — 목록 행과 같은 필드·같은 정의(`library-api.md` 4.1 · `explore-api.md` 4.1 · `paywall.md` 4.3-1). [재생] 탭 시 확인 팝업을 **탭 즉시** 띄우기 위한 힌트이며, 판정이 아니다 |
 
-> ⚠️ **`sources`는 백엔드 티켓 미확정의 가정 계약이다**(`tickets/backend/pending/content-sources-structured-list.md`). 현재 스키마에는 소스 단위(제목–저자–링크) 구조가 없고(`domain.md` 5.1 — "정규화하지 않는다", 15.1 #8), 저장 방식(테이블 승격 vs 컬럼)은 백엔드가 정한다. **FE는 이 모양(`[{title, author|null, url|null}]`)을 가정한 mock으로 선행 개발하고, 계약 확정 시 필드명·형태를 맞춘다.** 이 필드를 제외한 응답 전 항목은 기존 컬럼으로 성립한다.
+> **`sources`는 확정 계약이다** (확정 2026-08-24 — 티켓 `tickets/backend/archive/content-sources-structured-list.md` 처리 완료). 저장 구조는 `content_sources` 테이블 승격으로 결정됐고(`domain.md` 5.5), 가정 계약의 모양(`[{title, author|null, url|null}]`)이 **그대로 확정됐다** — FE mock에서 바꿀 필드가 없다.
 
 - **[재생] 판정 재료를 이 응답에 더 싣지 않는다.** 확인 팝업/페이월/즉시 재생의 분기는 행 탭과 동일하게 `is_counted_today` + 클라이언트가 보관한 잔여 표시값 + 로컬 억제 플래그로 팝업 여부만 정하고, 실제 허용은 재생 시작(`library-api.md` 4.4)이 판정한다(`paywall.md` 4.1~4.2).
 - **나의 청취 상태(진행률·완청 마킹)를 화면에 그리지 않는 것은 화면 규칙이다**(`content-detail.md` 4.2 — 제외 확정 2026-08-23). `library_item.status`는 그리기 위한 값이 아니라 버튼 분기·완료 상태 파악용 원값이다.
@@ -162,7 +162,7 @@
 3. `content_topics ⨝ topics` 조인 → `topics[]`
 4. 요청자의 `library_items` 조회(토큰 `user_id` 스코프, `deleted_at IS NULL`) → `library_item` (없으면 `null`)
 5. `play_records` 조회 → `is_counted_today` (컬럼이 아니라 집계다 — `domain.md` 1.4)
-6. `origin = ai_generated`면 소스 목록 조립 → `sources[]` (조회 원천은 백엔드 티켓 확정 대기)
+6. `origin = ai_generated`면 소스 목록 조립 → `sources[]` (원천은 `content_sources` — `position` 순, `domain.md` 5.5)
 
 **에러**
 
@@ -187,7 +187,7 @@
 | **[담기]** (미담김) | `POST /contents/:content_id/save` `{ client_seq, reason: "user_save" }` — `explore-api.md` 4.3 | 성공 시 응답의 `library_item`으로 버튼을 [삭제]로 전환하고 그 `id`를 보관한다 |
 | **[삭제]** (담김) | `DELETE /users/me/library-items/:id` — `library-api.md` 4.6 | `:id`는 4.1 응답(또는 직전 담기 응답)의 `library_item.id`. 성공 시 버튼을 [담기]로 전환한다. `user_signals(delete)` · `reason = library_delete` 적재는 그 계약의 서버 처리 그대로다(`content-detail.md` 4.4 — library.md 4.5와 동일한 결과) |
 | **[원문 보기]** (`partner`) | `POST /contents/:content_id/source-link-clicks` — `player-api.md` 4.5 | 세 화면 공용 계약의 네 번째 진입점. 호출 + 인앱 브라우저 열기, 응답을 기다리지 않는다 |
-| 소스 항목 탭 (`ai_generated`, `url` 있음) | 인앱 브라우저 열기 (클라이언트 조작) | **클릭 기록 여부는 미결이다**(9장 — 백엔드 티켓 3장 "소스별 구분 기록" 결정 대기). 확정 전에는 기록 호출 없이 브라우저만 연다 |
+| 소스 항목 탭 (`ai_generated`, `url` 있음) | 인앱 브라우저 열기 (클라이언트 조작) | **클릭을 기록하지 않는다** (확정 2026-08-24 — `domain.md` 5.5·6.6, MVP). 기록 호출 없이 브라우저만 연다. 소스별 분석 요구가 생기면 P1에서 `source_link_clicks.source_id` 추가와 함께 재검토한다 |
 
 - **[재생]의 `entry_point`는 상세 화면을 연 원 화면의 값을 그대로 보낸다**(제안 — 9장). 라이브러리 진입이면 `library`, 탐색 진입이면 `explore`다. 플레이어에서 진입한 상세는 현재 재생 중인 콘텐츠이므로 [재생]이 새 재생 없이 플레이어로 복귀한다(`content-detail.md` 4.4) — play 호출 자체가 없다.
 - **[삭제]에 상세 화면용 실행 취소 스낵바를 새로 정의하지 않는다.** 스낵바 유예·즉시 호출 여부는 uiux가 정하되, 서버 계약은 어느 쪽이든 `library-api.md` 4.6 그대로다(이미 삭제된 항목에도 204 — 멱등).
@@ -269,16 +269,16 @@ DELETE /users/me/library-items/:library_item.id                        ← libra
 | `content_topics` ⨝ `topics` — 주제 태그 | 5.2 · 4.1 |
 | `library_items` — `library_item` 조립([담기]/[삭제] 분기·삭제 호출 재료) | 6.1 |
 | `play_records` — `is_counted_today` 집계 | 6.3 |
-| **`ai_generated` 소스 목록 — 저장 구조 없음(미결)** | 15.1 #8 |
+| `content_sources` — `sources[]` 조립(`position` 순) | 5.5 |
 
-- **`sources`의 저장 구조는 스키마에 없다**(`domain.md` 5.1 — "정규화하지 않는다"의 전제가 이 화면으로 깨졌다, 15.1 #8). 승격 방식은 백엔드 티켓이 정하며, 이 계약은 응답 모양만 가정한다(4.1 ⚠️).
+- **`sources`의 저장 구조는 `content_sources` 테이블이다** (확정 2026-08-24 — `domain.md` 5.5). 스키마는 domain.md가 유일한 기준이므로 이 문서는 컬럼을 중복 기재하지 않는다.
 - 담기·삭제·재생·원문 클릭이 만지는 테이블(`user_signals` · `drip_excluded_contents` · `source_link_clicks` 등)은 **소유 계약의 데이터 모델 절을 따른다** — 이 문서는 조회 전용이라 쓰기가 없다.
 
 ## 9. 미결 사항
 
-- **`ai_generated` 소스 목록의 계약·스키마** — **백엔드 티켓 확정 대기**(`tickets/backend/pending/content-sources-structured-list.md`). 이 문서 4.1의 `sources: [{title, author|null, url|null}]`은 **가정 계약**이며, FE는 이 모양의 mock으로 선행 개발하고 티켓 확정 시 필드를 맞춘다. 티켓이 "spec/api 작성 시 함께 확정하는 것이 이상적"이라 한 그 계약 표현이 이 문서다 — 백엔드는 확정 시 이 문서를 기준으로 맞추거나 개정을 요청한다.
-- **`partner` 응답의 `sources` 표현** — 이 문서는 **`null`을 제안한다**(조건부 블록의 null 생략 원칙과 정합 — `content-detail.md` 4.3-1). 백엔드 티켓 3장이 "빈 배열 또는 미포함"을 후보로 두었으므로 티켓 확정 시 함께 닫는다.
-- **백엔드 미구현** — `GET /contents/:content_id`는 아직 서버에 없다. **이 문서가 구현 요청의 기준 계약이다.** FE는 `api/content-detail.mock.ts` 패턴(mock 플래그·시나리오 환경변수)으로 선행 개발한다.
+- ~~**`ai_generated` 소스 목록의 계약·스키마**~~ → **확정 (2026-08-24)**: 저장 구조는 `content_sources` 테이블 승격(`domain.md` 5.5), 계약은 4.1의 가정 계약 모양(`[{title, author|null, url|null}]`) 그대로다 — 소스 항목에 `id`가 없는 것도 확정(클릭 미기록이므로). 티켓 `tickets/backend/archive/content-sources-structured-list.md` 처리 완료. FE mock에서 바꿀 필드가 없다.
+- ~~**`partner` 응답의 `sources` 표현**~~ → **확정 (2026-08-24)**: **`null`이다** — 이 문서의 제안(조건부 블록의 null 생략 원칙과 정합 — `content-detail.md` 4.3-1)이 그대로 채택됐다. `partner`는 `content_sources`에 행을 만들지 않는다(`domain.md` 5.5).
+- ~~**백엔드 미구현**~~ → **구현 완료 (2026-08-24)**: `GET /contents/:content_id`가 서버에 있다(`content-detail` 모듈 — `architecture.md` 4.5). 계약 변경점 없음 — 이 문서 4.1이 그대로 구현 결과다. FE는 mock 플래그를 해제하고 실서버 연동으로 전환할 수 있다.
 - **[재생]의 `entry_point` 값** — `library-api.md` 4.4의 enum(`library` / `explore` / `miniplayer` / `push` / `player`)에 상세 화면 값이 없다. 이 문서는 **원 화면 값 유지 전달을 제안한다**(4.2 — enum 변경 없음. 플레이어 진입 상세는 play 호출 자체가 없어 실제로는 `library` / `explore` 둘만 나간다). 상세 경유 전환을 분석 축으로 구분하려면 `content_detail` 값 신설이 필요하다 — enum 소유는 `library-api.md`(백엔드)이므로 협의 대상이다.
-- **`ai_generated` 소스 항목 탭의 클릭 기록** — `source_link_clicks`는 콘텐츠 단위라 어느 소스를 눌렀는지 구분할 수 없다(백엔드 티켓 3장). 소스별 기록 여부가 확정될 때까지 소스 항목 탭은 **기록 없이 인앱 브라우저만 연다**(4.2). `partner`의 [원문 보기]는 기존 계약대로 기록한다.
+- ~~**`ai_generated` 소스 항목 탭의 클릭 기록**~~ → **확정 (2026-08-24)**: **MVP는 기록하지 않는다**(`domain.md` 5.5·6.6). 소스 항목 탭은 기록 호출 없이 인앱 브라우저만 열고(4.2), `partner`의 [원문 보기]는 기존 계약대로 기록한다. `source_link_clicks`의 존재 이유(파트너 정산·리포팅)가 `ai_generated` 소스에는 없기 때문이다 — 소스별 분석 요구가 생기면 P1에서 `source_link_clicks.source_id` 추가와 함께 재검토한다.
 - **`topics[]`의 형태** — 이 문서는 이름 문자열 배열이 아니라 **`{id, name}` 객체 배열을 제안한다**(`explore-api.md` 4.2-2와 같은 모양). 화면 요구는 이름 표시뿐이지만(`content-detail.md` 4.2), 주제 객체를 문자열로 납작하게 보내는 계약이 이 문서 하나만 생기는 것을 피했고, 태그 탭 → 탐색 필터 연결 같은 확장에 `id`가 필요하다. 이름만으로 확정하려면 개정한다.

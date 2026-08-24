@@ -10,6 +10,7 @@ import type {
   ExplorePeriod,
   ExplorePopularPage,
   ExploreTopic,
+  SaveContentResult,
   SaveReason,
 } from '../explore.types';
 import type {
@@ -50,6 +51,7 @@ const toExploreItem = (dto: ExploreItemDto): ExploreItem => ({
     title: dto.content.title,
     authorName: dto.content.author_name,
     sourceName: dto.content.source_name,
+    sourceUrl: dto.content.source_url,
     durationSec: dto.content.duration_sec,
     thumbnailUrl: dto.content.thumbnail_url,
     contentVersion: dto.content.content_version,
@@ -146,14 +148,23 @@ export const saveContent = async (input: {
   contentId: string;
   clientSeq: number;
   reason?: SaveReason;
-}): Promise<{ clientSeq: number }> => {
+}): Promise<SaveContentResult> => {
   const body = { client_seq: input.clientSeq, reason: input.reason ?? 'user_save' };
   const data = IS_EXPLORE_API_MOCKED
     ? await mockSaveContent(input.contentId, body)
     : (
         await apiClient.post<SaveContentResponseDto>(`/contents/${input.contentId}/save`, body)
       ).data;
-  return { clientSeq: data.client_seq };
+  return {
+    clientSeq: data.client_seq,
+    // 버튼 전환·삭제 호출 재료 — 상세 화면이 응답의 library_item.id를 보관한다(content-detail-api.md 4.2)
+    libraryItem: {
+      itemId: data.library_item.id,
+      source: data.library_item.source,
+      status: data.library_item.status,
+      addedAt: data.library_item.added_at,
+    },
+  };
 };
 
 /** 담기 해제(explore-api.md 4.4) — 라이브러리 삭제와 같은 결과(소프트 삭제 + 드립 영구 제외) */

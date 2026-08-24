@@ -13,6 +13,14 @@ export interface MockTopic {
   displayOrder: number;
 }
 
+export interface MockContentSource {
+  title: string;
+  /** 없으면 제목만 표시된다 — author null 케이스 확인용 */
+  author?: string;
+  /** 없으면 탭 대상이 아니다 — url null 케이스 확인용 */
+  url?: string;
+}
+
 export interface MockContent {
   title: string;
   description: string;
@@ -28,6 +36,11 @@ export interface MockContent {
   lastMonthPlayCount: number;
   /** 전체 구간 누적 재생 수 — 추천·편성의 인기 정렬 근거 */
   allTimePlayCount: number;
+  /**
+   * `ai_generated` 참고 소스 — 상세 화면 출처 영역(`content-detail.md` 4.3) 확인용.
+   * 배열 순서가 곧 표시 순서(`content_sources.position`)다. partner에는 두지 않는다.
+   */
+  sources?: MockContentSource[];
 }
 
 export const MOCK_TOPICS: MockTopic[] = [
@@ -74,6 +87,19 @@ export const MOCK_CONTENTS: MockContent[] = [
     topicNames: ['커리어', '커뮤니케이션'],
     lastMonthPlayCount: 7,
     allTimePlayCount: 33,
+    // 3건 · 링크 2 + 링크 없음 1 · 저자 유무 혼재 — 티켓 완료 조건의 표본
+    sources: [
+      { title: '어떻게 원하는 것을 얻는가', author: '스튜어트 다이아몬드' },
+      {
+        title: '연봉 협상 타이밍의 기술',
+        url: 'https://blog.example.com/salary-timing',
+      },
+      {
+        title: '앵커링 효과 연구 노트',
+        author: '박도현',
+        url: 'https://notes.example.com/anchoring',
+      },
+    ],
   },
   {
     title: '커리어 포트폴리오를 매달 갱신하는 법',
@@ -84,6 +110,17 @@ export const MOCK_CONTENTS: MockContent[] = [
     topicNames: ['커리어', '생산성'],
     lastMonthPlayCount: 0,
     allTimePlayCount: 21,
+    sources: [
+      {
+        title: '커리어 기록의 힘',
+        author: '최유진',
+        url: 'https://blog.example.com/career-log',
+      },
+      {
+        title: '월간 회고 템플릿 모음',
+        url: 'https://docs.example.com/monthly-review',
+      },
+    ],
   },
 
   // --- 생산성 (시리즈 포함) ---
@@ -135,6 +172,13 @@ export const MOCK_CONTENTS: MockContent[] = [
     topicNames: ['생산성', '심리학'],
     lastMonthPlayCount: 5,
     allTimePlayCount: 29,
+    sources: [
+      { title: '딥 워크', author: '칼 뉴포트' },
+      {
+        title: '주의 전환 비용에 관한 실험',
+        url: 'https://lab.example.com/task-switching',
+      },
+    ],
   },
 
   // --- 리더십 ---
@@ -167,6 +211,13 @@ export const MOCK_CONTENTS: MockContent[] = [
     topicNames: ['리더십'],
     lastMonthPlayCount: 0,
     allTimePlayCount: 18,
+    sources: [
+      { title: '실리콘밸리의 팀장들', author: '킴 스콧' },
+      {
+        title: '위임의 단계 모델',
+        url: 'https://blog.example.com/delegation-ladder',
+      },
+    ],
   },
   {
     title: '1on1을 형식적으로 만들지 않으려면',
@@ -177,6 +228,10 @@ export const MOCK_CONTENTS: MockContent[] = [
     topicNames: ['리더십', '커뮤니케이션'],
     lastMonthPlayCount: 0,
     allTimePlayCount: 15,
+    sources: [
+      { title: '하이 아웃풋 매니지먼트', author: '앤디 그로브' },
+      { title: '1on1 질문 목록', url: 'https://docs.example.com/one-on-one' },
+    ],
   },
 
   // --- 커뮤니케이션 ---
@@ -209,6 +264,13 @@ export const MOCK_CONTENTS: MockContent[] = [
     topicNames: ['커뮤니케이션', '생산성'],
     lastMonthPlayCount: 0,
     allTimePlayCount: 17,
+    sources: [
+      { title: '논리의 기술', author: '바바라 민토' },
+      {
+        title: '회의 문화 개선 사례',
+        url: 'https://blog.example.com/meeting-culture',
+      },
+    ],
   },
 
   // --- 재테크 ---
@@ -241,6 +303,13 @@ export const MOCK_CONTENTS: MockContent[] = [
     topicNames: ['재테크'],
     lastMonthPlayCount: 0,
     allTimePlayCount: 27,
+    sources: [
+      {
+        title: '부동산 유동성 리스크 보고서',
+        url: 'https://research.example.com/housing-liquidity',
+      },
+      { title: '주택담보대출 상환 구조 해설', author: '류지원' },
+    ],
   },
 
   // --- 경제 상식 ---
@@ -263,6 +332,13 @@ export const MOCK_CONTENTS: MockContent[] = [
     topicNames: ['경제 상식', '인문·교양'],
     lastMonthPlayCount: 0,
     allTimePlayCount: 19,
+    sources: [
+      { title: '환율의 이해', author: '임세찬' },
+      {
+        title: '외환시장 구조 입문',
+        url: 'https://econ.example.com/fx-market',
+      },
+    ],
   },
   {
     title: '인플레이션을 체감으로 이해하기',
@@ -273,6 +349,13 @@ export const MOCK_CONTENTS: MockContent[] = [
     topicNames: ['경제 상식'],
     lastMonthPlayCount: 0,
     allTimePlayCount: 16,
+    sources: [
+      {
+        title: '장바구니 물가 지수 해설',
+        url: 'https://econ.example.com/cpi-basket',
+      },
+      { title: '화폐 가치의 역사', author: '임세찬' },
+    ],
   },
 
   // --- 글쓰기 ---
@@ -305,6 +388,13 @@ export const MOCK_CONTENTS: MockContent[] = [
     topicNames: ['글쓰기', '커리어'],
     lastMonthPlayCount: 0,
     allTimePlayCount: 13,
+    sources: [
+      { title: '쓰기의 감각', author: '앤 라모트' },
+      {
+        title: '일하는 사람의 기록 습관',
+        url: 'https://blog.example.com/work-journal',
+      },
+    ],
   },
 
   // --- 데이터·AI ---
@@ -327,6 +417,17 @@ export const MOCK_CONTENTS: MockContent[] = [
     topicNames: ['데이터·AI', '생산성'],
     lastMonthPlayCount: 6,
     allTimePlayCount: 38,
+    sources: [
+      {
+        title: '프롬프트 설계 패턴',
+        url: 'https://ai.example.com/prompt-patterns',
+      },
+      {
+        title: '도구가 아니라 동료처럼',
+        author: '윤태경',
+        url: 'https://blog.example.com/ai-coworker',
+      },
+    ],
   },
   {
     title: '지표를 만들 때 빠지는 함정',
@@ -337,6 +438,13 @@ export const MOCK_CONTENTS: MockContent[] = [
     topicNames: ['데이터·AI', '리더십'],
     lastMonthPlayCount: 0,
     allTimePlayCount: 20,
+    sources: [
+      { title: '측정의 함정', author: '제리 멀러' },
+      {
+        title: '굿하트의 법칙 다시 읽기',
+        url: 'https://data.example.com/goodhart',
+      },
+    ],
   },
 
   // --- 심리학 ---
@@ -369,6 +477,15 @@ export const MOCK_CONTENTS: MockContent[] = [
     topicNames: ['심리학', '생산성'],
     lastMonthPlayCount: 0,
     allTimePlayCount: 23,
+    // 저자·링크가 둘 다 없는 소스 케이스
+    sources: [
+      {
+        title: '미루기의 감정 조절 이론',
+        author: '팀 피칠',
+        url: 'https://psy.example.com/procrastination',
+      },
+      { title: '해야 할 일을 미루는 뇌' },
+    ],
   },
 
   // --- 인문·교양 ---
@@ -391,6 +508,13 @@ export const MOCK_CONTENTS: MockContent[] = [
     topicNames: ['인문·교양'],
     lastMonthPlayCount: 0,
     allTimePlayCount: 12,
+    sources: [
+      { title: '도시는 무엇으로 사는가', author: '유현준' },
+      {
+        title: '가로 구조와 보행 경험',
+        url: 'https://urban.example.com/street-grid',
+      },
+    ],
   },
   {
     title: '질문하는 법을 잃어버린 사회',
@@ -401,5 +525,12 @@ export const MOCK_CONTENTS: MockContent[] = [
     topicNames: ['인문·교양', '커뮤니케이션'],
     lastMonthPlayCount: 0,
     allTimePlayCount: 10,
+    sources: [
+      { title: '질문의 힘', author: '유선아' },
+      {
+        title: '탐구 학습과 질문 빈도 연구',
+        url: 'https://edu.example.com/inquiry',
+      },
+    ],
   },
 ];

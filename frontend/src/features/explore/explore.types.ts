@@ -7,6 +7,8 @@ export interface ExploreContent {
   title: string;
   authorName: string;
   sourceName: string;
+  /** null이면 E12 [원문 보기]를 노출하지 않는다 — 자리도 남기지 않는다(explore-uiux.md 4.4) */
+  sourceUrl: string | null;
   durationSec: number;
   thumbnailUrl: string;
   /** 재발행 판정용(domain.md 5.1) */
@@ -92,3 +94,17 @@ export interface ExploreTopic {
 }
 
 export type SaveReason = 'user_save' | 'auto_play';
+
+/**
+ * 담기 응답(explore-api.md 4.3)의 도메인 모델 — libraryItem은 버튼 전환·삭제 호출 재료다.
+ * 콘텐츠 상세 화면도 이 계약을 그대로 재사용한다(content-detail-api.md 4.2 — 신규 계약 없음).
+ */
+export interface SaveContentResult {
+  clientSeq: number;
+  libraryItem: {
+    itemId: string;
+    source: LibrarySource;
+    status: LibraryItemStatus;
+    addedAt: string;
+  };
+}

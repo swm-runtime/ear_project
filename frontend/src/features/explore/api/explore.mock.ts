@@ -20,7 +20,7 @@ import {
   mockSaveLibraryItemByContent,
   mockUnsaveLibraryItemByContent,
 } from '@/features/library';
-import { isMockCountedToday, mockPlayLimitFields } from '@/features/player';
+import { getMockSourceUrl, isMockCountedToday, mockPlayLimitFields } from '@/features/player';
 
 import type { ExplorePeriod } from '../explore.types';
 import type {
@@ -89,6 +89,8 @@ const makeContent = (seq: number, exploreOnly: boolean): ExploreContentDto => {
       : `${topic.name} 이야기 ${seq} — 오래 일하는 사람들의 습관`,
     author_name: `저자 ${seq}`,
     source_name: seq % 2 === 0 ? '폴인' : '롱블랙',
+    // origin·source_url 규칙은 player mock 소유다 — 발급·상세와 같은 값이어야 한다
+    source_url: getMockSourceUrl(`content-${seq}`),
     duration_sec: 480 + (seq % 5) * 120,
     thumbnail_url: `https://picsum.photos/seed/content-${seq}/200`,
     content_version: 1,

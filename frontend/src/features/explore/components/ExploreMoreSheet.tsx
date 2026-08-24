@@ -7,18 +7,24 @@ import type { ExploreItem } from '../explore.types';
 
 interface ExploreMoreSheetProps {
   item: ExploreItem | null;
+  onDetail: (item: ExploreItem) => void;
+  onSourceLink: (item: ExploreItem) => void;
   onSave: (item: ExploreItem) => void;
   onRemove: (item: ExploreItem) => void;
   onDismiss: () => void;
 }
 
 /**
- * E12 더보기 액션시트 — MVP 구성은 대상 요약 + 담기/제거 + 닫기가 전부다.
- * [공유]·[상세]를 노출하지 않는다(explore.md 4.6 — MVP 제외 · 상세 명세 부재).
+ * E12 더보기 액션시트 — 대상 요약 + 상세 정보 + 원문 보기 + 담기/제거 + 닫기
+ * (explore-uiux.md 4.4 — 세 화면 더보기 통일: [원문 보기] 2026-08-10 · [상세 정보] 2026-08-23).
+ * [공유]는 노출하지 않는다(FR-27 MVP 제외). [원문 보기]는 source_url이 있는 콘텐츠(partner)만
+ * 노출하고 없으면 행 자체를 그리지 않는다(PL7과 같은 규칙).
  * 어느 콘텐츠에 대한 조작인지 상단에 다시 보여준다(library-uiux.md 4.7과 같은 규칙).
  */
 export default function ExploreMoreSheet({
   item,
+  onDetail,
+  onSourceLink,
   onSave,
   onRemove,
   onDismiss,
@@ -42,6 +48,24 @@ export default function ExploreMoreSheet({
                   </Text>
                 </View>
               </View>
+              <Pressable
+                style={styles.action}
+                onPress={() => onDetail(item)}
+                accessibilityRole="button"
+                accessibilityLabel={EXPLORE_COPY.sheet.detail}
+              >
+                <Text style={styles.actionLabel}>{EXPLORE_COPY.sheet.detail}</Text>
+              </Pressable>
+              {item.content.sourceUrl !== null ? (
+                <Pressable
+                  style={styles.action}
+                  onPress={() => onSourceLink(item)}
+                  accessibilityRole="button"
+                  accessibilityLabel={EXPLORE_COPY.sheet.sourceLink}
+                >
+                  <Text style={styles.actionLabel}>{EXPLORE_COPY.sheet.sourceLink}</Text>
+                </Pressable>
+              ) : null}
               {/* 담기/제거는 library 값으로 가른다 — 출처와 무관하게 제거를 허용한다(uiux 4.4) */}
               {isSaved ? (
                 <Pressable

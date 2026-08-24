@@ -26,6 +26,8 @@ export interface LibraryContent {
   title: string;
   authorName: string;
   sourceName: string;
+  /** null이면 L4 [원문 보기]를 노출하지 않는다 — 자리도 남기지 않는다(library-uiux.md 4.7) */
+  sourceUrl: string | null;
   durationSec: number;
   thumbnailUrl: string;
   /** 재발행 판정용 — 올라갔으면 저장한 위치·오프라인 파일을 폐기한다(domain.md 5.1) */

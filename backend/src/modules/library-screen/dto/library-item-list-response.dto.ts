@@ -8,8 +8,11 @@ import { LibraryItemView, LibraryListResult } from '../library-screen.types';
 class LibraryItemContentDto {
   readonly id: string;
   readonly title: string;
-  readonly author_name: string;
+  /** `origin = ai_generated`는 null일 수 있다 (domain.md 5.1) */
+  readonly author_name: string | null;
   readonly source_name: string;
+  /** null이면 더보기 시트(L4)에 [원문 보기]를 노출하지 않는다 — partner는 항상 값이 있다 */
+  readonly source_url: string | null;
   readonly duration_sec: number;
   readonly thumbnail_url: string;
   /** 올라갔으면 클라이언트가 저장한 위치·오프라인 파일을 폐기한다 */
@@ -50,6 +53,7 @@ export class LibraryItemDto {
         title: view.content.title,
         author_name: view.content.authorName,
         source_name: view.content.sourceName,
+        source_url: view.content.sourceUrl,
         duration_sec: view.content.durationSec,
         thumbnail_url: view.content.thumbnailUrl,
         content_version: view.content.contentVersion,

@@ -3,7 +3,8 @@ import { AudioUrlResult } from '../playback.types';
 class AudioContentDto {
   readonly id: string;
   readonly title: string;
-  readonly author_name: string;
+  /** `origin = ai_generated`는 null일 수 있다 (domain.md 5.1) */
+  readonly author_name: string | null;
   readonly source_name: string;
   /** **`null`이면 [원문 보기]를 노출하지 않는다**(`origin = ai_generated`는 선택 필드다) */
   readonly source_url: string | null;

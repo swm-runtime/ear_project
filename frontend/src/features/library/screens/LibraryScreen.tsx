@@ -205,6 +205,8 @@ export default function LibraryScreen() {
 
       <MoreActionsSheet
         item={screen.moreSheetItem}
+        onDetail={screen.openDetail}
+        onSourceLink={screen.openSourceLink}
         onDelete={screen.requestDelete}
         onDismiss={screen.closeMoreSheet}
       />

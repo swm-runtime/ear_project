@@ -1,15 +1,17 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, AppState } from 'react-native';
+import { AccessibilityInfo, AppState, Linking } from 'react-native';
 
 import { isApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
+import { generateId } from '@/shared/lib/generate-id';
+import { logger } from '@/shared/lib/logger';
 import { useToastStore } from '@/shared/ui/toast.store';
 
 import { libraryKeys } from '@/features/library';
-import { usePlayGate, usePlayLimitStore } from '@/features/player';
+import { sendSourceLinkClick, usePlayGate, usePlayLimitStore } from '@/features/player';
 
 import { exploreKeys } from '../api/explore.api';
 import { EXPLORE_COPY } from '../explore.copy';
@@ -281,6 +283,31 @@ export const useExploreScreen = () => {
     return { remaining, limit: dailyPlayLimit, isExhausted: remaining === 0 };
   }, [storedPlayLimit, isFullError, isInitialLoading]);
 
+  /** E12 [상세 정보] — 시트를 닫고 상세 화면으로 이동한다(explore-uiux.md 4.4, 합의 2026-08-23).
+      뒤로가기로 복귀하며 피드 스크롤 위치는 유지된다 */
+  const openDetail = (item: ExploreItem) => {
+    setMoreSheetItem(null);
+    navigation.navigate('Main', {
+      screen: 'ContentDetail',
+      params: { contentId: item.content.id, entryPoint: 'explore' },
+    });
+  };
+
+  /** E12 [원문 보기](FR-12) — 클릭 기록과 브라우저 열기는 서로를 기다리지 않는다(player-api.md 4.5) */
+  const openSourceLink = (item: ExploreItem) => {
+    const url = item.content.sourceUrl;
+    if (!url) return;
+    setMoreSheetItem(null);
+    sendSourceLinkClick({ contentId: item.content.id, idempotencyKey: generateId() }).catch(
+      (clickError) => logger.debug('[explore] source link click record failed', clickError),
+    );
+    // TODO(인앱 브라우저): architecture.md 9.3 — expo-web-browser 도입 검토. 현재는 플레이어와
+    // 같은 Linking 패턴을 쓴다
+    Linking.openURL(url).catch((linkError) =>
+      logger.warn('[explore] open source link failed', linkError),
+    );
+  };
+
   /* ── 담기 · 제거 — 더보기 시트 소유(explore.md 4.3). 낙관 반영 + client_seq 순서 방어 ── */
   const requestSave = (item: ExploreItem) => {
     setMoreSheetItem(null);
@@ -509,10 +536,12 @@ export const useExploreScreen = () => {
     confirmPlay: playGate.confirmPlay,
     cancelPlayConfirm: playGate.cancelConfirm,
     suppressAndPlay: playGate.suppressAndPlay,
-    // 더보기 시트 — 담기/제거
+    // 더보기 시트 — 상세 정보·원문 보기·담기/제거
     moreSheetItem,
     openMoreSheet: setMoreSheetItem,
     closeMoreSheet: () => setMoreSheetItem(null),
+    openDetail,
+    openSourceLink,
     requestSave,
     requestRemove,
     // 빈 상태 액션

@@ -361,6 +361,7 @@ export default function PlayerScreen() {
         }}
         sourceUrl={session.meta.sourceUrl}
         canDelete={session.libraryItem !== null}
+        onDetailPress={screen.openDetail}
         onSourceLinkPress={screen.openSourceLink}
         onDeletePress={screen.requestDelete}
         onClose={screen.closeMoreSheet}

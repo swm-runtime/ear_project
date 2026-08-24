@@ -315,6 +315,7 @@ export class LibraryScreenOrchestrator {
         title: item.content.title,
         authorName: item.content.authorName,
         sourceName: item.content.sourceName,
+        sourceUrl: item.content.sourceUrl,
         durationSec: item.content.durationSec,
         thumbnailUrl: item.content.thumbnailUrl,
         contentVersion: item.content.contentVersion,
