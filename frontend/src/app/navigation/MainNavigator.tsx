@@ -8,7 +8,7 @@ import TabBarIcon from '@/shared/ui/TabBarIcon';
 import { EmailVerificationScreen } from '@/features/auth';
 import { CareerInfoScreen } from '@/features/career';
 import { ContentDetailScreen } from '@/features/content-detail';
-import { ExploreScreen } from '@/features/explore';
+import { ExploreScreen, ExploreSearchScreen } from '@/features/explore';
 import { InterestManagementScreen } from '@/features/interest';
 import { LibraryScreen } from '@/features/library';
 import { PlayerScreen } from '@/features/player';
@@ -100,6 +100,14 @@ export default function MainNavigator() {
       {/* 콘텐츠 상세 — 앱바(뒤로 + 타이틀)를 화면이 직접 그린다(content-detail-uiux.md 4.1).
           플레이어(모달) 위에도 쌓일 수 있다 — 진입해도 재생은 유지된다(content-detail.md 2장) */}
       <MainStack.Screen name="ContentDetail" component={ContentDetailScreen} />
+      {/* 검색(E6·E7) — 검색창 줄을 화면이 직접 그린다. 탭 위 push라 피드 상태는 스택 아래에
+          그대로 남고, 뒤로가기·[취소]의 pop이 곧 검색 상태 폐기다(explore.md 4.5-1).
+          검색창 탭 → 같은 자리의 입력 상태 전환이라 화면 전환 애니메이션을 끈다 */}
+      <MainStack.Screen
+        name="ExploreSearch"
+        component={ExploreSearchScreen}
+        options={{ animation: 'none' }}
+      />
       {/* 설정 — 앱바(뒤로 + "설정")를 화면이 직접 그린다(settings-uiux.md 4.1) */}
       <MainStack.Screen name="Settings" component={SettingsScreen} />
       {/* TODO: 프로필·설정 목적지 — 각 화면 구현 시 컴포넌트만 교체한다(라우트 이름 유지).

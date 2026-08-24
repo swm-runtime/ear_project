@@ -83,6 +83,24 @@ export interface ExplorePopularPage {
   playLimit: PlayLimitSnapshot;
 }
 
+/** 검색 빈 결과의 대체 노출(E7) — 같은 응답으로 온다. 빈 화면이 한 박자 늦게 채워지지 않게 한다(explore-api.md 4.5) */
+export interface ExploreSearchFallback {
+  relatedTopics: { id: string; name: string }[];
+  popularItems: ExploreItem[];
+}
+
+/**
+ * 검색 결과 한 페이지(explore-api.md 4.5) — 행은 피드와 같은 문법(ExploreItem)이다.
+ * 잔여 표시값이 없다 — 검색 화면은 표시를 숨긴다(explore.md 4.4-1).
+ */
+export interface ExploreSearchPage {
+  items: ExploreItem[];
+  nextCursor: string | null;
+  hasNext: boolean;
+  /** items가 있으면 null — 빈 결과일 때만 값이 있다 */
+  fallback: ExploreSearchFallback | null;
+}
+
 /**
  * 주제 칩 항목 — 정렬은 서버 소유다(explore-api.md 4.2-2). 관심 주제(선택 순서)가 앞쪽이며
  * 클라이언트는 재배열하지 않는다. isInterest는 관심 주제 칩을 시각적으로 구분할 근거다.

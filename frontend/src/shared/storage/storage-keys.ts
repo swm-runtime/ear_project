@@ -11,4 +11,10 @@ export const STORAGE_KEYS = {
    * 기기 단위 하나의 키 — 진입점 화면별로 따로 저장하지 않는다(explore-uiux.md 8장).
    */
   PLAY_CONFIRM_SUPPRESSED_DATE: 'player.play_confirm_suppressed_date',
+  /**
+   * 최근 검색어 10건(explore.md 4.5-4) — 기기 로컬 전용. 서버에 보내지 않는다
+   * (SearchHistory는 테이블이 아니다 — domain.md 13.1). 재설치 시 사라지는 것이 의도다.
+   * TODO(MMKV): architecture.md 7.2가 정한 저장소는 MMKV다 — 도입 시 이 값부터 이관한다.
+   */
+  EXPLORE_RECENT_SEARCHES: 'explore.recent_searches',
 } as const;
