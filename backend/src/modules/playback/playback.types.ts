@@ -71,7 +71,8 @@ export interface AudioUrlResult {
   content: {
     id: string;
     title: string;
-    authorName: string;
+    /** ai_generated는 null일 수 있다 — origin 분기 (domain.md 5.1) */
+    authorName: string | null;
     sourceName: string;
     sourceUrl: string | null;
     durationSec: number;

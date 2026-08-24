@@ -9,7 +9,8 @@ class RecommendationTopicDto {
 class RecommendationItemDto {
   readonly content_id: string;
   readonly title: string;
-  readonly author_name: string;
+  /** `origin = ai_generated`는 null일 수 있다 (domain.md 5.1) */
+  readonly author_name: string | null;
   readonly source_name: string;
   readonly thumbnail_url: string;
   readonly duration_sec: number;

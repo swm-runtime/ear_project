@@ -27,7 +27,8 @@ export interface OnboardingState {
 export interface RecommendationItem {
   contentId: string;
   title: string;
-  authorName: string;
+  /** ai_generated는 null일 수 있다 — origin 분기 (domain.md 5.1) */
+  authorName: string | null;
   sourceName: string;
   thumbnailUrl: string;
   durationSec: number;

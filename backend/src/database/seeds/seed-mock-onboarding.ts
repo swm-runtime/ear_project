@@ -20,6 +20,14 @@ import { MOCK_CONTENTS, MOCK_TOPICS } from './mock-onboarding.data';
 import { validateEnv } from '@/config/env.validation';
 
 /**
+ * 파트너 목 콘텐츠의 `partner_id` · `license_expires_at`.
+ * `chk_contents_partner_disclosure`(domain.md 5.1)가 파트너 행에 둘을 요구한다 —
+ * `partners` 테이블이 아직 없어 FK 없는 고정 uuid로 채운다(partner 모듈 도입 시 대체).
+ */
+const MOCK_PARTNER_ID = 'f0000000-0000-4000-8000-000000000001';
+const MOCK_LICENSE_EXPIRES_AT = new Date('2027-12-31T15:00:00.000Z');
+
+/**
  * **개발 전용 시드.** `npm run seed:mock`으로 실행한다.
  *
  * 마이그레이션이 아니라 별도 스크립트인 이유: 여기 들어가는 콘텐츠는 운영 데이터가 아니라
@@ -46,7 +54,7 @@ async function seed(): Promise<void> {
     });
 
     console.log(
-      `[seed] topics=${MOCK_TOPICS.length} contents=+${summary.insertedContentCount} (skipped ${summary.skippedContentCount}) sources=+${summary.insertedSourceCount}`,
+      `[seed] topics=${MOCK_TOPICS.length} contents=+${summary.insertedContentCount} (skipped ${summary.skippedContentCount}) sources=+${summary.insertedSourceCount} normalized=${summary.normalizedContentCount}`,
     );
   } finally {
     await dataSource.destroy();
@@ -90,6 +98,7 @@ async function seedContents(
   insertedContentCount: number;
   skippedContentCount: number;
   insertedSourceCount: number;
+  normalizedContentCount: number;
 }> {
   const contentRepository = manager.getRepository(Content);
   const contentTopicRepository = manager.getRepository(ContentTopic);
@@ -97,9 +106,18 @@ async function seedContents(
   const contentSourceRepository = manager.getRepository(ContentSource);
 
   const existingByTitle = new Map(
-    (await contentRepository.find({ select: { id: true, title: true } })).map(
-      (content) => [content.title, content],
-    ),
+    (
+      await contentRepository.find({
+        select: {
+          id: true,
+          title: true,
+          origin: true,
+          sourceUrl: true,
+          partnerId: true,
+          licenseExpiresAt: true,
+        },
+      })
+    ).map((content) => [content.title, content]),
   );
 
   // 시리즈는 같은 `series_id`를 공유해야 한다 (domain.md 5.1)
@@ -107,6 +125,7 @@ async function seedContents(
   let insertedContentCount = 0;
   let skippedContentCount = 0;
   let insertedSourceCount = 0;
+  let normalizedContentCount = 0;
 
   for (const [index, mock] of MOCK_CONTENTS.entries()) {
     const existing = existingByTitle.get(mock.title);
@@ -119,6 +138,10 @@ async function seedContents(
         existing.id,
         mock,
       );
+      normalizedContentCount += await backfillDisclosure(
+        contentRepository,
+        existing,
+      );
       skippedContentCount += 1;
       continue;
     }
@@ -127,18 +150,20 @@ async function seedContents(
       seriesIdByKey.set(mock.seriesKey, crypto.randomUUID());
     }
 
+    const isPartner = mock.sourceName === '퍼블리';
+
     const content = await contentRepository.save(
       contentRepository.create({
         title: mock.title,
         description: mock.description,
         authorName: mock.authorName,
         sourceName: mock.sourceName,
-        sourceUrl: `https://example.com/mock/${index + 1}`,
-        origin:
-          mock.sourceName === '퍼블리'
-            ? ContentOrigin.PARTNER
-            : ContentOrigin.AI_GENERATED,
-        partnerId: null,
+        // ai_generated의 원문 링크는 소스 목록(content_sources)이 담당한다 —
+        // 콘텐츠 단위 source_url을 채우면 목록 더보기 시트에 [원문 보기]가 잘못 노출된다
+        sourceUrl: isPartner ? `https://example.com/mock/${index + 1}` : null,
+        origin: isPartner ? ContentOrigin.PARTNER : ContentOrigin.AI_GENERATED,
+        // chk_contents_partner_disclosure — 파트너 행은 partner_id·license_expires_at 필수
+        partnerId: isPartner ? MOCK_PARTNER_ID : null,
         seriesId: mock.seriesKey
           ? (seriesIdByKey.get(mock.seriesKey) ?? null)
           : null,
@@ -149,7 +174,7 @@ async function seedContents(
         durationSec: mock.durationSec,
         thumbnailUrl: `https://picsum.photos/seed/ear-${index + 1}/400/400`,
         contentVersion: 1,
-        licenseExpiresAt: null,
+        licenseExpiresAt: isPartner ? MOCK_LICENSE_EXPIRES_AT : null,
         status: ContentStatus.PUBLISHED,
         // 신선도 정렬이 의미를 갖도록 발행일을 흩어 놓는다
         publishedAt: new Date(now.getTime() - (index + 1) * 86_400_000),
@@ -206,7 +231,41 @@ async function seedContents(
     insertedContentCount += 1;
   }
 
-  return { insertedContentCount, skippedContentCount, insertedSourceCount };
+  return {
+    insertedContentCount,
+    skippedContentCount,
+    insertedSourceCount,
+    normalizedContentCount,
+  };
+}
+
+/**
+ * 출처 분기 확정(2026-08-24 — domain.md 5.1 CHECK 반영) **이전에 시드된 행을 맞춘다.**
+ * ai_generated는 콘텐츠 단위 `source_url`을 비우고(목록 [원문 보기] 오노출 방지),
+ * partner는 `chk_contents_partner_disclosure`가 요구하는 두 필드를 채운다. 멱등이다.
+ */
+async function backfillDisclosure(
+  repository: import('typeorm').Repository<Content>,
+  content: Content,
+): Promise<number> {
+  if (content.origin === ContentOrigin.AI_GENERATED) {
+    if (content.sourceUrl === null) {
+      return 0;
+    }
+
+    await repository.update(content.id, { sourceUrl: null });
+    return 1;
+  }
+
+  if (content.partnerId !== null && content.licenseExpiresAt !== null) {
+    return 0;
+  }
+
+  await repository.update(content.id, {
+    partnerId: MOCK_PARTNER_ID,
+    licenseExpiresAt: MOCK_LICENSE_EXPIRES_AT,
+  });
+  return 1;
 }
 
 /**

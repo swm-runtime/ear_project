@@ -15,8 +15,11 @@ import {
 export interface LibraryContentView {
   id: string;
   title: string;
-  authorName: string;
+  /** ai_generated는 null일 수 있다 — origin 분기 (domain.md 5.1) */
+  authorName: string | null;
   sourceName: string;
+  /** null이면 더보기 시트에 [원문 보기]를 노출하지 않는다 (개정 2026-08-24 — library-api.md 4.1) */
+  sourceUrl: string | null;
   durationSec: number;
   thumbnailUrl: string;
   /** 재발행 판정용. 올라갔으면 클라이언트가 저장한 위치·오프라인 파일을 폐기한다 */
