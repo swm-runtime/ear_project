@@ -9,6 +9,7 @@ import {
   ContentStatus,
   StatsPeriodType,
 } from '@/modules/content/content.enum';
+import { ContentSource } from '@/modules/content/entities/content-source.entity';
 import { ContentStat } from '@/modules/content/entities/content-stat.entity';
 import { ContentTopic } from '@/modules/content/entities/content-topic.entity';
 import { Content } from '@/modules/content/entities/content.entity';
@@ -45,7 +46,7 @@ async function seed(): Promise<void> {
     });
 
     console.log(
-      `[seed] topics=${MOCK_TOPICS.length} contents=+${summary.insertedContentCount} (skipped ${summary.skippedContentCount})`,
+      `[seed] topics=${MOCK_TOPICS.length} contents=+${summary.insertedContentCount} (skipped ${summary.skippedContentCount}) sources=+${summary.insertedSourceCount}`,
     );
   } finally {
     await dataSource.destroy();
@@ -85,14 +86,19 @@ async function seedContents(
   manager: import('typeorm').EntityManager,
   topicIdByName: Map<string, string>,
   now: Date,
-): Promise<{ insertedContentCount: number; skippedContentCount: number }> {
+): Promise<{
+  insertedContentCount: number;
+  skippedContentCount: number;
+  insertedSourceCount: number;
+}> {
   const contentRepository = manager.getRepository(Content);
   const contentTopicRepository = manager.getRepository(ContentTopic);
   const contentStatRepository = manager.getRepository(ContentStat);
+  const contentSourceRepository = manager.getRepository(ContentSource);
 
-  const existingTitles = new Set(
-    (await contentRepository.find({ select: { title: true } })).map(
-      (content) => content.title,
+  const existingByTitle = new Map(
+    (await contentRepository.find({ select: { id: true, title: true } })).map(
+      (content) => [content.title, content],
     ),
   );
 
@@ -100,9 +106,19 @@ async function seedContents(
   const seriesIdByKey = new Map<string, string>();
   let insertedContentCount = 0;
   let skippedContentCount = 0;
+  let insertedSourceCount = 0;
 
   for (const [index, mock] of MOCK_CONTENTS.entries()) {
-    if (existingTitles.has(mock.title)) {
+    const existing = existingByTitle.get(mock.title);
+
+    if (existing) {
+      // 콘텐츠는 이미 있어도 소스는 없을 수 있다 — content_sources 도입(2026-08-24)
+      // 이전에 시드된 DB를 재실행 한 번으로 맞추기 위한 백필이다.
+      insertedSourceCount += await backfillSources(
+        contentSourceRepository,
+        existing.id,
+        mock,
+      );
       skippedContentCount += 1;
       continue;
     }
@@ -182,10 +198,49 @@ async function seedContents(
     }
 
     await contentStatRepository.save(stats);
+    insertedSourceCount += await backfillSources(
+      contentSourceRepository,
+      content.id,
+      mock,
+    );
     insertedContentCount += 1;
   }
 
-  return { insertedContentCount, skippedContentCount };
+  return { insertedContentCount, skippedContentCount, insertedSourceCount };
+}
+
+/**
+ * `ai_generated` 참고 소스를 채운다(domain.md 5.5). **이미 소스가 있는 콘텐츠는 건드리지
+ * 않는다** — 시드 전체의 멱등 규칙과 같다. 배열 순서가 곧 `position`이다(1부터).
+ */
+async function backfillSources(
+  repository: import('typeorm').Repository<ContentSource>,
+  contentId: string,
+  mock: (typeof MOCK_CONTENTS)[number],
+): Promise<number> {
+  if (!mock.sources || mock.sources.length === 0) {
+    return 0;
+  }
+
+  const existingCount = await repository.countBy({ contentId });
+
+  if (existingCount > 0) {
+    return 0;
+  }
+
+  await repository.save(
+    mock.sources.map((source, sourceIndex) =>
+      repository.create({
+        contentId,
+        position: sourceIndex + 1,
+        title: source.title,
+        author: source.author ?? null,
+        url: source.url ?? null,
+      }),
+    ),
+  );
+
+  return mock.sources.length;
 }
 
 seed().catch((error: unknown) => {
