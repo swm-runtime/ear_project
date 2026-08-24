@@ -5,6 +5,7 @@
 | 대상 | `contents` 스키마(`domain.md` 5.1) · 콘텐츠 단건 상세 조회 계약(신설 예정) · 관리자 업로드 입력(`admin.md` 3.1) |
 | 요청 파트 | 프론트엔드 |
 | 발행 날짜 | 2026-08-23 |
+| 반영 날짜 | 2026-08-24 |
 | 발견 시점 | 콘텐츠 상세 화면(FR-40) 명세·시안 작성 중 — `features/content-detail.md` 4.3 확정 과정 |
 | 근거 문서 | `features/content-detail.md` 4.3·미결 · `wireframe/content-detail.html` CD2·검증 V3 · `backend/domain.md` 5.1 |
 | 심각도 | **중** — 콘텐츠 상세 화면의 `ai_generated` 출처 영역이 이 계약 없이는 실서버로 동작하지 않는다. FE는 mock으로 선행 개발한다 |
@@ -71,3 +72,23 @@ FE는 이 계약을 가정한 mock(`[{title, author|null, url|null}]`)으로 콘
 - Given `partner` 콘텐츠의 단건 상세를 조회한다 / When 응답을 본다 / Then `author_name`·`source_name`·`source_url`은 기존과 동일하고, 소스 목록 규칙의 영향을 받지 않는다
 - Given `domain.md` 5.1을 읽는다 / When 소스 저장 구조를 확인한다 / Then 채택한 방식(테이블 승격 또는 컬럼)과 "정규화하지 않는다" 결정의 개정 이력이 반영되어 있다
 - Given 스키마 변경이 끝났다 / When `spec/api/content-detail-api.md`의 가정 계약과 대조한다 / Then 변경점이 있으면 api 명세에 반영되어 있고, 없으면 "가정 계약" 표기가 확정으로 바뀌어 있다
+
+---
+
+## 처리 기록 (반영 날짜 2026-08-24 — 브랜치 `feat(be)/content-detail`)
+
+### 결정 사항
+
+| 결정 항목 | 확정 내용 |
+|---|---|
+| 저장 방식 | **`content_sources` 테이블 승격** — `domain.md` 5.1이 예고한 승격 경로 그대로. `(id, content_id FK CASCADE, position, title, author NULL, url NULL)` + 유니크 `(content_id, position)`. `domain.md` 5.5 신설 |
+| 소스 링크 클릭 기록 | **MVP 미기록** — `source_link_clicks`의 존재 이유(파트너 정산·리포팅)가 `ai_generated` 소스에는 없다. 따라서 `sources` 항목에 식별자(`id`)를 싣지 않는다. 소스별 분석 요구가 생기면 P1에서 `source_link_clicks.source_id` 추가와 함께 재검토 (`domain.md` 5.5·6.6) |
+| `partner`의 `sources` 표현 | **`null`** — api 문서의 제안(조건부 블록 null 생략 원칙 정합)을 그대로 채택. `partner`는 `content_sources`에 행을 만들지 않는다 |
+| 계약 대조 | 가정 계약 `[{title, author\|null, url\|null}]`이 **그대로 확정** — FE mock에서 바꿀 필드 없음. `content-detail-api.md`의 "가정" 표기를 확정으로 개정 |
+
+### 반영 내역
+
+- **문서**: `domain.md`(5.1 개정·5.5 신설·6.6·2장·14장 테이블 수·15.1 #8 소스 목록분 해소·15.2 기록) · `content-detail-api.md`(가정→확정, 9장 미결 3건 해소) · `content-detail.md`(4.3 경고·데이터 모델·미결 갱신)
+- **코드**: `ContentSource` 엔티티 + 마이그레이션(`AddContentSources`) + `ContentSourceRepository` + `ContentService.findSourcesByContentId`(position 순) + 시드에 `ai_generated` 15편 소스 데이터(기존 DB 백필 포함 — 재실행 한 번으로 채워진다)
+- **관리자 업로드 파급**(함께 정할 것 3): 업로드 코드가 아직 없어 코드 파급은 없음. `admin.md` 3.1·4.2의 입력·검증 명세는 `changes/archive/admin-upload-structured-sources(be).md`로 발행·반영 완료(2026-08-24)
+- **완료 조건 1(단건 상세 응답)**: `GET /contents/:content_id`가 이 브랜치의 후속 작업이라, 소스 목록의 응답 탑재는 그 구현에서 최종 확인한다. 조회 Service(`findSourcesByContentId`)까지는 이 처리에 포함됨

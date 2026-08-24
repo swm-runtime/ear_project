@@ -116,7 +116,7 @@ idx_idempotency_keys_expires_at
 | `user` | `users`, `consents`, `withdrawal_logs`, `user_settings`, `device_tokens`, `email_verifications` |
 | `auth` | `sessions` |
 | `interest` | `topics`, `user_interests`, `topic_adjacencies` |
-| `content` | `contents`, `content_topics`, `content_scripts`, `content_stats` |
+| `content` | `contents`, `content_topics`, `content_scripts`, `content_stats`, `content_sources` |
 | `library` | `library_items` |
 | `playback` | `playback_progresses`, `play_records`, `user_signals`, `audio_access_logs`, `source_link_clicks` |
 | `drip` | `drip_excluded_contents`, `user_preference_vectors`, `drip_batch_runs`, `first_drip_jobs` |
@@ -511,7 +511,7 @@ chk_contents_partner_disclosure
 
 - `origin = partner`의 `source_name`에는 **파트너명**이 들어간다 (B-5). `partners.name`의 비정규화 사본이며, 발행 시점 값을 고정한다(파트너명이 나중에 바뀌어도 발행된 콘텐츠의 고지 문구는 변하면 안 된다).
 - `origin = ai_generated`의 `source_name`에는 **"참고한 자료" 소스 표기**가 들어간다(복수 소스 가능). 근거 소스가 단일 원문·단일 저자가 아니므로 `author_name`·`source_url`은 선택이다(`admin.md` 3.1 — `content-pipeline.md` 4.3의 AI 생성 고지 멘트와 같은 기준).
-- **복수 소스를 별도 테이블·배열로 정규화하지 않는다.** 이 값의 용도는 출처 고지 문구 표시(FR-12) 하나뿐이고, 소스 단위 질의·조인·집계 요구가 없다 — `content_topics`를 정규화한 이유(후보 필터 인덱스)가 여기에는 없다. 표기 문자열 하나로 담고, 소스 단위 관리 요구가 생기면 그때 테이블로 승격한다. 다만 **소스 목록·정책 확인 기록을 시스템 필드로 남길지는 미결이다**([15.1](#151-남아-있는-결정) — `admin.md` 4.2-1의 적법 수집 확인).
+- **`ai_generated`의 소스 목록은 `content_sources`로 승격했다** (개정 2026-08-24 — [5.5](#55-content_sources)). 종전 결정은 "복수 소스를 별도 테이블·배열로 정규화하지 않는다"였다 — 당시 용도가 출처 고지 문구 표시(FR-12) 하나뿐이고 소스 단위 질의·조인·집계 요구가 없었기 때문이다. 콘텐츠 상세 화면(FR-40, `content-detail.md` 4.3)이 소스 단위 표시(제목·저자·링크 전수 나열)를 요구하면서 그 전제가 깨졌고, 예고해 둔 승격 경로대로 테이블로 올렸다. **`source_name`의 고지 문구 표기(복수 가능)는 그대로 유지한다** — 승격은 표시용 목록의 추가이지 고지 문구의 대체가 아니다. 정책 확인(적법 수집)의 **확인 기록**을 시스템 필드로 남길지는 여전히 미결이다([15.1](#151-남아-있는-결정) #8 — `admin.md` 4.2-1).
 - `chk_contents_partner_disclosure`가 파트너 콘텐츠의 필수 고지(FR-12 — 예외 없는 필수)를 DB에서 이중 방어한다([1.1](#11-모든-테이블에-공통으로-들어가는-것)). 업로드 검증이 뚫려도 고지 정보 없는 파트너 콘텐츠 행이 생기지 않는다.
 
 **검색(FR-22, MVP)은 `pg_trgm` 부분 일치다** (확정 2026-08-23 — `explore.md` 4.5-5)
@@ -604,6 +604,29 @@ idx_content_stats_period_type_period_start_play_count (period_type, period_start
 - 집계 배치는 `playback` 모듈이 실행한다([2장](#2-모듈별-entity-소유권) 참조).
 - 회수(`withdrawn`)된 콘텐츠의 통계도 삭제하지 않는다. 회수 전 재생분은 집계 대상이다.
 - `PartnerReport` 테이블은 만들지 않는다 (B-6). 파트너 리포팅은 이 테이블 집계 + `contents.partner_id` 필터로 산출한다.
+
+### 5.5 `content_sources`
+
+`ai_generated` 콘텐츠의 참고 소스 목록이다 (확정 2026-08-24 — 콘텐츠 상세 화면 FR-40, `content-detail.md` 4.3). 상세 화면이 소스마다 제목·저자를 전수 나열하고, 링크 있는 항목의 탭이 인앱 브라우저를 열기 위한 표시용 데이터다.
+
+```
+content_sources
+  id                        uuid            PK
+  content_id                uuid            FK → contents (CASCADE)
+  position                  int             ★서버가 정한 표시 순서 (1부터)
+  title                     varchar         소스 제목
+  author                    varchar         NULL 허용 — 없으면 제목만 표시
+  url                       varchar         NULL 허용 — 없으면 탭 대상이 아니다
+
+uq_content_sources_content_id_position (content_id, position)
+```
+
+- **`partner` 콘텐츠는 행을 만들지 않는다.** partner의 출처는 기존 컬럼(`author_name` · `source_name` · `source_url`)이 담당한다([5.1](#51-contents)) — 상세 응답에서 partner의 `sources`는 `null`이다(`content-detail-api.md` 4.1).
+- **`source_name`을 대체하지 않는다.** 재생 멘트의 출처 고지 문구(FR-12)는 표기 문자열이 계속 필요하다 — 이 테이블은 상세 화면 표시용 목록의 추가다.
+- **순서는 `position`이 소유한다.** 서버가 정해 내려주고 클라이언트는 재배열하지 않는다(`content-detail.md` 4.3 — 기존 원칙).
+- **`content_id` 단독 인덱스를 두지 않는다.** 유니크 `(content_id, position)`의 선두 컬럼이 콘텐츠 단위 조회를 이미 커버한다.
+- **소스 항목 탭의 클릭은 기록하지 않는다** (확정 2026-08-24 — MVP). `source_link_clicks`의 존재 이유는 파트너 정산·리포팅 지표이고([6.6](#66-source_link_clicks)), `ai_generated` 소스에는 그 요구가 없다. 따라서 상세 응답의 소스 항목에 식별자(`id`)를 싣지 않는다. 소스별 분석 요구가 생기면 P1에서 `source_link_clicks.source_id` 추가와 함께 재검토한다.
+- 정책 확인(적법 수집)의 **확인 기록**은 이 테이블의 소관이 아니다 — 여전히 미결이다([15.1](#151-남아-있는-결정) #8).
 
 ---
 
@@ -780,6 +803,7 @@ idx_source_link_clicks_user_id (user_id)
 - 재생 1회당 최대 몇 건 수준이라 적재량 부담이 없다(`seek`류와 다른 점).
 - `user_id`는 중복 클릭 분석·탈퇴 파기 경로용이다. 집계는 개인 식별 없이 카운트만 쓴다.
 - 탈퇴 시 **즉시 파기한다**([12.3](#123-회원-탈퇴-처리)) — 확정된 `content_stats` 집계값은 남는다(`play_records`와 같은 논리).
+- **`ai_generated` 소스 항목 탭은 기록하지 않는다** (확정 2026-08-24 — [5.5](#55-content_sources)). 이 테이블은 콘텐츠 단위이며 `source_id` 컬럼을 추가하지 않는다 — 원문 클릭을 적재하는 이유(파트너 정산·리포팅 지표)가 `ai_generated` 소스에는 없다. 소스별 분석 요구가 생기면 P1에서 재검토한다.
 
 ---
 
@@ -1392,13 +1416,13 @@ idx_archived_subscriptions_archived_at
 | 방해금지 설정 필드 · 전역 방해금지 시간대 | 합의 2026-08-06 — 방해금지 개념 자체 폐기(`notification.md` 4.3). 순수 정보성 알림이라 야간 제한 없음 |
 | `NotificationLog.skip_reason` 중 `quiet_hours` · `free_tier` | 방해금지 폐기 · 무료 티어 드립 수신으로 발생하지 않는 사유 (9.1) |
 
-**테이블 수**: MVP 필수 **34개** (+ P1 `topic_adjacencies`).
+**테이블 수**: MVP 필수 **35개** (+ P1 `topic_adjacencies`).
 
 | 영역 | 개수 | 테이블 |
 |---|---|---|
 | 계정·인증 | 7 | `users` `consents` `sessions` `withdrawal_logs` `user_settings` `device_tokens` `email_verifications` |
 | 관심사 | 2 | `topics` `user_interests` |
-| 콘텐츠 | 4 | `contents` `content_topics` `content_scripts` `content_stats` |
+| 콘텐츠 | 5 | `contents` `content_topics` `content_scripts` `content_stats` `content_sources` |
 | 라이브러리·재생 | 6 | `library_items` `playback_progresses` `play_records` `user_signals` `audio_access_logs` `source_link_clicks` |
 | 편성 | 4 | `drip_excluded_contents` `user_preference_vectors` `drip_batch_runs` `first_drip_jobs` |
 | 구독·결제 | 4 | `plans` `subscriptions` `purchase_intents` `store_notification_logs` |
@@ -1421,7 +1445,7 @@ idx_archived_subscriptions_archived_at
 | 5 | ~~`drip_excluded_contents.reason`에 온보딩 담기 값이 없다~~ | **해소 (2026-08-06)** — **reason에 `onboarding`을 추가하지 않는다.** 온보딩 담기는 이 테이블에 행을 만들지 않는다: 중복 적립은 `library_items (user_id, content_id)` 유니크가 막고, 후보 필터 첫 줄(`library_items` 행 존재)이 담기분을 이미 제외하며, 삭제 시에는 `library_delete` 사유가 커버한다 → [7.1](#71-drip_excluded_contents). `onboarding.md` 6장의 주석도 이 결론으로 갱신 완료(2026-08-06). |
 | 6 | ~~추천 세트 스냅샷 저장소 없음~~ | **해소 (2026-08-06)** — 사용자·세션 단위 고정(랜덤 배치 + 시드 고정) 규칙 자체가 폐기됐다(`features/README.md` 결정 #12, `onboarding.md` 4장). 표본 크기와 무관하게 같은 선정 기준으로 정렬한 상위를 노출하므로 결과가 결정론적이고, 스냅샷·캐시가 필요 없다. |
 | 7 | **비동기 재시도 큐 미정** | [7.4](#74-first_drip_jobs)의 `queued`가 넘기는 대상이며 `onboarding.md`의 최종 폴백 경로인데, 큐 인프라 자체가 `architecture.md` 미결이다. 미정인 채로는 `queued` 상태가 종착지 없이 남는다. |
-| 8 | **`ai_generated` 근거 소스 목록·정책 확인 기록 필드 도입 여부** | 적법 수집 확인(FR-11)은 업로드 전 수동 확인뿐이고 확인 기록이 시스템에 남지 않는다(`admin.md` 4.2-1 미결). `source_name` 표기 문자열([5.1](#51-contents))은 고지용이지 소스 단위 기록이 아니다. 소스 단위 테이블로 승격할지, 감사 로그로 충분한지 결정 필요. **콘텐츠 상세 화면(FR-40, 확정 2026-08-23)이 소스 단위 표시(제목·저자·URL 전수 나열 — `content-detail.md` 4.3)를 요구하면서 승격 사유가 생겼다** — 5.1의 "정규화하지 않는다" 전제(용도가 고지 문구 하나)가 깨졌다. 티켓: `tickets/backend/pending/content-sources-structured-list.md` (`[{title, author\|null, url\|null}]` 제공, `source_name` 고지 문구는 유지). |
+| 8 | **`ai_generated` 정책 확인 기록 필드 도입 여부** (~~근거 소스 목록~~은 해소) | **소스 목록은 해소 (2026-08-24)** — 콘텐츠 상세 화면(FR-40)의 소스 단위 표시 요구로 `content_sources` 테이블로 승격했다([5.5](#55-content_sources)). `source_name` 고지 문구는 유지, partner는 행 없음, 소스 항목 탭 클릭은 MVP 미기록. 티켓 `tickets/backend/archive/content-sources-structured-list.md` 처리 완료. **남은 결정**: 적법 수집 확인(FR-11)의 확인 **기록** — 업로드 전 수동 확인뿐이고 기록이 시스템에 남지 않는다(`admin.md` 4.2-1 미결). `content_sources`에 확인 필드를 붙일지, 감사 로그(`audit_logs`의 업로드 기록)로 충분한지 결정 필요. |
 | 9 | **사용자 단위 청취 통계 집계 테이블 신설 여부** | 프로필 통계(`profile.md` 4.5~4.7)는 전부 파생값이라 컬럼을 두지 않는다([1.5](#15-파생값을-컬럼으로-두지-않는다) · [6.3](#63-play_records)). 다만 연속 일수·주제 분포는 매 조회 집계 비용이 사용자 이력에 비례하므로, 집계 캐시 테이블(또는 구체화 뷰)을 둘지는 실측 후 백엔드가 판단한다. 캐시를 두는 경우에도 진실의 원천은 `play_records`다. |
 | 10 | ~~직군 선택지 목록의 저장 형태~~ | **해소 (협의 2026-08-10)** — 원천은 서버 제공(`onboarding.md`·`career.md`, 공용), 저장 형태는 **서버 코드 상수로 시작한다**(스키마 변경·테이블 신설 없음). 관리자가 목록을 바꿀 요구가 생기면 관리 테이블로 승격하고, 그때 제거된 직군 값의 처리(`career-api.md` 미결)를 함께 정한다. 계약(`GET /job-categories`)은 형태와 무관하다. |
 
@@ -1469,3 +1493,9 @@ idx_archived_subscriptions_archived_at
 | 항목 | 결정 | 반영 위치 |
 |---|---|---|
 | 검색 매칭·인덱스 (FR-22, MVP 격상) | **`pg_trgm` 부분 일치 확정**(`explore.md` 4.5-5 — tsvector는 한국어 사전이 없어 폐기). `contents` 3필드(title·description·author_name)에 트라이그램 GIN 인덱스 신설, `topics.name`은 인덱스 없음(주제 수십 개 — 순차 스캔), 확장 `pg_trgm` 도입. NFC 정규화는 애플리케이션 계층 — 정규화 사본 컬럼을 두지 않는다 | 5.1 |
+
+**2026-08-24 확정 반영분**
+
+| 항목 | 결정 | 반영 위치 |
+|---|---|---|
+| `ai_generated` 소스 목록 저장 구조 (FR-40) | **`content_sources` 테이블 승격.** 콘텐츠 상세 화면의 소스 단위 표시(제목·저자·링크 전수 나열) 요구로 "정규화하지 않는다"의 전제가 깨졌다. `source_name` 고지 문구는 유지(대체 아님), partner는 행 없음(상세 응답 `sources = null`), 소스 항목 탭 클릭은 MVP 미기록 — 소스 항목에 `id`를 싣지 않고 P1에서 재검토 | 5.1, 5.5, 6.6, 2장, 15.1-8 |

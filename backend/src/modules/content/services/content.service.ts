@@ -23,8 +23,10 @@ import {
   PopularPage,
   PopularPageQuery,
 } from '../content.types';
+import { ContentSource } from '../entities/content-source.entity';
 import { Content } from '../entities/content.entity';
 import { ContentRepository } from '../repositories/content.repository';
+import { ContentSourceRepository } from '../repositories/content-source.repository';
 import { ContentTopicRepository } from '../repositories/content-topic.repository';
 
 /** 담기 대상 판정 결과 — 부분 실패를 표현한다 (onboarding-api.md 4.6) */
@@ -42,6 +44,7 @@ export class ContentService {
   constructor(
     private readonly contentRepository: ContentRepository,
     private readonly contentTopicRepository: ContentTopicRepository,
+    private readonly contentSourceRepository: ContentSourceRepository,
   ) {}
 
   async findCandidates(
@@ -155,6 +158,20 @@ export class ContentService {
     }
 
     return content;
+  }
+
+  /**
+   * `ai_generated` 콘텐츠의 참고 소스 목록(domain.md 5.5) — 서버가 정한 표시
+   * 순서(position)대로 반환한다. 클라이언트는 재배열하지 않는다(`content-detail.md` 4.3).
+   *
+   * `partner` 콘텐츠는 행이 없어 빈 배열이다 — 응답에서 `null`로 표현하는 것은
+   * 조립부(상세 조회) 몫이다(`content-detail-api.md` 4.1).
+   */
+  async findSourcesByContentId(
+    contentId: string,
+    manager?: EntityManager,
+  ): Promise<ContentSource[]> {
+    return this.contentSourceRepository.findAllByContentId(contentId, manager);
   }
 
   async findTopicViews(

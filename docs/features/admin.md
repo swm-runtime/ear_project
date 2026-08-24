@@ -34,6 +34,7 @@ MVP는 자동 콘텐츠 파이프라인을 운영하지 않는다(PRD 4.2). 대�
 | author_name | 원저자 | **파트너 콘텐츠 필수** (FR-12) / `origin == ai_generated`는 **선택** |
 | source_name | `origin == partner`: **파트너명** / `origin == ai_generated`: **"참고한 자료" 소스 표기(복수 가능)** | 필수 |
 | source_url | 원문 링크 | **파트너 콘텐츠 필수** (FR-12) / `origin == ai_generated`는 **선택** |
+| sources[] | `origin == ai_generated`의 **참고 소스 목록** — 소스마다 `제목(필수) · 저자(선택) · 링크(선택)`, 입력 순서가 곧 표시 순서(`content_sources.position` — `domain.md` 5.5) | **`origin == ai_generated` 필수, 최소 1개** (확정 2026-08-24 — 상세 화면 FR-40의 전수 나열) / `partner`는 받지 않는다 |
 | origin | partner / ai_generated | 필수 |
 | partner_id | `origin == partner`일 때 | 조건부 필수 |
 | license_expires_at | 라이선스 만료일 | 선택 (파트너 콘텐츠는 필수) |
@@ -45,6 +46,7 @@ MVP는 자동 콘텐츠 파이프라인을 운영하지 않는다(PRD 4.2). 대�
 
 - `duration_sec`은 업로드된 오디오에서 **서버가 추출**한다. 수동 입력받지 않는다(불일치 시 완청 판정이 깨진다).
 - **출처 필드는 `origin`으로 분기한다**(합의 2026-08-06 — `domain.md` 5.1 반영 완료: NULL 허용 + `chk_contents_partner_disclosure` CHECK로 파트너 필수 고지를 DB에서 이중 방어). 파트너 콘텐츠는 기존대로 author_name·source_name·source_url 전부 필수이고, `ai_generated`는 source_name에 "참고한 자료" 소스 표기(복수 가능)만 필수, source_url·author_name은 선택이다 — 근거 소스가 단일 원문·단일 저자가 아니기 때문이다(`content-pipeline.md` 4.3의 AI 생성 고지 멘트와 같은 기준).
+- **`ai_generated`의 참고 소스는 소스 단위로 구조화해 받는다** (확정 2026-08-24 — `domain.md` 5.5 `content_sources`). 콘텐츠 상세 화면(FR-40)이 소스마다 제목·저자를 전수 나열하고 링크 있는 항목의 탭이 인앱 브라우저를 열기 때문이다(`content-detail.md` 4.3). **`source_name`의 고지 문구 표기는 별도 입력으로 유지한다** — 소스 목록은 상세 화면 표시용이지 고지 문구(FR-12)의 대체가 아니다.
 
 ### 3.2 주제 관리
 
@@ -82,13 +84,14 @@ MVP는 자동 콘텐츠 파이프라인을 운영하지 않는다(PRD 4.2). 대�
    ↓
 [발행]  contents(status = published, published_at = now) 생성
    ↓
-[연결]  content_topics · content_scripts 생성
+[연결]  content_topics · content_scripts · content_sources(ai_generated) 생성
 ```
 
 - **`draft` 상태를 두지 않는다.** 업로드 = 발행이다(`domain.md` 5.1). 중간 상태가 없으므로 "발행 버튼"도 따로 없다.
 - 업로드 전 검증에서 막는 것:
   - 라이선스 기간이 지났거나 오디오화 허용 범위 밖인 콘텐츠 → **업로드 거부**(`partner-control.md` 4.4)
   - 출처·저자·원문 링크 누락 → **파트너 콘텐츠는 거부** (FR-12는 예외 없는 필수 고지다). `origin == ai_generated`는 source_name의 "참고한 자료" 표기 누락만 거부하고 source_url·author_name은 선택이다(3.1의 분기 — 합의 2026-08-06, `domain.md` 5.1 반영 완료)
+  - `origin == ai_generated`의 소스 목록(`sources[]`)이 비어 있거나 소스 항목의 제목이 없음 → **거부** (확정 2026-08-24 — 상세 화면 FR-40의 전수 나열이 성립하지 않는다. `domain.md` 5.5)
   - 검수 완료 확인(체크) 누락 → 거부 (4.2-1의 수동 검수를 거치지 않은 업로드를 막는다)
   - `is_visible = false`인 주제에는 배정할 수 있다(관리자가 준비 중인 주제에 콘텐츠를 미리 쌓는 경우)
 - 발행 즉시 탐색 피드·드립 후보 풀에 편입된다. 별도 반영 작업이 없다.
@@ -109,7 +112,7 @@ MVP는 자동 콘텐츠 파이프라인을 운영하지 않는다(PRD 4.2). 대�
 **적법 수집 확인 (FR-11) — `origin == ai_generated`**
 
 - `ai_generated` 콘텐츠는 업로드 전에 **근거 소스의 저작권·이용약관·수집 정책 준수를 확인한다**(합의 2026-08-06 — `content-pipeline.md` 4.1의 수집 정책 체크를 MVP에서는 사람이 수행). 확인을 통과하지 못한 소스에 근거한 콘텐츠는 업로드하지 않는다.
-- 근거 소스 목록·정책 확인 기록을 시스템 필드로 남길지는 **미결**이다(`domain.md` 15.1 결정 항목 #8로 등록됨).
+- 근거 소스 **목록**은 `content_sources`로 확정됐다(2026-08-24 — `domain.md` 5.5, 3.1의 `sources[]` 입력). 정책 확인 **기록**을 시스템 필드로 남길지는 여전히 **미결**이다(`domain.md` 15.1 결정 항목 #8).
 
 ### 4.3 재발행 (콘텐츠 수정)
 
@@ -220,7 +223,7 @@ MVP는 자동 콘텐츠 파이프라인을 운영하지 않는다(PRD 4.2). 대�
 ## 미결 사항
 
 - **관리자 계정 부여 절차** — DB 직접 변경으로 가정했다. 운영 인원이 늘면 절차·승인 경로를 문서화해야 한다
-- **`ai_generated`의 근거 소스 목록·정책 확인 기록 필드 도입 여부** — 현재는 업로드 전 수동 확인(4.2-1)만 있고 확인 기록이 시스템에 남지 않는다. `domain.md` 15.1 결정 항목 #8로 등록됨
+- **`ai_generated`의 정책 확인 기록 필드 도입 여부** (~~근거 소스 목록~~은 해소) — 소스 목록은 `content_sources`로 확정(2026-08-24 — `domain.md` 5.5, 3.1 `sources[]`). 확인 **기록**은 여전히 업로드 전 수동 확인(4.2-1)뿐이고 시스템에 남지 않는다. `domain.md` 15.1 결정 항목 #8로 등록됨
 - ~~검수 완료 확인(체크)의 이행 기록 필드~~ → **확정(2026-08-06): 저장 컬럼을 두지 않는다.** 업로드 검증이 미체크를 거부하므로 발행 행에서 항상 참인 값이며, 증적은 `audit_logs`가 담당한다(`domain.md` 5.1)
 - **중복 업로드 방지 키 도입 여부** — 현재는 운영 책임. `(partner_id, source_url)` 유니크를 걸지 결정 필요
 - **시리즈 편집 UX** — 중간 편 회수·순서 변경 시 `episode_no` 재조정 방식 미정
