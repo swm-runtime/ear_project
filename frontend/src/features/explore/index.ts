@@ -3,6 +3,7 @@
  * 다른 feature·app은 이 파일을 통해서만 explore에 접근한다.
  */
 export { default as ExploreScreen } from './screens/ExploreScreen';
+export { default as ExploreSearchScreen } from './screens/ExploreSearchScreen';
 export { EXPLORE_COPY } from './explore.copy';
 export type { ExploreItem, ExploreTopic } from './explore.types';
 

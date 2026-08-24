@@ -1,4 +1,10 @@
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import {
+  useFocusEffect,
+  useNavigation,
+  useRoute,
+  type NavigationProp,
+  type RouteProp,
+} from '@react-navigation/native';
 import { useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, AppState, Linking } from 'react-native';
@@ -32,6 +38,15 @@ import { useUnsaveContentMutation } from './useUnsaveContentMutation';
 
 type EmptyKind = 'none' | 'feed' | 'filtered';
 
+/**
+ * 탐색 탭 라우트 파람의 로컬 선언 — 원본은 app/navigation/types.ts다(feature는 app을
+ * import하지 않는다 — usePlayerScreen·useContentDetailScreen과 같은 패턴).
+ * applyTopicId는 검색 빈 결과(E7)의 관련 주제 칩 복귀용이다(explore.md 4.5-3).
+ */
+type ExploreRouteParams = {
+  Explore: { applyTopicId?: string } | undefined;
+};
+
 const isNetworkError = (error: unknown): boolean =>
   isApiError(error) &&
   (error.errorCode === ERROR_CODES.NETWORK_ERROR || error.errorCode === ERROR_CODES.TIMEOUT);
@@ -46,6 +61,23 @@ export const useExploreScreen = () => {
   /* ── 필터 상태 — 앱을 종료하면 초기화된다(메모리 보관) ── */
   const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>([]);
   const isFiltered = selectedTopicIds.length > 0;
+
+  /* ── E7 관련 주제 칩 복귀(explore.md 4.5-3) — 그 주제의 단일 목록(E2)으로 전환한다.
+     파라미터 수신은 렌더 중 상태 조정으로 처리하고(effect 내 setState 금지 — lint 규칙),
+     effect는 외부 시스템 갱신(파라미터 소거)만 한다. 소거는 재탭 대비다 — 소거되면
+     handled도 undefined로 되돌아가, 같은 주제를 다시 받아도 다시 동작한다 ── */
+  const route = useRoute<RouteProp<ExploreRouteParams, 'Explore'>>();
+  const tabNavigation = useNavigation<NavigationProp<ExploreRouteParams, 'Explore'>>();
+  const applyTopicId = route.params?.applyTopicId;
+  const [handledApplyTopicId, setHandledApplyTopicId] = useState<string | undefined>(undefined);
+  if (applyTopicId !== handledApplyTopicId) {
+    setHandledApplyTopicId(applyTopicId);
+    if (applyTopicId !== undefined) setSelectedTopicIds([applyTopicId]);
+  }
+  useEffect(() => {
+    if (applyTopicId === undefined) return;
+    tabNavigation.setParams({ applyTopicId: undefined });
+  }, [applyTopicId, tabNavigation]);
 
   /* ── 인기 구간 상태(E13) — 화면 상태이지 사용자 상태가 아니다. 서버에 저장하지 않는다(explore.md 4.1-1).
      null이면 사용자가 아직 고르지 않은 상태 — 선택 표시는 피드 응답의 period가 정한다.
@@ -484,6 +516,12 @@ export const useExploreScreen = () => {
 
   const clearTopicFilter = () => setSelectedTopicIds([]);
 
+  /** 검색창 탭 → 검색 화면(E6) 전환(explore.md 4.5-1). 피드 상태(필터·구간·스크롤)는 이
+      화면이 스택 아래 남아 그대로 유지되고, 검색 상태는 검색 화면이 소유한다(pop = 폐기) */
+  const openSearch = () => {
+    navigation.navigate('Main', { screen: 'ExploreSearch' });
+  };
+
   const goToLibrary = () => {
     navigation.navigate('Main', { screen: 'Tabs', params: { screen: 'Library' } });
   };
@@ -527,6 +565,8 @@ export const useExploreScreen = () => {
     isFetchingPopularNextPage: popularQuery.isFetchingNextPage,
     isPopularLoadMoreFailed,
     retryPopularLoadMore: () => void popularQuery.fetchNextPage(),
+    // 검색 진입(E6)
+    openSearch,
     // 잔여 표시·페이월
     remainingDisplay,
     openPaywall: playGate.openPaywall,

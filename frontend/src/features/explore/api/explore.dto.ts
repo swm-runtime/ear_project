@@ -103,6 +103,34 @@ export interface UnsaveContentResponseDto {
   client_seq: number;
 }
 
+/** GET /explore/search (explore-api.md 4.5) — 트림 후 2자 이상 질의만 보낸다(클라이언트 필터는 UX, 판정은 서버 방어선) */
+export interface ExploreSearchRequestDto {
+  query: string;
+  /** 검색 결과에 주제 필터를 겹칠 때 — uuid 콤마 구분(선택). 현재 화면에는 필터 UI가 없다 */
+  topic_ids?: string;
+  cursor?: string;
+  limit?: number;
+}
+
+/** 빈 결과의 대체 노출(E7) — 같은 응답으로 온다. items가 있으면 fallback은 null이다(explore-api.md 4.5) */
+export interface ExploreSearchFallbackDto {
+  /** 쿼리와 유사한 주제 — 칩으로 노출, 탭 시 그 주제의 단일 목록(4.2)으로 이동 */
+  related_topics: { id: string; name: string }[];
+  /** 인기 콘텐츠(직전 확정 구간 기준 — domain.md 5.4) */
+  popular_items: ExploreItemDto[];
+}
+
+/**
+ * 검색 응답 — 행 모양은 4.1의 items[]와 완전히 같다("피드 행과 같은 문법").
+ * 잔여 재생 표시값을 싣지 않는다(explore-api.md 2장) — 검색 화면은 표시를 숨긴다.
+ */
+export interface ExploreSearchResponseDto {
+  items: ExploreItemDto[];
+  next_cursor: string | null;
+  has_next: boolean;
+  fallback: ExploreSearchFallbackDto | null;
+}
+
 /**
  * GET /explore/topics (explore-api.md 4.2-2) — 확정 계약(합의 2026-08-07).
  * 앞쪽은 활성 관심 주제 전부(선택 순서, 숨김 처리돼도 포함), 뒤쪽은 노출 주제(display_order 순).

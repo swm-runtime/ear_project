@@ -8,7 +8,11 @@ import type { PlayEntryPoint } from '@/features/player';
 /** 하단 탭 3개 — 라이브러리가 기본이고 설정은 탭이 아니라 프로필 안이다(library.md 2) */
 export type MainTabParamList = {
   Library: undefined;
-  Explore: undefined;
+  /**
+   * applyTopicId: 검색 빈 결과(E7)의 관련 주제 칩 복귀용 — 그 주제의 단일 목록(E2)으로
+   * 전환한다(explore.md 4.5-3). 화면이 처리 후 스스로 소거한다(useExploreScreen).
+   */
+  Explore: { applyTopicId?: string } | undefined;
   Profile: undefined;
 };
 
@@ -27,6 +31,12 @@ export type MainStackParamList = {
    * "플레이어 진입 시 재생 유지·복귀" 판정 재료다(content-detail-api.md 4.2).
    */
   ContentDetail: { contentId: string; entryPoint: ContentDetailEntryPoint };
+  /**
+   * 검색(E6·E7, explore.md 4.5 — MVP 포함 격상 2026-08-23) — 진입점은 탐색 검색창뿐이다.
+   * 피드 상태(필터·구간·스크롤)는 스택 아래 Tabs가 유지하고, 검색 상태(검색어·결과)는
+   * pop과 함께 버려진다(4.5-1) — 재진입은 검색 초기 화면부터다.
+   */
+  ExploreSearch: undefined;
   /** 설정(settings.md) — 진입점은 프로필 우상단 아이콘뿐이다 */
   Settings: undefined;
   /** TODO: subscription 화면 구현 시 교체(subscription.md) — 플랜 카드·[구독 알아보기]의 목적지 */

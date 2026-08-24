@@ -9,8 +9,11 @@
  *
  * 시나리오 전환(EXPO_PUBLIC_EXPLORE_MOCK_SCENARIO):
  * - (기본)         섹션 4개(관심사·신규·인기·주제별) — 담김·회수·필터·페이지네이션 검증
+ *                  검색(4.5)도 이 풀에서 매칭한다 — "이야기"(25건)로 커서 추가 로딩,
+ *                  "없는말"로 빈 결과(E7 fallback), "저자 1"로 저자 매칭 검증
  * - empty          콘텐츠 풀 0건 — E8(피드 비어 있음) 검증
  * - popular-error  인기 구간 전환 실패 — E13 인라인 에러 + [다시 시도] 검증(피드는 정상)
+ * - search-error   검색 실패 — 직전 결과 유지 + 상단 배너 검증(피드·초기 화면은 정상)
  */
 import { ApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
@@ -29,6 +32,7 @@ import type {
   ExploreFeedResponseDto,
   ExploreItemDto,
   ExplorePopularResponseDto,
+  ExploreSearchResponseDto,
   ExploreSectionDto,
   ExploreTopicsResponseDto,
   SaveContentRequestDto,
@@ -253,6 +257,104 @@ export const mockFetchPopular = async (params: {
     next_cursor: hasNext ? page[page.length - 1].id : null,
     has_next: hasNext,
     ...mockPlayLimitFields(),
+  };
+};
+
+/** 매칭 전 정규화의 서버 대역(explore.md 4.5-5) — NFC + 소문자. 실제 정규화 주체는 서버다 */
+const normalizeForSearch = (text: string): string => text.normalize('NFC').toLowerCase();
+
+const topicNamesOf = (content: ExploreContentDto): string[] =>
+  content.topic_ids
+    .map((id) => [...INTEREST_TOPICS, ...OTHER_TOPICS].find((t) => t.id === id)?.name)
+    .filter((name): name is string => name !== undefined);
+
+/**
+ * 필드 가중 랭킹의 대역 — 우선순위는 제목 > 저자 > 주제명(explore.md 4.5-5. 설명 필드는
+ * mock 풀에 없어 제외한다). 계수 값은 서버 구현 소유라 여기 숫자는 순위 재현용일 뿐이다.
+ * 동점은 풀 순서 유지(안정 정렬) — 유사도·인기·최신순 해소는 서버 몫의 단순화다.
+ */
+const searchScore = (content: ExploreContentDto, query: string): number => {
+  let score = 0;
+  if (normalizeForSearch(content.title).includes(query)) score += 4;
+  if (normalizeForSearch(content.author_name).includes(query)) score += 2;
+  if (topicNamesOf(content).some((name) => normalizeForSearch(name).includes(query))) score += 1;
+  return score;
+};
+
+export const mockFetchSearch = async (params: {
+  query: string;
+  cursor?: string;
+}): Promise<ExploreSearchResponseDto> => {
+  await delay(RESPONSE_DELAY_MS);
+
+  // 검색 실패 시나리오 — 직전 결과 유지 + 상단 배너 경로 검증용(explore.md 7장)
+  if (SCENARIO === 'search-error') {
+    throw new ApiError(
+      ERROR_CODES.INTERNAL_ERROR,
+      '일시적인 오류가 발생했어요',
+      false,
+      null,
+      null,
+      500,
+    );
+  }
+
+  // 서버 방어선(explore-api.md 4.5) — 클라이언트 필터(explore.search-query.ts)를 우회한 요청은 400이다
+  const trimmed = params.query.trim();
+  if (trimmed.length < 2 || !/[\p{L}\p{N}]/u.test(trimmed)) {
+    throw new ApiError(
+      ERROR_CODES.VALIDATION_FAILED,
+      '검색어를 확인해주세요',
+      false,
+      null,
+      null,
+      400,
+    );
+  }
+
+  const query = normalizeForSearch(trimmed);
+  const pool =
+    SCENARIO === 'empty'
+      ? []
+      : CONTENT_POOL.map((content) => ({ content, score: searchScore(content, query) }))
+          .filter((entry) => entry.score > 0)
+          .sort((a, b) => b.score - a.score)
+          .map((entry) => entry.content);
+
+  // 빈 결과 — 같은 응답에 fallback을 싣는다(explore-api.md 4.5). 관련 주제·인기 목록은 대역 값이다
+  if (pool.length === 0) {
+    const isEmptyPool = SCENARIO === 'empty';
+    return {
+      items: [],
+      next_cursor: null,
+      has_next: false,
+      fallback: {
+        related_topics: isEmptyPool ? [] : [INTEREST_TOPICS[0], OTHER_TOPICS[0]],
+        popular_items: isEmptyPool ? [] : itemsBySeqs(POPULAR_SEQS.month.slice(0, 5)),
+      },
+    };
+  }
+
+  const startIndex = params.cursor ? pool.findIndex((c) => c.id === params.cursor) + 1 : 0;
+  // 발급 시점과 다른 query의 커서도 여기에 걸린다(explore-api.md 4.5 에러 표)
+  if (params.cursor !== undefined && startIndex === 0) {
+    throw new ApiError(
+      ERROR_CODES.EXPLORE_CURSOR_INVALID,
+      '커서가 유효하지 않아요',
+      false,
+      null,
+      null,
+      400,
+    );
+  }
+  const page = pool.slice(startIndex, startIndex + PAGE_SIZE);
+  const hasNext = startIndex + PAGE_SIZE < pool.length;
+
+  return {
+    items: page.map(toItemDto),
+    next_cursor: hasNext ? page[page.length - 1].id : null,
+    has_next: hasNext,
+    fallback: null,
   };
 };
 

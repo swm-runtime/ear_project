@@ -3,10 +3,28 @@
  * 잔여 표시·재생 확인 팝업·회수/한도 토스트는 player가 소유한다(PLAYER_COPY) — 여기 두지 않는다.
  */
 export const EXPLORE_COPY = {
-  /** 검색창(MVP 비활성 — explore.md 4.5). 비활성임이 스크린리더에도 드러나야 한다(uiux 7) */
+  /** E6·E7 검색(explore.md 4.5 — MVP 포함 격상, 합의 2026-08-23) */
   search: {
+    /** TODO(카피): uiux 6장 제안값 — features에 확정 문구가 없다 */
     placeholder: '콘텐츠 검색',
-    disabledA11y: '콘텐츠 검색, 사용할 수 없음',
+    cancel: '취소',
+    /** 2자 미만·특수문자/이모지만 입력 — 검색을 실행하지 않는다(explore.md 7장, 확정 문구) */
+    emptyPrompt: '검색어를 입력해주세요',
+    /** TODO(카피): 섹션 라벨 확정 전 — wireframe E6 표기를 따른다 */
+    recentTitle: '최근 검색어',
+    clearAll: '전체 삭제',
+    suggestedTitle: '추천 키워드',
+    /** 입력한 검색어를 그대로 되비춘다(explore.md 4.5-3, 확정 문구) */
+    noResult: (query: string) => `‘${query}’ 검색 결과가 없어요`,
+    /** E7 대체 목록의 제목(explore-uiux.md 4.6 — "인기 콘텐츠" 행 목록) */
+    popularTitle: '인기 콘텐츠',
+    /** 결과 갱신을 polite 채널로 한 번 알린다 — "'커리어' 검색 결과 12개"(uiux 7) */
+    resultCountA11y: (query: string, count: number) => `‘${query}’ 검색 결과 ${count}개`,
+    /** 최근 검색어는 검색어·삭제가 각각 포커스를 받는다(uiux 7) */
+    recentItemA11y: (query: string) => `${query}, 최근 검색어, 탭하면 검색`,
+    recentDeleteA11y: (query: string) => `‘${query}’ 검색어 삭제`,
+    /** 추천 키워드는 버튼이다 — 탭 결과가 필터가 아니라 검색 실행이다(uiux 7) */
+    suggestedChipA11y: (name: string) => `${name}, 추천 키워드, 탭하면 검색`,
   },
 
   /** E12 더보기 액션시트 — 상세 정보·원문 보기·담기/제거(explore-uiux.md 4.4, 공유는 P1) */
