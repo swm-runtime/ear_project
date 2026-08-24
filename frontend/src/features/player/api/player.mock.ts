@@ -166,12 +166,20 @@ const fallbackContentMeta = (
   content_version: 1,
 });
 
-/** [원문 보기] 미노출 경로(uiux 4.1) 검증용 — 4의 배수 콘텐츠는 원문이 없는 AI 자체 생성분이다 */
-const mockSourceUrl = (contentId: string): string | null => {
+/**
+ * contents.origin의 mock 규칙 — seq % 5 === 3이면 원문 없는 AI 자체 생성분(ai_generated),
+ * 나머지는 파트너 원문(partner)이다. 발급 응답의 source_url·상세의 origin 분기·목록의
+ * [원문 보기] 노출이 전부 이 한 곳을 봐야 한다 — 규칙이 두 벌이면 같은 콘텐츠의
+ * [원문 보기] 유무가 화면마다 어긋난다(2026-08-24 통일 — 종전 발급 전용 규칙 seq % 4 폐기).
+ */
+export const isMockAiGeneratedContent = (contentId: string): boolean => {
   const seq = Number(contentId.replace(/\D/g, ''));
-  if (Number.isFinite(seq) && seq % 4 === 0) return null;
-  return `https://example.com/articles/${contentId}`;
+  return Number.isFinite(seq) && seq % 5 === 3;
 };
+
+/** contents.source_url의 대역 — partner만 원문 링크가 있다(domain.md 5.1 체크 제약의 대역) */
+export const getMockSourceUrl = (contentId: string): string | null =>
+  isMockAiGeneratedContent(contentId) ? null : `https://example.com/original/${contentId}`;
 
 /** POST /contents/:id/audio-urls의 대역 — 판정은 하되 차감하지 않는다(player-api.md 4.1) */
 export const mockIssueAudioUrls = async (contentId: string): Promise<AudioUrlsResponseDto> => {
@@ -182,7 +190,7 @@ export const mockIssueAudioUrls = async (contentId: string): Promise<AudioUrlsRe
   const content = snapshot?.content ?? fallbackContentMeta(contentId);
 
   return {
-    content: { ...content, source_url: mockSourceUrl(contentId) },
+    content: { ...content, source_url: getMockSourceUrl(contentId) },
     library_item: snapshot?.library_item ?? null,
     progress: snapshot?.progress ?? null,
     audio: {

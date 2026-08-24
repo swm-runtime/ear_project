@@ -17,6 +17,11 @@ export interface LibraryContentDto {
   title: string;
   author_name: string;
   source_name: string;
+  /**
+   * L4 [원문 보기] 노출 근거(library.md 3장 — 확정 2026-08-10, null이면 미노출).
+   * TODO(계약 제안): library-api.md 4.1 목록 행 미반영 — changes/pending 기록. mock에만 구현되어 있다.
+   */
+  source_url: string | null;
   duration_sec: number;
   thumbnail_url: string;
   content_version: number;

@@ -1,6 +1,7 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
 
 import type { AuthStackParamList } from '@/features/auth';
+import type { ContentDetailEntryPoint } from '@/features/content-detail';
 import type { OnboardingStackParamList } from '@/features/onboarding';
 import type { PlayEntryPoint } from '@/features/player';
 
@@ -20,6 +21,12 @@ export type MainStackParamList = {
    * 기본은 miniplayer·autoplay false다(FR-24 자동 재생 금지).
    */
   Player: { contentId: string; entryPoint?: PlayEntryPoint; autoplay?: boolean };
+  /**
+   * 콘텐츠 상세(content-detail.md, FR-40) — 진입은 세 화면(라이브러리 L4·탐색 E12·플레이어
+   * PL7) 더보기 시트의 [상세 정보]뿐이다. entryPoint는 [재생]의 entry_point 전달 값이자
+   * "플레이어 진입 시 재생 유지·복귀" 판정 재료다(content-detail-api.md 4.2).
+   */
+  ContentDetail: { contentId: string; entryPoint: ContentDetailEntryPoint };
   /** 설정(settings.md) — 진입점은 프로필 우상단 아이콘뿐이다 */
   Settings: undefined;
   /** TODO: subscription 화면 구현 시 교체(subscription.md) — 플랜 카드·[구독 알아보기]의 목적지 */

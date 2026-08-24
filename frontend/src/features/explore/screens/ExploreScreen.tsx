@@ -269,6 +269,8 @@ export default function ExploreScreen() {
 
       <ExploreMoreSheet
         item={screen.moreSheetItem}
+        onDetail={screen.openDetail}
+        onSourceLink={screen.openSourceLink}
         onSave={screen.requestSave}
         onRemove={screen.requestRemove}
         onDismiss={screen.closeMoreSheet}

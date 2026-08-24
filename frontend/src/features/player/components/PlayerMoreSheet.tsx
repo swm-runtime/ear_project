@@ -19,17 +19,23 @@ interface PlayerMoreSheetProps {
   sourceUrl: string | null;
   /** 라이브러리에 없는 콘텐츠면 삭제 행을 그리지 않는다 */
   canDelete: boolean;
+  onDetailPress: () => void;
   onSourceLinkPress: () => void;
   onDeletePress: () => void;
   onClose: () => void;
 }
 
-/** PL7 더보기 시트 — 라이브러리 L4·탐색 E12와 같은 시트 문법. 공유는 P1 미노출(FR-27) */
+/**
+ * PL7 더보기 시트 — 라이브러리 L4·탐색 E12와 같은 시트 문법. 공유는 P1 미노출(FR-27).
+ * [상세 정보] 추가(2026-08-23 — player-uiux.md 4.7): 탭하면 시트가 닫히고 상세 화면으로
+ * 이동하되 재생은 유지된다(content-detail.md 2장).
+ */
 export default function PlayerMoreSheet({
   isVisible,
   summary,
   sourceUrl,
   canDelete,
+  onDetailPress,
   onSourceLinkPress,
   onDeletePress,
   onClose,
@@ -58,6 +64,14 @@ export default function PlayerMoreSheet({
               </View>
             </View>
             <View style={styles.divider} />
+            <Pressable
+              style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
+              onPress={onDetailPress}
+              accessibilityRole="button"
+              accessibilityLabel={PLAYER_COPY.moreSheet.detail}
+            >
+              <Text style={styles.actionLabel}>{PLAYER_COPY.moreSheet.detail}</Text>
+            </Pressable>
             {sourceUrl !== null ? (
               <Pressable
                 style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}

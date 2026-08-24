@@ -71,8 +71,10 @@ export const PLAYER_COPY = {
     optionA11y: (rate: number) => `${rate.toFixed(1)}배`,
   },
 
-  /** PL7 더보기 시트 — L4·E12와 같은 시트 문법(대상 요약 + 좌측 정렬 액션 + 닫기) */
+  /** PL7 더보기 시트 — L4·E12와 같은 시트 문법(대상 요약 + 좌측 정렬 액션 + 닫기).
+      [상세 정보] 추가(2026-08-23 — 상세 화면 도입 FR-40, 세 화면 더보기 통일) */
   moreSheet: {
+    detail: '상세 정보',
     sourceLink: '원문 보기',
     delete: '라이브러리에서 삭제',
     close: '닫기',

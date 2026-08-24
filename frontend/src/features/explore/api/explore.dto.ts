@@ -12,6 +12,11 @@ export interface ExploreContentDto {
   title: string;
   author_name: string;
   source_name: string;
+  /**
+   * E12 [원문 보기] 노출 근거(explore.md 4.3 — 확정 2026-08-10, null이면 미노출).
+   * TODO(계약 제안): explore-api.md 목록 행 미반영 — changes/pending 기록. mock에만 구현되어 있다.
+   */
+  source_url: string | null;
   duration_sec: number;
   thumbnail_url: string;
   content_version: number;

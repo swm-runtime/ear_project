@@ -7,16 +7,26 @@ import type { LibraryItem } from '../library.types';
 
 interface MoreActionsSheetProps {
   item: LibraryItem | null;
+  onDetail: (item: LibraryItem) => void;
+  onSourceLink: (item: LibraryItem) => void;
   onDelete: (item: LibraryItem) => void;
   onDismiss: () => void;
 }
 
 /**
- * L4 더보기 액션시트 — 메뉴 항목은 삭제 하나뿐이다(library-uiux.md 4.7).
+ * L4 더보기 액션시트 — 상세 정보·원문 보기·삭제(library-uiux.md 4.7 — 세 화면 더보기 통일:
+ * [원문 보기] 2026-08-10 · [상세 정보] 2026-08-23). [원문 보기]는 source_url이 있는
+ * 콘텐츠(partner)만 노출하고 없으면 행 자체를 그리지 않는다(PL7과 같은 규칙).
  * 어느 아이템에 대한 조작인지 시트 상단에 반드시 다시 보여준다 — 대상 요약(썸네일·제목·출처)
  * 구성은 탐색 더보기 시트와 통일한다(FE 확정 2026-08-07).
  */
-export default function MoreActionsSheet({ item, onDelete, onDismiss }: MoreActionsSheetProps) {
+export default function MoreActionsSheet({
+  item,
+  onDetail,
+  onSourceLink,
+  onDelete,
+  onDismiss,
+}: MoreActionsSheetProps) {
   return (
     <Modal visible={item !== null} transparent animationType="slide" onRequestClose={onDismiss}>
       <Pressable style={styles.dim} onPress={onDismiss} accessibilityRole="button">
@@ -34,6 +44,24 @@ export default function MoreActionsSheet({ item, onDelete, onDismiss }: MoreActi
                   </Text>
                 </View>
               </View>
+              <Pressable
+                style={styles.action}
+                onPress={() => onDetail(item)}
+                accessibilityRole="button"
+                accessibilityLabel={LIBRARY_COPY.moreSheet.detail}
+              >
+                <Text style={styles.actionLabel}>{LIBRARY_COPY.moreSheet.detail}</Text>
+              </Pressable>
+              {item.content.sourceUrl !== null ? (
+                <Pressable
+                  style={styles.action}
+                  onPress={() => onSourceLink(item)}
+                  accessibilityRole="button"
+                  accessibilityLabel={LIBRARY_COPY.moreSheet.sourceLink}
+                >
+                  <Text style={styles.actionLabel}>{LIBRARY_COPY.moreSheet.sourceLink}</Text>
+                </Pressable>
+              ) : null}
               <Pressable
                 style={styles.action}
                 onPress={() => onDelete(item)}
