@@ -53,3 +53,6 @@ pids
 
 # Diagnostic reports
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# 로컬 오디오 원본 저장소 — AUDIO_STORAGE_ROOT (개발용 mock 파일 포함, 커밋 금지)
+storage/
