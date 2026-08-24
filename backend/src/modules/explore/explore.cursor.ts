@@ -6,6 +6,7 @@ import { StatsPeriodType } from '@/modules/content/content.enum';
 import {
   ExploreCursorPosition,
   PopularCursorPosition,
+  SearchCursorPosition,
 } from '@/modules/content/content.types';
 
 /**
@@ -165,6 +166,109 @@ function isPopularCursorPayload(value: unknown): value is PopularCursorPayload {
     Number.isFinite(candidate.p) &&
     typeof candidate.c === 'number' &&
     Number.isFinite(candidate.c) &&
+    typeof candidate.t === 'string' &&
+    typeof candidate.i === 'string' &&
+    typeof candidate.q === 'string'
+  );
+}
+
+/**
+ * 검색 커서(explore-api.md 4.5). 정렬 키 다섯을 전부 담는다 — 매칭 점수·제목 유사도·인기·
+ * 신선도·id(`explore.md` 4.5-5의 우선순위와 동점 해소 체인 그대로).
+ *
+ * **지문은 정규화된 질의 + 주제 필터다.** 발급 시점과 다른 `query`·`topic_ids`면 거절한다
+ * (explore-api.md 4.5 — 두 조건이 섞인 목록을 만들지 않는다). 질의를 정규화 후 값으로
+ * 대조하므로, 같은 검색어를 NFD로 다시 보내도 커서는 유효하다.
+ */
+interface SearchCursorPayload {
+  /** 매칭 필드 가중 합 */
+  s: number;
+  /** 제목 `word_similarity` (double precision) */
+  w: number;
+  /** 직전 확정 월 재생 수 */
+  p: number;
+  /** `published_at` (ISO 8601) */
+  t: string;
+  /** tie-break용 `id` */
+  i: string;
+  /** 발급 시점의 조회 조건 지문 */
+  q: string;
+}
+
+function searchFingerprint(
+  normalizedQuery: string,
+  topicIds: string[],
+): string {
+  return `${normalizedQuery}|${[...topicIds].sort().join(',')}`;
+}
+
+export function encodeSearchCursor(
+  position: SearchCursorPosition,
+  normalizedQuery: string,
+  topicIds: string[],
+): string {
+  const payload: SearchCursorPayload = {
+    s: position.score,
+    w: position.titleSimilarity,
+    p: position.playCount,
+    t: position.publishedAt.toISOString(),
+    i: position.id,
+    q: searchFingerprint(normalizedQuery, topicIds),
+  };
+
+  return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+}
+
+/** **발급 시점과 다른 `query`·`topic_ids`면 거절한다.** 클라이언트는 첫 페이지부터 다시 조회한다 */
+export function decodeSearchCursor(
+  cursor: string,
+  normalizedQuery: string,
+  topicIds: string[],
+): SearchCursorPosition {
+  let decoded: unknown;
+
+  try {
+    decoded = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
+  } catch {
+    throw invalidCursor();
+  }
+
+  if (
+    !isSearchCursorPayload(decoded) ||
+    decoded.q !== searchFingerprint(normalizedQuery, topicIds)
+  ) {
+    throw invalidCursor();
+  }
+
+  const publishedAt = new Date(decoded.t);
+
+  if (Number.isNaN(publishedAt.getTime())) {
+    throw invalidCursor();
+  }
+
+  return {
+    score: decoded.s,
+    titleSimilarity: decoded.w,
+    playCount: decoded.p,
+    publishedAt,
+    id: decoded.i,
+  };
+}
+
+function isSearchCursorPayload(value: unknown): value is SearchCursorPayload {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+
+  return (
+    typeof candidate.s === 'number' &&
+    Number.isFinite(candidate.s) &&
+    typeof candidate.w === 'number' &&
+    Number.isFinite(candidate.w) &&
+    typeof candidate.p === 'number' &&
+    Number.isFinite(candidate.p) &&
     typeof candidate.t === 'string' &&
     typeof candidate.i === 'string' &&
     typeof candidate.q === 'string'

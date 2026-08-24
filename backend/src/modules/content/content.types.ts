@@ -99,3 +99,48 @@ export interface PopularPage {
   items: RankedPopularContent[];
   hasNext: boolean;
 }
+
+/**
+ * 검색 목록의 커서 위치(explore-api.md 4.5).
+ *
+ * **정렬 키 다섯 값을 모두 담는다** — 매칭 필드 가중 합(1순위)과 동점 해소 체인
+ * (제목 유사도 → 인기 → 신선도 — `explore.md` 4.5-5) 전부다. 초기 콘텐츠 풀에서는
+ * 집계가 전부 0이라 동점이 기본값이므로(PRD 8.1), 키가 하나라도 빠지면 페이지 경계에서
+ * 항목이 반복되거나 사라진다.
+ */
+export interface SearchCursorPosition {
+  /** 매칭 필드 가중 합 — 정수다(`content.constant.ts`의 2^n 가중치 합산) */
+  score: number;
+  /**
+   * 제목 `word_similarity` — SQL에서 `double precision`으로 캐스팅해 읽는다.
+   * `real`(4바이트) 그대로 커서에 실으면 float8 파라미터와의 재비교에서 어긋난다.
+   */
+  titleSimilarity: number;
+  /** 직전 확정 월의 재생 수 (`domain.md` 5.4 — 순위는 직전 확정 구간을 쓴다) */
+  playCount: number;
+  publishedAt: Date;
+  id: string;
+}
+
+export interface SearchPageQuery {
+  /** **이미 정규화된 질의다**(NFC + 소문자 + 트림 — `explore.md` 4.5-5). 호출부가 정규화한다 */
+  normalizedQuery: string;
+  /** 검색 결과에 주제 필터를 겹칠 때(explore-api.md 4.5). 비우면 조건을 적용하지 않는다 */
+  topicIds: string[];
+  cursor: SearchCursorPosition | null;
+  limit: number;
+  now: Date;
+}
+
+/** 검색 랭킹의 정렬 키가 붙은 콘텐츠 한 줄 — 커서 발급에 쓴다 */
+export interface RankedSearchContent {
+  content: Content;
+  score: number;
+  titleSimilarity: number;
+  playCount: number;
+}
+
+export interface SearchPage {
+  items: RankedSearchContent[];
+  hasNext: boolean;
+}

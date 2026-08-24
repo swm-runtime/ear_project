@@ -1,6 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 
+import { BusinessException } from '@/common/exceptions/business.exception';
+import { ErrorCode } from '@/common/exceptions/error-code.enum';
+import {
+  hasSearchableCharacter,
+  normalizeSearchText,
+} from '@/common/utils/search-text.util';
 import { ContentTopicView } from '@/modules/content/content.types';
 import { Content } from '@/modules/content/entities/content.entity';
 import { ContentService } from '@/modules/content/services/content.service';
@@ -20,13 +26,18 @@ import {
   EXPLORE_SECTION_ITEM_COUNT,
   EXPLORE_SECTION_TITLES,
   MAX_RECENT_SIGNAL_COUNT,
+  MIN_SEARCH_QUERY_LENGTH,
+  SEARCH_FALLBACK_POPULAR_COUNT,
+  SEARCH_FALLBACK_RELATED_TOPIC_COUNT,
   SIGNAL_RECENCY_WINDOW_DAYS,
 } from './explore.constant';
 import {
   decodeExploreCursor,
   decodePopularCursor,
+  decodeSearchCursor,
   encodeExploreCursor,
   encodePopularCursor,
+  encodeSearchCursor,
 } from './explore.cursor';
 import { ExploreSectionKey, SaveReason } from './explore.enum';
 import { rankByTopicWeights, toTopicWeights } from './explore.ranking';
@@ -37,6 +48,9 @@ import {
   ExploreItemView,
   ExplorePopularListQuery,
   ExplorePopularListResult,
+  ExploreSearchFallback,
+  ExploreSearchQuery,
+  ExploreSearchResult,
   ExploreSectionDraft,
   ExploreSectionView,
   ExploreTopicChipView,
@@ -55,8 +69,10 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * (interest), `drip_excluded_contents`(drip)가 함께 들어간다. 어느 한 모듈의 Entity로
  * 환원되지 않으므로 소유 모듈들 **위에서** 조합한다.
  *
- * 검색(explore-api.md 4.5)은 여기에 없다 — **P1 확정이라 MVP에서 배포하지 않는다**
- * (합의 2026-08-06). 클라이언트도 검색창을 비활성으로 노출하므로 호출할 일이 없다.
+ * 검색(explore-api.md 4.5)도 여기에 있다 — **MVP 포함으로 격상됐다**(합의 2026-08-23,
+ * 종전 "P1 유지·검색창 비활성" 합의 2026-08-06을 폐기). 매칭·랭킹 규칙은 `explore.md`
+ * 4.5-5가 소유하고 조회는 `content` 모듈이 수행하며, 이 계층은 정규화·커서·빈 결과
+ * fallback 조립만 담당한다.
  */
 @Injectable()
 export class ExploreOrchestrator {
@@ -300,6 +316,124 @@ export class ExploreOrchestrator {
     // 노출할 주제가 하나도 없으면 빈 배열이다. **404가 아니다** —
     // 그때는 피드도 비어 클라이언트가 칩 줄 자체를 숨긴다
     return chips;
+  }
+
+  /**
+   * explore-api.md 4.5 — 키워드 검색(FR-22). 300ms 디바운스 자동 검색과 키보드 [검색]
+   * 제출이 같은 것을 호출한다.
+   *
+   * **정규화(NFC·소문자)는 여기서 한 번만 한다** — 조회(`content`)와 커서 지문이 같은
+   * 문자열을 봐야 하고, 규칙이 두 곳에 생기면 매칭 결과가 갈라진다(`explore.md` 4.5-5).
+   *
+   * **정규화 후 길이를 재검증한다.** DTO는 원문 기준 2자를 걸렀지만 NFD 분해형("커" =
+   * ㅋ+ㅓ 2 코드포인트)은 NFC 합성 후 1자가 된다 — 클라이언트 필터는 UX이고 판정은
+   * 서버 방어선이다(explore-api.md 4.5).
+   */
+  async search(
+    userId: string,
+    query: ExploreSearchQuery,
+    now: Date,
+  ): Promise<ExploreSearchResult> {
+    const normalizedQuery = normalizeSearchText(query.query);
+
+    if (
+      normalizedQuery.length < MIN_SEARCH_QUERY_LENGTH ||
+      !hasSearchableCharacter(normalizedQuery)
+    ) {
+      throw new BusinessException({
+        status: HttpStatus.BAD_REQUEST,
+        errorCode: ErrorCode.VALIDATION_FAILED,
+        message: '검색어를 확인해주세요',
+        logLevel: 'info',
+      });
+    }
+
+    const page = await this.contentService.findSearchPage({
+      normalizedQuery,
+      topicIds: query.topicIds,
+      cursor: query.cursor
+        ? decodeSearchCursor(query.cursor, normalizedQuery, query.topicIds)
+        : null,
+      limit: query.limit,
+      now,
+    });
+
+    if (page.items.length === 0) {
+      return {
+        items: [],
+        nextCursor: null,
+        hasNext: false,
+        // **첫 페이지의 빈 결과에만 대체 콘텐츠를 조립한다.** 커서 페이지의 빈 응답은
+        // "결과 없음" 화면이 아니라 목록의 끝이다(explore-api.md 4.5)
+        fallback:
+          query.cursor === null
+            ? await this.buildSearchFallback(userId, normalizedQuery, now)
+            : null,
+      };
+    }
+
+    const items = await this.decorate(
+      userId,
+      page.items.map((ranked) => ranked.content),
+      now,
+    );
+    const lastItem = page.items.at(-1);
+
+    return {
+      items,
+      nextCursor:
+        page.hasNext && lastItem
+          ? encodeSearchCursor(
+              {
+                score: lastItem.score,
+                titleSimilarity: lastItem.titleSimilarity,
+                playCount: lastItem.playCount,
+                publishedAt: lastItem.content.publishedAt,
+                id: lastItem.content.id,
+              },
+              normalizedQuery,
+              query.topicIds,
+            )
+          : null,
+      hasNext: page.hasNext,
+      fallback: null,
+    };
+  }
+
+  /**
+   * 빈 결과의 대체 콘텐츠(`explore.md` 4.5-3 — 초기 콘텐츠 풀이 작아 빈 결과 UX가 중요하다).
+   * 관련 주제 칩과 인기 콘텐츠를 **같은 응답에** 싣는다 — 별도 호출로 나누면 빈 화면이
+   * 한 박자 늦게 채워진다. 인기 목록은 기본 구간(월간)의 상위를 그대로 쓴다.
+   */
+  private async buildSearchFallback(
+    userId: string,
+    normalizedQuery: string,
+    now: Date,
+  ): Promise<ExploreSearchFallback> {
+    const [relatedTopics, popularPage] = await Promise.all([
+      this.topicService.findVisibleRelatedByName(
+        normalizedQuery,
+        SEARCH_FALLBACK_RELATED_TOPIC_COUNT,
+      ),
+      this.contentService.findPopularPage({
+        periodType: DEFAULT_POPULAR_PERIOD,
+        cursor: null,
+        limit: SEARCH_FALLBACK_POPULAR_COUNT,
+        now,
+      }),
+    ]);
+
+    return {
+      relatedTopics: relatedTopics.map((topic) => ({
+        id: topic.id,
+        name: topic.name,
+      })),
+      popularItems: await this.decorate(
+        userId,
+        popularPage.items.map((ranked) => ranked.content),
+        now,
+      ),
+    };
   }
 
   /**

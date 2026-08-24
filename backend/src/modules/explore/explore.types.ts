@@ -122,6 +122,33 @@ export interface ExploreContentListResult {
   quota: DailyPlayQuota;
 }
 
+export interface ExploreSearchQuery {
+  /** 클라이언트가 보낸 원문(트림만 된 상태). 정규화(NFC·소문자)는 서버가 한다 */
+  query: string;
+  /** 검색 결과에 주제 필터를 겹칠 때. 비우면 조건을 적용하지 않는다 */
+  topicIds: string[];
+  cursor: string | null;
+  limit: number;
+}
+
+/**
+ * 빈 결과 대체 콘텐츠(explore-api.md 4.5 — `fallback`).
+ * 별도 호출로 나누면 빈 화면이 한 박자 늦게 채워지므로 같은 응답에 싣는다.
+ */
+export interface ExploreSearchFallback {
+  relatedTopics: ExploreTopicView[];
+  popularItems: ExploreItemView[];
+}
+
+export interface ExploreSearchResult {
+  items: ExploreItemView[];
+  /** `hasNext`가 false면 `null`이다 */
+  nextCursor: string | null;
+  hasNext: boolean;
+  /** `items`가 있으면 `null`이다 */
+  fallback: ExploreSearchFallback | null;
+}
+
 export interface SaveContentCommand {
   userId: string;
   contentId: string;

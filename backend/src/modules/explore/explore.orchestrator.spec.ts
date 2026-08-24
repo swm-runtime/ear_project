@@ -24,6 +24,7 @@ import { PlaybackService } from '@/modules/playback/services/playback.service';
 import {
   decodeExploreCursor,
   decodePopularCursor,
+  decodeSearchCursor,
   encodePopularCursor,
 } from './explore.cursor';
 import { ExploreSectionKey, SaveReason } from './explore.enum';
@@ -109,6 +110,9 @@ describe('ExploreOrchestrator', () => {
       findExplorePage: jest
         .fn()
         .mockResolvedValue({ items: [], hasNext: false }),
+      findSearchPage: jest
+        .fn()
+        .mockResolvedValue({ items: [], hasNext: false }),
       findTopicViews: jest.fn().mockResolvedValue([]),
       getPublishedById: jest.fn().mockResolvedValue(buildContent(CONTENT_ID)),
       getById: jest.fn().mockResolvedValue(buildContent(CONTENT_ID)),
@@ -140,6 +144,7 @@ describe('ExploreOrchestrator', () => {
     topicService = {
       findAllByIds: jest.fn().mockResolvedValue([]),
       findAllVisible: jest.fn().mockResolvedValue([]),
+      findVisibleRelatedByName: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<TopicService>;
 
     dripExclusionService = {
@@ -723,6 +728,166 @@ describe('ExploreOrchestrator', () => {
       // then
       expect(contentService.getById).toHaveBeenCalled();
       expect(contentService.getPublishedById).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('search', () => {
+    const SEARCH_ROW = {
+      content: buildContent(CONTENT_ID),
+      score: 8,
+      titleSimilarity: 0.5,
+      playCount: 3,
+    };
+
+    it('NFD 분해형 입력을 NFC로 정규화해 조회한다', async () => {
+      // given — "커리"의 NFD 분해형(4 코드포인트). 정규화 없이는 저장 텍스트와 매칭되지 않는다
+      const nfd = '커리'.normalize('NFD');
+
+      // when
+      await orchestrator.search(
+        USER_ID,
+        { query: nfd, topicIds: [], cursor: null, limit: 20 },
+        NOW,
+      );
+
+      // then
+      expect(contentService.findSearchPage).toHaveBeenCalledWith(
+        expect.objectContaining({ normalizedQuery: '커리' }),
+      );
+    });
+
+    it('정규화 후 2자 미만이면 조회 없이 거절한다', async () => {
+      // given — NFD "커"(2 코드포인트)는 원문 길이 검증을 통과하지만 합성하면 1자다
+      const nfd = '커'.normalize('NFD');
+
+      // when
+      const error = await catchError(
+        orchestrator.search(
+          USER_ID,
+          { query: nfd, topicIds: [], cursor: null, limit: 20 },
+          NOW,
+        ),
+      );
+
+      // then
+      expect(error.errorCode).toBe(ErrorCode.VALIDATION_FAILED);
+      expect(contentService.findSearchPage).not.toHaveBeenCalled();
+    });
+
+    it('특수문자만인 질의는 조회 없이 거절한다', async () => {
+      // given
+      // when
+      const error = await catchError(
+        orchestrator.search(
+          USER_ID,
+          { query: '!!??', topicIds: [], cursor: null, limit: 20 },
+          NOW,
+        ),
+      );
+
+      // then
+      expect(error.errorCode).toBe(ErrorCode.VALIDATION_FAILED);
+      expect(contentService.findSearchPage).not.toHaveBeenCalled();
+    });
+
+    it('결과가 있으면 fallback 없이 행을 돌려준다', async () => {
+      // given
+      contentService.findSearchPage.mockResolvedValue({
+        items: [SEARCH_ROW],
+        hasNext: false,
+      });
+
+      // when
+      const result = await orchestrator.search(
+        USER_ID,
+        { query: '커리어', topicIds: [], cursor: null, limit: 20 },
+        NOW,
+      );
+
+      // then
+      expect(result.items).toHaveLength(1);
+      expect(result.fallback).toBeNull();
+      expect(result.nextCursor).toBeNull();
+    });
+
+    it('다음 페이지가 있으면 마지막 행의 다섯 정렬 키를 담은 커서를 발급한다', async () => {
+      // given
+      contentService.findSearchPage.mockResolvedValue({
+        items: [SEARCH_ROW],
+        hasNext: true,
+      });
+
+      // when
+      const result = await orchestrator.search(
+        USER_ID,
+        { query: '커리어', topicIds: [], cursor: null, limit: 1 },
+        NOW,
+      );
+
+      // then
+      expect(result.hasNext).toBe(true);
+      expect(
+        decodeSearchCursor(result.nextCursor as string, '커리어', []),
+      ).toEqual({
+        score: 8,
+        titleSimilarity: 0.5,
+        playCount: 3,
+        publishedAt: SEARCH_ROW.content.publishedAt,
+        id: CONTENT_ID,
+      });
+    });
+
+    it('첫 페이지의 빈 결과에는 관련 주제와 인기 콘텐츠 fallback을 조립한다', async () => {
+      // given — 초기 콘텐츠 풀이 작아 빈 결과 UX가 중요하다 (explore.md 4.5-3)
+      topicService.findVisibleRelatedByName.mockResolvedValue([
+        { id: TOPIC_ID, name: '커리어' } as Topic,
+      ]);
+      contentService.findPopularPage.mockResolvedValue({
+        items: [buildPopularRow(OTHER_CONTENT_ID)],
+        hasNext: false,
+      });
+
+      // when
+      const result = await orchestrator.search(
+        USER_ID,
+        { query: '없는검색어', topicIds: [], cursor: null, limit: 20 },
+        NOW,
+      );
+
+      // then
+      expect(result.items).toHaveLength(0);
+      expect(result.fallback?.relatedTopics).toEqual([
+        { id: TOPIC_ID, name: '커리어' },
+      ]);
+      expect(result.fallback?.popularItems).toHaveLength(1);
+    });
+
+    it('커서 페이지의 빈 결과에는 fallback을 조립하지 않는다', async () => {
+      // given — 목록의 끝이지 "결과 없음" 화면이 아니다
+      const cursor = await (async () => {
+        contentService.findSearchPage.mockResolvedValueOnce({
+          items: [SEARCH_ROW],
+          hasNext: true,
+        });
+        const first = await orchestrator.search(
+          USER_ID,
+          { query: '커리어', topicIds: [], cursor: null, limit: 1 },
+          NOW,
+        );
+        return first.nextCursor as string;
+      })();
+
+      // when
+      const result = await orchestrator.search(
+        USER_ID,
+        { query: '커리어', topicIds: [], cursor, limit: 1 },
+        NOW,
+      );
+
+      // then
+      expect(result.items).toHaveLength(0);
+      expect(result.fallback).toBeNull();
+      expect(topicService.findVisibleRelatedByName).not.toHaveBeenCalled();
     });
   });
 });
