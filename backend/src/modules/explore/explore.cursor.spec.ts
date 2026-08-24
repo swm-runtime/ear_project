@@ -6,8 +6,10 @@ import { StatsPeriodType } from '@/modules/content/content.enum';
 import {
   decodeExploreCursor,
   decodePopularCursor,
+  decodeSearchCursor,
   encodeExploreCursor,
   encodePopularCursor,
+  encodeSearchCursor,
 } from './explore.cursor';
 
 const TOPIC_A = 'aaaaaaaa-1111-4111-8111-111111111111';
@@ -142,6 +144,85 @@ describe('exploreCursor', () => {
 
       // when
       const error = catchError(() => decodeExploreCursor(broken, []));
+
+      // then
+      expect(error.errorCode).toBe(ErrorCode.EXPLORE_CURSOR_INVALID);
+    });
+  });
+
+  describe('search cursor', () => {
+    const SEARCH_POSITION = {
+      score: 12,
+      titleSimilarity: 0.4375,
+      playCount: 7,
+      publishedAt: PUBLISHED_AT,
+      id: CONTENT_ID,
+    };
+
+    it('발급한 커서를 같은 질의·주제로 해석하면 다섯 정렬 키가 그대로 나온다', () => {
+      // given
+      const cursor = encodeSearchCursor(SEARCH_POSITION, '커리어', [TOPIC_A]);
+
+      // when
+      const position = decodeSearchCursor(cursor, '커리어', [TOPIC_A]);
+
+      // then
+      expect(position).toEqual(SEARCH_POSITION);
+    });
+
+    it('발급 시점과 질의가 다르면 거절한다', () => {
+      // given — 조건이 바뀐 커서를 이어 쓰면 두 질의가 섞인 목록이 된다
+      const cursor = encodeSearchCursor(SEARCH_POSITION, '커리어', []);
+
+      // when
+      const error = catchError(() => decodeSearchCursor(cursor, '이직', []));
+
+      // then
+      expect(error.errorCode).toBe(ErrorCode.EXPLORE_CURSOR_INVALID);
+    });
+
+    it('발급 시점과 주제 필터가 다르면 거절한다', () => {
+      // given
+      const cursor = encodeSearchCursor(SEARCH_POSITION, '커리어', [TOPIC_A]);
+
+      // when
+      const error = catchError(() =>
+        decodeSearchCursor(cursor, '커리어', [TOPIC_B]),
+      );
+
+      // then
+      expect(error.errorCode).toBe(ErrorCode.EXPLORE_CURSOR_INVALID);
+    });
+
+    it('주제 순서만 다르면 같은 커서로 인정한다', () => {
+      // given — 정렬해 지문을 만들므로 순서는 조건이 아니다
+      const cursor = encodeSearchCursor(SEARCH_POSITION, '커리어', [
+        TOPIC_A,
+        TOPIC_B,
+      ]);
+
+      // when
+      const position = decodeSearchCursor(cursor, '커리어', [TOPIC_B, TOPIC_A]);
+
+      // then
+      expect(position.id).toBe(CONTENT_ID);
+    });
+
+    it('정렬 키가 빠진 검색 커서를 받아들이지 않는다', () => {
+      // given — 제목 유사도가 없으면 동점 해소 keyset 조건을 만들 수 없다
+      const broken = Buffer.from(
+        JSON.stringify({
+          s: 8,
+          p: 0,
+          t: PUBLISHED_AT.toISOString(),
+          i: CONTENT_ID,
+          q: '커리어|',
+        }),
+        'utf8',
+      ).toString('base64url');
+
+      // when
+      const error = catchError(() => decodeSearchCursor(broken, '커리어', []));
 
       // then
       expect(error.errorCode).toBe(ErrorCode.EXPLORE_CURSOR_INVALID);

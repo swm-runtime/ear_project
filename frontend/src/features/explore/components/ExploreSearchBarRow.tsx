@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
 
@@ -8,24 +8,26 @@ import { EXPLORE_COPY } from '../explore.copy';
 interface ExploreSearchBarRowProps {
   /** 검색창 줄 우측의 잔여 재생 표시 자리(explore.md 4.4-1). null이면 자리를 비운다 */
   trailing: ReactNode;
+  /** 검색창 탭 — 검색 화면(E6) 전환(explore.md 4.5-1) */
+  onPress: () => void;
 }
 
 /**
- * 검색창 줄 — MVP에서 검색창은 비활성 상태로 노출한다(explore.md 4.5, 합의 2026-08-06).
- * 탭해도 아무 반응이 없고, 비활성임을 시각(톤 낮춤)과 스크린리더(disabled)로 드러낸다.
- * P1 활성화 시 같은 자리에서 검색 화면 전환이 켜진다.
+ * 검색창 줄 — 검색은 MVP 포함이다(explore.md 4.5, 합의 2026-08-23 — 종전 "P1 유지·비활성
+ * 노출" 폐기). 탭하면 검색 화면(E6)으로 전환하고 키보드가 올라온다. 입력은 검색 화면이
+ * 받는다 — 이 줄은 진입점일 뿐이라 TextInput을 두지 않는다.
  */
-export default function ExploreSearchBarRow({ trailing }: ExploreSearchBarRowProps) {
+export default function ExploreSearchBarRow({ trailing, onPress }: ExploreSearchBarRowProps) {
   return (
     <View style={styles.row}>
-      <View
+      <Pressable
         style={styles.searchBox}
+        onPress={onPress}
         accessibilityRole="search"
         accessibilityLabel={EXPLORE_COPY.search.placeholder}
-        accessibilityState={{ disabled: true }}
       >
         <Text style={styles.placeholder}>{EXPLORE_COPY.search.placeholder}</Text>
-      </View>
+      </Pressable>
       {trailing}
     </View>
   );
@@ -46,8 +48,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     borderRadius: theme.radius.md,
     backgroundColor: theme.color.surface,
-    // 비활성 톤 — 활성 검색창과 같은 모양이면 탭 무반응이 오류로 읽힌다(explore-uiux.md 4.1)
-    opacity: 0.6,
   },
   placeholder: {
     fontSize: theme.font.size.sm,

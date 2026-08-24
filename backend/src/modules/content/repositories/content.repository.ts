@@ -2,6 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, In, Repository, SelectQueryBuilder } from 'typeorm';
 
+import { escapeLikePattern } from '@/common/utils/search-text.util';
+
+import {
+  SEARCH_WEIGHT_AUTHOR,
+  SEARCH_WEIGHT_DESCRIPTION,
+  SEARCH_WEIGHT_TITLE,
+  SEARCH_WEIGHT_TOPIC,
+} from '../content.constant';
 import {
   ALL_TIME_PERIOD_START,
   ContentStatus,
@@ -13,6 +21,8 @@ import {
   PopularPageQuery,
   RankedContent,
   RankedPopularContent,
+  RankedSearchContent,
+  SearchPageQuery,
 } from '../content.types';
 import { Content } from '../entities/content.entity';
 
@@ -25,6 +35,50 @@ const RANKING_COMPLETE_COUNT_ALIAS = 'ranking_complete_count';
 interface RankingRow {
   [RANKING_PLAY_COUNT_ALIAS]: string | number;
   [RANKING_COMPLETE_COUNT_ALIAS]?: string | number;
+}
+
+/**
+ * 검색 매칭 — **`pg_trgm` 기반 부분 문자열 일치다**(`explore.md` 4.5-5, ILIKE가
+ * `gin_trgm_ops` 인덱스를 탄다 — domain.md 5.1). 대소문자는 ILIKE가 흡수하고,
+ * NFC 정규화는 호출부(애플리케이션 계층)가 질의에 이미 적용했다.
+ *
+ * `author_name`이 NULL이면 `NULL ILIKE ...`도 NULL이라 CASE의 ELSE(0)로 떨어진다 —
+ * 별도 가드가 필요 없다.
+ */
+const SEARCH_MATCH_TITLE = 'content.title ILIKE :searchPattern';
+const SEARCH_MATCH_AUTHOR = 'content.author_name ILIKE :searchPattern';
+const SEARCH_MATCH_DESCRIPTION = 'content.description ILIKE :searchPattern';
+const SEARCH_MATCH_TOPIC = `EXISTS (
+  SELECT 1 FROM content_topics matched
+  JOIN topics matched_topic ON matched_topic.id = matched.topic_id
+  WHERE matched.content_id = content.id
+    AND matched_topic.name ILIKE :searchPattern
+)`;
+
+/**
+ * 랭킹 1순위 — 매칭 필드 가중 합산(제목 > 저자 > 주제명 > 설명). 가중치가 2의 거듭제곱이라
+ * 이 합산이 곧 문서의 필드 우선순위다(`content.constant.ts` 참조).
+ */
+const SEARCH_SCORE = `(
+  (CASE WHEN ${SEARCH_MATCH_TITLE} THEN ${SEARCH_WEIGHT_TITLE} ELSE 0 END)
+  + (CASE WHEN ${SEARCH_MATCH_AUTHOR} THEN ${SEARCH_WEIGHT_AUTHOR} ELSE 0 END)
+  + (CASE WHEN ${SEARCH_MATCH_TOPIC} THEN ${SEARCH_WEIGHT_TOPIC} ELSE 0 END)
+  + (CASE WHEN ${SEARCH_MATCH_DESCRIPTION} THEN ${SEARCH_WEIGHT_DESCRIPTION} ELSE 0 END)
+)`;
+const SEARCH_SCORE_ALIAS = 'search_score';
+
+/**
+ * 동점 해소 1키 — 제목 `word_similarity`(`explore.md` 4.5-5).
+ * `real`(4바이트)을 그대로 쓰면 커서로 되돌아온 float8 파라미터와의 재비교가 어긋나므로
+ * **`double precision`으로 캐스팅해 계산·정렬·커서 비교를 전부 같은 타입으로 맞춘다.**
+ */
+const SEARCH_TITLE_SIMILARITY =
+  'word_similarity(:searchQuery, content.title)::double precision';
+const SEARCH_TITLE_SIMILARITY_ALIAS = 'search_title_similarity';
+
+interface SearchRow extends RankingRow {
+  [SEARCH_SCORE_ALIAS]: string | number;
+  [SEARCH_TITLE_SIMILARITY_ALIAS]: string | number;
 }
 
 @Injectable()
@@ -305,6 +359,83 @@ export class ContentRepository {
 
     return entities.map((content, index) => ({
       content,
+      playCount: Number(raw[index]?.[RANKING_PLAY_COUNT_ALIAS] ?? 0),
+    }));
+  }
+
+  /**
+   * 키워드 검색 한 페이지(explore-api.md 4.5) — **관련도 순**의 커서 페이지.
+   *
+   * 정렬은 매칭 필드 가중 합(`SEARCH_SCORE`) → 제목 유사도 → 직전 확정 월 재생 수 →
+   * 신선도 순이며(`explore.md` 4.5-5의 우선순위·동점 해소 체인 그대로), **전부
+   * 내림차순으로 맞춘다** — 방향이 섞이면 행 비교로 keyset을 표현할 수 없다
+   * (`findPopularPage`와 같은 구조, 키가 둘 더 많다).
+   *
+   * 인기 tie-break가 **직전 확정 월**인 이유: 순위·리포팅은 직전 확정 구간을 쓴다는
+   * 규칙(domain.md 5.4)의 적용이고, 기본 구간(월간 — `explore.md` 4.1-1)과 같은 구간을
+   * 보게 한다. `periodStart` 환산은 Service의 몫이다.
+   */
+  async findSearchPage(
+    query: SearchPageQuery,
+    monthPeriodStart: string,
+    manager?: EntityManager,
+  ): Promise<RankedSearchContent[]> {
+    const builder = this.applyVisibility(
+      this.scoped(manager)
+        .createQueryBuilder('content')
+        .leftJoin(
+          'content_stats',
+          'stat',
+          `stat.content_id = content.id
+             AND stat.period_type = :monthPeriod
+             AND stat.period_start = :monthPeriodStart
+             AND stat.is_final = true`,
+          { monthPeriod: StatsPeriodType.MONTH, monthPeriodStart },
+        )
+        .addSelect(SEARCH_SCORE, SEARCH_SCORE_ALIAS)
+        .addSelect(SEARCH_TITLE_SIMILARITY, SEARCH_TITLE_SIMILARITY_ALIAS)
+        .addSelect(RANKING_PLAY_COUNT, RANKING_PLAY_COUNT_ALIAS),
+      query.now,
+    ).andWhere(
+      `(${SEARCH_MATCH_TITLE} OR ${SEARCH_MATCH_AUTHOR} OR ${SEARCH_MATCH_TOPIC} OR ${SEARCH_MATCH_DESCRIPTION})`,
+    );
+
+    builder.setParameters({
+      searchQuery: query.normalizedQuery,
+      searchPattern: `%${escapeLikePattern(query.normalizedQuery)}%`,
+    });
+
+    if (query.topicIds.length > 0) {
+      this.applyTopicFilter(builder, query.topicIds);
+    }
+
+    if (query.cursor) {
+      // Postgres 행 비교 — 다섯 정렬 키의 tie-break를 한 조건으로 표현한다
+      builder.andWhere(
+        `(${SEARCH_SCORE}, ${SEARCH_TITLE_SIMILARITY}, ${RANKING_PLAY_COUNT}, content.published_at, content.id) < (:cursorScore, :cursorTitleSimilarity, :cursorPlayCount, :cursorPublishedAt, :cursorId)`,
+        {
+          cursorScore: query.cursor.score,
+          cursorTitleSimilarity: query.cursor.titleSimilarity,
+          cursorPlayCount: query.cursor.playCount,
+          cursorPublishedAt: query.cursor.publishedAt,
+          cursorId: query.cursor.id,
+        },
+      );
+    }
+
+    const { entities, raw } = await builder
+      .orderBy(SEARCH_SCORE, 'DESC')
+      .addOrderBy(SEARCH_TITLE_SIMILARITY, 'DESC')
+      .addOrderBy(RANKING_PLAY_COUNT, 'DESC')
+      .addOrderBy('content.published_at', 'DESC')
+      .addOrderBy('content.id', 'DESC')
+      .limit(query.limit + 1)
+      .getRawAndEntities<SearchRow>();
+
+    return entities.map((content, index) => ({
+      content,
+      score: Number(raw[index]?.[SEARCH_SCORE_ALIAS] ?? 0),
+      titleSimilarity: Number(raw[index]?.[SEARCH_TITLE_SIMILARITY_ALIAS] ?? 0),
       playCount: Number(raw[index]?.[RANKING_PLAY_COUNT_ALIAS] ?? 0),
     }));
   }

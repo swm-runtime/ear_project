@@ -9,6 +9,7 @@ import type {
   ExploreItem,
   ExplorePeriod,
   ExplorePopularPage,
+  ExploreSearchPage,
   ExploreTopic,
   SaveContentResult,
   SaveReason,
@@ -18,6 +19,7 @@ import type {
   ExploreFeedResponseDto,
   ExploreItemDto,
   ExplorePopularResponseDto,
+  ExploreSearchResponseDto,
   ExploreTopicsResponseDto,
   SaveContentResponseDto,
   UnsaveContentResponseDto,
@@ -26,6 +28,7 @@ import {
   mockFetchContents,
   mockFetchFeed,
   mockFetchPopular,
+  mockFetchSearch,
   mockFetchTopics,
   mockSaveContent,
   mockUnsaveContent,
@@ -41,6 +44,11 @@ export const exploreKeys = {
   /** 구간별로 키가 갈린다 — 커서가 구간을 넘어 이어지지 않게 하는 구조적 방어다(explore-api.md 4.2-1) */
   popular: (period: ExplorePeriod | null) => [...exploreKeys.all, 'popular', period] as const,
   topics: () => [...exploreKeys.all, 'topics'] as const,
+  /**
+   * 질의별로 키가 갈린다 — 연속 입력 중 늦게 도착한 이전 질의 응답이 최신 질의 화면을
+   * 덮지 못하게 하는 구조적 방어다(explore.md 4.5-2). 화면은 현재 질의의 키만 구독한다.
+   */
+  search: (query: string) => [...exploreKeys.all, 'search', query] as const,
 };
 
 /* ── 변환 — snake_case ↔ camelCase 변환은 이 모듈 안에서만 일어난다 ── */
@@ -80,6 +88,18 @@ const toContentsPage = (dto: ExploreContentsResponseDto): ExploreContentsPage =>
   nextCursor: dto.next_cursor,
   hasNext: dto.has_next,
   playLimit: toPlayLimitSnapshot(dto),
+});
+
+const toSearchPage = (dto: ExploreSearchResponseDto): ExploreSearchPage => ({
+  items: dto.items.map(toExploreItem),
+  nextCursor: dto.next_cursor,
+  hasNext: dto.has_next,
+  fallback: dto.fallback
+    ? {
+        relatedTopics: dto.fallback.related_topics,
+        popularItems: dto.fallback.popular_items.map(toExploreItem),
+      }
+    : null,
 });
 
 const toPopularPage = (dto: ExplorePopularResponseDto): ExplorePopularPage => ({
@@ -141,6 +161,24 @@ export const fetchExploreTopics = async (): Promise<ExploreTopic[]> => {
     ? await mockFetchTopics()
     : (await apiClient.get<ExploreTopicsResponseDto>('/explore/topics')).data;
   return data.topics.map((t) => ({ id: t.id, name: t.name, isInterest: t.is_interest }));
+};
+
+/**
+ * 키워드 검색(explore-api.md 4.5) — 트림 후 2자 이상·문자 포함 질의만 호출한다(호출 여부
+ * 판정은 explore.search-query.ts — 클라이언트 필터는 UX이고 판정은 서버 방어선이다).
+ * 응답에 잔여 표시값이 없다 — 검색 화면은 표시를 숨긴다(explore.md 4.4-1).
+ */
+export const fetchExploreSearch = async (input: {
+  query: string;
+  cursor?: string;
+}): Promise<ExploreSearchPage> => {
+  const params: Record<string, string> = { query: input.query };
+  if (input.cursor !== undefined) params.cursor = input.cursor;
+
+  const data = IS_EXPLORE_API_MOCKED
+    ? await mockFetchSearch({ query: input.query, cursor: input.cursor })
+    : (await apiClient.get<ExploreSearchResponseDto>('/explore/search', { params })).data;
+  return toSearchPage(data);
 };
 
 /** 담기(explore-api.md 4.3) — 횟수 제한이 없고 페이월을 노출하지 않는다(PRD 5.4) */

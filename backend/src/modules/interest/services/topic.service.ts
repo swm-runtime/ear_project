@@ -2,7 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 
 import { Topic } from '../entities/topic.entity';
-import { MAX_SELECTABLE_TOPIC_COUNT } from '../interest.constant';
+import {
+  MAX_SELECTABLE_TOPIC_COUNT,
+  RELATED_TOPIC_SIMILARITY_THRESHOLD,
+} from '../interest.constant';
 import { TopicListResult } from '../interest.types';
 import { TopicRepository } from '../repositories/topic.repository';
 
@@ -83,6 +86,23 @@ export class TopicService {
    */
   async findAllVisible(manager?: EntityManager): Promise<Topic[]> {
     return this.topicRepository.findAllVisible(manager);
+  }
+
+  /**
+   * 검색 빈 결과 fallback의 관련 주제(explore-api.md 4.5 — `related_topics`).
+   * 질의는 호출부가 정규화(NFC·소문자)해 넘긴다. 관련 주제가 없으면 빈 배열이다.
+   */
+  async findVisibleRelatedByName(
+    normalizedQuery: string,
+    limit: number,
+    manager?: EntityManager,
+  ): Promise<Topic[]> {
+    return this.topicRepository.findVisibleRelatedByName(
+      normalizedQuery,
+      RELATED_TOPIC_SIMILARITY_THRESHOLD,
+      limit,
+      manager,
+    );
   }
 }
 

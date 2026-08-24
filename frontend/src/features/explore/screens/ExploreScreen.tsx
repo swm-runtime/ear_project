@@ -242,6 +242,7 @@ export default function ExploreScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ExploreSearchBarRow
+        onPress={screen.openSearch}
         trailing={
           // 무제한·캐시·값 없음이면 자리를 비운다 — "무제한" 배지도 없다(uiux 4.2)
           screen.remainingDisplay ? (
