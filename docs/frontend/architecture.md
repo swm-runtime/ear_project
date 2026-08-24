@@ -105,8 +105,8 @@ Hook (ViewModel)  ──▶  Query / Mutation (TanStack Query)  ──▶  api/ 
 **Feature는 화면 명세(`docs/features/*`) 단위로 나눈다.** Backend가 Entity 소유권으로 나누듯, Frontend는 명세 문서가 정의한 도메인 화면 묶음이 소유권 단위다.
 
 ```
-auth / onboarding / library / explore / player / paywall / subscription
-/ settings / profile / interest / notification / admin / splash
+auth / onboarding / library / explore / content-detail / player / paywall
+/ subscription / settings / profile / interest / notification / admin / splash
 ```
 
 각 feature는 자기 화면·상태·API 호출의 **소유자**다. 다른 feature가 그 동작을 쓰려면 feature의 공개 API(`index.ts`)를 통한다.
@@ -164,6 +164,7 @@ feature가 늘어나면 아래 표를 갱신한다. 표에 없는 의존이 코�
 |---|---|---|
 | library | player | 재생 시작 게이트 호출, 미니플레이어 상태 구독 |
 | explore | player, library | 게이트 호출 / 담기(라이브러리 적립) 호출 |
+| content-detail | player, library, explore | 재생 게이트·확인 팝업·재생 세션 구독(`usePlaybackStore` — 현재 재생 중 콘텐츠 판정)·원문 클릭 계약(`sendSourceLinkClick`) / [삭제] 계약(`deleteLibraryItem`)·목록 무효화(`libraryKeys`) / [담기] 계약(`saveContent` — `explore-api.md` 4.3 재사용, `content-detail-api.md` 4.2 "신규 계약 없음"). **세 진입점 화면(library·explore·player)은 content-detail을 import하지 않는다** — 라우트 이름(`ContentDetail`)으로 내비게이션만 하고 화면 등록은 `app/navigation`이 담당한다(역방향 의존 없음 — 순환 미발생) |
 | player | paywall, subscription, settings | 차단 시 페이월 시트 표시 / entitlements 조회 / 배속 저장·조회(`user_settings` — `settings-api.md` 4.2 계약 재사용. player가 재선언하면 같은 엔드포인트의 DTO가 두 벌이 된다) |
 | paywall | subscription | 요금제 비교·결제 실행. **player를 알지 못한다** (→ 5.2) |
 | profile | interest, subscription, auth, career | 관심사·플랜 카드 / 이메일 인증 진입 / 커리어 카드(dev mock 요약 원본 `getCareerMockSummary`). 관심사·커리어 저장 후 요약 invalidate는 각 feature가 노출한 `registerInterestSavedListener` · `registerCareerSavedListener`에 bootstrap이 주입한다(역방향 import 없음 — player ↔ library 브리지와 같은 방식) |

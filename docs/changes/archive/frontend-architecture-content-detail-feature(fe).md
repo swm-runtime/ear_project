@@ -31,3 +31,10 @@
 - Given `docs/frontend/architecture.md` 4.1을 읽는다 / When feature 목록을 확인한다 / Then `content-detail`이 포함되어 있다
 - Given `docs/frontend/architecture.md` 4.4 표를 읽는다 / When content-detail 행을 확인한다 / Then 의존 대상(player, library, explore)과 비고(게이트·삭제·담기 계약 재사용, 진입점 화면의 역방향 import 없음)가 기재되어 있다
 - Given `frontend/src/features/content-detail`의 import를 grep한다 / When `@/features/*` 의존을 모은다 / Then 4.4 표의 기재(player·library·explore)와 일치한다
+
+---
+
+## 처리 기록 (반영 날짜 2026-08-24 — 브랜치 `integration/content-detail`, 통합 과정에서 백엔드가 대리 반영)
+
+- `frontend/architecture.md` 4.1 feature 목록에 `content-detail` 추가
+- 4.4 표에 `content-detail | player, library, explore` 행 추가 — 요청의 비고(계약 재사용 내역)와 "세 진입점 화면은 content-detail을 import하지 않는다"(라우트 내비게이션만, 역방향 의존 없음) 요지를 행 비고에 통합 기재

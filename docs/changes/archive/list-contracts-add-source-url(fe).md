@@ -40,3 +40,20 @@
 - Given `library-api.md` 4.1·`explore-api.md` 4.1·4.2·4.2-1·4.5의 행 예시를 본다 / When `content`를 확인한다 / Then `source_url`(null 허용)이 포함되어 있고 null 규칙(partner 항상 값·ai_generated null)이 서술되어 있다
 - Given 실서버 목록 응답 / When `origin = partner` 행을 본다 / Then `source_url`이 실려 오고, L4·E12 더보기 시트에 [원문 보기]가 노출된다
 - Given 실서버 목록 응답 / When `origin = ai_generated` 행을 본다 / Then `source_url = null`이고 [원문 보기] 행이 그려지지 않는다
+
+---
+
+## 처리 기록 (반영 날짜 2026-08-24 — 브랜치 `integration/content-detail`)
+
+**반영 완료**
+
+- `library-api.md` 4.1 · `explore-api.md` 4.1에 `source_url` 추가(예시 JSON + 필드 규칙 — null이면 [원문 보기] 미노출, partner 항상 값). explore 4.2·4.2-1·4.5는 "4.1과 같은 모양" 참조라 자동 승계, `library-api.md` 4.3(미니플레이어 복원)은 더보기 시트가 없어 제외
+- 백엔드 목록 응답에 `source_url` 실장 — explore(`ExploreContentView`·orchestrator·`ExploreItemDto`) · library-screen(`LibraryContentView`·orchestrator·`LibraryItemDto`). 검색(explore 4.5)은 미구현이라 구현 시 같은 행 타입을 그대로 쓴다
+- null 규칙은 `domain.md` 5.1 기준으로 서술했다 — `ai_generated`는 "항상 null"이 아니라 **선택 필드라 null일 수 있다**(값이 있으면 [원문 보기]가 노출된다 — 판정 축은 origin이 아니라 값 유무)
+
+**~~보류~~ → 해소 (2026-08-24 — 백엔드 승인)** — 완료 조건 3(ai_generated 행의 `source_url = null`)의 전제였던 스키마 어긋남을 함께 반영했다
+
+- 마이그레이션 `AllowNullContentsDisclosure`: `author_name` · `source_url` nullable 전환 + `chk_contents_partner_disclosure` CHECK 추가(`NOT VALID` — 기존 시드 DB의 파트너 행이 partner_id·license 없이 들어가 있어 즉시 검증하면 팀원 DB에서 실패한다. 신규 쓰기부터 강제, 운영 전 VALIDATE 후속)
+- 시드: ai_generated의 `sourceUrl` null(신규 삽입 + 기존 행 백필 `normalized=33`), 파트너 행은 CHECK가 요구하는 `partner_id` · `license_expires_at`을 목 값으로 채움. 재실행 멱등 확인(`normalized=0`)
+- 응답 DTO의 `author_name`도 `string | null`로 정합화(explore·library-screen·onboarding·player 발급 — domain.md 5.1의 ai_generated 선택 필드. 시드는 저자 값을 유지하므로 지금 null이 내려가지는 않는다)
+- 실측: ai_generated 15편 전부 `source_url = null`, partner 18편 전부 값 보유 — 완료 조건 2·3의 서버 측 성립 확인. 화면 노출(L4·E12)은 FE 확인 몫

@@ -119,6 +119,7 @@
             "title": "번아웃 없이 오래 일하는 법",
             "author_name": "김서연",
             "source_name": "폴인",
+            "source_url": "https://...",
             "duration_sec": 620,
             "thumbnail_url": "https://...",
             "content_version": 1,
@@ -158,6 +159,7 @@
 | `library` | 이 콘텐츠의 라이브러리 상태. **없으면 `null`** — 라이브러리에 담기지 않은 상태다 |
 | `library.item_id` / `source` / `status` | `library_items` 원값. **더보기 시트의 담기/제거 분기와 완청 체크 마킹**에 쓴다(`explore-uiux.md` 4.1) — 완청은 `status == 'completed'`로 가르며, **행에 담김 표시는 두지 않는다** |
 | `is_counted_today` | 이 콘텐츠가 **재청취 창 안**에 있는가 — 최근 15일(당일 포함) 내 차감 행(`play_records.is_counted = true`)이 있어, 재생해도 차감이 없는 상태(개정 2026-08-10 — `paywall.md` 4.3-1 · `library-api.md` 4.1과 같은 필드, 같은 정의). 재생 확인 팝업을 **탭 즉시** 띄우기 위한 힌트다 |
+| `content.source_url` | **`null`이면 더보기 시트(E12)에 [원문 보기]를 노출하지 않는다**(개정 2026-08-24 — 세 화면 더보기 통일(2026-08-10)의 계약 반영. 발급 응답 `player-api.md` 4.1과 같은 규칙). `partner`는 항상 값이 있고(`chk_contents_partner_disclosure` — `domain.md` 5.1), `ai_generated`는 선택 필드라 `null`일 수 있다. 4.2·4.2-1·4.5의 행도 같은 모양이므로 함께 적용된다 |
 
 - **담김 여부는 노출에 어떤 영향도 주지 않는다.** 이미 라이브러리에 있는 콘텐츠도 전부 내려준다(`explore.md` 4.1 — 초기 콘텐츠 풀이 작아 제외하면 피드가 빈다). 서버는 `library`를 채워 내려주고, 화면은 그것을 **더보기 시트의 분기와 완청 체크에만** 쓴다 — 필터링·정렬 어디에도 담김 여부를 쓰지 않는다.
 - **회수 콘텐츠(`contents.status != 'published'`)는 서버 단계에서 제외한다.** 파트너 회수(FR-32)는 피드에 나타나지 않는다.

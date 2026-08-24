@@ -179,6 +179,7 @@
         "title": "번아웃 없이 오래 일하는 법",
         "author_name": "김서연",
         "source_name": "폴인",
+        "source_url": "https://...",
         "duration_sec": 620,
         "thumbnail_url": "https://...",
         "content_version": 1,
@@ -205,6 +206,7 @@
 | `is_counted_today` | 이 콘텐츠가 **재청취 창 안**에 있는가 — 최근 15일(당일 포함) 내 차감 행(`play_records.is_counted = true`)이 있어, 재생해도 차감이 없는 상태(개정 2026-08-10 — `paywall.md` 4.3-1. 필드명은 유지하고 의미를 "오늘 카운트됨"에서 "창 안"으로 확장했다) |
 | `progress` | `playback_progresses` 조인 결과. **행이 없으면 `null`**(0으로 채우지 않는다) |
 | `content.content_version` | 재발행 판정용. 올라갔으면 클라이언트가 저장한 위치·오프라인 파일을 폐기한다(`domain.md` 5.1) |
+| `content.source_url` | **`null`이면 더보기 시트(L4)에 [원문 보기]를 노출하지 않는다**(개정 2026-08-24 — 세 화면 더보기 통일(2026-08-10)의 계약 반영. 발급 응답 `player-api.md` 4.1과 같은 규칙). `partner`는 항상 값이 있고(`chk_contents_partner_disclosure` — `domain.md` 5.1), `ai_generated`는 선택 필드라 `null`일 수 있다 |
 
 - **재생 위치를 `library_items`가 아니라 조인으로 가져온다.** 위치의 단독 소유자는 `playback_progresses`다(`domain.md` 6.2 — `resume_position_sec`은 폐기된 컬럼).
   - 별도 호출로 나누면 목록 20건에 위치 조회가 20번 붙는다. `library.md` 4.3이 "재생 위치는 목록 조회 시 조인해 가져온다"고 규정한 이유다.

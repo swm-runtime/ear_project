@@ -31,3 +31,9 @@
 
 - Given `architecture.md` 4.5의 의존 표를 읽는다 / When 모듈 목록을 확인한다 / Then `ContentDetail | Content, Library, Playback` 행이 있고, Entity 없는 유스케이스 모듈임이 해설 단락에 적혀 있다
 - Given 표의 행과 코드(`content-detail.module.ts`의 imports)를 대조한다 / When 의존 목록을 비교한다 / Then 두 목록이 일치한다 (Content · Library · Playback 셋뿐)
+
+---
+
+## 처리 기록 (반영 날짜 2026-08-24 — 브랜치 `integration/content-detail`)
+
+- `architecture.md` 4.5 표에 `ContentDetail | Content, Library, Playback` 행 추가, 유스케이스 모듈 해설 단락("ContentDetail도 Entity를 갖지 않는다") 신설 — 요청 요지 그대로 반영
