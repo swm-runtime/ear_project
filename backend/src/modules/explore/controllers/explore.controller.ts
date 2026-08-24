@@ -8,6 +8,8 @@ import { ExploreContentListResponseDto } from '../dto/explore-content-list-respo
 import { ExploreContentQueryRequestDto } from '../dto/explore-content-query-request.dto';
 import { ExplorePopularListResponseDto } from '../dto/explore-popular-list-response.dto';
 import { ExplorePopularQueryRequestDto } from '../dto/explore-popular-query-request.dto';
+import { ExploreSearchQueryRequestDto } from '../dto/explore-search-query-request.dto';
+import { ExploreSearchResponseDto } from '../dto/explore-search-response.dto';
 import { ExploreTopicListResponseDto } from '../dto/explore-topic-list-response.dto';
 import { GetExploreFeedResponseDto } from '../dto/get-explore-feed-response.dto';
 import {
@@ -23,7 +25,8 @@ import { ExploreOrchestrator } from '../explore.orchestrator';
  * 다르다 — 피드는 섹션 배열이고 필터 목록은 커서 페이지네이션 목록이다. 쿼리 파라미터로
  * 모양이 바뀌는 응답은 클라이언트 타입이 유니언이 되고, 커서 규칙도 섹션 모드와 섞여 흐려진다.
  *
- * 검색(`GET /explore/search`)은 **P1이라 MVP에서 배포하지 않는다**(합의 2026-08-06).
+ * 검색(`GET /explore/search`)은 **MVP 포함이다**(합의 2026-08-23 — 종전 "P1 유지·검색창
+ * 비활성" 합의 2026-08-06을 폐기).
  *
  * Controller는 try/catch 하지 않는다. 전역 Exception Filter가 변환한다(architecture.md 7.3).
  */
@@ -72,6 +75,29 @@ export class ExploreController {
   ): Promise<ExploreTopicListResponseDto> {
     return ExploreTopicListResponseDto.from(
       await this.exploreOrchestrator.getTopicChips(currentUser.id),
+    );
+  }
+
+  /**
+   * 키워드 검색(explore-api.md 4.5). 300ms 디바운스·[검색] 제출·추천 키워드 탭이 전부
+   * 이 하나를 호출한다. **잔여 재생 표시값을 싣지 않는다** — 검색 화면은 표시를 숨긴다.
+   */
+  @Get('search')
+  async search(
+    @CurrentUser() currentUser: AuthenticatedUser,
+    @Query() query: ExploreSearchQueryRequestDto,
+  ): Promise<ExploreSearchResponseDto> {
+    return ExploreSearchResponseDto.from(
+      await this.exploreOrchestrator.search(
+        currentUser.id,
+        {
+          query: query.query,
+          topicIds: query.topic_ids ?? [],
+          cursor: query.cursor ?? null,
+          limit: query.limit ?? DEFAULT_EXPLORE_PAGE_SIZE,
+        },
+        new Date(),
+      ),
     );
   }
 

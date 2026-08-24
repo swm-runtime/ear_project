@@ -38,6 +38,23 @@ export const MAX_EXPLORE_PAGE_SIZE = 50;
 export const DEFAULT_POPULAR_PERIOD = StatsPeriodType.MONTH;
 
 /**
+ * 검색 질의 길이(explore-api.md 4.5) — **트림 후 2자 이상**이 계약이고, 상한은 서버가
+ * 정한다(convention.md 3.3 — 상한 없는 문자열을 받지 않는다).
+ *
+ * **최소 길이를 올리는 방식으로 성능을 풀지 않는다**(`explore.md` 4.5-5) — 한국어는
+ * "이직"·"면접" 같은 2자 검색어가 흔해 최소 길이를 올리면 검색 자체가 죽는다.
+ */
+export const MIN_SEARCH_QUERY_LENGTH = 2;
+export const MAX_SEARCH_QUERY_LENGTH = 100;
+
+/**
+ * 빈 결과 fallback의 구성(explore-api.md 4.5 — `explore.md` 4.5-3).
+ * 인기 목록은 섹션 행 수와 같은 분량을, 관련 주제는 칩 몇 개만 내려준다 — 개수는 서버 소유다.
+ */
+export const SEARCH_FALLBACK_RELATED_TOPIC_COUNT = 3;
+export const SEARCH_FALLBACK_POPULAR_COUNT = EXPLORE_SECTION_ITEM_COUNT;
+
+/**
  * 한 번에 보낼 수 있는 주제 필터 수의 상한.
  * 화면에서 고를 수 있는 주제는 전체 주제라 상한이 없지만, 서버는 `IN` 절이 무한정 길어지지
  * 않게 막는다(라이브러리와 같은 규칙).

@@ -22,6 +22,8 @@ import {
   ExplorePageQuery,
   PopularPage,
   PopularPageQuery,
+  SearchPage,
+  SearchPageQuery,
 } from '../content.types';
 import { ContentSource } from '../entities/content-source.entity';
 import { Content } from '../entities/content.entity';
@@ -104,6 +106,30 @@ export class ContentService {
     manager?: EntityManager,
   ): Promise<ExplorePage> {
     const rows = await this.contentRepository.findExplorePage(query, manager);
+    const hasNext = rows.length > query.limit;
+
+    return { items: hasNext ? rows.slice(0, query.limit) : rows, hasNext };
+  }
+
+  /**
+   * 키워드 검색 한 페이지(`explore.md` 4.5-5 — pg_trgm 부분 일치 + 필드 가중 랭킹).
+   *
+   * **동점 해소의 인기 구간(직전 확정 월 — domain.md 5.4)을 `period_start`로 환산하는 것은
+   * 이 Service의 몫이다** — 인기 목록(`findPopularPage`)과 같은 이유로, 04시 경계 계산은
+   * `service-date.util` 한 곳에만 둔다(domain.md 1.2).
+   *
+   * Repository가 한 건 더 읽어 오므로 **여기서 잘라내고 다음 페이지 여부를 판정한다.**
+   * 질의 정규화(NFC·소문자)는 호출부(탐색 Orchestrator)가 커서 지문과 함께 한 번만 한다.
+   */
+  async findSearchPage(
+    query: SearchPageQuery,
+    manager?: EntityManager,
+  ): Promise<SearchPage> {
+    const rows = await this.contentRepository.findSearchPage(
+      query,
+      toPreviousFinalMonthStart(query.now),
+      manager,
+    );
     const hasNext = rows.length > query.limit;
 
     return { items: hasNext ? rows.slice(0, query.limit) : rows, hasNext };
