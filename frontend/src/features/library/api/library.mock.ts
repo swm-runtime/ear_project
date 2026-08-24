@@ -19,6 +19,7 @@ import { ApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
 
 import {
+  getMockSourceUrl,
   isMockCountedToday,
   mockPlayLimitFields,
   registerPlayMockLibraryBridge,
@@ -149,6 +150,8 @@ const toItemDto = (item: MockItem): LibraryItemDto => ({
     title: item.title,
     author_name: item.authorName,
     source_name: item.sourceName,
+    // origin·source_url 규칙은 player mock 소유다 — 발급·상세와 같은 값이어야 한다
+    source_url: getMockSourceUrl(item.contentId),
     duration_sec: item.durationSec,
     thumbnail_url: `https://picsum.photos/seed/${item.contentId}/200`,
     content_version: 1,

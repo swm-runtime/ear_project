@@ -9,8 +9,10 @@ export const EXPLORE_COPY = {
     disabledA11y: '콘텐츠 검색, 사용할 수 없음',
   },
 
-  /** E12 더보기 액션시트 — MVP에는 담기/제거뿐이다(공유·상세 없음, explore.md 4.6) */
+  /** E12 더보기 액션시트 — 상세 정보·원문 보기·담기/제거(explore-uiux.md 4.4, 공유는 P1) */
   sheet: {
+    detail: '상세 정보',
+    sourceLink: '원문 보기',
     save: '라이브러리에 담기',
     remove: '라이브러리에서 제거',
     close: '닫기',

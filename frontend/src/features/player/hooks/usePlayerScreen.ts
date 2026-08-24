@@ -176,6 +176,16 @@ export const usePlayerScreen = () => {
     playbackService.togglePlayPause();
   };
 
+  /** PL7 [상세 정보] — 시트를 닫고 상세 화면으로 이동한다(player-uiux.md 4.7, 추가 2026-08-23).
+      재생은 유지되고 뒤로가기로 플레이어에 복귀한다(content-detail.md 2장) */
+  const openDetail = () => {
+    setIsMoreSheetVisible(false);
+    navigation.navigate('Main', {
+      screen: 'ContentDetail',
+      params: { contentId, entryPoint: 'player' },
+    });
+  };
+
   /* ── 원문 보기(FR-12) — 클릭 기록과 브라우저 열기는 서로를 기다리지 않는다(player-api.md 4.5) ── */
   const openSourceLink = () => {
     const url = session?.meta.sourceUrl;
@@ -242,6 +252,7 @@ export const usePlayerScreen = () => {
     isMoreSheetVisible,
     openMoreSheet: () => setIsMoreSheetVisible(true),
     closeMoreSheet: () => setIsMoreSheetVisible(false),
+    openDetail,
     requestDelete,
     pendingDeleteItemId,
     undoDelete,

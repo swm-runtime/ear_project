@@ -35,8 +35,10 @@ export const LIBRARY_COPY = {
     a11yBadge: (count: number) => `필터, ${count}개 적용됨`,
   },
 
-  /** L4 더보기 액션시트 — 메뉴 항목은 삭제 하나뿐이다(library-uiux.md 4.7) */
+  /** L4 더보기 액션시트 — 상세 정보·원문 보기·삭제(library-uiux.md 4.7 — 세 화면 더보기 통일) */
   moreSheet: {
+    detail: '상세 정보',
+    sourceLink: '원문 보기',
     delete: '라이브러리에서 삭제',
     close: '닫기',
   },

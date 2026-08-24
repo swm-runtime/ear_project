@@ -59,6 +59,7 @@ const toLibraryItem = (dto: LibraryItemDto): LibraryItem => ({
     title: dto.content.title,
     authorName: dto.content.author_name,
     sourceName: dto.content.source_name,
+    sourceUrl: dto.content.source_url,
     durationSec: dto.content.duration_sec,
     thumbnailUrl: dto.content.thumbnail_url,
     contentVersion: dto.content.content_version,
