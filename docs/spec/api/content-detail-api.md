@@ -189,7 +189,7 @@
 | **[원문 보기]** (`partner`) | `POST /contents/:content_id/source-link-clicks` — `player-api.md` 4.5 | 세 화면 공용 계약의 네 번째 진입점. 호출 + 인앱 브라우저 열기, 응답을 기다리지 않는다 |
 | 소스 항목 탭 (`ai_generated`, `url` 있음) | 인앱 브라우저 열기 (클라이언트 조작) | **클릭을 기록하지 않는다** (확정 2026-08-24 — `domain.md` 5.5·6.6, MVP). 기록 호출 없이 브라우저만 연다. 소스별 분석 요구가 생기면 P1에서 `source_link_clicks.source_id` 추가와 함께 재검토한다 |
 
-- **[재생]의 `entry_point`는 상세 화면을 연 원 화면의 값을 그대로 보낸다**(제안 — 9장). 라이브러리 진입이면 `library`, 탐색 진입이면 `explore`다. 플레이어에서 진입한 상세는 현재 재생 중인 콘텐츠이므로 [재생]이 새 재생 없이 플레이어로 복귀한다(`content-detail.md` 4.4) — play 호출 자체가 없다.
+- **[재생]의 `entry_point`는 상세 화면을 연 원 화면의 값을 그대로 보낸다**(제안 — 9장). 라이브러리 진입이면 `library`, 탐색 진입이면 `explore`다. 플레이어에서 진입한 상세는 현재 재생 중인 콘텐츠이므로 [재생]이 새 재생 없이 플레이어로 복귀한다(`content-detail.md` 4.4) — play 호출 자체가 없다. **공유 링크 수신으로 진입한 상세만 예외로 `share`를 보낸다**(신설 2026-08-25 — 원 화면이 없다. `library-api.md` 4.4 · `share.md` 4.3).
 - **[삭제]에 상세 화면용 실행 취소 스낵바를 새로 정의하지 않는다.** 스낵바 유예·즉시 호출 여부는 uiux가 정하되, 서버 계약은 어느 쪽이든 `library-api.md` 4.6 그대로다(이미 삭제된 항목에도 204 — 멱등).
 - **담기·삭제 처리 중 버튼 비활성화는 화면 규칙이고, 서버 멱등은 소유 계약의 것이다**(`content-detail.md` 4.4 — 유니크 제약·no-op 200/204).
 - **담기·삭제 성공 후 상세를 재조회하지 않는다.** 액션 응답이 버튼 전환 재료를 이미 담고 있고, 그 밖의 표시 항목은 액션으로 변하지 않는다.
@@ -279,6 +279,6 @@ DELETE /users/me/library-items/:library_item.id                        ← libra
 - ~~**`ai_generated` 소스 목록의 계약·스키마**~~ → **확정 (2026-08-24)**: 저장 구조는 `content_sources` 테이블 승격(`domain.md` 5.5), 계약은 4.1의 가정 계약 모양(`[{title, author|null, url|null}]`) 그대로다 — 소스 항목에 `id`가 없는 것도 확정(클릭 미기록이므로). 티켓 `tickets/backend/archive/content-sources-structured-list.md` 처리 완료. FE mock에서 바꿀 필드가 없다.
 - ~~**`partner` 응답의 `sources` 표현**~~ → **확정 (2026-08-24)**: **`null`이다** — 이 문서의 제안(조건부 블록의 null 생략 원칙과 정합 — `content-detail.md` 4.3-1)이 그대로 채택됐다. `partner`는 `content_sources`에 행을 만들지 않는다(`domain.md` 5.5).
 - ~~**백엔드 미구현**~~ → **구현 완료 (2026-08-24)**: `GET /contents/:content_id`가 서버에 있다(`content-detail` 모듈 — `architecture.md` 4.5). 계약 변경점 없음 — 이 문서 4.1이 그대로 구현 결과다. FE는 mock 플래그를 해제하고 실서버 연동으로 전환할 수 있다.
-- **[재생]의 `entry_point` 값** — `library-api.md` 4.4의 enum(`library` / `explore` / `miniplayer` / `push` / `player`)에 상세 화면 값이 없다. 이 문서는 **원 화면 값 유지 전달을 제안한다**(4.2 — enum 변경 없음. 플레이어 진입 상세는 play 호출 자체가 없어 실제로는 `library` / `explore` 둘만 나간다). 상세 경유 전환을 분석 축으로 구분하려면 `content_detail` 값 신설이 필요하다 — enum 소유는 `library-api.md`(백엔드)이므로 협의 대상이다.
+- **[재생]의 `entry_point` 값** — **부분 확정 (2026-08-25)**: 공유 링크 수신 진입의 `share`가 enum에 신설됐다(`library-api.md` 4.4 — `changes/archive/play-entry-point-share-value(fe).md`). 일반 경로의 상세는 **원 화면 값 유지 전달**(4.2)이 그대로다. **`content_detail` 값 신설(상세 경유를 별도 분석 축으로 구분)은 계속 미결** — 협의(2026-08-25)에서 분석 요구가 생길 때 추가하기로 하고 보류했다. enum 소유는 `library-api.md`(백엔드)다.
 - ~~**`ai_generated` 소스 항목 탭의 클릭 기록**~~ → **확정 (2026-08-24)**: **MVP는 기록하지 않는다**(`domain.md` 5.5·6.6). 소스 항목 탭은 기록 호출 없이 인앱 브라우저만 열고(4.2), `partner`의 [원문 보기]는 기존 계약대로 기록한다. `source_link_clicks`의 존재 이유(파트너 정산·리포팅)가 `ai_generated` 소스에는 없기 때문이다 — 소스별 분석 요구가 생기면 P1에서 `source_link_clicks.source_id` 추가와 함께 재검토한다.
 - **`topics[]`의 형태** — 이 문서는 이름 문자열 배열이 아니라 **`{id, name}` 객체 배열을 제안한다**(`explore-api.md` 4.2-2와 같은 모양). 화면 요구는 이름 표시뿐이지만(`content-detail.md` 4.2), 주제 객체를 문자열로 납작하게 보내는 계약이 이 문서 하나만 생기는 것을 피했고, 태그 탭 → 탐색 필터 연결 같은 확장에 `id`가 필요하다. 이름만으로 확정하려면 개정한다.

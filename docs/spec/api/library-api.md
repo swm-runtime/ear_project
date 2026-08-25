@@ -342,7 +342,7 @@
 
 | 필드 | 타입 | 필수 | 비고 |
 |---|---|---|---|
-| entry_point | enum `library` / `explore` / `miniplayer` / `push` / `player` | 필수 | 전환 분석용(`paywall.md` 3장). `player`는 완료 후 ▶ 재청취(개정 2026-08-10 — `paywall.md` 4.2 예외). **판정에 쓰지 않는다** |
+| entry_point | enum `library` / `explore` / `miniplayer` / `push` / `player` / `share` | 필수 | 전환 분석용(`paywall.md` 3장). `player`는 완료 후 ▶ 재청취(개정 2026-08-10 — `paywall.md` 4.2 예외). `share`는 **공유 링크 수신으로 진입한 상세의 [재생]**(신설 2026-08-25 — FR-27 P1, `share.md` 4.3. 일반 경로의 상세는 원 화면 값 유지 전달 — `content-detail-api.md` 4.2). **판정에 쓰지 않는다** |
 
 - **`entry_point`가 판정을 바꾸지 않는다.** 어디서 시작하든 같은 규칙이다(`paywall.md` 4.2). 판정에 쓰이면 진입점을 위조해 한도를 우회할 수 있다.
 - **잔여 횟수·억제 여부·티어를 요청에 싣지 않는다.** 전부 서버가 조회한다(2장).

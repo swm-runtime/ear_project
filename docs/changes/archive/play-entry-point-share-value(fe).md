@@ -25,3 +25,11 @@ FE는 `PlayEntryPoint` / `ContentDetailEntryPoint` 타입에 `'share'`를 추가
 - Given `library-api.md` 4.4를 읽는다 / When `entry_point` enum을 확인한다 / Then 공유 링크 수신 진입의 값(`share` 또는 협의 확정값)이 포함되어 있다
 - Given 확정된 enum 값 / When FE `PlayEntryPoint`·`ContentDetailEntryPoint`와 대조한다 / Then 같은 값을 쓴다(다르면 FE 티켓으로 후속 수정)
 - Given 공유 링크로 진입한 상세에서 [재생]한다 / When 서버가 play 요청을 받는다 / Then `entry_point` 검증(400)에 걸리지 않는다
+
+---
+
+## 처리 기록 (반영 날짜: 2026-08-25 — 브랜치 `feat(be)/share-entry-point`)
+
+- **`share` 신설로 확정** (협의 2026-08-25) — `PlayEntryPoint` enum(`backend/src/modules/playback/playback.enum.ts`)에 `SHARE = 'share'` 추가. FE 가정 계약과 동일 값이라 FE 매핑 수정 불요.
+- 문서 반영: `library-api.md` 4.4(enum + 비고) · `content-detail-api.md` 4.2(공유 진입 예외)·9장(부분 확정 표기).
+- **`content_detail` 값 신설은 미결 유지** (협의 2026-08-25) — 상세 경유 분석 요구가 생길 때 추가한다. entry_point는 판정에 쓰이지 않아 후행 추가로 깨지는 것이 없다(`content-detail-api.md` 9장이 계속 관리).
