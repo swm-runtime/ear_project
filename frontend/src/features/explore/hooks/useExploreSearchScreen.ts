@@ -11,6 +11,7 @@ import { useToastStore } from '@/shared/ui/toast.store';
 
 import { libraryKeys } from '@/features/library';
 import { sendSourceLinkClick, usePlayGate } from '@/features/player';
+import { useDeferredSheetShare } from '@/features/share';
 
 import { exploreKeys } from '../api/explore.api';
 import { EXPLORE_COPY } from '../explore.copy';
@@ -317,6 +318,20 @@ export const useExploreSearchScreen = () => {
     );
   };
 
+  /** E12 [공유](SH1, P1) — 결과·fallback 행 공통. 시트를 닫고 OS 공유 시트를 연다(share.md
+      4.1). 공유는 시트가 닫힌 뒤 열린다 — iOS의 Modal dismiss ↔ 시스템 시트 present 경합
+      우회(useDeferredSheetShare) */
+  const { requestShare, handleSheetDismiss } = useDeferredSheetShare();
+  const shareItem = (item: ExploreItem) => {
+    setMoreSheetItem(null);
+    requestShare({
+      contentId: item.content.id,
+      title: item.content.title,
+      authorName: item.content.authorName,
+      sourceName: item.content.sourceName,
+    });
+  };
+
   const requestSave = (item: ExploreItem) => {
     setMoreSheetItem(null);
     const contentId = item.content.id;
@@ -449,6 +464,8 @@ export const useExploreSearchScreen = () => {
     closeMoreSheet: () => setMoreSheetItem(null),
     openDetail,
     openSourceLink,
+    shareItem,
+    handleSheetDismiss,
     requestSave,
     requestRemove,
   };

@@ -43,3 +43,11 @@
 
 - **스토어 URL 확정값** — 짝 티켓(BE)과 공유하는 미결. 이 티켓의 범위에는 영향 없다
 - 요청 3의 구현 위치(딥링크 리스너·내비게이션 연결 방식)는 `frontend/architecture.md`에 맞춰 FE가 정한다
+
+---
+
+## 진행 기록 (2026-08-25 — 브랜치 `feat(fe)/share`, pending 유지)
+
+- **요청 2 구현 완료** — `app.json`에 `ios.bundleIdentifier`/`android.package`(`com.runtime.ear`), `associatedDomains: ["applinks:earcast.co.kr"]`, `intentFilters`(autoVerify · https · earcast.co.kr · pathPrefix `/contents`) 등록.
+- **요청 3 구현 완료** — `features/share` feature의 `useShareLinkGate`(RootNavigator 배치)가 `/contents/:id` 파싱 → 온보딩 완료 사용자만 상세(entryPoint `share`)로, 아니면 목적지 폐기(share.md 4.3 — 디퍼드 금지). 공유 링크 진입 상세의 뒤로가기·회수 복귀는 라이브러리다(share-uiux.md 4.4). SplashGate 미구현 상태라 콜드 스타트 판정을 관문 뒤로 옮기는 TODO를 게이트에 남김. entry_point `share`는 가정 계약 — `changes/pending/play-entry-point-share-value(fe).md`.
+- **요청 1·4 미완으로 pending 유지** — ① 값 4종 중 Apple Team ID·배포 서명 SHA-256 미확보(애플 개발자 계정 등록 대기. 번들 ID·패키지명은 `com.runtime.ear` 확정), ④ 스탠드얼론 빌드 검증은 값 전달·`.well-known` 배포 후에 가능하다.

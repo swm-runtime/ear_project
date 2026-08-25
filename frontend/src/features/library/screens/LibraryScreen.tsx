@@ -208,7 +208,9 @@ export default function LibraryScreen() {
         onDetail={screen.openDetail}
         onSourceLink={screen.openSourceLink}
         onDelete={screen.requestDelete}
+        onShare={screen.shareItem}
         onDismiss={screen.closeMoreSheet}
+        onDismissed={screen.handleSheetDismiss}
       />
 
       <PlayConfirmDialog

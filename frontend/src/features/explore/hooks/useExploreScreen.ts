@@ -18,6 +18,7 @@ import { useToastStore } from '@/shared/ui/toast.store';
 
 import { libraryKeys } from '@/features/library';
 import { sendSourceLinkClick, usePlayGate, usePlayLimitStore } from '@/features/player';
+import { useDeferredSheetShare } from '@/features/share';
 
 import { exploreKeys } from '../api/explore.api';
 import { EXPLORE_COPY } from '../explore.copy';
@@ -340,6 +341,20 @@ export const useExploreScreen = () => {
     );
   };
 
+  /** E12 [공유](SH1, P1) — 시트를 닫고 OS 공유 시트를 연다. 목록이 이미 든 값으로 조립하고
+      전송·취소 어느 쪽에도 후속 동작이 없다(share.md 4.1·4.4). 공유는 시트가 닫힌 뒤 열린다
+      — iOS의 Modal dismiss ↔ 시스템 시트 present 경합 우회(useDeferredSheetShare) */
+  const { requestShare, handleSheetDismiss } = useDeferredSheetShare();
+  const shareItem = (item: ExploreItem) => {
+    setMoreSheetItem(null);
+    requestShare({
+      contentId: item.content.id,
+      title: item.content.title,
+      authorName: item.content.authorName,
+      sourceName: item.content.sourceName,
+    });
+  };
+
   /* ── 담기 · 제거 — 더보기 시트 소유(explore.md 4.3). 낙관 반영 + client_seq 순서 방어 ── */
   const requestSave = (item: ExploreItem) => {
     setMoreSheetItem(null);
@@ -582,6 +597,8 @@ export const useExploreScreen = () => {
     closeMoreSheet: () => setMoreSheetItem(null),
     openDetail,
     openSourceLink,
+    shareItem,
+    handleSheetDismiss,
     requestSave,
     requestRemove,
     // 빈 상태 액션

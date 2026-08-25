@@ -12,6 +12,7 @@ import { useToastStore } from '@/shared/ui/toast.store';
 
 import { libraryKeys } from '@/features/library';
 import { sendSourceLinkClick, usePlaybackStore, usePlayGate } from '@/features/player';
+import { shareContent } from '@/features/share';
 
 import { contentDetailKeys } from '../api/content-detail.api';
 import { CONTENT_DETAIL_COPY } from '../content-detail.copy';
@@ -38,6 +39,8 @@ export const useContentDetailScreen = () => {
   const navigation = useNavigation();
   const route = useRoute<RouteProp<ContentDetailRouteParams, 'ContentDetail'>>();
   const { contentId, entryPoint } = route.params;
+  /** 공유 링크 수신 진입(share.md 4.3) — 복귀할 원 화면이 없어 복귀가 전부 라이브러리다(share-uiux.md 4.4) */
+  const isShareLinkEntry = entryPoint === 'share';
   const queryClient = useQueryClient();
   const showToast = useToastStore((s) => s.show);
   // "현재 재생 중인 콘텐츠" 판정 재료 — 구독 전용(쓰기는 PlaybackService만)
@@ -64,6 +67,10 @@ export const useContentDetailScreen = () => {
   const invalidateDetail = () =>
     void queryClient.invalidateQueries({ queryKey: contentDetailKeys.detail(contentId) });
 
+  const goToLibrary = () => {
+    navigation.navigate('Main', { screen: 'Tabs', params: { screen: 'Library' } });
+  };
+
   /* ── 회수·404 — 상세를 그리지 않고 안내 후 원 화면 복귀(content-detail.md 4.1·7장, CD4) ── */
   const error = detailQuery.error;
   const redirectErrorCode =
@@ -87,7 +94,9 @@ export const useContentDetailScreen = () => {
       // 라이브러리에서 진입했다면 복귀한 목록도 갱신되어야 한다(library.md 회수 동기화)
       invalidateLibrary();
     }
-    navigation.goBack();
+    // 공유 링크 수신은 복귀할 원 화면이 없다 — 라이브러리로 간다(share-uiux.md 4.4, CD4 변형)
+    if (isShareLinkEntry) goToLibrary();
+    else navigation.goBack();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 복귀는 에러·포커스 전이에 1회만 반응한다
   }, [redirectErrorCode, isFocused]);
 
@@ -161,10 +170,6 @@ export const useContentDetailScreen = () => {
 
   /* ── [담기]/[삭제] — 버튼 로딩 + 중복 탭 차단, 성공 시 버튼 전환(uiux 4.3) ── */
   const isActionPending = saveMutation.isPending || deleteMutation.isPending;
-
-  const goToLibrary = () => {
-    navigation.navigate('Main', { screen: 'Tabs', params: { screen: 'Library' } });
-  };
 
   const requestSave = () => {
     if (!detail || detail.libraryItem !== null || isActionPending) return;
@@ -258,6 +263,18 @@ export const useContentDetailScreen = () => {
     );
   };
 
+  /** SH2 [공유](P1) — 앱바 우측 아이콘. 상세가 이미 든 값으로 조립하고 전송·취소 어느 쪽에도
+      후속 동작이 없다(share.md 4.1·4.4). 조회 성공(CD1·CD2) 상태에서만 화면이 버튼을 그린다 */
+  const shareDetail = () => {
+    if (!detail) return;
+    void shareContent({
+      contentId,
+      title: detail.content.title,
+      authorName: detail.content.authorName,
+      sourceName: detail.content.sourceName,
+    });
+  };
+
   /* ── 화면 상태 파생 ── */
   const isInitialLoading = detailQuery.isPending;
   const showSkeleton = useDelayedVisible(isInitialLoading);
@@ -289,7 +306,9 @@ export const useContentDetailScreen = () => {
     // 출처
     openSourceLink,
     openSourceItemLink,
-    // 복귀
-    goBack: () => navigation.goBack(),
+    // [공유](SH2, P1)
+    shareDetail,
+    // 복귀 — 공유 링크 수신은 뒤로 갈 원 화면이 없어 라이브러리로 간다(share-uiux.md 4.4)
+    goBack: () => (isShareLinkEntry ? goToLibrary() : navigation.goBack()),
   };
 };

@@ -274,7 +274,9 @@ export default function ExploreScreen() {
         onSourceLink={screen.openSourceLink}
         onSave={screen.requestSave}
         onRemove={screen.requestRemove}
+        onShare={screen.shareItem}
         onDismiss={screen.closeMoreSheet}
+        onDismissed={screen.handleSheetDismiss}
       />
 
       <PlayConfirmDialog

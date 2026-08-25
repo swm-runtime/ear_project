@@ -2,6 +2,8 @@ import { Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
 
+import { IS_SHARE_ENABLED, SHARE_COPY } from '@/features/share';
+
 import { EXPLORE_COPY } from '../explore.copy';
 import type { ExploreItem } from '../explore.types';
 
@@ -11,14 +13,18 @@ interface ExploreMoreSheetProps {
   onSourceLink: (item: ExploreItem) => void;
   onSave: (item: ExploreItem) => void;
   onRemove: (item: ExploreItem) => void;
+  onShare: (item: ExploreItem) => void;
   onDismiss: () => void;
+  /** 시트가 완전히 닫힌 뒤(iOS Modal onDismiss) — 보류된 공유 실행용(useDeferredSheetShare) */
+  onDismissed: () => void;
 }
 
 /**
- * E12 더보기 액션시트 — 대상 요약 + 상세 정보 + 원문 보기 + 담기/제거 + 닫기
- * (explore-uiux.md 4.4 — 세 화면 더보기 통일: [원문 보기] 2026-08-10 · [상세 정보] 2026-08-23).
- * [공유]는 노출하지 않는다(FR-27 MVP 제외). [원문 보기]는 source_url이 있는 콘텐츠(partner)만
- * 노출하고 없으면 행 자체를 그리지 않는다(PL7과 같은 규칙).
+ * E12 더보기 액션시트 — 대상 요약 + 상세 정보 + 원문 보기 + 담기/제거 + 공유(P1) + 닫기
+ * (explore-uiux.md 4.4 — 세 화면 더보기 통일: [원문 보기] 2026-08-10 · [상세 정보] 2026-08-23 ·
+ * [공유] share.md 2). [공유]는 MVP 빌드에 행 자체가 없다(share-uiux.md 4.1 — 비활성 노출도
+ * 금지). [원문 보기]는 source_url이 있는 콘텐츠(partner)만 노출하고 없으면 행 자체를 그리지
+ * 않는다(PL7과 같은 규칙).
  * 어느 콘텐츠에 대한 조작인지 상단에 다시 보여준다(library-uiux.md 4.7과 같은 규칙).
  */
 export default function ExploreMoreSheet({
@@ -27,12 +33,20 @@ export default function ExploreMoreSheet({
   onSourceLink,
   onSave,
   onRemove,
+  onShare,
   onDismiss,
+  onDismissed,
 }: ExploreMoreSheetProps) {
   const isSaved = item?.library !== null;
 
   return (
-    <Modal visible={item !== null} transparent animationType="slide" onRequestClose={onDismiss}>
+    <Modal
+      visible={item !== null}
+      transparent
+      animationType="slide"
+      onRequestClose={onDismiss}
+      onDismiss={onDismissed}
+    >
       <Pressable style={styles.dim} onPress={onDismiss} accessibilityRole="button">
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
           {item ? (
@@ -89,6 +103,17 @@ export default function ExploreMoreSheet({
                   <Text style={styles.actionLabel}>{EXPLORE_COPY.sheet.save}</Text>
                 </Pressable>
               )}
+              {/* [공유] — 담기/제거류 아래, P1에만(SH1). 모든 콘텐츠에 노출되는 무조건부 행이다 */}
+              {IS_SHARE_ENABLED ? (
+                <Pressable
+                  style={styles.action}
+                  onPress={() => onShare(item)}
+                  accessibilityRole="button"
+                  accessibilityLabel={SHARE_COPY.action}
+                >
+                  <Text style={styles.actionLabel}>{SHARE_COPY.action}</Text>
+                </Pressable>
+              ) : null}
               <Pressable
                 style={styles.action}
                 onPress={onDismiss}

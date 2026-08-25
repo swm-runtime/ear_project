@@ -16,6 +16,7 @@ import {
   usePlayGate,
   usePlayLimitStore,
 } from '@/features/player';
+import { useDeferredSheetShare } from '@/features/share';
 
 import { libraryKeys } from '../api/library.api';
 import { DELETE_UNDO_DURATION_MS } from '../library.constants';
@@ -268,6 +269,20 @@ export const useLibraryScreen = () => {
     );
   };
 
+  /** L4 [공유](SH1, P1) — 시트를 닫고 OS 공유 시트를 연다. 목록이 이미 든 값으로 조립하고
+      전송·취소 어느 쪽에도 후속 동작이 없다(share.md 4.1·4.4). 공유는 시트가 닫힌 뒤 열린다
+      — iOS의 Modal dismiss ↔ 시스템 시트 present 경합 우회(useDeferredSheetShare) */
+  const { requestShare, handleSheetDismiss } = useDeferredSheetShare();
+  const shareItem = (item: LibraryItem) => {
+    setMoreSheetItem(null);
+    requestShare({
+      contentId: item.content.id,
+      title: item.content.title,
+      authorName: item.content.authorName,
+      sourceName: item.content.sourceName,
+    });
+  };
+
   const requestDelete = (item: LibraryItem) => {
     setMoreSheetItem(null);
     // 연속 삭제 — 이전 스낵바를 교체하고 이전 삭제를 즉시 확정한다(uiux 4.7)
@@ -482,6 +497,8 @@ export const useLibraryScreen = () => {
     closeMoreSheet: () => setMoreSheetItem(null),
     openDetail,
     openSourceLink,
+    shareItem,
+    handleSheetDismiss,
     requestDelete,
     pendingDeleteItem,
     undoDelete,
