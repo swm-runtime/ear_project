@@ -50,6 +50,8 @@
 - **2026-08-25 — 요청 2(리다이렉트) 반영** (`feat(fe)/landing-page-multipage` 브랜치): `src/app/contents/page.tsx`(안내 페이지 — noindex·사이트맵 제외·`routes.ts` 미등록) + `StoreRedirect.tsx`(UA 판별 이동 — 스토어 URL은 확정 전이라 `null`, 그동안 안내 문구 노출) + `vercel.json`(`/contents/:id` → `/contents/` rewrite, AASA `Content-Type` 헤더 선반영). 정적 빌드·lint 통과, 랜딩 기존 라우트 무변경 확인
 - **남은 것**: 요청 1·3(`.well-known` 파일 2종 — **FE의 값 제공 대기**: Team ID·번들 ID·패키지명·서명 지문), 요청 4(FE 앱 설정·기기 검증), 스토어 URL 확정 시 `StoreRedirect` 상수 교체
 - **FE 몫은 짝 티켓으로 발행했다**(2026-08-25 — `tickets/frontend/pending/share-app-links-and-deep-link-routing.md`: 값 4종 전달·`app.json` 앱 링크 등록·딥링크 수신 라우팅·스탠드얼론 검증)
+- **2026-08-25 — 리다이렉트 프로덕션 배포 확인**: `https://earcast.co.kr/contents/<id>` → 안내 페이지 200 (Vercel preview → **production 수동 승격 필요**했음 — `.well-known` 배포 때도 승격까지 확인할 것). `.well-known` 2종은 의도적 404 유지.
+- **2026-08-25 — FE 짝 티켓 코드 완료(PR #59), 값은 여전히 미확보**: 번들 ID·패키지명 `com.runtime.ear` 확정. **Apple Team ID·배포 서명 SHA-256은 애플 개발자 계정 등록 대기** — 값이 나오는 즉시 `.well-known` 2종 작성이 다음 액션이다(pending 유지 사유, 협의 2026-08-25)
 
 ## 보류·미결
 
