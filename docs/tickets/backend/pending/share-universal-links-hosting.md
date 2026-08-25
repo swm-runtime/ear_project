@@ -45,6 +45,12 @@
 - Given 스탠드얼론 빌드가 설치된 기기 *(FE 협조)* / When 위 링크를 탭한다 / Then 브라우저가 아니라 앱이 열린다(수신 라우팅 완성 전에는 앱 실행까지가 판정 범위)
 - Given `backend/`(NestJS) 코드 전체 / When 이 티켓의 반영분을 확인한다 / Then 변경이 없다
 
+## 진행 기록
+
+- **2026-08-25 — 요청 2(리다이렉트) 반영** (`feat(fe)/landing-page-multipage` 브랜치): `src/app/contents/page.tsx`(안내 페이지 — noindex·사이트맵 제외·`routes.ts` 미등록) + `StoreRedirect.tsx`(UA 판별 이동 — 스토어 URL은 확정 전이라 `null`, 그동안 안내 문구 노출) + `vercel.json`(`/contents/:id` → `/contents/` rewrite, AASA `Content-Type` 헤더 선반영). 정적 빌드·lint 통과, 랜딩 기존 라우트 무변경 확인
+- **남은 것**: 요청 1·3(`.well-known` 파일 2종 — **FE의 값 제공 대기**: Team ID·번들 ID·패키지명·서명 지문), 요청 4(FE 앱 설정·기기 검증), 스토어 URL 확정 시 `StoreRedirect` 상수 교체
+- **FE 몫은 짝 티켓으로 발행했다**(2026-08-25 — `tickets/frontend/pending/share-app-links-and-deep-link-routing.md`: 값 4종 전달·`app.json` 앱 링크 등록·딥링크 수신 라우팅·스탠드얼론 검증)
+
 ## 보류·미결
 
 - **스토어 URL 확정값** — 스토어 등록 후 리다이렉트 목적지를 실제 URL로 교체한다(`share.md` 미결과 공유)
