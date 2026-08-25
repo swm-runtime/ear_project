@@ -2,6 +2,8 @@ import { Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
 
+import { IS_SHARE_ENABLED, SHARE_COPY } from '@/features/share';
+
 import { PLAYER_COPY } from '../player.copy';
 import { formatPlaybackTime } from '../player.format';
 
@@ -22,11 +24,16 @@ interface PlayerMoreSheetProps {
   onDetailPress: () => void;
   onSourceLinkPress: () => void;
   onDeletePress: () => void;
+  onSharePress: () => void;
   onClose: () => void;
+  /** 시트가 완전히 닫힌 뒤(iOS Modal onDismiss) — 보류된 공유 실행용(useDeferredSheetShare) */
+  onDismissed: () => void;
 }
 
 /**
- * PL7 더보기 시트 — 라이브러리 L4·탐색 E12와 같은 시트 문법. 공유는 P1 미노출(FR-27).
+ * PL7 더보기 시트 — 라이브러리 L4·탐색 E12와 같은 시트 문법. [공유]는 P1에만 노출되고
+ * MVP 빌드에는 행 자체가 없다(share.md 2 · share-uiux.md 4.1 — 비활성 노출도 금지).
+ * 공유해도 재생은 유지된다(share.md 2).
  * [상세 정보] 추가(2026-08-23 — player-uiux.md 4.7): 탭하면 시트가 닫히고 상세 화면으로
  * 이동하되 재생은 유지된다(content-detail.md 2장).
  */
@@ -38,10 +45,18 @@ export default function PlayerMoreSheet({
   onDetailPress,
   onSourceLinkPress,
   onDeletePress,
+  onSharePress,
   onClose,
+  onDismissed,
 }: PlayerMoreSheetProps) {
   return (
-    <Modal visible={isVisible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal
+      visible={isVisible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+      onDismiss={onDismissed}
+    >
       <Pressable style={styles.backdrop} onPress={onClose} accessible={false}>
         <Pressable style={styles.sheet} accessible={false}>
           <View style={styles.handle} />
@@ -93,6 +108,17 @@ export default function PlayerMoreSheet({
                 <Text style={[styles.actionLabel, styles.actionLabelDanger]}>
                   {PLAYER_COPY.moreSheet.delete}
                 </Text>
+              </Pressable>
+            ) : null}
+            {/* [공유] — 담기/제거류 아래, P1에만(SH1). 담김·재생과 무관한 무조건부 행이다 */}
+            {IS_SHARE_ENABLED ? (
+              <Pressable
+                style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
+                onPress={onSharePress}
+                accessibilityRole="button"
+                accessibilityLabel={SHARE_COPY.action}
+              >
+                <Text style={styles.actionLabel}>{SHARE_COPY.action}</Text>
               </Pressable>
             ) : null}
             <Pressable

@@ -4,8 +4,12 @@ import type { LibraryItemStatus, LibrarySource } from '@/features/library';
  * 상세 화면을 연 원 화면(content-detail.md 2장). [재생]의 entry_point는 이 값을 그대로
  * 보낸다(content-detail-api.md 4.2 — 원 화면 값 유지. player 진입은 현재 재생 중 콘텐츠라
  * play 호출 자체가 없어 실제로는 library·explore만 나간다).
+ *
+ * share는 공유 링크 수신(share.md 4.3, P1) — 복귀할 원 화면이 없어 뒤로가기·회수 복귀가
+ * 전부 라이브러리로 간다(share-uiux.md 4.4). 서버 entry_point enum에는 아직 없는 가정
+ * 계약이다(changes/pending 기록 — 백엔드 협의).
  */
-export type ContentDetailEntryPoint = 'library' | 'explore' | 'player';
+export type ContentDetailEntryPoint = 'library' | 'explore' | 'player' | 'share';
 
 /** 출처 영역 분기(content-detail.md 4.3) — 화면 라벨로 노출하지 않는다(uiux 8장 금지) */
 export type ContentOrigin = 'partner' | 'ai_generated';

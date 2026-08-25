@@ -13,6 +13,7 @@ import {
   useSettingsQuery,
   type PlaybackRate,
 } from '@/features/settings';
+import { useDeferredSheetShare } from '@/features/share';
 
 import { BUFFERING_INDICATOR_DELAY_MS, PLAYER_DELETE_UNDO_DURATION_MS } from '../player.constants';
 import { PLAYER_COPY } from '../player.copy';
@@ -186,6 +187,23 @@ export const usePlayerScreen = () => {
     });
   };
 
+  /** PL7 [공유](SH1, P1) — 시트를 닫고 OS 공유 시트를 연다. 재생은 유지된다(share.md 2).
+      세션 메타의 제목·출처가 아직 없으면 열지 않는다 — 반쪽 값으로 공유 내용을 만들지
+      않는다(share-uiux.md 4.2와 같은 원칙). 공유는 시트가 닫힌 뒤 열린다 — iOS의
+      Modal dismiss ↔ 시스템 시트 present 경합 우회(useDeferredSheetShare) */
+  const { requestShare, handleSheetDismiss } = useDeferredSheetShare();
+  const sharePress = () => {
+    const meta = session?.meta;
+    if (!meta?.title || !meta.sourceName) return;
+    setIsMoreSheetVisible(false);
+    requestShare({
+      contentId,
+      title: meta.title,
+      authorName: meta.authorName ?? null,
+      sourceName: meta.sourceName,
+    });
+  };
+
   /* ── 원문 보기(FR-12) — 클릭 기록과 브라우저 열기는 서로를 기다리지 않는다(player-api.md 4.5) ── */
   const openSourceLink = () => {
     const url = session?.meta.sourceUrl;
@@ -253,6 +271,8 @@ export const usePlayerScreen = () => {
     openMoreSheet: () => setIsMoreSheetVisible(true),
     closeMoreSheet: () => setIsMoreSheetVisible(false),
     openDetail,
+    sharePress,
+    handleSheetDismiss,
     requestDelete,
     pendingDeleteItemId,
     undoDelete,

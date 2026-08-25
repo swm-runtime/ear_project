@@ -5,6 +5,7 @@ import { theme } from '@/shared/theme';
 import FullScreenError from '@/shared/ui/FullScreenError';
 
 import { PlayConfirmDialog } from '@/features/player';
+import { IS_SHARE_ENABLED, SHARE_COPY, ShareIcon } from '@/features/share';
 
 import ContentDetailHeader from '../components/ContentDetailHeader';
 import ContentDetailMeta from '../components/ContentDetailMeta';
@@ -93,7 +94,20 @@ export default function ContentDetailScreen() {
         <Text style={styles.appBarTitle} accessibilityRole="header">
           {CONTENT_DETAIL_COPY.appBarTitle}
         </Text>
-        <View style={styles.appBarSpacer} />
+        {/* SH2 [공유] 아이콘(P1) — 조회가 성공해 상세가 그려진 상태(CD1·CD2)에서만 그린다.
+            로딩·전면 에러에는 전달할 값이 없다 — 반쪽 값으로 공유 내용을 만들지 않는다(share-uiux.md 4.2) */}
+        {IS_SHARE_ENABLED && screen.detail ? (
+          <Pressable
+            style={styles.shareButton}
+            onPress={screen.shareDetail}
+            accessibilityRole="button"
+            accessibilityLabel={SHARE_COPY.action}
+          >
+            <ShareIcon size={22} color={theme.color.textPrimary} />
+          </Pressable>
+        ) : (
+          <View style={styles.appBarSpacer} />
+        )}
       </View>
 
       {renderBody()}
@@ -141,6 +155,13 @@ const styles = StyleSheet.create({
   },
   appBarSpacer: {
     width: theme.touchTarget.minWidth,
+  },
+  shareButton: {
+    // 다른 화면 앱바 아이콘 버튼과 같은 규칙 — 터치 타깃 최소 44pt(share-uiux.md 7장)
+    minWidth: theme.touchTarget.minWidth,
+    minHeight: theme.touchTarget.minHeight,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   scrollContent: {
     paddingHorizontal: theme.spacing.md,

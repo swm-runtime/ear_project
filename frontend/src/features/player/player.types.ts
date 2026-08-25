@@ -1,5 +1,9 @@
-/** 전환 분석용. 판정에 쓰이지 않는다(library-api.md 4.4). player는 완료 화면 ▶ 재청취 전용(paywall.md 4.2 예외) */
-export type PlayEntryPoint = 'library' | 'explore' | 'miniplayer' | 'push' | 'player';
+/**
+ * 전환 분석용. 판정에 쓰이지 않는다(library-api.md 4.4). player는 완료 화면 ▶ 재청취 전용(paywall.md 4.2 예외).
+ * share는 공유 링크 수신 상세의 [재생](share.md 4.3, P1) — library-api.md 4.4 enum에는 아직
+ * 없는 **가정 계약**이다(changes/pending 기록 — content-detail-api.md 9장 미결과 함께 백엔드 협의).
+ */
+export type PlayEntryPoint = 'library' | 'explore' | 'miniplayer' | 'push' | 'player' | 'share';
 
 /**
  * 잔여 재생 표시값 — 판정이 아니라 힌트다(library-api.md 2).

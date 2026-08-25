@@ -1,6 +1,7 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { useSessionStore } from '@/features/auth';
+import { useShareLinkGate } from '@/features/share';
 
 import AuthNavigator from './AuthNavigator';
 import MainNavigator from './MainNavigator';
@@ -17,6 +18,9 @@ const RootStack = createNativeStackNavigator<RootStackParamList>();
 export default function RootNavigator() {
   const status = useSessionStore((s) => s.status);
   const isOnboardingCompleted = useSessionStore((s) => s.user?.onboardingCompleted ?? false);
+
+  // 공유 링크 수신(share.md 4.3, P1) — 관문 통과 사용자만 상세로, 아니면 목적지 폐기
+  useShareLinkGate();
 
   return (
     <RootStack.Navigator screenOptions={{ headerShown: false }}>

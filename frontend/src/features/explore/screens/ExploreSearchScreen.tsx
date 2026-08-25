@@ -185,7 +185,9 @@ export default function ExploreSearchScreen() {
         onSourceLink={screen.openSourceLink}
         onSave={screen.requestSave}
         onRemove={screen.requestRemove}
+        onShare={screen.shareItem}
         onDismiss={screen.closeMoreSheet}
+        onDismissed={screen.handleSheetDismiss}
       />
 
       {/* 재생 확인 팝업 — 표시(잔여 숫자)를 숨긴 것이지 판정·팝업 규칙을 뺀 것이 아니다(explore.md 7장) */}
