@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { AudioDelivery, EnvironmentVariables } from '@/config/env.validation';
 import { ContentModule } from '@/modules/content/content.module';
 import { DripModule } from '@/modules/drip/drip.module';
 import { IdempotencyModule } from '@/modules/idempotency/idempotency.module';
@@ -8,7 +10,9 @@ import { LibraryModule } from '@/modules/library/library.module';
 import { SubscriptionModule } from '@/modules/subscription/subscription.module';
 import { UserModule } from '@/modules/user/user.module';
 
+import { AUDIO_URL_ISSUER, AudioUrlIssuer } from './audio-url-issuer';
 import { AudioUrlSigner } from './audio-url.signer';
+import { CloudFrontAudioUrlSigner } from './cloudfront-audio-url.signer';
 import { AudioStreamController } from './controllers/audio-stream.controller';
 import { PlaybackProgressController } from './controllers/playback-progress.controller';
 import { PlayController } from './controllers/play.controller';
@@ -73,6 +77,22 @@ import { PlaybackService } from './services/playback.service';
     AudioAccessLogRepository,
     SourceLinkClickRepository,
     AudioUrlSigner,
+    /**
+     * 발급기는 배포 토폴로지가 고른다(`AUDIO_DELIVERY`). 로컬은 우리 서버가 내보내고,
+     * cloudfront는 CDN이 내보낸다. 두 구현의 계약은 `AudioUrlIssuer` 하나다.
+     */
+    {
+      provide: AUDIO_URL_ISSUER,
+      inject: [ConfigService, AudioUrlSigner],
+      useFactory: (
+        configService: ConfigService<EnvironmentVariables, true>,
+        localSigner: AudioUrlSigner,
+      ): AudioUrlIssuer =>
+        configService.get('AUDIO_DELIVERY', { infer: true }) ===
+        AudioDelivery.CLOUDFRONT
+          ? new CloudFrontAudioUrlSigner(configService)
+          : localSigner,
+    },
     PlaybackService,
     PlayPolicyService,
     PlayService,

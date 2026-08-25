@@ -22,11 +22,13 @@
     "migration:create": "node -r ts-node/register/transpile-only ./node_modules/typeorm/cli.js migration:create",
     "migration:generate": "npm run typeorm -- migration:generate",
     "migration:run": "npm run typeorm -- migration:run",
+    "migration:run:prod": "node ./node_modules/typeorm/cli.js -d dist/database/data-source.js migration:run",
     "migration:revert": "npm run typeorm -- migration:revert",
     "migration:show": "npm run typeorm -- migration:show",
     "seed:mock": "node -r ts-node/register/transpile-only -r tsconfig-paths/register src/database/seeds/seed-mock-onboarding.ts"
   },
   "dependencies": {
+    "@aws-sdk/cloudfront-signer": "^3.1116.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.0.1",

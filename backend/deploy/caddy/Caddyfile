@@ -1,0 +1,16 @@
+# TLS는 Let's Encrypt로 자동 발급된다. API_DOMAIN의 A 레코드가 이 서버를 가리키고
+# 80/443이 보안그룹에서 열려 있으면 그걸로 끝이다.
+{$API_DOMAIN} {
+	encode gzip
+
+	# 오디오는 여기로 오지 않는다 — CloudFront가 나른다. 혹시 local 모드로 되돌리면
+	# /api/v1/audio/* 도 그대로 api로 흐른다(별도 설정 없음).
+	reverse_proxy api:3000 {
+		header_up X-Forwarded-Proto {scheme}
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

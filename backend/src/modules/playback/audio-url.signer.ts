@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { equalsInConstantTime, hmacSha256Hex } from '@/common/utils/hash.util';
 import { EnvironmentVariables } from '@/config/env.validation';
 
+import { AudioUrlIssuer, AudioUrlSignInput } from './audio-url-issuer';
 import { AUDIO_URL_TTL_SEC } from './playback.constant';
 import { SignedAudioUrl } from './playback.types';
 
@@ -23,7 +24,7 @@ import { SignedAudioUrl } from './playback.types';
  * 것과 같은 이유 — domain.md 11.2).
  */
 @Injectable()
-export class AudioUrlSigner {
+export class AudioUrlSigner implements AudioUrlIssuer {
   constructor(
     private readonly configService: ConfigService<EnvironmentVariables, true>,
   ) {}
@@ -34,7 +35,9 @@ export class AudioUrlSigner {
    * **URL을 반환만 하고 어디에도 저장하지 않는다.** 발급 사실은 `audio_access_logs`가
    * 따로 남긴다(domain.md 6.5 — URL을 DB에 남기면 그것이 곧 유출 경로다).
    */
-  sign(contentId: string, userId: string, now: Date): SignedAudioUrl {
+  sign(input: AudioUrlSignInput, now: Date): SignedAudioUrl {
+    // 로컬 모드는 audio_path를 URL에 싣지 않는다 — 스트리밍 라우트가 contentId로 다시 찾는다
+    const { contentId, userId } = input;
     const expiresAt = new Date(now.getTime() + AUDIO_URL_TTL_SEC * 1000);
     const expiresAtSec = Math.floor(expiresAt.getTime() / 1000);
     const signature = this.buildSignature(contentId, userId, expiresAtSec);

@@ -1,0 +1,71 @@
+# 운영 단일 서버 구성 — Caddy(TLS) → api(Nest) → postgres.
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+#
+# 오디오 바이트는 이 서버를 지나지 않는다(AUDIO_DELIVERY=cloudfront). 이 서버가 나르는 것은
+# JSON뿐이라 t4g.small 한 대로 충분하다. 자세한 조건은 deploy/aws/README.md.
+name: ear-prod
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?API_DOMAIN required}
+    volumes:
+      - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env.prod
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      # Caddy 한 홉 뒤에 있다. 이걸 켜야 X-Forwarded-For에서 실제 IP를 읽는다
+      TRUST_PROXY_HOPS: 1
+    expose:
+      - '3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '5' }
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:?}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?}
+      POSTGRES_DB: ${DB_NAME:?}
+      TZ: UTC
+    # 호스트에 포트를 열지 않는다. 접근은 docker exec로만
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USERNAME} -d ${DB_NAME}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
+
+volumes:
+  pg-data:
+  caddy-data:
+  caddy-config:

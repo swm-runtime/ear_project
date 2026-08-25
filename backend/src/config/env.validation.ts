@@ -9,10 +9,19 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateIf,
   validateSync,
 } from 'class-validator';
 
 import { SEMVER_PATTERN } from '@/common/utils/semver.util';
+
+/** 오디오 바이트를 누가 나르는가 — 배포 토폴로지가 정한다 */
+export enum AudioDelivery {
+  /** 우리 서버가 서명하고 우리 스트리밍 라우트가 내보낸다(개발·단일 서버) */
+  LOCAL = 'local',
+  /** CloudFront 서명 URL. 바이트는 CloudFront→S3가 나르고 API 서버는 관여하지 않는다 */
+  CLOUDFRONT = 'cloudfront',
+}
 
 export enum NodeEnv {
   DEVELOPMENT = 'development',
@@ -183,9 +192,41 @@ export class EnvironmentVariables {
    * **오브젝트 스토리지 확정 전까지의 자리다**(`architecture.md` 미결). 스토리지가 붙으면
    * 스트리밍 라우트째 CDN 서명 URL로 대체되며 이 변수도 함께 사라진다.
    */
+  @ValidateIf(
+    (env: EnvironmentVariables) =>
+      env.AUDIO_DELIVERY !== AudioDelivery.CLOUDFRONT,
+  )
   @IsString()
   @MaxLength(512)
   AUDIO_STORAGE_ROOT: string;
+
+  /**
+   * 오디오 전달 방식. 기본 `local`. `cloudfront`면 아래 두 값이 필수이고
+   * `AUDIO_URL_BASE_URL`은 CloudFront 배포 도메인(+prefix)이어야 한다.
+   */
+  @IsEnum(AudioDelivery)
+  AUDIO_DELIVERY: AudioDelivery = AudioDelivery.LOCAL;
+
+  /** CloudFront 공개 키의 ID(Key-Pair-Id). 비밀값이 아니지만 서명에 반드시 실린다 */
+  @ValidateIf(
+    (env: EnvironmentVariables) =>
+      env.AUDIO_DELIVERY === AudioDelivery.CLOUDFRONT,
+  )
+  @IsString()
+  @IsNotEmpty()
+  CLOUDFRONT_KEY_PAIR_ID: string;
+
+  /**
+   * 위 공개 키와 짝인 RSA 개인 키(PEM)를 **base64 한 줄**로. PEM의 줄바꿈이 env에 실리지
+   * 않아서다. `base64 -w0 private_key.pem`으로 만든다. 비밀값이다 — 시크릿 매니저에서 주입.
+   */
+  @ValidateIf(
+    (env: EnvironmentVariables) =>
+      env.AUDIO_DELIVERY === AudioDelivery.CLOUDFRONT,
+  )
+  @IsString()
+  @MinLength(64)
+  CLOUDFRONT_PRIVATE_KEY_BASE64: string;
 
   /**
    * 앞단에서 신뢰하는 리버스 프록시(LB) 홉 수. Express `trust proxy`에 그대로 들어간다.
