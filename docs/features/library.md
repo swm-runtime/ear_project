@@ -47,6 +47,7 @@
 | 아이템 삭제 | content_id (스와이프 또는 더보기 메뉴) |
 | 원문 보기 | content_id (더보기 시트 — `source_url` 있는 콘텐츠만 노출, 확정 2026-08-10) → 인앱 브라우저로 원문 열기 + 원문 유입 클릭 기록(`player.md` 4.5와 같은 규칙 — `source_link_clicks`) |
 | 상세 정보 | content_id (더보기 시트 — 합의 2026-08-23) → 콘텐츠 상세 화면으로 이동. 규칙은 `content-detail.md`가 소유한다 |
+| 공유 *(P1 — MVP 미노출)* | content_id (더보기 시트 — 신설 2026-08-25) → OS 공유 시트. 규칙은 `share.md`가 소유한다(FR-27 — README 결정 48) |
 | 상태 변경 | content_id, target_status |
 | 당겨서 새로고침 | — |
 | 잔여 재생 표시 탭(소진 상태) | — → 페이월 바텀시트 |
