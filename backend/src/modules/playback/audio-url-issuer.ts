@@ -17,8 +17,9 @@ export interface AudioUrlSignInput {
   contentId: string;
   userId: string;
   /**
-   * `contents.audio_path` — 저장소 키. `cloudfront` 모드에서는 CDN 경로에 그대로 실린다.
-   * 키는 불투명한 식별자여야 하며(예: `<uuid>.mp3`) 사람이 읽는 제목을 담지 않는다.
+   * `contents.audio_path` — 저장소 키. **어느 구현도 URL에 싣지 않는다**(domain.md 5.1).
+   * local은 스트리밍 라우트가 contentId로 다시 찾고, cloudfront는 CloudFront Function이
+   * KeyValueStore에서 찾는다. 향후 구현이 필요로 할 수 있어 입력에는 남겨 둔다.
    */
   audioPath: string;
 }

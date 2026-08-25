@@ -1,7 +1,10 @@
 import { ConfigService } from '@nestjs/config';
 import { createVerify, generateKeyPairSync } from 'node:crypto';
 
-import { CloudFrontAudioUrlSigner } from './cloudfront-audio-url.signer';
+import {
+  buildPolicy,
+  CloudFrontAudioUrlSigner,
+} from './cloudfront-audio-url.signer';
 import { AUDIO_URL_TTL_SEC } from './playback.constant';
 
 const NOW = new Date('2026-08-05T09:00:00.000Z');
@@ -39,7 +42,7 @@ describe('CloudFrontAudioUrlSigner', () => {
     signer = new CloudFrontAudioUrlSigner(configService);
   });
 
-  it('CDN 경로에 audio_path를 붙이고 만료·키쌍·서명 쿼리를 싣는다', () => {
+  it('URL은 /play/<contentId>이고 저장소 키·userId는 실리지 않는다', () => {
     // when
     const signed = signer.sign(
       { contentId: CONTENT_ID, userId: USER_ID, audioPath: 'ep/abc.mp3' },
@@ -47,38 +50,44 @@ describe('CloudFrontAudioUrlSigner', () => {
     );
     const url = new URL(signed.url);
 
-    // then
+    // then — domain.md 5.1: audio_path는 어떤 응답에도 실리지 않는다
     expect(url.origin + url.pathname).toBe(
-      'https://cdn.example.com/audio/ep/abc.mp3',
+      `https://cdn.example.com/audio/play/${CONTENT_ID}`,
     );
-    expect(url.searchParams.get('Key-Pair-Id')).toBe('K2JCJMDEHXQW5F');
-    expect(Number(url.searchParams.get('Expires'))).toBe(
-      Math.floor((NOW.getTime() + AUDIO_URL_TTL_SEC * 1000) / 1000),
-    );
-    expect(signed.expiresInSec).toBe(AUDIO_URL_TTL_SEC);
-    // userId는 URL에 실리지 않는다 — CloudFront는 우리 키만 검증한다
+    expect(signed.url).not.toContain('abc.mp3');
     expect(signed.url).not.toContain(USER_ID);
+    expect(url.searchParams.get('Key-Pair-Id')).toBe('K2JCJMDEHXQW5F');
+    expect(url.searchParams.get('Policy')).toBeTruthy();
+    expect(signed.expiresInSec).toBe(AUDIO_URL_TTL_SEC);
+    expect(signed.expiresAt.getTime()).toBe(
+      NOW.getTime() + AUDIO_URL_TTL_SEC * 1000,
+    );
   });
 
-  it('서명이 canned policy(URL+만료)에 대해 검증된다', () => {
+  it('정책은 배포 전체 와일드카드 + 만료이고, 서명이 그 정책에 대해 검증된다', () => {
     // given
     const signed = signer.sign(
       { contentId: CONTENT_ID, userId: USER_ID, audioPath: 'ep/abc.mp3' },
       NOW,
     );
     const url = new URL(signed.url);
-    const expires = Number(url.searchParams.get('Expires'));
-    const resource = url.origin + url.pathname;
-    const policy = JSON.stringify({
-      Statement: [
-        {
-          Resource: resource,
-          Condition: { DateLessThan: { 'AWS:EpochTime': expires } },
-        },
-      ],
-    });
+    const policy = fromCloudFrontBase64(
+      url.searchParams.get('Policy') ?? '',
+    ).toString('utf8');
 
-    // when
+    // then — 정책 내용
+    expect(policy).toBe(
+      buildPolicy('https://cdn.example.com/audio', signed.expiresAt),
+    );
+    const parsed = JSON.parse(policy) as {
+      Statement: { Resource: string }[];
+    };
+
+    expect(parsed.Statement[0].Resource).toBe(
+      'https://cdn.example.com/audio/*',
+    );
+
+    // when — 서명 검증
     const verifier = createVerify('RSA-SHA1');
     verifier.update(policy);
     const ok = verifier.verify(
@@ -88,14 +97,5 @@ describe('CloudFrontAudioUrlSigner', () => {
 
     // then
     expect(ok).toBe(true);
-  });
-
-  it('경로 세그먼트를 인코딩하되 구분자는 유지한다', () => {
-    const signed = signer.sign(
-      { contentId: CONTENT_ID, userId: USER_ID, audioPath: 'a b/c d.mp3' },
-      NOW,
-    );
-
-    expect(new URL(signed.url).pathname).toBe('/audio/a%20b/c%20d.mp3');
   });
 });
