@@ -13,7 +13,7 @@ import { theme } from '@/shared/theme';
 
 import StepIndicator from '../components/StepIndicator';
 import { useCareerScreen } from '../hooks/useCareerScreen';
-import { JOB_CATEGORY_OPTIONS, ONBOARDING_COPY } from '../onboarding.copy';
+import { ONBOARDING_COPY } from '../onboarding.copy';
 import type { YearsOfExperience } from '../onboarding.types';
 
 const YEARS_OPTIONS: YearsOfExperience[] = ['0-1', '2-3', '4-6', '7+'];
@@ -27,6 +27,10 @@ export default function CareerScreen() {
     jobCategory,
     jobTitle,
     yearsOfExperience,
+    jobCategoryOptions,
+    isJobCategoriesLoading,
+    isJobCategoriesError,
+    retryJobCategories,
     setJobCategory,
     setJobTitle,
     setYearsOfExperience,
@@ -37,6 +41,50 @@ export default function CareerScreen() {
     handleSkipPress,
     handleBackPress,
   } = useCareerScreen();
+
+  // 직군 칩 — 서버 목록·서버 순서 그대로(career-api.md 4.3). [선택 안 함]은 값이 아니라
+  // 선택 칩 재탭(해제)이 담당한다. 실패해도 진행은 막히지 않는다 — 칩 영역만 에러를 그린다
+  const renderJobCategoryField = () => {
+    if (isJobCategoriesLoading) {
+      return <ActivityIndicator style={styles.chipRowLoading} color={theme.color.primary} />;
+    }
+    if (isJobCategoriesError) {
+      return (
+        <View style={styles.chipRowError}>
+          <Text style={styles.chipRowErrorText}>{ONBOARDING_COPY.career.jobCategoryLoadFailed}</Text>
+          <Pressable
+            onPress={retryJobCategories}
+            accessibilityRole="button"
+            accessibilityLabel={ONBOARDING_COPY.career.retry}
+            style={styles.chipRowRetry}
+          >
+            <Text style={styles.chipRowRetryLabel}>{ONBOARDING_COPY.career.retry}</Text>
+          </Pressable>
+        </View>
+      );
+    }
+    return (
+      <View style={styles.chipRow}>
+        {jobCategoryOptions.map((option) => {
+          const isSelected = jobCategory === option;
+          return (
+            <Pressable
+              key={option}
+              style={[styles.optionChip, isSelected && styles.optionChipSelected]}
+              onPress={() => setJobCategory(isSelected ? null : option)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: isSelected }}
+              accessibilityLabel={option}
+            >
+              <Text style={[styles.optionLabel, isSelected && styles.optionLabelSelected]}>
+                {option}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -57,25 +105,7 @@ export default function CareerScreen() {
 
       <ScrollView contentContainerStyle={styles.form}>
         <Text style={styles.fieldLabel}>{ONBOARDING_COPY.career.jobCategoryLabel}</Text>
-        <View style={styles.chipRow}>
-          {JOB_CATEGORY_OPTIONS.map((option) => {
-            const isSelected = jobCategory === option;
-            return (
-              <Pressable
-                key={option}
-                style={[styles.optionChip, isSelected && styles.optionChipSelected]}
-                onPress={() => setJobCategory(isSelected ? null : option)}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: isSelected }}
-                accessibilityLabel={option}
-              >
-                <Text style={[styles.optionLabel, isSelected && styles.optionLabelSelected]}>
-                  {option}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        {renderJobCategoryField()}
 
         <Text style={styles.fieldLabel}>{ONBOARDING_COPY.career.jobTitleLabel}</Text>
         <TextInput
@@ -192,6 +222,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: theme.spacing.sm,
+  },
+  chipRowLoading: {
+    alignSelf: 'flex-start',
+    minHeight: theme.touchTarget.minHeight,
+  },
+  chipRowError: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  chipRowErrorText: {
+    fontSize: theme.font.size.sm,
+    color: theme.color.textSecondary,
+  },
+  chipRowRetry: {
+    minHeight: theme.touchTarget.minHeight,
+    justifyContent: 'center',
+    paddingHorizontal: theme.spacing.sm,
+  },
+  chipRowRetryLabel: {
+    fontSize: theme.font.size.sm,
+    fontWeight: '600',
+    color: theme.color.primary,
   },
   optionChip: {
     minHeight: theme.touchTarget.minHeight,
