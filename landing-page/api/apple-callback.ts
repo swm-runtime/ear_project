@@ -83,11 +83,13 @@ export default function handler(
   // 애플은 POST로만 온다. 사람이 주소창에 직접 열어본 경우이며,
   // **라우팅이 살아 있는지 확인하는 용도로도 쓴다**
   if (request.method === 'GET') {
-    return new Response('apple sign-in callback (edge)\n', {
+    return new Response('apple sign-in callback\n', {
       status: 200,
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
         'Cache-Control': 'no-store',
+        // robots.txt와 이중으로 막는다 — 크롤러가 robots를 무시해도 색인되지 않는다
+        'X-Robots-Tag': 'noindex',
       },
     });
   }
