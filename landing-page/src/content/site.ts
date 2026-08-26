@@ -44,9 +44,9 @@ export const site = {
   ],
   locale: "ko_KR",
   /** 문의·출시 알림 수신처. 실제 주소로 교체한다. */
-  contactEmail: "hello@ear.example.com",
+  contactEmail: "runtime364@gmail.com",
   /** 개인정보 관련 문의 수신처. 처리방침에 명시되는 주소다. */
-  privacyEmail: "privacy@ear.example.com",
+  privacyEmail: "runtime364@gmail.com",
 } as const;
 
 /** 출시 알림 신청. 헤더·히어로·CTA가 모두 같은 동작을 하도록 한 곳에서 만든다. */
