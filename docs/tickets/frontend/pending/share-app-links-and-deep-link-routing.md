@@ -57,3 +57,6 @@
 - **Apple Team ID `3RJ4N5XLN9` 확보 → BE가 `apple-app-site-association`을 작성했다**(짝 티켓 진행 기록 2026-08-26). `appIDs`가 `3RJ4N5XLN9.com.runtime.ear`라 `app.json`의 `ios.bundleIdentifier`와 일치한다 — **요청 2의 iOS 짝이 맞았다.**
 - **요청 4를 iOS 한정으로 지금 할 수 있다** — 배포 승격 후 스탠드얼론(또는 development build) 설치 기기에서 `https://earcast.co.kr/contents/<id>` 탭 → 브라우저가 아니라 앱이 열리는지 확인한다. 안드로이드는 `assetlinks.json`이 아직 404라 **검증해도 실패한다**(정상).
 - **여전히 미확보는 배포 서명 SHA-256 하나뿐이다.** 애플 개발자 계정이 아니라 **안드로이드 서명 인증서**에서 나온다 — Play Console → 앱 서명 → **앱 서명 키**(업로드 키 아님)의 SHA-256, 또는 Play 등록 전이면 `eas credentials -p android`.
+- **AASA 프로덕션 배포·검증 완료(2026-08-26)** — `https://earcast.co.kr/.well-known/apple-app-site-association` 200 + `application/json`, **애플 CDN도 200으로 파일을 인식**했다(짝 티켓 진행 기록 2026-08-26). **요청 4를 iOS 한정으로 지금 실행할 수 있다.**
+  - 검증 방법: 스탠드얼론(또는 development) 빌드를 설치한 iOS 기기에서 `https://earcast.co.kr/contents/<아무 id>`를 **메모·메시지 등 다른 앱에서 탭**한다 → 브라우저가 아니라 앱이 열려야 한다. **사파리 주소창에 직접 입력하면 유니버설 링크가 동작하지 않는다** — 검증 실패로 오인하기 쉬운 지점이다.
+  - **안드로이드는 지금 검증하면 실패가 정상이다** — `assetlinks.json`이 404라 OS가 도메인 소유를 확인할 수 없다.

@@ -56,6 +56,19 @@
 - **2026-08-26 — 요청 1의 iOS 절반 반영** (`feat(fe)/landing-page-multipage` 브랜치): Apple Team ID `3RJ4N5XLN9` 확보로 `public/.well-known/apple-app-site-association` 작성. `appIDs = ["3RJ4N5XLN9.com.runtime.ear"]`, `components`는 **`/contents/*` 한 경로만** 연다(랜딩의 나머지 경로는 앱으로 가로채지 않는다). `vercel.json`의 `Content-Type` 헤더는 선반영분을 그대로 쓴다 — 무변경
   - **`output: "export"`에서 점 디렉토리가 누락되는지 확인했다**: `npm run build` 후 `out/.well-known/apple-app-site-association`가 생성되는 것을 확인. Next.js가 `public/`을 복사할 때 `.well-known`을 빼지 않는다
   - **`assetlinks.json`은 여전히 없다**(의도적 404 유지). 안드로이드 서명 지문 하나만 남았다
+- **2026-08-26 — 프로덕션 승격 후 검증 완료**(PR #61 병합). **완료 조건 6개 중 4개가 닫혔다.**
+
+  | 확인 | 결과 |
+  |---|---|
+  | `GET /.well-known/apple-app-site-association` | **200** · `content-type: application/json` · 본문에 `3RJ4N5XLN9.com.runtime.ear`·`/contents/*` |
+  | **애플 CDN** `app-site-association.cdn-apple.com/a/v1/earcast.co.kr` | **200, 파일 정상 인식** |
+  | `GET /.well-known/assetlinks.json` | 404 — **의도된 상태**(지문 미확보) |
+  | `GET /contents/test-id` | 308 → 200 안내 페이지 |
+  | 기존 랜딩 6종(`/` `/pricing/` `/faq/` `/features/` `/privacy/` `/terms/`) | 전부 200, 변화 없음 |
+
+  - **애플 CDN 200이 핵심 판정이다.** iOS는 앱 설치 시 이 CDN에서 파일을 받아가므로, 여기가 통과했다는 것은 JSON 문법·`Content-Type`·경로 지정이 모두 유효하다는 뜻이다. **서버 쪽 iOS 준비는 끝났다.**
+  - 승격은 이번에도 **수동**이었다. `assetlinks.json` 배포 때도 같다
+- **pending 유지 사유(2026-08-26)** — 남은 것은 **안드로이드 배포 서명 SHA-256 지문 하나**뿐이다. 이 값이 오면 `assetlinks.json` 작성·배포·승격으로 요청 1·3이 닫히고, 요청 4(기기 검증)는 FE 짝 티켓에서 처리된다. **다음에 집는 사람이 조사할 것은 없다 — 값만 받으면 된다.**
 
 ## 보류·미결
 
