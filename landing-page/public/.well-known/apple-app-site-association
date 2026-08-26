@@ -1,0 +1,15 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["3RJ4N5XLN9.com.runtime.ear"],
+        "components": [
+          {
+            "/": "/contents/*",
+            "comment": "콘텐츠 상세 공유 링크 — 이 경로만 앱이 연다"
+          }
+        ]
+      }
+    ]
+  }
+}
