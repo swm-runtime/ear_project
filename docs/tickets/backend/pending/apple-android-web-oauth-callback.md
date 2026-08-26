@@ -93,3 +93,29 @@ App Link(`https`)가 OS 검증으로 가로채기를 원천 차단하지만 **`a
 - **`state` 활용** — 현 설계에서는 CSRF 방어를 nonce가 대신하므로 `state`를 필수로 쓰지 않는다. 복귀 시 앱 내 화면 구분이 필요해지면 그때 정한다
 
 **다음에 집는 사람에게** — 설계는 끝났고 근거도 위에 다 있다. **새로 조사할 것은 "Vercel 함수 실측" 하나뿐이다.**
+
+---
+
+## 진행 기록 (2026-08-26 — 브랜치 `feat(be)/apple-callback`)
+
+**요청 2(콜백 함수)를 form_post 전제로 먼저 구현했다.** fragment 안은 애플이 `response_type=id_token`에 `response_mode=fragment`를 허용하는지 **여기서 확인할 수 없다** — 실제 authorize 왕복이 필요해 브라우저에서 사람이 해봐야 한다. form_post는 애플 문서상 확실한 경로이므로 **되는 쪽부터 세우고**, 함수가 동작하면 fragment 안은 굳이 쫓지 않는다(작업이 이미 끝나므로).
+
+- **`landing-page/api/apple-callback.ts` 신설** — Vercel 함수(웹 표준 `Request`/`Response` 시그니처, 새 의존성 없음). `form_post`를 파싱해 `id_token`·`state`·`error`를 꺼내고 **`ear://auth/apple`로 302**한다. **토큰을 검증하지 않고 비밀값도 없다.**
+  - **쿼리로 넘긴다(프래그먼트 아님)** — 커스텀 스킴 URL은 HTTP 요청이 되지 않아 어느 서버에도 남지 않으므로 노출 차이가 없는 반면, **일부 안드로이드 브라우저가 앱 인텐트로 넘길 때 프래그먼트를 떨어뜨린다.** 앱 파싱도 쿼리가 단순하다
+  - 복귀 주소는 상수다 — 요청 값으로 만들지 않는다(오픈 리다이렉트 차단)
+  - `error`(취소 포함)도 성공과 같은 경로로 앱에 돌려보낸다. **문구 판단은 앱이 한다** — 미결이던 "취소 시 동작"을 이 방향으로 제안한다
+  - `GET`은 200 평문을 준다 — **라우팅이 살아 있는지 확인하는 실측 지점**이다
+- **`vercel.json`에 rewrite 추가** — `/auth/apple/callback`(+ 슬래시) → `/api/apple-callback`. **콘솔에 등록된 Return URL을 그대로 쓰기 위해서다.** 랜딩의 기존 rewrite·헤더는 무변경
+- **정적 빌드 무영향 확인** — `npm run build` 통과, `out/`에 `api/`가 섞이지 않고 `out/.well-known/apple-app-site-association`도 그대로다. 타입체크·린트 0 에러
+
+### 남은 실측 — 프리뷰 배포에서 확인한다
+
+**루트 `api/`가 `output: "export"`와 공존하는지가 이 브랜치의 유일한 미확인 항목이다.**
+
+| 확인 | 방법 | 실패하면 |
+|---|---|---|
+| 함수가 배포되는가 | `GET https://<preview>/api/apple-callback` → 200 평문 | **`output: "export"` 제거 후 Route Handler로 전환**(사용자 결정 필요 — 랜딩을 순수 정적으로 유지할 수 없게 된다) |
+| rewrite가 POST를 넘기는가 | `POST https://<preview>/auth/apple/callback` (form-urlencoded, `id_token=test`) → 302 `Location: ear://auth/apple?id_token=test` | rewrite 대신 Return URL을 `/api/apple-callback`으로 콘솔에서 변경 |
+| 기존 랜딩 무변화 | 6종 경로 200 · AASA 200 | — |
+
+프로덕션 승격은 지난번과 같이 **수동**이다.

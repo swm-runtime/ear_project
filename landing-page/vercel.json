@@ -1,12 +1,31 @@
 {
   "rewrites": [
-    { "source": "/contents/:id", "destination": "/contents/" },
-    { "source": "/contents/:id/", "destination": "/contents/" }
+    {
+      "source": "/auth/apple/callback",
+      "destination": "/api/apple-callback"
+    },
+    {
+      "source": "/auth/apple/callback/",
+      "destination": "/api/apple-callback"
+    },
+    {
+      "source": "/contents/:id",
+      "destination": "/contents/"
+    },
+    {
+      "source": "/contents/:id/",
+      "destination": "/contents/"
+    }
   ],
   "headers": [
     {
       "source": "/.well-known/apple-app-site-association",
-      "headers": [{ "key": "Content-Type", "value": "application/json" }]
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/json"
+        }
+      ]
     }
   ]
 }
