@@ -52,6 +52,10 @@
 - **FE 몫은 짝 티켓으로 발행했다**(2026-08-25 — `tickets/frontend/pending/share-app-links-and-deep-link-routing.md`: 값 4종 전달·`app.json` 앱 링크 등록·딥링크 수신 라우팅·스탠드얼론 검증)
 - **2026-08-25 — 리다이렉트 프로덕션 배포 확인**: `https://earcast.co.kr/contents/<id>` → 안내 페이지 200 (Vercel preview → **production 수동 승격 필요**했음 — `.well-known` 배포 때도 승격까지 확인할 것). `.well-known` 2종은 의도적 404 유지.
 - **2026-08-25 — FE 짝 티켓 코드 완료(PR #59), 값은 여전히 미확보**: 번들 ID·패키지명 `com.runtime.ear` 확정. **Apple Team ID·배포 서명 SHA-256은 애플 개발자 계정 등록 대기** — 값이 나오는 즉시 `.well-known` 2종 작성이 다음 액션이다(pending 유지 사유, 협의 2026-08-25)
+  - **정정(2026-08-26)**: 위 문장이 두 값을 같은 출처로 묶은 것은 **틀렸다.** 애플 개발자 계정에서 나오는 것은 Team ID뿐이고, **SHA-256 지문은 안드로이드 앱 서명 인증서의 값**이라 애플과 무관하다. 구하는 경로는 Play Console → 앱 서명 → **앱 서명 키**(업로드 키가 아니다) 인증서의 SHA-256, 또는 Play 등록 전이면 `eas credentials -p android`. 두 값이 서로를 막지 않으므로 **애플 파일은 안드로이드 값 없이 먼저 나갈 수 있다** — 아래 항목이 그 반영분이다
+- **2026-08-26 — 요청 1의 iOS 절반 반영** (`feat(fe)/landing-page-multipage` 브랜치): Apple Team ID `3RJ4N5XLN9` 확보로 `public/.well-known/apple-app-site-association` 작성. `appIDs = ["3RJ4N5XLN9.com.runtime.ear"]`, `components`는 **`/contents/*` 한 경로만** 연다(랜딩의 나머지 경로는 앱으로 가로채지 않는다). `vercel.json`의 `Content-Type` 헤더는 선반영분을 그대로 쓴다 — 무변경
+  - **`output: "export"`에서 점 디렉토리가 누락되는지 확인했다**: `npm run build` 후 `out/.well-known/apple-app-site-association`가 생성되는 것을 확인. Next.js가 `public/`을 복사할 때 `.well-known`을 빼지 않는다
+  - **`assetlinks.json`은 여전히 없다**(의도적 404 유지). 안드로이드 서명 지문 하나만 남았다
 
 ## 보류·미결
 

@@ -51,3 +51,9 @@
 - **요청 2 구현 완료** — `app.json`에 `ios.bundleIdentifier`/`android.package`(`com.runtime.ear`), `associatedDomains: ["applinks:earcast.co.kr"]`, `intentFilters`(autoVerify · https · earcast.co.kr · pathPrefix `/contents`) 등록.
 - **요청 3 구현 완료** — `features/share` feature의 `useShareLinkGate`(RootNavigator 배치)가 `/contents/:id` 파싱 → 온보딩 완료 사용자만 상세(entryPoint `share`)로, 아니면 목적지 폐기(share.md 4.3 — 디퍼드 금지). 공유 링크 진입 상세의 뒤로가기·회수 복귀는 라이브러리다(share-uiux.md 4.4). SplashGate 미구현 상태라 콜드 스타트 판정을 관문 뒤로 옮기는 TODO를 게이트에 남김. entry_point `share`는 가정 계약 — `changes/pending/play-entry-point-share-value(fe).md`.
 - **요청 1·4 미완으로 pending 유지** — ① 값 4종 중 Apple Team ID·배포 서명 SHA-256 미확보(애플 개발자 계정 등록 대기. 번들 ID·패키지명은 `com.runtime.ear` 확정), ④ 스탠드얼론 빌드 검증은 값 전달·`.well-known` 배포 후에 가능하다.
+
+## 진행 기록 (2026-08-26 — iOS만 검증 가능해짐)
+
+- **Apple Team ID `3RJ4N5XLN9` 확보 → BE가 `apple-app-site-association`을 작성했다**(짝 티켓 진행 기록 2026-08-26). `appIDs`가 `3RJ4N5XLN9.com.runtime.ear`라 `app.json`의 `ios.bundleIdentifier`와 일치한다 — **요청 2의 iOS 짝이 맞았다.**
+- **요청 4를 iOS 한정으로 지금 할 수 있다** — 배포 승격 후 스탠드얼론(또는 development build) 설치 기기에서 `https://earcast.co.kr/contents/<id>` 탭 → 브라우저가 아니라 앱이 열리는지 확인한다. 안드로이드는 `assetlinks.json`이 아직 404라 **검증해도 실패한다**(정상).
+- **여전히 미확보는 배포 서명 SHA-256 하나뿐이다.** 애플 개발자 계정이 아니라 **안드로이드 서명 인증서**에서 나온다 — Play Console → 앱 서명 → **앱 서명 키**(업로드 키 아님)의 SHA-256, 또는 Play 등록 전이면 `eas credentials -p android`.
