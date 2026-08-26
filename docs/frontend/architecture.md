@@ -54,6 +54,7 @@ Frontend는 다음 5가지를 책임진다.
 | HTTP | **axios** | 인터셉터로 토큰 갱신·에러 정규화·trace 헤더 일괄 처리 (→ 8장) |
 | 오디오 | **expo-audio** | SDK 57부터 백그라운드 재생·잠금화면 컨트롤·오디오 포커스 자체 지원. config plugin 필요(잠금화면·백그라운드는 dev build에서 활성) — 개정 2026-08-11, `changes/archive/frontend-architecture-player-impl(fe).md` |
 | 인앱 결제 | **react-native-iap** | 스토어 SDK 가격 조회, pending 트랜잭션 처리, 서버 검증 후 finish (→ `subscription.md`) |
+| 소셜 로그인 | **@react-native-google-signin/google-signin · @react-native-kakao/core+user · @react-native-seoul/naver-login · expo-apple-authentication** | 전부 config plugin 기반(prebuild 주입). Expo Go에는 네이티브 모듈이 없어 **dev client에서만 실동작** — Expo Go 개발은 provider mock(`EXPO_PUBLIC_PROVIDER_AUTH` 미설정 기본값)으로 진행. 앱 키는 `app.json` `extra.socialAuth` + plugin 옵션으로 관리(→ 9.1) — 개정 2026-08-26, `changes/archive/frontend-architecture-social-login-sdk(fe).md` |
 | 푸시 | **@react-native-firebase/messaging** | FCM 기반. APNs 연동 포함 |
 | 로컬 DB | **expo-sqlite** | 오프라인 큐·재생 위치 등 구조적 데이터 (→ 7.2) |
 | Key-Value 저장 | **react-native-mmkv** | 플래그·최근 검색어·소형 캐시 |
@@ -106,10 +107,12 @@ Hook (ViewModel)  ──▶  Query / Mutation (TanStack Query)  ──▶  api/ 
 
 ```
 auth / onboarding / library / explore / content-detail / player / paywall
-/ subscription / settings / profile / interest / notification / admin / splash
+/ subscription / settings / profile / interest / notification / share / admin / splash
 ```
 
 각 feature는 자기 화면·상태·API 호출의 **소유자**다. 다른 feature가 그 동작을 쓰려면 feature의 공개 API(`index.ts`)를 통한다.
+
+`share`는 전용 화면이 없는 횡단 feature다(`share.md`) — 네 진입점(library·explore·player·content-detail)이 공개 API로 공유를 실행하고, 링크 수신 게이트(`useShareLinkGate`)는 app(RootNavigator)이 배치한다.
 
 ### 4.2 디렉터리 구조
 
@@ -162,15 +165,16 @@ feature가 늘어나면 아래 표를 갱신한다. 표에 없는 의존이 코�
 
 | feature | 의존하는 feature | 비고 |
 |---|---|---|
-| library | player | 재생 시작 게이트 호출, 미니플레이어 상태 구독 |
-| explore | player, library | 게이트 호출 / 담기(라이브러리 적립) 호출 |
-| content-detail | player, library, explore | 재생 게이트·확인 팝업·재생 세션 구독(`usePlaybackStore` — 현재 재생 중 콘텐츠 판정)·원문 클릭 계약(`sendSourceLinkClick`) / [삭제] 계약(`deleteLibraryItem`)·목록 무효화(`libraryKeys`) / [담기] 계약(`saveContent` — `explore-api.md` 4.3 재사용, `content-detail-api.md` 4.2 "신규 계약 없음"). **세 진입점 화면(library·explore·player)은 content-detail을 import하지 않는다** — 라우트 이름(`ContentDetail`)으로 내비게이션만 하고 화면 등록은 `app/navigation`이 담당한다(역방향 의존 없음 — 순환 미발생) |
-| player | paywall, subscription, settings | 차단 시 페이월 시트 표시 / entitlements 조회 / 배속 저장·조회(`user_settings` — `settings-api.md` 4.2 계약 재사용. player가 재선언하면 같은 엔드포인트의 DTO가 두 벌이 된다) |
+| library | player, share | 재생 시작 게이트 호출, 미니플레이어 상태 구독 / 시트 [공유] 실행(`IS_SHARE_ENABLED`·`shareContent` — share 공개 API) |
+| explore | player, library, share | 게이트 호출 / 담기(라이브러리 적립) 호출 / 시트 [공유] 실행(share 공개 API) |
+| content-detail | player, library, explore, share | 재생 게이트·확인 팝업·재생 세션 구독(`usePlaybackStore` — 현재 재생 중 콘텐츠 판정)·원문 클릭 계약(`sendSourceLinkClick`) / [삭제] 계약(`deleteLibraryItem`)·목록 무효화(`libraryKeys`) / [담기] 계약(`saveContent` — `explore-api.md` 4.3 재사용, `content-detail-api.md` 4.2 "신규 계약 없음") / 앱바 공유 아이콘(`ShareIcon`)·[공유] 실행(share 공개 API). **세 진입점 화면(library·explore·player)은 content-detail을 import하지 않는다** — 라우트 이름(`ContentDetail`)으로 내비게이션만 하고 화면 등록은 `app/navigation`이 담당한다(역방향 의존 없음 — 순환 미발생) |
+| player | paywall, subscription, settings, share | 차단 시 페이월 시트 표시 / entitlements 조회 / 배속 저장·조회(`user_settings` — `settings-api.md` 4.2 계약 재사용. player가 재선언하면 같은 엔드포인트의 DTO가 두 벌이 된다) / 시트 [공유] 실행(share 공개 API) |
 | paywall | subscription | 요금제 비교·결제 실행. **player를 알지 못한다** (→ 5.2) |
 | profile | interest, subscription, auth, career | 관심사·플랜 카드 / 이메일 인증 진입 / 커리어 카드(dev mock 요약 원본 `getCareerMockSummary`). 관심사·커리어 저장 후 요약 invalidate는 각 feature가 노출한 `registerInterestSavedListener` · `registerCareerSavedListener`에 bootstrap이 주입한다(역방향 import 없음 — player ↔ library 브리지와 같은 방식) |
 | settings | auth, subscription, notification, interest | 각 도메인 진입점 허브. 요약 invalidate 배선은 profile 행과 동일(`registerInterestSavedListener`) |
 | onboarding | interest, library, notification, auth, career | 주제 목록 조회(`useTopicsQuery` — 같은 계약·같은 캐시 `interestKeys.topics()`) · `TopicChip` 공용 · 저장 시 interest mock 원본 갱신 / 커리어 단계 저장 시 career mock 원본 갱신(`seedCareerMockFromOnboarding`). 직군 목록 공용(`useJobCategoriesQuery` · `careerKeys.jobCategories()`)은 티켓 `onboarding-job-categories-server-list` 반영 시 실현 / 첫 담기 / 알림 권한 / 종료 시 세션 상태 갱신(라이브러리 진입 전환) |
 | notification | player | 푸시 딥링크 → 재생 게이트 |
+| share | auth | 링크 수신 게이트의 관문 판정(`useSessionStore` — 온보딩 완료 사용자만 상세로 이동, `share.md` 4.3). 순환 없음 — share는 네 진입점 feature를 import하지 않는다 |
 | splash | auth, onboarding | 진입 분기 판정 |
 
 ## 5. 전역 Domain Service
@@ -304,7 +308,7 @@ RootStack
 딥링크(푸시 포함)는 **도착지가 결정된 뒤 스택 위에 얹는다**(`splash.md` 4, `notification.md` 4.4).
 
 1. SplashGate 판정을 먼저 통과한다.
-2. 온보딩 미완료면 딥링크를 보류했다가 완료 후 이동한다.
+2. 온보딩 미완료 시 처리는 **출처별로 다르다** — 푸시 딥링크는 보류했다가 완료 후 이동하고(`notification.md` 4.4), **공유 링크는 목적지를 폐기하고 복원하지 않는다**(디퍼드 딥링크 금지 — `share.md` 4.3이 소유). 개정 2026-08-26, `changes/archive/frontend-architecture-share-feature(fe).md`.
 3. 콘텐츠 딥링크는 재생 시작 게이트(5.2)를 거친다 — 차단 시 페이월.
 4. 대상이 회수·삭제됐으면 라이브러리로 폴백 + 토스트.
 
@@ -411,6 +415,7 @@ RootStack
 
 - 토큰은 SecureStore 전용(→ 7.2). 로그·에러 리포트·전역 상태에 토큰을 넣지 않는다.
 - **앱 번들에 비밀값을 넣지 않는다.** 소셜 SDK의 앱 키 등 클라이언트 배포가 불가피한 키만 환경 설정(app config)으로 관리하고, 서버 시크릿은 절대 클라이언트로 내리지 않는다.
+  - 적용 사례(2026-08-26): 구글 웹/iOS 클라이언트 ID·카카오 네이티브 앱 키·네이버 클라이언트 키/시크릿/URL scheme은 `app.json` `extra.socialAuth`(런타임)와 config plugin 옵션(빌드타임)에 둔다. **네이버 클라이언트 시크릿은 SDK `initialize()` 필수 인자라 앱 탑재가 불가피하다** — 서버 시크릿의 예외가 아니라 네이버가 앱 배포를 전제로 발급하는 키라는 성격을 백엔드와 합의해 기록해 둔다.
 - 클라이언트가 보낸 프로필·티어 값을 서버가 신뢰하지 않는 구조(`backend/architecture.md` 9)를 전제로, 클라이언트도 **판정 결과를 로컬에서 위조 가능한 값에 의존하지 않는다.**
 
 ### 9.2 콘텐츠 보호 (파트너 계약 사항 — 협상 불가)
@@ -445,7 +450,7 @@ RootStack
 - 크래시·에러 수집 도구 선정(Sentry / Firebase Crashlytics)과 마스킹 규칙
 - 무료 티어 광고 형태(오디오 프리롤 / 배너 — PRD 결정 포인트 #20)에 따른 플레이어·광고 SDK 구조
 - Query 캐시의 디스크 영속(persistQueryClient) 도입 여부 — MVP는 수동 캐시(MMKV 1페이지)로 시작
-- 소셜 로그인 SDK 확정(카카오·네이버 커뮤니티 모듈 버전·유지보수 상태 확인)
+- Android 애플 로그인(웹 OAuth) — 네이티브 모듈이 iOS 전용이라 별도 구현 필요. 콘솔 준비(Services ID)는 완료, 콜백 처리 방식은 백엔드 협의 대기(`changes/pending/auth-api-apple-android-web-flow(fe).md`)
 - 푸시 토큰 갱신·`UNREGISTERED` 처리 세부 흐름 — notification 명세 확정 후
 - 다크 모드 대응 범위(`auth-uiux.md` 미결) — theme 토큰 구조는 대응 가능하게 설계하되 MVP 범위 미정
 - E2E 테스트 도구(Maestro / Detox) 도입 여부와 시점

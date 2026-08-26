@@ -1,6 +1,13 @@
 import { apiClient } from '@/shared/api/api-client';
 import { generateId } from '@/shared/lib/generate-id';
 
+import {
+  mockRefreshSession,
+  mockRequestLogout,
+  mockSignUp,
+  mockSocialLogin,
+} from './auth.mock';
+import { IS_AUTH_API_MOCKED } from '../auth.constants';
 import type {
   AuthSession,
   AuthTokens,
@@ -14,7 +21,7 @@ import type {
 
 /* ── DTO — auth-api.md 계약 그대로 snake_case로 선언한다(convention.md 1.6) ── */
 
-interface SocialLoginRequestDto {
+export interface SocialLoginRequestDto {
   provider: SocialProvider;
   provider_token: string;
   device_id: string;
@@ -28,13 +35,13 @@ interface SocialLoginRequestDto {
   nonce?: string;
 }
 
-interface ConsentItemDto {
+export interface ConsentItemDto {
   consent_type: ConsentType;
   version: string | null;
   is_required: boolean;
 }
 
-interface UserDto {
+export interface UserDto {
   id: string;
   nickname: string | null;
   email: string | null;
@@ -47,7 +54,7 @@ interface UserDto {
 }
 
 /** auth-api.md 4.2 — sign-up 응답은 social-login의 authenticated 응답과 같은 형태다 */
-interface AuthSessionDto {
+export interface AuthSessionDto {
   status: 'authenticated';
   access_token: string;
   refresh_token: string;
@@ -63,7 +70,7 @@ interface SocialLoginConsentRequiredDto {
   required_consents: ConsentItemDto[];
 }
 
-type SocialLoginResponseDto = AuthSessionDto | SocialLoginConsentRequiredDto;
+export type SocialLoginResponseDto = AuthSessionDto | SocialLoginConsentRequiredDto;
 
 interface ConsentSubmissionDto {
   consent_type: ConsentType;
@@ -82,7 +89,7 @@ interface RefreshTokenRequestDto {
   device_id: string;
 }
 
-interface RefreshTokenResponseDto {
+export interface RefreshTokenResponseDto {
   access_token: string;
   refresh_token: string;
   access_token_expires_at: string;
@@ -128,7 +135,7 @@ const toConsentSubmissionDto = (model: ConsentSubmission): ConsentSubmissionDto 
   is_agreed: model.isAgreed,
 });
 
-/* ── 엔드포인트 ── */
+/* ── 엔드포인트 — mock 분기는 각 함수 진입점 한 곳에서만 한다 ── */
 
 export const socialLogin = async (input: {
   provider: SocialProvider;
@@ -144,9 +151,13 @@ export const socialLogin = async (input: {
     // 값이 없으면 키 자체를 싣지 않는다 — 다른 제공자 요청에 `nonce: undefined`가 남지 않게 한다
     ...(input.nonce !== undefined && { nonce: input.nonce }),
   };
-  const { data } = await apiClient.post<SocialLoginResponseDto>('/auth/social-login', body, {
-    skipAuthRefresh: true,
-  });
+  const data = IS_AUTH_API_MOCKED
+    ? await mockSocialLogin(body)
+    : (
+        await apiClient.post<SocialLoginResponseDto>('/auth/social-login', body, {
+          skipAuthRefresh: true,
+        })
+      ).data;
 
   if (data.status === 'consent_required') {
     return {
@@ -170,10 +181,14 @@ export const signUp = async (input: {
     device_id: input.deviceId,
     consents: input.consents.map(toConsentSubmissionDto),
   };
-  const { data } = await apiClient.post<AuthSessionDto>('/auth/sign-up', body, {
-    skipAuthRefresh: true,
-    idempotencyKey: generateId(),
-  });
+  const data = IS_AUTH_API_MOCKED
+    ? await mockSignUp()
+    : (
+        await apiClient.post<AuthSessionDto>('/auth/sign-up', body, {
+          skipAuthRefresh: true,
+          idempotencyKey: generateId(),
+        })
+      ).data;
   return toAuthSession(data);
 };
 
@@ -186,9 +201,13 @@ export const refreshSession = async (input: {
     refresh_token: input.refreshToken,
     device_id: input.deviceId,
   };
-  const { data } = await apiClient.post<RefreshTokenResponseDto>('/auth/token/refresh', body, {
-    skipAuthRefresh: true,
-  });
+  const data = IS_AUTH_API_MOCKED
+    ? await mockRefreshSession()
+    : (
+        await apiClient.post<RefreshTokenResponseDto>('/auth/token/refresh', body, {
+          skipAuthRefresh: true,
+        })
+      ).data;
   return {
     accessToken: data.access_token,
     refreshToken: data.refresh_token,
@@ -198,6 +217,7 @@ export const refreshSession = async (input: {
 
 /** 이 기기 세션만 폐기한다. 호출 실패해도 클라이언트는 로그아웃을 진행한다(auth-api.md 4.4) */
 export const requestLogout = async (input: { deviceId: string }): Promise<void> => {
+  if (IS_AUTH_API_MOCKED) return mockRequestLogout();
   const body: LogoutRequestDto = { device_id: input.deviceId };
   await apiClient.post('/auth/logout', body, { noAutoRetry: true });
 };

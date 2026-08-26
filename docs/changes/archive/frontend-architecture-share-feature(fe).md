@@ -39,3 +39,11 @@ feature 목록에 `share`를 추가한다. 화면 명세 `docs/features/share.md
 - Given 4.4 표를 읽는다 / When share 행을 확인한다 / Then 의존 대상(auth)과 소비자(library·explore·player·content-detail·app)가 기재되어 있다
 - Given 6.4를 읽는다 / When 딥링크 게이트 규칙을 확인한다 / Then 공유 링크의 목적지 폐기(비복원)가 푸시의 보류 규칙과 구분되어 기재되어 있다
 - Given `frontend/src/features/share`의 import를 grep한다 / When `@/features/*` 의존을 모은다 / Then 4.4 표의 기재(auth)와 일치한다
+
+---
+
+## 처리 기록 (반영 날짜 2026-08-26 — 브랜치 `feat(fe)/social-login`, 사용자 요청으로 통합 전 반영)
+
+- `frontend/architecture.md` 4.1 feature 목록에 `share` 추가 + 횡단 feature 설명(전용 화면 없음 · 네 진입점이 공개 API로 실행 · 링크 수신 게이트는 app 배치) 문장 추가
+- 4.4 표에 `share | auth` 행 추가(순환 없음 비고 포함), 소비자 4행(library·explore·player·content-detail)의 의존 열·비고에 share 기재
+- 6.4 규칙 2를 출처별로 분리 개정 — 푸시=보류 후 이동 유지, 공유 링크=목적지 폐기·비복원(`share.md` 4.3 소유), 개정 표기 부기

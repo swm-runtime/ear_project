@@ -8,6 +8,24 @@ import type { SocialProvider } from './auth.types';
 export const IS_EMAIL_VERIFICATION_API_MOCKED =
   __DEV__ && process.env.EXPO_PUBLIC_EMAIL_VERIFICATION_API !== 'real';
 
+/**
+ * 인증 API(social-login·sign-up·refresh·logout)의 mock 전환 — 백엔드 없이 A1(시작)
+ * →A3(약관)→가입→온보딩 진입까지 로그인 흐름을 테스트한다. `EXPO_PUBLIC_AUTH_API=real`로
+ * 실서버 전환. 시나리오는 `api/auth.mock.ts` 머리 주석 참고.
+ */
+export const IS_AUTH_API_MOCKED = __DEV__ && process.env.EXPO_PUBLIC_AUTH_API !== 'real';
+
+/**
+ * 제공자 SDK 인증의 mock 전환 — 실제 소셜 계정 로그인 없이 가짜 provider_token으로
+ * 로그인 동작을 넘어간다. 층이 API mock과 다르다: 이쪽은 제공자(구글·카카오…) 대역,
+ * API mock은 우리 서버 대역이다.
+ *
+ * **Expo Go에서는 항상 mock으로 둔다** — 네이티브 SDK 모듈이 Expo Go에 없어
+ * `EXPO_PUBLIC_PROVIDER_AUTH=real`은 dev client(프리빌드) 빌드에서만 의미가 있다.
+ */
+export const IS_PROVIDER_AUTH_MOCKED =
+  __DEV__ && process.env.EXPO_PUBLIC_PROVIDER_AUTH !== 'real';
+
 /** 인증 코드 자릿수(auth.md 4.5 — 6자리 숫자) */
 export const EMAIL_CODE_LENGTH = 6;
 
