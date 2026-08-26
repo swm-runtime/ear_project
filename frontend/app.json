@@ -9,6 +9,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.runtime.ear",
+      "appleTeamId": "3RJ4N5XLN9",
       "usesAppleSignIn": true,
       "associatedDomains": ["applinks:earcast.co.kr"]
     },
