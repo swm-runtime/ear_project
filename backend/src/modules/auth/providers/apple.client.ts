@@ -44,8 +44,13 @@ interface AppleIdentityTokenPayload {
   nonce?: string;
 }
 
-const base64UrlSha256 = (value: string): string =>
-  createHash('sha256').update(value).digest('base64url');
+/**
+ * **소문자 hex다**(`auth-api.md` 4.1). 애플 네이티브 예제와 `expo-crypto`의 기본 출력이
+ * hex이고 클라이언트가 그 값을 그대로 인가 요청에 싣는다 — 서버가 다른 인코딩으로 해시하면
+ * 대조가 **항상** 실패한다.
+ */
+const sha256Hex = (value: string): string =>
+  createHash('sha256').update(value).digest('hex');
 
 const isTrue = (value: boolean | string | undefined): boolean =>
   value === true || value === 'true';
@@ -235,7 +240,8 @@ export class AppleClient extends SocialProviderClient {
 
   /**
    * 재전송 공격을 막는 대조다. 클라이언트가 원본 nonce를 인가 요청과 서버 요청 양쪽에
-   * 실으면, 애플은 그 해시를 토큰에 담아 돌려준다.
+   * 실으면, 애플은 그 해시를 토큰에 담아 돌려준다. **해시 인코딩이 클라이언트와 같아야
+   * 한다**(소문자 hex — `sha256Hex` 주석).
    *
    * **토큰에 nonce가 있는데 요청에 없으면 거부한다.** 우리 클라이언트는 항상 보내야
    * 하므로, 없다는 것은 토큰이 다른 곳에서 흘러들어왔다는 뜻이다.
@@ -249,7 +255,7 @@ export class AppleClient extends SocialProviderClient {
       throw this.tokenInvalid();
     }
 
-    if (!rawNonce || base64UrlSha256(rawNonce) !== payload.nonce) {
+    if (!rawNonce || sha256Hex(rawNonce) !== payload.nonce) {
       this.logger.warn('apple identity token nonce mismatch');
       throw this.tokenInvalid();
     }

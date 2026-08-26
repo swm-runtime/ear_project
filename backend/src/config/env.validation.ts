@@ -77,6 +77,29 @@ export class EnvironmentVariables {
   @IsNotEmpty()
   APPLE_CLIENT_ID: string;
 
+  /**
+   * 구글 ID 토큰의 `aud`로 실려 오는 값 — **웹 클라이언트 ID**다(`auth-api.md` 4.1).
+   *
+   * 안드로이드·iOS 클라이언트 ID가 아니다. `@react-native-google-signin/google-signin`이
+   * `webClientId`로 받은 ID 토큰을 발급하므로 `aud`에도 그 값이 들어온다.
+   *
+   * **비밀값이 아니지만 검증에 반드시 필요하다.** 확인하지 않으면 다른 앱을 향해 발급된,
+   * 서명은 정상인 토큰으로 우리 계정에 로그인할 수 있다.
+   */
+  @IsString()
+  @IsNotEmpty()
+  GOOGLE_WEB_CLIENT_ID: string;
+
+  /**
+   * 카카오 앱 ID(숫자 문자열) — 토큰 정보 조회의 `app_id`와 대조한다(`auth-api.md` 4.1).
+   *
+   * **네이티브 앱 키가 아니다.** 카카오 액세스 토큰에는 대상 앱 정보가 실려 있지 않아,
+   * 이 대조가 구글·애플의 `aud` 검증에 해당하는 자리다.
+   */
+  @IsString()
+  @IsNotEmpty()
+  KAKAO_APP_ID: string;
+
   /** archived_* 테이블 간 조인 키 생성용 pepper (domain.md 11.2) */
   @IsString()
   @MinLength(32)

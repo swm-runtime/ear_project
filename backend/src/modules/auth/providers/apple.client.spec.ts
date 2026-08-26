@@ -1,4 +1,4 @@
-import { createHash, generateKeyPairSync } from 'node:crypto';
+import { generateKeyPairSync } from 'node:crypto';
 
 import { JwtService } from '@nestjs/jwt';
 import { sign } from 'jsonwebtoken';
@@ -13,7 +13,14 @@ const CLIENT_ID = 'com.example.ear';
 const KID = 'apple-key-1';
 const SUB = '001234.abcdef.0000';
 const RAW_NONCE = 'nonce-from-client';
-const HASHED_NONCE = createHash('sha256').update(RAW_NONCE).digest('base64url');
+/**
+ * **서버 코드로 만들지 않고 값을 박는다.** 서버 자신의 해시 함수로 픽스처를 만들면
+ * 인코딩이 틀려도 자기 자신과는 일치해 통과한다 — 실제로 그렇게 base64url 오구현이
+ * 테스트를 통과한 채 남아 있었다(`tickets/backend/archive/apple-nonce-hash-encoding-mismatch.md`).
+ * 아래는 `printf 'nonce-from-client' | sha256sum`의 값이다.
+ */
+const HASHED_NONCE =
+  'ccedcc2f3121f6d6a2316dc610fa92978d95e68e38f5d090f23132cb8bf89b9d';
 
 /** 애플 공개키 역할을 할 키 쌍. 테스트가 직접 서명해 실제 검증 경로를 그대로 태운다 */
 const { privateKey, publicKey } = generateKeyPairSync('rsa', {
@@ -163,6 +170,19 @@ describe('AppleClient', () => {
         nonce: RAW_NONCE,
       }),
     );
+  });
+
+  it('nonce 해시는 소문자 hex다 — 클라이언트와 같은 인코딩이어야 대조가 성립한다', async () => {
+    // 알려진 값의 SHA-256 hex를 nonce 클레임에 심어, 서버가 같은 인코딩으로 해시하는지 본다
+    const profile = await client.fetchProfile(
+      buildIdentityToken({
+        nonce:
+          'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+      }),
+      { nonce: 'abc' },
+    );
+
+    expect(profile.providerUserId).toBe(SUB);
   });
 
   it('nonce가 일치하지 않으면 거부한다', async () => {

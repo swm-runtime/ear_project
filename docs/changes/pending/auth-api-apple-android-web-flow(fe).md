@@ -30,3 +30,13 @@ auth.md는 시작 화면의 제공자 버튼 4개에 플랫폼 구분을 두지 
 - Given `docs/spec/api/auth-api.md` 4.1을 읽는다 / When apple 검증 서술을 확인한다 / Then aud 허용값 2개(번들 ID·Services ID)와 각 플로우의 대응이 기재되어 있다
 - Given 백엔드 apple 검증 구현 / When Android 웹 플로우의 identity token(aud=`com.runtime.ear.signin`)을 검증한다 / Then 유효한 토큰으로 통과한다
 - Given 콜백 처리 방식 결정 / When `https://earcast.co.kr/auth/apple/callback`으로 애플이 form_post한다 / Then 정해진 방식으로 앱 복귀(또는 토큰 전달)가 일어난다
+
+---
+
+## 백엔드 회신 (2026-08-26)
+
+- **범위 확정 — 안드로이드에서도 애플 로그인을 제공한다.** "안드로이드에서는 버튼을 감춘다"(플레이스토어에는 애플 로그인 요구 규정이 없다)도 검토했으나, `auth.md`가 플랫폼 구분을 두지 않고 **iOS에서 애플로 가입한 사용자의 기기 변경 경로가 막히는 것**이 결정적이었다.
+- **"백엔드와 정할 것" 1을 결정했다 — 콜백은 랜딩(Vercel)이 받고, `id_token`을 딥링크로 앱에 직송한다.** NestJS 소유를 먼저 검토했으나 API 공개 도메인이 없어 인프라 대기가 걸리고, 콜백이 비밀을 갖지 않으며(code 교환을 안 하므로 `.p8` 불필요), **검증은 여전히 NestJS가 하므로 신뢰 경계가 움직이지 않는다.** PKCE식 핸드오프 코드는 **nonce가 같은 일을 이미 하고 있어 만들지 않는다.** 근거와 남은 실측은 `tickets/backend/pending/apple-android-web-oauth-callback.md`에 있다.
+- **FE에 못박을 전제 하나** — **원본 nonce가 브라우저·콜백을 절대 거치면 안 된다.** 앱 메모리에만 두고 `/auth/social-login`에만 싣는다. 이것이 위 안전성 근거의 전부다. (2에서 말한 "결정된 복귀 방식"이 이것이다 — 커스텀 스킴 딥링크로 `id_token` 수신)
+- **`aud` 허용값 2개 확장도 같은 티켓에서 처리한다.** 이 문서의 반영은 그때 함께 한다 — 지금 `aud`만 먼저 쓰면 문서가 구현보다 앞선 채로 남는다.
+- **별건 발견** — 애플 nonce 해시 인코딩이 서버(base64url)와 클라이언트(hex)로 어긋나 있다. **그대로 두면 애플 로그인이 전 플랫폼에서 실패한다.** 발행 즉시 처리해 닫았다 — `tickets/backend/archive/apple-nonce-hash-encoding-mismatch.md`(반영 2026-08-26, 서버 해시를 소문자 hex로 교정). **iOS 실기기 확인만 FE 빌드에 남아 있다.**

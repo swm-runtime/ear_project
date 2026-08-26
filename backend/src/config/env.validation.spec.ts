@@ -12,6 +12,8 @@ describe('validateEnv', () => {
     CORS_ORIGINS: 'http://localhost:8081',
     JWT_SECRET: 'test-jwt-secret-0123456789-0123456789',
     APPLE_CLIENT_ID: 'com.example.ear',
+    GOOGLE_WEB_CLIENT_ID: '000-example.apps.googleusercontent.com',
+    KAKAO_APP_ID: '1234567',
     ARCHIVE_HASH_PEPPER: 'test-archive-pepper-0123456789-0123456',
     WITHDRAWAL_HASH_PEPPER: 'test-withdrawal-pepper-0123456789-0123',
     LATEST_APP_VERSION_IOS: '1.0.0',
