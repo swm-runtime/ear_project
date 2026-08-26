@@ -25,7 +25,11 @@ const SOURCES_BY_SOURCE_FILTER: Record<
   LibraryItemSourceFilter,
   LibraryItemSource[]
 > = {
-  [LibraryItemSourceFilter.DRIP]: [LibraryItemSource.DRIP],
+  // 탐험 편(discovery)도 [이어 PICK]에 포함한다 (개정 2026-08-27 — `library-api.md` 4.1)
+  [LibraryItemSourceFilter.DRIP]: [
+    LibraryItemSource.DRIP,
+    LibraryItemSource.DISCOVERY,
+  ],
   [LibraryItemSourceFilter.SAVE]: [
     LibraryItemSource.SAVE,
     LibraryItemSource.ONBOARDING,
@@ -142,6 +146,100 @@ export class LibraryItemRepository {
     manager?: EntityManager,
   ): Promise<number> {
     return this.scoped(manager).countBy({ userId, source });
+  }
+
+  /**
+   * 미청취 재고 — 편성 스킵 판정의 입력이다(`drip-scheduling.md` 4.1 — 기준값 5편).
+   * `in_progress`를 포함한다: 듣다 만 것도 사용자에게는 아직 안 들은 것이다
+   * (`library-api.md` 4.1의 미청취 탭과 같은 해석).
+   */
+  async countUnfinishedByUserId(
+    userId: string,
+    manager?: EntityManager,
+  ): Promise<number> {
+    return this.scoped(manager).countBy({
+      userId,
+      status: In([LibraryItemStatus.UNPLAYED, LibraryItemStatus.IN_PROGRESS]),
+    });
+  }
+
+  /**
+   * 최근 편성분의 `content_id` — 노출 피로 감점의 입력이다(`drip-scheduling.md` 4.2 ③).
+   * 삭제분도 포함한다(`withDeleted`) — 노출됐다는 사실은 삭제로 사라지지 않는다.
+   */
+  async findRecentContentIdsByUserIdAndSources(
+    userId: string,
+    sources: LibraryItemSource[],
+    since: Date,
+    manager?: EntityManager,
+  ): Promise<string[]> {
+    const rows = await this.scoped(manager)
+      .createQueryBuilder('item')
+      .withDeleted()
+      .select('item.content_id', 'content_id')
+      .where('item.user_id = :userId', { userId })
+      .andWhere('item.source IN (:...sources)', { sources })
+      .andWhere('item.added_at >= :since', { since })
+      .getRawMany<{ content_id: string }>();
+
+    return rows.map((row) => row.content_id);
+  }
+
+  /**
+   * 콘텐츠별 **전 사용자 편성 이력 수** — 탐험 편성의 저노출 판정 입력이다
+   * (`drip-scheduling.md` 4.8-2). 삭제분도 포함한다 — 한 번 나간 노출이다.
+   */
+  async countExposuresByContentIds(
+    contentIds: string[],
+    manager?: EntityManager,
+  ): Promise<Map<string, number>> {
+    if (contentIds.length === 0) {
+      return new Map();
+    }
+
+    const rows = await this.scoped(manager)
+      .createQueryBuilder('item')
+      .withDeleted()
+      .select('item.content_id', 'content_id')
+      .addSelect('COUNT(*)', 'total')
+      .where('item.content_id IN (:...contentIds)', { contentIds })
+      .andWhere('item.source IN (:...sources)', {
+        sources: [LibraryItemSource.DRIP, LibraryItemSource.DISCOVERY],
+      })
+      .groupBy('item.content_id')
+      .getRawMany<{ content_id: string; total: string }>();
+
+    return new Map(rows.map((row) => [row.content_id, Number(row.total)]));
+  }
+
+  /**
+   * 완청한 시리즈의 최대 `episode_no` — 시리즈 연속성 가점과 다음 편 허용 판정의 입력이다
+   * (`drip-scheduling.md` 4.2 ③·7장 "episode_no 순서를 지킨다").
+   * 삭제분도 포함한다 — 들었다는 사실은 목록에서 지운다고 없어지지 않는다.
+   */
+  async findCompletedSeriesMaxEpisodes(
+    userId: string,
+    manager?: EntityManager,
+  ): Promise<Map<string, number>> {
+    const rows = await this.scoped(manager)
+      .createQueryBuilder('item')
+      .withDeleted()
+      .innerJoin('item.content', 'content')
+      .select('content.series_id', 'series_id')
+      .addSelect('MAX(content.episode_no)', 'max_episode_no')
+      .where('item.user_id = :userId', { userId })
+      .andWhere('item.status = :status', {
+        status: LibraryItemStatus.COMPLETED,
+      })
+      .andWhere('content.series_id IS NOT NULL')
+      .groupBy('content.series_id')
+      .getRawMany<{ series_id: string; max_episode_no: number | null }>();
+
+    return new Map(
+      rows
+        .filter((row) => row.max_episode_no !== null)
+        .map((row) => [row.series_id, Number(row.max_episode_no)]),
+    );
   }
 
   /**

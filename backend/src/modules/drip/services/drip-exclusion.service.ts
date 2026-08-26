@@ -36,4 +36,15 @@ export class DripExclusionService {
       manager,
     );
   }
+
+  /** 후보 필터(FR-16)의 제외 목록 절반 — 나머지 절반(`library_items`)은 library가 소유한다 */
+  async findExcludedContentIds(
+    userId: string,
+    manager?: EntityManager,
+  ): Promise<string[]> {
+    return this.dripExcludedContentRepository.findAllContentIdsByUserId(
+      userId,
+      manager,
+    );
+  }
 }
