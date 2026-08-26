@@ -119,3 +119,40 @@ App Link(`https`)가 OS 검증으로 가로채기를 원천 차단하지만 **`a
 | 기존 랜딩 무변화 | 6종 경로 200 · AASA 200 | — |
 
 프로덕션 승격은 지난번과 같이 **수동**이다.
+
+## 프로덕션 검증 완료 (2026-08-26) — 요청 1·2·3 닫힘
+
+**루트 `api/`는 `output: "export"`와 공존한다.** 이 티켓의 유일한 미확인 항목이었고, **랜딩을 순수 정적으로 유지한 채 함수를 쓸 수 있다** — `output: "export"` 제거 결정은 필요 없어졌다.
+
+**시그니처가 갈렸다.** 첫 배포에서 `FUNCTION_INVOCATION_FAILED`가 났는데 404가 아니라 500이었다 — Vercel이 함수를 찾아 실행했으나 핸들러를 못 찾은 것이다. **명명 export(`GET`/`POST`)는 Next.js Route Handler 규약이고, Vercel `api/` 함수는 `export default`를 찾는다.** Edge(웹 표준)와 Node(고전 `(req, res)`) 두 판본을 함께 올려 한 번에 갈랐다.
+
+| 확인 | 결과 |
+|---|---|
+| `GET /api/apple-callback/` (**Edge · 웹 표준**) | **200** `apple sign-in callback (edge)` |
+| `GET /api/apple-callback-node/` (Node · 고전) | 500 — **채택하지 않고 삭제** |
+| `POST /auth/apple/callback/` (`id_token`+`state`) | **302** `Location: ear://auth/apple?id_token=test-token&state=abc` · `Cache-Control: no-store` |
+| `POST /auth/apple/callback` (슬래시 없음) | 308 → 302, **바디 보존됨** |
+| `POST` `error=user_cancelled_authorize` | 302 `ear://auth/apple?error=user_cancelled_authorize` |
+| `POST` `id_token` 없음 | 302 `ear://auth/apple?error=missing_id_token` |
+| `POST` `state` 없음 | 302 `ear://auth/apple?id_token=only` (빈 `state`를 붙이지 않는다) |
+| `PUT` | 405 |
+| 기존 랜딩 6종 + AASA + `/contents/:id` | 전부 200, 변화 없음 |
+
+- **`trailingSlash: true`가 rewrite보다 먼저 걸린다.** `/auth/apple/callback` → 308 → `/auth/apple/callback/`. **308은 메서드·바디를 보존하고 실제로 보존되는 것을 확인했으므로 콘솔 변경은 필요 없다.** 홉 하나를 줄이고 싶으면 Return URL을 끝 슬래시로 바꾸면 된다(선택).
+- **`aud` 허용값 2개도 반영했다**(요청 3) — `APPLE_SERVICES_ID` 환경변수를 신설해 `APPLE_CLIENT_ID`와 함께 목록으로 넘긴다. 한 변수에 쉼표로 담지 않은 것은 **두 값의 출처와 의미가 달라서**다(번들 ID = iOS 네이티브, Services ID = 안드로이드 웹). `apple.client.spec.ts`에 두 `aud` 통과 + 그 외 거부 검증 추가, 전체 403건 통과.
+- 승격은 이번에도 **수동**이었다.
+
+### 남은 것 — FE 구현뿐이다
+
+**서버 쪽은 끝났다.** 짝 티켓(`tickets/frontend/pending/apple-android-web-oauth-app-flow.md`)의 착수 조건이 해소됐고, 확정 규약은 아래와 같다.
+
+| 항목 | 확정값 |
+|---|---|
+| authorize 방식 | **A안 — `response_type=code id_token` · `response_mode=form_post` · `scope=name email`** (fragment 안은 함수가 동작하므로 쫓지 않는다) |
+| `client_id` | `com.runtime.ear.signin` (Services ID — 번들 ID가 아니다) |
+| `redirect_uri` | `https://earcast.co.kr/auth/apple/callback` |
+| 복귀 | `ear://auth/apple?id_token=...&state=...` (**쿼리**, 프래그먼트 아님) |
+| 취소·실패 | 같은 경로로 `?error=...` — **문구 판단은 앱이 한다**(미결이던 항목, 이 방향으로 확정) |
+| nonce | 원본은 앱 메모리에만. authorize에는 **SHA-256 소문자 hex**만 |
+
+**`aud` 확장이 반영됐으므로 `auth-api.md` 4.1도 이제 갱신할 수 있다**(`changes/pending/auth-api-apple-android-web-flow(fe).md` 처리 — 요청 4의 남은 절반).

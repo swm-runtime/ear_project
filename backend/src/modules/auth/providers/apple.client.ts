@@ -122,7 +122,7 @@ export class AppleClient extends SocialProviderClient {
           publicKey: key,
           algorithms: ['RS256'],
           issuer: APPLE_ISSUER,
-          audience: this.configService.get('APPLE_CLIENT_ID', { infer: true }),
+          audience: this.allowedAudiences(),
         },
       );
     } catch (error) {
@@ -132,6 +132,20 @@ export class AppleClient extends SocialProviderClient {
       });
       throw this.tokenInvalid();
     }
+  }
+
+  /**
+   * `aud` 허용값 두 개 (`auth-api.md` 4.1 · README 결정 50).
+   *
+   * iOS 네이티브는 **앱 번들 ID**로, 안드로이드 웹 OAuth는 **Services ID**로 발급된다.
+   * 애플은 제공자 API 호출 없이 토큰만으로 검증이 끝나므로 `aud`가 "우리 앱을 향한
+   * 토큰인가"의 유일한 근거다 — **목록을 넓히되 그 외는 전부 거부한다.**
+   */
+  private allowedAudiences(): [string, ...string[]] {
+    return [
+      this.configService.get('APPLE_CLIENT_ID', { infer: true }),
+      this.configService.get('APPLE_SERVICES_ID', { infer: true }),
+    ];
   }
 
   /** 서명 검증 전이므로 헤더만 읽는다. 여기서 얻은 값은 키를 고르는 데만 쓴다 */
