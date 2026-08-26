@@ -12,8 +12,16 @@
  */
 
 /** 배포 도메인. canonical·OG·sitemap의 기준이 되므로 배포 전에 반드시 실제 도메인으로 바꾼다. */
+/**
+ * canonical·og:url·sitemap이 모두 이 값을 쓴다.
+ *
+ * **폴백이 실제 도메인이어야 한다.** 자리표시자를 폴백으로 두면 환경 변수를 빠뜨린 배포가
+ * 조용히 성공하고, 크롤러에는 우리가 갖고 있지도 않은 도메인을 canonical로 알리게 된다
+ * (실제로 그렇게 나가고 있었다 — 2026-08-26 발견). 프리뷰·다른 호스트에서는 환경 변수로
+ * 덮어쓴다.
+ */
 export const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ?? "https://ear.example.com";
+  process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ?? "https://earcast.co.kr";
 
 export const site = {
   name: "이어",
