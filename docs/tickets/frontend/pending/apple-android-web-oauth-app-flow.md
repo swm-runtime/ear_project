@@ -6,9 +6,9 @@
 | 요청 파트 | 프론트엔드 |
 | 발행 날짜 | 2026-08-26 |
 | 발견 시점 | 2026-08-26 안드로이드 애플 로그인 설계 확정 — 짝 티켓(BE)의 요청 4 |
-| 근거 문서 | `features/auth.md` 1·4.1(제공자 버튼 4개 — 플랫폼 구분 없음) · `spec/api/auth-api.md` 4.1(`apple` 검증·nonce 계약) · `features/README.md` 결정 50 · 짝 티켓 `tickets/backend/pending/apple-android-web-oauth-callback.md` |
+| 근거 문서 | `features/auth.md` 1·4.1(제공자 버튼 4개 — 플랫폼 구분 없음) · `spec/api/auth-api.md` 4.1(`apple` 검증·nonce 계약) · `features/README.md` 결정 50 · 짝 티켓 `tickets/backend/archive/apple-android-web-oauth-callback.md`(**완료** — 서버 쪽은 끝났다) |
 | 심각도 | **중** — 안드로이드에서 애플 버튼이 네이티브 모듈 부재로 실패하는 상태가 유지된다. iOS·나머지 3종은 영향 없다 |
-| 상태 | pending — **BE 실측 대기**(아래 "착수 조건") |
+| 상태 | pending — **착수 가능**(BE 실측 완료 2026-08-26, 규약 확정) |
 
 ## 배경
 
@@ -22,16 +22,20 @@
 
 콘솔 준비 완료 — Services ID `com.runtime.ear.signin`, 도메인 `earcast.co.kr`, Return URL `https://earcast.co.kr/auth/apple/callback`.
 
-## 착수 조건 — BE 실측이 선행이다
+## 확정 규약 (2026-08-26 — BE 실측·프로덕션 배포 완료)
 
-**authorize 요청 파라미터가 BE 실측 결과에 따라 갈린다.** 실측 전에 착수하면 다시 짜야 한다.
+**서버 쪽은 끝났다.** 콜백 함수가 프로덕션에서 동작하는 것까지 확인했고 짝 티켓은 archive로 갔다(검증표는 거기 있다). **이 티켓이 안드로이드 애플 로그인의 유일한 남은 작업이다.**
 
-| BE 실측 결과 | FE가 만드는 authorize 요청 |
+| 항목 | 확정값 |
 |---|---|
-| **A. form_post** (Vercel 함수가 POST를 받음) | `response_type=code id_token` · `response_mode=form_post` · `scope=name email` |
-| **B. fragment** (정적 페이지 JS가 `#id_token`을 읽음) | `response_type=id_token` · `response_mode=fragment` · **`scope` 없음** |
+| authorize 방식 | **`response_type=code id_token` · `response_mode=form_post` · `scope=name email`** |
+| `client_id` | **`com.runtime.ear.signin`** (Services ID — **앱 번들 ID가 아니다**) |
+| `redirect_uri` | `https://earcast.co.kr/auth/apple/callback` |
+| 복귀 | **`ear://auth/apple?id_token=...&state=...`** — **쿼리다**(프래그먼트 아님). 일부 안드로이드 브라우저가 앱 인텐트로 넘길 때 프래그먼트를 떨어뜨린다 |
+| 취소·실패 | 같은 경로로 **`?error=...`** (`user_cancelled_authorize` 등). 서버가 판정하지 않으므로 **문구 판단은 앱이 한다** — 미결이던 항목을 이 방향으로 확정했다 |
+| nonce | 원본은 **앱 메모리에만**. authorize에는 **SHA-256 소문자 hex**만 |
 
-B가 되면 서버 함수가 아예 없어지는 대신 **애플이 이메일 클레임을 주지 않을 수 있다**(닉네임은 온보딩에서 받으므로 무관하고, 이메일 `null`은 서버가 정상 처리한다). 짝 티켓에서 확정되는 대로 통지받는다.
+**서버가 `aud` 두 개를 받는다** — iOS 네이티브(`com.runtime.ear`)와 안드로이드 웹(`com.runtime.ear.signin`). 같은 `POST /auth/social-login`을 쓰면 된다.
 
 ## 요청 내용
 
@@ -57,6 +61,6 @@ B가 되면 서버 함수가 아예 없어지는 대신 **애플이 이메일 �
 
 ## 보류·미결
 
-- **authorize 파라미터(A/B)** — 짝 티켓의 Vercel 실측 결과 대기. **이것이 착수 조건이다**
-- **취소·실패 시 동작** — 앱으로 에러 딥링크를 보낼지, 랜딩에서 안내하고 끝낼지 미정. 콜백 구현과 짝이므로 짝 티켓과 함께 정한다
+- ~~authorize 파라미터(A/B)~~ → **해소(2026-08-26)**: form_post로 확정. 위 "확정 규약"
+- ~~취소·실패 시 동작~~ → **해소(2026-08-26)**: 에러도 같은 딥링크로 앱에 돌려보낸다. 랜딩에 안내를 띄우면 사용자가 브라우저에 갇힌다
 - **딥링크 방식 전환** — 안드로이드 배포 서명 SHA-256 지문 확보 후 커스텀 스킴 → App Link로 옮긴다(`share-universal-links-hosting.md`와 공유하는 블로커)

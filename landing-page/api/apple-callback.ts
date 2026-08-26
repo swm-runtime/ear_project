@@ -1,5 +1,5 @@
 /**
- * 애플 로그인 콜백 (안드로이드 웹 OAuth 전용).
+ * 애플 로그인 콜백 (안드로이드 웹 OAuth 전용) — **Edge 런타임 / 웹 표준 시그니처.**
  *
  * 안드로이드에는 애플 네이티브 SDK가 없어 브라우저를 한 번 거친다. 애플은 등록된 HTTPS
  * Return URL로만 결과를 보내고, `scope`에 name·email이 있으면 **`form_post`(POST)를
@@ -7,8 +7,8 @@
  *
  * **여기는 중계기다. 토큰을 검증하지 않고 비밀값도 갖지 않는다.**
  * 검증은 API 서버(`apple.client.ts`)가 identity token의 서명·`iss`·`aud`·`exp`·nonce를
- * 대조해서 한다. 앱이 받은 `id_token`을 `POST /auth/social-login`에 실어 보내면
- * 그때 판정된다.
+ * 대조해서 한다. 앱이 받은 `id_token`을 `POST /auth/social-login`에 실어 보내면 그때
+ * 판정된다.
  *
  * **이 중계기가 탈취돼 다른 사람의 유효한 애플 토큰으로 바꿔치기해도 로그인은 성립하지
  * 않는다.** 원본 nonce는 앱이 만들어 앱이 보관하고 `/auth/social-login`에 직접 싣는다 —
@@ -16,6 +16,8 @@
  *
  * 근거: `docs/tickets/backend/pending/apple-android-web-oauth-callback.md`
  */
+
+export const config = { runtime: 'edge' };
 
 /** 복귀 주소는 상수다 — 요청 값으로 만들지 않는다(오픈 리다이렉트 차단) */
 const APP_RETURN_URL = 'ear://auth/apple';
@@ -40,7 +42,7 @@ function redirectToApp(params: Record<string, string>): Response {
   });
 }
 
-export async function POST(request: Request): Promise<Response> {
+async function handleCallback(request: Request): Promise<Response> {
   let form: URLSearchParams;
 
   try {
@@ -50,7 +52,8 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   // 사용자가 애플 화면에서 취소하면 `user_cancelled_authorize`가 온다.
-  // 성공과 같은 경로로 앱에 돌려보내고, 문구 판단은 앱이 한다
+  // 성공과 같은 경로로 앱에 돌려보내고, 문구 판단은 앱이 한다 —
+  // 랜딩에 안내를 띄우면 사용자가 브라우저에 갇힌다
   const error = form.get('error');
 
   if (error) {
@@ -65,19 +68,29 @@ export async function POST(request: Request): Promise<Response> {
 
   const state = form.get('state');
 
-  return redirectToApp(state ? { id_token: idToken, state } : { id_token: idToken });
+  return redirectToApp(
+    state ? { id_token: idToken, state } : { id_token: idToken },
+  );
 }
 
-/**
- * 애플은 POST로만 온다. 사람이 주소창에 직접 열어본 경우이며, **라우팅이 살아 있는지
- * 확인하는 용도로도 쓴다** — 정적 내보내기와 함수가 공존하는지 실측하는 지점이다.
- */
-export function GET(): Response {
-  return new Response('apple sign-in callback\n', {
-    status: 200,
-    headers: {
-      'Content-Type': 'text/plain; charset=utf-8',
-      'Cache-Control': 'no-store',
-    },
-  });
+export default function handler(
+  request: Request,
+): Response | Promise<Response> {
+  if (request.method === 'POST') {
+    return handleCallback(request);
+  }
+
+  // 애플은 POST로만 온다. 사람이 주소창에 직접 열어본 경우이며,
+  // **라우팅이 살아 있는지 확인하는 용도로도 쓴다**
+  if (request.method === 'GET') {
+    return new Response('apple sign-in callback (edge)\n', {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': 'no-store',
+      },
+    });
+  }
+
+  return new Response(null, { status: 405, headers: { Allow: 'GET, POST' } });
 }

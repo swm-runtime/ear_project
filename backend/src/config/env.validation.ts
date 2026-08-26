@@ -78,6 +78,17 @@ export class EnvironmentVariables {
   APPLE_CLIENT_ID: string;
 
   /**
+   * 안드로이드 애플 로그인(웹 OAuth)의 `aud` — **Services ID**다(`auth-api.md` 4.1).
+   *
+   * 안드로이드에는 애플 네이티브 SDK가 없어 웹 OAuth로 가며, 그때 발급되는 identity
+   * token의 `aud`는 앱 번들 ID가 아니라 Services ID다. **두 값을 모두 유효한 `aud`로
+   * 받아야** iOS 네이티브와 안드로이드 웹이 같은 엔드포인트를 쓸 수 있다.
+   */
+  @IsString()
+  @IsNotEmpty()
+  APPLE_SERVICES_ID: string;
+
+  /**
    * 구글 ID 토큰의 `aud`로 실려 오는 값 — **웹 클라이언트 ID**다(`auth-api.md` 4.1).
    *
    * 안드로이드·iOS 클라이언트 ID가 아니다. `@react-native-google-signin/google-signin`이

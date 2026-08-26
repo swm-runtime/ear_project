@@ -5,10 +5,11 @@
 | 대상 | 애플 웹 OAuth `form_post` 콜백 수신 지점(`https://earcast.co.kr/auth/apple/callback` — **랜딩 Vercel**) · 앱 복귀 딥링크 · `backend/src/modules/auth/providers/apple.client.ts` 120행(`aud` 허용값 2개) · `backend/src/config/env.validation.ts`(`APPLE_CLIENT_ID`) |
 | 요청 파트 | 백엔드 |
 | 발행 날짜 | 2026-08-26 |
+| 반영 날짜 | 2026-08-26 |
 | 발견 시점 | 2026-08-26 FE 소셜 로그인 4종 SDK 연동 병합(PR #63) 후 BE 대응 착수 — `changes/pending/auth-api-apple-android-web-flow(fe).md`가 "백엔드와 정할 것"으로 남긴 항목 검토 |
 | 근거 문서 | `features/auth.md` 1·4.1(제공자 버튼 4개 — 플랫폼 구분 없음) · `spec/api/auth-api.md` 4.1(`apple` 검증·nonce 계약) · `prd/ear_root_prd.md` FR-01 · `backend/architecture.md` 9.1 · 짝 문서 `changes/pending/auth-api-apple-android-web-flow(fe).md` |
 | 심각도 | **중** — 안드로이드에서 애플 버튼이 네이티브 모듈 부재로 실패하는 상태가 유지된다. iOS 애플 로그인·나머지 3종은 영향 없다. 다만 **iOS에서 애플로 가입한 사용자가 안드로이드로 기기를 바꾸면 진입 경로가 없다** |
-| 상태 | pending — **설계는 확정, 실측 하나만 남았다**(아래 "착수 조건") |
+| 상태 | **완료** — BE 요청 4건 전부 닫힘. 종단 검증은 짝 티켓(FE)이 소유 |
 
 ## 배경
 
@@ -119,3 +120,57 @@ App Link(`https`)가 OS 검증으로 가로채기를 원천 차단하지만 **`a
 | 기존 랜딩 무변화 | 6종 경로 200 · AASA 200 | — |
 
 프로덕션 승격은 지난번과 같이 **수동**이다.
+
+## 프로덕션 검증 완료 (2026-08-26) — 요청 1·2·3 닫힘
+
+**루트 `api/`는 `output: "export"`와 공존한다.** 이 티켓의 유일한 미확인 항목이었고, **랜딩을 순수 정적으로 유지한 채 함수를 쓸 수 있다** — `output: "export"` 제거 결정은 필요 없어졌다.
+
+**시그니처가 갈렸다.** 첫 배포에서 `FUNCTION_INVOCATION_FAILED`가 났는데 404가 아니라 500이었다 — Vercel이 함수를 찾아 실행했으나 핸들러를 못 찾은 것이다. **명명 export(`GET`/`POST`)는 Next.js Route Handler 규약이고, Vercel `api/` 함수는 `export default`를 찾는다.** Edge(웹 표준)와 Node(고전 `(req, res)`) 두 판본을 함께 올려 한 번에 갈랐다.
+
+| 확인 | 결과 |
+|---|---|
+| `GET /api/apple-callback/` (**Edge · 웹 표준**) | **200** `apple sign-in callback (edge)` |
+| `GET /api/apple-callback-node/` (Node · 고전) | 500 — **채택하지 않고 삭제** |
+| `POST /auth/apple/callback/` (`id_token`+`state`) | **302** `Location: ear://auth/apple?id_token=test-token&state=abc` · `Cache-Control: no-store` |
+| `POST /auth/apple/callback` (슬래시 없음) | 308 → 302, **바디 보존됨** |
+| `POST` `error=user_cancelled_authorize` | 302 `ear://auth/apple?error=user_cancelled_authorize` |
+| `POST` `id_token` 없음 | 302 `ear://auth/apple?error=missing_id_token` |
+| `POST` `state` 없음 | 302 `ear://auth/apple?id_token=only` (빈 `state`를 붙이지 않는다) |
+| `PUT` | 405 |
+| 기존 랜딩 6종 + AASA + `/contents/:id` | 전부 200, 변화 없음 |
+
+- **`trailingSlash: true`가 rewrite보다 먼저 걸린다.** `/auth/apple/callback` → 308 → `/auth/apple/callback/`. **308은 메서드·바디를 보존하고 실제로 보존되는 것을 확인했으므로 콘솔 변경은 필요 없다.** 홉 하나를 줄이고 싶으면 Return URL을 끝 슬래시로 바꾸면 된다(선택).
+- **`aud` 허용값 2개도 반영했다**(요청 3) — `APPLE_SERVICES_ID` 환경변수를 신설해 `APPLE_CLIENT_ID`와 함께 목록으로 넘긴다. 한 변수에 쉼표로 담지 않은 것은 **두 값의 출처와 의미가 달라서**다(번들 ID = iOS 네이티브, Services ID = 안드로이드 웹). `apple.client.spec.ts`에 두 `aud` 통과 + 그 외 거부 검증 추가, 전체 403건 통과.
+- 승격은 이번에도 **수동**이었다.
+
+### 남은 것 — FE 구현뿐이다
+
+**서버 쪽은 끝났다.** 짝 티켓(`tickets/frontend/pending/apple-android-web-oauth-app-flow.md`)의 착수 조건이 해소됐고, 확정 규약은 아래와 같다.
+
+| 항목 | 확정값 |
+|---|---|
+| authorize 방식 | **A안 — `response_type=code id_token` · `response_mode=form_post` · `scope=name email`** (fragment 안은 함수가 동작하므로 쫓지 않는다) |
+| `client_id` | `com.runtime.ear.signin` (Services ID — 번들 ID가 아니다) |
+| `redirect_uri` | `https://earcast.co.kr/auth/apple/callback` |
+| 복귀 | `ear://auth/apple?id_token=...&state=...` (**쿼리**, 프래그먼트 아님) |
+| 취소·실패 | 같은 경로로 `?error=...` — **문구 판단은 앱이 한다**(미결이던 항목, 이 방향으로 확정) |
+| nonce | 원본은 앱 메모리에만. authorize에는 **SHA-256 소문자 hex**만 |
+
+**`aud` 확장이 반영됐으므로 `auth-api.md` 4.1도 이제 갱신할 수 있다**(`changes/pending/auth-api-apple-android-web-flow(fe).md` 처리 — 요청 4의 남은 절반).
+
+---
+
+## 처리 기록 — archive 이동 사유 (2026-08-26)
+
+**BE 요청 1~4가 전부 닫혔다.**
+
+| 요청 | 처리 |
+|---|---|
+| 1. Vercel 함수 실측 | **루트 `api/`가 `output: "export"`와 공존한다.** Edge(웹 표준 시그니처) 채택 |
+| 2. 콜백 함수 구현 | `landing-page/api/apple-callback.ts` — 프로덕션 검증 완료(위 검증표) |
+| 3. `aud` 허용값 2개 | `APPLE_SERVICES_ID` 신설, `apple.client.ts` 반영. 403건 통과 |
+| 4. FE 통지·문서 반영 | 짝 티켓 발행 + 확정 규약 기재. `auth-api.md` 4.1에 "`apple` — `aud` 허용값 2개" 절 신설, `changes/archive/auth-api-apple-android-web-flow(fe).md` |
+
+**남은 완료 조건 2건은 이 티켓이 소유하지 않는다** — "안드로이드 기기에서 애플 버튼을 눌러 로그인이 성립한다"와 "악성 앱이 딥링크를 가로채도 실패한다"는 **앱 구현이 있어야 확인되며, 같은 조건이 짝 티켓에 그대로 들어 있다**(`tickets/frontend/pending/apple-android-web-oauth-app-flow.md`). BE가 손댈 것이 없는 항목을 `pending/`에 남겨두면 할 일 목록이 거짓말이 되므로 archive로 옮긴다.
+
+**배포 시 주의** — `APPLE_SERVICES_ID`가 없으면 서버가 기동하지 않는다(`env.validation.ts` 전수 검증).

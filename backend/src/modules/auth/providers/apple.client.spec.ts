@@ -10,6 +10,7 @@ import { APPLE_ISSUER } from '../auth.constant';
 import { AppleClient } from './apple.client';
 
 const CLIENT_ID = 'com.example.ear';
+const SERVICES_ID = 'com.example.ear.signin';
 const KID = 'apple-key-1';
 const SUB = '001234.abcdef.0000';
 const RAW_NONCE = 'nonce-from-client';
@@ -68,7 +69,12 @@ function buildIdentityToken(overrides: TokenOverrides = {}): string {
 
 function buildClient(): AppleClient {
   const configService = {
-    get: (key: string) => (key === 'APPLE_CLIENT_ID' ? CLIENT_ID : undefined),
+    get: (key: string) => {
+      if (key === 'APPLE_CLIENT_ID') return CLIENT_ID;
+      if (key === 'APPLE_SERVICES_ID') return SERVICES_ID;
+
+      return undefined;
+    },
   };
 
   return new AppleClient(new JwtService({}), configService as never);
@@ -146,6 +152,24 @@ describe('AppleClient', () => {
         nonce: RAW_NONCE,
       }),
     );
+  });
+
+  it('안드로이드 웹 플로우의 Services ID도 유효한 aud로 받는다', async () => {
+    const profile = await client.fetchProfile(
+      buildIdentityToken({ audience: SERVICES_ID }),
+      { nonce: RAW_NONCE },
+    );
+
+    expect(profile.providerUserId).toBe(SUB);
+  });
+
+  it('iOS 네이티브의 번들 ID는 종전대로 받는다', async () => {
+    const profile = await client.fetchProfile(
+      buildIdentityToken({ audience: CLIENT_ID }),
+      { nonce: RAW_NONCE },
+    );
+
+    expect(profile.providerUserId).toBe(SUB);
   });
 
   it('다른 앱을 향해 발급된 토큰(aud 불일치)은 거부한다', async () => {
