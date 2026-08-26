@@ -23,9 +23,15 @@ export const useStartScreen = () => {
     if (isAuthenticating) return;
     setIsAuthenticating(true);
     try {
-      const providerToken = await authenticateWithProvider(provider);
+      // 애플만 nonce가 함께 온다 — 인가 요청에 해시를 실은 원본이다(auth-api.md 4.1)
+      const { providerToken, nonce } = await authenticateWithProvider(provider);
       const deviceId = await getDeviceId();
-      const result = await socialLoginMutation.mutateAsync({ provider, providerToken, deviceId });
+      const result = await socialLoginMutation.mutateAsync({
+        provider,
+        providerToken,
+        deviceId,
+        nonce,
+      });
 
       if (result.status === 'consent_required') {
         navigation.navigate('TermsConsent', {

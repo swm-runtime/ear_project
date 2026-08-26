@@ -28,3 +28,13 @@ FE 온보딩은 아직 클라이언트 상수를 쓴다 — `onboarding.copy.ts`
 - Given 온보딩 2단계 직군 시트 / When 시트를 연다 / Then 선택지가 `GET /job-categories` 응답과 같고, 같은 순서로 노출된다
 - Given `frontend/src` 전체 / When `JOB_CATEGORY_OPTIONS`를 검색한다 / Then 클라이언트 상수 정의가 남아 있지 않다
 - Given 서버 목록에서 고른 직군으로 온보딩을 완료한 사용자 / When 커리어 정보 화면에서 다른 필드만 고쳐 저장한다 / Then 목록 소속 검증(`CAREER_JOB_CATEGORY_UNAVAILABLE`)에 걸리지 않는다
+
+---
+
+## 처리 기록 (반영 날짜 2026-08-26 — 브랜치 `feat(fe)/social-login`, 사용자 요청으로 반영)
+
+- **요청 1·2·4 반영** — 온보딩 2단계(`useCareerScreen`)가 career feature 공개 API `useJobCategoriesQuery`(`careerKeys.jobCategories()`)를 사용한다. 커리어 정보 화면과 같은 fetch·같은 캐시라 두 화면의 선택지가 어긋날 수 없다. 서버 배열 순서 그대로 그린다(클라이언트 정렬 없음). `JOB_CATEGORY_OPTIONS` 상수는 `onboarding.copy.ts`에서 제거 — `frontend/src` 전체 grep 결과 참조 0건(완료 조건 2 충족).
+- **요청 3** — 온보딩 2단계는 시트가 아니라 인라인 칩 UI라 [선택 안 함] 행 대신 **선택 칩 재탭(해제)이 null을 담당**한다(기존 동작 유지). 비움은 값이 아니라 null이라는 규칙 그대로다.
+- **요청 5 반영** — 목록 조회 실패 시 칩 영역만 인라인 에러("직군 목록을 불러오지 못했어요") + [다시 시도]를 그리고, [건너뛰기]·[다음]은 막지 않는다(전부 선택 입력).
+- `frontend/architecture.md` 4.4 onboarding 행의 "티켓 반영 시 실현" 표기를 완료로 갱신.
+- 검증: tsc·eslint·jest 68/68 통과. 완료 조건 3(커리어 재저장 검증 통과)은 서버 E2E 항목이라 통합 테스트에서 확인한다 — FE는 동일 목록 사용으로 전제를 충족.

@@ -9,6 +9,8 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.runtime.ear",
+      "appleTeamId": "3RJ4N5XLN9",
+      "usesAppleSignIn": true,
       "associatedDomains": ["applinks:earcast.co.kr"]
     },
     "android": {
@@ -45,7 +47,51 @@
         {
           "recordAudioAndroid": false
         }
+      ],
+      "expo-apple-authentication",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "extraMavenRepos": ["https://devrepo.kakao.com/nexus/content/groups/public/"]
+          }
+        }
+      ],
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.475643832949-gl9ntr62dssgt0ovg8t6ibe9alo2jdt0"
+        }
+      ],
+      [
+        "@react-native-kakao/core",
+        {
+          "nativeAppKey": "e1f65f8291691ef43de3164b0a602604",
+          "android": {
+            "authCodeHandlerActivity": true
+          },
+          "ios": {
+            "handleKakaoOpenUrl": true
+          }
+        }
+      ],
+      [
+        "@react-native-seoul/naver-login",
+        {
+          "urlScheme": "earnaverlogin"
+        }
       ]
-    ]
+    ],
+    "extra": {
+      "socialAuth": {
+        "googleWebClientId": "475643832949-q10v2jk03pjh0f37vurot61c216snist.apps.googleusercontent.com",
+        "googleIosClientId": "475643832949-gl9ntr62dssgt0ovg8t6ibe9alo2jdt0.apps.googleusercontent.com",
+        "kakaoNativeAppKey": "e1f65f8291691ef43de3164b0a602604",
+        "naverAppName": "이어",
+        "naverConsumerKey": "I9icgB6gL7MoJesrFqE3",
+        "naverConsumerSecret": "1ChePp2q8M",
+        "naverServiceUrlScheme": "earnaverlogin"
+      }
+    }
   }
 }

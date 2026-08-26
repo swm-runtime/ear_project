@@ -6,6 +6,8 @@ import { BackHandler } from 'react-native';
 import { isApiError } from '@/shared/api/api-error';
 import { useToastStore } from '@/shared/ui/toast.store';
 
+import { useJobCategoriesQuery } from '@/features/career';
+
 import type { OnboardingStackParamList, YearsOfExperience } from '../onboarding.types';
 import { useSaveCareerMutation } from './useSaveCareerMutation';
 
@@ -16,6 +18,9 @@ export const useCareerScreen = () => {
     useNavigation<NativeStackNavigationProp<OnboardingStackParamList, 'Career'>>();
   const showToast = useToastStore((s) => s.show);
   const saveCareerMutation = useSaveCareerMutation();
+  // 직군 선택지는 서버 목록이다 — 커리어 정보 화면과 같은 계약·같은 캐시(career-api.md 4.3,
+  // 클라이언트 상수 금지). 배열 순서가 곧 노출 순서라 정렬하지 않는다
+  const jobCategoriesQuery = useJobCategoriesQuery();
 
   const [jobCategory, setJobCategory] = useState<string | null>(null);
   const [jobTitle, setJobTitle] = useState('');
@@ -70,6 +75,11 @@ export const useCareerScreen = () => {
     jobCategory,
     jobTitle,
     yearsOfExperience,
+    jobCategoryOptions: (jobCategoriesQuery.data ?? []).map((category) => category.name),
+    isJobCategoriesLoading: jobCategoriesQuery.isPending,
+    // 전부 선택 입력이라 목록 실패가 [건너뛰기]·[다음]을 막지 않는다 — 칩 영역만 에러를 그린다
+    isJobCategoriesError: jobCategoriesQuery.isError,
+    retryJobCategories: () => void jobCategoriesQuery.refetch(),
     setJobCategory,
     setJobTitle,
     setYearsOfExperience,

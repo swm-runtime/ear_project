@@ -37,6 +37,9 @@ export const ONBOARDING_COPY = {
     },
     skip: '건너뛰기',
     next: '다음',
+    /* TODO(카피 미확정): 직군 목록 조회 실패 — 전부 선택 입력이라 진행은 막지 않는다(칩 영역만 에러) */
+    jobCategoryLoadFailed: '직군 목록을 불러오지 못했어요',
+    retry: '다시 시도',
   },
   /** O7·O8 추천 콘텐츠 담기(onboarding-uiux.md 4.4). 섹션 제목은 서버가 내려준다 */
   pick: {
@@ -83,14 +86,3 @@ export const ONBOARDING_COPY = {
     decline: '괜찮아요',
   },
 } as const;
-
-/* TODO(카피 미확정): 직군 선택지 — 서버는 자유 문자열(50자)로 저장한다(onboarding-api.md 4.4) */
-export const JOB_CATEGORY_OPTIONS = [
-  '개발',
-  '기획',
-  '디자인',
-  '마케팅·영업',
-  '운영·CS',
-  '연구·교육',
-  '기타',
-] as const;
