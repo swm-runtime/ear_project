@@ -116,7 +116,7 @@ idx_idempotency_keys_expires_at
 | `user` | `users`, `consents`, `withdrawal_logs`, `user_settings`, `device_tokens`, `email_verifications` |
 | `auth` | `sessions` |
 | `interest` | `topics`, `user_interests`, `topic_adjacencies` |
-| `content` | `contents`, `content_topics`, `content_scripts`, `content_stats`, `content_sources` |
+| `content` | `contents`, `content_topics`, `content_scripts`, `content_stats`, `content_sources`, `content_embeddings` |
 | `library` | `library_items` |
 | `playback` | `playback_progresses`, `play_records`, `user_signals`, `audio_access_logs`, `source_link_clicks` |
 | `drip` | `drip_excluded_contents`, `user_preference_vectors`, `drip_batch_runs`, `first_drip_jobs` |
@@ -472,6 +472,10 @@ contents
   audio_path                varchar         ★URL이 아니라 저장 경로 (B-5)
   duration_sec              int
   thumbnail_url             varchar
+  difficulty                enum            NULL 허용 — beginner | intermediate | advanced ★추천 메타 (신설 2026-08-26)
+  format                    enum            NULL 허용 — news_analysis | howto | interview | opinion | case_study | overview ★추천 메타
+  is_evergreen              boolean         NULL 허용 — true: 에버그린 / false: 시의성 ★추천 메타
+  keywords                  jsonb           NULL 허용 — ["세부 키워드", ...] ★추천 메타
   content_version           int             DEFAULT 1
   license_expires_at        timestamptz     NULL
   status                    enum            published | withdrawn | expired
@@ -501,6 +505,14 @@ chk_contents_partner_disclosure
   - 클라이언트는 `content_version`이 올라간 것을 보고 저장한 재생 위치·오프라인 파일을 폐기한다(`player.md` 7).
   - 재발행 이력이 필요해지면 그때 별도 이력 테이블을 만든다. 지금은 요구가 없다.
 - `WithdrawnContent` 테이블은 만들지 않는다 (B-3). 클라이언트 동기화는 `GET /contents/withdrawn?since=<timestamp>`로 이 테이블에서 조회한다.
+
+**추천 메타 4종 — `difficulty` · `format` · `is_evergreen` · `keywords`** (신설 2026-08-26 — 추천 스코어링 고도화, `drip-scheduling.md` 4.2)
+
+- **메타데이터 부여 파이프라인**(`ai/metadata-pipeline.md` — 앱 밖 운영 절차)이 대본에서 산출해 업로드 패키지에 포함하고, 관리자 업로드 시 저장된다(`admin.md` 3.1). origin(파트너/AI 생성) 무관 전 콘텐츠 대상이다.
+- **전부 NULL 허용이다.** 파이프라인을 거치지 않은 콘텐츠도 발행을 막지 않는다 — NULL이면 스코어링에서 해당 항목을 중립 처리한다(`drip-scheduling.md` 4.2). 업로드 검증이 이 값들을 필수로 요구하지 않는다.
+- **인덱스를 두지 않는다.** 소비처가 편성 배치·탐색 랭킹의 후보 전수 스코어링뿐이라 개별 필터 질의가 없다.
+- enum 값 집합은 **초기값**이다(파이프라인 판정 기준과 함께 `ai/metadata-pipeline.md`가 정의). 값 추가는 마이그레이션으로 처리한다.
+- 이 값들은 대본의 파생이지만 [1.5](#15-파생값을-컬럼으로-두지-않는다) 위반이 아니다 — SQL 집계로 구할 수 없고 LLM 판정으로만 나오는 값이라, 저장하지 않으면 존재하지 않는다.
 
 **출처 필드는 `origin`으로 분기한다** (합의 2026-08-06 — `admin.md` 3.1)
 
@@ -628,6 +640,29 @@ uq_content_sources_content_id_position (content_id, position)
 - **소스 항목 탭의 클릭은 기록하지 않는다** (확정 2026-08-24 — MVP). `source_link_clicks`의 존재 이유는 파트너 정산·리포팅 지표이고([6.6](#66-source_link_clicks)), `ai_generated` 소스에는 그 요구가 없다. 따라서 상세 응답의 소스 항목에 식별자(`id`)를 싣지 않는다. 소스별 분석 요구가 생기면 P1에서 `source_link_clicks.source_id` 추가와 함께 재검토한다.
 - 정책 확인(적법 수집)의 **확인 기록**은 이 테이블의 소관이 아니다 — 여전히 미결이다([15.1](#151-남아-있는-결정) #8).
 
+### 5.6 `content_embeddings` *(신설 2026-08-26 — 추천 스코어링 고도화)*
+
+콘텐츠 대본의 임베딩 벡터다. 추천 스코어링의 임베딩 유사도 축(`drip-scheduling.md` 4.2)에 쓰인다. 생성 주체는 **메타데이터 부여 파이프라인**(`ai/metadata-pipeline.md`)이며, 서버는 업로드 시 받은 값을 저장만 한다.
+
+```
+content_embeddings
+  id                        uuid            PK
+  content_id                uuid            FK → contents (CASCADE)
+  embedding                 vector(N)       ★차원 N은 모델 확정 시 고정 (15.1 #11 미결)
+  model                     varchar         ★생성 모델 식별자 (예: "text-embedding-3-small")
+  content_version           int             ★어느 버전 대본 기준인지 — contents.content_version과 대조해 재발행 후 미갱신 검출
+
+uq_content_embeddings_content_id (content_id)
+```
+
+- **확장 `pgvector`가 필요하다** — 마이그레이션에서 `CREATE EXTENSION IF NOT EXISTS vector` (5.1의 `pg_trgm`과 같은 방식).
+- **유사도 지표는 코사인으로 확정한다** (`<=>` 연산). 임베딩 모델 후보들이 정규화 벡터를 내므로 내적과 동치이고, 지표를 통일해야 사용자 취향 벡터([7.2](#72-user_preference_vectors))와의 비교가 성립한다.
+- **ANN 인덱스(HNSW 등)를 두지 않는다.** 소비처가 후보 전수 스코어링(편성 배치·탐색 랭킹)이라 근사 검색이 필요 없고, 콘텐츠 수백~수천 편 규모에서는 전수 계산이 충분히 빠르다. "유사 콘텐츠 Top-K" 같은 검색 요구가 생기면 그때 추가한다.
+- **`contents`의 컬럼이 아니라 별도 테이블인 이유**: 차원이 미결이라(15.1 #11) 모델 확정·교체 시 이 테이블만 재생성하면 되고, 후보 필터 질의(`contents` 스캔)가 큰 벡터 컬럼을 끌고 다니지 않게 분리한다.
+- **모델을 교체하면 전량 재생성한다.** 서로 다른 모델의 벡터는 비교 불가하므로 `model`이 섞인 상태로 스코어링하지 않는다 — 배치는 스코어링 전에 `model` 단일성을 확인한다.
+- **행이 없는 콘텐츠도 발행 상태일 수 있다** (추천 메타 4종과 동일 — NULL 허용 원칙). 스코어링에서 임베딩 축을 중립 처리한다(`drip-scheduling.md` 4.2).
+- [1.5](#15-파생값을-컬럼으로-두지-않는다) 위반이 아닌 이유는 추천 메타 4종과 같다 — SQL로 구할 수 없는 값이다. `user_preference_vectors`([7.2](#72-user_preference_vectors))와 같은 층의 파생 캐시다.
+
 ---
 
 ## 6. 라이브러리 · 재생
@@ -639,7 +674,7 @@ library_items
   id                        uuid            PK
   user_id                   uuid            FK → users
   content_id                uuid            FK → contents
-  source                    enum            drip | save | onboarding
+  source                    enum            drip | save | onboarding | discovery   ★discovery 신설 (2026-08-27)
   status                    enum            unplayed | in_progress | completed
   added_at                  timestamptz
   last_played_at            timestamptz     NULL
@@ -671,6 +706,7 @@ idx_library_items_content_id (content_id)
 - **`resume_position_sec`을 두지 않는다** (A-1). 재생 위치는 `playback_progresses`가 단독으로 소유하고, 목록 조회 시 조인한다. 라이브러리에서 삭제해도 재생 이력이 남아야 하기 때문이다(`library.md` 4.4).
 - **`deleted_reason`을 두지 않는다** (A-4). 삭제 경로(라이브러리 삭제 / 탐색 담기 해제)를 구분하지 않기로 했다. 어느 쪽이든 드립 재적립에서 영구 제외되며, 그 판정은 `drip_excluded_contents`가 담당한다.
 - `source = onboarding`은 유지한다. **무료 티어도 온보딩 초기 적립과 자동 드립을 받는다**(PRD 미확정 3번 결정).
+- **`source = discovery`는 탐험 편성이다**(신설 2026-08-27 — `drip-scheduling.md` 4.8). 정규 드립과 별개로 매일 1편(`plans.daily_discovery_count`) 적립되며, 앱이 "이런 주제는 어떠신가요?" 타이틀로 구분 표시하기 위해 값을 나눈다. **정책상 취급은 드립과 같다** — 출처 필터 [이어 PICK]에 포함되고(`library-api.md` 4.1), 도착 배너에 포함되고, 삭제·중복 방지·영구 제외 규칙도 동일하다.
 - **프로필의 "누적 청취 콘텐츠 수"(완청 고유 콘텐츠 수 — `profile.md` 4.5)의 원천은 이 테이블이다.** `status = completed`인 고유 `content_id` COUNT로 구한다(`deleted_at` 무관 — soft delete라 행이 남는다). 파생값이므로 컬럼·집계 테이블을 만들지 않는다([1.5](#15-파생값을-컬럼으로-두지-않는다)).
 
 ### 6.2 `playback_progresses`
@@ -833,7 +869,7 @@ idx_drip_excluded_contents_user_id
 | 탐색에서 담기 해제 | `unsave` |
 | 라이브러리에서 삭제 | `library_delete` |
 | 콘텐츠를 재생함 | `played` |
-| 드립으로 적립됨 | `dripped` |
+| 드립으로 적립됨 | `dripped` — **탐험 편성(`library_items.source = discovery`)의 적립도 같은 사유를 쓴다**(2026-08-27). 재적립 방지 관점에서 두 경로는 같고, 경로 구분은 `library_items.source`가 이미 담당한다 |
 
 - **삭제 경로를 구분하지 않는다.** 라이브러리 삭제든 탐색 담기 해제든 결과는 동일하게 영구 제외다.
 - `reason`은 운영·디버깅용이며 필터 조건에는 쓰이지 않는다. 이미 행이 있으면 최초 사유를 유지한다(upsert 시 갱신하지 않음).
@@ -857,14 +893,20 @@ user_preference_vectors
   user_id                   uuid            FK → users
   topic_weights             jsonb           { topic_id: float }
   author_weights            jsonb           { author: float }
+  keyword_weights           jsonb           { keyword: float }     ★신설 2026-08-26 — contents.keywords 기반
+  format_weights            jsonb           { format: float }      ★신설 2026-08-26 — contents.format 기반
+  duration_pref             jsonb           { median_sec, p25_sec, p75_sec } ★신설 2026-08-26 — 완청 길이 분포
+  taste_embedding           vector(N)       NULL 허용 ★신설 2026-08-26 — 취향 벡터 (차원은 content_embeddings와 동일)
   signal_count              int             ★콜드스타트 판정용
 
 uq_user_preference_vectors_user_id (user_id)
 ```
 
 - `user_signals`를 집계한 결과다. 원천은 `user_signals`이고 이것은 파생 캐시다.
-- 갱신 주기: 편성 배치 시점에 계산한다. **실시간 재계산은 하지 않는다**(`drip-scheduling.md` 4.3).
+- 갱신 주기: 편성 배치 시점에 계산한다. **실시간 재계산은 하지 않는다**(`drip-scheduling.md` 4.3). 탐색 피드 랭킹(조회 시점 계산)도 이 캐시를 읽는다 — 랭킹마다 재집계하지 않는다.
 - `signal_count < 3`(완청 기준)이면 콜드스타트로 판정하고 인기도·신선도 비중을 높인다(`drip-scheduling.md` 4.4).
+- **`taste_embedding`은 긍정 신호(완청·저장·재청취) 콘텐츠 임베딩의 최근성 가중 평균**이다(`drip-scheduling.md` 4.3-1). 부정 신호는 벡터에 빼지 않는다 — 감점은 룰 축(`keyword_weights` 등 음수 가중)이 담당한다. 긍정 신호 콘텐츠에 임베딩이 하나도 없으면 NULL이며, 스코어링에서 임베딩 축을 중립 처리한다.
+- `keyword_weights` · `format_weights` · `duration_pref`의 원천은 `user_signals` ⨝ `contents`의 추천 메타(5.1)다. 메타가 NULL인 콘텐츠는 해당 집계에서 제외한다.
 
 ### 7.3 `drip_batch_runs`
 
@@ -937,6 +979,7 @@ plans
   description               text
   daily_play_limit          int             NULL = 무제한
   daily_drip_count          int             일일 자동 적립 편수
+  daily_discovery_count     int             일일 탐험 편성 편수 ★신설 2026-08-27 (`drip-scheduling.md` 4.8)
   is_drip_enabled           boolean
   is_ads_enabled            boolean
   price_krw                 int
@@ -950,15 +993,16 @@ uq_plans_tier (tier)
 
 **MVP 값**
 
-| tier | price_krw | daily_play_limit | daily_drip_count | is_drip_enabled |
-|---|---|---|---|---|
-| `light` (무료) | 0 | **2** | **2** | true |
-| `daily` | 미정 | 미정 | **2** | true |
-| `pro` | 미정 | `NULL`(무제한) | **2** | true |
+| tier | price_krw | daily_play_limit | daily_drip_count | daily_discovery_count | is_drip_enabled |
+|---|---|---|---|---|---|
+| `light` (무료) | 0 | **2** | **2** | **1** | true |
+| `daily` | 미정 | 미정 | **2** | **1** | true |
+| `pro` | 미정 | `NULL`(무제한) | **2** | **1** | true |
 
 - **`daily_drip_count`는 전 티어 2편으로 확정됐다**(PRD 1.3·FR-14). 티어가 가르는 것은 드립 편수가 아니라 재생 한도(`daily_play_limit`)다. 미정으로 남은 것은 `price_krw`와 유료 티어의 `daily_play_limit`뿐이다.
   - **그래도 `daily`·`pro` 행은 아직 만들 수 없다.** 편수는 확정됐지만 나머지 두 값이 비어 있어 행을 완성할 수 없다 — subscription 모듈에서 함께 넣는다.
 - `daily_drip_count`는 어느 명세에도 없던 컬럼이다. `drip-scheduling.md`가 "서버 설정값"이라고만 해서 소유처가 없었으므로 `plans`에 둔다 — **배포 없이 조정할 정책값이기 때문이다**(시범 운영 중 2편 → 3편 같은 조정). 전 티어 값이 같아진 뒤에도 코드 상수로 옮기지 않는 이유가 이것이다.
+- `daily_discovery_count`(신설 2026-08-27)도 같은 근거로 여기 둔다 — 탐험 편성(`drip-scheduling.md` 4.8)의 편수이며 전 티어 1편. 콘텐츠 풀·완청률 추이를 보고 배포 없이 조정한다(0으로 내리면 탐험 편성이 꺼진다).
 - `offline_download_enabled`는 **두지 않는다.** 오프라인 저장이 P1 이연이라 지금 컬럼을 만들면 의미 없는 값이 채워진다.
 - **무료 티어도 드립을 받는다**(PRD 미확정 3번 결정). `drip-scheduling.md` 4.1의 "`tier == free`면 편성하지 않음"은 폐기된 규칙이다.
 
@@ -1448,6 +1492,7 @@ idx_archived_subscriptions_archived_at
 | 8 | **`ai_generated` 정책 확인 기록 필드 도입 여부** (~~근거 소스 목록~~은 해소) | **소스 목록은 해소 (2026-08-24)** — 콘텐츠 상세 화면(FR-40)의 소스 단위 표시 요구로 `content_sources` 테이블로 승격했다([5.5](#55-content_sources)). `source_name` 고지 문구는 유지, partner는 행 없음, 소스 항목 탭 클릭은 MVP 미기록. 티켓 `tickets/backend/archive/content-sources-structured-list.md` 처리 완료. **남은 결정**: 적법 수집 확인(FR-11)의 확인 **기록** — 업로드 전 수동 확인뿐이고 기록이 시스템에 남지 않는다(`admin.md` 4.2-1 미결). `content_sources`에 확인 필드를 붙일지, 감사 로그(`audit_logs`의 업로드 기록)로 충분한지 결정 필요. |
 | 9 | **사용자 단위 청취 통계 집계 테이블 신설 여부** | 프로필 통계(`profile.md` 4.5~4.7)는 전부 파생값이라 컬럼을 두지 않는다([1.5](#15-파생값을-컬럼으로-두지-않는다) · [6.3](#63-play_records)). 다만 연속 일수·주제 분포는 매 조회 집계 비용이 사용자 이력에 비례하므로, 집계 캐시 테이블(또는 구체화 뷰)을 둘지는 실측 후 백엔드가 판단한다. 캐시를 두는 경우에도 진실의 원천은 `play_records`다. |
 | 10 | ~~직군 선택지 목록의 저장 형태~~ | **해소 (협의 2026-08-10)** — 원천은 서버 제공(`onboarding.md`·`career.md`, 공용), 저장 형태는 **서버 코드 상수로 시작한다**(스키마 변경·테이블 신설 없음). 관리자가 목록을 바꿀 요구가 생기면 관리 테이블로 승격하고, 그때 제거된 직군 값의 처리(`career-api.md` 미결)를 함께 정한다. 계약(`GET /job-categories`)은 형태와 무관하다. |
+| 11 | **임베딩 모델·차원** (2026-08-26) | [5.6](#56-content_embeddings-신설-2026-08-26--추천-스코어링-고도화) `content_embeddings.embedding` · [7.2](#72-user_preference_vectors) `taste_embedding`의 `vector(N)` 차원이 모델에 묶인다. 후보: OpenAI `text-embedding-3-small`(1536, 축소 가능) 등 — 비용·한국어 품질 검토 후 확정(협의 2026-08-26, `ai/metadata-pipeline.md` 미결과 같은 항목). **확정 전에는 두 벡터 컬럼의 마이그레이션을 만들지 않는다**(나머지 추천 메타 4종·jsonb 가중치는 차원과 무관하므로 먼저 나갈 수 있다). 모델 교체 시 전량 재생성(5.6). |
 
 ### 15.2 회의에서 확정된 사항 (반영 완료)
 

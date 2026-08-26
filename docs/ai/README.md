@@ -5,6 +5,7 @@
 | 문서 | 범위 |
 |---|---|
 | [pipeline.md](pipeline.md) | AI 자체 생성 콘텐츠 제작 — 주제 발굴 → 승인 → 소스 수집 → 대본 → QA → 업로드 패키지 |
+| [metadata-pipeline.md](metadata-pipeline.md) | 추천 메타·임베딩 부여 — 대본에서 난이도·형식·시의성·키워드와 임베딩을 산출해 업로드 패키지에 포함. **origin(파트너/AI 생성) 무관 전 콘텐츠 대상** (신설 2026-08-26) |
 
 명세는 `docs/prd/next_doing.md` 2장의 **8항목 템플릿**을 따른다. 사용자 화면이 없으므로 5번 항목은 [`features/README.md`](../features/README.md)의 규칙대로 **"상태 전이 · 운영 노출"** 로 대체한다.
 

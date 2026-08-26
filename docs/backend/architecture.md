@@ -188,6 +188,7 @@ src/
 | Playback | Content, Library, Subscription, **User**, **Drip**, **Idempotency** | `domain.md` 2장의 세 방향 + 재생 한도 판정에 `users.tier`가 필요해 User를, 재생 시 드립 영구 제외 적재(`drip_excluded_contents`)에 Drip을, `replay`·원문 클릭의 멱등키(`player-api.md` 4.4·4.5 — 신호 테이블에 유니크 제약이 없어 재전송 중복을 DB가 못 막는다)에 Idempotency를 더한다. 세 모듈 모두 `Playback`을 모르므로 순환은 없다 |
 | Subscription | *(없음)* | `plans` · `subscriptions` 소유. 다른 모듈을 모른다 |
 | Drip | Content, Library, Interest, Subscription, **User** | `domain.md` 2장의 네 방향 + 편성 편수 판정에 `users.tier`가 필요해 User를 더한다. `User`는 `Drip`을 모르므로 순환은 없다 |
+| DripBatch | User, Interest, Subscription, Content, Library, Playback, Drip | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
 | Onboarding | User, Interest, Content, Library, Drip, Idempotency | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
 | LibraryScreen | Library, Playback, Content, Drip | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
 | Explore | Content, Library, Playback, Interest, Drip | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
@@ -195,6 +196,8 @@ src/
 | Profile | User, Subscription, Interest, Library, Playback, Content | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
 | Settings | User, Subscription, Interest | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
 | *(도메인 확정 시 계속 추가)* | | |
+
+**DripBatch도 Entity를 갖지 않는다** (신설 2026-08-27 — 일일 편성 배치, `drip-scheduling.md` 2·4). 3.3이 "드립 편성 배치"를 Orchestrator 대상으로 명시한 자리다. 스코어링 입력인 소비 신호(`user_signals`)의 소유자가 `playback`인데 **`playback → drip` 의존이 이미 있어**(재생 시 영구 제외 적재) `drip`이 신호를 읽으면 순환이 된다(`forwardRef` 금지 — 4.3). 그래서 두 모듈 **위에서** Orchestrator가 조합한다. 도메인 판정(스코어링·신호 집계·적립 원자성)은 전부 `drip` 모듈의 Service(`DripScoringService` · `PreferenceVectorService` · `DripPlacementService`)에 있고, Orchestrator는 순서·조합·사용자 단위 실패 격리만 담당한다. 트리거는 05:00 KST 크론(`DripBatchScheduler`)이며 중복 실행은 `drip_batch_runs.run_date` 유니크 선점으로 막는다. 어떤 모듈도 이 모듈을 의존하지 않는다.
 
 **Onboarding은 Entity를 갖지 않는다.** 온보딩은 화면 흐름이라 자기 데이터가 없고 `users` · `user_interests` · `contents` · `library_items` · `first_drip_jobs`를 횡단한다. 4.1의 "모듈은 Entity 기준으로 나눈다"의 예외이며, Repository 없이 **Orchestrator가 각 소유 모듈의 Service를 조합한다**(→ 3.3). 도메인 규칙 판정(주제 개수 상한, 발행 상태, 완료 여부)은 전부 소유 모듈의 Service에 있고 Orchestrator는 순서·조합만 담당한다.
 
