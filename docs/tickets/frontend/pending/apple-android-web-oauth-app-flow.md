@@ -6,7 +6,7 @@
 | 요청 파트 | 프론트엔드 |
 | 발행 날짜 | 2026-08-26 |
 | 발견 시점 | 2026-08-26 안드로이드 애플 로그인 설계 확정 — 짝 티켓(BE)의 요청 4 |
-| 근거 문서 | `features/auth.md` 1·4.1(제공자 버튼 4개 — 플랫폼 구분 없음) · `spec/api/auth-api.md` 4.1(`apple` 검증·nonce 계약) · `features/README.md` 결정 50 · 짝 티켓 `tickets/backend/pending/apple-android-web-oauth-callback.md` |
+| 근거 문서 | `features/auth.md` 1·4.1(제공자 버튼 4개 — 플랫폼 구분 없음) · `spec/api/auth-api.md` 4.1(`apple` 검증·nonce 계약) · `features/README.md` 결정 50 · 짝 티켓 `tickets/backend/archive/apple-android-web-oauth-callback.md`(**완료** — 서버 쪽은 끝났다) |
 | 심각도 | **중** — 안드로이드에서 애플 버튼이 네이티브 모듈 부재로 실패하는 상태가 유지된다. iOS·나머지 3종은 영향 없다 |
 | 상태 | pending — **착수 가능**(BE 실측 완료 2026-08-26, 규약 확정) |
 
@@ -24,7 +24,7 @@
 
 ## 확정 규약 (2026-08-26 — BE 실측·프로덕션 배포 완료)
 
-**서버 쪽은 끝났다.** 콜백 함수가 프로덕션에서 동작하는 것까지 확인했다(짝 티켓 검증표). 착수해도 된다.
+**서버 쪽은 끝났다.** 콜백 함수가 프로덕션에서 동작하는 것까지 확인했고 짝 티켓은 archive로 갔다(검증표는 거기 있다). **이 티켓이 안드로이드 애플 로그인의 유일한 남은 작업이다.**
 
 | 항목 | 확정값 |
 |---|---|

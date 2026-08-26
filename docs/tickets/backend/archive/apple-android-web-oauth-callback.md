@@ -5,10 +5,11 @@
 | 대상 | 애플 웹 OAuth `form_post` 콜백 수신 지점(`https://earcast.co.kr/auth/apple/callback` — **랜딩 Vercel**) · 앱 복귀 딥링크 · `backend/src/modules/auth/providers/apple.client.ts` 120행(`aud` 허용값 2개) · `backend/src/config/env.validation.ts`(`APPLE_CLIENT_ID`) |
 | 요청 파트 | 백엔드 |
 | 발행 날짜 | 2026-08-26 |
+| 반영 날짜 | 2026-08-26 |
 | 발견 시점 | 2026-08-26 FE 소셜 로그인 4종 SDK 연동 병합(PR #63) 후 BE 대응 착수 — `changes/pending/auth-api-apple-android-web-flow(fe).md`가 "백엔드와 정할 것"으로 남긴 항목 검토 |
 | 근거 문서 | `features/auth.md` 1·4.1(제공자 버튼 4개 — 플랫폼 구분 없음) · `spec/api/auth-api.md` 4.1(`apple` 검증·nonce 계약) · `prd/ear_root_prd.md` FR-01 · `backend/architecture.md` 9.1 · 짝 문서 `changes/pending/auth-api-apple-android-web-flow(fe).md` |
 | 심각도 | **중** — 안드로이드에서 애플 버튼이 네이티브 모듈 부재로 실패하는 상태가 유지된다. iOS 애플 로그인·나머지 3종은 영향 없다. 다만 **iOS에서 애플로 가입한 사용자가 안드로이드로 기기를 바꾸면 진입 경로가 없다** |
-| 상태 | pending — **설계는 확정, 실측 하나만 남았다**(아래 "착수 조건") |
+| 상태 | **완료** — BE 요청 4건 전부 닫힘. 종단 검증은 짝 티켓(FE)이 소유 |
 
 ## 배경
 
@@ -156,3 +157,20 @@ App Link(`https`)가 OS 검증으로 가로채기를 원천 차단하지만 **`a
 | nonce | 원본은 앱 메모리에만. authorize에는 **SHA-256 소문자 hex**만 |
 
 **`aud` 확장이 반영됐으므로 `auth-api.md` 4.1도 이제 갱신할 수 있다**(`changes/pending/auth-api-apple-android-web-flow(fe).md` 처리 — 요청 4의 남은 절반).
+
+---
+
+## 처리 기록 — archive 이동 사유 (2026-08-26)
+
+**BE 요청 1~4가 전부 닫혔다.**
+
+| 요청 | 처리 |
+|---|---|
+| 1. Vercel 함수 실측 | **루트 `api/`가 `output: "export"`와 공존한다.** Edge(웹 표준 시그니처) 채택 |
+| 2. 콜백 함수 구현 | `landing-page/api/apple-callback.ts` — 프로덕션 검증 완료(위 검증표) |
+| 3. `aud` 허용값 2개 | `APPLE_SERVICES_ID` 신설, `apple.client.ts` 반영. 403건 통과 |
+| 4. FE 통지·문서 반영 | 짝 티켓 발행 + 확정 규약 기재. `auth-api.md` 4.1에 "`apple` — `aud` 허용값 2개" 절 신설, `changes/archive/auth-api-apple-android-web-flow(fe).md` |
+
+**남은 완료 조건 2건은 이 티켓이 소유하지 않는다** — "안드로이드 기기에서 애플 버튼을 눌러 로그인이 성립한다"와 "악성 앱이 딥링크를 가로채도 실패한다"는 **앱 구현이 있어야 확인되며, 같은 조건이 짝 티켓에 그대로 들어 있다**(`tickets/frontend/pending/apple-android-web-oauth-app-flow.md`). BE가 손댈 것이 없는 항목을 `pending/`에 남겨두면 할 일 목록이 거짓말이 되므로 archive로 옮긴다.
+
+**배포 시 주의** — `APPLE_SERVICES_ID`가 없으면 서버가 기동하지 않는다(`env.validation.ts` 전수 검증).
