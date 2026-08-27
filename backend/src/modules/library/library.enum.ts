@@ -3,6 +3,13 @@ export enum LibraryItemSource {
   DRIP = 'drip',
   SAVE = 'save',
   ONBOARDING = 'onboarding',
+  /**
+   * 탐험 편성(신설 2026-08-27 — `drip-scheduling.md` 4.8). 앱이 "이런 주제는 어떠신가요?"
+   * 구획·배지로 구분 표시하기 위해 값을 나눈다. **정책상 취급은 드립과 같다** —
+   * 출처 필터 [이어 PICK]·도착 배너에 포함되고, 삭제·중복 방지·영구 제외 규칙도 동일하다
+   * (domain.md 6.1).
+   */
+  DISCOVERY = 'discovery',
 }
 
 export enum LibraryItemStatus {
@@ -33,7 +40,7 @@ export enum LibraryItemFilter {
  * 앞으로도 바뀔 수 있지만 `source` enum은 스키마다.
  */
 export enum LibraryItemSourceFilter {
-  /** `source = drip` */
+  /** `source IN (drip, discovery)` — 탐험 편도 "이어가 보내준 것"이다(개정 2026-08-27, `library-api.md` 4.1) */
   DRIP = 'drip',
   /**
    * `source IN (save, onboarding)` — **온보딩 적립분을 포함한다.**

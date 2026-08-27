@@ -29,6 +29,29 @@ export class UserRepository {
     return this.scoped(manager).findOneBy({ provider, providerUserId });
   }
 
+  /**
+   * 편성 배치 대상 한 페이지 — **온보딩을 마친 사용자 전부**다(`drip-scheduling.md` 2 —
+   * 전 티어 대상, 티어는 편수만 가른다). 탈퇴자는 행이 삭제되므로 조건이 필요 없다.
+   * `id` keyset으로 전체를 순회한다 — offset은 배치 도중의 가입·탈퇴로 어긋난다.
+   */
+  async findDripTargetsPage(
+    afterId: string | null,
+    limit: number,
+    manager?: EntityManager,
+  ): Promise<User[]> {
+    const builder = this.scoped(manager)
+      .createQueryBuilder('user')
+      .where('user.onboarding_completed = true')
+      .orderBy('user.id', 'ASC')
+      .limit(limit);
+
+    if (afterId) {
+      builder.andWhere('user.id > :afterId', { afterId });
+    }
+
+    return builder.getMany();
+  }
+
   async save(user: User, manager?: EntityManager): Promise<User> {
     return this.scoped(manager).save(user);
   }

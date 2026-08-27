@@ -30,6 +30,21 @@ export enum FirstDripJobStatus {
   FAILED = 'failed',
 }
 
+/**
+ * `drip-scheduling.md` 4.3 해석 표의 신호다. 값은 playback의 `UserSignalAction`과 같다
+ * (계약: domain.md 6.4) — 별도 enum을 두는 이유는 `playback → drip` 의존이 이미 있어
+ * drip이 playback을 import하면 순환이 되기 때문이다(architecture.md 4.5).
+ * 매핑은 편성 배치 Orchestrator(두 모듈 위)가 한다.
+ */
+export enum PreferenceSignalAction {
+  PLAY = 'play',
+  COMPLETE = 'complete',
+  SAVE = 'save',
+  UNSAVE = 'unsave',
+  DELETE = 'delete',
+  REPLAY = 'replay',
+}
+
 /** 클라이언트가 더 폴링할 이유가 없는 상태 (onboarding-api.md 4.8) */
 export const TERMINAL_FIRST_DRIP_STATUSES: readonly FirstDripJobStatus[] = [
   FirstDripJobStatus.COMPLETED,

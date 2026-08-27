@@ -112,4 +112,29 @@ export class PlanService {
 
     return lightPlan?.dailyDripCount ?? 0;
   }
+
+  /**
+   * 탐험 편성 편수(`drip-scheduling.md` 4.8 — `plans.daily_discovery_count`, 전 티어 1편).
+   * 행 누락 폴백은 `getDailyDripCount`와 같은 논리다 — 전 티어 값이 같아 추정이 아니다.
+   * 0이면 탐험 편성이 꺼진다(배포 없이 조정하는 정책값 — domain.md 8.1).
+   */
+  async getDailyDiscoveryCount(
+    tier: UserTier,
+    manager?: EntityManager,
+  ): Promise<number> {
+    const plan = await this.findByTier(tier, manager);
+
+    if (plan) {
+      return plan.isDripEnabled ? plan.dailyDiscoveryCount : 0;
+    }
+
+    const lightPlan = await this.findByTier(UserTier.LIGHT, manager);
+
+    this.logger.error('plan row is missing for tier', {
+      tier,
+      fallbackApplied: Boolean(lightPlan),
+    });
+
+    return lightPlan?.dailyDiscoveryCount ?? 0;
+  }
 }

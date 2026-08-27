@@ -10,6 +10,7 @@ import { EnvironmentVariables, validateEnv } from '@/config/env.validation';
 import { DatabaseModule } from '@/database/database.module';
 import { AuthModule } from '@/modules/auth/auth.module';
 import { ContentDetailModule } from '@/modules/content-detail/content-detail.module';
+import { DripBatchModule } from '@/modules/drip-batch/drip-batch.module';
 import { ExploreModule } from '@/modules/explore/explore.module';
 import { HealthModule } from '@/modules/health/health.module';
 import { LibraryScreenModule } from '@/modules/library-screen/library-screen.module';
@@ -51,6 +52,7 @@ import { UserModule } from '@/modules/user/user.module';
     PlaybackModule,
     LibraryScreenModule,
     ExploreModule,
+    DripBatchModule,
     ContentDetailModule,
     ProfileModule,
     SettingsModule,

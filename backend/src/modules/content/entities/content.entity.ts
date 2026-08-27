@@ -2,7 +2,12 @@ import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
 import { BaseEntity } from '@/database/base.entity';
 
-import { ContentOrigin, ContentStatus } from '../content.enum';
+import {
+  ContentDifficulty,
+  ContentFormat,
+  ContentOrigin,
+  ContentStatus,
+} from '../content.enum';
 
 /**
  * domain.md 5.1 — 단일 표준 에피소드. 같은 콘텐츠는 전 사용자에게 동일하며 변형은 없다.
@@ -67,6 +72,25 @@ export class Content extends BaseEntity {
 
   @Column({ name: 'thumbnail_url', type: 'varchar', length: 2048 })
   thumbnailUrl: string;
+
+  /**
+   * 추천 메타 4종(domain.md 5.1 — 신설 2026-08-26). **전부 NULL 허용이다** —
+   * 부여 파이프라인(`ai/metadata-pipeline.md`)을 거치지 않은 콘텐츠도 발행을 막지 않고,
+   * 스코어링이 해당 항목을 중립 처리한다(`drip-scheduling.md` 4.2 재정규화).
+   */
+  @Column({ name: 'difficulty', type: 'varchar', length: 20, nullable: true })
+  difficulty: ContentDifficulty | null;
+
+  @Column({ name: 'format', type: 'varchar', length: 30, nullable: true })
+  format: ContentFormat | null;
+
+  /** true: 에버그린(오래돼도 신선도 감점 없음) / false: 시의성(감쇠 강화) / null: 종전 단일 감쇠 */
+  @Column({ name: 'is_evergreen', type: 'boolean', nullable: true })
+  isEvergreen: boolean | null;
+
+  /** 세부 키워드 배열 — 주제(수십 개 단위)보다 잘게 취향을 잡는다(`drip-scheduling.md` 4.2 ②) */
+  @Column({ name: 'keywords', type: 'jsonb', nullable: true })
+  keywords: string[] | null;
 
   /** 재발행 시 같은 행의 값을 올린다. 새 행을 만들지 않으므로 참조가 유지된다 */
   @Column({ name: 'content_version', type: 'int', default: 1 })

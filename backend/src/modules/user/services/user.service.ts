@@ -41,6 +41,15 @@ export class UserService {
     );
   }
 
+  /** 편성 배치 대상(온보딩 완료자) 한 페이지 — `id` keyset 순회 */
+  async findDripTargetsPage(
+    afterId: string | null,
+    limit: number,
+    manager?: EntityManager,
+  ): Promise<User[]> {
+    return this.userRepository.findDripTargetsPage(afterId, limit, manager);
+  }
+
   async getById(id: string, manager?: EntityManager): Promise<User> {
     const user = await this.userRepository.findById(id, manager);
 

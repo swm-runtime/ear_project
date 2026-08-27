@@ -58,6 +58,31 @@ export class ContentStatRepository {
     return rows.map((row) => row.content_id);
   }
 
+  /**
+   * 전체 구간(`period_type = all`) 집계 — 편성 스코어링의 인기도 입력이다
+   * (`drip-scheduling.md` 4.2 ③). 전체 구간에는 확정 개념이 없어 `is_final`을 걸지 않는다.
+   */
+  async findAllTimeByContentIds(
+    contentIds: string[],
+    allTimePeriodStart: string,
+    manager?: EntityManager,
+  ): Promise<ContentStat[]> {
+    if (contentIds.length === 0) {
+      return [];
+    }
+
+    return this.scoped(manager)
+      .createQueryBuilder('stat')
+      .where('stat.content_id IN (:...contentIds)', { contentIds })
+      .andWhere('stat.period_type = :periodType', {
+        periodType: StatsPeriodType.ALL,
+      })
+      .andWhere('stat.period_start = :periodStart', {
+        periodStart: allTimePeriodStart,
+      })
+      .getMany();
+  }
+
   async saveAll(
     stats: ContentStat[],
     manager?: EntityManager,

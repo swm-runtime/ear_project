@@ -4,7 +4,7 @@ import { EntityManager } from 'typeorm';
 import { toPreviousFinalMonthStart } from '@/common/utils/service-date.util';
 
 import { MONTHLY_POPULAR_SAMPLE_THRESHOLD } from '../content.constant';
-import { StatsPeriodType } from '../content.enum';
+import { ALL_TIME_PERIOD_START, StatsPeriodType } from '../content.enum';
 import { ContentStatRepository } from '../repositories/content-stat.repository';
 
 /**
@@ -34,6 +34,28 @@ export class ContentStatService {
     );
 
     return total >= MONTHLY_POPULAR_SAMPLE_THRESHOLD;
+  }
+
+  /**
+   * 콘텐츠별 전체 구간 재생·완청 수 — 편성 스코어링의 인기도 입력(`drip-scheduling.md` 4.2 ③).
+   * 집계 행이 없는 콘텐츠는 맵에 없다(호출부가 0으로 취급한다).
+   */
+  async findAllTimeCounts(
+    contentIds: string[],
+    manager?: EntityManager,
+  ): Promise<Map<string, { playCount: number; completeCount: number }>> {
+    const stats = await this.contentStatRepository.findAllTimeByContentIds(
+      contentIds,
+      ALL_TIME_PERIOD_START,
+      manager,
+    );
+
+    return new Map(
+      stats.map((stat) => [
+        stat.contentId,
+        { playCount: stat.playCount, completeCount: stat.completeCount },
+      ]),
+    );
   }
 
   /** 직전 확정 월 기준 상위 콘텐츠 ID (재생 수 내림차순) */

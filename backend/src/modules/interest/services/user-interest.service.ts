@@ -102,6 +102,24 @@ export class UserInterestService {
     return interests.map((interest) => interest.topicId);
   }
 
+  /**
+   * 사용자가 **직접 해제한** 주제 — 탐험 편성(`drip-scheduling.md` 4.8-4)과
+   * 자동 확장(4.5)이 이 주제의 콘텐츠·재추가를 피한다.
+   */
+  async findUserRemovedTopicIds(
+    userId: string,
+    manager?: EntityManager,
+  ): Promise<string[]> {
+    const interests = await this.userInterestRepository.findAllByUserId(
+      userId,
+      manager,
+    );
+
+    return interests
+      .filter((interest) => interest.isUserRemoved)
+      .map((interest) => interest.topicId);
+  }
+
   async hasActiveInterest(
     userId: string,
     manager?: EntityManager,

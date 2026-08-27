@@ -38,6 +38,13 @@ export class Plan extends BaseEntity {
   @Column({ name: 'daily_drip_count', type: 'int' })
   dailyDripCount: number;
 
+  /**
+   * 일일 탐험 편성 편수(domain.md 8.1 — 신설 2026-08-27, `drip-scheduling.md` 4.8).
+   * 전 티어 1편이며, 0으로 내리면 탐험 편성이 꺼진다 — 배포 없이 조정할 정책값이다.
+   */
+  @Column({ name: 'daily_discovery_count', type: 'int', default: 1 })
+  dailyDiscoveryCount: number;
+
   @Column({ name: 'is_drip_enabled', type: 'boolean' })
   isDripEnabled: boolean;
 

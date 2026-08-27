@@ -229,6 +229,50 @@ export class LibraryService {
     );
   }
 
+  /** 미청취 재고(`drip-scheduling.md` 4.1) — 편성 배치의 스킵 판정 입력 */
+  async countUnfinished(
+    userId: string,
+    manager?: EntityManager,
+  ): Promise<number> {
+    return this.libraryItemRepository.countUnfinishedByUserId(userId, manager);
+  }
+
+  /** 최근 편성분(드립·탐험) `content_id` — 노출 피로 감점 입력(`drip-scheduling.md` 4.2 ③) */
+  async findRecentDripContentIds(
+    userId: string,
+    since: Date,
+    manager?: EntityManager,
+  ): Promise<string[]> {
+    return this.libraryItemRepository.findRecentContentIdsByUserIdAndSources(
+      userId,
+      [LibraryItemSource.DRIP, LibraryItemSource.DISCOVERY],
+      since,
+      manager,
+    );
+  }
+
+  /** 콘텐츠별 전 사용자 편성 이력 수 — 탐험 저노출 판정 입력(`drip-scheduling.md` 4.8-2) */
+  async countExposures(
+    contentIds: string[],
+    manager?: EntityManager,
+  ): Promise<Map<string, number>> {
+    return this.libraryItemRepository.countExposuresByContentIds(
+      contentIds,
+      manager,
+    );
+  }
+
+  /** 완청한 시리즈의 최대 회차 — 시리즈 연속성·다음 편 허용 판정 입력(`drip-scheduling.md` 4.2·7) */
+  async findCompletedSeriesMaxEpisodes(
+    userId: string,
+    manager?: EntityManager,
+  ): Promise<Map<string, number>> {
+    return this.libraryItemRepository.findCompletedSeriesMaxEpisodes(
+      userId,
+      manager,
+    );
+  }
+
   /**
    * 완청한 고유 콘텐츠 수 — 프로필 통계의 `completed_content_count`(`profile.md` 4.5).
    *
