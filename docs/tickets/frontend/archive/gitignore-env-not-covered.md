@@ -34,3 +34,10 @@
 - Given `frontend/.gitignore` / When 확인한다 / Then `.env`가 무시 목록에 있다
 - Given `frontend/` 아래에 `.env` 파일을 만든다 / When `git status`를 본다 / Then 추적 대상으로 뜨지 않는다
 - Given 저장소 전체 / When `git ls-files | grep -i "\.env"`를 실행한다 / Then `.env.example` 계열만 나온다
+
+---
+
+## 처리 기록 (반영 날짜 2026-08-27 — 브랜치 `feat(fe)/apple-web-oauth`)
+
+- `frontend/.gitignore`의 env 블록을 backend와 같은 기준으로 확장 — `.env` · `.env*.local` · `.env.development` · `.env.test` · `.env.production`.
+- 완료 조건 검증: `git ls-files | grep -i "\.env"` → `backend/.env.example`뿐 / `frontend/.env`를 만들어 `git status` → 추적 대상으로 뜨지 않음(확인 후 삭제).
