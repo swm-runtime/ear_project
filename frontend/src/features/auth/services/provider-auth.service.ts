@@ -26,6 +26,9 @@ interface SocialAuthKeys {
   googleWebClientId: string;
   googleIosClientId: string;
   kakaoNativeAppKey: string;
+  /** 애플 웹 플로우(안드로이드)의 client_id — 앱 번들 ID가 아니라 Services ID다 */
+  appleServicesId: string;
+  appleRedirectUri: string;
   naverAppName: string;
   naverConsumerKey: string;
   naverConsumerSecret: string;
@@ -120,16 +123,12 @@ const authenticateWithNaver = async (): Promise<ProviderAuthResult> => {
 };
 
 /**
- * 애플 — identity token + 원본 nonce를 함께 보낸다(auth-api.md 4.1).
+ * 애플(iOS) — identity token + 원본 nonce를 함께 보낸다(auth-api.md 4.1).
  * expo-apple-authentication은 nonce를 가공 없이 인가 요청에 싣는다(네이티브 소스 확인).
  * 따라서 해시는 여기서 만든다: 원본 → SHA-256 해시를 요청에, 원본을 서버에.
  * 이메일·이름은 최초 인가 때 한 번만 온다 — 저장은 identity token을 받은 서버 책임이다(auth.md 4.1).
  */
-const authenticateWithApple = async (): Promise<ProviderAuthResult> => {
-  if (Platform.OS !== 'ios') {
-    // TODO(auth): Android 애플 로그인은 웹 OAuth 폴백(expo-auth-session) 결정 후 별도 연동
-    throw new Error('apple sign-in is ios-only for now');
-  }
+const authenticateWithAppleNative = async (): Promise<ProviderAuthResult> => {
   const AppleAuthentication = await import('expo-apple-authentication');
   const Crypto = await import('expo-crypto');
   const rawNonce = Crypto.randomUUID();
@@ -152,6 +151,69 @@ const authenticateWithApple = async (): Promise<ProviderAuthResult> => {
     throw error;
   }
 };
+
+/** 복귀 딥링크 주소 — app.json `scheme`("ear")·랜딩 콜백과 한 몸이다(티켓 확정 2026-08-26) */
+const APPLE_WEB_RETURN_URL = 'ear://auth/apple';
+
+/** RN의 URL 폴리필은 searchParams를 지원하지 않아 쿼리를 직접 파싱한다 */
+const parseQueryParams = (url: string): Record<string, string> => {
+  const queryStart = url.indexOf('?');
+  if (queryStart === -1) return {};
+  const params: Record<string, string> = {};
+  for (const pair of url.slice(queryStart + 1).split('&')) {
+    const separator = pair.indexOf('=');
+    if (separator <= 0) continue;
+    params[decodeURIComponent(pair.slice(0, separator))] = decodeURIComponent(
+      pair.slice(separator + 1),
+    );
+  }
+  return params;
+};
+
+/**
+ * 애플(안드로이드) — 네이티브 SDK가 iOS 전용이라 웹 OAuth로 간다
+ * (tickets: apple-android-web-oauth-app-flow, 규약 확정 2026-08-26).
+ * 애플은 등록된 HTTPS Return URL로만 form_post하므로 랜딩 콜백(비밀값 없는 중계기)이
+ * 받아 `ear://auth/apple?id_token=...`으로 앱에 직송한다. client_id는 번들 ID가 아니라
+ * Services ID다(서버 aud 분기 — auth-api.md 4.1).
+ *
+ * **원본 nonce는 앱 메모리에만 둔다 — 이 설계의 안전성이 통째로 여기 걸려 있다.**
+ * authorize에는 SHA-256 소문자 hex 해시만 싣는다. 악성 앱이 `ear://` 스킴을 가로채
+ * id_token을 훔쳐도 원본 nonce가 없어 로그인에 쓸 수 없다(티켓 요청 4).
+ */
+const authenticateWithAppleWeb = async (): Promise<ProviderAuthResult> => {
+  const WebBrowser = await import('expo-web-browser');
+  const Crypto = await import('expo-crypto');
+  const keys = getSocialAuthKeys();
+  const rawNonce = Crypto.randomUUID();
+  const hashedNonce = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, rawNonce);
+  // 복귀 딥링크가 이 요청의 응답인지 대조한다 — 다른 시도의 늦은 콜백을 배제
+  const state = Crypto.randomUUID();
+  const authorizeUrl =
+    'https://appleid.apple.com/auth/authorize' +
+    `?client_id=${encodeURIComponent(keys.appleServicesId)}` +
+    `&redirect_uri=${encodeURIComponent(keys.appleRedirectUri)}` +
+    '&response_type=code%20id_token' +
+    '&response_mode=form_post' +
+    '&scope=name%20email' +
+    `&nonce=${hashedNonce}` +
+    `&state=${state}`;
+
+  const session = await WebBrowser.openAuthSessionAsync(authorizeUrl, APPLE_WEB_RETURN_URL);
+  // 브라우저를 그냥 닫고 돌아온 것도 취소다 — 무반응 복귀(auth-uiux.md 4.2)
+  if (session.type !== 'success') throw new ProviderAuthCancelledError();
+
+  const params = parseQueryParams(session.url);
+  // 취소·실패도 같은 딥링크의 error 쿼리로 온다 — 문구 판단은 앱 몫(티켓 확정 규약)
+  if (params.error === 'user_cancelled_authorize') throw new ProviderAuthCancelledError();
+  if (params.error !== undefined) throw new Error(`apple web sign-in failed: ${params.error}`);
+  if (params.state !== state) throw new Error('apple web sign-in state mismatch');
+  if (!params.id_token) throw new Error('apple web sign-in returned no id token');
+  return { providerToken: params.id_token, nonce: rawNonce };
+};
+
+const authenticateWithApple = (): Promise<ProviderAuthResult> =>
+  Platform.OS === 'ios' ? authenticateWithAppleNative() : authenticateWithAppleWeb();
 
 /* ── mock — 제공자 SDK 대역. 서버 대역은 api/auth.mock.ts가 따로 맡는다 ── */
 

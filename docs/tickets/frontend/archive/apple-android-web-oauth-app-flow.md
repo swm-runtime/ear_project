@@ -64,3 +64,14 @@
 - ~~authorize 파라미터(A/B)~~ → **해소(2026-08-26)**: form_post로 확정. 위 "확정 규약"
 - ~~취소·실패 시 동작~~ → **해소(2026-08-26)**: 에러도 같은 딥링크로 앱에 돌려보낸다. 랜딩에 안내를 띄우면 사용자가 브라우저에 갇힌다
 - **딥링크 방식 전환** — 안드로이드 배포 서명 SHA-256 지문 확보 후 커스텀 스킴 → App Link로 옮긴다(`share-universal-links-hosting.md`와 공유하는 블로커)
+
+---
+
+## 처리 기록 (반영 날짜 2026-08-27 — 브랜치 `feat(fe)/apple-web-oauth`)
+
+- **요청 1** — `app.json` 최상위에 `"scheme": "ear"` 등록. prebuild로 AndroidManifest에 `<data android:scheme="ear"/>` 주입 확인(완료 조건 1 충족).
+- **요청 2** — `authenticateWithApple`을 플랫폼 분기로 확장: iOS는 기존 네이티브(`authenticateWithAppleNative`) 그대로, 안드로이드는 `authenticateWithAppleWeb` 신설. 구현 수단은 expo-auth-session이 아니라 **expo-web-browser `openAuthSessionAsync`** — 커스텀 플로우(form_post → 랜딩 중계 → 스킴 복귀)라 AuthRequest 추상화가 맞지 않고, 복귀 딥링크가 프라미스 반환값으로 와서 전역 딥링크 리스너 없이 기존 `authenticateWithProvider` 구조에 그대로 맞는다. `client_id`는 `extra.socialAuth.appleServicesId`(`com.runtime.ear.signin`), redirect는 `appleRedirectUri` — app config로 관리(architecture 9.1).
+- **요청 3** — 복귀 URL의 쿼리를 파싱(RN URL 폴리필이 searchParams 미지원이라 직접 파싱)해 `id_token`+원본 nonce로 기존 `socialLogin` 경로를 그대로 탄다. `state`(요청마다 무작위)를 발급·대조해 다른 시도의 늦은 콜백을 배제한다.
+- **요청 4** — 원본 nonce는 함수 지역변수(앱 메모리)뿐이다. authorize에는 `digestStringAsync` SHA-256 **소문자 hex** 해시만 싣는다 — iOS 네이티브 경로와 동일 규칙·동일 서버 대조.
+- **요청 5(취소·실패)** — `error=user_cancelled_authorize` → `ProviderAuthCancelledError`(무반응 복귀). 브라우저를 그냥 닫은 것(dismiss)도 취소로 취급. 그 외 `error`는 일반 실패로 던져 기존 실패 토스트를 탄다. **완료 조건의 "정해진 안내가 뜨고"는 features/auth.md 7("사용자가 인증 취소 — 별도 에러 문구 없음")과 상충해 features 기준(무반응)으로 처리했다** — 안내가 필요하다는 결정이면 별도 요청으로.
+- 검증: tsc·eslint·jest 68/68 통과. **완료 조건 2·4·5(실기기 E2E)는 안드로이드 dev/스탠드얼론 빌드에서 확인 필요** — nonce 해시는 코드 경로상 원본이 authorize URL에 실릴 수 없는 구조다.
