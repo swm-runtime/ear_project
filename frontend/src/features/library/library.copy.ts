@@ -97,6 +97,17 @@ export const LIBRARY_COPY = {
     offlinePlayToast: '인터넷 연결을 확인해주세요',
   },
 
+  /**
+   * 탐험 편(source = discovery) 표시(library.md 4.6-1 신설 2026-08-27).
+   * TODO(카피 미확정): 섹션 타이틀·배지 문구는 제안 카피 — spec/uiux 개정으로 확정 시 교체한다.
+   */
+  discovery: {
+    /** [이어 PICK] 뷰의 탐험 구획 타이틀 */
+    sectionTitle: '이런 주제는 어떠신가요?',
+    /** 전체 목록의 행 배지 — 제안 성격을 드러낸다 */
+    badge: '새로운 주제',
+  },
+
   card: {
     /** 완청은 썸네일 좌상단 체크로만 표시한다 — 색이 아니라 형태 단서(uiux 7) */
     completedA11y: '완청한 콘텐츠',

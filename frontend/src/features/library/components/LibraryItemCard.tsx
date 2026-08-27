@@ -10,6 +10,12 @@ interface LibraryItemCardProps {
   /** 카드 본문 탭 = 즉시 재생 판정. 상세 화면을 거치지 않는다(library.md 4.3) */
   onPress: (item: LibraryItem) => void;
   onMorePress: (item: LibraryItem) => void;
+  /**
+   * 탐험 편(source = discovery) 행 배지 노출 여부 — 전체 목록에서만 켠다.
+   * [이어 PICK] 뷰는 구획이 이미 구분하므로 끈다(library.md 4.6-1).
+   * 출처 배지 금지(4.1-1)의 예외는 이 배지 하나다 — 제안 성격을 드러내는 장치다.
+   */
+  showDiscoveryBadge?: boolean;
 }
 
 const formatDuration = (durationSec: number): string =>
@@ -20,8 +26,14 @@ const formatDuration = (durationSec: number): string =>
  * 출처 배지·상태 텍스트를 없애고, 완청은 썸네일 좌상단 체크(색이 아니라 형태 단서 — uiux 7),
  * 듣다 만 것은 진행률 바로만 구분한다. 더보기만 별도 히트 영역(44pt)이다.
  */
-export default function LibraryItemCard({ item, onPress, onMorePress }: LibraryItemCardProps) {
+export default function LibraryItemCard({
+  item,
+  onPress,
+  onMorePress,
+  showDiscoveryBadge = false,
+}: LibraryItemCardProps) {
   const isCompleted = item.status === 'completed';
+  const hasDiscoveryBadge = showDiscoveryBadge && item.source === 'discovery';
   const progressRatio =
     item.status === 'in_progress' && item.progress && item.content.durationSec > 0
       ? Math.min(1, item.progress.positionSec / item.content.durationSec)
@@ -34,11 +46,14 @@ export default function LibraryItemCard({ item, onPress, onMorePress }: LibraryI
         style={styles.body}
         onPress={() => onPress(item)}
         accessibilityRole="button"
-        accessibilityLabel={
-          isCompleted
-            ? `${item.content.title}, ${LIBRARY_COPY.card.completedA11y}`
-            : item.content.title
-        }
+        accessibilityLabel={[
+          // 배지는 라벨이 자식 텍스트를 덮으므로 a11y 라벨에도 싣는다(uiux 7)
+          hasDiscoveryBadge ? LIBRARY_COPY.discovery.badge : null,
+          item.content.title,
+          isCompleted ? LIBRARY_COPY.card.completedA11y : null,
+        ]
+          .filter(Boolean)
+          .join(', ')}
         accessibilityHint="재생"
       >
         <View>
@@ -50,6 +65,11 @@ export default function LibraryItemCard({ item, onPress, onMorePress }: LibraryI
           ) : null}
         </View>
         <View style={styles.info}>
+          {hasDiscoveryBadge ? (
+            <View style={styles.discoveryBadge}>
+              <Text style={styles.discoveryBadgeLabel}>{LIBRARY_COPY.discovery.badge}</Text>
+            </View>
+          ) : null}
           <Text style={styles.title} numberOfLines={2}>
             {item.content.title}
           </Text>
@@ -122,6 +142,19 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: theme.spacing.xs,
     justifyContent: 'center',
+  },
+  discoveryBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 2,
+    borderRadius: theme.radius.full,
+    borderWidth: 1,
+    borderColor: theme.color.primary,
+  },
+  discoveryBadgeLabel: {
+    fontSize: theme.font.size.xs,
+    fontWeight: '600',
+    color: theme.color.primary,
   },
   title: {
     fontSize: theme.font.size.sm,

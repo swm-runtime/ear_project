@@ -25,6 +25,7 @@ import { evaluateDripArrivals } from '../library.new-arrival';
 import type {
   LibraryFilter,
   LibraryItem,
+  LibraryListRow,
   LibrarySourceFilter,
   LibraryTopic,
 } from '../library.types';
@@ -140,6 +141,23 @@ export const useLibraryScreen = () => {
     [pages, hiddenItemIds],
   );
   const hasData = pages !== undefined;
+
+  /** [이어 PICK] 필터 뷰 여부 — 탐험 편 표시 방식이 갈린다(구획 vs 행 배지, library.md 4.6-1) */
+  const isPickView = sourceFilter === 'drip';
+
+  // 렌더 행 — PICK 뷰에서만 탐험 편을 구획으로 분리한다. 하루 1편이라 정렬·커서에 영향 없고,
+  // 알 수 없는 source는 정규 구획으로 떨어뜨린다(discovery 판정만 특수 취급 — 크래시·미표시 방지)
+  const listRows = useMemo<LibraryListRow[]>(() => {
+    const toRow = (item: LibraryItem): LibraryListRow => ({ kind: 'item', item });
+    if (!isPickView) return items.map(toRow);
+    const discoveryItems = items.filter((item) => item.source === 'discovery');
+    if (discoveryItems.length === 0) return items.map(toRow);
+    return [
+      ...items.filter((item) => item.source !== 'discovery').map(toRow),
+      { kind: 'discoveryHeader' as const },
+      ...discoveryItems.map(toRow),
+    ];
+  }, [items, isPickView]);
 
   const isOffline = itemsQuery.isError && hasData && isNetworkError(itemsError);
   const isFullError = itemsQuery.isError && !hasData;
@@ -441,6 +459,8 @@ export const useLibraryScreen = () => {
   return {
     // 목록
     items,
+    listRows,
+    isPickView,
     filter,
     setFilter: changeFilter,
     emptyKind,
