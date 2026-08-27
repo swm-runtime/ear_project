@@ -1,7 +1,11 @@
 import type { PlayLimitSnapshot } from '@/features/player';
 
-/** 서버 계약의 source 원값 그대로(domain.md 6.1). 배지 라벨 매핑은 copy가 한다 */
-export type LibrarySource = 'drip' | 'save' | 'onboarding';
+/**
+ * 서버 계약의 source 원값 그대로(domain.md 6.1). 배지 라벨 매핑은 copy가 한다.
+ * discovery는 탐험 편성 — "이런 주제는 어떠신가요?" 구분 표시의 판정 재료다
+ * (library-api.md 4.1 신설 2026-08-27, 새 필드 없이 이 값 하나로 판정한다).
+ */
+export type LibrarySource = 'drip' | 'save' | 'onboarding' | 'discovery';
 
 export type LibraryItemStatus = 'unplayed' | 'in_progress' | 'completed';
 
@@ -53,6 +57,14 @@ export interface LibraryItem {
   /** playback_progresses 조인 결과. 행이 없으면 null — 0으로 채우지 않는다 */
   progress: LibraryProgress | null;
 }
+
+/**
+ * 목록 렌더 행 — [이어 PICK] 뷰에서만 탐험 구획 헤더가 행으로 끼어든다(library.md 4.6-1).
+ * 전체 목록은 item 행뿐이다(구획 없이 시간순 유지 + 행 배지).
+ */
+export type LibraryListRow =
+  | { kind: 'item'; item: LibraryItem }
+  | { kind: 'discoveryHeader' };
 
 export interface LibraryPage {
   items: LibraryItem[];

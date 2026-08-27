@@ -122,6 +122,8 @@ const initialItems = (): MockItem[] => {
     maxReachedSec: 240,
   });
   items[7] = makeItem(8, { source: 'onboarding' });
+  // 탐험 편 1건(하루 1편 — drip-scheduling.md 4.8) — 구획·행 배지·배너 합산 확인용
+  items[2] = makeItem(3, { source: 'discovery' });
   return items;
 };
 
@@ -180,8 +182,9 @@ export const mockFetchItems = async (
     return true;
   });
   // 출처 필터 — save는 사용자가 직접 담은 것(save·onboarding)을 묶는다(FE 개편 2026-08-07)
+  // drip은 탐험 편성분을 포함한다 — source IN ('drip','discovery')(library-api.md 4.1 개정 2026-08-27)
   if (params.source_filter === 'drip') {
-    items = items.filter((item) => item.source === 'drip');
+    items = items.filter((item) => item.source === 'drip' || item.source === 'discovery');
   } else if (params.source_filter === 'save') {
     items = items.filter((item) => item.source === 'save' || item.source === 'onboarding');
   }

@@ -25,6 +25,7 @@ import TopicFilterSheet from '../components/TopicFilterSheet';
 import UndoSnackbar from '../components/UndoSnackbar';
 import { useLibraryScreen } from '../hooks/useLibraryScreen';
 import { LIBRARY_COPY } from '../library.copy';
+import type { LibraryListRow } from '../library.types';
 
 /** L1 라이브러리 — 앱의 첫 화면. 화면은 뷰만 담당하고 로직은 useLibraryScreen이 소유한다 */
 export default function LibraryScreen() {
@@ -159,16 +160,28 @@ export default function LibraryScreen() {
         <View style={styles.container} />
       ) : (
         <FlatList
-          data={screen.items}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <LibraryItemCard
-              item={item}
-              onPress={screen.handleItemPress}
-              onMorePress={screen.openMoreSheet}
-            />
-          )}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
+          data={screen.listRows}
+          keyExtractor={(row) => (row.kind === 'item' ? row.item.id : 'discovery-header')}
+          renderItem={({ item: row }) =>
+            row.kind === 'discoveryHeader' ? (
+              // [이어 PICK] 뷰의 탐험 구획 타이틀 — 정규 드립 구획 뒤에 온다(library.md 4.6-1)
+              <Text style={styles.discoverySectionTitle} accessibilityRole="header">
+                {LIBRARY_COPY.discovery.sectionTitle}
+              </Text>
+            ) : (
+              <LibraryItemCard
+                item={row.item}
+                onPress={screen.handleItemPress}
+                onMorePress={screen.openMoreSheet}
+                // 행 배지는 전체 목록에서만 — PICK 뷰는 구획이 구분한다(library.md 4.6-1)
+                showDiscoveryBadge={!screen.isPickView}
+              />
+            )
+          }
+          ItemSeparatorComponent={({ leadingItem }: { leadingItem: LibraryListRow }) =>
+            // 구획 타이틀 바로 아래에는 구분선을 긋지 않는다 — 타이틀이 밑줄처럼 보인다
+            leadingItem.kind === 'discoveryHeader' ? null : <View style={styles.separator} />
+          }
           ListEmptyComponent={renderEmpty()}
           ListFooterComponent={renderFooter()}
           contentContainerStyle={screen.items.length === 0 ? styles.emptyContent : undefined}
@@ -243,6 +256,14 @@ const styles = StyleSheet.create({
     height: StyleSheet.hairlineWidth,
     backgroundColor: theme.color.border,
     marginLeft: theme.spacing.md,
+  },
+  discoverySectionTitle: {
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.lg,
+    paddingBottom: theme.spacing.xs,
+    fontSize: theme.font.size.md,
+    fontWeight: '700',
+    color: theme.color.textPrimary,
   },
   emptyContent: {
     flexGrow: 1,
