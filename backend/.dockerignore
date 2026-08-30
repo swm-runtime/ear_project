@@ -8,3 +8,4 @@ storage
 *.log
 .git
 deploy
+!deploy/docker-entrypoint.sh

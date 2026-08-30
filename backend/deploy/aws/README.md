@@ -28,6 +28,14 @@ S3 키는 무작위이고 URL에는 `/play/<contentId>`만 보인다. `contentId
 KeyValueStore에 있고, 뷰어 요청 단계의 CloudFront Function(`audio-rewrite.function.js`)이
 재작성한다. 그래서 `audio_path`는 어떤 응답·URL에도 실리지 않는다(domain.md 5.1).
 
+**관리자 웹 콘솔로 올리는 게 기본이다** (`admin.<도메인>`, `deploy/admin/`). 위 스크립트는 콘솔이
+없을 때의 수동 경로다. 콘솔 업로드는 API 서버가 S3·KVS에 직접 쓰므로 **인스턴스 롤**에
+`s3:PutObject/DeleteObject`(오디오 버킷) + `cloudfront-keyvaluestore:DescribeKeyValueStore/PutKey/DeleteKey`
+(KVS ARN)가 필요하고, 컨테이너가 IMDS를 읽도록 `--http-put-response-hop-limit 2`를 준다.
+썸네일은 같은 버킷 `thumb/*`에 올리고 CloudFront에 **서명 없는 `thumb/*` 동작**을 하나 더 둔다.
+
+KVS 쓰기가 CloudFront 엣지에 퍼지는 데 **수 초~10초** 걸린다 — 발행 직후 `/play/<id>`는 잠깐 404일 수 있다.
+
 **콘텐츠 회수 시** KVS 키도 지워라: `aws cloudfront-keyvaluestore delete-key --kvs-arn $KVS_ARN --key <contentId> --if-match <ETag>`
 — 서버가 발급을 막는 것과 별개로, 이미 나간 URL이 5분간 살아 있는 창을 닫는다.
 
@@ -44,8 +52,12 @@ Function이 재작성한 뒤 서명을 검증하는지 순서가 문서에 명�
 - 인스턴스 롤: `s3:PutObject` on `ear-backup-prod/*` (백업용). 오디오 버킷 권한은 필요 없다(업로드는 로컬에서).
 
 ```bash
-# 서버에서
-sudo dnf install -y docker git && sudo systemctl enable --now docker && sudo usermod -aG docker $USER
+# 서버에서 (AL2023에는 compose·buildx·cronie가 없다 — 따로 설치한다)
+sudo dnf install -y docker git cronie && sudo systemctl enable --now docker crond && sudo usermod -aG docker $USER
+sudo mkdir -p /usr/local/lib/docker/cli-plugins && cd /usr/local/lib/docker/cli-plugins
+sudo curl -fsSL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-aarch64 -o docker-compose
+sudo curl -fsSL "https://github.com/docker/buildx/releases/latest/download/buildx-$(curl -fsSL https://api.github.com/repos/docker/buildx/releases/latest | grep -m1 tag_name | cut -d'"' -f4).linux-arm64" -o docker-buildx
+sudo chmod +x docker-compose docker-buildx
 sudo mkdir -p /opt/ear && sudo chown $USER /opt/ear && cd /opt/ear
 git clone -b dev https://github.com/swm-runtime/ear_project.git . && cd backend
 cp .env.example .env.prod   # 값 채우기 — 아래 참고
@@ -63,9 +75,22 @@ AUDIO_DELIVERY=cloudfront
 AUDIO_URL_BASE_URL=https://dxxxx.cloudfront.net
 CLOUDFRONT_KEY_PAIR_ID=...
 CLOUDFRONT_PRIVATE_KEY_BASE64=...
+AWS_REGION=ap-northeast-2
+AUDIO_BUCKET=ear-audio-prod
+AUDIO_KVS_ARN=<setup 출력값>
+ADMIN_DOMAIN=admin.example.com
+CORS_ORIGINS=https://admin.example.com
 BACKUP_BUCKET=ear-backup-prod
 ```
-DNS: `api.example.com` A 레코드 → EC2 퍼블릭 IP. Caddy가 인증서를 알아서 받는다.
+DNS: `api.example.com` · `admin.example.com` A 레코드 → EC2 퍼블릭 IP. Caddy가 인증서를 알아서 받는다.
+
+관리자 콘솔: `deploy/admin/config.example.js` → `deploy/admin/config.js`로 복사해 API 주소와
+Google OAuth **웹** 클라이언트 ID를 넣는다. 로그인한 계정은 DB에서 `UPDATE users SET role='admin'`
+으로 승격한다(admin.md 4.1 — 앱에 승격 경로를 두지 않는다).
+
+**Windows에서 코드를 올릴 때** `git archive HEAD backend | ssh ... tar -x -C /opt/ear` 뒤 CRLF가 섞이면
+셰뱅이 깨져 컨테이너가 안 뜬다 — `.gitattributes`가 LF를 강제하지만 확인은 `grep -rlI $'
+' deploy`.
 
 ## 3. 백업
 ```
