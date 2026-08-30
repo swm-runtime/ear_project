@@ -71,6 +71,14 @@ export class TopicRepository {
       .getMany();
   }
 
+  async findById(id: string, manager?: EntityManager): Promise<Topic | null> {
+    return this.scoped(manager).findOneBy({ id });
+  }
+
+  async remove(topic: Topic, manager?: EntityManager): Promise<void> {
+    await this.scoped(manager).remove(topic);
+  }
+
   async saveAll(topics: Topic[], manager?: EntityManager): Promise<Topic[]> {
     return this.scoped(manager).save(topics);
   }

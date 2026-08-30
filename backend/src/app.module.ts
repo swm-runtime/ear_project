@@ -8,6 +8,7 @@ import { AllExceptionsFilter } from '@/common/filters/all-exceptions.filter';
 import { LoggingInterceptor } from '@/common/interceptors/logging.interceptor';
 import { EnvironmentVariables, validateEnv } from '@/config/env.validation';
 import { DatabaseModule } from '@/database/database.module';
+import { AdminModule } from '@/modules/admin/admin.module';
 import { AuthModule } from '@/modules/auth/auth.module';
 import { ContentDetailModule } from '@/modules/content-detail/content-detail.module';
 import { DripBatchModule } from '@/modules/drip-batch/drip-batch.module';
@@ -15,6 +16,7 @@ import { ExploreModule } from '@/modules/explore/explore.module';
 import { HealthModule } from '@/modules/health/health.module';
 import { LibraryScreenModule } from '@/modules/library-screen/library-screen.module';
 import { OnboardingModule } from '@/modules/onboarding/onboarding.module';
+import { PartnerModule } from '@/modules/partner/partner.module';
 import { PlaybackModule } from '@/modules/playback/playback.module';
 import { ProfileModule } from '@/modules/profile/profile.module';
 import { SettingsModule } from '@/modules/settings/settings.module';
@@ -56,6 +58,8 @@ import { UserModule } from '@/modules/user/user.module';
     ContentDetailModule,
     ProfileModule,
     SettingsModule,
+    PartnerModule,
+    AdminModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

@@ -16,12 +16,14 @@ import {
   StatsPeriodType,
 } from '../content.enum';
 import {
+  AdminContentPageQuery,
   ContentCandidateQuery,
   ContentTopicView,
   ExplorePage,
   ExplorePageQuery,
   PopularPage,
   PopularPageQuery,
+  PublishContentCommand,
   SearchPage,
   SearchPageQuery,
 } from '../content.types';
@@ -247,6 +249,80 @@ export class ContentService {
     }
 
     return { available, failed };
+  }
+
+  /**
+   * admin.md 4.2 — 업로드 = 즉시 발행. `draft`가 없으므로 생성과 동시에 `published`다.
+   * 저장소 업로드는 호출부(admin)가 끝내고 `audioPath`를 넘긴다 — 이 Service는 DB만 만진다.
+   * 같은 `manager` 안에서 topics·sources를 함께 만들어 "콘텐츠만 있고 주제가 없는" 행을
+   * 남기지 않는다.
+   */
+  async publish(
+    command: PublishContentCommand,
+    now: Date,
+    manager: EntityManager,
+  ): Promise<Content> {
+    const content = this.contentRepository.create({
+      title: command.title,
+      description: command.description,
+      origin: command.origin,
+      authorName: command.authorName,
+      sourceName: command.sourceName,
+      sourceUrl: command.sourceUrl,
+      partnerId: command.partnerId,
+      licenseExpiresAt: command.licenseExpiresAt,
+      seriesId: command.seriesId,
+      episodeNo: command.episodeNo,
+      totalEpisodes: command.totalEpisodes,
+      audioPath: command.audioPath,
+      durationSec: command.durationSec,
+      thumbnailUrl: command.thumbnailUrl,
+      contentVersion: 1,
+      status: ContentStatus.PUBLISHED,
+      publishedAt: now,
+      withdrawnAt: null,
+    });
+    const [saved] = await this.contentRepository.saveAll([content], manager);
+
+    await this.contentTopicRepository.saveAll(
+      command.topicIds.map((topicId) =>
+        this.contentTopicRepository.create({ contentId: saved.id, topicId }),
+      ),
+      manager,
+    );
+
+    if (command.sources.length > 0) {
+      await this.contentSourceRepository.saveAll(
+        command.sources.map((source, index) =>
+          this.contentSourceRepository.create({
+            contentId: saved.id,
+            position: index + 1,
+            title: source.title,
+            author: source.author,
+            url: source.url,
+          }),
+        ),
+        manager,
+      );
+    }
+
+    return saved;
+  }
+
+  /** admin.md 5장 — 관리자 콘텐츠 목록. 상태를 가리지 않는다 */
+  async findAdminPage(
+    query: AdminContentPageQuery,
+    manager?: EntityManager,
+  ): Promise<{ items: Content[]; total: number }> {
+    return this.contentRepository.findAdminPage(query, manager);
+  }
+
+  /** admin.md 4.5 — 주제 삭제 판정·주제 목록의 건수 집계 */
+  async countByTopicIds(
+    topicIds: string[],
+    manager?: EntityManager,
+  ): Promise<Map<string, number>> {
+    return this.contentTopicRepository.countByTopicIds(topicIds, manager);
   }
 }
 

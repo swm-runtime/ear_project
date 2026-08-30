@@ -28,7 +28,11 @@
     "seed:mock": "node -r ts-node/register/transpile-only -r tsconfig-paths/register src/database/seeds/seed-mock-onboarding.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-cloudfront-keyvaluestore": "^3.1121.0",
+    "@aws-sdk/client-s3": "^3.1121.0",
     "@aws-sdk/cloudfront-signer": "^3.1116.0",
+    "@aws-sdk/signature-v4-multi-region": "^3.996.46",
+    "@aws-sdk/signature-v4a": "^3.1111.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.0.1",
@@ -40,6 +44,7 @@
     "class-validator": "^0.15.1",
     "dotenv": "^17.4.2",
     "helmet": "^8.3.0",
+    "music-metadata": "^11.15.0",
     "pg": "^8.22.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
@@ -53,6 +58,7 @@
     "@nestjs/testing": "^11.0.1",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
+    "@types/multer": "^2.2.0",
     "@types/node": "^24.0.0",
     "@types/supertest": "^7.0.0",
     "eslint": "^9.18.0",

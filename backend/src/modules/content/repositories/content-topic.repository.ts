@@ -51,6 +51,29 @@ export class ContentTopicRepository {
     }));
   }
 
+  /**
+   * 주제별 콘텐츠 건수 — 관리자 주제 목록·삭제 판정용(admin.md 4.5).
+   * `topics.content_count` 컬럼을 두지 않으므로(domain.md 4.1 — B-7) 여기서 집계한다.
+   */
+  async countByTopicIds(
+    topicIds: string[],
+    manager?: EntityManager,
+  ): Promise<Map<string, number>> {
+    if (topicIds.length === 0) {
+      return new Map();
+    }
+
+    const rows = await this.scoped(manager)
+      .createQueryBuilder('content_topic')
+      .select('content_topic.topic_id', 'topic_id')
+      .addSelect('COUNT(*)', 'count')
+      .where('content_topic.topic_id IN (:...topicIds)', { topicIds })
+      .groupBy('content_topic.topic_id')
+      .getRawMany<{ topic_id: string; count: string }>();
+
+    return new Map(rows.map((row) => [row.topic_id, Number(row.count)]));
+  }
+
   async saveAll(
     contentTopics: ContentTopic[],
     manager?: EntityManager,

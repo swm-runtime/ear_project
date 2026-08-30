@@ -1,6 +1,6 @@
 /** convention.md 3.2 — 모듈 밖으로 공개되는 타입만 둔다 */
 
-import { StatsPeriodType } from './content.enum';
+import { ContentOrigin, ContentStatus, StatsPeriodType } from './content.enum';
 import { Content } from './entities/content.entity';
 
 /** 추천·편성 후보 조회 조건 */
@@ -143,4 +143,32 @@ export interface RankedSearchContent {
 export interface SearchPage {
   items: RankedSearchContent[];
   hasNext: boolean;
+}
+
+/** admin.md 3.1 — 업로드 입력 중 저장소 처리가 끝난 뒤 content 모듈이 받는 값 */
+export interface PublishContentCommand {
+  title: string;
+  description: string;
+  origin: ContentOrigin;
+  authorName: string | null;
+  sourceName: string;
+  sourceUrl: string | null;
+  partnerId: string | null;
+  licenseExpiresAt: Date | null;
+  seriesId: string | null;
+  episodeNo: number | null;
+  totalEpisodes: number | null;
+  audioPath: string;
+  durationSec: number;
+  thumbnailUrl: string;
+  topicIds: string[];
+  /** `ai_generated`만. 배열 순서가 곧 `position`이다 (domain.md 5.5) */
+  sources: { title: string; author: string | null; url: string | null }[];
+}
+
+/** 관리자 콘텐츠 목록 조회 조건 (admin.md 5장) */
+export interface AdminContentPageQuery {
+  status?: ContentStatus;
+  offset: number;
+  limit: number;
 }

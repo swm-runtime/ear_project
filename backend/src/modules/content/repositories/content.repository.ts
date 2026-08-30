@@ -16,6 +16,7 @@ import {
   StatsPeriodType,
 } from '../content.enum';
 import {
+  AdminContentPageQuery,
   ContentCandidateQuery,
   ExplorePageQuery,
   PopularPageQuery,
@@ -438,6 +439,29 @@ export class ContentRepository {
       titleSimilarity: Number(raw[index]?.[SEARCH_TITLE_SIMILARITY_ALIAS] ?? 0),
       playCount: Number(raw[index]?.[RANKING_PLAY_COUNT_ALIAS] ?? 0),
     }));
+  }
+
+  /**
+   * 관리자 콘텐츠 목록(admin.md 5장) — 상태를 가리지 않고 최신순. 운영 화면이라 offset을
+   * 허용한다(convention.md 5.3).
+   */
+  async findAdminPage(
+    query: AdminContentPageQuery,
+    manager?: EntityManager,
+  ): Promise<{ items: Content[]; total: number }> {
+    const builder = this.scoped(manager)
+      .createQueryBuilder('content')
+      .orderBy('content.published_at', 'DESC')
+      .addOrderBy('content.id', 'DESC')
+      .skip(query.offset)
+      .take(query.limit);
+
+    if (query.status) {
+      builder.where('content.status = :status', { status: query.status });
+    }
+
+    const [items, total] = await builder.getManyAndCount();
+    return { items, total };
   }
 
   async saveAll(

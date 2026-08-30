@@ -25,4 +25,15 @@ export class ContentSourceRepository {
       order: { position: 'ASC' },
     });
   }
+
+  async saveAll(
+    sources: ContentSource[],
+    manager?: EntityManager,
+  ): Promise<ContentSource[]> {
+    return this.scoped(manager).save(sources);
+  }
+
+  create(source: Partial<ContentSource>): ContentSource {
+    return this.repository.create(source);
+  }
 }

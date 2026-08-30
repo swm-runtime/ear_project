@@ -134,6 +134,18 @@ export enum ErrorCode {
   /** 최상위 티어의 한도 소진 → 페이월이 아니라 한도 안내. 더 팔 것이 없다 */
   PLAY_LIMIT_REACHED = 'PLAY_LIMIT_REACHED',
 
+  // --- 관리자 (admin.md 4.2 · 4.5) ---
+  /** 오디오 길이를 추출할 수 없거나 0초 — 완청 판정(90%)이 불가능해 업로드를 거부한다(admin.md 7) */
+  ADMIN_AUDIO_UNREADABLE = 'ADMIN_AUDIO_UNREADABLE',
+  /** 존재하지 않는 주제 — 숨긴 주제에는 배정할 수 있다(admin.md 4.2) */
+  ADMIN_TOPIC_NOT_FOUND = 'ADMIN_TOPIC_NOT_FOUND',
+  /** 라이선스 만료일이 이미 지난 파트너 콘텐츠의 업로드(partner-control.md 4.4) */
+  ADMIN_LICENSE_EXPIRED = 'ADMIN_LICENSE_EXPIRED',
+  /** 콘텐츠가 배정된 주제는 삭제할 수 없다 — 숨김을 안내한다(admin.md 4.5) */
+  ADMIN_TOPIC_HAS_CONTENTS = 'ADMIN_TOPIC_HAS_CONTENTS',
+  /** 저장소(S3·KVS) 업로드 실패 — 부분 업로드는 정리된다(admin.md 7) */
+  ADMIN_STORAGE_FAILED = 'ADMIN_STORAGE_FAILED',
+
   // --- 콘텐츠 (공용 — common-error-handling.md 4.1) ---
   /** 담기 등에서 **건별 결과**로도 전달된다 (onboarding-api.md 4.6 `failed[]`) */
   CONTENT_NOT_FOUND = 'CONTENT_NOT_FOUND',

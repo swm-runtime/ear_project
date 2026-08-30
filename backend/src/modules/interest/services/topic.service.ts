@@ -1,12 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 
+import { BusinessNotFoundException } from '@/common/exceptions/business-not-found.exception';
+import { ErrorCode } from '@/common/exceptions/error-code.enum';
+
 import { Topic } from '../entities/topic.entity';
 import {
   MAX_SELECTABLE_TOPIC_COUNT,
   RELATED_TOPIC_SIMILARITY_THRESHOLD,
 } from '../interest.constant';
-import { TopicListResult } from '../interest.types';
+import {
+  CreateTopicCommand,
+  TopicListResult,
+  UpdateTopicCommand,
+} from '../interest.types';
 import { TopicRepository } from '../repositories/topic.repository';
 
 /**
@@ -103,6 +110,80 @@ export class TopicService {
       limit,
       manager,
     );
+  }
+
+  /** admin.md 5장 — 숨긴 주제까지 전부. 관리자만 쓴다 */
+  async findAll(manager?: EntityManager): Promise<Topic[]> {
+    return this.topicRepository.findAll(manager);
+  }
+
+  async getById(id: string, manager?: EntityManager): Promise<Topic> {
+    const topic = await this.topicRepository.findById(id, manager);
+
+    if (!topic) {
+      throw new BusinessNotFoundException({
+        errorCode: ErrorCode.NOT_FOUND,
+        message: '주제를 찾을 수 없어요',
+      });
+    }
+
+    return topic;
+  }
+
+  /**
+   * admin.md 4.5 — 새 주제는 **숨김(`is_visible = false`)으로 만든다**(domain.md 4.1 기본값).
+   * 콘텐츠가 충분히 쌓인 뒤 관리자가 노출을 켠다.
+   * `displayOrder`를 비우면 맨 뒤(현재 최댓값 + 1)에 둔다.
+   */
+  async create(
+    command: CreateTopicCommand,
+    manager?: EntityManager,
+  ): Promise<Topic> {
+    const displayOrder =
+      command.displayOrder ??
+      Math.max(
+        0,
+        ...(await this.topicRepository.findAll(manager)).map(
+          (t) => t.displayOrder,
+        ),
+      ) + 1;
+
+    const topic = this.topicRepository.create({
+      name: command.name,
+      parentCategory: command.parentCategory,
+      isVisible: false,
+      displayOrder,
+    });
+    const [saved] = await this.topicRepository.saveAll([topic], manager);
+
+    return saved;
+  }
+
+  async update(
+    topic: Topic,
+    command: UpdateTopicCommand,
+    manager?: EntityManager,
+  ): Promise<Topic> {
+    if (command.name !== undefined) {
+      topic.name = command.name;
+    }
+    if (command.parentCategory !== undefined) {
+      topic.parentCategory = command.parentCategory;
+    }
+    if (command.isVisible !== undefined) {
+      topic.isVisible = command.isVisible;
+    }
+    if (command.displayOrder !== undefined) {
+      topic.displayOrder = command.displayOrder;
+    }
+
+    const [saved] = await this.topicRepository.saveAll([topic], manager);
+    return saved;
+  }
+
+  /** 콘텐츠가 배정된 주제의 삭제 거부는 호출부(admin)가 건수를 보고 판정한다(admin.md 4.5) */
+  async remove(topic: Topic, manager?: EntityManager): Promise<void> {
+    await this.topicRepository.remove(topic, manager);
   }
 }
 
