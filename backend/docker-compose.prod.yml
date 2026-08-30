@@ -15,8 +15,11 @@ services:
       - '443:443/udp'
     environment:
       API_DOMAIN: ${API_DOMAIN:?API_DOMAIN required}
+      ADMIN_DOMAIN: ${ADMIN_DOMAIN:-}
     volumes:
       - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # 관리자 콘솔(정적). config.js는 서버에서만 채운다(커밋 금지)
+      - ./deploy/admin:/srv/admin:ro
       - caddy-data:/data
       - caddy-config:/config
     depends_on:

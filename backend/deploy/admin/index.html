@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>이어 관리자</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="./config.js"></script>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --line:#e3e6ea; --text:#1b1f24; --muted:#6b7280; --accent:#2563eb; --danger:#dc2626; --ok:#16a34a; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.5 system-ui,-apple-system,"Segoe UI","Noto Sans KR",sans-serif; background:var(--bg); color:var(--text); }
+  header { display:flex; align-items:center; justify-content:space-between; padding:12px 20px; background:var(--card); border-bottom:1px solid var(--line); }
+  header h1 { font-size:16px; margin:0; }
+  main { max-width:980px; margin:20px auto; padding:0 16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px; margin-bottom:18px; }
+  .card h2 { font-size:15px; margin:0 0 12px; }
+  label { display:block; font-weight:600; margin:10px 0 4px; }
+  label .req { color:var(--danger); }
+  input[type=text], input[type=url], input[type=number], input[type=datetime-local], textarea, select { width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:6px; font:inherit; }
+  textarea { min-height:90px; }
+  .row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .hint { color:var(--muted); font-size:12px; margin-top:2px; }
+  .err { color:var(--danger); font-size:12px; margin-top:4px; min-height:14px; }
+  button { padding:8px 14px; border:1px solid var(--line); border-radius:6px; background:var(--card); font:inherit; cursor:pointer; }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  button.danger { color:var(--danger); }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chip { display:inline-flex; gap:6px; align-items:center; padding:5px 10px; border:1px solid var(--line); border-radius:999px; cursor:pointer; user-select:none; }
+  .chip.hidden-topic { border-style:dashed; color:var(--muted); }
+  .chip input { margin:0; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { font-size:12px; color:var(--muted); }
+  .status { font-size:12px; padding:2px 8px; border-radius:999px; background:#eef2ff; }
+  .status.withdrawn { background:#fee2e2; }
+  .toast { position:fixed; right:16px; bottom:16px; padding:10px 14px; border-radius:8px; background:#111; color:#fff; opacity:0; transition:opacity .2s; }
+  .toast.show { opacity:1; }
+  .toast.ok { background:var(--ok); }
+  .toast.bad { background:var(--danger); }
+  .source-row { display:grid; grid-template-columns:2fr 1fr 2fr auto; gap:6px; margin-bottom:6px; }
+  .progress { height:6px; background:var(--line); border-radius:3px; overflow:hidden; margin-top:8px; }
+  .progress > div { height:100%; background:var(--accent); width:0; transition:width .2s; }
+  .tabs { display:flex; gap:6px; margin-bottom:14px; }
+  .tabs button.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .hide { display:none !important; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>이어 관리자</h1>
+  <div id="who" class="hint"></div>
+</header>
+<main>
+  <section id="login" class="card">
+    <h2>로그인</h2>
+    <p class="hint">관리자 계정(<code>users.role = admin</code>)의 구글 계정으로 로그인해요. 일반 계정은 로그인은 되지만 모든 관리자 요청이 403이에요.</p>
+    <button id="btn-google" class="primary">Google로 로그인</button>
+    <div id="google-btn-host" style="margin-top:10px"></div>
+    <div id="login-err" class="err"></div>
+  </section>
+
+  <div id="app" class="hide">
+    <div class="tabs">
+      <button data-tab="upload" class="active">콘텐츠 업로드</button>
+      <button data-tab="contents">콘텐츠 목록</button>
+      <button data-tab="topics">주제 관리</button>
+      <button id="btn-logout" style="margin-left:auto">로그아웃</button>
+    </div>
+
+    <!-- 업로드 -->
+    <section id="tab-upload" class="card">
+      <h2>콘텐츠 업로드 → 즉시 발행</h2>
+      <p class="hint">업로드하면 바로 <b>published</b>가 돼서 전 사용자에게 노출돼요. 중간 상태가 없어요.</p>
+      <form id="upload-form" novalidate>
+        <label>제목 <span class="req">*</span></label>
+        <input type="text" name="title" maxlength="255" required>
+        <div class="err" data-for="title"></div>
+
+        <label>설명 <span class="req">*</span></label>
+        <textarea name="description" maxlength="5000" required></textarea>
+        <div class="err" data-for="description"></div>
+
+        <div class="row">
+          <div>
+            <label>출처 종류 <span class="req">*</span></label>
+            <select name="origin">
+              <option value="ai_generated">AI 생성 (ai_generated)</option>
+              <option value="partner">파트너 (partner)</option>
+            </select>
+          </div>
+          <div>
+            <label>source_name <span class="req">*</span></label>
+            <input type="text" name="source_name" maxlength="100" required>
+            <div class="hint" id="source-name-hint">AI 생성: "참고한 자료" 표기 (복수 가능) · 파트너: 파트너명</div>
+            <div class="err" data-for="source_name"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>원저자 (author_name) <span class="req partner-only">*</span></label>
+            <input type="text" name="author_name" maxlength="100">
+            <div class="err" data-for="author_name"></div>
+          </div>
+          <div>
+            <label>원문 링크 (source_url) <span class="req partner-only">*</span></label>
+            <input type="url" name="source_url" maxlength="2048">
+            <div class="err" data-for="source_url"></div>
+          </div>
+        </div>
+
+        <div class="row partner-only">
+          <div>
+            <label>파트너 ID (partner_id) <span class="req">*</span></label>
+            <input type="text" name="partner_id" placeholder="uuid">
+            <div class="err" data-for="partner_id"></div>
+          </div>
+          <div>
+            <label>라이선스 만료일 <span class="req">*</span></label>
+            <input type="datetime-local" name="license_expires_at">
+            <div class="err" data-for="license_expires_at"></div>
+          </div>
+        </div>
+
+        <div class="ai-only">
+          <label>참고 소스 (sources) <span class="req">*</span></label>
+          <div class="hint">입력 순서가 곧 상세 화면 표시 순서예요. 제목은 필수, 저자·링크는 선택.</div>
+          <div id="sources"></div>
+          <button type="button" id="btn-add-source">+ 소스 추가</button>
+          <div class="err" data-for="sources"></div>
+        </div>
+
+        <label>주제 (topic_ids) <span class="req">*</span> <span class="hint">최소 1개. 점선은 숨김 주제(배정은 가능)</span></label>
+        <div id="topic-chips" class="chips"></div>
+        <div class="err" data-for="topic_ids"></div>
+
+        <details style="margin-top:10px">
+          <summary>시리즈 (선택)</summary>
+          <div class="row">
+            <div><label>series_id</label><input type="text" name="series_id" placeholder="uuid — 새 시리즈면 새 uuid를 만들어 넣어요"></div>
+            <div class="row">
+              <div><label>episode_no</label><input type="number" name="episode_no" min="1"></div>
+              <div><label>total_episodes</label><input type="number" name="total_episodes" min="1"></div>
+            </div>
+          </div>
+          <div class="err" data-for="episode_no"></div>
+        </details>
+
+        <div class="row">
+          <div>
+            <label>오디오 파일 (mp3 / m4a) <span class="req">*</span></label>
+            <input type="file" name="audio" accept=".mp3,.m4a,audio/mpeg,audio/mp4">
+            <div class="hint">duration은 서버가 파일에서 추출해요. 최대 200MB.</div>
+            <div class="err" data-for="audio"></div>
+          </div>
+          <div>
+            <label>썸네일 (jpg / png / webp) <span class="req">*</span></label>
+            <input type="file" name="thumbnail" accept=".jpg,.jpeg,.png,.webp,image/*">
+            <div class="hint">최대 5MB.</div>
+            <div class="err" data-for="thumbnail"></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:14px;background:#fffbeb;border-color:#fde68a">
+          <b>업로드 전 수동 검수 (admin.md 4.2-1)</b>
+          <ol style="margin:6px 0 10px 18px">
+            <li>대본↔원문 사실관계 대조 — 원문에 없는 수치·인용·사례 없음</li>
+            <li>금칙 — 욕설·차별 표현·특정인 비방 없음</li>
+            <li>출처 고지 멘트 — 오디오 시작·종료에 포함</li>
+            <li>오디오 품질 — 오독·비정상 무음·파일 무결성</li>
+          </ol>
+          <label style="display:flex;gap:8px;align-items:center;margin:0"><input type="checkbox" name="review_confirmed"> 위 4가지를 확인했어요 <span class="req">*</span></label>
+          <div class="err" data-for="review_confirmed"></div>
+        </div>
+
+        <div class="progress"><div id="progress-bar"></div></div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:12px">
+          <button type="submit" class="primary" id="btn-upload">업로드 (즉시 발행)</button>
+          <span id="upload-status" class="hint"></span>
+        </div>
+        <div class="err" data-for="_"></div>
+      </form>
+    </section>
+
+    <!-- 목록 -->
+    <section id="tab-contents" class="card hide">
+      <h2>콘텐츠 목록</h2>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+        <select id="contents-status" style="width:auto">
+          <option value="">전체</option>
+          <option value="published">published</option>
+          <option value="withdrawn">withdrawn</option>
+          <option value="expired">expired</option>
+        </select>
+        <button id="btn-reload-contents">새로고침</button>
+        <span id="contents-total" class="hint"></span>
+      </div>
+      <table>
+        <thead><tr><th>썸네일</th><th>제목</th><th>주제</th><th>출처</th><th>길이</th><th>발행</th><th>상태</th></tr></thead>
+        <tbody id="contents-body"></tbody>
+      </table>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button id="btn-prev">이전</button><button id="btn-next">다음</button>
+      </div>
+    </section>
+
+    <!-- 주제 -->
+    <section id="tab-topics" class="card hide">
+      <h2>주제 관리</h2>
+      <p class="hint">새 주제는 <b>숨김</b>으로 만들어져요. 콘텐츠가 충분히 쌓인 뒤 노출을 켜요. 콘텐츠가 있는 주제는 삭제할 수 없어요(숨김 권장).</p>
+      <form id="topic-form" style="display:grid;grid-template-columns:2fr 2fr 1fr auto;gap:8px;align-items:end;margin-bottom:14px">
+        <div><label>주제명</label><input type="text" name="name" maxlength="100" required></div>
+        <div><label>대분류 (parent_category)</label><input type="text" name="parent_category" maxlength="100" required></div>
+        <div><label>정렬</label><input type="number" name="display_order" min="0" placeholder="비우면 맨 뒤"></div>
+        <button type="submit" class="primary">추가</button>
+      </form>
+      <table>
+        <thead><tr><th>주제</th><th>대분류</th><th>정렬</th><th>콘텐츠</th><th>노출</th><th></th></tr></thead>
+        <tbody id="topics-body"></tbody>
+      </table>
+    </section>
+  </div>
+</main>
+<div id="toast" class="toast"></div>
+
+<script>
+(() => {
+  const cfg = window.EAR_ADMIN_CONFIG || {};
+  const API = (cfg.apiBaseUrl || '').replace(/\/$/, '');
+  const GOOGLE_CLIENT_ID = cfg.googleClientId || '';
+  const DEVICE_ID = (() => {
+    let id = localStorage.getItem('ear_admin_device_id');
+    if (!id) { id = 'admin-web-' + crypto.randomUUID(); localStorage.setItem('ear_admin_device_id', id); }
+    return id;
+  })();
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+
+  // ---------- 토큰 ----------
+  const tokens = {
+    get access() { return localStorage.getItem('ear_admin_access'); },
+    get refresh() { return localStorage.getItem('ear_admin_refresh'); },
+    set(a, r) { localStorage.setItem('ear_admin_access', a); localStorage.setItem('ear_admin_refresh', r); },
+    clear() { localStorage.removeItem('ear_admin_access'); localStorage.removeItem('ear_admin_refresh'); },
+  };
+
+  function toast(msg, kind) {
+    const el = $('#toast'); el.textContent = msg; el.className = 'toast show ' + (kind || '');
+    setTimeout(() => el.classList.remove('show'), 3500);
+  }
+
+  async function api(path, opts = {}, retry = true) {
+    const headers = Object.assign({}, opts.headers || {});
+    if (tokens.access) headers.Authorization = 'Bearer ' + tokens.access;
+    if (opts.json) { headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(opts.json); }
+    const res = await fetch(API + path, Object.assign({}, opts, { headers }));
+    if (res.status === 401 && retry && tokens.refresh) {
+      const ok = await refreshTokens();
+      if (ok) return api(path, opts, false);
+    }
+    if (res.status === 204) return null;
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) { const e = new Error(body.message || ('HTTP ' + res.status)); e.status = res.status; e.body = body; throw e; }
+    return body;
+  }
+
+  async function refreshTokens() {
+    try {
+      const res = await fetch(API + '/auth/token/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: tokens.refresh, device_id: DEVICE_ID }) });
+      if (!res.ok) throw new Error();
+      const b = await res.json(); tokens.set(b.access_token, b.refresh_token); return true;
+    } catch { tokens.clear(); showLogin(); return false; }
+  }
+
+  // ---------- 로그인 (auth-api.md 3장: social-login → 필요 시 sign-up) ----------
+  // 서버 GoogleClient는 **ID 토큰**(aud = GOOGLE_WEB_CLIENT_ID)을 검증한다 — GIS credential을 그대로 보낸다
+  let gisReady = false;
+  function initGis() {
+    if (gisReady || !window.google || !GOOGLE_CLIENT_ID) return;
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: async (resp) => {
+        if (!resp.credential) { $('#login-err').textContent = '구글 인증이 취소됐어요'; return; }
+        try { await socialLogin(resp.credential); } catch (e) { $('#login-err').textContent = e.message; }
+      },
+      ux_mode: 'popup',
+      auto_select: false,
+    });
+    google.accounts.id.renderButton($('#google-btn-host'), { theme: 'outline', size: 'large', text: 'signin_with', locale: 'ko' });
+    gisReady = true;
+  }
+  $('#btn-google').onclick = () => {
+    $('#login-err').textContent = '';
+    if (!GOOGLE_CLIENT_ID) { $('#login-err').textContent = 'config.js에 googleClientId가 없어요'; return; }
+    if (!window.google) { $('#login-err').textContent = 'Google 스크립트를 아직 못 불러왔어요. 잠시 후 다시.'; return; }
+    initGis();
+    google.accounts.id.prompt((n) => {
+      if (n.isNotDisplayed && n.isNotDisplayed() || n.isSkippedMoment && n.isSkippedMoment()) {
+        $('#login-err').textContent = '원탭 창이 안 뜨면 아래 Google 버튼을 눌러요';
+      }
+    });
+  };
+  window.addEventListener('load', () => setTimeout(initGis, 300));
+
+  async function socialLogin(providerToken) {
+    let b = await api('/auth/social-login', { method: 'POST', json: { provider: 'google', provider_token: providerToken, device_id: DEVICE_ID } }, false);
+    if (b.status === 'consent_required') {
+      // 관리자도 일반 사용자와 같은 가입 절차를 밟는다(admin.md 2). 필수 약관만 동의한다
+      const consents = (b.required_consents || []).map((c) => ({ consent_type: c.consent_type, version: c.version, is_agreed: c.is_required }));
+      b = await api('/auth/sign-up', { method: 'POST', json: { signup_token: b.signup_token, device_id: DEVICE_ID, consents }, headers: { 'Idempotency-Key': crypto.randomUUID() } }, false);
+    }
+    tokens.set(b.access_token, b.refresh_token);
+    await enter(b.user);
+  }
+
+  function decodeRole() {
+    try { return JSON.parse(atob(tokens.access.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))); } catch { return {}; }
+  }
+
+  async function enter(user) {
+    const claims = decodeRole();
+    $('#who').textContent = (user && user.nickname ? user.nickname + ' · ' : '') + 'role: ' + (claims.role || '?') + ' · ' + (claims.sub || '');
+    if (claims.role !== 'admin') {
+      $('#login-err').innerHTML = '로그인은 됐지만 <b>role이 admin이 아니에요</b>. DB에서 <code>UPDATE users SET role=\'admin\' WHERE id=\'' + claims.sub + '\'</code> 후 다시 로그인하세요.';
+      tokens.clear(); return;
+    }
+    $('#login').classList.add('hide'); $('#app').classList.remove('hide');
+    await loadTopics(); await loadContents();
+  }
+
+  function showLogin() { $('#app').classList.add('hide'); $('#login').classList.remove('hide'); }
+  $('#btn-logout').onclick = async () => { try { await api('/auth/logout', { method: 'POST', json: { device_id: DEVICE_ID } }); } catch {} tokens.clear(); showLogin(); };
+
+  // ---------- 탭 ----------
+  $$('.tabs button[data-tab]').forEach((b) => b.onclick = () => {
+    $$('.tabs button[data-tab]').forEach((x) => x.classList.toggle('active', x === b));
+    ['upload', 'contents', 'topics'].forEach((t) => $('#tab-' + t).classList.toggle('hide', t !== b.dataset.tab));
+  });
+
+  // ---------- 주제 ----------
+  let topics = [];
+  async function loadTopics() {
+    topics = (await api('/admin/topics')).items;
+    $('#topic-chips').innerHTML = topics.map((t) =>
+      `<label class="chip ${t.is_visible ? '' : 'hidden-topic'}"><input type="checkbox" name="topic_ids" value="${t.id}"> ${esc(t.name)} <span class="hint">${esc(t.parent_category)}</span></label>`).join('') || '<span class="hint">주제가 없어요. 주제 관리 탭에서 먼저 만들어요.</span>';
+    $('#topics-body').innerHTML = topics.map((t) => `
+      <tr data-id="${t.id}">
+        <td>${esc(t.name)}</td><td>${esc(t.parent_category)}</td><td>${t.display_order}</td><td>${t.content_count}</td>
+        <td><label style="margin:0;font-weight:normal"><input type="checkbox" class="vis" ${t.is_visible ? 'checked' : ''}> ${t.is_visible ? '노출' : '숨김'}</label></td>
+        <td><button class="danger del">삭제</button></td>
+      </tr>`).join('');
+    $$('#topics-body .vis').forEach((cb) => cb.onchange = async (e) => {
+      const tr = e.target.closest('tr'); const t = topics.find((x) => x.id === tr.dataset.id);
+      if (e.target.checked && t.content_count === 0 && !confirm(`"${t.name}"에 콘텐츠가 0건이에요. 노출하면 "고를 수는 있는데 볼 게 없는 주제"가 생겨요. 그래도 켤까요?`)) { e.target.checked = false; return; }
+      try { await api('/admin/topics/' + t.id, { method: 'PATCH', json: { is_visible: e.target.checked } }); toast('저장했어요', 'ok'); } catch (err) { toast(err.message, 'bad'); }
+      await loadTopics();
+    });
+    $$('#topics-body .del').forEach((btn) => btn.onclick = async (e) => {
+      const tr = e.target.closest('tr'); const t = topics.find((x) => x.id === tr.dataset.id);
+      if (!confirm(`"${t.name}" 주제를 삭제할까요?`)) return;
+      try { await api('/admin/topics/' + t.id, { method: 'DELETE' }); toast('삭제했어요', 'ok'); } catch (err) { toast(err.message, 'bad'); }
+      await loadTopics();
+    });
+  }
+  $('#topic-form').onsubmit = async (e) => {
+    e.preventDefault(); const f = new FormData(e.target);
+    const json = { name: f.get('name'), parent_category: f.get('parent_category') };
+    if (f.get('display_order')) json.display_order = Number(f.get('display_order'));
+    try { await api('/admin/topics', { method: 'POST', json }); e.target.reset(); toast('주제를 만들었어요 (숨김)', 'ok'); await loadTopics(); } catch (err) { toast(err.message, 'bad'); }
+  };
+
+  // ---------- 콘텐츠 목록 ----------
+  let offset = 0; const LIMIT = 20;
+  async function loadContents() {
+    const status = $('#contents-status').value; const q = new URLSearchParams({ offset, limit: LIMIT }); if (status) q.set('status', status);
+    const b = await api('/admin/contents?' + q);
+    $('#contents-total').textContent = `총 ${b.total}건 · ${offset + 1}–${Math.min(offset + LIMIT, b.total)}`;
+    $('#contents-body').innerHTML = b.items.map((c) => `
+      <tr>
+        <td><img src="${esc(c.thumbnail_url)}" alt="" style="width:48px;height:48px;object-fit:cover;border-radius:6px;background:#eee"></td>
+        <td><b>${esc(c.title)}</b><div class="hint">${c.id}${c.series_id ? ` · ${c.episode_no}/${c.total_episodes}편` : ''}</div></td>
+        <td>${c.topics.map((t) => esc(t.name)).join(', ')}</td>
+        <td>${esc(c.origin)}<div class="hint">${esc(c.source_name)}</div></td>
+        <td>${fmtDur(c.duration_sec)}</td>
+        <td>${new Date(c.published_at).toLocaleString('ko-KR')}</td>
+        <td><span class="status ${c.status}">${c.status}</span></td>
+      </tr>`).join('') || '<tr><td colspan="7" class="hint">아직 콘텐츠가 없어요.</td></tr>';
+    $('#btn-prev').disabled = offset === 0; $('#btn-next').disabled = offset + LIMIT >= b.total;
+  }
+  $('#btn-reload-contents').onclick = () => { offset = 0; loadContents(); };
+  $('#contents-status').onchange = () => { offset = 0; loadContents(); };
+  $('#btn-prev').onclick = () => { offset = Math.max(0, offset - LIMIT); loadContents(); };
+  $('#btn-next').onclick = () => { offset += LIMIT; loadContents(); };
+
+  // ---------- 업로드 폼 ----------
+  const form = $('#upload-form');
+  function syncOrigin() {
+    const partner = form.origin.value === 'partner';
+    $$('.partner-only').forEach((el) => el.classList.toggle('hide', !partner));
+    $$('.ai-only').forEach((el) => el.classList.toggle('hide', partner));
+  }
+  form.origin.onchange = syncOrigin; syncOrigin();
+  function addSource(v = {}) {
+    const row = document.createElement('div'); row.className = 'source-row';
+    row.innerHTML = `<input type="text" placeholder="제목 *" class="s-title" maxlength="255" value="${esc(v.title || '')}"><input type="text" placeholder="저자" class="s-author" maxlength="100"><input type="url" placeholder="https://" class="s-url" maxlength="2048"><button type="button">✕</button>`;
+    row.querySelector('button').onclick = () => row.remove();
+    $('#sources').appendChild(row);
+  }
+  $('#btn-add-source').onclick = () => addSource(); addSource();
+
+  function clearErrors() { $$('.err', form).forEach((e) => e.textContent = ''); }
+  function setError(field, msg) { const el = $(`.err[data-for="${field}"]`, form) || $('.err[data-for="_"]', form); el.textContent = msg; el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+
+  form.onsubmit = (e) => {
+    e.preventDefault(); clearErrors();
+    const f = new FormData(form);
+    const payload = {
+      title: f.get('title').trim(), description: f.get('description').trim(), origin: f.get('origin'),
+      source_name: f.get('source_name').trim(),
+      topic_ids: f.getAll('topic_ids'),
+      review_confirmed: form.review_confirmed.checked,
+    };
+    const opt = (k, v) => { if (v !== null && v !== undefined && String(v).trim() !== '') payload[k] = v; };
+    opt('author_name', f.get('author_name')); opt('source_url', f.get('source_url'));
+    if (payload.origin === 'partner') {
+      opt('partner_id', f.get('partner_id'));
+      if (f.get('license_expires_at')) payload.license_expires_at = new Date(f.get('license_expires_at')).toISOString();
+    } else {
+      payload.sources = $$('#sources .source-row').map((r) => {
+        const s = { title: $('.s-title', r).value.trim() }; const a = $('.s-author', r).value.trim(); const u = $('.s-url', r).value.trim();
+        if (a) s.author = a; if (u) s.url = u; return s;
+      }).filter((s) => s.title);
+    }
+    opt('series_id', f.get('series_id'));
+    if (f.get('episode_no')) payload.episode_no = Number(f.get('episode_no'));
+    if (f.get('total_episodes')) payload.total_episodes = Number(f.get('total_episodes'));
+
+    // 클라이언트 선검증은 편의일 뿐, 판정은 서버가 한다
+    if (!payload.title) return setError('title', '제목을 입력해요');
+    if (!payload.description) return setError('description', '설명을 입력해요');
+    if (!payload.source_name) return setError('source_name', 'source_name을 입력해요');
+    if (payload.topic_ids.length === 0) return setError('topic_ids', '주제를 1개 이상 골라요');
+    if (!payload.review_confirmed) return setError('review_confirmed', '검수 확인이 필요해요');
+    const audio = form.audio.files[0], thumb = form.thumbnail.files[0];
+    if (!audio) return setError('audio', '오디오 파일을 골라요');
+    if (!thumb) return setError('thumbnail', '썸네일을 골라요');
+
+    const fd = new FormData();
+    fd.append('payload', JSON.stringify(payload)); fd.append('audio', audio); fd.append('thumbnail', thumb);
+
+    // 진행률을 보여주려고 fetch 대신 XHR (admin.md 5장 — 업로드 중 진행률)
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', API + '/admin/contents');
+    xhr.setRequestHeader('Authorization', 'Bearer ' + tokens.access);
+    const bar = $('#progress-bar'); const btn = $('#btn-upload'); btn.disabled = true; $('#upload-status').textContent = '업로드 중… 창을 닫지 마세요';
+    const guard = (ev) => { ev.preventDefault(); ev.returnValue = ''; }; window.addEventListener('beforeunload', guard);
+    xhr.upload.onprogress = (ev) => { if (ev.lengthComputable) bar.style.width = Math.round(ev.loaded / ev.total * 100) + '%'; };
+    xhr.onload = async () => {
+      window.removeEventListener('beforeunload', guard); btn.disabled = false; bar.style.width = '0';
+      let body = {}; try { body = JSON.parse(xhr.responseText); } catch {}
+      if (xhr.status === 401 && await refreshTokens()) { $('#upload-status').textContent = '세션을 갱신했어요. 다시 [업로드]를 눌러요'; return; }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        $('#upload-status').textContent = ''; toast('발행되었습니다', 'ok');
+        form.reset(); $('#sources').innerHTML = ''; addSource(); syncOrigin(); await loadTopics(); offset = 0; await loadContents();
+        $$('.tabs button[data-tab="contents"]')[0].click();
+      } else {
+        $('#upload-status').textContent = '';
+        setError((body.details && body.details.field) || '_', (body.message || '업로드 실패') + (body.error_code ? ` (${body.error_code})` : ''));
+      }
+    };
+    xhr.onerror = () => { window.removeEventListener('beforeunload', guard); btn.disabled = false; bar.style.width = '0'; $('#upload-status').textContent = ''; setError('_', '네트워크 오류. 부분 업로드는 서버가 정리해요 — 처음부터 다시.'); };
+    xhr.send(fd);
+  };
+
+  function esc(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+  function fmtDur(s) { return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
+
+  // ---------- 시작 ----------
+  if (!API) { $('#login-err').textContent = 'config.js에 apiBaseUrl이 없어요'; }
+  else if (tokens.access) { enter(null).catch(() => { tokens.clear(); showLogin(); }); }
+})();
+</script>
+</body>
+</html>

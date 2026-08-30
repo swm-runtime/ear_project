@@ -14,3 +14,19 @@
 		format console
 	}
 }
+
+# 관리자 웹 콘솔(admin.md) — 정적 파일 한 장. API는 위 도메인으로 CORS 호출한다.
+# ADMIN_DOMAIN이 비어 있으면 이 블록은 무시된다(Caddy는 빈 호스트를 매칭하지 않는다).
+{$ADMIN_DOMAIN} {
+	root * /srv/admin
+	file_server
+	header {
+		Cache-Control "no-store"
+		X-Frame-Options "DENY"
+		X-Content-Type-Options "nosniff"
+	}
+	log {
+		output stdout
+		format console
+	}
+}
