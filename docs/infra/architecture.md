@@ -108,10 +108,9 @@ Caddy가 Let's Encrypt를 자동 발급·갱신한다(운영 손 0). DNS는 가�
 
 ## 6. 미결·알려진 한계
 
-- **⚠️ 계정 자체가 잘못됐을 수 있다** (2026-08-31) — [`inventory.md`](inventory.md) 6장 이관 절차.
 - 시크릿 매니저 미도입 — pepper·JWT_SECRET이 서버 파일시스템의 `.env.prod`에 있다.
 - 배포가 수동(`git archive | ssh tar`, runbook 4장) — CI/CD 없음.
 - 모니터링: EC2 상태 검사 CloudWatch 알람 1개뿐(메일 구독 확인 대기). 애플리케이션 레벨(5xx율·헬스) 감시 없음.
-- 이메일 발송(SES) 미구축 — 이메일 인증이 `LoggingMailClient`(발송 안 됨). 계정 확정 후 진행.
+- 이메일 발송 — SES identity·프로덕션 신청까지 됨(DKIM DNS 대기). 서버 `SesMailClient` 구현은 미착수(`LoggingMailClient` 유지).
 - `KAKAO_APP_ID`가 플레이스홀더 — 실값 필요(카카오 로그인만 실패).
 - 스테이징 환경 없음 — 운영 한 벌뿐.

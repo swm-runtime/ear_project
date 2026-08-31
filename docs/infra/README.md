@@ -11,7 +11,8 @@
 ## 현재 상태 요약 (2026-08-31)
 
 - **가동 중**: `api.earcast.co.kr`(EC2 단일 서버) · `admin.earcast.co.kr`(관리자 콘솔) · CloudFront 오디오 CDN. 콘텐츠 0편.
-- **⚠️ 계정 문제**: 전 리소스가 AWS 계정 `574748894595`에 있는데, **이 계정이 팀이 쓰려던 계정이 아닐 수 있다**(2026-08-31 인지). 이관 판단·절차는 [`inventory.md`](inventory.md) 마지막 장.
+- 계정: **ISB `639177726357`**(SW마에스트로 지원 조직 계정, SSO). 최초 구축된 개인 계정(574748894595)은 2026-08-31 이관 후 전소 — 이력·절차는 [`inventory.md`](inventory.md).
+- 조직 SCP가 KVS를 거부해 재생 URL은 **무작위 키 직접 서명**이다([`architecture.md`](architecture.md) 3.2).
 - 배포 코드: `backend/deploy/` (셋업 스크립트·compose·Caddy·관리자 콘솔). 비밀값: `backend/deploy/aws/out/`(gitignore, 로컬에만).
 
 ## 경계
