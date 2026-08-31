@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "frontend",
-    "slug": "frontend",
+    "slug": "ear",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -41,6 +41,11 @@
             "DEFAULT"
           ]
         }
+      ],
+      "permissions": [
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
       ]
     },
     "web": {
@@ -102,7 +107,11 @@
         "naverConsumerKey": "I9icgB6gL7MoJesrFqE3",
         "naverConsumerSecret": "1ChePp2q8M",
         "naverServiceUrlScheme": "earnaverlogin"
+      },
+      "eas": {
+        "projectId": "affd5e83-2719-469a-8c5c-f12b09e7ba4a"
       }
-    }
+    },
+    "owner": "runtime364"
   }
 }
