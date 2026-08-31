@@ -1,6 +1,5 @@
 import { generateKeyPairSync } from 'node:crypto';
 
-import { JwtService } from '@nestjs/jwt';
 import { sign } from 'jsonwebtoken';
 
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
@@ -77,7 +76,7 @@ function buildClient(): AppleClient {
     },
   };
 
-  return new AppleClient(new JwtService({}), configService as never);
+  return new AppleClient(configService as never);
 }
 
 /** 반환된 예외의 에러 코드를 확인한다 — 상황별로 힌트를 흘리지 않고 하나로 모은다 */

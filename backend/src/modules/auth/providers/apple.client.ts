@@ -75,8 +75,16 @@ export class AppleClient extends SocialProviderClient {
   private keyCache = new Map<string, string>();
   private keyCacheExpiresAt = 0;
 
+  /**
+   * 서명 검증 전용 JwtService — **전역 인스턴스를 주입받지 않는다.**
+   * `@nestjs/jwt`는 모듈 옵션에 `secret`이 있으면 per-call `publicKey`를 무시하고
+   * 그 시크릿으로 검증한다(getSecretKey 우선순위). 전역 모듈은 `JWT_SECRET`(HS256)을
+   * 갖고 있어 주입받으면 RS256 ID 토큰 검증이 항상 실패한다(실측 2026-08-31 —
+   * "secretOrPublicKey must be an asymmetric key when using RS256").
+   */
+  private readonly jwtService = new JwtService({});
+
   constructor(
-    private readonly jwtService: JwtService,
     private readonly configService: ConfigService<EnvironmentVariables, true>,
   ) {
     super();

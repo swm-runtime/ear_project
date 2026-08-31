@@ -1,6 +1,5 @@
 import { generateKeyPairSync } from 'node:crypto';
 
-import { JwtService } from '@nestjs/jwt';
 import { sign } from 'jsonwebtoken';
 
 import { BusinessException } from '@/common/exceptions/business.exception';
@@ -63,7 +62,7 @@ function buildClient(): GoogleClient {
       key === 'GOOGLE_WEB_CLIENT_ID' ? WEB_CLIENT_ID : undefined,
   };
 
-  return new GoogleClient(new JwtService({}), configService as never);
+  return new GoogleClient(configService as never);
 }
 
 /** 반환된 예외의 에러 코드를 확인한다 — 상황별로 힌트를 흘리지 않고 하나로 모은다 */
