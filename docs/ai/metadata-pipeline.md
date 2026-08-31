@@ -1,11 +1,11 @@
 # 메타데이터 부여 파이프라인 (대본 → 추천 메타 · 임베딩)
 
 > 연결 PRD: FR-15 (추천 스코어링 고도화 — 개정 2026-08-26) / 근거: [`drip-scheduling.md`](../features/drip-scheduling.md) 4.2(3축 하이브리드 스코어링) · [`domain.md`](../backend/domain.md) 5.1(추천 메타 4종)·5.6(`content_embeddings`)
-> 상위 규칙: [`admin.md`](../features/admin.md) 3.1(업로드 필드) · [`pipeline.md`](pipeline.md)(AI 생성 대본의 상류 절차)
+> 상위 규칙: [`admin.md`](../features/admin.md) 3.1(업로드 필드) · [`PIPELINE.md`](PIPELINE.md)·[`spec/07`](spec/07-publish.md)(AI 생성 대본의 상류 절차)
 
-> **범위 경계 — 이것은 앱 밖 부여 도구이지 시스템이 아니다** ([`pipeline.md`](pipeline.md)와 같은 층).
+> **범위 경계 — 이것은 앱 밖 부여 도구이지 시스템이 아니다** (콘텐츠 파이프라인 [`PIPELINE.md`](PIPELINE.md)와 같은 층).
 > 서버 테이블을 만들지 않고, DB에 쓰지 않는다. 산출물은 파일(`enrichment.json`)이며 저장은 관리자 업로드가 한다.
-> [`pipeline.md`](pipeline.md)가 **AI 생성 콘텐츠 전용**인 것과 달리, 이 절차는 **origin(파트너/AI 생성) 무관 전 콘텐츠**에 적용된다 — 추천 스코어링은 origin을 가리지 않기 때문이다.
+> [`PIPELINE.md`](PIPELINE.md)가 **AI 생성 콘텐츠 전용**인 것과 달리, 이 절차는 **origin(파트너/AI 생성) 무관 전 콘텐츠**에 적용된다 — 추천 스코어링은 origin을 가리지 않기 때문이다.
 
 ## 1. 목적 & 연결
 
@@ -22,7 +22,7 @@
 
 | 트리거 | 설명 |
 |---|---|
-| 신규 콘텐츠 업로드 준비 | AI 생성: [`pipeline.md`](pipeline.md) Phase F(업로드 패키지) 직후 이어서 실행. 파트너: 대본(또는 원문) 확보 시 실행 |
+| 신규 콘텐츠 업로드 준비 | AI 생성: [`spec/07`](spec/07-publish.md) 패키지(`packaged` 전환) 직후 이어서 실행. 파트너: 대본(또는 원문) 확보 시 실행 |
 | 재발행 | `content_version`이 오르는 재업로드 전에 재실행 — 미갱신은 운영 콘솔 "추천 입력 결손"에 잡힌다(`drip-scheduling.md` 5) |
 | 임베딩 모델 교체 | 발행 콘텐츠 **전량 재실행**(`domain.md` 5.6 — 모델이 섞이면 스코어링 불가) |
 | 기존 발행분 소급 부여 | 이 절차 도입(2026-08-26) 이전 발행분에 일괄 실행 |
@@ -31,7 +31,7 @@
 
 | 값 | 설명 | 필수 |
 |---|---|---|
-| script | 대본 전문 (AI 생성: `script-{n}.md` / 파트너: 대본 또는 원문 텍스트) | 필수 — 없으면 4.5 폴백 |
+| script | 대본 전문 (AI 생성: `script.md` — [`spec/04`](spec/04-script.md) 8장 / 파트너: 대본 또는 원문 텍스트) | 필수 — 없으면 4.5 폴백 |
 | title · description | 콘텐츠 제목·설명 | 필수 |
 | topic_names[] | 부여된 주제 | 필수 — 키워드가 주제의 단순 반복이 되지 않게 대조용 |
 | origin | partner / ai_generated | 필수 |
@@ -56,7 +56,7 @@
 |---|---|---|
 | `difficulty` | `beginner` \| `intermediate` \| `advanced` | 청자 전제 지식 기준 — `beginner`: 용어를 풀어 설명하며 사전 지식 불요 / `intermediate`: 기본 용어를 전제 / `advanced`: 실무 경험·선행 지식을 전제. **판정 불능이면 값을 지어내지 않고 비운다**(NULL — 4.5) |
 | `format` | `news_analysis` \| `howto` \| `interview` \| `opinion` \| `case_study` \| `overview` | 지배적 서술 형식 하나 — 뉴스·시사 해설 / 방법·실행 안내 / 대담·인용 중심 / 주장·견해 / 사례 분석 / 개괄·입문. 혼합이면 분량 기준 지배 형식 |
-| `is_evergreen` | `true` \| `false` | `false`(시의성): 특정 시점의 사건·수치·정책에 묶여 시간이 지나면 유효성이 떨어지는 내용 / `true`: 원리·방법론 중심으로 수명이 긴 내용. [`pipeline.md`](pipeline.md) 7장의 "시의성이 강한 주제" 판정과 같은 기준 |
+| `is_evergreen` | `true` \| `false` | `false`(시의성): 특정 시점의 사건·수치·정책에 묶여 시간이 지나면 유효성이 떨어지는 내용 / `true`: 원리·방법론 중심으로 수명이 긴 내용. [`spec/04`](spec/04-script.md) 6장의 시의성 주제 판정(소스 발행일 명시 대상)과 같은 기준 |
 | `keywords` | 문자열 배열 3~8개 | **대본에 실제로 다뤄진** 세부 개념의 명사구(예: "ISA 계좌", "복리 계산"). 주제명(`topic_names[]`)의 단순 반복 금지 — 주제보다 잘게 잡는 것이 존재 이유다(`drip-scheduling.md` 4.2 ②). 대본에 없는 개념을 넣지 않는다(FR-09의 부여판) |
 
 - 키워드 표기는 **NFC 정규화 + 공백 정리**로 통일한다 — 사용자 간 가중치 집계(`user_preference_vectors.keyword_weights`)가 문자열 일치로 묶이므로 표기가 흔들리면 같은 개념이 쪼개진다.
@@ -82,7 +82,7 @@
 
 - 관리자 업로드 화면의 **추천 메타 파일 입력**([`admin.md`](../features/admin.md) 3.1)에 첨부한다. 개별 필드를 손으로 입력하는 경로는 없다.
 - 판정 불능 항목은 키를 **생략**한다(잘못된 값보다 결손이 낫다 — 결손은 스코어링 중립 처리와 운영 콘솔 노출로 회수된다).
-- AI 생성 콘텐츠는 [`pipeline.md`](pipeline.md) 4.6의 `upload-meta.json`과 **별개 파일**로 둔다 — 상류 절차와 이 절차는 실행 시점·재실행 주기가 다르다(재발행·모델 교체는 대본 재작성 없이 이 파일만 다시 만든다).
+- AI 생성 콘텐츠는 [`spec/07`](spec/07-publish.md) 2장의 `upload-meta.json`과 **별개 파일**로 둔다 — 상류 절차와 이 절차는 실행 시점·재실행 주기가 다르다(재발행·모델 교체는 대본 재작성 없이 이 파일만 다시 만든다).
 
 ### 4.5 폴백 — 대본이 없는 콘텐츠
 
@@ -100,7 +100,7 @@
                 └ partial — 임베딩 모델 미확정·판정 불능 항목 생략 시
 ```
 
-- **이 상태를 DB에 두지 않는다**([`pipeline.md`](pipeline.md) 5장과 동일). 부여 여부의 진실은 저장 결과(`contents`의 메타 4종 · `content_embeddings` 행 존재)다.
+- **이 상태를 DB에 두지 않는다** — 부여 상태는 파이프라인 운영 DB(`backlog.status`)의 단계가 아니다. 부여 여부의 진실은 저장 결과(`contents`의 메타 4종 · `content_embeddings` 행 존재)다.
 - 결손 현황은 편성 배치의 운영 콘솔 항목 **"추천 입력 결손"** 이 노출한다(`drip-scheduling.md` 5) — 이 목록이 곧 재실행 대상이다.
 
 ## 6. 데이터 모델
