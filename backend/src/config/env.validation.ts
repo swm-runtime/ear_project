@@ -23,6 +23,12 @@ export enum AudioDelivery {
   CLOUDFRONT = 'cloudfront',
 }
 
+/** 이메일 발송 방식 — 기본 logging(발송 안 함, 개발용) */
+export enum MailDelivery {
+  LOGGING = 'logging',
+  SES = 'ses',
+}
+
 export enum NodeEnv {
   DEVELOPMENT = 'development',
   TEST = 'test',
@@ -237,11 +243,27 @@ export class EnvironmentVariables {
    */
   @ValidateIf(
     (env: EnvironmentVariables) =>
-      env.AUDIO_DELIVERY === AudioDelivery.CLOUDFRONT,
+      env.AUDIO_DELIVERY === AudioDelivery.CLOUDFRONT ||
+      env.MAIL_DELIVERY === MailDelivery.SES,
   )
   @IsString()
   @IsNotEmpty()
   AWS_REGION: string;
+
+  /**
+   * 이메일 인증 코드 발송 방식(auth.md 미결이던 발송 인프라 — SES로 확정 2026-08-31).
+   * `ses`면 발신 주소가 필수고, SES에서 검증된 도메인/주소여야 한다.
+   */
+  @IsEnum(MailDelivery)
+  MAIL_DELIVERY: MailDelivery = MailDelivery.LOGGING;
+
+  /** 예: `이어 <no-reply@earcast.co.kr>` */
+  @ValidateIf(
+    (env: EnvironmentVariables) => env.MAIL_DELIVERY === MailDelivery.SES,
+  )
+  @IsString()
+  @IsNotEmpty()
+  MAIL_FROM_ADDRESS: string;
 
   @ValidateIf(
     (env: EnvironmentVariables) =>

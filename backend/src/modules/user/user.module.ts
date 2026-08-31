@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { IdempotencyModule } from '@/modules/idempotency/idempotency.module';
@@ -20,7 +21,10 @@ import { Consent } from './entities/consent.entity';
 import { EmailVerification } from './entities/email-verification.entity';
 import { User } from './entities/user.entity';
 import { WithdrawalLog } from './entities/withdrawal-log.entity';
+import { EnvironmentVariables, MailDelivery } from '@/config/env.validation';
+
 import { LoggingMailClient, MailClient } from './mail.client';
+import { SesMailClient } from './ses-mail.client';
 import { JobCategoryController } from './controllers/job-category.controller';
 import { UserController } from './controllers/user.controller';
 import { UserCareerService } from './services/user-career.service';
@@ -66,8 +70,17 @@ import { WithdrawalLogRepository } from './repositories/withdrawal-log.repositor
     UserCareerService,
     DeviceTokenService,
     UserSettingService,
-    // 발송 인프라가 확정되면 이 바인딩만 교체한다 (mail.client.ts 주석)
-    { provide: MailClient, useClass: LoggingMailClient },
+    // 발송 방식은 배포 설정이 고른다 — 운영은 ses, 개발 기본은 logging(발송 안 함)
+    {
+      provide: MailClient,
+      inject: [ConfigService],
+      useFactory: (
+        configService: ConfigService<EnvironmentVariables, true>,
+      ): MailClient =>
+        configService.get('MAIL_DELIVERY', { infer: true }) === MailDelivery.SES
+          ? new SesMailClient(configService)
+          : new LoggingMailClient(),
+    },
   ],
   exports: [
     UserService,
