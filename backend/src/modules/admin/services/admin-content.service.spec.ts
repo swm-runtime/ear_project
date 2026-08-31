@@ -104,7 +104,6 @@ describe('AdminContentService', () => {
         key: 'thumb/def.png',
         url: 'https://cdn.example/thumb/def.png',
       }),
-      registerPlayback: jest.fn().mockResolvedValue(undefined),
       remove: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<ContentStorageClient>;
 
@@ -152,10 +151,6 @@ describe('AdminContentService', () => {
           after: containing({ review_confirmed: true }),
         }),
         manager,
-      );
-      expect(storage.registerPlayback).toHaveBeenCalledWith(
-        CONTENT_ID,
-        'audio/abc.mp3',
       );
     });
 
@@ -311,21 +306,6 @@ describe('AdminContentService', () => {
       });
       expect(storage.remove).toHaveBeenCalledWith(['audio/abc.mp3']);
       expect(contentService.publish).not.toHaveBeenCalled();
-    });
-
-    it('재생 경로 등록이 실패하면 트랜잭션이 깨지고 올린 파일을 전부 지운다', async () => {
-      // given
-      storage.registerPlayback.mockRejectedValue(new Error('kvs down'));
-
-      // when
-      const act = service.upload(buildCommand(), NOW);
-
-      // then
-      await expect(act).rejects.toThrow('kvs down');
-      expect(storage.remove).toHaveBeenCalledWith([
-        'audio/abc.mp3',
-        'thumb/def.png',
-      ]);
     });
 
     it('예외는 BusinessException이다', async () => {

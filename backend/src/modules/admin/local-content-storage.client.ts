@@ -43,11 +43,6 @@ export class LocalContentStorageClient extends ContentStorageClient {
     return { key, url: `${this.publicBaseUrl}/${key}` };
   }
 
-  /** 로컬 스트리밍 라우트는 DB의 `audio_path`를 직접 읽는다 — 별도 매핑이 없다 */
-  registerPlayback(): Promise<void> {
-    return Promise.resolve();
-  }
-
   async remove(keys: string[]): Promise<void> {
     await Promise.all(
       keys.map((key) => rm(join(this.root, key), { force: true })),

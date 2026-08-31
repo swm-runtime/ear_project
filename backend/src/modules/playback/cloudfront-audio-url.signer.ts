@@ -15,10 +15,11 @@ import { SignedAudioUrl } from './playback.types';
  * 하고, 재생기는 CDN에 직접 Range 요청을 보낸다. 듣는 만큼만 전송되는 것은 Range 요청의
  * 기본 동작이라 여기서 따로 할 일이 없다.
  *
- * **URL은 `/play/<contentId>`이고 저장소 키는 실리지 않는다**(domain.md 5.1). CloudFront
- * Function이 뷰어 요청 단계에서 KeyValueStore(`contentId → S3 키`)를 보고 실제 오브젝트
- * 경로로 재작성한다(`deploy/aws/audio-rewrite.function.js`). 키 매핑은 업로드 시점에
- * `deploy/upload-audio.sh`가 넣는다.
+ * **URL은 저장소 키(`/audio/<무작위 hex>.<ext>`)를 직접 가리킨다.** 원래 설계는
+ * `/play/<contentId>` + CloudFront Function(KeyValueStore 재작성)이었으나, 운영 계정(조직
+ * SCP)이 KVS 데이터 플레인을 전면 거부해 폐기했다(2026-08-31 — `docs/infra/architecture.md`
+ * 3.2). 키가 무작위라 제목·의미는 어차피 새지 않고, 회수 차단은 "신규 발급 중단 + 기존
+ * 발급분 5분 만료 소멸"(partner-control.md 4.3)로 성립한다.
  *
  * 정책은 **custom policy + 배포 전체 와일드카드**다. 서명 검증이 재작성 전·후 어느 URI를
  * 보든 통과해야 하기 때문이다. 대가로, 유효한 URL 하나를 5분 안에 다른 contentId로 고쳐
@@ -47,10 +48,10 @@ export class CloudFrontAudioUrlSigner implements AudioUrlIssuer {
 
   sign(input: AudioUrlSignInput, now: Date): SignedAudioUrl {
     const expiresAt = new Date(now.getTime() + AUDIO_URL_TTL_SEC * 1000);
-    const playUrl = `${this.baseUrl}/play/${input.contentId}`;
+    const objectUrl = `${this.baseUrl}/${input.audioPath}`;
 
     const url = getSignedUrl({
-      url: playUrl,
+      url: objectUrl,
       keyPairId: this.keyPairId,
       privateKey: this.privateKey,
       policy: buildPolicy(this.baseUrl, expiresAt),

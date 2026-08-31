@@ -35,8 +35,8 @@ import { ContentStorageClient } from '../content-storage.client';
  *    ↓
  * [저장] 오디오·썸네일을 저장소에 올린다 → audio_path 확보
  *    ↓
- * [발행] 트랜잭션: contents(published) + content_topics + content_sources + audit_logs
- *        + 재생 경로 등록(KVS). 어느 하나라도 실패하면 전부 롤백하고 올린 파일을 지운다
+ * [발행] 트랜잭션: contents(published) + content_topics + content_sources + audit_logs.
+ *        어느 하나라도 실패하면 전부 롤백하고 올린 파일을 지운다
  * ```
  *
  * 저장소를 트랜잭션 **밖에서 먼저** 올리는 이유: 업로드는 수십 초가 걸릴 수 있어 그동안
@@ -163,9 +163,6 @@ export class AdminContentService {
           },
           manager,
         );
-
-        // 마지막에 재생 경로를 연다. 여기서 실패하면 위 행들이 함께 롤백된다
-        await this.storage.registerPlayback(published.id, audioPath);
 
         return published;
       });

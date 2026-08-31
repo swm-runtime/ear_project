@@ -42,7 +42,7 @@ describe('CloudFrontAudioUrlSigner', () => {
     signer = new CloudFrontAudioUrlSigner(configService);
   });
 
-  it('URL은 /play/<contentId>이고 저장소 키·userId는 실리지 않는다', () => {
+  it('URL은 저장소 키를 직접 가리키고 userId는 실리지 않는다', () => {
     // when
     const signed = signer.sign(
       { contentId: CONTENT_ID, userId: USER_ID, audioPath: 'ep/abc.mp3' },
@@ -52,9 +52,8 @@ describe('CloudFrontAudioUrlSigner', () => {
 
     // then — domain.md 5.1: audio_path는 어떤 응답에도 실리지 않는다
     expect(url.origin + url.pathname).toBe(
-      `https://cdn.example.com/audio/play/${CONTENT_ID}`,
+      `https://cdn.example.com/audio/ep/abc.mp3`,
     );
-    expect(signed.url).not.toContain('abc.mp3');
     expect(signed.url).not.toContain(USER_ID);
     expect(url.searchParams.get('Key-Pair-Id')).toBe('K2JCJMDEHXQW5F');
     expect(url.searchParams.get('Policy')).toBeTruthy();

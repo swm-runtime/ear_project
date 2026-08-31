@@ -22,15 +22,6 @@ export abstract class ContentStorageClient {
     extension: string,
   ): Promise<StoredObject>;
 
-  /**
-   * `/play/<contentId>` 재생 경로를 살린다 — CloudFront Function이 볼 `contentId → 키`
-   * 매핑. DB 트랜잭션 안에서 마지막에 호출해, 실패하면 콘텐츠 행도 함께 롤백된다.
-   */
-  abstract registerPlayback(
-    contentId: string,
-    audioPath: string,
-  ): Promise<void>;
-
   /** 실패한 업로드의 부분 결과 정리(admin.md 4.2 — 원자성). 없는 키는 무시한다 */
   abstract remove(keys: string[]): Promise<void>;
 

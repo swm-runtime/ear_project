@@ -229,8 +229,8 @@ export class EnvironmentVariables {
   CLOUDFRONT_PRIVATE_KEY_BASE64: string;
 
   /**
-   * 관리자 업로드(admin.md 4.2)가 오디오·썸네일을 올리는 S3 버킷과, `contentId → S3 키`
-   * 매핑을 넣는 CloudFront KeyValueStore(`deploy/aws/README.md`). `cloudfront` 모드에서만
+   * 관리자 업로드(admin.md 4.2)가 오디오·썸네일을 올리는 S3 버킷(`deploy/aws/README.md`).
+   * `cloudfront` 모드에서만
    * 필수다 — `local` 모드는 `AUDIO_STORAGE_ROOT`에 파일을 쓴다.
    *
    * 자격증명은 env에 두지 않는다 — EC2 인스턴스 롤(IMDS)이 준다.
@@ -250,14 +250,6 @@ export class EnvironmentVariables {
   @IsString()
   @IsNotEmpty()
   AUDIO_BUCKET: string;
-
-  @ValidateIf(
-    (env: EnvironmentVariables) =>
-      env.AUDIO_DELIVERY === AudioDelivery.CLOUDFRONT,
-  )
-  @IsString()
-  @IsNotEmpty()
-  AUDIO_KVS_ARN: string;
 
   /**
    * 앞단에서 신뢰하는 리버스 프록시(LB) 홉 수. Express `trust proxy`에 그대로 들어간다.

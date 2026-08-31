@@ -17,9 +17,9 @@ export interface AudioUrlSignInput {
   contentId: string;
   userId: string;
   /**
-   * `contents.audio_path` — 저장소 키. **어느 구현도 URL에 싣지 않는다**(domain.md 5.1).
-   * local은 스트리밍 라우트가 contentId로 다시 찾고, cloudfront는 CloudFront Function이
-   * KeyValueStore에서 찾는다. 향후 구현이 필요로 할 수 있어 입력에는 남겨 둔다.
+   * `contents.audio_path` — 저장소 키(무작위 hex — 제목이 새지 않는다). local은 스트리밍
+   * 라우트가 contentId로 다시 찾고, cloudfront는 이 키를 직접 서명한다(운영 계정 SCP가
+   * KVS를 거부해 `/play` 재작성안을 폐기 — cloudfront-audio-url.signer.ts 주석).
    */
   audioPath: string;
 }

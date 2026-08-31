@@ -33,17 +33,6 @@ OAC_ID=$(aws cloudfront create-origin-access-control --origin-access-control-con
   "Name=ear-audio-oac,SigningProtocol=sigv4,SigningBehavior=always,OriginAccessControlOriginType=s3" \
   --query 'OriginAccessControl.Id' --output text)
 
-echo "== 4. KeyValueStore + viewer-request Function (/play/<contentId> → S3 키)"
-KVS_ARN=$(aws cloudfront create-key-value-store --name ear-audio-map   --query 'KeyValueStore.ARN' --output text)
-# 생성 직후엔 PROVISIONING — READY 될 때까지 기다린다
-for _ in $(seq 1 30); do
-  ST=$(aws cloudfront describe-key-value-store --name ear-audio-map --query 'KeyValueStore.Status' --output text)
-  [ "$ST" = "READY" ] && break; sleep 5
-done
-FN_ARN=$(aws cloudfront create-function --name ear-audio-rewrite   --function-config "Comment=play path to S3 key,Runtime=cloudfront-js-2.0,KeyValueStoreAssociations={Quantity=1,Items=[{KeyValueStoreARN=$KVS_ARN}]}"   --function-code "fileb://$(dirname "$0")/audio-rewrite.function.js"   --query 'FunctionSummary.FunctionMetadata.FunctionARN' --output text)
-FN_ETAG=$(aws cloudfront describe-function --name ear-audio-rewrite --query ETag --output text)
-aws cloudfront publish-function --name ear-audio-rewrite --if-match "$FN_ETAG" >/dev/null
-
 echo "== 5. CloudFront distribution"
 # CachePolicyId 658327ea... = AWS 관리형 "CachingOptimized": 쿼리스트링 무시 → 서명 파라미터가
 # 달라도 같은 오브젝트로 캐시된다. Range 요청은 기본 지원.
@@ -68,10 +57,19 @@ cat > "$OUT/dist.json" <<JSON
     "Compress": false,
     "CachePolicyId": "658327ea-f89d-4fab-a63d-7e88639e58f6",
     "TrustedKeyGroups": { "Enabled": true, "Quantity": 1, "Items": ["${KG_ID}"] },
-    "TrustedSigners": { "Enabled": false, "Quantity": 0 },
-    "FunctionAssociations": { "Quantity": 1, "Items": [
-      { "EventType": "viewer-request", "FunctionARN": "${FN_ARN}" } ] }
-  }
+    "TrustedSigners": { "Enabled": false, "Quantity": 0 }
+  },
+  "CacheBehaviors": { "Quantity": 1, "Items": [ {
+    "PathPattern": "thumb/*",
+    "TargetOriginId": "s3-audio",
+    "ViewerProtocolPolicy": "https-only",
+    "AllowedMethods": { "Quantity": 2, "Items": ["GET","HEAD"],
+      "CachedMethods": { "Quantity": 2, "Items": ["GET","HEAD"] } },
+    "Compress": true,
+    "CachePolicyId": "658327ea-f89d-4fab-a63d-7e88639e58f6",
+    "TrustedKeyGroups": { "Enabled": false, "Quantity": 0 },
+    "TrustedSigners": { "Enabled": false, "Quantity": 0 }
+  } ] }
 }
 JSON
 DIST=$(aws cloudfront create-distribution --distribution-config "file://$OUT/dist.json")
@@ -94,8 +92,7 @@ echo "AUDIO_URL_BASE_URL=https://${DIST_DOMAIN}"
 echo "CLOUDFRONT_KEY_PAIR_ID=${PUB_ID}"
 echo "CLOUDFRONT_PRIVATE_KEY_BASE64=$(base64 -w0 "$OUT/cf_private.pem")"
 echo
-echo "==== 업로드 스크립트가 쓰는 값 ===="
+echo "==== 업로드가 쓰는 값 ===="
 echo "AUDIO_BUCKET=${AUDIO_BUCKET}"
-echo "KVS_ARN=${KVS_ARN}"
 echo
 echo "distribution ${DIST_ID} 배포 완료까지 5~10분. ${OUT}/cf_private.pem 은 커밋 금지."
