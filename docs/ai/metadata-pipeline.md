@@ -16,7 +16,12 @@
 
 임베딩은 "무엇에 관한 내용인가"를, 메타 4종은 임베딩이 잘 잡지 못하는 "어떤 수준·형식·수명의 콘텐츠인가"를 담당한다(`drip-scheduling.md` 4.2의 축 분리 근거).
 
-**구현 위치는 `.claude/skills/`다**(`ai/README.md`의 경계 — 스킬로 실행하는 수작업 보조 도구). 서버 자동화(업로드 시 서버가 임베딩 API를 호출하는 구조)는 채택하지 않았다(협의 2026-08-26) — 부여 절차를 앱 밖에 두어 API 키·모델 교체·재실행이 서버 배포와 무관하게 돌아가게 한다.
+**구현 위치는 둘로 나뉜다**(개정 2026-09-01 — AI 서버 신설 협의):
+
+- **Phase A(메타 판정)·Phase C(산출물)** — `.claude/skills/`의 스킬(`ai/README.md`의 경계 — 수작업 보조 도구)
+- **Phase B(임베딩 생성)** — **AI 서버(`ai-server/`)의 `POST /embeddings` 호출.** 임베딩은 모델 추론이라 AI 서버 몫이며(`backend/architecture.md` 1장 — 모델 추론은 AI 서버 내부), 청킹·평균·정규화도 서버 안에 있어 호출자마다 규칙이 갈리지 않는다. 스킬은 응답(`{ model, dim, vector }`)을 `enrichment.json`에 그대로 담는다
+
+NestJS 자동화(업로드 시 서비스 서버가 임베딩 API를 호출하는 구조)를 채택하지 않은 결정(협의 2026-08-26)은 유지된다 — 취지가 "모델 추론·API 키·모델 교체를 **서비스 배포와 분리**"였고, AI 서버가 그 분리를 담당하는 자리가 됐다. NestJS는 여전히 저장만 한다.
 
 ## 2. 진입 조건
 
@@ -64,8 +69,9 @@
 
 ### 4.3 임베딩 생성 (Phase B)
 
-- 입력: **대본 전문**. 모델 입력 한도를 넘으면 청크로 나눠 각각 임베딩 후 **평균 → 정규화**한다(코사인 유사도 전제 — `domain.md` 5.6).
-- 모델: **미결**(`domain.md` 15.1 #11). 후보 — OpenAI `text-embedding-3-small`(1536차원, 축소 가능) 등. 확정 전에는 Phase B를 건너뛰고 메타 4종만 산출한다(스코어링은 임베딩 축 제외로 동작 — `drip-scheduling.md` 4.2).
+- **AI 서버의 `POST /embeddings`를 호출한다**(확정 2026-09-01 — `ai-server/README.md`). 입력은 **대본 전문**이며, 모델 입력 한도 초과 시의 청킹·각 청크 임베딩·**평균 → L2 정규화**(코사인 유사도 전제 — `domain.md` 5.6)는 전부 AI 서버 안에서 처리된다. 스킬은 응답 `{ model, dim, vector }`를 `enrichment.json`의 `embedding` 키에 그대로 담는다.
+- 모델: **OpenAI `text-embedding-3-small` · 1536차원 확정**(2026-09-01 — `domain.md` 15.1 #11 해소. 소유처는 AI 서버 env `EMBEDDING_MODEL`·`EMBEDDING_DIM`). 서버 쪽 저장(`content_embeddings` 마이그레이션)이 나가기 전까지는 Phase B 산출물이 저장처 없이 대기하므로, 그동안은 건너뛰어도 된다(스코어링은 임베딩 축 제외로 동작 — `drip-scheduling.md` 4.2).
+  - AI 서버의 기본 제공자 `stub`(결정적 무의미 벡터)은 **서버 검증용이다** — stub 벡터를 `content_embeddings`에 저장하지 않는다(`model = dev-stub`이 그 방어선이다).
 - 산출물에 **모델 식별자를 함께 기록**한다(`content_embeddings.model`). 값 없는 벡터는 만들지 않는다.
 
 ### 4.4 산출물 (Phase C) — `enrichment.json`
@@ -97,7 +103,7 @@
 
 ```
 (대본 확보) → enriched(enrichment.json 산출) → (관리자 업로드로 저장)
-                └ partial — 임베딩 모델 미확정·판정 불능 항목 생략 시
+                └ partial — 임베딩 생략(서버 저장처 미비·API 장애)·판정 불능 항목 생략 시
 ```
 
 - **이 상태를 DB에 두지 않는다** — 부여 상태는 파이프라인 운영 DB(`backlog.status`)의 단계가 아니다. 부여 여부의 진실은 저장 결과(`contents`의 메타 4종 · `content_embeddings` 행 존재)다.
@@ -126,14 +132,14 @@
 - Given 대본이 있는 콘텐츠(origin 무관) / When 파이프라인을 실행한다 / Then `difficulty` · `format` · `is_evergreen` · `keywords`가 `domain.md` 5.1의 enum·형식에 맞는 `enrichment.json`이 산출된다
 - Given 파트너 콘텐츠의 대본 / When 파이프라인을 실행한다 / Then AI 생성 콘텐츠와 동일한 절차·산출물 형식으로 처리된다
 - Given 대본에 다뤄지지 않은 개념 / When 키워드를 산출한다 / Then 해당 개념은 키워드에 포함되지 않는다
-- Given 임베딩 모델이 미확정인 상태 / When 파이프라인을 실행한다 / Then 메타 4종만 담긴 산출물이 나오고 `embedding` 키는 없다
+- Given Phase B를 생략한 실행(서버 저장처 미비·API 장애) / When 파이프라인을 실행한다 / Then 메타 4종만 담긴 산출물이 나오고 `embedding` 키는 없다
 - Given 판정 불능인 항목(대본 없음 등) / When 산출물을 만든다 / Then 해당 키가 생략되고, 지어낸 값이 들어가지 않는다
 - Given 산출물을 첨부한 관리자 업로드 / When 업로드가 완료된다 / Then `contents`의 메타 4종과 `content_embeddings` 행이 저장되고, 편성 배치 스코어링이 이 값들을 읽는다(`drip-scheduling.md` 4.2)
 
 ## 미결 사항
 
-- **임베딩 모델·차원** — `domain.md` 15.1 #11과 같은 항목. 확정 전에는 Phase B 생략(4.3).
+- ~~임베딩 모델·차원~~ → **확정 (2026-09-01)**: `text-embedding-3-small` · 1536 (`domain.md` 15.1 #11 해소 — 4.3).
 - **enum 값 집합의 검증** — `difficulty` 3값 · `format` 6값은 초기값이다(`domain.md` 5.1). 초기 콘텐츠 N건 부여 후 분포를 보고 조정한다(한 값에 몰리면 구분력이 없는 것이다).
 - **키워드 정규화의 소유** — 4.2의 NFC·공백 정리를 이 도구가 하는 것으로 시작하되, 서버 저장 시점 재정규화(검색의 `explore.md` 4.5-5와 같은 층)를 둘지 백엔드 구현 시 확정.
 - **재발행 시 대본 무변경 판정**(7장) — 임베딩 `content_version` 갱신 주체를 서버로 할지 재실행으로 할지.
-- **기존 발행분 소급 실행의 시점** — 모델 확정 후 일괄 실행이 효율적(모델 미확정 상태에서 소급하면 메타만 두 번 작업).
+- **기존 발행분 소급 실행의 시점** — AI 서버 배포(`tickets/infra/pending/ai-server-deployment.md`)와 서버 저장(`content_embeddings` 마이그레이션)이 갖춰진 뒤 일괄 실행(모델은 확정됨 — 2026-09-01).

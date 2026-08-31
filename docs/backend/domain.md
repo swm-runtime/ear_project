@@ -648,8 +648,8 @@ uq_content_sources_content_id_position (content_id, position)
 content_embeddings
   id                        uuid            PK
   content_id                uuid            FK → contents (CASCADE)
-  embedding                 vector(N)       ★차원 N은 모델 확정 시 고정 (15.1 #11 미결)
-  model                     varchar         ★생성 모델 식별자 (예: "text-embedding-3-small")
+  embedding                 vector(1536)    ★text-embedding-3-small 확정 (2026-09-01 — 15.1 #11 해소)
+  model                     varchar         ★생성 모델 식별자 — "text-embedding-3-small" 확정
   content_version           int             ★어느 버전 대본 기준인지 — contents.content_version과 대조해 재발행 후 미갱신 검출
 
 uq_content_embeddings_content_id (content_id)
@@ -896,7 +896,7 @@ user_preference_vectors
   keyword_weights           jsonb           { keyword: float }     ★신설 2026-08-26 — contents.keywords 기반
   format_weights            jsonb           { format: float }      ★신설 2026-08-26 — contents.format 기반
   duration_pref             jsonb           { median_sec, p25_sec, p75_sec } ★신설 2026-08-26 — 완청 길이 분포
-  taste_embedding           vector(N)       NULL 허용 ★신설 2026-08-26 — 취향 벡터 (차원은 content_embeddings와 동일)
+  taste_embedding           vector(1536)    NULL 허용 ★신설 2026-08-26 — 취향 벡터 (차원은 content_embeddings와 동일 — 확정 2026-09-01)
   signal_count              int             ★콜드스타트 판정용
 
 uq_user_preference_vectors_user_id (user_id)
@@ -1492,7 +1492,7 @@ idx_archived_subscriptions_archived_at
 | 8 | **`ai_generated` 정책 확인 기록 필드 도입 여부** (~~근거 소스 목록~~은 해소) | **소스 목록은 해소 (2026-08-24)** — 콘텐츠 상세 화면(FR-40)의 소스 단위 표시 요구로 `content_sources` 테이블로 승격했다([5.5](#55-content_sources)). `source_name` 고지 문구는 유지, partner는 행 없음, 소스 항목 탭 클릭은 MVP 미기록. 티켓 `tickets/backend/archive/content-sources-structured-list.md` 처리 완료. **남은 결정**: 적법 수집 확인(FR-11)의 확인 **기록** — 업로드 전 수동 확인뿐이고 기록이 시스템에 남지 않는다(`admin.md` 4.2-1 미결). `content_sources`에 확인 필드를 붙일지, 감사 로그(`audit_logs`의 업로드 기록)로 충분한지 결정 필요. |
 | 9 | **사용자 단위 청취 통계 집계 테이블 신설 여부** | 프로필 통계(`profile.md` 4.5~4.7)는 전부 파생값이라 컬럼을 두지 않는다([1.5](#15-파생값을-컬럼으로-두지-않는다) · [6.3](#63-play_records)). 다만 연속 일수·주제 분포는 매 조회 집계 비용이 사용자 이력에 비례하므로, 집계 캐시 테이블(또는 구체화 뷰)을 둘지는 실측 후 백엔드가 판단한다. 캐시를 두는 경우에도 진실의 원천은 `play_records`다. |
 | 10 | ~~직군 선택지 목록의 저장 형태~~ | **해소 (협의 2026-08-10)** — 원천은 서버 제공(`onboarding.md`·`career.md`, 공용), 저장 형태는 **서버 코드 상수로 시작한다**(스키마 변경·테이블 신설 없음). 관리자가 목록을 바꿀 요구가 생기면 관리 테이블로 승격하고, 그때 제거된 직군 값의 처리(`career-api.md` 미결)를 함께 정한다. 계약(`GET /job-categories`)은 형태와 무관하다. |
-| 11 | **임베딩 모델·차원** (2026-08-26) | [5.6](#56-content_embeddings-신설-2026-08-26--추천-스코어링-고도화) `content_embeddings.embedding` · [7.2](#72-user_preference_vectors) `taste_embedding`의 `vector(N)` 차원이 모델에 묶인다. 후보: OpenAI `text-embedding-3-small`(1536, 축소 가능) 등 — 비용·한국어 품질 검토 후 확정(협의 2026-08-26, `ai/metadata-pipeline.md` 미결과 같은 항목). **확정 전에는 두 벡터 컬럼의 마이그레이션을 만들지 않는다**(나머지 추천 메타 4종·jsonb 가중치는 차원과 무관하므로 먼저 나갈 수 있다). 모델 교체 시 전량 재생성(5.6). |
+| 11 | ~~임베딩 모델·차원~~ | [5.6](#56-content_embeddings-신설-2026-08-26--추천-스코어링-고도화) `content_embeddings.embedding` · [7.2](#72-user_preference_vectors) `taste_embedding`의 차원이 모델에 묶이는 문제였다. **해소 (2026-09-01)** — **OpenAI `text-embedding-3-small` · 1536차원으로 확정**(협의 2026-09-01). 벡터 컬럼 마이그레이션 금지가 **풀렸다** — 5.6 `content_embeddings` 신설과 7.2 `taste_embedding` 추가를 `vector(1536)`으로 작성한다(다음 백엔드 작업). 생성·모델 선택의 소유처는 AI 서버(`ai-server/` env `EMBEDDING_MODEL`·`EMBEDDING_DIM` — `architecture.md` 1장)이며, 모델 교체 시 전량 재생성(5.6)은 유지된다. |
 
 ### 15.2 회의에서 확정된 사항 (반영 완료)
 
