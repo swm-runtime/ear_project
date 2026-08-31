@@ -35,6 +35,7 @@ import {
   AdminTopicListResponseDto,
 } from './dto/admin-topic-item.dto';
 import { CreateTopicRequestDto } from './dto/create-topic-request.dto';
+import { WithdrawContentRequestDto } from './dto/withdraw-content-request.dto';
 import { UpdateTopicRequestDto } from './dto/update-topic-request.dto';
 import {
   UploadContentFormRequestDto,
@@ -116,6 +117,36 @@ export class AdminController {
         offset: query.offset ?? 0,
         limit: query.limit ?? 20,
       }),
+    );
+  }
+
+  /** admin.md 4.4 — 회수. 노출면 반영은 partner-control.md 4.3을 따른다 */
+  @Post('contents/:contentId/withdraw')
+  @HttpCode(HttpStatus.OK)
+  async withdrawContent(
+    @CurrentUser() currentUser: AuthenticatedUser,
+    @Param('contentId', ParseUUIDPipe) contentId: string,
+    @Body() request: WithdrawContentRequestDto,
+  ): Promise<AdminContentItemDto> {
+    return AdminContentItemDto.from(
+      await this.adminContentService.withdraw(
+        currentUser.id,
+        contentId,
+        request.reason ?? null,
+        new Date(),
+      ),
+    );
+  }
+
+  /** 회수 복구 — 삭제된 library_items는 되살리지 않는다 */
+  @Post('contents/:contentId/restore')
+  @HttpCode(HttpStatus.OK)
+  async restoreContent(
+    @CurrentUser() currentUser: AuthenticatedUser,
+    @Param('contentId', ParseUUIDPipe) contentId: string,
+  ): Promise<AdminContentItemDto> {
+    return AdminContentItemDto.from(
+      await this.adminContentService.restore(currentUser.id, contentId),
     );
   }
 

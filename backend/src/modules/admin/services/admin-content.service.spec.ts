@@ -8,6 +8,8 @@ import { Topic } from '@/modules/interest/entities/topic.entity';
 import { TopicService } from '@/modules/interest/services/topic.service';
 import { AuditLogService } from '@/modules/partner/audit-log.service';
 
+import { LibraryService } from '@/modules/library/library.service';
+
 import { AdminContentService } from './admin-content.service';
 import { UploadContentCommand, UploadedFileInput } from '../admin.types';
 import { AudioProbe } from '../audio-probe';
@@ -63,6 +65,7 @@ function buildCommand(
 describe('AdminContentService', () => {
   let service: AdminContentService;
   let contentService: jest.Mocked<ContentService>;
+  let libraryService: jest.Mocked<LibraryService>;
   let topicService: jest.Mocked<TopicService>;
   let auditLogService: jest.Mocked<AuditLogService>;
   let storage: jest.Mocked<ContentStorageClient>;
@@ -84,9 +87,23 @@ describe('AdminContentService', () => {
         id: CONTENT_ID,
         status: ContentStatus.PUBLISHED,
       }),
+      getById: jest.fn().mockResolvedValue({
+        id: CONTENT_ID,
+        status: ContentStatus.PUBLISHED,
+      }),
+      withdraw: jest
+        .fn()
+        .mockResolvedValue({ id: CONTENT_ID, status: ContentStatus.WITHDRAWN }),
+      restoreWithdrawn: jest
+        .fn()
+        .mockResolvedValue({ id: CONTENT_ID, status: ContentStatus.PUBLISHED }),
       findAdminPage: jest.fn(),
       findTopicViews: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<ContentService>;
+
+    libraryService = {
+      removeAllByWithdrawnContent: jest.fn().mockResolvedValue(3),
+    } as unknown as jest.Mocked<LibraryService>;
 
     topicService = {
       findAllByIds: jest
@@ -114,6 +131,7 @@ describe('AdminContentService', () => {
     service = new AdminContentService(
       dataSource,
       contentService,
+      libraryService,
       topicService,
       auditLogService,
       storage,
@@ -317,6 +335,85 @@ describe('AdminContentService', () => {
 
       // then
       await expect(act).rejects.toBeInstanceOf(BusinessException);
+    });
+  });
+
+  describe('withdraw', () => {
+    it('회수하면 상태 전환·라이브러리 일괄 삭제·감사 로그가 한 트랜잭션에서 일어난다', async () => {
+      // when
+      const result = await service.withdraw(
+        ACTOR_ID,
+        CONTENT_ID,
+        '품질 문제',
+        NOW,
+      );
+
+      // then
+      expect(result.content.status).toBe(ContentStatus.WITHDRAWN);
+      expect(contentService.withdraw).toHaveBeenCalledWith(
+        expect.objectContaining({ id: CONTENT_ID }),
+        NOW,
+        manager,
+      );
+      expect(libraryService.removeAllByWithdrawnContent).toHaveBeenCalledWith(
+        CONTENT_ID,
+        NOW,
+        manager,
+      );
+      expect(auditLogService.record).toHaveBeenCalledWith(
+        containing({
+          action: 'content.withdraw',
+          target: `content:${CONTENT_ID}`,
+        }),
+        manager,
+      );
+    });
+
+    it('이미 회수된 콘텐츠를 다시 회수하면 409로 거부한다', async () => {
+      // given
+      contentService.getById.mockResolvedValue({
+        id: CONTENT_ID,
+        status: ContentStatus.WITHDRAWN,
+      } as never);
+
+      // when
+      const act = service.withdraw(ACTOR_ID, CONTENT_ID, null, NOW);
+
+      // then
+      await expect(act).rejects.toMatchObject({
+        errorCode: ErrorCode.CONFLICT,
+      });
+      expect(libraryService.removeAllByWithdrawnContent).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('restore', () => {
+    it('회수된 콘텐츠를 복구하면 published로 돌아가고 감사 로그가 남는다', async () => {
+      // given
+      contentService.getById.mockResolvedValue({
+        id: CONTENT_ID,
+        status: ContentStatus.WITHDRAWN,
+      } as never);
+
+      // when
+      const result = await service.restore(ACTOR_ID, CONTENT_ID);
+
+      // then
+      expect(result.content.status).toBe(ContentStatus.PUBLISHED);
+      expect(auditLogService.record).toHaveBeenCalledWith(
+        containing({ action: 'content.restore' }),
+        manager,
+      );
+    });
+
+    it('회수 상태가 아닌 콘텐츠의 복구는 409로 거부한다', async () => {
+      // when
+      const act = service.restore(ACTOR_ID, CONTENT_ID);
+
+      // then
+      await expect(act).rejects.toMatchObject({
+        errorCode: ErrorCode.CONFLICT,
+      });
     });
   });
 });

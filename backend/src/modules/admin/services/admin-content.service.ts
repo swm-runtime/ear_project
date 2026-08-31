@@ -4,9 +4,10 @@ import { DataSource } from 'typeorm';
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { ExternalServiceException } from '@/common/exceptions/external-service.exception';
-import { ContentOrigin } from '@/modules/content/content.enum';
+import { ContentOrigin, ContentStatus } from '@/modules/content/content.enum';
 import { Content } from '@/modules/content/entities/content.entity';
 import { ContentService } from '@/modules/content/services/content.service';
+import { LibraryService } from '@/modules/library/library.service';
 import { TopicService } from '@/modules/interest/services/topic.service';
 import { AuditLogService } from '@/modules/partner/audit-log.service';
 
@@ -19,7 +20,9 @@ import {
 } from '../admin.types';
 import {
   AUDIO_CONTENT_TYPES,
+  AUDIT_ACTION_CONTENT_RESTORE,
   AUDIT_ACTION_CONTENT_UPLOAD,
+  AUDIT_ACTION_CONTENT_WITHDRAW,
   MAX_AUDIO_FILE_BYTES,
   MAX_THUMBNAIL_FILE_BYTES,
   THUMBNAIL_CONTENT_TYPES,
@@ -49,6 +52,7 @@ export class AdminContentService {
   constructor(
     private readonly dataSource: DataSource,
     private readonly contentService: ContentService,
+    private readonly libraryService: LibraryService,
     private readonly topicService: TopicService,
     private readonly auditLogService: AuditLogService,
     private readonly storage: ContentStorageClient,
@@ -179,6 +183,116 @@ export class AdminContentService {
     return {
       content,
       topics: topics.map((topic) => ({ topicId: topic.id, name: topic.name })),
+    };
+  }
+
+  /**
+   * 회수(FR-32) — partner-control.md 4.3 순서대로 한 트랜잭션에서:
+   * ① `status = withdrawn` + `withdrawn_at` ② 전 사용자 `library_items` 삭제 ③ 감사 로그.
+   * 서명 URL 신규 발급은 상태 전환 즉시 막히고(발급 경로가 `getPublishedById`),
+   * 이미 발급된 URL은 5분 만료로 소멸한다(4.3-2).
+   */
+  async withdraw(
+    actorUserId: string,
+    contentId: string,
+    reason: string | null,
+    now: Date,
+  ): Promise<AdminContentView> {
+    const content = await this.dataSource.transaction(async (manager) => {
+      const target = await this.contentService.getById(contentId, manager);
+
+      if (target.status === ContentStatus.WITHDRAWN) {
+        throw new BusinessException({
+          status: HttpStatus.CONFLICT,
+          errorCode: ErrorCode.CONFLICT,
+          message: '이미 회수된 콘텐츠예요',
+        });
+      }
+
+      const withdrawn = await this.contentService.withdraw(
+        target,
+        now,
+        manager,
+      );
+      const removedCount =
+        await this.libraryService.removeAllByWithdrawnContent(
+          contentId,
+          now,
+          manager,
+        );
+      await this.auditLogService.record(
+        {
+          actor: actorUserId,
+          action: AUDIT_ACTION_CONTENT_WITHDRAW,
+          target: `content:${contentId}`,
+          after: { reason, removed_library_items: removedCount },
+        },
+        manager,
+      );
+
+      return withdrawn;
+    });
+
+    this.logger.log('content withdrawn', {
+      content_id: contentId,
+      actor: actorUserId,
+    });
+
+    return this.toView(content);
+  }
+
+  /**
+   * 회수 복구 — `published`로 되돌린다. **삭제된 `library_items`는 복구하지 않는다**
+   * (partner-control.md 4.3 "되돌리기" — 담기로 다시 들어올 수 있다).
+   */
+  async restore(
+    actorUserId: string,
+    contentId: string,
+  ): Promise<AdminContentView> {
+    const content = await this.dataSource.transaction(async (manager) => {
+      const target = await this.contentService.getById(contentId, manager);
+
+      if (target.status !== ContentStatus.WITHDRAWN) {
+        throw new BusinessException({
+          status: HttpStatus.CONFLICT,
+          errorCode: ErrorCode.CONFLICT,
+          message: '회수된 콘텐츠가 아니에요',
+        });
+      }
+
+      const restored = await this.contentService.restoreWithdrawn(
+        target,
+        manager,
+      );
+      await this.auditLogService.record(
+        {
+          actor: actorUserId,
+          action: AUDIT_ACTION_CONTENT_RESTORE,
+          target: `content:${contentId}`,
+        },
+        manager,
+      );
+
+      return restored;
+    });
+
+    this.logger.log('content restored', {
+      content_id: contentId,
+      actor: actorUserId,
+    });
+
+    return this.toView(content);
+  }
+
+  private async toView(content: Content): Promise<AdminContentView> {
+    const topicViews = await this.contentService.findTopicViews([content.id]);
+
+    return {
+      content,
+      topics: topicViews.map((view) => ({
+        topicId: view.topicId,
+        name: view.name,
+      })),
     };
   }
 

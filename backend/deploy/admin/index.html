@@ -386,9 +386,31 @@
         <td>${esc(c.origin)}<div class="hint">${esc(c.source_name)}</div></td>
         <td>${fmtDur(c.duration_sec)}</td>
         <td>${new Date(c.published_at).toLocaleString('ko-KR')}</td>
-        <td><span class="status ${c.status}">${c.status}</span></td>
+        <td><span class="status ${c.status}">${c.status}</span>
+          <div style="margin-top:4px">${c.status === 'published'
+            ? `<button class="danger act-withdraw" data-id="${c.id}" data-title="${esc(c.title)}">회수</button>`
+            : c.status === 'withdrawn'
+              ? `<button class="act-restore" data-id="${c.id}" data-title="${esc(c.title)}">복구</button>`
+              : ''}</div>
+        </td>
       </tr>`).join('') || '<tr><td colspan="7" class="hint">아직 콘텐츠가 없어요.</td></tr>';
     $('#btn-prev').disabled = offset === 0; $('#btn-next').disabled = offset + LIMIT >= b.total;
+    $$('#contents-body .act-withdraw').forEach((btn) => btn.onclick = async () => {
+      const title = btn.dataset.title;
+      if (!confirm(`"${title}" 을(를) 회수할까요?
+
+전 사용자의 라이브러리에서 즉시 사라지고, 이미 발급된 재생 URL은 5분 안에 만료돼요.`)) return;
+      const reason = prompt('회수 사유 (선택 — 감사 로그에만 남아요)') || undefined;
+      try { await api(`/admin/contents/${btn.dataset.id}/withdraw`, { method: 'POST', json: reason ? { reason } : {} }); toast('회수했어요', 'ok'); } catch (e) { toast(e.message, 'bad'); }
+      await loadContents();
+    });
+    $$('#contents-body .act-restore').forEach((btn) => btn.onclick = async () => {
+      if (!confirm(`"${btn.dataset.title}" 을(를) 다시 발행할까요?
+
+삭제됐던 라이브러리 항목은 복구되지 않아요.`)) return;
+      try { await api(`/admin/contents/${btn.dataset.id}/restore`, { method: 'POST', json: {} }); toast('복구했어요', 'ok'); } catch (e) { toast(e.message, 'bad'); }
+      await loadContents();
+    });
   }
   $('#btn-reload-contents').onclick = () => { offset = 0; loadContents(); };
   $('#contents-status').onchange = () => { offset = 0; loadContents(); };

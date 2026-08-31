@@ -309,6 +309,37 @@ export class ContentService {
     return saved;
   }
 
+  /**
+   * 회수(FR-32, partner-control.md 4.3-1) — 상태 전환만 담당한다. 노출면 반영(라이브러리
+   * 삭제 등)은 호출부(admin)가 같은 트랜잭션에서 조립한다.
+   */
+  async withdraw(
+    content: Content,
+    now: Date,
+    manager: EntityManager,
+  ): Promise<Content> {
+    content.status = ContentStatus.WITHDRAWN;
+    content.withdrawnAt = now;
+    const [saved] = await this.contentRepository.saveAll([content], manager);
+
+    return saved;
+  }
+
+  /**
+   * 회수 복구(partner-control.md 4.3 "되돌리기") — `published`로 되돌린다.
+   * `published_at`은 유지한다(재발행이 아니다 — content_version도 그대로).
+   */
+  async restoreWithdrawn(
+    content: Content,
+    manager: EntityManager,
+  ): Promise<Content> {
+    content.status = ContentStatus.PUBLISHED;
+    content.withdrawnAt = null;
+    const [saved] = await this.contentRepository.saveAll([content], manager);
+
+    return saved;
+  }
+
   /** admin.md 5장 — 관리자 콘텐츠 목록. 상태를 가리지 않는다 */
   async findAdminPage(
     query: AdminContentPageQuery,

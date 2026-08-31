@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { AudioDelivery, EnvironmentVariables } from '@/config/env.validation';
 import { ContentModule } from '@/modules/content/content.module';
 import { InterestModule } from '@/modules/interest/interest.module';
+import { LibraryModule } from '@/modules/library/library.module';
 import { PartnerModule } from '@/modules/partner/partner.module';
 
 import { AdminController } from './admin.controller';
@@ -22,7 +23,7 @@ import { AdminTopicService } from './services/admin-topic.service';
  * 서명 방식을 고르는 것과 짝이다.
  */
 @Module({
-  imports: [ContentModule, InterestModule, PartnerModule],
+  imports: [ContentModule, InterestModule, LibraryModule, PartnerModule],
   controllers: [AdminController],
   providers: [
     AdminContentService,
