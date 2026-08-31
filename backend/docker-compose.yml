@@ -8,7 +8,9 @@ name: ear
 
 services:
   postgres:
-    image: postgres:16-alpine
+    # pgvector 확장 포함 이미지 (postgres:16 호환 — 기존 데이터 볼륨 그대로 쓴다).
+    # 표준 postgres 이미지에는 vector 확장이 없어 AddEmbeddingVectors 마이그레이션이 실패한다
+    image: pgvector/pgvector:pg16
     container_name: ear-postgres
     restart: unless-stopped
     environment:
