@@ -504,6 +504,22 @@ export class LibraryService {
     return item;
   }
 
+  /**
+   * 회수 반영(partner-control.md 4.3-3) — 전 사용자에게서 해당 콘텐츠 항목을 제거한다.
+   * 회수를 되돌려도 이 삭제는 복구되지 않는다(사용자 라이브러리를 임의로 되살리지 않는다).
+   */
+  async removeAllByWithdrawnContent(
+    contentId: string,
+    now: Date,
+    manager?: EntityManager,
+  ): Promise<number> {
+    return this.libraryItemRepository.softDeleteAllByContentId(
+      contentId,
+      now,
+      manager,
+    );
+  }
+
   private assertFound(item: LibraryItem | null): LibraryItem {
     if (!item) {
       throw new BusinessNotFoundException({

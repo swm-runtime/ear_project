@@ -41,3 +41,18 @@ export interface InterestSummaryView {
   count: number;
   topTopics: { id: string; name: string }[];
 }
+
+/** admin.md 3.2 — 주제 생성 입력 */
+export interface CreateTopicCommand {
+  name: string;
+  parentCategory: string;
+  displayOrder: number | null;
+}
+
+/** admin.md 4.5 — 주제 수정 입력. 담긴 키만 바꾼다 */
+export interface UpdateTopicCommand {
+  name?: string;
+  parentCategory?: string;
+  isVisible?: boolean;
+  displayOrder?: number;
+}

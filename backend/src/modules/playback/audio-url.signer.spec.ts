@@ -41,7 +41,10 @@ describe('AudioUrlSigner', () => {
       // given — 기기 시계 오차와 무관하게 갱신을 스케줄링할 수 있어야 한다
 
       // when
-      const signed = signer.sign(CONTENT_ID, USER_ID, NOW);
+      const signed = signer.sign(
+        { contentId: CONTENT_ID, userId: USER_ID, audioPath: 'ep/x.mp3' },
+        NOW,
+      );
 
       // then
       expect(signed.expiresInSec).toBe(AUDIO_URL_TTL_SEC);
@@ -54,7 +57,10 @@ describe('AudioUrlSigner', () => {
       // given — audio_path는 어떤 응답에도 실리지 않는다 (domain.md 5.1)
 
       // when
-      const signed = signer.sign(CONTENT_ID, USER_ID, NOW);
+      const signed = signer.sign(
+        { contentId: CONTENT_ID, userId: USER_ID, audioPath: 'ep/x.mp3' },
+        NOW,
+      );
 
       // then
       expect(signed.url).toContain(CONTENT_ID);
@@ -65,7 +71,10 @@ describe('AudioUrlSigner', () => {
   describe('verify', () => {
     it('방금 발급한 서명은 통과한다', () => {
       // given
-      const signed = signer.sign(CONTENT_ID, USER_ID, NOW);
+      const signed = signer.sign(
+        { contentId: CONTENT_ID, userId: USER_ID, audioPath: 'ep/x.mp3' },
+        NOW,
+      );
       const { expires, signature } = parse(signed.url);
 
       // when
@@ -77,7 +86,10 @@ describe('AudioUrlSigner', () => {
 
     it('만료 시각을 지나면 통과하지 못한다', () => {
       // given
-      const signed = signer.sign(CONTENT_ID, USER_ID, NOW);
+      const signed = signer.sign(
+        { contentId: CONTENT_ID, userId: USER_ID, audioPath: 'ep/x.mp3' },
+        NOW,
+      );
       const { expires, signature } = parse(signed.url);
       const afterExpiry = new Date(signed.expiresAt.getTime() + 1000);
 
@@ -96,7 +108,10 @@ describe('AudioUrlSigner', () => {
 
     it('만료를 늘려 적으면 서명이 깨진다', () => {
       // given — 만료가 서명 대상에 포함되므로 값만 바꿔서는 연장할 수 없다
-      const signed = signer.sign(CONTENT_ID, USER_ID, NOW);
+      const signed = signer.sign(
+        { contentId: CONTENT_ID, userId: USER_ID, audioPath: 'ep/x.mp3' },
+        NOW,
+      );
       const { expires, signature } = parse(signed.url);
 
       // when
@@ -114,7 +129,10 @@ describe('AudioUrlSigner', () => {
 
     it('다른 사용자의 URL을 가져다 써도 통과하지 못한다', () => {
       // given — 서명이 사용자에 묶인다
-      const signed = signer.sign(CONTENT_ID, USER_ID, NOW);
+      const signed = signer.sign(
+        { contentId: CONTENT_ID, userId: USER_ID, audioPath: 'ep/x.mp3' },
+        NOW,
+      );
       const { expires, signature } = parse(signed.url);
 
       // when
@@ -132,7 +150,10 @@ describe('AudioUrlSigner', () => {
 
     it('다른 콘텐츠로 바꿔치기해도 통과하지 못한다', () => {
       // given
-      const signed = signer.sign(CONTENT_ID, USER_ID, NOW);
+      const signed = signer.sign(
+        { contentId: CONTENT_ID, userId: USER_ID, audioPath: 'ep/x.mp3' },
+        NOW,
+      );
       const { expires, signature } = parse(signed.url);
 
       // when

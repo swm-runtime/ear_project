@@ -1,8 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { ContentService } from '@/modules/content/services/content.service';
 import { LibraryService } from '@/modules/library/library.service';
 
+import { AUDIO_URL_ISSUER } from '../audio-url-issuer';
+import type { AudioUrlIssuer } from '../audio-url-issuer';
 import { AudioUrlSigner } from '../audio-url.signer';
 import { AudioAccessLogRepository } from '../repositories/audio-access-log.repository';
 import { AudioUrlResult, IssueAudioUrlCommand } from '../playback.types';
@@ -33,7 +35,11 @@ export class AudioUrlService {
     private readonly contentService: ContentService,
     private readonly libraryService: LibraryService,
     private readonly audioAccessLogRepository: AudioAccessLogRepository,
+    /** ip 해시 전용. URL 발급은 `audioUrlIssuer`가 한다 */
     private readonly audioUrlSigner: AudioUrlSigner,
+    /** `AUDIO_DELIVERY`에 따라 로컬 HMAC 또는 CloudFront 서명기가 들어온다 */
+    @Inject(AUDIO_URL_ISSUER)
+    private readonly audioUrlIssuer: AudioUrlIssuer,
   ) {}
 
   async issue(command: IssueAudioUrlCommand): Promise<AudioUrlResult> {
@@ -58,9 +64,12 @@ export class AudioUrlService {
     ]);
 
     // 3. 만료는 수 분 단위. 값은 서버 설정이고 계약은 `expires_in_sec`으로 값에 독립적이다
-    const audio = this.audioUrlSigner.sign(
-      command.contentId,
-      command.userId,
+    const audio = this.audioUrlIssuer.sign(
+      {
+        contentId: command.contentId,
+        userId: command.userId,
+        audioPath: content.audioPath,
+      },
       command.now,
     );
 

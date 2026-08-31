@@ -481,6 +481,27 @@ export class LibraryItemRepository {
     await this.scoped(manager).update({ id }, { deletedAt });
   }
 
+  /**
+   * 회수(FR-32) — 해당 콘텐츠를 가진 **전체 사용자**의 항목을 일괄 소프트 삭제한다
+   * (partner-control.md 4.3 처리 순서 3). 이미 삭제된 행은 건드리지 않는다 —
+   * 복구(restore) 때 "회수로 지운 것"만 판별할 수는 없지만, 복구는 어차피
+   * `library_items`를 되살리지 않으므로(4.3) 구분이 필요 없다.
+   */
+  async softDeleteAllByContentId(
+    contentId: string,
+    deletedAt: Date,
+    manager?: EntityManager,
+  ): Promise<number> {
+    const result = await this.scoped(manager)
+      .createQueryBuilder()
+      .update()
+      .set({ deletedAt })
+      .where('content_id = :contentId AND deleted_at IS NULL', { contentId })
+      .execute();
+
+    return result.affected ?? 0;
+  }
+
   async restoreById(id: string, manager?: EntityManager): Promise<void> {
     await this.scoped(manager).update({ id }, { deletedAt: null });
   }
