@@ -1,0 +1,44 @@
+@import "tailwindcss";
+
+/* ear 파이프라인 관리 콘솔 — 다크 사이드바 + 밝은 작업 영역 (archive/dashboard_ui_ref.jpg 참고) */
+:root {
+  --bg: #eef1f5;          /* 작업 영역 배경 */
+  --panel: #ffffff;
+  --line: #e2e7ee;
+  --ink: #26313d;         /* 본문 */
+  --ink-soft: #6b7a8c;    /* 보조 텍스트 */
+  --side: #2f3e4e;        /* 사이드바 */
+  --side-soft: #3a4b5c;
+  --side-ink: #b6c2ce;
+  --brand: #16a394;       /* 강조 (버튼·활성) */
+  --brand-ink: #0f7a6f;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-side: var(--side);
+  --color-side-soft: var(--side-soft);
+  --color-side-ink: var(--side-ink);
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Malgun Gothic", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 스크롤바 — 표가 많아 얇게 */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #c9d2dd; border-radius: 6px; border: 2px solid var(--bg); }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* 긴 URL·붙어 쓴 토큰이 칸을 밀어내지 않게 — 페이지 가로 스크롤 금지 (2026-09-01) */
+pre, td, th, p, li, summary { overflow-wrap: anywhere; }
+pre { white-space: pre-wrap; }

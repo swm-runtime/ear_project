@@ -1,6 +1,6 @@
 # 파이프라인 작업 현황 · 파일 구조
 
-> 갱신: 2026-08-28 · **운영 DB 가동 중** — Supabase `akckswokvlosgmzawjuq` (서울 ap-northeast-2)
+> 갱신: 2026-09-01 · **운영 DB 가동 중** — Supabase `akckswokvlosgmzawjuq` (서울 ap-northeast-2)
 > 테이블: domains(49) · sources(726) · backlog(14) · runs(7+) · topics(10) — 로컬 파일에서 이관 완료 (2026-08-23)
 > **품질 사이클 진행 중** (spec/09): 프롬프트 full-v3 (2026-08-28, 스타일 디렉션 D1~D8 전체 승인) ·
 > 비평가 선행 검수 도입 (critic-v1 루브릭, runs phase='critic' 추가) · C05 v3 재생성 — v2 통제 비교·판정 대기
@@ -29,10 +29,27 @@
 > ② **골드 표면 복제가 금지 지시에도 4편 중 3편 검출** (도입 골격·확인구·역질문 답변 문구) — 견본 중복 우려 실증, F5 확장 검출망 작동
 > ③ **후반부 리듬 균질화 4편 전부 지적** — full-v5 구조적 약점, v6 후보 ④ 영국박물관 개별 페이지 403 (피드는 정상) — 판정 시 hold 검토
 > 비평 판정(사람) 대기 4건 · 도입 분산 지정 결과: 3편 탈템플릿 성공, 1편(001) 골드 골격 복제
+> **웹 UI·워커 착수 — M1 진행** (2026-08-29, spec/10): 결정 = EC2 1대 web+worker · 모노레포 · **AI 실행은 로컬 워커(팀원 구독, `claude -p`)** ·
+> API 키 미사용 · TTS 수동 전용. git init + npm workspaces (apps/worker · packages/pipeline). 스키마 0002: `jobs` 큐·`episodes` 인덱스(8편 백필)·`claim_job`.
+> 워커 검증: sweep(심리학 5/5 피드 170건) → cluster 자동 연쇄 → **후보 6건 C27~C32 (전부 소스 6~7)** — 8분, 구독 실행(정가 환산 $4.1).
+> 결함 수정: 군집 중복 대조를 전 중분류로 확장(C32↔C26 겹침 발견). 시드 파일 3종 → archive/ (DB 백필 완료). **다음: 게이트1 승인 → draft→qa→critic 연쇄 검증 (M1 완료 조건)**
+> **M1 완료 — 워커 연쇄 검증 통과** (2026-08-31): C29 승인 → 워커 감지 → **T260831-001** (75턴·5,707자) → QA a1 실패(1) → 최소 수정 → QA a2 실패(새 지적 1) → 수정 → **QA a3 통과** → 비평(4·3·4·4·4, 위반 8·의심 7·⭐7) — 사람 개입 0, 전 단계 runs 기록(executed_by=worker).
+> 장애 1건: 워커 프로세스 사망(원인 미확정 — pg 풀 'error' 미처리 유력) → 고아 `claude -p`가 산출물을 완성 → **재집기 복구 경로 신설**(작업에 episode_id 고정 + 산출물 존재 시 이어받기 + 작성 중이면 RetryLater) + 풀 오류·SIGHUP·예외 처리 보강. macOS Desktop 권한(TCC) 이슈 1회 — 재허용으로 해결.
+> 비평 소견: 골드 관용구 복제(마무리 큐·"좀 억울한데요")·중반 리듬 균질화·"그 번역이 정확해요" 규칙 용어 누출 — 사이클 4와 동일 패턴 (v6 개정 근거 강화). 사람 판정 대기.
+> **M2 웹 UI 골격 완료** (2026-08-31): Next.js 16 (apps/web) — 로그인(Supabase Auth)·대시보드(워커 온라인·작업·runs)·백로그 보드(게이트1 버튼)·에피소드(대본 뷰어·발췌/claims/QA/비평 탭·**비평 판정 폼**·TTS 수동 버튼)·
+> 소스 풀(계층 판정 시트)·스윕 요청·주제 CRUD·설정(TTS 보이스). 스키마 0003: 팀 RLS + 승인자/판정자/요청자 **DB 트리거 스탬프** + settings. `next build` 통과. **실행 대기: Supabase anon 키 + Email Auth 활성 + 팀원 초대**
 > 접속: Project URL + secret key (팀 공유), DB 직접 접속은 pooler `aws-0-ap-northeast-2.pooler.supabase.com:5432`
-> 스키마 원본: [supabase/schema.sql](supabase/schema.sql) — 변경 시 이 파일 기준으로 관리
-> ⚠️ 이 아래 파일 구조는 이관 전 로컬 기록이다. 이후의 상태 원본은 DB이며, 로컬 파일은 산출물 보관용(→ S3 이관 예정).
-> 이 디렉토리들(`sources/`·`backlog/`·`episodes/`)은 레포에 커밋하지 않는다 (README "커밋하지 않는 것").
+> 스키마 원본: [pipeline/supabase/schema.sql](../../pipeline/supabase/schema.sql) — 변경 시 이 파일 기준으로 관리
+> ⚠️ 이 아래 파일 구조는 이관 전 로컬 기록이다. 이후의 상태 원본은 DB이며, 로컬 파일은 산출물 보관용(→ S3 이관 예정)
+
+> **평가 체계 v2 전환** (2026-09-01): 멘토링(08-31) + 논문 5편 대조 → **spec/09 v2**(하한/상한 분리 · L0~L3 4층 · 회귀 세트 · κ 승격 조건 · 연동 갱신 절차) ·
+> **critic-v2 초안**(100점 12항목 · 판단 플래그 20 · 앵커 32자리 비움) · qa-v1.2(항목 5 판정 활성, 고지 제외) · critic-v1.3(C2·C4 동기화) ·
+> 골드 2종 [도입] 제거(구 규칙 13 판 → archive/) · INTRO_STYLES v5.1 · 대본 8편 형식 통일(`[화자] E1 · 본문`, 백업 archive/script-format-backup/) ·
+> **비평 모델 Opus 고정**(CRITIC_MODEL) — Fable 기준선 9편은 `critic-report-v2-fable.md` 보존, Opus 재채점 9건 진행 · **사람 판정 0/9 (앵커 원료)** ·
+> 웹: 대본 탭 판정 뷰(턴 클릭 판정·점수표·직접 수정) · 소스 풀 확인 항목 ①~④ 자동 수집(domain_check, 88곳, 기계 제안 1군 40/보류 25/차단 16/2군 4 — 판정은 사람) ·
+> 08-28 파일 판정(T260820-002) DB 이관 · **S3 버킷 준비됨 → M4 착수 대기** · 루트 README 신설(팀 공유 준비) · 미결 #15 → spec/09 흡수, #16~#19 신설
+
+> **팀 레포 반입** (2026-09-01): 독립 저장소 대신 `ear_project` 로 — 코드 `pipeline/`(web·worker·packages·supabase), 명세·프롬프트 자산 `docs/ai/`(단일 원본 = 워커의 ASSET_ROOT). 산출물 `episodes/`·`sources/sweeps/` 는 WORK_ROOT(레포 밖)에 두고 M4 에서 S3 로. `ai-server/` 와의 역할 경계는 spec/10 2장 정렬. 상세 spec/10 6장
 
 ## 디렉토리 구조
 

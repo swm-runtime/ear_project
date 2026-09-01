@@ -1,6 +1,6 @@
 # spec/08 — 인프라·실행기·자동화 로드맵
 
-> 상위: [PIPELINE.md](../PIPELINE.md) · 스키마 원본: [supabase/schema.sql](../supabase/schema.sql)
+> 상위: [PIPELINE.md](../PIPELINE.md) · 스키마 원본: [pipeline/supabase/schema.sql](../../../pipeline/supabase/schema.sql)
 > 원칙: **인프라는 상태·데이터 관리까지, 실행은 스킬(절차)이, 결정은 사람이.** 절차(스킬)·상태(DB)·산출물(S3)을
 > 분리해 각각 독립적으로 교체 가능하게 유지한다 — 이 분리가 API 이행과 로컬 전환의 전제다.
 
@@ -61,8 +61,8 @@ s3://<버킷>/
 
 | 단계 | 실행기 | 트리거 | 가능해지는 것 |
 |---|---|---|---|
-| **0 — 현재** | 스킬 + 사람 트리거 (Claude Code 세션, 구독) | 사람이 `/sweep` `/draft` 등 실행 | 반자동 — 절차는 자동, 방아쇠는 사람 |
-| **1 — API 워커** | Claude Agent SDK 워커 (Lambda 등) + API 키. **스킬 파일 그대로 승계** | `backlog.status` 변화 감지 (approved → 생성 시작) | "선택 즉시 생성" · draft→QA 자동 연쇄 · QA 독립성의 구조적 보장 |
+| **0 — 현재** | 파이프라인 워커의 `claude-cli` 실행기 — 팀원 Mac에서 `claude -p`(구독, **API 키 없음**). spec/10 | 웹 UI의 승인·요청 → `jobs` 큐 — 방아쇠는 사람, 연쇄는 워커 | 반자동 — draft→QA→비평 자동 연쇄까지 (M1 검증 2026-08-31). AI 작업은 로컬 워커가 떠 있어야 진행 |
+| **1 — API 워커** | 같은 워커의 **API 실행기**(`EXECUTOR=api`, API 키) — EC2 상주 (draft 1편 ≈ 30분이라 Lambda 15분 상한 부적합). 형태는 spec/10 3.1 (Claude API + tool use / Agent SDK — 미결 #12와 함께 확정). **스킬 파일 그대로 승계** | 0과 동일 (`jobs` 큐) — 로컬 워커 없이 서버가 AI 작업을 집는다 | 사람 Mac 의존 제거 · "선택 즉시 생성"이 서버에서 성립 · QA 독립성은 호출 단위 새 컨텍스트로 유지 |
 | **2 — 스케줄 배치** | 1단계 워커 + 스케줄러(cron) | 시간 (정기 스윕·군집화) | 사람 개입 없는 정기 수집 |
 
 - 1단계 전환은 팀 합의 사항이다 (API 비용 계정 + 구 A-6 재론 — 미결 #12).
