@@ -13,6 +13,7 @@ UI(또는 CLI)가 `jobs`에 넣은 작업을 집어서 실행한다. **어디서
 
 1. Node 20+ · Claude Code 설치 + 로그인(`claude`에서 `/login`) — 워커는 이 로그인을 그대로 쓴다
 2. `pipeline/` 에서 `npm install`
+2-1. **규칙 자산 시딩 (팀에서 최초 1회)** — Supabase SQL 에디터에서 `supabase/migrations/0009_prompt_assets.sql` 적용 → `npm run assets:import` (git `docs/ai/skills/` 7개를 DB 에 active 로). 자산이 없으면 워커는 AI 작업 시작 시 **기동 실패**한다(폴백 없음 — spec/10 3.2). 확인: `npm run assets:status`
 3. `apps/worker/.env` 작성 (`.env.example` 참조 — DATABASE_URL 비밀번호는 팀 비밀 채널로). `WORK_ROOT` 는 **레포 밖**(전환기: 기존 로컬 산출물 폴더를 지정하면 DB 의 `local:` 키가 그대로 해석된다), `ASSET_ROOT` 는 비우면 `docs/ai`
 
 ## 실행
@@ -39,7 +40,8 @@ tts · package: 연쇄 없음 — 사람이 UI 에서 명시적으로 요청할 
 - 도구 허용은 단계별 최소: draft = `Read` + `WebFetch(domain:<소스 호스트>)` + `Write/Edit(episodes/<id>/**)` + `Bash(python3 *)`,
   qa/critic = `Read` + 리포트 파일만 `Write/Edit`. 풀 밖 도메인은 WebFetch 자체가 거부된다 (불변 원칙 2를 도구 권한으로 집행).
 - 결과는 `--json-schema` 로 강제한 `structured_output` 만 신뢰한다. 리포트 본문은 파일로 쓴다.
-- 모든 실행은 `runs` 에 `phase·attempt·prompt_version·model·executed_by(worker:<이름>)` 로 기록된다.
+- 모든 실행은 `runs` 에 `phase·attempt·prompt_version·model·executed_by(worker:<이름>)` + `cost_usd·tokens·worker_rev`(0009) 로 기록된다. `prompt_version` 은 env 가 아니라 **읽은 자산 버전**에서 유도된다(draft = guidelines 버전 · qa = QA 프롬프트 버전 · critic = 루브릭 버전).
+- **규칙 자산은 DB 가 진실** — 작업 시작 시 active 묶음(또는 에피소드에 고정된 `episodes.asset_versions`)을 읽어 `WORK_ROOT/assets/<해시>/` 에 파일로 내려놓고 그 디렉토리를 `--add-dir` 로 넘긴다. spec/03·04·05 는 `ASSET_ROOT`(git 체크아웃)에서 함께 복사된다. 규칙 편집은 웹 `/assets`, git 사본 갱신은 `npm run assets:export`.
 
 ## 문제 해결
 

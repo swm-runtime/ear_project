@@ -116,7 +116,7 @@ claude -p --output-format json --json-schema <단계별 결과 스키마> \
 **로더 동작** (AI 작업 시작 시):
 
 1. **번들 결정** — 작업의 `episode_id`에 `episodes.asset_versions`가 있으면 그 버전들, 없으면(새 에피소드 draft attempt 1 · cluster) 현재 active 묶음을 읽고 에피소드에 박는다 → 한 에피소드의 draft→qa→critic→재QA는 **같은 규칙**, 개정은 다음 에피소드부터.
-2. **파일화** — `WORK_ROOT/assets/<번들 해시>/skills/…`로 내려놓고(같은 해시면 재사용) 그 디렉토리를 그 실행의 `assetRoot`(`--add-dir`)로 쓴다. spec 파일은 체크아웃 `docs/ai/`에서 그대로.
+2. **파일화** — DB 자산 7개와 **git 체크아웃의 spec/03·04·05 를 함께** `WORK_ROOT/assets/<번들 해시>/` 에 같은 경로 레이아웃으로 내려놓고(같은 해시면 재사용) 그 디렉토리를 그 실행의 `assetRoot`(`--add-dir`)로 쓴다. spec 을 스냅샷에 넣는 이유: `assetPaths` 가 spec 경로도 같은 루트에서 만들고, 자산 안의 상대 링크(`qa/prompt.md` → `../../spec/05-qa.md`)가 살아 있어야 한다. 번들 해시에는 spec 본문 해시가 포함되므로 git 의 spec 이 바뀌면 스냅샷도 새로 만들어진다.
 3. **기록** — `runs.prompt_version`은 env가 아니라 번들에서 유도(`full-v5.1+qa-v1.2+critic-v1.3`), 체크아웃 커밋 SHA(+dirty)도 `runs.worker_rev`에.
 
 - DB에 자산이 없으면 **기동 실패**(폴백 없음). 순서: `assets:import`로 시딩 → 워커 배포.
@@ -165,11 +165,11 @@ create table episodes (
 ```sql
 create table prompt_assets (
   key          text not null,          -- 'skills/draft/guidelines.md' — assetPaths 가 쓰는 경로 그대로
-  version      text not null,          -- 'full-v5.1' · 'qa-v1.2' · 'critic-v1.3'
+  version      text not null,          -- 'full-v5.1' · 'qa-v1.2' · 'critic-v1.3' · 'gold@2026-08-28'
   content      text not null,
-  status       text not null check (status in ('draft','active','retired')),
-  note         text,                   -- 왜 바꿨나 = CHANGELOG 한 줄 (spec/09 4.3)
-  created_by   text, created_at timestamptz not null default now(), activated_at timestamptz,
+  status       text not null default 'draft' check (status in ('draft','active','retired')),
+  note         text,                   -- 왜 바꿨나 = CHANGELOG 한 줄 (spec/09 4.3) — 활성화 시 필수
+  created_by   text, created_at timestamptz not null default now(), activated_at timestamptz, activated_by text,
   primary key (key, version)
 );
 create unique index prompt_assets_active_idx on prompt_assets (key) where status = 'active';
@@ -178,6 +178,7 @@ alter table runs add column cost_usd numeric, add column tokens jsonb, add colum
 ```
 
 - RLS: 팀 계정 select 전부 · insert(draft)·update(활성화)는 사람만, `created_by`는 0003 방식 트리거 스탬프. 워커는 secret key로 읽기만.
+- 규약은 트리거 `guard_prompt_asset`가 강제한다: active 본문 불변(고치려면 새 버전) · retired 부활 금지 · 활성화 시 note 필수 · 활성화하면 같은 key 의 기존 active 자동 retired. 원문 `pipeline/supabase/migrations/0009_prompt_assets.sql`.
 
 ## 5. 화면
 
@@ -218,7 +219,7 @@ ai-server/                         FastAPI 단발 추론 API (임베딩) — 별
 | M1 ✅(연쇄 검증 중) | 스키마 개정(jobs·episodes·RLS) + 모노레포 골격 + 워커 `claude-cli` 실행기로 **draft→qa→critic 1편 로컬 완주** | 없음 (Supabase 기존 + 로컬) | 기존 사이클과 같은 산출물 규격이 나오는가 (spec/08 8장 "스킬 승계 검증") |
 | M2 ✅(골격) | 웹 UI: 로그인·백로그·에피소드(리포트 열람·비평 판정)·소스 풀 판정·주제 | 팀원 이메일 3개 (Auth 초대) | 테이블 에디터 없이 게이트 1·판정이 되는가 |
 | M3 | 스윕 요청 + 자동 군집화 연쇄 (RSS 수집은 워커 코드, 군집화는 AI) | 없음 | 요청 → 후보 카드까지 사람 개입 0 |
-| M-R (규칙 동기화) 🔜 | `prompt_assets`(0009) + 워커 로더(3.2) + `/assets` 화면 + `assets:import/export` + `pickupApproved` 선점 수정(워커 다중 실행 시 draft 중복 방지) | 없음 | 두 워커가 같은 active 번들을 읽고 `runs.prompt_version`이 번들에서 유도되는가 |
+| M-R (규칙 동기화) 🛠 구현 PR (2026-09-01) | `prompt_assets`(0009) + 워커 로더(3.2) + `/assets` 화면 + `assets:import/export` + `pickupApproved` 선점 수정(워커 다중 실행 시 draft 중복 방지) | 없음 | 두 워커가 같은 active 번들을 읽고 `runs.prompt_version`이 번들에서 유도되는가 |
 | M4 🔜 (버킷 스크립트 준비 2026-09-01) | 파이프라인 S3(`pipeline/deploy/aws/setup-pipeline-bucket.sh`) + 산출물 업로드·열람 + 기존 로컬 9편 이관(미결 #11). **파일은 전부 S3(버저닝), Supabase에는 키·판정·수정 로그만** — 워커: 단계 전 내려받기·후 올리기 / 웹: `s3:` 키 읽기 + 직접 수정 PutObject + **로컬 워커용 서명 URL 라우트**(노트북에 AWS 키를 두지 않는다) · `datasets/` 접두사 | 버킷 1(스크립트) · EC2 전에는 임대 보유자 SSO 프로필로 개발 | 로컬 파일 없이 화면에서 대본·리포트가 열리고 수정이 되돌아가는가 · 노트북 워커가 키 없이 업로드하는가 |
 | M6 (M4 다음) | **AI 서버 EC2** — 2장 "호스트": 기존 기본 VPC 퍼블릭 서브넷에 t4g.small 1대 + compose(caddy·ai-server·web·worker-io) + 인스턴스 역할 `ear-ai-ec2` + 새 SG · `pipeline.<도메인>` A 레코드(가비아) · Supabase Auth URL 설정. NAT·ALB·Fargate 없음. 산출물: `pipeline/deploy/aws/setup-ai-server.sh` · `docker-compose.prod.yml` · `caddy/Caddyfile` · README(runbook 형식) · `docs/infra/inventory.md` 등재 | EC2 1대 · 도메인 1개 | 팀원이 외부에서 접속·승인 가능 · 제품 서버가 사설 IP로 `/embeddings` 호출 · 기존 리소스 무변경 |
 | M5 (M6 다음 — 키 확보 시) | TTS(ElevenLabs) 수동 변환(spec/06 변환·후처리·`audio_*_key`) + package(spec/07 `upload-meta.json`) + 플레이어 + 설정 화면 — **EC2 IO 워커가 실행** | ElevenLabs API 키 | 버튼 → S3 `audio/` → 재생. 보이스 후보 청취(미결 #8·#9 실측 시작) |
