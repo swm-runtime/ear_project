@@ -51,6 +51,8 @@
 
 > **팀 레포 반입** (2026-09-01): 독립 저장소 대신 `ear_project` 로 — 코드 `pipeline/`(web·worker·packages·supabase), 명세·프롬프트 자산 `docs/ai/`(단일 원본 = 워커의 ASSET_ROOT). 산출물 `episodes/`·`sources/sweeps/` 는 WORK_ROOT(레포 밖)에 두고 M4 에서 S3 로. `ai-server/` 와의 역할 경계는 spec/10 2장 정렬. 상세 spec/10 6장
 
+> **계획 확정** (2026-09-01): 저장 배치 기준(spec/08 1장) · 파이프라인 전용 버킷 규격·자격증명 모델(spec/08 2장, `pipeline/deploy/aws/`) · 규칙 동기화 하이브리드(`prompt_assets` — spec/10 3.2) · 실행기 전환 계획 구독 → API(A안 확정) → 파인튜닝 로컬(spec/08 3.1·5장) · AI 서버 = 기존 VPC EC2 1대, NAT·ALB·Fargate 없음(spec/10 2장·M6) · 마일스톤 순서 **M-R → M4 → M6 → M5**. 미결 #11·#12 갱신, #21·#22 신설
+
 ## 디렉토리 구조
 
 ```
