@@ -1,6 +1,6 @@
 # 이어 (ear_project)
 
-AI 생성 팟캐스트 서비스 '이어'의 저장소. 3인 팀, 백엔드는 NestJS + PostgreSQL, 프론트엔드는 React Native(Expo)로 개발한다.
+AI 생성 팟캐스트 서비스 '이어'의 저장소. 3인 팀, 백엔드는 NestJS + PostgreSQL, 프론트엔드는 React Native(Expo)로 개발한다. 앱 밖 파트로 AI 서버(`ai-server/`, FastAPI 단발 추론)와 콘텐츠 파이프라인(`pipeline/`, Next.js 웹 UI + Node 워커 + Supabase)이 있다 — 각 파트의 `README.md`·`CLAUDE.md`가 그 파트의 규칙이다.
 
 > 이 문서는 **팀 공용**이다. 역할(FE/BE)별 지침·개인 설정은 각자 `CLAUDE.local.md`(gitignore 대상)에 둔다.
 
@@ -19,7 +19,7 @@ prd/          무엇을·왜 만드는가 (FR-01~39)
        ├─ spec/api/       동작 규칙의 HTTP 계약 표현 (엔드포인트·DTO·에러 코드)
        ├─ spec/uiux/      동작 규칙의 화면 표현 (화면 ID·상태·카피·접근성)
        └─ wireframe/      화면 ID의 시각 참조 (HTML)
-ai/           앱 밖 콘텐츠 제작 절차 (주제 발굴·대본·QA — 제품 기능이 아니라 운영 절차)
+ai/           앱 밖 콘텐츠 제작 절차 (주제 발굴·대본·QA — 제품 기능이 아니라 운영 절차). 실행체는 `pipeline/`, 워커가 이 디렉토리를 프롬프트 자산으로 직접 읽는다
 backend/      서버 구조·스키마·코드 규칙 (스키마의 유일한 기준)
 frontend/     클라이언트 구조·코드 규칙
 changes/      개발 중 발견한 문서 수정 사항의 기록 — 통합 과정에서 반영 (pending/ → archive/)
@@ -75,8 +75,9 @@ tickets/      통합 테스트 중 발견한 코드 수정 사항의 기록 — 
 
 **`ai/`** — 앱 밖 콘텐츠 제작 절차. 제품 기능이 아니라 운영 절차이므로 `features/`와 층을 분리했다.
 - `README.md` — ai 인덱스 + `features/`와의 경계
-- `PIPELINE.md` 콘텐츠 파이프라인 종합 명세 — 소스 풀 → 스윕 → 군집화·백로그(게이트 1) → 대본(윤아·이음 2인 대화체) → QA → 패키지·검수(게이트 2) → TTS → 발행. 불변 원칙 7개와 미결 총괄. 단계별 규칙은 `spec/01~09`, 프롬프트 자산은 `skills/`, 운영 DB 스키마는 `supabase/schema.sql`, 현황은 `PIPELINE-STATUS.md`
+- `PIPELINE.md` 콘텐츠 파이프라인 종합 명세 — 소스 풀 → 스윕 → 군집화·백로그(게이트 1) → 대본(윤아·이음 2인 대화체) → QA → 패키지·검수(게이트 2) → TTS → 발행. 불변 원칙 7개와 미결 총괄. 단계별 규칙은 `spec/01~09`, 프롬프트 자산은 `skills/`, 운영 DB 스키마는 `pipeline/supabase/schema.sql`, 현황은 `PIPELINE-STATUS.md`
 - `metadata-pipeline.md` 대본 → 추천 메타 4종·임베딩(`enrichment.json`) 부여 — origin 무관 전 콘텐츠 대상
+- 실행체·운영 DB 스키마는 파트 `pipeline/`(`pipeline/README.md` · `ai/spec/10-webapp.md`) — `docs/ai/`가 워커의 ASSET_ROOT다. `ai-server/`와 같은 EC2("AI 서버")에 올린다(spec/10 2장 정렬)
 - 제작 실행 산출물(대본 초안·QA 리포트)은 커밋하지 않는다
 
 **`spec/api/`** — HTTP 계약. 요청·응답·에러 코드의 확정본. 화면 9종 전부 작성됨 — `auth` · `onboarding` · `library` · `explore` · `player` · `profile` · `settings` · `interest-management` · `career` (각 `<화면>-api.md`).
