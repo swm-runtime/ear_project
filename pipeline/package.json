@@ -1,0 +1,16 @@
+{
+  "name": "ear-pipeline",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "worker": "npm run -w apps/worker start --"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "unrs-resolver@1.12.2": true,
+    "sharp@0.35.4": true
+  }
+}
