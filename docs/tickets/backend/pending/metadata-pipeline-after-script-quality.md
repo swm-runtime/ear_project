@@ -58,3 +58,4 @@
 
 - 2026-08-27 — 발행. 추천 알고리즘 본체(편성 배치·스코어링·탐험 편성 — 임베딩 축 제외 상태)는 별도로 즉시 개발을 진행한다(`feat(be)/recommendation-enhancement`). 이 티켓은 **입력값을 채우는 쪽**만 다룬다.
 - 2026-08-29 — 부여 스킬 Phase A MVP 구현(`.claude/skills/metadata-enrichment/` — 위 "구현 현황"). 선행 조건과 무관한 범위만 선착수했으며, 대본 파이프라인 확정 시 판정 기준 재점검이 필요하다. 완료 조건 1번(메타 4종 산출)은 스킬 층에서 충족 — 단 실제 확정 대본으로는 미검증.
+- 2026-09-01 — **선행 조건 2 해소**: 임베딩 모델 `text-embedding-3-small` · 1536차원 확정(`domain.md` 15.1 #11). 임베딩 생성은 AI 서버 `POST /embeddings`로 확정돼(`ai-server/` 신설 — `metadata-pipeline.md` 4.3 개정) Phase B는 "AI 서버 호출"로 단순화됐다. 남은 선행 조건은 1번(대본 파이프라인 확정)과 AI 서버 배포(`tickets/infra/pending/ai-server-deployment.md`)이며, 이후 개발 범위 3번(`content_embeddings` `vector(1536)` 마이그레이션·임베딩 축 활성화)이 열렸다.

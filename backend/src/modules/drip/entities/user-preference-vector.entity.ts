@@ -7,6 +7,7 @@ import {
   Unique,
 } from 'typeorm';
 
+import { vectorTransformer } from '@/common/utils/vector.transformer';
 import { BaseEntity } from '@/database/base.entity';
 import { User } from '@/modules/user/entities/user.entity';
 
@@ -55,6 +56,19 @@ export class UserPreferenceVector extends BaseEntity {
   /** 완청 길이 분포 — 완청 신호가 하나도 없으면 null (확장 2026-08-26) */
   @Column({ name: 'duration_pref', type: 'jsonb', nullable: true })
   durationPref: DurationPref | null;
+
+  /**
+   * 취향 벡터(`drip-scheduling.md` 4.3-1) — 긍정 신호 콘텐츠 임베딩의 최근성 가중 평균.
+   * 1536차원(vector — 마이그레이션 소유, `type: 'text'`는 런타임 변환용), NULL이면 스코어링이
+   * 임베딩 축을 제외한다(4.2). 컬럼 추가 2026-09-01 — 모델 확정(domain.md 15.1 #11 해소).
+   */
+  @Column({
+    name: 'taste_embedding',
+    type: 'text',
+    nullable: true,
+    transformer: vectorTransformer,
+  })
+  tasteEmbedding: number[] | null;
 
   /** 콜드스타트 판정용 — **완청 신호 수**다(domain.md 7.2, 기준값 3건) */
   @Column({ name: 'signal_count', type: 'int', default: 0 })

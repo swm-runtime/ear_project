@@ -1,11 +1,13 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { ContentEmbedding } from './entities/content-embedding.entity';
 import { ContentSource } from './entities/content-source.entity';
 import { ContentStat } from './entities/content-stat.entity';
 import { ContentTopic } from './entities/content-topic.entity';
 import { Content } from './entities/content.entity';
 import { ContentRepository } from './repositories/content.repository';
+import { ContentEmbeddingRepository } from './repositories/content-embedding.repository';
 import { ContentSourceRepository } from './repositories/content-source.repository';
 import { ContentStatRepository } from './repositories/content-stat.repository';
 import { ContentTopicRepository } from './repositories/content-topic.repository';
@@ -19,6 +21,7 @@ import { ContentStatService } from './services/content-stat.service';
       ContentTopic,
       ContentStat,
       ContentSource,
+      ContentEmbedding,
     ]),
   ],
   providers: [
@@ -26,6 +29,7 @@ import { ContentStatService } from './services/content-stat.service';
     ContentTopicRepository,
     ContentStatRepository,
     ContentSourceRepository,
+    ContentEmbeddingRepository,
     ContentService,
     ContentStatService,
   ],

@@ -59,7 +59,7 @@
 | 다루는 것 | 사용자에게 노출되는 제품 기능 | 콘텐츠를 만드는 앱 밖 절차 |
 | 산출물 | 앱 화면·API·스키마 | 대본·claims·QA 리포트·오디오·업로드 메타 |
 | 상태·데이터 | 제품 DB — [`backend/domain.md`](../backend/domain.md)가 기준 | 파이프라인 운영 DB (Supabase) — [`supabase/schema.sql`](supabase/schema.sql)이 기준. 제품 인프라와 **완전 분리** |
-| 구현 위치 | `backend/` · `frontend/` | 프롬프트 자산 = `docs/ai/skills/` · 실행 스킬(Claude Code) = `.claude/skills/` (정식 4종 `/sweep` `/cluster` `/draft` `/qa`는 spec/08 6장 구축 순서) |
+| 구현 위치 | `backend/` · `frontend/` | 프롬프트 자산 = `docs/ai/skills/` · 실행 스킬(Claude Code) = `.claude/skills/` (정식 4종 `/sweep` `/cluster` `/draft` `/qa`는 spec/08 6장 구축 순서) · 모델 추론 API(임베딩 등) = **`ai-server/`** (신설 2026-09-01 — `metadata-pipeline.md` 4.3) |
 
 - 제품과의 접점은 둘뿐이다: 발행 오디오의 제품 서빙 버킷 복사(spec/08 2장), 관리자 업로드(spec/07 4장 — [`features/admin.md`](../features/admin.md) 3.1).
 - [`features/content-pipeline.md`](../features/content-pipeline.md)(P1 자동 파이프라인 설계)는 이 개편 이전의 규칙을 담고 있다. **대본 형식("라디오 형식 대본")·상태 저장(파일) 등이 현행과 어긋나므로** 통합 시 [`docs/changes/`](../changes/)의 `pending/` 개정 요청으로 정리한다. 그때까지 제작 절차의 기준은 이 디렉토리다.
