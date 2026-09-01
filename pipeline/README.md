@@ -46,8 +46,19 @@ npm run worker
 3. **제3자 전사본(`references/*.txt`)은 레포에도, 프롬프트에도 넣지 않는다** — 분석 문서(`docs/ai/references/`)만 공유한다.
 4. **소스 풀 계층 판정은 사람만** — 웹의 기계 제안·자동 확인(domain_check)은 보조 증거다. 403·봇 차단은 우회하지 않는다.
 5. **검수 순서** — draft → QA(통과까지) → 비평은 QA 통과본에. 리포트 파일은 AI 스냅샷, 판정은 DB에.
-6. **규칙을 고치면 연동 자산도 같이** — `docs/ai/skills/`의 guidelines ↔ 루브릭 ↔ 골드 ↔ QA 프롬프트 ↔ 이 코드의 생성 프롬프트(`packages/pipeline`), 그리고 CHANGELOG (spec/09 4.3).
+6. **규칙을 고치면 연동 자산도 같이** — guidelines ↔ 루브릭 ↔ 골드 ↔ QA 프롬프트 ↔ 이 코드의 생성 프롬프트(`packages/pipeline`), 그리고 활성화 사유(note = CHANGELOG) (spec/09 4.3).
+8. **규칙 자산은 웹에서 고친다, git 에서 고치지 않는다** — guidelines·골드 3·QA 프롬프트·루브릭 v1/v2 의 진실은 DB `prompt_assets`(spec/10 3.2). `/assets` 에서 새 버전(draft) 저장 → 활성화. `docs/ai/skills/` 는 `npm run assets:export` 로 내려받는 스냅샷이다. spec/03·04·05 본문만 git 이 진실.
 7. **WORK_ROOT는 레포 밖** — 위 "구조" 참조. 실행 후 `git status`에 `docs/ai/` 변경이 보이면 모델이 자산을 건드린 것이다(`acceptEdits` 모드는 `--add-dir` 안의 수정을 자동 승인한다) — 되돌리고 원인을 본다.
+
+## 규칙 자산 (spec/10 3.2)
+
+```bash
+npm run assets:status     # active 버전 목록
+npm run assets:import     # 최초 1회 시딩 — git docs/ai/skills → DB (active 가 없는 키만; --force 로 git 사본을 새 버전으로)
+npm run assets:export     # DB active → docs/ai/skills + skills/CHANGELOG-assets.md (PR 에서 규칙 diff 를 보기 위해)
+```
+
+워커는 작업 시작 시 active 묶음(또는 `episodes.asset_versions` 에 고정된 버전)을 읽어 `WORK_ROOT/assets/<해시>/` 에 파일로 내려놓는다 — 한 에피소드의 draft→QA→비평→재QA 는 같은 규칙, 개정은 다음 에피소드부터. 전제: Supabase 에 `supabase/migrations/0009_prompt_assets.sql` 적용.
 
 ## 지금 어디까지
 

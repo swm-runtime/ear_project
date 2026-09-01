@@ -53,6 +53,8 @@
 
 > **계획 확정** (2026-09-01): 저장 배치 기준(spec/08 1장) · 파이프라인 전용 버킷 규격·자격증명 모델(spec/08 2장, `pipeline/deploy/aws/`) · 규칙 동기화 하이브리드(`prompt_assets` — spec/10 3.2) · 실행기 전환 계획 구독 → API(A안 확정) → 파인튜닝 로컬(spec/08 3.1·5장) · AI 서버 = 기존 VPC EC2 1대, NAT·ALB·Fargate 없음(spec/10 2장·M6) · 마일스톤 순서 **M-R → M4 → M6 → M5**. 미결 #11·#12 갱신, #21·#22 신설
 
+> **M-R 규칙 동기화 구현** (2026-09-01): 0009(`prompt_assets`·`episodes.asset_versions`·`runs` 계측) · 워커 로더(DB 7 + git spec 3 → `WORK_ROOT/assets/<해시>/`, 에피소드 단위 버전 고정, `prompt_version` 자동 유도, 폴백 없음) · 웹 `/assets`(목록·편집·draft·diff·활성화·이력, 비평 화면 "규칙으로 승격") · `assets:import/export/status` · `pickupApproved` 선점 수정. **적용 대기**: Supabase 에 0009 실행 → `npm run assets:import`
+
 ## 디렉토리 구조
 
 ```

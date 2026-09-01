@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import { cfg, canAi, executedBy } from "./config.js";
-import { claimJob, enqueue, failJob, finishJob, heartbeat, listApprovedBacklog, pool, requeueJob, setBacklogStatus, startJob } from "./db.js";
+import { claimApprovedBacklog, claimJob, enqueue, failJob, finishJob, heartbeat, listApprovedBacklog, pool, requeueJob, startJob } from "./db.js";
+import { workerRev } from "./assets.js";
 import { makeExecutor } from "./executors/index.js";
 import { runStage } from "./stages/index.js";
 import { log, sleep, RetryLater } from "./util.js";
@@ -27,7 +28,7 @@ async function main() {
   const drain = argv.includes("--drain"); // 큐가 비고 승인 대기도 없으면 종료 (연쇄 1건 끝까지 돌리는 테스트용)
   const ex = makeExecutor(cfg.executor, cfg.claudeModel);
   await fs.mkdir(cfg.workRoot, { recursive: true }); // 실행기 cwd — 없으면 spawn 이 실패한다
-  log(`워커 시작 — ${executedBy} · capabilities=${cfg.capabilities.join(",")} · AI=${canAi ? "on" : "off"} · assets=${cfg.assetRoot} · work=${cfg.workRoot}`);
+  log(`워커 시작 — ${executedBy} · capabilities=${cfg.capabilities.join(",")} · AI=${canAi ? "on" : "off"} · assets=DB+${cfg.assetSourceRoot} · work=${cfg.workRoot} · rev=${workerRev()}`);
 
   let current: string | null = null;
   const stop = async () => {
@@ -85,8 +86,9 @@ async function main() {
 /** 게이트 1 통과(approved) 후보 → draft 작업 생성 + claimed 전환 (집기). UI 는 approved 전환만 한다 (spec/08 4장). */
 async function pickupApproved() {
   for (const id of await listApprovedBacklog()) {
+    // 먼저 선점(approved → claimed, 원자적) — 다른 워커가 이미 집었으면 건너뛴다. 예전 순서(작업 생성 → 전환)는 draft 를 두 번 만들었다
+    if (!(await claimApprovedBacklog(id, cfg.workerName))) continue;
     const jobId = await enqueue({ type: "draft", requires_ai: true, payload: { backlog_id: id, attempt: 1 } });
-    await setBacklogStatus(id, "claimed", { claimed_by: cfg.workerName, claimed_at: new Date().toISOString() });
     log(`게이트 1 승인 감지: ${id} → draft 작업 ${jobId.slice(0, 8)}`);
   }
 }

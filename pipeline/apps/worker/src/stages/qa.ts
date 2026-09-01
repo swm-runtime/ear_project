@@ -4,6 +4,7 @@ import { enqueue, getEpisode, insertRun, setBacklogStatus, setJobProgress, upser
 import type { Executor } from "../executors/index.js";
 import { buildQaPrompt, QA_SCHEMA } from "@ear/pipeline";
 import { log } from "../util.js";
+import { prepareAssets, workerRev } from "../assets.js";
 
 interface QaOut { verdict: "qa_passed" | "failed"; failures: { location: string; item: string; reason: string }[]; holds: string[]; report_written: boolean; summary: string }
 
@@ -19,13 +20,14 @@ export async function runQa(job: Job, ex: Executor) {
   const rel = `episodes/${episodeId}`;
   const dir = path.join(cfg.workRoot, rel);
   const scriptFile = ep.script_key?.startsWith("local:") ? path.join(cfg.workRoot, ep.script_key.slice(6)) : undefined;
+  const { assetRoot, bundle } = await prepareAssets(ep.asset_versions ?? null); // 에피소드에 고정된 규칙 (spec/10 3.2)
 
-  const prompt = buildQaPrompt({ assetRoot: cfg.assetRoot, workRoot: cfg.workRoot, episodeId, attempt, scriptFile });
+  const prompt = buildQaPrompt({ assetRoot, workRoot: cfg.workRoot, episodeId, attempt, scriptFile });
   log(`  qa ${episodeId} attempt ${attempt}`);
   const r = await ex.run<QaOut>({
     prompt, schema: QA_SCHEMA,
     allowedTools: ["Read", `Write(${rel}/qa-report.md)`, `Edit(${rel}/qa-report.md)`, "Bash(python3 *)"],
-    addDirs: [dir, cfg.assetRoot], cwd: cfg.workRoot, timeoutMs: 40 * 60_000, model: cfg.claudeModel,
+    addDirs: [dir, assetRoot], cwd: cfg.workRoot, timeoutMs: 40 * 60_000, model: cfg.claudeModel,
     onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: `QA 검증 (attempt ${attempt})` }).catch(() => {}),
     describe: (tool, input, counts) => {
       const f = String(input?.file_path ?? "").split("/").pop() ?? "";
@@ -37,8 +39,8 @@ export async function runQa(job: Job, ex: Executor) {
   });
   const o = r.output;
   const failTxt = o.failures.map((f) => `${f.location} [항목 ${f.item}] ${f.reason}`).join(" / ");
-  await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: ep.prompt_version, qa_report_key: `local:${rel}/qa-report.md` });
-  await insertRun({ backlog_id: backlogId, phase: "qa", attempt, result: `${o.verdict} — 실패 ${o.failures.length}·보류 ${o.holds.length}. ${o.summary}${failTxt ? ` · 실패 상세: ${failTxt}`.slice(0, 1200) : ""}`, prompt_version: "qa-v1.2 (항목 5 시그니처 판정 활성 · 항목 6 정의 명시, worker)", artifacts: [`local:${rel}/qa-report.md`], executed_by: executedBy, model: r.model });
+  await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: ep.prompt_version, qa_report_key: `local:${rel}/qa-report.md`, ...(ep.asset_versions ? {} : { asset_versions: bundle.versions }) });
+  await insertRun({ backlog_id: backlogId, phase: "qa", attempt, result: `${o.verdict} — 실패 ${o.failures.length}·보류 ${o.holds.length}. ${o.summary}${failTxt ? ` · 실패 상세: ${failTxt}`.slice(0, 1200) : ""}`, prompt_version: `${bundle.labels.qa} (worker)`, artifacts: [`local:${rel}/qa-report.md`], executed_by: executedBy, model: r.model, cost_usd: r.listCostUsd, tokens: (r.raw as { usage?: unknown } | undefined)?.usage, worker_rev: workerRev() });
 
   let next: Record<string, unknown> = {};
   if (o.verdict === "qa_passed") {

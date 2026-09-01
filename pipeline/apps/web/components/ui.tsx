@@ -60,6 +60,10 @@ const TONE: Record<string, string> = {
   approved: "bg-teal-50 text-teal-700 ring-teal-200",
   held: "bg-slate-100 text-slate-600 ring-slate-200",
   hold: "bg-slate-100 text-slate-600 ring-slate-200",
+  // 규칙 자산 상태 (prompt_assets.status — spec/10 3.2)
+  active: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+  draft: "bg-amber-50 text-amber-800 ring-amber-200",
+  retired: "bg-slate-100 text-slate-500 ring-slate-200",
   candidate: "bg-slate-100 text-slate-600 ring-slate-200",
 };
 

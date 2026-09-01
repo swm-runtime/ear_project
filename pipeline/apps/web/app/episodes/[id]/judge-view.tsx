@@ -187,7 +187,7 @@ export function JudgeView({ episodeId, backlogId, turns, flags, stars, scores, t
         </div>
 
         <div className="rounded-md border border-line bg-panel p-3">
-          <h3 className="mb-2 text-[13px] font-semibold">플래그 {flags.length} · ⭐ {stars.length} <span className="font-normal text-ink-soft">동의 {counts["동의"] ?? 0} · 부분 {counts["부분동의"] ?? 0} · 비동의 {counts["비동의"] ?? 0}</span></h3>
+          <h3 className="mb-2 text-[13px] font-semibold">플래그 {flags.length} · ⭐ {stars.length} <span className="font-normal text-ink-soft">동의 {counts["동의"] ?? 0} · 부분 {counts["부분동의"] ?? 0} · 비동의 {counts["비동의"] ?? 0}</span><a href="/assets/skills/draft/guidelines.md?promote=1" className="ml-2 text-[11px] font-normal text-brand hover:underline" title="반복되는 동의 플래그를 생성 규칙으로 (spec/09 4.1 — 새 버전 draft 로 저장 후 활성화)">규칙으로 승격 →</a></h3>
           <div className="space-y-1">
             {flags.map((r) => {
               const refs = turnRefs(r.where); const v = fv[r.n];

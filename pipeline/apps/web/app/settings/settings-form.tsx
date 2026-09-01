@@ -7,7 +7,7 @@ const inp = "rounded border border-line px-2.5 py-1.5 text-[13px] outline-none f
 
 export function SettingsForm({ tts, worker, templates, meta }: { tts: any; worker: any; templates: any; meta: any }) {
   const [t, setT] = useState({ voices: { 윤아: "", 이음: "" }, speed: { 윤아: 1, 이음: 1 }, mode: "per-turn", model: "eleven_v3", ...tts });
-  const [w, setW] = useState({ default_model: "", prompt_version: "full-v5.1", ...worker });
+  const [w, setW] = useState({ default_model: "", ...worker });
   const [tpl, setTpl] = useState({ version: "tpl-v1", intro: "", closing: "", major_lines: {} as Record<string, string>, ...templates });
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
@@ -42,8 +42,7 @@ export function SettingsForm({ tts, worker, templates, meta }: { tts: any; worke
         <p className="mb-3 text-xs text-ink-soft">참고값 — 워커는 자기 .env 를 우선한다 (CLAUDE_MODEL 미설정 시 계정 기본 모델).</p>
         <label className="text-xs text-ink-soft">기본 모델</label>
         <input className={`${inp} mb-3 mt-1 w-full`} placeholder="(비우면 계정 기본) 예: claude-opus-5" value={w.default_model} onChange={(e) => setW({ ...w, default_model: e.target.value })} />
-        <label className="text-xs text-ink-soft">프롬프트 버전</label>
-        <input className={`${inp} mt-1 w-full`} value={w.prompt_version} onChange={(e) => setW({ ...w, prompt_version: e.target.value })} />
+        <p className="text-xs text-ink-soft">프롬프트 버전은 더 이상 여기서 정하지 않는다 — 워커가 <a className="underline" href="/assets">규칙 자산</a>의 active 버전에서 유도해 <code>runs.prompt_version</code>·<code>episodes.asset_versions</code> 에 기록한다 (spec/10 3.2).</p>
         <div className="mt-3 flex items-center gap-2">
           <button className={btnCls("primary")} disabled={pending} onClick={() => save("worker", w, "워커 설정")}>저장</button>
           {meta.worker?.updated_by && <span className="text-xs text-ink-soft">마지막 {meta.worker.updated_by}</span>}

@@ -108,6 +108,26 @@ export async function editScriptTurn(episodeId: string, turn: string, after: str
   return { changed: true, coldOpenBroken: cold.turn === turn && !cold.ok };
 }
 
+/** 규칙 자산 — 새 버전(draft) 저장 (spec/10 3.2). 규약(active 불변·활성화 note 필수·기존 active 자동 retired)은 DB 트리거가 강제한다 */
+export async function saveAssetDraft(key: string, version: string, content: string, note: string) {
+  const sb = await supabaseServer();
+  const v = version.trim();
+  if (!v) throw new Error("버전 라벨이 필요합니다 (예: full-v5.2)");
+  if (!content.trim()) throw new Error("본문이 비어 있습니다");
+  const { error } = await sb.from("prompt_assets").insert({ key, version: v, content, status: "draft", note: note.trim() || null });
+  if (error) throw new Error(error.code === "23505" ? `이미 있는 버전입니다: ${v}` : error.message);
+  revalidatePath("/assets"); revalidatePath(`/assets/${key}`);
+}
+
+/** 규칙 자산 — draft 를 활성화. 다음 작업부터 모든 워커가 이 버전을 읽는다 */
+export async function activateAsset(key: string, version: string, note: string) {
+  const sb = await supabaseServer();
+  if (!note.trim()) throw new Error("활성화에는 변경 사유(note)가 필요합니다");
+  const { error } = await sb.from("prompt_assets").update({ status: "active", note: note.trim() }).eq("key", key).eq("version", version).eq("status", "draft");
+  if (error) throw new Error(error.message);
+  revalidatePath("/assets"); revalidatePath(`/assets/${key}`); revalidatePath("/settings");
+}
+
 /** 사람 수정 후 재QA — 사람 수정도 환각·중복을 만들 수 있으므로 사실 검증을 다시 돌린다 (spec/05) */
 export async function requestReQa(episodeId: string, backlogId: string) {
   const sb = await supabaseServer();
