@@ -61,10 +61,11 @@ export async function enqueue(j: { type: JobType; requires_ai: boolean; payload:
   return r.rows[0].id as string;
 }
 
-export async function insertRun(r: { backlog_id?: string | null; phase: string; attempt?: number; result: string; prompt_version: string; artifacts?: string[]; executed_by: string; model?: string | null }) {
+export async function insertRun(r: { backlog_id?: string | null; phase: string; attempt?: number; result: string; prompt_version: string; artifacts?: string[]; executed_by: string; model?: string | null; cost_usd?: number | null; tokens?: unknown; worker_rev?: string | null }) {
+  // cost_usd·tokens·worker_rev (0009): API 전환 비용 원료 + spec 체크아웃 추적 (spec/08 3.1)
   await pool.query(
-    "insert into public.runs (backlog_id, phase, attempt, result, prompt_version, artifacts, executed_by, model) values ($1,$2,$3,$4,$5,$6,$7,$8)",
-    [r.backlog_id ?? null, r.phase, r.attempt ?? 1, r.result, r.prompt_version, r.artifacts ?? [], r.executed_by, r.model ?? null],
+    "insert into public.runs (backlog_id, phase, attempt, result, prompt_version, artifacts, executed_by, model, cost_usd, tokens, worker_rev) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
+    [r.backlog_id ?? null, r.phase, r.attempt ?? 1, r.result, r.prompt_version, r.artifacts ?? [], r.executed_by, r.model ?? null, r.cost_usd ?? null, r.tokens == null ? null : JSON.stringify(r.tokens), r.worker_rev ?? null],
   );
 }
 
@@ -91,6 +92,11 @@ export async function setBacklogStatus(id: string, status: string, extra: Record
   }
   await pool.query(`update public.backlog set ${sets.join(", ")} where id = $1`, vals);
 }
+/** 승인 후보 선점 — UPDATE 가 원자적이라 워커 여러 대가 같은 후보를 동시에 집어 draft 를 두 번 만들지 못한다 (spec/10 M-R) */
+export async function claimApprovedBacklog(id: string, worker: string): Promise<boolean> {
+  const r = await pool.query("update public.backlog set status = 'claimed', claimed_by = $2, claimed_at = now(), updated_at = now() where id = $1 and status = 'approved' returning id", [id, worker]);
+  return (r.rowCount ?? 0) > 0;
+}
 /** 승인됐지만 아직 집기(claimed) 전인 후보 — 워커가 draft 작업을 만들고 claimed 로 전환 */
 export async function listApprovedBacklog(): Promise<string[]> {
   const r = await pool.query("select id from public.backlog where status = 'approved' order by approved_at nulls last, id");
@@ -116,18 +122,18 @@ export async function nextEpisodeId(datePrefix: string): Promise<string> {
   const r = await pool.query("select coalesce(max(substring(id from 9)::int), 0) + 1 as n from public.episodes where id like $1", [`${datePrefix}-%`]);
   return `${datePrefix}-${String(r.rows[0].n).padStart(3, "0")}`;
 }
-export async function upsertEpisode(e: { id: string; backlog_id: string; prompt_version: string } & Partial<Record<"script_key" | "claims_key" | "sources_key" | "qa_report_key" | "critic_report_key" | "audio_master_key" | "audio_dist_key", string>>) {
+export async function upsertEpisode(e: { id: string; backlog_id: string; prompt_version: string; asset_versions?: Record<string, string> } & Partial<Record<"script_key" | "claims_key" | "sources_key" | "qa_report_key" | "critic_report_key" | "audio_master_key" | "audio_dist_key", string>>) {
   const { id, backlog_id, prompt_version, ...keys } = e;
   const cols = Object.keys(keys);
-  const vals = Object.values(keys);
+  const vals = Object.values(keys).map((v) => (v != null && typeof v === "object" ? JSON.stringify(v) : v));
   await pool.query(
     `insert into public.episodes (id, backlog_id, prompt_version${cols.map((c) => `, ${c}`).join("")}) values ($1,$2,$3${cols.map((_, i) => `, $${i + 4}`).join("")})
      on conflict (id) do update set updated_at = now()${cols.map((c) => `, ${c} = excluded.${c}`).join("")}`,
     [id, backlog_id, prompt_version, ...vals],
   );
 }
-export async function getEpisode(id: string): Promise<{ id: string; backlog_id: string; prompt_version: string; script_key: string | null } | null> {
-  const r = await pool.query("select id, backlog_id, prompt_version, script_key from public.episodes where id = $1", [id]);
+export async function getEpisode(id: string): Promise<{ id: string; backlog_id: string; prompt_version: string; script_key: string | null; asset_versions: Record<string, string> | null } | null> {
+  const r = await pool.query("select id, backlog_id, prompt_version, script_key, asset_versions from public.episodes where id = $1", [id]);
   return r.rows[0] ?? null;
 }
 

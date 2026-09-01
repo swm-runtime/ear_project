@@ -197,3 +197,20 @@ select d.id as domain_id,
  group by d.id;
 
 grant select on public.domain_stats to authenticated;
+
+-- ===== 0009 (2026-09-01): prompt_assets (규칙 자산의 진실) · episodes.asset_versions · runs 계측 — 정책·트리거 원문은 supabase/migrations/0009_prompt_assets.sql =====
+create table if not exists public.prompt_assets (
+  key          text not null,
+  version      text not null,
+  content      text not null,
+  status       text not null default 'draft' check (status in ('draft','active','retired')),
+  note         text,
+  created_by   text,
+  created_at   timestamptz not null default now(),
+  activated_at timestamptz,
+  activated_by text,
+  primary key (key, version)
+);
+create unique index if not exists prompt_assets_active_idx on public.prompt_assets (key) where status = 'active';
+alter table public.episodes add column if not exists asset_versions jsonb;
+alter table public.runs add column if not exists cost_usd numeric, add column if not exists tokens jsonb, add column if not exists worker_rev text;

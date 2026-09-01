@@ -3,6 +3,7 @@ import { domainTierByHost, existingBacklogTitles, insertBacklog, insertRun, next
 import type { Executor } from "../executors/index.js";
 import { buildClusterPrompt, CLUSTER_SCHEMA } from "@ear/pipeline";
 import { hostOf, log } from "../util.js";
+import { prepareAssets, workerRev } from "../assets.js";
 
 interface ClusterOut {
   candidates: { id: string; mid_topic: string; title: string; summary: string; target_fit: string; angle: string; sources: { url: string; title: string; publisher: string; backbone: boolean }[]; dedup_note: string }[];
@@ -19,9 +20,10 @@ export async function runCluster(job: Job, ex: Executor) {
   const existing = await existingBacklogTitles();
   const nextN = await nextBacklogNumber();
 
-  const prompt = buildClusterPrompt({ assetRoot: cfg.assetRoot, midTopic, nextIdNumber: nextN, sources, existingTitles: existing });
+  const { assetRoot } = await prepareAssets(null); // spec/03 반입 — 스냅샷 경로로 (spec/10 3.2)
+  const prompt = buildClusterPrompt({ assetRoot, midTopic, nextIdNumber: nextN, sources, existingTitles: existing });
   log(`  cluster ${midTopic}: 소스 ${sources.length}건, 다음 ID C${nextN}`);
-  const r = await ex.run<ClusterOut>({ prompt, schema: CLUSTER_SCHEMA, allowedTools: ["Read"], addDirs: [cfg.assetRoot], cwd: cfg.workRoot, timeoutMs: 25 * 60_000, model: cfg.claudeModel,
+  const r = await ex.run<ClusterOut>({ prompt, schema: CLUSTER_SCHEMA, allowedTools: ["Read"], addDirs: [assetRoot], cwd: cfg.workRoot, timeoutMs: 25 * 60_000, model: cfg.claudeModel,
     onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: `군집화 (소스 ${sources.length}건)` }).catch(() => {}),
     describe: (tool) => (tool === "Read" ? "군집화 기준 확인 중" : null),
   });
@@ -48,6 +50,7 @@ export async function runCluster(job: Job, ex: Executor) {
     prompt_version: "cluster-worker-v1 (주제 축 + 소스 5+ 표준)",
     executed_by: executedBy,
     model: r.model,
+    cost_usd: r.listCostUsd, tokens: (r.raw as { usage?: unknown } | undefined)?.usage, worker_rev: workerRev(),
   });
   return { mid_topic: midTopic, input_sources: sources.length, candidates: inserted, reserve_notes: r.output.reserve_notes, dropped_notes: r.output.dropped_notes, model: r.model, list_cost_usd: r.listCostUsd };
 }

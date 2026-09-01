@@ -5,6 +5,7 @@ import { cfg, executedBy } from "../config.js";
 import { appendDomainNote, enqueue, insertRun, sweepDomains, upsertSource, type Job } from "../db.js";
 import { log, sleep, stripHtml } from "../util.js";
 import { todayKst } from "@ear/pipeline";
+import { workerRev } from "../assets.js";
 
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
 
@@ -59,6 +60,7 @@ export async function runSweep(job: Job) {
     prompt_version: "sweep-worker-v1",
     artifacts: [`local:${relArchive}`],
     executed_by: executedBy,
+    worker_rev: workerRev(),
   });
 
   const clusterJobId = await enqueue({ type: "cluster", requires_ai: true, payload: { mid_topic: midTopic, sweep_job_id: job.id, sources_count: total }, parent_job_id: job.id });
