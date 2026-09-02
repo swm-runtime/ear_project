@@ -21,6 +21,7 @@
 | Elastic IP | `43.203.57.240` | 가비아 A 레코드 2개(api·admin)가 가리킴 |
 | 보안그룹 | `sg-048aaaf95e4d12b2e` | 22(관리자 IP/32)·80·443/tcp·443/udp |
 | 인스턴스 롤 | `ear-prod-ec2` | 인라인: `backup-put` · `content-upload`(S3 Put/Delete) · `ses-send` |
+| IAM 정책 (고객 관리형) | `ear-pipeline-bucket-rw` | **파이프라인** (2026-09-01 신설) — `earcast-pipeline-prod`의 `episodes/*`·`sweeps/*`·`datasets/*` Get/Put/List(삭제 없음). AI 서버 EC2 롤 `ear-ai-ec2`(M6)에 부착 예정. IAM 사용자·액세스 키는 만들지 않음. 생성: `pipeline/deploy/aws/setup-pipeline-bucket.sh` |
 | IMDS | v2 강제, hop limit **2** | 컨테이너가 롤 자격증명을 읽기 위해 2 필요 |
 | VPC | `vpc-07bfc7f134e639989` (기본 VPC — 계정이 비어 있어 `create-default-vpc`로 생성) | 서브넷 2a `subnet-0343791d0f49bcaa8` |
 
@@ -32,6 +33,7 @@
 |---|---|---|
 | S3 오디오 | `earcast-audio-prod` | 비공개. `audio/*`(서명 재생)·`thumb/*`(공개 썸네일). 구명 `ear-audio-prod`는 글로벌 유니크 잠금 해제 대기(구계정 삭제 직후라 재사용 가능해졌지만 바꿀 이유 없음) |
 | S3 백업 | `earcast-backup-prod` | `pg/` 30일 라이프사이클 |
+| S3 파이프라인 | `earcast-pipeline-prod` | **파이프라인** (2026-09-01 신설, 제품과 분리) — 비공개·Block Public Access·버저닝 ON·SSE-S3·TLS 강제. `episodes/{id}/` 대본·발췌·리포트·audio, `sweeps/`(180일 만료), `datasets/`. 이전 버전 90일 정리. 제품 서빙 경로 아님 — 발행 mp3는 관리자 업로드로만 제품 버킷에. 계정 이관 시 `aws s3 sync` 대상 (`docs/ai/spec/08-infra.md` 2장) |
 | CloudFront 배포 | `ETLYPIXXR2K7A` → `dp04jswjfphd3.cloudfront.net` | 기본 동작: **서명 필수, Function 없음**(키 직접 서명). `thumb/*` 동작: 무서명 |
 | 서명 공개키 | `K1IY9F02SJUF5I` (Key Group `ear-audio-keygroup`) | 개인키: `backend/deploy/aws/out/cf_private.pem` (로컬 전용) |
 | OAC | `ear-audio-oac` | S3는 이 배포에서만 읽힘 |

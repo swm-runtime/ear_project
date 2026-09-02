@@ -1,6 +1,6 @@
 # 이어 (ear_project)
 
-AI 생성 팟캐스트 서비스 '이어'의 저장소. 3인 팀, 백엔드는 NestJS + PostgreSQL, 프론트엔드는 React Native(Expo)로 개발한다. 앱 밖 파트로 AI 서버(`ai-server/`, FastAPI 단발 추론)와 콘텐츠 파이프라인(`pipeline/`, Next.js 웹 UI + Node 워커 + Supabase)이 있다 — 각 파트의 `README.md`·`CLAUDE.md`가 그 파트의 규칙이다.
+AI 생성 팟캐스트 서비스 '이어'의 저장소. 3인 팀, 백엔드는 NestJS + PostgreSQL, 프론트엔드는 React Native(Expo)로 개발한다. 앱 밖 파트로 AI 서버(`ai-server/`, FastAPI 단발 추론)와 콘텐츠 파이프라인(`pipeline/`, Next.js 웹 UI + Node 워커 + Supabase + 파이프라인 S3)이 있다 — 각 파트의 `README.md`·`CLAUDE.md`가 그 파트의 규칙이다.
 
 > 이 문서는 **팀 공용**이다. 역할(FE/BE)별 지침·개인 설정은 각자 `CLAUDE.local.md`(gitignore 대상)에 둔다.
 

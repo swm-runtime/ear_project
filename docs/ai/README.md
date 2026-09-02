@@ -69,10 +69,10 @@
 
 ## 커밋하지 않는 것
 
-작업 폴더(워커의 WORK_ROOT — 레포 밖)에는 있으나 레포에 넣지 않는다 (상태의 원본은 운영 DB, 산출물은 S3 이관 예정 — spec/08 2장, spec/10 M4):
+작업 폴더(워커의 WORK_ROOT — 레포 밖, S3 의 로컬 캐시)에는 있으나 레포에 넣지 않는다 (상태의 원본은 운영 DB, 산출물의 원본은 파이프라인 S3 — spec/08 2장, spec/10 3.3):
 
 - `episodes/` — 제작 산출물 (대본·claims·발췌·QA/비평 리포트·피드백). **발췌(`sources.md`)는 재배포 금지 증적**이다
-- `sources/sweeps/` · `backlog/*.md` — 스윕 원본·로컬 백로그 기록 (DB 이관 완료분)
+- `sweeps/`(구 `sources/sweeps/`) · `backlog/*.md` — 스윕 원본(S3 `sweeps/`)·로컬 백로그 기록 (DB 이관 완료분)
 - `references/*.txt` — 롤모델 쇼 전사본(저작권). 구조 **분석 노트만** [`references/`](references/)에 있다
 - `archive/` — 2026-08 개편 이전의 제안·검토 문서·시드 파일·골드 백업
 

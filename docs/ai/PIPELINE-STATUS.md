@@ -40,7 +40,7 @@
 > 소스 풀(계층 판정 시트)·스윕 요청·주제 CRUD·설정(TTS 보이스). 스키마 0003: 팀 RLS + 승인자/판정자/요청자 **DB 트리거 스탬프** + settings. `next build` 통과. **실행 대기: Supabase anon 키 + Email Auth 활성 + 팀원 초대**
 > 접속: Project URL + secret key (팀 공유), DB 직접 접속은 pooler `aws-0-ap-northeast-2.pooler.supabase.com:5432`
 > 스키마 원본: [pipeline/supabase/schema.sql](../../pipeline/supabase/schema.sql) — 변경 시 이 파일 기준으로 관리
-> ⚠️ 이 아래 파일 구조는 이관 전 로컬 기록이다. 이후의 상태 원본은 DB이며, 로컬 파일은 산출물 보관용(→ S3 이관 예정)
+> ⚠️ 이 아래 파일 구조는 이관 전 로컬 기록이다. 이후의 상태 원본은 DB, 산출물의 원본은 파이프라인 S3(spec/10 3.3 — 로컬 폴더는 `storage:migrate` 로 올린 뒤 캐시)
 
 > **평가 체계 v2 전환** (2026-09-01): 멘토링(08-31) + 논문 5편 대조 → **spec/09 v2**(하한/상한 분리 · L0~L3 4층 · 회귀 세트 · κ 승격 조건 · 연동 갱신 절차) ·
 > **critic-v2 초안**(100점 12항목 · 판단 플래그 20 · 앵커 32자리 비움) · qa-v1.2(항목 5 판정 활성, 고지 제외) · critic-v1.3(C2·C4 동기화) ·
@@ -53,7 +53,8 @@
 
 > **계획 확정** (2026-09-01): 저장 배치 기준(spec/08 1장) · 파이프라인 전용 버킷 규격·자격증명 모델(spec/08 2장, `pipeline/deploy/aws/`) · 규칙 동기화 하이브리드(`prompt_assets` — spec/10 3.2) · 실행기 전환 계획 구독 → API(A안 확정) → 파인튜닝 로컬(spec/08 3.1·5장) · AI 서버 = 기존 VPC EC2 1대, NAT·ALB·Fargate 없음(spec/10 2장·M6) · 마일스톤 순서 **M-R → M4 → M6 → M5**. 미결 #11·#12 갱신, #21·#22 신설
 
-> **M-R 규칙 동기화 구현** (2026-09-01): 0009(`prompt_assets`·`episodes.asset_versions`·`runs` 계측) · 워커 로더(DB 7 + git spec 3 → `WORK_ROOT/assets/<해시>/`, 에피소드 단위 버전 고정, `prompt_version` 자동 유도, 폴백 없음) · 웹 `/assets`(목록·편집·draft·diff·활성화·이력, 비평 화면 "규칙으로 승격") · `assets:import/export/status` · `pickupApproved` 선점 수정. **적용 대기**: Supabase 에 0009 실행 → `npm run assets:import`
+> **M-R 규칙 동기화 구현** (2026-09-01): 0009(`prompt_assets`·`episodes.asset_versions`·`runs` 계측) · 워커 로더(DB 7 + git spec 3 → `WORK_ROOT/assets/<해시>/`, 에피소드 단위 버전 고정, `prompt_version` 자동 유도, 폴백 없음) · 웹 `/assets`(목록·편집·draft·diff·활성화·이력, 비평 화면 "규칙으로 승격") · `assets:import/export/status` · `pickupApproved` 선점 수정. 0009 적용·시딩 완료(2026-09-01 14:45 KST, 자산 7개 active)
+> **M4 S3 산출물 동기화 구현** (2026-09-02): 버킷 `earcast-pipeline-prod`(2026-09-01 생성) · 워커 `storage.ts`(단계 전 pull·후 push, md5↔ETag 멱등, direct/web 두 백엔드, 기동 시 접근 점검) · 웹 `s3:` 읽기·턴 수정 PutObject · `POST /api/storage`(로컬 워커용 서명 URL, 공유 토큰) · `storage:status`/`storage:migrate`. 검증: 실버킷 왕복(direct·web 모두)·라우트 401/405/400·서명 PUT 업로드. **이관 완료**(2026-09-02): 10편 86파일 1.9MB 업로드, `episodes` 키 48개·`runs` 74건 `s3:` 치환. 남긴 것: `backlog/*.md`·시드 기록 5건(로컬 전용)
 
 ## 디렉토리 구조
 
