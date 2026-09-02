@@ -10,6 +10,7 @@ const NAV = [
   { href: "/domains", label: "소스 풀", icon: Globe },
   { href: "/topics", label: "주제", icon: Tag },
   { href: "/assets", label: "규칙 자산", icon: Book, note: "prompt_assets" },
+  { href: "/publish", label: "제품 발행", icon: Ship, note: "게이트 2" },
 ];
 
 export function Sidebar({ pending }: { pending?: { backlog?: number; review?: number } }) {
@@ -50,4 +51,5 @@ function Radar({ className }: I) { return <svg className={className} viewBox="0 
 function Globe({ className }: I) { return <svg className={className} viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a8 8 0 100 16 8 8 0 000-16zm5.9 7h-2.6a12 12 0 00-1-4.2A6 6 0 0115.9 9zM10 4c.7 1 1.2 2.6 1.4 5H8.6C8.8 6.6 9.3 5 10 4zM4.1 9a6 6 0 013.6-4.2 12 12 0 00-1 4.2H4.1zm0 2h2.6c.1 1.6.5 3 1 4.2A6 6 0 014.1 11zM10 16c-.7-1-1.2-2.6-1.4-5h2.8c-.2 2.4-.7 4-1.4 5zm2.3-.8c.5-1.2.9-2.6 1-4.2h2.6a6 6 0 01-3.6 4.2z" /></svg>; }
 function Tag({ className }: I) { return <svg className={className} viewBox="0 0 20 20" fill="currentColor"><path d="M10 2l8 8-8 8-8-8V2h8zM6.5 6.5a1.5 1.5 0 100-.1z" /></svg>; }
 function Book({ className }: I) { return <svg className={className} viewBox="0 0 20 20" fill="currentColor"><path d="M4 3h5a2 2 0 012 2v12a1.5 1.5 0 00-1.5-1.5H4V3zm12 0h-5a2 2 0 00-2 2v12a1.5 1.5 0 011.5-1.5H16V3zM5.5 6h3v1.2h-3V6zm0 3h3v1.2h-3V9zm6-3h3v1.2h-3V6zm0 3h3v1.2h-3V9z" /></svg>; }
+function Ship({ className }: I) { return <svg className={className} viewBox="0 0 20 20" fill="currentColor"><path d="M10 2l1 1v2h4l1 6-6 2-6-2 1-6h4V3l1-1zm-7 12l2 2h10l2-2 1 2-2 3H4l-2-3 1-2z" /></svg>; }
 function Gear({ className }: I) { return <svg className={className} viewBox="0 0 20 20" fill="currentColor"><path d="M10 6.5A3.5 3.5 0 1010 13.5 3.5 3.5 0 0010 6.5zm7 3.5l1.8 1.4-1.7 2.9-2.2-.7a6.7 6.7 0 01-1.5.9l-.4 2.3H8.9l-.4-2.3a6.7 6.7 0 01-1.5-.9l-2.2.7-1.7-2.9L4.9 10 3.1 8.6l1.7-2.9 2.2.7c.5-.4 1-.7 1.5-.9L8.9 3h3.1l.4 2.3c.5.2 1 .5 1.5.9l2.2-.7 1.7 2.9L17 10z" /></svg>; }

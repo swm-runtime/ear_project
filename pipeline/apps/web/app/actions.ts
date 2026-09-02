@@ -4,7 +4,7 @@ import { supabaseServer } from "@/lib/supabase-server";
 import { coldOpenStatus, loadArtifact, replaceTurn, writeArtifact } from "@/lib/artifacts";
 
 /** 게이트 1 (사람): proposed → approved / rejected / held. approved_by·approved_at 는 DB 트리거가 세션에서 찍는다. */
-export async function setBacklogStatus(id: string, status: "approved" | "rejected" | "held" | "proposed" | "qa_passed") {
+export async function setBacklogStatus(id: string, status: "approved" | "rejected" | "held" | "proposed" | "qa_passed" | "published") {
   const sb = await supabaseServer();
   const { error } = await sb.from("backlog").update({ status }).eq("id", id);
   if (error) throw new Error(error.message);

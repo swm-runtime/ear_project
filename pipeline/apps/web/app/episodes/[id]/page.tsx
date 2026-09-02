@@ -11,7 +11,7 @@ import { listObjects, presignGet } from "@/lib/storage";
 import { ScriptEditor } from "./script-editor";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { JobProgress } from "@/components/job-progress";
-import { Badge, PageHeader, Panel } from "@/components/ui";
+import { Badge, LinkBtn, PageHeader, Panel } from "@/components/ui";
 
 const TABS = [["script", "대본"], ["sources", "발췌"], ["claims", "claims"], ["qa", "QA"], ["critic", "비평·판정"], ["audio", "오디오"], ["runs", "실행 기록"]] as const;
 
@@ -44,6 +44,7 @@ export default async function EpisodePage({ params, searchParams }: { params: Pr
           <Badge value={bl?.status} />
           <span className="text-xs text-ink-soft">{bl?.mid_topic} · {ep.prompt_version}</span>
           <PackageButton episodeId={ep.id} backlogId={ep.backlog_id} enabled={["qa_passed", "packaged"].includes(bl?.status ?? "")} pending={!!pkgJob} />
+          {["packaged", "published"].includes(bl?.status ?? "") && <LinkBtn kind="primary" href={`/publish/upload?episode=${ep.id}`}>제품 발행</LinkBtn>}
           <TtsButton episodeId={ep.id} backlogId={ep.backlog_id} enabled={["qa_passed", "packaged"].includes(bl?.status ?? "")} pending={!!ttsJob} />
         </>}
       />
