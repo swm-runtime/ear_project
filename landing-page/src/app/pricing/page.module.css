@@ -39,9 +39,9 @@
 }
 
 .badgeDiff {
-  background: #eef1f7;
-  border: 1px solid #dde2ec;
-  color: #4c5268;
+  background: #f0f0f4;
+  border: 1px solid #dcdce4;
+  color: #45454d;
 }
 
 .rows > div {
@@ -74,8 +74,8 @@
   display: grid;
   gap: 1px;
   margin-top: clamp(36px, 5vw, 52px);
-  background: rgba(255, 255, 255, 0.11);
-  border: 1px solid rgba(255, 255, 255, 0.11);
+  background: var(--line);
+  border: 1px solid var(--line);
   border-radius: var(--r-lg);
   overflow: hidden;
 }
@@ -84,7 +84,7 @@
   display: flex;
   gap: 18px;
   padding: 26px 26px 28px;
-  background: var(--ink-900);
+  background: var(--surface);
 }
 
 .billingNum {
@@ -100,12 +100,12 @@
   font-size: 17px;
   letter-spacing: -0.04em;
   line-height: 1.45;
-  color: #f2f3f7;
+  color: var(--text);
 }
 
 .billingBody {
   margin-top: 10px;
-  color: var(--ink-200);
+  color: var(--text-2);
   font-size: 15px;
   line-height: 1.72;
 }

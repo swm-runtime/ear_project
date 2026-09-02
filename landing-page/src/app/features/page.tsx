@@ -37,7 +37,7 @@ export default function FeaturesPage() {
         }))}
       />
 
-      <section className={`section onDark ${s.why}`}>
+      <section className={`section ${s.why}`}>
         <div className="container">
           <div className={s.whyGrid}>
             <div>

@@ -1,30 +1,29 @@
+import Image from "next/image";
+
+/** 원본 마크의 가로세로비(public/logo.png). 높이는 여기서 계산해 CLS를 막는다. */
+const MARK_W = 480;
+const MARK_H = 388;
+
 /**
- * 이어 심볼 — 고리(ㅇ) 하나와 퍼져 나가는 호 두 개.
- * 귀와 소리, 그리고 '이어'의 ㅇ을 같은 형태로 읽히게 한 도형이다.
- * 색은 상속(currentColor)받으므로 어두운 배경·밝은 배경 모두에서 그대로 쓴다.
+ * 이어 심볼 — 앱과 같은 마크를 쓴다(`frontend/assets/logo.png`가 원본).
+ *
+ * 여백을 잘라내고 배경을 투명하게 만든 판본이 `public/logo.png`에 있고,
+ * `scripts/brand-assets.mjs`가 원본에서 그걸 만든다. 원본이 바뀌면 그 스크립트를 다시 돌린다.
+ *
+ * 색이 잉크에 구워진 검정 PNG라 SVG 때처럼 currentColor로 따라오지 않는다.
+ * 지금은 헤더·바닥글이 모두 흰 배경이라 문제가 없지만, 어두운 면에 올릴 일이
+ * 생기면 흰색 판본을 따로 뽑아야 한다.
  */
 export function LogoMark({ className }: { className?: string }) {
   return (
-    <svg
+    <Image
       className={className}
-      viewBox="0 0 32 32"
-      fill="none"
+      src="/logo.png"
+      alt=""
+      width={MARK_W}
+      height={MARK_H}
+      priority
       aria-hidden="true"
-      focusable="false"
-    >
-      <circle cx="10.5" cy="16" r="5.4" stroke="currentColor" strokeWidth="2.7" />
-      <path
-        d="M20.5 10.6a8.6 8.6 0 0 1 0 10.8"
-        stroke="currentColor"
-        strokeWidth="2.7"
-        strokeLinecap="round"
-      />
-      <path
-        d="M26 6.4a15.2 15.2 0 0 1 0 19.2"
-        stroke="currentColor"
-        strokeWidth="2.7"
-        strokeLinecap="round"
-      />
-    </svg>
+    />
   );
 }

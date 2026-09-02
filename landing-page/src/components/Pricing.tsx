@@ -55,7 +55,7 @@ export function Pricing({
           {plans.map((plan) => (
             <li
               key={plan.id}
-              className={`${s.card} ${plan.featured ? s.cardFeatured : ""}`}
+              className={`${s.card} ${plan.featured ? `darkTokens ${s.cardFeatured}` : ""}`}
             >
               {plan.featured && <span className={s.tag}>가장 무난한 선택</span>}
 

@@ -55,8 +55,10 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fbfaf7" },
-    { media: "(prefers-color-scheme: dark)", color: "#0c0f1a" },
+    /* globals.css의 --paper / --ink-900과 같은 값이다. 어긋나면 주소창 색과
+       페이지 상단 색이 갈라져 이음매가 보인다. */
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#ffffff" },
   ],
   colorScheme: "light",
 };

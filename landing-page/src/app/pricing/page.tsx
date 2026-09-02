@@ -81,7 +81,7 @@ export default function PricingPage() {
         </div>
       </section>
 
-      <section className="section onDark">
+      <section className="section">
         <div className="container">
           <p className="eyebrow">Billing</p>
           <h2 className="sectionTitle">결제와 해지</h2>

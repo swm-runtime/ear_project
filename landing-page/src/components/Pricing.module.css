@@ -18,9 +18,9 @@
 
 .cardFeatured {
   background: var(--ink-900);
-  color: #f2f3f7;
+  color: #f2f2f5;
   box-shadow: var(--shadow-lg);
-  border: 1.5px solid rgba(242, 171, 85, 0.42);
+  border: 1.5px solid rgba(255, 255, 255, 0.26);
 }
 
 .tag {
@@ -29,8 +29,9 @@
   left: 28px;
   padding: 4px 13px;
   border-radius: var(--r-pill);
-  background: linear-gradient(135deg, var(--brand-300), var(--brand-500));
-  color: #241203;
+  /* 어두운 추천 카드 위에 얹히는 배지라 반대로 흰 바탕에 검정 글씨다. */
+  background: #ffffff;
+  color: var(--ink-950);
   font-size: 12px;
   font-weight: 800;
   letter-spacing: -0.01em;
@@ -106,7 +107,7 @@
 }
 
 .cardFeatured .item {
-  color: #e9ebf2;
+  color: #eaeaef;
 }
 
 .itemOff {

@@ -1,6 +1,8 @@
+/* 본문과 같은 흰 배경이라, 문서의 끝이라는 신호는 위쪽 경계선이 맡는다. */
 .footer {
-  background: var(--ink-950);
-  color: var(--ink-200);
+  background: var(--paper);
+  color: var(--text-2);
+  border-top: 1px solid var(--line);
   padding: clamp(52px, 6vw, 76px) 0 32px;
 }
 
@@ -13,13 +15,13 @@
   display: inline-flex;
   align-items: center;
   gap: 9px;
-  color: #fff;
+  color: var(--text);
 }
 
+/* 마크는 정사각형이 아니라 가로로 넓다(480×388). 높이를 글자에 맞추고 폭은 따라오게 둔다. */
 .mark {
-  width: 26px;
-  height: 26px;
-  color: var(--brand-400);
+  width: auto;
+  height: 22px;
 }
 
 .brandName {
@@ -31,7 +33,7 @@
 .desc {
   margin-top: 14px;
   max-width: 34ch;
-  color: var(--ink-400);
+  color: var(--text-3);
   font-size: 14px;
   line-height: 1.7;
 }
@@ -42,12 +44,12 @@
 }
 
 .contact a {
-  color: var(--ink-200);
+  color: var(--text-2);
   transition: color 0.18s ease;
 }
 
 .contact a:hover {
-  color: var(--brand-300);
+  color: var(--brand-700);
 }
 
 .colTitle {
@@ -55,7 +57,7 @@
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--ink-400);
+  color: var(--text-3);
 }
 
 .links ul {
@@ -67,12 +69,12 @@
 
 .links a {
   font-size: 14.5px;
-  color: var(--ink-200);
+  color: var(--text-2);
   transition: color 0.18s ease;
 }
 
 .links a:hover {
-  color: var(--brand-300);
+  color: var(--brand-700);
 }
 
 .bottom {
@@ -81,13 +83,14 @@
   gap: 6px 18px;
   margin-top: clamp(40px, 5vw, 56px);
   padding-top: 24px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--line);
   font-size: 13px;
-  color: var(--ink-400);
+  color: var(--text-3);
 }
 
+/* 바닥글 맨 아래 줄에서 한 단계 더 물러나는 접두 문구 */
 .pre {
-  color: var(--ink-600);
+  color: var(--ink-300);
 }
 
 @media (min-width: 640px) {

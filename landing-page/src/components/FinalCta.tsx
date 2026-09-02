@@ -5,7 +5,7 @@ export function FinalCta() {
   return (
     <section id="cta" className={s.wrap}>
       <div className="container">
-        <div className={s.panel}>
+        <div className={`darkTokens ${s.panel}`}>
           <div className={s.glow} aria-hidden="true" />
           <div className={s.content}>
             <h2 className={s.title}>

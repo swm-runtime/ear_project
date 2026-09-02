@@ -3,7 +3,7 @@ import s from "./HowItWorks.module.css";
 
 export function HowItWorks() {
   return (
-    <section id="how" className="section onDark">
+    <section id="how" className="section">
       <div className="container">
         <div className={s.head}>
           <div>
