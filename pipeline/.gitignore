@@ -2,6 +2,9 @@
 .env
 .env.*
 !.env.example
+# 서버 compose 의 env 실값 (deploy/README.md — 점 없는 이름을 쓴다)
+deploy/env.prod
+deploy/env.ai-server
 
 # 의존성·빌드
 node_modules/

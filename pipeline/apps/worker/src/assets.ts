@@ -68,7 +68,7 @@ export function workerRev(): string {
     const dirty = execFileSync("git", ["-C", root, "status", "--porcelain", "--", "docs/ai", "pipeline"], opt).trim().length > 0;
     _rev = shaShort + (dirty ? "-dirty" : "");
   } catch {
-    _rev = "unknown";
+    _rev = process.env.WORKER_REV || "unknown"; // 컨테이너에는 .git 이 없다 — 빌드가 박은 리비전 (deploy/Dockerfile)
   }
   return _rev;
 }
