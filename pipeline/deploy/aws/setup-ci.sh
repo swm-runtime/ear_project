@@ -34,6 +34,7 @@ aws iam list-open-id-connect-providers --profile $PROFILE --output text | grep -
 echo "4) OIDC 공급자 준비됨"
 
 # 5) 배포 역할 ear-ci-deploy — 이 레포 dev 브랜치 워크플로만 신뢰, 권한은 SG 개폐뿐 (서버·버킷 접근 없음)
+#    sub 는 고전·불변 ID 두 형식을 정확값으로 허용 — 이 레포는 불변 형식(org@id/repo@id)으로 발급됨 (2026-09-03 실측)
 ACCOUNT=$(aws sts get-caller-identity --profile $PROFILE --query Account --output text)
 TRUST=$(cat <<JSON
 { "Version": "2012-10-17", "Statement": [{
@@ -42,7 +43,7 @@ TRUST=$(cat <<JSON
   "Action": "sts:AssumeRoleWithWebIdentity",
   "Condition": { "StringEquals": {
     "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-    "token.actions.githubusercontent.com:sub": "repo:swm-runtime/ear_project:ref:refs/heads/dev" } }
+    "token.actions.githubusercontent.com:sub": ["repo:swm-runtime/ear_project:ref:refs/heads/dev", "repo:swm-runtime@310554093/ear_project@1315970250:ref:refs/heads/dev"] } }
 }]}
 JSON
 )
