@@ -1,0 +1,54 @@
+name: deploy-pipeline
+# dev 에 pipeline/ai-server 변경이 머지되면 AI 서버(EC2)에 자동 배포한다 (pipeline/deploy/README.md CI 장).
+# AWS 접근은 OIDC 역할 ear-ci-deploy(SG 개폐 권한만) — 저장된 AWS 키 없음. SSH 는 CI 전용 키(secret CI_SSH_KEY).
+# 1회 설정: bash pipeline/deploy/aws/setup-ci.sh
+
+on:
+  push:
+    branches: [dev]
+    paths: ['pipeline/**', 'ai-server/**']
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-ai-server
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: AWS 자격 (OIDC — dev 브랜치만 신뢰)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::639177726357:role/ear-ci-deploy
+          aws-region: ap-northeast-2
+
+      - name: SSH 개방 — 러너 IP 를 SG 에 잠깐 추가
+        id: sg
+        run: |
+          IP=$(curl -s https://checkip.amazonaws.com)
+          echo "ip=$IP" >> "$GITHUB_OUTPUT"
+          aws ec2 authorize-security-group-ingress --group-id sg-0dfc05389c325b537 \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=$IP/32,Description=\"github-actions deploy\"}]" \
+            || echo "(이미 열려 있음)"
+
+      - name: 배포 (push.sh — rsync + 서버 compose 빌드·재기동)
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.CI_SSH_KEY }}" > ~/.ssh/ci_deploy
+          chmod 600 ~/.ssh/ci_deploy
+          PEM=~/.ssh/ci_deploy bash pipeline/deploy/push.sh
+
+      - name: SSH 폐쇄 — 러너 IP 제거 (배포 실패해도 실행)
+        if: always() && steps.sg.outputs.ip != ''
+        run: |
+          aws ec2 revoke-security-group-ingress --group-id sg-0dfc05389c325b537 \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${{ steps.sg.outputs.ip }}/32}]" \
+            || true
