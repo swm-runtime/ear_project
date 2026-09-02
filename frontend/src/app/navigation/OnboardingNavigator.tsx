@@ -11,7 +11,6 @@ import {
   CompleteScreen,
   exitOnboarding,
   FirstDripWaitingScreen,
-  NotificationPermissionScreen,
   ONBOARDING_COPY,
   PickScreen,
   TopicSelectScreen,
@@ -92,11 +91,6 @@ export default function OnboardingNavigator() {
       <OnboardingStack.Screen
         name="Complete"
         component={CompleteScreen}
-        options={{ gestureEnabled: false }}
-      />
-      <OnboardingStack.Screen
-        name="NotificationPermission"
-        component={NotificationPermissionScreen}
         options={{ gestureEnabled: false }}
       />
     </OnboardingStack.Navigator>

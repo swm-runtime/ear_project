@@ -2,7 +2,7 @@ import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
 
-import { ONBOARDING_COPY } from '../onboarding.copy';
+import { NOTIFICATION_COPY } from '../notification.copy';
 
 interface ReconsiderDialogProps {
   isVisible: boolean;
@@ -13,7 +13,8 @@ interface ReconsiderDialogProps {
 }
 
 /**
- * O11 알림 재고 팝업(onboarding-uiux.md 4.8).
+ * 알림 재고 팝업 — 사전 안내에서 [나중에]를 눌렀을 때 한 번만 되짚는다(onboarding-uiux.md 4.8).
+ * 온보딩 O11에서 라이브러리 진입 모달로 옮겨 왔다(2026-09-02).
  * - 두 버튼은 같은 행·같은 크기·같은 시각적 무게 — [괜찮아요]를 작게 만들면 다크패턴이다.
  * - 배경 딤 탭으로 닫히지 않는다. 한 번뿐인 노출이 의도 없는 탭으로 소모되면 안 된다.
  */
@@ -27,24 +28,24 @@ export default function ReconsiderDialog({
     <Modal visible={isVisible} transparent animationType="fade" onRequestClose={onCloseRequest}>
       <View style={styles.backdrop}>
         <View style={styles.dialog} accessibilityViewIsModal>
-          <Text style={styles.title}>{ONBOARDING_COPY.reconsider.title}</Text>
-          <Text style={styles.question}>{ONBOARDING_COPY.reconsider.question}</Text>
+          <Text style={styles.title}>{NOTIFICATION_COPY.reconsider.title}</Text>
+          <Text style={styles.question}>{NOTIFICATION_COPY.reconsider.question}</Text>
           <View style={styles.actions}>
             <Pressable
               style={[styles.button, styles.declineButton]}
               onPress={onDeclinePress}
               accessibilityRole="button"
-              accessibilityLabel={ONBOARDING_COPY.reconsider.decline}
+              accessibilityLabel={NOTIFICATION_COPY.reconsider.decline}
             >
-              <Text style={styles.declineLabel}>{ONBOARDING_COPY.reconsider.decline}</Text>
+              <Text style={styles.declineLabel}>{NOTIFICATION_COPY.reconsider.decline}</Text>
             </Pressable>
             <Pressable
               style={[styles.button, styles.allowButton]}
               onPress={onAllowPress}
               accessibilityRole="button"
-              accessibilityLabel={ONBOARDING_COPY.reconsider.allow}
+              accessibilityLabel={NOTIFICATION_COPY.reconsider.allow}
             >
-              <Text style={styles.allowLabel}>{ONBOARDING_COPY.reconsider.allow}</Text>
+              <Text style={styles.allowLabel}>{NOTIFICATION_COPY.reconsider.allow}</Text>
             </Pressable>
           </View>
         </View>

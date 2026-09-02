@@ -383,7 +383,7 @@ export default function PlayerScreen() {
 
 /** 앱바(닫기·더보기) 아이콘 */
 const APP_BAR_ICON_SIZE = 24;
-const PLAY_ICON_SIZE = 24;
+const PLAY_ICON_SIZE = 32;
 /** 화면에 적히는 이동 폭. player.constants의 실제 이동 값과 같아야 한다 */
 const SEEK_STEP_SEC = 10;
 
@@ -494,7 +494,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: theme.spacing.xl,
-    paddingVertical: theme.spacing.md,
+    paddingVertical: theme.spacing.lg,
   },
   stepButton: {
     minWidth: theme.touchTarget.minWidth,
@@ -504,7 +504,7 @@ const styles = StyleSheet.create({
   },
   stepGlyph: {
     fontSize: theme.font.size.xl,
-    color: theme.color.textPrimary,
+    color: theme.color.textSecondary,
   },
   stepNumber: {
     fontSize: theme.font.size.xs,
@@ -514,9 +514,9 @@ const styles = StyleSheet.create({
     color: theme.color.border,
   },
   playButton: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: theme.color.primary,

@@ -1,5 +1,5 @@
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
 import FullScreenError from '@/shared/ui/FullScreenError';
@@ -11,13 +11,14 @@ import { useTopicSelectScreen } from '../hooks/useTopicSelectScreen';
 import { ONBOARDING_COPY } from '../onboarding.copy';
 
 /** O5 — 칩 모양 스켈레톤. 스피너를 중앙에 띄우지 않는다(onboarding-uiux.md 4.2) */
-const SKELETON_CHIP_WIDTHS = [88, 104, 72, 96, 120, 80, 108, 92];
+const SKELETON_CHIP_COUNT = 8;
 
 /**
  * O1–O3 관심 주제 선택(1/3). 이 화면에는 [건너뛰기]가 없다 —
  * 주제는 드립 편성의 유일한 필수 신호다(onboarding-uiux.md 4.1).
  */
 export default function TopicSelectScreen() {
+  const insets = useSafeAreaInsets();
   const {
     topics,
     selectedCount,
@@ -36,7 +37,7 @@ export default function TopicSelectScreen() {
   // 로딩 중에도 인디케이터와 제목은 먼저 그린다 — 이 단계가 무엇인지는 이미 정해져 있다(onboarding-uiux.md 4.2)
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: Math.max(theme.spacing.md - insets.top, 0) }]}>
         {/*
           2·3단계에는 [이전] 버튼이 있어 인디케이터가 그 높이만큼 내려와 있다.
           1단계는 되돌아갈 곳이 없지만(4.1) 같은 자리를 비워 위치를 맞춘다 —
@@ -64,14 +65,15 @@ export default function TopicSelectScreen() {
         <ScrollView contentContainerStyle={styles.chipArea}>
           {isLoading ? (
             showSkeleton ? (
-              SKELETON_CHIP_WIDTHS.map((width, index) => (
-                <View key={index} style={[styles.skeletonChip, { width }]} />
+              Array.from({ length: SKELETON_CHIP_COUNT }, (_, index) => (
+                <View key={index} style={styles.skeletonChip} />
               ))
             ) : null
           ) : (
             topics.map((topic) => (
               <TopicChip
                 key={topic.topicId}
+                topicId={topic.topicId}
                 label={topic.name}
                 isSelected={topic.isSelected}
                 isDimmed={topic.isDimmed}
@@ -115,7 +117,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
   },
   header: {
-    paddingTop: theme.spacing.md,
+    // paddingTop은 inset에 따라 화면에서 계산한다 — SafeAreaView가 이미 넣은 여백 위에
+    // 고정값을 또 더하면 기기에서만 헤더가 두 배로 내려온다(웹은 inset이 0이다)
     gap: theme.spacing.sm,
   },
   /** O4·O7의 [이전] 버튼과 같은 높이 — 인디케이터 위치를 세 단계에서 일치시킨다 */
@@ -140,13 +143,16 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.lg,
   },
   skeletonChip: {
-    height: theme.touchTarget.minHeight,
-    borderRadius: theme.radius.lg + theme.radius.sm,
+    // 실제 칩과 같은 격자 규칙
+    flexGrow: 1,
+    flexBasis: '40%',
+    height: theme.touchTarget.minHeight + theme.spacing.md,
+    borderRadius: theme.radius.full,
     backgroundColor: theme.color.surface,
   },
   dock: {
     gap: theme.spacing.sm,
-    paddingBottom: theme.spacing.md,
+    paddingBottom: theme.spacing.xl,
   },
   minRequired: {
     fontSize: theme.font.size.sm,

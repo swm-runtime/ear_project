@@ -295,9 +295,11 @@ const styles = StyleSheet.create({
     minWidth: theme.touchTarget.minWidth,
   },
   scrollContent: {
-    paddingVertical: theme.spacing.sm,
+    paddingVertical: theme.spacing.md,
     paddingBottom: theme.spacing.xxl,
-    gap: theme.spacing.md,
+    // 섹션 사이(24)를 섹션 안 항목 사이(구분선)보다 훨씬 넓게 벌린다 —
+    // 묶음의 경계가 여백으로 먼저 읽혀야 한다(2026-09-02)
+    gap: theme.spacing.lg,
   },
   summaryErrorCard: {
     marginHorizontal: theme.spacing.md,

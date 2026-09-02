@@ -8,6 +8,7 @@
  */
 export { default as BellIcon } from './components/BellIcon';
 export { default as NotificationPrePromptModal } from './components/NotificationPrePromptModal';
+export { useNotificationStore } from './store/notification.store';
 export {
   getOsPermissionStatus,
   getPushToken,

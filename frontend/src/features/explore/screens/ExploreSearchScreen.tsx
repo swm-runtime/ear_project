@@ -273,10 +273,9 @@ const styles = StyleSheet.create({
     color: theme.color.textSecondary,
     textAlign: 'center',
   },
+  // 카드가 자기 배경을 갖게 되어 구분선이 필요 없다 — 카드 사이 간격만 둔다
   separator: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: theme.color.border,
-    marginLeft: theme.spacing.md,
+    height: theme.spacing.sm,
   },
   footer: {
     paddingVertical: theme.spacing.md,

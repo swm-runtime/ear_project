@@ -139,11 +139,13 @@ export class ExploreOrchestrator {
       contents: popularPage.items.map((ranked) => ranked.content),
     };
 
-    // 신호가 부족한 신규 사용자는 **인기·신규 섹션 비중을 높인다**(콜드스타트 — FR-17).
+    // **인기 섹션을 맨 앞에 둔다**(확정 2026-09-02) — 화면에서 가장 큰 카드로 그려지는 줄이라
+    // 중간에 있으면 스크롤을 내려야 만난다. 신호가 부족한 신규 사용자는 그 다음에도
+    // **신규 섹션 비중을 높인다**(콜드스타트 — FR-17).
     // 클라이언트는 내려온 순서대로 그릴 뿐이다
     const drafts = isColdStart
       ? [popular, recent, interest, ...topicGroups]
-      : [interest, recent, popular, ...topicGroups];
+      : [popular, interest, recent, ...topicGroups];
 
     const [sections, quota] = await Promise.all([
       // 비어 있는 섹션은 내려주지 않는다 — 제목만 있고 아무것도 없는 줄을 그리게 된다.

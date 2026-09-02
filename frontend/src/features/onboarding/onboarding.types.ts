@@ -79,5 +79,4 @@ export type OnboardingStackParamList = {
   /** 0건 담기 경로 전용(O13). 폴링 파라미터는 완료 응답(store)에서 읽는다 */
   FirstDripWaiting: undefined;
   Complete: undefined;
-  NotificationPermission: undefined;
 };

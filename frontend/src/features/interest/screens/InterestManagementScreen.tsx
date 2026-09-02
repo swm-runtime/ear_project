@@ -10,7 +10,7 @@ import { useInterestManagementScreen } from '../hooks/useInterestManagementScree
 import { INTEREST_COPY } from '../interest.copy';
 
 /** IM9 — 칩 모양 스켈레톤. 스피너를 중앙에 띄우지 않는다(interest-management-uiux.md 4.7) */
-const SKELETON_CHIP_WIDTHS = [88, 104, 72, 96, 120, 80, 108, 92];
+const SKELETON_CHIP_COUNT = 8;
 
 /**
  * IM1~IM9 관심 주제 관리 — 화면은 뷰만 담당하고 로직은 useInterestManagementScreen이 소유한다.
@@ -91,8 +91,8 @@ export default function InterestManagementScreen() {
           <ScrollView contentContainerStyle={styles.chipArea}>
             {screen.isLoading ? (
               screen.showSkeleton ? (
-                SKELETON_CHIP_WIDTHS.map((width, index) => (
-                  <View key={index} style={[styles.skeletonChip, { width }]} />
+                Array.from({ length: SKELETON_CHIP_COUNT }, (_, index) => (
+                  <View key={index} style={styles.skeletonChip} />
                 ))
               ) : null
             ) : (
@@ -100,6 +100,7 @@ export default function InterestManagementScreen() {
               screen.topics.map((topic) => (
                 <TopicChip
                   key={topic.topicId}
+                  topicId={topic.topicId}
                   label={topic.name}
                   isSelected={topic.isSelected}
                   isDimmed={false}
@@ -276,8 +277,11 @@ const styles = StyleSheet.create({
     backgroundColor: theme.color.surface,
   },
   skeletonChip: {
-    height: theme.touchTarget.minHeight,
-    borderRadius: theme.radius.lg + theme.radius.sm,
+    // 실제 칩과 같은 격자 규칙
+    flexGrow: 1,
+    flexBasis: '40%',
+    height: theme.touchTarget.minHeight + theme.spacing.md,
+    borderRadius: theme.radius.full,
     backgroundColor: theme.color.surface,
   },
   dock: {

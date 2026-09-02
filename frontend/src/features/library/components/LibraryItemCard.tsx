@@ -70,11 +70,14 @@ export default function LibraryItemCard({
               <Text style={styles.discoveryBadgeLabel}>{LIBRARY_COPY.discovery.badge}</Text>
             </View>
           ) : null}
-          <Text style={styles.title} numberOfLines={2}>
+          <Text style={styles.title} numberOfLines={1}>
             {item.content.title}
           </Text>
+          {/* 제목 → 출처·저자 → 시간 세 줄. 온보딩 선택 카드와 같은 배열이다(2026-09-02) */}
           <Text style={styles.meta} numberOfLines={1}>
-            {item.content.sourceName} · {item.content.authorName} ·{' '}
+            {item.content.sourceName} · {item.content.authorName}
+          </Text>
+          <Text style={styles.meta} numberOfLines={1}>
             {formatDuration(item.content.durationSec)}
           </Text>
           {progressPercent !== null ? (
@@ -102,23 +105,30 @@ export default function LibraryItemCard({
 }
 
 const styles = StyleSheet.create({
+  // 탐색의 세로 카드(ExploreContentRow)와 같은 문법 — 두 화면의 행이 같아야 한다(library.md 4.1)
+  /*
+   * ⋯를 흐름에서 빼 우상단에 띄운다 — 흐름에 두면 본문이 ⋯ 왼쪽(44px 앞)에서 끝나
+   * 아래 출처·저자의 오른쪽 선이 ⋯보다 안쪽으로 들어간다. 둘 다 컨텐트 박스 오른쪽
+   * 끝에 붙어야 같은 여백으로 읽힌다(2026-09-02)
+   */
   container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingLeft: theme.spacing.md,
-    backgroundColor: theme.color.background,
+    position: 'relative',
+    marginHorizontal: theme.spacing.md,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.radius.lg,
+    backgroundColor: theme.color.surface,
   },
   body: {
-    flex: 1,
     flexDirection: 'row',
     gap: theme.spacing.md,
     paddingVertical: theme.spacing.md,
   },
+  // 글 두 줄(제목+메타)보다 아트워크가 훨씬 높으면 위아래가 빈다 — 88에서 낮췄다(2026-09-02)
   thumbnail: {
-    width: 64,
-    height: 64,
-    borderRadius: theme.radius.sm,
-    backgroundColor: theme.color.surface,
+    width: 72,
+    height: 72,
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.color.background,
   },
   completedMark: {
     position: 'absolute',
@@ -131,7 +141,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: theme.color.background,
+    borderColor: theme.color.surface,
   },
   completedGlyph: {
     fontSize: 11,
@@ -157,8 +167,10 @@ const styles = StyleSheet.create({
     color: theme.color.primary,
   },
   title: {
-    fontSize: theme.font.size.sm,
-    fontWeight: '600',
+    // 우상단에 뜬 ⋯ 아래로 글자가 파고들지 않게 자리를 비운다
+    paddingRight: theme.spacing.xl,
+    fontSize: theme.font.size.md,
+    fontWeight: '700',
     color: theme.color.textPrimary,
   },
   meta: {
@@ -177,9 +189,14 @@ const styles = StyleSheet.create({
     backgroundColor: theme.color.primary,
   },
   moreButton: {
+    position: 'absolute',
+    top: theme.spacing.sm,
+    // 절대 위치의 기준은 **패딩 박스**라 right:0이면 컨테이너 패딩을 건너뛰고 카드 끝에
+    // 붙는다. 패딩과 같은 값을 줘야 아래 출처·저자와 같은 선이 된다
+    right: theme.spacing.md,
     minWidth: theme.touchTarget.minWidth,
     minHeight: theme.touchTarget.minHeight,
-    alignItems: 'center',
+    alignItems: 'flex-end',
     justifyContent: 'center',
   },
   moreGlyph: {

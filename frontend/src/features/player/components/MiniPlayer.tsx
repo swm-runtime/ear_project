@@ -235,10 +235,11 @@ export default function MiniPlayer({
 }
 
 const styles = StyleSheet.create({
+  // 탭 바 위에 얹히는 카드 — 배경을 깔아 목록과 층을 나눈다(참조 시안의 미니플레이어)
   container: {
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: theme.color.border,
-    backgroundColor: theme.color.background,
+    backgroundColor: theme.color.surface,
   },
   progressTrack: {
     height: 2,
@@ -261,10 +262,10 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.sm,
   },
   thumbnail: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: theme.radius.sm,
-    backgroundColor: theme.color.surface,
+    backgroundColor: theme.color.background,
   },
   title: {
     flex: 1,

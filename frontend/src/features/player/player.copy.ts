@@ -6,7 +6,8 @@
 export const PLAYER_COPY = {
   /** 잔여 재생 표시(library-uiux.md 4.3) — paywall.md 5장과 같은 한 문자열만 쓴다 */
   remaining: {
-    label: (remaining: number, limit: number) => `오늘 재생 ${remaining}/${limit} 남음`,
+    /** 앞의 재생 아이콘이 "무엇의 횟수인지"를 말하므로 글자는 숫자만 남긴다(2026-09-02) */
+    label: (remaining: number, limit: number) => `${remaining}/${limit}`,
     /** "1/2"가 "일 슬래시 이"로 읽히지 않게 한다(library-uiux.md 7) */
     a11yLabel: (remaining: number, limit: number) => `오늘 재생 ${limit}회 중 ${remaining}회 남음`,
     a11yLabelExhausted: '오늘 재생 0회 남음, 구독 안내 열기',

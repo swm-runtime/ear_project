@@ -1,11 +1,11 @@
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
 import FullScreenError from '@/shared/ui/FullScreenError';
 import ScrollFade from '@/shared/ui/ScrollFade';
 
-import ContentPickCard from '../components/ContentPickCard';
+import ContentPickCard, { PICK_CARD_THUMBNAIL } from '../components/ContentPickCard';
 import StepIndicator from '../components/StepIndicator';
 import { usePickScreen } from '../hooks/usePickScreen';
 import { ONBOARDING_COPY } from '../onboarding.copy';
@@ -19,6 +19,7 @@ const SKELETON_CARD_COUNT = 9;
  * (onboarding-uiux.md 4.4)
  */
 export default function PickScreen() {
+  const insets = useSafeAreaInsets();
   const {
     sections,
     selectedContentIds,
@@ -36,7 +37,7 @@ export default function PickScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: Math.max(theme.spacing.md - insets.top, 0) }]}>
         <Pressable
           style={styles.back}
           onPress={handleBackPress}
@@ -136,7 +137,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
   },
   header: {
-    paddingTop: theme.spacing.md,
+    // paddingTop은 inset에 따라 화면에서 계산한다 — SafeAreaView가 이미 넣은 여백 위에
+    // 고정값을 또 더하면 기기에서만 헤더가 두 배로 내려온다(웹은 inset이 0이다)
     gap: theme.spacing.sm,
   },
   back: {
@@ -185,9 +187,10 @@ const styles = StyleSheet.create({
     backgroundColor: theme.color.surface,
     marginBottom: theme.spacing.sm,
   },
+  // 실제 카드와 같은 높이·모서리여야 로딩이 끝날 때 목록이 튀지 않는다
   skeletonCard: {
-    height: 80,
-    borderRadius: theme.radius.md,
+    height: PICK_CARD_THUMBNAIL + theme.spacing.md * 2,
+    borderRadius: theme.radius.lg,
     backgroundColor: theme.color.surface,
   },
   section: {
@@ -202,7 +205,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
   },
   dock: {
-    paddingBottom: theme.spacing.md,
+    paddingBottom: theme.spacing.xl,
   },
   proceed: {
     minHeight: theme.touchTarget.minHeight + theme.spacing.sm,

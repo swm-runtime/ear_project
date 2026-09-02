@@ -52,6 +52,15 @@ export const LIBRARY_COPY = {
   },
 
   /** 빈 상태 4종 — 원인이 다르므로 문구를 공유하지 않는다(library-uiux.md 4.8) */
+  /** 라이브러리 검색 — 받아 둔 목록을 그 자리에서 좁힌다(서버 검색이 아니다) */
+  search: {
+    placeholder: '제목·저자로 찾기',
+    clearA11y: '검색어 지우기',
+    emptyTitle: '검색 결과가 없어요',
+    emptyDescription: '다른 검색어를 입력해보세요.',
+    emptyAction: '검색어 지우기',
+  },
+
   empty: {
     newUser: {
       title: '곧 첫 콘텐츠가 도착해요',
