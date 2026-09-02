@@ -14,7 +14,10 @@
       "usesAppleSignIn": true,
       "associatedDomains": [
         "applinks:earcast.co.kr"
-      ]
+      ],
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
