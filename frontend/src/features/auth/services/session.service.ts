@@ -32,6 +32,8 @@ class SessionService implements TokenProvider {
    */
   markOnboardingCompleted(): void {
     useSessionStore.getState().updateUser({ onboardingCompleted: true, onboardingStep: 'done' });
+    // 이 진입만 탐색으로 착지시킨다 — 앱을 새로 켠 진입은 라이브러리다(2026-09-02)
+    useSessionStore.getState().markJustCompletedOnboarding();
   }
 
   /** 로컬 토큰·세션 상태 정리. TODO: 라이브러리 캐시·재생 위치·오프라인 큐 삭제는 해당 feature 구현 시 연결(auth.md 4.2) */

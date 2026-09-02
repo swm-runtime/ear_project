@@ -66,7 +66,8 @@ export default function SettingsRow({
 
 const styles = StyleSheet.create({
   row: {
-    minHeight: theme.touchTarget.minHeight + theme.spacing.xs,
+    // 44+4 → 44+8. 구분선이 생겨 행 경계가 보이는 만큼 안쪽 숨통을 함께 늘린다
+    minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -97,8 +98,10 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
     flexShrink: 1,
   },
+  // 값은 항목명보다 한 단계 작게 두되 굵기로 읽히게 한다 — 배속·개수처럼 확인하러 오는 정보다
   value: {
     fontSize: theme.font.size.sm,
+    fontWeight: '600',
     color: theme.color.textSecondary,
   },
   badge: {

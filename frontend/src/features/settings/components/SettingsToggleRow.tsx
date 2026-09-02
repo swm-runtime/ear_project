@@ -53,7 +53,8 @@ export default function SettingsToggleRow({
 
 const styles = StyleSheet.create({
   row: {
-    minHeight: theme.touchTarget.minHeight + theme.spacing.xs,
+    // 일반 행(SettingsRow)과 같은 높이 — 한 섹션 안에서 행 높이가 다르면 줄이 어긋나 보인다
+    minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

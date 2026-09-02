@@ -7,7 +7,6 @@ export { default as CareerScreen } from './screens/CareerScreen';
 export { default as PickScreen } from './screens/PickScreen';
 export { default as FirstDripWaitingScreen } from './screens/FirstDripWaitingScreen';
 export { default as CompleteScreen } from './screens/CompleteScreen';
-export { default as NotificationPermissionScreen } from './screens/NotificationPermissionScreen';
 export { useOnboardingStateQuery } from './hooks/useOnboardingStateQuery';
 export { useOnboardingStore } from './store/onboarding.store';
 export { exitOnboarding } from './services/onboarding-exit.service';

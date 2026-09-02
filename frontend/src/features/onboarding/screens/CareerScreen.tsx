@@ -7,7 +7,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
 
@@ -23,6 +23,7 @@ const YEARS_OPTIONS: YearsOfExperience[] = ['0-1', '2-3', '4-6', '7+'];
  * [다음]은 입력값과 무관하게 항상 활성이다(onboarding-uiux.md 4.3).
  */
 export default function CareerScreen() {
+  const insets = useSafeAreaInsets();
   const {
     jobCategory,
     jobTitle,
@@ -88,7 +89,7 @@ export default function CareerScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: Math.max(theme.spacing.md - insets.top, 0) }]}>
         <Pressable
           style={styles.back}
           onPress={handleBackPress}
@@ -182,7 +183,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
   },
   header: {
-    paddingTop: theme.spacing.md,
+    // paddingTop은 inset에 따라 화면에서 계산한다 — SafeAreaView가 이미 넣은 여백 위에
+    // 고정값을 또 더하면 기기에서만 헤더가 두 배로 내려온다(웹은 inset이 0이다)
     gap: theme.spacing.sm,
   },
   back: {
@@ -212,8 +214,10 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.lg,
     gap: theme.spacing.sm,
   },
+  // 글자 크기는 주제 선택(1/3)에 맞추고 높이·여백은 그보다 한 칸 낮춘다 —
+  // 이 화면은 칩·입력이 여러 줄이라 같은 크기로 키우면 폼이 화면을 넘어간다(2026-09-02)
   fieldLabel: {
-    fontSize: theme.font.size.sm,
+    fontSize: theme.font.size.md,
     fontWeight: '600',
     color: theme.color.textPrimary,
     marginTop: theme.spacing.md,
@@ -225,7 +229,8 @@ const styles = StyleSheet.create({
   },
   chipRowLoading: {
     alignSelf: 'flex-start',
-    minHeight: theme.touchTarget.minHeight,
+    // 칩과 같은 높이여야 로드되는 순간 아래 필드가 밀리지 않는다
+    minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
   },
   chipRowError: {
     flexDirection: 'row',
@@ -246,10 +251,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.color.primary,
   },
+  // 주제 칩보다 한 칸 낮다(60 → 52). 좌우 여백도 16을 유지한다 —
+  // "0-1년"처럼 짧은 라벨이 24 여백을 받으면 내용보다 여백이 넓어진다
   optionChip: {
-    minHeight: theme.touchTarget.minHeight,
+    minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
     paddingHorizontal: theme.spacing.md,
-    borderRadius: theme.radius.lg + theme.radius.sm,
+    borderRadius: theme.radius.full,
     borderWidth: 1.5,
     borderColor: theme.color.border,
     alignItems: 'center',
@@ -260,7 +267,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.color.primary,
   },
   optionLabel: {
-    fontSize: theme.font.size.sm,
+    fontSize: theme.font.size.md,
     // 선택 여부와 무관하게 굵기를 고정한다 — 선택 시 굵어지면 글자 폭이 변해
     // flexWrap 줄의 뒤 칩들이 밀린다(주제 칩과 같은 규칙 — onboarding-uiux.md 7장)
     fontWeight: '600',
@@ -270,7 +277,8 @@ const styles = StyleSheet.create({
     color: theme.color.onPrimary,
   },
   input: {
-    minHeight: theme.touchTarget.minHeight,
+    // 칩과 같은 높이로 세운다 — 한 폼 안에서 요소 높이가 다르면 줄이 어긋나 보인다
+    minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
     borderWidth: 1.5,
     borderColor: theme.color.border,
     borderRadius: theme.radius.md,
@@ -281,7 +289,7 @@ const styles = StyleSheet.create({
   dock: {
     flexDirection: 'row',
     gap: theme.spacing.sm,
-    paddingBottom: theme.spacing.md,
+    paddingBottom: theme.spacing.xl,
   },
   skip: {
     flex: 1,

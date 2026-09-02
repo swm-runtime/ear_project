@@ -145,9 +145,8 @@ export const mockFetchFeed = async (): Promise<ExploreFeedResponseDto> => {
   }
 
   // 섹션 구성·순서·제목은 서버 제어의 대역이다 — 클라이언트는 이 모양을 그대로 그린다
+  // 실서버와 같은 순서 — 인기 섹션이 맨 앞이다(explore.orchestrator.ts, 확정 2026-09-02)
   const sections: ExploreSectionDto[] = [
-    { key: 'interest', title: '관심사에 맞는 추천', topic: null, items: itemsBySeqs([101, 2, 102, 5, 103, 8]) },
-    { key: 'new', title: '새로 나온 콘텐츠', topic: null, items: itemsBySeqs([110, 111, 112, 113, 114, 115]) },
     {
       key: 'popular',
       title: '지금 인기',
@@ -156,6 +155,8 @@ export const mockFetchFeed = async (): Promise<ExploreFeedResponseDto> => {
       period: 'month',
       items: itemsBySeqs(POPULAR_SEQS.month.slice(0, 6)),
     },
+    { key: 'interest', title: '관심사에 맞는 추천', topic: null, items: itemsBySeqs([101, 2, 102, 5, 103, 8]) },
+    { key: 'new', title: '새로 나온 콘텐츠', topic: null, items: itemsBySeqs([110, 111, 112, 113, 114, 115]) },
     {
       key: 'topic_group',
       title: '커리어',

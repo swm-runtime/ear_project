@@ -15,12 +15,8 @@ interface OnboardingStore {
   selectedTopicIds: string[];
   completionStatus: CompletionStatus;
   completionResult: OnboardingCompleteResult | null;
-  /** 재고 팝업은 온보딩 전체에서 1회만 뜬다(onboarding.md 4 [알림]).
-   *  TODO: MMKV 도입 시 소진 플래그를 영속한다(architecture.md 7.2) */
-  isReconsiderConsumed: boolean;
   setSelectedTopicIds: (topicIds: string[]) => void;
   setCompletion: (status: CompletionStatus, result?: OnboardingCompleteResult | null) => void;
-  consumeReconsider: () => void;
   reset: () => void;
 }
 
@@ -28,7 +24,6 @@ const initialState = {
   selectedTopicIds: [] as string[],
   completionStatus: 'idle' as CompletionStatus,
   completionResult: null,
-  isReconsiderConsumed: false,
 };
 
 export const useOnboardingStore = create<OnboardingStore>((set) => ({
@@ -39,6 +34,5 @@ export const useOnboardingStore = create<OnboardingStore>((set) => ({
       completionStatus: status,
       completionResult: result === undefined ? prev.completionResult : result,
     })),
-  consumeReconsider: () => set({ isReconsiderConsumed: true }),
   reset: () => set(initialState),
 }));

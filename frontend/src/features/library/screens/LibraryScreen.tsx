@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -10,7 +11,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
-import BrandMark from '@/shared/ui/BrandMark';
 import FullScreenError from '@/shared/ui/FullScreenError';
 
 import { MiniPlayer, PlayConfirmDialog, RemainingPlaysIndicator } from '@/features/player';
@@ -19,6 +19,7 @@ import LibraryBanner from '../components/LibraryBanner';
 import LibraryEmptyState from '../components/LibraryEmptyState';
 import LibraryItemCard from '../components/LibraryItemCard';
 import LibraryItemSkeleton from '../components/LibraryItemSkeleton';
+import LibrarySearchBarRow from '../components/LibrarySearchBarRow';
 import LibraryTabs from '../components/LibraryTabs';
 import MoreActionsSheet from '../components/MoreActionsSheet';
 import TopicFilterSheet from '../components/TopicFilterSheet';
@@ -30,6 +31,27 @@ import type { LibraryListRow } from '../library.types';
 /** L1 라이브러리 — 앱의 첫 화면. 화면은 뷰만 담당하고 로직은 useLibraryScreen이 소유한다 */
 export default function LibraryScreen() {
   const screen = useLibraryScreen();
+
+  /*
+   * 검색은 **받아 둔 목록만** 좁힌다 — 서버 조회를 추가하지 않는다.
+   * 아직 불러오지 않은 페이지는 대상이 아니며, 스크롤로 더 불러오면 그만큼 대상이 늘어난다.
+   */
+  const [query, setQuery] = useState('');
+  const normalizedQuery = query.trim().toLowerCase();
+  const isSearching = normalizedQuery.length > 0;
+
+  const visibleRows = useMemo(() => {
+    if (!isSearching) return screen.listRows;
+    // 검색 중에는 구획 헤더를 빼고 하나의 결과 목록으로 보여준다 —
+    // 헤더만 남고 아래가 비는 구획이 생기지 않게
+    return screen.listRows.filter((row) => {
+      if (row.kind !== 'item') return false;
+      const { title, authorName, sourceName } = row.item.content;
+      return [title, authorName, sourceName].some((field) =>
+        field.toLowerCase().includes(normalizedQuery),
+      );
+    });
+  }, [screen.listRows, isSearching, normalizedQuery]);
 
   // L6·L9는 목록 전체가 빈 상태 — 탭 줄·필터 아이콘·복원 미니플레이어를 감춘다(uiux 4.8)
   const isWholeEmpty = screen.emptyKind === 'newUser' || screen.emptyKind === 'deletedAll';
@@ -47,6 +69,16 @@ export default function LibraryScreen() {
       : null;
 
   const renderEmpty = () => {
+    if (isSearching) {
+      return (
+        <LibraryEmptyState
+          title={LIBRARY_COPY.search.emptyTitle}
+          description={LIBRARY_COPY.search.emptyDescription}
+          actionLabel={LIBRARY_COPY.search.emptyAction}
+          onActionPress={() => setQuery('')}
+        />
+      );
+    }
     switch (screen.emptyKind) {
       case 'newUser':
         return (
@@ -114,18 +146,23 @@ export default function LibraryScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.appBar}>
-        {/* 화면 이름(라이브러리) 대신 브랜드를 세운다 — 앱을 열면 항상 여기로 들어오는 기본 탭이다 */}
-        <BrandMark />
-        {/* 무제한·캐시·값 없음이면 자리를 비운다 — "무제한" 배지도 없다(uiux 4.3) */}
-        {screen.remainingDisplay ? (
-          <RemainingPlaysIndicator
-            remaining={screen.remainingDisplay.remaining}
-            limit={screen.remainingDisplay.limit}
-            onExhaustedPress={() => screen.openPaywall()}
-          />
-        ) : null}
-      </View>
+      {/* 브랜드 표시를 두지 않는다(2026-09-02) — 어느 탭인지는 하단 탭이 이미 말한다 */}
+      {showTabBar ? (
+        <LibrarySearchBarRow
+          query={query}
+          onChangeQuery={setQuery}
+          trailing={
+            // 무제한·캐시·값 없음이면 자리를 비운다 — "무제한" 배지도 없다(uiux 4.3)
+            screen.remainingDisplay ? (
+              <RemainingPlaysIndicator
+                remaining={screen.remainingDisplay.remaining}
+                limit={screen.remainingDisplay.limit}
+                onExhaustedPress={() => screen.openPaywall()}
+              />
+            ) : null
+          }
+        />
+      ) : null}
 
       {showTabBar ? (
         <LibraryTabs
@@ -160,7 +197,7 @@ export default function LibraryScreen() {
         <View style={styles.container} />
       ) : (
         <FlatList
-          data={screen.listRows}
+          data={visibleRows}
           keyExtractor={(row) => (row.kind === 'item' ? row.item.id : 'discovery-header')}
           renderItem={({ item: row }) =>
             row.kind === 'discoveryHeader' ? (
@@ -184,7 +221,7 @@ export default function LibraryScreen() {
           }
           ListEmptyComponent={renderEmpty()}
           ListFooterComponent={renderFooter()}
-          contentContainerStyle={screen.items.length === 0 ? styles.emptyContent : undefined}
+          contentContainerStyle={visibleRows.length === 0 ? styles.emptyContent : undefined}
           refreshControl={
             <RefreshControl
               refreshing={screen.isManualRefreshing}
@@ -245,23 +282,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.color.background,
   },
-  appBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing.md,
-    minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
-  },
+  // 카드가 자기 배경을 갖게 되어 구분선이 필요 없다 — 카드 사이 간격만 둔다
   separator: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: theme.color.border,
-    marginLeft: theme.spacing.md,
+    height: theme.spacing.sm,
   },
+  // 구획 앞뒤 여백을 카드 간격(8)보다 크게 벌린다 — 그래야 타이틀이 앞 카드의 꼬리가
+  // 아니라 뒤 묶음의 머리로 읽힌다. 타이틀 아래는 구분선을 긋지 않으므로 여백이 유일한 단서다
   discoverySectionTitle: {
     paddingHorizontal: theme.spacing.md,
-    paddingTop: theme.spacing.lg,
-    paddingBottom: theme.spacing.xs,
-    fontSize: theme.font.size.md,
+    paddingTop: theme.spacing.xl,
+    paddingBottom: theme.spacing.sm,
+    fontSize: theme.font.size.lg,
     fontWeight: '700',
     color: theme.color.textPrimary,
   },

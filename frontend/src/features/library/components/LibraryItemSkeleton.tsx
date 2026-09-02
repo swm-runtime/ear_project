@@ -20,33 +20,38 @@ export default function LibraryItemSkeleton() {
 }
 
 const styles = StyleSheet.create({
+  // 실제 카드(LibraryItemCard)와 같은 크기·간격이어야 로딩이 끝날 때 목록이 튀지 않는다
   card: {
     flexDirection: 'row',
     gap: theme.spacing.md,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.md,
+    marginHorizontal: theme.spacing.md,
+    marginBottom: theme.spacing.sm,
+    padding: theme.spacing.md,
+    borderRadius: theme.radius.lg,
+    backgroundColor: theme.color.surface,
   },
   thumbnail: {
-    width: 64,
-    height: 64,
-    borderRadius: theme.radius.sm,
-    backgroundColor: theme.color.surface,
+    width: 72,
+    height: 72,
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.color.background,
   },
   lines: {
     flex: 1,
     justifyContent: 'center',
     gap: theme.spacing.sm,
   },
+  // 카드(surface) 위에 놓이는 선은 같은 색이면 보이지 않는다 — 배경색으로 뒤집는다
   lineWide: {
     height: 14,
     borderRadius: theme.radius.sm,
-    backgroundColor: theme.color.surface,
+    backgroundColor: theme.color.background,
     alignSelf: 'stretch',
   },
   lineNarrow: {
     height: 12,
     width: '55%',
     borderRadius: theme.radius.sm,
-    backgroundColor: theme.color.surface,
+    backgroundColor: theme.color.background,
   },
 });

@@ -1,4 +1,4 @@
-import Svg, { Circle, Path } from 'react-native-svg';
+import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
 interface IconProps {
   size: number;
@@ -46,6 +46,26 @@ export function ExternalLinkIcon({ size, color }: IconProps) {
         strokeLinejoin="round"
         d="M8 16 16 8M9.5 8H16v6.5"
       />
+    </Svg>
+  );
+}
+
+/**
+ * 헤드폰 — "들을 수 있는 횟수"를 말한다. 재생 삼각형은 지금 누르면 재생된다는 뜻으로
+ * 읽혀 잔여 표시에는 맞지 않는다(2026-09-02).
+ */
+export function HeadphonesIcon({ size, color }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path
+        fill="none"
+        stroke={color}
+        strokeWidth={2.2}
+        strokeLinecap="round"
+        d="M4.6 14.5v-2.4a7.4 7.4 0 0 1 14.8 0v2.4"
+      />
+      <Rect x="2.4" y="13.4" width="4.6" height="7.4" rx="2.3" fill={color} />
+      <Rect x="17" y="13.4" width="4.6" height="7.4" rx="2.3" fill={color} />
     </Svg>
   );
 }
