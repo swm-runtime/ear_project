@@ -50,16 +50,48 @@
   flex-direction: column;
 }
 
-/* 서비스 이름. 첫 화면에서 가장 큰 요소가 되도록 뷰포트에 따라 크게 붙는다. */
+/* 서비스 이름 — 손글씨 SVG(BrandScript)가 그려진다. 크기 체계는 종전 텍스트와 동일하게
+   뷰포트 기반이고, 색 그라데이션은 SVG stroke 로 옮겼다(Hero.tsx 주석). */
 .brand {
-  font-size: clamp(76px, 15vw, 152px);
+  display: block;
   line-height: 0.92;
-  letter-spacing: -0.075em;
-  /* 검정에서 회색으로 떨어뜨려 큰 글자에 입체를 준다. 색이 아니라 명도만 쓴다. */
-  background: linear-gradient(158deg, #000000 4%, #26262c 40%, #7c7c85 92%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+}
+
+.brandSvg {
+  display: block;
+  height: clamp(76px, 15vw, 152px);
+  width: auto;
+}
+
+/* 애플 "hello" 식 획 드로잉 — pathLength=1 기준. 지속·지연은 획마다 인라인으로.
+   시작 전 opacity 0: linecap round 는 길이 0 인 선도 둥근 캡(점)으로 그리므로,
+   자기 차례가 오기 전의 획이 점으로 보인다 — 애니메이션 시작 프레임에 바로 켠다. */
+.brandStroke {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  opacity: 0;
+  animation-name: brandDraw;
+  animation-timing-function: cubic-bezier(0.55, 0, 0.3, 1);
+  animation-fill-mode: forwards;
+}
+
+@keyframes brandDraw {
+  0.1% { opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brandStroke { animation: none; stroke-dashoffset: 0; opacity: 1; }
+}
+
+/* 스크린리더·SEO용 실제 텍스트 */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 .tagline {

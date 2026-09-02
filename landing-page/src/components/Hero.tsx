@@ -10,6 +10,42 @@ import s from "./Hero.module.css";
    현재 탭을 알리지 않기 위한 규칙이라 옮겨 올 때 같이 지킨다. */
 const ICON_STROKE = 1.8;
 
+/* 브랜드 '이어'를 손글씨 획으로 그리는 SVG — 애플 초기 설정 "hello"처럼 획이 순서대로
+   그려진다(pathLength=1 + stroke-dashoffset 1→0, 획마다 지속·지연을 달리해 손맛을 낸다).
+   글자 색은 기존 .brand 텍스트 그라데이션(158deg 검정→회색)을 stroke 그라데이션으로 옮겼다.
+   실제 텍스트는 스크린리더·SEO용으로 .srOnly 에 남는다. prefers-reduced-motion 이면
+   애니메이션 없이 완성형으로 보인다(Hero.module.css). */
+function BrandScript() {
+  const strokes: [d: string, delay: number, dur: number][] = [
+    // 이 — ㅇ (위에서 시작해 반시계로 한 붓)
+    ["M60 46 C47 36 24 40 16 57 C7 76 18 98 41 100 C62 102 74 87 70 69 C68 60 64 53 58 49", 0.1, 0.62],
+    // 이 — ㅣ (살짝 휘는 세로획)
+    ["M97 12 C100 40 100 74 96 108", 0.72, 0.4],
+    // 어 — ㅇ
+    ["M172 46 C159 36 136 40 128 57 C119 76 130 98 153 100 C174 102 186 87 182 69 C180 60 176 53 170 49", 1.12, 0.62],
+    // 어 — ㅓ 의 가로 꼭지 (세로획 허리에 붙는다)
+    ["M199 59 C207 57.5 217 57.5 227 60", 1.74, 0.22],
+    // 어 — ㅓ 세로획
+    ["M230 12 C233 40 233 74 229 108", 1.96, 0.42],
+  ];
+  return (
+    <svg className={s.brandSvg} viewBox="0 0 250 120" fill="none" aria-hidden="true">
+      <defs>
+        <linearGradient id="brandStroke" x1="0" y1="0" x2="0.45" y2="1">
+          <stop offset="0.04" stopColor="#000000" />
+          <stop offset="0.4" stopColor="#26262c" />
+          <stop offset="0.92" stopColor="#7c7c85" />
+        </linearGradient>
+      </defs>
+      {strokes.map(([d, delay, dur]) => (
+        <path key={d} d={d} className={s.brandStroke} pathLength={1}
+          stroke="url(#brandStroke)" strokeWidth="11" strokeLinecap="round" strokeLinejoin="round"
+          style={{ animationDelay: `${delay}s`, animationDuration: `${dur}s` }} />
+      ))}
+    </svg>
+  );
+}
+
 function TabIcon({ name, active }: { name: "library" | "explore" | "profile"; active: boolean }) {
   const shape = {
     fill: active ? "currentColor" : "none",
@@ -264,7 +300,10 @@ export function Hero() {
           <p className={s.eyebrow}>AI가 만드는 오디오 팟캐스트</p>
 
           <h1 className={s.title}>
-            <span className={s.brand}>{site.name}</span>
+            <span className={s.brand}>
+              <BrandScript />
+              <span className={s.srOnly}>{site.name}</span>
+            </span>
             <span className={s.tagline}>
               출근길에 열면,
               <br />
