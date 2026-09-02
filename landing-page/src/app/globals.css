@@ -1,0 +1,336 @@
+/* ============================================================
+   이어 랜딩페이지 — 전역 토큰과 기본 스타일
+   컴포넌트별 스타일은 각 *.module.css 가 갖는다. 여기에는
+   (1) 디자인 토큰, (2) 리셋·타이포 기본값, (3) 여러 섹션이 공유하는
+   레이아웃·버튼·섹션 헤더만 둔다.
+   ============================================================ */
+
+/* Pretendard 변수폰트 — 이 페이지에 실제로 쓰인 글자만 남긴 서브셋(≈86KB).
+   파일 하나로 100~900 굵기를 전부 커버한다. 문구를 고치면
+   `bash scripts/subset-fonts.sh`로 다시 만들어야 한다(빠진 글자는 시스템 글꼴로 떨어진다). */
+@font-face {
+  font-family: "Pretendard";
+  src: url("/fonts/pretendard-var.woff2") format("woff2-variations");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Paperlogy — 제목 전용(600·700만). 좁은 폭에 각진 인상으로 제목을 세운다.
+   본문은 Pretendard 유지. 같은 서브셋 파이프라인(scripts/subset-fonts.sh)으로 굽는다. */
+@font-face {
+  font-family: "Paperlogy";
+  src: url("/fonts/paperlogy-600.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Paperlogy";
+  src: url("/fonts/paperlogy-700.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* 색은 앱(`frontend/src/shared/theme/index.ts`)의 토큰을 기준으로 맞춘다.
+   앱이 무채색 팔레트(강조 = 순검정, 배경 = 순백)라 랜딩도 같은 인상을 준다.
+   앱에 있는 값은 주석으로 대응을 적어 두었다 — 앱 토큰이 바뀌면 여기도 같이 바꾼다. */
+:root {
+  /* --- 색: 잉크(중성 회흑) --- */
+  --ink-950: #0a0a0c;
+  --ink-900: #1a1a1e; /* 앱 textPrimary */
+  --ink-800: #232329;
+  --ink-700: #2d2d34;
+  --ink-600: #3f3f47;
+  --ink-400: #6e6e76; /* 앱 textSecondary */
+  --ink-300: #9a9aa3;
+  --ink-200: #c4c4cb;
+
+  /* --- 색: 종이(순백) --- */
+  --paper: #ffffff; /* 앱 background */
+  --paper-2: #f5f5f7; /* 앱 surface */
+  --surface: #ffffff;
+  --line: #e3e3e8; /* 앱 border */
+  --line-2: #d0d0d8;
+
+  /* --- 색: 강조(무채색) ---
+     밝은 배경에서의 값이다. 어두운 배경에서는 강조가 흰색으로 뒤집히므로
+     아래 `.darkTokens`가 같은 이름을 다시 정의한다. --brand-300만은
+     "어두운 배경 위 강조"로 고정이라 양쪽에서 흰색이다. */
+  --brand-700: #000000; /* 앱 primary */
+  --brand-600: #1a1a1e;
+  --brand-500: #2d2d34;
+  --brand-400: #6e6e76;
+  --brand-300: #ffffff; /* 앱 onPrimary */
+  --brand-100: #e3e3e8;
+  --brand-050: #f5f5f7;
+
+  /* 이미지 위에 얹는 반투명 막. 앱 theme.color.overlay와 같은 값이다 —
+     탐색 타일의 더보기 배지처럼 아트워크 위에 놓이는 것들이 쓴다. */
+  --overlay: rgba(0, 0, 0, 0.4);
+
+  /* 기본 버튼과 포커스 링도 배경 문맥을 타므로 토큰으로 둔다. */
+  --btn-bg: var(--brand-700);
+  --btn-fg: #ffffff;
+  --focus: #000000;
+
+  --text: var(--ink-900);
+  --text-2: #45454d;
+  --text-3: #6e6e76;
+
+  /* --- 타이포 --- */
+  --sans: "Pretendard", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+    "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+  /* 제목 전용 서체 — 빠지는 글자는 Pretendard로 떨어진다 */
+  --display: "Paperlogy", var(--sans);
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  /* --- 형태 --- */
+  --r-sm: 8px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+  --r-pill: 999px;
+
+  --shadow-sm: 0 1px 2px rgba(10, 10, 12, 0.04), 0 6px 16px -10px rgba(10, 10, 12, 0.18);
+  --shadow-md: 0 2px 6px rgba(10, 10, 12, 0.05), 0 20px 42px -22px rgba(10, 10, 12, 0.3);
+  --shadow-lg: 0 4px 12px rgba(10, 10, 12, 0.07), 0 42px 80px -36px rgba(10, 10, 12, 0.45);
+
+  --container: 1140px;
+  --gutter: 24px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+  /* 앵커로 이동할 때 고정 헤더에 제목이 가리지 않게 한다. */
+  scroll-padding-top: 88px;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.7;
+  letter-spacing: -0.012em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* 한국어는 단어 중간에서도 줄이 바뀌므로 어절 단위 유지가 가독성에 크게 기여한다. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+/* 제목 계열은 디스플레이 서체 — 모듈 CSS는 font-family를 선언하지 않으므로 여기서 한 번에 */
+h1, h2, h3 {
+  font-family: var(--display);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1.24;
+  text-wrap: balance;
+}
+
+p {
+  margin: 0;
+}
+
+ul,
+ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img,
+svg {
+  max-width: 100%;
+}
+
+/* 무채색이라 포커스 링도 배경을 따라 뒤집어야 보인다(밝은 배경=검정, 어두운 배경=흰색). */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* ---------- 공용 레이아웃 ---------- */
+
+.container {
+  width: 100%;
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+}
+
+.section {
+  padding: clamp(72px, 11vw, 132px) 0;
+}
+
+/* 검은 컴포넌트 안에서 토큰을 뒤집는다. 배경은 각 컴포넌트가 직접 정하고
+   이 클래스는 토큰만 담당한다 — 붙이는 곳은 CTA 패널·추천 요금제 카드·앱 목업처럼
+   흰 페이지 위에 놓이는 검은 덩어리들이다.
+
+   무채색 팔레트에서는 강조가 검정이라, 뒤집지 않으면 검은 면 위의 기본 버튼과
+   강조 텍스트가 배경에 그대로 묻힌다.
+
+   페이지 배경은 흰색 하나로 간다. 통짜로 어두운 섹션은 두지 않는다. */
+.darkTokens {
+  color: #f2f2f5;
+  --text: #f2f2f5;
+  --text-2: var(--ink-200);
+  --text-3: var(--ink-300);
+  --surface: rgba(255, 255, 255, 0.05);
+  --line: rgba(255, 255, 255, 0.11);
+  --line-2: rgba(255, 255, 255, 0.2);
+
+  --brand-700: #ffffff;
+  --brand-600: #ffffff;
+  --brand-500: #ffffff;
+  --brand-400: var(--ink-200);
+  --brand-100: rgba(255, 255, 255, 0.18);
+  --brand-050: rgba(255, 255, 255, 0.08);
+
+  --btn-bg: #ffffff;
+  --btn-fg: var(--ink-950);
+  --focus: #ffffff;
+}
+
+/* ---------- 섹션 헤더 ---------- */
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--brand-600);
+}
+
+.eyebrow::before {
+  content: "";
+  width: 18px;
+  height: 2px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.sectionTitle {
+  margin-top: 16px;
+  font-size: clamp(27px, 3.6vw, 40px);
+}
+
+.sectionLede {
+  margin-top: 16px;
+  max-width: 58ch;
+  color: var(--text-2);
+  font-size: clamp(15.5px, 1.5vw, 17.5px);
+}
+
+/* ---------- 버튼 ---------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 26px;
+  border: 1px solid transparent;
+  border-radius: var(--r-pill);
+  font-size: 15.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  transition: transform 0.18s ease, background-color 0.18s ease,
+    border-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
+}
+
+/* 배경 문맥에 따라 검정 버튼(밝은 배경)과 흰 버튼(어두운 배경)으로 뒤집힌다. */
+.btnPrimary {
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  box-shadow: 0 10px 26px -14px rgba(10, 10, 12, 0.7);
+}
+
+.btnPrimary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 34px -14px rgba(10, 10, 12, 0.8);
+}
+
+.btnGhost {
+  background: transparent;
+  border-color: var(--line-2);
+  color: var(--text);
+}
+
+.btnGhost:hover {
+  border-color: var(--text-3);
+  background: rgba(127, 127, 137, 0.09);
+}
+
+/* ---------- 접근성 ---------- */
+
+.skipLink {
+  position: absolute;
+  left: 16px;
+  top: -60px;
+  z-index: 100;
+  padding: 10px 18px;
+  border-radius: var(--r-pill);
+  background: var(--ink-900);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  transition: top 0.18s ease;
+}
+
+.skipLink:focus {
+  top: 16px;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

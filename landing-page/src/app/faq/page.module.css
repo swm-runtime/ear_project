@@ -1,0 +1,92 @@
+.layout {
+  display: grid;
+  gap: clamp(36px, 5vw, 64px);
+}
+
+/* ---------- 주제 목차 ---------- */
+
+.tocTitle {
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.toc ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.toc a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 15px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  font-size: 14.5px;
+  font-weight: 600;
+  transition: border-color 0.18s ease, color 0.18s ease;
+}
+
+.toc a:hover {
+  border-color: var(--brand-400);
+  color: var(--brand-700);
+}
+
+.count {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-3);
+}
+
+.tocAsk {
+  margin-top: 26px;
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--text-3);
+}
+
+.tocAsk a {
+  color: var(--brand-700);
+  font-weight: 700;
+}
+
+/* ---------- 질문 묶음 ---------- */
+
+.group + .group {
+  margin-top: clamp(44px, 5vw, 64px);
+}
+
+.groupTitle {
+  margin-bottom: 8px;
+  font-size: clamp(21px, 2.6vw, 26px);
+  letter-spacing: -0.045em;
+  /* 목차에서 눌러 이동할 때 고정 헤더에 가리지 않게 한다. */
+  scroll-margin-top: 92px;
+}
+
+@media (min-width: 960px) {
+  .layout {
+    grid-template-columns: minmax(0, 0.55fr) minmax(0, 1.45fr);
+    gap: 72px;
+    align-items: start;
+  }
+
+  .toc {
+    position: sticky;
+    top: 100px;
+  }
+
+  .toc ul {
+    flex-direction: column;
+  }
+
+  .toc a {
+    justify-content: space-between;
+  }
+}

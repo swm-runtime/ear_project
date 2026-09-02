@@ -1,0 +1,141 @@
+/**
+ * 서버 통신 DTO — explore-api.md의 요청·응답을 snake_case 그대로 선언한다(convention.md 5.1).
+ * camelCase 변환은 explore.api.ts 안에서만 일어난다.
+ */
+import type { LibraryItemStatus, LibrarySource } from '@/features/library';
+import type { PlayLimitFieldsDto } from '@/features/player';
+
+import type { ExplorePeriod } from '../explore.types';
+
+export interface ExploreContentDto {
+  id: string;
+  title: string;
+  author_name: string;
+  source_name: string;
+  /**
+   * E12 [원문 보기] 노출 근거(explore.md 4.3 — 확정 2026-08-10, null이면 미노출).
+   * TODO(계약 제안): explore-api.md 목록 행 미반영 — changes/pending 기록. mock에만 구현되어 있다.
+   */
+  source_url: string | null;
+  duration_sec: number;
+  thumbnail_url: string;
+  content_version: number;
+  topic_ids: string[];
+}
+
+export interface ExploreLibraryStateDto {
+  item_id: string;
+  source: LibrarySource;
+  status: LibraryItemStatus;
+}
+
+export interface ExploreItemDto {
+  content: ExploreContentDto;
+  /** 없으면 null — 라이브러리에 담기지 않은 상태다(explore-api.md 4.1) */
+  library: ExploreLibraryStateDto | null;
+  is_counted_today: boolean;
+}
+
+export interface ExploreSectionDto {
+  /** interest / new / popular / topic_group — 분석·로깅용. 화면 분기에 쓰지 않는다 */
+  key: string;
+  title: string;
+  topic: { id: string; name: string } | null;
+  /** popular 섹션만 값이 있다 — 구간 토글 선택 상태의 근거. 다른 섹션은 생략 또는 null(explore-api.md 4.1) */
+  period?: ExplorePeriod | null;
+  items: ExploreItemDto[];
+}
+
+/** GET /explore/feed (explore-api.md 4.1) */
+export interface ExploreFeedResponseDto extends PlayLimitFieldsDto {
+  sections: ExploreSectionDto[];
+}
+
+/** GET /explore/contents (explore-api.md 4.2) */
+export interface ExploreContentsRequestDto {
+  /** uuid 콤마 구분, 1개 이상 필수. 다중 선택은 OR 조합 */
+  topic_ids: string;
+  cursor?: string;
+  limit?: number;
+}
+
+export interface ExploreContentsResponseDto extends PlayLimitFieldsDto {
+  items: ExploreItemDto[];
+  next_cursor: string | null;
+  has_next: boolean;
+}
+
+/** GET /explore/popular (explore-api.md 4.2-1) — period 미전송이면 서버가 month로 해석한다 */
+export interface ExplorePopularRequestDto {
+  period?: ExplorePeriod;
+  cursor?: string;
+  limit?: number;
+}
+
+export interface ExplorePopularResponseDto extends PlayLimitFieldsDto {
+  /** 서버가 되돌린 값 — 토글 선택 상태의 근거. 기본값을 클라이언트가 알 필요가 없게 한다 */
+  period: ExplorePeriod;
+  items: ExploreItemDto[];
+  next_cursor: string | null;
+  has_next: boolean;
+}
+
+/** POST /contents/:content_id/save (explore-api.md 4.3) */
+export interface SaveContentRequestDto {
+  /** 담기·해제 조작의 클라이언트 단조 증가 순번 — 서버는 저장·판정하지 않고 되돌린다 */
+  client_seq: number;
+  /** auto_play는 탐색 재생 자동 적립(4.6) — user_signals 적재 여부만 가른다 */
+  reason?: 'user_save' | 'auto_play';
+}
+
+export interface SaveContentResponseDto extends PlayLimitFieldsDto {
+  library_item: {
+    id: string;
+    source: LibrarySource;
+    status: LibraryItemStatus;
+    added_at: string;
+  };
+  client_seq: number;
+}
+
+/** DELETE /contents/:content_id/save (explore-api.md 4.4) */
+export interface UnsaveContentResponseDto {
+  client_seq: number;
+}
+
+/** GET /explore/search (explore-api.md 4.5) — 트림 후 2자 이상 질의만 보낸다(클라이언트 필터는 UX, 판정은 서버 방어선) */
+export interface ExploreSearchRequestDto {
+  query: string;
+  /** 검색 결과에 주제 필터를 겹칠 때 — uuid 콤마 구분(선택). 현재 화면에는 필터 UI가 없다 */
+  topic_ids?: string;
+  cursor?: string;
+  limit?: number;
+}
+
+/** 빈 결과의 대체 노출(E7) — 같은 응답으로 온다. items가 있으면 fallback은 null이다(explore-api.md 4.5) */
+export interface ExploreSearchFallbackDto {
+  /** 쿼리와 유사한 주제 — 칩으로 노출, 탭 시 그 주제의 단일 목록(4.2)으로 이동 */
+  related_topics: { id: string; name: string }[];
+  /** 인기 콘텐츠(직전 확정 구간 기준 — domain.md 5.4) */
+  popular_items: ExploreItemDto[];
+}
+
+/**
+ * 검색 응답 — 행 모양은 4.1의 items[]와 완전히 같다("피드 행과 같은 문법").
+ * 잔여 재생 표시값을 싣지 않는다(explore-api.md 2장) — 검색 화면은 표시를 숨긴다.
+ */
+export interface ExploreSearchResponseDto {
+  items: ExploreItemDto[];
+  next_cursor: string | null;
+  has_next: boolean;
+  fallback: ExploreSearchFallbackDto | null;
+}
+
+/**
+ * GET /explore/topics (explore-api.md 4.2-2) — 확정 계약(합의 2026-08-07).
+ * 앞쪽은 활성 관심 주제 전부(선택 순서, 숨김 처리돼도 포함), 뒤쪽은 노출 주제(display_order 순).
+ * 정렬은 서버 소유다 — 클라이언트는 재배열하지 않는다.
+ */
+export interface ExploreTopicsResponseDto {
+  topics: { id: string; name: string; is_interest: boolean }[];
+}

@@ -1,0 +1,11 @@
+node_modules
+dist
+coverage
+storage
+.env
+.env.*
+!.env.example
+*.log
+.git
+deploy
+!deploy/docker-entrypoint.sh

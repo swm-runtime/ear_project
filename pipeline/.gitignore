@@ -1,0 +1,26 @@
+# 비밀 — 실값은 커밋하지 않는다 (템플릿 .env.example 만)
+.env
+.env.*
+!.env.example
+# 서버 compose 의 env 실값 (deploy/README.md — 점 없는 이름을 쓴다)
+deploy/env.prod
+deploy/env.ai-server
+
+# 의존성·빌드
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# 산출물 작업 루트 기본 위치 (WORK_ROOT) — 원본은 S3 (docs/ai/spec/10 M4)
+.work/
+
+# 음원 — 데모·TTS 출력은 S3
+*.mp3
+*.wav
+
+# 로컬
+.DS_Store
+*.log

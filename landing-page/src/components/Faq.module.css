@@ -1,0 +1,91 @@
+.wrap {
+  background: var(--paper-2);
+  border-top: 1px solid var(--line);
+}
+
+.inner {
+  display: grid;
+  gap: clamp(32px, 4vw, 56px);
+}
+
+.headLede {
+  margin-top: 16px;
+  color: var(--text-2);
+  font-size: 15.5px;
+  line-height: 1.75;
+}
+
+.headFooter {
+  margin-top: 24px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+}
+
+.item {
+  border-top: 1px solid var(--line-2);
+}
+
+.list > li:last-child .item {
+  border-bottom: 1px solid var(--line-2);
+}
+
+.q {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 0;
+  cursor: pointer;
+  font-size: 16.5px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.5;
+  list-style: none;
+  transition: color 0.18s ease;
+}
+
+/* 사파리·크롬 기본 삼각형 제거 */
+.q::-webkit-details-marker {
+  display: none;
+}
+
+.q:hover {
+  color: var(--brand-700);
+}
+
+.chev {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 3px;
+  color: var(--text-3);
+  transition: transform 0.22s ease, color 0.18s ease;
+}
+
+.item[open] .chev {
+  transform: rotate(135deg);
+  color: var(--brand-600);
+}
+
+.a {
+  padding: 0 44px 26px 0;
+  color: var(--text-2);
+  font-size: 15.5px;
+  line-height: 1.8;
+}
+
+@media (min-width: 900px) {
+  .inner {
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.4fr);
+    gap: 64px;
+  }
+
+  .head {
+    position: sticky;
+    top: 100px;
+    align-self: start;
+  }
+}

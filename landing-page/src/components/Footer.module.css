@@ -1,0 +1,115 @@
+/* 본문과 같은 흰 배경이라, 문서의 끝이라는 신호는 위쪽 경계선이 맡는다. */
+.footer {
+  background: var(--paper);
+  color: var(--text-2);
+  border-top: 1px solid var(--line);
+  padding: clamp(52px, 6vw, 76px) 0 32px;
+}
+
+.inner {
+  display: grid;
+  gap: 36px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--text);
+}
+
+/* 마크는 정사각형이 아니라 가로로 넓다(480×388). 높이를 글자에 맞추고 폭은 따라오게 둔다. */
+.mark {
+  width: auto;
+  height: 22px;
+}
+
+.brandName {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+}
+
+.desc {
+  margin-top: 14px;
+  max-width: 34ch;
+  color: var(--text-3);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.contact {
+  margin-top: 14px;
+  font-size: 14px;
+}
+
+.contact a {
+  color: var(--text-2);
+  transition: color 0.18s ease;
+}
+
+.contact a:hover {
+  color: var(--brand-700);
+}
+
+.colTitle {
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.links ul {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.links a {
+  font-size: 14.5px;
+  color: var(--text-2);
+  transition: color 0.18s ease;
+}
+
+.links a:hover {
+  color: var(--brand-700);
+}
+
+.bottom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin-top: clamp(40px, 5vw, 56px);
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+/* 바닥글 맨 아래 줄에서 한 단계 더 물러나는 접두 문구 */
+.pre {
+  color: var(--ink-300);
+}
+
+@media (min-width: 640px) {
+  .inner {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .brandCol {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 900px) {
+  .inner {
+    grid-template-columns: minmax(0, 1.7fr) repeat(3, minmax(0, 1fr));
+    gap: 44px;
+  }
+
+  .brandCol {
+    grid-column: auto;
+  }
+}

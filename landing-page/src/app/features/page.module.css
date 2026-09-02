@@ -1,0 +1,57 @@
+.whyGrid {
+  display: grid;
+  gap: clamp(28px, 4vw, 56px);
+}
+
+.whyBody {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  color: var(--text-2);
+  font-size: 16.5px;
+  line-height: 1.85;
+}
+
+.whyBody strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.nonGoals {
+  display: grid;
+  gap: 1px;
+  margin-top: clamp(36px, 5vw, 52px);
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+
+.nonGoal {
+  padding: 28px 26px 30px;
+  background: var(--surface);
+}
+
+.nonGoalTitle {
+  font-size: 17.5px;
+  letter-spacing: -0.04em;
+  line-height: 1.45;
+}
+
+.nonGoalBody {
+  margin-top: 12px;
+  color: var(--text-2);
+  font-size: 15px;
+  line-height: 1.72;
+}
+
+@media (min-width: 900px) {
+  .whyGrid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+    gap: 64px;
+  }
+
+  .nonGoals {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}

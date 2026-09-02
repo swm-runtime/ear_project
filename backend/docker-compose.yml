@@ -1,0 +1,32 @@
+# 로컬 개발용 PostgreSQL. 운영 인프라와 무관하다.
+# 값은 .env와 맞춘다 (.env.example 참고).
+#
+# name을 고정하지 않으면 compose가 디렉터리명(backend)을 프로젝트 이름으로 쓴다.
+# 같은 이름의 프로젝트가 로컬에 또 있으면 서로의 컨테이너를 orphan으로 인식해
+# --remove-orphans 한 번에 남의 컨테이너가 지워진다.
+name: ear
+
+services:
+  postgres:
+    # pgvector 확장 포함 이미지 (postgres:16 호환 — 기존 데이터 볼륨 그대로 쓴다).
+    # 표준 postgres 이미지에는 vector 확장이 없어 AddEmbeddingVectors 마이그레이션이 실패한다
+    image: pgvector/pgvector:pg16
+    container_name: ear-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-ear}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-change-me}
+      POSTGRES_DB: ${DB_NAME:-runtime}
+      TZ: UTC
+    ports:
+      - '${DB_PORT:-5433}:5432'
+    volumes:
+      - ear-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USERNAME:-ear} -d ${DB_NAME:-runtime}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  ear-postgres-data:

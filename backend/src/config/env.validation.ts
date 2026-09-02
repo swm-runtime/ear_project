@@ -1,0 +1,313 @@
+import { plainToInstance, Type } from 'class-transformer';
+import {
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsString,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+  ValidateIf,
+  validateSync,
+} from 'class-validator';
+
+import { SEMVER_PATTERN } from '@/common/utils/semver.util';
+
+/** 오디오 바이트를 누가 나르는가 — 배포 토폴로지가 정한다 */
+export enum AudioDelivery {
+  /** 우리 서버가 서명하고 우리 스트리밍 라우트가 내보낸다(개발·단일 서버) */
+  LOCAL = 'local',
+  /** CloudFront 서명 URL. 바이트는 CloudFront→S3가 나르고 API 서버는 관여하지 않는다 */
+  CLOUDFRONT = 'cloudfront',
+}
+
+/** 이메일 발송 방식 — 기본 logging(발송 안 함, 개발용) */
+export enum MailDelivery {
+  LOGGING = 'logging',
+  SES = 'ses',
+}
+
+export enum NodeEnv {
+  DEVELOPMENT = 'development',
+  TEST = 'test',
+  PRODUCTION = 'production',
+}
+
+/**
+ * architecture.md 9.5 — 모든 비밀값은 환경 변수로 주입하고, 부팅 시 스키마를 검증한다.
+ * 누락되면 기본값으로 넘어가지 않고 기동을 실패시킨다.
+ */
+export class EnvironmentVariables {
+  @IsEnum(NodeEnv)
+  NODE_ENV: NodeEnv;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(65535)
+  PORT: number;
+
+  @IsString()
+  @IsNotEmpty()
+  DB_HOST: string;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(65535)
+  DB_PORT: number;
+
+  @IsString()
+  @IsNotEmpty()
+  DB_USERNAME: string;
+
+  @IsString()
+  @IsNotEmpty()
+  DB_PASSWORD: string;
+
+  @IsString()
+  @IsNotEmpty()
+  DB_NAME: string;
+
+  /** 쉼표로 구분한 허용 오리진 목록. `*`를 쓰지 않는다 (architecture.md 9.5) */
+  @IsString()
+  @IsNotEmpty()
+  CORS_ORIGINS: string;
+
+  /** access token·signup token 서명 키 (architecture.md 9.1) */
+  @IsString()
+  @MinLength(32)
+  JWT_SECRET: string;
+
+  /**
+   * 애플 identity token의 `aud`로 실려 오는 값 — iOS 앱의 Bundle ID다(`auth-api.md` 4.1).
+   *
+   * **비밀값이 아니지만 검증에 반드시 필요하다.** 확인하지 않으면 다른 앱을 향해 발급된,
+   * 서명은 정상인 토큰으로 우리 계정에 로그인할 수 있다. 애플은 **제공자 API 호출 없이
+   * 토큰만으로 검증이 끝나므로**, `aud`가 사실상 유일한 "우리 앱을 향한 토큰인가" 판정이다.
+   */
+  @IsString()
+  @IsNotEmpty()
+  APPLE_CLIENT_ID: string;
+
+  /**
+   * 안드로이드 애플 로그인(웹 OAuth)의 `aud` — **Services ID**다(`auth-api.md` 4.1).
+   *
+   * 안드로이드에는 애플 네이티브 SDK가 없어 웹 OAuth로 가며, 그때 발급되는 identity
+   * token의 `aud`는 앱 번들 ID가 아니라 Services ID다. **두 값을 모두 유효한 `aud`로
+   * 받아야** iOS 네이티브와 안드로이드 웹이 같은 엔드포인트를 쓸 수 있다.
+   */
+  @IsString()
+  @IsNotEmpty()
+  APPLE_SERVICES_ID: string;
+
+  /**
+   * 구글 ID 토큰의 `aud`로 실려 오는 값 — **웹 클라이언트 ID**다(`auth-api.md` 4.1).
+   *
+   * 안드로이드·iOS 클라이언트 ID가 아니다. `@react-native-google-signin/google-signin`이
+   * `webClientId`로 받은 ID 토큰을 발급하므로 `aud`에도 그 값이 들어온다.
+   *
+   * **비밀값이 아니지만 검증에 반드시 필요하다.** 확인하지 않으면 다른 앱을 향해 발급된,
+   * 서명은 정상인 토큰으로 우리 계정에 로그인할 수 있다.
+   */
+  @IsString()
+  @IsNotEmpty()
+  GOOGLE_WEB_CLIENT_ID: string;
+
+  /**
+   * 카카오 앱 ID(숫자 문자열) — 토큰 정보 조회의 `app_id`와 대조한다(`auth-api.md` 4.1).
+   *
+   * **네이티브 앱 키가 아니다.** 카카오 액세스 토큰에는 대상 앱 정보가 실려 있지 않아,
+   * 이 대조가 구글·애플의 `aud` 검증에 해당하는 자리다.
+   */
+  @IsString()
+  @IsNotEmpty()
+  KAKAO_APP_ID: string;
+
+  /** archived_* 테이블 간 조인 키 생성용 pepper (domain.md 11.2) */
+  @IsString()
+  @MinLength(32)
+  ARCHIVE_HASH_PEPPER: string;
+
+  /** withdrawal_logs 해시용 pepper. 아카이브와 **다른 키**여야 한다 (domain.md 11.2) */
+  @IsString()
+  @MinLength(32)
+  WITHDRAWAL_HASH_PEPPER: string;
+
+  /**
+   * 스토어에 올라간 최신 앱 버전(semver). **테이블이 아니라 배포 설정이 원천이다**
+   * (합의 2026-08-06 — `settings-api.md` 4.1 · domain.md 13.3).
+   *
+   * 설정 화면의 [업데이트] 배지 판정에 쓴다. **수동 기입이므로 배포 직후 갱신을 빠뜨리면
+   * 배지가 늦게 뜬다** — 배포 체크리스트로 관리한다(운영 사항이지 계약이 아니다).
+   *
+   * **플랫폼별로 나눈다**(domain.md 13.3 — 스토어 심사 주기가 달라 두 값이 동시에
+   * 올라가지 않는다). 한쪽 심사가 밀리는 동안 단일 값으로 판정하면 **아직 배포되지 않은
+   * 플랫폼의 사용자에게 받을 것이 없는 [업데이트]가 노출된다.**
+   */
+  @IsString()
+  @Matches(SEMVER_PATTERN)
+  LATEST_APP_VERSION_IOS: string;
+
+  @IsString()
+  @Matches(SEMVER_PATTERN)
+  LATEST_APP_VERSION_ANDROID: string;
+
+  /**
+   * 최소 지원 버전(semver). **강제 업데이트 판정은 스플래시 소관이고**(`splash.md`),
+   * 설정 화면은 안내만 한다(`settings-api.md` 4.1) — 설정까지 들어온 세션은 이미 그 관문을
+   * 통과했다. 값은 함께 내려주되 여기서 차단하지 않는다.
+   *
+   * 최신 버전과 같은 이유로 플랫폼별이다. **차단하는 쪽이라 위험이 더 크다** — 심사가
+   * 밀린 플랫폼의 값을 함께 올리면 그 사용자 전원이 업데이트할 수 없는 화면에 갇힌다.
+   */
+  @IsString()
+  @Matches(SEMVER_PATTERN)
+  MIN_SUPPORTED_APP_VERSION_IOS: string;
+
+  @IsString()
+  @Matches(SEMVER_PATTERN)
+  MIN_SUPPORTED_APP_VERSION_ANDROID: string;
+
+  /**
+   * 오디오 서명 URL의 HMAC 키(`architecture.md` 9.4).
+   *
+   * **`JWT_SECRET`과 같은 값을 쓰지 않는다.** 용도가 다른 키를 겹쳐 쓰면 한쪽이 유출될 때
+   * 피해 범위가 함께 넓어진다(pepper 두 개를 분리한 것과 같은 이유 — domain.md 11.2).
+   */
+  @IsString()
+  @MinLength(32)
+  AUDIO_URL_SIGNING_KEY: string;
+
+  /**
+   * 서명 URL이 가리키는 스트리밍 경로의 앞부분.
+   *
+   * 지금은 우리 서버가 서명하고 우리 서버가 내보내므로 이 서버의 공개 주소다. 오브젝트
+   * 스토리지가 확정되면 CDN 도메인으로 바뀌며, 그때 바뀌는 것은 이 값과 `AudioUrlSigner`
+   * 구현뿐이다 — 계약(`player-api.md` 4.1)은 그대로다.
+   */
+  @IsString()
+  @MaxLength(2048)
+  AUDIO_URL_BASE_URL: string;
+
+  /**
+   * 오디오 원본이 놓인 로컬 디렉터리. `contents.audio_path`가 이 아래의 상대 키다.
+   *
+   * **오브젝트 스토리지 확정 전까지의 자리다**(`architecture.md` 미결). 스토리지가 붙으면
+   * 스트리밍 라우트째 CDN 서명 URL로 대체되며 이 변수도 함께 사라진다.
+   */
+  @ValidateIf(
+    (env: EnvironmentVariables) =>
+      env.AUDIO_DELIVERY !== AudioDelivery.CLOUDFRONT,
+  )
+  @IsString()
+  @MaxLength(512)
+  AUDIO_STORAGE_ROOT: string;
+
+  /**
+   * 오디오 전달 방식. 기본 `local`. `cloudfront`면 아래 두 값이 필수이고
+   * `AUDIO_URL_BASE_URL`은 CloudFront 배포 도메인(+prefix)이어야 한다.
+   */
+  @IsEnum(AudioDelivery)
+  AUDIO_DELIVERY: AudioDelivery = AudioDelivery.LOCAL;
+
+  /** CloudFront 공개 키의 ID(Key-Pair-Id). 비밀값이 아니지만 서명에 반드시 실린다 */
+  @ValidateIf(
+    (env: EnvironmentVariables) =>
+      env.AUDIO_DELIVERY === AudioDelivery.CLOUDFRONT,
+  )
+  @IsString()
+  @IsNotEmpty()
+  CLOUDFRONT_KEY_PAIR_ID: string;
+
+  /**
+   * 위 공개 키와 짝인 RSA 개인 키(PEM)를 **base64 한 줄**로. PEM의 줄바꿈이 env에 실리지
+   * 않아서다. `base64 -w0 private_key.pem`으로 만든다. 비밀값이다 — 시크릿 매니저에서 주입.
+   */
+  @ValidateIf(
+    (env: EnvironmentVariables) =>
+      env.AUDIO_DELIVERY === AudioDelivery.CLOUDFRONT,
+  )
+  @IsString()
+  @MinLength(64)
+  CLOUDFRONT_PRIVATE_KEY_BASE64: string;
+
+  /**
+   * 관리자 업로드(admin.md 4.2)가 오디오·썸네일을 올리는 S3 버킷(`deploy/aws/README.md`).
+   * `cloudfront` 모드에서만
+   * 필수다 — `local` 모드는 `AUDIO_STORAGE_ROOT`에 파일을 쓴다.
+   *
+   * 자격증명은 env에 두지 않는다 — EC2 인스턴스 롤(IMDS)이 준다.
+   */
+  @ValidateIf(
+    (env: EnvironmentVariables) =>
+      env.AUDIO_DELIVERY === AudioDelivery.CLOUDFRONT ||
+      env.MAIL_DELIVERY === MailDelivery.SES,
+  )
+  @IsString()
+  @IsNotEmpty()
+  AWS_REGION: string;
+
+  /**
+   * 이메일 인증 코드 발송 방식(auth.md 미결이던 발송 인프라 — SES로 확정 2026-08-31).
+   * `ses`면 발신 주소가 필수고, SES에서 검증된 도메인/주소여야 한다.
+   */
+  @IsEnum(MailDelivery)
+  MAIL_DELIVERY: MailDelivery = MailDelivery.LOGGING;
+
+  /** 예: `이어 <no-reply@earcast.co.kr>` */
+  @ValidateIf(
+    (env: EnvironmentVariables) => env.MAIL_DELIVERY === MailDelivery.SES,
+  )
+  @IsString()
+  @IsNotEmpty()
+  MAIL_FROM_ADDRESS: string;
+
+  @ValidateIf(
+    (env: EnvironmentVariables) =>
+      env.AUDIO_DELIVERY === AudioDelivery.CLOUDFRONT,
+  )
+  @IsString()
+  @IsNotEmpty()
+  AUDIO_BUCKET: string;
+
+  /**
+   * 앞단에서 신뢰하는 리버스 프록시(LB) 홉 수. Express `trust proxy`에 그대로 들어간다.
+   *
+   * **기본 0(끔)이고, 값은 배포 토폴로지가 정한다** — LB 뒤에 배포하면 홉 수만큼 올린다.
+   * 잘못 켜는 쪽이 안 켜는 쪽보다 위험하다: 프록시가 없는데 켜면 클라이언트가
+   * `X-Forwarded-For` 헤더로 **IP를 위조**할 수 있어, `audio_access_logs.ip_hash` 기반
+   * 이상 탐지(FR-33 — domain.md 6.5)와 향후 레이트 리밋(architecture.md 9.6)이
+   * 공격자 통제하에 들어간다. 안 켜면 모든 IP가 프록시 주소로 같아질 뿐이다.
+   */
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(10)
+  TRUST_PROXY_HOPS: number = 0;
+}
+
+/**
+ * 실패 메시지에 값을 담지 않는다. 비밀값이 그대로 로그에 남는 것을 막기 위해
+ * 위반한 변수 이름과 제약 조건만 노출한다 (convention.md 8.4).
+ */
+export function validateEnv(
+  config: Record<string, unknown>,
+): EnvironmentVariables {
+  const validated = plainToInstance(EnvironmentVariables, config);
+  const errors = validateSync(validated, { skipMissingProperties: false });
+
+  if (errors.length > 0) {
+    const reasons = errors
+      .map(
+        (error) =>
+          ` - ${error.property}: ${Object.values(error.constraints ?? {}).join(', ')}`,
+      )
+      .join('\n');
+    throw new Error(`environment validation failed\n${reasons}`);
+  }
+
+  return validated;
+}

@@ -1,0 +1,74 @@
+import type { NavigatorScreenParams } from '@react-navigation/native';
+
+import type { AuthStackParamList } from '@/features/auth';
+import type { ContentDetailEntryPoint } from '@/features/content-detail';
+import type { OnboardingStackParamList } from '@/features/onboarding';
+import type { PlayEntryPoint } from '@/features/player';
+
+/** 하단 탭 3개 — 라이브러리가 기본이고 설정은 탭이 아니라 프로필 안이다(library.md 2) */
+export type MainTabParamList = {
+  Library: undefined;
+  /**
+   * applyTopicId: 검색 빈 결과(E7)의 관련 주제 칩 복귀용 — 그 주제의 단일 목록(E2)으로
+   * 전환한다(explore.md 4.5-3). 화면이 처리 후 스스로 소거한다(useExploreScreen).
+   */
+  Explore: { applyTopicId?: string } | undefined;
+  Profile: undefined;
+};
+
+/** Main 영역 — 탭 위에 얹히는 화면(플레이어 등)은 스택으로 겹친다 */
+export type MainStackParamList = {
+  Tabs: NavigatorScreenParams<MainTabParamList>;
+  /**
+   * 플레이어(player.md). 게이트 통과 진입은 contentId만 넘긴다(재생은 PlaybackService가 이미
+   * 시작). entryPoint·autoplay는 게이트를 거치지 않는 경로(미니플레이어 확대·푸시 딥링크)용 —
+   * 기본은 miniplayer·autoplay false다(FR-24 자동 재생 금지).
+   */
+  Player: { contentId: string; entryPoint?: PlayEntryPoint; autoplay?: boolean };
+  /**
+   * 콘텐츠 상세(content-detail.md, FR-40) — 진입은 세 화면(라이브러리 L4·탐색 E12·플레이어
+   * PL7) 더보기 시트의 [상세 정보]뿐이다. entryPoint는 [재생]의 entry_point 전달 값이자
+   * "플레이어 진입 시 재생 유지·복귀" 판정 재료다(content-detail-api.md 4.2).
+   */
+  ContentDetail: { contentId: string; entryPoint: ContentDetailEntryPoint };
+  /**
+   * 검색(E6·E7, explore.md 4.5 — MVP 포함 격상 2026-08-23) — 진입점은 탐색 검색창뿐이다.
+   * 피드 상태(필터·구간·스크롤)는 스택 아래 Tabs가 유지하고, 검색 상태(검색어·결과)는
+   * pop과 함께 버려진다(4.5-1) — 재진입은 검색 초기 화면부터다.
+   */
+  ExploreSearch: undefined;
+  /** 설정(settings.md) — 진입점은 프로필 우상단 아이콘뿐이다 */
+  Settings: undefined;
+  /** TODO: subscription 화면 구현 시 교체(subscription.md) — 플랜 카드·[구독 알아보기]의 목적지 */
+  Subscription: undefined;
+  /**
+   * 이메일 인증(A 계열, auth.md 4.4~4.5) — [등록]·[인증하기]·[변경]·프로필 헤더의 공통 목적지.
+   * currentEmail은 A10의 "현재 이메일" 표시용이다 — 진입 화면(설정·프로필)이 실어 보낸다
+   * (인증 화면이 프로필 요약을 재조회하지 않게 한다. 저장 규칙과 무관한 표시 값이다)
+   */
+  EmailVerification: { currentEmail?: string | null } | undefined;
+  /** 관심사 관리(interest-management.md) — 진입 경로는 셋(프로필 카드·설정 콘텐츠·드립 배너)이지만 화면은 하나다 */
+  InterestManagement: undefined;
+  /** 커리어 정보(career.md) — 관심사 관리와 별도 화면. 진입 경로는 둘(프로필 카드·설정 콘텐츠)이다 */
+  Career: undefined;
+  /** TODO: 공지사항 인앱 화면 — 명세 작성 후 교체(settings.md 4.1, 합의 2026-08-06) */
+  Notice: undefined;
+  /** TODO: 탈퇴 화면(A 계열, auth.md 4.3) 구현 시 교체 — 설정 [회원 탈퇴]의 목적지 */
+  Withdrawal: undefined;
+  /** TODO: 관리자 페이지(admin.md 2장) 구현 시 교체 — 관리자 계정에만 진입점이 노출된다 */
+  Admin: undefined;
+};
+
+export type RootStackParamList = {
+  Auth: NavigatorScreenParams<AuthStackParamList>;
+  Onboarding: NavigatorScreenParams<OnboardingStackParamList>;
+  Main: NavigatorScreenParams<MainStackParamList>;
+};
+
+declare global {
+  // React Navigation 전역 타이핑(공식 패턴) — useNavigation이 루트 파람을 알게 한다
+  namespace ReactNavigation {
+    // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+    interface RootParamList extends RootStackParamList {}
+  }
+}

@@ -1,0 +1,5 @@
+# 서버(Linux)로 나가는 스크립트·설정은 Windows에서도 LF 고정 — CRLF 셰뱅은 컨테이너에서 실행 불가
+*.sh text eol=lf
+Caddyfile text eol=lf
+Dockerfile text eol=lf
+.dockerignore text eol=lf

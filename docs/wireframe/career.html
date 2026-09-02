@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>이어 — 커리어 정보 화면 시안</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+
+<header class="masthead">
+  <div class="brandline">
+    <svg class="mark" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+      <path d="M9.5 13.5a6.5 6.5 0 0 1 13 0c0 3.2-1.9 4.6-3.2 5.9-1.1 1.1-1.8 1.9-1.8 3.6a2.8 2.8 0 0 1-5.6 0"/>
+      <circle cx="13.6" cy="13.8" r="2.2" fill="currentColor" stroke="none"/>
+    </svg>
+    <span class="nm">이어</span><span class="sep">/</span><span class="ctx">화면 시안</span>
+  </div>
+
+  <p class="eyebrow">Flow CR · career.md</p>
+  <h1>커리어 정보 — 전부 선택, 강제 지점 없음</h1>
+  <p class="lede">
+    온보딩 2단계에서 받은 직군·직무·연차를 언제든 입력·수정하는 화면입니다. 커리어는 <b>추천 랭킹의 보조 신호</b>라
+    드립 편성·기존 라이브러리에 영향이 없고, 그래서 <b>확인 팝업 없이 저장</b>됩니다 — 잃는 것이 없으면 확인할 것도 없습니다.
+    관심사 관리와는 <b>별도 화면</b>입니다(합의 2026-08-06 분리).
+  </p>
+
+  <nav class="tabs" aria-label="화면 시안">
+    <a href="auth.html">계정</a>
+    <a href="onboarding.html">온보딩</a>
+    <a href="library.html">라이브러리</a>
+    <a href="explore.html">탐색</a>
+    <a href="content-detail.html">콘텐츠 상세</a>
+    <a href="player.html">플레이어</a>
+    <a href="share.html">공유</a>
+    <a href="profile.html">프로필</a>
+    <a href="settings.html">설정</a>
+    <a href="interest-management.html">관심사 관리</a>
+    <a href="career.html" aria-current="page">커리어</a>
+  </nav>
+
+  <div class="notice">
+    <b>이 시안의 용도.</b> 범위 검증용입니다. 색·서체·간격은 <b>제안이며 확정된 아이덴티티가 아닙니다.</b>
+    각 요소의 번호는 명세 조항으로 연결됩니다. <span style="color:var(--doc-warn)">주황 번호</span>는 명세에 근거가 없거나 다른 문서와 어긋나는 지점입니다.
+    필드 구성·선택지는 <b>온보딩 커리어 단계(O4)와 같은 값 체계</b>를 씁니다 — 두 화면이 다르면 같은 컬럼에 다른 값이 쌓입니다.
+  </div>
+</header>
+
+<!-- =================== 편집 =================== -->
+<section class="section">
+  <div class="section-head">
+    <p class="sid">CR1 – CR3</p>
+    <h2>입력과 저장</h2>
+    <p>세 값 모두 선택 입력입니다. <b>값을 비워 저장하는 것도 허용</b>됩니다 — 미입력 상태로 되돌아갈 뿐입니다.</p>
+    <div class="flowbar">
+      <span>프로필 카드 · 설정</span><span class="ar">→</span>
+      <span>폼 편집</span><span class="ar">→</span>
+      <span class="hi">[저장] — 확인 팝업 없음</span><span class="ar">→</span>
+      <span>토스트 + 복귀</span><span class="ar">→</span>
+      <span class="hi">추천 보조 신호 즉시 반영</span>
+    </div>
+  </div>
+
+  <div class="shots">
+
+    <!-- CR1 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">CR1</span><h3>정상 — 입력됨 · 변경 없음</h3>
+        <p class="cap">현재 값이 채워진 폼 + [저장] 비활성</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">8:40</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <span class="iconbtn plain"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 4L6.5 10l6 6"/></svg></span>
+            <p class="ttl">커리어 정보<span class="mk">1</span></p>
+            <span class="t-sm" style="color:var(--ink-2); font-weight:650">초기화<span class="mk">9</span></span>
+          </div>
+          <div class="body">
+            <p class="t-sm" style="margin:2px 0 0">추천을 더 정확하게 하는 데만 쓰여요<span class="mk">2</span></p>
+            <div class="stack" style="gap:10px; margin-top:4px">
+              <div>
+                <p class="t-label" style="margin:0 0 6px">직군</p>
+                <div class="chips">
+                  <span class="chip">개발</span><span class="chip on">기획</span><span class="chip">디자인</span>
+                  <span class="chip">마케팅·영업</span><span class="chip">운영·CS</span><span class="chip">연구·교육</span><span class="chip">기타</span>
+                </div>
+              </div>
+              <div>
+                <p class="t-label" style="margin:0 0 6px">직무</p>
+                <div class="field filled"><span>서비스 기획자<span class="mk w">A</span></span></div>
+              </div>
+              <div>
+                <p class="t-label" style="margin:0 0 6px">연차</p>
+                <div class="chips">
+                  <span class="chip">1년 이하</span><span class="chip">2–3년</span>
+                  <span class="chip on">4–6년<span class="mk">3</span></span><span class="chip">7년 이상</span>
+                </div>
+              </div>
+            </div>
+            <div class="grow"></div>
+          </div>
+          <div class="dock line">
+            <div class="btn off">저장<span class="mk">4</span></div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">1</span><span>진입 경로 둘 — 프로필 [커리어 정보] 카드 · 설정 &gt; 콘텐츠 &gt; 커리어 정보. <b>관심사 관리 화면이 아니다</b>(합의 2026-08-06 분리). 온보딩 완료 사용자만 접근한다. <span class="ref">career 2 · profile 4.4 · settings 4.1</span></span></li>
+        <li><span class="n">2</span><span>용도 안내는 온보딩 O4와 같은 문구를 쓴다. 커리어는 추천 랭킹의 보조 신호일 뿐 — 드립 편성 대상(관심 주제)과 역할이 달라 화면도 분리됐다. <span class="ref">career 1 · onboarding 4-[2]</span></span></li>
+        <li><span class="n">3</span><span>연차 구간 enum(0-1 / 2-3 / 4-6 / 7+)은 온보딩과 같은 값 체계다. 선택된 구간을 다시 탭하면 해제된다 — 값을 비우는 경로가 있어야 "비워 저장"(4.2)이 성립한다. <span class="ref">career 3 · 4.2</span></span></li>
+        <li><span class="n">4</span><span>[저장]은 변경 사항이 있을 때만 활성. 저장 중에는 버튼 로딩 + 조작 차단. 성공 시 토스트 후 이전 화면 복귀 — 프로필·설정의 요약은 복귀 시 재조회된다. <span class="ref">career 4.1 · 4.2 · 5</span></span></li>
+        <li><span class="n">A</span><span>직무는 <b>자유 입력</b>이다 — 검토 결정(2026-08-09, V1 해소): 온보딩과 동일하게 간다. 온보딩은 문서·계약 모두 입력형으로 일관하고(onboarding-uiux 4.3 "직무(입력)", api 100자 상한) career.md 4.1의 "선택형" 표기만 어긋나 있어 개정을 발행·반영했다(2026-08-09) — <code>changes/archive/career-job-title-input(fe).md</code>. <span class="ref">career 3 · 4.1 · onboarding-uiux 4.3 · onboarding-api 4.4</span></span></li>
+        <li><span class="n">9</span><span><b>[초기화] — 검토 결정(2026-08-09)으로 추가.</b> 탭하면 세 필드를 전부 비워 미입력 상태로 만든다. <b>확인 팝업 없이 즉시</b> — 저장 전의 로컬 편집 조작이라 재입력으로 복구되고, 실수로 비워도 저장하지 않고 나가면 서버 값이 그대로다. 비운 상태는 <b>변경 있음으로 취급</b>되어 [저장]이 활성되고, 빈 값 저장은 4.2가 이미 허용한다("미입력 상태로 되돌아간다"). [저장]과 오탭 거리를 두려고 dock이 아니라 앱바 우측에 둔다. <b>비울 것이 없으면(현재 값·편집 모두 빈 상태) 비활성</b>(CR2). 문서 개정 발행·반영 완료(2026-08-09, career.md 4.1·5장) — <code>changes/archive/career-reset-button(fe).md</code>. <span class="ref">career 4.1 · 4.2 · 검토 2026-08-09</span></span></li>
+      </ul>
+    </article>
+
+    <!-- CR2 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">CR2</span><h3>미입력</h3>
+        <p class="cap">빈 폼 + 입력 유도 문구 — 강요는 없다</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">8:41</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <span class="iconbtn plain"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 4L6.5 10l6 6"/></svg></span>
+            <p class="ttl">커리어 정보</p>
+            <span class="t-sm" style="color:var(--ink-3); opacity:.45; font-weight:650">초기화<span class="mk">10</span></span>
+          </div>
+          <div class="body">
+            <p class="t-sm" style="margin:2px 0 0">입력하면 추천이 정확해져요<span class="mk">5</span></p>
+            <div class="stack" style="gap:10px; margin-top:4px">
+              <div>
+                <p class="t-label" style="margin:0 0 6px">직군</p>
+                <div class="chips">
+                  <span class="chip">개발</span><span class="chip">기획</span><span class="chip">디자인</span>
+                  <span class="chip">마케팅·영업</span><span class="chip">운영·CS</span><span class="chip">연구·교육</span><span class="chip">기타</span>
+                </div>
+              </div>
+              <div>
+                <p class="t-label" style="margin:0 0 6px">직무</p>
+                <div class="field"><span>예) 서비스 기획자</span></div>
+              </div>
+              <div>
+                <p class="t-label" style="margin:0 0 6px">연차</p>
+                <div class="chips">
+                  <span class="chip">1년 이하</span><span class="chip">2–3년</span>
+                  <span class="chip">4–6년</span><span class="chip">7년 이상</span>
+                </div>
+              </div>
+            </div>
+            <div class="grow"></div>
+          </div>
+          <div class="dock line">
+            <div class="btn off">저장</div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">5</span><span>미입력 변형의 유도 문구는 프로필 카드의 미입력 문구와 같은 문자열이다("입력하면 추천이 정확해져요"). <b>입력을 강제하는 지점은 어디에도 없다</b> — 온보딩에서 건너뛴 값을 다시 요구하는 유도 화면을 만들지 않는 원칙 그대로다. <span class="ref">career 3 · 5 · profile-uiux 4.5 · onboarding 4-[2]</span></span></li>
+        <li><span class="n">10</span><span>[초기화]는 <b>비울 것이 없으면 비활성</b>이다 — 미입력 상태에서 누를 수 있으면 아무 일도 안 하는 버튼이 된다. 무반응 비활성이지만 여기서는 이유가 화면에 이미 보인다(모든 필드가 비어 있음). <span class="ref">career 5 · 검토 2026-08-09</span></span></li>
+      </ul>
+    </article>
+
+    <!-- CR3 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">CR3</span><h3>변경 있음</h3>
+        <p class="cap">[저장] 활성 · 직군은 칩 선택형(개정 2026-08-12) · 선택지는 온보딩과 공용</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">8:42</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="body" style="gap:12px; padding-top:20px">
+            <p class="t-label" style="margin:0">직군<span class="mk w">B</span></p>
+            <div class="chips">
+              <span class="chip">개발</span><span class="chip on">기획<span class="mk">6</span></span><span class="chip">디자인</span>
+              <span class="chip">마케팅·영업</span><span class="chip">운영·CS</span><span class="chip">연구·교육</span><span class="chip">기타</span>
+            </div>
+            <p class="t-label" style="margin:6px 0 0">직무</p>
+            <div class="field filled"><span>서비스 기획자</span></div>
+            <p class="t-label" style="margin:6px 0 0">연차</p>
+            <div class="chips"><span class="chip on">2–3년</span><span class="chip">4–6년</span></div>
+            <div class="btn" style="margin-top:auto">저장</div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">6</span><span><b>직군은 온보딩 O4와 같은 칩 선택형이다</b>(결정 2026-08-12 — 바텀시트·[선택 안 함] 폐기). 단일 선택이며 선택된 칩을 재탭하면 해제된다 — 값을 비워 저장하는 것이 허용되므로 비우는 경로가 재탭 해제다. 칩 탭 시점에는 저장되지 않는다 — 반영은 [저장]에서 일괄이다. <span class="ref">career 4.2 · career-uiux 4.4</span></span></li>
+        <li><span class="n">B</span><span><b>직군 선택지 목록은 서버가 제공한다</b>(확정 2026-08-10 — `GET /job-categories`, 온보딩과 공용 목록, 클라이언트 상수 금지). 칩 항목·순서는 서버 응답이 정한다. 직무는 자유 입력으로 확정돼 목록이 없다(검증 V1 ①). <span class="ref">career 4.1 · onboarding 4 [2]</span></span></li>
+      </ul>
+    </article>
+
+  </div>
+</section>
+
+<!-- =================== 오류 · 이탈 =================== -->
+<section class="section">
+  <div class="section-head">
+    <p class="sid">CR4 – CR5</p>
+    <h2>오류 · 이탈</h2>
+    <p>저장 실패는 <b>편집 상태를 유지</b>한 채 인라인으로 알립니다. 폼 제출은 오프라인 큐 대상이 아닙니다 — 오프라인 저장 시도도 같은 실패 처리입니다.</p>
+  </div>
+
+  <div class="shots">
+
+    <!-- CR4 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">CR4</span><h3>저장 실패</h3>
+        <p class="cap">인라인 에러 + [다시 시도] · 편집 유지</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">8:43</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <span class="iconbtn plain"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 4L6.5 10l6 6"/></svg></span>
+            <p class="ttl">커리어 정보</p>
+            <span style="width:20px"></span>
+          </div>
+          <div class="body">
+            <p class="t-sm" style="margin:2px 0 0">추천을 더 정확하게 하는 데만 쓰여요</p>
+            <div class="stack" style="gap:10px; margin-top:4px">
+              <div>
+                <p class="t-label" style="margin:0 0 6px">직군</p>
+                <div class="chips">
+                  <span class="chip on">개발</span><span class="chip">기획</span><span class="chip">디자인</span>
+                  <span class="chip">마케팅·영업</span><span class="chip">운영·CS</span><span class="chip">연구·교육</span><span class="chip">기타</span>
+                </div>
+              </div>
+              <div>
+                <p class="t-label" style="margin:0 0 6px">직무</p>
+                <div class="field filled"><span>백엔드 개발자</span></div>
+              </div>
+              <div>
+                <p class="t-label" style="margin:0 0 6px">연차</p>
+                <div class="chips">
+                  <span class="chip">1년 이하</span><span class="chip on">2–3년</span>
+                  <span class="chip">4–6년</span><span class="chip">7년 이상</span>
+                </div>
+              </div>
+            </div>
+            <div class="grow"></div>
+            <div class="banner warn">
+              <span>저장하지 못했어요. 다시 시도해주세요<span class="mk">7</span></span>
+            </div>
+          </div>
+          <div class="dock line">
+            <div class="btn primary">다시 시도</div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">7</span><span>실패해도 편집 값을 버리지 않는다. 오프라인 저장 시도도 같은 처리(인라인 에러 + [다시 시도])다 — 폼 제출은 오프라인 큐 대상이 아니다. 서버는 트랜잭션 단위라 부분 반영이 없고, 여러 기기 동시 편집은 마지막 저장이 최종이다. <span class="ref">career 5 · 7 · common-error-handling 4.5</span></span></li>
+      </ul>
+    </article>
+
+    <!-- CR5 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">CR5</span><h3>뒤로가기 — 변경 있음</h3>
+        <p class="cap">저장하지 않고 나갈지 확인</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">8:44</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="body" style="opacity:.35; gap:12px; padding-top:20px">
+            <p class="t-label" style="margin:0">직군</p>
+            <div class="chips"><span class="chip on">개발</span><span class="chip">기획</span><span class="chip">디자인</span></div>
+            <p class="t-label" style="margin:6px 0 0">연차</p>
+            <div class="chips"><span class="chip on">2–3년</span><span class="chip">4–6년</span></div>
+          </div>
+          <div class="veil"></div>
+          <div class="dialog">
+            <div class="panel">
+              <p class="h-md" style="margin:0">변경 사항을 저장하지 않고<br>나갈까요?<span class="mk">8</span></p>
+              <div class="btn-row" style="margin-top:8px">
+                <div class="btn outline">계속 편집</div>
+                <div class="btn primary">나가기</div>
+              </div>
+            </div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">8</span><span>변경이 있는 상태의 뒤로가기에만 뜬다 — 관심사 관리(IM7)와 같은 문구·같은 동작이다. 변경이 없으면 팝업 없이 바로 나간다. [나가기]로 이탈하면 기존 값이 그대로 유지된다. <span class="ref">career 5 · 8 · interest-management 5</span></span></li>
+      </ul>
+    </article>
+
+  </div>
+</section>
+
+<!-- =================== 검증 =================== -->
+<section class="verify">
+  <p class="sid">검토 필요</p>
+  <h2>커리어 정보에서 나온 것</h2>
+  <p>확인 팝업 없는 저장·비워 저장 허용·이탈 확인은 career.md에서 확정되어 화면에 반영했습니다. 검토(2026-08-10)에서 <b>V1 ②(직군 목록 서버 제공)·V2(저장 토스트 문구)까지 결정</b>되어 남은 열린 항목이 없습니다. spec(api·uiux)은 이 시안 기준으로 작성합니다.</p>
+
+  <div class="vlist">
+    <div class="vitem soft">
+      <h3><span class="vid">V1</span>직군·직무 입력 방식과 선택지 원천 — <b>전부 해소 (① 2026-08-09 · ② 2026-08-10)</b></h3>
+      <p>① <b>직무 입력 방식 — 해소.</b> 온보딩과 동일하게 <b>자유 입력</b>으로 확정했다. 온보딩은 문서·계약 모두 입력형으로 일관하고(onboarding-uiux 4.3 · onboarding-api 100자 상한) career.md 4.1의 "선택형" 표기만 어긋난 것이라, 개정을 발행·반영했다 — <code>changes/archive/career-job-title-input(fe).md</code>(2026-08-09, 반영 완료). ② <b>직군 선택지 목록의 원천 — 해소.</b> <b>서버 제공으로 확정했다</b>(검토 결정 2026-08-10). 입력 방식·선택지는 온보딩과 동일하게 유지하고, 목록은 온보딩·커리어가 같은 서버 목록을 쓴다(클라이언트 상수 금지). api 명세 작성 시 목록 제공 계약을 정의한다(백엔드 협의) — <code>changes/archive/career-source-and-toast(fe).md</code>(career.md·onboarding.md 반영 완료).</p>
+      <p class="where">career 3 · 4.1 · 미결 / onboarding 4 [2] · 미결 / 화면 CR1 · CR3</p>
+    </div>
+
+    <div class="vitem soft">
+      <h3><span class="vid">V2</span>저장 성공 토스트 문구 — <b>해소 (검토 결정 2026-08-10)</b></h3>
+      <p>제안대로 <b>"커리어 정보가 저장되었어요"</b>로 확정했다(관심사 관리의 "관심사가 변경되었어요"와 나란한 형태). <b>career.md 4.2·5장 반영 완료</b> — <code>changes/archive/career-source-and-toast(fe).md</code>.</p>
+      <p class="where">career 4.2 · 5 / 화면 CR1</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  근거 문서 — <code>docs/features/career.md</code> · <code>docs/features/onboarding.md</code> 3장 · 4-[2] · <code>docs/features/profile.md</code> 4.4 · <code>docs/features/common-error-handling.md</code> 4.5 · <code>docs/backend/domain.md</code> 3.1<br>
+  시각 디자인은 제안입니다. 확정할 것은 <b>화면에 무엇이 있고 없는가</b>이며, 색·서체는 별도로 정합니다.
+</footer>
+
+</div>
+<style>
+.mk{
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:15px; height:15px; padding:0 4px; border-radius:99px; margin-left:5px;
+  background:var(--doc-note); color:#fff; font-family:var(--mono); font-size:9px;
+  font-weight:700; vertical-align:middle; letter-spacing:0; line-height:1;
+}
+.mk.w{background:var(--doc-warn)}
+</style>
+</body>
+</html>

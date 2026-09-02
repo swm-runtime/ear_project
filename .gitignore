@@ -1,0 +1,7 @@
+# Claude Code 개인 설정 (팀 공용 설정은 CLAUDE.md, .claude/settings.json에 커밋)
+CLAUDE.local.md
+.claude/settings.local.json
+.claude/settings.json
+
+# macOS
+.DS_Store

@@ -1,0 +1,99 @@
+.head {
+  display: grid;
+  gap: 20px;
+  align-items: end;
+}
+
+.headLede {
+  max-width: 44ch;
+  color: var(--text-2);
+  font-size: clamp(15.5px, 1.5vw, 17px);
+  line-height: 1.75;
+}
+
+.steps {
+  display: grid;
+  gap: 0;
+  margin-top: clamp(44px, 6vw, 68px);
+  counter-reset: step;
+}
+
+.step {
+  display: flex;
+  gap: 22px;
+  padding: 28px 0;
+  border-top: 1px solid var(--line);
+}
+
+.step:last-child {
+  border-bottom: 1px solid var(--line);
+}
+
+.n {
+  flex: none;
+  width: 52px;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--brand-700);
+  padding-top: 4px;
+}
+
+.stepBody {
+  min-width: 0;
+}
+
+.stepTitle {
+  font-size: clamp(20px, 2.3vw, 25px);
+  letter-spacing: -0.04em;
+}
+
+.stepText {
+  margin-top: 10px;
+  max-width: 62ch;
+  color: var(--text-2);
+  font-size: 15.5px;
+  line-height: 1.75;
+}
+
+.meta {
+  display: inline-block;
+  margin-top: 14px;
+  padding: 4px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-pill);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-3);
+}
+
+.footnote {
+  margin-top: 30px;
+  max-width: 66ch;
+  color: var(--text-3);
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+.footnote strong {
+  color: var(--brand-700);
+  font-weight: 700;
+}
+
+@media (min-width: 900px) {
+  .head {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    gap: 48px;
+  }
+
+  .step {
+    gap: 40px;
+    padding: 34px 0;
+  }
+
+  .n {
+    width: 72px;
+    font-size: 14px;
+  }
+}

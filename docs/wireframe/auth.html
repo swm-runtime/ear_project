@@ -1,0 +1,1097 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>이어 — 계정 화면 시안</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+
+<header class="masthead">
+  <div class="brandline">
+    <svg class="mark" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+      <path d="M9.5 13.5a6.5 6.5 0 0 1 13 0c0 3.2-1.9 4.6-3.2 5.9-1.1 1.1-1.8 1.9-1.8 3.6a2.8 2.8 0 0 1-5.6 0"/>
+      <circle cx="13.6" cy="13.8" r="2.2" fill="currentColor" stroke="none"/>
+    </svg>
+    <span class="nm">이어</span>
+    <span class="sep">/</span>
+    <span class="ctx">화면 시안</span>
+  </div>
+
+  <p class="eyebrow">Flow A · auth.md</p>
+  <h1>계정 — 로그인 · 가입 · 이메일 인증 · 탈퇴</h1>
+  <p class="lede">
+    자체 아이디·비밀번호가 없으므로 이 플로우 전체가 소셜 제공자에 의존합니다.
+    가장 무거운 화면은 로그인이 아니라 <b>탈퇴</b>입니다 — 즉시 파기와 5년 보존이 갈리는 지점이기 때문입니다.
+    화면 수가 가장 많은 곳은 <b>이메일 코드 인증</b>인데, 제한이 유효 시간·검증 시도·발송 횟수 세 갈래로 갈리기 때문입니다.
+  </p>
+
+  <nav class="tabs" aria-label="화면 시안">
+    <a href="auth.html" aria-current="page">계정</a>
+    <a href="onboarding.html">온보딩</a>
+    <a href="library.html">라이브러리</a>
+    <a href="explore.html">탐색</a>
+    <a href="content-detail.html">콘텐츠 상세</a>
+    <a href="player.html">플레이어</a>
+    <a href="share.html">공유</a>
+    <a href="profile.html">프로필</a>
+    <a href="settings.html">설정</a>
+    <a href="interest-management.html">관심사 관리</a>
+    <a href="career.html">커리어</a>
+  </nav>
+
+  <div class="notice">
+    <b>이 시안의 용도.</b> 범위 검증용입니다 — 화면에 무엇이 있고 없는지를 확인하세요.
+    색·서체·간격은 <b>제안이며 확정된 아이덴티티가 아닙니다.</b> 앱 다크 테마는 아직 설계하지 않아 기기 안은 항상 라이트로 렌더됩니다.
+    각 요소의 번호는 명세 조항으로 연결됩니다. 문자 표기는 검토가 필요했던 지점이며,
+    그중 <span style="color:var(--doc-warn)">주황 문자</span>는 아직 명세에 근거가 없는 것입니다.
+  </div>
+</header>
+
+<!-- =================== 로그인 =================== -->
+<section class="section">
+  <div class="section-head">
+    <p class="sid">A1 – A4</p>
+    <h2>로그인 · 가입</h2>
+    <p>기존 계정이면 곧장 라이브러리로, 신규면 약관 동의를 거쳐 온보딩으로 갑니다. 계정이 실제로 생성되는 시점은 <b>동의 버튼을 누른 순간</b>입니다.</p>
+    <div class="flowbar">
+      <span>시작 화면</span><span class="ar">→</span>
+      <span>제공자 인증</span><span class="ar">→</span>
+      <span>기존 계정?</span><span class="ar">→</span>
+      <span class="hi">있음 : 라이브러리 · 온보딩</span><span class="ar">|</span>
+      <span class="hi">없음 : 약관 동의 → 계정 생성</span>
+    </div>
+  </div>
+
+  <div class="shots">
+
+    <!-- A1 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">A1</span><h3>시작 화면</h3>
+        <p class="cap">미로그인 · 세션 만료 복귀 시 공통</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar">
+            <span class="t">7:24</span>
+            <span class="i">
+              <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor" aria-hidden="true"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg>
+              <svg width="15" height="11" viewBox="0 0 15 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M1 4.2a9 9 0 0 1 13 0"/><path d="M3.6 6.8a5.4 5.4 0 0 1 7.8 0"/><circle cx="7.5" cy="9.6" r="1" fill="currentColor" stroke="none"/></svg>
+              <svg width="24" height="11" viewBox="0 0 24 11" fill="none" aria-hidden="true"><rect x=".6" y=".6" width="20" height="9.8" rx="3" stroke="currentColor" stroke-opacity=".45"/><rect x="2.2" y="2.2" width="14" height="6.6" rx="1.8" fill="currentColor"/><path d="M22.2 4v3a2 2 0 0 0 0-3z" fill="currentColor" fill-opacity=".45"/></svg>
+            </span>
+          </div>
+
+          <div class="body" style="padding-top:24px">
+            <div class="grow" style="display:flex; flex-direction:column; justify-content:center; gap:20px">
+              <svg width="52" height="52" viewBox="0 0 32 32" fill="none" stroke="var(--brand)" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+                <path d="M9.5 13.5a6.5 6.5 0 0 1 13 0c0 3.2-1.9 4.6-3.2 5.9-1.1 1.1-1.8 1.9-1.8 3.6a2.8 2.8 0 0 1-5.6 0"/>
+                <circle cx="13.6" cy="13.8" r="2.2" fill="var(--brand)" stroke="none"/>
+              </svg>
+              <div class="stack" style="gap:12px">
+                <p class="h-xl" style="margin:0">출근길에 열면<br>들을 게 준비되어 있어요<span class="mk">1</span></p>
+                <p class="t-body" style="margin:0">관심사에 맞는 콘텐츠를 매일 골라 라이브러리에 넣어드려요.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="dock">
+            <div style="display:flex; align-items:center; justify-content:center; gap:8px">
+              <div style="width:48px; height:1px; background:#E3E3E8"></div>
+              <span class="t-xs">소셜로그인으로 시작하기<span class="mk">2</span></span>
+              <div style="width:48px; height:1px; background:#E3E3E8"></div>
+            </div>
+            <div style="display:flex; justify-content:center; gap:16px; margin-top:8px">
+              <div style="width:64px; height:64px; border-radius:50%; background:#03C75A; color:#fff; display:flex; align-items:center; justify-content:center" aria-label="네이버로 시작하기">
+                <svg width="26" height="26" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M10.4 8.5 5.4 1H1v14h4.6V7.5l5 7.5H15V1h-4.6z"/></svg>
+              </div>
+              <div style="width:64px; height:64px; border-radius:50%; background:#FEE500; color:#191919; display:flex; align-items:center; justify-content:center" aria-label="카카오로 시작하기">
+                <svg width="26" height="26" viewBox="0 0 18 17" fill="currentColor" aria-hidden="true"><path d="M9 0C4 0 0 3.1 0 7c0 2.5 1.7 4.7 4.2 5.9l-1 3.7c-.1.3.3.6.6.4l4.4-2.9c.3 0 .5.1.8.1 5 0 9-3.1 9-7S14 0 9 0z"/></svg>
+              </div>
+              <div style="width:64px; height:64px; border-radius:50%; background:#fff; border:1px solid #747775; display:flex; align-items:center; justify-content:center" aria-label="Google로 시작하기">
+                <svg width="26" height="26" viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.6 9.2c0-.6-.1-1.2-.2-1.8H9v3.5h4.8a4.1 4.1 0 0 1-1.8 2.7v2.2h2.9c1.7-1.6 2.7-3.9 2.7-6.6z"/><path fill="#34A853" d="M9 18c2.4 0 4.5-.8 6-2.2l-2.9-2.2c-.8.5-1.8.9-3.1.9-2.4 0-4.4-1.6-5.1-3.8H.9v2.3A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.9 10.7a5.4 5.4 0 0 1 0-3.4V5H.9a9 9 0 0 0 0 8l3-2.3z"/><path fill="#EA4335" d="M9 3.6c1.3 0 2.5.5 3.4 1.3L15 2.3A9 9 0 0 0 .9 5l3 2.3C4.6 5.2 6.6 3.6 9 3.6z"/></svg>
+              </div>
+              <div style="width:64px; height:64px; border-radius:50%; background:#000; color:#fff; display:flex; align-items:center; justify-content:center" aria-label="Apple로 시작하기">
+                <svg width="26" height="26" viewBox="0 0 18 22" fill="currentColor" aria-hidden="true"><path d="M14.9 11.6c0-2.4 2-3.6 2.1-3.6-1.1-1.7-2.9-1.9-3.6-1.9-1.5-.2-3 .9-3.7.9-.8 0-2-.9-3.3-.8-1.7 0-3.2 1-4.1 2.5-1.7 3-.4 7.5 1.3 9.9.8 1.2 1.8 2.5 3.1 2.5 1.2 0 1.7-.8 3.2-.8s1.9.8 3.2.8c1.3 0 2.2-1.2 3-2.4.9-1.4 1.3-2.7 1.3-2.8 0 0-2.5-1-2.5-3.8zM12.5 4.2c.7-.8 1.1-2 1-3.2-1 0-2.2.7-2.9 1.5-.6.7-1.2 1.9-1 3.1 1.1.1 2.2-.6 2.9-1.4z"/></svg>
+              </div>
+            </div>
+            <p class="t-xs" style="text-align:center; margin:4px 0 0">
+              이용약관 · 개인정보 처리방침<span class="mk">A</span>
+            </p>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">1</span><span>서비스 소개 영역. <b>"이전에 OO로 가입한 이력이 있어요" 안내는 넣지 않는다</b> — 개인정보 노출 우려. <span class="ref">auth 4.1-6</span></span></li>
+        <li><span class="n">2</span><span>제공자 4종만. 아이디·비밀번호 입력란은 존재하지 않는다. 관리자도 같은 경로로 로그인한다. <b>애플은 선택이 아니다</b> — App Store 심사 가이드라인 4.8에 따라 다른 소셜 로그인을 제공하는 iOS 앱은 Sign in with Apple을 함께 제공해야 한다. 네이버·카카오·구글·애플 순으로 <b>같은 크기의 원형 심볼</b>만 나열한다(명칭 글자 없음) — 풀폭 버튼 3개는 브랜드 색 덩어리가 화면 무게의 절반을 가져가 로고·태그라인을 누른다. 명칭이 없으므로 <b>심볼이 유일한 식별 단서다</b> — <code>aria-label</code>에는 전체 문구를 넣는다. <b>감수한 위험</b>: <b>1</b>의 가입 이력 안내 금지와 겹쳐 재방문 사용자가 쓰던 제공자를 못 찾으면 <b>계정이 하나 더 생긴다.</b> 구분선 문구는 장식이 아니라 버튼 묶음의 제목이므로 스크린리더에서 읽는다. <span class="ref">auth 1 · FR-37 · auth-uiux 4.1</span></span></li>
+        <li><span class="n">A</span><span>약관 <b>링크</b>만 두고 동의 의미는 부여하지 않는다. "계속하면 동의한 것으로 봅니다" 식 문구를 넣으면 A4의 명시적 동의와 이중이 되고, 어느 시점의 동의를 기록할지 모호해진다. <span class="ref">auth 4.1</span></span></li>
+      </ul>
+    </article>
+
+    <!-- A2 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">A2</span><h3>제공자 인증 중</h3>
+        <p class="cap">외부 앱·웹뷰 복귀 대기</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:24</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="body" style="padding-top:24px; opacity:.4">
+            <div class="grow" style="display:flex; flex-direction:column; justify-content:center; gap:20px">
+              <svg width="52" height="52" viewBox="0 0 32 32" fill="none" stroke="var(--brand)" stroke-width="2.2" stroke-linecap="round"><path d="M9.5 13.5a6.5 6.5 0 0 1 13 0c0 3.2-1.9 4.6-3.2 5.9-1.1 1.1-1.8 1.9-1.8 3.6a2.8 2.8 0 0 1-5.6 0"/><circle cx="13.6" cy="13.8" r="2.2" fill="var(--brand)" stroke="none"/></svg>
+              <p class="h-xl" style="margin:0">출근길에 열면<br>들을 게 준비되어 있어요</p>
+            </div>
+          </div>
+          <div class="dock" style="opacity:.4">
+            <div style="display:flex; align-items:center; justify-content:center; gap:8px">
+              <div style="width:48px; height:1px; background:#E3E3E8"></div>
+              <span class="t-xs">소셜로그인으로 시작하기</span>
+              <div style="width:48px; height:1px; background:#E3E3E8"></div>
+            </div>
+            <div style="display:flex; justify-content:center; gap:16px; margin-top:8px">
+              <div style="width:64px; height:64px; border-radius:50%; background:#03C75A" aria-label="네이버로 시작하기"></div>
+              <div style="width:64px; height:64px; border-radius:50%; background:#FEE500" aria-label="카카오로 시작하기"></div>
+              <div style="width:64px; height:64px; border-radius:50%; background:#fff; border:1px solid #747775" aria-label="Google로 시작하기"></div>
+              <div style="width:64px; height:64px; border-radius:50%; background:#000" aria-label="Apple로 시작하기"></div>
+            </div>
+          </div>
+          <div class="center-veil">
+            <div class="spinner"></div>
+            <p class="t-sm" style="margin:0">카카오 인증을 기다리는 중<span class="mk">3</span></p>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">3</span><span>인증 중 오버레이. 사용자가 제공자 화면에서 <b>취소하면 에러 문구 없이</b> A1 상태로 조용히 복귀한다 — 취소는 실패가 아니다. <span class="ref">auth 5</span></span></li>
+      </ul>
+    </article>
+
+    <!-- A3 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">A3</span><h3>인증 실패</h3>
+        <p class="cap">취소와 구분해서 표시</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:24</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="body" style="padding-top:24px">
+            <div class="grow" style="display:flex; flex-direction:column; justify-content:center; gap:20px">
+              <svg width="52" height="52" viewBox="0 0 32 32" fill="none" stroke="var(--brand)" stroke-width="2.2" stroke-linecap="round"><path d="M9.5 13.5a6.5 6.5 0 0 1 13 0c0 3.2-1.9 4.6-3.2 5.9-1.1 1.1-1.8 1.9-1.8 3.6a2.8 2.8 0 0 1-5.6 0"/><circle cx="13.6" cy="13.8" r="2.2" fill="var(--brand)" stroke="none"/></svg>
+              <p class="h-xl" style="margin:0">출근길에 열면<br>들을 게 준비되어 있어요</p>
+            </div>
+          </div>
+          <div class="dock">
+            <div style="display:flex; align-items:center; justify-content:center; gap:8px">
+              <div style="width:48px; height:1px; background:#E3E3E8"></div>
+              <span class="t-xs">소셜로그인으로 시작하기</span>
+              <div style="width:48px; height:1px; background:#E3E3E8"></div>
+            </div>
+            <div style="display:flex; justify-content:center; gap:16px; margin-top:8px">
+              <div style="width:64px; height:64px; border-radius:50%; background:#03C75A" aria-label="네이버로 시작하기"></div>
+              <div style="width:64px; height:64px; border-radius:50%; background:#FEE500" aria-label="카카오로 시작하기"></div>
+              <div style="width:64px; height:64px; border-radius:50%; background:#fff; border:1px solid #747775" aria-label="Google로 시작하기"></div>
+              <div style="width:64px; height:64px; border-radius:50%; background:#000" aria-label="Apple로 시작하기"></div>
+            </div>
+          </div>
+          <div class="toast">로그인에 실패했어요. 다시 시도해주세요<span class="mk">4</span></div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">4</span><span>실패 시에만 토스트. 재시도할 때는 <code>provider_token</code>이 만료됐을 수 있으므로 <b>제공자 인증부터 다시</b> 수행한다. <span class="ref">auth 5 · 7</span></span></li>
+      </ul>
+    </article>
+
+    <!-- A4 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">A4</span><h3>약관 동의 (신규 가입)</h3>
+        <p class="cap">이 화면을 통과해야 계정이 생성된다</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:24</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <span class="iconbtn"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l-6 6 6 6"/></svg></span>
+            <span class="ttl">약관 동의</span>
+            <span class="iconbtn"></span>
+          </div>
+          <div class="body">
+            <p class="h-lg" style="margin:6px 0 0">서비스 이용에<br>동의해주세요</p>
+
+            <div style="border:1px solid var(--line-2); border-radius:14px; padding:14px; background:var(--surface)">
+              <div class="check" style="font-weight:700; font-size:14.5px">
+                <span class="tick on"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2l2.4 2.4L9.5 4"/></svg></span>
+                <span>전체 동의<span class="mk">5</span></span>
+              </div>
+            </div>
+
+            <div class="stack" style="gap:14px; padding:0 2px">
+              <div class="check">
+                <span class="tick on"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2l2.4 2.4L9.5 4"/></svg></span>
+                <span style="flex:1">[필수] 이용약관 <span class="t-xs">v1.2</span></span>
+                <span class="iconbtn plain"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg></span>
+              </div>
+              <div class="check">
+                <span class="tick on"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2l2.4 2.4L9.5 4"/></svg></span>
+                <span style="flex:1">[필수] 개인정보 처리방침 <span class="t-xs">v1.1</span><span class="mk">6</span></span>
+                <span class="iconbtn plain"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg></span>
+              </div>
+              <div>
+                <div class="check">
+                  <span class="tick"></span>
+                  <span style="flex:1">[선택] 마케팅 정보 수신<span class="mk">7</span></span>
+                </div>
+                <p class="t-xs" style="margin:5px 0 0 31px">신규 콘텐츠·혜택 소식을 보내드려요</p>
+              </div>
+            </div>
+          </div>
+          <div class="dock">
+            <div class="btn primary">동의하고 시작하기<span class="mk">8</span></div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">5</span><span>전체 동의는 편의 컨트롤일 뿐이다. 서버에는 <b>3종을 각각 별개 행으로</b> 기록한다. <span class="ref">auth 3</span></span></li>
+        <li><span class="n">6</span><span>이용약관과 개인정보 처리방침은 <b>개정 시점이 다르므로 버전을 각각 저장</b>한다. <code>consents.consent_type</code> <span class="ref">domain 3.2</span></span></li>
+        <li><span class="n">7</span><span>마케팅만 선택. 이 동의일이 <b>2년마다 재확인 의무의 기산점</b>이 되므로 시점이 반드시 기록된다(정보통신망법 제50조 제8항). <span class="ref">domain 3.2 · 12.2</span></span></li>
+        <li><span class="n">8</span><span>필수 2종을 모두 체크해야 활성. <b>이 버튼을 누른 순간 계정이 생성된다</b> — 여기서 이탈하면 계정 자체가 없다. <span class="ref">auth 4.1 · 7</span></span></li>
+      </ul>
+    </article>
+
+  </div>
+</section>
+
+<!-- =================== 로그아웃 · 탈퇴 =================== -->
+<section class="section">
+  <div class="section-head">
+    <p class="sid">A5 – A8</p>
+    <h2>로그아웃 · 탈퇴</h2>
+    <p>로그아웃은 이 기기만, 탈퇴는 계정 전체입니다. 탈퇴 화면은 <b>삭제되는 것과 남는 것을 모두</b> 보여줘야 나중에 분쟁이 없습니다.</p>
+    <div class="flowbar">
+      <span>설정</span><span class="ar">→</span>
+      <span>탈퇴 안내</span><span class="ar">→</span>
+      <span class="hi">구독 만료 동의(활성 시 필수)</span><span class="ar">→</span>
+      <span>사유 · 최종 확인</span><span class="ar">→</span>
+      <span class="hi">이관 + 파기 단일 트랜잭션</span>
+    </div>
+  </div>
+
+  <div class="shots">
+
+    <!-- A5 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">A5</span><h3>설정 — 계정 섹션</h3>
+        <p class="cap">두 진입점이 같은 섹션에 있다</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:24</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar"><h1>설정</h1></div>
+          <div class="body">
+            <div style="display:flex; gap:12px; align-items:center; padding:14px; background:var(--surface); border:1px solid var(--line); border-radius:16px">
+              <div style="width:44px; height:44px; border-radius:99px; background:var(--surface-2); display:flex; align-items:center; justify-content:center; font-weight:800; color:var(--ink-2)">지</div>
+              <div style="flex:1; min-width:0">
+                <p style="margin:0; font-weight:700; letter-spacing:-.02em">김지우</p>
+                <p class="t-xs" style="margin:2px 0 0">카카오 · jiwoo@example.com<span class="mk">9</span></p>
+              </div>
+            </div>
+
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:14px; background:var(--brand); color:var(--brand-ink); border-radius:16px">
+              <div>
+                <p class="t-label" style="margin:0; color:rgba(255,255,255,.65)">현재 요금제</p>
+                <p style="margin:3px 0 0; font-weight:750; letter-spacing:-.025em">데일리 · 다음 결제 8월 21일</p>
+              </div>
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+            </div>
+
+            <p class="t-label" style="margin:6px 0 -4px">계정</p>
+            <div class="stack" style="gap:0; background:var(--surface); border:1px solid var(--line); border-radius:14px; overflow:hidden">
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:14px 15px; border-bottom:1px solid var(--line)">
+                <span style="font-size:14px; font-weight:600">이메일</span>
+                <span style="display:flex; align-items:center; gap:6px; min-width:0">
+                  <span class="t-xs" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap">jiwoo@example.com</span>
+                  <span class="t-xs" style="flex:none; padding:2px 7px; border-radius:99px; background:var(--surface-2); border:1px solid var(--line); color:var(--ink-2); font-weight:650">인증되지 않음<span class="mk w">D</span></span>
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+                </span>
+              </div>
+              <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 15px; border-bottom:1px solid var(--line)">
+                <span style="font-size:14px; font-weight:600">로그아웃<span class="mk">10</span></span>
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+              </div>
+              <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 15px">
+                <span style="font-size:14px; font-weight:600; color:var(--danger)">회원 탈퇴</span>
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+              </div>
+            </div>
+          </div>
+          <div class="tabbar">
+            <a href="#"><svg width="21" height="21" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5h11M4 11h11M4 16.5h7"/><circle cx="18" cy="16" r="2.4"/></svg>라이브러리</a>
+            <a href="#"><svg width="21" height="21" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M14.2 7.8l-1.8 4.6-4.6 1.8 1.8-4.6z"/></svg>탐색</a>
+            <a href="#" class="on"><svg width="21" height="21" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="3"/><path d="M17.6 13.4a1.5 1.5 0 0 0 .3 1.7l.1.1a1.8 1.8 0 1 1-2.6 2.6l-.1-.1a1.5 1.5 0 0 0-2.6 1.1v.2a1.8 1.8 0 1 1-3.6 0v-.1a1.5 1.5 0 0 0-2.6-1.1l-.1.1a1.8 1.8 0 1 1-2.6-2.6l.1-.1a1.5 1.5 0 0 0-1.1-2.6h-.2a1.8 1.8 0 1 1 0-3.6h.1a1.5 1.5 0 0 0 1.1-2.6l-.1-.1a1.8 1.8 0 1 1 2.6-2.6l.1.1a1.5 1.5 0 0 0 1.7.3h.1a1.5 1.5 0 0 0 .9-1.4v-.2a1.8 1.8 0 1 1 3.6 0v.1a1.5 1.5 0 0 0 2.6 1.1l.1-.1a1.8 1.8 0 1 1 2.6 2.6l-.1.1a1.5 1.5 0 0 0-.3 1.7v.1a1.5 1.5 0 0 0 1.4.9h.2a1.8 1.8 0 1 1 0 3.6h-.1a1.5 1.5 0 0 0-1.4.9z"/></svg>설정</a>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">9</span><span>제공자와 이메일을 함께 표시. 카카오 선택 동의를 거부하거나 <code>is_email_valid = false</code>인 <b>마스킹 주소</b>를 받으면 이메일이 없으므로 이 줄이 제공자만 남는 경우를 처리해야 한다. <span class="ref">auth 2 · 4.1 · 7</span></span></li>
+        <li><span class="n w">D</span><span>[이메일] 행은 <b>세 상태</b>를 구분한다 — <b>없음</b>("등록되지 않음" + [등록]) / <b>있음·미인증</b>(주소 + "인증되지 않음" 배지 + [인증하기]·[변경]) / <b>있음·인증됨</b>(주소 + [변경]). 카카오 <code>is_email_verified = false</code>인 주소가 미인증 상태다. 저장된 주소와 인증된 주소를 <b>같은 모양으로 보여주면</b> 사용자는 결제 직전에야 한 단계가 남았다는 것을 알게 된다. 배지는 <b>경고색이 아니라 중립색</b> — 잘못된 상태가 아니라 남은 단계다. <span class="ref">auth 4.1 · profile 4.3</span></span></li>
+        <li><span class="n">10</span><span>로그아웃·탈퇴가 같은 섹션에 있다. 탈퇴는 <b>위험 액션이므로 색으로 구분</b>한다. <span class="ref">auth 2</span></span></li>
+      </ul>
+    </article>
+
+    <!-- A6 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">A6</span><h3>로그아웃 확인</h3>
+        <p class="cap">이 기기 세션만 폐기</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:24</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar"><h1>설정</h1></div>
+          <div class="body" style="opacity:.5">
+            <div style="display:flex; gap:12px; align-items:center; padding:14px; background:var(--surface); border:1px solid var(--line); border-radius:16px">
+              <div style="width:44px; height:44px; border-radius:99px; background:var(--surface-2)"></div>
+              <div style="flex:1"><p style="margin:0; font-weight:700">김지우</p><p class="t-xs" style="margin:2px 0 0">카카오</p></div>
+            </div>
+            <div class="stack" style="gap:0; background:var(--surface); border:1px solid var(--line); border-radius:14px; overflow:hidden">
+              <div style="padding:14px 15px; border-bottom:1px solid var(--line); font-size:14px; font-weight:600">로그아웃</div>
+              <div style="padding:14px 15px; font-size:14px; font-weight:600; color:var(--danger)">회원 탈퇴</div>
+            </div>
+          </div>
+          <div class="veil"></div>
+          <div class="dialog">
+            <div class="panel">
+              <p class="h-md" style="margin:0">로그아웃할까요?</p>
+              <p class="t-sm" style="margin:0">이 기기에 저장된 재생 위치와 목록이 지워져요. 다시 로그인하면 서버에서 복원됩니다.<span class="mk">11</span></p>
+              <div class="btn-row" style="margin-top:8px">
+                <div class="btn outline">취소</div>
+                <div class="btn primary">로그아웃</div>
+              </div>
+            </div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">11</span><span>로그아웃은 <b>이 기기 세션만</b> 폐기한다 — 다른 기기 로그인은 유지된다. 로컬 토큰·캐시·푸시 토큰을 정리하고 시작 화면으로 스택을 초기화한다. <span class="ref">auth 4.2 · 7</span></span></li>
+      </ul>
+    </article>
+
+    <!-- A7 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">A7</span><h3>탈퇴 안내 (A7-a) — 결제 이력 있음 · 활성 구독 있음</h3>
+        <p class="cap">이 플로우에서 정보량이 가장 많은 화면 · 결제 이력이 없으면 A7-b</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:24</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <span class="iconbtn"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l-6 6 6 6"/></svg></span>
+            <span class="ttl">회원 탈퇴</span>
+            <span class="iconbtn"></span>
+          </div>
+          <div class="body" style="overflow-y:auto; gap:12px">
+            <p class="h-lg" style="margin:2px 0 0">정말 떠나시나요?</p>
+
+            <div style="background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:14px">
+              <p class="t-label" style="margin:0 0 8px">바로 삭제돼요<span class="mk">12</span></p>
+              <p class="t-sm" style="margin:0; line-height:1.75">라이브러리에 담은 콘텐츠<br>관심 주제와 커리어 정보<br>재생 위치와 청취 기록<br>알림·재생 설정</p>
+            </div>
+
+            <div style="background:var(--surface-2); border:1px solid var(--line); border-radius:14px; padding:14px">
+              <p class="t-label" style="margin:0 0 8px">법령에 따라 5년간 보관돼요<span class="mk w">B</span></p>
+              <p class="t-sm" style="margin:0; line-height:1.75">결제·구독 이력<br>이메일 주소 (거래 확인용)</p>
+              <p class="t-xs" style="margin:8px 0 0">전자상거래법에 따른 거래기록 보존 의무입니다.</p>
+            </div>
+
+            <div class="banner warn">
+              <span>구독을 이용 중이에요<span class="mk">13</span></span>
+            </div>
+            <p class="t-sm" style="margin:-4px 0 0">스토어에서 구독을 따로 해지하지 않으면 <b class="em">결제가 계속됩니다.</b> 해지는 설정 &gt; 구독 관리에서 할 수 있어요.</p>
+
+            <div class="check" style="margin-top:4px">
+              <span class="tick on"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2l2.4 2.4L9.5 4"/></svg></span>
+              <span>구독 혜택이 <b class="em">즉시 종료</b>되는 것에 동의합니다<span class="mk">14</span></span>
+            </div>
+
+            <div class="field filled" style="margin-top:2px">
+              <span>더 볼 콘텐츠가 없어서</span>
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l5 5 5-5"/></svg>
+            </div>
+
+            <div class="check">
+              <span class="tick on"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2l2.4 2.4L9.5 4"/></svg></span>
+              <span>안내 내용을 모두 확인했습니다<span class="mk">15</span></span>
+            </div>
+            <div class="sp"></div>
+          </div>
+          <div class="dock line">
+            <div class="btn" style="background:var(--danger); color:#fff">탈퇴하기</div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">12</span><span>즉시 파기 대상. 라이브러리·관심사·커리어·재생 위치·재생 기록·소비 신호·설정·기기 토큰·세션·알림 로그·드립 제외 목록. <span class="ref">auth 4.3 · domain 12.3</span></span></li>
+        <li><span class="n">B</span><span><b>이 섹션은 결제 이력이 있을 때만 그린다.</b> 보존 항목을 <b>삭제 항목과 나란히</b> 고지한다 — 삭제 항목만 보여주면 "전부 지워진다"고 이해한 채 탈퇴하게 된다. 근거는 전자상거래법 시행령 제6조(거래기록 5년). <span class="ref">auth 4.3-1</span></span></li>
+        <li><span class="n">E</span><span><b>결제 이력이 없으면 A7-b(아래 별도 시안)가 된다.</b> 보존 섹션이 통째로 사라지고 "모든 데이터가 즉시 삭제됩니다"만 남으며, 구독 만료 동의 체크(14번)도 없다. 거래가 없으면 전자상거래법 시행령 제6조의 보존 대상이 성립하지 않아 <b>전량 즉시 파기</b>하기 때문이다(개인정보보호법 제21조 제1항). 보존 섹션을 <b>회색 처리하거나 "해당 없음"으로 남기지 않는다 — 아예 그리지 않는다.</b> 어느 변형인지는 진입 시 <code>GET /users/me/withdrawal-preview</code>가 판정한다. 클라이언트가 <code>user.tier</code>로 추측하면 결제 후 만료돼 무료로 돌아온 사용자를 "결제 이력 없음"으로 잘못 안내한다. <span class="ref">auth 4.3 · domain 12.3 · auth-api 4.6</span></span></li>
+        <li><span class="n">13</span><span>활성 구독이 있을 때만 노출. <b>스토어 구독은 앱 탈퇴로 자동 해지되지 않는다.</b> 안내는 <b>텍스트로만</b> 하고 스토어로 보내는 버튼·딥링크는 두지 않는다 — 탈퇴 도중 외부 앱으로 이탈시키면 돌아오지 못한다. 해지 진입점은 설정 &gt; 구독 관리에 이미 있다. <span class="ref">auth 4.3-2 · subscription 4.5</span></span></li>
+        <li><span class="n">14</span><span><b>이 체크 없이는 [탈퇴하기]가 활성화되지 않는다.</b> 구독 만료 동의는 선택이 아니라 필수 조건이다. <span class="ref">auth 4.3-2</span></span></li>
+        <li><span class="n">15</span><span>사유는 선택 입력. 식별자 없이 <code>withdrawal_logs</code>에 해시로만 남는다 — 아카이브와 <b>다른 해시 키</b>를 써서 개인과 연결되지 않게 한다. <span class="ref">domain 3.4 · 11.2</span></span></li>
+      </ul>
+    </article>
+
+    <!-- A7-b -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">A7-b</span><h3>탈퇴 안내 (A7-b) — 결제 이력 없음</h3>
+        <p class="cap">보존 섹션을 그리지 않는다 · 구독 만료 동의 없음</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:24</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <span class="iconbtn"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l-6 6 6 6"/></svg></span>
+            <span class="ttl">회원 탈퇴</span>
+            <span class="iconbtn"></span>
+          </div>
+          <div class="body" style="overflow-y:auto; gap:12px">
+            <p class="h-lg" style="margin:2px 0 0">정말 떠나시나요?</p>
+
+            <div style="background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:14px">
+              <p class="t-label" style="margin:0 0 8px">바로 삭제돼요</p>
+              <p class="t-sm" style="margin:0; line-height:1.75">라이브러리에 담은 콘텐츠<br>관심 주제와 커리어 정보<br>재생 위치와 청취 기록<br>알림·재생 설정</p>
+            </div>
+
+            <p class="t-sm" style="margin:0"><b class="em">모든 데이터가 즉시 삭제됩니다.</b><span class="mk">F</span></p>
+
+            <div class="field" style="margin-top:2px">
+              <span>탈퇴 이유를 알려주세요 (선택)</span>
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l5 5 5-5"/></svg>
+            </div>
+
+            <div class="check">
+              <span class="tick on"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2l2.4 2.4L9.5 4"/></svg></span>
+              <span>안내 내용을 모두 확인했습니다</span>
+            </div>
+            <div class="sp"></div>
+          </div>
+          <div class="dock line">
+            <div class="btn" style="background:var(--danger); color:#fff">탈퇴하기</div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">F</span><span><b>보존 섹션이 화면에 없다</b> — 회색 처리·"해당 없음"이 아니라 <b>섹션 자체를 그리지 않는다.</b> 보존할 거래기록이 없으므로 5년 보관 고지는 사실과 다른 안내가 되기 때문이다(<code>retained</code>가 빈 배열이 아니라 <code>null</code>인 이유). 활성 구독이 있을 수 없으므로 <b>구독 만료 동의 체크(A7-a의 14번)도 없다</b> — 최종 확인 체크 하나로 [탈퇴하기]가 활성된다. 판정은 <code>has_payment_history: false</code>. <span class="ref">auth 4.3 · auth-api 4.6 · auth-uiux 4.5</span></span></li>
+      </ul>
+    </article>
+
+    <!-- A8 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">A8</span><h3>탈퇴 처리 중 → 완료</h3>
+        <p class="cap">취소 불가 · 단일 트랜잭션</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:25</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="body mid">
+            <div class="spinner"></div>
+            <p class="h-md" style="margin:0">탈퇴를 처리하고 있어요</p>
+            <p class="t-sm" style="margin:0">잠시만 기다려주세요<span class="mk">16</span></p>
+          </div>
+          <div class="toast">탈퇴가 완료되었습니다<span class="mk">17</span></div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">16</span><span>전체 화면 로딩, 취소 불가. 서버는 <b>이관과 파기를 하나의 트랜잭션</b>으로 처리한다 — 이관만 되고 파기가 실패하면 개인정보가 두 곳에 남는다. <span class="ref">domain 12.3</span></span></li>
+        <li><span class="n">17</span><span>완료 후 A1으로. 같은 소셜 계정 재가입은 즉시 허용되지만 <b>신규 계정</b>이다. 다만 스토어 구독이 살아 있으면 영수증 검증으로 <b>티어는 복원</b>된다. <span class="ref">auth 4.3-6 · 7</span></span></li>
+      </ul>
+    </article>
+
+  </div>
+</section>
+
+<!-- =================== 이메일 등록 · 코드 인증 =================== -->
+<section class="section">
+  <div class="section-head">
+    <p class="sid">A9 – A19</p>
+    <h2>이메일 등록 · 코드 인증</h2>
+    <p>제공자가 이메일을 주면 <b>가입 시점에 그대로 저장</b>되므로 그 사용자는 이 섹션의 화면을 한 번도 보지 않습니다. 여기 들어오는 사람은 이메일이 오지 않았거나 마스킹 주소(ka***@kakao.com)를 받아 <b>값이 비어 있는 계정</b>뿐입니다. 화면은 세 진입 경로(결제·설정·프로필)가 <b>그대로 공유</b>하고, 다른 것은 인증 성공 후 어디로 돌아가느냐 하나입니다.</p>
+    <div class="flowbar">
+      <span>이메일 입력</span><span class="ar">→</span>
+      <span>코드 발송</span><span class="ar">→</span>
+      <span class="hi">6자리 · 3분 · 시도 5회</span><span class="ar">→</span>
+      <span>검증</span><span class="ar">→</span>
+      <span class="hi">서버가 users.email 저장</span><span class="ar">→</span>
+      <span class="hi">결제 복귀 | 직전 화면 복귀</span>
+    </div>
+  </div>
+
+  <div class="shots">
+
+    <!-- A9 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">A9</span><h3>이메일 입력 — 결제 전</h3>
+        <p class="cap">강제 · 이 단계를 통과해야 결제가 시작된다</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:24</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <span class="iconbtn"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l-6 6 6 6"/></svg></span>
+            <span class="ttl">이메일 등록</span>
+            <span class="iconbtn"></span>
+          </div>
+          <div class="body">
+            <p class="h-lg" style="margin:6px 0 0">결제를 진행하려면<br>이메일이 필요해요</p>
+            <div class="banner calm">
+              <span>결제·구독 이력은 법령에 따라 5년간 보관해야 해요<span class="mk">18</span></span>
+            </div>
+            <p class="t-sm" style="margin:-4px 0 0">거래 확인용 주소라서 결제 전에 한 번만 받아요. 지금 넣은 주소로 <b class="em">인증 코드 6자리</b>를 보내드려요.</p>
+
+            <div class="stack" style="gap:8px; margin-top:2px">
+              <p class="t-label" style="margin:0">이메일</p>
+              <div class="field"><span>you@example.com</span></div>
+            </div>
+          </div>
+          <div class="dock">
+            <div class="btn primary">인증 코드 받기<span class="mk">19</span></div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">18</span><span>결제 경로에만 있는 <b>진입 사유 안내</b>. 로그인·식별·알림에는 이메일이 필요 없고, 필요한 곳은 탈퇴 후 거래기록 보존 하나뿐이라 결제 사용자에게만 강제한다(개인정보보호법 제16조 최소수집). <span class="ref">auth 4.4</span></span></li>
+        <li><span class="n">19</span><span><b>인증이 끝나기 전에는 결제를 시작하지 않는다</b> — 결제만 되고 이메일이 없는 상태를 만들지 않기 위해서다. 여기서 이탈하면 이메일도 저장하지 않고 결제도 진행하지 않으며, 다음 결제 시도 시 이 화면부터 다시 시작한다. <span class="ref">auth 4.4 · 7</span></span></li>
+      </ul>
+    </article>
+
+    <!-- A10 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">A10</span><h3>이메일 입력 — 설정 · 프로필</h3>
+        <p class="cap">자발 · 등록과 변경이 같은 화면</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:24</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <span class="iconbtn"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l-6 6 6 6"/></svg></span>
+            <span class="ttl">이메일</span>
+            <span class="iconbtn"></span>
+          </div>
+          <div class="body">
+            <div style="background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:14px">
+              <p class="t-label" style="margin:0 0 6px">현재 이메일<span class="mk">20</span></p>
+              <p style="margin:0; font-weight:650; letter-spacing:-.02em">jiwoo@example.com</p>
+            </div>
+
+            <div class="stack" style="gap:8px; margin-top:2px">
+              <p class="t-label" style="margin:0">새 이메일</p>
+              <div class="field"><span>you@example.com</span></div>
+              <p class="t-xs" style="margin:0">새 주소로 인증 코드를 보내드려요.<span class="mk">21</span></p>
+            </div>
+          </div>
+          <div class="dock">
+            <div class="btn primary">인증 코드 받기</div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">20</span><span>설정·프로필 경로에는 <b>진입 사유 문구가 없다.</b> 대신 현재 값을 보여주고, 값이 없으면 <b>"등록되지 않음"</b>으로 표시한다. 진입점은 설정 &gt; 계정 &gt; 이메일(A5)과 프로필 &gt; 이메일 둘 다이며 화면은 같다. <span class="ref">auth 4.4 · settings 4.1 · profile 4.3</span></span></li>
+        <li><span class="n">21</span><span><b>변경도 신규 등록과 같은 절차를 거친다.</b> 검증 성공 시점에만 <code>users.email</code>이 바뀌므로, 코드 발송까지 하고 이탈해도 기존 주소가 그대로 남는다. 현재와 <b>같은 주소를 넣으면 코드를 보내지 않고</b> "이미 등록된 이메일이에요"로 막아 발송 횟수를 소모시키지 않는다. <span class="ref">auth 4.4 · 7</span></span></li>
+      </ul>
+    </article>
+
+    <!-- A11 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">A11</span><h3>형식 오류</h3>
+        <p class="cap">발송 요청 자체를 막는다</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:24</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <span class="iconbtn"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l-6 6 6 6"/></svg></span>
+            <span class="ttl">이메일 등록</span>
+            <span class="iconbtn"></span>
+          </div>
+          <div class="body">
+            <p class="h-lg" style="margin:6px 0 0">결제를 진행하려면<br>이메일이 필요해요</p>
+            <div class="stack" style="gap:8px; margin-top:2px">
+              <p class="t-label" style="margin:0">이메일</p>
+              <div class="field filled" style="border-color:var(--danger)"><span>jiwoo@example</span></div>
+              <p class="t-xs" style="margin:0; color:var(--danger)">이메일 형식을 확인해주세요<span class="mk">22</span></p>
+            </div>
+          </div>
+          <div class="dock">
+            <div class="btn off">인증 코드 받기</div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">22</span><span>형식이 어긋나면 <b>[인증 코드 받기]를 비활성</b>으로 두고 인라인으로 알린다. 서버 왕복 전에 걸러야 발송 횟수(5회)가 오타로 소모되지 않는다. <span class="ref">auth 5</span></span></li>
+      </ul>
+    </article>
+
+    <!-- A12 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">A12</span><h3>코드 발송 중 → 발송 실패</h3>
+        <p class="cap">중복 탭 차단 · 실패는 횟수 미차감</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:24</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <span class="iconbtn"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l-6 6 6 6"/></svg></span>
+            <span class="ttl">이메일 등록</span>
+            <span class="iconbtn"></span>
+          </div>
+          <div class="body">
+            <p class="h-lg" style="margin:6px 0 0">결제를 진행하려면<br>이메일이 필요해요</p>
+            <div class="stack" style="gap:8px; margin-top:2px">
+              <p class="t-label" style="margin:0">이메일</p>
+              <div class="field filled"><span>jiwoo@example.com</span></div>
+            </div>
+          </div>
+          <div class="dock">
+            <div class="btn primary" style="opacity:.75">
+              <span class="spinner" style="width:16px; height:16px; border-width:2px; border-color:rgba(255,255,255,.35); border-top-color:#fff"></span>
+              코드를 보내는 중<span class="mk">23</span>
+            </div>
+          </div>
+          <div class="toast">인증 메일을 보내지 못했어요. 다시 시도해주세요<span class="mk">24</span></div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">23</span><span>버튼 로딩으로 <b>중복 탭을 차단</b>한다. 한 번의 탭이 두 건으로 나가면 발송 횟수만 두 번 깎인다. <span class="ref">auth 5</span></span></li>
+        <li><span class="n">24</span><span>메일 발송 API 자체가 실패한 경우. <b>발송 횟수를 차감하지 않는다</b> — 인프라 장애로 사용자의 5회를 소진시키지 않기 위해서다. 실제로 <b>발송에 성공한 건만</b> 카운트한다. <span class="ref">auth 4.5 · 7</span></span></li>
+      </ul>
+    </article>
+
+    <!-- A13 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">A13</span><h3>인증 코드 확인</h3>
+        <p class="cap">6자리 · 3분 카운트다운 · 재전송 30초 쿨다운 · [메일 다시 입력]</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:25</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <span class="iconbtn"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l-6 6 6 6"/></svg></span>
+            <span class="ttl">이메일 등록</span>
+            <span class="iconbtn"></span>
+          </div>
+          <div class="body">
+            <p class="h-lg" style="margin:6px 0 0">메일로 보낸<br>코드 6자리를 넣어주세요</p>
+            <p class="t-sm" style="margin:0">
+              <b class="em">jiwoo@example.com</b> 으로 보냈어요
+              <span style="color:var(--accent); font-weight:650; margin-left:6px">메일 다시 입력<span class="mk w">C</span></span>
+            </p>
+
+            <div class="codebox" style="margin-top:2px">
+              <div class="field filled">4</div>
+              <div class="field filled">1</div>
+              <div class="field filled">9</div>
+              <div class="field" style="border-color:var(--brand)">&nbsp;</div>
+              <div class="field">&nbsp;</div>
+              <div class="field">&nbsp;</div>
+            </div>
+
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px">
+              <span class="t-sm">남은 시간 <b class="em" style="font-family:var(--mono); font-variant-numeric:tabular-nums">02:41</b><span class="mk">25</span></span>
+              <span class="t-sm" style="color:var(--ink-3); font-variant-numeric:tabular-nums">17초 후 재전송<span class="mk">26</span></span>
+            </div>
+
+            <p class="t-xs" style="margin:0">메일이 오지 않으면 스팸함을 확인해주세요.<span class="mk">G</span></p>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">C</span><span><b>[메일 다시 입력] — 항상 노출한다.</b> 오타를 낸 사용자의 유일한 탈출구이며, 이 버튼이 없으면 남는 선택지는 이탈뿐이다. 누르면 A9/A10으로 돌아가되 <b>직전 주소가 채워진 상태</b>로 시작한다(오타는 대개 한두 글자). 돌아가는 순간 <code>DELETE /users/me/email-verifications/:id</code>로 진행 중인 코드를 무효화한다. <b>발송 횟수 관계가 명확하다</b> — 카운터가 <code>(계정, 주소)</code> 단위이므로 <b>새 주소는 자기 몫의 5회를 새로 갖고</b>, 주소를 바꾸지 않고 그대로 다시 보내면 [재전송]과 동일하게 30초 쿨다운과 그 주소의 5회 제한이 걸린다. [재전송]을 주 액션, 이 버튼을 <b>텍스트 링크</b>로 둬서 "같은 주소로 다시"와 "주소를 바꾸러"를 구분한다. <span class="ref">auth 4.5 · auth-api 4.11</span></span></li>
+        <li><span class="n">25</span><span><b>6자리 숫자, 유효 시간 3분.</b> 발송 시각 기준으로 <code>mm:ss</code> 카운트다운한다. 동시에 유효한 코드는 <b>1개</b>뿐이라 재발송하면 이전 코드는 즉시 무효다. 앱을 껐다 켜면 <b>서버가 준 만료 시각으로 다시 계산</b>하고 클라이언트 타이머를 복원하지 않는다. <span class="ref">auth 4.5 · 7</span></span></li>
+        <li><span class="n">26</span><span>재발송 쿨다운 <b>30초</b>. 그동안 [재전송]은 비활성이고 <code>N초 후 재전송</code>으로 남은 시간을 표시한다. <b>쿨다운도 서버가 함께 검사한다</b> — 클라이언트 타이머만으로 막으면 우회된다. [메일 다시 입력]을 경유해도 같은 주소면 이 쿨다운을 회피할 수 없다. <span class="ref">auth 4.5</span></span></li>
+        <li><span class="n">G</span><span><b>[확인] 버튼이 없다</b> — 6칸이 모두 채워지면 <b>자동으로 검증을 요청한다</b>(uiux 확정). 6자리 붙여넣기도 지원해 메일에서 복사한 값이 한 번에 채워진다. 키보드는 숫자 전용, 백스페이스는 이전 칸으로. <span class="ref">auth-uiux 4.10</span></span></li>
+      </ul>
+    </article>
+
+    <!-- A14 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">A14</span><h3>코드 불일치</h3>
+        <p class="cap">남은 시도 횟수를 함께 보여준다</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:25</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <span class="iconbtn"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l-6 6 6 6"/></svg></span>
+            <span class="ttl">이메일 등록</span>
+            <span class="iconbtn"></span>
+          </div>
+          <div class="body">
+            <p class="h-lg" style="margin:6px 0 0">메일로 보낸<br>코드 6자리를 넣어주세요</p>
+            <p class="t-sm" style="margin:0"><b class="em">jiwoo@example.com</b> 으로 보냈어요</p>
+
+            <div class="codebox" style="margin-top:2px">
+              <div class="field filled" style="border-color:var(--danger)">4</div>
+              <div class="field filled" style="border-color:var(--danger)">1</div>
+              <div class="field filled" style="border-color:var(--danger)">9</div>
+              <div class="field filled" style="border-color:var(--danger)">2</div>
+              <div class="field filled" style="border-color:var(--danger)">0</div>
+              <div class="field filled" style="border-color:var(--danger)">7</div>
+            </div>
+            <p class="t-xs" style="margin:0; color:var(--danger)">인증 코드가 올바르지 않아요 (남은 시도 4회)<span class="mk">27</span></p>
+
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px">
+              <span class="t-sm">남은 시간 <b class="em" style="font-family:var(--mono); font-variant-numeric:tabular-nums">02:12</b></span>
+              <span class="t-sm" style="color:var(--ink-3); font-variant-numeric:tabular-nums">18초 후 재전송</span>
+            </div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">27</span><span>코드당 검증 시도는 <b>5회</b>다. <b>입력값은 지우지 않고</b> 남은 횟수를 함께 알린다. 서버는 <b>"틀림"과 "만료"를 구분해서</b> 내려준다 — 뭉뚱그리면 다시 입력해야 하는지 재발송해야 하는지 알 수 없다. 존재 여부·결과와 무관하게 <b>응답 시간은 일정</b>하게 유지한다(타이밍 공격 방지). <span class="ref">auth 4.5</span></span></li>
+      </ul>
+    </article>
+
+    <!-- A15 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">A15</span><h3>코드 만료 (3분 경과)</h3>
+        <p class="cap">입력 비활성 · 재전송으로 유도</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:28</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <span class="iconbtn"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l-6 6 6 6"/></svg></span>
+            <span class="ttl">이메일 등록</span>
+            <span class="iconbtn"></span>
+          </div>
+          <div class="body">
+            <p class="h-lg" style="margin:6px 0 0">메일로 보낸<br>코드 6자리를 넣어주세요</p>
+            <p class="t-sm" style="margin:0"><b class="em">jiwoo@example.com</b> 으로 보냈어요</p>
+
+            <div class="codebox" style="margin-top:2px; opacity:.5">
+              <div class="field" style="background:var(--surface-2)">&nbsp;</div>
+              <div class="field" style="background:var(--surface-2)">&nbsp;</div>
+              <div class="field" style="background:var(--surface-2)">&nbsp;</div>
+              <div class="field" style="background:var(--surface-2)">&nbsp;</div>
+              <div class="field" style="background:var(--surface-2)">&nbsp;</div>
+              <div class="field" style="background:var(--surface-2)">&nbsp;</div>
+            </div>
+
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px">
+              <span class="t-sm">남은 시간 <b style="font-family:var(--mono); font-variant-numeric:tabular-nums; color:var(--danger); font-weight:700">00:00</b><span class="mk">28</span></span>
+            </div>
+
+            <div class="banner warn">
+              <span>인증 시간이 지났어요. 코드를 다시 받아주세요</span>
+            </div>
+          </div>
+          <div class="dock">
+            <div class="btn primary">재전송<span class="mk">29</span></div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">28</span><span>카운트다운이 <code>00:00</code>이 되면 입력을 비활성으로 바꾼다. 다만 <b>만료 판정은 서버가 한다</b> — 클라이언트 타이머는 표시용이며, 만료된 코드는 이후 정답이어도 통과시키지 않는다. <span class="ref">auth 4.5 · 7</span></span></li>
+        <li><span class="n">29</span><span>만료 상태에서 [재전송]은 <b>활성</b>이다(쿨다운 30초가 지난 뒤). 새 코드를 받으면 이전 코드는 즉시 무효가 되므로, 이전 코드를 넣으면 실패로 처리한다. <span class="ref">auth 4.5 · 7</span></span></li>
+      </ul>
+    </article>
+
+    <!-- A16 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">A16</span><h3>검증 시도 5회 소진</h3>
+        <p class="cap">유효 시간이 남아 있어도 코드가 죽는다</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:26</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <span class="iconbtn"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l-6 6 6 6"/></svg></span>
+            <span class="ttl">이메일 등록</span>
+            <span class="iconbtn"></span>
+          </div>
+          <div class="body">
+            <p class="h-lg" style="margin:6px 0 0">메일로 보낸<br>코드 6자리를 넣어주세요</p>
+            <p class="t-sm" style="margin:0"><b class="em">jiwoo@example.com</b> 으로 보냈어요</p>
+
+            <div class="codebox" style="margin-top:2px; opacity:.5">
+              <div class="field" style="background:var(--surface-2)">&nbsp;</div>
+              <div class="field" style="background:var(--surface-2)">&nbsp;</div>
+              <div class="field" style="background:var(--surface-2)">&nbsp;</div>
+              <div class="field" style="background:var(--surface-2)">&nbsp;</div>
+              <div class="field" style="background:var(--surface-2)">&nbsp;</div>
+              <div class="field" style="background:var(--surface-2)">&nbsp;</div>
+            </div>
+
+            <div class="banner warn">
+              <span>코드를 다시 받아주세요<span class="mk">30</span></span>
+            </div>
+            <p class="t-sm" style="margin:-4px 0 0">인증 코드를 5번 잘못 넣어 이 코드는 더 이상 쓸 수 없어요.</p>
+          </div>
+          <div class="dock">
+            <div class="btn primary">재전송</div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">30</span><span>시도 5회를 쓰면 <b>남은 유효 시간과 무관하게 코드를 무효화</b>한다. 6자리 숫자의 무차별 대입을 막는 장치이며, [재전송]은 활성이므로 새 코드를 받아 이어갈 수 있다(발송 5회는 별도로 센다). <span class="ref">auth 4.5</span></span></li>
+      </ul>
+    </article>
+
+    <!-- A17 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">A17</span><h3>발송 5회 소진 — 해당 주소</h3>
+        <p class="cap">이메일 주소 단위 · 세 경로 합산 · 1시간 후 초기화 · 다른 주소는 가능</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:31</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <span class="iconbtn"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l-6 6 6 6"/></svg></span>
+            <span class="ttl">이메일 등록</span>
+            <span class="iconbtn"></span>
+          </div>
+          <div class="body">
+            <p class="h-lg" style="margin:6px 0 0">결제를 진행하려면<br>이메일이 필요해요</p>
+
+            <div class="stack" style="gap:8px; margin-top:2px">
+              <p class="t-label" style="margin:0">이메일</p>
+              <div class="field filled"><span>jiwoo@example.com</span></div>
+            </div>
+
+            <div class="banner warn">
+              <span>이 주소로는 1시간에 5번까지 보낼 수 있어요<span class="mk">31</span></span>
+            </div>
+            <p class="t-sm" style="margin:-4px 0 0"><b class="em">약 43분 후</b> 다시 시도하거나, <b class="em">다른 메일</b>로 인증해주세요.</p>
+            <p class="t-xs" style="margin:0">이미 받은 코드가 아직 살아 있다면 그 코드로는 인증할 수 있어요.<span class="mk">32</span></p>
+          </div>
+          <div class="dock">
+            <div class="btn off">인증 코드 받기</div>
+            <p class="t-sm" style="margin:10px 0 0; text-align:center; color:var(--accent); font-weight:650">메일 다시 입력<span class="mk">33</span></p>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">31</span><span>발송 가능 횟수 <b>이메일 주소당 5회</b>, 그 주소의 5회째 발송 시각 <b>+ 1시간</b>에 0으로 초기화. <b>남은 시간을 분 단위로 표시</b>한다 — "잠시 후 다시 시도해주세요"만으로는 언제 풀리는지 알 수 없어 그대로 CS 문의가 된다. 카운트 키는 <code>(계정, 주소)</code>이며 결제·설정·프로필 <b>세 경로에 합산</b>되므로 <b>같은 주소라면</b> 화면을 옮겨 다녀도 회피할 수 없다. 계정 단위로 세지 않는 이유는 <b>오타로 잘못 넣은 주소가 맞는 주소의 기회까지 소진</b>하면 사용자가 잘못한 것 없이 1시간을 기다리게 되기 때문이다. <span class="ref">auth 4.5 · domain 3.7</span></span></li>
+        <li><span class="n">32</span><span><b>잠기는 것은 발송이지 검증이 아니다.</b> 유효 시간이 남은 코드가 있으면 그 코드로 인증을 끝낼 수 있다. 반대로 이 상태에서 <b>결제를 시도하면 그 주소로는 결제를 막고</b> 남은 시간을 안내한다 — 인증 없이 결제를 통과시키지 않는다. <span class="ref">auth 4.5 · 7</span></span></li>
+        <li><span class="n">33</span><span><b>[메일 다시 입력]은 이 화면에서도 활성이다.</b> 잠긴 것은 그 주소일 뿐 계정이 아니므로 다른 주소로는 바로 발송할 수 있다. 여기서 이 버튼까지 잠그면 사용자를 <b>막다른 곳에 가둔다</b>. 문구도 "인증 코드는 1시간에 5번까지" 같은 <b>계정 전체 제한처럼 읽히는 표현을 쓰지 않는다</b> — 다른 주소를 쓸 수 있다는 사실이 문구에서 사라지면 버튼이 있어도 아무도 누르지 않는다. <span class="ref">auth 4.5 · auth-uiux 4.14</span></span></li>
+      </ul>
+    </article>
+
+    <!-- A18 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">A18</span><h3>인증 성공</h3>
+        <p class="cap">경로에 따라 복귀 지점만 갈린다</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:26</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar"><h1>설정</h1></div>
+          <div class="body">
+            <div style="display:flex; gap:12px; align-items:center; padding:14px; background:var(--surface); border:1px solid var(--line); border-radius:16px">
+              <div style="width:44px; height:44px; border-radius:99px; background:var(--surface-2); display:flex; align-items:center; justify-content:center; font-weight:800; color:var(--ink-2)">지</div>
+              <div style="flex:1; min-width:0">
+                <p style="margin:0; font-weight:700; letter-spacing:-.02em">김지우</p>
+                <p class="t-xs" style="margin:2px 0 0">카카오 · jiwoo@example.com</p>
+              </div>
+            </div>
+
+            <p class="t-label" style="margin:6px 0 -4px">계정</p>
+            <div class="stack" style="gap:0; background:var(--surface); border:1px solid var(--line); border-radius:14px; overflow:hidden">
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:14px 15px; border-bottom:1px solid var(--line)">
+                <span style="font-size:14px; font-weight:600">이메일<span class="mk">34</span></span>
+                <span style="display:flex; align-items:center; gap:6px; min-width:0">
+                  <span class="t-xs" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap">jiwoo@example.com</span>
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+                </span>
+              </div>
+              <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 15px; border-bottom:1px solid var(--line)">
+                <span style="font-size:14px; font-weight:600">로그아웃</span>
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+              </div>
+              <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 15px">
+                <span style="font-size:14px; font-weight:600; color:var(--danger)">회원 탈퇴</span>
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="var(--ink-3)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4l6 6-6 6"/></svg>
+              </div>
+            </div>
+          </div>
+          <div class="toast">이메일이 등록되었어요<span class="mk">35</span></div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">34</span><span>클라이언트는 "인증 완료"를 서버에 보내지 않는다. <b>코드 검증에 성공한 서버가</b> <code>users.email</code>과 <code>users.is_email_verified = true</code>를 <b>같은 트랜잭션에서</b> 저장하고, 화면은 그 결과를 반영할 뿐이다. 둘을 따로 쓰면 미인증 주소가 인증된 것으로 둔갑하거나 그 반대가 된다. A19를 거쳐 온 경우 <b>주소는 그대로이고 인증 상태만 바뀌므로</b>, 주소만 보고 갱신을 판단하면 배지가 남는다. 인증이 끝난 건은 보존하지 않고 배치로 정리한다. <span class="ref">auth 3 · 6 · auth-api 4.10</span></span></li>
+        <li><span class="n">35</span><span>설정·프로필 경로는 <b>직전 화면으로 복귀 + 토스트</b>. 결제 경로는 토스트 없이 <b>원래 시도했던 결제 플로우로 바로 복귀</b>한다 — 세 경로에서 다른 것은 이 복귀 지점 하나뿐이다. <span class="ref">auth 4.4 · 5</span></span></li>
+      </ul>
+    </article>
+
+    <!-- A19 -->
+    <article class="shot">
+      <div class="shot-head">
+        <span class="shot-id">A19</span><h3>인증 선택 — 결제 전 · 미인증 이메일 보유</h3>
+        <p class="cap">오류 톤을 쓰지 않는다 · [이 주소로 인증]이 기본</p>
+      </div>
+      <div class="device">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span class="t">7:24</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
+          <div class="appbar">
+            <span class="iconbtn"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l-6 6 6 6"/></svg></span>
+            <span class="ttl">이메일 인증</span>
+            <span class="iconbtn"></span>
+          </div>
+          <div class="body">
+            <p class="h-lg" style="margin:6px 0 0">이 주소로 메일이<br>도착하는지 확인이 필요해요<span class="mk">36</span></p>
+            <p class="t-sm" style="margin:0">결제 확인을 위해 인증된 이메일이 필요해요</p>
+
+            <div class="field filled" style="margin-top:2px">
+              <span>jiwoo@kakao.com<span class="mk">37</span></span>
+            </div>
+            <div class="grow"></div>
+          </div>
+          <div class="dock">
+            <div class="btn primary">이 주소로 인증<span class="mk">38</span></div>
+            <div class="btn quiet">다른 메일 입력<span class="mk">39</span></div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><span class="n">36</span><span><code>users.email</code>에 값이 있지만 <code>is_email_verified = false</code>인 사용자가 <b>결제를 시도할 때</b> A9 대신 여기로 들어온다. <b>"인증되지 않은 이메일입니다" 같은 오류 톤을 쓰지 않는다</b> — 사용자가 뭘 잘못한 상태가 아니라 카카오가 확인해주지 않은 주소일 뿐이다. 뒤로가기로 이탈하면 결제를 진행하지 않고 인증 상태도 바뀌지 않는다 — 다음 결제 시도 시 이 화면부터 다시 시작한다. <span class="ref">auth 4.4 · auth-uiux 4.7-1</span></span></li>
+        <li><span class="n">37</span><span>저장된 주소를 <b>그대로 노출한다.</b> 어느 주소로 메일이 갈지 모른 채 [이 주소로 인증]을 누르게 하지 않는다. 이 화면은 <b>어느 주소를 쓸지만 고르는 화면</b>이다 — 두 갈래 모두 이후는 4.5의 같은 코드 규칙이다. <span class="ref">auth 4.4 · auth-uiux 4.7-1</span></span></li>
+        <li><span class="n">38</span><span><b>기본 액션.</b> 대부분은 그 주소를 그대로 쓴다. 누르면 <b>A9(입력)을 건너뛰고 바로 A12(발송)로 간다</b> — 이미 아는 주소를 다시 입력시키지 않는다. 미인증 주소로의 발송은 <code>EMAIL_ALREADY_REGISTERED</code>가 아니다 — 정상 발송된다. <span class="ref">auth-uiux 4.7-1 · 4.8 · auth-api 4.8</span></span></li>
+        <li><span class="n">39</span><span>보조 스타일. 누르면 A9으로 가되 <b>입력칸은 비워둔다</b> — 바꾸려고 누른 것이므로 기존 주소를 채워두면 지우는 수고만 늘어난다(A13의 [메일 다시 입력]이 직전 주소를 채워두는 것과 반대 — 그쪽은 오타 수정 경로다). <span class="ref">auth-uiux 4.7 · 4.7-1</span></span></li>
+      </ul>
+    </article>
+
+  </div>
+</section>
+
+<!-- =================== 검증 =================== -->
+<section class="verify">
+  <p class="sid">검토 필요</p>
+  <h2>계정 플로우에서 나온 것</h2>
+  <p>화면으로 옮기니 명세만 읽을 때는 보이지 않던 빈칸이 나왔습니다. <b>V1·V2·V4·V5는 이후 결정으로, V7은 화면 보강(2026-08-09)으로, 마지막 남았던 V6도 검토 결정(2026-08-10)으로 해소되어</b> 열린 항목이 없습니다.</p>
+
+  <div class="vlist">
+    <div class="vitem soft">
+      <h3><span class="vid">V1</span>코드 입력 중 주소를 고치는 동선 — <b>해소됨</b></h3>
+      <p>[주소 변경]을 <b>[메일 다시 입력]</b>으로 확정했습니다. 발송 횟수 카운터를 <b>계정 단위에서 <code>(계정, 주소)</code> 단위로 바꾸면서</b> "새 주소도 같은 5회를 나눠 쓰는지"가 함께 풀렸습니다 — <b>새 주소는 자기 몫의 5회를 새로 갖습니다.</b> 무효화 시점은 화면을 벗어나는 순간이며 <code>DELETE /users/me/email-verifications/:id</code>로 서버에 알립니다.</p>
+      <p class="where">auth 4.5 / auth-api 4.11 / 화면 A13 · A17</p>
+    </div>
+
+    <div class="vitem soft">
+      <h3><span class="vid">V2</span>마스킹 주소를 무엇으로 걸러낼까 — <b>해소됨</b></h3>
+      <p>카카오 <code>is_email_valid</code> 플래그로 판정합니다. <code>false</code>면 카카오가 주소를 마스킹해서 내려주므로 저장하지 않고 <code>null</code>로 둡니다. <b>문자열 <code>***</code> 패턴 매칭은 쓰지 않습니다</b> — 제공자가 마스킹 형식을 바꾸면 그대로 뚫립니다. 함께 오는 <code>is_email_verified</code>는 별개 축이며, <b>둘 다 참일 때만</b> 인증된 이메일로 취급합니다.</p>
+      <p class="where">auth 4.1 / domain 3.1 / 화면 A5 · A9 · A19</p>
+    </div>
+
+    <div class="vitem soft">
+      <h3><span class="vid">V3</span>검증 시도 5회 · 재발송 쿨다운 30초</h3>
+      <p>유효 시간(3분)·발송 횟수(5회)와 달리 이 두 수치는 <b>기본값으로 정한 것</b>입니다. 쿨다운은 60초에서 <b>30초로 조정됐습니다.</b> 화면에는 "남은 시도 N회"(A14)와 "N초 후 재전송"(A13)으로 이미 노출되므로, 추가 조정 시 <b>문구가 함께 바뀝니다.</b></p>
+      <p class="where">auth 4.5 / 화면 A13 · A14</p>
+    </div>
+
+    <div class="vitem soft">
+      <h3><span class="vid">V4</span><code>email_verifications</code> 테이블 — <b>해소됨</b></h3>
+      <p><code>domain.md</code> 3.7에 등재했습니다. 발송 1건 = 1행이며, 창 내 순번 <code>send_seq</code>로 5회 제한을 판정합니다. <b>누적 <code>COUNT(*)</code>를 쓰지 않는 이유</b>는 잠금이 풀린 뒤 카운트가 0으로 초기화돼야 하는데 단순 개수는 지나간 창의 행까지 세어 6회째부터 영구히 잠기기 때문입니다. 마지막 검증 시도 시각은 <code>last_attempted_at</code>에 남습니다.</p>
+      <p class="where">domain 3.7 / 화면 A13 – A17</p>
+    </div>
+
+    <div class="vitem soft">
+      <h3><span class="vid">V5</span>이메일이 없는 계정의 표시 — <b>해소됨</b></h3>
+      <p>A5는 <b>세 상태</b>(없음 / 있음·미인증 / 있음·인증됨)를 구분해 표시합니다. 탈퇴 아카이브 쪽 우려도 사라졌습니다 — <b>결제 이력이 없으면 아카이브 자체를 하지 않고 전량 즉시 파기</b>하기 때문입니다. 아카이브되는 사용자는 전원 결제자이고, 결제는 인증된 이메일 없이 시작되지 않으므로 <code>archived_users.email</code>은 <b><code>NOT NULL</code></b>이 됩니다.</p>
+      <p class="where">auth 4.1 · 4.3 / domain 11.3 · 12.3 / 화면 A5 · A7</p>
+    </div>
+
+    <div class="vitem soft">
+      <h3><span class="vid">V6</span>계정 단위 발송 상한 — <b>해소 (검토 결정 2026-08-10)</b></h3>
+      <p><b>주소 단위 5회 위에 계정 단위 백스톱을 얹는 것으로 확정했습니다: 최근 1시간 20회 / 최근 24시간 50회</b>(주소 무관 합산, 3개 경로 공통). <b>클라이언트에는 노출하지 않습니다</b> — 남은 횟수·전용 잠금 화면·안내 문구 없음. 정상 사용자는 주소당 5회·쿨다운 30초에 먼저 걸려 도달할 수 없고, 노출하면 우회 힌트만 되기 때문입니다(초과 시 발송 요청은 공통 에러 계약의 일반 오류). 따라서 <b>화면 변경은 없습니다</b> — A17의 주소 단위 잠금 안내가 그대로 유일한 잠금 화면입니다. 판정·집계는 서버 소유(<code>email_verifications</code>)이며 구현은 백엔드 몫입니다. <b>auth.md 4.5·미결 반영 완료</b> — <code>changes/archive/auth-email-account-send-cap(fe).md</code>.</p>
+      <p class="where">auth 4.5 · 미결 / domain 3.7 / 화면 변경 없음</p>
+    </div>
+
+    <div class="vitem soft">
+      <h3><span class="vid">V7</span>미작성 화면 — <b>해소됨 (2026-08-09 보강)</b></h3>
+      <p><b>A19</b>(인증 선택)와 <b>A7-b</b>(결제 이력 없는 탈퇴 안내)를 이번 보강으로 작도해 A1–A19가 전부 채워졌습니다. 함께, A13·A14에 그려져 있던 <b>[확인] 버튼을 제거</b>했습니다 — auth-uiux 4.10이 "6칸이 채워지면 자동 검증, 별도 [확인] 버튼을 두지 않는다"로 확정한 것과 어긋나던 지점입니다(주석 G). <b>auth-uiux.md의 "와이어프레임 동기화 필요" 표기는 개정 발행·반영이 끝났습니다</b> — <code>changes/archive/auth-uiux-wireframe-sync-note(fe).md</code>(2026-08-09, 동기화 노트·9장 미결 갱신됨). A13의 [메일 다시 입력]은 그 표기와 달리 이미 반영돼 있었습니다.</p>
+      <p class="where">auth-uiux 2장 · 4.5 · 4.7-1 · 4.10 / 화면 A7-b · A13 · A14 · A19</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  근거 문서 — <code>docs/features/auth.md</code> · <code>docs/backend/domain.md</code> 3장 · 11장 · 12장<br>
+  시각 디자인은 제안입니다. 확정할 것은 <b>화면에 무엇이 있고 없는가</b>이며, 색·서체는 별도로 정합니다.
+</footer>
+
+</div>
+<style>
+/* 기기 안 인라인 마커 — 문서 주석과 시각적으로 분리 */
+.mk{
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:15px; height:15px; padding:0 4px; border-radius:99px; margin-left:5px;
+  background:var(--doc-note); color:#fff; font-family:var(--mono); font-size:9px;
+  font-weight:700; vertical-align:middle; letter-spacing:0; line-height:1;
+}
+.mk.w{background:var(--doc-warn)}
+
+/* 인증 코드 6칸 입력 — .field를 6등분해 쓰기 위한 배치만 정의한다(색·테두리는 .field 그대로) */
+.codebox{display:flex; gap:7px}
+.codebox .field{
+  flex:1; min-width:0; justify-content:center; padding:13px 0;
+  font-size:19px; font-weight:750; letter-spacing:0; font-variant-numeric:tabular-nums;
+}
+</style>
+</body>
+</html>

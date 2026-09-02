@@ -1,0 +1,15 @@
+# AI 서버의 공개 진입점은 파이프라인 웹 하나다 — 도메인은 admin.<도메인> (2026-09-03 admin 콘솔 통합, spec/10 2장의 pipeline.<도메인> 표기는 개정 대상).
+# TLS 는 Let's Encrypt 자동 발급 — A 레코드가 이 서버를 가리키고 80/443 이 열려 있으면 끝.
+# ai-server(:8000)는 여기로 프록시하지 않는다 — 제품 서버가 VPC 사설 IP 로, 노트북은 SSH 터널로 부른다.
+{$PIPELINE_DOMAIN} {
+	encode gzip
+
+	reverse_proxy web:3000 {
+		header_up X-Forwarded-Proto {scheme}
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

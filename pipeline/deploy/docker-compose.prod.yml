@@ -1,0 +1,86 @@
+# AI 서버 EC2 단일 호스트 구성 (spec/10 2장 "호스트" · M6) — caddy(TLS) → web(Next.js) · worker-io · ai-server(FastAPI).
+#   cd /opt/ear/ear_project/pipeline
+#   docker compose -f deploy/docker-compose.prod.yml --env-file deploy/env.prod up -d --build
+# env 파일은 점 없는 이름(env.prod·env.ai-server)을 쓴다 — .env* 는 dockerignore·편집 도구 차단 대상
+#
+# - AWS 자격증명은 인스턴스 역할 `ear-ai-ec2` (IMDSv2 hop limit 2 — 컨테이너가 역할을 읽는 조건)
+# - worker 는 IO 전용(EXECUTOR=none) — 구독 토큰·API 키를 서버에 두지 않는다 (spec/10 2장)
+# - ai-server(:8000)는 호스트 포트로만 열리고 SG 가 소스를 제품 SG 로 한정한다 — 공개 도메인 없음
+name: ear-ai
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    environment:
+      PIPELINE_DOMAIN: ${PIPELINE_DOMAIN:?PIPELINE_DOMAIN required}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - web
+
+  web:
+    build: &pipeline-build
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:?}
+        NEXT_PUBLIC_EAR_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_EAR_GOOGLE_CLIENT_ID:-} # 발행 콘솔 구글 로그인 (비밀 아님)
+        WORKER_REV: ${WORKER_REV:-unknown}
+    image: ear-pipeline:prod
+    restart: unless-stopped
+    environment:
+      # 서버 전용 env — NEXT_PUBLIC_* 는 빌드에 박혔다
+      PIPELINE_BUCKET: ${PIPELINE_BUCKET:?}
+      AWS_REGION: ${AWS_REGION:-ap-northeast-2}
+      PIPELINE_WORKER_TOKEN: ${PIPELINE_WORKER_TOKEN:?}
+      EAR_API_BASE_URL: ${EAR_API_BASE_URL:-https://api.earcast.co.kr/api/v1} # 발행 프록시(/api/ear) 대상
+    expose:
+      - '3000'
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '5' }
+
+  worker-io:
+    build: *pipeline-build
+    image: ear-pipeline:prod
+    restart: unless-stopped
+    command: ['npm', 'run', 'worker']
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?}
+      EXECUTOR: none
+      CAPABILITIES: io
+      WORKER_NAME: ${WORKER_NAME:-ai-server-io}
+      WORK_ROOT: /work # S3 캐시 (io 워커는 규칙 자산을 읽지 않는다)
+      PIPELINE_BUCKET: ${PIPELINE_BUCKET:?}
+      AWS_REGION: ${AWS_REGION:-ap-northeast-2}
+      S3_MODE: direct
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-} # TTS (M5) — env.prod 에 보관된 키
+    volumes:
+      - worker-work:/work
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '5' }
+
+  ai-server:
+    build:
+      context: ../../ai-server
+    restart: unless-stopped
+    env_file: env.ai-server # ai-server/.env.example 기준 (INTERNAL_AUTH_TOKEN·EMBEDDING_* — 커밋 금지)
+    ports:
+      - '8000:8000' # SG 가 소스를 제품 SG·로컬(SSH 터널은 localhost)로 한정한다
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '5' }
+
+volumes:
+  caddy-data:
+  caddy-config:
+  worker-work:

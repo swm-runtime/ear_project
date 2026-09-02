@@ -1,0 +1,21 @@
+# 빌드 컨텍스트 최소화 + 비밀·산출물 제외 (deploy/Dockerfile)
+node_modules
+**/node_modules
+.next
+**/.next
+.work
+out
+dist
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+*.mp3
+*.wav
+.DS_Store
+deploy/aws/out
+deploy/env.prod
+deploy/env.ai-server

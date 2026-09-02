@@ -1,0 +1,53 @@
+.wrap {
+  background: var(--paper-2);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.groups {
+  display: grid;
+  gap: 28px;
+  margin-top: clamp(40px, 5vw, 56px);
+}
+
+.group {
+  padding-top: 22px;
+  border-top: 2px solid var(--ink-900);
+}
+
+.groupName {
+  font-size: 17px;
+  letter-spacing: -0.04em;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.chip {
+  padding: 8px 15px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.note {
+  margin-top: clamp(32px, 4vw, 44px);
+  max-width: 72ch;
+  color: var(--text-3);
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+@media (min-width: 820px) {
+  .groups {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 32px;
+  }
+}
