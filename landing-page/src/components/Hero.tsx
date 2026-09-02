@@ -298,9 +298,9 @@ export function Hero() {
               <span className={s.srOnly}>{site.name}</span>
             </span>
             <span className={s.tagline}>
-              출근길에 열면,
+              자기계발 하고 싶은데,
               <br />
-              오늘 들을 게 준비되어 있어요
+              시간이 부족하신가요?
             </span>
           </h1>
 
@@ -308,10 +308,9 @@ export function Hero() {
               첫 화면을 고쳐야 하고, 무엇보다 여기서 할 말은 규격이 아니라 약속이다.
               구체적인 숫자는 바로 아래 숫자 띠와 요금제 페이지가 맡는다. */}
           <p className={s.lede}>
-            듣고 싶은 주제만 한 번 정해 두면 그다음은 이어가 합니다. 자기계발·커리어·교양
-            콘텐츠가 오디오로 준비된 채 기다리고 있으니, 무엇을 들을지 찾고 고를 필요가
-            없습니다.
-            <strong> 이어폰만 꽂으면 됩니다.</strong>
+            관심 있는 주제만 한 번 골라 두세요. 매일 아침, 그 주제로 만든 15분짜리
+            에피소드가 도착해 있어요. 오늘은 뭘 듣지 고민할 일 없이,
+            <strong> 이어폰만 꽂으면 돼요.</strong>
           </p>
 
           <div className={s.actions}>
@@ -333,7 +332,7 @@ export function Hero() {
           </div>
 
           <p className={s.note}>
-            카카오·네이버·구글 계정으로 시작 · 무료 요금제에도 매일 2편이 도착합니다
+            카카오·네이버·구글·애플 계정으로 시작해요 · 무료 요금제에도 매일 2편이 도착해요
           </p>
         </div>
 

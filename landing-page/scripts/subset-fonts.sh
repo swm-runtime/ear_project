@@ -62,4 +62,12 @@ BASE="U+0020-007E,U+00A0,U+00A9,U+00AE,U+00B7,U+00D7,U+2013,U+2014,U+2018,U+2019
   --output-file=public/fonts/pretendard-var.woff2
 
 ls -lh public/fonts/pretendard-var.woff2
+
+echo "5/5  Paperlogy(제목용) 서브셋 — 600·700 두 굵기"
+for W in "6SemiBold:600" "7Bold:700"; do
+  NAME="${W%%:*}"; WGT="${W##*:}"
+  curl -sSfL -o "$WORK/paperlogy-$WGT.woff2"     "https://cdn.jsdelivr.net/gh/fonts-archive/Paperlogy/Paperlogy-$NAME.woff2"
+  "$WORK/venv/bin/pyftsubset" "$WORK/paperlogy-$WGT.woff2"     --unicodes="$BASE"     --text-file="$WORK/chars.txt"     --layout-features='*'     --flavor=woff2     --output-file="public/fonts/paperlogy-$WGT.woff2"
+done
+ls -lh public/fonts/paperlogy-*.woff2
 echo "완료. 문구를 또 고치면 다시 실행할 것."
