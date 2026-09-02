@@ -1,4 +1,4 @@
-import { GetObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { GetObjectCommand, HeadObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 /**
@@ -56,6 +56,22 @@ export async function listObjects(prefix: string, max = 1000): Promise<StoredObj
     token = r.IsTruncated ? r.NextContinuationToken : undefined;
   } while (token && out.length < max);
   return out;
+}
+
+/** 바이너리 객체 읽기 — 없으면 null. headOnly=true 면 존재 확인만(바이트를 받지 않는다) */
+export async function getBytes(key: string, headOnly = false): Promise<Uint8Array | null> {
+  try {
+    if (headOnly) {
+      await s3().send(new HeadObjectCommand({ Bucket: bucket(), Key: assertKey(key) }));
+      return new Uint8Array(0);
+    }
+    const r = await s3().send(new GetObjectCommand({ Bucket: bucket(), Key: assertKey(key) }));
+    return await r.Body!.transformToByteArray();
+  } catch (e: unknown) {
+    const name = (e as { name?: string })?.name;
+    if (name === "NoSuchKey" || name === "NotFound") return null;
+    throw e;
+  }
 }
 
 /** 로컬 워커용 서명 URL — 워커는 이 URL 로 S3 와 직접 통신한다 (AWS 키 없이). 만료는 짧게 */
