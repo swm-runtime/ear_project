@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-/** 세션 쿠키 갱신 + 미로그인 시 /login 으로 (팀 전용 화면) */
+/** 세션 쿠키 갱신 + 미로그인 시 /login 으로 (팀 전용 화면). `/api/*` 는 제외 — 워커용 라우트는 자체 토큰 인증 (app/api/storage) */
 export async function proxy(req: NextRequest) {
   let res = NextResponse.next({ request: req });
   const sb = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
@@ -24,4 +24,4 @@ export async function proxy(req: NextRequest) {
   return res;
 }
 
-export const config = { matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|ico)$).*)"] };
+export const config = { matcher: ["/((?!api/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|ico)$).*)"] };

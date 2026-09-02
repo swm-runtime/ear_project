@@ -17,11 +17,12 @@ UI는 작업을 **요청**할 뿐이다 — `jobs`에 넣고, `backlog.status`�
 ## 실행
 
 ```bash
-cp .env.example .env.local     # NEXT_PUBLIC_SUPABASE_URL / ANON_KEY (팀 비밀 채널) · WORK_ROOT (산출물 작업 루트, 워커와 같은 곳)
+cp .env.example .env.local     # NEXT_PUBLIC_SUPABASE_URL / ANON_KEY (팀 비밀 채널) · PIPELINE_BUCKET·AWS_REGION (+로컬은 AWS_PROFILE) · PIPELINE_WORKER_TOKEN
 npm run dev -w apps/web        # pipeline/ 에서. http://localhost:3000
 npm run build -w apps/web
 ```
 
-- 산출물(`local:` 키)은 `WORK_ROOT`에서 읽는다 — S3 이관(M4) 후 `s3:` 키 지원 추가(`lib/artifacts.ts`).
+- 산출물(`s3:` 키)은 파이프라인 S3 에서 읽고 쓴다(`lib/storage.ts`·`lib/artifacts.ts` — 자격증명은 EC2 인스턴스 역할, 로컬은 SSO 프로필). 이관 전 `local:` 키는 `WORK_ROOT`에서.
+- `POST /api/storage` — 로컬 워커용 서명 URL 라우트(목록·GET·PUT, 공유 토큰 `PIPELINE_WORKER_TOKEN`). `proxy.ts` 의 로그인 리다이렉트에서 `/api/` 는 제외.
 - 승인자·판정자·요청자는 클라이언트 값이 아니라 DB 트리거가 세션에서 찍는다(`supabase/migrations/0003`). 화면은 그 값을 보내지 않는다.
 - `proxy.ts`가 미로그인 요청을 `/login`으로 보낸다. 서버 액션 외 별도 API 서버는 없다.

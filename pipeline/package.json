@@ -9,7 +9,9 @@
     "worker": "npm run -w apps/worker start --",
     "assets:import": "npm run -w apps/worker assets -- import",
     "assets:export": "npm run -w apps/worker assets -- export",
-    "assets:status": "npm run -w apps/worker assets -- status"
+    "assets:status": "npm run -w apps/worker assets -- status",
+    "storage:status": "npm run -w apps/worker storage -- status",
+    "storage:migrate": "npm run -w apps/worker storage -- migrate"
   },
   "allowScripts": {
     "esbuild@0.28.2": true,

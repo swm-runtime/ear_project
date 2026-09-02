@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import path from "node:path";
 import { cfg, executedBy } from "../config.js";
 import { enqueue, getEpisode, insertRun, setBacklogStatus, setJobProgress, upsertEpisode, type Job } from "../db.js";
@@ -5,6 +6,7 @@ import type { Executor } from "../executors/index.js";
 import { buildQaPrompt, QA_SCHEMA } from "@ear/pipeline";
 import { log } from "../util.js";
 import { prepareAssets, workerRev } from "../assets.js";
+import { localPathOf, pullPrefix, pushPrefix, s3Key } from "../storage.js";
 
 interface QaOut { verdict: "qa_passed" | "failed"; failures: { location: string; item: string; reason: string }[]; holds: string[]; report_written: boolean; summary: string }
 
@@ -19,7 +21,9 @@ export async function runQa(job: Job, ex: Executor) {
   if (!ep) throw new Error(`에피소드 ${episodeId} 없음`);
   const rel = `episodes/${episodeId}`;
   const dir = path.join(cfg.workRoot, rel);
-  const scriptFile = ep.script_key?.startsWith("local:") ? path.join(cfg.workRoot, ep.script_key.slice(6)) : undefined;
+  await fs.mkdir(dir, { recursive: true });
+  await pullPrefix(`${rel}/`); // S3 가 원본 — 대본(사람 수정 포함)·claims·발췌·기존 QA 리포트를 받는다 (spec/10 3.3)
+  const scriptFile = localPathOf(ep.script_key);
   const { assetRoot, bundle } = await prepareAssets(ep.asset_versions ?? null); // 에피소드에 고정된 규칙 (spec/10 3.2)
 
   const prompt = buildQaPrompt({ assetRoot, workRoot: cfg.workRoot, episodeId, attempt, scriptFile });
@@ -39,8 +43,10 @@ export async function runQa(job: Job, ex: Executor) {
   });
   const o = r.output;
   const failTxt = o.failures.map((f) => `${f.location} [항목 ${f.item}] ${f.reason}`).join(" / ");
-  await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: ep.prompt_version, qa_report_key: `local:${rel}/qa-report.md`, ...(ep.asset_versions ? {} : { asset_versions: bundle.versions }) });
-  await insertRun({ backlog_id: backlogId, phase: "qa", attempt, result: `${o.verdict} — 실패 ${o.failures.length}·보류 ${o.holds.length}. ${o.summary}${failTxt ? ` · 실패 상세: ${failTxt}`.slice(0, 1200) : ""}`, prompt_version: `${bundle.labels.qa} (worker)`, artifacts: [`local:${rel}/qa-report.md`], executed_by: executedBy, model: r.model, cost_usd: r.listCostUsd, tokens: (r.raw as { usage?: unknown } | undefined)?.usage, worker_rev: workerRev() });
+  await pushPrefix(`${rel}/`); // qa-report.md — 먼저 S3 에
+  const reportKey = s3Key(`${rel}/qa-report.md`);
+  await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: ep.prompt_version, qa_report_key: reportKey, ...(ep.asset_versions ? {} : { asset_versions: bundle.versions }) });
+  await insertRun({ backlog_id: backlogId, phase: "qa", attempt, result: `${o.verdict} — 실패 ${o.failures.length}·보류 ${o.holds.length}. ${o.summary}${failTxt ? ` · 실패 상세: ${failTxt}`.slice(0, 1200) : ""}`, prompt_version: `${bundle.labels.qa} (worker)`, artifacts: [reportKey], executed_by: executedBy, model: r.model, cost_usd: r.listCostUsd, tokens: (r.raw as { usage?: unknown } | undefined)?.usage, worker_rev: workerRev() });
 
   let next: Record<string, unknown> = {};
   if (o.verdict === "qa_passed") {

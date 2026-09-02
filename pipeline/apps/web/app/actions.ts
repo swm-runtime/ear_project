@@ -1,9 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
-import fs from "node:fs/promises";
-import path from "node:path";
 import { supabaseServer } from "@/lib/supabase-server";
-import { coldOpenStatus, replaceTurn } from "@/lib/artifacts";
+import { coldOpenStatus, loadArtifact, replaceTurn, writeArtifact } from "@/lib/artifacts";
 
 /** 게이트 1 (사람): proposed → approved / rejected / held. approved_by·approved_at 는 DB 트리거가 세션에서 찍는다. */
 export async function setBacklogStatus(id: string, status: "approved" | "rejected" | "held" | "proposed" | "qa_passed") {
@@ -80,24 +78,21 @@ export async function saveSetting(key: string, value: unknown) {
 
 /**
  * 대본 턴 직접 수정 (사람) — 비평 리포트에 서술로 남기는 대신 문장을 고쳐 쓴다 (2026-08-31 규약 개정).
- * 파일을 고치고 수정 전/후를 episodes.human_edits 에 누적한다. 리포트 파일은 건드리지 않는다.
+ * S3 의 대본(`s3:` 키)을 고치고 — 버저닝이라 이전 본이 남는다 — 수정 전/후를 episodes.human_edits 에 누적한다. 리포트 파일은 건드리지 않는다.
+ * 워커는 다음 단계(재QA·비평) 시작 시 S3 에서 다시 내려받으므로 수정본이 그대로 검증 대상이 된다 (spec/10 3.3).
  */
 export async function editScriptTurn(episodeId: string, turn: string, after: string, reason?: string) {
   const sb = await supabaseServer();
   const { data: { user } } = await sb.auth.getUser();
   const { data: ep, error } = await sb.from("episodes").select("script_key,human_edits").eq("id", episodeId).single();
   if (error) throw new Error(error.message);
-  if (!ep?.script_key?.startsWith("local:")) throw new Error("대본 파일 경로를 찾을 수 없습니다 (S3 이관 후 지원)");
-  const root = process.env.WORK_ROOT ?? process.env.REPO_ROOT;
-  if (!root) throw new Error("WORK_ROOT 미설정");
-  const file = path.resolve(root, ep.script_key.slice(6));
-  if (!file.startsWith(path.resolve(root))) throw new Error("경로 오류");
-
-  const md = await fs.readFile(file, "utf-8");
+  if (!ep?.script_key) throw new Error("대본 파일 키가 없습니다");
+  const md = await loadArtifact(ep.script_key);
+  if (md == null) throw new Error(`대본을 읽을 수 없습니다: ${ep.script_key} (PIPELINE_BUCKET·AWS 자격증명 확인)`);
   const r = replaceTurn(md, turn, after.trim());
   if (!r) throw new Error(`대본에서 ${turn} 을 찾을 수 없습니다`);
   if (r.before.trim() === after.trim()) return { changed: false, coldOpenBroken: false };
-  await fs.writeFile(file, r.md, "utf-8");
+  await writeArtifact(ep.script_key, r.md);
 
   const entry = { turn, before: r.before, after: after.trim(), reason: reason?.trim() || null, by: user?.email ?? null, at: new Date().toISOString() };
   const { error: e2 } = await sb.from("episodes").update({ human_edits: [...(ep.human_edits ?? []), entry] }).eq("id", episodeId);

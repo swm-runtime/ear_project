@@ -1,17 +1,43 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { getText, putText } from "./storage";
 
-/** 산출물 읽기 — S3 이관 전에는 local: 키를 산출물 작업 루트(WORK_ROOT — 워커와 같은 곳)에서 읽는다 (spec/08 2장). M4 에서 s3: 키 지원 추가. */
+/**
+ * 산출물 읽기 — `s3:` 키(정규, M4)는 파이프라인 S3 에서, `local:`(이관 전 기록)은 WORK_ROOT 에서 (spec/10 3.3). 못 읽으면 null.
+ * 오류 원인(자격증명·버킷 미설정)은 서버 로그에 남긴다.
+ */
 export async function readArtifact(key: string | null | undefined): Promise<string | null> {
   if (!key) return null;
+  try { return await loadArtifact(key); }
+  catch (e: unknown) { console.error(`[artifacts] ${key} 읽기 실패: ${(e as Error)?.message ?? e}`); return null; }
+}
+
+export async function loadArtifact(key: string): Promise<string | null> {
+  if (key.startsWith("s3:")) return getText(key.slice(3));
   if (key.startsWith("local:")) {
-    const root = process.env.WORK_ROOT ?? process.env.REPO_ROOT;
-    if (!root) return null;
-    const p = path.resolve(root, key.slice(6));
-    if (!p.startsWith(path.resolve(root))) return null;
+    const p = localPathOf(key);
+    if (!p) return null;
     try { return await fs.readFile(p, "utf-8"); } catch { return null; }
   }
   return null;
+}
+
+/** 산출물 쓰기 — 사람 수정(대본 턴). S3 는 버저닝이라 이전 본이 남는다 */
+export async function writeArtifact(key: string, text: string): Promise<void> {
+  if (key.startsWith("s3:")) return putText(key.slice(3), text);
+  if (key.startsWith("local:")) {
+    const p = localPathOf(key);
+    if (!p) throw new Error("WORK_ROOT 미설정 (local: 키)");
+    return fs.writeFile(p, text, "utf-8");
+  }
+  throw new Error(`알 수 없는 산출물 키: ${key}`);
+}
+
+function localPathOf(key: string): string | null {
+  const root = process.env.WORK_ROOT ?? process.env.REPO_ROOT;
+  if (!root) return null;
+  const p = path.resolve(root, key.slice(6));
+  return p.startsWith(path.resolve(root)) ? p : null;
 }
 
 export interface Turn { kind: "E" | "Y" | "plain" | "meta" | "section"; n?: number; speaker?: string; text: string; section?: string }
