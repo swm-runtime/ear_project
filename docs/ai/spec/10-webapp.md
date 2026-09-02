@@ -41,7 +41,7 @@ spec/08의 원칙 "UI와 실행기의 결합은 상태 테이블로만"을 그�
                     │ + jobs (작업 큐) · episodes (산출물 인덱스)          │   │   claims·리포트·audio/       │
                     │ Realtime: jobs/backlog 변경 → 화면 즉시 갱신          │   │ sweeps/{날짜}.json           │
                     └────────────────────────▲──────────────────────────┘   └──────────────▲──────────────┘
-                                             │ 폴링(5s) + Realtime                          │ 업로드 (IAM 사용자, 버킷 한정)
+                                             │ 폴링(5s) + Realtime                          │ 서명 URL(web /api/storage) · EC2 는 인스턴스 역할
                     ┌────────────────────────┴───────────────────────────────────────────────┴──────────────┐
                     │  worker[local]  — 팀원 Mac에서 `npm run worker` (.env: EXECUTOR=claude-cli) 로 실행                    │
                     │  AI 작업 전담: cluster · draft · qa · critic                                            │
@@ -123,6 +123,20 @@ claude -p --output-format json --json-schema <단계별 결과 스키마> \
 - git 사본: `assets:export`가 active를 `docs/ai/skills/`로 덤프(PR에서 규칙 diff가 보이게, CHANGELOG는 note에서 생성). 방향은 웹 → DB → git 한쪽. active 행은 수정 불가 — 고치려면 새 버전을 만들어 활성화한다(`runs`에 남은 버전 = 그때 실제 내용).
 - 프롬프트 빌더 안의 문자열 규칙(`COMMON_RULES`·`GOLD_USAGE` 등)은 2차에서 자산(`prompts/draft.md`)으로 뺀다.
 
+### 3.3 산출물 저장 — 원본은 S3, WORK_ROOT 는 캐시 (2026-09-02 구현, M4)
+
+규칙 자산(3.2)이 DB 로 갔듯 **산출물 파일은 파이프라인 S3 가 원본**이다(spec/08 1장 배치 기준 · 2장 버킷 규격). Supabase 에는 키·판정·수정 로그만 남는다.
+
+- **키** — `episodes.*_key`·`runs.artifacts` 는 `s3:<버킷 안 경로>`(예: `s3:episodes/T260901-001/script.md`). 버킷명은 env(`PIPELINE_BUCKET`), 경로는 spec/08 2장 레이아웃 그대로. 이관 전 기록(`local:`·접두사 없음)은 읽기만 지원 — 같은 상대 경로로 해석한다.
+- **워커 동기화** (`apps/worker/src/storage.ts`) — 단계 시작 시 `episodes/{id}/` 를 `WORK_ROOT/episodes/{id}/` 로 **내려받고**(pull) 끝나면 **올린다**(push). 파일 md5 ↔ S3 ETag 가 같으면 건너뛰므로 멱등이다(단일 PUT + SSE-S3 객체의 ETag = md5). pull 은 로컬에만 있는 파일을 지우지 않는다 — 죽은 실행이 남긴 미업로드분은 다음 push 가 올린다. 내려받은 파일의 mtime 은 S3 LastModified 로 맞춰 재집기 판정(3분 정착)이 기기와 무관하게 같다. 스윕 아카이브는 `sweeps/…json` 에 바로 올린다.
+  - 이 순서 덕에 **웹에서 고친 대본을 다음 단계(재QA·비평)가 그대로 검증**하고, 워커 A 가 죽은 에피소드를 다른 노트북의 워커 B 가 이어받는다. 같은 파일을 두 곳에서 동시에 고친 경우는 버저닝이 양쪽 본을 남긴다(충돌 병합은 하지 않는다).
+  - push 를 먼저, DB 키 갱신을 나중에 — 키가 가리키는 객체가 없는 상태를 만들지 않는다.
+- **두 백엔드** (`S3_MODE`, 비우면 `PIPELINE_WEB_URL` 유무로 결정) — `direct`: AWS SDK 직접, 자격증명은 SDK 기본 체인(EC2 인스턴스 역할 `ear-ai-ec2` · 개발 중엔 `AWS_PROFILE`). `web`: 웹 **`POST /api/storage`** 가 목록과 15분짜리 서명 URL(GET·PUT)을 내주고 워커는 그 URL 로 S3 와 직접 통신 — 팀원 노트북의 기본이며 **노트북에 AWS 키를 두지 않는다**(spec/08 2장 자격증명 모델). 라우트 인증은 공유 토큰 `PIPELINE_WORKER_TOKEN`(Bearer, 상수 시간 비교), 키 범위는 버킷 정책과 같은 `episodes/`·`sweeps/`·`datasets/` 만, `proxy.ts` 의 로그인 리다이렉트에서 `/api/` 는 제외.
+- **웹** (`apps/web/lib/storage.ts`·`lib/artifacts.ts`) — `s3:` 키를 읽어 화면에 띄우고, 턴 인라인 수정은 PutObject(버저닝으로 이전 본 보존). 자격증명은 워커 direct 와 같은 체인(EC2 롤 / 로컬 SSO 프로필).
+- **기동 시 점검** — 워커는 시작할 때 `episodes/` 목록 1건을 읽어 저장소 접근을 확인하고, 실패하면 작업을 집기 전에 죽는다(3.2 의 "자산 폴백 없음"과 같은 원칙). 노트북 워커는 웹이 떠 있어야 한다 — M6 전에는 임대 보유자의 로컬 웹(SSO) 또는 direct 모드.
+- **CLI** — `npm run storage:status`(접근 확인 + DB 키·S3 객체 현황) · `npm run storage:migrate [-- --apply] [-- --source <dir>]`(로컬 `episodes/`·`sources/sweeps/` 업로드 + `episodes.*_key`·`runs.artifacts` 의 `local:` → `s3:` 치환. 기본은 계획만 출력, 멱등). `backlog/*.md`·시드 파일은 S3 대상이 아니라 그대로 둔다.
+- **스키마 변경 없음** — 키는 기존 text 컬럼, 접두사만 바뀐다.
+
 ## 4. 데이터 추가 (schema.sql 개정)
 
 ```sql
@@ -200,8 +214,8 @@ alter table runs add column cost_usd numeric, add column tokens jsonb, add colum
 
 ```
 pipeline/                          파트 (npm workspaces: apps/*, packages/*)
-  apps/web                         Next.js (App Router, TS) — 화면 + S3 서명 URL 라우트
-  apps/worker                      Node/TS CLI — jobs 폴링·집기·실행·연쇄. executors/{claude-cli,api,none}.ts · stages/{sweep,cluster,draft,qa,critic,domain-check}.ts (tts·package 는 M5)
+  apps/web                         Next.js (App Router, TS) — 화면 + S3 읽기/쓰기(lib/storage.ts) + 로컬 워커용 서명 URL 라우트(app/api/storage)
+  apps/worker                      Node/TS CLI — jobs 폴링·집기·실행·연쇄. executors/{claude-cli,api,none}.ts · stages/{sweep,cluster,draft,qa,critic,domain-check}.ts (tts·package 는 M5) · storage.ts(S3 동기화, 3.3) · assets.ts(규칙 자산 로더, 3.2) · cli/{assets,storage}.ts
   packages/pipeline                단계별 프롬프트 조립기·결과 스키마 (자산은 경로만 넘긴다 — 컨텍스트 예산)
   supabase/schema.sql · migrations/  0002 jobs·episodes·claim_job · 0003 팀 RLS·스탬프 트리거·settings · 0004~0008 (schema.sql 은 스냅샷)
   deploy/                          EC2 "AI 서버" compose(web + io 워커 + Caddy) — M6 에서 작성. 같은 인스턴스에 ai-server/(FastAPI) 동거 (2장 정렬)
@@ -209,8 +223,8 @@ docs/ai/                           ASSET_ROOT — spec/ skills/ templates/ refer
 ai-server/                         FastAPI 단발 추론 API (임베딩) — 별도 파트
 ```
 
-- 경로는 둘이다: **`ASSET_ROOT`**(읽기 전용 자산, 기본 `docs/ai`) · **`WORK_ROOT`**(산출물 `episodes/`·`sources/sweeps/`, 레포 밖 — 기본 `pipeline/.work`, gitignore). 실행기 `claude -p` 의 cwd 는 WORK_ROOT 다 — cwd 가 레포 안이면 Claude Code 가 루트 `CLAUDE.md`·`.claude/` 를 자동 반입해 생성 컨텍스트를 오염시킨다(spec/09 컨텍스트 예산). 자산은 `--add-dir ASSET_ROOT` 로만 연다. 전환기에는 기존 로컬 산출물 폴더를 WORK_ROOT 로 지정하면 DB 의 `local:` 키가 그대로 해석된다.
-- 레포에 넣지 않는 것: `episodes/`·`sources/sweeps/`(→ S3, M4) · `references/*.txt`(타사 전사본 — 재배포 금지; 분석 문서만 `docs/ai/references/`) · 초기 설계 `archive/`·시드 파일·`backlog/*.md` 로컬 기록(상태 원본은 DB) · `.env` 실값·음원.
+- 경로는 둘이다: **`ASSET_ROOT`**(spec 원본·시딩 원본, 기본 `docs/ai`) · **`WORK_ROOT`**(S3 의 로컬 캐시 — `episodes/`·`sweeps/`·`assets/<해시>/`, 레포 밖 — 기본 `pipeline/.work`, gitignore. 지워도 다음 단계가 다시 내려받는다, 3.3). 실행기 `claude -p` 의 cwd 는 WORK_ROOT 다 — cwd 가 레포 안이면 Claude Code 가 루트 `CLAUDE.md`·`.claude/` 를 자동 반입해 생성 컨텍스트를 오염시킨다(spec/09 컨텍스트 예산). 자산은 `--add-dir` 로만 연다.
+- 레포에 넣지 않는 것: `episodes/`·`sweeps/`(원본은 S3, 3.3) · `references/*.txt`(타사 전사본 — 재배포 금지; 분석 문서만 `docs/ai/references/`) · 초기 설계 `archive/`·시드 파일·`backlog/*.md` 로컬 기록(상태 원본은 DB) · `.env` 실값·음원.
 
 ## 7. 구축 순서 (마일스톤)
 
@@ -220,7 +234,7 @@ ai-server/                         FastAPI 단발 추론 API (임베딩) — 별
 | M2 ✅(골격) | 웹 UI: 로그인·백로그·에피소드(리포트 열람·비평 판정)·소스 풀 판정·주제 | 팀원 이메일 3개 (Auth 초대) | 테이블 에디터 없이 게이트 1·판정이 되는가 |
 | M3 | 스윕 요청 + 자동 군집화 연쇄 (RSS 수집은 워커 코드, 군집화는 AI) | 없음 | 요청 → 후보 카드까지 사람 개입 0 |
 | M-R (규칙 동기화) 🛠 구현 PR (2026-09-01) | `prompt_assets`(0009) + 워커 로더(3.2) + `/assets` 화면 + `assets:import/export` + `pickupApproved` 선점 수정(워커 다중 실행 시 draft 중복 방지) | 없음 | 두 워커가 같은 active 번들을 읽고 `runs.prompt_version`이 번들에서 유도되는가 |
-| M4 🔜 (버킷 스크립트 준비 2026-09-01) | 파이프라인 S3(`pipeline/deploy/aws/setup-pipeline-bucket.sh`) + 산출물 업로드·열람 + 기존 로컬 9편 이관(미결 #11). **파일은 전부 S3(버저닝), Supabase에는 키·판정·수정 로그만** — 워커: 단계 전 내려받기·후 올리기 / 웹: `s3:` 키 읽기 + 직접 수정 PutObject + **로컬 워커용 서명 URL 라우트**(노트북에 AWS 키를 두지 않는다) · `datasets/` 접두사 | 버킷 1(스크립트) · EC2 전에는 임대 보유자 SSO 프로필로 개발 | 로컬 파일 없이 화면에서 대본·리포트가 열리고 수정이 되돌아가는가 · 노트북 워커가 키 없이 업로드하는가 |
+| M4 🛠 구현 PR (2026-09-02 · 버킷 생성 2026-09-01) | 파이프라인 S3(`pipeline/deploy/aws/setup-pipeline-bucket.sh`) + 산출물 동기화·열람(3.3) + 기존 로컬 10편 이관 도구 `storage:migrate`(미결 #11). **파일은 전부 S3(버저닝), Supabase에는 키·판정·수정 로그만** — 워커: 단계 전 내려받기·후 올리기 / 웹: `s3:` 키 읽기 + 직접 수정 PutObject + **로컬 워커용 서명 URL 라우트**(노트북에 AWS 키를 두지 않는다) · `datasets/` 접두사 | 버킷 1(스크립트) · EC2 전에는 임대 보유자 SSO 프로필로 개발 | 로컬 파일 없이 화면에서 대본·리포트가 열리고 수정이 되돌아가는가 · 노트북 워커가 키 없이 업로드하는가 |
 | M6 (M4 다음) | **AI 서버 EC2** — 2장 "호스트": 기존 기본 VPC 퍼블릭 서브넷에 t4g.small 1대 + compose(caddy·ai-server·web·worker-io) + 인스턴스 역할 `ear-ai-ec2` + 새 SG · `pipeline.<도메인>` A 레코드(가비아) · Supabase Auth URL 설정. NAT·ALB·Fargate 없음. 산출물: `pipeline/deploy/aws/setup-ai-server.sh` · `docker-compose.prod.yml` · `caddy/Caddyfile` · README(runbook 형식) · `docs/infra/inventory.md` 등재 | EC2 1대 · 도메인 1개 | 팀원이 외부에서 접속·승인 가능 · 제품 서버가 사설 IP로 `/embeddings` 호출 · 기존 리소스 무변경 |
 | M5 (M6 다음 — 키 확보 시) | TTS(ElevenLabs) 수동 변환(spec/06 변환·후처리·`audio_*_key`) + package(spec/07 `upload-meta.json`) + 플레이어 + 설정 화면 — **EC2 IO 워커가 실행** | ElevenLabs API 키 | 버튼 → S3 `audio/` → 재생. 보이스 후보 청취(미결 #8·#9 실측 시작) |
 
@@ -236,3 +250,6 @@ M1~M3·M-R은 AWS 없이 진행 가능하다(Supabase + 로컬). AWS는 M4·M6�
 - Given 모든 워커 쓰기 / When runs를 조회한다 / Then executed_by(워커 소유자)·model·prompt_version이 기록돼 있다
 - Given 규칙 자산이 웹에서 활성화된다 / When 어느 워커가 다음 새 에피소드를 집는다 / Then 그 번들을 읽고 `episodes.asset_versions`·`runs.prompt_version`에 기록된다 — 진행 중이던 에피소드는 기존 번들을 유지한다
 - Given AI 서버 EC2 / When 제품 서버(NestJS)가 `/embeddings`를 호출한다 / Then VPC 사설 IP로 응답하고, 인터넷에 열린 것은 `pipeline.<도메인>`의 로그인 화면뿐이다
+- Given 워커 A 가 만든 에피소드 / When 다른 노트북의 워커 B 가 QA 를 집는다 / Then 로컬 파일 없이 S3 에서 내려받아 검증하고 리포트가 S3 에 올라간다(3.3)
+- Given 웹에서 대본 턴을 고쳤다 / When 재QA 가 돈다 / Then 고친 본이 검증 대상이고 이전 본은 S3 버전으로 남아 있다
+- Given 팀원 노트북의 워커 / When 환경을 점검한다 / Then AWS 액세스 키가 없고 웹 `/api/storage` 의 공유 토큰만 있다 — 그 토큰이 없으면 기동 시 저장소 점검에서 멈춘다

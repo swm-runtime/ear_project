@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 export type ExecutorKind = "claude-cli" | "api" | "none";
 export type Capability = "ai" | "io";
+export type StorageMode = "direct" | "web";
 
 function must(name: string): string {
   const v = process.env[name];
@@ -13,13 +14,14 @@ function must(name: string): string {
 }
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+const webUrl = (process.env.PIPELINE_WEB_URL || "").replace(/\/+$/, "");
 
 export const cfg = {
   databaseUrl: must("DATABASE_URL"),
   /** 자산 원본 루트 — 기본: 레포의 docs/ai. 규칙 자산 7개의 진실은 DB(prompt_assets)이고, 여기서는 spec/03·04·05 와 시딩 원본(assets:import)만 읽는다 (spec/10 3.2) */
   assetSourceRoot: process.env.ASSET_ROOT || path.resolve(here, "..", "..", "..", "..", "docs", "ai"),
-  /** 산출물 작업 루트 — episodes/·sources/sweeps/ 를 여기에 쓴다. `claude -p` 의 cwd 이기도 하다: 레포 안이면 루트 CLAUDE.md·.claude/ 가
-   *  생성 컨텍스트에 섞이므로 레포 밖(기본 pipeline/.work, gitignore)에 둔다. 구 REPO_ROOT 는 호환용 (전환기: 기존 로컬 산출물 폴더) */
+  /** 산출물 작업 루트 — S3 의 로컬 캐시 (episodes/·sweeps/·assets/). `claude -p` 의 cwd 이기도 하다: 레포 안이면 루트 CLAUDE.md·.claude/ 가
+   *  생성 컨텍스트에 섞이므로 레포 밖(기본 pipeline/.work, gitignore)에 둔다. 원본은 S3 (storage.ts) — 지워도 다음 단계가 다시 내려받는다. 구 REPO_ROOT 는 호환용 */
   workRoot: process.env.WORK_ROOT || process.env.REPO_ROOT || path.resolve(here, "..", "..", "..", ".work"),
   workerName: process.env.WORKER_NAME || `${os.userInfo().username}@${os.hostname()}`,
   executor: (process.env.EXECUTOR || "claude-cli") as ExecutorKind,
@@ -30,6 +32,13 @@ export const cfg = {
   pollIntervalMs: Number(process.env.POLL_INTERVAL_MS || 5000),
   /** 파일럿 예외 (spec/02 2장): 계층 판정 전에는 candidate 도메인도 스윕한다. 판정이 쌓이면 false 로. */
   pilotSweepCandidates: (process.env.PILOT_SWEEP_CANDIDATES ?? "true") === "true",
+  /** 산출물 저장소 (spec/10 3.3): direct = AWS SDK 직접(EC2 인스턴스 역할, 개발 중엔 AWS_PROFILE) · web = 웹 `/api/storage` 서명 URL(팀원 노트북 — AWS 키 없음).
+   *  S3_MODE 를 비우면 PIPELINE_WEB_URL 이 있을 때 web, 없으면 direct */
+  storageMode: (process.env.S3_MODE || (webUrl ? "web" : "direct")) as StorageMode,
+  bucket: process.env.PIPELINE_BUCKET || "",
+  awsRegion: process.env.AWS_REGION || "ap-northeast-2",
+  webUrl,
+  workerToken: process.env.PIPELINE_WORKER_TOKEN || "",
 };
 
 export const canAi = cfg.capabilities.includes("ai") && cfg.executor !== "none";

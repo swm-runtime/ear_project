@@ -32,9 +32,9 @@ PIPELINE_BUCKET=earcast-pipeline-prod AWS_REGION=ap-northeast-2 pipeline/deploy/
 
 IAM 사용자·액세스 키는 기본으로 만들지 않는다. 샌드박스 SCP가 장기 자격증명 생성을 막을 수 있고, 허용되더라도 노트북 3대에 키가 놓이는 구조는 피한다. 정말 필요하면 `WITH_IAM_USER=1`로 5단계를 켠다(→ `out/<버킷>.env`, gitignore).
 
-## 사용하는 쪽 (M4에서 코드가 붙는다)
+## 사용하는 쪽 (M4 구현 — spec/10 3.3)
 
-워커는 단계 전 내려받기·후 올리기, 웹은 `s3:` 키 읽기와 인라인 수정 PutObject + 로컬 워커용 서명 URL 발급 라우트. env는 `PIPELINE_BUCKET`·`AWS_REGION`뿐이고 자격증명은 역할/SSO 프로필에서 온다.
+워커(`apps/worker/src/storage.ts`)는 단계 전 내려받기·후 올리기(md5↔ETag 멱등), 웹(`apps/web/lib/storage.ts`)은 `s3:` 키 읽기와 인라인 수정 PutObject + 로컬 워커용 서명 URL 라우트 `POST /api/storage`(공유 토큰 `PIPELINE_WORKER_TOKEN`). direct 접근의 env 는 `PIPELINE_BUCKET`·`AWS_REGION` 뿐이고 자격증명은 역할/SSO 프로필에서 온다. 이관: `npm run storage:migrate -- --apply`.
 
 ## 하지 않은 것 (의도)
 

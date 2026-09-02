@@ -6,6 +6,7 @@ import { appendDomainNote, enqueue, insertRun, sweepDomains, upsertSource, type 
 import { log, sleep, stripHtml } from "../util.js";
 import { todayKst } from "@ear/pipeline";
 import { workerRev } from "../assets.js";
+import { putFile, s3Key } from "../storage.js";
 
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
 
@@ -13,6 +14,7 @@ interface Item { title: string; url: string; summary: string; author: string; pu
 
 /**
  * 모드 A 스윕 (spec/02): 풀 도메인의 피드를 도메인당 1회 요청, 메타데이터만 적재. 본문 요청 없음.
+ * 원본 아카이브는 S3 `sweeps/`(180일 만료)에 올린다 — 조회는 sources 테이블이 담당 (spec/08 1장).
  * 끝나면 군집화(cluster) 작업을 자동 생성한다.
  */
 export async function runSweep(job: Job) {
@@ -48,23 +50,25 @@ export async function runSweep(job: Job) {
   }
   archive.total_items = total;
 
-  const archiveDir = path.join(cfg.workRoot, "sources", "sweeps");
-  await fs.mkdir(archiveDir, { recursive: true });
-  const archivePath = path.join(archiveDir, `sweep-${todayKst()}-${midTopic.replace(/[^\p{L}\p{N}]+/gu, "_")}-${job.id.slice(0, 8)}.json`);
-  await fs.writeFile(archivePath, JSON.stringify(archive, null, 1), "utf-8");
-  const relArchive = path.relative(cfg.workRoot, archivePath);
+  // 아카이브: S3 sweeps/ 가 원본, WORK_ROOT/sweeps/ 는 사본 (키와 같은 상대 경로)
+  const relArchive = `sweeps/sweep-${todayKst()}-${midTopic.replace(/[^\p{L}\p{N}]+/gu, "_")}-${job.id.slice(0, 8)}.json`;
+  const json = JSON.stringify(archive, null, 1);
+  const archivePath = path.join(cfg.workRoot, relArchive);
+  await fs.mkdir(path.dirname(archivePath), { recursive: true });
+  await fs.writeFile(archivePath, json, "utf-8");
+  await putFile(relArchive, json);
 
   await insertRun({
     phase: "sweep",
     result: `모드 A · 중분류 ${midTopic} · 트리거: 웹/워커 작업 ${job.id.slice(0, 8)}. 성공 피드 ${ok}/${domains.length}, 적재 ${total}건${failures.length ? ` · 실패: ${failures.join("; ").slice(0, 600)}` : ""}${cfg.pilotSweepCandidates ? " · 파일럿 예외(candidate 포함)" : ""}`,
     prompt_version: "sweep-worker-v1",
-    artifacts: [`local:${relArchive}`],
+    artifacts: [s3Key(relArchive)],
     executed_by: executedBy,
     worker_rev: workerRev(),
   });
 
   const clusterJobId = await enqueue({ type: "cluster", requires_ai: true, payload: { mid_topic: midTopic, sweep_job_id: job.id, sources_count: total }, parent_job_id: job.id });
-  return { mid_topic: midTopic, feeds_ok: ok, feeds_total: domains.length, items: total, failures, archive: relArchive, next: { cluster_job_id: clusterJobId } };
+  return { mid_topic: midTopic, feeds_ok: ok, feeds_total: domains.length, items: total, failures, archive: s3Key(relArchive), next: { cluster_job_id: clusterJobId } };
 }
 
 async function fetchFeed(url: string): Promise<Item[]> {

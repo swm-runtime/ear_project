@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import { cfg, canAi, executedBy } from "./config.js";
 import { claimApprovedBacklog, claimJob, enqueue, failJob, finishJob, heartbeat, listApprovedBacklog, pool, requeueJob, startJob } from "./db.js";
 import { workerRev } from "./assets.js";
+import { probeStorage } from "./storage.js";
 import { makeExecutor } from "./executors/index.js";
 import { runStage } from "./stages/index.js";
 import { log, sleep, RetryLater } from "./util.js";
@@ -28,7 +29,8 @@ async function main() {
   const drain = argv.includes("--drain"); // 큐가 비고 승인 대기도 없으면 종료 (연쇄 1건 끝까지 돌리는 테스트용)
   const ex = makeExecutor(cfg.executor, cfg.claudeModel);
   await fs.mkdir(cfg.workRoot, { recursive: true }); // 실행기 cwd — 없으면 spawn 이 실패한다
-  log(`워커 시작 — ${executedBy} · capabilities=${cfg.capabilities.join(",")} · AI=${canAi ? "on" : "off"} · assets=DB+${cfg.assetSourceRoot} · work=${cfg.workRoot} · rev=${workerRev()}`);
+  const storageInfo = await probeStorage(); // 산출물 저장소(S3) 접근 확인 — 못 쓰면 작업을 집기 전에 죽는다 (spec/10 3.3)
+  log(`워커 시작 — ${executedBy} · capabilities=${cfg.capabilities.join(",")} · AI=${canAi ? "on" : "off"} · assets=DB+${cfg.assetSourceRoot} · work=${cfg.workRoot} · storage=${storageInfo} · rev=${workerRev()}`);
 
   let current: string | null = null;
   const stop = async () => {

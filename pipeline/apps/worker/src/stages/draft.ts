@@ -6,13 +6,14 @@ import type { Executor } from "../executors/index.js";
 import { buildDraftPrompt, buildDraftRevisionPrompt, DRAFT_SCHEMA, DRAFT_REVISION_SCHEMA, episodeDatePrefix, pickIntroStyle, type Templates } from "@ear/pipeline";
 import { exists, hostOf, log, RetryLater } from "../util.js";
 import { prepareAssets, workerRev } from "../assets.js";
+import { pullPrefix, pushPrefix, s3Key } from "../storage.js";
 
 interface DraftOut { turns: number; chars: number; minutes: number; cold_open_turn: string; cold_open_verified: boolean; sources_used: string[]; sources_excluded: { url: string; reason: string }[]; self_check_fixes: string[]; notes: string }
 interface RevisionOut { fixes: { location: string; before: string; after: string }[]; cold_open_updated: boolean; cold_open_verified: boolean; notes: string }
 
 /**
  * 대본 단계 (spec/04). attempt 1 = 생성, attempt 2~3 = QA 실패 사항 최소 수정 (재생성 루프, spec/05 4장).
- * 산출물은 로컬 episodes/{id}/ (S3 이관 전 — runs.artifacts 는 local: 경로).
+ * 산출물은 S3 `episodes/{id}/` 가 원본 — 단계 전 내려받고(재집기·웹 수정본) 끝나면 올린다 (spec/10 3.3). WORK_ROOT 는 캐시.
  */
 export async function runDraft(job: Job, ex: Executor) {
   const backlogId = String(job.payload.backlog_id ?? "");
@@ -35,9 +36,10 @@ export async function runDraft(job: Job, ex: Executor) {
   const { assetRoot, bundle } = await prepareAssets(prior?.asset_versions ?? null);
   const promptVersion = bundle.labels.draft;
   if (!prior?.asset_versions) await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: promptVersion, asset_versions: bundle.versions });
-  const dir = path.join(cfg.workRoot, "episodes", episodeId);
-  await fs.mkdir(dir, { recursive: true });
   const rel = `episodes/${episodeId}`;
+  const dir = path.join(cfg.workRoot, rel);
+  await fs.mkdir(dir, { recursive: true });
+  await pullPrefix(`${rel}/`); // S3 가 원본 — 다른 기기에서 만든 산출물·웹에서 고친 대본을 먼저 받는다
   const fileTools = [`Write(${rel}/**)`, `Edit(${rel}/**)`, "Bash(python3 *)", "Bash(wc *)", "Bash(ls *)"];
 
   let summary: string;
@@ -54,8 +56,6 @@ export async function runDraft(job: Job, ex: Executor) {
     out = { turns: 0, chars: 0, minutes: 0, cold_open_turn: "", cold_open_verified: false, sources_used: [], sources_excluded: [], self_check_fixes: [], notes: "재집기 복구 — 수치는 QA 참고치로 대체" };
     model = null;
     summary = `${episodeId} 초안 이어받기 (워커 재집기 복구 — 기존 산출물 사용, 생성 재실행 없음)`;
-    await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: promptVersion, script_key: `local:${rel}/script.md`, claims_key: `local:${rel}/claims.md`, sources_key: `local:${rel}/sources.md` });
-    await setBacklogStatus(backlogId, "drafted");
   } else if (attempt === 1) {
     const introSeed = await countEpisodes();
     const intro = pickIntroStyle(introSeed);
@@ -80,8 +80,6 @@ export async function runDraft(job: Job, ex: Executor) {
     for (const f of ["script.md", "claims.md", "sources.md"]) if (!(await exists(path.join(dir, f)))) throw new Error(`산출물 누락: ${rel}/${f}`);
     const o = r.output;
     summary = `${episodeId} 초안 완료 (${ex.kind}, 도입 ${intro.label}, 템플릿 ${templates?.version ?? "미적용"}). ${o.turns}턴·${o.chars}자·약 ${o.minutes}분. 소스 ${o.sources_used.length}/${cand.sources.length} 사용${o.sources_excluded.length ? ` (제외: ${o.sources_excluded.map((x) => `${hostOf(x.url)} ${x.reason}`).join("; ").slice(0, 300)})` : ""}. 콜드오픈 ${o.cold_open_turn}${o.cold_open_verified ? " 검증" : " 미검증"}. 자기 점검 수정 ${o.self_check_fixes.length}건. ${o.notes}`;
-    await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: promptVersion, script_key: `local:${rel}/script.md`, claims_key: `local:${rel}/claims.md`, sources_key: `local:${rel}/sources.md` });
-    await setBacklogStatus(backlogId, "drafted");
   } else {
     const failures = (job.payload.qa_failures ?? []) as { location: string; item: string; reason: string }[];
     const prompt = buildDraftRevisionPrompt({ assetRoot, workRoot: cfg.workRoot, episodeId, candidate: cand, introStyle: pickIntroStyle(0), promptVersion, attempt, qaFailures: failures });
@@ -94,12 +92,19 @@ export async function runDraft(job: Job, ex: Executor) {
     summary = `${episodeId} 재생성 attempt ${attempt} (QA 피드백 ${failures.length}건 → 수정 ${r.output.fixes.length}건${r.output.cold_open_updated ? ", 콜드오픈 갱신" : ""}${r.output.cold_open_verified ? ", 자구 일치 검증" : ""}). ${r.output.notes}`;
   }
 
-  await insertRun({ backlog_id: backlogId, phase: "draft", attempt, result: summary, prompt_version: `${promptVersion} (worker)`, artifacts: [`local:${rel}/script.md`, `local:${rel}/sources.md`, `local:${rel}/claims.md`], executed_by: executedBy, model, cost_usd: costUsd, tokens, worker_rev: workerRev() });
+  await pushPrefix(`${rel}/`); // 먼저 S3 에 — DB 키가 가리키는 객체가 있어야 한다
+  const artifacts = [s3Key(`${rel}/script.md`), s3Key(`${rel}/sources.md`), s3Key(`${rel}/claims.md`)];
+  if (attempt === 1) {
+    await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: promptVersion, script_key: artifacts[0], claims_key: artifacts[2], sources_key: artifacts[1] });
+    await setBacklogStatus(backlogId, "drafted");
+  }
+  await insertRun({ backlog_id: backlogId, phase: "draft", attempt, result: summary, prompt_version: `${promptVersion} (worker)`, artifacts, executed_by: executedBy, model, cost_usd: costUsd, tokens, worker_rev: workerRev() });
   const qaJobId = await enqueue({ type: "qa", requires_ai: true, payload: { episode_id: episodeId, backlog_id: backlogId, attempt }, parent_job_id: job.id, attempt });
   return { episode_id: episodeId, attempt, summary, model, next: { qa_job_id: qaJobId }, output: out };
 }
 
-/** script/claims/sources 가 모두 있고 마지막 수정이 3분 이상 지났으면(고아 프로세스가 아직 쓰는 중이 아니면) 완료된 산출물로 본다 */
+/** script/claims/sources 가 모두 있고 마지막 수정이 3분 이상 지났으면(고아 프로세스가 아직 쓰는 중이 아니면) 완료된 산출물로 본다.
+ *  S3 에서 내려받은 파일은 mtime 이 S3 LastModified 라 다른 기기의 완료분도 같은 기준으로 판정된다 */
 async function allArtifactsSettled(dir: string): Promise<boolean> {
   const files = ["script.md", "claims.md", "sources.md"].map((f) => path.join(dir, f));
   for (const f of files) if (!(await exists(f))) return false;

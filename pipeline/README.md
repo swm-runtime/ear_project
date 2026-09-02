@@ -16,7 +16,7 @@ supabase/          schema.sql(스냅샷) + migrations/0002~ — 팀 공용 Supab
 deploy/            EC2 "AI 서버" 배포 (web + io 워커 + Caddy) — M6 에서 작성. 같은 인스턴스에 ../ai-server 동거
 ```
 
-경로는 둘이다 — **`ASSET_ROOT`**(읽기 전용 프롬프트 자산, 기본 `../docs/ai`)와 **`WORK_ROOT`**(산출물 `episodes/`·`sources/sweeps/`, 기본 `pipeline/.work` — gitignore). 워커가 띄우는 `claude -p`의 cwd는 WORK_ROOT다. **레포 안 경로를 WORK_ROOT로 쓰지 않는다** — cwd가 레포 안이면 Claude Code가 루트 `CLAUDE.md`·`.claude/`를 자동 반입해 대본 생성 컨텍스트를 오염시킨다. 전환기에는 기존 로컬 산출물 폴더를 지정하면 DB의 `local:` 키가 그대로 해석된다.
+경로는 둘이다 — **`ASSET_ROOT`**(spec 원본·시딩 원본, 기본 `../docs/ai`)와 **`WORK_ROOT`**(S3 의 로컬 캐시 — `episodes/`·`sweeps/`·`assets/`, 기본 `pipeline/.work` — gitignore). 산출물의 원본은 파이프라인 S3(`earcast-pipeline-prod`)이고 워커가 단계 전에 내려받고 후에 올린다(spec/10 3.3). 워커가 띄우는 `claude -p`의 cwd는 WORK_ROOT다. **레포 안 경로를 WORK_ROOT로 쓰지 않는다** — cwd가 레포 안이면 Claude Code가 루트 `CLAUDE.md`·`.claude/`를 자동 반입해 대본 생성 컨텍스트를 오염시킨다.
 
 ## 시작하기
 
@@ -42,7 +42,7 @@ npm run worker
 ## 지켜야 할 것
 
 1. **비밀은 커밋하지 않는다** — `.env*`는 무시 목록(템플릿 `.env.example`만). DB 비밀번호·anon 키는 팀 비밀 채널로.
-2. **Supabase는 비용 0** — Free 플랜 유지, Storage 안 씀, 큰 파일은 S3(M4).
+2. **Supabase는 비용 0** — Free 플랜 유지, Storage 안 씀. 파일(대본·발췌·리포트·음원)은 전부 파이프라인 S3, DB 에는 `s3:` 키·판정·수정 로그만.
 3. **제3자 전사본(`references/*.txt`)은 레포에도, 프롬프트에도 넣지 않는다** — 분석 문서(`docs/ai/references/`)만 공유한다.
 4. **소스 풀 계층 판정은 사람만** — 웹의 기계 제안·자동 확인(domain_check)은 보조 증거다. 403·봇 차단은 우회하지 않는다.
 5. **검수 순서** — draft → QA(통과까지) → 비평은 QA 통과본에. 리포트 파일은 AI 스냅샷, 판정은 DB에.
@@ -60,6 +60,22 @@ npm run assets:export     # DB active → docs/ai/skills + skills/CHANGELOG-asse
 
 워커는 작업 시작 시 active 묶음(또는 `episodes.asset_versions` 에 고정된 버전)을 읽어 `WORK_ROOT/assets/<해시>/` 에 파일로 내려놓는다 — 한 에피소드의 draft→QA→비평→재QA 는 같은 규칙, 개정은 다음 에피소드부터. 전제: Supabase 에 `supabase/migrations/0009_prompt_assets.sql` 적용.
 
+## 산출물 저장소 (spec/10 3.3)
+
+```bash
+npm run storage:status                 # 저장소 접근 확인 + DB 키·S3 객체 현황
+npm run storage:migrate                # 로컬 episodes/·sources/sweeps/ → S3 이관 계획 (WORK_ROOT 또는 -- --source <dir>)
+npm run storage:migrate -- --apply     # 실행 — 업로드 + DB 의 local: 키를 s3: 로 치환 (멱등)
+```
+
+| 주체 | 접근 | env |
+|---|---|---|
+| 팀원 노트북 워커 | **web 모드** — 웹 `/api/storage` 가 내주는 서명 URL. AWS 키 없음 | `PIPELINE_WEB_URL` · `PIPELINE_WORKER_TOKEN` |
+| EC2 워커·웹 | direct — 인스턴스 역할 `ear-ai-ec2` | `PIPELINE_BUCKET` · `AWS_REGION` |
+| 임대 보유자 노트북(개발) | direct — SSO 프로필 | 위 + `AWS_PROFILE` |
+
+워커는 기동 시 저장소 접근을 확인하고 실패하면 작업을 집지 않는다. 노트북 워커는 웹이 떠 있어야 한다(M6 전에는 임대 보유자의 로컬 웹 또는 direct 모드).
+
 ## 지금 어디까지
 
-M1(워커 연쇄)·M2(웹 골격) 완료, spec/09 v2 평가 체계로 전환 중(2026-09-01). 다음: M4 S3 산출물 이관(버킷 준비됨) → M6 EC2 배포(`deploy/`). 상세는 `docs/ai/PIPELINE-STATUS.md`.
+M1(워커 연쇄)·M2(웹 골격)·M-R(규칙 동기화)·M4(S3 산출물 동기화, 2026-09-02) 완료, spec/09 v2 평가 체계로 전환 중. 다음: M6 EC2 배포(`deploy/`) → M5 TTS. 상세는 `docs/ai/PIPELINE-STATUS.md`.

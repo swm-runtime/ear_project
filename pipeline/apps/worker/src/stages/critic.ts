@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import path from "node:path";
 import { cfg, executedBy } from "../config.js";
 import { getBacklog, getEpisode, insertRun, setJobProgress, upsertEpisode, type Job } from "../db.js";
@@ -6,6 +7,7 @@ import { buildCriticPrompt, CRITIC_SCHEMA, CRITIC_SCHEMA_V2 } from "@ear/pipelin
 import { readFile } from "node:fs/promises";
 import { log } from "../util.js";
 import { prepareAssets, workerRev, type AssetBundle } from "../assets.js";
+import { localPathOf, pullPrefix, pushPrefix, s3Key } from "../storage.js";
 
 interface CriticOut { scores: { immersion: number; naturalness: number; density: number; persona: number; structure: number }; violations: number; suspects: number; stars: number; report_written: boolean; summary: string }
 interface CriticV2Out {
@@ -22,7 +24,9 @@ export async function runCritic(job: Job, ex: Executor) {
   if (!ep || !cand) throw new Error(`에피소드/백로그 없음: ${episodeId}/${backlogId}`);
   const rel = `episodes/${episodeId}`;
   const dir = path.join(cfg.workRoot, rel);
-  const scriptFile = ep.script_key?.startsWith("local:") ? path.join(cfg.workRoot, ep.script_key.slice(6)) : undefined;
+  await fs.mkdir(dir, { recursive: true });
+  await pullPrefix(`${rel}/`); // S3 가 원본 — QA 통과본(사람 수정 포함)을 받는다 (spec/10 3.3)
+  const scriptFile = localPathOf(ep.script_key);
   const { assetRoot, bundle } = await prepareAssets(ep.asset_versions ?? null); // 에피소드에 고정된 규칙 (spec/10 3.2)
   if (!ep.asset_versions) await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: ep.prompt_version, asset_versions: bundle.versions });
 
@@ -44,8 +48,10 @@ export async function runCritic(job: Job, ex: Executor) {
     },
   });
   const o = r.output; const s = o.scores;
-  await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: ep.prompt_version, critic_report_key: `local:${rel}/critic-report.md` });
-  await insertRun({ backlog_id: backlogId, phase: "critic", attempt: 1, result: `비평 완료 (QA 통과본 기준). 종합: 몰입${s.immersion}·자연${s.naturalness}·밀도${s.density}·페르소나${s.persona}·구성${s.structure}. 플래그 위반 ${o.violations}·의심 ${o.suspects}, ⭐${o.stars}. ${o.summary} · 사람 판정 대기`, prompt_version: `${bundle.labels.critic} (worker)`, artifacts: [`local:${rel}/critic-report.md`], executed_by: executedBy, model: r.model, cost_usd: r.listCostUsd, tokens: (r.raw as { usage?: unknown } | undefined)?.usage, worker_rev: workerRev() });
+  await pushPrefix(`${rel}/`); // critic-report.md — 먼저 S3 에
+  const reportKey = s3Key(`${rel}/critic-report.md`);
+  await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: ep.prompt_version, critic_report_key: reportKey });
+  await insertRun({ backlog_id: backlogId, phase: "critic", attempt: 1, result: `비평 완료 (QA 통과본 기준). 종합: 몰입${s.immersion}·자연${s.naturalness}·밀도${s.density}·페르소나${s.persona}·구성${s.structure}. 플래그 위반 ${o.violations}·의심 ${o.suspects}, ⭐${o.stars}. ${o.summary} · 사람 판정 대기`, prompt_version: `${bundle.labels.critic} (worker)`, artifacts: [reportKey], executed_by: executedBy, model: r.model, cost_usd: r.listCostUsd, tokens: (r.raw as { usage?: unknown } | undefined)?.usage, worker_rev: workerRev() });
   return { episode_id: episodeId, scores: s, violations: o.violations, suspects: o.suspects, stars: o.stars, summary: o.summary, model: r.model };
 }
 
@@ -72,12 +78,14 @@ async function runCriticV2(job: Job, ex: Executor, e: { episodeId: string; backl
   const sum = { content: s.content.value + s.content.argument + s.content.perspective + s.content.resonance, structure: s.structure.opening + s.structure.flow + s.structure.ending, naturalness: s.naturalness.spoken + s.naturalness.exchange, immersion: s.immersion, persona: s.persona.voice + s.persona.listener };
   const total = sum.content + sum.structure + sum.naturalness + sum.immersion + sum.persona;
   if (total !== o.total) log(`  ⚠ total 불일치: 보고 ${o.total} vs 합산 ${total} — 합산값 기록`);
+  await pushPrefix(`${e.rel}/`); // critic-report-v2.md — 먼저 S3 에
+  const reportKey = s3Key(`${e.rel}/critic-report-v2.md`);
   const ep = await getEpisode(e.episodeId);
-  await upsertEpisode({ id: e.episodeId, backlog_id: e.backlogId, prompt_version: ep?.prompt_version ?? "unknown", critic_report_key: `local:${e.rel}/critic-report-v2.md` });
+  await upsertEpisode({ id: e.episodeId, backlog_id: e.backlogId, prompt_version: ep?.prompt_version ?? "unknown", critic_report_key: reportKey });
   await insertRun({
     backlog_id: e.backlogId, phase: "critic", attempt: 1,
     result: `비평 v2 완료 (앵커 없음 기준선${preTemplate ? " · tpl 이전 세대" : ""}). 합계 ${total}/100 — 내용 ${sum.content}/35 · 구성 ${sum.structure}/20 · 자연 ${sum.naturalness}/20 · 몰입 ${sum.immersion}/15 · 페르소나 ${sum.persona}/10. 플래그 위반 ${o.violations}·의심 ${o.suspects}, ⭐${o.stars}. ${o.summary} · 사람 판정 대기`,
-    prompt_version: `${e.bundle.labels.criticV2} (worker)`, artifacts: [`local:${e.rel}/critic-report-v2.md`], executed_by: executedBy, model: r.model, cost_usd: r.listCostUsd, tokens: (r.raw as { usage?: unknown } | undefined)?.usage, worker_rev: workerRev(),
+    prompt_version: `${e.bundle.labels.criticV2} (worker)`, artifacts: [reportKey], executed_by: executedBy, model: r.model, cost_usd: r.listCostUsd, tokens: (r.raw as { usage?: unknown } | undefined)?.usage, worker_rev: workerRev(),
   });
   return { episode_id: e.episodeId, rubric: "v2", pre_template: preTemplate, scores: s, sums: sum, total, violations: o.violations, suspects: o.suspects, stars: o.stars, summary: o.summary, model: r.model };
 }

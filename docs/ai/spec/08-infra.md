@@ -45,7 +45,7 @@
 | `sweeps/` 스윕 원본 · `datasets/` 학습 데이터 export(5장) | 파이프라인 S3 | 조회는 `sources` 테이블이 담당 |
 | 발행 `dist.mp3`·썸네일 | 제품 S3 | 게이트 2 후 관리자 업로드로만 |
 
-## 2. 저장 계층 — S3 (파이프라인 전용 버킷 · 생성 스크립트 준비됨, 산출물 이관은 spec/10 M4)
+## 2. 저장 계층 — S3 (파이프라인 전용 버킷 `earcast-pipeline-prod` 생성 완료 2026-09-01 · 동기화·이관 도구는 spec/10 3.3)
 
 비공개 버킷 1개로 시작한다. 구조:
 
@@ -63,12 +63,12 @@ s3://<버킷>/
 - 프리픽스: `T` = 테스트·파일럿 제작분. 정식 발행 제작분의 프리픽스는 추후 확정 (제안: `E`).
 - 날짜: 제작 착수일(집기 시점). 순번: 그날 착수 순서.
 - 디렉토리명에 주제를 넣지 않는다 — 주제·백로그 연결은 `runs.backlog_id`와 폴더 내 문서 메타로 추적한다.
-- 로컬 `episodes/` 디렉토리도 같은 규칙을 쓴다 (S3 이관 시 경로 구조 유지).
+- 워커의 `WORK_ROOT` 는 이 레이아웃의 **로컬 캐시**다(`WORK_ROOT/episodes/{id}/`·`WORK_ROOT/sweeps/`) — 키와 상대 경로가 같아 단계 전 내려받기·후 올리기가 파일 단위 md5↔ETag 비교로 끝난다(spec/10 3.3).
 
 - **전체 비공개**가 기본값이다. 특히 `sources.md`(발췌)는 재배포 금지 증적(spec/01 5장)이므로
   공개 설정 실수가 곧 사고다 — 버킷 공개 차단(Block Public Access)을 켠 채 유지한다.
 - **버킷은 파이프라인 전용으로 따로 둔다** (2026-09-01 확정 — 제품 `earcast-audio-prod`와 분리). 이유: 발췌를 서빙 경로 옆에 두지 않는다 · 워커·웹에 주는 권한을 이 버킷으로 한정한다 · 버저닝·수명주기 정책이 제품 버킷과 다르다. 규격: 비공개 · Block Public Access · 버저닝 ON · SSE-S3 · TLS 강제 · `sweeps/` 180일 만료 · 이전 버전 90일 정리 · IAM 정책은 `episodes/*`·`sweeps/*`·`datasets/*`의 Get/Put/List만(삭제 없음, 제품 버킷 권한 없음). **계정은 제품과 같은 ISB 계정**(리소스만 추가 — 임대 만료 시 이관 목록에 포함). **AWS 자격증명은 AI 서버 EC2의 인스턴스 역할 한 곳에만** — 로컬 워커는 웹의 서명 URL 라우트로 S3를 쓰고, IAM 사용자·액세스 키는 만들지 않는다. 생성은 [`pipeline/deploy/aws/setup-pipeline-bucket.sh`](../../../pipeline/deploy/aws/setup-pipeline-bucket.sh)(멱등) — 상세 [`pipeline/deploy/aws/README.md`](../../../pipeline/deploy/aws/README.md). M6에서 인스턴스 역할 `ear-ai-ec2`에 정책을 붙인다.
-- 구축 시 이관: 로컬 `episodes/`·`sources/sweeps/`를 업로드하고 `runs.artifacts`의 `local:` 경로를 교체한다.
+- 이관: `npm run storage:migrate -- --apply`(spec/10 3.3) — 로컬 `episodes/`·`sources/sweeps/` 업로드 + `episodes.*_key`·`runs.artifacts` 의 `local:` → `s3:` 치환(멱등, 기본은 계획만). 실행 기록은 PIPELINE-STATUS.
 - 제품과의 접점은 하나뿐: 발행 확정된 배포본(mp3)을 제품 서빙 버킷(CloudFront+S3)으로 **복사**하는
   단방향 경로. 파이프라인 버킷을 제품이 직접 읽지 않는다.
 
@@ -180,7 +180,7 @@ s3://<버킷>/
 
 ## 6. 구축 순서 (2026-09-01 갱신 — 실체는 spec/10 7장 마일스톤)
 
-1. ~~S3 버킷~~ → 생성 스크립트 준비(2장, `pipeline/deploy/aws/`). 산출물 이관 = spec/10 M4
+1. ~~S3 버킷~~ 생성 완료(2026-09-01, 2장) → ~~산출물 동기화·이관 도구~~ 구현(spec/10 3.3, 2026-09-02)
 2. ~~스킬 4종 정식 작성~~ → 워커의 단계 코드로 대체됨(spec/10 M1 완료). Claude Code 스킬 4종은 만들지 않는다
 3. 파일럿 — 9편 제작·판정 진행 중(PIPELINE-STATUS)
 4. **규칙 동기화** — `prompt_assets`(0009)·로더·`/assets` 화면(spec/10 3.2). 3인 병행 사이클의 병목이라 M4보다 앞
