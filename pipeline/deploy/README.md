@@ -45,8 +45,8 @@ user-data 가 docker·compose·buildx·git·스왑 2G·`/opt/ear` 를 이미 깔
 
 ## 4. DNS·Auth (사람 몫)
 
-1. 가비아: `pipeline.earcast.co.kr` A 레코드 → EIP. **함정**: 레코드 전에 Caddy 가 발급 실패하면 최대 20분 백오프 — 레코드 넣은 뒤 `docker compose -f deploy/docker-compose.prod.yml --env-file deploy/env.prod restart caddy`
-2. Supabase 대시보드 → Authentication → URL Configuration → Redirect URLs 에 `https://pipeline.earcast.co.kr/**` 추가 (Site URL 은 기존 유지)
+1. 가비아: `admin.earcast.co.kr` A 레코드 → EIP (2026-09-03 admin 콘솔 통합으로 pipeline.earcast.co.kr 레코드는 삭제됨 — 도메인은 admin 하나). **함정**: 레코드 전에 Caddy 가 발급 실패하면 최대 20분 백오프 — 레코드 넣은 뒤 `docker compose -f deploy/docker-compose.prod.yml --env-file deploy/env.prod restart caddy`
+2. Supabase 대시보드 → Authentication → URL Configuration → Redirect URLs 에 `https://admin.earcast.co.kr/**` 추가 (Site URL 은 기존 유지)
 3. `docs/infra/inventory.md` 에 EC2·SG·역할·EIP·레코드 등재
 
 ## 5. 재배포 (코드가 바뀔 때마다)
@@ -58,7 +58,7 @@ bash pipeline/deploy/push.sh
 
 ## 6. 확인 (완료 조건)
 
-- `https://pipeline.earcast.co.kr` → 로그인 화면. 팀원 계정으로 로그인·백로그 승인 가능
+- `https://admin.earcast.co.kr` → 로그인 화면. 팀원 계정으로 로그인·백로그 승인 가능
 - 제품 EC2 에서: `curl -s http://<사설IP>:8000/health` → `{"status":"ok",…}` (SG: 제품 SG 소스만 허용)
 - 외부에서: `curl -m 3 http://<EIP>:8000/health` → 타임아웃 (8000 비공개 확인)
 - 서버 워커 로그: `docker compose … logs worker-io | tail` → `storage=direct s3://…` (인스턴스 역할로 S3 접근)
@@ -70,4 +70,4 @@ bash pipeline/deploy/push.sh
 - **deploy key 금지(조직 룰셋)** — 서버에서 git clone/pull 을 시도하지 말 것. 코드는 push.sh 로만
 - t4g.small 에서 `next build` OOM → user-data 의 스왑 2G 가 1차 방어. 그래도 죽으면 로컬 arm64 빌드 후 `docker save | ssh … docker load`, 다음이 t4g.medium (spec/10 2장)
 - ai-server 를 노트북(메타 부여 스킬)에서 부를 땐 SSH 터널: `ssh -i … -L 8000:localhost:8000 ec2-user@<EIP>` — 공개 도메인을 만들지 않는다
-- 팀원 노트북 워커는 이 서버가 뜬 뒤부터 web 모드로 동작: `PIPELINE_WEB_URL=https://pipeline.earcast.co.kr` + 토큰 (spec/10 3.3)
+- 팀원 노트북 워커는 이 서버가 뜬 뒤부터 web 모드로 동작: `PIPELINE_WEB_URL=https://admin.earcast.co.kr` + 토큰 (spec/10 3.3)
