@@ -60,6 +60,7 @@ services:
       PIPELINE_BUCKET: ${PIPELINE_BUCKET:?}
       AWS_REGION: ${AWS_REGION:-ap-northeast-2}
       S3_MODE: direct
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-} # TTS (M5) — env.prod 에 보관된 키
     volumes:
       - worker-work:/work
     logging:

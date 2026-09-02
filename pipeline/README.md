@@ -10,7 +10,7 @@
 
 ```
 apps/web           Next.js 16 관리 UI — 소스 풀 판정 · 스윕 요청 · 백로그 게이트 1 · 에피소드 판정·대본 수정 · 설정 (Supabase Auth 로그인)
-apps/worker        작업 워커 — `jobs` 큐를 집어 sweep / cluster / draft / qa / critic / domain_check 실행 (실행기: claude-cli | api | none)
+apps/worker        작업 워커 — `jobs` 큐를 집어 sweep / cluster / draft / qa / critic / domain_check / tts / package 실행 (실행기: claude-cli | api | none)
 packages/pipeline  단계별 프롬프트 조립기 · 결과 JSON 스키마 (웹·워커 공용)
 supabase/          schema.sql(스냅샷) + migrations/0002~ — 팀 공용 Supabase 프로젝트 (Free 플랜, 비용 0 원칙). 적용은 SQL 에디터에서 수동
 deploy/            EC2 "AI 서버" 배포 (web + io 워커 + Caddy) — M6 에서 작성. 같은 인스턴스에 ../ai-server 동거
@@ -78,4 +78,4 @@ npm run storage:migrate -- --apply     # 실행 — 업로드 + DB 의 local: �
 
 ## 지금 어디까지
 
-M1(워커 연쇄)·M2(웹 골격)·M-R(규칙 동기화)·M4(S3 산출물 동기화, 2026-09-02) 완료, spec/09 v2 평가 체계로 전환 중. 다음: M6 EC2 배포(`deploy/`) → M5 TTS. 상세는 `docs/ai/PIPELINE-STATUS.md`.
+M1(워커 연쇄)·M2(웹 골격)·M-R(규칙 동기화)·M4(S3 산출물 동기화)·M6(AI 서버 EC2)·M5(TTS·패키지) 구현 완료(2026-09-02), spec/09 v2 평가 체계로 전환 중. 상세는 `docs/ai/PIPELINE-STATUS.md`.

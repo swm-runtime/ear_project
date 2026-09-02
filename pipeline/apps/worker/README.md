@@ -31,7 +31,7 @@ npm run worker -- --enqueue sweep '{"mid_topic":"심리학"}'   # 작업 넣기 
 sweep(중분류) ──done──▶ cluster(중분류) ──▶ backlog proposed  ★게이트 1: 사람이 UI/DB에서 approved 로
 backlog approved ──워커 감지──▶ claimed + draft(attempt 1) ──▶ qa(1) ──통과──▶ critic ──▶ 사람 판정 대기
                                                                   └─실패──▶ draft(attempt 2, QA 피드백 최소 수정) ──▶ qa(2) ── … 3회 초과 ──▶ review_required
-tts · package: 연쇄 없음 — 사람이 UI 에서 명시적으로 요청할 때만 (M5)
+tts · package: 연쇄 없음 — 사람이 UI 에서 명시적으로 요청할 때만. tts = ElevenLabs 다중화자 합성(spec/06, 서버 IO 워커 — ELEVENLABS_API_KEY 필요, ffmpeg 필요) · package = upload-meta.json + packaged 전환(spec/07). 샘플 청취: `--enqueue tts '{"episode_id":"…","backlog_id":"…","sample_turns":6}'`
 ```
 
 ## 실행기 메모
