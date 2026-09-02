@@ -54,6 +54,7 @@
 > **계획 확정** (2026-09-01): 저장 배치 기준(spec/08 1장) · 파이프라인 전용 버킷 규격·자격증명 모델(spec/08 2장, `pipeline/deploy/aws/`) · 규칙 동기화 하이브리드(`prompt_assets` — spec/10 3.2) · 실행기 전환 계획 구독 → API(A안 확정) → 파인튜닝 로컬(spec/08 3.1·5장) · AI 서버 = 기존 VPC EC2 1대, NAT·ALB·Fargate 없음(spec/10 2장·M6) · 마일스톤 순서 **M-R → M4 → M6 → M5**. 미결 #11·#12 갱신, #21·#22 신설
 
 > **M-R 규칙 동기화 구현** (2026-09-01): 0009(`prompt_assets`·`episodes.asset_versions`·`runs` 계측) · 워커 로더(DB 7 + git spec 3 → `WORK_ROOT/assets/<해시>/`, 에피소드 단위 버전 고정, `prompt_version` 자동 유도, 폴백 없음) · 웹 `/assets`(목록·편집·draft·diff·활성화·이력, 비평 화면 "규칙으로 승격") · `assets:import/export/status` · `pickupApproved` 선점 수정. 0009 적용·시딩 완료(2026-09-01 14:45 KST, 자산 7개 active)
+> **M6 AI 서버 EC2 리소스 생성** (2026-09-02): t4g.small `i-0c414b676584733da` · EIP `54.116.31.183` · SG/역할 `ear-ai-ec2`(버킷 정책만) — 전부 신규, 기존 무변경(스냅샷 diff). compose 4컨테이너·push.sh(rsync — 조직이 deploy key 금지)·README 는 `pipeline/deploy/`. 남은 것: env 비밀 → 기동 → 가비아 A 레코드 → Supabase Auth URL
 > **M4 S3 산출물 동기화 구현** (2026-09-02): 버킷 `earcast-pipeline-prod`(2026-09-01 생성) · 워커 `storage.ts`(단계 전 pull·후 push, md5↔ETag 멱등, direct/web 두 백엔드, 기동 시 접근 점검) · 웹 `s3:` 읽기·턴 수정 PutObject · `POST /api/storage`(로컬 워커용 서명 URL, 공유 토큰) · `storage:status`/`storage:migrate`. 검증: 실버킷 왕복(direct·web 모두)·라우트 401/405/400·서명 PUT 업로드. **이관 완료**(2026-09-02): 10편 86파일 1.9MB 업로드, `episodes` 키 48개·`runs` 74건 `s3:` 치환. 남긴 것: `backlog/*.md`·시드 기록 5건(로컬 전용)
 
 ## 디렉토리 구조

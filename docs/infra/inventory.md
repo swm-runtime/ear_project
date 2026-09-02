@@ -21,7 +21,11 @@
 | Elastic IP | `43.203.57.240` | 가비아 A 레코드 2개(api·admin)가 가리킴 |
 | 보안그룹 | `sg-048aaaf95e4d12b2e` | 22(관리자 IP/32)·80·443/tcp·443/udp |
 | 인스턴스 롤 | `ear-prod-ec2` | 인라인: `backup-put` · `content-upload`(S3 Put/Delete) · `ses-send` |
-| IAM 정책 (고객 관리형) | `ear-pipeline-bucket-rw` | **파이프라인** (2026-09-01 신설) — `earcast-pipeline-prod`의 `episodes/*`·`sweeps/*`·`datasets/*` Get/Put/List(삭제 없음). AI 서버 EC2 롤 `ear-ai-ec2`(M6)에 부착 예정. IAM 사용자·액세스 키는 만들지 않음. 생성: `pipeline/deploy/aws/setup-pipeline-bucket.sh` |
+| IAM 정책 (고객 관리형) | `ear-pipeline-bucket-rw` | **파이프라인** (2026-09-01 신설) — `earcast-pipeline-prod`의 `episodes/*`·`sweeps/*`·`datasets/*` Get/Put/List(삭제 없음). AI 서버 롤 `ear-ai-ec2`에 부착됨(2026-09-02). IAM 사용자·액세스 키는 만들지 않음. 생성: `pipeline/deploy/aws/setup-pipeline-bucket.sh` |
+| **AI 서버** EC2 | `i-0c414b676584733da` | **파이프라인** (2026-09-02 신설, `pipeline/deploy/aws/setup-ai-server.sh`) — t4g.small, AL2023 arm64, 2a 같은 서브넷, gp3 20GB, IMDSv2 hop 2, user-data(docker·compose·buildx·git·스왑 2G). compose 4컨테이너(caddy·web·worker-io·ai-server) — `pipeline/deploy/README.md` |
+| AI 서버 Elastic IP | `54.116.31.183` (`eipalloc-01215fe9cc181f063`) | `pipeline.earcast.co.kr` A 레코드 등록됨(2026-09-02). 사설 IP `172.31.15.36` — 제품 서버가 `/embeddings` 호출 시 이쪽 |
+| AI 서버 보안그룹 | `sg-0dfc05389c325b537` (`ear-ai-ec2`) | 22(관리자 IP 2개/32) · 80·443/tcp·443/udp · **8000은 소스=제품 SG만**(공개 아님). 제품 SG 는 참조만 — 무변경 |
+| AI 서버 인스턴스 롤 | `ear-ai-ec2` | 부착: `ear-pipeline-bucket-rw` 뿐 (제품 롤 재사용 금지 원칙). 키페어 `ear-ai` — pem `pipeline/deploy/aws/out/ear-ai-isb.pem` (로컬 전용, 유일한 사본) |
 | IMDS | v2 강제, hop limit **2** | 컨테이너가 롤 자격증명을 읽기 위해 2 필요 |
 | VPC | `vpc-07bfc7f134e639989` (기본 VPC — 계정이 비어 있어 `create-default-vpc`로 생성) | 서브넷 2a `subnet-0343791d0f49bcaa8` |
 
@@ -45,6 +49,7 @@
 |---|---|---|
 | `api.earcast.co.kr` A | `43.203.57.240` | API (Caddy가 LE 인증서 자동) |
 | `admin.earcast.co.kr` A | `43.203.57.240` | 관리자 콘솔 |
+| `pipeline.earcast.co.kr` A | `54.116.31.183` | 파이프라인 관리 UI (AI 서버 — 2026-09-02 등록, TTL 1800) |
 | `<token>._domainkey` CNAME ×3 | SES DKIM (⏳ 등록 대기 — 값은 SES 콘솔·memory 참조) | 이메일 인증 발송 |
 | `earcast.co.kr` (루트) | Vercel | 랜딩 — 이 문서 범위 밖 |
 
