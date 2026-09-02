@@ -21,7 +21,6 @@ export function Features({
   lede,
   items,
   footer,
-  onDark = false,
 }: {
   id?: string;
   eyebrow?: string;
@@ -29,10 +28,9 @@ export function Features({
   lede?: string;
   items: readonly FeatureItem[];
   footer?: React.ReactNode;
-  onDark?: boolean;
 }) {
   return (
-    <section id={id} className={`section ${onDark ? "onDark" : ""}`}>
+    <section id={id} className="section">
       <div className="container">
         <p className="eyebrow">{eyebrow}</p>
         <h2 className="sectionTitle">{title}</h2>

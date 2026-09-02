@@ -1,10 +1,9 @@
+/* 본문과 같은 흰 배경이라, 제목 영역과 본문은 아래 경계선으로 나눈다. */
 .wrap {
   position: relative;
   overflow: hidden;
-  background: var(--ink-900);
-  color: #f2f3f7;
-  /* 고정 헤더(68px) 뒤까지 배경을 이어 붙인다. 안 그러면 반투명 헤더 뒤로
-     body의 크림색이 비쳐 회색 띠처럼 보인다. */
+  border-bottom: 1px solid var(--line);
+  /* 헤더가 sticky라 68px를 차지한다. 그만큼 끌어올려 헤더 뒤까지 이어 붙인다. */
   margin-top: -68px;
   padding: calc(68px + clamp(44px, 6vw, 76px)) 0 clamp(44px, 6vw, 72px);
 }
@@ -14,8 +13,8 @@
   inset: -60% 40% 20% -20%;
   background: radial-gradient(
     50% 50% at 40% 55%,
-    rgba(226, 147, 56, 0.26) 0%,
-    rgba(226, 147, 56, 0.08) 45%,
+    rgba(26, 26, 30, 0.04) 0%,
+    rgba(26, 26, 30, 0.012) 45%,
     transparent 72%
   );
   filter: blur(14px);
@@ -32,26 +31,26 @@
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  color: var(--ink-400);
+  color: var(--text-3);
 }
 
 .crumbs li + li::before {
   content: "/";
   margin-right: 8px;
-  color: var(--ink-600);
+  color: var(--line-2);
 }
 
 .crumbs a {
-  color: var(--ink-300);
+  color: var(--text-3);
   transition: color 0.18s ease;
 }
 
 .crumbs a:hover {
-  color: var(--brand-300);
+  color: var(--text);
 }
 
 .crumbs span {
-  color: var(--brand-300);
+  color: var(--text);
 }
 
 .title {
@@ -65,13 +64,13 @@
 .lede {
   margin-top: 20px;
   max-width: 56ch;
-  color: var(--ink-200);
+  color: var(--text-2);
   font-size: clamp(15.5px, 1.6vw, 18px);
   line-height: 1.75;
 }
 
 .meta {
   margin-top: 22px;
-  color: var(--ink-400);
+  color: var(--text-3);
   font-size: 13.5px;
 }

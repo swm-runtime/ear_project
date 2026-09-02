@@ -16,36 +16,51 @@
   font-display: swap;
 }
 
+/* 색은 앱(`frontend/src/shared/theme/index.ts`)의 토큰을 기준으로 맞춘다.
+   앱이 무채색 팔레트(강조 = 순검정, 배경 = 순백)라 랜딩도 같은 인상을 준다.
+   앱에 있는 값은 주석으로 대응을 적어 두었다 — 앱 토큰이 바뀌면 여기도 같이 바꾼다. */
 :root {
-  /* --- 색: 잉크(짙은 남색 계열) --- */
-  --ink-950: #080a12;
-  --ink-900: #0c0f1a;
-  --ink-800: #141827;
-  --ink-700: #1d2233;
-  --ink-600: #2b3145;
-  --ink-400: #6e7590;
-  --ink-300: #949ab3;
-  --ink-200: #b9bdcd;
+  /* --- 색: 잉크(중성 회흑) --- */
+  --ink-950: #0a0a0c;
+  --ink-900: #1a1a1e; /* 앱 textPrimary */
+  --ink-800: #232329;
+  --ink-700: #2d2d34;
+  --ink-600: #3f3f47;
+  --ink-400: #6e6e76; /* 앱 textSecondary */
+  --ink-300: #9a9aa3;
+  --ink-200: #c4c4cb;
 
-  /* --- 색: 종이(따뜻한 흰 계열) --- */
-  --paper: #fbfaf7;
-  --paper-2: #f4f2ec;
+  /* --- 색: 종이(순백) --- */
+  --paper: #ffffff; /* 앱 background */
+  --paper-2: #f5f5f7; /* 앱 surface */
   --surface: #ffffff;
-  --line: #e7e4dc;
-  --line-2: #d6d2c7;
+  --line: #e3e3e8; /* 앱 border */
+  --line-2: #d0d0d8;
 
-  /* --- 색: 브랜드(새벽빛 앰버) --- */
-  --brand-700: #a45c17;
-  --brand-600: #c9761f;
-  --brand-500: #e29338;
-  --brand-400: #f2ab55;
-  --brand-300: #ffc98a;
-  --brand-100: #fbe6cd;
-  --brand-050: #fdf4e9;
+  /* --- 색: 강조(무채색) ---
+     밝은 배경에서의 값이다. 어두운 배경에서는 강조가 흰색으로 뒤집히므로
+     아래 `.darkTokens`가 같은 이름을 다시 정의한다. --brand-300만은
+     "어두운 배경 위 강조"로 고정이라 양쪽에서 흰색이다. */
+  --brand-700: #000000; /* 앱 primary */
+  --brand-600: #1a1a1e;
+  --brand-500: #2d2d34;
+  --brand-400: #6e6e76;
+  --brand-300: #ffffff; /* 앱 onPrimary */
+  --brand-100: #e3e3e8;
+  --brand-050: #f5f5f7;
+
+  /* 이미지 위에 얹는 반투명 막. 앱 theme.color.overlay와 같은 값이다 —
+     탐색 타일의 더보기 배지처럼 아트워크 위에 놓이는 것들이 쓴다. */
+  --overlay: rgba(0, 0, 0, 0.4);
+
+  /* 기본 버튼과 포커스 링도 배경 문맥을 타므로 토큰으로 둔다. */
+  --btn-bg: var(--brand-700);
+  --btn-fg: #ffffff;
+  --focus: #000000;
 
   --text: var(--ink-900);
-  --text-2: #4c5268;
-  --text-3: #767c92;
+  --text-2: #45454d;
+  --text-3: #6e6e76;
 
   /* --- 타이포 --- */
   --sans: "Pretendard", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
@@ -59,9 +74,9 @@
   --r-xl: 28px;
   --r-pill: 999px;
 
-  --shadow-sm: 0 1px 2px rgba(12, 15, 26, 0.04), 0 6px 16px -10px rgba(12, 15, 26, 0.18);
-  --shadow-md: 0 2px 6px rgba(12, 15, 26, 0.05), 0 20px 42px -22px rgba(12, 15, 26, 0.3);
-  --shadow-lg: 0 4px 12px rgba(12, 15, 26, 0.07), 0 42px 80px -36px rgba(12, 15, 26, 0.45);
+  --shadow-sm: 0 1px 2px rgba(10, 10, 12, 0.04), 0 6px 16px -10px rgba(10, 10, 12, 0.18);
+  --shadow-md: 0 2px 6px rgba(10, 10, 12, 0.05), 0 20px 42px -22px rgba(10, 10, 12, 0.3);
+  --shadow-lg: 0 4px 12px rgba(10, 10, 12, 0.07), 0 42px 80px -36px rgba(10, 10, 12, 0.45);
 
   --container: 1140px;
   --gutter: 24px;
@@ -127,8 +142,9 @@ svg {
   max-width: 100%;
 }
 
+/* 무채색이라 포커스 링도 배경을 따라 뒤집어야 보인다(밝은 배경=검정, 어두운 배경=흰색). */
 :focus-visible {
-  outline: 2px solid var(--brand-500);
+  outline: 2px solid var(--focus);
   outline-offset: 3px;
   border-radius: 4px;
 }
@@ -146,16 +162,33 @@ svg {
   padding: clamp(72px, 11vw, 132px) 0;
 }
 
-/* 어두운 배경 위 섹션에서 토큰만 갈아끼워 재사용한다. */
-.onDark {
-  background: var(--ink-900);
-  color: #f2f3f7;
-  --text: #f2f3f7;
+/* 검은 컴포넌트 안에서 토큰을 뒤집는다. 배경은 각 컴포넌트가 직접 정하고
+   이 클래스는 토큰만 담당한다 — 붙이는 곳은 CTA 패널·추천 요금제 카드·앱 목업처럼
+   흰 페이지 위에 놓이는 검은 덩어리들이다.
+
+   무채색 팔레트에서는 강조가 검정이라, 뒤집지 않으면 검은 면 위의 기본 버튼과
+   강조 텍스트가 배경에 그대로 묻힌다.
+
+   페이지 배경은 흰색 하나로 간다. 통짜로 어두운 섹션은 두지 않는다. */
+.darkTokens {
+  color: #f2f2f5;
+  --text: #f2f2f5;
   --text-2: var(--ink-200);
   --text-3: var(--ink-300);
-  --surface: rgba(255, 255, 255, 0.045);
+  --surface: rgba(255, 255, 255, 0.05);
   --line: rgba(255, 255, 255, 0.11);
   --line-2: rgba(255, 255, 255, 0.2);
+
+  --brand-700: #ffffff;
+  --brand-600: #ffffff;
+  --brand-500: #ffffff;
+  --brand-400: var(--ink-200);
+  --brand-100: rgba(255, 255, 255, 0.18);
+  --brand-050: rgba(255, 255, 255, 0.08);
+
+  --btn-bg: #ffffff;
+  --btn-fg: var(--ink-950);
+  --focus: #ffffff;
 }
 
 /* ---------- 섹션 헤더 ---------- */
@@ -177,10 +210,6 @@ svg {
   height: 2px;
   border-radius: 2px;
   background: currentColor;
-}
-
-.onDark .eyebrow {
-  color: var(--brand-300);
 }
 
 .sectionTitle {
@@ -213,15 +242,16 @@ svg {
     border-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
 }
 
+/* 배경 문맥에 따라 검정 버튼(밝은 배경)과 흰 버튼(어두운 배경)으로 뒤집힌다. */
 .btnPrimary {
-  background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
-  color: #241203;
-  box-shadow: 0 10px 26px -12px rgba(201, 118, 31, 0.85);
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  box-shadow: 0 10px 26px -14px rgba(10, 10, 12, 0.7);
 }
 
 .btnPrimary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 16px 34px -12px rgba(201, 118, 31, 0.95);
+  box-shadow: 0 16px 34px -14px rgba(10, 10, 12, 0.8);
 }
 
 .btnGhost {
@@ -232,7 +262,7 @@ svg {
 
 .btnGhost:hover {
   border-color: var(--text-3);
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(127, 127, 137, 0.09);
 }
 
 /* ---------- 접근성 ---------- */

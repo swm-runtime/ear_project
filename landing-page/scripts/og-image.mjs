@@ -22,10 +22,14 @@ import { OG_PAGES } from "./og-pages.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-const INK = "#0C0F1A";
-const AMBER = "#F2AB55";
-const AMBER_LIGHT = "#FFC98A";
-const MUTED = "#949AB3";
+/* 색은 랜딩 전역 토큰(src/app/globals.css)과 같은 무채색 팔레트를 쓴다.
+   페이지가 흰 배경 기준이므로 공유 카드도 흰 바탕에 검정 강조로 맞춘다. */
+const PAPER = "#FFFFFF";
+const ACCENT = "#000000";
+const MUTED = "#6E6E76";
+const LINE = "#E3E3E8";
+/** 두 줄 제목의 첫 줄. 색이 아니라 밝기로 둘째 줄(검정)에 무게를 넘긴다. */
+const HEADLINE_SETUP = "#7C7C85";
 
 const bold = await readFile(join(root, "assets/og-800.ttf"));
 const regular = await readFile(join(root, "assets/og-400.ttf"));
@@ -34,27 +38,15 @@ const regular = await readFile(join(root, "assets/og-400.ttf"));
 const div = (style, children) =>
   h("div", { style: { display: "flex", ...style } }, children);
 
-const logo = h(
-  "svg",
-  { width: 54, height: 54, viewBox: "0 0 32 32", fill: "none" },
-  [
-    h("circle", { key: "c", cx: 10.5, cy: 16, r: 5.4, stroke: AMBER, strokeWidth: 2.7 }),
-    h("path", {
-      key: "a1",
-      d: "M20.5 10.6a8.6 8.6 0 0 1 0 10.8",
-      stroke: AMBER,
-      strokeWidth: 2.7,
-      strokeLinecap: "round",
-    }),
-    h("path", {
-      key: "a2",
-      d: "M26 6.4a15.2 15.2 0 0 1 0 19.2",
-      stroke: AMBER,
-      strokeWidth: 2.7,
-      strokeLinecap: "round",
-    }),
-  ]
-);
+/* 앱과 같은 브랜드 마크를 쓴다. satori는 외부 경로를 못 읽으므로 데이터 URI로 넣는다.
+   원본은 `scripts/brand-assets.mjs`가 만든 투명 배경 검정 마크다(480×388). */
+const markPng = await readFile(join(root, "public/logo.png"));
+const MARK_H = 46;
+const logo = h("img", {
+  src: `data:image/png;base64,${markPng.toString("base64")}`,
+  width: Math.round((MARK_H * 480) / 388),
+  height: MARK_H,
+});
 
 /** 두 줄 제목의 글자 크기. 긴 줄이 1200px를 넘지 않도록 글자 수로 눈금을 준다. */
 function headlineSize(page) {
@@ -76,7 +68,7 @@ function tree(page) {
   const brandRow = [
     h("div", { key: "mark", style: { display: "flex" } }, logo),
     div(
-      { key: "name", fontSize: 46, fontWeight: 800, letterSpacing: "-0.05em", color: "#FFFFFF" },
+      { key: "name", fontSize: 46, fontWeight: 800, letterSpacing: "-0.05em", color: ACCENT },
       "이어"
     ),
   ];
@@ -90,9 +82,9 @@ function tree(page) {
           marginLeft: 6,
           padding: "8px 20px",
           borderRadius: 999,
-          border: `1px solid rgba(255,201,138,0.32)`,
-          background: "rgba(226,147,56,0.12)",
-          color: AMBER_LIGHT,
+          border: `1px solid ${LINE}`,
+          background: "#F5F5F7",
+          color: ACCENT,
           fontSize: 25,
           fontWeight: 400,
         },
@@ -103,7 +95,7 @@ function tree(page) {
 
   const foot = [];
   page.foot.forEach((text, i) => {
-    if (i > 0) foot.push(div({ key: `sep${i}`, color: "#2B3145" }, "|"));
+    if (i > 0) foot.push(div({ key: `sep${i}`, color: LINE }, "|"));
     foot.push(div({ key: `f${i}` }, text));
   });
 
@@ -114,12 +106,12 @@ function tree(page) {
       flexDirection: "column",
       justifyContent: "space-between",
       padding: "76px 84px",
-      background: INK,
+      background: PAPER,
       fontFamily: "Pretendard",
       position: "relative",
     },
     [
-      // 왼쪽 아래에서 번지는 새벽빛
+      // 왼쪽 아래에서 번지는 옅은 그늘. 흰 카드가 피드에서 빈 사각형으로 보이지 않게 한다.
       div({
         key: "glow",
         position: "absolute",
@@ -129,14 +121,14 @@ function tree(page) {
         height: 900,
         borderRadius: 999,
         background:
-          "radial-gradient(circle, rgba(226,147,56,0.40) 0%, rgba(226,147,56,0.10) 45%, rgba(12,15,26,0) 70%)",
+          "radial-gradient(circle, rgba(26,26,30,0.07) 0%, rgba(26,26,30,0.02) 45%, rgba(26,26,30,0) 70%)",
       }),
 
       div({ key: "brand", alignItems: "center", gap: 20 }, brandRow),
 
       div({ key: "copy", flexDirection: "column" }, [
-        div({ key: "l1", ...headline, color: "#F7F8FB" }, page.line1),
-        div({ key: "l2", ...headline, color: AMBER_LIGHT }, page.line2),
+        div({ key: "l1", ...headline, color: HEADLINE_SETUP }, page.line1),
+        div({ key: "l2", ...headline, color: ACCENT }, page.line2),
       ]),
 
       div(

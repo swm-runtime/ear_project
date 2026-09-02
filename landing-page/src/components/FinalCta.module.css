@@ -8,7 +8,7 @@
   padding: clamp(48px, 7vw, 88px) clamp(28px, 5vw, 72px);
   border-radius: clamp(24px, 3vw, 36px);
   background: var(--ink-900);
-  color: #f2f3f7;
+  color: #f2f2f5;
   box-shadow: var(--shadow-lg);
 }
 
@@ -17,8 +17,8 @@
   inset: -50% -10% 20% 40%;
   background: radial-gradient(
     46% 46% at 50% 50%,
-    rgba(226, 147, 56, 0.34) 0%,
-    rgba(226, 147, 56, 0.1) 46%,
+    rgba(255, 255, 255, 0.13) 0%,
+    rgba(255, 255, 255, 0.04) 46%,
     transparent 74%
   );
   pointer-events: none;
