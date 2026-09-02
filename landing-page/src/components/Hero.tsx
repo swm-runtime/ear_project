@@ -12,7 +12,7 @@ const ICON_STROKE = 1.8;
 
 /* 브랜드 '이어'를 손글씨 획으로 그리는 SVG — 애플 초기 설정 "hello"처럼 획이 순서대로
    그려진다(pathLength=1 + stroke-dashoffset 1→0, 획마다 지속·지연을 달리해 손맛을 낸다).
-   글자 색은 기존 .brand 텍스트 그라데이션(158deg 검정→회색)을 stroke 그라데이션으로 옮겼다.
+   색은 잉크 단색(var(--ink-950) — Hero.module.css)이다. 손글씨에 그라데이션은 어색해서 뺐다.
    실제 텍스트는 스크린리더·SEO용으로 .srOnly 에 남는다. prefers-reduced-motion 이면
    애니메이션 없이 완성형으로 보인다(Hero.module.css). */
 function BrandScript() {
@@ -30,16 +30,9 @@ function BrandScript() {
   ];
   return (
     <svg className={s.brandSvg} viewBox="0 0 250 120" fill="none" aria-hidden="true">
-      <defs>
-        <linearGradient id="brandStroke" x1="0" y1="0" x2="0.45" y2="1">
-          <stop offset="0.04" stopColor="#000000" />
-          <stop offset="0.4" stopColor="#26262c" />
-          <stop offset="0.92" stopColor="#7c7c85" />
-        </linearGradient>
-      </defs>
       {strokes.map(([d, delay, dur]) => (
         <path key={d} d={d} className={s.brandStroke} pathLength={1}
-          stroke="url(#brandStroke)" strokeWidth="11" strokeLinecap="round" strokeLinejoin="round"
+          strokeWidth="11" strokeLinecap="round" strokeLinejoin="round"
           style={{ animationDelay: `${delay}s`, animationDuration: `${dur}s` }} />
       ))}
     </svg>

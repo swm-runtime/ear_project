@@ -51,7 +51,7 @@
 }
 
 /* 서비스 이름 — 손글씨 SVG(BrandScript)가 그려진다. 크기 체계는 종전 텍스트와 동일하게
-   뷰포트 기반이고, 색 그라데이션은 SVG stroke 로 옮겼다(Hero.tsx 주석). */
+   뷰포트 기반. 색은 잉크 단색(.brandStroke) — 그라데이션은 손글씨 컨셉과 어긋나 뺐다. */
 .brand {
   display: block;
   line-height: 0.92;
@@ -67,6 +67,7 @@
    시작 전 opacity 0: linecap round 는 길이 0 인 선도 둥근 캡(점)으로 그리므로,
    자기 차례가 오기 전의 획이 점으로 보인다 — 애니메이션 시작 프레임에 바로 켠다. */
 .brandStroke {
+  stroke: var(--ink-950); /* 잉크 단색 — 다크 토큰이 뒤집으면 같이 따라간다 */
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
   opacity: 0;
