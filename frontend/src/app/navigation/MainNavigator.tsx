@@ -163,6 +163,7 @@ export default function MainNavigator() {
       <NotificationPrePromptModal
         isVisible={isPrePromptPending}
         withReconsider
+        syncOnDismiss
         onFinished={clearPrePromptPending}
       />
     </>
