@@ -4,6 +4,9 @@
 # 빌드 컨텍스트는 pipeline/ 이다:  docker build -f deploy/Dockerfile .
 FROM node:22-alpine
 
+# ffmpeg — TTS 오디오 조립·정규화 (spec/06 7장, apps/worker/src/tts/audio.ts)
+RUN apk add --no-cache ffmpeg
+
 WORKDIR /srv/pipeline
 
 # 의존성 레이어 — 소스보다 먼저 복사해 캐시를 살린다
