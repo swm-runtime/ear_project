@@ -32,6 +32,7 @@ services:
       args:
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:?}
+        NEXT_PUBLIC_EAR_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_EAR_GOOGLE_CLIENT_ID:-} # 발행 콘솔 구글 로그인 (비밀 아님)
         WORKER_REV: ${WORKER_REV:-unknown}
     image: ear-pipeline:prod
     restart: unless-stopped
@@ -40,6 +41,7 @@ services:
       PIPELINE_BUCKET: ${PIPELINE_BUCKET:?}
       AWS_REGION: ${AWS_REGION:-ap-northeast-2}
       PIPELINE_WORKER_TOKEN: ${PIPELINE_WORKER_TOKEN:?}
+      EAR_API_BASE_URL: ${EAR_API_BASE_URL:-https://api.earcast.co.kr/api/v1} # 발행 프록시(/api/ear) 대상
     expose:
       - '3000'
     logging:
