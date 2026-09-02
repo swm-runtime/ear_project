@@ -16,6 +16,23 @@
   font-display: swap;
 }
 
+/* Paperlogy — 제목 전용(600·700만). 좁은 폭에 각진 인상으로 제목을 세운다.
+   본문은 Pretendard 유지. 같은 서브셋 파이프라인(scripts/subset-fonts.sh)으로 굽는다. */
+@font-face {
+  font-family: "Paperlogy";
+  src: url("/fonts/paperlogy-600.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Paperlogy";
+  src: url("/fonts/paperlogy-700.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* 색은 앱(`frontend/src/shared/theme/index.ts`)의 토큰을 기준으로 맞춘다.
    앱이 무채색 팔레트(강조 = 순검정, 배경 = 순백)라 랜딩도 같은 인상을 준다.
    앱에 있는 값은 주석으로 대응을 적어 두었다 — 앱 토큰이 바뀌면 여기도 같이 바꾼다. */
@@ -65,6 +82,8 @@
   /* --- 타이포 --- */
   --sans: "Pretendard", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
     "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+  /* 제목 전용 서체 — 빠지는 글자는 Pretendard로 떨어진다 */
+  --display: "Paperlogy", var(--sans);
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 
   /* --- 형태 --- */
@@ -108,6 +127,11 @@ body {
   /* 한국어는 단어 중간에서도 줄이 바뀌므로 어절 단위 유지가 가독성에 크게 기여한다. */
   word-break: keep-all;
   overflow-wrap: break-word;
+}
+
+/* 제목 계열은 디스플레이 서체 — 모듈 CSS는 font-family를 선언하지 않으므로 여기서 한 번에 */
+h1, h2, h3 {
+  font-family: var(--display);
 }
 
 h1,
