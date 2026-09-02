@@ -50,7 +50,7 @@ spec/08의 원칙 "UI와 실행기의 결합은 상태 테이블로만"을 그�
                     └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **호스트 (2026-09-01 판단)**: 제품 서버(`ear-prod`)와 같은 ISB 계정·같은 기본 VPC·같은 퍼블릭 서브넷에 **EC2 1대**를 추가한다. 컨테이너 4개 — `caddy`(TLS, 도메인은 `pipeline.<도메인>` 하나) · `ai-server`(FastAPI :8000 — 제품 서버가 VPC 사설 IP로 호출) · `pipeline-web` · `pipeline-worker-io`. 새 SG(22 팀 IP · 80/443 · 8000은 source = 제품 SG) · 새 인스턴스 역할 `ear-ai-ec2`(파이프라인 버킷 정책만 — 제품 롤 재사용 금지). **NAT·ALB·Fargate·RDS는 두지 않는다**(spec/08 7장 — 퍼블릭 서브넷이라 NAT 불필요, 1대라 ALB 불필요, compose가 기존 운영 패턴, DB는 Supabase). **기존 리소스는 무변경**(새 SG가 기존 SG ID를 참조만). 크기 t4g.small(프리티어는 기존 인스턴스가 소진 → 월 약 2.8만) — 서버 `next build`가 OOM이면 스왑 → 로컬 arm64 빌드(`docker save|load`) → t4g.medium 순. ai-server를 노트북(메타 부여 스킬)에서 부를 땐 SSH 터널 — 공개 도메인을 만들지 않는다.
+- **호스트 (2026-09-01 판단)**: 제품 서버(`ear-prod`)와 같은 ISB 계정·같은 기본 VPC·같은 퍼블릭 서브넷에 **EC2 1대**를 추가한다. 컨테이너 4개 — `caddy`(TLS, 도메인은 `admin.<도메인>` 하나 — 2026-09-03 admin 콘솔 통합으로 `pipeline.<도메인>`에서 개칭, DNS 재지정) · `ai-server`(FastAPI :8000 — 제품 서버가 VPC 사설 IP로 호출) · `pipeline-web` · `pipeline-worker-io`. 새 SG(22 팀 IP · 80/443 · 8000은 source = 제품 SG) · 새 인스턴스 역할 `ear-ai-ec2`(파이프라인 버킷 정책만 — 제품 롤 재사용 금지). **NAT·ALB·Fargate·RDS는 두지 않는다**(spec/08 7장 — 퍼블릭 서브넷이라 NAT 불필요, 1대라 ALB 불필요, compose가 기존 운영 패턴, DB는 Supabase). **기존 리소스는 무변경**(새 SG가 기존 SG ID를 참조만). 크기 t4g.small(프리티어는 기존 인스턴스가 소진 → 월 약 2.8만) — 서버 `next build`가 OOM이면 스왑 → 로컬 arm64 빌드(`docker save|load`) → t4g.medium 순. ai-server를 노트북(메타 부여 스킬)에서 부를 땐 SSH 터널 — 공개 도메인을 만들지 않는다.
 - 워커 바이너리는 하나, 실행 위치와 플래그만 다르다: `--executor=none|claude-cli|api`, `--capabilities=ai,io`.
   서버 워커는 `io`만, 로컬 워커는 `ai`(+`io`)를 집는다.
 - 로컬 워커가 꺼져 있으면 AI 작업은 `queued`에 머문다 — 화면에 "대기 중(AI 워커 없음)"으로 표시. 테스트 단계의 의도된 제약.
@@ -198,7 +198,7 @@ alter table runs add column cost_usd numeric, add column tokens jsonb, add colum
 
 | 화면 | 내용 | 대응 |
 |---|---|---|
-| 로그인 | Supabase Auth — 이메일+비밀번호 또는 매직링크. **초대 전용**(Authentication → Users → Invite, `Enable email signups` OFF — 0003 RLS는 `authenticated`면 팀원으로 취급하므로 가입이 열려 있으면 안 된다). 서버 배포 시 Auth URL Configuration의 Site URL·Redirect URLs에 `https://pipeline.<도메인>/**` 등록(매직링크 복귀 주소) | spec/08 |
+| 로그인 | Supabase Auth — 이메일+비밀번호 또는 매직링크. **초대 전용**(Authentication → Users → Invite, `Enable email signups` OFF — 0003 RLS는 `authenticated`면 팀원으로 취급하므로 가입이 열려 있으면 안 된다). 서버 배포 시 Auth URL Configuration의 Site URL·Redirect URLs에 `https://admin.<도메인>/**` 등록(매직링크 복귀 주소) | spec/08 |
 | 대시보드 | 진행 중 작업·최근 완료·**워커 상태**(heartbeat — 누구의 Mac이 AI 워커를 띄웠는지) | — |
 | 주제 | `topics` 목록·편집 (중분류 추가, AI 생성 여부, 해설 페르소나) | PIPELINE 1장 |
 | 소스 풀 | `domains` 목록(tier 필터) · 행 상세 = 판정 시트(note의 증거 표시 + tier 선택 + license_basis 기입) · 도메인 추가(candidate) | spec/01 4장 |
@@ -235,7 +235,7 @@ ai-server/                         FastAPI 단발 추론 API (임베딩) — 별
 | M3 | 스윕 요청 + 자동 군집화 연쇄 (RSS 수집은 워커 코드, 군집화는 AI) | 없음 | 요청 → 후보 카드까지 사람 개입 0 |
 | M-R (규칙 동기화) 🛠 구현 PR (2026-09-01) | `prompt_assets`(0009) + 워커 로더(3.2) + `/assets` 화면 + `assets:import/export` + `pickupApproved` 선점 수정(워커 다중 실행 시 draft 중복 방지) | 없음 | 두 워커가 같은 active 번들을 읽고 `runs.prompt_version`이 번들에서 유도되는가 |
 | M4 🛠 구현 PR (2026-09-02 · 버킷 생성 2026-09-01) | 파이프라인 S3(`pipeline/deploy/aws/setup-pipeline-bucket.sh`) + 산출물 동기화·열람(3.3) + 기존 로컬 10편 이관 도구 `storage:migrate`(미결 #11). **파일은 전부 S3(버저닝), Supabase에는 키·판정·수정 로그만** — 워커: 단계 전 내려받기·후 올리기 / 웹: `s3:` 키 읽기 + 직접 수정 PutObject + **로컬 워커용 서명 URL 라우트**(노트북에 AWS 키를 두지 않는다) · `datasets/` 접두사 | 버킷 1(스크립트) · EC2 전에는 임대 보유자 SSO 프로필로 개발 | 로컬 파일 없이 화면에서 대본·리포트가 열리고 수정이 되돌아가는가 · 노트북 워커가 키 없이 업로드하는가 |
-| M6 🛠 리소스 생성 완료 (2026-09-02) | **AI 서버 EC2** — 2장 "호스트": 기존 기본 VPC 퍼블릭 서브넷에 t4g.small 1대(`i-0c414b676584733da`, EIP `54.116.31.183`) + compose(caddy·ai-server·web·worker-io) + 인스턴스 역할 `ear-ai-ec2` + 새 SG. 산출물: `pipeline/deploy/`(setup-ai-server.sh · Dockerfile · docker-compose.prod.yml · Caddyfile · push.sh · README). **deploy key 금지(조직 룰셋) → 코드 반입은 push.sh(rsync)**. NAT·ALB·Fargate 없음. 남은 것: env 비밀 채우기 → compose 기동 · `pipeline.<도메인>` A 레코드(가비아) · Supabase Auth URL · inventory 등재(완) | EC2 1대 · 도메인 1개 | 팀원이 외부에서 접속·승인 가능 · 제품 서버가 사설 IP로 `/embeddings` 호출 · 기존 리소스 무변경(전후 스냅샷 diff 확인) |
+| M6 🛠 리소스 생성 완료 (2026-09-02) | **AI 서버 EC2** — 2장 "호스트": 기존 기본 VPC 퍼블릭 서브넷에 t4g.small 1대(`i-0c414b676584733da`, EIP `54.116.31.183`) + compose(caddy·ai-server·web·worker-io) + 인스턴스 역할 `ear-ai-ec2` + 새 SG. 산출물: `pipeline/deploy/`(setup-ai-server.sh · Dockerfile · docker-compose.prod.yml · Caddyfile · push.sh · README). **deploy key 금지(조직 룰셋) → 코드 반입은 push.sh(rsync)**. NAT·ALB·Fargate 없음. 남은 것: env 비밀 채우기 → compose 기동 · `admin.<도메인>` A 레코드(가비아) · Supabase Auth URL · inventory 등재(완) | EC2 1대 · 도메인 1개 | 팀원이 외부에서 접속·승인 가능 · 제품 서버가 사설 IP로 `/embeddings` 호출 · 기존 리소스 무변경(전후 스냅샷 diff 확인) |
 | M5 🛠 구현 (2026-09-02) | TTS(ElevenLabs eleven_v3 다중화자 1콜) 수동 변환 — 음차·숫자 정규화(spec/06 4장)·턴 경계 분할·콜드오픈 절단·loudnorm·master.wav+dist.mp3·`audio_*_key` + package(spec/07 `upload-meta.json`·packaged 전환) + 웹 오디오 탭(서명 URL 재생)·패키지 버튼 — **EC2 IO 워커가 실행**. `sample_turns` payload 로 도입부 샘플 합성(청취 확인용). 보이스·방식 확정(미결 #8 해소) | ElevenLabs API 키 (서버 env 연결됨) | 버튼 → S3 `audio/` → 오디오 탭 재생 · 콜드오픈 자구 동일(절단 방식) · 플레이스홀더 잔존 시 중단 |
 
 M1~M3·M-R은 AWS 없이 진행 가능하다(Supabase + 로컬). AWS는 M4·M6에서. 순서는 **M-R → M4 → M6 → M5**: "대본 → TTS → 최종 → S3" 체계까지가 AI 서버 구축의 범위이며, 대본 텍스트 생성만 API 실행기 전환(spec/08 3.1 G1)까지 노트북 워커에 남는다.
@@ -249,7 +249,7 @@ M1~M3·M-R은 AWS 없이 진행 가능하다(Supabase + 로컬). AWS는 M4·M6�
 - Given 서버 워커 / When 환경을 점검한다 / Then 구독 토큰이 없고, API 키가 없으면 AI 작업을 집지 않는다
 - Given 모든 워커 쓰기 / When runs를 조회한다 / Then executed_by(워커 소유자)·model·prompt_version이 기록돼 있다
 - Given 규칙 자산이 웹에서 활성화된다 / When 어느 워커가 다음 새 에피소드를 집는다 / Then 그 번들을 읽고 `episodes.asset_versions`·`runs.prompt_version`에 기록된다 — 진행 중이던 에피소드는 기존 번들을 유지한다
-- Given AI 서버 EC2 / When 제품 서버(NestJS)가 `/embeddings`를 호출한다 / Then VPC 사설 IP로 응답하고, 인터넷에 열린 것은 `pipeline.<도메인>`의 로그인 화면뿐이다
+- Given AI 서버 EC2 / When 제품 서버(NestJS)가 `/embeddings`를 호출한다 / Then VPC 사설 IP로 응답하고, 인터넷에 열린 것은 `admin.<도메인>`의 로그인 화면뿐이다
 - Given 워커 A 가 만든 에피소드 / When 다른 노트북의 워커 B 가 QA 를 집는다 / Then 로컬 파일 없이 S3 에서 내려받아 검증하고 리포트가 S3 에 올라간다(3.3)
 - Given 웹에서 대본 턴을 고쳤다 / When 재QA 가 돈다 / Then 고친 본이 검증 대상이고 이전 본은 S3 버전으로 남아 있다
 - Given 팀원 노트북의 워커 / When 환경을 점검한다 / Then AWS 액세스 키가 없고 웹 `/api/storage` 의 공유 토큰만 있다 — 그 토큰이 없으면 기동 시 저장소 점검에서 멈춘다
