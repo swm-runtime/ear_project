@@ -10,6 +10,7 @@
 | `caddy/Caddyfile` | `pipeline.<도메인>` → web:3000. TLS 자동(Let's Encrypt) |
 | `env.prod.example` | `env.prod` 템플릿. `env.ai-server` 는 [`ai-server/.env.example`](../../ai-server/.env.example) 기준 |
 | `push.sh` | 코드 반입 + 재배포 — 로컬 체크아웃을 rsync 로 밀고 서버에서 compose 빌드 (deploy key 금지 조직 설정 우회) |
+| `aws/setup-ci.sh` | CI 1회 설정 (멱등) — CI SSH 키·OIDC 공급자·역할 `ear-ci-deploy`·GitHub secret. **사람이 직접 실행** |
 
 ## 0. 전제
 
@@ -56,6 +57,8 @@ git switch dev && git pull    # 배포는 dev 기준 — 로컬 수정분이 섞
 bash pipeline/deploy/push.sh
 ```
 
+**dev 머지는 자동 배포된다** (8장) — 위 수동 절차는 CI 가 죽었거나 dev 밖 리비전을 올릴 때만.
+
 ## 6. 확인 (완료 조건)
 
 - `https://admin.earcast.co.kr` → 로그인 화면. 팀원 계정으로 로그인·백로그 승인 가능
@@ -71,3 +74,12 @@ bash pipeline/deploy/push.sh
 - t4g.small 에서 `next build` OOM → user-data 의 스왑 2G 가 1차 방어. 그래도 죽으면 로컬 arm64 빌드 후 `docker save | ssh … docker load`, 다음이 t4g.medium (spec/10 2장)
 - ai-server 를 노트북(메타 부여 스킬)에서 부를 땐 SSH 터널: `ssh -i … -L 8000:localhost:8000 ec2-user@<EIP>` — 공개 도메인을 만들지 않는다
 - 팀원 노트북 워커는 이 서버가 뜬 뒤부터 web 모드로 동작: `PIPELINE_WEB_URL=https://admin.earcast.co.kr` + 토큰 (spec/10 3.3)
+
+## 8. 자동 배포 (CI — dev 머지)
+
+`.github/workflows/deploy-pipeline.yml`: **dev 에 `pipeline/`·`ai-server/` 변경이 머지되면 Actions 러너가 push.sh 로 배포한다** (수동 실행은 Actions 탭 → deploy-pipeline → Run workflow). PR 리뷰·머지는 사람 몫 — 자동인 건 배포뿐이다.
+
+- **비밀 구성**: AWS 는 OIDC 역할 `ear-ci-deploy`(권한: 이 SG 의 22 개폐뿐, dev 브랜치 워크플로만 신뢰) — 저장된 AWS 키 없음. SSH 는 CI 전용 키(secret `CI_SSH_KEY`, admin pem 과 별개 — 회수는 서버 `authorized_keys` 에서 `ear-ci-deploy` 줄 삭제 + secret 삭제)
+- **SG 는 상시 닫힘**: 러너가 자기 IP 를 배포 동안만 22 에 추가했다가 `always()` 스텝에서 제거한다
+- **1회 설정**: `bash pipeline/deploy/aws/setup-ci.sh` (멱등 — SG·IAM·키 보안 변경이라 사람이 실행)
+- **함정**: 배포 실패 시 이전 컨테이너가 그대로 살아 있다(compose 빌드 실패는 무중단). 러너 IP 잔존이 의심되면 `aws ec2 describe-security-groups --group-ids <SG>` 로 22 목록 확인
