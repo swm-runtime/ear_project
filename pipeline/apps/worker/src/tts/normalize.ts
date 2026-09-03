@@ -1,96 +1,9 @@
 /**
  * TTS 입력 정규화 (spec/06 4장·6장) — 표기 이원화: 대본은 가독 표기(AI, 17,000), TTS 입력만 한글 발음.
- * 이 파일의 사전이 곧 표준 음차 사전이다 — 어색한 합성이 나오면 여기를 고쳐 다음 에피소드부터 재사용한다.
- * 치환 후에도 영문·URL 이 남으면 사전 누락이므로 합성을 중단하고 항목을 추가한다 (잔존 검사).
+ * 음차 사전은 이 파일에 없다: 전역 사전(DB prompt_assets skills/tts/pronunciation.json, assets.ts loadTtsDict)과
+ * 에피소드 발음 맵(episodes/{id}/pronunciations.json)을 병합해 인자로 받는다 — 겹치면 전역이 이긴다 (spec/06 6장).
+ * 치환 후에도 영문·URL 이 남으면 사전 누락이므로 합성을 중단한다 (잔존 검사) — 웹에서 사전·맵 추가 후 재시도.
  */
-
-/** 표준 음차 사전 — 대본에 등장 이력이 있는 항목부터. 긴 항목을 먼저 치환한다(부분 겹침 방지) */
-export const PRONUNCIATION: Record<string, string> = {
-  // 기술·서비스
-  "HuggingFace": "허깅페이스",
-  "GitHub": "깃허브",
-  "ChatGPT": "챗지피티",
-  "OpenAI": "오픈에이아이",
-  "AI": "에이아이",
-  "IT": "아이티",
-  "UX": "유엑스",
-  "UI": "유아이",
-  "API": "에이피아이",
-  "CEO": "씨이오",
-  "TV": "티비",
-  "PC": "피씨",
-  "SNS": "에스엔에스",
-  "DNA": "디엔에이",
-  "GPS": "지피에스",
-  // 기관·매체 (대본 등장 이력)
-  "UC Berkeley": "유씨 버클리",
-  "Othering & Belonging Institute": "아더링 앤 빌롱잉 인스티튜트",
-  "Greater Good Science Center": "그레이터 굿 사이언스 센터",
-  "Greater Good": "그레이터 굿",
-  "Gallup": "갤럽",
-  "Stanford": "스탠퍼드",
-  "University of Chicago": "시카고 대학교",
-  "US Chamber of Connection": "유에스 체임버 오브 커넥션",
-  "Welcome Committee": "웰컴 커미티",
-  "The Science of Happiness": "더 사이언스 오브 해피니스",
-  "JSTOR Daily": "제이스토어 데일리",
-  // 인명 (대본 등장 이력)
-  "john a. powell": "존 파월",
-  "powell": "파월",
-  "Stuart Muszynski": "스튜어트 무진스키",
-  "Jamil Zaki": "자밀 자키",
-  "Carl Weems": "칼 윔스",
-  "Weems": "윔스",
-  "Nicholas Epley": "니컬러스 에플리",
-  "Epley": "에플리",
-  "Aaron Hurst": "에런 허스트",
-  "Hurst": "허스트",
-  "Hansen": "핸슨",
-  "Dacher Keltner": "대커 켈트너",
-  "Chris": "크리스",
-  "Rachel": "레이철",
-  // 인사말 (골드·조사에서 등장)
-  "happy spring": "해피 스프링",
-  "Hi": "하이",
-  // 2026-09-02 전수 스캔 추가분 (T260820-002·T260829-002/003/004·T260831-002)
-  "Kubernetes": "쿠버네티스",
-  "Rust": "러스트",
-  "arrayref": "어레이레프",
-  "Rex Juba": "렉스 유바",
-  "REX IUBA": "렉스 유바",
-  "Engelsberg Ideas": "엥엘스베리 아이디어스",
-  "Antigone Journal": "안티고네 저널",
-  "Antigone": "안티고네",
-  "History Workshop": "히스토리 워크숍",
-  "Western Electric": "웨스턴 일렉트릭",
-  "GPO": "지피오",
-  "MP3": "엠피쓰리",
-  "MP": "엠피",
-  "automatos": "아우토마토스",
-  "automatic": "오토매틱",
-  "machine": "머신",
-  "mēchanē": "메카네",
-  "T.E.": "티 이",
-  "FDA": "에프디에이",
-  "Starlink": "스타링크",
-  "Palantir": "팔란티어",
-  "Financial Times": "파이낸셜 타임스",
-  "PsyPost": "사이포스트",
-  "Psychology Today": "사이콜로지 투데이",
-  "Psyche": "사이키",
-  "PNAS": "피엔에이에스",
-  "OCD": "오씨디",
-  "TED-Ed": "테드 에드",
-  "Free Energy Principle": "프리 에너지 프린시플",
-  "default mode network": "디폴트 모드 네트워크",
-  "Ira Bedzow": "아이라 베드조",
-  "Martin Seif": "마틴 세이프",
-  "Sally Winston": "샐리 윈스턴",
-  "Wegner": "웨그너",
-  "Jill Suttie": "질 서티",
-  "Cassandra Vieten": "커샌드라 비튼",
-  "Celeste Birkhofer": "셀레스트 버코퍼",
-};
 
 /** ElevenLabs 오디오 태그 (spec/06 5장) — 정규화·잔존 검사에서 건드리지 않는다 */
 const AUDIO_TAG = /\[(curious|surprised|sighs|exhales|laughs|whispers|excited|chuckles)\]/g;
@@ -135,13 +48,13 @@ function numberToKorean(raw: string): string {
   return out;
 }
 
-/** 대본 텍스트 한 덩이 → TTS 입력. 오디오 태그·말줄임표는 보존한다 */
-export function normalizeForTts(text: string): string {
+/** 대본 텍스트 한 덩이 → TTS 입력. dict = 병합 음차 사전 (전역 + 에피소드 맵). 오디오 태그·말줄임표는 보존한다 */
+export function normalizeForTts(text: string, dict: Record<string, string>): string {
   // 1) 오디오 태그 보호
   const tags: string[] = [];
   let t = text.replace(AUDIO_TAG, (m) => { tags.push(m); return `⟦${encIdx(tags.length - 1)}⟧`; }); // ⟦⟧: 사전·숫자·공백 단계가 건드리지 않는 전용 괄호
   // 2) 음차 사전 (긴 항목 우선, 단어 경계 — 영문은 앞뒤가 영숫자가 아닐 때만)
-  for (const [k, v] of Object.entries(PRONUNCIATION).sort((a, b) => b[0].length - a[0].length)) {
+  for (const [k, v] of Object.entries(dict).sort((a, b) => b[0].length - a[0].length)) {
     const esc = k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     t = t.replace(new RegExp(`(?<![A-Za-z0-9])${esc}(?![A-Za-z0-9])`, "g"), v);
   }

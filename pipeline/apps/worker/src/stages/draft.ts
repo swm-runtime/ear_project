@@ -71,7 +71,7 @@ export async function runDraft(job: Job, ex: Executor) {
       describe: (tool, input, counts) => {
         if (tool === "WebFetch") return `소스 정독 ${counts.WebFetch}/${cand.sources.length}`;
         const f = String(input?.file_path ?? "").split("/").pop() ?? "";
-        if (tool === "Write" || tool === "Edit") return f === "script.md" ? "대본 작성" : f === "sources.md" ? "발췌 정리" : f === "claims.md" ? "claims 대조표 작성" : `${f} 작성`;
+        if (tool === "Write" || tool === "Edit") return f === "script.md" ? "대본 작성" : f === "sources.md" ? "발췌 정리" : f === "claims.md" ? "claims 대조표 작성" : f === "pronunciations.json" ? "발음 맵 작성" : `${f} 작성`;
         if (tool === "Bash") return "자기 점검 (분량·콜드오픈 검증)";
         return null;
       },
@@ -92,8 +92,11 @@ export async function runDraft(job: Job, ex: Executor) {
     summary = `${episodeId} 재생성 attempt ${attempt} (QA 피드백 ${failures.length}건 → 수정 ${r.output.fixes.length}건${r.output.cold_open_updated ? ", 콜드오픈 갱신" : ""}${r.output.cold_open_verified ? ", 자구 일치 검증" : ""}). ${r.output.notes}`;
   }
 
+  // 발음 맵 (spec/04 8장) — 모델이 빠뜨렸거나 구 에피소드 이어받기면 빈 맵을 둔다 (웹 "발음" 탭·TTS 병합의 기준 파일. 누락 표기는 TTS 잔존 검사가 잡는다)
+  const pronFile = path.join(dir, "pronunciations.json");
+  if (!(await exists(pronFile))) await fs.writeFile(pronFile, "{}\n", "utf8");
   await pushPrefix(`${rel}/`); // 먼저 S3 에 — DB 키가 가리키는 객체가 있어야 한다
-  const artifacts = [s3Key(`${rel}/script.md`), s3Key(`${rel}/sources.md`), s3Key(`${rel}/claims.md`)];
+  const artifacts = [s3Key(`${rel}/script.md`), s3Key(`${rel}/sources.md`), s3Key(`${rel}/claims.md`), s3Key(`${rel}/pronunciations.json`)];
   if (attempt === 1) {
     await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: promptVersion, script_key: artifacts[0], claims_key: artifacts[2], sources_key: artifacts[1] });
     await setBacklogStatus(backlogId, "drafted");
