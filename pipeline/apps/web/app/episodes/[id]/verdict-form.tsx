@@ -5,16 +5,10 @@ import type { CriticFlag } from "@/lib/artifacts";
 import { btnCls } from "@/components/ui";
 
 type V = { verdict: "" | "동의" | "부분동의" | "비동의"; reason: string };
-/** 비평 판정 입력 (spec/09 판정 규약: 동의/부분동의/비동의 + 사유, 놓친 지적 자유 기입) */
-export function VerdictForm({ episodeId, parsed, saved }: { episodeId: string; parsed: { flags: CriticFlag[]; stars: CriticFlag[] }; saved: any }) {
-  const init = (rows: CriticFlag[], key: "flags" | "stars") => Object.fromEntries(rows.map((r) => [r.n, saved?.[key]?.[r.n] ?? { verdict: "", reason: "" }])) as Record<string, V>;
-  const [flags, setFlags] = useState<Record<string, V>>(init(parsed.flags, "flags"));
-  const [stars, setStars] = useState<Record<string, V>>(init(parsed.stars, "stars"));
-  const [extra, setExtra] = useState<string>(saved?.extra ?? "");
-  const [pending, start] = useTransition();
-  const [msg, setMsg] = useState<string | null>(null);
 
-  const Row = ({ r, v, set }: { r: CriticFlag; v: V; set: (v: V) => void }) => (
+/** 모듈 최상위여야 한다 — 컴포넌트 안에 정의하면 리렌더마다 새 타입이 되어 입력창이 remount 되고 키 입력마다 포커스를 잃는다 */
+function Row({ r, v, set }: { r: CriticFlag; v: V; set: (v: V) => void }) {
+  return (
     <div className="border-b border-line py-2 text-xs">
       <div className="mb-1 leading-relaxed">
         <span className="mr-1 rounded bg-[#f2f5f8] px-1 font-medium">#{r.n}</span>
@@ -31,6 +25,16 @@ export function VerdictForm({ episodeId, parsed, saved }: { episodeId: string; p
       </div>
     </div>
   );
+}
+
+/** 비평 판정 입력 (spec/09 판정 규약: 동의/부분동의/비동의 + 사유, 놓친 지적 자유 기입) */
+export function VerdictForm({ episodeId, parsed, saved }: { episodeId: string; parsed: { flags: CriticFlag[]; stars: CriticFlag[] }; saved: any }) {
+  const init = (rows: CriticFlag[], key: "flags" | "stars") => Object.fromEntries(rows.map((r) => [r.n, saved?.[key]?.[r.n] ?? { verdict: "", reason: "" }])) as Record<string, V>;
+  const [flags, setFlags] = useState<Record<string, V>>(init(parsed.flags, "flags"));
+  const [stars, setStars] = useState<Record<string, V>>(init(parsed.stars, "stars"));
+  const [extra, setExtra] = useState<string>(saved?.extra ?? "");
+  const [pending, start] = useTransition();
+  const [msg, setMsg] = useState<string | null>(null);
   const counts = Object.values(flags).reduce((a, v) => { if (v.verdict) a[v.verdict] = (a[v.verdict] ?? 0) + 1; return a; }, {} as Record<string, number>);
 
   return (

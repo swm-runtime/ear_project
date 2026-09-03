@@ -29,6 +29,25 @@ const shortItem = (item: string) => item.match(/^[A-G]\d/)?.[0] ?? item.slice(0,
 const tone = (strength?: string) => strength === "위반" ? "bg-rose-50 text-rose-700 ring-rose-200" : "bg-amber-50 text-amber-800 ring-amber-200";
 const vTone = (v: V["verdict"]) => v === "동의" ? "text-emerald-700" : v === "부분동의" ? "text-amber-700" : v === "비동의" ? "text-rose-700" : "text-ink-soft";
 
+/** 모듈 최상위여야 한다 — JudgeView 안에 정의하면 리렌더마다 새 타입이 되어 입력창이 remount 되고 키 입력마다 포커스를 잃는다 */
+function VerdictRow({ r, v, set, star }: { r: CriticFlag; v: V; set: (v: V) => void; star?: boolean }) {
+  return (
+    <div className="rounded border border-line bg-panel px-2.5 py-2 text-[12.5px]">
+      <div className="mb-1 flex flex-wrap items-center gap-1.5">
+        <span className={`rounded px-1.5 py-0.5 text-[10.5px] font-medium ring-1 ring-inset ${star ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : tone(r.strength)}`}>{star ? "⭐" : `${r.item}${r.strength ? ` · ${r.strength}` : ""}`}</span>
+        <span className="text-[11px] text-ink-soft">#{r.n} · {r.where}</span>
+      </div>
+      <p className="break-words leading-relaxed text-ink">{r.note}</p>
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        <select className={`rounded border border-line px-1.5 py-1 text-[12px] outline-none focus:border-brand ${vTone(v.verdict)}`} value={v.verdict} onChange={(e) => set({ ...v, verdict: e.target.value as V["verdict"] })}>
+          {VERDICTS.map((o) => <option key={o} value={o}>{o || "판정"}</option>)}
+        </select>
+        <input className="min-w-[12rem] flex-1 rounded border border-line px-2 py-1 text-[12px] outline-none focus:border-brand" placeholder="사유 (비동의·부분동의는 필수)" value={v.reason} onChange={(e) => set({ ...v, reason: e.target.value })} />
+      </div>
+    </div>
+  );
+}
+
 export function JudgeView({ episodeId, backlogId, turns, flags, stars, scores, total, saved, edits }: {
   episodeId: string; backlogId: string; turns: Turn[]; flags: CriticFlag[]; stars: CriticFlag[]; scores: ScoreRow[]; total: string | null; saved: any; edits: any[];
 }) {
@@ -62,22 +81,6 @@ export function JudgeView({ episodeId, backlogId, turns, flags, stars, scores, t
   });
   useEffect(() => { if (!dirty) return; const h = (e: BeforeUnloadEvent) => { e.preventDefault(); }; window.addEventListener("beforeunload", h); return () => window.removeEventListener("beforeunload", h); }, [dirty]);
 
-  const VerdictRow = ({ r, v, set, star }: { r: CriticFlag; v: V; set: (v: V) => void; star?: boolean }) => (
-    <div className="rounded border border-line bg-panel px-2.5 py-2 text-[12.5px]">
-      <div className="mb-1 flex flex-wrap items-center gap-1.5">
-        <span className={`rounded px-1.5 py-0.5 text-[10.5px] font-medium ring-1 ring-inset ${star ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : tone(r.strength)}`}>{star ? "⭐" : `${r.item}${r.strength ? ` · ${r.strength}` : ""}`}</span>
-        <span className="text-[11px] text-ink-soft">#{r.n} · {r.where}</span>
-      </div>
-      <p className="break-words leading-relaxed text-ink">{r.note}</p>
-      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-        <select className={`rounded border border-line px-1.5 py-1 text-[12px] outline-none focus:border-brand ${vTone(v.verdict)}`} value={v.verdict} onChange={(e) => { set({ ...v, verdict: e.target.value as V["verdict"] }); setDirty(true); }}>
-          {VERDICTS.map((o) => <option key={o} value={o}>{o || "판정"}</option>)}
-        </select>
-        <input className="min-w-[12rem] flex-1 rounded border border-line px-2 py-1 text-[12px] outline-none focus:border-brand" placeholder="사유 (비동의·부분동의는 필수)" value={v.reason} onChange={(e) => { set({ ...v, reason: e.target.value }); setDirty(true); }} />
-      </div>
-    </div>
-  );
-
   return (
     <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
       {/* ── 왼쪽: 대본 ── */}
@@ -91,7 +94,7 @@ export function JudgeView({ episodeId, backlogId, turns, flags, stars, scores, t
         {byTurn.global.length > 0 && (
           <div className="rounded-md border border-line bg-panel p-3">
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-soft">전편·구간 플래그 (특정 턴 없음)</p>
-            <div className="space-y-1.5">{byTurn.global.map((r) => <VerdictRow key={r.n} r={r} v={fv[r.n]} set={(v) => setFv({ ...fv, [r.n]: v })} />)}</div>
+            <div className="space-y-1.5">{byTurn.global.map((r) => <VerdictRow key={r.n} r={r} v={fv[r.n]} set={(v) => { setFv({ ...fv, [r.n]: v }); setDirty(true); }} />)}</div>
           </div>
         )}
         <div className="space-y-1 rounded-md border border-line bg-panel p-5 text-[13px] leading-relaxed">
@@ -123,8 +126,8 @@ export function JudgeView({ episodeId, backlogId, turns, flags, stars, scores, t
                 </div>
                 {isOpen && id && (
                   <div className="mt-2 space-y-2 border-t border-amber-200 pt-2" onClick={(e) => e.stopPropagation()}>
-                    {fl.map((r) => <VerdictRow key={r.n} r={r} v={fv[r.n]} set={(v) => setFv({ ...fv, [r.n]: v })} />)}
-                    {st.map((r) => <VerdictRow key={`s${r.n}`} r={r} v={sv[r.n]} set={(v) => setSv({ ...sv, [r.n]: v })} star />)}
+                    {fl.map((r) => <VerdictRow key={r.n} r={r} v={fv[r.n]} set={(v) => { setFv({ ...fv, [r.n]: v }); setDirty(true); }} />)}
+                    {st.map((r) => <VerdictRow key={`s${r.n}`} r={r} v={sv[r.n]} set={(v) => { setSv({ ...sv, [r.n]: v }); setDirty(true); }} star />)}
                     {editing === id ? (
                       <div className="rounded border border-line bg-panel p-2.5"><TurnEditor episodeId={episodeId} turn={id} initial={t.text} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); setEdited(true); }} /></div>
                     ) : (
