@@ -60,3 +60,32 @@
 - **AASA 프로덕션 배포·검증 완료(2026-08-26)** — `https://earcast.co.kr/.well-known/apple-app-site-association` 200 + `application/json`, **애플 CDN도 200으로 파일을 인식**했다(짝 티켓 진행 기록 2026-08-26). **요청 4를 iOS 한정으로 지금 실행할 수 있다.**
   - 검증 방법: 스탠드얼론(또는 development) 빌드를 설치한 iOS 기기에서 `https://earcast.co.kr/contents/<아무 id>`를 **메모·메시지 등 다른 앱에서 탭**한다 → 브라우저가 아니라 앱이 열려야 한다. **사파리 주소창에 직접 입력하면 유니버설 링크가 동작하지 않는다** — 검증 실패로 오인하기 쉬운 지점이다.
   - **안드로이드는 지금 검증하면 실패가 정상이다** — `assetlinks.json`이 404라 OS가 도메인 소유를 확인할 수 없다.
+
+## 진행 기록 (2026-09-03 — 요청 1 완료: 값 4종 전부 확보)
+
+Play 스토어 배포가 이뤄지면서 마지막으로 남아 있던 **배포 서명 SHA-256**을 확보했다. **요청 1이 닫혔다.**
+
+| 값 | 내용 |
+|---|---|
+| ① Apple Team ID | `3RJ4N5XLN9` (2026-08-26 확보) |
+| ② iOS 번들 ID | `com.runtime.ear` |
+| ③ Android 패키지명 | `com.runtime.ear` |
+| ④ **배포 서명 SHA-256** | `58:81:A3:6A:0F:7C:A3:24:24:E8:AC:12:60:ED:86:B7:ED:D3:B9:9A:AE:B9:3F:C8:D8:37:C7:AD:E4:4F:D6:6C` |
+
+④는 Play Console → 앱 서명 페이지가 **디지털 애셋 링크 JSON을 완성된 형태로** 만들어 주므로 그대로 짝 티켓에 넘겼다(BE 티켓 2026-09-03 진행 기록에 전문 기재).
+
+- **`eas credentials`가 아니라 Play Console이 출처다.** 발행 당시 지시(*"EAS 관리 서명이면 `eas credentials`에서 확인"*)는 Play 등록 **전**에만 유효하다. Play App Signing이 AAB를 재서명하므로, 스토어에 올라간 뒤에는 **EAS 업로드 키가 아니라 Play의 앱 서명 키**가 기기에서 검증되는 지문이다.
+- **이 지문은 고정값이 아니다.** 앱 서명 키가 2026-09-02에 업그레이드됐고, 현재 배포본은 *이전 앱 서명 키*로 서명돼 있다(새 키의 설치 비율 0.0%). 전환이 진행되면 `assetlinks.json`의 `sha256_cert_fingerprints` 배열에 새 키의 SHA-256을 **추가**해야 한다 — 티켓 상단 원칙대로 **값이 바뀌면 BE에 통지**한다.
+
+**요청 2·3은 2026-08-25에 완료**됐고, `app.json`의 `intentFilters`(`autoVerify` · `https` · `earcast.co.kr` · `pathPrefix: "/contents"`)는 위 패키지명과 일치한다 — **무변경으로 그대로 맞는다.**
+
+### pending 유지 사유 — 요청 4(안드로이드 검증)만 남았다
+
+`assetlinks.json`이 아직 배포되지 않아(BE 짝 티켓 요청 1) 안드로이드 App Links 검증은 **지금 해도 실패가 정상**이다. 순서는 이렇다.
+
+1. BE가 위 JSON으로 `assetlinks.json` 배포 + **프로덕션 수동 승격**
+2. `https://earcast.co.kr/.well-known/assetlinks.json` 200 확인
+3. 스토어 빌드 설치 기기에서 `https://earcast.co.kr/contents/<발행 콘텐츠 id>`를 **다른 앱(메모·메시지)에서 탭** → 브라우저가 아니라 앱이 열리는지
+4. iOS 검증은 2026-08-26부터 이미 가능한 상태다(애플 CDN 200 확인됨)
+
+**다음에 집는 사람이 조사할 것은 없다 — BE 배포를 기다렸다가 기기에서 3번을 해보면 된다.**
