@@ -3,6 +3,14 @@
  * 잔여 표시·재생 확인 팝업·회수/한도 토스트는 player가 소유한다(PLAYER_COPY) — 여기 두지 않는다.
  */
 export const EXPLORE_COPY = {
+  /** 첫 사용 코치마크(온보딩 직후 착지) — TODO(카피 미확정) */
+  walkthrough: {
+    searchStep: '궁금한 주제를 여기서 검색하고 담아보세요',
+    libraryStep: '담아둔 콘텐츠와 매일 아침 도착하는 2편은 라이브러리 탭에 있어요',
+    next: '다음',
+    done: '시작하기',
+    skip: '건너뛰기',
+  },
   /** E6·E7 검색(explore.md 4.5 — MVP 포함 격상, 합의 2026-08-23) */
   search: {
     /** TODO(카피): uiux 6장 제안값 — features에 확정 문구가 없다 */
