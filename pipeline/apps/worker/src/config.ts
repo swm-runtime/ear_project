@@ -51,4 +51,6 @@ export const cfg = {
 };
 
 export const canAi = cfg.capabilities.includes("ai") && cfg.executor !== "none";
+/** TTS 를 집을 수 있는가 = ElevenLabs 키 보유 (spec/06). 키 없는 노트북 워커는 TTS 를 큐에 남겨 서버가 집게 한다 (0010) */
+export const canTts = !!cfg.elevenLabsKey;
 export const executedBy = `worker:${cfg.workerName} (${cfg.executor})`;

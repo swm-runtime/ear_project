@@ -19,8 +19,8 @@ export interface Job {
   created_at: string;
 }
 
-export async function claimJob(worker: string, canAi: boolean): Promise<Job | null> {
-  const r = await pool.query("select * from public.claim_job($1, $2)", [worker, canAi]);
+export async function claimJob(worker: string, canAi: boolean, canTts: boolean): Promise<Job | null> {
+  const r = await pool.query("select * from public.claim_job($1, $2, $3)", [worker, canAi, canTts]);
   return (r.rows[0] as Job) ?? null;
 }
 export async function heartbeat(jobId: string) {

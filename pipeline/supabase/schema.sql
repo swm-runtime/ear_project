@@ -139,7 +139,8 @@ create table if not exists public.episodes (
 alter table public.episodes enable row level security;
 
 -- 집기: 워커 1건 원자적 집기 + 끊긴 작업(heartbeat 15분 무응답) 회수
-create or replace function public.claim_job(p_worker text, p_can_ai boolean)
+-- 0010: p_can_tts (default true) — TTS 는 requires_ai=false 라 io 워커면 집을 수 있으나, ElevenLabs 키 보유 워커만 집게 게이트
+create or replace function public.claim_job(p_worker text, p_can_ai boolean, p_can_tts boolean default true)
 returns setof public.jobs
 language plpgsql
 as $$
@@ -156,6 +157,7 @@ begin
     from public.jobs
    where status = 'queued'
      and (p_can_ai or requires_ai = false)
+     and (p_can_tts or type <> 'tts')
    order by created_at
    for update skip locked
    limit 1;
