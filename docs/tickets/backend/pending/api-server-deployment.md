@@ -48,6 +48,37 @@ FE는 소셜 로그인 4종 SDK 연동을 마쳐 dev에 병합했고(2026-08-26,
 - Given 배포 설정·저장소 / When pepper와 `JWT_SECRET`을 찾는다 / Then 코드·설정 파일·로그 어디에도 없고 시크릿 매니저에만 있다
 - Given 운영 서버 / When `CORS_ORIGINS`를 확인한다 / Then `*`가 아니다
 
+## 진행 기록 (2026-09-03 — 완료 조건 3개 확인, 3개 남음)
+
+스토어 배포본으로 실기기 검증이 가능해지면서 이 티켓의 핵심 조건들이 확인됐다. **발행 당시의 블로커("프론트가 실기기에서 아무 API도 부를 수 없다")는 해소됐다.**
+
+| 완료 조건 | 상태 |
+|---|---|
+| 공개 도메인 헬스 HTTPS 200 | ✅ `https://api.earcast.co.kr` 가동 |
+| 환경변수 검증 통과 기동 | ✅ 정상 기동 중이며 `GOOGLE_WEB_CLIENT_ID`·`KAKAO_APP_ID` 실값 대조까지 마쳤다 |
+| **구글·카카오·네이버 3종 실기기 로그인** | ✅ **2026-09-03 스토어 빌드에서 3종 모두 성립** |
+| iOS 애플 로그인 nonce 대조 | ❌ 미확인 — iOS 빌드가 아직 없다 |
+| pepper·`JWT_SECRET`이 시크릿 매니저에만 있다 | ⚠️ **부분** — 아래 참고 |
+| `CORS_ORIGINS`가 `*`가 아니다 | ❌ 미확인 — 서버에서 확인 필요 |
+
+**소셜 로그인 3종은 한 번 크게 막혔다가 풀렸다.** Play App Signing 재서명으로 기기의 서명 지문이 EAS 업로드 키와 달라져 구글·카카오가 실패했고(네이버는 지문을 안 봐서 정상), Play의 앱 서명 키 지문을 콘솔에 등록해 복구했다. 경위는 `tickets/frontend/pending/prod-build-env-and-eas.md` 2026-09-03 진행 기록에 있다. **서버 쪽 원인은 아니었다.**
+
+### 시크릿 조건이 "부분"인 이유
+
+저장소 기준으로는 통과다 — `backend/src` 전체에 `JWT_SECRET`·`ARCHIVE_HASH_PEPPER`·`WITHDRAWAL_HASH_PEPPER`의 **하드코딩된 값이 없고**, 전부 `configService.get(...)`으로만 읽는다.
+
+다만 조건문의 *"시크릿 매니저에만 있다"* 는 아직 아니다. 실값은 EC2의 `/opt/ear/backend/.env.prod` 파일에 있다(`docs/infra/inventory.md` 32행, `runbook.md` 3장). **이것을 그대로 합격으로 볼지, AWS Secrets Manager 등으로 옮긴 뒤 닫을지는 결정이 필요하다** — 결정 전에는 이 티켓을 `archive/`로 옮기지 않는다.
+
+### 남은 두 가지를 닫는 방법
+
+```bash
+# CORS — `*`가 아닌지
+cd /opt/ear/backend && docker compose -f docker-compose.prod.yml --env-file .env.prod \
+  exec -T api printenv CORS_ORIGINS
+```
+
+애플(iOS)은 iOS 빌드가 나온 뒤에만 확인할 수 있다. **다음에 집는 사람이 조사할 것은 없다 — 위 명령 하나와, 시크릿 보관 위치에 대한 결정, 그리고 iOS 빌드다.**
+
 ## 보류·미결
 
 - **배포 대상 선택** — 팀 여건(비용·운영 부담)에 달렸다. 이 티켓은 "무엇을 고를지"를 정하지 않고 **결과 요건**(HTTPS 공개 도메인·환경변수 주입·마이그레이션 경로)만 둔다
