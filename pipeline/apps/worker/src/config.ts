@@ -26,9 +26,13 @@ export const cfg = {
   workerName: process.env.WORKER_NAME || `${os.userInfo().username}@${os.hostname()}`,
   executor: (process.env.EXECUTOR || "claude-cli") as ExecutorKind,
   capabilities: (process.env.CAPABILITIES || "ai,io").split(",").map((s) => s.trim()) as Capability[],
+  /** 대본 생성 모델 — 미설정이면 claude CLI 기본 모델(현재 Fable). 생성 품질이 제품이라 최상위 모델을 쓴다. 바꾸면 spec/09 7.4(생성 대개정) 재검증 */
   claudeModel: process.env.CLAUDE_MODEL || undefined,
   /** 비평 전용 모델 — 2026-09-01 박수헌: 비평은 Opus 고정 (Fable 한도 부족). 판정자 모델은 회귀 세트 재검증 트리거이므로 바꾸면 spec/09 7.4 */
   criticModel: process.env.CRITIC_MODEL || "claude-opus-5",
+  /** QA·군집화 모델 — 2026-09-03 박수헌: 발췌 대조·구조 분석은 Fable 이 필요 없다 → Opus 기본 (속도·한도 절약). QA 도 평가자라 바꾸면 spec/09 7.4 */
+  qaModel: process.env.QA_MODEL || "claude-opus-5",
+  clusterModel: process.env.CLUSTER_MODEL || "claude-opus-5",
   pollIntervalMs: Number(process.env.POLL_INTERVAL_MS || 5000),
   /** 파일럿 예외 (spec/02 2장): 계층 판정 전에는 candidate 도메인도 스윕한다. 판정이 쌓이면 false 로. */
   pilotSweepCandidates: (process.env.PILOT_SWEEP_CANDIDATES ?? "true") === "true",
