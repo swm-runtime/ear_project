@@ -496,6 +496,7 @@ chk_contents_partner_disclosure
 ```
 
 - **`audio_url`이 아니라 `audio_path`다** (B-5). 재생 URL은 매 요청 서명 발급이므로 컬럼이 아니라 응답 DTO 필드다. 서명 URL을 DB에 저장하면 그 자체가 유출 경로가 된다.
+- **`audio_path`는 응답 본문·목록 어디에도 실리지 않는다. 단 재생용 서명 URL의 경로에는 실린다**(개정 2026-08-31). 원 규칙은 "어떤 응답에도 실리지 않는다"였으나, CloudFront KeyValueStore 데이터 플레인이 조직 SCP로 막혀 `/play/<contentId>` 재작성이 성립하지 않아 서버가 저장 경로를 직접 서명하는 방식으로 바뀌었다(`architecture.md` 9.4). **원 규칙의 목적은 그대로 달성된다** — 키가 무작위 hex 32자라 제목·순서 같은 의미가 새지 않고, URL 자체가 단기 만료 서명이라 재사용도 막힌다.
 - `status`는 **3값만** 갖는다 (A-6). 파이프라인 상태(`draft` / `partner_review` / `qa_failed` 등)는 존재하지 않는다. 업로드 = 발행이다.
 - **노출 조건은 어디서나 `status = published` 단 하나로 통일한다.**
 - `series_id` / `episode_no` / `total_episodes`는 `Episode` 테이블을 폐기하면서 흡수했다. 드립 스코어링의 시리즈 연속성 가점과 편성 순서 판정이 Content 단위 조회를 요구한다(`drip-scheduling.md` 4.2, 7).
