@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository } from 'typeorm';
 
 import { User } from '../entities/user.entity';
-import { SocialProvider } from '../user.enum';
+import { SocialProvider, UserRole } from '../user.enum';
 
 @Injectable()
 export class UserRepository {
@@ -27,6 +27,14 @@ export class UserRepository {
     manager?: EntityManager,
   ): Promise<User | null> {
     return this.scoped(manager).findOneBy({ provider, providerUserId });
+  }
+
+  /**
+   * 파이프라인 SSO(auth) — 이메일이 같은 **관리자** 계정. `email`은 유일 제약이 없으므로
+   * (제공자별 계정이 같은 주소를 가질 수 있다) role까지 대조해 대상을 하나로 좁힌다.
+   */
+  async findAdminByEmail(email: string): Promise<User | null> {
+    return this.repository.findOneBy({ email, role: UserRole.ADMIN });
   }
 
   /**

@@ -44,6 +44,12 @@ export interface LogoutCommand {
   deviceId: string;
 }
 
+/** 파이프라인 웹 SSO — 서버 간 어서션 로그인 (changes/pending/pipeline-sso-login.md) */
+export interface PipelineLoginCommand {
+  assertion: string;
+  deviceId: string;
+}
+
 export interface IssuedTokens {
   accessToken: string;
   accessTokenExpiresAt: Date;

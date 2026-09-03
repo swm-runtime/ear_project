@@ -9,6 +9,9 @@ export const SIGNUP_TOKEN_TTL_SEC = 10 * 60;
 export const PROVIDER_REQUEST_TIMEOUT_MS = 5000;
 
 export const ACCESS_TOKEN_TYPE = 'access';
+
+/** 파이프라인 웹 SSO 어서션의 typ (changes/pending/pipeline-sso-login.md) */
+export const PIPELINE_ASSERTION_TYPE = 'pipeline_sso';
 export const SIGNUP_TOKEN_TYPE = 'signup';
 
 /** 개발용 대역 계정의 provider_user_id 길이 — `users.provider_user_id`(varchar 255) 안에 고정한다 */
