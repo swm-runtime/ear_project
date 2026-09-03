@@ -18,6 +18,9 @@ export default async function DomainsPage({ searchParams }: { searchParams: Prom
   const rows = (all ?? []).filter((r) => (tier === "all" || r.tier === tier) && (!topic || (r.topic_coverage ?? []).includes(topic)) && (!q || `${r.domain} ${r.publisher} ${r.note ?? ""}`.toLowerCase().includes(q.toLowerCase())));
   const topics = Array.from(new Set((all ?? []).flatMap((r) => r.topic_coverage ?? []))).sort();
   const counts = Object.fromEntries(TIERS.map(([t]) => [t, t === "all" ? (all ?? []).length : (all ?? []).filter((r) => r.tier === t).length]));
+  // 중분류 탭 개수는 현재 티어 기준 — 티어를 고른 뒤 주제를 좁힐 때 "이 티어에 몇 개"가 보이게 (검색어 q 는 무시)
+  const inTier = (all ?? []).filter((r) => tier === "all" || r.tier === tier);
+  const topicCounts = Object.fromEntries(topics.map((t) => [t, inTier.filter((r) => (r.topic_coverage ?? []).includes(t)).length]));
   const qs = (o: Record<string, string | undefined>) => "?" + new URLSearchParams(Object.entries({ tier, topic, q, ...o }).filter(([, v]) => v) as [string, string][]).toString();
 
   return (
@@ -39,8 +42,8 @@ export default async function DomainsPage({ searchParams }: { searchParams: Prom
         </form>
       </div>
       <nav className="mb-3 flex flex-wrap gap-1 text-xs">
-        <Link href={qs({ topic: undefined })} className={`rounded border px-2 py-1 ${!topic ? "border-ink bg-panel font-medium" : "border-line bg-panel text-ink-soft hover:text-ink"}`}>모든 중분류</Link>
-        {topics.map((t) => <Link key={t} href={qs({ topic: t })} className={`rounded border px-2 py-1 ${topic === t ? "border-ink bg-panel font-medium" : "border-line bg-panel text-ink-soft hover:text-ink"}`}>{t}</Link>)}
+        <Link href={qs({ topic: undefined })} className={`rounded border px-2 py-1 ${!topic ? "border-ink bg-panel font-medium" : "border-line bg-panel text-ink-soft hover:text-ink"}`}>모든 중분류 <span className="opacity-60">{inTier.length}</span></Link>
+        {topics.map((t) => <Link key={t} href={qs({ topic: t })} className={`rounded border px-2 py-1 ${topic === t ? "border-ink bg-panel font-medium" : "border-line bg-panel text-ink-soft hover:text-ink"}`}>{t} <span className="opacity-60">{topicCounts[t]}</span></Link>)}
       </nav>
 
       <Panel flush className="mb-4">
