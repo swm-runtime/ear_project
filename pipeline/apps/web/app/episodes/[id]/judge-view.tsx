@@ -75,10 +75,19 @@ export function JudgeView({ episodeId, backlogId, turns, flags, stars, scores, t
   const humanTotal = scores.reduce((a, s) => a + (Number(sc[s.key]?.human) || 0), 0);
 
   const jump = (id: string) => { setOpen(id); document.getElementById(`turn-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }); };
-  const save = () => start(async () => {
-    try { await saveCriticVerdicts(episodeId, { flags: fv, stars: sv, scores: sc, extra: saved?.extra ?? "" }); setMsg("저장됨"); setDirty(false); }
+  const persist = (label: string) => start(async () => {
+    try { await saveCriticVerdicts(episodeId, { flags: fv, stars: sv, scores: sc, extra: saved?.extra ?? "" }); setMsg(label); setDirty(false); }
     catch (e: any) { setMsg(e.message); }
   });
+  const save = () => persist("저장됨");
+  // 판정·점수는 dirty 가 서면 1.5초 디바운스로 자동 저장한다. 탭 이동은 클라이언트 내비게이션(Link)이라
+  // beforeunload 가 안 뜨고 컴포넌트가 unmount 되어 로컬 상태가 사라진다 — 편집 마크(human_edits)는 즉시 저장되는데
+  // 판정만 버튼을 눌러야 남던 불일치를 없앤다 (2026-09-03 사용자 보고). 저장 액션엔 필수값 검증이 없어 미완성 입력도 안전.
+  useEffect(() => {
+    if (!dirty) return;
+    const t = setTimeout(() => persist("자동 저장됨"), 1500);
+    return () => clearTimeout(t);
+  }, [dirty, fv, sv, sc]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (!dirty) return; const h = (e: BeforeUnloadEvent) => { e.preventDefault(); }; window.addEventListener("beforeunload", h); return () => window.removeEventListener("beforeunload", h); }, [dirty]);
 
   return (
@@ -216,8 +225,8 @@ export function JudgeView({ episodeId, backlogId, turns, flags, stars, scores, t
         </div>
 
         <div className="flex items-center gap-2 rounded-md border border-line bg-panel p-3">
-          <button className={btnCls("primary")} disabled={pending} onClick={save}>판정 저장</button>
-          <span className="text-[11px] text-ink-soft">{msg ?? (dirty ? "저장되지 않은 변경" : saved?.judged_by ? `마지막 저장 ${saved.judged_by}` : "리포트 파일은 그대로 — 판정은 DB에만")}</span>
+          <button className={btnCls("primary")} disabled={pending} onClick={save}>지금 저장</button>
+          <span className="text-[11px] text-ink-soft">{pending ? "저장 중…" : dirty ? "변경됨 — 자동 저장 중…" : msg ?? (saved?.judged_by ? `마지막 저장 ${saved.judged_by}` : "판정은 DB에 자동 저장됩니다")}</span>
         </div>
       </div>
     </div>
