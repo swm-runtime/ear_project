@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Analytics } from "@/components/Analytics";
 import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
 import { JsonLd } from "@/components/JsonLd";
@@ -87,6 +88,8 @@ export default function RootLayout({
         <Header />
         <main id="main">{children}</main>
         <Footer />
+        {/* GA4. 본문 뒤에 두어 측정 스크립트가 첫 화면 렌더를 붙잡지 않게 한다. */}
+        <Analytics />
       </body>
     </html>
   );

@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.runtime.ear",
+      "sha256_cert_fingerprints": [
+        "58:81:A3:6A:0F:7C:A3:24:24:E8:AC:12:60:ED:86:B7:ED:D3:B9:9A:AE:B9:3F:C8:D8:37:C7:AD:E4:4F:D6:6C"
+      ]
+    }
+  }
+]

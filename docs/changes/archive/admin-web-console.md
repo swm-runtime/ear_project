@@ -84,3 +84,33 @@ published_at, withdrawn_at, topics[{topic_id, name}]`. **`audio_path`는 싣지 
   필드명·상태 코드·error_code가 1:1로 일치한다
 - Given `spec/api/admin-api.md` / When 콘솔(`deploy/admin/index.html`)의 요청을 대조한다 / Then
   문서에 없는 필드를 보내지 않는다
+
+---
+
+## 처리 기록
+
+| 항목 | 값 |
+|---|---|
+| 반영 날짜 | 2026-09-03 |
+| 상태 | **완료 — archive** |
+
+반영 위치:
+
+- **`features/admin.md`** — 2장에 웹 콘솔 확정(앱 내 진입점 제거), 3.1에 썸네일 `thumb/*` 무서명 공개, 4.2에 "저장소 먼저 DB 나중" 순서, 4.5에 0건 주제 경고 확인의 주체(콘솔), 7장 순서 명시, 미결 "관리자 화면의 형태" 해소 표시
+- **`spec/api/admin-api.md`** — 신규 작성
+- **`features/common-error-handling.md`** — **9.10**에 관리자 코드 5종 등재
+- **`backend/architecture.md`** — 9.4에 썸네일 무서명 공개 경로
+
+요청과 다르게 반영한 것 세 가지. **코드가 기준이다**(사용자 지시 2026-09-03).
+
+1. **4.2의 KVS 등록·전파 지연은 넣지 않았다.** 요청 다음 날 `audio-url-drops-play-rewrite.md`(2026-08-31)가 조직 SCP 제약으로 KVS 방식 자체를 폐기했다. 이 요청대로 적었다면 하루 만에 틀린 문서가 된다. 4.2에는 반대로 **"재생 경로를 따로 등록하지 않는다 — 따라서 전파 지연도 없다"**를 적었다.
+2. **에러 코드는 6장이 아니라 9장에 넣었다.** `common-error-handling.md` 6장은 `ApiError`의 필드 규격이고 코드 목록은 9장이다(해당 문서 머리말이 명시). 9.10으로 신설하고 기존 9.10(읽는 규칙)을 9.11로 밀었다.
+3. **회수·복구를 "미구현"으로 적지 않았다.** 요청은 범위 밖이라 했으나 코드에 `POST /admin/contents/:contentId/withdraw`·`/restore`가 이미 있다. `admin-api.md` 4.7·4.8로 등재했다.
+
+코드 대조로 보정한 것:
+
+- `limit` 기본값 **20**(요청은 "구현 기준"으로만 적혀 있었다), 최대 50
+- 409 `CONFLICT` 추가 — 이미 회수됨 / 회수 상태가 아님
+- 에러 코드 5종은 **이미 `error-code.enum.ts`에 등재돼 있다.** enum 반영 대기 목록에 넣지 않았다
+- `enrichment_file`(`admin.md` 3.1)은 업로드 폼에 파트가 없어 미구현으로 적었다
+- `backend/architecture.md` 4.1의 모듈 목록에 `partner`가 **이미 있어** 갱신할 것이 없었다

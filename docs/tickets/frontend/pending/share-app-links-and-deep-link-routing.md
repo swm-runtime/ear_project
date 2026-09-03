@@ -60,3 +60,60 @@
 - **AASA 프로덕션 배포·검증 완료(2026-08-26)** — `https://earcast.co.kr/.well-known/apple-app-site-association` 200 + `application/json`, **애플 CDN도 200으로 파일을 인식**했다(짝 티켓 진행 기록 2026-08-26). **요청 4를 iOS 한정으로 지금 실행할 수 있다.**
   - 검증 방법: 스탠드얼론(또는 development) 빌드를 설치한 iOS 기기에서 `https://earcast.co.kr/contents/<아무 id>`를 **메모·메시지 등 다른 앱에서 탭**한다 → 브라우저가 아니라 앱이 열려야 한다. **사파리 주소창에 직접 입력하면 유니버설 링크가 동작하지 않는다** — 검증 실패로 오인하기 쉬운 지점이다.
   - **안드로이드는 지금 검증하면 실패가 정상이다** — `assetlinks.json`이 404라 OS가 도메인 소유를 확인할 수 없다.
+
+## 진행 기록 (2026-09-03 — 요청 1 완료: 값 4종 전부 확보)
+
+Play 스토어 배포가 이뤄지면서 마지막으로 남아 있던 **배포 서명 SHA-256**을 확보했다. **요청 1이 닫혔다.**
+
+| 값 | 내용 |
+|---|---|
+| ① Apple Team ID | `3RJ4N5XLN9` (2026-08-26 확보) |
+| ② iOS 번들 ID | `com.runtime.ear` |
+| ③ Android 패키지명 | `com.runtime.ear` |
+| ④ **배포 서명 SHA-256** | `58:81:A3:6A:0F:7C:A3:24:24:E8:AC:12:60:ED:86:B7:ED:D3:B9:9A:AE:B9:3F:C8:D8:37:C7:AD:E4:4F:D6:6C` |
+
+④는 Play Console → 앱 서명 페이지가 **디지털 애셋 링크 JSON을 완성된 형태로** 만들어 주므로 그대로 짝 티켓에 넘겼다(BE 티켓 2026-09-03 진행 기록에 전문 기재).
+
+- **`eas credentials`가 아니라 Play Console이 출처다.** 발행 당시 지시(*"EAS 관리 서명이면 `eas credentials`에서 확인"*)는 Play 등록 **전**에만 유효하다. Play App Signing이 AAB를 재서명하므로, 스토어에 올라간 뒤에는 **EAS 업로드 키가 아니라 Play의 앱 서명 키**가 기기에서 검증되는 지문이다.
+- **이 지문은 고정값이 아니다.** 앱 서명 키가 2026-09-02에 업그레이드됐고, 현재 배포본은 *이전 앱 서명 키*로 서명돼 있다(새 키의 설치 비율 0.0%). 전환이 진행되면 `assetlinks.json`의 `sha256_cert_fingerprints` 배열에 새 키의 SHA-256을 **추가**해야 한다 — 티켓 상단 원칙대로 **값이 바뀌면 BE에 통지**한다.
+
+**요청 2·3은 2026-08-25에 완료**됐고, `app.json`의 `intentFilters`(`autoVerify` · `https` · `earcast.co.kr` · `pathPrefix: "/contents"`)는 위 패키지명과 일치한다 — **무변경으로 그대로 맞는다.**
+
+### pending 유지 사유 — 요청 4(안드로이드 검증)만 남았다
+
+`assetlinks.json`이 아직 배포되지 않아(BE 짝 티켓 요청 1) 안드로이드 App Links 검증은 **지금 해도 실패가 정상**이다. 순서는 이렇다.
+
+1. BE가 위 JSON으로 `assetlinks.json` 배포 + **프로덕션 수동 승격**
+2. `https://earcast.co.kr/.well-known/assetlinks.json` 200 확인
+3. 스토어 빌드 설치 기기에서 `https://earcast.co.kr/contents/<발행 콘텐츠 id>`를 **다른 앱(메모·메시지)에서 탭** → 브라우저가 아니라 앱이 열리는지
+4. iOS 검증은 2026-08-26부터 이미 가능한 상태다(애플 CDN 200 확인됨)
+
+**다음에 집는 사람이 조사할 것은 없다 — BE 배포를 기다렸다가 기기에서 3번을 해보면 된다.**
+
+**추가(2026-09-03)** — 위 1번의 `assetlinks.json` 파일 작성은 같은 PR에서 함께 처리했다(`landing-page/public/.well-known/assetlinks.json`). **프로덕션 수동 승격만 남았고**, 승격되는 즉시 3번을 실행할 수 있다.
+
+## 진행 기록 (2026-09-03 — 인프라 완료, 그러나 요청 4는 플래그에 막힌다)
+
+**BE 짝 티켓의 `assetlinks.json`이 배포·검증됐다.** `GET https://earcast.co.kr/.well-known/assetlinks.json` 200이고, **구글 Digital Asset Links API**(`digitalassetlinks.googleapis.com` — 안드로이드가 앱 설치 시 실제로 조회하는 엔드포인트)가 패키지명·지문을 정상 파싱했다. AASA 때 애플 CDN 200이 핵심 판정이었던 것과 같은 자리다. **양 OS의 검증 인프라가 모두 준비됐다.**
+
+**그런데 요청 4를 지금 실행해도 완료 조건을 충족할 수 없다.** 수신 게이트가 P1 플래그로 막혀 있다.
+
+```ts
+// useShareLinkGate.ts
+if (!IS_SHARE_ENABLED) return;   // MVP 빌드에서는 수신 라우팅도 하지 않는다(share.md 2)
+```
+
+`IS_SHARE_ENABLED`는 `EXPO_PUBLIC_SHARE_ENABLED === 'true'`인데 **`eas.json`에 그 값이 없어** 스토어·preview 빌드 모두 `false`다. 따라서 지금 링크를 탭하면:
+
+| 확인 항목 | 지금 |
+|---|---|
+| 브라우저가 아니라 **앱이 열린다** | ✅ 확인 가능 — OS 도메인 검증까지가 이 단계다 |
+| 실행 관문을 거쳐 **그 콘텐츠 상세에 도착한다** | ❌ **불가** — 게이트가 목적지를 버리고 정상 진입 분기를 탄다 |
+
+**이것은 버그가 아니라 `share.md` 2장이 정한 동작이다.** 다만 이 티켓의 완료 조건 2·4·5(상세 도착·회수 안내·뒤로가기 목적지)가 전부 상세 도착을 전제하므로, **플래그를 켠 빌드 없이는 닫을 수 없다.**
+
+### pending 유지 사유 — 이제 P1 활성화에 종속된다
+
+- **지금 할 수 있는 것**: 링크 탭 → 앱이 열리는지(양 OS). 여기까지는 인프라 판정이라 플래그와 무관하다
+- **남은 것**: 완료 조건 2·4·5는 `share-p1-activation-next-build.md`(2026-09-03 발행)로 플래그가 켜진 빌드가 나온 뒤에 실행한다
+- `EXPO_PUBLIC_SHARE_ENABLED`는 **빌드 타임 상수**라 설치된 앱에서 켤 수 없다 — 검증용 빌드를 따로 뽑든, P1 활성화 빌드를 기다리든 새 빌드가 필요하다

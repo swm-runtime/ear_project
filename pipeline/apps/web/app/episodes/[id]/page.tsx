@@ -9,11 +9,12 @@ import { TtsButton } from "./tts-button";
 import { PackageButton } from "./package-button";
 import { listObjects, presignGet } from "@/lib/storage";
 import { ScriptEditor } from "./script-editor";
+import { PronEditor } from "./pron-editor";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { JobProgress } from "@/components/job-progress";
 import { Badge, LinkBtn, PageHeader, Panel } from "@/components/ui";
 
-const TABS = [["script", "대본"], ["sources", "발췌"], ["claims", "claims"], ["qa", "QA"], ["critic", "비평·판정"], ["audio", "오디오"], ["meta", "메타"], ["runs", "실행 기록"]] as const;
+const TABS = [["script", "대본"], ["sources", "발췌"], ["claims", "claims"], ["qa", "QA"], ["critic", "비평·판정"], ["pron", "발음"], ["audio", "오디오"], ["meta", "메타"], ["runs", "실행 기록"]] as const;
 
 export default async function EpisodePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
   const { id } = await params; const { tab = "script" } = await searchParams;
@@ -32,6 +33,7 @@ export default async function EpisodePage({ params, searchParams }: { params: Pr
   const pkgJob = (jobs ?? []).find((j) => j.type === "package" && ["queued", "claimed", "running"].includes(j.status));
   const audioFiles = tab === "audio" ? await listAudioFiles(ep.id) : null;
   const uploadMeta = tab === "meta" ? await readUploadMeta(ep.id) : null; // 패키지 산출물 (spec/07 2장) — 게이트 2 검수 항목 5(제목·설명)의 근거
+  const pronRaw = tab === "pron" ? await readPronunciations(ep.id) : null; // 에피소드 발음 맵 (spec/06 6장) — TTS 병합 사전의 에피소드 층
   const activeJobs = (jobs ?? []).filter((j) => ["queued", "claimed", "running"].includes(j.status));
 
   return (
@@ -58,7 +60,7 @@ export default async function EpisodePage({ params, searchParams }: { params: Pr
       <nav className="flex gap-1 border-b border-line text-[13px]">
         {TABS.map(([k, name]) => (
           <Link key={k} href={`?tab=${k}`} className={`-mb-px border-b-2 px-3 py-2 transition ${tab === k ? "border-brand font-semibold text-brand-ink" : "border-transparent text-ink-soft hover:text-ink"}`}>
-            {name}{k !== "runs" && k !== "script" && !keyOf[k] ? <span className="ml-1 text-[10px] text-ink-soft">없음</span> : null}
+            {name}{k in keyOf && k !== "script" && !keyOf[k] ? <span className="ml-1 text-[10px] text-ink-soft">없음</span> : null}
           </Link>
         ))}
       </nav>
@@ -78,7 +80,7 @@ export default async function EpisodePage({ params, searchParams }: { params: Pr
           </div>
         </Panel>
       )}
-      {tab !== "runs" && tab !== "audio" && tab !== "meta" && content == null && <p className="rounded-md border border-line bg-panel p-6 text-center text-[13px] text-ink-soft">아직 산출물이 없습니다{keyOf[tab] ? ` (키: ${keyOf[tab]} — 서버에서 읽을 수 없음. s3: 키면 PIPELINE_BUCKET·AWS 자격증명(인스턴스 역할 / 로컬 AWS_PROFILE), local: 키면 WORK_ROOT 확인)` : ""}.</p>}
+      {tab !== "runs" && tab !== "audio" && tab !== "meta" && tab !== "pron" && content == null && <p className="rounded-md border border-line bg-panel p-6 text-center text-[13px] text-ink-soft">아직 산출물이 없습니다{keyOf[tab] ? ` (키: ${keyOf[tab]} — 서버에서 읽을 수 없음. s3: 키면 PIPELINE_BUCKET·AWS 자격증명(인스턴스 역할 / 로컬 AWS_PROFILE), local: 키면 WORK_ROOT 확인)` : ""}.</p>}
       {tab === "script" && content && (criticMd
         ? (() => { const parsed = parseCriticReport(criticMd); const sc = parseCriticScores(criticMd); return <JudgeView episodeId={ep.id} backlogId={ep.backlog_id} turns={parseScript(content)} flags={parsed.flags} stars={parsed.stars} scores={sc.rows} total={sc.total} saved={ep.critic_verdicts} edits={ep.human_edits ?? []} />; })()
         : <ScriptEditor episodeId={ep.id} backlogId={ep.backlog_id} turns={parseScript(content)} edits={ep.human_edits ?? []} editable />)}
@@ -104,6 +106,7 @@ export default async function EpisodePage({ params, searchParams }: { params: Pr
           </p>
         )
       )}
+      {tab === "pron" && <PronEditor episodeId={ep.id} initial={pronRaw} />}
       {tab === "meta" && (
         uploadMeta ? (
           <Panel title="upload-meta.json — 패키지 산출물 (제목·설명은 초안, 확정은 게이트 2 검수자)" className="min-w-0">
@@ -136,6 +139,17 @@ async function listAudioFiles(id: string) {
     );
   } catch (e) {
     console.error(`[audio] 목록 실패: ${(e as Error)?.message}`);
+    return null;
+  }
+}
+
+async function readPronunciations(id: string): Promise<string | null> {
+  try {
+    const { getText } = await import("@/lib/storage");
+    const raw = await getText(`episodes/${id}/pronunciations.json`);
+    return raw ? JSON.stringify(JSON.parse(raw), null, 2) : null;
+  } catch (e) {
+    console.error(`[pron] 읽기 실패: ${(e as Error)?.message}`);
     return null;
   }
 }

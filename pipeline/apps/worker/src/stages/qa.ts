@@ -31,7 +31,7 @@ export async function runQa(job: Job, ex: Executor) {
   const r = await ex.run<QaOut>({
     prompt, schema: QA_SCHEMA,
     allowedTools: ["Read", `Write(${rel}/qa-report.md)`, `Edit(${rel}/qa-report.md)`, "Bash(python3 *)"],
-    addDirs: [dir, assetRoot], cwd: cfg.workRoot, timeoutMs: 40 * 60_000, model: cfg.claudeModel,
+    addDirs: [dir, assetRoot], cwd: cfg.workRoot, timeoutMs: 40 * 60_000, model: cfg.qaModel,
     onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: `QA 검증 (attempt ${attempt})` }).catch(() => {}),
     describe: (tool, input, counts) => {
       const f = String(input?.file_path ?? "").split("/").pop() ?? "";

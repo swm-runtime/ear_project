@@ -70,6 +70,28 @@
   - 승격은 이번에도 **수동**이었다. `assetlinks.json` 배포 때도 같다
 - **pending 유지 사유(2026-08-26)** — 남은 것은 **안드로이드 배포 서명 SHA-256 지문 하나**뿐이다. 이 값이 오면 `assetlinks.json` 작성·배포·승격으로 요청 1·3이 닫히고, 요청 4(기기 검증)는 FE 짝 티켓에서 처리된다. **다음에 집는 사람이 조사할 것은 없다 — 값만 받으면 된다.**
 
+- **2026-09-03 — 안드로이드 서명 지문 확보. 블로커가 풀렸다.** Play 스토어 배포가 이뤄져 Play Console → 앱 서명 페이지에서 값을 읽을 수 있게 됐다. 콘솔이 **디지털 애셋 링크 JSON을 완성된 형태로 제공**하므로 그대로 쓰면 된다.
+
+  ```json
+  [{
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.runtime.ear",
+      "sha256_cert_fingerprints":
+        ["58:81:A3:6A:0F:7C:A3:24:24:E8:AC:12:60:ED:86:B7:ED:D3:B9:9A:AE:B9:3F:C8:D8:37:C7:AD:E4:4F:D6:6C"]
+    }
+  }]
+  ```
+
+  - **다음 액션은 하나다** — 이 JSON을 랜딩 Vercel 프로젝트의 `public/.well-known/assetlinks.json`으로 추가하고 **프로덕션 수동 승격**까지 한다(AASA 때와 같이 승격이 자동이 아니다). 그러면 요청 1·3이 닫힌다.
+  - **`sha256_cert_fingerprints`는 배열이라 여러 개를 넣을 수 있다.** 이 앱은 **앱 서명 키가 2026-09-02에 업그레이드된 상태**여서, 지금 배포 중인 빌드는 *이전 앱 서명 키*로 서명돼 있고 새 키의 설치 비율은 0.0%다. 새 키로 서명된 릴리스가 배포되기 시작하면 **그 키의 SHA-256을 배열에 추가**해야 App Links 검증이 끊기지 않는다. 위 JSON은 콘솔이 현재 시점 기준으로 만들어 준 값이므로, 전환이 진행되면 콘솔에서 다시 복사해 갱신한다.
+  - 같은 서명 키 전환 때문에 **소셜 로그인이 스토어 빌드에서 전부 깨졌던 건이 함께 있었다** — 경위와 등록해야 할 SHA-1 4종은 `tickets/frontend/pending/prod-build-env-and-eas.md` 2026-09-03 진행 기록에 정리했다.
+
+- **2026-09-03 — 요청 1의 안드로이드 절반 작성 완료.** `landing-page/public/.well-known/assetlinks.json`을 위 JSON으로 추가했다. 정적 빌드에서 `out/.well-known/assetlinks.json`이 생성되는 것을 확인했다(AASA 때와 같이 Next가 `public/`의 점 디렉토리를 빼지 않는다).
+  - **`vercel.json`은 무변경이다** — AASA는 확장자가 없어 `Content-Type` 헤더를 명시해야 했지만, `assetlinks.json`은 확장자가 있어 Vercel이 `application/json`으로 서빙한다.
+  - **남은 것은 프로덕션 수동 승격과 검증뿐이다.** 병합 후 Vercel preview → **production 승격**(자동이 아니다 — AASA 때도 수동이었다) → `GET https://earcast.co.kr/.well-known/assetlinks.json` 200 확인. 그러면 요청 1·3이 닫히고 완료 조건 6개 중 5개가 채워진다(마지막 하나는 FE 짝 티켓의 기기 검증).
+
 ## 보류·미결
 
 - **스토어 URL 확정값** — 스토어 등록 후 리다이렉트 목적지를 실제 URL로 교체한다(`share.md` 미결과 공유)

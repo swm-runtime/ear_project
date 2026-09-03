@@ -9,11 +9,14 @@ import path from "node:path";
 import os from "node:os";
 import { cfg } from "../config.js";
 import { pool } from "../db.js";
-import { DB_ASSET_KEYS, versionOf, workerRev } from "../assets.js";
+import { DB_ASSET_KEYS, TTS_DICT_KEY, versionOf, workerRev } from "../assets.js";
+
+/** 시딩·상태 대상 = 번들 7개 + TTS 음차 사전 (spec/10 3.2 의 8개) */
+const ALL_ASSET_KEYS = [...DB_ASSET_KEYS, TTS_DICT_KEY];
 
 async function cmdImport(force: boolean) {
   const by = `seed:${os.userInfo().username}@${os.hostname()}`;
-  for (const key of DB_ASSET_KEYS) {
+  for (const key of ALL_ASSET_KEYS) {
     const content = await fs.readFile(path.join(cfg.assetSourceRoot, key), "utf8");
     const version = versionOf(key, content);
     const cur = await pool.query<{ version: string; content: string }>("select version, content from public.prompt_assets where key = $1 and status = 'active'", [key]);
@@ -71,7 +74,7 @@ async function cmdStatus() {
        from public.prompt_assets a where a.status = 'active' order by a.key`,
   );
   for (const a of r.rows) console.log(`${a.key.padEnd(52)} ${a.version.padEnd(18)} ${a.activated_at?.slice(0, 16) ?? "-"}  ${a.activated_by ?? "-"}${a.drafts ? `  (draft ${a.drafts})` : ""}`);
-  const missing = DB_ASSET_KEYS.filter((k) => !r.rows.some((a) => a.key === k));
+  const missing = ALL_ASSET_KEYS.filter((k) => !r.rows.some((a) => a.key === k));
   if (missing.length) console.log(`! active 없음: ${missing.join(", ")}`);
 }
 
