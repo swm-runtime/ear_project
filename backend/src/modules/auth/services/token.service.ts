@@ -11,6 +11,7 @@ import { SocialProvider } from '@/modules/user/user.enum';
 import {
   ACCESS_TOKEN_TTL_SEC,
   ACCESS_TOKEN_TYPE,
+  PIPELINE_ASSERTION_TYPE,
   REFRESH_TOKEN_TTL_SEC,
   SIGNUP_TOKEN_TTL_SEC,
   SIGNUP_TOKEN_TYPE,
@@ -97,6 +98,48 @@ export class TokenService {
     }
 
     return payload;
+  }
+
+  /**
+   * 파이프라인 웹 SSO 어서션(HS256) 검증 — 파이프라인 웹 **서버**가 `PIPELINE_SSO_SECRET`으로
+   * 서명한다. 모듈 JwtService에는 JWT_SECRET이 박혀 있어 다른 키 검증에 쓸 수 없으므로
+   * (google.client.ts와 같은 이유 — 모듈 secret이 호출별 키보다 우선한다) 전용 인스턴스를 쓴다.
+   */
+  verifyPipelineAssertion(assertion: string): { email: string } {
+    const secret = process.env.PIPELINE_SSO_SECRET;
+    if (!secret) {
+      throw new BusinessException({
+        status: HttpStatus.SERVICE_UNAVAILABLE,
+        errorCode: ErrorCode.AUTH_PROVIDER_UNAVAILABLE,
+        message: '파이프라인 로그인이 설정되지 않았어요',
+      });
+    }
+
+    let payload: { typ?: string; email?: string };
+    try {
+      payload = this.assertionJwtService.verify(assertion, {
+        secret,
+        algorithms: ['HS256'],
+      });
+    } catch {
+      throw this.assertionInvalid();
+    }
+
+    if (payload.typ !== PIPELINE_ASSERTION_TYPE || typeof payload.email !== 'string') {
+      throw this.assertionInvalid();
+    }
+
+    return { email: payload.email };
+  }
+
+  private readonly assertionJwtService = new JwtService({});
+
+  private assertionInvalid(): BusinessException {
+    return new BusinessException({
+      status: HttpStatus.UNAUTHORIZED,
+      errorCode: ErrorCode.AUTH_PROVIDER_TOKEN_INVALID,
+      message: '어서션이 유효하지 않아요',
+    });
   }
 
   private signupTokenExpired(): BusinessException {

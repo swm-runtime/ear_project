@@ -1,9 +1,10 @@
 /**
  * 제품(ear) API 클라이언트 — 브라우저 전용.
  *
- * 파이프라인 웹은 Supabase 로그인이지만, 제품 관리 API(`/admin/*`)는 제품 서버의 JWT
- * (`users.role = admin`)를 요구한다(admin.md 4.1). 그래서 `/publish` 섹션은 구글 GIS로
- * ID 토큰을 받아 제품 서버에 **한 번 더** 로그인하고, 토큰은 이 브라우저에만 둔다.
+ * 파이프라인 웹은 Supabase 로그인이고, 제품 관리 API(`/admin/*`)는 제품 서버의 JWT
+ * (`users.role = admin`)를 요구한다(admin.md 4.1). 두 번 로그인하지 않도록 `/api/ear/sso`가
+ * Supabase 세션의 이메일로 어서션을 서명해 제품 토큰과 **자동 교환**한다
+ * (changes/pending/pipeline-sso-login.md). 토큰은 이 브라우저에만 둔다.
  *
  * 모든 호출은 같은 오리진의 프록시(`/api/ear/*`)를 거친다 — 제품 서버 CORS 개조 없이
  * 동작하고, 프록시가 Supabase 로그인(팀원)만 통과시켜 이중 방어가 된다.
@@ -84,34 +85,19 @@ export async function earFetch<T>(path: string, init: RequestInit = {}): Promise
   return (await res.json()) as T;
 }
 
-interface SocialLoginResponse {
-  status: "authenticated" | "consent_required";
-  access_token?: string; refresh_token?: string;
-  signup_token?: string;
-  required_consents?: { consent_type: string; version: string | null; is_required: boolean }[];
-}
-
 /**
- * GIS credential(구글 ID 토큰) → 제품 로그인. 첫 계정이면 필수 약관 동의로 가입까지
- * (관리자도 일반 가입 절차와 같다 — admin.md 2장. 승격은 DB에서 사람만).
+ * Supabase 세션 → 서버 SSO(`/api/ear/sso`) → 제품 토큰. 사용자 입력 없이 연결된다.
+ * 같은 이메일의 제품 관리자 계정이 없으면 서버가 403으로 알려준다.
  */
-export async function loginWithGoogle(credential: string): Promise<{ role: string; sub: string }> {
-  const login = await rawFetch("/auth/social-login", {
-    method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ provider: "google", provider_token: credential, device_id: deviceId() }),
+export async function connectEar(): Promise<{ role: string; sub: string }> {
+  const res = await fetch("/api/ear/sso", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ device_id: deviceId() }),
   });
-  if (!login.ok) throw await toError(login);
-  let b = (await login.json()) as SocialLoginResponse;
-  if (b.status === "consent_required") {
-    const consents = (b.required_consents ?? []).map((c) => ({ consent_type: c.consent_type, version: c.version, is_agreed: c.is_required }));
-    const signup = await rawFetch("/auth/sign-up", {
-      method: "POST", headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() },
-      body: JSON.stringify({ signup_token: b.signup_token, device_id: deviceId(), consents }),
-    });
-    if (!signup.ok) throw await toError(signup);
-    b = (await signup.json()) as SocialLoginResponse;
-  }
-  saveTokens({ access_token: b.access_token!, refresh_token: b.refresh_token! });
+  if (!res.ok) throw await toError(res);
+  const b = (await res.json()) as EarTokens;
+  saveTokens({ access_token: b.access_token, refresh_token: b.refresh_token });
   const claims = tokenClaims();
   return { role: claims.role ?? "?", sub: claims.sub ?? "?" };
 }
