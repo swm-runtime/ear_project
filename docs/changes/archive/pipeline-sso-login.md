@@ -49,3 +49,19 @@ admin.md 2장은 "관리자 계정은 별도 인증 체계를 두지 않는다"�
   Then 발행 콘솔 접근 방법에 파이프라인 SSO(이메일 매칭 전제 포함)가 기술되어 있다.
 - Given auth 계약 문서를 열었을 때, When 반영이 끝나면, Then `POST /auth/pipeline-login`의
   요청·응답·에러 코드 표가 위 내용과 일치한다.
+
+---
+
+## 처리 기록
+
+| 항목 | 값 |
+|---|---|
+| 반영 날짜 | 2026-09-03 |
+| 상태 | **완료 — archive** |
+
+반영 위치:
+
+- **`features/admin.md` 2장** — 파이프라인 SSO를 예외로 명시. "계정 체계가 아니라 로그인 수단"이라는 근거와 이메일 일치 전제 포함
+- **`spec/api/auth-api.md`** — 3장 목록에 12번 추가, **4.12**에 상세(요청·응답·에러 3종·키 운영). 앱 클라이언트가 부르지 않는 경로임을 설계 메모에 명시
+
+코드 대조 결과 요청서와 계약이 정확히 일치했다(`auth.controller.ts` · `pipeline-login-request.dto.ts` · `token.service.ts#verifyPipelineAssertion`). 보탠 것은 `assertion` 2000자 / `device_id` 200자 상한과, **`PIPELINE_SSO_SECRET`이 선택 환경변수라 미설정 시 서버는 정상 기동하고 이 경로만 503으로 닫힌다**는 사실이다(`env.validation.ts`).
