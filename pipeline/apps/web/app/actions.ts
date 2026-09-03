@@ -2,6 +2,20 @@
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase-server";
 import { coldOpenStatus, loadArtifact, replaceTurn, writeArtifact } from "@/lib/artifacts";
+import { putText } from "@/lib/storage";
+
+/** 음차 사전·발음 맵 공통 형식 검증 — {"표기": "발음"} 객체, 값은 비어 있지 않은 문자열 (spec/06 6장) */
+function assertPronunciationJson(content: string): Record<string, string> {
+  let parsed: unknown;
+  try { parsed = JSON.parse(content); }
+  catch { throw new Error('JSON 이 아닙니다 — {"표기": "발음"} 객체여야 합니다'); }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error('{"표기": "발음"} 객체여야 합니다 (배열·문자열 불가)');
+  for (const [k, v] of Object.entries(parsed)) {
+    if (!k.trim()) throw new Error("빈 표기 키가 있습니다");
+    if (typeof v !== "string" || !v.trim()) throw new Error(`"${k}" 의 발음이 비어 있거나 문자열이 아닙니다`);
+  }
+  return parsed as Record<string, string>;
+}
 
 /** 게이트 1 (사람): proposed → approved / rejected / held. approved_by·approved_at 는 DB 트리거가 세션에서 찍는다. */
 export async function setBacklogStatus(id: string, status: "approved" | "rejected" | "held" | "proposed" | "qa_passed" | "published") {
@@ -109,6 +123,7 @@ export async function saveAssetDraft(key: string, version: string, content: stri
   const v = version.trim();
   if (!v) throw new Error("버전 라벨이 필요합니다 (예: full-v5.2)");
   if (!content.trim()) throw new Error("본문이 비어 있습니다");
+  if (key.endsWith(".json")) assertPronunciationJson(content); // 깨진 사전을 활성화하면 TTS 가 전부 막힌다 — 저장 시점에 검증
   const { error } = await sb.from("prompt_assets").insert({ key, version: v, content, status: "draft", note: note.trim() || null });
   if (error) throw new Error(error.code === "23505" ? `이미 있는 버전입니다: ${v}` : error.message);
   revalidatePath("/assets"); revalidatePath(`/assets/${key}`);
@@ -121,6 +136,14 @@ export async function activateAsset(key: string, version: string, note: string) 
   const { error } = await sb.from("prompt_assets").update({ status: "active", note: note.trim() }).eq("key", key).eq("version", version).eq("status", "draft");
   if (error) throw new Error(error.message);
   revalidatePath("/assets"); revalidatePath(`/assets/${key}`); revalidatePath("/settings");
+}
+
+/** 에피소드 발음 맵 저장 (spec/06 6장) — TTS 병합 사전의 에피소드 층. 워커는 합성 시작 때 S3 에서 다시 내려받으므로 저장본이 그대로 적용된다 */
+export async function savePronunciations(episodeId: string, content: string) {
+  const entries = assertPronunciationJson(content);
+  await putText(`episodes/${episodeId}/pronunciations.json`, JSON.stringify(entries, null, 2) + "\n");
+  revalidatePath(`/episodes/${episodeId}`);
+  return { count: Object.keys(entries).length };
 }
 
 /** 사람 수정 후 재QA — 사람 수정도 환각·중복을 만들 수 있으므로 사실 검증을 다시 돌린다 (spec/05) */

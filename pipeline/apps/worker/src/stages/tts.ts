@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { cfg, executedBy } from "../config.js";
 import { getBacklog, getEpisode, insertRun, pool, setJobProgress, upsertEpisode, type Job } from "../db.js";
-import { workerRev } from "../assets.js";
+import { loadTtsDict, workerRev } from "../assets.js";
 import { localPathOf, pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { log } from "../util.js";
 import { parseScriptForTts, chunkTurns, voiceOf, type ScriptTurn } from "../tts/script.js";
@@ -46,11 +46,15 @@ export async function runTts(job: Job) {
   if (!sampleTurns && parsed.placeholders.length) {
     throw new Error(`플레이스홀더 잔존 — 합성 중단 (spec/06 4장). 웹의 턴 수정으로 실제 문구를 채운 뒤 다시 요청: ${[...new Set(parsed.placeholders)].join(" · ").slice(0, 300)}`);
   }
+  // 병합 음차 사전 (spec/06 6장): 전역(DB active — 에피소드 고정 없음) + 에피소드 발음 맵. 겹치면 전역이 이긴다
+  const { version: dictVersion, entries: globalDict } = await loadTtsDict();
+  const epMap = await readEpisodePronunciations(path.join(cfg.workRoot, rel, "pronunciations.json"));
+  const dict = { ...epMap, ...globalDict };
   const turns: ScriptTurn[] = (sampleTurns ? parsed.turns.filter((t) => !parsed.placeholders.some((p) => t.text.includes(p))).slice(0, sampleTurns) : parsed.turns)
-    .map((t) => ({ ...t, text: normalizeForTts(t.text) }));
+    .map((t) => ({ ...t, text: normalizeForTts(t.text, dict) }));
   const issues = turns.flatMap((t) => residualIssues(t.text).map((i) => `${t.id ?? t.section}: ${i}`));
   if (issues.length) {
-    throw new Error(`정규화 후 잔존 — 음차 사전(apps/worker/src/tts/normalize.ts)에 추가 후 재시도 (spec/06 6장): ${[...new Set(issues)].slice(0, 12).join(" / ").slice(0, 800)}`);
+    throw new Error(`정규화 후 잔존 — 에피소드 "발음" 탭(발음 맵) 또는 /assets 의 TTS 음차 사전에 추가 후 재시도 (spec/06 6장, 코드 배포 불필요): ${[...new Set(issues)].slice(0, 12).join(" / ").slice(0, 800)}`);
   }
 
   // seed: 에피소드 고정 — 부분 재합성 시 같은 결과를 시도 (보장은 없음, spec/06)
@@ -82,7 +86,7 @@ export async function runTts(job: Job) {
       segments.push({ data: ts.audio, format: ts.format });
       const srcFile = path.join(audioDir, ".tmp-cold-src.mp3");
       await writeBuf(srcFile, ts.audio);
-      const range = parsed.coldOpen ? locateExcerpt(ts, t.text, normalizeForTts(parsed.coldOpen.text)) : null;
+      const range = parsed.coldOpen ? locateExcerpt(ts, t.text, normalizeForTts(parsed.coldOpen.text, dict)) : null;
       coldOpenWav = path.join(audioDir, "cold-open.wav");
       if (range) { await cutSegment(srcFile, Math.max(0, range.start - 0.05), range.end + 0.15, coldOpenWav); coldNote = `콜드오픈 절단 ${range.start.toFixed(1)}~${range.end.toFixed(1)}s`; }
       else { await cutSegment(srcFile, 0, 10_000, coldOpenWav); coldNote = "콜드오픈=턴 전체(발췌 위치 대조 실패 — 청취 확인 필요)"; }
@@ -108,7 +112,23 @@ export async function runTts(job: Job) {
     await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: ep.prompt_version, audio_master_key: s3Key(`${rel}/audio/master.wav`), audio_dist_key: s3Key(`${rel}/audio/dist.mp3`) });
   }
   const artifacts = sampleTurns ? [s3Key(`${rel}/audio/sample.mp3`)] : [s3Key(`${rel}/audio/master.wav`), s3Key(`${rel}/audio/dist.mp3`)];
-  const result = `${sampleTurns ? `TTS 샘플 ${turns.length}턴` : "TTS 완료"} — eleven_v3 다중화자 1콜 · 분할 ${chunks.length}요청(세그먼트 포맷 ${fmt}) · ${totalChars}자 → ${min}분 ${sec}초${coldNote ? ` · ${coldNote}` : ""} · 보이스 윤아=${cfg.ttsVoiceYuna.slice(0, 6)}… 이음=${cfg.ttsVoiceEum.slice(0, 6)}… · 사람 청취 확인 대기 (spec/06 8장)`;
+  const result = `${sampleTurns ? `TTS 샘플 ${turns.length}턴` : "TTS 완료"} — eleven_v3 다중화자 1콜 · 분할 ${chunks.length}요청(세그먼트 포맷 ${fmt}) · ${totalChars}자 → ${min}분 ${sec}초${coldNote ? ` · ${coldNote}` : ""} · 사전 ${dictVersion}${Object.keys(epMap).length ? `+발음 맵 ${Object.keys(epMap).length}건` : ""} · 보이스 윤아=${cfg.ttsVoiceYuna.slice(0, 6)}… 이음=${cfg.ttsVoiceEum.slice(0, 6)}… · 사람 청취 확인 대기 (spec/06 8장)`;
   await insertRun({ backlog_id: backlogId, phase: "tts", result, prompt_version: "tts-v1 (worker)", artifacts, executed_by: executedBy, worker_rev: workerRev() });
   return { episode_id: episodeId, sample: !!sampleTurns, duration_sec: Math.round(durationSec), chunks: chunks.length, chars: totalChars, format: fmt, cold_open: coldNote || null, artifacts };
+}
+
+/** 에피소드 발음 맵 (spec/04 8장) — 없으면 빈 맵 (구 에피소드 호환). 깨진 JSON 은 조용히 넘기지 않는다 — 웹 "발음" 탭에서 고친다 */
+async function readEpisodePronunciations(file: string): Promise<Record<string, string>> {
+  const raw = await fs.readFile(file, "utf-8").catch(() => null);
+  if (raw == null || !raw.trim()) return {};
+  let parsed: unknown;
+  try { parsed = JSON.parse(raw); }
+  catch { throw new Error(`pronunciations.json 이 JSON 이 아니다 — 에피소드 "발음" 탭에서 {"표기": "발음"} 객체로 고친 뒤 재시도`); }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error(`pronunciations.json 은 {"표기": "발음"} 객체여야 한다 — 에피소드 "발음" 탭에서 수정`);
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(parsed)) {
+    if (!k.trim() || typeof v !== "string" || !v.trim()) throw new Error(`pronunciations.json 항목이 잘못됐다 ("${k}": ${JSON.stringify(v)}) — 값은 비어 있지 않은 문자열`);
+    out[k] = v;
+  }
+  return out;
 }

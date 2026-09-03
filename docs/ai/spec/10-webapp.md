@@ -110,7 +110,7 @@ claude -p --output-format json --json-schema <단계별 결과 스키마> \
 
 | 층 | 어디에 | 대상 |
 |---|---|---|
-| 자주 바뀌는 규칙·참조 | **DB `prompt_assets`**(4장 0009) — 웹 `/assets`에서 편집·새 버전·활성화 | `skills/draft/guidelines.md` · 골드 3종 · `skills/qa/prompt.md` · `skills/critic/rubric.md`·`rubric-v2.md` (7개) |
+| 자주 바뀌는 규칙·참조 | **DB `prompt_assets`**(4장 0009) — 웹 `/assets`에서 편집·새 버전·활성화 | `skills/draft/guidelines.md` · 골드 3종 · `skills/qa/prompt.md` · `skills/critic/rubric.md`·`rubric-v2.md` · `skills/tts/pronunciation.json` (8개 — TTS 음차 사전은 프롬프트 번들·에피소드 고정에서 제외: TTS 단계가 항상 active를 읽는다, spec/06 6장) |
 | 명세 본문 | git `docs/ai/`(체크아웃) | spec/03·04·05 — 사실상 고정. 바뀌면 의식적 릴리스(pull 규율). spec 안에서 자주 바뀌는 표·참조가 생기면 자산으로 승격(spec/09 4.1) |
 
 **로더 동작** (AI 작업 시작 시):
