@@ -1,8 +1,31 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 
-const NAV = [
+/** 사이드바 상단의 콘솔 전환 — 파이프라인 운영 화면과 백엔드 로그 화면을 오간다 */
+const CONSOLES = [
+  { href: "/", label: "파이프라인" },
+  { href: "/backend-logs", label: "백엔드 로그" },
+];
+
+type NavItem = {
+  href: string;
+  label: string;
+  icon: (props: { className?: string }) => React.JSX.Element;
+  exact?: boolean;
+  note?: string;
+};
+
+/** 백엔드 로그 콘솔의 메뉴 — 콘솔 전환 시 사이드바가 통째로 이걸로 바뀐다 */
+const LOG_NAV: NavItem[] = [
+  { href: "/backend-logs/status", label: "서버 상태", icon: Pulse },
+  { href: "/backend-logs", label: "실시간 로그", icon: List, exact: true },
+  { href: "/backend-logs/errors", label: "에러 모아보기", icon: Alert },
+  { href: "/backend-logs/traffic", label: "요청 통계", icon: Chart },
+];
+
+const NAV: NavItem[] = [
   { href: "/", label: "대시보드", icon: Grid, exact: true },
   { href: "/jobs", label: "작업 기록", icon: List, note: "소요·비용" },
   { href: "/backlog", label: "백로그", icon: Inbox, note: "게이트 1" },
@@ -17,14 +40,39 @@ const NAV = [
 export function Sidebar({ pending }: { pending?: { backlog?: number; review?: number } }) {
   const path = usePathname();
   const on = (href: string, exact?: boolean) => (exact ? path === href : path.startsWith(href));
+  const [consoleOpen, setConsoleOpen] = useState(false);
+  const isLogsConsole = path.startsWith("/backend-logs");
+  const activeConsole = isLogsConsole ? CONSOLES[1] : CONSOLES[0];
+  const nav = isLogsConsole ? LOG_NAV : NAV;
   return (
     <aside className="fixed inset-y-0 left-0 z-20 flex w-[188px] flex-col bg-side text-side-ink">
-      <div className="flex h-14 items-center gap-2 px-5">
+      <div className="relative flex h-14 items-center gap-2 px-5">
         <span className="grid h-7 w-7 place-items-center rounded bg-brand text-[13px] font-bold text-white">ear</span>
-        <span className="text-[13px] font-semibold tracking-tight text-white">파이프라인</span>
+        <button
+          type="button"
+          onClick={() => setConsoleOpen((v) => !v)}
+          className="flex items-center gap-1 text-[13px] font-semibold tracking-tight text-white"
+        >
+          {activeConsole.label}
+          <svg className={`h-3 w-3 opacity-70 transition ${consoleOpen ? "rotate-180" : ""}`} viewBox="0 0 20 20" fill="currentColor"><path d="M5 7.5l5 5.5 5-5.5H5z" /></svg>
+        </button>
+        {consoleOpen && (
+          <div className="absolute left-4 right-4 top-12 z-30 overflow-hidden rounded border border-side-soft bg-side shadow-lg">
+            {CONSOLES.map((c) => (
+              <Link
+                key={c.href}
+                href={c.href}
+                onClick={() => setConsoleOpen(false)}
+                className={`block px-3 py-2 text-[13px] ${activeConsole.href === c.href ? "bg-brand text-white" : "text-side-ink hover:bg-side-soft hover:text-white"}`}
+              >
+                {c.label}
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
       <nav className="mt-2 flex-1 space-y-0.5 px-2">
-        {NAV.map((n) => {
+        {nav.map((n) => {
           const active = on(n.href, n.exact);
           const badge = n.href === "/backlog" ? (pending?.backlog ?? 0) + (pending?.review ?? 0) : 0;
           return (
@@ -37,9 +85,12 @@ export function Sidebar({ pending }: { pending?: { backlog?: number; review?: nu
           );
         })}
       </nav>
-      <Link href="/settings" className={`m-2 flex items-center gap-2.5 rounded px-3 py-2 text-[13px] ${on("/settings") ? "bg-brand text-white" : "hover:bg-side-soft hover:text-white"}`}>
-        <Gear className="h-4 w-4 opacity-90" /> 설정
-      </Link>
+      {/* 설정은 파이프라인 콘솔 전용 — 로그 콘솔에는 해당 메뉴가 없다 */}
+      {!isLogsConsole && (
+        <Link href="/settings" className={`m-2 flex items-center gap-2.5 rounded px-3 py-2 text-[13px] ${on("/settings") ? "bg-brand text-white" : "hover:bg-side-soft hover:text-white"}`}>
+          <Gear className="h-4 w-4 opacity-90" /> 설정
+        </Link>
+      )}
     </aside>
   );
 }
@@ -54,4 +105,7 @@ function Globe({ className }: I) { return <svg className={className} viewBox="0 
 function Tag({ className }: I) { return <svg className={className} viewBox="0 0 20 20" fill="currentColor"><path d="M10 2l8 8-8 8-8-8V2h8zM6.5 6.5a1.5 1.5 0 100-.1z" /></svg>; }
 function Book({ className }: I) { return <svg className={className} viewBox="0 0 20 20" fill="currentColor"><path d="M4 3h5a2 2 0 012 2v12a1.5 1.5 0 00-1.5-1.5H4V3zm12 0h-5a2 2 0 00-2 2v12a1.5 1.5 0 011.5-1.5H16V3zM5.5 6h3v1.2h-3V6zm0 3h3v1.2h-3V9zm6-3h3v1.2h-3V6zm0 3h3v1.2h-3V9z" /></svg>; }
 function Ship({ className }: I) { return <svg className={className} viewBox="0 0 20 20" fill="currentColor"><path d="M10 2l1 1v2h4l1 6-6 2-6-2 1-6h4V3l1-1zm-7 12l2 2h10l2-2 1 2-2 3H4l-2-3 1-2z" /></svg>; }
+function Alert({ className }: I) { return <svg className={className} viewBox="0 0 20 20" fill="currentColor"><path d="M10 2l9 16H1L10 2zm-1 6v5h2V8H9zm0 6.5v2h2v-2H9z" /></svg>; }
+function Pulse({ className }: I) { return <svg className={className} viewBox="0 0 20 20" fill="currentColor"><path d="M2 11h3l2-6 4 10 2-4h5v-2h-3.8l-3.2 6.4L7.2 4.6 4.6 9H2v2z" /></svg>; }
+function Chart({ className }: I) { return <svg className={className} viewBox="0 0 20 20" fill="currentColor"><path d="M3 17h14v-2H3v2zm1-4h3V7H4v6zm5 0h3V4H9v9zm5 0h3v-4h-3v4z" /></svg>; }
 function Gear({ className }: I) { return <svg className={className} viewBox="0 0 20 20" fill="currentColor"><path d="M10 6.5A3.5 3.5 0 1010 13.5 3.5 3.5 0 0010 6.5zm7 3.5l1.8 1.4-1.7 2.9-2.2-.7a6.7 6.7 0 01-1.5.9l-.4 2.3H8.9l-.4-2.3a6.7 6.7 0 01-1.5-.9l-2.2.7-1.7-2.9L4.9 10 3.1 8.6l1.7-2.9 2.2.7c.5-.4 1-.7 1.5-.9L8.9 3h3.1l.4 2.3c.5.2 1 .5 1.5.9l2.2-.7 1.7 2.9L17 10z" /></svg>; }
