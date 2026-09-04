@@ -4,6 +4,7 @@ import { claimApprovedBacklog, claimJob, enqueue, failJob, finishJob, heartbeat,
 import { workerRev } from "./assets.js";
 import { probeStorage } from "./storage.js";
 import { makeExecutor } from "./executors/index.js";
+import { startLogWatch } from "./log-watch.js";
 import { runStage } from "./stages/index.js";
 import { log, sleep, RetryLater } from "./util.js";
 
@@ -31,6 +32,8 @@ async function main() {
   await fs.mkdir(cfg.workRoot, { recursive: true }); // 실행기 cwd — 없으면 spawn 이 실패한다
   const storageInfo = await probeStorage(); // 산출물 저장소(S3) 접근 확인 — 못 쓰면 작업을 집기 전에 죽는다 (spec/10 3.3)
   log(`워커 시작 — ${executedBy} · capabilities=${cfg.capabilities.join(",")} · AI=${canAi ? "on" : "off"} · TTS=${canTts ? "on" : "off(키 없음 — 서버가 집음)"} · assets=DB+${cfg.assetSourceRoot} · work=${cfg.workRoot} · storage=${storageInfo} · rev=${workerRev()}`);
+  // 백엔드 ERROR → Slack 감시 (log-watch.ts) — 자체 타이머·전부 try/catch·unref 로 작업 큐와 완전 분리. env 없으면 off
+  log(`백엔드 ERROR 감시: ${startLogWatch()}`);
 
   let current: string | null = null;
   const stop = async () => {
