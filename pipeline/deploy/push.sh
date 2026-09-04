@@ -9,7 +9,9 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 HOST="${HOST:-54.116.31.183}"
 PEM="${PEM:-$ROOT/pipeline/deploy/aws/out/ear-ai-isb.pem}"
 DEST=/opt/ear/ear_project
-SSH="ssh -i $PEM -o StrictHostKeyChecking=accept-new"
+# keepalive — 서버 빌드가 수 분간 출력 없이 돌면(의존성 변경 시 npm ci) 유휴 연결이 끊긴다.
+# CI 런 33864399977(2026-09-04)이 npm ci 4분 30초 침묵 후 Broken pipe로 실패한 원인.
+SSH="ssh -i $PEM -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=15 -o ServerAliveCountMax=60"
 REV="$(git -C "$ROOT" rev-parse --short HEAD)"
 [ -z "$(git -C "$ROOT" status --porcelain -- pipeline ai-server)" ] || REV="$REV-dirty"
 
