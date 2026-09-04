@@ -64,7 +64,9 @@ services:
         awslogs-create-group: 'true'
 
   postgres:
-    image: postgres:16-alpine
+    # pgvector 확장 포함 이미지(postgres:16 호환 — 기존 데이터 볼륨 유지). 표준 이미지에는
+    # vector 확장이 없어 AddEmbeddingVectors 마이그레이션이 기동 시 실패한다(RUN_MIGRATIONS=true)
+    image: pgvector/pgvector:pg16
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USERNAME:?}
