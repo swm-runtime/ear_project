@@ -20,8 +20,42 @@ type LogEvent = { t: number; message: string };
 type Parsed = { method: string; path: string; status: number; durationMs: number };
 type PathAgg = { key: string; count: number; errors: number; totalMs: number; maxMs: number };
 
-/** LoggingInterceptor 의 객체 라인에서 필드를 뽑는다 — 형식이 다르면 조용히 건너뛴다 */
-const REQUEST_RE = /method:\s*'([A-Z]+)'.*?path:\s*'([^']+)'.*?status:\s*(\d{3}).*?duration_ms:\s*(\d+)/;
+/**
+ * LoggingInterceptor 의 객체 출력에서 필드를 뽑는다 — 형식이 다르면 조용히 건너뛴다.
+ * 운영 로그는 객체가 **여러 이벤트(줄)로 쪼개져** 오므로(실로그 확인 2026-09-04) 한 줄
+ * 정규식이 아니라 순차 스캔으로 method→path→status→duration_ms 를 모은다. 같은 record 의
+ * 줄들은 한 번의 console 쓰기라 연속으로 도착한다 — 필드가 섞일 일은 없다.
+ */
+const FIELD_RES = {
+  method: /method:\s*'([A-Z]+)'/,
+  path: /path:\s*'([^']+)'/,
+  status: /status:\s*(\d{3})\b/,
+  durationMs: /duration_ms:\s*(\d+)\b/,
+};
+
+function parseRequests(events: LogEvent[]): Parsed[] {
+  const parsed: Parsed[] = [];
+  let current: Partial<Parsed> = {};
+
+  for (const e of events) {
+    const method = FIELD_RES.method.exec(e.message)?.[1];
+    if (method) current = { method }; // 새 record 시작 — 이전 미완성분은 버린다
+
+    const path = FIELD_RES.path.exec(e.message)?.[1];
+    if (path) current.path = normalizePath(path);
+    const status = FIELD_RES.status.exec(e.message)?.[1];
+    if (status) current.status = Number(status);
+    const durationMs = FIELD_RES.durationMs.exec(e.message)?.[1];
+    if (durationMs) current.durationMs = Number(durationMs);
+
+    if (current.method && current.path && current.status !== undefined && current.durationMs !== undefined) {
+      parsed.push(current as Parsed);
+      current = {};
+    }
+  }
+
+  return parsed;
+}
 
 /** uuid·숫자 세그먼트를 접어 같은 엔드포인트로 묶는다 */
 function normalizePath(path: string): string {
@@ -54,11 +88,7 @@ export function BackendTraffic() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const parsed: Parsed[] = [];
-  for (const e of events) {
-    const m = REQUEST_RE.exec(e.message);
-    if (m) parsed.push({ method: m[1], path: normalizePath(m[2]), status: Number(m[3]), durationMs: Number(m[4]) });
-  }
+  const parsed = parseRequests(events);
 
   const count = (from: number, to: number) => parsed.filter((p) => p.status >= from && p.status < to).length;
   const byPath = new Map<string, PathAgg>();

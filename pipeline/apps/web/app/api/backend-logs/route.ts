@@ -25,6 +25,11 @@ let client: CloudWatchLogsClient | undefined;
 const getClient = () =>
   (client ??= new CloudWatchLogsClient({ region: process.env.AWS_REGION || "ap-northeast-2" }));
 
+/** 운영 Nest 로거가 ANSI 색 코드를 켠 채 찍는다(실로그 확인 2026-09-04) — 화면에 새기 전에 지운다 */
+// eslint-disable-next-line no-control-regex
+const ANSI_RE = /\u001b\[[0-9;]*m/g;
+const clean = (message: string | undefined) => (message ?? "").replace(ANSI_RE, "");
+
 export async function GET(req: NextRequest) {
   const user = await currentUser().catch(() => null);
   if (!user) return NextResponse.json({ message: "로그인이 필요합니다" }, { status: 401 });
@@ -55,7 +60,7 @@ export async function GET(req: NextRequest) {
           limit: Math.min(2000, limit * 4),
         }),
       );
-      const events = (out.events ?? []).map((e) => ({ t: e.timestamp ?? 0, message: e.message ?? "" }));
+      const events = (out.events ?? []).map((e) => ({ t: e.timestamp ?? 0, message: clean(e.message) }));
       return NextResponse.json({ events });
     }
 
@@ -68,7 +73,7 @@ export async function GET(req: NextRequest) {
         startFromHead: false, // 최신부터 = tail
       }),
     );
-    const events = (out.events ?? []).map((e) => ({ t: e.timestamp ?? 0, message: e.message ?? "" }));
+    const events = (out.events ?? []).map((e) => ({ t: e.timestamp ?? 0, message: clean(e.message) }));
     return NextResponse.json({ events });
   } catch (error) {
     const name = error instanceof Error ? error.name : "";
