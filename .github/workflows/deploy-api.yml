@@ -60,7 +60,8 @@ jobs:
           mkdir -p ~/.ssh
           printf '%s\n' "${{ secrets.CI_SSH_KEY_API }}" > ~/.ssh/ci_deploy_api
           chmod 600 ~/.ssh/ci_deploy_api
-          PEM=~/.ssh/ci_deploy_api REF=dev bash backend/deploy/push.sh
+          # REF 를 넘기지 않는다 — 러너가 체크아웃한 HEAD 를 그대로 뜬다
+          PEM=~/.ssh/ci_deploy_api bash backend/deploy/push.sh
 
       - name: 실패 시 최근 로그 — 원인을 런에서 바로 본다
         if: failure()

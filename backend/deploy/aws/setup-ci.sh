@@ -9,7 +9,7 @@ SG=sg-048aaaf95e4d12b2e          # 제품 서버 보안그룹 (docs/infra/invent
 HOST=43.203.57.240
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 OUT="$ROOT/backend/deploy/aws/out"
-PEM="${PEM:-$OUT/ear-prod.pem}"
+PEM="${PEM:-$OUT/ear-prod-isb.pem}"   # ear-prod.pem 은 서버가 받지 않는다(2026-09-04 실측)
 CIKEY="$OUT/ear-ci-deploy-api"
 
 [ -f "$PEM" ] || { echo "관리자 pem 이 없다: $PEM"; exit 1; }
