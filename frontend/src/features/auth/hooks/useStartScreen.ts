@@ -7,9 +7,11 @@ import { getDeviceId } from '@/shared/lib/device-id';
 import { logger } from '@/shared/lib/logger';
 import { useToastStore } from '@/shared/ui/toast.store';
 
+import type { PolicyDocument } from '../auth.constants';
 import { AUTH_COPY } from '../auth.copy';
 import type { AuthStackParamList, SocialProvider } from '../auth.types';
 import { useSocialLoginMutation } from './useSocialLoginMutation';
+import { openPolicyDocument } from '../services/policy-document.service';
 import { ProviderAuthCancelledError, authenticateWithProvider } from '../services/provider-auth.service';
 import { sessionService } from '../services/session.service';
 
@@ -86,10 +88,9 @@ export const useStartScreen = () => {
     }
   };
 
-  const handlePolicyLinkPress = (link: 'terms' | 'privacy') => {
+  const handlePolicyLinkPress = (link: PolicyDocument) => {
     // 약관 열람은 동의로 기록되지 않는다 — 인앱 브라우저로 본문만 연다(auth-uiux.md 4.1)
-    // TODO(auth): 약관 문서 URL 확정 후 expo-web-browser로 연다
-    logger.warn('[auth] policy document url not decided yet:', link);
+    void openPolicyDocument(link);
   };
 
   return {

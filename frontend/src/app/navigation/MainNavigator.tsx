@@ -11,7 +11,11 @@ import { ContentDetailScreen } from '@/features/content-detail';
 import { ExploreScreen, ExploreSearchScreen } from '@/features/explore';
 import { InterestManagementScreen } from '@/features/interest';
 import { LibraryScreen } from '@/features/library';
-import { NotificationPrePromptModal, useNotificationStore } from '@/features/notification';
+import {
+  NotificationPrePromptModal,
+  usePrePromptGate,
+  useNotificationStore,
+} from '@/features/notification';
 import { PlayerScreen } from '@/features/player';
 import { ProfileScreen } from '@/features/profile';
 import { SettingsScreen } from '@/features/settings';
@@ -94,8 +98,9 @@ function MainTabs() {
 
 /** Main 영역 — 탭과 그 위에 얹히는 화면(플레이어)을 하나의 스택으로 묶는다 */
 export default function MainNavigator() {
-  const isPrePromptPending = useNotificationStore((s) => s.isPrePromptPending);
   const clearPrePromptPending = useNotificationStore((s) => s.clearPrePromptPending);
+  // 코치마크가 끝난 뒤에야 열린다 — 동시에 뜨면 모달이 코치마크를 덮는다(usePrePromptGate)
+  const isPrePromptVisible = usePrePromptGate();
 
   return (
     <>
@@ -158,10 +163,11 @@ export default function MainNavigator() {
       {/*
         온보딩 직후 한 번 뜨는 알림 사전 안내(2026-09-02 — 온보딩 마지막 화면이던 O10을 옮겼다).
         착지 탭이 라이브러리일 수도 탐색일 수도 있어 **탭이 아니라 여기서** 그린다 —
-        화면마다 두면 어느 탭으로 들어왔느냐에 따라 떴다 안 떴다 한다
+        화면마다 두면 어느 탭으로 들어왔느냐에 따라 떴다 안 떴다 한다.
+        여는 시점은 코치마크가 끝난 뒤다(2026-09-04) — 권한은 가치를 보여준 다음에 묻는다
       */}
       <NotificationPrePromptModal
-        isVisible={isPrePromptPending}
+        isVisible={isPrePromptVisible}
         withReconsider
         syncOnDismiss
         onFinished={clearPrePromptPending}

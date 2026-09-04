@@ -5,12 +5,12 @@ import { useState } from 'react';
 import { isApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
 import { getDeviceId } from '@/shared/lib/device-id';
-import { logger } from '@/shared/lib/logger';
 import { useToastStore } from '@/shared/ui/toast.store';
 
 import { AUTH_COPY } from '../auth.copy';
 import type { AuthStackParamList, ConsentType, RequiredConsent } from '../auth.types';
 import { useSignUpMutation } from './useSignUpMutation';
+import { openPolicyDocument } from '../services/policy-document.service';
 import { sessionService } from '../services/session.service';
 
 interface TermsConsentParams {
@@ -48,9 +48,11 @@ export const useTermsConsentScreen = ({ signupToken, requiredConsents }: TermsCo
     );
   };
 
+  /** [보기] — 랜딩에 게시된 본문을 인앱 브라우저로 연다. **열람은 동의가 아니다**(auth-uiux.md 4.3) */
   const handleViewPress = (consentType: ConsentType) => {
-    // TODO(auth): 약관 문서 URL 확정 후 인앱 브라우저로 연다(auth-uiux.md 4.3)
-    logger.warn('[auth] consent document url not decided yet:', consentType);
+    // 마케팅은 열람 문서가 없어 화면이 [보기]를 그리지 않는다 — 방어적으로 한 번 더 막는다
+    if (consentType === 'marketing') return;
+    void openPolicyDocument(consentType);
   };
 
   const handleSubmit = async () => {

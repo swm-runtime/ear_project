@@ -10,8 +10,8 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
+import ChevronIcon from '@/shared/ui/ChevronIcon';
 
-import StepIndicator from '../components/StepIndicator';
 import { useCareerScreen } from '../hooks/useCareerScreen';
 import { ONBOARDING_COPY } from '../onboarding.copy';
 import type { YearsOfExperience } from '../onboarding.types';
@@ -21,6 +21,10 @@ const YEARS_OPTIONS: YearsOfExperience[] = ['0-1', '2-3', '4-6', '7+'];
 /**
  * O4 커리어 정보(2/3). 전부 선택 항목 — 미입력 필드에 에러 표시를 하지 않고
  * [다음]은 입력값과 무관하게 항상 활성이다(onboarding-uiux.md 4.3).
+ * 시각은 O1과 같은 컨셉(2026-09-03): 가운데 타이틀 툴바(+뒤로가기) · "2/3 단계" ·
+ * 큰 회색 헤드라인 · 면(面) 칩 · 우하단 원형 [다음] + 왼쪽 [건너뛰기] 텍스트 버튼.
+ * [건너뛰기]는 보조 스타일이되 숨기거나 작게 만들지 않는다(4.3).
+ * 문서 반영 요청: changes/pending/onboarding-o1-visual-refresh.md
  */
 export default function CareerScreen() {
   const insets = useSafeAreaInsets();
@@ -90,15 +94,38 @@ export default function CareerScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={[styles.header, { paddingTop: Math.max(theme.spacing.md - insets.top, 0) }]}>
-        <Pressable
-          style={styles.back}
-          onPress={handleBackPress}
-          accessibilityRole="button"
-          accessibilityLabel="이전 단계로"
-        >
-          <Text style={styles.backIcon}>‹</Text>
-        </Pressable>
-        <StepIndicator current={2} />
+        {/* O1과 같은 가운데 타이틀 툴바 — 2단계부터는 왼쪽에 [이전]이 있다(4.1 위치 일치) */}
+        <View style={styles.toolbar}>
+          <Pressable
+            style={styles.back}
+            onPress={handleBackPress}
+            accessibilityRole="button"
+            accessibilityLabel="이전 단계로"
+          >
+            <ChevronIcon direction="left" size={24} color={theme.color.textPrimary} />
+          </Pressable>
+          <Text style={styles.toolbarTitle} accessibilityRole="header">
+            {ONBOARDING_COPY.career.toolbarTitle}
+          </Text>
+          {/* [건너뛰기] — 우상단. 보조 위치지만 터치 타깃·본문 크기는 유지한다(4.3) */}
+          <Pressable
+            style={styles.skip}
+            disabled={isSubmitting}
+            onPress={handleSkipPress}
+            accessibilityRole="button"
+            accessibilityLabel={ONBOARDING_COPY.career.skip}
+            accessibilityState={{ disabled: isSubmitting }}
+          >
+            {isSkipSubmitting ? (
+              <ActivityIndicator color={theme.color.textSecondary} />
+            ) : (
+              <Text style={styles.skipLabel}>{ONBOARDING_COPY.career.skip}</Text>
+            )}
+          </Pressable>
+        </View>
+        <Text style={styles.stepLabel} accessibilityLabel="3단계 중 2단계">
+          2/3 단계
+        </Text>
         <Text style={styles.title}>{ONBOARDING_COPY.career.title}</Text>
         {/* 손해가 없다는 사실을 상시 노출한다 — 이 문구가 [건너뛰기] 버튼보다 중요하다(onboarding-uiux.md 4.3) */}
         <Text style={styles.laterNotice}>{ONBOARDING_COPY.career.laterNotice}</Text>
@@ -142,21 +169,7 @@ export default function CareerScreen() {
       </ScrollView>
 
       <View style={styles.dock}>
-        {/* [건너뛰기]는 보조 스타일로 두되 숨기거나 작게 만들지 않는다(onboarding-uiux.md 4.3) */}
-        <Pressable
-          style={styles.skip}
-          disabled={isSubmitting}
-          onPress={handleSkipPress}
-          accessibilityRole="button"
-          accessibilityLabel={ONBOARDING_COPY.career.skip}
-          accessibilityState={{ disabled: isSubmitting }}
-        >
-          {isSkipSubmitting ? (
-            <ActivityIndicator color={theme.color.textSecondary} />
-          ) : (
-            <Text style={styles.skipLabel}>{ONBOARDING_COPY.career.skip}</Text>
-          )}
-        </Pressable>
+        {/* O1과 같은 원형 [다음] — 라벨은 낭독으로만 남는다 */}
         <Pressable
           style={styles.next}
           disabled={isSubmitting}
@@ -168,7 +181,7 @@ export default function CareerScreen() {
           {isNextSubmitting ? (
             <ActivityIndicator color={theme.color.onPrimary} />
           ) : (
-            <Text style={styles.nextLabel}>{ONBOARDING_COPY.career.next}</Text>
+            <ChevronIcon direction="right" size={28} color={theme.color.onPrimary} />
           )}
         </Pressable>
       </View>
@@ -187,24 +200,40 @@ const styles = StyleSheet.create({
     // 고정값을 또 더하면 기기에서만 헤더가 두 배로 내려온다(웹은 inset이 0이다)
     gap: theme.spacing.sm,
   },
+  toolbar: {
+    height: theme.touchTarget.minHeight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  toolbarTitle: {
+    // O1 툴바 타이틀과 동일
+    fontSize: 24,
+    fontWeight: '700',
+    color: theme.color.textPrimary,
+  },
   back: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
     minWidth: theme.touchTarget.minWidth,
     minHeight: theme.touchTarget.minHeight,
     justifyContent: 'center',
     marginLeft: -theme.spacing.sm,
     paddingLeft: theme.spacing.sm,
   },
-  backIcon: {
-    fontSize: theme.font.size.xl,
-    color: theme.color.textPrimary,
-    lineHeight: theme.font.size.xl,
+  stepLabel: {
+    fontSize: theme.font.size.sm,
+    fontWeight: '600',
+    color: theme.color.textSecondary,
+    // O1과 동일 — 위(툴바)·아래(헤드라인) 여백을 같게
+    marginVertical: theme.spacing.md,
   },
+  // O1과 같은 큰 회색 헤드라인
   title: {
-    fontSize: theme.font.size.lg,
+    fontSize: theme.font.size.xl,
     fontWeight: '700',
-    color: theme.color.textPrimary,
-    lineHeight: theme.font.size.lg * 1.4,
-    marginTop: theme.spacing.md,
+    color: theme.color.textSecondary,
+    lineHeight: theme.font.size.xl * 1.35,
   },
   laterNotice: {
     fontSize: theme.font.size.sm,
@@ -214,13 +243,12 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.lg,
     gap: theme.spacing.sm,
   },
-  // 글자 크기는 주제 선택(1/3)에 맞추고 높이·여백은 그보다 한 칸 낮춘다 —
-  // 이 화면은 칩·입력이 여러 줄이라 같은 크기로 키우면 폼이 화면을 넘어간다(2026-09-02)
   fieldLabel: {
     fontSize: theme.font.size.md,
     fontWeight: '600',
     color: theme.color.textPrimary,
-    marginTop: theme.spacing.md,
+    // 필드 사이 호흡 — 섹션 경계가 분명해야 폼이 세 질문으로 읽힌다
+    marginTop: theme.spacing.xl,
   },
   chipRow: {
     flexDirection: 'row',
@@ -251,19 +279,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.color.primary,
   },
-  // 주제 칩보다 한 칸 낮다(60 → 52). 좌우 여백도 16을 유지한다 —
-  // "0-1년"처럼 짧은 라벨이 24 여백을 받으면 내용보다 여백이 넓어진다
+  // O1 알약과 같은 "면" 문법 — 테두리 대신 은은한 면, 선택은 primary 채움
   optionChip: {
     minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
     paddingHorizontal: theme.spacing.md,
     borderRadius: theme.radius.full,
-    borderWidth: 1.5,
-    borderColor: theme.color.border,
+    backgroundColor: theme.color.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
   optionChipSelected: {
-    borderColor: theme.color.primary,
     backgroundColor: theme.color.primary,
   },
   optionLabel: {
@@ -277,45 +302,41 @@ const styles = StyleSheet.create({
     color: theme.color.onPrimary,
   },
   input: {
-    // 칩과 같은 높이로 세운다 — 한 폼 안에서 요소 높이가 다르면 줄이 어긋나 보인다
+    // 칩과 같은 높이·같은 면 문법 — 한 폼 안에서 요소 결이 다르면 줄이 어긋나 보인다
     minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
-    borderWidth: 1.5,
-    borderColor: theme.color.border,
+    backgroundColor: theme.color.surface,
     borderRadius: theme.radius.md,
     paddingHorizontal: theme.spacing.md,
     fontSize: theme.font.size.md,
     color: theme.color.textPrimary,
   },
   dock: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-    paddingBottom: theme.spacing.xl,
+    alignItems: 'flex-end',
+    // O1과 동일한 하단 여유
+    paddingBottom: theme.spacing.xxl + theme.spacing.lg,
   },
+  /** 우상단 텍스트 버튼 — 위치만 보조일 뿐 터치 타깃·글자 크기는 그대로다(4.3) */
   skip: {
-    flex: 1,
-    minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
-    borderRadius: theme.radius.md,
-    borderWidth: 1.5,
-    borderColor: theme.color.border,
-    alignItems: 'center',
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    minHeight: theme.touchTarget.minHeight,
     justifyContent: 'center',
+    paddingHorizontal: theme.spacing.sm,
   },
   skipLabel: {
     fontSize: theme.font.size.md,
     fontWeight: '600',
     color: theme.color.textSecondary,
+    textDecorationLine: 'underline',
   },
+  /** O1과 같은 원형 [다음] */
   next: {
-    flex: 2,
-    minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
-    borderRadius: theme.radius.md,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: theme.color.primary,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  nextLabel: {
-    fontSize: theme.font.size.md,
-    fontWeight: '600',
-    color: theme.color.onPrimary,
   },
 });

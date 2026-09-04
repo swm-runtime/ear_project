@@ -2,11 +2,11 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
+import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
 import ScrollFade from '@/shared/ui/ScrollFade';
 
 import ContentPickCard, { PICK_CARD_THUMBNAIL } from '../components/ContentPickCard';
-import StepIndicator from '../components/StepIndicator';
 import { usePickScreen } from '../hooks/usePickScreen';
 import { ONBOARDING_COPY } from '../onboarding.copy';
 
@@ -32,21 +32,41 @@ export default function PickScreen() {
     refetch,
     toggleContent,
     handleProceedPress,
+    handleSkipPress,
     handleBackPress,
   } = usePickScreen();
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={[styles.header, { paddingTop: Math.max(theme.spacing.md - insets.top, 0) }]}>
-        <Pressable
-          style={styles.back}
-          onPress={handleBackPress}
-          accessibilityRole="button"
-          accessibilityLabel="이전 단계로"
-        >
-          <Text style={styles.backIcon}>‹</Text>
-        </Pressable>
-        <StepIndicator current={3} />
+        {/* O1·O4와 같은 가운데 타이틀 툴바 — 왼쪽 [이전], 인디케이터는 그리지 않는다 */}
+        <View style={styles.toolbar}>
+          <Pressable
+            style={styles.back}
+            onPress={handleBackPress}
+            accessibilityRole="button"
+            accessibilityLabel="이전 단계로"
+          >
+            <ChevronIcon direction="left" size={24} color={theme.color.textPrimary} />
+          </Pressable>
+          <Text style={styles.toolbarTitle} accessibilityRole="header">
+            {ONBOARDING_COPY.pick.toolbarTitle}
+          </Text>
+          {/* [건너뛰기] — 우상단(O4와 동일). 담은 것과 무관하게 담지 않고 넘어간다 */}
+          <Pressable
+            style={styles.skip}
+            disabled={isSubmitting}
+            onPress={handleSkipPress}
+            accessibilityRole="button"
+            accessibilityLabel={ONBOARDING_COPY.pick.skip}
+            accessibilityState={{ disabled: isSubmitting }}
+          >
+            <Text style={styles.skipLabel}>{ONBOARDING_COPY.pick.skip}</Text>
+          </Pressable>
+        </View>
+        <Text style={styles.stepLabel} accessibilityLabel="3단계 중 3단계">
+          3/3 단계
+        </Text>
         <Text style={styles.title}>{ONBOARDING_COPY.pick.title}</Text>
         <Text style={styles.subtitle}>{ONBOARDING_COPY.pick.subtitle}</Text>
       </View>
@@ -100,8 +120,14 @@ export default function PickScreen() {
       {!isError && !isLoading ? (
         // 주 버튼은 스크롤 영역이 아니라 고정 독에 둔다 — 버튼이 목록에 묻히면 담고도 진행하지 못한다(onboarding-uiux.md 5)
         <View style={styles.dock}>
+          {/* 개수는 캡션으로, 진행은 O1·O4와 같은 원형 버튼으로. 0개면 버튼이 건너뛰기 동작을 한다(4.4) */}
+          {selectedCount > 0 ? (
+            <Text style={styles.countCaption} importantForAccessibility="no">
+              {ONBOARDING_COPY.pick.submit(selectedCount)}
+            </Text>
+          ) : null}
           <Pressable
-            style={[styles.proceed, selectedCount === 0 && styles.proceedSkip]}
+            style={styles.next}
             disabled={isSubmitting}
             onPress={() => void handleProceedPress()}
             accessibilityRole="button"
@@ -113,15 +139,9 @@ export default function PickScreen() {
             accessibilityState={{ disabled: isSubmitting }}
           >
             {isSubmitting ? (
-              <ActivityIndicator
-                color={selectedCount === 0 ? theme.color.textSecondary : theme.color.onPrimary}
-              />
+              <ActivityIndicator color={theme.color.onPrimary} />
             ) : (
-              <Text style={[styles.proceedLabel, selectedCount === 0 && styles.proceedSkipLabel]}>
-                {selectedCount === 0
-                  ? ONBOARDING_COPY.pick.skip
-                  : ONBOARDING_COPY.pick.submit(selectedCount)}
-              </Text>
+              <ChevronIcon direction="right" size={28} color={theme.color.onPrimary} />
             )}
           </Pressable>
         </View>
@@ -141,24 +161,40 @@ const styles = StyleSheet.create({
     // 고정값을 또 더하면 기기에서만 헤더가 두 배로 내려온다(웹은 inset이 0이다)
     gap: theme.spacing.sm,
   },
+  toolbar: {
+    height: theme.touchTarget.minHeight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  toolbarTitle: {
+    // O1·O4 툴바 타이틀과 동일
+    fontSize: 24,
+    fontWeight: '700',
+    color: theme.color.textPrimary,
+  },
   back: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
     minWidth: theme.touchTarget.minWidth,
     minHeight: theme.touchTarget.minHeight,
     justifyContent: 'center',
     marginLeft: -theme.spacing.sm,
     paddingLeft: theme.spacing.sm,
   },
-  backIcon: {
-    fontSize: theme.font.size.xl,
-    color: theme.color.textPrimary,
-    lineHeight: theme.font.size.xl,
+  stepLabel: {
+    fontSize: theme.font.size.sm,
+    fontWeight: '600',
+    color: theme.color.textSecondary,
+    // O1·O4와 동일 — 위(툴바)·아래(헤드라인) 여백을 같게
+    marginVertical: theme.spacing.md,
   },
+  // O1·O4와 같은 큰 회색 헤드라인
   title: {
-    fontSize: theme.font.size.lg,
+    fontSize: theme.font.size.xl,
     fontWeight: '700',
-    color: theme.color.textPrimary,
-    lineHeight: theme.font.size.lg * 1.4,
-    marginTop: theme.spacing.md,
+    color: theme.color.textSecondary,
+    lineHeight: theme.font.size.xl * 1.35,
   },
   subtitle: {
     fontSize: theme.font.size.sm,
@@ -205,26 +241,41 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
   },
   dock: {
-    paddingBottom: theme.spacing.xl,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: theme.spacing.md,
+    // O1·O4와 동일한 하단 여유
+    paddingBottom: theme.spacing.xxl + theme.spacing.lg,
   },
-  proceed: {
-    minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
-    borderRadius: theme.radius.md,
+  /** 담은 개수 캡션 — 버튼 라벨이 아이콘이 된 대신 정보는 옆에 남긴다 */
+  countCaption: {
+    fontSize: theme.font.size.md,
+    fontWeight: '700',
+    color: theme.color.textPrimary,
+  },
+  /** 우상단 [건너뛰기] — O4와 동일. 위치만 보조일 뿐 터치 타깃·글자 크기는 그대로다 */
+  skip: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    minHeight: theme.touchTarget.minHeight,
+    justifyContent: 'center',
+    paddingHorizontal: theme.spacing.sm,
+  },
+  skipLabel: {
+    fontSize: theme.font.size.md,
+    fontWeight: '600',
+    color: theme.color.textSecondary,
+    textDecorationLine: 'underline',
+  },
+  /** O1·O4와 같은 원형 진행 버튼 */
+  next: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: theme.color.primary,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  proceedSkip: {
-    backgroundColor: theme.color.background,
-    borderWidth: 1.5,
-    borderColor: theme.color.border,
-  },
-  proceedLabel: {
-    fontSize: theme.font.size.md,
-    fontWeight: '600',
-    color: theme.color.onPrimary,
-  },
-  proceedSkipLabel: {
-    color: theme.color.textSecondary,
   },
 });

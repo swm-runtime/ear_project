@@ -1,6 +1,8 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import CheckIcon from '@/shared/ui/CheckIcon';
+import ChevronIcon from '@/shared/ui/ChevronIcon';
 
 import { AUTH_COPY } from '../auth.copy';
 
@@ -11,9 +13,14 @@ interface ConsentItemProps {
   /** 마케팅 항목의 수신 내용 한 줄 고지(auth-uiux.md 4.3) */
   description: string | null;
   onToggle: () => void;
-  onViewPress: () => void;
+  /** 없으면 [보기] 셰브론을 그리지 않는다 — 마케팅처럼 열람 문서가 없는 항목용 */
+  onViewPress?: () => void;
 }
 
+/**
+ * 동의 항목 행 — 빈 원형 체크(체크 시 primary 채움) + 라벨 + [보기] 셰브론(스타벅스 결,
+ * 시각 개편 2026-09-04). 행 전체(셰브론 제외)가 탭 영역이고 낭독은 checkbox 시맨틱이다.
+ */
 export default function ConsentItem({
   label,
   isRequired,
@@ -33,8 +40,8 @@ export default function ConsentItem({
         accessibilityState={{ checked: isChecked }}
         accessibilityLabel={`${label} ${tag}`}
       >
-        <View style={[styles.checkbox, isChecked && styles.checkboxChecked]}>
-          {isChecked ? <Text style={styles.checkMark}>✓</Text> : null}
+        <View style={[styles.circle, isChecked && styles.circleChecked]}>
+          {isChecked ? <CheckIcon size={13} color={theme.color.onPrimary} /> : null}
         </View>
         <View style={styles.labelArea}>
           <Text style={styles.label}>
@@ -43,15 +50,17 @@ export default function ConsentItem({
           {description !== null ? <Text style={styles.description}>{description}</Text> : null}
         </View>
       </Pressable>
-      <Pressable
-        style={styles.viewButton}
-        onPress={onViewPress}
-        hitSlop={theme.spacing.sm}
-        accessibilityRole="button"
-        accessibilityLabel={`${label} ${AUTH_COPY.consent.view}`}
-      >
-        <Text style={styles.viewLabel}>{AUTH_COPY.consent.view}</Text>
-      </Pressable>
+      {onViewPress ? (
+        <Pressable
+          style={styles.viewButton}
+          onPress={onViewPress}
+          hitSlop={theme.spacing.sm}
+          accessibilityRole="button"
+          accessibilityLabel={`${label} ${AUTH_COPY.consent.view}`}
+        >
+          <ChevronIcon direction="right" size={18} color={theme.color.textSecondary} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -65,27 +74,25 @@ const styles = StyleSheet.create({
   checkArea: {
     flex: 1,
     flexDirection: 'row',
-    alignItems: 'center',
+    // 원은 첫 줄(라벨)에 맞춘다 — 두 줄 항목에서 원이 줄 사이에 뜨지 않게
+    alignItems: 'flex-start',
     minHeight: theme.touchTarget.minHeight,
+    paddingVertical: theme.spacing.sm + 3,
   },
-  checkbox: {
+  /** 빈 원형 체크 — 체크 시 primary 채움(전체 동의와 같은 문법, 한 치수 작게) */
+  circle: {
     width: 22,
     height: 22,
-    borderRadius: theme.radius.sm,
+    borderRadius: 11,
     borderWidth: 1.5,
     borderColor: theme.color.border,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: theme.spacing.sm + theme.spacing.xs,
   },
-  checkboxChecked: {
+  circleChecked: {
     backgroundColor: theme.color.primary,
     borderColor: theme.color.primary,
-  },
-  checkMark: {
-    color: theme.color.onPrimary,
-    fontSize: theme.font.size.sm,
-    fontWeight: '700',
   },
   labelArea: {
     flex: 1,
@@ -93,6 +100,8 @@ const styles = StyleSheet.create({
   label: {
     fontSize: theme.font.size.md,
     color: theme.color.textPrimary,
+    // 원(22)과 같은 높이의 첫 줄 상자 — flex-start 정렬에서 시각 중심이 일치한다
+    lineHeight: 22,
   },
   tag: {
     color: theme.color.textSecondary,
@@ -104,13 +113,9 @@ const styles = StyleSheet.create({
     color: theme.color.textSecondary,
   },
   viewButton: {
+    minWidth: theme.touchTarget.minWidth,
     minHeight: theme.touchTarget.minHeight,
+    alignItems: 'flex-end',
     justifyContent: 'center',
-    paddingLeft: theme.spacing.sm,
-  },
-  viewLabel: {
-    fontSize: theme.font.size.sm,
-    color: theme.color.textSecondary,
-    textDecorationLine: 'underline',
   },
 });

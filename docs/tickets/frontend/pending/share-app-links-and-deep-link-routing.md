@@ -117,3 +117,14 @@ if (!IS_SHARE_ENABLED) return;   // MVP 빌드에서는 수신 라우팅도 하�
 - **지금 할 수 있는 것**: 링크 탭 → 앱이 열리는지(양 OS). 여기까지는 인프라 판정이라 플래그와 무관하다
 - **남은 것**: 완료 조건 2·4·5는 `share-p1-activation-next-build.md`(2026-09-03 발행)로 플래그가 켜진 빌드가 나온 뒤에 실행한다
 - `EXPO_PUBLIC_SHARE_ENABLED`는 **빌드 타임 상수**라 설치된 앱에서 켤 수 없다 — 검증용 빌드를 따로 뽑든, P1 활성화 빌드를 기다리든 새 빌드가 필요하다
+
+## 진행 기록 (2026-09-04)
+
+- 요청 1~3 **코드·설정 완료 상태 확인**: ① 값 4종 전달·`assetlinks.json` 배포 및 구글
+  검증 통과(2026-09-03, 짝 티켓 기록) ② `app.json`에 `associatedDomains`·`intentFilters`
+  (autoVerify, earcast.co.kr, /contents) 반영 확인 ③ 수신 게이트(`useShareLinkGate`)와
+  RootNavigator 연결 구현 확인.
+- pending 유지 사유: 요청 4(스탠드얼론 실기기에서 링크 탭 → 앱 → 상세 도착)와 완료 조건의
+  실기기 검증이 미수행. 코드 작업은 없음 — 기기에서 링크를 한 번 탭해보면 된다.
+  (수신 게이트는 `IS_SHARE_ENABLED`가 꺼져 있으면 목적지를 버린다 — 검증 시
+  `EXPO_PUBLIC_SHARE_ENABLED=true` 개발 빌드로 할 것.)

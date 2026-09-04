@@ -7,11 +7,16 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "android": { "buildType": "apk" }
+      "android": {
+        "buildType": "apk"
+      },
+      "channel": "development"
     },
     "preview": {
       "distribution": "internal",
-      "android": { "buildType": "apk" },
+      "android": {
+        "buildType": "apk"
+      },
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://api.earcast.co.kr/api/v1",
         "EXPO_PUBLIC_PROVIDER_AUTH": "real",
@@ -27,13 +32,17 @@
         "EXPO_PUBLIC_SETTINGS_API": "real",
         "EXPO_PUBLIC_INTEREST_API": "real",
         "EXPO_PUBLIC_NOTIFICATION_API": "real"
-      }
+      },
+      "channel": "preview"
     },
     "production": {
       "extends": "preview",
       "distribution": "store",
-      "android": { "buildType": "app-bundle" },
-      "autoIncrement": true
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "autoIncrement": true,
+      "channel": "production"
     }
   },
   "submit": {
