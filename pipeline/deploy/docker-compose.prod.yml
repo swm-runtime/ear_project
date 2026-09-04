@@ -42,6 +42,7 @@ services:
       AWS_REGION: ${AWS_REGION:-ap-northeast-2}
       PIPELINE_WORKER_TOKEN: ${PIPELINE_WORKER_TOKEN:?}
       EAR_API_BASE_URL: ${EAR_API_BASE_URL:-https://api.earcast.co.kr/api/v1} # 발행 프록시(/api/ear) 대상
+      EAR_SSO_SECRET: ${EAR_SSO_SECRET:-} # 발행 콘솔 SSO(/api/ear/sso) — 값은 서버 env.prod 에만(커밋 금지). 미설정이면 그 라우트만 500, 배포는 안 깨진다
     expose:
       - '3000'
     logging:
