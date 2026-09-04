@@ -25,6 +25,14 @@ services:
     depends_on:
       api:
         condition: service_healthy
+    # 접근 로그도 CloudWatch로 — 어드민 콘솔에서 api 로그와 나란히 본다
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: ${AWS_REGION:-ap-northeast-2}
+        awslogs-group: /ear/caddy
+        awslogs-stream: caddy
+        awslogs-create-group: 'true'
 
   api:
     build:
@@ -44,9 +52,16 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    # CloudWatch로 로그를 보낸다(전환 2026-09-02 — 어드민 콘솔의 백엔드 로그 화면이 읽는다).
+    # ★인스턴스 롤에 logs:CreateLogGroup/CreateLogStream/PutLogEvents가 먼저 있어야 한다 —
+    # 없으면 컨테이너 기동이 실패한다. 순서·정책은 deploy/aws/README.md "로그 → CloudWatch".
     logging:
-      driver: json-file
-      options: { max-size: '10m', max-file: '5' }
+      driver: awslogs
+      options:
+        awslogs-region: ${AWS_REGION:-ap-northeast-2}
+        awslogs-group: /ear/api
+        awslogs-stream: api
+        awslogs-create-group: 'true'
 
   postgres:
     image: postgres:16-alpine

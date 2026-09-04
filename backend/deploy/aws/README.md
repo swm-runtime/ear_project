@@ -127,3 +127,46 @@ Pricing Calculator에 서울 리전 넣고 확인 — 환율·시점 따라 움�
   URL이 여럿이라 signed cookie가 필요한데, 네이티브 재생기가 세그먼트 요청에 쿠키를 넘긴다는 보장이
   없다. 필요해지면 그때 cookie 방식부터 검증.
 - **Lambda 없음.** 크론(`@nestjs/schedule`)과 상태 테이블 폴링이 상주 프로세스를 전제한다.
+
+## 로그 → CloudWatch (2026-09-02 — 어드민 콘솔 "백엔드 로그" 화면)
+
+api·caddy 컨테이너 로그를 CloudWatch Logs로 보낸다(`docker-compose.prod.yml`의 awslogs 드라이버 —
+그룹 `/ear/api` · `/ear/caddy`). 어드민 콘솔(admin.<도메인>)의 백엔드 로그 화면이 이걸 읽으므로
+SSH 없이 로그를 본다. **반드시 아래 순서대로** — 1번 없이 2번을 하면 컨테이너 기동이 실패한다.
+
+1. **(infra — 콘솔) IAM 인라인 정책 2개** — IAM → Roles → 해당 롤 → Add permissions → Create inline policy → JSON
+   - **API EC2 인스턴스 롤 `ear-prod-ec2`** (쓰기 + 보관 설정):
+     ```json
+     { "Version": "2012-10-17", "Statement": [{
+       "Sid": "EarLogsWrite", "Effect": "Allow",
+       "Action": ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents",
+                  "logs:PutRetentionPolicy", "logs:DescribeLogGroups"],
+       "Resource": ["arn:aws:logs:ap-northeast-2:639177726357:log-group:/ear/*",
+                    "arn:aws:logs:ap-northeast-2:639177726357:log-group:/ear/*:log-stream:*"] }] }
+     ```
+   - **AI 서버 EC2 인스턴스 롤** (읽기 — 어드민 콘솔의 백엔드 로그 화면이 쓴다. 롤 이름은
+     EC2 콘솔 → AI 서버 인스턴스 → 보안 탭에서 확인):
+     ```json
+     { "Version": "2012-10-17", "Statement": [{
+       "Sid": "EarLogsRead", "Effect": "Allow",
+       "Action": ["logs:GetLogEvents", "logs:FilterLogEvents",
+                  "logs:DescribeLogStreams", "logs:DescribeLogGroups"],
+       "Resource": ["arn:aws:logs:ap-northeast-2:639177726357:log-group:/ear/*",
+                    "arn:aws:logs:ap-northeast-2:639177726357:log-group:/ear/*:log-stream:*"] }] }
+     ```
+   - `FilterLogEvents`는 에러 모아보기(패턴 필터)가, `GetLogEvents`는 실시간 로그(tail)가 쓴다 — 둘 다 필요하다.
+2. **(API EC2 — SSH) 컨테이너 재생성** — 이미지 재빌드 아님, env 무변경, 수 초 재기동:
+   ```bash
+   cd /opt/ear && git pull && cd backend
+   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+   aws logs tail /ear/api   # 로그가 흐르면 성공
+   ```
+3. **보관 7일 설정 1회** (비용 표의 전제 — 안 걸면 무기한 보관으로 샌다):
+   ```bash
+   aws logs put-retention-policy --log-group-name /ear/api --retention-in-days 7
+   aws logs put-retention-policy --log-group-name /ear/caddy --retention-in-days 7
+   ```
+
+- 전환 이전 로그는 CloudWatch에 없다(json-file 시절 분은 그 시점 회전분까지만 서버에 남아 있다).
+- SCP가 CloudWatch Logs를 막는 계정이면 1번에서 AccessDenied가 난다 — 그 경우 이 전환을 되돌리고
+  (json-file 유지) 백엔드 담당에게 알린다(대안: admin API 직접 조회 방식으로 재설계).

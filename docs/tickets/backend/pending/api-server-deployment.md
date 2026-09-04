@@ -83,3 +83,11 @@ cd /opt/ear/backend && docker compose -f docker-compose.prod.yml --env-file .env
 
 - **배포 대상 선택** — 팀 여건(비용·운영 부담)에 달렸다. 이 티켓은 "무엇을 고를지"를 정하지 않고 **결과 요건**(HTTPS 공개 도메인·환경변수 주입·마이그레이션 경로)만 둔다
 - **오브젝트 스토리지 확정 전까지 `AUDIO_URL_BASE_URL`은 임시값**으로 둔다(`.env.example` 주석)
+
+## 진행 기록
+
+- **2026-09-02 — 실배포 상태 실사** (백엔드 로그 콘솔 작업 중 API EC2 접속 확인. 배포 자체는 infra가 완료해 서버는 운영 중이다):
+  - **배포 방식이 README(`deploy/aws/README.md`)와 다르다.** `/opt/ear`는 git 저장소가 아니라 **파일 복사본**이다(`git pull` 불가 — 갱신은 복사 또는 infra 절차로만 가능). 저장소 웹훅·GitHub Actions·watchtower 전부 없음 = 자동 배포 없음도 확인.
+  - **운영 postgres는 이미 `pgvector/pgvector:pg16`으로 교체돼 있다**(infra가 서버에서 직접 변경 — 벡터 마이그레이션 대응으로 추정). 저장소의 `docker-compose.prod.yml`(postgres:16-alpine)과 어긋나 있었고, `fix(be)` 커밋으로 저장소를 실물에 맞춘다.
+  - 인스턴스 롤 `ear-prod-ec2` 확인(계정 639177726357). CloudWatch는 SCP에 막히지 않음(`no identity-based policy allows` — 롤 정책 문제일 뿐). 로그 IAM 정책 2종은 2026-09-02 infra가 추가 완료.
+  - **infra에 전달 필요**: 실제 배포 절차(파일 복사)를 문서화하거나 README의 git 방식으로 정렬할 것 — 지금은 저장소 변경이 서버에 "어떻게 도달하는지"가 문서에 없다.
