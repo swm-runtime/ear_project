@@ -22,15 +22,18 @@ export default function ExploreWalkthrough() {
 
   return (
     <View style={styles.backdrop} accessibilityViewIsModal>
-      {/* [건너뛰기] — 우상단. 코치마크는 언제든 닫을 수 있어야 한다 */}
-      <Pressable
-        style={styles.skip}
-        onPress={clear}
-        accessibilityRole="button"
-        accessibilityLabel={EXPLORE_COPY.walkthrough.skip}
-      >
-        <Text style={styles.skipLabel}>{EXPLORE_COPY.walkthrough.skip}</Text>
-      </Pressable>
+      {/* [건너뛰기] — 우상단. 남은 단계가 있을 때만 둔다: 마지막 단계에서는 [시작하기]가
+        같은 동작(닫기)이라 두 버튼이 같은 자리를 두고 겹친다(2026-09-04) */}
+      {!isLast ? (
+        <Pressable
+          style={styles.skip}
+          onPress={clear}
+          accessibilityRole="button"
+          accessibilityLabel={EXPLORE_COPY.walkthrough.skip}
+        >
+          <Text style={styles.skipLabel}>{EXPLORE_COPY.walkthrough.skip}</Text>
+        </Pressable>
+      ) : null}
 
       {step === 0 ? (
         // ① 검색줄(화면 상단)을 가리킨다
