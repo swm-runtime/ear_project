@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 
 const NAV = [
   { href: "/", label: "대시보드", icon: Grid, exact: true },
+  { href: "/jobs", label: "작업 기록", icon: List, note: "소요·비용" },
   { href: "/backlog", label: "백로그", icon: Inbox, note: "게이트 1" },
   { href: "/episodes", label: "에피소드", icon: Doc },
   { href: "/sweep", label: "스윕", icon: Radar },
@@ -46,6 +47,7 @@ export function Sidebar({ pending }: { pending?: { backlog?: number; review?: nu
 type I = { className?: string };
 function Grid({ className }: I) { return <svg className={className} viewBox="0 0 20 20" fill="currentColor"><path d="M3 3h6v6H3V3zm8 0h6v4h-6V3zM3 11h6v6H3v-6zm8 3h6v3h-6v-3zm0-5h6v3h-6V9z" /></svg>; }
 function Inbox({ className }: I) { return <svg className={className} viewBox="0 0 20 20" fill="currentColor"><path d="M3 4h14l1 8v4H2v-4l1-8zm1.6 1L3.8 11H7l1 2h4l1-2h3.2l-.8-6H4.6z" /></svg>; }
+function List({ className }: I) { return <svg className={className} viewBox="0 0 20 20" fill="currentColor"><path d="M3 4h2v2H3V4zm4 0h10v2H7V4zM3 9h2v2H3V9zm4 0h10v2H7V9zm-4 5h2v2H3v-2zm4 0h10v2H7v-2z" /></svg>; }
 function Doc({ className }: I) { return <svg className={className} viewBox="0 0 20 20" fill="currentColor"><path d="M5 2h7l4 4v12H5V2zm7 1.5V7h3.5L12 3.5zM7 9h6v1.5H7V9zm0 3h6v1.5H7V12z" /></svg>; }
 function Radar({ className }: I) { return <svg className={className} viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a8 8 0 108 8h-2a6 6 0 11-6-6V2z" /><circle cx="10" cy="10" r="2.5" /></svg>; }
 function Globe({ className }: I) { return <svg className={className} viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a8 8 0 100 16 8 8 0 000-16zm5.9 7h-2.6a12 12 0 00-1-4.2A6 6 0 0115.9 9zM10 4c.7 1 1.2 2.6 1.4 5H8.6C8.8 6.6 9.3 5 10 4zM4.1 9a6 6 0 013.6-4.2 12 12 0 00-1 4.2H4.1zm0 2h2.6c.1 1.6.5 3 1 4.2A6 6 0 014.1 11zM10 16c-.7-1-1.2-2.6-1.4-5h2.8c-.2 2.4-.7 4-1.4 5zm2.3-.8c.5-1.2.9-2.6 1-4.2h2.6a6 6 0 01-3.6 4.2z" /></svg>; }

@@ -48,6 +48,8 @@ export const cfg = {
   ttsModel: process.env.TTS_MODEL || "eleven_v3",
   ttsVoiceYuna: process.env.TTS_VOICE_YUNA || "Lb7qkOn5hF8p7qfCDH8q",
   ttsVoiceEum: process.env.TTS_VOICE_EUM || "4JJwo477JUAx3HV0T7n7",
+  /** TTS 비용 환산용 1천 자당 USD (참고값 — 요금제마다 다르다). 미설정이면 runs.cost_usd 는 비워 두고 글자수만 남긴다 */
+  ttsUsdPer1kChars: process.env.TTS_USD_PER_1K_CHARS ? Number(process.env.TTS_USD_PER_1K_CHARS) : undefined,
 };
 
 export const canAi = cfg.capabilities.includes("ai") && cfg.executor !== "none";
