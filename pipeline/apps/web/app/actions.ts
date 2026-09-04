@@ -50,8 +50,8 @@ export async function saveCriticVerdicts(episodeId: string, verdicts: unknown) {
   revalidatePath(`/episodes/${episodeId}`);
 }
 
-/** 발행 대기 목록 — 오디오(dist.mp3) 완료·미발행 에피소드. audio_dist_key 가 있고 backlog 상태가 qa_passed/packaged(=아직 published 아님)인 것. 발행 업로드 화면의 선택 목록. */
-export async function listPublishableEpisodes(): Promise<{ id: string; title: string; mid_topic: string; status: string; created_at: string }[]> {
+/** 발행 대기 목록 — 패키지(packaged)·오디오(dist.mp3) 둘 다 끝났고 아직 발행 안 된 에피소드. audio_dist_key 가 있고 backlog 상태가 packaged 인 것. 발행 업로드 화면의 선택 목록. */
+export async function listPublishableEpisodes(): Promise<{ id: string; title: string; mid_topic: string; created_at: string }[]> {
   const sb = await supabaseServer();
   const { data: eps, error } = await sb.from("episodes").select("id,backlog_id,audio_dist_key,created_at").not("audio_dist_key", "is", null).order("id", { ascending: false });
   if (error) throw new Error(error.message);
@@ -60,8 +60,8 @@ export async function listPublishableEpisodes(): Promise<{ id: string; title: st
   const { data: bls } = await sb.from("backlog").select("id,title,mid_topic,status").in("id", ids);
   const bl = Object.fromEntries((bls ?? []).map((b) => [b.id, b]));
   return (eps ?? [])
-    .map((e) => ({ id: e.id, title: bl[e.backlog_id]?.title ?? e.id, mid_topic: bl[e.backlog_id]?.mid_topic ?? "", status: bl[e.backlog_id]?.status ?? "", created_at: e.created_at as string }))
-    .filter((e) => ["qa_passed", "packaged"].includes(e.status));
+    .filter((e) => bl[e.backlog_id]?.status === "packaged")
+    .map((e) => ({ id: e.id, title: bl[e.backlog_id]?.title ?? e.id, mid_topic: bl[e.backlog_id]?.mid_topic ?? "", created_at: e.created_at as string }));
 }
 
 /** 도메인 판정 (사람): tier·license_basis. decided_by·decided_at 는 트리거가 찍는다. */

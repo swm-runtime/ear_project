@@ -57,7 +57,7 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
   const [checks, setChecks] = useState([false, false, false, false]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "bad"; text: string } | null>(null);
-  const [pending, setPending] = useState<{ id: string; title: string; mid_topic: string; status: string; created_at: string }[] | null>(null);
+  const [pending, setPending] = useState<{ id: string; title: string; mid_topic: string; created_at: string }[] | null>(null);
 
   // 발행 대기 목록 — episode 미지정일 때만 (오디오 완료·미발행). 고르면 ?episode=<id> 로 이동해 프리필된다.
   useEffect(() => {
@@ -130,11 +130,11 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
       <div className="space-y-4">
         {episodeId && <Link href="/publish/upload" className="inline-block text-xs text-ink-soft underline hover:text-ink">← 발행 대기 목록</Link>}
         {!episodeId && (
-          <Panel title="발행 대기 — 오디오 완료 · 미발행">
+          <Panel title="발행 대기 — 패키지 · 오디오 완료 (미발행)">
             {pending === null ? (
               <p className="text-[13px] text-ink-soft">불러오는 중…</p>
             ) : pending.length === 0 ? (
-              <p className="text-[13px] text-ink-soft">발행 대기 중인(오디오 생성 완료·미발행) 에피소드가 없어요. 아래에서 파일을 직접 올려도 됩니다.</p>
+              <p className="text-[13px] text-ink-soft">발행 대기 중인(패키지·오디오 완료·미발행) 에피소드가 없어요. 아래에서 파일을 직접 올려도 됩니다.</p>
             ) : (
               <div className="divide-y divide-line">
                 {pending.map((e) => (
@@ -143,7 +143,7 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
                     <span className="font-medium text-ink">{e.title}</span>
                     <span className="text-[11px] text-ink-soft">{e.mid_topic}</span>
                     <span className="ml-auto font-mono text-[11px] text-ink-soft">{e.id}</span>
-                    <Badge tone={e.status === "packaged" ? "done" : undefined}>{e.status === "packaged" ? "발행 준비" : "패키지 먼저"}</Badge>
+                    <Badge tone="done">발행 준비</Badge>
                   </button>
                 ))}
               </div>
