@@ -107,10 +107,13 @@ crontab -e
 bash backend/deploy/push.sh          # 서버 git pull + compose 재빌드 + 헬스 확인까지
 ```
 
-스크립트 없이 서버에서 직접 하는 것과 같은 일이다:
+**서버에는 git 이 없다** — `/opt/ear/backend` 에 파일만 있다(2026-09-04 실측. 1장의
+`git clone` 은 실제 구축에서 쓰이지 않았다). `push.sh` 는 커밋 트리를 `git archive` 로 떠서
+tar 로 푼다. `.env.prod` 는 git 이 추적하지 않아 아카이브에 없으므로 **덮이지도 지워지지도
+않는다**. 서버에서 직접 할 때는 반입 뒤 이것만 하면 된다:
 
 ```bash
-cd /opt/ear && git pull && cd backend
+cd /opt/ear/backend
 docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build api
 ```
 마이그레이션은 컨테이너 기동 시 자동(`RUN_MIGRATIONS=true`). 실패하면 서버가 안 뜬다 — 그게 의도.

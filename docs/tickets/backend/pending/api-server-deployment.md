@@ -116,3 +116,28 @@ cd /opt/ear/backend && docker compose -f docker-compose.prod.yml --env-file .env
 | `CORS_ORIGINS` 가 `*` 가 아니다 | 배포 산출물(`deploy/aws/out/.env.prod`)에는 `https://admin.earcast.co.kr` 로 있다. 실서버 `printenv` 대조만 남음 |
 | pepper·`JWT_SECRET` 이 시크릿 매니저에만 | **사람 결정 대기** — 서버 `.env.prod` 파일 보관을 합격으로 볼지 |
 | iOS 애플 nonce | iOS 빌드 대기 (`frontend/eas.json` 에 iOS 프로필 없음) |
+
+## 진행 기록 (2026-09-04 저녁 — CI 설정 절반, AWS 인증에서 멈춤)
+
+`setup-ci.sh` 를 실행하려다 **AWS SSO 토큰 만료**로 중단했다. 사람 손이 필요 없는 단계는
+먼저 끝냈다.
+
+| 단계 | 상태 |
+|---|---|
+| 2) CI 전용 SSH 키 생성 | ✅ `backend/deploy/aws/out/ear-ci-deploy-api` (커밋 안 됨 — `out/` 은 gitignore) |
+| 3) 서버 `authorized_keys` 설치 | ✅ 그 키로 접속 확인 |
+| 6) 레포 시크릿 `CI_SSH_KEY_API` | ✅ 등록 |
+| 1) SG 에 관리자 IP | ⏸ AWS 로그인 필요 (현재 IP 는 이미 열려 있어 당장은 무관) |
+| 5) 역할 `ear-ci-deploy` 에 제품 SG 개폐 권한 | ⏸ **AWS 로그인 필요 — 이게 없으면 자동 배포가 SG 개방 단계에서 실패한다** |
+
+`aws sso login` 후 `bash backend/deploy/aws/setup-ci.sh` 를 다시 돌리면 된다(멱등 — 끝난
+단계는 그냥 지나간다).
+
+### 실측으로 드러난 두 가지 (문서와 달랐다)
+
+1. **서버는 git 저장소가 아니다.** `/opt/ear` 에 `.git` 이 없고 `backend/` 파일만 있다.
+   1장의 `git clone -b dev` 는 실제 구축에서 쓰이지 않았다 — README 2장의
+   `git archive | tar` 쪽이 실제 방식이다. `push.sh` 를 그에 맞게 고쳤다.
+   `.env.prod` 는 아카이브에 없어 반입 과정에서 보존된다(임시 경로로 확인).
+2. **`ear-prod.pem` 으로는 서버에 못 붙는다** — `ear-prod-isb.pem` 이 받아들여진다.
+   두 스크립트의 기본값을 후자로 바꿨다.
