@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase-server";
 import { parseCriticReport, parseCriticScores, parseScript, readArtifact } from "@/lib/artifacts";
-import { fmtTime, label } from "@/lib/format";
+import { fmtTime, fmtTokens, fmtUsd, label } from "@/lib/format";
 import { JudgeView } from "./judge-view";
 import { VerdictForm } from "./verdict-form";
 import { TtsButton } from "./tts-button";
@@ -23,7 +23,7 @@ export default async function EpisodePage({ params, searchParams }: { params: Pr
   if (!ep) notFound();
   const [{ data: bl }, { data: runs }, { data: jobs }] = await Promise.all([
     sb.from("backlog").select("id,title,mid_topic,status,angle").eq("id", ep.backlog_id).single(),
-    sb.from("runs").select("phase,attempt,result,model,executed_by,executed_at,prompt_version").eq("backlog_id", ep.backlog_id).order("executed_at"),
+    sb.from("runs").select("phase,attempt,result,model,executed_by,executed_at,prompt_version,cost_usd,tokens,worker_rev").eq("backlog_id", ep.backlog_id).order("executed_at"),
     sb.from("jobs").select("id,type,status,attempt,progress,claimed_by,created_at").eq("payload->>episode_id", id).order("created_at"),
   ]);
   const keyOf: Record<string, string | null> = { script: ep.script_key, sources: ep.sources_key, claims: ep.claims_key, qa: ep.qa_report_key, critic: ep.critic_report_key };
@@ -72,7 +72,7 @@ export default async function EpisodePage({ params, searchParams }: { params: Pr
               <div key={i} className="px-4 py-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge tone="done">{r.phase}{r.attempt > 1 ? ` #${r.attempt}` : ""}</Badge>
-                  <span className="text-[11px] text-ink-soft">{fmtTime(r.executed_at)} · {r.model ?? "-"} · {r.executed_by} · {r.prompt_version}</span>
+                  <span className="text-[11px] text-ink-soft">{fmtTime(r.executed_at)} · {r.model ?? "-"} · {fmtTokens(r.tokens)}{r.cost_usd != null ? ` · ${fmtUsd(r.cost_usd)}` : ""} · {r.executed_by} · {r.prompt_version}{r.worker_rev ? ` · ${r.worker_rev}` : ""}</span>
                 </div>
                 <p className="mt-1 leading-relaxed text-ink-soft">{r.result}</p>
               </div>

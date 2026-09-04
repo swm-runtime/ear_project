@@ -113,7 +113,9 @@ export async function runTts(job: Job) {
   }
   const artifacts = sampleTurns ? [s3Key(`${rel}/audio/sample.mp3`)] : [s3Key(`${rel}/audio/master.wav`), s3Key(`${rel}/audio/dist.mp3`)];
   const result = `${sampleTurns ? `TTS 샘플 ${turns.length}턴` : "TTS 완료"} — eleven_v3 다중화자 1콜 · 분할 ${chunks.length}요청(세그먼트 포맷 ${fmt}) · ${totalChars}자 → ${min}분 ${sec}초${coldNote ? ` · ${coldNote}` : ""} · 사전 ${dictVersion}${Object.keys(epMap).length ? `+발음 맵 ${Object.keys(epMap).length}건` : ""} · 보이스 윤아=${cfg.ttsVoiceYuna.slice(0, 6)}… 이음=${cfg.ttsVoiceEum.slice(0, 6)}… · 사람 청취 확인 대기 (spec/06 8장)`;
-  await insertRun({ backlog_id: backlogId, phase: "tts", result, prompt_version: "tts-v1 (worker)", artifacts, executed_by: executedBy, worker_rev: workerRev() });
+  // 계측: TTS 의 "토큰"은 글자수(ElevenLabs 과금 단위). 비용은 요율(cfg.ttsUsdPer1kChars)이 설정됐을 때만 환산(참고값), 아니면 비운다
+  const ttsCost = cfg.ttsUsdPer1kChars != null ? (totalChars / 1000) * cfg.ttsUsdPer1kChars : undefined;
+  await insertRun({ backlog_id: backlogId, phase: "tts", result, prompt_version: "tts-v1 (worker)", artifacts, executed_by: executedBy, model: cfg.ttsModel, cost_usd: ttsCost, tokens: { characters: totalChars, chunks: chunks.length, duration_sec: Math.round(durationSec) }, worker_rev: workerRev() });
   return { episode_id: episodeId, sample: !!sampleTurns, duration_sec: Math.round(durationSec), chunks: chunks.length, chars: totalChars, format: fmt, cold_open: coldNote || null, artifacts };
 }
 

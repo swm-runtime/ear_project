@@ -3,13 +3,13 @@ import { supabaseServer } from "@/lib/supabase-server";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { JobProgress } from "@/components/job-progress";
 import { Badge, LinkBtn, PageHeader, Panel, Stat, Table, Td } from "@/components/ui";
-import { fmtTime, label } from "@/lib/format";
+import { fmtTime, fmtDuration, fmtTokens, fmtUsd, label } from "@/lib/format";
 
 export default async function Dashboard() {
   const sb = await supabaseServer();
   const [{ data: jobs }, { data: runs }, { data: backlog }, { data: eps }] = await Promise.all([
-    sb.from("jobs").select("id,type,status,attempt,requires_ai,payload,progress,claimed_by,heartbeat_at,created_at,finished_at,error").order("created_at", { ascending: false }).limit(25),
-    sb.from("runs").select("phase,attempt,backlog_id,result,model,executed_by,executed_at").order("executed_at", { ascending: false }).limit(6),
+    sb.from("jobs").select("id,type,status,attempt,requires_ai,payload,progress,claimed_by,heartbeat_at,started_at,created_at,finished_at,error").order("created_at", { ascending: false }).limit(25),
+    sb.from("runs").select("phase,attempt,backlog_id,result,model,executed_by,executed_at,cost_usd,tokens").order("executed_at", { ascending: false }).limit(6),
     sb.from("backlog").select("id,title,status"),
     sb.from("episodes").select("id,backlog_id,critic_report_key,critic_verdicts"),
   ]);
@@ -51,8 +51,8 @@ export default async function Dashboard() {
             )}
           </Panel>
 
-          <Panel title="최근 작업" flush>
-            <Table head={["상태", "작업", "대상", "실행자", "시각"]} empty="작업 기록이 없습니다">
+          <Panel title="최근 작업" right={<Link href="/jobs" className="text-xs underline text-ink-soft hover:text-ink">전체 보기 →</Link>} flush>
+            <Table head={["상태", "작업", "대상", "소요", "실행자", "시각"]} empty="작업 기록이 없습니다">
               {(jobs ?? []).slice(0, 12).map((j) => (
                 <tr key={j.id} className="hover:bg-[#f7f9fb]">
                   <Td><Badge value={j.status} /></Td>
@@ -61,6 +61,7 @@ export default async function Dashboard() {
                     {j.payload?.episode_id ? <Link className="underline" href={`/episodes/${j.payload.episode_id}`}>{j.payload.episode_id}</Link> : (j.payload?.backlog_id ?? j.payload?.mid_topic ?? "-")}
                     {j.status === "failed" && <div className="mt-0.5 max-w-md truncate text-xs text-rose-600" title={j.error}>{String(j.error).split("\n")[0].slice(0, 90)}</div>}
                   </Td>
+                  <Td className="whitespace-nowrap text-xs text-ink-soft">{fmtDuration(j.started_at, j.finished_at ?? (["claimed", "running"].includes(j.status) ? j.heartbeat_at : null))}</Td>
                   <Td className="text-xs text-ink-soft">{j.claimed_by ?? "-"}</Td>
                   <Td className="whitespace-nowrap text-xs text-ink-soft">{fmtTime(j.created_at)}</Td>
                 </tr>
@@ -79,7 +80,7 @@ export default async function Dashboard() {
                   <span className="ml-auto text-[11px] text-ink-soft">{fmtTime(r.executed_at)}</span>
                 </div>
                 <p className="mt-1 line-clamp-3 text-ink-soft">{r.result}</p>
-                <p className="mt-1 text-[11px] text-ink-soft">{r.model ?? "-"} · {r.executed_by}</p>
+                <p className="mt-1 text-[11px] text-ink-soft">{r.model ?? "-"} · {fmtTokens(r.tokens)}{r.cost_usd != null ? ` · ${fmtUsd(r.cost_usd)}` : ""} · {r.executed_by}</p>
               </div>
             ))}
           </div>
