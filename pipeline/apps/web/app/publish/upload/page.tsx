@@ -1,9 +1,10 @@
 "use client";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { setBacklogStatus } from "../../actions";
+import { setBacklogStatus, listPublishableEpisodes } from "../../actions";
 import { EarTopic, listEarTopics, uploadEarContent } from "@/lib/ear";
-import { PageHeader, Panel, btnCls } from "@/components/ui";
+import { Badge, PageHeader, Panel, btnCls } from "@/components/ui";
 import { EarGate, EarSession, earErrMsg } from "../ear-connect";
 
 interface UploadMeta {
@@ -56,6 +57,13 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
   const [checks, setChecks] = useState([false, false, false, false]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "bad"; text: string } | null>(null);
+  const [pending, setPending] = useState<{ id: string; title: string; mid_topic: string; created_at: string }[] | null>(null);
+
+  // 발행 대기 목록 — episode 미지정일 때만 (오디오 완료·미발행). 고르면 ?episode=<id> 로 이동해 프리필된다.
+  useEffect(() => {
+    if (episodeId) { setPending(null); return; }
+    void listPublishableEpisodes().then(setPending).catch(() => setPending([]));
+  }, [episodeId]);
 
   // 프리필 — 패키지 메타 + 제품 주제 목록
   useEffect(() => {
@@ -120,6 +128,29 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
       <div className="space-y-4">
+        {episodeId && <Link href="/publish/upload" className="inline-block text-xs text-ink-soft underline hover:text-ink">← 발행 대기 목록</Link>}
+        {!episodeId && (
+          <Panel title="발행 대기 — 패키지 · 오디오 완료 (미발행)">
+            {pending === null ? (
+              <p className="text-[13px] text-ink-soft">불러오는 중…</p>
+            ) : pending.length === 0 ? (
+              <p className="text-[13px] text-ink-soft">발행 대기 중인(패키지·오디오 완료·미발행) 에피소드가 없어요. 아래에서 파일을 직접 올려도 됩니다.</p>
+            ) : (
+              <div className="divide-y divide-line">
+                {pending.map((e) => (
+                  <button key={e.id} onClick={() => router.push(`/publish/upload?episode=${e.id}`)}
+                    className="flex w-full items-center gap-3 rounded px-1 py-2 text-left text-[13px] hover:bg-[#f7f9fb]">
+                    <span className="font-medium text-ink">{e.title}</span>
+                    <span className="text-[11px] text-ink-soft">{e.mid_topic}</span>
+                    <span className="ml-auto font-mono text-[11px] text-ink-soft">{e.id}</span>
+                    <Badge tone="done">발행 준비</Badge>
+                  </button>
+                ))}
+              </div>
+            )}
+            <p className="mt-2 text-[11px] text-ink-soft">고르면 그 에피소드의 dist.mp3·메타가 자동으로 채워져요. 목록에 없으면 아래에서 파일을 직접 올리면 됩니다.</p>
+          </Panel>
+        )}
         <Panel title="발행 메타">
           <div className="space-y-3 text-[13px]">
             <label className="block">
