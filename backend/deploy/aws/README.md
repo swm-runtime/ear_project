@@ -100,11 +100,41 @@ crontab -e
 30일 지난 덤프는 버킷 라이프사이클이 지운다.
 
 ## 4. 배포 갱신
+
+**dev 에 `backend/` 변경이 머지되면 자동 배포된다**(CI — 아래 4.1). 손으로 할 때는:
+
+```bash
+bash backend/deploy/push.sh          # 서버 git pull + compose 재빌드 + 헬스 확인까지
+```
+
+스크립트 없이 서버에서 직접 하는 것과 같은 일이다:
+
 ```bash
 cd /opt/ear && git pull && cd backend
 docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build api
 ```
 마이그레이션은 컨테이너 기동 시 자동(`RUN_MIGRATIONS=true`). 실패하면 서버가 안 뜬다 — 그게 의도.
+`push.sh` 는 그 뒤 `https://api.<도메인>/api/v1/health` 가 200 을 줄 때까지 최대 150초 기다리고,
+안 되면 실패로 끝난다 — 마이그레이션이 깨진 배포를 성공으로 보고하지 않기 위해서다.
+
+### 4.1 CI 자동 배포 (`.github/workflows/deploy-api.yml`)
+
+AI 서버(`pipeline/deploy/aws/setup-ci.sh`)와 같은 구조다. **저장된 AWS 키가 없다** — GitHub OIDC 로
+역할 `ear-ci-deploy` 를 맡고, 그 역할의 권한은 제품 SG 의 22번 포트 개폐와 실패 시 `/ear/*` 로그
+읽기뿐이다. 러너 IP 를 배포 직전에 열고 끝나면(실패해도) 닫는다.
+
+1회 설정 — **보안 변경(SG·IAM·SSH 키)을 포함하므로 사람이 직접 실행한다**:
+
+```bash
+bash backend/deploy/aws/setup-ci.sh
+```
+
+CI 전용 SSH 키를 새로 만들어(관리자 pem 재사용 안 함 — 언제든 이 키만 회수할 수 있게) 서버
+`authorized_keys` 에 심고, 개인키를 레포 시크릿 `CI_SSH_KEY_API` 로 올린다. 역할 `ear-ci-deploy`
+자체는 AI 서버 설정이 이미 만들어 뒀으므로 **제품 SG 용 인라인 정책만 별도 이름으로 덧붙인다**
+(`sg-open-close-api` — AI 서버용 `sg-open-close` 를 덮어쓰지 않는다).
+
+수동 실행: `gh workflow run deploy-api.yml --ref dev`
 
 ## 5. 월 비용이 3만원대에 머무는 조건
 | 조건 | 깨지면 |

@@ -1,0 +1,74 @@
+name: deploy-api
+# dev 에 backend/ 변경이 머지되면 제품 API 서버(EC2)에 자동 배포한다 (backend/deploy/aws/README.md CI 장).
+# AWS 접근은 OIDC 역할 ear-ci-deploy(SG 개폐 권한만) — 저장된 AWS 키 없음. SSH 는 CI 전용 키(secret CI_SSH_KEY_API).
+# 1회 설정: bash backend/deploy/aws/setup-ci.sh
+
+on:
+  push:
+    branches: [dev]
+    paths: ['backend/**', '.github/workflows/deploy-api.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-api
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # 1회 설정(backend/deploy/aws/setup-ci.sh)이 아직이면 조용히 건너뛴다 —
+      # 설정 전까지 모든 dev 머지가 빨간 X 로 남는 것을 막는다
+      - name: 설정 여부 확인
+        id: guard
+        run: |
+          if [ -z "${{ secrets.CI_SSH_KEY_API }}" ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::CI_SSH_KEY_API 가 없다 — 자동 배포가 아직 켜지지 않았다. bash backend/deploy/aws/setup-ci.sh 를 실행할 것"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.guard.outputs.ready == 'true'
+
+      - name: AWS 자격 (OIDC — dev 브랜치만 신뢰)
+        if: steps.guard.outputs.ready == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::639177726357:role/ear-ci-deploy
+          aws-region: ap-northeast-2
+
+      - name: SSH 개방 — 러너 IP 를 SG 에 잠깐 추가
+        id: sg
+        if: steps.guard.outputs.ready == 'true'
+        run: |
+          IP=$(curl -s https://checkip.amazonaws.com)
+          echo "ip=$IP" >> "$GITHUB_OUTPUT"
+          aws ec2 authorize-security-group-ingress --group-id sg-048aaaf95e4d12b2e \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=$IP/32,Description=\"github-actions deploy\"}]" \
+            || echo "(이미 열려 있음)"
+
+      - name: 배포 (push.sh — 서버 git pull + compose 빌드·재기동 + 헬스 확인)
+        if: steps.guard.outputs.ready == 'true'
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.CI_SSH_KEY_API }}" > ~/.ssh/ci_deploy_api
+          chmod 600 ~/.ssh/ci_deploy_api
+          PEM=~/.ssh/ci_deploy_api REF=dev bash backend/deploy/push.sh
+
+      - name: 실패 시 최근 로그 — 원인을 런에서 바로 본다
+        if: failure()
+        run: aws logs tail /ear/api --since 10m --format short || echo "(로그 조회 실패 — 역할에 logs 읽기 권한이 없다)"
+
+      - name: SSH 폐쇄 — 러너 IP 제거 (배포 실패해도 실행)
+        if: always() && steps.sg.outputs.ip != ''
+        run: |
+          aws ec2 revoke-security-group-ingress --group-id sg-048aaaf95e4d12b2e \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${{ steps.sg.outputs.ip }}/32}]" \
+            || true

@@ -91,3 +91,28 @@ cd /opt/ear/backend && docker compose -f docker-compose.prod.yml --env-file .env
   - **운영 postgres는 이미 `pgvector/pgvector:pg16`으로 교체돼 있다**(infra가 서버에서 직접 변경 — 벡터 마이그레이션 대응으로 추정). 저장소의 `docker-compose.prod.yml`(postgres:16-alpine)과 어긋나 있었고, `fix(be)` 커밋으로 저장소를 실물에 맞춘다.
   - 인스턴스 롤 `ear-prod-ec2` 확인(계정 639177726357). CloudWatch는 SCP에 막히지 않음(`no identity-based policy allows` — 롤 정책 문제일 뿐). 로그 IAM 정책 2종은 2026-09-02 infra가 추가 완료.
   - **infra에 전달 필요**: 실제 배포 절차(파일 복사)를 문서화하거나 README의 git 방식으로 정렬할 것 — 지금은 저장소 변경이 서버에 "어떻게 도달하는지"가 문서에 없다.
+
+## 진행 기록 (2026-09-04 — 배포 자동화 추가)
+
+손으로 SSH 해서 `git pull` + `compose up` 하던 배포를 CI 로 옮겼다. **티켓의 완료 조건에는
+없던 항목**이지만, 배포가 사람 손을 타는 동안은 "누가 언제 무엇을 올렸는지"가 남지 않아
+장애 때 되짚을 수 없었다(2026-09-04 pgvector 이미지 교체로 프로덕션이 잠시 내려간 건이 그 예다).
+
+- `.github/workflows/deploy-api.yml` — dev 에 `backend/` 변경이 머지되면 자동 배포. 수동
+  실행은 `gh workflow run deploy-api.yml --ref dev`
+- `backend/deploy/push.sh` — 서버 `git pull` + compose 재빌드 + **헬스 200 확인까지**.
+  마이그레이션이 깨진 배포를 성공으로 보고하지 않는다
+- `backend/deploy/aws/setup-ci.sh` — 1회 설정(사람이 실행). CI 전용 SSH 키 생성·서버 설치,
+  레포 시크릿 `CI_SSH_KEY_API` 등록, 역할 `ear-ci-deploy` 에 제품 SG 개폐 권한 추가
+- AI 서버 CI 와 같은 구조다 — 저장된 AWS 키 없이 OIDC, 러너 IP 만 배포 중 잠깐 개방
+
+**아직 켜지지 않았다.** `setup-ci.sh` 를 실행해야 동작한다(SG·IAM·SSH 키를 건드리므로 사람이
+직접 실행하는 것이 이 저장소의 규약이다 — `pipeline/deploy/aws/setup-ci.sh` 와 같다).
+
+### 남은 완료 조건 (변동 없음)
+
+| 조건 | 상태 |
+|---|---|
+| `CORS_ORIGINS` 가 `*` 가 아니다 | 배포 산출물(`deploy/aws/out/.env.prod`)에는 `https://admin.earcast.co.kr` 로 있다. 실서버 `printenv` 대조만 남음 |
+| pepper·`JWT_SECRET` 이 시크릿 매니저에만 | **사람 결정 대기** — 서버 `.env.prod` 파일 보관을 합격으로 볼지 |
+| iOS 애플 nonce | iOS 빌드 대기 (`frontend/eas.json` 에 iOS 프로필 없음) |
