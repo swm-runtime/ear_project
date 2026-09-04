@@ -2,6 +2,7 @@
 
 ```
 [Expo 앱] ──JSON──▶ Caddy(TLS) ─▶ api(Nest) ─▶ postgres      ← EC2 t4g.small 한 대, docker compose
+                                                 └ pgvector/pgvector:pg16 (표준 postgres 이미지로는 임베딩 마이그레이션이 기동 시 실패한다)
           ──오디오──▶ CloudFront(서명 검증 + /play/<id> 재작성) ─▶ S3(비공개)   ← 바이트는 이쪽으로만
 ```
 
