@@ -36,7 +36,7 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
   return (
     <div>
       <AutoRefresh seconds={15} />
-      <PageHeader title="작업 기록" breadcrumb={["파이프라인", "작업 기록"]} desc="큐에 올라간 모든 작업의 소요 시간·모델·토큰(TTS 는 글자수)·비용. 비용/토큰은 runs(계측 원천)에서 이어 붙였고, TTS 비용은 요율(TTS_USD_PER_1K_CHARS)이 설정된 경우에만 환산 참고값으로 표시된다." />
+      <PageHeader title="작업 기록" breadcrumb={["파이프라인", "작업 기록"]} desc="큐에 올라간 모든 작업의 소요 시간·모델·토큰(TTS 는 글자수)·비용. 비용/토큰은 runs(계측 원천)에서 이어 붙였다. LLM 비용은 구독 실행의 정가 환산 참고값(실제 청구 아님)이고, TTS 비용은 eleven_v3 종량 단가($0.10/1천 자)로 환산한 실제 요금이다." />
 
       <div className="mb-3 flex flex-wrap items-center gap-3 text-xs">
         <div className="flex flex-wrap gap-1">

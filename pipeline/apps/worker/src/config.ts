@@ -48,8 +48,9 @@ export const cfg = {
   ttsModel: process.env.TTS_MODEL || "eleven_v3",
   ttsVoiceYuna: process.env.TTS_VOICE_YUNA || "Lb7qkOn5hF8p7qfCDH8q",
   ttsVoiceEum: process.env.TTS_VOICE_EUM || "4JJwo477JUAx3HV0T7n7",
-  /** TTS 비용 환산용 1천 자당 USD (참고값 — 요금제마다 다르다). 미설정이면 runs.cost_usd 는 비워 두고 글자수만 남긴다 */
-  ttsUsdPer1kChars: process.env.TTS_USD_PER_1K_CHARS ? Number(process.env.TTS_USD_PER_1K_CHARS) : undefined,
+  /** TTS 비용 환산용 1천 자당 USD — eleven_v3 API 종량 단가 $0.10/1천 자 (2026-09 ElevenLabs, v2/v3 공통·1자=1크레딧. Flash/Turbo 는 $0.05).
+   *  LLM 정가 환산과 달리 이건 실제 종량 요금이다. 요금제/모델 바뀌면 TTS_USD_PER_1K_CHARS 로 덮는다 */
+  ttsUsdPer1kChars: process.env.TTS_USD_PER_1K_CHARS ? Number(process.env.TTS_USD_PER_1K_CHARS) : 0.1,
 };
 
 export const canAi = cfg.capabilities.includes("ai") && cfg.executor !== "none";
