@@ -20,3 +20,6 @@ export {
   mockUnsaveLibraryItemByContent,
 } from './api/library.mock';
 export type { MockLibrarySaveMeta, MockLibrarySaveResult } from './api/library.mock';
+export { default as LibraryItemCard } from './components/LibraryItemCard';
+export { default as LibrarySearchBarRow } from './components/LibrarySearchBarRow';
+export { default as LibraryTabs } from './components/LibraryTabs';
