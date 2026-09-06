@@ -51,6 +51,7 @@
 | POST | `/admin/contents` | 콘텐츠 업로드 → 즉시 발행 |
 | POST | `/admin/contents/:contentId/withdraw` | 콘텐츠 회수 |
 | POST | `/admin/contents/:contentId/restore` | 회수 복구 |
+| GET | `/admin/system-stats` | 서버 자원·DB 부하 스냅샷 (로그 콘솔 상태 탭) |
 
 ## 4. 엔드포인트 상세
 
@@ -158,6 +159,33 @@
 
 - 회수 상태가 아니면 **409 `CONFLICT`**.
 - **삭제된 `library_items`는 되살리지 않는다.** 복구는 콘텐츠를 다시 노출시킬 뿐 사용자 보관함의 과거 상태를 복원하지 않는다.
+
+### 4.9 `GET /admin/system-stats`
+
+서버 자원과 DB 부하의 읽기 전용 스냅샷 (2026-09-06 등재). 어드민 로그 콘솔 서버 상태 탭이 15초 폴링한다 — `features/backend-monitoring.md` 참조.
+
+**Response 200**
+
+```json
+{
+  "host": {
+    "load_1m": 0.42, "load_5m": 0.31, "load_15m": 0.28,
+    "cpu_count": 2, "cpu_used_percent": 23.5,
+    "mem_total_bytes": 4294967296, "mem_available_bytes": 1717986918,
+    "uptime_sec": 1036800
+  },
+  "db": {
+    "connections": { "total": 12, "active": 2, "idle": 9, "idle_in_transaction": 1, "waiting": 0, "longest_active_sec": 0.8, "max": 100 },
+    "slow_queries": [ { "pid": 4211, "state": "active", "duration_sec": 0.8, "query": "SELECT ... $1" } ],
+    "cache_hit_ratio": 0.997,
+    "xact_commit": 182340, "xact_rollback": 214, "deadlocks": 0, "size_bytes": 327155712
+  },
+  "measured_at": "2026-09-06T06:00:00.000Z"
+}
+```
+
+- `host.*`는 `/proc` 기준 **호스트 전체** 값(컨테이너가 커널을 공유) — API·DB가 같은 EC2인 현 구성에서 서버 자원 그 자체다. `cpu_used_percent`는 300ms 구간 샘플이며 못 읽는 환경(비 Linux)이면 null.
+- `db.*`는 pg 통계 뷰(current_database 한정) 읽기 전용. `slow_queries.query`는 150자 제한이며 바인딩 파라미터(`$1`) 형태라 사용자 데이터 원문이 없다. `cache_hit_ratio`는 통계 누적 기준(집계 전이면 null).
 
 ## 5. 에러 코드 표
 

@@ -59,6 +59,7 @@
 | 문서 | 범위 | 주요 FR |
 |---|---|---|
 | [admin.md](admin.md) | **관리자 페이지 — 콘텐츠 업로드(=발행), 주제 관리, 회수 대행, 운영 현황** | FR-37, FR-38 |
+| [backend-monitoring.md](backend-monitoring.md) | 백엔드 모니터링 — 로그·에러·트래픽·자원·DB 콘솔, ERROR→Slack 알림 (운영 절차, 비기능) | — |
 | [content-pipeline.md](content-pipeline.md) | 수급 → 대본 생성 → QA 대조 → TTS → 발행 **(자동화는 P1 — MVP는 수작업 + 관리자 업로드)** | FR-07 ~ FR-13 |
 | [drip-scheduling.md](drip-scheduling.md) | 드립 편성, 스코어링, 소비 신호 반영, 콜드스타트, 자동 확장 | FR-14 ~ FR-18 |
 | [partner-control.md](partner-control.md) | 제외 지정·회수, 재배포 방지, 성과 리포팅 | FR-32 ~ FR-34 |
