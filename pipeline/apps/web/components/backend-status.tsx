@@ -2,9 +2,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { Stat } from "@/components/ui";
 
-/** 서버 상태 탭 — health 핑·로그 파이프 생존·최근 1시간 ERROR 수를 카드로 요약한다 */
-
-const POLL_SEC = 15;
+/**
+ * 서버 상태 탭 — health 핑·로그 파이프 생존·최근 1시간 ERROR 수·자원/DB 부하를 카드로 요약한다.
+ * **자동 폴링하지 않는다** — 열 때 1회 + [새로고침]. 보고만 있어도 서버·CloudWatch 를
+ * 계속 두드리는 부하를 만들지 않기 위해서다(사용자 결정 2026-09-06).
+ */
 
 type Status = {
   health: { ok: boolean; status?: number; latencyMs?: number; error?: string };
@@ -78,8 +80,6 @@ export function BackendStatus() {
 
   useEffect(() => {
     void load();
-    const id = setInterval(() => void load(), POLL_SEC * 1000);
-    return () => clearInterval(id);
   }, [load]);
 
   if (error) {
@@ -128,10 +128,19 @@ export function BackendStatus() {
       ) : (
         <ResourceCards metrics={metrics} />
       )}
-      <p className="mt-3 text-[11px] text-ink-soft">
-        {POLL_SEC}초마다 자동 갱신{updatedAt ? ` · 마지막 ${updatedAt.toLocaleTimeString("ko-KR", { hour12: false })}` : ""} —
-        ERROR가 있으면 에러 모아보기에서 유형을 확인한다
-      </p>
+      <div className="mt-3 flex items-center gap-3 text-[11px] text-ink-soft">
+        <button
+          type="button"
+          onClick={() => void load()}
+          className="rounded border border-line bg-panel px-2 py-1 text-xs text-ink hover:bg-paper-soft"
+        >
+          새로고침
+        </button>
+        <span>
+          연 시점 기준 스냅샷{updatedAt ? ` · 마지막 ${updatedAt.toLocaleTimeString("ko-KR", { hour12: false })}` : ""} —
+          ERROR가 있으면 에러 모아보기에서 유형을 확인한다
+        </span>
+      </div>
     </div>
   );
 }
