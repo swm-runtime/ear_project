@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase-server";
 import { coldOpenStatus, loadArtifact, replaceTurn, writeArtifact } from "@/lib/artifacts";
 import { putText } from "@/lib/storage";
+import { majorOrder } from "@/lib/taxonomy";
 
 /** 음차 사전·발음 맵 공통 형식 검증 — {"표기": "발음"} 객체, 값은 비어 있지 않은 문자열 (spec/06 6장) */
 function assertPronunciationJson(content: string): Record<string, string> {
@@ -62,6 +63,19 @@ export async function listPublishableEpisodes(): Promise<{ id: string; title: st
   return (eps ?? [])
     .filter((e) => bl[e.backlog_id]?.status === "packaged")
     .map((e) => ({ id: e.id, title: bl[e.backlog_id]?.title ?? e.id, mid_topic: bl[e.backlog_id]?.mid_topic ?? "", created_at: e.created_at as string }));
+}
+
+/**
+ * 파이프라인 주제 체계(topics, active) → 제품 주제 동기화용 목록. 대분류 체계 순서 → 중분류 등록 순으로 display_order 를 매긴다.
+ * 제품 주제(name·parent_category)는 파이프라인 중분류·대분류와 1:1 이 규약이다(2026-09-06 체계 통일). 실제 생성·수정은 브라우저의 제품 세션으로 한다(/publish/topics).
+ */
+export async function listPipelineTopicsForSync(): Promise<{ major: string; mid: string; display_order: number }[]> {
+  const sb = await supabaseServer();
+  const { data, error } = await sb.from("topics").select("major,mid,active,created_at").eq("active", true).order("created_at");
+  if (error) throw new Error(error.message);
+  return [...(data ?? [])]
+    .sort((a, b) => majorOrder(a.major) - majorOrder(b.major))
+    .map((t, i) => ({ major: t.major, mid: t.mid, display_order: i + 1 }));
 }
 
 /** 도메인 판정 (사람): tier·license_basis. decided_by·decided_at 는 트리거가 찍는다. */

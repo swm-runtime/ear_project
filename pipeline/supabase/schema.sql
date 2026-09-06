@@ -76,7 +76,7 @@ create table if not exists runs (
 -- 주제 추가·변경은 이 테이블의 행 편집으로 한다 (PIPELINE.md 1장의 표는 이 테이블의 반영).
 create table if not exists topics (
   id          uuid primary key default gen_random_uuid(),
-  major       text not null,                   -- 대분류: 돈 / 배움 / 일
+  major       text not null,                   -- 대분류: 돈·경제 / 일 / 비즈니스 / 과학·기술 / 심리·마음 / 인문·교양 / 자격증·시험 (0011 · 순서는 apps/web/lib/taxonomy.ts)
   mid         text not null unique,            -- 중분류 (backlog.mid_topic·domains.topic_coverage가 이 이름을 참조)
   ai_generation boolean not null default true, -- AI 생성 대상 여부 (배제 합의의 데이터화)
   explainer   text check (explainer in ('윤아','이음')),  -- 해설 담당 페르소나 (spec/04)
