@@ -36,22 +36,23 @@ const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
  * 두 벌을 두면 온보딩에서 고른 topic_id가 이 화면에서 이름을 잃는다.
  */
 export const INTEREST_MOCK_TOPICS: TopicListResponseDto['items'] = [
-  { topic_id: 'topic-economy', name: '경제 상식', parent_category: '돈' },
-  { topic_id: 'topic-writing', name: '글쓰기', parent_category: '일' },
-  { topic_id: 'topic-data-ai', name: '데이터·AI', parent_category: '기술' },
-  { topic_id: 'topic-psychology', name: '심리학', parent_category: '삶' },
-  { topic_id: 'topic-leadership', name: '리더십', parent_category: '일' },
-  { topic_id: 'topic-world-history', name: '세계사', parent_category: '교양' },
-  { topic_id: 'topic-humanities', name: '인문·교양', parent_category: '교양' },
-  { topic_id: 'topic-topcit', name: 'TOPCIT', parent_category: '기술' },
-  { topic_id: 'topic-real-estate', name: '부동산', parent_category: '돈' },
-  { topic_id: 'topic-safety', name: '산업안전', parent_category: '일' },
-  { topic_id: 'topic-korean-history', name: '한국사', parent_category: '교양' },
-  { topic_id: 'topic-design', name: '디자인', parent_category: '일' },
-  { topic_id: 'topic-investing', name: '재테크', parent_category: '돈' },
-  { topic_id: 'topic-marketing', name: '마케팅', parent_category: '일' },
-  { topic_id: 'topic-startup', name: '스타트업', parent_category: '일' },
+  // 주제 체계 2026-09-06 (대분류 7 · 중분류 28) — 제품 topics 와 같은 이름. 서버는 is_visible 인 것만 내려주므로 mock 은 일부만 둔다
+  { topic_id: 'topic-investing', name: '재테크', parent_category: '돈·경제' },
+  { topic_id: 'topic-economy', name: '경제 상식', parent_category: '돈·경제' },
+  { topic_id: 'topic-real-estate', name: '부동산', parent_category: '돈·경제' },
+  { topic_id: 'topic-career', name: '커리어', parent_category: '일' },
   { topic_id: 'topic-productivity', name: '생산성', parent_category: '일' },
+  { topic_id: 'topic-leadership', name: '리더십', parent_category: '일' },
+  { topic_id: 'topic-marketing', name: '마케팅', parent_category: '비즈니스' },
+  { topic_id: 'topic-startup', name: '스타트업', parent_category: '비즈니스' },
+  { topic_id: 'topic-data-ai', name: '데이터·AI', parent_category: '과학·기술' },
+  { topic_id: 'topic-it-dev', name: 'IT·개발', parent_category: '과학·기술' },
+  { topic_id: 'topic-psychology', name: '심리학', parent_category: '심리·마음' },
+  { topic_id: 'topic-habit', name: '습관·동기', parent_category: '심리·마음' },
+  { topic_id: 'topic-philosophy', name: '철학', parent_category: '인문·교양' },
+  { topic_id: 'topic-history', name: '역사', parent_category: '인문·교양' },
+  { topic_id: 'topic-topcit', name: 'TOPCIT', parent_category: '자격증·시험' },
+  { topic_id: 'topic-korean-history', name: '한능검', parent_category: '자격증·시험' },
 ];
 
 const initialInterests = (): UserInterestDto[] => {

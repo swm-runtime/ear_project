@@ -51,7 +51,8 @@ export function assetPaths(assetRoot: string, workRoot: string = assetRoot) {
 
 /** 해설 담당: topics.explainer 가 있으면 그것, 없으면 중분류 관할 규칙 (spec/04) */
 export function explainerFor(midTopic: MidTopic): "윤아" | "이음" {
-  return ["심리학", "인문·교양", "글쓰기"].includes(midTopic) ? "윤아" : "이음";
+  // 2026-09-06 체계 개편: 심리·마음·인문·교양 대분류의 중분류 = 윤아, 나머지(돈·경제·비즈니스·과학·기술·자격증) = 이음. 구 이름(인문·교양·글쓰기)도 남긴다.
+  return ["심리학", "뇌과학·인지", "습관·동기", "인간관계", "철학", "역사", "사회·문화", "예술", "한능검", "인문·교양", "글쓰기"].includes(midTopic) ? "윤아" : "이음";
 }
 
 /** 도입 형태 로테이션 — 에피소드 간 도입 템플릿화 방지 (사이클 4 판정) */

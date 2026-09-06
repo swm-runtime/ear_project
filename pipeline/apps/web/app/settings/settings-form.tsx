@@ -1,4 +1,5 @@
 "use client";
+import { MAJOR_TOPICS } from "@/lib/taxonomy";
 import { useState, useTransition } from "react";
 import { saveSetting } from "../actions";
 import { Panel, btnCls } from "@/components/ui";
@@ -62,8 +63,8 @@ export function SettingsForm({ tts, worker, templates, meta }: { tts: any; worke
           </div>
         </div>
         <label className="mt-3 block text-xs text-ink-soft">대분류별 한 줄 ({"{대주제 한 줄}"}) — 채널 아이덴티티. 비우면 AI가 에피소드마다 새로 짓는다</label>
-        {["돈", "배움", "일"].map((mj) => (
-          <div key={mj} className="mt-1.5 grid grid-cols-[3rem_1fr] items-center gap-2">
+        {MAJOR_TOPICS.map((mj) => (
+          <div key={mj} className="mt-1.5 grid grid-cols-[5rem_1fr] items-center gap-2">
             <span className="text-xs">{mj}</span>
             <input className={inp} placeholder="(미확정 — AI 생성)" value={tpl.major_lines?.[mj] ?? ""} onChange={(e) => setTpl({ ...tpl, major_lines: { ...tpl.major_lines, [mj]: e.target.value } })} />
           </div>

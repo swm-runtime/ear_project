@@ -117,8 +117,8 @@ export interface EarContent {
 }
 
 export const listEarTopics = () => earFetch<{ items: EarTopic[] }>("/admin/topics");
-export const createEarTopic = (name: string, parent_category: string) =>
-  earFetch<EarTopic>("/admin/topics", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, parent_category }) });
+export const createEarTopic = (name: string, parent_category: string, display_order?: number) =>
+  earFetch<EarTopic>("/admin/topics", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, parent_category, ...(display_order != null ? { display_order } : {}) }) });
 export const patchEarTopic = (id: string, fields: Partial<{ name: string; parent_category: string; is_visible: boolean; display_order: number }>) =>
   earFetch<EarTopic>(`/admin/topics/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(fields) });
 export const deleteEarTopic = (id: string) => earFetch<void>(`/admin/topics/${id}`, { method: "DELETE" });

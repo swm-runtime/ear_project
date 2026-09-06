@@ -69,12 +69,16 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
   useEffect(() => {
     void (async () => {
       try {
-        setTopics((await listEarTopics()).items);
+        const items = (await listEarTopics()).items;
+        setTopics(items);
         if (episodeId) {
           const res = await fetch(`/api/publish/${episodeId}`);
           if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message ?? `HTTP ${res.status}`);
           const body = (await res.json()) as { meta: UploadMeta; has_audio: boolean };
           setMeta(body.meta); setHasAudio(body.has_audio);
+          // 제품 주제 = 파이프라인 중분류 1:1 (2026-09-06 체계 통일) — 이름이 같은 제품 주제를 기본 선택한다. 없으면 손으로 고른다
+          const same = items.find((t) => t.name === body.meta.mid_topic);
+          if (same) setTopicIds([same.id]);
           setTitle(body.meta.title ?? "");
           setDescription(body.meta.description ?? "");
           setSources((body.meta.sources ?? []).map((s) => ({ title: s.title, author: s.publisher, url: s.url })));
