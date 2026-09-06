@@ -22,7 +22,7 @@ export class SignUpRequestDto {
 
   @IsArray()
   @ArrayNotEmpty()
-  @ArrayMaxSize(3)
+  @ArrayMaxSize(4)
   @ValidateNested({ each: true })
   @Type(() => ConsentInputDto)
   readonly consents: ConsentInputDto[];

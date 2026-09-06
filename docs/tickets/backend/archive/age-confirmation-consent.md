@@ -8,7 +8,7 @@
 | 발견 시점 | 2026-09-06 Play Console 제출 준비 — 대상 연령대를 만 18세 이상으로 선언하면서, 앱에 연령 확인 게이트를 넣었다 |
 | 근거 문서 | 개인정보보호법 제22조의2 · `features/auth.md` 4.3 · `spec/api/auth-api.md` 4.2 |
 | 심각도 | **중** — 지금도 가입은 막힌다. 다만 **막았다는 증거가 남지 않는다** |
-| 상태 | pending |
+| 상태 | 반영 완료 |
 
 ## 문제
 
@@ -48,3 +48,18 @@ A4 약관 동의 화면에 **"만 18세 이상입니다 (필수)"** 행을 추�
 - 약관: 제5조에 "만 18세 이상만 가입" 항 추가
 - 개인정보 처리방침: 11절을 18세 기준으로 개정
 - Play Console: 대상 연령대 **만 18세 이상** 선언
+
+## 처리 기록 (반영 날짜: 2026-09-06)
+
+- `ConsentType`에 **`age_confirmation`** 추가 — 컬럼이 varchar(20)라 **마이그레이션 없음**.
+- **`version`은 NULL로 확정** — 열람할 문서가 없는 자기 선언이라 마케팅과 같은 취급이다.
+  연령 기준(만 18세)이 바뀌면 그때 버전을 도입해 재확인을 트리거한다(`user.constant.ts` 주석).
+- `REQUIRED_CONSENT_TYPES`에 포함 — 완료 조건 1·2 충족(`user.service.spec.ts` 5건).
+  **부수 효과**: 같은 목록을 `findPendingConsents`가 쓰므로, 이력이 없는 기존 사용자는
+  다음 로그인의 `pending_consents`로 연령 확인을 한 번 요구받는다(정식 출시 전이라 수용).
+- DTO `ArrayMaxSize` 3 → 4 (`sign-up` · `users/me/consents`).
+- 문서: `domain.md` 3.2·11.4 갱신, `auth-api.md` 수정 요청은
+  `changes/pending/auth-consents-age-confirmation.md`로 발행.
+- **프론트 전달 사항**: enum 값은 `age_confirmation`, `version: null`, `is_agreed: true`로
+  `POST /auth/sign-up` `consents` 배열에 넣어 보내면 된다. `social-login` 응답
+  `required_consents`에도 이 값이 내려오므로 정적 행(`ageRow`) 대신 서버 목록 매핑도 가능하다.

@@ -81,6 +81,13 @@ export enum ConsentType {
   TERMS = 'terms',
   PRIVACY = 'privacy',
   MARKETING = 'marketing',
+  /**
+   * 만 18세 이상 자기 선언 (개인정보 보호법 22조의2 대응 — 약관 5조).
+   * 열람할 문서가 없는 선언이라 버전이 없다. 화면 게이트만으로는 그 사용자가
+   * 확인했다는 증거가 남지 않아 이력으로 기록한다
+   * (tickets/backend/pending/age-confirmation-consent.md).
+   */
+  AGE_CONFIRMATION = 'age_confirmation',
 }
 
 /**
