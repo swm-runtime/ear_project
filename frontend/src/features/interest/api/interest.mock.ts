@@ -35,39 +35,68 @@ const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
  * 주제 목록 fixture — 온보딩 mock(추천 생성의 주제명 조인)도 같은 목록을 쓴다.
  * 두 벌을 두면 온보딩에서 고른 topic_id가 이 화면에서 이름을 잃는다.
  */
+/**
+ * 주제 목록 — **운영 DB(topics)에서 그대로 가져온 값이다**(2026-09-06 조회, 36건).
+ * id·이름·대분류가 서버와 같아야 화면이 실제로 받게 될 응답과 어긋나지 않는다.
+ *
+ * 서버는 `is_visible = true` 인 것만 내려주므로 실제 노출은 이보다 적다. mock 은 주제가
+ * 모두 켜졌을 때를 재현해 개발 중에 전체 목록을 볼 수 있게 한다.
+ *
+ * 뒤쪽의 구 체계 항목(커리어 성장·이직·면접·AI·테크 트렌드·경제·인문·교양·글쓰기)은
+ * 아직 테이블에 남아 있는 잔재다. 서버에서 정리되면 여기서도 지운다.
+ */
 export const INTEREST_MOCK_TOPICS: TopicListResponseDto['items'] = [
-  // 주제 체계 2026-09-06 (대분류 7 · 중분류 28) — 제품 topics 와 같은 이름. 서버는 is_visible 인 것만 내려주므로 mock 은 일부만 둔다
-  { topic_id: 'topic-investing', name: '재테크', parent_category: '돈·경제' },
-  { topic_id: 'topic-economy', name: '경제 상식', parent_category: '돈·경제' },
-  { topic_id: 'topic-real-estate', name: '부동산', parent_category: '돈·경제' },
-  { topic_id: 'topic-career', name: '커리어', parent_category: '일' },
-  { topic_id: 'topic-productivity', name: '생산성', parent_category: '일' },
-  { topic_id: 'topic-leadership', name: '리더십', parent_category: '일' },
-  { topic_id: 'topic-marketing', name: '마케팅', parent_category: '비즈니스' },
-  { topic_id: 'topic-startup', name: '스타트업', parent_category: '비즈니스' },
-  { topic_id: 'topic-data-ai', name: '데이터·AI', parent_category: '과학·기술' },
-  { topic_id: 'topic-it-dev', name: 'IT·개발', parent_category: '과학·기술' },
-  { topic_id: 'topic-psychology', name: '심리학', parent_category: '심리·마음' },
-  { topic_id: 'topic-habit', name: '습관·동기', parent_category: '심리·마음' },
-  { topic_id: 'topic-philosophy', name: '철학', parent_category: '인문·교양' },
-  { topic_id: 'topic-history', name: '역사', parent_category: '인문·교양' },
-  { topic_id: 'topic-topcit', name: 'TOPCIT', parent_category: '자격증·시험' },
-  { topic_id: 'topic-korean-history', name: '한능검', parent_category: '자격증·시험' },
+  { topic_id: 'f941e9e4-6e77-4cf1-a311-0b05b72907b2', name: '재테크', parent_category: '돈·경제' },
+  { topic_id: '740cbca6-a6c3-444f-89c7-74fc380beab6', name: '커리어 성장', parent_category: '커리어' },
+  { topic_id: '9bb3a706-2035-4635-82e2-5a9579d8987b', name: '경제 상식', parent_category: '돈·경제' },
+  { topic_id: '15f02c9e-f4cc-4695-848e-fa20a842aca9', name: '이직·면접', parent_category: '커리어' },
+  { topic_id: 'c7e55922-09b2-417d-a17b-ab7cc9df0f48', name: 'AI·테크 트렌드', parent_category: '테크' },
+  { topic_id: 'b24e6676-b5d2-4af6-8772-2afa3394a62b', name: '투자', parent_category: '돈·경제' },
+  { topic_id: '5cf5e669-b312-4025-965c-aa1356fa96fc', name: '부동산', parent_category: '돈·경제' },
+  { topic_id: '0f7adc79-7b39-46a2-ab1f-8a0d13e5b433', name: '인문·교양', parent_category: '인문·교양' },
+  { topic_id: '56b711a6-2d25-4430-8b2a-2a2ffeaa7331', name: '경제', parent_category: '경제 상식' },
+  { topic_id: 'fb8bdf91-14b6-4bbc-8429-b45476167ddf', name: '커리어', parent_category: '일' },
+  { topic_id: '08950c1f-8dc5-4912-84a1-0f33e56602cb', name: '생산성', parent_category: '일' },
+  { topic_id: 'cacf0479-847b-4ebf-9d53-1ca334fa8f7d', name: '리더십', parent_category: '일' },
+  { topic_id: '1ccc9700-8455-42e6-8409-6e23aa8142b0', name: '커뮤니케이션', parent_category: '일' },
+  { topic_id: 'e8439fa6-ba4d-4d71-942a-d3eef0175dce', name: '조직', parent_category: '일' },
+  { topic_id: '1bca0724-fc4c-4bbe-bad7-4f6ed0d0bb6d', name: '산업안전', parent_category: '일' },
+  { topic_id: 'f4437504-93ff-40ad-b64f-9b7f8e4efdb9', name: '디자인', parent_category: '일' },
+  { topic_id: '9f156c16-6c62-4b9c-9889-a9afb903f5fb', name: '마케팅', parent_category: '비즈니스' },
+  { topic_id: '76198306-b237-4c37-9494-524c7266195d', name: '스타트업', parent_category: '비즈니스' },
+  { topic_id: 'd23d0230-ccae-4f91-b52b-57c451b8de67', name: '트렌드', parent_category: '비즈니스' },
+  { topic_id: '7f073abf-aef9-4fb3-b427-f8e5ae86e365', name: '경영', parent_category: '비즈니스' },
+  { topic_id: '011b86a7-e01a-48d5-8e26-d8381774fd28', name: '데이터·AI', parent_category: '과학·기술' },
+  { topic_id: 'bc60b2ee-4dbd-4fed-a905-d180a1080f36', name: 'IT·개발', parent_category: '과학·기술' },
+  { topic_id: '6c4e1f8d-d188-4b3a-b79c-9b5aa4df8fd8', name: '자연과학', parent_category: '과학·기술' },
+  { topic_id: 'd8b06b43-1bca-497f-a2f5-784d1309449e', name: '심리학', parent_category: '심리·마음' },
+  { topic_id: '513a5413-6911-4ef3-b73a-fe979540bfdb', name: '뇌과학·인지', parent_category: '심리·마음' },
+  { topic_id: 'de1b49c5-2302-4f2c-bfe5-ceb8e3f4d49e', name: '습관·동기', parent_category: '심리·마음' },
+  { topic_id: '31f7325d-7c9b-4d70-a5fa-c78b14561469', name: '인간관계', parent_category: '심리·마음' },
+  { topic_id: 'ef51225f-5692-4564-85a1-a3c2d1e85988', name: '철학', parent_category: '인문·교양' },
+  { topic_id: '1faff59a-7f3e-4123-9552-50905af98359', name: '역사', parent_category: '인문·교양' },
+  { topic_id: '90735e17-54d2-4f84-a8cc-560fd8464a6c', name: '사회·문화', parent_category: '인문·교양' },
+  { topic_id: '60c2ae95-8df0-42d8-8e89-c16d9c4cb453', name: '예술', parent_category: '인문·교양' },
+  { topic_id: 'c64765d6-06ea-4917-ba77-b3c2cd22ff24', name: '산업안전기사', parent_category: '자격증·시험' },
+  { topic_id: '248d76c7-bf9d-419e-9b1f-ed23856bb046', name: 'TOPCIT', parent_category: '자격증·시험' },
+  { topic_id: 'acd0a7f4-ad6e-42a3-be76-81b3229f52e4', name: '한능검', parent_category: '자격증·시험' },
+  { topic_id: '8de02ec7-fa7e-482c-ac3a-255587fd964e', name: '공인중개사', parent_category: '자격증·시험' },
+  { topic_id: '8b6bfb5b-e1d3-404a-ba0c-91348ff596b1', name: '글쓰기', parent_category: '배움' },
 ];
 
 const initialInterests = (): UserInterestDto[] => {
   if (SCENARIO === 'over-limit') {
     return [
-      { topic_id: 'topic-economy', source: 'onboarding' },
-      { topic_id: 'topic-productivity', source: 'onboarding' },
-      { topic_id: 'topic-investing', source: 'onboarding' },
-      { topic_id: 'topic-marketing', source: 'manual' },
-      { topic_id: 'topic-data-ai', source: 'auto_expand' },
+      { topic_id: '9bb3a706-2035-4635-82e2-5a9579d8987b', source: 'onboarding' },
+      { topic_id: '08950c1f-8dc5-4912-84a1-0f33e56602cb', source: 'onboarding' },
+      { topic_id: 'f941e9e4-6e77-4cf1-a311-0b05b72907b2', source: 'onboarding' },
+      { topic_id: '9f156c16-6c62-4b9c-9889-a9afb903f5fb', source: 'manual' },
+      { topic_id: '011b86a7-e01a-48d5-8e26-d8381774fd28', source: 'auto_expand' },
     ];
   }
   return [
-    { topic_id: 'topic-economy', source: 'onboarding' },
-    { topic_id: 'topic-productivity', source: 'onboarding' },
+    { topic_id: '9bb3a706-2035-4635-82e2-5a9579d8987b', source: 'onboarding' },
+    { topic_id: '08950c1f-8dc5-4912-84a1-0f33e56602cb', source: 'onboarding' },
   ];
 };
 
@@ -176,7 +205,7 @@ export const mockSaveMyInterests = async (topicIds: string[]): Promise<Interests
   // 첫 저장 시점에 관리자가 '데이터·AI'를 숨긴 상황을 흉내 낸다 — 이후 재조회부터 목록에서 빠진다
   if (SCENARIO === 'topic-unavailable' && !state.unavailableTriggered) {
     state.unavailableTriggered = true;
-    state.hiddenTopicIds.add('topic-data-ai');
+    state.hiddenTopicIds.add('011b86a7-e01a-48d5-8e26-d8381774fd28');
     throw new ApiError(
       ERROR_CODES.INTEREST_TOPIC_UNAVAILABLE,
       '선택할 수 없는 주제가 포함되어 있어요',
