@@ -13,6 +13,7 @@ import { ContentStorageClient } from './content-storage.client';
 import { LocalContentStorageClient } from './local-content-storage.client';
 import { S3ContentStorageClient } from './s3-content-storage.client';
 import { AdminContentService } from './services/admin-content.service';
+import { AdminSystemStatsService } from './services/admin-system-stats.service';
 import { AdminTopicService } from './services/admin-topic.service';
 
 /**
@@ -27,6 +28,7 @@ import { AdminTopicService } from './services/admin-topic.service';
   controllers: [AdminController],
   providers: [
     AdminContentService,
+    AdminSystemStatsService,
     AdminTopicService,
     AudioProbe,
     {

@@ -10,7 +10,7 @@ export default function BackendStatusPage() {
       <PageHeader
         title="서버 상태"
         breadcrumb={["백엔드 로그", "상태"]}
-        desc="제품 API 서버의 health 응답, 로그 파이프 생존(마지막 이벤트 시각), 최근 1시간 ERROR 수. 전부 읽기 전용 조회다."
+        desc="제품 API 서버의 health 응답, 로그 파이프 생존(마지막 이벤트 시각), 최근 1시간 ERROR 수, 서버 자원(CPU·메모리)과 DB 부하(연결·캐시 적중률·진행 중 쿼리). 전부 읽기 전용 조회다."
       />
       <BackendStatus />
     </div>
