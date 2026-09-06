@@ -13,3 +13,8 @@ export type { ExploreItem, ExploreTopic } from './explore.types';
  */
 export { saveContent } from './api/explore.api';
 export type { SaveContentResult, SaveReason } from './explore.types';
+export { default as ExploreFeaturedCard } from './components/ExploreFeaturedCard';
+export { default as ExploreSearchBarRow } from './components/ExploreSearchBarRow';
+export { default as ExploreTile } from './components/ExploreTile';
+export { default as PopularPeriodToggle } from './components/PopularPeriodToggle';
+export { default as TopicChips } from './components/TopicChips';
