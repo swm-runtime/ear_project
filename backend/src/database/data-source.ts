@@ -4,6 +4,8 @@ import { DataSource, DataSourceOptions } from 'typeorm';
 
 import { EnvironmentVariables, validateEnv } from '@/config/env.validation';
 
+import { SLOW_QUERY_MS, SlowQueryLogger } from './slow-query.logger';
+
 export type DatabaseEnv = Pick<
   EnvironmentVariables,
   'DB_HOST' | 'DB_PORT' | 'DB_USERNAME' | 'DB_PASSWORD' | 'DB_NAME'
@@ -23,6 +25,9 @@ export function buildDataSourceOptions(env: DatabaseEnv): DataSourceOptions {
     entities: [`${__dirname}/../**/*.entity{.ts,.js}`],
     migrations: [`${__dirname}/migrations/*{.ts,.js}`],
     migrationsTableName: 'migrations',
+    // 이 시간을 넘긴 쿼리만 WARN으로 남긴다 — 파라미터 비기록 (slow-query.logger.ts)
+    maxQueryExecutionTime: SLOW_QUERY_MS,
+    logger: new SlowQueryLogger(),
   };
 }
 
