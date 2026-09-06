@@ -25,7 +25,12 @@ export class AdminSystemStatsResponseDto {
       longest_active_sec: number;
       max: number;
     };
-    slow_queries: { pid: number; state: string; duration_sec: number; query: string }[];
+    slow_queries: {
+      pid: number;
+      state: string;
+      duration_sec: number;
+      query: string;
+    }[];
     cache_hit_ratio: number | null;
     xact_commit: number;
     xact_rollback: number;

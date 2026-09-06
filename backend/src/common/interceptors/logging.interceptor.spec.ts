@@ -3,10 +3,13 @@ import { of } from 'rxjs';
 
 import { LoggingInterceptor } from './logging.interceptor';
 
-function buildContext(url: string): ExecutionContext {
+function buildContext(
+  url: string,
+  user?: { id: string; role: string },
+): ExecutionContext {
   return {
     switchToHttp: () => ({
-      getRequest: () => ({ method: 'GET', url, headers: {} }),
+      getRequest: () => ({ method: 'GET', url, headers: {}, user }),
       getResponse: () => ({ statusCode: 200 }),
     }),
   } as unknown as ExecutionContext;
@@ -34,6 +37,33 @@ describe('LoggingInterceptor', () => {
 
   afterEach(() => {
     jest.restoreAllMocks();
+  });
+
+  it('인증된 요청은 계정 UUID를 남긴다 — 신원 값이 아니라 내부 식별자다', (done) => {
+    // given
+    const user = { id: '11111111-1111-4111-8111-111111111111', role: 'user' };
+
+    // when
+    interceptor
+      .intercept(buildContext('/api/v1/library', user), NEXT)
+      .subscribe({
+        complete: () => {
+          // then
+          expect(logged[0].user_id).toBe(user.id);
+          done();
+        },
+      });
+  });
+
+  it('비로그인 요청의 user_id는 null이다', (done) => {
+    // when
+    interceptor.intercept(buildContext('/api/v1/health'), NEXT).subscribe({
+      complete: () => {
+        // then
+        expect(logged[0].user_id).toBeNull();
+        done();
+      },
+    });
   });
 
   it('스트리밍 요청의 서명 값을 가리고 남긴다', (done) => {

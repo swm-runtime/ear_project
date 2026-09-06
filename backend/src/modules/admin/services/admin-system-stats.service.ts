@@ -99,7 +99,16 @@ export class AdminSystemStatsService {
   }
 
   private async readConnections(): Promise<Omit<DbConnectionStats, 'max'>> {
-    const [row] = (await this.dataSource.query(
+    const [row] = await this.dataSource.query<
+      {
+        total: number;
+        active: number;
+        idle: number;
+        idle_in_transaction: number;
+        waiting: number;
+        longest_active_sec: number;
+      }[]
+    >(
       `select count(*)::int as total,
               count(*) filter (where state = 'active')::int as active,
               count(*) filter (where state = 'idle')::int as idle,
@@ -109,16 +118,7 @@ export class AdminSystemStatsService {
                 filter (where state = 'active' and pid <> pg_backend_pid()), 0)::float as longest_active_sec
          from pg_stat_activity
         where datname = current_database()`,
-    )) as [
-      {
-        total: number;
-        active: number;
-        idle: number;
-        idle_in_transaction: number;
-        waiting: number;
-        longest_active_sec: number;
-      },
-    ];
+    );
 
     return {
       total: row.total,
@@ -131,7 +131,9 @@ export class AdminSystemStatsService {
   }
 
   private async readSlowQueries(): Promise<SlowQueryEntry[]> {
-    const rows = (await this.dataSource.query(
+    const rows = await this.dataSource.query<
+      { pid: number; state: string; duration_sec: number; query: string }[]
+    >(
       `select pid::int as pid,
               state,
               coalesce(extract(epoch from now() - query_start), 0)::float as duration_sec,
@@ -143,7 +145,7 @@ export class AdminSystemStatsService {
         order by query_start asc nulls last
         limit $2`,
       [SLOW_QUERY_TEXT_MAX, SLOW_QUERY_LIMIT],
-    )) as { pid: number; state: string; duration_sec: number; query: string }[];
+    );
 
     return rows.map((row) => ({
       pid: row.pid,
@@ -156,10 +158,23 @@ export class AdminSystemStatsService {
   private async readDatabaseStats(): Promise<
     Pick<
       DbStats,
-      'cacheHitRatio' | 'xactCommit' | 'xactRollback' | 'deadlocks' | 'sizeBytes'
+      | 'cacheHitRatio'
+      | 'xactCommit'
+      | 'xactRollback'
+      | 'deadlocks'
+      | 'sizeBytes'
     >
   > {
-    const [row] = (await this.dataSource.query(
+    const [row] = await this.dataSource.query<
+      {
+        xact_commit: string;
+        xact_rollback: string;
+        blks_read: string;
+        blks_hit: string;
+        deadlocks: string;
+        size_bytes: string;
+      }[]
+    >(
       `select xact_commit::bigint as xact_commit,
               xact_rollback::bigint as xact_rollback,
               blks_read::bigint as blks_read,
@@ -168,16 +183,7 @@ export class AdminSystemStatsService {
               pg_database_size(current_database())::bigint as size_bytes
          from pg_stat_database
         where datname = current_database()`,
-    )) as [
-      {
-        xact_commit: string;
-        xact_rollback: string;
-        blks_read: string;
-        blks_hit: string;
-        deadlocks: string;
-        size_bytes: string;
-      },
-    ];
+    );
 
     const blksRead = Number(row.blks_read);
     const blksHit = Number(row.blks_hit);
@@ -194,9 +200,10 @@ export class AdminSystemStatsService {
   }
 
   private async readMaxConnections(): Promise<number> {
-    const [row] = (await this.dataSource.query(`show max_connections`)) as [
-      { max_connections: string },
-    ];
+    const [row] =
+      await this.dataSource.query<{ max_connections: string }[]>(
+        `show max_connections`,
+      );
     return Number(row.max_connections);
   }
 }

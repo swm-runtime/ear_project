@@ -125,7 +125,10 @@ export class TokenService {
       throw this.assertionInvalid();
     }
 
-    if (payload.typ !== PIPELINE_ASSERTION_TYPE || typeof payload.email !== 'string') {
+    if (
+      payload.typ !== PIPELINE_ASSERTION_TYPE ||
+      typeof payload.email !== 'string'
+    ) {
       throw this.assertionInvalid();
     }
 

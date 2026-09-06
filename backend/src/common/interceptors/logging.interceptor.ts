@@ -49,9 +49,13 @@ export class LoggingInterceptor implements NestInterceptor {
     startedAt: bigint,
   ): void {
     const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
+    // 가드가 검증한 계정 UUID — 내부 식별자라 그 자체로는 누구인지 드러나지 않는다
+    // (이메일·닉네임 같은 신원 값은 로그 금지 — convention.md 8.4). 비로그인 요청은 null
+    const user = (request as Request & { user?: { id?: string } }).user;
 
     this.logger.log('request completed', {
       trace_id: getTraceId(request),
+      user_id: user?.id ?? null,
       method: request.method,
       path: redactSensitiveQuery(request.url),
       status,
