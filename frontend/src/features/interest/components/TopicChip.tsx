@@ -33,6 +33,12 @@ const TOPIC_IMAGE: Record<string, ImageSourcePropType> = {
   'topic-marketing': require('../../../../assets/topics/topic-marketing.jpg'),
   'topic-startup': require('../../../../assets/topics/topic-startup.jpg'),
   'topic-productivity': require('../../../../assets/topics/topic-productivity.jpg'),
+  // 주제 분류 v2(7 대분류)로 새로 생긴 것들 — 2026-09-06
+  'topic-career': require('../../../../assets/topics/topic-career.jpg'),
+  'topic-it-dev': require('../../../../assets/topics/topic-it-dev.jpg'),
+  'topic-habit': require('../../../../assets/topics/topic-habit.jpg'),
+  'topic-philosophy': require('../../../../assets/topics/topic-philosophy.jpg'),
+  'topic-history': require('../../../../assets/topics/topic-history.jpg'),
 };
 
 const FALLBACK_IMAGE: ImageSourcePropType = require('../../../../assets/topics/default.jpg');
