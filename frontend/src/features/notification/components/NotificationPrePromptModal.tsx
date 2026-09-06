@@ -9,18 +9,12 @@ import { theme } from '@/shared/theme';
 import { useSyncDevicePermissionMutation } from '../hooks/useSyncDevicePermissionMutation';
 import { NOTIFICATION_COPY } from '../notification.copy';
 import BellIcon from './BellIcon';
-import ReconsiderDialog from './ReconsiderDialog';
 import { getPushToken, requestOsPermission } from '../services/notification-permission.service';
 
 const BELL_SIZE = 48;
 
 interface NotificationPrePromptModalProps {
   isVisible: boolean;
-  /**
-   * [나중에]를 눌렀을 때 **한 번만** 되짚는 팝업을 띄운다(2026-09-02 — 온보딩 O11에서 옮겨 왔다).
-   * 설정에서 열 때는 사용자가 스스로 찾아온 것이라 되묻지 않는다.
-   */
-  withReconsider?: boolean;
   /**
    * 거부하고 닫을 때도 서버에 반영할지 — **온보딩 직후 경로만 켠다**(onboarding-api.md 4.9).
    * 그 경로의 동기화는 권한 결과 보고인 동시에 **기기 등록**이라, 거부해도 한 번은 보내야
@@ -39,19 +33,16 @@ interface NotificationPrePromptModalProps {
 /**
  * 알림 사전 안내(프리퍼미션) — 설정의 유도 배너가 여는 화면이다(notification.md 4.1 (b)안).
  * OS 다이얼로그는 [알림 받기]에서만 띄운다 — 사전 안내를 건너뛰고 바로 띄우지 않는다.
- * 두 곳에서 쓴다 — 설정의 유도 배너, 그리고 온보딩 직후 라이브러리 진입(withReconsider).
+ * 두 곳에서 쓴다 — 설정의 유도 배너, 그리고 온보딩 직후 착지 화면.
+ * **[나중에]는 되묻지 않고 바로 닫는다**(2026-09-06). 되짚기 팝업은 폐지했다.
  */
 export default function NotificationPrePromptModal({
   isVisible,
-  withReconsider = false,
   syncOnDismiss = false,
   onFinished,
 }: NotificationPrePromptModalProps) {
   const syncDeviceMutation = useSyncDevicePermissionMutation();
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isReconsiderVisible, setIsReconsiderVisible] = useState(false);
-  /** 되짚기는 한 번뿐이다 — 소진되면 [나중에]가 곧바로 닫는다 */
-  const [isReconsiderConsumed, setIsReconsiderConsumed] = useState(false);
 
   /** 권한 결과를 서버에 반영하고 닫는다. 거부했을 때도 호출한다(onboarding-api.md 4.9) */
   const syncAndFinish = async (isGranted: boolean): Promise<void> => {
@@ -100,24 +91,10 @@ export default function NotificationPrePromptModal({
 
   const handleLaterPress = (): void => {
     if (isProcessing) return;
-    if (withReconsider && !isReconsiderConsumed) {
-      setIsReconsiderConsumed(true);
-      setIsReconsiderVisible(true);
-      return;
-    }
     dismiss();
   };
 
-  const handleReconsiderAllowPress = (): void => {
-    setIsReconsiderVisible(false);
-    void requestAndFinish();
-  };
 
-  /** [괜찮아요] — OS 다이얼로그를 띄우지 않는다. 한 번뿐인 거부 기회를 소진하지 않기 위해서다 */
-  const handleReconsiderDeclinePress = (): void => {
-    setIsReconsiderVisible(false);
-    dismiss();
-  };
 
   return (
     <Modal visible={isVisible} transparent animationType="fade" onRequestClose={handleLaterPress}>
@@ -157,13 +134,6 @@ export default function NotificationPrePromptModal({
           </View>
         </View>
 
-        <ReconsiderDialog
-          isVisible={isReconsiderVisible}
-          onAllowPress={handleReconsiderAllowPress}
-          onDeclinePress={handleReconsiderDeclinePress}
-          // 뒤로가기는 팝업만 닫고 사전 안내에 머문다 — 노출 이력은 소진 상태를 유지한다
-          onCloseRequest={() => setIsReconsiderVisible(false)}
-        />
       </View>
     </Modal>
   );
@@ -182,7 +152,7 @@ const styles = StyleSheet.create({
   dialog: {
     alignSelf: 'stretch',
     alignItems: 'center',
-    borderRadius: theme.radius.lg,
+    borderRadius: theme.radius.xl,
     backgroundColor: theme.color.background,
     padding: theme.spacing.lg,
     gap: theme.spacing.sm,
@@ -206,7 +176,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
     marginTop: theme.spacing.md,
   },
-  /** 두 버튼 동등 비중 — 되짚기 팝업(ReconsiderDialog)과 같은 문법이다 */
+  /** 두 버튼 동등 비중 */
   button: {
     flex: 1,
     minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
