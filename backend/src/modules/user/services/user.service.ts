@@ -122,7 +122,7 @@ export class UserService {
     await this.userRepository.deleteById(userId, manager);
   }
 
-  /** 필수 2종이 동의되지 않으면 계정을 만들지 않는다 (auth-api.md 4.2) */
+  /** 필수 동의(약관·개인정보·연령 확인)가 빠지면 계정을 만들지 않는다 (auth-api.md 4.2) */
   private assertRequiredConsents(command: CreateUserCommand): void {
     const agreedTypes = new Set(
       command.consents

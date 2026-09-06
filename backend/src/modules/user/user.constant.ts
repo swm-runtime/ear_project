@@ -29,12 +29,23 @@ export const CURRENT_CONSENT_VERSIONS: Readonly<
   [ConsentType.PRIVACY]: '0.1',
   /** 마케팅 동의는 버전이 없다 (domain.md 3.2) */
   [ConsentType.MARKETING]: null,
+  /**
+   * 자기 선언이라 버전이 없다. 연령 기준(현행 만 18세)이 바뀌면 그때 버전을
+   * 도입해 재확인을 트리거한다 — null인 동안은 한 번 확인하면 다시 묻지 않는다.
+   */
+  [ConsentType.AGE_CONFIRMATION]: null,
 };
 
-/** 계정 생성에 반드시 필요한 동의 (auth.md 4.1) */
+/**
+ * 계정 생성에 반드시 필요한 동의 (auth.md 4.1).
+ * 연령 확인 포함 — 여기 든 값은 가입 거절 판정과 기존 사용자 재동의 판정
+ * (`findPendingConsents`)에 함께 쓰이므로, 추가하면 기록이 없는 기존 사용자는
+ * 다음 로그인에서 한 번 확인을 요구받는다.
+ */
 export const REQUIRED_CONSENT_TYPES: readonly ConsentType[] = [
   ConsentType.TERMS,
   ConsentType.PRIVACY,
+  ConsentType.AGE_CONFIRMATION,
 ];
 
 // --- 이메일 인증 코드 규칙 (auth.md 4.5) ---
