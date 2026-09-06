@@ -34,3 +34,19 @@
 - Given 신규 가입 / When 전체 동의 후 [동의하고 시작하기] / Then 서버 `consents`에 `age_confirmation` 행이 남고 가입이 성공한다
 - Given `age_confirmation` 미포함 요청 / When 서버가 처리 / Then `CONSENT_REQUIRED`(400) — 클라이언트가 이 상태를 만들지 않아야 한다
 - Given 이력 없는 기존 사용자 로그인 / When `pending_consents`에 `age_confirmation`이 온다 / Then 재동의 화면이 항목을 표시하고 전송한다
+
+## 처리 기록
+
+| 항목 | 값 |
+|---|---|
+| 반영 날짜 | 2026-09-06 |
+| 반영 내용 | `age_confirmation` 을 화면 전용 키에서 **서버 동의 유형으로 승격**하고 sign-up 요청에 실어 보낸다 |
+
+- `ConsentType` 에 `age_confirmation` 추가, 화면 전용 `ConsentRowType` 폐기
+- 서버 목록(`requiredConsents`)에 이미 있으면 그것을 쓰고, 아직 내려주지 않는 서버를 만나면
+  클라이언트가 채운다 — 빠뜨리면 서버가 `CONSENT_REQUIRED` 로 가입을 막는다
+- 제출은 **화면이 그린 행 그대로** 보낸다(`items`). 서버 목록만 매핑하면 연령 확인이 누락된다
+- 전체 동의도 이 항목을 함께 켠다
+
+완료 조건 1·2 충족. 3(기존 사용자 재동의 화면)은 그 화면이 아직 없어 **미충족** — 재동의
+화면을 만들 때 이 항목을 함께 처리해야 한다.

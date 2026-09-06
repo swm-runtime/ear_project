@@ -34,6 +34,9 @@ export const AUTH_COPY = {
       terms: '이용약관 동의',
       privacy: '개인정보 처리방침 동의',
       marketing: '마케팅 정보 수신 동의',
+      // 연령 확인의 표시 문구는 consent.ageConfirmation 이 갖는다. 이 표는 서버 유형과
+      // 1:1이어야 해서 자리를 비워둘 수 없다
+      age_confirmation: '만 18세 이상입니다',
     } satisfies Record<ConsentType, string>,
     /** 연령 확인 — 만 18세 미만 가입을 막는 자기 선언(Play 대상 연령대 18+ 선언과 같은 기준) */
     ageConfirmation: '만 18세 이상입니다',
