@@ -180,11 +180,15 @@
     "cache_hit_ratio": 0.997,
     "xact_commit": 182340, "xact_rollback": 214, "deadlocks": 0, "size_bytes": 327155712
   },
+  "history": [
+    { "t": 1788678000000, "cpu_used_percent": 23.5, "mem_used_percent": 61.2, "db_conn_total": 12 }
+  ],
   "measured_at": "2026-09-06T06:00:00.000Z"
 }
 ```
 
 - `host.*`는 `/proc` 기준 **호스트 전체** 값(컨테이너가 커널을 공유) — API·DB가 같은 EC2인 현 구성에서 서버 자원 그 자체다. `cpu_used_percent`는 300ms 구간 샘플이며 못 읽는 환경(비 Linux)이면 null.
+- `history`는 서버가 60초마다 쌓는 자원 샘플(최대 6시간, 오래된 것부터) — **프로세스 메모리 링 버퍼라 재기동(배포) 시 비워진다.** 대시보드 시간축 그래프의 원천이다. 못 읽은 값은 null.
 - `db.*`는 pg 통계 뷰(current_database 한정) 읽기 전용. `slow_queries.query`는 150자 제한이며 바인딩 파라미터(`$1`) 형태라 사용자 데이터 원문이 없다. `cache_hit_ratio`는 통계 누적 기준(집계 전이면 null).
 
 ## 5. 에러 코드 표

@@ -1,4 +1,5 @@
 import { SystemStats } from '../admin.types';
+import { ResourceSample } from '../services/resource-alert.service';
 
 /**
  * 어드민 로그 콘솔 서버 상태 탭 — 자원·DB 부하 스냅샷
@@ -37,9 +38,19 @@ export class AdminSystemStatsResponseDto {
     deadlocks: number;
     size_bytes: number;
   };
+  /** 60초 간격 자원 샘플(최대 6시간) — 프로세스 메모리 이력이라 재기동 시 비워진다 */
+  readonly history: {
+    t: number;
+    cpu_used_percent: number | null;
+    mem_used_percent: number | null;
+    db_conn_total: number | null;
+  }[];
   readonly measured_at: string;
 
-  static from(stats: SystemStats): AdminSystemStatsResponseDto {
+  static from(
+    stats: SystemStats,
+    history: ResourceSample[],
+  ): AdminSystemStatsResponseDto {
     return {
       host: {
         load_1m: stats.host.loadOne,
@@ -73,6 +84,12 @@ export class AdminSystemStatsResponseDto {
         deadlocks: stats.db.deadlocks,
         size_bytes: stats.db.sizeBytes,
       },
+      history: history.map((sample) => ({
+        t: sample.t,
+        cpu_used_percent: sample.cpuUsedPercent,
+        mem_used_percent: sample.memUsedPercent,
+        db_conn_total: sample.dbConnTotal,
+      })),
       measured_at: stats.measuredAt.toISOString(),
     };
   }

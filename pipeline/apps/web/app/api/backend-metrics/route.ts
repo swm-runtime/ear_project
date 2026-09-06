@@ -102,6 +102,15 @@ function stubStats() {
       ],
       cache_hit_ratio: 0.997, xact_commit: 182_340, xact_rollback: 214, deadlocks: 0, size_bytes: 312 * 1024 ** 2,
     },
+    history: Array.from({ length: 180 }, (_, i) => {
+      const t = Date.now() - (179 - i) * 60_000;
+      return {
+        t,
+        cpu_used_percent: 20 + 15 * Math.sin(i / 12) + (i % 7),
+        mem_used_percent: 55 + 8 * Math.sin(i / 25),
+        db_conn_total: 10 + Math.round(3 * Math.sin(i / 9)),
+      };
+    }),
     measured_at: new Date().toISOString(),
   };
 }
