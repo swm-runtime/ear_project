@@ -35,6 +35,8 @@ export const AUTH_COPY = {
       privacy: '개인정보 처리방침 동의',
       marketing: '마케팅 정보 수신 동의',
     } satisfies Record<ConsentType, string>,
+    /** 연령 확인 — 만 18세 미만 가입을 막는 자기 선언(Play 대상 연령대 18+ 선언과 같은 기준) */
+    ageConfirmation: '만 18세 이상입니다',
     requiredTag: '(필수)',
     optionalTag: '(선택)',
     /* 마케팅 수신 내용 한 줄 고지 — 정보통신망법(auth-uiux.md 4.3). TODO(카피 미확정) */

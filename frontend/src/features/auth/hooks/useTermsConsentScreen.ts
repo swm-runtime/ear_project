@@ -8,7 +8,7 @@ import { getDeviceId } from '@/shared/lib/device-id';
 import { useToastStore } from '@/shared/ui/toast.store';
 
 import { AUTH_COPY } from '../auth.copy';
-import type { AuthStackParamList, ConsentType, RequiredConsent } from '../auth.types';
+import type { AuthStackParamList, ConsentRowType, RequiredConsent } from '../auth.types';
 import { useSignUpMutation } from './useSignUpMutation';
 import { openPolicyDocument } from '../services/policy-document.service';
 import { sessionService } from '../services/session.service';
@@ -23,35 +23,55 @@ export const useTermsConsentScreen = ({ signupToken, requiredConsents }: TermsCo
   const showToast = useToastStore((s) => s.show);
   const signUpMutation = useSignUpMutation();
   /** 동의 체크 상태 — 필수·선택 모두 기본값 해제(auth-uiux.md 4.3) */
-  const [checkedMap, setCheckedMap] = useState<Partial<Record<ConsentType, boolean>>>({});
+  const [checkedMap, setCheckedMap] = useState<Partial<Record<ConsentRowType, boolean>>>({});
 
-  const items = requiredConsents.map((consent) => ({
-    ...consent,
-    label: AUTH_COPY.consent.label[consent.consentType],
-    description:
-      consent.consentType === 'marketing' ? AUTH_COPY.consent.marketingDescription : null,
-    isChecked: checkedMap[consent.consentType] ?? false,
-  }));
+  /**
+   * 연령 확인 — **서버 동의가 아니라 화면 게이트다.**
+   * 개인정보보호법 제22조의2 는 만 14세 미만 아동의 개인정보를 처리하려면 법정대리인
+   * 동의를 받으라고 한다. 그 절차를 두지 않는 대신 가입 시점에 스스로 밝히게 해서 수집
+   * 자체를 막는다 — 약관 본문에만 적어 두는 것은 조치라고 보기 어렵다.
+   * 기준이 18세인 이유는 Play 대상 연령대 선언(만 18세 이상)과 어긋나지 않기 위해서다.
+   */
+  const ageRow = {
+    consentType: 'ageConfirmation' as const,
+    version: null,
+    isRequired: true,
+    label: AUTH_COPY.consent.ageConfirmation,
+    description: null,
+    isChecked: checkedMap.ageConfirmation ?? false,
+  };
+
+  const items = [
+    ageRow,
+    ...requiredConsents.map((consent) => ({
+      ...consent,
+      label: AUTH_COPY.consent.label[consent.consentType],
+      description:
+        consent.consentType === 'marketing' ? AUTH_COPY.consent.marketingDescription : null,
+      isChecked: checkedMap[consent.consentType] ?? false,
+    })),
+  ];
 
   const isAllChecked = items.every((item) => item.isChecked);
   /** 필수 전체 체크 시에만 [동의하고 시작하기] 활성(auth.md 4.1) */
   const canSubmit = items.filter((item) => item.isRequired).every((item) => item.isChecked);
 
-  const toggleConsent = (consentType: ConsentType) => {
+  const toggleConsent = (consentType: ConsentRowType) => {
     setCheckedMap((prev) => ({ ...prev, [consentType]: !(prev[consentType] ?? false) }));
   };
 
   const toggleAll = () => {
     const next = !isAllChecked;
-    setCheckedMap(
-      Object.fromEntries(requiredConsents.map((consent) => [consent.consentType, next])),
-    );
+    setCheckedMap({
+      ageConfirmation: next,
+      ...Object.fromEntries(requiredConsents.map((consent) => [consent.consentType, next])),
+    });
   };
 
   /** [보기] — 랜딩에 게시된 본문을 인앱 브라우저로 연다. **열람은 동의가 아니다**(auth-uiux.md 4.3) */
-  const handleViewPress = (consentType: ConsentType) => {
-    // 마케팅은 열람 문서가 없어 화면이 [보기]를 그리지 않는다 — 방어적으로 한 번 더 막는다
-    if (consentType === 'marketing') return;
+  const handleViewPress = (consentType: ConsentRowType) => {
+    // 마케팅·연령 확인은 열람 문서가 없어 화면이 [보기]를 그리지 않는다 — 방어적으로 한 번 더 막는다
+    if (consentType !== 'terms' && consentType !== 'privacy') return;
     void openPolicyDocument(consentType);
   };
 
