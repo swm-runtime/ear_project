@@ -7,7 +7,7 @@ export const EXPLORE_COPY = {
   walkthrough: {
     searchStep: '궁금한 주제를\n여기서 찾아 담아보세요',
     limitStep: '오늘 남은\n재생 횟수예요',
-    libraryStep: '담은 콘텐츠와 매일 아침\n도착하는 이야기는 여기에',
+    libraryStep: '담은 콘텐츠와 매일 아침\n도착하는 2편은 여기에',
     done: '시작하기',
   },
   /** E6·E7 검색(explore.md 4.5 — MVP 포함 격상, 합의 2026-08-23) */
