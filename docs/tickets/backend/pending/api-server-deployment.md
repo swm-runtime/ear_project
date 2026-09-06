@@ -8,7 +8,7 @@
 | 발견 시점 | 2026-08-26 FE 소셜 로그인 연동 완료 통지 — "백엔드 API 개발이 끝나면 남은 작업 진행" 요청을 검토하다, **API 구현이 아니라 닿을 수 있는 서버가 없는 것**이 실제 블로커임을 확인 |
 | 근거 문서 | `backend/architecture.md` 9.5(환경변수 검증·CORS) · `backend/domain.md` 11.2(pepper 보관) · `spec/api/auth-api.md` 4.1 |
 | 심각도 | **높음** — **프론트가 실기기에서 아무 API도 부를 수 없다.** 소셜 로그인 4종을 포함해 지금까지 구현된 전 기능의 종단 검증이 이 하나에 막혀 있다 |
-| 상태 | pending |
+| 상태 | pending — 애플 nonce·시크릿 보관 판정만 남음 |
 
 ## 문제
 
@@ -141,3 +141,19 @@ cd /opt/ear/backend && docker compose -f docker-compose.prod.yml --env-file .env
    `.env.prod` 는 아카이브에 없어 반입 과정에서 보존된다(임시 경로로 확인).
 2. **`ear-prod.pem` 으로는 서버에 못 붙는다** — `ear-prod-isb.pem` 이 받아들여진다.
    두 스크립트의 기본값을 후자로 바꿨다.
+
+## 진행 기록 (2026-09-06 — CI 자동 배포 가동 확인, CORS 조건 닫힘)
+
+- **CI 자동 배포가 실제로 돌고 있다.** `deploy-api.yml` 이 이날 dev 머지 5건(#140·#142·#144·
+  #149·#152)을 전부 자동 배포했고 모두 성공 — 2026-09-04 저녁에 멈췄던 `setup-ci.sh` 의
+  남은 단계(SG 개폐 권한 등)가 완료된 것이 run 성공으로 실측 확인됐다. 배포 방식은
+  `push.sh` 의 `git archive | tar` 반입 + compose 재빌드 + 헬스 200 확인.
+- **`CORS_ORIGINS` 조건 닫힘** — 실서버 컨테이너 `printenv` 대조 결과
+  `https://admin.earcast.co.kr` (와일드카드 아님).
+
+### 남은 완료 조건
+
+| 조건 | 상태 |
+|---|---|
+| iOS 애플 로그인 nonce 대조 | **확인 가능해짐** — iOS 빌드 3(1.0.0)이 TestFlight 에 올라갔다. 애플 로그인 1회 성공 확인이면 닫힌다 |
+| pepper·`JWT_SECRET` 이 시크릿 매니저에만 | 사람 결정 대기 — 서버 `.env.prod` 파일 보관을 합격으로 볼지 |
