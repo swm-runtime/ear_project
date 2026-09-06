@@ -18,7 +18,8 @@ export type RouteKey =
   | "faq"
   | "blog"
   | "privacy"
-  | "terms";
+  | "terms"
+  | "accountDeletion";
 
 /** 바닥글에서 어느 묶음에 놓일지. null이면 바닥글에 넣지 않는다. */
 type FooterGroup = "product" | "resources" | "legal";
@@ -120,6 +121,19 @@ export const routes: Record<RouteKey, RouteMeta> = {
     title: "개인정보 처리방침",
     description:
       "이어가 수집하는 개인정보 항목과 이용 목적, 보유 기간, 파기 절차, 이용자의 권리와 행사 방법을 안내합니다.",
+    ogImage: "/og/legal.png",
+    inNav: false,
+    footerGroup: "legal",
+    priority: 0.3,
+    changeFrequency: "yearly",
+  },
+
+  accountDeletion: {
+    path: "/account-deletion/",
+    label: "계정 삭제",
+    title: "계정 삭제 요청",
+    description:
+      "이어 계정을 삭제하는 방법과, 삭제할 때 지워지는 정보와 법령에 따라 남는 정보를 안내합니다.",
     ogImage: "/og/legal.png",
     inNav: false,
     footerGroup: "legal",
