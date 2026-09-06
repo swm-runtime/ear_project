@@ -16,6 +16,7 @@ import {
   usePrePromptGate,
   useNotificationStore,
 } from '@/features/notification';
+import { FirstRunTutorial } from '@/features/onboarding';
 import { PlayerScreen } from '@/features/player';
 import { ProfileScreen } from '@/features/profile';
 import { SettingsScreen } from '@/features/settings';
@@ -166,6 +167,9 @@ export default function MainNavigator() {
         화면마다 두면 어느 탭으로 들어왔느냐에 따라 떴다 안 떴다 한다.
         여는 시점은 코치마크가 끝난 뒤다(2026-09-04) — 권한은 가치를 보여준 다음에 묻는다
       */}
+      {/* 첫 사용 튜토리얼 — 예시 화면으로 흐름을 보여준다. 알림 안내보다 먼저다 */}
+      <FirstRunTutorial />
+
       <NotificationPrePromptModal
         isVisible={isPrePromptVisible}
         syncOnDismiss
