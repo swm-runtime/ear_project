@@ -131,7 +131,17 @@ export default function NotificationPrePromptModal({
 
           <View style={styles.dock}>
             <Pressable
-              style={styles.allow}
+              style={[styles.button, styles.later]}
+              disabled={isProcessing}
+              onPress={handleLaterPress}
+              accessibilityRole="button"
+              accessibilityLabel={NOTIFICATION_COPY.prePrompt.later}
+              accessibilityState={{ disabled: isProcessing }}
+            >
+              <Text style={styles.laterLabel}>{NOTIFICATION_COPY.prePrompt.later}</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.button, styles.allow]}
               disabled={isProcessing}
               onPress={handleAllowPress}
               accessibilityRole="button"
@@ -143,16 +153,6 @@ export default function NotificationPrePromptModal({
               ) : (
                 <Text style={styles.allowLabel}>{NOTIFICATION_COPY.prePrompt.allow}</Text>
               )}
-            </Pressable>
-            <Pressable
-              style={styles.later}
-              disabled={isProcessing}
-              onPress={handleLaterPress}
-              accessibilityRole="button"
-              accessibilityLabel={NOTIFICATION_COPY.prePrompt.later}
-              accessibilityState={{ disabled: isProcessing }}
-            >
-              <Text style={styles.laterLabel}>{NOTIFICATION_COPY.prePrompt.later}</Text>
             </Pressable>
           </View>
         </View>
@@ -202,26 +202,28 @@ const styles = StyleSheet.create({
   },
   dock: {
     alignSelf: 'stretch',
-    gap: theme.spacing.xs,
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
     marginTop: theme.spacing.md,
   },
-  allow: {
+  /** 두 버튼 동등 비중 — 되짚기 팝업(ReconsiderDialog)과 같은 문법이다 */
+  button: {
+    flex: 1,
     minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
     borderRadius: theme.radius.md,
-    backgroundColor: theme.color.primary,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  allow: {
+    backgroundColor: theme.color.primary,
   },
   allowLabel: {
     fontSize: theme.font.size.md,
     fontWeight: '600',
     color: theme.color.onPrimary,
   },
-  later: {
-    minHeight: theme.touchTarget.minHeight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  /** [나중에]는 면도 테두리도 없다 — 거절 경로를 숨기지는 않되 시선은 [알림 받기]로 간다 */
+  later: {},
   laterLabel: {
     fontSize: theme.font.size.md,
     fontWeight: '600',
