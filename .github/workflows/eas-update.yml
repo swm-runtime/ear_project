@@ -1,0 +1,89 @@
+name: eas-update
+# dev/main 에 frontend/ 변경이 머지되면 EAS Update(OTA)를 자동 발행한다.
+# 팀원 누구의 merge든 동일하게 나간다 — 로컬 EAS CLI·로그인 불필요.
+#   dev  → preview 채널 (내부 테스트 빌드가 수신)
+#   main → production 채널 (스토어 빌드가 수신)
+# 네이티브 변경 안전장치는 runtimeVersion fingerprint 정책이 맡는다 — 지문이 다른
+# (비호환) 빌드에는 업데이트가 전달되지 않으므로 매 merge 발행해도 안전하다.
+# 네이티브가 바뀐 merge 는 OTA 대신 새 빌드(eas build)가 필요하다는 뜻이기도 하다.
+# 1회 설정: repo secret EXPO_TOKEN (Expo access token)
+
+on:
+  push:
+    branches: [dev, main]
+    paths: ['frontend/**', '.github/workflows/eas-update.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: eas-update-${{ github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # EXPO_TOKEN 미설정이면 조용히 건너뛴다 — 설정 전 merge 가 빨간 X 로 남는 것을 막는다
+      - name: 설정 여부 확인
+        id: guard
+        run: |
+          if [ -z "${{ secrets.EXPO_TOKEN }}" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "EXPO_TOKEN 미설정 — OTA 발행을 건너뜁니다"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 채널 결정
+        if: steps.guard.outputs.run == 'true'
+        id: channel
+        run: |
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            echo "channel=production" >> "$GITHUB_OUTPUT"
+          else
+            echo "channel=preview" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.guard.outputs.run == 'true'
+        uses: actions/checkout@v4
+
+      - name: Node 설정
+        if: steps.guard.outputs.run == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: EAS CLI 설정
+        if: steps.guard.outputs.run == 'true'
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: 의존성 설치
+        if: steps.guard.outputs.run == 'true'
+        working-directory: frontend
+        run: npm ci
+
+      - name: OTA 발행
+        if: steps.guard.outputs.run == 'true'
+        working-directory: frontend
+        env:
+          # 번들에 박히는 값 — eas.json preview/production env 의 EXPO_PUBLIC_API_BASE_URL 과
+          # 반드시 같은 값을 유지한다(드리프트 시 OTA 번들이 다른 서버를 본다).
+          # mock 플래그(EXPO_PUBLIC_*_API 등)는 __DEV__ 가드라 릴리스 번들에선 값과 무관하다.
+          EXPO_PUBLIC_API_BASE_URL: https://api.earcast.co.kr/api/v1
+          # 커밋 메시지를 셸에 직접 보간하지 않는다 — 따옴표·개행이 섞여도 안전하게 env 로 받는다
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          MESSAGE="$(printf '%s' "${COMMIT_MESSAGE:-manual dispatch}" | head -n1)"
+          eas update \
+            --channel "${{ steps.channel.outputs.channel }}" \
+            --message "$MESSAGE" \
+            --non-interactive
