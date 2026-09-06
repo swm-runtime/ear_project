@@ -71,7 +71,7 @@ tickets/      통합 테스트 중 발견한 코드 수정 사항의 기록 — 
 - `paywall.md` **재생 한도 판정·차감·확인 팝업 소유** · `subscription.md` 구독·영수증 검증·복원
 - `settings.md` 설정 허브 · `profile.md` 프로필·통계 · `interest-management.md` 관심 주제 변경 · `notification.md` 푸시 규칙 · `offline-download.md` 오프라인 저장(P1)
 - `common-error-handling.md` **횡단 정책: 에러 계약·재시도·오프라인 큐·로딩 표현·401 갱신**
-- 백그라운드·운영 영역: `drip-scheduling.md`(편성 알고리즘) · `content-pipeline.md`(콘텐츠 수급→생성→QA→발행) · `admin.md`(운영 도구) · `partner-control.md`(파트너 정산·통제)
+- 백그라운드·운영 영역: `drip-scheduling.md`(편성 알고리즘) · `content-pipeline.md`(콘텐츠 수급→생성→QA→발행) · `admin.md`(운영 도구) · `backend-monitoring.md`(로그·자원 콘솔, Slack 알림) · `partner-control.md`(파트너 정산·통제)
 
 **`ai/`** — 앱 밖 콘텐츠 제작 절차. 제품 기능이 아니라 운영 절차이므로 `features/`와 층을 분리했다.
 - `README.md` — ai 인덱스 + `features/`와의 경계
