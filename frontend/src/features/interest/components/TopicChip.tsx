@@ -14,36 +14,70 @@ import { theme } from '@/shared/theme';
 /**
  * 주제별 배경 사진 — 순수 표현이라 화면이 소유한다(서버 계약에 이미지 필드가 없다).
  * 전부 CC0/퍼블릭 도메인(Openverse 검색, 출처 표시 불요)이라 번들에 포함해도 문제없다.
- * 목록에 없는 주제(관리자가 새로 추가한 주제)는 기본 사진으로 떨어진다.
+ *
+ * **키는 주제 이름이다.** id 로 잡으면 mock(`topic-economy`)과 서버(UUID)가 서로 달라
+ * 실서버에서는 전부 기본 사진으로 떨어진다(2026-09-06 실기기 확인). 이름은 환경이 달라도
+ * 같으므로 mock·개발 서버·운영 서버에서 모두 맞는다.
+ *
+ * 목록에 없는 주제(관리자가 새로 추가한 주제)는 기본 사진으로 떨어진다 — 그때 여기에 더한다.
  */
 const TOPIC_IMAGE: Record<string, ImageSourcePropType> = {
-  'topic-economy': require('../../../../assets/topics/topic-economy.jpg'),
-  'topic-writing': require('../../../../assets/topics/topic-writing.jpg'),
-  'topic-data-ai': require('../../../../assets/topics/topic-data-ai.jpg'),
-  'topic-psychology': require('../../../../assets/topics/topic-psychology.jpg'),
-  'topic-leadership': require('../../../../assets/topics/topic-leadership.jpg'),
-  'topic-world-history': require('../../../../assets/topics/topic-world-history.jpg'),
-  'topic-humanities': require('../../../../assets/topics/topic-humanities.jpg'),
-  'topic-topcit': require('../../../../assets/topics/topic-topcit.jpg'),
-  'topic-real-estate': require('../../../../assets/topics/topic-real-estate.jpg'),
-  'topic-safety': require('../../../../assets/topics/topic-safety.jpg'),
-  'topic-korean-history': require('../../../../assets/topics/topic-korean-history.jpg'),
-  'topic-design': require('../../../../assets/topics/topic-design.jpg'),
-  'topic-investing': require('../../../../assets/topics/topic-investing.jpg'),
-  'topic-marketing': require('../../../../assets/topics/topic-marketing.jpg'),
-  'topic-startup': require('../../../../assets/topics/topic-startup.jpg'),
-  'topic-productivity': require('../../../../assets/topics/topic-productivity.jpg'),
+  // 돈·경제
+  재테크: require('../../../../assets/topics/topic-investing.jpg'),
+  '경제 상식': require('../../../../assets/topics/topic-economy.jpg'),
+  투자: require('../../../../assets/topics/topic-invest.jpg'),
+  부동산: require('../../../../assets/topics/topic-real-estate.jpg'),
+  // 일
+  커리어: require('../../../../assets/topics/topic-career.jpg'),
+  생산성: require('../../../../assets/topics/topic-productivity.jpg'),
+  리더십: require('../../../../assets/topics/topic-leadership.jpg'),
+  커뮤니케이션: require('../../../../assets/topics/topic-communication.jpg'),
+  조직: require('../../../../assets/topics/topic-organization.jpg'),
+  산업안전: require('../../../../assets/topics/topic-safety.jpg'),
+  디자인: require('../../../../assets/topics/topic-design.jpg'),
+  // 비즈니스
+  마케팅: require('../../../../assets/topics/topic-marketing.jpg'),
+  스타트업: require('../../../../assets/topics/topic-startup.jpg'),
+  트렌드: require('../../../../assets/topics/topic-trend.jpg'),
+  경영: require('../../../../assets/topics/topic-management.jpg'),
+  // 과학·기술
+  '데이터·AI': require('../../../../assets/topics/topic-data-ai.jpg'),
+  'IT·개발': require('../../../../assets/topics/topic-it-dev.jpg'),
+  자연과학: require('../../../../assets/topics/topic-science.jpg'),
+  // 심리·마음
+  심리학: require('../../../../assets/topics/topic-psychology.jpg'),
+  '뇌과학·인지': require('../../../../assets/topics/topic-neuro.jpg'),
+  '습관·동기': require('../../../../assets/topics/topic-habit.jpg'),
+  인간관계: require('../../../../assets/topics/topic-relationship.jpg'),
+  // 인문·교양
+  철학: require('../../../../assets/topics/topic-philosophy.jpg'),
+  역사: require('../../../../assets/topics/topic-history.jpg'),
+  '사회·문화': require('../../../../assets/topics/topic-society.jpg'),
+  예술: require('../../../../assets/topics/topic-art.jpg'),
+  // 자격증·시험 — 시험이 다루는 영역의 사진을 함께 쓴다
+  TOPCIT: require('../../../../assets/topics/topic-topcit.jpg'),
+  한능검: require('../../../../assets/topics/topic-korean-history.jpg'),
+  공인중개사: require('../../../../assets/topics/topic-real-estate.jpg'),
+  산업안전기사: require('../../../../assets/topics/topic-safety.jpg'),
+  // 구 체계 잔재 — 서버에서 아직 지워지지 않았다. 같은 영역의 사진을 물려 쓴다
+  '커리어 성장': require('../../../../assets/topics/topic-career.jpg'),
+  '이직·면접': require('../../../../assets/topics/topic-career.jpg'),
+  'AI·테크 트렌드': require('../../../../assets/topics/topic-data-ai.jpg'),
+  경제: require('../../../../assets/topics/topic-economy.jpg'),
+  '인문·교양': require('../../../../assets/topics/topic-humanities.jpg'),
+  글쓰기: require('../../../../assets/topics/topic-writing.jpg'),
+  세계사: require('../../../../assets/topics/topic-world-history.jpg'),
 };
 
 const FALLBACK_IMAGE: ImageSourcePropType = require('../../../../assets/topics/default.jpg');
 
 /** 주제 배경 사진 조회 — 선택 요약 칩 등 다른 표현이 같은 사진을 쓰게 한다 */
-export const topicImageSource = (topicId?: string): ImageSourcePropType =>
-  (topicId && TOPIC_IMAGE[topicId]) || FALLBACK_IMAGE;
+export const topicImageSource = (topicName?: string): ImageSourcePropType =>
+  (topicName && TOPIC_IMAGE[topicName]) || FALLBACK_IMAGE;
 
 interface TopicChipProps {
   label: string;
-  /** 배경 사진 조회 키 — 없으면 기본 사진을 쓴다. 선택 동작에는 관여하지 않는다 */
+  /** 배경 사진은 `label`(주제 이름)로 찾는다 — 아래 topicImageSource 주석 참고 */
   topicId?: string;
   isSelected: boolean;
   /** 상한을 채운 뒤의 미선택 칩 — 비활성 스타일을 입히되 탭은 받아 토스트를 띄운다(uiux 공통 규칙) */
@@ -70,7 +104,7 @@ export default function TopicChip({
   style,
   onPress,
 }: TopicChipProps) {
-  const source = topicImageSource(topicId);
+  const source = topicImageSource(label);
 
   return (
     <Pressable
