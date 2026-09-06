@@ -1,4 +1,4 @@
-import type { ConsentType, SocialProvider } from './auth.types';
+import type { ConsentType, SocialProvider, WithdrawalReasonCode } from './auth.types';
 
 /**
  * 사용자 노출 문구(convention.md 3.5). 확정 카피는 auth-uiux.md와 1:1 대조한다.
@@ -101,5 +101,97 @@ export const AUTH_COPY = {
     /** auth-uiux.md 4.15 — 확정. 설정·프로필 경로 복귀 토스트 */
     successToast: '이메일이 등록되었어요',
     countdownA11y: (sec: number) => `남은 시간 ${sec}초`,
+  },
+  /** 회원 탈퇴(auth-uiux.md 4.5~4.6 · wireframe A7·A7-b·A8) */
+  withdrawal: {
+    /* TODO(카피 미확정): 앱바 타이틀·헤드라인은 와이어프레임 표기를 옮긴 것이다 */
+    appBarTitle: '회원 탈퇴',
+    backA11y: '뒤로가기',
+    headline: '정말 떠나시나요?',
+
+    /* 진입 조회(4.6) 실패의 전체 화면 에러. TODO(카피 미확정) */
+    loadFailed: '탈퇴 안내를 불러올 수 없어요',
+    retry: '다시 시도',
+
+    /* 즉시 파기 목록 — 서버가 내려주는 값이 아니라 화면 고지다(auth.md 4.3-4 즉시 파기 대상).
+       TODO(카피 미확정) */
+    deleted: {
+      title: '바로 삭제돼요',
+      items: [
+        '라이브러리에 담은 콘텐츠',
+        '관심 주제와 커리어 정보',
+        '재생 위치와 청취 기록',
+        '알림·재생 설정',
+      ],
+    },
+
+    /* 보존 섹션 — **결제 이력이 있을 때만 그린다.** 연수는 서버 응답값이다(auth-api.md 4.6).
+       TODO(카피 미확정) */
+    retained: {
+      title: (years: number) => `법령에 따라 ${years}년간 보관돼요`,
+      /** 서버가 내려주는 항목 키의 표시 문구. 모르는 키는 키 자체를 노출한다(고지 누락 금지) */
+      item: {
+        email: '이메일 주소 (거래 확인용)',
+        subscription_history: '결제·구독 이력',
+        consent_history: '동의 이력',
+      } as Record<string, string | undefined>,
+      basis: '전자상거래법에 따른 거래기록 보존 의무입니다.',
+    },
+
+    /* 결제 이력이 없을 때만 노출. 이 경우 보존 섹션은 그리지 않는다(auth-uiux.md 4.5) */
+    immediateDeletionNotice: '모든 데이터가 즉시 삭제됩니다.',
+
+    /* 활성 구독 안내 — **텍스트만.** 스토어로 보내는 버튼·딥링크를 두지 않는다(auth.md 4.3-2).
+       TODO(카피 미확정) */
+    activeSubscription: {
+      title: '구독을 이용 중이에요',
+      description:
+        '스토어에서 구독을 따로 해지하지 않으면 결제가 계속됩니다. 해지는 설정 > 구독 관리에서 할 수 있어요.',
+      /** 이 체크 없이는 [탈퇴하기]가 활성되지 않는다(auth.md 4.3-2) */
+      agreement: '구독 혜택이 즉시 종료되는 것에 동의합니다',
+    },
+
+    /* 사유는 선택 입력이다. **선택지 문구·reason_code 값 목록은 문서상 미확정이라**
+       서버 enum(WithdrawalReason) 주석의 문구를 옮겨 둔 것이다 — TODO(카피 미확정) */
+    reason: {
+      label: '탈퇴 이유를 알려주세요 (선택)',
+      option: {
+        content_quailty: '콘텐츠 품질이 기대에 못 미쳤어요',
+        recommendation_mismatch: '제 관심사와 맞지 않는 콘텐츠가 왔어요',
+        low_usage: '들을 시간이 없거나 잘 안 쓰게 됐어요',
+        price: '구독 가격이 부담됐어요',
+        not_enough_content: '듣고 싶은 주제 콘텐츠가 부족했어요',
+        app_issue: '앱 오류나 사용이 불편했어요',
+        alternative: '다른 서비스를 이용하게 됐어요',
+        other: '기타 (직접 입력)',
+      } satisfies Record<WithdrawalReasonCode, string>,
+      textLabel: '남기고 싶은 말',
+      textPlaceholder: '자유롭게 적어주세요',
+    },
+
+    /* TODO(카피 미확정): 최종 확인 체크 */
+    confirm: '안내 내용을 모두 확인했습니다',
+
+    submit: '탈퇴하기',
+    /** 파괴적 액션 옆의 취소 경로 — 같은 화면에 남긴다(auth-uiux.md 4.5) */
+    cancel: '취소',
+
+    /* A8 처리 중 — 전체 화면, 취소 불가(auth-uiux.md 4.6). TODO(카피 미확정) */
+    processing: {
+      title: '탈퇴를 처리하고 있어요',
+      description: '잠시만 기다려주세요',
+    },
+
+    /** auth-uiux.md 4.6 — 확정 카피. 완료 후 시작 화면으로 스택을 초기화한다 */
+    successToast: '탈퇴가 완료되었습니다',
+
+    /* 실패 안내 — 서버 message를 우선 쓰고 없을 때의 기본값이다(common-error-handling.md 4.6) */
+    failed: '탈퇴하지 못했어요. 다시 시도해주세요',
+    /** WITHDRAWAL_ARCHIVE_IDENTITY_MISSING — 탈퇴가 **진행되지 않았음**을 반드시 알린다 */
+    archiveIdentityMissing: {
+      title: '문제가 발생했어요',
+      description: '탈퇴는 진행되지 않았어요. 잠시 후 다시 시도하거나 고객센터로 문의해주세요',
+      back: '돌아가기',
+    },
   },
 } as const;

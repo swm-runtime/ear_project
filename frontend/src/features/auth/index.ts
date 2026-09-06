@@ -6,6 +6,7 @@ export { default as ProviderIcon } from './components/ProviderIcon';
 export { default as StartScreen } from './screens/StartScreen';
 export { default as TermsConsentScreen } from './screens/TermsConsentScreen';
 export { default as EmailVerificationScreen } from './screens/EmailVerificationScreen';
+export { default as WithdrawalScreen } from './screens/WithdrawalScreen';
 export { sessionService } from './services/session.service';
 export { useSessionStore } from './store/session.store';
 /**
