@@ -1,7 +1,11 @@
 export type SocialProvider = 'kakao' | 'naver' | 'google' | 'apple';
 
 /** 서버 계약의 consent_type 값 그대로 쓴다(convention.md 1.6) */
-export type ConsentType = 'terms' | 'privacy' | 'marketing';
+/**
+ * 서버가 받는 동의 유형(domain.md 3.2). `age_confirmation` 은 열람할 문서가 없는
+ * 자기 선언이라 `version` 이 항상 null 이다 — 마케팅과 같다.
+ */
+export type ConsentType = 'terms' | 'privacy' | 'marketing' | 'age_confirmation';
 
 export interface AuthUser {
   id: string;
@@ -24,14 +28,6 @@ export interface AuthTokens {
 }
 
 /** 서버가 내려주는 동의 항목 — 현행 버전을 클라이언트에 하드코딩하지 않는다(auth-api.md 4.1) */
-/**
- * 동의 화면의 행 키 — 서버가 내려주는 동의 유형에 **연령 확인**을 더한 것이다.
- * 연령 확인은 개인정보보호법 제22조의2(만 14세 미만 아동)에 대한 조치로 화면에서만
- * 막는 게이트이며, 서버 동의 이력(`consents`)에는 넣지 않는다 — 넣으려면 서버 enum 이
- * 먼저 늘어야 한다(tickets/backend/pending/age-confirmation-consent.md).
- */
-export type ConsentRowType = ConsentType | 'ageConfirmation';
-
 export interface RequiredConsent {
   consentType: ConsentType;
   version: string | null;
