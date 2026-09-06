@@ -1,4 +1,4 @@
-import type { SocialProvider } from './auth.types';
+import type { SocialProvider, WithdrawalReasonCode } from './auth.types';
 
 /**
  * 이메일 인증 API의 mock 전환(CLAUDE.local 개발 방식 — onboarding·career와 동일 패턴).
@@ -23,8 +23,7 @@ export const IS_AUTH_API_MOCKED = __DEV__ && process.env.EXPO_PUBLIC_AUTH_API !=
  * **Expo Go에서는 항상 mock으로 둔다** — 네이티브 SDK 모듈이 Expo Go에 없어
  * `EXPO_PUBLIC_PROVIDER_AUTH=real`은 dev client(프리빌드) 빌드에서만 의미가 있다.
  */
-export const IS_PROVIDER_AUTH_MOCKED =
-  __DEV__ && process.env.EXPO_PUBLIC_PROVIDER_AUTH !== 'real';
+export const IS_PROVIDER_AUTH_MOCKED = __DEV__ && process.env.EXPO_PUBLIC_PROVIDER_AUTH !== 'real';
 
 /** 인증 코드 자릿수(auth.md 4.5 — 6자리 숫자) */
 export const EMAIL_CODE_LENGTH = 6;
@@ -61,3 +60,33 @@ export const POLICY_DOCUMENT_URL = {
 } as const satisfies Record<'terms' | 'privacy', string>;
 
 export type PolicyDocument = keyof typeof POLICY_DOCUMENT_URL;
+
+/**
+ * 탈퇴 API(withdrawal-preview·withdraw)의 mock 전환 — 계정을 실제로 지우지 않고 A7·A8을
+ * 테스트한다. `EXPO_PUBLIC_WITHDRAWAL_API=real`로 실서버 전환.
+ * 시나리오 전환은 `api/withdrawal.mock.ts` 머리 주석 참고(결제 이력 있음/없음 두 변형).
+ */
+export const IS_WITHDRAWAL_API_MOCKED =
+  __DEV__ && process.env.EXPO_PUBLIC_WITHDRAWAL_API !== 'real';
+
+/**
+ * 탈퇴 사유 선택지의 노출 순서(auth-api.md 4.7 `reason_code`).
+ *
+ * **값은 서버 enum(`backend/src/modules/user/user.enum.ts` WithdrawalReason)과 글자까지
+ * 같아야 한다** — 목록 밖 값은 `@IsEnum`이 400으로 거절한다. `content_quailty`의 철자는
+ * 서버 값 그대로다(서버 오타이지만 클라이언트가 임의로 고치면 요청이 거절된다).
+ * 값 목록·문구는 문서상 아직 미확정이다(auth-api.md 9장 · auth-uiux.md 9장).
+ */
+export const WITHDRAWAL_REASON_CODES: readonly WithdrawalReasonCode[] = [
+  'content_quailty',
+  'recommendation_mismatch',
+  'low_usage',
+  'price',
+  'not_enough_content',
+  'app_issue',
+  'alternative',
+  'other',
+];
+
+/** 자유 입력 상한 — 서버 검증 값과 같은 1000자다(auth-api.md 4.7). 입력 차단으로만 적용한다 */
+export const WITHDRAWAL_REASON_TEXT_MAX_LENGTH = 1000;

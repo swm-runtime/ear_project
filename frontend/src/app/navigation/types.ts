@@ -53,7 +53,11 @@ export type MainStackParamList = {
   Career: undefined;
   /** TODO: 공지사항 인앱 화면 — 명세 작성 후 교체(settings.md 4.1, 합의 2026-08-06) */
   Notice: undefined;
-  /** TODO: 탈퇴 화면(A 계열, auth.md 4.3) 구현 시 교체 — 설정 [회원 탈퇴]의 목적지 */
+  /**
+   * 회원 탈퇴(A7·A8, auth.md 4.3) — 설정 [회원 탈퇴]의 목적지. 진입점은 그 하나다.
+   * 처리 중(A8)에는 화면이 뒤로가기·스와이프를 스스로 막고, 완료 시 세션 정리로
+   * RootNavigator가 시작 화면으로 스택을 통째로 교체한다
+   */
   Withdrawal: undefined;
   /** TODO: 관리자 페이지(admin.md 2장) 구현 시 교체 — 관리자 계정에만 진입점이 노출된다 */
   Admin: undefined;
