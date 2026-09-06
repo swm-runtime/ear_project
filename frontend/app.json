@@ -117,7 +117,7 @@
     },
     "owner": "runtime364",
     "runtimeVersion": {
-      "policy": "appVersion"
+      "policy": "fingerprint"
     },
     "updates": {
       "url": "https://u.expo.dev/affd5e83-2719-469a-8c5c-f12b09e7ba4a"
