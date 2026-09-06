@@ -44,6 +44,7 @@ import {
 import { AdminSystemStatsResponseDto } from './dto/admin-system-stats-response.dto';
 import { AdminContentService } from './services/admin-content.service';
 import { AdminSystemStatsService } from './services/admin-system-stats.service';
+import { ResourceAlertService } from './services/resource-alert.service';
 import { AdminTopicService } from './services/admin-topic.service';
 
 interface UploadFiles {
@@ -62,6 +63,7 @@ export class AdminController {
     private readonly adminContentService: AdminContentService,
     private readonly adminSystemStatsService: AdminSystemStatsService,
     private readonly adminTopicService: AdminTopicService,
+    private readonly resourceAlertService: ResourceAlertService,
   ) {}
 
   /** 자원·DB 부하 스냅샷 — 로그 콘솔 서버 상태 탭 (읽기 전용, 부작용 없음) */
@@ -69,6 +71,7 @@ export class AdminController {
   async getSystemStats(): Promise<AdminSystemStatsResponseDto> {
     return AdminSystemStatsResponseDto.from(
       await this.adminSystemStatsService.snapshot(new Date()),
+      this.resourceAlertService.history(),
     );
   }
 

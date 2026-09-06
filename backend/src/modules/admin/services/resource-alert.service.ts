@@ -7,6 +7,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { DataSource } from 'typeorm';
 
 import { EnvironmentVariables } from '@/config/env.validation';
 
@@ -24,9 +25,13 @@ import {
  * 맡는다 — CPU 70%·메모리 80% 를 넘으면 Slack 으로 알린다. DB 는 조회하지 않는다
  * (/proc 읽기뿐이라 감시 자체가 부하를 만들지 않는다).
  *
+ * 샘플은 알림 여부와 무관하게 **항상** 60초마다 쌓는다(HISTORY_MAX 개 링 버퍼) —
+ * 대시보드의 CPU/메모리 시간축 그래프가 이 이력을 읽는다(`GET /admin/system-stats`).
+ * DB 에 쓰지 않고 프로세스 메모리에만 들므로 재기동(배포) 시 비워진다.
+ *
  * 격리 원칙 — 어떤 상태여도 API 서빙에 영향이 없다:
  * - 자체 setInterval(unref) · 전부 try/catch — 실패는 로그 한 줄로 끝난다
- * - `SLACK_ERROR_WEBHOOK_URL` 이 없으면(로컬) 타이머를 만들지 않는다
+ * - `SLACK_ERROR_WEBHOOK_URL` 이 없으면(로컬) 알림만 꺼진다 — 샘플링은 계속한다
  *
  * 알림 판정(AlertJudge) — 스파이크 오탐과 도배를 막는다:
  * - 60초 틱 3회 연속 초과 시에만 발보 (≈3분 지속)
@@ -52,6 +57,18 @@ export type AlertEvent = {
   kind: 'alert' | 'realert' | 'recovered';
   value: number;
 };
+
+/** 60초 틱마다 쌓는 자원 샘플 — 대시보드 시간축 그래프의 원천 */
+export type ResourceSample = {
+  t: number;
+  cpuUsedPercent: number | null;
+  memUsedPercent: number | null;
+  /** pg_stat_activity 의 현재 DB 접속 수 — 조회 실패 시 null */
+  dbConnTotal: number | null;
+};
+
+/** 6시간(60초 × 360) — 프로세스 메모리에만 든다. 재기동(배포)하면 비워진다 */
+const HISTORY_MAX = 360;
 
 /** 임계 판정 상태 기계 — 순수 로직이라 서비스와 분리해 테스트한다 */
 export class AlertJudge {
@@ -114,24 +131,33 @@ export class ResourceAlertService implements OnModuleInit, OnModuleDestroy {
   });
   private timer: NodeJS.Timeout | undefined;
   private readonly webhookUrl: string;
+  private readonly samples: ResourceSample[] = [];
 
-  constructor(configService: ConfigService<EnvironmentVariables, true>) {
+  constructor(
+    configService: ConfigService<EnvironmentVariables, true>,
+    private readonly dataSource: DataSource,
+  ) {
     this.webhookUrl =
       configService.get('SLACK_ERROR_WEBHOOK_URL', { infer: true }) ?? '';
   }
 
   onModuleInit(): void {
-    if (!this.webhookUrl) {
-      this.logger.log('resource alert off (no webhook url)');
-      return;
-    }
-
     this.timer = setInterval(() => void this.tick(), TICK_MS);
     this.timer.unref();
-    this.logger.log('resource alert on', {
-      cpu_percent: CPU_ALERT_PERCENT,
-      mem_percent: MEM_ALERT_PERCENT,
-    });
+
+    if (this.webhookUrl) {
+      this.logger.log('resource alert on', {
+        cpu_percent: CPU_ALERT_PERCENT,
+        mem_percent: MEM_ALERT_PERCENT,
+      });
+    } else {
+      this.logger.log('resource alert off (no webhook url) — sampling only');
+    }
+  }
+
+  /** 최신순 아님 — 오래된 것부터. 배열 복사본이라 호출자가 건드려도 무방하다 */
+  history(): ResourceSample[] {
+    return [...this.samples];
   }
 
   onModuleDestroy(): void {
@@ -140,11 +166,21 @@ export class ResourceAlertService implements OnModuleInit, OnModuleDestroy {
 
   private async tick(): Promise<void> {
     try {
-      const [cpu, memory] = await Promise.all([
+      const [cpu, memory, dbConn] = await Promise.all([
         this.sampleCpuPercent(),
         this.sampleMemUsedPercent(),
+        this.sampleDbConnections(),
       ]);
 
+      this.samples.push({
+        t: Date.now(),
+        cpuUsedPercent: cpu,
+        memUsedPercent: memory,
+        dbConnTotal: dbConn,
+      });
+      if (this.samples.length > HISTORY_MAX) this.samples.shift();
+
+      if (!this.webhookUrl) return;
       for (const event of this.judge.update({ cpu, memory }, Date.now())) {
         await this.postToSlack(event);
       }
@@ -175,6 +211,18 @@ export class ResourceAlertService implements OnModuleInit, OnModuleDestroy {
         ((meminfo.totalBytes - meminfo.availableBytes) / meminfo.totalBytes) *
         100
       );
+    } catch {
+      return null;
+    }
+  }
+
+  /** 접속 수 하나만 — 60초마다 도는 조회라 pg_stat_activity 집계 이상은 하지 않는다 */
+  private async sampleDbConnections(): Promise<number | null> {
+    try {
+      const [row] = await this.dataSource.query<{ total: number }[]>(
+        `select count(*)::int as total from pg_stat_activity where datname = current_database()`,
+      );
+      return row.total;
     } catch {
       return null;
     }
