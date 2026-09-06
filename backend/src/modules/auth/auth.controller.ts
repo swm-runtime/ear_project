@@ -15,6 +15,8 @@ import { IdempotencyInterceptor } from '@/modules/idempotency/idempotency.interc
 
 import { AuthService } from './services/auth.service';
 import { LogoutRequestDto } from './dto/logout-request.dto';
+import { PipelineLoginRequestDto } from './dto/pipeline-login-request.dto';
+import { PipelineLoginResponseDto } from './dto/pipeline-login-response.dto';
 import { RefreshTokenRequestDto } from './dto/refresh-token-request.dto';
 import { RefreshTokenResponseDto } from './dto/refresh-token-response.dto';
 import { SignUpRequestDto } from './dto/sign-up-request.dto';
@@ -43,6 +45,20 @@ export class AuthController {
     );
 
     return SocialLoginResponseDto.from(result);
+  }
+
+  /** 파이프라인 웹 SSO — 서버 간 어서션으로 관리자 세션 발급 (changes/pending/pipeline-sso-login.md) */
+  @Post('pipeline-login')
+  @HttpCode(HttpStatus.OK)
+  async pipelineLogin(
+    @Body() request: PipelineLoginRequestDto,
+  ): Promise<PipelineLoginResponseDto> {
+    const tokens = await this.authService.pipelineLogin(
+      { assertion: request.assertion, deviceId: request.device_id },
+      new Date(),
+    );
+
+    return PipelineLoginResponseDto.from(tokens);
   }
 
   // 재시도로 계정이 두 개 생기지 않게 한다 (auth-api.md 3장 ★)

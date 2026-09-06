@@ -8,7 +8,7 @@
  * - (기본)             2개 보유(온보딩 선택분) — IM1~IM5·IM7 흐름
  * - over-limit         5개 보유(상한 도입 이전 가입자) — IM6 초과 보유자
  * - save-fail          저장이 INTERNAL_ERROR로 실패 — IM8 인라인 에러 + [다시 시도]
- * - topic-unavailable  첫 저장이 INTEREST_TOPIC_UNAVAILABLE로 실패하며 'IT·테크' 주제가
+ * - topic-unavailable  첫 저장이 INTEREST_TOPIC_UNAVAILABLE로 실패하며 '데이터·AI' 주제가
  *                      숨김 처리된다 — 재조회 후 편집 상태 재구성(사라진 선택 걷어내기) 검증
  * - load-fail          진입 조회(주제 목록·관심사)가 각 1회 실패 — IM9 전체 화면 에러 +
  *                      [다시 시도] 성공 경로 검증
@@ -36,31 +36,37 @@ const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
  * 두 벌을 두면 온보딩에서 고른 topic_id가 이 화면에서 이름을 잃는다.
  */
 export const INTEREST_MOCK_TOPICS: TopicListResponseDto['items'] = [
-  { topic_id: 'topic-career', name: '커리어', parent_category: '일' },
-  { topic_id: 'topic-productivity', name: '생산성', parent_category: '일' },
-  { topic_id: 'topic-economy', name: '경제·재테크', parent_category: '돈' },
-  { topic_id: 'topic-tech', name: 'IT·테크', parent_category: '기술' },
-  { topic_id: 'topic-ai', name: '인공지능', parent_category: '기술' },
-  { topic_id: 'topic-marketing', name: '마케팅', parent_category: '일' },
-  { topic_id: 'topic-design', name: '디자인', parent_category: '일' },
-  { topic_id: 'topic-startup', name: '스타트업', parent_category: '일' },
-  { topic_id: 'topic-psychology', name: '심리', parent_category: '삶' },
+  { topic_id: 'topic-economy', name: '경제 상식', parent_category: '돈' },
+  { topic_id: 'topic-writing', name: '글쓰기', parent_category: '일' },
+  { topic_id: 'topic-data-ai', name: '데이터·AI', parent_category: '기술' },
+  { topic_id: 'topic-psychology', name: '심리학', parent_category: '삶' },
   { topic_id: 'topic-leadership', name: '리더십', parent_category: '일' },
+  { topic_id: 'topic-world-history', name: '세계사', parent_category: '교양' },
+  { topic_id: 'topic-humanities', name: '인문·교양', parent_category: '교양' },
+  { topic_id: 'topic-topcit', name: 'TOPCIT', parent_category: '기술' },
+  { topic_id: 'topic-real-estate', name: '부동산', parent_category: '돈' },
+  { topic_id: 'topic-safety', name: '산업안전', parent_category: '일' },
+  { topic_id: 'topic-korean-history', name: '한국사', parent_category: '교양' },
+  { topic_id: 'topic-design', name: '디자인', parent_category: '일' },
+  { topic_id: 'topic-investing', name: '재테크', parent_category: '돈' },
+  { topic_id: 'topic-marketing', name: '마케팅', parent_category: '일' },
+  { topic_id: 'topic-startup', name: '스타트업', parent_category: '일' },
+  { topic_id: 'topic-productivity', name: '생산성', parent_category: '일' },
 ];
 
 const initialInterests = (): UserInterestDto[] => {
   if (SCENARIO === 'over-limit') {
     return [
-      { topic_id: 'topic-career', source: 'onboarding' },
-      { topic_id: 'topic-productivity', source: 'onboarding' },
       { topic_id: 'topic-economy', source: 'onboarding' },
-      { topic_id: 'topic-tech', source: 'manual' },
-      { topic_id: 'topic-ai', source: 'auto_expand' },
+      { topic_id: 'topic-productivity', source: 'onboarding' },
+      { topic_id: 'topic-investing', source: 'onboarding' },
+      { topic_id: 'topic-marketing', source: 'manual' },
+      { topic_id: 'topic-data-ai', source: 'auto_expand' },
     ];
   }
   return [
-    { topic_id: 'topic-career', source: 'onboarding' },
     { topic_id: 'topic-economy', source: 'onboarding' },
+    { topic_id: 'topic-productivity', source: 'onboarding' },
   ];
 };
 
@@ -166,10 +172,10 @@ export const mockSaveMyInterests = async (topicIds: string[]): Promise<Interests
     );
   }
 
-  // 첫 저장 시점에 관리자가 'IT·테크'를 숨긴 상황을 흉내 낸다 — 이후 재조회부터 목록에서 빠진다
+  // 첫 저장 시점에 관리자가 '데이터·AI'를 숨긴 상황을 흉내 낸다 — 이후 재조회부터 목록에서 빠진다
   if (SCENARIO === 'topic-unavailable' && !state.unavailableTriggered) {
     state.unavailableTriggered = true;
-    state.hiddenTopicIds.add('topic-tech');
+    state.hiddenTopicIds.add('topic-data-ai');
     throw new ApiError(
       ERROR_CODES.INTEREST_TOPIC_UNAVAILABLE,
       '선택할 수 없는 주제가 포함되어 있어요',

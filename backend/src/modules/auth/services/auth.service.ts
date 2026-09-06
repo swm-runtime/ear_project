@@ -16,6 +16,7 @@ import {
   AuthenticatedResult,
   IssuedTokens,
   LogoutCommand,
+  PipelineLoginCommand,
   RefreshTokenCommand,
   SignUpCommand,
   SocialLoginCommand,
@@ -192,6 +193,36 @@ export class AuthService {
 
     // TODO(notification 모듈 도입 시): 푸시 토큰(`device_tokens`) 등록도 함께 해제한다 (auth.md 4.2)
     this.logger.log('logout completed', { user_id: command.userId });
+  }
+
+  /**
+   * 파이프라인 웹 SSO — Supabase 로그인(팀원)을 마친 파이프라인 웹 **서버**가 공유 비밀로
+   * 서명한 어서션을 제시하면, 같은 이메일의 **관리자 계정**으로 세션을 발급한다.
+   * 발행 콘솔의 두 번째 로그인(GIS)을 없애는 서버 간 신뢰다 — 브라우저는 비밀을 모른다.
+   * 관리자 외 계정은 거부한다: 이 경로의 용도가 관리 콘솔뿐이므로 최소 권한으로 좁힌다.
+   * (changes/pending/pipeline-sso-login.md)
+   */
+  async pipelineLogin(
+    command: PipelineLoginCommand,
+    now: Date,
+  ): Promise<IssuedTokens> {
+    const { email } = this.tokenService.verifyPipelineAssertion(
+      command.assertion,
+    );
+    const user = await this.userService.findAdminByEmail(email);
+
+    if (!user) {
+      throw new BusinessException({
+        status: HttpStatus.FORBIDDEN,
+        errorCode: ErrorCode.FORBIDDEN,
+        message: `${email} 이메일의 제품 관리자 계정이 없어요`,
+      });
+    }
+
+    const tokens = await this.issueSession(user, command.deviceId, now);
+    this.logger.log('pipeline sso login succeeded', { user_id: user.id });
+
+    return tokens;
   }
 
   private async issueSession(

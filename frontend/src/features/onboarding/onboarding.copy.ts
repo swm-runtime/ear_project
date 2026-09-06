@@ -7,11 +7,12 @@ import { NOTIFICATION_COPY } from '@/features/notification';
 export const ONBOARDING_COPY = {
   /** O1–O3 관심 주제 선택(onboarding-uiux.md 4.1) */
   topic: {
-    title: '어떤 이야기가 궁금하세요?',
-    guideBeforeSelect: '최소 1개, 최대 3개까지 고를 수 있어요',
+    /* TODO(카피 미확정): 상단 툴바 타이틀 — uiux 반영 요청은 changes/pending/onboarding-o1-visual-refresh.md */
+    toolbarTitle: '관심 주제',
+    /** 큰 헤드라인 한 문장으로 안내까지 합쳤다 — 별도 개수 안내 줄이 없다(시각 개편) */
+    title: '궁금한 이야기를\n최대 3개까지 골라주세요',
     /** 선택 후에는 "N/3 선택" 형식 — countLabel로 만든다 */
     countLabel: (count: number, max: number) => `${count}/${max} 선택`,
-    minRequired: '관심 주제를 1개 이상 선택해주세요',
     limitToast: '관심 주제는 3개까지 선택할 수 있어요',
     next: '다음',
     /** O6 목록 조회 실패(onboarding-uiux.md 4.2) */
@@ -21,6 +22,8 @@ export const ONBOARDING_COPY = {
   },
   /** O4 커리어 정보(onboarding-uiux.md 4.3) */
   career: {
+    /* TODO(카피 미확정): 상단 툴바 타이틀 — O1과 같은 컨셉(changes/pending/onboarding-o1-visual-refresh.md) */
+    toolbarTitle: '커리어',
     /* TODO(카피 미확정): 커리어 화면 타이틀 */
     title: '하시는 일을 알려주세요',
     laterNotice: '나중에 프로필에서 언제든 입력할 수 있어요',
@@ -43,6 +46,8 @@ export const ONBOARDING_COPY = {
   },
   /** O7·O8 추천 콘텐츠 담기(onboarding-uiux.md 4.4). 섹션 제목은 서버가 내려준다 */
   pick: {
+    /* TODO(카피 미확정): 상단 툴바 타이틀 — O1·O4와 같은 컨셉 */
+    toolbarTitle: '콘텐츠 담기',
     title: '먼저 들어볼 콘텐츠를 골라보세요',
     subtitle: '지금 고르지 않아도 괜찮아요',
     submit: (count: number) => `${count}개 담기`,
@@ -62,10 +67,8 @@ export const ONBOARDING_COPY = {
   },
   /** O9 완료(onboarding-uiux.md 4.6) */
   complete: {
-    title: '준비됐어요',
-    dripNotice: '이 주제로 매일 2편이 라이브러리에 도착해요',
-    tierNotice: '무료로 이용 중 · 하루 2편까지 재생할 수 있어요',
-    start: '시작하기',
+    /* TODO(카피 미확정): 완료 요청 실패(자동 통과 개편으로 이 화면의 유일한 UI) */
+    failTitle: '마무리하지 못했어요',
   },
   /**
    * O10 알림 사전 안내 — 문구 소유는 notification.md 5장이라 그쪽 카피를 그대로 쓴다

@@ -5,7 +5,7 @@
 ## 1. 수정 범위
 
 - 수정할 수 있는 것은 `pipeline/` 안의 코드와 `docs/ai/` 안의 명세·프롬프트 자산이다. `backend/`·`frontend/`·`ai-server/`·저장소 루트 공용 설정은 읽기만 한다 — 고쳐야 하면 해당 파트 담당에게 전달한다.
-- **규칙 자산 7개(guidelines·골드 3·QA 프롬프트·루브릭 v1/v2)의 진실은 DB `prompt_assets`다**(spec/10 3.2). 고칠 때는 웹 `/assets`에서 새 버전(draft) → 활성화. `docs/ai/skills/`의 사본은 `npm run assets:export`로 내려받는 스냅샷이므로 git에서 직접 고치지 않는다(고쳤다면 `assets:import --force`로 명시 게시). spec/03·04·05 본문은 git이 진실이며 워커가 체크아웃에서 읽는다.
+- **규칙 자산 8개(guidelines·골드 3·QA 프롬프트·루브릭 v1/v2·TTS 음차 사전)의 진실은 DB `prompt_assets`다**(spec/10 3.2). 고칠 때는 웹 `/assets`에서 새 버전(draft) → 활성화. `docs/ai/skills/`의 사본은 `npm run assets:export`로 내려받는 스냅샷이므로 git에서 직접 고치지 않는다(고쳤다면 `assets:import --force`로 명시 게시). spec/03·04·05 본문은 git이 진실이며 워커가 체크아웃에서 읽는다.
 - 규칙(`guidelines`)을 고치면 루브릭·골드·QA 프롬프트·`packages/pipeline`의 생성 프롬프트를 같이 고치고 활성화 사유(note)를 남긴다(spec/09 4.3). 버전(`full-vN`·`critic-vN`·`qa-vN`)을 올리지 않은 규칙 변경은 없다.
 - **산출물 파일의 진실은 파이프라인 S3 다**(spec/10 3.3). 워커 단계는 `storage.ts` 의 pull/push 를 거치고, DB 에는 `s3:` 키만 쓴다. 새 산출물 종류를 추가하면 키 범위(`episodes/`·`sweeps/`·`datasets/`) 안에 두고 `WORK_ROOT` 상대 경로 = S3 키 규칙을 지킨다. AWS 액세스 키를 코드·env 예시에 넣지 않는다 — 노트북은 웹 서명 URL, 서버는 인스턴스 역할.
 

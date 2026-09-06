@@ -16,7 +16,7 @@ import { cfg } from "./config.js";
 import { pool } from "./db.js";
 import { exists, log } from "./util.js";
 
-/** DB 가 진실인 자산 — 키 = packages/pipeline assetPaths 가 만드는 경로 */
+/** DB 가 진실인 프롬프트 번들 자산 7개 — 키 = packages/pipeline assetPaths 가 만드는 경로. TTS 음차 사전은 TTS_DICT_KEY (번들·고정 제외) */
 export const DB_ASSET_KEYS = [
   "skills/draft/guidelines.md",
   "skills/draft/examples/gold-T260820-001-short.md",
@@ -26,6 +26,26 @@ export const DB_ASSET_KEYS = [
   "skills/critic/rubric.md",
   "skills/critic/rubric-v2.md",
 ] as const;
+
+/** TTS 전역 음차 사전 (spec/06 6장) — 8번째 DB 자산. 프롬프트 번들에 넣지 않고 에피소드에 고정하지 않는다: 항상 active — 사전 수정 → 같은 에피소드 재합성에 즉시 적용 */
+export const TTS_DICT_KEY = "skills/tts/pronunciation.json";
+
+/** 전역 음차 사전의 active 버전을 읽는다. 형식: {"표기": "발음"} JSON 객체 (문자열 값만) */
+export async function loadTtsDict(): Promise<{ version: string; entries: Record<string, string> }> {
+  const r = await pool.query<Row>("select key, version, content from public.prompt_assets where status = 'active' and key = $1", [TTS_DICT_KEY]);
+  const row = r.rows[0];
+  if (!row) throw new Error(`prompt_assets 에 active 자산이 없다: ${TTS_DICT_KEY} — 시딩(npm run assets:import) 또는 웹 /assets 에서 활성화 (spec/06 6장)`);
+  let parsed: unknown;
+  try { parsed = JSON.parse(row.content); }
+  catch { throw new Error(`${TTS_DICT_KEY}@${row.version} 이 JSON 이 아니다 — 웹 /assets 에서 {"표기": "발음"} 객체로 고쳐 활성화`); }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error(`${TTS_DICT_KEY}@${row.version} 은 {"표기": "발음"} 객체여야 한다`);
+  const entries: Record<string, string> = {};
+  for (const [k, v] of Object.entries(parsed)) {
+    if (!k.trim() || typeof v !== "string" || !v.trim()) throw new Error(`${TTS_DICT_KEY}@${row.version} 항목이 잘못됐다 ("${k}": ${JSON.stringify(v)}) — 값은 비어 있지 않은 문자열`);
+    entries[k] = v;
+  }
+  return { version: row.version, entries };
+}
 /** git 체크아웃에서 복사하는 명세 — 프롬프트가 경로로 반입한다 */
 export const GIT_ASSET_KEYS = ["spec/03-backlog.md", "spec/04-script.md", "spec/05-qa.md"] as const;
 
@@ -44,6 +64,7 @@ export interface AssetBundle {
 
 /** git 사본 파일의 헤더에서 버전 라벨을 읽는다 (시딩용). 골드 예시는 본문에 다른 버전 문구("full-v3 생성 → …")가 섞이므로 무조건 gold@날짜 */
 export function versionOf(key: string, content: string): string {
+  if (key === TTS_DICT_KEY) return "tts-v1"; // JSON 사전 — 헤더가 없다. 이후 버전은 웹 /assets 편집에서 tts-v1.1 식으로 올린다
   const head = content.split("\n").slice(0, 8).join("\n");
   if (key.includes("/examples/")) {
     const d = head.match(/\d{4}-\d{2}-\d{2}/);

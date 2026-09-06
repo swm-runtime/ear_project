@@ -1,41 +1,65 @@
-import { Pressable, StyleSheet, Text } from 'react-native';
+import {
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type ImageSourcePropType,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 
 import { theme } from '@/shared/theme';
 
 /**
- * 주제별 아이콘 — 순수 표현이라 화면이 소유한다(서버 계약에 아이콘 필드가 없다).
- * 목록에 없는 주제(관리자가 새로 추가한 주제)는 FALLBACK_ICON으로 떨어진다.
+ * 주제별 배경 사진 — 순수 표현이라 화면이 소유한다(서버 계약에 이미지 필드가 없다).
+ * 전부 CC0/퍼블릭 도메인(Openverse 검색, 출처 표시 불요)이라 번들에 포함해도 문제없다.
+ * 목록에 없는 주제(관리자가 새로 추가한 주제)는 기본 사진으로 떨어진다.
  */
-const TOPIC_ICON: Record<string, string> = {
-  'topic-career': '💼',
-  'topic-productivity': '⚡',
-  'topic-economy': '📈',
-  'topic-tech': '💻',
-  'topic-ai': '🤖',
-  'topic-marketing': '📣',
-  'topic-design': '🎨',
-  'topic-startup': '🚀',
-  'topic-psychology': '🧠',
-  'topic-leadership': '🧭',
+const TOPIC_IMAGE: Record<string, ImageSourcePropType> = {
+  'topic-economy': require('../../../../assets/topics/topic-economy.jpg'),
+  'topic-writing': require('../../../../assets/topics/topic-writing.jpg'),
+  'topic-data-ai': require('../../../../assets/topics/topic-data-ai.jpg'),
+  'topic-psychology': require('../../../../assets/topics/topic-psychology.jpg'),
+  'topic-leadership': require('../../../../assets/topics/topic-leadership.jpg'),
+  'topic-world-history': require('../../../../assets/topics/topic-world-history.jpg'),
+  'topic-humanities': require('../../../../assets/topics/topic-humanities.jpg'),
+  'topic-topcit': require('../../../../assets/topics/topic-topcit.jpg'),
+  'topic-real-estate': require('../../../../assets/topics/topic-real-estate.jpg'),
+  'topic-safety': require('../../../../assets/topics/topic-safety.jpg'),
+  'topic-korean-history': require('../../../../assets/topics/topic-korean-history.jpg'),
+  'topic-design': require('../../../../assets/topics/topic-design.jpg'),
+  'topic-investing': require('../../../../assets/topics/topic-investing.jpg'),
+  'topic-marketing': require('../../../../assets/topics/topic-marketing.jpg'),
+  'topic-startup': require('../../../../assets/topics/topic-startup.jpg'),
+  'topic-productivity': require('../../../../assets/topics/topic-productivity.jpg'),
 };
 
-const FALLBACK_ICON = '🎧';
+const FALLBACK_IMAGE: ImageSourcePropType = require('../../../../assets/topics/default.jpg');
+
+/** 주제 배경 사진 조회 — 선택 요약 칩 등 다른 표현이 같은 사진을 쓰게 한다 */
+export const topicImageSource = (topicId?: string): ImageSourcePropType =>
+  (topicId && TOPIC_IMAGE[topicId]) || FALLBACK_IMAGE;
 
 interface TopicChipProps {
   label: string;
-  /** 아이콘 조회 키 — 없으면 기본 아이콘을 쓴다. 선택 동작에는 관여하지 않는다 */
+  /** 배경 사진 조회 키 — 없으면 기본 사진을 쓴다. 선택 동작에는 관여하지 않는다 */
   topicId?: string;
   isSelected: boolean;
   /** 상한을 채운 뒤의 미선택 칩 — 비활성 스타일을 입히되 탭은 받아 토스트를 띄운다(uiux 공통 규칙) */
   isDimmed: boolean;
   /** 비활성 이유의 낭독 힌트 — IM2는 상한 토스트, IM6은 초과 안내 문구를 쓴다(interest-management-uiux.md 7장) */
   dimmedHint?: string;
+  /** 배치(폭·flex) 오버라이드 — 화면이 격자/가로 흐름을 정한다. 동작·시각 상태는 칩 소유 그대로다 */
+  style?: StyleProp<ViewStyle>;
   onPress: () => void;
 }
 
 /**
  * 주제 선택 칩 — 온보딩 1단계와 관심사 관리가 같은 컴포넌트를 쓴다
  * (interest-management-uiux.md 5장 — 같은 목록·같은 순서·같은 칩 동작).
+ * 시각은 사진 배경 알약: 어두운 오버레이 + 흰 라벨, 선택 시 오버레이만 짙어진다
+ * (2026-09-03 개편 — changes/pending/onboarding-o1-visual-refresh.md).
  */
 export default function TopicChip({
   label,
@@ -43,13 +67,14 @@ export default function TopicChip({
   isSelected,
   isDimmed,
   dimmedHint,
+  style,
   onPress,
 }: TopicChipProps) {
-  const icon = (topicId && TOPIC_ICON[topicId]) || FALLBACK_ICON;
+  const source = topicImageSource(topicId);
 
   return (
     <Pressable
-      style={[styles.chip, isSelected && styles.chipSelected, isDimmed && styles.chipDimmed]}
+      style={[styles.chip, style]}
       onPress={onPress}
       accessibilityRole="checkbox"
       // disabled를 선언하지 않는다 — 상한 도달 칩도 탭을 받아 토스트를 띄우는 것이 규칙인데(uiux 4.1),
@@ -59,13 +84,18 @@ export default function TopicChip({
       accessibilityLabel={label}
       accessibilityHint={isDimmed ? dimmedHint : undefined}
     >
-      {/* 아이콘은 장식이다 — 주제 이름을 이미 낭독하므로 따로 읽지 않는다(uiux 7장) */}
-      <Text style={[styles.icon, isDimmed && styles.iconDimmed]} importantForAccessibility="no">
-        {icon}
-      </Text>
-      <Text
-        style={[styles.label, isSelected && styles.labelSelected, isDimmed && styles.labelDimmed]}
-      >
+      {/*
+        ImageBackground + imageStyle 대신 absolute-fill Image를 직접 깐다 — 웹 렌더에서
+        imageStyle의 borderRadius가 이미지 박스를 왜곡하는 문제를 피하고, 클리핑은
+        칩(overflow hidden)이 한 번만 담당한다.
+      */}
+      <Image source={source} resizeMode="cover" style={styles.photo} />
+      {/* 사진 위 가독성용 오버레이 — 선택은 짙은 면 + ✓, 상한 dim은 하얗게 물러난다 */}
+      <View
+        style={[styles.overlay, isSelected && styles.overlaySelected, isDimmed && styles.overlayDimmed]}
+      />
+      {/* 선택 표시는 짙은 오버레이만 — 체크 글리프는 두지 않는다. 낭독은 accessibilityState가 한다 */}
+      <Text style={[styles.label, isDimmed && styles.labelDimmed]} numberOfLines={1}>
         {label}
       </Text>
     </Pressable>
@@ -82,46 +112,51 @@ const styles = StyleSheet.create({
      */
     flexGrow: 1,
     flexBasis: '40%',
-    flexDirection: 'row',
+    // 알약 — 사진·오버레이 클리핑은 여기서 한 번만 한다
+    borderRadius: theme.radius.full,
+    overflow: 'hidden',
+    // 터치 타깃 44pt(uiux 7장)를 지키는 선에서 납작하게
+    minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
     alignItems: 'center',
-    // 칸 폭이 글자 수와 무관해졌으므로 내용을 가운데 세운다
     justifyContent: 'center',
-    gap: theme.spacing.sm,
-    // 칩은 글자 수에 따라 폭이 달라지므로 최소 높이를 고정한다(uiux 7장 — 터치 타깃 44pt)
-    minHeight: theme.touchTarget.minHeight + theme.spacing.md,
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.sm,
-    // 알약 — 높이가 바뀌어도 양 끝이 항상 반원이 된다
-    borderRadius: theme.radius.full,
-    borderWidth: 1.5,
-    borderColor: theme.color.border,
-    backgroundColor: theme.color.background,
   },
-  chipSelected: {
-    borderColor: theme.color.primary,
-    backgroundColor: theme.color.primary,
+  photo: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
   },
-  chipDimmed: {
-    backgroundColor: theme.color.surface,
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.34)',
   },
-  icon: {
-    fontSize: theme.font.size.lg,
+  overlaySelected: {
+    backgroundColor: 'rgba(0, 0, 0, 0.62)',
   },
-  // 흐린 칩은 아이콘까지 함께 물러나야 한 덩어리로 읽힌다
-  iconDimmed: {
-    opacity: 0.4,
+  // 흐린 칩은 사진째 물러나야 한 덩어리로 읽힌다
+  overlayDimmed: {
+    backgroundColor: 'rgba(255, 255, 255, 0.78)',
   },
   label: {
     fontSize: theme.font.size.md,
-    // 선택 여부와 무관하게 굵기를 고정한다 — 선택 시 굵어지면 칩 폭이 변해
-    // flexWrap 그리드 전체가 재배치되고, 연속으로 고르는 동안 표적이 움직인다
-    fontWeight: '600',
-    color: theme.color.textPrimary,
-  },
-  labelSelected: {
+    // 선택 여부와 무관하게 굵기를 고정한다 — 선택 시 굵어지면 라벨 폭이 변해 시선이 튄다
+    fontWeight: '700',
     color: theme.color.onPrimary,
+    textShadowColor: 'rgba(0, 0, 0, 0.45)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   labelDimmed: {
     color: theme.color.textSecondary,
+    textShadowColor: 'transparent',
   },
 });

@@ -23,7 +23,7 @@ export async function runCluster(job: Job, ex: Executor) {
   const { assetRoot } = await prepareAssets(null); // spec/03 반입 — 스냅샷 경로로 (spec/10 3.2)
   const prompt = buildClusterPrompt({ assetRoot, midTopic, nextIdNumber: nextN, sources, existingTitles: existing });
   log(`  cluster ${midTopic}: 소스 ${sources.length}건, 다음 ID C${nextN}`);
-  const r = await ex.run<ClusterOut>({ prompt, schema: CLUSTER_SCHEMA, allowedTools: ["Read"], addDirs: [assetRoot], cwd: cfg.workRoot, timeoutMs: 25 * 60_000, model: cfg.claudeModel,
+  const r = await ex.run<ClusterOut>({ prompt, schema: CLUSTER_SCHEMA, allowedTools: ["Read"], addDirs: [assetRoot], cwd: cfg.workRoot, timeoutMs: 25 * 60_000, model: cfg.clusterModel,
     onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: `군집화 (소스 ${sources.length}건)` }).catch(() => {}),
     describe: (tool) => (tool === "Read" ? "군집화 기준 확인 중" : null),
   });

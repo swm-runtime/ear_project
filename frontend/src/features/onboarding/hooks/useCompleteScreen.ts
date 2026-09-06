@@ -70,6 +70,7 @@ export const useCompleteScreen = () => {
 
   return {
     topicNames,
+    completionStatus,
     isProcessing,
     handleStartPress,
   };

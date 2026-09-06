@@ -17,9 +17,9 @@ export interface ShareContentInput {
 }
 
 /**
- * 공유 텍스트 조립 — 제목 / 저자 · 출처 / 링크 세 줄.
- * TODO(카피): 줄바꿈·구분자·순서는 미확정이다(share-uiux.md 6장 — 시안 SH3의 세 줄 제안을
- * 따른다. P1 활성화 시 확정). 내부 용어·링크 안내 문구를 덧붙이지 않는다(uiux 6장).
+ * 공유 텍스트 조립 — 제목 / 저자 · 출처 / 링크 세 줄로 **확정**
+ * (2026-09-04, changes/pending/share-p1-copy-decisions.md — 시안 SH3 그대로).
+ * 내부 용어·링크 안내 문구를 덧붙이지 않는다(uiux 6장).
  */
 export const buildShareMessage = (input: ShareContentInput): string => {
   const byline = input.authorName

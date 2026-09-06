@@ -142,7 +142,7 @@ export function parseCriticScores(md: string): { rows: ScoreRow[]; total: string
     const cells = line.split("|").slice(1, -1).map((c) => c.trim());
     if (cells.length < 3 || /^-+$/.test(cells[0]) || cells[0] === "축") continue;
     if (/합계/.test(cells[0] + cells[1])) { total = cells[2].replace(/\*/g, "") || null; continue; }
-    const sm = cells[2].match(/(\d+)\s*\/\s*(\d+)/);
+    const sm = cells[2].replace(/\*/g, "").match(/(\d+)\s*\/\s*(\d+)/); // 점수 셀이 **9**/12 처럼 볼드라 * 를 먼저 지운다 (합계 행과 동일 처리)
     rows.push({ key: cells[1].match(/^\d+\.\d+/)?.[0] ?? cells[1], axis: cells[0].replace(/\*/g, ""), item: cells[1].replace(/^\d+\.\d+\s*/, ""), ai: sm ? Number(sm[1]) : null, max: sm ? Number(sm[2]) : null, evidence: cells[3] ?? "" });
   }
   return { rows, total };

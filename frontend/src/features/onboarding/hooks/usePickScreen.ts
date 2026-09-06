@@ -71,6 +71,12 @@ export const usePickScreen = () => {
 
   const selectedCount = selectedContentIds.length;
 
+  /** 우상단 [건너뛰기] — 담은 것과 무관하게 담지 않고 넘어간다(0건 경로와 동일) */
+  const handleSkipPress = () => {
+    if (savePicksMutation.isPending || hasProceededRef.current) return;
+    proceed('FirstDripWaiting');
+  };
+
   const handleProceedPress = async () => {
     if (savePicksMutation.isPending || hasProceededRef.current) return;
 
@@ -114,6 +120,7 @@ export const usePickScreen = () => {
     refetch: () => void recommendationsQuery.refetch(),
     toggleContent,
     handleProceedPress,
+    handleSkipPress,
     handleBackPress,
   };
 };

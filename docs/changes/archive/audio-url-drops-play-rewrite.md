@@ -40,3 +40,20 @@ CloudFront KeyValueStore 데이터 플레인(Get/Put/DescribeKeyValueStore)을 �
 - Given 개정된 domain.md 5.1 / When `cloudfront-audio-url.signer.ts`와 대조한다 / Then 서명
   URL 경로에 `audio_path`가 실리는 것이 문서와 모순되지 않는다
 - Given 회수된 콘텐츠 / When 회수 5분 뒤 기존 재생 URL을 연다 / Then 만료로 403이다
+
+---
+
+## 처리 기록
+
+| 항목 | 값 |
+|---|---|
+| 반영 날짜 | 2026-09-03 |
+| 상태 | **완료 — archive** |
+
+반영 위치:
+
+- **`backend/domain.md` 5.1** — `audio_path` 규칙 완화. "어떤 응답에도 실리지 않는다" → "응답 본문·목록에 실리지 않는다. 단 재생용 서명 URL의 경로에는 실린다"와 그 근거(무작위 hex + 단기 만료가 원 목적을 그대로 달성)
+- **`backend/architecture.md` 9.4** — 현재 CDN 구현 명시. **제거할 KVS 서술이 애초에 없었다** — 종전 설계가 문서에 반영된 적이 없어, 지우는 대신 현재 방식과 SCP 제약을 추가했다
+- **`features/admin.md` 4.2** — 재생 경로 등록 단계가 없고 전파 지연도 없음을 명시(위 admin-web-console 요청과의 충돌 해소)
+
+요청 3(`partner-control.md` 4.3 변경 불필요)은 **확인만 하고 문서를 건드리지 않았다** — 처리 순서 2가 이미 현재 구현과 일치한다.

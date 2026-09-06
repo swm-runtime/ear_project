@@ -16,5 +16,6 @@ export {
 } from './services/notification-permission.service';
 export { syncDevicePermission } from './api/notification.api';
 export { useSyncDevicePermissionMutation } from './hooks/useSyncDevicePermissionMutation';
+export { usePrePromptGate } from './hooks/usePrePromptGate';
 export { NOTIFICATION_COPY } from './notification.copy';
 export type { OsPermissionStatus } from './notification.types';

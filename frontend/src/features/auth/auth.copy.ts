@@ -25,6 +25,8 @@ export const AUTH_COPY = {
   /** auth-uiux.md 4.2 — 확정 카피 */
   loginFailed: '로그인에 실패했어요. 다시 시도해주세요',
   consent: {
+    /* TODO(카피 미확정): 인사 라인 — 시각 개편(changes/pending/auth-consent-visual-refresh.md) */
+    greeting: '만나서 반가워요!',
     /* TODO(카피 미확정): 약관 동의 화면 타이틀 */
     title: '서비스 이용을 위해\n동의가 필요해요',
     agreeAll: '전체 동의',

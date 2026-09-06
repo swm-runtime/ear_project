@@ -1,76 +1,56 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { EarAuthError, clearTokens, loadTokens, loginWithGoogle, tokenClaims } from "@/lib/ear";
+import { EarAuthError, clearTokens, connectEar, loadTokens, tokenClaims } from "@/lib/ear";
 import { Panel } from "@/components/ui";
 
-const GIS_SRC = "https://accounts.google.com/gsi/client";
-const CLIENT_ID = process.env.NEXT_PUBLIC_EAR_GOOGLE_CLIENT_ID ?? "";
-
-declare global {
-  interface Window { google?: { accounts: { id: { initialize(o: object): void; renderButton(el: HTMLElement, o: object): void } } } }
-}
-
 /**
- * 제품 서버 연결 게이트 — 제품 JWT 가 없으면 구글 로그인 카드를, 있으면 children 을 그린다.
- * 파이프라인 로그인(Supabase)과 별개의 두 번째 로그인이다 (lib/ear.ts 머리 주석).
+ * 제품 서버 연결 게이트 — 제품 JWT가 없으면 Supabase 세션으로 **자동 SSO 연결**한다
+ * (lib/ear.ts 머리 주석). 별도 로그인 UI가 없다: 실패했을 때만 안내 카드를 그린다.
  */
 export function EarGate({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<"checking" | "need-login" | "not-admin" | "ready">("checking");
+  const [state, setState] = useState<"connecting" | "ready" | "error">("connecting");
   const [err, setErr] = useState<string | null>(null);
-  const btnHost = useRef<HTMLDivElement>(null);
+  const attempted = useRef(false);
 
-  const evaluate = useCallback(() => {
-    if (!loadTokens()) return setState("need-login");
-    setState(tokenClaims().role === "admin" ? "ready" : "not-admin");
+  const connect = useCallback(async () => {
+    setState("connecting");
+    setErr(null);
+    try {
+      // 남은 토큰이 관리자면 그대로 쓰고, 아니면(만료·비관리자·없음) 새로 교환한다
+      if (!(loadTokens() && tokenClaims().role === "admin")) {
+        clearTokens();
+        await connectEar();
+      }
+      setState("ready");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+      setState("error");
+    }
   }, []);
-  useEffect(() => { queueMicrotask(evaluate); }, [evaluate]); // 동기 setState 회피 (react-hooks/set-state-in-effect)
 
   useEffect(() => {
-    if (state !== "need-login" && state !== "not-admin") return;
-    const mount = () => {
-      if (!window.google || !btnHost.current || !CLIENT_ID) return;
-      window.google.accounts.id.initialize({
-        client_id: CLIENT_ID,
-        callback: async (resp: { credential?: string }) => {
-          if (!resp.credential) return setErr("구글 인증이 취소됐어요");
-          try { await loginWithGoogle(resp.credential); setErr(null); evaluate(); }
-          catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
-        },
-        ux_mode: "popup",
-      });
-      btnHost.current.innerHTML = "";
-      window.google.accounts.id.renderButton(btnHost.current, { theme: "outline", size: "large", text: "signin_with", locale: "ko" });
-    };
-    if (window.google) return mount();
-    const s = document.createElement("script");
-    s.src = GIS_SRC; s.async = true; s.onload = mount;
-    document.head.appendChild(s);
-  }, [state, evaluate]);
+    if (attempted.current) return;
+    attempted.current = true;
+    void connect();
+  }, [connect]);
 
-  if (state === "checking") return null;
   if (state === "ready") return <>{children}</>;
+  if (state === "connecting") return <p className="text-[13px] text-ink-soft">제품 서버 연결 중…</p>;
 
-  const claims = tokenClaims();
   return (
-    <Panel title="제품 서버 연결" className="mx-auto max-w-xl">
+    <Panel title="제품 서버 연결 실패" className="mx-auto max-w-xl">
       <div className="space-y-3 text-[13px]">
-        {state === "not-admin" ? (
-          <>
-            <p className="text-rose-700">로그인은 됐지만 이 구글 계정은 제품 관리자(<code>role=admin</code>)가 아니에요.</p>
-            <p className="text-ink-soft">
-              관리자에게 아래 id 승격을 요청한 뒤 다시 연결하세요:{" "}
-              <code className="rounded bg-[#f1f5f9] px-1.5 py-0.5">{claims.sub}</code>
-            </p>
-            <button className="rounded border border-line px-3 py-1.5 text-xs hover:bg-[#f7f9fb]" onClick={() => { clearTokens(); evaluate(); }}>다른 계정으로</button>
-          </>
-        ) : (
-          <p className="text-ink-soft">
-            제품 발행·회수는 제품 서버의 관리자 권한이 필요해요. 파이프라인 로그인과 별개로,
-            제품 관리자 구글 계정으로 한 번 더 로그인합니다 (토큰은 이 브라우저에만 저장).
-          </p>
-        )}
-        <div ref={btnHost} />
-        {err && <p className="text-rose-600">{err}</p>}
+        <p className="text-rose-700">{err}</p>
+        <p className="text-ink-soft">
+          파이프라인 계정과 <strong>같은 이메일</strong>의 제품 계정(<code>role=admin</code>)이
+          있어야 해요. 없다면 관리자에게 승격을 요청한 뒤 [다시 연결]을 누르세요.
+        </p>
+        <button
+          className="rounded border border-line px-3 py-1.5 text-xs hover:bg-[#f7f9fb]"
+          onClick={() => void connect()}
+        >
+          다시 연결
+        </button>
       </div>
     </Panel>
   );
@@ -91,6 +71,6 @@ export function EarSession({ onChange }: { onChange?: () => void }) {
 }
 
 export function earErrMsg(e: unknown): string {
-  if (e instanceof EarAuthError) return "제품 서버 세션이 만료됐어요 — 다시 연결해 주세요";
+  if (e instanceof EarAuthError) return "제품 서버 세션이 만료됐어요 — 새로고침하면 다시 연결됩니다";
   return e instanceof Error ? e.message : String(e);
 }

@@ -50,6 +50,11 @@ export class UserService {
     return this.userRepository.findDripTargetsPage(afterId, limit, manager);
   }
 
+  /** 파이프라인 SSO — 검증된 이메일과 같은 관리자 계정 (changes/pending/pipeline-sso-login.md) */
+  async findAdminByEmail(email: string): Promise<User | null> {
+    return this.userRepository.findAdminByEmail(email);
+  }
+
   async getById(id: string, manager?: EntityManager): Promise<User> {
     const user = await this.userRepository.findById(id, manager);
 

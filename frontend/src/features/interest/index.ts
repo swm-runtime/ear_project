@@ -7,7 +7,7 @@
  * 각자 선언하면 한쪽만 고쳐지는 순간 두 화면의 선택지가 어긋난다.
  */
 export { default as InterestManagementScreen } from './screens/InterestManagementScreen';
-export { default as TopicChip } from './components/TopicChip';
+export { default as TopicChip, topicImageSource } from './components/TopicChip';
 export { interestKeys } from './api/interest.api';
 export { useTopicsQuery } from './hooks/useTopicsQuery';
 export type { TopicItem, TopicList } from './interest.types';

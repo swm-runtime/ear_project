@@ -7,6 +7,7 @@ import { buildDraftPrompt, buildDraftRevisionPrompt, DRAFT_SCHEMA, DRAFT_REVISIO
 import { exists, hostOf, log, RetryLater } from "../util.js";
 import { prepareAssets, workerRev } from "../assets.js";
 import { pullPrefix, pushPrefix, s3Key } from "../storage.js";
+import { parseScriptForTts } from "../tts/script.js";
 
 interface DraftOut { turns: number; chars: number; minutes: number; cold_open_turn: string; cold_open_verified: boolean; sources_used: string[]; sources_excluded: { url: string; reason: string }[]; self_check_fixes: string[]; notes: string }
 interface RevisionOut { fixes: { location: string; before: string; after: string }[]; cold_open_updated: boolean; cold_open_verified: boolean; notes: string }
@@ -71,13 +72,28 @@ export async function runDraft(job: Job, ex: Executor) {
       describe: (tool, input, counts) => {
         if (tool === "WebFetch") return `소스 정독 ${counts.WebFetch}/${cand.sources.length}`;
         const f = String(input?.file_path ?? "").split("/").pop() ?? "";
-        if (tool === "Write" || tool === "Edit") return f === "script.md" ? "대본 작성" : f === "sources.md" ? "발췌 정리" : f === "claims.md" ? "claims 대조표 작성" : `${f} 작성`;
+        if (tool === "Write" || tool === "Edit") return f === "script.md" ? "대본 작성" : f === "sources.md" ? "발췌 정리" : f === "claims.md" ? "claims 대조표 작성" : f === "pronunciations.json" ? "발음 맵 작성" : `${f} 작성`;
         if (tool === "Bash") return "자기 점검 (분량·콜드오픈 검증)";
         return null;
       },
     });
     out = r.output; model = r.model; costUsd = r.listCostUsd; tokens = (r.raw as { usage?: unknown } | undefined)?.usage;
-    for (const f of ["script.md", "claims.md", "sources.md"]) if (!(await exists(path.join(dir, f)))) throw new Error(`산출물 누락: ${rel}/${f}`);
+    // 산출물 누락 = 모델이 스키마에 맞는 완료 보고(structured_output)를 냈는데 파일을 실제로 안 씀. 던지기 전에 원인 근거를 runs 에 남긴다.
+    // 트랜스크립트는 --no-session-persistence 라 사후 조회 불가 — 모델 자기보고·권한거부·턴수가 원인을 가르는 유일한 단서다 (2026-09-04)
+    const required = ["script.md", "claims.md", "sources.md"];
+    const sizes = await Promise.all([...required, "pronunciations.json"].map(async (f) => { try { return { f, size: (await fs.stat(path.join(dir, f))).size }; } catch { return { f, size: -1 }; } }));
+    const missing = sizes.filter((s) => s.size < 0 && required.includes(s.f)).map((s) => s.f);
+    if (missing.length) {
+      const o = r.output as DraftOut;
+      const denials = (r.raw as { permission_denials?: unknown[] } | undefined)?.permission_denials ?? [];
+      const evidence = `산출물 누락: ${missing.join(", ")} — 모델은 완료 보고를 냈으나 파일 없음.`
+        + ` [있는 파일] ${sizes.filter((s) => s.size >= 0).map((s) => `${s.f} ${s.size}B`).join(", ") || "없음"}.`
+        + ` [모델 자기보고] turns=${r.numTurns ?? "?"} sources_used=${o.sources_used?.length ?? "?"} self_check_fixes=${o.self_check_fixes?.length ?? "?"} notes="${(o.notes ?? "").slice(0, 200)}".`
+        + (denials.length ? ` [권한 거부 ${denials.length}건] ${JSON.stringify(denials).slice(0, 400)}` : " [권한 거부] 없음.")
+        + ` [session] ${r.sessionId ?? "?"}`;
+      await insertRun({ backlog_id: backlogId, phase: "draft", attempt, result: `실패 — ${evidence}`, prompt_version: `${promptVersion} (worker)`, artifacts: [], executed_by: executedBy, model, cost_usd: costUsd, tokens, worker_rev: workerRev() });
+      throw new Error(evidence);
+    }
     const o = r.output;
     summary = `${episodeId} 초안 완료 (${ex.kind}, 도입 ${intro.label}, 템플릿 ${templates?.version ?? "미적용"}). ${o.turns}턴·${o.chars}자·약 ${o.minutes}분. 소스 ${o.sources_used.length}/${cand.sources.length} 사용${o.sources_excluded.length ? ` (제외: ${o.sources_excluded.map((x) => `${hostOf(x.url)} ${x.reason}`).join("; ").slice(0, 300)})` : ""}. 콜드오픈 ${o.cold_open_turn}${o.cold_open_verified ? " 검증" : " 미검증"}. 자기 점검 수정 ${o.self_check_fixes.length}건. ${o.notes}`;
   } else {
@@ -92,15 +108,43 @@ export async function runDraft(job: Job, ex: Executor) {
     summary = `${episodeId} 재생성 attempt ${attempt} (QA 피드백 ${failures.length}건 → 수정 ${r.output.fixes.length}건${r.output.cold_open_updated ? ", 콜드오픈 갱신" : ""}${r.output.cold_open_verified ? ", 자구 일치 검증" : ""}). ${r.output.notes}`;
   }
 
+  // 발음 맵 (spec/04 8장) — 모델이 빠뜨렸거나 구 에피소드 이어받기면 빈 맵을 둔다 (웹 "발음" 탭·TTS 병합의 기준 파일. 누락 표기는 TTS 잔존 검사가 잡는다)
+  const pronFile = path.join(dir, "pronunciations.json");
+  if (!(await exists(pronFile))) await fs.writeFile(pronFile, "{}\n", "utf8");
   await pushPrefix(`${rel}/`); // 먼저 S3 에 — DB 키가 가리키는 객체가 있어야 한다
-  const artifacts = [s3Key(`${rel}/script.md`), s3Key(`${rel}/sources.md`), s3Key(`${rel}/claims.md`)];
+  const artifacts = [s3Key(`${rel}/script.md`), s3Key(`${rel}/sources.md`), s3Key(`${rel}/claims.md`), s3Key(`${rel}/pronunciations.json`)];
   if (attempt === 1) {
     await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: promptVersion, script_key: artifacts[0], claims_key: artifacts[2], sources_key: artifacts[1] });
     await setBacklogStatus(backlogId, "drafted");
   }
+  // L0 형식 검사 (spec/09 6.2 "대본 형식 계약", spec/04 4장 줄 문법) — 위반 대본은 QA 로 보내지 않고 재생성 연쇄(spec/05 4장)로 돌린다.
+  // 여기서 잡지 않으면 QA·비평을 통과해 TTS 에서야 터진다 (2026-09-03 T260903-001/003 실측)
+  const violations = formatViolations(await fs.readFile(path.join(dir, "script.md"), "utf8"));
+  if (violations.length) {
+    if (attempt >= 3) throw new Error(`대본 형식 위반이 attempt ${attempt}까지 남음 — 웹 턴 수정으로 처리 필요: ${violations.join(" / ")}`);
+    const fixes = violations.map((v) => ({ location: "대본 전체", item: "L0 형식 계약 (spec/04 4장 줄 문법)", reason: v }));
+    await insertRun({ backlog_id: backlogId, phase: "draft", attempt, result: `${summary} — L0 형식 위반 ${violations.length}건, QA 생략하고 수정 재생성: ${violations.join(" / ").slice(0, 300)}`, prompt_version: `${promptVersion} (worker)`, artifacts, executed_by: executedBy, model, cost_usd: costUsd, tokens, worker_rev: workerRev() });
+    const fixJobId = await enqueue({ type: "draft", requires_ai: true, payload: { episode_id: episodeId, backlog_id: backlogId, attempt: attempt + 1, qa_failures: fixes }, parent_job_id: job.id, attempt: attempt + 1 });
+    log(`  draft ${episodeId}: L0 형식 위반 ${violations.length}건 — 수정 재생성 연쇄 (attempt ${attempt + 1})`);
+    return { episode_id: episodeId, attempt, summary, model, l0_violations: violations, next: { draft_fix_job_id: fixJobId } };
+  }
   await insertRun({ backlog_id: backlogId, phase: "draft", attempt, result: summary, prompt_version: `${promptVersion} (worker)`, artifacts, executed_by: executedBy, model, cost_usd: costUsd, tokens, worker_rev: workerRev() });
   const qaJobId = await enqueue({ type: "qa", requires_ai: true, payload: { episode_id: episodeId, backlog_id: backlogId, attempt }, parent_job_id: job.id, attempt });
   return { episode_id: episodeId, attempt, summary, model, next: { qa_job_id: qaJobId }, output: out };
+}
+
+/** L0 형식 검사 — spec/04 4장 줄 문법 위반을 기계로 검출한다. 파서가 변형을 일부 수용하므로, 여기서 걸리면 파서로도 못 살리는 수준의 이탈이다 */
+function formatViolations(md: string): string[] {
+  const p = parseScriptForTts(md);
+  const v: string[] = [];
+  if (p.turns.length < 10) v.push(`파싱된 발화 턴이 ${p.turns.length}개 — 줄 문법("[윤아] E1 · 문장") 위반 가능성 (spec/04 4장)`);
+  else {
+    const noId = p.turns.filter((t) => !t.id);
+    if (noId.length > Math.ceil(p.turns.length * 0.3)) v.push(`턴 번호(E·Y) 없는 발화가 ${noId.length}/${p.turns.length}개 — 번호 턴은 "[화자] E1 · 문장" 형식 (spec/04 4장)`);
+  }
+  if (!p.coldOpen) v.push("콜드오픈 구역에서 발화를 찾지 못함 (spec/04 4장 구조)");
+  else if (p.coldOpen.sourceTurn && !p.turns.some((t) => t.id === p.coldOpen!.sourceTurn)) v.push(`콜드오픈 발췌 원본 ${p.coldOpen.sourceTurn} 턴이 본편에 없음 — 발췌 위치 표기 또는 턴 번호 오류`);
+  return v;
 }
 
 /** script/claims/sources 가 모두 있고 마지막 수정이 3분 이상 지났으면(고아 프로세스가 아직 쓰는 중이 아니면) 완료된 산출물로 본다.

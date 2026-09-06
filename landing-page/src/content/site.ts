@@ -23,6 +23,16 @@
 export const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ?? "https://earcast.co.kr";
 
+/**
+ * Google Analytics 4 측정 ID.
+ *
+ * **환경 변수로 감싸지 않고 상수로 둔다.** 이 값은 어차피 HTML에 그대로 실려 나가는
+ * 공개값이라 감출 이유가 없고, 환경 변수로 두면 호스팅에 넣는 걸 빠뜨렸을 때
+ * 빌드는 멀쩡히 성공하면서 측정만 조용히 빠진다 — 그 사고를 알아차릴 방법이 없다.
+ * 도메인(`SITE_URL`)과 달리 환경마다 달라져야 할 값도 아니다.
+ */
+export const GA_MEASUREMENT_ID = "G-92D7LE95GX";
+
 export const site = {
   name: "이어",
   nameEn: "ear",

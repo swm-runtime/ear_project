@@ -3,6 +3,7 @@ import {
   IsEnum,
   IsInt,
   IsNotEmpty,
+  IsOptional,
   IsString,
   Matches,
   Max,
@@ -80,6 +81,16 @@ export class EnvironmentVariables {
   @IsString()
   @MinLength(32)
   JWT_SECRET: string;
+
+  /**
+   * 파이프라인 웹 SSO 어서션 서명 키(HS256) — 파이프라인 웹 서버(`EAR_SSO_SECRET`)와만
+   * 공유한다. **JWT_SECRET과 겹쳐 쓰지 않는다**(아래 pepper 원칙과 동일). 비우면
+   * `/auth/pipeline-login`이 비활성화된다 — 그래서 선택값이다.
+   */
+  @IsOptional()
+  @IsString()
+  @MinLength(32)
+  PIPELINE_SSO_SECRET?: string;
 
   /**
    * 애플 identity token의 `aud`로 실려 오는 값 — iOS 앱의 Bundle ID다(`auth-api.md` 4.1).

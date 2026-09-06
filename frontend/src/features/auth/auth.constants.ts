@@ -47,3 +47,17 @@ export const PROVIDER_BRAND: Record<
   /** 밝은 배경 위에서는 검정 바탕 + 흰 로고가 애플 가이드 기본형이다 */
   apple: { background: '#000000', text: '#FFFFFF' },
 };
+
+/**
+ * 약관 문서 URL — 랜딩(`earcast.co.kr`)에 게시된 본문을 인앱 브라우저로 연다.
+ * 앱에 본문을 넣지 않는 이유: 약관은 개정되면 즉시 바뀐 본문이 보여야 하는데, 앱에 넣으면
+ * 스토어 배포를 기다려야 한다. 웹에 두면 랜딩 배포만으로 반영된다.
+ *
+ * 마케팅 동의는 열람 문서가 없다 — 한 줄 고지로 갈음한다(auth-uiux.md 4.3).
+ */
+export const POLICY_DOCUMENT_URL = {
+  terms: 'https://earcast.co.kr/terms',
+  privacy: 'https://earcast.co.kr/privacy',
+} as const satisfies Record<'terms' | 'privacy', string>;
+
+export type PolicyDocument = keyof typeof POLICY_DOCUMENT_URL;

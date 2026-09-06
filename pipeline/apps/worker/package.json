@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@aws-sdk/client-cloudwatch-logs": "^3.1126.0",
     "@aws-sdk/client-s3": "^3.1123.0",
     "@ear/pipeline": "*",
     "dotenv": "^16.4.5",

@@ -126,7 +126,7 @@ export const mockFetchRecommendations = async (): Promise<RecommendationsRespons
   }
 
   // 관심 주제 6건 — 선택 주제에 고르게 배분한다(onboarding.md 4 [3])
-  const selected = state.selectedTopicIds.length > 0 ? state.selectedTopicIds : ['topic-career'];
+  const selected = state.selectedTopicIds.length > 0 ? state.selectedTopicIds : ['topic-economy'];
   const interestItems = Array.from({ length: 6 }, (_, i) => {
     const topicId = selected[i % selected.length];
     return makeContent(i + 1, topicId, `${topicName(topicId)} 이야기 ${i + 1}`);

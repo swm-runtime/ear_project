@@ -1,4 +1,4 @@
-/** 규칙 자산 목록 (spec/10 3.2) — 워커 apps/worker/src/assets.ts 의 DB_ASSET_KEYS 와 같은 7개. 순서 = 화면 순서 */
+/** 규칙 자산 목록 (spec/10 3.2) — 워커 apps/worker/src/assets.ts 의 DB_ASSET_KEYS 7개 + TTS 음차 사전. 순서 = 화면 순서 */
 export const ASSET_KEYS: { key: string; label: string; group: string }[] = [
   { key: "skills/draft/guidelines.md", label: "대본 가이드라인", group: "생성" },
   { key: "skills/draft/examples/gold-T260820-001-short.md", label: "골드 — 숏폼 (T260820-001)", group: "생성" },
@@ -7,6 +7,7 @@ export const ASSET_KEYS: { key: string; label: string; group: string }[] = [
   { key: "skills/qa/prompt.md", label: "QA 프롬프트", group: "검수" },
   { key: "skills/critic/rubric.md", label: "비평 루브릭 v1", group: "검수" },
   { key: "skills/critic/rubric-v2.md", label: "비평 루브릭 v2 (초안)", group: "검수" },
+  { key: "skills/tts/pronunciation.json", label: "TTS 음차 사전 (전역)", group: "오디오" },
 ];
 
 export const assetLabel = (key: string) => ASSET_KEYS.find((a) => a.key === key)?.label ?? key;
