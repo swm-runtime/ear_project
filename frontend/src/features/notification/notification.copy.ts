@@ -24,10 +24,4 @@ export const NOTIFICATION_COPY = {
    * 근거 없는 수치를 남겨두는 것보다 설득력이 약한 문구가 낫다.
    * TODO: 출처 있는 통계 확보 시 "평균 N% 이상 더 많이 듣고 있어요" 카피로 교체하고 출처를 함께 기록한다.
    */
-  reconsider: {
-    title: '알림을 받으면 새 콘텐츠를 놓치지 않아요.',
-    question: '정말 설정하지 않으시겠어요?',
-    allow: '알림 받기',
-    decline: '괜찮아요',
-  },
 } as const;

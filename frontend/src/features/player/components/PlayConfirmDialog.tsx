@@ -72,7 +72,7 @@ const styles = StyleSheet.create({
   dialog: {
     alignSelf: 'stretch',
     backgroundColor: theme.color.background,
-    borderRadius: theme.radius.lg,
+    borderRadius: theme.radius.xl,
     padding: theme.spacing.lg,
     gap: theme.spacing.sm,
   },
