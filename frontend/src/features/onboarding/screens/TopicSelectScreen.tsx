@@ -226,7 +226,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.xs + 2,
-    paddingHorizontal: theme.spacing.md,
+    /*
+     * **패딩을 칩이 갖지 않는다** — 아래 selectedChipPhoto 의 `width/height: '100%'`가
+     * 부모의 **콘텐츠 박스**(패딩 제외)로 풀려서, 패딩이 있으면 사진이 그만큼 작아지고
+     * 오른쪽에 배경이 드러난다(2026-09-08 iOS 실기기). 마퀴 알약(TopicChip)과 같은 원인이다.
+     * 좌우 여백은 라벨과 ✕ 가 나눠 갖는다.
+     */
   },
   selectedChipPhoto: {
     position: 'absolute',
@@ -246,11 +251,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.55)',
   },
   selectedChipLabel: {
+    // 칩이 아니라 여기가 왼쪽 여백을 갖는다 — 위 selectedChip 주석 참조
+    paddingLeft: theme.spacing.md,
     fontSize: theme.font.size.sm,
     fontWeight: '700',
     color: theme.color.onPrimary,
   },
   selectedChipX: {
+    // 오른쪽 여백. 라벨과 ✕ 사이 간격은 selectedChip 의 gap 이 그대로 유지한다
+    paddingRight: theme.spacing.md,
     fontSize: theme.font.size.sm,
     fontWeight: '700',
     color: theme.color.onPrimary,
