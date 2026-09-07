@@ -79,6 +79,10 @@ Frontend는 다음 5가지를 책임진다.
 - **발행은 CI가 한다** — `.github/workflows/eas-update.yml`이 `dev` merge → `preview`, `main` merge → `production`으로 자동 발행한다. 팀원은 로컬 EAS CLI 없이 merge만 하면 된다. 수동 발행은 `workflow_dispatch` 또는 조직 멤버의 `eas update`.
 - **`runtimeVersion`은 `fingerprint` 정책이다**(`app.json`). 네이티브 지문이 다른 빌드에는 업데이트가 전달되지 않는다. **"이 변경이 네이티브인가"를 사람이 판단하지 않아도 안전하고**, 네이티브가 바뀐 merge는 OTA가 기존 빌드에 닿지 않는 것 자체가 "새 빌드가 필요하다"는 신호가 된다.
 - **OTA 번들의 env는 `eas.json`과 같은 값을 유지해야 한다.** 워크플로가 `EXPO_PUBLIC_API_BASE_URL`을 번들에 박으므로, `eas.json`의 `preview`·`production` env와 어긋나면 **OTA 번들만 다른 서버를 본다.** mock 플래그들은 `__DEV__` 가드라 릴리스 번들에서는 무관하다.
+- **`eas.json`을 고치면 그 이전 빌드는 OTA를 못 받는다.** 지문 소스에 `eas.json`이 포함되기 때문이다(`expo-updates fingerprint:generate` 결과에 `{"filePath":"eas.json","reasons":["easBuild"]}`). 2026-09-07 실측: 트리의 나머지가 완전히 같고 `eas.json`만 달라도 지문이 `64a20ba4…` ↔ `e30b09af…`로 갈린다.
+  - **이것이 이 정책의 가장 걸리기 쉬운 함정이다.** env를 추가하는 것은 JS만 바뀌는 변경처럼 보이지만, 배포된 빌드 입장에서는 네이티브가 바뀐 것과 같이 취급된다.
+  - 실제로 그렇게 됐다 — v7(runtime `cc07cb6e…`) 배포 후 `eas.json`에 외부 링크 env를 넣었고, 그 뒤의 OTA는 v7에 닿지 않는다. **새 빌드가 필요하다.**
+  - 회피 요령: 급히 내려야 하는 값이면 **코드 폴백을 실값으로 두고 `eas.json`은 건드리지 않는다.** 폴백은 JS라 OTA로 전달된다(`settings.constants.ts`가 이 방식을 쓴다).
 - 적용 시점은 `expo-updates` 기본값(앱 재시작)이다. 사용자 동의 UX(`useUpdates` 훅 + 안내)는 P1로 남긴다.
 
 ## 3. Application Layer Architecture
