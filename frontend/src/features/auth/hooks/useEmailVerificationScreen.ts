@@ -53,7 +53,13 @@ export const useEmailVerificationScreen = () => {
   const verifyMutation = useVerifyEmailCodeMutation();
 
   const [step, setStep] = useState<'input' | 'code'>('input');
-  const [emailInput, setEmailInput] = useState('');
+  /**
+   * 이미 가진 주소를 입력칸에 채워 둔다 — 카카오가 준 미인증 주소가 대표적이다.
+   * 화면에 값만 보여주고 다시 치게 하면 오타가 생기고, 대부분은 그 주소를 그대로 인증한다
+   * (auth-uiux.md 4.7 — A13의 [메일 다시 입력]이 직전 주소를 채워 두는 것과 같은 이유).
+   * 다른 주소로 바꾸려면 그냥 지우고 입력하면 된다.
+   */
+  const [emailInput, setEmailInput] = useState(currentEmail ?? '');
   /** A11 인라인 — null이 아니면 [인증 코드 받기]를 비활성으로 둔다(입력을 고치면 풀린다) */
   const [inputError, setInputError] = useState<string | null>(null);
   /** 화면이 들고 있는 진행 중 인증 건 — 발송 응답 또는 재진입 조회(4.9)로 채워진다 */
