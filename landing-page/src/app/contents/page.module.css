@@ -32,3 +32,12 @@
   color: var(--text-3);
   font-size: 14px;
 }
+
+/** 앱 전환 버튼 묶음 — 좁은 화면에서 세로로 쌓인다(카톡 인앱 브라우저는 폭이 좁다) */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 28px;
+}
