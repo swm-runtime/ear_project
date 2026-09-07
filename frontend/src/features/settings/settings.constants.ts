@@ -11,8 +11,14 @@ export const IS_SETTINGS_API_MOCKED = __DEV__ && process.env.EXPO_PUBLIC_SETTING
  * 죽은 링크로 나갔다. env 누락이 조용히 사고가 되지 않게 폴백 자체를 실값으로 맞춘다
  * (공유 플래그를 기본 켬으로 둔 것과 같은 이유 — share.constants.ts).
  */
+/**
+ * 문의 목적지 — **채널 홈이 아니라 `/chat`이다.** 홈으로 보내면 사용자가 [채팅하기]를 한 번
+ * 더 눌러야 하는데, 인증된 이메일의 변경 요청이 이 경로 하나뿐이라(`auth.md` 4.4) 단계를
+ * 늘리지 않는다. 카카오가 안내하는 `http://` 주소는 `https://`로 리다이렉트되므로 처음부터
+ * `https`로 둔다.
+ */
 export const KAKAO_CHANNEL_URL =
-  process.env.EXPO_PUBLIC_KAKAO_CHANNEL_URL ?? 'https://pf.kakao.com/_ear_dev';
+  process.env.EXPO_PUBLIC_KAKAO_CHANNEL_URL ?? 'https://pf.kakao.com/_MdkJX/chat';
 export const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL ?? 'https://earcast.co.kr/terms';
 export const PRIVACY_POLICY_URL =
   process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL ?? 'https://earcast.co.kr/privacy';
