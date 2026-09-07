@@ -8,7 +8,7 @@
 | 발견 시점 | 2026-09-07 SES 실발송 성공 후 발신 도메인 인증 상태를 조회하다가 — 메일은 도착하는데 도메인에 SPF·DMARC가 한 줄도 없었다 |
 | 근거 문서 | `tickets/frontend/pending/prod-build-env-and-eas.md`(SES 검증 기록) · `infra/inventory.md` 3장(SES 항목) · `features/auth.md`(이메일 인증) |
 | 심각도 | **중** — 아래 "심각도 판단" 참조. 지금 당장 메일이 막히지는 않는다(DKIM 정렬로 최소 요건 충족, 수신함 도착 확인). 도메인 스푸핑 무방비 + 발송량 증가 시 하드 실패 |
-| 상태 | 대기 — **사용자가 가비아 콘솔에서 직접 추가해야 한다**(조사·값 확정은 끝났다) |
+| 상태 | **레코드 반영됨**(2026-09-07) — 완료 조건 1·2 충족. 헤더 확인·2주 관찰·MX 결정 남음 |
 | 연관 | `tickets/frontend/pending/prod-build-env-and-eas.md` — 이 티켓은 그 티켓의 "SES 발송 점검(2026-09-07)" 기록에서 파생됐다 |
 
 ## 문제
@@ -311,3 +311,47 @@ Authentication-Results: mx.google.com;
   테스트용**으로 쓰려 하면 실패한다.
 - 루트 `earcast.co.kr` A는 Vercel(`216.198.79.1`), `api.earcast.co.kr` A는 EC2(`43.203.57.240`).
   이 티켓의 레코드 추가는 둘 다 건드리지 않는다.
+
+## 진행 기록 (2026-09-07 — 레코드 반영됨. 완료 조건 1·2 충족)
+
+사용자가 가비아 DNS 관리툴에서 TXT 2줄을 추가했다. `check-email-dns.py` 전체 PASS.
+
+| 호스트 | 반영된 값 |
+|---|---|
+| `@` | `v=spf1 include:amazonses.com ~all` |
+| `_dmarc` | `v=DMARC1; p=none; rua=mailto:runtime364@gmail.com` |
+
+`rua`는 발행 시 제안한 `soheeandjuho@gmail.com`이 아니라 **팀 공용 주소 `runtime364@gmail.com`으로
+확정**했다. 담당자가 바뀌어도 유지되고, Play Console·테스터 피드백 채널로 이미 쓰는 주소다.
+**완료 조건 4의 `rua` 주소도 이 값으로 읽는다.**
+
+### 첫 저장은 실패했다 — 앞 공백 하나
+
+처음 저장된 SPF 값이 `' v=spf1 include:amazonses.com ~all'`(**앞에 공백 1개**)이었다.
+DoH 응답을 `repr()`로 찍어서 발견했다.
+
+**이건 SPF가 아예 무효가 되는 값이다.** RFC 7208은 레코드가 `v=spf1`로 시작할 것을 요구하고,
+수신 서버는 접두사 일치로 판별하므로 앞 공백이 있으면 그 TXT를 SPF로 인식하지 않는다 —
+넣으나 마나가 된다. 그런데 **DNS 조회 결과만 눈으로 보면 정상으로 보인다.** 공백이 안 보인다.
+
+> **다음에 TXT를 넣는 사람은 반드시 `repr()`로 확인하라.** 이 문서의 `check-email-dns.py`가
+> `startswith('v=spf1')`로 검사하므로 스크립트를 돌리면 걸린다. 눈으로 보고 넘기지 마라.
+
+재저장 후 정상 확인됐다.
+
+### DKIM CNAME 3개도 함께 확인됨
+
+`a3qx3gvs...` · `frnmreyu...` · `4oikfsw5...` 전부 `*.dkim.amazonses.com`으로 해석된다.
+발행 시 적어둔 함정(`_domainkey` 부모 노드가 가비아 NS에서 NXDOMAIN)은 실제 영향이 없다.
+
+### 남은 완료 조건
+
+- **조건 3(메일 헤더 `spf=pass`·`dmarc=pass`)** — 레코드 반영 후 발송한 메일로 확인한다.
+  `spf`는 `pass`가 아니라 `none`/`neutral`로 나올 수 있다 — 커스텀 MAIL FROM이 없어 Return-Path가
+  `amazonses.com`이기 때문이며 **정상이다.** 판정 기준은 `dkim=pass header.i=@earcast.co.kr` +
+  `dmarc=pass` 두 줄이다.
+- **조건 4·5(DMARC 리포트 2주 관찰 → `~all`→`-all`, `p=none`→`p=quarantine`)** — 2026-09-21 이후.
+  XML은 사람이 읽기 어려우니 Postmark DMARC Digest 등 무료 파서에 `runtime364@gmail.com`을 물려두면 된다.
+- **조건 6(MX)** — 안 미정. B(가비아 포워딩) 권고 상태 그대로다. 별건으로, 포워딩을 켜면
+  `no-reply@earcast.co.kr`로 Google 계정을 만들어 **Gmail 발신자 아바타**를 시도해 볼 수 있다
+  (BIMI 없이 되는 비공식 경로 — 보장 없음, 비용 0).
