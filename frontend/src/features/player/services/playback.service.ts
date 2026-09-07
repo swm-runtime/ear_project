@@ -217,7 +217,9 @@ class PlaybackService {
       this.ctx.libraryItemId = issue.libraryItem?.id ?? null;
 
       let startPositionSec = request.restartFromBeginning ? 0 : (issue.progress?.positionSec ?? 0);
-      // 재발행으로 길이가 줄어 위치가 길이를 넘으면 0부터 재생한다(player.md 7)
+      // 재발행으로 길이가 줄어 위치가 길이를 넘으면 0부터 재생한다(player.md 7).
+      // 길이가 늘어난 재발행은 걸리지 않는다 — 그쪽은 서버가 위치를 정리해야 한다
+      // (docs/tickets/backend/pending/republish-stale-playback-position.md)
       if (issue.content.durationSec > 0 && startPositionSec >= issue.content.durationSec) {
         startPositionSec = 0;
       }
@@ -564,7 +566,10 @@ class PlaybackService {
         store.getState().patchSession({ banner: null });
       }
       if (result.contentVersion !== ctx.contentVersion) {
-        // 재발행 감지 — 저장은 서버가 버렸다. 다음 진입에서 새 버전으로 0부터 재생한다(player.md 7)
+        // 세션이 들고 있는 버전을 서버 값에 맞춘다. 재발행 폐기는 여기서 하지 않는다 —
+        // 앱은 재생 위치를 로컬에 보관하지 않으므로 "보관값 대비 폐기"를 수행할 수 없다.
+        // 재발행 시 저장된 위치를 어떻게 할지는 서버가 정한다
+        // (docs/tickets/backend/pending/republish-stale-playback-position.md)
         logger.debug('[player] content version changed', ctx.contentVersion, result.contentVersion);
         ctx.contentVersion = result.contentVersion;
       }

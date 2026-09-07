@@ -8,7 +8,7 @@
 | 발견 시점 | 2026-09-07 재발행 엔드포인트 구현(`tickets/backend/archive/content-republish-audio.md`)의 "프론트 확인 항목"을 확인하다가 |
 | 근거 문서 | `features/player.md` 7 · `spec/api/player-api.md` 4.1·4.3 · `features/offline-download.md` |
 | 심각도 | **하(코드 위생) / 중(오해 유발)** — 동작 버그는 아니다. 다만 **코드가 "하고 있다"고 주장하는 일을 하지 않고 있어서** 다음 사람이 구멍을 못 본다 |
-| 상태 | 대기 |
+| 상태 | 부분 반영 후 보류(2026-09-07) — 주석 정리 완료, 확인은 BE 안 확정 대기 |
 | 연관 | `tickets/backend/pending/republish-stale-playback-position.md` — **실제 해결은 그쪽이다** |
 
 ## 문제
@@ -90,3 +90,43 @@ if (issue.content.durationSec > 0 && startPositionSec >= issue.content.durationS
 - Given `player.types.ts`의 `contentVersion` 필드 / When 주석을 읽는다 / Then 구현되지 않은 폐기 동작이 적혀 있지 않고 담당 티켓을 가리킨다
 - Given BE 티켓이 안 A로 반영된 빌드 / When 재발행된 콘텐츠에 다시 진입한다 / Then 0부터 재생된다(FE 코드 변경 없이)
 - Given 재발행되지 않은 콘텐츠 / When 진입한다 / Then 저장된 위치가 그대로 복원된다(회귀 없음)
+
+## 처리 기록
+
+| 항목 | 값 |
+|---|---|
+| 처리 날짜 | 2026-09-07 |
+| 처리 범위 | 요청 내용 1·2 반영. 3·4는 **보류** |
+| 상태 | **부분 반영 후 보류** — `pending/`에 남긴다 |
+
+### 반영한 것
+
+- `playback.service.ts`의 버전 비교 분기 주석을 사실로 고쳤다. "저장은 서버가 버렸다 / 다음 진입에서
+  0부터 재생한다"를 걷어내고, **이 분기가 하는 일은 세션이 든 버전을 서버 값에 맞추는 동기화뿐**임을
+  적었다. 폐기 주체가 서버임을 BE 티켓 경로로 남겼다. 분기 자체는 요청대로 유지했다.
+- `playback.service.ts`의 길이 초과 폴백 주석에 **길이가 늘어난 재발행은 걸리지 않는다**는 한계를
+  덧붙였다. 폴백 코드는 요청 4대로 그대로 뒀다.
+- `player.types.ts`의 `PlayerContentMeta.contentVersion` 주석에서 "보관값보다 크면 저장 위치를 폐기하고
+  0부터 재생한다"를 걷어냈다. 서버가 내려주는 현재 버전이고 4.3 저장 요청에 실어 보낸다는 사실만 남기고,
+  폐기 판단 주체는 BE 티켓을 가리키게 했다.
+
+동작 변경은 없다. 주석만 고쳤다. `tsc --noEmit` · `eslint` 통과.
+
+### 보류하는 것과 사유
+
+요청 3·4(= 완료 조건 3번)는 **`tickets/backend/pending/republish-stale-playback-position.md`가
+안 A/안 B 중 무엇으로 확정되는지에 달려 있다.** 그 티켓은 2026-09-07 기준 `상태: 대기`이고 선택이
+아직 안 됐다. 안이 갈리면 FE가 할 일도 갈린다.
+
+| BE 결정 | FE가 할 일 |
+|---|---|
+| 안 A(재발행 시 `playback_progresses` 삭제) | **코드 변경 없음.** 4.1이 `progress: null`을 주면 `issue.progress?.positionSec ?? 0`이 이미 0을 쓴다. 재발행 콘텐츠 재진입이 0부터인지 **확인만** 하면 완료 조건 3·4가 닫힌다 |
+| 안 B(`playback_progresses.content_version` 추가 후 4.1이 낡은 행 무시) | 마찬가지로 FE 코드 변경 없음. 다만 4.1 응답에서 `progress`가 어떤 모양으로 오는지(`null`인지 위치 0인지) `player-api.md` 4.1 확정본을 보고 재확인해야 한다 |
+
+**남은 결정 항목**: BE의 안 A/B 선택. 그 전까지 FE에서 더 할 일은 없다.
+
+### 함께 확인한 것 (이 티켓 범위 밖)
+
+`player.types.ts`와 `playback.service.ts` 두 파일 모두 **이 변경 이전부터** `prettier --check`에
+걸려 있다(`git stash` 후 확인). 이번 수정이 만든 문제가 아니고, 전체 포맷을 돌리면 diff가 주석
+수정을 덮어버려 손대지 않았다. 별도로 정리할 사안이다.
