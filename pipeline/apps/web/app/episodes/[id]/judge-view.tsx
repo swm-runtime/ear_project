@@ -4,6 +4,7 @@ import { saveCriticVerdicts } from "@/app/actions";
 import type { CriticFlag, ScoreRow, Turn } from "@/lib/artifacts";
 import { ReQaButton, TurnEditor } from "./script-editor";
 import { btnCls } from "@/components/ui";
+import { clearDraft, draftIsNewer, draftKey, fmtDraftTime, loadDraft, pickKnown, saveDraft, withTimeout } from "@/lib/judge-draft";
 
 /**
  * 판정 화면 (2026-09-01) — 대본과 비평 리포트를 한 화면에서.
@@ -75,16 +76,25 @@ export function JudgeView({ episodeId, backlogId, turns, flags, stars, scores, t
   const humanTotal = scores.reduce((a, s) => a + (Number(sc[s.key]?.human) || 0), 0);
 
   const jump = (id: string) => { setOpen(id); document.getElementById(`turn-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }); };
+  const dkey = draftKey("judge", episodeId);
   const persist = (label: string) => start(async () => {
-    try { await saveCriticVerdicts(episodeId, { flags: fv, stars: sv, scores: sc, extra: saved?.extra ?? "" }); setMsg(label); setDirty(false); }
-    catch (e: any) { setMsg(e.message); }
+    try { await withTimeout(saveCriticVerdicts(episodeId, { flags: fv, stars: sv, scores: sc, extra: saved?.extra ?? "" })); clearDraft(dkey); setMsg(label); setDirty(false); }
+    catch (e) { setMsg(`저장 실패 — ${(e as Error).message}`); } // 초안은 남는다. 버튼이 다시 살아나므로 [지금 저장]으로 재시도
   });
   const save = () => persist("저장됨");
+  // 브라우저 초안 복원 (lib/judge-draft) — 서버 저장본보다 새 초안이 있으면 되살리고 자동 저장에 태운다 (배포·새로고침 사고 대비)
+  useEffect(() => {
+    const d = loadDraft<{ fv: Record<string, V>; sv: Record<string, V>; sc: Record<string, SV> }>(dkey);
+    if (!draftIsNewer(d, saved?.judged_at)) return;
+    const data = d.data;
+    queueMicrotask(() => { setFv((c) => pickKnown(c, data.fv)); setSv((c) => pickKnown(c, data.sv)); setSc((c) => pickKnown(c, data.sc)); setDirty(true); setMsg(`브라우저 초안 복원 (${fmtDraftTime(d.at)}) — 자동 저장 중`); });
+  }, [dkey]); // eslint-disable-line react-hooks/exhaustive-deps
   // 판정·점수는 dirty 가 서면 1.5초 디바운스로 자동 저장한다. 탭 이동은 클라이언트 내비게이션(Link)이라
   // beforeunload 가 안 뜨고 컴포넌트가 unmount 되어 로컬 상태가 사라진다 — 편집 마크(human_edits)는 즉시 저장되는데
   // 판정만 버튼을 눌러야 남던 불일치를 없앤다 (2026-09-03 사용자 보고). 저장 액션엔 필수값 검증이 없어 미완성 입력도 안전.
   useEffect(() => {
     if (!dirty) return;
+    saveDraft(dkey, { fv, sv, sc }); // 입력 즉시 로컬 초안 — 서버 저장이 실패·유실돼도 남는다
     const t = setTimeout(() => persist("자동 저장됨"), 1500);
     return () => clearTimeout(t);
   }, [dirty, fv, sv, sc]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -226,7 +236,7 @@ export function JudgeView({ episodeId, backlogId, turns, flags, stars, scores, t
 
         <div className="flex items-center gap-2 rounded-md border border-line bg-panel p-3">
           <button className={btnCls("primary")} disabled={pending} onClick={save}>지금 저장</button>
-          <span className="text-[11px] text-ink-soft">{pending ? "저장 중…" : dirty ? "변경됨 — 자동 저장 중…" : msg ?? (saved?.judged_by ? `마지막 저장 ${saved.judged_by}` : "판정은 DB에 자동 저장됩니다")}</span>
+          <span className={`text-[11px] ${msg?.startsWith("저장 실패") ? "text-rose-700" : "text-ink-soft"}`}>{pending ? "저장 중…" : msg?.startsWith("저장 실패") ? msg : dirty ? "변경됨 — 자동 저장 중…" : msg ?? (saved?.judged_by ? `마지막 저장 ${saved.judged_by}` : "판정은 DB에 자동 저장됩니다")}</span>
         </div>
       </div>
     </div>
