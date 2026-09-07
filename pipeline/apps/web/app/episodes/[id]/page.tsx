@@ -49,6 +49,7 @@ export default async function EpisodePage({ params, searchParams }: { params: Pr
         desc={bl?.angle ?? undefined}
         actions={<>
           <Badge value={bl?.status} />
+          {ep.regression && <Badge tone="held">{ep.regression_kind === "planted" ? "회귀 세트 · 심은 오류본 (정답은 설명란)" : ep.regression_kind === "anchor_low" ? "회귀 세트 · 저품질 앵커" : "회귀 세트"}</Badge>}
           <span className="text-xs text-ink-soft">{bl?.mid_topic} · {ep.prompt_version}</span>
           <PackageButton episodeId={ep.id} backlogId={ep.backlog_id} enabled={["qa_passed", "packaged"].includes(bl?.status ?? "")} pending={!!pkgJob} />
           {["packaged", "published"].includes(bl?.status ?? "") && <LinkBtn kind="primary" href={`/publish/upload?episode=${ep.id}`}>제품 발행</LinkBtn>}

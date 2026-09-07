@@ -6,7 +6,7 @@ import { fmtTime, label } from "@/lib/format";
 export default async function EpisodesPage() {
   const sb = await supabaseServer();
   const [{ data: eps }, { data: bl }] = await Promise.all([
-    sb.from("episodes").select("id,backlog_id,prompt_version,script_key,qa_report_key,critic_report_key,audio_dist_key,critic_verdicts,human_edits,created_at").order("id", { ascending: false }),
+    sb.from("episodes").select("id,backlog_id,prompt_version,script_key,qa_report_key,critic_report_key,audio_dist_key,critic_verdicts,human_edits,created_at,regression,regression_kind").order("id", { ascending: false }),
     sb.from("backlog").select("id,title,mid_topic,status"),
   ]);
   const b = new Map((bl ?? []).map((x) => [x.id, x]));
@@ -26,6 +26,7 @@ export default async function EpisodesPage() {
                 <Td><Badge value={k?.status} /></Td>
                 <Td>
                   <div className="flex flex-wrap gap-1">
+                    {e.regression && <Badge tone="held">{e.regression_kind === "planted" ? "회귀·심은 오류" : e.regression_kind === "anchor_low" ? "회귀·저품질 앵커" : "회귀 세트"}</Badge>}
                     {e.qa_report_key && <Badge tone="done">QA</Badge>}
                     {e.critic_report_key && <Badge tone={e.critic_verdicts ? "done" : "proposed"}>{e.critic_verdicts ? "판정 완료" : "판정 대기"}</Badge>}
                     {edits > 0 && <Badge tone="approved">수정 {edits}</Badge>}

@@ -26,11 +26,15 @@ async function cmdImport(force: boolean) {
       console.log(`${same ? "=" : "≠"} ${key}  active ${active.version}${same ? "" : " (git 사본과 내용이 다름 — DB 가 진실. git 에 맞추려면 --force, DB 를 git 으로 내리려면 export)"}`);
       continue;
     }
-    const v = active && active.version === version ? `${version}+${new Date().toISOString().slice(0, 10).replace(/-/g, "")}` : version;
+    if (active && active.content === content) { console.log(`= ${key}  active ${active.version} (git 사본과 동일 — 건너뜀)`); continue; } // --force 라도 같은 본문이면 새 버전을 만들지 않는다
+    // 버전 라벨 충돌 회피 — retired 행은 되살릴 수 없으므로(guard_prompt_asset) 이미 쓰인 라벨이면 +날짜, 그것도 있으면 -2, -3 …
+    const taken = new Set((await pool.query<{ version: string }>("select version from public.prompt_assets where key = $1", [key])).rows.map((r) => r.version));
+    const stamp = `${version}+${new Date().toISOString().slice(0, 10).replace(/-/g, "")}`;
+    let v = version;
+    if (taken.has(v)) { v = stamp; for (let n = 2; taken.has(v); n++) v = `${stamp}-${n}`; }
     await pool.query(
       `insert into public.prompt_assets (key, version, content, status, note, created_by, activated_by)
-       values ($1, $2, $3, 'active', $4, $5, $5)
-       on conflict (key, version) do update set content = excluded.content, status = 'active', note = excluded.note`,
+       values ($1, $2, $3, 'active', $4, $5, $5)`,
       [key, v, content, active ? `git 사본으로 교체 (--force, ${workerRev()})` : `초기 시딩 — git docs/ai/skills (${workerRev()})`, by],
     );
     console.log(`+ ${key}  → ${v} (active)`);
