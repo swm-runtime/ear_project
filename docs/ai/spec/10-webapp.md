@@ -172,7 +172,7 @@ create table episodes (
 - `backlog.status` 전이 규약(spec/03)은 유지 — 작업 완료 시 워커가 전환. `approved` 전환은 **UI에서 사람만**.
 - RLS(0003): `authenticated` 팀 계정 — 전 테이블 select, 사람 몫만 write. 승격 규약은 **트리거 스탬프**로 강제: `approved_by/at`·`decided_by/at`·`jobs.requested_by`·`settings.updated_by` 를 세션(이메일)에서 찍고 클라이언트 값은 덮어쓴다 (spec/08 4장). 워커는 secret key/postgres 로 우회.
 - 상태 연쇄 (워커가 수행): `sweep done → cluster 생성` · `approved → draft 생성` · `draft done → qa 생성` ·
-  `qa 실패 → draft(attempt+1, 피드백 payload) 생성, 3회 초과 → review_required` · `qa 통과 → critic 생성` · **tts는 연쇄 없음**.
+  `qa 실패 → draft(attempt+1, 피드백 payload) 생성, 3회 초과 → review_required` · `qa 통과 → critic 생성`(**rubric v2 기본** — 2026-09-07, 워커 env `CRITIC_RUBRIC=v1`로 되돌림. 회귀 세트 판정은 v2 배점으로만, spec/09 7.1) · **tts는 연쇄 없음**.
 
 **0009 — 규칙 동기화·계측 (예정)**
 
