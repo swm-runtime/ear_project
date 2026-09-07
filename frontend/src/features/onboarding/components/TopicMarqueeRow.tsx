@@ -58,7 +58,23 @@ export default function TopicMarqueeRow(props: TopicMarqueeRowProps) {
  * 스크롤로 전환되지 않아 수동 스와이프가 막힌다(후보 2의 부작용).
  */
 const IOS_TAP_PROPS = (
-  Platform.OS === 'ios' ? { delaysContentTouches: false } : {}
+  Platform.OS === 'ios'
+    ? {
+        delaysContentTouches: false,
+        /**
+         * **스와이프를 포기하고 탭을 살린다**(2026-09-08 결정).
+         *
+         * `true`(기본값)면 알약 위에서 시작한 터치를 스크롤이 도중에 뺏어갈 수 있고,
+         * 흐르는 중에는 그 판정이 **첫 탭을 통째로 소비**한다. 터치 시작 시 pause(후보 1)와
+         * `delaysContentTouches`(후보 3-a)로도 해결되지 않았다 — 둘 다 실기기에서 확인했다.
+         *
+         * 대가는 **알약 위에서 시작한 스와이프가 스크롤로 전환되지 않는 것**이다. 알약이
+         * 아닌 여백에서 시작한 스와이프는 그대로 동작하고, 마퀴는 어차피 자동으로 흐른다.
+         * **주제 선택은 온보딩 필수 경로이고 수동 스와이프는 부가 기능이라** 이 교환을 받는다.
+         */
+        canCancelContentTouches: false,
+      }
+    : {}
 ) as Partial<ScrollViewProps>;
 
 /** 한 벌의 픽셀 폭 — 알약 N개 + 벌 끝 여백(알약 간격과 동일) */
