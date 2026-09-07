@@ -78,7 +78,9 @@ export const PROFILE_COPY = {
   email: {
     unregistered: '등록되지 않음',
     /** 배지 — 색 + 텍스트. 색만으로 구분하지 않는다(profile-uiux.md 7장) */
-    unverifiedBadge: '인증되지 않음',
+    unverifiedBadge: '이메일 미인증',
+    /** 이메일 자체가 없는 상태 — 미인증과 다른 상태라 문구를 나눈다 */
+    unregisteredBadge: '이메일 미등록',
     /** P3·P4 보조 문구 — 팝업·배너로 강요하지 않는다(강제 지점은 첫 결제뿐, auth.md 4.4) */
     helper: '결제하려면 인증된 이메일이 필요해요',
     register: '등록',

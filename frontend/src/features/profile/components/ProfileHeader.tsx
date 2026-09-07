@@ -136,11 +136,18 @@ export default function ProfileHeader({
             <Text style={styles.email} numberOfLines={1}>
               {email ?? PROFILE_COPY.header.noEmail}
             </Text>
-            {/* 미인증 배지 — 색 + 텍스트. 인증된 것과 같은 모양 금지(auth-uiux.md 8장) */}
-            {email !== null && !isEmailVerified ? (
+            {/*
+              인증 전이면 배지를 단다 — **미등록도 포함한다.** 사용자에게는 "주소가 없다"와
+              "주소가 확인되지 않았다"가 모두 "아직 인증 안 된 상태"이고, 결제 시점에 가서야
+              알게 되면 늦다(profile.md 4.3). 색 + 텍스트를 함께 쓴다(auth-uiux.md 8장).
+            */}
+            {!isEmailVerified ? (
               <View style={styles.unverifiedBadge}>
                 <Text style={styles.unverifiedBadgeText}>
-                  {PROFILE_COPY.email.unverifiedGlyph} {PROFILE_COPY.email.unverifiedBadge}
+                  {PROFILE_COPY.email.unverifiedGlyph}{' '}
+                  {email === null
+                    ? PROFILE_COPY.email.unregisteredBadge
+                    : PROFILE_COPY.email.unverifiedBadge}
                 </Text>
               </View>
             ) : null}
