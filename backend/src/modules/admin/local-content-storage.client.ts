@@ -18,14 +18,14 @@ import { ContentStorageClient } from './content-storage.client';
 @Injectable()
 export class LocalContentStorageClient extends ContentStorageClient {
   private readonly root: string;
-  private readonly publicBaseUrl: string;
 
   constructor(configService: ConfigService<EnvironmentVariables, true>) {
-    super();
+    super(
+      configService
+        .get('AUDIO_URL_BASE_URL', { infer: true })
+        .replace(/\/$/, ''),
+    );
     this.root = configService.get('AUDIO_STORAGE_ROOT', { infer: true });
-    this.publicBaseUrl = configService
-      .get('AUDIO_URL_BASE_URL', { infer: true })
-      .replace(/\/$/, '');
   }
 
   async putAudio(file: UploadedFileInput, extension: string): Promise<string> {

@@ -30,6 +30,7 @@ export const THUMBNAIL_KEY_PREFIX = 'thumb/';
 
 /** audit_logs.action 값 */
 export const AUDIT_ACTION_CONTENT_UPLOAD = 'content.upload';
+export const AUDIT_ACTION_CONTENT_REPUBLISH = 'content.republish';
 export const AUDIT_ACTION_CONTENT_WITHDRAW = 'content.withdraw';
 export const AUDIT_ACTION_CONTENT_RESTORE = 'content.restore';
 export const AUDIT_ACTION_TOPIC_CREATE = 'topic.create';
