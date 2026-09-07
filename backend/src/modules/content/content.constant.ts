@@ -20,3 +20,13 @@ export const SEARCH_WEIGHT_TITLE = 8;
 export const SEARCH_WEIGHT_AUTHOR = 4;
 export const SEARCH_WEIGHT_TOPIC = 2;
 export const SEARCH_WEIGHT_DESCRIPTION = 1;
+
+/**
+ * domain.md 5.6 — 현재 임베딩 모델 식별자 (확정 2026-09-01, 15.1 #11 해소).
+ *
+ * 스코어링은 이 모델의 벡터만 읽는다 — "서로 다른 모델의 벡터는 비교 불가하므로 `model`이
+ * 섞인 상태로 스코어링하지 않는다"(5.6)를 조회 조건으로 보장한다. 모델을 교체하면 이 값을
+ * 함께 바꾸고, 전량 재생성이 끝날 때까지 구 모델 행은 자연히 축 제외(중립 처리)가 된다.
+ * 개발 스텁이 만드는 `"dev-stub"` 벡터도 같은 조건으로 걸러진다.
+ */
+export const EMBEDDING_MODEL_ID = 'text-embedding-3-small';

@@ -176,7 +176,7 @@ export class DripBatchOrchestrator {
             dripCount,
             now,
           })
-        : { ids: [], topicIds: [] };
+        : { ids: [], topicIds: [], embeddings: [] };
 
     // 탐험 실패는 정규 편성을 되돌리지 않는다(4.8 — 부가 슬롯이 본편을 막으면 안 된다)
     try {
@@ -185,6 +185,7 @@ export class DripBatchOrchestrator {
           activeTopicIds,
           excludedContentIds: [...excludedContentIds, ...regularPicks.ids],
           pickedTopicIds: regularPicks.topicIds,
+          pickedEmbeddings: regularPicks.embeddings,
           discoveryCount,
           now,
         });
@@ -220,7 +221,11 @@ export class DripBatchOrchestrator {
     const contentsById = new Map(
       signalContents.map((content) => [content.id, content]),
     );
-    const topicIdsByContentId = await this.buildTopicIdMap(signalContentIds);
+    const [topicIdsByContentId, embeddingsByContentId] = await Promise.all([
+      this.buildTopicIdMap(signalContentIds),
+      // 취향 벡터(4.3-1)의 입력 — 현재 모델·현재 버전 행만 온다(모델 혼용 금지, domain.md 5.6)
+      this.contentService.findScorableEmbeddings(signalContentIds),
+    ]);
 
     // 값 집합이 같은 두 enum의 매핑은 Orchestrator의 몫이다 (drip.enum.ts 참고)
     const preferenceSignals: PreferenceSignalInput[] = signals.map(
@@ -238,6 +243,7 @@ export class DripBatchOrchestrator {
       topicIdsByContentId,
       completeSignalCount,
       now,
+      embeddingsByContentId,
     );
 
     return {
@@ -262,7 +268,7 @@ export class DripBatchOrchestrator {
       dripCount: number;
       now: Date;
     },
-  ): Promise<{ ids: string[]; topicIds: string[] }> {
+  ): Promise<{ ids: string[]; topicIds: string[]; embeddings: number[][] }> {
     const pool = await this.contentService.findCandidates({
       includeTopicIds: input.activeTopicIds,
       excludeContentIds: input.excludedContentIds,
@@ -280,7 +286,7 @@ export class DripBatchOrchestrator {
 
     if (gated.length === 0) {
       // 고갈 — 대체 없이 그날 적립을 건너뛴다(`drip-scheduling.md` 7, 합의 2026-08-06)
-      return { ids: [], topicIds: [] };
+      return { ids: [], topicIds: [], embeddings: [] };
     }
 
     const recentDripTopicIds = await this.findRecentDripTopicIds(
@@ -313,6 +319,10 @@ export class DripBatchOrchestrator {
     return {
       ids: picks.map((pick) => pick.content.id),
       topicIds: [...new Set(picks.flatMap((pick) => pick.topicIds))],
+      // 탐험 편의 MMR 비교 대상(4.2-3) — 정규 편과 내용이 겹치는 탐험 편을 막는다
+      embeddings: picks.flatMap((pick) =>
+        pick.embedding === null ? [] : [pick.embedding],
+      ),
     };
   }
 
@@ -323,6 +333,7 @@ export class DripBatchOrchestrator {
       activeTopicIds: string[];
       excludedContentIds: string[];
       pickedTopicIds: string[];
+      pickedEmbeddings: number[][];
       discoveryCount: number;
       now: Date;
     },
@@ -354,6 +365,7 @@ export class DripBatchOrchestrator {
       activeTopicIds: input.activeTopicIds,
       userRemovedTopicIds,
       pickedTopicIds: input.pickedTopicIds,
+      pickedEmbeddings: input.pickedEmbeddings,
       count: input.discoveryCount,
       now: input.now,
     });
@@ -366,21 +378,24 @@ export class DripBatchOrchestrator {
     );
   }
 
-  /** 후보 콘텐츠에 스코어링 입력(전체 구간 집계·주제)을 붙인다 */
+  /** 후보 콘텐츠에 스코어링 입력(전체 구간 집계·주제·임베딩)을 붙인다 */
   private async buildScoringCandidates(
     pool: Content[],
   ): Promise<ScoringCandidate[]> {
     const poolIds = pool.map((content) => content.id);
-    const [statsById, topicIdsByContentId] = await Promise.all([
-      this.contentStatService.findAllTimeCounts(poolIds),
-      this.buildTopicIdMap(poolIds),
-    ]);
+    const [statsById, topicIdsByContentId, embeddingsByContentId] =
+      await Promise.all([
+        this.contentStatService.findAllTimeCounts(poolIds),
+        this.buildTopicIdMap(poolIds),
+        this.contentService.findScorableEmbeddings(poolIds),
+      ]);
 
     return pool.map((content) => ({
       content,
       playCount: statsById.get(content.id)?.playCount ?? 0,
       completeCount: statsById.get(content.id)?.completeCount ?? 0,
       topicIds: topicIdsByContentId.get(content.id) ?? [],
+      embedding: embeddingsByContentId.get(content.id) ?? null,
     }));
   }
 

@@ -18,9 +18,8 @@ import { DurationPref } from '../drip.types';
  * 편성 배치 시점에만 재계산한다(실시간 없음 — `drip-scheduling.md` 4.3). 탐색 피드
  * 랭킹(조회 시점 계산)도 이 캐시를 읽는다.
  *
- * `taste_embedding`(취향 벡터)은 **아직 없다** — 임베딩 모델·차원 미확정 상태에서는
- * 벡터 컬럼 마이그레이션을 만들지 않는다(domain.md 15.1 #11). 모델 확정 시 컬럼을
- * 추가한다(`tickets/backend/pending/metadata-pipeline-after-script-quality.md`).
+ * `taste_embedding`(취향 벡터)은 모델 확정(2026-09-01 — domain.md 15.1 #11 해소)으로
+ * 추가됐고, 편성 배치가 4.3-1의 식으로 함께 재계산한다.
  */
 @Entity('user_preference_vectors')
 @Unique('uq_user_preference_vectors_user_id', ['userId'])

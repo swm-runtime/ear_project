@@ -35,6 +35,11 @@ export interface ScoringCandidate {
   playCount: number;
   completeCount: number;
   topicIds: string[];
+  /**
+   * 대본 임베딩(`content_embeddings` — 현재 모델·현재 버전 행만). null이면 임베딩 축이
+   * 빠지고(4.2 재정규화) 다양성 판정은 이산 규칙으로 폴백한다(4.2-3).
+   */
+  embedding: number[] | null;
 }
 
 export interface ScoredCandidate extends ScoringCandidate {
@@ -65,6 +70,8 @@ export interface UserPreferenceWeights {
   keywordWeights: Record<string, number>;
   formatWeights: Record<string, number>;
   durationPref: DurationPref | null;
+  /** 취향 벡터(4.3-1) — 긍정 신호 콘텐츠에 임베딩이 하나도 없으면 null(임베딩 축 제외) */
+  tasteEmbedding: number[] | null;
   signalCount: number;
 }
 
@@ -78,6 +85,11 @@ export interface DiscoverySelectionInput {
   userRemovedTopicIds: string[];
   /** 정규 편성으로 이미 뽑힌 편의 주제 — 이산 다양성 회피 */
   pickedTopicIds: string[];
+  /**
+   * 정규 편성으로 이미 뽑힌 편의 임베딩 — 탐험 편도 MMR 비교 대상에 포함한다
+   * (`drip-scheduling.md` 4.2-3). 생략하면 이산 규칙만으로 동작한다.
+   */
+  pickedEmbeddings?: number[][];
   count: number;
   now: Date;
 }

@@ -4,6 +4,7 @@ import { ContentDifficulty } from '@/modules/content/content.enum';
 import { Content } from '@/modules/content/entities/content.entity';
 
 import {
+  AXIS_WEIGHT_EMBEDDING,
   AXIS_WEIGHT_META,
   AXIS_WEIGHT_SIGNAL,
   DISCOVERY_ITEM_WEIGHTS,
@@ -13,6 +14,7 @@ import {
   GLOBAL_COMPLETE_RATE_FALLBACK,
   META_ITEM_WEIGHTS,
   META_ITEM_WEIGHTS_COLD_START,
+  MMR_DIVERSITY_LAMBDA,
   POPULARITY_PLAY_COUNT_LOG_CAP,
   POPULARITY_SMOOTHING_C,
   SIGNAL_ITEM_WEIGHTS,
@@ -44,9 +46,10 @@ interface ScoreItem {
  * `drip-scheduling.md` 4.2의 3축 하이브리드 스코어링 — **순수 계산만 한다.**
  * 입력 조회·적립은 편성 배치 Orchestrator의 몫이다.
  *
- * **① 임베딩 유사도 축은 아직 없다** — 모델·차원 미확정(domain.md 15.1 #11)이라
- * ②(신호 선호)·③(메타 규칙) 두 축을 재정규화해 쓴다(4.2의 결여 축 규칙). 같은 이유로
- * 다양성 제약도 MMR이 아니라 이산 규칙 폴백(같은 주제·저자 회피)으로 동작한다(4.2-3).
+ * ① 임베딩 유사도 축은 취향 벡터(4.3-1)와 후보 임베딩의 코사인 유사도다. 어느 한쪽이
+ * 없으면 축이 빠지고 나머지가 재정규화된다(4.2의 결여 축 규칙) — 임베딩 미부여 상태의
+ * 종전 동작(②·③ 재정규화)이 그대로 유지된다. 다양성 제약은 두 편 모두 임베딩이 있으면
+ * MMR, 아니면 이산 규칙 폴백(같은 주제·저자 회피)이다(4.2-3).
  *
  * **커리어 적합도(4.2 ③)는 미구현이다** — 콘텐츠 쪽에 직군·연차 대응 데이터가 없어
  * 매칭할 입력 자체가 없다. 콘텐츠 메타가 생기면 항목을 추가한다.
@@ -93,6 +96,10 @@ export class DripScoringService {
 
         const axes: ScoreItem[] = [
           {
+            score: this.embeddingAxisScore(candidate, context),
+            weight: AXIS_WEIGHT_EMBEDDING,
+          },
+          {
             score: this.signalAxisScore(candidate, context),
             weight: AXIS_WEIGHT_SIGNAL,
           },
@@ -119,11 +126,15 @@ export class DripScoringService {
   }
 
   /**
-   * 다양성 제약을 적용한 선정(4.2-3 — 이산 규칙 폴백).
+   * 다양성 제약을 적용한 선정(4.2-3).
    *
-   * 이미 뽑힌 편과 주제·저자가 겹치지 않는 후보를 우선하되, **겹치지 않는 후보가 없으면
-   * 최고점 후보로 채운다** — 규칙은 "같은 것만 나오지 않도록"이지 편수를 비우라는 것이
-   * 아니다. 시리즈 연속 편은 예외로 겹침 검사를 받지 않는다.
+   * 비교하는 두 편 모두 임베딩이 있으면 **MMR**로 판정한다 — `스코어 − λ × (이미 뽑은
+   * 편과의 코사인 유사도 최댓값)`으로 재계산해 뽑는다. 어느 한 편이라도 임베딩이 없는
+   * 비교는 종전 이산 규칙(같은 주제·저자 회피)으로 폴백한다.
+   *
+   * 이산 규칙에 걸리지 않는 후보를 우선하되, **그런 후보가 없으면 재계산 최고점 후보로
+   * 채운다** — 규칙은 "같은 것만 나오지 않도록"이지 편수를 비우라는 것이 아니다.
+   * 시리즈 연속 편은 예외다 — 겹침 검사도 MMR 감점도 받지 않는다.
    */
   selectWithDiversity(
     scored: ScoredCandidate[],
@@ -133,26 +144,66 @@ export class DripScoringService {
     const remaining = [...scored];
 
     while (picks.length < count && remaining.length > 0) {
-      const pickedTopicIds = new Set(picks.flatMap((pick) => pick.topicIds));
-      const pickedAuthors = new Set(
-        picks
-          .map((pick) => pick.content.authorName)
-          .filter((author): author is string => author !== null),
-      );
+      const ranked = remaining
+        .map((candidate) => ({
+          candidate,
+          adjustedScore: this.diversityAdjustedScore(candidate, picks),
+        }))
+        .sort(
+          (a, b) =>
+            b.adjustedScore - a.adjustedScore ||
+            a.candidate.content.id.localeCompare(b.candidate.content.id),
+        );
 
-      const index = remaining.findIndex(
-        (candidate) =>
-          candidate.isSeriesContinuation ||
-          (!candidate.topicIds.some((topicId) => pickedTopicIds.has(topicId)) &&
-            (candidate.content.authorName === null ||
-              !pickedAuthors.has(candidate.content.authorName))),
-      );
+      const preferred =
+        ranked.find(
+          (entry) => !this.conflictsDiscretely(entry.candidate, picks),
+        ) ?? ranked[0];
 
-      const [picked] = remaining.splice(index >= 0 ? index : 0, 1);
-      picks.push(picked);
+      remaining.splice(remaining.indexOf(preferred.candidate), 1);
+      picks.push(preferred.candidate);
     }
 
     return picks;
+  }
+
+  /** MMR 재계산 점수 — 시리즈 연속 편은 감점 예외, 임베딩 없는 비교는 감점 0 */
+  private diversityAdjustedScore(
+    candidate: ScoredCandidate,
+    picks: ScoredCandidate[],
+  ): number {
+    if (candidate.isSeriesContinuation) {
+      return candidate.score;
+    }
+
+    return mmrAdjustedScore(
+      candidate,
+      picks.flatMap((pick) =>
+        pick.embedding === null ? [] : [pick.embedding],
+      ),
+    );
+  }
+
+  /** 이산 규칙(같은 주제·저자) — 두 편 모두 임베딩이 있는 비교는 MMR이 대신하므로 통과 */
+  private conflictsDiscretely(
+    candidate: ScoredCandidate,
+    picks: ScoredCandidate[],
+  ): boolean {
+    if (candidate.isSeriesContinuation) {
+      return false;
+    }
+
+    return picks.some((pick) => {
+      if (candidate.embedding !== null && pick.embedding !== null) {
+        return false;
+      }
+
+      return (
+        candidate.topicIds.some((topicId) => pick.topicIds.includes(topicId)) ||
+        (candidate.content.authorName !== null &&
+          candidate.content.authorName === pick.content.authorName)
+      );
+    });
   }
 
   /**
@@ -198,34 +249,72 @@ export class DripScoringService {
 
     const picks: ScoredCandidate[] = [];
     const pickedTopicIds = new Set(input.pickedTopicIds);
+    // 탐험 편도 MMR 비교 대상이다(4.2-3) — 정규 편 임베딩에서 시작해 뽑을 때마다 더한다
+    const pickedEmbeddings = [...(input.pickedEmbeddings ?? [])];
 
     // 관심 밖 우선(혼합 — 협의 2026-08-27), 각 풀 안에서는 정규 편과 주제가 겹치지 않는 것 우선
     for (const pool of [outside, inside]) {
       for (const preferNonOverlapping of [true, false]) {
-        for (const candidate of pool) {
+        for (;;) {
           if (picks.length >= input.count) {
             return picks;
           }
 
-          if (picks.includes(candidate)) {
-            continue;
-          }
-
-          const overlapsPicked = candidate.topicIds.some((topicId) =>
-            pickedTopicIds.has(topicId),
+          const eligible = pool.filter(
+            (candidate) =>
+              !picks.includes(candidate) &&
+              (!preferNonOverlapping ||
+                !candidate.topicIds.some((topicId) =>
+                  pickedTopicIds.has(topicId),
+                )),
           );
 
-          if (preferNonOverlapping && overlapsPicked) {
-            continue;
+          if (eligible.length === 0) {
+            break;
           }
 
-          picks.push(candidate);
-          candidate.topicIds.forEach((topicId) => pickedTopicIds.add(topicId));
+          // MMR 재계산 최고점을 뽑는다 — 임베딩이 없으면 감점 0이라 점수순과 같다
+          const picked = eligible.reduce((best, candidate) =>
+            mmrAdjustedScore(candidate, pickedEmbeddings) >
+            mmrAdjustedScore(best, pickedEmbeddings)
+              ? candidate
+              : best,
+          );
+
+          picks.push(picked);
+          picked.topicIds.forEach((topicId) => pickedTopicIds.add(topicId));
+
+          if (picked.embedding !== null) {
+            pickedEmbeddings.push(picked.embedding);
+          }
         }
       }
     }
 
     return picks;
+  }
+
+  /**
+   * ① 임베딩 유사도 축(4.2) — 취향 벡터(4.3-1)와 후보 임베딩의 코사인 유사도.
+   * 콜드스타트·취향 벡터 없음·임베딩 없음이면 축이 빠진다(null — 4.2 재정규화,
+   * 4.4 "취향 벡터가 없으므로 자연히 빠진다"). 유사도(-1~1)는 0~1로 접어 다른 축과
+   * 스케일을 맞춘다.
+   */
+  private embeddingAxisScore(
+    candidate: ScoringCandidate,
+    context: RegularScoringContext,
+  ): number | null {
+    if (context.isColdStart || context.preference === null) {
+      return null;
+    }
+
+    const taste = context.preference.tasteEmbedding;
+
+    if (taste === null || candidate.embedding === null) {
+      return null;
+    }
+
+    return (cosineSimilarity(taste, candidate.embedding) + 1) / 2;
   }
 
   /** ② 신호 선호 축 — 취향 가중치·콜드스타트가 없으면 축 자체가 빠진다(null) */
@@ -535,4 +624,48 @@ function weightedMean(items: ScoreItem[]): number | null {
 /** 무한 범위의 누적 가중치를 0~1로 접는다(0 → 0.5, 음수 → 0.5 미만) */
 function squash(value: number): number {
   return 0.5 + 0.5 * Math.tanh(value);
+}
+
+/** 탐험 선정의 MMR 재계산(4.2-3) — 임베딩이 없거나 비교 대상이 없으면 감점 없음 */
+function mmrAdjustedScore(
+  candidate: ScoredCandidate,
+  pickedEmbeddings: number[][],
+): number {
+  if (candidate.embedding === null) {
+    return candidate.score;
+  }
+
+  let maxSimilarity = 0;
+
+  for (const embedding of pickedEmbeddings) {
+    maxSimilarity = Math.max(
+      maxSimilarity,
+      cosineSimilarity(candidate.embedding, embedding),
+    );
+  }
+
+  return candidate.score - MMR_DIVERSITY_LAMBDA * maxSimilarity;
+}
+
+/**
+ * 코사인 유사도(domain.md 5.6 — 지표는 코사인으로 확정). 저장 벡터는 정규화 전제지만
+ * 방어적으로 노름을 나눈다 — 0 벡터가 섞여도 NaN 대신 0(무관)으로 처리한다.
+ */
+function cosineSimilarity(a: number[], b: number[]): number {
+  const length = Math.min(a.length, b.length);
+  let dot = 0;
+  let normA = 0;
+  let normB = 0;
+
+  for (let i = 0; i < length; i += 1) {
+    dot += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+
+  if (normA === 0 || normB === 0) {
+    return 0;
+  }
+
+  return dot / Math.sqrt(normA * normB);
 }

@@ -28,9 +28,11 @@ import {
   SearchPage,
   SearchPageQuery,
 } from '../content.types';
+import { EMBEDDING_MODEL_ID } from '../content.constant';
 import { ContentSource } from '../entities/content-source.entity';
 import { Content } from '../entities/content.entity';
 import { ContentRepository } from '../repositories/content.repository';
+import { ContentEmbeddingRepository } from '../repositories/content-embedding.repository';
 import { ContentSourceRepository } from '../repositories/content-source.repository';
 import { ContentTopicRepository } from '../repositories/content-topic.repository';
 
@@ -50,7 +52,29 @@ export class ContentService {
     private readonly contentRepository: ContentRepository,
     private readonly contentTopicRepository: ContentTopicRepository,
     private readonly contentSourceRepository: ContentSourceRepository,
+    private readonly contentEmbeddingRepository: ContentEmbeddingRepository,
   ) {}
+
+  /**
+   * 스코어링에 쓸 수 있는 임베딩만 — 현재 모델(`EMBEDDING_MODEL_ID`)이고 대본 버전이
+   * 현재와 일치하는 행. 조건에서 걸러진 콘텐츠는 맵에 없고, 스코어링은 임베딩 축을
+   * 중립 처리한다(`drip-scheduling.md` 4.2 — 결여 축 재정규화).
+   */
+  async findScorableEmbeddings(
+    contentIds: string[],
+    manager?: EntityManager,
+  ): Promise<Map<string, number[]>> {
+    const embeddings =
+      await this.contentEmbeddingRepository.findAllScorableByContentIds(
+        contentIds,
+        EMBEDDING_MODEL_ID,
+        manager,
+      );
+
+    return new Map(
+      embeddings.map((embedding) => [embedding.contentId, embedding.embedding]),
+    );
+  }
 
   async findCandidates(
     query: ContentCandidateQuery,
