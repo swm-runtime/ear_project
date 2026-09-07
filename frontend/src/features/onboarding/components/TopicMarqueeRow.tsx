@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Platform, ScrollView, StyleSheet, View } from 'react-native';
-import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
+import type { NativeScrollEvent, NativeSyntheticEvent, ScrollViewProps } from 'react-native';
 
 import { theme } from '@/shared/theme';
 
@@ -43,6 +43,23 @@ export default function TopicMarqueeRow(props: TopicMarqueeRowProps) {
   if (Platform.OS === 'web') return <WebMarqueeRow {...props} />;
   return <NativeMarqueeRow {...props} />;
 }
+
+/**
+ * iOS 전용 — `UIScrollView`가 자식에게 터치를 넘기기 전에 약 150ms 붙들고 "스크롤인가"를
+ * 판정한다(`delaysContentTouches` 기본값 true). 그 지연 때문에 **흐르는 중의 첫 탭이 선택으로
+ * 이어지지 않고 두 번 탭해야 했다**(2026-09-07 실기기 확인 — 터치 시작 시 pause만으로는
+ * 부족했다. `tickets/frontend/pending/onboarding-marquee-ios-tap-miss.md` 후보 3-a).
+ *
+ * **RN 0.86의 `ScrollViewProps` 타입에는 이 prop이 없다.** 네이티브 구현은 살아 있으므로
+ * (`RCTScrollView.m`·`RCTScrollViewComponentView.mm`) 타입만 우회한다. Android에서는 넘기지
+ * 않는다 — 그쪽은 원래 정상이고, 무시되는 prop이라도 의도를 좁혀 둔다.
+ *
+ * `canCancelContentTouches={false}`는 여전히 쓰지 않는다 — 알약 위에서 시작한 스와이프가
+ * 스크롤로 전환되지 않아 수동 스와이프가 막힌다(후보 2의 부작용).
+ */
+const IOS_TAP_PROPS = (
+  Platform.OS === 'ios' ? { delaysContentTouches: false } : {}
+) as Partial<ScrollViewProps>;
 
 /** 한 벌의 픽셀 폭 — 알약 N개 + 벌 끝 여백(알약 간격과 동일) */
 const copyWidthOf = (count: number, pillWidth: number): number =>
@@ -231,6 +248,7 @@ function NativeMarqueeRow({
 
   return (
     <ScrollView
+      {...IOS_TAP_PROPS}
       ref={scrollRef}
       horizontal
       showsHorizontalScrollIndicator={false}
@@ -245,8 +263,6 @@ function NativeMarqueeRow({
       onMomentumScrollEnd={scheduleResume}
       // canCancelContentTouches={false}는 쓰지 않는다 — 알약 위에서 시작한 스와이프가
       // 스크롤로 전환되지 않아 수동 스와이프가 막힌다(같은 티켓 후보 2의 부작용).
-      // delaysContentTouches도 쓰지 않았다 — RN 0.86 의 ScrollViewProps 타입에 없다
-      // (네이티브 구현은 남아 있으나 노출되지 않는다). 위 pause로 부족하면 그때 다시 본다.
       scrollEventThrottle={16}
     >
       <View style={styles.copies}>
