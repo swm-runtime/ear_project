@@ -149,8 +149,14 @@ const styles = StyleSheet.create({
     // 알약 — 사진·오버레이 클리핑은 여기서 한 번만 한다
     borderRadius: theme.radius.full,
     overflow: 'hidden',
-    // 터치 타깃 44pt(uiux 7장)를 지키는 선에서 납작하게
-    minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
+    /*
+     * 배경 사진의 가로세로비에 맞춘 높이다. 주제 사진은 전부 800x320(2.50:1)이고
+     * 온보딩 알약 폭이 156이므로, 높이 62면 156/62 = 2.52 로 **크롭이 사실상 0**이 된다.
+     * 52였을 때는 3.00:1 이라 세로가 17% 잘려 나갔고 — 원본이 이미 한 번 잘린 상태라
+     * 피사체가 두 번 잘려 무엇을 찍은 사진인지 알아볼 수 없었다(2026-09-08 iOS 실기기).
+     * 사진을 바꾸려면 이 비(2.50:1)를 함께 본다.
+     */
+    minHeight: 62,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: theme.spacing.lg,
