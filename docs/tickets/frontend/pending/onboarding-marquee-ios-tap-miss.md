@@ -241,3 +241,29 @@ iOS 는 hit-test 가 transform 을 따라가므로 같은 구조에서 정상이
 
 - **Android**: 한 번 탭으로 선택되는지, 스와이프가 돌아왔는지, 손 뗀 뒤 1.5초 재개
 - **iOS**: 계속 정상인지(이번 변경은 iOS 코드를 건드리지 않았다)
+
+## 진행 기록 (2026-09-08 — Android 정상 확인. iOS 스와이프를 되살렸다)
+
+**Android 정상 작동 확인**(실기기) — 원복이 맞았다. **iOS 는 탭이 해결됐고 스와이프만 없었다.**
+
+`ScrollView` 를 걷어낸 대가였는데, `PanResponder` 로 되살렸다.
+
+```tsx
+onMoveShouldSetPanResponder: (_e, g) =>
+  Math.abs(g.dx) > SWIPE_SLOP && Math.abs(g.dx) > Math.abs(g.dy),
+```
+
+**탭을 건드리지 않는 것이 조건이다.** `onStartShouldSetPanResponder` 를 주지 않아 손가락이 닿는
+것만으로는 잡지 않고, **가로로 8px 이상 움직였을 때만** 잡는다. 그 전까지 터치는 알약의
+`Pressable` 로 그대로 간다. 세로 움직임이 더 크면 잡지 않는다(상하 스크롤과 충돌 방지).
+
+끌 때는 `progress` 를 한 벌 폭 안으로 되감아(`wrap`) 무한 루프가 유지되고, 손을 떼면 그 지점에서
+1.5초 뒤 자동 흐름이 재개된다.
+
+`react-hooks/refs` 가 `PanResponder.create` 를 잡는다 — 렌더 중 함수에 ref 를 넘긴다고 보는데,
+create 는 핸들러를 **등록만** 하고 호출하지 않는다. 사유를 적고 그 줄만 예외 처리했다.
+
+### 남은 확인
+
+- **iOS**: 알약 줄을 손으로 밀면 넘어가는지 / 밀고 난 뒤 1.5초 뒤 재개 / **탭이 계속 한 번에 되는지**
+- **Android**: 이번 변경은 iOS 경로만 건드렸으므로 회귀가 없어야 한다
