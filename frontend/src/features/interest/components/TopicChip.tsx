@@ -159,8 +159,12 @@ const styles = StyleSheet.create({
     minHeight: 62,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.sm,
+    /*
+     * **패딩을 칩이 갖지 않는다.** 배경 사진의 `width/height: '100%'`가 부모의
+     * **콘텐츠 박스**(패딩 제외)로 풀리기 때문이다 — 칩에 패딩이 있으면 사진 상자가
+     * 그만큼 작아져 알약 가장자리에 배경이 드러난다(2026-09-08 iOS 실기기).
+     * 좌우 여백은 아래 `label`이 갖는다. 사진은 알약 전체를 덮는다.
+     */
   },
   /**
    * 배경 사진 — **inset만으로 채운다.** `width: '100%'`·`height: '100%'`를 함께 주면
@@ -171,12 +175,22 @@ const styles = StyleSheet.create({
    * 바로 아래 `overlay`가 inset만 쓰고도 정확히 채워지는 것이 같은 이유의 반증이다.
    * 둘의 상자가 어긋나면 오버레이가 사진 밖까지 덮어 경계가 보인다.
    */
+  /*
+   * 배경 사진 — inset과 크기를 **함께** 준다.
+   *
+   * react-native-web 은 `Image` 래퍼에 **원본 크기(800x320)를 박아** 넣는다. inset만으로는
+   * 크기가 잡히지 않아 알약(156x62) 밖으로 644px 넘쳤다(브라우저 실측 2026-09-08).
+   * 그래서 퍼센트 크기가 필요하다. 그리고 위 `chip`에서 패딩을 걷어냈으므로 그 퍼센트가
+   * 알약 전체와 같아진다 — 웹·iOS 양쪽에서 정확히 채워진다.
+   */
   photo: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
+    width: '100%',
+    height: '100%',
   },
   overlay: {
     position: 'absolute',
@@ -194,6 +208,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.78)',
   },
   label: {
+    // 칩이 아니라 라벨이 좌우 여백을 갖는다 — 위 chip 주석 참조
+    paddingHorizontal: theme.spacing.lg,
     fontSize: theme.font.size.md,
     // 선택 여부와 무관하게 굵기를 고정한다 — 선택 시 굵어지면 라벨 폭이 변해 시선이 튄다
     fontWeight: '700',
