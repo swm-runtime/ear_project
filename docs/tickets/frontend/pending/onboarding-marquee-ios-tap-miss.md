@@ -8,7 +8,7 @@
 | 발견 시점 | 내부 테스트 배포 실기기 확인 — iOS에서만 재현, Android는 정상 |
 | 근거 문서 | `spec/uiux/onboarding-uiux.md` 4.1(O1 주제 선택 — 칩 탭 = 선택 토글) · 구현 주석(`TopicMarqueeRow.tsx` — "만지면 멈춘다") |
 | 심각도 | **중** — 온보딩 필수 경로의 첫 상호작용. 흐르는 중 첫 탭이 선택으로 이어지지 않아 여러 번 탭하게 된다(멈춘 상태에서는 선택 가능해 완전 차단은 아님) |
-| 상태 | pending |
+| 상태 | pending — 후보 1 반영(2026-09-07). **iOS 실기기 확인 대기** |
 
 ## 문제
 
@@ -46,3 +46,43 @@ O1 주제 선택의 마퀴 줄이 자동으로 흐르는 동안 **iOS에서는 �
 ## 진행 기록
 
 - 2026-09-07 — 발행(내부 테스트 실기기 확인 중 발견). 테스트 종료 후 일괄 반영 대상.
+
+## 진행 기록 (2026-09-07 저녁 — 후보 1 반영. 실기기 확인 대기)
+
+**후보 1(터치 시작 시 즉시 pause)만 반영했다.** 티켓이 "최우선 시도"로 지목한 항목이고,
+웹 경로와의 비대칭을 없애는 변경이라 부작용이 가장 적다.
+
+```tsx
+// NativeMarqueeRow — ScrollView
+onTouchStart={handleTouchStart}   // 드래그 판정 전에 흐름을 끊는다
+onTouchEnd={scheduleResume}       // 탭으로 끝난 터치도 흐름을 되살린다
+onTouchCancel={scheduleResume}
+```
+
+`onScrollBeginDrag`는 **드래그로 판정된 뒤에야** 온다. 그래서 탭 한 번은 흐르는 동안 그대로
+지나갔고, 그 사이 rAF가 `scrollTo`를 계속 밀었다. 이제 손가락이 닿는 순간 `paused.current`가
+서므로 터치 구간에 `scrollTo` 유입이 없다.
+
+`onTouchEnd`·`onTouchCancel`을 함께 단 이유는 **탭은 스크롤 이벤트를 한 번도 만들지 않기**
+때문이다. 그것만 넣고 끝내면 탭 한 번에 마퀴가 영영 멈춘다.
+
+### 반영하지 않은 것과 이유
+
+| 후보 | 판단 |
+|---|---|
+| 2. `canCancelContentTouches={false}` | **쓰지 않는다.** 알약 위에서 시작한 스와이프가 스크롤로 전환되지 않아 수동 스와이프가 막힌다(티켓이 이미 지적한 부작용). 후보 1로 부족할 때만 본다 |
+| 3-a. `delaysContentTouches={false}` | **넣을 수 없었다.** RN 0.86의 `ScrollViewProps` 타입에 이 prop이 없다(`ScrollView.d.ts`에 `canCancelContentTouches`만 있다). 네이티브 구현은 `RCTScrollView.m`·`RCTScrollViewComponentView.mm`에 남아 있으나 노출되지 않는다. 타입 캐스팅으로 우회하는 것은 **iOS 실기기 검증 없이는 위험**하다고 판단해 보류했다 |
+| 3-b. `pressRetentionOffset` 등 | 후보 1의 결과를 보고 판단한다 |
+
+### 확인 필요 — 이 티켓은 아직 pending이다
+
+**iOS 실기기가 필요하다.** `tsc`·`eslint`·`jest`는 통과했지만 이 증상은 타입·단위 테스트로
+잡히지 않는다.
+
+- Given iOS에서 마퀴가 흐르는 상태 / When 칩을 **한 번** 탭한다 / Then 선택된다
+- Given iOS / When 칩이 아닌 곳을 잡고 스와이프한다 / Then 수동 스크롤되고 약 1.5초 뒤 재개
+- Given iOS / When 칩을 **탭만** 한다 / Then 약 1.5초 뒤 자동 흐름이 재개된다 ← **이번 변경으로 새로 생긴 확인 항목**
+- Given Android / When 같은 조작 / Then 변화 없음
+
+**후보 1로 해결되지 않으면** 위 표의 3-a를 타입 캐스팅으로 시도하고, 그래도 안 되면 2를 검토한다.
+다음에 집는 사람이 다시 조사할 것은 없다 — 순서가 정해져 있다.
