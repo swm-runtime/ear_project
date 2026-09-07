@@ -5,11 +5,10 @@
 export const EXPLORE_COPY = {
   /** 첫 사용 코치마크(온보딩 직후 착지) — TODO(카피 미확정) */
   walkthrough: {
-    searchStep: '궁금한 주제를 여기서 검색하고 담아보세요',
-    libraryStep: '담아둔 콘텐츠와 매일 아침 도착하는 2편은 라이브러리 탭에 있어요',
-    next: '다음',
+    searchStep: '궁금한 주제를\n여기서 찾아 담아보세요',
+    limitStep: '오늘 남은\n재생 횟수예요',
+    libraryStep: '담은 콘텐츠와 매일 아침\n도착하는 2편은 여기에',
     done: '시작하기',
-    skip: '건너뛰기',
   },
   /** E6·E7 검색(explore.md 4.5 — MVP 포함 격상, 합의 2026-08-23) */
   search: {

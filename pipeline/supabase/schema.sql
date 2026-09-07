@@ -51,7 +51,9 @@ create table if not exists backlog (
   approved_at timestamptz,
   claimed_by  text,                            -- 동시 작업 충돌 방지
   claimed_at  timestamptz,
-  published_content_ref text,                  -- 발행 후 제품 콘텐츠 식별 (수기)
+  published_content_ref text,                  -- 발행 후 제품 content_id (0012 부터 발행 화면이 자동 기록, 이전은 수기)
+  published_version int,                       -- 제품 content_version (재발행마다 +1 — 0012)
+  published_at timestamptz,                    -- 최근 발행·재발행 시각 (0012) — TTS 재합성 시각과 비교해 재발행 버튼을 띄운다
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
@@ -76,7 +78,7 @@ create table if not exists runs (
 -- 주제 추가·변경은 이 테이블의 행 편집으로 한다 (PIPELINE.md 1장의 표는 이 테이블의 반영).
 create table if not exists topics (
   id          uuid primary key default gen_random_uuid(),
-  major       text not null,                   -- 대분류: 돈 / 배움 / 일
+  major       text not null,                   -- 대분류: 돈·경제 / 일 / 비즈니스 / 과학·기술 / 심리·마음 / 인문·교양 / 자격증·시험 (0011 · 순서는 apps/web/lib/taxonomy.ts)
   mid         text not null unique,            -- 중분류 (backlog.mid_topic·domains.topic_coverage가 이 이름을 참조)
   ai_generation boolean not null default true, -- AI 생성 대상 여부 (배제 합의의 데이터화)
   explainer   text check (explainer in ('윤아','이음')),  -- 해설 담당 페르소나 (spec/04)

@@ -117,8 +117,8 @@ export interface EarContent {
 }
 
 export const listEarTopics = () => earFetch<{ items: EarTopic[] }>("/admin/topics");
-export const createEarTopic = (name: string, parent_category: string) =>
-  earFetch<EarTopic>("/admin/topics", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, parent_category }) });
+export const createEarTopic = (name: string, parent_category: string, display_order?: number) =>
+  earFetch<EarTopic>("/admin/topics", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, parent_category, ...(display_order != null ? { display_order } : {}) }) });
 export const patchEarTopic = (id: string, fields: Partial<{ name: string; parent_category: string; is_visible: boolean; display_order: number }>) =>
   earFetch<EarTopic>(`/admin/topics/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(fields) });
 export const deleteEarTopic = (id: string) => earFetch<void>(`/admin/topics/${id}`, { method: "DELETE" });
@@ -137,6 +137,15 @@ export interface UploadPayload {
   author_name?: string; source_url?: string; partner_id?: string; license_expires_at?: string;
   series_id?: string; episode_no?: number; total_episodes?: number;
   review_confirmed: boolean;
+}
+
+/** 재발행 — 같은 content_id 에 오디오(·메타) 교체, content_version +1 (admin-api 4.10 — 백엔드 구현 대기: 404 면 아직 없는 것) */
+export function republishEarContent(contentId: string, parts: { audio?: File; thumbnail?: File; payload?: Partial<Pick<UploadPayload, "title" | "description" | "source_name" | "topic_ids" | "sources">> }): Promise<EarContent> {
+  const fd = new FormData();
+  if (parts.payload) fd.append("payload", JSON.stringify(parts.payload));
+  if (parts.audio) fd.append("audio", parts.audio);
+  if (parts.thumbnail) fd.append("thumbnail", parts.thumbnail);
+  return earFetch<EarContent>(`/admin/contents/${contentId}`, { method: "PATCH", body: fd });
 }
 
 export function uploadEarContent(payload: UploadPayload, audio: File, thumbnail: File): Promise<EarContent> {

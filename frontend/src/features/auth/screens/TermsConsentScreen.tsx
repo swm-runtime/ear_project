@@ -79,11 +79,12 @@ export default function TermsConsentScreen({ route, navigation }: TermsConsentSc
               isChecked={item.isChecked}
               description={item.description}
               onToggle={() => toggleConsent(item.consentType)}
-              // 마케팅은 열람 문서 없이 한 줄 고지로 충분하다 — [보기] 셰브론 생략
+              // 열람 문서가 있는 항목만 [보기] 셰브론을 그린다 — 마케팅은 한 줄 고지로,
+              // 연령 확인은 자기 선언이라 열 문서가 없다
               onViewPress={
-                item.consentType === 'marketing'
-                  ? undefined
-                  : () => handleViewPress(item.consentType)
+                item.consentType === 'terms' || item.consentType === 'privacy'
+                  ? () => handleViewPress(item.consentType)
+                  : undefined
               }
             />
           ))}

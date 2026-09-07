@@ -11,6 +11,7 @@
     "<rootDir>/setup-e2e.ts"
   ],
   "moduleNameMapper": {
+    "^music-metadata$": "<rootDir>/__mocks__/music-metadata.ts",
     "^@/(.*)$": "<rootDir>/../src/$1"
   },
   "transform": {

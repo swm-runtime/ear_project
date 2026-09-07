@@ -2,7 +2,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { setBacklogStatus, listPublishableEpisodes } from "../../actions";
+import { markPublished, listPublishableEpisodes } from "../../actions";
 import { EarTopic, listEarTopics, uploadEarContent } from "@/lib/ear";
 import { Badge, PageHeader, Panel, btnCls } from "@/components/ui";
 import { EarGate, EarSession, earErrMsg } from "../ear-connect";
@@ -69,12 +69,16 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
   useEffect(() => {
     void (async () => {
       try {
-        setTopics((await listEarTopics()).items);
+        const items = (await listEarTopics()).items;
+        setTopics(items);
         if (episodeId) {
           const res = await fetch(`/api/publish/${episodeId}`);
           if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message ?? `HTTP ${res.status}`);
           const body = (await res.json()) as { meta: UploadMeta; has_audio: boolean };
           setMeta(body.meta); setHasAudio(body.has_audio);
+          // 제품 주제 = 파이프라인 중분류 1:1 (2026-09-06 체계 통일) — 이름이 같은 제품 주제를 기본 선택한다. 없으면 손으로 고른다
+          const same = items.find((t) => t.name === body.meta.mid_topic);
+          if (same) setTopicIds([same.id]);
           setTitle(body.meta.title ?? "");
           setDescription(body.meta.description ?? "");
           setSources((body.meta.sources ?? []).map((s) => ({ title: s.title, author: s.publisher, url: s.url })));
@@ -107,7 +111,7 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
         })),
         review_confirmed: true,
       }, audio!, thumbFile!);
-      if (meta) await setBacklogStatus(meta.backlog_id, "published").catch(() => undefined); // 파이프라인 상태 반영 — 실패해도 발행은 성립
+      if (meta) await markPublished(meta.backlog_id, content.id, content.content_version).catch(() => undefined); // 파이프라인에 content_id·버전 기록 — 실패해도 발행은 성립 (spec/07 5장)
       setMsg({ kind: "ok", text: `발행되었습니다 — ${content.id}` });
       setTimeout(() => router.push("/publish"), 900);
     } catch (e) {

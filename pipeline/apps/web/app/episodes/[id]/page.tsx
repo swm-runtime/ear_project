@@ -6,6 +6,7 @@ import { fmtTime, fmtTokens, fmtUsd, label } from "@/lib/format";
 import { JudgeView } from "./judge-view";
 import { VerdictForm } from "./verdict-form";
 import { TtsButton } from "./tts-button";
+import { RepublishButton } from "./republish-button";
 import { PackageButton } from "./package-button";
 import { listObjects, presignGet } from "@/lib/storage";
 import { ScriptEditor } from "./script-editor";
@@ -22,7 +23,7 @@ export default async function EpisodePage({ params, searchParams }: { params: Pr
   const { data: ep } = await sb.from("episodes").select("*").eq("id", id).single();
   if (!ep) notFound();
   const [{ data: bl }, { data: runs }, { data: jobs }] = await Promise.all([
-    sb.from("backlog").select("id,title,mid_topic,status,angle").eq("id", ep.backlog_id).single(),
+    sb.from("backlog").select("id,title,mid_topic,status,angle,published_content_ref,published_version,published_at").eq("id", ep.backlog_id).single(),
     sb.from("runs").select("phase,attempt,result,model,executed_by,executed_at,prompt_version,cost_usd,tokens,worker_rev").eq("backlog_id", ep.backlog_id).order("executed_at"),
     sb.from("jobs").select("id,type,status,attempt,progress,claimed_by,created_at").eq("payload->>episode_id", id).order("created_at"),
   ]);
@@ -35,6 +36,9 @@ export default async function EpisodePage({ params, searchParams }: { params: Pr
   const uploadMeta = tab === "meta" ? await readUploadMeta(ep.id) : null; // 패키지 산출물 (spec/07 2장) — 게이트 2 검수 항목 5(제목·설명)의 근거
   const pronRaw = tab === "pron" ? await readPronunciations(ep.id) : null; // 에피소드 발음 맵 (spec/06 6장) — TTS 병합 사전의 에피소드 층
   const activeJobs = (jobs ?? []).filter((j) => ["queued", "claimed", "running"].includes(j.status));
+  // 재발행 (spec/07 5장): 발행된 에피소드의 오디오가 발행 이후에 다시 합성됐으면 버튼 — 자동 푸시 없음, 사람이 청취 확인 후 누른다
+  const lastTtsAt = (runs ?? []).filter((r) => r.phase === "tts" && !/샘플/.test(r.result ?? "")).map((r) => r.executed_at as string).sort().at(-1) ?? null;
+  const audioNewer = !!(bl?.published_at && lastTtsAt && lastTtsAt > bl.published_at);
 
   return (
     <div className="space-y-4">
@@ -45,10 +49,14 @@ export default async function EpisodePage({ params, searchParams }: { params: Pr
         desc={bl?.angle ?? undefined}
         actions={<>
           <Badge value={bl?.status} />
+          {ep.regression && <Badge tone="held">{ep.regression_kind === "planted" ? "회귀 세트 · 심은 오류본 (정답은 설명란)" : ep.regression_kind === "anchor_low" ? "회귀 세트 · 저품질 앵커" : "회귀 세트"}</Badge>}
           <span className="text-xs text-ink-soft">{bl?.mid_topic} · {ep.prompt_version}</span>
           <PackageButton episodeId={ep.id} backlogId={ep.backlog_id} enabled={["qa_passed", "packaged"].includes(bl?.status ?? "")} pending={!!pkgJob} />
           {["packaged", "published"].includes(bl?.status ?? "") && <LinkBtn kind="primary" href={`/publish/upload?episode=${ep.id}`}>제품 발행</LinkBtn>}
-          <TtsButton episodeId={ep.id} backlogId={ep.backlog_id} enabled={["qa_passed", "packaged"].includes(bl?.status ?? "")} pending={!!ttsJob} />
+          <TtsButton episodeId={ep.id} backlogId={ep.backlog_id} enabled={["qa_passed", "packaged", "published"].includes(bl?.status ?? "")} pending={!!ttsJob} />
+          {bl?.status === "published" && bl.published_content_ref && (
+            <RepublishButton episodeId={ep.id} backlogId={ep.backlog_id} contentId={bl.published_content_ref} version={bl.published_version ?? null} publishedAt={bl.published_at ?? null} lastTtsAt={lastTtsAt} audioNewer={audioNewer} pending={!!ttsJob} />
+          )}
         </>}
       />
       {activeJobs.map((j) => (

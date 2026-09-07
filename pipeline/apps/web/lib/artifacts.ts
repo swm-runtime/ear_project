@@ -42,7 +42,7 @@ function localPathOf(key: string): string | null {
 
 export interface Turn { kind: "E" | "Y" | "plain" | "meta" | "section"; n?: number; speaker?: string; text: string; section?: string }
 
-/** 대본 md → 턴 목록 (E/Y 라벨 규격, spec/04). 번호 없는 발화(콜드오픈·인트로·클로징)는 구역 이름을 라벨로 쓴다. */
+/** 대본 md → 턴 목록 (E/Y 라벨 규격, spec/04). 번호 없는 발화(인트로·클로징, 구 대본의 콜드오픈)는 구역 이름을 라벨로 쓴다. */
 export function parseScript(md: string): Turn[] {
   const out: Turn[] = [];
   let section = "";
@@ -146,14 +146,4 @@ export function parseCriticScores(md: string): { rows: ScoreRow[]; total: string
     rows.push({ key: cells[1].match(/^\d+\.\d+/)?.[0] ?? cells[1], axis: cells[0].replace(/\*/g, ""), item: cells[1].replace(/^\d+\.\d+\s*/, ""), ai: sm ? Number(sm[1]) : null, max: sm ? Number(sm[2]) : null, evidence: cells[3] ?? "" });
   }
   return { rows, total };
-}
-
-/** 콜드오픈이 본편 턴의 부분 문자열인지 (spec/04 규격) — 사람 수정 후 깨졌는지 검사 */
-export function coldOpenStatus(md: string): { turn: string | null; ok: boolean } {
-  const turn = md.match(/본편\s*(E\d+)에서 발췌/)?.[1] ?? null;
-  const cold = md.split("\n").find((l) => /^\[(윤아|이음)\]/.test(l.trim()))?.replace(/^\[(윤아|이음)\]\s*/, "").trim();
-  if (!turn || !cold) return { turn, ok: false };
-  const body = md.split("\n").map((l) => l.trim()).find((l) => l.startsWith(`${turn} `) || new RegExp(`^\\[(윤아|이음)\\]\\s*${turn}\\s*·`).test(l))
-    ?.replace(/^E\d+\s+\[(윤아|이음)\]\s*/, "").replace(/^\[(윤아|이음)\]\s*E\d+\s*·\s*/, "") ?? "";
-  return { turn, ok: body.includes(cold) };
 }

@@ -48,6 +48,9 @@ export const cfg = {
   ttsModel: process.env.TTS_MODEL || "eleven_v3",
   ttsVoiceYuna: process.env.TTS_VOICE_YUNA || "Lb7qkOn5hF8p7qfCDH8q",
   ttsVoiceEum: process.env.TTS_VOICE_EUM || "4JJwo477JUAx3HV0T7n7",
+  // 화자별 배속 (spec/06 6장) — 다중화자 1콜은 속도 설정이 없어 타임스탬프 정렬 후 ffmpeg atempo 로 후처리한다. 1 이면 원속.
+  ttsSpeedYuna: process.env.TTS_SPEED_YUNA ? Number(process.env.TTS_SPEED_YUNA) : 1.2, // 2026-09-07 박수헌: 윤아 보이스가 느려 1.2
+  ttsSpeedEum: process.env.TTS_SPEED_EUM ? Number(process.env.TTS_SPEED_EUM) : 1,
   /** TTS 비용 환산용 1천 자당 USD — eleven_v3 API 종량 단가 $0.10/1천 자 (2026-09 ElevenLabs, v2/v3 공통·1자=1크레딧. Flash/Turbo 는 $0.05).
    *  LLM 정가 환산과 달리 이건 실제 종량 요금이다. 요금제/모델 바뀌면 TTS_USD_PER_1K_CHARS 로 덮는다 */
   ttsUsdPer1kChars: process.env.TTS_USD_PER_1K_CHARS ? Number(process.env.TTS_USD_PER_1K_CHARS) : 0.1,

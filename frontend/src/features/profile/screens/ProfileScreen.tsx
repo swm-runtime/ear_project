@@ -3,6 +3,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { theme } from '@/shared/theme';
+import ConfirmDialog from '@/shared/ui/ConfirmDialog';
 import SettingsIcon from '@/shared/ui/SettingsIcon';
 
 import CareerCard from '../components/CareerCard';
@@ -129,6 +130,22 @@ export default function ProfileScreen() {
           </Pressable>
         </ScrollView>
       )}
+
+      {/* 인증된 이메일 변경 불가 안내 — 설정과 같은 화면을 쓴다(auth.md 4.4) */}
+      <ConfirmDialog
+        isVisible={screen.isEmailLockedVisible}
+        title={PROFILE_COPY.email.lockedTitle}
+        body={PROFILE_COPY.email.lockedBody}
+        secondaryAction={{
+          label: PROFILE_COPY.email.lockedClose,
+          onPress: screen.closeEmailLocked,
+        }}
+        primaryAction={{
+          label: PROFILE_COPY.email.lockedContact,
+          onPress: screen.contactFromEmailLocked,
+        }}
+        onCloseRequest={screen.closeEmailLocked}
+      />
     </SafeAreaView>
   );
 }

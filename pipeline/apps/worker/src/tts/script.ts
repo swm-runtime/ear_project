@@ -1,15 +1,15 @@
 import { cfg } from "../config.js";
 
 /**
- * 대본 md → TTS 입력 구조 (spec/04 A형 규격: `[윤아] E12 · 본문`, 구역 헤더 `## [콜드오픈]` 등).
- * 콜드오픈은 구역만 따로 표시한다 — 별도 합성 금지(spec/06 7장): 발췌 원본 턴(E몇)의 오디오에서 만든다.
+ * 대본 md → TTS 입력 구조 (spec/04 A형 규격: `[윤아] E12 · 본문`, 구역 헤더 `## [본문]` 등).
+ * [콜드오픈] 구역은 2026-09-07 폐지됐다 — 구 대본 호환으로 분리만 해 두고(turns 에 섞이지 않게) 합성 단계는 버린다.
  */
 export type Speaker = "윤아" | "이음";
 export interface ScriptTurn { speaker: Speaker; id: string | null; text: string; section: string }
 export interface ParsedScript {
   meta: string;
   coldOpen: { speaker: Speaker; text: string; sourceTurn: string | null } | null;
-  turns: ScriptTurn[]; // 인트로부터 마무리까지 (콜드오픈 제외)
+  turns: ScriptTurn[]; // 인트로부터 마무리까지 (구 콜드오픈 구역 제외)
   placeholders: string[];
 }
 
@@ -67,7 +67,7 @@ export function voiceOf(speaker: Speaker): string {
 
 /**
  * 턴 → 분할 요청 묶음 (요청당 권장 2,000자 — 문서 기준. 분할은 반드시 턴 경계, spec/06 3장).
- * `isolate` 에 있는 턴(콜드오픈 발췌 원본)은 단독 요청으로 뗀다 — 그 요청의 오디오가 콜드오픈 재료가 된다.
+ * `isolate` 에 있는 턴은 단독 요청으로 뗀다 (현재 사용처 없음 — 콜드오픈 폐지 전 발췌 원본 격리용이었다).
  */
 export function chunkTurns(turns: ScriptTurn[], maxChars = 1800, isolate: Set<string> = new Set()): ScriptTurn[][] {
   const chunks: ScriptTurn[][] = [];

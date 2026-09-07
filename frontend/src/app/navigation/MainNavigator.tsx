@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/shared/theme';
 import TabBarIcon from '@/shared/ui/TabBarIcon';
 
-import { EmailVerificationScreen, useSessionStore } from '@/features/auth';
+import { EmailVerificationScreen, useSessionStore, WithdrawalScreen } from '@/features/auth';
 import { CareerInfoScreen } from '@/features/career';
 import { ContentDetailScreen } from '@/features/content-detail';
 import { ExploreScreen, ExploreSearchScreen } from '@/features/explore';
@@ -16,6 +16,7 @@ import {
   usePrePromptGate,
   useNotificationStore,
 } from '@/features/notification';
+import { FirstRunTutorial } from '@/features/onboarding';
 import { PlayerScreen } from '@/features/player';
 import { ProfileScreen } from '@/features/profile';
 import { SettingsScreen } from '@/features/settings';
@@ -142,17 +143,15 @@ export default function MainNavigator() {
         {/* 커리어 정보 — 앱바(뒤로 + "커리어 정보" + [초기화])를 화면이 직접 그린다(career-uiux.md 4.1).
           변경 있음 상태의 이탈(뒤로가기·스와이프)은 화면이 beforeRemove로 가로챈다(CR5) */}
         <MainStack.Screen name="Career" component={CareerInfoScreen} />
-        {/* 설정 메뉴의 목적지 3종 — 공지(명세 추후)·탈퇴(auth A 계열)·관리자(admin.md) 플레이스홀더 */}
+        {/* 설정 메뉴의 목적지 — 공지(명세 추후)·관리자(admin.md)는 아직 플레이스홀더다 */}
         <MainStack.Screen
           name="Notice"
           component={PlaceholderScreen}
           options={{ headerShown: true, headerTitle: '', headerBackTitle: '설정' }}
         />
-        <MainStack.Screen
-          name="Withdrawal"
-          component={PlaceholderScreen}
-          options={{ headerShown: true, headerTitle: '', headerBackTitle: '설정' }}
-        />
+        {/* 회원 탈퇴(A7·A8) — 앱바(뒤로 + "회원 탈퇴")를 화면이 직접 그린다(auth-uiux.md 4.5).
+          처리 중 이탈 차단(뒤로가기·스와이프)은 화면이 beforeRemove·gestureEnabled로 소유한다 */}
+        <MainStack.Screen name="Withdrawal" component={WithdrawalScreen} />
         <MainStack.Screen
           name="Admin"
           component={PlaceholderScreen}
@@ -166,9 +165,11 @@ export default function MainNavigator() {
         화면마다 두면 어느 탭으로 들어왔느냐에 따라 떴다 안 떴다 한다.
         여는 시점은 코치마크가 끝난 뒤다(2026-09-04) — 권한은 가치를 보여준 다음에 묻는다
       */}
+      {/* 첫 사용 튜토리얼 — 예시 화면으로 흐름을 보여준다. 알림 안내보다 먼저다 */}
+      <FirstRunTutorial />
+
       <NotificationPrePromptModal
         isVisible={isPrePromptVisible}
-        withReconsider
         syncOnDismiss
         onFinished={clearPrePromptPending}
       />

@@ -1,6 +1,12 @@
 /** convention.md 3.2 — 모듈 밖으로 공개되는 타입만 둔다 */
 
-import { ContentOrigin, ContentStatus, StatsPeriodType } from './content.enum';
+import {
+  ContentDifficulty,
+  ContentFormat,
+  ContentOrigin,
+  ContentStatus,
+  StatsPeriodType,
+} from './content.enum';
 import { Content } from './entities/content.entity';
 
 /** 추천·편성 후보 조회 조건 */
@@ -18,6 +24,18 @@ export interface ContentCandidateQuery {
   seriesStartOnly?: boolean;
   limit: number;
   now: Date;
+}
+
+/**
+ * 검증을 통과한 `enrichment.json`(`ai/metadata-pipeline.md` 4.4)의 저장 입력.
+ * 생략된 키는 저장하지 않는다 — 결손은 스코어링 중립 처리다(domain.md 5.1·5.6).
+ */
+export interface EnrichmentInput {
+  difficulty?: ContentDifficulty;
+  format?: ContentFormat;
+  isEvergreen?: boolean;
+  keywords?: string[];
+  embedding?: { model: string; vector: number[] };
 }
 
 /** 콘텐츠에 붙은 주제 — 클라이언트가 주제 배지를 그리는 데 쓴다 */
@@ -164,6 +182,25 @@ export interface PublishContentCommand {
   topicIds: string[];
   /** `ai_generated`만. 배열 순서가 곧 `position`이다 (domain.md 5.5) */
   sources: { title: string; author: string | null; url: string | null }[];
+}
+
+/**
+ * admin-api.md 4.10 재발행 — **넘어온 키만 바꾼다.** 발행 단위의 정체성(`origin` · `partner_id` ·
+ * `series_*` · `license_expires_at`)은 여기 없다 — 바꾸려면 회수하고 새로 올린다.
+ *
+ * `undefined`(안 넘김)와 값이 다르다. `topicIds` · `sources`는 넘기면 **전체 교체**이고,
+ * 넘기지 않으면 손대지 않는다.
+ */
+export interface RepublishContentCommand {
+  title?: string;
+  description?: string;
+  sourceName?: string;
+  audioPath?: string;
+  durationSec?: number;
+  thumbnailUrl?: string;
+  topicIds?: string[];
+  /** 배열 순서가 곧 `position`이다 (domain.md 5.5) */
+  sources?: { title: string; author: string | null; url: string | null }[];
 }
 
 /** 관리자 콘텐츠 목록 조회 조건 (admin.md 5장) */

@@ -182,7 +182,7 @@ const styles = StyleSheet.create({
     minHeight: theme.touchTarget.minHeight,
     justifyContent: 'center',
     paddingHorizontal: theme.spacing.md,
-    borderRadius: theme.radius.lg,
+    borderRadius: theme.radius.xl,
     borderWidth: 1,
     borderColor: theme.color.border,
     backgroundColor: theme.color.background,

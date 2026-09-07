@@ -51,7 +51,8 @@ export function assetPaths(assetRoot: string, workRoot: string = assetRoot) {
 
 /** 해설 담당: topics.explainer 가 있으면 그것, 없으면 중분류 관할 규칙 (spec/04) */
 export function explainerFor(midTopic: MidTopic): "윤아" | "이음" {
-  return ["심리학", "인문·교양", "글쓰기"].includes(midTopic) ? "윤아" : "이음";
+  // 2026-09-06 체계 개편: 심리·마음·인문·교양 대분류의 중분류 = 윤아, 나머지(돈·경제·비즈니스·과학·기술·자격증) = 이음. 구 이름(인문·교양·글쓰기)도 남긴다.
+  return ["심리학", "뇌과학·인지", "습관·동기", "인간관계", "철학", "역사", "사회·문화", "예술", "한능검", "인문·교양", "글쓰기"].includes(midTopic) ? "윤아" : "이음";
 }
 
 /** 도입 형태 로테이션 — 에피소드 간 도입 템플릿화 방지 (사이클 4 판정) */
@@ -143,15 +144,15 @@ b) **claims.md** — 대본의 사실 주장 → 소스·발췌 ID 대조표.
 c) **pronunciations.json** — 대본에 등장하는 **모든 비한글 표기**(영문 용어·인명·기관·매체 등) → 자연스러운 한국식 한글 발음. \`{"표기": "발음"}\` JSON 객체 하나만 (예: \`{"Stanford": "스탠퍼드", "AI": "에이아이"}\`). 인명은 원어 발음 기준. TTS 변환이 이 맵으로 치환한다 — 누락된 표기는 합성이 중단된다. 비한글 표기가 없으면 빈 객체 \`{}\`.
 d) **script.md** — 대본. 규격:
    - 첫 줄 메타: 에피소드 ID·제목·중분류·해설/진행·프롬프트 버전(${i.promptVersion})·사용 소스 수.
-   - 구조: 콜드오픈(본편에서 가장 강한 해설 대목을 **본편 문장 그대로** 발췌, 새 문장 생성 금지, 약 120~180자=20~30초, 발췌 위치를 "E몇"으로 정확히 표기) → 인트로 → 본편 (해설 턴 E1, E2, ... / 진행 턴 Y1, Y2, ... 표기) → 마무리
-   - **발화 줄 형식 (TTS 파서 계약 — 정확히 지킬 것)**: 번호 턴은 \`[윤아] E1 · 문장\` / \`[이음] Y1 · 문장\` — 화자 라벨이 먼저, 번호 뒤 구분자는 **가운뎃점(·)**. \`Y1.\`(마침표)·\`E1 [윤아]\`(번호 선행) 같은 변형 금지 — 파싱이 실패해 합성이 중단된다. 번호 없는 턴(콜드오픈)은 \`[윤아] 문장\`.
+   - 구조: 인트로 → 도입 → 본문 (해설 턴 E1, E2, ... / 진행 턴 Y1, Y2, ... 표기) → 마무리. **콜드오픈 구역은 두지 않는다** (2026-09-07 폐지 — [콜드오픈] 헤더가 있으면 L0 형식 위반으로 재생성된다)
+   - **발화 줄 형식 (TTS 파서 계약 — 정확히 지킬 것)**: 번호 턴은 \`[윤아] E1 · 문장\` / \`[이음] Y1 · 문장\` — 화자 라벨이 먼저, 번호 뒤 구분자는 **가운뎃점(·)**. \`Y1.\`(마침표)·\`E1 [윤아]\`(번호 선행) 같은 변형 금지 — 파싱이 실패해 합성이 중단된다.
 ${templateBlock(i)}
    - 도입 (규칙 13, v5.1 개정 — **주제를 먼저 소개하고 시작한다**. 에둘러 들어가지 말 것): 주제 선언 뒤 첫 해설 턴 사이에 짧은 진입 구간(두세 턴)을 둔다. 주제는 인트로가 이미 말했으므로 **다시 발견하는 척("그 질문이 오늘 주제랑 닿아 있어요" 류) 금지**. 그 진입 방식 (이 에피소드 전용 지정): **${i.introStyle.label}** — ${i.introStyle.hint} 골드의 [도입]은 구 규칙 판이라 자리표기로 비워 두었다 — 형태를 참조할 것이 없으니 규칙 13 문장대로 쓴다. 인트로 골격은 고정이지만 질문의 재료는 매번 새로.
    - 분량: **공백·기호 제외 4,500자 이상 목표, 5,000자 내외 이상적** (350자/분 기준 약 13~15분). 채우기용 잡담·같은 말 반복 금지.
 ${COMMON_RULES}
 
 ## 4. 마무리 자기 점검 (필수)
-대본 작성 후 claims를 발췌와 대조해 발췌에 없는 주장을 찾아 수정하라. 콜드오픈이 해당 E턴의 부분 문자열인지 python 등으로 기계 검증하라. 공백·기호 제외 글자 수([가-힣A-Za-z0-9]만 카운트, 콜드오픈·템플릿 자리 제외)를 python으로 계산하라.
+대본 작성 후 claims를 발췌와 대조해 발췌에 없는 주장을 찾아 수정하라. 구역 헤더가 [인트로]·[도입]·[본문]·[마무리] 4개뿐인지 확인하라. 공백·기호 제외 글자 수([가-힣A-Za-z0-9]만 카운트, 템플릿 자리 제외)를 python으로 계산하라.
 
 ## 5. 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다.`;
 }
@@ -159,13 +160,11 @@ ${COMMON_RULES}
 export const DRAFT_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["turns", "chars", "minutes", "cold_open_turn", "cold_open_verified", "sources_used", "sources_excluded", "self_check_fixes", "notes"],
+  required: ["turns", "chars", "minutes", "sources_used", "sources_excluded", "self_check_fixes", "notes"],
   properties: {
-    turns: { type: "integer", description: "본편 발화 턴 수 (콜드오픈·템플릿 제외)" },
+    turns: { type: "integer", description: "본편 발화 턴 수 (템플릿 제외)" },
     chars: { type: "integer", description: "공백·기호 제외 글자 수" },
     minutes: { type: "number", description: "350자/분 환산 분량" },
-    cold_open_turn: { type: "string", description: "콜드오픈 발췌 위치 E번호" },
-    cold_open_verified: { type: "boolean", description: "콜드오픈이 해당 턴의 부분 문자열임을 기계 검증했는가" },
     sources_used: { type: "array", items: { type: "string" }, description: "사용한 소스 URL" },
     sources_excluded: { type: "array", items: { type: "object", additionalProperties: false, required: ["url", "reason"], properties: { url: { type: "string" }, reason: { type: "string" } } } },
     self_check_fixes: { type: "array", items: { type: "string" }, description: "자기 점검에서 발견·수정한 발췌 밖 주장" },
@@ -196,7 +195,6 @@ ${failures}
 - 지적된 턴만 고친다. 전면 재작성 금지 — 나머지 문장은 그대로 둔다.
 - 수정은 발췌 안으로 들어오는 방향으로만: 발췌에 없는 수식·비교·방향·연대·위치 주장은 삭제하거나 발췌 문장 범위로 축소한다. 발췌를 새로 추가하지 않는다 (원문 재접근 금지).
 - 지시어 참조를 깨뜨리지 않는다: 삭제한 표현을 되받는 진행(Y) 턴·콜백("아까 그 ~", "같은 매체")이 있으면 함께 고친다. 매체 지시가 바뀌면 재명명한다.
-- 수정한 턴이 콜드오픈 발췌 원본이면 콜드오픈도 동일하게 갱신하고 부분 문자열 일치를 기계 재검증한다.
 - 수정 후 claims.md 해당 행을 갱신하고, 파일 끝에 "## QA attempt ${i.attempt - 1} 반영" 절로 수정 내역을 기록한다.
 - 수정으로 새 비한글 표기(영문 용어·인명 등)를 도입했으면 ${dir}/pronunciations.json 에 한글 발음을 추가한다 (없는 표기는 TTS 합성이 중단된다).
 - 같은 인용·문장을 다른 턴에서 이미 쓰고 있지 않은지 확인한다 (중복 낭독 금지).
@@ -207,11 +205,9 @@ ${failures}
 export const DRAFT_REVISION_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["fixes", "cold_open_updated", "cold_open_verified", "notes"],
+  required: ["fixes", "notes"],
   properties: {
     fixes: { type: "array", items: { type: "object", additionalProperties: false, required: ["location", "before", "after"], properties: { location: { type: "string" }, before: { type: "string" }, after: { type: "string" } } } },
-    cold_open_updated: { type: "boolean" },
-    cold_open_verified: { type: "boolean" },
     notes: { type: "string" },
   },
 } as const;
@@ -248,7 +244,7 @@ ${QA_ITEM6_NOTE}
 전 검사 항목을 수행하고, 결과를 ${dir}/qa-report.md 파일 **끝에** "## attempt ${i.attempt} (${todayKst()})" 섹션으로 추가한다 (파일이 없으면 헤더 "# QA 리포트 — ${i.episodeId}" + "> QA: 독립 실행 (qa-v1.2) · 입력 3종 + spec/05만" 부터 새로 작성. 기존 내용 수정 금지, 추기만).
 리포트에 포함: 항목별 판정 표, 실패 건마다 위치(턴 번호)·항목 번호·구체 사유(발췌의 어느 부분과 어긋나는지 또는 발췌에 없는지), 종합 판정.
 
-특히 주의 깊게 볼 유형: ① 발췌에 없는 주장 (비교 축 추가, 연관의 방향 확정, 귀속 범위 확장, 연대·수치의 무근거 환산, 문장 위치 주장), ② 귀속 정확성 — 게재 매체 지시("~라는 매체", "같은 매체", "아까 그 ~")가 발췌의 실제 게재처와 일치하는지 지시 사슬 전수 추적, ③ 수치·시점의 상향 왜곡 (하향 범위 표현은 의도된 규격), ④ 콜드오픈이 본편 해당 턴과 자구 일치 + 위치 표기 정확, ⑤ 화자 규칙 (진행 담당의 사실 주장 금지 — 감상·추측 허용), ⑥ 수정 잔존 참조 (지시어·콜백이 가리키는 대상이 현재 대본 안에 실재하는지), ⑦ claims가 스스로 "발췌 밖" 등으로 표시한 항목은 그 판단을 믿지 말고 발췌 기준으로 독립 재판정.
+특히 주의 깊게 볼 유형: ① 발췌에 없는 주장 (비교 축 추가, 연관의 방향 확정, 귀속 범위 확장, 연대·수치의 무근거 환산, 문장 위치 주장), ② 귀속 정확성 — 게재 매체 지시("~라는 매체", "같은 매체", "아까 그 ~")가 발췌의 실제 게재처와 일치하는지 지시 사슬 전수 추적, ③ 수치·시점의 상향 왜곡 (하향 범위 표현은 의도된 규격), ④ 구역이 [인트로]·[도입]·[본문]·[마무리] 4개인가 ([콜드오픈] 구역이 있으면 위반 — 2026-09-07 폐지), ⑤ 화자 규칙 (진행 담당의 사실 주장 금지 — 감상·추측 허용), ⑥ 수정 잔존 참조 (지시어·콜백이 가리키는 대상이 현재 대본 안에 실재하는지), ⑦ claims가 스스로 "발췌 밖" 등으로 표시한 항목은 그 판단을 믿지 말고 발췌 기준으로 독립 재판정.
 
 ## 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. 리포트 파일 작성이 먼저다.`;
 }
@@ -318,7 +314,7 @@ function buildCriticPromptV2(i: CriticInput): string {
     ? `
 ## 이 대본은 tpl-v1 이전 세대다
 인트로·마무리에 \`{인트로 시그니처 …}\` \`{클로징 …}\` 같은 자리표기가 있다. 생성 당시 템플릿이 없었던 것이지 대본 결함이 아니다.
-- 3.5 오프닝·3.7 마무리: 자리표기를 **tpl-v1 골격이 있는 것으로 간주**하고 콜드오픈·도입 구간·정리 내용만 채점한다. 자리표기 자체를 감점하지 않는다.
+- 3.5 오프닝·3.7 마무리: 자리표기를 **tpl-v1 골격이 있는 것으로 간주**하고 도입 구간·정리 내용만 채점한다. 자리표기 자체를 감점하지 않는다.
 - C2: 주제 선언은 자리표기 안에 있는 것으로 간주한다.
 - G1: 템플릿 골격 복제 판단에서 제외한다 (골드 관용구 복제는 그대로 본다).
 `

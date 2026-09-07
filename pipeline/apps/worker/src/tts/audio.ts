@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 /**
- * 오디오 조립 (spec/06 7장) — ffmpeg 로: 세그먼트 디코드 → 무음 갭 삽입 연결 → 라우드니스 정규화(-16 LUFS)
+ * 오디오 조립 (spec/06 7장) — ffmpeg 로: 앞 무음(2초) → 세그먼트 디코드·무음 갭 삽입 연결 → 뒤 무음(2초) → 라우드니스 정규화(-16 LUFS)
  * → 마스터 wav(무손실) + 배포본 mp3 128kbps. 재처리는 항상 마스터에서.
  * ffmpeg 는 워커 이미지(deploy/Dockerfile)에 포함 — 로컬 실행 시엔 brew install ffmpeg.
  */
@@ -46,18 +46,32 @@ async function silenceWav(sec: number, outFile: string): Promise<string> {
   return outFile;
 }
 
-/** mp3 파일에서 [start,end) 구간 추출 → wav (콜드오픈 절단 — spec/06 7장 "본편 오디오에서 잘라 붙인다") */
-export async function cutSegment(srcFile: string, startSec: number, endSec: number, outFile: string) {
-  await ffmpeg(["-i", srcFile, "-ss", startSec.toFixed(3), "-to", endSec.toFixed(3), "-ar", "44100", "-ac", "1", "-c:a", "pcm_s16le", outFile]);
+/**
+ * 한 요청의 오디오를 턴 경계로 잘라 구간별 배속(atempo)을 적용하고 다시 이어 붙인다 (spec/06 6장 화자별 배속).
+ * pieces 는 시각 순서·연속 구간 — 마지막 조각은 end 없이 파일 끝까지. tempo 1 인 조각은 원본 그대로.
+ * 결과는 s16le 44.1kHz mono 원시 PCM 버퍼 (Segment.format = "pcm_44100").
+ */
+export async function retimePieces(srcFile: string, pieces: { start: number; end?: number; tempo: number }[], tmpDir: string): Promise<Buffer> {
+  await fs.mkdir(tmpDir, { recursive: true });
+  const out = path.join(tmpDir, `retime-${Date.now()}.pcm`);
+  const chains = pieces.map((pc, n) => {
+    const trim = pc.end != null ? `atrim=start=${pc.start.toFixed(3)}:end=${pc.end.toFixed(3)}` : `atrim=start=${pc.start.toFixed(3)}`;
+    const tempo = Math.abs(pc.tempo - 1) < 0.001 ? "" : `,atempo=${pc.tempo.toFixed(3)}`;
+    return `[0:a]${trim},asetpts=PTS-STARTPTS${tempo}[p${n}]`;
+  });
+  const concat = `${pieces.map((_, n) => `[p${n}]`).join("")}concat=n=${pieces.length}:v=0:a=1[out]`;
+  await ffmpeg(["-i", srcFile, "-filter_complex", [...chains, concat].join(";"), "-map", "[out]", "-f", "s16le", "-ar", "44100", "-ac", "1", "-c:a", "pcm_s16le", out]);
+  const buf = await fs.readFile(out);
+  await fs.rm(out, { force: true });
+  return buf;
 }
 
 export interface AssemblePiece { kind: "segment"; segment: Segment } // 순서대로 연결, 사이에 gapSec 무음
 export interface AssembleInput {
-  /** 콜드오픈 wav 파일 (이미 절단된 것) — 있으면 맨 앞 + 뒤에 긴 갭 */
-  coldOpenWav?: string;
   segments: Segment[];
   gapSec?: number;       // 세그먼트(분할 요청) 사이 무음 — 요청 안의 턴 간격은 모델이 처리
-  coldOpenGapSec?: number;
+  leadSec?: number;      // 시작 무음 (기본 2초 — 2026-09-07 박수헌: 재생 시작 직후 첫 음절이 잘리지 않게)
+  tailSec?: number;      // 끝 무음 (기본 2초 — 다음 콘텐츠·종료 전 여백)
   workDir: string;       // 임시 파일 디렉토리 (episodes/{id}/audio/)
   masterOut: string;     // master.wav 경로
   distOut: string;       // dist.mp3 경로
@@ -67,16 +81,13 @@ export interface AssembleInput {
 export async function assemble(i: AssembleInput): Promise<number> {
   const tmp = path.join(i.workDir, ".tmp");
   await fs.mkdir(tmp, { recursive: true });
-  const parts: string[] = [];
-  if (i.coldOpenWav) {
-    parts.push(i.coldOpenWav);
-    parts.push(await silenceWav(i.coldOpenGapSec ?? 0.9, path.join(tmp, "gap-cold.wav")));
-  }
+  const parts: string[] = [await silenceWav(i.leadSec ?? 2, path.join(tmp, "lead.wav"))];
   const gap = i.gapSec ?? 0.35;
   for (let n = 0; n < i.segments.length; n++) {
     if (n > 0) parts.push(await silenceWav(gap, path.join(tmp, `gap-${n}.wav`)));
     parts.push(await toWav(i.segments[n], path.join(tmp, `part-${n}.wav`), tmp, n));
   }
+  parts.push(await silenceWav(i.tailSec ?? 2, path.join(tmp, "tail.wav")));
   const listFile = path.join(tmp, "concat.txt");
   await fs.writeFile(listFile, parts.map((p) => `file '${p.replace(/'/g, "'\\''")}'`).join("\n"));
   const joined = path.join(tmp, "joined.wav");
@@ -89,7 +100,7 @@ export async function assemble(i: AssembleInput): Promise<number> {
   return dur;
 }
 
-/** mp3 버퍼를 파일로 저장 (콜드오픈 원본 턴 등 개별 보관용) */
+/** mp3 버퍼를 파일로 저장 (개별 세그먼트 보관용) */
 export async function writeBuf(file: string, data: Buffer) {
   await fs.mkdir(path.dirname(file), { recursive: true });
   await fs.writeFile(file, data);

@@ -20,6 +20,7 @@ type NavItem = {
 /** 백엔드 로그 콘솔의 메뉴 — 콘솔 전환 시 사이드바가 통째로 이걸로 바뀐다 */
 const LOG_NAV: NavItem[] = [
   { href: "/backend-logs/status", label: "서버 상태", icon: Pulse },
+  { href: "/backend-logs/dashboard", label: "대시보드", icon: Chart },
   { href: "/backend-logs", label: "실시간 로그", icon: List, exact: true },
   { href: "/backend-logs/errors", label: "에러 모아보기", icon: Alert },
   { href: "/backend-logs/traffic", label: "요청 통계", icon: Chart },

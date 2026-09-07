@@ -72,6 +72,17 @@ export class PlaybackProgressRepository {
   }
 
   /**
+   * 재발행 시 전 사용자 위치 폐기(`tickets/backend/pending/republish-stale-playback-position.md`
+   * 안 A) — 재발행 트랜잭션 안에서 호출되므로 `manager`를 받는다.
+   */
+  async deleteAllByContentId(
+    contentId: string,
+    manager?: EntityManager,
+  ): Promise<void> {
+    await this.scoped(manager).delete({ contentId });
+  }
+
+  /**
    * 미니플레이어 복원 후보(library-api.md 4.3) — **위치가 0보다 큰 콘텐츠만.**
    * 위치가 0이면 처음부터 듣는 것과 같아 이어들 자리가 없다.
    */

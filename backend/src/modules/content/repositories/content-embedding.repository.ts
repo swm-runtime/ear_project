@@ -28,6 +28,31 @@ export class ContentEmbeddingRepository {
   }
 
   /**
+   * 스코어링에 쓸 수 있는 행만 — 지정 모델이고(`model` 혼용 금지 — domain.md 5.6)
+   * 현재 대본 버전과 일치하는 것(재발행 후 미갱신 행은 축 제외 — `drip-scheduling.md` 6장).
+   */
+  async findAllScorableByContentIds(
+    contentIds: string[],
+    model: string,
+    manager?: EntityManager,
+  ): Promise<ContentEmbedding[]> {
+    if (contentIds.length === 0) {
+      return [];
+    }
+
+    return this.scoped(manager)
+      .createQueryBuilder('embedding')
+      .innerJoin(
+        'embedding.content',
+        'content',
+        'content.content_version = embedding.content_version',
+      )
+      .where('embedding.content_id IN (:...contentIds)', { contentIds })
+      .andWhere('embedding.model = :model', { model })
+      .getMany();
+  }
+
+  /**
    * 콘텐츠당 1행(`uq_content_embeddings_content_id`)의 전체 교체 upsert —
    * 재발행·모델 교체의 재생성이 같은 경로를 쓴다(domain.md 5.6).
    */

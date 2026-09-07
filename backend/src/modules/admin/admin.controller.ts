@@ -35,18 +35,26 @@ import {
   AdminTopicListResponseDto,
 } from './dto/admin-topic-item.dto';
 import { CreateTopicRequestDto } from './dto/create-topic-request.dto';
+import {
+  RepublishContentFormRequestDto,
+  RepublishContentRequestDto,
+} from './dto/republish-content-request.dto';
 import { WithdrawContentRequestDto } from './dto/withdraw-content-request.dto';
 import { UpdateTopicRequestDto } from './dto/update-topic-request.dto';
 import {
   UploadContentFormRequestDto,
   UploadContentRequestDto,
 } from './dto/upload-content-request.dto';
+import { AdminSystemStatsResponseDto } from './dto/admin-system-stats-response.dto';
 import { AdminContentService } from './services/admin-content.service';
+import { AdminSystemStatsService } from './services/admin-system-stats.service';
+import { ResourceAlertService } from './services/resource-alert.service';
 import { AdminTopicService } from './services/admin-topic.service';
 
 interface UploadFiles {
   audio?: Express.Multer.File[];
   thumbnail?: Express.Multer.File[];
+  enrichment_file?: Express.Multer.File[];
 }
 
 /**
@@ -58,8 +66,19 @@ interface UploadFiles {
 export class AdminController {
   constructor(
     private readonly adminContentService: AdminContentService,
+    private readonly adminSystemStatsService: AdminSystemStatsService,
     private readonly adminTopicService: AdminTopicService,
+    private readonly resourceAlertService: ResourceAlertService,
   ) {}
+
+  /** 자원·DB 부하 스냅샷 — 로그 콘솔 서버 상태 탭 (읽기 전용, 부작용 없음) */
+  @Get('system-stats')
+  async getSystemStats(): Promise<AdminSystemStatsResponseDto> {
+    return AdminSystemStatsResponseDto.from(
+      await this.adminSystemStatsService.snapshot(new Date()),
+      this.resourceAlertService.history(),
+    );
+  }
 
   @Get('topics')
   async listTopics(): Promise<AdminTopicListResponseDto> {
@@ -161,8 +180,9 @@ export class AdminController {
       [
         { name: 'audio', maxCount: 1 },
         { name: 'thumbnail', maxCount: 1 },
+        { name: 'enrichment_file', maxCount: 1 },
       ],
-      { limits: { fileSize: MAX_AUDIO_FILE_BYTES, files: 2 } },
+      { limits: { fileSize: MAX_AUDIO_FILE_BYTES, files: 3 } },
     ),
   )
   async uploadContent(
@@ -206,6 +226,9 @@ export class AdminController {
         reviewConfirmed: payload.review_confirmed,
         audio: toFileInput(audio),
         thumbnail: toFileInput(thumbnail),
+        enrichment: files.enrichment_file?.[0]
+          ? toFileInput(files.enrichment_file[0])
+          : null,
       },
       new Date(),
     );
@@ -213,8 +236,68 @@ export class AdminController {
     return AdminContentItemDto.from(view);
   }
 
+  /**
+   * admin-api.md 4.10 — 재발행. 같은 `content_id`에 오디오·메타를 갈아끼우고
+   * `content_version`을 올린다. 파이프라인이 TTS 규격을 바꿔 오디오를 재생성했을 때
+   * 사용자 라이브러리·재생 기록을 끊지 않고 발행본만 교체하는 경로다.
+   *
+   * **모든 파트가 선택이다** — 파이프라인은 `audio`만 보낸다.
+   */
+  @Patch('contents/:contentId')
+  @UseInterceptors(
+    FileFieldsInterceptor(
+      [
+        { name: 'audio', maxCount: 1 },
+        { name: 'thumbnail', maxCount: 1 },
+        { name: 'enrichment_file', maxCount: 1 },
+      ],
+      { limits: { fileSize: MAX_AUDIO_FILE_BYTES, files: 3 } },
+    ),
+  )
+  async republishContent(
+    @CurrentUser() currentUser: AuthenticatedUser,
+    @Param('contentId', ParseUUIDPipe) contentId: string,
+    @Body() form: RepublishContentFormRequestDto,
+    @UploadedFiles() files: UploadFiles,
+  ): Promise<AdminContentItemDto> {
+    const audio = files.audio?.[0];
+    const thumbnail = files.thumbnail?.[0];
+    const payload = form.payload
+      ? await this.parseJson(form.payload, RepublishContentRequestDto)
+      : null;
+
+    const view = await this.adminContentService.republish({
+      actorUserId: currentUser.id,
+      contentId,
+      title: payload?.title,
+      description: payload?.description,
+      sourceName: payload?.source_name,
+      topicIds: payload?.topic_ids,
+      // 넘어온 키만 바꾸므로 `undefined`를 유지한다 — 빈 배열은 "출처를 지운다"는 뜻이다
+      sources: payload?.sources?.map((source) => ({
+        title: source.title,
+        author: source.author ?? null,
+        url: source.url ?? null,
+      })),
+      audio: audio ? toFileInput(audio) : null,
+      thumbnail: thumbnail ? toFileInput(thumbnail) : null,
+      enrichment: files.enrichment_file?.[0]
+        ? toFileInput(files.enrichment_file[0])
+        : null,
+    });
+
+    return AdminContentItemDto.from(view);
+  }
+
   /** 전역 ValidationPipe와 같은 옵션으로 JSON payload를 검증한다(architecture.md 9.3) */
   private async parsePayload(raw: string): Promise<UploadContentRequestDto> {
+    return this.parseJson(raw, UploadContentRequestDto);
+  }
+
+  private async parseJson<T extends object>(
+    raw: string,
+    type: new () => T,
+  ): Promise<T> {
     let parsed: unknown;
     try {
       parsed = JSON.parse(raw);
@@ -222,7 +305,7 @@ export class AdminController {
       throw this.missingField('payload', 'payload가 올바른 JSON이 아니에요');
     }
 
-    const dto = plainToInstance(UploadContentRequestDto, parsed);
+    const dto = plainToInstance(type, parsed);
     const errors = await validate(dto, {
       whitelist: true,
       forbidNonWhitelisted: true,

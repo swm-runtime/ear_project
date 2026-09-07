@@ -72,8 +72,8 @@ export const useStartScreen = () => {
         return;
       }
 
-      // TODO(auth): pendingConsents가 있으면 재동의 화면으로 보낸다(auth-api.md 4.1 — /users/me/consents)
-      await sessionService.startSession(result.tokens, result.user);
+      // pendingConsents는 세션에 실어 둔다 — 관문(RootNavigator)이 A20을 먼저 태운다(splash.md 4)
+      await sessionService.startSession(result.tokens, result.user, result.pendingConsents);
       // 이후 화면 전환은 RootNavigator가 세션 상태로 분기한다(온보딩/라이브러리 — auth.md 4.1)
     } catch (error) {
       // 취소는 실패가 아니다 — 에러 표시 없이 시작 화면으로 조용히 복귀한다(auth-uiux.md 4.2)

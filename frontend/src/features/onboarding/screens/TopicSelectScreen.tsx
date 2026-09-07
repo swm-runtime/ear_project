@@ -87,7 +87,7 @@ export default function TopicSelectScreen() {
                     accessibilityLabel={topic.name + ' 선택 해제'}
                   >
                     <Image
-                      source={topicImageSource(topic.topicId)}
+                      source={topicImageSource(topic.name)}
                       resizeMode="cover"
                       style={styles.selectedChipPhoto}
                     />

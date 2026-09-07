@@ -26,6 +26,10 @@ export class AdminContentItemDto {
   readonly published_at: string;
   readonly withdrawn_at: string | null;
   readonly topics: AdminContentTopicDto[];
+  /** 요청에 `enrichment_file`이 있었을 때만 — 거부여도 콘텐츠 처리 자체는 성공이다(admin.md 3.1) */
+  readonly enrichment_applied?: boolean;
+  /** 거부됐을 때만 — 콘솔이 그대로 노출하는 사유 */
+  readonly enrichment_rejected_reason?: string;
 
   static from(view: AdminContentView): AdminContentItemDto {
     const { content, topics } = view;
@@ -52,6 +56,12 @@ export class AdminContentItemDto {
         topic_id: topic.topicId,
         name: topic.name,
       })),
+      ...(view.enrichment && {
+        enrichment_applied: view.enrichment.applied,
+        ...(view.enrichment.rejectedReason !== null && {
+          enrichment_rejected_reason: view.enrichment.rejectedReason,
+        }),
+      }),
     };
   }
 }

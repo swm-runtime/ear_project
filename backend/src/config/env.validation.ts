@@ -93,6 +93,14 @@ export class EnvironmentVariables {
   PIPELINE_SSO_SECRET?: string;
 
   /**
+   * 자원 임계(CPU 70%·메모리 80%) Slack 알림 웹훅 — 파이프라인 워커의 ERROR 감시와
+   * 같은 채널을 쓴다. 비우면 감시 자체가 꺼진다(로컬 기본) — 그래서 선택값이다.
+   */
+  @IsOptional()
+  @IsString()
+  SLACK_ERROR_WEBHOOK_URL?: string;
+
+  /**
    * 애플 identity token의 `aud`로 실려 오는 값 — iOS 앱의 Bundle ID다(`auth-api.md` 4.1).
    *
    * **비밀값이 아니지만 검증에 반드시 필요하다.** 확인하지 않으면 다른 앱을 향해 발급된,

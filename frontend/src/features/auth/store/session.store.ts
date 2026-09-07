@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-import type { AuthUser } from '../auth.types';
+import type { AuthUser, RequiredConsent } from '../auth.types';
 
 type SessionStatus = 'unauthenticated' | 'authenticated';
 
@@ -13,7 +13,14 @@ interface SessionStore {
    * 온보딩 store에 둘 수 없다 — `exitOnboarding()`이 그 store를 초기화한다.
    */
   justCompletedOnboarding: boolean;
-  setSession: (user: AuthUser) => void;
+  /**
+   * 로그인 응답의 `pending_consents`(auth-api.md 4.1) — 비어 있지 않으면 실행 관문이
+   * 재동의 화면(A20)을 먼저 태운다(splash.md 4 — 3단계). 로그인 직후에만 잡으면
+   * 이미 로그인된 세션으로 다시 여는 경로가 새 나가므로 세션 상태로 들고 있는다.
+   */
+  pendingConsents: RequiredConsent[];
+  setSession: (user: AuthUser, pendingConsents?: RequiredConsent[]) => void;
+  clearPendingConsents: () => void;
   updateUser: (patch: Partial<AuthUser>) => void;
   markJustCompletedOnboarding: () => void;
   clearSession: () => void;
@@ -27,10 +34,18 @@ export const useSessionStore = create<SessionStore>((set) => ({
   status: 'unauthenticated',
   user: null,
   justCompletedOnboarding: false,
+  pendingConsents: [],
   // 로그인 진입은 온보딩 직후가 아니다 — 재로그인으로 신호가 남아 있으면 안 된다
-  setSession: (user) => set({ status: 'authenticated', user, justCompletedOnboarding: false }),
+  setSession: (user, pendingConsents = []) =>
+    set({ status: 'authenticated', user, justCompletedOnboarding: false, pendingConsents }),
+  clearPendingConsents: () => set({ pendingConsents: [] }),
   updateUser: (patch) => set((prev) => (prev.user ? { user: { ...prev.user, ...patch } } : prev)),
   markJustCompletedOnboarding: () => set({ justCompletedOnboarding: true }),
   clearSession: () =>
-    set({ status: 'unauthenticated', user: null, justCompletedOnboarding: false }),
+    set({
+      status: 'unauthenticated',
+      user: null,
+      justCompletedOnboarding: false,
+      pendingConsents: [],
+    }),
 }));

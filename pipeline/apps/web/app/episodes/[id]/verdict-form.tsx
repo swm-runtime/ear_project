@@ -3,6 +3,7 @@ import { useEffect, useState, useTransition } from "react";
 import { saveCriticVerdicts } from "../../actions";
 import type { CriticFlag } from "@/lib/artifacts";
 import { btnCls } from "@/components/ui";
+import { clearDraft, draftIsNewer, draftKey, fmtDraftTime, loadDraft, pickKnown, saveDraft, withTimeout } from "@/lib/judge-draft";
 
 type V = { verdict: "" | "동의" | "부분동의" | "비동의"; reason: string };
 
@@ -38,14 +39,23 @@ export function VerdictForm({ episodeId, parsed, saved }: { episodeId: string; p
   const [msg, setMsg] = useState<string | null>(null);
   const counts = Object.values(flags).reduce((a, v) => { if (v.verdict) a[v.verdict] = (a[v.verdict] ?? 0) + 1; return a; }, {} as Record<string, number>);
 
+  const dkey = draftKey("verdict", episodeId);
   const persist = (label: string) => start(async () => {
-    try { await saveCriticVerdicts(episodeId, { flags, stars, extra }); setMsg(label); setDirty(false); }
-    catch (e: any) { setMsg(e.message); }
+    try { await withTimeout(saveCriticVerdicts(episodeId, { flags, stars, extra })); clearDraft(dkey); setMsg(label); setDirty(false); }
+    catch (e) { setMsg(`저장 실패 — ${(e as Error).message}`); } // 초안은 남는다 — [지금 저장]으로 재시도
   });
+  // 브라우저 초안 복원 (lib/judge-draft) — JudgeView 와 동일 규칙
+  useEffect(() => {
+    const d = loadDraft<{ flags: Record<string, V>; stars: Record<string, V>; extra: string }>(dkey);
+    if (!draftIsNewer(d, saved?.judged_at)) return;
+    const data = d.data;
+    queueMicrotask(() => { setFlags((c) => pickKnown(c, data.flags)); setStars((c) => pickKnown(c, data.stars)); setExtra(data.extra ?? ""); setDirty(true); setMsg(`브라우저 초안 복원 (${fmtDraftTime(d.at)}) — 자동 저장 중`); });
+  }, [dkey]); // eslint-disable-line react-hooks/exhaustive-deps
   // 판정은 1.5초 디바운스로 자동 저장 — 탭 이동(클라이언트 내비게이션)에 로컬 상태가 사라지던 문제 (2026-09-03 사용자 보고).
   // dirty 게이트로 초기 마운트 저장(judged_by 덮어쓰기)을 막는다. JudgeView 와 동일 규칙.
   useEffect(() => {
     if (!dirty) return;
+    saveDraft(dkey, { flags, stars, extra });
     const t = setTimeout(() => persist("자동 저장됨"), 1500);
     return () => clearTimeout(t);
   }, [dirty, flags, stars, extra]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -62,7 +72,7 @@ export function VerdictForm({ episodeId, parsed, saved }: { episodeId: string; p
       <div className="mt-3 flex items-center gap-3">
         <button className={btnCls("primary")} disabled={pending} onClick={() => persist("저장됨")}>지금 저장</button>
         <span className="text-xs text-ink-soft">동의 {counts["동의"] ?? 0} · 부분 {counts["부분동의"] ?? 0} · 비동의 {counts["비동의"] ?? 0}{saved?.judged_by ? ` · 마지막 저장 ${saved.judged_by}` : ""}</span>
-        <span className="text-xs">{pending ? "저장 중…" : dirty ? "변경됨 — 자동 저장 중…" : msg ?? ""}</span>
+        <span className={`text-xs ${msg?.startsWith("저장 실패") ? "text-rose-700" : ""}`}>{pending ? "저장 중…" : msg?.startsWith("저장 실패") ? msg : dirty ? "변경됨 — 자동 저장 중…" : msg ?? ""}</span>
       </div>
     </div>
   );

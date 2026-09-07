@@ -74,7 +74,7 @@ export function TurnEditor({ episodeId, turn, initial, onClose, onSaved }: { epi
       <div className="flex items-center gap-2">
         <button className={btnCls("primary")} disabled={pending || text.trim() === initial.trim()}
           onClick={() => start(async () => {
-            try { const r = await editScriptTurn(episodeId, turn, text, reason); if (r.coldOpenBroken) alert(`${turn} 은 콜드오픈 발췌 원본입니다 — 콜드오픈과 자구가 어긋났습니다. 콜드오픈도 함께 맞춰주세요 (spec/04).`); onSaved(); }
+            try { await editScriptTurn(episodeId, turn, text, reason); onSaved(); }
             catch (e: any) { setErr(e.message); }
           })}>저장</button>
         <button className={btnCls()} onClick={onClose}>취소</button>

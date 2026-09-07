@@ -32,15 +32,15 @@ export class S3ContentStorageClient extends ContentStorageClient {
   private readonly logger = new Logger(S3ContentStorageClient.name);
   private readonly s3: S3Client;
   private readonly bucket: string;
-  private readonly publicBaseUrl: string;
 
   constructor(configService: ConfigService<EnvironmentVariables, true>) {
-    super();
+    super(
+      configService
+        .get('AUDIO_URL_BASE_URL', { infer: true })
+        .replace(/\/$/, ''),
+    );
     const region = configService.get('AWS_REGION', { infer: true });
     this.bucket = configService.get('AUDIO_BUCKET', { infer: true });
-    this.publicBaseUrl = configService
-      .get('AUDIO_URL_BASE_URL', { infer: true })
-      .replace(/\/$/, '');
 
     this.s3 = new S3Client({ region });
   }

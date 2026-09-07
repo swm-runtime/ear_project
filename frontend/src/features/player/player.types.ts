@@ -54,7 +54,11 @@ export interface PlayerContentMeta {
   sourceUrl: string | null;
   durationSec: number;
   thumbnailUrl: string;
-  /** 재발행 판정용 — 보관값보다 크면 저장 위치를 폐기하고 0부터 재생한다(player.md 7) */
+  /**
+   * 서버가 내려주는 현재 버전. 저장 요청(player-api.md 4.3)에 그대로 실어 보낸다.
+   * 재발행 시 저장된 위치를 폐기할지는 서버가 정한다 — 앱은 위치를 보관하지 않는다
+   * (docs/tickets/backend/pending/republish-stale-playback-position.md)
+   */
   contentVersion: number;
 }
 

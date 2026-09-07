@@ -5,6 +5,9 @@
 export const MAX_AUDIO_FILE_BYTES = 200 * 1024 * 1024;
 export const MAX_THUMBNAIL_FILE_BYTES = 5 * 1024 * 1024;
 
+/** enrichment.json — 벡터 1536개 float라도 수십 KB다. 1MB면 넉넉한 보호 상한 */
+export const MAX_ENRICHMENT_FILE_BYTES = 1 * 1024 * 1024;
+
 /** admin.md 3.1 — mp3 / m4a */
 export const AUDIO_CONTENT_TYPES: Readonly<Record<string, string>> = {
   mp3: 'audio/mpeg',
@@ -30,6 +33,9 @@ export const THUMBNAIL_KEY_PREFIX = 'thumb/';
 
 /** audit_logs.action 값 */
 export const AUDIT_ACTION_CONTENT_UPLOAD = 'content.upload';
+export const AUDIT_ACTION_CONTENT_REPUBLISH = 'content.republish';
+/** 재발행 없이 추천 메타 파일만 반영한 경우 — 버전이 오르지 않아 republish와 구분한다 */
+export const AUDIT_ACTION_CONTENT_ENRICH = 'content.enrich';
 export const AUDIT_ACTION_CONTENT_WITHDRAW = 'content.withdraw';
 export const AUDIT_ACTION_CONTENT_RESTORE = 'content.restore';
 export const AUDIT_ACTION_TOPIC_CREATE = 'topic.create';

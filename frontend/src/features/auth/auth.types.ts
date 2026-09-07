@@ -1,7 +1,11 @@
 export type SocialProvider = 'kakao' | 'naver' | 'google' | 'apple';
 
 /** 서버 계약의 consent_type 값 그대로 쓴다(convention.md 1.6) */
-export type ConsentType = 'terms' | 'privacy' | 'marketing';
+/**
+ * 서버가 받는 동의 유형(domain.md 3.2). `age_confirmation` 은 열람할 문서가 없는
+ * 자기 선언이라 `version` 이 항상 null 이다 — 마케팅과 같다.
+ */
+export type ConsentType = 'terms' | 'privacy' | 'marketing' | 'age_confirmation';
 
 export interface AuthUser {
   id: string;
@@ -85,4 +89,50 @@ export interface EmailVerifiedResult {
   email: string;
   isEmailVerified: boolean;
   verifiedAt: string;
+}
+
+/* ── 회원 탈퇴(auth.md 4.3 · auth-api.md 4.6~4.7) ── */
+
+/** `withdrawal-preview`의 보존 항목. 결제 이력이 없으면 이 객체 자체가 없다(null) */
+export interface WithdrawalRetention {
+  years: number;
+  /** 서버가 내려주는 항목 키(`email` · `subscription_history` · `consent_history`) */
+  items: string[];
+}
+
+/**
+ * A7의 구성을 가르는 서버 판정(auth-api.md 4.6).
+ * **클라이언트가 `user.tier`로 추측하지 않는다** — 결제 후 만료돼 무료로 돌아온 사용자를
+ * "결제 이력 없음"으로 잘못 안내하게 된다.
+ */
+export interface WithdrawalPreview {
+  hasPaymentHistory: boolean;
+  hasActiveSubscription: boolean;
+  subscriptionExpiryAgreementRequired: boolean;
+  /** 결제 이력이 없으면 null이다 — 빈 배열이 아니다(보존 섹션을 그리지 않는 근거) */
+  retained: WithdrawalRetention | null;
+}
+
+/**
+ * 선택형 사유 값(auth-api.md 4.7 `reason_code`) — 노출 순서는 `auth.constants.ts`의
+ * WITHDRAWAL_REASON_CODES가 소유한다. SOCIAL_PROVIDERS와 같은 분담이다.
+ */
+export type WithdrawalReasonCode =
+  | 'content_quailty'
+  | 'recommendation_mismatch'
+  | 'low_usage'
+  | 'price'
+  | 'not_enough_content'
+  | 'app_issue'
+  | 'alternative'
+  | 'other';
+
+/** 탈퇴 요청 본문의 도메인 모델(auth-api.md 4.7) */
+export interface WithdrawalSubmission {
+  reasonCode: WithdrawalReasonCode | null;
+  reasonText: string | null;
+  /** 안내 확인 체크. true가 아니면 서버가 거절한다 */
+  confirm: boolean;
+  /** 활성 구독이 있을 때만 실어 보낸다. 그 외에는 null(키 자체를 싣지 않는다) */
+  agreedSubscriptionExpiry: boolean | null;
 }

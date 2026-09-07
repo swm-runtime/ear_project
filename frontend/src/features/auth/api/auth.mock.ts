@@ -111,3 +111,8 @@ export const mockRefreshSession = async (): Promise<RefreshTokenResponseDto> => 
 export const mockRequestLogout = async (): Promise<void> => {
   await delay(RESPONSE_DELAY_MS);
 };
+
+/** A20 재동의 전송(auth-api.md 4.5). 서버는 갱신 후 동의 상태를 주지만 화면이 쓰지 않는다 */
+export const mockSubmitConsents = async (): Promise<void> => {
+  await delay(RESPONSE_DELAY_MS);
+};

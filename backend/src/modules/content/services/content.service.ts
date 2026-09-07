@@ -19,17 +19,21 @@ import {
   AdminContentPageQuery,
   ContentCandidateQuery,
   ContentTopicView,
+  EnrichmentInput,
   ExplorePage,
   ExplorePageQuery,
   PopularPage,
   PopularPageQuery,
   PublishContentCommand,
+  RepublishContentCommand,
   SearchPage,
   SearchPageQuery,
 } from '../content.types';
+import { EMBEDDING_MODEL_ID } from '../content.constant';
 import { ContentSource } from '../entities/content-source.entity';
 import { Content } from '../entities/content.entity';
 import { ContentRepository } from '../repositories/content.repository';
+import { ContentEmbeddingRepository } from '../repositories/content-embedding.repository';
 import { ContentSourceRepository } from '../repositories/content-source.repository';
 import { ContentTopicRepository } from '../repositories/content-topic.repository';
 
@@ -49,7 +53,68 @@ export class ContentService {
     private readonly contentRepository: ContentRepository,
     private readonly contentTopicRepository: ContentTopicRepository,
     private readonly contentSourceRepository: ContentSourceRepository,
+    private readonly contentEmbeddingRepository: ContentEmbeddingRepository,
   ) {}
+
+  /**
+   * 검증된 추천 메타(`EnrichmentInput`)를 저장한다 — `contents` 메타 4종은 넘어온 키만
+   * 갱신하고, 임베딩은 **현재 `content_version`으로** 콘텐츠당 1행 전체 교체 upsert 한다
+   * (domain.md 5.6 — 재발행·모델 교체의 재생성이 같은 경로를 쓴다).
+   *
+   * 형식·enum 검증은 호출자(관리자 업로드)의 몫이다 — 여기 오는 값은 이미 통과한 값이다.
+   */
+  async applyEnrichment(
+    content: Content,
+    enrichment: EnrichmentInput,
+    manager: EntityManager,
+  ): Promise<void> {
+    if (enrichment.difficulty !== undefined) {
+      content.difficulty = enrichment.difficulty;
+    }
+    if (enrichment.format !== undefined) {
+      content.format = enrichment.format;
+    }
+    if (enrichment.isEvergreen !== undefined) {
+      content.isEvergreen = enrichment.isEvergreen;
+    }
+    if (enrichment.keywords !== undefined) {
+      content.keywords = enrichment.keywords;
+    }
+    await this.contentRepository.saveAll([content], manager);
+
+    if (enrichment.embedding !== undefined) {
+      await this.contentEmbeddingRepository.upsert(
+        {
+          contentId: content.id,
+          embedding: enrichment.embedding.vector,
+          model: enrichment.embedding.model,
+          contentVersion: content.contentVersion,
+        },
+        manager,
+      );
+    }
+  }
+
+  /**
+   * 스코어링에 쓸 수 있는 임베딩만 — 현재 모델(`EMBEDDING_MODEL_ID`)이고 대본 버전이
+   * 현재와 일치하는 행. 조건에서 걸러진 콘텐츠는 맵에 없고, 스코어링은 임베딩 축을
+   * 중립 처리한다(`drip-scheduling.md` 4.2 — 결여 축 재정규화).
+   */
+  async findScorableEmbeddings(
+    contentIds: string[],
+    manager?: EntityManager,
+  ): Promise<Map<string, number[]>> {
+    const embeddings =
+      await this.contentEmbeddingRepository.findAllScorableByContentIds(
+        contentIds,
+        EMBEDDING_MODEL_ID,
+        manager,
+      );
+
+    return new Map(
+      embeddings.map((embedding) => [embedding.contentId, embedding.embedding]),
+    );
+  }
 
   async findCandidates(
     query: ContentCandidateQuery,
@@ -304,6 +369,79 @@ export class ContentService {
         ),
         manager,
       );
+    }
+
+    return saved;
+  }
+
+  /**
+   * admin.md 4.3 · admin-api.md 4.10 — 재발행. **새 행을 만들지 않고 같은 행을 갈아끼운다.**
+   * `content_id`가 유지돼야 `library_items` · `playback_progresses` · `content_stats`의
+   * 참조가 끊기지 않는다(회수 후 재업로드로는 이걸 지킬 수 없다).
+   *
+   * `content_version`은 **바뀐 파트와 무관하게 1 오른다.** 메타만 바꿔도 올리는 이유는
+   * 클라이언트의 재발행 판정(`player.md` 7 · `player-api.md` 4.2)이 이 값 하나만 보기
+   * 때문이다 — 어떤 파트가 바뀌었는지는 클라이언트가 알 수 없고 알 필요도 없다.
+   *
+   * 저장소 업로드는 호출부(admin)가 트랜잭션 밖에서 끝내고 `audioPath`를 넘긴다(`publish`와 같다).
+   */
+  async republish(
+    content: Content,
+    command: RepublishContentCommand,
+    manager: EntityManager,
+  ): Promise<Content> {
+    if (command.title !== undefined) {
+      content.title = command.title;
+    }
+    if (command.description !== undefined) {
+      content.description = command.description;
+    }
+    if (command.sourceName !== undefined) {
+      content.sourceName = command.sourceName;
+    }
+    if (command.audioPath !== undefined) {
+      content.audioPath = command.audioPath;
+    }
+    if (command.durationSec !== undefined) {
+      content.durationSec = command.durationSec;
+    }
+    if (command.thumbnailUrl !== undefined) {
+      content.thumbnailUrl = command.thumbnailUrl;
+    }
+    content.contentVersion += 1;
+
+    const [saved] = await this.contentRepository.saveAll([content], manager);
+
+    // 넘어온 목록은 **전체 교체**다. 지우고 다시 넣어야 빠진 항목이 남지 않는다
+    if (command.topicIds !== undefined) {
+      await this.contentTopicRepository.deleteAllByContentId(saved.id, manager);
+      await this.contentTopicRepository.saveAll(
+        command.topicIds.map((topicId) =>
+          this.contentTopicRepository.create({ contentId: saved.id, topicId }),
+        ),
+        manager,
+      );
+    }
+
+    if (command.sources !== undefined) {
+      await this.contentSourceRepository.deleteAllByContentId(
+        saved.id,
+        manager,
+      );
+      if (command.sources.length > 0) {
+        await this.contentSourceRepository.saveAll(
+          command.sources.map((source, index) =>
+            this.contentSourceRepository.create({
+              contentId: saved.id,
+              position: index + 1,
+              title: source.title,
+              author: source.author,
+              url: source.url,
+            }),
+          ),
+          manager,
+        );
+      }
     }
 
     return saved;

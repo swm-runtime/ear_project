@@ -2,11 +2,12 @@
 import { useState, useTransition } from "react";
 import { deleteTopic, upsertTopic } from "../actions";
 import { btnCls } from "@/components/ui";
+import { MAJOR_TOPICS } from "@/lib/taxonomy";
 
 type Row = { id?: string; major: string; mid: string; ai_generation: boolean; explainer: string | null; active: boolean; note: string | null };
 
 export function TopicsTable({ rows }: { rows: Row[] }) {
-  const [draft, setDraft] = useState<Row>({ major: "배움", mid: "", ai_generation: true, explainer: "윤아", active: true, note: "" });
+  const [draft, setDraft] = useState<Row>({ major: MAJOR_TOPICS[0], mid: "", ai_generation: true, explainer: "윤아", active: true, note: "" });
   const [pending, start] = useTransition();
   const save = (r: Row) => start(async () => { try { await upsertTopic(r); } catch (e: any) { alert(e.message); } });
   return (
@@ -28,7 +29,7 @@ function EditableRow({ row, isNew, onSave, onDelete, pending }: { row: Row; isNe
   const inp = "w-full rounded border border-line px-2 py-1 outline-none focus:border-brand";
   return (
     <tr className="border-b border-line last:border-0 hover:bg-[#f7f9fb]">
-      <td className="p-2"><select className={inp} value={r.major} onChange={(e) => setR({ ...r, major: e.target.value })}><option>돈</option><option>배움</option><option>일</option></select></td>
+      <td className="p-2"><select className={inp} value={r.major} onChange={(e) => setR({ ...r, major: e.target.value })}>{MAJOR_TOPICS.map((m) => <option key={m}>{m}</option>)}</select></td>
       <td className="p-2"><input className={inp} value={r.mid} placeholder="중분류" onChange={(e) => setR({ ...r, mid: e.target.value })} /></td>
       <td className="p-2 text-center"><input type="checkbox" checked={r.ai_generation} onChange={(e) => setR({ ...r, ai_generation: e.target.checked })} /></td>
       <td className="p-2"><select className={inp} value={r.explainer ?? ""} onChange={(e) => setR({ ...r, explainer: e.target.value || null })}><option value="">-</option><option>윤아</option><option>이음</option></select></td>

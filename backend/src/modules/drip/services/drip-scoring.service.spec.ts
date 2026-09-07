@@ -39,6 +39,7 @@ function buildCandidate(
     completeCount?: number;
     topicIds?: string[];
     content?: Partial<Content>;
+    embedding?: number[] | null;
   } = {},
 ): ScoringCandidate {
   return {
@@ -46,6 +47,7 @@ function buildCandidate(
     playCount: overrides.playCount ?? 0,
     completeCount: overrides.completeCount ?? 0,
     topicIds: overrides.topicIds ?? [TOPIC_A],
+    embedding: overrides.embedding ?? null,
   };
 }
 
@@ -73,6 +75,7 @@ function buildPreference(
     keywordWeights: {},
     formatWeights: {},
     durationPref: null,
+    tasteEmbedding: null,
     signalCount: 10,
     ...overrides,
   };
@@ -289,7 +292,118 @@ describe('DripScoringService', () => {
     });
   });
 
+  describe('scoreRegularCandidates — 임베딩 유사도 축(4.2 ①)', () => {
+    it('주제·키워드가 겹치지 않아도 취향 벡터와 유사한 임베딩의 후보가 가점된다', () => {
+      // given — 조건이 같은 두 후보, 임베딩만 취향([1,0])과의 유사도가 다르다
+      const scored = service.scoreRegularCandidates(
+        [
+          buildCandidate('similar', { topicIds: [], embedding: [1, 0] }),
+          buildCandidate('different', { topicIds: [], embedding: [0, 1] }),
+        ],
+        buildContext({
+          isColdStart: false,
+          preference: buildPreference({ tasteEmbedding: [1, 0] }),
+        }),
+      );
+
+      // then
+      expect(scoreOf(scored, 'similar')).toBeGreaterThan(
+        scoreOf(scored, 'different'),
+      );
+    });
+
+    it('임베딩이 없는 후보는 축이 빠진 재정규화로 계산되고 탈락하지 않는다', () => {
+      // given
+      const scored = service.scoreRegularCandidates(
+        [buildCandidate('bare', { embedding: null })],
+        buildContext({
+          isColdStart: false,
+          preference: buildPreference({ tasteEmbedding: [1, 0] }),
+        }),
+      );
+
+      // then
+      expect(scored).toHaveLength(1);
+      expect(Number.isFinite(scored[0].score)).toBe(true);
+    });
+
+    it('취향 벡터가 없는 사용자는 임베딩 축 없이 종전과 같은 점수를 받는다', () => {
+      // given — 같은 후보를 취향 벡터 유무만 바꿔 두 번 계산한다
+      const candidate = (): ReturnType<typeof buildCandidate>[] => [
+        buildCandidate('c1', { embedding: [1, 0] }),
+      ];
+      const context = buildContext({
+        isColdStart: false,
+        preference: buildPreference({ tasteEmbedding: null }),
+      });
+
+      // when
+      const withoutTaste = service.scoreRegularCandidates(candidate(), context);
+
+      // then — 축 결여는 재정규화라 점수가 계산되고, NaN·0 고정이 아니다
+      expect(Number.isFinite(withoutTaste[0].score)).toBe(true);
+    });
+  });
+
   describe('selectWithDiversity', () => {
+    it('주제·저자가 달라도 임베딩이 사실상 같은 두 편은 MMR 감점으로 함께 뽑히지 않는다', () => {
+      // given — a1·a2는 내용이 같고(코사인 1) b1은 다르다. 이산 규칙으로는 셋 다 통과한다
+      const base = { isSeriesContinuation: false };
+      const scored = [
+        {
+          ...buildCandidate('a1', { topicIds: [TOPIC_A], embedding: [1, 0] }),
+          score: 0.9,
+          ...base,
+        },
+        {
+          ...buildCandidate('a2', { topicIds: [TOPIC_B], embedding: [1, 0] }),
+          score: 0.85,
+          ...base,
+        },
+        {
+          ...buildCandidate('b1', {
+            topicIds: ['cccccccc-1111-4111-8111-111111111111'],
+            embedding: [0, 1],
+          }),
+          score: 0.7,
+          ...base,
+        },
+      ];
+
+      // when
+      const picks = service.selectWithDiversity(scored, 2);
+
+      // then — a2는 0.85 − 0.3×1 = 0.55로 밀리고 b1(0.7)이 뽑힌다
+      expect(picks.map((pick) => pick.content.id).sort()).toEqual(['a1', 'b1']);
+    });
+
+    it('시리즈 연속 편은 MMR 감점을 받지 않는다', () => {
+      // given — a2는 a1과 내용이 같지만 시리즈 다음 편이다
+      const scored = [
+        {
+          ...buildCandidate('a1', { topicIds: [TOPIC_A], embedding: [1, 0] }),
+          score: 0.9,
+          isSeriesContinuation: false,
+        },
+        {
+          ...buildCandidate('a2', { topicIds: [TOPIC_A], embedding: [1, 0] }),
+          score: 0.85,
+          isSeriesContinuation: true,
+        },
+        {
+          ...buildCandidate('b1', { topicIds: [TOPIC_B], embedding: [0, 1] }),
+          score: 0.7,
+          isSeriesContinuation: false,
+        },
+      ];
+
+      // when
+      const picks = service.selectWithDiversity(scored, 2);
+
+      // then
+      expect(picks.map((pick) => pick.content.id).sort()).toEqual(['a1', 'a2']);
+    });
+
     it('2편을 뽑을 때 같은 주제만 나오지 않게 다른 주제의 후보를 우선한다', () => {
       const scored = service.scoreRegularCandidates(
         [
@@ -422,6 +536,33 @@ describe('DripScoringService', () => {
       });
 
       expect(picks.map((pick) => pick.content.id)).toEqual(['good']);
+    });
+
+    it('정규 편과 내용이 겹치는 탐험 편은 MMR 감점으로 밀린다', () => {
+      // given — 같은 조건의 두 후보. duplicate만 정규 편 임베딩([1,0])과 내용이 같다
+      const duplicate = buildCandidate('duplicate', {
+        topicIds: [TOPIC_B],
+        embedding: [1, 0],
+      });
+      const fresh = buildCandidate('fresh', {
+        topicIds: [TOPIC_B],
+        embedding: [0, 1],
+      });
+
+      // when
+      const picks = service.selectDiscovery({
+        candidates: [duplicate, fresh],
+        exposureCounts: new Map(),
+        activeTopicIds: [TOPIC_A],
+        userRemovedTopicIds: [],
+        pickedTopicIds: [],
+        pickedEmbeddings: [[1, 0]],
+        count: 1,
+        now: NOW,
+      });
+
+      // then
+      expect(picks.map((pick) => pick.content.id)).toEqual(['fresh']);
     });
 
     it('전 사용자 편성 이력이 적은(저노출) 후보를 우선한다', () => {

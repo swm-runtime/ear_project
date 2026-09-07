@@ -44,6 +44,7 @@ export class UserPreferenceVectorRepository {
           'keyword_weights',
           'format_weights',
           'duration_pref',
+          'taste_embedding',
           'signal_count',
           'updated_at',
         ],

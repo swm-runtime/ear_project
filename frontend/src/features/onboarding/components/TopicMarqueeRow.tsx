@@ -158,6 +158,16 @@ function NativeMarqueeRow({
     paused.current = true;
     if (resumeTimer.current) clearTimeout(resumeTimer.current);
   };
+  /**
+   * 손가락이 닿는 즉시 멈춘다 — **드래그로 판정되기 전에** 흐름을 끊어야 한다.
+   *
+   * `onScrollBeginDrag`는 드래그가 인식된 뒤에야 오므로, 탭 한 번은 흐르는 동안 그대로
+   * 지나간다. iOS `UIScrollView`는 그 사이의 터치를 스크롤 조작으로 소비하고 자식
+   * Pressable에 넘기지 않아 **iOS에서만 첫 탭이 선택으로 이어지지 않았다**
+   * (`tickets/frontend/pending/onboarding-marquee-ios-tap-miss.md`).
+   * 웹 경로가 `onTouchStart`에서 즉시 pause하는 것과 대칭을 맞춘다.
+   */
+  const handleTouchStart = () => pause();
   const scheduleResume = () => {
     if (resumeTimer.current) clearTimeout(resumeTimer.current);
     resumeTimer.current = setTimeout(() => {
@@ -226,9 +236,17 @@ function NativeMarqueeRow({
       showsHorizontalScrollIndicator={false}
       onScroll={handleScroll}
       onContentSizeChange={handleContentSize}
+      onTouchStart={handleTouchStart}
+      // 탭으로 끝난 터치(스크롤 이벤트가 한 번도 오지 않는 경우)에도 흐름이 되살아나야 한다
+      onTouchEnd={scheduleResume}
+      onTouchCancel={scheduleResume}
       onScrollBeginDrag={pause}
       onScrollEndDrag={scheduleResume}
       onMomentumScrollEnd={scheduleResume}
+      // canCancelContentTouches={false}는 쓰지 않는다 — 알약 위에서 시작한 스와이프가
+      // 스크롤로 전환되지 않아 수동 스와이프가 막힌다(같은 티켓 후보 2의 부작용).
+      // delaysContentTouches도 쓰지 않았다 — RN 0.86 의 ScrollViewProps 타입에 없다
+      // (네이티브 구현은 남아 있으나 노출되지 않는다). 위 pause로 부족하면 그때 다시 본다.
       scrollEventThrottle={16}
     >
       <View style={styles.copies}>

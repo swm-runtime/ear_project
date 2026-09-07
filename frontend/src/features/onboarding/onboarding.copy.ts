@@ -5,6 +5,24 @@ import { NOTIFICATION_COPY } from '@/features/notification';
  * TODO 표시 항목은 uiux 문서에 확정 카피가 없어 임시로 둔 것 — 확정 시 교체한다.
  */
 export const ONBOARDING_COPY = {
+  /**
+   * 첫 사용 튜토리얼 — 실제 화면이 아니라 **예시 화면**을 띄워 설명한다.
+   * 갓 가입한 사용자의 라이브러리는 비어 있어서, 실제 화면 위에 설명을 얹으면
+   * 정작 설명할 것이 화면에 없다. TODO(카피 미확정)
+   */
+  tutorial: {
+    exploreTitle: '듣고 싶은 이야기를 담아요',
+    exploreBody: '탐색에서 마음에 드는 이야기를\n라이브러리에 담아둘 수 있어요',
+    libraryTitle: '담은 이야기는 여기에',
+    libraryBody: '라이브러리에서 언제든\n이어서 들을 수 있어요',
+    dripTitle: '매일 아침 2편이 도착해요',
+    dripBody: '고른 관심 주제에 맞춰\n직접 담지 않아도 채워집니다',
+    exploreNote: '더보기에서 담을 수 있어요',
+    libraryNote: '담은 것은 라이브러리 탭에 모여요',
+    dripNote: '직접 담지 않아도 채워집니다',
+    skip: '건너뛰기',
+    done: '시작하기',
+  },
   /** O1–O3 관심 주제 선택(onboarding-uiux.md 4.1) */
   topic: {
     /* TODO(카피 미확정): 상단 툴바 타이틀 — uiux 반영 요청은 changes/pending/onboarding-o1-visual-refresh.md */

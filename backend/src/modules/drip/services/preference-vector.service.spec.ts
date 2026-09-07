@@ -190,4 +190,85 @@ describe('PreferenceVectorService', () => {
       expect(weights.signalCount).toBe(2);
     });
   });
+
+  describe('compute — 취향 벡터(4.3-1)', () => {
+    it('긍정 신호 콘텐츠의 임베딩을 최근성 가중으로 합해 단위 벡터로 정규화한다', () => {
+      // given — 최근 완청 c1([1,0])과 14일(반감기) 전 완청 c2([0,1])
+      const contentsById = new Map([
+        ['c1', buildContent('c1')],
+        ['c2', buildContent('c2')],
+      ]);
+      const embeddings = new Map([
+        ['c1', [1, 0]],
+        ['c2', [0, 1]],
+      ]);
+
+      // when
+      const weights = service.compute(
+        [
+          buildSignal('c1', PreferenceSignalAction.COMPLETE, NOW),
+          buildSignal('c2', PreferenceSignalAction.COMPLETE, daysAgo(14)),
+        ],
+        contentsById,
+        new Map(),
+        2,
+        NOW,
+        embeddings,
+      );
+
+      // then — 단위 벡터이고, 최근 신호의 성분이 더 크다(14일 = 반감기 1회)
+      const taste = weights.tasteEmbedding;
+      expect(taste).not.toBeNull();
+      const norm = Math.sqrt(taste![0] ** 2 + taste![1] ** 2);
+      expect(norm).toBeCloseTo(1);
+      expect(taste![0]).toBeGreaterThan(taste![1]);
+      expect(taste![1]).toBeGreaterThan(0);
+    });
+
+    it('부정 신호(unsave·delete)는 취향 벡터에 반영하지 않는다', () => {
+      // given
+      const contentsById = new Map([
+        ['c1', buildContent('c1')],
+        ['c2', buildContent('c2')],
+      ]);
+      const embeddings = new Map([
+        ['c1', [1, 0]],
+        ['c2', [0, 1]],
+      ]);
+
+      // when — c2는 담기 해제(부정)
+      const weights = service.compute(
+        [
+          buildSignal('c1', PreferenceSignalAction.COMPLETE),
+          buildSignal('c2', PreferenceSignalAction.UNSAVE),
+        ],
+        contentsById,
+        new Map(),
+        1,
+        NOW,
+        embeddings,
+      );
+
+      // then — c2의 성분이 더해지지도 빼지지도 않는다
+      expect(weights.tasteEmbedding).toEqual([1, 0]);
+    });
+
+    it('긍정 신호 콘텐츠에 임베딩이 하나도 없으면 취향 벡터는 null이다', () => {
+      // given — 완청은 있으나 임베딩 맵이 비어 있다
+      const contentsById = new Map([['c1', buildContent('c1')]]);
+
+      // when
+      const weights = service.compute(
+        [buildSignal('c1', PreferenceSignalAction.COMPLETE)],
+        contentsById,
+        new Map(),
+        1,
+        NOW,
+        new Map(),
+      );
+
+      // then
+      expect(weights.tasteEmbedding).toBeNull();
+    });
+  });
 });

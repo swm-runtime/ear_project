@@ -1,8 +1,9 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase-server";
-import { coldOpenStatus, loadArtifact, replaceTurn, writeArtifact } from "@/lib/artifacts";
+import { loadArtifact, replaceTurn, writeArtifact } from "@/lib/artifacts";
 import { putText } from "@/lib/storage";
+import { majorOrder } from "@/lib/taxonomy";
 
 /** 음차 사전·발음 맵 공통 형식 검증 — {"표기": "발음"} 객체, 값은 비어 있지 않은 문자열 (spec/06 6장) */
 function assertPronunciationJson(content: string): Record<string, string> {
@@ -35,6 +36,14 @@ export async function enqueueJob(type: "sweep" | "cluster" | "tts" | "package" |
   return data.id as string;
 }
 
+/** 발행·재발행 결과를 파이프라인에 기록 (spec/07 5장) — 제품 content_id·content_version·시각. 두 DB 는 분리 유지, 이 기록이 유일한 연결 고리 */
+export async function markPublished(backlogId: string, contentId: string, contentVersion: number) {
+  const sb = await supabaseServer();
+  const { error } = await sb.from("backlog").update({ status: "published", published_content_ref: contentId, published_version: contentVersion, published_at: new Date().toISOString() }).eq("id", backlogId);
+  if (error) throw new Error(error.message);
+  revalidatePath("/backlog"); revalidatePath("/"); revalidatePath("/publish"); revalidatePath("/episodes");
+}
+
 export async function cancelJob(id: string) {
   const sb = await supabaseServer();
   const { error } = await sb.from("jobs").update({ status: "cancelled" }).eq("id", id).eq("status", "queued");
@@ -42,11 +51,18 @@ export async function cancelJob(id: string) {
   revalidatePath("/"); revalidatePath("/sweep");
 }
 
+/**
+ * 비평 판정 저장 (spec/09 3.1). 실패는 실패로 보여야 한다 (2026-09-07):
+ * 세션이 만료되면 anon 으로 update 가 나가 RLS 에 걸려 0건 갱신인데 error 가 없어 "저장됨"으로 보이던 구멍을 막는다 —
+ * 로그인 확인 + returning 건수 검사. 클라이언트는 실패 시 브라우저 초안(lib/judge-draft)을 유지한다.
+ */
 export async function saveCriticVerdicts(episodeId: string, verdicts: unknown) {
   const sb = await supabaseServer();
   const { data: { user } } = await sb.auth.getUser();
-  const { error } = await sb.from("episodes").update({ critic_verdicts: { ...(verdicts as object), judged_by: user?.email ?? null, judged_at: new Date().toISOString() } }).eq("id", episodeId);
+  if (!user) throw new Error("로그인 세션이 만료됐습니다 — 새로고침해 다시 로그인하면 브라우저 초안에서 입력이 복원됩니다");
+  const { data, error } = await sb.from("episodes").update({ critic_verdicts: { ...(verdicts as object), judged_by: user.email ?? null, judged_at: new Date().toISOString() } }).eq("id", episodeId).select("id");
   if (error) throw new Error(error.message);
+  if (!data?.length) throw new Error(`저장되지 않았습니다 (갱신 0건) — 에피소드 ${episodeId} 접근 권한 또는 존재 여부 확인`);
   revalidatePath(`/episodes/${episodeId}`);
 }
 
@@ -62,6 +78,19 @@ export async function listPublishableEpisodes(): Promise<{ id: string; title: st
   return (eps ?? [])
     .filter((e) => bl[e.backlog_id]?.status === "packaged")
     .map((e) => ({ id: e.id, title: bl[e.backlog_id]?.title ?? e.id, mid_topic: bl[e.backlog_id]?.mid_topic ?? "", created_at: e.created_at as string }));
+}
+
+/**
+ * 파이프라인 주제 체계(topics, active) → 제품 주제 동기화용 목록. 대분류 체계 순서 → 중분류 등록 순으로 display_order 를 매긴다.
+ * 제품 주제(name·parent_category)는 파이프라인 중분류·대분류와 1:1 이 규약이다(2026-09-06 체계 통일). 실제 생성·수정은 브라우저의 제품 세션으로 한다(/publish/topics).
+ */
+export async function listPipelineTopicsForSync(): Promise<{ major: string; mid: string; display_order: number }[]> {
+  const sb = await supabaseServer();
+  const { data, error } = await sb.from("topics").select("major,mid,active,created_at").eq("active", true).order("created_at");
+  if (error) throw new Error(error.message);
+  return [...(data ?? [])]
+    .sort((a, b) => majorOrder(a.major) - majorOrder(b.major))
+    .map((t, i) => ({ major: t.major, mid: t.mid, display_order: i + 1 }));
 }
 
 /** 도메인 판정 (사람): tier·license_basis. decided_by·decided_at 는 트리거가 찍는다. */
@@ -119,16 +148,15 @@ export async function editScriptTurn(episodeId: string, turn: string, after: str
   if (md == null) throw new Error(`대본을 읽을 수 없습니다: ${ep.script_key} (PIPELINE_BUCKET·AWS 자격증명 확인)`);
   const r = replaceTurn(md, turn, after.trim());
   if (!r) throw new Error(`대본에서 ${turn} 을 찾을 수 없습니다`);
-  if (r.before.trim() === after.trim()) return { changed: false, coldOpenBroken: false };
+  if (r.before.trim() === after.trim()) return { changed: false };
   await writeArtifact(ep.script_key, r.md);
 
   const entry = { turn, before: r.before, after: after.trim(), reason: reason?.trim() || null, by: user?.email ?? null, at: new Date().toISOString() };
   const { error: e2 } = await sb.from("episodes").update({ human_edits: [...(ep.human_edits ?? []), entry] }).eq("id", episodeId);
   if (e2) throw new Error(e2.message);
 
-  const cold = coldOpenStatus(r.md);
   revalidatePath(`/episodes/${episodeId}`);
-  return { changed: true, coldOpenBroken: cold.turn === turn && !cold.ok };
+  return { changed: true };
 }
 
 /** 규칙 자산 — 새 버전(draft) 저장 (spec/10 3.2). 규약(active 불변·활성화 note 필수·기존 active 자동 retired)은 DB 트리거가 강제한다 */

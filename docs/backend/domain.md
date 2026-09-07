@@ -212,8 +212,8 @@ idx_users_status
 consents
   id                        uuid            PK
   user_id                   uuid            FK → users
-  consent_type              enum            terms | privacy | marketing
-  version                   varchar         NULL 허용 (marketing)
+  consent_type              enum            terms | privacy | marketing | age_confirmation
+  version                   varchar         NULL 허용 (marketing · age_confirmation)
   is_agreed                 boolean         철회는 false 행을 추가
   agreed_at                 timestamptz
 
@@ -222,6 +222,7 @@ idx_consents_user_id_consent_type_agreed_at (user_id, consent_type, agreed_at DE
 
 - **append-only.** 동의·재동의·철회가 발생할 때마다 새 행을 추가한다. `UPDATE`하지 않는다 — 갱신하는 순간 이력 테이블이 아니게 된다.
 - 현재 동의 상태 = `consent_type`별 `agreed_at` 최신 1건.
+- `age_confirmation` — **만 18세 이상 자기 선언**(약관 제5조 · 개인정보 보호법 제22조의2, 2026-09-06 `tickets/backend/age-confirmation-consent` 반영). 열람할 문서가 없는 선언이라 `version`은 항상 NULL이며, 가입 필수 동의에 포함된다. 화면 게이트만으로는 그 사용자가 확인했다는 사실을 입증할 수 없어 이력으로 남긴다. 연령 기준이 바뀌면 그때 버전을 도입해 재확인을 트리거한다.
 - **동의 종류를 축으로 쪼갠다.** 이용약관과 개인정보처리방침은 개정 시점이 다르고, 마케팅 동의는 수시로 철회된다. 한 행에 3종을 묶으면 마케팅 토글만 껐는데 약관 버전이 딸려 들어간 행이 생기고, 그 행이 "약관에 다시 동의했다"로 읽힌다.
 - 컬럼이 아니라 이력 테이블인 이유:
   - **동의 획득 사실의 입증 책임이 사업자에게** 있는데, 컬럼은 덮어쓰면 과거 근거가 소멸한다.
@@ -1245,7 +1246,7 @@ archived_consents
   id                        uuid            PK
   user_hash                 varchar
   user_hash_version         smallint        DEFAULT 1
-  consent_type              enum            terms | privacy | marketing
+  consent_type              enum            terms | privacy | marketing | age_confirmation
   version                   varchar         NULL
   is_agreed                 boolean
   agreed_at                 timestamptz

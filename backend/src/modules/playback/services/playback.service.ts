@@ -69,6 +69,25 @@ export class PlaybackService {
     return progresses.map(toProgressView);
   }
 
+  /**
+   * 재발행 시 그 콘텐츠의 저장된 위치를 전 사용자에 대해 지운다
+   * (`tickets/backend/pending/republish-stale-playback-position.md` 안 A).
+   *
+   * 폐기 주체는 서버다 — 클라이언트는 위치를 로컬에 보관하지 않아 `player.md` 7의
+   * "보관값과 비교해 폐기"를 수행할 수 없고, 위치의 단일 진실은 `playback_progresses`다.
+   * 행이 사라지면 다음 진입의 4.1 응답이 `progress: null`이 되어 0부터 재생된다.
+   * 라이브러리(`library_items`)는 건드리지 않는다 — 담기는 유지된다.
+   */
+  async deleteProgressesByContentId(
+    contentId: string,
+    manager?: EntityManager,
+  ): Promise<void> {
+    await this.playbackProgressRepository.deleteAllByContentId(
+      contentId,
+      manager,
+    );
+  }
+
   /** 미니플레이어 복원 후보 — 재생 위치가 0보다 큰 콘텐츠(library-api.md 4.3) */
   async findStartedContentIds(
     userId: string,

@@ -243,6 +243,8 @@ export const useSettingsScreen = () => {
 
   /* ── 로그아웃(S5) — 서버 폐기 실패해도 진행한다(auth.md 4.2, sessionService 소관) ── */
 
+  /** 인증된 이메일 변경 불가 안내(auth.md 4.4 — 확정 2026-09-07) */
+  const [isEmailLockedVisible, setIsEmailLockedVisible] = useState(false);
   const [isLogoutDialogVisible, setIsLogoutDialogVisible] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -398,12 +400,25 @@ export const useSettingsScreen = () => {
 
     goBack: () => navigation.goBack(),
     openPlan: () => openDestination('Subscription'),
-    // A10의 "현재 이메일" 표시 값을 실어 보낸다 — 인증 화면이 요약을 재조회하지 않게 한다
-    openEmail: () =>
+    // A10의 "현재 이메일" 표시 값을 실어 보낸다 — 인증 화면이 요약을 재조회하지 않게 한다.
+    // 인증이 끝난 주소는 앱에서 바꿀 수 없으므로 인증 화면으로 보내지 않고 안내만 한다(auth.md 4.4)
+    openEmail: () => {
+      if (summary?.account?.email !== null && summary?.account?.isEmailVerified === true) {
+        setIsEmailLockedVisible(true);
+        return;
+      }
       navigation.navigate('Main', {
         screen: 'EmailVerification',
         params: { currentEmail: summary?.account?.email ?? null },
-      }),
+      });
+    },
+    isEmailLockedVisible,
+    closeEmailLocked: () => setIsEmailLockedVisible(false),
+    /** 안내에서 곧바로 문의로 보낸다 — 설정의 [문의하기]와 같은 목적지다 */
+    contactFromEmailLocked: () => {
+      setIsEmailLockedVisible(false);
+      openContact();
+    },
     openInterests: () => openDestination('InterestManagement'),
     openCareer: () => openDestination('Career'),
     openNotice: () => openDestination('Notice'),

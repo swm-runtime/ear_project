@@ -90,6 +90,7 @@ describe('DripBatchOrchestrator', () => {
           Promise.resolve(query.includeTopicIds ? regularPool : discoveryPool),
         ),
       findAllByIds: jest.fn().mockResolvedValue([]),
+      findScorableEmbeddings: jest.fn().mockResolvedValue(new Map()),
       findTopicViews: jest.fn().mockImplementation((contentIds: string[]) =>
         Promise.resolve(
           contentIds

@@ -22,7 +22,6 @@ import ExploreMoreSheet from '../components/ExploreMoreSheet';
 import ExploreSearchBarRow from '../components/ExploreSearchBarRow';
 import ExploreSkeleton from '../components/ExploreSkeleton';
 import ExploreTile from '../components/ExploreTile';
-import ExploreWalkthrough from '../components/ExploreWalkthrough';
 import PopularPeriodToggle from '../components/PopularPeriodToggle';
 import TopicChips from '../components/TopicChips';
 import { EXPLORE_COPY } from '../explore.copy';
@@ -276,8 +275,6 @@ export default function ExploreScreen() {
         onSuppressToday={screen.suppressAndPlay}
       />
 
-      {/* 첫 사용 코치마크 — 온보딩 직후 착지에서만 뜬다(walkthrough.store) */}
-      <ExploreWalkthrough />
     </SafeAreaView>
   );
 }

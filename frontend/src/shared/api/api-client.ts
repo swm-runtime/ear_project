@@ -16,7 +16,18 @@ const AUTO_RETRY_JITTER_RATIO = 0.2;
 
 // Android 에뮬레이터의 localhost는 에뮬레이터 자신이다 — 호스트(Mac)는 10.0.2.2로 접근한다
 const DEV_API_HOST = Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
-const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? `http://${DEV_API_HOST}:3000/api/v1`;
+/**
+ * 운영 서버 주소. **폴백을 실값으로 둬서 `eas.json` env 의존을 없앤다.**
+ *
+ * `eas.json`은 **지문(fingerprint) 소스**라(`expo-updates fingerprint:generate`의
+ * `reasons: ["easBuild"]`) 거기서 env를 고치면 **이미 배포된 빌드가 OTA를 못 받는다**
+ * — 네이티브가 바뀐 것과 같이 취급된다(`frontend/architecture.md` 2.1).
+ * 실제로 2026-09-07에 그렇게 됐다. 값을 코드에 두면 JS라 OTA로 전달된다.
+ */
+const PROD_API_BASE_URL = 'https://api.earcast.co.kr/api/v1';
+const BASE_URL =
+  process.env.EXPO_PUBLIC_API_BASE_URL ??
+  (__DEV__ ? `http://${DEV_API_HOST}:3000/api/v1` : PROD_API_BASE_URL);
 
 /**
  * shared는 도메인을 모른다 — 토큰 동작은 이 인터페이스로만 접근하고,

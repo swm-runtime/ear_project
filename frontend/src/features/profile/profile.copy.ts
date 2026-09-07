@@ -84,6 +84,17 @@ export const PROFILE_COPY = {
     register: '등록',
     verify: '인증하기',
     change: '변경',
+    /** 배지 앞 글리프 — 색만으로 구분하지 않기 위해 텍스트와 함께 쓴다(profile-uiux.md 7장) */
+    unverifiedGlyph: '!',
+    /**
+     * 인증이 끝난 이메일은 앱에서 바꿀 수 없다(auth.md 4.4 — 확정 2026-09-07).
+     * 탭에 아무 반응이 없으면 비활성이 아니라 고장으로 읽히므로 안내를 띄운다.
+     */
+    lockedTitle: '인증된 이메일은 변경할 수 없어요',
+    lockedBody:
+      '결제 기록을 보관하는 데 쓰이는 주소예요. 변경이 필요하면 문의해 주세요.',
+    lockedClose: '닫기',
+    lockedContact: '문의하기',
     /** 미인증 주소는 스크린리더가 주소 뒤에 배지를 이어 읽는다(profile-uiux.md 7장) */
     unverifiedValueA11y: (email: string) => `${email}, 인증되지 않음`,
   },
