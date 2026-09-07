@@ -2,7 +2,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { setBacklogStatus, listPublishableEpisodes } from "../../actions";
+import { markPublished, listPublishableEpisodes } from "../../actions";
 import { EarTopic, listEarTopics, uploadEarContent } from "@/lib/ear";
 import { Badge, PageHeader, Panel, btnCls } from "@/components/ui";
 import { EarGate, EarSession, earErrMsg } from "../ear-connect";
@@ -111,7 +111,7 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
         })),
         review_confirmed: true,
       }, audio!, thumbFile!);
-      if (meta) await setBacklogStatus(meta.backlog_id, "published").catch(() => undefined); // 파이프라인 상태 반영 — 실패해도 발행은 성립
+      if (meta) await markPublished(meta.backlog_id, content.id, content.content_version).catch(() => undefined); // 파이프라인에 content_id·버전 기록 — 실패해도 발행은 성립 (spec/07 5장)
       setMsg({ kind: "ok", text: `발행되었습니다 — ${content.id}` });
       setTimeout(() => router.push("/publish"), 900);
     } catch (e) {

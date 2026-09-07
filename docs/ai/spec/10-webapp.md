@@ -204,7 +204,7 @@ alter table runs add column cost_usd numeric, add column tokens jsonb, add colum
 | 소스 풀 | `domains` 목록(tier 필터) · 행 상세 = 판정 시트(note의 증거 표시 + tier 선택 + license_basis 기입) · 도메인 추가(candidate) | spec/01 4장 |
 | 스윕 | 중분류 선택 → 스윕 요청 · 진행 상태 · 결과(적재 건수, 실패 피드) · 이어지는 군집화 결과 링크 | spec/02 |
 | 백로그 | 후보 카드(제목·축·소스 묶음·타깃 정합·dedup 노트) → **승인/반려/보류** · 승인 즉시 draft 작업 생성 표시 | spec/03 게이트 1 |
-| 에피소드 | 목록(상태 타임라인) · 상세: 대본 뷰어·**턴 인라인 편집**(수정 전/후 → `episodes.human_edits`, 재QA 요청) / 발췌 / claims / QA 리포트(attempt별) / 비평 리포트(**판정 입력 UI**: 동의·부분·비동의+사유 → `episodes.critic_verdicts`) / runs 로그 · **TTS 변환 버튼**(qa_passed 이상, 확인 모달) · 오디오 플레이어(변환 후) | spec/04·05·09·06 |
+| 에피소드 | 목록(상태 타임라인) · 상세: 대본 뷰어·**턴 인라인 편집**(수정 전/후 → `episodes.human_edits`, 재QA 요청) / 발췌 / claims / QA 리포트(attempt별) / 비평 리포트(**판정 입력 UI**: 동의·부분·비동의+사유 → `episodes.critic_verdicts`) / runs 로그 · **TTS 변환 버튼**(qa_passed 이상, 확인 모달) · 오디오 플레이어(변환 후) · **재발행 버튼**(published + 발행 후 재합성 시, 제품 `PATCH /admin/contents/:id` — spec/07 5장) | spec/04·05·09·06 |
 | 설정 | TTS 보이스 ID·속도(윤아·이음), 합성 방식, 기본 모델, 실행기 표시, 프롬프트 버전(읽기) | spec/06 미결 #8 |
 | 규칙 자산 `/assets` | `prompt_assets` 목록(키·active 버전·활성화자·대기 draft) · 상세: 본문 · 편집 → 새 버전(draft) 저장 · active와 diff · **활성화**(note 필수) · 이력. 비평 판정 화면의 플래그에서 "규칙으로 승격" 링크 → guidelines 편집기 · 활성화 시 spec/09 4.3 연동 체크 상기 | 3.2 · spec/09 4장 |
 

@@ -139,6 +139,15 @@ export interface UploadPayload {
   review_confirmed: boolean;
 }
 
+/** 재발행 — 같은 content_id 에 오디오(·메타) 교체, content_version +1 (admin-api 4.10 — 백엔드 구현 대기: 404 면 아직 없는 것) */
+export function republishEarContent(contentId: string, parts: { audio?: File; thumbnail?: File; payload?: Partial<Pick<UploadPayload, "title" | "description" | "source_name" | "topic_ids" | "sources">> }): Promise<EarContent> {
+  const fd = new FormData();
+  if (parts.payload) fd.append("payload", JSON.stringify(parts.payload));
+  if (parts.audio) fd.append("audio", parts.audio);
+  if (parts.thumbnail) fd.append("thumbnail", parts.thumbnail);
+  return earFetch<EarContent>(`/admin/contents/${contentId}`, { method: "PATCH", body: fd });
+}
+
 export function uploadEarContent(payload: UploadPayload, audio: File, thumbnail: File): Promise<EarContent> {
   const fd = new FormData();
   fd.append("payload", JSON.stringify(payload));

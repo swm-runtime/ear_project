@@ -6,7 +6,7 @@
 > 스키마: [`docs/backend/domain.md`](../../backend/domain.md) 4.1 · 5.1 · 5.5
 > 연관: [`features/partner-control.md`](../../features/partner-control.md) 4.4(라이선스 만료 거부)
 
-작성: 2026-09-03 (구현 계약 등재 — `changes/archive/admin-web-console.md`)
+작성: 2026-09-03 (구현 계약 등재 — `changes/archive/admin-web-console.md`) · 2026-09-07 4.10 재발행 계약 추가(**구현 대기** — `tickets/backend/pending/content-republish-audio.md`)
 
 ## 1. 범위
 
@@ -25,7 +25,6 @@
 
 | 미구현 | 사유 |
 |---|---|
-| 재발행 (`admin.md` 4.3 — `content_version` 증가) | `content_version`은 응답에 실리지만 증가시키는 경로가 없다 |
 | 운영 현황 조회 (`admin.md` 4.6) | |
 | 스크립트 업로드 | FR-25가 P1이다 |
 | 추천 메타 파일(`enrichment_file` — `admin.md` 3.1) | 업로드 폼에 파트가 없다. `ai/metadata-pipeline.md` 확정 대기 |
@@ -51,6 +50,7 @@
 | POST | `/admin/contents` | 콘텐츠 업로드 → 즉시 발행 |
 | POST | `/admin/contents/:contentId/withdraw` | 콘텐츠 회수 |
 | POST | `/admin/contents/:contentId/restore` | 회수 복구 |
+| PATCH | `/admin/contents/:contentId` | 재발행 — 오디오·메타 교체, `content_version` 증가 (4.10, **구현 대기**) |
 | GET | `/admin/system-stats` | 서버 자원·DB 부하 스냅샷 (로그 콘솔 상태 탭) |
 
 ## 4. 엔드포인트 상세
@@ -191,18 +191,46 @@
 - `history`는 서버가 60초마다 쌓는 자원 샘플(최대 6시간, 오래된 것부터) — **프로세스 메모리 링 버퍼라 재기동(배포) 시 비워진다.** 대시보드 시간축 그래프의 원천이다. 못 읽은 값은 null.
 - `db.*`는 pg 통계 뷰(current_database 한정) 읽기 전용. `slow_queries.query`는 150자 제한이며 바인딩 파라미터(`$1`) 형태라 사용자 데이터 원문이 없다. `cache_hit_ratio`는 통계 누적 기준(집계 전이면 null).
 
+### 4.10 `PATCH /admin/contents/:contentId` — 재발행
+
+`admin.md` 4.3의 계약이다 (2026-09-07 등재, **백엔드 구현 대기**). 발행된 콘텐츠의 **오디오(또는 메타)를 같은 행에서 교체**하고
+`content_version`을 1 올린다. `content_id`가 유지되므로 `library_items` · `playback_progresses` · `content_stats` 참조가 끊기지 않는다.
+발생 경위: 파이프라인이 TTS 규격(배속·무음 등)을 바꿔 오디오를 재생성했을 때 발행본을 갈아끼우는 경로가 없었다.
+
+`multipart/form-data`. **모든 파트가 선택**이되 최소 1개는 있어야 한다.
+
+| 파트 | 규격 | 필수 |
+|---|---|---|
+| `audio` | mp3 / m4a, ≤200MB — 4.6과 같다 | 선택 |
+| `thumbnail` | jpg / png / webp, ≤5MB | 선택 |
+| `payload` | JSON 문자열 — 4.6 `payload`의 부분집합(`title` `description` `source_name` `topic_ids` `sources`). 넘긴 키만 바꾼다 | 선택 |
+
+- **오디오를 교체하면 `duration_sec`을 다시 추출**한다(4.6과 동일 — 클라이언트 값을 받지 않는다). 이전 파일은 새 파일 저장·트랜잭션 성공 후 지운다.
+- **`content_version`은 파트가 무엇이든 1 증가**한다. 메타만 바뀌어도 올린다 — 클라이언트의 재발행 판정(`player-api.md` 4.1·4.2)이 버전 하나로 동작해야 한다.
+- `origin` · `partner_id` · `series_id` · `episode_no` · `total_episodes` · `license_expires_at`은 **바꾸지 않는다** — 발행 단위의 정체성이라 필요하면 회수 후 새로 올린다.
+- `status`가 `published`가 아니면 **409 `CONFLICT`** (회수·만료 상태에서는 재발행하지 않는다 — `admin.md` 4.6 "만료 상태에서는 재발행을 막는다").
+- `topic_ids`를 넘기면 전체 교체다(빈 배열 불가 — 최소 1개, 4.6과 동일).
+- `audit_logs`에 `republish` 행위로 기록한다 — 행위자·이전/이후 `content_version`·바뀐 파트 목록.
+
+200으로 갱신된 `AdminContentItem`(증가한 `content_version` 포함)을 반환한다.
+
+**흐름** — 4.6과 같은 순서: 검증 → 새 파일 저장(트랜잭션 밖) → 트랜잭션(행 갱신 + `content_version + 1` + 주제·출처 교체) → 성공 시 이전 파일 삭제 / 실패 시 새 파일 삭제.
+
+**클라이언트 측 동작**(참고 — 이 문서 범위 밖): 앱은 `content_version`이 보관값보다 크면 저장한 재생 위치·오프라인 파일을 폐기한다(`player.md` 7 · `player-api.md` 4.2).
+
 ## 5. 에러 코드 표
 
 | error_code | HTTP | retryable | 발생 지점 |
 |---|---|---|---|
 | `VALIDATION_FAILED` | 400 | false | 필수값 누락·형식 위반. `details.field` 포함 |
-| `ADMIN_AUDIO_UNREADABLE` | 400 | false | 4.6 — 오디오 길이 추출 실패·0초 |
+| `ADMIN_AUDIO_UNREADABLE` | 400 | false | 4.6·4.10 — 오디오 길이 추출 실패·0초 |
 | `ADMIN_TOPIC_NOT_FOUND` | 400 | false | 4.6 — 존재하지 않는 `topic_ids`. **숨김 주제는 허용된다** |
 | `ADMIN_LICENSE_EXPIRED` | 400 | false | 4.6 — 만료된 파트너 라이선스 |
 | `FORBIDDEN` | 403 | false | 전 라우트 — `role != admin` |
 | `ADMIN_TOPIC_HAS_CONTENTS` | 409 | false | 4.4 — `details.content_count` |
-| `CONFLICT` | 409 | false | 4.7 — 이미 회수됨 / 4.8 — 회수 상태가 아님 |
-| `ADMIN_STORAGE_FAILED` | 502 | **true** | 4.6 — 저장소 실패 |
+| `CONFLICT` | 409 | false | 4.7 — 이미 회수됨 / 4.8 — 회수 상태가 아님 / 4.10 — `published`가 아님 |
+| `VALIDATION_FAILED` | 400 | false | 4.10 — 파트가 하나도 없음 (`details.field = "audio"`) |
+| `ADMIN_STORAGE_FAILED` | 502 | **true** | 4.6·4.10 — 저장소 실패 |
 
 전체 목록·클라이언트 동작은 `common-error-handling.md` 9.10이 기준이다.
 
