@@ -9,6 +9,7 @@ import { TopicService } from '@/modules/interest/services/topic.service';
 import { AuditLogService } from '@/modules/partner/audit-log.service';
 
 import { LibraryService } from '@/modules/library/library.service';
+import { PlaybackService } from '@/modules/playback/services/playback.service';
 
 import { AdminContentService } from './admin-content.service';
 import {
@@ -42,6 +43,19 @@ function buildFile(name: string, size = 1024): UploadedFileInput {
   };
 }
 
+/** enrichment.json 파일 — 내용이 있는 JSON 버퍼로 만든다 */
+function buildEnrichmentFile(value: unknown): UploadedFileInput {
+  const buffer = Buffer.from(JSON.stringify(value), 'utf8');
+  return {
+    buffer,
+    originalName: 'enrichment.json',
+    mimeType: 'application/json',
+    size: buffer.length,
+  };
+}
+
+const VALID_ENRICHMENT = { difficulty: 'beginner', keywords: ['이직 준비'] };
+
 function buildRepublishCommand(
   overrides: Partial<RepublishContentCommand> = {},
 ): RepublishContentCommand {
@@ -50,6 +64,7 @@ function buildRepublishCommand(
     contentId: CONTENT_ID,
     audio: buildFile('ep.mp3'),
     thumbnail: null,
+    enrichment: null,
     ...overrides,
   };
 }
@@ -75,6 +90,7 @@ function buildCommand(
     reviewConfirmed: true,
     audio: buildFile('ep.mp3'),
     thumbnail: buildFile('thumb.png'),
+    enrichment: null,
     ...overrides,
   };
 }
@@ -83,6 +99,7 @@ describe('AdminContentService', () => {
   let service: AdminContentService;
   let contentService: jest.Mocked<ContentService>;
   let libraryService: jest.Mocked<LibraryService>;
+  let playbackService: jest.Mocked<PlaybackService>;
   let topicService: jest.Mocked<TopicService>;
   let auditLogService: jest.Mocked<AuditLogService>;
   let storage: jest.Mocked<ContentStorageClient>;
@@ -125,11 +142,16 @@ describe('AdminContentService', () => {
       }),
       findAdminPage: jest.fn(),
       findTopicViews: jest.fn().mockResolvedValue([]),
+      applyEnrichment: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<ContentService>;
 
     libraryService = {
       removeAllByWithdrawnContent: jest.fn().mockResolvedValue(3),
     } as unknown as jest.Mocked<LibraryService>;
+
+    playbackService = {
+      deleteProgressesByContentId: jest.fn().mockResolvedValue(undefined),
+    } as unknown as jest.Mocked<PlaybackService>;
 
     topicService = {
       findAllByIds: jest
@@ -164,6 +186,7 @@ describe('AdminContentService', () => {
       dataSource,
       contentService,
       libraryService,
+      playbackService,
       topicService,
       auditLogService,
       storage,
@@ -202,6 +225,43 @@ describe('AdminContentService', () => {
         }),
         manager,
       );
+    });
+
+    it('유효한 추천 메타 파일을 첨부하면 같은 트랜잭션에서 저장되고 응답에 적용이 표시된다', async () => {
+      // given
+      const command = buildCommand({
+        enrichment: buildEnrichmentFile(VALID_ENRICHMENT),
+      });
+
+      // when
+      const result = await service.upload(command, NOW);
+
+      // then
+      expect(contentService.applyEnrichment).toHaveBeenCalledWith(
+        containing({ id: CONTENT_ID }),
+        { difficulty: 'beginner', keywords: ['이직 준비'] },
+        manager,
+      );
+      expect(result.enrichment).toEqual({
+        applied: true,
+        rejectedReason: null,
+      });
+    });
+
+    it('추천 메타 파일이 어긋나면 파일만 거부되고 업로드는 진행된다', async () => {
+      // given — enum에 없는 값 (admin.md 3.1 — 추천 메타는 발행 요건이 아니다)
+      const command = buildCommand({
+        enrichment: buildEnrichmentFile({ difficulty: 'expert' }),
+      });
+
+      // when
+      const result = await service.upload(command, NOW);
+
+      // then
+      expect(contentService.publish).toHaveBeenCalled();
+      expect(contentService.applyEnrichment).not.toHaveBeenCalled();
+      expect(result.enrichment?.applied).toBe(false);
+      expect(result.enrichment?.rejectedReason).toContain('difficulty');
     });
 
     it('검수 완료 확인이 없으면 업로드를 거부한다', async () => {
@@ -463,6 +523,102 @@ describe('AdminContentService', () => {
       );
       // 새 파일 저장 → 트랜잭션 성공 → **그 다음에** 이전 파일 삭제 (반대면 롤백 시 파일이 없다)
       expect(storage.remove).toHaveBeenCalledWith(['audio/old.mp3']);
+    });
+
+    it('오디오와 함께 온 추천 메타 파일은 재발행된 새 버전으로 저장된다', async () => {
+      // given
+      const command = buildRepublishCommand({
+        enrichment: buildEnrichmentFile(VALID_ENRICHMENT),
+      });
+
+      // when
+      await service.republish(command);
+
+      // then — contentService.republish의 결과(버전 3)가 그대로 저장 입력이다
+      expect(contentService.republish).toHaveBeenCalled();
+      expect(contentService.applyEnrichment).toHaveBeenCalledWith(
+        containing({ contentVersion: 3 }),
+        { difficulty: 'beginner', keywords: ['이직 준비'] },
+        manager,
+      );
+    });
+
+    it('추천 메타 파일만 보내면 버전을 올리지 않고 메타만 반영한다 — 소급 부여 경로', async () => {
+      // given
+      const command = buildRepublishCommand({
+        audio: null,
+        enrichment: buildEnrichmentFile(VALID_ENRICHMENT),
+      });
+
+      // when
+      const result = await service.republish(command);
+
+      // then — 재발행이 아니므로 버전 불변·위치 폐기 없음, 감사 로그는 content.enrich
+      expect(contentService.republish).not.toHaveBeenCalled();
+      expect(
+        playbackService.deleteProgressesByContentId,
+      ).not.toHaveBeenCalled();
+      expect(contentService.applyEnrichment).toHaveBeenCalledWith(
+        containing({ contentVersion: 2 }),
+        { difficulty: 'beginner', keywords: ['이직 준비'] },
+        manager,
+      );
+      expect(auditLogService.record).toHaveBeenCalledWith(
+        containing({ action: 'content.enrich' }),
+        manager,
+      );
+      expect(result.enrichment?.applied).toBe(true);
+    });
+
+    it('추천 메타 파일만 보냈는데 어긋나면 아무것도 바꾸지 않고 거부 사유만 돌려준다', async () => {
+      // given
+      const command = buildRepublishCommand({
+        audio: null,
+        enrichment: buildEnrichmentFile({ format: 'podcast' }),
+      });
+
+      // when
+      const result = await service.republish(command);
+
+      // then
+      expect(contentService.applyEnrichment).not.toHaveBeenCalled();
+      expect(auditLogService.record).not.toHaveBeenCalled();
+      expect(result.enrichment?.applied).toBe(false);
+      expect(result.enrichment?.rejectedReason).toContain('format');
+    });
+
+    it('재발행하면 그 콘텐츠의 저장된 재생 위치가 같은 트랜잭션에서 전부 지워진다', async () => {
+      // when
+      await service.republish(buildRepublishCommand());
+
+      // then — 안 A(`republish-stale-playback-position.md`): 읽기 경로(4.1)가 낡은
+      // 위치를 내려주지 않도록 행 자체를 지운다. 라이브러리는 건드리지 않는다
+      expect(playbackService.deleteProgressesByContentId).toHaveBeenCalledWith(
+        CONTENT_ID,
+        manager,
+      );
+      expect(libraryService.removeAllByWithdrawnContent).not.toHaveBeenCalled();
+    });
+
+    it('재발행이 거부되면 재생 위치를 지우지 않는다', async () => {
+      // given — 회수 상태라 409로 거부되는 경우
+      contentService.getById.mockResolvedValue({
+        id: CONTENT_ID,
+        status: ContentStatus.WITHDRAWN,
+        origin: ContentOrigin.AI_GENERATED,
+        contentVersion: 2,
+        audioPath: 'audio/old.mp3',
+        thumbnailUrl: `${CDN_BASE_URL}/thumb/old.png`,
+      } as never);
+
+      // when
+      const act = service.republish(buildRepublishCommand());
+
+      // then
+      await expect(act).rejects.toBeInstanceOf(BusinessException);
+      expect(
+        playbackService.deleteProgressesByContentId,
+      ).not.toHaveBeenCalled();
     });
 
     it('메타만 보내도 content_version은 오른다 — 클라이언트 재발행 판정이 버전 하나로 동작한다', async () => {

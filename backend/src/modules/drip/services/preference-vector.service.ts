@@ -25,6 +25,16 @@ const DURATION_SOURCE_ACTIONS: readonly PreferenceSignalAction[] = [
 ];
 
 /**
+ * 취향 벡터(4.3-1)에 들어가는 긍정 신호. **긍정만 쓴다** — 부정(unsave·delete)의 벡터
+ * 뺄셈은 결과를 해석 불가능하게 만들고, 같은 부정을 룰 축과 이중 반영하게 된다(4.3-1).
+ */
+const TASTE_SOURCE_ACTIONS: readonly PreferenceSignalAction[] = [
+  PreferenceSignalAction.COMPLETE,
+  PreferenceSignalAction.SAVE,
+  PreferenceSignalAction.REPLAY,
+];
+
+/**
  * `user_preference_vectors`(domain.md 7.2)의 재계산을 소유한다.
  *
  * 신호 해석(`drip-scheduling.md` 4.3)의 구현이다 — 신호별 가중 × 최근성 감쇠를
@@ -53,6 +63,7 @@ export class PreferenceVectorService {
     topicIdsByContentId: Map<string, string[]>,
     completeSignalCount: number,
     now: Date,
+    embeddingsByContentId: Map<string, number[]>,
     manager?: EntityManager,
   ): Promise<UserPreferenceWeights> {
     const weights = this.compute(
@@ -61,6 +72,7 @@ export class PreferenceVectorService {
       topicIdsByContentId,
       completeSignalCount,
       now,
+      embeddingsByContentId,
     );
 
     await this.userPreferenceVectorRepository.upsert(
@@ -71,6 +83,7 @@ export class PreferenceVectorService {
         keywordWeights: weights.keywordWeights,
         formatWeights: weights.formatWeights,
         durationPref: weights.durationPref,
+        tasteEmbedding: weights.tasteEmbedding,
         signalCount: weights.signalCount,
       },
       manager,
@@ -98,6 +111,7 @@ export class PreferenceVectorService {
       keywordWeights: vector.keywordWeights,
       formatWeights: vector.formatWeights,
       durationPref: vector.durationPref,
+      tasteEmbedding: vector.tasteEmbedding,
       signalCount: vector.signalCount,
     };
   }
@@ -113,12 +127,14 @@ export class PreferenceVectorService {
     topicIdsByContentId: Map<string, string[]>,
     completeSignalCount: number,
     now: Date,
+    embeddingsByContentId: Map<string, number[]> = new Map(),
   ): UserPreferenceWeights {
     const topicWeights: Record<string, number> = {};
     const authorWeights: Record<string, number> = {};
     const keywordWeights: Record<string, number> = {};
     const formatWeights: Record<string, number> = {};
     const completedDurations: number[] = [];
+    let tasteSum: number[] | null = null;
 
     for (const signal of signals) {
       const base = SIGNAL_ACTION_WEIGHTS[signal.action] ?? 0;
@@ -160,6 +176,19 @@ export class PreferenceVectorService {
       ) {
         completedDurations.push(content.durationSec);
       }
+
+      /**
+       * 취향 벡터(4.3-1) — `Σ 최근성가중(신호) × embedding`. 신호별 기본 가중이 아니라
+       * **최근성 감쇠만** 곱한다(명세의 식 그대로 — 강도 차이는 룰 축의 몫이다).
+       */
+      if (TASTE_SOURCE_ACTIONS.includes(signal.action)) {
+        const embedding = embeddingsByContentId.get(signal.contentId);
+
+        if (embedding) {
+          const decay = this.recencyDecay(signal.createdAt, now);
+          tasteSum = accumulate(tasteSum, embedding, decay);
+        }
+      }
     }
 
     return {
@@ -168,6 +197,7 @@ export class PreferenceVectorService {
       keywordWeights: pruneWeights(keywordWeights),
       formatWeights: pruneWeights(formatWeights),
       durationPref: toDurationPref(completedDurations),
+      tasteEmbedding: normalizeVector(tasteSum),
       signalCount: completeSignalCount,
     };
   }
@@ -194,6 +224,39 @@ function pruneWeights(weights: Record<string, number>): Record<string, number> {
       .sort(([, a], [, b]) => Math.abs(b) - Math.abs(a))
       .slice(0, PREFERENCE_WEIGHT_MAP_LIMIT),
   );
+}
+
+/** 가중 벡터 합 — 첫 기여 시점에 0 벡터를 만든다(차원은 임베딩이 정한다) */
+function accumulate(
+  sum: number[] | null,
+  embedding: number[],
+  weight: number,
+): number[] {
+  const next = sum ?? new Array<number>(embedding.length).fill(0);
+
+  for (let i = 0; i < Math.min(next.length, embedding.length); i += 1) {
+    next[i] += embedding[i] * weight;
+  }
+
+  return next;
+}
+
+/**
+ * 단위 벡터로 정규화(4.3-1의 `normalize`) — 코사인 유사도 계산이 내적과 동치가 되게 한다
+ * (domain.md 5.6 — 저장 벡터도 정규화 전제). 합이 0 벡터면 취향이 없는 것과 같다 → null.
+ */
+function normalizeVector(vector: number[] | null): number[] | null {
+  if (vector === null) {
+    return null;
+  }
+
+  const norm = Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0));
+
+  if (norm === 0) {
+    return null;
+  }
+
+  return vector.map((value) => value / norm);
 }
 
 function toDurationPref(durations: number[]): DurationPref | null {

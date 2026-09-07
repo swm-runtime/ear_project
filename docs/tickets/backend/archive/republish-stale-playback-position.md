@@ -8,7 +8,7 @@
 | 발견 시점 | `tickets/backend/archive/content-republish-audio.md`의 "프론트 확인 항목"을 확인하다가 — FE 코드 조사 결과 폐기 주체가 아무 데도 없었다 |
 | 근거 문서 | `features/player.md` 7 · `spec/api/player-api.md` 4.1·4.3 · `features/admin.md` 4.3 |
 | 심각도 | **중** — 사용자가 새 오디오의 엉뚱한 지점에서 재생을 시작한다. 데이터 손상은 아니다 |
-| 상태 | 대기 |
+| 상태 | 반영 완료 (2026-09-07 — 안 A) |
 | 연관 | `tickets/frontend/pending/republish-version-gate-not-implemented.md` — FE의 죽은 분기·사실이 아닌 주석 정리(해결 자체는 이 티켓) |
 
 ## 문제
@@ -74,3 +74,34 @@
 - Given 같은 상황 / When 사용자가 다시 재생한다 / Then 0부터 시작한다
 - Given 같은 상황 / When 라이브러리를 본다 / Then 그 콘텐츠가 그대로 있다(담기가 풀리지 않는다)
 - Given 재발행되지 않은 콘텐츠 / When 진입한다 / Then 저장된 위치가 그대로 복원된다(회귀 없음)
+
+## 처리 기록 (반영 날짜: 2026-09-07)
+
+**안 A로 구현했다** (PR #165 — `feat(be)/be-pending-tickets`). 재발행 트랜잭션 안에서 그
+콘텐츠의 `playback_progresses`를 전부 삭제한다.
+
+- `AdminContentService.republish` → `PlaybackService.deleteProgressesByContentId(contentId, manager)`
+  (admin 모듈에 `PlaybackModule` 의존 추가 — playback은 admin을 모르므로 순환 없음).
+- 검증 거부(회수 상태 409 등)로 재발행이 실패하면 삭제도 일어나지 않는다(트랜잭션 안 + 단위 테스트).
+
+### 완료 조건 대조
+
+| 조건 | 확인 |
+|---|---|
+| 재발행 후 4.1이 낡은 위치를 내려주지 않는다 | ✅ 행 자체가 삭제돼 `progress: null` |
+| 다시 재생하면 0부터 | ✅ 위와 동일 근거 |
+| 라이브러리는 그대로(담기 유지) | ✅ `library_items` 무접촉 — 단위 테스트로 고정 |
+| 재발행 안 된 콘텐츠는 위치 복원(회귀 없음) | ✅ 로컬 DB 실측 — 대상 `content_id` 행만 지워지고 다른 콘텐츠 행 유지 |
+
+### 안 선택 근거 (2026-09-07 확정)
+
+- 안 A: 스키마·계약 무변경, 이후 경로가 전부 자연스럽다. 지운 위치는 복구 불가지만 새
+  오디오에서 옛 위치는 무의미한 값이다.
+- `content-republish-audio.md` 완료 조건("행이 그대로 남아 있다")과의 표면 충돌은, 그 조건의
+  취지가 "참조(라이브러리·재생 기록)가 끊기지 않는다"였고 그것은 유지되므로 문제없다고 판정.
+
+### 남긴 것
+
+- 문서 현행화는 `changes/pending/player-republish-progress-discard-owner.md`로 발행
+  (`player.md` 7 · `player-api.md` 4.1 · `admin-api.md` 4.10 — 폐기 주체 서버로).
+- FE의 죽은 분기·주석 정리는 연관 티켓(`tickets/frontend/pending/republish-version-gate-not-implemented.md`) 몫 그대로.

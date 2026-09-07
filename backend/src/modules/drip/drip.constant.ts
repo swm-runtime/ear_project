@@ -38,11 +38,6 @@ export const FIRST_DRIP_RETRY_BATCH_SIZE = 20;
  *
  * 아래 값 전부가 "서버 구현이 소유하는 초기값"이다(4.2 — 문서에 계수를 박지 않는다).
  * 시범 운영 데이터로 튜닝하며, 문서 개정 없이 조정한다.
- *
- * **임베딩 유사도 축(w_e)은 아직 없다** — 모델·차원 미확정(domain.md 15.1 #11)이라
- * 스코어링은 신호·메타 두 축의 재정규화 상태로 동작한다(4.2 — 결여 축 재정규화 규칙).
- * 임베딩 축이 켜지면 `tickets/backend/pending/metadata-pipeline-after-script-quality.md`의
- * 반영으로 축 가중치를 함께 재조정한다.
  */
 
 /** `drip-scheduling.md` 4.1 — 미청취 재고가 이 수 이상이면 그날 적립(탐험 포함)을 건너뛴다 */
@@ -72,9 +67,20 @@ export const SIGNAL_ACTION_WEIGHTS: Readonly<Record<string, number>> = {
 /** 가중치 맵이 무한히 자라지 않게 절대값 상위 N개만 유지한다(키워드가 주 대상) */
 export const PREFERENCE_WEIGHT_MAP_LIMIT = 50;
 
-/** 축 결합 가중치(4.2) — 임베딩 축이 켜지기 전까지 두 축을 재정규화해 쓴다 */
-export const AXIS_WEIGHT_SIGNAL = 0.5;
-export const AXIS_WEIGHT_META = 0.5;
+/**
+ * 축 결합 가중치(4.2 — 3축 하이브리드). 임베딩·취향 벡터가 없는 경우는 해당 축이 빠지고
+ * 나머지가 재정규화되므로, 임베딩 미부여 상태에서는 종전 신호:메타 = 1:1 그대로 동작한다.
+ */
+export const AXIS_WEIGHT_EMBEDDING = 0.3;
+export const AXIS_WEIGHT_SIGNAL = 0.35;
+export const AXIS_WEIGHT_META = 0.35;
+
+/**
+ * MMR 다양성 감점 계수 λ(4.2-3 — "λ는 서버 구현이 소유"). 이미 뽑힌 편과의 임베딩
+ * 코사인 유사도 최댓값에 곱해 스코어에서 뺀다. 점수·유사도 모두 0~1 스케일이므로
+ * 0.3이면 "내용이 사실상 같은 편"(유사도 ≈ 1)이 점수 0.3만큼 밀린다.
+ */
+export const MMR_DIVERSITY_LAMBDA = 0.3;
 
 /** ② 신호 선호 축 — 축 내 항목 가중치 */
 export const SIGNAL_ITEM_WEIGHTS = {

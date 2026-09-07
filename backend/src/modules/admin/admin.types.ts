@@ -35,6 +35,8 @@ export interface UploadContentCommand {
   reviewConfirmed: boolean;
   audio: UploadedFileInput;
   thumbnail: UploadedFileInput;
+  /** 추천 메타 파일(enrichment.json) — 선택. 검증 실패는 파일만 거부한다(admin.md 3.1) */
+  enrichment: UploadedFileInput | null;
 }
 
 /**
@@ -51,11 +53,24 @@ export interface RepublishContentCommand {
   sources?: SourceInput[];
   audio: UploadedFileInput | null;
   thumbnail: UploadedFileInput | null;
+  /**
+   * 추천 메타 파일 — 파트로 인정되므로 **단독 전송을 허용**한다. 단독이면 버전을 올리지
+   * 않고 메타만 반영한다(소급 부여 경로 — `metadata-pipeline-after-script-quality.md` 범위 4).
+   */
+  enrichment: UploadedFileInput | null;
+}
+
+/** 추천 메타 파일의 처리 결과 — 요청에 파일이 있었을 때만 응답에 실린다 */
+export interface EnrichmentOutcome {
+  applied: boolean;
+  /** 거부됐을 때만 — 콘솔이 그대로 노출하는 운영자용 문구 */
+  rejectedReason: string | null;
 }
 
 export interface AdminContentView {
   content: Content;
   topics: { topicId: string; name: string }[];
+  enrichment?: EnrichmentOutcome;
 }
 
 export interface AdminContentPage {
