@@ -30,8 +30,21 @@ describe('share.link', () => {
       expect(parseShareLink('https://earcast.co.kr/contents/')).toBeNull();
     });
 
-    it('https가 아닌 스킴은 거른다', () => {
+    it('http는 거른다 — 평문 링크를 공유 링크로 보지 않는다', () => {
       expect(parseShareLink('http://earcast.co.kr/contents/content-7')).toBeNull();
+    });
+
+    it('커스텀 스킴 ear://contents/:id 도 공유 링크다 — 인앱 브라우저 탈출 경로', () => {
+      expect(parseShareLink('ear://contents/content-7')).toBe('content-7');
+      expect(parseShareLink('ear://contents/content-7?utm=x')).toBe('content-7');
+    });
+
+    it('커스텀 스킴이라도 다른 경로는 거른다', () => {
+      expect(parseShareLink('ear://about')).toBeNull();
+      expect(parseShareLink('ear://contents/')).toBeNull();
+      // 스킴만 흉내 낸 것도 통과시키지 않는다
+      expect(parseShareLink('earcast://contents/content-7')).toBeNull();
+      expect(parseShareLink('notear://contents/content-7')).toBeNull();
     });
   });
 });
