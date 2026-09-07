@@ -9,8 +9,8 @@ import { prepareAssets, workerRev } from "../assets.js";
 import { pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { parseScriptForTts } from "../tts/script.js";
 
-interface DraftOut { turns: number; chars: number; minutes: number; cold_open_turn: string; cold_open_verified: boolean; sources_used: string[]; sources_excluded: { url: string; reason: string }[]; self_check_fixes: string[]; notes: string }
-interface RevisionOut { fixes: { location: string; before: string; after: string }[]; cold_open_updated: boolean; cold_open_verified: boolean; notes: string }
+interface DraftOut { turns: number; chars: number; minutes: number; sources_used: string[]; sources_excluded: { url: string; reason: string }[]; self_check_fixes: string[]; notes: string }
+interface RevisionOut { fixes: { location: string; before: string; after: string }[]; notes: string }
 
 /**
  * 대본 단계 (spec/04). attempt 1 = 생성, attempt 2~3 = QA 실패 사항 최소 수정 (재생성 루프, spec/05 4장).
@@ -54,7 +54,7 @@ export async function runDraft(job: Job, ex: Executor) {
   }
   if (resumable) {
     log(`  draft ${episodeId}: 산출물이 이미 존재 — 재생성 없이 이어받기 (재집기 복구)`);
-    out = { turns: 0, chars: 0, minutes: 0, cold_open_turn: "", cold_open_verified: false, sources_used: [], sources_excluded: [], self_check_fixes: [], notes: "재집기 복구 — 수치는 QA 참고치로 대체" };
+    out = { turns: 0, chars: 0, minutes: 0, sources_used: [], sources_excluded: [], self_check_fixes: [], notes: "재집기 복구 — 수치는 QA 참고치로 대체" };
     model = null;
     summary = `${episodeId} 초안 이어받기 (워커 재집기 복구 — 기존 산출물 사용, 생성 재실행 없음)`;
   } else if (attempt === 1) {
@@ -73,7 +73,7 @@ export async function runDraft(job: Job, ex: Executor) {
         if (tool === "WebFetch") return `소스 정독 ${counts.WebFetch}/${cand.sources.length}`;
         const f = String(input?.file_path ?? "").split("/").pop() ?? "";
         if (tool === "Write" || tool === "Edit") return f === "script.md" ? "대본 작성" : f === "sources.md" ? "발췌 정리" : f === "claims.md" ? "claims 대조표 작성" : f === "pronunciations.json" ? "발음 맵 작성" : `${f} 작성`;
-        if (tool === "Bash") return "자기 점검 (분량·콜드오픈 검증)";
+        if (tool === "Bash") return "자기 점검 (분량 검증)";
         return null;
       },
     });
@@ -95,7 +95,7 @@ export async function runDraft(job: Job, ex: Executor) {
       throw new Error(evidence);
     }
     const o = r.output;
-    summary = `${episodeId} 초안 완료 (${ex.kind}, 도입 ${intro.label}, 템플릿 ${templates?.version ?? "미적용"}). ${o.turns}턴·${o.chars}자·약 ${o.minutes}분. 소스 ${o.sources_used.length}/${cand.sources.length} 사용${o.sources_excluded.length ? ` (제외: ${o.sources_excluded.map((x) => `${hostOf(x.url)} ${x.reason}`).join("; ").slice(0, 300)})` : ""}. 콜드오픈 ${o.cold_open_turn}${o.cold_open_verified ? " 검증" : " 미검증"}. 자기 점검 수정 ${o.self_check_fixes.length}건. ${o.notes}`;
+    summary = `${episodeId} 초안 완료 (${ex.kind}, 도입 ${intro.label}, 템플릿 ${templates?.version ?? "미적용"}). ${o.turns}턴·${o.chars}자·약 ${o.minutes}분. 소스 ${o.sources_used.length}/${cand.sources.length} 사용${o.sources_excluded.length ? ` (제외: ${o.sources_excluded.map((x) => `${hostOf(x.url)} ${x.reason}`).join("; ").slice(0, 300)})` : ""}. 자기 점검 수정 ${o.self_check_fixes.length}건. ${o.notes}`;
   } else {
     const failures = (job.payload.qa_failures ?? []) as { location: string; item: string; reason: string }[];
     const prompt = buildDraftRevisionPrompt({ assetRoot, workRoot: cfg.workRoot, episodeId, candidate: cand, introStyle: pickIntroStyle(0), promptVersion, attempt, qaFailures: failures });
@@ -105,7 +105,7 @@ export async function runDraft(job: Job, ex: Executor) {
       describe: (tool) => (tool === "Read" ? "지적 대조 중" : tool === "Edit" || tool === "Write" ? "대본 수정 중" : null),
     });
     out = r.output; model = r.model; costUsd = r.listCostUsd; tokens = (r.raw as { usage?: unknown } | undefined)?.usage;
-    summary = `${episodeId} 재생성 attempt ${attempt} (QA 피드백 ${failures.length}건 → 수정 ${r.output.fixes.length}건${r.output.cold_open_updated ? ", 콜드오픈 갱신" : ""}${r.output.cold_open_verified ? ", 자구 일치 검증" : ""}). ${r.output.notes}`;
+    summary = `${episodeId} 재생성 attempt ${attempt} (QA 피드백 ${failures.length}건 → 수정 ${r.output.fixes.length}건). ${r.output.notes}`;
   }
 
   // 발음 맵 (spec/04 8장) — 모델이 빠뜨렸거나 구 에피소드 이어받기면 빈 맵을 둔다 (웹 "발음" 탭·TTS 병합의 기준 파일. 누락 표기는 TTS 잔존 검사가 잡는다)
@@ -142,8 +142,7 @@ function formatViolations(md: string): string[] {
     const noId = p.turns.filter((t) => !t.id);
     if (noId.length > Math.ceil(p.turns.length * 0.3)) v.push(`턴 번호(E·Y) 없는 발화가 ${noId.length}/${p.turns.length}개 — 번호 턴은 "[화자] E1 · 문장" 형식 (spec/04 4장)`);
   }
-  if (!p.coldOpen) v.push("콜드오픈 구역에서 발화를 찾지 못함 (spec/04 4장 구조)");
-  else if (p.coldOpen.sourceTurn && !p.turns.some((t) => t.id === p.coldOpen!.sourceTurn)) v.push(`콜드오픈 발췌 원본 ${p.coldOpen.sourceTurn} 턴이 본편에 없음 — 발췌 위치 표기 또는 턴 번호 오류`);
+  if (p.coldOpen) v.push("[콜드오픈] 구역이 있음 — 2026-09-07 폐지, 대본은 [인트로]부터 시작한다 (spec/04 4장 구조)");
   return v;
 }
 

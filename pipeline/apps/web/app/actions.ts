@@ -1,7 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase-server";
-import { coldOpenStatus, loadArtifact, replaceTurn, writeArtifact } from "@/lib/artifacts";
+import { loadArtifact, replaceTurn, writeArtifact } from "@/lib/artifacts";
 import { putText } from "@/lib/storage";
 import { majorOrder } from "@/lib/taxonomy";
 
@@ -133,16 +133,15 @@ export async function editScriptTurn(episodeId: string, turn: string, after: str
   if (md == null) throw new Error(`대본을 읽을 수 없습니다: ${ep.script_key} (PIPELINE_BUCKET·AWS 자격증명 확인)`);
   const r = replaceTurn(md, turn, after.trim());
   if (!r) throw new Error(`대본에서 ${turn} 을 찾을 수 없습니다`);
-  if (r.before.trim() === after.trim()) return { changed: false, coldOpenBroken: false };
+  if (r.before.trim() === after.trim()) return { changed: false };
   await writeArtifact(ep.script_key, r.md);
 
   const entry = { turn, before: r.before, after: after.trim(), reason: reason?.trim() || null, by: user?.email ?? null, at: new Date().toISOString() };
   const { error: e2 } = await sb.from("episodes").update({ human_edits: [...(ep.human_edits ?? []), entry] }).eq("id", episodeId);
   if (e2) throw new Error(e2.message);
 
-  const cold = coldOpenStatus(r.md);
   revalidatePath(`/episodes/${episodeId}`);
-  return { changed: true, coldOpenBroken: cold.turn === turn && !cold.ok };
+  return { changed: true };
 }
 
 /** 규칙 자산 — 새 버전(draft) 저장 (spec/10 3.2). 규약(active 불변·활성화 note 필수·기존 active 자동 retired)은 DB 트리거가 강제한다 */
