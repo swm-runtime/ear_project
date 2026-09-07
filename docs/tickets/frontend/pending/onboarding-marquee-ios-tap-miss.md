@@ -86,3 +86,43 @@ onTouchCancel={scheduleResume}
 
 **후보 1로 해결되지 않으면** 위 표의 3-a를 타입 캐스팅으로 시도하고, 그래도 안 되면 2를 검토한다.
 다음에 집는 사람이 다시 조사할 것은 없다 — 순서가 정해져 있다.
+
+## 진행 기록 (2026-09-07 밤 — 후보 1로 부족했다. 후보 3-a 반영)
+
+OTA로 후보 1(터치 시작 시 pause)이 iOS vc=3에 전달된 뒤 실기기에서 확인했다.
+
+> **여전히 두 번 탭해야 선택된다.** 첫 탭이 먹힌다.
+
+후보 1은 필요했지만 충분하지 않았다. 흐름은 멈췄는데 **첫 터치 자체가 자식에게 전달되지 않는다.**
+
+### 후보 3-a 반영 — `delaysContentTouches={false}`
+
+iOS `UIScrollView`는 자식에게 터치를 넘기기 전에 약 150ms 붙들고 "스크롤인가"를 판정한다
+(`delaysContentTouches` 기본값 `true`). 그 지연 구간에서 짧은 탭이 소비된다. Android에는
+대응 동작이 없어 증상이 iOS에만 나타난 것과 일치한다.
+
+**RN 0.86의 `ScrollViewProps` 타입에 이 prop이 없다.** 네이티브 구현은 살아 있으므로
+(`RCTScrollView.m`·`RCTScrollViewComponentView.mm`) 타입만 우회했고, **iOS일 때만** 넘긴다.
+
+```tsx
+const IOS_TAP_PROPS = (
+  Platform.OS === 'ios' ? { delaysContentTouches: false } : {}
+) as Partial<ScrollViewProps>;
+```
+
+Android에 넘기지 않는 이유는 그쪽이 원래 정상이기 때문이다 — 무시되는 prop이라도 의도를 좁혀 둔다.
+
+`canCancelContentTouches={false}`(후보 2)는 **여전히 쓰지 않는다.** 알약 위에서 시작한 스와이프가
+스크롤로 전환되지 않아 수동 스와이프가 막힌다.
+
+### 다시 확인해야 할 것
+
+- Given iOS에서 마퀴가 흐르는 상태 / When 칩을 **한 번** 탭한다 / Then 선택된다
+- Given iOS / When 칩 위에서 시작해 옆으로 **스와이프**한다 / Then 스크롤이 된다 ← **후보 3-a가
+  이걸 깨뜨리는지 반드시 본다.** 터치 지연을 없앤 것이라 이론상 스크롤 전환은 유지되지만,
+  후보 2가 깨뜨리는 바로 그 동작이라 같이 확인한다
+- Given iOS / When 칩을 탭만 한다 / Then 약 1.5초 뒤 자동 흐름 재개
+- Given Android / When 같은 조작 / Then 변화 없음
+
+**3-a로도 안 되면 후보 2를 시도한다** — 그때는 스와이프를 포기하는 트레이드오프를 감수할지
+결정이 필요하다.
