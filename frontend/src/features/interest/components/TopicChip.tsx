@@ -156,14 +156,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.sm,
   },
+  /**
+   * 배경 사진 — **inset만으로 채운다.** `width: '100%'`·`height: '100%'`를 함께 주면
+   * 퍼센트가 부모의 **콘텐츠 박스**(패딩 제외)로 풀려서 알약보다 작은 상자가 되고,
+   * 칩의 `paddingHorizontal: lg` · `paddingVertical: sm` 만큼 배경이 드러난다
+   * (2026-09-07 iOS 실기기 — 사진이 한쪽으로 쏠리고 아래쪽에 흰 배경이 보였다).
+   *
+   * 바로 아래 `overlay`가 inset만 쓰고도 정확히 채워지는 것이 같은 이유의 반증이다.
+   * 둘의 상자가 어긋나면 오버레이가 사진 밖까지 덮어 경계가 보인다.
+   */
   photo: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    width: '100%',
-    height: '100%',
   },
   overlay: {
     position: 'absolute',
