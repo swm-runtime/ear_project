@@ -50,6 +50,22 @@ export const AUTH_COPY = {
     signupExpired: '로그인이 만료됐어요. 다시 로그인해주세요',
     consentStale: '약관이 갱신됐어요. 다시 로그인해 확인해주세요',
   },
+  /**
+   * A20 재동의 — 기존 사용자(auth-uiux.md 4.3-1). A4와 문구를 나눈다:
+   * 신규 가입은 "시작"이고 여기는 "계속 이용"이다. TODO(카피 미확정)
+   */
+  reconsent: {
+    title: '약관이 업데이트되었어요',
+    description: '계속 이용하시려면 아래 항목에 동의해 주세요',
+    submit: '동의하고 계속하기',
+    logout: '로그아웃',
+    /** 거절은 확인을 받고 처리한다 — 확인 없이 세션을 끊지 않는다 */
+    logoutConfirmTitle: '동의해야 계속 이용할 수 있어요',
+    logoutConfirmBody: '로그아웃할까요? 계정과 저장한 콘텐츠는 그대로 남아요.',
+    logoutCancel: '취소',
+    logoutConfirm: '로그아웃',
+    submitFailed: '동의를 저장하지 못했어요. 잠시 후 다시 시도해주세요',
+  },
   /** 이메일 인증(auth-uiux.md 4.7~4.15) — 설정·프로필 경로(A10). 결제 경로(A9·A19)는 결제 구현 시 */
   email: {
     /* TODO(카피 미확정): 앱바 타이틀 */

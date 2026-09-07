@@ -60,3 +60,44 @@
 
 `tickets/frontend/pending/age-confirmation-send.md`의 완료 조건 3이 이 화면에 막혀 있다.
 화면이 정의되면 그 티켓도 함께 닫힌다.
+
+---
+
+## 처리 기록
+
+| 항목 | 값 |
+|---|---|
+| 반영 날짜 | 2026-09-07 (발행 당일 — 사용자가 4개 결정을 즉시 확정) |
+| 반영 문서 | `spec/uiux/auth-uiux.md` **4.3-1 A20 신설** · 화면 목록 · 8장 · 9장 / `features/auth.md` 7 / `features/splash.md` 4 |
+| 반영 코드 | `auth/screens/ReconsentScreen.tsx`(신규) · `auth/hooks/useReconsentScreen.ts`(신규) · `auth/api/auth.api.ts`(`submitConsents`) · `auth.mock.ts` · `auth.copy.ts` · `store/session.store.ts` · `services/session.service.ts` · `hooks/useStartScreen.ts` · `app/navigation/RootNavigator.tsx` · `navigation/types.ts` · `auth/index.ts` |
+
+### 결정된 4가지
+
+| 미결 | 확정 |
+|---|---|
+| 1. 화면 | **A4 재사용 안 함. 새 화면 A20** — 항목이 동적이고 헤더 문구가 다르다 |
+| 2. 거절 경로 | **로그아웃.** 단 확인 다이얼로그를 먼저 띄운다. 탈퇴가 아니라 계정·데이터는 유지 |
+| 3. 표시 시점 | **실행 관문의 한 단계**(`splash.md` 4 — 3단계). 로그인 직후만 잡으면 이미 로그인된 세션이 샌다 |
+| 4. `age_confirmation` 표현 | **[보기] 없이 체크박스만** — 마케팅 동의와 같은 형태(`version`이 항상 `null`) |
+
+### 구현에서 결정한 것
+
+- **재동의 판정을 온보딩 판정보다 앞에 뒀다.** 뒤에 두면 관심사·커리어를 다 받은 뒤에야 동의를
+  묻게 된다. `splash.md` 4의 단계 번호도 그렇게 다시 매겼다(재동의 3 → 온보딩 4 → 딥링크 5).
+- **`pending_consents`를 세션 상태에 실었다.** 화면 파라미터로 넘기면 로그인 직후 경로에서만
+  살아 있다. 관문이 매 진입 판정하려면 세션이 들고 있어야 한다.
+- **성공 시 세션을 새로 시작하지 않는다.** 계정이 이미 있으므로 `clearPendingConsents()`만
+  호출하면 관문이 다음 목적지로 넘긴다. A4가 `startSession`을 부르는 것과 다른 지점이다.
+- 로그아웃 확인은 오늘 만든 `shared/ui/ConfirmDialog`를 재사용했다.
+
+### 함께 정리한 것
+
+`useTermsConsentScreen.ts`에 **모순되는 주석 두 개가 겹쳐 있었다** — 앞 블록이 "연령 확인은
+서버 동의가 아니라 화면 게이트다"라고 적혀 있었는데, PR #150에서 정식 동의로 승격된 뒤의
+사실이 아니다. 뒤 블록이 이미 올바른 설명이라 앞 블록만 지웠다.
+
+### 남은 것
+
+- **와이어프레임에 A19·A20이 없다.** `auth.html`은 A1–A18까지다. `auth-uiux.md` 9장 미결에 등재했다.
+- **실기기 확인 필요** — 운영 DB 기준 `age_confirmation` 이력이 없는 사용자가 **9명**(전체 13명)
+  이다. 전부 팀 테스트 계정이라 이 화면으로 재동의를 마치면 0이 된다.

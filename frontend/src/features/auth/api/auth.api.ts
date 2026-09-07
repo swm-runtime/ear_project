@@ -4,6 +4,7 @@ import { generateId } from '@/shared/lib/generate-id';
 import {
   mockRefreshSession,
   mockRequestLogout,
+  mockSubmitConsents,
   mockSignUp,
   mockSocialLogin,
 } from './auth.mock';
@@ -220,4 +221,24 @@ export const requestLogout = async (input: { deviceId: string }): Promise<void> 
   if (IS_AUTH_API_MOCKED) return mockRequestLogout();
   const body: LogoutRequestDto = { device_id: input.deviceId };
   await apiClient.post('/auth/logout', body, { noAutoRetry: true });
+};
+
+/**
+ * A20 재동의 전송(auth-api.md 4.5 — `POST /users/me/consents`).
+ *
+ * **UPDATE가 아니라 행 추가다**(domain.md 3.2). 화면이 그린 항목을 그대로 보내며,
+ * 응답(갱신 후 동의 상태)은 쓰지 않는다 — 통과 판정은 다음 진입의 pending_consents가 한다.
+ */
+export const submitConsents = async (input: {
+  consents: { consentType: ConsentType; version: string | null; isAgreed: boolean }[];
+}): Promise<void> => {
+  if (IS_AUTH_API_MOCKED) return mockSubmitConsents();
+  const body = {
+    consents: input.consents.map((c) => ({
+      consent_type: c.consentType,
+      version: c.version,
+      is_agreed: c.isAgreed,
+    })),
+  };
+  await apiClient.post('/users/me/consents', body);
 };

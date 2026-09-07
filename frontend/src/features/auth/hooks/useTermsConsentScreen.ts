@@ -26,13 +26,6 @@ export const useTermsConsentScreen = ({ signupToken, requiredConsents }: TermsCo
   const [checkedMap, setCheckedMap] = useState<Partial<Record<ConsentType, boolean>>>({});
 
   /**
-   * 연령 확인 — **서버 동의가 아니라 화면 게이트다.**
-   * 개인정보보호법 제22조의2 는 만 14세 미만 아동의 개인정보를 처리하려면 법정대리인
-   * 동의를 받으라고 한다. 그 절차를 두지 않는 대신 가입 시점에 스스로 밝히게 해서 수집
-   * 자체를 막는다 — 약관 본문에만 적어 두는 것은 조치라고 보기 어렵다.
-   * 기준이 18세인 이유는 Play 대상 연령대 선언(만 18세 이상)과 어긋나지 않기 위해서다.
-   */
-  /**
    * 연령 확인 — **서버가 받는 정식 동의다**(consents.age_confirmation, PR #142).
    * 개인정보보호법 제22조의2 는 만 14세 미만 아동의 개인정보를 처리하려면 법정대리인
    * 동의를 받으라고 한다. 그 절차를 두지 않으므로 가입 시점에 스스로 밝히게 해서 수집

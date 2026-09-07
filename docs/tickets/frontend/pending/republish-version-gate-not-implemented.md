@@ -8,7 +8,7 @@
 | 발견 시점 | 2026-09-07 재발행 엔드포인트 구현(`tickets/backend/archive/content-republish-audio.md`)의 "프론트 확인 항목"을 확인하다가 |
 | 근거 문서 | `features/player.md` 7 · `spec/api/player-api.md` 4.1·4.3 · `features/offline-download.md` |
 | 심각도 | **하(코드 위생) / 중(오해 유발)** — 동작 버그는 아니다. 다만 **코드가 "하고 있다"고 주장하는 일을 하지 않고 있어서** 다음 사람이 구멍을 못 본다 |
-| 상태 | 부분 반영 후 보류(2026-09-07) — 주석 정리 완료, 확인은 BE 안 확정 대기 |
+| 상태 | pending — 주석 정리 완료(PR #159), **BE 안 A 반영됨**(2026-09-07). 실기기 확인 1회만 남음 |
 | 연관 | `tickets/backend/pending/republish-stale-playback-position.md` — **실제 해결은 그쪽이다** |
 
 ## 문제
@@ -130,3 +130,41 @@ if (issue.content.durationSec > 0 && startPositionSec >= issue.content.durationS
 `player.types.ts`와 `playback.service.ts` 두 파일 모두 **이 변경 이전부터** `prettier --check`에
 걸려 있다(`git stash` 후 확인). 이번 수정이 만든 문제가 아니고, 전체 포맷을 돌리면 diff가 주석
 수정을 덮어버려 손대지 않았다. 별도로 정리할 사안이다.
+
+## 진행 기록 (2026-09-07 저녁 — BE가 안 A로 확정·구현. 코드 변경 없이 조건이 닫힌다)
+
+짝 티켓 `tickets/backend/archive/republish-stale-playback-position.md`가 **안 A(재발행 트랜잭션 안에서
+`playback_progresses` 삭제)** 로 반영됐다(PR #165 · `7d74a45 fix(playback): discard stale progress on
+republish`). 보류 사유였던 "BE 안 A/B 미확정"이 해소됐다.
+
+### FE는 이미 안 A에 맞게 동작한다 — 손댈 것이 없다
+
+```ts
+// playback.service.ts:219
+let startPositionSec = request.restartFromBeginning ? 0 : (issue.progress?.positionSec ?? 0);
+// playback.service.ts:226
+this.ctx.tracking = createTrackingState(issue.progress?.maxReachedSec ?? 0);
+```
+
+재발행된 콘텐츠는 서버가 행을 지웠으므로 4.1이 `progress: null`을 내려주고, 두 줄의 `?? 0`이
+그대로 0을 쓴다. **이 티켓이 발행 시점에 예측한 그대로다**(요청 3 — "안 A면 FE 코드 변경 없음").
+
+### 완료 조건 판정
+
+| 조건 | 상태 |
+|---|---|
+| 1. 버전 비교 분기 주석이 실제 동작만 말한다 | ✅ PR #159 |
+| 2. `contentVersion` 타입 주석에 미구현 폐기 동작이 없다 | ✅ PR #159 |
+| 3. 재발행된 콘텐츠 재진입이 0부터 (FE 코드 변경 없이) | 🟡 **코드 경로는 확인됨. 실기기 확인만 남음** |
+| 4. 재발행되지 않은 콘텐츠는 위치 복원(회귀 없음) | 🟡 위와 같은 확인으로 함께 판정 |
+
+조건 3·4는 **관리자 웹에서 콘텐츠를 재발행한 뒤 앱에서 그 콘텐츠에 다시 들어가 보면** 끝난다.
+이제 막는 것이 없다 — 서버·클라이언트 양쪽이 준비됐다.
+
+**다음에 집는 사람이 조사할 것은 없다.** 재발행 1회 + 재진입 1회로 닫는다.
+
+### 함께 갱신할 문서
+
+`changes/pending/player-republish-progress-discard-owner.md`가 같은 내용의 문서 개정을 요청하고
+있다(`player.md` 7 · `player-api.md` 4.1의 "클라이언트가 보관값과 비교해 폐기한다" → 서버 소유).
+그 문서가 반영되면 이 티켓의 근거 문서도 정합해진다.
