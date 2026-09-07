@@ -1,6 +1,11 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { Linking } from 'react-native';
+
+import { logger } from '@/shared/lib/logger';
+
+import { KAKAO_CHANNEL_URL } from '@/features/settings';
 
 import { profileKeys } from '../api/profile.api';
 import { isCareerEmpty, toInterestOverflowCount } from '../profile.format';
@@ -67,6 +72,8 @@ export const useProfileScreen = () => {
   const queryClient = useQueryClient();
   const query = useProfileSummaryQuery();
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
+  /** 인증된 이메일 변경 불가 안내(auth.md 4.4 — 확정 2026-09-07) */
+  const [isEmailLockedVisible, setIsEmailLockedVisible] = useState(false);
 
   /**
    * 프로필발 push 표시 — 하위 화면에서 [취소]·뒤로가기로 복귀한 focus에 재조회를 붙이지 않기
@@ -196,12 +203,28 @@ export const useProfileScreen = () => {
     isManualRefreshing,
     openSettings: () => openDestination('Settings'),
     openPlan: () => openDestination('Subscription'),
-    // A10의 "현재 이메일" 표시 값을 실어 보낸다 — 설정 경로와 같은 방식(auth.md 4.5 공통 화면)
-    openEmail: () =>
+    // A10의 "현재 이메일" 표시 값을 실어 보낸다 — 설정 경로와 같은 방식(auth.md 4.5 공통 화면).
+    // 인증이 끝난 주소는 앱에서 바꿀 수 없어 인증 화면으로 보내지 않는다(auth.md 4.4).
+    // 무반응으로 두면 비활성이 아니라 고장으로 읽히므로 안내를 띄운다(profile-uiux.md 4.3)
+    openEmail: () => {
+      if (summary?.user.email != null && summary.user.isEmailVerified) {
+        setIsEmailLockedVisible(true);
+        return;
+      }
       navigation.navigate('Main', {
         screen: 'EmailVerification',
         params: { currentEmail: summary?.user.email ?? null },
-      }),
+      });
+    },
+    isEmailLockedVisible,
+    closeEmailLocked: () => setIsEmailLockedVisible(false),
+    /** 설정의 [문의하기]와 같은 목적지다. 열기 실패 시의 링크 복사 폴백은 설정 화면이 갖는다 */
+    contactFromEmailLocked: () => {
+      setIsEmailLockedVisible(false);
+      Linking.openURL(KAKAO_CHANNEL_URL).catch((error) =>
+        logger.warn('[profile] open contact failed', error),
+      );
+    },
     openInterests: () => openDestination('InterestManagement'),
     openCareer: () => openDestination('Career'),
   };

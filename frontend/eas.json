@@ -31,7 +31,12 @@
         "EXPO_PUBLIC_PROFILE_API": "real",
         "EXPO_PUBLIC_SETTINGS_API": "real",
         "EXPO_PUBLIC_INTEREST_API": "real",
-        "EXPO_PUBLIC_NOTIFICATION_API": "real"
+        "EXPO_PUBLIC_NOTIFICATION_API": "real",
+        "EXPO_PUBLIC_WITHDRAWAL_API": "real",
+        "EXPO_PUBLIC_TERMS_URL": "https://earcast.co.kr/terms",
+        "EXPO_PUBLIC_PRIVACY_POLICY_URL": "https://earcast.co.kr/privacy",
+        "EXPO_PUBLIC_STORE_URL": "https://play.google.com/store/apps/details?id=com.runtime.ear",
+        "EXPO_PUBLIC_KAKAO_CHANNEL_URL": "https://pf.kakao.com/_MdkJX/chat"
       },
       "channel": "preview"
     },

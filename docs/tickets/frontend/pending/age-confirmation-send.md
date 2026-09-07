@@ -8,7 +8,7 @@
 | 발견 시점 | `tickets/backend/archive/age-confirmation-consent` 반영(PR #142 머지) — 서버 준비 완료, 전송만 남음 |
 | 근거 문서 | `domain.md` 3.2 · `changes/pending/auth-consents-age-confirmation.md` |
 | 심각도 | **중** — 전송 전까지는 서버에 연령 확인 이력이 계속 비어 있다. **서버가 필수 동의로 판정하므로, 미전송 상태로 서버가 배포되면 신규 가입이 `CONSENT_REQUIRED`(400)로 전부 막힌다 — 서버 배포 전에 반영돼야 한다** |
-| 상태 | pending — 완료 조건 3(재동의 경로) 남음 |
+| 상태 | pending — 완료 조건 3(재동의 경로)이 **문서 대기**. `changes/pending/auth-reconsent-screen-missing.md` |
 
 ## 배경
 
@@ -70,3 +70,24 @@
 목록을 그대로 그려 전송하는 구조라, 서버가 내려준 `age_confirmation` 행을 체크·전송한다.
 다만 구 빌드에는 `age_confirmation` 라벨 카피가 없어 **행 라벨이 빈 채로 보인다**(동작
 무지장, 미관 문제) — dev 를 main 에 머지하면 OTA(production 채널)로 카피가 내려가 해소된다.
+
+## 진행 기록 (2026-09-07 — 남은 완료 조건 3의 진짜 막힌 지점을 특정했다)
+
+완료 조건 3을 닫으려고 재동의 화면을 찾았는데 **어느 문서에도 없다.**
+
+- `auth-uiux.md`의 화면은 **A1–A19**뿐이고 재동의를 그리는 화면이 없다
+- A4(약관 동의)는 **신규 가입 경로 전용**이라 그대로 못 쓴다 — 재동의는 이미 로그인된
+  사용자가 보고, 항목이 `pending_consents`에 담긴 것만이며, 거절 시 행선지도 다르다
+- 계약·타입·매핑(`auth.api.ts:129`)은 **이미 다 있다.** 없는 것은 화면과 거절 경로 규칙이다
+
+**FE가 지금 만들면 문서에 없는 화면을 지어내는 것이 된다**(공통 원칙 — 문서와 충돌하는 구현을
+만들지 않는다). 그래서 코드를 건드리지 않고 **문서 요청을 발행했다**:
+`changes/pending/auth-reconsent-screen-missing.md`.
+
+그 문서가 정해야 하는 것 — ① 화면 ID·카피(A4 재사용 여부) ② **필수 동의 거절 시 동작**(가장
+중요한 미결) ③ 표시 시점(`splash.md` 관문과의 순서) ④ `version: null`인 연령 확인의 표현.
+
+### 이 티켓의 남은 일
+
+**없다 — 문서 대기다.** `auth-reconsent-screen-missing.md`가 반영되면 `useStartScreen.ts:75`의
+TODO를 구현하고 이 티켓을 닫는다. 다음에 집는 사람이 조사할 것은 없다.

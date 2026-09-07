@@ -8,7 +8,7 @@
 | 발견 시점 | 2026-09-03 App Links 인프라 완료 후 공유 기능 상태를 점검하다 — **코드·인프라는 전부 준비됐는데 빌드 타임 플래그 하나로 꺼져 있다**는 것을 확인 |
 | 근거 문서 | `features/share.md` 2장(P1 활성화 조건) · `spec/uiux/share-uiux.md` 6·9장(카피 미확정) · README 결정 42 |
 | 심각도 | **중** — 기능 자체는 완성돼 있어 위험은 없다. 다만 **빌드 타임 상수라 다음 빌드를 놓치면 그다음 빌드까지 못 켠다** |
-| 상태 | pending |
+| 상태 | pending — 요청 1~3 완료. 요청 4(스토어 링크)는 값 확정, **Play 게시 대기** |
 
 ## 배경 — 스위치 하나만 꺼져 있다
 
@@ -71,3 +71,45 @@ export const IS_SHARE_ENABLED = process.env.EXPO_PUBLIC_SHARE_ENABLED === 'true'
 - **2026-09-06 — 플래그 활성화 (두 번째 TestFlight 빌드에 반영, 사용자 결정)**: 요청 3을 원 설계(기본값 켬 — `share.constants.ts`의 판정을 `!== 'false'`로 반전)로 반영했다. env 누락으로 조용히 꺼진 빌드가 나가는 사고가 없는 쪽이다.
   - **요청 1·2(카피·아이콘)는 "현재 제안값을 확정으로 채택"으로 결정됐다** — 공유 텍스트 3줄 형식(제목/저자·출처/링크), 낭독 라벨 '공유', 공통 아이콘 유지. `share-uiux.md` 6·9장 확정 반영과 코드 TODO 주석 정리는 FE 몫으로 남긴다(동작 무변경 문서·주석 작업).
   - **요청 4(스토어 링크)는 보류** — 앱이 스토어 미등록이라 확정값이 없다. 미설치 수신자는 안내 페이지를 본다(TestFlight 검증에는 지장 없음). 완료 조건 중 "스토어로 이동" 1건은 스토어 등록 후에만 판정 가능 — 그때 랜딩 `StoreRedirect` 상수 교체(`share-universal-links-hosting.md` 공유 미결)와 함께 닫는다.
+
+## 진행 기록 (2026-09-07 — 요청 4의 값을 확정했다. 채우는 시점만 남았다)
+
+### 요청 1·2는 완전히 닫혔다
+
+- 코드 TODO 없음 — `grep -rn TODO src/features/share/`가 남긴 것은 `useShareLinkGate.ts`의
+  `TODO(SplashGate)` 하나뿐이고, 이것은 카피가 아니라 **실행 관문 구현 대기** 건이라 별개다
+- 문서 반영도 끝났다 — `changes/archive/share-p1-copy-decisions.md`(반영 완료)
+
+### 요청 3도 닫혔다
+
+`share.constants.ts`가 `!== 'false'`(기본 켬)이다. 2026-09-06 결정대로다.
+
+### 요청 4 — 스토어 URL 확정값
+
+두 곳이 이 값을 쓰는데 **성격이 달라 처리를 나눴다.**
+
+| 위치 | 용도 | 이번 처리 |
+|---|---|---|
+| 앱 `settings.constants.ts`의 `STORE_URL` | 설정 [업데이트] 버튼 | **채웠다** — `https://play.google.com/store/apps/details?id=com.runtime.ear` |
+| 랜딩 `contents/StoreRedirect.tsx` | 공유 링크 수신자 중 **앱 미설치자** | **채우지 않았다** |
+
+앱 쪽을 채운 이유: [업데이트]는 서버가 강제 업데이트를 지시할 때만 뜨고, 그 시점은 **게시 이후**다.
+게다가 기존 값이 `ear.example.com/store`(죽은 도메인)라 그대로 두는 쪽이 더 나빴다
+(`prod-build-env-and-eas.md` 2026-09-07 기록).
+
+랜딩 쪽을 채우지 않은 이유: **게시 전에는 Play URL이 "찾을 수 없음"을 띄운다.** 지금 채우면
+방문자가 안내 페이지 대신 오류 화면을 본다 — 컴포넌트 주석이 정한 "null인 동안 안내 문구"가
+게시 전에는 더 맞다. **게시 즉시 아래 두 줄로 바꾼다**(값은 확정, 조사 불필요).
+
+```ts
+const IOS_STORE_URL: string | null = "https://apps.apple.com/app/id6807708636";
+const ANDROID_STORE_URL: string | null = "https://play.google.com/store/apps/details?id=com.runtime.ear";
+```
+
+iOS 값의 출처는 `frontend/eas.json`의 `submit.production.ios.ascAppId = 6807708636`이다.
+
+### pending 유지 사유 — Play 게시 하나에 걸려 있다
+
+남은 완료 조건은 **"앱이 설치되지 않은 기기에서 링크를 열면 스토어로 이동한다"** 1건이고,
+게시 전에는 판정 자체가 불가능하다. 게시되면 ① 위 두 줄 교체 ② 미설치 기기에서 링크 탭 —
+이 두 단계로 닫힌다. **다음에 집는 사람이 조사할 것은 없다.**

@@ -60,8 +60,26 @@ Frontend는 다음 5가지를 책임진다.
 | Key-Value 저장 | **react-native-mmkv** | 플래그·최근 검색어·소형 캐시 |
 | 보안 저장소 | **expo-secure-store** | access/refresh token 전용 |
 | 리스트 | **FlashList** | 무한 스크롤 목록(라이브러리·탐색) 가상화 |
+| OTA 업데이트 | **EAS Update** (`expo-updates`) | JS·스타일·정적 에셋만 전달한다. 네이티브 변경(모듈 추가·config plugin·`app.json` 네이티브 설정)은 재빌드 + 스토어 배포다 (→ 2.1) — 확정 2026-09-06, `changes/archive/frontend-architecture-ota-update-policy(fe).md` |
 
 **추가 도입 시 원칙** — `backend/architecture.md` 2장과 동일하다. 직접 구현 대비 명확한 이득이 있고 도메인 코드가 라이브러리에 종속되지 않을 때만 추가하며, 도입 시 이 문서 또는 convention.md에 사용 범위를 기록한다.
+
+### 2.1 OTA 업데이트 운용
+
+스토어 심사 정책을 확인한 결과 **JS·에셋 한정 OTA는 애플·구글 모두 허용한다.** 앱의 목적을 바꾸는 변경만 금지된다. 내부 테스트가 시작되면서 "수정마다 재빌드"의 비용이 실제로 발생했고, 특히 구글 비공개 테스트 기간에는 빌드 교체 없이 수정을 전달할 수단이 필요하다.
+
+**채널은 빌드 프로파일과 1:1이다**(`frontend/eas.json`).
+
+| 채널 | 빌드 프로파일 | 수신 |
+|---|---|---|
+| `development` | dev client | 실질 없음 — dev client는 Updates API가 돌지 않는다 |
+| `preview` | 내부 테스트 APK | ○ |
+| `production` | 스토어 AAB | ○ |
+
+- **발행은 CI가 한다** — `.github/workflows/eas-update.yml`이 `dev` merge → `preview`, `main` merge → `production`으로 자동 발행한다. 팀원은 로컬 EAS CLI 없이 merge만 하면 된다. 수동 발행은 `workflow_dispatch` 또는 조직 멤버의 `eas update`.
+- **`runtimeVersion`은 `fingerprint` 정책이다**(`app.json`). 네이티브 지문이 다른 빌드에는 업데이트가 전달되지 않는다. **"이 변경이 네이티브인가"를 사람이 판단하지 않아도 안전하고**, 네이티브가 바뀐 merge는 OTA가 기존 빌드에 닿지 않는 것 자체가 "새 빌드가 필요하다"는 신호가 된다.
+- **OTA 번들의 env는 `eas.json`과 같은 값을 유지해야 한다.** 워크플로가 `EXPO_PUBLIC_API_BASE_URL`을 번들에 박으므로, `eas.json`의 `preview`·`production` env와 어긋나면 **OTA 번들만 다른 서버를 본다.** mock 플래그들은 `__DEV__` 가드라 릴리스 번들에서는 무관하다.
+- 적용 시점은 `expo-updates` 기본값(앱 재시작)이다. 사용자 동의 UX(`useUpdates` 훅 + 안내)는 P1로 남긴다.
 
 ## 3. Application Layer Architecture
 
@@ -454,4 +472,3 @@ RootStack
 - 푸시 토큰 갱신·`UNREGISTERED` 처리 세부 흐름 — notification 명세 확정 후
 - 다크 모드 대응 범위(`auth-uiux.md` 미결) — theme 토큰 구조는 대응 가능하게 설계하되 MVP 범위 미정
 - E2E 테스트 도구(Maestro / Detox) 도입 여부와 시점
-- OTA 업데이트(EAS Update) 운용 정책 — 스토어 심사 정책 확인 후

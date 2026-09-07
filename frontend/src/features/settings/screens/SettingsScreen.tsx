@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { APP_VERSION } from '@/shared/lib/app-version';
 import { theme } from '@/shared/theme';
+import ConfirmDialog from '@/shared/ui/ConfirmDialog';
 
 import { NotificationPrePromptModal } from '@/features/notification';
 
@@ -205,6 +206,22 @@ export default function SettingsScreen() {
       ) : null}
 
       {/* S5 로그아웃 확인 — 질문 하나로 충분하다. 처리 중 버튼 비활성(settings-uiux.md 4.4) */}
+      {/* 인증된 이메일 변경 불가 안내 — 프로필과 같은 화면을 쓴다(auth.md 4.4) */}
+      <ConfirmDialog
+        isVisible={screen.isEmailLockedVisible}
+        title={SETTINGS_COPY.email.lockedTitle}
+        body={SETTINGS_COPY.email.lockedBody}
+        secondaryAction={{
+          label: SETTINGS_COPY.email.lockedClose,
+          onPress: screen.closeEmailLocked,
+        }}
+        primaryAction={{
+          label: SETTINGS_COPY.email.lockedContact,
+          onPress: screen.contactFromEmailLocked,
+        }}
+        onCloseRequest={screen.closeEmailLocked}
+      />
+
       <SettingsDialog
         isVisible={screen.isLogoutDialogVisible}
         title={SETTINGS_COPY.account.logoutConfirmTitle}
