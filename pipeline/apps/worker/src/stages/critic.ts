@@ -30,7 +30,7 @@ export async function runCritic(job: Job, ex: Executor) {
   const { assetRoot, bundle } = await prepareAssets(ep.asset_versions ?? null); // 에피소드에 고정된 규칙 (spec/10 3.2)
   if (!ep.asset_versions) await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: ep.prompt_version, asset_versions: bundle.versions });
 
-  const rubric: "v1" | "v2" = job.payload.rubric === "v2" ? "v2" : "v1";
+  const rubric: "v1" | "v2" = job.payload.rubric === "v1" ? "v1" : job.payload.rubric === "v2" ? "v2" : cfg.criticRubric; // 지정 없으면 설정 기본(v2)
   if (rubric === "v2") return runCriticV2(job, ex, { episodeId, backlogId, rel, dir, scriptFile, title: cand.title, midTopic: cand.mid_topic, assetRoot, bundle });
 
   const prompt = buildCriticPrompt({ assetRoot, workRoot: cfg.workRoot, episodeId, title: cand.title, midTopic: cand.mid_topic, scriptFile });
