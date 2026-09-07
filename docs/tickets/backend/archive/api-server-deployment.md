@@ -165,8 +165,8 @@ cd /opt/ear/backend && docker compose -f docker-compose.prod.yml --env-file .env
   남겨 두었던 마지막 미확인 항목도 함께 닫혔다.
 - **pepper·`JWT_SECRET` 시크릿 보관** — ✅ **서버 `.env.prod` 파일 보관을 합격으로 판정**
   (BE 담당 archive 지시로 확정, 2026-09-07). 판정 근거: 저장소·코드·로그에는 값이 없고
-  전부 환경변수 주입이며, 파일은 EC2 안에서만 접근 가능하다. AWS Secrets Manager 이전을
-  나중에 채택하면 이 티켓을 되살리지 않고 **새 티켓으로 발행**한다.
+  전부 환경변수 주입이며, 파일은 EC2 안에서만 접근 가능하다. 시크릿 매니저 이전 여부는
+  infra와 상의할 별건으로 분리해 발행했다 — `tickets/infra/pending/prod-secrets-storage.md`.
 
 이로써 완료 조건 6개 전부 충족 — 공개 도메인 HTTPS 200, 환경변수 검증 기동, 소셜 3종
 실기기 로그인(2026-09-03), 애플 로그인(2026-09-07), 시크릿 판정, CORS 비와일드카드
