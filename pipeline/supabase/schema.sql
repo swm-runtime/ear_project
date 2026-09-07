@@ -51,7 +51,9 @@ create table if not exists backlog (
   approved_at timestamptz,
   claimed_by  text,                            -- 동시 작업 충돌 방지
   claimed_at  timestamptz,
-  published_content_ref text,                  -- 발행 후 제품 콘텐츠 식별 (수기)
+  published_content_ref text,                  -- 발행 후 제품 content_id (0012 부터 발행 화면이 자동 기록, 이전은 수기)
+  published_version int,                       -- 제품 content_version (재발행마다 +1 — 0012)
+  published_at timestamptz,                    -- 최근 발행·재발행 시각 (0012) — TTS 재합성 시각과 비교해 재발행 버튼을 띄운다
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );

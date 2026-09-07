@@ -36,6 +36,14 @@ export async function enqueueJob(type: "sweep" | "cluster" | "tts" | "package" |
   return data.id as string;
 }
 
+/** 발행·재발행 결과를 파이프라인에 기록 (spec/07 5장) — 제품 content_id·content_version·시각. 두 DB 는 분리 유지, 이 기록이 유일한 연결 고리 */
+export async function markPublished(backlogId: string, contentId: string, contentVersion: number) {
+  const sb = await supabaseServer();
+  const { error } = await sb.from("backlog").update({ status: "published", published_content_ref: contentId, published_version: contentVersion, published_at: new Date().toISOString() }).eq("id", backlogId);
+  if (error) throw new Error(error.message);
+  revalidatePath("/backlog"); revalidatePath("/"); revalidatePath("/publish"); revalidatePath("/episodes");
+}
+
 export async function cancelJob(id: string) {
   const sb = await supabaseServer();
   const { error } = await sb.from("jobs").update({ status: "cancelled" }).eq("id", id).eq("status", "queued");
