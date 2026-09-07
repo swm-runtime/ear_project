@@ -8,7 +8,7 @@
 | 발견 시점 | 2026-08-31 서버 배포·소셜 로그인 종단 확인 후 — 서버는 실기기를 받을 준비가 됐는데 **앱이 실서버를 가리키는 빌드 프로필이 없다** |
 | 근거 문서 | `tickets/backend/pending/api-server-deployment.md`(완료 조건의 "FE 스탠드얼론 빌드" 검증이 이것에 막힘) · `frontend/convention.md`(env 전환 패턴) |
 | 심각도 | **높음** — 지금까지의 전 기능(로그인 4종 포함)의 실기기 종단 검증이 이 하나에 걸려 있다 |
-| 상태 | pending |
+| 상태 | pending — 요청 1~3 완료(2026-09-07 env 구멍 추가 수정). 실기기 검증 2건 남음 |
 
 ## 배경 — 서버 쪽은 끝났다
 
@@ -140,3 +140,53 @@
 ### 참고 — 서버 env는 무혐의로 확인됐다
 
 추적 과정에서 배포 서버(`/opt/ear/backend/.env.prod`)의 값을 대조했다. `GOOGLE_WEB_CLIENT_ID`는 `app.json`과 일치, `KAKAO_APP_ID=1533429`로 플레이스홀더가 아니었다. 티켓 하단 "참고" 표의 *"서버 `KAKAO_APP_ID`가 아직 플레이스홀더"* 는 **해소됐다.**
+
+## 진행 기록 (2026-09-07 — 발행 당시 지시대로 플래그 전수를 다시 세었더니 구멍이 있었다)
+
+요청 1의 *"플래그 전수 목록은 `grep -rho "EXPO_PUBLIC_[A-Z_]*" frontend/src | sort -u`로 재확인"*
+을 실제로 돌렸다. **코드가 쓰는 값과 `eas.json`이 주는 값이 어긋나 있었다.**
+
+### ① 죽은 도메인이 스토어 빌드로 나가고 있었다 — 고쳤다
+
+`settings.constants.ts`의 외부 링크 3종은 폴백이 **`ear.example.com`**(존재하지 않는 도메인)인데
+`eas.json`에 값이 없었다. 즉 **v7까지의 모든 스토어 빌드에서** 설정의 다음 세 항목이 죽은 링크였다.
+
+| 설정 항목 | v7까지 | 지금 |
+|---|---|---|
+| [이용약관] | `https://ear.example.com/terms` | `https://earcast.co.kr/terms` (200 확인) |
+| [개인정보처리방침] | `https://ear.example.com/privacy` | `https://earcast.co.kr/privacy` (200 확인) |
+| [업데이트] | `https://ear.example.com/store` | `https://play.google.com/store/apps/details?id=com.runtime.ear` |
+
+**Play 심사 관점에서도 위험했다** — 스토어 등록정보의 개인정보처리방침 URL과 별개로, 앱 안에서
+같은 항목이 죽은 링크를 열면 심사에서 지적될 수 있다.
+
+고친 방식은 **두 겹**이다. `eas.json`의 `preview` env에 세 값을 넣고(=`production`이 `extends`로
+물려받는다), **동시에 코드 폴백 자체를 실값으로 바꿨다.** env 하나를 빠뜨려도 죽은 링크가 나가지
+않게 하려는 것으로, 공유 플래그를 기본 켬으로 둔 결정(`share.constants.ts`)과 같은 이유다.
+
+### ② `EXPO_PUBLIC_WITHDRAWAL_API` 누락 — 사고는 아니었지만 명시했다
+
+회원 탈퇴(PR #148)가 들어오면서 생긴 플래그가 `eas.json`에 없었다. 다만 판정이
+`__DEV__ && ... !== 'real'`(`auth.constants.ts:70`)이라 **릴리즈 빌드는 이미 real로 떨어진다** —
+실제 사고는 없었다. 발행 당시 지시대로 **명시가 안전하다**는 원칙에 따라 `"real"`을 넣었다.
+
+### ③ 나머지 차이는 정상이다
+
+`*_MOCK_SCENARIO` 계열과 `EXPO_PUBLIC_SHARE_ENABLED`는 `eas.json`에 **일부러 없다.**
+전자는 dev 전용 시나리오 스위치이고, 후자는 기본값이 켜짐(`!== 'false'`)이라 끌 때만 명시한다.
+`EXPO_PUBLIC_KAKAO_CHANNEL_URL`은 **폴백이 `https://pf.kakao.com/_ear_dev`로 남아 있다** —
+운영 채널 URL의 실값을 모르는 상태라 임의로 채우지 않았다. **실값 확인이 필요하다**(아래).
+
+### 남은 완료 조건 — 여전히 2개, 성격이 바뀌지 않았다
+
+- Given 그 apk / When 이메일 인증 코드를 요청한다 / Then 실제 메일이 도착한다 — **미검증**
+- Given 콘텐츠 1편 이상 업로드 / When 탐색에서 재생 / Then CloudFront 서명 URL로 재생된다 — **미검증**
+
+둘 다 **실기기에서 한 번씩 해보면 끝난다.** 코드로 대신 확인할 수 없다(메일 발송은 실제 외부
+발송이고, 재생은 인증된 세션이 필요하다). 확인되면 `archive/`로 옮긴다.
+
+### 새로 생긴 확인 항목 1개
+
+- **카카오 채널 URL 실값** — 설정 [문의하기]가 여는 주소이자 화면에 **문자열로 표시**된다
+  (`SettingsScreen.tsx:254`). 지금은 dev 폴백(`_ear_dev`)이 그대로 나간다. 실값을 받으면
+  `eas.json`에 `EXPO_PUBLIC_KAKAO_CHANNEL_URL`을 넣고 폴백도 함께 바꾼다.
