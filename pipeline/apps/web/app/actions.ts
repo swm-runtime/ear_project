@@ -51,11 +51,18 @@ export async function cancelJob(id: string) {
   revalidatePath("/"); revalidatePath("/sweep");
 }
 
+/**
+ * 비평 판정 저장 (spec/09 3.1). 실패는 실패로 보여야 한다 (2026-09-07):
+ * 세션이 만료되면 anon 으로 update 가 나가 RLS 에 걸려 0건 갱신인데 error 가 없어 "저장됨"으로 보이던 구멍을 막는다 —
+ * 로그인 확인 + returning 건수 검사. 클라이언트는 실패 시 브라우저 초안(lib/judge-draft)을 유지한다.
+ */
 export async function saveCriticVerdicts(episodeId: string, verdicts: unknown) {
   const sb = await supabaseServer();
   const { data: { user } } = await sb.auth.getUser();
-  const { error } = await sb.from("episodes").update({ critic_verdicts: { ...(verdicts as object), judged_by: user?.email ?? null, judged_at: new Date().toISOString() } }).eq("id", episodeId);
+  if (!user) throw new Error("로그인 세션이 만료됐습니다 — 새로고침해 다시 로그인하면 브라우저 초안에서 입력이 복원됩니다");
+  const { data, error } = await sb.from("episodes").update({ critic_verdicts: { ...(verdicts as object), judged_by: user.email ?? null, judged_at: new Date().toISOString() } }).eq("id", episodeId).select("id");
   if (error) throw new Error(error.message);
+  if (!data?.length) throw new Error(`저장되지 않았습니다 (갱신 0건) — 에피소드 ${episodeId} 접근 권한 또는 존재 여부 확인`);
   revalidatePath(`/episodes/${episodeId}`);
 }
 
