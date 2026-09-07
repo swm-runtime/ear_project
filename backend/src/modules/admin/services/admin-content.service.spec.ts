@@ -9,6 +9,7 @@ import { TopicService } from '@/modules/interest/services/topic.service';
 import { AuditLogService } from '@/modules/partner/audit-log.service';
 
 import { LibraryService } from '@/modules/library/library.service';
+import { PlaybackService } from '@/modules/playback/services/playback.service';
 
 import { AdminContentService } from './admin-content.service';
 import {
@@ -83,6 +84,7 @@ describe('AdminContentService', () => {
   let service: AdminContentService;
   let contentService: jest.Mocked<ContentService>;
   let libraryService: jest.Mocked<LibraryService>;
+  let playbackService: jest.Mocked<PlaybackService>;
   let topicService: jest.Mocked<TopicService>;
   let auditLogService: jest.Mocked<AuditLogService>;
   let storage: jest.Mocked<ContentStorageClient>;
@@ -131,6 +133,10 @@ describe('AdminContentService', () => {
       removeAllByWithdrawnContent: jest.fn().mockResolvedValue(3),
     } as unknown as jest.Mocked<LibraryService>;
 
+    playbackService = {
+      deleteProgressesByContentId: jest.fn().mockResolvedValue(undefined),
+    } as unknown as jest.Mocked<PlaybackService>;
+
     topicService = {
       findAllByIds: jest
         .fn()
@@ -164,6 +170,7 @@ describe('AdminContentService', () => {
       dataSource,
       contentService,
       libraryService,
+      playbackService,
       topicService,
       auditLogService,
       storage,
@@ -463,6 +470,40 @@ describe('AdminContentService', () => {
       );
       // 새 파일 저장 → 트랜잭션 성공 → **그 다음에** 이전 파일 삭제 (반대면 롤백 시 파일이 없다)
       expect(storage.remove).toHaveBeenCalledWith(['audio/old.mp3']);
+    });
+
+    it('재발행하면 그 콘텐츠의 저장된 재생 위치가 같은 트랜잭션에서 전부 지워진다', async () => {
+      // when
+      await service.republish(buildRepublishCommand());
+
+      // then — 안 A(`republish-stale-playback-position.md`): 읽기 경로(4.1)가 낡은
+      // 위치를 내려주지 않도록 행 자체를 지운다. 라이브러리는 건드리지 않는다
+      expect(playbackService.deleteProgressesByContentId).toHaveBeenCalledWith(
+        CONTENT_ID,
+        manager,
+      );
+      expect(libraryService.removeAllByWithdrawnContent).not.toHaveBeenCalled();
+    });
+
+    it('재발행이 거부되면 재생 위치를 지우지 않는다', async () => {
+      // given — 회수 상태라 409로 거부되는 경우
+      contentService.getById.mockResolvedValue({
+        id: CONTENT_ID,
+        status: ContentStatus.WITHDRAWN,
+        origin: ContentOrigin.AI_GENERATED,
+        contentVersion: 2,
+        audioPath: 'audio/old.mp3',
+        thumbnailUrl: `${CDN_BASE_URL}/thumb/old.png`,
+      } as never);
+
+      // when
+      const act = service.republish(buildRepublishCommand());
+
+      // then
+      await expect(act).rejects.toBeInstanceOf(BusinessException);
+      expect(
+        playbackService.deleteProgressesByContentId,
+      ).not.toHaveBeenCalled();
     });
 
     it('메타만 보내도 content_version은 오른다 — 클라이언트 재발행 판정이 버전 하나로 동작한다', async () => {

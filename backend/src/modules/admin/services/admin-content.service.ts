@@ -8,6 +8,7 @@ import { ContentOrigin, ContentStatus } from '@/modules/content/content.enum';
 import { Content } from '@/modules/content/entities/content.entity';
 import { ContentService } from '@/modules/content/services/content.service';
 import { LibraryService } from '@/modules/library/library.service';
+import { PlaybackService } from '@/modules/playback/services/playback.service';
 import { TopicService } from '@/modules/interest/services/topic.service';
 import { AuditLogService } from '@/modules/partner/audit-log.service';
 
@@ -56,6 +57,7 @@ export class AdminContentService {
     private readonly dataSource: DataSource,
     private readonly contentService: ContentService,
     private readonly libraryService: LibraryService,
+    private readonly playbackService: PlaybackService,
     private readonly topicService: TopicService,
     private readonly auditLogService: AuditLogService,
     private readonly storage: ContentStorageClient,
@@ -321,6 +323,18 @@ export class AdminContentService {
               : undefined,
             sources: command.sources,
           },
+          manager,
+        );
+
+        /**
+         * 낡은 재생 위치 폐기(안 A — `republish-stale-playback-position.md`). 콜드오픈
+         * 폐지·재편집처럼 같은 초가 다른 내용을 가리키게 되는 재발행에서, 남은 행이
+         * 4.1 응답으로 그대로 내려가 엉뚱한 지점에서 재생이 시작되는 것을 막는다.
+         * 저장 경로(4.3)는 버전 가드가 이미 막고 있어 읽기 경로만 남아 있었다.
+         * 라이브러리·재생 기록은 유지된다 — 지우는 것은 위치뿐이다.
+         */
+        await this.playbackService.deleteProgressesByContentId(
+          command.contentId,
           manager,
         );
 
