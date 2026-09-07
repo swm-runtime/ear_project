@@ -3,6 +3,7 @@
  * 다른 feature·app은 이 파일을 통해서만 auth에 접근한다.
  */
 export { default as ProviderIcon } from './components/ProviderIcon';
+export { default as ReconsentScreen } from './screens/ReconsentScreen';
 export { default as StartScreen } from './screens/StartScreen';
 export { default as TermsConsentScreen } from './screens/TermsConsentScreen';
 export { default as EmailVerificationScreen } from './screens/EmailVerificationScreen';

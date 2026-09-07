@@ -5,7 +5,7 @@ import { secureStorage } from '@/shared/storage/secure-storage';
 import { STORAGE_KEYS } from '@/shared/storage/storage-keys';
 
 import { refreshSession, requestLogout } from '../api/auth.api';
-import type { AuthTokens, AuthUser } from '../auth.types';
+import type { AuthTokens, AuthUser, RequiredConsent } from '../auth.types';
 import { useSessionStore } from '../store/session.store';
 
 /**
@@ -20,9 +20,14 @@ class SessionService implements TokenProvider {
   private refreshPromise: Promise<boolean> | null = null;
 
   /** 로그인·가입 성공 시 호출 — 토큰 저장 후 세션 상태를 전환한다 */
-  async startSession(tokens: AuthTokens, user: AuthUser): Promise<void> {
+  async startSession(
+    tokens: AuthTokens,
+    user: AuthUser,
+    /** 로그인 응답의 pending_consents — 있으면 관문이 A20을 먼저 태운다(auth.md 7) */
+    pendingConsents: RequiredConsent[] = [],
+  ): Promise<void> {
     await this.saveTokens(tokens);
-    useSessionStore.getState().setSession(user);
+    useSessionStore.getState().setSession(user, pendingConsents);
   }
 
   /**

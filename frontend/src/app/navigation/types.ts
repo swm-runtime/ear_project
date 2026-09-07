@@ -65,6 +65,11 @@ export type MainStackParamList = {
 
 export type RootStackParamList = {
   Auth: NavigatorScreenParams<AuthStackParamList>;
+  /**
+   * A20 재동의 — 로그인은 됐지만 `pending_consents`가 남은 상태(splash.md 4 — 3단계).
+   * 관문이 단독 렌더하므로 파라미터가 없다. 항목은 세션 상태에서 읽는다.
+   */
+  Reconsent: undefined;
   Onboarding: NavigatorScreenParams<OnboardingStackParamList>;
   Main: NavigatorScreenParams<MainStackParamList>;
 };

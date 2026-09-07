@@ -8,7 +8,7 @@
 | 발견 시점 | `tickets/backend/archive/age-confirmation-consent` 반영(PR #142 머지) — 서버 준비 완료, 전송만 남음 |
 | 근거 문서 | `domain.md` 3.2 · `changes/pending/auth-consents-age-confirmation.md` |
 | 심각도 | **중** — 전송 전까지는 서버에 연령 확인 이력이 계속 비어 있다. **서버가 필수 동의로 판정하므로, 미전송 상태로 서버가 배포되면 신규 가입이 `CONSENT_REQUIRED`(400)로 전부 막힌다 — 서버 배포 전에 반영돼야 한다** |
-| 상태 | pending — 완료 조건 3(재동의 경로)이 **문서 대기**. `changes/pending/auth-reconsent-screen-missing.md` |
+| 상태 | pending — 재동의 화면(A20) **구현 완료**(2026-09-07). 실기기 확인 1회만 남음 |
 
 ## 배경
 
@@ -91,3 +91,25 @@
 
 **없다 — 문서 대기다.** `auth-reconsent-screen-missing.md`가 반영되면 `useStartScreen.ts:75`의
 TODO를 구현하고 이 티켓을 닫는다. 다음에 집는 사람이 조사할 것은 없다.
+
+## 진행 기록 (2026-09-07 저녁 — 완료 조건 3의 화면이 생겼다)
+
+막고 있던 것이 "재동의 화면이 문서에 없다"였는데, **사용자가 미결 4개를 확정해서 화면을 만들었다**
+(`changes/archive/auth-reconsent-screen-missing.md`).
+
+- **A20 재동의 화면 신설** — `auth-uiux.md` 4.3-1. A4를 재사용하지 않는다
+- **거절 = 로그아웃**(확인 다이얼로그 선행). 탈퇴가 아니다
+- **표시 시점 = 실행 관문**(`splash.md` 4 — 3단계, 온보딩 판정보다 앞)
+- `age_confirmation`은 [보기] 없이 체크박스만
+
+`useStartScreen.ts:75`의 `TODO(auth)`가 사라졌다. 로그인 응답의 `pending_consents`를 세션에 싣고,
+`RootNavigator`가 비어 있지 않으면 A20을 먼저 태운다. 전송은 `POST /users/me/consents`(4.5)다.
+
+### 완료 조건 판정
+
+- Given 신규 가입 / Then `age_confirmation` 행이 남고 가입 성공 → ✅ (PR #150)
+- Given 미포함 요청 / Then `CONSENT_REQUIRED` — 클라이언트가 이 상태를 만들지 않는다 → ✅
+- Given 이력 없는 기존 사용자 로그인 / Then 재동의 화면이 항목을 표시하고 전송한다 → 🟡 **구현 완료, 실기기 확인만 남음**
+
+**대상자가 실제로 있다** — 운영 DB 기준 `age_confirmation` 이력이 없는 사용자가 **9명**(전체 13명,
+전부 팀 테스트 계정)이다. 그 계정으로 로그인하면 A20이 떠야 한다. 확인되면 `archive/`로 옮긴다.
