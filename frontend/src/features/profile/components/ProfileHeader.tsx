@@ -140,7 +140,7 @@ export default function ProfileHeader({
             {email !== null && !isEmailVerified ? (
               <View style={styles.unverifiedBadge}>
                 <Text style={styles.unverifiedBadgeText}>
-                  {PROFILE_COPY.email.unverifiedBadge}
+                  {PROFILE_COPY.email.unverifiedGlyph} {PROFILE_COPY.email.unverifiedBadge}
                 </Text>
               </View>
             ) : null}

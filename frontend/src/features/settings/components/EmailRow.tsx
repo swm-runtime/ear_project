@@ -7,7 +7,10 @@ import { SETTINGS_COPY } from '../settings.copy';
 
 interface EmailRowProps {
   state: SectionState<EmailRowVM>;
-  /** 세 버튼 모두 auth의 같은 인증 화면으로 간다(settings-uiux.md 4.2) */
+  /**
+   * 미등록·미인증에서는 auth의 인증 화면으로, **인증됨에서는 변경 불가 안내**로 간다
+   * (settings-uiux.md 4.2 — 확정 2026-09-07). 분기는 화면 훅이 갖는다.
+   */
   onPress: () => void;
   onRetry: () => void;
   isRetrying: boolean;
@@ -21,7 +24,9 @@ const actionLabels = (vm: EmailRowVM): string[] => {
     case 'unverified':
       return [SETTINGS_COPY.email.verify, SETTINGS_COPY.email.change];
     case 'verified':
-      return [SETTINGS_COPY.email.change];
+      // 인증된 주소는 앱에서 바꿀 수 없다(auth.md 4.4) — 진입점 자체를 두지 않는다.
+      // 변경이 필요한 사용자는 값을 탭해 안내를 보고 [문의하기]로 간다.
+      return [];
   }
 };
 
@@ -60,9 +65,11 @@ export default function EmailRow({ state, onPress, onRetry, isRetrying }: EmailR
 
   return (
     <View style={styles.row}>
-      <View
+      <Pressable
         style={styles.info}
+        onPress={onPress}
         accessible
+        accessibilityRole="button"
         accessibilityLabel={`${SETTINGS_COPY.email.label}, ${valueA11y}`}
       >
         <Text style={styles.label}>{SETTINGS_COPY.email.label}</Text>
@@ -70,11 +77,13 @@ export default function EmailRow({ state, onPress, onRetry, isRetrying }: EmailR
           <Text style={styles.value}>{valueText}</Text>
           {vm.status === 'unverified' ? (
             <View style={styles.badge}>
-              <Text style={styles.badgeText}>{SETTINGS_COPY.email.unverifiedBadge}</Text>
+              <Text style={styles.badgeText}>
+                {SETTINGS_COPY.email.unverifiedGlyph} {SETTINGS_COPY.email.unverifiedBadge}
+              </Text>
             </View>
           ) : null}
         </View>
-      </View>
+      </Pressable>
       <View style={styles.right}>
         {actionLabels(vm).map((label) => (
           <Pressable

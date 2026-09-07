@@ -16,3 +16,8 @@ export { settingsKeys } from './api/settings.api';
 export { updateUserSettings } from './api/settings.api';
 export { useSettingsQuery } from './hooks/useSettingsQuery';
 export type { PlaybackRate } from './settings.types';
+/**
+ * 문의(카카오톡 채널) 목적지. 프로필의 "인증된 이메일 변경 불가" 안내가 같은 곳으로 보낸다
+ * (`auth.md` 4.4 — 확정 2026-09-07). 값의 원천은 배포 설정이다(settings-api.md 1장 경계 표).
+ */
+export { KAKAO_CHANNEL_URL } from './settings.constants';

@@ -33,6 +33,13 @@ export const SETTINGS_COPY = {
     label: '이메일',
     unregistered: '등록되지 않음',
     /** 배지 — 색 + 텍스트. 색만으로 구분하지 않는다(settings-uiux.md 5장) */
+    /** 배지 앞 글리프 — 색만으로 구분하지 않는다(settings-uiux.md 7장) */
+    unverifiedGlyph: '!',
+    /** 인증된 주소는 변경 진입점을 두지 않는다(auth.md 4.4 — 확정 2026-09-07) */
+    lockedTitle: '인증된 이메일은 변경할 수 없어요',
+    lockedBody: '결제 기록을 보관하는 데 쓰이는 주소예요. 변경이 필요하면 문의해 주세요.',
+    lockedClose: '닫기',
+    lockedContact: '문의하기',
     unverifiedBadge: '인증되지 않음',
     register: '등록',
     verify: '인증하기',
