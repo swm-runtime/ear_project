@@ -77,9 +77,25 @@ Frontend는 다음 5가지를 책임진다.
 | `production` | 스토어 AAB | ○ |
 
 - **발행은 CI가 한다** — `.github/workflows/eas-update.yml`이 `dev` merge → `preview`, `main` merge → `production`으로 자동 발행한다. 팀원은 로컬 EAS CLI 없이 merge만 하면 된다. 수동 발행은 `workflow_dispatch` 또는 조직 멤버의 `eas update`.
-- **`runtimeVersion`은 `fingerprint` 정책이다**(`app.json`). 네이티브 지문이 다른 빌드에는 업데이트가 전달되지 않는다. **"이 변경이 네이티브인가"를 사람이 판단하지 않아도 안전하고**, 네이티브가 바뀐 merge는 OTA가 기존 빌드에 닿지 않는 것 자체가 "새 빌드가 필요하다"는 신호가 된다.
+- **`runtimeVersion`은 고정 문자열이다**(`app.json`) — **`fingerprint` 정책을 쓰지 않는다.**
+
+  처음에는 fingerprint 정책이었다. 사람이 "이 변경이 네이티브인가"를 판단하지 않아도 된다는 것이 이유였는데, **이 프로젝트에서 재현되지 않았다.** 같은 트리에서 계산 주체마다 값이 다르다(2026-09-07 실측).
+
+  | 계산 주체 | 값 |
+  |---|---|
+  | EAS **Build** 서버 (vc=6·7 세 빌드 모두) | `cc07cb6e…` |
+  | GitHub CI의 **`eas update`** | `ce395d76…` |
+  | 로컬(Windows) | `e30b09af…` |
+
+  빌드는 prebuild로 네이티브 프로젝트가 생성된 상태에서, `eas update`는 CNG(네이티브 디렉터리 없음) 상태에서 계산한다. **둘이 안 맞으면 OTA는 전달되지 않는다** — vc=6부터 OTA가 한 번도 도달하지 못한 이유가 이것이다(`update:list`의 runtimeVersion과 `build:list`의 runtime.version을 대조하면 보인다).
+
+  그래서 **양쪽이 같은 문자열을 쓰도록 못박았다.** 현재 값은 vc=6·7이 embed한 지문 그대로라, **이미 배포된 빌드도 이 업데이트를 받는다**(문자열을 새로 지으면 기존 빌드가 버려진다).
+
+  **대신 네이티브 변경 감지가 수동이 된다.** 네이티브 모듈 추가·삭제, `app.json`의 네이티브 설정(아이콘·앱 이름·권한·plugin), Expo SDK 업그레이드 — 이 중 하나라도 바뀌면 **`runtimeVersion` 문자열을 손으로 올리고 새 빌드를 낸다.** 올리지 않으면 새 JS가 낡은 네이티브 위에 얹혀 깨진다.
+
+  > **감지되지 않는 자동화보다 규칙이 명확한 수동이 낫다.** fingerprint 정책은 Expo 쪽에서 빌드·업데이트 계산이 일치하게 된 뒤에 다시 검토한다.
 - **OTA 번들의 env는 `eas.json`과 같은 값을 유지해야 한다.** 워크플로가 `EXPO_PUBLIC_API_BASE_URL`을 번들에 박으므로, `eas.json`의 `preview`·`production` env와 어긋나면 **OTA 번들만 다른 서버를 본다.** mock 플래그들은 `__DEV__` 가드라 릴리스 번들에서는 무관하다.
-- **`eas.json`을 고치면 그 이전 빌드는 OTA를 못 받는다.** 지문 소스에 `eas.json`이 포함되기 때문이다(`expo-updates fingerprint:generate` 결과에 `{"filePath":"eas.json","reasons":["easBuild"]}`). 2026-09-07 실측: 트리의 나머지가 완전히 같고 `eas.json`만 달라도 지문이 `64a20ba4…` ↔ `e30b09af…`로 갈린다.
+- **`eas.json`은 지문 소스이므로 고치면 지문이 바뀐다**(위 정책 변경으로 지금은 무해하지만 기록해 둔다). 지문 소스에 `eas.json`이 포함되기 때문이다(`expo-updates fingerprint:generate` 결과에 `{"filePath":"eas.json","reasons":["easBuild"]}`). 2026-09-07 실측: 트리의 나머지가 완전히 같고 `eas.json`만 달라도 지문이 `64a20ba4…` ↔ `e30b09af…`로 갈린다.
   - **이것이 이 정책의 가장 걸리기 쉬운 함정이다.** env를 추가하는 것은 JS만 바뀌는 변경처럼 보이지만, 배포된 빌드 입장에서는 네이티브가 바뀐 것과 같이 취급된다.
   - 실제로 그렇게 됐다 — v7(runtime `cc07cb6e…`) 배포 후 `eas.json`에 외부 링크 env를 넣었고, 그 뒤의 OTA는 v7에 닿지 않는다. **새 빌드가 필요하다.**
   - 회피 요령: 급히 내려야 하는 값이면 **코드 폴백을 실값으로 두고 `eas.json`은 건드리지 않는다.** 폴백은 JS라 OTA로 전달된다(`settings.constants.ts`가 이 방식을 쓴다).
