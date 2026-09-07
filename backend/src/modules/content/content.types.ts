@@ -1,6 +1,12 @@
 /** convention.md 3.2 — 모듈 밖으로 공개되는 타입만 둔다 */
 
-import { ContentOrigin, ContentStatus, StatsPeriodType } from './content.enum';
+import {
+  ContentDifficulty,
+  ContentFormat,
+  ContentOrigin,
+  ContentStatus,
+  StatsPeriodType,
+} from './content.enum';
 import { Content } from './entities/content.entity';
 
 /** 추천·편성 후보 조회 조건 */
@@ -18,6 +24,18 @@ export interface ContentCandidateQuery {
   seriesStartOnly?: boolean;
   limit: number;
   now: Date;
+}
+
+/**
+ * 검증을 통과한 `enrichment.json`(`ai/metadata-pipeline.md` 4.4)의 저장 입력.
+ * 생략된 키는 저장하지 않는다 — 결손은 스코어링 중립 처리다(domain.md 5.1·5.6).
+ */
+export interface EnrichmentInput {
+  difficulty?: ContentDifficulty;
+  format?: ContentFormat;
+  isEvergreen?: boolean;
+  keywords?: string[];
+  embedding?: { model: string; vector: number[] };
 }
 
 /** 콘텐츠에 붙은 주제 — 클라이언트가 주제 배지를 그리는 데 쓴다 */

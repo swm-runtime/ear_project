@@ -8,7 +8,7 @@
 | 발견 시점 | 2026-08-27 추천 3축 하이브리드 설계 확정(README 결정 51) 직후, 착수 시점 협의 |
 | 근거 문서 | `ai/metadata-pipeline.md`(절차 소유) · `domain.md` 5.1(추천 메타 4종)·5.6(`content_embeddings`)·15.1 #11(모델·차원 미결) · `features/admin.md` 3.1(`enrichment_file`) · `drip-scheduling.md` 4.2 |
 | 심각도 | **하** — 이 파이프라인 없이도 추천은 동작한다(4.2의 축 재정규화 — 임베딩 축·메타 항목이 빠진 채 스코어링). 다만 **없는 동안 고도화의 핵심 축(임베딩 유사도·메타 항목)이 잠자는 상태**이므로, 대본 파이프라인 확정 후 이른 착수가 좋다 |
-| 상태 | pending — 부여 스킬 Phase A MVP(2026-08-29) + **개발 범위 3(스코어링 임베딩 축·MMR) 구현 완료(2026-09-07)**. 남은 것: `enrichment_file` 계약·서버 저장, 대본 확정 후 검증, 소급 부여 |
+| 상태 | pending — 서버 쪽(개발 범위 2·3)은 **2026-09-07 전부 구현 완료**(스코어링 임베딩 축·MMR + `enrichment_file` 저장). 남은 것: 완료 조건 ①(확정 대본으로 스킬 검증 — 선행 조건 1 대기)과 소급 부여 실행뿐 |
 
 ## 배경 · 보류 사유
 
@@ -60,3 +60,4 @@
 - 2026-08-29 — 부여 스킬 Phase A MVP 구현(`.claude/skills/metadata-enrichment/` — 위 "구현 현황"). 선행 조건과 무관한 범위만 선착수했으며, 대본 파이프라인 확정 시 판정 기준 재점검이 필요하다. 완료 조건 1번(메타 4종 산출)은 스킬 층에서 충족 — 단 실제 확정 대본으로는 미검증.
 - 2026-09-01 — **선행 조건 2 해소**: 임베딩 모델 `text-embedding-3-small` · 1536차원 확정(`domain.md` 15.1 #11). 임베딩 생성은 AI 서버 `POST /embeddings`로 확정돼(`ai-server/` 신설 — `metadata-pipeline.md` 4.3 개정) Phase B는 "AI 서버 호출"로 단순화됐다. 남은 선행 조건은 1번(대본 파이프라인 확정)과 AI 서버 배포(`tickets/infra/pending/ai-server-deployment.md`)이며, 이후 개발 범위 3번(`content_embeddings` `vector(1536)` 마이그레이션·임베딩 축 활성화)이 열렸다.
 - 2026-09-07 — **개발 범위 3의 스코어링 쪽을 구현했다** (PR #165): 취향 벡터(4.3-1 — 편성 배치가 긍정 신호 임베딩을 최근성 가중 합→정규화해 `taste_embedding` 캐시), 임베딩 유사도 축(4.2 ① — 코사인, 결여 시 재정규화로 종전 동작 유지), MMR 다양성 판정(4.2-3 — 이산 규칙 폴백·시리즈 예외·탐험 편 포함). 스코어링은 현재 모델(`text-embedding-3-small`)·현재 `content_version` 행만 읽어 모델 혼용을 조회 조건에서 막는다(domain.md 5.6). Entity·마이그레이션·`user_preference_vectors.taste_embedding`은 2026-09-01에 이미 있었고 이번엔 읽고 쓰기 시작만 했다 — 스키마 변경 없음. 로컬 pgvector DB에서 편성 실행·벡터 왕복·필터링까지 실측 검증. **다만 `content_embeddings`를 채울 유입 경로가 아직 없어 행이 채워지기 전까지 실효는 없다.** 남은 순서: ① `enrichment_file` HTTP 계약 확정(`changes/pending/admin-api-enrichment-file-contract.md` 발행 — 사람 결정 1개: 부분 성공 응답 표현) → 서버 저장 반영(개발 범위 2) ② 대본 파이프라인 확정 후 판정 기준 검증 ③ 기존 발행분 소급 부여.
+- 2026-09-07 (같은 날 추가) — **개발 범위 2(서버 저장 반영)도 구현했다** (PR #165). BE 담당 지시로 계약 확정 전 코드 선반영("코드는 바로, 문서는 changes로" — 계약 제안·확정 형상은 `changes/pending/admin-api-enrichment-file-contract.md`에 기록). 업로드(4.6)·재발행(4.10)에 `enrichment_file` 파트: 검증(enum·1536차원·모델 일치·오타 거부) → 실패 시 **파일만 거부하고 콘텐츠 처리는 진행**(admin.md 3.1), 성공 시 `contents` 메타 4종 + `content_embeddings` upsert. **4.10 단독 전송은 버전을 올리지 않는 소급 부여 경로**(감사 로그 `content.enrich`)로 구현 — 개발 범위 4의 실행 수단이 생겼다. 로컬 DB 실측: 메타 저장·임베딩 upsert(콘텐츠당 1행)·버전 불변·스코어링 조회 연결까지 확인. **완료 조건 ②·③·④ 충족. 남은 것은 ①(확정 대본으로 스킬 산출 검증 — 선행 조건 1 '대본 파이프라인 확정'이 AI 파트 판단 대기)과 기존 발행분 소급 부여 실행(스킬 돌려서 단독 PATCH로 올리는 운영 작업)뿐이다.**

@@ -54,6 +54,7 @@ import { AdminTopicService } from './services/admin-topic.service';
 interface UploadFiles {
   audio?: Express.Multer.File[];
   thumbnail?: Express.Multer.File[];
+  enrichment_file?: Express.Multer.File[];
 }
 
 /**
@@ -179,8 +180,9 @@ export class AdminController {
       [
         { name: 'audio', maxCount: 1 },
         { name: 'thumbnail', maxCount: 1 },
+        { name: 'enrichment_file', maxCount: 1 },
       ],
-      { limits: { fileSize: MAX_AUDIO_FILE_BYTES, files: 2 } },
+      { limits: { fileSize: MAX_AUDIO_FILE_BYTES, files: 3 } },
     ),
   )
   async uploadContent(
@@ -224,6 +226,9 @@ export class AdminController {
         reviewConfirmed: payload.review_confirmed,
         audio: toFileInput(audio),
         thumbnail: toFileInput(thumbnail),
+        enrichment: files.enrichment_file?.[0]
+          ? toFileInput(files.enrichment_file[0])
+          : null,
       },
       new Date(),
     );
@@ -244,8 +249,9 @@ export class AdminController {
       [
         { name: 'audio', maxCount: 1 },
         { name: 'thumbnail', maxCount: 1 },
+        { name: 'enrichment_file', maxCount: 1 },
       ],
-      { limits: { fileSize: MAX_AUDIO_FILE_BYTES, files: 2 } },
+      { limits: { fileSize: MAX_AUDIO_FILE_BYTES, files: 3 } },
     ),
   )
   async republishContent(
@@ -275,6 +281,9 @@ export class AdminController {
       })),
       audio: audio ? toFileInput(audio) : null,
       thumbnail: thumbnail ? toFileInput(thumbnail) : null,
+      enrichment: files.enrichment_file?.[0]
+        ? toFileInput(files.enrichment_file[0])
+        : null,
     });
 
     return AdminContentItemDto.from(view);

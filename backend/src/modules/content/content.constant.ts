@@ -30,3 +30,6 @@ export const SEARCH_WEIGHT_DESCRIPTION = 1;
  * 개발 스텁이 만드는 `"dev-stub"` 벡터도 같은 조건으로 걸러진다.
  */
 export const EMBEDDING_MODEL_ID = 'text-embedding-3-small';
+
+/** domain.md 5.6 — `vector(1536)` 확정 차원. 업로드 검증과 스키마가 같은 값을 봐야 한다 */
+export const EMBEDDING_DIM = 1536;
