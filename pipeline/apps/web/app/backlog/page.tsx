@@ -17,10 +17,12 @@ export default async function BacklogPage({ searchParams }: { searchParams: Prom
   const sb = await supabaseServer();
   const [{ data: rows }, { data: eps }] = await Promise.all([
     sb.from("backlog").select("id,mid_topic,title,target_fit,angle,sources,status,dedup_note,approved_by,approved_at").order("id", { ascending: false }),
-    sb.from("episodes").select("id,backlog_id"),
+    sb.from("episodes").select("id,backlog_id,regression_kind"),
   ]);
   const epOf = new Map((eps ?? []).map((e) => [e.backlog_id, e.id]));
-  const filtered = (rows ?? []).filter((r) => !q || `${r.id} ${r.title} ${r.mid_topic} ${r.angle ?? ""}`.toLowerCase().includes(q.toLowerCase()));
+  // 회귀 세트 실험용(심은 오류본·저품질 앵커)의 백로그 행은 게이트 1 대상이 아니다 — 비평 워커가 요구하는 제목·중분류 자리일 뿐. 여기서는 숨기고 에피소드 목록의 회귀 배지로만 본다 (2026-09-07)
+  const experimental = new Set((eps ?? []).filter((e) => e.regression_kind === "planted" || e.regression_kind === "anchor_low").map((e) => e.backlog_id));
+  const filtered = (rows ?? []).filter((r) => !experimental.has(r.id)).filter((r) => !q || `${r.id} ${r.title} ${r.mid_topic} ${r.angle ?? ""}`.toLowerCase().includes(q.toLowerCase()));
 
   return (
     <div>
