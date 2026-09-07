@@ -24,6 +24,7 @@ import {
   PopularPage,
   PopularPageQuery,
   PublishContentCommand,
+  RepublishContentCommand,
   SearchPage,
   SearchPageQuery,
 } from '../content.types';
@@ -304,6 +305,79 @@ export class ContentService {
         ),
         manager,
       );
+    }
+
+    return saved;
+  }
+
+  /**
+   * admin.md 4.3 · admin-api.md 4.10 — 재발행. **새 행을 만들지 않고 같은 행을 갈아끼운다.**
+   * `content_id`가 유지돼야 `library_items` · `playback_progresses` · `content_stats`의
+   * 참조가 끊기지 않는다(회수 후 재업로드로는 이걸 지킬 수 없다).
+   *
+   * `content_version`은 **바뀐 파트와 무관하게 1 오른다.** 메타만 바꿔도 올리는 이유는
+   * 클라이언트의 재발행 판정(`player.md` 7 · `player-api.md` 4.2)이 이 값 하나만 보기
+   * 때문이다 — 어떤 파트가 바뀌었는지는 클라이언트가 알 수 없고 알 필요도 없다.
+   *
+   * 저장소 업로드는 호출부(admin)가 트랜잭션 밖에서 끝내고 `audioPath`를 넘긴다(`publish`와 같다).
+   */
+  async republish(
+    content: Content,
+    command: RepublishContentCommand,
+    manager: EntityManager,
+  ): Promise<Content> {
+    if (command.title !== undefined) {
+      content.title = command.title;
+    }
+    if (command.description !== undefined) {
+      content.description = command.description;
+    }
+    if (command.sourceName !== undefined) {
+      content.sourceName = command.sourceName;
+    }
+    if (command.audioPath !== undefined) {
+      content.audioPath = command.audioPath;
+    }
+    if (command.durationSec !== undefined) {
+      content.durationSec = command.durationSec;
+    }
+    if (command.thumbnailUrl !== undefined) {
+      content.thumbnailUrl = command.thumbnailUrl;
+    }
+    content.contentVersion += 1;
+
+    const [saved] = await this.contentRepository.saveAll([content], manager);
+
+    // 넘어온 목록은 **전체 교체**다. 지우고 다시 넣어야 빠진 항목이 남지 않는다
+    if (command.topicIds !== undefined) {
+      await this.contentTopicRepository.deleteAllByContentId(saved.id, manager);
+      await this.contentTopicRepository.saveAll(
+        command.topicIds.map((topicId) =>
+          this.contentTopicRepository.create({ contentId: saved.id, topicId }),
+        ),
+        manager,
+      );
+    }
+
+    if (command.sources !== undefined) {
+      await this.contentSourceRepository.deleteAllByContentId(
+        saved.id,
+        manager,
+      );
+      if (command.sources.length > 0) {
+        await this.contentSourceRepository.saveAll(
+          command.sources.map((source, index) =>
+            this.contentSourceRepository.create({
+              contentId: saved.id,
+              position: index + 1,
+              title: source.title,
+              author: source.author,
+              url: source.url,
+            }),
+          ),
+          manager,
+        );
+      }
     }
 
     return saved;

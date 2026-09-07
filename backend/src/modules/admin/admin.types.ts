@@ -37,6 +37,22 @@ export interface UploadContentCommand {
   thumbnail: UploadedFileInput;
 }
 
+/**
+ * admin-api.md 4.10 재발행 — **모든 파트가 선택**이되 최소 하나는 있어야 한다.
+ * `undefined`는 "안 바꾼다"이고, 목록(`topicIds` · `sources`)은 넘기면 전체 교체다.
+ */
+export interface RepublishContentCommand {
+  actorUserId: string;
+  contentId: string;
+  title?: string;
+  description?: string;
+  sourceName?: string;
+  topicIds?: string[];
+  sources?: SourceInput[];
+  audio: UploadedFileInput | null;
+  thumbnail: UploadedFileInput | null;
+}
+
 export interface AdminContentView {
   content: Content;
   topics: { topicId: string; name: string }[];

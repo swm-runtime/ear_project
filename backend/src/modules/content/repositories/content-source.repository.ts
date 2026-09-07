@@ -26,6 +26,14 @@ export class ContentSourceRepository {
     });
   }
 
+  /** 재발행의 출처 교체(admin-api.md 4.10) — `position`이 1부터 다시 매겨진다 */
+  async deleteAllByContentId(
+    contentId: string,
+    manager?: EntityManager,
+  ): Promise<void> {
+    await this.scoped(manager).delete({ contentId });
+  }
+
   async saveAll(
     sources: ContentSource[],
     manager?: EntityManager,

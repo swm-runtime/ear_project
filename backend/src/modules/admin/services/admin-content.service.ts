@@ -15,11 +15,14 @@ import {
   AdminContentListQuery,
   AdminContentPage,
   AdminContentView,
+  RepublishContentCommand,
+  SourceInput,
   UploadContentCommand,
   UploadedFileInput,
 } from '../admin.types';
 import {
   AUDIO_CONTENT_TYPES,
+  AUDIT_ACTION_CONTENT_REPUBLISH,
   AUDIT_ACTION_CONTENT_RESTORE,
   AUDIT_ACTION_CONTENT_UPLOAD,
   AUDIT_ACTION_CONTENT_WITHDRAW,
@@ -184,6 +187,242 @@ export class AdminContentService {
       content,
       topics: topics.map((topic) => ({ topicId: topic.id, name: topic.name })),
     };
+  }
+
+  /**
+   * admin.md 4.3 · admin-api.md 4.10 — 재발행. **같은 행의 오디오·메타를 갈아끼우고
+   * `content_version`을 1 올린다.** 회수 후 재업로드와 다른 점은 `content_id`가 유지되는
+   * 것이고, 그래서 사용자의 라이브러리·재생 기록이 끊기지 않는다.
+   *
+   * 흐름은 업로드(`upload`)와 같다 — 검증 → 새 파일 저장(트랜잭션 밖) → 트랜잭션 →
+   * **성공 시 이전 파일 삭제 / 실패 시 새 파일 삭제.** 지우는 순서가 반대인 것만 다르다.
+   * 이전 파일을 트랜잭션 전에 지우면 롤백됐을 때 행은 옛 경로를 가리키는데 파일이 없다.
+   */
+  async republish(command: RepublishContentCommand): Promise<AdminContentView> {
+    const changedParts = this.resolveChangedParts(command);
+    if (changedParts.length === 0) {
+      // 4.10 — 파트가 하나도 없으면 올릴 버전이 없다. 필드는 기본 파트인 `audio`로 가리킨다
+      throw this.validationFailed('audio', '바꿀 파트를 하나 이상 보내주세요');
+    }
+
+    const audioExtension = command.audio
+      ? this.resolveExtension(
+          command.audio,
+          AUDIO_CONTENT_TYPES,
+          MAX_AUDIO_FILE_BYTES,
+          'audio',
+        )
+      : null;
+    const thumbnailExtension = command.thumbnail
+      ? this.resolveExtension(
+          command.thumbnail,
+          THUMBNAIL_CONTENT_TYPES,
+          MAX_THUMBNAIL_FILE_BYTES,
+          'thumbnail',
+        )
+      : null;
+
+    // 파일을 올리기 전에 막는다 — 200MB를 다 받아 저장한 뒤 409를 주는 건 낭비다
+    const target = await this.contentService.getById(command.contentId);
+    this.assertRepublishable(target);
+    this.validateSourceReplacement(target, command.sources);
+
+    if (command.topicIds) {
+      const topics = await this.topicService.findAllByIds(command.topicIds);
+      if (topics.length !== new Set(command.topicIds).size) {
+        throw new BusinessException({
+          status: HttpStatus.BAD_REQUEST,
+          errorCode: ErrorCode.ADMIN_TOPIC_NOT_FOUND,
+          message: '존재하지 않는 주제가 있어요',
+          details: { field: 'topic_ids' },
+        });
+      }
+    }
+
+    let durationSec: number | null = null;
+    if (command.audio) {
+      // 4.10 — 길이는 클라이언트 값을 받지 않는다. 새 파일에서 다시 뽑는다(4.6과 동일)
+      durationSec = await this.audioProbe.readDurationSec(command.audio);
+      if (durationSec === null) {
+        throw new BusinessException({
+          status: HttpStatus.BAD_REQUEST,
+          errorCode: ErrorCode.ADMIN_AUDIO_UNREADABLE,
+          message: '오디오 길이를 읽을 수 없어요. 파일을 확인해 주세요',
+          details: { field: 'audio' },
+        });
+      }
+    }
+
+    const uploadedKeys: string[] = [];
+    let audioPath: string | undefined;
+    let thumbnailUrl: string | undefined;
+    try {
+      if (command.audio && audioExtension) {
+        audioPath = await this.storage.putAudio(command.audio, audioExtension);
+        uploadedKeys.push(audioPath);
+      }
+      if (command.thumbnail && thumbnailExtension) {
+        const thumbnail = await this.storage.putThumbnail(
+          command.thumbnail,
+          thumbnailExtension,
+        );
+        uploadedKeys.push(thumbnail.key);
+        thumbnailUrl = thumbnail.url ?? '';
+      }
+    } catch (error) {
+      await this.storage.remove(uploadedKeys);
+      this.logger.error('content republish to storage failed', {
+        content_id: command.contentId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw new ExternalServiceException({
+        errorCode: ErrorCode.ADMIN_STORAGE_FAILED,
+        message: '파일 저장에 실패했어요. 다시 시도해 주세요',
+        retryable: true,
+      });
+    }
+
+    const replacedKeys: string[] = [];
+    let content: Content;
+    try {
+      content = await this.dataSource.transaction(async (manager) => {
+        // 파일을 올리는 동안 회수됐을 수 있다 — 트랜잭션 안에서 다시 본다
+        const current = await this.contentService.getById(
+          command.contentId,
+          manager,
+        );
+        this.assertRepublishable(current);
+
+        const previousVersion = current.contentVersion;
+        if (audioPath) {
+          replacedKeys.push(current.audioPath);
+        }
+        if (thumbnailUrl) {
+          // `contents`에는 공개 URL만 있고 키가 없다(domain.md 5.1) — URL을 만든 쪽이 되짚는다
+          const previousThumbnailKey = this.storage.resolveKey(
+            current.thumbnailUrl,
+          );
+          if (previousThumbnailKey) {
+            replacedKeys.push(previousThumbnailKey);
+          }
+        }
+
+        const republished = await this.contentService.republish(
+          current,
+          {
+            title: command.title,
+            description: command.description,
+            sourceName: command.sourceName,
+            audioPath,
+            durationSec: durationSec ?? undefined,
+            thumbnailUrl,
+            topicIds: command.topicIds
+              ? [...new Set(command.topicIds)]
+              : undefined,
+            sources: command.sources,
+          },
+          manager,
+        );
+
+        await this.auditLogService.record(
+          {
+            actor: command.actorUserId,
+            action: AUDIT_ACTION_CONTENT_REPUBLISH,
+            target: `content:${command.contentId}`,
+            before: { content_version: previousVersion },
+            after: {
+              content_version: republished.contentVersion,
+              changed_parts: changedParts,
+              ...(durationSec !== null && { duration_sec: durationSec }),
+            },
+          },
+          manager,
+        );
+
+        return republished;
+      });
+    } catch (error) {
+      await this.storage.remove(uploadedKeys);
+      throw error;
+    }
+
+    // 여기서부터는 실패해도 재발행 자체는 성공이다 — 남은 파일은 정리 대상일 뿐이다
+    await this.storage.remove(replacedKeys);
+
+    this.logger.log('content republished', {
+      content_id: content.id,
+      content_version: content.contentVersion,
+      changed_parts: changedParts,
+      actor: command.actorUserId,
+    });
+
+    return this.toView(content);
+  }
+
+  /**
+   * 4.10 — `published`가 아니면 재발행하지 않는다. 회수·만료 상태의 콘텐츠를 갈아끼우면
+   * 노출되지 않는 콘텐츠의 버전만 올라 클라이언트 캐시를 헛되이 버리게 한다
+   * (`admin.md` 4.6 "만료 상태에서는 재발행을 막는다").
+   */
+  private assertRepublishable(content: Content): void {
+    if (content.status !== ContentStatus.PUBLISHED) {
+      throw new BusinessException({
+        status: HttpStatus.CONFLICT,
+        errorCode: ErrorCode.CONFLICT,
+        message: '발행 중인 콘텐츠만 재발행할 수 있어요',
+      });
+    }
+  }
+
+  /**
+   * 출처 교체는 **업로드(4.6)가 세운 공시 규칙을 그대로 지킨다**(admin.md 3.1).
+   * 재발행으로 `ai_generated`의 출처를 비우거나 `partner`에 출처를 붙이면, 업로드로는 만들
+   * 수 없는 행이 재발행으로만 생긴다. `origin`은 재발행이 바꾸지 못하므로 기존 값으로 본다.
+   */
+  private validateSourceReplacement(
+    content: Content,
+    sources: SourceInput[] | undefined,
+  ): void {
+    if (sources === undefined) {
+      return;
+    }
+
+    if (content.origin === ContentOrigin.AI_GENERATED && sources.length === 0) {
+      throw this.validationFailed(
+        'sources',
+        'AI 생성 콘텐츠는 참고 소스가 1개 이상 필요해요',
+      );
+    }
+    if (content.origin === ContentOrigin.PARTNER && sources.length > 0) {
+      throw this.validationFailed(
+        'sources',
+        '파트너 콘텐츠에는 참고 소스를 넣지 않아요',
+      );
+    }
+  }
+
+  /** 감사 로그의 `changed_parts` — 최소 1개 판정도 이 목록으로 한다 */
+  private resolveChangedParts(command: RepublishContentCommand): string[] {
+    const parts: string[] = [];
+    if (command.audio) {
+      parts.push('audio');
+    }
+    if (command.thumbnail) {
+      parts.push('thumbnail');
+    }
+    for (const [name, value] of [
+      ['title', command.title],
+      ['description', command.description],
+      ['source_name', command.sourceName],
+      ['topic_ids', command.topicIds],
+      ['sources', command.sources],
+    ] as const) {
+      if (value !== undefined) {
+        parts.push(name);
+      }
+    }
+
+    return parts;
   }
 
   /**

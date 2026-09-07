@@ -11,7 +11,11 @@ import { AuditLogService } from '@/modules/partner/audit-log.service';
 import { LibraryService } from '@/modules/library/library.service';
 
 import { AdminContentService } from './admin-content.service';
-import { UploadContentCommand, UploadedFileInput } from '../admin.types';
+import {
+  RepublishContentCommand,
+  UploadContentCommand,
+  UploadedFileInput,
+} from '../admin.types';
 import { AudioProbe } from '../audio-probe';
 import { ContentStorageClient } from '../content-storage.client';
 
@@ -23,6 +27,7 @@ const TOPIC_ID = '22222222-2222-4222-8222-222222222222';
 const CONTENT_ID = '33333333-3333-4333-8333-333333333333';
 const PARTNER_ID = '44444444-4444-4444-8444-444444444444';
 const NOW = new Date('2026-08-30T10:00:00Z');
+const CDN_BASE_URL = 'https://cdn.example';
 
 /** `expect.objectContaining`은 any라 lint에 걸린다 — unknown으로 좁힌다 */
 const containing = (o: Record<string, unknown>): unknown =>
@@ -34,6 +39,18 @@ function buildFile(name: string, size = 1024): UploadedFileInput {
     originalName: name,
     mimeType: 'application/octet-stream',
     size,
+  };
+}
+
+function buildRepublishCommand(
+  overrides: Partial<RepublishContentCommand> = {},
+): RepublishContentCommand {
+  return {
+    actorUserId: ACTOR_ID,
+    contentId: CONTENT_ID,
+    audio: buildFile('ep.mp3'),
+    thumbnail: null,
+    ...overrides,
   };
 }
 
@@ -90,6 +107,10 @@ describe('AdminContentService', () => {
       getById: jest.fn().mockResolvedValue({
         id: CONTENT_ID,
         status: ContentStatus.PUBLISHED,
+        origin: ContentOrigin.AI_GENERATED,
+        contentVersion: 2,
+        audioPath: 'audio/old.mp3',
+        thumbnailUrl: `${CDN_BASE_URL}/thumb/old.png`,
       }),
       withdraw: jest
         .fn()
@@ -97,6 +118,11 @@ describe('AdminContentService', () => {
       restoreWithdrawn: jest
         .fn()
         .mockResolvedValue({ id: CONTENT_ID, status: ContentStatus.PUBLISHED }),
+      republish: jest.fn().mockResolvedValue({
+        id: CONTENT_ID,
+        status: ContentStatus.PUBLISHED,
+        contentVersion: 3,
+      }),
       findAdminPage: jest.fn(),
       findTopicViews: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<ContentService>;
@@ -119,9 +145,15 @@ describe('AdminContentService', () => {
       putAudio: jest.fn().mockResolvedValue('audio/abc.mp3'),
       putThumbnail: jest.fn().mockResolvedValue({
         key: 'thumb/def.png',
-        url: 'https://cdn.example/thumb/def.png',
+        url: `${CDN_BASE_URL}/thumb/def.png`,
       }),
       remove: jest.fn().mockResolvedValue(undefined),
+      // 실제 구현과 같은 규칙 — 공개 URL 접두어를 떼고 키만 남긴다
+      resolveKey: jest.fn((url: string) =>
+        url.startsWith(CDN_BASE_URL)
+          ? url.slice(CDN_BASE_URL.length + 1)
+          : null,
+      ),
     } as unknown as jest.Mocked<ContentStorageClient>;
 
     audioProbe = {
@@ -154,7 +186,7 @@ describe('AdminContentService', () => {
         expect.objectContaining({
           audioPath: 'audio/abc.mp3',
           durationSec: 600,
-          thumbnailUrl: 'https://cdn.example/thumb/def.png',
+          thumbnailUrl: `${CDN_BASE_URL}/thumb/def.png`,
           topicIds: [TOPIC_ID],
           sources: command.sources,
         }),
@@ -414,6 +446,199 @@ describe('AdminContentService', () => {
       await expect(act).rejects.toMatchObject({
         errorCode: ErrorCode.CONFLICT,
       });
+    });
+  });
+
+  describe('republish', () => {
+    it('오디오만 보내면 같은 행의 경로·길이를 갈아끼우고 버전을 올린 뒤 이전 파일을 지운다', async () => {
+      // when
+      const result = await service.republish(buildRepublishCommand());
+
+      // then
+      expect(result.content.id).toBe(CONTENT_ID);
+      expect(contentService.republish).toHaveBeenCalledWith(
+        expect.objectContaining({ id: CONTENT_ID }),
+        containing({ audioPath: 'audio/abc.mp3', durationSec: 600 }),
+        manager,
+      );
+      // 새 파일 저장 → 트랜잭션 성공 → **그 다음에** 이전 파일 삭제 (반대면 롤백 시 파일이 없다)
+      expect(storage.remove).toHaveBeenCalledWith(['audio/old.mp3']);
+    });
+
+    it('메타만 보내도 content_version은 오른다 — 클라이언트 재발행 판정이 버전 하나로 동작한다', async () => {
+      // given
+      const command = buildRepublishCommand({ audio: null, title: '새 제목' });
+
+      // when
+      await service.republish(command);
+
+      // then
+      expect(contentService.republish).toHaveBeenCalledWith(
+        expect.anything(),
+        containing({ title: '새 제목', audioPath: undefined }),
+        manager,
+      );
+      expect(storage.putAudio).not.toHaveBeenCalled();
+      // 바뀐 파일이 없으므로 지울 것도 없다
+      expect(storage.remove).toHaveBeenCalledWith([]);
+    });
+
+    it('바꿀 파트가 하나도 없으면 audio 필드를 가리키며 거부한다', async () => {
+      // given
+      const command = buildRepublishCommand({ audio: null, thumbnail: null });
+
+      // when
+      const act = service.republish(command);
+
+      // then
+      await expect(act).rejects.toMatchObject({
+        errorCode: ErrorCode.VALIDATION_FAILED,
+        details: { field: 'audio' },
+      });
+      expect(contentService.getById).not.toHaveBeenCalled();
+    });
+
+    it('회수된 콘텐츠는 파일을 올리기 전에 409로 거부한다', async () => {
+      // given
+      contentService.getById.mockResolvedValue({
+        id: CONTENT_ID,
+        status: ContentStatus.WITHDRAWN,
+      } as never);
+
+      // when
+      const act = service.republish(buildRepublishCommand());
+
+      // then
+      await expect(act).rejects.toMatchObject({
+        errorCode: ErrorCode.CONFLICT,
+      });
+      expect(storage.putAudio).not.toHaveBeenCalled();
+    });
+
+    it('오디오 길이를 읽을 수 없으면 파일을 올리지 않고 거부한다', async () => {
+      // given
+      audioProbe.readDurationSec.mockResolvedValue(null);
+
+      // when
+      const act = service.republish(buildRepublishCommand());
+
+      // then
+      await expect(act).rejects.toMatchObject({
+        errorCode: ErrorCode.ADMIN_AUDIO_UNREADABLE,
+      });
+      expect(storage.putAudio).not.toHaveBeenCalled();
+    });
+
+    it('존재하지 않는 주제로 교체하려 하면 거부한다', async () => {
+      // given
+      topicService.findAllByIds.mockResolvedValue([]);
+      const command = buildRepublishCommand({ topicIds: [TOPIC_ID] });
+
+      // when
+      const act = service.republish(command);
+
+      // then
+      await expect(act).rejects.toMatchObject({
+        errorCode: ErrorCode.ADMIN_TOPIC_NOT_FOUND,
+        details: { field: 'topic_ids' },
+      });
+    });
+
+    it('트랜잭션이 실패하면 새로 올린 파일을 지우고 이전 파일은 남긴다', async () => {
+      // given
+      contentService.republish.mockRejectedValue(new Error('db down'));
+
+      // when
+      const act = service.republish(buildRepublishCommand());
+
+      // then
+      await expect(act).rejects.toThrow('db down');
+      expect(storage.remove).toHaveBeenCalledWith(['audio/abc.mp3']);
+      expect(storage.remove).not.toHaveBeenCalledWith(['audio/old.mp3']);
+    });
+
+    it('감사 로그에 행위자와 이전·이후 버전, 바뀐 파트가 남는다', async () => {
+      // given
+      const command = buildRepublishCommand({ title: '새 제목' });
+
+      // when
+      await service.republish(command);
+
+      // then
+      expect(auditLogService.record).toHaveBeenCalledWith(
+        containing({
+          actor: ACTOR_ID,
+          action: 'content.republish',
+          target: `content:${CONTENT_ID}`,
+          before: { content_version: 2 },
+          after: containing({
+            content_version: 3,
+            changed_parts: ['audio', 'title'],
+          }),
+        }),
+        manager,
+      );
+    });
+
+    it('AI 생성 콘텐츠의 참고 소스를 비우려 하면 거부한다 — 업로드가 막는 상태를 재발행으로 만들지 않는다', async () => {
+      // given
+      contentService.getById.mockResolvedValue({
+        id: CONTENT_ID,
+        status: ContentStatus.PUBLISHED,
+        origin: ContentOrigin.AI_GENERATED,
+        contentVersion: 2,
+        audioPath: 'audio/old.mp3',
+        thumbnailUrl: `${CDN_BASE_URL}/thumb/old.png`,
+      } as never);
+      const command = buildRepublishCommand({ audio: null, sources: [] });
+
+      // when
+      const act = service.republish(command);
+
+      // then
+      await expect(act).rejects.toMatchObject({
+        errorCode: ErrorCode.VALIDATION_FAILED,
+        details: { field: 'sources' },
+      });
+    });
+
+    it('파트너 콘텐츠에 참고 소스를 붙이려 하면 거부한다', async () => {
+      // given
+      contentService.getById.mockResolvedValue({
+        id: CONTENT_ID,
+        status: ContentStatus.PUBLISHED,
+        origin: ContentOrigin.PARTNER,
+        contentVersion: 2,
+        audioPath: 'audio/old.mp3',
+        thumbnailUrl: `${CDN_BASE_URL}/thumb/old.png`,
+      } as never);
+      const command = buildRepublishCommand({
+        audio: null,
+        sources: [{ title: '블로그 A', author: null, url: null }],
+      });
+
+      // when
+      const act = service.republish(command);
+
+      // then
+      await expect(act).rejects.toMatchObject({
+        errorCode: ErrorCode.VALIDATION_FAILED,
+        details: { field: 'sources' },
+      });
+    });
+
+    it('썸네일을 바꾸면 공개 URL에서 되짚은 이전 키를 지운다', async () => {
+      // given
+      const command = buildRepublishCommand({
+        audio: null,
+        thumbnail: buildFile('thumb.png'),
+      });
+
+      // when
+      await service.republish(command);
+
+      // then
+      expect(storage.remove).toHaveBeenCalledWith(['thumb/old.png']);
     });
   });
 });

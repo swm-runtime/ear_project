@@ -166,6 +166,25 @@ export interface PublishContentCommand {
   sources: { title: string; author: string | null; url: string | null }[];
 }
 
+/**
+ * admin-api.md 4.10 재발행 — **넘어온 키만 바꾼다.** 발행 단위의 정체성(`origin` · `partner_id` ·
+ * `series_*` · `license_expires_at`)은 여기 없다 — 바꾸려면 회수하고 새로 올린다.
+ *
+ * `undefined`(안 넘김)와 값이 다르다. `topicIds` · `sources`는 넘기면 **전체 교체**이고,
+ * 넘기지 않으면 손대지 않는다.
+ */
+export interface RepublishContentCommand {
+  title?: string;
+  description?: string;
+  sourceName?: string;
+  audioPath?: string;
+  durationSec?: number;
+  thumbnailUrl?: string;
+  topicIds?: string[];
+  /** 배열 순서가 곧 `position`이다 (domain.md 5.5) */
+  sources?: { title: string; author: string | null; url: string | null }[];
+}
+
 /** 관리자 콘텐츠 목록 조회 조건 (admin.md 5장) */
 export interface AdminContentPageQuery {
   status?: ContentStatus;

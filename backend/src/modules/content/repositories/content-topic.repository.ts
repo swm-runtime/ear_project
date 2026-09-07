@@ -74,6 +74,14 @@ export class ContentTopicRepository {
     return new Map(rows.map((row) => [row.topic_id, Number(row.count)]));
   }
 
+  /** 재발행의 주제 교체(admin-api.md 4.10) — 부분 갱신이 아니라 지우고 다시 넣는다 */
+  async deleteAllByContentId(
+    contentId: string,
+    manager?: EntityManager,
+  ): Promise<void> {
+    await this.scoped(manager).delete({ contentId });
+  }
+
   async saveAll(
     contentTopics: ContentTopic[],
     manager?: EntityManager,
