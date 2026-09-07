@@ -9,6 +9,7 @@
 | 근거 문서 | `features/player.md` 7 · `spec/api/player-api.md` 4.1·4.3 · `features/admin.md` 4.3 |
 | 심각도 | **중** — 사용자가 새 오디오의 엉뚱한 지점에서 재생을 시작한다. 데이터 손상은 아니다 |
 | 상태 | 대기 |
+| 연관 | `tickets/frontend/pending/republish-version-gate-not-implemented.md` — FE의 죽은 분기·사실이 아닌 주석 정리(해결 자체는 이 티켓) |
 
 ## 문제
 
@@ -65,7 +66,7 @@
 
 - 재발행 엔드포인트는 2026-09-07 구현·검증 완료(`tickets/backend/archive/content-republish-audio.md`).
 - 저장 경로의 버전 가드는 **이미 있다.** 이 티켓은 읽기 경로만 다룬다.
-- FE 코드 수정은 필요 없다 — 어느 안이든 서버에서 끝난다.
+- FE 코드 수정은 **동작에 대해서는** 필요 없다 — 어느 안이든 서버에서 끝난다. 다만 FE에 재발행 폐기를 수행한다고 주장하는 죽은 분기와 주석이 남아 있어 별도 티켓으로 분리했다(위 연관).
 
 ## 완료 조건
 

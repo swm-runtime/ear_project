@@ -6,7 +6,7 @@
 > 스키마: [`docs/backend/domain.md`](../../backend/domain.md) 4.1 · 5.1 · 5.5
 > 연관: [`features/partner-control.md`](../../features/partner-control.md) 4.4(라이선스 만료 거부)
 
-작성: 2026-09-03 (구현 계약 등재 — `changes/archive/admin-web-console.md`) · 2026-09-07 4.10 재발행 계약 추가(**구현 대기** — `tickets/backend/pending/content-republish-audio.md`)
+작성: 2026-09-03 (구현 계약 등재 — `changes/archive/admin-web-console.md`) · 2026-09-07 4.10 재발행 등재·구현(`tickets/backend/archive/content-republish-audio.md`)
 
 ## 1. 범위
 
@@ -16,6 +16,7 @@
 - 콘텐츠 목록 조회
 - 콘텐츠 업로드 → 즉시 발행 (FR-37, `admin.md` 4.2)
 - 콘텐츠 **회수·복구** (FR-32, `admin.md` 4.4)
+- 콘텐츠 **재발행** — 오디오·메타 교체, `content_version` 증가 (`admin.md` 4.3)
 
 **이 문서는 동작 규칙을 새로 정하지 않는다.** 규칙이 충돌하면 `admin.md`가 기준이며, 스키마는 `domain.md`가 유일한 기준이다.
 
@@ -50,7 +51,7 @@
 | POST | `/admin/contents` | 콘텐츠 업로드 → 즉시 발행 |
 | POST | `/admin/contents/:contentId/withdraw` | 콘텐츠 회수 |
 | POST | `/admin/contents/:contentId/restore` | 회수 복구 |
-| PATCH | `/admin/contents/:contentId` | 재발행 — 오디오·메타 교체, `content_version` 증가 (4.10, **구현 대기**) |
+| PATCH | `/admin/contents/:contentId` | 재발행 — 오디오·메타 교체, `content_version` 증가 (4.10) |
 | GET | `/admin/system-stats` | 서버 자원·DB 부하 스냅샷 (로그 콘솔 상태 탭) |
 
 ## 4. 엔드포인트 상세
@@ -193,7 +194,7 @@
 
 ### 4.10 `PATCH /admin/contents/:contentId` — 재발행
 
-`admin.md` 4.3의 계약이다 (2026-09-07 등재, **백엔드 구현 대기**). 발행된 콘텐츠의 **오디오(또는 메타)를 같은 행에서 교체**하고
+`admin.md` 4.3의 계약이다 (2026-09-07 등재·구현). 발행된 콘텐츠의 **오디오(또는 메타)를 같은 행에서 교체**하고
 `content_version`을 1 올린다. `content_id`가 유지되므로 `library_items` · `playback_progresses` · `content_stats` 참조가 끊기지 않는다.
 발생 경위: 파이프라인이 TTS 규격(배속·무음 등)을 바꿔 오디오를 재생성했을 때 발행본을 갈아끼우는 경로가 없었다.
 
@@ -210,13 +211,19 @@
 - `origin` · `partner_id` · `series_id` · `episode_no` · `total_episodes` · `license_expires_at`은 **바꾸지 않는다** — 발행 단위의 정체성이라 필요하면 회수 후 새로 올린다.
 - `status`가 `published`가 아니면 **409 `CONFLICT`** (회수·만료 상태에서는 재발행하지 않는다 — `admin.md` 4.6 "만료 상태에서는 재발행을 막는다").
 - `topic_ids`를 넘기면 전체 교체다(빈 배열 불가 — 최소 1개, 4.6과 동일).
+- **`sources`도 전체 교체이고, 비울 수 있는지는 `origin`이 정한다** — 4.6과 같은 공시 규칙이다(`admin.md` 3.1).
+  `ai_generated`면 최소 1개(빈 배열은 400 `VALIDATION_FAILED`, `details.field = "sources"`),
+  `partner`면 넣지 않는다(넣으면 같은 400). **`origin`은 재발행이 바꾸지 못하므로 기존 행의 값으로 판정한다.**
+  이 조건이 없으면 업로드로는 만들 수 없는 행이 재발행으로만 생긴다.
 - `audit_logs`에 `republish` 행위로 기록한다 — 행위자·이전/이후 `content_version`·바뀐 파트 목록.
 
 200으로 갱신된 `AdminContentItem`(증가한 `content_version` 포함)을 반환한다.
 
 **흐름** — 4.6과 같은 순서: 검증 → 새 파일 저장(트랜잭션 밖) → 트랜잭션(행 갱신 + `content_version + 1` + 주제·출처 교체) → 성공 시 이전 파일 삭제 / 실패 시 새 파일 삭제.
 
-**클라이언트 측 동작**(참고 — 이 문서 범위 밖): 앱은 `content_version`이 보관값보다 크면 저장한 재생 위치·오프라인 파일을 폐기한다(`player.md` 7 · `player-api.md` 4.2).
+**클라이언트 측 동작**(참고 — 이 문서 범위 밖): `player.md` 7은 앱이 `content_version`이 보관값보다 크면 저장한 재생 위치·오프라인 파일을 폐기하도록 정한다(`player-api.md` 4.1·4.3).
+
+> ⚠️ **그 폐기는 지금 일어나지 않는다**(확인 2026-09-07). 앱은 재생 위치를 로컬에 보관하지 않고 매 진입마다 4.1 응답에서 받으므로 "보관값과 비교"를 수행할 수 없다. 저장 경로(4.3)의 버전 가드는 동작하지만 **읽기 경로(4.1)가 재발행 이전 위치를 그대로 내려준다.** 폐기 주체를 정하는 것은 `tickets/backend/pending/republish-stale-playback-position.md` · `tickets/frontend/pending/republish-version-gate-not-implemented.md`.
 
 ## 5. 에러 코드 표
 
@@ -229,7 +236,7 @@
 | `FORBIDDEN` | 403 | false | 전 라우트 — `role != admin` |
 | `ADMIN_TOPIC_HAS_CONTENTS` | 409 | false | 4.4 — `details.content_count` |
 | `CONFLICT` | 409 | false | 4.7 — 이미 회수됨 / 4.8 — 회수 상태가 아님 / 4.10 — `published`가 아님 |
-| `VALIDATION_FAILED` | 400 | false | 4.10 — 파트가 하나도 없음 (`details.field = "audio"`) |
+| `VALIDATION_FAILED` | 400 | false | 4.10 — 파트가 하나도 없음(`details.field = "audio"`) / `sources` 교체가 `origin`의 공시 규칙에 어긋남(`details.field = "sources"`) |
 | `ADMIN_STORAGE_FAILED` | 502 | **true** | 4.6·4.10 — 저장소 실패 |
 
 전체 목록·클라이언트 동작은 `common-error-handling.md` 9.10이 기준이다.

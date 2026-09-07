@@ -70,7 +70,7 @@
 - **계약에 없던 판정 하나를 넣었다** — 출처 교체는 업로드(4.6)의 공시 규칙을 그대로 지킨다.
   `ai_generated`의 `sources`를 빈 배열로 비우거나 `partner`에 붙이면 400이다. 그러지 않으면
   **업로드로는 만들 수 없는 행이 재발행으로만 생긴다**(`admin.md` 3.1). 파이프라인은 `audio`만
-  보내므로 영향 없다. 문서 등재 요청은 `changes/pending/admin-api-republish-implemented.md`.
+  보내므로 영향 없다. 문서 등재는 `changes/archive/admin-api-republish-implemented.md`로 발행·반영했다(2026-09-07).
 - 단위 테스트 11건 추가(`admin-content.service.spec.ts`), 전체 491건 통과.
 
 ### 완료 조건 검증 — 로컬 서버 실행 대조 (`AUDIO_DELIVERY=local`)
@@ -93,7 +93,8 @@
 ### 남은 것
 
 - **배포 후 파이프라인 왕복 1회** (마지막 완료 조건). 그때 `backlog.published_version`이 같이 오르는지 본다.
-- **FE 확인 항목 → 신규 티켓 `tickets/backend/pending/republish-stale-playback-position.md`.** 아래 참조.
+- **FE 확인 항목 → 티켓 2건 발행.** `tickets/backend/pending/republish-stale-playback-position.md`(해결) ·
+  `tickets/frontend/pending/republish-version-gate-not-implemented.md`(죽은 분기·주석 정리). 아래 참조.
 
 ### FE 확인 항목 결과 — "앱이 `content_version` 증가를 감지해 저장 위치를 폐기하는가"
 
