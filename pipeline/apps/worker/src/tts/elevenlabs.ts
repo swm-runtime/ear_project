@@ -63,8 +63,8 @@ export async function synthDialogue(inputs: DialogueInput[], seed: number, opts:
 export interface TimestampedSynth { audio: Buffer; format: AudioFormat; chars: string[]; startSec: number[]; endSec: number[] }
 
 /**
- * 단일 화자 합성 + 문자 타임스탬프 — 콜드오픈 발췌 절단용 (spec/06 7장: 콜드오픈은 재합성하지 않고
- * 본편 오디오에서 잘라 만든다 → 발췌 원본 턴을 이 호출로 합성해 본편·콜드오픈에 같은 오디오를 쓴다).
+ * 단일 화자 합성 + 문자 타임스탬프. 콜드오픈 발췌 절단용이었으나 콜드오픈 폐지(2026-09-07)로 **현재 사용처 없음** —
+ * 부분 재합성·구간 절단이 다시 필요할 때를 위해 남겨 둔다.
  * 타임스탬프 응답은 base64 라 포맷은 mp3 계열만 쓴다 (pcm 자리는 192k 로 대체).
  */
 export async function synthTurnWithTimestamps(voiceId: string, text: string, seed: number): Promise<TimestampedSynth> {
@@ -86,6 +86,60 @@ export async function synthTurnWithTimestamps(voiceId: string, text: string, see
     if ((res.status === 429 || res.status >= 500) && retry < 4) { retry++; await sleep(Math.min(60_000, 5_000 * 2 ** retry)); continue; }
     throw new Error(`ElevenLabs with-timestamps 실패: HTTP ${res.status} ${body}`);
   }
+}
+
+/**
+ * 다중화자 합성 1요청 + 문자 타임스탬프 (`/text-to-dialogue/with-timestamps`) — 화자별 배속(spec/06 6장)의 턴 경계 재료.
+ * 응답이 base64 JSON 이라 포맷은 mp3 계열만 쓴다. 티어 강등·재시도 규칙은 synthDialogue 와 같다.
+ */
+export async function synthDialogueWithTimestamps(inputs: DialogueInput[], seed: number, opts: { onRetry?: (msg: string) => void } = {}): Promise<TimestampedSynth> {
+  for (let retry = 0; ; ) {
+    const format = FORMATS[Math.max(fmtIdx, 1)];
+    const res = await call(`/text-to-dialogue/with-timestamps?output_format=${format}`, { model_id: cfg.ttsModel, inputs, seed, settings: { stability: 0.5 } });
+    if (res.ok) {
+      const d = (await res.json()) as { audio_base64: string; alignment?: { characters: string[]; character_start_times_seconds: number[]; character_end_times_seconds: number[] } };
+      const a = d.alignment;
+      if (!a) throw new Error("dialogue with-timestamps 응답에 alignment 없음");
+      return { audio: Buffer.from(d.audio_base64, "base64"), format, chars: a.characters, startSec: a.character_start_times_seconds, endSec: a.character_end_times_seconds };
+    }
+    const body = (await res.text()).slice(0, 400);
+    if (isTierError(res.status, body) && fmtIdx < FORMATS.length - 1) {
+      fmtIdx = Math.max(fmtIdx, 1) + 1;
+      log(`  tts: ${format} 티어 제한(HTTP ${res.status}) — ${FORMATS[Math.max(fmtIdx, 1)]} 로 강등`);
+      continue;
+    }
+    if ((res.status === 429 || res.status >= 500) && retry < 4) {
+      retry++;
+      const wait = Math.min(60_000, 5_000 * 2 ** retry);
+      opts.onRetry?.(`ElevenLabs HTTP ${res.status} — ${Math.round(wait / 1000)}초 후 재시도`);
+      await sleep(wait);
+      continue;
+    }
+    throw new Error(`ElevenLabs dialogue with-timestamps 실패: HTTP ${res.status} ${body}`);
+  }
+}
+
+/**
+ * 턴 목록의 시작 시각을 문자 정렬에서 순서대로 찾는다 (공백 무시 대조, 앞 턴 뒤에서만 검색).
+ * 하나라도 못 찾으면 null — 호출부가 배속 없이 폴백한다.
+ */
+export function locateTurnStarts(t: TimestampedSynth, texts: string[]): number[] | null {
+  const strip = (s: string) => s.replace(/\s+/g, "");
+  const map: number[] = [];                       // 공백 제외 인덱스 → 정렬 배열 인덱스
+  const hayChars: string[] = [];
+  t.chars.forEach((c, i) => { if (c.trim()) { map.push(i); hayChars.push(c); } });
+  const hay = hayChars.join("");
+  const starts: number[] = [];
+  let cursor = 0;
+  for (const text of texts) {
+    const needle = strip(text);
+    if (!needle) return null;
+    const at = hay.indexOf(needle, cursor);
+    if (at < 0) return null;
+    starts.push(t.startSec[map[at]]);
+    cursor = at + needle.length;
+  }
+  return starts;
 }
 
 /** 발췌(부분 문자열)의 시작·끝 시각을 문자 정렬에서 찾는다. 공백 차이는 무시하고 대조한다 */

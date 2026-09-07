@@ -37,7 +37,7 @@ export async function runQa(job: Job, ex: Executor) {
       const f = String(input?.file_path ?? "").split("/").pop() ?? "";
       if (tool === "Read") return f === "sources.md" ? "발췌 대조 중" : f === "script.md" ? "대본 검토 중" : f === "claims.md" ? "claims 확인 중" : `입력 검토 (${counts.Read ?? 1}건째)`;
       if (tool === "Write" || tool === "Edit") return "QA 리포트 작성";
-      if (tool === "Bash") return "기계 검사 (콜드오픈·표기)";
+      if (tool === "Bash") return "기계 검사 (표기·구조)";
       return null;
     },
   });
