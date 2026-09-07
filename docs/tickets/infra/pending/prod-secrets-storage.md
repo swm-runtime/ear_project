@@ -31,7 +31,7 @@
 | B. AWS Secrets Manager | 시크릿 1건($0.40/월)에 JSON으로 묶고, 부팅 시 조회(entrypoint 또는 앱 기동 전 스크립트) 또는 배포 시 `.env.prod` 재생성 | 월 $0.5 미만. IAM 역할(`ear-prod-ec2`)에 읽기 권한 필요 — **조직 SCP가 Secrets Manager를 막지 않는지 사전 확인 필요**(KVS를 막았던 전례 — `infra/architecture.md` 3.2) |
 | C. SSM Parameter Store (SecureString) | B와 같은 구조, 표준 파라미터는 무료 | 0원. 기능은 B의 부분집합(자동 회전 없음) |
 
-백엔드 의견: **C(Parameter Store)가 무난해 보인다** — 무료이고, 필요한 건 "백업되는 저장소 + IAM 통제 + 접근 이력"까지라 자동 회전(B의 장점)은 지금 규모에 과하다. 단 SCP 확인이 선행이다.
+백엔드 의견: **B(AWS Secrets Manager)를 제안한다** — 비용이 월 $0.5 미만으로 사실상 무시할 수준이고, 백업·IAM 통제·접근 이력에 더해 **자동 회전과 버전 관리**까지 확보된다. 노출 이력이 있는 값들(아래 참고)의 재발급·회전을 앞으로도 반복하게 될 것이라 회전 지원이 있는 쪽이 낫다. 단 SCP 확인이 선행이다.
 
 ## 요청 내용
 
