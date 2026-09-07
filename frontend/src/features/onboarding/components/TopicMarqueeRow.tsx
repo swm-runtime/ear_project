@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { Animated, Easing, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Animated, Easing, PanResponder, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 
 import { theme } from '@/shared/theme';
@@ -10,6 +10,8 @@ import { TopicChip } from '@/features/interest';
 const LOOP_COPIES = [0, 1, 2] as const;
 /** 손을 뗀 뒤 자동 흐름이 다시 시작되기까지의 유예 */
 const RESUME_MS = 1500;
+/** 이만큼 가로로 움직여야 스와이프로 본다 — 그 전까지는 탭이다(iOS 마퀴) */
+const SWIPE_SLOP = 8;
 
 export interface MarqueeTopic {
   topicId: string;
@@ -203,6 +205,45 @@ function IosMarqueeRow({
     resumeTimer.current = setTimeout(() => runFrom(offset.current), RESUME_MS);
   }, [runFrom]);
 
+  /** 한 벌 폭 안으로 되감는다 — 같은 그림이 이어지므로 어디로 감아도 티가 나지 않는다 */
+  const wrap = useCallback(
+    (value: number) => (copyWidth > 0 ? ((value % copyWidth) + copyWidth) % copyWidth : 0),
+    [copyWidth],
+  );
+
+  /**
+   * 수동 스와이프 — `ScrollView`를 걷어낸 대가로 사라졌던 동작을 되살린다.
+   *
+   * **탭을 건드리지 않는 것이 조건이다.** `onStartShouldSetPanResponder`를 주지 않아
+   * 손가락이 닿는 것만으로는 잡지 않고, **가로로 SWIPE_SLOP 이상 움직였을 때만** 잡는다.
+   * 그 전까지 터치는 알약의 Pressable 로 그대로 간다. 세로 움직임이 더 크면 잡지 않는다.
+   */
+  // translateX 는 direction 1 에서 -progress 다 — 오른쪽으로 끌면 progress 가 줄어야 한다
+  const dragTo = useCallback(
+    (dx: number) => wrap(offset.current + (direction === 1 ? -dx : dx)),
+    [direction, wrap],
+  );
+  const onDrag = useCallback((dx: number) => progress.setValue(dragTo(dx)), [dragTo, progress]);
+  const onDragEnd = useCallback(
+    (dx: number) => {
+      offset.current = dragTo(dx);
+      scheduleResume();
+    },
+    [dragTo, scheduleResume],
+  );
+
+  // 룰은 "렌더 중 함수에 ref 를 넘긴다"를 전이적으로 잡는다(pause·scheduleResume 이 ref 를 읽는다).
+  // PanResponder.create 는 핸들러를 등록만 하고 호출하지 않으며, 실행은 제스처 시점이다.
+  // eslint-disable-next-line react-hooks/refs
+  const pan = PanResponder.create({
+    onMoveShouldSetPanResponder: (_event, gesture) =>
+      Math.abs(gesture.dx) > SWIPE_SLOP && Math.abs(gesture.dx) > Math.abs(gesture.dy),
+    onPanResponderGrant: () => pause(),
+    onPanResponderMove: (_event, gesture) => onDrag(gesture.dx),
+    onPanResponderRelease: (_event, gesture) => onDragEnd(gesture.dx),
+    onPanResponderTerminate: () => scheduleResume(),
+  });
+
   useEffect(() => {
     // 시작 위상 — 줄마다 다른 지점에서 시작해야 벽돌처럼 어긋나 보인다
     runFrom(copyWidth > 0 ? phase % copyWidth : 0);
@@ -219,7 +260,13 @@ function IosMarqueeRow({
   });
 
   return (
-    <View style={styles.viewport} onTouchStart={pause} onTouchEnd={scheduleResume} onTouchCancel={scheduleResume}>
+    <View
+      style={styles.viewport}
+      onTouchStart={pause}
+      onTouchEnd={scheduleResume}
+      onTouchCancel={scheduleResume}
+      {...pan.panHandlers}
+    >
       <Animated.View style={[styles.copies, { transform: [{ translateX }] }]}>
         <MarqueeCopies
           topics={topics}
