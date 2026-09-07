@@ -116,9 +116,8 @@
       }
     },
     "owner": "runtime364",
-    "runtimeVersion": {
-      "policy": "fingerprint"
-    },
+    "runtimeVersion": "cc07cb6e497796c40be4778873fb8502e9e1f827",
+    "_runtimeVersionNote": "고정 문자열이다(정책 아님). 이유·갱신 규칙은 docs/frontend/architecture.md 2.1",
     "updates": {
       "url": "https://u.expo.dev/affd5e83-2719-469a-8c5c-f12b09e7ba4a"
     }
