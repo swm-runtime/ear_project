@@ -37,11 +37,22 @@ export async function enqueueJob(type: "sweep" | "cluster" | "tts" | "package" |
 }
 
 /** 발행·재발행 결과를 파이프라인에 기록 (spec/07 5장) — 제품 content_id·content_version·시각. 두 DB 는 분리 유지, 이 기록이 유일한 연결 고리 */
-export async function markPublished(backlogId: string, contentId: string, contentVersion: number) {
+export async function markPublished(backlogId: string, contentId: string, contentVersion: number, publishedAt?: string) {
   const sb = await supabaseServer();
-  const { error } = await sb.from("backlog").update({ status: "published", published_content_ref: contentId, published_version: contentVersion, published_at: new Date().toISOString() }).eq("id", backlogId);
+  const { error } = await sb.from("backlog").update({ status: "published", published_content_ref: contentId, published_version: contentVersion, published_at: publishedAt ?? new Date().toISOString() }).eq("id", backlogId);
   if (error) throw new Error(error.message);
   revalidatePath("/backlog"); revalidatePath("/"); revalidatePath("/publish"); revalidatePath("/episodes");
+}
+
+/** 제품 id 가 기록되지 않은 발행·패키지 편 (0012 이전 발행분) — 발행 화면의 "발행 기록 연결" 입력 */
+export async function listUnlinkedPublished(): Promise<{ backlog_id: string; title: string; episode_id: string | null; status: string }[]> {
+  const sb = await supabaseServer();
+  const { data: bls, error } = await sb.from("backlog").select("id,title,status").in("status", ["published", "packaged"]).is("published_content_ref", null).order("id");
+  if (error) throw new Error(error.message);
+  const ids = (bls ?? []).map((b) => b.id);
+  const { data: eps } = ids.length ? await sb.from("episodes").select("id,backlog_id").in("backlog_id", ids) : { data: [] };
+  const epOf = new Map((eps ?? []).map((e) => [e.backlog_id, e.id]));
+  return (bls ?? []).map((b) => ({ backlog_id: b.id, title: b.title, episode_id: epOf.get(b.id) ?? null, status: b.status }));
 }
 
 export async function cancelJob(id: string) {
