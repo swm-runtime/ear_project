@@ -394,3 +394,56 @@ DoH 응답을 `repr()`로 찍어서 발견했다.
    인증이 정상인지는 지금 확정해 둔다
 
 **이 항목 때문에 티켓을 붙잡지 않는다.** 완료 조건은 헤더 기준이고, 평판은 시간이 필요한 별개 축이다.
+
+## 헤더 확인 결과 (2026-09-08) — **인증 전부 통과. 완료 조건 3 충족**
+
+앱에서 발송한 인증 메일의 `Authentication-Results` 원문:
+
+```
+spf=pass    (sender IP 76.223.177.14) smtp.mailfrom=ap-northeast-2.amazonses.com
+dkim=pass   (signature was verified) header.d=earcast.co.kr
+dkim=pass   (signature was verified) header.d=amazonses.com
+dmarc=pass  action=none header.from=earcast.co.kr
+compauth=pass reason=100
+```
+
+- **`dkim=pass header.d=earcast.co.kr`** — 우리 도메인 서명이 검증됐다. `d=amazonses.com` 서명과
+  **두 개가 함께** 붙는다(SES 기본 동작).
+- **`dmarc=pass`** — DKIM 정렬로 통과한다. `spf` 의 `smtp.mailfrom` 이 `amazonses.com` 인 것은
+  **예상된 결과다**(커스텀 MAIL FROM 미설정 — 이 문서 위쪽에 적어 둔 그대로다).
+- `compauth=pass reason=100` 은 Microsoft 의 복합 인증 최고 신뢰값이다.
+
+> **완료 조건 3(`dkim=pass header.i=@earcast.co.kr` + `dmarc=pass`) 충족.** 설정 문제는 없다.
+
+## 스팸함 건은 **아웃룩(Microsoft) 전용**이다 — 인증과 무관
+
+같은 메일에 이렇게 찍혀 있다.
+
+```
+X-MS-Exchange-Organization-SCL: 5
+...RF:JunkEmail;
+```
+
+수신자가 `outlook.kr`, 즉 Microsoft 필터다. **반면 2026-09-07 SES 직접 발송 테스트는 Gmail 정상
+수신함에 도착했다.** 발신·인증이 같은데 결과가 갈렸다 — 수신측 정책 차이다.
+
+`compauth=pass reason=100`(최고 신뢰)을 받고도 SCL 5 를 매겼으므로 **인증으로 더 낮출 여지가 없다.**
+Microsoft 는 신규 도메인 평판에 특히 보수적이다.
+
+### 헤더에서 보이는 본문 요인 두 가지
+
+| 항목 | 현재 | 판단 |
+|---|---|---|
+| 본문 | `Content-Type: text/plain` **단독**, base64 | HTML 대안이 없는 평문 단독은 약한 스팸 신호다 → `verification-mail-html-template.md` 가 이미 다룬다(multipart) |
+| 제목 | `[이어] 이메일 인증 코드 696462` | **제목에 코드 숫자**가 들어간다. 필터가 민감하게 보는 형태다 |
+
+**제목에서 코드를 빼는 것은 별도 판단이 필요하다** — 잠금화면 알림 미리보기에서 코드를 바로 보는
+편의를 잃는다. 사용자 편의와 도달률의 교환이라 이 티켓이 단독으로 정할 사안이 아니다.
+
+### 남은 완료 조건
+
+- 조건 4·5(DMARC 리포트 2주 관찰 → `-all`·`p=quarantine`) — **2026-09-21 이후**
+- 조건 6(MX) — 안 미정. 가비아 포워딩 권고 상태 그대로
+
+**스팸 배치는 이 티켓의 완료 조건이 아니다.** 인증(이 티켓)과 평판·본문(별 티켓)은 다른 축이고,
+평판은 발송 이력이 쌓여야 움직인다. 출시 전 완전 해결을 기대하지 않는다.
