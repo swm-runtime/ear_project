@@ -8,7 +8,7 @@
 | 발견 시점 | "앱을 켤 때마다 다시 로그인해야 한다"는 실사용 보고 — 원인을 따라가니 복원에 쓸 엔드포인트가 없었다 |
 | 근거 문서 | `features/splash.md` 4(실행 관문 2단계 — 인증 상태 판정) · `spec/api/auth-api.md` 4.1·4.3 |
 | 심각도 | **높음** — 앱을 껐다 켤 때마다 로그인 화면으로 간다. 토큰은 기기에 남아 있는데 쓰지 못한다 |
-| 상태 | 대기 |
+| 상태 | 반영 완료 (2026-09-08) |
 | 연관 | FE 의 실행 관문(SplashGate) 구현이 이 계약에 막혀 있다 — `app/navigation/RootNavigator.tsx` 의 `TODO: SplashGate` |
 
 ## 문제
@@ -82,3 +82,18 @@ FE 가 로그인 시 사용자 객체를 기기에 캐시해 두고 복원하는
 
 **남은 것**: `auth-api.md` 계약 등재(`changes/pending/auth-api-get-users-me.md` 발행 — 완료
 조건 5가 문서 반영 시 닫힌다) → 이후 FE의 SplashGate 구현(이 티켓 범위 밖).
+
+## 처리 기록 (반영 날짜: 2026-09-08 — 완료 조건 5개 전부 충족)
+
+같은 날 발행 → 구현 → 계약 반영까지 닫았다 (PR #211).
+
+| 완료 조건 | 확인 |
+|---|---|
+| 4.1의 `user`와 필드 구성 동일 | ✅ DTO 동형성 테스트로 고정 + 실서버 부팅 실측(9개 필드 일치) |
+| `onboarding_completed` 존재 | ✅ 실측 |
+| `pending_consents`로 재동의 판정(요청 3 — 전자 채택) | ✅ 실측(필수 3종 pending) |
+| 만료·폐기 토큰 401·무재시도 | ✅ 실측 |
+| `auth-api.md` 확정 계약 | ✅ 4.13 신설 (`changes/archive/auth-api-get-users-me.md`) |
+
+FE 후속은 `tickets/frontend/pending/splash-gate-session-restore.md`로 발행했다 — 토큰 갱신
+single-flight 요구(2026-09-08 reuse detected 실측 근거)를 함께 실었다.

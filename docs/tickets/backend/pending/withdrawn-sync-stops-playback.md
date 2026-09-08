@@ -115,3 +115,11 @@
 **남은 것**: 완료 조건 2·3은 **FE 연결**이다 — ① 4.3 응답 `content_status=withdrawn` 시 재생
 중단+안내 ② 포그라운드 복귀 시 회수 목록 동기화 ③ `refreshAudioUrl()`이 버전 변경을 감지하면
 로컬 위치 폐기. FE 티켓 발행 필요(요청 시 작성).
+
+## 진행 기록 (2026-09-08 — 계약 반영 완료, FE 연결만 남음)
+
+BE 담당 지시로 계약을 당일 반영했다 — `player-api.md` 4.6 신설·4.3 `content_status` 추가,
+`partner-control.md` 4.3 현행화(미결 "강제 중단 여부"도 확정 처리). 완료 조건 ①·④·⑤ 충족.
+**남은 것은 조건 ②(재생 중단)·③(낡은 위치 재저장 방지) — FE 연결이며
+`tickets/frontend/pending/withdrawn-republish-playback-sync.md`로 발행했다.** 그 티켓이 닫히고
+실기기 재확인이 되면 이 티켓을 archive로 옮긴다.
