@@ -133,9 +133,16 @@ export default function ProfileHeader({
               PROFILE_COPY.destinations.email,
             )}
           >
-            <Text style={styles.email} numberOfLines={1}>
-              {email ?? PROFILE_COPY.header.noEmail}
-            </Text>
+            {/*
+              값과 배지가 같은 말을 하지 않게 한다. 주소가 없으면 값 자리가 비므로
+              **배지 하나가 상태를 말한다** — "이메일 미등록"을 두 번 적지 않는다.
+              낭독기에는 줄 전체 라벨로 한 번만 들린다(위 accessibilityLabel).
+            */}
+            {email !== null ? (
+              <Text style={styles.email} numberOfLines={1}>
+                {email}
+              </Text>
+            ) : null}
             {/*
               인증 전이면 배지를 단다 — **미등록도 포함한다.** 사용자에게는 "주소가 없다"와
               "주소가 확인되지 않았다"가 모두 "아직 인증 안 된 상태"이고, 결제 시점에 가서야
