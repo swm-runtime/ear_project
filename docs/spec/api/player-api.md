@@ -126,7 +126,7 @@
 | 필드 | 의미 |
 |---|---|
 | `content.source_url` | **`null`이면 [원문 보기]를 노출하지 않는다**(`player.md` 4.5 — `origin = ai_generated`는 선택 필드다, `domain.md` 5.1) |
-| `content.content_version` | 재발행 판정용. 클라이언트가 보관한 값보다 크면 저장된 위치·오프라인 파일을 폐기하고 0부터 재생한다(`player.md` 7) |
+| `content.content_version` | 현재 발행본의 버전. **재발행 후 낡은 위치는 서버가 이미 폐기했으므로**(`admin-api.md` 4.10 — 개정 2026-09-07) 진입 시점에 클라이언트가 비교·폐기할 것은 없다. 이 값의 용도는 4.3 위치 저장의 버전 가드 입력(응답의 버전을 저장 요청에 되돌려 보낸다)과 **재생 중 재발행 감지**다 — 갱신 호출로 받은 버전이 세션과 다르면 세션 위치를 폐기한다(`player.md` 7) |
 | `library_item` | 라이브러리에 없는 콘텐츠면 **`null`**. `id`는 더보기의 삭제(`library-api.md` 4.6) 호출에, `status`는 완료 화면(PL3) 판단에 쓴다 |
 | `progress` | `playback_progresses` 행이 없으면 **`null`** — 0부터 재생한다. `start_position_sec` 입력(`player.md` 3장)이 있으면 그것이 우선한다 |
 | `audio.url` | 단기 서명 URL. **재생기에 전달하는 용도 외로 보관·기록하지 않는다**(7장) |
