@@ -22,6 +22,11 @@ export { usePlayLimitStore } from './store/play-limit.store';
  */
 export { startWithdrawnSync, syncWithdrawnContents } from './services/withdrawn-sync.service';
 /**
+ * 로그아웃·탈퇴·세션 만료 시 재생을 끊는다(auth.md 4.2) — app/bootstrap이 세션 전이를
+ * 구독해 부른다. auth가 player를 직접 import하면 의존 표(architecture.md 4.4)를 어긴다.
+ */
+export { stopPlaybackForSignOut } from './services/playback.service';
+/**
  * 재생 세션 구독 전용 — 쓰기는 PlaybackService만 한다(playback.store.ts 규칙). 콘텐츠 상세가
  * "현재 재생 중인 콘텐츠면 새 재생 없이 플레이어 복귀"(content-detail.md 4.4) 판정에 쓴다.
  */

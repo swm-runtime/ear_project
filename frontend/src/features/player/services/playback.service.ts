@@ -739,6 +739,24 @@ class PlaybackService {
     store.getState().setSession(null);
   }
 
+  /**
+   * 로그아웃·탈퇴·세션 만료 — **재생을 즉시 끊는다**(auth.md 4.2-3의 "재생 위치 삭제"가
+   * 전제하는 동작이다). 세션이 끝났는데 소리가 계속 나면 로그아웃이 안 된 것으로 읽히고,
+   * 다음 사용자가 로그인했을 때 앞 사용자의 콘텐츠가 미니플레이어에 남는다.
+   *
+   * **위치를 저장하지 않는다.** 이 시점엔 토큰이 이미 지워져 있어 저장이 401을 맞고,
+   * 그 401이 토큰 갱신 실패로 번진다. 위치는 길어야 5초 전(저장 주기)에 이미 서버에 있다 —
+   * 그만큼을 잃는 대신 로그아웃 경로를 조용하게 유지한다.
+   *
+   * 스와이프 종료 플래그도 함께 푼다 — 앞 사용자가 미니플레이어를 내린 상태가 다음
+   * 사용자에게 이어지면 재생을 시작해도 미니플레이어가 뜨지 않는다.
+   */
+  stopForSignOut(): void {
+    this.clearSession();
+    store.getState().setMiniPlayerDismissed(false);
+    usePlayLimitStore.getState().clearPlayLimit();
+  }
+
   /** 미니플레이어 스와이프 종료(PL11) — 위치는 저장하고, 이번 실행에서는 다시 띄우지 않는다 */
   dismiss(): void {
     this.flushProgress('dismiss');
@@ -837,3 +855,6 @@ class PlaybackService {
 
 /** 전역 단일 인스턴스 — 재생 제어는 전부 이 객체를 경유한다 */
 export const playbackService = new PlaybackService();
+
+/** 공개 API 표면 — 서비스 인스턴스 전체를 feature 밖으로 내보내지 않는다(convention.md 2.2) */
+export const stopPlaybackForSignOut = (): void => playbackService.stopForSignOut();
