@@ -168,7 +168,7 @@ users
   nickname                  varchar         NULL 허용 (가입 시 미정 · 온보딩에서 입력)
   role                      enum            user | admin          DEFAULT 'user'
   tier                      enum            light | daily | pro   DEFAULT 'light'   ★캐시
-  status                    enum            active | withdrawn    DEFAULT 'active'
+  status                    enum            active | withdrawn    DEFAULT 'active'   ※ 아래 주석
   onboarding_completed      boolean         DEFAULT false
   onboarding_step           enum            topic | career | pick | done
   onboarding_completed_at   timestamptz     NULL
@@ -188,6 +188,7 @@ idx_users_status
 - **`nickname`은 NULL을 허용한다.** 제공자가 닉네임을 주지 않는 경우가 있고, 값은 **온보딩의 닉네임 입력 단계에서 채운다.** 기본 문자열을 넣어 두면 "아직 정하지 않았다"와 "사용자가 그 값으로 정했다"가 구분되지 않는다. 온보딩 완료(`onboarding_completed = true`) 시점에는 값이 있어야 하며, 그 보장은 온보딩 처리에서 한다. *(온보딩 단계 enum에 닉네임 단계를 어떻게 넣을지는 화면 확정 후 갱신한다)*
 - `role = admin` 계정만 콘텐츠 업로드·주제 관리 API를 호출할 수 있다. 관리자도 동일한 소셜 로그인을 사용한다(자체 아이디/비밀번호를 만들지 않는다 — `auth.md` 4.1).
 - **동일 이메일 다른 제공자는 별개 계정**이다. 계정 통합은 MVP 비범위(`auth.md` 4.1).
+- **`status` · `withdrawn_at` · `idx_users_status`는 아무도 쓰지 않는다**(확인 2026-09-08). 탈퇴는 [12.3](#123-회원-탈퇴-처리)이 정한 대로 **행을 삭제**하므로 `status = withdrawn`으로 남는 사용자가 없다. 컬럼은 남겨 두되 **여기에 소프트 삭제를 구현하지 않는다** — 그러면 개인정보보호법 제21조 제3항의 분리 저장 요건이 깨진다. 정리 여부는 미결이며, 지우려면 마이그레이션이 필요하다.
 
 **`email`과 `is_email_verified`는 별개 값이다** (`auth.md` 4.1)
 
@@ -811,7 +812,7 @@ audio_access_logs
   device_id                 varchar
   issued_at                 timestamptz
   expires_at                timestamptz
-  ip_hash                   varchar
+  ip_hash                   varchar         NULL 허용
 
 idx_audio_access_logs_content_id_issued_at (content_id, issued_at DESC)
 idx_audio_access_logs_user_id_issued_at (user_id, issued_at DESC)
@@ -820,6 +821,8 @@ idx_audio_access_logs_user_id_issued_at (user_id, issued_at DESC)
 - B-4 결정: `AudioAccessToken`과 `AudioAccessLog`는 같은 것이므로 **하나로 통합**했다.
 - **`signed_url`을 저장하지 않는다.** 서명 URL을 DB에 남기면 그 자체가 유출 경로가 된다(`architecture.md` 9.4). 발급 사실만 기록한다.
 - FR-33 무단 재배포 방지의 이상 탐지·감사 근거다.
+- **`ip_hash`는 NULL 허용이다**(명시 2026-09-08). 프록시 설정(`TRUST_PROXY_HOPS`)에 따라 클라이언트 IP를 읽지 못하는 배포가 있고, 그때 빈 값을 해싱해 실제와 구분되지 않는 값을 남기지 않는다.
+- **탈퇴 시 즉시 파기한다**([12.3](#123-회원-탈퇴-처리) — 목록에 추가 2026-09-08). `user_id` FK의 `ON DELETE CASCADE`가 집행한다.
 
 ### 6.6 `source_link_clicks`
 
@@ -1364,7 +1367,7 @@ idx_archived_subscriptions_archived_at
 | 처리 | 대상 |
 |---|---|
 | **아카이브 후 파기** (5년) | `users` → `archived_users`, `consents` → `archived_consents`, `subscriptions` → `archived_subscriptions` |
-| **즉시 파기** | `library_items`, `playback_progresses`, `play_records`, `user_signals`, `source_link_clicks`, `user_interests`, `user_settings`, `device_tokens`, `sessions`, `user_preference_vectors`, `drip_excluded_contents`, `purchase_intents`, `notification_logs`, `email_verifications`, `first_drip_jobs`, `idempotency_keys`(해당 사용자 `owner_key`) |
+| **즉시 파기** | `library_items`, `playback_progresses`, `play_records`, `user_signals`, `audio_access_logs`, `source_link_clicks`, `user_interests`, `user_settings`, `device_tokens`, `sessions`, `user_preference_vectors`, `drip_excluded_contents`, `purchase_intents`, `notification_logs`, `email_verifications`, `first_drip_jobs`, `idempotency_keys`(해당 사용자 `owner_key`) |
 | **그대로 유지** | `withdrawal_logs`(원래 해시만), `store_notification_logs`(개인 식별자 없음), `content_stats`(집계값) |
 
 **결제 이력이 없는 사용자 — 아카이브 없이 전량 즉시 파기**

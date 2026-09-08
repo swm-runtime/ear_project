@@ -567,10 +567,11 @@ architecture.md 7.6이 에러 로깅의 레벨 규칙을 정의한다. 이 장�
 - **`console.log`를 사용하지 않는다.** Nest `Logger`(또는 그 위에 구성한 구조화 로거)만 사용한다.
 - 로그는 **구조화(JSON)** 로 남긴다. 사람이 읽는 문장과 기계가 읽는 필드를 분리한다.
 - 값을 message 문자열에 이어 붙이지 않고 **필드로 분리**한다. 검색·집계가 가능해야 한다.
+- **필드 이름은 `snake_case`다**(명시 2026-09-08 — 아래 공통 필드 표·8.3 필수 필드와 같은 표기). 코드가 camelCase여도 로그 필드는 바꿔 담는다. 같은 뜻의 값이 `userId`와 `user_id` 두 이름으로 갈리면 집계가 쪼개진다.
 
 ```ts
 // ✅
-this.logger.warn('play blocked by daily limit', { userId, contentId, playCount });
+this.logger.warn('play blocked by daily limit', { user_id, content_id, play_count });
 // ❌
 this.logger.warn(`user ${userId} blocked, count=${playCount}`);
 ```
