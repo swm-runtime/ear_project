@@ -33,6 +33,8 @@ export const cfg = {
   draftMode: (process.env.DRAFT_MODE === "single" ? "single" : "two-stage") as "single" | "two-stage",
   /** 2단계 단계별 모델 — 미설정이면 CLAUDE_MODEL(=CLI 기본). 설계는 정독·구조 판단, 대본은 문장이라 따로 둘 수 있게 */
   draftDesignModel: process.env.DRAFT_DESIGN_MODEL || process.env.CLAUDE_MODEL || undefined,
+  /** 설계 실행 형태 (2026-09-08 비용 절감 ③): single(기본) = 소스 본문을 코드가 가져와 인라인, 도구 없음, 발췌는 ID 선택 · agent = WebFetch·파일 쓰기 루프. DESIGN_MODE=agent 로 복귀 */
+  designMode: (process.env.DESIGN_MODE === "agent" ? "agent" : "single") as "single" | "agent",
   draftWriteModel: process.env.DRAFT_WRITE_MODEL || process.env.CLAUDE_MODEL || undefined,
   /** 비평 전용 모델 — 2026-09-01 박수헌: 비평은 Opus 고정 (Fable 한도 부족). 판정자 모델은 회귀 세트 재검증 트리거이므로 바꾸면 spec/09 7.4 */
   criticModel: process.env.CRITIC_MODEL || "claude-opus-5",
@@ -40,6 +42,8 @@ export const cfg = {
   criticRubric: (process.env.CRITIC_RUBRIC === "v1" ? "v1" : "v2") as "v1" | "v2",
   /** QA·군집화 모델 — 2026-09-03 박수헌: 발췌 대조·구조 분석은 Fable 이 필요 없다 → Opus 기본 (속도·한도 절약). QA 도 평가자라 바꾸면 spec/09 7.4 */
   qaModel: process.env.QA_MODEL || "claude-opus-5",
+  /** QA 실행 형태 (2026-09-08 비용 절감 ②): single = 입력 인라인·도구 없음·리포트는 JSON 으로(기본) · agent = 구 방식(파일 읽기·리포트 쓰기 루프). QA_MODE=agent 로 복귀 */
+  qaMode: (process.env.QA_MODE === "agent" ? "agent" : "single") as "single" | "agent",
   clusterModel: process.env.CLUSTER_MODEL || "claude-opus-5",
   pollIntervalMs: Number(process.env.POLL_INTERVAL_MS || 5000),
   /** 파일럿 예외 (spec/02 2장): 계층 판정 전에는 candidate 도메인도 스윕한다. 판정이 쌓이면 false 로. */

@@ -138,7 +138,9 @@ export async function runDraft(job: Job, ex: Executor) {
     return { episode_id: episodeId, attempt, summary, model, l0_violations: violations, next: { draft_fix_job_id: fixJobId } };
   }
   await insertRun({ backlog_id: backlogId, phase: "draft", attempt, result: summary, prompt_version: `${promptVersion} (worker)`, artifacts, executed_by: executedBy, model, cost_usd: costUsd, tokens, worker_rev: workerRev() });
-  const qaJobId = await enqueue({ type: "qa", requires_ai: true, payload: { episode_id: episodeId, backlog_id: backlogId, attempt }, parent_job_id: job.id, attempt });
+  // 회차 2+: 이전 QA 실패와 작성 측 수정 내역(바뀐 자리만)을 QA 에 넘긴다 — 해소 확인 + 바뀌지 않은 문장의 판정 안정성 (spec/05 5장, 2026-09-08)
+  const carry = attempt > 1 ? { prior_failures: (job.payload.qa_failures ?? []) as unknown[], fixes: (out as RevisionOut).fixes ?? [] } : {};
+  const qaJobId = await enqueue({ type: "qa", requires_ai: true, payload: { episode_id: episodeId, backlog_id: backlogId, attempt, ...carry }, parent_job_id: job.id, attempt });
   return { episode_id: episodeId, attempt, summary, model, next: { qa_job_id: qaJobId }, output: out };
 }
 
