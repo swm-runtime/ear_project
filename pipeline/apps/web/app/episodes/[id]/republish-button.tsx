@@ -25,7 +25,7 @@ export function RepublishButton({ episodeId, backlogId, contentId, version, publ
       if (!res.ok) throw new Error("발행 오디오(dist.mp3)를 읽지 못했어요 — 오디오 탭에서 파일이 있는지 확인");
       const audio = new File([await res.blob()], `${episodeId}.mp3`, { type: "audio/mpeg" });
       const content = await republishEarContent(contentId, { audio });
-      await markPublished(backlogId, content.id, content.content_version);
+      await markPublished(backlogId, content.id, content.content_version, undefined, { action: "republish", parts: ["audio"], episodeId, note: "TTS 재합성본으로 오디오 교체" });
       setMsg(`재발행 완료 — v${content.content_version}`);
     } catch (e) {
       // 백엔드 미구현(404) 은 사용자에게 그대로 알린다 — 티켓 tickets/backend/pending/content-republish-audio.md

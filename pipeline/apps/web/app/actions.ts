@@ -36,12 +36,60 @@ export async function enqueueJob(type: "sweep" | "cluster" | "tts" | "package" |
   return data.id as string;
 }
 
-/** 발행·재발행 결과를 파이프라인에 기록 (spec/07 5장) — 제품 content_id·content_version·시각. 두 DB 는 분리 유지, 이 기록이 유일한 연결 고리 */
-export async function markPublished(backlogId: string, contentId: string, contentVersion: number, publishedAt?: string) {
+export type PublishAction = "publish" | "republish" | "link" | "withdraw" | "restore" | "backfill";
+export interface PublishLogRow { id: number; content_id: string; backlog_id: string | null; episode_id: string | null; action: PublishAction; version: number | null; parts: string[]; note: string | null; actor: string | null; at: string }
+
+/**
+ * 발행·재발행 결과를 파이프라인에 기록 (spec/07 5장) — backlog 에는 최신 상태(제품 content_id·content_version·시각),
+ * publish_log 에는 사건 한 줄(0014). 두 DB 는 분리 유지, 이 기록이 유일한 연결 고리.
+ * backlogId 가 null 이면(수동 업로드·파이프라인 밖 콘텐츠) 로그만 남긴다.
+ */
+export async function markPublished(backlogId: string | null, contentId: string, contentVersion: number, publishedAt?: string,
+  log: { action: PublishAction; parts?: string[]; note?: string; episodeId?: string } = { action: "publish" }) {
   const sb = await supabaseServer();
-  const { error } = await sb.from("backlog").update({ status: "published", published_content_ref: contentId, published_version: contentVersion, published_at: publishedAt ?? new Date().toISOString() }).eq("id", backlogId);
-  if (error) throw new Error(error.message);
+  if (backlogId) {
+    const { error } = await sb.from("backlog").update({ status: "published", published_content_ref: contentId, published_version: contentVersion, published_at: publishedAt ?? new Date().toISOString() }).eq("id", backlogId);
+    if (error) throw new Error(error.message);
+  }
+  const { data: { user } } = await sb.auth.getUser();
+  const { error: logErr } = await sb.from("publish_log").insert({
+    content_id: contentId, backlog_id: backlogId, episode_id: log.episodeId ?? null, action: log.action, version: contentVersion,
+    parts: log.parts ?? [], note: log.note ?? null, actor: user?.email ?? null, at: publishedAt ?? new Date().toISOString(),
+  });
+  if (logErr) throw new Error(`발행은 됐지만 기록 실패: ${logErr.message}`);
   revalidatePath("/backlog"); revalidatePath("/"); revalidatePath("/publish"); revalidatePath("/episodes");
+}
+
+/** 회수·복구도 이력에 남긴다 — 제품 상태 변화를 콘솔에서 일으켰을 때 */
+export async function logPublishEvent(contentId: string, action: "withdraw" | "restore", version: number | null, note?: string) {
+  const sb = await supabaseServer();
+  const { data: bl } = await sb.from("backlog").select("id").eq("published_content_ref", contentId).maybeSingle();
+  const { data: { user } } = await sb.auth.getUser();
+  const { error } = await sb.from("publish_log").insert({ content_id: contentId, backlog_id: bl?.id ?? null, action, version, note: note ?? null, actor: user?.email ?? null });
+  if (error) throw new Error(error.message);
+  revalidatePath("/publish");
+}
+
+/** 제품 콘텐츠 한 건의 발행 이력 + 파이프라인 쪽 연결(백로그·에피소드) — 상세 화면 */
+export async function getPublishHistory(contentId: string): Promise<{ log: PublishLogRow[]; backlog: { id: string; title: string; published_version: number | null; published_at: string | null } | null; episode_id: string | null }> {
+  const sb = await supabaseServer();
+  const [{ data: log, error }, { data: bl }] = await Promise.all([
+    sb.from("publish_log").select("*").eq("content_id", contentId).order("at", { ascending: false }),
+    sb.from("backlog").select("id,title,published_version,published_at").eq("published_content_ref", contentId).maybeSingle(),
+  ]);
+  if (error) throw new Error(error.message);
+  const { data: ep } = bl ? await sb.from("episodes").select("id").eq("backlog_id", bl.id).order("id", { ascending: false }).limit(1).maybeSingle() : { data: null };
+  return { log: (log ?? []) as PublishLogRow[], backlog: bl ?? null, episode_id: ep?.id ?? null };
+}
+
+/** 콘텐츠별 가장 최근 사건 — 목록의 "최근 발행" 열. 제품 published_at 은 최초 발행 시각이라 재발행을 반영하지 못한다 */
+export async function latestPublishEvents(): Promise<Record<string, { at: string; action: PublishAction; version: number | null }>> {
+  const sb = await supabaseServer();
+  const { data, error } = await sb.from("publish_log").select("content_id,action,version,at").in("action", ["publish", "republish", "backfill"]).order("at", { ascending: false });
+  if (error) throw new Error(error.message);
+  const out: Record<string, { at: string; action: PublishAction; version: number | null }> = {};
+  for (const r of data ?? []) if (!out[r.content_id]) out[r.content_id] = { at: r.at, action: r.action as PublishAction, version: r.version };
+  return out;
 }
 
 /** 제품 id 가 기록되지 않은 발행·패키지 편 (0012 이전 발행분) — 발행 화면의 "발행 기록 연결" 입력 */

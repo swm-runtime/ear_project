@@ -58,6 +58,21 @@ create table if not exists backlog (
   updated_at  timestamptz not null default now()
 );
 
+-- ── 3b. publish_log: 제품 발행·재발행 이력 (0014) ───────────────
+-- backlog.published_* 는 최신 한 줄, 이 표는 사건 단위. 제품 audit_logs 가 진실이나 API 로 열리지 않아 콘솔을 거친 사건만 남긴다.
+create table if not exists publish_log (
+  id          bigint generated always as identity primary key,
+  content_id  text not null,                    -- 제품 content_id
+  backlog_id  text references backlog(id),      -- 수동 업로드는 null
+  episode_id  text,
+  action      text not null check (action in ('publish','republish','link','withdraw','restore','backfill')),
+  version     int,                              -- 사건 후 제품 content_version
+  parts       text[] not null default '{}',     -- audio · thumbnail · title · description · source_name · topic_ids
+  note        text,
+  actor       text,                             -- 세션 이메일
+  at          timestamptz not null default now()
+);
+
 -- ── 4. runs: 실행 기록 — 계측의 원천 (04 문서) ───────────────────
 create table if not exists runs (
   id          uuid primary key default gen_random_uuid(),
