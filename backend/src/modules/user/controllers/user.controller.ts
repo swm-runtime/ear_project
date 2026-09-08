@@ -19,7 +19,9 @@ import { IdempotencyInterceptor } from '@/modules/idempotency/idempotency.interc
 
 import { ConsentService } from '../services/consent.service';
 import { DeviceTokenService } from '../services/device-token.service';
+import { UserService } from '../services/user.service';
 import { GetCareerResponseDto } from '../dto/get-career-response.dto';
+import { GetMeResponseDto } from '../dto/get-me-response.dto';
 import { ReplaceCareerRequestDto } from '../dto/replace-career-request.dto';
 import { ReplaceCareerResponseDto } from '../dto/replace-career-response.dto';
 import { UserCareerService } from '../services/user-career.service';
@@ -44,12 +46,31 @@ import { UserWithdrawalService } from '../services/user-withdrawal.service';
 @UseGuards(JwtAuthGuard)
 export class UserController {
   constructor(
+    private readonly userService: UserService,
     private readonly consentService: ConsentService,
     private readonly emailVerificationService: EmailVerificationService,
     private readonly userWithdrawalService: UserWithdrawalService,
     private readonly deviceTokenService: DeviceTokenService,
     private readonly userCareerService: UserCareerService,
   ) {}
+
+  /**
+   * 세션 복원(`session-restore-endpoint.md`) — 앱 시작 시 토큰 갱신 후 이 응답으로 실행
+   * 관문(splash.md 4)의 온보딩·재동의 분기를 판정한다. `user`는 로그인(4.1) 응답의 `user`와
+   * 같은 모양이고, `pending_consents`를 함께 실어 관문이 한 번의 왕복으로 끝난다.
+   * 토큰이 만료·폐기됐으면 가드가 401을 주고, 클라이언트는 재시도 없이 시작 화면으로 간다.
+   */
+  @Get()
+  async getMe(
+    @CurrentUser() currentUser: AuthenticatedUser,
+  ): Promise<GetMeResponseDto> {
+    const user = await this.userService.getById(currentUser.id);
+
+    return GetMeResponseDto.from(
+      user,
+      await this.consentService.findPendingConsents(user.id),
+    );
+  }
 
   /**
    * onboarding-api.md 4.9 — 기기 토큰·OS 알림 권한 상태 반영.
