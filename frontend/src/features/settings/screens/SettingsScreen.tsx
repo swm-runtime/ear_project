@@ -2,7 +2,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
-import { APP_VERSION } from '@/shared/lib/app-version';
+import { APP_VERSION, APP_VERSION_LABEL } from '@/shared/lib/app-version';
 import { theme } from '@/shared/theme';
 import ConfirmDialog from '@/shared/ui/ConfirmDialog';
 
@@ -154,7 +154,8 @@ export default function SettingsScreen() {
           <SettingsRow label={SETTINGS_COPY.info.privacy} onPress={screen.openPrivacyPolicy} />
           <SettingsRow
             label={SETTINGS_COPY.info.version}
-            value={APP_VERSION}
+            // 버전 뒤 괄호는 실행 중인 JS 번들 식별자다 — OTA 적용 여부를 눈으로 가른다
+            value={APP_VERSION_LABEL}
             badge={screen.isUpdateAvailable ? SETTINGS_COPY.info.updateBadge : null}
             rightSlot={
               screen.isUpdateAvailable ? (
