@@ -373,3 +373,13 @@ it('숫자가 아닌 코드는 조립하지 않는다', () => {
 - Given 코드 발송이 SES 오류로 실패한다 / When 응답을 본다 / Then 이전과 같이 `EMAIL_SEND_FAILED`이고 발송 횟수가 차감되지 않는다(회귀 없음)
 - Given 발송 로그 / When `verification mail dispatched` 항목을 본다 / Then 필드가 `email_domain` 하나뿐이고, 코드·수신 주소 원문·본문이 어디에도 없다
 - Given `npm test` / When `ses-mail.client.spec.ts`와 `verification-mail.template.spec.ts`를 돌린다 / Then 기존 2건이 그대로 통과하고 추가 3건도 통과한다
+
+## 진행 기록 (2026-09-08 — 구현 완료, 실수신함 확인 남음)
+
+티켓 명세 그대로 구현했다(`feat(be)/new-ticket-batch`) — `verification-mail.template.ts` 신설
+(숫자 외 코드 거부 가드 포함), `ses-mail.client.ts`가 HTML+Text를 함께 발송, 테스트 5건
+(HTML+Text 동봉·로고 URL·수신 주소 비반사·주입 거부·텍스트 대체본 불변) 통과. 로그는 종전
+그대로 `email_domain` 하나다.
+
+**남은 것**: 완료 조건의 실수신함 확인(Gmail 웹·앱·다크모드·이미지 차단)은 배포 후 사람이
+실제 메일로 본다. 제목의 코드 노출 여부는 별도 판단 대상 그대로.

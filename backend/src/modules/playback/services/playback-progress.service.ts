@@ -72,6 +72,7 @@ export class PlaybackProgressService {
           positionSec: current?.positionSec ?? 0,
           maxReachedSec: current?.maxReachedSec ?? 0,
           contentVersion: content.contentVersion,
+          contentStatus: content.status,
           libraryItem: toLibraryItemView(libraryItem),
         };
       }
@@ -111,6 +112,8 @@ export class PlaybackProgressService {
         positionSec: saved.positionSec,
         maxReachedSec: saved.maxReachedSec,
         contentVersion: content.contentVersion,
+        // 회수 신호 — 저장은 거부하지 않되(위 주석) 상태를 실어 클라이언트가 중단한다
+        contentStatus: content.status,
         libraryItem: toLibraryItemView(completed ?? libraryItem),
       };
     });

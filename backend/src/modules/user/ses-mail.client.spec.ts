@@ -4,7 +4,10 @@ interface SentEmailInput {
   FromEmailAddress: string;
   Destination: { ToAddresses: string[] };
   Content: {
-    Simple: { Subject: { Data: string }; Body: { Text: { Data: string } } };
+    Simple: {
+      Subject: { Data: string };
+      Body: { Html: { Data: string }; Text: { Data: string } };
+    };
   };
 }
 
@@ -53,6 +56,35 @@ describe('SesMailClient', () => {
       ]);
       expect(command.input.Content.Simple.Body.Text.Data).toContain('123456');
       expect(command.input.Content.Simple.Body.Text.Data).toContain('3분');
+    });
+
+    it('HTML 본문과 텍스트 대체본을 함께 보낸다', async () => {
+      // given
+      const client = buildClient();
+
+      // when
+      await client.sendVerificationCode('user@example.com', '123456');
+
+      // then
+      const [command] = sendMock.mock.calls[0];
+      const { Html, Text } = command.input.Content.Simple.Body;
+      expect(Html.Data).toContain('123456');
+      expect(Html.Data).toContain('https://earcast.co.kr/icon.png');
+      expect(Text.Data).toContain('123456');
+    });
+
+    it('수신 주소를 본문에 넣지 않는다', async () => {
+      // given
+      const client = buildClient();
+
+      // when
+      await client.sendVerificationCode('user@example.com', '123456');
+
+      // then
+      const { Html, Text } =
+        sendMock.mock.calls[0][0].input.Content.Simple.Body;
+      expect(Html.Data).not.toContain('user@example.com');
+      expect(Text.Data).not.toContain('user@example.com');
     });
 
     it('SES 발송이 실패하면 그대로 던진다 — 호출부가 EMAIL_SEND_FAILED로 변환한다', async () => {
