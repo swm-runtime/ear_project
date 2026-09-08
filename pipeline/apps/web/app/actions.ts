@@ -18,12 +18,23 @@ function assertPronunciationJson(content: string): Record<string, string> {
   return parsed as Record<string, string>;
 }
 
-/** 게이트 1 (사람): proposed → approved / rejected / held. approved_by·approved_at 는 DB 트리거가 세션에서 찍는다. */
+/**
+ * 게이트 1 (사람): proposed → approved / rejected / held. approved_by·approved_at 는 DB 트리거가 세션에서 찍는다.
+ * 승인이면 draft 작업을 바로 큐에 넣는다 (2026-09-08 박수헌) — 예전엔 워커가 approved 를 감지해 만들었는데, 워커가 꺼져 있으면
+ * 승인해도 "진행 중"에 아무것도 안 보였다. 선점(approved → claimed)은 워커가 작업을 시작할 때 하므로 중복 초안은 여전히 막힌다 (spec/10 4장).
+ */
 export async function setBacklogStatus(id: string, status: "approved" | "rejected" | "held" | "proposed" | "qa_passed" | "published") {
   const sb = await supabaseServer();
   const { error } = await sb.from("backlog").update({ status }).eq("id", id);
   if (error) throw new Error(error.message);
-  revalidatePath("/backlog"); revalidatePath("/");
+  if (status === "approved") {
+    const { data: active } = await sb.from("jobs").select("id").eq("type", "draft").in("status", ["queued", "claimed", "running"]).eq("payload->>backlog_id", id).limit(1);
+    if (!active?.length) {
+      const { error: e2 } = await sb.from("jobs").insert({ type: "draft", requires_ai: true, status: "queued", payload: { backlog_id: id, attempt: 1 } });
+      if (e2) throw new Error(`승인은 됐지만 초안 작업 등록 실패: ${e2.message}`);
+    }
+  }
+  revalidatePath("/backlog"); revalidatePath("/"); revalidatePath("/episodes");
 }
 
 /** 작업 요청 (사람 트리거): sweep · tts · package · cluster 재실행. requested_by 는 트리거가 찍는다. */

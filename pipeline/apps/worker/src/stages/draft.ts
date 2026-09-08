@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { cfg, executedBy } from "../config.js";
-import { deleteEpisode, enqueue, getBacklog, getEpisode, getSetting, insertRun, majorOfMidTopic, nextEpisodeId, setBacklogStatus, setJobProgress, updateJobPayload, upsertEpisode, pool, type Job } from "../db.js";
+import { claimApprovedBacklog, deleteEpisode, enqueue, getBacklog, getBacklogStatus, getEpisode, getSetting, insertRun, majorOfMidTopic, nextEpisodeId, setBacklogStatus, setJobProgress, updateJobPayload, upsertEpisode, pool, type Job } from "../db.js";
 import type { Executor } from "../executors/index.js";
 import { buildDraftPrompt, buildDraftRevisionPrompt, DRAFT_SCHEMA, DRAFT_REVISION_SCHEMA, episodeDatePrefix, pickIntroStyle, type Templates } from "@ear/pipeline";
 import { exists, hostOf, log, RetryLater } from "../util.js";
@@ -26,6 +26,18 @@ export async function runDraft(job: Job, ex: Executor) {
 
   let episodeId: string;
   if (attempt === 1) {
+    // 선점 (approved → claimed, 원자적) — 승인 시 UI 가 넣은 작업이 여기서 후보를 집는다 (2026-09-08). 실패하면:
+    //   · 이 작업이 이미 집었던 후보(재집기 — payload 에 episode_id 있음) → 이어받기
+    //   · 다른 작업이 집었거나 승인이 철회됨 → 실패가 아니라 건너뜀 (실패로 던지면 onDraftFailed 가 남의 후보를 proposed 로 되돌린다)
+    if (!(await claimApprovedBacklog(backlogId, cfg.workerName))) {
+      const bs = await getBacklogStatus(backlogId);
+      const resuming = bs?.status === "claimed" && !!job.payload.episode_id;
+      if (!resuming) {
+        const why = bs ? `backlog 상태 ${bs.status}${bs.claimed_by ? ` (집은 워커 ${bs.claimed_by})` : ""}` : "backlog 없음";
+        log(`  draft ${backlogId}: 선점 실패 — ${why}. 중복 작업으로 보고 건너뜀`);
+        return { backlog_id: backlogId, skipped: true, reason: `선점 실패 — ${why}` };
+      }
+    }
     // 재집기(워커 사망 후 회수) 시 같은 에피소드를 이어받도록 작업 payload 에 ID 를 고정한다
     episodeId = String(job.payload.episode_id ?? "") || (await nextEpisodeId(episodeDatePrefix("T")));
     if (!job.payload.episode_id) await updateJobPayload(job.id, { episode_id: episodeId });
