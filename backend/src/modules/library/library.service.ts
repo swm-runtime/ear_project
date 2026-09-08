@@ -59,6 +59,25 @@ export class LibraryService {
         manager,
       );
 
+    /**
+     * **소프트 삭제된 행은 되살린다.** 유니크가 삭제 여부를 보지 않으므로 위 삽입은
+     * 조용히 무시되고, 조회는 `withDeleted`라 그 행을 그대로 돌려준다 — 그대로 두면
+     * **"적립했다"고 보고하는데 라이브러리에는 없다.**
+     *
+     * 드립 경로에서 이것이 특히 나쁘다: 적립되지 않아도 `drip_excluded_contents`에는
+     * 기록되고(그 콘텐츠는 영영 소진된다) 그날의 편성 자리도 함께 쓰인다.
+     * 사용자에게는 "새 콘텐츠 N개 도착"이 뜨는데 열면 없다.
+     */
+    const revived = stored.filter((item) => item.deletedAt !== null);
+    for (const item of revived) {
+      await this.libraryItemRepository.reactivateById(
+        item.id,
+        now,
+        source,
+        manager,
+      );
+    }
+
     return stored.map((item) => item.contentId);
   }
 

@@ -126,13 +126,24 @@ export class LibraryItemRepository {
     });
   }
 
-  /** 드립 후보 필터의 첫 줄 — `library_items`에 행이 존재하면 제외한다 */
+  /**
+   * 드립 후보 필터의 첫 줄 — `library_items`에 행이 존재하면 제외한다.
+   *
+   * **`deleted_at` 여부를 보지 않는다**(`domain.md` 7 · `drip-scheduling.md` 4.2).
+   * `@DeleteDateColumn` 때문에 기본 조회는 소프트 삭제분을 빼므로 `withDeleted`가 필요하다 —
+   * 빠뜨리면 **한 번 들어왔다 지워진 콘텐츠가 다시 드립 후보가 된다.**
+   *
+   * 사용자가 직접 지운 경우는 `drip_excluded_contents`가 따로 막지만, **파트너 회수는
+   * 제외 행을 만들지 않는다**(`domain.md` 7.1). 그래서 회수→복구를 거친 콘텐츠에서는
+   * 이 조건이 유일한 방어선이다.
+   */
   async findAllContentIdsByUserId(
     userId: string,
     manager?: EntityManager,
   ): Promise<string[]> {
     const rows = await this.scoped(manager)
       .createQueryBuilder('item')
+      .withDeleted()
       .select('item.content_id', 'content_id')
       .where('item.user_id = :userId', { userId })
       .getRawMany<{ content_id: string }>();

@@ -204,6 +204,25 @@ describe('EmailVerificationService', () => {
       expect(mailClient.sendVerificationCode).toHaveBeenCalledTimes(1);
     });
 
+    it('인증이 끝난 계정은 **다른 주소로도** 코드를 보내지 않는다 — 잠금은 서버가 건다', async () => {
+      // given — 화면은 진입점을 감추지만 요청은 직접 보낼 수 있다.
+      // 여기를 통과하면 auth.md 4.4가 기각한 "새 주소 인증으로 변경" 경로가 열린다
+      userService.getById.mockResolvedValue({
+        id: USER_ID,
+        email: EMAIL,
+        isEmailVerified: true,
+      } as User);
+
+      // when
+      const sending = service.sendCode(USER_ID, 'another@example.com', NOW);
+
+      // then
+      await expect(sending).rejects.toMatchObject({
+        errorCode: ErrorCode.EMAIL_ALREADY_REGISTERED,
+      });
+      expect(mailClient.sendVerificationCode).not.toHaveBeenCalled();
+    });
+
     it('이미 인증까지 끝난 같은 주소면 코드를 보내지 않는다', async () => {
       // given
       userService.getById.mockResolvedValue({

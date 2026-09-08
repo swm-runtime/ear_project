@@ -63,7 +63,7 @@ describe('CloudFrontAudioUrlSigner', () => {
     );
   });
 
-  it('정책은 배포 전체 와일드카드 + 만료이고, 서명이 그 정책에 대해 검증된다', () => {
+  it('정책은 서명한 객체 하나 + 만료이고, 서명이 그 정책에 대해 검증된다', () => {
     // given
     const signed = signer.sign(
       { contentId: CONTENT_ID, userId: USER_ID, audioPath: 'ep/abc.mp3' },
@@ -76,15 +76,18 @@ describe('CloudFrontAudioUrlSigner', () => {
 
     // then — 정책 내용
     expect(policy).toBe(
-      buildPolicy('https://cdn.example.com/audio', signed.expiresAt),
+      buildPolicy('https://cdn.example.com/audio/ep/abc.mp3', signed.expiresAt),
     );
     const parsed = JSON.parse(policy) as {
       Statement: { Resource: string }[];
     };
 
+    // **서명한 URL 하나만 허가한다.** 와일드카드면 발급받은 URL 하나로 배포 안의
+    // 모든 키를 5분간 받을 수 있어 재생 한도·회수 차단이 발급 경로에서만 성립한다
     expect(parsed.Statement[0].Resource).toBe(
-      'https://cdn.example.com/audio/*',
+      'https://cdn.example.com/audio/ep/abc.mp3',
     );
+    expect(parsed.Statement[0].Resource).not.toContain('*');
 
     // when — 서명 검증
     const verifier = createVerify('RSA-SHA1');

@@ -109,6 +109,29 @@ describe('serviceDateUtil', () => {
       expect(periodStart).toBe('2025-12-01');
     });
 
+    it('월이 바뀌는 날 04시 이전은 아직 전달로 본다', () => {
+      // given — 2026-05-01 02:00 KST = 2026-04-30 17:00 UTC.
+      // 04시 경계 안이라 서비스 날짜로는 아직 4월 30일이고, 4월은 끝나지 않았다
+      const at = new Date('2026-04-30T17:00:00.000Z');
+
+      // when
+      const periodStart = toPreviousFinalMonthStart(at);
+
+      // then — 자정으로 세면 4월을 가리켜, 04시 배치가 아직 쓰지 않은 구간을 조회한다
+      expect(periodStart).toBe('2026-03-01');
+    });
+
+    it('월이 바뀌는 날 04시를 넘기면 전달이 확정된다', () => {
+      // given — 2026-05-01 04:00 KST = 2026-04-30 19:00 UTC
+      const at = new Date('2026-04-30T19:00:00.000Z');
+
+      // when
+      const periodStart = toPreviousFinalMonthStart(at);
+
+      // then
+      expect(periodStart).toBe('2026-04-01');
+    });
+
     it('KST 기준으로 달을 판정한다', () => {
       // given — 2026-05-01 08:00 KST = 2026-04-30 23:00 UTC (UTC로는 아직 4월)
       const at = new Date('2026-04-30T23:00:00.000Z');

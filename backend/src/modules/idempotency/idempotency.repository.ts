@@ -85,8 +85,12 @@ export class IdempotencyRepository {
   }
 
   /** 보존 24시간 배치용 (domain.md 1.4) */
-  async deleteExpired(now: Date, manager?: EntityManager): Promise<void> {
-    await this.scoped(manager).delete({ expiresAt: LessThan(now) });
+  async deleteExpired(now: Date, manager?: EntityManager): Promise<number> {
+    const result = await this.scoped(manager).delete({
+      expiresAt: LessThan(now),
+    });
+
+    return result.affected ?? 0;
   }
 
   /** 특정 사용자 스코프만 지우기 위한 접두사 조회 (탈퇴 파기) */

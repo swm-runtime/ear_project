@@ -110,8 +110,9 @@ export class IdempotencyService {
     await this.idempotencyRepository.deleteByOwnerKey(ownerKey, manager);
   }
 
-  async purgeExpired(now: Date): Promise<void> {
-    await this.idempotencyRepository.deleteExpired(now);
+  /** 만료 행 청소. 호출자는 `IdempotencyPurgeScheduler`다 — 이 경로가 곧 보존 기간이다 */
+  async purgeExpired(now: Date): Promise<number> {
+    return this.idempotencyRepository.deleteExpired(now);
   }
 
   private conflict(): BusinessConflictException {

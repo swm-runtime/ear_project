@@ -5,13 +5,11 @@ import {
   HttpStatus,
   Post,
   UseGuards,
-  UseInterceptors,
 } from '@nestjs/common';
 
 import type { AuthenticatedUser } from '@/common/decorators/current-user.decorator';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
-import { IdempotencyInterceptor } from '@/modules/idempotency/idempotency.interceptor';
 
 import { AuthService } from './services/auth.service';
 import { LogoutRequestDto } from './dto/logout-request.dto';
@@ -61,9 +59,19 @@ export class AuthController {
     return PipelineLoginResponseDto.from(tokens);
   }
 
-  // 재시도로 계정이 두 개 생기지 않게 한다 (auth-api.md 3장 ★)
+  /**
+   * 재시도로 계정이 두 개 생기지 않게 한다 (auth-api.md 3장 ★).
+   *
+   * **멱등 캐시를 쓰지 않는다.** 응답에 `refresh_token` 원문이 실려 있어, 캐시에 넣으면
+   * `idempotency_keys.response_body`에 **평문 30일짜리 자격증명이 남는다** —
+   * `sessions`가 해시만 저장하는 이유(domain.md 3.3)를 이 한 테이블이 무력화한다.
+   *
+   * 그러면서 중복 방지에 보태는 것도 없다. 순차 재시도는 `signUp`의
+   * `findByProvider` → `existing ?? createUser`가 막고, 동시 요청은
+   * `uq_users_provider_provider_user_id`가 막는다(`UserService.createUser`가 흡수한다).
+   * `Idempotency-Key` 헤더는 계속 받는다 — 클라이언트의 5xx 자동 재시도 조건이다.
+   */
   @Post('sign-up')
-  @UseInterceptors(IdempotencyInterceptor)
   async signUp(@Body() request: SignUpRequestDto): Promise<SignUpResponseDto> {
     const result = await this.authService.signUp(
       {

@@ -92,40 +92,48 @@ export class DripBatchOrchestrator {
 
     let afterId: string | null = null;
 
-    for (;;) {
-      const users: User[] = await this.userService.findDripTargetsPage(
-        afterId,
-        DRIP_BATCH_USER_PAGE_SIZE,
-      );
+    /**
+     * **어떻게 끝나든 실행 기록을 닫는다.** 사용자 단위 실패는 아래에서 흡수되지만,
+     * 페이지 조회처럼 루프 자체가 던지는 경로가 남아 있다. 그때 `finish`를 건너뛰면
+     * `finished_at`이 NULL로 남아 **그날 재실행이 막힌다** — 이제는 오래된 행을 다시
+     * 집을 수 있지만(`DRIP_BATCH_STALE_MS`), 그건 마지막 방어선이지 정상 경로가 아니다.
+     */
+    try {
+      for (;;) {
+        const users: User[] = await this.userService.findDripTargetsPage(
+          afterId,
+          DRIP_BATCH_USER_PAGE_SIZE,
+        );
 
-      if (users.length === 0) {
-        break;
-      }
-
-      for (const user of users) {
-        counts.targetCount += 1;
-
-        try {
-          const outcome = await this.scheduleForUser(user, now);
-
-          if (outcome === 'scheduled') {
-            counts.successCount += 1;
-          } else {
-            counts.skippedCount += 1;
-          }
-        } catch (error) {
-          counts.failedCount += 1;
-          this.logger.warn('drip scheduling failed for user', {
-            user_id: user.id,
-            error: toErrorMessage(error),
-          });
+        if (users.length === 0) {
+          break;
         }
+
+        for (const user of users) {
+          counts.targetCount += 1;
+
+          try {
+            const outcome = await this.scheduleForUser(user, now);
+
+            if (outcome === 'scheduled') {
+              counts.successCount += 1;
+            } else {
+              counts.skippedCount += 1;
+            }
+          } catch (error) {
+            counts.failedCount += 1;
+            this.logger.warn('drip scheduling failed for user', {
+              user_id: user.id,
+              error: toErrorMessage(error),
+            });
+          }
+        }
+
+        afterId = users[users.length - 1].id;
       }
-
-      afterId = users[users.length - 1].id;
+    } finally {
+      await this.dripBatchRunService.finish(run, counts, new Date());
     }
-
-    await this.dripBatchRunService.finish(run, counts, new Date());
 
     // 건당 로그를 남기지 않고 실행 결과를 집계해 한 번 남긴다 (convention.md 8.3 — 드립 편성)
     this.logger.log('drip batch finished', { runDate, ...counts });
