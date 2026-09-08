@@ -10,6 +10,7 @@ import {
   toPreviousFinalWeekStart,
 } from '@/common/utils/service-date.util';
 
+import { WITHDRAWN_SYNC_MAX_LIMIT } from '../content.constant';
 import {
   ALL_TIME_PERIOD_START,
   ContentStatus,
@@ -57,11 +58,32 @@ export class ContentService {
   ) {}
 
   /** 회수 동기화(`partner-control.md` 4.3) — 그 시각 이후 회수된 콘텐츠 id 목록 */
-  async findWithdrawnIdsSince(
+  /**
+   * 회수 동기화 한 페이지(`partner-control.md` 4.3).
+   *
+   * **상한을 서버가 강제한다.** `since`가 클라이언트 값이라 상한이 없으면 오래된 값 하나로
+   * 전 구간을 긁어 갈 수 있다(architecture.md 9.3). 잘렸을 때는 마지막 항목의 회수 시각을
+   * 함께 돌려주어, 클라이언트가 그 값을 다음 `since`로 써서 이어 받게 한다.
+   */
+  async findWithdrawnSince(
     since: Date,
     manager?: EntityManager,
-  ): Promise<string[]> {
-    return this.contentRepository.findWithdrawnIdsSince(since, manager);
+  ): Promise<{ contentIds: string[]; nextSince: string | null }> {
+    const rows = await this.contentRepository.findWithdrawnSince(
+      since,
+      WITHDRAWN_SYNC_MAX_LIMIT,
+      manager,
+    );
+    const hasNext = rows.length > WITHDRAWN_SYNC_MAX_LIMIT;
+    const page = hasNext ? rows.slice(0, WITHDRAWN_SYNC_MAX_LIMIT) : rows;
+
+    return {
+      contentIds: page.map((row) => row.id),
+      // 이어 받을 자리가 없으면 커서를 발급하지 않는다 — 있으면 계속 부르게 된다
+      nextSince: hasNext
+        ? page[page.length - 1].withdrawnAt.toISOString()
+        : null,
+    };
   }
 
   /**

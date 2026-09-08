@@ -87,7 +87,10 @@ export class EnvironmentVariables {
    * 공유한다. **JWT_SECRET과 겹쳐 쓰지 않는다**(아래 pepper 원칙과 동일). 비우면
    * `/auth/pipeline-login`이 비활성화된다 — 그래서 선택값이다.
    */
-  @IsOptional()
+  @ValidateIf(
+    (env: EnvironmentVariables) =>
+      env.PIPELINE_SSO_SECRET !== undefined && env.PIPELINE_SSO_SECRET !== '',
+  )
   @IsString()
   @MinLength(32)
   PIPELINE_SSO_SECRET?: string;
@@ -309,6 +312,48 @@ export class EnvironmentVariables {
 }
 
 /**
+ * **서로 같은 값이면 안 되는 비밀값들.** 각각의 이유는 위 필드 주석에 있고, 요지는 둘이다 —
+ * 하나가 유출될 때 피해 범위가 함께 넓어지는 것(pepper 두 개 · 오디오 서명 키), 그리고
+ * **신뢰 경계를 넘는 것**(`PIPELINE_SSO_SECRET`은 파이프라인 웹 서버와 공유한다. 이 값이
+ * `JWT_SECRET`과 같으면 그 서버가 `role: 'admin'` access token을 직접 서명해 발급할 수 있고,
+ * `/auth/pipeline-login`이 관리자 계정으로 좁혀 둔 제한이 통째로 우회된다).
+ *
+ * **길이 검증만으로는 이 규칙이 지켜지지 않는다** — 같은 값을 넣어도 전부 통과한다.
+ * 그리고 이미 그 값으로 쓰인 해시·토큰은 나중에 키를 바꿔도 되돌릴 수 없으므로,
+ * 경고가 아니라 **기동 실패**로 막는다(이 파일 상단의 원칙 — 누락과 같은 등급의 설정 오류다).
+ */
+const MUTUALLY_DISTINCT_SECRETS = [
+  'JWT_SECRET',
+  'ARCHIVE_HASH_PEPPER',
+  'WITHDRAWAL_HASH_PEPPER',
+  'AUDIO_URL_SIGNING_KEY',
+  'PIPELINE_SSO_SECRET',
+  'CLOUDFRONT_PRIVATE_KEY_BASE64',
+] as const satisfies readonly (keyof EnvironmentVariables)[];
+
+/**
+ * 값이 겹치는 묶음을 전부 찾아 변수 이름만 돌려준다.
+ *
+ * **값을 절대 담지 않는다** — 부팅 로그·CI 출력에 살아 있는 키가 그대로 찍힌다.
+ * 비교는 평범한 문자열 동등성으로 한다. 양쪽 다 우리가 주입한 설정값이라 공격자가 관측할
+ * 타이밍 채널이 없고, 상수 시간 비교를 쓰면 의도만 흐려진다.
+ */
+function findDuplicatedSecrets(env: EnvironmentVariables): string[][] {
+  const byValue = new Map<string, string[]>();
+
+  for (const name of MUTUALLY_DISTINCT_SECRETS) {
+    const value = env[name];
+    // 선택값(비활성)은 검사 대상이 아니다 — 없는 것끼리 같다고 볼 이유가 없다
+    if (typeof value !== 'string' || value === '') {
+      continue;
+    }
+    byValue.set(value, [...(byValue.get(value) ?? []), name]);
+  }
+
+  return [...byValue.values()].filter((names) => names.length > 1);
+}
+
+/**
  * 실패 메시지에 값을 담지 않는다. 비밀값이 그대로 로그에 남는 것을 막기 위해
  * 위반한 변수 이름과 제약 조건만 노출한다 (convention.md 8.4).
  */
@@ -318,14 +363,18 @@ export function validateEnv(
   const validated = plainToInstance(EnvironmentVariables, config);
   const errors = validateSync(validated, { skipMissingProperties: false });
 
-  if (errors.length > 0) {
-    const reasons = errors
-      .map(
-        (error) =>
-          ` - ${error.property}: ${Object.values(error.constraints ?? {}).join(', ')}`,
-      )
-      .join('\n');
-    throw new Error(`environment validation failed\n${reasons}`);
+  const reasons = errors.map(
+    (error) =>
+      ` - ${error.property}: ${Object.values(error.constraints ?? {}).join(', ')}`,
+  );
+
+  // 개별 필드가 전부 통과해도 **서로 같으면** 설정이 잘못된 것이다
+  for (const names of findDuplicatedSecrets(validated)) {
+    reasons.push(` - ${names.join(', ')}: 서로 다른 값이어야 합니다`);
+  }
+
+  if (reasons.length > 0) {
+    throw new Error(`environment validation failed\n${reasons.join('\n')}`);
   }
 
   return validated;

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { DRIP_BATCH_STALE_MS } from '../drip.constant';
 import { DripBatchRun } from '../entities/drip-batch-run.entity';
 import { DripBatchRunRepository } from '../repositories/drip-batch-run.repository';
 
@@ -26,7 +27,11 @@ export class DripBatchRunService {
    * 호출부는 배치를 시작하지 않는다(`drip-scheduling.md` 4.6-5 멱등 규칙).
    */
   async claim(runDate: string, startedAt: Date): Promise<DripBatchRun | null> {
-    return this.dripBatchRunRepository.claim(runDate, startedAt);
+    return this.dripBatchRunRepository.claim(
+      runDate,
+      startedAt,
+      new Date(startedAt.getTime() - DRIP_BATCH_STALE_MS),
+    );
   }
 
   async finish(

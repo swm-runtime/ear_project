@@ -79,11 +79,24 @@ export class EmailVerificationService {
 
       const user = await this.userService.getById(userId);
 
-      // 인증까지 끝난 같은 주소만 막는다. 미인증 주소는 [이 주소로 인증] 경로이므로 보내야 한다
-      if (user.email === email && user.isEmailVerified) {
+      /**
+       * **인증이 끝난 계정은 주소가 무엇이든 막는다**(`auth.md` 4.4 — 확정 2026-09-08).
+       *
+       * 잠그는 이유는 그 값이 **탈퇴 후 거래기록 보존의 식별자**이기 때문이다
+       * (`domain.md` 11.3). 앱에서 임의로 바꾸게 두면 보존 대상 주소가 거래 시점의
+       * 주소와 달라진다. 4.4는 "새 주소로 코드 인증을 통과하면 변경 허용"하는 안을
+       * **명시적으로 검토하고 기각했다.**
+       *
+       * **`user.email === email` 조건이 있으면 그 기각된 동작이 그대로 열린다** —
+       * 다른 주소를 보내면 통과하고, 인증에 성공하면 `updateVerifiedEmail`이 덮어쓴다.
+       * 화면이 진입점을 감추는 것은 안내이지 판정이 아니다(공통 원칙 — 판정은 서버가 한다).
+       *
+       * 변경이 필요한 사용자는 고객센터로 간다(4.4).
+       */
+      if (user.isEmailVerified) {
         throw new BusinessConflictException({
           errorCode: ErrorCode.EMAIL_ALREADY_REGISTERED,
-          message: '이미 등록된 이메일이에요',
+          message: '이미 인증된 이메일이 있어요',
         });
       }
 

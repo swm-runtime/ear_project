@@ -33,3 +33,13 @@ export const EMBEDDING_MODEL_ID = 'text-embedding-3-small';
 
 /** domain.md 5.6 — `vector(1536)` 확정 차원. 업로드 검증과 스키마가 같은 값을 봐야 한다 */
 export const EMBEDDING_DIM = 1536;
+
+/**
+ * 회수 동기화(`GET /contents/withdrawn`) 한 응답의 상한.
+ *
+ * **`since`가 클라이언트 값이라 상한이 없으면 전 구간 스캔이 된다** — `1970-01-01`을 보내면
+ * 회수된 콘텐츠 전부가 페이징 없이 내려온다(`architecture.md` 9.3 — 목록 조회는 서버가
+ * `limit`을 강제한다). 잘렸다는 사실은 응답이 알려주고, 클라이언트는 마지막 회수 시각을
+ * 다음 `since`로 써서 이어 받는다.
+ */
+export const WITHDRAWN_SYNC_MAX_LIMIT = 200;

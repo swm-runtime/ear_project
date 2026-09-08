@@ -111,29 +111,9 @@ export class LibraryScreenOrchestrator {
    * 구성과 개수가 흔들리면 두 필터를 조합할 수 없다.
    */
   async getTopics(userId: string): Promise<LibraryTopicView[]> {
-    const contentIds = await this.libraryService.findVisibleContentIds(userId);
-    const topicViews = await this.contentService.findTopicViews(contentIds);
-
-    // findTopicViews는 `topics.display_order` 순이므로 첫 등장 순서가 곧 노출 순서다
-    const byTopicId = new Map<string, LibraryTopicView>();
-
-    for (const view of topicViews) {
-      const existing = byTopicId.get(view.topicId);
-
-      if (existing) {
-        existing.itemCount += 1;
-        continue;
-      }
-
-      byTopicId.set(view.topicId, {
-        topicId: view.topicId,
-        name: view.name,
-        itemCount: 1,
-      });
-    }
-
+    // 집계·정렬(`topics.display_order`)은 SQL이 끝낸다 — 여기서 다시 세지 않는다.
     // 담긴 항목이 하나도 없으면 빈 배열이다. **404가 아니다** — 빈 라이브러리는 정상 상태다
-    return [...byTopicId.values()];
+    return this.libraryService.countByTopicForUser(userId);
   }
 
   /**
@@ -150,11 +130,8 @@ export class LibraryScreenOrchestrator {
     userId: string,
     now: Date,
   ): Promise<LibraryResumeResult> {
-    const startedContentIds =
-      await this.playbackService.findStartedContentIds(userId);
-
     const [item, quota] = await Promise.all([
-      this.libraryService.findResumeTarget(userId, startedContentIds),
+      this.libraryService.findResumeTarget(userId),
       this.playbackService.buildQuotaForUser(userId, now),
     ]);
 

@@ -26,7 +26,6 @@ const NOW = new Date('2026-08-05T09:00:00.000Z');
 const ADDED_AT = new Date('2026-08-03T21:10:00.000Z');
 const USER_ID = '11111111-1111-4111-8111-111111111111';
 const CONTENT_ID = 'aaaaaaaa-1111-4111-8111-111111111111';
-const OTHER_CONTENT_ID = 'bbbbbbbb-1111-4111-8111-111111111111';
 
 const QUOTA = {
   dailyPlayLimit: 2,
@@ -95,7 +94,7 @@ describe('LibraryScreenOrchestrator', () => {
   beforeEach(() => {
     libraryService = {
       findPage: jest.fn().mockResolvedValue({ items: [], hasNext: false }),
-      findVisibleContentIds: jest.fn().mockResolvedValue([]),
+      countByTopicForUser: jest.fn().mockResolvedValue([]),
       findResumeTarget: jest.fn().mockResolvedValue(null),
       getOwnedItem: jest.fn(),
       getOwnedItemWithDeleted: jest.fn(),
@@ -260,22 +259,19 @@ describe('LibraryScreenOrchestrator', () => {
   });
 
   describe('getTopics', () => {
-    it('라이브러리에 담긴 콘텐츠의 주제를 개수와 함께 내려준다', async () => {
-      // given
-      libraryService.findVisibleContentIds.mockResolvedValue([
-        CONTENT_ID,
-        OTHER_CONTENT_ID,
-      ]);
-      contentService.findTopicViews.mockResolvedValue([
-        { contentId: CONTENT_ID, topicId: 'topic-1', name: '커리어' },
-        { contentId: OTHER_CONTENT_ID, topicId: 'topic-1', name: '커리어' },
-        { contentId: OTHER_CONTENT_ID, topicId: 'topic-2', name: '생산성' },
+    it('집계와 정렬을 SQL에 맡기고 결과를 그대로 내려준다', async () => {
+      // given — 종전에는 담긴 content_id를 전부 읽어 애플리케이션에서 셌다.
+      // GROUP BY가 하는 일이라 라이브러리가 커질수록 왕복과 메모리만 늘었다
+      libraryService.countByTopicForUser.mockResolvedValue([
+        { topicId: 'topic-1', name: '커리어', itemCount: 2 },
+        { topicId: 'topic-2', name: '생산성', itemCount: 1 },
       ]);
 
       // when
       const topics = await orchestrator.getTopics(USER_ID);
 
       // then
+      expect(libraryService.countByTopicForUser).toHaveBeenCalledWith(USER_ID);
       expect(topics).toEqual([
         { topicId: 'topic-1', name: '커리어', itemCount: 2 },
         { topicId: 'topic-2', name: '생산성', itemCount: 1 },
@@ -305,17 +301,16 @@ describe('LibraryScreenOrchestrator', () => {
       expect(result.quota).toEqual(QUOTA);
     });
 
-    it('재생 위치가 있는 콘텐츠 중에서만 복원 대상을 찾는다', async () => {
-      // given — 위치가 0이면 처음부터 듣는 것과 같다
-      playbackService.findStartedContentIds.mockResolvedValue([CONTENT_ID]);
+    it('시작한 콘텐츠 목록을 만들지 않는다 — 위치 존재 여부는 SQL이 본다', async () => {
+      // given — 그 목록은 청취 이력만큼 자라고 앱을 켤 때마다 만들어졌다.
+      // 필요한 것은 "이어 들을 위치가 있는가" 하나뿐이다(위치 0은 처음부터 듣는 것과 같다)
 
       // when
       await orchestrator.getResumeTarget(USER_ID, NOW);
 
       // then
-      expect(libraryService.findResumeTarget).toHaveBeenCalledWith(USER_ID, [
-        CONTENT_ID,
-      ]);
+      expect(libraryService.findResumeTarget).toHaveBeenCalledWith(USER_ID);
+      expect(playbackService.findStartedContentIds).not.toHaveBeenCalled();
     });
   });
 

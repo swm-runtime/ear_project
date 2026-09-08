@@ -101,12 +101,12 @@ export class PlayPolicyService {
     // 페이월 노출은 서비스가 의도한 정상 분기이므로 info다(convention.md 8.2).
     // 필드 셋은 정책 판정 로그의 필수 목록이다(8.3 — error_code · tier · play_count)
     this.logger.log('play blocked by daily limit', {
-      userId,
-      contentId,
-      errorCode,
+      user_id: userId,
+      content_id: contentId,
+      error_code: errorCode,
       tier: user.tier,
-      dailyPlayCount,
-      dailyPlayLimit,
+      play_count: dailyPlayCount,
+      play_limit: dailyPlayLimit,
     });
 
     throw errorCode === ErrorCode.PLAY_LIMIT_REACHED

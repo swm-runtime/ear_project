@@ -257,7 +257,8 @@ export class ProfileOrchestrator {
     // 부분 실패는 화면이 흡수하는 정상 경로이지만, 반복되면 조치가 필요하므로 warn이다
     this.logger.warn('profile section failed', {
       section,
-      userId,
+      // convention.md 8.1 — 로그 공통 필드는 snake_case `user_id`다
+      user_id: userId,
       reason: error instanceof Error ? error.message : 'unknown',
     });
   }

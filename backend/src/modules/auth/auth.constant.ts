@@ -12,6 +12,16 @@ export const ACCESS_TOKEN_TYPE = 'access';
 
 /** 파이프라인 웹 SSO 어서션의 typ (changes/pending/pipeline-sso-login.md) */
 export const PIPELINE_ASSERTION_TYPE = 'pipeline_sso';
+
+/**
+ * 파이프라인 SSO 어서션의 최대 나이. 서명자는 60초(`auth-api.md` 4.12)를 쓰고, 여기에
+ * 두 서버의 시계 오차 여유를 더한 값이다.
+ *
+ * **`exp` 검사만으로는 부족해서 둔다** — `exp`가 없는 어서션은 만료가 없고, 서명하는 쪽은
+ * 다른 배포라 우리가 그 존재를 보장할 수 없다. `maxAge`는 `iat`가 없으면 거부하므로
+ * 시간 클레임의 존재까지 함께 강제한다.
+ */
+export const PIPELINE_ASSERTION_MAX_AGE = '2m';
 export const SIGNUP_TOKEN_TYPE = 'signup';
 
 /** 개발용 대역 계정의 provider_user_id 길이 — `users.provider_user_id`(varchar 255) 안에 고정한다 */

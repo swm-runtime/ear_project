@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { IdempotencyKey } from './idempotency-key.entity';
+import { IdempotencyPurgeScheduler } from './idempotency-purge.scheduler';
 import { IdempotencyInterceptor } from './idempotency.interceptor';
 import { IdempotencyRepository } from './idempotency.repository';
 import { IdempotencyService } from './idempotency.service';
@@ -13,6 +14,7 @@ import { IdempotencyService } from './idempotency.service';
     IdempotencyRepository,
     IdempotencyService,
     IdempotencyInterceptor,
+    IdempotencyPurgeScheduler,
   ],
   exports: [IdempotencyService, IdempotencyInterceptor],
 })

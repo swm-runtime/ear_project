@@ -1,9 +1,10 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { BusinessNotFoundException } from '@/common/exceptions/business-not-found.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
+import { isUniqueViolation } from '@/common/utils/unique-violation.util';
 
 import { ConsentService } from './consent.service';
 import { User } from '../entities/user.entity';
@@ -23,6 +24,8 @@ import { CreateUserCommand } from '../user.types';
 
 @Injectable()
 export class UserService {
+  private readonly logger = new Logger(UserService.name);
+
   constructor(
     private readonly userRepository: UserRepository,
     private readonly consentService: ConsentService,
@@ -75,6 +78,45 @@ export class UserService {
   async createUser(command: CreateUserCommand, now: Date): Promise<User> {
     this.assertRequiredConsents(command);
 
+    try {
+      return await this.insertUser(command, now);
+    } catch (error) {
+      if (!isUniqueViolation(error)) {
+        throw error;
+      }
+
+      /**
+       * **동시에 도착한 가입 요청 중 하나가 먼저 만들었다.**
+       * `uq_users_provider_provider_user_id`가 중복 계정을 막았으므로 그 계정을 돌려준다 —
+       * 순차 재시도가 `findByProvider`에서 걸리는 것과 같은 결과다(`auth.service.ts` signUp).
+       *
+       * 흡수하지 않으면 500 `INTERNAL_ERROR`(retryable: true)가 나가고, 클라이언트가 같은
+       * 요청을 자동 재시도한다(architecture.md 8.4 — 유니크 위반은 도메인 흐름으로 흡수한다).
+       * 트랜잭션이 이미 중단됐으므로 조회는 **밖에서** 한다.
+       */
+      const existing = await this.findByProvider(
+        command.provider,
+        command.providerUserId,
+      );
+
+      if (!existing) {
+        // 다른 유니크 제약이 걸린 것이다 — 삼키면 원인을 잃는다
+        throw error;
+      }
+
+      this.logger.warn('concurrent sign-up absorbed by unique constraint', {
+        user_id: existing.id,
+        provider: command.provider,
+      });
+
+      return existing;
+    }
+  }
+
+  private async insertUser(
+    command: CreateUserCommand,
+    now: Date,
+  ): Promise<User> {
     return this.dataSource.transaction(async (manager) => {
       const user = this.userRepository.create({
         provider: command.provider,

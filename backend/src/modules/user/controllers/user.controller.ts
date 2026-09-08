@@ -87,14 +87,17 @@ export class UserController {
     @Param('deviceId') deviceId: string,
     @Body() request: RegisterDeviceRequestDto,
   ): Promise<void> {
-    await this.deviceTokenService.register({
-      userId: currentUser.id,
-      deviceId,
-      pushToken: request.push_token ?? null,
-      platform: request.platform,
-      isOsPermissionGranted: request.is_os_permission_granted,
-      appVersion: request.app_version,
-    });
+    await this.deviceTokenService.register(
+      {
+        userId: currentUser.id,
+        deviceId,
+        pushToken: request.push_token ?? null,
+        platform: request.platform,
+        isOsPermissionGranted: request.is_os_permission_granted,
+        appVersion: request.app_version,
+      },
+      new Date(),
+    );
   }
 
   @Post('consents')

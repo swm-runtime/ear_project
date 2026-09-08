@@ -331,7 +331,7 @@ export class UserInterestService {
         // 탐색 랭킹은 조회 시점에 `user_interests`를 읽고("다음 조회부터 즉시"가 그대로
         // 성립), 드립 편성 배치도 실행 시점에 읽는다. 캐시가 도입되면 여기서 무효화한다.
         this.logger.log('user interests replaced', {
-          userId,
+          user_id: userId,
           addedCount: addedTopicIds.length,
           removedCount: removedTopicIds.length,
           addedTopicIds,

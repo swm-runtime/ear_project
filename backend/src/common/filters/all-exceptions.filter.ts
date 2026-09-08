@@ -35,9 +35,17 @@ interface MappedError {
 const INTERNAL_ERROR_MESSAGE =
   '일시적인 오류가 발생했어요. 잠시 후 다시 시도해주세요';
 
-/** 프레임워크가 던진 HttpException을 사용자 노출 문구로 바꾼다. 원본 메시지는 로그에만 남긴다 */
+/**
+ * 프레임워크가 던진 HttpException을 사용자 노출 문구로 바꾼다. 원본 메시지는 로그에만 남긴다.
+ *
+ * **400은 일부러 비워 둔다.** 아래 폴백("문제가 발생했어요")이 받는다 — `INTERNAL_ERROR_MESSAGE`를
+ * 쓰면 `retryable: false`인 응답이 "잠시 후 다시 시도해주세요"라고 말하게 되고, 클라이언트는
+ * 서버 문구를 우선 표시하므로(`common-error-handling.md` 4장) 그 문장이 실제로 노출된다.
+ * 형식 오류는 다시 보내도 결과가 같다(9.1 — "재시도를 권하지 않는다").
+ *
+ * 원본 class-validator 메시지를 그대로 내보내지 않는 것은 그대로다 — 필드명·입력값이 새어 나간다.
+ */
 const STATUS_MESSAGES: Record<number, string> = {
-  [HttpStatus.BAD_REQUEST]: INTERNAL_ERROR_MESSAGE,
   [HttpStatus.UNAUTHORIZED]: '로그인이 필요해요',
   [HttpStatus.FORBIDDEN]: '접근 권한이 없어요',
   [HttpStatus.NOT_FOUND]: '찾을 수 없어요',

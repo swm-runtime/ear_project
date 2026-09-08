@@ -181,7 +181,7 @@ describe('SubscriptionService', () => {
       expect(plan.status).toBe(PlanStatus.SUBSCRIBED);
       expect(warn).toHaveBeenCalledWith(
         'cancelled subscription has auto renew on',
-        expect.objectContaining({ userId: USER_ID }),
+        expect.objectContaining({ user_id: USER_ID }),
       );
 
       warn.mockRestore();

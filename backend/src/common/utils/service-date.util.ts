@@ -165,11 +165,16 @@ export function toWeekDates(weekStart: string): string[] {
  *
  * 5월이면 4월을 가리킨다 — 진행 중인 달의 미확정 집계를 쓰면 순위가 매일 흔들린다
  * (domain.md 5.4, `features/README.md` 결정 20번).
+ *
+ * **`toServiceDay`를 거친다**(주간 함수와 같은 이유 — domain.md 1.2). 자정으로 세면
+ * 매달 1일 00~04시 동안만 한 달이 앞서 넘어가, 아직 04시 배치가 쓰지 않은
+ * `period_start`를 조회하게 된다. 월간은 탐색 인기 섹션의 **기본 구간**이라
+ * 그 4시간 동안 목록이 조용히 빈다.
  */
 export function toPreviousFinalMonthStart(date: Date): string {
-  const kst = toKstWallClock(date);
-  const year = kst.getUTCFullYear();
-  const month = kst.getUTCMonth() + 1;
+  const serviceDay = toServiceDay(date);
+  const year = serviceDay.getUTCFullYear();
+  const month = serviceDay.getUTCMonth() + 1;
 
   return month === 1
     ? formatDate(year - 1, 12, 1)

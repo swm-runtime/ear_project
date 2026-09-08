@@ -85,8 +85,8 @@ export class AudioUrlService {
 
     // 감사·이상 탐지 근거(convention.md 8.3 — 콘텐츠 접근). URL은 로그에도 남기지 않는다
     this.logger.log('audio url issued', {
-      userId: command.userId,
-      contentId: command.contentId,
+      user_id: command.userId,
+      content_id: command.contentId,
       expiresAt: audio.expiresAt.toISOString(),
     });
 
