@@ -75,10 +75,14 @@ export default function EmailRow({ state, onPress, onRetry, isRetrying }: EmailR
         <Text style={styles.label}>{SETTINGS_COPY.email.label}</Text>
         <View style={styles.valueLine}>
           <Text style={styles.value}>{valueText}</Text>
-          {vm.status === 'unverified' ? (
+          {/* 인증 전이면 배지를 단다 — 미등록도 포함이다(profile.md 4.3 과 같은 구분) */}
+          {vm.status !== 'verified' ? (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>
-                {SETTINGS_COPY.email.unverifiedGlyph} {SETTINGS_COPY.email.unverifiedBadge}
+                {SETTINGS_COPY.email.unverifiedGlyph}{' '}
+                {vm.status === 'unregistered'
+                  ? SETTINGS_COPY.email.unregisteredBadge
+                  : SETTINGS_COPY.email.unverifiedBadge}
               </Text>
             </View>
           ) : null}
@@ -132,15 +136,17 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   badge: {
-    borderRadius: theme.radius.sm,
-    backgroundColor: theme.color.surface,
+    borderRadius: theme.radius.full,
+    backgroundColor: theme.color.warningSurface,
+    borderWidth: 1,
+    borderColor: theme.color.warning,
     paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs,
+    paddingVertical: 2,
   },
   badgeText: {
     fontSize: theme.font.size.xs,
-    fontWeight: '600',
-    color: theme.color.danger,
+    fontWeight: '700',
+    color: theme.color.warning,
   },
   right: {
     flexDirection: 'row',
