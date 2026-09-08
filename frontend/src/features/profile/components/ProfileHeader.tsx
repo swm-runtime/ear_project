@@ -288,16 +288,18 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.sm,
     color: theme.color.textSecondary,
   },
+  /** 면을 채운 노란 알약 — 테두리만 두면 작은 글씨가 배경에 묻힌다 */
   unverifiedBadge: {
     borderRadius: theme.radius.full,
+    backgroundColor: theme.color.warningSurface,
     borderWidth: 1,
-    borderColor: theme.color.danger,
+    borderColor: theme.color.warning,
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: 2,
   },
   unverifiedBadgeText: {
     fontSize: theme.font.size.xs,
-    fontWeight: '600',
-    color: theme.color.danger,
+    fontWeight: '700',
+    color: theme.color.warning,
   },
 });
