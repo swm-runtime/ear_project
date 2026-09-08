@@ -5,6 +5,7 @@ import { EarContent, listEarContents, restoreEarContent, withdrawEarContent } fr
 import { Badge, LinkBtn, PageHeader, Panel, Toolbar, btnCls } from "@/components/ui";
 import { fmtTime } from "@/lib/format";
 import { EarGate, EarSession, earErrMsg } from "./ear-connect";
+import { LinkPublished } from "./link-published";
 
 const LIMIT = 20;
 
@@ -15,7 +16,7 @@ export default function PublishPage() {
       <PageHeader title="제품 발행" breadcrumb={["파이프라인", "제품 발행"]}
         desc="제품(앱)에 발행된 콘텐츠의 목록·회수·복구. 발행은 에피소드 화면의 [제품 발행] 또는 수동 업로드로."
         actions={<EarSession />} />
-      <EarGate><ContentList /></EarGate>
+      <EarGate><LinkPublished /><ContentList /></EarGate>
     </div>
   );
 }
