@@ -16,6 +16,8 @@ export interface ExecRequest {
   schema: object;
   /** 허용 도구 규칙 (Claude Code 권한 규칙 문법: "Read", "Write(episodes/T…/**)", "WebFetch(domain:example.com)", "Bash(python3 *)") */
   allowedTools: string[];
+  /** 내장 도구 목록 제한 (claude --tools). [] 이면 도구 전부 비활성 = 단발 호출 (2단계 대본). 미지정이면 기본 세트 */
+  tools?: string[];
   /** 도구 접근 허용 디렉토리 (cwd 외) */
   addDirs?: string[];
   cwd: string;

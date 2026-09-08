@@ -15,7 +15,7 @@ import { AutoRefresh } from "@/components/auto-refresh";
 import { JobProgress } from "@/components/job-progress";
 import { Badge, LinkBtn, PageHeader, Panel } from "@/components/ui";
 
-const TABS = [["script", "대본"], ["sources", "발췌"], ["claims", "claims"], ["qa", "QA"], ["critic", "비평·판정"], ["pron", "발음"], ["audio", "오디오"], ["meta", "메타"], ["runs", "실행 기록"]] as const;
+const TABS = [["script", "대본"], ["outline", "구성안"], ["sources", "발췌"], ["claims", "claims"], ["qa", "QA"], ["critic", "비평·판정"], ["pron", "발음"], ["audio", "오디오"], ["meta", "메타"], ["runs", "실행 기록"]] as const;
 
 export default async function EpisodePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
   const { id } = await params; const { tab = "script" } = await searchParams;
@@ -28,7 +28,11 @@ export default async function EpisodePage({ params, searchParams }: { params: Pr
     sb.from("jobs").select("id,type,status,attempt,progress,claimed_by,created_at").eq("payload->>episode_id", id).order("created_at"),
   ]);
   const keyOf: Record<string, string | null> = { script: ep.script_key, sources: ep.sources_key, claims: ep.claims_key, qa: ep.qa_report_key, critic: ep.critic_report_key };
-  const content = tab in keyOf ? await readArtifact(keyOf[tab]) : null;
+  // 구성안·대본 노트(2단계 초안, spec/04 8장) — DB 키 없이 script_key 와 같은 디렉토리에서 찾는다 (구 방식 에피소드는 없음)
+  const outlineKey = ep.script_key ? ep.script_key.replace(/script\.md$/, "outline.md") : null;
+  const notesKey = ep.script_key ? ep.script_key.replace(/script\.md$/, "script-notes.md") : null;
+  const content = tab in keyOf ? await readArtifact(keyOf[tab]) : tab === "outline" ? await readArtifact(outlineKey) : null;
+  const scriptNotes = tab === "outline" ? await readArtifact(notesKey) : null;
   const criticMd = tab === "script" ? await readArtifact(ep.critic_report_key) : null; // 대본 탭에서 리포트를 대본 위에 얹어 판정한다
   const ttsJob = (jobs ?? []).find((j) => j.type === "tts" && ["queued", "claimed", "running"].includes(j.status));
   const pkgJob = (jobs ?? []).find((j) => j.type === "package" && ["queued", "claimed", "running"].includes(j.status));
@@ -88,11 +92,18 @@ export default async function EpisodePage({ params, searchParams }: { params: Pr
           </div>
         </Panel>
       )}
-      {tab !== "runs" && tab !== "audio" && tab !== "meta" && tab !== "pron" && content == null && <p className="rounded-md border border-line bg-panel p-6 text-center text-[13px] text-ink-soft">아직 산출물이 없습니다{keyOf[tab] ? ` (키: ${keyOf[tab]} — 서버에서 읽을 수 없음. s3: 키면 PIPELINE_BUCKET·AWS 자격증명(인스턴스 역할 / 로컬 AWS_PROFILE), local: 키면 WORK_ROOT 확인)` : ""}.</p>}
+      {tab === "outline" && content == null && <p className="rounded-md border border-line bg-panel p-6 text-center text-[13px] text-ink-soft">구성안이 없습니다 — 2단계 초안(설계→대본)으로 만든 에피소드에만 있습니다.</p>}
+      {tab !== "runs" && tab !== "audio" && tab !== "meta" && tab !== "pron" && tab !== "outline" && content == null && <p className="rounded-md border border-line bg-panel p-6 text-center text-[13px] text-ink-soft">아직 산출물이 없습니다{keyOf[tab] ? ` (키: ${keyOf[tab]} — 서버에서 읽을 수 없음. s3: 키면 PIPELINE_BUCKET·AWS 자격증명(인스턴스 역할 / 로컬 AWS_PROFILE), local: 키면 WORK_ROOT 확인)` : ""}.</p>}
       {tab === "script" && content && (criticMd
         ? (() => { const parsed = parseCriticReport(criticMd); const sc = parseCriticScores(criticMd); return <JudgeView episodeId={ep.id} backlogId={ep.backlog_id} turns={parseScript(content)} flags={parsed.flags} stars={parsed.stars} scores={sc.rows} total={sc.total} saved={ep.critic_verdicts} edits={ep.human_edits ?? []} />; })()
         : <ScriptEditor episodeId={ep.id} backlogId={ep.backlog_id} turns={parseScript(content)} edits={ep.human_edits ?? []} editable />)}
       {(tab === "sources" || tab === "claims" || tab === "qa") && content && <Panel className="min-w-0"><pre className="whitespace-pre-wrap break-words font-mono text-[12px] leading-relaxed text-ink">{content}</pre></Panel>}
+      {tab === "outline" && content && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Panel title="구성안 — outline.md (대본 단계의 계약)" className="min-w-0"><pre className="whitespace-pre-wrap break-words font-mono text-[12px] leading-relaxed text-ink">{content}</pre></Panel>
+          <Panel title="대본 노트 — 새 연결·비유 · 자기 점검 · 턴별 claims" className="min-w-0"><pre className="whitespace-pre-wrap break-words font-mono text-[12px] leading-relaxed text-ink">{scriptNotes ?? "(없음)"}</pre></Panel>
+        </div>
+      )}
       {tab === "audio" && (
         audioFiles?.length ? (
           <Panel title="오디오 — 청취 확인 (spec/06 8장) · 서명 URL 1시간(만료 시 새로고침)" className="text-[13px]">

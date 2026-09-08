@@ -28,6 +28,12 @@ export const cfg = {
   capabilities: (process.env.CAPABILITIES || "ai,io").split(",").map((s) => s.trim()) as Capability[],
   /** 대본 생성 모델 — 미설정이면 claude CLI 기본 모델(현재 Fable). 생성 품질이 제품이라 최상위 모델을 쓴다. 바꾸면 spec/09 7.4(생성 대개정) 재검증 */
   claudeModel: process.env.CLAUDE_MODEL || undefined,
+  /** 초안 방식 (2026-09-08 — "축이 이끄는 파이프라인" ③): two-stage = 설계(원문 정독·발췌·claims·구성안) → 대본(원문 없이, 단발 호출).
+   *  single = 구 방식(한 실행이 정독부터 대본까지). 비교 측정용 토글 — DRAFT_MODE=single 로 되돌린다 */
+  draftMode: (process.env.DRAFT_MODE === "single" ? "single" : "two-stage") as "single" | "two-stage",
+  /** 2단계 단계별 모델 — 미설정이면 CLAUDE_MODEL(=CLI 기본). 설계는 정독·구조 판단, 대본은 문장이라 따로 둘 수 있게 */
+  draftDesignModel: process.env.DRAFT_DESIGN_MODEL || process.env.CLAUDE_MODEL || undefined,
+  draftWriteModel: process.env.DRAFT_WRITE_MODEL || process.env.CLAUDE_MODEL || undefined,
   /** 비평 전용 모델 — 2026-09-01 박수헌: 비평은 Opus 고정 (Fable 한도 부족). 판정자 모델은 회귀 세트 재검증 트리거이므로 바꾸면 spec/09 7.4 */
   criticModel: process.env.CRITIC_MODEL || "claude-opus-5",
   /** QA 통과 연쇄가 큐에 넣는 비평 루브릭 (spec/09 7.1 — 회귀 세트 판정은 critic-v2 배점으로, v1 5축에 사람 시간을 쓰지 않는다). 2026-09-07 기본 v2. 되돌리려면 CRITIC_RUBRIC=v1 */
