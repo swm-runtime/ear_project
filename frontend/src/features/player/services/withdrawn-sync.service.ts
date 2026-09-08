@@ -85,5 +85,12 @@ export const startWithdrawnSync = (checkAuthenticated: () => boolean): void => {
   appStateSubscription = AppState.addEventListener('change', (state) => {
     if (state === 'active') syncWithdrawnContents();
   });
+  /*
+   * 여기서 한 번 부르지만 **콜드 스타트에서는 대개 그냥 지나간다** — 기동 시점의 세션은
+   * 아직 `restoring`이라 로그인 판정이 false다. 그리고 콜드 스타트에는 AppState 전이가
+   * 없다(이미 `active`로 뜬다). 그래서 로그인 완료를 신호로 한 번 더 불러야 한다 —
+   * 그 배선은 `app/bootstrap`이 한다(2026-09-08 — 이게 빠져서 앱을 껐다 켜기만 하면
+   * 동기화가 영영 돌지 않았다).
+   */
   syncWithdrawnContents();
 };
