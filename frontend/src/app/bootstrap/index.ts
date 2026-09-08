@@ -1,6 +1,6 @@
 import { registerTokenProvider } from '@/shared/api/api-client';
 
-import { registerEmailVerifiedListener, sessionService } from '@/features/auth';
+import { registerEmailVerifiedListener, sessionService, useSessionStore } from '@/features/auth';
 import { registerCareerSavedListener } from '@/features/career';
 import { registerInterestSavedListener } from '@/features/interest';
 import {
@@ -9,7 +9,7 @@ import {
   libraryKeys,
   restoreLibraryItem,
 } from '@/features/library';
-import { registerPlayerLibraryBridge } from '@/features/player';
+import { registerPlayerLibraryBridge, startWithdrawnSync } from '@/features/player';
 import { profileKeys } from '@/features/profile';
 import { settingsKeys } from '@/features/settings';
 
@@ -19,7 +19,6 @@ import { queryClient } from '../query-client';
  * 앱 초기화 — shared·feature 인터페이스에 도메인 구현을 주입한다(architecture.md 4.3).
  * player ↔ library처럼 의존 방향(library → player)의 역방향 동작이 필요한 곳은
  * 여기서만 배선한다 — feature끼리 서로의 내부를 import하면 순환이 된다.
- * TODO: AppLifecycleService(포그라운드 복귀 조율)는 해당 기능 구현 시 여기서 기동한다.
  */
 export const bootstrapApp = (): void => {
   registerTokenProvider(sessionService);
@@ -59,4 +58,11 @@ export const bootstrapApp = (): void => {
       void queryClient.invalidateQueries({ queryKey: libraryKeys.all });
     },
   });
+
+  /*
+   * 회수 동기화(partner-control.md 4.3) — 앱 실행·포그라운드 복귀마다 회수 목록을 반영한다.
+   * 로그인 여부 판정을 주입한다: player가 auth를 직접 import하면 의존 표(4.4)를 어기고,
+   * 로그아웃 상태로 조회하면 401이 토큰 갱신 실패로 번진다.
+   */
+  startWithdrawnSync(() => useSessionStore.getState().status === 'authenticated');
 };

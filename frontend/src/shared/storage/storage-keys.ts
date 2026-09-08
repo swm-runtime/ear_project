@@ -17,4 +17,13 @@ export const STORAGE_KEYS = {
    * TODO(MMKV): architecture.md 7.2가 정한 저장소는 MMKV다 — 도입 시 이 값부터 이관한다.
    */
   EXPLORE_RECENT_SEARCHES: 'explore.recent_searches',
+  /**
+   * 회수 동기화 커서(partner-control.md 4.3 · player-api.md 4.6) — 마지막으로 회수 목록을
+   * 받아간 시각(ISO8601). 다음 조회의 `since`가 된다.
+   *
+   * 기기 시각으로 적는다. 정책 판정이 아니라 "어디까지 받아갔나" 표시라 허용되지만,
+   * 시계가 앞서 있으면 그 사이 회수분을 건너뛴다 — 조회 시 여유(`SYNC_SKEW_MARGIN_MS`)를
+   * 빼서 겹쳐 받는다. 중복 수신은 무해하다(이미 사라진 것을 다시 지울 뿐).
+   */
+  PLAYER_WITHDRAWN_SYNCED_AT: 'player.withdrawn_synced_at',
 } as const;

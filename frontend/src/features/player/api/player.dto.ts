@@ -65,10 +65,17 @@ export interface PlaybackProgressPutRequestDto {
   content_version: number;
 }
 
+/** GET /contents/withdrawn 응답(player-api.md 4.6) — withdrawn_at 오름차순 */
+export interface WithdrawnContentsResponseDto {
+  content_ids: string[];
+}
+
 export interface PlaybackProgressPutResponseDto {
   position_sec: number;
   max_reached_sec: number;
   content_version: number;
+  /** 콘텐츠 현재 상태(player-api.md 4.3 — 추가 2026-09-08). `withdrawn`이면 재생을 멈춘다 */
+  content_status: 'published' | 'withdrawn';
   library_item: {
     id: string;
     status: PlayedLibraryItemStatus;
