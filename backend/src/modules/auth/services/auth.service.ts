@@ -159,7 +159,8 @@ export class AuthService {
 
     if (session.revokedAt) {
       await this.sessionRepository.revokeAllByUserId(session.userId, now);
-      this.logger.error('refresh token reuse detected', undefined, {
+      // 두 번째 인자는 스택 자리다 — undefined를 넘기면 "undefined"가 별도 줄로 찍힌다
+      this.logger.error('refresh token reuse detected', {
         user_id: session.userId,
       });
 
