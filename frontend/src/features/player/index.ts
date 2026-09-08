@@ -17,6 +17,11 @@ export {
 } from './services/play-confirm-suppression.service';
 export { usePlayLimitStore } from './store/play-limit.store';
 /**
+ * 회수 동기화 기동(partner-control.md 4.3) — app/bootstrap이 로그인 여부 판정을 주입해 켠다.
+ * 앱 실행·포그라운드 복귀마다 회수 목록을 받아 재생·라이브러리 캐시에 반영한다.
+ */
+export { startWithdrawnSync } from './services/withdrawn-sync.service';
+/**
  * 재생 세션 구독 전용 — 쓰기는 PlaybackService만 한다(playback.store.ts 규칙). 콘텐츠 상세가
  * "현재 재생 중인 콘텐츠면 새 재생 없이 플레이어 복귀"(content-detail.md 4.4) 판정에 쓴다.
  */

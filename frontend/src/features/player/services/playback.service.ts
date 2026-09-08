@@ -565,13 +565,28 @@ class PlaybackService {
       if (store.getState().session?.banner === 'network') {
         store.getState().patchSession({ banner: null });
       }
+
+      /*
+       * 회수 중단의 **주 채널**이다(player-api.md 4.3 · partner-control.md 4.3).
+       * 위치 저장은 재생 중 주기적으로 도는 왕복이라, 파일이 통째로 버퍼링돼 서명 URL
+       * 갱신이 일어나지 않아도 회수가 저장 주기 안에 닿는다 — 만료 5분이 지나도록 재생이
+       * 계속되던 문제를 여기서 닫는다(실증 2026-09-08).
+       */
+      if (result.contentStatus === 'withdrawn') {
+        this.markWithdrawn();
+        return;
+      }
       if (result.contentVersion !== ctx.contentVersion) {
-        // 세션이 들고 있는 버전을 서버 값에 맞춘다. 재발행 폐기는 여기서 하지 않는다 —
-        // 앱은 재생 위치를 로컬에 보관하지 않으므로 "보관값 대비 폐기"를 수행할 수 없다.
-        // 재발행 시 저장된 위치를 어떻게 할지는 서버가 정한다
-        // (docs/tickets/backend/pending/republish-stale-playback-position.md)
+        /*
+         * 저장 요청이 낡은 버전으로 나갔다 — 서버가 이 저장을 버렸다(4.3). 재발행이
+         * 방금 일어난 것이므로 **위치를 폐기하고** 버전을 맞춘다. 버전만 맞추면 다음
+         * 저장이 낡은 위치를 새 버전으로 되살린다(실증 2026-09-08).
+         */
         logger.debug('[player] content version changed', ctx.contentVersion, result.contentVersion);
         ctx.contentVersion = result.contentVersion;
+        ctx.tracking = createTrackingState(0);
+        store.getState().patchSession({ positionSec: 0 });
+        void this.player?.seekTo(0);
       }
       const prevStatus = store.getState().session?.libraryItem?.status ?? null;
       if (result.libraryItem) {
@@ -624,7 +639,22 @@ class PlaybackService {
 
       const session = store.getState().session;
       const wasPlaying = session?.isPlaying ?? false;
-      const positionSec = session?.positionSec ?? 0;
+      /*
+       * **버전이 달라졌으면 재발행이다.** 낡은 위치를 유지하면 서버가 지운
+       * `playback_progresses` 행을 다음 저장이 되살린다(실증 2026-09-08 — 03:45 삭제 →
+       * 03:48 재저장). 오디오가 통째로 바뀌었으므로 같은 초가 다른 내용을 가리키기도 한다.
+       *
+       * **세션 버전을 조용히 올리지 않는다**(player-api.md 4.3) — 올리면 다음 저장이
+       * 새 버전으로 통과해 낡은 위치가 서버에 박힌다. 위치를 0으로 폐기하고 버전을 맞춘다.
+       */
+      const isRepublished = issue.content.contentVersion !== ctx.contentVersion;
+      const positionSec = isRepublished ? 0 : (session?.positionSec ?? 0);
+      if (isRepublished) {
+        ctx.contentVersion = issue.content.contentVersion;
+        ctx.durationSec = issue.content.durationSec;
+        ctx.tracking = createTrackingState(0);
+        store.getState().patchSession({ positionSec: 0 });
+      }
       // 재생기 소스 교체 — 갱신 성공 시 화면 변화가 없어야 한다(uiux 4.9)
       this.player.replace({ uri: issue.audio.url });
       await this.player.seekTo(positionSec);
@@ -647,6 +677,18 @@ class PlaybackService {
     } finally {
       if (this.ctx) this.ctx.isRefreshingUrl = false;
     }
+  }
+
+  /**
+   * 회수 목록 동기화의 반영(player-api.md 4.6) — 재생 중이던 콘텐츠가 목록에 있으면 멈춘다.
+   * 주 채널은 위치 저장(4.3) 응답이고 이쪽은 보완이라, 대개 이미 `withdrawn`이라 할 일이 없다.
+   */
+  handleWithdrawnContents(contentIds: readonly string[]): void {
+    const contentId = this.ctx?.contentId;
+    if (contentId === undefined) return;
+    if (!contentIds.includes(contentId)) return;
+    if (store.getState().session?.state === 'withdrawn') return;
+    this.markWithdrawn();
   }
 
   /** 배너 [다시 시도] — 갱신 실패의 수동 재시도. 인플라이트 중 연타는 가드가 무시한다 */

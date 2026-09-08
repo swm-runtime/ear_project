@@ -82,6 +82,12 @@ export interface ProgressSaveResult {
   positionSec: number;
   maxReachedSec: number;
   contentVersion: number;
+  /**
+   * 서버가 보는 콘텐츠 상태(player-api.md 4.3). **회수 중단의 주 채널이다** —
+   * 위치 저장은 재생 중 주기적으로 도는 왕복이라, 파일이 통째로 버퍼링돼 있어도
+   * 회수가 저장 주기 안에 반영된다(`partner-control.md` 4.3).
+   */
+  contentStatus: 'published' | 'withdrawn';
   /** 이 저장으로 완청이 판정되면 status: 'completed' — 클라이언트는 판정하지 않는다 */
   libraryItem: {
     id: string;
