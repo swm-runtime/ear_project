@@ -4,7 +4,7 @@ import { logger } from '@/shared/lib/logger';
 import { secureStorage } from '@/shared/storage/secure-storage';
 import { STORAGE_KEYS } from '@/shared/storage/storage-keys';
 
-import { refreshSession, requestLogout } from '../api/auth.api';
+import { getCurrentUser, refreshSession, requestLogout } from '../api/auth.api';
 import type { AuthTokens, AuthUser, RequiredConsent } from '../auth.types';
 import { useSessionStore } from '../store/session.store';
 
@@ -18,6 +18,35 @@ class SessionService implements TokenProvider {
   private accessToken: string | null = null;
   private refreshToken: string | null = null;
   private refreshPromise: Promise<boolean> | null = null;
+
+  /**
+   * 앱 시작 시 1회 — 저장된 토큰으로 세션을 되살린다(`splash.md` 4의 2·3단계 판정 입력).
+   *
+   * 토큰이 없으면 **서버를 부르지 않고** 곧바로 미로그인으로 확정한다. 있으면
+   * `GET /users/me`(auth-api.md 4.13)로 사용자와 `pending_consents` 를 한 번에 받는다 —
+   * access token 이 만료됐으면 ApiClient 인터셉터가 갱신을 한 번 시도하고(단일 인플라이트),
+   * 그래도 실패하면 401 이 올라와 여기서 세션을 정리한다.
+   *
+   * **실패는 조용히 미로그인으로 떨어뜨린다.** 토큰 만료는 오류가 아니라 정상 경로이고,
+   * 재시도를 유도하면 갱신 루프가 된다(architecture.md 5.3 · auth-api.md 4.3).
+   */
+  async restoreSession(): Promise<void> {
+    const refreshToken =
+      this.refreshToken ?? (await secureStorage.get(STORAGE_KEYS.REFRESH_TOKEN));
+    if (!refreshToken) {
+      useSessionStore.getState().clearSession();
+      return;
+    }
+    this.refreshToken = refreshToken;
+
+    try {
+      const { user, pendingConsents } = await getCurrentUser();
+      useSessionStore.getState().setSession(user, pendingConsents);
+    } catch (error) {
+      logger.debug('[session] restore failed, starting signed out', error);
+      await this.clearSession();
+    }
+  }
 
   /** 로그인·가입 성공 시 호출 — 토큰 저장 후 세션 상태를 전환한다 */
   async startSession(

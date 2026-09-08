@@ -3,6 +3,7 @@ import { generateId } from '@/shared/lib/generate-id';
 
 import {
   mockRefreshSession,
+  mockGetCurrentUser,
   mockRequestLogout,
   mockSubmitConsents,
   mockSignUp,
@@ -16,6 +17,7 @@ import type {
   ConsentSubmission,
   ConsentType,
   RequiredConsent,
+  RestoredSession,
   SocialLoginResult,
   SocialProvider,
 } from '../auth.types';
@@ -40,6 +42,12 @@ export interface ConsentItemDto {
   consent_type: ConsentType;
   version: string | null;
   is_required: boolean;
+}
+
+/** `GET /users/me` 응답(auth-api.md 4.13) — 로그인 응답과 같은 조각 둘로 이뤄진다 */
+export interface CurrentUserResponseDto {
+  user: UserDto;
+  pending_consents: ConsentItemDto[];
 }
 
 export interface UserDto {
@@ -241,4 +249,21 @@ export const submitConsents = async (input: {
     })),
   };
   await apiClient.post('/users/me/consents', body);
+};
+
+/**
+ * 세션 복원(auth-api.md 4.13 — `GET /users/me`).
+ *
+ * 앱 재실행 시 실행 관문의 2·3단계 판정 입력이다. **401은 재시도를 유도하지 않는다** —
+ * 토큰 갱신은 ApiClient 의 인터셉터가 한 번만 시도하고(단일 인플라이트), 그래도 실패하면
+ * 세션을 정리하고 시작 화면으로 간다(`splash.md` 4 · 4.3과 같은 규칙).
+ */
+export const getCurrentUser = async (): Promise<RestoredSession> => {
+  const data = IS_AUTH_API_MOCKED
+    ? await mockGetCurrentUser()
+    : (await apiClient.get<CurrentUserResponseDto>('/users/me')).data;
+  return {
+    user: toAuthUser(data.user),
+    pendingConsents: data.pending_consents.map(toRequiredConsent),
+  };
 };

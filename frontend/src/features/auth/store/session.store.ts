@@ -2,7 +2,12 @@ import { create } from 'zustand';
 
 import type { AuthUser, RequiredConsent } from '../auth.types';
 
-type SessionStatus = 'unauthenticated' | 'authenticated';
+/**
+ * `restoring` 은 **앱 시작 직후의 판정 전 상태**다(splash.md 4). 이게 없으면 저장된 토큰이
+ * 있어도 첫 프레임에 로그인 화면이 번쩍 보였다가 바뀐다 — 관문이 판정을 마칠 때까지
+ * 스플래시를 유지하기 위해 세 번째 상태를 둔다.
+ */
+type SessionStatus = 'restoring' | 'unauthenticated' | 'authenticated';
 
 interface SessionStore {
   status: SessionStatus;
@@ -31,7 +36,7 @@ interface SessionStore {
  * 쓰기는 SessionService만 수행하고, 화면·내비게이션은 selector로 구독만 한다.
  */
 export const useSessionStore = create<SessionStore>((set) => ({
-  status: 'unauthenticated',
+  status: 'restoring',
   user: null,
   justCompletedOnboarding: false,
   pendingConsents: [],

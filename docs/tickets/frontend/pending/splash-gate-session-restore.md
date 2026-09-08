@@ -8,7 +8,7 @@
 | 발견 시점 | `tickets/backend/pending/session-restore-endpoint.md` 서버 구현 완료 — 막고 있던 계약이 생겨 FE 몫을 발행한다 |
 | 근거 문서 | `features/splash.md` 4(실행 관문) · `changes/pending/auth-api-get-users-me.md`(계약 확정 형상) · `features/auth.md` 7(재동의·A20) |
 | 심각도 | **높음** — 앱을 껐다 켤 때마다 로그인 화면으로 간다. 서버는 준비됐고 이 티켓만 남았다 |
-| 상태 | 대기 |
+| 상태 | 구현 완료(2026-09-08) — 실기기 확인 대기 |
 | 연관 | `tickets/backend/pending/session-restore-endpoint.md` (서버 몫 — 계약 문서 반영 대기) |
 
 ## 배경 — 서버가 준비된 것
@@ -46,3 +46,51 @@
 - Given 재동의가 필요한 사용자 / When 앱을 다시 실행한다 / Then 재동의 화면(A20)을 만난다
 - Given refresh 토큰까지 만료된 상태 / When 앱을 실행한다 / Then 재시도 없이 시작 화면으로 간다
 - Given 401 응답 두 곳에서 동시 발생 등 갱신 트리거가 겹친다 / When 토큰 갱신이 일어난다 / Then 갱신 요청은 한 번만 나간다(서버 로그에 `reuse detected`가 찍히지 않는다)
+
+## 진행 기록 (2026-09-08 — 구현 완료. 실기기 확인 대기)
+
+### 반영
+
+| 파일 | 한 일 |
+|---|---|
+| `auth.api.ts` · `auth.mock.ts` | `getCurrentUser()` — `GET /users/me`(4.13). `user` + `pending_consents` 를 한 번에 받는다 |
+| `auth.types.ts` | `RestoredSession` |
+| `session.store.ts` | 상태에 **`restoring`** 추가, 초기값으로 둔다 |
+| `session.service.ts` | `restoreSession()` |
+| `SplashScreen.tsx`(신규) | 관문 판정 중 화면 |
+| `RootNavigator.tsx` | 관문 연결 — 판정 전에는 스플래시만 그린다 |
+
+### 판단한 것들
+
+- **`restoring` 상태를 새로 뒀다.** 이게 없으면 저장된 토큰이 있어도 첫 프레임에 로그인
+  화면이 번쩍였다 바뀐다 — 사용자에게는 "로그아웃됐나?"로 읽힌다.
+- **토큰이 없으면 서버를 부르지 않는다.** 미로그인은 오류가 아니라 정상 경로다.
+- **복원 실패는 조용히 미로그인으로 떨어뜨린다.** 재시도를 유도하면 갱신 루프가 된다
+  (`architecture.md` 5.3 · 4.3과 같은 규칙).
+- **복원은 앱 수명당 한 번만 돈다**(`useRef` 가드). 세션 만료로 status 가 바뀌어도 다시
+  복원하지 않는다 — 만료는 이미 `onSessionExpired()` 가 처리한다.
+- **스플래시에 스피너를 두지 않았다.** 대개 한 번의 왕복이라 금방 끝나고, 로딩 표시가
+  짧게 번쩍이면 오히려 불안해 보인다. 네이티브 스플래시와 같은 그림을 두어 전환이
+  눈에 띄지 않게 했다.
+
+### 요청 3(single-flight) — 이미 있었다
+
+`sessionService.refreshTokens()` 가 `refreshPromise` 로 단일 인플라이트를 보장하고 있고,
+ApiClient 의 401 인터셉터가 그 함수를 통해서만 갱신한다(`api-client.ts:158`). `refreshSession`
+을 직접 부르는 다른 경로는 없다. **추가 작업 없이 조건 충족이다.**
+
+`saveTokens()` 는 새 토큰을 저장한 뒤에야 in-memory 를 교체하므로, 저장 전 종료 시 옛
+refresh 토큰이 남는다 — 서버가 이미 회전시켰다면 다음 실행에서 401 로 떨어져 시작 화면으로
+간다. 잘못된 세션이 살아남는 경로는 없다.
+
+### 확인한 것 (웹, 390×844)
+
+- 토큰이 있는 상태로 새로고침 → **로그인 화면 없이 라이브러리로 진입** ✅
+- 저장소를 비우고 새로고침 → **시작 화면**(스플래시에 갇히지 않음) ✅
+
+### 남은 확인 — 실기기
+
+- 온보딩 미완 사용자가 앱을 다시 열면 `onboarding_step` 에 맞는 단계로 가는지
+- 재동의 대상 사용자가 앱을 다시 열면 A20 이 뜨는지 (`pending_consents` 경로 — mock 은 항상 빈 배열이라 웹으로 확인 불가)
+- refresh 토큰까지 만료된 상태에서 시작 화면으로 가는지
+- 스플래시가 최소 0.8초 유지되며 깜빡이지 않는지

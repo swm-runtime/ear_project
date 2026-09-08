@@ -7,6 +7,15 @@ export type SocialProvider = 'kakao' | 'naver' | 'google' | 'apple';
  */
 export type ConsentType = 'terms' | 'privacy' | 'marketing' | 'age_confirmation';
 
+/**
+ * `GET /users/me`(auth-api.md 4.13) — 실행 관문의 세션 복원 입력.
+ * **`user`는 로그인(4.1)의 것과 같은 모양이다** — 두 경로가 다른 판정을 하면 안 된다.
+ */
+export interface RestoredSession {
+  user: AuthUser;
+  pendingConsents: RequiredConsent[];
+}
+
 export interface AuthUser {
   id: string;
   /** 온보딩 전에는 null이다(auth-api.md 4.1) */
