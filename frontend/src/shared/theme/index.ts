@@ -11,6 +11,13 @@ export const theme = {
     border: '#E3E3E8',
     primary: '#000000',
     danger: '#E5484D',
+    /**
+     * 경고 — **danger 와 쓰임이 다르다.** danger 는 실패·파괴(에러·탈퇴)에,
+     * warning 은 **아직 하지 않은 일**(이메일 미인증·미등록)에 쓴다. 이메일이 없는 것은
+     * 오류가 아니라 할 일이므로 빨강으로 겁주지 않는다. (임시값 — 디자인 확정 전)
+     */
+    warning: '#8A5B00',
+    warningSurface: '#FFF3CD',
     overlay: 'rgba(0, 0, 0, 0.4)',
     onPrimary: '#FFFFFF',
     /** 분포 그래프 조각 색(임시값) — 순서대로 상위 항목에 배정하고 마지막은 "기타"용 중립색이다.
