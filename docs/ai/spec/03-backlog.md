@@ -82,6 +82,8 @@ proposed ─승인→ approved ─집기→ claimed → drafted → qa_passed �
 | `claimed` → `drafted` 이후 | [spec/04](04-script.md)~[07](07-publish.md) | 각 단계 명세를 따른다 |
 | `approved` → `expired` | 사람 (소스 신선도 상실 등) | 처리 주기는 미결 (PIPELINE.md 7장 #13) |
 | `claimed` → 분할 반환 | AI 제안 → **사람 재승인** | 5.1 참조 |
+| `claimed` → `proposed` (초안 실패 복귀) | 워커 (2026-09-08) | 초안 작업이 대본 없이 실패하면 에피소드 행을 지우고 후보를 `proposed` 로 되돌린다 — `claimed_*` 해제, 사유는 `dedup_note` 앞에 `⚠️ 초안 실패`. 사람이 다시 승인해 재생성하거나 반려한다. 실패 증거는 `runs`·`jobs` 에 남는다 |
+| `drafted` → `review_required` (재생성 실패) | 워커 (2026-09-08) | QA 후 재생성 초안이 실패하면 대본은 두고 사람 검토로 |
 
 ### 5.1 분할 반환 — 대본 단계에서 군집이 한 편보다 클 때
 

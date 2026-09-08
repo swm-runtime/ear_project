@@ -125,6 +125,15 @@ export const deleteEarTopic = (id: string) => earFetch<void>(`/admin/topics/${id
 
 export const listEarContents = (status: string, offset: number, limit = 20) =>
   earFetch<{ items: EarContent[]; total: number }>(`/admin/contents?offset=${offset}&limit=${limit}${status ? `&status=${status}` : ""}`);
+/** 단건 — admin-api 에 GET /admin/contents/:id 가 없어(3장) 목록을 넘기며 찾는다. 콘텐츠가 수백 건을 넘기 전까지는 충분하다 */
+export async function findEarContent(id: string): Promise<EarContent | null> {
+  for (let off = 0; ; off += 50) {
+    const d = await listEarContents("", off, 50);
+    const hit = d.items.find((c) => c.id === id);
+    if (hit) return hit;
+    if (off + 50 >= d.total || d.items.length === 0) return null;
+  }
+}
 export const withdrawEarContent = (id: string, reason?: string) =>
   earFetch<EarContent>(`/admin/contents/${id}/withdraw`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(reason ? { reason } : {}) });
 export const restoreEarContent = (id: string) =>

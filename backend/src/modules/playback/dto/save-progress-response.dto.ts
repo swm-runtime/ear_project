@@ -18,6 +18,11 @@ export class SaveProgressResponseDto {
   readonly max_reached_sec: number;
   /** 서버의 현재 버전. 요청과 다르면 로컬 위치·오프라인 파일을 폐기한다 */
   readonly content_version: number;
+  /**
+   * 콘텐츠 현재 상태 — `withdrawn`이면 재생을 즉시 멈추고 "제공이 종료된 콘텐츠예요"를
+   * 안내한다(회수 동기화 — 파일이 통째로 버퍼링돼도 이 신호로 중단된다).
+   */
+  readonly content_status: string;
   /** 라이브러리에 없는 콘텐츠면 `null` */
   readonly library_item: ProgressLibraryItemDto | null;
 
@@ -26,6 +31,7 @@ export class SaveProgressResponseDto {
       position_sec: result.positionSec,
       max_reached_sec: result.maxReachedSec,
       content_version: result.contentVersion,
+      content_status: result.contentStatus,
       library_item: result.libraryItem
         ? {
             id: result.libraryItem.id,

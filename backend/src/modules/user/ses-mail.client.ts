@@ -5,7 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { EnvironmentVariables } from '@/config/env.validation';
 
 import { MailClient } from './mail.client';
-import { EMAIL_VERIFICATION_CODE_TTL_SEC } from './user.constant';
+import { renderVerificationMail } from './verification-mail.template';
 
 /**
  * SES 발송 구현 (`MAIL_DELIVERY=ses` — auth.md 미결이던 발송 인프라를 SES로 확정, 2026-08-31).
@@ -14,8 +14,10 @@ import { EMAIL_VERIFICATION_CODE_TTL_SEC } from './user.constant';
  * - 발신 주소(`MAIL_FROM_ADDRESS`)는 SES에서 검증된 도메인/주소여야 한다. 미검증이면 SES가
  *   거부하고, 그 실패는 그대로 던진다 — 호출부(EmailVerificationService)가 행을 지우고
  *   `EMAIL_SEND_FAILED`(횟수 미차감)로 변환한다(auth-api.md 4.8).
+ * - 본문은 HTML + plain text를 함께 보낸다(`verification-mail.template.ts`).
  * - **코드·수신 주소 원문을 로그에 남기지 않는다**(convention.md 8.4) — LoggingMailClient와
- *   같은 기준. 실패 사유도 SES 에러 이름까지만.
+ *   같은 기준. 실패 사유도 SES 에러 이름까지만. **본문(HTML·text)도 로그에 남기지 않는다** —
+ *   코드가 그 안에 있다.
  */
 @Injectable()
 export class SesMailClient extends MailClient {
@@ -32,7 +34,7 @@ export class SesMailClient extends MailClient {
   }
 
   async sendVerificationCode(email: string, code: string): Promise<void> {
-    const ttlMin = Math.floor(EMAIL_VERIFICATION_CODE_TTL_SEC / 60);
+    const { subject, html, text } = renderVerificationMail(code);
 
     await this.ses.send(
       new SendEmailCommand({
@@ -40,22 +42,10 @@ export class SesMailClient extends MailClient {
         Destination: { ToAddresses: [email] },
         Content: {
           Simple: {
-            Subject: {
-              Data: `[이어] 이메일 인증 코드 ${code}`,
-              Charset: 'UTF-8',
-            },
+            Subject: { Data: subject, Charset: 'UTF-8' },
             Body: {
-              Text: {
-                Data: [
-                  '이어 이메일 인증 코드예요.',
-                  '',
-                  code,
-                  '',
-                  `코드는 ${ttlMin}분 동안 유효해요.`,
-                  '본인이 요청하지 않았다면 이 메일을 무시해 주세요.',
-                ].join('\n'),
-                Charset: 'UTF-8',
-              },
+              Html: { Data: html, Charset: 'UTF-8' },
+              Text: { Data: text, Charset: 'UTF-8' },
             },
           },
         },

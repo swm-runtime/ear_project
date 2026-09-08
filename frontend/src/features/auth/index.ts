@@ -4,6 +4,7 @@
  */
 export { default as ProviderIcon } from './components/ProviderIcon';
 export { default as ReconsentScreen } from './screens/ReconsentScreen';
+export { default as SplashScreen } from './screens/SplashScreen';
 export { default as StartScreen } from './screens/StartScreen';
 export { default as TermsConsentScreen } from './screens/TermsConsentScreen';
 export { default as EmailVerificationScreen } from './screens/EmailVerificationScreen';

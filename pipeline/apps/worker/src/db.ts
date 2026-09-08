@@ -132,6 +132,10 @@ export async function upsertEpisode(e: { id: string; backlog_id: string; prompt_
     [id, backlog_id, prompt_version, ...vals],
   );
 }
+/** 초안이 실패해 산출물이 없는 에피소드 행 제거 — 백로그 복귀와 짝 (spec/03 5장, 2026-09-08). runs 는 backlog_id 기준이라 실패 증거는 남는다 */
+export async function deleteEpisode(id: string) {
+  await pool.query("delete from public.episodes where id = $1", [id]);
+}
 export async function getEpisode(id: string): Promise<{ id: string; backlog_id: string; prompt_version: string; script_key: string | null; asset_versions: Record<string, string> | null } | null> {
   const r = await pool.query("select id, backlog_id, prompt_version, script_key, asset_versions from public.episodes where id = $1", [id]);
   return r.rows[0] ?? null;

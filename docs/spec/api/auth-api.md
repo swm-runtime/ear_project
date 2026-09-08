@@ -9,10 +9,11 @@
 
 ## 1. 범위
 
-`auth.md`가 정의한 동작을 HTTP 계약으로 옮긴 문서다. 다루는 것은 다음 넷이다.
+`auth.md`가 정의한 동작을 HTTP 계약으로 옮긴 문서다. 다루는 것은 다음 다섯이다.
 
 - 소셜 로그인·가입(약관 동의 시점의 계정 생성)
 - 토큰 갱신·로그아웃
+- **세션 복원** — 앱 재실행 시 사용자·재동의 조회 (등재 2026-09-08)
 - 회원 탈퇴
 - 이메일 등록·코드 인증
 
@@ -67,6 +68,7 @@
 | 10 | POST | `/users/me/email-verifications/:id/verify` | 코드 검증 → `users.email` 저장 | 필요 |  |
 | 11 | DELETE | `/users/me/email-verifications/:id` | 진행 중인 인증 무효화 ([메일 다시 입력]) | 필요 |  |
 | 12 | POST | `/auth/pipeline-login` | 파이프라인 웹 SSO — 어서션 교환으로 **관리자** 세션 발급 | — |  |
+| 13 | GET | `/users/me` | 세션 복원 — 실행 관문 판정용 사용자·재동의 조회 | 필요 |  |
 
 **설계 메모**
 
@@ -566,6 +568,36 @@
 - **전제: 운영자의 Supabase 이메일 == 제품 관리자 계정 이메일.** 다르면 403이며, 콘솔은 연결 실패 카드를 띄운다(승격 또는 이메일 정정 후 재시도).
 - **`PIPELINE_SSO_SECRET`은 32자 이상이고 `JWT_SECRET`과 달라야 한다.** 용도가 다른 키를 겹쳐 쓰면 한쪽 유출의 피해 범위가 함께 넓어진다. **선택 환경변수라 미설정 시 서버는 정상 기동하고 이 경로만 503으로 닫힌다.**
 - `GOOGLE_WEB_CLIENT_ID`는 **앱 구글 로그인용으로 유지**된다. 발행 콘솔 용도로는 더 이상 쓰지 않는다.
+
+### 4.13 `GET /users/me` — 세션 복원 (등재 2026-09-08 — 구현 완료)
+
+앱 재실행 시 **실행 관문(`splash.md` 4)의 2·3단계 판정 입력**이다. 기기에 refresh 토큰이
+남아 있으면 클라이언트는 갱신(4.3) 후 이 엔드포인트로 세션을 복원한다 — 사용자 객체를 받을
+곳이 없어 매 실행마다 로그인 화면으로 가던 문제를 닫는다
+(`tickets/backend/pending/session-restore-endpoint.md`).
+
+```jsonc
+// 200
+{
+  "user": {
+    "id": "uuid", "nickname": null, "email": null, "is_email_verified": false,
+    "provider": "kakao", "tier": "light", "role": "user",
+    "onboarding_completed": false, "onboarding_step": "topic"
+  },
+  "pending_consents": [
+    { "consent_type": "age_confirmation", "version": null, "is_required": true }
+  ]
+}
+```
+
+- **`user`는 4.1의 `user` 객체와 필드 구성이 같다.** 로그인 경로와 복원 경로가 같은 판정을
+  해야 하므로 모양이 갈리면 안 된다 — 서버는 DTO 동형성 테스트로 고정한다.
+- **`pending_consents`도 4.1과 같은 모양으로 함께 내려준다.** 이미 로그인된 세션으로 앱을
+  다시 열 때 재동의 화면(A20) 진입 판정을 한 번의 왕복으로 끝낸다. 필요 없으면 빈 배열이다.
+- **401은 재시도를 유도하지 않는다** — 4.3 갱신 실패와 같은 규칙이다. 클라이언트는 시작
+  화면으로 간다.
+- 버전 체크·점검 안내(관문 1단계)는 이 계약 범위 밖이다 — `settings-api.md`의
+  `GET /users/me/settings`가 준다.
 
 ## 5. 에러 코드 표
 

@@ -28,7 +28,6 @@
 |---|---|
 | 운영 현황 조회 (`admin.md` 4.6) | |
 | 스크립트 업로드 | FR-25가 P1이다 |
-| 추천 메타 파일(`enrichment_file` — `admin.md` 3.1) | 업로드 폼에 파트가 없다. `ai/metadata-pipeline.md` 확정 대기 |
 
 > **회수·복구는 발행 요청서가 "범위 밖"으로 적었으나 그 뒤 구현됐다**(코드 대조 2026-09-03). 4.7·4.8로 등재한다.
 
@@ -115,6 +114,7 @@
 | `audio` | mp3 / m4a, **≤200MB** | 필수 |
 | `thumbnail` | jpg / png / webp, **≤5MB** | 필수 |
 | `payload` | JSON **문자열** | 필수 |
+| `enrichment_file` | `enrichment.json`(`ai/metadata-pipeline.md` 4.4), **≤1MB** | 선택 (등재 2026-09-08 — 구현 완료) |
 
 `payload` 필드:
 
@@ -139,6 +139,18 @@
 - `duration_sec`은 받지 않는다. **서버가 오디오에서 추출한다**(`admin.md` 3.1).
 - `review_confirmed`는 **저장 컬럼이 없다.** 미체크 업로드를 막는 게 목적이고 증적은 `audit_logs`가 담당한다(`domain.md` 5.1, 확정 2026-08-06).
 - `partner_id`는 **존재 검증을 하지 않는다.** `partners` 테이블이 아직 없어 uuid 형식만 본다 — 9장 미결.
+
+**`enrichment_file` — 추천 메타 파일** (`admin.md` 3.1의 계약 표현, 등재 2026-09-08)
+
+- 저장 대상: `difficulty` · `format` · `is_evergreen` · `keywords` → `contents` 메타 4종,
+  `embedding.vector` → `content_embeddings` upsert(콘텐츠당 1행). 생략된 키는 저장하지 않는다
+  (결손 = 스코어링 중립 — `domain.md` 5.1·5.6).
+- 검증: enum은 `domain.md` 5.1과 글자 일치, 벡터는 1536차원, `embedding.model`은 현재 모델
+  (`text-embedding-3-small`)과 일치해야 한다. **모르는 최상위 키는 거부한다**(오타가 결손으로
+  둔갑하는 것을 막는다 — 명세의 `source` 폴백 표식은 허용).
+- **검증 실패는 파일만 거부하고 업로드는 진행한다** — 추천 메타는 발행 요건이 아니다.
+- 응답에 처리 결과가 실린다(**파일이 있었을 때만** 존재): `enrichment_applied: boolean`,
+  거부 시 `enrichment_rejected_reason: string`(콘솔이 그대로 노출하는 사유).
 
 201로 `AdminContentItem`을 반환한다.
 
@@ -195,7 +207,7 @@
 ### 4.10 `PATCH /admin/contents/:contentId` — 재발행
 
 `admin.md` 4.3의 계약이다 (2026-09-07 등재·구현). 발행된 콘텐츠의 **오디오(또는 메타)를 같은 행에서 교체**하고
-`content_version`을 1 올린다. `content_id`가 유지되므로 `library_items` · `playback_progresses` · `content_stats` 참조가 끊기지 않는다.
+`content_version`을 1 올린다. `content_id`가 유지되므로 `library_items` · `content_stats` 참조가 끊기지 않는다(재생 위치는 아래 "재생 위치 폐기" — 서버가 지운다).
 발생 경위: 파이프라인이 TTS 규격(배속·무음 등)을 바꿔 오디오를 재생성했을 때 발행본을 갈아끼우는 경로가 없었다.
 
 `multipart/form-data`. **모든 파트가 선택**이되 최소 1개는 있어야 한다.
@@ -205,9 +217,10 @@
 | `audio` | mp3 / m4a, ≤200MB — 4.6과 같다 | 선택 |
 | `thumbnail` | jpg / png / webp, ≤5MB | 선택 |
 | `payload` | JSON 문자열 — 4.6 `payload`의 부분집합(`title` `description` `source_name` `topic_ids` `sources`). 넘긴 키만 바꾼다 | 선택 |
+| `enrichment_file` | `enrichment.json` — 규격·검증·응답 필드는 4.6과 같다 | 선택 (등재 2026-09-08) |
 
 - **오디오를 교체하면 `duration_sec`을 다시 추출**한다(4.6과 동일 — 클라이언트 값을 받지 않는다). 이전 파일은 새 파일 저장·트랜잭션 성공 후 지운다.
-- **`content_version`은 파트가 무엇이든 1 증가**한다. 메타만 바뀌어도 올린다 — 클라이언트의 재발행 판정(`player-api.md` 4.1·4.2)이 버전 하나로 동작해야 한다.
+- **`content_version`은 파트가 무엇이든 1 증가**한다. 메타만 바뀌어도 올린다 — 클라이언트의 재발행 판정(`player-api.md` 4.1·4.2)이 버전 하나로 동작해야 한다. **단 하나의 예외가 `enrichment_file` 단독 전송이다**(2026-09-08): 추천 메타만 반영하고 **버전을 올리지 않으며** 아래 재생 위치 폐기도 일어나지 않는다 — 오디오가 그대로인데 버전이 오르면 전 사용자의 재생 위치가 헛되이 폐기된다. 기존 발행분 소급 부여가 이 경로를 쓰고, 감사 로그는 `content.enrich`로 남는다(`republish`와 구분).
 - `origin` · `partner_id` · `series_id` · `episode_no` · `total_episodes` · `license_expires_at`은 **바꾸지 않는다** — 발행 단위의 정체성이라 필요하면 회수 후 새로 올린다.
 - `status`가 `published`가 아니면 **409 `CONFLICT`** (회수·만료 상태에서는 재발행하지 않는다 — `admin.md` 4.6 "만료 상태에서는 재발행을 막는다").
 - `topic_ids`를 넘기면 전체 교체다(빈 배열 불가 — 최소 1개, 4.6과 동일).
@@ -221,9 +234,12 @@
 
 **흐름** — 4.6과 같은 순서: 검증 → 새 파일 저장(트랜잭션 밖) → 트랜잭션(행 갱신 + `content_version + 1` + 주제·출처 교체) → 성공 시 이전 파일 삭제 / 실패 시 새 파일 삭제.
 
-**클라이언트 측 동작**(참고 — 이 문서 범위 밖): `player.md` 7은 앱이 `content_version`이 보관값보다 크면 저장한 재생 위치·오프라인 파일을 폐기하도록 정한다(`player-api.md` 4.1·4.3).
-
-> ⚠️ **그 폐기는 지금 일어나지 않는다**(확인 2026-09-07). 앱은 재생 위치를 로컬에 보관하지 않고 매 진입마다 4.1 응답에서 받으므로 "보관값과 비교"를 수행할 수 없다. 저장 경로(4.3)의 버전 가드는 동작하지만 **읽기 경로(4.1)가 재발행 이전 위치를 그대로 내려준다.** 폐기 주체를 정하는 것은 `tickets/backend/pending/republish-stale-playback-position.md` · `tickets/frontend/pending/republish-version-gate-not-implemented.md`.
+**재생 위치 폐기** (확정·구현 2026-09-07 — `republish-stale-playback-position.md` 안 A): 재발행
+트랜잭션에서 그 콘텐츠의 `playback_progresses`를 **전부 삭제한다.** 다음 진입의
+`player-api.md` 4.1 응답이 `progress: null`이 되어 0부터 재생된다 — 콜드오픈 폐지처럼 같은
+초가 다른 내용을 가리키게 되는 재발행에서 낡은 위치가 내려가는 것을 막는다.
+라이브러리(`library_items`)·재생 기록(`play_records`)은 유지된다. **폐기 주체는 서버다** —
+앱은 위치를 로컬에 보관하지 않으므로 클라이언트 측 폐기 동작은 없다(`player.md` 7).
 
 ## 5. 에러 코드 표
 

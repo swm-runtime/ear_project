@@ -7,6 +7,7 @@ import { makeExecutor } from "./executors/index.js";
 import { startLogWatch } from "./log-watch.js";
 import { runStage } from "./stages/index.js";
 import { log, sleep, RetryLater } from "./util.js";
+import { onDraftFailed } from "./stages/draft.js";
 
 /**
  * ear 파이프라인 워커 (spec/10).
@@ -74,6 +75,7 @@ async function main() {
         } else {
           await failJob(job.id, e?.stack ?? String(e));
           log(`✖ ${job.type} ${job.id.slice(0, 8)} 실패: ${e?.message ?? e}`);
+          if (job.type === "draft") await onDraftFailed(job, e); // 실패한 초안은 에피소드로 남기지 않고 백로그로 (spec/03 5장)
         }
       } finally {
         clearInterval(hb);

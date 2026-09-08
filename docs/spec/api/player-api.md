@@ -68,6 +68,7 @@
 | 3 | PUT | `/users/me/playback-progresses/:content_id` | 위치 저장 + `listened_sec` 적산 + 완청 판정 | 필요 | |
 | 4 | POST | `/contents/:content_id/replay` | `replay` 신호 — 완료 상태에서 위치 0 재생 | 필요 | **필수** |
 | 5 | POST | `/contents/:content_id/source-link-clicks` | 원문 유입 클릭 — **세 화면 공용** | 필요 | |
+| 6 | GET | `/contents/withdrawn` | 회수 동기화 — 마지막 동기화 이후 회수된 콘텐츠 목록 (4.6, 등재 2026-09-08) | 필요 | |
 
 **설계 메모**
 
@@ -125,7 +126,7 @@
 | 필드 | 의미 |
 |---|---|
 | `content.source_url` | **`null`이면 [원문 보기]를 노출하지 않는다**(`player.md` 4.5 — `origin = ai_generated`는 선택 필드다, `domain.md` 5.1) |
-| `content.content_version` | 재발행 판정용. 클라이언트가 보관한 값보다 크면 저장된 위치·오프라인 파일을 폐기하고 0부터 재생한다(`player.md` 7) |
+| `content.content_version` | 현재 발행본의 버전. **재발행 후 낡은 위치는 서버가 이미 폐기했으므로**(`admin-api.md` 4.10 — 개정 2026-09-07) 진입 시점에 클라이언트가 비교·폐기할 것은 없다. 이 값의 용도는 4.3 위치 저장의 버전 가드 입력(응답의 버전을 저장 요청에 되돌려 보낸다)과 **재생 중 재발행 감지**다 — 갱신 호출로 받은 버전이 세션과 다르면 세션 위치를 폐기한다(`player.md` 7) |
 | `library_item` | 라이브러리에 없는 콘텐츠면 **`null`**. `id`는 더보기의 삭제(`library-api.md` 4.6) 호출에, `status`는 완료 화면(PL3) 판단에 쓴다 |
 | `progress` | `playback_progresses` 행이 없으면 **`null`** — 0부터 재생한다. `start_position_sec` 입력(`player.md` 3장)이 있으면 그것이 우선한다 |
 | `audio.url` | 단기 서명 URL. **재생기에 전달하는 용도 외로 보관·기록하지 않는다**(7장) |
@@ -208,6 +209,7 @@
   "position_sec": 552,
   "max_reached_sec": 552,
   "content_version": 1,
+  "content_status": "published",
   "library_item": { "id": "uuid", "status": "in_progress", "completed_at": null }
 }
 ```
@@ -215,7 +217,8 @@
 | 필드 | 의미 |
 |---|---|
 | `position_sec` · `max_reached_sec` | 저장 후의 값. 버전 불일치로 저장이 버려졌으면 **서버가 보관 중인 값** |
-| `content_version` | 서버의 현재 버전. **요청과 다르면 클라이언트는 로컬 위치·오프라인 파일을 폐기한다**(`player.md` 7) |
+| `content_version` | 서버의 현재 버전. **요청과 다르면 클라이언트는 로컬 위치·오프라인 파일을 폐기한다**(`player.md` 7). **오디오 URL 갱신(4.1) 응답으로 세션 버전을 조용히 올리지 않는다** — 올리면 재발행이 지운 위치를 다음 저장이 되살린다(실증 2026-09-08) |
+| `content_status` | 콘텐츠 현재 상태 (추가 2026-09-08). **`withdrawn`이면 재생을 즉시 멈추고** "제공이 종료된 콘텐츠예요"를 안내한다 — 위치 저장은 재생 중 주기적으로 도는 왕복이라, 파일이 통째로 버퍼링돼도 회수가 저장 주기 안에 반영된다(`partner-control.md` 4.3) |
 | `library_item` | 이 저장으로 완청이 판정되면 `status: "completed"` + `completed_at`. 라이브러리에 없는 콘텐츠면 `null` |
 
 **서버 처리**
@@ -287,6 +290,30 @@
 | `CONTENT_NOT_FOUND` | 404 | `content_id`가 없음 |
 
 ---
+
+### 4.6 `GET /contents/withdrawn` — 회수 동기화 (등재 2026-09-08 — 구현 완료)
+
+`partner-control.md` 4.3 처리 순서 5의 클라이언트 동기화 조회다. **앱 실행·포그라운드 복귀
+시** 호출해, 마지막 동기화 이후 회수된 콘텐츠를 로컬 캐시·미니플레이어·재생 세션에서
+걷어낸다. **재생 중 세션의 중단은 이 목록이 아니라 4.3 응답의 `content_status`가 주 채널**
+이고, 이 라우트는 재생 중이 아니었던 세션의 보완이다.
+
+**Request** — `?since=<ISO8601>` (필수). 클라이언트가 마지막으로 동기화한 시각.
+
+```jsonc
+// 200 — withdrawn_at 오름차순
+{ "content_ids": ["uuid", "..."] }
+```
+
+| 코드 | HTTP | 상황 |
+|---|---|---|
+| `VALIDATION_FAILED` | 400 | `since` 누락·형식 오류 |
+
+- 별도 테이블 없이 `contents`의 `status = withdrawn` · `withdrawn_at > since`로 판정한다
+  (`domain.md` 14장). 회수가 드물어 목록은 짧고, 페이지네이션을 두지 않는다.
+- 이 문서에 두는 이유: 소비처가 재생·플레이어 계열(세션 정리)이고, 4.3의 `content_status`
+  신호와 한 문서에서 읽혀야 두 채널의 역할 분담이 보인다. 동작 규칙의 소유는 여전히
+  `partner-control.md` 4.3이다.
 
 ## 5. 에러 코드 표
 
