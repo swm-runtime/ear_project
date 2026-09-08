@@ -39,7 +39,7 @@ export async function runQa(job: Job, ex: Executor) {
     });
     log(`  qa ${episodeId} attempt ${attempt} (단발, 프롬프트 ${Math.round(prompt.length / 1000)}K자)`);
     const ri = await ex.run<QaInlineOut>({
-      prompt, schema: QA_INLINE_SCHEMA, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 30 * 60_000, model: cfg.qaModel,
+      prompt, schema: QA_INLINE_SCHEMA, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 30 * 60_000, model: cfg.qaModel, maxThinkingTokens: cfg.thinkingQa,
       onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: `QA 검증 (attempt ${attempt}, 단발)`, detail: pr.turns > 0 ? "발췌 대조·판정 중 (도구 없음)" : pr.detail }).catch(() => {}),
     });
     const reportFile = path.join(dir, "qa-report.md");

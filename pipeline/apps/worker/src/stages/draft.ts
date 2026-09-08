@@ -154,6 +154,9 @@ function formatViolations(md: string): string[] {
     if (noId.length > Math.ceil(p.turns.length * 0.3)) v.push(`턴 번호(E·Y) 없는 발화가 ${noId.length}/${p.turns.length}개 — 번호 턴은 "[화자] E1 · 문장" 형식 (spec/04 4장)`);
   }
   if (p.coldOpen) v.push("[콜드오픈] 구역이 있음 — 2026-09-07 폐지, 대본은 [인트로]부터 시작한다 (spec/04 4장 구조)");
+  // 시점 고정 표현 (spec/04 3장 금지 규칙 4 · QA 항목 6 의 코드 이관, 2026-09-08): 오디오는 발행 후에도 재생된다. 템플릿의 "오늘의 주제"·"지금까지"는 대상이 아니므로 상대 시점 어휘만 본다
+  const tense = p.turns.filter((t) => /(요즘|최근에?|올해|작년|내년|어제|내일|지난\s?(주|달|해|번)|이번\s?(주|달)|며칠 전)/.test(t.text)).map((t) => t.id ?? "?");
+  if (tense.length) v.push(`시점 고정 표현(요즘·최근·올해·지난주 등)이 ${tense.length}턴에 있음 (${tense.slice(0, 6).join(", ")}) — 절대 표기(년-월)나 무시점 표현으로 바꾼다 (spec/04 3장 규칙 4)`);
   return v;
 }
 
