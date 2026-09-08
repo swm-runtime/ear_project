@@ -4,7 +4,8 @@ import type { Problem, Stage } from "@/lib/stages";
 /**
  * 가로 진행 트래커 — 파이프라인 7단계를 한 줄로 늘어놓고 진행한 만큼 채운다 (2026-09-08 박수헌 요청).
  * 색: 완료=brand · 진행 중=brand 연함(깜빡임) · 실패=rose · 주의=amber · 대기=연회색 · 해당 없음=투명.
- * 서버 컴포넌트 — 훅 없음. 각 칸의 title 에 메모가 들어 있어 마우스를 올리면 사유가 보인다.
+ * 폭은 고정(260px)이고 칸 아래에는 단계 이름만 — 사유·메모는 title(툴팁)과 옆 열 "막힌 곳 · 다음 행동"이 맡는다
+ * (같은 날 수정: 칸 아래 설명 때문에 가로 스크롤이 생기던 문제). 서버 컴포넌트 — 훅 없음.
  */
 const BAR: Record<Stage["state"], string> = {
   done: "bg-brand",
@@ -20,11 +21,11 @@ const TEXT: Record<Stage["state"], string> = {
 
 export function StageTrack({ stages }: { stages: Stage[] }) {
   return (
-    <div className="flex min-w-[420px] gap-1" role="list" aria-label="진행 단계">
+    <div className="flex w-[260px] shrink-0 gap-[3px]" role="list" aria-label="진행 단계">
       {stages.map((s) => (
-        <div key={s.key} role="listitem" className="flex-1" title={`${s.label}${s.note ? ` — ${s.note}` : ""}`}>
-          <div className={`h-2 rounded-sm ${BAR[s.state]}`} />
-          <div className={`mt-1 truncate text-[10.5px] leading-tight ${TEXT[s.state]}`}>{s.label}{s.note && s.state !== "skip" ? <span className="text-ink-soft"> · {s.note}</span> : null}</div>
+        <div key={s.key} role="listitem" className="min-w-0 flex-1" title={`${s.label}${s.note ? ` — ${s.note}` : ""}`}>
+          <div className={`h-1.5 rounded-sm ${BAR[s.state]}`} />
+          <div className={`mt-0.5 truncate text-center text-[10px] leading-tight ${TEXT[s.state]}`}>{s.label}</div>
         </div>
       ))}
     </div>
