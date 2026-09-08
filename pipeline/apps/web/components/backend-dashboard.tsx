@@ -1,24 +1,24 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { Stat } from "@/components/ui";
+import { RequestLog } from "@/lib/backend-request-log";
 
 /**
  * 대시보드 탭 — 요청 로그를 시간축 그래프로, 자원(CPU·메모리·DB 연결) 이력을 선 그래프로
  * 그린다. **자동 폴링하지 않는다** — 열 때 1회 + [새로고침] (사용자 결정 2026-09-06).
  *
- * - 요청·응답시간: 불러온 창 안의 근사치 — 줄 상한(SCAN_LINES)에 걸리면 창 앞부분이
- *   통째로 빠지고, 그때는 [요청 수] 카드가 어디부터 그린 건지 밝힌다. 헬스체크(/health)는 제외
+ * - 요청·응답시간: 서버가 **요청 건수 기준**으로 모아준 창 안의 근사치(`mode=requests`).
+ *   목표 건수를 못 채우면 창 앞부분이 빠지고, 그때는 [요청 수] 카드가 어디부터인지 밝힌다.
+ *   헬스체크(/health)는 서버가 조회 단계에서 뺀다 — 예전엔 그것이 예산의 60%를 먹었다
  * - 자원 이력: 백엔드가 60초마다 쌓는 메모리 링 버퍼(최대 6시간) — 재기동(배포) 시 비워진다
  * - 모든 그래프는 마우스 호버로 시각·값을 보여준다
  */
 
 /**
- * 한 번에 훑는 로그 줄 수. **요청 건수가 아니라 줄 수다** — Nest ConsoleLogger 는
- * compact:false 라 요청 로그 객체를 여러 줄로 찍고(`Object(6) {` + 필드 6줄 + `}` = 8줄),
- * awslogs 드라이버가 줄마다 이벤트를 만든다. 1,000줄이면 요청 125건뿐이라 6시간을 골라도
- * 최근 몇 분만 그려졌다 — 버킷당 표본이 한 자릿수면 p95 는 사실상 최댓값이 된다.
+ * 서버에 요청할 **건수**. 줄이 아니라 건수라서 범위를 넓혀도 표본이 같이 늘어난다.
+ * 6시간 × 10분 버킷(36칸)이면 칸당 40건쯤 — p95 가 최댓값이 아니라 진짜 p95 가 된다.
  */
-const SCAN_LINES = 10_000;
+const REQUEST_TARGET = 1_500;
 
 const RANGES = [
   { minutes: 30, label: "30분" },
@@ -27,9 +27,6 @@ const RANGES = [
   { minutes: 360, label: "6시간" },
 ];
 
-type LogEvent = { t: number; message: string };
-type Parsed = { t: number; path: string; status: number; durationMs: number };
-
 type HistoryPoint = { t: number; cpu_used_percent: number | null; mem_used_percent: number | null; db_conn_total: number | null };
 type Metrics = {
   host: { load_1m: number; cpu_count: number; cpu_used_percent: number | null; mem_total_bytes: number; mem_available_bytes: number };
@@ -37,38 +34,12 @@ type Metrics = {
   history?: HistoryPoint[];
 };
 
-const FIELD_RES = {
-  method: /method:\s*'([A-Z]+)'/,
-  path: /path:\s*'([^']+)'/,
-  status: /status:\s*(\d{3})\b/,
-  durationMs: /duration_ms:\s*(\d+)\b/,
-};
-
-/** backend-traffic.tsx 와 같은 순차 스캔 — 여기서는 시간축이 필요해 record 시작 시각을 함께 든다 */
-function parseRequests(events: LogEvent[]): Parsed[] {
-  const parsed: Parsed[] = [];
-  let current: Partial<Parsed> = {};
-
-  for (const e of events) {
-    if (FIELD_RES.method.exec(e.message)) current = { t: e.t };
-    const path = FIELD_RES.path.exec(e.message)?.[1];
-    if (path) current.path = path.split("?")[0];
-    const status = FIELD_RES.status.exec(e.message)?.[1];
-    if (status) current.status = Number(status);
-    const durationMs = FIELD_RES.durationMs.exec(e.message)?.[1];
-    if (durationMs) current.durationMs = Number(durationMs);
-
-    if (current.t && current.path && current.status !== undefined && current.durationMs !== undefined) {
-      if (!current.path.endsWith("/health")) parsed.push(current as Parsed);
-      current = {};
-    }
-  }
-  return parsed;
-}
+/** 서버가 요청 건수 기준으로 모아 준 응답 — 파싱은 `lib/backend-request-log.ts` 가 서버에서 한다 */
+type RequestsBody = { requests: RequestLog[]; coveredFrom: number | null; windowFrom: number; exhausted: boolean };
 
 type Bucket = { start: number; ok: number; errors: number; durations: number[] };
 
-function buildBuckets(parsed: Parsed[], minutes: number, now: number): Bucket[] {
+function buildBuckets(parsed: RequestLog[], minutes: number, now: number): Bucket[] {
   const bucketMs = (minutes <= 30 ? 1 : minutes <= 60 ? 2 : minutes <= 180 ? 5 : 10) * 60_000;
   const from = now - minutes * 60_000;
   const count = Math.ceil((minutes * 60_000) / bucketMs);
@@ -339,7 +310,7 @@ function SampleLines({ history, from, to, series, yMax, unit, refLines }: {
 
 export function BackendDashboard() {
   const [minutes, setMinutes] = useState(60);
-  const [events, setEvents] = useState<LogEvent[]>([]);
+  const [body, setBody] = useState<RequestsBody | null>(null);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -349,12 +320,13 @@ export function BackendDashboard() {
     setLoading(true);
     try {
       const [logsRes, metricsRes] = await Promise.all([
-        fetch(`/api/backend-logs?group=api&minutes=${minutes}&limit=${SCAN_LINES}`, { cache: "no-store" }),
+        fetch(`/api/backend-logs?mode=requests&group=api&minutes=${minutes}&target=${REQUEST_TARGET}&exclude=health`, { cache: "no-store" }),
         fetch("/api/backend-metrics", { cache: "no-store" }),
       ]);
-      const logsBody = (await logsRes.json()) as { events?: LogEvent[]; message?: string };
+      const logsBody = (await logsRes.json()) as Partial<RequestsBody> & { message?: string };
       if (!logsRes.ok) { setError(logsBody.message ?? `조회 실패 (${logsRes.status})`); return; }
-      setEvents(logsBody.events ?? []);
+      setBody({ requests: logsBody.requests ?? [], coveredFrom: logsBody.coveredFrom ?? null,
+        windowFrom: logsBody.windowFrom ?? 0, exhausted: logsBody.exhausted ?? true });
       // 자원 스냅샷·이력은 실패해도 요청 그래프는 그린다 (서버 미배포 등)
       setMetrics(metricsRes.ok ? ((await metricsRes.json()) as Metrics) : null);
       setError(null);
@@ -375,13 +347,13 @@ export function BackendDashboard() {
     return <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700">{error}</div>;
   }
 
-  const parsed = parseRequests(events);
+  const parsed = body?.requests ?? [];
   const buckets = buildBuckets(parsed, minutes, loadedAt);
   const errorCount = parsed.filter((p) => p.status >= 400).length;
 
   const from = loadedAt - minutes * 60_000;
-  // 줄 상한에 걸리면 tail 이라 **창의 앞부분이 통째로 빠진다** — 그래프 왼쪽이 빈 이유를 밝힌다
-  const truncated = events.length >= SCAN_LINES && parsed.length > 0 && parsed[0].t > from;
+  // 목표 건수를 못 채우면 창의 앞부분이 빠진다 — 그래프 왼쪽이 빈 이유를 밝힌다
+  const truncated = body !== null && !body.exhausted && parsed.length > 0 && parsed[0].t > from;
   const history = metrics?.history ?? [];
   const maxConn = metrics?.db.connections.max ?? 0;
   const connMaxSeen = Math.max(10, ...history.map((p) => p.db_conn_total ?? 0));
@@ -406,7 +378,7 @@ export function BackendDashboard() {
 
       <div className="mb-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="요청 수" value={`${parsed.length}건`}
-          sub={truncated ? `${hhmm(parsed[0].t)} 이후만 — 줄 상한(${SCAN_LINES.toLocaleString()})` : `창 ${minutes}분 · 헬스체크 제외`}
+          sub={truncated ? `${hhmm(parsed[0].t)} 이후만 — 상한 ${REQUEST_TARGET.toLocaleString()}건` : `창 ${minutes}분 · 헬스체크 제외`}
           tone="text-ink" />
         <Stat label="오류(4xx/5xx)" value={`${errorCount}건`} sub={parsed.length ? `${((errorCount / parsed.length) * 100).toFixed(1)}%` : "—"} tone={errorCount > 0 ? "text-red-600" : "text-brand-ink"} />
         <Stat label="현재 CPU" value={metrics?.host.cpu_used_percent === null || !metrics ? "—" : `${metrics.host.cpu_used_percent!.toFixed(0)}%`} sub={metrics ? `load ${metrics.host.load_1m.toFixed(2)} · ${metrics.host.cpu_count}코어` : "조회 실패"} tone="text-ink" />

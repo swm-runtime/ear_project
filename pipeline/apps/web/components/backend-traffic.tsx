@@ -1,17 +1,19 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { Panel, Stat, Table, Td } from "@/components/ui";
+import { normalizePath, RequestLog } from "@/lib/backend-request-log";
 
 /**
  * 요청 통계 탭 — api 로그의 요청 완료 라인(LoggingInterceptor: method·path·status·duration_ms)을
  * 파싱해 경로별 트래픽·상태 분포·느린 요청을 요약한다.
  *
- * **불러온 창(최근 N분·최대 SCAN_LINES 줄) 안의 근사치다** — 전 기간 통계가 아니고,
- * 요청 로그가 아닌 라인은 세지 않는다. 상한은 줄 수라 요청 건수의 1/8쯤이다(아래 주석).
+ * **불러온 창(최근 N분·최대 REQUEST_TARGET 건) 안의 근사치다** — 전 기간 통계가 아니다.
+ * 파싱은 서버가 한다(`mode=requests`, `lib/backend-request-log.ts`). 헬스체크는 빼지 않는다
+ * — 여기서는 그것도 트래픽 통계의 일부다(그래프 탭은 뺀다).
  */
 
-/** 대시보드와 같은 값 — 요청 1건이 8줄이라 줄 상한이 곧 표본 상한이다(backend-dashboard.tsx) */
-const SCAN_LINES = 10_000;
+/** 대시보드와 같은 값 — 줄이 아니라 **건수** 기준이다 */
+const REQUEST_TARGET = 1_500;
 
 const RANGES = [
   { minutes: 15, label: "15분" },
@@ -19,68 +21,22 @@ const RANGES = [
   { minutes: 360, label: "6시간" },
 ];
 
-type LogEvent = { t: number; message: string };
-type Parsed = { method: string; path: string; status: number; durationMs: number };
 type PathAgg = { key: string; count: number; errors: number; totalMs: number; maxMs: number };
-
-/**
- * LoggingInterceptor 의 객체 출력에서 필드를 뽑는다 — 형식이 다르면 조용히 건너뛴다.
- * 운영 로그는 객체가 **여러 이벤트(줄)로 쪼개져** 오므로(실로그 확인 2026-09-04) 한 줄
- * 정규식이 아니라 순차 스캔으로 method→path→status→duration_ms 를 모은다. 같은 record 의
- * 줄들은 한 번의 console 쓰기라 연속으로 도착한다 — 필드가 섞일 일은 없다.
- */
-const FIELD_RES = {
-  method: /method:\s*'([A-Z]+)'/,
-  path: /path:\s*'([^']+)'/,
-  status: /status:\s*(\d{3})\b/,
-  durationMs: /duration_ms:\s*(\d+)\b/,
-};
-
-function parseRequests(events: LogEvent[]): Parsed[] {
-  const parsed: Parsed[] = [];
-  let current: Partial<Parsed> = {};
-
-  for (const e of events) {
-    const method = FIELD_RES.method.exec(e.message)?.[1];
-    if (method) current = { method }; // 새 record 시작 — 이전 미완성분은 버린다
-
-    const path = FIELD_RES.path.exec(e.message)?.[1];
-    if (path) current.path = normalizePath(path);
-    const status = FIELD_RES.status.exec(e.message)?.[1];
-    if (status) current.status = Number(status);
-    const durationMs = FIELD_RES.durationMs.exec(e.message)?.[1];
-    if (durationMs) current.durationMs = Number(durationMs);
-
-    if (current.method && current.path && current.status !== undefined && current.durationMs !== undefined) {
-      parsed.push(current as Parsed);
-      current = {};
-    }
-  }
-
-  return parsed;
-}
-
-/** uuid·숫자 세그먼트를 접어 같은 엔드포인트로 묶는다 */
-function normalizePath(path: string): string {
-  return path
-    .split("?")[0]
-    .replace(/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, "/:id")
-    .replace(/\/\d+(?=\/|$)/g, "/:n");
-}
+type RequestsBody = { requests: RequestLog[]; message?: string };
 
 export function BackendTraffic() {
   const [minutes, setMinutes] = useState(60);
-  const [events, setEvents] = useState<LogEvent[]>([]);
+  const [parsed, setParsed] = useState<RequestLog[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/backend-logs?group=api&minutes=${minutes}&limit=${SCAN_LINES}`, { cache: "no-store" });
-      const body = (await res.json()) as { events?: LogEvent[]; message?: string };
+      const res = await fetch(`/api/backend-logs?mode=requests&group=api&minutes=${minutes}&target=${REQUEST_TARGET}`, { cache: "no-store" });
+      const body = (await res.json()) as RequestsBody;
       if (!res.ok) { setError(body.message ?? `조회 실패 (${res.status})`); return; }
-      setEvents(body.events ?? []);
+      setParsed(body.requests ?? []);
       setError(null);
     } catch {
       setError("네트워크 오류 — 잠시 후 다시 시도하세요");
@@ -91,12 +47,10 @@ export function BackendTraffic() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const parsed = parseRequests(events);
-
   const count = (from: number, to: number) => parsed.filter((p) => p.status >= from && p.status < to).length;
   const byPath = new Map<string, PathAgg>();
   for (const p of parsed) {
-    const key = `${p.method} ${p.path}`;
+    const key = `${p.method} ${normalizePath(p.path)}`;
     const agg = byPath.get(key) ?? { key, count: 0, errors: 0, totalMs: 0, maxMs: 0 };
     agg.count += 1;
     if (p.status >= 400) agg.errors += 1;
@@ -120,7 +74,7 @@ export function BackendTraffic() {
         </div>
         <button type="button" className={chip(false)} onClick={() => void load()}>새로고침</button>
         <span className="ml-auto text-ink-soft">
-          {loading ? "불러오는 중…" : `로그 ${events.length}줄 중 요청 ${parsed.length}건 파싱`}
+          {loading ? "불러오는 중…" : `요청 ${parsed.length}건 (최근 ${minutes}분 · 최대 ${REQUEST_TARGET.toLocaleString()}건)`}
         </span>
       </div>
 
