@@ -1,0 +1,55 @@
+# [FE] 플랫폼별 runtimeVersion이 갈라져 있어 발행 한 번으로 양쪽에 닿지 않는다
+
+| 항목 | 값 |
+|---|---|
+| 대상 | `frontend/app.json`(`runtimeVersion`) · `.github/workflows/eas-update.yml` |
+| 요청 파트 | 프론트엔드 |
+| 발행 날짜 | 2026-09-08 |
+| 발견 시점 | 회수·재발행 수정(`withdrawn-republish-playback-sync`)을 실기기로 검증하다 — 고친 코드가 iOS에 **한 번도 도달하지 않았는데** 도달한 줄 알고 30분을 태웠다 |
+| 근거 문서 | `frontend/architecture.md` 2.1(runtimeVersion 고정 규칙) |
+| 심각도 | **중** — 기능 결함은 아니지만 **모든 릴리즈의 검증을 오염시킨다.** 안 고치면 매번 같은 함정을 밟는다 |
+| 상태 | 대기 |
+
+## 문제
+
+`runtimeVersion`은 고정 문자열 `cc07cb6e497796c40be4778873fb8502e9e1f827`인데,
+**이미 배포된 iOS 빌드(vc=3)는 정책 전환 이전에 만들어져 `1.0.0`을 embed하고 있다.**
+
+| 플랫폼 | 배포된 빌드 | embed된 runtimeVersion |
+|---|---|---|
+| Android | vc=7 (스토어) | `cc07cb6e…` — 발행값과 일치 ✅ |
+| iOS | vc=3 | `1.0.0` — **발행값과 불일치** ❌ |
+
+지문이 다르면 EAS는 그 빌드에 업데이트를 주지 않는다. CI(`eas-update.yml`)는 `app.json`의
+값 하나로만 발행하므로 **iOS는 CI 발행을 영원히 못 받는다.** 받으려면 사람이 매번:
+
+```
+app.json의 runtimeVersion을 로컬에서만 "1.0.0"으로 바꾸고
+eas update --channel production --platform ios --environment production
+그리고 되돌린다
+```
+
+2026-09-08 하루에만 이 백필을 세 번 했다.
+
+## 왜 위험한가 — 조용히 틀린다
+
+**실패가 실패처럼 보이지 않는다.** iOS는 에러 없이 그냥 옛 번들로 계속 돈다. 그날 검증한
+사람은 "고쳤다는데 안 된다"를 보고, 고친 사람은 "발행했다"를 본다. 둘 다 맞는 말이라
+원인을 찾는 데 로그 포렌식이 필요했다(회수 시각 대비 저장 요청 시각, `platform=` 쿼리,
+새 코드에만 있는 라우트 호출 여부).
+
+## 요청 내용
+
+1. **다음 iOS 빌드에서 양 플랫폼의 `runtimeVersion`을 앱 버전과 무관한 문자열로 통일한다**
+   (`"1"` 같은 것). 앱 버전(`1.0.0`)을 쓰면 버전을 올릴 때마다 같은 분기가 다시 생긴다.
+   **새 문자열을 지으면 이미 배포된 빌드가 전부 버려진다** — 반드시 새 빌드와 함께 바꾼다.
+2. **통일 전까지는 CI가 iOS 백필까지 하게 한다.** `eas-update.yml`에 `1.0.0` 지문으로
+   iOS를 한 번 더 발행하는 단계를 추가하고, 통일 시점에 그 단계를 지운다.
+3. **`architecture.md` 2.1에 "플랫폼별 값이 갈라진 동안의 발행 절차"를 명시한다.**
+   지금은 이 지식이 커밋 메시지와 개인 메모에만 있다.
+
+## 완료 조건
+
+- Given `frontend/` 변경이 main에 머지된다 / When CI가 끝난다 / Then **iOS·Android 양쪽이** 그 업데이트를 받을 수 있다(사람이 백필하지 않는다)
+- Given 새 빌드가 나간다 / When 두 플랫폼의 `Runtime Version`을 `eas build:view`로 본다 / Then 같은 값이다
+- Given `architecture.md` 2.1 / When 발행 절차를 찾는다 / Then 플랫폼 분기 상황의 절차가 적혀 있다
