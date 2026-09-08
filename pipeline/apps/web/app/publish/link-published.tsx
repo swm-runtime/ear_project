@@ -44,7 +44,7 @@ export function LinkPublished() {
     if (!c) return;
     if (!confirm(`${r.backlog_id} "${r.title}" 을(를) 제품 콘텐츠 "${c.title}" (${c.id.slice(0, 8)}…, v${c.content_version}) 에 연결할까요?`)) return;
     setBusy(r.backlog_id);
-    try { await markPublished(r.backlog_id, c.id, c.content_version, c.published_at); setRows((rs) => (rs ?? []).filter((x) => x.backlog_id !== r.backlog_id)); }
+    try { await markPublished(r.backlog_id, c.id, c.content_version, c.published_at, { action: "link", episodeId: r.episode_id ?? undefined, note: c.content_version > 1 ? `연결 시점에 이미 v${c.content_version} — 그 전 재발행은 콘솔 밖에서 일어남(제품 audit_logs 참조)` : "0012 이전 발행분 수기 연결" }); setRows((rs) => (rs ?? []).filter((x) => x.backlog_id !== r.backlog_id)); }
     catch (e) { alert(earErrMsg(e)); } finally { setBusy(null); }
   }
 

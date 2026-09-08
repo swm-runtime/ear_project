@@ -111,7 +111,7 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
         })),
         review_confirmed: true,
       }, audio!, thumbFile!);
-      if (meta) await markPublished(meta.backlog_id, content.id, content.content_version).catch(() => undefined); // 파이프라인에 content_id·버전 기록 — 실패해도 발행은 성립 (spec/07 5장)
+      await markPublished(meta?.backlog_id ?? null, content.id, content.content_version, content.published_at, { action: "publish", parts: ["audio", "thumbnail", "title", "description", "source_name", "topic_ids"], episodeId: episodeId ?? undefined }).catch(() => undefined); // 파이프라인에 content_id·버전·이력 기록 — 실패해도 발행은 성립 (spec/07 5장)
       setMsg({ kind: "ok", text: `발행되었습니다 — ${content.id}` });
       setTimeout(() => router.push("/publish"), 900);
     } catch (e) {
