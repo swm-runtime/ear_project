@@ -19,6 +19,7 @@ import type {
   SocialLoginRequestDto,
   SocialLoginResponseDto,
   UserDto,
+  CurrentUserResponseDto,
 } from './auth.api';
 import type { SocialProvider } from '../auth.types';
 
@@ -115,4 +116,17 @@ export const mockRequestLogout = async (): Promise<void> => {
 /** A20 재동의 전송(auth-api.md 4.5). 서버는 갱신 후 동의 상태를 주지만 화면이 쓰지 않는다 */
 export const mockSubmitConsents = async (): Promise<void> => {
   await delay(RESPONSE_DELAY_MS);
+};
+
+/**
+ * 세션 복원(auth-api.md 4.13). **mock 은 항상 복원에 성공한다** — 실패 경로(401 → 시작 화면)는
+ * 토큰이 없을 때 서비스가 호출 자체를 하지 않으므로 여기서 흉내 낼 대상이 아니다.
+ * 온보딩 완료 여부는 로그인 mock 과 같은 시나리오 스위치를 따른다.
+ */
+export const mockGetCurrentUser = async (): Promise<CurrentUserResponseDto> => {
+  await delay(RESPONSE_DELAY_MS);
+  return {
+    user: buildUser(pendingProvider ?? 'kakao', SCENARIO !== 'onboarding'),
+    pending_consents: [],
+  };
 };
