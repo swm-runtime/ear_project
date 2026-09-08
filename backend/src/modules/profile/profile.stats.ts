@@ -1,3 +1,4 @@
+import { shiftServiceDate } from '@/common/utils/service-date.util';
 import { ContentTopicView } from '@/modules/content/content.types';
 import { ContentListenedSecView } from '@/modules/playback/playback.types';
 
@@ -17,23 +18,6 @@ import {
  * 여기에 둔다. Repository·시각에 의존하지 않아야 04시 경계·오늘 미청취·동률 반올림 같은
  * 경계 케이스를 테스트로 고정할 수 있다(convention.md 7.3 — `Date.now()`를 직접 쓰지 않는다).
  */
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-/** `YYYY-MM-DD` 라벨을 UTC 필드에 담은 Date로. 계산 전용이며 저장하지 않는다 */
-function parseServiceDate(label: string): Date {
-  const [year, month, day] = label.split('-').map(Number);
-  return new Date(Date.UTC(year, month - 1, day));
-}
-
-function shiftServiceDate(label: string, days: number): string {
-  const shifted = new Date(parseServiceDate(label).getTime() + days * DAY_MS);
-  const year = shifted.getUTCFullYear();
-  const month = String(shifted.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(shifted.getUTCDate()).padStart(2, '0');
-
-  return `${year}-${month}-${day}`;
-}
 
 /**
  * 연속 청취 일수(`profile.md` 4.5).

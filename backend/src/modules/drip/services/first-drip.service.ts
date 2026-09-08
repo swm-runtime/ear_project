@@ -83,7 +83,7 @@ export class FirstDripService {
       await this.runWithRetries(userId, now);
     } catch (error) {
       this.logger.error('first drip background run failed', {
-        userId,
+        user_id: userId,
         error: toErrorMessage(error),
       });
     }
@@ -108,7 +108,7 @@ export class FirstDripService {
         return;
       } catch (error) {
         this.logger.warn('first drip attempt failed', {
-          userId,
+          user_id: userId,
           attempt: attempt + 1,
           error: toErrorMessage(error),
         });
@@ -149,7 +149,7 @@ export class FirstDripService {
 
       // 신규 사용자의 첫 편성 실패는 편성 배치 장애의 조기 신호다 — 조용히 넘기지 않는다
       this.logger.error('first drip retry failed', {
-        userId,
+        user_id: userId,
         attemptCount: job.attemptCount,
         status: job.status,
         error: toErrorMessage(error),
@@ -208,7 +208,7 @@ export class FirstDripService {
     await this.firstDripJobRepository.save(job);
 
     this.logger.log('first drip scheduled', {
-      userId,
+      user_id: userId,
       scheduledCount: contentIds.length,
     });
   }
@@ -307,7 +307,7 @@ export class FirstDripService {
     await this.firstDripJobRepository.save(job);
 
     this.logger.error('first drip handed to retry queue', {
-      userId,
+      user_id: userId,
       attemptCount: job.attemptCount,
     });
   }

@@ -116,7 +116,7 @@ export class DripBatchOrchestrator {
         } catch (error) {
           counts.failedCount += 1;
           this.logger.warn('drip scheduling failed for user', {
-            userId: user.id,
+            user_id: user.id,
             error: toErrorMessage(error),
           });
         }
@@ -192,7 +192,7 @@ export class DripBatchOrchestrator {
       }
     } catch (error) {
       this.logger.warn('discovery scheduling failed', {
-        userId: user.id,
+        user_id: user.id,
         error: toErrorMessage(error),
       });
     }
