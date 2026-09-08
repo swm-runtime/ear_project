@@ -26,6 +26,7 @@ import type {
   PlaybackProgressPutResponseDto,
   PlayLimitFieldsDto,
   PlayStartResponseDto,
+  WithdrawnContentsResponseDto,
 } from './player.dto';
 
 const SCENARIO = process.env.EXPO_PUBLIC_LIBRARY_MOCK_SCENARIO ?? 'default';
@@ -214,8 +215,20 @@ export const mockSavePlaybackProgress = async (
     position_sec: body.position_sec,
     max_reached_sec: body.max_reached_sec,
     content_version: body.content_version,
+    // mock 은 회수를 흉내 내지 않는다 — 회수는 관리자 조작으로만 일어나고
+    // 그 경로는 실서버에서만 재현된다(player-api.md 4.3)
+    content_status: 'published',
     library_item: libraryItem,
   };
+};
+
+/**
+ * GET /contents/withdrawn의 대역(player-api.md 4.6) — mock 은 회수를 흉내 내지 않으므로
+ * 항상 빈 목록이다. 회수는 관리자 조작으로만 일어나 실서버에서만 재현된다.
+ */
+export const mockGetWithdrawnContents = async (): Promise<WithdrawnContentsResponseDto> => {
+  await delay(100);
+  return { content_ids: [] };
 };
 
 /** POST /contents/:id/replay의 대역 — 신호 적재뿐이라 상태 변화가 없다(player-api.md 4.4) */

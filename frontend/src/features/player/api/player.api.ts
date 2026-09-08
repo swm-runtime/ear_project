@@ -18,8 +18,10 @@ import type {
   PlaybackProgressPutResponseDto,
   PlayLimitFieldsDto,
   PlayStartResponseDto,
+  WithdrawnContentsResponseDto,
 } from './player.dto';
 import {
+  mockGetWithdrawnContents,
   mockIssueAudioUrls,
   mockSavePlaybackProgress,
   mockSendReplaySignal,
@@ -78,6 +80,7 @@ const toProgressSaveResult = (dto: PlaybackProgressPutResponseDto): ProgressSave
   positionSec: dto.position_sec,
   maxReachedSec: dto.max_reached_sec,
   contentVersion: dto.content_version,
+  contentStatus: dto.content_status,
   libraryItem: dto.library_item
     ? {
         id: dto.library_item.id,
@@ -153,6 +156,23 @@ export const savePlaybackProgress = async (input: {
         )
       ).data;
   return toProgressSaveResult(data);
+};
+
+/**
+ * 회수 목록 동기화(player-api.md 4.6) — 앱 실행·포그라운드 복귀 시 `since` 이후 회수분을 받는다.
+ *
+ * **재생 중 세션의 중단은 이 목록이 아니라 위치 저장(4.3) 응답의 `content_status`가 주 채널이다.**
+ * 이 라우트는 회수 시점에 재생 중이 **아니었던** 세션(백그라운드에 있던 앱)의 보완이다.
+ */
+export const getWithdrawnContents = async (input: { since: string }): Promise<string[]> => {
+  const data = IS_PLAYER_API_MOCKED
+    ? await mockGetWithdrawnContents()
+    : (
+        await apiClient.get<WithdrawnContentsResponseDto>('/contents/withdrawn', {
+          params: { since: input.since },
+        })
+      ).data;
+  return data.content_ids;
 };
 
 /**
