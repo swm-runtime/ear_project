@@ -6,9 +6,12 @@ import { Panel, Stat, Table, Td } from "@/components/ui";
  * 요청 통계 탭 — api 로그의 요청 완료 라인(LoggingInterceptor: method·path·status·duration_ms)을
  * 파싱해 경로별 트래픽·상태 분포·느린 요청을 요약한다.
  *
- * **불러온 창(최근 N분·최대 1,000줄) 안의 근사치다** — 전 기간 통계가 아니고,
- * 요청 로그가 아닌 라인은 세지 않는다.
+ * **불러온 창(최근 N분·최대 SCAN_LINES 줄) 안의 근사치다** — 전 기간 통계가 아니고,
+ * 요청 로그가 아닌 라인은 세지 않는다. 상한은 줄 수라 요청 건수의 1/8쯤이다(아래 주석).
  */
+
+/** 대시보드와 같은 값 — 요청 1건이 8줄이라 줄 상한이 곧 표본 상한이다(backend-dashboard.tsx) */
+const SCAN_LINES = 10_000;
 
 const RANGES = [
   { minutes: 15, label: "15분" },
@@ -74,7 +77,7 @@ export function BackendTraffic() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/backend-logs?group=api&minutes=${minutes}&limit=1000`, { cache: "no-store" });
+      const res = await fetch(`/api/backend-logs?group=api&minutes=${minutes}&limit=${SCAN_LINES}`, { cache: "no-store" });
       const body = (await res.json()) as { events?: LogEvent[]; message?: string };
       if (!res.ok) { setError(body.message ?? `조회 실패 (${res.status})`); return; }
       setEvents(body.events ?? []);

@@ -6,10 +6,19 @@ import { Stat } from "@/components/ui";
  * 대시보드 탭 — 요청 로그를 시간축 그래프로, 자원(CPU·메모리·DB 연결) 이력을 선 그래프로
  * 그린다. **자동 폴링하지 않는다** — 열 때 1회 + [새로고침] (사용자 결정 2026-09-06).
  *
- * - 요청·응답시간: 불러온 창(최대 1,000줄) 안의 근사치. 헬스체크(/health)는 제외
+ * - 요청·응답시간: 불러온 창 안의 근사치 — 줄 상한(SCAN_LINES)에 걸리면 창 앞부분이
+ *   통째로 빠지고, 그때는 [요청 수] 카드가 어디부터 그린 건지 밝힌다. 헬스체크(/health)는 제외
  * - 자원 이력: 백엔드가 60초마다 쌓는 메모리 링 버퍼(최대 6시간) — 재기동(배포) 시 비워진다
  * - 모든 그래프는 마우스 호버로 시각·값을 보여준다
  */
+
+/**
+ * 한 번에 훑는 로그 줄 수. **요청 건수가 아니라 줄 수다** — Nest ConsoleLogger 는
+ * compact:false 라 요청 로그 객체를 여러 줄로 찍고(`Object(6) {` + 필드 6줄 + `}` = 8줄),
+ * awslogs 드라이버가 줄마다 이벤트를 만든다. 1,000줄이면 요청 125건뿐이라 6시간을 골라도
+ * 최근 몇 분만 그려졌다 — 버킷당 표본이 한 자릿수면 p95 는 사실상 최댓값이 된다.
+ */
+const SCAN_LINES = 10_000;
 
 const RANGES = [
   { minutes: 30, label: "30분" },
@@ -77,9 +86,14 @@ function buildBuckets(parsed: Parsed[], minutes: number, now: number): Bucket[] 
   return buckets;
 }
 
+/**
+ * 최근접 순위(nearest-rank) — p 백분위는 오름차순 ceil(p/100·n) 번째 값이다.
+ * floor 로 잡으면 한 칸 위를 집어(n=2 의 p50 이 최댓값) 값이 큰 쪽으로 치우친다.
+ */
 function percentile(sorted: number[], p: number): number {
   if (sorted.length === 0) return 0;
-  return sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))];
+  const rank = Math.ceil((p / 100) * sorted.length) - 1;
+  return sorted[Math.min(sorted.length - 1, Math.max(0, rank))];
 }
 
 const hhmm = (t: number) => new Date(t).toLocaleTimeString("ko-KR", { hour12: false, hour: "2-digit", minute: "2-digit" });
@@ -125,16 +139,21 @@ function YGrid({ max, unit }: { max: number; unit: string }) {
   );
 }
 
-/** x축 시각 눈금 ~5개 */
-function XTicks({ times }: { times: number[] }) {
+/**
+ * x축 시각 눈금 ~5개. `bucketed` 는 값이 점이 아니라 **구간**(버킷)일 때 — 눈금을 칸
+ * 가운데에 둬서 막대·선의 x 와 같은 자리를 가리키게 한다.
+ */
+function XTicks({ times, bucketed = false }: { times: number[]; bucketed?: boolean }) {
   if (times.length === 0) return null;
+  const tickX = (i: number) =>
+    bucketed ? ((i + 0.5) * W) / times.length : (i / Math.max(1, times.length - 1)) * W;
   const step = Math.max(1, Math.ceil(times.length / 5));
   const idxs = Array.from({ length: times.length }, (_, i) => i).filter((i) => i % step === 0);
   if (idxs[idxs.length - 1] !== times.length - 1) idxs.push(times.length - 1);
   return (
     <>
       {idxs.map((i) => (
-        <text key={i} x={(i / Math.max(1, times.length - 1)) * W} y={H + 12}
+        <text key={i} x={tickX(i)} y={H + 12}
           textAnchor={i === 0 ? "start" : i === times.length - 1 ? "end" : "middle"}
           className="fill-ink-soft text-[9px]">{hhmm(times[i])}</text>
       ))}
@@ -168,7 +187,7 @@ function RequestBars({ buckets }: { buckets: Bucket[] }) {
             </g>
           );
         })}
-        <XTicks times={buckets.map((b) => b.start)} />
+        <XTicks times={buckets.map((b) => b.start)} bucketed />
       </svg>
       {idx !== null && (
         <Tip ratio={ratio!} lines={[
@@ -180,19 +199,25 @@ function RequestBars({ buckets }: { buckets: Bucket[] }) {
   );
 }
 
-/** 버킷별 응답시간 p50/p95 선 — 요청 없는 버킷은 선을 끊는다. 호버 시 값 */
+/**
+ * 버킷별 응답시간 p50/p95 선 — 요청 없는 버킷은 선을 끊는다. 호버 시 값과 표본 수.
+ *
+ * x 는 **버킷 가운데**다 — 옆의 요청 수 막대(폭 W/n)와 같은 자리를 가리켜야 두 그래프를
+ * 나란히 읽을 수 있다. 끝점을 0..W 로 펼치면 버킷마다 반 칸씩 어긋난다.
+ * 표본이 적은 버킷의 p95 는 정의상 그 버킷의 최댓값에 가깝다 — 그래서 건수를 함께 띄운다.
+ */
 function LatencyLines({ buckets }: { buckets: Bucket[] }) {
   const { ratio, onMouseMove, onMouseLeave } = useHoverRatio();
   const points = buckets.map((b, i) => {
     const sorted = [...b.durations].sort((a, z) => a - z);
-    return { i, p50: percentile(sorted, 50), p95: percentile(sorted, 95), has: sorted.length > 0 };
+    return { i, p50: percentile(sorted, 50), p95: percentile(sorted, 95), n: sorted.length };
   });
   const max = Math.max(50, ...points.map((p) => p.p95));
-  const x = (i: number) => (i / Math.max(1, buckets.length - 1)) * W;
+  const x = (i: number) => ((i + 0.5) * W) / buckets.length;
   const y = (v: number) => H - (v / max) * H;
   const path = (pick: (p: (typeof points)[number]) => number) =>
-    points.map((p, i) => (p.has ? `${i === 0 || !points[i - 1]?.has ? "M" : "L"}${x(p.i).toFixed(1)},${y(pick(p)).toFixed(1)}` : "")).join(" ");
-  const idx = ratio === null ? null : Math.min(buckets.length - 1, Math.round(ratio * (buckets.length - 1)));
+    points.map((p, i) => (p.n > 0 ? `${i === 0 || !points[i - 1]?.n ? "M" : "L"}${x(p.i).toFixed(1)},${y(pick(p)).toFixed(1)}` : "")).join(" ");
+  const idx = ratio === null ? null : Math.min(buckets.length - 1, Math.floor(ratio * buckets.length));
 
   return (
     <div className="relative" onMouseMove={onMouseMove} onMouseLeave={onMouseLeave}>
@@ -200,18 +225,18 @@ function LatencyLines({ buckets }: { buckets: Bucket[] }) {
         <YGrid max={max} unit="ms" />
         <path d={path((p) => p.p95)} className="fill-none stroke-amber-500" strokeWidth={1.5} />
         <path d={path((p) => p.p50)} className="fill-none stroke-brand" strokeWidth={1.5} />
-        {idx !== null && points[idx].has && (
+        {idx !== null && points[idx].n > 0 && (
           <>
             <line x1={x(idx)} x2={x(idx)} y1={0} y2={H} className="stroke-ink-soft" strokeWidth={0.5} />
             <circle cx={x(idx)} cy={y(points[idx].p50)} r={2.5} className="fill-brand" />
             <circle cx={x(idx)} cy={y(points[idx].p95)} r={2.5} className="fill-amber-500" />
           </>
         )}
-        <XTicks times={buckets.map((b) => b.start)} />
+        <XTicks times={buckets.map((b) => b.start)} bucketed />
       </svg>
       {idx !== null && (
-        <Tip ratio={ratio!} lines={points[idx].has
-          ? [hhmm(buckets[idx].start), `p50 ${points[idx].p50}ms · p95 ${points[idx].p95}ms`]
+        <Tip ratio={ratio!} lines={points[idx].n > 0
+          ? [hhmm(buckets[idx].start), `p50 ${points[idx].p50}ms · p95 ${points[idx].p95}ms`, `${points[idx].n}건`]
           : [hhmm(buckets[idx].start), "요청 없음"]} />
       )}
     </div>
@@ -294,7 +319,7 @@ export function BackendDashboard() {
     setLoading(true);
     try {
       const [logsRes, metricsRes] = await Promise.all([
-        fetch(`/api/backend-logs?group=api&minutes=${minutes}&limit=1000`, { cache: "no-store" }),
+        fetch(`/api/backend-logs?group=api&minutes=${minutes}&limit=${SCAN_LINES}`, { cache: "no-store" }),
         fetch("/api/backend-metrics", { cache: "no-store" }),
       ]);
       const logsBody = (await logsRes.json()) as { events?: LogEvent[]; message?: string };
@@ -323,9 +348,10 @@ export function BackendDashboard() {
   const parsed = parseRequests(events);
   const buckets = buildBuckets(parsed, minutes, loadedAt);
   const errorCount = parsed.filter((p) => p.status >= 400).length;
-  const sortedAll = parsed.map((p) => p.durationMs).sort((a, b) => a - b);
 
   const from = loadedAt - minutes * 60_000;
+  // 줄 상한에 걸리면 tail 이라 **창의 앞부분이 통째로 빠진다** — 그래프 왼쪽이 빈 이유를 밝힌다
+  const truncated = events.length >= SCAN_LINES && parsed.length > 0 && parsed[0].t > from;
   const history = metrics?.history ?? [];
   const maxConn = metrics?.db.connections.max ?? 0;
   const connMaxSeen = Math.max(10, ...history.map((p) => p.db_conn_total ?? 0));
@@ -349,7 +375,9 @@ export function BackendDashboard() {
       </div>
 
       <div className="mb-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="요청 수" value={`${parsed.length}건`} sub={`창 ${minutes}분 · 최대 1,000줄 근사`} tone="text-ink" />
+        <Stat label="요청 수" value={`${parsed.length}건`}
+          sub={truncated ? `${hhmm(parsed[0].t)} 이후만 — 줄 상한(${SCAN_LINES.toLocaleString()})` : `창 ${minutes}분 · 헬스체크 제외`}
+          tone="text-ink" />
         <Stat label="오류(4xx/5xx)" value={`${errorCount}건`} sub={parsed.length ? `${((errorCount / parsed.length) * 100).toFixed(1)}%` : "—"} tone={errorCount > 0 ? "text-red-600" : "text-brand-ink"} />
         <Stat label="현재 CPU" value={metrics?.host.cpu_used_percent === null || !metrics ? "—" : `${metrics.host.cpu_used_percent!.toFixed(0)}%`} sub={metrics ? `load ${metrics.host.load_1m.toFixed(2)} · ${metrics.host.cpu_count}코어` : "조회 실패"} tone="text-ink" />
         <Stat label="현재 메모리" value={memUsed === null ? "—" : `${memUsed.toFixed(0)}%`} sub={metrics ? `가용 ${(metrics.host.mem_available_bytes / GiB).toFixed(1)}GB / ${(metrics.host.mem_total_bytes / GiB).toFixed(1)}GB` : "조회 실패"} tone="text-ink" />

@@ -18,7 +18,13 @@ const GROUPS: Record<string, { group: string; stream: string }> = {
   api: { group: process.env.BACKEND_LOG_GROUP_API ?? "/ear/api", stream: "api" },
   caddy: { group: process.env.BACKEND_LOG_GROUP_CADDY ?? "/ear/caddy", stream: "caddy" },
 };
-const MAX_LIMIT = 1000;
+/**
+ * GetLogEvents 의 이벤트 상한(=CloudWatch 상한). **줄 수이지 요청 수가 아니다** — Nest
+ * ConsoleLogger 가 compact:false 로 요청 로그 객체를 8줄에 나눠 찍고 awslogs 가 줄마다
+ * 이벤트를 만들어서, 1,000줄이면 대시보드·요청 통계가 요청 125건만 보고 그렸다.
+ * 실시간 로그 뷰어는 여전히 기본 300줄만 당긴다(자기 limit 을 보낸다).
+ */
+const MAX_LIMIT = 10_000;
 const MAX_MINUTES = 7 * 24 * 60; // 보관 7일 — 그보다 과거는 어차피 없다
 
 let client: CloudWatchLogsClient | undefined;
