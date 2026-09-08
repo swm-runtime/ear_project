@@ -15,7 +15,20 @@ export interface ContentCandidateQuery {
   includeTopicIds?: string[];
   /** 이 주제에 걸리는 콘텐츠는 제외한다 (관심 주제 밖에서 뽑을 때) */
   excludeTopicIds?: string[];
+  /**
+   * **이 요청 안에서만 제외할 것들** — 방금 뽑은 정규 편성분을 탐험 슬롯에서 빼는 식이다.
+   * 사용자의 누적 이력은 아래 `excludeSeenByUserId`가 SQL에서 처리한다.
+   */
   excludeContentIds?: string[];
+  /**
+   * **이미 본 것을 SQL에서 뺀다**(`domain.md` 7 후보 필터) — `library_items`(삭제 여부 무관)
+   * 또는 `drip_excluded_contents`에 행이 있으면 후보가 아니다.
+   *
+   * 이 목록을 애플리케이션에서 만들어 `NOT IN`으로 넘기지 않는다. 계정 수명 동안 단조
+   * 증가하는 값이라(재생·적립·해제·삭제 무엇도 정리되지 않는다) 바인딩 파라미터 상한
+   * (65,535)에 다가가고, 그 전에 실행 계획이 무너진다. 존재 검사는 인덱스가 있다.
+   */
+  excludeSeenByUserId?: string;
   /**
    * 시리즈 중간 편을 후보에서 뺀다(`episode_no`가 없거나 1인 것만).
    * 1편을 듣지 않은 사용자에게 3편을 적립하지 않기 위한 조건이다

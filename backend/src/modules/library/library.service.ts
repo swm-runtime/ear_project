@@ -344,14 +344,12 @@ export class LibraryService {
   }
 
   /** 주제 필터 팝업의 집계 대상 — 삭제되지 않고 회수되지 않은 항목의 `content_id` */
-  async findVisibleContentIds(
+  /** 주제 필터 팝업의 주제별 건수(library-api.md 4.2) — 집계는 SQL이 한다 */
+  async countByTopicForUser(
     userId: string,
     manager?: EntityManager,
-  ): Promise<string[]> {
-    return this.libraryItemRepository.findAllVisibleContentIdsByUserId(
-      userId,
-      manager,
-    );
+  ): Promise<{ topicId: string; name: string; itemCount: number }[]> {
+    return this.libraryItemRepository.countByTopicForUser(userId, manager);
   }
 
   /**
@@ -363,14 +361,9 @@ export class LibraryService {
    */
   async findResumeTarget(
     userId: string,
-    startedContentIds: string[],
     manager?: EntityManager,
   ): Promise<LibraryItem | null> {
-    return this.libraryItemRepository.findLatestPlayedAmongContentIds(
-      userId,
-      startedContentIds,
-      manager,
-    );
+    return this.libraryItemRepository.findLatestResumable(userId, manager);
   }
 
   /**

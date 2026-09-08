@@ -4,8 +4,18 @@
  */
 export class GetWithdrawnContentsResponseDto {
   readonly content_ids: string[];
+  /**
+   * 상한에 걸려 잘렸을 때, **이어 받을 때 보낼 `since` 값**. 더 없으면 `null`이다.
+   *
+   * 발급됐다는 것 자체가 "아직 남았다"는 신호다 — 클라이언트는 `null`이 나올 때까지
+   * 이 값을 `since`로 다시 부른다. 무시해도 다음 동기화에서 이어지므로 화면이 깨지지는 않는다.
+   */
+  readonly next_since: string | null;
 
-  static from(contentIds: string[]): GetWithdrawnContentsResponseDto {
-    return { content_ids: contentIds };
+  static from(result: {
+    contentIds: string[];
+    nextSince: string | null;
+  }): GetWithdrawnContentsResponseDto {
+    return { content_ids: result.contentIds, next_since: result.nextSince };
   }
 }

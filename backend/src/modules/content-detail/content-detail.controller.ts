@@ -48,7 +48,7 @@ export class ContentDetailController {
     @Query() query: GetWithdrawnContentsQueryRequestDto,
   ): Promise<GetWithdrawnContentsResponseDto> {
     return GetWithdrawnContentsResponseDto.from(
-      await this.contentService.findWithdrawnIdsSince(new Date(query.since)),
+      await this.contentService.findWithdrawnSince(new Date(query.since)),
     );
   }
 
