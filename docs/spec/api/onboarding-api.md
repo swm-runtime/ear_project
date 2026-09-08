@@ -128,7 +128,8 @@
 {
   "items": [
     { "topic_id": "uuid-a", "name": "커리어", "parent_category": "일" },
-    { "topic_id": "uuid-b", "name": "생산성", "parent_category": "일" }
+    { "topic_id": "uuid-b", "name": "생산성", "parent_category": "일" },
+    { "topic_id": "uuid-c", "name": "심리학", "parent_category": "심리·마음" }
   ],
   "max_selectable": 3,
   "is_fallback": false
