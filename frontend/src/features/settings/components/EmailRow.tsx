@@ -74,7 +74,8 @@ export default function EmailRow({ state, onPress, onRetry, isRetrying }: EmailR
       >
         <Text style={styles.label}>{SETTINGS_COPY.email.label}</Text>
         <View style={styles.valueLine}>
-          <Text style={styles.value}>{valueText}</Text>
+          {/* 미등록이면 값 자리를 비운다 — 배지가 같은 말을 한다(ProfileHeader 와 같은 규칙) */}
+          {vm.email !== null ? <Text style={styles.value}>{vm.email}</Text> : null}
           {/* 인증 전이면 배지를 단다 — 미등록도 포함이다(profile.md 4.3 과 같은 구분) */}
           {vm.status !== 'verified' ? (
             <View style={styles.badge}>
