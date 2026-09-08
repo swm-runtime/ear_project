@@ -56,6 +56,14 @@ export class ContentService {
     private readonly contentEmbeddingRepository: ContentEmbeddingRepository,
   ) {}
 
+  /** 회수 동기화(`partner-control.md` 4.3) — 그 시각 이후 회수된 콘텐츠 id 목록 */
+  async findWithdrawnIdsSince(
+    since: Date,
+    manager?: EntityManager,
+  ): Promise<string[]> {
+    return this.contentRepository.findWithdrawnIdsSince(since, manager);
+  }
+
   /**
    * 검증된 추천 메타(`EnrichmentInput`)를 저장한다 — `contents` 메타 4종은 넘어온 키만
    * 갱신하고, 임베딩은 **현재 `content_version`으로** 콘텐츠당 1행 전체 교체 upsert 한다

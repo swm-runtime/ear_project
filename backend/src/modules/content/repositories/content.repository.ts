@@ -140,6 +140,25 @@ export class ContentRepository {
   }
 
   /**
+   * 회수 동기화(`partner-control.md` 4.3 — 클라이언트 동기화) — 그 시각 이후 회수된
+   * `content_id` 목록. 별도 테이블 없이 `contents`의 상태·시각으로 판정한다(domain.md 14장).
+   */
+  async findWithdrawnIdsSince(
+    since: Date,
+    manager?: EntityManager,
+  ): Promise<string[]> {
+    const rows = await this.scoped(manager)
+      .createQueryBuilder('content')
+      .select('content.id', 'id')
+      .where('content.status = :status', { status: ContentStatus.WITHDRAWN })
+      .andWhere('content.withdrawn_at > :since', { since })
+      .orderBy('content.withdrawn_at', 'ASC')
+      .getRawMany<{ id: string }>();
+
+    return rows.map((row) => row.id);
+  }
+
+  /**
    * 추천·편성 후보를 인기·신선도 순으로 조회한다.
    *
    * 콜드스타트(FR-17) 규칙이라 전체 구간(`period_type = all`) 재생 수를 1순위,

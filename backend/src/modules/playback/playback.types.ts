@@ -105,6 +105,12 @@ export interface SaveProgressResult {
   maxReachedSec: number;
   /** 서버의 현재 버전. 요청과 다르면 클라이언트가 로컬 위치·오프라인 파일을 폐기한다 */
   contentVersion: number;
+  /**
+   * 콘텐츠의 현재 상태 — `withdrawn`이면 클라이언트가 재생을 즉시 멈춘다
+   * (`tickets/backend/pending/withdrawn-sync-stops-playback.md` 요청 3 — 위치 저장은 이미
+   * 재생 중 주기적으로 도는 왕복이라, 회수를 알리는 가장 빠른 채널이다).
+   */
+  contentStatus: string;
   /** 이 저장으로 완청이 판정되면 `completed`. 라이브러리에 없는 콘텐츠면 `null` */
   libraryItem: {
     id: string;
