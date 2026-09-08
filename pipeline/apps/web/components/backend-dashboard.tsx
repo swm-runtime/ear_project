@@ -96,6 +96,19 @@ function percentile(sorted: number[], p: number): number {
   return sorted[Math.min(sorted.length - 1, Math.max(0, rank))];
 }
 
+/**
+ * 응답시간 y축 상한. p95 최댓값을 그대로 쓰면 느린 요청 **하나**가 축을 끌어올려 p50 선을
+ * x축에 붙여버린다 — 표본이 적은 버킷의 p95 는 곧 그 버킷의 최댓값이라 자주 벌어진다
+ * (1분 버킷·표본 4건이면 2,400ms 하나에 축이 2,400ms 가 되고 40ms 대 p50 은 바닥에 깔린다).
+ * 그래서 p95 들의 **중앙값** 기준으로 상한을 두고, 넘는 점은 위에서 자른 뒤 ▲ 로 표시한다.
+ * 값을 잃지는 않는다 — 툴팁은 늘 실제값을 보여준다. 이상치가 없으면 예전과 같은 축이다.
+ */
+function axisMax(p95s: number[]): number {
+  const seen = p95s.filter((v) => v > 0).sort((a, b) => a - b);
+  if (seen.length === 0) return 50;
+  return Math.max(50, Math.min(seen[seen.length - 1], percentile(seen, 50) * 4));
+}
+
 const hhmm = (t: number) => new Date(t).toLocaleTimeString("ko-KR", { hour12: false, hour: "2-digit", minute: "2-digit" });
 const GiB = 1024 ** 3;
 
@@ -204,7 +217,9 @@ function RequestBars({ buckets }: { buckets: Bucket[] }) {
  *
  * x 는 **버킷 가운데**다 — 옆의 요청 수 막대(폭 W/n)와 같은 자리를 가리켜야 두 그래프를
  * 나란히 읽을 수 있다. 끝점을 0..W 로 펼치면 버킷마다 반 칸씩 어긋난다.
- * 표본이 적은 버킷의 p95 는 정의상 그 버킷의 최댓값에 가깝다 — 그래서 건수를 함께 띄운다.
+ * 표본이 적은 버킷의 p95 는 정의상 그 버킷의 최댓값에 가깝다 — 그래서 건수를 함께 띄우고,
+ * y축은 그 값 하나에 끌려가지 않게 `axisMax` 로 잡는다(넘는 점은 ▲).
+ * 앞뒤가 빈 **고립된 칸은 점으로** 찍는다 — 선만으로는 화면에서 사라진다.
  */
 function LatencyLines({ buckets }: { buckets: Bucket[] }) {
   const { ratio, onMouseMove, onMouseLeave } = useHoverRatio();
@@ -212,11 +227,15 @@ function LatencyLines({ buckets }: { buckets: Bucket[] }) {
     const sorted = [...b.durations].sort((a, z) => a - z);
     return { i, p50: percentile(sorted, 50), p95: percentile(sorted, 95), n: sorted.length };
   });
-  const max = Math.max(50, ...points.map((p) => p.p95));
+  const max = axisMax(points.map((p) => p.p95));
   const x = (i: number) => ((i + 0.5) * W) / buckets.length;
-  const y = (v: number) => H - (v / max) * H;
+  const y = (v: number) => H - (Math.min(v, max) / max) * H;
   const path = (pick: (p: (typeof points)[number]) => number) =>
     points.map((p, i) => (p.n > 0 ? `${i === 0 || !points[i - 1]?.n ? "M" : "L"}${x(p.i).toFixed(1)},${y(pick(p)).toFixed(1)}` : "")).join(" ");
+  // 앞뒤가 모두 빈 칸은 subpath 가 moveto 하나뿐이라 SVG 가 **아무것도 그리지 않는다** —
+  // 요청이 있었는데도 조용히 사라지므로 점으로 찍는다. 한산한 시간대일수록 자주 생긴다
+  const isolated = points.filter((p) => p.n > 0 && !points[p.i - 1]?.n && !points[p.i + 1]?.n);
+  const clipped = points.filter((p) => p.n > 0 && p.p95 > max);
   const idx = ratio === null ? null : Math.min(buckets.length - 1, Math.floor(ratio * buckets.length));
 
   return (
@@ -225,6 +244,16 @@ function LatencyLines({ buckets }: { buckets: Bucket[] }) {
         <YGrid max={max} unit="ms" />
         <path d={path((p) => p.p95)} className="fill-none stroke-amber-500" strokeWidth={1.5} />
         <path d={path((p) => p.p50)} className="fill-none stroke-brand" strokeWidth={1.5} />
+        {isolated.map((p) => (
+          <g key={`iso-${p.i}`}>
+            <circle cx={x(p.i)} cy={y(p.p95)} r={1.75} className="fill-amber-500" />
+            <circle cx={x(p.i)} cy={y(p.p50)} r={1.75} className="fill-brand" />
+          </g>
+        ))}
+        {clipped.map((p) => (
+          <path key={`clip-${p.i}`} d={`M${(x(p.i) - 3.5).toFixed(1)},5 L${(x(p.i) + 3.5).toFixed(1)},5 L${x(p.i).toFixed(1)},0 Z`}
+            className="fill-amber-500" />
+        ))}
         {idx !== null && points[idx].n > 0 && (
           <>
             <line x1={x(idx)} x2={x(idx)} y1={0} y2={H} className="stroke-ink-soft" strokeWidth={0.5} />
@@ -236,7 +265,8 @@ function LatencyLines({ buckets }: { buckets: Bucket[] }) {
       </svg>
       {idx !== null && (
         <Tip ratio={ratio!} lines={points[idx].n > 0
-          ? [hhmm(buckets[idx].start), `p50 ${points[idx].p50}ms · p95 ${points[idx].p95}ms`, `${points[idx].n}건`]
+          ? [hhmm(buckets[idx].start), `p50 ${points[idx].p50}ms · p95 ${points[idx].p95}ms`,
+             `${points[idx].n}건${points[idx].p95 > max ? " · p95 는 축 상한 초과" : ""}`]
           : [hhmm(buckets[idx].start), "요청 없음"]} />
       )}
     </div>
@@ -389,7 +419,7 @@ export function BackendDashboard() {
           <RequestBars buckets={buckets} />
         </div>
         <div className={card}>
-          <h3 className={title}>응답시간 <span className="font-normal text-ink-soft">· <span className="text-brand">p50</span> / <span className="text-amber-600">p95</span></span></h3>
+          <h3 className={title}>응답시간 <span className="font-normal text-ink-soft">· <span className="text-brand">p50</span> / <span className="text-amber-600">p95</span> · <span className="text-amber-600">▲</span> 축 상한 초과</span></h3>
           <LatencyLines buckets={buckets} />
         </div>
         <div className={card}>
