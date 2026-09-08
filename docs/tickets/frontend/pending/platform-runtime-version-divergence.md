@@ -53,3 +53,38 @@ eas update --channel production --platform ios --environment production
 - Given `frontend/` 변경이 main에 머지된다 / When CI가 끝난다 / Then **iOS·Android 양쪽이** 그 업데이트를 받을 수 있다(사람이 백필하지 않는다)
 - Given 새 빌드가 나간다 / When 두 플랫폼의 `Runtime Version`을 `eas build:view`로 본다 / Then 같은 값이다
 - Given `architecture.md` 2.1 / When 발행 절차를 찾는다 / Then 플랫폼 분기 상황의 절차가 적혀 있다
+
+## 진행 기록 (2026-09-08 — 요청 2·3 완료, 요청 1은 새 빌드 대기)
+
+| 요청 | 상태 | 내용 |
+|---|---|---|
+| 1. 양 플랫폼 runtimeVersion 통일 | **대기** | **새 빌드가 있어야 한다.** 지금 문자열을 바꾸면 배포된 빌드가 전부 버려진다 |
+| 2. 통일 전까지 CI가 iOS 백필 | ✅ | `eas-update.yml`에 "iOS 백필 발행 (레거시 지문)" 단계 추가 |
+| 3. `architecture.md` 2.1에 절차 명시 | ✅ | CI 백필 동작·삭제 조건·번들 확인 방법 추가 |
+
+### 요청 2 구현 방식
+
+`eas update`에 `runtimeVersion`을 넘기는 플래그가 없다(CLI 확인 2026-09-08). 그래서
+`app.json`을 레거시 지문(`1.0.0`)으로 바꿔 `--platform ios`로 한 번 더 발행하고
+`git checkout -- app.json`으로 되돌린다. 러너가 일회용이라 되돌림 실패의 파급도 없다.
+
+- 채널은 앞 단계와 같은 값을 쓴다(`dev`→`preview`, `main`→`production`)
+- `EXPO_PUBLIC_API_BASE_URL`을 앞 단계와 **같은 값으로** 다시 준다 — 어긋나면 iOS
+  번들만 다른 서버를 본다
+- `--environment`는 앞 단계와 마찬가지로 넘기지 않는다. 현재 CI에서 그 형태가
+  동작하는 것이 확인돼 있고(2026-09-08 실행 성공), 넘기면 EAS 호스팅 환경변수가
+  로드되어 위에서 명시한 값과 어긋날 여지가 생긴다
+
+**살아 있는 iOS 빌드는 production 채널의 vc=3 하나뿐이다**(`build:list` 확인). iOS
+preview 빌드는 없으므로 `dev` merge의 백필은 현재 수신자가 없지만, 나중에 iOS 내부
+테스트 빌드가 생겨도 같은 함정을 안 밟도록 채널을 가리지 않고 발행한다.
+
+### 요청 1이 남은 이유와 처리 시점
+
+**runtimeVersion 문자열을 바꾸는 순간 이미 배포된 빌드는 업데이트를 못 받는다.**
+그래서 새 빌드와 반드시 같이 가야 한다. 다음 빌드에서 함께 처리한다.
+
+- 양 플랫폼 `runtimeVersion`을 **앱 버전과 무관한 문자열**로 통일(`"1"` 같은)
+- 같은 빌드에서 `share-p1-activation-next-build`(빌드 타임 상수)도 함께 켠다
+- 통일이 확인되면 `eas-update.yml`의 "iOS 백필" 단계와
+  `LEGACY_IOS_RUNTIME_VERSION`을 지우고, 이 티켓을 archive로 옮긴다
