@@ -50,8 +50,8 @@ export default async function EpisodesPage() {
                     </div>
                   </div>
                 </Td>
-                <Td className="w-[44%]"><StageTrack stages={stages} /></Td>
-                <Td className="max-w-[320px]"><ProblemLine p={problem} /></Td>
+                <Td className="w-[280px]"><StageTrack stages={stages} /></Td>
+                <Td className="max-w-[360px]"><ProblemLine p={problem} /></Td>
                 <Td className="whitespace-nowrap text-xs text-ink-soft">{fmtTime(e.created_at)}</Td>
               </tr>
             );
