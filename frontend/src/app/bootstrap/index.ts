@@ -9,7 +9,11 @@ import {
   libraryKeys,
   restoreLibraryItem,
 } from '@/features/library';
-import { registerPlayerLibraryBridge, startWithdrawnSync } from '@/features/player';
+import {
+  registerPlayerLibraryBridge,
+  startWithdrawnSync,
+  syncWithdrawnContents,
+} from '@/features/player';
 import { profileKeys } from '@/features/profile';
 import { settingsKeys } from '@/features/settings';
 
@@ -65,4 +69,15 @@ export const bootstrapApp = (): void => {
    * 로그아웃 상태로 조회하면 401이 토큰 갱신 실패로 번진다.
    */
   startWithdrawnSync(() => useSessionStore.getState().status === 'authenticated');
+
+  /*
+   * **로그인 완료를 동기화 신호로 삼는다.** 기동 시점의 세션은 아직 `restoring`이라
+   * 위 호출은 그냥 지나가고, 콜드 스타트에는 AppState 전이도 없다(이미 `active`로 뜬다).
+   * 이 구독이 없으면 앱을 껐다 켜기만 하는 사용자에게는 회수 동기화가 영영 돌지 않는다.
+   */
+  useSessionStore.subscribe((state, previous) => {
+    if (state.status === 'authenticated' && previous.status !== 'authenticated') {
+      syncWithdrawnContents();
+    }
+  });
 };
