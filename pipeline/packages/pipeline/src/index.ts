@@ -186,6 +186,7 @@ export function buildDraftRevisionPrompt(i: DraftRevisionInput): string {
 
 ## 읽을 파일 (이 외 금지)
 - ${dir}/script.md (수정 대상) · ${dir}/claims.md · ${dir}/sources.md (발췌 = 검증의 최종 기준)
+- ${dir}/outline.md · ${dir}/script-notes.md — 있으면(2단계 초안) 구간 계약과 연결·비유 기록. 구간 구조는 유지한다
 - ${a.guidelines} (규칙 참조용)
 
 ## QA 실패 사항 (전부 해소해야 한다)
@@ -194,6 +195,7 @@ ${failures}
 ## 수정 원칙
 - 지적된 턴만 고친다. 전면 재작성 금지 — 나머지 문장은 그대로 둔다.
 - 수정은 발췌 안으로 들어오는 방향으로만: 발췌에 없는 수식·비교·방향·연대·위치 주장은 삭제하거나 발췌 문장 범위로 축소한다. 발췌를 새로 추가하지 않는다 (원문 재접근 금지).
+- 헤지·귀속 주체·세부(성별·관계·순서·위치·수량)는 발췌 수준으로 낮춘다 — 단정으로 올리거나 원저자 발언으로 바꾸거나 더 구체적으로 쓰지 않는다.
 - 지시어 참조를 깨뜨리지 않는다: 삭제한 표현을 되받는 진행(Y) 턴·콜백("아까 그 ~", "같은 매체")이 있으면 함께 고친다. 매체 지시가 바뀌면 재명명한다.
 - 수정 후 claims.md 해당 행을 갱신하고, 파일 끝에 "## QA attempt ${i.attempt - 1} 반영" 절로 수정 내역을 기록한다.
 - 수정으로 새 비한글 표기(영문 용어·인명 등)를 도입했으면 ${dir}/pronunciations.json 에 한글 발음을 추가한다 (없는 표기는 TTS 합성이 중단된다).
@@ -455,3 +457,248 @@ export function todayKst(): string {
 export function episodeDatePrefix(prefix = "T"): string {
   return prefix + todayKst().slice(2).replace(/-/g, "");
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 초안 2단계 (2026-09-08 — "축이 이끄는 파이프라인" ③, spec/04 2장 개정)
+//   1단계 설계: 원문 정독 → 넉넉한 발췌(sources.md)·claims·구성안(outline.md)·발음 맵. 원문을 읽는 유일한 지점.
+//   2단계 대본: 새 컨텍스트, 원문 없이 발췌·claims·구성안만 인라인으로 받아 대본을 한 번에 돌려준다(도구 없음 — 단발 호출).
+//   실험(C28, ~/Desktop/ear-axis-experiments): 구성안이 소스 순회를 끊었고, 헤지·귀속·세부 규칙으로 QA 실패 5→2.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+export interface DesignInput {
+  assetRoot: string;
+  workRoot: string;
+  episodeId: string;
+  candidate: BacklogCandidate;
+  promptVersion: string;
+}
+
+/** 1단계 — 설계 (에이전트 실행: WebFetch + 에피소드 디렉토리 쓰기) */
+export function buildDesignPrompt(i: DesignInput): string {
+  const a = assetPaths(i.assetRoot, i.workRoot);
+  const explainer = explainerFor(i.candidate.mid_topic);
+  const host = explainer === "윤아" ? "이음" : "윤아";
+  const dir = a.episodeDir(i.episodeId);
+  const sources = i.candidate.sources
+    .map((s, n) => `${n + 1}. ${s.publisher}, "${s.title}"${s.backbone ? " (뼈대 후보)" : ""} — ${s.url}${s.published ? ` (${String(s.published).slice(0, 7)})` : ""}`)
+    .join("\n");
+  return `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 **설계 담당**이다. 대본을 쓰지 않는다. 소스 원문을 정독해 재료(발췌·claims)와 구성안을 만든다. 이 단계가 파이프라인에서 원문을 읽는 유일한 지점이며, 다음 단계(대본)는 원문을 보지 못하고 여기서 만든 파일만 본다. 그러므로 **발췌에 없는 사실은 대본에 존재할 수 없다** — 넉넉하게 떠라.
+
+## 0. 먼저 읽을 파일 (이것 외의 프로젝트 파일은 읽지 말 것 — episodes/ 하위 다른 에피소드, critic/qa 리포트 금지)
+1. ${a.guidelines} — 대본 규칙 (${i.promptVersion}). 구성안이 이 규칙을 만족할 수 있게 설계한다.
+2. ${a.specScript} — 대본 규격·페르소나.
+3. 골드 예시: ${a.goldFullEum}, ${a.goldFullYuna} — 톤·리듬의 기준. 문장을 베끼지 않는다.
+
+## 1. 에피소드 정보 (백로그 ${i.candidate.id}, 게이트1 승인 완료)
+- 에피소드 ID: ${i.episodeId} · 제목(가): "${i.candidate.title}" · 중분류: ${i.candidate.mid_topic}
+- 해설: **${explainer}** / 진행: **${host}** — 역할 고정
+- 청취자: 자기계발을 원하는 2030 한국 직장인 (IT 개발자 아님). 편도 30분 통근.
+- 백로그의 구성 각도(참고만, 따르지 말 것): ${i.candidate.angle ?? "(미기재)"}
+- 타깃 정합 메모: ${i.candidate.target_fit ?? "-"}
+
+## 2. 소스 (전부 WebFetch로 원문 정독)
+${sources}
+
+403·접근 실패 시 우회 금지 — 해당 소스 제외 (최소 3건 유지, 미달 시 중단·보고). 검색 엔진 요약을 근거로 쓰지 않는다.
+
+## 3. 산출물 — 디렉토리 ${dir}/ 에 생성 (이 디렉토리 밖에는 아무것도 쓰지 말 것)
+
+### a) sources.md — 넉넉한 발췌 (내부 증적 · 재배포 금지)
+첫 줄에 "> 내부 증적 — 재배포 금지". 소스별로 \`## S{n}. 발행처 — "제목"\` 헤더, 메타(URL·발행일·저자), 그 아래 **원문 발췌 목록**과 한국어 요지 3줄.
+- 발췌는 **원문 언어 그대로, 문장 단위로**. 항목 ID는 \`S1-01\`, \`S1-02\`… 형식.
+- **넉넉함의 기준**: 소스당 10~20개, 각 1~4문장. 요지 요약이 아니라 대본이 인용·재서술할 만한 대목을 전부 뜬다 — 핵심 주장, 수치·조사 설계, 구체 사례·일화, 저자의 단서·한계 서술, 인용된 다른 연구의 이름과 결론, 실천 제안.
+- 판단 기준: "대본 작가가 이 대목을 쓰고 싶어 했는데 발췌에 없어서 못 쓰는 일"이 없어야 한다. 빠뜨리는 쪽이 넘치는 쪽보다 비용이 크다.
+- **발췌가 말하지 않는 것을 요지에 보태지 않는다** — 인물의 성별·연령·관계, 문장의 원문 내 위치("마지막 문장"), 순서·수량은 원문에 그대로 있는 정도까지만.
+
+### b) claims.md — 사실 주장 대조표
+표 한 개: \`| C## | 주장 (한국어, 한 문장) | 발췌 ID | 유형 |\`. 유형은 수치·인용·고유명사·인과·정의·실천 중 하나.
+- **발췌 ID가 없는 주장은 적을 수 없다.** 두 발췌를 합쳐야 성립하는 주장은 두 ID를 다 적는다.
+- 주장 문장은 발췌보다 구체적이면 안 된다 — 발췌의 헤지("~일 수 있다", "때로", "일부")와 귀속 주체("이 글은/기사는" vs 원저자 발언)를 그대로 옮긴다.
+- 소스 사이를 잇는 해석("A와 B는 같은 원리다")은 여기 적지 않는다 — 그건 구성안의 "연결·비유" 목록으로 간다.
+
+### c) outline.md — 구성안 (대본 단계의 계약)
+아래 형식을 그대로 따른다.
+
+\`\`\`
+# 구성안 — ${i.episodeId}
+
+축: [대립|역설|재정의] 한 문장
+축 해설: 왜 이 축이 청취자에게 긴장을 만드는가, 두 줄
+착지 구간: #n — 축이 증명되는 자리 (마무리가 아니어도 된다)
+예상 분량: n분 (재료 총량 기준 — 아래 분량 규칙)
+
+역할표
+- 근거 앵커: S? (축의 핵심 주장을 받치는 소스)
+- 사례: S?, S? (청취자 일상 또는 구체 일화)
+- 반론·한계: S?
+- 수치·조사: S?
+- 역사·맥락: S?  (없으면 "없음"이라고 쓰고 그 공백을 명시)
+역할 없는 소스: S? — 제외 사유
+
+구간 #1 — 소제목
+  목적: 청취자에게 남길 것 한 줄
+  재료: C01, C03 (S1) · C07 (S3)   ← 한 구간에 소스 2개 이상이 원칙. 한 소스만 쓰는 구간은 최대 1개
+  진행자 질문: 기원 서사가 붙은 질문 한 개 (왜 궁금해졌는지 한 조각 + 질문)
+  전환 장치: 번역 맞장구로 닫기 | 인용구 던지기 | 되물음 | 딴 얘기 끼어들기 | 역질문 중 하나
+  비율: n%
+구간 #2 … (본문 구간 4~6개. 도입은 구간에 넣지 않는다 — [도입] 구역이 따로 맡는다)
+
+연결·비유 (대본이 만드는 것 — 사실이 아님, QA 대상 아님)
+- "X를 Y로 옮김" — 근거 C##/C##, 어느 구간에서
+- …
+
+마무리 한 줄: "무엇을 이해하게 됐나"
+비율 합계: 도입 5~10 / 본문 75~85 / 마무리 10~15
+\`\`\`
+
+설계 규칙:
+- 축은 반드시 대립("A인데 B"), 역설("A하려다 B가 된다"), 재정의("A는 사실 B다") 중 하나. "X란 무엇인가"형은 축이 아니다. 사건이 아니라 개념이 이끈다 (규칙 13-1).
+- **소스 순회 금지**: 구간이 소스 단위로 나뉘면 실패다. 구간은 축의 논리 단계로 나누고, 각 단계에 여러 소스의 재료를 배치한다.
+- 착지 구간을 반드시 지정하고, 그 구간의 재료가 실제로 축을 증명하는지 스스로 확인한다.
+- 전환 장치는 구간마다 다르게 — 같은 장치 연속 금지.
+- 청취자 일상 사례 왕복은 에피소드 전체에 최소 2회.
+- **분량 규칙** (2026-09-08 확정): 한 편은 **13분(공백·기호 제외 약 4,000자) 이상이 필수**, 15분이 평균 목표, 상한은 없다. 재료 총량으로 예상 분량을 적는다. 재료가 13분에 못 미치면 구성안을 만들지 말고 완료 보고에 사유를 적는다(반려 대상). 재료가 26분 이상이면 각 편이 13분 이상이 되는 분할안을 완료 보고 \`split_proposal\`에 적되, 구성안은 한 편 기준으로 그대로 만든다 (분할은 사람이 결정).
+
+### d) pronunciations.json — 대본에 등장할 모든 비한글 표기(영문 용어·인명·기관·매체) → 한글 발음. \`{"표기": "발음"}\` 객체 하나. 없으면 \`{}\`.
+
+## 4. 자기 점검 (필수 — python 등으로 기계 확인)
+- claims의 모든 행에 발췌 ID가 있는가. 발췌 ID가 실제 sources.md에 존재하는가.
+- 구성안의 재료 ID가 전부 claims에 있는가.
+- 소스 단위 구간이 없는가. 착지 구간이 지정됐는가. 예상 분량이 13분 이상인가.
+
+## 5. 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다.`;
+}
+
+export const DESIGN_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["axis", "axis_type", "landing_section", "sections", "excerpts", "claims", "estimated_minutes", "split_proposal", "sources_used", "sources_excluded", "gaps", "self_check", "notes"],
+  properties: {
+    axis: { type: "string" },
+    axis_type: { type: "string", enum: ["대립", "역설", "재정의"] },
+    landing_section: { type: "integer" },
+    sections: { type: "array", items: { type: "object", additionalProperties: false, required: ["n", "title", "sources", "ratio"], properties: { n: { type: "integer" }, title: { type: "string" }, sources: { type: "array", items: { type: "string" } }, ratio: { type: "integer" } } } },
+    excerpts: { type: "integer", description: "sources.md 발췌 항목 수" },
+    claims: { type: "integer" },
+    estimated_minutes: { type: "number", description: "재료 총량 기준 예상 분량" },
+    split_proposal: { type: "string", description: "26분 이상일 때 각 편 13분 이상이 되는 분할안. 없으면 빈 문자열" },
+    sources_used: { type: "array", items: { type: "string" } },
+    sources_excluded: { type: "array", items: { type: "object", additionalProperties: false, required: ["url", "reason"], properties: { url: { type: "string" }, reason: { type: "string" } } } },
+    gaps: { type: "array", items: { type: "string" }, description: "비어 있는 역할" },
+    self_check: { type: "string" },
+    notes: { type: "string" },
+  },
+} as const;
+
+export interface WriteInput {
+  episodeId: string;
+  candidate: BacklogCandidate;
+  introStyle: (typeof INTRO_STYLES)[number];
+  promptVersion: string;
+  templates?: Templates | null;
+  majorTopic?: string;
+  /** 인라인 반입 — 이 단계는 파일을 읽지 않는다 (도구 없음) */
+  guidelines: string;
+  specScript: string;
+  goldFullEum: string;
+  goldFullYuna: string;
+  sourcesMd: string;
+  claimsMd: string;
+  outlineMd: string;
+  pronunciationsJson: string;
+}
+
+/** 2단계에서 claims 를 옮길 때의 규칙 — 첫 실험(C28) QA 실패 7건이 전부 이 네 유형이었다 */
+export const WRITE_FACT_RULES = `- **사실 주장**(수치·인용·고유명사·인과·정의)은 claims.md의 행만 쓰고, 해설 담당의 턴에서만 말한다. 진행 담당은 감상·추측·되물음만.
+- **claims 행을 옮길 때 한 뼘도 더 가지 않는다**:
+  1. 헤지·양태를 그대로 — claims가 "~일 수 있다", "때로", "일부", "~로 알려져 있다"면 대본도 그 강도로. 단정("~이다", "흔하다")으로 올리지 않는다. 가설로 제시된 문장("~라고 추정했다")을 결과처럼 쓰지 않는다.
+  2. 귀속 주체를 그대로 — claims의 주체가 "이 글은/기사는"이면 원저자 발언("○○가 그 예를 든다", "~가 말한다")으로 바꾸지 않는다. 서평·소개 기사 본문의 서술과 그 안의 인용은 다르다. 확실치 않으면 매체 귀속("이 글은 ~라고 해요")으로 낮춘다.
+  3. 소스의 예시에 우리가 덧붙인 장면을 소스 귀속 문장 안에 넣지 않는다 — 발췌에 "회의실"이 없으면 "이 글은 회의실 예를 들어요"라고 쓸 수 없다. 장면을 옮기고 싶으면 화자의 번역으로 분리한다("이걸 회의실로 옮기면…", 또는 진행자의 일상 장면).
+  4. **발췌보다 구체적으로 쓰지 않는다** — 성별·연령·관계(sister→"여동생" 금지, "자매"까지), 순서·위치("그 글의 마지막 문장" — 발췌가 말하지 않으면 "그 글에 이런 문장이 있어요"), 수량·빈도는 원문이 밝힌 정도까지만.
+- **연결·비유**(소스 사이를 잇는 해석, 청취자 일상으로 옮기는 번역)는 구성안의 "연결·비유" 목록을 쓴다. 새로 만든 연결·비유는 완료 보고 bridges 에 전부 적는다. 비유는 직전 해설의 재료로 만든다 — 새 재료를 끌어오지 않는다. 소스 사이 병치는 "두 글이 서로를 인용한 건 아니지만" 같은 하향 표지로 해석임을 밝힌다.`;
+
+/** 2단계 — 대본 (단발 호출: 도구 없음, 모든 입력 인라인, 대본은 완료 보고 JSON 의 script 로 돌려준다) */
+export function buildWritePrompt(i: WriteInput): string {
+  const explainer = explainerFor(i.candidate.mid_topic);
+  const host = explainer === "윤아" ? "이음" : "윤아";
+  const fence = (s: string) => "````\n" + s.trim() + "\n````";
+  return `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 **대본 작가**다. 청취자는 자기계발을 원하는 2030 한국 직장인 (IT 개발자 아님). 2인 대화 팟캐스트 대본을 쓴다.
+
+이 단계에는 소스 원문이 없고 도구도 없다. 필요한 것은 전부 이 프롬프트 안에 있다 — 파일을 읽거나 검색하지 않는다. 당신이 쓸 수 있는 사실은 **claims.md에 있는 것이 전부**이고, 전개는 **outline.md가 계약**이다. 기억으로 보충하지 않는다 — 발췌에 없는 사실을 쓰면 그 대본은 폐기된다.
+
+## 1. 에피소드 정보 (백로그 ${i.candidate.id})
+- 에피소드 ID: ${i.episodeId} · 제목(가): "${i.candidate.title}" · 중분류: ${i.candidate.mid_topic}
+- 해설: **${explainer}** / 진행: **${host}** — 역할 고정, 페르소나는 spec/04 3장.
+- 제목은 구성안의 축에 맞게 새로 지어도 된다 (클릭베이트 금지).
+
+## 2. 규칙 (전부 준수)
+### 2.1 대본 규칙 — guidelines (${i.promptVersion})
+${fence(i.guidelines)}
+
+### 2.2 대본 규격·페르소나 — spec/04
+${fence(i.specScript)}
+
+### 2.3 골드 예시 2종 — 톤·리듬·티키타카의 기준
+${GOLD_USAGE}
+#### 골드 A (이음 해설)
+${fence(i.goldFullEum)}
+#### 골드 B (윤아 해설)
+${fence(i.goldFullYuna)}
+
+## 3. 이 에피소드의 재료
+### 3.1 구성안 — outline.md (계약: 구간 순서·목적·재료·진행자 질문·전환 장치를 그대로 실행한다)
+${fence(i.outlineMd)}
+
+### 3.2 사실 주장 대조표 — claims.md (쓸 수 있는 사실의 전부)
+${fence(i.claimsMd)}
+
+### 3.3 소스 발췌 — sources.md (claims 의 원문 근거. 인용·재서술의 강도를 여기에 맞춘다)
+${fence(i.sourcesMd)}
+
+### 3.4 발음 맵 — pronunciations.json (등재된 표기만 대본에 쓰는 것이 원칙. 새 비한글 표기를 도입하면 완료 보고 pronunciations_added 에 발음을 적는다)
+${fence(i.pronunciationsJson)}
+
+## 4. 대본 규격
+### 구조 (spec/04 4장)
+- 첫 줄 메타: \`에피소드 ID · 제목 · 중분류 · 해설/진행 · 프롬프트 버전 ${i.promptVersion} · 사용 소스 수\`
+- 구역 헤더는 \`## [인트로]\` \`## [도입]\` \`## [본문]\` \`## [마무리]\` 4개뿐. **[콜드오픈] 구역은 폐지** — 만들지 않는다.
+- [본문] 안의 구간 경계는 \`### #n 소제목\` 한 줄로 표시한다 (구성안의 구간 번호·순서 그대로. TTS는 이 줄을 읽지 않는다).
+${templateBlock({ templates: i.templates, majorTopic: i.majorTopic } as DraftInput)}
+- 도입 (규칙 13): 주제 선언 뒤 첫 해설 턴 사이에 청취자가 "대화에 앉는" 두세 턴. 주제를 다시 발견하는 척 금지. 이 에피소드의 진입 방식: **${i.introStyle.label}** — ${i.introStyle.hint}
+
+### 줄 문법 (TTS 파서 계약 — 정확히)
+- 번호 턴은 \`[윤아] E1 · 문장\` / \`[이음] Y1 · 문장\`. 화자 라벨이 먼저, 번호 뒤는 **가운뎃점(·)**. \`E1.\`·\`E1 [윤아]\` 변형 금지.
+- 해설 턴 E, 진행 턴 Y, 각각 1부터 연번. 표·URL·괄호 주석 금지. 숫자·영문은 가독 표기 — 음차는 발음 맵이 맡는다.
+
+### 사실과 연결의 구분
+${WRITE_FACT_RULES}
+
+### 분량 (2026-09-08 확정 규칙)
+- **하한 13분(공백·기호 제외 약 4,000자)은 필수**, 15분은 평균 목표, **상한은 없다**. 재료가 길면 늘어나도 된다 — 채우기용 잡담·같은 말 반복만 금지. 구간 비율(구성안의 %)은 참고값이다 — 비율을 맞추려고 문장을 늘리지 않는다.
+- 턴 길이 규격은 지킨다: 해설 1턴 2~5문장, 진행 1턴 1~2문장 (에피소드 평균 기준, 구간별 변주 허용).
+${COMMON_RULES}
+
+## 5. 자기 점검 (출력 전에, 머릿속에서 끝까지)
+- 구간 헤더의 순서·개수가 구성안과 같은가. 4,000자 이상인가. 해설 턴 평균 문장 수가 5 이하인가.
+- **해설 턴의 사실 문장마다** 대응하는 claims 행이 있는가, 헤지·귀속 주체가 같은가, 발췌보다 구체적이지 않은가. 어긋난 문장은 삭제하거나 claims 범위로 축소한 뒤 self_check_fixes 에 적는다. 결과를 turn_claims(턴별 사용 claims ID)로 보고한다.
+- 진행 턴에 사실 주장이 없는가. 지시어·콜백("아까 그 ~")이 가리키는 대상이 대본 안에 있는가.
+
+## 6. 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. script 필드에 script.md 전문(첫 줄 메타부터 마지막 턴까지, 마크다운 그대로)을 넣는다.
+**완료 보고 전에 대본이나 설명을 일반 텍스트로 먼저 쓰지 않는다** — 대본은 JSON 안에 한 번만 존재한다 (두 번 쓰면 출력 비용이 두 배가 된다).`;
+}
+
+export const WRITE_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["title", "script", "sections_followed", "turn_claims", "bridges", "pronunciations_added", "self_check_fixes", "notes"],
+  properties: {
+    title: { type: "string" },
+    script: { type: "string", description: "script.md 전문 (마크다운)" },
+    sections_followed: { type: "boolean", description: "구성안 구간 순서·개수 준수" },
+    turn_claims: { type: "array", items: { type: "object", additionalProperties: false, required: ["turn", "claims"], properties: { turn: { type: "string" }, claims: { type: "array", items: { type: "string" } } } }, description: "해설 턴별 사용 claims ID" },
+    bridges: { type: "array", items: { type: "object", additionalProperties: false, required: ["turn", "note"], properties: { turn: { type: "string" }, note: { type: "string", description: "무엇을 무엇으로 옮김 · 근거 C##" } } }, description: "구성안에 없던 새 연결·비유 전부" },
+    pronunciations_added: { type: "array", items: { type: "object", additionalProperties: false, required: ["term", "reading"], properties: { term: { type: "string" }, reading: { type: "string" } } } },
+    self_check_fixes: { type: "array", items: { type: "string" } },
+    notes: { type: "string", description: "특이사항 (역질문 위치, 비유 계열, 분량 판단) 3문장 이내" },
+  },
+} as const;

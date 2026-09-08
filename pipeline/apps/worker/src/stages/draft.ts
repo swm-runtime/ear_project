@@ -8,6 +8,7 @@ import { exists, hostOf, log, RetryLater } from "../util.js";
 import { prepareAssets, workerRev } from "../assets.js";
 import { pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { parseScriptForTts } from "../tts/script.js";
+import { runTwoStageDraft, twoStageViolations } from "./draft-two-stage.js";
 
 interface DraftOut { turns: number; chars: number; minutes: number; sources_used: string[]; sources_excluded: { url: string; reason: string }[]; self_check_fixes: string[]; notes: string }
 interface RevisionOut { fixes: { location: string; before: string; after: string }[]; notes: string }
@@ -35,7 +36,7 @@ export async function runDraft(job: Job, ex: Executor) {
   // 규칙 묶음: 에피소드에 고정된 버전이 있으면 그것, 없으면 지금 active 를 읽어 고정한다 (spec/10 3.2)
   const prior = await getEpisode(episodeId);
   const { assetRoot, bundle } = await prepareAssets(prior?.asset_versions ?? null);
-  const promptVersion = bundle.labels.draft;
+  const promptVersion = attempt === 1 && cfg.draftMode === "two-stage" ? `${bundle.labels.draft}+2stage` : (prior?.prompt_version ?? bundle.labels.draft); // 2단계는 라벨에 표시 — 통과율·비용을 방식별로 집계한다
   if (!prior?.asset_versions) await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: promptVersion, asset_versions: bundle.versions });
   const rel = `episodes/${episodeId}`;
   const dir = path.join(cfg.workRoot, rel);
@@ -57,6 +58,12 @@ export async function runDraft(job: Job, ex: Executor) {
     out = { turns: 0, chars: 0, minutes: 0, sources_used: [], sources_excluded: [], self_check_fixes: [], notes: "재집기 복구 — 수치는 QA 참고치로 대체" };
     model = null;
     summary = `${episodeId} 초안 이어받기 (워커 재집기 복구 — 기존 산출물 사용, 생성 재실행 없음)`;
+  } else if (attempt === 1 && cfg.draftMode === "two-stage") {
+    const intro = pickIntroStyle(await countEpisodes());
+    const [templates, majorTopic] = await Promise.all([getSetting<Templates>("templates"), majorOfMidTopic(cand.mid_topic)]);
+    const t = await runTwoStageDraft({ job, ex, episodeId, candidate: cand, dir, rel, assetRoot, promptVersion, templates, majorTopic: majorTopic ?? undefined, introStyle: intro, fileTools });
+    out = { turns: t.stats.turns, chars: t.stats.chars, minutes: t.stats.minutes, sources_used: t.design?.sources_used ?? [], sources_excluded: t.design?.sources_excluded ?? [], self_check_fixes: t.write.self_check_fixes, notes: t.write.notes };
+    model = t.model; costUsd = t.costUsd; tokens = t.tokens; summary = t.summary;
   } else if (attempt === 1) {
     const introSeed = await countEpisodes();
     const intro = pickIntroStyle(introSeed);
@@ -119,7 +126,9 @@ export async function runDraft(job: Job, ex: Executor) {
   }
   // L0 형식 검사 (spec/09 6.2 "대본 형식 계약", spec/04 4장 줄 문법) — 위반 대본은 QA 로 보내지 않고 재생성 연쇄(spec/05 4장)로 돌린다.
   // 여기서 잡지 않으면 QA·비평을 통과해 TTS 에서야 터진다 (2026-09-03 T260903-001/003 실측)
-  const violations = formatViolations(await fs.readFile(path.join(dir, "script.md"), "utf8"));
+  const scriptMd = await fs.readFile(path.join(dir, "script.md"), "utf8");
+  const outlineFile = path.join(dir, "outline.md");
+  const violations = [...formatViolations(scriptMd), ...((await exists(outlineFile)) ? twoStageViolations(scriptMd, await fs.readFile(outlineFile, "utf8")) : [])];
   if (violations.length) {
     if (attempt >= 3) throw new Error(`대본 형식 위반이 attempt ${attempt}까지 남음 — 웹 턴 수정으로 처리 필요: ${violations.join(" / ")}`);
     const fixes = violations.map((v) => ({ location: "대본 전체", item: "L0 형식 계약 (spec/04 4장 줄 문법)", reason: v }));
