@@ -628,6 +628,9 @@ describe('라이브러리 E2E', () => {
         consents: [
           { consent_type: 'terms', version: '0.1', is_agreed: true },
           { consent_type: 'privacy', version: '0.1', is_agreed: true },
+          // 필수 동의다(2026-09-06 신설). 자기 선언이라 버전이 없다 — `version: null`이
+          // 맞는 값이고, 빼먹으면 가입이 400으로 막혀 뒤 시나리오가 전부 무너진다
+          { consent_type: 'age_confirmation', version: null, is_agreed: true },
         ],
       })
       .expect(HttpStatus.CREATED);
