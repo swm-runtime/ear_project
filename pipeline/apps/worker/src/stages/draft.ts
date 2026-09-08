@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { cfg, executedBy } from "../config.js";
-import { enqueue, getBacklog, getEpisode, getSetting, insertRun, majorOfMidTopic, nextEpisodeId, setBacklogStatus, setJobProgress, updateJobPayload, upsertEpisode, pool, type Job } from "../db.js";
+import { deleteEpisode, enqueue, getBacklog, getEpisode, getSetting, insertRun, majorOfMidTopic, nextEpisodeId, setBacklogStatus, setJobProgress, updateJobPayload, upsertEpisode, pool, type Job } from "../db.js";
 import type { Executor } from "../executors/index.js";
 import { buildDraftPrompt, buildDraftRevisionPrompt, DRAFT_SCHEMA, DRAFT_REVISION_SCHEMA, episodeDatePrefix, pickIntroStyle, type Templates } from "@ear/pipeline";
 import { exists, hostOf, log, RetryLater } from "../util.js";
@@ -160,3 +160,34 @@ async function countEpisodes(): Promise<number> {
   const r = await pool.query("select count(*)::int as n from public.episodes");
   return Number(r.rows[0].n);
 }
+
+/**
+ * 초안 작업 실패 후처리 (2026-09-08 박수헌): 실패한 초안을 에피소드로 남기지 않고 백로그로 되돌린다 —
+ * 사람이 백로그에서 다시 승인해 재생성하거나 반려한다. RetryLater(일시 오류)는 여기 오지 않는다.
+ * - 대본이 없는 실패(1회차·산출물 누락 등): 에피소드 행 삭제 + backlog → proposed (claimed 해제, 사유는 dedup_note 앞에 ⚠️)
+ * - 대본이 있는 실패(QA 후 재생성 실패): 에피소드는 두고 backlog → review_required (사람 검토)
+ * runs 의 실패 기록(backlog_id 기준)은 그대로 남아 증거가 된다. 되돌리지 못해도 작업 실패 자체는 이미 기록됐으므로 조용히 로그만 남긴다.
+ */
+export async function onDraftFailed(job: Job, err: unknown) {
+  const backlogId = String(job.payload.backlog_id ?? "");
+  const episodeId = String(job.payload.episode_id ?? "");
+  if (!backlogId) return;
+  const reason = String((err as Error)?.message ?? err).replace(/^Error:\s*/, "").split("\n")[0].slice(0, 200);
+  const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
+  try {
+    const ep = episodeId ? await getEpisode(episodeId) : null;
+    const prevNote = String((await pool.query("select dedup_note from public.backlog where id = $1", [backlogId])).rows[0]?.dedup_note ?? "");
+    const note = `⚠️ 초안 실패 (${stamp}, attempt ${job.attempt}): ${reason} | ${prevNote.replace(/^⚠️ 초안 실패[^|]*\| ?/, "")}`.replace(/ \| $/, "");
+    if (ep && ep.script_key) {
+      await setBacklogStatus(backlogId, "review_required", { dedup_note: note });
+      log(`  draft ${episodeId}: 재생성 실패 → 백로그 ${backlogId} review_required (대본은 유지)`);
+    } else {
+      if (ep) await deleteEpisode(episodeId);
+      await setBacklogStatus(backlogId, "proposed", { claimed_by: null, claimed_at: null, dedup_note: note });
+      log(`  draft ${episodeId || "(id 없음)"}: 초안 실패 → 에피소드 제거, 백로그 ${backlogId} proposed 복귀 (사유 dedup_note)`);
+    }
+  } catch (e: any) {
+    log(`  draft 실패 후처리 실패 (${backlogId}): ${e?.message ?? e}`);
+  }
+}
+
