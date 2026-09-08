@@ -57,26 +57,31 @@ async function toError(res: Response): Promise<EarApiError> {
   return new EarApiError(res.status, body.error_code, body.message ?? `HTTP ${res.status}`, body.field);
 }
 
-async function tryRefresh(): Promise<boolean> {
-  const t = loadTokens();
-  if (!t?.refresh_token) return false;
-  const res = await rawFetch("/auth/token/refresh", {
-    method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ refresh_token: t.refresh_token, device_id: deviceId() }),
-  });
-  if (!res.ok) { clearTokens(); return false; }
-  const b = (await res.json()) as EarTokens;
-  saveTokens({ access_token: b.access_token, refresh_token: b.refresh_token });
-  return true;
+/**
+ * 401 복구 — **refresh 회전을 쓰지 않고 SSO 재교환으로 통일한다** (2026-09-08).
+ *
+ * 종전에는 401마다 각 호출이 refresh를 불렀는데, 발행 화면처럼 요청이 동시에 나가는
+ * 곳에서는 같은 refresh 토큰이 두 번 제출돼 서버의 재사용 탐지(탈취 의심 → 전 세션
+ * 무효화 + ERROR 알림)를 울렸다(실서버 실측 — `tickets/ai/archive/ear-token-refresh-race.md`).
+ * SSO 교환(`/api/ear/sso`)은 회전 상태가 없어 겹쳐 불러도 안전하고, 이 콘솔은 어차피
+ * Supabase 로그인이 전제라 사용자 입력 없이 끝난다. 동시 401은 재교환 1회를 공유한다.
+ */
+let reconnectInFlight: Promise<boolean> | null = null;
+function reconnectEar(): Promise<boolean> {
+  reconnectInFlight ??= connectEar()
+    .then(() => true)
+    .catch(() => { clearTokens(); return false; })
+    .finally(() => { reconnectInFlight = null; });
+  return reconnectInFlight;
 }
 
-/** 제품 API 호출 — 401 이면 refresh 1회 후 재시도, 그래도 실패면 EarAuthError */
+/** 제품 API 호출 — 401 이면 SSO 재교환 1회 후 재시도, 그래도 실패면 EarAuthError */
 export async function earFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const t = loadTokens();
   if (!t) throw new EarAuthError();
   let res = await rawFetch(path, init, t.access_token);
   if (res.status === 401) {
-    if (!(await tryRefresh())) throw new EarAuthError();
+    if (!(await reconnectEar())) throw new EarAuthError();
     res = await rawFetch(path, init, loadTokens()!.access_token);
     if (res.status === 401) { clearTokens(); throw new EarAuthError(); }
   }

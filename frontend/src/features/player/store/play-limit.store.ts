@@ -15,6 +15,11 @@ interface PlayLimitStore {
   suppressedServiceDate: string | null;
   applyPlayLimit: (incoming: PlayLimitSnapshot) => void;
   setSuppressedServiceDate: (serviceDate: string | null) => void;
+  /**
+   * 로그아웃·탈퇴 — 잔여 표시값은 **사용자의 것**이라 세션과 함께 버린다.
+   * `suppressedServiceDate`는 남긴다 — 기기 단위 값이다(library.md 4.3).
+   */
+  clearPlayLimit: () => void;
 }
 
 /**
@@ -39,4 +44,5 @@ export const usePlayLimitStore = create<PlayLimitStore>((set) => ({
   applyPlayLimit: (incoming) =>
     set((state) => (isFresher(incoming, state.playLimit) ? { playLimit: incoming } : state)),
   setSuppressedServiceDate: (serviceDate) => set({ suppressedServiceDate: serviceDate }),
+  clearPlayLimit: () => set({ playLimit: null }),
 }));

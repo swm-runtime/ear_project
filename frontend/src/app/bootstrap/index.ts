@@ -12,6 +12,7 @@ import {
 import {
   registerPlayerLibraryBridge,
   startWithdrawnSync,
+  stopPlaybackForSignOut,
   syncWithdrawnContents,
 } from '@/features/player';
 import { profileKeys } from '@/features/profile';
@@ -78,6 +79,15 @@ export const bootstrapApp = (): void => {
   useSessionStore.subscribe((state, previous) => {
     if (state.status === 'authenticated' && previous.status !== 'authenticated') {
       syncWithdrawnContents();
+    }
+    /*
+     * 로그아웃·탈퇴·세션 만료 → **재생을 끊는다**(auth.md 4.2-3). 지금까지 세션만
+     * 정리되고 오디오는 계속 흘렀다 — 로그아웃이 안 된 것으로 읽히고, 다음 로그인 시
+     * 앞 사용자의 콘텐츠가 미니플레이어에 남는다. 세 경로(설정 로그아웃·탈퇴·401 만료)가
+     * 전부 이 전이를 지나므로 여기 한 곳에서 잡는다.
+     */
+    if (previous.status === 'authenticated' && state.status !== 'authenticated') {
+      stopPlaybackForSignOut();
     }
   });
 };

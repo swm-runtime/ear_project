@@ -23,8 +23,9 @@ export class ClaudeCliExecutor implements Executor {
       "--disable-slash-commands",
       "--no-session-persistence",
       "--permission-mode", "acceptEdits",
-      "--allowedTools", req.allowedTools.join(","),
     ];
+    if (req.tools) args.push("--tools", req.tools.join(",")); // "" = 도구 전부 끔 — 인라인 입력만으로 답하는 단발 호출
+    if (req.allowedTools.length) args.push("--allowedTools", req.allowedTools.join(","));
     for (const d of req.addDirs ?? []) args.push("--add-dir", d);
     const model = req.model ?? this.defaultModel;
     if (model) args.push("--model", model);
