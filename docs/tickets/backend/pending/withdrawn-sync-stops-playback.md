@@ -96,3 +96,22 @@
 - 회수 즉시 `library_items` 가 삭제된다
 - **복구해도 라이브러리는 되살아나지 않는다**(`partner-control.md` 4.3 "삭제된 `library_items` 는 복구하지 않는다")
 - 상세 진입이 차단된다
+
+## 진행 기록 (2026-09-08 — 서버 몫 구현 완료)
+
+`feat(be)/new-ticket-batch`에서 요청 1·3을 구현했다.
+
+- **요청 1** — `GET /contents/withdrawn?since=` 구현. 라우트는 `ContentDetailController` 안
+  `:contentId` **위에** 선언해 등록 순서를 컨트롤러 선언 순서로 보장했다(모듈 초기화 순서에
+  묶이지 않게). 실서버 부팅 실측: 'withdrawn'이 파라미터 라우트보다 먼저 매칭(200), since
+  필터·형식 오류 400 확인.
+- **요청 3 결정** — **위치 저장(4.3) 응답에 `content_status`를 싣는 안 채택.** 재생 중 이미
+  주기적으로 도는 왕복이라 지연 상한이 저장 주기로 줄어든다. 재발행 감지는 기존
+  `content_version` 필드로 충분(재발행 사례의 실제 구멍은 FE `refreshAudioUrl()`이 새 버전을
+  조용히 받아들인 것 — FE 수정 필요). 회수 콘텐츠 저장 시 `content_status: "withdrawn"` 실측.
+- **요청 2** — 계약 등재는 `changes/pending/player-api-withdrawn-sync.md` 발행(등재 위치
+  제안: player-api.md).
+
+**남은 것**: 완료 조건 2·3은 **FE 연결**이다 — ① 4.3 응답 `content_status=withdrawn` 시 재생
+중단+안내 ② 포그라운드 복귀 시 회수 목록 동기화 ③ `refreshAudioUrl()`이 버전 변경을 감지하면
+로컬 위치 폐기. FE 티켓 발행 필요(요청 시 작성).
