@@ -38,7 +38,7 @@ export async function runCritic(job: Job, ex: Executor) {
   const r = await ex.run<CriticOut>({
     prompt, schema: CRITIC_SCHEMA,
     allowedTools: ["Read", `Write(${rel}/critic-report.md)`, `Edit(${rel}/critic-report.md)`],
-    addDirs: [dir, assetRoot], cwd: cfg.workRoot, timeoutMs: 40 * 60_000, model: cfg.criticModel,
+    addDirs: [dir, assetRoot], cwd: cfg.workRoot, timeoutMs: 40 * 60_000, model: cfg.criticModel, maxThinkingTokens: cfg.thinkingCritic,
     onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: "비평" }).catch(() => {}),
     describe: (tool, input, counts) => {
       const f = String(input?.file_path ?? "").split("/").pop() ?? "";
@@ -65,7 +65,7 @@ async function runCriticV2(job: Job, ex: Executor, e: { episodeId: string; backl
   const r = await ex.run<CriticV2Out>({
     prompt, schema: CRITIC_SCHEMA_V2,
     allowedTools: ["Read", `Write(${e.rel}/critic-report-v2.md)`, `Edit(${e.rel}/critic-report-v2.md)`],
-    addDirs: [e.dir, e.assetRoot], cwd: cfg.workRoot, timeoutMs: 45 * 60_000, model: cfg.criticModel,
+    addDirs: [e.dir, e.assetRoot], cwd: cfg.workRoot, timeoutMs: 45 * 60_000, model: cfg.criticModel, maxThinkingTokens: cfg.thinkingCritic,
     onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: "비평 v2 (100점 채점)" }).catch(() => {}),
     describe: (tool, input, counts) => {
       const f = String(input?.file_path ?? "").split("/").pop() ?? "";

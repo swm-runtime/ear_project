@@ -32,7 +32,9 @@ export class ClaudeCliExecutor implements Executor {
 
     return new Promise((resolve, reject) => {
       const started = Date.now();
-      const child = spawn("claude", args, { cwd: req.cwd, stdio: ["pipe", "pipe", "pipe"], env: { ...process.env } });
+      const env: NodeJS.ProcessEnv = { ...process.env };
+      if (req.maxThinkingTokens != null) env.MAX_THINKING_TOKENS = String(req.maxThinkingTokens); // 생각 토큰 상한 (Claude Code env) — 0 이면 생각 끔
+      const child = spawn("claude", args, { cwd: req.cwd, stdio: ["pipe", "pipe", "pipe"], env });
       let err = "";
       let final: any = null;
       const progress: Progress = { detail: "시작 중…", toolCounts: {}, turns: 0, elapsedMs: 0 };

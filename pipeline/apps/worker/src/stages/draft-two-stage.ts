@@ -84,7 +84,7 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
   log(`  draft ${episodeId} · 2/2 대본 (단발, 프롬프트 ${Math.round(prompt.length / 1000)}K자)`);
   const w = await ex.run<WriteOut>({
     prompt, schema: WRITE_SCHEMA,
-    tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 30 * 60_000, model: cfg.draftWriteModel,
+    tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 30 * 60_000, model: cfg.draftWriteModel, maxThinkingTokens: cfg.thinkingWrite,
     onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: "대본 2/2 — 단발 작성", detail: pr.turns > 0 ? "대본 작성 중 (도구 없음)" : pr.detail }).catch(() => {}),
   });
   const o = w.output;
