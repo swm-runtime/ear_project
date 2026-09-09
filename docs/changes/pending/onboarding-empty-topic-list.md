@@ -2,9 +2,9 @@
 
 | 항목 | 값 |
 |---|---|
-| 대상 문서 | `spec/uiux/onboarding-uiux.md` 2·3·4.2·8장 · `features/onboarding.md` 7 · `spec/api/onboarding-api.md` 4.2·9 · `spec/uiux/interest-management-uiux.md` 4.7·9 |
-| 요청 파트 | 문서(FE 구현은 `fix(fe)/onboarding-empty-topic-list`에서 선반영) |
-| 발행 날짜 | 2026-09-09 |
+| 대상 문서 | `spec/uiux/onboarding-uiux.md` 2·3·4.2·8장 · `features/onboarding.md` 7 · `spec/api/onboarding-api.md` 4.2·9 · **`features/interest-management.md` 7** · `spec/uiux/interest-management-uiux.md` 4.7·9 |
+| 요청 파트 | 문서(FE 구현은 `fix(fe)/onboarding-empty-topic-list`·`fix(fe)/interest-empty-topic-list`에서 선반영) |
+| 발행 날짜 | 2026-09-09 (같은 날 4항 개정 — IM 처리가 (b)로 확정되어 미결 해소로 바뀌었다) |
 | 발견 시점 | KAN-41(`tickets/frontend/pending/onboarding-empty-topic-list-state.md`) 처리 중 — 빈 목록을 O6으로 그리라는 요청이 uiux의 **명시적 금지 항목**과 정면으로 충돌했다 |
 | 심각도 | **중** — 지금 문서대로 구현하면 서버가 만들지 않는 폴백을 클라이언트가 기다린다 |
 
@@ -71,24 +71,49 @@ API가 같은 `is_visible`로 거부하므로 사용자는 고를 수는 있는�
 | "`is_fallback = true`는 정상 상태가 아니다" 불릿 | **"노출 주제가 0건이면 `items: []`를 200으로 반환하고 서버가 운영 알림을 발생시킨다"** 로 대체 |
 | 9장 미결 "주제 목록이 비었을 때의 기본 세트" | **미결에서 내린다** — 기본 세트를 두지 않기로 확정됐다 |
 
-### 4. `spec/uiux/interest-management-uiux.md` 4.7·9 — 미결의 선택지 (a) 소멸
+### 4. `features/interest-management.md` 7 — IM의 빈 목록 처리를 규칙으로 확정한다
 
-9장은 빈 목록 처리를 미결로 두고 **(a) 온보딩과 같은 폴백 세트 (b) 조회 실패(IM9)와 동일**
-두 선택지를 적어 놨다. 폴백이 사라졌으므로 **(a)는 자동 탈락**이다. 미결 항목을 다음으로 좁힌다.
+**이게 이번 개정의 핵심이다.** 지금 이 규칙을 가진 문서가 없다 — uiux 9장이 미결로 남기면서
+"**동작 규칙이므로 features가 정해야 한다**"고 적어 뒀는데, features에는 해당 문단 자체가 없다.
 
-> **주제 목록이 빈 배열로 오는 경우의 처리** — 폴백 세트 선택지는 소멸했다(서버가 만들지 않는다).
-> 남은 선택지는 **(b) 조회 실패(IM9)와 동일하게 그린다** vs **(c) 그대로 빈 칩 영역을 둔다**이다.
-> IM은 앱바 뒤로가기가 있어 온보딩과 달리 **갇히지는 않는다** — 그래서 온보딩만큼 급하지 않다.
-> **동작 규칙이므로 `features/interest-management.md`가 정해야 한다.**
+7장(예외 처리)에 다음을 넣는다.
+
+> - **주제 목록이 0건으로 오는 경우**: 온보딩 1단계와 **같은 규칙**이다(`onboarding.md` 7). 서버가
+>   폴백을 만들지 않으므로 `items: []`가 200으로 내려오며, 화면은 이를 **조회 실패와 같은 층**으로
+>   그린다 — 전체 화면 + [다시 시도]. 사용자가 할 수 있는 일이 [다시 시도] 하나로 조회 실패와 같고,
+>   이 화면에는 이미 조회 실패용 에러 화면이 있는데 0건일 때만 그것을 쓰지 않으면 오히려 규칙이
+>   갈라진다.
+> - **다만 카피는 조회 실패와 다르다.** 응답은 200이라 불러오기가 실패한 것이 아니다. 온보딩 1단계와
+>   **문자열까지 같은** "준비 중" 안내를 쓴다(확정 카피는 `interest-management-uiux.md` 4.7).
+> - **[다시 시도]는 0건일 때도 실제로 재조회를 보낸다.** 0건은 성공 상태라 조회 실패 여부만 보고
+>   재조회를 걸면 버튼이 눌려도 아무 요청이 나가지 않는다.
+> - IM은 앱바 뒤로가기가 있어 **갇히지는 않는다** — 그래서 온보딩과 달리 이탈 경로를 막지 않는다.
+
+(결정: 사용자 2026-09-09. 온보딩 건 처리 시 보류했다가 같은 날 확정했다.)
+
+### 5. `spec/uiux/interest-management-uiux.md` 4.7·9 — 미결 해소 + 확정 카피
+
+9장의 미결 항목 "**주제 목록이 빈 배열로 오는 경우의 처리**"를 **삭제한다.** 선택지 (a) 폴백 세트는
+서버에서 폴백이 사라져 탈락했고, (b) 조회 실패(IM9)와 동일이 위 4항으로 확정됐다.
+
+4.7(IM9 조회 실패)에 0건 변형을 넣는다.
+
+> - **목록이 빈 배열로 오면 IM9를 그린다.** 응답은 200이지만 할 수 있는 일이 [다시 시도] 하나로 같다
+>   (`interest-management.md` 7).
+> - 문구(FE 선반영, **확정 필요**): **"아직 준비 중이에요"** + "주제를 준비하고 있어요.\n잠시 후 다시 시도해주세요"
+>   - **온보딩 1단계와 문자열까지 동일하다.** 헤드라인·상한 문구와 같은 규칙이다(6장 — 변형 금지).
+>   - 기존 `loadFailed`("주제 목록을 불러올 수 없어요")를 재사용하지 않는다 — 불러오기는 성공했다.
 
 ## 완료 조건
 
 - Given 개정된 `onboarding-uiux.md` / When 8장 금지 사항을 읽는다 / Then 빈 응답을 O6으로 그리는 것이 금지 항목에 없고, 클라이언트 폴백 생성이 금지로 적혀 있다
 - Given 개정된 `onboarding-uiux.md` 4.2 / When 0건 상태의 카피를 찾는다 / Then 확정 카피가 적혀 있고 `frontend/src/features/onboarding/onboarding.copy.ts`의 `emptyTitle`·`emptyDescription`과 문자열까지 일치한다
 - Given 개정된 `onboarding-api.md` 4.2 / When `is_fallback`을 읽는다 / Then 항상 false인 레거시 필드임이 적혀 있고, 9장 미결에서 기본 세트 항목이 빠져 있다
-- Given 개정된 `interest-management-uiux.md` 9장 / When 빈 목록 미결을 읽는다 / Then 폴백 선택지가 빠지고 남은 결정이 features 소유로 명시돼 있다
+- Given 개정된 `features/interest-management.md` 7 / When 빈 목록 처리를 찾는다 / Then 온보딩과 같은 층(전체 화면 + [다시 시도])으로 그린다는 규칙과 그 사유가 적혀 있다
+- Given 개정된 `interest-management-uiux.md` / When 9장을 읽는다 / Then 빈 목록 미결 항목이 없고, 4.7에 0건 변형과 확정 카피가 있으며 그 문자열이 `frontend/src/features/interest/interest.copy.ts`의 `emptyTitle`·`emptyDescription`, 그리고 온보딩의 같은 키와 셋 다 일치한다
 
 ## 남은 결정 항목
 
-- **0건 상태의 확정 카피.** FE는 "아직 준비 중이에요" / "주제를 준비하고 있어요.\n잠시 후 다시 시도해주세요"로 선반영했다(사용자 확인 2026-09-09). uiux 반영 시 이 문자열을 그대로 쓸지 다듬을지 결정한다 — 다듬으면 `onboarding.copy.ts`도 함께 고친다.
-- **IM 화면의 빈 목록 처리.** 이번 FE 작업 범위에서 제외했다(사용자 결정 2026-09-09 — 갇히는 화면이 아니라 급하지 않다). `features/interest-management.md`가 규칙을 정한 뒤 별도 티켓으로 처리한다.
+- **0건 상태의 확정 카피.** FE는 "아직 준비 중이에요" / "주제를 준비하고 있어요.\n잠시 후 다시 시도해주세요"로 선반영했다(사용자 확인 2026-09-09). uiux 반영 시 이 문자열을 그대로 쓸지 다듬을지 결정한다 — 다듬으면 `onboarding.copy.ts`와 `interest.copy.ts` **양쪽을** 함께 고친다. 두 화면이 같은 문자열을 각자 들고 있는 이유는 의존 방향(`onboarding → interest`)을 뒤집지 않기 위해서다.
+
+> IM 처리의 보류는 해소됐다(사용자 결정 2026-09-09 — (b) 조회 실패와 같은 층). 위 4·5항이 그 결정의 문서 반영분이다.

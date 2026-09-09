@@ -60,9 +60,9 @@ toRows(topics).map((row, rowIndex) => ( ... ))
 
 | 항목 | 값 |
 |---|---|
-| 상태 | **부분 반영 — 요청 1·3 완료, 요청 2 보류** |
-| 반영 날짜 | 2026-09-09 (요청 1·3) |
-| 반영 브랜치 | `fix(fe)/onboarding-empty-topic-list` |
+| 상태 | **완료 — 요청 1·2·3 전부 반영** |
+| 반영 날짜 | 2026-09-09 (요청 1·3) · 2026-09-09 (요청 2) |
+| 반영 브랜치 | `fix(fe)/onboarding-empty-topic-list`(요청 1·3, PR #257) · `fix(fe)/interest-empty-topic-list`(요청 2) |
 | Jira | KAN-41 |
 | 문서 수정 요청 | `changes/pending/onboarding-empty-topic-list.md` |
 
@@ -136,3 +136,73 @@ id를 백업해 그것만 되돌렸다. 원래 숨김이던 6개는 건드리지
 이라 프론트 파트가 풀 수 없어, `dev`와 `main`의 프론트 차이가 이 티켓의 8개 파일뿐임을
 확인한 뒤 **OTA만 따로 발행**해 확인을 진행했다. 충돌 해소는 파이프라인 파트 몫으로 남아 있다.
 
+
+---
+
+## 처리 기록 — 요청 2(관심사 관리) 반영
+
+| 항목 | 값 |
+|---|---|
+| 반영 날짜 | 2026-09-09 |
+| 반영 브랜치 | `fix(fe)/interest-empty-topic-list` |
+| 결정 | **(b) 조회 실패(IM9)와 같은 층으로 그린다** (사용자 2026-09-09) |
+
+보류 시 남겼던 결정 항목 3개가 모두 해소되어 마저 반영했다.
+
+### 1. 빈 목록 처리 = IM9와 동일
+
+`useInterestManagementScreen`이 온보딩과 **같은 판정**(`isTopicListUnavailable`)을 쓰고,
+`isError`를 `isTopicsUnavailable || interestsQuery.isError`로 넓혔다. 화면은 그대로
+`FullScreenError` + [다시 시도]를 그린다.
+
+**게이트를 `isLoading`이 아니라 주제 쿼리의 `isPending`으로 잡았다.** `isLoading`에는
+`selectedIds === null`이 섞여 있는데, 관심사 조회가 실패하면 `serverIds`가 계속 null이라
+`isLoading`이 참으로 굳는다. 그걸 게이트로 쓰면 에러 화면이 영영 뜨지 않는다.
+
+### 2. 카피 — 온보딩과 문자열까지 동일
+
+`INTEREST_COPY.emptyTitle`·`emptyDescription`을 온보딩과 **같은 문자열**로 뒀다. 기존
+`loadFailed`("주제 목록을 불러올 수 없어요")는 재사용하지 않는다 — 온보딩과 같은 이유로 200이라
+사실과 다르다. 레이아웃 조정은 하지 않았다: 두 화면 모두 `FullScreenError`가 `flex: 1` 중앙 정렬
+한 벌이라 앱바 유무가 본문 배치에 영향을 주지 않았다.
+
+`ONBOARDING_COPY`를 import하지 않고 문자열을 각자 뒀다 — `architecture.md` 4.4의 방향이
+`onboarding → interest` 한쪽뿐이라 반대로 참조하면 순환이다. 헤드라인·상한 문구가 이미 같은
+방식으로 양쪽에 있다(`interest-management-uiux.md` 6장 — 변형 금지). 양쪽 주석에 "문자열까지
+동일해야 한다"를 적었다.
+
+### 3. `refetchAll` 죽은 버튼 수정
+
+`isError`인 쿼리만 refetch하던 것을 `isTopicsUnavailable`(0건 포함) 기준으로 바꿨다. 0건은 성공
+상태라 종전에는 [다시 시도]를 눌러도 아무 요청이 나가지 않았다.
+
+### 판정 로직 위치 — `shared/`가 아니라 `features/interest/`로 옮겼다
+
+온보딩에서 만든 `isTopicListUnavailable`을
+`features/onboarding/services/` → **`features/interest/services/`** 로 옮기고 interest의 공개
+API로 내보냈다. 온보딩은 `@/features/interest`에서 가져다 쓴다.
+
+- **왜 공유하는가** — 같은 엔드포인트의 같은 상태를 두 화면이 각자 판정하면 한쪽만 고쳐지는
+  순간 두 화면이 갈라진다. `useTopicsQuery`를 공용하기로 한 것과 같은 이유다.
+- **왜 `features/interest/`인가** — 주제 목록의 소유자가 이 feature다(계약·캐시·`useTopicsQuery`·
+  `TopicChip`). `architecture.md` 4.4의 방향이 `onboarding → interest` 한쪽뿐이라 판정을 온보딩에
+  두면 IM이 역방향으로 import해 순환이 된다.
+- **왜 `shared/`가 아닌가** — `shared/`는 api·hooks·lib·storage·theme·ui, 즉 도메인을 모르는 횡단
+  인프라 층이다. 특정 목록의 도메인 판정을 거기 두면 주제 목록 지식이 두 층으로 흩어진다.
+
+### 문서
+
+`changes/pending/onboarding-empty-topic-list.md`에 4·5항을 덧붙였다 — `features/interest-management.md` 7에
+**규칙 자체를 신설**(지금 이 규칙을 가진 문서가 없다)하고, `interest-management-uiux.md` 9장의
+미결 항목을 삭제하며 4.7에 0건 변형·확정 카피를 넣는다. 온보딩 건과 같은 결정이라 파일을 나누지
+않고 합쳤다.
+
+### 완료 조건 최종 확인
+
+| 완료 조건 | 결과 |
+|---|---|
+| 노출 주제 0건 서버 / 온보딩 1단계 진입 / 빈 화면이 아니라 재시도할 수 있는 상태 | **충족** — 실기기 확인 완료(위 "실기기 확인") |
+| 운영이 주제를 노출시킨 뒤 [다시 시도] / 목록이 그려지고 진행할 수 있다 | **충족** — 실기기에서 앱 재시작 없이 목록이 떴다 |
+| 관심사 관리 화면 / 같은 조건 진입 / 같은 규칙으로 그려진다 | **충족** — 같은 판정·같은 카피로 `FullScreenError` + [다시 시도]. 실기기 확인 대기 |
+
+세 조건이 모두 충족되어 `archive/`로 옮긴다.

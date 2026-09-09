@@ -10,6 +10,11 @@ export { default as InterestManagementScreen } from './screens/InterestManagemen
 export { default as TopicChip, topicImageSource } from './components/TopicChip';
 export { interestKeys } from './api/interest.api';
 export { useTopicsQuery } from './hooks/useTopicsQuery';
+/**
+ * 주제 목록 표시 상태 판정 — 온보딩 1단계와 관심사 관리가 **같은 판정**을 쓴다.
+ * 목록의 소유자가 이 feature라 여기 둔다(의존 방향 `onboarding → interest`).
+ */
+export { isTopicListUnavailable } from './services/topic-list-state';
 export type { TopicItem, TopicList } from './interest.types';
 /**
  * 저장 성공 통지 구독 — 프로필·설정 요약 invalidate는 app/bootstrap이 이걸로 주입한다

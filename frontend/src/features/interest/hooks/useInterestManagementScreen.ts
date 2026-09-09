@@ -20,6 +20,7 @@ import {
   filterToVisible,
   isOverSelectionCap,
 } from '../services/interest-edit';
+import { isTopicListUnavailable } from '../services/topic-list-state';
 
 /**
  * 관심사 관리 화면(IM1~IM9)의 로직 소유자 — 화면은 뷰만 담당한다.
@@ -99,7 +100,22 @@ export const useInterestManagementScreen = () => {
       : 0;
 
   const isLoading = topicsQuery.isPending || interestsQuery.isPending || selectedIds === null;
-  const isError = topicsQuery.isError || interestsQuery.isError;
+  /**
+   * 주제 목록을 그릴 수 없는 상태 — 조회 실패와 "200인데 0건"을 한 판정으로 합친다.
+   * 온보딩 1단계와 같은 규칙이다(같은 엔드포인트·같은 상태 — onboarding.md 7).
+   *
+   * `isLoading`(관심사 조회·하이드레이션 포함)이 아니라 **주제 쿼리의 첫 조회만** 게이트로 쓴다.
+   * 관심사 조회가 실패하면 `serverIds`가 계속 null이라 `isLoading`이 참으로 굳는데, 그걸
+   * 게이트로 쓰면 에러 화면이 영영 안 뜬다.
+   */
+  const isTopicsUnavailable = isTopicListUnavailable({
+    isPending: topicsQuery.isPending,
+    isError: topicsQuery.isError,
+    topicCount: topicsQuery.data?.items.length ?? 0,
+  });
+  const isError = isTopicsUnavailable || interestsQuery.isError;
+  /** 그중 0건 사유인가 — 어느 쿼리도 실패하지 않았을 때만 "준비 중" 카피를 쓴다 */
+  const isEmpty = isTopicsUnavailable && !topicsQuery.isError && !interestsQuery.isError;
   const isSaving = saveMutation.isPending;
 
   const hasChanges = diff.changeCount > 0;
@@ -229,7 +245,8 @@ export const useInterestManagementScreen = () => {
   };
 
   const refetchAll = () => {
-    if (topicsQuery.isError) void topicsQuery.refetch();
+    // isError만 보면 0건(200)일 때 아무 요청도 나가지 않아 [다시 시도]가 죽은 버튼이 된다
+    if (isTopicsUnavailable) void topicsQuery.refetch();
     if (interestsQuery.isError) void interestsQuery.refetch();
   };
 
@@ -248,6 +265,8 @@ export const useInterestManagementScreen = () => {
     showSkeleton: useDelayedVisible(isLoading),
     isLoading,
     isError,
+    /** 조회 실패가 아니라 노출 주제 0건인가 — 화면이 카피를 고르는 데 쓴다 */
+    isEmpty,
     isRefetching: topicsQuery.isRefetching || interestsQuery.isRefetching,
     saveErrorMessage,
     isConfirmVisible,
