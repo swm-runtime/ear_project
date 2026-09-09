@@ -18,6 +18,7 @@ export async function runQa(job: Job, ex: Executor) {
   const episodeId = String(job.payload.episode_id ?? "");
   const backlogId = String(job.payload.backlog_id ?? "");
   const attempt = Number(job.payload.attempt ?? 1);
+  const qaRound = Number(job.payload.qa_round ?? attempt); // 2026-09-09: 3회 한도는 QA 실행 횟수 기준 — L0 수정으로 늘어난 draft attempt 는 세지 않는다
   const ep = await getEpisode(episodeId);
   if (!ep) throw new Error(`에피소드 ${episodeId} 없음`);
   const rel = `episodes/${episodeId}`;
@@ -77,8 +78,8 @@ export async function runQa(job: Job, ex: Executor) {
     await setBacklogStatus(backlogId, "qa_passed");
     const criticJobId = await enqueue({ type: "critic", requires_ai: true, payload: { episode_id: episodeId, backlog_id: backlogId, rubric: cfg.criticRubric }, parent_job_id: job.id }); // 기본 v2 (spec/09 7.1) — 사람이 판정하는 리포트만 만든다
     next = { critic_job_id: criticJobId };
-  } else if (attempt < MAX_ATTEMPTS) {
-    const draftJobId = await enqueue({ type: "draft", requires_ai: true, payload: { backlog_id: backlogId, episode_id: episodeId, attempt: attempt + 1, qa_failures: o.failures }, parent_job_id: job.id, attempt: attempt + 1 });
+  } else if (qaRound < MAX_ATTEMPTS) {
+    const draftJobId = await enqueue({ type: "draft", requires_ai: true, payload: { backlog_id: backlogId, episode_id: episodeId, attempt: attempt + 1, qa_failures: o.failures, qa_round: qaRound }, parent_job_id: job.id, attempt: attempt + 1 });
     next = { draft_revision_job_id: draftJobId };
   } else {
     await setBacklogStatus(backlogId, "review_required");

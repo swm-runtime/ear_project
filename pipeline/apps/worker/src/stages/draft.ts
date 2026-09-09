@@ -84,7 +84,7 @@ export async function runDraft(job: Job, ex: Executor) {
     const seed = await countEpisodes();
     const intro = pickIntroStyle(seed);
     const [templates, majorTopic] = await Promise.all([getSetting<Templates>("templates"), majorOfMidTopic(cand.mid_topic)]);
-    const t = await runTwoStageDraft({ job, ex, episodeId, candidate: cand, dir, rel, assetRoot, promptVersion, templates, majorTopic: majorTopic ?? undefined, introStyle: intro, fileTools, signoffSeed: seed });
+    const t = await runTwoStageDraft({ job, ex, episodeId, candidate: cand, dir, rel, assetRoot, promptVersion, templates, majorTopic: majorTopic ?? undefined, introStyle: intro, fileTools, signoffSeed: Number(cand.id.replace(/\D/g, "")) || seed }); // 클로징 골격은 후보 번호로 돌린다 — 같은 시각에 시작한 3편이 같은 에피소드 수를 받아 골격이 겹쳤다 (T260909-005·007·009)
     out = { turns: t.stats.turns, chars: t.stats.chars, minutes: t.stats.minutes, sources_used: t.design?.sources_used ?? [], sources_excluded: t.design?.sources_excluded ?? [], self_check_fixes: t.write.self_check_fixes, notes: t.write.notes };
     model = t.model; costUsd = t.costUsd; tokens = t.tokens; summary = t.summary;
   } else if (attempt === 1) {
@@ -162,17 +162,20 @@ export async function runDraft(job: Job, ex: Executor) {
   const signoffHeads = signoffVariants(await getSetting<Templates>("templates")).map((v) => v.split("{")[0].trim()); // tpl-v2 클로징 인사 골격들의 고정 머리 — 비어 있으면 검사 없음
   const violations = [...formatViolations(scriptMd), ...((await exists(outlineFile)) ? twoStageViolations(scriptMd, await fs.readFile(outlineFile, "utf8"), { signoffHeads }) : [])];
   if (violations.length) {
-    if (attempt >= 3) throw new Error(`대본 형식 위반이 attempt ${attempt}까지 남음 — 웹 턴 수정으로 처리 필요: ${violations.join(" / ")}`);
+    // L0 수정은 QA 회차와 별도로 센다 (2026-09-09): 같은 카운터를 쓰니 시점 표현 1건 고치는 데 QA 회차 하나가 사라졌고, QA 수정본이 통계 용어로 L0 에 걸리자 attempt 3 한도에 막혀 검토 대기로 빠졌다(T260909-009)
+    const l0Fixes = Number(job.payload.l0_fixes ?? 0);
+    if (l0Fixes >= 2) throw new Error(`대본 형식 위반이 L0 수정 ${l0Fixes}회 뒤에도 남음 — 웹 턴 수정으로 처리 필요: ${violations.join(" / ")}`);
     const fixes = violations.map((v) => ({ location: "대본 전체", item: "L0 형식 계약 (spec/04 4장 줄 문법)", reason: v }));
     await insertRun({ backlog_id: backlogId, phase: "draft", attempt, result: `${summary} — L0 형식 위반 ${violations.length}건, QA 생략하고 수정 재생성: ${violations.join(" / ").slice(0, 300)}`, prompt_version: `${promptVersion} (worker)`, artifacts, executed_by: executedBy, model, cost_usd: costUsd, tokens, worker_rev: workerRev() });
-    const fixJobId = await enqueue({ type: "draft", requires_ai: true, payload: { episode_id: episodeId, backlog_id: backlogId, attempt: attempt + 1, qa_failures: fixes }, parent_job_id: job.id, attempt: attempt + 1 });
-    log(`  draft ${episodeId}: L0 형식 위반 ${violations.length}건 — 수정 재생성 연쇄 (attempt ${attempt + 1})`);
+    const fixJobId = await enqueue({ type: "draft", requires_ai: true, payload: { episode_id: episodeId, backlog_id: backlogId, attempt: attempt + 1, qa_failures: fixes, l0_fixes: l0Fixes + 1, qa_round: job.payload.qa_round ?? 0 }, parent_job_id: job.id, attempt: attempt + 1 });
+    log(`  draft ${episodeId}: L0 형식 위반 ${violations.length}건 — 수정 재생성 연쇄 (attempt ${attempt + 1}, L0 수정 ${l0Fixes + 1}회째)`);
     return { episode_id: episodeId, attempt, summary, model, l0_violations: violations, next: { draft_fix_job_id: fixJobId } };
   }
   await insertRun({ backlog_id: backlogId, phase: "draft", attempt, result: summary, prompt_version: `${promptVersion} (worker)`, artifacts, executed_by: executedBy, model, cost_usd: costUsd, tokens, worker_rev: workerRev() });
   // 회차 2+: 이전 QA 실패와 작성 측 수정 내역(바뀐 자리만)을 QA 에 넘긴다 — 해소 확인 + 바뀌지 않은 문장의 판정 안정성 (spec/05 5장, 2026-09-08)
   const carry = attempt > 1 ? { prior_failures: (job.payload.qa_failures ?? []) as unknown[], fixes: (out as RevisionOut).fixes ?? [] } : {};
-  const qaJobId = await enqueue({ type: "qa", requires_ai: true, payload: { episode_id: episodeId, backlog_id: backlogId, attempt, ...carry }, parent_job_id: job.id, attempt });
+  const qaRound = Number(job.payload.qa_round ?? 0) + 1; // QA 회차 = 실제 QA 실행 횟수 (L0 수정은 세지 않는다)
+  const qaJobId = await enqueue({ type: "qa", requires_ai: true, payload: { episode_id: episodeId, backlog_id: backlogId, attempt, qa_round: qaRound, ...carry }, parent_job_id: job.id, attempt });
   return { episode_id: episodeId, attempt, summary, model, next: { qa_job_id: qaJobId }, output: out };
 }
 
@@ -187,7 +190,7 @@ function formatViolations(md: string): string[] {
   }
   if (p.coldOpen) v.push("[콜드오픈] 구역이 있음 — 2026-09-07 폐지, 대본은 [인트로]부터 시작한다 (spec/04 4장 구조)");
   // 시점 고정 표현 (spec/04 3장 금지 규칙 4 · QA 항목 6 의 코드 이관, 2026-09-08): 오디오는 발행 후에도 재생된다. 템플릿의 "오늘의 주제"·"지금까지"는 대상이 아니므로 상대 시점 어휘만 본다
-  const tense = p.turns.filter((t) => /(요즘|최근에?|올해|작년|내년|어제|내일|지난\s?(주|달|해|번)|이번\s?(주|달)|며칠 전)/.test(t.text)).map((t) => t.id ?? "?");
+  const tense = p.turns.filter((t) => /(요즘|최근에?|올해|작년|내년|지난\s?(주|달|해|번)|이번\s?(주|달)|며칠 전)/.test(t.text)).map((t) => t.id ?? "?");
   if (tense.length) v.push(`시점 고정 표현(요즘·최근·올해·지난주 등)이 ${tense.length}턴에 있음 (${tense.slice(0, 6).join(", ")}) — 절대 표기(년-월)나 무시점 표현으로 바꾼다 (spec/04 3장 규칙 4)`);
   return v;
 }
