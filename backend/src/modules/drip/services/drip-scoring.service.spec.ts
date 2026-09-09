@@ -7,9 +7,25 @@ import {
 import { DripScoringService } from './drip-scoring.service';
 import {
   RegularScoringContext,
+  ScoreBreakdown,
   ScoringCandidate,
   UserPreferenceWeights,
 } from '../drip.types';
+
+/** 선별(selectWithDiversity) 테스트는 점수만 보므로 축 분해는 비워 둔다 */
+const EMPTY_BREAKDOWN: ScoreBreakdown = {
+  embedding: null,
+  signal: null,
+  meta: null,
+  metaItems: {
+    topicMatch: null,
+    freshness: null,
+    popularity: null,
+    difficultyFit: null,
+    seriesContinuity: null,
+    exposureFatigue: null,
+  },
+};
 
 const NOW = new Date('2026-08-27T05:00:00.000Z');
 const TOPIC_A = 'aaaaaaaa-1111-4111-8111-111111111111';
@@ -348,7 +364,7 @@ describe('DripScoringService', () => {
   describe('selectWithDiversity', () => {
     it('주제·저자가 달라도 임베딩이 사실상 같은 두 편은 MMR 감점으로 함께 뽑히지 않는다', () => {
       // given — a1·a2는 내용이 같고(코사인 1) b1은 다르다. 이산 규칙으로는 셋 다 통과한다
-      const base = { isSeriesContinuation: false };
+      const base = { isSeriesContinuation: false, breakdown: EMPTY_BREAKDOWN };
       const scored = [
         {
           ...buildCandidate('a1', { topicIds: [TOPIC_A], embedding: [1, 0] }),
@@ -384,16 +400,19 @@ describe('DripScoringService', () => {
           ...buildCandidate('a1', { topicIds: [TOPIC_A], embedding: [1, 0] }),
           score: 0.9,
           isSeriesContinuation: false,
+          breakdown: EMPTY_BREAKDOWN,
         },
         {
           ...buildCandidate('a2', { topicIds: [TOPIC_A], embedding: [1, 0] }),
           score: 0.85,
           isSeriesContinuation: true,
+          breakdown: EMPTY_BREAKDOWN,
         },
         {
           ...buildCandidate('b1', { topicIds: [TOPIC_B], embedding: [0, 1] }),
           score: 0.7,
           isSeriesContinuation: false,
+          breakdown: EMPTY_BREAKDOWN,
         },
       ];
 
