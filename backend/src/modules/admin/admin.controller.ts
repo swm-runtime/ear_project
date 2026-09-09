@@ -157,6 +157,22 @@ export class AdminController {
     );
   }
 
+  /**
+   * admin.md 4.4 — **저장소 파일 회수.** 회수 상태에서만 허용하며 되돌릴 수 없다.
+   *
+   * **행은 남긴다.** `play_records`가 파트너 정산의 원본 근거라(FR-34), 행을 지우면
+   * 그 수치를 되짚을 수 없다. 노출은 회수가 이미 막고 있으므로 사용자 차이는 없고,
+   * 이 경로가 해결하는 것은 **저장소 비용**이다.
+   */
+  @Delete('contents/:contentId/storage')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async purgeContentStorage(
+    @CurrentUser() currentUser: AuthenticatedUser,
+    @Param('contentId', ParseUUIDPipe) contentId: string,
+  ): Promise<void> {
+    await this.adminContentService.purgeStorage(currentUser.id, contentId);
+  }
+
   /** 회수 복구 — 삭제된 library_items는 되살리지 않는다 */
   @Post('contents/:contentId/restore')
   @HttpCode(HttpStatus.OK)

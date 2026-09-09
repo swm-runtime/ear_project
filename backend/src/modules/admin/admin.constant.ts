@@ -38,6 +38,11 @@ export const AUDIT_ACTION_CONTENT_REPUBLISH = 'content.republish';
 export const AUDIT_ACTION_CONTENT_ENRICH = 'content.enrich';
 export const AUDIT_ACTION_CONTENT_WITHDRAW = 'content.withdraw';
 export const AUDIT_ACTION_CONTENT_RESTORE = 'content.restore';
+/**
+ * 저장소 파일 회수 — **되돌릴 수 없다.** 파일이 사라진 뒤 그 콘텐츠가 왜 재생되지
+ * 않는지를 이 기록으로만 설명할 수 있다
+ */
+export const AUDIT_ACTION_CONTENT_PURGE_STORAGE = 'content.purge_storage';
 export const AUDIT_ACTION_TOPIC_CREATE = 'topic.create';
 export const AUDIT_ACTION_TOPIC_UPDATE = 'topic.update';
 export const AUDIT_ACTION_TOPIC_DELETE = 'topic.delete';

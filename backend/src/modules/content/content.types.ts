@@ -35,6 +35,14 @@ export interface ContentCandidateQuery {
    * (`drip-scheduling.md` 7).
    */
   seriesStartOnly?: boolean;
+  /**
+   * **저노출·신규를 먼저 뽑는다**(`drip-scheduling.md` 4.8-2 — 탐험 슬롯).
+   *
+   * 기본 정렬은 인기순인데, 탐험 슬롯은 그 반대를 원한다. 같은 풀을 쓰면 **가장 많이
+   * 재생된 300건 안에서 저노출을 고르게 되어**, 카탈로그가 그 수를 넘는 순간 저노출
+   * 콘텐츠는 후보에 들어오지도 못한다 — 4.8이 깨려던 콘텐츠 콜드스타트 고리가 그대로 남는다.
+   */
+  lowExposureFirst?: boolean;
   limit: number;
   now: Date;
 }

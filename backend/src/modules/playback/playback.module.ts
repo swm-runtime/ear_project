@@ -12,6 +12,9 @@ import { UserModule } from '@/modules/user/user.module';
 
 import { AUDIO_URL_ISSUER, AudioUrlIssuer } from './audio-url-issuer';
 import { AudioUrlSigner } from './audio-url.signer';
+import { ContentStatAggregationScheduler } from './content-stat-aggregation.scheduler';
+import { ContentStatAggregationRepository } from './repositories/content-stat-aggregation.repository';
+import { ContentStatAggregationService } from './services/content-stat-aggregation.service';
 import { CloudFrontAudioUrlSigner } from './cloudfront-audio-url.signer';
 import { AudioStreamController } from './controllers/audio-stream.controller';
 import { PlaybackProgressController } from './controllers/playback-progress.controller';
@@ -71,6 +74,10 @@ import { PlaybackService } from './services/playback.service';
     AudioStreamController,
   ],
   providers: [
+    ContentStatAggregationRepository,
+    ContentStatAggregationService,
+    // 편성 배치(05:00)의 인기도 축이 이 값을 읽는다 — 그보다 먼저 04:00에 돈다
+    ContentStatAggregationScheduler,
     PlaybackProgressRepository,
     PlayRecordRepository,
     UserSignalRepository,

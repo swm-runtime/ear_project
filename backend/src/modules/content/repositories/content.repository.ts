@@ -255,6 +255,21 @@ export class ContentRepository {
       );
     }
 
+    if (query.lowExposureFirst) {
+      /**
+       * 탐험 슬롯 전용 정렬(`drip-scheduling.md` 4.8-2) — **덜 재생된 것부터.**
+       *
+       * 인기순으로 자른 풀에 저노출 가점을 주면, 카탈로그가 `limit`을 넘는 순간
+       * 저노출 콘텐츠가 후보에 **들어오지도 못한다.** 자르는 기준 자체를 뒤집는다.
+       */
+      return builder
+        .orderBy(RANKING_PLAY_COUNT, 'ASC')
+        .addOrderBy('content.published_at', 'DESC')
+        .addOrderBy('content.id', 'ASC')
+        .limit(query.limit)
+        .getMany();
+    }
+
     return builder
       .orderBy(RANKING_PLAY_COUNT, 'DESC')
       .addOrderBy('content.published_at', 'DESC')

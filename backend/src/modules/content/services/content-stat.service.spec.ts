@@ -1,4 +1,3 @@
-import { MONTHLY_POPULAR_SAMPLE_THRESHOLD } from '../content.constant';
 import { StatsPeriodType } from '../content.enum';
 import { ContentStatRepository } from '../repositories/content-stat.repository';
 import { ContentStatService } from './content-stat.service';
@@ -20,46 +19,32 @@ describe('ContentStatService', () => {
     service = new ContentStatService(repository);
   });
 
-  describe('isMonthlySampleSufficient', () => {
-    it('직전 확정 월의 재생 합계가 기준값 미만이면 표본이 부족하다고 본다', async () => {
-      // given
-      repository.sumPlayCount.mockResolvedValue(
-        MONTHLY_POPULAR_SAMPLE_THRESHOLD - 1,
-      );
+  describe('findMonthlyPopularContentIds', () => {
+    it('진행 중인 달이 아니라 직전 확정 월을 기준으로 조회한다', async () => {
+      // given — 진행 중 구간을 쓰면 월초에 표본이 부족해 순위가 무너진다(domain.md 5.4)
 
       // when
-      const isSufficient = await service.isMonthlySampleSufficient(NOW);
+      await service.findMonthlyPopularContentIds(NOW, 10);
 
-      // then
-      expect(isSufficient).toBe(false);
-    });
-
-    it('기준값과 같으면 표본이 충분하다고 본다', async () => {
-      // given
-      repository.sumPlayCount.mockResolvedValue(
-        MONTHLY_POPULAR_SAMPLE_THRESHOLD,
-      );
-
-      // when
-      const isSufficient = await service.isMonthlySampleSufficient(NOW);
-
-      // then
-      expect(isSufficient).toBe(true);
-    });
-
-    it('진행 중인 달이 아니라 직전 확정 월을 기준으로 센다', async () => {
-      // given
-      repository.sumPlayCount.mockResolvedValue(0);
-
-      // when
-      await service.isMonthlySampleSufficient(NOW);
-
-      // then — 5월에는 4월 집계를 쓴다
-      expect(repository.sumPlayCount).toHaveBeenCalledWith(
+      // then — 2026-05-20 조회는 4월 집계를 본다
+      expect(repository.findTopContentIds).toHaveBeenCalledWith(
         StatsPeriodType.MONTH,
         '2026-04-01',
+        10,
         undefined,
       );
+    });
+
+    it('집계가 없으면 빈 목록이다 — 폴백을 만들지 않는다', async () => {
+      // given — 랜덤 배치는 폐기됐다(README 결정 12). 순위가 비면 호출부가 원래
+      // 후보 순서를 유지한다
+      repository.findTopContentIds.mockResolvedValue([]);
+
+      // when
+      const ids = await service.findMonthlyPopularContentIds(NOW, 10);
+
+      // then
+      expect(ids).toEqual([]);
     });
   });
 });

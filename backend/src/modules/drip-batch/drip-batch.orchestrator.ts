@@ -16,6 +16,7 @@ import {
 import { PreferenceSignalAction } from '@/modules/drip/drip.enum';
 import {
   PreferenceSignalInput,
+  ScoredCandidate,
   ScoringCandidate,
   UserPreferenceWeights,
 } from '@/modules/drip/drip.types';
@@ -341,6 +342,8 @@ export class DripBatchOrchestrator {
       input.dripCount,
     );
 
+    this.logPicks('regular', userId, picks, input.isColdStart);
+
     await this.dripPlacementService.placeItems(
       userId,
       picks.map((pick) => pick.content.id),
@@ -376,6 +379,8 @@ export class DripBatchOrchestrator {
       excludeContentIds: input.alreadyPickedIds,
       // 탐험 편은 시리즈 도입부만 — 처음 보는 주제를 3편부터 줄 이유가 없다
       seriesStartOnly: true,
+      // 저노출부터 자른다 — 인기순 풀에서 저노출을 고르면 슬롯의 목적이 뒤집힌다(4.8-2)
+      lowExposureFirst: true,
       limit: SCORING_POOL_LIMIT,
       now: input.now,
     });
@@ -403,6 +408,8 @@ export class DripBatchOrchestrator {
       count: input.discoveryCount,
       now: input.now,
     });
+
+    this.logPicks('discovery', userId, picks, false);
 
     await this.dripPlacementService.placeItems(
       userId,
@@ -449,6 +456,48 @@ export class DripBatchOrchestrator {
   }
 
   /** 노출 피로(4.2 ③) — 최근 편성분(드립·탐험)의 주제 */
+  /**
+   * **왜 이 콘텐츠가 갔는지를 남긴다.**
+   *
+   * 최종 점수 하나만 남기면 축이 죽어 있어도 겉으로는 정상으로 보인다 — 실제로 인기도
+   * 축이 상수 0인 것(`content_stats` 미집계)과 탐험 풀이 뒤집혀 있던 것을, 코드를 읽기
+   * 전까지 아무도 알아채지 못했다. **입력이 없어도 점수는 나오기 때문이다.**
+   *
+   * `null`은 **입력이 없어 축에서 빠졌다**는 뜻이고 0과 다르다(4.2 재정규화).
+   * 전 사용자의 특정 항목이 계속 같은 값이면 그 입력이 죽어 있다는 신호다.
+   *
+   * 사용자당 편성 편수(2~3편)만큼만 남는다 — 후보 300건 전체를 남기지 않는다.
+   */
+  private logPicks(
+    slot: 'regular' | 'discovery',
+    userId: string,
+    picks: ScoredCandidate[],
+    isColdStart: boolean,
+  ): void {
+    for (const pick of picks) {
+      this.logger.log('drip pick scored', {
+        user_id: userId,
+        content_id: pick.content.id,
+        slot,
+        cold_start: isColdStart,
+        score: round(pick.score),
+        axes: {
+          embedding: round(pick.breakdown.embedding),
+          signal: round(pick.breakdown.signal),
+          meta: round(pick.breakdown.meta),
+        },
+        meta_items: {
+          topic_match: round(pick.breakdown.metaItems.topicMatch),
+          freshness: round(pick.breakdown.metaItems.freshness),
+          popularity: round(pick.breakdown.metaItems.popularity),
+          difficulty_fit: round(pick.breakdown.metaItems.difficultyFit),
+          series_continuity: round(pick.breakdown.metaItems.seriesContinuity),
+          exposure_fatigue: round(pick.breakdown.metaItems.exposureFatigue),
+        },
+      });
+    }
+  }
+
   private async findRecentDripTopicIds(
     userId: string,
     now: Date,
@@ -503,4 +552,9 @@ function buildDifficultyAffinity(
 
 function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'unknown error';
+}
+
+/** 로그에 싣는 점수는 소수점 셋째 자리까지. `null`(축 제외)은 그대로 둔다 */
+function round(value: number | null): number | null {
+  return value === null ? null : Math.round(value * 1000) / 1000;
 }

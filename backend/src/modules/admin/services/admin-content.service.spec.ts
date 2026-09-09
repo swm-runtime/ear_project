@@ -479,6 +479,78 @@ describe('AdminContentService', () => {
     });
   });
 
+  describe('purgeStorage', () => {
+    beforeEach(() => {
+      contentService.getById.mockResolvedValue({
+        id: CONTENT_ID,
+        status: ContentStatus.WITHDRAWN,
+        origin: ContentOrigin.AI_GENERATED,
+        title: '정리할 콘텐츠',
+        sourceName: '블로그 A',
+        publishedAt: NOW,
+        withdrawnAt: NOW,
+        audioPath: 'audio/old.mp3',
+        thumbnailUrl: `${CDN_BASE_URL}/thumb/old.png`,
+      } as never);
+    });
+
+    it('회수된 콘텐츠의 오디오·썸네일을 저장소에서 지운다', async () => {
+      // when
+      await service.purgeStorage(ACTOR_ID, CONTENT_ID);
+
+      // then
+      expect(storage.remove).toHaveBeenCalledWith([
+        'audio/old.mp3',
+        'thumb/old.png',
+      ]);
+    });
+
+    it('행은 지우지 않는다 — play_records가 정산의 원본 근거다', async () => {
+      // given / when
+      await service.purgeStorage(ACTOR_ID, CONTENT_ID);
+
+      // then — contents 행을 지우면 그것을 참조하는 재생 기록이 함께 사라져야 하고,
+      // 집계(content_stats)만 남으면 정산 수치를 되짚을 수 없다
+      expect(contentService.withdraw).not.toHaveBeenCalled();
+      expect(storage.remove).toHaveBeenCalledTimes(1);
+    });
+
+    it('파일이 사라지기 전에 감사 로그를 같은 트랜잭션에서 남긴다', async () => {
+      // given — 되돌릴 수 없는 작업이라, 이 기록이 "왜 재생이 안 되는지"의 유일한 설명이다
+
+      // when
+      await service.purgeStorage(ACTOR_ID, CONTENT_ID);
+
+      // then
+      expect(auditLogService.record).toHaveBeenCalledWith(
+        containing({
+          actor: ACTOR_ID,
+          action: 'content.purge_storage',
+          target: `content:${CONTENT_ID}`,
+          before: containing({ title: '정리할 콘텐츠' }),
+        }),
+        manager,
+      );
+    });
+
+    it('발행 중인 콘텐츠는 409로 거부한다 — 회수가 먼저다', async () => {
+      // given
+      contentService.getById.mockResolvedValue({
+        id: CONTENT_ID,
+        status: ContentStatus.PUBLISHED,
+      } as never);
+
+      // when
+      const act = service.purgeStorage(ACTOR_ID, CONTENT_ID);
+
+      // then
+      await expect(act).rejects.toMatchObject({
+        errorCode: ErrorCode.CONFLICT,
+      });
+      expect(storage.remove).not.toHaveBeenCalled();
+    });
+  });
+
   describe('restore', () => {
     it('회수된 콘텐츠를 복구하면 published로 돌아가고 감사 로그가 남는다', async () => {
       // given

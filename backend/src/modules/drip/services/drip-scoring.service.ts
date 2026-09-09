@@ -23,6 +23,7 @@ import {
   DiscoverySelectionInput,
   RegularScoringContext,
   ScoredCandidate,
+  ScoreBreakdown,
   ScoringCandidate,
   UserPreferenceWeights,
 } from '../drip.types';
@@ -94,30 +95,31 @@ export class DripScoringService {
           context.completedEpisodesBySeries,
         );
 
+        const embedding = this.embeddingAxisScore(candidate, context);
+        const signal = this.signalAxisScore(candidate, context);
+        const meta = this.metaAxisScore(
+          candidate,
+          context,
+          poolAverageCompleteRate,
+          isSeriesContinuation,
+        );
+
         const axes: ScoreItem[] = [
-          {
-            score: this.embeddingAxisScore(candidate, context),
-            weight: AXIS_WEIGHT_EMBEDDING,
-          },
-          {
-            score: this.signalAxisScore(candidate, context),
-            weight: AXIS_WEIGHT_SIGNAL,
-          },
-          {
-            score: this.metaAxisScore(
-              candidate,
-              context,
-              poolAverageCompleteRate,
-              isSeriesContinuation,
-            ),
-            weight: AXIS_WEIGHT_META,
-          },
+          { score: embedding, weight: AXIS_WEIGHT_EMBEDDING },
+          { score: signal, weight: AXIS_WEIGHT_SIGNAL },
+          { score: meta.score, weight: AXIS_WEIGHT_META },
         ];
 
         return {
           ...candidate,
           score: weightedMean(axes) ?? 0,
           isSeriesContinuation,
+          breakdown: {
+            embedding,
+            signal,
+            meta: meta.score,
+            metaItems: meta.items,
+          },
         };
       })
       .sort(
@@ -232,11 +234,15 @@ export class DripScoringService {
     });
 
     const scored = eligible
-      .map((candidate) => ({
-        ...candidate,
-        score: this.discoveryScore(candidate, input, poolAverageCompleteRate),
-        isSeriesContinuation: false,
-      }))
+      .map((candidate) => {
+        const { score, breakdown } = this.discoveryScore(
+          candidate,
+          input,
+          poolAverageCompleteRate,
+        );
+
+        return { ...candidate, score, isSeriesContinuation: false, breakdown };
+      })
       .sort(
         (a, b) => b.score - a.score || a.content.id.localeCompare(b.content.id),
       );
@@ -366,12 +372,16 @@ export class DripScoringService {
   }
 
   /** ③ 메타 규칙 축 — 콜드스타트에서도 살아 있는 축(4.4) */
+  /**
+   * 메타 규칙 축(4.2 ③). **항목별 점수를 함께 돌려준다** — 최종 점수만 남기면
+   * 어떤 항목이 죽어 있어도 겉으로는 정상으로 보인다(인기도 축이 그랬다).
+   */
   private metaAxisScore(
     candidate: ScoringCandidate,
     context: RegularScoringContext,
     poolAverageCompleteRate: number,
     isSeriesContinuation: boolean,
-  ): number {
+  ): { score: number; items: ScoreBreakdown['metaItems'] } {
     const weights = context.isColdStart
       ? META_ITEM_WEIGHTS_COLD_START
       : META_ITEM_WEIGHTS;
@@ -388,65 +398,73 @@ export class DripScoringService {
         : candidate.topicIds.filter((topicId) => recentTopicIds.has(topicId))
             .length / candidate.topicIds.length;
 
+    const scores: ScoreBreakdown['metaItems'] = {
+      // 여러 관심 주제에 걸치면 가점(4.2 ③)
+      topicMatch:
+        matchedTopicCount === 0
+          ? 0
+          : Math.min(1, 0.6 + 0.2 * (matchedTopicCount - 1)),
+      freshness: this.freshnessScore(content, context.now),
+      popularity: this.popularityScore(candidate, poolAverageCompleteRate),
+      difficultyFit: this.difficultyFitScore(content, context),
+      // 시리즈 연속 편에만 존재하는 강한 가점 — 해당 없으면 항목 자체가 빠진다
+      seriesContinuity: isSeriesContinuation ? 1 : null,
+      exposureFatigue: 1 - fatigueOverlap,
+    };
+
     const items: ScoreItem[] = [
-      {
-        // 여러 관심 주제에 걸치면 가점(4.2 ③)
-        score:
-          matchedTopicCount === 0
-            ? 0
-            : Math.min(1, 0.6 + 0.2 * (matchedTopicCount - 1)),
-        weight: weights.topicMatch,
-      },
-      {
-        score: this.freshnessScore(content, context.now),
-        weight: weights.freshness,
-      },
-      {
-        score: this.popularityScore(candidate, poolAverageCompleteRate),
-        weight: weights.popularity,
-      },
-      {
-        score: this.difficultyFitScore(content, context),
-        weight: weights.difficultyFit,
-      },
-      {
-        // 시리즈 연속 편에만 존재하는 강한 가점 — 해당 없으면 항목 자체가 빠진다
-        score: isSeriesContinuation ? 1 : null,
-        weight: weights.seriesContinuity,
-      },
-      {
-        score: 1 - fatigueOverlap,
-        weight: weights.exposureFatigue,
-      },
+      { score: scores.topicMatch, weight: weights.topicMatch },
+      { score: scores.freshness, weight: weights.freshness },
+      { score: scores.popularity, weight: weights.popularity },
+      { score: scores.difficultyFit, weight: weights.difficultyFit },
+      { score: scores.seriesContinuity, weight: weights.seriesContinuity },
+      { score: scores.exposureFatigue, weight: weights.exposureFatigue },
     ];
 
-    return weightedMean(items) ?? 0;
+    return { score: weightedMean(items) ?? 0, items: scores };
   }
 
+  /** 탐험 슬롯 점수(4.8-2). 정규 편성과 축이 다르므로 항목도 따로 남긴다 */
   private discoveryScore(
     candidate: ScoringCandidate,
     input: DiscoverySelectionInput,
     poolAverageCompleteRate: number,
-  ): number {
+  ): { score: number; breakdown: ScoreBreakdown } {
     const exposureCount = input.exposureCounts.get(candidate.content.id) ?? 0;
+    // 저노출일수록 1에 가깝다 — 이 슬롯의 존재 이유(4.8-2)
+    const lowExposure = 1 / (1 + exposureCount);
+    const freshness = this.freshnessScore(candidate.content, input.now);
+    const quality = this.smoothedCompleteRate(
+      candidate,
+      poolAverageCompleteRate,
+    );
 
     const items: ScoreItem[] = [
-      {
-        // 저노출일수록 1에 가깝다 — 이 슬롯의 존재 이유(4.8-2)
-        score: 1 / (1 + exposureCount),
-        weight: DISCOVERY_ITEM_WEIGHTS.lowExposure,
-      },
-      {
-        score: this.freshnessScore(candidate.content, input.now),
-        weight: DISCOVERY_ITEM_WEIGHTS.freshness,
-      },
-      {
-        score: this.smoothedCompleteRate(candidate, poolAverageCompleteRate),
-        weight: DISCOVERY_ITEM_WEIGHTS.quality,
-      },
+      { score: lowExposure, weight: DISCOVERY_ITEM_WEIGHTS.lowExposure },
+      { score: freshness, weight: DISCOVERY_ITEM_WEIGHTS.freshness },
+      { score: quality, weight: DISCOVERY_ITEM_WEIGHTS.quality },
     ];
 
-    return weightedMean(items) ?? 0;
+    const score = weightedMean(items) ?? 0;
+
+    return {
+      score,
+      breakdown: {
+        // 탐험은 임베딩·신호 축을 쓰지 않는다 — 그 사실도 로그에 남는다
+        embedding: null,
+        signal: null,
+        meta: score,
+        metaItems: {
+          topicMatch: null,
+          freshness,
+          popularity: quality,
+          difficultyFit: null,
+          seriesContinuity: null,
+          // 저노출 가점을 노출 피로 자리에 싣는다 — 둘 다 "얼마나 덜 보였나"다
+          exposureFatigue: lowExposure,
+        },
+      },
+    };
   }
 
   /**
