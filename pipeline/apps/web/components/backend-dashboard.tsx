@@ -156,7 +156,7 @@ function LatencyLines({ buckets }: { buckets: Bucket[] }) {
     const sorted = [...b.durations].sort((a, z) => a - z);
     return { i, p50: percentile(sorted, 50), p95: percentile(sorted, 95), n: sorted.length };
   });
-  const max = axisMax(points.map((p) => p.p95));
+  const max = axisMax(buckets.flatMap((b) => b.durations));
   const x = (i: number) => ((i + 0.5) * W) / buckets.length;
   const y = (v: number) => H - (Math.min(v, max) / max) * H;
   const path = (pick: (p: (typeof points)[number]) => number) =>

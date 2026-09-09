@@ -69,10 +69,24 @@ test("percentile 은 최근접 순위다", () => {
   assert.equal(percentile(s(100), 95), 95);
 });
 
-test("axisMax 는 이상치에만 개입한다", () => {
+test("axisMax 는 이상치 하나에 끌려가지 않는다", () => {
+  const normal = Array.from({ length: 40 }, (_, i) => 40 + (i % 5)); // 40~44ms
+  assert.ok(axisMax(normal) <= 60, `이상치 없으면 데이터에 붙는다 (got ${axisMax(normal)})`);
+  assert.ok(axisMax([...normal, 2400]) < 200, `느린 요청 하나가 축을 2,400ms 로 끌지 못한다 (got ${axisMax([...normal, 2400])})`);
+});
+
+test("axisMax 는 칸 개수가 아니라 요청 분포를 본다 — 범위를 바꿔도 축이 흔들리지 않는다", () => {
+  // 2026-09-09 운영에서 실제로 걸린 모양: 느린 무리 17건 + 빠른 무리 17건 + 드문 요청 몇 건
+  const reqs = [...Array(17).fill(304), ...Array(17).fill(9), 16, 17, 303, 305];
+  // 창이 넓어져 빠른 무리가 더 들어와도 축이 3배씩 튀지 않는다
+  const wider = [...reqs, ...Array(20).fill(11)];
+  const a = axisMax(reqs), b = axisMax(wider);
+  assert.ok(Math.max(a, b) / Math.min(a, b) < 1.5, `축이 ${a}ms ↔ ${b}ms 로 튀면 안 된다`);
+});
+
+test("axisMax 경계", () => {
   assert.equal(axisMax([]), 50, "값이 없으면 기본 축");
-  assert.equal(axisMax([60, 62, 64, 66, 70]), 70, "이상치가 없으면 최댓값 그대로");
-  assert.equal(axisMax([2400]), 2400, "칸이 하나뿐이면 자를 근거가 없다");
-  assert.equal(axisMax([60, 62, 64, 2400]), 248, "중앙값 62 × 4");
+  assert.equal(axisMax([2400]), 2400, "표본이 하나뿐이면 자를 근거가 없다");
   assert.ok(axisMax([1, 1, 1]) >= 50, "축은 최소 50ms");
+  assert.ok(axisMax([100, 100, 100]) <= 100, "실제 최댓값을 넘지 않는다");
 });
