@@ -9,6 +9,7 @@ import { prepareAssets, workerRev } from "../assets.js";
 import { pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { parseScriptForTts } from "../tts/script.js";
 import { runTwoStageDraft, twoStageViolations } from "./draft-two-stage.js";
+import { runRevisionSingle } from "./revision-single.js";
 
 interface DraftOut { turns: number; chars: number; minutes: number; sources_used: string[]; sources_excluded: { url: string; reason: string }[]; self_check_fixes: string[]; notes: string }
 interface RevisionOut { fixes: { location: string; before: string; after: string }[]; notes: string }
@@ -115,6 +116,11 @@ export async function runDraft(job: Job, ex: Executor) {
     }
     const o = r.output;
     summary = `${episodeId} 초안 완료 (${ex.kind}, 도입 ${intro.label}, 템플릿 ${templates?.version ?? "미적용"}). ${o.turns}턴·${o.chars}자·약 ${o.minutes}분. 소스 ${o.sources_used.length}/${cand.sources.length} 사용${o.sources_excluded.length ? ` (제외: ${o.sources_excluded.map((x) => `${hostOf(x.url)} ${x.reason}`).join("; ").slice(0, 300)})` : ""}. 자기 점검 수정 ${o.self_check_fixes.length}건. ${o.notes}`;
+  } else if (cfg.revisionMode === "single") {
+    const failures = (job.payload.qa_failures ?? []) as { location: string; item: string; reason: string }[];
+    const rv = await runRevisionSingle({ job, ex, episodeId, dir, assetRoot, attempt, qaFailures: failures });
+    out = rv.output; model = rv.model; costUsd = rv.costUsd; tokens = rv.tokens;
+    summary = `${episodeId} 재생성 attempt ${attempt} (단발 · QA 피드백 ${failures.length}건 → 수정 ${rv.output.fixes.length}건${rv.unmatched.length ? `, 못 찾은 턴 ${rv.unmatched.length}` : ""}). ${rv.output.notes}`;
   } else {
     const failures = (job.payload.qa_failures ?? []) as { location: string; item: string; reason: string }[];
     const prompt = buildDraftRevisionPrompt({ assetRoot, workRoot: cfg.workRoot, episodeId, candidate: cand, introStyle: pickIntroStyle(0), promptVersion, attempt, qaFailures: failures });
