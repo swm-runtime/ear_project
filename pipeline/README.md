@@ -18,6 +18,8 @@ deploy/            EC2 "AI 서버" 배포 (web + io 워커 + Caddy) — M6 에�
 
 경로는 둘이다 — **`ASSET_ROOT`**(spec 원본·시딩 원본, 기본 `../docs/ai`)와 **`WORK_ROOT`**(S3 의 로컬 캐시 — `episodes/`·`sweeps/`·`assets/`, 기본 `pipeline/.work` — gitignore). 산출물의 원본은 파이프라인 S3(`earcast-pipeline-prod`)이고 워커가 단계 전에 내려받고 후에 올린다(spec/10 3.3). 워커가 띄우는 `claude -p`의 cwd는 WORK_ROOT다. **레포 안 경로를 WORK_ROOT로 쓰지 않는다** — cwd가 레포 안이면 Claude Code가 루트 `CLAUDE.md`·`.claude/`를 자동 반입해 대본 생성 컨텍스트를 오염시킨다.
 
+> 운영(켜기·흐름·막혔을 때·토글)은 [`RUNBOOK.md`](RUNBOOK.md) 를 본다. 이 문서는 설치·구조·규칙이다.
+
 ## 시작하기
 
 전제: Node 20+ · [Claude Code](https://claude.com/claude-code) 설치 후 `claude`에서 `/login` (워커의 AI 단계가 이 로그인 = 본인 구독을 쓴다). API 키는 쓰지 않는다.

@@ -42,3 +42,22 @@ body {
 /* 긴 URL·붙어 쓴 토큰이 칸을 밀어내지 않게 — 페이지 가로 스크롤 금지 (2026-09-01) */
 pre, td, th, p, li, summary { overflow-wrap: anywhere; }
 pre { white-space: pre-wrap; }
+
+/* 가이드(/guide) — RUNBOOK.md 렌더 (marked). 컴포넌트가 아니라 마크다운 출력이라 전역 셀렉터로 꾸민다 */
+.guide h2 { margin: 1.6em 0 .6em; font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
+.guide h2:first-child { margin-top: .2em; }
+.guide h3 { margin: 1.2em 0 .4em; font-size: 14px; font-weight: 600; }
+.guide p { margin: .5em 0; }
+.guide ul, .guide ol { margin: .4em 0 .8em; padding-left: 1.4em; }
+.guide li { margin: .25em 0; }
+.guide li > ul { margin: .2em 0 .2em; }
+.guide blockquote { margin: .6em 0 1em; padding: .5em .9em; border-left: 3px solid #e2e6ea; background: #f7f9fb; color: #5b6570; font-size: 12.5px; }
+.guide code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; background: #f1f3f5; padding: .1em .35em; border-radius: 3px; }
+.guide pre { margin: .6em 0 1em; padding: .7em .9em; background: #1f2933; color: #e6edf3; border-radius: 6px; overflow-x: auto; font-size: 12px; line-height: 1.55; }
+.guide pre code { background: transparent; padding: 0; color: inherit; }
+.guide table { width: 100%; margin: .6em 0 1em; border-collapse: collapse; font-size: 12.5px; display: block; overflow-x: auto; }
+.guide thead th { text-align: left; background: #f7f9fb; border-bottom: 1px solid #e2e6ea; padding: .45em .6em; font-weight: 600; white-space: nowrap; }
+.guide td { border-bottom: 1px solid #edf0f2; padding: .45em .6em; vertical-align: top; }
+.guide a { text-decoration: underline; text-underline-offset: 2px; }
+.guide strong { font-weight: 600; }
+.guide hr { margin: 1.2em 0; border: 0; border-top: 1px solid #e2e6ea; }

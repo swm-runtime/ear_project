@@ -26,16 +26,23 @@ const LOG_NAV: NavItem[] = [
   { href: "/backend-logs/traffic", label: "요청 통계", icon: Chart },
 ];
 
-const NAV: NavItem[] = [
+/** 파이프라인 콘솔 메뉴 — 구분선으로 묶는다 (2026-09-09 박수헌): 현황 / 제작 흐름(스윕·군집화 → 백로그 → 에피소드) / 자산(소스 풀·주제·규칙) / 발행 */
+const DIVIDER = { divider: true } as const;
+const NAV: (NavItem | typeof DIVIDER)[] = [
   { href: "/", label: "대시보드", icon: Grid, exact: true },
   { href: "/jobs", label: "작업 기록", icon: List, note: "소요·비용" },
+  DIVIDER,
+  { href: "/sweep", label: "스윕·군집화", icon: Radar },
   { href: "/backlog", label: "백로그", icon: Inbox, note: "게이트 1" },
   { href: "/episodes", label: "에피소드", icon: Doc },
-  { href: "/sweep", label: "스윕", icon: Radar },
+  DIVIDER,
   { href: "/domains", label: "소스 풀", icon: Globe },
   { href: "/topics", label: "주제", icon: Tag },
   { href: "/assets", label: "규칙 자산", icon: Book, note: "prompt_assets" },
+  DIVIDER,
   { href: "/publish", label: "제품 발행", icon: Ship, note: "게이트 2" },
+  DIVIDER,
+  { href: "/guide", label: "가이드", icon: Book, note: "RUNBOOK" },
 ];
 
 export function Sidebar({ pending }: { pending?: { backlog?: number; review?: number } }) {
@@ -44,7 +51,7 @@ export function Sidebar({ pending }: { pending?: { backlog?: number; review?: nu
   const [consoleOpen, setConsoleOpen] = useState(false);
   const isLogsConsole = path.startsWith("/backend-logs");
   const activeConsole = isLogsConsole ? CONSOLES[1] : CONSOLES[0];
-  const nav = isLogsConsole ? LOG_NAV : NAV;
+  const nav: (NavItem | typeof DIVIDER)[] = isLogsConsole ? LOG_NAV : NAV;
   return (
     <aside className="fixed inset-y-0 left-0 z-20 flex w-[188px] flex-col bg-side text-side-ink">
       <div className="relative flex h-14 items-center gap-2 px-5">
@@ -73,7 +80,8 @@ export function Sidebar({ pending }: { pending?: { backlog?: number; review?: nu
         )}
       </div>
       <nav className="mt-2 flex-1 space-y-0.5 px-2">
-        {nav.map((n) => {
+        {nav.map((n, i) => {
+          if ("divider" in n) return <div key={`d${i}`} className="mx-3 my-2 border-t border-side-soft/60" role="separator" />;
           const active = on(n.href, n.exact);
           const badge = n.href === "/backlog" ? (pending?.backlog ?? 0) + (pending?.review ?? 0) : 0;
           return (
