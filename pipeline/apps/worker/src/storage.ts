@@ -179,6 +179,8 @@ export async function pushDir(localDir: string, keyPrefix: string, opts: { dryRu
 }
 
 /** 워커 단계용: WORK_ROOT/<prefix> ↔ S3 <prefix> */
+/** prefix 아래 객체 키 목록 (에피소드 id 할당 시 흔적 확인용) */
+export const listPrefix = (prefix: string, max = 1000) => storage().list(prefix, max);
 export const pullPrefix = (prefix: string) => pullDir(prefix, path.join(cfg.workRoot, prefix));
 export const pushPrefix = (prefix: string) => pushDir(path.join(cfg.workRoot, prefix), prefix);
 
