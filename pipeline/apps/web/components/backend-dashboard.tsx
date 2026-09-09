@@ -167,7 +167,6 @@ function LatencyScatter({ requests, from, to }: { requests: RequestLog[]; from: 
   const peak = requests.reduce((m, r) => Math.max(m, r.durationMs), 0);
   // 축 상한은 10의 거듭제곱으로 올린다 — 눈금이 1·10·100 처럼 읽히는 값이어야 로그 축이 읽힌다
   const decades = Math.max(2, Math.ceil(Math.log10(Math.max(100, peak))));
-  const yMax = 10 ** decades;
   const x = (t: number) => ((t - from) / Math.max(1, to - from)) * W;
   const y = (v: number) => H - (Math.log10(Math.max(1, v)) / decades) * H;
   const ticks = Array.from({ length: decades + 1 }, (_, i) => 10 ** i);
