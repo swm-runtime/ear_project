@@ -13,6 +13,7 @@ import { useTopicsQuery } from '@/features/interest';
 import { ONBOARDING_COPY } from '../onboarding.copy';
 import type { OnboardingStackParamList } from '../onboarding.types';
 import { useSaveInterestsMutation } from './useSaveInterestsMutation';
+import { isTopicListUnavailable } from '../services/topic-list-state';
 import { useOnboardingStore } from '../store/onboarding.store';
 
 export const useTopicSelectScreen = () => {
@@ -62,6 +63,18 @@ export const useTopicSelectScreen = () => {
 
   const canGoNext = selectedCount >= 1;
 
+  /**
+   * O6을 그려야 하는가 — 조회 실패와 "200인데 주제가 0건"을 함께 참으로 본다(onboarding.md 7).
+   * 빈 목록은 정상 응답이라 isError가 false다: 이 판정이 없으면 재시도 수단이 없는 빈 화면이 된다.
+   */
+  const isUnavailable = isTopicListUnavailable({
+    isPending: topicsQuery.isPending,
+    isError: topicsQuery.isError,
+    topicCount: topics.length,
+  });
+  /** 두 사유의 카피가 다르다 — 실패는 "불러오지 못했어요", 0건은 "아직 준비 중이에요" */
+  const isEmpty = isUnavailable && !topicsQuery.isError;
+
   const handleNextPress = () => {
     if (!canGoNext || saveInterestsMutation.isPending) return;
     saveInterestsMutation.mutate(
@@ -95,7 +108,10 @@ export const useTopicSelectScreen = () => {
     /** O5 스켈레톤 — 0.3초 미만이면 표시하지 않는다 */
     showSkeleton: useDelayedVisible(topicsQuery.isPending),
     isLoading: topicsQuery.isPending,
-    isError: topicsQuery.isError,
+    /** O6을 그릴 조건 — 조회 실패 + 노출 주제 0건 */
+    isUnavailable,
+    /** 그중 0건 사유인가 — 화면이 카피를 고르는 데 쓴다 */
+    isEmpty,
     isRefetching: topicsQuery.isRefetching,
     refetch: () => void topicsQuery.refetch(),
     toggleTopic,

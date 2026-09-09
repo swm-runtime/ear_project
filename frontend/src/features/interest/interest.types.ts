@@ -12,7 +12,11 @@ export interface TopicItem {
 export interface TopicList {
   items: TopicItem[];
   maxSelectable: number;
-  isFallback: boolean;
+  /*
+   * `is_fallback`은 모델에 담지 않는다. 서버가 기본 주제 세트 폴백을 없앤 뒤로 값이 항상
+   * false라, 모델에 두면 언젠가 누군가 늘 거짓인 조건으로 분기를 만든다. 계약 필드 자체는
+   * 유지돼 있으므로(onboarding-api.md 4.2) DTO에는 그대로 선언해 둔다.
+   */
 }
 
 /**
