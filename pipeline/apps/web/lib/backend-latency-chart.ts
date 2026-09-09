@@ -51,13 +51,24 @@ export function percentile(sorted: number[], p: number): number {
 }
 
 /**
- * 응답시간 y축 상한. p95 최댓값을 그대로 쓰면 느린 요청 **하나**가 축을 끌어올려 p50 선을
- * x축에 붙여버린다 — 표본이 적은 버킷의 p95 는 곧 그 버킷의 최댓값이라 자주 벌어진다.
- * 그래서 p95 들의 **중앙값** 기준으로 상한을 두고, 넘는 점은 위에서 자른 뒤 ▲ 로 표시한다.
- * 값을 잃지는 않는다 — 툴팁은 늘 실제값을 보여준다. 이상치가 없으면 예전과 같은 축이다.
+ * 응답시간 y축 상한 — **창 안 모든 요청**의 p95 에 여유 20%를 준 값. 단 실제 최댓값을
+ * 넘지 않고 최소 50ms.
+ *
+ * 두 가지를 동시에 만족해야 한다.
+ *
+ * 1. 느린 요청 **하나**가 축을 끌어올려 p50 선을 x축에 붙이면 안 된다. 표본이 적은 버킷의
+ *    p95 는 곧 그 버킷의 최댓값이라(n ≤ 20 이면 항상) 최댓값을 그대로 쓰면 자주 벌어진다.
+ * 2. **범위를 바꿔도 축이 요동치면 안 된다.** 앞서 "버킷 p95 들의 중앙값 × 4"를 썼다가
+ *    여기서 걸렸다 — 값 있는 칸이 서너 개뿐이면 칸 하나가 들고 나면서 중앙값이 뒤집힌다.
+ *    실측(2026-09-09 운영)에서 30분 뷰 305ms → 3시간 뷰 96ms 로 3배 넘게 튀었다.
+ *
+ * 그래서 기준을 **버킷이 아니라 개별 요청**의 분포에 둔다. 요청 수백 건의 p95 는 칸 개수에
+ * 흔들리지 않고, 창이 넓어져 표본이 늘어도 안정적이다. 이 상한을 넘는 버킷은 위에서 자른 뒤
+ * ▲ 로 표시한다 — 값을 잃지는 않는다. 툴팁은 늘 실제값을 보여준다.
  */
-export function axisMax(p95s: number[]): number {
-  const seen = p95s.filter((v) => v > 0).sort((a, b) => a - b);
-  if (seen.length === 0) return 50;
-  return Math.max(50, Math.min(seen[seen.length - 1], percentile(seen, 50) * 4));
+export function axisMax(durations: number[]): number {
+  const sorted = [...durations].filter((v) => v > 0).sort((a, b) => a - b);
+  if (sorted.length === 0) return 50;
+  const peak = sorted[sorted.length - 1];
+  return Math.max(50, Math.min(peak, Math.round(percentile(sorted, 95) * 1.2)));
 }
