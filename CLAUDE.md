@@ -97,7 +97,8 @@ tickets/      통합 테스트 중 발견한 코드 수정 사항의 기록 — 
 
 - 커밋: `<type>(<scope>): <subject>` — 영문 소문자 명령형, 50자 이내. type은 `feat` `fix` `docs` `refactor` `test` `chore` `perf` `style` (`docs/backend/convention.md` 6장 기준)
 - 브랜치: `<type>(<파트>)/<kebab-설명>` — 파트 표기는 `fe`/`be` (예: `feat(fe)/playback-gate`, `feat(be)/drip-batch`)
-- main 직접 push 금지, PR로만 병합한다. PR 본문에 변경 요약·관련 FR·테스트 방법을 포함한다.
+- **통합 흐름은 `작업 브랜치 → dev → main`이다.** 브랜치는 `dev`에서 분기하고 **PR 대상도 `dev`**다 — `main`으로 바로 PR하지 않는다. `main`은 `dev → main` PR로만 갱신한다(배포 기준선).
+- main·dev 직접 push 금지, PR로만 병합한다. PR 본문에 변경 요약·관련 FR·테스트 방법을 포함한다.
 
 ## 언어
 

@@ -42,4 +42,5 @@ npx tsc --noEmit -p apps/web            # 웹 타입 검사 · npm run build -w 
 ## 5. 커밋·PR
 
 - 커밋 `<type>(pipeline): <subject>` · 브랜치 `<type>(ai)/<kebab>` (`docs/backend/convention.md` 6장). 커밋·push는 사용자가 요청했을 때만.
+- **브랜치는 `dev`에서 분기하고 PR 대상도 `dev`다.** `main`은 `dev → main` PR로만 갱신한다.
 - 스키마 변경은 `supabase/migrations/NNNN_*.sql` 추가 + `schema.sql` 스냅샷 갱신을 한 커밋에. 적용은 팀 Supabase에 수동이므로 PR 본문에 적용 여부를 적는다.
