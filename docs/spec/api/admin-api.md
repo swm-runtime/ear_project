@@ -51,6 +51,7 @@
 | POST | `/admin/contents/:contentId/withdraw` | 콘텐츠 회수 |
 | POST | `/admin/contents/:contentId/restore` | 회수 복구 |
 | PATCH | `/admin/contents/:contentId` | 재발행 — 오디오·메타 교체, `content_version` 증가 (4.10) |
+| DELETE | `/admin/contents/:contentId/storage` | 저장소 파일 회수 — 회수된 콘텐츠의 오디오·썸네일 삭제 (4.11) |
 | GET | `/admin/system-stats` | 서버 자원·DB 부하 스냅샷 (로그 콘솔 상태 탭) |
 
 ## 4. 엔드포인트 상세
@@ -241,6 +242,16 @@
 라이브러리(`library_items`)·재생 기록(`play_records`)은 유지된다. **폐기 주체는 서버다** —
 앱은 위치를 로컬에 보관하지 않으므로 클라이언트 측 폐기 동작은 없다(`player.md` 7).
 
+### 4.11 `DELETE /admin/contents/:contentId/storage` — 저장소 파일 회수
+
+`admin.md` 4.4의 회수 **다음 단계**다(등재 2026-09-09). 회수(`withdrawn`)된 콘텐츠의 오디오·썸네일을 저장소에서 지워 **보관 비용을 끊는다.** 본문 없다. 204를 반환한다.
+
+- **`status`가 `withdrawn`이 아니면 409 `CONFLICT`.** 노출 중인 콘텐츠의 파일을 지우면 재생이 그 자리에서 깨진다 — 회수가 먼저다.
+- **되돌릴 수 없다.** 복구(4.8)로 상태를 되돌려도 **파일이 없어 재생이 실패한다.** 다시 쓰려면 재발행(4.10)으로 오디오를 올려야 한다.
+- **`contents` 행은 지우지 않는다**(결정 2026-09-09). 행을 지우면 그것을 참조하는 `play_records`가 함께 사라져야 하는데, 그 값이 **파트너 정산의 원본 근거**다(FR-34 — `total_listen_sec`). 집계(`content_stats`)만 남기고 원본을 없애면 정산 수치를 되짚을 수 없다.
+- 사용자에게 보이는 차이는 없다 — 노출은 회수가 이미 막고 있다.
+- `audit_logs`에 `content.purge_storage`로 기록한다. **파일이 사라진 뒤 그 콘텐츠가 왜 재생되지 않는지를 이 기록으로만 설명할 수 있다.**
+
 ## 5. 에러 코드 표
 
 | error_code | HTTP | retryable | 발생 지점 |
@@ -251,7 +262,7 @@
 | `ADMIN_LICENSE_EXPIRED` | 400 | false | 4.6 — 만료된 파트너 라이선스 |
 | `FORBIDDEN` | 403 | false | 전 라우트 — `role != admin` |
 | `ADMIN_TOPIC_HAS_CONTENTS` | 409 | false | 4.4 — `details.content_count` |
-| `CONFLICT` | 409 | false | 4.7 — 이미 회수됨 / 4.8 — 회수 상태가 아님 / 4.10 — `published`가 아님 |
+| `CONFLICT` | 409 | false | 4.7 — 이미 회수됨 / 4.8 — 회수 상태가 아님 / 4.10 · 4.11 — `withdrawn`이 아님 |
 | `VALIDATION_FAILED` | 400 | false | 4.10 — 파트가 하나도 없음(`details.field = "audio"`) / `sources` 교체가 `origin`의 공시 규칙에 어긋남(`details.field = "sources"`) |
 | `ADMIN_STORAGE_FAILED` | 502 | **true** | 4.6·4.10 — 저장소 실패 |
 

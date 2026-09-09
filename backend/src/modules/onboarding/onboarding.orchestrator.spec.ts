@@ -99,7 +99,6 @@ describe('OnboardingOrchestrator', () => {
     } as unknown as jest.Mocked<ContentService>;
 
     contentStatService = {
-      isMonthlySampleSufficient: jest.fn().mockResolvedValue(true),
       findMonthlyPopularContentIds: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<ContentStatService>;
 
@@ -175,9 +174,10 @@ describe('OnboardingOrchestrator', () => {
       ]);
     });
 
-    it('직전 확정 월의 표본이 부족하면 인기 대신 랜덤 3건을 같은 자리에 배치한다', async () => {
-      // given
-      contentStatService.isMonthlySampleSufficient.mockResolvedValue(false);
+    it('인기 표본이 없어도 선정 기준을 바꾸지 않는다 — 랜덤 배치는 폐기됐다', async () => {
+      // given — 순위가 비어 있는 상태(집계 전). 종전에는 여기서 랜덤 3건 + 섹션 제목
+      // 교체로 빠졌으나 폐기된 규칙이다(README 결정 12 · onboarding.md 91행)
+      contentStatService.findMonthlyPopularContentIds.mockResolvedValue([]);
       contentService.findCandidates
         .mockResolvedValueOnce(buildContents('a', 2))
         .mockResolvedValueOnce(buildContents('b', 2))
@@ -187,33 +187,11 @@ describe('OnboardingOrchestrator', () => {
       // when
       const sections = await orchestrator.getRecommendations(USER_ID, NOW);
 
-      // then — 인기 순위가 아닌 것을 인기라고 부르지 않는다
+      // then — 섹션 종류·제목이 그대로다
       expect(sections[1].sectionType).toBe(
-        RecommendationSectionType.TOPIC_DISCOVERY,
+        RecommendationSectionType.MONTHLY_POPULAR,
       );
-      expect(sections[1].title).toBe('이런 주제는 어때요?');
       expect(sections[1].items).toHaveLength(3);
-    });
-
-    it('표본 부족으로 랜덤이 나가도 재진입하면 같은 3건이 그대로 노출된다', async () => {
-      // given
-      contentStatService.isMonthlySampleSufficient.mockResolvedValue(false);
-      contentService.findCandidates.mockImplementation((query) =>
-        Promise.resolve(
-          query.excludeTopicIds
-            ? buildContents('pool', 20)
-            : buildContents('a', 2),
-        ),
-      );
-
-      // when
-      const first = await orchestrator.getRecommendations(USER_ID, NOW);
-      const second = await orchestrator.getRecommendations(USER_ID, NOW);
-
-      // then
-      expect(second[1].items.map((item) => item.contentId)).toEqual(
-        first[1].items.map((item) => item.contentId),
-      );
     });
 
     it('관심 주제 재고가 부족하면 두 번째 섹션에서 끌어와 총 9건을 유지한다', async () => {

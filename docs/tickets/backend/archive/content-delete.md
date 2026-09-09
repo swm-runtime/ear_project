@@ -31,3 +31,40 @@
 ## 처리 기록
 
 - (반영 시 기입)
+
+## 처리 기록 (반영 날짜: 2026-09-09)
+
+**요청과 다르게 구현했다 — `contents` 행을 지우지 않는다.** 계약은 `admin-api.md` **4.11**로 등재했다.
+
+### 왜 행을 남기는가
+
+구현 중 `contents` 삭제가 **`fk_play_records_contents`에 막혔다**(로컬 실측). 행을 지우려면 그것을 참조하는 사용자 활동을 함께 지워야 하는데, 거기에 **`play_records` — 파트너 정산의 원본 근거**가 들어 있다(FR-34 `total_listen_sec`).
+
+집계(`content_stats`)만 남기고 원본을 없애면 **정산 수치를 되짚을 수 없다.** 티켓은 `library_items`·`playback_progresses`까지만 다뤘고 재생 기록·신호·접근 로그는 범위 밖이었다.
+
+사용자 확정(2026-09-09): **파일만 지우고 행은 남긴다.**
+
+- 티켓의 목적 둘 중 **저장소 비용은 해결된다.**
+- **운영 목록 정리는 해결되지 않는다** — 회수 목록에 계속 남는다. 필요하면 목록 필터(예: "파일 정리됨" 구분)로 별도 처리한다.
+
+### 반영
+
+- `DELETE /admin/contents/:contentId/storage` — 204. `withdrawn`이 아니면 409
+- `AdminContentService.purgeStorage` — 상태 판정을 트랜잭션 앞뒤로 두 번(파일을 지우는 동안 복구됐을 수 있다), **감사 로그를 같은 트랜잭션에서 먼저** 남기고 성공 후 파일 삭제
+- `audit_logs`에 `content.purge_storage` — 파일이 사라진 뒤 **왜 재생되지 않는지의 유일한 설명**
+- `admin-api.md` 4.11 등재 + 3장 표 + 5장 에러 표
+- 단위 테스트 4건
+
+### 실 서버 대조
+
+| | 결과 |
+|---|---|
+| 회수된 콘텐츠에 DELETE | ✅ 204 · 파일 삭제 |
+| 같은 시점 DB | `contents` 1 · `play_records` 1 · `content_stats` 3 **전부 유지** |
+| `audit_logs` | `content.purge_storage` 1건 |
+| `published`에 시도 | ❌ 409 `CONFLICT` |
+
+### 남은 것
+
+- **완료 조건 1·3은 이 구현으로 충족되지 않는다** — "행이 사라진다", "상세가 404". 행이 남으므로 상세는 종전대로 403 `CONTENT_WITHDRAWN`이다. 회수 상태의 계약이 그대로 적용된다.
+- 파이프라인 콘솔의 `backlog.published_content_ref` 정리는 파이프라인 몫으로 남는다.

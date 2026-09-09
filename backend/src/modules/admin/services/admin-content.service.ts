@@ -26,6 +26,7 @@ import { EnrichmentParseResult, parseEnrichmentFile } from '../enrichment-file';
 import {
   AUDIO_CONTENT_TYPES,
   AUDIT_ACTION_CONTENT_ENRICH,
+  AUDIT_ACTION_CONTENT_PURGE_STORAGE,
   AUDIT_ACTION_CONTENT_REPUBLISH,
   AUDIT_ACTION_CONTENT_RESTORE,
   AUDIT_ACTION_CONTENT_UPLOAD,
@@ -655,6 +656,79 @@ export class AdminContentService {
     });
 
     return this.toView(content);
+  }
+
+  /**
+   * admin.md 4.4 — **저장소 파일 회수.** 회수(`withdrawn`) 상태에서만 허용한다.
+   *
+   * ## 행은 지우지 않는다 (결정 2026-09-09)
+   *
+   * `contents` 행을 지우면 그것을 참조하는 사용자 활동이 함께 사라져야 하는데,
+   * 거기에는 **`play_records` — 파트너 정산의 원본 근거**가 들어 있다(`total_listen_sec`,
+   * FR-34). 집계(`content_stats`)만 남기고 원본을 없애면 정산 수치를 되짚을 수 없다.
+   *
+   * 그래서 **비용이 드는 것(오디오·썸네일 파일)만 지우고 행은 `withdrawn`으로 남긴다.**
+   * 노출은 회수가 이미 막고 있으므로 사용자에게 보이는 차이는 없다.
+   *
+   * ## 이 뒤로 그 콘텐츠는 재생할 수 없다
+   *
+   * 되돌릴 수 없는 작업이다. 복구(`restore`)로 상태를 되돌려도 **파일이 없어 재생이
+   * 실패한다.** 그래서 회수 상태에서만 허용하고, 감사 로그에 남긴다.
+   */
+  async purgeStorage(actorUserId: string, contentId: string): Promise<void> {
+    const target = await this.contentService.getById(contentId);
+
+    if (target.status !== ContentStatus.WITHDRAWN) {
+      throw new BusinessException({
+        status: HttpStatus.CONFLICT,
+        errorCode: ErrorCode.CONFLICT,
+        message: '회수한 콘텐츠만 정리할 수 있어요',
+      });
+    }
+
+    const storageKeys = [
+      target.audioPath,
+      this.storage.resolveKey(target.thumbnailUrl),
+    ].filter((key): key is string => key !== null);
+
+    await this.dataSource.transaction(async (manager) => {
+      const current = await this.contentService.getById(contentId, manager);
+
+      if (current.status !== ContentStatus.WITHDRAWN) {
+        throw new BusinessException({
+          status: HttpStatus.CONFLICT,
+          errorCode: ErrorCode.CONFLICT,
+          message: '회수한 콘텐츠만 정리할 수 있어요',
+        });
+      }
+
+      /**
+       * **되돌릴 수 없는 작업이라 증적을 먼저 남긴다.** 파일이 사라진 뒤에는 그 콘텐츠가
+       * 왜 재생되지 않는지를 이 기록으로만 설명할 수 있다.
+       */
+      await this.auditLogService.record(
+        {
+          actor: actorUserId,
+          action: AUDIT_ACTION_CONTENT_PURGE_STORAGE,
+          target: `content:${contentId}`,
+          before: {
+            title: current.title,
+            origin: current.origin,
+            withdrawn_at: current.withdrawnAt?.toISOString() ?? null,
+          },
+          after: { purged_key_count: storageKeys.length },
+        },
+        manager,
+      );
+    });
+
+    await this.storage.remove(storageKeys);
+
+    this.logger.log('content storage purged', {
+      content_id: contentId,
+      purged_key_count: storageKeys.length,
+      actor: actorUserId,
+    });
   }
 
   private async toView(content: Content): Promise<AdminContentView> {

@@ -3,7 +3,6 @@ import { EntityManager } from 'typeorm';
 
 import { toPreviousFinalMonthStart } from '@/common/utils/service-date.util';
 
-import { MONTHLY_POPULAR_SAMPLE_THRESHOLD } from '../content.constant';
 import { ALL_TIME_PERIOD_START, StatsPeriodType } from '../content.enum';
 import { ContentStatRepository } from '../repositories/content-stat.repository';
 
@@ -16,25 +15,6 @@ import { ContentStatRepository } from '../repositories/content-stat.repository';
 @Injectable()
 export class ContentStatService {
   constructor(private readonly contentStatRepository: ContentStatRepository) {}
-
-  /**
-   * onboarding.md 4 [3] — 직전 확정 월의 재생 합계가 기준값 미만이면 표본 부족이다.
-   *
-   * 표본이 부족하면 인기 순위 대신 랜덤 3건을 같은 자리에 배치하고, 섹션 제목도 바꾼다.
-   * "인기 순위가 아닌 것을 인기라고 부르면 사실과 다른 표시가 된다."
-   */
-  async isMonthlySampleSufficient(
-    now: Date,
-    manager?: EntityManager,
-  ): Promise<boolean> {
-    const total = await this.contentStatRepository.sumPlayCount(
-      StatsPeriodType.MONTH,
-      toPreviousFinalMonthStart(now),
-      manager,
-    );
-
-    return total >= MONTHLY_POPULAR_SAMPLE_THRESHOLD;
-  }
 
   /**
    * 콘텐츠별 전체 구간 재생·완청 수 — 편성 스코어링의 인기도 입력(`drip-scheduling.md` 4.2 ③).

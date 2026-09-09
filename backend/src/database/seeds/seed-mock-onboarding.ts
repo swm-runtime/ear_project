@@ -100,6 +100,20 @@ async function seedContents(
   insertedSourceCount: number;
   normalizedContentCount: number;
 }> {
+  /**
+   * 파트너 콘텐츠가 참조할 행을 먼저 만든다. `contents.partner_id`에 FK가 붙어(2026-09-08)
+   * 존재하지 않는 파트너를 가리키면 삽입이 거부된다 — **그 제약이 잡아낸 것이 바로 이
+   * seed였다.** 종전에는 아무 uuid나 넣어도 통과했다.
+   */
+  await manager.query(
+    `INSERT INTO partners (id, name, contract_starts_at, contract_expires_at,
+                           revenue_share_rate, contact_email, status)
+     VALUES ($1, '퍼블리(mock)', now(), now() + interval '10 years', 0.3,
+             'mock@example.com', 'active')
+     ON CONFLICT (id) DO NOTHING`,
+    [MOCK_PARTNER_ID],
+  );
+
   const contentRepository = manager.getRepository(Content);
   const contentTopicRepository = manager.getRepository(ContentTopic);
   const contentStatRepository = manager.getRepository(ContentStat);
