@@ -55,3 +55,9 @@ aws sesv2 get-email-identity --email-identity earcast.co.kr
 - Given `infra/inventory.md` 3장 / When SES 행을 읽는다 / Then 프로덕션 액세스 승인·DKIM 완료·`SesMailClient` 구현 위치가 적혀 있다
 - Given 같은 문서 2장 / When DNS 표를 읽는다 / Then SPF·DMARC 행이 있고 `p=none`이 관찰 단계임이 적혀 있다
 - Given 같은 문서 / When TXT 관련 주의를 찾는다 / Then 앞 공백 함정과 `repr()` 확인이 적혀 있다
+
+## 처리 기록 (반영 날짜: 2026-09-09)
+
+`infra/inventory.md` 3장(DNS 표)에 DKIM 완료 표기·SPF·DMARC 행(`p=none` 관찰 단계, KAN-31 연결)·
+TXT 앞 공백 주의를, 4장 SES 행에 프로덕션 액세스 승인(50,000통/일·14tps)·`SesMailClient` 구현 위치를 반영했다.
+(changes 본문의 "2장·3장"은 현행 문서 번호로 3장·4장이다.)

@@ -50,8 +50,12 @@
 | `api.earcast.co.kr` A | `43.203.57.240` | API (Caddy가 LE 인증서 자동) |
 | `admin.earcast.co.kr` A | `43.203.57.240` | 관리자 콘솔 |
 | `pipeline.earcast.co.kr` A | `54.116.31.183` | 파이프라인 관리 UI (AI 서버 — 2026-09-02 등록, TTL 1800) |
-| `<token>._domainkey` CNAME ×3 | SES DKIM (⏳ 등록 대기 — 값은 SES 콘솔·memory 참조) | 이메일 인증 발송 |
+| `<token>._domainkey` CNAME ×3 | SES DKIM — **검증 완료**(값은 SES 콘솔·memory 참조) | 이메일 인증 발송 |
+| `@` TXT | `v=spf1 include:amazonses.com ~all` (2026-09-07) | SPF |
+| `_dmarc` TXT | `v=DMARC1; p=none; rua=mailto:runtime364@gmail.com` (2026-09-07) | DMARC — **`p=none`은 관찰 단계 값**. 2주 리포트 확인 후 상향(`tickets/backend/pending/email-spf-dmarc-records.md`, KAN-31) |
 | `earcast.co.kr` (루트) | Vercel | 랜딩 — 이 문서 범위 밖 |
+
+> **TXT 저장 후 값을 `repr()`로 확인하라.** 2026-09-07 SPF 첫 저장이 **앞 공백 하나** 때문에 무효였다(RFC 7208 — 레코드는 `v=spf1`로 시작해야 한다). DNS 조회 결과를 눈으로 보면 공백이 안 보여 정상처럼 읽힌다.
 
 ## 4. 운영 보조
 
@@ -60,7 +64,7 @@
 | Budgets | `ear-monthly-10usd` ($10, 80% 실적·100% 예측 메일) | 조직 계정이라 결제 주체는 조직 — 알림은 참고용 |
 | SNS 토픽 | `ear-prod-alerts` | 메일 구독 ⏳ 확인 대기 |
 | CloudWatch 알람 | `ear-prod-ec2-status-check` | 상태 검사 실패 3분 연속 시 알림 |
-| SES | 도메인 identity `earcast.co.kr` (DKIM ⏳ 대기) + 테스트 주소 2개, 프로덕션 액세스 ⏳ 심사 중 | 서버 코드(`SesMailClient`)는 미구현 — 별건 |
+| SES | 도메인 identity `earcast.co.kr` — **DKIM 검증 완료 · 프로덕션 액세스 승인**(샌드박스 아님. 발송 상한 50,000통/일 · 14tps — 2026-09-09 `sesv2 get-account` 실측) | 서버 코드 `backend/src/modules/user/ses-mail.client.ts`(스펙 동반). 인증 메일이 Gmail에 `dkim=pass header.d=earcast.co.kr`로 도착 확인(2026-09-08) |
 | Secrets Manager | `ear/prod/api` — ARN `...:secret:ear/prod/api-PyK5Ku` | 운영 API 비밀값 8종(2026-09-09 적재). 읽기는 인스턴스 롤 `ear-prod-ec2`의 인라인 정책 `secrets-read`(그 ARN만). **아직 원천이 아니다** — 앱은 여전히 `.env.prod`를 읽는다(주입 배선은 백엔드 협조 대기) |
 
 ## 5. AWS 밖 짝 리소스

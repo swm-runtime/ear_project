@@ -37,13 +37,10 @@ import { IdempotencyService } from './idempotency.service';
  * 갱신해야 하는데(architecture.md 7.5) 그 문서는 클라이언트 계약 소유다. 형식 오류는
  * `VALIDATION_FAILED`, 키 충돌은 `CONFLICT`로 내보낸다.
  *
- * TODO(계약 협의 후): **가입 응답은 본문을 저장하지 않도록 바꾼다.**
- * `/auth/sign-up` 응답에는 `refresh_token` 원문이 들어 있어 지금 구조에서는 그것이
- * `response_body`에 24시간 평문으로 남는다 — `domain.md` 3.3(원문 토큰 저장 금지)과
- * 12.3(탈퇴 시 즉시 파기)에 어긋난다. 스코프가 `anonymous`라 탈퇴 시 파기 대상에서도 빠진다.
- * 민감 응답은 중복 실행 차단만 하고 본문을 비우면 해결되지만, 그러면 재요청이 첫 응답과
- * 다른 토큰을 받게 되어 `auth-api.md`의 "저장된 첫 응답을 그대로 반환"과 달라진다.
- * 그 문서 담당자와 합의된 뒤에 반영한다.
+ * **토큰 원문이 실리는 응답에는 붙이지 않는다** — `/auth/sign-up`이 그 예다(auth-api.md 4.2,
+ * 개정 2026-09-08). 본문을 저장하면 `refresh_token`이 `response_body`에 24시간 평문으로 남아
+ * `domain.md` 3.3(원문 토큰 저장 금지)에 어긋난다. 그 라우트의 중복 방지는 `users` 유니크와
+ * 기존 계정 재사용이 맡는다.
  */
 interface RoutedRequest {
   route?: { path?: string };
