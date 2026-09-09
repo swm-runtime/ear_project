@@ -8,7 +8,7 @@
 | 발견 시점 | `ci-runs-tests-before-api-deploy`(KAN-37) 완료 직후 — 검증 job은 생겼는데 **실패해도 머지를 막지 못한다**는 것을 확인 |
 | 근거 문서 | `CLAUDE.md` Git 장(main·dev 직접 push 금지, PR로만 병합) · `tickets/infra/archive/ci-runs-tests-before-api-deploy.md` |
 | 심각도 | **중** — 방금 만든 배포 전 관문이 **경고등일 뿐 차단기가 아니다** |
-| 상태 | 대기 — **설계 결정 1건이 남아 있다**(아래 "함정") |
+| 상태 | 진행 중 — **A안 확정**(2026-09-09, 사용자 결정). 워크플로 반영 PR 대기 → 머지 후 보호 설정 |
 
 ## 문제
 
@@ -60,3 +60,83 @@ pull_request:
 - Given 백엔드를 건드리지 않는 PR(FE·문서) / When CI가 끝난다 / Then 검증 체크가 **결론을 보고하고**(성공 또는 건너뜀) 머지가 가능하다
 - Given 저장소 설정 / When `GET /branches/dev/protection`을 호출한다 / Then 200과 함께 필수 체크 목록에 검증 job이 있다
 - Given 팀 합의가 없는 항목(리뷰 필수 등) / When 보호 설정을 본다 / Then 켜져 있지 않다
+
+## 진행 기록
+
+**2026-09-09 — A안 확정(사용자 결정). 요청 내용 1·2 반영, 3·4·5 대기 중이라 `pending`에 둔다.**
+
+### 반영한 것 — 요청 1·2
+
+`deploy-api.yml`의 **`pull_request` 트리거에서 `paths` 필터를 뗐다.** 대신 job 첫 단계에서
+변경 파일 목록을 조회해 `steps.scope.outputs.backend`를 정하고, 나머지 모든 단계에 그 조건을
+걸었다. 백엔드와 무관한 PR은 **단계를 전부 건너뛴 채 job이 success로 끝난다** — 필수 체크가
+결론을 받는다.
+
+- 판정 대상 경로는 종전 `paths` 필터와 같다: `backend/**` · `.github/workflows/deploy-api.yml`.
+- 변경 파일 목록은 `gh api repos/{repo}/pulls/{n}/files`로 받는다. 서드파티 액션(`dorny/paths-filter`)을
+  쓰지 않았다 — **배포 파이프라인에 외부 의존을 늘리지 않기 위해서다.** 필요한 권한은
+  `pull-requests: read`뿐이고 verify job에만 준다.
+- **`push` 트리거의 `paths`는 그대로 뒀다.** 그건 검증 조건이 아니라 **배포 조건**이다. 떼면
+  FE·문서 머지마다 EC2 배포가 돈다.
+- **`push`·`workflow_dispatch`에서는 판정하지 않고 무조건 `backend=true`다.** push 트리거의
+  `paths` 필터가 이미 걸러 주고, 여기서 `false`가 나오면 단계가 건너뛰어지는 게 아니라
+  `needs: verify`인 배포 job이 함께 죽을 여지를 만든다. dev push 경로를 건드리지 않는 쪽을 택했다.
+- `checkout`은 판정보다 앞에 둔다 — `defaults.run.working-directory: backend`가 그 시점에
+  존재해야 한다.
+
+### 확인 결과
+
+| 확인 항목 | 결과 |
+|---|---|
+| 백엔드 변경이 있는 PR에서 전 단계가 돈다 | **확인** — PR #258 자체가 `.github/workflows/deploy-api.yml`을 건드리므로 `backend=true`로 판정돼 lint·build·유닛·e2e가 전부 돌았다(run 34310925213, job success) |
+| 백엔드 무관 PR에서 건너뛰고 success로 보고한다 | **확인** — 문서 1개만 바꾼 임시 PR #259를 **이 브랜치를 base로** 열어 실측했다(base 브랜치에 새 워크플로가 있어야 merge ref 가 그것을 쓴다). run 34310946867 — `백엔드 변경 여부 판정` 이후 전 단계 `skipped`, **job 결론 success**, 22초. 확인 후 PR·브랜치 정리 |
+| `needs: verify`인 배포 job이 죽지 않는다 | **구조 확인** — verify는 단계가 전부 건너뛰어져도 job 결론이 `success`다(`skipped`가 아니다). 게다가 배포가 도는 `push`·`workflow_dispatch` 경로에서는 판정 자체를 건너뛰고 `backend=true`로 고정한다 |
+| `push` 트리거의 배포 조건 불변 | **확인** — `push.paths`·`branches`·`deploy` job의 단계와 조건 모두 이 변경에서 손대지 않았다 |
+
+### 남은 것 — 요청 3·4·5 (저장소 설정, 인프라 담당 몫)
+
+**필수 상태 체크 이름은 `검증 (lint · build · 유닛 · e2e)`다** — job의 `name` 값 그대로이고,
+PR의 status check rollup에서 확인했다. 워크플로 수정이 `dev`에 머지돼 이 이름이 한 번 이상
+보고된 뒤에 걸어야 GitHub 설정 목록에 뜬다.
+
+```bash
+gh api -X PUT repos/swm-runtime/ear_project/branches/dev/protection --input - <<'JSON'
+{
+  "required_status_checks": {
+    "strict": false,
+    "checks": [{ "context": "검증 (lint · build · 유닛 · e2e)" }]
+  },
+  "enforce_admins": false,
+  "required_pull_request_reviews": null,
+  "restrictions": null
+}
+JSON
+```
+
+- `strict: false` — "머지 전 브랜치를 최신으로" 요구하지 않는다. 켜면 3인 팀에서 머지가 몰릴
+  때마다 서로 rebase를 강요하게 된다. 막으려는 것은 **테스트 실패**지 브랜치 신선도가 아니다.
+- `enforce_admins: false` · `required_pull_request_reviews: null` · `restrictions: null` — 요청 4의
+  "범위 최소". 리뷰 필수·관리자 강제·선형 히스토리는 켜지 않는다.
+- `required_status_checks`를 걸면 **직접 push도 함께 막힌다**(체크를 통과한 커밋이 아니면 거부).
+  `CLAUDE.md`의 "dev 직접 push 금지"가 그만큼 강제된다 — 의도한 효과다.
+- 설정 직후 **이미 열려 있는 PR들은 체크를 보고한 적이 없어 pending으로 뜬다.** 각 PR에
+  커밋을 하나 올리거나 재실행하면 풀린다.
+- **`배포 (EC2)`는 필수 체크로 넣지 않는다.** 이 job 은 PR 이벤트에서 항상 `skipped`로
+  보고되는데, GitHub 은 skipped 인 필수 체크를 통과로 세지 않는다 — 넣으면 모든 PR 이 막힌다.
+  필수로 거는 것은 `검증 (lint · build · 유닛 · e2e)` **하나뿐이다.**
+
+**`main` 판단(요청 5) — 지금은 걸지 않기를 권한다.** `main`은 `dev → main` PR로만 갱신되고
+(`CLAUDE.md` Git 장), `dev`가 막히면 깨진 코드는 그 앞에서 걸러진다. 그런데 `main`에 같은
+체크를 필수로 걸면 **릴리즈 PR(`dev → main`)이 `backend/**` 변경을 포함할 때마다 전체 검증을
+다시 돌려야 머지된다** — 방금 `dev`에서 통과한 것과 같은 커밋을 한 번 더 돌리는 비용이다.
+게다가 `main`은 랜딩 Vercel 프로덕션의 추적 대상이라 릴리즈가 막히는 비용이 더 크다.
+**필요해지면 그때 `dev`와 같은 방식으로 건다.**
+
+### 완료 조건 현황
+
+| 완료 조건 | 상태 |
+|---|---|
+| 검증 실패 PR의 머지 버튼이 막힌다 | **미충족** — 보호 설정 전 |
+| 백엔드 무관 PR에서 검증 체크가 결론을 보고하고 머지 가능하다 | **충족**(워크플로 머지 후 발효) |
+| `GET /branches/dev/protection`이 200 + 필수 체크 목록 | **미충족** — 보호 설정 전 |
+| 팀 합의 없는 항목이 켜져 있지 않다 | **명령에 반영** — 설정 후 재확인 |
