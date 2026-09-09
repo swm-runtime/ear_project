@@ -291,13 +291,18 @@ export async function deleteEpisode(episodeId: string, opts: { backlogTo: "propo
   const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
   const prev = String(bl?.dedup_note ?? "").replace(/^(⚠️ 초안 실패|🗑 에피소드 삭제)[^|]*\| ?/, "");
   const note = `🗑 에피소드 삭제 ${episodeId} (${stamp}, ${user.email ?? "?"}): ${opts.reason.trim() || "사유 없음"}${prev ? ` | ${prev}` : ""}`;
+  // 같은 후보에 다른 에피소드가 남아 있으면(재시도로 두 번 만들어진 경우) 후보 상태는 그 에피소드의 것이다 — 건드리지 않고 메모만 남긴다
+  // (2026-09-09: 실패한 첫 시도 T260909-001 을 지우며 "반려"를 고르자 멀쩡한 T260909-002 의 후보 C47 이 rejected 가 됐다)
+  const { data: siblings } = await sb.from("episodes").select("id").eq("backlog_id", ep.backlog_id).neq("id", episodeId);
+  const keepStatus = (siblings?.length ?? 0) > 0;
   if (bl) {
-    const { error: e2 } = await sb.from("backlog").update({ status: opts.backlogTo, claimed_by: null, claimed_at: null, dedup_note: note }).eq("id", bl.id);
+    const patch = keepStatus ? { dedup_note: note } : { status: opts.backlogTo, claimed_by: null, claimed_at: null, dedup_note: note };
+    const { error: e2 } = await sb.from("backlog").update(patch).eq("id", bl.id);
     if (e2) throw new Error(`에피소드는 지웠지만 후보 상태 변경 실패: ${e2.message}`);
   }
   let storage = "";
   try { storage = `S3 산출물 ${await deletePrefix(`episodes/${episodeId}/`)}개 삭제`; }
   catch (e) { storage = `S3 산출물은 남아 있음 (${(e as Error).message.slice(0, 80)})`; }
   revalidatePath("/episodes"); revalidatePath("/backlog"); revalidatePath("/");
-  return { backlog_id: ep.backlog_id, backlog_status: opts.backlogTo, cancelled_jobs: (jobs ?? []).length, storage };
+  return { backlog_id: ep.backlog_id, backlog_status: keepStatus ? `유지 (다른 에피소드 ${siblings!.map((x) => x.id).join(", ")} 가 남아 있음)` : opts.backlogTo, cancelled_jobs: (jobs ?? []).length, storage };
 }

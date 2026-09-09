@@ -15,7 +15,7 @@ export function DeleteButton({ episodeId, backlogId, disabled, disabledReason }:
     setBusy(true);
     try {
       const r = await deleteEpisode(episodeId, { backlogTo: rejectToo ? "rejected" : "proposed", reason });
-      alert(`${episodeId} 삭제 완료 — 후보 ${r.backlog_id} → ${r.backlog_status === "rejected" ? "반려" : "재승인 대기"} · 대기 작업 취소 ${r.cancelled_jobs}건 · ${r.storage}`);
+      alert(`${episodeId} 삭제 완료 — 후보 ${r.backlog_id} → ${r.backlog_status === "rejected" ? "반려" : r.backlog_status === "proposed" ? "재승인 대기" : r.backlog_status} · 대기 작업 취소 ${r.cancelled_jobs}건 · ${r.storage}`);
       router.push("/episodes");
     } catch (e) { alert((e as Error).message); setBusy(false); }
   }
