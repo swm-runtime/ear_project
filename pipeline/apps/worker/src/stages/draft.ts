@@ -6,7 +6,7 @@ import type { Executor } from "../executors/index.js";
 import { buildDraftPrompt, buildDraftRevisionPrompt, DRAFT_SCHEMA, DRAFT_REVISION_SCHEMA, episodeDatePrefix, pickIntroStyle, type Templates } from "@ear/pipeline";
 import { exists, hostOf, log, RetryLater } from "../util.js";
 import { prepareAssets, workerRev } from "../assets.js";
-import { pullPrefix, pushPrefix, s3Key } from "../storage.js";
+import { listPrefix, pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { parseScriptForTts } from "../tts/script.js";
 import { runTwoStageDraft, twoStageViolations } from "./draft-two-stage.js";
 import { runRevisionSingle } from "./revision-single.js";
@@ -40,7 +40,7 @@ export async function runDraft(job: Job, ex: Executor) {
       }
     }
     // 재집기(워커 사망 후 회수) 시 같은 에피소드를 이어받도록 작업 payload 에 ID 를 고정한다
-    episodeId = String(job.payload.episode_id ?? "") || (await nextEpisodeId(episodeDatePrefix("T")));
+    episodeId = String(job.payload.episode_id ?? "") || (await allocateEpisodeId(episodeDatePrefix("T")));
     if (!job.payload.episode_id) await updateJobPayload(job.id, { episode_id: episodeId });
   } else {
     episodeId = String(job.payload.episode_id ?? "");
@@ -55,6 +55,15 @@ export async function runDraft(job: Job, ex: Executor) {
   const dir = path.join(cfg.workRoot, rel);
   await fs.mkdir(dir, { recursive: true });
   await pullPrefix(`${rel}/`); // S3 가 원본 — 다른 기기에서 만든 산출물·웹에서 고친 대본을 먼저 받는다
+  // 산출물 소유 표식 (2026-09-09): 이 디렉토리의 산출물이 어느 후보 것인지. 이어받기(재집기 복구·설계 생략)는 표식이 이 후보와 일치할 때만 —
+  // 지워진 id 가 재사용돼 다른 후보의 옛 산출물을 이어받은 사고(T260909-001/002, C44 에 C47 대본이 붙음)의 재발 방지
+  const metaFile = path.join(dir, ".origin.json");
+  const origin = await readOrigin(metaFile);
+  if (origin && origin.backlog_id !== backlogId) {
+    log(`  draft ${episodeId}: 디렉토리의 산출물이 다른 후보(${origin.backlog_id}) 것 — 비우고 새로 만든다`);
+    for (const f of await fs.readdir(dir)) await fs.rm(path.join(dir, f), { recursive: true, force: true });
+  }
+  if (!origin || origin.backlog_id !== backlogId) await fs.writeFile(metaFile, JSON.stringify({ backlog_id: backlogId, episode_id: episodeId, started_at: new Date().toISOString(), worker: cfg.workerName }, null, 1));
   const fileTools = [`Write(${rel}/**)`, `Edit(${rel}/**)`, "Bash(python3 *)", "Bash(wc *)", "Bash(ls *)"];
 
   let summary: string;
@@ -189,6 +198,28 @@ async function allArtifactsSettled(dir: string): Promise<boolean> {
   const stats = await Promise.all(files.map((f) => fs.stat(f)));
   const newest = Math.max(...stats.map((s) => s.mtimeMs));
   return Date.now() - newest > 3 * 60_000;
+}
+
+/** 산출물 소유 표식 읽기 — 없거나 깨졌으면 null */
+async function readOrigin(file: string): Promise<{ backlog_id: string; episode_id: string } | null> {
+  try { const o = JSON.parse(await fs.readFile(file, "utf8")); return o && typeof o.backlog_id === "string" ? o : null; } catch { return null; }
+}
+
+/**
+ * 에피소드 id 할당 — DB 의 다음 번호에서 시작하되, 로컬 디렉토리나 S3 에 흔적이 남은 번호는 건너뛴다 (2026-09-09).
+ * 에피소드를 지우면 DB 에서는 번호가 비지만 산출물 디렉토리는 남을 수 있고, 그 번호를 다시 쓰면 재집기 복구가 옛 산출물을 이어받는다.
+ */
+async function allocateEpisodeId(prefix: string): Promise<string> {
+  let id = await nextEpisodeId(prefix);
+  for (let i = 0; i < 50; i++) {
+    const local = await exists(path.join(cfg.workRoot, "episodes", id));
+    const remote = local ? true : (await listPrefix(`episodes/${id}/`, 1).catch(() => [])).length > 0;
+    if (!local && !remote) return id;
+    log(`  episode id ${id}: ${local ? "로컬 디렉토리" : "S3 객체"}가 남아 있어 건너뜀`);
+    const n = Number(id.split("-")[1]) + 1;
+    id = `${prefix}-${String(n).padStart(3, "0")}`;
+  }
+  throw new Error(`에피소드 id 를 할당하지 못함 (${prefix}-*** 50개 연속 흔적)`);
 }
 
 async function countEpisodes(): Promise<number> {
