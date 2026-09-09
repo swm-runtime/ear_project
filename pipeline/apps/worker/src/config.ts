@@ -15,6 +15,14 @@ function must(name: string): string {
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 /** 정수 env — 빈 값이면 기본, "none" 이면 상한 없음(undefined) */
+type Effort = "low" | "medium" | "high" | "xhigh" | "max";
+function envEffort(key: string, dflt: Effort | null): Effort | undefined {
+  const v = process.env[key];
+  if (v === undefined || v === "") return dflt ?? undefined;
+  if (v === "none" || v === "default") return undefined;
+  if (["low", "medium", "high", "xhigh", "max"].includes(v)) return v as Effort;
+  throw new Error(`${key}=${v} — low|medium|high|xhigh|max|none 중 하나`);
+}
 function envInt(name: string, dflt: number | null): number | undefined {
   const v = process.env[name];
   if (v == null || v === "") return dflt ?? undefined;
@@ -60,7 +68,11 @@ export const cfg = {
   thinkingQa: envInt("THINKING_QA", 6000),
   thinkingDesign: envInt("THINKING_DESIGN", 8000),
   thinkingWrite: envInt("THINKING_WRITE", 8000), // 2026-09-09: 상한 없는 opus 대본이 30분 제한을 넘겨 강제 종료(T260908-002). 시간을 묶는 용도
-  thinkingCritic: envInt("THINKING_CRITIC", null), // 비평은 회귀 세트로 편향을 재는 중 — 상한은 재검증(spec/09 7.4) 후에 (기본 없음)
+  thinkingCritic: envInt("THINKING_CRITIC", null),
+  /** 설계·대본 effort (2026-09-09): opus-5 는 적응형 생각이라 MAX_THINKING_TOKENS 를 무시한다(상한 8000 인데 대본 3.6만~14.5만 실측). `claude --effort` 만 듣는다.
+   *  T260909-004 대본 실측 — high $2.02·생각 3.6만·11분 → medium $1.63·1.4만·7분(QA 1회 통과) → low $1.35·0.5만·4분(QA 실패 3: 필수 한계 누락·미근거). 기본 medium. 비우면 CLI 기본(high) */
+  effortDesign: envEffort("EFFORT_DESIGN", "medium"),
+  effortWrite: envEffort("EFFORT_WRITE", "medium"), // 비평은 회귀 세트로 편향을 재는 중 — 상한은 재검증(spec/09 7.4) 후에 (기본 없음)
   clusterModel: process.env.CLUSTER_MODEL || "claude-opus-5",
   /** 군집화 방식 (2026-09-09 ①): v2 = 축 먼저·역할·다양성(단발) · v1 = 유사성 묶기(현행, 기본). ③ 판정 3편 후 v2 로 전환 */
   clusterMode: (process.env.CLUSTER_MODE === "v2" ? "v2" : "v1") as "v1" | "v2",

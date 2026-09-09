@@ -25,6 +25,7 @@ export interface ExecRequest {
   model?: string;
   /** 생각(thinking) 토큰 상한 — Claude Code 의 MAX_THINKING_TOKENS 로 전달. 판정·대조 작업은 생각이 출력 비용의 절반을 차지한다 (2026-09-08 실측: QA opus 3.5만→1.9만, $1.89→$1.16) */
   maxThinkingTokens?: number;
+  effort?: "low" | "medium" | "high" | "xhigh" | "max"; // claude --effort — 적응형 생각 모델(opus-5 등)은 MAX_THINKING_TOKENS 를 무시하므로 이걸로 생각량을 묶는다
   /** 진행 상황 콜백 — 실행기가 스트림 이벤트를 요약해 호출 (워커가 jobs.progress 에 기록) */
   onProgress?: (p: Progress) => void;
   /** 도구 호출을 사람이 읽는 문구로 바꾸는 단계별 라벨러 */
