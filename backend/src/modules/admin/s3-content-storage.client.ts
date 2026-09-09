@@ -83,21 +83,25 @@ export class S3ContentStorageClient extends ContentStorageClient {
     }).done();
   }
 
-  async remove(keys: string[]): Promise<void> {
-    await Promise.all(
+  async remove(keys: string[]): Promise<string[]> {
+    const failed = await Promise.all(
       keys.map(async (key) => {
         try {
           await this.s3.send(
             new DeleteObjectCommand({ Bucket: this.bucket, Key: key }),
           );
+          return null;
         } catch (error) {
-          // 정리 실패는 업로드 실패 위에 얹히는 부수 문제다 — 남은 오브젝트는 운영이 지운다
+          // 정리 실패는 부수 문제다 — 던지지 않고 돌려주어 호출부가 기록·재시도하게 한다
           this.logger.error('failed to clean up uploaded object', {
             key,
             error: error instanceof Error ? error.message : String(error),
           });
+          return key;
         }
       }),
     );
+
+    return failed.filter((key): key is string => key !== null);
   }
 }

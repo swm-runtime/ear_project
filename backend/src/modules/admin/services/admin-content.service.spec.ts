@@ -189,7 +189,7 @@ describe('AdminContentService', () => {
         key: 'thumb/def.png',
         url: `${CDN_BASE_URL}/thumb/def.png`,
       }),
-      remove: jest.fn().mockResolvedValue(undefined),
+      remove: jest.fn().mockResolvedValue([]),
       // 실제 구현과 같은 규칙 — 공개 URL 접두어를 떼고 키만 남긴다
       resolveKey: jest.fn((url: string) =>
         url.startsWith(CDN_BASE_URL)

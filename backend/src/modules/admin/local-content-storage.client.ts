@@ -43,10 +43,12 @@ export class LocalContentStorageClient extends ContentStorageClient {
     return { key, url: `${this.publicBaseUrl}/${key}` };
   }
 
-  async remove(keys: string[]): Promise<void> {
+  async remove(keys: string[]): Promise<string[]> {
     await Promise.all(
       keys.map((key) => rm(join(this.root, key), { force: true })),
     );
+
+    return [];
   }
 
   private async copy(key: string, sourcePath: string): Promise<void> {
