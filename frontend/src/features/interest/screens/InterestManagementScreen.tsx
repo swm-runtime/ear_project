@@ -45,9 +45,14 @@ export default function InterestManagementScreen() {
         <View style={styles.appBarSpacer} />
       </View>
 
+      {/*
+        IM9 — 조회 실패와 "응답은 정상인데 노출 주제가 0건"을 같은 층으로 그린다.
+        온보딩 1단계와 같은 규칙이고(같은 엔드포인트) 0건은 200이라 카피만 갈라진다.
+      */}
       {screen.isError ? (
         <FullScreenError
-          title={INTEREST_COPY.loadFailed}
+          title={screen.isEmpty ? INTEREST_COPY.emptyTitle : INTEREST_COPY.loadFailed}
+          description={screen.isEmpty ? INTEREST_COPY.emptyDescription : undefined}
           retryLabel={INTEREST_COPY.retry}
           isRetrying={screen.isRefetching}
           onRetry={screen.refetchAll}

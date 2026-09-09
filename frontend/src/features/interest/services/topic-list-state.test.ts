@@ -1,6 +1,6 @@
 /**
- * 1단계 주제 목록 표시 상태 판정 테스트(convention.md 7.2 — 화면 분기의 판정 재료).
- * 규칙 소유: onboarding.md 7 · onboarding-api.md 4.2.
+ * 주제 목록 표시 상태 판정 테스트(convention.md 7.2 — 화면 분기의 판정 재료).
+ * 온보딩 1단계와 관심사 관리가 같은 판정을 쓴다. 규칙 소유: onboarding.md 7 · onboarding-api.md 4.2.
  */
 import { describe, expect, it } from '@jest/globals';
 
