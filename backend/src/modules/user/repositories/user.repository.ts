@@ -20,6 +20,23 @@ export class UserRepository {
     return this.scoped(manager).findOneBy({ id });
   }
 
+  /**
+   * 같은 사용자의 동시 처리를 **직렬화하기 위한** 행 잠금. 트랜잭션 안에서만 의미가 있다.
+   *
+   * 읽고-판정하고-쓰는 흐름(재생 한도 차감·탈퇴 아카이브)은 READ COMMITTED에서 두 요청이
+   * 같은 스냅샷을 보고 둘 다 통과한다. 잠글 행은 사용자 자신이다 — 판정 대상 테이블이
+   * 여러 개라 그것들을 각각 잠그는 것보다 사용자 하나를 잠그는 편이 단순하고 확실하다.
+   */
+  async findByIdForUpdate(
+    id: string,
+    manager: EntityManager,
+  ): Promise<User | null> {
+    return manager.getRepository(User).findOne({
+      where: { id },
+      lock: { mode: 'pessimistic_write' },
+    });
+  }
+
   /** domain.md 3.1 — 계정 식별은 `provider + provider_user_id` 조합이다 */
   async findByProviderAndProviderUserId(
     provider: SocialProvider,

@@ -50,7 +50,20 @@ export class PlayPolicyService {
     now: Date,
     manager?: EntityManager,
   ): Promise<PlayPermission> {
-    const user = await this.userService.getById(userId, manager);
+    /**
+     * **한도 티어는 사용자 행을 잠그고 판정한다.**
+     *
+     * 아래는 "오늘 몇 편 들었나"를 읽고 한도와 비교해 통과시키는 흐름이다. READ COMMITTED
+     * 에서 서로 다른 콘텐츠 두 건이 동시에 오면 **둘 다 같은 개수를 보고 둘 다 통과해**
+     * 한도를 넘긴다(같은 콘텐츠 반복은 `uq_play_records_user_id_content_id_play_date`가
+     * 막지만 다른 콘텐츠는 막지 못한다). 사용자 행을 잠가 같은 사용자의 판정을 직렬화한다.
+     *
+     * 트랜잭션 밖(서명 URL 발급)에서는 잠그지 않는다 — 그 경로는 차감하지 않아
+     * 경합이 만들어질 상태가 없다.
+     */
+    const user = manager
+      ? await this.userService.getByIdForUpdate(userId, manager)
+      : await this.userService.getById(userId);
     const policy = await this.planService.getPlayLimitPolicy(
       user.tier,
       manager,

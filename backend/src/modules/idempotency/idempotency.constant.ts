@@ -16,3 +16,19 @@ export const ANONYMOUS_OWNER_KEY = 'anonymous';
 export function toUserOwnerKey(userId: string): string {
   return `user:${userId}`;
 }
+
+/**
+ * `in_progress` 행을 **버려진 것으로 보는** 기준.
+ *
+ * `discard()`는 인터셉터의 `catchError`에서만 돈다. 프로세스가 죽거나 요청이 끊기면 행이
+ * `in_progress`로 남고, `expires_at`(24시간)까지 그 키는 **영구 409**가 된다.
+ * `domain.md` 1.4는 반대로 정한다 — "처리에 실패하면 행을 남기지 않는다. 실패한 요청은
+ * 같은 키로 다시 시도할 수 있어야 한다."
+ *
+ * 탈퇴·이메일 인증은 클라이언트가 키를 재사용하므로, 이 상태에 걸리면 사용자가 그 동작을
+ * 아예 못 하게 된다.
+ *
+ * 값은 **가장 느린 핸들러보다 넉넉해야 한다.** 짧으면 아직 처리 중인 요청을 버려진 것으로
+ * 보고 두 번째 실행을 허용한다 — 멱등키의 목적 자체가 무너진다.
+ */
+export const IDEMPOTENCY_IN_PROGRESS_LEASE_MS = 60 * 1000;

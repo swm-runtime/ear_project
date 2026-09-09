@@ -1,6 +1,8 @@
+import { HttpStatus } from '@nestjs/common';
+
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
-import { HttpStatus } from '@nestjs/common';
+import { isTimestampValue, isUuid } from '@/common/utils/cursor-value.util';
 
 import {
   LibraryItemFilter,
@@ -117,8 +119,8 @@ function isCursorPayload(value: unknown): value is CursorPayload {
   const candidate = value as Record<string, unknown>;
 
   return (
-    typeof candidate.a === 'string' &&
-    typeof candidate.i === 'string' &&
+    isTimestampValue(candidate.a) &&
+    isUuid(candidate.i) &&
     typeof candidate.q === 'string'
   );
 }

@@ -138,7 +138,7 @@ describe('exploreCursor', () => {
     it('정렬 키가 빠진 커서를 받아들이지 않는다', () => {
       // given — 랭킹 값이 없으면 keyset 조건을 만들 수 없다
       const broken = Buffer.from(
-        JSON.stringify({ t: PUBLISHED_AT.toISOString(), i: CONTENT_ID, q: '' }),
+        JSON.stringify({ t: PUBLISHED_AT.toISOString(), i: CONTENT_ID, q: 'x' }),
         'utf8',
       ).toString('base64url');
 
@@ -226,6 +226,32 @@ describe('exploreCursor', () => {
 
       // then
       expect(error.errorCode).toBe(ErrorCode.EXPLORE_CURSOR_INVALID);
+    });
+  });
+
+  /**
+   * 커서는 서명되지 않아 인증된 사용자 누구나 내용을 고쳐 보낼 수 있다.
+   * **형식만 맞고 값이 이상한 커서**가 그대로 SQL 비교식에 들어가면 Postgres가 던지고,
+   * 전역 필터가 500 `INTERNAL_ERROR`(`retryable: true`)로 바꿔 **클라이언트가 같은 커서로
+   * 무한 재시도**한다. 계약은 400이다.
+   */
+  describe('값을 고친 커서', () => {
+    const encode = (payload: Record<string, unknown>): string =>
+      Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+
+    it.each([
+      ['uuid가 아닌 id', { p: 1, t: PUBLISHED_AT.toISOString(), i: 'x', q: 'x' }],
+      ['소수 재생 수', { p: 1.5, t: PUBLISHED_AT.toISOString(), i: CONTENT_ID, q: 'x' }],
+      ['음수 재생 수', { p: -1, t: PUBLISHED_AT.toISOString(), i: CONTENT_ID, q: 'x' }],
+      ['int4를 넘는 재생 수', { p: 1e308, t: PUBLISHED_AT.toISOString(), i: CONTENT_ID, q: 'x' }],
+      ['해석되지 않는 시각', { p: 1, t: 'not-a-date', i: CONTENT_ID, q: 'x' }],
+    ])('%s는 400으로 거절한다', (_label, payload) => {
+      // when
+      const error = catchError(() => decodeExploreCursor(encode(payload), [TOPIC_A]));
+
+      // then
+      expect(error.errorCode).toBe(ErrorCode.EXPLORE_CURSOR_INVALID);
+      expect(error.getStatus()).toBe(400);
     });
   });
 });

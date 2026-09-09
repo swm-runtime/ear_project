@@ -2,6 +2,12 @@ import { HttpStatus } from '@nestjs/common';
 
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
+import {
+  isCountValue,
+  isRatioValue,
+  isTimestampValue,
+  isUuid,
+} from '@/common/utils/cursor-value.util';
 import { StatsPeriodType } from '@/modules/content/content.enum';
 import {
   ExploreCursorPosition,
@@ -162,12 +168,10 @@ function isPopularCursorPayload(value: unknown): value is PopularCursorPayload {
   const candidate = value as Record<string, unknown>;
 
   return (
-    typeof candidate.p === 'number' &&
-    Number.isFinite(candidate.p) &&
-    typeof candidate.c === 'number' &&
-    Number.isFinite(candidate.c) &&
-    typeof candidate.t === 'string' &&
-    typeof candidate.i === 'string' &&
+    isCountValue(candidate.p) &&
+    isCountValue(candidate.c) &&
+    isTimestampValue(candidate.t) &&
+    isUuid(candidate.i) &&
     typeof candidate.q === 'string'
   );
 }
@@ -263,14 +267,12 @@ function isSearchCursorPayload(value: unknown): value is SearchCursorPayload {
   const candidate = value as Record<string, unknown>;
 
   return (
-    typeof candidate.s === 'number' &&
-    Number.isFinite(candidate.s) &&
-    typeof candidate.w === 'number' &&
-    Number.isFinite(candidate.w) &&
-    typeof candidate.p === 'number' &&
-    Number.isFinite(candidate.p) &&
-    typeof candidate.t === 'string' &&
-    typeof candidate.i === 'string' &&
+    // `s`는 매칭 필드 가중 합(정수), `w`는 제목 유사도(0~1)다 — 정의역이 다르다
+    isCountValue(candidate.s) &&
+    isRatioValue(candidate.w) &&
+    isCountValue(candidate.p) &&
+    isTimestampValue(candidate.t) &&
+    isUuid(candidate.i) &&
     typeof candidate.q === 'string'
   );
 }
@@ -299,10 +301,9 @@ function isCursorPayload(value: unknown): value is CursorPayload {
   const candidate = value as Record<string, unknown>;
 
   return (
-    typeof candidate.p === 'number' &&
-    Number.isFinite(candidate.p) &&
-    typeof candidate.t === 'string' &&
-    typeof candidate.i === 'string' &&
+    isCountValue(candidate.p) &&
+    isTimestampValue(candidate.t) &&
+    isUuid(candidate.i) &&
     typeof candidate.q === 'string'
   );
 }
