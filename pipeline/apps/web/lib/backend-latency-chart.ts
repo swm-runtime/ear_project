@@ -22,10 +22,24 @@ export function bucketMsFor(minutes: number): number {
  * 벽시계에 맞추면 10분 칸이 5분 칸 **정확히 두 개**가 된다. 그래도 두 범위의 p50/p95 가
  * 같아지지는 않는다 — 표본 집합이 다르니 당연하다. 다만 그 차이가 설명 가능해진다.
  */
-export function buildBuckets(parsed: RequestLog[], minutes: number, now: number): Bucket[] {
+/**
+ * 대시보드 요청 차트들이 공유하는 x축 창. **막대와 산점도가 같은 창을 써야 한다** —
+ * 버킷만 벽시계에 맞추고 산점도는 원래 창을 쓰면, 나란히 놓인 두 차트에서 같은 가로
+ * 위치가 서로 다른 시각을 가리킨다(6시간 뷰에서 최대 10분 어긋난다).
+ *
+ * `to` 가 `now` 보다 최대 한 칸 뒤인 것은 의도한 것이다 — 마지막 칸을 온전히 그리고,
+ * 로그 시각이 브라우저 시계보다 조금 앞서도 점이 잘리지 않는다.
+ */
+export function chartWindow(minutes: number, now: number): { from: number; to: number; bucketMs: number } {
   const bucketMs = bucketMsFor(minutes);
   const from = Math.floor((now - minutes * 60_000) / bucketMs) * bucketMs;
   const count = Math.ceil((now - from) / bucketMs); // 정렬로 앞이 밀린 만큼 칸이 하나 늘 수 있다
+  return { from, to: from + count * bucketMs, bucketMs };
+}
+
+export function buildBuckets(parsed: RequestLog[], minutes: number, now: number): Bucket[] {
+  const { from, to, bucketMs } = chartWindow(minutes, now);
+  const count = Math.round((to - from) / bucketMs);
   const buckets: Bucket[] = Array.from({ length: count }, (_, i) => ({
     start: from + i * bucketMs, ok: 0, errors: 0, durations: [],
   }));

@@ -1,8 +1,8 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Stat } from "@/components/ui";
 import { RequestLog } from "@/lib/backend-request-log";
-import { Bucket, buildBuckets, percentile, tipAnchor } from "@/lib/backend-latency-chart";
+import { Bucket, buildBuckets, chartWindow, percentile, tipAnchor } from "@/lib/backend-latency-chart";
 
 /**
  * 대시보드 탭 — 요청 로그를 시간축 그래프로, 자원(CPU·메모리·DB 연결) 이력을 선 그래프로
@@ -70,7 +70,7 @@ function Tip({ ratio, lines }: { ratio: number; lines: string[] }) {
       className={`pointer-events-none absolute top-1 z-10 ${shift} max-w-full overflow-hidden whitespace-nowrap rounded border border-line bg-panel px-2 py-1 text-[11px] leading-4 text-ink shadow`}
       style={{ left: `${leftPercent}%` }}
     >
-      {lines.map((l) => <div key={l}>{l}</div>)}
+      {lines.map((l, i) => <div key={i}>{l}</div>)}
     </div>
   );
 }
@@ -179,6 +179,17 @@ function LatencyScatter({ requests, from, to }: { requests: RequestLog[]; from: 
   const y = (v: number) => H - (Math.log10(Math.max(1, v)) / decades) * H;
   const ticks = Array.from({ length: decades + 1 }, (_, i) => 10 ** i);
 
+  // 점은 호버와 무관하다. 메모하지 않으면 마우스가 움직일 때마다(= ratio 가 바뀔 때마다)
+  // 최대 1,500 개의 <circle> 을 다시 만들어 화면이 버벅인다
+  const dots = useMemo(() => {
+    const px = (t: number) => ((t - from) / Math.max(1, to - from)) * W;
+    const py = (v: number) => H - (Math.log10(Math.max(1, v)) / decades) * H;
+    return requests.map((r, i) => (
+      <circle key={`${r.t}-${i}`} cx={px(r.t)} cy={py(r.durationMs)} r={2}
+        className={r.status >= 400 ? "fill-red-500" : "fill-brand"} opacity={0.65} />
+    ));
+  }, [requests, from, to, decades]);
+
   // 호버 지점에 가장 가까운 요청 하나
   const at = ratio === null ? null : from + ratio * (to - from);
   const near = at === null || requests.length === 0 ? null
@@ -199,10 +210,7 @@ function LatencyScatter({ requests, from, to }: { requests: RequestLog[]; from: 
             <text x={2} y={y(t) - 2} className="fill-ink-soft text-[9px]">{t < 1000 ? `${t}ms` : `${t / 1000}s`}</text>
           </g>
         ))}
-        {requests.map((r, i) => (
-          <circle key={`${r.t}-${i}`} cx={x(r.t)} cy={y(r.durationMs)} r={2}
-            className={r.status >= 400 ? "fill-red-500" : "fill-brand"} opacity={0.65} />
-        ))}
+        {dots}
         {near && (
           <>
             <line x1={x(near.t)} x2={x(near.t)} y1={0} y2={H} className="stroke-ink-soft" strokeWidth={0.5} />
@@ -331,7 +339,8 @@ export function BackendDashboard() {
   // 창 전체를 한 표본으로 본 백분위 — 버킷으로 쪼개지 않으므로 합산 문제가 없다
   const allDurations = parsed.map((p) => p.durationMs).sort((a, b) => a - b);
 
-  const from = loadedAt - minutes * 60_000;
+  // 네 그래프가 모두 같은 창을 본다 — 2×2 로 놓이므로 같은 가로 위치가 같은 시각이어야 한다
+  const { from, to } = chartWindow(minutes, loadedAt);
   // 목표 건수를 못 채우면 창의 앞부분이 빠진다 — 그래프 왼쪽이 빈 이유를 밝힌다
   const truncated = body !== null && !body.exhausted && parsed.length > 0 && parsed[0].t > from;
   const history = metrics?.history ?? [];
@@ -377,13 +386,13 @@ export function BackendDashboard() {
               ? `창 전체 ${parsed.length}건 — p50 ${percentile(allDurations, 50)}ms · p95 ${percentile(allDurations, 95)}ms · 최대 ${allDurations[allDurations.length - 1]}ms`
               : "요청 없음"}
           </p>
-          <LatencyScatter requests={parsed} from={from} to={loadedAt} />
+          <LatencyScatter requests={parsed} from={from} to={to} />
         </div>
         <div className={card}>
           <h3 className={title}>
             CPU · 메모리 <span className="font-normal text-ink-soft">· <span className="text-brand">CPU</span> / <span className="text-violet-600">메모리</span> · 점선 = Slack 알림 임계(70/80%)</span>
           </h3>
-          <SampleLines history={history} from={from} to={loadedAt} yMax={100} unit="%"
+          <SampleLines history={history} from={from} to={to} yMax={100} unit="%"
             series={[
               { key: "cpu_used_percent", label: "CPU", strokeClass: "stroke-brand", dotClass: "fill-brand" },
               { key: "mem_used_percent", label: "메모리", strokeClass: "stroke-violet-500", dotClass: "fill-violet-500" },
@@ -395,7 +404,7 @@ export function BackendDashboard() {
         </div>
         <div className={card}>
           <h3 className={title}>DB 연결 <span className="font-normal text-ink-soft">{maxConn ? `· 최대 ${maxConn}` : ""}</span></h3>
-          <SampleLines history={history} from={from} to={loadedAt} yMax={Math.max(connMaxSeen * 1.3, 10)} unit="개"
+          <SampleLines history={history} from={from} to={to} yMax={Math.max(connMaxSeen * 1.3, 10)} unit="개"
             series={[{ key: "db_conn_total", label: "연결", strokeClass: "stroke-sky-600", dotClass: "fill-sky-600" }]} />
         </div>
       </div>
