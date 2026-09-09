@@ -6,6 +6,7 @@ import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { UserService } from '@/modules/user/services/user.service';
 
 import { TopicService } from './topic.service';
+import { Topic } from '../entities/topic.entity';
 import { UserInterest } from '../entities/user-interest.entity';
 import {
   MAX_SELECTABLE_TOPIC_COUNT,
@@ -49,16 +50,40 @@ export class UserInterestService {
     userId: string,
     manager?: EntityManager,
   ): Promise<UserInterest[]> {
+    const { interests } = await this.findActiveWithTopics(userId, manager);
+
+    return interests;
+  }
+
+  /**
+   * 활성 관심사와 그 주제 행을 **한 번의 topics 조회**로 함께 돌려준다. 요약(`buildSummary`)이
+   * 노출 판정용 조회 뒤에 이름을 붙이려고 같은 주제를 다시 읽던 것을 합쳤다(감사 하 #11).
+   */
+  private async findActiveWithTopics(
+    userId: string,
+    manager?: EntityManager,
+  ): Promise<{ interests: UserInterest[]; topicsById: Map<string, Topic> }> {
     const active = await this.userInterestRepository.findAllActiveByUserId(
       userId,
       manager,
     );
-    const visibleTopicIds = await this.findVisibleTopicIdSet(
-      active.map((interest) => interest.topicId),
-      manager,
+    const topics =
+      active.length === 0
+        ? []
+        : await this.topicService.findAllByIds(
+            active.map((interest) => interest.topicId),
+            manager,
+          );
+    const topicsById = new Map(
+      topics
+        .filter((topic) => topic.isVisible)
+        .map((topic) => [topic.id, topic]),
     );
 
-    return active.filter((interest) => visibleTopicIds.has(interest.topicId));
+    return {
+      interests: active.filter((interest) => topicsById.has(interest.topicId)),
+      topicsById,
+    };
   }
 
   /**
@@ -76,16 +101,14 @@ export class UserInterestService {
     topTopicLimit: number,
     manager?: EntityManager,
   ): Promise<InterestSummaryView> {
-    const interests = await this.findAllActive(userId, manager);
-    const topics = await this.topicService.findAllByIds(
-      interests.map((interest) => interest.topicId),
+    const { interests, topicsById } = await this.findActiveWithTopics(
+      userId,
       manager,
     );
-    const byId = new Map(topics.map((topic) => [topic.id, topic]));
 
     const named = interests
-      .map((interest) => byId.get(interest.topicId))
-      .filter((topic): topic is NonNullable<typeof topic> => Boolean(topic));
+      .map((interest) => topicsById.get(interest.topicId))
+      .filter((topic): topic is Topic => Boolean(topic));
 
     return {
       // 이름을 못 붙인 주제도 사용자가 고른 것이므로 개수에서 빼지 않는다
@@ -146,6 +169,12 @@ export class UserInterestService {
     manager?: EntityManager,
   ): Promise<string[]> {
     await this.assertSelectable(topicIds, manager);
+
+    // 같은 사용자의 동시 저장을 직렬화한다 — 관리 경로(`replaceManagedSelection`)와 같은 이유다.
+    // 잠그지 않으면 두 요청이 같은 스냅샷을 읽고 각자 INSERT해 유니크 위반(500)이 난다
+    if (manager) {
+      await this.userService.getByIdForUpdate(userId, manager);
+    }
 
     const existing = await this.userInterestRepository.findAllByUserId(
       userId,

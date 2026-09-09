@@ -195,7 +195,11 @@ export class LibraryScreenOrchestrator {
         return;
       }
 
-      await this.libraryService.softDelete(item, now, manager);
+      // 조회와 삭제 사이에 다른 요청이 지웠으면 제외·신호도 그쪽 몫이다 — 두 번 쌓지 않는다
+      const deleted = await this.libraryService.softDelete(item, now, manager);
+      if (!deleted) {
+        return;
+      }
 
       // 삭제한 콘텐츠는 드립으로 다시 오지 않는다(FR-16).
       // **영구 제외 사실은 사용자에게 알리지 않는다** — 204에는 본문이 없다

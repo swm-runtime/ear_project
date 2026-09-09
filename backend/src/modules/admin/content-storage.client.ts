@@ -29,8 +29,11 @@ export abstract class ContentStorageClient {
     extension: string,
   ): Promise<StoredObject>;
 
-  /** 실패한 업로드의 부분 결과 정리(admin.md 4.2 — 원자성). 없는 키는 무시한다 */
-  abstract remove(keys: string[]): Promise<void>;
+  /**
+   * 오브젝트 삭제 — 업로드 실패 정리(admin.md 4.2)와 회수분 영구 정리가 쓴다. 없는 키는 무시한다.
+   * @returns 지우지 **못한** 키. 호출부가 결과를 기록한다(감사 하 #4 — 실패해도 "purged"로 남던 문제)
+   */
+  abstract remove(keys: string[]): Promise<string[]>;
 
   /**
    * 공개 URL → 저장소 키. 재발행(admin-api.md 4.10)이 **이전 썸네일을 지우려면** 필요하다 —

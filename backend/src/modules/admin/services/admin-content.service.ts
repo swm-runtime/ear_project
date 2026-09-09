@@ -723,11 +723,27 @@ export class AdminContentService {
       );
     });
 
-    await this.storage.remove(storageKeys);
+    const failedKeys = await this.storage.remove(storageKeys);
+
+    /**
+     * 결과를 **후속 감사 행**으로 남긴다. 앞 행은 "지우려 했다"이고 이 행이 "지워졌다/못 지웠다"다 —
+     * 앞 행만 있으면 삭제가 실패해도 정리된 것으로 읽힌다(감사 하 #4). 남은 키는 운영이 지운다.
+     */
+    await this.auditLogService.record({
+      actor: actorUserId,
+      action: AUDIT_ACTION_CONTENT_PURGE_STORAGE,
+      target: `content:${contentId}`,
+      after: {
+        result: failedKeys.length === 0 ? 'purged' : 'partially_failed',
+        purged_key_count: storageKeys.length - failedKeys.length,
+        failed_keys: failedKeys,
+      },
+    });
 
     this.logger.log('content storage purged', {
       content_id: contentId,
-      purged_key_count: storageKeys.length,
+      purged_key_count: storageKeys.length - failedKeys.length,
+      failed_key_count: failedKeys.length,
       actor: actorUserId,
     });
   }
