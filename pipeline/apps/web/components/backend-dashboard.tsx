@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Stat } from "@/components/ui";
 import { RequestLog } from "@/lib/backend-request-log";
+import { axisMax, Bucket, buildBuckets, percentile } from "@/lib/backend-latency-chart";
 
 /**
  * 대시보드 탭 — 요청 로그를 시간축 그래프로, 자원(CPU·메모리·DB 연결) 이력을 선 그래프로
@@ -36,49 +37,6 @@ type Metrics = {
 
 /** 서버가 요청 건수 기준으로 모아 준 응답 — 파싱은 `lib/backend-request-log.ts` 가 서버에서 한다 */
 type RequestsBody = { requests: RequestLog[]; coveredFrom: number | null; windowFrom: number; exhausted: boolean };
-
-type Bucket = { start: number; ok: number; errors: number; durations: number[] };
-
-function buildBuckets(parsed: RequestLog[], minutes: number, now: number): Bucket[] {
-  const bucketMs = (minutes <= 30 ? 1 : minutes <= 60 ? 2 : minutes <= 180 ? 5 : 10) * 60_000;
-  const from = now - minutes * 60_000;
-  const count = Math.ceil((minutes * 60_000) / bucketMs);
-  const buckets: Bucket[] = Array.from({ length: count }, (_, i) => ({
-    start: from + i * bucketMs, ok: 0, errors: 0, durations: [],
-  }));
-
-  for (const p of parsed) {
-    const idx = Math.floor((p.t - from) / bucketMs);
-    if (idx < 0 || idx >= count) continue;
-    if (p.status >= 400) buckets[idx].errors += 1;
-    else buckets[idx].ok += 1;
-    buckets[idx].durations.push(p.durationMs);
-  }
-  return buckets;
-}
-
-/**
- * 최근접 순위(nearest-rank) — p 백분위는 오름차순 ceil(p/100·n) 번째 값이다.
- * floor 로 잡으면 한 칸 위를 집어(n=2 의 p50 이 최댓값) 값이 큰 쪽으로 치우친다.
- */
-function percentile(sorted: number[], p: number): number {
-  if (sorted.length === 0) return 0;
-  const rank = Math.ceil((p / 100) * sorted.length) - 1;
-  return sorted[Math.min(sorted.length - 1, Math.max(0, rank))];
-}
-
-/**
- * 응답시간 y축 상한. p95 최댓값을 그대로 쓰면 느린 요청 **하나**가 축을 끌어올려 p50 선을
- * x축에 붙여버린다 — 표본이 적은 버킷의 p95 는 곧 그 버킷의 최댓값이라 자주 벌어진다
- * (1분 버킷·표본 4건이면 2,400ms 하나에 축이 2,400ms 가 되고 40ms 대 p50 은 바닥에 깔린다).
- * 그래서 p95 들의 **중앙값** 기준으로 상한을 두고, 넘는 점은 위에서 자른 뒤 ▲ 로 표시한다.
- * 값을 잃지는 않는다 — 툴팁은 늘 실제값을 보여준다. 이상치가 없으면 예전과 같은 축이다.
- */
-function axisMax(p95s: number[]): number {
-  const seen = p95s.filter((v) => v > 0).sort((a, b) => a - b);
-  if (seen.length === 0) return 50;
-  return Math.max(50, Math.min(seen[seen.length - 1], percentile(seen, 50) * 4));
-}
 
 const hhmm = (t: number) => new Date(t).toLocaleTimeString("ko-KR", { hour12: false, hour: "2-digit", minute: "2-digit" });
 const GiB = 1024 ** 3;
