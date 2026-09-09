@@ -49,7 +49,7 @@
 4. `users.tier` 갱신을 `SubscriptionService` **한 곳으로** 제한한다(`domain.md` 3.1 — 캐시의 단일 기록자)
 5. 재가입 복원(`subscription.md` 4.5 · `domain.md` 12.3)
 
-**착수 전 `tickets/backend/pending/withdrawal-blocked-by-archived-subscription-unique.md`를 함께 본다** — 그 건은 구독이 켜지는 순간 재현되기 시작한다.
+6. **탈퇴한 계정의 구독을 다른 계정이 가져가지 못하게 막는다.** 2026-09-09에 `archived_subscriptions` 유니크를 `(user_hash, original_transaction_id)`로 좁히면서, 종전에 아카이브가 대신 막던 이 경로가 **검증 시점의 책임으로 옮겨왔다**(`domain.md` 11.5). 영수증의 `original_transaction_id`가 이미 다른 계정에 살아 있으면 거부한다 — 살아 있는 계정끼리는 `uq_subscriptions_original_transaction_id`가 막지만, **탈퇴로 풀린 값**은 이 검사가 유일한 방어다.
 
 ## 완료 조건
 
