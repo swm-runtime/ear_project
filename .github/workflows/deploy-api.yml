@@ -1,26 +1,102 @@
 name: deploy-api
-# dev 에 backend/ 변경이 머지되면 제품 API 서버(EC2)에 자동 배포한다 (backend/deploy/aws/README.md CI 장).
-# AWS 접근은 OIDC 역할 ear-ci-deploy(SG 개폐 권한만) — 저장된 AWS 키 없음. SSH 는 CI 전용 키(secret CI_SSH_KEY_API).
-# 1회 설정: bash backend/deploy/aws/setup-ci.sh
+# backend/ 변경을 검증하고, dev 에 머지되면 제품 API 서버(EC2)에 자동 배포한다 (backend/deploy/aws/README.md CI 장).
+# 검증(verify)과 배포(deploy)를 job 으로 나눈다 — 검증이 실패하면 SG 개폐·SSH 자체가 일어나지 않는다.
+# PR 에서는 검증만 돈다. AWS 접근은 OIDC 역할 ear-ci-deploy(SG 개폐 권한만) — 저장된 AWS 키 없음.
+# SSH 는 CI 전용 키(secret CI_SSH_KEY_API). 1회 설정: bash backend/deploy/aws/setup-ci.sh
 
 on:
+  # 머지 전에 막는다 — push 만 있으면 이미 dev 에 들어온 뒤에야 안다
+  pull_request:
+    paths: ['backend/**', '.github/workflows/deploy-api.yml']
   push:
     branches: [dev]
     paths: ['backend/**', '.github/workflows/deploy-api.yml']
   workflow_dispatch:
 
 concurrency:
-  group: deploy-api
-  cancel-in-progress: false
+  # dev push 는 종전대로 한 줄로 직렬화된다(같은 group). PR 은 ref 별로 갈라져 배포를 막지 않는다
+  group: deploy-api-${{ github.event.pull_request.number || github.ref }}
+  # 배포는 중간에 끊지 않는다. PR 검증만 새 커밋이 오면 앞선 런을 접는다
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
-  id-token: write
   contents: read
 
 jobs:
+  # 배포 전 관문 — lint·build·유닛·e2e. CI_SSH_KEY_API guard 와 무관하게 항상 돈다
+  # (배포하지 않는 저장소에서도 테스트는 의미가 있다).
+  verify:
+    name: 검증 (lint · build · 유닛 · e2e)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      # 로컬 docker-compose.yml 과 같은 이미지 — 표준 postgres 에는 vector 확장이 없어
+      # AddEmbeddingVectors 마이그레이션이 실패한다.
+      # 값·포트는 .env.example 기본값에 맞춘다(그대로 복사해 쓰기 위해). 운영 DB 가 아니다.
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: ear
+          POSTGRES_PASSWORD: change-me
+          POSTGRES_DB: runtime
+          TZ: UTC
+        ports: ['5433:5432']
+        options: >-
+          --health-cmd "pg_isready -U ear -d runtime"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: 의존성 설치
+        run: npm ci
+
+      # 운영 시크릿을 쓰지 않는다 — 예제의 더미 값으로 충분하다(AUDIO_DELIVERY=local,
+      # MAIL_DELIVERY=logging 이라 외부 자원에 붙지 않는다). 예제를 그대로 복사해도
+      # 기동되도록 맞춰 두었다(2026-09-08). 유닛 테스트도 env 를 읽으므로 앞에 둔다.
+      - name: 테스트 env 준비 (.env.example 그대로)
+        run: cp .env.example .env
+
+      - name: lint
+        run: npm run lint
+
+      - name: build
+        run: npm run build
+
+      - name: 유닛 테스트
+        run: npm test
+
+      # 로컬과 같은 순서 — 스키마가 없으면 e2e 가 전부 깨진다
+      - name: 마이그레이션
+        run: npm run migration:run
+
+      - name: e2e 테스트
+        run: npm run test:e2e
+
   deploy:
+    name: 배포 (EC2)
+    # 검증을 통과했을 때만 배포한다
+    needs: verify
+    # PR 이벤트에서는 SG 개폐·SSH 가 일어나지 않는다. dev push·수동 실행에서만 배포한다
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      id-token: write
+      contents: read
     steps:
       # 1회 설정(backend/deploy/aws/setup-ci.sh)이 아직이면 조용히 건너뛴다 —
       # 설정 전까지 모든 dev 머지가 빨간 X 로 남는 것을 막는다
