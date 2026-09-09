@@ -4,6 +4,8 @@ import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 
 import { TopicService } from './topic.service';
+import { UserService } from '@/modules/user/services/user.service';
+
 import { UserInterestService } from './user-interest.service';
 import { Topic } from '../entities/topic.entity';
 import { UserInterest } from '../entities/user-interest.entity';
@@ -78,7 +80,17 @@ describe('UserInterestService', () => {
       ),
     } as unknown as DataSource;
 
-    service = new UserInterestService(repository, topicService, dataSource);
+    // 관심사 교체는 사용자 행을 잠가 동시 저장을 직렬화한다 — 잠금 자체는 검증 대상이 아니다
+    const userService = {
+      getByIdForUpdate: jest.fn().mockResolvedValue({ id: USER_ID }),
+    } as unknown as UserService;
+
+    service = new UserInterestService(
+      repository,
+      topicService,
+      userService,
+      dataSource,
+    );
   });
 
   describe('replaceOnboardingSelection', () => {

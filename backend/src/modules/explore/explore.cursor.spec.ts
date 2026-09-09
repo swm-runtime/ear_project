@@ -138,7 +138,11 @@ describe('exploreCursor', () => {
     it('정렬 키가 빠진 커서를 받아들이지 않는다', () => {
       // given — 랭킹 값이 없으면 keyset 조건을 만들 수 없다
       const broken = Buffer.from(
-        JSON.stringify({ t: PUBLISHED_AT.toISOString(), i: CONTENT_ID, q: 'x' }),
+        JSON.stringify({
+          t: PUBLISHED_AT.toISOString(),
+          i: CONTENT_ID,
+          q: 'x',
+        }),
         'utf8',
       ).toString('base64url');
 
@@ -240,14 +244,28 @@ describe('exploreCursor', () => {
       Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
 
     it.each([
-      ['uuid가 아닌 id', { p: 1, t: PUBLISHED_AT.toISOString(), i: 'x', q: 'x' }],
-      ['소수 재생 수', { p: 1.5, t: PUBLISHED_AT.toISOString(), i: CONTENT_ID, q: 'x' }],
-      ['음수 재생 수', { p: -1, t: PUBLISHED_AT.toISOString(), i: CONTENT_ID, q: 'x' }],
-      ['int4를 넘는 재생 수', { p: 1e308, t: PUBLISHED_AT.toISOString(), i: CONTENT_ID, q: 'x' }],
+      [
+        'uuid가 아닌 id',
+        { p: 1, t: PUBLISHED_AT.toISOString(), i: 'x', q: 'x' },
+      ],
+      [
+        '소수 재생 수',
+        { p: 1.5, t: PUBLISHED_AT.toISOString(), i: CONTENT_ID, q: 'x' },
+      ],
+      [
+        '음수 재생 수',
+        { p: -1, t: PUBLISHED_AT.toISOString(), i: CONTENT_ID, q: 'x' },
+      ],
+      [
+        'int4를 넘는 재생 수',
+        { p: 1e308, t: PUBLISHED_AT.toISOString(), i: CONTENT_ID, q: 'x' },
+      ],
       ['해석되지 않는 시각', { p: 1, t: 'not-a-date', i: CONTENT_ID, q: 'x' }],
     ])('%s는 400으로 거절한다', (_label, payload) => {
       // when
-      const error = catchError(() => decodeExploreCursor(encode(payload), [TOPIC_A]));
+      const error = catchError(() =>
+        decodeExploreCursor(encode(payload), [TOPIC_A]),
+      );
 
       // then
       expect(error.errorCode).toBe(ErrorCode.EXPLORE_CURSOR_INVALID);

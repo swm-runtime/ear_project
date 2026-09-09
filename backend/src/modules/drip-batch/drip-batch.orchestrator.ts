@@ -36,7 +36,14 @@ import { UserService } from '@/modules/user/services/user.service';
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /** 사용자 단위 처리 결과 — `drip_batch_runs`의 카운트로 접힌다(domain.md 7.3) */
-type UserOutcome = 'scheduled' | 'skipped';
+/**
+ * 사용자 한 명의 편성 결과.
+ *
+ * **`exhausted`를 `scheduled`와 합치지 않는다** — `drip-scheduling.md` 5장의 사용자 상태에
+ * `no_candidates(고갈)`가 있고, 운영 콘솔이 **고갈 사용자 수**를 본다. 합쳐 두면 "2편 적립"과
+ * "0편 고갈"이 같은 숫자에 들어가, 후보가 말라 가는 것을 지표로 알 수 없다.
+ */
+type UserOutcome = 'scheduled' | 'skipped' | 'exhausted';
 
 /**
  * 일일 편성 배치 — `drip-scheduling.md` 2(트리거)·4(처리 로직)의 실행부다.
@@ -87,6 +94,7 @@ export class DripBatchOrchestrator {
       targetCount: 0,
       successCount: 0,
       skippedCount: 0,
+      exhaustedCount: 0,
       failedCount: 0,
     };
 
@@ -117,6 +125,8 @@ export class DripBatchOrchestrator {
 
             if (outcome === 'scheduled') {
               counts.successCount += 1;
+            } else if (outcome === 'exhausted') {
+              counts.exhaustedCount += 1;
             } else {
               counts.skippedCount += 1;
             }
@@ -132,7 +142,21 @@ export class DripBatchOrchestrator {
         afterId = users[users.length - 1].id;
       }
     } finally {
-      await this.dripBatchRunService.finish(run, counts, new Date());
+      /**
+       * **`exhaustedCount`는 저장하지 않는다.** `drip_batch_runs`에 그 컬럼이 없고
+       * (`domain.md` 7.3), 문서에 없는 컬럼을 코드가 만들지 않는다. 지금은 아래 집계
+       * 로그로만 남는다 — 컬럼 신설은 `changes/`로 요청했다.
+       */
+      await this.dripBatchRunService.finish(
+        run,
+        {
+          targetCount: counts.targetCount,
+          successCount: counts.successCount,
+          skippedCount: counts.skippedCount,
+          failedCount: counts.failedCount,
+        },
+        new Date(),
+      );
     }
 
     // 건당 로그를 남기지 않고 실행 결과를 집계해 한 번 남긴다 (convention.md 8.3 — 드립 편성)
@@ -204,7 +228,9 @@ export class DripBatchOrchestrator {
       });
     }
 
-    return 'scheduled';
+    // 정규 편성이 0편이면 후보가 마른 것이다(4.1의 스킵 조건은 위에서 이미 걸렀다).
+    // 탐험 슬롯만 채워졌더라도 본편이 없으면 그날의 편성은 성공이 아니다
+    return regularPicks.ids.length > 0 ? 'scheduled' : 'exhausted';
   }
 
   /** 4.3 — 배치 시점에 최신 신호를 읽어 취향 캐시를 재계산한다 */

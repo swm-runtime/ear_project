@@ -10,6 +10,8 @@ import {
   toPreviousFinalWeekStart,
 } from '@/common/utils/service-date.util';
 
+import { normalizeStoredText } from '@/common/utils/search-text.util';
+
 import { WITHDRAWN_SYNC_MAX_LIMIT } from '../content.constant';
 import {
   ALL_TIME_PERIOD_START,
@@ -358,11 +360,14 @@ export class ContentService {
     manager: EntityManager,
   ): Promise<Content> {
     const content = this.contentRepository.create({
-      title: command.title,
-      description: command.description,
+      // NFC로 맞춰 적재한다 — 질의만 정규화하면 NFD 제목이 검색에서 조용히 사라진다
+      title: normalizeStoredText(command.title),
+      description: normalizeStoredText(command.description),
       origin: command.origin,
-      authorName: command.authorName,
-      sourceName: command.sourceName,
+      authorName: command.authorName
+        ? normalizeStoredText(command.authorName)
+        : null,
+      sourceName: normalizeStoredText(command.sourceName),
       sourceUrl: command.sourceUrl,
       partnerId: command.partnerId,
       licenseExpiresAt: command.licenseExpiresAt,
@@ -421,13 +426,13 @@ export class ContentService {
     manager: EntityManager,
   ): Promise<Content> {
     if (command.title !== undefined) {
-      content.title = command.title;
+      content.title = normalizeStoredText(command.title);
     }
     if (command.description !== undefined) {
-      content.description = command.description;
+      content.description = normalizeStoredText(command.description);
     }
     if (command.sourceName !== undefined) {
-      content.sourceName = command.sourceName;
+      content.sourceName = normalizeStoredText(command.sourceName);
     }
     if (command.audioPath !== undefined) {
       content.audioPath = command.audioPath;

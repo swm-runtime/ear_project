@@ -50,8 +50,25 @@ export class UserRepository {
    * 파이프라인 SSO(auth) — 이메일이 같은 **관리자** 계정. `email`은 유일 제약이 없으므로
    * (제공자별 계정이 같은 주소를 가질 수 있다) role까지 대조해 대상을 하나로 좁힌다.
    */
+  /**
+   * 파이프라인 SSO가 관리자 계정을 찾는 유일한 경로(`auth-api.md` 4.12).
+   *
+   * **대소문자를 무시하고 비교한다.** 어느 제공자도 로컬 파트를 대소문자로 구분하지 않는데,
+   * 정확 일치로 두면 `Alice@corp.com` 어서션이 `alice@corp.com` 행을 못 찾아 **권한 문제처럼
+   * 보이는 403**이 난다.
+   *
+   * **정렬을 고정한다.** `email`은 유니크가 아니고(`domain.md` 3.1 — 식별자가 아니라 연락처),
+   * 같은 주소의 관리자가 둘이면 `LIMIT 1`이 **매번 다른 행**을 줄 수 있다. 그러면
+   * `audit_logs.actor`가 실행할 때마다 갈린다.
+   */
   async findAdminByEmail(email: string): Promise<User | null> {
-    return this.repository.findOneBy({ email, role: UserRole.ADMIN });
+    return this.repository
+      .createQueryBuilder('user')
+      .where('LOWER(user.email) = LOWER(:email)', { email: email.trim() })
+      .andWhere('user.role = :role', { role: UserRole.ADMIN })
+      .orderBy('user.created_at', 'ASC')
+      .addOrderBy('user.id', 'ASC')
+      .getOne();
   }
 
   /**
