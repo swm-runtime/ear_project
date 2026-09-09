@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, IsNull, Repository } from 'typeorm';
+import { EntityManager, IsNull, LessThan, Repository } from 'typeorm';
 
 import { Session } from './session.entity';
 
@@ -60,6 +60,23 @@ export class SessionRepository {
       { userId, revokedAt: IsNull() },
       { revokedAt },
     );
+  }
+
+  /**
+   * 만료(`expires_at`) 또는 폐기(`revoked_at`)가 기준 시각보다 앞선 세션을 지운다.
+   * 활성 세션(`revoked_at IS NULL` 이고 `expires_at`이 기준 뒤)은 어느 조건에도 걸리지 않는다.
+   * 반환값은 삭제 행 수.
+   */
+  async deleteInactiveBefore(
+    before: Date,
+    manager?: EntityManager,
+  ): Promise<number> {
+    const result = await this.scoped(manager).delete([
+      { revokedAt: LessThan(before) },
+      { expiresAt: LessThan(before) },
+    ]);
+
+    return result.affected ?? 0;
   }
 
   async revokeByUserIdAndDeviceId(
