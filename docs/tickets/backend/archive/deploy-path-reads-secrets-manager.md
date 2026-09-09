@@ -8,7 +8,7 @@
 | 발견 시점 | `tickets/infra/pending/prod-secrets-storage.md`(KAN-35) 인프라 몫 완료 — AWS 쪽은 끝났고 배포 경로 연결만 남았다 |
 | 근거 문서 | `tickets/infra/pending/prod-secrets-storage.md`(패치 제안 전문) · `backend/deploy/aws/README.md` |
 | 심각도 | **하** — 지금도 `.env.prod`로 정상 동작한다. 다만 이걸 붙여야 KAN-35의 완료 조건이 찬다 |
-| 상태 | 대기 |
+| 상태 | 반영 완료 (2026-09-09) |
 | 연관 | Jira KAN-35(인프라) — 이 티켓이 닫혀야 그쪽 완료 조건 2가 찬다 |
 
 ## 배경 — AWS 쪽은 이미 끝났다
@@ -94,3 +94,17 @@ infra 패치 제안 그대로 반영했다(`feat(be)/deploy-secrets-and-lint`).
 
 **남은 것**: 완료 조건 1(dev 머지 → 배포 워크플로에서 비밀 8종 갱신 + 정상 기동)은 머지 후
 첫 배포 run으로 확인한다. 확인되면 이 티켓과 infra 티켓(KAN-35)의 완료 조건 2가 함께 닫힌다.
+
+## 처리 기록 (반영 날짜: 2026-09-09 — 완료 조건 3개 전부 충족)
+
+PR #270 머지 → `deploy-api.yml` 실배포로 실측 확인했다.
+
+| 완료 조건 | 확인 |
+|---|---|
+| 머지 → 배포에서 비밀 8종 갱신 + 정상 기동 | ✅ 배포 로그 `[secrets] 8 개 항목 갱신` → 재기동 → `✅ 200 (2회째) — 6dc5741 배포 완료`. 실서버 health 200 — `env.validation.ts` 통과 |
+| 조회 실패 시 `.env.prod`·컨테이너 무변경 + 배포 실패 | ✅ `set -e` 순서로 보장(조회·검증이 파일 접촉 전) — 로컬 검증에서 실패 케이스 확인 |
+| 시크릿에만 있는 키 → 조용히 추가하지 않고 실패 | ✅ `apply-secrets.py` 로컬 검증(종료 1) |
+
+이로써 **비밀값의 원천이 Secrets Manager로 전환 완료** — 값 교체 절차는 `put-secret-value` 후
+재배포(`deploy/aws/README.md`에 명시). infra 티켓(`prod-secrets-storage`, KAN-35)의 남은 완료
+조건 2도 같은 실측으로 닫혀 함께 archive했다.
