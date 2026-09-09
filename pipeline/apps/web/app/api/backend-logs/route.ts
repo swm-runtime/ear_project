@@ -5,6 +5,7 @@ import {
   GetLogEventsCommand,
 } from "@aws-sdk/client-cloudwatch-logs";
 import { currentUser } from "@/lib/supabase-server";
+import { collectRequestLogs, LogEvent } from "@/lib/backend-request-log";
 
 /**
  * 백엔드(제품 API EC2) 컨테이너 로그 조회 — CloudWatch Logs 경유 (Supabase 로그인 필수).
@@ -18,8 +19,24 @@ const GROUPS: Record<string, { group: string; stream: string }> = {
   api: { group: process.env.BACKEND_LOG_GROUP_API ?? "/ear/api", stream: "api" },
   caddy: { group: process.env.BACKEND_LOG_GROUP_CADDY ?? "/ear/caddy", stream: "caddy" },
 };
-const MAX_LIMIT = 1000;
+/**
+ * GetLogEvents 의 이벤트 상한(=CloudWatch 상한). **줄 수이지 요청 수가 아니다** — Nest
+ * ConsoleLogger 가 compact:false 로 요청 로그 객체를 8줄에 나눠 찍고 awslogs 가 줄마다
+ * 이벤트를 만들어서, 1,000줄이면 대시보드·요청 통계가 요청 125건만 보고 그렸다.
+ * 실시간 로그 뷰어는 여전히 기본 300줄만 당긴다(자기 limit 을 보낸다).
+ */
+const MAX_LIMIT = 10_000;
 const MAX_MINUTES = 7 * 24 * 60; // 보관 7일 — 그보다 과거는 어차피 없다
+
+/**
+ * requests 모드의 목표 **요청 건수**. 줄 상한과 다른 단위다 — 요청 1건이 9~11줄이고
+ * 실측(2026-09-08 운영 로그)으로 1,000줄 안의 요청 90건 중 60%가 헬스체크였다.
+ * 그래서 "1,000줄"은 그래프에 쓸 요청 36건이었고 6시간 창의 27분치밖에 못 채웠다.
+ * 목표 건수를 채울 때까지 GetLogEvents 를 과거로 넘기고, 왕복은 MAX_PAGES 로 막는다.
+ */
+const REQUEST_TARGET_DEFAULT = 1_500;
+const REQUEST_TARGET_MAX = 5_000;
+const MAX_PAGES = 6;
 
 let client: CloudWatchLogsClient | undefined;
 const getClient = () =>
@@ -41,12 +58,14 @@ export async function GET(req: NextRequest) {
   const limit = Math.min(MAX_LIMIT, Math.max(1, Number(sp.get("limit")) || 300));
 
   // errors 모드 — ERROR(·WARN)만 서버 측 패턴 필터로 걷어온다(에러 모아보기 페이지)
-  const mode = sp.get("mode") === "errors" ? "errors" : "tail";
+  const mode = sp.get("mode") === "errors" ? "errors" : sp.get("mode") === "requests" ? "requests" : "tail";
   const withWarn = sp.get("warn") === "1";
 
   // 개발 전용 스텁 — AWS 없이 화면을 확인한다. 운영 빌드(NODE_ENV=production)에서는 절대 켜지지 않는다
   if (process.env.NODE_ENV !== "production" && process.env.BACKEND_LOGS_STUB === "1") {
-    return NextResponse.json({ events: buildStubEvents(sp.get("group") ?? "api", mode, withWarn) });
+    const events = buildStubEvents(sp.get("group") ?? "api", mode, withWarn);
+    if (mode !== "requests") return NextResponse.json({ events });
+    return requestsResponse(async () => ({ events }), sp, minutes);
   }
 
   try {
@@ -62,6 +81,26 @@ export async function GET(req: NextRequest) {
       );
       const events = (out.events ?? []).map((e) => ({ t: e.timestamp ?? 0, message: clean(e.message) }));
       return NextResponse.json({ events });
+    }
+
+    if (mode === "requests") {
+      const startTime = Date.now() - minutes * 60_000;
+      return requestsResponse(async (token) => {
+        const out = await getClient().send(
+          new GetLogEventsCommand({
+            logGroupName: target.group,
+            logStreamName: target.stream,
+            startTime,
+            limit: MAX_LIMIT,
+            startFromHead: false, // 최신부터 — nextBackwardToken 으로 과거로 넘긴다
+            ...(token ? { nextToken: token } : {}),
+          }),
+        );
+        return {
+          events: (out.events ?? []).map((e) => ({ t: e.timestamp ?? 0, message: clean(e.message) })),
+          nextToken: out.nextBackwardToken,
+        };
+      }, sp, minutes);
     }
 
     const out = await getClient().send(
@@ -94,30 +133,85 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/** 스텁 이벤트 — 실제 NestJS·Caddy 로그와 비슷한 모양(전부 가짜 문장)으로 화면 확인용 */
-function buildStubEvents(group: string, mode: "tail" | "errors", withWarn: boolean) {
+const wantedTarget = (sp: URLSearchParams) =>
+  Math.min(REQUEST_TARGET_MAX, Math.max(1, Number(sp.get("target")) || REQUEST_TARGET_DEFAULT));
+
+/** requests 모드 응답 — `coveredFrom` 으로 화면이 "창을 다 못 채웠다"를 스스로 판단한다 */
+async function requestsResponse(
+  fetchPage: (token: string | undefined) => Promise<{ events: LogEvent[]; nextToken?: string }>,
+  sp: URLSearchParams,
+  minutes: number,
+) {
+  const { requests, exhausted, pages } = await collectRequestLogs(fetchPage, {
+    target: wantedTarget(sp),
+    excludeHealth: sp.get("exclude") === "health",
+    maxPages: MAX_PAGES,
+  });
+  return NextResponse.json({
+    requests,
+    coveredFrom: requests.length ? requests[0].t : null,
+    windowFrom: Date.now() - minutes * 60_000,
+    exhausted,
+    pages,
+  });
+}
+
+/**
+ * 스텁 이벤트 — 실제 NestJS·Caddy 로그와 **같은 모양**(전부 가짜 문장)으로 화면 확인용.
+ *
+ * 요청 로그는 반드시 운영과 같이 **여러 줄로** 낸다. 예전 스텁은 한 줄짜리라
+ * "요청 1건 = 9~11줄"이라는 사실 자체를 가려서, 줄 상한이 왜 모자란지 스텁으로는
+ * 영영 재현되지 않았다(2026-09-08).
+ */
+function buildStubEvents(group: string, mode: "tail" | "errors" | "requests", withWarn: boolean): LogEvent[] {
   const now = Date.now();
-  const api = [
+  if (group === "caddy") {
+    return ["203.0.113.7 - GET /api/v1/health 200 1ms", "198.51.100.3 - POST /api/v1/contents/3f9c/play 403 12ms"]
+      .flatMap((message, i) => (mode === "errors" ? [] : [{ t: now - (2 - i) * 30_000, message }]));
+  }
+
+  const head = "[Nest] 42  - 09/08/2026, 12:05:03 PM     LOG [LoggingInterceptor]";
+  /** 운영과 같은 여러 줄 record 로 편다 — awslogs 는 줄마다 이벤트를 만든다 */
+  const requestRecord = (t: number, i: number): LogEvent[] => {
+    const spec = [
+      { method: "GET", path: "/api/v1/users/me/library-items", status: 200, ms: 34 },
+      { method: "GET", path: "/api/v1/health", status: 200, ms: 1 },
+      { method: "POST", path: "/api/v1/contents/3f9c1a2b-0000-4000-8000-000000000001/play", status: 201, ms: 88 },
+      { method: "GET", path: "/api/v1/health", status: 200, ms: 1 },
+      { method: "GET", path: "/api/v1/explore", status: 200, ms: 152 },
+      { method: "POST", path: "/api/v1/auth/social-login", status: 401, ms: 21 },
+    ][i % 6];
+    return [
+      `${head} request completed`,
+      `${head} Object(6) {`,
+      `  trace_id: '01H8X${i}',`,
+      `  user_id: ${i % 3 === 0 ? "null" : `'3f9c1a2b-0000-4000-8000-00000000000${i % 10}'`},`,
+      `  method: '${spec.method}',`,
+      `  path: '${spec.path}',`,
+      `  status: ${spec.status},`,
+      `  duration_ms: ${spec.ms}`,
+      "}",
+    ].map((message, line) => ({ t: t + line, message }));
+  };
+
+  const noise = [
     '[Nest] 42  - LOG [DripBatchOrchestrator] drip batch finished { runDate: "2026-09-02", targetCount: 3, successCount: 3 }',
     '[Nest] 42  - WARN [AllExceptionsFilter] request failed { path: "/api/v1/auth/social-login", errorCode: "AUTH_INVALID_PROVIDER_TOKEN" }',
-    // 요청 완료 라인 — LoggingInterceptor 실제 형식(요청 통계 탭이 이 형태를 파싱한다)
-    "[Nest] 42  - LOG [LoggingInterceptor] Object(5) { trace_id: '01H8X', method: 'GET', path: '/api/v1/users/me/library-items', status: 200, duration_ms: 34 }",
-    "[Nest] 42  - LOG [LoggingInterceptor] Object(5) { trace_id: '01H8Y', method: 'POST', path: '/api/v1/contents/3f9c1a2b-0000-4000-8000-000000000001/play', status: 201, duration_ms: 88 }",
-    "[Nest] 42  - LOG [LoggingInterceptor] Object(5) { trace_id: '01H8Z', method: 'GET', path: '/api/v1/explore', status: 200, duration_ms: 152 }",
-    "[Nest] 42  - LOG [LoggingInterceptor] Object(5) { trace_id: '01H90', method: 'POST', path: '/api/v1/auth/social-login', status: 401, duration_ms: 21 }",
     '[Nest] 42  - ERROR [ExternalServiceException] store receipt verification timeout { target: "app-store", retryCount: 2 }',
     '[Nest] 42  - ERROR [TypeORMError] connection terminated unexpectedly { retryCount: 1 }',
   ];
-  const caddy = [
-    '203.0.113.7 - GET /api/v1/health 200 1ms',
-    '198.51.100.3 - POST /api/v1/contents/3f9c/play 403 12ms',
-  ];
-  let lines = group === "caddy" ? caddy : api;
+
   if (mode === "errors") {
-    lines = lines.filter((l) => /ERROR/.test(l) || (withWarn && /WARN/.test(l)));
+    return noise
+      .filter((l) => /ERROR/.test(l) || (withWarn && /WARN/.test(l)))
+      .flatMap((message, i) => Array.from({ length: 8 }, (_, k) => ({ t: now - (8 - k) * 60_000 + i, message })));
   }
-  return Array.from({ length: mode === "errors" ? 23 : 40 }, (_, i) => ({
-    t: now - (40 - i) * 30_000,
-    message: lines.length ? lines[i % lines.length] : "",
-  })).filter((e) => e.message);
+
+  const events: LogEvent[] = [];
+  for (let i = 0; i < 60; i++) {
+    const t = now - (60 - i) * 20_000;
+    events.push(...requestRecord(t, i));
+    if (i % 7 === 0) events.push({ t: t + 12, message: noise[i % noise.length] });
+  }
+  return events;
 }

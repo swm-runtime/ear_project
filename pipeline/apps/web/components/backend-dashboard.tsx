@@ -1,15 +1,25 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { Stat } from "@/components/ui";
+import { RequestLog } from "@/lib/backend-request-log";
+import { axisMax, Bucket, buildBuckets, percentile } from "@/lib/backend-latency-chart";
 
 /**
  * 대시보드 탭 — 요청 로그를 시간축 그래프로, 자원(CPU·메모리·DB 연결) 이력을 선 그래프로
  * 그린다. **자동 폴링하지 않는다** — 열 때 1회 + [새로고침] (사용자 결정 2026-09-06).
  *
- * - 요청·응답시간: 불러온 창(최대 1,000줄) 안의 근사치. 헬스체크(/health)는 제외
+ * - 요청·응답시간: 서버가 **요청 건수 기준**으로 모아준 창 안의 근사치(`mode=requests`).
+ *   목표 건수를 못 채우면 창 앞부분이 빠지고, 그때는 [요청 수] 카드가 어디부터인지 밝힌다.
+ *   헬스체크(/health)는 서버가 조회 단계에서 뺀다 — 예전엔 그것이 예산의 60%를 먹었다
  * - 자원 이력: 백엔드가 60초마다 쌓는 메모리 링 버퍼(최대 6시간) — 재기동(배포) 시 비워진다
  * - 모든 그래프는 마우스 호버로 시각·값을 보여준다
  */
+
+/**
+ * 서버에 요청할 **건수**. 줄이 아니라 건수라서 범위를 넓혀도 표본이 같이 늘어난다.
+ * 6시간 × 10분 버킷(36칸)이면 칸당 40건쯤 — p95 가 최댓값이 아니라 진짜 p95 가 된다.
+ */
+const REQUEST_TARGET = 1_500;
 
 const RANGES = [
   { minutes: 30, label: "30분" },
@@ -18,9 +28,6 @@ const RANGES = [
   { minutes: 360, label: "6시간" },
 ];
 
-type LogEvent = { t: number; message: string };
-type Parsed = { t: number; path: string; status: number; durationMs: number };
-
 type HistoryPoint = { t: number; cpu_used_percent: number | null; mem_used_percent: number | null; db_conn_total: number | null };
 type Metrics = {
   host: { load_1m: number; cpu_count: number; cpu_used_percent: number | null; mem_total_bytes: number; mem_available_bytes: number };
@@ -28,59 +35,8 @@ type Metrics = {
   history?: HistoryPoint[];
 };
 
-const FIELD_RES = {
-  method: /method:\s*'([A-Z]+)'/,
-  path: /path:\s*'([^']+)'/,
-  status: /status:\s*(\d{3})\b/,
-  durationMs: /duration_ms:\s*(\d+)\b/,
-};
-
-/** backend-traffic.tsx 와 같은 순차 스캔 — 여기서는 시간축이 필요해 record 시작 시각을 함께 든다 */
-function parseRequests(events: LogEvent[]): Parsed[] {
-  const parsed: Parsed[] = [];
-  let current: Partial<Parsed> = {};
-
-  for (const e of events) {
-    if (FIELD_RES.method.exec(e.message)) current = { t: e.t };
-    const path = FIELD_RES.path.exec(e.message)?.[1];
-    if (path) current.path = path.split("?")[0];
-    const status = FIELD_RES.status.exec(e.message)?.[1];
-    if (status) current.status = Number(status);
-    const durationMs = FIELD_RES.durationMs.exec(e.message)?.[1];
-    if (durationMs) current.durationMs = Number(durationMs);
-
-    if (current.t && current.path && current.status !== undefined && current.durationMs !== undefined) {
-      if (!current.path.endsWith("/health")) parsed.push(current as Parsed);
-      current = {};
-    }
-  }
-  return parsed;
-}
-
-type Bucket = { start: number; ok: number; errors: number; durations: number[] };
-
-function buildBuckets(parsed: Parsed[], minutes: number, now: number): Bucket[] {
-  const bucketMs = (minutes <= 30 ? 1 : minutes <= 60 ? 2 : minutes <= 180 ? 5 : 10) * 60_000;
-  const from = now - minutes * 60_000;
-  const count = Math.ceil((minutes * 60_000) / bucketMs);
-  const buckets: Bucket[] = Array.from({ length: count }, (_, i) => ({
-    start: from + i * bucketMs, ok: 0, errors: 0, durations: [],
-  }));
-
-  for (const p of parsed) {
-    const idx = Math.floor((p.t - from) / bucketMs);
-    if (idx < 0 || idx >= count) continue;
-    if (p.status >= 400) buckets[idx].errors += 1;
-    else buckets[idx].ok += 1;
-    buckets[idx].durations.push(p.durationMs);
-  }
-  return buckets;
-}
-
-function percentile(sorted: number[], p: number): number {
-  if (sorted.length === 0) return 0;
-  return sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))];
-}
+/** 서버가 요청 건수 기준으로 모아 준 응답 — 파싱은 `lib/backend-request-log.ts` 가 서버에서 한다 */
+type RequestsBody = { requests: RequestLog[]; coveredFrom: number | null; windowFrom: number; exhausted: boolean };
 
 const hhmm = (t: number) => new Date(t).toLocaleTimeString("ko-KR", { hour12: false, hour: "2-digit", minute: "2-digit" });
 const GiB = 1024 ** 3;
@@ -125,16 +81,21 @@ function YGrid({ max, unit }: { max: number; unit: string }) {
   );
 }
 
-/** x축 시각 눈금 ~5개 */
-function XTicks({ times }: { times: number[] }) {
+/**
+ * x축 시각 눈금 ~5개. `bucketed` 는 값이 점이 아니라 **구간**(버킷)일 때 — 눈금을 칸
+ * 가운데에 둬서 막대·선의 x 와 같은 자리를 가리키게 한다.
+ */
+function XTicks({ times, bucketed = false }: { times: number[]; bucketed?: boolean }) {
   if (times.length === 0) return null;
+  const tickX = (i: number) =>
+    bucketed ? ((i + 0.5) * W) / times.length : (i / Math.max(1, times.length - 1)) * W;
   const step = Math.max(1, Math.ceil(times.length / 5));
   const idxs = Array.from({ length: times.length }, (_, i) => i).filter((i) => i % step === 0);
   if (idxs[idxs.length - 1] !== times.length - 1) idxs.push(times.length - 1);
   return (
     <>
       {idxs.map((i) => (
-        <text key={i} x={(i / Math.max(1, times.length - 1)) * W} y={H + 12}
+        <text key={i} x={tickX(i)} y={H + 12}
           textAnchor={i === 0 ? "start" : i === times.length - 1 ? "end" : "middle"}
           className="fill-ink-soft text-[9px]">{hhmm(times[i])}</text>
       ))}
@@ -168,7 +129,7 @@ function RequestBars({ buckets }: { buckets: Bucket[] }) {
             </g>
           );
         })}
-        <XTicks times={buckets.map((b) => b.start)} />
+        <XTicks times={buckets.map((b) => b.start)} bucketed />
       </svg>
       {idx !== null && (
         <Tip ratio={ratio!} lines={[
@@ -180,19 +141,31 @@ function RequestBars({ buckets }: { buckets: Bucket[] }) {
   );
 }
 
-/** 버킷별 응답시간 p50/p95 선 — 요청 없는 버킷은 선을 끊는다. 호버 시 값 */
+/**
+ * 버킷별 응답시간 p50/p95 선 — 요청 없는 버킷은 선을 끊는다. 호버 시 값과 표본 수.
+ *
+ * x 는 **버킷 가운데**다 — 옆의 요청 수 막대(폭 W/n)와 같은 자리를 가리켜야 두 그래프를
+ * 나란히 읽을 수 있다. 끝점을 0..W 로 펼치면 버킷마다 반 칸씩 어긋난다.
+ * 표본이 적은 버킷의 p95 는 정의상 그 버킷의 최댓값에 가깝다 — 그래서 건수를 함께 띄우고,
+ * y축은 그 값 하나에 끌려가지 않게 `axisMax` 로 잡는다(넘는 점은 ▲).
+ * 앞뒤가 빈 **고립된 칸은 점으로** 찍는다 — 선만으로는 화면에서 사라진다.
+ */
 function LatencyLines({ buckets }: { buckets: Bucket[] }) {
   const { ratio, onMouseMove, onMouseLeave } = useHoverRatio();
   const points = buckets.map((b, i) => {
     const sorted = [...b.durations].sort((a, z) => a - z);
-    return { i, p50: percentile(sorted, 50), p95: percentile(sorted, 95), has: sorted.length > 0 };
+    return { i, p50: percentile(sorted, 50), p95: percentile(sorted, 95), n: sorted.length };
   });
-  const max = Math.max(50, ...points.map((p) => p.p95));
-  const x = (i: number) => (i / Math.max(1, buckets.length - 1)) * W;
-  const y = (v: number) => H - (v / max) * H;
+  const max = axisMax(points.map((p) => p.p95));
+  const x = (i: number) => ((i + 0.5) * W) / buckets.length;
+  const y = (v: number) => H - (Math.min(v, max) / max) * H;
   const path = (pick: (p: (typeof points)[number]) => number) =>
-    points.map((p, i) => (p.has ? `${i === 0 || !points[i - 1]?.has ? "M" : "L"}${x(p.i).toFixed(1)},${y(pick(p)).toFixed(1)}` : "")).join(" ");
-  const idx = ratio === null ? null : Math.min(buckets.length - 1, Math.round(ratio * (buckets.length - 1)));
+    points.map((p, i) => (p.n > 0 ? `${i === 0 || !points[i - 1]?.n ? "M" : "L"}${x(p.i).toFixed(1)},${y(pick(p)).toFixed(1)}` : "")).join(" ");
+  // 앞뒤가 모두 빈 칸은 subpath 가 moveto 하나뿐이라 SVG 가 **아무것도 그리지 않는다** —
+  // 요청이 있었는데도 조용히 사라지므로 점으로 찍는다. 한산한 시간대일수록 자주 생긴다
+  const isolated = points.filter((p) => p.n > 0 && !points[p.i - 1]?.n && !points[p.i + 1]?.n);
+  const clipped = points.filter((p) => p.n > 0 && p.p95 > max);
+  const idx = ratio === null ? null : Math.min(buckets.length - 1, Math.floor(ratio * buckets.length));
 
   return (
     <div className="relative" onMouseMove={onMouseMove} onMouseLeave={onMouseLeave}>
@@ -200,18 +173,29 @@ function LatencyLines({ buckets }: { buckets: Bucket[] }) {
         <YGrid max={max} unit="ms" />
         <path d={path((p) => p.p95)} className="fill-none stroke-amber-500" strokeWidth={1.5} />
         <path d={path((p) => p.p50)} className="fill-none stroke-brand" strokeWidth={1.5} />
-        {idx !== null && points[idx].has && (
+        {isolated.map((p) => (
+          <g key={`iso-${p.i}`}>
+            <circle cx={x(p.i)} cy={y(p.p95)} r={1.75} className="fill-amber-500" />
+            <circle cx={x(p.i)} cy={y(p.p50)} r={1.75} className="fill-brand" />
+          </g>
+        ))}
+        {clipped.map((p) => (
+          <path key={`clip-${p.i}`} d={`M${(x(p.i) - 3.5).toFixed(1)},5 L${(x(p.i) + 3.5).toFixed(1)},5 L${x(p.i).toFixed(1)},0 Z`}
+            className="fill-amber-500" />
+        ))}
+        {idx !== null && points[idx].n > 0 && (
           <>
             <line x1={x(idx)} x2={x(idx)} y1={0} y2={H} className="stroke-ink-soft" strokeWidth={0.5} />
             <circle cx={x(idx)} cy={y(points[idx].p50)} r={2.5} className="fill-brand" />
             <circle cx={x(idx)} cy={y(points[idx].p95)} r={2.5} className="fill-amber-500" />
           </>
         )}
-        <XTicks times={buckets.map((b) => b.start)} />
+        <XTicks times={buckets.map((b) => b.start)} bucketed />
       </svg>
       {idx !== null && (
-        <Tip ratio={ratio!} lines={points[idx].has
-          ? [hhmm(buckets[idx].start), `p50 ${points[idx].p50}ms · p95 ${points[idx].p95}ms`]
+        <Tip ratio={ratio!} lines={points[idx].n > 0
+          ? [hhmm(buckets[idx].start), `p50 ${points[idx].p50}ms · p95 ${points[idx].p95}ms`,
+             `${points[idx].n}건${points[idx].p95 > max ? " · p95 는 축 상한 초과" : ""}`]
           : [hhmm(buckets[idx].start), "요청 없음"]} />
       )}
     </div>
@@ -284,7 +268,7 @@ function SampleLines({ history, from, to, series, yMax, unit, refLines }: {
 
 export function BackendDashboard() {
   const [minutes, setMinutes] = useState(60);
-  const [events, setEvents] = useState<LogEvent[]>([]);
+  const [body, setBody] = useState<RequestsBody | null>(null);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -294,12 +278,13 @@ export function BackendDashboard() {
     setLoading(true);
     try {
       const [logsRes, metricsRes] = await Promise.all([
-        fetch(`/api/backend-logs?group=api&minutes=${minutes}&limit=1000`, { cache: "no-store" }),
+        fetch(`/api/backend-logs?mode=requests&group=api&minutes=${minutes}&target=${REQUEST_TARGET}&exclude=health`, { cache: "no-store" }),
         fetch("/api/backend-metrics", { cache: "no-store" }),
       ]);
-      const logsBody = (await logsRes.json()) as { events?: LogEvent[]; message?: string };
+      const logsBody = (await logsRes.json()) as Partial<RequestsBody> & { message?: string };
       if (!logsRes.ok) { setError(logsBody.message ?? `조회 실패 (${logsRes.status})`); return; }
-      setEvents(logsBody.events ?? []);
+      setBody({ requests: logsBody.requests ?? [], coveredFrom: logsBody.coveredFrom ?? null,
+        windowFrom: logsBody.windowFrom ?? 0, exhausted: logsBody.exhausted ?? true });
       // 자원 스냅샷·이력은 실패해도 요청 그래프는 그린다 (서버 미배포 등)
       setMetrics(metricsRes.ok ? ((await metricsRes.json()) as Metrics) : null);
       setError(null);
@@ -320,12 +305,13 @@ export function BackendDashboard() {
     return <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700">{error}</div>;
   }
 
-  const parsed = parseRequests(events);
+  const parsed = body?.requests ?? [];
   const buckets = buildBuckets(parsed, minutes, loadedAt);
   const errorCount = parsed.filter((p) => p.status >= 400).length;
-  const sortedAll = parsed.map((p) => p.durationMs).sort((a, b) => a - b);
 
   const from = loadedAt - minutes * 60_000;
+  // 목표 건수를 못 채우면 창의 앞부분이 빠진다 — 그래프 왼쪽이 빈 이유를 밝힌다
+  const truncated = body !== null && !body.exhausted && parsed.length > 0 && parsed[0].t > from;
   const history = metrics?.history ?? [];
   const maxConn = metrics?.db.connections.max ?? 0;
   const connMaxSeen = Math.max(10, ...history.map((p) => p.db_conn_total ?? 0));
@@ -349,7 +335,9 @@ export function BackendDashboard() {
       </div>
 
       <div className="mb-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="요청 수" value={`${parsed.length}건`} sub={`창 ${minutes}분 · 최대 1,000줄 근사`} tone="text-ink" />
+        <Stat label="요청 수" value={`${parsed.length}건`}
+          sub={truncated ? `${hhmm(parsed[0].t)} 이후만 — 상한 ${REQUEST_TARGET.toLocaleString()}건` : `창 ${minutes}분 · 헬스체크 제외`}
+          tone="text-ink" />
         <Stat label="오류(4xx/5xx)" value={`${errorCount}건`} sub={parsed.length ? `${((errorCount / parsed.length) * 100).toFixed(1)}%` : "—"} tone={errorCount > 0 ? "text-red-600" : "text-brand-ink"} />
         <Stat label="현재 CPU" value={metrics?.host.cpu_used_percent === null || !metrics ? "—" : `${metrics.host.cpu_used_percent!.toFixed(0)}%`} sub={metrics ? `load ${metrics.host.load_1m.toFixed(2)} · ${metrics.host.cpu_count}코어` : "조회 실패"} tone="text-ink" />
         <Stat label="현재 메모리" value={memUsed === null ? "—" : `${memUsed.toFixed(0)}%`} sub={metrics ? `가용 ${(metrics.host.mem_available_bytes / GiB).toFixed(1)}GB / ${(metrics.host.mem_total_bytes / GiB).toFixed(1)}GB` : "조회 실패"} tone="text-ink" />
@@ -361,7 +349,7 @@ export function BackendDashboard() {
           <RequestBars buckets={buckets} />
         </div>
         <div className={card}>
-          <h3 className={title}>응답시간 <span className="font-normal text-ink-soft">· <span className="text-brand">p50</span> / <span className="text-amber-600">p95</span></span></h3>
+          <h3 className={title}>응답시간 <span className="font-normal text-ink-soft">· <span className="text-brand">p50</span> / <span className="text-amber-600">p95</span> · <span className="text-amber-600">▲</span> 축 상한 초과</span></h3>
           <LatencyLines buckets={buckets} />
         </div>
         <div className={card}>
