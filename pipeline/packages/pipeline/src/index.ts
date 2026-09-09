@@ -88,12 +88,20 @@ export function pickIntroStyle(seed: number) {
 
 const COMMON_RULES = `   - 핵심 규칙 리마인드: 소스가 말한 것까지만 (비교 축 추가·연관의 방향 확정·귀속 범위 확장·연대 환산·문장 위치 주장 금지 — QA 최다 실패 유형), 복창 대신 번역, 질문에 기원 서사, 티키타카·호흡 교차 (**후반부까지** 유지 — 후반 리듬 균질화가 4편 연속 지적됨), 역질문 1~2회, '요'체·'다'체 혼용, 귀속 전언체, 비유는 새 이해를 줄 때만 + 에피소드 내 비유 계열 통일, AI체·번역투 금지 (소리 내 읽어 어색하면 다시), 날짜는 년-월까지, 소수점·정밀 수치는 자연스러운 범위 표현 (단 실제보다 크게 올림 금지), 가독 표기 (음차 금지 — 영문 고유명사·두문자는 원표기), 오디오 태그는 [curious] [surprised] [sighs] [exhales] [laughs] [whispers] [excited]만 턴당 최대 1개 수준. 소스 게재 매체를 언급할 때 "같은 매체" 같은 지시어는 직전 명명 매체로 해소되므로 매체가 바뀌면 반드시 재명명.`;
 
+/** spec 문서에서 `## n.` 장만 골라 잇는다 (2026-09-09 프롬프트 슬림화): 대본·설계 프롬프트는 spec/04 의 규격 장(3~6)만 반입하고 절차·산출물·숏폼·완료 조건은 넣지 않는다 — 규칙 33K자 중 5K 절감, 모델이 볼 이유가 없는 장이다 */
+export function specSections(md: string, nums: number[]): string {
+  const parts = md.split(/^(?=## \d+\. )/m);
+  return parts.filter((p) => { const m = p.match(/^## (\d+)\. /); return m && nums.includes(Number(m[1])); }).map((p) => p.trim()).join("\n\n");
+}
+
 const GOLD_USAGE = `   **골드 사용법 (중요)**: 골드에서 배울 것은 구조·리듬·기법·전언체뿐이다. 골드의 **구체 비유(요리 재료·마트 진열대·사진 현상 등), 특정 문구(확인구 "예리하세요"·"정확해요"·"딱 그 그림이에요", 역질문 답변 "솔직히 반반이에요", 피벗 "오늘 이야기가 정확히 그 얘기예요" 등), 도입 형태는 재사용 금지** — 같은 기법을 새 재료로 구현하라.`;
 
 export interface Templates {
   version: string;
   intro: string;
   closing: string;
+  /** 클로징 인사 (tpl-v2, 2026-09-09 박수헌): 해설 담당 정리 뒤 진행 담당이 말하는 **마지막 턴**. 한 줄에 골격 하나 — 여러 줄이면 에피소드마다 돌아가며 쓴다. 비우면 tpl-v1 형태(정리로 끝) */
+  closing_signoff?: string;
   major_lines: Record<string, string>;
 }
 
@@ -105,10 +113,22 @@ export interface DraftInput {
   introStyle: (typeof INTRO_STYLES)[number];
   promptVersion: string;
   templates?: Templates | null;
+  /** 클로징 인사 골격 선택 시드 (에피소드 수) — 여러 골격이면 돌아가며 */
+  signoffSeed?: number;
   majorTopic?: string;
 }
 
 /** 시그니처 인트로·마무리 (미결 #7 확정, 2026-08-31 박수헌). 골격은 고정, {슬롯}만 에피소드별로 채운다. */
+/** 클로징 인사 골격 목록 — 템플릿 문자열의 비어 있지 않은 줄 하나가 골격 하나 */
+export function signoffVariants(t: Templates | null | undefined): string[] {
+  return (t?.closing_signoff ?? "").split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+}
+/** 에피소드마다 돌아가며 고른다 (seed = 에피소드 수, 도입 방식과 같은 방식) */
+export function pickSignoff(t: Templates | null | undefined, seed: number): string | null {
+  const v = signoffVariants(t);
+  return v.length ? v[Math.abs(seed) % v.length] : null;
+}
+
 function templateBlock(i: DraftInput): string {
   const t = i.templates;
   if (!t) return "   - 인트로·클로징 템플릿 미확정 — `{인트로 템플릿}` / `{클로징 템플릿}` 자리 표기만 남긴다.";
@@ -125,7 +145,12 @@ ${t.intro}
 ${t.closing}
 \`\`\`
      · 진행 담당이 위 두 문장(지금까지~ + 한마디/정리 요청)을 말하고, **해설 담당이 이어서 내용을 정리**한다 — 정리는 "무엇을 이해하게 됐나"로 닫는다 (규칙 13-1).
-     · 진행자의 "한마디"는 매번 새로 쓴다 (예시 문구를 복제하지 말 것).`;
+     · 진행자의 "한마디"는 매번 새로 쓴다 (예시 문구를 복제하지 말 것).${pickSignoff(t, i.signoffSeed ?? 0) ? `
+   - **클로징 인사 (고정 시그니처 — 대본의 마지막 턴, 진행 담당. 이 에피소드에 지정된 골격)**:
+\`\`\`
+${pickSignoff(t, i.signoffSeed ?? 0)}
+\`\`\`
+     · 해설 담당의 정리 턴 **다음에** 진행 담당이 이 골격으로 한 턴 더 말하고 대본이 끝난다 — 마지막 턴은 반드시 진행(Y) 턴이다. {슬롯}만 채우고 골격은 바꾸지 않는다. 골드 예시에는 이 턴이 없다(tpl-v1 시절) — 템플릿이 우선한다.` : ""}`;
 }
 
 export function buildDraftPrompt(i: DraftInput): string {
@@ -558,7 +583,7 @@ ${sources}
   진행자 질문: 기원 서사가 붙은 질문 한 개 (왜 궁금해졌는지 한 조각 + 질문)
   전환 장치: 번역 맞장구로 닫기 | 인용구 던지기 | 되물음 | 딴 얘기 끼어들기 | 역질문 중 하나
   비율: n%
-구간 #2 … (본문 구간 4~6개. 도입은 구간에 넣지 않는다 — [도입] 구역이 따로 맡는다)
+구간 #2 … (본문 구간 4~6개. 도입은 구간에 넣지 않는다 — [도입] 구역이 따로 맡는다. **한 소스의 재료가 본문의 1/3 을 넘지 않게**, 소스의 서술 순서를 그대로 구간 순서로 삼지 않는다 — 기사 순서가 구조가 되면 나열이 이해를 앞선다)
 
 연결·비유 (대본이 만드는 것 — 사실이 아님, QA 대상 아님)
 - "X를 Y로 옮김" — 근거 C##/C##, 어느 구간에서
@@ -582,7 +607,7 @@ ${sources}
 ## 4. 자기 점검 (필수 — python 등으로 기계 확인)
 - claims의 모든 행에 발췌 ID가 있는가. 발췌 ID가 실제 sources.md에 존재하는가.
 - 구성안의 재료 ID가 전부 claims에 있는가.
-- 소스 단위 구간이 없는가. 착지 구간이 지정됐는가. 예상 분량이 13분 이상인가.
+- 소스 단위 구간이 없는가. **한 소스의 재료가 본문 구간의 1/3 을 넘지 않는가**, 소스의 서술 순서가 그대로 구간 순서가 되지 않았는가 (판정: "음료 얘기가 불필요하게 길었음" — 기사 순서가 구조가 되면 나열이 이해를 앞선다). 착지 구간이 지정됐는가. 예상 분량이 13분 이상인가.
 
 ## 5. 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다.`;
 }
@@ -614,6 +639,8 @@ export interface WriteInput {
   introStyle: (typeof INTRO_STYLES)[number];
   promptVersion: string;
   templates?: Templates | null;
+  /** 클로징 인사 골격 선택 시드 (에피소드 수) — 여러 골격이면 돌아가며 */
+  signoffSeed?: number;
   majorTopic?: string;
   /** 설계의 예상 분량(분) — 2단계의 분량 목표. 없으면 15 */
   estimatedMinutes?: number;
@@ -662,15 +689,12 @@ export function buildWritePrompt(i: WriteInput): string {
 ### 2.1 대본 규칙 — guidelines (${i.promptVersion})
 ${fence(i.guidelines)}
 
-### 2.2 대본 규격·페르소나 — spec/04
-${fence(i.specScript)}
+### 2.2 대본 규격·페르소나 — spec/04 (3~6장)
+${fence(specSections(i.specScript, [3, 4, 5, 6]))}
 
-### 2.3 골드 예시 2종 — 톤·리듬·티키타카의 기준
+### 2.3 골드 예시 — 톤·리듬·티키타카의 기준 (이 에피소드와 같은 역할 배치: ${explainer} 해설)
 ${GOLD_USAGE}
-#### 골드 A (이음 해설)
-${fence(i.goldFullEum)}
-#### 골드 B (윤아 해설)
-${fence(i.goldFullYuna)}
+${fence(explainer === "이음" ? i.goldFullEum : i.goldFullYuna)}
 
 ## 3. 이 에피소드의 재료
 ### 3.1 구성안 — outline.md (계약: 구간 순서·목적·재료·진행자 질문·전환 장치를 그대로 실행한다)
@@ -690,7 +714,7 @@ ${fence(i.pronunciationsJson)}
 - 첫 줄 메타: \`에피소드 ID · 제목 · 중분류 · 해설/진행 · 프롬프트 버전 ${i.promptVersion} · 사용 소스 수\`
 - 구역 헤더는 \`## [인트로]\` \`## [도입]\` \`## [본문]\` \`## [마무리]\` 4개뿐. **[콜드오픈] 구역은 폐지** — 만들지 않는다.
 - [본문] 안의 구간 경계는 \`### #n 소제목\` 한 줄로 표시한다 (구성안의 구간 번호·순서 그대로. TTS는 이 줄을 읽지 않는다).
-${templateBlock({ templates: i.templates, majorTopic: i.majorTopic } as DraftInput)}
+${templateBlock({ templates: i.templates, majorTopic: i.majorTopic, signoffSeed: i.signoffSeed } as DraftInput)}
 - 도입 (규칙 13): 주제 선언 뒤 첫 해설 턴 사이에 청취자가 "대화에 앉는" 두세 턴. 주제를 다시 발견하는 척 금지. 이 에피소드의 진입 방식: **${i.introStyle.label}** — ${i.introStyle.hint}
 
 ### 줄 문법 (TTS 파서 계약 — 정확히)
@@ -704,7 +728,6 @@ ${WRITE_FACT_RULES}
 - **이 에피소드의 목표: 약 ${i.estimatedMinutes ?? 15}분 = 공백·기호 제외 약 ${Math.round((i.estimatedMinutes ?? 15) * 350)}자 (±15%)** — 구성안의 "예상 분량"이다 (350자/분). 하한 13분(약 4,000자)은 필수이고 상한을 규칙으로 두지는 않지만, **예상 분량은 설계가 재료 총량으로 이미 정한 크기다** — 그보다 크게 쓰는 것은 재료가 많아서가 아니라 풀어 쓰기가 길어진 것이다.
 - **claims 는 쓸 수 있는 것의 상한이지 채워야 할 목록이 아니다.** 구간의 목적에 필요한 것만 쓴다. 채우기용 잡담·같은 말 반복 금지. 구간 비율(구성안의 %)은 참고값 — 비율을 맞추려고 문장을 늘리지 않는다.
 - 턴 길이 규격: 해설 1턴 2~5문장(에피소드 평균), **한 턴 최대 6문장** — 7문장 이상 턴은 L0가 잡아 재생성한다. 진행 1턴 1~2문장.
-${COMMON_RULES}
 
 ## 5. 자기 점검 (출력 전에, 머릿속에서 끝까지)
 - 구간 헤더의 순서·개수가 구성안과 같은가. 4,000자 이상인가. 해설 턴 평균 문장 수가 5 이하인가.
@@ -851,11 +874,10 @@ export function buildDesignPromptInline(i: DesignInlineInput): string {
 ## 1. 규칙 (구성안이 이 규칙을 만족할 수 있게 설계한다)
 ### 1.1 대본 규칙 — guidelines (${i.promptVersion})
 ${fence(i.guidelines)}
-### 1.2 대본 규격·페르소나 — spec/04
-${fence(i.specScript)}
-### 1.3 골드 예시 2종 — 톤·리듬의 기준 (문장을 베끼지 않는다)
-${fence(i.goldFullEum)}
-${fence(i.goldFullYuna)}
+### 1.2 대본 규격·페르소나 — spec/04 (3·4·6·7장)
+${fence(specSections(i.specScript, [3, 4, 6, 7]))}
+### 1.3 골드 예시 — 구간 형태·리듬의 기준 (같은 역할 배치: ${explainer} 해설. 문장을 베끼지 않는다)
+${fence(explainer === "이음" ? i.goldFullEum : i.goldFullYuna)}
 
 ## 2. 에피소드 정보 (백로그 ${i.candidate.id}, 게이트1 승인 완료)
 - 에피소드 ID: ${i.episodeId} · 제목(가): "${i.candidate.title}" · 중분류: ${i.candidate.mid_topic}
@@ -902,7 +924,7 @@ ${candidateAxisBlock(i.candidate)}
   진행자 질문: 기원 서사가 붙은 질문 한 개 (왜 궁금해졌는지 한 조각 + 질문)
   전환 장치: 번역 맞장구로 닫기 | 인용구 던지기 | 되물음 | 딴 얘기 끼어들기 | 역질문 중 하나
   비율: n%
-구간 #2 … (본문 구간 4~6개. 도입은 구간에 넣지 않는다 — [도입] 구역이 따로 맡는다)
+구간 #2 … (본문 구간 4~6개. 도입은 구간에 넣지 않는다 — [도입] 구역이 따로 맡는다. **한 소스의 재료가 본문의 1/3 을 넘지 않게**, 소스의 서술 순서를 그대로 구간 순서로 삼지 않는다 — 기사 순서가 구조가 되면 나열이 이해를 앞선다)
 
 연결·비유 (대본이 만드는 것 — 사실이 아님, QA 대상 아님)
 - "X를 Y로 옮김" — 근거 C##/C##, 어느 구간에서

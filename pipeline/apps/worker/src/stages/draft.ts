@@ -3,7 +3,7 @@ import path from "node:path";
 import { cfg, executedBy } from "../config.js";
 import { claimApprovedBacklog, deleteEpisode, enqueue, getBacklog, getBacklogStatus, getEpisode, getSetting, insertRun, majorOfMidTopic, nextEpisodeId, setBacklogStatus, setJobProgress, updateJobPayload, upsertEpisode, pool, type Job } from "../db.js";
 import type { Executor } from "../executors/index.js";
-import { buildDraftPrompt, buildDraftRevisionPrompt, DRAFT_SCHEMA, DRAFT_REVISION_SCHEMA, episodeDatePrefix, pickIntroStyle, type Templates } from "@ear/pipeline";
+import { buildDraftPrompt, buildDraftRevisionPrompt, DRAFT_SCHEMA, DRAFT_REVISION_SCHEMA, episodeDatePrefix, pickIntroStyle, signoffVariants, type Templates } from "@ear/pipeline";
 import { exists, hostOf, log, RetryLater } from "../util.js";
 import { prepareAssets, workerRev } from "../assets.js";
 import { listPrefix, pullPrefix, pushPrefix, s3Key } from "../storage.js";
@@ -81,9 +81,10 @@ export async function runDraft(job: Job, ex: Executor) {
     model = null;
     summary = `${episodeId} 초안 이어받기 (워커 재집기 복구 — 기존 산출물 사용, 생성 재실행 없음)`;
   } else if (attempt === 1 && cfg.draftMode === "two-stage") {
-    const intro = pickIntroStyle(await countEpisodes());
+    const seed = await countEpisodes();
+    const intro = pickIntroStyle(seed);
     const [templates, majorTopic] = await Promise.all([getSetting<Templates>("templates"), majorOfMidTopic(cand.mid_topic)]);
-    const t = await runTwoStageDraft({ job, ex, episodeId, candidate: cand, dir, rel, assetRoot, promptVersion, templates, majorTopic: majorTopic ?? undefined, introStyle: intro, fileTools });
+    const t = await runTwoStageDraft({ job, ex, episodeId, candidate: cand, dir, rel, assetRoot, promptVersion, templates, majorTopic: majorTopic ?? undefined, introStyle: intro, fileTools, signoffSeed: seed });
     out = { turns: t.stats.turns, chars: t.stats.chars, minutes: t.stats.minutes, sources_used: t.design?.sources_used ?? [], sources_excluded: t.design?.sources_excluded ?? [], self_check_fixes: t.write.self_check_fixes, notes: t.write.notes };
     model = t.model; costUsd = t.costUsd; tokens = t.tokens; summary = t.summary;
   } else if (attempt === 1) {
@@ -134,7 +135,7 @@ export async function runDraft(job: Job, ex: Executor) {
     const failures = (job.payload.qa_failures ?? []) as { location: string; item: string; reason: string }[];
     const prompt = buildDraftRevisionPrompt({ assetRoot, workRoot: cfg.workRoot, episodeId, candidate: cand, introStyle: pickIntroStyle(0), promptVersion, attempt, qaFailures: failures });
     log(`  draft(revision ${attempt}) ${episodeId}: QA 지적 ${failures.length}건 최소 수정`);
-    const r = await ex.run<RevisionOut>({ prompt, schema: DRAFT_REVISION_SCHEMA, allowedTools: ["Read", ...fileTools], addDirs: [dir, assetRoot], cwd: cfg.workRoot, timeoutMs: 40 * 60_000, model: cfg.claudeModel,
+    const r = await ex.run<RevisionOut>({ prompt, schema: DRAFT_REVISION_SCHEMA, allowedTools: ["Read", ...fileTools], addDirs: [dir, assetRoot], cwd: cfg.workRoot, timeoutMs: 40 * 60_000, model: cfg.revisionModel, maxThinkingTokens: cfg.thinkingRevision, // 2026-09-09: CLAUDE_MODEL(기본 Fable) 이 아니라 REVISION_MODEL — T260909-004 수정이 Fable 로 돈 사고
       onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: `대본 수정 (attempt ${attempt})` }).catch(() => {}),
       describe: (tool) => (tool === "Read" ? "지적 대조 중" : tool === "Edit" || tool === "Write" ? "대본 수정 중" : null),
     });
@@ -158,7 +159,8 @@ export async function runDraft(job: Job, ex: Executor) {
   // 여기서 잡지 않으면 QA·비평을 통과해 TTS 에서야 터진다 (2026-09-03 T260903-001/003 실측)
   const scriptMd = await fs.readFile(path.join(dir, "script.md"), "utf8");
   const outlineFile = path.join(dir, "outline.md");
-  const violations = [...formatViolations(scriptMd), ...((await exists(outlineFile)) ? twoStageViolations(scriptMd, await fs.readFile(outlineFile, "utf8")) : [])];
+  const signoffHeads = signoffVariants(await getSetting<Templates>("templates")).map((v) => v.split("{")[0].trim()); // tpl-v2 클로징 인사 골격들의 고정 머리 — 비어 있으면 검사 없음
+  const violations = [...formatViolations(scriptMd), ...((await exists(outlineFile)) ? twoStageViolations(scriptMd, await fs.readFile(outlineFile, "utf8"), { signoffHeads }) : [])];
   if (violations.length) {
     if (attempt >= 3) throw new Error(`대본 형식 위반이 attempt ${attempt}까지 남음 — 웹 턴 수정으로 처리 필요: ${violations.join(" / ")}`);
     const fixes = violations.map((v) => ({ location: "대본 전체", item: "L0 형식 계약 (spec/04 4장 줄 문법)", reason: v }));

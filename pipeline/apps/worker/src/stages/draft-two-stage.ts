@@ -26,6 +26,7 @@ export interface TwoStageArgs {
   job: Job; ex: Executor; episodeId: string; candidate: BacklogCandidate; dir: string; rel: string;
   assetRoot: string; promptVersion: string; templates: Templates | null; majorTopic?: string;
   introStyle: (typeof INTRO_STYLES)[number]; fileTools: string[];
+  signoffSeed?: number;
 }
 export interface TwoStageResult { summary: string; model: string | null; costUsd: number; tokens: unknown; design: DesignOut | null; write: WriteOut; stats: { turns: number; chars: number; minutes: number } }
 
@@ -83,7 +84,7 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
   const pronFile = path.join(dir, "pronunciations.json");
   const pronunciationsJson = (await exists(pronFile)) ? await read(pronFile) : "{}";
   const estimatedMinutes = design?.estimated_minutes || Number(outlineMd.match(/^예상 분량:\s*(\d+(?:\.\d+)?)\s*분/m)?.[1]) || 15; // 설계 이어받기면 outline.md 에서 읽는다
-  const prompt = buildWritePrompt({ episodeId, candidate: cand, introStyle: a.introStyle, promptVersion: a.promptVersion, templates: a.templates, majorTopic: a.majorTopic, estimatedMinutes, guidelines, specScript, goldFullEum, goldFullYuna, sourcesMd, claimsMd, outlineMd, pronunciationsJson });
+  const prompt = buildWritePrompt({ episodeId, candidate: cand, introStyle: a.introStyle, promptVersion: a.promptVersion, templates: a.templates, majorTopic: a.majorTopic, signoffSeed: a.signoffSeed, estimatedMinutes, guidelines, specScript, goldFullEum, goldFullYuna, sourcesMd, claimsMd, outlineMd, pronunciationsJson });
   log(`  draft ${episodeId} · 2/2 대본 (단발, 프롬프트 ${Math.round(prompt.length / 1000)}K자)`);
   let w: Awaited<ReturnType<typeof ex.run<WriteOut>>>;
   try {
@@ -102,7 +103,7 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
   }
   async function runWrite() { return ex.run<WriteOut>({
     prompt, schema: WRITE_SCHEMA,
-    tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 60 * 60_000, model: cfg.draftWriteModel, maxThinkingTokens: cfg.thinkingWrite, // 60분 — opus 대본 실측 30분+ (2026-09-09)
+    tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 60 * 60_000, model: cfg.draftWriteModel, maxThinkingTokens: cfg.thinkingWrite, effort: cfg.effortWrite, // 60분 — opus 대본 실측 30분+ (2026-09-09)
     onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: "대본 2/2 — 단발 작성", detail: pr.turns > 0 ? "대본 작성 중 (도구 없음)" : pr.detail }).catch(() => {}),
   }); }
   const o = w.output;
@@ -132,7 +133,7 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
 
   const stats = scriptStats(o.script);
   const writeCost = w.listCostUsd ?? 0;
-  const summary = `${episodeId} 초안 완료 (2단계 · ${ex.kind}, 도입 ${a.introStyle.label}, 템플릿 ${a.templates?.version ?? "미적용"}). ${designSummary}. 대본: "${o.title}" ${stats.turns}턴·${stats.chars}자·약 ${stats.minutes}분 · claims 대응 턴 ${o.turn_claims.length} · 새 연결 ${o.bridges.length} · 자기 점검 수정 ${o.self_check_fixes.length}건 · 구간 준수 ${o.sections_followed ? "예" : "아니오"}. 비용 설계 $${designCost.toFixed(2)} + 대본 $${writeCost.toFixed(2)}. ${o.notes}`;
+  const summary = `${episodeId} 초안 완료 (2단계 · ${ex.kind}, 도입 ${a.introStyle.label}, 템플릿 ${a.templates?.version ?? "미적용"}). ${designSummary}. 대본: "${o.title}" ${stats.turns}턴·${stats.chars}자·약 ${stats.minutes}분 · claims 대응 턴 ${o.turn_claims.length} · 새 연결 ${o.bridges.length} · 자기 점검 수정 ${o.self_check_fixes.length}건 · 구간 준수 ${o.sections_followed ? "예" : "아니오"}. 비용 설계 $${designCost.toFixed(2)} + 대본 $${writeCost.toFixed(2)} (effort ${cfg.effortDesign ?? "기본"}/${cfg.effortWrite ?? "기본"}). ${o.notes}`;
   return {
     summary, model: w.model ?? designModel, costUsd: designCost + writeCost,
     tokens: { design: designTokens, write: (w.raw as { usage?: unknown } | undefined)?.usage, design_model: designModel, write_model: w.model },
@@ -148,7 +149,8 @@ export function scriptStats(md: string): { turns: number; chars: number; minutes
 }
 
 /** 2단계 L0 — 구성안 계약(구간 수·순서)과 분량 하한(13분 ≈ 4,000자)을 기계로 검사한다. 위반은 재생성 연쇄로 */
-export function twoStageViolations(scriptMd: string, outlineMd: string): string[] {
+/** @param opts.signoffHeads 템플릿 클로징 인사 골격들의 고정 머리(첫 {슬롯} 앞 문구, tpl-v2). 있으면 마지막 턴이 진행(Y) 턴이고 그중 하나를 담아야 한다 */
+export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { signoffHeads?: string[] } = {}): string[] {
   const v: string[] = [];
   const planned = [...outlineMd.matchAll(/^구간 #(\d+)/gm)].map((m) => Number(m[1]));
   const written = [...scriptMd.matchAll(/^### #(\d+)/gm)].map((m) => Number(m[1]));
@@ -168,6 +170,18 @@ export function twoStageViolations(scriptMd: string, outlineMd: string): string[
   // 독후감 화법 (규칙 23): 해설자가 소스를 읽은 경험·감상으로 말하는 턴
   const reader = p.turns.filter((t) => t.id?.startsWith("E") && /(읽어보니|읽다가|읽었어요|읽으면서|읽고 나서|읽어 봤|읽어봤|부분에서 멈췄|대목에서 멈췄|인상적이었|인상적이에요|인상 깊|와닿았|저도 그렇게 읽)/.test(t.text)).map((t) => t.id);
   if (reader.length) v.push(`해설 턴 ${reader.length}개가 읽은 경험·감상으로 말함 (${reader.slice(0, 8).join(", ")}) — 해설자는 독자가 아니라 아는 사람이다. 내용을 직접 말한다 (규칙 23)`);
+  // 클로징 인사 (tpl-v2, 2026-09-09): 정리 턴 뒤 진행 담당의 인사 턴으로 끝나야 한다 — 골격 무변형은 QA 항목 5, 여기서는 위치·화자·머리 문구만
+  const heads = (opts.signoffHeads ?? []).map((h) => h.replace(/\s+/g, " ").trim()).filter(Boolean);
+  if (heads.length) {
+    const last = p.turns[p.turns.length - 1];
+    const text = last?.text.replace(/\s+/g, " ") ?? "";
+    if (!last?.id?.startsWith("Y")) v.push(`마지막 턴이 진행(Y) 턴이 아님 (${last?.id ?? "없음"}) — 해설 정리 뒤 진행 담당의 클로징 인사 1턴("${heads[0]} …")으로 끝나야 한다 (tpl-v2, spec/04 4장)`);
+    else if (!heads.some((h) => text.includes(h))) v.push(`마지막 턴 ${last.id}에 클로징 인사 골격("${heads[0]}"${heads.length > 1 ? ` 외 ${heads.length - 1}종` : ""})이 없음 — 템플릿 골격 그대로 {슬롯}만 채운다 (tpl-v2)`);
+  }
+  // 통계 용어 (규칙 24, full-v6 2026-09-09): 논문 결과 문장의 직역 — 판정 3편 공통 사유 "너무 어려움". 말로 옮기게 재생성
+  const statRe = /(유의하|유의미|유의했|유의한|상호작용\s?효과|매개\s?(효과|분석|변인)|매개했|매개하|정적\s?(관계|상관)|부적\s?(관계|상관)|변인|효과\s?크기|표본\s?크기|회귀\s?계수)/; // "상호작용" 단독은 일상어라 제외
+  const stat = p.turns.filter((t) => t.id?.startsWith("E") && statRe.test(t.text)).map((t) => t.id);
+  if (stat.length) v.push(`해설 턴 ${stat.length}개에 통계 용어(유의·매개·정적/부적 관계·변인·효과 크기) (${stat.slice(0, 8).join(", ")}) — 말로 옮긴다: "같이 움직였다", "~할수록 ~했다", "A 가 B 를 거쳐 C 로" (규칙 24)`);
   const a = attributionStats(p.turns);
   if (a.eTurns >= 10 && a.ratio > 0.6) v.push(`해설 턴 ${a.eTurns}개 중 ${a.attributed}개(${Math.round(a.ratio * 100)}%)에 귀속 표현("~에 따르면"·"라고 합니다"·"이 글/기사는"·매체명)이 있음 — 소스 순회. 개념·원리·정의는 해설자의 말로 바꾸고, 이름은 근거 앵커·직접 인용에만 (규칙 20~22)`);
   return v;

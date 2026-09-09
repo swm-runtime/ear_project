@@ -29,6 +29,7 @@ export class ClaudeCliExecutor implements Executor {
     for (const d of req.addDirs ?? []) args.push("--add-dir", d);
     const model = req.model ?? this.defaultModel;
     if (model) args.push("--model", model);
+    if (req.effort) args.push("--effort", req.effort);
 
     return new Promise((resolve, reject) => {
       const started = Date.now();

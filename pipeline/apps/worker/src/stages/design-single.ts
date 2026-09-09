@@ -34,7 +34,7 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
   const prompt = buildDesignPromptInline({ episodeId, candidate: cand, promptVersion: a.promptVersion, guidelines, specScript, goldFullEum, goldFullYuna, sources });
   log(`  design ${episodeId}: 단발 호출 (프롬프트 ${Math.round(prompt.length / 1000)}K자)`);
   const r = await ex.run<DesignInlineOut>({
-    prompt, schema: DESIGN_INLINE_SCHEMA, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 40 * 60_000, model: cfg.draftDesignModel, maxThinkingTokens: cfg.thinkingDesign,
+    prompt, schema: DESIGN_INLINE_SCHEMA, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 40 * 60_000, model: cfg.draftDesignModel, maxThinkingTokens: cfg.thinkingDesign, effort: cfg.effortDesign,
     onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: "설계 1/2 — 발췌 선택·claims·구성안 (단발)", detail: pr.turns > 0 ? "설계 중 (도구 없음)" : pr.detail }).catch(() => {}),
   });
   const o = r.output;
