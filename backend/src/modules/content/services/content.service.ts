@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 
 import { BusinessForbiddenException } from '@/common/exceptions/business-forbidden.exception';
@@ -52,6 +52,8 @@ export interface PickTargetResolution {
  */
 @Injectable()
 export class ContentService {
+  private readonly logger = new Logger(ContentService.name);
+
   constructor(
     private readonly contentRepository: ContentRepository,
     private readonly contentTopicRepository: ContentTopicRepository,
@@ -66,6 +68,12 @@ export class ContentService {
    * **상한을 서버가 강제한다.** `since`가 클라이언트 값이라 상한이 없으면 오래된 값 하나로
    * 전 구간을 긁어 갈 수 있다(architecture.md 9.3). 잘렸을 때는 마지막 항목의 회수 시각을
    * 함께 돌려주어, 클라이언트가 그 값을 다음 `since`로 써서 이어 받게 한다.
+   *
+   * **잘린 페이지는 회수 시각 단위로 자른다.** 커서가 시각뿐이라(`withdrawn_at > since`,
+   * player-api 4.6) 상한 경계에 같은 시각의 행이 걸쳐 있으면 — 일괄 회수는 한 트랜잭션의
+   * 같은 `now`로 찍힌다 — 경계 뒤쪽 행이 다음 페이지에서 건너뛰어졌다(2026-09-09 감사).
+   * 그래서 경계 시각의 행은 이번 페이지에서 통째로 빼고 다음 페이지가 전부 받게 한다.
+   * 한 시각이 상한을 넘게 회수된 극단은 자를 자리가 없어 종전대로 내보낸다(로그로 남긴다).
    */
   async findWithdrawnSince(
     since: Date,
@@ -77,14 +85,27 @@ export class ContentService {
       manager,
     );
     const hasNext = rows.length > WITHDRAWN_SYNC_MAX_LIMIT;
-    const page = hasNext ? rows.slice(0, WITHDRAWN_SYNC_MAX_LIMIT) : rows;
+
+    if (!hasNext) {
+      // 이어 받을 자리가 없으면 커서를 발급하지 않는다 — 있으면 계속 부르게 된다
+      return { contentIds: rows.map((row) => row.id), nextSince: null };
+    }
+
+    const boundaryAt = rows[WITHDRAWN_SYNC_MAX_LIMIT].withdrawnAt.getTime();
+    let page = rows
+      .slice(0, WITHDRAWN_SYNC_MAX_LIMIT)
+      .filter((row) => row.withdrawnAt.getTime() !== boundaryAt);
+
+    if (page.length === 0) {
+      this.logger.warn('withdrawn sync page shares one withdrawn_at', {
+        limit: WITHDRAWN_SYNC_MAX_LIMIT,
+      });
+      page = rows.slice(0, WITHDRAWN_SYNC_MAX_LIMIT);
+    }
 
     return {
       contentIds: page.map((row) => row.id),
-      // 이어 받을 자리가 없으면 커서를 발급하지 않는다 — 있으면 계속 부르게 된다
-      nextSince: hasNext
-        ? page[page.length - 1].withdrawnAt.toISOString()
-        : null,
+      nextSince: page[page.length - 1].withdrawnAt.toISOString(),
     };
   }
 

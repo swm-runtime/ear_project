@@ -1,17 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import {
-  EntityManager,
-  LessThan,
-  Like,
-  QueryFailedError,
-  Repository,
-} from 'typeorm';
+import { EntityManager, LessThan, Like, Repository } from 'typeorm';
+
+import { isUniqueViolation } from '@/common/utils/unique-violation.util';
 
 import { IdempotencyKey } from './idempotency-key.entity';
-
-/** Postgres unique_violation */
-const UNIQUE_VIOLATION_CODE = '23505';
 
 @Injectable()
 export class IdempotencyRepository {
@@ -35,7 +28,7 @@ export class IdempotencyRepository {
     try {
       return await this.scoped(manager).save(key);
     } catch (error) {
-      if (error instanceof QueryFailedError && this.isUniqueViolation(error)) {
+      if (isUniqueViolation(error)) {
         return null;
       }
       throw error;
@@ -99,11 +92,5 @@ export class IdempotencyRepository {
     manager?: EntityManager,
   ): Promise<number> {
     return this.scoped(manager).countBy({ ownerKey: Like(`${prefix}%`) });
-  }
-
-  private isUniqueViolation(error: QueryFailedError): boolean {
-    return (
-      (error.driverError as { code?: string }).code === UNIQUE_VIOLATION_CODE
-    );
   }
 }

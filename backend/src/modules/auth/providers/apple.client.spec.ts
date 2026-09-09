@@ -1,6 +1,6 @@
-import { generateKeyPairSync } from 'node:crypto';
+import { generateKeyPairSync, KeyObject } from 'node:crypto';
 
-import { sign } from 'jsonwebtoken';
+import { sign, SignOptions } from 'jsonwebtoken';
 
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { BusinessException } from '@/common/exceptions/business.exception';
@@ -40,8 +40,8 @@ interface TokenOverrides {
   nonce?: string | null;
   email?: string | null;
   emailVerified?: boolean | string;
-  expiresIn?: string | number;
-  key?: Parameters<typeof sign>[1];
+  expiresIn?: SignOptions['expiresIn'];
+  key?: KeyObject;
 }
 
 function buildIdentityToken(overrides: TokenOverrides = {}): string {

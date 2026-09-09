@@ -11,6 +11,7 @@ import { DripBatchRun } from './entities/drip-batch-run.entity';
 import { DripExcludedContent } from './entities/drip-excluded-content.entity';
 import { FirstDripJob } from './entities/first-drip-job.entity';
 import { UserPreferenceVector } from './entities/user-preference-vector.entity';
+import { FirstDripPurgeScheduler } from './first-drip-purge.scheduler';
 import { FirstDripRetryScheduler } from './first-drip-retry.scheduler';
 import { DripBatchRunRepository } from './repositories/drip-batch-run.repository';
 import { DripExcludedContentRepository } from './repositories/drip-excluded-content.repository';
@@ -59,6 +60,7 @@ import { PreferenceVectorService } from './services/preference-vector.service';
     DripPlacementService,
     DripBatchRunService,
     FirstDripRetryScheduler,
+    FirstDripPurgeScheduler,
   ],
   exports: [
     DripExclusionService,
