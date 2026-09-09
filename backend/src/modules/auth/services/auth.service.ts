@@ -178,8 +178,23 @@ export class AuthService {
 
     const user = await this.userService.getById(session.userId);
 
-    session.revokedAt = now;
-    await this.sessionRepository.save(session);
+    /**
+     * 조건부 UPDATE로 회전을 원자화한다. 동시 갱신 두 건이 겹치면 한 건만 폐기에
+     * 성공하고 새 세션을 받는다. 경합에서 진 쪽은 **재사용 탐지로 다루지 않는다** —
+     * 같은 밀리초에 겹친 요청은 탈취가 아니라 클라이언트 경합이고, 위의 `revokedAt`
+     * 선검사가 진짜 재사용(이미 회전이 끝난 토큰의 재제출)을 계속 잡는다.
+     */
+    const revoked = await this.sessionRepository.revokeIfActive(
+      session.id,
+      now,
+    );
+
+    if (!revoked) {
+      this.logger.warn('refresh lost a concurrent rotation race', {
+        user_id: session.userId,
+      });
+      throw this.refreshTokenInvalid();
+    }
 
     return this.issueSession(user, command.deviceId, now);
   }

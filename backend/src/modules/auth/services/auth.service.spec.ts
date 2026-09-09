@@ -76,6 +76,7 @@ describe('AuthService', () => {
       create: jest.fn((value: Partial<Session>) => value as Session),
       save: jest.fn((value: Session) => Promise.resolve(value)),
       findByRefreshTokenHash: jest.fn(),
+      revokeIfActive: jest.fn(() => Promise.resolve(true)),
       revokeAllByUserId: jest.fn(),
       revokeByUserIdAndDeviceId: jest.fn(),
     } as unknown as jest.Mocked<SessionRepository>;
@@ -147,9 +148,32 @@ describe('AuthService', () => {
         NOW,
       );
 
-      // then
-      expect(session.revokedAt).toEqual(NOW);
+      // then — 폐기는 조건부 UPDATE(revokeIfActive)로 원자적으로 일어난다
+      expect(sessionRepository.revokeIfActive).toHaveBeenCalledWith(
+        session.id,
+        NOW,
+      );
       expect(tokens.refreshToken).not.toBe(REFRESH_TOKEN);
+    });
+
+    it('동시 갱신 경합에서 지면 재사용으로 판정하지 않고 갱신만 실패시킨다', async () => {
+      // given — 같은 토큰으로 겹친 두 요청 중 뒤늦게 폐기를 시도한 쪽
+      sessionRepository.findByRefreshTokenHash.mockResolvedValue(
+        buildSession(),
+      );
+      sessionRepository.revokeIfActive.mockResolvedValue(false);
+
+      // when
+      const refreshing = service.refresh(
+        { refreshToken: REFRESH_TOKEN, deviceId: 'device-1' },
+        NOW,
+      );
+
+      // then — 전 세션 무효화(탈취 판정)로 번지지 않는다
+      await expect(refreshing).rejects.toMatchObject({
+        errorCode: ErrorCode.AUTH_REFRESH_TOKEN_INVALID,
+      });
+      expect(sessionRepository.revokeAllByUserId).not.toHaveBeenCalled();
     });
 
     it('이미 회전된 토큰이 다시 오면 해당 사용자 세션 전체를 무효화한다', async () => {
