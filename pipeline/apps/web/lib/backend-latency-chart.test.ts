@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { bucketMsFor, buildBuckets, percentile, tipAnchor } from "./backend-latency-chart";
+import { bucketMsFor, buildBuckets, chartWindow, percentile, tipAnchor } from "./backend-latency-chart";
 import { RequestLog } from "./backend-request-log";
 
 const req = (t: number, durationMs: number, status = 200): RequestLog =>
@@ -98,5 +98,25 @@ test("툴팁 상자가 어느 위치에서도 컨테이너를 넘지 않는다 �
       assert.ok(left >= 0, `상자 ${BOX}px · ratio ${pct}% → 왼쪽 ${left.toFixed(1)}px < 0`);
       assert.ok(left + BOX <= CONTAINER, `상자 ${BOX}px · ratio ${pct}% → 오른쪽 ${(left + BOX).toFixed(1)}px > ${CONTAINER}px`);
     }
+  }
+});
+
+test("막대와 산점도가 같은 x축 창을 쓴다", () => {
+  for (const minutes of [30, 60, 180, 360]) {
+    const { from, to, bucketMs } = chartWindow(minutes, ODD);
+    const buckets = buildBuckets([], minutes, ODD);
+    // 창은 칸들이 덮는 범위와 정확히 같아야 한다 — 산점도는 이 창을 그대로 쓴다
+    assert.equal(from, buckets[0].start, `${minutes}분 창의 시작`);
+    assert.equal(to, buckets[buckets.length - 1].start + bucketMs, `${minutes}분 창의 끝`);
+    assert.equal(to - from, buckets.length * bucketMs, `${minutes}분 창의 길이`);
+  }
+});
+
+test("창은 now 를 포함하고, 로그가 브라우저 시계보다 조금 앞서도 잘리지 않는다", () => {
+  for (const minutes of [30, 60, 180, 360]) {
+    const { from, to, bucketMs } = chartWindow(minutes, ODD);
+    assert.ok(from <= ODD && ODD < to, `${minutes}분 창이 now 를 담는다`);
+    assert.ok(to - ODD <= bucketMs, `${minutes}분 창의 오른쪽 여유가 한 칸 이내`);
+    assert.ok(to > ODD, `${minutes}분 창에 오른쪽 여유가 있다`);
   }
 });
