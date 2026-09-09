@@ -188,6 +188,8 @@ export class ContentRepository {
       .where('content.status = :status', { status: ContentStatus.WITHDRAWN })
       .andWhere('content.withdrawn_at > :since', { since })
       .orderBy('content.withdrawn_at', 'ASC')
+      // 같은 시각(일괄 회수)의 순서를 고정한다 — 호출부가 시각 단위로 페이지를 자른다
+      .addOrderBy('content.id', 'ASC')
       // 한 건 더 읽어 잘렸는지 판정한다 — 호출부가 잘라낸다(목록 조회의 공통 형태)
       .limit(limit + 1)
       .getRawMany<{ id: string; withdrawn_at: Date }>();
