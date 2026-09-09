@@ -111,7 +111,16 @@ bash backend/deploy/push.sh          # 서버 git pull + compose 재빌드 + 헬
 **서버에는 git 이 없다** — `/opt/ear/backend` 에 파일만 있다(2026-09-04 실측. 1장의
 `git clone` 은 실제 구축에서 쓰이지 않았다). `push.sh` 는 커밋 트리를 `git archive` 로 떠서
 tar 로 푼다. `.env.prod` 는 git 이 추적하지 않아 아카이브에 없으므로 **덮이지도 지워지지도
-않는다**. 서버에서 직접 할 때는 반입 뒤 이것만 하면 된다:
+않는다**.
+
+**비밀값의 원천은 Secrets Manager 다** (`ear/prod/api`, 2026-09-09 —
+`tickets/infra/pending/prod-secrets-storage.md`). `.env.prod` 의 비밀 8종은 파생물이며,
+`push.sh` 가 배포마다 시크릿을 내려받아 해당 줄만 갱신한다(`deploy/apply-secrets.py` —
+직전 상태는 `.env.prod.bak` 한 세대). **값을 갈 때 SSH 로 파일을 편집하지 않는다** —
+`aws secretsmanager put-secret-value --secret-id ear/prod/api` 후 재배포가 절차다.
+비밀이 아닌 27개 설정(도메인·앱 버전·클라이언트 ID 등)의 원천은 여전히 이 파일이다.
+
+서버에서 직접 할 때는 반입 뒤 이것만 하면 된다:
 
 ```bash
 cd /opt/ear/backend

@@ -31,6 +31,19 @@ $SSH "ec2-user@$HOST" "
   # Windows 체크아웃에서 CRLF 가 섞이면 셰뱅이 깨져 컨테이너가 안 뜬다(README 2장 주의)
   find deploy -type f -name '*.sh' -exec sed -i 's/\r\$//' {} +
   [ -f .env.prod ] || { echo '.env.prod 가 서버에 없다 — 최초 설치는 README 2장'; exit 1; }
+
+  # 비밀값의 원천은 Secrets Manager 다(ear/prod/api — tickets/infra prod-secrets-storage).
+  # 배포마다 내려받아 .env.prod 의 비밀 항목만 덮어쓴다. 조회가 실패하면 set -e 로 여기서
+  # 멈춘다 — .env.prod 도 컨테이너도 아직 건드리지 않은 상태라 돌던 API 가 그대로 산다.
+  command -v aws >/dev/null || { echo 'aws CLI 가 서버에 없다'; exit 1; }
+  command -v python3 >/dev/null || { echo 'python3 가 서버에 없다'; exit 1; }
+  SECRET_TMP=\$(mktemp /tmp/ear-secret.XXXXXX.json); chmod 600 \"\$SECRET_TMP\"
+  trap 'shred -u \"\$SECRET_TMP\" 2>/dev/null || rm -f \"\$SECRET_TMP\"' EXIT
+  aws secretsmanager get-secret-value --region \${AWS_REGION:-ap-northeast-2} \
+    --secret-id ear/prod/api --query SecretString --output text > \"\$SECRET_TMP\"
+  cp .env.prod .env.prod.bak          # 갱신이 깨졌을 때 되돌릴 자리 — 한 세대만 유지
+  python3 deploy/apply-secrets.py \"\$SECRET_TMP\" .env.prod
+
   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build api
 "
 
