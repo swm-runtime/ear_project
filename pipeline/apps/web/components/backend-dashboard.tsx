@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Stat } from "@/components/ui";
 import { RequestLog } from "@/lib/backend-request-log";
-import { axisMax, Bucket, buildBuckets, percentile } from "@/lib/backend-latency-chart";
+import { Bucket, buildBuckets, percentile } from "@/lib/backend-latency-chart";
 
 /**
  * 대시보드 탭 — 요청 로그를 시간축 그래프로, 자원(CPU·메모리·DB 연결) 이력을 선 그래프로
@@ -142,61 +142,73 @@ function RequestBars({ buckets }: { buckets: Bucket[] }) {
 }
 
 /**
- * 버킷별 응답시간 p50/p95 선 — 요청 없는 버킷은 선을 끊는다. 호버 시 값과 표본 수.
+ * 요청 산점도 — **요청 한 건이 점 하나**다. 버킷도 백분위도 쓰지 않는다.
  *
- * x 는 **버킷 가운데**다 — 옆의 요청 수 막대(폭 W/n)와 같은 자리를 가리켜야 두 그래프를
- * 나란히 읽을 수 있다. 끝점을 0..W 로 펼치면 버킷마다 반 칸씩 어긋난다.
- * 표본이 적은 버킷의 p95 는 정의상 그 버킷의 최댓값에 가깝다 — 그래서 건수를 함께 띄우고,
- * y축은 그 값 하나에 끌려가지 않게 `axisMax` 로 잡는다(넘는 점은 ▲).
- * 앞뒤가 빈 **고립된 칸은 점으로** 찍는다 — 선만으로는 화면에서 사라진다.
+ * 원래는 버킷별 p50/p95 선이었는데, 지금 트래픽에서는 그 표현이 성립하지 않는다.
+ * 6시간에 요청 39건(2026-09-09 운영 실측)이면 칸당 표본이 한두 건이고, 표본 2건의
+ * "p95"는 통계가 아니라 그냥 그 칸의 최댓값이다. 게다가 **백분위는 합칠 수 없어서**
+ * 범위를 바꿔 칸 폭이 달라지면 같은 시각의 값이 통째로 달라졌다(10분 칸의 p95는
+ * 5분 칸 두 개 p95의 평균도 최댓값도 아니다). 축도 그 값들에 끌려 함께 흔들렸다.
+ *
+ * 점을 그대로 찍으면 그 문제가 전부 사라진다. 칸 폭도, 표본 수도, 축 상한 추정도
+ * 필요 없다. 대신 **느린 요청이 언제 어느 경로에서 났는지**가 바로 보인다 — 이 트래픽
+ * 규모에서 실제로 알고 싶은 것이 그것이다.
+ *
+ * y 는 **로그 축**이다. 응답시간은 배수로 읽는 지표고(20→40ms 가 300→320ms 보다 큰
+ * 신호다), 지금 데이터는 10ms 대와 300ms 대로 갈려 선형 축에서는 빠른 쪽이 바닥에 뭉갠다.
+ *
+ * 트래픽이 칸당 수십 건 규모로 늘면 이 표현은 점이 뭉개진다. 그때는 산점도가 아니라
+ * 히스토그램 버킷(개수는 합칠 수 있다) 기반의 백분위나 히트맵으로 가는 것이 맞다 —
+ * CloudWatch Logs Insights 의 `pct(duration_ms, 95) by bin(5m)` 이 그 첫 단계다.
  */
-function LatencyLines({ buckets }: { buckets: Bucket[] }) {
+function LatencyScatter({ requests, from, to }: { requests: RequestLog[]; from: number; to: number }) {
   const { ratio, onMouseMove, onMouseLeave } = useHoverRatio();
-  const points = buckets.map((b, i) => {
-    const sorted = [...b.durations].sort((a, z) => a - z);
-    return { i, p50: percentile(sorted, 50), p95: percentile(sorted, 95), n: sorted.length };
-  });
-  const max = axisMax(buckets.flatMap((b) => b.durations));
-  const x = (i: number) => ((i + 0.5) * W) / buckets.length;
-  const y = (v: number) => H - (Math.min(v, max) / max) * H;
-  const path = (pick: (p: (typeof points)[number]) => number) =>
-    points.map((p, i) => (p.n > 0 ? `${i === 0 || !points[i - 1]?.n ? "M" : "L"}${x(p.i).toFixed(1)},${y(pick(p)).toFixed(1)}` : "")).join(" ");
-  // 앞뒤가 모두 빈 칸은 subpath 가 moveto 하나뿐이라 SVG 가 **아무것도 그리지 않는다** —
-  // 요청이 있었는데도 조용히 사라지므로 점으로 찍는다. 한산한 시간대일수록 자주 생긴다
-  const isolated = points.filter((p) => p.n > 0 && !points[p.i - 1]?.n && !points[p.i + 1]?.n);
-  const clipped = points.filter((p) => p.n > 0 && p.p95 > max);
-  const idx = ratio === null ? null : Math.min(buckets.length - 1, Math.floor(ratio * buckets.length));
+
+  const peak = requests.reduce((m, r) => Math.max(m, r.durationMs), 0);
+  // 축 상한은 10의 거듭제곱으로 올린다 — 눈금이 1·10·100 처럼 읽히는 값이어야 로그 축이 읽힌다
+  const decades = Math.max(2, Math.ceil(Math.log10(Math.max(100, peak))));
+  const yMax = 10 ** decades;
+  const x = (t: number) => ((t - from) / Math.max(1, to - from)) * W;
+  const y = (v: number) => H - (Math.log10(Math.max(1, v)) / decades) * H;
+  const ticks = Array.from({ length: decades + 1 }, (_, i) => 10 ** i);
+
+  // 호버 지점에 가장 가까운 요청 하나
+  const at = ratio === null ? null : from + ratio * (to - from);
+  const near = at === null || requests.length === 0 ? null
+    : requests.reduce((best, r) => (Math.abs(r.t - at) < Math.abs(best.t - at) ? r : best));
+
+  const shortPath = (path: string) => {
+    const clean = path.split("?")[0];
+    return clean.length > 44 ? `…${clean.slice(-43)}` : clean;
+  };
 
   return (
     <div className="relative" onMouseMove={onMouseMove} onMouseLeave={onMouseLeave}>
       <svg viewBox={`0 0 ${W} ${H + PAD_B}`} className="w-full">
-        <YGrid max={max} unit="ms" />
-        <path d={path((p) => p.p95)} className="fill-none stroke-amber-500" strokeWidth={1.5} />
-        <path d={path((p) => p.p50)} className="fill-none stroke-brand" strokeWidth={1.5} />
-        {isolated.map((p) => (
-          <g key={`iso-${p.i}`}>
-            <circle cx={x(p.i)} cy={y(p.p95)} r={1.75} className="fill-amber-500" />
-            <circle cx={x(p.i)} cy={y(p.p50)} r={1.75} className="fill-brand" />
+        {ticks.map((t) => (
+          <g key={t}>
+            <line x1={0} x2={W} y1={y(t)} y2={y(t)} className="stroke-line" strokeWidth={0.5} strokeDasharray="2 3" />
+            <text x={2} y={y(t) - 2} className="fill-ink-soft text-[9px]">{t < 1000 ? `${t}ms` : `${t / 1000}s`}</text>
           </g>
         ))}
-        {clipped.map((p) => (
-          <path key={`clip-${p.i}`} d={`M${(x(p.i) - 3.5).toFixed(1)},5 L${(x(p.i) + 3.5).toFixed(1)},5 L${x(p.i).toFixed(1)},0 Z`}
-            className="fill-amber-500" />
+        {requests.map((r, i) => (
+          <circle key={`${r.t}-${i}`} cx={x(r.t)} cy={y(r.durationMs)} r={2}
+            className={r.status >= 400 ? "fill-red-500" : "fill-brand"} opacity={0.65} />
         ))}
-        {idx !== null && points[idx].n > 0 && (
+        {near && (
           <>
-            <line x1={x(idx)} x2={x(idx)} y1={0} y2={H} className="stroke-ink-soft" strokeWidth={0.5} />
-            <circle cx={x(idx)} cy={y(points[idx].p50)} r={2.5} className="fill-brand" />
-            <circle cx={x(idx)} cy={y(points[idx].p95)} r={2.5} className="fill-amber-500" />
+            <line x1={x(near.t)} x2={x(near.t)} y1={0} y2={H} className="stroke-ink-soft" strokeWidth={0.5} />
+            <circle cx={x(near.t)} cy={y(near.durationMs)} r={3.5} className="fill-none stroke-ink" strokeWidth={1} />
           </>
         )}
-        <XTicks times={buckets.map((b) => b.start)} bucketed />
+        <XTicks times={[from, (from + to) / 2, to]} />
       </svg>
-      {idx !== null && (
-        <Tip ratio={ratio!} lines={points[idx].n > 0
-          ? [hhmm(buckets[idx].start), `p50 ${points[idx].p50}ms · p95 ${points[idx].p95}ms`,
-             `${points[idx].n}건${points[idx].p95 > max ? " · p95 는 축 상한 초과" : ""}`]
-          : [hhmm(buckets[idx].start), "요청 없음"]} />
+      {near && (
+        <Tip ratio={ratio!} lines={[
+          `${hhmm(near.t)} · ${near.durationMs}ms`,
+          `${near.method} ${shortPath(near.path)}`,
+          `status ${near.status}`,
+        ]} />
       )}
     </div>
   );
@@ -308,6 +320,8 @@ export function BackendDashboard() {
   const parsed = body?.requests ?? [];
   const buckets = buildBuckets(parsed, minutes, loadedAt);
   const errorCount = parsed.filter((p) => p.status >= 400).length;
+  // 창 전체를 한 표본으로 본 백분위 — 버킷으로 쪼개지 않으므로 합산 문제가 없다
+  const allDurations = parsed.map((p) => p.durationMs).sort((a, b) => a - b);
 
   const from = loadedAt - minutes * 60_000;
   // 목표 건수를 못 채우면 창의 앞부분이 빠진다 — 그래프 왼쪽이 빈 이유를 밝힌다
@@ -349,8 +363,13 @@ export function BackendDashboard() {
           <RequestBars buckets={buckets} />
         </div>
         <div className={card}>
-          <h3 className={title}>응답시간 <span className="font-normal text-ink-soft">· <span className="text-brand">p50</span> / <span className="text-amber-600">p95</span> · <span className="text-amber-600">▲</span> 축 상한 초과</span></h3>
-          <LatencyLines buckets={buckets} />
+          <h3 className={title}>응답시간 <span className="font-normal text-ink-soft">· 요청 1건 = 점 1개 · <span className="text-red-600">빨강</span> = 4xx/5xx · y축은 로그</span></h3>
+          <p className="mb-2 text-[11px] text-ink-soft">
+            {parsed.length > 0
+              ? `창 전체 ${parsed.length}건 — p50 ${percentile(allDurations, 50)}ms · p95 ${percentile(allDurations, 95)}ms · 최대 ${allDurations[allDurations.length - 1]}ms`
+              : "요청 없음"}
+          </p>
+          <LatencyScatter requests={parsed} from={from} to={loadedAt} />
         </div>
         <div className={card}>
           <h3 className={title}>
