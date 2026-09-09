@@ -1,10 +1,11 @@
 import fs from "node:fs/promises";
 import { cfg, executedBy } from "../config.js";
-import { domainTierByHost, existingBacklogTitles, insertBacklog, insertRun, midsOfMajor, nextBacklogNumber, recentSourcesForTopics, setJobProgress, usedSourceUrls, type Job } from "../db.js";
+import { domainTierByHost, existingBacklogTitles, insertBacklogAlloc, insertRun, midsOfMajor, nextBacklogNumber, recentSourcesForTopics, setJobProgress, usedSourceUrls, type Job } from "../db.js";
 import type { Executor } from "../executors/index.js";
 import { assetPaths, buildClusterPromptV2, CLUSTER_SCHEMA_V2, SOURCE_ROLES } from "@ear/pipeline";
 import { hostOf, log } from "../util.js";
 import { prepareAssets, workerRev } from "../assets.js";
+import { putFile, s3Key } from "../storage.js";
 
 interface ClusterV2Out {
   candidates: { id: string; mid_topic: string; title: string; axis_type: "대립" | "역설" | "재정의"; axis: string; axis_note: string; verdict: "성립" | "보강 필요"; gaps: string[]; sources: { m: string; roles: string[]; why: string }[]; target_fit: string; landing: string; dedup_note: string }[];
@@ -37,7 +38,6 @@ export async function runClusterV2(job: Job, ex: Executor) {
 
   const byM = new Map(meta.map((s) => [`M${s.n}`, s]));
   const inserted: string[] = []; const held: string[] = [];
-  let n = nextN;
   for (const c of r.output.candidates) {
     const srcs = c.sources.filter((s) => byM.has(s.m.trim().toUpperCase())).map((s) => ({ ...byM.get(s.m.trim().toUpperCase())!, roles: s.roles, why: s.why }));
     if (srcs.length < 3) { log(`  후보 '${c.title}' 유효 소스 ${srcs.length}건 — 제외 (M-ID 불일치)`); continue; }
@@ -54,10 +54,9 @@ export async function runClusterV2(job: Job, ex: Executor) {
     if (usedCount > 1) problems.push(`사용된 소스 ${usedCount}건`);
     const gaps = Array.from(new Set([...c.gaps, ...SOURCE_ROLES.filter((role) => !roleSet.has(role) && (role === "근거 앵커" || role === "사례"))]));
     const ok = c.verdict === "성립" && problems.length === 0;
-    const id = `C${n++}`;
     const diversity = `발행처 ${pubs.size}곳 · 최다 ${Math.round(maxShare * 100)}% · 역할 ${roleSet.size}종`;
-    await insertBacklog({
-      id, mid_topic: mids.includes(c.mid_topic) ? c.mid_topic : mids[0], title: c.title, summary: c.axis_note, target_fit: c.target_fit,
+    const id = await insertBacklogAlloc({
+      mid_topic: mids.includes(c.mid_topic) ? c.mid_topic : mids[0], title: c.title, summary: c.axis_note, target_fit: c.target_fit,
       angle: `${c.axis_note}\n예상 착지: ${c.landing}`,
       sources: srcs.map((s) => ({ url: s.url, tier: tiers.get(hostOf(s.url)) ?? tiers.get(s.domain) ?? "candidate", title: s.title, backbone: s.roles.includes("근거 앵커"), published: s.published, publisher: s.domain, roles: s.roles, role_why: s.why })),
       status: ok ? "proposed" : "held",
@@ -66,10 +65,13 @@ export async function runClusterV2(job: Job, ex: Executor) {
     });
     (ok ? inserted : held).push(`${id} ${c.title} (${srcs.length}건, ${diversity})`);
   }
+  // 원본 결과를 S3 에 남긴다 (2026-09-09): ID 충돌로 삽입이 유실됐을 때 실행 기록 요약만으로는 복구가 안 됐다 (M-ID·역할·축 소실)
+  const artifactKey = `sweeps/cluster-v2/${new Date().toISOString().slice(0, 10)}-${(major || mid).replace(/[^\p{L}\p{N}]+/gu, "_")}-${job.id.slice(0, 8)}.json`;
+  await putFile(artifactKey, JSON.stringify({ job_id: job.id, major, mids, input_sources: sources.length, meta, output: r.output, inserted, held }, null, 1)).catch((e) => log(`  cluster v2 결과 보존 실패 (${String(e?.message ?? e).slice(0, 100)})`));
   await insertRun({
     phase: "cluster",
     result: `v2 · ${major ? `대분류 ${major}` : `중분류 ${mid}`} · 입력 ${sources.length}건 → 성립 ${inserted.length}건 proposed: ${inserted.join(" / ").slice(0, 700)}${held.length ? ` · 보강 필요 ${held.length}건 held: ${held.join(" / ").slice(0, 500)}` : ""}${r.output.axis_pool.length ? ` · 검토한 축: ${r.output.axis_pool.join(" | ").slice(0, 400)}` : ""}`,
-    prompt_version: `cluster-v2 (축·역할·다양성, spec ${bundle.specDigest})`, executed_by: executedBy, model: r.model, cost_usd: r.listCostUsd, tokens: (r.raw as { usage?: unknown } | undefined)?.usage, worker_rev: workerRev(),
+    artifacts: [s3Key(artifactKey)], prompt_version: `cluster-v2 (축·역할·다양성, spec ${bundle.specDigest})`, executed_by: executedBy, model: r.model, cost_usd: r.listCostUsd, tokens: (r.raw as { usage?: unknown } | undefined)?.usage, worker_rev: workerRev(),
   });
   return { scope: major || mid, mids, input_sources: sources.length, proposed: inserted, held, axis_pool: r.output.axis_pool, dropped_notes: r.output.dropped_notes, model: r.model, list_cost_usd: r.listCostUsd };
 }

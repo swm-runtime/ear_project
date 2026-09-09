@@ -1,5 +1,5 @@
 import { cfg, executedBy } from "../config.js";
-import { domainTierByHost, existingBacklogTitles, insertBacklog, insertRun, nextBacklogNumber, recentSourcesForTopic, setJobProgress, type Job } from "../db.js";
+import { domainTierByHost, existingBacklogTitles, insertBacklogAlloc, insertRun, nextBacklogNumber, recentSourcesForTopic, setJobProgress, type Job } from "../db.js";
 import type { Executor } from "../executors/index.js";
 import { buildClusterPrompt, CLUSTER_SCHEMA } from "@ear/pipeline";
 import { hostOf, log } from "../util.js";
@@ -33,13 +33,11 @@ export async function runCluster(job: Job, ex: Executor) {
   const tiers = await domainTierByHost();
   const byUrl = new Map(sources.map((s) => [s.url, s]));
   const inserted: string[] = [];
-  let n = nextN;
   for (const c of r.output.candidates) {
     const srcs = c.sources.filter((s) => byUrl.has(s.url)); // 메타데이터에 없는 URL(환각)은 버린다
     if (srcs.length < 3) { log(`  후보 '${c.title}' 유효 소스 ${srcs.length}건 — 제외`); continue; }
-    const id = `C${n++}`;
-    await insertBacklog({
-      id, mid_topic: c.mid_topic || midTopic, title: c.title, summary: c.summary, target_fit: c.target_fit, angle: c.angle,
+    const id = await insertBacklogAlloc({
+      mid_topic: c.mid_topic || midTopic, title: c.title, summary: c.summary, target_fit: c.target_fit, angle: c.angle,
       sources: srcs.map((s) => { const meta = byUrl.get(s.url)!; return { url: s.url, tier: tiers.get(hostOf(s.url)) ?? tiers.get(meta.domain) ?? "candidate", title: meta.title, backbone: !!s.backbone, published: meta.published, publisher: meta.domain }; }),
       dedup_note: `${c.dedup_note} · 워커 군집화 ${job.id.slice(0, 8)} (${r.model ?? ex.kind})${cfg.pilotSweepCandidates ? " · 테스트: 계층 판정 전 — 뼈대 1군 요건 판정 후 확정" : ""}`,
     });

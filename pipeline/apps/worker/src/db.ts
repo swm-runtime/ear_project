@@ -115,6 +115,24 @@ export async function nextBacklogNumber(): Promise<number> {
   const r = await pool.query("select coalesce(max(substring(id from 2)::int), 0) + 1 as n from public.backlog where id ~ '^C[0-9]+$'");
   return Number(r.rows[0].n);
 }
+/** 후보 삽입 + ID 배정을 한 트랜잭션에서 (2026-09-09): 군집화가 동시에 여러 개 돌면 작업 시작 때 받은 번호가 겹쳐
+ *  `on conflict do nothing` 이 뒤 실행의 후보를 소리 없이 버렸다 (v2 3개 동시 실행 → 2개 실행분 13건 유실). 어드바이저리 락 아래에서 max+1 을 받아 넣는다.
+ *  프롬프트에 알려 주는 "다음 ID" 는 안내값일 뿐이고 실제 ID 는 여기서 정해진다 */
+export async function insertBacklogAlloc(c: Omit<Parameters<typeof insertBacklog>[0], "id">): Promise<string> {
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    await client.query("select pg_advisory_xact_lock(hashtext('backlog_id'))");
+    const r = await client.query("select coalesce(max(substring(id from 2)::int), 0) + 1 as n from public.backlog where id ~ '^C[0-9]+$'");
+    const id = `C${Number(r.rows[0].n)}`;
+    await client.query(
+      "insert into public.backlog (id, mid_topic, title, summary, target_fit, angle, sources, status, dedup_note, axis, axis_type, gaps, cluster_version) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)",
+      [id, c.mid_topic, c.title, c.summary, c.target_fit, c.angle, JSON.stringify(c.sources), c.status ?? "proposed", c.dedup_note, c.axis ?? null, c.axis_type ?? null, c.gaps ?? [], c.cluster_version ?? "v1"],
+    );
+    await client.query("commit");
+    return id;
+  } catch (e) { await client.query("rollback").catch(() => {}); throw e; } finally { client.release(); }
+}
 export async function insertBacklog(c: { id: string; mid_topic: string; title: string; summary: string; target_fit: string; angle: string; sources: unknown[]; dedup_note: string; status?: "proposed" | "held"; axis?: string | null; axis_type?: string | null; gaps?: string[]; cluster_version?: string }) {
   await pool.query(
     "insert into public.backlog (id, mid_topic, title, summary, target_fit, angle, sources, status, dedup_note, axis, axis_type, gaps, cluster_version) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) on conflict (id) do nothing",
