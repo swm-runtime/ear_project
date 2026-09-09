@@ -2,7 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase-server";
 import { loadArtifact, replaceTurn, writeArtifact } from "@/lib/artifacts";
-import { putText } from "@/lib/storage";
+import { deletePrefix, putText } from "@/lib/storage";
 import { majorOrder } from "@/lib/taxonomy";
 
 /** 음차 사전·발음 맵 공통 형식 검증 — {"표기": "발음"} 객체, 값은 비어 있지 않은 문자열 (spec/06 6장) */
@@ -103,10 +103,10 @@ export async function latestPublishEvents(): Promise<Record<string, { at: string
   return out;
 }
 
-/** 제품 id 가 기록되지 않은 발행·패키지 편 (0012 이전 발행분) — 발행 화면의 "발행 기록 연결" 입력 */
+/** 제품 id 가 기록되지 않은 **발행된** 편 (0012 이전 발행분) — 발행 화면의 "발행 기록 연결" 입력. packaged(발행 전) 편은 아직 제품에 없으니 대상이 아니다 (2026-09-09 박수헌) */
 export async function listUnlinkedPublished(): Promise<{ backlog_id: string; title: string; episode_id: string | null; status: string }[]> {
   const sb = await supabaseServer();
-  const { data: bls, error } = await sb.from("backlog").select("id,title,status").in("status", ["published", "packaged"]).is("published_content_ref", null).order("id");
+  const { data: bls, error } = await sb.from("backlog").select("id,title,status").eq("status", "published").is("published_content_ref", null).order("id");
   if (error) throw new Error(error.message);
   const ids = (bls ?? []).map((b) => b.id);
   const { data: eps } = ids.length ? await sb.from("episodes").select("id,backlog_id").in("backlog_id", ids) : { data: [] };
@@ -265,4 +265,39 @@ export async function requestReQa(episodeId: string, backlogId: string) {
   if (error) throw new Error(error.message);
   revalidatePath(`/episodes/${episodeId}`);
   return data.id as string;
+}
+
+/**
+ * 에피소드 삭제 (2026-09-09 박수헌, 0015) — 잘못 만들어졌거나 다시 만들 에피소드를 지운다.
+ * 막는 것: 회귀 세트 · 발행된 후보(둘 다 RLS 가 강제) · 진행 중(claimed/running) 작업. 대기(queued) 작업은 취소한다.
+ * 후보는 proposed(재승인 대기) 또는 rejected 로 되돌리고 사유를 dedup_note 앞에 🗑 로 남긴다. S3 산출물은 best-effort 로 지운다(실패해도 삭제는 성립 — 결과에 알린다).
+ */
+export async function deleteEpisode(episodeId: string, opts: { backlogTo: "proposed" | "rejected"; reason: string }) {
+  const sb = await supabaseServer();
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) throw new Error("로그인이 필요합니다");
+  const { data: ep } = await sb.from("episodes").select("id,backlog_id,regression").eq("id", episodeId).maybeSingle();
+  if (!ep) throw new Error(`에피소드 ${episodeId} 없음`);
+  if (ep.regression) throw new Error("회귀 세트 에피소드는 지울 수 없습니다 (spec/09 7.1)");
+  const { data: bl } = await sb.from("backlog").select("id,status,dedup_note").eq("id", ep.backlog_id).maybeSingle();
+  if (bl?.status === "published") throw new Error("발행된 에피소드는 지울 수 없습니다 — 제품 발행에서 회수가 먼저입니다");
+  const { data: jobs } = await sb.from("jobs").select("id,type,status").eq("payload->>episode_id", episodeId).in("status", ["queued", "claimed", "running"]);
+  const running = (jobs ?? []).filter((j) => j.status !== "queued");
+  if (running.length) throw new Error(`진행 중인 작업이 있습니다 (${running.map((j) => j.type).join(", ")}) — 끝나거나 실패한 뒤 지우세요`);
+  for (const j of jobs ?? []) await sb.from("jobs").update({ status: "cancelled" }).eq("id", j.id).eq("status", "queued");
+  const { data: deleted, error } = await sb.from("episodes").delete().eq("id", episodeId).select("id");
+  if (error) throw new Error(error.message);
+  if (!deleted?.length) throw new Error("삭제되지 않았습니다 — 권한(회귀 세트·발행 후보) 또는 이미 삭제됨");
+  const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
+  const prev = String(bl?.dedup_note ?? "").replace(/^(⚠️ 초안 실패|🗑 에피소드 삭제)[^|]*\| ?/, "");
+  const note = `🗑 에피소드 삭제 ${episodeId} (${stamp}, ${user.email ?? "?"}): ${opts.reason.trim() || "사유 없음"}${prev ? ` | ${prev}` : ""}`;
+  if (bl) {
+    const { error: e2 } = await sb.from("backlog").update({ status: opts.backlogTo, claimed_by: null, claimed_at: null, dedup_note: note }).eq("id", bl.id);
+    if (e2) throw new Error(`에피소드는 지웠지만 후보 상태 변경 실패: ${e2.message}`);
+  }
+  let storage = "";
+  try { storage = `S3 산출물 ${await deletePrefix(`episodes/${episodeId}/`)}개 삭제`; }
+  catch (e) { storage = `S3 산출물은 남아 있음 (${(e as Error).message.slice(0, 80)})`; }
+  revalidatePath("/episodes"); revalidatePath("/backlog"); revalidatePath("/");
+  return { backlog_id: ep.backlog_id, backlog_status: opts.backlogTo, cancelled_jobs: (jobs ?? []).length, storage };
 }

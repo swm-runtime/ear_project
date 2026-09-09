@@ -58,6 +58,8 @@ create table if not exists backlog (
   updated_at  timestamptz not null default now()
 );
 
+-- episodes 삭제(0015): authenticated 는 회귀 세트가 아니고 발행되지 않은 후보의 에피소드만 지울 수 있다 (RLS team_delete)
+
 -- ── 3b. publish_log: 제품 발행·재발행 이력 (0014) ───────────────
 -- backlog.published_* 는 최신 한 줄, 이 표는 사건 단위. 제품 audit_logs 가 진실이나 API 로 열리지 않아 콘솔을 거친 사건만 남긴다.
 create table if not exists publish_log (

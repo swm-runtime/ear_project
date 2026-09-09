@@ -8,6 +8,7 @@ import { VerdictForm } from "./verdict-form";
 import { TtsButton } from "./tts-button";
 import { RepublishButton } from "./republish-button";
 import { PackageButton } from "./package-button";
+import { DeleteButton } from "./delete-button";
 import { listObjects, presignGet } from "@/lib/storage";
 import { ScriptEditor } from "./script-editor";
 import { PronEditor } from "./pron-editor";
@@ -58,6 +59,8 @@ export default async function EpisodePage({ params, searchParams }: { params: Pr
           <PackageButton episodeId={ep.id} backlogId={ep.backlog_id} enabled={["qa_passed", "packaged"].includes(bl?.status ?? "")} pending={!!pkgJob} />
           {["packaged", "published"].includes(bl?.status ?? "") && <LinkBtn kind="primary" href={`/publish/upload?episode=${ep.id}`}>제품 발행</LinkBtn>}
           <TtsButton episodeId={ep.id} backlogId={ep.backlog_id} enabled={["qa_passed", "packaged", "published"].includes(bl?.status ?? "")} pending={!!ttsJob} />
+          <DeleteButton episodeId={ep.id} backlogId={ep.backlog_id} disabled={!!ep.regression || bl?.status === "published" || activeJobs.some((j) => j.status !== "queued")}
+            disabledReason={ep.regression ? "회귀 세트는 지울 수 없음" : bl?.status === "published" ? "발행된 에피소드 — 제품 발행에서 회수가 먼저" : "진행 중인 작업이 끝난 뒤"} />
           {bl?.status === "published" && bl.published_content_ref && (
             <RepublishButton episodeId={ep.id} backlogId={ep.backlog_id} contentId={bl.published_content_ref} version={bl.published_version ?? null} publishedAt={bl.published_at ?? null} lastTtsAt={lastTtsAt} audioNewer={audioNewer} pending={!!ttsJob} />
           )}
