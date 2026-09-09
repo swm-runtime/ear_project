@@ -79,3 +79,18 @@ pepper 2종은 이미 저장된 해시와 짝이라 회전이 성립하지 않�
 - Given 시크릿 조회가 실패하는 상황 / When 배포가 돈다 / Then `.env.prod`와 컨테이너가 **무변경**이고 배포는 실패로 끝난다
 - Given 시크릿에만 있고 `.env.prod`에 없는 키 / When 갱신이 돈다 / Then 조용히 추가하지 않고 실패한다
 - Given 배포 로그 / When 전체를 본다 / Then 비밀값이 어디에도 찍히지 않는다
+
+## 진행 기록 (2026-09-09 — 구현 완료, 머지 후 배포 1회 확인만 남음)
+
+infra 패치 제안 그대로 반영했다(`feat(be)/deploy-secrets-and-lint`).
+
+- `backend/deploy/apply-secrets.py` 신설 — 로컬 검증 3건 통과: 비밀 키만 치환(비밀 아닌
+  줄·주석 보존), `.env.prod`에 없는 키는 실패(종료 1), 빈 시크릿은 파일 무접촉 실패.
+- `push.sh` 재기동 블록 앞에 조회·갱신 삽입 — `aws`/`python3` 존재 확인을 먼저 하고,
+  임시 파일 600 + trap shred, `.env.prod.bak` 한 세대, 조회 실패 시 `set -e`로 파일·컨테이너
+  무접촉 중단. `bash -n` 통과(원격 블록 이스케이프 포함).
+- `deploy/aws/README.md`에 "비밀값의 원천은 Secrets Manager, 값 교체는 put-secret-value 후
+  재배포" 명시(확인 요청 항목).
+
+**남은 것**: 완료 조건 1(dev 머지 → 배포 워크플로에서 비밀 8종 갱신 + 정상 기동)은 머지 후
+첫 배포 run으로 확인한다. 확인되면 이 티켓과 infra 티켓(KAN-35)의 완료 조건 2가 함께 닫힌다.
