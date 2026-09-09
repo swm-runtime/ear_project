@@ -37,3 +37,13 @@
 
 - Given `auth-api.md` 4.2 / When 멱등 규칙을 읽는다 / Then 재요청이 409이고 복구 경로가 4.1임이 적혀 있다
 - Given 가입 성공 후 같은 키 재요청 / When 서버가 응답한다 / Then 409이고 `idempotency_keys.response_body`에 토큰이 없다
+
+## 처리 기록 (반영 날짜: 2026-09-09 — 문서 개정 없이 종결)
+
+**이 changes는 낡은 근거로 발행됐다.** 코드를 다시 확인하니 `/auth/sign-up`은 이미 2026-09-08에
+`IdempotencyInterceptor`를 떼어 **응답을 저장하지 않으며**(`auth.controller.ts` — "멱등 캐시를 쓰지 않는다"),
+`auth-api.md` 4.2도 같은 날 "`Idempotency-Key`를 받지만 응답을 캐시하지 않는다"로 개정돼 있었다.
+감사가 본 것은 인터셉터 상단의 **낡은 TODO 주석**이었고, 실제 위반은 없었다.
+
+따라서 제안한 409 `DUPLICATE_REQUEST` 계약은 필요 없다 — 현행 계약(재시도는 새 세션 발급, 계정은 하나)이
+3.3을 이미 만족한다. 낡은 TODO 주석만 현행 설명으로 바꿨다(같은 PR).
