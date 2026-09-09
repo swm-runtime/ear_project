@@ -11,10 +11,15 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 
 import type { AuthenticatedUser } from '@/common/decorators/current-user.decorator';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
+import {
+  RATE_LIMIT_EMAIL_SEND_PER_MINUTE,
+  RATE_LIMIT_WINDOW_MS,
+} from '@/common/rate-limit.constant';
 import { IdempotencyInterceptor } from '@/modules/idempotency/idempotency.interceptor';
 
 import { ConsentService } from '../services/consent.service';
@@ -152,6 +157,13 @@ export class UserController {
   // 연타로 발송 횟수가 소모되는 것을 막는다 (auth-api.md 4.8 ★)
   @Post('email-verifications')
   @UseInterceptors(IdempotencyInterceptor)
+  // architecture.md 9.6 — 앱 레벨 발송 상한(주소당·계정당)의 앞단 방어. 사용자 단위
+  @Throttle({
+    default: {
+      limit: RATE_LIMIT_EMAIL_SEND_PER_MINUTE,
+      ttl: RATE_LIMIT_WINDOW_MS,
+    },
+  })
   async sendEmailVerification(
     @CurrentUser() currentUser: AuthenticatedUser,
     @Body() request: SendEmailVerificationRequestDto,

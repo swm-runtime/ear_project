@@ -7,11 +7,31 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
+import { Throttle } from '@nestjs/throttler';
+
 import type { AuthenticatedUser } from '@/common/decorators/current-user.decorator';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
+import { ipTracker } from '@/common/guards/rate-limit.guard';
+import {
+  RATE_LIMIT_AUTH_PER_MINUTE,
+  RATE_LIMIT_WINDOW_MS,
+} from '@/common/rate-limit.constant';
 
 import { AuthService } from './services/auth.service';
+
+/**
+ * 인증 라우트 한도(architecture.md 9.6) — 사용자가 아직 없으니 **IP**로 센다.
+ * 전역 가드가 토큰을 보고 사용자로 세는 규칙을 여기서는 명시적으로 끈다:
+ * 갱신 요청은 유효한 access token을 들고 올 수 있어 그대로 두면 IP 한도가 비켜 간다.
+ */
+const AUTH_THROTTLE = {
+  default: {
+    limit: RATE_LIMIT_AUTH_PER_MINUTE,
+    ttl: RATE_LIMIT_WINDOW_MS,
+    getTracker: ipTracker,
+  },
+};
 import { LogoutRequestDto } from './dto/logout-request.dto';
 import { PipelineLoginRequestDto } from './dto/pipeline-login-request.dto';
 import { PipelineLoginResponseDto } from './dto/pipeline-login-response.dto';
@@ -29,6 +49,7 @@ export class AuthController {
 
   @Post('social-login')
   @HttpCode(HttpStatus.OK)
+  @Throttle(AUTH_THROTTLE)
   async socialLogin(
     @Body() request: SocialLoginRequestDto,
   ): Promise<SocialLoginResponseDto> {
@@ -72,6 +93,7 @@ export class AuthController {
    * `Idempotency-Key` 헤더는 계속 받는다 — 클라이언트의 5xx 자동 재시도 조건이다.
    */
   @Post('sign-up')
+  @Throttle(AUTH_THROTTLE)
   async signUp(@Body() request: SignUpRequestDto): Promise<SignUpResponseDto> {
     const result = await this.authService.signUp(
       {
@@ -91,6 +113,7 @@ export class AuthController {
 
   @Post('token/refresh')
   @HttpCode(HttpStatus.OK)
+  @Throttle(AUTH_THROTTLE)
   async refreshToken(
     @Body() request: RefreshTokenRequestDto,
   ): Promise<RefreshTokenResponseDto> {
