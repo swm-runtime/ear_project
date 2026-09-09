@@ -1,10 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 
 import { BusinessConflictException } from '@/common/exceptions/business-conflict.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 
-import { IDEMPOTENCY_RETENTION_SEC } from './idempotency.constant';
+import {
+  IDEMPOTENCY_IN_PROGRESS_LEASE_MS,
+  IDEMPOTENCY_RETENTION_SEC,
+} from './idempotency.constant';
 import { IdempotencyStatus } from './idempotency.enum';
 import { IdempotencyRepository } from './idempotency.repository';
 
@@ -27,6 +30,8 @@ export type IdempotencyOutcome =
  */
 @Injectable()
 export class IdempotencyService {
+  private readonly logger = new Logger(IdempotencyService.name);
+
   constructor(private readonly idempotencyRepository: IdempotencyRepository) {}
 
   async begin(scope: IdempotencyScope, now: Date): Promise<IdempotencyOutcome> {
@@ -66,14 +71,33 @@ export class IdempotencyService {
       throw this.conflict();
     }
 
-    // 동시에 도착한 두 번째 요청 — 둘 다 실행되는 것을 막는 것이 in_progress의 목적이다
     if (existing.status === IdempotencyStatus.IN_PROGRESS) {
-      throw this.conflict();
+      const startedAt = existing.createdAt.getTime();
+      const isAbandoned =
+        now.getTime() - startedAt >= IDEMPOTENCY_IN_PROGRESS_LEASE_MS;
+
+      // 동시에 도착한 두 번째 요청 — 둘 다 실행되는 것을 막는 것이 in_progress의 목적이다
+      if (!isAbandoned) {
+        throw this.conflict();
+      }
+
+      /**
+       * **리스를 넘긴 행은 버려진 것으로 본다.** 프로세스가 죽거나 요청이 끊기면 `discard`가
+       * 돌지 못해 행이 그대로 남고, 그 키는 만료(24시간)까지 영구 409가 된다 —
+       * `domain.md` 1.4의 "실패한 요청은 같은 키로 다시 시도할 수 있어야 한다"에 어긋난다.
+       */
+      this.logger.warn('abandoned idempotency key reclaimed', {
+        endpoint: scope.endpoint,
+      });
+      await this.idempotencyRepository.deleteById(existing.id);
+
+      return this.begin(scope, now);
     }
 
     return {
       type: 'replay',
-      status: existing.responseStatus ?? 0,
+      // completed 행은 항상 상태를 갖는다. 방어값으로 0을 쓰면 res.status(0)이 던진다
+      status: existing.responseStatus ?? HttpStatus.OK,
       body: existing.responseBody,
     };
   }
@@ -110,8 +134,9 @@ export class IdempotencyService {
     await this.idempotencyRepository.deleteByOwnerKey(ownerKey, manager);
   }
 
-  async purgeExpired(now: Date): Promise<void> {
-    await this.idempotencyRepository.deleteExpired(now);
+  /** 만료 행 청소. 호출자는 `IdempotencyPurgeScheduler`다 — 이 경로가 곧 보존 기간이다 */
+  async purgeExpired(now: Date): Promise<number> {
+    return this.idempotencyRepository.deleteExpired(now);
   }
 
   private conflict(): BusinessConflictException {

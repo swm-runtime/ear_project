@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { cfg, executedBy } from "../config.js";
-import { deleteEpisode, enqueue, getBacklog, getEpisode, getSetting, insertRun, majorOfMidTopic, nextEpisodeId, setBacklogStatus, setJobProgress, updateJobPayload, upsertEpisode, pool, type Job } from "../db.js";
+import { claimApprovedBacklog, deleteEpisode, enqueue, getBacklog, getBacklogStatus, getEpisode, getSetting, insertRun, majorOfMidTopic, nextEpisodeId, setBacklogStatus, setJobProgress, updateJobPayload, upsertEpisode, pool, type Job } from "../db.js";
 import type { Executor } from "../executors/index.js";
 import { buildDraftPrompt, buildDraftRevisionPrompt, DRAFT_SCHEMA, DRAFT_REVISION_SCHEMA, episodeDatePrefix, pickIntroStyle, type Templates } from "@ear/pipeline";
 import { exists, hostOf, log, RetryLater } from "../util.js";
@@ -26,6 +26,18 @@ export async function runDraft(job: Job, ex: Executor) {
 
   let episodeId: string;
   if (attempt === 1) {
+    // 선점 (approved → claimed, 원자적) — 승인 시 UI 가 넣은 작업이 여기서 후보를 집는다 (2026-09-08). 실패하면:
+    //   · 이 작업이 이미 집었던 후보(재집기 — payload 에 episode_id 있음) → 이어받기
+    //   · 다른 작업이 집었거나 승인이 철회됨 → 실패가 아니라 건너뜀 (실패로 던지면 onDraftFailed 가 남의 후보를 proposed 로 되돌린다)
+    if (!(await claimApprovedBacklog(backlogId, cfg.workerName))) {
+      const bs = await getBacklogStatus(backlogId);
+      const resuming = bs?.status === "claimed" && !!job.payload.episode_id;
+      if (!resuming) {
+        const why = bs ? `backlog 상태 ${bs.status}${bs.claimed_by ? ` (집은 워커 ${bs.claimed_by})` : ""}` : "backlog 없음";
+        log(`  draft ${backlogId}: 선점 실패 — ${why}. 중복 작업으로 보고 건너뜀`);
+        return { backlog_id: backlogId, skipped: true, reason: `선점 실패 — ${why}` };
+      }
+    }
     // 재집기(워커 사망 후 회수) 시 같은 에피소드를 이어받도록 작업 payload 에 ID 를 고정한다
     episodeId = String(job.payload.episode_id ?? "") || (await nextEpisodeId(episodeDatePrefix("T")));
     if (!job.payload.episode_id) await updateJobPayload(job.id, { episode_id: episodeId });
@@ -118,7 +130,10 @@ export async function runDraft(job: Job, ex: Executor) {
   // 발음 맵 (spec/04 8장) — 모델이 빠뜨렸거나 구 에피소드 이어받기면 빈 맵을 둔다 (웹 "발음" 탭·TTS 병합의 기준 파일. 누락 표기는 TTS 잔존 검사가 잡는다)
   const pronFile = path.join(dir, "pronunciations.json");
   if (!(await exists(pronFile))) await fs.writeFile(pronFile, "{}\n", "utf8");
-  await pushPrefix(`${rel}/`); // 먼저 S3 에 — DB 키가 가리키는 객체가 있어야 한다
+  // 먼저 S3 에 — DB 키가 가리키는 객체가 있어야 한다. 업로드 실패(SSO 만료·네트워크)는 초안 실패가 아니다: 산출물은 로컬에 있으니
+  // 작업을 큐에 되돌려 자격 증명이 살아난 뒤 다시 집는다 (2026-09-09 T260909-001: 대본까지 다 쓰고 업로드에서 죽어 에피소드가 지워졌다)
+  try { await pushPrefix(`${rel}/`); }
+  catch (e) { throw new RetryLater(`${episodeId} 산출물 업로드 실패 — 로컬 산출물은 보존, 저장소 자격 증명 확인 후 재시도: ${String((e as Error)?.message ?? e).slice(0, 160)}`, 5 * 60_000); }
   const artifacts = [s3Key(`${rel}/script.md`), s3Key(`${rel}/sources.md`), s3Key(`${rel}/claims.md`), s3Key(`${rel}/pronunciations.json`)];
   if (attempt === 1) {
     await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: promptVersion, script_key: artifacts[0], claims_key: artifacts[2], sources_key: artifacts[1] });
@@ -138,7 +153,9 @@ export async function runDraft(job: Job, ex: Executor) {
     return { episode_id: episodeId, attempt, summary, model, l0_violations: violations, next: { draft_fix_job_id: fixJobId } };
   }
   await insertRun({ backlog_id: backlogId, phase: "draft", attempt, result: summary, prompt_version: `${promptVersion} (worker)`, artifacts, executed_by: executedBy, model, cost_usd: costUsd, tokens, worker_rev: workerRev() });
-  const qaJobId = await enqueue({ type: "qa", requires_ai: true, payload: { episode_id: episodeId, backlog_id: backlogId, attempt }, parent_job_id: job.id, attempt });
+  // 회차 2+: 이전 QA 실패와 작성 측 수정 내역(바뀐 자리만)을 QA 에 넘긴다 — 해소 확인 + 바뀌지 않은 문장의 판정 안정성 (spec/05 5장, 2026-09-08)
+  const carry = attempt > 1 ? { prior_failures: (job.payload.qa_failures ?? []) as unknown[], fixes: (out as RevisionOut).fixes ?? [] } : {};
+  const qaJobId = await enqueue({ type: "qa", requires_ai: true, payload: { episode_id: episodeId, backlog_id: backlogId, attempt, ...carry }, parent_job_id: job.id, attempt });
   return { episode_id: episodeId, attempt, summary, model, next: { qa_job_id: qaJobId }, output: out };
 }
 
@@ -152,6 +169,9 @@ function formatViolations(md: string): string[] {
     if (noId.length > Math.ceil(p.turns.length * 0.3)) v.push(`턴 번호(E·Y) 없는 발화가 ${noId.length}/${p.turns.length}개 — 번호 턴은 "[화자] E1 · 문장" 형식 (spec/04 4장)`);
   }
   if (p.coldOpen) v.push("[콜드오픈] 구역이 있음 — 2026-09-07 폐지, 대본은 [인트로]부터 시작한다 (spec/04 4장 구조)");
+  // 시점 고정 표현 (spec/04 3장 금지 규칙 4 · QA 항목 6 의 코드 이관, 2026-09-08): 오디오는 발행 후에도 재생된다. 템플릿의 "오늘의 주제"·"지금까지"는 대상이 아니므로 상대 시점 어휘만 본다
+  const tense = p.turns.filter((t) => /(요즘|최근에?|올해|작년|내년|어제|내일|지난\s?(주|달|해|번)|이번\s?(주|달)|며칠 전)/.test(t.text)).map((t) => t.id ?? "?");
+  if (tense.length) v.push(`시점 고정 표현(요즘·최근·올해·지난주 등)이 ${tense.length}턴에 있음 (${tense.slice(0, 6).join(", ")}) — 절대 표기(년-월)나 무시점 표현으로 바꾼다 (spec/04 3장 규칙 4)`);
   return v;
 }
 

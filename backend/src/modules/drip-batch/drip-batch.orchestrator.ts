@@ -16,6 +16,7 @@ import {
 import { PreferenceSignalAction } from '@/modules/drip/drip.enum';
 import {
   PreferenceSignalInput,
+  ScoredCandidate,
   ScoringCandidate,
   UserPreferenceWeights,
 } from '@/modules/drip/drip.types';
@@ -36,7 +37,14 @@ import { UserService } from '@/modules/user/services/user.service';
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /** 사용자 단위 처리 결과 — `drip_batch_runs`의 카운트로 접힌다(domain.md 7.3) */
-type UserOutcome = 'scheduled' | 'skipped';
+/**
+ * 사용자 한 명의 편성 결과.
+ *
+ * **`exhausted`를 `scheduled`와 합치지 않는다** — `drip-scheduling.md` 5장의 사용자 상태에
+ * `no_candidates(고갈)`가 있고, 운영 콘솔이 **고갈 사용자 수**를 본다. 합쳐 두면 "2편 적립"과
+ * "0편 고갈"이 같은 숫자에 들어가, 후보가 말라 가는 것을 지표로 알 수 없다.
+ */
+type UserOutcome = 'scheduled' | 'skipped' | 'exhausted';
 
 /**
  * 일일 편성 배치 — `drip-scheduling.md` 2(트리거)·4(처리 로직)의 실행부다.
@@ -87,45 +95,70 @@ export class DripBatchOrchestrator {
       targetCount: 0,
       successCount: 0,
       skippedCount: 0,
+      exhaustedCount: 0,
       failedCount: 0,
     };
 
     let afterId: string | null = null;
 
-    for (;;) {
-      const users: User[] = await this.userService.findDripTargetsPage(
-        afterId,
-        DRIP_BATCH_USER_PAGE_SIZE,
-      );
+    /**
+     * **어떻게 끝나든 실행 기록을 닫는다.** 사용자 단위 실패는 아래에서 흡수되지만,
+     * 페이지 조회처럼 루프 자체가 던지는 경로가 남아 있다. 그때 `finish`를 건너뛰면
+     * `finished_at`이 NULL로 남아 **그날 재실행이 막힌다** — 이제는 오래된 행을 다시
+     * 집을 수 있지만(`DRIP_BATCH_STALE_MS`), 그건 마지막 방어선이지 정상 경로가 아니다.
+     */
+    try {
+      for (;;) {
+        const users: User[] = await this.userService.findDripTargetsPage(
+          afterId,
+          DRIP_BATCH_USER_PAGE_SIZE,
+        );
 
-      if (users.length === 0) {
-        break;
-      }
-
-      for (const user of users) {
-        counts.targetCount += 1;
-
-        try {
-          const outcome = await this.scheduleForUser(user, now);
-
-          if (outcome === 'scheduled') {
-            counts.successCount += 1;
-          } else {
-            counts.skippedCount += 1;
-          }
-        } catch (error) {
-          counts.failedCount += 1;
-          this.logger.warn('drip scheduling failed for user', {
-            userId: user.id,
-            error: toErrorMessage(error),
-          });
+        if (users.length === 0) {
+          break;
         }
+
+        for (const user of users) {
+          counts.targetCount += 1;
+
+          try {
+            const outcome = await this.scheduleForUser(user, now);
+
+            if (outcome === 'scheduled') {
+              counts.successCount += 1;
+            } else if (outcome === 'exhausted') {
+              counts.exhaustedCount += 1;
+            } else {
+              counts.skippedCount += 1;
+            }
+          } catch (error) {
+            counts.failedCount += 1;
+            this.logger.warn('drip scheduling failed for user', {
+              user_id: user.id,
+              error: toErrorMessage(error),
+            });
+          }
+        }
+
+        afterId = users[users.length - 1].id;
       }
-
-      afterId = users[users.length - 1].id;
+    } finally {
+      /**
+       * **`exhaustedCount`는 저장하지 않는다.** `drip_batch_runs`에 그 컬럼이 없고
+       * (`domain.md` 7.3), 문서에 없는 컬럼을 코드가 만들지 않는다. 지금은 아래 집계
+       * 로그로만 남는다 — 컬럼 신설은 `changes/`로 요청했다.
+       */
+      await this.dripBatchRunService.finish(
+        run,
+        {
+          targetCount: counts.targetCount,
+          successCount: counts.successCount,
+          skippedCount: counts.skippedCount,
+          failedCount: counts.failedCount,
+        },
+        new Date(),
+      );
     }
-
-    await this.dripBatchRunService.finish(run, counts, new Date());
 
     // 건당 로그를 남기지 않고 실행 결과를 집계해 한 번 남긴다 (convention.md 8.3 — 드립 편성)
     this.logger.log('drip batch finished', { runDate, ...counts });
@@ -160,7 +193,6 @@ export class DripBatchOrchestrator {
     const { preference, difficultyAffinity, isColdStart } =
       await this.rebuildPreference(user.id, now);
 
-    const excludedContentIds = await this.findExcludedContentIds(user.id);
     const completedEpisodesBySeries =
       await this.libraryService.findCompletedSeriesMaxEpisodes(user.id);
 
@@ -168,7 +200,6 @@ export class DripBatchOrchestrator {
       dripCount > 0
         ? await this.scheduleRegular(user.id, {
             activeTopicIds,
-            excludedContentIds,
             completedEpisodesBySeries,
             preference,
             difficultyAffinity,
@@ -183,7 +214,8 @@ export class DripBatchOrchestrator {
       if (discoveryCount > 0) {
         await this.scheduleDiscovery(user.id, {
           activeTopicIds,
-          excludedContentIds: [...excludedContentIds, ...regularPicks.ids],
+          // 방금 뽑은 정규 편성분만 넘긴다 — 누적 이력은 SQL의 NOT EXISTS가 본다
+          alreadyPickedIds: regularPicks.ids,
           pickedTopicIds: regularPicks.topicIds,
           pickedEmbeddings: regularPicks.embeddings,
           discoveryCount,
@@ -192,12 +224,14 @@ export class DripBatchOrchestrator {
       }
     } catch (error) {
       this.logger.warn('discovery scheduling failed', {
-        userId: user.id,
+        user_id: user.id,
         error: toErrorMessage(error),
       });
     }
 
-    return 'scheduled';
+    // 정규 편성이 0편이면 후보가 마른 것이다(4.1의 스킵 조건은 위에서 이미 걸렀다).
+    // 탐험 슬롯만 채워졌더라도 본편이 없으면 그날의 편성은 성공이 아니다
+    return regularPicks.ids.length > 0 ? 'scheduled' : 'exhausted';
   }
 
   /** 4.3 — 배치 시점에 최신 신호를 읽어 취향 캐시를 재계산한다 */
@@ -260,7 +294,6 @@ export class DripBatchOrchestrator {
     userId: string,
     input: {
       activeTopicIds: string[];
-      excludedContentIds: string[];
       completedEpisodesBySeries: Map<string, number>;
       preference: UserPreferenceWeights | null;
       difficultyAffinity: Record<string, number> | null;
@@ -271,7 +304,7 @@ export class DripBatchOrchestrator {
   ): Promise<{ ids: string[]; topicIds: string[]; embeddings: number[][] }> {
     const pool = await this.contentService.findCandidates({
       includeTopicIds: input.activeTopicIds,
-      excludeContentIds: input.excludedContentIds,
+      excludeSeenByUserId: userId,
       // 시리즈 순서는 아래 filterEpisodeOrder가 판정한다 — 완청한 다음 편은 허용해야 한다
       seriesStartOnly: false,
       limit: SCORING_POOL_LIMIT,
@@ -309,6 +342,8 @@ export class DripBatchOrchestrator {
       input.dripCount,
     );
 
+    this.logPicks('regular', userId, picks, input.isColdStart);
+
     await this.dripPlacementService.placeItems(
       userId,
       picks.map((pick) => pick.content.id),
@@ -331,7 +366,8 @@ export class DripBatchOrchestrator {
     userId: string,
     input: {
       activeTopicIds: string[];
-      excludedContentIds: string[];
+      /** 방금 뽑은 정규 편성분. 누적 이력은 `excludeSeenByUserId`가 SQL에서 뺀다 */
+      alreadyPickedIds: string[];
       pickedTopicIds: string[];
       pickedEmbeddings: number[][];
       discoveryCount: number;
@@ -339,9 +375,12 @@ export class DripBatchOrchestrator {
     },
   ): Promise<void> {
     const pool = await this.contentService.findCandidates({
-      excludeContentIds: input.excludedContentIds,
+      excludeSeenByUserId: userId,
+      excludeContentIds: input.alreadyPickedIds,
       // 탐험 편은 시리즈 도입부만 — 처음 보는 주제를 3편부터 줄 이유가 없다
       seriesStartOnly: true,
+      // 저노출부터 자른다 — 인기순 풀에서 저노출을 고르면 슬롯의 목적이 뒤집힌다(4.8-2)
+      lowExposureFirst: true,
       limit: SCORING_POOL_LIMIT,
       now: input.now,
     });
@@ -369,6 +408,8 @@ export class DripBatchOrchestrator {
       count: input.discoveryCount,
       now: input.now,
     });
+
+    this.logPicks('discovery', userId, picks, false);
 
     await this.dripPlacementService.placeItems(
       userId,
@@ -415,6 +456,48 @@ export class DripBatchOrchestrator {
   }
 
   /** 노출 피로(4.2 ③) — 최근 편성분(드립·탐험)의 주제 */
+  /**
+   * **왜 이 콘텐츠가 갔는지를 남긴다.**
+   *
+   * 최종 점수 하나만 남기면 축이 죽어 있어도 겉으로는 정상으로 보인다 — 실제로 인기도
+   * 축이 상수 0인 것(`content_stats` 미집계)과 탐험 풀이 뒤집혀 있던 것을, 코드를 읽기
+   * 전까지 아무도 알아채지 못했다. **입력이 없어도 점수는 나오기 때문이다.**
+   *
+   * `null`은 **입력이 없어 축에서 빠졌다**는 뜻이고 0과 다르다(4.2 재정규화).
+   * 전 사용자의 특정 항목이 계속 같은 값이면 그 입력이 죽어 있다는 신호다.
+   *
+   * 사용자당 편성 편수(2~3편)만큼만 남는다 — 후보 300건 전체를 남기지 않는다.
+   */
+  private logPicks(
+    slot: 'regular' | 'discovery',
+    userId: string,
+    picks: ScoredCandidate[],
+    isColdStart: boolean,
+  ): void {
+    for (const pick of picks) {
+      this.logger.log('drip pick scored', {
+        user_id: userId,
+        content_id: pick.content.id,
+        slot,
+        cold_start: isColdStart,
+        score: round(pick.score),
+        axes: {
+          embedding: round(pick.breakdown.embedding),
+          signal: round(pick.breakdown.signal),
+          meta: round(pick.breakdown.meta),
+        },
+        meta_items: {
+          topic_match: round(pick.breakdown.metaItems.topicMatch),
+          freshness: round(pick.breakdown.metaItems.freshness),
+          popularity: round(pick.breakdown.metaItems.popularity),
+          difficulty_fit: round(pick.breakdown.metaItems.difficultyFit),
+          series_continuity: round(pick.breakdown.metaItems.seriesContinuity),
+          exposure_fatigue: round(pick.breakdown.metaItems.exposureFatigue),
+        },
+      });
+    }
+  }
+
   private async findRecentDripTopicIds(
     userId: string,
     now: Date,
@@ -429,16 +512,6 @@ export class DripBatchOrchestrator {
     const topicIdsByContentId = await this.buildTopicIdMap(recentContentIds);
 
     return [...new Set([...topicIdsByContentId.values()].flat())];
-  }
-
-  /** 중복 방지 필터(FR-16) — `library_items` + `drip_excluded_contents` 합집합(4.2) */
-  private async findExcludedContentIds(userId: string): Promise<string[]> {
-    const [inLibrary, excluded] = await Promise.all([
-      this.libraryService.findAllContentIds(userId),
-      this.dripExclusionService.findExcludedContentIds(userId),
-    ]);
-
-    return [...new Set([...inLibrary, ...excluded])];
   }
 }
 
@@ -479,4 +552,9 @@ function buildDifficultyAffinity(
 
 function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'unknown error';
+}
+
+/** 로그에 싣는 점수는 소수점 셋째 자리까지. `null`(축 제외)은 그대로 둔다 */
+function round(value: number | null): number | null {
+  return value === null ? null : Math.round(value * 1000) / 1000;
 }

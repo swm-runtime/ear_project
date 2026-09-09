@@ -111,8 +111,8 @@ export class PlayService {
       ]);
 
       this.logger.log('play started', {
-        userId: command.userId,
-        contentId: command.contentId,
+        user_id: command.userId,
+        content_id: command.contentId,
         entryPoint: command.entryPoint,
         counted,
       });

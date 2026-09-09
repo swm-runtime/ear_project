@@ -1,16 +1,19 @@
 import { randomBytes } from 'node:crypto';
 
 import { HttpStatus, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
+import { EnvironmentVariables } from '@/config/env.validation';
 import { User } from '@/modules/user/entities/user.entity';
 import { SocialProvider } from '@/modules/user/user.enum';
 
 import {
   ACCESS_TOKEN_TTL_SEC,
   ACCESS_TOKEN_TYPE,
+  PIPELINE_ASSERTION_MAX_AGE,
   PIPELINE_ASSERTION_TYPE,
   REFRESH_TOKEN_TTL_SEC,
   SIGNUP_TOKEN_TTL_SEC,
@@ -34,7 +37,10 @@ export interface IssuedToken {
 
 @Injectable()
 export class TokenService {
-  constructor(private readonly jwtService: JwtService) {}
+  constructor(
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService<EnvironmentVariables, true>,
+  ) {}
 
   /** access token은 저장하지 않고 stateless로 검증한다 (architecture.md 9.1) */
   issueAccessToken(user: User, now: Date): IssuedToken {
@@ -106,7 +112,9 @@ export class TokenService {
    * (google.client.ts와 같은 이유 — 모듈 secret이 호출별 키보다 우선한다) 전용 인스턴스를 쓴다.
    */
   verifyPipelineAssertion(assertion: string): { email: string } {
-    const secret = process.env.PIPELINE_SSO_SECRET;
+    const secret = this.configService.get('PIPELINE_SSO_SECRET', {
+      infer: true,
+    });
     if (!secret) {
       throw new BusinessException({
         status: HttpStatus.SERVICE_UNAVAILABLE,
@@ -120,6 +128,15 @@ export class TokenService {
       payload = this.assertionJwtService.verify(assertion, {
         secret,
         algorithms: ['HS256'],
+        /**
+         * **`exp`가 있을 때만 검사되는 것에 기대지 않는다.** 서명하는 쪽은 다른 저장소·
+         * 다른 배포(파이프라인 웹 서버)라 `exp`를 빠뜨린 어서션이 오면 그 순간
+         * **만료 없는 관리자 자격증명**이 된다.
+         *
+         * `maxAge`는 `iat`가 없으면 예외를 던지므로(실측) 시간 클레임의 존재까지 함께
+         * 강제한다 — 서명자가 정한 60초(`auth-api.md` 4.12)에 시계 오차 여유를 더한 값이다.
+         */
+        maxAge: PIPELINE_ASSERTION_MAX_AGE,
       });
     } catch {
       throw this.assertionInvalid();

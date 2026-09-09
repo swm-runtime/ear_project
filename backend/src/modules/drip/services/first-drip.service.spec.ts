@@ -212,7 +212,7 @@ describe('FirstDripService', () => {
       expect(libraryService.addItems).not.toHaveBeenCalled();
     });
 
-    it('라이브러리에 있거나 이미 제외된 콘텐츠를 후보에서 뺀다', async () => {
+    it('이미 본 콘텐츠 제외를 애플리케이션 목록이 아니라 SQL에 맡긴다', async () => {
       // given
       libraryService.findAllContentIds.mockResolvedValue(['content-1']);
       excludedRepository.findAllContentIdsByUserId.mockResolvedValue([
@@ -226,10 +226,11 @@ describe('FirstDripService', () => {
       // when
       await service.schedule(USER_ID, NOW);
 
-      // then
+      // then — 목록을 만들어 넘기지 않고 SQL이 판정하도록 사용자 id를 넘긴다.
+      // 누적 이력은 계정 수명 동안 단조 증가해 NOT IN 바인딩으로는 감당되지 않는다
       const query = contentService.findCandidates.mock.calls[0][0];
-      expect(query.excludeContentIds).toContain('content-1');
-      expect(query.excludeContentIds).toContain('content-2');
+      expect(query.excludeSeenByUserId).toBe(USER_ID);
+      expect(query.excludeContentIds).toBeUndefined();
     });
   });
 

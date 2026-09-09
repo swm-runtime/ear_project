@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import { cfg, canAi, canTts, executedBy } from "./config.js";
-import { claimApprovedBacklog, claimJob, enqueue, failJob, finishJob, heartbeat, listApprovedBacklog, pool, requeueJob, startJob } from "./db.js";
+import { claimJob, enqueue, failJob, finishJob, hasActiveDraftJob, heartbeat, listApprovedBacklog, pool, requeueJob, startJob } from "./db.js";
 import { workerRev } from "./assets.js";
 import { probeStorage } from "./storage.js";
 import { makeExecutor } from "./executors/index.js";
@@ -90,13 +90,16 @@ async function main() {
   await pool.end();
 }
 
-/** 게이트 1 통과(approved) 후보 → draft 작업 생성 + claimed 전환 (집기). UI 는 approved 전환만 한다 (spec/08 4장). */
+/**
+ * 게이트 1 통과(approved) 후보의 폴백 집기 (2026-09-08 개정): 승인 시 UI 가 draft 작업을 큐에 넣는다(spec/10 4장). 여기서는
+ * 작업이 없는 approved 후보(Supabase 에디터 승인·개정 전 승인)만 큐에 넣는다. 선점(approved → claimed)은 작업을 시작하는 워커가
+ * runDraft 에서 하므로, 두 워커가 같은 후보를 큐에 넣어도 초안은 한 번만 만들어진다 (뒤늦은 쪽은 선점 실패 → 건너뜀).
+ */
 async function pickupApproved() {
   for (const id of await listApprovedBacklog()) {
-    // 먼저 선점(approved → claimed, 원자적) — 다른 워커가 이미 집었으면 건너뛴다. 예전 순서(작업 생성 → 전환)는 draft 를 두 번 만들었다
-    if (!(await claimApprovedBacklog(id, cfg.workerName))) continue;
+    if (await hasActiveDraftJob(id)) continue;
     const jobId = await enqueue({ type: "draft", requires_ai: true, payload: { backlog_id: id, attempt: 1 } });
-    log(`게이트 1 승인 감지: ${id} → draft 작업 ${jobId.slice(0, 8)}`);
+    log(`게이트 1 승인 감지(폴백): ${id} → draft 작업 ${jobId.slice(0, 8)}`);
   }
 }
 

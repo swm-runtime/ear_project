@@ -143,19 +143,26 @@ export class ContentRepository {
    * 회수 동기화(`partner-control.md` 4.3 — 클라이언트 동기화) — 그 시각 이후 회수된
    * `content_id` 목록. 별도 테이블 없이 `contents`의 상태·시각으로 판정한다(domain.md 14장).
    */
-  async findWithdrawnIdsSince(
+  async findWithdrawnSince(
     since: Date,
+    limit: number,
     manager?: EntityManager,
-  ): Promise<string[]> {
+  ): Promise<{ id: string; withdrawnAt: Date }[]> {
     const rows = await this.scoped(manager)
       .createQueryBuilder('content')
       .select('content.id', 'id')
+      .addSelect('content.withdrawn_at', 'withdrawn_at')
       .where('content.status = :status', { status: ContentStatus.WITHDRAWN })
       .andWhere('content.withdrawn_at > :since', { since })
       .orderBy('content.withdrawn_at', 'ASC')
-      .getRawMany<{ id: string }>();
+      // 한 건 더 읽어 잘렸는지 판정한다 — 호출부가 잘라낸다(목록 조회의 공통 형태)
+      .limit(limit + 1)
+      .getRawMany<{ id: string; withdrawn_at: Date }>();
 
-    return rows.map((row) => row.id);
+    return rows.map((row) => ({
+      id: row.id,
+      withdrawnAt: row.withdrawn_at,
+    }));
   }
 
   /**
@@ -220,6 +227,47 @@ export class ContentRepository {
       builder.andWhere('content.id NOT IN (:...excludeContentIds)', {
         excludeContentIds: query.excludeContentIds,
       });
+    }
+
+    if (query.excludeSeenByUserId) {
+      /**
+       * `domain.md` 7 후보 필터 — 이미 라이브러리에 있거나 제외 목록에 오른 콘텐츠는 뺀다.
+       *
+       * **`library_items`는 소프트 삭제분도 센다**(`drip-scheduling.md` 4.2 — "deleted_at 여부
+       * 무관"). 원시 SQL이라 TypeORM의 `deleted_at IS NULL`이 끼어들지 않는 것이 여기서는
+       * 맞는 동작이다. 지웠던 콘텐츠가 다시 적립되면 사용자에게는 되살아난 것으로 보인다.
+       */
+      builder.andWhere(
+        `NOT EXISTS (
+           SELECT 1 FROM library_items seen
+           WHERE seen.content_id = content.id
+             AND seen.user_id = :excludeSeenByUserId
+         )`,
+        { excludeSeenByUserId: query.excludeSeenByUserId },
+      );
+      builder.andWhere(
+        `NOT EXISTS (
+           SELECT 1 FROM drip_excluded_contents dripped
+           WHERE dripped.content_id = content.id
+             AND dripped.user_id = :excludeSeenByUserId
+         )`,
+        { excludeSeenByUserId: query.excludeSeenByUserId },
+      );
+    }
+
+    if (query.lowExposureFirst) {
+      /**
+       * 탐험 슬롯 전용 정렬(`drip-scheduling.md` 4.8-2) — **덜 재생된 것부터.**
+       *
+       * 인기순으로 자른 풀에 저노출 가점을 주면, 카탈로그가 `limit`을 넘는 순간
+       * 저노출 콘텐츠가 후보에 **들어오지도 못한다.** 자르는 기준 자체를 뒤집는다.
+       */
+      return builder
+        .orderBy(RANKING_PLAY_COUNT, 'ASC')
+        .addOrderBy('content.published_at', 'DESC')
+        .addOrderBy('content.id', 'ASC')
+        .limit(query.limit)
+        .getMany();
     }
 
     return builder

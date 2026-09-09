@@ -42,10 +42,36 @@ export interface ScoringCandidate {
   embedding: number[] | null;
 }
 
+/**
+ * 최종 점수가 **어떻게 나왔는지**. 편성 결과를 사후에 되짚기 위한 값이다.
+ *
+ * 점수 하나만 남기면 "이 사용자에게 왜 이 콘텐츠가 갔나"에 답할 수 없다. 실제로
+ * 인기도 축이 상수 0인 것(`content_stats` 미집계)과 탐험 풀이 뒤집혀 있던 것을,
+ * 코드를 읽기 전까지 아무도 몰랐다 — **입력이 죽어 있어도 점수는 나오기 때문이다.**
+ *
+ * `null`은 **입력이 없어 축에서 빠졌다**는 뜻이다(4.2 재정규화). 0과 다르다.
+ */
+export interface ScoreBreakdown {
+  /** 축별 점수 — 임베딩 유사도 · 신호 선호도 · 메타 규칙 */
+  embedding: number | null;
+  signal: number | null;
+  meta: number | null;
+  /** 메타 축 안의 항목별 점수(4.2 ③) */
+  metaItems: {
+    topicMatch: number | null;
+    freshness: number | null;
+    popularity: number | null;
+    difficultyFit: number | null;
+    seriesContinuity: number | null;
+    exposureFatigue: number | null;
+  };
+}
+
 export interface ScoredCandidate extends ScoringCandidate {
   score: number;
   /** 시리즈 연속 편 여부 — 다양성 제약의 예외 판정에 쓴다(`drip-scheduling.md` 4.2-3) */
   isSeriesContinuation: boolean;
+  breakdown: ScoreBreakdown;
 }
 
 /** 정규 편성 스코어링 문맥(`drip-scheduling.md` 4.2) */

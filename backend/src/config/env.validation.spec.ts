@@ -118,4 +118,63 @@ describe('validateEnv', () => {
     // then
     expect(validate).toThrow(/MIN_SUPPORTED_APP_VERSION_IOS/);
   });
+
+  describe('비밀값 상호 중복', () => {
+    it.each([
+      ['ARCHIVE_HASH_PEPPER', 'WITHDRAWAL_HASH_PEPPER'],
+      ['JWT_SECRET', 'AUDIO_URL_SIGNING_KEY'],
+      ['JWT_SECRET', 'PIPELINE_SSO_SECRET'],
+    ] as [keyof typeof validEnv, string][])(
+      '%s와 %s이 같은 값이면 기동을 실패시킨다',
+      (left, right) => {
+        // given — 길이 제약은 둘 다 통과한다. 값이 같은 것만이 문제다
+        const config = { ...validEnv, [right]: validEnv[left] };
+
+        // when
+        const validate = () => validateEnv(config);
+
+        // then
+        expect(validate).toThrow(/서로 다른 값이어야 합니다/);
+      },
+    );
+
+    it('실패 메시지에 비밀값 자체를 담지 않는다', () => {
+      // given — 부팅 로그·CI 출력에 살아 있는 키가 찍히면 검사가 새 유출 경로가 된다
+      const config = { ...validEnv, ARCHIVE_HASH_PEPPER: validEnv.JWT_SECRET };
+
+      // when
+      const validate = () => validateEnv(config);
+
+      // then
+      expect(validate).toThrow(/JWT_SECRET, ARCHIVE_HASH_PEPPER/);
+      expect(validate).not.toThrow(new RegExp(validEnv.JWT_SECRET));
+    });
+
+    it('선택값이 비어 있으면 서로 같다고 보지 않는다', () => {
+      // given — 미설정끼리 겹쳤다고 막으면 파이프라인 SSO를 끄고 띄울 수 없다
+      const config = {
+        ...validEnv,
+        PIPELINE_SSO_SECRET: '',
+        CLOUDFRONT_PRIVATE_KEY_BASE64: '',
+      };
+
+      // when
+      const validate = () => validateEnv(config);
+
+      // then
+      expect(validate).not.toThrow();
+    });
+  });
+
+  it('PIPELINE_SSO_SECRET이 빈 문자열이면 미설정으로 보고 기동한다', () => {
+    // given — `.env.example`이 `PIPELINE_SSO_SECRET=`로 배포된다. 이걸 막으면
+    // 예제를 그대로 복사한 사람이 서버를 띄울 수 없다(auth-api.md 4.12 — 미설정 시 503)
+    const config = { ...validEnv, PIPELINE_SSO_SECRET: '' };
+
+    // when
+    const validate = () => validateEnv(config);
+
+    // then
+    expect(validate).not.toThrow();
+  });
 });

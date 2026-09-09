@@ -27,34 +27,33 @@ export class TopicService {
   constructor(private readonly topicRepository: TopicRepository) {}
 
   /**
-   * onboarding-api.md 4.2 — 1단계에 노출할 목록.
+   * onboarding-api.md 4.2 — 1단계에 노출할 목록. **`is_visible`인 것만 내려준다.**
    *
-   * 노출 주제가 하나도 없으면 **`is_visible`을 무시하고 전체를 폴백으로 내려준다.**
-   * 클라이언트가 하드코딩한 주제를 그리면 그 선택을 `user_interests`(`topic_id` FK)에
-   * 저장할 수 없어 1단계가 통째로 막히기 때문에, 폴백도 실재하는 행이어야 한다.
+   * 종전에는 노출 주제가 0건이면 `is_visible`을 무시하고 전체를 폴백으로 내려줬다.
+   * **그 목록은 저장할 수 없다** — `assertSelectable`이 같은 `is_visible`로 거부하기 때문에,
+   * 사용자는 고를 수는 있는데 [다음]에서 400을 받고 재조회해도 같은 목록을 다시 본다.
+   * **빠져나갈 수 없는 화면이 된다.**
+   *
+   * `onboarding.md` 7장과 `onboarding-api.md` 4.2가 정한 것도 그 반대다 —
+   * "데이터 정합성 오류로 다루어 운영 알림을 발생시키고 **폴백 주제를 만들지 않는다**",
+   * "`is_visible = false`인 주제는 목록에 담지도, **저장을 허용하지도 않는다**".
+   *
+   * 빈 목록을 내려주면 클라이언트는 조회 실패 상태(O6)를 그리고 재시도할 수 있다.
+   * 운영이 `is_visible`을 켜는 순간 같은 재시도가 통과한다.
    */
   async getSelectableTopics(manager?: EntityManager): Promise<TopicListResult> {
     const visible = await this.topicRepository.findAllVisible(manager);
 
-    if (visible.length > 0) {
-      return {
-        topics: visible.map(toTopicView),
-        maxSelectable: MAX_SELECTABLE_TOPIC_COUNT,
-        isFallback: false,
-      };
+    if (visible.length === 0) {
+      // 운영 알림 — `is_visible` 설정과 콘텐츠 풀을 점검해야 한다 (onboarding.md 7)
+      this.logger.error('onboarding topic list is empty');
     }
 
-    const fallback = await this.topicRepository.findAll(manager);
-
-    // 운영 알림 — `is_visible` 설정과 콘텐츠 풀을 점검해야 한다 (onboarding.md 7)
-    this.logger.error('onboarding topic list is empty', {
-      fallbackCount: fallback.length,
-    });
-
     return {
-      topics: fallback.map(toTopicView),
+      topics: visible.map(toTopicView),
       maxSelectable: MAX_SELECTABLE_TOPIC_COUNT,
-      isFallback: true,
+      // 폴백을 만들지 않으므로 항상 false다. 계약 필드는 유지한다(onboarding-api.md 4.2)
+      isFallback: false,
     };
   }
 

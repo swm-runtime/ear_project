@@ -1,11 +1,15 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { cfg } from "../config.js";
-import { setJobProgress, type Job } from "../db.js";
+import { insertRun, setJobProgress, updateJobPayload, type Job } from "../db.js";
+import { executedBy } from "../config.js";
+import { workerRev } from "../assets.js";
+import { RetryLater } from "../util.js";
 import type { Executor } from "../executors/index.js";
 import { assetPaths, buildDesignPrompt, buildWritePrompt, DESIGN_SCHEMA, WRITE_SCHEMA, type BacklogCandidate, type INTRO_STYLES, type Templates } from "@ear/pipeline";
 import { exists, hostOf, log } from "../util.js";
 import { parseScriptForTts } from "../tts/script.js";
+import { runDesignSingle } from "./design-single.js";
 
 /**
  * 초안 2단계 (2026-09-08 — "축이 이끄는 파이프라인" ③, spec/04 2장).
@@ -38,6 +42,11 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
   if (designDone) {
     log(`  draft ${episodeId}: 설계 산출물이 이미 있음 — 1단계 생략, 2단계(대본)만`);
     designSummary = "설계 이어받기(기존 산출물)";
+  } else if (cfg.designMode === "single") {
+    log(`  draft ${episodeId} ← ${cand.id} "${cand.title}" · 1/2 설계 (단발, 소스 ${cand.sources.length})`);
+    const d = await runDesignSingle({ job, ex, episodeId, candidate: cand, dir, assetRoot: a.assetRoot, promptVersion: a.promptVersion });
+    design = d.design; designCost = d.costUsd; designTokens = d.tokens; designModel = d.model;
+    designSummary = `설계(단발): 축 [${design.axis_type}] ${design.axis} · 구간 ${design.sections.length} (착지 #${design.landing_section}) · 발췌 ${design.excerpts}·claims ${design.claims} · 예상 ${design.estimated_minutes}분 · 본문 ${d.fetched.filter((f) => f.ok).length}/${d.fetched.length}${design.gaps.length ? ` · 빈 역할 ${design.gaps.join("/")}` : ""}${design.sources_excluded.length ? ` · 제외 ${design.sources_excluded.map((x) => `${hostOf(x.url)} ${x.reason}`).join("; ").slice(0, 200)}` : ""}${design.split_proposal ? ` · ⚠ 분할 제안: ${design.split_proposal.slice(0, 200)}` : ""}`;
   } else {
     const prompt = buildDesignPrompt({ assetRoot: a.assetRoot, workRoot: cfg.workRoot, episodeId, candidate: cand, promptVersion: a.promptVersion });
     log(`  draft ${episodeId} ← ${cand.id} "${cand.title}" · 1/2 설계 (소스 ${cand.sources.length})`);
@@ -73,13 +82,29 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
   ]);
   const pronFile = path.join(dir, "pronunciations.json");
   const pronunciationsJson = (await exists(pronFile)) ? await read(pronFile) : "{}";
-  const prompt = buildWritePrompt({ episodeId, candidate: cand, introStyle: a.introStyle, promptVersion: a.promptVersion, templates: a.templates, majorTopic: a.majorTopic, guidelines, specScript, goldFullEum, goldFullYuna, sourcesMd, claimsMd, outlineMd, pronunciationsJson });
+  const estimatedMinutes = design?.estimated_minutes || Number(outlineMd.match(/^예상 분량:\s*(\d+(?:\.\d+)?)\s*분/m)?.[1]) || 15; // 설계 이어받기면 outline.md 에서 읽는다
+  const prompt = buildWritePrompt({ episodeId, candidate: cand, introStyle: a.introStyle, promptVersion: a.promptVersion, templates: a.templates, majorTopic: a.majorTopic, estimatedMinutes, guidelines, specScript, goldFullEum, goldFullYuna, sourcesMd, claimsMd, outlineMd, pronunciationsJson });
   log(`  draft ${episodeId} · 2/2 대본 (단발, 프롬프트 ${Math.round(prompt.length / 1000)}K자)`);
-  const w = await ex.run<WriteOut>({
+  let w: Awaited<ReturnType<typeof ex.run<WriteOut>>>;
+  try {
+    w = await runWrite();
+  } catch (e) {
+    // 대본이 실패해도 설계는 끝나 있다 — 비용을 runs 에 남기고(안 남기면 실패 편의 설계 비용이 사라진다), 실행기 시간 초과·결과 없음은 한 번 다시 집는다.
+    // 설계 산출물이 디렉토리에 있으므로 다음 집기는 대본만 다시 돈다 (designDone 분기). 두 번째도 실패면 초안 실패 복귀(onDraftFailed)
+    const msg = String((e as Error)?.message ?? e);
+    if (design) await insertRun({ backlog_id: cand.id, phase: "draft", attempt: 1, result: `설계만 완료(대본 실패: ${msg.slice(0, 160)}) — ${designSummary}`, prompt_version: `${a.promptVersion} (worker)`, artifacts: [], executed_by: executedBy, model: designModel, cost_usd: designCost, tokens: designTokens, worker_rev: workerRev() }).catch(() => {});
+    const transient = /결과 없음|exit 143|timeout|ECONNRESET|rate limit|overloaded/i.test(msg);
+    if (transient && !job.payload.write_retried) {
+      await updateJobPayload(job.id, { write_retried: true }).catch(() => {});
+      throw new RetryLater(`${episodeId} 대본 호출 실패(일시적) — 설계 산출물을 두고 잠시 후 대본만 다시: ${msg.slice(0, 120)}`, 60_000);
+    }
+    throw e;
+  }
+  async function runWrite() { return ex.run<WriteOut>({
     prompt, schema: WRITE_SCHEMA,
-    tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 30 * 60_000, model: cfg.draftWriteModel,
+    tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 60 * 60_000, model: cfg.draftWriteModel, maxThinkingTokens: cfg.thinkingWrite, // 60분 — opus 대본 실측 30분+ (2026-09-09)
     onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: "대본 2/2 — 단발 작성", detail: pr.turns > 0 ? "대본 작성 중 (도구 없음)" : pr.detail }).catch(() => {}),
-  });
+  }); }
   const o = w.output;
   if (!o.script || !/## \[인트로\]/.test(o.script)) throw new Error(`2단계 대본이 비었거나 구역 헤더가 없음 (script ${o.script?.length ?? 0}자). notes="${(o.notes ?? "").slice(0, 200)}"`);
 
@@ -131,5 +156,12 @@ export function twoStageViolations(scriptMd: string, outlineMd: string): string[
   else if (planned.length && written.some((n, i) => n !== planned[i])) v.push(`구간 번호 순서가 구성안과 다름 (구성안 ${planned.join(",")} / 대본 ${written.join(",")})`);
   const s = scriptStats(scriptMd);
   if (s.chars < 4000) v.push(`분량 ${s.chars}자(약 ${s.minutes}분) — 하한 13분(약 4,000자) 미달. 채우기 없이 구성안 재료(예비 재료·역사 맥락)를 더 실행해 늘린다`);
+  // 과다 분량: 설계 예상의 1.6배를 넘으면 풀어 쓰기가 길어진 것 (T260908-001: 예상 17분 → 31분). 초과 구간의 긴 해설 턴을 줄이는 방향으로 재생성
+  const est = Number(outlineMd.match(/^예상 분량:\s*(\d+(?:\.\d+)?)\s*분/m)?.[1]);
+  if (est && s.minutes > est * 1.6) v.push(`분량 ${s.chars}자(약 ${s.minutes}분) — 구성안 예상 ${est}분의 1.6배 초과. 재료를 빼지 말고 해설 턴의 풀어 쓰기를 줄여 예상 분량(±15%)에 맞춘다 (긴 턴부터: 7문장 이상 턴, 같은 말의 재서술)`);
+  // 해설 턴 길이: 규격은 평균 2~5문장 — 7문장 이상 턴은 낭독 호흡이 무너진다
+  const p = parseScriptForTts(scriptMd);
+  const long = p.turns.filter((t) => t.id?.startsWith("E") && (t.text.match(/[.!?…]+(\s|$)/g)?.length ?? 0) >= 7).map((t) => t.id);
+  if (long.length) v.push(`해설 턴 ${long.length}개가 7문장 이상 (${long.slice(0, 8).join(", ")}${long.length > 8 ? " …" : ""}) — 한 턴 최대 6문장. 문장을 합치거나 진행 턴의 되물음으로 나눈다`);
   return v;
 }

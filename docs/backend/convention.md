@@ -485,11 +485,19 @@ refactor(be)/content-orchestrator
 - **`(be)` 표기로 백엔드 작업 브랜치임을 표시한다.** 다른 파트는 `(fe)`, `(ai)` 등 같은 규칙을 따른다.
 - type은 커밋 type과 동일한 목록을 쓴다.
 - 설명은 **소문자 kebab-case**, 2~4단어. 브랜치 이름만 보고 무슨 작업인지 알 수 있어야 한다.
-- 브랜치는 **main에서 분기**하고, 작업이 끝나면 삭제한다.
+- 브랜치는 **`dev`에서 분기**하고, 작업이 끝나면 삭제한다(6.3의 통합 흐름).
 
 ### 6.3 PR
 
-- `main` 직접 push를 금지한다. 모든 변경은 PR을 거친다.
+**통합 흐름은 `작업 브랜치 → dev → main`이다.**
+
+```
+feat(be)/social-login ─PR─> dev ─PR─> main
+```
+
+- **작업 PR의 대상은 `dev`다.** `main`으로 바로 PR하지 않는다 — 그러면 그 변경이 `dev`에 없는 채로 `main`에만 남아, 다음 `dev → main` 머지 때 같은 파일에서 충돌하고 `dev`에서 분기한 사람은 그 수정을 받지 못한다.
+- `main`은 **`dev → main` PR로만** 갱신한다. 배포 기준선이다.
+- `main`·`dev` 직접 push를 금지한다. 모든 변경은 PR을 거친다.
 - PR 제목은 커밋 규칙과 동일한 형식으로 쓴다.
 - PR 본문에 다음을 포함한다: **변경 요약 / 관련 FR·문서 / 테스트 방법 / 스키마 변경 여부**.
 - 스키마 변경(마이그레이션 포함) PR은 리뷰어에게 명시적으로 알린다.
@@ -567,10 +575,11 @@ architecture.md 7.6이 에러 로깅의 레벨 규칙을 정의한다. 이 장�
 - **`console.log`를 사용하지 않는다.** Nest `Logger`(또는 그 위에 구성한 구조화 로거)만 사용한다.
 - 로그는 **구조화(JSON)** 로 남긴다. 사람이 읽는 문장과 기계가 읽는 필드를 분리한다.
 - 값을 message 문자열에 이어 붙이지 않고 **필드로 분리**한다. 검색·집계가 가능해야 한다.
+- **필드 이름은 `snake_case`다**(명시 2026-09-08 — 아래 공통 필드 표·8.3 필수 필드와 같은 표기). 코드가 camelCase여도 로그 필드는 바꿔 담는다. 같은 뜻의 값이 `userId`와 `user_id` 두 이름으로 갈리면 집계가 쪼개진다.
 
 ```ts
 // ✅
-this.logger.warn('play blocked by daily limit', { userId, contentId, playCount });
+this.logger.warn('play blocked by daily limit', { user_id, content_id, play_count });
 // ❌
 this.logger.warn(`user ${userId} blocked, count=${playCount}`);
 ```

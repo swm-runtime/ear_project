@@ -27,7 +27,7 @@ const toTopicList = (dto: TopicListResponseDto): TopicList => ({
     parentCategory: item.parent_category,
   })),
   maxSelectable: dto.max_selectable,
-  isFallback: dto.is_fallback,
+  // is_fallback은 옮기지 않는다 — 서버가 폴백을 만들지 않아 항상 false다(interest.types.ts 참조)
 });
 
 const toUserInterests = (dto: InterestsResponseDto): UserInterest[] =>

@@ -36,3 +36,14 @@ OTA는 받은 즉시 적용되지 않는다. 앱은 **옛 번들로 뜨고** 새
 - Given 설정 화면 / When 정보 섹션의 버전 행을 본다 / Then 버전 뒤 괄호에 번들 식별자가 있다
 - Given OTA를 받고 두 번째 실행이다 / When 버전 행을 본다 / Then 괄호 값이 직전 실행과 다르다
 - Given `settings-uiux.md` / When 버전 행 값 표기를 찾는다 / Then 이 형식이 적혀 있다
+
+## 처리 기록 (반영 날짜: 2026-09-08)
+
+요청 전부 반영. 코드 선반영(`feat(fe)/show-running-bundle-id`, PR #219)을 문서가 따라붙었다.
+
+- **`spec/uiux/settings-uiux.md`** — 4장 항목 표의 버전 행 값을 `1.0.0 (a07fe5)` 꼴로 바꾸고, **"버전 행의 값 표기"** 절을 신설했다(표기 2종 · 왜 필요한가 · 접근성 레이블 유지 · 서버 판정 비사용).
+- **`features/settings.md`** — 4.1 항목 표의 버전 행에 한 줄 덧붙이고 표기 상세는 uiux를 가리키게 했다. 동작 규칙 문서에 표기 형식을 중복해 적지 않는다.
+
+**코드 대조**: `shared/lib/app-version.ts`의 `APP_VERSION_LABEL`이 정확히 이 규격이다 — `Updates.isEmbeddedLaunch`면 `내장`, 아니면 `updateId`에서 하이픈을 뺀 앞 6자리. 웹·개발 빌드처럼 모듈이 값을 주지 않는 환경은 `내장`으로 떨어진다. `SettingsScreen`은 `value`에만 싣고 `label`(낭독 대상)은 그대로라 요청대로 해시가 낭독되지 않는다.
+
+완료 조건 1·2는 FE 구현이, 3(`settings-uiux.md`에 형식이 적혀 있다)을 이 반영이 충족한다.

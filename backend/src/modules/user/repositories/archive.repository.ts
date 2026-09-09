@@ -55,13 +55,32 @@ export class ArchiveRepository {
     return repository.save(archived);
   }
 
+  /**
+   * 구독 이력 보존(5년). **같은 계정의 같은 거래는 한 줄이다** —
+   * `uq_archived_subscriptions_user_hash_original_transaction_id`.
+   *
+   * 충돌을 무시한다. 탈퇴는 되돌릴 수 없는 작업이라, 이미 같은 행이 있다는 이유로
+   * **트랜잭션 전체를 롤백시켜 파기를 막으면 안 된다**(architecture.md 8.4 — 유니크 위반을
+   * 도메인 흐름으로 흡수한다). 정상 경로에서는 도달하지 않는다 — 한 계정의 `subscriptions`도
+   * `original_transaction_id`가 유니크라 같은 값이 두 번 오지 않는다.
+   */
   async saveSubscriptions(
     archived: ArchivedSubscription[],
     manager?: EntityManager,
-  ): Promise<ArchivedSubscription[]> {
+  ): Promise<void> {
+    if (archived.length === 0) {
+      return;
+    }
+
     const repository = manager
       ? manager.getRepository(ArchivedSubscription)
       : this.archivedSubscriptionRepository;
-    return repository.save(archived);
+
+    await repository
+      .createQueryBuilder()
+      .insert()
+      .values(archived)
+      .orIgnore()
+      .execute();
   }
 }

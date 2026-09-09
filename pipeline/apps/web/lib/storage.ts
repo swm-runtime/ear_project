@@ -1,4 +1,4 @@
-import { GetObjectCommand, HeadObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectsCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 /**
@@ -80,4 +80,13 @@ export function presignGet(key: string, expiresIn = 900): Promise<string> {
 }
 export function presignPut(key: string, contentType: string, expiresIn = 900): Promise<string> {
   return getSignedUrl(s3(), new PutObjectCommand({ Bucket: bucket(), Key: assertKey(key), ContentType: contentType }), { expiresIn });
+}
+
+/** prefix 아래 객체 전부 삭제 (에피소드 삭제용, 0015). 지운 키 수를 돌려준다 — 권한이 없으면 던진다(호출 측이 best-effort 로 처리) */
+export async function deletePrefix(prefix: string): Promise<number> {
+  const keys = (await listObjects(assertPrefix(prefix), 5000)).map((o) => o.key);
+  for (let i = 0; i < keys.length; i += 1000) {
+    await s3().send(new DeleteObjectsCommand({ Bucket: bucket(), Delete: { Objects: keys.slice(i, i + 1000).map((Key) => ({ Key })), Quiet: true } }));
+  }
+  return keys.length;
 }

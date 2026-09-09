@@ -26,7 +26,10 @@ const NOW = new Date('2026-08-05T09:00:00.000Z');
 const ADDED_AT = new Date('2026-08-03T21:10:00.000Z');
 const USER_ID = '11111111-1111-4111-8111-111111111111';
 const CONTENT_ID = 'aaaaaaaa-1111-4111-8111-111111111111';
-const OTHER_CONTENT_ID = 'bbbbbbbb-1111-4111-8111-111111111111';
+// `library_items.id`는 uuid 컬럼이다. 커서에 실려 SQL 비교식에 들어가므로
+// 픽스처도 uuid여야 형식 검증을 실제와 같은 조건에서 탄다
+const ITEM_ID_1 = 'cccccccc-1111-4111-8111-111111111111';
+const ITEM_ID_2 = 'cccccccc-2222-4222-8222-222222222222';
 
 const QUOTA = {
   dailyPlayLimit: 2,
@@ -59,7 +62,7 @@ function buildContent(id: string, overrides: Partial<Content> = {}): Content {
 
 function buildItem(overrides: Partial<LibraryItem> = {}): LibraryItem {
   return {
-    id: 'item-1',
+    id: ITEM_ID_1,
     userId: USER_ID,
     contentId: CONTENT_ID,
     source: LibraryItemSource.DRIP,
@@ -95,7 +98,7 @@ describe('LibraryScreenOrchestrator', () => {
   beforeEach(() => {
     libraryService = {
       findPage: jest.fn().mockResolvedValue({ items: [], hasNext: false }),
-      findVisibleContentIds: jest.fn().mockResolvedValue([]),
+      countByTopicForUser: jest.fn().mockResolvedValue([]),
       findResumeTarget: jest.fn().mockResolvedValue(null),
       getOwnedItem: jest.fn(),
       getOwnedItemWithDeleted: jest.fn(),
@@ -150,7 +153,7 @@ describe('LibraryScreenOrchestrator', () => {
     it('다음 페이지가 있으면 마지막 항목 위치로 커서를 발급한다', async () => {
       // given
       libraryService.findPage.mockResolvedValue({
-        items: [buildItem({ id: 'item-1' }), buildItem({ id: 'item-2' })],
+        items: [buildItem({ id: ITEM_ID_1 }), buildItem({ id: ITEM_ID_2 })],
         hasNext: true,
       });
 
@@ -166,13 +169,13 @@ describe('LibraryScreenOrchestrator', () => {
           sort: LIST_QUERY.sort,
           topicIds: LIST_QUERY.topicIds,
         }),
-      ).toEqual({ addedAt: ADDED_AT, id: 'item-2' });
+      ).toEqual({ addedAt: ADDED_AT, id: ITEM_ID_2 });
     });
 
     it('발급한 커서에 출처 필터를 담는다', async () => {
       // given — 담기지 않으면 출처만 바꾼 다음 페이지 요청이 그대로 통과한다
       libraryService.findPage.mockResolvedValue({
-        items: [buildItem({ id: 'item-1' })],
+        items: [buildItem({ id: ITEM_ID_1 })],
         hasNext: true,
       });
 
@@ -260,22 +263,19 @@ describe('LibraryScreenOrchestrator', () => {
   });
 
   describe('getTopics', () => {
-    it('라이브러리에 담긴 콘텐츠의 주제를 개수와 함께 내려준다', async () => {
-      // given
-      libraryService.findVisibleContentIds.mockResolvedValue([
-        CONTENT_ID,
-        OTHER_CONTENT_ID,
-      ]);
-      contentService.findTopicViews.mockResolvedValue([
-        { contentId: CONTENT_ID, topicId: 'topic-1', name: '커리어' },
-        { contentId: OTHER_CONTENT_ID, topicId: 'topic-1', name: '커리어' },
-        { contentId: OTHER_CONTENT_ID, topicId: 'topic-2', name: '생산성' },
+    it('집계와 정렬을 SQL에 맡기고 결과를 그대로 내려준다', async () => {
+      // given — 종전에는 담긴 content_id를 전부 읽어 애플리케이션에서 셌다.
+      // GROUP BY가 하는 일이라 라이브러리가 커질수록 왕복과 메모리만 늘었다
+      libraryService.countByTopicForUser.mockResolvedValue([
+        { topicId: 'topic-1', name: '커리어', itemCount: 2 },
+        { topicId: 'topic-2', name: '생산성', itemCount: 1 },
       ]);
 
       // when
       const topics = await orchestrator.getTopics(USER_ID);
 
       // then
+      expect(libraryService.countByTopicForUser).toHaveBeenCalledWith(USER_ID);
       expect(topics).toEqual([
         { topicId: 'topic-1', name: '커리어', itemCount: 2 },
         { topicId: 'topic-2', name: '생산성', itemCount: 1 },
@@ -305,17 +305,16 @@ describe('LibraryScreenOrchestrator', () => {
       expect(result.quota).toEqual(QUOTA);
     });
 
-    it('재생 위치가 있는 콘텐츠 중에서만 복원 대상을 찾는다', async () => {
-      // given — 위치가 0이면 처음부터 듣는 것과 같다
-      playbackService.findStartedContentIds.mockResolvedValue([CONTENT_ID]);
+    it('시작한 콘텐츠 목록을 만들지 않는다 — 위치 존재 여부는 SQL이 본다', async () => {
+      // given — 그 목록은 청취 이력만큼 자라고 앱을 켤 때마다 만들어졌다.
+      // 필요한 것은 "이어 들을 위치가 있는가" 하나뿐이다(위치 0은 처음부터 듣는 것과 같다)
 
       // when
       await orchestrator.getResumeTarget(USER_ID, NOW);
 
       // then
-      expect(libraryService.findResumeTarget).toHaveBeenCalledWith(USER_ID, [
-        CONTENT_ID,
-      ]);
+      expect(libraryService.findResumeTarget).toHaveBeenCalledWith(USER_ID);
+      expect(playbackService.findStartedContentIds).not.toHaveBeenCalled();
     });
   });
 
@@ -375,7 +374,7 @@ describe('LibraryScreenOrchestrator', () => {
       );
 
       // when
-      await orchestrator.deleteItem(USER_ID, 'item-1', NOW);
+      await orchestrator.deleteItem(USER_ID, ITEM_ID_1, NOW);
 
       // then
       expect(playbackService.recordSignal).not.toHaveBeenCalled();
@@ -397,7 +396,7 @@ describe('LibraryScreenOrchestrator', () => {
 
       // when
       const error = await catchError(
-        orchestrator.restoreItem(USER_ID, 'item-1'),
+        orchestrator.restoreItem(USER_ID, ITEM_ID_1),
       );
 
       // then
@@ -412,7 +411,7 @@ describe('LibraryScreenOrchestrator', () => {
       );
 
       // when
-      await orchestrator.restoreItem(USER_ID, 'item-1');
+      await orchestrator.restoreItem(USER_ID, ITEM_ID_1);
 
       // then
       expect(dripExclusionService.exclude).not.toHaveBeenCalled();

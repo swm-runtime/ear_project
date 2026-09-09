@@ -126,13 +126,24 @@ export class LibraryItemRepository {
     });
   }
 
-  /** 드립 후보 필터의 첫 줄 — `library_items`에 행이 존재하면 제외한다 */
+  /**
+   * 드립 후보 필터의 첫 줄 — `library_items`에 행이 존재하면 제외한다.
+   *
+   * **`deleted_at` 여부를 보지 않는다**(`domain.md` 7 · `drip-scheduling.md` 4.2).
+   * `@DeleteDateColumn` 때문에 기본 조회는 소프트 삭제분을 빼므로 `withDeleted`가 필요하다 —
+   * 빠뜨리면 **한 번 들어왔다 지워진 콘텐츠가 다시 드립 후보가 된다.**
+   *
+   * 사용자가 직접 지운 경우는 `drip_excluded_contents`가 따로 막지만, **파트너 회수는
+   * 제외 행을 만들지 않는다**(`domain.md` 7.1). 그래서 회수→복구를 거친 콘텐츠에서는
+   * 이 조건이 유일한 방어선이다.
+   */
   async findAllContentIdsByUserId(
     userId: string,
     manager?: EntityManager,
   ): Promise<string[]> {
     const rows = await this.scoped(manager)
       .createQueryBuilder('item')
+      .withDeleted()
       .select('item.content_id', 'content_id')
       .where('item.user_id = :userId', { userId })
       .getRawMany<{ content_id: string }>();
@@ -326,37 +337,60 @@ export class LibraryItemRepository {
    * **탭 선택과 무관하게 라이브러리 전체를 기준으로** 센다. 탭을 옮길 때마다 팝업의 주제
    * 구성이 흔들리면 두 필터를 조합할 수 없다.
    */
-  async findAllVisibleContentIdsByUserId(
+  /**
+   * 주제 필터 팝업의 주제별 담긴 건수(`library-api.md` 4.2).
+   *
+   * **집계를 SQL에서 끝낸다.** 종전에는 라이브러리의 `content_id`를 전부 읽어 주제 조인
+   * 결과를 받은 뒤 애플리케이션에서 세었는데, 그 목록은 담은 만큼 자라고 팝업을 열 때마다
+   * 만들어진다. `GROUP BY`가 하는 일을 두 번 왕복해서 대신하고 있었다.
+   *
+   * 정렬은 `topics.display_order`다 — 노출 순서를 응답 조립부가 다시 정하지 않는다.
+   */
+  async countByTopicForUser(
     userId: string,
     manager?: EntityManager,
-  ): Promise<string[]> {
+  ): Promise<{ topicId: string; name: string; itemCount: number }[]> {
     const rows = await this.scoped(manager)
       .createQueryBuilder('item')
       .innerJoin('item.content', 'content', VISIBLE_CONTENT_CONDITION, {
         publishedStatus: ContentStatus.PUBLISHED,
       })
-      .select('item.content_id', 'content_id')
+      .innerJoin(
+        'content_topics',
+        'content_topic',
+        'content_topic.content_id = item.content_id',
+      )
+      .innerJoin('topics', 'topic', 'topic.id = content_topic.topic_id')
+      .select('topic.id', 'topic_id')
+      .addSelect('topic.name', 'name')
+      .addSelect('COUNT(*)', 'item_count')
       .where('item.user_id = :userId', { userId })
-      .getRawMany<{ content_id: string }>();
+      .groupBy('topic.id')
+      .addGroupBy('topic.name')
+      .addGroupBy('topic.display_order')
+      .orderBy('topic.display_order', 'ASC')
+      .getRawMany<{ topic_id: string; name: string; item_count: string }>();
 
-    return rows.map((row) => row.content_id);
+    return rows.map((row) => ({
+      topicId: row.topic_id,
+      name: row.name,
+      itemCount: Number(row.item_count),
+    }));
   }
 
   /**
-   * 미니플레이어 복원 대상(library-api.md 4.3) — 주어진 후보 중 `last_played_at`이 가장
-   * 최근인 1건. 정렬 축이 목록(`added_at`)과 달라 전용 인덱스를 쓴다(domain.md 6.1).
+   * 미니플레이어 복원 대상 1건(`library-api.md` 4.3) — 이어 들을 위치가 남아 있는 것 중
+   * 가장 최근에 들은 항목.
    *
-   * `position_sec > 0` 조건은 `playback_progresses` 소유라 후보 목록으로 받아 적용한다.
+   * **"위치가 남아 있다"를 `EXISTS`로 본다.** 종전에는 사용자의 시작한 `content_id`를 전부
+   * 읽어 `IN` 목록으로 넘겼는데, 그 목록은 청취 이력만큼 자라고 **앱을 켤 때마다** 만들어진다.
+   * 여기서 필요한 것은 존재 여부 하나이고, `uq_playback_progresses_user_id_content_id`가
+   * 그 검사를 인덱스로 받는다.
    */
-  async findLatestPlayedAmongContentIds(
+  async findLatestResumable(
     userId: string,
-    contentIds: string[],
     manager?: EntityManager,
   ): Promise<LibraryItem | null> {
-    if (contentIds.length === 0) {
-      return null;
-    }
-
     return this.scoped(manager)
       .createQueryBuilder('item')
       .innerJoinAndSelect(
@@ -368,7 +402,14 @@ export class LibraryItemRepository {
         },
       )
       .where('item.user_id = :userId', { userId })
-      .andWhere('item.content_id IN (:...contentIds)', { contentIds })
+      .andWhere(
+        `EXISTS (
+           SELECT 1 FROM playback_progresses progress
+           WHERE progress.content_id = item.content_id
+             AND progress.user_id = item.user_id
+             AND progress.position_sec > 0
+         )`,
+      )
       .andWhere('item.status != :completed', {
         completed: LibraryItemStatus.COMPLETED,
       })

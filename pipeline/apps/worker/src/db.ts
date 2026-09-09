@@ -97,7 +97,16 @@ export async function claimApprovedBacklog(id: string, worker: string): Promise<
   const r = await pool.query("update public.backlog set status = 'claimed', claimed_by = $2, claimed_at = now(), updated_at = now() where id = $1 and status = 'approved' returning id", [id, worker]);
   return (r.rowCount ?? 0) > 0;
 }
-/** 승인됐지만 아직 집기(claimed) 전인 후보 — 워커가 draft 작업을 만들고 claimed 로 전환 */
+/** 이 후보에 대기·진행 중인 draft 작업이 있는가 — 승인 시 UI 가 넣은 작업과 워커 폴백의 중복 방지 */
+export async function hasActiveDraftJob(backlogId: string): Promise<boolean> {
+  const r = await pool.query("select 1 from public.jobs where type = 'draft' and status in ('queued','claimed','running') and payload->>'backlog_id' = $1 limit 1", [backlogId]);
+  return (r.rowCount ?? 0) > 0;
+}
+export async function getBacklogStatus(id: string): Promise<{ status: string; claimed_by: string | null } | null> {
+  const r = await pool.query("select status, claimed_by from public.backlog where id = $1", [id]);
+  return r.rows[0] ?? null;
+}
+/** 승인됐지만 아직 집기(claimed) 전인 후보 — UI 가 작업을 못 넣은 경우(Supabase 에디터 승인 등)의 폴백 */
 export async function listApprovedBacklog(): Promise<string[]> {
   const r = await pool.query("select id from public.backlog where status = 'approved' order by approved_at nulls last, id");
   return r.rows.map((x) => x.id as string);

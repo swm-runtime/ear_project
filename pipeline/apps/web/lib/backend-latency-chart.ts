@@ -22,10 +22,24 @@ export function bucketMsFor(minutes: number): number {
  * 벽시계에 맞추면 10분 칸이 5분 칸 **정확히 두 개**가 된다. 그래도 두 범위의 p50/p95 가
  * 같아지지는 않는다 — 표본 집합이 다르니 당연하다. 다만 그 차이가 설명 가능해진다.
  */
-export function buildBuckets(parsed: RequestLog[], minutes: number, now: number): Bucket[] {
+/**
+ * 대시보드 요청 차트들이 공유하는 x축 창. **막대와 산점도가 같은 창을 써야 한다** —
+ * 버킷만 벽시계에 맞추고 산점도는 원래 창을 쓰면, 나란히 놓인 두 차트에서 같은 가로
+ * 위치가 서로 다른 시각을 가리킨다(6시간 뷰에서 최대 10분 어긋난다).
+ *
+ * `to` 가 `now` 보다 최대 한 칸 뒤인 것은 의도한 것이다 — 마지막 칸을 온전히 그리고,
+ * 로그 시각이 브라우저 시계보다 조금 앞서도 점이 잘리지 않는다.
+ */
+export function chartWindow(minutes: number, now: number): { from: number; to: number; bucketMs: number } {
   const bucketMs = bucketMsFor(minutes);
   const from = Math.floor((now - minutes * 60_000) / bucketMs) * bucketMs;
   const count = Math.ceil((now - from) / bucketMs); // 정렬로 앞이 밀린 만큼 칸이 하나 늘 수 있다
+  return { from, to: from + count * bucketMs, bucketMs };
+}
+
+export function buildBuckets(parsed: RequestLog[], minutes: number, now: number): Bucket[] {
+  const { from, to, bucketMs } = chartWindow(minutes, now);
+  const count = Math.round((to - from) / bucketMs);
   const buckets: Bucket[] = Array.from({ length: count }, (_, i) => ({
     start: from + i * bucketMs, ok: 0, errors: 0, durations: [],
   }));
@@ -51,13 +65,18 @@ export function percentile(sorted: number[], p: number): number {
 }
 
 /**
- * 응답시간 y축 상한. p95 최댓값을 그대로 쓰면 느린 요청 **하나**가 축을 끌어올려 p50 선을
- * x축에 붙여버린다 — 표본이 적은 버킷의 p95 는 곧 그 버킷의 최댓값이라 자주 벌어진다.
- * 그래서 p95 들의 **중앙값** 기준으로 상한을 두고, 넘는 점은 위에서 자른 뒤 ▲ 로 표시한다.
- * 값을 잃지는 않는다 — 툴팁은 늘 실제값을 보여준다. 이상치가 없으면 예전과 같은 축이다.
+ * 호버 툴팁의 가로 기준점. 끝에서도 가운데 정렬을 유지하면 상자의 절반이 카드 밖으로
+ * 나가고, **절대 배치라도 문서의 스크롤 폭은 늘어나** 페이지에 가로 스크롤이 생긴다
+ * (오른쪽 끝 점을 볼 때 화면이 밀리는 증상).
+ *
+ * 그래서 끝에서는 정렬 기준을 바꾼다 — 오른쪽 끝이면 상자의 **오른쪽 모서리**를, 왼쪽
+ * 끝이면 **왼쪽 모서리**를 점에 맞춘다. 가운데에서는 지금처럼 가운데를 맞춘다.
  */
-export function axisMax(p95s: number[]): number {
-  const seen = p95s.filter((v) => v > 0).sort((a, b) => a - b);
-  if (seen.length === 0) return 50;
-  return Math.max(50, Math.min(seen[seen.length - 1], percentile(seen, 50) * 4));
+export function tipAnchor(ratio: number): { leftPercent: number; align: "start" | "center" | "end" } {
+  const pct = Math.min(100, Math.max(0, ratio * 100));
+  // 30/70 은 임의값이 아니다 — 상자가 컨테이너의 53%(경로까지 든 툴팁 ≈240px / 카드 ≈450px)
+  // 여도 가운데 정렬 구간의 양끝이 안에 남는 가장 느슨한 경계다. 아래 테스트가 이를 고정한다.
+  if (pct >= 70) return { leftPercent: Math.min(99, pct), align: "end" };
+  if (pct <= 30) return { leftPercent: Math.max(1, pct), align: "start" };
+  return { leftPercent: pct, align: "center" };
 }

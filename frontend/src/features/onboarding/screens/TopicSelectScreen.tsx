@@ -45,7 +45,8 @@ export default function TopicSelectScreen() {
     isSubmitting,
     showSkeleton,
     isLoading,
-    isError,
+    isUnavailable,
+    isEmpty,
     isRefetching,
     refetch,
     toggleTopic,
@@ -103,10 +104,20 @@ export default function TopicSelectScreen() {
         </View>
       </View>
 
-      {isError ? (
+      {/*
+        O6 — 조회 실패와 "응답은 정상인데 노출 주제가 0건"을 같은 층으로 그린다(onboarding.md 7).
+        0건은 200이라 조회 실패가 아니므로 카피만 "준비 중"으로 갈라진다.
+      */}
+      {isUnavailable ? (
         <FullScreenError
-          title={ONBOARDING_COPY.topic.loadFailedTitle}
-          description={ONBOARDING_COPY.topic.loadFailedDescription}
+          title={
+            isEmpty ? ONBOARDING_COPY.topic.emptyTitle : ONBOARDING_COPY.topic.loadFailedTitle
+          }
+          description={
+            isEmpty
+              ? ONBOARDING_COPY.topic.emptyDescription
+              : ONBOARDING_COPY.topic.loadFailedDescription
+          }
           retryLabel={ONBOARDING_COPY.topic.retry}
           isRetrying={isRefetching}
           onRetry={refetch}
@@ -146,7 +157,7 @@ export default function TopicSelectScreen() {
         </>
       )}
 
-      {!isError ? (
+      {!isUnavailable ? (
         <View style={styles.dock}>
           {/*
             [다음]은 원형 버튼 — 라벨은 낭독으로만 남는다. 미충족 안내 문구는 그리지 않는다.

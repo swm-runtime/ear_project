@@ -83,7 +83,7 @@ export class FirstDripService {
       await this.runWithRetries(userId, now);
     } catch (error) {
       this.logger.error('first drip background run failed', {
-        userId,
+        user_id: userId,
         error: toErrorMessage(error),
       });
     }
@@ -108,7 +108,7 @@ export class FirstDripService {
         return;
       } catch (error) {
         this.logger.warn('first drip attempt failed', {
-          userId,
+          user_id: userId,
           attempt: attempt + 1,
           error: toErrorMessage(error),
         });
@@ -149,7 +149,7 @@ export class FirstDripService {
 
       // 신규 사용자의 첫 편성 실패는 편성 배치 장애의 조기 신호다 — 조용히 넘기지 않는다
       this.logger.error('first drip retry failed', {
-        userId,
+        user_id: userId,
         attemptCount: job.attemptCount,
         status: job.status,
         error: toErrorMessage(error),
@@ -208,7 +208,7 @@ export class FirstDripService {
     await this.firstDripJobRepository.save(job);
 
     this.logger.log('first drip scheduled', {
-      userId,
+      user_id: userId,
       scheduledCount: contentIds.length,
     });
   }
@@ -240,11 +240,9 @@ export class FirstDripService {
       return [];
     }
 
-    const excludeContentIds = await this.findExcludedContentIds(userId);
-
     const byInterest = await this.contentService.findCandidates({
       includeTopicIds: topicIds,
-      excludeContentIds,
+      excludeSeenByUserId: userId,
       seriesStartOnly: true,
       limit: dripCount,
       now,
@@ -257,7 +255,9 @@ export class FirstDripService {
     }
 
     const fallback = await this.contentService.findCandidates({
-      excludeContentIds: [...excludeContentIds, ...selected],
+      excludeSeenByUserId: userId,
+      // 방금 뽑은 것만 넘긴다 — 누적 이력은 위와 같은 NOT EXISTS가 본다
+      excludeContentIds: selected,
       seriesStartOnly: true,
       limit: dripCount - selected.length,
       now,
@@ -268,19 +268,6 @@ export class FirstDripService {
     return [
       ...new Set([...selected, ...fallback.map((content) => content.id)]),
     ];
-  }
-
-  /**
-   * 중복 방지 필터(FR-16) — 두 조건의 합집합이다.
-   * `library_items`는 `deleted_at` 여부를 보지 않는다(삭제한 것도 재적립하지 않는다).
-   */
-  private async findExcludedContentIds(userId: string): Promise<string[]> {
-    const [inLibrary, excluded] = await Promise.all([
-      this.libraryService.findAllContentIds(userId),
-      this.dripExcludedContentRepository.findAllContentIdsByUserId(userId),
-    ]);
-
-    return [...new Set([...inLibrary, ...excluded])];
   }
 
   private async markAttemptStarted(userId: string, now: Date): Promise<void> {
@@ -307,7 +294,7 @@ export class FirstDripService {
     await this.firstDripJobRepository.save(job);
 
     this.logger.error('first drip handed to retry queue', {
-      userId,
+      user_id: userId,
       attemptCount: job.attemptCount,
     });
   }

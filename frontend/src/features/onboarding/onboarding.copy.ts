@@ -36,6 +36,14 @@ export const ONBOARDING_COPY = {
     /** O6 목록 조회 실패(onboarding-uiux.md 4.2) */
     loadFailedTitle: '주제를 불러오지 못했어요',
     loadFailedDescription: '잠시 후 다시 시도해주세요',
+    /*
+     * O6 변형 — 응답은 정상(200)인데 노출 주제가 0건인 상태. 조회 실패 카피를 재사용하지
+     * 않는다: 불러오기는 성공했고, onboarding.md 7이 이 상태에 "준비 중입니다" 안내를
+     * 지정해 뒀다. TODO(카피 미확정): uiux 반영 요청은
+     * changes/pending/onboarding-empty-topic-list.md
+     */
+    emptyTitle: '아직 준비 중이에요',
+    emptyDescription: '주제를 준비하고 있어요.\n잠시 후 다시 시도해주세요',
     retry: '다시 시도',
   },
   /** O4 커리어 정보(onboarding-uiux.md 4.3) */

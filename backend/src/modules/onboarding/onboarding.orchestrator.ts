@@ -3,7 +3,6 @@ import { DataSource } from 'typeorm';
 
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
-import { shuffleWithSeed } from '@/common/utils/seeded-random.util';
 import { FirstDripJobStatus } from '@/modules/drip/drip.enum';
 import { FirstDripState } from '@/modules/drip/drip.types';
 import { FirstDripService } from '@/modules/drip/services/first-drip.service';
@@ -241,7 +240,7 @@ export class OnboardingOrchestrator {
       // 에러로 내리지 않는 이유: 사용자 화면에 "추천 0건" 상태를 두지 않기로 확정했고,
       // 5xx로 내리면 클라이언트는 에러 화면을 그릴 수밖에 없다(onboarding-api.md 4.5).
       this.logger.error('onboarding recommendations returned nothing', {
-        userId,
+        user_id: userId,
         topicCount: topicIds.length,
       });
     }
@@ -350,7 +349,7 @@ export class OnboardingOrchestrator {
       // 완료 시점에 반드시 만들어지는 행이라 없다는 것은 정합성 오류다.
       // 종료 상태로 내려 클라이언트를 진행시킨다 — 로딩 화면에 가둬 두는 것이 최악이다.
       this.logger.error('first drip job is missing for completed user', {
-        userId,
+        user_id: userId,
       });
 
       return {
@@ -438,17 +437,17 @@ export class OnboardingOrchestrator {
       now,
     });
 
-    const isSampleSufficient =
-      await this.contentStatService.isMonthlySampleSufficient(now);
-
-    if (!isSampleSufficient) {
-      return {
-        // 사용자·세션 단위로 고정한다 — 뒤로가기로 돌아왔을 때 카드가 바뀌면 안 된다
-        contents: shuffleWithSeed(pool, userId).slice(0, size),
-        sectionType: RecommendationSectionType.TOPIC_DISCOVERY,
-      };
-    }
-
+    /**
+     * **표본이 부족해도 선정 기준을 바꾸지 않는다**(`onboarding.md` 91행).
+     *
+     * 종전에는 월간 재생 합계가 30건 미만이면 랜덤 3건 + 섹션 제목 교체로 빠졌는데,
+     * 그 규칙은 폐기됐다(`features/README.md` 결정 12 — 2026-08-06). 게다가
+     * `content_stats` 집계 배치가 없어 합계가 항상 0이었으므로 **모든 사용자가 그 폐기된
+     * 경로만 타고 있었다.**
+     *
+     * 순위가 비어 있으면 아래 정렬이 원래 후보 순서를 유지한다 — 인기 데이터가 쌓이기
+     * 전에도 같은 기준으로 뽑고, 쌓이면 그대로 반영된다.
+     */
     const rankedIds =
       await this.contentStatService.findMonthlyPopularContentIds(
         now,

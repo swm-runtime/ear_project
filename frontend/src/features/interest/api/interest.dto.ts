@@ -16,6 +16,11 @@ export interface TopicItemDto {
 export interface TopicListResponseDto {
   items: TopicItemDto[];
   max_selectable: number;
+  /**
+   * 서버가 기본 주제 세트 폴백을 없앤 뒤(BE `fix(be)/audit-followups-0909`) **항상 false**다.
+   * 계약에는 유지돼 있어(onboarding-api.md 4.2) 여기 선언은 남기되, 모델로는 옮기지 않는다 —
+   * 늘 거짓인 값을 모델에 두면 언젠가 그걸로 분기가 생긴다(interest.types.ts).
+   */
   is_fallback: boolean;
 }
 

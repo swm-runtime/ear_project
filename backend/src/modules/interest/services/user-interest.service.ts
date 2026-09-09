@@ -3,6 +3,7 @@ import { DataSource, EntityManager } from 'typeorm';
 
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
+import { UserService } from '@/modules/user/services/user.service';
 
 import { TopicService } from './topic.service';
 import { UserInterest } from '../entities/user-interest.entity';
@@ -31,6 +32,7 @@ export class UserInterestService {
   constructor(
     private readonly userInterestRepository: UserInterestRepository,
     private readonly topicService: TopicService,
+    private readonly userService: UserService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -245,6 +247,18 @@ export class UserInterestService {
       this.assertManagedShape(topicIds);
       await this.assertTopicsAvailable(topicIds, manager);
 
+      /**
+       * **같은 사용자의 동시 저장을 직렬화한다.**
+       *
+       * 이 흐름은 현재 목록을 읽어 상한을 판정하고 교체한다. 잠그지 않으면 두 기기가
+       * 같은 스냅샷(`[x]`)을 보고 각자 3개를 넣어 **합집합 6개**가 된다. `interest-management.md`
+       * 7장은 "마지막 저장이 최종(last-write-wins)"으로 정한다.
+       *
+       * 게다가 `allowedMax = max(3, 현재 개수)`라, 한 번 6이 되면 **6이 영구히 허용된다** —
+       * 스스로 낫지 않고 드립이 여섯 주제로 쪼개진다.
+       */
+      await this.userService.getByIdForUpdate(userId, manager);
+
       const existing = await this.userInterestRepository.findAllByUserId(
         userId,
         manager,
@@ -331,7 +345,7 @@ export class UserInterestService {
         // 탐색 랭킹은 조회 시점에 `user_interests`를 읽고("다음 조회부터 즉시"가 그대로
         // 성립), 드립 편성 배치도 실행 시점에 읽는다. 캐시가 도입되면 여기서 무효화한다.
         this.logger.log('user interests replaced', {
-          userId,
+          user_id: userId,
           addedCount: addedTopicIds.length,
           removedCount: removedTopicIds.length,
           addedTopicIds,
