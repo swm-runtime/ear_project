@@ -180,6 +180,21 @@ describe('UserWithdrawalService', () => {
       expect(userService.deleteById).toHaveBeenCalledWith(USER_ID, {});
     });
 
+    it('아카이브에 같은 행이 이미 있어도 탈퇴는 끝까지 간다', async () => {
+      // given — 탈퇴 → 재가입(복원) → 재탈퇴 경로다. 종전에는 아카이브 유니크 위반이
+      // 트랜잭션을 통째로 롤백시켜 **그 사용자가 영영 탈퇴할 수 없었다**
+      subscriptionService.hasPaymentHistory.mockResolvedValue(true);
+      subscriptionService.findAllByUserId.mockResolvedValue([
+        { originalTransactionId: 'tx-1' } as Subscription,
+      ]);
+
+      // when
+      await service.withdraw(command, NOW);
+
+      // then — 파기가 막히지 않는다(개인정보보호법 제21조 제1항)
+      expect(userService.deleteById).toHaveBeenCalledWith(USER_ID, {});
+    });
+
     it('결제 이력이 있는데 이메일이 없으면 탈퇴를 실패시킨다', async () => {
       // given
       subscriptionService.hasPaymentHistory.mockResolvedValue(true);

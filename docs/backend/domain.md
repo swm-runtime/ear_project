@@ -1279,13 +1279,17 @@ archived_subscriptions
   cancelled_at              timestamptz     NULL
   archived_at               timestamptz     ★보존 시작일
 
-uq_archived_subscriptions_original_transaction_id (original_transaction_id)
+uq_archived_subscriptions_user_hash_original_transaction_id (user_hash, original_transaction_id)
 idx_archived_subscriptions_user_hash (user_hash)
 idx_archived_subscriptions_archived_at
 ```
 
 - **`latest_receipt`은 이관하지 않는다.** 개인정보가 포함될 수 있고, 재검증이 필요하면 `original_transaction_id`로 스토어 API를 호출하면 된다.
-- `original_transaction_id` 유니크가 **하나의 스토어 구독이 여러 계정에 연결되는 것을 계속 막는다.** 탈퇴 후 재가입해도 마찬가지다.
+- **유니크는 `(user_hash, original_transaction_id)` 조합이다**(개정 2026-09-09 — 종전에는 `original_transaction_id` 단독).
+  - 단독 유니크는 **탈퇴 → 재가입(구독 복원) → 재탈퇴** 경로에서 같은 값을 두 번 넣게 만들어 위반을 냈고, 예외가 탈퇴 트랜잭션 안에서 터져 **그 사용자가 구조적으로 탈퇴할 수 없었다.** 파기 의무(개인정보보호법 제21조 제1항)를 제품이 이행하지 못하는 상태다.
+  - **"하나의 스토어 구독 = 하나의 계정"은 그대로다.** 그 보장의 집행자는 [8.2](#82-subscriptions)의 `uq_subscriptions_original_transaction_id`이며, 살아 있는 계정끼리 같은 구독을 가질 수 없다.
+  - 아카이브는 권한 테이블이 아니라 **보존 기록**이다. 보존 의무는 계정별 거래에 성립하므로 계정마다 한 줄이 남는 편이 맞다.
+  - **탈퇴한 계정의 `original_transaction_id`는 `subscriptions`에서 풀린다.** 그것을 다른 계정이 가져가는 것을 막는 자리는 **영수증 검증 시점**이다 — 스토어가 그 구매의 소유자를 인증하므로 그 지점이 옳다(`tickets/backend/pending/subscription-receipt-verification.md`).
 - 보존 기간 **5년** — 전자상거래법 시행령 제6조(대금결제 및 재화 등의 공급에 관한 기록 5년, 계약 또는 청약철회 등에 관한 기록 5년).
 
 ---
