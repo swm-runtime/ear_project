@@ -62,6 +62,8 @@ export const cfg = {
   thinkingWrite: envInt("THINKING_WRITE", 8000), // 2026-09-09: 상한 없는 opus 대본이 30분 제한을 넘겨 강제 종료(T260908-002). 시간을 묶는 용도
   thinkingCritic: envInt("THINKING_CRITIC", null), // 비평은 회귀 세트로 편향을 재는 중 — 상한은 재검증(spec/09 7.4) 후에 (기본 없음)
   clusterModel: process.env.CLUSTER_MODEL || "claude-opus-5",
+  /** 군집화 방식 (2026-09-09 ①): v2 = 축 먼저·역할·다양성(단발) · v1 = 유사성 묶기(현행, 기본). ③ 판정 3편 후 v2 로 전환 */
+  clusterMode: (process.env.CLUSTER_MODE === "v2" ? "v2" : "v1") as "v1" | "v2",
   pollIntervalMs: Number(process.env.POLL_INTERVAL_MS || 5000),
   /** 파일럿 예외 (spec/02 2장): 계층 판정 전에는 candidate 도메인도 스윕한다. 판정이 쌓이면 false 로. */
   pilotSweepCandidates: (process.env.PILOT_SWEEP_CANDIDATES ?? "true") === "true",

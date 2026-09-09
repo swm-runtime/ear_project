@@ -13,11 +13,12 @@ export default async function SweepPage() {
     sb.from("runs").select("phase,result,executed_at,executed_by").in("phase", ["sweep", "cluster"]).order("executed_at", { ascending: false }).limit(10),
   ]);
   const mids = (topics ?? []).filter((t: any) => t.ai_generation && t.active !== false).map((t: any) => t.mid as string).sort();
+  const majorOfMid: Record<string, string> = Object.fromEntries((topics ?? []).map((t: any) => [t.mid as string, t.major as string]));
   return (
     <div className="space-y-6">
       <AutoRefresh seconds={10} />
       <PageHeader title="스윕 · 군집화" breadcrumb={["파이프라인", "스윕"]} desc="풀 안 원천의 RSS 메타데이터만 수집(spec/02)하고, 끝나면 군집화가 자동으로 이어져 백로그에 후보가 올라온다. 군집화는 AI 작업이라 워커가 떠 있어야 진행된다." />
-      <SweepForm mids={mids} />
+      <SweepForm mids={mids} majorOfMid={majorOfMid} />
       <Panel title="작업" flush>
         <div className="divide-y divide-line text-[13px]">
           {(jobs ?? []).map((j) => (

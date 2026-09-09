@@ -51,6 +51,10 @@ create table if not exists backlog (
   approved_at timestamptz,
   claimed_by  text,                            -- 동시 작업 충돌 방지
   claimed_at  timestamptz,
+  axis        text,                            -- 군집화 v2(0016): 축 한 문장 (대립·역설·재정의). v1 후보는 null
+  axis_type   text check (axis_type in ('대립','역설','재정의')),
+  gaps        text[] not null default '{}',    -- 비어 있는 소스 역할 (탐색 보강의 입력). sources[].role 이 역할표
+  cluster_version text,                        -- v1 / v2
   published_content_ref text,                  -- 발행 후 제품 content_id (0012 부터 발행 화면이 자동 기록, 이전은 수기)
   published_version int,                       -- 제품 content_version (재발행마다 +1 — 0012)
   published_at timestamptz,                    -- 최근 발행·재발행 시각 (0012) — TTS 재합성 시각과 비교해 재발행 버튼을 띄운다

@@ -86,6 +86,7 @@ npm run worker                # 계속 폴링. 끄려면 Ctrl+C (진행 중 작�
 |---|---|---|
 | `DRAFT_MODE` | `two-stage` | 초안 2단계(설계→대본). `single`=구 방식 |
 | `DESIGN_MODE` / `QA_MODE` | `single` | 단발 호출(도구 없음). `agent`=에이전트 루프 |
+| `CLUSTER_MODE` | `v1` | 군집화. `v2`=축 먼저·역할·다양성(단발, 대분류 풀). 콘솔 [군집화 v2] 버튼은 토글과 무관하게 v2 로 돈다 |
 | `REVISION_MODE` | `agent` | QA·L0 수정 재생성. `single`=바꿀 턴만 받아 워커가 치환(스모크 $1.92 → $0.89). 판정 3편이 끝나면 `single`로 |
 | `DRAFT_DESIGN_MODEL` / `DRAFT_WRITE_MODEL` | `claude-opus-5` | 설계·대본 모델. Fable 로 되돌리려면 `claude-fable-5-1` |
 | `QA_MODEL` / `CRITIC_MODEL` / `CLUSTER_MODEL` | Sonnet 5 / opus-5 / opus-5 | 판정·군집화 모델. QA·비평 모델 변경은 회귀 세트 재검증(spec/09 7.4) |

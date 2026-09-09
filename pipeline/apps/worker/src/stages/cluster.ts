@@ -4,6 +4,7 @@ import type { Executor } from "../executors/index.js";
 import { buildClusterPrompt, CLUSTER_SCHEMA } from "@ear/pipeline";
 import { hostOf, log } from "../util.js";
 import { prepareAssets, workerRev } from "../assets.js";
+import { runClusterV2 } from "./cluster-v2.js";
 
 interface ClusterOut {
   candidates: { id: string; mid_topic: string; title: string; summary: string; target_fit: string; angle: string; sources: { url: string; title: string; publisher: string; backbone: boolean }[]; dedup_note: string }[];
@@ -13,6 +14,7 @@ interface ClusterOut {
 
 /** 군집화 (spec/03): 최근 스윕 메타데이터 → 주제 축 후보. 원문 접속 없음 (WebFetch 미허용). */
 export async function runCluster(job: Job, ex: Executor) {
+  if (cfg.clusterMode === "v2" || job.payload.cluster_version === "v2" || job.payload.major_topic) return runClusterV2(job, ex); // ① 축이 이끄는 군집화 — 토글 또는 작업 단위 지정
   const midTopic = String(job.payload.mid_topic ?? "");
   if (!midTopic) throw new Error("payload.mid_topic 필요");
   const sources = await recentSourcesForTopic(midTopic, Number(job.payload.days ?? 45), 400);
