@@ -88,8 +88,8 @@ pull_request:
 
 | 확인 항목 | 결과 |
 |---|---|
-| 백엔드 변경이 있는 PR에서 전 단계가 돈다 | **확인** — 이 워크플로 수정 PR 자체가 `.github/workflows/deploy-api.yml`을 건드리므로 `backend=true`로 판정돼 lint·build·유닛·e2e가 전부 돌았다 |
-| 백엔드 무관 PR에서 건너뛰고 success로 보고한다 | **확인** — 문서 1개만 바꾼 임시 PR을 이 브랜치를 base로 열어 실측했다(아래) |
+| 백엔드 변경이 있는 PR에서 전 단계가 돈다 | **확인** — PR #258 자체가 `.github/workflows/deploy-api.yml`을 건드리므로 `backend=true`로 판정돼 lint·build·유닛·e2e가 전부 돌았다(run 34310925213, job success) |
+| 백엔드 무관 PR에서 건너뛰고 success로 보고한다 | **확인** — 문서 1개만 바꾼 임시 PR #259를 **이 브랜치를 base로** 열어 실측했다(base 브랜치에 새 워크플로가 있어야 merge ref 가 그것을 쓴다). run 34310946867 — `백엔드 변경 여부 판정` 이후 전 단계 `skipped`, **job 결론 success**, 22초. 확인 후 PR·브랜치 정리 |
 | `needs: verify`인 배포 job이 죽지 않는다 | **구조 확인** — verify는 단계가 전부 건너뛰어져도 job 결론이 `success`다(`skipped`가 아니다). 게다가 배포가 도는 `push`·`workflow_dispatch` 경로에서는 판정 자체를 건너뛰고 `backend=true`로 고정한다 |
 | `push` 트리거의 배포 조건 불변 | **확인** — `push.paths`·`branches`·`deploy` job의 단계와 조건 모두 이 변경에서 손대지 않았다 |
 
@@ -121,6 +121,9 @@ JSON
   `CLAUDE.md`의 "dev 직접 push 금지"가 그만큼 강제된다 — 의도한 효과다.
 - 설정 직후 **이미 열려 있는 PR들은 체크를 보고한 적이 없어 pending으로 뜬다.** 각 PR에
   커밋을 하나 올리거나 재실행하면 풀린다.
+- **`배포 (EC2)`는 필수 체크로 넣지 않는다.** 이 job 은 PR 이벤트에서 항상 `skipped`로
+  보고되는데, GitHub 은 skipped 인 필수 체크를 통과로 세지 않는다 — 넣으면 모든 PR 이 막힌다.
+  필수로 거는 것은 `검증 (lint · build · 유닛 · e2e)` **하나뿐이다.**
 
 **`main` 판단(요청 5) — 지금은 걸지 않기를 권한다.** `main`은 `dev → main` PR로만 갱신되고
 (`CLAUDE.md` Git 장), `dev`가 막히면 깨진 코드는 그 앞에서 걸러진다. 그런데 `main`에 같은
