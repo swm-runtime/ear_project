@@ -3,6 +3,7 @@ import { EntityManager } from 'typeorm';
 
 import { BusinessNotFoundException } from '@/common/exceptions/business-not-found.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
+import { normalizeStoredText } from '@/common/utils/search-text.util';
 
 import { Topic } from '../entities/topic.entity';
 import {
@@ -147,8 +148,10 @@ export class TopicService {
         ),
       ) + 1;
 
+    // 검색 4필드(제목·저자·설명·주제명) 중 주제명만 NFC 적재 정규화가 빠져 있었다 —
+    // NFD로 들어온 주제명은 검색 매칭에서 조용히 빠진다(domain.md 5.1 "적재·질의 양쪽", 2026-09-09 감사)
     const topic = this.topicRepository.create({
-      name: command.name,
+      name: normalizeStoredText(command.name),
       parentCategory: command.parentCategory,
       isVisible: false,
       displayOrder,
@@ -164,7 +167,7 @@ export class TopicService {
     manager?: EntityManager,
   ): Promise<Topic> {
     if (command.name !== undefined) {
-      topic.name = command.name;
+      topic.name = normalizeStoredText(command.name);
     }
     if (command.parentCategory !== undefined) {
       topic.parentCategory = command.parentCategory;
