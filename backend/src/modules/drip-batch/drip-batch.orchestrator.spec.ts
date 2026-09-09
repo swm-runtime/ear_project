@@ -247,6 +247,30 @@ describe('DripBatchOrchestrator', () => {
     );
   });
 
+  it('티어별 편성 편수는 실행 1회에 한 번만 읽는다 — 사용자마다 plans를 다시 읽지 않는다', async () => {
+    // given — 같은 티어의 사용자 3명
+    userService.findDripTargetsPage
+      .mockReset()
+      .mockResolvedValueOnce([
+        buildUser('u1'),
+        buildUser('u2'),
+        buildUser('u3'),
+      ])
+      .mockResolvedValue([]);
+
+    // when
+    await orchestrator.run(NOW);
+
+    // then
+    expect(planService.getDailyDripCount).toHaveBeenCalledTimes(1);
+    expect(planService.getDailyDiscoveryCount).toHaveBeenCalledTimes(1);
+    expect(dripBatchRunService.finish).toHaveBeenCalledWith(
+      run,
+      expect.objectContaining({ targetCount: 3 }),
+      expect.any(Date),
+    );
+  });
+
   it('사용자 처리 실패는 다른 사용자에게 전파되지 않는다', async () => {
     userService.findDripTargetsPage
       .mockReset()

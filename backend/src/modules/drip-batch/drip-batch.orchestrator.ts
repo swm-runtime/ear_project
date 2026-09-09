@@ -33,6 +33,7 @@ import { PlaybackService } from '@/modules/playback/services/playback.service';
 import { PlanService } from '@/modules/subscription/services/plan.service';
 import { User } from '@/modules/user/entities/user.entity';
 import { UserService } from '@/modules/user/services/user.service';
+import { UserTier } from '@/modules/user/user.enum';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -45,6 +46,20 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
  * "0편 고갈"이 같은 숫자에 들어가, 후보가 말라 가는 것을 지표로 알 수 없다.
  */
 type UserOutcome = 'scheduled' | 'skipped' | 'exhausted';
+
+/** 티어별 편성 편수 — 실행 1회 안에서 한 번만 읽는다(아래 `PlanCountCache`) */
+interface PlanCounts {
+  dripCount: number;
+  discoveryCount: number;
+}
+
+/**
+ * 실행 단위 캐시. `plans`는 운영이 배포 없이 바꾸는 정책값이지만 **배치가 도는 몇 분 사이에
+ * 바뀔 값은 아니고**, 바뀌더라도 한 실행 안에서는 전 사용자에게 같은 값이 적용되는 편이
+ * 맞다. 없으면 사용자마다 2~4번(폴백 포함) `plans`를 다시 읽어, 5천 명이면 만 번 넘는
+ * 왕복이 편성 자체와 무관한 데서 나간다(2026-09-09 감사 — 사용자당 20~24쿼리 중 일부).
+ */
+type PlanCountCache = Map<UserTier, PlanCounts>;
 
 /**
  * 일일 편성 배치 — `drip-scheduling.md` 2(트리거)·4(처리 로직)의 실행부다.
@@ -100,6 +115,7 @@ export class DripBatchOrchestrator {
     };
 
     let afterId: string | null = null;
+    const planCounts: PlanCountCache = new Map();
 
     /**
      * **어떻게 끝나든 실행 기록을 닫는다.** 사용자 단위 실패는 아래에서 흡수되지만,
@@ -122,7 +138,7 @@ export class DripBatchOrchestrator {
           counts.targetCount += 1;
 
           try {
-            const outcome = await this.scheduleForUser(user, now);
+            const outcome = await this.scheduleForUser(user, now, planCounts);
 
             if (outcome === 'scheduled') {
               counts.successCount += 1;
@@ -164,7 +180,11 @@ export class DripBatchOrchestrator {
     this.logger.log('drip batch finished', { runDate, ...counts });
   }
 
-  private async scheduleForUser(user: User, now: Date): Promise<UserOutcome> {
+  private async scheduleForUser(
+    user: User,
+    now: Date,
+    planCounts: PlanCountCache,
+  ): Promise<UserOutcome> {
     // 관심사 0은 방어적 처리 — 정상 경로에서는 도달 불가(`drip-scheduling.md` 4.1)
     const activeTopicIds = await this.userInterestService.findActiveTopicIds(
       user.id,
@@ -181,9 +201,9 @@ export class DripBatchOrchestrator {
       return 'skipped';
     }
 
-    const dripCount = await this.planService.getDailyDripCount(user.tier);
-    const discoveryCount = await this.planService.getDailyDiscoveryCount(
+    const { dripCount, discoveryCount } = await this.resolvePlanCounts(
       user.tier,
+      planCounts,
     );
 
     if (dripCount <= 0 && discoveryCount <= 0) {
@@ -232,6 +252,25 @@ export class DripBatchOrchestrator {
     // 정규 편성이 0편이면 후보가 마른 것이다(4.1의 스킵 조건은 위에서 이미 걸렀다).
     // 탐험 슬롯만 채워졌더라도 본편이 없으면 그날의 편성은 성공이 아니다
     return regularPicks.ids.length > 0 ? 'scheduled' : 'exhausted';
+  }
+
+  private async resolvePlanCounts(
+    tier: UserTier,
+    cache: PlanCountCache,
+  ): Promise<PlanCounts> {
+    const cached = cache.get(tier);
+
+    if (cached) {
+      return cached;
+    }
+
+    const counts: PlanCounts = {
+      dripCount: await this.planService.getDailyDripCount(tier),
+      discoveryCount: await this.planService.getDailyDiscoveryCount(tier),
+    };
+    cache.set(tier, counts);
+
+    return counts;
   }
 
   /** 4.3 — 배치 시점에 최신 신호를 읽어 취향 캐시를 재계산한다 */
