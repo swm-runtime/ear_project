@@ -5,15 +5,27 @@ import { fmtTime } from "@/lib/format";
 import { GateButtons } from "./gate-buttons";
 
 const GROUPS: [string, string[], string][] = [
-  ["게이트 1 대기", ["proposed", "held"], "사람이 주제+소스 묶음을 승인한다. 승인하면 워커가 대본 생성을 시작한다"],
+  ["에피소드 승인 대기", ["proposed", "held"], "사람이 주제+소스 묶음을 승인한다. 승인하면 워커가 대본 생성을 시작한다"],
   ["사람 검토 필요", ["review_required"], "QA 3회 실패 — 사람이 수정하거나 반려한다"],
   ["제작 중", ["approved", "claimed", "drafted"], ""],
   ["QA 통과 · 판정 대기", ["qa_passed", "packaged"], ""],
   ["종료", ["published", "rejected", "expired"], ""],
 ];
 
-export default async function BacklogPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
-  const { q } = await searchParams;
+const PAGE = 10; // 묶음마다 한 번에 보이는 행 (2026-09-09 박수헌: 묶음이 쌓이면 스크롤이 너무 길다)
+
+export default async function BacklogPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+  const sp = await searchParams;
+  const q = sp.q;
+  // 묶음별 페이지는 URL 의 p0..p4 — 다른 묶음의 페이지와 검색어를 보존한 채 한 묶음만 넘긴다
+  const pageOf = (i: number) => Math.max(1, Number(sp[`p${i}`] ?? 1) || 1);
+  const hrefFor = (i: number, page: number) => {
+    const u = new URLSearchParams();
+    if (q) u.set("q", q);
+    GROUPS.forEach((_, j) => { const pj = j === i ? page : pageOf(j); if (pj > 1) u.set(`p${j}`, String(pj)); });
+    const qs = u.toString();
+    return `/backlog${qs ? `?${qs}` : ""}#g${i}`;
+  };
   const sb = await supabaseServer();
   const [{ data: rows }, { data: eps }] = await Promise.all([
     sb.from("backlog").select("id,mid_topic,title,target_fit,angle,sources,status,dedup_note,approved_by,approved_at").order("id", { ascending: false }),
@@ -32,11 +44,22 @@ export default async function BacklogPage({ searchParams }: { searchParams: Prom
       </form>
 
       <div className="space-y-5">
-        {GROUPS.map(([name, statuses, desc]) => {
-          const items = filtered.filter((r) => statuses.includes(r.status));
-          if (!items.length) return null;
+        {GROUPS.map(([name, statuses, desc], gi) => {
+          const all = filtered.filter((r) => statuses.includes(r.status));
+          if (!all.length) return null;
+          const pages = Math.ceil(all.length / PAGE);
+          const page = Math.min(pageOf(gi), pages);
+          const items = all.slice((page - 1) * PAGE, page * PAGE);
+          const pager = pages > 1 && (
+            <span className="flex items-center gap-2 text-[11px] text-ink-soft">
+              {page > 1 ? <Link href={hrefFor(gi, page - 1)} className="rounded border border-line bg-white px-2 py-0.5 text-ink hover:bg-[#f7f9fb]">이전</Link> : <span className="rounded border border-line px-2 py-0.5 opacity-40">이전</span>}
+              <span className="tabular-nums">{page} / {pages}</span>
+              {page < pages ? <Link href={hrefFor(gi, page + 1)} className="rounded border border-line bg-white px-2 py-0.5 text-ink hover:bg-[#f7f9fb]">다음</Link> : <span className="rounded border border-line px-2 py-0.5 opacity-40">다음</span>}
+            </span>
+          );
           return (
-            <Panel key={name} title={`${name} (${items.length})`} right={desc ? <span className="text-[11px] text-ink-soft">{desc}</span> : null} flush>
+            <div key={name} id={`g${gi}`}>
+            <Panel title={`${name} (${all.length})`} right={<span className="flex items-center gap-3">{desc ? <span className="text-[11px] text-ink-soft">{desc}</span> : null}{pager}</span>} flush>
               <Table head={["ID", "제목 · 축", "중분류", "소스", "상태", "액션"]}>
                 {items.map((r) => (
                   <tr key={r.id} className="align-top hover:bg-[#f7f9fb]">
@@ -75,7 +98,9 @@ export default async function BacklogPage({ searchParams }: { searchParams: Prom
                   </tr>
                 ))}
               </Table>
+              {pages > 1 && <div className="flex justify-end border-t border-line px-4 py-2">{pager}</div>}
             </Panel>
+            </div>
           );
         })}
       </div>

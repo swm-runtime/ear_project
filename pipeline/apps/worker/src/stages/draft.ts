@@ -130,7 +130,10 @@ export async function runDraft(job: Job, ex: Executor) {
   // 발음 맵 (spec/04 8장) — 모델이 빠뜨렸거나 구 에피소드 이어받기면 빈 맵을 둔다 (웹 "발음" 탭·TTS 병합의 기준 파일. 누락 표기는 TTS 잔존 검사가 잡는다)
   const pronFile = path.join(dir, "pronunciations.json");
   if (!(await exists(pronFile))) await fs.writeFile(pronFile, "{}\n", "utf8");
-  await pushPrefix(`${rel}/`); // 먼저 S3 에 — DB 키가 가리키는 객체가 있어야 한다
+  // 먼저 S3 에 — DB 키가 가리키는 객체가 있어야 한다. 업로드 실패(SSO 만료·네트워크)는 초안 실패가 아니다: 산출물은 로컬에 있으니
+  // 작업을 큐에 되돌려 자격 증명이 살아난 뒤 다시 집는다 (2026-09-09 T260909-001: 대본까지 다 쓰고 업로드에서 죽어 에피소드가 지워졌다)
+  try { await pushPrefix(`${rel}/`); }
+  catch (e) { throw new RetryLater(`${episodeId} 산출물 업로드 실패 — 로컬 산출물은 보존, 저장소 자격 증명 확인 후 재시도: ${String((e as Error)?.message ?? e).slice(0, 160)}`, 5 * 60_000); }
   const artifacts = [s3Key(`${rel}/script.md`), s3Key(`${rel}/sources.md`), s3Key(`${rel}/claims.md`), s3Key(`${rel}/pronunciations.json`)];
   if (attempt === 1) {
     await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: promptVersion, script_key: artifacts[0], claims_key: artifacts[2], sources_key: artifacts[1] });

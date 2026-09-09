@@ -23,7 +23,7 @@ export default async function Dashboard() {
       <PageHeader title="대시보드" breadcrumb={["파이프라인", "대시보드"]} />
 
       <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="게이트 1 대기" value={st("proposed")} sub={<Link className="underline" href="/backlog">후보 승인하기</Link>} tone={st("proposed") ? "text-amber-600" : "text-ink"} />
+        <Stat label="에피소드 승인 대기" value={st("proposed")} sub={<Link className="underline" href="/backlog">후보 승인하기</Link>} tone={st("proposed") ? "text-amber-600" : "text-ink"} />
         <Stat label="제작 중" value={st("approved") + st("claimed") + st("drafted")} sub="승인 → 대본 → QA" />
         <Stat label="판정 대기" value={awaitingVerdict} sub={<Link className="underline" href="/episodes">비평 리포트 판정</Link>} tone={awaitingVerdict ? "text-violet-600" : "text-ink"} />
         <Stat label="사람 검토 필요" value={st("review_required")} sub="QA 3회 실패" tone={st("review_required") ? "text-rose-600" : "text-ink"} />
