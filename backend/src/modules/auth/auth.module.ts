@@ -12,6 +12,7 @@ import { GoogleClient } from './providers/google.client';
 import { KakaoClient } from './providers/kakao.client';
 import { NaverClient } from './providers/naver.client';
 import { SocialProviderRegistry } from './providers/social-provider.registry';
+import { SessionPurgeScheduler } from './session-purge.scheduler';
 import { Session } from './session.entity';
 import { SessionRepository } from './session.repository';
 import { TokenService } from './services/token.service';
@@ -24,6 +25,7 @@ import { TokenService } from './services/token.service';
     AuthService,
     TokenService,
     SessionRepository,
+    SessionPurgeScheduler,
     SocialProviderRegistry,
     KakaoClient,
     GoogleClient,

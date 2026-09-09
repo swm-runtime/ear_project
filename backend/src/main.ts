@@ -49,6 +49,13 @@ async function bootstrap(): Promise<void> {
     }),
   );
 
+  /**
+   * SIGTERM에 `onModuleDestroy`·`beforeApplicationShutdown` 훅이 돌게 한다. 없으면 배포의
+   * `docker compose up -d`가 컨테이너를 끊을 때 TypeORM 풀이 정리되지 않고 진행 중인
+   * 스케줄러 작업이 중간에 잘린다(2026-09-09 감사 — 하등급).
+   */
+  app.enableShutdownHooks();
+
   await app.listen(configService.get('PORT', { infer: true }));
 }
 

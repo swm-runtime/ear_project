@@ -2,6 +2,16 @@
 export const ACCESS_TOKEN_TTL_SEC = 30 * 60;
 export const REFRESH_TOKEN_TTL_SEC = 30 * 24 * 60 * 60;
 
+/**
+ * 만료·폐기된 세션의 보존 기간 — `changes/pending/sessions-retention-period.md`(domain.md 12.1
+ * 개정 요청, 2026-09-09). 폐기 이력이 필요한 것은 refresh 재사용 탐지 창(refresh TTL 30일)
+ * 동안뿐이라, 그 창을 넘긴 행은 탐지에도 안 쓰이고 조회 비용만 남긴다.
+ */
+export const SESSION_RETENTION_MS = REFRESH_TOKEN_TTL_SEC * 1000;
+
+/** 세션 파기 배치 주기(ms). 하루 단위 보존이라 시간 단위면 충분하다 */
+export const SESSION_PURGE_INTERVAL_MS = 60 * 60 * 1000;
+
 /** auth-api.md 9 미결 사항 — 약관 동의 화면 체류 시간을 감안해 10분으로 확정 */
 export const SIGNUP_TOKEN_TTL_SEC = 10 * 60;
 

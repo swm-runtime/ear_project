@@ -44,6 +44,8 @@ export const CPU_ALERT_PERCENT = 70;
 export const MEM_ALERT_PERCENT = 80;
 const SUSTAIN_TICKS = 3;
 const REALERT_MS = 30 * 60_000;
+/** Slack webhook 응답 대기 상한 — 감시 주기(TICK_MS)보다 충분히 짧아야 다음 표본이 밀리지 않는다 */
+const SLACK_WEBHOOK_TIMEOUT_MS = 5_000;
 
 type MetricState = {
   breaches: number;
@@ -243,6 +245,8 @@ export class ResourceAlertService implements OnModuleInit, OnModuleDestroy {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ text }),
+      // Slack이 응답을 안 주면 감시 주기 안에서 끊는다 — 상한 없는 fetch는 다음 표본까지 막는다
+      signal: AbortSignal.timeout(SLACK_WEBHOOK_TIMEOUT_MS),
     });
     if (!res.ok) throw new Error(`slack webhook ${res.status}`);
   }

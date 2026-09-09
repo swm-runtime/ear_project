@@ -33,6 +33,12 @@ export const FIRST_DRIP_RETRY_STALE_MS = 60_000;
 /** 한 번의 스케줄러 실행에서 처리할 작업 수 */
 export const FIRST_DRIP_RETRY_BATCH_SIZE = 20;
 
+/** 완료 작업 보존 기간 — `domain.md` 7.4 "`completed_at` 기준 30일 후 배치 삭제" */
+export const FIRST_DRIP_JOB_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
+/** 완료 작업 파기 배치 주기(ms). 하루 단위 보존이라 시간 단위면 충분하다 */
+export const FIRST_DRIP_PURGE_INTERVAL_MS = 60 * 60 * 1000;
+
 /*
  * ── 편성 스코어링 (`drip-scheduling.md` 4.2 — 3축 하이브리드) ─────────────────────
  *

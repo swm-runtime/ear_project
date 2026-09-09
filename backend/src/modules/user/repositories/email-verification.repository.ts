@@ -1,17 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import {
-  EntityManager,
-  IsNull,
-  MoreThan,
-  QueryFailedError,
-  Repository,
-} from 'typeorm';
+import { EntityManager, IsNull, MoreThan, Repository } from 'typeorm';
+
+import { isUniqueViolation } from '@/common/utils/unique-violation.util';
 
 import { EmailVerification } from '../entities/email-verification.entity';
-
-/** Postgres unique_violation */
-const UNIQUE_VIOLATION_CODE = '23505';
 
 @Injectable()
 export class EmailVerificationRepository {
@@ -47,17 +40,11 @@ export class EmailVerificationRepository {
     try {
       return await this.scoped(manager).save(verification);
     } catch (error) {
-      if (error instanceof QueryFailedError && this.isUniqueViolation(error)) {
+      if (isUniqueViolation(error)) {
         return null;
       }
       throw error;
     }
-  }
-
-  private isUniqueViolation(error: QueryFailedError): boolean {
-    return (
-      (error.driverError as { code?: string }).code === UNIQUE_VIOLATION_CODE
-    );
   }
 
   /**

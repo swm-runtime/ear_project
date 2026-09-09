@@ -12,9 +12,15 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 
+import { Throttle } from '@nestjs/throttler';
+
 import type { AuthenticatedUser } from '@/common/decorators/current-user.decorator';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
+import {
+  RATE_LIMIT_AUDIO_URL_PER_MINUTE,
+  RATE_LIMIT_WINDOW_MS,
+} from '@/common/rate-limit.constant';
 import { IdempotencyInterceptor } from '@/modules/idempotency/idempotency.interceptor';
 
 import { IssueAudioUrlRequestDto } from '../dto/issue-audio-url-request.dto';
@@ -53,6 +59,13 @@ export class PlayController {
    */
   @Post(':contentId/audio-urls')
   @Header('Cache-Control', 'no-store')
+  // architecture.md 9.6 / 9.4 — 대량 다운로드 패턴의 1차 방어(이상 탐지 배치 전). 사용자 단위
+  @Throttle({
+    default: {
+      limit: RATE_LIMIT_AUDIO_URL_PER_MINUTE,
+      ttl: RATE_LIMIT_WINDOW_MS,
+    },
+  })
   async issueAudioUrl(
     @CurrentUser() currentUser: AuthenticatedUser,
     @Param('contentId', ParseUUIDPipe) contentId: string,
