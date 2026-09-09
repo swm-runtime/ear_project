@@ -116,8 +116,8 @@
       }
     },
     "owner": "runtime364",
-    "runtimeVersion": "cc07cb6e497796c40be4778873fb8502e9e1f827",
-    "_runtimeVersionNote": "고정 문자열이다(정책 아님). 이유·갱신 규칙은 docs/frontend/architecture.md 2.1",
+    "runtimeVersion": "1",
+    "_runtimeVersionNote": "고정 문자열이다(정책 아님). 앱 버전과 무관한 값을 쓴다 — 1.0.0 처럼 버전을 닮은 값은 스토어 버전을 올릴 때 함께 올려야 할 것처럼 읽힌다. 네이티브가 바뀌면 손으로 올린다. 이유·갱신 규칙은 docs/frontend/architecture.md 2.1",
     "updates": {
       "url": "https://u.expo.dev/affd5e83-2719-469a-8c5c-f12b09e7ba4a"
     }

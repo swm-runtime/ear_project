@@ -7,8 +7,8 @@ name: eas-update
 # 업데이트가 전달되지 않으므로 매 merge 발행해도 안전하다. 네이티브가 바뀐 merge 는
 # OTA 대신 새 빌드(eas build)가 필요하다는 뜻이기도 하다.
 #
-# 발행은 두 번 한다 — app.json 의 runtimeVersion 으로 한 번(Android 스토어 빌드가 수신),
-# 레거시 지문으로 iOS 만 한 번 더. 이유는 아래 "iOS 백필" 단계 주석에 있다.
+# 발행은 세 번 한다 — app.json 의 runtimeVersion("1") 으로 한 번, 그리고 아직 배포돼 있는
+# 옛 빌드를 위해 레거시 지문 둘로 각각 한 번씩. 이유는 아래 "레거시 백필" 주석에 있다.
 # 1회 설정: repo secret EXPO_TOKEN (Expo access token)
 
 on:
@@ -91,34 +91,40 @@ jobs:
             --message "$MESSAGE" \
             --non-interactive
 
-      # ── iOS 백필 (임시 — 통일되면 이 단계를 통째로 지운다) ──────────────
-      # 배포된 iOS 빌드(vc=3)는 정책 전환 이전에 만들어져 runtimeVersion 으로 "1.0.0" 을
-      # embed 하고 있다. app.json 값(cc07cb6e…)과 다르므로 위 발행은 iOS 에 **영원히
-      # 도달하지 않는다** — 실패가 아니라 조용히 안 간다.
+      # ── 레거시 백필 (임시 — 옛 빌드가 사라지면 이 두 단계를 통째로 지운다) ──────
+      # 2026-09-09 에 runtimeVersion 을 "1" 로 통일했다. 하지만 **이미 배포된 빌드는 옛 지문을
+      # embed 한 채로 남아 있다** — Android vc=7 은 cc07cb6e…, iOS vc=3 은 1.0.0 이다.
+      # 지문이 다르면 업데이트가 전달되지 않는데, 실패가 아니라 **조용히 안 간다.**
       #
-      # 사람이 매번 손으로 백필하던 것을 여기로 옮긴다. 2026-09-08 하루에만 세 번 했고,
-      # 빠뜨린 채 검증하면 "고쳤는데 안 된다"로 몇십 분이 날아간다.
+      # 새 빌드(Android vc=8 · iOS vc=4)가 스토어를 거쳐 실제로 깔리기까지 며칠 걸린다.
+      # 그동안 옛 빌드로 테스트하는 사람에게 JS 수정을 못 보내는 공백이 생기므로, 옛 지문으로도
+      # 각각 한 번씩 더 발행한다.
       #
-      # 삭제 조건: 양 플랫폼 runtimeVersion 을 통일한 새 iOS 빌드가 배포되면 이 단계와
-      # LEGACY_IOS_RUNTIME_VERSION 을 함께 지운다
-      # (docs/tickets/frontend/pending/platform-runtime-version-divergence.md).
-      - name: iOS 백필 발행 (레거시 지문)
+      # 삭제 조건: 새 빌드가 배포되고 옛 빌드를 아무도 안 쓰게 되면 **두 단계와 두 env 를 함께**
+      # 지운다 (tickets/frontend/pending/platform-runtime-version-divergence.md).
+      - name: 레거시 백필 발행 (Android vc=7 지문)
         if: steps.guard.outputs.run == 'true'
         working-directory: frontend
         env:
-          # 위 단계와 **같은 값이어야 한다** — 어긋나면 iOS 번들만 다른 서버를 본다
+          # 위 단계와 **같은 값이어야 한다** — 어긋나면 이 번들만 다른 서버를 본다
           EXPO_PUBLIC_API_BASE_URL: https://api.earcast.co.kr/api/v1
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-          # 배포된 iOS 빌드가 embed 한 값. 새 iOS 빌드가 나가면 이 줄이 사라진다
-          LEGACY_IOS_RUNTIME_VERSION: '1.0.0'
+          LEGACY_RUNTIME_VERSION: cc07cb6e497796c40be4778873fb8502e9e1f827
         run: |
           MESSAGE="$(printf '%s' "${COMMIT_MESSAGE:-manual dispatch}" | head -n1)"
-          # app.json 을 레거시 지문으로 바꿔 발행하고 되돌린다 —
-          # eas update 에는 runtimeVersion 을 넘기는 플래그가 없다(CLI 확인 2026-09-08)
-          node -e 'const fs = require("fs"); const c = JSON.parse(fs.readFileSync("app.json", "utf8")); c.expo.runtimeVersion = process.env.LEGACY_IOS_RUNTIME_VERSION; fs.writeFileSync("app.json", JSON.stringify(c, null, 2));'
-          eas update \
-            --channel "${{ steps.channel.outputs.channel }}" \
-            --platform ios \
-            --message "$MESSAGE (iOS 백필)" \
-            --non-interactive
+          node -e 'const fs = require("fs"); const c = JSON.parse(fs.readFileSync("app.json", "utf8")); c.expo.runtimeVersion = process.env.LEGACY_RUNTIME_VERSION; fs.writeFileSync("app.json", JSON.stringify(c, null, 2));'
+          eas update             --channel "${{ steps.channel.outputs.channel }}"             --platform android             --message "$MESSAGE (레거시 백필 android)"             --non-interactive
+          git checkout -- app.json
+
+      - name: 레거시 백필 발행 (iOS vc=3 지문)
+        if: steps.guard.outputs.run == 'true'
+        working-directory: frontend
+        env:
+          EXPO_PUBLIC_API_BASE_URL: https://api.earcast.co.kr/api/v1
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          LEGACY_RUNTIME_VERSION: '1.0.0'
+        run: |
+          MESSAGE="$(printf '%s' "${COMMIT_MESSAGE:-manual dispatch}" | head -n1)"
+          node -e 'const fs = require("fs"); const c = JSON.parse(fs.readFileSync("app.json", "utf8")); c.expo.runtimeVersion = process.env.LEGACY_RUNTIME_VERSION; fs.writeFileSync("app.json", JSON.stringify(c, null, 2));'
+          eas update             --channel "${{ steps.channel.outputs.channel }}"             --platform ios             --message "$MESSAGE (레거시 백필 ios)"             --non-interactive
           git checkout -- app.json
