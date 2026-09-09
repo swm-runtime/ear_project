@@ -61,6 +61,7 @@
 | SNS 토픽 | `ear-prod-alerts` | 메일 구독 ⏳ 확인 대기 |
 | CloudWatch 알람 | `ear-prod-ec2-status-check` | 상태 검사 실패 3분 연속 시 알림 |
 | SES | 도메인 identity `earcast.co.kr` (DKIM ⏳ 대기) + 테스트 주소 2개, 프로덕션 액세스 ⏳ 심사 중 | 서버 코드(`SesMailClient`)는 미구현 — 별건 |
+| Secrets Manager | `ear/prod/api` — ARN `...:secret:ear/prod/api-PyK5Ku` | 운영 API 비밀값 8종(2026-09-09 적재). 읽기는 인스턴스 롤 `ear-prod-ec2`의 인라인 정책 `secrets-read`(그 ARN만). **아직 원천이 아니다** — 앱은 여전히 `.env.prod`를 읽는다(주입 배선은 백엔드 협조 대기) |
 
 ## 5. AWS 밖 짝 리소스
 
