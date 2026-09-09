@@ -75,7 +75,7 @@ export class AdminContentService {
     this.validateDisclosure(command, now);
     // 파일 검증은 업로드 전에 — 거부여도 업로드는 진행하므로(admin.md 3.1) 예외가 아니다
     const enrichment = command.enrichment
-      ? parseEnrichmentFile(command.enrichment)
+      ? await parseEnrichmentFile(command.enrichment)
       : null;
     const audioExtension = this.resolveExtension(
       command.audio,
@@ -229,7 +229,7 @@ export class AdminContentService {
     }
 
     const enrichment = command.enrichment
-      ? parseEnrichmentFile(command.enrichment)
+      ? await parseEnrichmentFile(command.enrichment)
       : null;
 
     /**

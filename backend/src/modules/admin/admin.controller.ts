@@ -1,3 +1,6 @@
+import { rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+
 import {
   Body,
   Controller,
@@ -15,6 +18,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
@@ -26,7 +30,11 @@ import { AdminRoleGuard } from '@/common/guards/admin-role.guard';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
 
 import { UploadedFileInput } from './admin.types';
-import { MAX_AUDIO_FILE_BYTES } from './admin.constant';
+import {
+  MAX_AUDIO_FILE_BYTES,
+  MAX_ENRICHMENT_FILE_BYTES,
+  MAX_THUMBNAIL_FILE_BYTES,
+} from './admin.constant';
 import { AdminContentListResponseDto } from './dto/admin-content-list-response.dto';
 import { AdminContentQueryRequestDto } from './dto/admin-content-query-request.dto';
 import { AdminContentItemDto } from './dto/admin-content-item.dto';
@@ -56,6 +64,29 @@ interface UploadFiles {
   thumbnail?: Express.Multer.File[];
   enrichment_file?: Express.Multer.File[];
 }
+
+/**
+ * 업로드 파일은 **디스크 임시 파일**로 받는다(multer 기본은 메모리). 오디오 200MB를 램에
+ * 통째로 올리면 길이 추출·S3 전송이 동시에 보유해 요청당 수백 MB가 되고, 단일 EC2(4GB)에서
+ * 동시 2건이면 자원 알림이 울린다. 임시 파일은 요청이 어떻게 끝나든 `discardUploads`가 지운다.
+ *
+ * `fileSize`는 필드별로 줄 수 없어(multer 한계) 최대값(오디오)으로 두고, 필드별 상한은
+ * 파일이 도착한 직후 `assertFileSizes`가 서비스 진입 전에 검사한다.
+ */
+const UPLOAD_FILE_FIELDS = [
+  { name: 'audio', maxCount: 1 },
+  { name: 'thumbnail', maxCount: 1 },
+  { name: 'enrichment_file', maxCount: 1 },
+];
+const UPLOAD_MULTER_OPTIONS = {
+  storage: diskStorage({ destination: tmpdir() }),
+  limits: { fileSize: MAX_AUDIO_FILE_BYTES, files: 3 },
+};
+const FILE_FIELD_MAX_BYTES: Record<string, number> = {
+  audio: MAX_AUDIO_FILE_BYTES,
+  thumbnail: MAX_THUMBNAIL_FILE_BYTES,
+  enrichment_file: MAX_ENRICHMENT_FILE_BYTES,
+};
 
 /**
  * admin.md — 관리자 API. **모든 라우트가 `role == 'admin'`을 서버에서 검증한다**(4.1).
@@ -192,20 +223,26 @@ export class AdminController {
    */
   @Post('contents')
   @UseInterceptors(
-    FileFieldsInterceptor(
-      [
-        { name: 'audio', maxCount: 1 },
-        { name: 'thumbnail', maxCount: 1 },
-        { name: 'enrichment_file', maxCount: 1 },
-      ],
-      { limits: { fileSize: MAX_AUDIO_FILE_BYTES, files: 3 } },
-    ),
+    FileFieldsInterceptor(UPLOAD_FILE_FIELDS, UPLOAD_MULTER_OPTIONS),
   )
   async uploadContent(
     @CurrentUser() currentUser: AuthenticatedUser,
     @Body() form: UploadContentFormRequestDto,
     @UploadedFiles() files: UploadFiles,
   ): Promise<AdminContentItemDto> {
+    try {
+      return await this.handleUpload(currentUser, form, files);
+    } finally {
+      await discardUploads(files);
+    }
+  }
+
+  private async handleUpload(
+    currentUser: AuthenticatedUser,
+    form: UploadContentFormRequestDto,
+    files: UploadFiles,
+  ): Promise<AdminContentItemDto> {
+    this.assertFileSizes(files);
     const audio = files.audio?.[0];
     const thumbnail = files.thumbnail?.[0];
     if (!audio) {
@@ -261,14 +298,7 @@ export class AdminController {
    */
   @Patch('contents/:contentId')
   @UseInterceptors(
-    FileFieldsInterceptor(
-      [
-        { name: 'audio', maxCount: 1 },
-        { name: 'thumbnail', maxCount: 1 },
-        { name: 'enrichment_file', maxCount: 1 },
-      ],
-      { limits: { fileSize: MAX_AUDIO_FILE_BYTES, files: 3 } },
-    ),
+    FileFieldsInterceptor(UPLOAD_FILE_FIELDS, UPLOAD_MULTER_OPTIONS),
   )
   async republishContent(
     @CurrentUser() currentUser: AuthenticatedUser,
@@ -276,6 +306,20 @@ export class AdminController {
     @Body() form: RepublishContentFormRequestDto,
     @UploadedFiles() files: UploadFiles,
   ): Promise<AdminContentItemDto> {
+    try {
+      return await this.handleRepublish(currentUser, contentId, form, files);
+    } finally {
+      await discardUploads(files);
+    }
+  }
+
+  private async handleRepublish(
+    currentUser: AuthenticatedUser,
+    contentId: string,
+    form: RepublishContentFormRequestDto,
+    files: UploadFiles,
+  ): Promise<AdminContentItemDto> {
+    this.assertFileSizes(files);
     const audio = files.audio?.[0];
     const thumbnail = files.thumbnail?.[0];
     const payload = form.payload
@@ -340,6 +384,19 @@ export class AdminController {
     return dto;
   }
 
+  /** 필드별 상한 — 썸네일 5MB·추천 메타 1MB를 200MB까지 받아 준 뒤 서비스에서 거부하면 늦다 */
+  private assertFileSizes(files: UploadFiles): void {
+    for (const [field, maxBytes] of Object.entries(FILE_FIELD_MAX_BYTES)) {
+      const file = files[field as keyof UploadFiles]?.[0];
+      if (file && file.size > maxBytes) {
+        throw this.missingField(
+          field,
+          `파일이 너무 커요 (최대 ${Math.floor(maxBytes / 1024 / 1024)}MB)`,
+        );
+      }
+    }
+  }
+
   private missingField(field: string, message: string): BusinessException {
     return new BusinessException({
       status: HttpStatus.BAD_REQUEST,
@@ -352,9 +409,23 @@ export class AdminController {
 
 function toFileInput(file: Express.Multer.File): UploadedFileInput {
   return {
-    buffer: file.buffer,
+    path: file.path,
     originalName: file.originalname,
     mimeType: file.mimetype,
     size: file.size,
   };
+}
+
+/** 임시 파일 정리 — 성공·실패 어느 경로든 `/tmp`에 남기지 않는다. 없는 파일은 무시한다 */
+async function discardUploads(files: UploadFiles | undefined): Promise<void> {
+  const uploaded: Express.Multer.File[] = [
+    ...(files?.audio ?? []),
+    ...(files?.thumbnail ?? []),
+    ...(files?.enrichment_file ?? []),
+  ];
+  const paths = uploaded
+    .map((file) => file.path)
+    .filter((path): path is string => typeof path === 'string');
+
+  await Promise.all(paths.map((path) => rm(path, { force: true })));
 }

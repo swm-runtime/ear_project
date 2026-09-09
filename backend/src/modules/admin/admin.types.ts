@@ -3,8 +3,13 @@ import { Content } from '@/modules/content/entities/content.entity';
 import { Topic } from '@/modules/interest/entities/topic.entity';
 
 /** 업로드된 파일 — multer 버퍼에서 필요한 것만 */
+/**
+ * 업로드 파일은 **디스크 임시 경로**로 넘긴다 — 버퍼로 들고 다니면 200MB 오디오가 요청당
+ * 수백 MB 램(길이 추출 + S3 전송이 동시에 보유)이 된다(`tickets/backend/.../admin-upload-disk-storage.md`).
+ * 컨트롤러가 요청 종료 시 임시 파일을 지운다 — 소비자는 경로를 저장하거나 넘겨두지 않는다.
+ */
 export interface UploadedFileInput {
-  buffer: Buffer;
+  path: string;
   originalName: string;
   mimeType: string;
   size: number;
