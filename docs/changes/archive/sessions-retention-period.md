@@ -33,3 +33,9 @@
 
 - Given `domain.md` 12.1 / When `sessions` 행을 읽는다 / Then 보존 기한(만료·폐기 후 30일)과 그 근거가 적혀 있다
 - Given 기한 승인 후 배치 구현 / When 스케줄러가 돈다 / Then 30일 지난 폐기·만료 세션만 삭제되고 활성 세션은 남는다
+
+## 처리 기록 (반영 날짜: 2026-09-09)
+
+`domain.md` 12.1 `sessions` 행에 보존 기한(만료·폐기 후 30일 hard delete)과 근거를 반영했다. 배치는
+#281(`SessionPurgeScheduler`, 1시간 간격 `deleteInactiveBefore`)로 같은 날 dev 배포됐다 — 로컬 DB에서
+활성·최근 3행 보존, 30일 지난 폐기·만료 2행 삭제를 확인했다. 인덱스는 테이블이 작아 seq scan으로 두었다.
