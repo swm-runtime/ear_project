@@ -91,7 +91,18 @@ export class UserWithdrawalService {
     }
 
     await this.dataSource.transaction(async (manager) => {
-      const user = await this.userService.getById(command.userId, manager);
+      /**
+       * **사용자 행을 잠그고 시작한다.** 아래는 결제 이력을 읽어 아카이브 여부를 정하고
+       * 파기까지 가는 흐름인데, READ COMMITTED에서는 그 판정 뒤에 커밋된 구독이 스냅샷에
+       * 안 보인다. 그러면 **아카이브 없이 파기되는 구독 행**이 생긴다 — 전자상거래법
+       * 시행령 제6조가 5년 보존을 요구하는 바로 그 기록이다.
+       *
+       * 구독을 쓰는 경로(향후 영수증 검증)도 같은 행을 잠그면 두 흐름이 직렬화된다.
+       */
+      const user = await this.userService.getByIdForUpdate(
+        command.userId,
+        manager,
+      );
 
       // 안내 화면에 내려준 값을 신뢰하지 않고 트랜잭션 안에서 다시 판정한다 (domain.md 12.3)
       const hasPaymentHistory =

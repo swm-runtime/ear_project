@@ -26,6 +26,10 @@ const NOW = new Date('2026-08-05T09:00:00.000Z');
 const ADDED_AT = new Date('2026-08-03T21:10:00.000Z');
 const USER_ID = '11111111-1111-4111-8111-111111111111';
 const CONTENT_ID = 'aaaaaaaa-1111-4111-8111-111111111111';
+// `library_items.id`는 uuid 컬럼이다. 커서에 실려 SQL 비교식에 들어가므로
+// 픽스처도 uuid여야 형식 검증을 실제와 같은 조건에서 탄다
+const ITEM_ID_1 = 'cccccccc-1111-4111-8111-111111111111';
+const ITEM_ID_2 = 'cccccccc-2222-4222-8222-222222222222';
 
 const QUOTA = {
   dailyPlayLimit: 2,
@@ -58,7 +62,7 @@ function buildContent(id: string, overrides: Partial<Content> = {}): Content {
 
 function buildItem(overrides: Partial<LibraryItem> = {}): LibraryItem {
   return {
-    id: 'item-1',
+    id: ITEM_ID_1,
     userId: USER_ID,
     contentId: CONTENT_ID,
     source: LibraryItemSource.DRIP,
@@ -149,7 +153,7 @@ describe('LibraryScreenOrchestrator', () => {
     it('다음 페이지가 있으면 마지막 항목 위치로 커서를 발급한다', async () => {
       // given
       libraryService.findPage.mockResolvedValue({
-        items: [buildItem({ id: 'item-1' }), buildItem({ id: 'item-2' })],
+        items: [buildItem({ id: ITEM_ID_1 }), buildItem({ id: ITEM_ID_2 })],
         hasNext: true,
       });
 
@@ -165,13 +169,13 @@ describe('LibraryScreenOrchestrator', () => {
           sort: LIST_QUERY.sort,
           topicIds: LIST_QUERY.topicIds,
         }),
-      ).toEqual({ addedAt: ADDED_AT, id: 'item-2' });
+      ).toEqual({ addedAt: ADDED_AT, id: ITEM_ID_2 });
     });
 
     it('발급한 커서에 출처 필터를 담는다', async () => {
       // given — 담기지 않으면 출처만 바꾼 다음 페이지 요청이 그대로 통과한다
       libraryService.findPage.mockResolvedValue({
-        items: [buildItem({ id: 'item-1' })],
+        items: [buildItem({ id: ITEM_ID_1 })],
         hasNext: true,
       });
 
@@ -370,7 +374,7 @@ describe('LibraryScreenOrchestrator', () => {
       );
 
       // when
-      await orchestrator.deleteItem(USER_ID, 'item-1', NOW);
+      await orchestrator.deleteItem(USER_ID, ITEM_ID_1, NOW);
 
       // then
       expect(playbackService.recordSignal).not.toHaveBeenCalled();
@@ -392,7 +396,7 @@ describe('LibraryScreenOrchestrator', () => {
 
       // when
       const error = await catchError(
-        orchestrator.restoreItem(USER_ID, 'item-1'),
+        orchestrator.restoreItem(USER_ID, ITEM_ID_1),
       );
 
       // then
@@ -407,7 +411,7 @@ describe('LibraryScreenOrchestrator', () => {
       );
 
       // when
-      await orchestrator.restoreItem(USER_ID, 'item-1');
+      await orchestrator.restoreItem(USER_ID, ITEM_ID_1);
 
       // then
       expect(dripExclusionService.exclude).not.toHaveBeenCalled();

@@ -58,6 +58,23 @@ export class UserService {
     return this.userRepository.findAdminByEmail(email);
   }
 
+  /**
+   * 같은 사용자의 동시 요청을 직렬화해야 할 때 쓴다 — 트랜잭션 필수.
+   * 재생 한도 차감(`paywall.md` 4.1)과 탈퇴 아카이브 판정이 이 경로다.
+   */
+  async getByIdForUpdate(id: string, manager: EntityManager): Promise<User> {
+    const user = await this.userRepository.findByIdForUpdate(id, manager);
+
+    if (!user) {
+      throw new BusinessNotFoundException({
+        errorCode: ErrorCode.NOT_FOUND,
+        message: '찾을 수 없어요',
+      });
+    }
+
+    return user;
+  }
+
   async getById(id: string, manager?: EntityManager): Promise<User> {
     const user = await this.userRepository.findById(id, manager);
 

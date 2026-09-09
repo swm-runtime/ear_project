@@ -58,6 +58,9 @@ describe('UserWithdrawalService', () => {
   beforeEach(() => {
     userService = {
       getById: jest.fn(() => Promise.resolve(buildUser())),
+      // 탈퇴는 사용자 행을 잠그고 시작한다 — 아카이브 판정 뒤에 커밋된 구독이
+      // 아카이브 없이 파기되는 것을 막는다
+      getByIdForUpdate: jest.fn(() => Promise.resolve(buildUser())),
       deleteById: jest.fn(),
     } as unknown as jest.Mocked<UserService>;
 
@@ -180,7 +183,9 @@ describe('UserWithdrawalService', () => {
     it('결제 이력이 있는데 이메일이 없으면 탈퇴를 실패시킨다', async () => {
       // given
       subscriptionService.hasPaymentHistory.mockResolvedValue(true);
-      userService.getById.mockResolvedValue(buildUser({ email: null }));
+      userService.getByIdForUpdate.mockResolvedValue(
+        buildUser({ email: null }),
+      );
 
       // when
       const withdrawing = service.withdraw(command, NOW);

@@ -171,6 +171,18 @@ describe('온보딩 E2E', () => {
       picked_count: 2,
     });
 
+    /**
+     * 같은 키의 재요청은 **저장된 첫 응답을 그대로** 돌려준다(`domain.md` 1.4).
+     * 상태 코드까지 같아야 한다 — 재요청만 200으로 떨어지면 클라이언트가 첫 호출과
+     * 다른 분기를 탄다. 재요청을 검증하는 테스트가 없어 오래 드러나지 않던 자리다.
+     */
+    const picksReplay = await post('/onboarding/picks', auth, {
+      content_ids: [...pickedIds, MISSING_CONTENT_ID],
+    })
+      .set('Idempotency-Key', `e2e-picks-${userId}`)
+      .expect(HttpStatus.OK);
+    expect(picksReplay.body).toEqual(picks.body);
+
     // 완료: 1건 이상 담았으므로 편성 결과를 기다리지 않는다
     const completed = await post('/onboarding/complete', auth, {})
       .set('Idempotency-Key', `e2e-complete-${userId}`)

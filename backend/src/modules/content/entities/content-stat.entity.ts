@@ -58,6 +58,13 @@ export class ContentStat extends BaseEntity {
   @Column({ name: 'play_count', type: 'int', default: 0 })
   playCount: number;
 
+  /**
+   * 재청취 수 (domain.md 5.4 — PRD 10장 파트너 정산 지표).
+   * 원천은 `user_signals`의 `replay` 신호이며, 집계 배치가 채운다.
+   */
+  @Column({ name: 'replay_count', type: 'int', default: 0 })
+  replayCount: number;
+
   @Column({ name: 'complete_count', type: 'int', default: 0 })
   completeCount: number;
 

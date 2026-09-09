@@ -24,7 +24,8 @@ export class Topic extends BaseEntity {
    * 콘텐츠 풀이 없는 주제는 관리자가 여기서 내리므로,
    * 온보딩에는 "고를 수는 있는데 볼 게 없는 주제"가 존재하지 않는다(onboarding.md 3).
    */
-  @Column({ name: 'is_visible', type: 'boolean', default: true })
+  // domain.md 4.1 — **기본값은 false다.** true면 생성 즉시 0건 주제가 온보딩·탐색에 노출된다
+  @Column({ name: 'is_visible', type: 'boolean', default: false })
   isVisible: boolean;
 
   @Column({ name: 'display_order', type: 'int' })

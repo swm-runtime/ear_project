@@ -82,6 +82,18 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     const mapped = this.mapException(exception, traceId);
 
+    /**
+     * **응답이 이미 나갔으면 아무것도 하지 않는다.**
+     *
+     * 인터셉터가 직접 응답을 쓰고 스트림을 비우는 경우(멱등 재요청 — `IdempotencyInterceptor`)
+     * Nest가 빈 스트림에서 `EmptyError`를 던져 여기로 들어온다. 그때 헤더를 다시 쓰면
+     * `ERR_HTTP_HEADERS_SENT`가 나고, **성공한 요청 하나가 500 스택 두 줄로 로그에 남는다.**
+     * 클라이언트는 이미 올바른 응답을 받은 뒤다.
+     */
+    if (response.headersSent) {
+      return;
+    }
+
     this.log(mapped, request, exception);
     response.status(mapped.status).json(mapped.body);
   }

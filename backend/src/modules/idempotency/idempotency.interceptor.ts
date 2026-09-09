@@ -5,6 +5,7 @@ import {
   Injectable,
   NestInterceptor,
 } from '@nestjs/common';
+import { HTTP_CODE_METADATA } from '@nestjs/common/constants';
 import { Response } from 'express';
 import {
   catchError,
@@ -52,6 +53,32 @@ interface RoutedRequest {
 function resolveRoutePath(request: AuthenticatedRequest): string {
   const routed = request as unknown as RoutedRequest;
   return routed.route?.path ?? routed.path;
+}
+
+/**
+ * 이 요청이 **성공했을 때 나갈 상태 코드**.
+ *
+ * `response.statusCode`를 읽지 않는다 — 인터셉터가 도는 시점에 Nest가 라우트의 코드를
+ * 이미 적용했는지가 프레임워크 내부 순서에 달려 있어, 버전이 바뀌면 조용히 200으로
+ * 굳는다. 재요청이 첫 응답과 **다른 상태 코드**를 받으면 클라이언트가 다른 분기를 탄다
+ * (`domain.md` 1.4 — 저장된 첫 응답을 그대로 반환한다).
+ *
+ * `@HttpCode()`가 선언돼 있으면 그 값, 없으면 메서드 기본값(POST는 201)이다.
+ */
+function resolveStatusCode(
+  context: ExecutionContext,
+  request: AuthenticatedRequest,
+): number {
+  const declared = Reflect.getMetadata(
+    HTTP_CODE_METADATA,
+    context.getHandler(),
+  ) as number | undefined;
+
+  if (typeof declared === 'number') {
+    return declared;
+  }
+
+  return request.method === 'POST' ? HttpStatus.CREATED : HttpStatus.OK;
 }
 
 @Injectable()
@@ -107,7 +134,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
         from(
           this.idempotencyService.complete(
             outcome.id,
-            response.statusCode,
+            resolveStatusCode(context, request),
             body === undefined ? null : JSON.stringify(body),
           ),
         ).pipe(mergeMap(() => of(body))),
