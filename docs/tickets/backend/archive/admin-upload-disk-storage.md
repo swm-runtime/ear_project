@@ -33,3 +33,16 @@ enrichment 파일이 통째로 램에 올라가고, 오디오 버퍼는 `AudioPr
 - Given 200MB 오디오 업로드 / When 처리 중 프로세스 메모리를 본다 / Then 파일 크기만큼 증가하지 않는다(스트리밍)
 - Given 6MB 썸네일 / When 업로드한다 / Then 400 `VALIDATION_FAILED`(`details.field = thumbnail`)이 서비스 진입 전에 나온다
 - Given 처리 실패(검증·저장 어느 단계든) / When 요청이 끝난다 / Then `/tmp`에 임시 파일이 남지 않는다
+
+## 처리 기록 (반영 날짜: 2026-09-09)
+
+요청 1~3 전부 반영했다.
+
+- multer `diskStorage(os.tmpdir())`로 전환. `UploadedFileInput`은 `buffer` → `path`. `AudioProbe`는 `parseFile`로
+  파일에서 직접 읽고, S3 클라이언트는 `@aws-sdk/lib-storage`의 `Upload`(멀티파트 스트림), local 클라이언트는 `copyFile`.
+  추천 메타 파일은 상한(1MB) 검사를 통과한 뒤에만 `readFile`한다.
+- 컨트롤러가 요청 종료 시(성공·실패 모두) 임시 파일을 `rm`한다. 필드별 상한(썸네일 5MB·추천 메타 1MB)은
+  서비스 진입 전 `assertFileSizes`가 400 `VALIDATION_FAILED`(`details.field`)로 거부한다. 상수는 그대로.
+- 로컬 실측(local 모드): 정상 업로드 201·`duration_sec` 디스크에서 추출·저장소에 원본 크기 그대로 복사 /
+  6MB 썸네일 → 400 `field=thumbnail` / 썸네일 누락·서비스 검증 실패·재발행 어느 경로에서도 `/tmp` 잔여 0.
+  **메모리 증가량 실측은 못 했다**(로컬 표본 500KB) — 스트리밍 경로 자체는 코드로 보장. S3 `Upload` 경로는 실서버 첫 업로드 때 확인 필요.

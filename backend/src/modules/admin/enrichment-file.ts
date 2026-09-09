@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+
 import {
   EMBEDDING_DIM,
   EMBEDDING_MODEL_ID,
@@ -37,9 +39,9 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
 const DIFFICULTY_VALUES = new Set<string>(Object.values(ContentDifficulty));
 const FORMAT_VALUES = new Set<string>(Object.values(ContentFormat));
 
-export function parseEnrichmentFile(
+export async function parseEnrichmentFile(
   file: UploadedFileInput,
-): EnrichmentParseResult {
+): Promise<EnrichmentParseResult> {
   if (file.size > MAX_ENRICHMENT_FILE_BYTES) {
     return reject(
       `파일이 너무 커요 (최대 ${MAX_ENRICHMENT_FILE_BYTES / 1024 / 1024}MB)`,
@@ -48,7 +50,8 @@ export function parseEnrichmentFile(
 
   let raw: unknown;
   try {
-    raw = JSON.parse(file.buffer.toString('utf8'));
+    // 크기 검사를 통과한 파일만 읽는다 — 상한(1MB)이라 통째로 읽어도 된다
+    raw = JSON.parse(await readFile(file.path, 'utf8'));
   } catch {
     return reject('JSON을 읽을 수 없어요');
   }

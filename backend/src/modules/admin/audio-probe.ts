@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { parseBuffer } from 'music-metadata';
+import { parseFile } from 'music-metadata';
 
 import { UploadedFileInput } from './admin.types';
 
@@ -11,11 +11,8 @@ import { UploadedFileInput } from './admin.types';
 export class AudioProbe {
   async readDurationSec(file: UploadedFileInput): Promise<number | null> {
     try {
-      const metadata = await parseBuffer(
-        file.buffer,
-        { mimeType: file.mimeType, size: file.size },
-        { duration: true },
-      );
+      // 파일에서 직접 읽는다 — 버퍼로 받으면 오디오 전량이 램에 한 벌 더 올라간다
+      const metadata = await parseFile(file.path, { duration: true });
       const duration = metadata.format.duration;
 
       if (!duration || !Number.isFinite(duration) || duration <= 0) {
