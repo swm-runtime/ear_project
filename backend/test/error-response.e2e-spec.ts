@@ -1,14 +1,17 @@
 import {
   Controller,
   Get,
+  Global,
   HttpStatus,
   INestApplication,
+  Module,
   ValidationPipe,
 } from '@nestjs/common';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
+import { DataSource } from 'typeorm';
 
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { BusinessForbiddenException } from '@/common/exceptions/business-forbidden.exception';
@@ -41,6 +44,23 @@ class TestErrorController {
   }
 }
 
+/**
+ * `/health`는 DB 핑을 한다(`HealthController` — 감사 하 #7). 이 스펙은 응답 규격만 보므로
+ * 실제 DB 대신 **항상 붙는 DataSource**를 전역으로 꽂아 준다 — 운영에서는 TypeORM 루트
+ * 모듈이 같은 토큰을 전역으로 제공한다.
+ */
+@Global()
+@Module({
+  providers: [
+    {
+      provide: DataSource,
+      useValue: { query: () => Promise.resolve([{ '?column?': 1 }]) },
+    },
+  ],
+  exports: [DataSource],
+})
+class FakeDatabaseModule {}
+
 describe('에러 응답 규격', () => {
   let app: INestApplication<App>;
 
@@ -48,7 +68,7 @@ describe('에러 응답 규격', () => {
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
-      imports: [HealthModule],
+      imports: [FakeDatabaseModule, HealthModule],
       controllers: [TestErrorController],
       providers: [
         { provide: APP_FILTER, useClass: AllExceptionsFilter },
