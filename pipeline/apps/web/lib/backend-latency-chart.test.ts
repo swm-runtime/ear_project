@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { bucketMsFor, buildBuckets, percentile } from "./backend-latency-chart";
+import { bucketMsFor, buildBuckets, percentile, tipAnchor } from "./backend-latency-chart";
 import { RequestLog } from "./backend-request-log";
 
 const req = (t: number, durationMs: number, status = 200): RequestLog =>
@@ -67,4 +67,36 @@ test("percentile 은 최근접 순위다", () => {
   assert.equal(percentile(s(10), 50), 5);
   assert.equal(percentile(s(100), 50), 50);
   assert.equal(percentile(s(100), 95), 95);
+});
+
+test("툴팁은 좌우 끝에서 정렬 기준을 바꿔 컨테이너를 넘지 않는다", () => {
+  // 가운데: 점을 가운데로 — 지금까지의 동작
+  assert.equal(tipAnchor(0.5).align, "center");
+
+  // 오른쪽 끝: 상자의 오른쪽 모서리를 점에 맞춘다. left 가 100%를 넘지 않아야 한다
+  for (const r of [0.75, 0.9, 1, 1.5]) {
+    const a = tipAnchor(r);
+    assert.equal(a.align, "end", `ratio ${r}`);
+    assert.ok(a.leftPercent <= 99, `ratio ${r} → left ${a.leftPercent}%`);
+  }
+
+  // 왼쪽 끝: 왼쪽 모서리를 맞춘다. left 가 음수가 되면 안 된다
+  for (const r of [0.25, 0.1, 0, -0.5]) {
+    const a = tipAnchor(r);
+    assert.equal(a.align, "start", `ratio ${r}`);
+    assert.ok(a.leftPercent >= 1, `ratio ${r} → left ${a.leftPercent}%`);
+  }
+});
+
+test("툴팁 상자가 어느 위치에서도 컨테이너를 넘지 않는다 — 넘으면 페이지에 가로 스크롤이 생긴다", () => {
+  const CONTAINER = 450; // 2단 그리드의 카드 폭
+  for (const BOX of [120, 170, 240]) { // 짧은 툴팁 ~ 경로까지 든 툴팁
+    for (let pct = 0; pct <= 100; pct += 0.25) {
+      const { leftPercent, align } = tipAnchor(pct / 100);
+      const anchor = (leftPercent / 100) * CONTAINER;
+      const left = align === "end" ? anchor - BOX : align === "start" ? anchor : anchor - BOX / 2;
+      assert.ok(left >= 0, `상자 ${BOX}px · ratio ${pct}% → 왼쪽 ${left.toFixed(1)}px < 0`);
+      assert.ok(left + BOX <= CONTAINER, `상자 ${BOX}px · ratio ${pct}% → 오른쪽 ${(left + BOX).toFixed(1)}px > ${CONTAINER}px`);
+    }
+  }
 });

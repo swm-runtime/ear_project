@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Stat } from "@/components/ui";
 import { RequestLog } from "@/lib/backend-request-log";
-import { Bucket, buildBuckets, percentile } from "@/lib/backend-latency-chart";
+import { Bucket, buildBuckets, percentile, tipAnchor } from "@/lib/backend-latency-chart";
 
 /**
  * 대시보드 탭 — 요청 로그를 시간축 그래프로, 자원(CPU·메모리·DB 연결) 이력을 선 그래프로
@@ -57,11 +57,19 @@ function useHoverRatio() {
   return { ratio, onMouseMove, onMouseLeave: () => setRatio(null) };
 }
 
-/** 호버 툴팁 — 차트 위 절대 배치. 좌우 끝에서는 안쪽으로 붙인다 */
+/**
+ * 호버 툴팁 — 차트 위 절대 배치. 좌우 끝에서는 **정렬 기준을 바꿔** 카드 밖으로 나가지
+ * 않게 한다(`tipAnchor`). 넘치면 페이지에 가로 스크롤이 생겨 화면이 밀린다.
+ * `max-w-full`·`overflow-hidden` 은 경로가 유난히 긴 경우를 위한 마지막 방어선이다.
+ */
 function Tip({ ratio, lines }: { ratio: number; lines: string[] }) {
-  const left = `${Math.min(92, Math.max(8, ratio * 100))}%`;
+  const { leftPercent, align } = tipAnchor(ratio);
+  const shift = align === "end" ? "-translate-x-full" : align === "start" ? "translate-x-0" : "-translate-x-1/2";
   return (
-    <div className="pointer-events-none absolute top-1 z-10 -translate-x-1/2 whitespace-nowrap rounded border border-line bg-panel px-2 py-1 text-[11px] leading-4 text-ink shadow" style={{ left }}>
+    <div
+      className={`pointer-events-none absolute top-1 z-10 ${shift} max-w-full overflow-hidden whitespace-nowrap rounded border border-line bg-panel px-2 py-1 text-[11px] leading-4 text-ink shadow`}
+      style={{ left: `${leftPercent}%` }}
+    >
       {lines.map((l) => <div key={l}>{l}</div>)}
     </div>
   );
@@ -176,9 +184,10 @@ function LatencyScatter({ requests, from, to }: { requests: RequestLog[]; from: 
   const near = at === null || requests.length === 0 ? null
     : requests.reduce((best, r) => (Math.abs(r.t - at) < Math.abs(best.t - at) ? r : best));
 
+  // 모든 경로에 붙는 `/api/v1` 은 떼고 길이를 자른다 — 툴팁이 넓어질수록 카드를 넘기 쉽다
   const shortPath = (path: string) => {
-    const clean = path.split("?")[0];
-    return clean.length > 44 ? `…${clean.slice(-43)}` : clean;
+    const clean = path.split("?")[0].replace(/^\/api\/v1/, "");
+    return clean.length > 36 ? `…${clean.slice(-35)}` : clean;
   };
 
   return (

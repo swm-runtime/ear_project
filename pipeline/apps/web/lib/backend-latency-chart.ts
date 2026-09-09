@@ -49,3 +49,20 @@ export function percentile(sorted: number[], p: number): number {
   const rank = Math.ceil((p / 100) * sorted.length) - 1;
   return sorted[Math.min(sorted.length - 1, Math.max(0, rank))];
 }
+
+/**
+ * 호버 툴팁의 가로 기준점. 끝에서도 가운데 정렬을 유지하면 상자의 절반이 카드 밖으로
+ * 나가고, **절대 배치라도 문서의 스크롤 폭은 늘어나** 페이지에 가로 스크롤이 생긴다
+ * (오른쪽 끝 점을 볼 때 화면이 밀리는 증상).
+ *
+ * 그래서 끝에서는 정렬 기준을 바꾼다 — 오른쪽 끝이면 상자의 **오른쪽 모서리**를, 왼쪽
+ * 끝이면 **왼쪽 모서리**를 점에 맞춘다. 가운데에서는 지금처럼 가운데를 맞춘다.
+ */
+export function tipAnchor(ratio: number): { leftPercent: number; align: "start" | "center" | "end" } {
+  const pct = Math.min(100, Math.max(0, ratio * 100));
+  // 30/70 은 임의값이 아니다 — 상자가 컨테이너의 53%(경로까지 든 툴팁 ≈240px / 카드 ≈450px)
+  // 여도 가운데 정렬 구간의 양끝이 안에 남는 가장 느슨한 경계다. 아래 테스트가 이를 고정한다.
+  if (pct >= 70) return { leftPercent: Math.min(99, pct), align: "end" };
+  if (pct <= 30) return { leftPercent: Math.max(1, pct), align: "start" };
+  return { leftPercent: pct, align: "center" };
+}
