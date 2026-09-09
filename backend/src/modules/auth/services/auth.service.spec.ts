@@ -81,10 +81,13 @@ describe('AuthService', () => {
       revokeByUserIdAndDeviceId: jest.fn(),
     } as unknown as jest.Mocked<SessionRepository>;
 
-    const tokenService = new TokenService({
-      sign: jest.fn(() => 'signed-token'),
-      verify: jest.fn(),
-    } as never);
+    const tokenService = new TokenService(
+      {
+        sign: jest.fn(() => 'signed-token'),
+        verify: jest.fn(),
+      } as never,
+      { get: jest.fn() } as never,
+    );
 
     service = new AuthService(
       registry,
