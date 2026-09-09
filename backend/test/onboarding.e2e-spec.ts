@@ -269,7 +269,7 @@ describe('온보딩 E2E', () => {
 
     // when — 서버는 구간 하한값(int)으로 저장한다 (onboarding-api.md 4.4)
     await patch('/onboarding/career', auth, {
-      job_category: 'developer',
+      job_category: '개발',
       job_title: '백엔드 엔지니어',
       years_of_experience: '2-3',
     }).expect(HttpStatus.OK);
@@ -278,7 +278,7 @@ describe('온보딩 E2E', () => {
     const state = await get('/onboarding/state', auth).expect(HttpStatus.OK);
     expect(state.body).toMatchObject({
       career: {
-        job_category: 'developer',
+        job_category: '개발',
         job_title: '백엔드 엔지니어',
         years_of_experience: '2-3',
       },
