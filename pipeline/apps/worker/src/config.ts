@@ -55,7 +55,7 @@ export const cfg = {
   /** 단계별 생각 토큰 상한 (2026-09-08 비용 절감 ④). 비우면 모델 기본. 판정·대조(QA·비평·설계)는 상한을 걸어도 판정이 유지됨을 실측 후 기본값을 둔다 */
   thinkingQa: envInt("THINKING_QA", 6000),
   thinkingDesign: envInt("THINKING_DESIGN", 8000),
-  thinkingWrite: envInt("THINKING_WRITE", null),
+  thinkingWrite: envInt("THINKING_WRITE", 8000), // 2026-09-09: 상한 없는 opus 대본이 30분 제한을 넘겨 강제 종료(T260908-002). 시간을 묶는 용도
   thinkingCritic: envInt("THINKING_CRITIC", null), // 비평은 회귀 세트로 편향을 재는 중 — 상한은 재검증(spec/09 7.4) 후에 (기본 없음)
   clusterModel: process.env.CLUSTER_MODEL || "claude-opus-5",
   pollIntervalMs: Number(process.env.POLL_INTERVAL_MS || 5000),
