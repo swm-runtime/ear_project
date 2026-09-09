@@ -298,7 +298,8 @@ docs(fe)/architecture-convention
 ```
 
 - **`(fe)` 표기로 프론트엔드 작업 브랜치임을 표시한다**(backend 6.2가 정의한 파트 표기 규칙).
-- 설명은 소문자 kebab-case 2~4단어. 브랜치는 main에서 분기하고 작업 종료 시 삭제한다.
+- 설명은 소문자 kebab-case 2~4단어. 브랜치는 **`dev`에서 분기**하고 작업 종료 시 삭제한다.
+- **PR 대상은 `dev`다**(backend 6.3 — `작업 브랜치 → dev → main`). `main`으로 바로 PR하지 않는다.
 
 ### 6.3 PR
 
