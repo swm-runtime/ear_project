@@ -1,6 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, In, Repository, SelectQueryBuilder } from 'typeorm';
+import {
+  EntityManager,
+  In,
+  IsNull,
+  Not,
+  Repository,
+  SelectQueryBuilder,
+} from 'typeorm';
 
 import { ContentStatus } from '@/modules/content/content.enum';
 
@@ -98,16 +105,22 @@ export class LibraryItemRepository {
    *
    * **`status`는 건드리지 않는다.** 지웠다 다시 담아도 듣던 위치가 살아 있어야 한다.
    */
+  /**
+   * 삭제된 행만 되살린다 — **조건부 UPDATE의 affected가 곧 "이번 요청이 바꿨는가"다.**
+   * 같은 항목에 동시 요청이 오면 한쪽만 true를 받고, 신호 적재는 그쪽만 한다(감사 하 #3).
+   */
   async reactivateById(
     id: string,
     addedAt: Date,
     source: LibraryItemSource,
     manager?: EntityManager,
-  ): Promise<void> {
-    await this.scoped(manager).update(
-      { id },
+  ): Promise<boolean> {
+    const result = await this.scoped(manager).update(
+      { id, deletedAt: Not(IsNull()) },
       { deletedAt: null, addedAt, source },
     );
+
+    return (result.affected ?? 0) > 0;
   }
 
   /** 소프트 삭제분을 포함해 조회한다 — 드립 후보 필터가 `deleted_at` 여부를 보지 않는다 */
@@ -514,12 +527,18 @@ export class LibraryItemRepository {
    * 삭제 시각을 인자로 받는 이유는 테스트에서 시각을 고정하기 위해서다
    * (convention.md 7.3 — `Date.now()`를 직접 쓰지 않는다).
    */
+  /** 살아 있는 행만 지운다 — affected로 이번 요청이 지웠는지 판정한다(`reactivateById`와 같은 이유) */
   async softDeleteById(
     id: string,
     deletedAt: Date,
     manager?: EntityManager,
-  ): Promise<void> {
-    await this.scoped(manager).update({ id }, { deletedAt });
+  ): Promise<boolean> {
+    const result = await this.scoped(manager).update(
+      { id, deletedAt: IsNull() },
+      { deletedAt },
+    );
+
+    return (result.affected ?? 0) > 0;
   }
 
   /**
@@ -543,8 +562,13 @@ export class LibraryItemRepository {
     return result.affected ?? 0;
   }
 
-  async restoreById(id: string, manager?: EntityManager): Promise<void> {
-    await this.scoped(manager).update({ id }, { deletedAt: null });
+  async restoreById(id: string, manager?: EntityManager): Promise<boolean> {
+    const result = await this.scoped(manager).update(
+      { id, deletedAt: Not(IsNull()) },
+      { deletedAt: null },
+    );
+
+    return (result.affected ?? 0) > 0;
   }
 
   private applyFilter(
