@@ -35,6 +35,7 @@ import { UserSetting } from './entities/user-setting.entity';
 import { UserSettingRepository } from './repositories/user-setting.repository';
 import { UserSettingService } from './services/user-setting.service';
 import { WithdrawalLogRepository } from './repositories/withdrawal-log.repository';
+import { EmailVerificationPurgeScheduler } from './email-verification-purge.scheduler';
 
 @Module({
   imports: [
@@ -70,6 +71,7 @@ import { WithdrawalLogRepository } from './repositories/withdrawal-log.repositor
     UserCareerService,
     DeviceTokenService,
     UserSettingService,
+    EmailVerificationPurgeScheduler,
     // 발송 방식은 배포 설정이 고른다 — 운영은 ses, 개발 기본은 logging(발송 안 함)
     {
       provide: MailClient,

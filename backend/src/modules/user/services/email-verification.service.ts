@@ -23,6 +23,7 @@ import {
   EMAIL_VERIFICATION_CODE_TTL_SEC,
   EMAIL_VERIFICATION_MIN_RESPONSE_MS,
   EMAIL_VERIFICATION_RESEND_COOLDOWN_SEC,
+  EMAIL_VERIFICATION_RETENTION_MS,
   EMAIL_VERIFICATION_SEND_LIMIT,
   EMAIL_VERIFICATION_SEND_WINDOW_SEC,
 } from '../user.constant';
@@ -46,6 +47,7 @@ type VerifyOutcome =
   | { result: 'not_found' }
   | { result: 'expired' }
   | { result: 'attempts_exceeded' }
+  | { result: 'already_verified' }
   | { result: 'mismatch'; attemptsRemaining: number };
 
 @Injectable()
@@ -226,6 +228,12 @@ export class EmailVerificationService {
             errorCode: ErrorCode.EMAIL_VERIFICATION_ATTEMPTS_EXCEEDED,
             message: '코드를 다시 받아주세요',
           });
+        case 'already_verified':
+          // 발송(4.8)과 같은 코드 — 인증 완료 후의 다른 주소 인증 시도는 이 계정에 성립하지 않는다
+          throw new BusinessConflictException({
+            errorCode: ErrorCode.EMAIL_ALREADY_REGISTERED,
+            message: '이미 인증된 이메일이 있어요',
+          });
         case 'mismatch':
           throw new BusinessException({
             status: HttpStatus.BAD_REQUEST,
@@ -266,6 +274,13 @@ export class EmailVerificationService {
     await this.emailVerificationRepository.deleteByUserId(userId, manager);
   }
 
+  /** 만료 후 보존 기간(24h)이 지난 행을 지운다 — 배치(`EmailVerificationPurgeScheduler`)가 부른다 */
+  async purgeExpired(now: Date): Promise<number> {
+    return this.emailVerificationRepository.deleteExpiredBefore(
+      new Date(now.getTime() - EMAIL_VERIFICATION_RETENTION_MS),
+    );
+  }
+
   private async applyVerification(
     userId: string,
     verificationId: string,
@@ -292,13 +307,27 @@ export class EmailVerificationService {
       return { result: 'expired' };
     }
 
-    if (verification.attemptCount >= EMAIL_VERIFICATION_ATTEMPT_LIMIT) {
+    /**
+     * 시도 카운트는 **조건부 UPDATE로 원자적으로** 올린다. 상한에 이미 닿아 있으면 `null`이
+     * 돌아오고, 그 코드는 무효화한다(domain.md 3.7). 동시 제출이 같은 값을 읽어 증가를
+     * 잃던 read-modify-write를 대체한다 — 상한이 브루트포스의 유일한 방어라 우회되면 안 된다.
+     */
+    const attemptCount =
+      await this.emailVerificationRepository.incrementAttemptIfBelow(
+        verification.id,
+        EMAIL_VERIFICATION_ATTEMPT_LIMIT,
+        now,
+        manager,
+      );
+
+    if (attemptCount === null) {
       verification.invalidatedAt = now;
       await this.emailVerificationRepository.save(verification, manager);
       return { result: 'attempts_exceeded' };
     }
 
-    verification.attemptCount += 1;
+    // 아래 save가 낡은 카운트로 덮어쓰지 않도록 엔티티도 DB 값에 맞춘다
+    verification.attemptCount = attemptCount;
     verification.lastAttemptedAt = now;
 
     const isMatched = equalsInConstantTime(
@@ -307,8 +336,7 @@ export class EmailVerificationService {
     );
 
     if (!isMatched) {
-      const attemptsRemaining =
-        EMAIL_VERIFICATION_ATTEMPT_LIMIT - verification.attemptCount;
+      const attemptsRemaining = EMAIL_VERIFICATION_ATTEMPT_LIMIT - attemptCount;
 
       // 시도를 모두 쓰면 그 코드를 무효화한다 (domain.md 3.7)
       if (attemptsRemaining <= 0) {
@@ -317,12 +345,32 @@ export class EmailVerificationService {
         return { result: 'attempts_exceeded' };
       }
 
-      await this.emailVerificationRepository.save(verification, manager);
       return { result: 'mismatch', attemptsRemaining };
+    }
+
+    /**
+     * 잠금 재검사 — 발송(sendCode)만 `isEmailVerified`를 보고 있었다. 두 주소로 코드를 받아
+     * 하나를 인증한 뒤 3분 안에 다른 주소를 인증하면 잠긴 주소가 덮였다(`auth.md` 4.4가
+     * 기각한 "새 주소 인증으로 변경"). 사용자 행을 잠근 상태로 다시 보고, 이미 인증된
+     * 계정이면 이 코드는 무효화하고 거부한다. 함께 살아 있던 다른 활성 인증도 여기서 전부
+     * 무효화해 같은 창을 닫는다.
+     */
+    const user = await this.userService.getByIdForUpdate(userId, manager);
+
+    if (user.isEmailVerified) {
+      verification.invalidatedAt = now;
+      await this.emailVerificationRepository.save(verification, manager);
+      return { result: 'already_verified' };
     }
 
     verification.verifiedAt = now;
     await this.emailVerificationRepository.save(verification, manager);
+    await this.emailVerificationRepository.invalidateOtherActiveByUserId(
+      userId,
+      verification.id,
+      now,
+      manager,
+    );
     // users.email과 is_email_verified를 같은 트랜잭션에서 쓴다 (auth-api.md 4.10)
     await this.userService.updateVerifiedEmail(
       userId,
