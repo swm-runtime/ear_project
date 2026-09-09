@@ -1,7 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { cfg } from "../config.js";
-import { setJobProgress, type Job } from "../db.js";
+import { insertRun, setJobProgress, updateJobPayload, type Job } from "../db.js";
+import { executedBy } from "../config.js";
+import { workerRev } from "../assets.js";
+import { RetryLater } from "../util.js";
 import type { Executor } from "../executors/index.js";
 import { assetPaths, buildDesignPrompt, buildWritePrompt, DESIGN_SCHEMA, WRITE_SCHEMA, type BacklogCandidate, type INTRO_STYLES, type Templates } from "@ear/pipeline";
 import { exists, hostOf, log } from "../util.js";
@@ -82,11 +85,26 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
   const estimatedMinutes = design?.estimated_minutes || Number(outlineMd.match(/^예상 분량:\s*(\d+(?:\.\d+)?)\s*분/m)?.[1]) || 15; // 설계 이어받기면 outline.md 에서 읽는다
   const prompt = buildWritePrompt({ episodeId, candidate: cand, introStyle: a.introStyle, promptVersion: a.promptVersion, templates: a.templates, majorTopic: a.majorTopic, estimatedMinutes, guidelines, specScript, goldFullEum, goldFullYuna, sourcesMd, claimsMd, outlineMd, pronunciationsJson });
   log(`  draft ${episodeId} · 2/2 대본 (단발, 프롬프트 ${Math.round(prompt.length / 1000)}K자)`);
-  const w = await ex.run<WriteOut>({
+  let w: Awaited<ReturnType<typeof ex.run<WriteOut>>>;
+  try {
+    w = await runWrite();
+  } catch (e) {
+    // 대본이 실패해도 설계는 끝나 있다 — 비용을 runs 에 남기고(안 남기면 실패 편의 설계 비용이 사라진다), 실행기 시간 초과·결과 없음은 한 번 다시 집는다.
+    // 설계 산출물이 디렉토리에 있으므로 다음 집기는 대본만 다시 돈다 (designDone 분기). 두 번째도 실패면 초안 실패 복귀(onDraftFailed)
+    const msg = String((e as Error)?.message ?? e);
+    if (design) await insertRun({ backlog_id: cand.id, phase: "draft", attempt: 1, result: `설계만 완료(대본 실패: ${msg.slice(0, 160)}) — ${designSummary}`, prompt_version: `${a.promptVersion} (worker)`, artifacts: [], executed_by: executedBy, model: designModel, cost_usd: designCost, tokens: designTokens, worker_rev: workerRev() }).catch(() => {});
+    const transient = /결과 없음|exit 143|timeout|ECONNRESET|rate limit|overloaded/i.test(msg);
+    if (transient && !job.payload.write_retried) {
+      await updateJobPayload(job.id, { write_retried: true }).catch(() => {});
+      throw new RetryLater(`${episodeId} 대본 호출 실패(일시적) — 설계 산출물을 두고 잠시 후 대본만 다시: ${msg.slice(0, 120)}`, 60_000);
+    }
+    throw e;
+  }
+  async function runWrite() { return ex.run<WriteOut>({
     prompt, schema: WRITE_SCHEMA,
-    tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 30 * 60_000, model: cfg.draftWriteModel, maxThinkingTokens: cfg.thinkingWrite,
+    tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 60 * 60_000, model: cfg.draftWriteModel, maxThinkingTokens: cfg.thinkingWrite, // 60분 — opus 대본 실측 30분+ (2026-09-09)
     onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: "대본 2/2 — 단발 작성", detail: pr.turns > 0 ? "대본 작성 중 (도구 없음)" : pr.detail }).catch(() => {}),
-  });
+  }); }
   const o = w.output;
   if (!o.script || !/## \[인트로\]/.test(o.script)) throw new Error(`2단계 대본이 비었거나 구역 헤더가 없음 (script ${o.script?.length ?? 0}자). notes="${(o.notes ?? "").slice(0, 200)}"`);
 
