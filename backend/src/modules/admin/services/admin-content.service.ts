@@ -322,8 +322,9 @@ export class AdminContentService {
     let content: Content;
     try {
       content = await this.dataSource.transaction(async (manager) => {
-        // 파일을 올리는 동안 회수됐을 수 있다 — 트랜잭션 안에서 다시 본다
-        const current = await this.contentService.getById(
+        // 파일을 올리는 동안 회수됐을 수 있다 — 트랜잭션 안에서 **행을 잠그고** 다시 본다.
+        // 잠금이 없으면 동시 재발행 두 건이 같은 버전을 읽어 서로의 새 파일을 지운다
+        const current = await this.contentService.getByIdForUpdate(
           command.contentId,
           manager,
         );

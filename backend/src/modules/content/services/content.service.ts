@@ -254,6 +254,35 @@ export class ContentService {
     return content;
   }
 
+  /** 같은 행을 바꾸는 관리자 경로(재발행)를 직렬화한다 — 트랜잭션 필수 */
+  async getByIdForUpdate(
+    contentId: string,
+    manager: EntityManager,
+  ): Promise<Content> {
+    const content = await this.contentRepository.findByIdForUpdate(
+      contentId,
+      manager,
+    );
+
+    if (!content) {
+      throw new BusinessNotFoundException({
+        errorCode: ErrorCode.CONTENT_NOT_FOUND,
+        message: '콘텐츠를 찾을 수 없어요',
+      });
+    }
+
+    return content;
+  }
+
+  /**
+   * 라이선스 만료 전환 — 배치(`ContentExpiryScheduler`)가 부른다.
+   * 라이브러리 잔존분은 건드리지 않는다(`partner-control.md` 4.4 미결 —
+   * `changes/pending/license-expiry-library-handling.md`).
+   */
+  async expireLicensed(now: Date): Promise<number> {
+    return this.contentRepository.expireLicensed(now);
+  }
+
   /**
    * 노출·재생 대상 단건 조회. **없음과 회수를 다른 코드로 가른다** —
    * 클라이언트가 "찾을 수 없어요"가 아니라 "제공이 종료된 콘텐츠예요"로 안내하고 목록에서
@@ -264,6 +293,7 @@ export class ContentService {
   async getPublishedById(
     contentId: string,
     manager?: EntityManager,
+    now: Date = new Date(),
   ): Promise<Content> {
     const content = await this.contentRepository.findById(contentId, manager);
 
@@ -274,7 +304,18 @@ export class ContentService {
       });
     }
 
-    if (content.status !== ContentStatus.PUBLISHED) {
+    /**
+     * 만료일이 지난 파트너 콘텐츠도 `published` 그대로 막는다 — 만료 배치는 하루 1회라
+     * 그 사이의 재생·서명 URL 발급이 이 검사로 닫힌다(FR-33, `architecture.md` 9.4
+     * "협상 대상이 아니다"). 목록 조회의 `applyVisibility`와 같은 조건이다.
+     * 코드는 회수와 같은 `CONTENT_WITHDRAWN`이다 — 클라이언트 동작(안내 + 목록 제거)이 같고,
+     * 만료 전용 코드를 새로 만들면 `common-error-handling.md` 9장 개정이 필요하다.
+     */
+    const isLicenseExpired =
+      content.licenseExpiresAt !== null &&
+      content.licenseExpiresAt.getTime() <= now.getTime();
+
+    if (content.status !== ContentStatus.PUBLISHED || isLicenseExpired) {
       throw new BusinessForbiddenException({
         errorCode: ErrorCode.CONTENT_WITHDRAWN,
         message: '제공이 종료된 콘텐츠예요',

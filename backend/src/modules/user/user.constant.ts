@@ -63,6 +63,13 @@ export const EMAIL_VERIFICATION_SEND_WINDOW_SEC = 3600;
 /** 코드당 검증 시도 5회 */
 export const EMAIL_VERIFICATION_ATTEMPT_LIMIT = 5;
 /**
+ * domain.md 3.7·12.1 — 만료 후 **24시간**이 지난 인증 행은 hard delete 한다(개인정보보호법
+ * 제21조 제1항 — 이메일 주소가 든 행이라 파기 의무). 이 상수가 그 보존 기간이다.
+ */
+export const EMAIL_VERIFICATION_RETENTION_MS = 24 * 60 * 60 * 1000;
+/** 파기 배치 주기 — 멱등키 purge와 같은 1시간 */
+export const EMAIL_VERIFICATION_PURGE_INTERVAL_MS = 60 * 60 * 1000;
+/**
  * 계정 단위 발송 상한 — 백스톱 (auth.md 4.5, 확정 2026-08-10).
  * 주소 무관 합산·슬라이딩 창이며 **클라이언트에 노출하지 않는다** — 초과 시
  * 전용 코드 없이 일반 오류로 거절하고 남은 횟수·해제 시각을 응답에 담지 않는다.

@@ -31,6 +31,26 @@ export class SessionRepository {
     return this.scoped(manager).findOneBy({ refreshTokenHash });
   }
 
+  /**
+   * 회전 시 **아직 살아 있는 경우에만** 폐기한다 — 조건부 UPDATE의 affected로 판정한다.
+   *
+   * `findByRefreshTokenHash` → `save`의 read-modify-write는 동시 갱신 두 건이 둘 다
+   * `revoked_at IS NULL`을 보고 통과해 한 토큰에서 세션 두 개가 나오는 경합이 있었다
+   * (재사용 탐지가 우회됨 — 2026-09-09 감사). 이 경로는 한 건만 `true`를 받는다.
+   */
+  async revokeIfActive(
+    id: string,
+    revokedAt: Date,
+    manager?: EntityManager,
+  ): Promise<boolean> {
+    const result = await this.scoped(manager).update(
+      { id, revokedAt: IsNull() },
+      { revokedAt },
+    );
+
+    return (result.affected ?? 0) > 0;
+  }
+
   async revokeAllByUserId(
     userId: string,
     revokedAt: Date,

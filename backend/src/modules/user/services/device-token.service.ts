@@ -49,27 +49,35 @@ export class DeviceTokenService {
       });
     }
 
-    const existing = await this.deviceTokenRepository.findByUserIdAndDeviceId(
+    /**
+     * find → save 대신 **한 문장 upsert**. 같은 (user, device)의 최초 동시 등록 두 건이
+     * 모두 "행 없음"을 보고 각자 INSERT 해 유니크 위반 500이 나던 경합을 제약이 갱신으로
+     * 흡수한다(architecture.md 8.4). 재등록이므로 이전 무효화 표시도 upsert가 지운다.
+     */
+    await this.deviceTokenRepository.upsert(
+      {
+        userId: command.userId,
+        deviceId: command.deviceId,
+        token: command.pushToken,
+        platform: command.platform,
+        isOsPermissionGranted: command.isOsPermissionGranted,
+        appVersion: command.appVersion,
+      },
+      manager,
+    );
+
+    const saved = await this.deviceTokenRepository.findByUserIdAndDeviceId(
       command.userId,
       command.deviceId,
       manager,
     );
 
-    const deviceToken =
-      existing ??
-      this.deviceTokenRepository.create({
-        userId: command.userId,
-        deviceId: command.deviceId,
-      });
+    if (!saved) {
+      // upsert 직후라 있을 수밖에 없다 — 없다면 같은 트랜잭션 밖에서 삭제가 겹친 것이고 재시도 대상이다
+      throw new Error('device token missing right after upsert');
+    }
 
-    deviceToken.token = command.pushToken;
-    deviceToken.platform = command.platform;
-    deviceToken.isOsPermissionGranted = command.isOsPermissionGranted;
-    deviceToken.appVersion = command.appVersion;
-    // 다시 등록됐으므로 이전 무효화 표시를 지운다
-    deviceToken.invalidatedAt = null;
-
-    return this.deviceTokenRepository.save(deviceToken, manager);
+    return saved;
   }
 
   async purgeByUserId(userId: string, manager?: EntityManager): Promise<void> {

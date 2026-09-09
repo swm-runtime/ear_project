@@ -6,7 +6,7 @@ import { ErrorCode } from '@/common/exceptions/error-code.enum';
 
 import { UserService } from './user.service';
 import { User } from '../entities/user.entity';
-import { ONBOARDING_STEP_ORDER } from '../user.constant';
+import { JOB_CATEGORIES, ONBOARDING_STEP_ORDER } from '../user.constant';
 import { OnboardingStep } from '../user.enum';
 import { UpdateCareerCommand } from '../user.types';
 import { UserRepository } from '../repositories/user.repository';
@@ -75,17 +75,33 @@ export class UserOnboardingService {
     return user;
   }
 
-  /** 본문에 없는 필드는 건드리지 않고, `null`을 보낸 필드는 비운다 */
+  /**
+   * 본문에 없는 필드는 건드리지 않고, `null`을 보낸 필드는 비운다.
+   *
+   * **정규화·검증은 이 단일 쓰기 경로가 한다** — 온보딩 2단계와 커리어 화면(`UserCareerService`)
+   * 두 진입점이 같은 컬럼을 쓰는데, 종전엔 커리어 화면만 빈 문자열→null 정규화와 직군 목록
+   * 검증을 해서 온보딩으로는 목록 밖 직군·`''`가 저장될 수 있었다(2026-09-09 감사).
+   * 판정이 경로마다 갈리면 같은 사용자의 `job_category`에 두 규칙이 섞인다.
+   */
   async updateCareer(
     user: User,
     command: UpdateCareerCommand,
     manager?: EntityManager,
   ): Promise<User> {
     if ('jobCategory' in command) {
-      user.jobCategory = command.jobCategory ?? null;
+      const jobCategory = normalizeCareerText(command.jobCategory ?? null);
+      // 직군은 서버 제공 목록의 값만 허용한다(career-api.md 4.2) — 임의 문자열이 쌓이면 목록 확정이 무의미하다
+      if (jobCategory !== null && !JOB_CATEGORIES.includes(jobCategory)) {
+        throw new BusinessException({
+          status: HttpStatus.BAD_REQUEST,
+          errorCode: ErrorCode.CAREER_JOB_CATEGORY_UNAVAILABLE,
+          message: '선택할 수 없는 직군이에요',
+        });
+      }
+      user.jobCategory = jobCategory;
     }
     if ('jobTitle' in command) {
-      user.jobTitle = command.jobTitle ?? null;
+      user.jobTitle = normalizeCareerText(command.jobTitle ?? null);
     }
     if ('yearsOfExperience' in command) {
       user.yearsOfExperience = command.yearsOfExperience ?? null;
@@ -110,4 +126,13 @@ export class UserOnboardingService {
 
     return this.userRepository.save(user, manager);
   }
+}
+
+/** 빈 문자열·공백만인 값은 null — "미입력" 판정이 null 하나로 수렴해야 화면마다 갈라지지 않는다 */
+function normalizeCareerText(value: string | null): string | null {
+  if (value === null || value.trim() === '') {
+    return null;
+  }
+
+  return value;
 }

@@ -128,6 +128,39 @@ export class ContentRepository {
     return this.scoped(manager).findOneBy({ id });
   }
 
+  /**
+   * 재발행처럼 같은 행을 읽고 바꾸는 경로를 직렬화한다 — 트랜잭션 필수.
+   * 무잠금 `findOne` 뒤 `content_version += 1`은 동시 재발행 두 건이 같은 버전을 읽어
+   * 둘 다 N+1을 쓰고 서로의 새 오디오를 지우는 경합이 있었다(2026-09-09 감사).
+   */
+  async findByIdForUpdate(
+    id: string,
+    manager: EntityManager,
+  ): Promise<Content | null> {
+    return manager.getRepository(Content).findOne({
+      where: { id },
+      lock: { mode: 'pessimistic_write' },
+    });
+  }
+
+  /**
+   * 라이선스 만료 전환(`partner-control.md` 4.4 — "만료일이 지나면 배치가 `expired`로").
+   * 발행 상태이면서 만료일이 지난 행만 바꾸고 건수를 돌려준다. 회수와 달리 `withdrawn_at`은
+   * 쓰지 않는다 — 다른 사건이다. 여러 인스턴스가 겹쳐 돌아도 조건부 UPDATE라 안전하다.
+   */
+  async expireLicensed(now: Date, manager?: EntityManager): Promise<number> {
+    const result = await this.scoped(manager)
+      .createQueryBuilder()
+      .update(Content)
+      .set({ status: ContentStatus.EXPIRED })
+      .where('status = :published', { published: ContentStatus.PUBLISHED })
+      .andWhere('license_expires_at IS NOT NULL')
+      .andWhere('license_expires_at <= :now', { now })
+      .execute();
+
+    return result.affected ?? 0;
+  }
+
   async findAllByIds(
     ids: string[],
     manager?: EntityManager,

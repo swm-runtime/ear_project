@@ -129,6 +129,15 @@ describe('AdminContentService', () => {
         audioPath: 'audio/old.mp3',
         thumbnailUrl: `${CDN_BASE_URL}/thumb/old.png`,
       }),
+      // 재발행 트랜잭션은 행을 잠그고 다시 읽는다 — 같은 행을 돌려준다
+      getByIdForUpdate: jest.fn().mockResolvedValue({
+        id: CONTENT_ID,
+        status: ContentStatus.PUBLISHED,
+        origin: ContentOrigin.AI_GENERATED,
+        contentVersion: 2,
+        audioPath: 'audio/old.mp3',
+        thumbnailUrl: `${CDN_BASE_URL}/thumb/old.png`,
+      }),
       withdraw: jest
         .fn()
         .mockResolvedValue({ id: CONTENT_ID, status: ContentStatus.WITHDRAWN }),
@@ -586,8 +595,12 @@ describe('AdminContentService', () => {
       // when
       const result = await service.republish(buildRepublishCommand());
 
-      // then
+      // then — 트랜잭션 안 재확인은 행 잠금(FOR UPDATE)으로 읽는다 (동시 재발행 경합 차단)
       expect(result.content.id).toBe(CONTENT_ID);
+      expect(contentService.getByIdForUpdate).toHaveBeenCalledWith(
+        CONTENT_ID,
+        manager,
+      );
       expect(contentService.republish).toHaveBeenCalledWith(
         expect.objectContaining({ id: CONTENT_ID }),
         containing({ audioPath: 'audio/abc.mp3', durationSec: 600 }),
