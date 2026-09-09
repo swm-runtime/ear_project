@@ -14,6 +14,9 @@ export interface SourceRef {
   publisher: string;
   published?: string | null;
   backbone?: boolean;
+  /** 군집화 v2 역할 (근거 앵커·사례·반론·한계·수치·조사·역사·맥락) — v1 후보는 없음 */
+  roles?: string[];
+  tier?: string;
 }
 
 export interface BacklogCandidate {
@@ -23,6 +26,20 @@ export interface BacklogCandidate {
   target_fit: string | null;
   angle: string | null;
   sources: SourceRef[];
+  /** 군집화 v2 (0016): 축·유형·빈 역할. v1 후보는 null/빈 배열 */
+  axis?: string | null;
+  axis_type?: string | null;
+  gaps?: string[];
+}
+
+/** 설계 프롬프트에 넣는 백로그 축·역할표 블록 — v2 후보면 구성안의 출발점, v1 후보면 angle 을 참고로만 */
+export function candidateAxisBlock(c: BacklogCandidate): string {
+  if (!c.axis) return `- 백로그의 구성 각도(참고만, 따르지 말 것): ${c.angle ?? "(미기재)"}`;
+  const roles = c.sources.map((s, n) => `S${n + 1} ${s.publisher}: ${(s.roles ?? []).join("·") || "역할 미정"}`).join(" / ");
+  return `- **백로그의 축 (군집화 v2 — 구성안의 출발점)**: [${c.axis_type}] ${c.axis}
+- 백로그의 역할표: ${roles}${c.gaps?.length ? `
+- 비어 있는 역할: ${c.gaps.join("·")} — 원문을 읽고 채울 수 있으면 채우고, 못 채우면 구성안 역할표에 "없음"으로 명시한다` : ""}
+- 원문을 정독한 뒤 이 축이 성립하지 않으면 바꿔도 된다 — 단 완료 보고 notes 에 "축 변경: 이유"를 적는다. 유형(대립·역설·재정의) 규칙은 그대로다.`;
 }
 
 /**
@@ -493,7 +510,7 @@ export function buildDesignPrompt(i: DesignInput): string {
 - 에피소드 ID: ${i.episodeId} · 제목(가): "${i.candidate.title}" · 중분류: ${i.candidate.mid_topic}
 - 해설: **${explainer}** / 진행: **${host}** — 역할 고정
 - 청취자: 자기계발을 원하는 2030 한국 직장인 (IT 개발자 아님). 편도 30분 통근.
-- 백로그의 구성 각도(참고만, 따르지 말 것): ${i.candidate.angle ?? "(미기재)"}
+${candidateAxisBlock(i.candidate)}
 - 타깃 정합 메모: ${i.candidate.target_fit ?? "-"}
 
 ## 2. 소스 (전부 WebFetch로 원문 정독)
@@ -844,7 +861,7 @@ ${fence(i.goldFullYuna)}
 - 에피소드 ID: ${i.episodeId} · 제목(가): "${i.candidate.title}" · 중분류: ${i.candidate.mid_topic}
 - 해설: **${explainer}** / 진행: **${host}** — 역할 고정
 - 청취자: 자기계발을 원하는 2030 한국 직장인 (IT 개발자 아님). 편도 30분 통근.
-- 백로그의 구성 각도(참고만, 따르지 말 것): ${i.candidate.angle ?? "(미기재)"}
+${candidateAxisBlock(i.candidate)}
 - 타깃 정합 메모: ${i.candidate.target_fit ?? "-"}
 
 ## 3. 산출물 규칙 (완료 보고 JSON 의 각 필드)
@@ -999,5 +1016,91 @@ export const REVISION_INLINE_SCHEMA = {
     pronunciations_added: { type: "array", items: { type: "object", additionalProperties: false, required: ["term", "reading"], properties: { term: { type: "string" }, reading: { type: "string" } } } },
     claims_note: { type: "string", description: "claims.md 끝에 붙일 'QA 반영' 절 본문 — 어떤 주장이 어떻게 축소·삭제됐는지" },
     notes: { type: "string" },
+  },
+} as const;
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 군집화 v2 (2026-09-09 — "축이 이끄는 파이프라인" ①, spec/03 2장 v2): 비슷한 것을 묶지 않고 **축을 먼저 세우고 역할을 채운다**.
+// 축 = 대립("A인데 B") · 역설("A하려다 B가 된다") · 재정의("A는 사실 B다"). 소스 역할 5종. 다양성 기준(발행처 3+, 한 곳 ≤50%, 역할 3종)은 워커가 코드로 검사.
+// 단발 호출(도구 없음): spec/03 의 필요한 절과 소스 메타데이터를 인라인으로 넣는다. 실험(CL, 2026-09-08): 8후보 중 5 성립, 발행처 쏠림 해소.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+export type SourceRole = "근거 앵커" | "사례" | "반론·한계" | "수치·조사" | "역사·맥락";
+export const SOURCE_ROLES: SourceRole[] = ["근거 앵커", "사례", "반론·한계", "수치·조사", "역사·맥락"];
+
+export interface ClusterV2Input {
+  midTopics: string[];
+  majorTopic?: string | null;
+  nextIdNumber: number;
+  sources: { n: number; url: string; title: string; summary: string | null; publisher: string; domain: string; published: string | null; midTopics?: string[]; used?: boolean }[];
+  existingTitles: string[];
+  /** spec/03 3장(후보 구성)·6장(게이트 1) 등 인라인으로 넣을 규격 발췌 */
+  specBacklogExcerpt: string;
+}
+
+export function buildClusterPromptV2(i: ClusterV2Input): string {
+  const list = i.sources.map((s) => `[M${s.n}] ${s.publisher || s.domain} · ${s.published ?? "날짜 미상"}${s.used ? " · (이미 사용된 소스)" : ""}\n   ${s.title}\n   ${(s.summary ?? "").replace(/\s+/g, " ").slice(0, 240)}`).join("\n");
+  return `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 **군집화 담당(v2)**이다. 스윕된 소스 **메타데이터만** 보고(원문 접속 금지 — 이 실행에는 도구가 없다) 에피소드 후보를 뽑는다. "비슷한 것을 묶는" 방식이 아니라, **축을 먼저 세우고 그 축에 필요한 역할을 소스로 채우는** 방식이다.
+
+## 1. 타깃·중분류
+- 청취자: 자기계발을 원하는 2030 한국 직장인(IT 개발자 아님), 편도 30분 통근.
+- 중분류 후보: ${i.midTopics.join(" · ")}${i.majorTopic ? ` (대분류 ${i.majorTopic})` : ""}. 후보마다 하나를 고른다 — 소스의 커버 중분류를 참고하되 축에 맞는 것으로.
+
+## 2. 규격 (spec/03 발췌)
+${i.specBacklogExcerpt.trim()}
+
+## 3. 군집화 v2 규칙
+
+### 절차
+1. **축 후보를 먼저 낸다.** 소스 목록 전체를 훑고, 청취자에게 긴장을 만드는 축을 여러 개 적는다. 축은 반드시 셋 중 하나의 꼴이다.
+   - 대립형: "A인데 B" (예: 배제는 악의가 아니라 소속되고 싶은 마음에서 나온다)
+   - 역설형: "A하려다 B가 된다" (예: 생각을 밀어낼수록 그 생각이 남는다)
+   - 재정의형: "A는 사실 B다" (예: 집중력은 의지가 아니라 리듬이다)
+   "X란 무엇인가", "X의 모든 것", 하나의 사건·발표·출시를 축으로 삼는 것은 축이 아니다 (이어는 소식을 전하는 서비스가 아니다 — 사건성 소스는 사례 재료로만).
+2. **축마다 소스에 역할을 배정한다.** 역할은 다섯 가지 — 근거 앵커(축의 핵심 주장을 받치는 소스, 1~2건) · 사례(청취자 일상 또는 구체 일화) · 반론·한계 · 수치·조사 · 역사·맥락. 한 소스가 두 역할을 겸할 수 있다(roles 에 둘 다). 역할이 없는 소스는 넣지 않는다. 소스 수는 5~7건.
+3. **다양성 기준**: 발행처 3곳 이상 · 한 발행처가 절반을 넘지 않음 · 역할 최소 3종(근거 앵커 + 사례 + 나머지 하나). "이미 사용된 소스"는 후보당 1건까지만. (워커가 코드로 다시 계산한다 — 맞추려고 소스를 억지로 끼우지 않는다.)
+4. **판정**: 기준을 전부 만족하면 \`성립\`, 축은 좋은데 역할이 비면 \`보강 필요\`로 내고 비어 있는 역할을 gaps 에 적는다(다음 단계인 탐색 보강의 입력). 기준 미달을 억지로 채우지 않는다. 기존 후보 제목과 축이 겹치면 내지 않는다.
+
+### 후보 항목 (완료 보고 JSON 의 candidates[])
+- title(제목안, 클릭베이트 금지) · mid_topic · axis_type · axis(한 문장) · axis_note(왜 청취자에게 긴장인가, 두 줄) · verdict(성립|보강 필요) · gaps
+- sources[]: { m: "M12", roles: ["근거 앵커"], why: "이 역할인 이유 한 줄" } — **M-ID 는 아래 목록에 있는 것만** (없는 ID 는 버려진다)
+- target_fit(타깃 정합 한 줄) · landing(축이 어느 재료에서 증명될 것 같은가 한 줄) · dedup_note(기존 후보 제목과 겹치지 않는 이유 한 줄)
+- 후보 ID 는 C${i.nextIdNumber} 부터 순번.
+
+기존 후보 제목: ${i.existingTitles.length ? i.existingTitles.join(" / ") : "(없음)"}
+
+## 4. 소스 메타데이터 (${i.sources.length}건)
+${list}
+
+## 5. 자기 점검 (출력 전에)
+- 모든 후보의 축이 세 꼴 중 하나인가. "X란 무엇인가"형이 없는가.
+- 성립 후보가 다양성 기준 세 가지를 전부 만족하는가 (발행처 수·최다 비율·역할 수를 직접 센다).
+- 역할표의 M-ID 가 목록에 실제로 있는가. 근거 앵커가 1건 이상인가.
+
+## 6. 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. 성립 3~5개 + 보강 필요 0~4개를 목표로 하되 억지로 채우지 않는다. 완료 보고 전에 다른 텍스트를 출력하지 않는다.`;
+}
+
+export const CLUSTER_SCHEMA_V2 = {
+  type: "object",
+  additionalProperties: false,
+  required: ["candidates", "axis_pool", "dropped_notes"],
+  properties: {
+    candidates: {
+      type: "array",
+      items: {
+        type: "object", additionalProperties: false,
+        required: ["id", "mid_topic", "title", "axis_type", "axis", "axis_note", "verdict", "gaps", "sources", "target_fit", "landing", "dedup_note"],
+        properties: {
+          id: { type: "string" }, mid_topic: { type: "string" }, title: { type: "string" },
+          axis_type: { type: "string", enum: ["대립", "역설", "재정의"] }, axis: { type: "string" }, axis_note: { type: "string" },
+          verdict: { type: "string", enum: ["성립", "보강 필요"] },
+          gaps: { type: "array", items: { type: "string", enum: ["근거 앵커", "사례", "반론·한계", "수치·조사", "역사·맥락"] } },
+          sources: { type: "array", minItems: 3, items: { type: "object", additionalProperties: false, required: ["m", "roles", "why"], properties: { m: { type: "string" }, roles: { type: "array", minItems: 1, items: { type: "string", enum: ["근거 앵커", "사례", "반론·한계", "수치·조사", "역사·맥락"] } }, why: { type: "string" } } } },
+          target_fit: { type: "string" }, landing: { type: "string" }, dedup_note: { type: "string" },
+        },
+      },
+    },
+    axis_pool: { type: "array", items: { type: "string" }, description: "검토했으나 후보로 내지 않은 축 (사유 포함)" },
+    dropped_notes: { type: "array", items: { type: "string" } },
   },
 } as const;

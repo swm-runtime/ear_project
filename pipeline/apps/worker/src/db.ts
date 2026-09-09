@@ -78,10 +78,10 @@ export async function majorOfMidTopic(mid: string): Promise<string | null> {
   return r.rows[0]?.major ?? null;
 }
 export async function getBacklog(id: string): Promise<BacklogCandidate | null> {
-  const r = await pool.query("select id, mid_topic, title, target_fit, angle, sources from public.backlog where id = $1", [id]);
+  const r = await pool.query("select id, mid_topic, title, target_fit, angle, sources, axis, axis_type, gaps from public.backlog where id = $1", [id]);
   if (!r.rows[0]) return null;
   const row = r.rows[0];
-  return { id: row.id, mid_topic: row.mid_topic, title: row.title, target_fit: row.target_fit, angle: row.angle, sources: (row.sources ?? []) as SourceRef[] };
+  return { id: row.id, mid_topic: row.mid_topic, title: row.title, target_fit: row.target_fit, angle: row.angle, sources: (row.sources ?? []) as SourceRef[], axis: row.axis, axis_type: row.axis_type, gaps: row.gaps ?? [] };
 }
 export async function setBacklogStatus(id: string, status: string, extra: Record<string, unknown> = {}) {
   const sets = ["status = $2", "updated_at = now()"];
@@ -115,11 +115,33 @@ export async function nextBacklogNumber(): Promise<number> {
   const r = await pool.query("select coalesce(max(substring(id from 2)::int), 0) + 1 as n from public.backlog where id ~ '^C[0-9]+$'");
   return Number(r.rows[0].n);
 }
-export async function insertBacklog(c: { id: string; mid_topic: string; title: string; summary: string; target_fit: string; angle: string; sources: unknown[]; dedup_note: string }) {
+export async function insertBacklog(c: { id: string; mid_topic: string; title: string; summary: string; target_fit: string; angle: string; sources: unknown[]; dedup_note: string; status?: "proposed" | "held"; axis?: string | null; axis_type?: string | null; gaps?: string[]; cluster_version?: string }) {
   await pool.query(
-    "insert into public.backlog (id, mid_topic, title, summary, target_fit, angle, sources, status, dedup_note) values ($1,$2,$3,$4,$5,$6,$7,'proposed',$8) on conflict (id) do nothing",
-    [c.id, c.mid_topic, c.title, c.summary, c.target_fit, c.angle, JSON.stringify(c.sources), c.dedup_note],
+    "insert into public.backlog (id, mid_topic, title, summary, target_fit, angle, sources, status, dedup_note, axis, axis_type, gaps, cluster_version) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) on conflict (id) do nothing",
+    [c.id, c.mid_topic, c.title, c.summary, c.target_fit, c.angle, JSON.stringify(c.sources), c.status ?? "proposed", c.dedup_note, c.axis ?? null, c.axis_type ?? null, c.gaps ?? [], c.cluster_version ?? "v1"],
   );
+}
+/** 대분류의 생성 대상 중분류 (topics.ai_generation) — 군집화 v2 는 대분류 풀에서 축을 찾는다 */
+export async function midsOfMajor(major: string): Promise<string[]> {
+  const r = await pool.query("select mid from public.topics where major = $1 and ai_generation order by mid", [major]);
+  return r.rows.map((x) => x.mid as string);
+}
+/** 여러 중분류의 최근 소스 (중복 URL 제거, 커버 중분류 목록 포함) */
+export async function recentSourcesForTopics(mids: string[], days: number, limit: number) {
+  const r = await pool.query(
+    `select s.url, s.title, s.summary, d.publisher, d.domain, to_char(s.published, 'YYYY-MM-DD') as published,
+            array(select unnest(d.topic_coverage) intersect select unnest($1::text[])) as mids
+       from public.sources s join public.domains d on d.id = s.domain_id
+      where d.topic_coverage && $1::text[] and s.swept_at >= now() - ($2 || ' days')::interval
+      order by s.published desc nulls last limit $3`,
+    [mids, String(days), limit],
+  );
+  return r.rows as { url: string; title: string; summary: string | null; publisher: string; domain: string; published: string | null; mids: string[] }[];
+}
+/** 발행·제작된 편이 쓴 소스 URL — v2 는 후보당 1건까지만 재사용 */
+export async function usedSourceUrls(): Promise<Set<string>> {
+  const r = await pool.query("select jsonb_array_elements(sources)->>'url' as url from public.backlog where status in ('drafted','qa_passed','packaged','published','review_required','claimed')");
+  return new Set(r.rows.map((x) => x.url as string).filter(Boolean));
 }
 /** 중복 대조는 전 중분류 대상 — 축이 겹치는 후보가 다른 중분류로 들어오는 것을 막는다 (C32↔C26 사례, 2026-08-29) */
 export async function existingBacklogTitles(): Promise<string[]> {
