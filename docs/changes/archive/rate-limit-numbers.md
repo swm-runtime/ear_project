@@ -25,3 +25,9 @@
 ## 완료 조건
 
 - Given `architecture.md` 9.6 / When 표를 읽는다 / Then 대상별 키·한도·근거가 적혀 있고 미결 사항에서 "구체 수치"가 빠져 있다
+
+## 처리 기록 (반영 날짜: 2026-09-09)
+
+`architecture.md` 9.6 표를 이 문서의 수치로 교체하고 미결 사항에서 "레이트 리밋 구체 수치"를 뺐다.
+구현은 #282(`RateLimitGuard` + `@Throttle`)로 같은 날 dev 배포됐고, 실서버 응답 헤더로 전역 300·인증 20·
+`/health` 제외를 확인했다. 표에 없던 `/auth/pipeline-login`·`/auth/logout`은 전역 한도만 적용된다.

@@ -1304,7 +1304,7 @@ idx_archived_subscriptions_archived_at
 |---|---|---|
 | `library_items` | **soft** (`deleted_at`) | 삭제 후 [실행 취소] 지원, 재적립 방지 근거 |
 | `contents` | **soft** (`status = withdrawn` + `withdrawn_at`) | 파트너 회수 이력 |
-| `sessions` | **soft** (`revoked_at`) | 폐기 이력 |
+| `sessions` | **soft** (`revoked_at`), **만료(`expires_at`) 또는 폐기(`revoked_at`) 후 30일 경과 시 hard delete 배치** | 폐기 이력이 필요한 것은 refresh 재사용 탐지 창(refresh TTL 30일 — `architecture.md` 9.1) 동안뿐이다. 그 창을 넘긴 행은 탐지에도 안 쓰이고 조회 비용만 남긴다. 활성 세션(`revoked_at IS NULL` 이고 `expires_at`이 미래)은 대상이 아니다 (확정 2026-09-09) |
 | `device_tokens` | **soft** (`invalidated_at`) | 발송 실패 원인 추적 |
 | `user_interests` | **soft** (`is_active`, `deactivated_at`) | 재활성화 가능 |
 | `email_verifications` | **hard** — 만료 24시간 후 배치 삭제 | 인증 목적 종료 후 보관 근거 없음 ([3.7](#37-email_verifications)) |
