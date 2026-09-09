@@ -14,7 +14,7 @@ import type { DesignOut } from "./draft-two-stage.js";
  */
 export interface DesignInlineOut extends Omit<DesignOut, "excerpts" | "claims" | "self_check"> {
   excerpt_ids: string[]; gists: { s: number; lines: string[] }[];
-  claims: { id: string; text: string; excerpt_ids: string[]; type: string }[];
+  claims: { id: string; text: string; excerpt_ids: string[]; type: string; attribution: "필수" | "불필요" }[];
   outline_md: string; pronunciations: { term: string; reading: string }[];
 }
 
@@ -68,7 +68,8 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
     lines.push("");
   }
   await fs.writeFile(path.join(dir, "sources.md"), lines.join("\n"), "utf8");
-  const claimsMd = [`# claims — ${episodeId}`, "", "| ID | 주장 | 발췌 ID | 유형 |", "|---|---|---|---|", ...o.claims.map((c) => `| ${c.id} | ${c.text.replace(/\|/g, "／")} | ${c.excerpt_ids.join(", ")} | ${c.type} |`), ""].join("\n");
+  const req = o.claims.filter((c) => c.attribution === "필수").length;
+  const claimsMd = [`# claims — ${episodeId}`, "", `> 귀속 열(guidelines 규칙 20): 필수 ${req} · 불필요 ${o.claims.length - req}. 불필요 주장은 대본이 해설자의 말로 설명하고 출처를 달지 않는다.`, "", "| ID | 주장 | 발췌 ID | 유형 | 귀속 |", "|---|---|---|---|---|", ...o.claims.map((c) => `| ${c.id} | ${c.text.replace(/\|/g, "／")} | ${c.excerpt_ids.join(", ")} | ${c.type} | ${c.attribution} |`), ""].join("\n");
   await fs.writeFile(path.join(dir, "claims.md"), claimsMd, "utf8");
   await fs.writeFile(path.join(dir, "outline.md"), o.outline_md.trim() + "\n", "utf8");
   const pron: Record<string, string> = {};

@@ -335,7 +335,7 @@ ${pre}
    - **앵커 자리(\`{앵커 …: }\`)는 이번 실행에서 비어 있다.** 구간 정의만으로 채점한다. 이 실행은 "앵커 없음" 기준선이다.
    - 만점 구간은 **골드 2종보다 그 항목에서 명백히 나을 때만** 준다. 평범하면 평범하다고 쓴다.
    - 리포트의 "사람 점수"·"사람 사유" 열은 비워 둔다.
-2. **플래그** — 2.1의 판단 항목 20개(A1~A8·B2·C1·C2·C3·C5·D1·D3·F1·F2·F4·F5·G1)만. **2.2의 이관 항목(B1·B3·B4·C4·D2·D4·D5·F3·F6)은 플래그하지 않는다** — 코드와 QA가 잰다. 강도는 위반/의심, 15건 이내, 자구 인용 필수, "판정(사람)"·"사유" 열은 비운다.
+2. **플래그** — 2.1의 판단 항목 22개(A1~A10·B2·C1·C2·C3·C5·D1·D3·F1·F2·F4·F5·G1)만. A9(귀속 과밀·소스 순회)·A10(독후감 화법)은 v2.2 신설 — 대본이 주제가 아니라 소스를 소개하거나 읽은 감상을 말하는 것처럼 들리는가로 판단한다. **2.2의 이관 항목(B1·B3·B4·C4·D2·D4·D5·F3·F6)은 플래그하지 않는다** — 코드와 QA가 잰다. 강도는 위반/의심, 15건 이내, 자구 인용 필수, "판정(사람)"·"사유" 열은 비운다.
    - G1: 골드 2종과 대조해 관용구·진입 문구·정리 문구의 재사용을 찾는다.
 3. **⭐ 잘된 지점** 3~7건 (빈 판정 열 포함).
 4. **집계** 행은 사람 판정 후 채우므로 플래그·⭐ 수만 적는다.
@@ -619,6 +619,12 @@ export const WRITE_FACT_RULES = `- **사실 주장**(수치·인용·고유명�
   3. 소스의 예시에 우리가 덧붙인 장면을 소스 귀속 문장 안에 넣지 않는다 — 발췌에 "회의실"이 없으면 "이 글은 회의실 예를 들어요"라고 쓸 수 없다. 장면을 옮기고 싶으면 화자의 번역으로 분리한다("이걸 회의실로 옮기면…", 또는 진행자의 일상 장면).
   4. **발췌보다 구체적으로 쓰지 않는다** — 성별·연령·관계(sister→"여동생" 금지, "자매"까지), 순서·위치("그 글의 마지막 문장" — 발췌가 말하지 않으면 "그 글에 이런 문장이 있어요"), 수량·빈도는 원문이 밝힌 정도까지만.
 - **구성안은 구조의 계약이지 문구의 계약이 아니다** — 구성안의 소제목·진행자 질문·설계 메모에 claims 범위를 넘는 표현(환산 수치·발췌에 없는 비교)이 있으면 대본에서 고쳐 쓴다. 소제목(\`### #n\`)도 QA 대상이다.
+- **귀속은 claims 의 \`귀속\` 열대로** (guidelines 규칙 20~22, 2026-09-09):
+  · \`불필요\` 주장은 **해설자가 자기 말로 설명한다** — "이 글은 ~라고 해요", "~에 따르면"으로 감싸지 않는다. 사실 검증은 claims 로 하므로 출처를 말하지 않아도 된다.
+  · \`필수\` 주장만 귀속을 단다. 그중 **매체명·저자명을 말하는 것은 근거 앵커의 첫 소개 · 직접 인용 · 특정인의 의견**일 때뿐이고, 나머지는 익명 귀속("한 연구에서는", "어느 글은", "연구진은"). 소스당 이름 언급 최대 2회, 이름이 나오는 소스는 2~3곳까지.
+  · 소스는 처음 나올 때 한 문장으로 소개하고 끝. "아까 그 기사", "같은 글에서", "다른 글에서는" 식 되돌림·갈아타기를 쓰지 않는다 — 구성안의 축이 이끄는 한 흐름 안에 사실을 놓는다.
+  · 자기 점검: 해설 턴 중 귀속 표현이 있는 턴이 절반을 넘으면 소스 순회다. L0 가 60% 초과를 재생성으로 돌린다.
+- **해설자는 독자가 아니라 아는 사람이다** (규칙 23): "저도 그 부분에서 멈췄어요", "다시 읽어보니", "저도 그렇게 읽었어요", "이 문장이 인상적이었는데", "글을 읽다가" 같은 **읽은 경험·감상 서술 금지**. 짚고 싶은 대목은 내용을 직접 말한다("여기서 중요한 건 ~예요"). L0 가 이 표현을 잡아 재생성한다.
 - **연결·비유**(소스 사이를 잇는 해석, 청취자 일상으로 옮기는 번역)는 구성안의 "연결·비유" 목록을 쓴다. 새로 만든 연결·비유는 완료 보고 bridges 에 전부 적는다. 비유는 직전 해설의 재료로 만든다 — 새 재료를 끌어오지 않는다. 소스 사이 병치는 "두 글이 서로를 인용한 건 아니지만" 같은 하향 표지로 해석임을 밝힌다.`;
 
 /** 2단계 — 대본 (단발 호출: 도구 없음, 모든 입력 인라인, 대본은 완료 보고 JSON 의 script 로 돌려준다) */
@@ -759,7 +765,7 @@ ${fence(i.specQaMd)}
 
 ${QA_ITEM6_NOTE}
 
-특히 주의 깊게 볼 유형: ① 발췌에 없는 주장 (비교 축 추가, 연관의 방향 확정, 귀속 범위 확장, 연대·수치의 무근거 환산, 문장 위치 주장) — **본문 소제목(\`### #n\`)도 검사 대상**, ② 귀속 정확성 — 게재 매체 지시("~라는 매체", "같은 매체", "아까 그 ~")가 발췌의 실제 게재처와 일치하는지 지시 사슬 전수 추적, ③ 수치·시점의 상향 왜곡 (하향 범위 표현은 의도된 규격), ④ 구역이 [인트로]·[도입]·[본문]·[마무리] 4개인가 ([콜드오픈] 구역이 있으면 위반 — 2026-09-07 폐지), ⑤ 화자 규칙 (진행 담당의 사실 주장 금지 — 감상·추측 허용), ⑥ 수정 잔존 참조 (지시어·콜백이 가리키는 대상이 현재 대본 안에 실재하는지), ⑦ claims가 스스로 "발췌 밖" 등으로 표시한 항목은 그 판단을 믿지 말고 발췌 기준으로 독립 재판정. 소스 사이를 잇는 해석·비유·청취자 일상 번역은 해석임이 표시돼 있으면(“제 연결인데”, “~로 옮기면”, “서로를 인용한 건 아니지만”) 사실 주장이 아니다.
+특히 주의 깊게 볼 유형: ① 발췌에 없는 주장 (비교 축 추가, 연관의 방향 확정, 귀속 범위 확장, 연대·수치의 무근거 환산, 문장 위치 주장) — **본문 소제목(\`### #n\`)도 검사 대상**, ② 귀속 정확성 — 게재 매체 지시("~라는 매체", "같은 매체", "아까 그 ~")가 발췌의 실제 게재처와 일치하는지 지시 사슬 전수 추적, ③ 수치·시점의 상향 왜곡 (하향 범위 표현은 의도된 규격), ④ 구역이 [인트로]·[도입]·[본문]·[마무리] 4개인가 ([콜드오픈] 구역이 있으면 위반 — 2026-09-07 폐지), ⑤ 화자 규칙 (진행 담당의 사실 주장 금지 — 감상·추측 허용), ⑥ 수정 잔존 참조 (지시어·콜백이 가리키는 대상이 현재 대본 안에 실재하는지), ⑦ claims가 스스로 "발췌 밖" 등으로 표시한 항목은 그 판단을 믿지 말고 발췌 기준으로 독립 재판정. 소스 사이를 잇는 해석·비유·청취자 일상 번역은 해석임이 표시돼 있으면(“제 연결인데”, “~로 옮기면”, “서로를 인용한 건 아니지만”) 사실 주장이 아니다. **귀속 표현이 없는 사실 문장은 귀속 부재 자체를 실패로 잡지 않는다** — claims·발췌 대조로만 판정한다 (2026-09-09 귀속 등급 규칙: 개념·원리·정의는 해설자의 말로 하는 것이 규격이다). 익명 귀속("한 연구에서는")은 그 주장이 어느 발췌에든 있으면 통과다.
 ${prior}
 
 ## 3. 검사 대상 — ${i.episodeId} attempt ${i.attempt}
@@ -852,7 +858,9 @@ ${fence(i.goldFullYuna)}
 ### b) claims — 사실 주장 대조표
 - 각 항목: id(C01…) · text(한국어 한 문장) · excerpt_ids(근거 문단 ID — 없으면 적을 수 없다. 두 문단을 합쳐야 성립하면 둘 다) · type(수치·인용·고유명사·인과·정의·실천).
 - 주장 문장은 발췌보다 구체적이면 안 된다 — 발췌의 헤지("~일 수 있다", "때로", "일부")와 귀속 주체("이 글은/기사는" vs 원저자 발언)를 그대로 옮긴다. 연대를 경과 연수로 환산하지 않는다.
+- **attribution — 귀속 등급** (guidelines 규칙 20): \`필수\` = 직접 인용 · 수치·조사 결과 · 특정인의 의견·해석·예측 · 논쟁적/반직관적 주장. \`불필요\` = 개념·원리·정의 · 널리 알려진 사실 · 소스가 설명하는 일반 메커니즘. 대본은 \`불필요\` 주장을 해설자의 말로 설명하고 출처를 달지 않는다. **절반 이상이 \`필수\`면 등급을 다시 본다** — 대부분의 설명은 불필요 등급이다.
 - 소스 사이를 잇는 해석("A와 B는 같은 원리다")은 여기 적지 않는다 — 구성안의 "연결·비유" 목록으로.
+- 역할표의 **근거 앵커 1~2곳이 대본에서 이름이 불리는 소스**다(규칙 21). 나머지 소스는 익명 귀속("한 연구", "어느 글")으로만 등장하므로, 이름을 꼭 불러야 할 소스(직접 인용·특정인 의견의 출처)가 있으면 근거 앵커로 두거나 설계 메모에 적는다.
 
 ### c) outline_md — 구성안 (대본 단계의 계약). 아래 형식을 그대로 따른다.
 \`\`\`
@@ -914,7 +922,7 @@ export const DESIGN_INLINE_SCHEMA = {
     sections: { type: "array", items: { type: "object", additionalProperties: false, required: ["n", "title", "sources", "ratio"], properties: { n: { type: "integer" }, title: { type: "string" }, sources: strArr, ratio: { type: "integer" } } } },
     excerpt_ids: { ...strArr, description: "선택한 문단 ID (S1-03 …)" },
     gists: { type: "array", items: { type: "object", additionalProperties: false, required: ["s", "lines"], properties: { s: { type: "integer" }, lines: strArr } }, description: "소스별 한국어 요지 3줄" },
-    claims: { type: "array", items: { type: "object", additionalProperties: false, required: ["id", "text", "excerpt_ids", "type"], properties: { id: { type: "string" }, text: { type: "string" }, excerpt_ids: strArr, type: { type: "string", enum: ["수치", "인용", "고유명사", "인과", "정의", "실천"] } } } },
+    claims: { type: "array", items: { type: "object", additionalProperties: false, required: ["id", "text", "excerpt_ids", "type", "attribution"], properties: { id: { type: "string" }, text: { type: "string" }, excerpt_ids: strArr, type: { type: "string", enum: ["수치", "인용", "고유명사", "인과", "정의", "실천"] }, attribution: { type: "string", enum: ["필수", "불필요"], description: "귀속 등급 (guidelines 규칙 20): 필수 = 직접 인용·수치·특정인 의견·논쟁적 주장 / 불필요 = 개념·원리·정의·널리 알려진 사실" } } } },
     outline_md: { type: "string", description: "outline.md 전문" },
     pronunciations: { type: "array", items: { type: "object", additionalProperties: false, required: ["term", "reading"], properties: { term: { type: "string" }, reading: { type: "string" } } } },
     estimated_minutes: { type: "number" },
@@ -922,6 +930,74 @@ export const DESIGN_INLINE_SCHEMA = {
     sources_used: strArr,
     sources_excluded: { type: "array", items: { type: "object", additionalProperties: false, required: ["url", "reason"], properties: { url: { type: "string" }, reason: { type: "string" } } } },
     gaps: { ...strArr, description: "비어 있는 역할" },
+    notes: { type: "string" },
+  },
+} as const;
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 수정 재생성 단발화 (2026-09-09 — 비용 절감): QA·L0 지적을 받은 대본을 에이전트 루프(Read·Edit·python) 대신 한 번의 호출로 고친다.
+// 입력을 전부 인라인으로 넣고, 모델은 "바꿀 턴의 전문"만 돌려준다 — 파일 수정은 워커가 턴 단위로 치환한다.
+// 첫 실편(T260909-002)에서 긴 턴 2개 고치는 데 에이전트 방식이 $1.92 였다. 토글 REVISION_MODE (기본 agent — 판정 3편이 끝날 때까지 현행 유지).
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+export interface RevisionInlineInput {
+  episodeId: string;
+  attempt: number;
+  qaFailures: { location: string; item: string; reason: string }[];
+  guidelines: string;
+  scriptMd: string;
+  claimsMd: string;
+  sourcesMd: string;
+  outlineMd?: string | null;
+  pronunciationsJson: string;
+}
+
+export function buildRevisionPromptInline(i: RevisionInlineInput): string {
+  const fence = (s: string) => "````\n" + s.trim() + "\n````";
+  const failures = i.qaFailures.map((f, n) => `${n + 1}. [${f.location}] 항목 ${f.item}: ${f.reason}`).join("\n");
+  return `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 대본 작가다. QA(사실 무결성 검증) 또는 형식 검사(L0)가 실패한 대본을 **최소 수정**한다 (attempt ${i.attempt}/3).
+
+이 실행에는 도구가 없다. 필요한 것은 전부 아래에 있다. 파일을 고치지 말고, **바꿀 턴의 전문만** 완료 보고로 돌려준다 — 워커가 그 턴을 통째로 갈아끼운다.
+
+## 지적 사항 (전부 해소해야 한다)
+${failures}
+
+## 수정 원칙
+- 지적된 턴만 고친다. 전면 재작성 금지 — 나머지 턴은 건드리지 않는다.
+- 수정은 발췌 안으로 들어오는 방향으로만: 발췌에 없는 수식·비교·방향·연대·위치 주장은 삭제하거나 발췌 문장 범위로 축소한다. 발췌를 새로 추가하지 않는다.
+- 헤지·귀속 주체·세부(성별·관계·순서·위치·수량)는 발췌 수준으로 낮춘다 — 단정으로 올리거나 원저자 발언으로 바꾸거나 더 구체적으로 쓰지 않는다.
+- 지시어 참조를 깨뜨리지 않는다: 삭제한 표현을 되받는 진행(Y) 턴·콜백("아까 그 ~", "같은 매체")이 있으면 그 턴도 함께 고친다(fixes 에 포함). 매체 지시가 바뀌면 재명명한다.
+- 분량·턴 길이 지적(L0)이면: 해설 턴은 최대 6문장 — 문장을 합치거나 진행 턴의 되물음으로 나눈다. 분량 초과면 긴 턴의 풀어 쓰기를 줄인다(재료를 빼지 않는다).
+- 구간 헤더(\`### #n\`)·구역 헤더·턴 번호 체계는 바꾸지 않는다. 턴을 지워야 하면 after 를 빈 문자열로 (연번은 워커가 유지한다 — 지운 번호는 비워 둔다).
+- 같은 인용·문장을 다른 턴에서 이미 쓰고 있지 않은지 확인한다 (중복 낭독 금지).
+- 수정으로 새 비한글 표기(영문 용어·인명)를 도입했으면 pronunciations_added 에 한글 발음을 적는다.
+
+## 대본 규칙 (참조)
+${fence(i.guidelines)}
+
+## 대본 script.md (수정 대상 — 줄 문법: \`[윤아] E1 · 문장\` / \`[이음] Y1 · 문장\`)
+${fence(i.scriptMd)}
+
+## claims.md (쓸 수 있는 사실의 전부)
+${fence(i.claimsMd)}
+
+## sources.md (발췌 — 검증의 최종 기준)
+${fence(i.sourcesMd)}
+${i.outlineMd ? `\n## outline.md (구성안 — 구간 계약, 구조는 유지)\n${fence(i.outlineMd)}\n` : ""}
+## pronunciations.json
+${fence(i.pronunciationsJson)}
+
+## 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. fixes 의 turn 은 "E12"·"Y7" 처럼 턴 번호, after 는 그 턴의 **발화 전문**(화자 라벨·번호·가운뎃점 없이 문장만). before 는 바꾸기 전 발화의 앞 30자. 완료 보고 전에 다른 텍스트를 출력하지 않는다.`;
+}
+
+export const REVISION_INLINE_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["fixes", "pronunciations_added", "claims_note", "notes"],
+  properties: {
+    fixes: { type: "array", items: { type: "object", additionalProperties: false, required: ["turn", "before", "after", "why"], properties: { turn: { type: "string" }, before: { type: "string" }, after: { type: "string" }, why: { type: "string" } } } },
+    pronunciations_added: { type: "array", items: { type: "object", additionalProperties: false, required: ["term", "reading"], properties: { term: { type: "string" }, reading: { type: "string" } } } },
+    claims_note: { type: "string", description: "claims.md 끝에 붙일 'QA 반영' 절 본문 — 어떤 주장이 어떻게 축소·삭제됐는지" },
     notes: { type: "string" },
   },
 } as const;

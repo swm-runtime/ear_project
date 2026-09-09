@@ -40,6 +40,10 @@ export const cfg = {
   draftMode: (process.env.DRAFT_MODE === "single" ? "single" : "two-stage") as "single" | "two-stage",
   /** 2단계 단계별 모델 — 미설정이면 CLAUDE_MODEL(=CLI 기본). 설계는 정독·구조 판단, 대본은 문장이라 따로 둘 수 있게 */
   draftDesignModel: process.env.DRAFT_DESIGN_MODEL || "claude-opus-5", // 설계(구조·발췌 선택)는 opus 단발이 Fable 에이전트($5.45)의 절반 이하($2.26)로 같은 수준의 구성안을 냈다 (2026-09-08 C50)
+  /** 수정 재생성 형태 (2026-09-09): single = 인라인·도구 없음·바꿀 턴만 받아 워커가 치환 · agent = 구 방식(Read·Edit 루프). 기본 agent — 판정 3편 동안 현행 유지, 이후 single 로 */
+  revisionMode: (process.env.REVISION_MODE === "single" ? "single" : "agent") as "single" | "agent",
+  revisionModel: process.env.REVISION_MODEL || process.env.DRAFT_WRITE_MODEL || "claude-opus-5",
+  thinkingRevision: envInt("THINKING_REVISION", 4000),
   /** 설계 실행 형태 (2026-09-08 비용 절감 ③): single(기본) = 소스 본문을 코드가 가져와 인라인, 도구 없음, 발췌는 ID 선택 · agent = WebFetch·파일 쓰기 루프. DESIGN_MODE=agent 로 복귀 */
   designMode: (process.env.DESIGN_MODE === "agent" ? "agent" : "single") as "single" | "agent",
   draftWriteModel: process.env.DRAFT_WRITE_MODEL || "claude-opus-5", // 2026-09-08 박수헌: 판정용 3편을 opus-5 로 만들어 사람 판정으로 확정 (Fable 대본 ≈$4.5 → opus ≈$2). 되돌리려면 DRAFT_WRITE_MODEL=claude-fable-5-1

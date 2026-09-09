@@ -61,7 +61,7 @@ npm run worker                # 계속 폴링. 끄려면 Ctrl+C (진행 중 작�
 | **제품 발행 (게이트 2)** | **사람** | 에피소드 상단 [제품 발행] → 검수 체크 → 업로드 | — | 제품 발행 목록에 등장, 백로그 `published` |
 | 재발행·메타 수정 | 사람 | 에피소드 [재발행 — 오디오 교체] · 제품 발행 → 콘텐츠 상세 | — | 발행 이력에 기록 |
 
-편당 정가 환산 합계는 현재 구성(설계·대본 opus-5, QA Sonnet 5, 비평 opus-5, 단발 호출)에서 **약 $6** 를 목표로 실측 중이다(구 방식 $13~20). LLM 비용은 구독이라 실제 청구는 없고, TTS만 실비다.
+**비용 목표(2026-09-09 박수헌): 대본 생성 완료(설계 + 대본 + L0 수정 + QA 통과)까지 편당 $1.5.** 상한이 아니라 목표다. 현재 구성(설계·대본 opus-5, QA Sonnet 5, 단발 호출)의 실측은 약 $6 (T260909-002: 3.48 + 1.92 + 0.65), 구 방식은 $13~20. 비평은 별도(약 $2). LLM 비용은 구독이라 실제 청구는 없고, TTS만 실비다.
 
 ## 5. 막혔을 때 — 상황별 대처
 
@@ -86,6 +86,7 @@ npm run worker                # 계속 폴링. 끄려면 Ctrl+C (진행 중 작�
 |---|---|---|
 | `DRAFT_MODE` | `two-stage` | 초안 2단계(설계→대본). `single`=구 방식 |
 | `DESIGN_MODE` / `QA_MODE` | `single` | 단발 호출(도구 없음). `agent`=에이전트 루프 |
+| `REVISION_MODE` | `agent` | QA·L0 수정 재생성. `single`=바꿀 턴만 받아 워커가 치환(스모크 $1.92 → $0.89). 판정 3편이 끝나면 `single`로 |
 | `DRAFT_DESIGN_MODEL` / `DRAFT_WRITE_MODEL` | `claude-opus-5` | 설계·대본 모델. Fable 로 되돌리려면 `claude-fable-5-1` |
 | `QA_MODEL` / `CRITIC_MODEL` / `CLUSTER_MODEL` | Sonnet 5 / opus-5 / opus-5 | 판정·군집화 모델. QA·비평 모델 변경은 회귀 세트 재검증(spec/09 7.4) |
 | `THINKING_QA` / `THINKING_DESIGN` / `THINKING_WRITE` / `THINKING_CRITIC` | 6000 / 8000 / 8000 / 없음 | 생각 토큰 상한. `none`=상한 없음 |

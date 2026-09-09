@@ -161,7 +161,22 @@ export function twoStageViolations(scriptMd: string, outlineMd: string): string[
   if (est && s.minutes > est * 1.6) v.push(`분량 ${s.chars}자(약 ${s.minutes}분) — 구성안 예상 ${est}분의 1.6배 초과. 재료를 빼지 말고 해설 턴의 풀어 쓰기를 줄여 예상 분량(±15%)에 맞춘다 (긴 턴부터: 7문장 이상 턴, 같은 말의 재서술)`);
   // 해설 턴 길이: 규격은 평균 2~5문장 — 7문장 이상 턴은 낭독 호흡이 무너진다
   const p = parseScriptForTts(scriptMd);
-  const long = p.turns.filter((t) => t.id?.startsWith("E") && (t.text.match(/[.!?…]+(\s|$)/g)?.length ?? 0) >= 7).map((t) => t.id);
+  const sentences = (t: string) => (t.replace(/\.{2,}|…/g, " ").match(/[.!?](\s|$)/g)?.length ?? 0); // 말줄임표(뜸, 규칙 7)는 문장 종결로 세지 않는다
+  const long = p.turns.filter((t) => t.id?.startsWith("E") && sentences(t.text) >= 7).map((t) => t.id);
   if (long.length) v.push(`해설 턴 ${long.length}개가 7문장 이상 (${long.slice(0, 8).join(", ")}${long.length > 8 ? " …" : ""}) — 한 턴 최대 6문장. 문장을 합치거나 진행 턴의 되물음으로 나눈다`);
+  // 귀속 과밀 (guidelines 규칙 20~22, 2026-09-09): 해설 턴 중 귀속 표현이 있는 턴이 60% 를 넘으면 소스 순회로 본다
+  // 독후감 화법 (규칙 23): 해설자가 소스를 읽은 경험·감상으로 말하는 턴
+  const reader = p.turns.filter((t) => t.id?.startsWith("E") && /(읽어보니|읽다가|읽었어요|읽으면서|읽고 나서|읽어 봤|읽어봤|부분에서 멈췄|대목에서 멈췄|인상적이었|인상적이에요|인상 깊|와닿았|저도 그렇게 읽)/.test(t.text)).map((t) => t.id);
+  if (reader.length) v.push(`해설 턴 ${reader.length}개가 읽은 경험·감상으로 말함 (${reader.slice(0, 8).join(", ")}) — 해설자는 독자가 아니라 아는 사람이다. 내용을 직접 말한다 (규칙 23)`);
+  const a = attributionStats(p.turns);
+  if (a.eTurns >= 10 && a.ratio > 0.6) v.push(`해설 턴 ${a.eTurns}개 중 ${a.attributed}개(${Math.round(a.ratio * 100)}%)에 귀속 표현("~에 따르면"·"라고 합니다"·"이 글/기사는"·매체명)이 있음 — 소스 순회. 개념·원리·정의는 해설자의 말로 바꾸고, 이름은 근거 앵커·직접 인용에만 (규칙 20~22)`);
   return v;
+}
+
+/** 귀속 표현이 있는 해설 턴의 비율 — 규칙 22 의 자기 점검 지표. 매체·저자 고유명은 알 수 없으니 전언·지시 표현으로 잰다 */
+export function attributionStats(turns: { id: string | null; text: string }[]): { eTurns: number; attributed: number; ratio: number } {
+  const re = /(에 따르면|라고 합니다|라고 해요|라고 하는데요|고 합니다|고 해요|다고 적|이 글|그 글|이 기사|그 기사|같은 글|같은 기사|아까 그|저자는|저자가|필자는|연구진은|연구진이|연구팀은|기사는|글은|글에서|기사에서|논문에서|보고서에서|책에서)/;
+  const e = turns.filter((t) => t.id?.startsWith("E"));
+  const attributed = e.filter((t) => re.test(t.text)).length;
+  return { eTurns: e.length, attributed, ratio: e.length ? attributed / e.length : 0 };
 }
