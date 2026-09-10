@@ -189,6 +189,12 @@ export async function putFile(key: string, body: Buffer | string, contentType = 
   await storage().put(assertKey(key), Buffer.isBuffer(body) ? body : Buffer.from(body, "utf-8"), contentType);
 }
 
+/** 파일 하나 읽기 — 로컬 캐시가 있으면 그것, 없으면 저장소에서 (디렉토리 전체 동기화 없이 산출물 한 개만 볼 때) */
+export async function getFile(key: string): Promise<string | null> {
+  const local = localPathOf(key);
+  if (local) { try { return await fs.readFile(local, "utf8"); } catch {} }
+  try { return (await storage().get(assertKey(key.replace(/^(s3|local):/, "")))).toString("utf8"); } catch { return null; }
+}
 /** DB 키 → 로컬 캐시 경로. `s3:` 가 정규, `local:`·접두사 없음은 이관 전 기록(같은 상대 경로) */
 export function localPathOf(key: string | null | undefined): string | undefined {
   if (!key) return undefined;

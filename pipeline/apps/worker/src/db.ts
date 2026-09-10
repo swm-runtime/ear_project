@@ -179,6 +179,27 @@ export async function usedSourceUrls(): Promise<Set<string>> {
   const r = await pool.query("select jsonb_array_elements(sources)->>'url' as url from public.backlog where status in ('drafted','qa_passed','packaged','published','review_required','claimed')");
   return new Set(r.rows.map((x) => x.url as string).filter(Boolean));
 }
+/** 살아 있는 후보(반려·만료 제외)가 쓴 소스 URL → 후보 ID 목록 (2026-09-10, T260910-005↔013): 군집화 v2 가 같은 소스 2건 이상 겹치는 후보를 표시한다 — 막지는 않는다 */
+export async function liveCandidateSources(): Promise<Map<string, string[]>> {
+  const r = await pool.query("select id, jsonb_array_elements(sources)->>'url' as url from public.backlog where status not in ('rejected','expired')");
+  const m = new Map<string, string[]>();
+  for (const x of r.rows) { if (!x.url) continue; const a = m.get(x.url) ?? []; a.push(x.id); m.set(x.url, a); }
+  return m;
+}
+/** 이 URL 들을 소스로 쓴 **다른 후보의 에피소드** (설계 산출물이 있는 것만): 설계 단계가 그 편의 발췌 문단을 제외한다 — 같은 소스를 써도 같은 대목은 두 번 풀지 않게 */
+export async function priorEpisodesUsingUrls(urls: string[], excludeBacklogId: string): Promise<{ episode_id: string; backlog_id: string; title: string; sources_key: string | null; urls: string[] }[]> {
+  if (!urls.length) return [];
+  const r = await pool.query(
+    `select e.id as episode_id, b.id as backlog_id, b.title, e.sources_key,
+            array(select s->>'url' from jsonb_array_elements(b.sources) s where s->>'url' = any($1)) as urls
+       from public.episodes e join public.backlog b on b.id = e.backlog_id
+      where b.id <> $2 and b.status not in ('rejected','expired') and e.sources_key is not null
+        and exists (select 1 from jsonb_array_elements(b.sources) s where s->>'url' = any($1))
+      order by e.id`,
+    [urls, excludeBacklogId],
+  );
+  return r.rows;
+}
 /** 중복 대조는 전 중분류 대상 — 축이 겹치는 후보가 다른 중분류로 들어오는 것을 막는다 (C32↔C26 사례, 2026-08-29) */
 export async function existingBacklogTitles(): Promise<string[]> {
   const r = await pool.query("select id || ' [' || mid_topic || '] ' || title as t from public.backlog where status not in ('rejected','expired') order by id");

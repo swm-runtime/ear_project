@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import { cfg, executedBy } from "../config.js";
-import { domainTierByHost, existingBacklogTitles, insertBacklogAlloc, insertRun, midsOfMajor, nextBacklogNumber, recentSourcesForTopics, setJobProgress, usedSourceUrls, type Job, recordFetchStatus, refreshDomainFetchBlock } from "../db.js";
+import { domainTierByHost, existingBacklogTitles, insertBacklogAlloc, insertRun, liveCandidateSources, midsOfMajor, nextBacklogNumber, recentSourcesForTopics, setJobProgress, usedSourceUrls, type Job, recordFetchStatus, refreshDomainFetchBlock } from "../db.js";
 import { robotsAllows } from "../sources/fetch.js";
 import type { Executor } from "../executors/index.js";
 import { assetPaths, buildClusterPromptV2, CLUSTER_SCHEMA_V2, SOURCE_ROLES } from "@ear/pipeline";
@@ -40,7 +40,7 @@ export async function runClusterV2(job: Job, ex: Executor) {
   const sources = pool0.filter((s) => !blockedUrls.has(s.url));
   if (blockedUrls.size) log(`  cluster v2 ${major || mid}: robots 차단 ${blockedUrls.size}건 제외 (검사 ${unchecked.length}건, 기록됨)`);
   if (sources.length < 5) throw new Error(`${major || mid} 최근 소스가 ${sources.length}건 — 군집화 v2 불가(5건 하한)`);
-  const [existing, nextN, used, tiers] = await Promise.all([existingBacklogTitles(), nextBacklogNumber(), usedSourceUrls(), domainTierByHost()]);
+  const [existing, nextN, used, tiers, liveSrc] = await Promise.all([existingBacklogTitles(), nextBacklogNumber(), usedSourceUrls(), domainTierByHost(), liveCandidateSources()]);
   const { assetRoot, bundle } = await prepareAssets(null);
   const specBacklog = await fs.readFile(assetPaths(assetRoot, cfg.workRoot).specBacklog, "utf8");
   const excerpt = ["## 3. 후보의 구성", "## 6. 게이트 1"].map((h) => { const a = specBacklog.indexOf(h); if (a < 0) return ""; const b = specBacklog.indexOf("\n## ", a + 3); return specBacklog.slice(a, b < 0 ? undefined : b); }).join("\n");
@@ -70,15 +70,22 @@ export async function runClusterV2(job: Job, ex: Executor) {
     const gaps = Array.from(new Set([...c.gaps, ...SOURCE_ROLES.filter((role) => !roleSet.has(role) && (role === "근거 앵커" || role === "사례"))]));
     const ok = c.verdict === "성립" && problems.length === 0;
     const diversity = `발행처 ${pubs.size}곳 · 최다 ${Math.round(maxShare * 100)}% · 역할 ${roleSet.size}종`;
+    // 소스 겹침 표시 (2026-09-10, T260910-005↔013): 살아 있는 다른 후보(같은 실행에서 방금 넣은 것 포함)와 URL 이 2건 이상 겹치면 승인 화면에 배지로 보인다.
+    // 막지 않는다 — 같은 소스를 써도 설계 단계가 그 편이 쓴 문단을 제외하므로 같은 대목이 두 번 풀리지는 않는다. 승인자가 같은 이야기인지 보고 고른다.
+    const overlapBy = new Map<string, number>();
+    for (const s of srcs) for (const other of liveSrc.get(s.url) ?? []) overlapBy.set(other, (overlapBy.get(other) ?? 0) + 1);
+    const overlaps = [...overlapBy].filter(([, n]) => n >= 2).sort((a, b) => b[1] - a[1]).map(([id, n]) => `${id} ${n}건`);
+    const overlapNote = overlaps.length ? `⚠️ 소스 겹침: ${overlaps.join(", ")} | ` : "";
     const id = await insertBacklogAlloc({
       mid_topic: mids.includes(c.mid_topic) ? c.mid_topic : mids[0], title: c.title, summary: c.axis_note, target_fit: c.target_fit,
       angle: `${c.axis_note}\n예상 착지: ${c.landing}`,
       sources: srcs.map((s) => ({ url: s.url, tier: tiers.get(hostOf(s.url)) ?? tiers.get(s.domain) ?? "candidate", title: s.title, backbone: s.roles.includes("근거 앵커"), published: s.published, publisher: s.domain, roles: s.roles, role_why: s.why })),
       status: ok ? "proposed" : "held",
       axis: c.axis, axis_type: c.axis_type, gaps: ok ? [] : gaps, cluster_version: "v2",
-      dedup_note: `${ok ? "성립" : `보강 필요 (${[...problems, ...(c.gaps.length ? ["빈 역할 " + c.gaps.join("·")] : [])].join(", ")})`} · ${diversity} · ${c.dedup_note} · 워커 군집화 v2 ${job.id.slice(0, 8)} (${r.model ?? ex.kind})`,
+      dedup_note: `${overlapNote}${ok ? "성립" : `보강 필요 (${[...problems, ...(c.gaps.length ? ["빈 역할 " + c.gaps.join("·")] : [])].join(", ")})`} · ${diversity} · ${c.dedup_note} · 워커 군집화 v2 ${job.id.slice(0, 8)} (${r.model ?? ex.kind})`,
     });
-    (ok ? inserted : held).push(`${id} ${c.title} (${srcs.length}건, ${diversity})`);
+    for (const s of srcs) liveSrc.set(s.url, [...(liveSrc.get(s.url) ?? []), id]); // 같은 실행의 다음 후보와도 대조
+    (ok ? inserted : held).push(`${id} ${c.title} (${srcs.length}건, ${diversity}${overlaps.length ? `, 소스 겹침 ${overlaps.join("·")}` : ""})`);
   }
   // 원본 결과를 S3 에 남긴다 (2026-09-09): ID 충돌로 삽입이 유실됐을 때 실행 기록 요약만으로는 복구가 안 됐다 (M-ID·역할·축 소실)
   const artifactKey = `sweeps/cluster-v2/${new Date().toISOString().slice(0, 10)}-${(major || mid).replace(/[^\p{L}\p{N}]+/gu, "_")}-${job.id.slice(0, 8)}.json`;
