@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { cfg, executedBy } from "../config.js";
 import { getBacklog, getEpisode, getSetting, insertRun, majorOfMidTopic, pool, setJobProgress, type Job } from "../db.js";
-import { THUMBNAIL_PROMPT_KEY, workerRev } from "../assets.js";
+import { THUMBNAIL_ANCHOR_PROMPT_KEY, THUMBNAIL_PROMPT_KEY, workerRev } from "../assets.js";
 import { exists, localPathOf, pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { log } from "../util.js";
 
@@ -84,16 +84,22 @@ export async function runThumbnail(job: Job) {
   const oneLiner = firstNonEmpty(row.rows[0]?.one_liner, cand.axis, row.rows[0]?.summary);
   if (!oneLiner) throw new Error(`{핵심 개념}에 넣을 문장이 없다 (one_liner·axis·summary 모두 비었음): ${episodeId}`);
 
-  const template = await loadThumbnailPrompt();
-  const prompt = fillSlots(template.content, {
-    "{제목}": cand.title,
-    "{주제 분류}": cand.mid_topic,
-    "{핵심 개념}": oneLiner,
-    "{띠 색}": bandColor,
-  });
+  const template = await loadAsset(THUMBNAIL_PROMPT_KEY);
+  const anchor = await loadAnchor();
+  // 앵커가 있을 때만 참조 지시를 덧붙인다 — 없는데 붙이면 "첨부 이미지"를 가리키는 문장이 허공을 가리킨다
+  const anchorRule = anchor ? await loadAsset(THUMBNAIL_ANCHOR_PROMPT_KEY) : null;
+  const promptVersion = anchorRule ? `${template.version}+${anchorRule.version}` : template.version;
+  const prompt = fillSlots(
+    [promptBody(template.content), anchorRule && promptBody(anchorRule.content)].filter(Boolean).join("\n\n"),
+    {
+      "{제목}": cand.title,
+      "{주제 분류}": cand.mid_topic,
+      "{핵심 개념}": oneLiner,
+      "{띠 색}": bandColor,
+    },
+  );
 
   // ── 생성 ──
-  const anchor = await loadAnchor();
   await progress(`${cfg.thumbnailModel} · ${cfg.thumbnailQuality}${anchor ? " · 앵커 참조" : ""}`);
   const started = Date.now();
   const png = anchor ? await editImage(prompt, anchor) : await generateImage(prompt);
@@ -108,13 +114,13 @@ export async function runThumbnail(job: Job) {
 
   const cost = cfg.thumbnailUsdPerImage ?? PRICE_PER_IMAGE[cfg.thumbnailModel]?.[cfg.thumbnailQuality];
   const kb = Math.round(png.length / 1024);
-  const result = `썸네일 생성 — ${cfg.thumbnailModel}/${cfg.thumbnailQuality} ${cfg.thumbnailSize} · ${kb}KB · ${(elapsedMs / 1000).toFixed(1)}초${anchor ? " · 스타일 앵커 참조" : " · 앵커 없음(화풍 미고정)"} · 띠 ${bandColor} · 프롬프트 ${template.version} · 사람 확인 대기`;
+  const result = `썸네일 생성 — ${cfg.thumbnailModel}/${cfg.thumbnailQuality} ${cfg.thumbnailSize} · ${kb}KB · ${(elapsedMs / 1000).toFixed(1)}초${anchor ? " · 스타일 앵커 참조" : " · 앵커 없음(화풍 미고정)"} · 띠 ${bandColor} · 프롬프트 ${promptVersion} · 사람 확인 대기`;
   log(`  thumbnail ${episodeId}: ${key} (${kb}KB, ${(elapsedMs / 1000).toFixed(1)}초)`);
   await insertRun({
     backlog_id: backlogId,
     phase: "thumbnail",
     result,
-    prompt_version: template.version,
+    prompt_version: promptVersion,
     artifacts: [key],
     executed_by: executedBy,
     model: cfg.thumbnailModel,
@@ -126,16 +132,38 @@ export async function runThumbnail(job: Job) {
 }
 
 /** 프롬프트의 진실은 DB 다 (spec/10 3.2) — git 사본으로 조용히 폴백하지 않는다. 시딩: npm run assets:import */
-async function loadThumbnailPrompt(): Promise<{ version: string; content: string }> {
+async function loadAsset(key: string): Promise<{ version: string; content: string }> {
   const r = await pool.query<{ version: string; content: string }>(
     "select version, content from public.prompt_assets where status = 'active' and key = $1",
-    [THUMBNAIL_PROMPT_KEY],
+    [key],
   );
   const row = r.rows[0];
   if (!row) {
-    throw new Error(`prompt_assets 에 active 자산이 없다: ${THUMBNAIL_PROMPT_KEY} — 시딩(npm run assets:import) 후 웹 /assets 에서 활성화`);
+    throw new Error(`prompt_assets 에 active 자산이 없다: ${key} — 시딩(npm run assets:import) 후 웹 /assets 에서 활성화`);
   }
   return row;
+}
+
+/**
+ * 자산 파일에서 **모델에게 보낼 본문만** 잘라낸다.
+ *
+ * 자산은 사람이 읽는 문서이기도 해서 제목·개정 이력·부록 표가 함께 들어 있다. 그대로 보내면
+ * **폐기된 지시가 프롬프트에 섞인다** — 개정 이력에는 "사선 띠", "둥근 모서리를 그려" 같은
+ * 이전 판의 문구가 설명을 위해 그대로 인용돼 있다(2026-09-10 발견). 부록의 대분류 색 표도
+ * 8색을 전부 보여주는데 정작 쓰는 것은 슬롯에 채운 하나뿐이다.
+ *
+ * 자르는 규칙: 맨 앞의 `# 제목`과 이어지는 `>` 인용 블록(메타·개정 이력)을 버리고,
+ * 단독 `---` 줄이 나오면 그 뒤(부록)를 전부 버린다.
+ */
+function promptBody(content: string): string {
+  const lines = content.split("\n");
+  let start = 0;
+  while (start < lines.length && (lines[start].startsWith("# ") || lines[start].startsWith(">") || lines[start].trim() === "")) {
+    start++;
+  }
+  const rest = lines.slice(start);
+  const endIndex = rest.findIndex((line) => line.trim() === "---");
+  return (endIndex === -1 ? rest : rest.slice(0, endIndex)).join("\n").trim();
 }
 
 /**
@@ -174,7 +202,8 @@ async function generateImage(prompt: string): Promise<Buffer> {
 async function editImage(prompt: string, anchor: Buffer): Promise<Buffer> {
   const form = new FormData();
   form.set("model", cfg.thumbnailModel);
-  form.set("prompt", `${prompt}\n\n[화풍 참조]\n첨부한 이미지와 같은 화풍·질감·구도 감각으로 그리세요. 첨부 이미지의 소재를 그대로 쓰지는 마세요 — 위 [주제]를 표현하되 스타일만 맞춥니다.`);
+  // 참조 지시는 프롬프트 자산(skills/thumbnail/anchor.md)이 소유한다 — 여기서 문구를 만들지 않는다
+  form.set("prompt", prompt);
   form.set("size", cfg.thumbnailSize);
   form.set("quality", cfg.thumbnailQuality);
   form.set("n", "1");
