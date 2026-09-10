@@ -18,6 +18,30 @@ const toMinutes = (durationSec: number): number => Math.max(1, Math.round(durati
 const WIDTH_RATIO = 0.78;
 const MAX_WIDTH = 340;
 
+interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * 측정된 카드 사각형에서 **썸네일 사각형만** 잘라낸다.
+ *
+ * 코치마크가 카드 전체를 뚫으면 구멍이 화면 높이의 8할을 차지해 설명을 둘 자리가 남지 않는다
+ * (제목 두 줄 + 재생 알약까지 합친 높이다). 가리키려는 것은 "담을 수 있는 콘텐츠"이고 그건
+ * 썸네일로 충분하다.
+ *
+ * **이 계산은 아래 `card`·`artworkFrame` 스타일에 묶여 있다** — 썸네일은 카드 패딩 안쪽의
+ * 정사각형(`width: '100%'` + `aspectRatio: 1`)이다. 둘 중 하나를 바꾸면 여기도 바꾼다.
+ * 그래서 카드를 쓰는 쪽이 짐작하지 않도록 이 파일이 함께 소유한다.
+ */
+export const featuredCardArtworkRect = (card: Rect): Rect => {
+  const inset = theme.spacing.md;
+  const size = Math.max(0, card.w - inset * 2);
+  return { x: card.x + inset, y: card.y + inset, w: size, h: size };
+};
+
 /**
  * 인기 섹션의 큰 카드 — 가로 캐러셀의 항목이다.
  * 정보 구성은 목록 행(ExploreContentRow)과 같다: 썸네일·출처·저자·제목·길이.

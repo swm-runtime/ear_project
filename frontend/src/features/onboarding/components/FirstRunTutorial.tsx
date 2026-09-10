@@ -23,6 +23,7 @@ import {
   ExploreTile,
   PopularPeriodToggle,
   TopicChips,
+  featuredCardArtworkRect,
   type ExploreItem,
   type ExploreTopic,
 } from '@/features/explore';
@@ -231,9 +232,15 @@ export default function FirstRunTutorial() {
   /**
    * onLayout 이 주는 값은 **부모 기준 상대 좌표**라 가려막(화면 전체)의 구멍 좌표로 쓸 수 없다.
    * 배치가 끝난 시점을 onLayout 으로 알고, 좌표는 measureInWindow 로 화면 기준을 받는다.
+   *
+   * `crop` 은 잰 사각형에서 실제로 뚫을 부분만 잘라낸다 — 탐색 단계는 카드 전체가 아니라
+   * 썸네일만 뚫는다(카드 전체는 화면 높이의 8할이라 설명을 둘 자리가 남지 않는다).
    */
-  const measure = () => {
-    targetRef.current?.measureInWindow((x, y, w, h) => setMarkRect({ x, y, w, h }));
+  const measure = (crop?: (r: Rect) => Rect) => () => {
+    targetRef.current?.measureInWindow((x, y, w, h) => {
+      const measured = { x, y, w, h };
+      setMarkRect(crop ? crop(measured) : measured);
+    });
   };
 
   return (
@@ -259,8 +266,11 @@ export default function FirstRunTutorial() {
                   data={[exploreItem(0), exploreItem(1)]}
                   keyExtractor={(item) => item.content.id}
                   renderItem={({ item, index }) => (
-                    // 첫 카드만 측정한다 — 가리키는 것은 카드 하나다
-                    <View ref={index === 0 ? targetRef : undefined} onLayout={index === 0 ? measure : undefined}>
+                    // 첫 카드만 측정한다 — 가리키는 것은 카드 하나다. 구멍은 그중 썸네일만이다
+                    <View
+                      ref={index === 0 ? targetRef : undefined}
+                      onLayout={index === 0 ? measure(featuredCardArtworkRect) : undefined}
+                    >
                       <ExploreFeaturedCard item={item} onPress={noop} onMorePress={noop} />
                     </View>
                   )}
@@ -297,13 +307,12 @@ export default function FirstRunTutorial() {
             <LibraryTabs filter="all" onChange={noop} topicFilterCount={0} onFilterPress={noop} />
             <ScrollView scrollEnabled={false} contentContainerStyle={styles.list}>
               {current.stage === 'drip' ? (
-                <View ref={targetRef} style={styles.dripRow} onLayout={measure}>
+                <View ref={targetRef} style={styles.dripRow} onLayout={measure()}>
                   <Text style={styles.dripLabel}>오늘 아침 도착 · 2편</Text>
                 </View>
               ) : null}
-              <View onLayout={current.stage === 'library' ? undefined : undefined}>
-                <LibraryItemCard item={libraryItem(0)} onPress={noop} onMorePress={noop} />
-              </View>
+              {/* 라이브러리 단계가 가리키는 것은 카드가 아니라 탭바다(libraryTab) — 여기는 재지 않는다 */}
+              <LibraryItemCard item={libraryItem(0)} onPress={noop} onMorePress={noop} />
               <LibraryItemCard item={libraryItem(1)} onPress={noop} onMorePress={noop} />
               <LibraryItemCard item={libraryItem(2)} onPress={noop} onMorePress={noop} />
             </ScrollView>
@@ -468,16 +477,6 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.md,
     color: 'rgba(255,255,255,0.78)',
     lineHeight: theme.font.size.md * 1.5,
-  },
-  /** 손으로 적어 둔 메모처럼 — 말풍선을 씌우면 정작 가리키는 화면이 가려진다 */
-  note: {
-    position: 'absolute',
-    left: theme.spacing.lg,
-    maxWidth: '66%',
-    color: theme.color.onPrimary,
-    fontSize: theme.font.size.md,
-    fontWeight: '700',
-    lineHeight: theme.font.size.md * 1.4,
   },
   skip: {
     position: 'absolute',
