@@ -20,7 +20,7 @@ import { runDesignSingle } from "./design-single.js";
  * 설계 산출물이 이미 있으면(재집기·2단계만 실패) 설계를 건너뛴다.
  */
 export interface DesignOut { axis: string; axis_type: string; landing_section: number; sections: { n: number; title: string; sources: string[]; ratio: number }[]; excerpts: number; claims: number; estimated_minutes: number; split_proposal: string; sources_used: string[]; sources_excluded: { url: string; reason: string }[]; gaps: string[]; self_check: string; notes: string }
-export interface WriteOut { title: string; script: string; sections_followed: boolean; turn_claims: { turn: string; claims: string[] }[]; bridges: { turn: string; note: string }[]; pronunciations_added: { term: string; reading: string }[]; self_check_fixes: string[]; notes: string }
+export interface WriteOut { title: string; script: string; sections_followed: boolean; turn_claims: { turn: string; claims: string[] }[]; bridges: { turn: string; note: string }[]; terms?: { term: string; turn: string; explained_by: string }[]; pronunciations_added: { term: string; reading: string }[]; self_check_fixes: string[]; notes: string }
 
 export interface TwoStageArgs {
   job: Job; ex: Executor; episodeId: string; candidate: BacklogCandidate; dir: string; rel: string;
@@ -118,6 +118,8 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
     ...(o.bridges.length ? o.bridges.map((b) => `- ${b.turn} · ${b.note}`) : ["- 없음"]), "",
     "## 자기 점검 수정",
     ...(o.self_check_fixes.length ? o.self_check_fixes.map((f) => `- ${f}`) : ["- 없음"]), "",
+    "## 용어 풀이 (규칙 24 — 어디서 풀었나)",
+    ...((o.terms ?? []).length ? (o.terms ?? []).map((t) => `- ${t.term} · ${t.turn} → ${t.explained_by}`) : ["- 없음"]), "",
     "## 해설 턴별 사용 claims",
     "| 턴 | claims |", "|---|---|",
     ...o.turn_claims.map((t) => `| ${t.turn} | ${t.claims.join(", ")} |`), "",
@@ -182,8 +184,17 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
   const statRe = /(유의하|유의미|유의했|유의한|상호작용\s?효과|매개\s?(효과|분석|변인)|매개했|매개하|정적\s?(관계|상관)|부적\s?(관계|상관)|변인|효과\s?크기|표본\s?크기|회귀\s?계수)/; // "상호작용" 단독은 일상어라 제외
   const stat = p.turns.filter((t) => t.id?.startsWith("E") && statRe.test(t.text)).map((t) => t.id);
   if (stat.length) v.push(`해설 턴 ${stat.length}개에 통계 용어(유의·매개·정적/부적 관계·변인·효과 크기) (${stat.slice(0, 8).join(", ")}) — 말로 옮긴다: "같이 움직였다", "~할수록 ~했다", "A 가 B 를 거쳐 C 로" (규칙 24)`);
+  // 뜸 부재 (규칙 7, 판정 3편 A7 전부 동의 "수정 필요"): 해설 턴이 말줄임표 없이 열 턴 넘게 이어지면 낭독
+  const eTurns = p.turns.filter((t) => t.id?.startsWith("E"));
+  let gap = 0, maxGap = 0, gapEnd: string | null = null;
+  for (const t of eTurns) { if (/\.{3}|…/.test(t.text)) gap = 0; else { gap++; if (gap > maxGap) { maxGap = gap; gapEnd = t.id; } } }
+  if (maxGap >= 10) v.push(`해설 턴 ${maxGap}개가 연속으로 뜸(말줄임표) 없이 이어짐 (${gapEnd} 까지) — 긴 해설 구간에 문장 중간 뜸 "..." 을 둔다 (규칙 7). 낭독이 아니라 말이어야 한다`);
+  // 골드 특유 문구 (골드 사용법·루브릭 G1, 판정 3편 전부 동의): 자리째 복제 틀이 2회 이상이면 재생성
+  const goldRe = /(그 그림이 (맞|정확)|정확한 표현이|정확히 [^.。!?]{1,14}(핵심|조각|얘기|그거)|한 번쯤 떠올려 보셔도|짧게 모아|한번 모아볼까요|그런데 (윤아|이음)님은 어떠세요|솔직히 반반|예리하세요)/;
+  const gold = p.turns.filter((t) => goldRe.test(t.text)).map((t) => t.id ?? "?");
+  if (gold.length >= 2) v.push(`골드 특유 문구가 ${gold.length}턴 (${gold.slice(0, 6).join(", ")}) — 확인구·역질문 진입·마무리 마지막 문장 틀을 자리째 쓰지 않는다. 같은 기능을 새 문장으로 (골드 사용법)`);
   const a = attributionStats(p.turns);
-  if (a.eTurns >= 10 && a.ratio > 0.6) v.push(`해설 턴 ${a.eTurns}개 중 ${a.attributed}개(${Math.round(a.ratio * 100)}%)에 귀속 표현("~에 따르면"·"라고 합니다"·"이 글/기사는"·매체명)이 있음 — 소스 순회. 개념·원리·정의는 해설자의 말로 바꾸고, 이름은 근거 앵커·직접 인용에만 (규칙 20~22)`);
+  if (a.eTurns >= 10 && a.ratio > 0.5) v.push(`해설 턴 ${a.eTurns}개 중 ${a.attributed}개(${Math.round(a.ratio * 100)}%)에 귀속 표현("~에 따르면"·"라고 합니다"·"이 글/기사는"·매체명)이 있음 — 절반 초과, 소스 순회. 개념·원리·정의는 해설자의 말로 바꾸고, 이름은 근거 앵커·직접 인용에만 (규칙 20~22)`);
   return v;
 }
 
