@@ -33,3 +33,18 @@
 
 - Given 결정 / When 이 티켓을 본다 / Then `content_control_requests`의 (a)/(b)와 근거가 기록돼 있다
 - Given (a) 채택 / When 회수·복구가 일어난다 / Then 요청 이력 행이 남는다 · Given (b) 채택 / When domain.md 10.2를 본다 / Then `audit_logs`로 갈음함이 적혀 있다
+
+## 처리 기록 (반영 날짜: 2026-09-10 — 결정 기록으로 종결)
+
+**`content_control_requests`: (b) 채택** — 테이블을 만들지 않고 `audit_logs`로 갈음한다.
+
+- 근거(코드): 회수·복구·영구 정리는 운영자가 어드민 콘솔에서 실행하고 `admin-content.service`가 `audit_logs`에 `actor`·`action`·`before/after`(사유 포함)를 남긴다. 파트너 포털이 없고, `exclude`는 코드 자체가 없으며, 실서버 파트너 콘텐츠는 0건이다. 지금 테이블을 만들면 같은 클릭에 동일 정보가 두 벌 쌓이고, 10.2의 고유 컬럼(`requested_by`·`requested_at`·`status = pending`·`applied_surfaces`)은 채울 주체가 없다.
+- 남는 공백 "파트너 측 요청자·요청일"은 회수 사유란 운영 규칙으로 처리한다. 필요해지면 withdraw 요청 본문에 선택 필드로 구조화하는 것이 테이블보다 싸다.
+- **(a)로 돌아가는 조건**(`domain.md` 10.2에 기록): ① 파트너 포털(파트너가 직접 요청 → `pending` 존재) ② `exclude`의 파이프라인 소스 풀 연동 ③ 회수 반영이 노출면별 비동기 배치가 되어 `applied_surfaces` 추적이 필요할 때.
+- 문서: `domain.md` 10.2 개정(백엔드 소유, 같은 PR) · `partner-control.md` 4.1·표는 `changes/pending/partner-control-request-history-mvp.md`로 요청.
+
+**나머지 3종은 결정할 것이 없다** — 쓰는 코드가 생기는 PR에서 마이그레이션을 동반한다.
+- `purchase_intents` · `store_notification_logs` → `subscription-receipt-verification` 티켓 착수 시
+- `content_scripts` → FR-25(P1) 착수 시
+
+마이그레이션 0건. 완료 조건("(a)/(b)와 근거가 기록돼 있다")을 충족해 archive.

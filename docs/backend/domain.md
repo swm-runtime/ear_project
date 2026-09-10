@@ -1153,6 +1153,17 @@ idx_content_control_requests_partner_id_requested_at (partner_id, requested_at D
 - FR-32는 P0다. **회수는 계약 이행 수단이므로 반영 로직 자체는 반드시 구현한다**(`partner-control.md` 2). MVP에서 파트너 포털을 만들지 않고 운영자가 대행하더라도 요청 이력은 남긴다.
 - 회수 처리 결과는 `contents.status = withdrawn` + `withdrawn_at`에 반영된다.
 
+> **MVP 구현 상태(결정 2026-09-10) — 이 테이블은 아직 만들지 않는다. 요청 이력은 `audit_logs`(10.3)가 맡는다.**
+>
+> 운영자가 어드민 콘솔에서 대행하는 회수·복구·영구 정리는 전부 `audit_logs`에 `actor`·`action`(`content.withdraw`·`content.restore`·`content.purge_storage`)·`before/after`(사유 `reason` 포함)로 남고 있어, 같은 클릭에 이 테이블까지 쓰면 동일 정보가 두 벌이 된다. 위 컬럼 중 `requested_by`·`requested_at`·`status = pending`·`applied_surfaces`는 채울 주체(파트너 포털·비동기 반영)가 없어 상수나 손입력이 된다. **파트너 측 요청자·요청일은 회수 사유란(`reason`)에 적는 것을 운영 규칙으로 한다.**
+>
+> **다음 중 하나가 생기면 이 정의대로 테이블을 만들고 이 블록을 지운다**(그때는 "요청 → 반영"의 상태 전이가 실제로 존재한다):
+> 1. 파트너 포털 — 파트너가 직접 요청을 넣어 `pending` 상태가 생길 때
+> 2. 사전 제외(`exclude`, `partner-control.md` 4.1)를 파이프라인 소스 풀과 연동해 자동 반영할 때
+> 3. 회수 반영이 노출면별 비동기 배치로 나뉘어 `applied_surfaces` 추적이 필요할 때
+>
+> 컬럼 정의는 그때를 위해 그대로 둔다. 결정 기록: `tickets/backend/archive/missing-domain-tables.md`.
+
 ### 10.3 `audit_logs`
 
 ```
