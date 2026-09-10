@@ -465,7 +465,7 @@ contents
   title                     varchar
   description               text
   author_name               varchar         NULL 허용 — origin 분기 (합의 2026-08-06, 아래)
-  source_name               varchar         ★origin 분기 — partner: 파트너명 (B-5) / ai_generated: "참고한 자료" 표기
+  source_name               varchar(500)    ★origin 분기 — partner: 파트너명 (B-5) / ai_generated: "참고한 자료: 발행처1, 발행처2, …" 표기. 소스 발행처를 전부 적으므로 100자로는 부족했다(500자로 확장 2026-09-10 — KAN-52)
   source_url                varchar         NULL 허용 — origin 분기 (합의 2026-08-06, 아래)
   origin                    enum            partner | ai_generated
   partner_id                uuid            FK → partners, NULL 허용 (partner만 채운다)

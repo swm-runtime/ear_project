@@ -58,7 +58,7 @@ export class UploadContentRequestDto {
   readonly author_name?: string;
 
   @IsString()
-  @MaxLength(100)
+  @MaxLength(500)
   readonly source_name: string;
 
   @IsOptional()

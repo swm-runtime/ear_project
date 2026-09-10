@@ -124,7 +124,7 @@
   "title": "...", "description": "...",
   "origin": "partner" | "ai_generated",
   "author_name": "...",        // partner 필수 / ai_generated 선택
-  "source_name": "...",        // 필수
+  "source_name": "...",        // 필수, 500자 이내 (ai_generated는 "참고한 자료: 발행처1, 발행처2, …" 전수 — 개정 2026-09-10)
   "source_url": "...",         // partner 필수 / ai_generated 선택
   "partner_id": "uuid",        // partner 필수
   "license_expires_at": "2027-01-01T00:00:00Z",  // partner 필수
