@@ -7,9 +7,25 @@ import {
 import { DripScoringService } from './drip-scoring.service';
 import {
   RegularScoringContext,
+  ScoreBreakdown,
   ScoringCandidate,
   UserPreferenceWeights,
 } from '../drip.types';
+
+/** 선별(selectWithDiversity) 테스트는 점수만 보므로 축 분해는 비워 둔다 */
+const EMPTY_BREAKDOWN: ScoreBreakdown = {
+  embedding: null,
+  signal: null,
+  meta: null,
+  metaItems: {
+    topicMatch: null,
+    freshness: null,
+    popularity: null,
+    difficultyFit: null,
+    seriesContinuity: null,
+    exposureFatigue: null,
+  },
+};
 
 const NOW = new Date('2026-08-27T05:00:00.000Z');
 const TOPIC_A = 'aaaaaaaa-1111-4111-8111-111111111111';
@@ -348,7 +364,7 @@ describe('DripScoringService', () => {
   describe('selectWithDiversity', () => {
     it('주제·저자가 달라도 임베딩이 사실상 같은 두 편은 MMR 감점으로 함께 뽑히지 않는다', () => {
       // given — a1·a2는 내용이 같고(코사인 1) b1은 다르다. 이산 규칙으로는 셋 다 통과한다
-      const base = { isSeriesContinuation: false };
+      const base = { isSeriesContinuation: false, breakdown: EMPTY_BREAKDOWN };
       const scored = [
         {
           ...buildCandidate('a1', { topicIds: [TOPIC_A], embedding: [1, 0] }),
@@ -384,16 +400,19 @@ describe('DripScoringService', () => {
           ...buildCandidate('a1', { topicIds: [TOPIC_A], embedding: [1, 0] }),
           score: 0.9,
           isSeriesContinuation: false,
+          breakdown: EMPTY_BREAKDOWN,
         },
         {
           ...buildCandidate('a2', { topicIds: [TOPIC_A], embedding: [1, 0] }),
           score: 0.85,
           isSeriesContinuation: true,
+          breakdown: EMPTY_BREAKDOWN,
         },
         {
           ...buildCandidate('b1', { topicIds: [TOPIC_B], embedding: [0, 1] }),
           score: 0.7,
           isSeriesContinuation: false,
+          breakdown: EMPTY_BREAKDOWN,
         },
       ];
 
@@ -536,6 +555,64 @@ describe('DripScoringService', () => {
       });
 
       expect(picks.map((pick) => pick.content.id)).toEqual(['good']);
+    });
+
+    it('카탈로그 전체 완청률이 절대 하한 아래여도 탐험 후보가 전멸하지 않는다 — 하한은 풀에 상대적이다', () => {
+      // given — 테스터가 훑어보기만 한 작은 카탈로그: 재생은 있는데 완청이 거의 없다(2026-09-10 실서버)
+      const skimmed = ['s1', 's2', 's3'].map((id) =>
+        buildCandidate(id, {
+          topicIds: [TOPIC_B],
+          playCount: 10,
+          completeCount: 0,
+        }),
+      );
+      const oneComplete = buildCandidate('s4', {
+        topicIds: [TOPIC_B],
+        playCount: 10,
+        completeCount: 1,
+      });
+
+      // when
+      const picks = service.selectDiscovery({
+        candidates: [...skimmed, oneComplete],
+        exposureCounts: new Map(),
+        activeTopicIds: [TOPIC_A],
+        userRemovedTopicIds: [],
+        pickedTopicIds: [],
+        count: 1,
+        now: NOW,
+      });
+
+      // then — 절대 하한(0.2)만 있었다면 넷 다 스무딩 값이 0.2 미만이라 0편이 됐다
+      expect(picks).toHaveLength(1);
+    });
+
+    it('재생 표본이 부족한 후보는 품질 하한을 적용하지 않는다 — 신작 노출이 슬롯의 목적이다', () => {
+      // given — 카탈로그는 완청률이 높은데(하한 0.2 유효) 신작은 재생 2회 완청 0
+      const established = buildCandidate('old', {
+        topicIds: [TOPIC_B],
+        playCount: 200,
+        completeCount: 160,
+      });
+      const fresh = buildCandidate('fresh', {
+        topicIds: [TOPIC_B],
+        playCount: 2,
+        completeCount: 0,
+      });
+
+      // when
+      const picks = service.selectDiscovery({
+        candidates: [established, fresh],
+        exposureCounts: new Map([['old', 50]]),
+        activeTopicIds: [TOPIC_A],
+        userRemovedTopicIds: [],
+        pickedTopicIds: [],
+        count: 2,
+        now: NOW,
+      });
+
+      // then — 표본 2회로는 "안 듣는 콘텐츠"라고 판정할 근거가 없다
+      expect(picks.map((pick) => pick.content.id)).toContain('fresh');
     });
 
     it('정규 편과 내용이 겹치는 탐험 편은 MMR 감점으로 밀린다', () => {

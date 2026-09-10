@@ -8,7 +8,9 @@ import {
   AXIS_WEIGHT_META,
   AXIS_WEIGHT_SIGNAL,
   DISCOVERY_ITEM_WEIGHTS,
+  DISCOVERY_QUALITY_FLOOR_POOL_RATIO,
   DISCOVERY_QUALITY_FLOOR_RATE,
+  DISCOVERY_QUALITY_MIN_PLAY_COUNT,
   FRESHNESS_HALF_LIFE_DAYS_DEFAULT,
   FRESHNESS_HALF_LIFE_DAYS_TIMELY,
   GLOBAL_COMPLETE_RATE_FALLBACK,
@@ -218,6 +220,30 @@ export class DripScoringService {
     );
     const activeTopicIds = new Set(input.activeTopicIds);
     const userRemovedTopicIds = new Set(input.userRemovedTopicIds);
+    /**
+     * 품질 하한(4.8-3)은 **풀에 상대적**이다 — `min(절대 하한, 후보들의 전형적 완청률 × 비율)`.
+     * 절대 0.2 하나만 쓰면 카탈로그 전체 완청률이 그 아래인 시기에 스무딩이 전 후보를 풀 평균으로
+     * 끌어내려 **탐험이 0편이 된다**(2026-09-10 실서버 — 콘텐츠 7편, 테스터 훑어보기). 하한의 목적은
+     * "이 카탈로그 안에서 상대적으로 안 듣는 콘텐츠"를 빼는 것이므로 기준을 카탈로그에서 잡는다.
+     *
+     * 전형값은 후보별 스무딩 완청률의 **단순 평균**이다 — 재생 수 가중 평균(`poolAverageCompleteRate`)은
+     * 재생이 몰린 한 편이 기준 자체를 끌고 가서 그 편이 "평균 이하"가 될 수 없다.
+     */
+    const smoothedRates = new Map(
+      input.candidates.map((candidate) => [
+        candidate.content.id,
+        this.smoothedCompleteRate(candidate, poolAverageCompleteRate),
+      ]),
+    );
+    const typicalCompleteRate =
+      smoothedRates.size === 0
+        ? 0
+        : [...smoothedRates.values()].reduce((sum, rate) => sum + rate, 0) /
+          smoothedRates.size;
+    const qualityFloor = Math.min(
+      DISCOVERY_QUALITY_FLOOR_RATE,
+      typicalCompleteRate * DISCOVERY_QUALITY_FLOOR_POOL_RATIO,
+    );
 
     const eligible = input.candidates.filter((candidate) => {
       if (
@@ -226,11 +252,12 @@ export class DripScoringService {
         return false;
       }
 
-      // 품질 최소선(4.8-3) — 표본 없는 신작은 스무딩이 풀 평균으로 끌어올려 통과시킨다
-      return (
-        this.smoothedCompleteRate(candidate, poolAverageCompleteRate) >=
-        DISCOVERY_QUALITY_FLOOR_RATE
-      );
+      // 표본이 모자라면 판정하지 않는다 — 근거 없이 빼면 신작 노출이라는 슬롯의 목적과 반대다
+      if (candidate.playCount < DISCOVERY_QUALITY_MIN_PLAY_COUNT) {
+        return true;
+      }
+
+      return (smoothedRates.get(candidate.content.id) ?? 0) >= qualityFloor;
     });
 
     const scored = eligible

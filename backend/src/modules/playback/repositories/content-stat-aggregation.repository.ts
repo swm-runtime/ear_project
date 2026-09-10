@@ -23,7 +23,10 @@ export class ContentStatAggregationRepository {
    * 바뀌어도 확정값이 흔들리면 안 된다.
    *
    * 경계는 **서비스 날짜 라벨**로 비교한다(04시 경계 — domain.md 1.2). `play_records`는
-   * `play_date`가 이미 라벨이고, 나머지는 `created_at`을 같은 규칙으로 환산해 맞춘다.
+   * `play_date`가 이미 라벨이고, 나머지는 **라벨 경계를 `timestamptz`로 환산해** `created_at`과
+   * 직접 비교한다 — 행마다 `created_at`을 라벨로 바꿔 비교하면(`SERVICE_DATE_OF(created_at)`)
+   * 인덱스를 못 타고 `user_signals`·`source_link_clicks` 전체를 매일 세 번 훑는다
+   * (2026-09-09 감사). 경계를 상수로 계산하면 같은 구간을 인덱스 범위 조회로 읽는다.
    */
   async recompute(
     periodType: 'week' | 'month' | 'all',
@@ -47,15 +50,15 @@ export class ContentStatAggregationRepository {
                COUNT(*) FILTER (WHERE action = 'replay')   AS replay_count,
                COUNT(*) FILTER (WHERE action = 'save')     AS save_count
         FROM user_signals
-        WHERE ${SERVICE_DATE_OF('created_at')} >= $2::date
-          AND ${SERVICE_DATE_OF('created_at')} < $3::date
+        WHERE created_at >= ${SERVICE_DATE_START_OF('$2')}
+          AND created_at < ${SERVICE_DATE_START_OF('$3')}
         GROUP BY content_id
       ),
       clicks AS (
         SELECT content_id, COUNT(*) AS source_link_click_count
         FROM source_link_clicks
-        WHERE ${SERVICE_DATE_OF('created_at')} >= $2::date
-          AND ${SERVICE_DATE_OF('created_at')} < $3::date
+        WHERE created_at >= ${SERVICE_DATE_START_OF('$2')}
+          AND created_at < ${SERVICE_DATE_START_OF('$3')}
         GROUP BY content_id
       ),
       merged AS (
@@ -105,9 +108,14 @@ export class ContentStatAggregationRepository {
 }
 
 /**
- * `timestamptz` → 서비스 날짜(04시 경계, KST). `service-date.util`이 애플리케이션에서
- * 하는 계산을 SQL에서 같은 규칙으로 한 것이다 — 두 곳의 경계가 갈리면 집계와 판정이 어긋난다.
+ * 서비스 날짜 라벨(`date` 파라미터) → 그 날짜가 **시작되는 순간**의 `timestamptz`
+ * (KST 04:00). `service-date.util`이 애플리케이션에서 하는 `(kst - 4h)::date`의 역함수다 —
+ * 두 곳의 경계가 갈리면 집계와 판정이 어긋나므로 같은 상수(4시간·Asia/Seoul)를 쓴다.
+ *
+ * `timestamp AT TIME ZONE 'Asia/Seoul'`은 tz 없는 시각을 KST로 해석해 `timestamptz`로
+ * 바꾼다(`timestamptz AT TIME ZONE`과 방향이 반대다 — 여기 입력은 `date + interval`이라
+ * tz 없는 쪽이다).
  */
-function SERVICE_DATE_OF(column: string): string {
-  return `((${column} AT TIME ZONE 'Asia/Seoul') - INTERVAL '4 hours')::date`;
+function SERVICE_DATE_START_OF(dateParam: string): string {
+  return `((${dateParam}::date + INTERVAL '4 hours') AT TIME ZONE 'Asia/Seoul')`;
 }

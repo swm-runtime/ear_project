@@ -7,7 +7,9 @@ import { RankedPopularContent } from '@/modules/content/content.types';
 import { Content } from '@/modules/content/entities/content.entity';
 import { ContentService } from '@/modules/content/services/content.service';
 import { DripExclusionReason } from '@/modules/drip/drip.enum';
+import { UserPreferenceWeights } from '@/modules/drip/drip.types';
 import { DripExclusionService } from '@/modules/drip/services/drip-exclusion.service';
+import { PreferenceVectorService } from '@/modules/drip/services/preference-vector.service';
 import { Topic } from '@/modules/interest/entities/topic.entity';
 import { UserInterest } from '@/modules/interest/entities/user-interest.entity';
 import { TopicService } from '@/modules/interest/services/topic.service';
@@ -66,6 +68,22 @@ function buildPopularRow(
   return { content: buildContent(id), playCount, completeCount };
 }
 
+/** 편성 배치가 하루 한 번 채우는 선호도 캐시(domain.md 7.2) — 피드는 이것을 읽기만 한다 */
+function buildPreference(
+  signalCount: number,
+  topicWeights: Record<string, number>,
+): UserPreferenceWeights {
+  return {
+    topicWeights,
+    authorWeights: {},
+    keywordWeights: {},
+    formatWeights: {},
+    durationPref: null,
+    tasteEmbedding: null,
+    signalCount,
+  };
+}
+
 function buildLibraryItem(overrides: Partial<LibraryItem> = {}): LibraryItem {
   return {
     id: 'item-1',
@@ -99,6 +117,7 @@ describe('ExploreOrchestrator', () => {
   let userInterestService: jest.Mocked<UserInterestService>;
   let topicService: jest.Mocked<TopicService>;
   let dripExclusionService: jest.Mocked<DripExclusionService>;
+  let preferenceVectorService: jest.Mocked<PreferenceVectorService>;
 
   beforeEach(() => {
     contentService = {
@@ -151,6 +170,10 @@ describe('ExploreOrchestrator', () => {
       exclude: jest.fn(),
     } as unknown as jest.Mocked<DripExclusionService>;
 
+    preferenceVectorService = {
+      findWeights: jest.fn().mockResolvedValue(null),
+    } as unknown as jest.Mocked<PreferenceVectorService>;
+
     const dataSource = {
       transaction: jest.fn((callback: (manager: unknown) => Promise<unknown>) =>
         callback({}),
@@ -164,15 +187,18 @@ describe('ExploreOrchestrator', () => {
       userInterestService,
       topicService,
       dripExclusionService,
+      preferenceVectorService,
       dataSource,
     );
   });
 
   describe('getFeed', () => {
     it('관심 주제가 있으면 관심사 섹션이 피드에 포함된다', async () => {
-      // given — 완청 3건 이상이라 콜드스타트가 아니다
+      // given — 캐시의 완청 수가 3건 이상이라 콜드스타트가 아니다
       userInterestService.findActiveTopicIds.mockResolvedValue([TOPIC_ID]);
-      playbackService.countSignals.mockResolvedValue(5);
+      preferenceVectorService.findWeights.mockResolvedValue(
+        buildPreference(5, { [TOPIC_ID]: 2 }),
+      );
       contentService.findCandidates.mockResolvedValue([
         buildContent(CONTENT_ID),
       ]);
@@ -188,7 +214,9 @@ describe('ExploreOrchestrator', () => {
     it('신호가 부족한 신규 사용자에게는 인기·신규 섹션을 앞에 둔다', async () => {
       // given — 콜드스타트(FR-17)는 완청 3건 미만이다
       userInterestService.findActiveTopicIds.mockResolvedValue([TOPIC_ID]);
-      playbackService.countSignals.mockResolvedValue(0);
+      preferenceVectorService.findWeights.mockResolvedValue(
+        buildPreference(2, {}),
+      );
       contentService.findCandidates.mockResolvedValue([
         buildContent(CONTENT_ID),
       ]);
@@ -209,10 +237,12 @@ describe('ExploreOrchestrator', () => {
       );
     });
 
-    it('콜드스타트에서는 신호를 읽지 않는다', async () => {
-      // given — 신호 기반 항목을 사실상 0으로 둔다(`drip-scheduling.md` 4.4)
+    it('랭킹은 신호를 재집계하지 않고 선호도 캐시를 읽는다', async () => {
+      // given — 실시간 재계산은 하지 않는다(domain.md 7.2)
       userInterestService.findActiveTopicIds.mockResolvedValue([TOPIC_ID]);
-      playbackService.countSignals.mockResolvedValue(0);
+      preferenceVectorService.findWeights.mockResolvedValue(
+        buildPreference(5, { [TOPIC_ID]: 2 }),
+      );
       contentService.findCandidates.mockResolvedValue([
         buildContent(CONTENT_ID),
       ]);
@@ -222,6 +252,32 @@ describe('ExploreOrchestrator', () => {
 
       // then
       expect(playbackService.findRecentSignals).not.toHaveBeenCalled();
+      expect(playbackService.countSignals).not.toHaveBeenCalled();
+      expect(preferenceVectorService.findWeights).toHaveBeenCalledWith(USER_ID);
+    });
+
+    it('선호도 캐시가 없는 사용자는 콜드스타트로 그린다', async () => {
+      // given — 가입 직후·첫 배치 이전에는 `user_preference_vectors` 행이 없다
+      userInterestService.findActiveTopicIds.mockResolvedValue([TOPIC_ID]);
+      preferenceVectorService.findWeights.mockResolvedValue(null);
+      contentService.findCandidates.mockResolvedValue([
+        buildContent(CONTENT_ID),
+      ]);
+      contentService.findPopularPage.mockResolvedValue({
+        items: [buildPopularRow(OTHER_CONTENT_ID)],
+        hasNext: false,
+      });
+      contentService.findRecent.mockResolvedValue([
+        buildContent(OTHER_CONTENT_ID),
+      ]);
+
+      // when
+      const result = await orchestrator.getFeed(USER_ID, NOW);
+
+      // then
+      expect(result.sections.map((section) => section.key).slice(0, 2)).toEqual(
+        [ExploreSectionKey.POPULAR, ExploreSectionKey.NEW],
+      );
     });
 
     it('이미 라이브러리에 있는 콘텐츠도 라이브러리 상태를 달고 그대로 노출된다', async () => {

@@ -3,12 +3,13 @@ import path from "node:path";
 import { cfg, executedBy } from "../config.js";
 import { claimApprovedBacklog, deleteEpisode, enqueue, getBacklog, getBacklogStatus, getEpisode, getSetting, insertRun, majorOfMidTopic, nextEpisodeId, setBacklogStatus, setJobProgress, updateJobPayload, upsertEpisode, pool, type Job } from "../db.js";
 import type { Executor } from "../executors/index.js";
-import { buildDraftPrompt, buildDraftRevisionPrompt, DRAFT_SCHEMA, DRAFT_REVISION_SCHEMA, episodeDatePrefix, pickIntroStyle, type Templates } from "@ear/pipeline";
+import { buildDraftPrompt, buildDraftRevisionPrompt, DRAFT_SCHEMA, DRAFT_REVISION_SCHEMA, episodeDatePrefix, pickIntroStyle, signoffVariants, type Templates } from "@ear/pipeline";
 import { exists, hostOf, log, RetryLater } from "../util.js";
 import { prepareAssets, workerRev } from "../assets.js";
-import { pullPrefix, pushPrefix, s3Key } from "../storage.js";
+import { listPrefix, pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { parseScriptForTts } from "../tts/script.js";
 import { runTwoStageDraft, twoStageViolations } from "./draft-two-stage.js";
+import { runRevisionSingle } from "./revision-single.js";
 
 interface DraftOut { turns: number; chars: number; minutes: number; sources_used: string[]; sources_excluded: { url: string; reason: string }[]; self_check_fixes: string[]; notes: string }
 interface RevisionOut { fixes: { location: string; before: string; after: string }[]; notes: string }
@@ -39,7 +40,7 @@ export async function runDraft(job: Job, ex: Executor) {
       }
     }
     // 재집기(워커 사망 후 회수) 시 같은 에피소드를 이어받도록 작업 payload 에 ID 를 고정한다
-    episodeId = String(job.payload.episode_id ?? "") || (await nextEpisodeId(episodeDatePrefix("T")));
+    episodeId = String(job.payload.episode_id ?? "") || (await allocateEpisodeId(episodeDatePrefix("T")));
     if (!job.payload.episode_id) await updateJobPayload(job.id, { episode_id: episodeId });
   } else {
     episodeId = String(job.payload.episode_id ?? "");
@@ -54,6 +55,15 @@ export async function runDraft(job: Job, ex: Executor) {
   const dir = path.join(cfg.workRoot, rel);
   await fs.mkdir(dir, { recursive: true });
   await pullPrefix(`${rel}/`); // S3 가 원본 — 다른 기기에서 만든 산출물·웹에서 고친 대본을 먼저 받는다
+  // 산출물 소유 표식 (2026-09-09): 이 디렉토리의 산출물이 어느 후보 것인지. 이어받기(재집기 복구·설계 생략)는 표식이 이 후보와 일치할 때만 —
+  // 지워진 id 가 재사용돼 다른 후보의 옛 산출물을 이어받은 사고(T260909-001/002, C44 에 C47 대본이 붙음)의 재발 방지
+  const metaFile = path.join(dir, ".origin.json");
+  const origin = await readOrigin(metaFile);
+  if (origin && origin.backlog_id !== backlogId) {
+    log(`  draft ${episodeId}: 디렉토리의 산출물이 다른 후보(${origin.backlog_id}) 것 — 비우고 새로 만든다`);
+    for (const f of await fs.readdir(dir)) await fs.rm(path.join(dir, f), { recursive: true, force: true });
+  }
+  if (!origin || origin.backlog_id !== backlogId) await fs.writeFile(metaFile, JSON.stringify({ backlog_id: backlogId, episode_id: episodeId, started_at: new Date().toISOString(), worker: cfg.workerName }, null, 1));
   const fileTools = [`Write(${rel}/**)`, `Edit(${rel}/**)`, "Bash(python3 *)", "Bash(wc *)", "Bash(ls *)"];
 
   let summary: string;
@@ -71,9 +81,10 @@ export async function runDraft(job: Job, ex: Executor) {
     model = null;
     summary = `${episodeId} 초안 이어받기 (워커 재집기 복구 — 기존 산출물 사용, 생성 재실행 없음)`;
   } else if (attempt === 1 && cfg.draftMode === "two-stage") {
-    const intro = pickIntroStyle(await countEpisodes());
+    const seed = await countEpisodes();
+    const intro = pickIntroStyle(seed);
     const [templates, majorTopic] = await Promise.all([getSetting<Templates>("templates"), majorOfMidTopic(cand.mid_topic)]);
-    const t = await runTwoStageDraft({ job, ex, episodeId, candidate: cand, dir, rel, assetRoot, promptVersion, templates, majorTopic: majorTopic ?? undefined, introStyle: intro, fileTools });
+    const t = await runTwoStageDraft({ job, ex, episodeId, candidate: cand, dir, rel, assetRoot, promptVersion, templates, majorTopic: majorTopic ?? undefined, introStyle: intro, fileTools, signoffSeed: Number(cand.id.replace(/\D/g, "")) || seed }); // 클로징 골격은 후보 번호로 돌린다 — 같은 시각에 시작한 3편이 같은 에피소드 수를 받아 골격이 겹쳤다 (T260909-005·007·009)
     out = { turns: t.stats.turns, chars: t.stats.chars, minutes: t.stats.minutes, sources_used: t.design?.sources_used ?? [], sources_excluded: t.design?.sources_excluded ?? [], self_check_fixes: t.write.self_check_fixes, notes: t.write.notes };
     model = t.model; costUsd = t.costUsd; tokens = t.tokens; summary = t.summary;
   } else if (attempt === 1) {
@@ -115,16 +126,21 @@ export async function runDraft(job: Job, ex: Executor) {
     }
     const o = r.output;
     summary = `${episodeId} 초안 완료 (${ex.kind}, 도입 ${intro.label}, 템플릿 ${templates?.version ?? "미적용"}). ${o.turns}턴·${o.chars}자·약 ${o.minutes}분. 소스 ${o.sources_used.length}/${cand.sources.length} 사용${o.sources_excluded.length ? ` (제외: ${o.sources_excluded.map((x) => `${hostOf(x.url)} ${x.reason}`).join("; ").slice(0, 300)})` : ""}. 자기 점검 수정 ${o.self_check_fixes.length}건. ${o.notes}`;
+  } else if (cfg.revisionMode === "single") {
+    const failures = (job.payload.qa_failures ?? []) as { location: string; item: string; reason: string }[];
+    const rv = await runRevisionSingle({ job, ex, episodeId, dir, assetRoot, attempt, qaFailures: failures });
+    out = rv.output; model = rv.model; costUsd = rv.costUsd; tokens = rv.tokens;
+    summary = `${episodeId} 재생성 — 대본 ${attempt}회차 (${revisionWhy(job)} · 단발 · QA 피드백 ${failures.length}건 → 수정 ${rv.output.fixes.length}건${rv.unmatched.length ? `, 못 찾은 턴 ${rv.unmatched.length}` : ""}). ${rv.output.notes}`;
   } else {
     const failures = (job.payload.qa_failures ?? []) as { location: string; item: string; reason: string }[];
     const prompt = buildDraftRevisionPrompt({ assetRoot, workRoot: cfg.workRoot, episodeId, candidate: cand, introStyle: pickIntroStyle(0), promptVersion, attempt, qaFailures: failures });
     log(`  draft(revision ${attempt}) ${episodeId}: QA 지적 ${failures.length}건 최소 수정`);
-    const r = await ex.run<RevisionOut>({ prompt, schema: DRAFT_REVISION_SCHEMA, allowedTools: ["Read", ...fileTools], addDirs: [dir, assetRoot], cwd: cfg.workRoot, timeoutMs: 40 * 60_000, model: cfg.claudeModel,
+    const r = await ex.run<RevisionOut>({ prompt, schema: DRAFT_REVISION_SCHEMA, allowedTools: ["Read", ...fileTools], addDirs: [dir, assetRoot], cwd: cfg.workRoot, timeoutMs: 40 * 60_000, model: cfg.revisionModel, maxThinkingTokens: cfg.thinkingRevision, // 2026-09-09: CLAUDE_MODEL(기본 Fable) 이 아니라 REVISION_MODEL — T260909-004 수정이 Fable 로 돈 사고
       onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: `대본 수정 (attempt ${attempt})` }).catch(() => {}),
       describe: (tool) => (tool === "Read" ? "지적 대조 중" : tool === "Edit" || tool === "Write" ? "대본 수정 중" : null),
     });
     out = r.output; model = r.model; costUsd = r.listCostUsd; tokens = (r.raw as { usage?: unknown } | undefined)?.usage;
-    summary = `${episodeId} 재생성 attempt ${attempt} (QA 피드백 ${failures.length}건 → 수정 ${r.output.fixes.length}건). ${r.output.notes}`;
+    summary = `${episodeId} 재생성 — 대본 ${attempt}회차 (${revisionWhy(job)} · QA 피드백 ${failures.length}건 → 수정 ${r.output.fixes.length}건). ${r.output.notes}`;
   }
 
   // 발음 맵 (spec/04 8장) — 모델이 빠뜨렸거나 구 에피소드 이어받기면 빈 맵을 둔다 (웹 "발음" 탭·TTS 병합의 기준 파일. 누락 표기는 TTS 잔존 검사가 잡는다)
@@ -143,20 +159,30 @@ export async function runDraft(job: Job, ex: Executor) {
   // 여기서 잡지 않으면 QA·비평을 통과해 TTS 에서야 터진다 (2026-09-03 T260903-001/003 실측)
   const scriptMd = await fs.readFile(path.join(dir, "script.md"), "utf8");
   const outlineFile = path.join(dir, "outline.md");
-  const violations = [...formatViolations(scriptMd), ...((await exists(outlineFile)) ? twoStageViolations(scriptMd, await fs.readFile(outlineFile, "utf8")) : [])];
+  const signoffHeads = signoffVariants(await getSetting<Templates>("templates")).map((v) => v.split("{")[0].trim()); // tpl-v2 클로징 인사 골격들의 고정 머리 — 비어 있으면 검사 없음
+  const violations = [...formatViolations(scriptMd), ...((await exists(outlineFile)) ? twoStageViolations(scriptMd, await fs.readFile(outlineFile, "utf8"), { signoffHeads }) : [])];
   if (violations.length) {
-    if (attempt >= 3) throw new Error(`대본 형식 위반이 attempt ${attempt}까지 남음 — 웹 턴 수정으로 처리 필요: ${violations.join(" / ")}`);
+    // L0 수정은 QA 회차와 별도로 센다 (2026-09-09): 같은 카운터를 쓰니 시점 표현 1건 고치는 데 QA 회차 하나가 사라졌고, QA 수정본이 통계 용어로 L0 에 걸리자 attempt 3 한도에 막혀 검토 대기로 빠졌다(T260909-009)
+    const l0Fixes = Number(job.payload.l0_fixes ?? 0);
+    if (l0Fixes >= 2) throw new Error(`대본 형식 위반이 L0 수정 ${l0Fixes}회 뒤에도 남음 — 웹 턴 수정으로 처리 필요: ${violations.join(" / ")}`);
     const fixes = violations.map((v) => ({ location: "대본 전체", item: "L0 형식 계약 (spec/04 4장 줄 문법)", reason: v }));
     await insertRun({ backlog_id: backlogId, phase: "draft", attempt, result: `${summary} — L0 형식 위반 ${violations.length}건, QA 생략하고 수정 재생성: ${violations.join(" / ").slice(0, 300)}`, prompt_version: `${promptVersion} (worker)`, artifacts, executed_by: executedBy, model, cost_usd: costUsd, tokens, worker_rev: workerRev() });
-    const fixJobId = await enqueue({ type: "draft", requires_ai: true, payload: { episode_id: episodeId, backlog_id: backlogId, attempt: attempt + 1, qa_failures: fixes }, parent_job_id: job.id, attempt: attempt + 1 });
-    log(`  draft ${episodeId}: L0 형식 위반 ${violations.length}건 — 수정 재생성 연쇄 (attempt ${attempt + 1})`);
+    const fixJobId = await enqueue({ type: "draft", requires_ai: true, payload: { episode_id: episodeId, backlog_id: backlogId, attempt: attempt + 1, qa_failures: fixes, l0_fixes: l0Fixes + 1, qa_round: job.payload.qa_round ?? 0 }, parent_job_id: job.id, attempt: attempt + 1 });
+    log(`  draft ${episodeId}: L0 형식 위반 ${violations.length}건 — 수정 재생성 연쇄 (attempt ${attempt + 1}, L0 수정 ${l0Fixes + 1}회째)`);
     return { episode_id: episodeId, attempt, summary, model, l0_violations: violations, next: { draft_fix_job_id: fixJobId } };
   }
   await insertRun({ backlog_id: backlogId, phase: "draft", attempt, result: summary, prompt_version: `${promptVersion} (worker)`, artifacts, executed_by: executedBy, model, cost_usd: costUsd, tokens, worker_rev: workerRev() });
   // 회차 2+: 이전 QA 실패와 작성 측 수정 내역(바뀐 자리만)을 QA 에 넘긴다 — 해소 확인 + 바뀌지 않은 문장의 판정 안정성 (spec/05 5장, 2026-09-08)
   const carry = attempt > 1 ? { prior_failures: (job.payload.qa_failures ?? []) as unknown[], fixes: (out as RevisionOut).fixes ?? [] } : {};
-  const qaJobId = await enqueue({ type: "qa", requires_ai: true, payload: { episode_id: episodeId, backlog_id: backlogId, attempt, ...carry }, parent_job_id: job.id, attempt });
+  const qaRound = Number(job.payload.qa_round ?? 0) + 1; // QA 회차 = 실제 QA 실행 횟수 (L0 수정은 세지 않는다)
+  const qaJobId = await enqueue({ type: "qa", requires_ai: true, payload: { episode_id: episodeId, backlog_id: backlogId, attempt, qa_round: qaRound, ...carry }, parent_job_id: job.id, attempt });
   return { episode_id: episodeId, attempt, summary, model, next: { qa_job_id: qaJobId }, output: out };
+}
+
+/** 수정 재생성의 사유 표기 — 대본 회차(attempt)와 QA 회차(qa_round)는 다른 숫자다 (#291). "attempt 4" 만 보이면 QA 한도 3회를 넘은 것처럼 읽힌다 (T260910-013) */
+function revisionWhy(job: Job): string {
+  const l0 = Number(job.payload.l0_fixes ?? 0); const qr = Number(job.payload.qa_round ?? 0);
+  return l0 ? `L0 수정 ${l0}회째` : qr ? `QA ${qr}회 실패 뒤 수정` : "수정";
 }
 
 /** L0 형식 검사 — spec/04 4장 줄 문법 위반을 기계로 검출한다. 파서가 변형을 일부 수용하므로, 여기서 걸리면 파서로도 못 살리는 수준의 이탈이다 */
@@ -170,7 +196,7 @@ function formatViolations(md: string): string[] {
   }
   if (p.coldOpen) v.push("[콜드오픈] 구역이 있음 — 2026-09-07 폐지, 대본은 [인트로]부터 시작한다 (spec/04 4장 구조)");
   // 시점 고정 표현 (spec/04 3장 금지 규칙 4 · QA 항목 6 의 코드 이관, 2026-09-08): 오디오는 발행 후에도 재생된다. 템플릿의 "오늘의 주제"·"지금까지"는 대상이 아니므로 상대 시점 어휘만 본다
-  const tense = p.turns.filter((t) => /(요즘|최근에?|올해|작년|내년|어제|내일|지난\s?(주|달|해|번)|이번\s?(주|달)|며칠 전)/.test(t.text)).map((t) => t.id ?? "?");
+  const tense = p.turns.filter((t) => /(요즘|최근에?|올해|작년|내년|지난\s?(주|달|해|번)|이번\s?(주|달)|며칠 전)/.test(t.text)).map((t) => t.id ?? "?");
   if (tense.length) v.push(`시점 고정 표현(요즘·최근·올해·지난주 등)이 ${tense.length}턴에 있음 (${tense.slice(0, 6).join(", ")}) — 절대 표기(년-월)나 무시점 표현으로 바꾼다 (spec/04 3장 규칙 4)`);
   return v;
 }
@@ -183,6 +209,28 @@ async function allArtifactsSettled(dir: string): Promise<boolean> {
   const stats = await Promise.all(files.map((f) => fs.stat(f)));
   const newest = Math.max(...stats.map((s) => s.mtimeMs));
   return Date.now() - newest > 3 * 60_000;
+}
+
+/** 산출물 소유 표식 읽기 — 없거나 깨졌으면 null */
+async function readOrigin(file: string): Promise<{ backlog_id: string; episode_id: string } | null> {
+  try { const o = JSON.parse(await fs.readFile(file, "utf8")); return o && typeof o.backlog_id === "string" ? o : null; } catch { return null; }
+}
+
+/**
+ * 에피소드 id 할당 — DB 의 다음 번호에서 시작하되, 로컬 디렉토리나 S3 에 흔적이 남은 번호는 건너뛴다 (2026-09-09).
+ * 에피소드를 지우면 DB 에서는 번호가 비지만 산출물 디렉토리는 남을 수 있고, 그 번호를 다시 쓰면 재집기 복구가 옛 산출물을 이어받는다.
+ */
+async function allocateEpisodeId(prefix: string): Promise<string> {
+  let id = await nextEpisodeId(prefix);
+  for (let i = 0; i < 50; i++) {
+    const local = await exists(path.join(cfg.workRoot, "episodes", id));
+    const remote = local ? true : (await listPrefix(`episodes/${id}/`, 1).catch(() => [])).length > 0;
+    if (!local && !remote) return id;
+    log(`  episode id ${id}: ${local ? "로컬 디렉토리" : "S3 객체"}가 남아 있어 건너뜀`);
+    const n = Number(id.split("-")[1]) + 1;
+    id = `${prefix}-${String(n).padStart(3, "0")}`;
+  }
+  throw new Error(`에피소드 id 를 할당하지 못함 (${prefix}-*** 50개 연속 흔적)`);
 }
 
 async function countEpisodes(): Promise<number> {
@@ -210,8 +258,17 @@ export async function onDraftFailed(job: Job, err: unknown) {
     if (ep && ep.script_key) {
       await setBacklogStatus(backlogId, "review_required", { dedup_note: note });
       log(`  draft ${episodeId}: 재생성 실패 → 백로그 ${backlogId} review_required (대본은 유지)`);
+    } else if (/본문 \d+건 — 3건 하한 미달/.test(reason)) {
+      // 소스 접근 불가 (2026-09-10 박수헌): 되돌리지 않고 자동 반려 — 중복 대조·사용 소스 목록은 rejected 를 빼므로 같은 축을 다른 소스로 다시 만들 수 있다.
+      // 막힌 소스는 fetch_status 로 기록돼 다음 군집화에서 빠진다 (0017)
+      if (ep) await deleteEpisode(episodeId);
+      await pool.query("delete from public.episodes where backlog_id = $1 and script_key is null", [backlogId]).catch(() => {});
+      await setBacklogStatus(backlogId, "rejected", { claimed_by: null, claimed_at: null, dedup_note: note.replace("⚠️ 초안 실패", "⚠️ 자동 반려 — 소스 접근 불가") });
+      log(`  draft ${episodeId || "(id 없음)"}: 소스 본문 부족 → 백로그 ${backlogId} 자동 반려 (막힌 소스는 fetch_status 기록)`);
     } else {
       if (ep) await deleteEpisode(episodeId);
+      // 대본 없는 에피소드 행이 남는 사고 방지 (2026-09-10 T260910-007: 설계 실패 후 빈 행이 남아 화면에 오류로 보였다) — 이 후보의 대본 없는 행은 전부 지운다
+      await pool.query("delete from public.episodes where backlog_id = $1 and script_key is null", [backlogId]).catch(() => {});
       await setBacklogStatus(backlogId, "proposed", { claimed_by: null, claimed_at: null, dedup_note: note });
       log(`  draft ${episodeId || "(id 없음)"}: 초안 실패 → 에피소드 제거, 백로그 ${backlogId} proposed 복귀 (사유 dedup_note)`);
     }

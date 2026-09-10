@@ -15,6 +15,14 @@ function must(name: string): string {
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 /** 정수 env — 빈 값이면 기본, "none" 이면 상한 없음(undefined) */
+type Effort = "low" | "medium" | "high" | "xhigh" | "max";
+function envEffort(key: string, dflt: Effort | null): Effort | undefined {
+  const v = process.env[key];
+  if (v === undefined || v === "") return dflt ?? undefined;
+  if (v === "none" || v === "default") return undefined;
+  if (["low", "medium", "high", "xhigh", "max"].includes(v)) return v as Effort;
+  throw new Error(`${key}=${v} — low|medium|high|xhigh|max|none 중 하나`);
+}
 function envInt(name: string, dflt: number | null): number | undefined {
   const v = process.env[name];
   if (v == null || v === "") return dflt ?? undefined;
@@ -40,6 +48,10 @@ export const cfg = {
   draftMode: (process.env.DRAFT_MODE === "single" ? "single" : "two-stage") as "single" | "two-stage",
   /** 2단계 단계별 모델 — 미설정이면 CLAUDE_MODEL(=CLI 기본). 설계는 정독·구조 판단, 대본은 문장이라 따로 둘 수 있게 */
   draftDesignModel: process.env.DRAFT_DESIGN_MODEL || "claude-opus-5", // 설계(구조·발췌 선택)는 opus 단발이 Fable 에이전트($5.45)의 절반 이하($2.26)로 같은 수준의 구성안을 냈다 (2026-09-08 C50)
+  /** 수정 재생성 형태 (2026-09-09): single = 인라인·도구 없음·바꿀 턴만 받아 워커가 치환 · agent = 구 방식(Read·Edit 루프). 기본 agent — 판정 3편 동안 현행 유지, 이후 single 로 */
+  revisionMode: (process.env.REVISION_MODE === "agent" ? "agent" : "single") as "single" | "agent", // 2026-09-10 기본 single (판정 3편 완료 후 전환 — 스모크 $1.92 → $0.89). 되돌리려면 REVISION_MODE=agent
+  revisionModel: process.env.REVISION_MODEL || process.env.DRAFT_WRITE_MODEL || "claude-opus-5",
+  thinkingRevision: envInt("THINKING_REVISION", 4000),
   /** 설계 실행 형태 (2026-09-08 비용 절감 ③): single(기본) = 소스 본문을 코드가 가져와 인라인, 도구 없음, 발췌는 ID 선택 · agent = WebFetch·파일 쓰기 루프. DESIGN_MODE=agent 로 복귀 */
   designMode: (process.env.DESIGN_MODE === "agent" ? "agent" : "single") as "single" | "agent",
   draftWriteModel: process.env.DRAFT_WRITE_MODEL || "claude-opus-5", // 2026-09-08 박수헌: 판정용 3편을 opus-5 로 만들어 사람 판정으로 확정 (Fable 대본 ≈$4.5 → opus ≈$2). 되돌리려면 DRAFT_WRITE_MODEL=claude-fable-5-1
@@ -56,8 +68,14 @@ export const cfg = {
   thinkingQa: envInt("THINKING_QA", 6000),
   thinkingDesign: envInt("THINKING_DESIGN", 8000),
   thinkingWrite: envInt("THINKING_WRITE", 8000), // 2026-09-09: 상한 없는 opus 대본이 30분 제한을 넘겨 강제 종료(T260908-002). 시간을 묶는 용도
-  thinkingCritic: envInt("THINKING_CRITIC", null), // 비평은 회귀 세트로 편향을 재는 중 — 상한은 재검증(spec/09 7.4) 후에 (기본 없음)
+  thinkingCritic: envInt("THINKING_CRITIC", null),
+  /** 설계·대본 effort (2026-09-09): opus-5 는 적응형 생각이라 MAX_THINKING_TOKENS 를 무시한다(상한 8000 인데 대본 3.6만~14.5만 실측). `claude --effort` 만 듣는다.
+   *  T260909-004 대본 실측 — high $2.02·생각 3.6만·11분 → medium $1.63·1.4만·7분(QA 1회 통과) → low $1.35·0.5만·4분(QA 실패 3: 필수 한계 누락·미근거). 기본 medium. 비우면 CLI 기본(high) */
+  effortDesign: envEffort("EFFORT_DESIGN", "medium"),
+  effortWrite: envEffort("EFFORT_WRITE", "medium"), // 비평은 회귀 세트로 편향을 재는 중 — 상한은 재검증(spec/09 7.4) 후에 (기본 없음)
   clusterModel: process.env.CLUSTER_MODEL || "claude-opus-5",
+  /** 군집화 방식 (2026-09-09 ①): v2 = 축 먼저·역할·다양성(단발) · v1 = 유사성 묶기(현행, 기본). ③ 판정 3편 후 v2 로 전환 */
+  clusterMode: (process.env.CLUSTER_MODE === "v2" ? "v2" : "v1") as "v1" | "v2",
   pollIntervalMs: Number(process.env.POLL_INTERVAL_MS || 5000),
   /** 파일럿 예외 (spec/02 2장): 계층 판정 전에는 candidate 도메인도 스윕한다. 판정이 쌓이면 false 로. */
   pilotSweepCandidates: (process.env.PILOT_SWEEP_CANDIDATES ?? "true") === "true",
@@ -79,9 +97,36 @@ export const cfg = {
   /** TTS 비용 환산용 1천 자당 USD — eleven_v3 API 종량 단가 $0.10/1천 자 (2026-09 ElevenLabs, v2/v3 공통·1자=1크레딧. Flash/Turbo 는 $0.05).
    *  LLM 정가 환산과 달리 이건 실제 종량 요금이다. 요금제/모델 바뀌면 TTS_USD_PER_1K_CHARS 로 덮는다 */
   ttsUsdPer1kChars: process.env.TTS_USD_PER_1K_CHARS ? Number(process.env.TTS_USD_PER_1K_CHARS) : 0.1,
+
+  /** 썸네일 (KAN-50) — OpenAI 이미지 API. 키는 서버 env.prod 에만 두고 코드·.env.example 에 실값을 넣지 않는다 */
+  openaiKey: process.env.OPENAI_API_KEY || "",
+  /**
+   * **gpt-image-2 확정** (2026-09-10 박수헌 — mini 와 같은 에피소드로 뽑아 비교한 뒤).
+   * 티켓의 열린 항목("mini 가 앵커 화풍을 얼마나 따르는지 첫 5편 실측 후 확정")을 닫은 값이다.
+   *
+   * mini 가 3배 싸고 20초 빠르지만(실측 25.6초 vs 45.3초) 채택 기준이 **"품질보다 콘텐츠마다
+   * 일정하게"** 라, 값싼 쪽이 아니라 화풍이 일정한 쪽을 고른다 — 썸네일은 목록에 여러 장이
+   * 나란히 붙어 나오므로 편마다 화풍이 튀면 한 장 한 장이 좋아도 화면이 무너진다.
+   * 월 100편에 약 $3.
+   */
+  thumbnailModel: process.env.THUMBNAIL_MODEL || "gpt-image-2",
+  /** low | medium | high — 정가 차이가 크다(mini: 0.005 / 0.009 / 0.052). 기본 medium */
+  thumbnailQuality: process.env.THUMBNAIL_QUALITY || "medium",
+  /** 1:1 고정 (프롬프트 자산 [규격]) — 44pt 미니 플레이어까지 한 장으로 쓴다 */
+  thumbnailSize: process.env.THUMBNAIL_SIZE || "1024x1024",
+  /**
+   * 스타일 앵커 (선택) — WORK_ROOT 상대 키. 이미지 API 에는 seed 가 없어 같은 프롬프트도 매번 화풍이 달라진다.
+   * 운영자가 첫 3~5편 중 1장을 골라 지정하면 이후 생성은 images/edits 로 그 그림을 참조해 화풍을 맞춘다.
+   * 비어 있으면 참조 없이 생성한다(초기 5편이 이 경로다).
+   */
+  thumbnailAnchorKey: process.env.THUMBNAIL_ANCHOR_KEY || "",
+  /** 1장당 USD — runs.cost_usd 환산용. 모델·품질을 바꾸면 THUMBNAIL_USD_PER_IMAGE 로 덮는다 */
+  thumbnailUsdPerImage: process.env.THUMBNAIL_USD_PER_IMAGE ? Number(process.env.THUMBNAIL_USD_PER_IMAGE) : undefined,
 };
 
 export const canAi = cfg.capabilities.includes("ai") && cfg.executor !== "none";
 /** TTS 를 집을 수 있는가 = ElevenLabs 키 보유 (spec/06). 키 없는 노트북 워커는 TTS 를 큐에 남겨 서버가 집게 한다 (0010) */
 export const canTts = !!cfg.elevenLabsKey;
+/** 썸네일을 집을 수 있는가 = OpenAI 키 보유 (0018). 키 없는 워커는 큐에 남겨 서버가 집게 한다 — TTS 와 같은 이유 */
+export const canThumbnail = !!cfg.openaiKey;
 export const executedBy = `worker:${cfg.workerName} (${cfg.executor})`;

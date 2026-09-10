@@ -140,12 +140,29 @@ export class LibraryService {
       return { item: existing, created: false, reactivated: false };
     }
 
-    await this.libraryItemRepository.reactivateById(
+    const reactivated = await this.libraryItemRepository.reactivateById(
       existing.id,
       now,
       LibraryItemSource.SAVE,
       manager,
     );
+
+    if (!reactivated) {
+      // 그 사이 다른 요청이 먼저 되살렸다 — 상태는 바뀌지 않았으니 신호도 남기지 않는다
+      const current =
+        await this.libraryItemRepository.findByUserIdAndContentIdWithDeleted(
+          userId,
+          contentId,
+          manager,
+        );
+
+      return {
+        item: this.assertFound(current),
+        created: false,
+        reactivated: false,
+      };
+    }
+
     existing.deletedAt = null;
     existing.addedAt = now;
     existing.source = LibraryItemSource.SAVE;
@@ -178,9 +195,8 @@ export class LibraryService {
       return false;
     }
 
-    await this.libraryItemRepository.softDeleteById(item.id, now, manager);
-
-    return true;
+    // 동시 해제는 한쪽만 true — 조회와 삭제 사이에 다른 요청이 지웠으면 이번 요청은 no-op이다
+    return this.libraryItemRepository.softDeleteById(item.id, now, manager);
   }
 
   /**
@@ -481,16 +497,17 @@ export class LibraryService {
    * 오프라인 큐가 같은 삭제를 다시 보낼 수 있고(`common-error-handling.md` 4.5),
    * 실패시킬 이유가 없다.
    */
+  /** @returns 이번 요청이 실제로 지웠는지 — 동시 삭제에서 진 쪽은 false(신호를 남기지 않는다) */
   async softDelete(
     item: LibraryItem,
     now: Date,
     manager?: EntityManager,
-  ): Promise<void> {
+  ): Promise<boolean> {
     if (item.deletedAt) {
-      return;
+      return false;
     }
 
-    await this.libraryItemRepository.softDeleteById(item.id, now, manager);
+    return this.libraryItemRepository.softDeleteById(item.id, now, manager);
   }
 
   /**

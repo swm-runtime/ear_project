@@ -55,18 +55,34 @@ describe('EmailVerificationService', () => {
       countByUserIdSince: jest.fn(() => Promise.resolve(0)),
       findActiveByUserId: jest.fn(),
       findByIdAndUserId: jest.fn(),
+      // 실제 구현과 같은 규칙 — 상한 미만이면 증가 후 값, 이미 닿았으면 null
+      incrementAttemptIfBelow: jest.fn(
+        (id: string, limit: number): Promise<number | null> => {
+          const current = repository.findByIdAndUserId.mock.results.at(-1)
+            ?.value as Promise<EmailVerification | null> | undefined;
+          return (current ?? Promise.resolve(null)).then((verification) =>
+            verification && verification.attemptCount < limit
+              ? verification.attemptCount + 1
+              : null,
+          );
+        },
+      ),
+      invalidateOtherActiveByUserId: jest.fn(() => Promise.resolve(0)),
+      deleteExpiredBefore: jest.fn(() => Promise.resolve(0)),
       deleteById: jest.fn(),
       deleteByUserId: jest.fn(),
     } as unknown as jest.Mocked<EmailVerificationRepository>;
 
+    const unverifiedUser = () =>
+      Promise.resolve({
+        id: USER_ID,
+        email: null,
+        isEmailVerified: false,
+      } as User);
+
     userService = {
-      getById: jest.fn(() =>
-        Promise.resolve({
-          id: USER_ID,
-          email: null,
-          isEmailVerified: false,
-        } as User),
-      ),
+      getById: jest.fn(unverifiedUser),
+      getByIdForUpdate: jest.fn(unverifiedUser),
       updateVerifiedEmail: jest.fn(),
     } as unknown as jest.Mocked<UserService>;
 
@@ -319,6 +335,78 @@ describe('EmailVerificationService', () => {
         EMAIL,
         {},
       );
+    });
+
+    it('만료 후 24시간이 지난 행을 지운다 — domain.md 3.7·12.1의 파기 집행', async () => {
+      // given
+      repository.deleteExpiredBefore.mockResolvedValue(7);
+
+      // when
+      const deleted = await service.purgeExpired(NOW);
+
+      // then — 기준 시각은 now − 24h
+      expect(deleted).toBe(7);
+      expect(repository.deleteExpiredBefore).toHaveBeenCalledWith(
+        new Date(NOW.getTime() - 24 * 60 * 60 * 1000),
+      );
+    });
+
+    it('코드가 맞아도 그 사이 계정이 이미 인증됐으면 거부하고 코드를 무효화한다 — 잠금 우회 차단', async () => {
+      // given — A 주소로 인증을 마친 뒤 3분 안에 B 주소 코드를 제출하는 상황
+      const verification = buildVerification();
+      repository.findByIdAndUserId.mockResolvedValue(verification);
+      userService.getByIdForUpdate.mockResolvedValue({
+        id: USER_ID,
+        email: 'a@example.com',
+        isEmailVerified: true,
+      } as User);
+
+      // when
+      const verifying = service.verifyCode(USER_ID, '1', '482913', NOW);
+
+      // then
+      await expect(verifying).rejects.toMatchObject({
+        errorCode: ErrorCode.EMAIL_ALREADY_REGISTERED,
+      });
+      expect(verification.invalidatedAt).toEqual(NOW);
+      expect(userService.updateVerifiedEmail).not.toHaveBeenCalled();
+    });
+
+    it('인증에 성공하면 같은 사용자의 다른 활성 인증을 전부 무효화한다', async () => {
+      // given
+      repository.findByIdAndUserId.mockResolvedValue(buildVerification());
+
+      // when
+      await service.verifyCode(USER_ID, '1', '482913', NOW);
+
+      // then
+      expect(repository.invalidateOtherActiveByUserId).toHaveBeenCalledWith(
+        USER_ID,
+        '1',
+        NOW,
+        {},
+      );
+    });
+
+    it('시도 카운트는 조건부 UPDATE로 올린다 — 상한에 이미 닿은 행은 증가 없이 무효화한다', async () => {
+      // given — 동시 제출로 DB 카운트가 이미 상한이라 증가가 거부되는 상황
+      const verification = buildVerification({ attemptCount: 5 });
+      repository.findByIdAndUserId.mockResolvedValue(verification);
+
+      // when
+      const verifying = service.verifyCode(USER_ID, '1', '482913', NOW);
+
+      // then
+      await expect(verifying).rejects.toMatchObject({
+        errorCode: ErrorCode.EMAIL_VERIFICATION_ATTEMPTS_EXCEEDED,
+      });
+      expect(repository.incrementAttemptIfBelow).toHaveBeenCalledWith(
+        '1',
+        5,
+        NOW,
+        {},
+      );
+      expect(userService.updateVerifiedEmail).not.toHaveBeenCalled();
     });
 
     it('코드가 틀리면 남은 시도 횟수를 함께 내려준다', async () => {

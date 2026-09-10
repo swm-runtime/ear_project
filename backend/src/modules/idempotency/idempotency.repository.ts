@@ -1,17 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import {
-  EntityManager,
-  LessThan,
-  Like,
-  QueryFailedError,
-  Repository,
-} from 'typeorm';
+import { EntityManager, LessThan, Like, Not, Repository } from 'typeorm';
+
+import { isUniqueViolation } from '@/common/utils/unique-violation.util';
 
 import { IdempotencyKey } from './idempotency-key.entity';
-
-/** Postgres unique_violation */
-const UNIQUE_VIOLATION_CODE = '23505';
+import { IdempotencyStatus } from './idempotency.enum';
 
 @Injectable()
 export class IdempotencyRepository {
@@ -35,7 +29,7 @@ export class IdempotencyRepository {
     try {
       return await this.scoped(manager).save(key);
     } catch (error) {
-      if (error instanceof QueryFailedError && this.isUniqueViolation(error)) {
+      if (isUniqueViolation(error)) {
         return null;
       }
       throw error;
@@ -77,11 +71,20 @@ export class IdempotencyRepository {
     await this.scoped(manager).delete({ id });
   }
 
+  /**
+   * 탈퇴 파기(domain.md 12.3). **진행 중(`in_progress`) 행은 남긴다** — 그중 하나가 지금 이
+   * 파기를 실행하는 탈퇴 요청 자신의 키다. 같이 지우면 `complete`가 기록할 행이 없어, 응답을
+   * 못 받은 클라이언트의 같은 키 재시도가 저장된 204 대신 "사용자 없음"을 받는다
+   * (`tickets/backend/.../audit-low-severity-bundle.md` #1). 남은 행은 24시간 만료 배치가 지운다.
+   */
   async deleteByOwnerKey(
     ownerKey: string,
     manager?: EntityManager,
   ): Promise<void> {
-    await this.scoped(manager).delete({ ownerKey });
+    await this.scoped(manager).delete({
+      ownerKey,
+      status: Not(IdempotencyStatus.IN_PROGRESS),
+    });
   }
 
   /** 보존 24시간 배치용 (domain.md 1.4) */
@@ -99,11 +102,5 @@ export class IdempotencyRepository {
     manager?: EntityManager,
   ): Promise<number> {
     return this.scoped(manager).countBy({ ownerKey: Like(`${prefix}%`) });
-  }
-
-  private isUniqueViolation(error: QueryFailedError): boolean {
-    return (
-      (error.driverError as { code?: string }).code === UNIQUE_VIOLATION_CODE
-    );
   }
 }

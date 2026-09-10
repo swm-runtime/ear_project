@@ -30,6 +30,8 @@ import { User } from '@/modules/user/entities/user.entity';
   'createdAt',
 ])
 @Index('idx_source_link_clicks_user_id', ['userId'])
+// 보존 기간 배치가 `created_at`만으로 범위 삭제한다 (domain.md 12.1)
+@Index('idx_source_link_clicks_created_at', ['createdAt'])
 export class SourceLinkClick extends BaseEntity {
   @PrimaryGeneratedColumn('increment', { type: 'bigint' })
   id: string;

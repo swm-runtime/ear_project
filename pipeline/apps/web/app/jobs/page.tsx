@@ -2,7 +2,7 @@ import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase-server";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { Badge, PageHeader, Panel, Table, Td } from "@/components/ui";
-import { fmtTime, fmtDuration, fmtTokens, fmtUsd, label } from "@/lib/format";
+import { fmtTime, fmtDuration, fmtTokens, fmtUsd, label, jobRoundLabel } from "@/lib/format";
 
 const PAGE = 50;
 const TYPES = ["sweep", "cluster", "draft", "qa", "critic", "tts", "package"];
@@ -57,7 +57,7 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
             return (
               <tr key={j.id} className="align-top hover:bg-[#f7f9fb]">
                 <Td><Badge value={j.status} /></Td>
-                <Td className="whitespace-nowrap font-medium">{j.type}{j.attempt > 1 ? ` · ${j.attempt}회차` : ""}</Td>
+                <Td className="whitespace-nowrap font-medium">{j.type}{jobRoundLabel(j)}</Td>
                 <Td>
                   {j.payload?.episode_id ? <Link className="underline" href={`/episodes/${j.payload.episode_id}`}>{j.payload.episode_id}</Link> : target}
                   {j.status === "failed" && j.error && <div className="mt-0.5 max-w-md whitespace-normal text-xs text-rose-600" title={j.error}>{String(j.error).split("\n")[0].slice(0, 140)}</div>}

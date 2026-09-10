@@ -8,12 +8,11 @@ import { ERROR_CODES } from '@/shared/api/error-codes';
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { useToastStore } from '@/shared/ui/toast.store';
 
-import { useTopicsQuery } from '@/features/interest';
+import { isTopicListUnavailable, useTopicsQuery } from '@/features/interest';
 
 import { ONBOARDING_COPY } from '../onboarding.copy';
 import type { OnboardingStackParamList } from '../onboarding.types';
 import { useSaveInterestsMutation } from './useSaveInterestsMutation';
-import { isTopicListUnavailable } from '../services/topic-list-state';
 import { useOnboardingStore } from '../store/onboarding.store';
 
 export const useTopicSelectScreen = () => {

@@ -8,7 +8,7 @@
 | 발견 시점 | `ci-runs-tests-before-api-deploy` 구현 중 — 배포 전 검증에 `npm run lint`를 넣으면서 스크립트를 열어 보다 발견 |
 | 근거 문서 | `backend/convention.md` 7장(테스트) · `frontend/convention.md`의 lint 규약 |
 | 심각도 | **하** — 지금 당장 깨지는 것은 없다. 다만 **CI에 lint 단계를 넣어 둔 의미가 절반 사라진다** |
-| 상태 | 대기 |
+| 상태 | 반영 완료 (2026-09-09) |
 
 ## 문제
 
@@ -44,3 +44,17 @@ CI의 lint는 **검사**여야 한다. 고치는 것은 개발자의 로컬에�
 - Given 자동 수정 가능한 lint 위반이 있는 커밋 / When CI 검증 job이 돈다 / Then **실패한다**
 - Given 같은 위반 / When 로컬에서 `npm run lint:fix`를 돌린다 / Then 고쳐진다
 - Given 저장소 현재 상태 / When `npm run lint`를 돌린다 / Then 통과한다(가려져 있던 위반이 남아 있지 않다)
+
+## 처리 기록 (반영 날짜: 2026-09-09)
+
+`backend/package.json`의 `lint`를 검사 전용으로 바꾸고 `lint:fix`를 분리했다.
+`deploy-api.yml`은 무변경(같은 `npm run lint`를 계속 부른다).
+
+| 완료 조건 | 확인 |
+|---|---|
+| 자동 수정 가능 위반 → CI 실패 | ✅ 검사 전용이므로 eslint가 종료 코드로 알린다 |
+| `lint:fix`로 고쳐진다 | ✅ 분리 완료 |
+| 현재 저장소 `npm run lint` 통과 | ✅ **0 errors** — 가려져 있던 자동 수정 가능 위반은 없었다. 경고 4건(no-unsafe-argument — token.service.spec 2·idempotency 1·email-verification 1)은 기존 것이며 종료 코드에 영향 없음 |
+
+**프론트엔드 확인(요청 항목)** — `frontend/package.json`의 lint는 `expo lint`로 `--fix`가
+없어 같은 문제가 없다. `pipeline/apps/web`도 `eslint`(검사 전용)라 해당 없음. FE 전달 불요.

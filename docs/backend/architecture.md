@@ -197,9 +197,17 @@ src/
 | ContentDetail | Content, Library, Playback | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
 | Profile | User, Subscription, Interest, Library, Playback, Content | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
 | Settings | User, Subscription, Interest | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
+| Retention | *(없음)* | **Entity도 다른 모듈도 갖지 않는 정책 집행 모듈**, 아래 참고 |
 | *(도메인 확정 시 계속 추가)* | | |
 
 **DripBatch도 Entity를 갖지 않는다** (신설 2026-08-27 — 일일 편성 배치, `drip-scheduling.md` 2·4). 3.3이 "드립 편성 배치"를 Orchestrator 대상으로 명시한 자리다. 스코어링 입력인 소비 신호(`user_signals`)의 소유자가 `playback`인데 **`playback → drip` 의존이 이미 있어**(재생 시 영구 제외 적재) `drip`이 신호를 읽으면 순환이 된다(`forwardRef` 금지 — 4.3). 그래서 두 모듈 **위에서** Orchestrator가 조합한다. 도메인 판정(스코어링·신호 집계·적립 원자성)은 전부 `drip` 모듈의 Service(`DripScoringService` · `PreferenceVectorService` · `DripPlacementService`)에 있고, Orchestrator는 순서·조합·사용자 단위 실패 격리만 담당한다. 트리거는 05:00 KST 크론(`DripBatchScheduler`)이며 중복 실행은 `drip_batch_runs.run_date` 유니크 선점으로 막는다. 어떤 모듈도 이 모듈을 의존하지 않는다.
+
+**Retention은 Entity도 다른 모듈도 갖지 않는다** (신설 2026-09-10 — `domain.md` 12.1의 보존 기간 집행). 앞의 유스케이스 모듈들과 형태가 다르다: 그쪽은 Entity가 없는 대신 **소유 모듈의 Service를 조합하는데**, 이 모듈은 조합할 Service가 없다. 다른 모듈의 Service를 하나도 부르지 않고 자기 Repository에서 네 테이블(`user_signals` · `source_link_clicks` · `audio_access_logs` · `notification_logs`)의 오래된 행을 지울 뿐이다.
+
+- **남의 테이블을 지우면서 소유 모듈을 의존하지 않는다.** 대상이 네 모듈에 흩어져 있어 소유 모듈마다 배치를 두면 같은 규칙의 구현이 네 벌이 되고, `notification_logs`는 **소유 모듈 자체가 없다**(`domain.md` 9.1과 스키마에는 있지만 아직 쓰는 기능 코드가 없다). 보존 기간의 소유자는 기능이 아니라 12.1이라는 하나의 정책 표이므로, 정책이 한 곳이면 집행도 한 곳이어야 한다.
+- **Repository가 raw SQL을 쓴다**(3.4의 허용 범위). 배치 크기를 끊는 `DELETE ... LIMIT`을 TypeORM 쿼리 빌더로 표현할 수 없다 — 첫 실행이 몇 달치를 한 번에 지우면 테이블이 잠긴다. 테이블 이름은 컴파일 타임 문자열 유니온이라 사용자 입력이 식별자 자리에 닿지 않는다.
+- **트리거는 04:30 KST**다. 집계(`ContentStatAggregationScheduler` 04:00)와 만료(`ContentExpiryScheduler` 04:10) **뒤**, 드립 편성(05:00) **앞**에 둔다. `content_stats` 재집계가 `user_signals` · `source_link_clicks`를 원천으로 읽으므로 **집계보다 먼저 지우면 그날 집계가 원천을 잃는다.**
+- **`audit_logs`는 대상이 아니고**(12.1 — 삭제하지 않는다) `play_records`는 보류다(프로필이 전 기간 합계를 읽는다). 어떤 모듈도 이 모듈을 의존하지 않는다.
 
 **Onboarding은 Entity를 갖지 않는다.** 온보딩은 화면 흐름이라 자기 데이터가 없고 `users` · `user_interests` · `contents` · `library_items` · `first_drip_jobs`를 횡단한다. 4.1의 "모듈은 Entity 기준으로 나눈다"의 예외이며, Repository 없이 **Orchestrator가 각 소유 모듈의 Service를 조합한다**(→ 3.3). 도메인 규칙 판정(주제 개수 상한, 발행 상태, 완료 여부)은 전부 소유 모듈의 Service에 있고 Orchestrator는 순서·조합만 담당한다.
 
@@ -453,6 +461,8 @@ async withdraw(userId: string) {
 | refresh token | 30일 | **해시**해서 DB 저장. 원문 저장 금지 |
 
 - **refresh token은 사용 시 회전(rotation)한다.** 이전 토큰은 즉시 무효화하고, 이미 쓰인 토큰이 재사용되면 해당 사용자의 세션 전체를 무효화한다(탈취 감지).
+  - **회전은 원자적이어야 한다**(반영 2026-09-09). 조회 → 무효화 → 발급을 나눠 하면 완전 동시 요청 둘이 **모두 통과해 탐지를 우회**하고, 근소 직렬 요청은 **정상 사용자를 강제 로그아웃**시킨다. 실서버에서 두 사례 모두 발생했다. 무효화를 `revoked_at IS NULL` 조건부 갱신으로 두고 **그 성공 여부로 판정한다.**
+  - **유예창(reuse interval)은 두지 않는다 — 다만 폐기가 아니라 보류다**(결정 2026-09-10). 회전 직후 짧은 창 안의 재사용을 탐지에서 빼는 방식(Auth0 등)을 검토했다. 위 원자화와 클라이언트의 single-flight 갱신으로 실측된 두 사례가 이미 닫히므로 **지금 도입할 이유가 없고**, 도입하려면 `sessions`에 회전 시각·후속 세션 참조가 필요해 스키마가 함께 움직인다(domain.md 3.3). 정상 경합이 다시 로그아웃으로 번지는 것이 관측되면 그때 인증 작업에 묶어 도입한다.
 - 로그아웃·회원 탈퇴 시 저장된 refresh token을 삭제한다.
 - 401 응답은 `common-error-handling.md` 4.1의 자동 갱신 흐름과 맞물린다. 갱신 실패는 재갱신 여지 없이 명확히 실패시킨다(무한 루프 방지).
 
@@ -497,14 +507,20 @@ PRD FR-33 / 비기능 "저작권·파트너 계약 준수"에 직접 대응한�
 
 ### 9.6 레이트 리밋 / 남용 방지
 
-| 대상 | 정책(잠정) |
-|---|---|
-| 인증 요청(로그인·토큰 갱신) | IP·계정 단위 제한 |
-| 일반 API | 사용자 단위 제한 |
-| 콘텐츠 서명 URL 발급 | 사용자 단위 제한 + 이상 패턴 탐지 |
-| 결제 검증 | 멱등키 필수, 중복 요청은 첫 결과 반환 |
+수치 확정 2026-09-09 (`@nestjs/throttler`, 인메모리 — 단일 인스턴스 기준. 스케일아웃 시 Redis 스토리지로 교체한다).
 
-- 제한 초과는 `429` + `retry_after_sec`으로 응답한다. 클라이언트는 이 값만큼 대기 후 재시도한다.
+| 대상 | 키 | 한도(초기값) | 근거 |
+|---|---|---|---|
+| 일반 API (전역 기본) | 인증 사용자 id, 비인증은 IP | **분당 300회** | 플레이어가 5초마다 위치 저장 + 목록 조회를 더해도 분당 수십 회. 10배 여유 |
+| `/auth/social-login` · `/auth/sign-up` · `/auth/token/refresh` | IP (토큰이 있어도) | **분당 20회** | 정상 앱은 실행당 1~2회. 제공자 API 호출 비용·크리덴셜 스터핑 방어 |
+| `/users/me/email-verifications` (발송) | 사용자 | **분당 5회** | 앱 레벨 상한(주소당 5회·계정당 시간당 20회)의 앞단 방어 |
+| `/contents/:id/audio-urls` (서명 URL 발급) | 사용자 | **분당 30회** | 정상 재생은 5분마다 1회 갱신. 대량 다운로드 패턴 차단(9.4) — 이상 탐지 배치 전까지의 1차 방어 |
+| `/health` | — | 제외 | 헬스체크·모니터링 |
+| 결제 검증 | 멱등키 필수, 중복 요청은 첫 결과 반환 | | |
+
+- 제한 초과는 `429` + `TOO_MANY_REQUESTS` + `retry_after_sec`으로 응답한다(`common-error-handling.md`). 클라이언트는 이 값만큼 대기 후 재시도한다.
+- 전역 가드는 컨트롤러의 인증 가드보다 먼저 돌아 `request.user`가 없다 — 가드가 access token을 **직접 검증**해 사용자 키를 가른다. 검증 없이 payload만 읽으면 위조 `sub`로 버킷을 늘려 한도를 우회할 수 있으므로, 검증 실패 토큰은 IP로 센다.
+- 수치는 시범 운영 데이터로 조정하며, 조정은 상수(`rate-limit.constant.ts`) 변경 + 이 표 갱신으로 한다.
 
 ### 9.7 개인정보
 
@@ -519,7 +535,7 @@ PRD FR-33 / 비기능 "저작권·파트너 계약 준수"에 직접 대응한�
 - ~~비동기 작업 처리 방식: DB 기반 작업 테이블 + 스케줄러 vs 메시지 큐(BullMQ 등) 도입 여부와 시점~~ → **DB 기반 작업 테이블 + 스케줄러로 확정한다**(아래 참고). 메시지 큐 도입은 이 방식이 감당하지 못하는 부하가 확인된 뒤에 다시 논의한다
 - AI Server 연동 방식 확정: 동기 요청 / 비동기 콜백 / 폴링 중 어느 조합인지
 - 서명 URL 만료 시간 확정(회수 반영 지연 상한과 직결 — 파트너 계약 명시 대상)
-- 레이트 리밋 구체 수치, 회로 차단 도입 시점
+- 회로 차단 도입 시점 (레이트 리밋 구체 수치는 9.6에서 확정 — 2026-09-09)
 - 탈퇴 시 재생 로그 비식별 보존 범위·기간 (PRD FR-02 "조사 필요", 법무 검토)
 - 5장 Domain Responsibility — 도메인별 책임 경계 작성 (스키마는 `domain.md`가 기준이므로 6장은 원칙만 유지한다)
 

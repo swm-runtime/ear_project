@@ -2,12 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase-server";
 import { parseCriticReport, parseCriticScores, parseScript, readArtifact } from "@/lib/artifacts";
-import { fmtTime, fmtTokens, fmtUsd, label } from "@/lib/format";
+import { fmtTime, fmtTokens, fmtUsd, label, jobRoundLabel } from "@/lib/format";
 import { JudgeView } from "./judge-view";
 import { VerdictForm } from "./verdict-form";
 import { TtsButton } from "./tts-button";
 import { RepublishButton } from "./republish-button";
 import { PackageButton } from "./package-button";
+import { ThumbnailButton } from "./thumbnail-button";
 import { DeleteButton } from "./delete-button";
 import { listObjects, presignGet } from "@/lib/storage";
 import { ScriptEditor } from "./script-editor";
@@ -16,7 +17,7 @@ import { AutoRefresh } from "@/components/auto-refresh";
 import { JobProgress } from "@/components/job-progress";
 import { Badge, LinkBtn, PageHeader, Panel } from "@/components/ui";
 
-const TABS = [["script", "대본"], ["outline", "구성안"], ["sources", "발췌"], ["claims", "claims"], ["qa", "QA"], ["critic", "비평·판정"], ["pron", "발음"], ["audio", "오디오"], ["meta", "메타"], ["runs", "실행 기록"]] as const;
+const TABS = [["script", "대본"], ["outline", "구성안"], ["sources", "발췌"], ["claims", "claims"], ["qa", "QA"], ["critic", "비평·판정"], ["pron", "발음"], ["audio", "오디오"], ["thumb", "썸네일"], ["meta", "메타"], ["runs", "실행 기록"]] as const;
 
 export default async function EpisodePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
   const { id } = await params; const { tab = "script" } = await searchParams;
@@ -26,7 +27,7 @@ export default async function EpisodePage({ params, searchParams }: { params: Pr
   const [{ data: bl }, { data: runs }, { data: jobs }] = await Promise.all([
     sb.from("backlog").select("id,title,mid_topic,status,angle,published_content_ref,published_version,published_at").eq("id", ep.backlog_id).single(),
     sb.from("runs").select("phase,attempt,result,model,executed_by,executed_at,prompt_version,cost_usd,tokens,worker_rev").eq("backlog_id", ep.backlog_id).order("executed_at"),
-    sb.from("jobs").select("id,type,status,attempt,progress,claimed_by,created_at").eq("payload->>episode_id", id).order("created_at"),
+    sb.from("jobs").select("id,type,status,attempt,payload,progress,claimed_by,created_at").eq("payload->>episode_id", id).order("created_at"),
   ]);
   const keyOf: Record<string, string | null> = { script: ep.script_key, sources: ep.sources_key, claims: ep.claims_key, qa: ep.qa_report_key, critic: ep.critic_report_key };
   // 구성안·대본 노트(2단계 초안, spec/04 8장) — DB 키 없이 script_key 와 같은 디렉토리에서 찾는다 (구 방식 에피소드는 없음)
@@ -37,7 +38,9 @@ export default async function EpisodePage({ params, searchParams }: { params: Pr
   const criticMd = tab === "script" ? await readArtifact(ep.critic_report_key) : null; // 대본 탭에서 리포트를 대본 위에 얹어 판정한다
   const ttsJob = (jobs ?? []).find((j) => j.type === "tts" && ["queued", "claimed", "running"].includes(j.status));
   const pkgJob = (jobs ?? []).find((j) => j.type === "package" && ["queued", "claimed", "running"].includes(j.status));
+  const thumbJob = (jobs ?? []).find((j) => j.type === "thumbnail" && ["queued", "claimed", "running"].includes(j.status));
   const audioFiles = tab === "audio" ? await listAudioFiles(ep.id) : null;
+  const thumbUrl = tab === "thumb" && ep.thumbnail_key ? await presignGet(String(ep.thumbnail_key).replace(/^s3:/, ""), 3600).catch(() => null) : null;
   const uploadMeta = tab === "meta" ? await readUploadMeta(ep.id) : null; // 패키지 산출물 (spec/07 2장) — 게이트 2 검수 항목 5(제목·설명)의 근거
   const pronRaw = tab === "pron" ? await readPronunciations(ep.id) : null; // 에피소드 발음 맵 (spec/06 6장) — TTS 병합 사전의 에피소드 층
   const activeJobs = (jobs ?? []).filter((j) => ["queued", "claimed", "running"].includes(j.status));
@@ -59,6 +62,7 @@ export default async function EpisodePage({ params, searchParams }: { params: Pr
           <PackageButton episodeId={ep.id} backlogId={ep.backlog_id} enabled={["qa_passed", "packaged"].includes(bl?.status ?? "")} pending={!!pkgJob} />
           {["packaged", "published"].includes(bl?.status ?? "") && <LinkBtn kind="primary" href={`/publish/upload?episode=${ep.id}`}>제품 발행</LinkBtn>}
           <TtsButton episodeId={ep.id} backlogId={ep.backlog_id} enabled={["qa_passed", "packaged", "published"].includes(bl?.status ?? "")} pending={!!ttsJob} />
+          <ThumbnailButton episodeId={ep.id} backlogId={ep.backlog_id} enabled={["qa_passed", "packaged", "published"].includes(bl?.status ?? "")} pending={!!thumbJob} exists={!!ep.thumbnail_key} />
           <DeleteButton episodeId={ep.id} backlogId={ep.backlog_id} disabled={!!ep.regression || bl?.status === "published" || activeJobs.some((j) => j.status !== "queued")}
             disabledReason={ep.regression ? "회귀 세트는 지울 수 없음" : bl?.status === "published" ? "발행된 에피소드 — 제품 발행에서 회수가 먼저" : "진행 중인 작업이 끝난 뒤"} />
           {bl?.status === "published" && bl.published_content_ref && (
@@ -68,7 +72,7 @@ export default async function EpisodePage({ params, searchParams }: { params: Pr
       />
       {activeJobs.map((j) => (
         <div key={j.id} className="rounded-md border border-line bg-panel px-4 py-3">
-          <div className="text-[13px] font-medium">{j.type}{j.attempt > 1 ? ` · ${j.attempt}회차` : ""} {j.status === "queued" ? "— AI 워커 대기 중" : "실행 중"} <span className="font-normal text-ink-soft">{j.claimed_by ?? ""}</span></div>
+          <div className="text-[13px] font-medium">{j.type}{jobRoundLabel(j)} {j.status === "queued" ? "— AI 워커 대기 중" : "실행 중"} <span className="font-normal text-ink-soft">{j.claimed_by ?? ""}</span></div>
           <JobProgress job={j} />
         </div>
       ))}
@@ -125,6 +129,40 @@ export default async function EpisodePage({ params, searchParams }: { params: Pr
         ) : (
           <p className="rounded-md border border-line bg-panel p-6 text-center text-[13px] text-ink-soft">
             {audioFiles ? "아직 오디오가 없습니다 — 상단 TTS 변환으로 생성합니다 (qa_passed 이후)." : "오디오 목록을 읽을 수 없습니다 (서버 S3 설정 확인)."}
+          </p>
+        )
+      )}
+      {tab === "thumb" && (
+        thumbUrl ? (
+          <Panel title="썸네일 — 시인성 확인 (KAN-50) · 서명 URL 1시간(만료 시 새로고침)" className="text-[13px]">
+            {/* 1024 원본과 44pt 축소본을 나란히 둔다 — 앱에서 가장 작게 쓰이는 크기가 미니 플레이어(44pt)라,
+                그 크기에서 무엇인지 알아볼 수 있는지가 채택 판정의 기준이다 (프롬프트 자산 [시인성]) */}
+            <div className="flex flex-wrap items-start gap-6">
+              <div>
+                <div className="mb-1 text-ink-soft">원본 1024×1024</div>
+                <img src={thumbUrl} alt="썸네일 원본" width={320} height={320}
+                  className="rounded-xl border border-line" style={{ width: 320, height: 320 }} />
+              </div>
+              <div>
+                <div className="mb-1 text-ink-soft">미니 플레이어 44pt</div>
+                <img src={thumbUrl} alt="썸네일 44pt" width={44} height={44}
+                  className="rounded border border-line" style={{ width: 44, height: 44 }} />
+                <div className="mt-3 text-ink-soft">목록 72pt</div>
+                <img src={thumbUrl} alt="썸네일 72pt" width={72} height={72}
+                  className="mt-1 rounded-md border border-line" style={{ width: 72, height: 72 }} />
+                <div className="mt-3 text-ink-soft">탐색 타일 156pt</div>
+                <img src={thumbUrl} alt="썸네일 156pt" width={156} height={156}
+                  className="mt-1 rounded-lg border border-line" style={{ width: 156, height: 156 }} />
+              </div>
+            </div>
+            <p className="mt-4 text-ink-soft">
+              44pt에서 무엇인지 알아볼 수 없거나 화풍이 편마다 튀면 상단 [썸네일 다시 만들기]로 다시 뽑는다 —
+              마음에 드는 1장을 스타일 앵커(<code>THUMBNAIL_ANCHOR_KEY</code>)로 지정하면 이후 생성이 그 화풍을 따라간다.
+            </p>
+          </Panel>
+        ) : (
+          <p className="rounded-md border border-line bg-panel p-6 text-center text-[13px] text-ink-soft">
+            {ep.thumbnail_key ? "썸네일 URL 을 만들지 못했습니다 (서버 S3 설정 확인)." : "아직 썸네일이 없습니다 — 상단 [썸네일 생성]으로 만듭니다 (qa_passed 이후)."}
           </p>
         )
       )}

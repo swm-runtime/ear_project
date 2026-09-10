@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
+import { EntityManager, LessThan, Repository } from 'typeorm';
 
 import {
   FirstDripJobStatus,
@@ -117,6 +117,18 @@ export class FirstDripJobRepository {
 
   async deleteByUserId(userId: string, manager?: EntityManager): Promise<void> {
     await this.scoped(manager).delete({ userId });
+  }
+
+  /** `completed_at`이 기준 시각보다 앞선 완료 작업을 지운다(domain.md 7.4). 반환값은 삭제 행 수 */
+  async deleteCompletedBefore(
+    before: Date,
+    manager?: EntityManager,
+  ): Promise<number> {
+    const result = await this.scoped(manager).delete({
+      completedAt: LessThan(before),
+    });
+
+    return result.affected ?? 0;
   }
 }
 

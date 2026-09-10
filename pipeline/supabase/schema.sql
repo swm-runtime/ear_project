@@ -15,7 +15,8 @@ create table if not exists domains (
   decided_by  text,                            -- 판정자 (게이트: 사람만 기입)
   decided_at  timestamptz,
   note        text,
-  created_at  timestamptz not null default now()
+  created_at  timestamptz not null default now(),
+  fetch_blocked_at timestamptz                  -- 0017: 본문 접근 불가 반복(ok 0·차단 3+) → 군집화 제외. 코드가 찍고 지움. 계층과 별개
 );
 
 -- ── 2. sources: 스윕으로 수집한 소스 링크+메타데이터 ─────────────
@@ -29,9 +30,12 @@ create table if not exists sources (
   author      text,
   published   date,
   swept_at    date not null,
-  created_at  timestamptz not null default now()
+  created_at  timestamptz not null default now(),
+  fetch_status text check (fetch_status in ('ok','robots','blocked','empty','network')), -- 0017: 본문 접근 결과 (설계·군집화 사전 검사가 기록)
+  fetch_checked_at timestamptz
 );
 create index if not exists idx_sources_published on sources (published desc);
+create index if not exists idx_sources_fetch_status on sources (fetch_status);
 
 -- ── 3. backlog: 에피소드 주제 후보 (03 문서 3장) ─────────────────
 create table if not exists backlog (
@@ -51,6 +55,10 @@ create table if not exists backlog (
   approved_at timestamptz,
   claimed_by  text,                            -- 동시 작업 충돌 방지
   claimed_at  timestamptz,
+  axis        text,                            -- 군집화 v2(0016): 축 한 문장 (대립·역설·재정의). v1 후보는 null
+  axis_type   text check (axis_type in ('대립','역설','재정의')),
+  gaps        text[] not null default '{}',    -- 비어 있는 소스 역할 (탐색 보강의 입력). sources[].role 이 역할표
+  cluster_version text,                        -- v1 / v2
   published_content_ref text,                  -- 발행 후 제품 content_id (0012 부터 발행 화면이 자동 기록, 이전은 수기)
   published_version int,                       -- 제품 content_version (재발행마다 +1 — 0012)
   published_at timestamptz,                    -- 최근 발행·재발행 시각 (0012) — TTS 재합성 시각과 비교해 재발행 버튼을 띄운다
@@ -80,7 +88,7 @@ create table if not exists runs (
   id          uuid primary key default gen_random_uuid(),
   backlog_id  text references backlog(id),
   phase       text not null
-              check (phase in ('sweep','cluster','draft','critic','qa','package','tts')),
+              check (phase in ('sweep','cluster','draft','critic','qa','package','tts','domain_check','thumbnail')), -- 0008: domain_check(스냅샷 누락분 정정) · 0018: thumbnail
               -- critic: 품질 사이클의 선행 비평 실행 (spec/09 7장) — QA(사실)와 별개의 스타일 검수
   attempt     int not null default 1,          -- QA 재생성 차수 (1~3)
   result      text,                            -- 통과/실패 + 사유 요약
@@ -120,7 +128,7 @@ alter table runs    enable row level security;
 
 create table if not exists public.jobs (
   id uuid primary key default gen_random_uuid(),
-  type text not null check (type in ('sweep','cluster','draft','qa','critic','tts','package')),
+  type text not null check (type in ('sweep','cluster','draft','qa','critic','tts','package','domain_check','thumbnail')), -- 0007: domain_check(스냅샷 누락분 정정) · 0018: thumbnail
   requires_ai boolean not null,
   payload jsonb not null default '{}'::jsonb,
   status text not null default 'queued' check (status in ('queued','claimed','running','done','failed','cancelled')),
@@ -151,6 +159,8 @@ create table if not exists public.episodes (
   critic_report_key text,
   audio_master_key text,
   audio_dist_key text,
+  thumbnail_key text,                     -- 0018: s3:episodes/<id>/thumbnail.png
+  one_liner text,                         -- 0018: 40자 이내 한 줄 요약 — 썸네일 {핵심 개념} · 발행 메타 설명 첫 줄
   critic_verdicts jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -235,3 +245,62 @@ create table if not exists public.prompt_assets (
 create unique index if not exists prompt_assets_active_idx on public.prompt_assets (key) where status = 'active';
 alter table public.episodes add column if not exists asset_versions jsonb;
 alter table public.runs add column if not exists cost_usd numeric, add column if not exists tokens jsonb, add column if not exists worker_rev text;
+
+-- ===== 0017 (2026-09-10): sources.fetch_status · domains.fetch_blocked_at · domain_stats 에 blocked_count/ok_count — 원문은 supabase/migrations/0017_source_fetch_status.sql =====
+create or replace view public.domain_stats as
+select d.id as domain_id,
+       count(s.id)                                                     as source_count,
+       max(s.swept_at)                                                 as last_swept,
+       max(s.published)                                                as last_published,
+       count(s.id) filter (where s.fetch_status in ('robots','blocked')) as blocked_count,
+       count(s.id) filter (where s.fetch_status = 'ok')                as ok_count
+  from public.domains d
+  left join public.sources s on s.domain_id = d.id
+ group by d.id;
+grant select on public.domain_stats to authenticated;
+
+-- ===== 0018 (2026-09-10): 썸네일 생성 단계 — episodes.thumbnail_key·one_liner · jobs/runs 에 thumbnail · claim_job 게이트 =====
+-- 원문은 supabase/migrations/0018_thumbnail.sql (위 인라인 정의에 이미 반영됨).
+-- claim_job 은 4인자로 바뀌었다 — p_can_thumbnail = 워커가 OPENAI_API_KEY 를 가졌는가(0010 의 TTS 게이트와 같은 이유).
+drop function if exists public.claim_job(text, boolean, boolean);
+
+create or replace function public.claim_job(
+  p_worker text,
+  p_can_ai boolean,
+  p_can_tts boolean default true,
+  p_can_thumbnail boolean default true
+)
+returns setof public.jobs
+language plpgsql
+as $$
+declare
+  j public.jobs;
+begin
+  update public.jobs
+     set status = 'queued', claimed_by = null, claimed_at = null, heartbeat_at = null,
+         error = coalesce(error, '') || ' | heartbeat 끊김으로 회수 ' || now()::text
+   where status in ('claimed','running')
+     and heartbeat_at < now() - interval '15 minutes';
+
+  select * into j
+    from public.jobs
+   where status = 'queued'
+     and (p_can_ai or requires_ai = false)
+     and (p_can_tts or type <> 'tts')
+     and (p_can_thumbnail or type <> 'thumbnail')
+   order by created_at
+   for update skip locked
+   limit 1;
+
+  if not found then
+    return;
+  end if;
+
+  update public.jobs
+     set status = 'claimed', claimed_by = p_worker, claimed_at = now(), heartbeat_at = now()
+   where id = j.id
+  returning * into j;
+
+  return next j;
+end;
+$$;

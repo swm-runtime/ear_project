@@ -75,7 +75,7 @@ export class AdminContentService {
     this.validateDisclosure(command, now);
     // 파일 검증은 업로드 전에 — 거부여도 업로드는 진행하므로(admin.md 3.1) 예외가 아니다
     const enrichment = command.enrichment
-      ? parseEnrichmentFile(command.enrichment)
+      ? await parseEnrichmentFile(command.enrichment)
       : null;
     const audioExtension = this.resolveExtension(
       command.audio,
@@ -229,7 +229,7 @@ export class AdminContentService {
     }
 
     const enrichment = command.enrichment
-      ? parseEnrichmentFile(command.enrichment)
+      ? await parseEnrichmentFile(command.enrichment)
       : null;
 
     /**
@@ -322,8 +322,9 @@ export class AdminContentService {
     let content: Content;
     try {
       content = await this.dataSource.transaction(async (manager) => {
-        // 파일을 올리는 동안 회수됐을 수 있다 — 트랜잭션 안에서 다시 본다
-        const current = await this.contentService.getById(
+        // 파일을 올리는 동안 회수됐을 수 있다 — 트랜잭션 안에서 **행을 잠그고** 다시 본다.
+        // 잠금이 없으면 동시 재발행 두 건이 같은 버전을 읽어 서로의 새 파일을 지운다
+        const current = await this.contentService.getByIdForUpdate(
           command.contentId,
           manager,
         );
@@ -722,11 +723,27 @@ export class AdminContentService {
       );
     });
 
-    await this.storage.remove(storageKeys);
+    const failedKeys = await this.storage.remove(storageKeys);
+
+    /**
+     * 결과를 **후속 감사 행**으로 남긴다. 앞 행은 "지우려 했다"이고 이 행이 "지워졌다/못 지웠다"다 —
+     * 앞 행만 있으면 삭제가 실패해도 정리된 것으로 읽힌다(감사 하 #4). 남은 키는 운영이 지운다.
+     */
+    await this.auditLogService.record({
+      actor: actorUserId,
+      action: AUDIT_ACTION_CONTENT_PURGE_STORAGE,
+      target: `content:${contentId}`,
+      after: {
+        result: failedKeys.length === 0 ? 'purged' : 'partially_failed',
+        purged_key_count: storageKeys.length - failedKeys.length,
+        failed_keys: failedKeys,
+      },
+    });
 
     this.logger.log('content storage purged', {
       content_id: contentId,
-      purged_key_count: storageKeys.length,
+      purged_key_count: storageKeys.length - failedKeys.length,
+      failed_key_count: failedKeys.length,
       actor: actorUserId,
     });
   }

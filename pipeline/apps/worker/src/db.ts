@@ -7,7 +7,7 @@ export const pool = new pg.Pool({ connectionString: cfg.databaseUrl, max: 3, idl
 // Supabase 풀러가 유휴 연결을 끊으면 풀이 'error' 를 낸다 — 받지 않으면 EventEmitter 규칙상 프로세스가 죽는다 (2026-08-31 워커 사망 원인 후보)
 pool.on("error", (e) => console.error(`[pg pool] 연결 오류 (무시하고 재연결): ${e.message}`));
 
-export type JobType = "sweep" | "cluster" | "draft" | "qa" | "critic" | "tts" | "package" | "domain_check";
+export type JobType = "sweep" | "cluster" | "draft" | "qa" | "critic" | "tts" | "package" | "domain_check" | "thumbnail";
 export interface Job {
   id: string;
   type: JobType;
@@ -19,8 +19,8 @@ export interface Job {
   created_at: string;
 }
 
-export async function claimJob(worker: string, canAi: boolean, canTts: boolean): Promise<Job | null> {
-  const r = await pool.query("select * from public.claim_job($1, $2, $3)", [worker, canAi, canTts]);
+export async function claimJob(worker: string, canAi: boolean, canTts: boolean, canThumbnail: boolean): Promise<Job | null> {
+  const r = await pool.query("select * from public.claim_job($1, $2, $3, $4)", [worker, canAi, canTts, canThumbnail]);
   return (r.rows[0] as Job) ?? null;
 }
 export async function heartbeat(jobId: string) {
@@ -78,10 +78,10 @@ export async function majorOfMidTopic(mid: string): Promise<string | null> {
   return r.rows[0]?.major ?? null;
 }
 export async function getBacklog(id: string): Promise<BacklogCandidate | null> {
-  const r = await pool.query("select id, mid_topic, title, target_fit, angle, sources from public.backlog where id = $1", [id]);
+  const r = await pool.query("select id, mid_topic, title, target_fit, angle, sources, axis, axis_type, gaps from public.backlog where id = $1", [id]);
   if (!r.rows[0]) return null;
   const row = r.rows[0];
-  return { id: row.id, mid_topic: row.mid_topic, title: row.title, target_fit: row.target_fit, angle: row.angle, sources: (row.sources ?? []) as SourceRef[] };
+  return { id: row.id, mid_topic: row.mid_topic, title: row.title, target_fit: row.target_fit, angle: row.angle, sources: (row.sources ?? []) as SourceRef[], axis: row.axis, axis_type: row.axis_type, gaps: row.gaps ?? [] };
 }
 export async function setBacklogStatus(id: string, status: string, extra: Record<string, unknown> = {}) {
   const sets = ["status = $2", "updated_at = now()"];
@@ -115,11 +115,69 @@ export async function nextBacklogNumber(): Promise<number> {
   const r = await pool.query("select coalesce(max(substring(id from 2)::int), 0) + 1 as n from public.backlog where id ~ '^C[0-9]+$'");
   return Number(r.rows[0].n);
 }
-export async function insertBacklog(c: { id: string; mid_topic: string; title: string; summary: string; target_fit: string; angle: string; sources: unknown[]; dedup_note: string }) {
+/** 후보 삽입 + ID 배정을 한 트랜잭션에서 (2026-09-09): 군집화가 동시에 여러 개 돌면 작업 시작 때 받은 번호가 겹쳐
+ *  `on conflict do nothing` 이 뒤 실행의 후보를 소리 없이 버렸다 (v2 3개 동시 실행 → 2개 실행분 13건 유실). 어드바이저리 락 아래에서 max+1 을 받아 넣는다.
+ *  프롬프트에 알려 주는 "다음 ID" 는 안내값일 뿐이고 실제 ID 는 여기서 정해진다 */
+export async function insertBacklogAlloc(c: Omit<Parameters<typeof insertBacklog>[0], "id">): Promise<string> {
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    await client.query("select pg_advisory_xact_lock(hashtext('backlog_id'))");
+    const r = await client.query("select coalesce(max(substring(id from 2)::int), 0) + 1 as n from public.backlog where id ~ '^C[0-9]+$'");
+    const id = `C${Number(r.rows[0].n)}`;
+    await client.query(
+      "insert into public.backlog (id, mid_topic, title, summary, target_fit, angle, sources, status, dedup_note, axis, axis_type, gaps, cluster_version) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)",
+      [id, c.mid_topic, c.title, c.summary, c.target_fit, c.angle, JSON.stringify(c.sources), c.status ?? "proposed", c.dedup_note, c.axis ?? null, c.axis_type ?? null, c.gaps ?? [], c.cluster_version ?? "v1"],
+    );
+    await client.query("commit");
+    return id;
+  } catch (e) { await client.query("rollback").catch(() => {}); throw e; } finally { client.release(); }
+}
+export async function insertBacklog(c: { id: string; mid_topic: string; title: string; summary: string; target_fit: string; angle: string; sources: unknown[]; dedup_note: string; status?: "proposed" | "held"; axis?: string | null; axis_type?: string | null; gaps?: string[]; cluster_version?: string }) {
   await pool.query(
-    "insert into public.backlog (id, mid_topic, title, summary, target_fit, angle, sources, status, dedup_note) values ($1,$2,$3,$4,$5,$6,$7,'proposed',$8) on conflict (id) do nothing",
-    [c.id, c.mid_topic, c.title, c.summary, c.target_fit, c.angle, JSON.stringify(c.sources), c.dedup_note],
+    "insert into public.backlog (id, mid_topic, title, summary, target_fit, angle, sources, status, dedup_note, axis, axis_type, gaps, cluster_version) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) on conflict (id) do nothing",
+    [c.id, c.mid_topic, c.title, c.summary, c.target_fit, c.angle, JSON.stringify(c.sources), c.status ?? "proposed", c.dedup_note, c.axis ?? null, c.axis_type ?? null, c.gaps ?? [], c.cluster_version ?? "v1"],
   );
+}
+/** 대분류의 생성 대상 중분류 (topics.ai_generation) — 군집화 v2 는 대분류 풀에서 축을 찾는다 */
+export async function midsOfMajor(major: string): Promise<string[]> {
+  const r = await pool.query("select mid from public.topics where major = $1 and ai_generation order by mid", [major]);
+  return r.rows.map((x) => x.mid as string);
+}
+/** 여러 중분류의 최근 소스 (중복 URL 제거, 커버 중분류 목록 포함). 본문 접근 불가(robots·blocked)로 기록된 소스는 뺀다 (0017) */
+export async function recentSourcesForTopics(mids: string[], days: number, limit: number) {
+  const r = await pool.query(
+    `select s.url, s.title, s.summary, d.publisher, d.domain, to_char(s.published, 'YYYY-MM-DD') as published, s.fetch_status,
+            array(select unnest(d.topic_coverage) intersect select unnest($1::text[])) as mids
+       from public.sources s join public.domains d on d.id = s.domain_id
+      where d.topic_coverage && $1::text[] and s.swept_at >= now() - ($2 || ' days')::interval
+        and (s.fetch_status is null or s.fetch_status not in ('robots','blocked')) and d.fetch_blocked_at is null and d.fetch_blocked_at is null
+      order by s.published desc nulls last limit $3`,
+    [mids, String(days), limit],
+  );
+  return r.rows as { url: string; title: string; summary: string | null; publisher: string; domain: string; published: string | null; mids: string[]; fetch_status: string | null }[];
+}
+/** 소스 본문 접근 결과 기록 (0017) — 설계 단계 fetch·군집화 v2 robots 사전 검사가 부른다. 같은 URL 은 최신 결과로 덮는다 */
+export async function recordFetchStatus(url: string, status: "ok" | "robots" | "blocked" | "empty" | "network") {
+  await pool.query("update public.sources set fetch_status = $2, fetch_checked_at = now() where url = $1", [url, status]);
+}
+/** 도메인 자동 제외 재계산 (0017): 그 도메인의 소스가 ok 0건·차단(robots·blocked) 3건 이상이면 fetch_blocked_at 을 찍고, ok 가 하나라도 있으면 지운다.
+ *  사이트 정책으로 본문이 안 열리는 곳을 군집화 풀에서 도메인째 뺀다 — 계층(tier)은 사람만 바꾼다 */
+export async function refreshDomainFetchBlock(urls: string[]) {
+  if (!urls.length) return;
+  await pool.query(
+    `with d as (select distinct s.domain_id from public.sources s where s.url = any($1)),
+          agg as (select s.domain_id, count(*) filter (where s.fetch_status = 'ok') ok, count(*) filter (where s.fetch_status in ('robots','blocked')) bad
+                    from public.sources s where s.domain_id in (select domain_id from d) group by s.domain_id)
+     update public.domains x set fetch_blocked_at = case when agg.ok = 0 and agg.bad >= 3 then coalesce(x.fetch_blocked_at, now()) else null end
+       from agg where agg.domain_id = x.id`,
+    [urls],
+  );
+}
+/** 발행·제작된 편이 쓴 소스 URL — v2 는 후보당 1건까지만 재사용 */
+export async function usedSourceUrls(): Promise<Set<string>> {
+  const r = await pool.query("select jsonb_array_elements(sources)->>'url' as url from public.backlog where status in ('drafted','qa_passed','packaged','published','review_required','claimed')");
+  return new Set(r.rows.map((x) => x.url as string).filter(Boolean));
 }
 /** 중복 대조는 전 중분류 대상 — 축이 겹치는 후보가 다른 중분류로 들어오는 것을 막는다 (C32↔C26 사례, 2026-08-29) */
 export async function existingBacklogTitles(): Promise<string[]> {
@@ -190,6 +248,7 @@ export async function recentSourcesForTopic(midTopic: string, days: number, limi
     `select s.url, s.title, s.summary, d.publisher, d.domain, to_char(s.published, 'YYYY-MM-DD') as published
        from public.sources s join public.domains d on d.id = s.domain_id
       where $1 = any(d.topic_coverage) and s.swept_at >= now() - ($2 || ' days')::interval
+        and (s.fetch_status is null or s.fetch_status not in ('robots','blocked'))
       order by s.published desc nulls last limit $3`,
     [midTopic, String(days), limit],
   );

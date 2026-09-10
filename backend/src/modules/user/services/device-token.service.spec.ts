@@ -30,7 +30,12 @@ describe('DeviceTokenService', () => {
   beforeEach(() => {
     repository = {
       invalidateOtherUsersByDeviceId: jest.fn().mockResolvedValue(0),
-      findByUserIdAndDeviceId: jest.fn().mockResolvedValue(null),
+      findByUserIdAndDeviceId: jest.fn().mockResolvedValue({
+        userId: USER_A,
+        deviceId: DEVICE_ID,
+        invalidatedAt: null,
+      }),
+      upsert: jest.fn().mockResolvedValue(undefined),
       save: jest.fn((token: DeviceToken) => Promise.resolve(token)),
       create: jest.fn((values: Partial<DeviceToken>) => values as DeviceToken),
       deleteByUserId: jest.fn(),
@@ -64,34 +69,38 @@ describe('DeviceTokenService', () => {
         calls.push('invalidate');
         return Promise.resolve(1);
       });
-      repository.save.mockImplementation((token: DeviceToken) => {
-        calls.push('save');
-        return Promise.resolve(token);
+      repository.upsert.mockImplementation(() => {
+        calls.push('upsert');
+        return Promise.resolve();
       });
 
       // when
       await service.register(buildCommand(), NOW);
 
       // then
-      expect(calls).toEqual(['invalidate', 'save']);
+      expect(calls).toEqual(['invalidate', 'upsert']);
     });
 
-    it('같은 계정이 다시 등록하면 이전 무효화 표시를 지운다', async () => {
-      // given — 계정을 오갔다가 돌아온 경우다. 표시가 남아 있으면 알림을 못 받는다
+    it('등록은 한 문장 upsert다 — 같은 (user, device)의 동시 최초 등록이 유니크 위반으로 터지지 않는다', async () => {
+      // given — 계정을 오갔다가 돌아온 경우: 무효화 표시는 upsert가 지운다
       repository.findByUserIdAndDeviceId.mockResolvedValue({
         userId: USER_A,
         deviceId: DEVICE_ID,
-        invalidatedAt: new Date('2026-09-07T00:00:00Z'),
+        invalidatedAt: null,
       } as DeviceToken);
 
       // when
-      await service.register(buildCommand({ userId: USER_A }), NOW);
+      const saved = await service.register(
+        buildCommand({ userId: USER_A }),
+        NOW,
+      );
 
       // then
-      expect(repository.save).toHaveBeenCalledWith(
-        expect.objectContaining({ invalidatedAt: null }),
+      expect(repository.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: USER_A, deviceId: DEVICE_ID }),
         undefined,
       );
+      expect(saved.invalidatedAt).toBeNull();
     });
   });
 });

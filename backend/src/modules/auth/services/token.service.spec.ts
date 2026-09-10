@@ -60,7 +60,7 @@ describe('TokenService', () => {
       expect(verify).toThrow(
         expect.objectContaining({
           errorCode: ErrorCode.AUTH_PROVIDER_TOKEN_INVALID,
-        }),
+        }) as Error,
       );
     });
 
@@ -123,7 +123,7 @@ describe('TokenService', () => {
       expect(verify).toThrow(
         expect.objectContaining({
           errorCode: ErrorCode.AUTH_PROVIDER_UNAVAILABLE,
-        }),
+        }) as Error,
       );
     });
   });

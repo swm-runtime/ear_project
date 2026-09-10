@@ -293,12 +293,7 @@ export const useLibraryScreen = () => {
   const { requestShare, handleSheetDismiss } = useDeferredSheetShare();
   const shareItem = (item: LibraryItem) => {
     setMoreSheetItem(null);
-    requestShare({
-      contentId: item.content.id,
-      title: item.content.title,
-      authorName: item.content.authorName,
-      sourceName: item.content.sourceName,
-    });
+    requestShare({ contentId: item.content.id, title: item.content.title });
   };
 
   const requestDelete = (item: LibraryItem) => {

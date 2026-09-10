@@ -347,12 +347,7 @@ export const useExploreScreen = () => {
   const { requestShare, handleSheetDismiss } = useDeferredSheetShare();
   const shareItem = (item: ExploreItem) => {
     setMoreSheetItem(null);
-    requestShare({
-      contentId: item.content.id,
-      title: item.content.title,
-      authorName: item.content.authorName,
-      sourceName: item.content.sourceName,
-    });
+    requestShare({ contentId: item.content.id, title: item.content.title });
   };
 
   /* ── 담기 · 제거 — 더보기 시트 소유(explore.md 4.3). 낙관 반영 + client_seq 순서 방어 ── */

@@ -9,7 +9,7 @@ const inp = "rounded border border-line px-2.5 py-1.5 text-[13px] outline-none f
 export function SettingsForm({ tts, worker, templates, meta }: { tts: any; worker: any; templates: any; meta: any }) {
   const [t, setT] = useState({ voices: { 윤아: "", 이음: "" }, speed: { 윤아: 1, 이음: 1 }, mode: "per-turn", model: "eleven_v3", ...tts });
   const [w, setW] = useState({ default_model: "", ...worker });
-  const [tpl, setTpl] = useState({ version: "tpl-v1", intro: "", closing: "", major_lines: {} as Record<string, string>, ...templates });
+  const [tpl, setTpl] = useState({ version: "tpl-v1", intro: "", closing: "", closing_signoff: "", major_lines: {} as Record<string, string>, ...templates });
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
   const save = (key: string, value: unknown, name: string) =>
@@ -58,8 +58,12 @@ export function SettingsForm({ tts, worker, templates, meta }: { tts: any; worke
             <textarea className={`${inp} mt-1 w-full font-mono text-xs`} rows={4} value={tpl.intro} onChange={(e) => setTpl({ ...tpl, intro: e.target.value })} />
           </div>
           <div>
-            <label className="text-xs text-ink-soft">마무리</label>
+            <label className="text-xs text-ink-soft">마무리 (진행 담당 도입 → 해설 담당 정리)</label>
             <textarea className={`${inp} mt-1 w-full font-mono text-xs`} rows={4} value={tpl.closing} onChange={(e) => setTpl({ ...tpl, closing: e.target.value })} />
+          </div>
+          <div className="md:col-span-2">
+            <label className="text-xs text-ink-soft">클로징 인사 — 정리 뒤 진행 담당이 말하는 마지막 턴 (tpl-v2). 한 줄에 골격 하나, 여러 줄이면 에피소드마다 돌아가며 쓴다. 비우면 정리로 끝난다(tpl-v1). 넣을 때는 버전을 tpl-v2 로</label>
+            <textarea className={`${inp} mt-1 w-full font-mono text-xs`} rows={3} value={tpl.closing_signoff ?? ""} onChange={(e) => setTpl({ ...tpl, closing_signoff: e.target.value })} />
           </div>
         </div>
         <label className="mt-3 block text-xs text-ink-soft">대분류별 한 줄 ({"{대주제 한 줄}"}) — 채널 아이덴티티. 비우면 AI가 에피소드마다 새로 짓는다</label>

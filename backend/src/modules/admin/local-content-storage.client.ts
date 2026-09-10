@@ -1,4 +1,4 @@
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 import { Injectable } from '@nestjs/common';
@@ -30,7 +30,7 @@ export class LocalContentStorageClient extends ContentStorageClient {
 
   async putAudio(file: UploadedFileInput, extension: string): Promise<string> {
     const key = this.buildKey(AUDIO_KEY_PREFIX, extension);
-    await this.write(key, file.buffer);
+    await this.copy(key, file.path);
     return key;
   }
 
@@ -39,19 +39,21 @@ export class LocalContentStorageClient extends ContentStorageClient {
     extension: string,
   ): Promise<StoredObject> {
     const key = this.buildKey(THUMBNAIL_KEY_PREFIX, extension);
-    await this.write(key, file.buffer);
+    await this.copy(key, file.path);
     return { key, url: `${this.publicBaseUrl}/${key}` };
   }
 
-  async remove(keys: string[]): Promise<void> {
+  async remove(keys: string[]): Promise<string[]> {
     await Promise.all(
       keys.map((key) => rm(join(this.root, key), { force: true })),
     );
+
+    return [];
   }
 
-  private async write(key: string, buffer: Buffer): Promise<void> {
+  private async copy(key: string, sourcePath: string): Promise<void> {
     const path = join(this.root, key);
     await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, buffer);
+    await copyFile(sourcePath, path);
   }
 }

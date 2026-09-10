@@ -38,5 +38,15 @@ export const INTEREST_COPY = {
   saveFailed: '저장하지 못했어요. 다시 시도해주세요',
   /** IM9 — 조회 실패 */
   loadFailed: '주제 목록을 불러올 수 없어요',
+  /*
+   * IM9 변형 — 응답은 정상(200)인데 노출 주제가 0건인 상태. 조회 실패 카피를 재사용하지
+   * 않는다: 불러오기는 성공했으므로 "불러올 수 없어요"는 사실과 다르다.
+   * **온보딩 1단계와 문자열까지 동일해야 한다** — 같은 엔드포인트의 같은 상태다
+   * (헤드라인·상한 문구와 같은 규칙. ONBOARDING_COPY.topic.emptyTitle을 import하면
+   * 의존 방향 `onboarding → interest`가 뒤집히므로 문자열을 각자 둔다).
+   * TODO(카피 미확정): uiux 반영 요청은 changes/pending/onboarding-empty-topic-list.md
+   */
+  emptyTitle: '아직 준비 중이에요',
+  emptyDescription: '주제를 준비하고 있어요.\n잠시 후 다시 시도해주세요',
   retry: '다시 시도',
 } as const;

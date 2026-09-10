@@ -128,6 +128,46 @@ export class ContentRepository {
     return this.scoped(manager).findOneBy({ id });
   }
 
+  /**
+   * 재발행처럼 같은 행을 읽고 바꾸는 경로를 직렬화한다 — 트랜잭션 필수.
+   * 무잠금 `findOne` 뒤 `content_version += 1`은 동시 재발행 두 건이 같은 버전을 읽어
+   * 둘 다 N+1을 쓰고 서로의 새 오디오를 지우는 경합이 있었다(2026-09-09 감사).
+   */
+  async findByIdForUpdate(
+    id: string,
+    manager: EntityManager,
+  ): Promise<Content | null> {
+    return manager.getRepository(Content).findOne({
+      where: { id },
+      lock: { mode: 'pessimistic_write' },
+    });
+  }
+
+  /**
+   * 라이선스 만료 전환(`partner-control.md` 4.4 — "만료일이 지나면 배치가 `expired`로").
+   * 발행 상태이면서 만료일이 지난 행만 바꾸고 **바뀐 `content_id` 목록**을 돌려준다.
+   * 회수와 달리 `withdrawn_at`은 쓰지 않는다 — 다른 사건이다.
+   *
+   * 여러 인스턴스가 겹쳐 돌아도 조건부 UPDATE라 안전하고, **두 번째 실행은 빈 목록을 받는다** —
+   * 이미 `expired`라 조건에 걸리지 않는다. 그래서 라이브러리 삭제도 한 번만 일어난다.
+   */
+  async expireLicensed(now: Date, manager?: EntityManager): Promise<string[]> {
+    const result = await this.scoped(manager)
+      .createQueryBuilder()
+      .update(Content)
+      .set({ status: ContentStatus.EXPIRED })
+      .where('status = :published', { published: ContentStatus.PUBLISHED })
+      .andWhere('license_expires_at IS NOT NULL')
+      .andWhere('license_expires_at <= :now', { now })
+      // 바뀐 행의 id를 받아야 라이브러리 잔존분을 지울 수 있다(4.4 — 회수와 동일 처리)
+      .returning('id')
+      .execute();
+
+    return Array.isArray(result.raw)
+      ? (result.raw as { id: string }[]).map((row) => row.id)
+      : [];
+  }
+
   async findAllByIds(
     ids: string[],
     manager?: EntityManager,
@@ -155,6 +195,8 @@ export class ContentRepository {
       .where('content.status = :status', { status: ContentStatus.WITHDRAWN })
       .andWhere('content.withdrawn_at > :since', { since })
       .orderBy('content.withdrawn_at', 'ASC')
+      // 같은 시각(일괄 회수)의 순서를 고정한다 — 호출부가 시각 단위로 페이지를 자른다
+      .addOrderBy('content.id', 'ASC')
       // 한 건 더 읽어 잘렸는지 판정한다 — 호출부가 잘라낸다(목록 조회의 공통 형태)
       .limit(limit + 1)
       .getRawMany<{ id: string; withdrawn_at: Date }>();

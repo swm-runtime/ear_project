@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 
 import { BusinessForbiddenException } from '@/common/exceptions/business-forbidden.exception';
@@ -52,6 +52,8 @@ export interface PickTargetResolution {
  */
 @Injectable()
 export class ContentService {
+  private readonly logger = new Logger(ContentService.name);
+
   constructor(
     private readonly contentRepository: ContentRepository,
     private readonly contentTopicRepository: ContentTopicRepository,
@@ -66,6 +68,12 @@ export class ContentService {
    * **상한을 서버가 강제한다.** `since`가 클라이언트 값이라 상한이 없으면 오래된 값 하나로
    * 전 구간을 긁어 갈 수 있다(architecture.md 9.3). 잘렸을 때는 마지막 항목의 회수 시각을
    * 함께 돌려주어, 클라이언트가 그 값을 다음 `since`로 써서 이어 받게 한다.
+   *
+   * **잘린 페이지는 회수 시각 단위로 자른다.** 커서가 시각뿐이라(`withdrawn_at > since`,
+   * player-api 4.6) 상한 경계에 같은 시각의 행이 걸쳐 있으면 — 일괄 회수는 한 트랜잭션의
+   * 같은 `now`로 찍힌다 — 경계 뒤쪽 행이 다음 페이지에서 건너뛰어졌다(2026-09-09 감사).
+   * 그래서 경계 시각의 행은 이번 페이지에서 통째로 빼고 다음 페이지가 전부 받게 한다.
+   * 한 시각이 상한을 넘게 회수된 극단은 자를 자리가 없어 종전대로 내보낸다(로그로 남긴다).
    */
   async findWithdrawnSince(
     since: Date,
@@ -77,14 +85,27 @@ export class ContentService {
       manager,
     );
     const hasNext = rows.length > WITHDRAWN_SYNC_MAX_LIMIT;
-    const page = hasNext ? rows.slice(0, WITHDRAWN_SYNC_MAX_LIMIT) : rows;
+
+    if (!hasNext) {
+      // 이어 받을 자리가 없으면 커서를 발급하지 않는다 — 있으면 계속 부르게 된다
+      return { contentIds: rows.map((row) => row.id), nextSince: null };
+    }
+
+    const boundaryAt = rows[WITHDRAWN_SYNC_MAX_LIMIT].withdrawnAt.getTime();
+    let page = rows
+      .slice(0, WITHDRAWN_SYNC_MAX_LIMIT)
+      .filter((row) => row.withdrawnAt.getTime() !== boundaryAt);
+
+    if (page.length === 0) {
+      this.logger.warn('withdrawn sync page shares one withdrawn_at', {
+        limit: WITHDRAWN_SYNC_MAX_LIMIT,
+      });
+      page = rows.slice(0, WITHDRAWN_SYNC_MAX_LIMIT);
+    }
 
     return {
       contentIds: page.map((row) => row.id),
-      // 이어 받을 자리가 없으면 커서를 발급하지 않는다 — 있으면 계속 부르게 된다
-      nextSince: hasNext
-        ? page[page.length - 1].withdrawnAt.toISOString()
-        : null,
+      nextSince: page[page.length - 1].withdrawnAt.toISOString(),
     };
   }
 
@@ -254,6 +275,35 @@ export class ContentService {
     return content;
   }
 
+  /** 같은 행을 바꾸는 관리자 경로(재발행)를 직렬화한다 — 트랜잭션 필수 */
+  async getByIdForUpdate(
+    contentId: string,
+    manager: EntityManager,
+  ): Promise<Content> {
+    const content = await this.contentRepository.findByIdForUpdate(
+      contentId,
+      manager,
+    );
+
+    if (!content) {
+      throw new BusinessNotFoundException({
+        errorCode: ErrorCode.CONTENT_NOT_FOUND,
+        message: '콘텐츠를 찾을 수 없어요',
+      });
+    }
+
+    return content;
+  }
+
+  /**
+   * 라이선스 만료 전환 — 배치(`ContentExpiryScheduler`)가 부른다.
+   * 라이브러리 잔존분은 건드리지 않는다(`partner-control.md` 4.4 미결 —
+   * `changes/pending/license-expiry-library-handling.md`).
+   */
+  async expireLicensed(now: Date, manager?: EntityManager): Promise<string[]> {
+    return this.contentRepository.expireLicensed(now, manager);
+  }
+
   /**
    * 노출·재생 대상 단건 조회. **없음과 회수를 다른 코드로 가른다** —
    * 클라이언트가 "찾을 수 없어요"가 아니라 "제공이 종료된 콘텐츠예요"로 안내하고 목록에서
@@ -264,6 +314,7 @@ export class ContentService {
   async getPublishedById(
     contentId: string,
     manager?: EntityManager,
+    now: Date = new Date(),
   ): Promise<Content> {
     const content = await this.contentRepository.findById(contentId, manager);
 
@@ -274,7 +325,18 @@ export class ContentService {
       });
     }
 
-    if (content.status !== ContentStatus.PUBLISHED) {
+    /**
+     * 만료일이 지난 파트너 콘텐츠도 `published` 그대로 막는다 — 만료 배치는 하루 1회라
+     * 그 사이의 재생·서명 URL 발급이 이 검사로 닫힌다(FR-33, `architecture.md` 9.4
+     * "협상 대상이 아니다"). 목록 조회의 `applyVisibility`와 같은 조건이다.
+     * 코드는 회수와 같은 `CONTENT_WITHDRAWN`이다 — 클라이언트 동작(안내 + 목록 제거)이 같고,
+     * 만료 전용 코드를 새로 만들면 `common-error-handling.md` 9장 개정이 필요하다.
+     */
+    const isLicenseExpired =
+      content.licenseExpiresAt !== null &&
+      content.licenseExpiresAt.getTime() <= now.getTime();
+
+    if (content.status !== ContentStatus.PUBLISHED || isLicenseExpired) {
       throw new BusinessForbiddenException({
         errorCode: ErrorCode.CONTENT_WITHDRAWN,
         message: '제공이 종료된 콘텐츠예요',

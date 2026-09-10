@@ -1,8 +1,7 @@
-import {
-  DeleteObjectCommand,
-  PutObjectCommand,
-  S3Client,
-} from '@aws-sdk/client-s3';
+import { createReadStream } from 'node:fs';
+
+import { DeleteObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { Upload } from '@aws-sdk/lib-storage';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
@@ -47,15 +46,7 @@ export class S3ContentStorageClient extends ContentStorageClient {
 
   async putAudio(file: UploadedFileInput, extension: string): Promise<string> {
     const key = this.buildKey(AUDIO_KEY_PREFIX, extension);
-    await this.s3.send(
-      new PutObjectCommand({
-        Bucket: this.bucket,
-        Key: key,
-        Body: file.buffer,
-        ContentType: AUDIO_CONTENT_TYPES[extension],
-        CacheControl: 'public, max-age=31536000, immutable',
-      }),
-    );
+    await this.putStream(key, file, AUDIO_CONTENT_TYPES[extension]);
 
     return key;
   }
@@ -65,34 +56,52 @@ export class S3ContentStorageClient extends ContentStorageClient {
     extension: string,
   ): Promise<StoredObject> {
     const key = this.buildKey(THUMBNAIL_KEY_PREFIX, extension);
-    await this.s3.send(
-      new PutObjectCommand({
-        Bucket: this.bucket,
-        Key: key,
-        Body: file.buffer,
-        ContentType: THUMBNAIL_CONTENT_TYPES[extension],
-        CacheControl: 'public, max-age=31536000, immutable',
-      }),
-    );
+    await this.putStream(key, file, THUMBNAIL_CONTENT_TYPES[extension]);
 
     return { key, url: `${this.publicBaseUrl}/${key}` };
   }
 
-  async remove(keys: string[]): Promise<void> {
-    await Promise.all(
+  /**
+   * 디스크 임시 파일을 **스트림으로** 올린다. `PutObjectCommand`는 본문 길이를 알아야 해서
+   * 버퍼를 요구하는데, `Upload`(멀티파트)는 스트림을 조각내 보내므로 파일 크기만큼 램이
+   * 늘지 않는다.
+   */
+  private async putStream(
+    key: string,
+    file: UploadedFileInput,
+    contentType: string,
+  ): Promise<void> {
+    await new Upload({
+      client: this.s3,
+      params: {
+        Bucket: this.bucket,
+        Key: key,
+        Body: createReadStream(file.path),
+        ContentType: contentType,
+        CacheControl: 'public, max-age=31536000, immutable',
+      },
+    }).done();
+  }
+
+  async remove(keys: string[]): Promise<string[]> {
+    const failed = await Promise.all(
       keys.map(async (key) => {
         try {
           await this.s3.send(
             new DeleteObjectCommand({ Bucket: this.bucket, Key: key }),
           );
+          return null;
         } catch (error) {
-          // 정리 실패는 업로드 실패 위에 얹히는 부수 문제다 — 남은 오브젝트는 운영이 지운다
+          // 정리 실패는 부수 문제다 — 던지지 않고 돌려주어 호출부가 기록·재시도하게 한다
           this.logger.error('failed to clean up uploaded object', {
             key,
             error: error instanceof Error ? error.message : String(error),
           });
+          return key;
         }
       }),
     );
+
+    return failed.filter((key): key is string => key !== null);
   }
 }

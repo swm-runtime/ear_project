@@ -1,3 +1,8 @@
+import { randomUUID } from 'node:crypto';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { DataSource, EntityManager } from 'typeorm';
 
 import { BusinessException } from '@/common/exceptions/business.exception';
@@ -34,23 +39,29 @@ const CDN_BASE_URL = 'https://cdn.example';
 const containing = (o: Record<string, unknown>): unknown =>
   expect.objectContaining(o);
 
+/** 오디오·썸네일은 프로브·스토리지가 모킹돼 파일을 읽지 않는다 — 경로만 있으면 된다 */
 function buildFile(name: string, size = 1024): UploadedFileInput {
   return {
-    buffer: Buffer.alloc(size),
+    path: `/tmp/not-read-${name}`,
     originalName: name,
     mimeType: 'application/octet-stream',
     size,
   };
 }
 
-/** enrichment.json 파일 — 내용이 있는 JSON 버퍼로 만든다 */
+const tempDir = mkdtempSync(join(tmpdir(), 'ear-admin-spec-'));
+afterAll(() => rmSync(tempDir, { recursive: true, force: true }));
+
+/** enrichment.json 파일 — 파서가 실제로 읽으므로 임시 파일로 만든다 */
 function buildEnrichmentFile(value: unknown): UploadedFileInput {
-  const buffer = Buffer.from(JSON.stringify(value), 'utf8');
+  const content = JSON.stringify(value);
+  const path = join(tempDir, `enrichment-${randomUUID()}.json`);
+  writeFileSync(path, content, 'utf8');
   return {
-    buffer,
+    path,
     originalName: 'enrichment.json',
     mimeType: 'application/json',
-    size: buffer.length,
+    size: Buffer.byteLength(content, 'utf8'),
   };
 }
 
@@ -129,6 +140,15 @@ describe('AdminContentService', () => {
         audioPath: 'audio/old.mp3',
         thumbnailUrl: `${CDN_BASE_URL}/thumb/old.png`,
       }),
+      // 재발행 트랜잭션은 행을 잠그고 다시 읽는다 — 같은 행을 돌려준다
+      getByIdForUpdate: jest.fn().mockResolvedValue({
+        id: CONTENT_ID,
+        status: ContentStatus.PUBLISHED,
+        origin: ContentOrigin.AI_GENERATED,
+        contentVersion: 2,
+        audioPath: 'audio/old.mp3',
+        thumbnailUrl: `${CDN_BASE_URL}/thumb/old.png`,
+      }),
       withdraw: jest
         .fn()
         .mockResolvedValue({ id: CONTENT_ID, status: ContentStatus.WITHDRAWN }),
@@ -169,7 +189,7 @@ describe('AdminContentService', () => {
         key: 'thumb/def.png',
         url: `${CDN_BASE_URL}/thumb/def.png`,
       }),
-      remove: jest.fn().mockResolvedValue(undefined),
+      remove: jest.fn().mockResolvedValue([]),
       // 실제 구현과 같은 규칙 — 공개 URL 접두어를 떼고 키만 남긴다
       resolveKey: jest.fn((url: string) =>
         url.startsWith(CDN_BASE_URL)
@@ -586,8 +606,12 @@ describe('AdminContentService', () => {
       // when
       const result = await service.republish(buildRepublishCommand());
 
-      // then
+      // then — 트랜잭션 안 재확인은 행 잠금(FOR UPDATE)으로 읽는다 (동시 재발행 경합 차단)
       expect(result.content.id).toBe(CONTENT_ID);
+      expect(contentService.getByIdForUpdate).toHaveBeenCalledWith(
+        CONTENT_ID,
+        manager,
+      );
       expect(contentService.republish).toHaveBeenCalledWith(
         expect.objectContaining({ id: CONTENT_ID }),
         containing({ audioPath: 'audio/abc.mp3', durationSec: 600 }),

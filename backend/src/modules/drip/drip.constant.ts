@@ -33,6 +33,12 @@ export const FIRST_DRIP_RETRY_STALE_MS = 60_000;
 /** 한 번의 스케줄러 실행에서 처리할 작업 수 */
 export const FIRST_DRIP_RETRY_BATCH_SIZE = 20;
 
+/** 완료 작업 보존 기간 — `domain.md` 7.4 "`completed_at` 기준 30일 후 배치 삭제" */
+export const FIRST_DRIP_JOB_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
+/** 완료 작업 파기 배치 주기(ms). 하루 단위 보존이라 시간 단위면 충분하다 */
+export const FIRST_DRIP_PURGE_INTERVAL_MS = 60 * 60 * 1000;
+
 /*
  * ── 편성 스코어링 (`drip-scheduling.md` 4.2 — 3축 하이브리드) ─────────────────────
  *
@@ -148,8 +154,24 @@ export const DRIP_BATCH_STALE_MS = 2 * 60 * 60 * 1000;
  * ── 탐험 편성 (`drip-scheduling.md` 4.8) ─────────────────────────────────────────
  */
 
-/** 품질 최소선 — 스무딩 완청률이 이 값 미만이면 탐험 후보에서 제외한다(4.8-3) */
+/**
+ * 품질 최소선(4.8-3) — 스무딩 완청률이 하한 미만이면 탐험 후보에서 제외한다.
+ *
+ * 실제 하한은 `min(이 값, 후보들의 전형적(단순 평균) 스무딩 완청률 × DISCOVERY_QUALITY_FLOOR_POOL_RATIO)`다. 절대값 하나만
+ * 두면 **카탈로그 전체의 완청률이 낮은 시기**(콘텐츠 7편을 테스터가 훑어보던 2026-09-10 실서버)에
+ * 스무딩이 모든 후보를 풀 평균으로 끌어내려 **탐험 후보가 0이 됐다.** 하한의 목적은 "카탈로그 안에서
+ * 상대적으로 안 듣는 콘텐츠"를 빼는 것이고, 카탈로그 전체가 아직 안 듣는 상태라면 뺄 것이 없다.
+ */
 export const DISCOVERY_QUALITY_FLOOR_RATE = 0.2;
+
+/** 전형값 대비 상대 하한 — 후보 평균의 절반 미만이면 "상대적으로 안 듣는 콘텐츠"다 */
+export const DISCOVERY_QUALITY_FLOOR_POOL_RATIO = 0.5;
+
+/**
+ * 하한을 적용하기 위한 최소 재생 표본. 이보다 적으면 품질을 판정할 근거가 없으므로 통과시킨다 —
+ * 신작·저노출 콘텐츠에 처음 노출을 주는 것이 탐험 슬롯의 존재 이유다(4.8-2).
+ */
+export const DISCOVERY_QUALITY_MIN_PLAY_COUNT = 5;
 
 /** 탐험 선정 가중치 — 저노출이 존재 이유이므로 가장 크다(4.8-2) */
 export const DISCOVERY_ITEM_WEIGHTS = {

@@ -25,6 +25,8 @@ import { UserSignalAction } from '../playback.enum';
  */
 @Entity('user_signals')
 @Index('idx_user_signals_user_id_created_at', ['userId', 'createdAt'])
+// 보존 기간 배치가 `created_at`만으로 범위 삭제한다 (domain.md 12.1)
+@Index('idx_user_signals_created_at', ['createdAt'])
 export class UserSignal extends BaseEntity {
   @PrimaryGeneratedColumn('increment', { type: 'bigint' })
   id: string;
