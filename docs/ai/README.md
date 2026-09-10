@@ -25,6 +25,7 @@
 | [skills/draft/guidelines.md](skills/draft/guidelines.md) | 대본 생성 가이드라인 (`full-vN`) · [CHANGELOG](skills/draft/CHANGELOG.md) · [style-directions](skills/draft/style-directions.md) · [examples/](skills/draft/examples/) 골드 대본 3종 |
 | [skills/critic/rubric.md](skills/critic/rubric.md) · [rubric-v2.md](skills/critic/rubric-v2.md) | 비평 루브릭 (`critic-vN`) — v1.x 현행 · v2 초안(100점 12항목·판단 플래그 20·앵커 자리) |
 | [skills/qa/prompt.md](skills/qa/prompt.md) | QA 실행 프롬프트 (`qa-vN`) — spec/05의 이식본 |
+| [skills/thumbnail/prompt.md](skills/thumbnail/prompt.md) | 썸네일 생성 프롬프트 (`thumb-vN`) — 슬롯 4개(제목·주제 분류·핵심 개념=한 줄 요약·대분류 띠 색) + 대분류별 색 표. 실행체는 티켓 `tickets/ai/pending/episode-publish-prep-chain.md`([발행 준비] 연쇄) |
 | **기타** | |
 | [pipeline/supabase/schema.sql](../../pipeline/supabase/schema.sql) · [migrations/](../../pipeline/supabase/migrations/) | 운영 DB 스키마 — 스냅샷 + 적용 이력 0002~ (`topics`·`domains`·`sources`·`backlog`·`runs`·`jobs`·`episodes`·`settings`). 코드 파트 `pipeline/` 소유 |
 | [references/](references/) | 롤모델 쇼 전사본 **분석 노트**(전사본 원문 .txt 는 레포 밖) — 스타일 디렉션의 근거 |
