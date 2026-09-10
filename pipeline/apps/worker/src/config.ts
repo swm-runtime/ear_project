@@ -100,8 +100,16 @@ export const cfg = {
 
   /** 썸네일 (KAN-50) — OpenAI 이미지 API. 키는 서버 env.prod 에만 두고 코드·.env.example 에 실값을 넣지 않는다 */
   openaiKey: process.env.OPENAI_API_KEY || "",
-  /** 기본 gpt-image-1-mini (2026-09 기준 가장 저렴 · 월 100편에 $1 미만). 사선 띠 지시를 못 지키면 THUMBNAIL_MODEL 로 gpt-image-2 교체 */
-  thumbnailModel: process.env.THUMBNAIL_MODEL || "gpt-image-1-mini",
+  /**
+   * **gpt-image-2 확정** (2026-09-10 박수헌 — mini 와 같은 에피소드로 뽑아 비교한 뒤).
+   * 티켓의 열린 항목("mini 가 앵커 화풍을 얼마나 따르는지 첫 5편 실측 후 확정")을 닫은 값이다.
+   *
+   * mini 가 3배 싸고 20초 빠르지만(실측 25.6초 vs 45.3초) 채택 기준이 **"품질보다 콘텐츠마다
+   * 일정하게"** 라, 값싼 쪽이 아니라 화풍이 일정한 쪽을 고른다 — 썸네일은 목록에 여러 장이
+   * 나란히 붙어 나오므로 편마다 화풍이 튀면 한 장 한 장이 좋아도 화면이 무너진다.
+   * 월 100편에 약 $3.
+   */
+  thumbnailModel: process.env.THUMBNAIL_MODEL || "gpt-image-2",
   /** low | medium | high — 정가 차이가 크다(mini: 0.005 / 0.009 / 0.052). 기본 medium */
   thumbnailQuality: process.env.THUMBNAIL_QUALITY || "medium",
   /** 1:1 고정 (프롬프트 자산 [규격]) — 44pt 미니 플레이어까지 한 장으로 쓴다 */
