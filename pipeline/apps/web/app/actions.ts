@@ -40,7 +40,7 @@ export async function setBacklogStatus(id: string, status: "approved" | "rejecte
 /** 작업 요청 (사람 트리거): sweep · tts · thumbnail · package · cluster 재실행. requested_by 는 트리거가 찍는다. */
 export async function enqueueJob(type: "sweep" | "cluster" | "tts" | "thumbnail" | "package" | "domain_check", payload: Record<string, unknown>) {
   const sb = await supabaseServer();
-  const requires_ai = type === "cluster";
+  const requires_ai = type === "cluster" || (type === "sweep" && payload.mode === "B"); // 보강 스윕(모드 B-①)은 WebSearch 를 쓰는 AI 실행 (0019)
   const { data, error } = await sb.from("jobs").insert({ type, requires_ai, payload, status: "queued" }).select("id").single();
   if (error) throw new Error(error.message);
   revalidatePath("/"); revalidatePath("/sweep"); revalidatePath("/episodes");
@@ -165,6 +165,14 @@ export async function listPipelineTopicsForSync(): Promise<{ major: string; mid:
 
 /** 도메인 판정 (사람): tier·license_basis. decided_by·decided_at 는 트리거가 찍는다. */
 /** 소스 풀 확인 항목 ①~④ 자동 수집 — AI 없이 HTTP만 (robots·홈·약관·표본 기사). 판정은 여전히 사람. */
+/** 보강 스윕 요청 (0019, spec/02 6장 B-①): held 후보의 빈 역할을 웹 검색으로 채우고 그 후보만 재판정. 후보당 1회 — 워커가 reinforced_at 으로 막는다 */
+export async function requestReinforce(backlogId: string) {
+  const sb = await supabaseServer();
+  const { data: dupe } = await sb.from("jobs").select("id").eq("type", "sweep").in("status", ["queued", "claimed", "running"]).eq("payload->>backlog_id", backlogId).limit(1);
+  if (dupe && dupe.length) throw new Error("이미 보강 작업이 대기·진행 중입니다");
+  return enqueueJob("sweep", { mode: "B", backlog_id: backlogId });
+}
+
 export async function requestDomainCheck(domainIds: string[] | null, onlyUnchecked = true) {
   return enqueueJob("domain_check", { domain_ids: domainIds, only_unchecked: onlyUnchecked });
 }

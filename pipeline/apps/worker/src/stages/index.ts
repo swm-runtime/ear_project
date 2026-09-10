@@ -1,6 +1,7 @@
 import type { Job } from "../db.js";
 import type { Executor } from "../executors/index.js";
 import { runSweep } from "./sweep.js";
+import { runReinforce } from "./reinforce.js";
 import { runCluster } from "./cluster.js";
 import { runDraft } from "./draft.js";
 import { runQa } from "./qa.js";
@@ -12,7 +13,7 @@ import { runThumbnail } from "./thumbnail.js";
 
 export async function runStage(job: Job, ex: Executor): Promise<unknown> {
   switch (job.type) {
-    case "sweep": return runSweep(job);
+    case "sweep": return job.payload.mode === "B" ? runReinforce(job, ex) : runSweep(job); // 모드 B-① 보강 (0019): AI 실행기(WebSearch) 필요 — requires_ai=true 로 넣는다
     case "cluster": return runCluster(job, ex);
     case "draft": return runDraft(job, ex);
     case "qa": return runQa(job, ex);

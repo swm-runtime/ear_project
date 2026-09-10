@@ -1102,12 +1102,24 @@ export interface ClusterV2Input {
   existingTitles: string[];
   /** spec/03 3장(후보 구성)·6장(게이트 1) 등 인라인으로 넣을 규격 발췌 */
   specBacklogExcerpt: string;
+  /** 보강 재판정 (0019, 모드 B-①): held 후보 하나의 축을 고정하고, 기존 소스 + 검색 소스로 역할표만 다시 짠다. candidates 는 정확히 1개 */
+  reinforce?: { id: string; title: string; axis: string; axis_type: string; gaps: string[]; currentM: string[] };
 }
 
 export function buildClusterPromptV2(i: ClusterV2Input): string {
-  const list = i.sources.map((s) => `[M${s.n}] ${s.publisher || s.domain} · ${s.published ?? "날짜 미상"}${s.used ? " · (이미 사용된 소스)" : ""}\n   ${s.title}\n   ${(s.summary ?? "").replace(/\s+/g, " ").slice(0, 240)}`).join("\n");
+  const cur = new Set(i.reinforce?.currentM ?? []);
+  const list = i.sources.map((s) => `[M${s.n}] ${s.publisher || s.domain} · ${s.published ?? "날짜 미상"}${s.used ? " · (이미 사용된 소스)" : ""}${cur.has(`M${s.n}`) ? " · (현재 후보 소스)" : ""}\n   ${s.title}\n   ${(s.summary ?? "").replace(/\s+/g, " ").slice(0, 240)}`).join("\n");
+  const reinforce = i.reinforce ? `
+## 0. 보강 재판정 — 후보 하나만
+이 실행은 새 후보를 뽑는 것이 아니라 **기존 후보 ${i.reinforce.id} 의 역할표를 다시 짜는 것**이다. 축은 고정한다.
+- 후보: "${i.reinforce.title}" · 축(${i.reinforce.axis_type}): ${i.reinforce.axis}
+- 비어 있던 역할: ${i.reinforce.gaps.length ? i.reinforce.gaps.join(" · ") : "(없음 — 다양성 미달)"}
+- 아래 소스 목록에는 **현재 후보 소스**(표시됨)와 그 빈 역할을 채우려고 검색으로 새로 넣은 소스가 섞여 있다. 새 소스 중 축에 맞고 빈 역할을 실제로 채우는 것만 넣는다 — 역할이 맞지 않는 소스를 억지로 끼우지 않는다.
+- candidates 는 **정확히 1개**, id 는 "${i.reinforce.id}", 제목·축은 그대로(문구 다듬기만 허용). 아래 3장 절차의 1단계(축 후보 내기)는 건너뛴다. gaps 에는 여전히 빈 역할을 적는다.
+` : "";
   return `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 **군집화 담당(v2)**이다. 스윕된 소스 **메타데이터만** 보고(원문 접속 금지 — 이 실행에는 도구가 없다) 에피소드 후보를 뽑는다. "비슷한 것을 묶는" 방식이 아니라, **축을 먼저 세우고 그 축에 필요한 역할을 소스로 채우는** 방식이다.
 
+${reinforce}
 ## 1. 타깃·중분류
 - 청취자: 자기계발을 원하는 2030 한국 직장인(IT 개발자 아님), 편도 30분 통근.
 - 중분류 후보: ${i.midTopics.join(" · ")}${i.majorTopic ? ` (대분류 ${i.majorTopic})` : ""}. 후보마다 하나를 고른다 — 소스의 커버 중분류를 참고하되 축에 맞는 것으로.
@@ -1145,6 +1157,55 @@ ${list}
 
 ## 6. 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. 성립 3~5개 + 보강 필요 0~4개를 목표로 하되 억지로 채우지 않는다. 완료 보고 전에 다른 텍스트를 출력하지 않는다.`;
 }
+
+// ── 보강 검색 (0019, spec/02 6장 모드 B-①): held 후보의 빈 역할을 채울 소스를 웹 검색으로 찾는다. 도구는 WebSearch 만 — 본문을 읽지 않고 메타데이터(제목·요약·발행처·날짜)만 돌려준다 (스윕과 같은 층)
+export const ROLE_INTENT: Record<string, string> = {
+  "근거 앵커": "축의 핵심 주장을 직접 받치는 연구·해설 (리뷰 논문, 전문가 해설, 기관 보고서)",
+  사례: "청취자 일상에 닿는 구체 일화·르포·인터뷰·현장 이야기",
+  "반론·한계": "축에 반대하거나 한계를 짚는 글 — 비판, 반박 연구, '그렇지 않은 경우'",
+  "수치·조사": "설문·통계·실험 수치가 있는 조사 결과, 기관 통계",
+  "역사·맥락": "이 현상의 기원·연혁·과거 사례, 개념이 생긴 배경",
+};
+export interface ReinforceSearchInput {
+  candidate: { id: string; title: string; mid_topic: string; axis: string | null; axis_type: string | null; gaps: string[]; sources: { publisher: string; title: string }[] };
+  /** 우선 검색 대상 — 풀 도메인(차단 제외). 검색어에 site: 로 묶어 쓴다 */
+  poolHosts: string[];
+  maxSearches: number;
+}
+export function buildReinforceSearchPrompt(i: ReinforceSearchInput): string {
+  const c = i.candidate;
+  const roles = c.gaps.length ? c.gaps : ["사례", "수치·조사"];
+  return `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 **소스 보강 담당**이다. 에피소드 후보 하나의 축은 이미 서 있는데 역할표에 빈 칸이 있다. 그 빈 역할을 채울 소스를 웹 검색으로 찾는다.
+이 실행의 도구는 **WebSearch 뿐**이다 — 페이지 본문을 읽지 않는다(원문 정독은 설계 단계가 한다). 검색 결과의 제목·요약·발행처·날짜만 돌려준다.
+
+## 후보
+- ${c.id} "${c.title}" · 중분류 ${c.mid_topic}
+- 축(${c.axis_type ?? "-"}): ${c.axis ?? "(없음)"}
+- 이미 있는 소스: ${c.sources.map((s) => `${s.publisher} "${s.title}"`).join(" / ") || "(없음)"}
+- **채워야 할 역할**: ${roles.map((r) => `${r} — ${ROLE_INTENT[r] ?? ""}`).join("\n  · ")}
+
+## 검색 규칙
+- 검색은 최대 ${i.maxSearches}회. 역할마다 검색 의도가 다르다(위 설명). 한국어·영어 둘 다 쓴다 — 청취자는 한국 직장인이지만 근거는 영어 소스가 많다.
+- **우선 검색 사이트** (소스 풀 — 여기서 나온 결과만 바로 쓸 수 있다). 검색어에 \`site:\` 로 2~3곳씩 묶어서 넣는다:
+  ${i.poolHosts.join(", ")}
+- 풀 밖 사이트의 결과는 버리지 말고 in_pool=false 로 돌려준다 — 워커가 도메인 후보로만 등록하고 소스로는 쓰지 않는다(사람이 판정한 뒤 다음 보강에서 쓴다).
+- 뉴스 속보·보도자료·상품 페이지·SNS·위키는 제외. **논문 저장소·유료 DB(researchgate, ssrn, academia.edu, semanticscholar, sciencedirect, springer/wiley 유료 페이지)도 제외** — 본문을 못 가져온다. 2년 넘게 지난 글은 역사·맥락 역할일 때만.
+- 한 소스가 두 역할을 겸할 수 있다. 축에 맞지 않는데 키워드만 겹치는 글은 넣지 않는다 — 빈 손으로 돌아오는 것이 억지 소스보다 낫다.
+
+## 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. sources 는 최대 8건, 각 항목에 url(검색 결과의 실제 URL 그대로) · title · publisher(사이트/발행처명) · published(YYYY-MM-DD 또는 null) · summary(검색 결과 요약을 한국어 두 문장으로) · roles · why(이 역할을 채우는 이유 한 줄) · in_pool. queries 에는 실제로 쓴 검색어를 전부 적는다.`;
+}
+export const REINFORCE_SEARCH_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["queries", "sources", "notes"],
+  properties: {
+    queries: { type: "array", items: { type: "string" } },
+    sources: { type: "array", items: { type: "object", additionalProperties: false, required: ["url", "title", "publisher", "published", "summary", "roles", "why", "in_pool"], properties: {
+      url: { type: "string" }, title: { type: "string" }, publisher: { type: "string" }, published: { type: ["string", "null"] }, summary: { type: "string" },
+      roles: { type: "array", items: { type: "string", enum: SOURCE_ROLES } }, why: { type: "string" }, in_pool: { type: "boolean" } } } },
+    notes: { type: "string", description: "못 채운 역할과 이유" },
+  },
+} as const;
 
 export const CLUSTER_SCHEMA_V2 = {
   type: "object",

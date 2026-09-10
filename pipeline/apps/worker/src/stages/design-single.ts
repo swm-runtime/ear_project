@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { cfg, executedBy } from "../config.js";
-import { insertRun, priorEpisodesUsingUrls, recordFetchStatus, refreshDomainFetchBlock, setJobProgress, type Job } from "../db.js";
+import { blockedTierHosts, insertRun, priorEpisodesUsingUrls, recordFetchStatus, refreshDomainFetchBlock, setJobProgress, type Job } from "../db.js";
 import { getFile } from "../storage.js";
 import type { Executor } from "../executors/index.js";
 import { assetPaths, buildDesignPromptInline, DESIGN_INLINE_SCHEMA, type BacklogCandidate, type InlineSource } from "@ear/pipeline";
@@ -54,8 +54,14 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
   Promise<{ design: DesignOut; model: string | null; costUsd: number; tokens: unknown; fetched: FetchedSource[] }> {
   const { job, ex, episodeId, candidate: cand, dir } = a;
   await setJobProgress(job.id, { phase: "설계 1/2 — 소스 본문 가져오기", detail: `${cand.sources.length}건 fetch`, toolCounts: {}, turns: 0, elapsedMs: 0 }).catch(() => {});
-  const fetched = await Promise.all(cand.sources.map((s, i) => fetchArticle(i + 1, s.url)));
-  await Promise.all(fetched.map((f) => recordFetchStatus(f.url, fetchStatusOf(f)).catch(() => {}))); // 0017: 접근 결과를 소스에 남긴다 — 다음 군집화가 robots·blocked 를 뺀다
+  // 차단 tier 도메인(사람 판정, spec/01 2장)은 페이지가 열려도 쓰지 않는다 (2026-09-10): 소스 풀에서는 지웠지만 후보 행의 URL 사본은 남아 있다.
+  // 접근 실패와 같은 경로(제외 → 3건 하한 → 자동 반려)로 처리한다
+  const blockedHosts = await blockedTierHosts().catch(() => new Set<string>());
+  const isBlockedTier = (url: string) => { try { const u = new URL(url); const h = u.hostname.replace(/^www\./, ""); const seg = u.pathname.split("/").filter(Boolean)[0]; return blockedHosts.has(h) || (!!seg && blockedHosts.has(`${h}/${seg}`)); } catch { return false; } };
+  const fetched = await Promise.all(cand.sources.map(async (s, i) => isBlockedTier(s.url)
+    ? ({ n: i + 1, url: s.url, ok: false, status: 0, title: null, byline: null, blocks: [], chars: 0, note: "차단 도메인 (판정 blocked) — 가져오지 않음" } as FetchedSource)
+    : fetchArticle(i + 1, s.url)));
+  await Promise.all(fetched.filter((f) => f.status !== 0 || f.ok).map((f) => recordFetchStatus(f.url, fetchStatusOf(f)).catch(() => {}))); // 차단 tier 로 건너뛴 것은 접근 결과가 아니다 // 0017: 접근 결과를 소스에 남긴다 — 다음 군집화가 robots·blocked 를 뺀다
   await refreshDomainFetchBlock(fetched.map((f) => f.url)).catch(() => {}); // 도메인째 반복되면 군집화 제외 표시
   const okCount = fetched.filter((f) => f.ok).length;
   log(`  design ${episodeId}: 소스 ${okCount}/${fetched.length} 본문 확보 (${fetched.map((f) => `S${f.n} ${f.ok ? `${f.chars}자/${f.blocks.length}문단` : `✗ ${f.status}`}`).join(" · ")})`);

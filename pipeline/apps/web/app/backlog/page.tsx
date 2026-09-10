@@ -27,10 +27,12 @@ export default async function BacklogPage({ searchParams }: { searchParams: Prom
     return `/backlog${qs ? `?${qs}` : ""}#g${i}`;
   };
   const sb = await supabaseServer();
-  const [{ data: rows }, { data: eps }] = await Promise.all([
-    sb.from("backlog").select("id,mid_topic,title,target_fit,angle,sources,status,dedup_note,approved_by,approved_at,axis,axis_type,gaps,cluster_version").order("id", { ascending: false }),
+  const [{ data: rows }, { data: eps }, { data: rjobs }] = await Promise.all([
+    sb.from("backlog").select("id,mid_topic,title,target_fit,angle,sources,status,dedup_note,approved_by,approved_at,axis,axis_type,gaps,cluster_version,reinforced_at,reinforce_note").order("id", { ascending: false }),
     sb.from("episodes").select("id,backlog_id,regression_kind"),
+    sb.from("jobs").select("payload").eq("type", "sweep").in("status", ["queued", "claimed", "running"]).eq("payload->>mode", "B"), // 보강 스윕 진행 중 (0019)
   ]);
+  const reinforcing = new Set((rjobs ?? []).map((j) => String((j.payload as { backlog_id?: string } | null)?.backlog_id ?? "")));
   const epOf = new Map((eps ?? []).map((e) => [e.backlog_id, e.id]));
   // 회귀 세트 실험용(심은 오류본·저품질 앵커)의 백로그 행은 게이트 1 대상이 아니다 — 비평 워커가 요구하는 제목·중분류 자리일 뿐. 여기서는 숨기고 에피소드 목록의 회귀 배지로만 본다 (2026-09-07)
   const experimental = new Set((eps ?? []).filter((e) => e.regression_kind === "planted" || e.regression_kind === "anchor_low").map((e) => e.backlog_id));
@@ -67,7 +69,8 @@ export default async function BacklogPage({ searchParams }: { searchParams: Prom
                     <Td>
                       <div className="font-medium">{r.title}</div>
                       {r.axis && <p className="mt-0.5 max-w-2xl text-xs leading-relaxed text-ink"><span className="mr-1 rounded bg-brand/10 px-1 py-0.5 text-[10px] font-semibold text-brand-ink">{r.axis_type}</span>{r.axis}</p>}
-                      {Array.isArray(r.gaps) && r.gaps.length > 0 && <p className="mt-0.5 text-[11px] text-amber-700">빈 역할: {r.gaps.join(" · ")} — 탐색 보강 대상</p>}
+                      {Array.isArray(r.gaps) && r.gaps.length > 0 && <p className="mt-0.5 text-[11px] text-amber-700">빈 역할: {r.gaps.join(" · ")}{r.status === "held" && !r.reinforced_at ? " — [보강]으로 웹 검색해 채울 수 있다" : ""}</p>}
+                      {r.reinforce_note && <p className="mt-0.5 text-[11px] text-sky-700">{r.reinforce_note}</p>}
                       {r.angle && <p className="mt-0.5 line-clamp-2 max-w-2xl text-xs leading-relaxed text-ink-soft" title={r.angle}>{r.angle}</p>}
                       {r.target_fit && <p className="mt-0.5 text-[11px] text-ink-soft">타깃: {r.target_fit}</p>}
                       {r.dedup_note?.includes("⚠️") && <p className="mt-1 text-[11px] text-amber-700">{r.dedup_note.split(" | ")[0]}</p>}
@@ -94,7 +97,7 @@ export default async function BacklogPage({ searchParams }: { searchParams: Prom
                     </Td>
                     <Td className="whitespace-nowrap">
                       <div className="flex flex-col items-start gap-1">
-                        <GateButtons id={r.id} status={r.status} />
+                        <GateButtons id={r.id} status={r.status} reinforce={{ eligible: r.status === "held" && !r.reinforced_at, running: reinforcing.has(r.id) }} />
                         {epOf.get(r.id) && <Link href={`/episodes/${epOf.get(r.id)}`} className="whitespace-nowrap text-[11px] underline">{epOf.get(r.id)} →</Link>}
                       </div>
                     </Td>
