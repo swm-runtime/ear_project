@@ -36,8 +36,12 @@ export class Content extends BaseEntity {
   @Column({ name: 'author_name', type: 'varchar', length: 100, nullable: true })
   authorName: string | null;
 
-  /** 파트너명의 비정규화 사본. 발행 시점 값을 고정한다 (domain.md 5.1 — B-5) */
-  @Column({ name: 'source_name', type: 'varchar', length: 100 })
+  /**
+   * 파트너명의 비정규화 사본. 발행 시점 값을 고정한다 (domain.md 5.1 — B-5).
+   * ai_generated는 "참고한 자료: 발행처1, 발행처2, …"로 소스 발행처를 **전부** 적으므로(admin.md 3.1)
+   * 소스 5~6건이면 100자를 넘는다 — 500자(domain.md 5.1, 개정 2026-09-10).
+   */
+  @Column({ name: 'source_name', type: 'varchar', length: 500 })
   sourceName: string;
 
   /** origin 분기 — partner 필수 / ai_generated 선택. null이면 [원문 보기] 미노출 */

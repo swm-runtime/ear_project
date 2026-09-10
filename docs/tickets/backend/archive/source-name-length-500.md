@@ -36,3 +36,14 @@ AI 생성 콘텐츠의 `source_name`은 "참고한 자료: 발행처1, 발행처
 - Given 같은 길이의 `source_name`을 담은 재발행 요청, When `PATCH /admin/contents/:id`를 호출하면, Then 200이고 값이 갱신된다.
 - Given 501자 이상의 `source_name`, When 업로드하면, Then 400 `source_name must be shorter than or equal to 500 characters`.
 - Given `admin-api.md` 4.6과 `domain.md` 5.1, When 읽으면, Then `source_name`의 상한 500자가 적혀 있다.
+
+## 처리 기록 (반영 날짜: 2026-09-10)
+
+요청 1~3 전부 반영했다.
+
+- DTO 두 곳(`UploadContentRequestDto`·`RepublishContentRequestDto`) `@MaxLength(500)`, `content.entity.ts` `length: 500`,
+  마이그레이션 `1787100000000-WidenContentsSourceName`(`ALTER COLUMN … TYPE varchar(500)`, 데이터 이동 없음 — down은 100자 초과 행이 있으면 실패, 의도).
+- `domain.md` 5.1 `source_name varchar(500)` 명시, `admin-api.md` 4.6 payload 주석에 "500자 이내" 명시.
+- 검증: DTO 스펙 3건(500 통과·501 거부·재발행) + 로컬 DB 마이그레이션 100→500 확인 + 로컬 서버 실측 — 306자 업로드 201·DB 저장 306자,
+  395자 재발행 200·갱신, 501자 업로드 400 `source_name must be shorter than or equal to 500 characters`.
+- 요청 4(플레이어 출처 고지 줄바꿈)는 FE 몫 — 이 티켓 범위 밖.
