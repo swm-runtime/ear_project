@@ -28,6 +28,7 @@ import {
   type ExploreTopic,
 } from '@/features/explore';
 import {
+  LibraryBanner,
   LibraryItemCard,
   LibrarySearchBarRow,
   LibraryTabs,
@@ -45,6 +46,16 @@ const HOLE_RADIUS = 16;
 const SWIPE_THRESHOLD = 40;
 /** 이 안쪽 움직임은 탭으로 본다 */
 const TAP_SLOP = 10;
+/** 점선이 설명·구멍에 딱 붙지 않게 띄우는 여백 */
+const ARROW_GAP = 12;
+/** 이보다 짧으면 점선을 그리지 않는다 — 몇 px짜리 점선은 얼룩으로 보인다 */
+const ARROW_MIN_LENGTH = 36;
+/** 곡선이 휘는 정도. 직선이면 화면 구획선처럼 보인다 */
+const ARROW_BOW = 18;
+/** 설명을 구멍에서 이만큼 띄운다 — 붙이면 답답하고 멀면 점선이 화면을 관통한다 */
+const HEAD_GAP = 72;
+/** 하단 점 인디케이터가 쓰는 자리. 설명이 여기까지 내려오지 않게 막는다 */
+const DOTS_RESERVED = 120;
 
 /**
  * 번들 자산을 URI 로 바꾼다 — 카드가 `{ uri }` 를 기대하므로 require 를 그대로 못 넘긴다.
@@ -143,6 +154,9 @@ export default function FirstRunTutorial() {
   /** 가리킬 자리는 **실제로 그려진 뒤** 측정해서 받는다 — 짐작해 두면 구멍이 어긋난다 */
   const [markRect, setMarkRect] = useState<Rect | null>(null);
   const targetRef = useRef<View>(null);
+  /** 점선의 반대쪽 끝 — 설명 자리도 실측한다(짐작하면 글씨와 안 이어진다) */
+  const [headRect, setHeadRect] = useState<Rect | null>(null);
+  const headRef = useRef<View>(null);
 
   const tabBarTop = height - insets.bottom - 60;
   const libraryTab: Rect = { x: 0, y: tabBarTop, w: width / 3, h: 60 };
@@ -173,6 +187,7 @@ export default function FirstRunTutorial() {
       return;
     }
     setMarkRect(null);
+    setHeadRect(null);
     setStep(next);
   };
 
@@ -214,20 +229,51 @@ export default function FirstRunTutorial() {
 
   /** 제목은 구멍 반대쪽에 — 같은 쪽에 두면 정작 가리키는 것을 글자가 덮는다 */
   const headAtBottom = target !== null && target.y < height / 2;
-  const arrow =
+
+  const holeTop = target === null ? 0 : target.y - HOLE_PAD;
+  const holeBottom = target === null ? 0 : target.y + target.h + HOLE_PAD;
+
+  /**
+   * 설명은 **구멍 바로 옆**에 붙인다. 화면 끝에 고정해 두면 구멍이 반대쪽에 있을 때 둘 사이가
+   * 화면 높이만큼 벌어져, 잇는 점선이 배경을 세로로 관통한다(3단계에서 카드 셋을 꿰뚫었다).
+   * 높이는 실측값을 쓴다 — 구멍 위에 놓을 때 자기 높이를 알아야 위쪽 끝이 정해진다.
+   */
+  const headHeight = headRect?.h ?? 0;
+  const headTopLimit = insets.top + theme.spacing.md;
+  const headBottomLimit = Math.max(
+    headTopLimit,
+    height - insets.bottom - DOTS_RESERVED - headHeight,
+  );
+  const headTop =
     target === null
-      ? ''
-      : headAtBottom
-        ? // 설명이 아래에 있으니 위로 올라가 구멍의 아래 모서리를 가리킨다
-          `M ${theme.spacing.lg + 30} ${target.y + target.h + 74} ` +
-          `C ${theme.spacing.lg + 10} ${target.y + target.h + 52}, ` +
-          `${target.x + target.w / 2} ${target.y + target.h + 44}, ` +
-          `${target.x + target.w / 2} ${target.y + target.h + 14}`
-        : // 설명이 위에 있으니 내려가 구멍의 위 모서리를 가리킨다
-          `M ${theme.spacing.lg + 30} ${target.y - 74} ` +
-          `C ${theme.spacing.lg + 10} ${target.y - 52}, ` +
-          `${target.x + target.w / 2} ${target.y - 44}, ` +
-          `${target.x + target.w / 2} ${target.y - 14}`;
+      ? height * 0.42
+      : Math.min(
+          Math.max(
+            headAtBottom ? holeBottom + HEAD_GAP : holeTop - HEAD_GAP - headHeight,
+            headTopLimit,
+          ),
+          headBottomLimit,
+        );
+
+  /**
+   * 설명과 구멍을 잇는 점선. **양 끝을 둘 다 실측값에서 뽑는다** — 종전에는 시작점을 구멍
+   * 기준(`target.y + target.h + 74`)으로 짐작해서, 설명이 화면 반대쪽에 있으면 점선만 구멍
+   * 옆 허공에서 시작하고 정작 글씨와는 이어지지 않았다.
+   *
+   * 가로 위치는 설명의 왼쪽 어깨에서 출발해 **구멍의 가로 범위 안으로만** 당긴다. 구멍 중앙을
+   * 향하게 두면 전체 폭 배너(3단계)에서 화면을 가로지르는 긴 사선이 되어 배경을 훑는다.
+   */
+  const arrow = (() => {
+    if (target === null || headRect === null) return '';
+    const x = Math.min(Math.max(headRect.x + 30, target.x), target.x + target.w);
+    const [from, to] = headAtBottom
+      ? [headRect.y - ARROW_GAP, holeBottom + ARROW_GAP]
+      : [headRect.y + headRect.h + ARROW_GAP, holeTop - ARROW_GAP];
+    // 설명과 구멍이 붙어 있으면 그리지 않는다 — 몇 px짜리 점선은 얼룩으로 보인다
+    if (Math.abs(from - to) < ARROW_MIN_LENGTH) return '';
+    const mid = (from + to) / 2;
+    return `M ${x} ${from} C ${x - ARROW_BOW} ${mid}, ${x + ARROW_BOW} ${mid}, ${x} ${to}`;
+  })();
 
   /**
    * onLayout 이 주는 값은 **부모 기준 상대 좌표**라 가려막(화면 전체)의 구멍 좌표로 쓸 수 없다.
@@ -305,12 +351,17 @@ export default function FirstRunTutorial() {
               trailing={<RemainingPlaysIndicator remaining={1} limit={2} onExhaustedPress={noop} />}
             />
             <LibraryTabs filter="all" onChange={noop} topicFilterCount={0} onFilterPress={noop} />
+            {/*
+              드립 도착은 실제 화면과 **같은 컴포넌트·같은 문구·같은 자리**로 그린다 —
+              탭 아래 전체 폭 배너다(LibraryScreen: 검색줄 → 탭 → 배너 → 목록).
+              직접 알약을 그리면 배너 카피가 바뀔 때 튜토리얼만 옛 문구로 남는다.
+            */}
+            {current.stage === 'drip' ? (
+              <View ref={targetRef} onLayout={measure()}>
+                <LibraryBanner banner={{ type: 'newArrivals', count: 2 }} onPress={noop} />
+              </View>
+            ) : null}
             <ScrollView scrollEnabled={false} contentContainerStyle={styles.list}>
-              {current.stage === 'drip' ? (
-                <View ref={targetRef} style={styles.dripRow} onLayout={measure()}>
-                  <Text style={styles.dripLabel}>오늘 아침 도착 · 2편</Text>
-                </View>
-              ) : null}
               {/* 라이브러리 단계가 가리키는 것은 카드가 아니라 탭바다(libraryTab) — 여기는 재지 않는다 */}
               <LibraryItemCard item={libraryItem(0)} onPress={noop} onMorePress={noop} />
               <LibraryItemCard item={libraryItem(1)} onPress={noop} onMorePress={noop} />
@@ -356,7 +407,17 @@ export default function FirstRunTutorial() {
         ) : null}
       </Svg>
 
-      <View style={[styles.head, headAtBottom ? { bottom: insets.bottom + 132 } : { top: height * 0.42 }]}>
+      {/*
+        key 로 재마운트시켜 자리를 다시 재게 한다. onLayout 은 **크기**가 바뀔 때 오는데,
+        이 View 는 구멍이 잡히는 순간 top ↔ bottom 으로 **위치만** 옮겨간다 — 그대로 두면
+        점선이 옛 자리에서 출발해 글씨와 이어지지 않는다.
+      */}
+      <View
+        key={`${step}-${Math.round(headTop)}`}
+        ref={headRef}
+        onLayout={() => headRef.current?.measureInWindow((x, y, w, h) => setHeadRect({ x, y, w, h }))}
+        style={[styles.head, { top: headTop }]}
+      >
         <Text style={styles.title}>{current.title}</Text>
         <Text style={styles.body}>{current.body}</Text>
       </View>
@@ -426,19 +487,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     gap: theme.spacing.sm,
   },
-  dripRow: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.xs + 2,
-    borderRadius: theme.radius.full,
-    backgroundColor: theme.color.primary,
-    marginBottom: theme.spacing.xs,
-  },
-  dripLabel: {
-    fontSize: theme.font.size.sm,
-    fontWeight: '700',
-    color: theme.color.onPrimary,
-  },
   tabBar: {
     position: 'absolute',
     left: 0,
@@ -467,16 +515,27 @@ const styles = StyleSheet.create({
     right: theme.spacing.lg,
     gap: theme.spacing.sm,
   },
+  /*
+   * 판을 깔지 않고 **글자에 그림자**로 배경과 분리한다. 가려막(0.7)만으로는 배경 글자가
+   * 비쳐 흰 글씨와 뭉개지는데(1단계가 "관심사에 맞는 추천" 제목과 겹쳤다), 불투명 판을
+   * 씌우면 정작 가리키려는 배경이 그 자리만 사라져 어색하다.
+   */
   title: {
     fontSize: theme.font.size.xl,
     fontWeight: '700',
     color: theme.color.onPrimary,
     lineHeight: theme.font.size.xl * 1.3,
+    textShadowColor: 'rgba(0,0,0,0.9)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 10,
   },
   body: {
     fontSize: theme.font.size.md,
-    color: 'rgba(255,255,255,0.78)',
+    color: 'rgba(255,255,255,0.88)',
     lineHeight: theme.font.size.md * 1.5,
+    textShadowColor: 'rgba(0,0,0,0.9)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 8,
   },
   skip: {
     position: 'absolute',
