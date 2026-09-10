@@ -851,6 +851,8 @@ export interface InlineSource {
   n: number; url: string; publisher: string; title: string; published?: string | null; backbone?: boolean;
   ok: boolean; byline?: string | null; note?: string | null;
   blocks: { id: string; text: string }[];
+  /** 다른 편이 이미 발췌한 문단 — 본문 없이 자리만 보여 준다 (2026-09-10 문단 단위 중복 방지). by = 그 편의 에피소드 ID */
+  usedBlocks?: { id: string; by: string }[];
 }
 
 export interface DesignInlineInput {
@@ -871,8 +873,13 @@ export function buildDesignPromptInline(i: DesignInlineInput): string {
   const srcBlocks = i.sources.map((s) => {
     const head = `### S${s.n}. ${s.publisher} — "${s.title}"${s.backbone ? " (뼈대 후보)" : ""}\n- URL: ${s.url}${s.published ? ` · 발행 ${String(s.published).slice(0, 10)}` : ""}${s.byline ? ` · 저자 ${s.byline}` : ""}`;
     if (!s.ok) return `${head}\n- **본문 없음** (${s.note ?? "가져오기 실패"}) — 이 소스는 제외 대상. sources_excluded 에 사유를 적는다.`;
-    return `${head}${s.note ? `\n- 추출 메모: ${s.note}` : ""}\n${s.blocks.map((b) => `[${b.id}] ${b.text}`).join("\n")}`;
+    const used = s.usedBlocks ?? [];
+    const usedNote = used.length ? `\n- **이미 쓴 대목 ${used.length}문단 제외** (${[...new Set(used.map((u) => u.by))].join("·")} 에서 발췌함) — 아래 ⛔ 자리의 내용은 이 편에서 쓸 수 없다. 남은 문단으로 다른 대목을 쓰거나, 얇으면 이 소스를 제외한다` : "";
+    const all = [...s.blocks.map((b) => ({ id: b.id, line: `[${b.id}] ${b.text}` })), ...used.map((u) => ({ id: u.id, line: `[${u.id}] ⛔ (${u.by} 에서 이미 쓴 대목 — 제외)` }))]
+      .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+    return `${head}${s.note ? `\n- 추출 메모: ${s.note}` : ""}${usedNote}\n${all.map((x) => x.line).join("\n")}`;
   }).join("\n\n");
+  const anyUsed = i.sources.some((s) => s.usedBlocks?.length);
   return `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 **설계 담당**이다. 대본을 쓰지 않는다. 소스 본문을 정독해 재료(발췌·claims)와 구성안을 만든다. 다음 단계(대본)는 원문을 보지 못하고 여기서 만든 파일만 본다. 그러므로 **발췌에 없는 사실은 대본에 존재할 수 없다** — 넉넉하게 골라라.
 
 이 실행에는 도구가 없다. 소스 본문은 아래 4장에 문단 ID 와 함께 전부 들어 있다 — 검색하거나 기억으로 보충하지 않는다. **발췌는 당신이 쓰는 것이 아니라 고르는 것이다**: 문단 ID 목록을 돌려주면 워커가 원문 그대로 sources.md 에 옮긴다.
@@ -898,7 +905,8 @@ ${candidateAxisBlock(i.candidate)}
 - 소스당 10~20개 문단 ID. 핵심 주장, 수치·조사 설계, 구체 사례·일화, 저자의 단서·한계 서술, 인용된 다른 연구의 이름과 결론, 실천 제안을 전부. "대본 작가가 이 대목을 쓰고 싶어 했는데 발췌에 없어서 못 쓰는 일"이 없어야 한다 — 빠뜨리는 쪽이 넘치는 쪽보다 비용이 크다.
 - **claims 가 참조하는 ID 는 반드시 excerpt_ids 에 있어야 한다.**
 - gists: 소스마다 한국어 요지 3줄. 발췌가 말하지 않는 것을 요지에 보태지 않는다 — 인물의 성별·연령·관계, 문장의 원문 내 위치, 순서·수량은 원문에 있는 정도까지만.
-- 본문이 없거나 너무 얇은 소스는 제외하고 sources_excluded 에 사유. 최소 3건 유지, 미달이면 구성안을 만들지 말고 notes 에 보고.
+- 본문이 없거나 너무 얇은 소스는 제외하고 sources_excluded 에 사유. 최소 3건 유지, 미달이면 구성안을 만들지 말고 notes 에 보고.${anyUsed ? `
+- **⛔ 문단은 다른 편이 이미 쓴 대목이다** — excerpt_ids·claims 에 넣지 않는다(넣으면 설계가 실패한다). 같은 소스라도 남은 문단으로 **다른 대목**을 쓴다. 남은 문단이 그 편과 같은 이야기를 반복하게 만들면 이 소스를 제외하고 sources_excluded 에 "이미 쓴 대목"이라고 적는다.` : ""}
 
 ### b) claims — 사실 주장 대조표
 - 각 항목: id(C01…) · text(한국어 한 문장) · excerpt_ids(근거 문단 ID — 없으면 적을 수 없다. 두 문단을 합쳐야 성립하면 둘 다) · type(수치·인용·고유명사·인과·정의·실천).

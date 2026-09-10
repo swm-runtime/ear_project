@@ -190,9 +190,19 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
   for (const t of eTurns) { if (/\.{3}|…/.test(t.text)) gap = 0; else { gap++; if (gap > maxGap) { maxGap = gap; gapEnd = t.id; } } }
   if (maxGap >= 10) v.push(`해설 턴 ${maxGap}개가 연속으로 뜸(말줄임표) 없이 이어짐 (${gapEnd} 까지) — 긴 해설 구간에 문장 중간 뜸 "..." 을 둔다 (규칙 7). 낭독이 아니라 말이어야 한다`);
   // 골드 특유 문구 (골드 사용법·루브릭 G1, 판정 3편 전부 동의): 자리째 복제 틀이 2회 이상이면 재생성
-  const goldRe = /(그 그림이 (맞|정확)|정확한 표현이|정확히 [^.。!?]{1,14}(핵심|조각|얘기|그거)|한 번쯤 떠올려 보셔도|짧게 모아|한번 모아볼까요|그런데 (윤아|이음)님은 어떠세요|솔직히 반반|예리하세요)/;
+  // full-v6.2 (판정 3편 G1 동의 11건): 문장이 골드에서 그대로 온 것은 1턴이어도 수정 — "자리까지 막기는 어렵고 완전 복제만 피하면 된다"(판정 부분동의)
+  const goldRe = /(그 그림이 [^.。!?]{0,14}(맞|정확|가까|그거)|정확한 표현이|정확히 [^.。!?]{1,14}(핵심|조각|얘기|그거)|한 번쯤 떠올려 보셔도|떠올려 보셔도 좋겠|(해|두|보)셔도 좋겠(습니다|네요)|짧게 모아|모아 볼게요|모아 보면요|한번 모아볼까요|그런데 (윤아|이음)님은 어떠세요|솔직히 반반|예리하세요|반만 맞(았|아)|그 감각이 [^.。!?]{0,12}(정확|맞|핵심|통해|방향)|그 정리가 맞아요)/;
   const gold = p.turns.filter((t) => goldRe.test(t.text)).map((t) => t.id ?? "?");
-  if (gold.length >= 2) v.push(`골드 특유 문구가 ${gold.length}턴 (${gold.slice(0, 6).join(", ")}) — 확인구·역질문 진입·마무리 마지막 문장 틀을 자리째 쓰지 않는다. 같은 기능을 새 문장으로 (골드 사용법)`);
+  if (gold.length >= 1) v.push(`골드 특유 문구가 ${gold.length}턴 (${gold.slice(0, 6).join(", ")}) — 확인구("반만 맞았어요"·"그 감각이 …"·"그 그림이 …"·"그 정리가 맞아요")·정리 진입("…짧게 모아 보면요")·마무리 마지막 문장 틀("~해 보셔도 좋겠습니다")을 자리째 쓰지 않는다. 같은 기능을 새 문장으로 (골드 사용법)`);
+  // 귀속 연속 (규칙 22, full-v6.2 — 판정 3편 A9 전부 동의, T260910-013 은 한 저자 글을 11턴 연속 옮김): 귀속 동사로 닫히는 해설 턴이 4턴 연속이면 책 소개다
+  const attrEnd = /(써요|씁니다|쓰고요|썼어요|적었어요|적어요|적고요|했다고 해요|했다고 합니다|고 합니다|고 해요|고요|라고요|답니다|랍니다|대요|래요|했대요|였대요)[.!?]?\s*$/;
+  let run = 0, maxRun = 0, runEnd: string | null = null;
+  for (const t of eTurns) { const last = t.text.replace(/\.{3}|…/g, " ").trim().split(/(?<=[.!?])\s+/).filter(Boolean).pop() ?? ""; if (attrEnd.test(last)) { run++; if (run > maxRun) { maxRun = run; runEnd = t.id; } } else run = 0; }
+  if (maxRun >= 4) v.push(`해설 턴 ${maxRun}개가 연속으로 귀속 동사("~라고 써요"·"~했다고 해요"·"~대요")로 끝남 (${runEnd} 까지) — 한 소스를 옮겨 적는 구간이다. 소스가 말한 것을 해설자가 아는 것으로 바꾸어 말하고, 귀속은 직접 인용·수치·특정인 의견에만 (규칙 20~23)`);
+  // "오늘 얘기" 틀 반복 (규칙 16 문어 은유, full-v6.2 — T260910-013 E2·E7·E12·E42 "오늘 얘기가/오늘의 출발점/오늘 얘기의 두 갈래/오늘 얘기를 한 줄로")
+  const todayRe = /오늘(의)? (얘기|이야기|출발점|주제)/;
+  const today = eTurns.filter((t) => todayRe.test(t.text));
+  if (today.length >= 4) v.push(`해설 턴 ${today.length}개가 "오늘 얘기/오늘의 출발점" 틀로 위치를 잡음 (${today.slice(0, 6).map((t) => t.id).join(", ")}) — 같은 틀 세 번이면 각본이다. 내용으로 잇는다 (규칙 16)`);
   const a = attributionStats(p.turns);
   if (a.eTurns >= 10 && a.ratio > 0.5) v.push(`해설 턴 ${a.eTurns}개 중 ${a.attributed}개(${Math.round(a.ratio * 100)}%)에 귀속 표현("~에 따르면"·"라고 합니다"·"이 글/기사는"·매체명)이 있음 — 절반 초과, 소스 순회. 개념·원리·정의는 해설자의 말로 바꾸고, 이름은 근거 앵커·직접 인용에만 (규칙 20~22)`);
   return v;

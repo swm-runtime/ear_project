@@ -1,7 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { cfg, executedBy } from "../config.js";
-import { insertRun, recordFetchStatus, refreshDomainFetchBlock, setJobProgress, type Job } from "../db.js";
+import { insertRun, priorEpisodesUsingUrls, recordFetchStatus, refreshDomainFetchBlock, setJobProgress, type Job } from "../db.js";
+import { getFile } from "../storage.js";
 import type { Executor } from "../executors/index.js";
 import { assetPaths, buildDesignPromptInline, DESIGN_INLINE_SCHEMA, type BacklogCandidate, type InlineSource } from "@ear/pipeline";
 import { fetchArticle, fetchStatusOf, type FetchedSource } from "../sources/fetch.js";
@@ -31,6 +32,24 @@ export function normalizeOutline(md: string): string {
   }).join("\n");
 }
 
+/** 다른 편의 sources.md 에서 URL → 발췌 문단 본문 목록. 형식은 이 파일이 쓰는 그대로("## S{n}." 머리, "- URL:", "- S{n}-NN: \"…\"") */
+export function parsePriorExcerpts(md: string): Map<string, string[]> {
+  const out = new Map<string, string[]>(); let url: string | null = null;
+  for (const line of md.split(/\r?\n/)) {
+    if (/^## S\d+\./.test(line)) { url = null; continue; }
+    const u = line.match(/^- URL:\s*(\S+)/); if (u) { url = u[1]; continue; }
+    const b = line.match(/^- S\d+-\d+:\s*"([\s\S]*)"\s*$/);
+    if (b && url) { const a = out.get(url) ?? []; a.push(b[1]); out.set(url, a); }
+  }
+  return out;
+}
+const normText = (t: string) => t.replace(/\s+/g, " ").trim();
+/** 문단이 이미 쓴 발췌와 같은가 — 같은 문단이거나(정규화 일치) 한쪽이 다른 쪽을 품는 경우(splitLong 경계가 달라졌을 때). 40자 미만은 우연 일치가 잦아 안 본다 */
+export function isUsedBlock(text: string, used: string[]): boolean {
+  const a = normText(text); if (a.length < 40) return false;
+  return used.some((u) => { const b = normText(u); return b.length >= 40 && (a === b || a.includes(b) || b.includes(a)); });
+}
+
 export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: string; candidate: BacklogCandidate; dir: string; assetRoot: string; promptVersion: string }):
   Promise<{ design: DesignOut; model: string | null; costUsd: number; tokens: unknown; fetched: FetchedSource[] }> {
   const { job, ex, episodeId, candidate: cand, dir } = a;
@@ -42,10 +61,32 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
   log(`  design ${episodeId}: 소스 ${okCount}/${fetched.length} 본문 확보 (${fetched.map((f) => `S${f.n} ${f.ok ? `${f.chars}자/${f.blocks.length}문단` : `✗ ${f.status}`}`).join(" · ")})`);
   if (okCount < 3) throw new Error(`소스 본문 ${okCount}건 — 3건 하한 미달 (${fetched.filter((f) => !f.ok).map((f) => `S${f.n} ${f.status} ${f.note ?? ""}`).join("; ")})`);
 
+  // 이미 쓴 문단 제외 (2026-09-10, T260910-005↔013 — 같은 소스 2건에서 같은 문단을 골라 두 편의 구간이 거의 같은 대사가 됐다):
+  // 다른 후보의 편이 같은 URL 에서 발췌한 문단은 프롬프트에서 본문을 빼고 자리만 남긴다 — 모델은 고를 수 없고, 남은 대목이 얇으면 그 소스를 제외한다.
+  // 소스 단위로 막지 않는 이유: 풀이 작은 대분류는 소스 금지가 곧 편수 제한이다. 막는 단위는 문단이다.
+  const prior = await priorEpisodesUsingUrls(cand.sources.map((s) => s.url), cand.id).catch((e) => { log(`  design ${episodeId}: 이전 편 조회 실패 (${String(e?.message ?? e).slice(0, 80)}) — 문단 제외 없이 진행`); return []; });
+  const usedByUrl = new Map<string, { episode: string; title: string; texts: string[] }[]>();
+  for (const pe of prior) {
+    const md = pe.sources_key ? await getFile(pe.sources_key) : null;
+    if (!md) continue;
+    const ex = parsePriorExcerpts(md);
+    for (const u of pe.urls) { const texts = ex.get(u); if (!texts?.length) continue; const arr = usedByUrl.get(u) ?? []; arr.push({ episode: pe.episode_id, title: pe.title, texts }); usedByUrl.set(u, arr); }
+  }
+  const usedBlocks = new Map<string, string>(); // 문단 ID → 쓴 편
+  const priorNotes: string[] = [];
+  for (const f of fetched) {
+    const uses = usedByUrl.get(f.url); if (!uses?.length || !f.ok) continue;
+    let n = 0;
+    for (const b of f.blocks) { const hit = uses.find((u) => isUsedBlock(b.text, u.texts)); if (hit) { usedBlocks.set(b.id, hit.episode); n++; } }
+    if (n) priorNotes.push(`S${f.n} ${n}/${f.blocks.length}문단 (${[...new Set(uses.map((u) => u.episode))].join("·")})`);
+  }
+  if (usedBlocks.size) log(`  design ${episodeId}: 이미 쓴 문단 제외 — ${priorNotes.join(" · ")}`);
+
   const ap = assetPaths(a.assetRoot, cfg.workRoot);
   const read = (p: string) => fs.readFile(p, "utf8");
   const [guidelines, specScript, goldFullEum, goldFullYuna] = await Promise.all([read(ap.guidelines), read(ap.specScript), read(ap.goldFullEum), read(ap.goldFullYuna)]);
-  const sources: InlineSource[] = fetched.map((f, i) => ({ n: f.n, url: f.url, publisher: cand.sources[i].publisher, title: cand.sources[i].title || f.title || "", published: cand.sources[i].published, backbone: cand.sources[i].backbone, ok: f.ok, byline: f.byline, note: f.note, blocks: f.blocks }));
+  const sources: InlineSource[] = fetched.map((f, i) => ({ n: f.n, url: f.url, publisher: cand.sources[i].publisher, title: cand.sources[i].title || f.title || "", published: cand.sources[i].published, backbone: cand.sources[i].backbone, ok: f.ok, byline: f.byline, note: f.note,
+    blocks: f.blocks.filter((b) => !usedBlocks.has(b.id)), usedBlocks: f.blocks.filter((b) => usedBlocks.has(b.id)).map((b) => ({ id: b.id, by: usedBlocks.get(b.id)! })) }));
   const prompt = buildDesignPromptInline({ episodeId, candidate: cand, promptVersion: a.promptVersion, guidelines, specScript, goldFullEum, goldFullYuna, sources });
   log(`  design ${episodeId}: 단발 호출 (프롬프트 ${Math.round(prompt.length / 1000)}K자)`);
   const r = await ex.run<DesignInlineOut>({
@@ -63,12 +104,14 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
 
   // ── 산출물 조립 (ID 검증 포함) ─────────────────────────────────────────────
   const blockById = new Map<string, { s: number; text: string }>();
-  for (const f of fetched) for (const b of f.blocks) blockById.set(b.id, { s: f.n, text: b.text });
+  for (const f of fetched) for (const b of f.blocks) if (!usedBlocks.has(b.id)) blockById.set(b.id, { s: f.n, text: b.text }); // 제외 문단은 ID 검증에서도 없는 문단이다
   const chosen = new Set(o.excerpt_ids.filter((id) => blockById.has(id)));
   const badClaims: string[] = [];
   for (const c of o.claims) {
     for (const id of c.excerpt_ids) { if (!blockById.has(id)) badClaims.push(`${c.id}→${id}`); else chosen.add(id); } // claims 가 가리키는 문단은 발췌에 넣는다
   }
+  const reused = [...new Set([...o.excerpt_ids, ...o.claims.flatMap((c) => c.excerpt_ids)])].filter((id) => usedBlocks.has(id));
+  if (reused.length) await fail(`이미 다른 편이 쓴 문단을 발췌·claims 에 넣음: ${reused.slice(0, 8).map((id) => `${id}(${usedBlocks.get(id)})`).join(", ")} — 제외 문단은 고를 수 없다`);
   if (badClaims.length) await fail(`claims 가 존재하지 않는 문단 ID 를 가리킴: ${badClaims.slice(0, 10).join(", ")}${badClaims.length > 10 ? " …" : ""}`);
   const claimIds = new Set(o.claims.map((c) => c.id));
   const outlineRefs = [...new Set(o.outline_md.match(/\bC\d{2,3}\b/g) ?? [])];
@@ -77,7 +120,7 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
   if (!/^축:/m.test(o.outline_md) || !/^구간 #1/m.test(o.outline_md)) await fail(`outline_md 형식 위반 — '축:' 또는 '구간 #1' 줄이 없음 (정규화 후). 앞부분: ${o.outline_md.replace(/\s+/g, " ").slice(0, 160)}`);
   if (o.estimated_minutes && o.estimated_minutes < 13) await fail(`재료 부족 — 설계 예상 분량 ${o.estimated_minutes}분 < 하한 13분. ${o.notes.slice(0, 200)}`);
 
-  const lines: string[] = ["> 내부 증적 — 재배포 금지", "", `# 소스 발췌 — ${episodeId}`, "", `> 설계 단발 실행: 발췌는 코드가 가져온 원문 문단을 모델이 골라 그대로 옮긴 것 (${chosen.size}항목). 요지만 모델 작성.`, ""];
+  const lines: string[] = ["> 내부 증적 — 재배포 금지", "", `# 소스 발췌 — ${episodeId}`, "", `> 설계 단발 실행: 발췌는 코드가 가져온 원문 문단을 모델이 골라 그대로 옮긴 것 (${chosen.size}항목). 요지만 모델 작성.`, ...(priorNotes.length ? [`> 이미 다른 편이 쓴 문단은 제외했다: ${priorNotes.join(" · ")}`] : []), ""];
   for (const f of fetched) {
     const src = cand.sources[f.n - 1];
     lines.push(`## S${f.n}. ${src.publisher} — "${src.title || f.title || ""}"`);
@@ -102,7 +145,7 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
     axis: o.axis, axis_type: o.axis_type, landing_section: o.landing_section, sections: o.sections, excerpts: chosen.size, claims: o.claims.length,
     estimated_minutes: o.estimated_minutes, split_proposal: o.split_proposal, sources_used: o.sources_used, sources_excluded: [
       ...o.sources_excluded, ...fetched.filter((f) => !f.ok && !o.sources_excluded.some((x) => x.url === f.url)).map((f) => ({ url: f.url, reason: `${f.status} ${f.note ?? ""}`.trim() })),
-    ], gaps: o.gaps, self_check: `ID 검증: 발췌 ${chosen.size} · claims ${o.claims.length} · 구성안 참조 ${outlineRefs.length} 전부 유효`, notes: o.notes,
+    ], gaps: o.gaps, self_check: `ID 검증: 발췌 ${chosen.size} · claims ${o.claims.length} · 구성안 참조 ${outlineRefs.length} 전부 유효${usedBlocks.size ? ` · 이미 쓴 문단 ${usedBlocks.size}개 제외 (${priorNotes.join(" · ")})` : ""}`, notes: o.notes,
   };
   return { design, model: r.model, costUsd: r.listCostUsd ?? 0, tokens: (r.raw as { usage?: unknown } | undefined)?.usage, fetched };
 }
