@@ -41,11 +41,20 @@ function splitLong(t: string): string[] {
   return out;
 }
 
-async function robotsAllows(url: URL): Promise<boolean> {
+const robotsCache = new Map<string, Promise<string>>(); // origin → robots.txt 본문 (군집화 사전 검사가 같은 도메인을 수백 번 묻는다)
+async function robotsText(origin: string): Promise<string> {
+  let p = robotsCache.get(origin);
+  if (!p) {
+    p = fetch(`${origin}/robots.txt`, { headers: { "user-agent": UA }, signal: AbortSignal.timeout(8000) }).then((r) => (r.ok ? r.text() : "")).catch(() => "");
+    robotsCache.set(origin, p);
+  }
+  return p;
+}
+/** robots.txt 가 이 URL 경로를 막는가 — 우회하지 않는다 (불변 원칙 2). 실패·없음은 허용으로 본다 */
+export async function robotsAllows(url: URL): Promise<boolean> {
   try {
-    const res = await fetch(`${url.origin}/robots.txt`, { headers: { "user-agent": UA }, signal: AbortSignal.timeout(8000) });
-    if (!res.ok) return true;
-    const txt = await res.text();
+    const txt = await robotsText(url.origin);
+    if (!txt) return true;
     let applies = false; const dis: string[] = [];
     for (const raw of txt.split(/\r?\n/)) {
       const line = raw.replace(/#.*/, "").trim(); if (!line) continue;
@@ -56,6 +65,14 @@ async function robotsAllows(url: URL): Promise<boolean> {
     }
     return !dis.some((d) => url.pathname.startsWith(d.replace(/\*.*$/, "")));
   } catch { return true; }
+}
+/** fetch 결과 → sources.fetch_status (0017) */
+export function fetchStatusOf(f: FetchedSource): "ok" | "robots" | "blocked" | "empty" | "network" {
+  if (f.ok) return "ok";
+  if (f.status === "robots") return "robots";
+  if (f.status === 403 || f.status === 429 || f.status === 401) return "blocked";
+  if (f.status === "network") return "network";
+  return "empty";
 }
 
 export async function fetchArticle(n: number, url: string): Promise<FetchedSource> {
