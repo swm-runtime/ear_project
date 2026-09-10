@@ -746,9 +746,12 @@ ${WRITE_FACT_RULES}
 export const WRITE_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["title", "script", "sections_followed", "turn_claims", "bridges", "pronunciations_added", "self_check_fixes", "notes"],
+  required: ["title", "one_liner", "script", "sections_followed", "turn_claims", "bridges", "pronunciations_added", "self_check_fixes", "notes"],
   properties: {
     title: { type: "string" },
+    // KAN-50 3-1 — 썸네일 프롬프트의 {핵심 개념}이자 발행 메타 설명 첫 줄. 여기서 받는 이유는
+    // 모델이 대본 전체 맥락을 이미 갖고 있어 추가 호출·비용이 0 이기 때문이다
+    one_liner: { type: "string", description: "40자 이내 한 줄 요약. 사실 주장이 아니라 이 편의 축을 청취자 언어로 (예: \"소득이 끊겨도 버티는 현금흐름 구조\"). 제목을 그대로 복창하지 않는다" },
     script: { type: "string", description: "script.md 전문 (마크다운)" },
     sections_followed: { type: "boolean", description: "구성안 구간 순서·개수 준수" },
     turn_claims: { type: "array", items: { type: "object", additionalProperties: false, required: ["turn", "claims"], properties: { turn: { type: "string" }, claims: { type: "array", items: { type: "string" } } } }, description: "해설 턴별 사용 claims ID" },

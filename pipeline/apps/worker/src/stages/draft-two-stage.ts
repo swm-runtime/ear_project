@@ -20,7 +20,7 @@ import { runDesignSingle } from "./design-single.js";
  * 설계 산출물이 이미 있으면(재집기·2단계만 실패) 설계를 건너뛴다.
  */
 export interface DesignOut { axis: string; axis_type: string; landing_section: number; sections: { n: number; title: string; sources: string[]; ratio: number }[]; excerpts: number; claims: number; estimated_minutes: number; split_proposal: string; sources_used: string[]; sources_excluded: { url: string; reason: string }[]; gaps: string[]; self_check: string; notes: string }
-export interface WriteOut { title: string; script: string; sections_followed: boolean; turn_claims: { turn: string; claims: string[] }[]; bridges: { turn: string; note: string }[]; terms?: { term: string; turn: string; explained_by: string }[]; pronunciations_added: { term: string; reading: string }[]; self_check_fixes: string[]; notes: string }
+export interface WriteOut { title: string; one_liner?: string; script: string; sections_followed: boolean; turn_claims: { turn: string; claims: string[] }[]; bridges: { turn: string; note: string }[]; terms?: { term: string; turn: string; explained_by: string }[]; pronunciations_added: { term: string; reading: string }[]; self_check_fixes: string[]; notes: string }
 
 export interface TwoStageArgs {
   job: Job; ex: Executor; episodeId: string; candidate: BacklogCandidate; dir: string; rel: string;

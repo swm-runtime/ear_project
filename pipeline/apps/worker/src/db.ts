@@ -203,8 +203,8 @@ export async function upsertEpisode(e: { id: string; backlog_id: string; prompt_
 export async function deleteEpisode(id: string) {
   await pool.query("delete from public.episodes where id = $1", [id]);
 }
-export async function getEpisode(id: string): Promise<{ id: string; backlog_id: string; prompt_version: string; script_key: string | null; asset_versions: Record<string, string> | null } | null> {
-  const r = await pool.query("select id, backlog_id, prompt_version, script_key, asset_versions from public.episodes where id = $1", [id]);
+export async function getEpisode(id: string): Promise<{ id: string; backlog_id: string; prompt_version: string; script_key: string | null; audio_dist_key: string | null; thumbnail_key: string | null; asset_versions: Record<string, string> | null } | null> {
+  const r = await pool.query("select id, backlog_id, prompt_version, script_key, audio_dist_key, thumbnail_key, asset_versions from public.episodes where id = $1", [id]);
   return r.rows[0] ?? null;
 }
 

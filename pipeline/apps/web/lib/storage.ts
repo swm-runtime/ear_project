@@ -46,6 +46,11 @@ export async function putText(key: string, text: string, contentType = contentTy
   await s3().send(new PutObjectCommand({ Bucket: bucket(), Key: assertKey(key), Body: text, ContentType: contentType }));
 }
 
+/** 바이너리 저장 — 썸네일 앵커 복사(KAN-50)처럼 텍스트가 아닌 산출물에 쓴다 */
+export async function putBytes(key: string, body: Uint8Array, contentType = contentTypeOf(key)): Promise<void> {
+  await s3().send(new PutObjectCommand({ Bucket: bucket(), Key: assertKey(key), Body: body, ContentType: contentType }));
+}
+
 export interface StoredObject { key: string; etag: string; size: number; last_modified: string | null }
 export async function listObjects(prefix: string, max = 1000): Promise<StoredObject[]> {
   const out: StoredObject[] = [];
