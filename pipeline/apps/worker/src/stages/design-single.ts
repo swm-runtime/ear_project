@@ -1,10 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { cfg } from "../config.js";
-import { setJobProgress, type Job } from "../db.js";
+import { recordFetchStatus, refreshDomainFetchBlock, setJobProgress, type Job } from "../db.js";
 import type { Executor } from "../executors/index.js";
 import { assetPaths, buildDesignPromptInline, DESIGN_INLINE_SCHEMA, type BacklogCandidate, type InlineSource } from "@ear/pipeline";
-import { fetchArticle, type FetchedSource } from "../sources/fetch.js";
+import { fetchArticle, fetchStatusOf, type FetchedSource } from "../sources/fetch.js";
 import { log } from "../util.js";
 import type { DesignOut } from "./draft-two-stage.js";
 
@@ -23,6 +23,8 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
   const { job, ex, episodeId, candidate: cand, dir } = a;
   await setJobProgress(job.id, { phase: "설계 1/2 — 소스 본문 가져오기", detail: `${cand.sources.length}건 fetch`, toolCounts: {}, turns: 0, elapsedMs: 0 }).catch(() => {});
   const fetched = await Promise.all(cand.sources.map((s, i) => fetchArticle(i + 1, s.url)));
+  await Promise.all(fetched.map((f) => recordFetchStatus(f.url, fetchStatusOf(f)).catch(() => {}))); // 0017: 접근 결과를 소스에 남긴다 — 다음 군집화가 robots·blocked 를 뺀다
+  await refreshDomainFetchBlock(fetched.map((f) => f.url)).catch(() => {}); // 도메인째 반복되면 군집화 제외 표시
   const okCount = fetched.filter((f) => f.ok).length;
   log(`  design ${episodeId}: 소스 ${okCount}/${fetched.length} 본문 확보 (${fetched.map((f) => `S${f.n} ${f.ok ? `${f.chars}자/${f.blocks.length}문단` : `✗ ${f.status}`}`).join(" · ")})`);
   if (okCount < 3) throw new Error(`소스 본문 ${okCount}건 — 3건 하한 미달 (${fetched.filter((f) => !f.ok).map((f) => `S${f.n} ${f.status} ${f.note ?? ""}`).join("; ")})`);

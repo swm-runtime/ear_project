@@ -252,6 +252,12 @@ export async function onDraftFailed(job: Job, err: unknown) {
     if (ep && ep.script_key) {
       await setBacklogStatus(backlogId, "review_required", { dedup_note: note });
       log(`  draft ${episodeId}: 재생성 실패 → 백로그 ${backlogId} review_required (대본은 유지)`);
+    } else if (/본문 \d+건 — 3건 하한 미달/.test(reason)) {
+      // 소스 접근 불가 (2026-09-10 박수헌): 되돌리지 않고 자동 반려 — 중복 대조·사용 소스 목록은 rejected 를 빼므로 같은 축을 다른 소스로 다시 만들 수 있다.
+      // 막힌 소스는 fetch_status 로 기록돼 다음 군집화에서 빠진다 (0017)
+      if (ep) await deleteEpisode(episodeId);
+      await setBacklogStatus(backlogId, "rejected", { claimed_by: null, claimed_at: null, dedup_note: note.replace("⚠️ 초안 실패", "⚠️ 자동 반려 — 소스 접근 불가") });
+      log(`  draft ${episodeId || "(id 없음)"}: 소스 본문 부족 → 백로그 ${backlogId} 자동 반려 (막힌 소스는 fetch_status 기록)`);
     } else {
       if (ep) await deleteEpisode(episodeId);
       await setBacklogStatus(backlogId, "proposed", { claimed_by: null, claimed_at: null, dedup_note: note });

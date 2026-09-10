@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import { cfg, executedBy } from "../config.js";
-import { domainTierByHost, existingBacklogTitles, insertBacklogAlloc, insertRun, midsOfMajor, nextBacklogNumber, recentSourcesForTopics, setJobProgress, usedSourceUrls, type Job } from "../db.js";
+import { domainTierByHost, existingBacklogTitles, insertBacklogAlloc, insertRun, midsOfMajor, nextBacklogNumber, recentSourcesForTopics, setJobProgress, usedSourceUrls, type Job, recordFetchStatus, refreshDomainFetchBlock } from "../db.js";
+import { robotsAllows } from "../sources/fetch.js";
 import type { Executor } from "../executors/index.js";
 import { assetPaths, buildClusterPromptV2, CLUSTER_SCHEMA_V2, SOURCE_ROLES } from "@ear/pipeline";
 import { hostOf, log } from "../util.js";
@@ -23,7 +24,21 @@ export async function runClusterV2(job: Job, ex: Executor) {
   const mid = String(job.payload.mid_topic ?? "");
   const mids = major ? await midsOfMajor(major) : mid ? [mid] : [];
   if (!mids.length) throw new Error("payload.mid_topic 또는 major_topic 필요");
-  const sources = await recentSourcesForTopics(mids, Number(job.payload.days ?? 45), Number(job.payload.limit ?? 400));
+  const pool0 = await recentSourcesForTopics(mids, Number(job.payload.days ?? 45), Number(job.payload.limit ?? 400));
+  // robots 사전 검사 (0017, 2026-09-10): 접근 결과가 없는 소스는 robots.txt 만 확인해(도메인당 1회 캐시) 막힌 것을 풀에서 빼고 기록한다.
+  // 본문 fetch 는 설계 단계가 하고 그때 403 등이 기록된다 — 후보 11건 중 5건이 본문 3건 미만이던 원인은 대부분 robots 였다
+  await setJobProgress(job.id, { phase: `군집화 v2 — robots 사전 검사 (${pool0.length}건)`, detail: "", toolCounts: {}, turns: 0, elapsedMs: 0 }).catch(() => {});
+  const unchecked = pool0.filter((s) => !s.fetch_status);
+  const blockedUrls = new Set<string>();
+  for (let i = 0; i < unchecked.length; i += 25) {
+    await Promise.all(unchecked.slice(i, i + 25).map(async (s) => {
+      let u: URL; try { u = new URL(s.url); } catch { return; }
+      if (!(await robotsAllows(u))) { blockedUrls.add(s.url); await recordFetchStatus(s.url, "robots").catch(() => {}); }
+    }));
+  }
+  if (blockedUrls.size) await refreshDomainFetchBlock([...blockedUrls]).catch(() => {});
+  const sources = pool0.filter((s) => !blockedUrls.has(s.url));
+  if (blockedUrls.size) log(`  cluster v2 ${major || mid}: robots 차단 ${blockedUrls.size}건 제외 (검사 ${unchecked.length}건, 기록됨)`);
   if (sources.length < 5) throw new Error(`${major || mid} 최근 소스가 ${sources.length}건 — 군집화 v2 불가(5건 하한)`);
   const [existing, nextN, used, tiers] = await Promise.all([existingBacklogTitles(), nextBacklogNumber(), usedSourceUrls(), domainTierByHost()]);
   const { assetRoot, bundle } = await prepareAssets(null);

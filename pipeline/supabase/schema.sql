@@ -15,7 +15,8 @@ create table if not exists domains (
   decided_by  text,                            -- 판정자 (게이트: 사람만 기입)
   decided_at  timestamptz,
   note        text,
-  created_at  timestamptz not null default now()
+  created_at  timestamptz not null default now(),
+  fetch_blocked_at timestamptz                  -- 0017: 본문 접근 불가 반복(ok 0·차단 3+) → 군집화 제외. 코드가 찍고 지움. 계층과 별개
 );
 
 -- ── 2. sources: 스윕으로 수집한 소스 링크+메타데이터 ─────────────
@@ -29,9 +30,12 @@ create table if not exists sources (
   author      text,
   published   date,
   swept_at    date not null,
-  created_at  timestamptz not null default now()
+  created_at  timestamptz not null default now(),
+  fetch_status text check (fetch_status in ('ok','robots','blocked','empty','network')), -- 0017: 본문 접근 결과 (설계·군집화 사전 검사가 기록)
+  fetch_checked_at timestamptz
 );
 create index if not exists idx_sources_published on sources (published desc);
+create index if not exists idx_sources_fetch_status on sources (fetch_status);
 
 -- ── 3. backlog: 에피소드 주제 후보 (03 문서 3장) ─────────────────
 create table if not exists backlog (
@@ -239,3 +243,16 @@ create table if not exists public.prompt_assets (
 create unique index if not exists prompt_assets_active_idx on public.prompt_assets (key) where status = 'active';
 alter table public.episodes add column if not exists asset_versions jsonb;
 alter table public.runs add column if not exists cost_usd numeric, add column if not exists tokens jsonb, add column if not exists worker_rev text;
+
+-- ===== 0017 (2026-09-10): sources.fetch_status · domains.fetch_blocked_at · domain_stats 에 blocked_count/ok_count — 원문은 supabase/migrations/0017_source_fetch_status.sql =====
+create or replace view public.domain_stats as
+select d.id as domain_id,
+       count(s.id)                                                     as source_count,
+       max(s.swept_at)                                                 as last_swept,
+       max(s.published)                                                as last_published,
+       count(s.id) filter (where s.fetch_status in ('robots','blocked')) as blocked_count,
+       count(s.id) filter (where s.fetch_status = 'ok')                as ok_count
+  from public.domains d
+  left join public.sources s on s.domain_id = d.id
+ group by d.id;
+grant select on public.domain_stats to authenticated;

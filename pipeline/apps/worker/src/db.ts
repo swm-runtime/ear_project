@@ -144,17 +144,35 @@ export async function midsOfMajor(major: string): Promise<string[]> {
   const r = await pool.query("select mid from public.topics where major = $1 and ai_generation order by mid", [major]);
   return r.rows.map((x) => x.mid as string);
 }
-/** 여러 중분류의 최근 소스 (중복 URL 제거, 커버 중분류 목록 포함) */
+/** 여러 중분류의 최근 소스 (중복 URL 제거, 커버 중분류 목록 포함). 본문 접근 불가(robots·blocked)로 기록된 소스는 뺀다 (0017) */
 export async function recentSourcesForTopics(mids: string[], days: number, limit: number) {
   const r = await pool.query(
-    `select s.url, s.title, s.summary, d.publisher, d.domain, to_char(s.published, 'YYYY-MM-DD') as published,
+    `select s.url, s.title, s.summary, d.publisher, d.domain, to_char(s.published, 'YYYY-MM-DD') as published, s.fetch_status,
             array(select unnest(d.topic_coverage) intersect select unnest($1::text[])) as mids
        from public.sources s join public.domains d on d.id = s.domain_id
       where d.topic_coverage && $1::text[] and s.swept_at >= now() - ($2 || ' days')::interval
+        and (s.fetch_status is null or s.fetch_status not in ('robots','blocked')) and d.fetch_blocked_at is null and d.fetch_blocked_at is null
       order by s.published desc nulls last limit $3`,
     [mids, String(days), limit],
   );
-  return r.rows as { url: string; title: string; summary: string | null; publisher: string; domain: string; published: string | null; mids: string[] }[];
+  return r.rows as { url: string; title: string; summary: string | null; publisher: string; domain: string; published: string | null; mids: string[]; fetch_status: string | null }[];
+}
+/** 소스 본문 접근 결과 기록 (0017) — 설계 단계 fetch·군집화 v2 robots 사전 검사가 부른다. 같은 URL 은 최신 결과로 덮는다 */
+export async function recordFetchStatus(url: string, status: "ok" | "robots" | "blocked" | "empty" | "network") {
+  await pool.query("update public.sources set fetch_status = $2, fetch_checked_at = now() where url = $1", [url, status]);
+}
+/** 도메인 자동 제외 재계산 (0017): 그 도메인의 소스가 ok 0건·차단(robots·blocked) 3건 이상이면 fetch_blocked_at 을 찍고, ok 가 하나라도 있으면 지운다.
+ *  사이트 정책으로 본문이 안 열리는 곳을 군집화 풀에서 도메인째 뺀다 — 계층(tier)은 사람만 바꾼다 */
+export async function refreshDomainFetchBlock(urls: string[]) {
+  if (!urls.length) return;
+  await pool.query(
+    `with d as (select distinct s.domain_id from public.sources s where s.url = any($1)),
+          agg as (select s.domain_id, count(*) filter (where s.fetch_status = 'ok') ok, count(*) filter (where s.fetch_status in ('robots','blocked')) bad
+                    from public.sources s where s.domain_id in (select domain_id from d) group by s.domain_id)
+     update public.domains x set fetch_blocked_at = case when agg.ok = 0 and agg.bad >= 3 then coalesce(x.fetch_blocked_at, now()) else null end
+       from agg where agg.domain_id = x.id`,
+    [urls],
+  );
 }
 /** 발행·제작된 편이 쓴 소스 URL — v2 는 후보당 1건까지만 재사용 */
 export async function usedSourceUrls(): Promise<Set<string>> {
@@ -230,6 +248,7 @@ export async function recentSourcesForTopic(midTopic: string, days: number, limi
     `select s.url, s.title, s.summary, d.publisher, d.domain, to_char(s.published, 'YYYY-MM-DD') as published
        from public.sources s join public.domains d on d.id = s.domain_id
       where $1 = any(d.topic_coverage) and s.swept_at >= now() - ($2 || ' days')::interval
+        and (s.fetch_status is null or s.fetch_status not in ('robots','blocked'))
       order by s.published desc nulls last limit $3`,
     [midTopic, String(days), limit],
   );

@@ -11,8 +11,8 @@ export default async function DomainsPage({ searchParams }: { searchParams: Prom
   const { tier = "candidate", topic, q } = await searchParams;
   const sb = await supabaseServer();
   const [{ data: all }, { data: statRows }] = await Promise.all([
-    sb.from("domains").select("id,domain,publisher,tier,category,feed_url,topic_coverage,decided_by,decided_at,license_basis,note,evidence").order("domain"),
-    sb.from("domain_stats").select("domain_id,source_count,last_swept"),
+    sb.from("domains").select("id,domain,publisher,tier,category,feed_url,topic_coverage,decided_by,decided_at,license_basis,note,evidence,fetch_blocked_at").order("domain"),
+    sb.from("domain_stats").select("domain_id,source_count,last_swept,blocked_count,ok_count"),
   ]);
   const stats = Object.fromEntries((statRows ?? []).map((s: any) => [s.domain_id, s]));
   const rows = (all ?? []).filter((r) => (tier === "all" || r.tier === tier) && (!topic || (r.topic_coverage ?? []).includes(topic)) && (!q || `${r.domain} ${r.publisher} ${r.note ?? ""}`.toLowerCase().includes(q.toLowerCase())));
