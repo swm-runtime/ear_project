@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase-server";
 import { parseCriticReport, parseCriticScores, parseScript, readArtifact } from "@/lib/artifacts";
-import { fmtTime, fmtTokens, fmtUsd, label } from "@/lib/format";
+import { fmtTime, fmtTokens, fmtUsd, label, jobRoundLabel } from "@/lib/format";
 import { JudgeView } from "./judge-view";
 import { VerdictForm } from "./verdict-form";
 import { TtsButton } from "./tts-button";
@@ -26,7 +26,7 @@ export default async function EpisodePage({ params, searchParams }: { params: Pr
   const [{ data: bl }, { data: runs }, { data: jobs }] = await Promise.all([
     sb.from("backlog").select("id,title,mid_topic,status,angle,published_content_ref,published_version,published_at").eq("id", ep.backlog_id).single(),
     sb.from("runs").select("phase,attempt,result,model,executed_by,executed_at,prompt_version,cost_usd,tokens,worker_rev").eq("backlog_id", ep.backlog_id).order("executed_at"),
-    sb.from("jobs").select("id,type,status,attempt,progress,claimed_by,created_at").eq("payload->>episode_id", id).order("created_at"),
+    sb.from("jobs").select("id,type,status,attempt,payload,progress,claimed_by,created_at").eq("payload->>episode_id", id).order("created_at"),
   ]);
   const keyOf: Record<string, string | null> = { script: ep.script_key, sources: ep.sources_key, claims: ep.claims_key, qa: ep.qa_report_key, critic: ep.critic_report_key };
   // 구성안·대본 노트(2단계 초안, spec/04 8장) — DB 키 없이 script_key 와 같은 디렉토리에서 찾는다 (구 방식 에피소드는 없음)
@@ -68,7 +68,7 @@ export default async function EpisodePage({ params, searchParams }: { params: Pr
       />
       {activeJobs.map((j) => (
         <div key={j.id} className="rounded-md border border-line bg-panel px-4 py-3">
-          <div className="text-[13px] font-medium">{j.type}{j.attempt > 1 ? ` · ${j.attempt}회차` : ""} {j.status === "queued" ? "— AI 워커 대기 중" : "실행 중"} <span className="font-normal text-ink-soft">{j.claimed_by ?? ""}</span></div>
+          <div className="text-[13px] font-medium">{j.type}{jobRoundLabel(j)} {j.status === "queued" ? "— AI 워커 대기 중" : "실행 중"} <span className="font-normal text-ink-soft">{j.claimed_by ?? ""}</span></div>
           <JobProgress job={j} />
         </div>
       ))}
