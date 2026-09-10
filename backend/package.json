@@ -26,7 +26,8 @@
     "migration:run:prod": "node ./node_modules/typeorm/cli.js -d dist/database/data-source.js migration:run",
     "migration:revert": "npm run typeorm -- migration:revert",
     "migration:show": "npm run typeorm -- migration:show",
-    "seed:mock": "node -r ts-node/register/transpile-only -r tsconfig-paths/register src/database/seeds/seed-mock-onboarding.ts"
+    "seed:mock": "node -r ts-node/register/transpile-only -r tsconfig-paths/register src/database/seeds/seed-mock-onboarding.ts",
+    "drip:scenarios": "node -r ts-node/register/transpile-only -r tsconfig-paths/register src/database/seeds/drip-scenarios.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1121.0",
