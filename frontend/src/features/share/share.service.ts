@@ -11,22 +11,21 @@ import { buildShareLink } from './share.link';
 export interface ShareContentInput {
   contentId: string;
   title: string;
-  /** null·빈 값이면 텍스트에 저자 줄 없이 출처만 싣는다 — "저자 없음"으로 채우지 않는다(share.md 4.1) */
-  authorName: string | null;
-  sourceName: string;
 }
 
 /**
- * 공유 텍스트 조립 — 제목 / 저자 · 출처 / 링크 세 줄로 **확정**
- * (2026-09-04, changes/pending/share-p1-copy-decisions.md — 시안 SH3 그대로).
+ * 공유 텍스트 조립 — **제목 / 링크 두 줄로 확정**(2026-09-10, 팀장 결정 A안.
+ * 티켓 `tickets/frontend/archive/share-message-final-copy.md`).
+ *
+ * 종전의 둘째 줄 `저자 · 출처`(상세의 "참고한 자료")는 **싣지 않는다.** 링크를 열면 상세에서
+ * 어차피 보이고, 출처 문구가 길면 메시지 앱에서 링크 미리보기보다 텍스트가 먼저 잘린다.
+ * 그래서 `authorName`·`sourceName`을 입력으로도 받지 않는다 — 쓰지 않는 값을 계속 모으면
+ * 다음 사람이 왜 필요한지 되짚게 된다.
+ *
  * 내부 용어·링크 안내 문구를 덧붙이지 않는다(uiux 6장).
  */
-export const buildShareMessage = (input: ShareContentInput): string => {
-  const byline = input.authorName
-    ? `${input.authorName} · ${input.sourceName}`
-    : input.sourceName;
-  return [input.title, byline, buildShareLink(input.contentId)].join('\n');
-};
+export const buildShareMessage = (input: ShareContentInput): string =>
+  [input.title, buildShareLink(input.contentId)].join('\n');
 
 /**
  * OS 공유 시트 열기 — 시트의 모양·대상 목록은 OS 소유다(share.md 4.1). 전송·취소 어느 쪽에도

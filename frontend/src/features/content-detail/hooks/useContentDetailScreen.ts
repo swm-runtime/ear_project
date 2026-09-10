@@ -267,12 +267,7 @@ export const useContentDetailScreen = () => {
       후속 동작이 없다(share.md 4.1·4.4). 조회 성공(CD1·CD2) 상태에서만 화면이 버튼을 그린다 */
   const shareDetail = () => {
     if (!detail) return;
-    void shareContent({
-      contentId,
-      title: detail.content.title,
-      authorName: detail.content.authorName,
-      sourceName: detail.content.sourceName,
-    });
+    void shareContent({ contentId, title: detail.content.title });
   };
 
   /* ── 화면 상태 파생 ── */
