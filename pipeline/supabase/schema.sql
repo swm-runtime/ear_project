@@ -88,7 +88,7 @@ create table if not exists runs (
   id          uuid primary key default gen_random_uuid(),
   backlog_id  text references backlog(id),
   phase       text not null
-              check (phase in ('sweep','cluster','draft','critic','qa','package','tts')),
+              check (phase in ('sweep','cluster','draft','critic','qa','package','tts','domain_check','thumbnail')), -- 0008: domain_check(스냅샷 누락분 정정) · 0018: thumbnail
               -- critic: 품질 사이클의 선행 비평 실행 (spec/09 7장) — QA(사실)와 별개의 스타일 검수
   attempt     int not null default 1,          -- QA 재생성 차수 (1~3)
   result      text,                            -- 통과/실패 + 사유 요약
@@ -128,7 +128,7 @@ alter table runs    enable row level security;
 
 create table if not exists public.jobs (
   id uuid primary key default gen_random_uuid(),
-  type text not null check (type in ('sweep','cluster','draft','qa','critic','tts','package')),
+  type text not null check (type in ('sweep','cluster','draft','qa','critic','tts','package','domain_check','thumbnail')), -- 0007: domain_check(스냅샷 누락분 정정) · 0018: thumbnail
   requires_ai boolean not null,
   payload jsonb not null default '{}'::jsonb,
   status text not null default 'queued' check (status in ('queued','claimed','running','done','failed','cancelled')),
@@ -159,6 +159,8 @@ create table if not exists public.episodes (
   critic_report_key text,
   audio_master_key text,
   audio_dist_key text,
+  thumbnail_key text,                     -- 0018: s3:episodes/<id>/thumbnail.png
+  one_liner text,                         -- 0018: 40자 이내 한 줄 요약 — 썸네일 {핵심 개념} · 발행 메타 설명 첫 줄
   critic_verdicts jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -256,3 +258,49 @@ select d.id as domain_id,
   left join public.sources s on s.domain_id = d.id
  group by d.id;
 grant select on public.domain_stats to authenticated;
+
+-- ===== 0018 (2026-09-10): 썸네일 생성 단계 — episodes.thumbnail_key·one_liner · jobs/runs 에 thumbnail · claim_job 게이트 =====
+-- 원문은 supabase/migrations/0018_thumbnail.sql (위 인라인 정의에 이미 반영됨).
+-- claim_job 은 4인자로 바뀌었다 — p_can_thumbnail = 워커가 OPENAI_API_KEY 를 가졌는가(0010 의 TTS 게이트와 같은 이유).
+drop function if exists public.claim_job(text, boolean, boolean);
+
+create or replace function public.claim_job(
+  p_worker text,
+  p_can_ai boolean,
+  p_can_tts boolean default true,
+  p_can_thumbnail boolean default true
+)
+returns setof public.jobs
+language plpgsql
+as $$
+declare
+  j public.jobs;
+begin
+  update public.jobs
+     set status = 'queued', claimed_by = null, claimed_at = null, heartbeat_at = null,
+         error = coalesce(error, '') || ' | heartbeat 끊김으로 회수 ' || now()::text
+   where status in ('claimed','running')
+     and heartbeat_at < now() - interval '15 minutes';
+
+  select * into j
+    from public.jobs
+   where status = 'queued'
+     and (p_can_ai or requires_ai = false)
+     and (p_can_tts or type <> 'tts')
+     and (p_can_thumbnail or type <> 'thumbnail')
+   order by created_at
+   for update skip locked
+   limit 1;
+
+  if not found then
+    return;
+  end if;
+
+  update public.jobs
+     set status = 'claimed', claimed_by = p_worker, claimed_at = now(), heartbeat_at = now()
+   where id = j.id
+  returning * into j;
+
+  return next j;
+end;
+$$;
