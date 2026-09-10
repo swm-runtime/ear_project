@@ -24,6 +24,8 @@ import { User } from '@/modules/user/entities/user.entity';
 @Entity('audio_access_logs')
 @Index('idx_audio_access_logs_content_id_issued_at', ['contentId', 'issuedAt'])
 @Index('idx_audio_access_logs_user_id_issued_at', ['userId', 'issuedAt'])
+// 보존 기간 배치가 `created_at`만으로 범위 삭제한다 (domain.md 12.1)
+@Index('idx_audio_access_logs_created_at', ['createdAt'])
 export class AudioAccessLog extends BaseEntity {
   @PrimaryGeneratedColumn('increment', { type: 'bigint' })
   id: string;
