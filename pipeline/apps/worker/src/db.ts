@@ -257,12 +257,42 @@ export async function latestSourceUrl(domainId: string): Promise<string | null> 
 export async function appendDomainNote(domainId: string, note: string) {
   await pool.query("update public.domains set note = coalesce(nullif(note,''),'') || ' | ' || $2 where id = $1", [domainId, note]);
 }
-export async function upsertSource(s: { domain_id: string; url: string; title: string; summary: string; author: string; published: string | null; swept_at: string }) {
+export async function upsertSource(s: { domain_id: string; url: string; title: string; summary: string; author: string; published: string | null; swept_at: string; origin?: "feed" | "search" }) {
   await pool.query(
-    `insert into public.sources (domain_id, url, title, summary, author, published, swept_at) values ($1,$2,$3,$4,$5,$6,$7)
+    `insert into public.sources (domain_id, url, title, summary, author, published, swept_at, origin) values ($1,$2,$3,$4,$5,$6,$7,$8)
      on conflict (url) do update set title = excluded.title, summary = excluded.summary, swept_at = excluded.swept_at`,
-    [s.domain_id, s.url, s.title, s.summary, s.author, s.published, s.swept_at],
+    [s.domain_id, s.url, s.title, s.summary, s.author, s.published, s.swept_at, s.origin ?? "feed"],
   );
+}
+/** 보강 스윕(0019)의 검색 범위 — 차단이 아니고 도메인째 접근 차단도 아닌 풀 도메인. 1·2군에 피드가 거의 없어 후보 도메인도 포함한다 (판정 전 소스는 승인 화면에서 tier 가 보인다) */
+export async function poolDomainsForTopics(mids: string[]): Promise<{ id: string; domain: string; publisher: string; tier: string }[]> {
+  const r = await pool.query(
+    "select id, domain, publisher, tier from public.domains where tier in ('allow_open','allow_support','candidate') and fetch_blocked_at is null and topic_coverage && $1::text[] order by tier, domain",
+    [mids],
+  );
+  return r.rows;
+}
+/** URL → 풀 도메인 행 (호스트 또는 공유 호스트 경로 단위, spec/01 3장). 없으면 null */
+export async function findDomainForUrl(url: string): Promise<{ id: string; domain: string; tier: string; fetch_blocked_at: string | null } | null> {
+  let u: URL; try { u = new URL(url); } catch { return null; }
+  const host = u.hostname.replace(/^www\./, "");
+  const seg = u.pathname.split("/").filter(Boolean)[0];
+  const keys = seg ? [`${host}/${seg}`, host] : [host];
+  const r = await pool.query("select id, domain, tier, fetch_blocked_at from public.domains where domain = any($1::text[]) or domain = any($2::text[]) order by length(domain) desc limit 1", [keys, keys.map((k) => `www.${k}`)]);
+  return r.rows[0] ?? null;
+}
+/** 보강 검색이 풀 밖에서 찾은 도메인 — 소스는 넣지 않고 후보 행만 만든다 (spec/02 7장 완료 조건). 이미 있으면 그대로 */
+export async function insertCandidateDomain(d: { domain: string; publisher: string; topic_coverage: string[]; note: string }): Promise<boolean> {
+  const r = await pool.query(
+    "insert into public.domains (domain, publisher, tier, category, feed_url, topic_coverage, note) values ($1,$2,'candidate','보강 검색 발견',null,$3,$4) on conflict (domain) do nothing returning id",
+    [d.domain, d.publisher, d.topic_coverage, d.note],
+  );
+  return r.rowCount === 1;
+}
+export async function getBacklogFull(id: string): Promise<(BacklogCandidate & { status: string; dedup_note: string | null; reinforced_at: string | null }) | null> {
+  const r = await pool.query("select id, mid_topic, title, target_fit, angle, sources, axis, axis_type, gaps, status, dedup_note, reinforced_at from public.backlog where id = $1", [id]);
+  const row = r.rows[0]; if (!row) return null;
+  return { id: row.id, mid_topic: row.mid_topic, title: row.title, target_fit: row.target_fit, angle: row.angle, sources: (row.sources ?? []) as SourceRef[], axis: row.axis, axis_type: row.axis_type, gaps: row.gaps ?? [], status: row.status, dedup_note: row.dedup_note, reinforced_at: row.reinforced_at };
 }
 export async function recentSourcesForTopic(midTopic: string, days: number, limit: number) {
   const r = await pool.query(
@@ -274,6 +304,11 @@ export async function recentSourcesForTopic(midTopic: string, days: number, limi
     [midTopic, String(days), limit],
   );
   return r.rows as { url: string; title: string; summary: string | null; publisher: string; domain: string; published: string | null }[];
+}
+/** 사람이 차단(blocked)으로 판정한 도메인 (호스트 또는 공유 호스트 경로). 설계 단계·보강 재판정이 그 URL 을 쓰지 않는다 */
+export async function blockedTierHosts(): Promise<Set<string>> {
+  const r = await pool.query("select domain from public.domains where tier = 'blocked'");
+  return new Set(r.rows.map((x) => String(x.domain).replace(/^www\./, "")));
 }
 export async function domainTierByHost(): Promise<Map<string, string>> {
   const r = await pool.query("select domain, tier from public.domains");
