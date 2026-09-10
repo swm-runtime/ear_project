@@ -850,6 +850,32 @@ export const QA_INLINE_SCHEMA = {
 // 출력 토큰(구 방식 4만+)이 claims·구성안만으로 준다. 에이전트 루프(WebFetch·파일 쓰기·python 점검 29턴)의 문맥 재읽기도 사라진다.
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
+/**
+ * 규칙 자산에서 **모델에게 보낼 본문만** 남긴다 (2026-09-10, 썸네일 프롬프트에서 발견된 문제를 대본·QA·비평 자산에 확장).
+ * 자산은 사람이 읽는 문서이기도 해서 맨 위에 제목·버전 이력(인용 블록)이, 본문 앞에 "이전 판과 무엇이 달라졌나" 절이 있다.
+ * 그 안에는 폐기된 기준("절 셋부터 위반" 등)이 설명을 위해 인용돼 있는데, 모델은 설명과 지시를 구분하지 않는다.
+ * 규칙: 맨 앞의 `# 제목`과 이어지는 `>` 블록을 버리고, dropSections 에 맞는 `## ` 절을 통째로 버린다. 단독 `---` 이후(부록)도 버린다.
+ * 골드 예시·spec 에는 쓰지 않는다 — 대본 본문에 `---` 가 있을 수 있고, 골드의 머리 인용은 배치 정보다.
+ */
+export function promptBody(content: string, opts: { dropSections?: RegExp[] } = {}): string {
+  const lines = content.split("\n");
+  let start = 0;
+  while (start < lines.length && (lines[start].startsWith("# ") || lines[start].startsWith(">") || lines[start].trim() === "")) start++;
+  let rest = lines.slice(start);
+  const hr = rest.findIndex((l) => l.trim() === "---");
+  if (hr >= 0) rest = rest.slice(0, hr);
+  const drop = opts.dropSections ?? [];
+  if (drop.length) {
+    const out: string[] = []; let skipping = false;
+    for (const l of rest) {
+      if (/^## /.test(l)) skipping = drop.some((re) => re.test(l));
+      if (!skipping) out.push(l);
+    }
+    rest = out;
+  }
+  return rest.join("\n").trim();
+}
+
 export interface InlineSource {
   n: number; url: string; publisher: string; title: string; published?: string | null; backbone?: boolean;
   ok: boolean; byline?: string | null; note?: string | null;

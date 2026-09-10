@@ -123,6 +123,11 @@ claude -p --output-format json --json-schema <단계별 결과 스키마> \
 - git 사본: `assets:export`가 active를 `docs/ai/skills/`로 덤프(PR에서 규칙 diff가 보이게, CHANGELOG는 note에서 생성). 방향은 웹 → DB → git 한쪽. active 행은 수정 불가 — 고치려면 새 버전을 만들어 활성화한다(`runs`에 남은 버전 = 그때 실제 내용).
 - 프롬프트 빌더 안의 문자열 규칙(`COMMON_RULES`·`GOLD_USAGE` 등)은 2차에서 자산(`prompts/draft.md`)으로 뺀다.
 
+**본문만 보낸다** (2026-09-10, KAN-50 썸네일 프롬프트에서 발견 → 대본·QA·비평 자산에 확장): 규칙 자산은 사람이 읽는 문서이기도 해서 제목·버전 이력(`>` 블록)·"이전 판과의 차이" 절에
+폐기된 기준("절 셋부터 위반" 등)이 설명으로 인용돼 있는데, 모델은 설명과 지시를 구분하지 않는다. 로더는 `guidelines.md`·`qa/prompt.md`·`critic/rubric.md`·`rubric-v2.md`(0장 제외)를
+번들에 실을 때 `promptBody`(`@ear/pipeline`)로 **머리글·이전 판 절·`---` 이후 부록을 잘라** 스냅샷에 내려놓는다 — 인라인 임베딩과 비평의 Read 경로가 같은 파일을 보므로 한 곳에서 끝난다.
+골드 예시·spec·음차 사전은 자르지 않는다. 규칙을 바꾸면 번들 해시의 `PROMPT_BODY_REV` 를 올린다. 이후 자산 본문에는 지시만 두고, 판정 근거와 이전 판 문구는 CHANGELOG 로만 보낸다(작성 규율).
+
 ### 3.3 산출물 저장 — 원본은 S3, WORK_ROOT 는 캐시 (2026-09-02 구현, M4)
 
 규칙 자산(3.2)이 DB 로 갔듯 **산출물 파일은 파이프라인 S3 가 원본**이다(spec/08 1장 배치 기준 · 2장 버킷 규격). Supabase 에는 키·판정·수정 로그만 남는다.

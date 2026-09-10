@@ -12,11 +12,22 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { promptBody } from "@ear/pipeline";
 import { cfg } from "./config.js";
 import { pool } from "./db.js";
 import { exists, log } from "./util.js";
 
 /** DB 가 진실인 프롬프트 번들 자산 7개 — 키 = packages/pipeline assetPaths 가 만드는 경로. TTS 음차 사전은 TTS_DICT_KEY (번들·고정 제외) */
+/** 모델에게 본문만 보내는 규칙 자산과 그 절 제외 규칙 (2026-09-10): 제목·버전 이력·"이전 판과의 차이" 절은 사람용이다.
+ *  골드 예시·spec·음차 사전은 대상이 아니다. 번들 해시에 PROMPT_BODY_REV 를 섞어 규칙이 바뀌면 스냅샷이 새로 만들어진다 */
+export const PROMPT_BODY_KEYS: Record<string, RegExp[]> = {
+  "skills/draft/guidelines.md": [],
+  "skills/qa/prompt.md": [],
+  "skills/critic/rubric.md": [],
+  "skills/critic/rubric-v2.md": [/^## 0\./], // "0. v1.3 → v2에서 바뀌는 것" — 이전 판 설명
+};
+const PROMPT_BODY_REV = "b1";
+
 export const DB_ASSET_KEYS = [
   "skills/draft/guidelines.md",
   "skills/draft/examples/gold-T260820-001-short.md",
@@ -133,8 +144,9 @@ export async function loadBundle(pinned?: Record<string, string> | null): Promis
     try { contents[k] = await fs.readFile(p, "utf8"); }
     catch { throw new Error(`명세 파일이 없다: ${p} — ASSET_ROOT 는 레포의 docs/ai 여야 한다`); }
   }
+  for (const [k, drop] of Object.entries(PROMPT_BODY_KEYS)) if (contents[k]) contents[k] = promptBody(contents[k], { dropSections: drop });
   const specDigest = sha(GIT_ASSET_KEYS.map((k) => contents[k]).join(" ")).slice(0, 8);
-  const hash = sha(JSON.stringify(Object.entries(versions).sort()) + specDigest).slice(0, 12);
+  const hash = sha(JSON.stringify(Object.entries(versions).sort()) + specDigest + PROMPT_BODY_REV).slice(0, 12);
   const v = (k: string) => versions[k];
   return {
     versions, contents, specDigest, hash,
