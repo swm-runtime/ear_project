@@ -169,16 +169,21 @@ describe('ContentService', () => {
   });
 
   describe('expireLicensed', () => {
-    it('만료 전환 건수를 그대로 돌려준다', async () => {
-      // given
-      contentRepository.expireLicensed.mockResolvedValue(3);
+    it('전환된 content_id 목록을 그대로 돌려준다', async () => {
+      // given — 라이브러리 잔존분을 지우려면 어느 콘텐츠가 만료됐는지 알아야 한다
+      // (partner-control.md 4.4 — 회수와 동일 처리, 확정 2026-09-10)
+      const expiredIds = ['content-1', 'content-2', 'content-3'];
+      contentRepository.expireLicensed.mockResolvedValue(expiredIds);
 
       // when
-      const count = await service.expireLicensed(NOW);
+      const ids = await service.expireLicensed(NOW);
 
       // then
-      expect(count).toBe(3);
-      expect(contentRepository.expireLicensed).toHaveBeenCalledWith(NOW);
+      expect(ids).toEqual(expiredIds);
+      expect(contentRepository.expireLicensed).toHaveBeenCalledWith(
+        NOW,
+        undefined,
+      );
     });
   });
 });

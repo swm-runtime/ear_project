@@ -300,8 +300,8 @@ export class ContentService {
    * 라이브러리 잔존분은 건드리지 않는다(`partner-control.md` 4.4 미결 —
    * `changes/pending/license-expiry-library-handling.md`).
    */
-  async expireLicensed(now: Date): Promise<number> {
-    return this.contentRepository.expireLicensed(now);
+  async expireLicensed(now: Date, manager?: EntityManager): Promise<string[]> {
+    return this.contentRepository.expireLicensed(now, manager);
   }
 
   /**
