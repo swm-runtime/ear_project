@@ -25,11 +25,11 @@ export default async function SweepPage() {
             <div key={j.id} className="px-4 py-3">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge value={j.status} />
-                <span className="font-medium">{j.type}</span><span className="text-ink-soft">{j.payload?.mid_topic}</span>
+                <span className="font-medium">{j.type}{j.payload?.cluster_version === "v2" ? " v2" : ""}</span><span className="text-ink-soft">{j.payload?.major_topic ? `${j.payload.major_topic} (대분류)` : j.payload?.mid_topic}</span>
                 <span className="ml-auto text-[11px] text-ink-soft">{j.claimed_by ?? ""} · {fmtTime(j.created_at)}</span>
               </div>
               {["running","claimed"].includes(j.status) && <JobProgress job={j} />}
-              {j.status === "done" && j.result && <div className="mt-1 text-xs text-ink-soft">{j.type === "sweep" ? `피드 ${j.result.feeds_ok}/${j.result.feeds_total} · 적재 ${j.result.items}건${j.result.failures?.length ? ` · 실패: ${j.result.failures.join("; ")}` : ""}` : `후보 ${j.result.candidates?.length ?? 0}건: ${(j.result.candidates ?? []).join(" / ")}`}</div>}
+              {j.status === "done" && j.result && <div className="mt-1 text-xs text-ink-soft">{j.type === "sweep" ? `피드 ${j.result.feeds_ok}/${j.result.feeds_total} · 적재 ${j.result.items}건${j.result.failures?.length ? ` · 실패: ${j.result.failures.join("; ")}` : ""}` : j.result.proposed ? `성립 ${j.result.proposed.length}건 proposed: ${j.result.proposed.join(" / ") || "없음"}${j.result.held?.length ? ` · 보강 필요 ${j.result.held.length}건 held: ${j.result.held.join(" / ")}` : ""}` : `후보 ${j.result.candidates?.length ?? 0}건: ${(j.result.candidates ?? []).join(" / ")}`}</div>}
               {j.status === "failed" && <div className="mt-1 text-xs text-rose-600">{String(j.error).slice(0, 200)}</div>}
             </div>
           ))}
