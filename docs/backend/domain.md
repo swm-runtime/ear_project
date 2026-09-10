@@ -501,7 +501,12 @@ chk_contents_partner_disclosure
 - **`audio_url`이 아니라 `audio_path`다** (B-5). 재생 URL은 매 요청 서명 발급이므로 컬럼이 아니라 응답 DTO 필드다. 서명 URL을 DB에 저장하면 그 자체가 유출 경로가 된다.
 - **`audio_path`는 응답 본문·목록 어디에도 실리지 않는다. 단 재생용 서명 URL의 경로에는 실린다**(개정 2026-08-31). 원 규칙은 "어떤 응답에도 실리지 않는다"였으나, CloudFront KeyValueStore 데이터 플레인이 조직 SCP로 막혀 `/play/<contentId>` 재작성이 성립하지 않아 서버가 저장 경로를 직접 서명하는 방식으로 바뀌었다(`architecture.md` 9.4). **원 규칙의 목적은 그대로 달성된다** — 키가 무작위 hex 32자라 제목·순서 같은 의미가 새지 않고, URL 자체가 단기 만료 서명이라 재사용도 막힌다.
 - `status`는 **3값만** 갖는다 (A-6). 파이프라인 상태(`draft` / `partner_review` / `qa_failed` 등)는 존재하지 않는다. 업로드 = 발행이다.
-- **노출 조건은 어디서나 `status = published` 단 하나로 통일한다.**
+- **노출 조건은 `status = published` **이고** `license_expires_at`이 지나지 않은 것이다**(개정 2026-09-10 — 종전 "`status` 단 하나").
+  - 상태 하나로 충분하지 않은 이유는 **만료 전환이 일일 배치이기 때문이다.** 만료일이 지난 뒤 배치가 돌기까지의
+    몇 시간 동안, 상태는 아직 `published`인데 라이선스는 이미 끝나 있다. 조회 필터가 기간을 함께 보면 그 창을 막는다.
+  - **두 조건을 한 곳에서만 조립한다**(탐색·검색·드립 후보가 같은 헬퍼를 쓴다). 개별 쿼리에서 재작성하면
+    한쪽만 고쳐지는 순간 만료 콘텐츠가 그 경로로 새어 나간다.
+  - 배치가 도는 것과 무관하게 필터가 먼저 막으므로 **둘 중 하나가 빠져도 노출되지 않는다** — 의도된 이중 방어다.
 - `series_id` / `episode_no` / `total_episodes`는 `Episode` 테이블을 폐기하면서 흡수했다. 드립 스코어링의 시리즈 연속성 가점과 편성 순서 판정이 Content 단위 조회를 요구한다(`drip-scheduling.md` 4.2, 7).
 - 분할되지 않은 단일 콘텐츠는 `series_id = NULL`, `episode_no = NULL`이다. 조회 코드는 이 분기를 처리해야 한다.
 - **`content_version`은 같은 행의 값을 증가시킨다.** 재발행 시 새 행을 만들지 않으므로 `content_id`가 바뀌지 않고, `library_items` · `playback_progresses` · `content_stats`의 참조가 그대로 유지된다.
@@ -1321,7 +1326,16 @@ idx_archived_subscriptions_archived_at
 | `user_interests` | **soft** (`is_active`, `deactivated_at`) | 재활성화 가능 |
 | `email_verifications` | **hard** — 만료 24시간 후 배치 삭제 | 인증 목적 종료 후 보관 근거 없음 ([3.7](#37-email_verifications)) |
 | `first_drip_jobs` | **hard** — `completed_at` 30일 후 배치 삭제 | 온보딩 1회성 작업 기록. 지표는 구조화 로그로 빠진다 ([7.4](#74-first_drip_jobs)) |
+| `idempotency_keys` | **hard** — `expires_at`(24시간) 경과 후 배치 삭제 | 응답 본문에 개인정보가 섞일 수 있어 재시도 창을 넘겨 보관할 근거가 없다 ([1.4](#14-idempotency_keys)) |
+| `user_signals` | **hard** — `created_at` 180일 후 배치 삭제 | 스코어링이 읽는 창은 최근 90일이다. **그 두 배를 두는 이유는 `content_stats` 재집계** — 지나간 구간을 다시 셀 때 원천이 남아 있어야 한다 (확정 2026-09-10) |
+| `source_link_clicks` | **hard** — `created_at` 180일 후 배치 삭제 | `content_stats` 재집계 입력이라 `user_signals`와 같은 창을 쓴다 (확정 2026-09-10) |
+| `audio_access_logs` | **hard** — `created_at` 90일 후 배치 삭제 | 이상 탐지·감사용이며 그 판단은 최근 구간으로 한다. 재생 중 5분마다 갱신 발급이 쌓여 **성장이 가장 빠른 테이블**이다 (확정 2026-09-10) |
+| `notification_logs` | **hard** — `created_at` 90일 후 배치 삭제 | 목적이 중복 발송 방지라 그 판정 창을 넘기면 쓰이지 않는다 (확정 2026-09-10) |
+| `audit_logs` | **삭제하지 않는다** | 관리자 행위의 증적이다. 파트너 계약 분쟁은 몇 년 뒤에도 제기될 수 있고, 그때 되짚을 수 있어야 한다 (확정 2026-09-10) |
+| `play_records` | **보류** — 기간을 정하지 않는다 | 프로필 통계가 **전 기간 청취 시간 합계**를 이 테이블에서 읽는다([6.3](#63-play_records)). 지금 지우면 사용자가 보던 숫자가 줄어든다. 비식별 누적 집계로 옮긴 뒤 정한다 (보류 2026-09-10) |
 | 나머지 | hard | |
+
+**위 배치들은 아직 구현되지 않았다**(2026-09-10 기준 — `idempotency_keys`만 돈다). 기간을 먼저 정의한 것은 **문서에 없는 삭제를 코드가 임의로 하지 않기 위해서**다. 구현 시 `created_at` 인덱스 유무를 함께 본다 — `user_signals`·`audio_access_logs`에는 단독 인덱스가 없어 삭제 쿼리가 풀스캔이 된다.
 
 ### 12.2 법적 근거
 

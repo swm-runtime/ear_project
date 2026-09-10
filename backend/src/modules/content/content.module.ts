@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+
+import { LibraryModule } from '@/modules/library/library.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { ContentEmbedding } from './entities/content-embedding.entity';
@@ -24,6 +26,8 @@ import { ContentStatService } from './services/content-stat.service';
       ContentSource,
       ContentEmbedding,
     ]),
+    // 라이선스 만료 배치가 라이브러리 잔존분을 함께 지운다(partner-control.md 4.4)
+    LibraryModule,
   ],
   providers: [
     ContentRepository,
