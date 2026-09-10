@@ -10,8 +10,11 @@ import {
 import { ContentTopicView } from '@/modules/content/content.types';
 import { Content } from '@/modules/content/entities/content.entity';
 import { ContentService } from '@/modules/content/services/content.service';
+import { COLD_START_COMPLETE_THRESHOLD } from '@/modules/drip/drip.constant';
 import { DripExclusionReason } from '@/modules/drip/drip.enum';
+import { UserPreferenceWeights } from '@/modules/drip/drip.types';
 import { DripExclusionService } from '@/modules/drip/services/drip-exclusion.service';
+import { PreferenceVectorService } from '@/modules/drip/services/preference-vector.service';
 import { TopicService } from '@/modules/interest/services/topic.service';
 import { UserInterestService } from '@/modules/interest/services/user-interest.service';
 import { LibraryItem } from '@/modules/library/library-item.entity';
@@ -20,16 +23,13 @@ import { UserSignalAction } from '@/modules/playback/playback.enum';
 import { PlaybackService } from '@/modules/playback/services/playback.service';
 
 import {
-  COLD_START_COMPLETE_SIGNAL_COUNT,
   DEFAULT_POPULAR_PERIOD,
   EXPLORE_RANKING_POOL_SIZE,
   EXPLORE_SECTION_ITEM_COUNT,
   EXPLORE_SECTION_TITLES,
-  MAX_RECENT_SIGNAL_COUNT,
   MIN_SEARCH_QUERY_LENGTH,
   SEARCH_FALLBACK_POPULAR_COUNT,
   SEARCH_FALLBACK_RELATED_TOPIC_COUNT,
-  SIGNAL_RECENCY_WINDOW_DAYS,
 } from './explore.constant';
 import {
   decodeExploreCursor,
@@ -40,7 +40,7 @@ import {
   encodeSearchCursor,
 } from './explore.cursor';
 import { ExploreSectionKey, SaveReason } from './explore.enum';
-import { rankByTopicWeights, toTopicWeights } from './explore.ranking';
+import { rankByTopicWeights } from './explore.ranking';
 import {
   ExploreContentListQuery,
   ExploreContentListResult,
@@ -57,8 +57,6 @@ import {
   SaveContentCommand,
   SaveContentResult,
 } from './explore.types';
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * architecture.md 3.3 — 여러 도메인 Service를 조합하는 유스케이스라 Orchestrator를 둔다.
@@ -83,6 +81,7 @@ export class ExploreOrchestrator {
     private readonly userInterestService: UserInterestService,
     private readonly topicService: TopicService,
     private readonly dripExclusionService: DripExclusionService,
+    private readonly preferenceVectorService: PreferenceVectorService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -94,16 +93,21 @@ export class ExploreOrchestrator {
    * 값을 갱신해야 하는 시점이라, 호출을 나누면 화면과 숫자가 어긋나는 구간이 생긴다.
    */
   async getFeed(userId: string, now: Date): Promise<ExploreFeedResult> {
-    const [activeTopicIds, completeSignalCount] = await Promise.all([
+    // 취향은 **읽기만 한다** — 신호 재집계는 편성 배치가 하루 한 번 수행하고 피드는 그
+    // 결과(`user_preference_vectors`)를 읽는다(domain.md 7.2). 콜드스타트 판정에 쓰는
+    // 완청 수도 같은 행에서 온다 — 판정과 가중치가 같은 스냅샷이어야 "콜드스타트는 벗어났는데
+    // 가중치는 비어 있는" 중간 상태가 생기지 않는다
+    const [activeTopicIds, preference] = await Promise.all([
       this.userInterestService.findActiveTopicIds(userId),
-      this.playbackService.countSignals(userId, UserSignalAction.COMPLETE),
+      this.preferenceVectorService.findWeights(userId),
     ]);
 
-    const isColdStart = completeSignalCount < COLD_START_COMPLETE_SIGNAL_COUNT;
+    const isColdStart =
+      (preference?.signalCount ?? 0) < COLD_START_COMPLETE_THRESHOLD;
 
     const [interestContents, recentContents, popularPage, topicGroups] =
       await Promise.all([
-        this.findInterestContents(userId, activeTopicIds, isColdStart, now),
+        this.findInterestContents(activeTopicIds, preference, isColdStart, now),
         this.contentService.findRecent(EXPLORE_SECTION_ITEM_COUNT, now),
         // 피드는 **기본 구간**으로만 만든다. 구간을 바꾸면 피드를 다시 부르지 않고
         // `getPopular`가 그 섹션만 갈아끼운다(`explore.md` 4.1-1)
@@ -540,8 +544,8 @@ export class ExploreOrchestrator {
    * 나머지 피드는 그대로 나간다.
    */
   private async findInterestContents(
-    userId: string,
     activeTopicIds: string[],
+    preference: UserPreferenceWeights | null,
     isColdStart: boolean,
     now: Date,
   ): Promise<Content[]> {
@@ -556,27 +560,21 @@ export class ExploreOrchestrator {
     });
 
     // 콜드스타트에서는 신호 기반 항목을 사실상 0으로 둔다(`drip-scheduling.md` 4.4).
-    // 후보는 이미 인기·신선도 순이므로 그대로 자르는 것이 그 규칙의 적용이다
+    // 후보는 이미 인기·신선도 순이므로 그대로 자르는 것이 그 규칙의 적용이다.
+    // **캐시 행이 없는 사용자(가입 직후·첫 배치 이전)도 여기로 들어온다** —
+    // `signalCount`를 0으로 읽으므로 별도 폴백이 필요 없다
     if (isColdStart || pool.length === 0) {
       return pool.slice(0, EXPLORE_SECTION_ITEM_COUNT);
     }
 
-    const signals = await this.playbackService.findRecentSignals(
-      userId,
-      new Date(now.getTime() - SIGNAL_RECENCY_WINDOW_DAYS * DAY_MS),
-      MAX_RECENT_SIGNAL_COUNT,
+    const topicIdsByContentId = await this.findTopicIdsByContentId(
+      pool.map((content) => content.id),
     );
-
-    // 후보와 신호 대상의 주제를 **한 번에** 읽는다 — 나눠 읽으면 조회가 두 배가 된다
-    const topicIdsByContentId = await this.findTopicIdsByContentId([
-      ...pool.map((content) => content.id),
-      ...signals.map((signal) => signal.contentId),
-    ]);
 
     const ranked = rankByTopicWeights(
       pool,
       topicIdsByContentId,
-      toTopicWeights(signals, topicIdsByContentId, now),
+      preference?.topicWeights ?? {},
     );
 
     return ranked.slice(0, EXPLORE_SECTION_ITEM_COUNT);

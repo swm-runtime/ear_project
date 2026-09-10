@@ -350,11 +350,12 @@ export class PlaybackService {
   }
 
   /**
-   * 최근 소비 신호. 탐색 추천 랭킹의 입력이다(FR-15).
+   * 최근 소비 신호. **편성 배치가 선호도 캐시를 다시 계산할 때 읽는 유일한 입력이다**
+   * (domain.md 7.2) — 탐색 피드는 이 원천이 아니라 그 캐시를 읽는다.
    *
    * **가중치와 해석은 여기서 하지 않는다.** 신호의 의미(완청은 강한 긍정, 스킵은 부정 …)는
-   * `drip-scheduling.md` 4.3이 정하고 그것을 쓰는 화면이 적용한다 — 이 모듈은 자기 이력을
-   * 돌려줄 뿐이다.
+   * `drip-scheduling.md` 4.3이 정하고 `PreferenceVectorService`가 적용한다 — 이 모듈은
+   * 자기 이력을 돌려줄 뿐이다.
    */
   async findRecentSignals(
     userId: string,
