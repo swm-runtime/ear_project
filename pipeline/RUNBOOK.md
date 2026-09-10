@@ -21,7 +21,7 @@ AI 단계는 **노트북 워커가 떠 있을 때만** 진행된다. 콘솔에�
 1. Node 20+, `cd pipeline && npm install`.
 2. Claude Code 설치 후 `claude` → `/login` (워커의 AI 단계가 이 로그인 = 본인 구독을 쓴다. API 키 없음).
 3. `apps/worker/.env` — `cp apps/worker/.env.example apps/worker/.env` 후 값을 채운다. 최소: `DATABASE_URL`, `PIPELINE_WEB_URL`, `PIPELINE_WORKER_TOKEN`.
-   비밀은 두 개뿐이다 — `DATABASE_URL`(Supabase 비밀번호 포함)과 `PIPELINE_WORKER_TOKEN`(웹·워커 공유 키). 새 팀원은 이 둘만 기존 팀원에게 **안전한 경로**(비밀 관리 도구·만료되는 메시지)로 받는다. `.env` 파일을 통째로 주고받거나 채팅에 붙이지 않는다. `ELEVENLABS_API_KEY`는 서버 워커 전용이라 노트북에는 넣지 않는다.
+   비밀은 두 개뿐이다 — `DATABASE_URL`(Supabase 비밀번호 포함)과 `PIPELINE_WORKER_TOKEN`(웹·워커 공유 키). 새 팀원은 이 둘만 기존 팀원에게 **안전한 경로**(비밀 관리 도구·만료되는 메시지)로 받는다. `.env` 파일을 통째로 주고받거나 채팅에 붙이지 않는다. `ELEVENLABS_API_KEY`·`OPENAI_API_KEY`는 서버 워커 전용이라 노트북에는 넣지 않는다.
 4. **산출물 저장소 접근** — `S3_MODE=direct` + `AWS_PROFILE=<SSO 프로필>`. 워커가 AWS SDK 로 S3 를 직접 읽고 쓴다. SSO 세션은 **매일 만료**되므로 3장의 `aws sso login`이 매일 켜기의 첫 단계다.
 5. `WORK_ROOT`는 레포 밖 경로(기본 `pipeline/.work`). 지워도 S3에서 다시 내려받는다.
 
@@ -95,6 +95,9 @@ npm run worker                # 계속 폴링. 끄려면 Ctrl+C (진행 중 작�
 | `CRITIC_RUBRIC` | `v2` | 비평 루브릭 |
 | `S3_MODE` / `AWS_PROFILE` | `direct` / SSO 프로필 | 산출물 저장소 접근. 비워 두면 `PIPELINE_WEB_URL` 유무로 정해지니 `direct`를 명시한다 |
 | `TTS_SPEED_YUNA` / `TTS_SPEED_EUM` | 1.2 / 1 | 화자별 배속 |
+| `OPENAI_API_KEY` | 없음 | 썸네일 생성(KAN-50). **서버 워커 전용** — 비우면 그 워커는 `thumbnail` 작업을 집지 않고 큐에 남긴다 |
+| `THUMBNAIL_MODEL` / `THUMBNAIL_QUALITY` | `gpt-image-2` / `medium` | 이미지 모델. 확정 2026-09-10 — mini 가 3배 싸지만 기준은 **화풍 일관성**이다. 월 100편 약 $3 |
+| `THUMBNAIL_ANCHOR_KEY` | 없음 | 스타일 앵커의 **기본값**. 실제 값은 콘솔 썸네일 탭에서 지정하며 `settings.thumbnail.anchor` 가 이긴다 |
 
 바꾼 뒤에는 워커 재시작. 어느 구성으로 만든 에피소드인지는 `runs.prompt_version`(예: `full-v5.2+2stage`, `qa-v1.2+single`)로 구분한다.
 

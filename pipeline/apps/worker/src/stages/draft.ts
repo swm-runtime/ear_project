@@ -69,6 +69,7 @@ export async function runDraft(job: Job, ex: Executor) {
   let summary: string;
   let model: string | null;
   let out: DraftOut | RevisionOut;
+  let oneLiner: string | null = null;
   let costUsd: number | undefined;
   let tokens: unknown;
   const resumable = attempt === 1 && (await allArtifactsSettled(dir));
@@ -86,6 +87,7 @@ export async function runDraft(job: Job, ex: Executor) {
     const [templates, majorTopic] = await Promise.all([getSetting<Templates>("templates"), majorOfMidTopic(cand.mid_topic)]);
     const t = await runTwoStageDraft({ job, ex, episodeId, candidate: cand, dir, rel, assetRoot, promptVersion, templates, majorTopic: majorTopic ?? undefined, introStyle: intro, fileTools, signoffSeed: Number(cand.id.replace(/\D/g, "")) || seed }); // 클로징 골격은 후보 번호로 돌린다 — 같은 시각에 시작한 3편이 같은 에피소드 수를 받아 골격이 겹쳤다 (T260909-005·007·009)
     out = { turns: t.stats.turns, chars: t.stats.chars, minutes: t.stats.minutes, sources_used: t.design?.sources_used ?? [], sources_excluded: t.design?.sources_excluded ?? [], self_check_fixes: t.write.self_check_fixes, notes: t.write.notes };
+    oneLiner = t.write.one_liner?.trim() || null; // KAN-50 3-1 — 썸네일 {핵심 개념}·발행 메타 설명 첫 줄
     model = t.model; costUsd = t.costUsd; tokens = t.tokens; summary = t.summary;
   } else if (attempt === 1) {
     const introSeed = await countEpisodes();
@@ -153,6 +155,8 @@ export async function runDraft(job: Job, ex: Executor) {
   const artifacts = [s3Key(`${rel}/script.md`), s3Key(`${rel}/sources.md`), s3Key(`${rel}/claims.md`), s3Key(`${rel}/pronunciations.json`)];
   if (attempt === 1) {
     await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: promptVersion, script_key: artifacts[0], claims_key: artifacts[2], sources_key: artifacts[1] });
+    // 구 방식(single) 초안은 one_liner 를 내지 않는다 — null 이면 썸네일 단계가 설계 축으로 대체한다
+    if (oneLiner) await pool.query("update public.episodes set one_liner = $2, updated_at = now() where id = $1", [episodeId, oneLiner.slice(0, 120)]);
     await setBacklogStatus(backlogId, "drafted");
   }
   // L0 형식 검사 (spec/09 6.2 "대본 형식 계약", spec/04 4장 줄 문법) — 위반 대본은 QA 로 보내지 않고 재생성 연쇄(spec/05 4장)로 돌린다.

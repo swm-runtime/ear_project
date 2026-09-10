@@ -4,7 +4,8 @@ import path from "node:path";
 import { cfg, executedBy } from "../config.js";
 import { getBacklog, getEpisode, insertRun, pool, setJobProgress, upsertEpisode, type Job } from "../db.js";
 import { loadTtsDict, workerRev } from "../assets.js";
-import { localPathOf, pullPrefix, pushPrefix, s3Key } from "../storage.js";
+import { listPrefix, localPathOf, pullPrefix, pushPrefix, s3Key } from "../storage.js";
+import { advanceChain } from "../chain.js";
 import { log } from "../util.js";
 import { parseScriptForTts, chunkTurns, voiceOf, type ScriptTurn } from "../tts/script.js";
 import { normalizeForTts, residualIssues } from "../tts/normalize.js";
@@ -32,6 +33,18 @@ export async function runTts(job: Job) {
   if (!sampleTurns && !["qa_passed", "packaged", "published"].includes(st)) throw new Error(`TTS 는 qa_passed 이후에만 (현재: ${st}) — spec/06 9장`);
 
   const rel = `episodes/${episodeId}`;
+
+  /**
+   * 연쇄에서의 건너뛰기 (KAN-50 3번) — **실제 과금 단계라 중복 합성을 막는다.**
+   * 음원이 있고 그 뒤로 대본이 바뀌지 않았으면 건너뛴다. 대본을 고쳤으면 다시 합성한다.
+   * 사람이 [음원 다시 변환]을 누른 경우(`force`)와 샘플은 이 규칙을 적용하지 않는다.
+   */
+  if (!sampleTurns && !job.payload.force && ep.audio_dist_key && (await audioIsFresh(rel, ep.script_key))) {
+    log(`  tts ${episodeId}: 음원이 대본보다 새로움 — 건너뜀`);
+    const skipNext = await advanceChain(job);
+    return { episode_id: episodeId, skipped: true, next: skipNext?.type ?? null };
+  }
+
   const audioDir = path.join(cfg.workRoot, rel, "audio");
   await fs.mkdir(audioDir, { recursive: true });
   await pullPrefix(`${rel}/`);
@@ -112,7 +125,24 @@ export async function runTts(job: Job) {
   // 계측: TTS 의 "토큰"은 글자수(ElevenLabs 과금 단위). 비용은 요율(cfg.ttsUsdPer1kChars)이 설정됐을 때만 환산(참고값), 아니면 비운다
   const ttsCost = cfg.ttsUsdPer1kChars != null ? (totalChars / 1000) * cfg.ttsUsdPer1kChars : undefined;
   await insertRun({ backlog_id: backlogId, phase: "tts", result, prompt_version: "tts-v1 (worker)", artifacts, executed_by: executedBy, model: cfg.ttsModel, cost_usd: ttsCost, tokens: { characters: totalChars, chunks: chunks.length, duration_sec: Math.round(durationSec) }, worker_rev: workerRev() });
-  return { episode_id: episodeId, sample: !!sampleTurns, duration_sec: Math.round(durationSec), chunks: chunks.length, chars: totalChars, format: fmt, artifacts };
+  // 샘플은 발행 경로가 아니다 — 연쇄를 잇지 않는다
+  const next = sampleTurns ? null : await advanceChain(job);
+  return { episode_id: episodeId, sample: !!sampleTurns, duration_sec: Math.round(durationSec), chunks: chunks.length, chars: totalChars, format: fmt, artifacts, next: next?.type ?? null };
+}
+
+/**
+ * 음원이 대본보다 새로운가 — S3 의 LastModified 로 판정한다.
+ *
+ * WORK_ROOT 는 캐시라 로컬 파일 시각을 믿을 수 없다(다른 워커가 만든 산출물은 내려받은 시각이 찍힌다).
+ * 대본을 못 찾으면 **음원이 있는 것만으로 건너뛴다** — 대본 없이 합성됐을 리 없으므로 조회 실패로 본다.
+ */
+async function audioIsFresh(rel: string, scriptKey: string | null): Promise<boolean> {
+  const objs = await listPrefix(`${rel}/`, 1000);
+  const at = (key: string) => objs.find((o) => o.key === key)?.lastModified?.getTime();
+  const audioAt = at(`${rel}/audio/master.wav`);
+  if (audioAt === undefined) return false;
+  const scriptAt = at(String(scriptKey ?? "").replace(/^s3:/, ""));
+  return scriptAt === undefined || scriptAt <= audioAt;
 }
 
 /** 에피소드 발음 맵 (spec/04 8장) — 없으면 빈 맵 (구 에피소드 호환). 깨진 JSON 은 조용히 넘기지 않는다 — 웹 "발음" 탭에서 고친다 */

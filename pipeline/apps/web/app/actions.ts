@@ -2,7 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase-server";
 import { loadArtifact, replaceTurn, writeArtifact } from "@/lib/artifacts";
-import { deletePrefix, putText } from "@/lib/storage";
+import { deletePrefix, getBytes, putBytes, putText } from "@/lib/storage";
 import { majorOrder } from "@/lib/taxonomy";
 
 /** 음차 사전·발음 맵 공통 형식 검증 — {"표기": "발음"} 객체, 값은 비어 있지 않은 문자열 (spec/06 6장) */
@@ -227,6 +227,40 @@ export async function editScriptTurn(episodeId: string, turn: string, after: str
 
   revalidatePath(`/episodes/${episodeId}`);
   return { changed: true };
+}
+
+/** 한 줄 요약 저장 (KAN-50 3-1) — 다음 썸네일 생성과 다음 패키지부터 반영된다 */
+export async function saveOneLiner(episodeId: string, oneLiner: string) {
+  const sb = await supabaseServer();
+  const v = oneLiner.trim();
+  const { error } = await sb.from("episodes").update({ one_liner: v || null }).eq("id", episodeId);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/episodes/${episodeId}`);
+}
+
+/**
+ * 스타일 앵커 지정 (KAN-50) — 이 에피소드의 썸네일을 이후 생성의 화풍 기준으로 삼는다.
+ *
+ * **에피소드 파일을 가리키지 않고 복사한다.** 그 편을 다시 뽑으면 같은 키를 덮어써
+ * **앵커가 소리 없이 바뀌고** 이후 생성 전부의 화풍이 따라 움직인다.
+ *
+ * 키를 `datasets/` 아래에 두는 이유: IAM 정책과 저장소 키 규칙이 `episodes`·`sweeps`·`datasets`
+ * 세 접두사만 허용한다(pipeline/CLAUDE.md 1장).
+ */
+export async function setThumbnailAnchor(episodeId: string) {
+  const sb = await supabaseServer();
+  const src = `episodes/${episodeId}/thumbnail.png`;
+  const bytes = await getBytes(src);
+  if (!bytes) throw new Error("이 에피소드에 썸네일이 없어요 — 먼저 생성하세요");
+  const key = "datasets/thumbnail/anchor.png";
+  await putBytes(key, bytes, "image/png");
+  const { error } = await sb.from("settings").upsert({
+    key: "thumbnail.anchor",
+    value: { key, episode_id: episodeId, bytes: bytes.length, set_at: new Date().toISOString() },
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath(`/episodes/${episodeId}`); revalidatePath("/settings");
+  return { key, bytes: bytes.length };
 }
 
 /** 규칙 자산 — 새 버전(draft) 저장 (spec/10 3.2). 규약(active 불변·활성화 note 필수·기존 active 자동 retired)은 DB 트리거가 강제한다 */

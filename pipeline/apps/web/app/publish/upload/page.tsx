@@ -44,6 +44,7 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
   const router = useRouter();
   const [meta, setMeta] = useState<UploadMeta | null>(null);
   const [hasAudio, setHasAudio] = useState(false);
+  const [hasThumb, setHasThumb] = useState(false);
   const [topics, setTopics] = useState<EarTopic[]>([]);
   const [loadErr, setLoadErr] = useState<string | null>(null);
 
@@ -74,8 +75,8 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
         if (episodeId) {
           const res = await fetch(`/api/publish/${episodeId}`);
           if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message ?? `HTTP ${res.status}`);
-          const body = (await res.json()) as { meta: UploadMeta; has_audio: boolean };
-          setMeta(body.meta); setHasAudio(body.has_audio);
+          const body = (await res.json()) as { meta: UploadMeta; has_audio: boolean; has_thumbnail: boolean };
+          setMeta(body.meta); setHasAudio(body.has_audio); setHasThumb(body.has_thumbnail);
           // 제품 주제 = 파이프라인 중분류 1:1 (2026-09-06 체계 통일) — 이름이 같은 제품 주제를 기본 선택한다. 없으면 손으로 고른다
           const same = items.find((t) => t.name === body.meta.mid_topic);
           if (same) setTopicIds([same.id]);
@@ -90,9 +91,10 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
 
   const canSubmit = useMemo(() =>
     title.trim() && description.trim() && sourceName.trim() && topicIds.length > 0 &&
-    sources.some((s) => s.title.trim()) && checks.every(Boolean) && thumbFile &&
+    sources.some((s) => s.title.trim()) && checks.every(Boolean) &&
+    (thumbFile || (episodeId && hasThumb)) &&
     (audioFile || (episodeId && hasAudio)),
-  [title, description, sourceName, topicIds, sources, checks, thumbFile, audioFile, episodeId, hasAudio]);
+  [title, description, sourceName, topicIds, sources, checks, thumbFile, hasThumb, audioFile, episodeId, hasAudio]);
 
   const submit = useCallback(async () => {
     setBusy(true); setMsg(null);
@@ -103,6 +105,13 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
         if (!res.ok) throw new Error("발행 오디오(dist.mp3)를 읽지 못했어요");
         audio = new File([await res.blob()], `${episodeId}.mp3`, { type: "audio/mpeg" });
       }
+      // 썸네일도 오디오와 같은 경로로 가져온다 — 파일을 골랐으면 그쪽이 이긴다(교체용)
+      let thumb = thumbFile;
+      if (!thumb && episodeId) {
+        const res = await fetch(`/api/publish/${episodeId}?thumbnail=1`);
+        if (!res.ok) throw new Error("에피소드 썸네일(thumbnail.png)을 읽지 못했어요");
+        thumb = new File([await res.blob()], `${episodeId}.png`, { type: "image/png" });
+      }
       const content = await uploadEarContent({
         title: title.trim(), description: description.trim(), origin: "ai_generated",
         source_name: sourceName.trim(), topic_ids: topicIds,
@@ -110,7 +119,7 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
           title: s.title.trim(), ...(s.author.trim() ? { author: s.author.trim() } : {}), ...(s.url.trim() ? { url: s.url.trim() } : {}),
         })),
         review_confirmed: true,
-      }, audio!, thumbFile!);
+      }, audio!, thumb!);
       await markPublished(meta?.backlog_id ?? null, content.id, content.content_version, content.published_at, { action: "publish", parts: ["audio", "thumbnail", "title", "description", "source_name", "topic_ids"], episodeId: episodeId ?? undefined }).catch(() => undefined); // 파이프라인에 content_id·버전·이력 기록 — 실패해도 발행은 성립 (spec/07 5장)
       setMsg({ kind: "ok", text: `발행되었습니다 — ${content.id}` });
       setTimeout(() => router.push("/publish"), 900);
@@ -195,8 +204,10 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
               {episodeId && !hasAudio && <p className="mt-1 text-[11px] text-amber-700">이 에피소드에 dist.mp3 가 없어요 — TTS 먼저, 또는 파일 직접 선택.</p>}
             </label>
             <label className="block">
-              <span className="mb-1 block text-xs font-semibold text-ink-soft">썸네일 (jpg/png/webp, ≤5MB) *</span>
+              <span className="mb-1 block text-xs font-semibold text-ink-soft">썸네일 (jpg/png/webp, ≤5MB) {episodeId && hasThumb ? "— 에피소드 thumbnail.png 사용" : "*"}</span>
               <input type="file" accept=".jpg,.jpeg,.png,.webp,image/*" onChange={(e) => setThumbFile(e.target.files?.[0] ?? null)} />
+              {episodeId && hasThumb && !thumbFile && <p className="mt-1 text-[11px] text-ink-soft">비워두면 에피소드의 썸네일을 그대로 올려요.</p>}
+              {episodeId && !hasThumb && <p className="mt-1 text-[11px] text-amber-700">이 에피소드에 thumbnail.png 가 없어요 — [썸네일 생성] 먼저, 또는 파일 직접 선택.</p>}
             </label>
           </div>
         </Panel>
