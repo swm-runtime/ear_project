@@ -21,5 +21,8 @@ export {
 } from './api/library.mock';
 export type { MockLibrarySaveMeta, MockLibrarySaveResult } from './api/library.mock';
 export { default as LibraryItemCard } from './components/LibraryItemCard';
+/** 상단 배너 — 첫 사용 튜토리얼이 드립 도착을 실제와 같은 컴포넌트·문구로 그린다 */
+export { default as LibraryBanner } from './components/LibraryBanner';
+export type { LibraryBannerState } from './components/LibraryBanner';
 export { default as LibrarySearchBarRow } from './components/LibrarySearchBarRow';
 export { default as LibraryTabs } from './components/LibraryTabs';

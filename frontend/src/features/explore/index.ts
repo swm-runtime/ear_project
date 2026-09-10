@@ -14,6 +14,8 @@ export type { ExploreItem, ExploreTopic } from './explore.types';
 export { saveContent } from './api/explore.api';
 export type { SaveContentResult, SaveReason } from './explore.types';
 export { default as ExploreFeaturedCard } from './components/ExploreFeaturedCard';
+/** 코치마크가 카드가 아니라 썸네일만 가리킬 때 쓴다 — 기하는 카드가 소유한다 */
+export { featuredCardArtworkRect } from './components/ExploreFeaturedCard';
 export { default as ExploreSearchBarRow } from './components/ExploreSearchBarRow';
 export { default as ExploreTile } from './components/ExploreTile';
 export { default as PopularPeriodToggle } from './components/PopularPeriodToggle';
