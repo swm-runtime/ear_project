@@ -124,7 +124,20 @@ async function user(
       [row.id, topicId],
     );
   }
+  await isolatePool(m, row.id);
   return row.id;
+}
+
+/**
+ * 후보 풀 격리 — 로컬 DB에 이미 있는 다른 발행 콘텐츠를 이 사용자에게는 "이미 들은 것"으로 표시해
+ * 탐험·정규 풀이 시나리오 콘텐츠만 보게 한다. 배치 코드는 그대로 두고 데이터로만 격리한다.
+ */
+async function isolatePool(m: EntityManager, userId: string): Promise<void> {
+  await m.query(
+    `INSERT INTO drip_excluded_contents (user_id, content_id, reason, excluded_at)
+     SELECT $1, id, 'played', now() FROM contents WHERE status = 'published' AND title NOT LIKE $2`,
+    [userId, `${TAG} %`],
+  );
 }
 
 async function libraryItem(
@@ -148,6 +161,20 @@ async function exclude(
   await m.query(
     `INSERT INTO drip_excluded_contents (user_id, content_id, reason, excluded_at) VALUES ($1, $2, $3, now())`,
     [userId, contentId, reason],
+  );
+}
+
+/** 전체 기간 집계 행 — 배치의 인기·품질 입력(`content_stats`, period 'all') */
+async function allTimeStats(
+  m: EntityManager,
+  contentId: string,
+  playCount: number,
+  completeCount: number,
+): Promise<void> {
+  await m.query(
+    `INSERT INTO content_stats (content_id, period_type, period_start, play_count, complete_count)
+     VALUES ($1, 'all', '1970-01-01', $2, $3)`,
+    [contentId, playCount, completeCount],
   );
 }
 
@@ -223,6 +250,12 @@ async function main(): Promise<void> {
     const b3 = await content(m, 'B-3', [tB]);
     // 주제 C: 콘텐츠 1편 (고갈 시나리오용)
     const c1 = await content(m, 'C-1', [tC]);
+
+    // 카탈로그 전체가 "훑어보기만 한" 상태 — 재생은 있고 완청은 거의 없다(2026-09-10 실서버 재현).
+    // 절대 하한(0.2)만 있으면 탐험 후보가 전멸해 U1·U5의 탐험 1편이 0이 된다(회귀 검증)
+    for (const id of [...[a1, a2, a3, a4], s1, b1, b2, b3, c1])
+      await allTimeStats(m, id, 10, 0);
+    await allTimeStats(m, s2, 10, 1);
 
     // U1 기본: 관심 A만. 정규 2편은 전부 A, 탐험 1편은 B에서
     const u1 = await user(m, 'u1-basic', [tA]);
