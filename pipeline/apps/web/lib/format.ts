@@ -41,3 +41,12 @@ export const STATUS_LABEL: Record<string, string> = {
   allow_open: "1군", allow_support: "2군", blocked: "차단", hold: "보류", candidate: "후보",
 };
 export const label = (s: string | null | undefined) => (s ? STATUS_LABEL[s] ?? s : "-");
+
+/** 작업 회차 표기 — draft 의 attempt 는 대본 생성 회차(L0 수정 포함), QA 한도(3회)는 payload.qa_round 로 센다 (#291). 둘을 같이 보여 "attempt 4 = 한도 초과"로 읽히지 않게 */
+export function jobRoundLabel(j: { type: string; attempt: number; payload?: any }): string {
+  const p = j.payload ?? {};
+  if (j.type === "qa") return ` · QA ${p.qa_round ?? j.attempt}/3회${j.attempt > 1 ? ` (대본 ${j.attempt}회차)` : ""}`;
+  if (j.type === "draft" && j.attempt > 1) return ` · 대본 ${j.attempt}회차 (${p.l0_fixes ? `L0 수정 ${p.l0_fixes}회째` : p.qa_round ? `QA ${p.qa_round}회 실패 뒤 수정` : "수정"})`;
+  return j.attempt > 1 ? ` · ${j.attempt}회차` : "";
+}
+

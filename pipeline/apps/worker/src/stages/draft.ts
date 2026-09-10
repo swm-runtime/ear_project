@@ -130,7 +130,7 @@ export async function runDraft(job: Job, ex: Executor) {
     const failures = (job.payload.qa_failures ?? []) as { location: string; item: string; reason: string }[];
     const rv = await runRevisionSingle({ job, ex, episodeId, dir, assetRoot, attempt, qaFailures: failures });
     out = rv.output; model = rv.model; costUsd = rv.costUsd; tokens = rv.tokens;
-    summary = `${episodeId} 재생성 attempt ${attempt} (단발 · QA 피드백 ${failures.length}건 → 수정 ${rv.output.fixes.length}건${rv.unmatched.length ? `, 못 찾은 턴 ${rv.unmatched.length}` : ""}). ${rv.output.notes}`;
+    summary = `${episodeId} 재생성 — 대본 ${attempt}회차 (${revisionWhy(job)} · 단발 · QA 피드백 ${failures.length}건 → 수정 ${rv.output.fixes.length}건${rv.unmatched.length ? `, 못 찾은 턴 ${rv.unmatched.length}` : ""}). ${rv.output.notes}`;
   } else {
     const failures = (job.payload.qa_failures ?? []) as { location: string; item: string; reason: string }[];
     const prompt = buildDraftRevisionPrompt({ assetRoot, workRoot: cfg.workRoot, episodeId, candidate: cand, introStyle: pickIntroStyle(0), promptVersion, attempt, qaFailures: failures });
@@ -140,7 +140,7 @@ export async function runDraft(job: Job, ex: Executor) {
       describe: (tool) => (tool === "Read" ? "지적 대조 중" : tool === "Edit" || tool === "Write" ? "대본 수정 중" : null),
     });
     out = r.output; model = r.model; costUsd = r.listCostUsd; tokens = (r.raw as { usage?: unknown } | undefined)?.usage;
-    summary = `${episodeId} 재생성 attempt ${attempt} (QA 피드백 ${failures.length}건 → 수정 ${r.output.fixes.length}건). ${r.output.notes}`;
+    summary = `${episodeId} 재생성 — 대본 ${attempt}회차 (${revisionWhy(job)} · QA 피드백 ${failures.length}건 → 수정 ${r.output.fixes.length}건). ${r.output.notes}`;
   }
 
   // 발음 맵 (spec/04 8장) — 모델이 빠뜨렸거나 구 에피소드 이어받기면 빈 맵을 둔다 (웹 "발음" 탭·TTS 병합의 기준 파일. 누락 표기는 TTS 잔존 검사가 잡는다)
@@ -177,6 +177,12 @@ export async function runDraft(job: Job, ex: Executor) {
   const qaRound = Number(job.payload.qa_round ?? 0) + 1; // QA 회차 = 실제 QA 실행 횟수 (L0 수정은 세지 않는다)
   const qaJobId = await enqueue({ type: "qa", requires_ai: true, payload: { episode_id: episodeId, backlog_id: backlogId, attempt, qa_round: qaRound, ...carry }, parent_job_id: job.id, attempt });
   return { episode_id: episodeId, attempt, summary, model, next: { qa_job_id: qaJobId }, output: out };
+}
+
+/** 수정 재생성의 사유 표기 — 대본 회차(attempt)와 QA 회차(qa_round)는 다른 숫자다 (#291). "attempt 4" 만 보이면 QA 한도 3회를 넘은 것처럼 읽힌다 (T260910-013) */
+function revisionWhy(job: Job): string {
+  const l0 = Number(job.payload.l0_fixes ?? 0); const qr = Number(job.payload.qa_round ?? 0);
+  return l0 ? `L0 수정 ${l0}회째` : qr ? `QA ${qr}회 실패 뒤 수정` : "수정";
 }
 
 /** L0 형식 검사 — spec/04 4장 줄 문법 위반을 기계로 검출한다. 파서가 변형을 일부 수용하므로, 여기서 걸리면 파서로도 못 살리는 수준의 이탈이다 */
