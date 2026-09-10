@@ -37,8 +37,8 @@ export async function setBacklogStatus(id: string, status: "approved" | "rejecte
   revalidatePath("/backlog"); revalidatePath("/"); revalidatePath("/episodes");
 }
 
-/** 작업 요청 (사람 트리거): sweep · tts · package · cluster 재실행. requested_by 는 트리거가 찍는다. */
-export async function enqueueJob(type: "sweep" | "cluster" | "tts" | "package" | "domain_check", payload: Record<string, unknown>) {
+/** 작업 요청 (사람 트리거): sweep · tts · thumbnail · package · cluster 재실행. requested_by 는 트리거가 찍는다. */
+export async function enqueueJob(type: "sweep" | "cluster" | "tts" | "thumbnail" | "package" | "domain_check", payload: Record<string, unknown>) {
   const sb = await supabaseServer();
   const requires_ai = type === "cluster";
   const { data, error } = await sb.from("jobs").insert({ type, requires_ai, payload, status: "queued" }).select("id").single();

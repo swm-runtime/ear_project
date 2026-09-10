@@ -27,6 +27,10 @@ export const DB_ASSET_KEYS = [
   "skills/critic/rubric-v2.md",
 ] as const;
 
+/** 썸네일 프롬프트 (KAN-50) — 9번째 DB 자산. 대본 번들에 넣지 않는다: 이미지 생성 전용이라 `claude -p` 실행 컨텍스트와 무관하고,
+ *  번들에 들어가면 프롬프트를 고칠 때마다 번들 해시가 바뀌어 관계없는 대본 실행까지 다른 스냅샷을 쓰게 된다. 항상 active 를 읽는다 */
+export const THUMBNAIL_PROMPT_KEY = "skills/thumbnail/prompt.md";
+
 /** TTS 전역 음차 사전 (spec/06 6장) — 8번째 DB 자산. 프롬프트 번들에 넣지 않고 에피소드에 고정하지 않는다: 항상 active — 사전 수정 → 같은 에피소드 재합성에 즉시 적용 */
 export const TTS_DICT_KEY = "skills/tts/pronunciation.json";
 
@@ -70,8 +74,8 @@ export function versionOf(key: string, content: string): string {
     const d = head.match(/\d{4}-\d{2}-\d{2}/);
     return `gold@${d ? d[0] : new Date().toISOString().slice(0, 10)}`;
   }
-  const m = head.match(/(full|qa|critic)-v\d+(?:\.\d+)*/);
-  if (!m) throw new Error(`${key}: 헤더에서 버전 라벨을 찾지 못했다 (full-vN · qa-vN · critic-vN)`);
+  const m = head.match(/(full|qa|critic|thumb)-v\d+(?:\.\d+)*/);
+  if (!m) throw new Error(`${key}: 헤더에서 버전 라벨을 찾지 못했다 (full-vN · qa-vN · critic-vN · thumb-vN)`);
   return m[0];
 }
 

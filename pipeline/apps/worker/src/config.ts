@@ -97,9 +97,28 @@ export const cfg = {
   /** TTS 비용 환산용 1천 자당 USD — eleven_v3 API 종량 단가 $0.10/1천 자 (2026-09 ElevenLabs, v2/v3 공통·1자=1크레딧. Flash/Turbo 는 $0.05).
    *  LLM 정가 환산과 달리 이건 실제 종량 요금이다. 요금제/모델 바뀌면 TTS_USD_PER_1K_CHARS 로 덮는다 */
   ttsUsdPer1kChars: process.env.TTS_USD_PER_1K_CHARS ? Number(process.env.TTS_USD_PER_1K_CHARS) : 0.1,
+
+  /** 썸네일 (KAN-50) — OpenAI 이미지 API. 키는 서버 env.prod 에만 두고 코드·.env.example 에 실값을 넣지 않는다 */
+  openaiKey: process.env.OPENAI_API_KEY || "",
+  /** 기본 gpt-image-1-mini (2026-09 기준 가장 저렴 · 월 100편에 $1 미만). 사선 띠 지시를 못 지키면 THUMBNAIL_MODEL 로 gpt-image-2 교체 */
+  thumbnailModel: process.env.THUMBNAIL_MODEL || "gpt-image-1-mini",
+  /** low | medium | high — 정가 차이가 크다(mini: 0.005 / 0.009 / 0.052). 기본 medium */
+  thumbnailQuality: process.env.THUMBNAIL_QUALITY || "medium",
+  /** 1:1 고정 (프롬프트 자산 [규격]) — 44pt 미니 플레이어까지 한 장으로 쓴다 */
+  thumbnailSize: process.env.THUMBNAIL_SIZE || "1024x1024",
+  /**
+   * 스타일 앵커 (선택) — WORK_ROOT 상대 키. 이미지 API 에는 seed 가 없어 같은 프롬프트도 매번 화풍이 달라진다.
+   * 운영자가 첫 3~5편 중 1장을 골라 지정하면 이후 생성은 images/edits 로 그 그림을 참조해 화풍을 맞춘다.
+   * 비어 있으면 참조 없이 생성한다(초기 5편이 이 경로다).
+   */
+  thumbnailAnchorKey: process.env.THUMBNAIL_ANCHOR_KEY || "",
+  /** 1장당 USD — runs.cost_usd 환산용. 모델·품질을 바꾸면 THUMBNAIL_USD_PER_IMAGE 로 덮는다 */
+  thumbnailUsdPerImage: process.env.THUMBNAIL_USD_PER_IMAGE ? Number(process.env.THUMBNAIL_USD_PER_IMAGE) : undefined,
 };
 
 export const canAi = cfg.capabilities.includes("ai") && cfg.executor !== "none";
 /** TTS 를 집을 수 있는가 = ElevenLabs 키 보유 (spec/06). 키 없는 노트북 워커는 TTS 를 큐에 남겨 서버가 집게 한다 (0010) */
 export const canTts = !!cfg.elevenLabsKey;
+/** 썸네일을 집을 수 있는가 = OpenAI 키 보유 (0018). 키 없는 워커는 큐에 남겨 서버가 집게 한다 — TTS 와 같은 이유 */
+export const canThumbnail = !!cfg.openaiKey;
 export const executedBy = `worker:${cfg.workerName} (${cfg.executor})`;

@@ -7,7 +7,7 @@ export const pool = new pg.Pool({ connectionString: cfg.databaseUrl, max: 3, idl
 // Supabase 풀러가 유휴 연결을 끊으면 풀이 'error' 를 낸다 — 받지 않으면 EventEmitter 규칙상 프로세스가 죽는다 (2026-08-31 워커 사망 원인 후보)
 pool.on("error", (e) => console.error(`[pg pool] 연결 오류 (무시하고 재연결): ${e.message}`));
 
-export type JobType = "sweep" | "cluster" | "draft" | "qa" | "critic" | "tts" | "package" | "domain_check";
+export type JobType = "sweep" | "cluster" | "draft" | "qa" | "critic" | "tts" | "package" | "domain_check" | "thumbnail";
 export interface Job {
   id: string;
   type: JobType;
@@ -19,8 +19,8 @@ export interface Job {
   created_at: string;
 }
 
-export async function claimJob(worker: string, canAi: boolean, canTts: boolean): Promise<Job | null> {
-  const r = await pool.query("select * from public.claim_job($1, $2, $3)", [worker, canAi, canTts]);
+export async function claimJob(worker: string, canAi: boolean, canTts: boolean, canThumbnail: boolean): Promise<Job | null> {
+  const r = await pool.query("select * from public.claim_job($1, $2, $3, $4)", [worker, canAi, canTts, canThumbnail]);
   return (r.rows[0] as Job) ?? null;
 }
 export async function heartbeat(jobId: string) {
