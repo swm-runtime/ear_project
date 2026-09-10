@@ -1113,7 +1113,7 @@ export function buildClusterPromptV2(i: ClusterV2Input): string {
 ## 0. 보강 재판정 — 후보 하나만
 이 실행은 새 후보를 뽑는 것이 아니라 **기존 후보 ${i.reinforce.id} 의 역할표를 다시 짜는 것**이다. 축은 고정한다.
 - 후보: "${i.reinforce.title}" · 축(${i.reinforce.axis_type}): ${i.reinforce.axis}
-- 비어 있던 역할: ${i.reinforce.gaps.length ? i.reinforce.gaps.join(" · ") : "(없음 — 다양성 미달)"}
+- 비어 있던 역할: ${i.reinforce.gaps.length ? i.reinforce.gaps.join(" · ") : "(없음 — 발행처 쏠림을 풀기 위한 보강이다. 새 소스가 다른 발행처의 근거를 주면 같은 계열 소스 하나를 빼고 넣어 한 발행처 계열이 절반을 넘지 않게 한다)"}
 - 아래 소스 목록에는 **현재 후보 소스**(표시됨)와 그 빈 역할을 채우려고 검색으로 새로 넣은 소스가 섞여 있다. 새 소스 중 축에 맞고 빈 역할을 실제로 채우는 것만 넣는다 — 역할이 맞지 않는 소스를 억지로 끼우지 않는다.
 - candidates 는 **정확히 1개**, id 는 "${i.reinforce.id}", 제목·축은 그대로(문구 다듬기만 허용). 아래 3장 절차의 1단계(축 후보 내기)는 건너뛴다. gaps 에는 여전히 빈 역할을 적는다.
 ` : "";
@@ -1174,7 +1174,11 @@ export interface ReinforceSearchInput {
 }
 export function buildReinforceSearchPrompt(i: ReinforceSearchInput): string {
   const c = i.candidate;
-  const roles = c.gaps.length ? c.gaps : ["사례", "수치·조사"];
+  const pubCount = new Map<string, number>(); for (const s of c.sources) pubCount.set(s.publisher, (pubCount.get(s.publisher) ?? 0) + 1);
+  const top = [...pubCount].sort((a, b) => b[1] - a[1])[0];
+  // 빈 역할이 없는데 보강을 부른 경우 = 다양성이 얇은 후보(한 계열 발행처 쏠림). 목표를 "다른 발행처의 근거 앵커"로 잡는다
+  const diversify = !c.gaps.length && top ? `발행처 다양화 — 현재 ${top[0]} 계열이 ${top[1]}/${c.sources.length}건. **이미 있는 발행처가 아닌 곳**에서 축을 받치는 근거 앵커 1~2건과 사례 1건` : null;
+  const roles = c.gaps.length ? c.gaps : ["근거 앵커", "사례"];
   return `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 **소스 보강 담당**이다. 에피소드 후보 하나의 축은 이미 서 있는데 역할표에 빈 칸이 있다. 그 빈 역할을 채울 소스를 웹 검색으로 찾는다.
 이 실행의 도구는 **WebSearch 뿐**이다 — 페이지 본문을 읽지 않는다(원문 정독은 설계 단계가 한다). 검색 결과의 제목·요약·발행처·날짜만 돌려준다.
 
@@ -1182,7 +1186,7 @@ export function buildReinforceSearchPrompt(i: ReinforceSearchInput): string {
 - ${c.id} "${c.title}" · 중분류 ${c.mid_topic}
 - 축(${c.axis_type ?? "-"}): ${c.axis ?? "(없음)"}
 - 이미 있는 소스: ${c.sources.map((s) => `${s.publisher} "${s.title}"`).join(" / ") || "(없음)"}
-- **채워야 할 역할**: ${roles.map((r) => `${r} — ${ROLE_INTENT[r] ?? ""}`).join("\n  · ")}
+- **채워야 할 역할**: ${roles.map((r) => `${r} — ${ROLE_INTENT[r] ?? ""}`).join("\n  · ")}${diversify ? `\n- **이번 보강의 목표**: ${diversify}. 같은 발행처(계열 저널 포함)의 결과는 넣지 않는다.` : ""}
 
 ## 검색 규칙
 - 검색은 최대 ${i.maxSearches}회. 역할마다 검색 의도가 다르다(위 설명). 한국어·영어 둘 다 쓴다 — 청취자는 한국 직장인이지만 근거는 영어 소스가 많다.

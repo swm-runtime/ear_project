@@ -32,7 +32,7 @@ export async function runReinforce(job: Job, ex: Executor) {
   const gaps = (cand.gaps ?? []).filter((g) => (SOURCE_ROLES as string[]).includes(g));
 
   // ── 1. 검색
-  await setJobProgress(job.id, { phase: `보강 1/2 — 검색 (${cand.id}, 빈 역할 ${gaps.join("·") || "다양성"})`, detail: `풀 도메인 ${poolDomains.length}곳`, toolCounts: {}, turns: 0, elapsedMs: 0 }).catch(() => {});
+  await setJobProgress(job.id, { phase: `보강 1/2 — 검색 (${cand.id}, ${gaps.length ? `빈 역할 ${gaps.join("·")}` : "발행처 다양화"})`, detail: `풀 도메인 ${poolDomains.length}곳`, toolCounts: {}, turns: 0, elapsedMs: 0 }).catch(() => {});
   const maxSearches = Number(job.payload.max_searches ?? 8);
   const searchPrompt = buildReinforceSearchPrompt({ candidate: { id: cand.id, title: cand.title, mid_topic: cand.mid_topic, axis: cand.axis ?? null, axis_type: cand.axis_type ?? null, gaps, sources: cand.sources.map((s) => ({ publisher: s.publisher, title: s.title })) }, poolHosts: poolDomains.map((d) => d.domain).slice(0, 80), maxSearches });
   const r1 = await ex.run<SearchOut>({
