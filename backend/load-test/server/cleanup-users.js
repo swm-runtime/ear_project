@@ -4,7 +4,7 @@
 // 사용자 FK 가 없는 흔적(content_stats 집계·audio_access_logs)은 남는다 — 집계는 다음 배치가 다시 세고,
 // 접근 로그는 device_id='k6-load-test' 로 구분된다.
 //
-//   docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T api node /tmp/lt/cleanup-users.js --yes
+//   docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T -e NODE_PATH=/app/node_modules api node /tmp/lt/cleanup-users.js --yes
 //
 // 옵션: --yes(없으면 개수만 보여주고 끝) · --run 라벨(그 시드분만)
 const { Client } = require('pg');
