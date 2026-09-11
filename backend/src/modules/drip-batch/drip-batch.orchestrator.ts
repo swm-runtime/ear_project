@@ -18,6 +18,7 @@ import {
   PreferenceSignalInput,
   ScoredCandidate,
   ScoringCandidate,
+  UserCareer,
   UserPreferenceWeights,
 } from '@/modules/drip/drip.types';
 import { DripBatchRunService } from '@/modules/drip/services/drip-batch-run.service';
@@ -224,6 +225,11 @@ export class DripBatchOrchestrator {
             preference,
             difficultyAffinity,
             isColdStart,
+            // 커리어 적합도(4.2 ③) — 프로필이라 신호가 없어도 쓴다
+            career: {
+              jobCategory: user.jobCategory,
+              yearsOfExperience: user.yearsOfExperience,
+            },
             dripCount,
             now,
           })
@@ -337,6 +343,7 @@ export class DripBatchOrchestrator {
       preference: UserPreferenceWeights | null;
       difficultyAffinity: Record<string, number> | null;
       isColdStart: boolean;
+      career: UserCareer;
       dripCount: number;
       now: Date;
     },
@@ -373,6 +380,7 @@ export class DripBatchOrchestrator {
       completedEpisodesBySeries: input.completedEpisodesBySeries,
       recentDripTopicIds,
       isColdStart: input.isColdStart,
+      career: input.career,
       now: input.now,
     });
 
@@ -530,6 +538,7 @@ export class DripBatchOrchestrator {
           freshness: round(pick.breakdown.metaItems.freshness),
           popularity: round(pick.breakdown.metaItems.popularity),
           difficulty_fit: round(pick.breakdown.metaItems.difficultyFit),
+          career_fit: round(pick.breakdown.metaItems.careerFit),
           series_continuity: round(pick.breakdown.metaItems.seriesContinuity),
           exposure_fatigue: round(pick.breakdown.metaItems.exposureFatigue),
         },
