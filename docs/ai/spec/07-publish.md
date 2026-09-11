@@ -47,7 +47,7 @@ TTS 다음에 돌며 정사각형 1024×1024 PNG 한 장을 만든다. 종전에
 
 ## 2. 패키지 (AI)
 
-발행에 필요한 메타데이터를 `upload-meta.json`으로 산출하고 상태를 `packaged`(사람 검수 대기)로 전환한다.
+발행에 필요한 메타데이터를 `upload-meta.json`으로 산출하고 상태를 `packaged`(사람 검수 대기)로 전환한다. 패키지가 끝나면 **추천 메타 부여 작업(`enrich`)을 이어서 건다**(2026-09-11, [`metadata-pipeline.md`](../metadata-pipeline.md) 2장) — AI 워커가 `episodes/<id>/enrichment.json`(schema_version 2)을 만들고, 업로드 화면이 발행할 때 `enrichment_file`로 같이 보낸다. 파일이 없어도 발행은 막지 않는다(제품 발행 목록의 [다시 뽑기]로 소급).
 
 | 필드 | 내용 |
 |---|---|

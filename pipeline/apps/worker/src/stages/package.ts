@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { cfg, executedBy } from "../config.js";
-import { getBacklog, getEpisode, insertRun, majorOfMidTopic, pool, setBacklogStatus, type Job } from "../db.js";
+import { enqueue, getBacklog, getEpisode, insertRun, majorOfMidTopic, pool, setBacklogStatus, type Job } from "../db.js";
 import { workerRev } from "../assets.js";
 import { probeDurationSec } from "../tts/audio.js";
 import { exists, localPathOf, pullPrefix, pushPrefix, s3Key } from "../storage.js";
@@ -83,5 +83,7 @@ export async function runPackage(job: Job) {
     result: `패키지 완료 — 제목·설명 초안, 소스 ${meta.sources.length}건, 분량 ${durationMin ?? "?"}분, 오디오 ${r.audio_dist_key ? "있음" : "없음(TTS 전)"}, 썸네일 ${r.thumbnail_key ? "있음" : "없음"} · 게이트 2 검수 대기`,
     prompt_version: "package-v1 (worker)", artifacts: [metaKey], executed_by: executedBy, worker_rev: workerRev(),
   });
-  return { episode_id: episodeId, meta_key: metaKey, duration_min: durationMin, status_after: r.status === "qa_passed" ? "packaged" : r.status };
+  // 추천 메타 부여를 이어서 건다 (metadata-pipeline 2장 — 패키지 직후, 2026-09-11 구현). AI 워커가 집어 episodes/<id>/enrichment.json 을 만들고 업로드 화면이 발행 때 첨부한다
+  const enrichJobId = job.payload.skip_enrich ? null : await enqueue({ type: "enrich", requires_ai: true, payload: { episode_id: episodeId, backlog_id: backlogId }, parent_job_id: job.id }).catch((e) => { log(`  package ${episodeId}: enrich 작업 생성 실패 (${String(e?.message ?? e).slice(0, 80)})`); return null; });
+  return { episode_id: episodeId, meta_key: metaKey, duration_min: durationMin, status_after: r.status === "qa_passed" ? "packaged" : r.status, enrich_job_id: enrichJobId };
 }

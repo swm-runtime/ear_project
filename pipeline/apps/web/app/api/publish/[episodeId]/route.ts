@@ -7,6 +7,7 @@ import { getBytes, getText } from "@/lib/storage";
  * - GET /api/publish/<episodeId>              → upload-meta.json (+ dist.mp3 · thumbnail.png 존재 여부)
  * - GET /api/publish/<episodeId>?audio=1      → dist.mp3 바이트 (제품 업로드 폼이 File 로 감싼다)
  * - GET /api/publish/<episodeId>?thumbnail=1  → thumbnail.png 바이트 (같은 방식)
+ * - GET /api/publish/<episodeId>?enrichment=1 → enrichment.json (추천 메타, 패키지 직후 enrich 작업이 만든다 — 발행 때 enrichment_file 로 첨부)
  * 서버가 중계하는 이유: 파이프라인 S3 에 브라우저 CORS 를 열지 않기 위해서다.
  */
 export async function GET(req: NextRequest, ctx: { params: Promise<{ episodeId: string }> }) {
@@ -33,11 +34,20 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ episodeId: 
     });
   }
 
+  if (req.nextUrl.searchParams.get("enrichment")) {
+    const text = await getText(`${base}/enrichment.json`);
+    if (!text) return NextResponse.json({ message: "enrichment.json 없음 — 패키지 직후 메타 부여 작업 이후에" }, { status: 404 });
+    return new NextResponse(text, { headers: { "content-type": "application/json", "content-disposition": `attachment; filename="enrichment.json"` } });
+  }
+
   const metaText = await getText(`${base}/upload-meta.json`);
   if (!metaText) return NextResponse.json({ message: "upload-meta.json 없음 — 패키지 단계 이후에" }, { status: 404 });
-  const [audio, thumbnail] = await Promise.all([
+  const [audio, thumbnail, enrichment] = await Promise.all([
     getBytes(`${base}/audio/dist.mp3`, true),
     getBytes(`${base}/thumbnail.png`, true),
+    getText(`${base}/enrichment.json`),
   ]);
-  return NextResponse.json({ meta: JSON.parse(metaText), has_audio: audio !== null, has_thumbnail: thumbnail !== null });
+  let enrichmentVersion: number | null = null;
+  try { enrichmentVersion = enrichment ? Number((JSON.parse(enrichment) as { schema_version?: number }).schema_version ?? 1) : null; } catch { enrichmentVersion = null; }
+  return NextResponse.json({ meta: JSON.parse(metaText), has_audio: audio !== null, has_thumbnail: thumbnail !== null, has_enrichment: enrichment !== null, enrichment_version: enrichmentVersion });
 }
