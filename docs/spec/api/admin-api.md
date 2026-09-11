@@ -143,9 +143,13 @@
 
 **`enrichment_file` — 추천 메타 파일** (`admin.md` 3.1의 계약 표현, 등재 2026-09-08)
 
-- 저장 대상: `difficulty` · `format` · `is_evergreen` · `keywords` → `contents` 메타 4종,
+- 저장 대상: `difficulty` · `format` · `is_evergreen` · `keywords` · **`target_audiences`**(형식 v2, 2026-09-11) → `contents` 메타,
   `embedding.vector` → `content_embeddings` upsert(콘텐츠당 1행). 생략된 키는 저장하지 않는다
   (결손 = 스코어링 중립 — `domain.md` 5.1·5.6).
+- **`schema_version`**(정수, 생략 시 1)을 `contents.enrichment_schema_version`에, 적용 시각을 `enriched_at`에 기록한다.
+  현재 형식은 **2**다 — 서버가 아는 최신보다 높으면 파일을 거부한다(모르는 키가 결손으로 둔갑하는 것을 막는다).
+- `target_audiences`는 `[{ "job_category", "years_of_experience" }]` — 직군은 `GET /job-categories` 목록, 연차는
+  `0-1 | 2-3 | 4-6 | 7+`(온보딩 입력과 같은 값 집합). 최대 8세트, 중복은 하나로 접고, 목록 밖 값은 파일 거부.
 - 검증: enum은 `domain.md` 5.1과 글자 일치, 벡터는 1536차원, `embedding.model`은 현재 모델
   (`text-embedding-3-small`)과 일치해야 한다. **모르는 최상위 키는 거부한다**(오타가 결손으로
   둔갑하는 것을 막는다 — 명세의 `source` 폴백 표식은 허용).
@@ -299,8 +303,11 @@ author_name, source_name, source_url, partner_id,
 series_id, episode_no, total_episodes,
 duration_sec, thumbnail_url, content_version,
 license_expires_at, published_at, withdrawn_at,
-topics[{ topic_id, name }]
+topics[{ topic_id, name }],
+enrichment_schema_version, enriched_at          // 마지막 적용 메타 파일의 형식 버전·시각. null = 받은 적 없음 (2026-09-11)
 ```
+
+- `enrichment_schema_version`이 현재 형식(4.6 — 2)보다 낮거나 null이면 **구형 메타**다. 콘솔이 그 콘텐츠를 골라 메타를 다시 뽑아 4.10의 `enrichment_file` 단독 전송으로 갱신한다(콘솔 기능은 `tickets/ai/pending` 참조).
 
 **`audio_path`는 싣지 않는다**(7장).
 

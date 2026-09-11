@@ -11,7 +11,7 @@
 
 발행할 콘텐츠에 추천 스코어링의 입력값을 부여한다. 대본을 입력으로:
 
-1. **추천 메타 4종** — `difficulty`(난이도) · `format`(형식) · `is_evergreen`(시의성/에버그린) · `keywords`(세부 키워드) → `contents` 컬럼(`domain.md` 5.1)
+1. **추천 메타 5종** — `difficulty`(난이도) · `format`(형식) · `is_evergreen`(시의성/에버그린) · `keywords`(세부 키워드) · **`target_audiences`(맞는 청자 — 직군·연차 세트, 신설 2026-09-11)** → `contents` 컬럼(`domain.md` 5.1)
 2. **대본 임베딩** — 임베딩 API 호출 결과 벡터 → `content_embeddings`(`domain.md` 5.6)
 
 임베딩은 "무엇에 관한 내용인가"를, 메타 4종은 임베딩이 잘 잡지 못하는 "어떤 수준·형식·수명의 콘텐츠인가"를 담당한다(`drip-scheduling.md` 4.2의 축 분리 근거).
@@ -40,6 +40,7 @@ NestJS 자동화(업로드 시 서비스 서버가 임베딩 API를 호출하는
 | title · description | 콘텐츠 제목·설명 | 필수 |
 | topic_names[] | 부여된 주제 | 필수 — 키워드가 주제의 단순 반복이 되지 않게 대조용 |
 | origin | partner / ai_generated | 필수 |
+| job_categories[] · years_ranges[] | 청자 판정의 값 집합 — 직군은 서버의 `GET /job-categories`(현재 개발·기획·디자인·마케팅·영업·운영·CS·연구·교육·기타), 연차 구간은 `0-1 | 2-3 | 4-6 | 7+` (`domain.md` 3.1 — 온보딩 커리어 입력과 동일) | 필수 (신설 2026-09-11) |
 
 ## 4. 처리 로직
 
@@ -63,6 +64,7 @@ NestJS 자동화(업로드 시 서비스 서버가 임베딩 API를 호출하는
 | `format` | `news_analysis` \| `howto` \| `interview` \| `opinion` \| `case_study` \| `overview` | 지배적 서술 형식 하나 — 뉴스·시사 해설 / 방법·실행 안내 / 대담·인용 중심 / 주장·견해 / 사례 분석 / 개괄·입문. 혼합이면 분량 기준 지배 형식 |
 | `is_evergreen` | `true` \| `false` | `false`(시의성): 특정 시점의 사건·수치·정책에 묶여 시간이 지나면 유효성이 떨어지는 내용 / `true`: 원리·방법론 중심으로 수명이 긴 내용. [`spec/04`](spec/04-script.md) 6장의 시의성 주제 판정(소스 발행일 명시 대상)과 같은 기준 |
 | `keywords` | 문자열 배열 3~8개 | **대본에 실제로 다뤄진** 세부 개념의 명사구(예: "ISA 계좌", "복리 계산"). 주제명(`topic_names[]`)의 단순 반복 금지 — 주제보다 잘게 잡는 것이 존재 이유다(`drip-scheduling.md` 4.2 ②). 대본에 없는 개념을 넣지 않는다(FR-09의 부여판) |
+| `target_audiences` | `[{ job_category, years_of_experience }]` 1~8세트 (신설 2026-09-11) | **이 대본이 누구에게 맞는가** — 대본이 전제하는 직무 맥락(어느 직군의 일인가)과 경험 수준(어느 연차가 겪는 상황인가)을 (직군, 연차 구간) 쌍으로 적는다. 복수 가능 — "개발 2-3년"과 "개발 4-6년" 둘에 맞으면 둘 다. 값은 3장 값 집합 **밖으로 나가지 않는다**(글자 단위 일치, 업로드 검증이 거부한다). 직군 무관·연차 무관인 범용 대본(예: 번아웃·시간 관리)은 억지로 좁히지 말고 **키를 생략한다** — 스코어링에서 항목이 빠져 불리해지지 않는다(`drip-scheduling.md` 4.2 ③ 커리어 적합도 — 소폭 가점). 직군만 특정되고 연차가 갈리지 않으면 그 직군의 연차 구간 전부를 적는다(4세트) |
 
 - 키워드 표기는 **NFC 정규화 + 공백 정리**로 통일한다 — 사용자 간 가중치 집계(`user_preference_vectors.keyword_weights`)가 문자열 일치로 묶이므로 표기가 흔들리면 같은 개념이 쪼개진다.
 - 판정은 대본 근거로만 한다. 대본 밖 지식으로 값을 보강하지 않는다.
@@ -78,13 +80,22 @@ NestJS 자동화(업로드 시 서비스 서버가 임베딩 API를 호출하는
 
 ```json
 {
+  "schema_version": 2,
   "difficulty": "beginner",
   "format": "overview",
   "is_evergreen": true,
   "keywords": ["ISA 계좌", "비과세 한도"],
+  "target_audiences": [
+    { "job_category": "개발", "years_of_experience": "2-3" },
+    { "job_category": "개발", "years_of_experience": "4-6" }
+  ],
   "embedding": { "model": "<모델 식별자>", "vector": [/* float N개 */] }
 }
 ```
+
+- **`schema_version`은 산출물 형식의 버전이다**(신설 2026-09-11). 서버가 `contents.enrichment_schema_version`·`enriched_at`에 기록해, 형식이 바뀐 뒤 **구형 메타로 남은 콘텐츠를 골라 다시 뽑는** 근거가 된다. 현재 **2**(`target_audiences` 추가). 키를 생략한 파일은 1(구형)로 받는다 — 새 실행은 항상 현재 버전을 적는다.
+  - 1 (2026-08-26): 메타 4종 + 임베딩
+  - 2 (2026-09-11): `target_audiences` 추가
 
 - 관리자 업로드 화면의 **추천 메타 파일 입력**([`admin.md`](../features/admin.md) 3.1)에 첨부한다. 개별 필드를 손으로 입력하는 경로는 없다.
 - 판정 불능 항목은 키를 **생략**한다(잘못된 값보다 결손이 낫다 — 결손은 스코어링 중립 처리와 운영 콘솔 노출로 회수된다).
@@ -125,6 +136,7 @@ NestJS 자동화(업로드 시 서비스 서버가 임베딩 API를 호출하는
 - **키워드가 3개 미만으로 나옴** — 대본이 얇거나 단일 주제 반복이다. 억지로 채우지 않고 나온 만큼만 낸다(배열 1~2개 허용). 0개면 키를 생략한다.
 - **대본이 여러 편(시리즈)** — 편 단위로 각각 실행한다. 시리즈 공통 임베딩은 만들지 않는다(스코어링 단위가 콘텐츠 행이다).
 - **임베딩 API 장애** — 메타 4종만 산출하고 임베딩 키를 생략한다(`partial`). 복구 후 재실행하면 임베딩만 채워진다.
+- **형식 버전이 올라감**(예: 1→2) — 기존 발행분은 구형 메타로 남는다. 어드민 콘텐츠 목록의 `enrichment_schema_version`이 현재보다 낮거나 null인 콘텐츠가 재실행 대상이고, 산출물은 관리자 재발행의 **`enrichment_file` 단독 전송**(`admin-api.md` 4.10 — 버전 무변경·재생 위치 보존)으로 반영한다. 콘솔에서 이 대상을 고르고 다시 뽑는 기능은 `tickets/ai/pending/` 참조.
 - **재발행인데 대본이 안 바뀜**(오디오·썸네일만 교체) — 재실행 생략 가능. 단 `content_embeddings.content_version` 대조가 결손으로 잡으므로, 업로드 시 기존 임베딩의 `content_version`을 올려 갱신하는 것은 서버 몫이다(백엔드 구현 시 확정 — 미결).
 
 ## 8. 완료 조건
@@ -134,6 +146,7 @@ NestJS 자동화(업로드 시 서비스 서버가 임베딩 API를 호출하는
 - Given 대본에 다뤄지지 않은 개념 / When 키워드를 산출한다 / Then 해당 개념은 키워드에 포함되지 않는다
 - Given Phase B를 생략한 실행(서버 저장처 미비·API 장애) / When 파이프라인을 실행한다 / Then 메타 4종만 담긴 산출물이 나오고 `embedding` 키는 없다
 - Given 판정 불능인 항목(대본 없음 등) / When 산출물을 만든다 / Then 해당 키가 생략되고, 지어낸 값이 들어가지 않는다
+- Given 특정 직군·연차를 전제하는 대본 / When 산출물을 만든다 / Then `target_audiences`의 값이 전부 3장 값 집합 안에 있고 `schema_version`이 2다 · Given 직군·연차 무관한 범용 대본 / Then `target_audiences` 키가 없다
 - Given 산출물을 첨부한 관리자 업로드 / When 업로드가 완료된다 / Then `contents`의 메타 4종과 `content_embeddings` 행이 저장되고, 편성 배치 스코어링이 이 값들을 읽는다(`drip-scheduling.md` 4.2)
 
 ## 미결 사항
