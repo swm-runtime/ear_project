@@ -20,7 +20,7 @@
 | EC2 인스턴스 | `i-04f1f70f5484ffafd` | t4g.small, AL2023 arm64, ap-northeast-2a, EBS gp3 20GB |
 | Elastic IP | `43.203.57.240` | 가비아 A 레코드 2개(api·admin)가 가리킴 |
 | 보안그룹 | `sg-048aaaf95e4d12b2e` | 22(관리자 IP/32)·80·443/tcp·443/udp |
-| 인스턴스 롤 | `ear-prod-ec2` | 인라인: `backup-put` · `content-upload`(S3 Put/Delete) · `ses-send` |
+| 인스턴스 롤 | `ear-prod-ec2` | 인라인: `backup-put` · `content-upload`(S3 Put/Delete) · `ses-send` · 관리형 `CloudWatchAgentServerPolicy`(2026-09-11 — 아래 4장 에이전트) |
 | IAM 정책 (고객 관리형) | `ear-pipeline-bucket-rw` | **파이프라인** (2026-09-01 신설) — `earcast-pipeline-prod`의 `episodes/*`·`sweeps/*`·`datasets/*` Get/Put/List(삭제 없음). AI 서버 롤 `ear-ai-ec2`에 부착됨(2026-09-02). IAM 사용자·액세스 키는 만들지 않음. 생성: `pipeline/deploy/aws/setup-pipeline-bucket.sh` |
 | **AI 서버** EC2 | `i-0c414b676584733da` | **파이프라인** (2026-09-02 신설, `pipeline/deploy/aws/setup-ai-server.sh`) — t4g.small, AL2023 arm64, 2a 같은 서브넷, gp3 20GB, IMDSv2 hop 2, user-data(docker·compose·buildx·git·스왑 2G). compose 4컨테이너(caddy·web·worker-io·ai-server) — `pipeline/deploy/README.md` |
 | AI 서버 Elastic IP | `54.116.31.183` (`eipalloc-01215fe9cc181f063`) | `pipeline.earcast.co.kr` A 레코드 등록됨(2026-09-02). 사설 IP `172.31.15.36` — 제품 서버가 `/embeddings` 호출 시 이쪽 |
@@ -64,6 +64,7 @@
 | Budgets | `ear-monthly-10usd` ($10, 80% 실적·100% 예측 메일) | 조직 계정이라 결제 주체는 조직 — 알림은 참고용 |
 | SNS 토픽 | `ear-prod-alerts` | 메일 구독 ⏳ 확인 대기 |
 | CloudWatch 알람 | `ear-prod-ec2-status-check` | 상태 검사 실패 3분 연속 시 알림 |
+| CloudWatch Agent | API EC2에 설치(2026-09-11, `dnf amazon-cloudwatch-agent` 1.300069) — 네임스페이스 `CWAgent`, 60초 간격 `cpu_usage_active`(`cpu=cpu-total`) · `mem_used_percent` · `swap_used_percent` · `disk_used_percent`(sysfs·tmpfs·overlay 등 가상 FS 제외) | 지표 9개 = 상시 무료 한도(10개) 안. **EC2 세부 모니터링(월 ~$2.1)은 끄고 CPU도 에이전트로 1분 수집.** 설정 `/opt/aws/amazon-cloudwatch-agent/bin/config.json`, 재적용 `amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:<그 파일>`, 상태 `-a status`. systemd 자동 시작. 대시보드는 `CWAgent` + `InstanceId` 차원으로 구성 |
 | SES | 도메인 identity `earcast.co.kr` — **DKIM 검증 완료 · 프로덕션 액세스 승인**(샌드박스 아님. 발송 상한 50,000통/일 · 14tps — 2026-09-09 `sesv2 get-account` 실측) | 서버 코드 `backend/src/modules/user/ses-mail.client.ts`(스펙 동반). 인증 메일이 Gmail에 `dkim=pass header.d=earcast.co.kr`로 도착 확인(2026-09-08) |
 | Secrets Manager | `ear/prod/api` — ARN `...:secret:ear/prod/api-PyK5Ku` | 운영 API 비밀값 8종(2026-09-09 적재). 읽기는 인스턴스 롤 `ear-prod-ec2`의 인라인 정책 `secrets-read`(그 ARN만). **아직 원천이 아니다** — 앱은 여전히 `.env.prod`를 읽는다(주입 배선은 백엔드 협조 대기) |
 
