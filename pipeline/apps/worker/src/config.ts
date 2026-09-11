@@ -62,6 +62,8 @@ export const cfg = {
   /** QA·군집화 모델 — 2026-09-03 박수헌: 발췌 대조·구조 분석은 Fable 이 필요 없다 → Opus 기본 (속도·한도 절약). QA 도 평가자라 바꾸면 spec/09 7.4 */
   /** QA 모델 — 2026-09-08 Sonnet 5 기본 (비용 절감 ⑤): 심은 오류 프로브 8건 중 7건 검출·오탐 0(opus 상한판 8/8). 놓친 1건(시점 고정 표현)은 L0 코드 검사로 이관. 되돌리려면 QA_MODEL=claude-opus-5 */
   qaModel: process.env.QA_MODEL || "claude-sonnet-5",
+  /** 추천 메타 판정 (KAN-53) — 판정 5종은 분류 작업이라 Sonnet 으로 충분. 편당 $0.1~0.3 */
+  enrichModel: process.env.ENRICH_MODEL || "claude-sonnet-5",
   /** QA 실행 형태 (2026-09-08 비용 절감 ②): single = 입력 인라인·도구 없음·리포트는 JSON 으로(기본) · agent = 구 방식(파일 읽기·리포트 쓰기 루프). QA_MODE=agent 로 복귀 */
   qaMode: (process.env.QA_MODE === "agent" ? "agent" : "single") as "single" | "agent",
   /** 단계별 생각 토큰 상한 (2026-09-08 비용 절감 ④). 비우면 모델 기본. 판정·대조(QA·비평·설계)는 상한을 걸어도 판정이 유지됨을 실측 후 기본값을 둔다 */

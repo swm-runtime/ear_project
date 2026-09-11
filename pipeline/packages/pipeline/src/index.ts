@@ -1214,6 +1214,108 @@ export const REINFORCE_SEARCH_SCHEMA = {
   },
 } as const;
 
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 추천 메타 부여 (KAN-53, 2026-09-11) — docs/ai/metadata-pipeline.md 4.2·4.4 의 워커 구현. 판정 기준의 원본은
+// .claude/skills/metadata-enrichment/reference/judgment-criteria.md 이고 워커가 그 파일을 읽어 프롬프트에 넣는다 (여기 복사하지 않는다).
+// 값 집합은 backend domain.md 5.1 · user.constant.ts JOB_CATEGORIES 와 글자 단위로 같아야 한다 — 어긋나면 업로드 검증이 거부한다.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+export const ENRICHMENT_SCHEMA_VERSION = 2;
+export const ENRICH_DIFFICULTY = ["beginner", "intermediate", "advanced"] as const;
+export const ENRICH_FORMAT = ["news_analysis", "howto", "interview", "opinion", "case_study", "overview"] as const;
+export const ENRICH_YEARS = ["0-1", "2-3", "4-6", "7+"] as const;
+/** 서버 GET /job-categories 와 같은 값 — 콘솔이 서버 목록을 넘기면 그것을 쓰고, 없을 때만 이 기본값 */
+export const ENRICH_JOB_CATEGORIES_DEFAULT = ["개발", "기획", "디자인", "마케팅·영업", "운영·CS", "연구·교육", "기타"];
+
+export interface EnrichInput {
+  title: string; description: string; topicNames: string[]; origin: string;
+  /** 대본 전문 — 없으면 4.5 폴백(제목+설명) */
+  script: string | null;
+  jobCategories: string[]; yearsRanges: string[];
+  /** judgment-criteria.md 본문 */
+  criteria: string;
+}
+export function buildEnrichPrompt(i: EnrichInput): string {
+  const fence = (s: string) => "````\n" + s.trim() + "\n````";
+  return `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 **추천 메타 판정 담당**이다. 대본을 근거로 메타 5종을 판정한다. 이 실행에는 도구가 없다 — 아래 입력만 본다.
+
+## 원칙
+- **판정은 대본 근거로만.** 대본 밖 지식으로 값을 보강하지 않는다. 대본에 없는 개념은 키워드에 넣지 않는다.
+- **지어내지 않는다.** 판정 불능이면 그 키를 생략한다(null 을 넣지 말고 키 자체를 뺀다). 잘못된 값보다 결손이 낫다.
+- 값은 아래 집합 **안에서만**, 글자 단위로 같게. 밖의 값은 업로드 검증이 거부한다.
+  - difficulty: ${ENRICH_DIFFICULTY.join(" | ")}
+  - format: ${ENRICH_FORMAT.join(" | ")}
+  - target_audiences[].job_category: ${i.jobCategories.join(" | ")}
+  - target_audiences[].years_of_experience: ${i.yearsRanges.join(" | ")}
+- 각 판정에 **대본의 어느 대목이 근거인지** 한 줄씩 evidence 에 적는다. 근거를 못 대는 판정은 판정 불능이다.
+
+## 판정 기준
+${fence(i.criteria)}
+
+## 콘텐츠
+- 제목: ${i.title}
+- 설명: ${i.description}
+- 주제: ${i.topicNames.join(", ") || "(없음)"} — 키워드는 이 주제명의 단순 반복이 아니라 **주제보다 잘게** 잡는다
+- origin: ${i.origin}
+${i.script ? `
+## 대본 전문
+${fence(i.script)}` : `
+## 대본 없음 — 폴백(명세 4.5)
+제목·설명만으로 판정한다. keywords 는 제목+설명에서 뽑고 source 는 "title_description" 으로 적는다. difficulty·format 은 얕은 근거로 판정하지 말고 불능이면 생략한다. is_evergreen 은 판정 가능하면 적는다.`}
+
+## 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. 판정 불능 키는 넣지 않는다. keywords 는 대본에 실제로 다뤄진 세부 개념의 명사구 3~8개(3개 미만이면 나온 만큼만, 0개면 생략). target_audiences 는 1~8세트, 직군·연차 무관한 범용 대본이면 생략.`;
+}
+export const ENRICH_SCHEMA = {
+  type: "object", additionalProperties: false, required: ["evidence"],
+  properties: {
+    difficulty: { type: "string", enum: ENRICH_DIFFICULTY },
+    format: { type: "string", enum: ENRICH_FORMAT },
+    is_evergreen: { type: "boolean" },
+    keywords: { type: "array", items: { type: "string" }, maxItems: 8 },
+    target_audiences: { type: "array", maxItems: 8, items: { type: "object", additionalProperties: false, required: ["job_category", "years_of_experience"], properties: { job_category: { type: "string" }, years_of_experience: { type: "string", enum: ENRICH_YEARS } } } },
+    source: { type: "string", enum: ["title_description"] },
+    evidence: { type: "object", additionalProperties: false, properties: { difficulty: { type: "string" }, format: { type: "string" }, is_evergreen: { type: "string" }, keywords: { type: "string" }, target_audiences: { type: "string" } } },
+  },
+} as const;
+export interface EnrichmentFile { schema_version: number; difficulty?: string; format?: string; is_evergreen?: boolean; keywords?: string[]; target_audiences?: { job_category: string; years_of_experience: string }[]; source?: "title_description" }
+/** finalize.py 와 같은 규칙: 키워드 NFC 정규화·공백 정리·중복 제거·주제명 반복 제거·상한 8, enum 글자 일치 검증. 실패면 errors 를 돌려주고 파일을 만들지 않는다 */
+export function normalizeEnrichment(raw: Record<string, unknown>, topicNames: string[], jobCategories: string[]): { file: EnrichmentFile | null; errors: string[]; warnings: string[] } {
+  const errors: string[] = [], warnings: string[] = [];
+  const file: EnrichmentFile = { schema_version: ENRICHMENT_SCHEMA_VERSION };
+  if (raw.difficulty != null) { if ((ENRICH_DIFFICULTY as readonly string[]).includes(String(raw.difficulty))) file.difficulty = String(raw.difficulty); else errors.push(`difficulty enum 불일치: ${String(raw.difficulty)}`); }
+  if (raw.format != null) { if ((ENRICH_FORMAT as readonly string[]).includes(String(raw.format))) file.format = String(raw.format); else errors.push(`format enum 불일치: ${String(raw.format)}`); }
+  if (raw.is_evergreen != null) { if (typeof raw.is_evergreen === "boolean") file.is_evergreen = raw.is_evergreen; else errors.push("is_evergreen 이 boolean 이 아님"); }
+  if (raw.source != null) { if (raw.source === "title_description") file.source = "title_description"; else errors.push(`source 값 불일치: ${String(raw.source)}`); }
+  if (Array.isArray(raw.keywords)) {
+    const topics = new Set(topicNames.map((t) => t.normalize("NFC").replace(/\s+/g, " ").trim().toLowerCase()));
+    const out: string[] = [];
+    for (const k of raw.keywords) {
+      if (typeof k !== "string") continue;
+      const n = k.normalize("NFC").replace(/\s+/g, " ").trim();
+      if (!n) continue;
+      if (topics.has(n.toLowerCase())) { warnings.push(`주제명 반복 키워드 제외: ${n}`); continue; }
+      if (out.some((x) => x.toLowerCase() === n.toLowerCase())) continue;
+      out.push(n);
+    }
+    if (out.length > 8) { warnings.push(`키워드 ${out.length}개 → 8개로 자름`); out.length = 8; }
+    if (out.length && out.length < 3) warnings.push(`키워드 ${out.length}개 — 3개 미만(대본이 얇거나 단일 주제)`);
+    if (out.length) file.keywords = out;
+  }
+  if (Array.isArray(raw.target_audiences)) {
+    const out: { job_category: string; years_of_experience: string }[] = [];
+    for (const t of raw.target_audiences as { job_category?: unknown; years_of_experience?: unknown }[]) {
+      const jc = String(t?.job_category ?? "").normalize("NFC").trim(), yr = String(t?.years_of_experience ?? "").trim();
+      if (!jobCategories.includes(jc)) { errors.push(`job_category 값 집합 밖: ${jc}`); continue; }
+      if (!(ENRICH_YEARS as readonly string[]).includes(yr)) { errors.push(`years_of_experience 값 집합 밖: ${yr}`); continue; }
+      if (!out.some((x) => x.job_category === jc && x.years_of_experience === yr)) out.push({ job_category: jc, years_of_experience: yr });
+    }
+    if (out.length > 8) { warnings.push(`청자 세트 ${out.length} → 8`); out.length = 8; }
+    if (out.length) file.target_audiences = out;
+  }
+  const missing = ["difficulty", "format", "is_evergreen", "keywords", "target_audiences"].filter((k) => !(k in file));
+  if (missing.length) warnings.push(`생략된 키: ${missing.join(", ")} (partial)`);
+  return { file: errors.length ? null : file, errors, warnings };
+}
+
 export const CLUSTER_SCHEMA_V2 = {
   type: "object",
   additionalProperties: false,
