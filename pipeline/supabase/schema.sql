@@ -91,7 +91,7 @@ create table if not exists runs (
   id          uuid primary key default gen_random_uuid(),
   backlog_id  text references backlog(id),
   phase       text not null
-              check (phase in ('sweep','cluster','draft','critic','qa','package','tts','domain_check','thumbnail')), -- 0008: domain_check(스냅샷 누락분 정정) · 0018: thumbnail
+              check (phase in ('sweep','cluster','draft','critic','qa','package','tts','domain_check','thumbnail','enrich')), -- 0008: domain_check(스냅샷 누락분 정정) · 0018: thumbnail · 0021: enrich
               -- critic: 품질 사이클의 선행 비평 실행 (spec/09 7장) — QA(사실)와 별개의 스타일 검수
   attempt     int not null default 1,          -- QA 재생성 차수 (1~3)
   result      text,                            -- 통과/실패 + 사유 요약
@@ -131,7 +131,7 @@ alter table runs    enable row level security;
 
 create table if not exists public.jobs (
   id uuid primary key default gen_random_uuid(),
-  type text not null check (type in ('sweep','cluster','draft','qa','critic','tts','package','domain_check','thumbnail','critic_measure')), -- 0007: domain_check(스냅샷 누락분 정정) · 0018: thumbnail · 0020: critic_measure(루브릭 개정안 측정)
+  type text not null check (type in ('sweep','cluster','draft','qa','critic','tts','package','domain_check','thumbnail','critic_measure','enrich')), -- 0007: domain_check(스냅샷 누락분 정정) · 0018: thumbnail · 0020: critic_measure(루브릭 개정안 측정) · 0021: enrich(추천 메타)
   requires_ai boolean not null,
   payload jsonb not null default '{}'::jsonb,
   status text not null default 'queued' check (status in ('queued','claimed','running','done','failed','cancelled')),

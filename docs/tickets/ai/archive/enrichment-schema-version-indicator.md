@@ -10,7 +10,7 @@
 | 발견 시점 | 추천 메타 형식 v2 도입 — "이 콘텐츠의 메타가 형식 변경 이후 것인지 이전 것인지"를 콘솔에서 알 수 없다 |
 | 근거 문서 | `spec/api/admin-api.md` 8장(`AdminContentItem`의 `enrichment_schema_version`·`enriched_at`, 2026-09-11) · `ai/metadata-pipeline.md` 4.4 |
 | 중요도 | **Medium** — 재부여(`enrichment-reextract-console.md`) 대상을 고르는 눈이다. 없으면 전수를 다시 뽑거나 누락한다 |
-| 상태 | 대기 — 백엔드가 두 필드를 응답에 싣는 PR 머지 후 착수 가능 |
+| 상태 | 완료 |
 
 ## 요지
 
@@ -26,3 +26,8 @@
 
 - Given `enrichment_schema_version`이 null·1·2인 콘텐츠가 섞인 목록 / When 콘솔을 연다 / Then 각 행에 없음·구형·v2 배지가 맞게 뜬다
 - Given "구형·없음만 보기" 필터 / When 켠다 / Then v2 콘텐츠는 목록에서 빠진다
+
+## 처리 기록
+
+- **반영 날짜**: 2026-09-11 (박수헌 · Claude) — 콘텐츠 목록에 추천 메타 배지(없음·구형 vN·v2)와 적용 시각, "구형·없음 메타만" 필터(전 페이지 수집 후 클라이언트 필터). 현재 형식 번호는 콘솔 상수(`ENRICHMENT_SCHEMA_VERSION_FALLBACK = 2`)로 두고 서버 값으로 바꾸는 BE 티켓을 냈다(`tickets/backend/pending/enrichment-current-version-in-list.md`). 백엔드 선행 PR #322 는 같은 날 오전 머지·배포됨.
+- Jira KAN-54 → 완료로 전환.

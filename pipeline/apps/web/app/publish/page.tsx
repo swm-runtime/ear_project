@@ -1,8 +1,9 @@
 "use client";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { EarContent, listEarContents, restoreEarContent, withdrawEarContent } from "@/lib/ear";
-import { latestPublishEvents, logPublishEvent, type PublishAction } from "../actions";
+import { EarContent, listEarContents, listEarJobCategories, restoreEarContent, withdrawEarContent } from "@/lib/ear";
+import { enrichStates, latestPublishEvents, logPublishEvent, requestEnrich, type PublishAction } from "../actions";
+import { EnrichCell, isStale, type EnrichState } from "./enrich-cell";
 import { Badge, LinkBtn, PageHeader, Panel, Toolbar, btnCls } from "@/components/ui";
 import { fmtTime } from "@/lib/format";
 import { EarGate, EarSession, earErrMsg } from "./ear-connect";
@@ -29,13 +30,25 @@ function ContentList() {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [latest, setLatest] = useState<Record<string, { at: string; action: PublishAction; version: number | null }>>({});
+  const [staleOnly, setStaleOnly] = useState(false); // KAN-54: 구형·없음만 보기 — 서버에 필터가 없어 전 페이지를 받아 거른다
+  const [enrich, setEnrich] = useState<Record<string, EnrichState>>({});
+  const [jobCats, setJobCats] = useState<string[]>([]);
 
-  const load = useCallback(async (st = status, off = offset) => {
+  const load = useCallback(async (st = status, off = offset, stale = staleOnly) => {
     try {
-      const [d, ev] = await Promise.all([listEarContents(st, off, LIMIT), latestPublishEvents().catch(() => ({}))]);
-      setErr(null); setData(d); setLatest(ev);
+      const [d, ev] = await Promise.all([stale ? listAllContents(st) : listEarContents(st, off, LIMIT), latestPublishEvents().catch(() => ({}))]);
+      const shown = stale ? { items: d.items.filter(isStale), total: d.items.filter(isStale).length } : d;
+      setErr(null); setData(shown); setLatest(ev);
+      setEnrich(await enrichStates(shown.items.map((c) => c.id)).catch(() => ({})));
     } catch (e) { setErr(earErrMsg(e)); }
-  }, [status, offset]);
+  }, [status, offset, staleOnly]);
+  useEffect(() => { listEarJobCategories().then((r) => setJobCats(r.items.map((x) => x.name))).catch(() => setJobCats([])); }, []);
+  useEffect(() => { // 재부여 작업이 도는 동안 상태를 20초마다 갱신
+    const running = Object.values(enrich).some((s) => ["queued", "claimed", "running"].includes(s.status));
+    if (!running || !data) return;
+    const t = setInterval(() => { enrichStates(data.items.map((c) => c.id)).then(setEnrich).catch(() => {}); }, 20_000);
+    return () => clearInterval(t);
+  }, [enrich, data]);
   useEffect(() => { queueMicrotask(() => void load()); }, [load]); // 동기 setState 회피 (react-hooks/set-state-in-effect)
 
   async function act(fn: () => Promise<unknown>) {
@@ -55,6 +68,13 @@ function ContentList() {
           <option value="expired">expired</option>
         </select>
         <Link href="/publish/topics" className={btnCls()}>제품 주제 관리</Link>
+        <label className="flex items-center gap-1 text-xs text-ink-soft"><input type="checkbox" checked={staleOnly} onChange={(e) => { setStaleOnly(e.target.checked); setOffset(0); }} />구형·없음 메타만</label>
+        {staleOnly && data && data.items.length > 0 && (
+          <button className={btnCls()} disabled={busy} title="목록의 콘텐츠 전부에 메타 재부여 작업을 넣는다 (반영은 각 행의 [반영])" onClick={() => {
+            if (!confirm(`${data.items.length}건의 추천 메타를 다시 뽑을까요? 워커가 순서대로 판정합니다 (편당 $0.1~0.3).`)) return;
+            void act(async () => { const r = await requestEnrich(data.items.map((c) => ({ content_id: c.id, title: c.title, description: c.description, topic_names: c.topics.map((t) => t.name), origin: c.origin })), jobCats); alert(`요청 ${r.queued}건 · 이미 진행 중 ${r.skipped}건`); });
+          }}>전부 다시 뽑기</button>
+        )}
         <button className={btnCls()} onClick={() => void load()}>새로고침</button>
         {data && <span className="text-xs text-ink-soft">총 {data.total}건</span>}
       </Toolbar>
@@ -63,7 +83,7 @@ function ContentList() {
         <table className="w-full text-[13px]">
           <thead>
             <tr className="border-b border-line text-left text-[11px] uppercase tracking-wide text-ink-soft">
-              {["콘텐츠", "주제", "길이", "최근 발행", "상태", ""].map((h) => <th key={h} className="px-4 py-2.5 font-semibold">{h}</th>)}
+              {["콘텐츠", "주제", "길이", "최근 발행", "추천 메타", "상태", ""].map((h) => <th key={h} className="px-4 py-2.5 font-semibold">{h}</th>)}
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
@@ -82,6 +102,7 @@ function ContentList() {
                 <td className="px-4 py-2.5 text-ink-soft">{c.topics.map((t) => t.name).join(", ")}</td>
                 <td className="px-4 py-2.5 tabular-nums text-ink-soft">{Math.floor(c.duration_sec / 60)}:{String(c.duration_sec % 60).padStart(2, "0")}</td>
                 <td className="px-4 py-2.5 text-ink-soft"><LatestCell c={c} ev={latest[c.id]} /></td>
+                <td className="px-4 py-2.5"><EnrichCell c={c} st={enrich[c.id]} jobCategories={jobCats} onChange={() => void load()} /></td>
                 <td className="px-4 py-2.5"><Badge tone={c.status === "published" ? "done" : "failed"}>{c.status}</Badge></td>
                 <td className="px-4 py-2.5 text-right">
                   <Link href={`/publish/${c.id}`} className={`${btnCls()} mr-1.5`}>상세·수정</Link>
@@ -102,12 +123,12 @@ function ContentList() {
               </tr>
             ))}
             {data && data.items.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-ink-soft">콘텐츠가 없습니다.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-ink-soft">{staleOnly ? "구형·없음 메타인 콘텐츠가 없습니다." : "콘텐츠가 없습니다."}</td></tr>
             )}
           </tbody>
         </table>
       </Panel>
-      {data && data.total > LIMIT && (
+      {data && !staleOnly && data.total > LIMIT && (
         <div className="flex gap-2">
           <button className={btnCls()} disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - LIMIT))}>이전</button>
           <button className={btnCls()} disabled={offset + LIMIT >= data.total} onClick={() => setOffset(offset + LIMIT)}>다음</button>
@@ -115,6 +136,12 @@ function ContentList() {
       )}
     </>
   );
+}
+
+/** 전 페이지 수집 — 구형 메타 필터는 서버에 없어 클라이언트가 거른다. 콘텐츠가 수백 건을 넘기 전까지는 충분하다 (findEarContent 와 같은 전제) */
+async function listAllContents(status: string): Promise<{ items: EarContent[]; total: number }> {
+  const items: EarContent[] = [];
+  for (let off = 0; ; off += 50) { const d = await listEarContents(status, off, 50); items.push(...d.items); if (off + 50 >= d.total || d.items.length === 0) return { items, total: d.total }; }
 }
 
 /**

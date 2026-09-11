@@ -119,7 +119,14 @@ export interface EarContent {
   duration_sec: number; thumbnail_url: string; content_version: number;
   license_expires_at: string | null; published_at: string; withdrawn_at: string | null;
   topics: { topic_id: string; name: string }[];
+  /** 마지막 적용 추천 메타 파일의 형식 버전·시각 (admin-api 8장, 2026-09-11). null = 받은 적 없음 */
+  enrichment_schema_version: number | null; enriched_at: string | null;
+  /** 요청에 enrichment_file 이 있었을 때만 (4.6·4.10) */
+  enrichment_applied?: boolean; enrichment_rejected_reason?: string;
 }
+/** 현재 추천 메타 형식 버전 — 원본은 서버 CURRENT_ENRICHMENT_SCHEMA_VERSION(admin-api 4.6 "현재 형식 2"). 목록 응답이 현재 버전을 싣게 되면(BE 티켓) 그 값으로 바꾼다 */
+export const ENRICHMENT_SCHEMA_VERSION_FALLBACK = 2;
+export const listEarJobCategories = () => earFetch<{ items: { name: string }[] }>("/job-categories");
 
 export const listEarTopics = () => earFetch<{ items: EarTopic[] }>("/admin/topics");
 export const createEarTopic = (name: string, parent_category: string, display_order?: number) =>
@@ -154,11 +161,12 @@ export interface UploadPayload {
 }
 
 /** 재발행 — 같은 content_id 에 오디오(·메타) 교체, content_version +1 (admin-api 4.10 — 백엔드 구현 대기: 404 면 아직 없는 것) */
-export function republishEarContent(contentId: string, parts: { audio?: File; thumbnail?: File; payload?: Partial<Pick<UploadPayload, "title" | "description" | "source_name" | "topic_ids" | "sources">> }): Promise<EarContent> {
+export function republishEarContent(contentId: string, parts: { audio?: File; thumbnail?: File; enrichment?: File; payload?: Partial<Pick<UploadPayload, "title" | "description" | "source_name" | "topic_ids" | "sources">> }): Promise<EarContent> {
   const fd = new FormData();
   if (parts.payload) fd.append("payload", JSON.stringify(parts.payload));
   if (parts.audio) fd.append("audio", parts.audio);
   if (parts.thumbnail) fd.append("thumbnail", parts.thumbnail);
+  if (parts.enrichment) fd.append("enrichment_file", parts.enrichment); // 단독 전송이면 content_version 무변경·재생 위치 보존 (4.10)
   return earFetch<EarContent>(`/admin/contents/${contentId}`, { method: "PATCH", body: fd });
 }
 
