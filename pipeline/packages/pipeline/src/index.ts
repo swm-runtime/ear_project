@@ -318,6 +318,8 @@ export interface CriticInput {
   rubric?: "v1" | "v2";
   /** tpl-v1 이전 세대 대본 (인트로·마무리가 자리표기) — v2 채점 시 3.5·3.7·G1에서 자리표기를 감점하지 않는다 */
   preTemplate?: boolean;
+  /** 리포트 파일명 (기본 critic-report-v2.md). 측정 모드(0020)는 critic-measure-<버전>.md 로 따로 쓴다 — 사람 판정이 붙은 리포트를 덮지 않는다 */
+  reportFile?: string;
 }
 
 export function buildCriticPrompt(i: CriticInput): string {
@@ -353,6 +355,7 @@ function buildCriticPromptV2(i: CriticInput): string {
   const a = assetPaths(i.assetRoot, i.workRoot);
   const dir = a.episodeDir(i.episodeId);
   const script = i.scriptFile ?? `${dir}/script.md`;
+  const report = i.reportFile ?? "critic-report-v2.md";
   const explainer = explainerFor(i.midTopic);
   const host = explainer === "윤아" ? "이음" : "윤아";
   const pre = i.preTemplate
@@ -366,14 +369,14 @@ function buildCriticPromptV2(i: CriticInput): string {
     : "";
   return `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 대본 비평가다. 스타일·구성 품질을 독립 평가한다. 생성 맥락·QA 결과·기계 검사(L0) 결과는 일절 모른 채 평가하는 것이 원칙이다.
 
-## 입력 (정확히 이 파일들만 읽는다 — 다른 프로젝트 파일 금지. 특히 같은 디렉토리의 qa-report, claims, sources, critic-report.md(구판) 및 다른 에피소드 금지)
+## 입력 (정확히 이 파일들만 읽는다 — 다른 프로젝트 파일 금지. 특히 같은 디렉토리의 qa-report, claims, sources, critic-report*.md(기존 비평) 및 다른 에피소드 금지)
 1. ${a.criticRubricV2} — 비평 루브릭 v2. 이 문서의 판단 항목(2.1)·배점과 구간 정의(3장)·리포트 규격(4장)을 그대로 따른다.
 2. ${a.guidelines} — 대본 규칙 (평가 기준의 원본).
 3. ${script} — 평가 대상 대본 (에피소드: "${i.title}", 해설 ${explainer} / 진행 ${host}, ${i.midTopic}).
 4. 골드 예시 2종 (비교 기준선): ${a.goldFullEum}, ${a.goldFullYuna}
 ${pre}
 ## 작업
-결과를 ${dir}/critic-report-v2.md 에 작성한다 (루브릭 v2 4장 규격). 순서:
+결과를 ${dir}/${report} 에 작성한다 (루브릭 v2 4장 규격). 순서:
 1. **점수 (100점)** — 3장의 하위 항목 12개를 **각각 독립적으로** 채점한다. 항목마다 구간 정의를 대본과 대조하고, 점수 옆에 반드시 대본 자구를 \`[E12] "…"\` 형식으로 인용한다 (인용 없는 점수는 무효). 합계는 계산 결과일 뿐 — 합계를 보고 조정하지 않는다. 몰입(3.10)은 다른 축의 합으로 역산하지 말고 통으로 판단한다.
    - **앵커 자리(\`{앵커 …: }\`)는 이번 실행에서 비어 있다.** 구간 정의만으로 채점한다. 이 실행은 "앵커 없음" 기준선이다.
    - 만점 구간은 **골드 2종보다 그 항목에서 명백히 나을 때만** 준다. 평범하면 평범하다고 쓴다.

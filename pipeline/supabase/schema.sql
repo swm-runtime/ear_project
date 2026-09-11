@@ -131,7 +131,7 @@ alter table runs    enable row level security;
 
 create table if not exists public.jobs (
   id uuid primary key default gen_random_uuid(),
-  type text not null check (type in ('sweep','cluster','draft','qa','critic','tts','package','domain_check','thumbnail')), -- 0007: domain_check(스냅샷 누락분 정정) · 0018: thumbnail
+  type text not null check (type in ('sweep','cluster','draft','qa','critic','tts','package','domain_check','thumbnail','critic_measure')), -- 0007: domain_check(스냅샷 누락분 정정) · 0018: thumbnail · 0020: critic_measure(루브릭 개정안 측정)
   requires_ai boolean not null,
   payload jsonb not null default '{}'::jsonb,
   status text not null default 'queued' check (status in ('queued','claimed','running','done','failed','cancelled')),

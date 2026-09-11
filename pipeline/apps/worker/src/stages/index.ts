@@ -5,7 +5,7 @@ import { runReinforce } from "./reinforce.js";
 import { runCluster } from "./cluster.js";
 import { runDraft } from "./draft.js";
 import { runQa } from "./qa.js";
-import { runCritic } from "./critic.js";
+import { runCritic, runCriticMeasure } from "./critic.js";
 import { runDomainCheck } from "./domain-check.js";
 import { runTts } from "./tts.js";
 import { runPackage } from "./package.js";
@@ -18,6 +18,7 @@ export async function runStage(job: Job, ex: Executor): Promise<unknown> {
     case "draft": return runDraft(job, ex);
     case "qa": return runQa(job, ex);
     case "critic": return runCritic(job, ex);
+    case "critic_measure": return runCriticMeasure(job, ex); // 루브릭 개정안 측정 (0020) — 리포트를 따로 쓰고 에피소드 행은 건드리지 않는다
     case "domain_check": return runDomainCheck(job); // IO 전용 — AI 실행기 불필요
     case "tts": return runTts(job);       // IO 전용 — ElevenLabs (spec/06). 수동 트리거만
     case "thumbnail": return runThumbnail(job); // IO 전용 — OpenAI 이미지 API (KAN-50). 키 있는 워커만 집는다(0018)

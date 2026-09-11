@@ -55,18 +55,43 @@ export async function runCritic(job: Job, ex: Executor) {
   return { episode_id: episodeId, scores: s, violations: o.violations, suspects: o.suspects, stars: o.stars, summary: o.summary, model: r.model };
 }
 
-/** critic-v2 초안 실행 (spec/09 v2 · rubric-v2.md). 리포트는 critic-report-v2.md — v1 스냅샷은 보존. 앵커 없음 기준선. */
-async function runCriticV2(job: Job, ex: Executor, e: { episodeId: string; backlogId: string; rel: string; dir: string; scriptFile?: string; title: string; midTopic: string; assetRoot: string; bundle: AssetBundle }) {
+/**
+ * 비평 측정 (0020, 2026-09-11): 루브릭 개정안(draft 버전)을 사람 판정이 끝난 에피소드에 돌려 사람 점수와 대조한다.
+ * payload: { episode_id, backlog_id, rubric_version: "critic-v2.6" }. 리포트는 critic-measure-<버전>.md — critic-report-v2.md 와
+ * episodes.critic_report_key 는 건드리지 않는다(사람 판정이 그 리포트의 플래그 번호를 가리킨다). 루브릭만 지정 버전으로 바꾸고
+ * 나머지 규칙 자산은 에피소드에 고정된 버전 그대로 — 바뀐 것이 루브릭뿐이어야 차이를 루브릭에 귀속할 수 있다.
+ */
+export async function runCriticMeasure(job: Job, ex: Executor) {
+  const episodeId = String(job.payload.episode_id ?? "");
+  const backlogId = String(job.payload.backlog_id ?? "");
+  const rubricVersion = String(job.payload.rubric_version ?? "");
+  if (!rubricVersion) throw new Error("payload.rubric_version 필요 (예: critic-v2.6)");
+  const ep = await getEpisode(episodeId);
+  const cand = await getBacklog(backlogId);
+  if (!ep || !cand) throw new Error(`에피소드/백로그 없음: ${episodeId}/${backlogId}`);
+  const rel = `episodes/${episodeId}`;
+  const dir = path.join(cfg.workRoot, rel);
+  await fs.mkdir(dir, { recursive: true });
+  await pullPrefix(`${rel}/`);
+  const scriptFile = localPathOf(ep.script_key);
+  const { assetRoot, bundle } = await prepareAssets({ ...(ep.asset_versions ?? {}), "skills/critic/rubric-v2.md": rubricVersion });
+  const reportFile = `critic-measure-${rubricVersion.replace(/[^A-Za-z0-9.-]+/g, "_")}.md`;
+  return runCriticV2(job, ex, { episodeId, backlogId, rel, dir, scriptFile, title: cand.title, midTopic: cand.mid_topic, assetRoot, bundle, measure: { rubricVersion, reportFile } });
+}
+
+/** critic-v2 초안 실행 (spec/09 v2 · rubric-v2.md). 리포트는 critic-report-v2.md — v1 스냅샷은 보존. 앵커 없음 기준선. measure 가 있으면 측정 모드(위) */
+async function runCriticV2(job: Job, ex: Executor, e: { episodeId: string; backlogId: string; rel: string; dir: string; scriptFile?: string; title: string; midTopic: string; assetRoot: string; bundle: AssetBundle; measure?: { rubricVersion: string; reportFile: string } }) {
   const scriptPath = e.scriptFile ?? path.join(e.dir, "script.md");
   const scriptText = await readFile(scriptPath, "utf8").catch(() => "");
   const preTemplate = /\{인트로[^}]*\}|\{클로징[^}]*\}/.test(scriptText); // tpl-v1 이전 세대: 자리표기 감점 금지
-  const prompt = buildCriticPrompt({ assetRoot: e.assetRoot, workRoot: cfg.workRoot, episodeId: e.episodeId, title: e.title, midTopic: e.midTopic as never, scriptFile: e.scriptFile, rubric: "v2", preTemplate });
-  log(`  critic v2 ${e.episodeId}${preTemplate ? " (tpl 이전 세대)" : ""}`);
+  const reportFile = e.measure?.reportFile ?? "critic-report-v2.md";
+  const prompt = buildCriticPrompt({ assetRoot: e.assetRoot, workRoot: cfg.workRoot, episodeId: e.episodeId, title: e.title, midTopic: e.midTopic as never, scriptFile: e.scriptFile, rubric: "v2", preTemplate, reportFile });
+  log(`  critic v2 ${e.episodeId}${preTemplate ? " (tpl 이전 세대)" : ""}${e.measure ? ` · 측정 ${e.measure.rubricVersion}` : ""}`);
   const r = await ex.run<CriticV2Out>({
     prompt, schema: CRITIC_SCHEMA_V2,
-    allowedTools: ["Read", `Write(${e.rel}/critic-report-v2.md)`, `Edit(${e.rel}/critic-report-v2.md)`],
+    allowedTools: ["Read", `Write(${e.rel}/${reportFile})`, `Edit(${e.rel}/${reportFile})`],
     addDirs: [e.dir, e.assetRoot], cwd: cfg.workRoot, timeoutMs: 45 * 60_000, model: cfg.criticModel, maxThinkingTokens: cfg.thinkingCritic,
-    onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: "비평 v2 (100점 채점)" }).catch(() => {}),
+    onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: e.measure ? `비평 측정 ${e.measure.rubricVersion}` : "비평 v2 (100점 채점)" }).catch(() => {}),
     describe: (tool, input, counts) => {
       const f = String(input?.file_path ?? "").split("/").pop() ?? "";
       if (tool === "Read") return f.startsWith("gold-") ? "골드 예시 대조 중" : f.startsWith("rubric") ? "루브릭 v2 확인 중" : f === "script.md" || f.startsWith("script") ? "대본 정독 중" : `자료 검토 (${counts.Read ?? 1}건째)`;
@@ -78,8 +103,16 @@ async function runCriticV2(job: Job, ex: Executor, e: { episodeId: string; backl
   const sum = { content: s.content.value + s.content.argument + s.content.perspective + s.content.resonance, structure: s.structure.opening + s.structure.flow + s.structure.ending, naturalness: s.naturalness.spoken + s.naturalness.exchange, immersion: s.immersion, persona: s.persona.voice + s.persona.listener };
   const total = sum.content + sum.structure + sum.naturalness + sum.immersion + sum.persona;
   if (total !== o.total) log(`  ⚠ total 불일치: 보고 ${o.total} vs 합산 ${total} — 합산값 기록`);
-  await pushPrefix(`${e.rel}/`); // critic-report-v2.md — 먼저 S3 에
-  const reportKey = s3Key(`${e.rel}/critic-report-v2.md`);
+  await pushPrefix(`${e.rel}/`); // 리포트 — 먼저 S3 에
+  const reportKey = s3Key(`${e.rel}/${reportFile}`);
+  if (e.measure) {
+    await insertRun({
+      backlog_id: e.backlogId, phase: "critic", attempt: 1,
+      result: `비평 측정 ${e.measure.rubricVersion} (사람 판정 리포트는 그대로). 합계 ${total}/100 — 내용 ${sum.content}/35 · 구성 ${sum.structure}/20 · 자연 ${sum.naturalness}/20 · 몰입 ${sum.immersion}/15 · 페르소나 ${sum.persona}/10. 플래그 위반 ${o.violations}·의심 ${o.suspects}, ⭐${o.stars}`,
+      prompt_version: `${e.measure.rubricVersion} (measure)`, artifacts: [reportKey], executed_by: executedBy, model: r.model, cost_usd: r.listCostUsd, tokens: (r.raw as { usage?: unknown } | undefined)?.usage, worker_rev: workerRev(),
+    });
+    return { episode_id: e.episodeId, measure: e.measure.rubricVersion, report: reportKey, scores: s, sums: sum, total, violations: o.violations, suspects: o.suspects, stars: o.stars, model: r.model };
+  }
   const ep = await getEpisode(e.episodeId);
   await upsertEpisode({ id: e.episodeId, backlog_id: e.backlogId, prompt_version: ep?.prompt_version ?? "unknown", critic_report_key: reportKey });
   await insertRun({
