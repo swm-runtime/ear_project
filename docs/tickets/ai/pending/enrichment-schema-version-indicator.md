@@ -6,6 +6,7 @@
 | 요청 파트 | AI(파이프라인) |
 | 요청자 | Juyear |
 | 발행 날짜 | 2026-09-11 |
+| Jira | [KAN-54](https://runtime364.atlassian.net/browse/KAN-54) |
 | 발견 시점 | 추천 메타 형식 v2 도입 — "이 콘텐츠의 메타가 형식 변경 이후 것인지 이전 것인지"를 콘솔에서 알 수 없다 |
 | 근거 문서 | `spec/api/admin-api.md` 8장(`AdminContentItem`의 `enrichment_schema_version`·`enriched_at`, 2026-09-11) · `ai/metadata-pipeline.md` 4.4 |
 | 중요도 | **High** — 재부여(`enrichment-reextract-console.md`) 대상을 고르는 눈이다. 없으면 전수를 다시 뽑거나 누락한다 |
