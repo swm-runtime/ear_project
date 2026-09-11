@@ -9,6 +9,7 @@ export interface DripBatchCounts {
   targetCount: number;
   successCount: number;
   skippedCount: number;
+  exhaustedCount: number;
   failedCount: number;
 }
 
@@ -42,6 +43,7 @@ export class DripBatchRunService {
     run.targetCount = counts.targetCount;
     run.successCount = counts.successCount;
     run.skippedCount = counts.skippedCount;
+    run.exhaustedCount = counts.exhaustedCount;
     run.failedCount = counts.failedCount;
     run.finishedAt = finishedAt;
 

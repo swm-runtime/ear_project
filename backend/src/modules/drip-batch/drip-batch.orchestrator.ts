@@ -160,21 +160,9 @@ export class DripBatchOrchestrator {
         afterId = users[users.length - 1].id;
       }
     } finally {
-      /**
-       * **`exhaustedCount`는 저장하지 않는다.** `drip_batch_runs`에 그 컬럼이 없고
-       * (`domain.md` 7.3), 문서에 없는 컬럼을 코드가 만들지 않는다. 지금은 아래 집계
-       * 로그로만 남는다 — 컬럼 신설은 `changes/`로 요청했다.
-       */
-      await this.dripBatchRunService.finish(
-        run,
-        {
-          targetCount: counts.targetCount,
-          successCount: counts.successCount,
-          skippedCount: counts.skippedCount,
-          failedCount: counts.failedCount,
-        },
-        new Date(),
-      );
+      // 네 카운트 합 = targetCount (domain.md 7.3). exhausted는 2026-09-11부터 컬럼에 남는다 —
+      // 그전엔 로그에만 있어 "대상 13 · 성공 3"의 나머지 10명이 표에서 사라졌다
+      await this.dripBatchRunService.finish(run, counts, new Date());
     }
 
     // 건당 로그를 남기지 않고 실행 결과를 집계해 한 번 남긴다 (convention.md 8.3 — 드립 편성)
