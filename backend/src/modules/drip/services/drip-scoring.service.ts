@@ -57,6 +57,12 @@ interface ScoreItem {
  * **커리어 적합도(4.2 ③)는 미구현이다** — 콘텐츠 쪽에 직군·연차 대응 데이터가 없어
  * 매칭할 입력 자체가 없다. 콘텐츠 메타가 생기면 항목을 추가한다.
  */
+/**
+ * 개인 적합도의 중립값 — 두 취향 축 모두 근거가 없는 후보의 점수. 축 점수는 0~1(`squash`·코사인
+ * 정규화)이라 0.5가 "선호도 알 수 없음"이다. 0으로 두면 정보 없는 신작이 부정 신호 콘텐츠 아래로 밀린다.
+ */
+const PERSONAL_FIT_NEUTRAL_SCORE = 0.5;
+
 @Injectable()
 export class DripScoringService {
   /**
@@ -81,6 +87,65 @@ export class DripScoringService {
         content.episodeNo - 1
       );
     });
+  }
+
+  /**
+   * 개인 적합도 랭킹 — 탐색 관심사 섹션(`explore.md` 4.1)이 쓴다.
+   *
+   * 4.2의 세 축 중 **사용자 취향에서 나오는 두 축(① 임베딩·② 신호 선호)만** 결합한다. ③ 메타 축은
+   * 편성(적립) 판단용이라 뺀다 — 인기·신선도는 후보 풀이 이미 그 순서로 들어오고, 시리즈 순서·
+   * 노출 피로·다양성(MMR)은 "무엇을 적립할까"의 규칙이지 "발견 화면에서 어떤 순서로 보일까"의
+   * 규칙이 아니다. 축 결합 가중치·재정규화는 편성과 같은 상수·같은 함수다 — 같은 규칙의 구현이
+   * 두 벌이 되는 것이 종전(주제 가중치만 읽는 별도 함수)의 문제였다.
+   *
+   * 여섯 취향 축(주제·저자·키워드·형식·길이·취향 임베딩)을 전부 읽으므로 같은 주제의 콘텐츠끼리도
+   * 순서가 갈린다. 근거가 없는 후보(취향 벡터가 비었거나 콘텐츠에 임베딩·메타가 없음)는 **중립값**으로
+   * 두어 들어온 순서(인기·신선도)를 지킨다 — 정보가 없다는 이유로 밀어내지 않는다.
+   *
+   * **입력 배열을 바꾸지 않는다.** 콜드스타트 판정은 호출부의 몫이다(4.4 — 이 함수는 취향이 있다는
+   * 전제로 계산하고, `preference`가 null이면 순서를 그대로 돌려준다).
+   */
+  rankByPersonalFit(
+    candidates: ScoringCandidate[],
+    preference: UserPreferenceWeights | null,
+    now: Date,
+  ): ScoringCandidate[] {
+    if (preference === null) {
+      return [...candidates];
+    }
+
+    const context: RegularScoringContext = {
+      activeTopicIds: [],
+      preference,
+      difficultyAffinity: null,
+      completedEpisodesBySeries: new Map(),
+      recentDripTopicIds: [],
+      isColdStart: false,
+      now,
+    };
+
+    const scores = new Map(
+      candidates.map((candidate) => [
+        candidate.content.id,
+        weightedMean([
+          {
+            score: this.embeddingAxisScore(candidate, context),
+            weight: AXIS_WEIGHT_EMBEDDING,
+          },
+          {
+            score: this.signalAxisScore(candidate, context),
+            weight: AXIS_WEIGHT_SIGNAL,
+          },
+        ]) ?? PERSONAL_FIT_NEUTRAL_SCORE,
+      ]),
+    );
+
+    // 안정 정렬 — 점수가 같으면(중립값 포함) 들어온 순서(인기·신선도)가 tie-break다
+    return [...candidates].sort(
+      (a, b) =>
+        (scores.get(b.content.id) ?? PERSONAL_FIT_NEUTRAL_SCORE) -
+        (scores.get(a.content.id) ?? PERSONAL_FIT_NEUTRAL_SCORE),
+    );
   }
 
   /** 정규 편성 스코어링(4.2) — 점수 내림차순으로 돌려준다 */

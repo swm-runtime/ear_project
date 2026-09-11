@@ -361,6 +361,61 @@ describe('DripScoringService', () => {
     });
   });
 
+  describe('rankByPersonalFit', () => {
+    it('취향이 없으면 들어온 순서를 그대로 유지하고 입력 배열을 바꾸지 않는다', () => {
+      const candidates = [buildCandidate('c1'), buildCandidate('c2')];
+
+      const ranked = service.rankByPersonalFit(candidates, null, NOW);
+
+      expect(ranked.map((c) => c.content.id)).toEqual(['c1', 'c2']);
+      expect(ranked).not.toBe(candidates);
+    });
+
+    it('가중치가 높은 주제의 콘텐츠를 앞으로, 음수 주제를 뒤로 보낸다', () => {
+      const preference = buildPreference({
+        topicWeights: { [TOPIC_A]: -1, [TOPIC_B]: 2 },
+      });
+      const disliked = buildCandidate('disliked', { topicIds: [TOPIC_A] });
+      const liked = buildCandidate('liked', { topicIds: [TOPIC_B] });
+
+      const ranked = service.rankByPersonalFit(
+        [disliked, liked],
+        preference,
+        NOW,
+      );
+
+      expect(ranked.map((c) => c.content.id)).toEqual(['liked', 'disliked']);
+    });
+
+    it('같은 주제의 콘텐츠는 취향 임베딩에 가까운 편이 앞에 온다', () => {
+      const preference = buildPreference({
+        topicWeights: { [TOPIC_A]: 1 },
+        tasteEmbedding: [0, 1],
+      });
+      const far = buildCandidate('far', { embedding: [1, 0] });
+      const near = buildCandidate('near', { embedding: [0, 1] });
+
+      const ranked = service.rankByPersonalFit([far, near], preference, NOW);
+
+      expect(ranked.map((c) => c.content.id)).toEqual(['near', 'far']);
+    });
+
+    it('근거가 없는 후보는 중립값으로 두어 들어온 순서를 지킨다 — 정보가 없다고 밀어내지 않는다', () => {
+      const preference = buildPreference({ topicWeights: { [TOPIC_B]: -2 } });
+      // unknown은 주제 가중치·임베딩 근거가 없다(중립 0.5), disliked는 부정 신호(0.5 미만)
+      const unknown = buildCandidate('unknown', { topicIds: [TOPIC_A] });
+      const disliked = buildCandidate('disliked', { topicIds: [TOPIC_B] });
+
+      const ranked = service.rankByPersonalFit(
+        [disliked, unknown],
+        preference,
+        NOW,
+      );
+
+      expect(ranked.map((c) => c.content.id)).toEqual(['unknown', 'disliked']);
+    });
+  });
+
   describe('selectWithDiversity', () => {
     it('주제·저자가 달라도 임베딩이 사실상 같은 두 편은 MMR 감점으로 함께 뽑히지 않는다', () => {
       // given — a1·a2는 내용이 같고(코사인 1) b1은 다르다. 이산 규칙으로는 셋 다 통과한다

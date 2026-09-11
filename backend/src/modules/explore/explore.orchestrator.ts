@@ -12,8 +12,12 @@ import { Content } from '@/modules/content/entities/content.entity';
 import { ContentService } from '@/modules/content/services/content.service';
 import { COLD_START_COMPLETE_THRESHOLD } from '@/modules/drip/drip.constant';
 import { DripExclusionReason } from '@/modules/drip/drip.enum';
-import { UserPreferenceWeights } from '@/modules/drip/drip.types';
+import {
+  ScoringCandidate,
+  UserPreferenceWeights,
+} from '@/modules/drip/drip.types';
 import { DripExclusionService } from '@/modules/drip/services/drip-exclusion.service';
+import { DripScoringService } from '@/modules/drip/services/drip-scoring.service';
 import { PreferenceVectorService } from '@/modules/drip/services/preference-vector.service';
 import { TopicService } from '@/modules/interest/services/topic.service';
 import { UserInterestService } from '@/modules/interest/services/user-interest.service';
@@ -40,7 +44,6 @@ import {
   encodeSearchCursor,
 } from './explore.cursor';
 import { ExploreSectionKey, SaveReason } from './explore.enum';
-import { rankByTopicWeights } from './explore.ranking';
 import {
   ExploreContentListQuery,
   ExploreContentListResult,
@@ -82,6 +85,7 @@ export class ExploreOrchestrator {
     private readonly topicService: TopicService,
     private readonly dripExclusionService: DripExclusionService,
     private readonly preferenceVectorService: PreferenceVectorService,
+    private readonly dripScoringService: DripScoringService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -567,17 +571,30 @@ export class ExploreOrchestrator {
       return pool.slice(0, EXPLORE_SECTION_ITEM_COUNT);
     }
 
-    const topicIdsByContentId = await this.findTopicIdsByContentId(
-      pool.map((content) => content.id),
-    );
+    /**
+     * 개인 적합도로 재정렬한다(`DripScoringService.rankByPersonalFit`) — 편성과 같은 취향 축·같은
+     * 상수다. 종전에는 주제 가중치만 읽어 같은 주제의 콘텐츠가 전부 동점이었다
+     * (`tickets/backend/archive/explore-ranking-uses-one-axis.md`). 후보 임베딩은 편성 배치와
+     * 같은 조회(`findScorableEmbeddings`)로 읽고, 인기·완청 수는 이 랭킹이 쓰지 않으므로 읽지 않는다.
+     */
+    const poolIds = pool.map((content) => content.id);
+    const [topicIdsByContentId, embeddingsByContentId] = await Promise.all([
+      this.findTopicIdsByContentId(poolIds),
+      this.contentService.findScorableEmbeddings(poolIds),
+    ]);
 
-    const ranked = rankByTopicWeights(
-      pool,
-      topicIdsByContentId,
-      preference?.topicWeights ?? {},
-    );
+    const candidates: ScoringCandidate[] = pool.map((content) => ({
+      content,
+      playCount: 0,
+      completeCount: 0,
+      topicIds: topicIdsByContentId.get(content.id) ?? [],
+      embedding: embeddingsByContentId.get(content.id) ?? null,
+    }));
 
-    return ranked.slice(0, EXPLORE_SECTION_ITEM_COUNT);
+    return this.dripScoringService
+      .rankByPersonalFit(candidates, preference, now)
+      .slice(0, EXPLORE_SECTION_ITEM_COUNT)
+      .map((candidate) => candidate.content);
   }
 
   /**
