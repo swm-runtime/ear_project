@@ -933,6 +933,7 @@ drip_batch_runs
   target_count              int
   success_count             int
   skipped_count             int
+  exhausted_count           int             DEFAULT 0       -- 2026-09-11 신설
   failed_count              int
   started_at                timestamptz
   finished_at               timestamptz     NULL
@@ -942,6 +943,8 @@ uq_drip_batch_runs_run_date (run_date)
 
 - `uq_drip_batch_runs_run_date`가 **배치 중복 실행을 막는다** (A-5). 사용자 단위 중복은 `library_items` 유니크가 막는다.
 - 운영 콘솔 조회용으로 DB에 유지한다 (B-8).
+- **네 카운트의 합이 `target_count`다.** `success`(1편 이상 적립) · `skipped`(관심 주제 0 · 미청취 재고 ≥ 5 · 플랜 0으로 애초에 편성하지 않음 — `drip-scheduling.md` 4.1) · `exhausted`(편성 대상이었으나 **후보 고갈**로 0편 — 4.6-3 "대체 없음") · `failed`(예외).
+  - `exhausted_count`는 **콘텐츠 수급 신호**다(`drip-scheduling.md` 4.7 운영 지표 "고갈 사용자 수"). 2026-09-11 실서버에서 대상 13명 중 10명이 고갈이었는데 `skipped`·`failed`가 0이라 표만 보면 원인을 알 수 없었다 — 로그에만 남던 값을 컬럼으로 올렸다.
 
 ### 7.4 `first_drip_jobs`
 

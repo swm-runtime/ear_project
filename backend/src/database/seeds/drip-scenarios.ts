@@ -41,6 +41,7 @@ interface RunRow {
   target_count: number;
   success_count: number;
   skipped_count: number;
+  exhausted_count: number;
   failed_count: number;
   finished_at: Date | null;
 }
@@ -431,7 +432,7 @@ async function main(): Promise<void> {
     // 배치 기록
     const [run] = await rows<RunRow>(
       db,
-      `SELECT target_count, success_count, skipped_count, failed_count, finished_at
+      `SELECT target_count, success_count, skipped_count, exhausted_count, failed_count, finished_at
          FROM drip_batch_runs WHERE run_date = $1`,
       [RUN_DATE],
     );
@@ -444,6 +445,18 @@ async function main(): Promise<void> {
       '사용자 단위 실패 0',
       run?.failed_count === 0,
       `failed=${run?.failed_count}`,
+    );
+    // domain.md 7.3 — 네 카운트의 합이 target이다. U5(고갈)가 exhausted로 잡혀야 하고, skipped로 새면 수급 신호가 사라진다
+    check(
+      '고갈 사용자가 exhausted_count에 잡히고 네 카운트 합 = target_count',
+      run !== undefined &&
+        run.exhausted_count >= 1 &&
+        run.success_count +
+          run.skipped_count +
+          run.exhausted_count +
+          run.failed_count ===
+          run.target_count,
+      `target=${run?.target_count} success=${run?.success_count} skipped=${run?.skipped_count} exhausted=${run?.exhausted_count} failed=${run?.failed_count}`,
     );
 
     // 상수 검증 — 고갈 수학의 입력
