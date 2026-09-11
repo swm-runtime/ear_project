@@ -109,6 +109,8 @@ npm run worker                # 계속 폴링. 끄려면 Ctrl+C (진행 중 작�
 - 단계 규칙(spec/02~07)·프롬프트 조립(`packages/pipeline`)은 코드/문서 PR. 규칙(`guidelines`)을 고치면 루브릭·QA 프롬프트·생성 프롬프트를 같이 본다(spec/09 4.3).
 - 에피소드는 만들 때의 규칙 버전에 고정된다(`episodes.asset_versions`). 규칙을 바꿔도 이미 만든 편의 QA·비평은 그 버전으로 돈다.
 
+- **루브릭 개정안 측정** (0020, 2026-09-11): 개정안을 활성화하기 전에 회귀 세트(사람 판정 21편)에 돌려 편향을 잰다. ① 개정안을 `prompt_assets` 에 **draft** 로 넣고(콘솔 /assets 새 버전 저장, 활성화하지 않음) ② `critic_measure` 작업을 큐에 넣는다(`.work/verdicts/enqueue-measure.mts <버전>`) — AI 워커 여러 대가 나눠 집는다 ③ 리포트는 `episodes/<id>/critic-measure-<버전>.md` 로 따로 쓰고 사람 판정이 붙은 `critic-report-v2.md` 는 건드리지 않는다 ④ `.work/verdicts/measure-compare.mts <버전>` 으로 항목별 편향을 이전과 비교한 뒤 활성화를 정한다. 옛 코드의 워커는 이 유형을 몰라 실패만 한다(덮어쓰기 없음) — 측정 전에 워커를 최신으로.
+
 ## 8. 참고
 
 - 워커 상세·환경변수 전체: [`apps/worker/README.md`](apps/worker/README.md) · [`apps/worker/.env.example`](apps/worker/.env.example)

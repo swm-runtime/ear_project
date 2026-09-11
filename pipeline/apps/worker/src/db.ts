@@ -7,7 +7,7 @@ export const pool = new pg.Pool({ connectionString: cfg.databaseUrl, max: 3, idl
 // Supabase 풀러가 유휴 연결을 끊으면 풀이 'error' 를 낸다 — 받지 않으면 EventEmitter 규칙상 프로세스가 죽는다 (2026-08-31 워커 사망 원인 후보)
 pool.on("error", (e) => console.error(`[pg pool] 연결 오류 (무시하고 재연결): ${e.message}`));
 
-export type JobType = "sweep" | "cluster" | "draft" | "qa" | "critic" | "tts" | "package" | "domain_check" | "thumbnail";
+export type JobType = "sweep" | "cluster" | "draft" | "qa" | "critic" | "tts" | "package" | "domain_check" | "thumbnail" | "critic_measure";
 export interface Job {
   id: string;
   type: JobType;
