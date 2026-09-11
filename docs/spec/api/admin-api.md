@@ -46,7 +46,7 @@
 | POST | `/admin/topics` | 주제 생성 |
 | PATCH | `/admin/topics/:topicId` | 주제 수정 |
 | DELETE | `/admin/topics/:topicId` | 주제 삭제 |
-| GET | `/admin/contents` | 콘텐츠 목록 |
+| GET | `/admin/contents` | 콘텐츠 목록 + 현재 추천 메타 형식 버전 (4.5) |
 | POST | `/admin/contents` | 콘텐츠 업로드 → 즉시 발행 |
 | POST | `/admin/contents/:contentId/withdraw` | 콘텐츠 회수 |
 | POST | `/admin/contents/:contentId/restore` | 회수 복구 |
@@ -103,8 +103,14 @@
 
 ```jsonc
 // 200
-{ "items": [ /* AdminContentItem — 8장 */ ], "total": 137 }
+{
+  "items": [ /* AdminContentItem — 8장 */ ],
+  "total": 137,
+  "current_enrichment_schema_version": 2   // 서버가 아는 현재 추천 메타 형식 버전 (4.6 schema_version 상한과 같은 값). 2026-09-11
+}
 ```
+
+- `current_enrichment_schema_version`은 콘솔이 8장의 구형 메타 판정에 쓰는 기준값이다. 콘솔이 같은 숫자를 상수로 따로 들지 않는다 — 형식이 3으로 오를 때 서버만 바꾸면 콘솔 판정이 함께 따라온다(KAN-55).
 
 ### 4.6 `POST /admin/contents`
 
@@ -307,7 +313,7 @@ topics[{ topic_id, name }],
 enrichment_schema_version, enriched_at          // 마지막 적용 메타 파일의 형식 버전·시각. null = 받은 적 없음 (2026-09-11)
 ```
 
-- `enrichment_schema_version`이 현재 형식(4.6 — 2)보다 낮거나 null이면 **구형 메타**다. 콘솔이 그 콘텐츠를 골라 메타를 다시 뽑아 4.10의 `enrichment_file` 단독 전송으로 갱신한다(콘솔 기능은 `tickets/ai/pending` 참조).
+- `enrichment_schema_version`이 현재 형식(목록 응답 최상위 `current_enrichment_schema_version` — 4.5, 지금 2)보다 낮거나 null이면 **구형 메타**다. 콘솔이 그 콘텐츠를 골라 메타를 다시 뽑아 4.10의 `enrichment_file` 단독 전송으로 갱신한다(콘솔 기능은 `tickets/ai/pending` 참조).
 
 **`audio_path`는 싣지 않는다**(7장).
 
