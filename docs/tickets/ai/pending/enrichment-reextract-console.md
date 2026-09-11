@@ -9,7 +9,7 @@
 | Jira | [KAN-53](https://runtime364.atlassian.net/browse/KAN-53) |
 | 발견 시점 | 추천 메타 형식 v2(`target_audiences` — 직군·연차 청자 세트) 도입 결정 — 기존 발행분은 구형 메타로 남는데 콘솔에서 다시 뽑아 넣는 경로가 없다. AI 파트가 "형식 확정 후 다시 뽑는 기능을 추가하겠다"고 한 건 |
 | 근거 문서 | `ai/metadata-pipeline.md` 4.4(`schema_version`)·7장(형식 버전 상승) · `spec/api/admin-api.md` 4.10(`enrichment_file` 단독 전송 — 버전 무변경) · `backend/domain.md` 5.1(`enrichment_schema_version`) |
-| 중요도 | **High** — 출시 전 기존 콘텐츠에 v2 메타를 소급해야 커리어 적합도가 첫날부터 동작한다 |
+| 중요도 | **Medium** — 출시 전 기존 콘텐츠에 v2 메타를 소급해야 커리어 적합도가 첫날부터 동작한다 |
 | 상태 | 대기 — 백엔드 계약(v2 파서·컬럼·어드민 응답)은 PR로 진행 중(2026-09-11), 머지 후 착수 가능 |
 
 ## 요지
