@@ -9,7 +9,7 @@
 | Jira | [KAN-55](https://runtime364.atlassian.net/browse/KAN-55) |
 | 발견 시점 | KAN-54(구형 메타 표시·필터) 구현 중 — 콘솔이 "구형인가"를 판정하려면 현재 형식 번호가 필요한데 응답에 없어 콘솔 상수(2)로 임시 처리 |
 | 심각도 | 하 — 형식 버전이 3으로 오를 때 콘솔 상수를 같이 바꾸면 되지만, 두 곳이 어긋나면 구형 콘텐츠를 놓친다 |
-| 상태 | 대기 |
+| 상태 | 완료 |
 
 ## 요지 (Jira 본문용)
 
@@ -18,3 +18,10 @@
 ## 완료 조건
 
 - Given `GET /admin/contents` / When 호출하면 / Then 응답에 `current_enrichment_schema_version: 2` 가 있고 `admin-api.md` 3장·8장에 적혀 있다.
+
+## 처리 기록 (반영 날짜: 2026-09-11)
+
+- `AdminContentListResponseDto`에 최상위 `current_enrichment_schema_version`(= `CURRENT_ENRICHMENT_SCHEMA_VERSION`, 지금 2)을 실었다.
+  값의 소유자는 `content.constant.ts` 하나이므로 형식이 오를 때 응답도 함께 따라온다.
+- `admin-api.md` 3장 표(용도), 4.5 응답 예시·설명, 8장 구형 메타 판정 기준을 이 필드로 갱신했다.
+- 검증: DTO 스펙 1건(최상위에 2가 실리고 items·total은 그대로).
