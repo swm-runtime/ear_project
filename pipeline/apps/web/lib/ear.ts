@@ -170,10 +170,11 @@ export function republishEarContent(contentId: string, parts: { audio?: File; th
   return earFetch<EarContent>(`/admin/contents/${contentId}`, { method: "PATCH", body: fd });
 }
 
-export function uploadEarContent(payload: UploadPayload, audio: File, thumbnail: File): Promise<EarContent> {
+export function uploadEarContent(payload: UploadPayload, audio: File, thumbnail: File, enrichment?: File | null): Promise<EarContent> {
   const fd = new FormData();
   fd.append("payload", JSON.stringify(payload));
   fd.append("audio", audio);
   fd.append("thumbnail", thumbnail);
+  if (enrichment) fd.append("enrichment_file", enrichment); // 추천 메타(metadata-pipeline 4.4) — 있으면 첫 발행부터 v2
   return earFetch<EarContent>("/admin/contents", { method: "POST", body: fd });
 }

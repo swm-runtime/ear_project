@@ -65,6 +65,7 @@ npm run worker                # 계속 폴링. 끄려면 Ctrl+C (진행 중 작�
 
 - **후보 보강** (2026-09-10): 백로그의 held·proposed 행에 [보강] 버튼 — 빈 역할(없으면 발행처 다양화: 다른 발행처의 근거 앵커)을 웹 검색(WebSearch)으로 채우고 그 후보만 군집화 v2 로 재판정한다. AI 워커가 집는다(`requires_ai`). 후보당 1회, $1 안팎. 검색 소스는 `sources.origin='search'`, 풀 밖 사이트는 도메인 후보로만 등록된다(판정 후 다음 보강에서 쓰인다). 마이그레이션 0019.
 
+- **추천 메타 자동 부여** (2026-09-11): 패키지가 끝나면 `enrich` 작업이 자동으로 걸려 AI 워커가 `episodes/<id>/enrichment.json` 을 만든다. 업로드 화면이 "추천 메타 v2 첨부됨"을 보이면 발행 때 같이 나간다. 없으면 발행은 되고 아래 재부여로 소급.
 - **추천 메타 재부여** (KAN-53·54, 0021): 제품 발행 목록의 "구형·없음 메타만" 필터 → [다시 뽑기](AI 워커 `enrich`, Sonnet, 편당 $0.1~0.3) → 행에 "준비됨"이 뜨면 [반영]. 반영은 `enrichment_file` 단독 PATCH 라 콘텐츠 버전이 오르지 않는다. 대본은 백로그의 `published_content_ref` 로 찾고, 없는 콘텐츠(수동 업로드)는 제목+설명 폴백. 판정 기준 파일은 레포 `.claude/skills/metadata-enrichment/reference/judgment-criteria.md` — 워커 체크아웃에 있어야 한다.
 
 ## 5. 막혔을 때 — 상황별 대처
