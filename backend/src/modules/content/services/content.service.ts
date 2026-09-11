@@ -119,6 +119,7 @@ export class ContentService {
   async applyEnrichment(
     content: Content,
     enrichment: EnrichmentInput,
+    now: Date,
     manager: EntityManager,
   ): Promise<void> {
     if (enrichment.difficulty !== undefined) {
@@ -133,6 +134,12 @@ export class ContentService {
     if (enrichment.keywords !== undefined) {
       content.keywords = enrichment.keywords;
     }
+    if (enrichment.targetAudiences !== undefined) {
+      content.targetAudiences = enrichment.targetAudiences;
+    }
+    // 어떤 형식의 파일이 언제 적용됐는지 — 형식이 바뀌면 구형 메타의 콘텐츠를 골라 다시 뽑는 근거다
+    content.enrichmentSchemaVersion = enrichment.schemaVersion;
+    content.enrichedAt = now;
     await this.contentRepository.saveAll([content], manager);
 
     if (enrichment.embedding !== undefined) {

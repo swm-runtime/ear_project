@@ -22,6 +22,7 @@ const EMPTY_BREAKDOWN: ScoreBreakdown = {
     freshness: null,
     popularity: null,
     difficultyFit: null,
+    careerFit: null,
     seriesContinuity: null,
     exposureFatigue: null,
   },
@@ -77,6 +78,7 @@ function buildContext(
     completedEpisodesBySeries: new Map(),
     recentDripTopicIds: [],
     isColdStart: true,
+    career: null,
     now: NOW,
     ...overrides,
   };
@@ -413,6 +415,98 @@ describe('DripScoringService', () => {
       );
 
       expect(ranked.map((c) => c.content.id)).toEqual(['unknown', 'disliked']);
+    });
+  });
+
+  describe('커리어 적합도(4.2 ③)', () => {
+    const career = { jobCategory: '개발', yearsOfExperience: 2 }; // 2-3년 구간
+
+    function audienceCandidate(id: string, audiences: [string, string][]) {
+      return buildCandidate(id, {
+        content: {
+          targetAudiences: audiences.map(([jobCategory, years]) => ({
+            jobCategory,
+            yearsOfExperience: years as never,
+          })),
+        },
+      });
+    }
+
+    it('직군·연차가 정확히 맞는 콘텐츠 > 이웃 연차 > 직군만 > 불일치 순으로 점수가 갈린다', () => {
+      const exact = audienceCandidate('exact', [['개발', '2-3']]);
+      const adjacent = audienceCandidate('adjacent', [['개발', '4-6']]);
+      const jobOnly = audienceCandidate('jobOnly', [['개발', '7+']]);
+      const none = audienceCandidate('none', [['디자인', '2-3']]);
+
+      const scored = service.scoreRegularCandidates(
+        [none, jobOnly, adjacent, exact],
+        buildContext({ career }),
+      );
+
+      expect(scored.map((c) => c.content.id)).toEqual([
+        'exact',
+        'adjacent',
+        'jobOnly',
+        'none',
+      ]);
+      expect(scored[0].breakdown.metaItems.careerFit).toBe(1);
+      expect(scored[3].breakdown.metaItems.careerFit).toBe(0);
+    });
+
+    it('여러 세트 중 가장 가까운 것을 쓴다', () => {
+      const multi = audienceCandidate('multi', [
+        ['디자인', '0-1'],
+        ['개발', '2-3'],
+      ]);
+
+      const [scored] = service.scoreRegularCandidates(
+        [multi],
+        buildContext({ career }),
+      );
+
+      expect(scored.breakdown.metaItems.careerFit).toBe(1);
+    });
+
+    it('콘텐츠에 청자 세트가 없거나 사용자가 커리어를 안 넣었으면 항목이 빠진다(null) — 불리해지지 않는다', () => {
+      const bare = buildCandidate('bare');
+      const targeted = audienceCandidate('targeted', [['개발', '2-3']]);
+
+      const [withoutAudience] = service.scoreRegularCandidates(
+        [bare],
+        buildContext({ career }),
+      );
+      const [withoutCareer] = service.scoreRegularCandidates(
+        [targeted],
+        buildContext({ career: null }),
+      );
+
+      expect(withoutAudience.breakdown.metaItems.careerFit).toBeNull();
+      expect(withoutCareer.breakdown.metaItems.careerFit).toBeNull();
+    });
+
+    it('사용자 연차가 없으면 직군만 대조해 부분 점수를 준다', () => {
+      const targeted = audienceCandidate('targeted', [['개발', '2-3']]);
+
+      const [scored] = service.scoreRegularCandidates(
+        [targeted],
+        buildContext({
+          career: { jobCategory: '개발', yearsOfExperience: null },
+        }),
+      );
+
+      expect(scored.breakdown.metaItems.careerFit).toBe(0.3);
+    });
+
+    it('콜드스타트에서도 살아 있다 — 신규 사용자의 첫 개인화 신호다', () => {
+      const exact = audienceCandidate('exact', [['개발', '2-3']]);
+      const none = audienceCandidate('none', [['디자인', '2-3']]);
+
+      const scored = service.scoreRegularCandidates(
+        [none, exact],
+        buildContext({ isColdStart: true, career }),
+      );
+
+      expect(scored[0].content.id).toBe('exact');
     });
   });
 

@@ -111,12 +111,19 @@ async function user(
   m: EntityManager,
   name: string,
   topicIds: string[],
+  career: { jobCategory: string; yearsOfExperience: number } | null = null,
 ): Promise<string> {
   const [row] = await rows<Row>(
     m,
-    `INSERT INTO users (provider, provider_user_id, nickname, onboarding_completed, onboarding_step, tier)
-     VALUES ('kakao', $1, $2, true, 'done', 'light') RETURNING id`,
-    [`${TAG}-${name}`, `${TAG} ${name}`],
+    `INSERT INTO users (provider, provider_user_id, nickname, onboarding_completed, onboarding_step, tier,
+                        job_category, years_of_experience)
+     VALUES ('kakao', $1, $2, true, 'done', 'light', $3, $4) RETURNING id`,
+    [
+      `${TAG}-${name}`,
+      `${TAG} ${name}`,
+      career?.jobCategory ?? null,
+      career?.yearsOfExperience ?? null,
+    ],
   );
   for (const topicId of topicIds) {
     await m.query(
@@ -161,6 +168,18 @@ async function exclude(
   await m.query(
     `INSERT INTO drip_excluded_contents (user_id, content_id, reason, excluded_at) VALUES ($1, $2, $3, now())`,
     [userId, contentId, reason],
+  );
+}
+
+/** 콘텐츠의 청자 세트(추천 메타 5종째) — 커리어 적합도의 입력. jsonb 키는 엔티티(camelCase)와 같아야 한다 */
+async function targetAudiences(
+  m: EntityManager,
+  contentId: string,
+  audiences: { jobCategory: string; yearsOfExperience: string }[],
+): Promise<void> {
+  await m.query(
+    `UPDATE contents SET target_audiences = $2::jsonb WHERE id = $1`,
+    [contentId, JSON.stringify(audiences)],
   );
 }
 
@@ -278,8 +297,26 @@ async function main(): Promise<void> {
     await libraryItem(m, u5, c1);
     // U6 관심 0: 온보딩 완료지만 관심 주제 없음 → 건너뜀
     const u6 = await user(m, 'u6-no-interest', []);
+    // U7 커리어: 관심 D(단편 3, 조건 동일) 중 한 편만 (개발, 2-3) 청자 — 그 편이 뽑혀야 한다
+    const tD = await topic(m, 'D');
+    const d1 = await content(m, 'D-1', [tD]);
+    const d2 = await content(m, 'D-2', [tD]);
+    const d3 = await content(m, 'D-3', [tD]);
+    await targetAudiences(m, d2, [
+      { jobCategory: '개발', yearsOfExperience: '2-3' },
+    ]);
+    await targetAudiences(m, d3, [
+      { jobCategory: '디자인', yearsOfExperience: '0-1' },
+    ]);
+    for (const id of [d1, d2, d3]) await allTimeStats(m, id, 10, 0);
+    const u7 = await user(m, 'u7-career', [tD], {
+      jobCategory: '개발',
+      yearsOfExperience: 2,
+    });
 
     return {
+      d: [d1, d2, d3],
+      u7,
       tA,
       tB,
       tC,
@@ -376,6 +413,20 @@ async function main(): Promise<void> {
     // U6
     const d6 = await dripped(db, fx.u6);
     check('U6 관심 주제 0이면 건너뛴다(4.1 방어)', d6.length === 0);
+
+    // U7 — 나머지 조건이 같으면 커리어 적합도(소폭 가점)가 순서를 정한다
+    const d7 = await dripped(db, fx.u7);
+    const d7Drip = d7
+      .filter((x) => x.source === 'drip')
+      .map((x) => x.contentId);
+    check(
+      'U7 (개발, 2-3) 사용자에게 같은 청자 세트의 콘텐츠가 정규 2편 안에 들고, 다른 직군용은 밀린다(4.2 ③ 커리어 적합도)',
+      d7Drip.includes(fx.d[1]) && !d7Drip.includes(fx.d[2]),
+      `drip=${d7
+        .filter((x) => x.source === 'drip')
+        .map((x) => x.title)
+        .join(',')}`,
+    );
 
     // 배치 기록
     const [run] = await rows<RunRow>(

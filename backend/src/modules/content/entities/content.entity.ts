@@ -8,6 +8,7 @@ import {
   ContentOrigin,
   ContentStatus,
 } from '../content.enum';
+import { TargetAudience } from '../content.types';
 
 /**
  * domain.md 5.1 — 단일 표준 에피소드. 같은 콘텐츠는 전 사용자에게 동일하며 변형은 없다.
@@ -95,6 +96,17 @@ export class Content extends BaseEntity {
   /** 세부 키워드 배열 — 주제(수십 개 단위)보다 잘게 취향을 잡는다(`drip-scheduling.md` 4.2 ②) */
   @Column({ name: 'keywords', type: 'jsonb', nullable: true })
   keywords: string[] | null;
+
+  /** 맞는 청자 (직군·연차 구간) 세트 — 커리어 적합도의 입력. null: 미부여(항목 제외) */
+  @Column({ name: 'target_audiences', type: 'jsonb', nullable: true })
+  targetAudiences: TargetAudience[] | null;
+
+  /** 마지막으로 적용된 `enrichment.json`의 형식 버전. null: 메타 파일을 한 번도 안 받음 */
+  @Column({ name: 'enrichment_schema_version', type: 'int', nullable: true })
+  enrichmentSchemaVersion: number | null;
+
+  @Column({ name: 'enriched_at', type: 'timestamptz', nullable: true })
+  enrichedAt: Date | null;
 
   /** 재발행 시 같은 행의 값을 올린다. 새 행을 만들지 않으므로 참조가 유지된다 */
   @Column({ name: 'content_version', type: 'int', default: 1 })

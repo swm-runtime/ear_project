@@ -1,14 +1,21 @@
 import { readFile } from 'node:fs/promises';
 
 import {
+  CURRENT_ENRICHMENT_SCHEMA_VERSION,
   EMBEDDING_DIM,
   EMBEDDING_MODEL_ID,
+  MAX_TARGET_AUDIENCES,
 } from '@/modules/content/content.constant';
 import {
   ContentDifficulty,
   ContentFormat,
 } from '@/modules/content/content.enum';
-import { EnrichmentInput } from '@/modules/content/content.types';
+import {
+  EnrichmentInput,
+  TargetAudience,
+} from '@/modules/content/content.types';
+import { JOB_CATEGORIES } from '@/modules/user/user.constant';
+import { YearsOfExperienceRange } from '@/modules/user/user.enum';
 
 import { MAX_ENRICHMENT_FILE_BYTES } from './admin.constant';
 import { UploadedFileInput } from './admin.types';
@@ -28,13 +35,19 @@ export type EnrichmentParseResult =
   | { data: null; rejectedReason: string };
 
 const KNOWN_TOP_LEVEL_KEYS = new Set([
+  'schema_version',
   'difficulty',
   'format',
   'is_evergreen',
   'keywords',
+  'target_audiences',
   'embedding',
   'source',
 ]);
+
+const YEARS_OF_EXPERIENCE_VALUES = new Set<string>(
+  Object.values(YearsOfExperienceRange),
+);
 
 const DIFFICULTY_VALUES = new Set<string>(Object.values(ContentDifficulty));
 const FORMAT_VALUES = new Set<string>(Object.values(ContentFormat));
@@ -66,7 +79,23 @@ export async function parseEnrichmentFile(
     }
   }
 
-  const data: EnrichmentInput = {};
+  const data: Omit<EnrichmentInput, 'schemaVersion'> = {};
+
+  // 구형 파일(키 없음)은 1 — 어드민이 재부여 대상을 고르는 기준이라 값이 있어야 한다
+  if (raw.schema_version !== undefined) {
+    if (
+      typeof raw.schema_version !== 'number' ||
+      !Number.isInteger(raw.schema_version) ||
+      raw.schema_version < 1 ||
+      raw.schema_version > CURRENT_ENRICHMENT_SCHEMA_VERSION
+    ) {
+      return reject(
+        `schema_version은 1~${CURRENT_ENRICHMENT_SCHEMA_VERSION} 정수여야 해요: ${describeValue(raw.schema_version)}`,
+      );
+    }
+  }
+  const schemaVersion =
+    typeof raw.schema_version === 'number' ? raw.schema_version : 1;
 
   if (raw.difficulty !== undefined) {
     if (
@@ -109,6 +138,14 @@ export async function parseEnrichmentFile(
     data.keywords = raw.keywords as string[];
   }
 
+  if (raw.target_audiences !== undefined) {
+    const audiences = parseTargetAudiences(raw.target_audiences);
+    if (typeof audiences === 'string') {
+      return reject(audiences);
+    }
+    data.targetAudiences = audiences;
+  }
+
   if (raw.embedding !== undefined) {
     const embedding = parseEmbedding(raw.embedding);
     if (typeof embedding === 'string') {
@@ -121,7 +158,58 @@ export async function parseEnrichmentFile(
     return reject('저장할 항목이 하나도 없어요 (전 키 생략)');
   }
 
-  return { data, rejectedReason: null };
+  return { data: { schemaVersion, ...data }, rejectedReason: null };
+}
+
+/**
+ * target_audiences 검증 — 값 집합은 **온보딩 커리어 입력과 같아야** 사용자 프로필과 대조된다
+ * (직군 `JOB_CATEGORIES`, 연차 `YearsOfExperienceRange`). 통과하면 중복 제거한 세트, 실패하면 사유.
+ */
+function parseTargetAudiences(raw: unknown): TargetAudience[] | string {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return 'target_audiences는 비어 있지 않은 배열이어야 해요 (없으면 키를 생략)';
+  }
+  if (raw.length > MAX_TARGET_AUDIENCES) {
+    return `target_audiences는 최대 ${MAX_TARGET_AUDIENCES}세트예요: ${raw.length}세트`;
+  }
+
+  const seen = new Set<string>();
+  const audiences: TargetAudience[] = [];
+
+  for (const entry of raw) {
+    if (!isPlainObject(entry)) {
+      return 'target_audiences의 각 항목은 { job_category, years_of_experience } 객체여야 해요';
+    }
+    for (const key of Object.keys(entry)) {
+      if (!['job_category', 'years_of_experience'].includes(key)) {
+        return `target_audiences 항목에 알 수 없는 키예요: ${key}`;
+      }
+    }
+    const jobCategory = entry.job_category;
+    const years = entry.years_of_experience;
+
+    if (
+      typeof jobCategory !== 'string' ||
+      !JOB_CATEGORIES.includes(jobCategory)
+    ) {
+      return `job_category가 직군 목록(GET /job-categories)에 없어요: ${describeValue(jobCategory)}`;
+    }
+    if (typeof years !== 'string' || !YEARS_OF_EXPERIENCE_VALUES.has(years)) {
+      return `years_of_experience는 ${[...YEARS_OF_EXPERIENCE_VALUES].join(' | ')} 중 하나여야 해요: ${describeValue(years)}`;
+    }
+
+    const key = `${jobCategory}|${years}`;
+    if (seen.has(key)) {
+      continue; // 같은 세트가 두 번 — 거부할 일은 아니고 하나로 접는다
+    }
+    seen.add(key);
+    audiences.push({
+      jobCategory,
+      yearsOfExperience: years as YearsOfExperienceRange,
+    });
+  }
+
+  return audiences;
 }
 
 /** embedding 키 검증 — 통과하면 값, 실패하면 사유 문자열 */

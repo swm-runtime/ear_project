@@ -25,6 +25,17 @@ export const EMBEDDING_MODEL_ID = 'text-embedding-3-small';
 export const EMBEDDING_DIM = 1536;
 
 /**
+ * `enrichment.json` 형식 버전(metadata-pipeline.md 4.4). 파일이 이 값보다 낮으면 구형 판정으로 만든
+ * 메타다 — 어드민이 `enrichment_schema_version`으로 재부여 대상을 고른다.
+ *   1 — 메타 4종 + 임베딩 (2026-08-26)
+ *   2 — `target_audiences`(직군·연차 청자 세트) 추가 (2026-09-11)
+ */
+export const CURRENT_ENRICHMENT_SCHEMA_VERSION = 2;
+
+/** 청자 세트 상한 — 직군 7 × 연차 4 = 28 조합 중 "이 콘텐츠가 맞는" 것만 고르게 한다 */
+export const MAX_TARGET_AUDIENCES = 8;
+
+/**
  * 회수 동기화(`GET /contents/withdrawn`) 한 응답의 상한.
  *
  * **`since`가 클라이언트 값이라 상한이 없으면 전 구간 스캔이 된다** — `1970-01-01`을 보내면

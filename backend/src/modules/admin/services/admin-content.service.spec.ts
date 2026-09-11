@@ -259,7 +259,8 @@ describe('AdminContentService', () => {
       // then
       expect(contentService.applyEnrichment).toHaveBeenCalledWith(
         containing({ id: CONTENT_ID }),
-        { difficulty: 'beginner', keywords: ['이직 준비'] },
+        { schemaVersion: 1, difficulty: 'beginner', keywords: ['이직 준비'] },
+        NOW,
         manager,
       );
       expect(result.enrichment).toEqual({
@@ -634,7 +635,8 @@ describe('AdminContentService', () => {
       expect(contentService.republish).toHaveBeenCalled();
       expect(contentService.applyEnrichment).toHaveBeenCalledWith(
         containing({ contentVersion: 3 }),
-        { difficulty: 'beginner', keywords: ['이직 준비'] },
+        { schemaVersion: 1, difficulty: 'beginner', keywords: ['이직 준비'] },
+        expect.any(Date),
         manager,
       );
     });
@@ -656,7 +658,8 @@ describe('AdminContentService', () => {
       ).not.toHaveBeenCalled();
       expect(contentService.applyEnrichment).toHaveBeenCalledWith(
         containing({ contentVersion: 2 }),
-        { difficulty: 'beginner', keywords: ['이직 준비'] },
+        { schemaVersion: 1, difficulty: 'beginner', keywords: ['이직 준비'] },
+        expect.any(Date),
         manager,
       );
       expect(auditLogService.record).toHaveBeenCalledWith(

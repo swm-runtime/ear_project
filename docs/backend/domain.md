@@ -175,7 +175,7 @@ users
   onboarding_completed_at   timestamptz     NULL
   job_category              varchar         NULL   ← UserCareer 병합 (C-2)
   job_title                 varchar         NULL
-  years_of_experience       int             NULL
+  years_of_experience       int             NULL   구간 하한값 — 0(0-1년) · 2(2-3년) · 4(4-6년) · 7(7년+). 구간 enum ↔ 하한 환산은 `user.constant.ts`(`YEARS_OF_EXPERIENCE_LOWER_BOUND`) 한 곳 — 15.1 #4의 매핑 명시(2026-09-11)
   withdrawn_at              timestamptz     NULL
 
 uq_users_provider_provider_user_id (provider, provider_user_id)
@@ -479,6 +479,9 @@ contents
   format                    enum            NULL 허용 — news_analysis | howto | interview | opinion | case_study | overview ★추천 메타
   is_evergreen              boolean         NULL 허용 — true: 에버그린 / false: 시의성 ★추천 메타
   keywords                  jsonb           NULL 허용 — ["세부 키워드", ...] ★추천 메타
+  target_audiences          jsonb           NULL 허용 — [{ "jobCategory": "개발", "yearsOfExperience": "2-3" }, ...] ★추천 메타 5종째 (신설 2026-09-11) — 값 집합은 3.1의 커리어 입력과 동일(직군 목록 · 연차 구간 0-1|2-3|4-6|7+), 최대 8세트. 파일(`enrichment.json`)은 snake_case, 컬럼은 엔티티 필드명(camelCase)으로 저장한다
+  enrichment_schema_version int             NULL 허용 — 마지막으로 적용된 enrichment.json의 형식 버전(1: 메타 4종 / 2: target_audiences 추가). NULL = 메타 파일을 받은 적 없음 (신설 2026-09-11)
+  enriched_at               timestamptz     NULL 허용 — 마지막 메타 파일 적용 시각 (신설 2026-09-11)
   content_version           int             DEFAULT 1
   license_expires_at        timestamptz     NULL
   status                    enum            published | withdrawn | expired
@@ -516,6 +519,8 @@ chk_contents_partner_disclosure
 - `WithdrawnContent` 테이블은 만들지 않는다 (B-3). 클라이언트 동기화는 `GET /contents/withdrawn?since=<timestamp>`로 이 테이블에서 조회한다.
 
 **추천 메타 4종 — `difficulty` · `format` · `is_evergreen` · `keywords`** (신설 2026-08-26 — 추천 스코어링 고도화, `drip-scheduling.md` 4.2)
+
+**5종째 `target_audiences` + 형식 버전(신설 2026-09-11)** — 이 콘텐츠가 맞는 청자를 (직군, 연차 구간) 세트로 적는다. `drip-scheduling.md` 4.2 ③ "커리어 적합도" 행이 문서에만 있고 구현이 없던 이유가 콘텐츠 쪽 대조 상대가 없어서였다. 값 집합을 **3.1 사용자 커리어 입력과 같게** 두어(직군 = `GET /job-categories` 목록, 연차 = `0-1 | 2-3 | 4-6 | 7+`; 사용자 저장값은 구간 하한 0·2·4·7) 프로필과 그대로 대조한다. `enrichment_schema_version`·`enriched_at`은 **어떤 형식의 파일이 언제 적용됐는지**의 기록이다 — 형식이 바뀌면(1→2) 어드민이 `enrichment_schema_version < 현재`인 콘텐츠를 골라 다시 뽑는다. 기존 행은 마이그레이션 시 NULL(받은 적 없음과 구형을 구분할 수 없어 둘 다 재부여 대상으로 본다).
 
 - **메타데이터 부여 파이프라인**(`ai/metadata-pipeline.md` — 앱 밖 운영 절차)이 대본에서 산출해 업로드 패키지에 포함하고, 관리자 업로드 시 저장된다(`admin.md` 3.1). origin(파트너/AI 생성) 무관 전 콘텐츠 대상이다.
 - **전부 NULL 허용이다.** 파이프라인을 거치지 않은 콘텐츠도 발행을 막지 않는다 — NULL이면 스코어링에서 해당 항목을 중립 처리한다(`drip-scheduling.md` 4.2). 업로드 검증이 이 값들을 필수로 요구하지 않는다.
