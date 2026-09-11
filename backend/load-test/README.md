@@ -44,9 +44,11 @@ ssh -i ~/.ssh/ear-prod-isb.pem ec2-user@$HOST
 cd /opt/ear/backend
 C="docker compose -f docker-compose.prod.yml --env-file .env.prod"
 $C cp /tmp/lt api:/tmp/lt
-$C exec -T api node /tmp/lt/seed-users.js --count 30 --tier pro   --items 4 > /dev/null   # 청취·둘러보기·삭제용
-$C exec -T api node /tmp/lt/seed-users.js --count 10 --tier light --items 4 > /dev/null   # 페이월용
-$C exec -T api node /tmp/lt/issue-tokens.js --ttl 3h > /tmp/tokens.json
+# 스크립트가 /app 밖(/tmp)에 있어 NODE_PATH 로 이미지의 node_modules(pg·jsonwebtoken)를 가리켜야 한다
+X="$C exec -T -e NODE_PATH=/app/node_modules api"
+$X node /tmp/lt/seed-users.js --count 30 --tier pro   --items 4 > /dev/null   # 청취·둘러보기·삭제용
+$X node /tmp/lt/seed-users.js --count 10 --tier light --items 4 > /dev/null   # 페이월용
+$X node /tmp/lt/issue-tokens.js --ttl 3h > /tmp/tokens.json
 ```
 
 PC에서:
@@ -94,8 +96,9 @@ k6 run k6/scenarios/paywall-limit.js
 서버에서:
 
 ```bash
-$C exec -T api node /tmp/lt/cleanup-users.js          # 대상 개수만 보여준다
-$C exec -T api node /tmp/lt/cleanup-users.js --yes    # provider='loadtest' 사용자 삭제(자식 행 CASCADE)
+$X node /tmp/lt/cleanup-users.js          # 대상 개수만 보여준다
+$X node /tmp/lt/cleanup-users.js --yes    # provider='loadtest' 사용자 삭제(자식 행 CASCADE)
+$C exec -T -u root api rm -rf /tmp/lt    # cp 로 넣은 파일은 root 소유라 -u root 가 필요하다
 rm -rf /tmp/lt /tmp/tokens.json
 ```
 

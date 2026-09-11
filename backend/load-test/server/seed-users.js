@@ -2,7 +2,7 @@
 // 부하 테스트 계정 시드 — **실서버 api 컨테이너 안에서** 실행한다(DB_* 환경변수와 pg 드라이버가 거기 있다).
 //
 //   docker compose -f docker-compose.prod.yml --env-file .env.prod cp load-test/server api:/tmp/lt
-//   docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T api \
+//   docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T -e NODE_PATH=/app/node_modules api \
 //     node /tmp/lt/seed-users.js --count 30 --tier pro --items 4
 //
 // 만드는 것: users(provider='loadtest', 온보딩 완료) · user_interests(관심 주제 3개, onboarding) ·

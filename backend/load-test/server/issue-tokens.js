@@ -4,7 +4,7 @@
 // access 토큰은 무상태다(서명·만료·typ만 검사 — jwt-auth.guard.ts). 그래서 로그인 API를 부르지 않고
 // 서버와 같은 비밀키로 직접 서명하면 인증 라우트의 IP당 분당 20회 제한과 무관하게 계정 수만큼 만들 수 있다.
 //
-//   docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T api \
+//   docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T -e NODE_PATH=/app/node_modules api \
 //     node /tmp/lt/issue-tokens.js --ttl 3h > /tmp/tokens.json        # provider='loadtest' 전 계정
 //   scp -i ~/.ssh/ear-prod-isb.pem ec2-user@<HOST>:/tmp/tokens.json backend/load-test/out/tokens.json
 //
