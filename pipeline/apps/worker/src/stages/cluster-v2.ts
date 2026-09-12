@@ -10,8 +10,8 @@ import { putFile, s3Key } from "../storage.js";
 
 interface ClusterV2Out {
   candidates: { id: string; mid_topic: string; title: string; axis_type: "대립" | "역설" | "재정의"; axis: string; axis_note: string; verdict: "성립" | "보강 필요"; gaps: string[]; sources: { m: string; roles: string[]; why: string }[]; target_fit: string; landing: string; dedup_note: string }[];
-  axis_pool: string[];
-  dropped_notes: string[];
+  axis_pool?: string[]; // 2026-09-12 이후 요구하지 않는다(안전장치) — 옛 결과 호환용
+  dropped_notes?: string[];
 }
 
 /**
@@ -92,8 +92,8 @@ export async function runClusterV2(job: Job, ex: Executor) {
   await putFile(artifactKey, JSON.stringify({ job_id: job.id, major, mids, input_sources: sources.length, meta, output: r.output, inserted, held }, null, 1)).catch((e) => log(`  cluster v2 결과 보존 실패 (${String(e?.message ?? e).slice(0, 100)})`));
   await insertRun({
     phase: "cluster",
-    result: `v2 · ${major ? `대분류 ${major}` : `중분류 ${mid}`} · 입력 ${sources.length}건 → 성립 ${inserted.length}건 proposed: ${inserted.join(" / ").slice(0, 700)}${held.length ? ` · 보강 필요 ${held.length}건 held: ${held.join(" / ").slice(0, 500)}` : ""}${r.output.axis_pool.length ? ` · 검토한 축: ${r.output.axis_pool.join(" | ").slice(0, 400)}` : ""}`,
+    result: `v2 · ${major ? `대분류 ${major}` : `중분류 ${mid}`} · 입력 ${sources.length}건 → 성립 ${inserted.length}건 proposed: ${inserted.join(" / ").slice(0, 700)}${held.length ? ` · 보강 필요 ${held.length}건 held: ${held.join(" / ").slice(0, 500)}` : ""}${r.output.axis_pool?.length ? ` · 검토한 축: ${r.output.axis_pool.join(" | ").slice(0, 400)}` : ""}`,
     artifacts: [s3Key(artifactKey)], prompt_version: `cluster-v2 (축·역할·다양성, spec ${bundle.specDigest})`, executed_by: executedBy, model: r.model, cost_usd: r.listCostUsd, tokens: (r.raw as { usage?: unknown } | undefined)?.usage, worker_rev: workerRev(),
   });
-  return { scope: major || mid, mids, input_sources: sources.length, proposed: inserted, held, axis_pool: r.output.axis_pool, dropped_notes: r.output.dropped_notes, model: r.model, list_cost_usd: r.listCostUsd };
+  return { scope: major || mid, mids, input_sources: sources.length, proposed: inserted, held, axis_pool: r.output.axis_pool ?? [], dropped_notes: r.output.dropped_notes ?? [], model: r.model, list_cost_usd: r.listCostUsd };
 }

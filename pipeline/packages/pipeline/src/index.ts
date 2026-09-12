@@ -470,7 +470,6 @@ ${list}
 export const CLUSTER_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["candidates", "reserve_notes", "dropped_notes"],
   properties: {
     candidates: {
       type: "array",
@@ -490,8 +489,6 @@ export const CLUSTER_SCHEMA = {
         },
       },
     },
-    reserve_notes: { type: "array", items: { type: "string" }, description: "성립 가능하나 이번엔 안 낸 군집 메모" },
-    dropped_notes: { type: "array", items: { type: "string" }, description: "탈락 사유 메모 (사건 축·소스 부족 등)" },
   },
 } as const;
 
@@ -1322,7 +1319,6 @@ export function normalizeEnrichment(raw: Record<string, unknown>, topicNames: st
 export const CLUSTER_SCHEMA_V2 = {
   type: "object",
   additionalProperties: false,
-  required: ["candidates", "axis_pool", "dropped_notes"],
   properties: {
     candidates: {
       type: "array",
@@ -1339,7 +1335,5 @@ export const CLUSTER_SCHEMA_V2 = {
         },
       },
     },
-    axis_pool: { type: "array", items: { type: "string" }, description: "검토했으나 후보로 내지 않은 축 (사유 포함)" },
-    dropped_notes: { type: "array", items: { type: "string" } },
   },
 } as const;
