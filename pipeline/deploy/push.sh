@@ -14,6 +14,7 @@ DEST=/opt/ear/ear_project
 SSH="ssh -i $PEM -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=15 -o ServerAliveCountMax=60"
 REV="$(git -C "$ROOT" rev-parse --short HEAD)"
 [ -z "$(git -C "$ROOT" status --porcelain -- pipeline ai-server)" ] || REV="$REV-dirty"
+REV_TS="$(git -C "$ROOT" log -1 --format=%ct)"   # 커밋 시각 — 워커 최소 버전 게이트(settings worker.min_rev)의 기준
 
 $SSH "ec2-user@$HOST" "mkdir -p $DEST"
 # 서버의 env 실값(deploy/env.prod·env.ai-server)은 --delete 에서 보호(P)한다. .env.example 템플릿만 넘어간다.
@@ -24,6 +25,8 @@ rsync -az --delete -e "$SSH" \
   --exclude='*.mp3' --exclude='*.wav' --exclude='.DS_Store' \
   --filter='P pipeline/deploy/env.prod' --filter='P pipeline/deploy/env.ai-server' \
   "$ROOT/pipeline" "$ROOT/ai-server" "ec2-user@$HOST:$DEST/"
+# docs/ai — 규칙 자산의 git 사본. 서버 컨테이너가 /srv/docs/ai 로 마운트해 머지마다 assets:import 를 돌린다 (활성화 자동화, 2026-09-12)
+rsync -az --delete -e "$SSH" --exclude='.DS_Store' "$ROOT/docs/ai" "ec2-user@$HOST:$DEST/docs/"
 echo "rsync 완료 → $HOST:$DEST (rev $REV)"
 
 $SSH "ec2-user@$HOST" "
@@ -34,5 +37,9 @@ $SSH "ec2-user@$HOST" "
     echo '⚠ 최초 1회: deploy/env.prod 와 deploy/env.ai-server 의 비밀값을 채운 뒤 push.sh 를 다시 실행 (README 3장)'
     exit 2
   fi
-  WORKER_REV=$REV docker compose -f deploy/docker-compose.prod.yml --env-file deploy/env.prod up -d --build
+  WORKER_REV=$REV WORKER_REV_TS=$REV_TS docker compose -f deploy/docker-compose.prod.yml --env-file deploy/env.prod up -d --build
+  # 규칙 자산 활성화 + 워커 최소 버전 기록 — 사람이 assets:import 를 따로 돌리지 않아도 머지가 곧 활성화다 (RUNBOOK 7장).
+  # import 는 본문이 같으면 건너뛰어 멱등이고, 실패해도 배포는 성립한다(다음 머지에서 재시도).
+  WORKER_REV=$REV WORKER_REV_TS=$REV_TS docker compose -f deploy/docker-compose.prod.yml --env-file deploy/env.prod run --rm --no-deps worker-io npm run assets -- import --force || echo '⚠ 규칙 자산 활성화 실패 — npm run assets:import -- --force 를 손으로'
+  WORKER_REV=$REV WORKER_REV_TS=$REV_TS docker compose -f deploy/docker-compose.prod.yml --env-file deploy/env.prod run --rm --no-deps worker-io npm run rev -- publish || echo '⚠ 워커 최소 버전 기록 실패'
 "

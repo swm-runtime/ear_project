@@ -123,6 +123,8 @@ claude -p --output-format json --json-schema <단계별 결과 스키마> \
 - git 사본: `assets:export`가 active를 `docs/ai/skills/`로 덤프(PR에서 규칙 diff가 보이게, CHANGELOG는 note에서 생성). 방향은 웹 → DB → git 한쪽. active 행은 수정 불가 — 고치려면 새 버전을 만들어 활성화한다(`runs`에 남은 버전 = 그때 실제 내용).
 - 프롬프트 빌더 안의 문자열 규칙(`COMMON_RULES`·`GOLD_USAGE` 등)은 2차에서 자산(`prompts/draft.md`)으로 뺀다.
 
+**활성화는 배포가 한다** (2026-09-12): `docs/ai/skills/**` 가 dev 에 머지되면 deploy-pipeline 이 서버 컨테이너에서 `assets:import --force` 를 돌려 git 사본을 active 로 올린다 — git 이 진실의 원본, DB 는 그 사본의 활성 버전. 콘솔 편집은 draft → `assets:export` → PR 경로로 git 에 돌아온 뒤 머지로 활성화된다. 같은 배포가 `settings.worker.min_rev` 를 적어 그보다 오래된 워커는 작업을 집지 않는다(`apps/worker/src/cli/rev.ts`).
+
 **본문만 보낸다** (2026-09-10, KAN-50 썸네일 프롬프트에서 발견 → 대본·QA·비평 자산에 확장): 규칙 자산은 사람이 읽는 문서이기도 해서 제목·버전 이력(`>` 블록)·"이전 판과의 차이" 절에
 폐기된 기준("절 셋부터 위반" 등)이 설명으로 인용돼 있는데, 모델은 설명과 지시를 구분하지 않는다. 로더는 `guidelines.md`·`qa/prompt.md`·`critic/rubric.md`·`rubric-v2.md`(0장 제외)를
 번들에 실을 때 `promptBody`(`@ear/pipeline`)로 **머리글·이전 판 절·`---` 이후 부록을 잘라** 스냅샷에 내려놓는다 — 인라인 임베딩과 비평의 Read 경로가 같은 파일을 보므로 한 곳에서 끝난다.

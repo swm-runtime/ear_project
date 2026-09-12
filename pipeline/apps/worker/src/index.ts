@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import { cfg, canAi, canTts, canThumbnail, executedBy } from "./config.js";
-import { claimJob, enqueue, failJob, finishJob, hasActiveDraftJob, heartbeat, listApprovedBacklog, pool, requeueJob, startJob } from "./db.js";
-import { workerRev } from "./assets.js";
+import { claimJob, enqueue, failJob, finishJob, getSetting, hasActiveDraftJob, heartbeat, listApprovedBacklog, pool, requeueJob, startJob } from "./db.js";
+import { workerRev, workerRevTime } from "./assets.js";
 import { probeStorage } from "./storage.js";
 import { makeExecutor } from "./executors/index.js";
 import { startLogWatch } from "./log-watch.js";
@@ -49,8 +49,23 @@ async function main() {
   process.on("unhandledRejection", (r) => log(`unhandledRejection (계속 진행): ${(r as any)?.message ?? r}`));
   process.on("uncaughtException", async (e) => { log(`uncaughtException — 작업을 큐로 되돌리고 종료: ${e.message}`); if (current) await requeueJob(current).catch(() => {}); process.exit(1); }); // 터미널 닫힘 — 진행 중 작업을 큐로 되돌린다 (자식 claude -p 는 계속 돌고, 재집기 시 산출물이 있으면 이어받음)
 
+  // 워커 최소 버전 게이트 (2026-09-12): dev 머지 배포가 적은 최소 커밋 시각보다 이 코드가 오래됐으면 작업을 집지 않는다 — 옛 워커가 새 유형을 실패시키거나 옛 규칙으로 대본을 만드는 사고 방지.
+  // 커밋 시각을 모르면(0) 게이트를 건너뛴다. 60초마다 다시 본다.
+  let revCheckedAt = 0, revStale = false;
+  const revGate = async () => {
+    if (Date.now() - revCheckedAt < 60_000) return revStale;
+    revCheckedAt = Date.now();
+    const mine = workerRevTime(); if (!mine) return (revStale = false);
+    const min = await getSetting<{ rev: string; committed_at: number }>("worker.min_rev").catch(() => null);
+    const stale = !!min && mine < min.committed_at && !workerRev().startsWith(min.rev);
+    if (stale && !revStale) log(`⚠ 이 워커의 코드(${workerRev()}, ${new Date(mine * 1000).toISOString().slice(0, 16)})가 최소 버전(${min!.rev}, ${new Date(min!.committed_at * 1000).toISOString().slice(0, 16)})보다 오래됨 — 작업을 집지 않는다. git pull 후 재시작`);
+    if (!stale && revStale) log("워커 코드 최신 — 작업 집기 재개");
+    return (revStale = stale);
+  };
+
   while (true) {
     try {
+      if (await revGate()) { if (once) { log("워커 코드가 오래됨 — 종료"); break; } await sleep(60_000); continue; }
       if (canAi) await pickupApproved();
       const job = await claimJob(cfg.workerName, canAi, canTts, canThumbnail);
       if (!job) {

@@ -34,6 +34,7 @@ services:
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:?}
         NEXT_PUBLIC_EAR_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_EAR_GOOGLE_CLIENT_ID:-} # 발행 콘솔 구글 로그인 (비밀 아님)
         WORKER_REV: ${WORKER_REV:-unknown}
+        WORKER_REV_TS: ${WORKER_REV_TS:-0}
     image: ear-pipeline:prod
     restart: unless-stopped
     environment:
@@ -60,6 +61,7 @@ services:
       CAPABILITIES: io
       WORKER_NAME: ${WORKER_NAME:-ai-server-io}
       WORK_ROOT: /work # S3 캐시 (io 워커는 규칙 자산을 읽지 않는다)
+      ASSET_ROOT: /srv/docs/ai # 규칙 자산 git 사본(마운트) — 배포 시 assets:import 가 여기서 읽는다 (2026-09-12)
       PIPELINE_BUCKET: ${PIPELINE_BUCKET:?}
       AWS_REGION: ${AWS_REGION:-ap-northeast-2}
       S3_MODE: direct
@@ -74,6 +76,7 @@ services:
       PIPELINE_DOMAIN: ${PIPELINE_DOMAIN:-}
     volumes:
       - worker-work:/work
+      - ../../docs/ai:/srv/docs/ai:ro # push.sh 가 rsync 한 docs/ai (활성화 자동화)
     logging:
       driver: json-file
       options: { max-size: '10m', max-file: '5' }

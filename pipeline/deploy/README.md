@@ -83,3 +83,5 @@ bash pipeline/deploy/push.sh
 - **SG 는 상시 닫힘**: 러너가 자기 IP 를 배포 동안만 22 에 추가했다가 `always()` 스텝에서 제거한다
 - **1회 설정**: `bash pipeline/deploy/aws/setup-ci.sh` (멱등 — SG·IAM·키 보안 변경이라 사람이 실행)
 - **함정**: 배포 실패 시 이전 컨테이너가 그대로 살아 있다(compose 빌드 실패는 무중단). 러너 IP 잔존이 의심되면 `aws ec2 describe-security-groups --group-ids <SG>` 로 22 목록 확인
+
+- **2026-09-12 추가**: 트리거 경로에 `docs/ai/**`. `push.sh` 가 `docs/ai` 도 rsync 하고(컨테이너 `/srv/docs/ai` 마운트, `ASSET_ROOT`), compose up 뒤에 `assets:import --force`(규칙 자산 활성화)와 `rev publish`(워커 최소 버전 = 이 커밋 시각)를 worker-io 컨테이너에서 실행한다. 둘 다 실패해도 배포는 성립하며 다음 머지에서 재시도된다.
