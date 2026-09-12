@@ -1,3 +1,4 @@
+import { jobAbortSignal } from "./abort.js";
 import { spawn } from "node:child_process";
 import readline from "node:readline";
 import type { ExecRequest, ExecResult, Executor, Progress } from "./types.js";
@@ -108,10 +109,16 @@ export class ClaudeCliExecutor implements Executor {
         child.kill("SIGTERM");
         setTimeout(() => child.kill("SIGKILL"), 10_000);
       }, req.timeoutMs);
+      // 작업 취소 (2026-09-12): 콘솔이 취소하면 index.ts 가 abort → 자식 프로세스를 끝내고 취소 오류로 거절한다
+      const abort = jobAbortSignal();
+      const onAbort = () => { child.kill("SIGTERM"); setTimeout(() => child.kill("SIGKILL"), 5_000); };
+      abort?.addEventListener("abort", onAbort, { once: true });
 
-      child.on("error", (e) => { clearTimeout(timer); reject(new Error(`claude 실행 실패: ${e.message}`)); });
+      child.on("error", (e) => { clearTimeout(timer); abort?.removeEventListener("abort", onAbort); reject(new Error(`claude 실행 실패: ${e.message}`)); });
       child.on("close", (code) => {
         clearTimeout(timer);
+        abort?.removeEventListener("abort", onAbort);
+        if (abort?.aborted) return reject(Object.assign(new Error("작업이 취소됨 (콘솔) — claude 프로세스 종료"), { name: "JobCancelled" }));
         const durationMs = Date.now() - started;
         if (!final) return reject(new Error(`claude -p 결과 없음 (exit ${code}, ${Math.round(durationMs / 1000)}s). stderr: ${err.slice(-800)}`));
         if (final.is_error || final.subtype !== "success") return reject(new Error(`claude -p 오류: ${String(final.result ?? final.subtype).slice(0, 800)}`));

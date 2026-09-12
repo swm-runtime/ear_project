@@ -114,11 +114,13 @@ export async function listUnlinkedPublished(): Promise<{ backlog_id: string; tit
   return (bls ?? []).map((b) => ({ backlog_id: b.id, title: b.title, episode_id: epOf.get(b.id) ?? null, status: b.status }));
 }
 
+/** 작업 취소 — 대기 중이면 즉시, 진행 중이면 워커가 하트비트(15초)에서 알아채고 claude 프로세스를 끊는다 (2026-09-12). 완료·실패한 작업은 대상이 아니다 */
 export async function cancelJob(id: string) {
   const sb = await supabaseServer();
-  const { error } = await sb.from("jobs").update({ status: "cancelled" }).eq("id", id).eq("status", "queued");
+  const { data, error } = await sb.from("jobs").update({ status: "cancelled", finished_at: new Date().toISOString(), error: "사람이 콘솔에서 취소" }).eq("id", id).in("status", ["queued", "claimed", "running"]).select("id,type");
   if (error) throw new Error(error.message);
-  revalidatePath("/"); revalidatePath("/sweep");
+  if (!data?.length) throw new Error("취소할 수 없는 상태입니다 (이미 끝났거나 취소됨)");
+  revalidatePath("/"); revalidatePath("/sweep"); revalidatePath("/jobs");
 }
 
 /**

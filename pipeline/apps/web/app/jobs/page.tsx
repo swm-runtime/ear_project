@@ -3,6 +3,7 @@ import { supabaseServer } from "@/lib/supabase-server";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { Badge, PageHeader, Panel, Table, Td } from "@/components/ui";
 import { fmtTime, fmtDuration, fmtTokens, fmtUsd, label, jobRoundLabel } from "@/lib/format";
+import { CancelButton } from "./cancel-button";
 
 const PAGE = 50;
 const TYPES = ["sweep", "cluster", "draft", "qa", "critic", "tts", "package"];
@@ -50,7 +51,7 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
       </div>
 
       <Panel flush className="mb-3">
-        <Table head={["상태", "작업", "대상", "소요", "모델", "토큰/글자", "비용", "시각"]} empty="해당 조건의 작업이 없습니다">
+        <Table head={["상태", "작업", "대상", "소요", "모델", "토큰/글자", "비용", "시각", ""]} empty="해당 조건의 작업이 없습니다">
           {(jobs ?? []).map((j) => {
             const run = runMap.get(`${j.payload?.backlog_id}|${j.type}|${j.attempt}`);
             const target = j.payload?.episode_id ?? j.payload?.backlog_id ?? j.payload?.mid_topic ?? "-";
@@ -67,6 +68,7 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
                 <Td className="whitespace-nowrap text-xs text-ink-soft">{fmtTokens(run?.tokens)}</Td>
                 <Td className="whitespace-nowrap text-xs text-ink-soft">{fmtUsd(run?.cost_usd)}</Td>
                 <Td className="whitespace-nowrap text-xs text-ink-soft">{fmtTime(j.created_at)}</Td>
+                <Td><CancelButton id={j.id} status={j.status} type={j.type} /></Td>
               </tr>
             );
           })}
