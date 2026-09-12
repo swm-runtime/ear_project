@@ -106,6 +106,8 @@ npm run worker                # 계속 폴링. 끄려면 Ctrl+C (진행 중 작�
 
 바꾼 뒤에는 워커 재시작. 어느 구성으로 만든 에피소드인지는 `runs.prompt_version`(예: `full-v5.2+2stage`, `qa-v1.2+single`)로 구분한다.
 
+- **안전장치 폴백** (2026-09-12): Opus 5 가 "safeguards flagged this message ([reasoning_extraction])" 로 요청을 거부하면 실행기가 같은 요청을 `SAFEGUARD_FALLBACK_MODEL`(기본 `claude-sonnet-5`)로 한 번 재시도한다. 로그에 "안전장치 거부 — 폴백"이 남고 runs 의 model 이 Sonnet 으로 기록된다. 내용과 무관하게 거부되는 사례(2026-09-12 군집화 v2 두 작업, CLI 2.1.269)를 위한 것이며 빈 값으로 두면 폴백하지 않는다.
+
 ## 7. 규칙을 고칠 때
 
 - 대본 규칙·골드·QA 프롬프트·루브릭·TTS 음차 사전은 **콘솔 → 규칙 자산(`/assets`)** 에서 새 버전(draft) 저장 → 활성화. git 의 `docs/ai/skills/`는 스냅샷이다.
