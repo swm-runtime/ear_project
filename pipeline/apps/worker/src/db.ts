@@ -23,17 +23,20 @@ export async function claimJob(worker: string, canAi: boolean, canTts: boolean, 
   const r = await pool.query("select * from public.claim_job($1, $2, $3, $4)", [worker, canAi, canTts, canThumbnail]);
   return (r.rows[0] as Job) ?? null;
 }
-export async function heartbeat(jobId: string) {
-  await pool.query("update public.jobs set heartbeat_at = now() where id = $1", [jobId]);
+/** 하트비트 — 현재 status 를 돌려준다. 콘솔이 진행 중 작업을 취소하면(status=cancelled) 워커가 여기서 알아채고 중단한다 (2026-09-12) */
+export async function heartbeat(jobId: string): Promise<string | null> {
+  const r = await pool.query("update public.jobs set heartbeat_at = now() where id = $1 returning status", [jobId]);
+  return (r.rows[0]?.status as string) ?? null;
 }
+export class JobCancelled extends Error { constructor(msg = "작업이 취소됨 (콘솔)") { super(msg); this.name = "JobCancelled"; } }
 export async function startJob(jobId: string) {
   await pool.query("update public.jobs set status = 'running', started_at = now(), heartbeat_at = now() where id = $1", [jobId]);
 }
 export async function finishJob(jobId: string, result: unknown) {
-  await pool.query("update public.jobs set status = 'done', finished_at = now(), result = $2 where id = $1", [jobId, JSON.stringify(result ?? null)]);
+  await pool.query("update public.jobs set status = 'done', finished_at = now(), result = $2 where id = $1 and status <> 'cancelled'", [jobId, JSON.stringify(result ?? null)]); // 취소된 작업은 덮지 않는다
 }
 export async function failJob(jobId: string, error: string) {
-  await pool.query("update public.jobs set status = 'failed', finished_at = now(), error = $2 where id = $1", [jobId, error.slice(0, 4000)]);
+  await pool.query("update public.jobs set status = 'failed', finished_at = now(), error = $2 where id = $1 and status <> 'cancelled'", [jobId, error.slice(0, 4000)]);
 }
 const lastProgressLog = new Map<string, number>();
 /** 진행 상황을 jobs.progress에 기록 (웹 UI가 읽음) + 터미널에도 30초에 한 번 한 줄 (2026-09-01: 웹을 안 띄워도 보이게). */

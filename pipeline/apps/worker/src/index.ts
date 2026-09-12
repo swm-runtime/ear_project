@@ -3,7 +3,7 @@ import { cfg, canAi, canTts, canThumbnail, executedBy } from "./config.js";
 import { claimJob, enqueue, failJob, finishJob, getSetting, hasActiveDraftJob, heartbeat, listApprovedBacklog, pool, requeueJob, startJob } from "./db.js";
 import { workerRev, workerRevTime } from "./assets.js";
 import { probeStorage } from "./storage.js";
-import { makeExecutor } from "./executors/index.js";
+import { makeExecutor, setJobAbort } from "./executors/index.js";
 import { startLogWatch } from "./log-watch.js";
 import { runStage } from "./stages/index.js";
 import { log, sleep, RetryLater } from "./util.js";
@@ -77,13 +77,18 @@ async function main() {
       current = job.id;
       log(`▶ ${job.type} ${job.id.slice(0, 8)} attempt ${job.attempt}`, job.payload);
       await startJob(job.id);
-      const hb = setInterval(() => heartbeat(job.id).catch(() => {}), 30_000);
+      // 취소 감지 (2026-09-12): 하트비트가 status 를 돌려주고, 콘솔이 cancelled 로 바꿨으면 실행 중인 claude 프로세스를 끊는다 (15초 안)
+      const ac = new AbortController(); setJobAbort(ac);
+      const hb = setInterval(() => heartbeat(job.id).then((st) => { if (st === "cancelled" && !ac.signal.aborted) { log(`⏹ ${job.type} ${job.id.slice(0, 8)} 콘솔에서 취소됨 — 중단`); ac.abort(); } }).catch(() => {}), 15_000);
       try {
         const result = await runStage(job, ex);
         await finishJob(job.id, result);
-        log(`✔ ${job.type} ${job.id.slice(0, 8)} 완료`);
+        if (ac.signal.aborted) log(`⏹ ${job.type} ${job.id.slice(0, 8)} 취소됨 (단계는 끝났으나 결과는 버림)`); else log(`✔ ${job.type} ${job.id.slice(0, 8)} 완료`);
       } catch (e: any) {
-        if (e instanceof RetryLater) {
+        if (ac.signal.aborted || e?.name === "JobCancelled") {
+          log(`⏹ ${job.type} ${job.id.slice(0, 8)} 취소 처리 완료`);
+          if (job.type === "draft") await onDraftFailed(job, new Error("사람이 콘솔에서 초안을 취소")); // 백로그를 다시 승인 대기로 (자동 재집기 없음)
+        } else if (e instanceof RetryLater) {
           await requeueJob(job.id);
           log(`↺ ${job.type} ${job.id.slice(0, 8)} 잠시 후 재시도: ${e.message}`);
           await sleep(e.delayMs);
@@ -94,6 +99,7 @@ async function main() {
         }
       } finally {
         clearInterval(hb);
+        setJobAbort(null);
         current = null;
       }
       if (once) break;
