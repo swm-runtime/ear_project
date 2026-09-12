@@ -40,6 +40,6 @@ $SSH "ec2-user@$HOST" "
   WORKER_REV=$REV WORKER_REV_TS=$REV_TS docker compose -f deploy/docker-compose.prod.yml --env-file deploy/env.prod up -d --build
   # 규칙 자산 활성화 + 워커 최소 버전 기록 — 사람이 assets:import 를 따로 돌리지 않아도 머지가 곧 활성화다 (RUNBOOK 7장).
   # import 는 본문이 같으면 건너뛰어 멱등이고, 실패해도 배포는 성립한다(다음 머지에서 재시도).
-  WORKER_REV=$REV WORKER_REV_TS=$REV_TS docker compose -f deploy/docker-compose.prod.yml --env-file deploy/env.prod run --rm --no-deps worker-io npm run assets -- import --force || echo '⚠ 규칙 자산 활성화 실패 — npm run assets:import -- --force 를 손으로'
-  WORKER_REV=$REV WORKER_REV_TS=$REV_TS docker compose -f deploy/docker-compose.prod.yml --env-file deploy/env.prod run --rm --no-deps worker-io npm run rev -- publish || echo '⚠ 워커 최소 버전 기록 실패'
+  WORKER_REV=$REV WORKER_REV_TS=$REV_TS docker compose -f deploy/docker-compose.prod.yml --env-file deploy/env.prod run --rm --no-deps worker-io npm run assets:import -- --force || echo '⚠ 규칙 자산 활성화 실패 — npm run assets:import -- --force 를 손으로'
+  WORKER_REV=$REV WORKER_REV_TS=$REV_TS docker compose -f deploy/docker-compose.prod.yml --env-file deploy/env.prod run --rm --no-deps worker-io npm run rev:publish || echo '⚠ 워커 최소 버전 기록 실패'
 "
