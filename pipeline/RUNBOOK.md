@@ -106,7 +106,7 @@ npm run worker                # 계속 폴링. 끄려면 Ctrl+C (진행 중 작�
 
 바꾼 뒤에는 워커 재시작. 어느 구성으로 만든 에피소드인지는 `runs.prompt_version`(예: `full-v5.2+2stage`, `qa-v1.2+single`)로 구분한다.
 
-- **안전장치 폴백** (2026-09-12): Opus 5 가 "safeguards flagged this message ([reasoning_extraction])" 로 요청을 거부하면 실행기가 같은 요청을 `SAFEGUARD_FALLBACK_MODEL`(기본 `claude-sonnet-5`)로 한 번 재시도한다. 로그에 "안전장치 거부 — 폴백"이 남고 runs 의 model 이 Sonnet 으로 기록된다. 내용과 무관하게 거부되는 사례(2026-09-12 군집화 v2 두 작업, CLI 2.1.269)를 위한 것이며 빈 값으로 두면 폴백하지 않는다.
+- **Opus 안전장치 거부** (2026-09-12): "safeguards flagged this message ([reasoning_extraction])"의 원인은 완료 보고 스키마에 "검토했으나 내지 않은 축·탈락 사유"를 내라는 필드(군집화 `axis_pool`·`dropped_notes`)였다 — 추론 과정을 내놓으라는 요구로 읽힌다(CLI 2.1.269). 필드를 뺐다. 다른 단계에서 같은 오류가 나면 그 단계의 스키마에서 "왜 버렸나·무엇을 검토했나" 류 필드를 의심한다. `SAFEGUARD_FALLBACK_MODEL` 을 두면 그 모델로 한 번 재시도하지만 기본은 비어 있다 — 모델을 바꾸면 결과가 달라진다.
 
 ## 7. 규칙을 고칠 때
 

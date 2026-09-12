@@ -16,17 +16,18 @@ export class ClaudeCliExecutor implements Executor {
   constructor(private defaultModel?: string) {}
 
   /**
-   * 안전장치 폴백 (2026-09-12): Opus 5 가 "safeguards flagged this message ([reasoning_extraction])" 로 요청을 거부하면 같은 요청을
-   * 폴백 모델(기본 Sonnet 5, SAFEGUARD_FALLBACK_MODEL)로 한 번 다시 보낸다. 군집화 v2 두 작업이 내용과 무관하게 연속 거부됐고(CLI 2.1.269),
-   * 같은 프롬프트가 Sonnet 에서는 정상 통과했다. 결과의 model 에 실제로 답한 모델이 남아 runs 에서 구분된다. 폴백도 거부되면 그 오류를 던진다.
+   * 안전장치 (2026-09-12): Opus 5 가 "safeguards flagged this message ([reasoning_extraction])" 로 거부한 원인은 완료 보고 스키마의
+   * "검토했으나 내지 않은 축·탈락 사유" 필드(추론 과정을 내놓으라는 요구)였다 — 필드를 뺀 뒤 Opus 가 통과. 폴백 모델은 SAFEGUARD_FALLBACK_MODEL 을
+   * 명시할 때만 쓴다(기본 없음): 모델을 바꾸면 결과가 달라지므로 자동으로 바꾸지 않는다. 거부되면 원인 후보를 붙여 실패시킨다.
    */
   async run<T>(req: ExecRequest): Promise<ExecResult<T>> {
     try { return await this.runOnce<T>(req); }
     catch (e: any) {
       const msg = String(e?.message ?? e);
       const model = req.model ?? this.defaultModel ?? "";
-      const fallback = process.env.SAFEGUARD_FALLBACK_MODEL ?? "claude-sonnet-5";
-      if (!/safeguards flagged/i.test(msg) || !fallback || model === fallback) throw e;
+      const fallback = process.env.SAFEGUARD_FALLBACK_MODEL || ""; // 기본 없음 — 모델을 바꾸면 결과가 달라진다(박수헌 2026-09-12). 원인은 요청 쪽에서 고친다
+      if (!/safeguards flagged/i.test(msg)) throw e;
+      if (!fallback || model === fallback) throw new Error(`${msg}\n  → 원인 후보: 완료 보고 스키마에 "검토했으나 버린 것과 사유" 같은 추론 과정 필드가 있는가 (2026-09-12 군집화 axis_pool·dropped_notes). SAFEGUARD_FALLBACK_MODEL 을 두면 그 모델로 재시도한다`);
       console.log(`  ⚠ ${model} 안전장치 거부 — ${fallback} 로 폴백 (${msg.match(/Details: `([^`]+)`/)?.[1] ?? "사유 미상"})`);
       return this.runOnce<T>({ ...req, model: fallback });
     }
