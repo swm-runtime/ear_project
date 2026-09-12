@@ -114,6 +114,9 @@ npm run worker                # 계속 폴링. 끄려면 Ctrl+C (진행 중 작�
 
 - **루브릭 개정안 측정** (0020, 2026-09-11): 개정안을 활성화하기 전에 회귀 세트(사람 판정 21편)에 돌려 편향을 잰다. ① 개정안을 `prompt_assets` 에 **draft** 로 넣고(콘솔 /assets 새 버전 저장, 활성화하지 않음) ② `critic_measure` 작업을 큐에 넣는다(`.work/verdicts/enqueue-measure.mts <버전>`) — AI 워커 여러 대가 나눠 집는다 ③ 리포트는 `episodes/<id>/critic-measure-<버전>.md` 로 따로 쓰고 사람 판정이 붙은 `critic-report-v2.md` 는 건드리지 않는다 ④ `.work/verdicts/measure-compare.mts <버전>` 으로 항목별 편향을 이전과 비교한 뒤 활성화를 정한다. 옛 코드의 워커는 이 유형을 몰라 실패만 한다(덮어쓰기 없음) — 측정 전에 워커를 최신으로.
 
+- **활성화는 자동이다 (2026-09-12)**: `docs/ai/skills/**` 가 dev 에 머지되면 배포 워크플로가 서버에서 `assets:import --force` 를 돌려 git 사본을 새 active 버전으로 올린다. 사람이 콘솔이나 CLI 로 활성화할 일은 없다(응급으로 되돌릴 때만 콘솔 /assets). 콘솔에서 고친 draft 는 여전히 `assets:export` 로 git 에 내려 PR 을 거친다.
+- **옛 워커는 작업을 집지 않는다 (2026-09-12)**: 같은 배포가 `settings.worker.min_rev` 에 커밋 시각을 적고, 워커는 자기 커밋이 그보다 오래됐으면 "git pull 후 재시작" 로그를 내고 60초마다 다시 볼 뿐 작업을 집지 않는다. `npm run rev:status` 로 확인. 노트북 워커를 올리기 전 `git pull` 이 습관이 안 돼도 사고는 안 난다.
+
 ## 8. 참고
 
 - 워커 상세·환경변수 전체: [`apps/worker/README.md`](apps/worker/README.md) · [`apps/worker/.env.example`](apps/worker/.env.example)

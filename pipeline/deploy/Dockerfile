@@ -30,7 +30,9 @@ RUN npm run build -w apps/web
 
 # 워커 기록용 리비전 — 이미지에는 .git 이 없어 빌드 인자로 박는다 (assets.ts workerRev 가 읽음)
 ARG WORKER_REV=unknown
+ARG WORKER_REV_TS=0
 ENV WORKER_REV=$WORKER_REV \
+    WORKER_REV_TS=$WORKER_REV_TS \
     NODE_ENV=production
 
 EXPOSE 3000

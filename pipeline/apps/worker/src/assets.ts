@@ -113,6 +113,17 @@ export function workerRev(): string {
   return _rev;
 }
 
+/** 이 워커 코드의 커밋 시각(unix 초). 노트북은 git 에서, 컨테이너는 빌드 인자 WORKER_REV_TS. 모르면 0 — 게이트를 건너뛴다 */
+let _revTs: number | null = null;
+export function workerRevTime(): number {
+  if (_revTs != null) return _revTs;
+  try {
+    const root = path.resolve(here, "..", "..", "..", "..");
+    _revTs = Number(execFileSync("git", ["-C", root, "log", "-1", "--format=%ct"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()) || 0;
+  } catch { _revTs = Number(process.env.WORKER_REV_TS || 0) || 0; }
+  return _revTs;
+}
+
 type Row = { key: string; version: string; content: string };
 
 /** active 묶음(또는 고정 버전)을 읽는다. 고정 묶음에 없는 키(나중에 추가된 자산)는 active 로 보충한다 */
