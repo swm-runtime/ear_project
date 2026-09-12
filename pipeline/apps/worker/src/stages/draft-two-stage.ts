@@ -199,6 +199,19 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
   let run = 0, maxRun = 0, runEnd: string | null = null;
   for (const t of eTurns) { if (attributionRe.test(t.text)) { run++; if (run > maxRun) { maxRun = run; runEnd = t.id; } } else run = 0; }
   if (maxRun >= 5) v.push(`해설 턴 ${maxRun}개가 연속으로 귀속 표현("~라고요"·"~라고 해요"·"~라고 불러요"·"그가 말하는 건")을 담음 (${runEnd} 까지) — 한 소스를 옮겨 적는 구간이다. 소스가 말한 것을 해설자가 아는 것으로 바꾸어 말하고, 귀속은 직접 인용·수치·특정인 의견에만 (규칙 20~23)`);
+  // full-v6.4 (2026-09-12 직접 수정 43건): 기원 서사 틀 반복 · 턴 끝 미완결 · 비유 표지 밀도
+  const originRe = /(아까|방금|앞에서)[^.!?]{0,25}(때부터|부터)[^.!?]{0,8}(걸리|걸렸|궁금|정리)|(아까|방금)부터 (궁금|정리|걸리)/;
+  const origin = p.turns.filter((t) => t.id?.startsWith("Y") && originRe.test(t.text)).map((t) => t.id ?? "?");
+  if (origin.length >= 2) v.push(`진행 턴 ${origin.length}개가 같은 기원 서사 틀("아까 ~하셨을 때부터 걸렸는데요")로 시작 (${origin.join(", ")}) — 기원은 내용으로 붙이고 "방금"과 "~부터"를 같이 쓰지 않는다 (규칙 1)`);
+  const openEnd = p.turns.filter((t) => /(\.{3}|…)["'”’]?\s*$|[는고라데며서면]\.\s*$/.test(t.text.trim())).map((t) => t.id ?? "?");
+  if (openEnd.length >= 3) v.push(`턴 ${openEnd.length}개가 완결되지 않은 채 끝남 (${openEnd.slice(0, 6).join(", ")}) — 말줄임표·연결어미로 끝나면 오디오가 끊긴 인상을 준다. 완결형 문장으로 (규칙 16)`);
+  const metaphorRe = /(같은 거예요|같은 거네요|같은 거죠|같은 셈|같은 건데|비유하자면|이라고 보면 돼요|처럼요[.?]|인 셈이(에요|네요|죠))/g;
+  const metaphors = p.turns.reduce((a, t) => a + (t.text.match(metaphorRe)?.length ?? 0), 0);
+  if (metaphors >= 8) v.push(`비유 표지("같은 거예요"·"같은 셈"·"비유하자면")가 ${metaphors}회 — 비유는 어려운 대목에만, 에피소드에 셋 이내. 쉬운 대목의 비유와 개념 간 관계 비유를 뺀다 (규칙 18)`);
+  // 진행자가 지어낸 관계 비유 "X는 A가 아니라 B네요" (규칙 3·18, 직접 수정: 당직자·배터리/충전기·창고/검수대 전부 삭제됨)
+  const relRe = /(은|는) [가-힣 ]{1,12}(이|가) 아니라[^.!?]{0,14}(같은|이네요|이에요|예요|네요|거네요|인 거|죠)/;
+  const hostMeta = p.turns.filter((t) => t.id?.startsWith("Y") && relRe.test(t.text)).map((t) => t.id ?? "?");
+  if (hostMeta.length) v.push(`진행 턴 ${hostMeta.length}개가 관계 비유("X는 A가 아니라 B네요")를 지어냄 (${hostMeta.join(", ")}) — 진행자는 비유를 만들지 않는다. 자기 말로 바꿔 되돌린다 (규칙 3·18)`);
   // 제작 용어 누설 (골드 사용법, full-v6.3 — T260910-020 "저는 그 번역이 맞다고 봅니다")
   const leak = p.turns.filter((t) => /(그|이) 번역이|번역이 (맞|정확)|번역 맞장구|이 구간에서|구간 #|발췌에|클레임|골드 예시/.test(t.text)).map((t) => t.id ?? "?");
   if (leak.length) v.push(`제작 용어가 대사에 새어 나옴 (${leak.slice(0, 6).join(", ")}) — "번역"·"구간"·"발췌"·"클레임"은 규칙 문서의 말이다. 두 사람의 말로 바꾼다`);
