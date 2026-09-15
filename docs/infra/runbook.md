@@ -104,7 +104,11 @@ aws cloudfront-keyvaluestore delete-key --kvs-arn $KVS_ARN --key <contentId> --i
 ```
 `library_items` 일괄 삭제 등 노출면 전체 반영은 `partner-control.md` 4.3 — 회수 API 구현 시 함께.
 
-## 4. 코드 배포 (수동)
+## 4. 코드 배포
+
+**기본 경로는 CI다(2026-09-04~).** dev에 머지되면 `.github/workflows/deploy-api.yml`이 `backend/deploy/push.sh`를, `deploy-pipeline.yml`이 `pipeline/deploy/push.sh`를 실행한다 — 이 두 스크립트가 배포의 원본이며 로컬에서도 같은 것을 쓴다(`bash backend/deploy/push.sh`). 아래는 CI·push.sh가 모두 막혔을 때의 최후 수단이다.
+
+### 4.1 수동 배포 (비상용)
 
 ```bash
 # 로컬(Windows)에서 — 워킹트리 기준 반입. dist·node_modules 제외
