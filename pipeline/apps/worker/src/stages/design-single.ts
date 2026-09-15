@@ -23,11 +23,7 @@ export interface DesignInlineOut extends Omit<DesignOut, "excerpts" | "claims" |
   outline_md: string; pronunciations: { term: string; reading: string }[];
 }
 
-export type Attribution = "이름" | "익명" | "없음";
-/** 앵커 판정 임계 — 한 구간 안에서 이 수 이상의 claims 를 가진 소스가 그 구간의 앵커(이름 귀속). 회귀 3편으로 확정 예정, 실험용 env 로 바꿀 수 있다 */
-export const ANCHOR_MIN_CLAIMS = Math.max(1, Number(process.env.DESIGN_ANCHOR_MIN ?? 3));
-/** 구간당 앵커 상한 — 초과분은 claims 수가 많은 순으로 자른다 */
-const ANCHORS_PER_SECTION = 2;
+export type Attribution = "귀속" | "없음";
 
 export const sourceOfClaim = (c: { excerpt_ids: string[] }): number | null => {
   const m = c.excerpt_ids[0]?.match(/^S(\d+)-/);
@@ -35,28 +31,15 @@ export const sourceOfClaim = (c: { excerpt_ids: string[] }): number | null => {
 };
 
 /**
- * 귀속 등급 도출 (guidelines 규칙 20·21, full-v7 — 주장 종류가 아니라 구조 역할이 정한다):
- * 앵커(구간 내 claims ≥ N)의 claims → 이름 · 앵커 아닌 소스의 수치·인용·opinion → 익명(저명이면 이름) · 그 외 → 없음.
- * 반환의 anchors 는 구간 → 앵커 소스 번호 목록(claims.md 머리와 L0 가 쓴다).
+ * 귀속 등급 도출 (guidelines 규칙 20, full-v7.1 — 주장 종류가 정한다. "누구인지"는 블록(구간)이 정하므로 여기서는 표시 여부만):
+ * 수치·인용·opinion → 귀속(대본이 블록 소스를 지시 귀속으로 표시) · 그 외 → 없음(해설자의 말).
+ * v7 의 앵커 기준(구간 내 claims ≥ N → 이름)은 소스→구간 1:1 이라 모든 소스를 앵커로 만들어 claims 의 이름 등급이 41~53 이 됐고,
+ * 대본이 소스의 모든 문장에 전언체를 붙였다(T260915 4편 A9). 폐기.
  */
-export function deriveAttribution(claims: DesignInlineOut["claims"]): { attribution: Map<string, Attribution>; anchors: Map<number, number[]> } {
-  const count = new Map<string, number>(); // `${section}:${source}` → claims 수
-  for (const c of claims) { const s = sourceOfClaim(c); if (s === null) continue; const k = `${c.section}:${s}`; count.set(k, (count.get(k) ?? 0) + 1); }
-  const anchors = new Map<number, number[]>();
-  for (const [k, n] of count) {
-    if (n < ANCHOR_MIN_CLAIMS) continue;
-    const [sec, src] = k.split(":").map(Number);
-    const list = anchors.get(sec) ?? []; list.push(src); anchors.set(sec, list);
-  }
-  for (const [sec, list] of anchors) anchors.set(sec, list.sort((a, b) => (count.get(`${sec}:${b}`) ?? 0) - (count.get(`${sec}:${a}`) ?? 0)).slice(0, ANCHORS_PER_SECTION));
+export function deriveAttribution(claims: DesignInlineOut["claims"]): Map<string, Attribution> {
   const attribution = new Map<string, Attribution>();
-  for (const c of claims) {
-    const s = sourceOfClaim(c);
-    const isAnchor = s !== null && (anchors.get(c.section) ?? []).includes(s);
-    const needsSource = c.type === "수치" || c.type === "인용" || c.opinion;
-    attribution.set(c.id, isAnchor ? "이름" : needsSource ? (c.notable ? "이름" : "익명") : "없음");
-  }
-  return { attribution, anchors };
+  for (const c of claims) attribution.set(c.id, c.type === "수치" || c.type === "인용" || c.opinion ? "귀속" : "없음");
+  return attribution;
 }
 
 /** 구성안 정규화 (2026-09-10, T260910-007/C77): 모델이 "**축:**"·"### 구간 #1"·"- 예상 분량:"·"구간 1 —" 처럼 장식을 붙이면 줄머리 검사(`^축:`·`^구간 #1`)와
@@ -180,7 +163,7 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
   const spread = [...sectionsOf].filter(([s, secs]) => secs.size > (s === axis ? 2 : 1)).map(([s, secs]) => `S${s}→#${[...secs].sort((a, b) => a - b).join(",#")}`);
   if (spread.length) await fail(`소스가 여러 구간에 배정됨: ${spread.join(" · ")} — 소스는 한 구간에만(축 소스 ${axis ? `S${axis}` : "없음"}만 둘). 한 구간으로 모으거나 소스를 제외한다 (규칙 22, full-v7)`);
   if (sectionsOf.size > o.sections.length + 1) await fail(`사용 소스 ${sectionsOf.size}개 > 본문 구간 ${o.sections.length}개 + 1 — 얇은 소스를 제외한다 (full-v7)`);
-  const { attribution, anchors } = deriveAttribution(o.claims);
+  const attribution = deriveAttribution(o.claims);
   if (!/^축:/m.test(o.outline_md) || !/^구간 #1/m.test(o.outline_md)) await fail(`outline_md 형식 위반 — '축:' 또는 '구간 #1' 줄이 없음 (정규화 후). 앞부분: ${o.outline_md.replace(/\s+/g, " ").slice(0, 160)}`);
   if (o.estimated_minutes && o.estimated_minutes < 13) await fail(`재료 부족 — 설계 예상 분량 ${o.estimated_minutes}분 < 하한 13분. ${o.notes.slice(0, 200)}`);
 
@@ -198,10 +181,12 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
   }
   await fs.writeFile(path.join(dir, "sources.md"), lines.join("\n"), "utf8");
   const grade = (g: Attribution) => o.claims.filter((c) => attribution.get(c.id) === g).length;
-  const anchorNote = [...anchors].sort((a, b) => a[0] - b[0]).map(([sec, srcs]) => `#${sec} ${srcs.map((s) => `S${s}`).join("·")}`).join(" · ") || "없음";
+  const blocks = new Map<number, Set<number>>();
+  for (const [s, secs] of sectionsOf) for (const sec of secs) { const set = blocks.get(sec) ?? new Set<number>(); set.add(s); blocks.set(sec, set); }
+  const blockNote = [...blocks].sort((a, b) => a[0] - b[0]).map(([sec, srcs]) => `#${sec} ${[...srcs].sort((a, b) => a - b).map((s) => `S${s}`).join("·")}`).join(" · ") || "없음";
   const claimsMd = [`# claims — ${episodeId}`, "",
-    `> 귀속 열(guidelines 규칙 20, full-v7 — 워커가 도출): 이름 ${grade("이름")} · 익명 ${grade("익명")} · 없음 ${grade("없음")}. 없음 주장은 대본이 해설자의 말로 설명하고 출처를 달지 않는다.`,
-    `> 축 소스: ${axis ? `S${axis}` : "없음"} · 구간별 앵커(구간 내 claims ≥ ${ANCHOR_MIN_CLAIMS}): ${anchorNote}`, "",
+    `> 귀속 열(guidelines 규칙 20, full-v7.1 — 주장 종류에서 워커가 도출): 귀속 ${grade("귀속")} · 없음 ${grade("없음")}. 귀속 주장만 블록 소스를 지시 귀속으로 표시하고, 없음 주장은 해설자의 말로 설명한다. 이름은 정보일 때만 선택(규칙 21).`,
+    `> 축 소스: ${axis ? `S${axis}` : "없음"} · 블록(구간별 소스): ${blockNote}`, "",
     "| ID | 주장 | 발췌 ID | 유형 | 구간 | 저명 | 의견 | 귀속 |", "|---|---|---|---|---|---|---|---|",
     ...o.claims.map((c) => `| ${c.id} | ${c.text.replace(/\|/g, "／")} | ${c.excerpt_ids.join(", ")} | ${c.type} | #${c.section} | ${c.notable ? "○" : ""} | ${c.opinion ? "○" : ""} | ${attribution.get(c.id)} |`), ""].join("\n");
   await fs.writeFile(path.join(dir, "claims.md"), claimsMd, "utf8");

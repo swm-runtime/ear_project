@@ -226,6 +226,18 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
   const todayRe = /오늘(의)? (얘기|이야기|출발점|주제)/;
   const today = eTurns.filter((t) => todayRe.test(t.text));
   if (today.length >= 4) v.push(`해설 턴 ${today.length}개가 "오늘 얘기/오늘의 출발점" 틀로 위치를 잡음 (${today.slice(0, 6).map((t) => t.id).join(", ")}) — 같은 틀 세 번이면 각본이다. 내용으로 잇는다 (규칙 16)`);
+  // full-v7.1 판정 반영 (2026-09-15, T260915-001~004 직접 수정 85건): 화자 없는 인용 예고 · 발행 시기 · 해설자 전환 선언 · 발화 안 가운뎃점
+  const quoteCueRe = /((이런|그런|이) (문장|표현|구절|말)(이|도|을|가) (있어요|있는데요|있습니다|나와요|하나 있|있거든요)|(글|기사|책|보고서|논문|연구)(도|은|는|이|가|에서)? ?이렇게 (말해요|말합니다|적어요|적었어요|씁니다|썼어요|써요))/;
+  const quoteCue = eTurns.filter((t) => quoteCueRe.test(t.text)).map((t) => t.id ?? "?");
+  if (quoteCue.length) v.push(`해설 턴 ${quoteCue.length}개가 화자 없는 인용 예고("이런 문장이 있어요"·"그 글도 이렇게 말해요")로 들어감 (${quoteCue.slice(0, 6).join(", ")}) — 표지를 지우고 해설자의 문장으로 두거나 화자를 붙인다 (규칙 20·23)`);
+  const pubDateRe = /20\d\d년(?: \d{1,2}월)?에 [^.!?…]{0,14}(?:낸|발표한|실린|나온|쓴|펴낸|출간한|발행한|올린|내놓은) /;
+  const pubDate = eTurns.filter((t) => pubDateRe.test(t.text)).map((t) => t.id ?? "?");
+  if (pubDate.length) v.push(`해설 턴 ${pubDate.length}개가 소스의 발행 시기를 말함 (${pubDate.slice(0, 6).join(", ")}) — "2026년 8월에 낸"은 각주다. 시점이 축에 필요한 비교가 아니면 뺀다 (규칙 21)`);
+  const handoffRe = /(다음 (질문|얘기|이야기)(은|는|이) (이거|이건|이렇)|다음 (얘기|이야기|질문)(예요|이에요|입니다)|다음으로 넘어가)/;
+  const handoff = eTurns.filter((t) => handoffRe.test(t.text)).map((t) => t.id ?? "?");
+  if (handoff.length) v.push(`해설 턴 ${handoff.length}개가 구간 전환을 선언함 (${handoff.slice(0, 6).join(", ")}) — "그럼 다음 질문은 이거죠"는 대본 진행을 알리는 말이다. 앞 구간이 남긴 질문에서 진행자가 묻거나 내용으로 잇는다 (규칙 1)`);
+  const midDot = p.turns.filter((t) => /[가-힣A-Za-z)]·[가-힣A-Za-z(]/.test(t.text)).map((t) => t.id ?? "?");
+  if (midDot.length) v.push(`턴 ${midDot.length}개의 발화 안에 가운뎃점(·) 나열 (${midDot.slice(0, 6).join(", ")}) — 귀로는 낱말이 붙어 들린다. 쉼표로 나누거나 둘로 줄인다 (규칙 14)`);
   // full-v7 (2026-09-15): 귀속 표현 턴 비율 검사는 폐지 — 32~36% 인 편에서도 소스 순회(재식별 15건)가 있었다. 구조 검사로 대체
   v.push(...attributionViolations(scriptMd, p.turns, opts));
   return v;
@@ -243,6 +255,10 @@ export function attributionViolations(scriptMd: string, turns: { id: string | nu
   // 흔해 기준으로 못 쓴다 — 셋부터 잡는다. 꼬리 질문 자체는 루브릭 3.12 가 본다
   const manyQ = yTurns.filter((t) => (t.text.match(/\?/g)?.length ?? 0) >= 3).map((t) => t.id ?? "?");
   if (manyQ.length) v.push(`진행 턴 ${manyQ.length}개에 질문이 셋 이상 (${manyQ.slice(0, 6).join(", ")}) — 진행 턴은 되물음 하나 아니면 수긍 하나. 꼬리 질문을 뺀다 (규칙 25)`);
+  // 진행만 하는 짧은 되물음 턴 (규칙 25, full-v7.1 판정 반영 — 002 Y36 "셌더니요?"·Y41, 003 Y13 "어떤 일이었는데요?" 가 "없어도 되는 턴"으로 삭제됨): 열 자 이하의 물음 한 마디
+  // 4편 실측 10턴("첫 번째가 뭔데요?"·"뭘 물어봤는데요?"…) 중 사람이 지운 건 002·003 의 3턴 — 한둘은 리듬이라 셋부터 잡는다(001 2턴 통과, 002 5·003 3 적중)
+  const stubQ = yTurns.filter((t) => /\?/.test(t.text) && t.text.replace(/[\s.,!?…"'“”‘’]/g, "").length <= 10).map((t) => t.id ?? "?");
+  if (stubQ.length >= 3) v.push(`진행 턴 ${stubQ.length}개가 내용 없이 다음 해설을 부르는 한 마디 되물음 (${stubQ.slice(0, 6).join(", ")}) — 해설이 끊지 않고 이어 말한다. 되물음은 청취자가 막히는 자리에만 (규칙 4·25)`);
   // 진행자가 만든 비유 — "로 치면"은 콜백(003 ⭐ Y21 "아까 회사 얘기로 치면")에도 쓰여 제외, 명시적 비유 표지만
   const yMeta = yTurns.filter((t) => /(비유하자면|같은 거예요|같은 셈이|인 셈이(에요|네요|죠))/.test(t.text)).map((t) => t.id ?? "?");
   if (yMeta.length) v.push(`진행 턴 ${yMeta.length}개가 비유를 만듦 (${yMeta.join(", ")}) — 진행자는 비유를 만들지 않는다. 자기 말로 바꿔 되돌린다 (규칙 3·25)`);
@@ -270,20 +286,45 @@ export function attributionViolations(scriptMd: string, turns: { id: string | nu
     names.set(Number(m[1]), list);
   }
   const readings = opts.pronunciations ?? {};
-  const variants = (n: string): string[] => (readings[n] ? [n, readings[n]] : [n]);
   const eText = turns.filter((t) => t.id?.startsWith("E")).map((t) => t.text).join("\n");
-  const named = new Set<number>();
-  const nameUsed = new Map<number, string>();
-  for (const [s, list] of names) for (const n of list) for (const vn of variants(n)) if (vn.length >= 3 && eText.includes(vn)) { named.add(s); if (!nameUsed.has(s)) nameUsed.set(s, n); }
-  // 이름 상한 = 본문 구간 수 + 1 (저명 포함 — v6.1 기관명 예외 폐지)
-  if (bodySections.length && named.size > bodySections.length + 1) v.push(`이름(매체·저자·기관)이 나오는 소스가 ${named.size}곳 (${[...named].map((s) => `S${s}`).join(", ")}) — 상한은 본문 구간 ${bodySections.length}개 + 1. 앵커·저명 주체가 아닌 소스는 익명으로 (규칙 21)`);
-  // 앵커도 저명도 아닌 소스의 이름
-  const grades = new Map<number, Set<string>>();
-  for (const c of claims.values()) if (c.source !== null) { const g = grades.get(c.source) ?? new Set<string>(); g.add(c.grade); grades.set(c.source, g); }
-  const unnamed = [...named].filter((s) => !grades.get(s)?.has("이름"));
-  if (unnamed.length) v.push(`이름 등급이 없는 소스의 이름이 대본에 나옴 (${unnamed.map((s) => `S${s} "${nameUsed.get(s)}"`).join(", ")}) — 앵커·저명 주체만 이름을 부른다. 익명("한 연구에서는")으로 바꾼다 (규칙 20·21)`);
-  // 이름 형태: 풀네임(두 토큰 이상)이 한 번이라도 나왔으면 성만 따로 부르지 않는다 (직접 수정 "Sucher 교수 → Sandra Sucher 교수")
   const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const countIn = (hay: string, needle: string) => hay.match(new RegExp(esc(needle), "g"))?.length ?? 0;
+  void bodySections;
+  // 같은 이름 3회 이상 (규칙 21, full-v7.1 — 002 Sanjay Khosla ×6): 소개 때 한 번, 이후는 지시어
+  const known = new Set<string>();
+  for (const list of names.values()) for (const n of list) if (n.length >= 3) known.add(n);
+  for (const n of known) { const c = countIn(eText, n); if (c >= 3) v.push(`"${n}" 이 해설 턴에서 ${c}회 — 이름은 소개 때 한 번, 이후는 지시어("이 사람"·"연구팀")로 잇는다 (규칙 21)`); }
+  // 소스 목록에 없는 이름 (규칙 21 — 001 "Knowable Magazine"): 라틴 문자 고유명(두 단어 이상)과 "X 라는 매체/곳/기관"이 sources.md·claims·발음 맵에 없으면 지어낸 것
+  // 라틴 문자 이름의 대조 코퍼스는 sources.md(원문 발췌·발행처·저자)뿐 — claims.md 는 QA 기록에, pronunciations.json 은 모델이 새 표기마다 발음을 넣어서
+  // 지어낸 이름("Knowable Magazine")이 둘 다에 남아 있었다. 한글 토큰("LG경영연구원 이라는")만 발음 맵의 한글 표기까지 허용한다
+  const latinCorpus = sourcesMd;
+  const koreanCorpus = sourcesMd + "\n" + Object.values(readings).join("\n");
+  const candidates = new Map<string, string>(); // 이름 → 대조 코퍼스
+  for (const m of eText.matchAll(/(?<![A-Za-z])([A-Z][A-Za-z.&'-]+(?: [A-Z][A-Za-z.&'-]+)+)(?![A-Za-z])/g)) candidates.set(m[1], latinCorpus);
+  // "X 라는 매체/곳": X 는 공백 없는 한 토큰만 — 공백을 허용하면 앞 문장 끝("자리예요. Eos")까지 끌려 들어와 오탐이 난다. 라틴 두 단어 이상은 위 정규식이 잡는다
+  for (const m of eText.matchAll(/(?<![A-Za-z0-9가-힣])([A-Za-z0-9가-힣&'-]{2,20})\s?(?:이라는|라는) (?:[가-힣]+ )?(?:매체|곳|회사|기관|연구소|연구원|저널|신문)/g)) if (!candidates.has(m[1])) candidates.set(m[1], /[가-힣]/.test(m[1]) ? koreanCorpus : latinCorpus);
+  // 대소문자·구두점 무시 — 매체가 URL 로만 있는 경우("Eos" ↔ eos.org, "Nautilus" ↔ nautil.us)를 허용한다
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9가-힣]/g, "");
+  const invented = [...candidates].filter(([n, corpus]) => n.length >= 3 && !norm(corpus).includes(norm(n))).map(([n]) => n);
+  const inventedTop = invented.filter((n) => !invented.some((o) => o !== n && o.includes(n))); // "Quantum Weekly"가 잡히면 부분 문자열 "Weekly"는 따로 세지 않는다
+  if (inventedTop.length) v.push(`소스 목록에 없는 이름 (${inventedTop.slice(0, 5).join(", ")}) — 매체명·기관명·인명은 sources.md 에 있는 것만 부른다. 없으면 익명("한 매체에서")으로 (규칙 21)`);
+  // 되돌림 표지 (규칙 22): 앞 블록의 소스를 다시 식별하지 않는다 — 축 소스도 내용으로만 되짚는다
+  const backRe = /(로 돌아가(면|서|볼게요|볼까요)|아까 그 |앞에서 말한 그 |아까 말한 그 )/;
+  const back = turns.filter((t) => backRe.test(t.text)).map((t) => t.id ?? "?");
+  if (back.length) v.push(`되돌림 표지("~로 돌아가면"·"아까 그") ${back.length}턴 (${back.slice(0, 5).join(", ")}) — 앞 블록의 소스를 다시 식별하지 않는다. 축 소스도 내용으로만 되짚는다 (규칙 22)`);
+  // 블록 첫 해설 턴이 앞 블록의 지시어로 시작 (규칙 22 — 004 "그 교수"가 #4·#5 에서 다른 사람)
+  {
+    let sec = 0; let seen = new Set<number>(); const bad: string[] = [];
+    for (const line of scriptMd.split(/\r?\n/)) {
+      const s = line.match(/^### #(\d+)/); if (s) { sec = Number(s[1]); continue; }
+      const t = line.match(/^\s*(?:\[[^\]]+\]\s*)?\**(E\d+)\b\s*[·:]?\s*(.*)$/);
+      if (!t || !sec || seen.has(sec)) continue;
+      seen.add(sec);
+      if (/^(그|이) (교수|연구|연구팀|연구진|팀|사람|글|보고서|회장|저자|연구자|기사|논문)/.test(t[2].trim())) bad.push(`${t[1]}(#${sec})`);
+    }
+    if (bad.length) v.push(`블록의 첫 해설 턴이 앞 블록의 지시어로 시작 (${bad.join(", ")}) — 새 블록은 소개 한 문장으로 연다. 익명이어도 된다("미국의 한 대학 연구팀이") (규칙 22)`);
+  }
+  // 이름 형태: 풀네임(두 토큰 이상)이 한 번이라도 나왔으면 성만 따로 부르지 않는다 (직접 수정 "Sucher 교수 → Sandra Sucher 교수")
   for (const list of names.values()) for (const n of list) {
     const parts = n.split(/\s+/);
     if (parts.length < 2 || !eText.includes(n)) continue;
