@@ -26,4 +26,10 @@ export const STORAGE_KEYS = {
    * 빼서 겹쳐 받는다. 중복 수신은 무해하다(이미 사라진 것을 다시 지울 뿐).
    */
   PLAYER_WITHDRAWN_SYNCED_AT: 'player.withdrawn_synced_at',
+  /**
+   * 마지막으로 본 탭과 그 시각(`splash.md` 4장 4-1). `<탭>:<epoch ms>` 꼴.
+   * 30분이 지나면 무시하고 라이브러리로 간다. 기기 로컬 전용 — 서버에 보내지 않는다
+   * (기기마다 마지막으로 본 탭이 다른 것이 자연스럽다). 로그아웃 시 지운다.
+   */
+  LAST_TAB: 'nav.last_tab',
 } as const;

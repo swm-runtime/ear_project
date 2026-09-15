@@ -1,9 +1,11 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
 import TabBarIcon from '@/shared/ui/TabBarIcon';
+
 
 import { EmailVerificationScreen, useSessionStore, WithdrawalScreen } from '@/features/auth';
 import { CareerInfoScreen } from '@/features/career';
@@ -21,6 +23,7 @@ import { PlayerScreen } from '@/features/player';
 import { ProfileScreen } from '@/features/profile';
 import { SettingsScreen } from '@/features/settings';
 
+import { rememberTab, takePrimedTab, type RestorableTab } from './last-tab';
 import PlaceholderScreen from './PlaceholderScreen';
 import type { MainStackParamList, MainTabParamList } from './types';
 
@@ -38,16 +41,31 @@ const TAB_ICON_SIZE = 28;
  * **온보딩을 막 끝낸 진입만 탐색으로 착지한다**(2026-09-02) — 갓 만든 라이브러리보다
  * 고를 것이 많은 화면을 먼저 보여준다. `initialRouteName`은 첫 마운트에만 읽히는데,
  * 온보딩 → Main 전환에서 이 내비게이터가 새로 마운트되므로 그 시점 값이 그대로 쓰인다.
+ *
+ * **그 둘 다 아니면 마지막으로 본 탭으로 착지한다**(splash.md 4장 4-1 — 2026-09-15).
+ * 우선순위는 온보딩 직후 > 마지막 탭 > 라이브러리다 — 온보딩을 막 끝낸 사람에게는
+ * 이전 기록보다 "고를 것이 많은 화면"이 먼저다.
  */
 function MainTabs() {
   // 높이를 직접 정하면 기본 안전영역 처리가 덮이므로 홈 인디케이터 높이를 직접 더한다.
   // 이걸 빼먹으면 인디케이터가 있는 기기에서 라벨이 인디케이터에 깔린다
   const insets = useSafeAreaInsets();
   const justCompletedOnboarding = useSessionStore((s) => s.justCompletedOnboarding);
+  // 마운트 시 한 번만 꺼낸다 — 리렌더마다 부르면 두 번째부터 null 이라 탭이 흔들린다
+  const [restoredTab] = useState(takePrimedTab);
 
   return (
     <MainTab.Navigator
-      initialRouteName={justCompletedOnboarding ? 'Explore' : 'Library'}
+      initialRouteName={justCompletedOnboarding ? 'Explore' : (restoredTab ?? 'Library')}
+      screenListeners={{
+        // 탭을 떠난 시각이 아니라 도착한 시각을 적는다 — 마지막으로 머문 탭이 곧
+        // 마지막으로 본 탭이고, 떠나는 시점을 잡으려면 이탈 경로마다 훅이 필요하다
+        state: (e) => {
+          const s = e.data.state;
+          const name = s?.routeNames?.[s.index ?? 0];
+          if (name) rememberTab(name as RestorableTab);
+        },
+      }}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: theme.color.primary,
