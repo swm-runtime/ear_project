@@ -6,7 +6,7 @@
 | **AWS 계정** | `639177726357` — **ISB-45** (SW마에스트로 지원 조직 계정, IAM Identity Center SSO) |
 | CLI 접근 | `aws configure sso` 프로필(역할 `myisb_IsbUsersPS`). 세션 만료 시 `aws sso login` |
 | 리전 | `ap-northeast-2` (서울) |
-| ⚠️ 계정 제약 | **조직 SCP(`p-5soyo0ar`)가 CloudFront KeyValueStore 데이터 플레인을 전면 거부** — `/play` 재작성안 폐기의 원인([`architecture.md`](architecture.md) 3.2). 다른 SCP 거부를 만나면 여기에 추가 기록할 것 |
+| ⚠️ 계정 제약 | **조직 SCP(`p-5soyo0ar`)가 거부하는 것**: CloudFront KeyValueStore 데이터 플레인(`/play` 재작성안 폐기 원인 — [`architecture.md`](architecture.md) 3.2) · **`dlm:*` 전부**(2026-09-15 — EBS 스냅샷 자동화를 DLM으로 못 함) · **AWS Backup 볼트 생성**(2026-09-15 — "backup-storage·KMS 권한 부족"). `ec2:CreateSnapshot`·AWS Backup 목록 조회는 허용. 다른 SCP 거부를 만나면 여기에 추가 기록할 것 |
 
 > **이력**: 최초 구축(2026-08-30)은 개인 계정 `574748894595`에 이뤄졌으나 계정 착오로 확인되어
 > 2026-08-31 이 계정으로 재구축했고, **구계정 리소스는 전부 삭제했다**(과금 요소 0. IAM 유저
@@ -64,6 +64,7 @@
 | Budgets | `ear-monthly-10usd` ($10, 80% 실적·100% 예측 메일) | 조직 계정이라 결제 주체는 조직 — 알림은 참고용 |
 | SNS 토픽 | `ear-prod-alerts` | 메일 구독 **4건 확정**(2026-09-15 실측 — gmail 3·naver 1) |
 | CloudWatch 알람 | `ear-prod-ec2-status-check` | 상태 검사 실패 3분 연속 시 알림 |
+| EBS 일일 스냅샷 | 운영 API 루트 볼륨 `vol-08a084b831f352dc3`(태그 `Backup=daily`) — 서버 크론 `40 19 * * *`(04:40 KST) `deploy/ebs-snapshot.sh` → 태그 `Source=ear-daily`, **7일 지난 것 자동 삭제**. 인스턴스 롤 `ear-prod-ec2` 인라인 `ebs-snapshot`(이 볼륨 생성·`ear-daily` 태그 스냅샷만 삭제). 첫 스냅샷 `snap-0490cb092c774d4a6`(2026-09-15) | DLM·AWS Backup이 SCP에 막혀 크론으로(위 계정 제약). 대상은 운영 API 한 대만 — AI 서버는 Supabase·S3가 실체, 개발계는 버려도 됨. 크래시 컨시스턴트 사본이라 DB 일관성 백업은 pg_dump(`backup.sh`)가 담당. 복구는 [`runbook.md`](runbook.md) 5.4. 비용 월 500~700원 예상 |
 | CloudWatch Agent | API EC2에 설치(2026-09-11, `dnf amazon-cloudwatch-agent` 1.300069) — 네임스페이스 `CWAgent`, 60초 간격 `cpu_usage_active`(`cpu=cpu-total`) · `mem_used_percent` · `swap_used_percent` · `disk_used_percent`(sysfs·tmpfs·overlay 등 가상 FS 제외) | 지표 9개 = 상시 무료 한도(10개) 안. **EC2 세부 모니터링(월 ~$2.1)은 끄고 CPU도 에이전트로 1분 수집.** 설정 `/opt/aws/amazon-cloudwatch-agent/bin/config.json`, 재적용 `amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:<그 파일>`, 상태 `-a status`. systemd 자동 시작. 대시보드는 `CWAgent` + `InstanceId` 차원으로 구성 |
 | SES | 도메인 identity `earcast.co.kr` — **DKIM 검증 완료 · 프로덕션 액세스 승인**(샌드박스 아님. 발송 상한 50,000통/일 · 14tps — 2026-09-09 `sesv2 get-account` 실측) | 서버 코드 `backend/src/modules/user/ses-mail.client.ts`(스펙 동반). 인증 메일이 Gmail에 `dkim=pass header.d=earcast.co.kr`로 도착 확인(2026-09-08) |
 | Secrets Manager | `ear/prod/api` — ARN `...:secret:ear/prod/api-PyK5Ku` | 운영 API 비밀값 8종(2026-09-09 적재). 읽기는 인스턴스 롤 `ear-prod-ec2`의 인라인 정책 `secrets-read`(그 ARN만). **비밀값의 원천**(2026-09-09) — `push.sh`가 배포마다 내려받아 `.env.prod`의 비밀 항목을 덮어쓴다(`deploy/apply-secrets.py`). 앱은 여전히 `.env.prod` 파일을 읽지만 그 내용이 Secrets Manager에서 온다 |

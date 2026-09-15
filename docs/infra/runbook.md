@@ -162,12 +162,25 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T postgres 
 > library_items 92/92 · 인덱스 87/87 · FK 31/31 · `vector` 확장 0.8.6. psql 에러 0건.
 > **운영 DB는 읽기만 했다.** 같은 방식으로 언제든 안전하게 다시 연습할 수 있다.
 
-### 5.4 서버 교체 (이미지 통째 재구축이 더 빠르다)
-1.3~1.5 재실행 → Elastic IP를 새 인스턴스로 옮기면 DNS 변경 불필요 → 5.3 복원.
+### 5.4 서버 교체
+
+**A. 스냅샷에서 복구(2026-09-15 이후 — 가장 빠르다, 10분).** 운영 API 루트 볼륨은 매일 04:40 KST 스냅샷이 7일 보존된다(`deploy/ebs-snapshot.sh`, 태그 `Source=ear-daily`). 볼륨·인증서·`.env.prod`·도커 이미지가 통째로 돌아온다. 스냅샷 시점 이후의 DB 변경은 5.3 덤프로 덧씌운다.
+```bash
+aws ec2 describe-snapshots --owner-ids 639177726357 --filters Name=tag:Source,Values=ear-daily --query 'sort_by(Snapshots,&StartTime)[-3:].[StartTime,SnapshotId,State]' --output table
+# 1) 스냅샷 → 볼륨 (같은 AZ ap-northeast-2a, gp3)
+aws ec2 create-volume --snapshot-id <snap> --availability-zone ap-northeast-2a --volume-type gp3 --tag-specifications 'ResourceType=volume,Tags=[{Key=Name,Value=ear-prod},{Key=Backup,Value=daily},{Key=Project,Value=ear}]'
+# 2) 새 인스턴스를 그 볼륨으로 띄우거나(run-instances --block-device-mappings 로 스냅샷 지정), 기존 인스턴스를 stop → 루트 볼륨 detach → 새 볼륨을 /dev/xvda 로 attach → start
+# 3) Elastic IP 를 새 인스턴스로 옮기면 DNS 변경 불필요. 기동 후 헬스 200 확인, 필요하면 5.3 으로 최신 덤프 덧씌우기
+```
+- 스냅샷은 크래시 컨시스턴트다(전원이 끊긴 순간의 디스크). postgres 는 WAL 로 스스로 복구하지만, 정합성이 중요한 복구는 5.3 덤프를 우선한다.
+- 새 볼륨에서 부팅한 인스턴스에도 인스턴스 롤·SG·키페어를 같은 것으로 준다(1.3).
+
+**B. 처음부터 재구축(스냅샷이 없거나 못 믿을 때, 2~3시간).** 1.3~1.5 재실행 → Elastic IP를 새 인스턴스로 옮기면 DNS 변경 불필요 → 5.3 복원.
 
 ## 6. 정기 점검 (주 1회 권장)
 
-- [ ] `ear-backup-prod/pg/`에 최근 덤프가 매일 쌓이는가
+- [ ] `ear-backup-prod/pg/`에 최근 덤프가 매일 쌓이는가 · `/var/log/ear-content-sync.log`에 내보내기가 매일 찍히는가
+- [ ] 스냅샷이 매일 1개 늘고 8일째 것이 지워지는가: `aws ec2 describe-snapshots --owner-ids 639177726357 --filters Name=tag:Source,Values=ear-daily --query 'length(Snapshots)'` = 7 안팎
 - [ ] Budgets 메일·CloudWatch 알람 상태 (SNS 구독 Confirm 됐는가)
 - [ ] `df -h` 디스크 (20GB — docker 이미지가 쌓이면 `docker system prune -f`)
 - [ ] 인증서는 Caddy 자동 — 만료 걱정 없음. `docker compose … logs caddy | grep -i renew`로 확인만
