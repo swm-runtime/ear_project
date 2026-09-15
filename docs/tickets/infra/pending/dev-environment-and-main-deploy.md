@@ -10,7 +10,7 @@
 | 발견 시점 | 2026-09-15 인프라 인수 — 실계정 대조(PR #343). 환경이 한 벌뿐이고 그것이 실운영이라 dev 머지가 검증 없이 실사용자에게 닿는다 |
 | 근거 문서 | `docs/infra/architecture.md` 6장(2026-09-15 미결) · `docs/infra/inventory.md` 1장 · 루트 `CLAUDE.md` Git 절(main = 배포 기준선) · `backend/load-test/README.md`(상한 실측) |
 | 중요도 | **Low** — 이번 주 안에 착수. 지금 당장 장애는 없지만, 사용자 유입(광고) 전에 "검증된 것만 운영에" 구조가 있어야 한다 |
-| 상태 | **진행 중** — 1·2·3단계 완료(2026-09-15) · 4단계 진행 중(ECR·권한 완료, CI 빌드 job PR, 운영 pull 전환은 팀 공유 후 별도 결정) |
+| 상태 | **진행 중** — 1·2·3단계 완료 · 4-1~4-3 완료(2026-09-15). **4-4 운영 pull 전환 대기(팀 공유 후 사용자 결정)** · 이후 5단계 |
 
 ## 배경 · 확인된 현재 상태 (2026-09-15 실측)
 
@@ -43,8 +43,8 @@
 3. ✅ 콘텐츠 동기화 — 운영 크론 `10 19 * * *`(04:10 KST) `sync-content-export.sh` 등록·첫 내보내기 15KB 업로드, 개발계 크론 `30 19 * * *`(04:30 KST) `sync-content-import.sh` 등록·첫 들여오기 161행(topics 36 · contents 11 · content_topics 13 · content_sources 66 · content_stats 35 · content_embeddings 0 — 운영에 임베딩 행이 아직 없음). 개발계 users 0 유지. 로그 양쪽 `/var/log/ear-content-sync.log` (2026-09-15)
 4. CI 이미지 빌드 → ECR → 서버 pull — 네 조각으로 나눈다. **4-4(운영 pull 전환)는 팀 공유 후 사용자가 시점을 정한다(2026-09-15).**
    - 4-1 ✅ ECR `ear/api`(스캔·최근 10개 보존) + CI 롤 `ecr-push` + 인스턴스 롤 `ear-prod-ec2`·`ear-dev-ec2` `ecr-pull` (`setup-ecr.sh`, 2026-09-15). 권한만 붙었고 배포 방식 무변경
-   - 4-2 워크플로 `build-push` job(검증 뒤, arm64 러너 네이티브 빌드, 태그 `<sha>`·`<branch>-latest`). 배포 job과 독립 — 서버는 여전히 자기 빌드. 저장소 비공개 전환 시 러너 과금 또는 QEMU 전환(주석)
-   - 4-3 개발계에 `API_IMAGE=<uri>:<sha> push.sh`로 pull 배포 시험 + 이전 SHA 롤백 연습. `push.sh`는 `API_IMAGE` 있을 때만 pull 모드, compose `image: ${API_IMAGE:-ear-prod-api}`(기본값 = 종전 이름)
+   - 4-2 ✅ 워크플로 `build-push` job(PR #360, 2026-09-15) — 첫 런: 검증 2.5분 · **빌드+푸시 70초**(arm64 네이티브) · 배포 30초. ECR에 `4df2660…`·`dev-latest` 78MB(압축). 배포 job은 독립 — 서버는 여전히 자기 빌드
+   - 4-3 ✅ 개발계 pull 배포 시험(2026-09-15) — `API_IMAGE=…:4df2660…`로 pull → 헬스 200, 실행 컨테이너 이미지 = ECR 태그 확인, 마이그레이션 24 유지. **롤백 훈련**: `API_IMAGE` 없이 재배포 → 옛 서버 빌드 경로로 헬스 200(폴백 동작 확인) → 다시 ECR 이미지로. 개발계 최종 상태 = ECR 이미지 실행
    - 4-4 운영 pull 전환 — `push.sh`/워크플로 기본을 이미지로. **대기**
 5. DLM 스냅샷 정책 · 알람 3종
 6. 워크플로 환경 매트릭스(브랜치 → 호스트·SG·SSH 시크릿·Secrets 경로·헬스 URL, GitHub Environments) · IAM `ear-ci-deploy` 신뢰 조건에 `refs/heads/main` 추가 · `eas-update.yml` 채널별 API 주소 분리
