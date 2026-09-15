@@ -27,3 +27,7 @@
 
 - Given `drip-scheduling.md` 4.3 / When 반영 주기를 읽는다 / Then 적립 스킵 사용자도 재계산 대상이라는 문장이 있다
 - Given 미청취 재고 5편 이상인 사용자 / When 일일 배치가 돈다 / Then `library_items`는 늘지 않고 `user_preference_vectors`는 그날 갱신된다 (`drip-batch.orchestrator.spec.ts` "미청취 재고로 적립을 건너뛴 사용자도 취향 캐시는 재계산한다")
+
+## 처리 기록 (반영 날짜: 2026-09-15)
+
+`drip-scheduling.md` 4.3 반영 주기 항목과 `domain.md` 7.2 갱신 주기 항목에 "스킵 사용자도 재계산" 문장을 넣었다. 코드는 PR #349(`DripBatchOrchestrator.scheduleForUser`)로 dev에 반영돼 있다.

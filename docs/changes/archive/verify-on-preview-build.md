@@ -47,3 +47,7 @@ B안(= `dev` 머지마다 `production`도 발행)은 버렸다. 검증 기기와
 
 - Given FE 수정을 실기기로 확인해야 한다 / When 검증을 요청한다 / Then 대상은 `preview` 빌드이고, 기대 번들 ID 8자리가 함께 전달된다
 - Given `frontend/architecture.md` 2.1을 읽는다 / When 채널 표를 본다 / Then 어느 빌드로 검증하는지가 표 아래에 적혀 있다
+
+## 처리 기록 (반영 날짜: 2026-09-15)
+
+`frontend/architecture.md` 2.1 채널 표 아래에 검증 빌드·기대 번들 ID·runtimeVersion 세 항목을 넣었다.

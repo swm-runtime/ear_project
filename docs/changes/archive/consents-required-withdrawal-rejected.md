@@ -24,3 +24,7 @@
 - Given `auth-api.md` 4.5 / When 읽는다 / Then 필수 동의 철회가 400 `CONSENT_REQUIRED`라고 적혀 있다
 - Given 로그인한 계정 / When `{ consent_type: "terms", is_agreed: false }`를 보낸다 / Then 400 `CONSENT_REQUIRED`이고 `consents`에 행이 늘지 않는다 (`consent.service.spec.ts` "필수 동의의 철회…")
 - Given 같은 계정 / When `{ consent_type: "marketing", is_agreed: false }`를 보낸다 / Then 200이고 `false` 행이 추가된다
+
+## 처리 기록 (반영 날짜: 2026-09-15)
+
+`auth-api.md` 4.5에 필수 동의 철회 불가 항목을 넣고, 5장 중앙 표 `CONSENT_REQUIRED` 행과 `common-error-handling.md` 9.3 같은 행에 4.5 사유를 덧붙였다. 4.5에는 에러 표가 따로 없어 본문 항목으로 적었다. 코드는 PR #349(`ConsentService.recordConsents`)로 dev에 반영돼 있다.
