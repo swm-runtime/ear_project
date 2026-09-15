@@ -234,7 +234,16 @@ if [ "${BOOTSTRAP:-0}" = "1" ]; then
   for i in $(seq 1 40); do $SSH ec2-user@$EIP 'cloud-init status --wait >/dev/null 2>&1; command -v docker >/dev/null && docker compose version >/dev/null' 2>/dev/null && break; echo "  cloud-init 대기 ($i)"; sleep 15; done
   scp -q -i "$PEM" "$OUT/${SERVER_NAME}.env.prod" ec2-user@$EIP:/opt/ear/backend/.env.prod
   echo "env 반입됨 → push.sh"
-  HOST=$EIP PEM=$PEM SECRET_ID=$SECRET_ID HEALTH_URL="https://$API_DOMAIN/api/v1/health" bash "$ROOT/backend/deploy/push.sh"
+  # push.sh 는 `up -d --build api` 라 첫 부트에서는 caddy 가 안 뜬다(운영은 이미 떠 있어 문제 없던 부분) — 헬스 실패가 정상이다.
+  # 그래서 전체를 한 번 올리고 헬스를 다시 본다. 2026-09-15 첫 부트 실측.
+  HOST=$EIP PEM=$PEM SECRET_ID=$SECRET_ID HEALTH_URL="https://$API_DOMAIN/api/v1/health" bash "$ROOT/backend/deploy/push.sh" || true
+  $SSH ec2-user@$EIP 'cd /opt/ear/backend && docker compose -f docker-compose.prod.yml --env-file .env.prod up -d'
+  for i in $(seq 1 24); do
+    code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "https://$API_DOMAIN/api/v1/health" || true)
+    [ "$code" = "200" ] && { echo "✅ https://$API_DOMAIN/api/v1/health 200"; break; }
+    sleep 5
+  done
+  [ "$code" = "200" ] || echo "⚠ 헬스가 아직 200 이 아니다($code) — DNS 전파 또는 인증서 발급 대기. 서버 로그: docker compose … logs caddy api"
 fi
 
 say "완료"
