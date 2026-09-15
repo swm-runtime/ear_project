@@ -16,20 +16,27 @@ export const APP_VERSION = '1.0.0';
  * (2026-09-08 — 회수 중단이 "안 된다"의 실제 원인이 이것이었다).
  *
  * 눈으로 구분할 값이 없으면 매번 같은 함정을 밟는다. 스토어 빌드에 내장된 번들이면 `내장`,
- * OTA로 받은 번들이면 업데이트 ID 앞 6자리를 보여준다.
+ * OTA로 받은 번들이면 업데이트 ID 앞 8자리를 보여준다.
+ *
+ * **6자리로는 같은 날 발행분이 구분되지 않는다.** 업데이트 ID는 UUIDv7이고 앞부분이
+ * 발행 시각(ms)이라, 6자리는 시각의 상위 24비트 — **약 4.6시간이 같은 값으로 뭉친다.**
+ * 실제로 18분 간격의 두 발행이 똑같이 `01a0a3`으로 보여, 옛 번들을 새 번들로 착각한 채
+ * "안 고쳐졌다"를 확인했다(2026-09-15). 8자리면 약 1분까지 갈라진다.
  *
  * **서버 판정에 쓰지 않는다** — 업데이트 안내는 서버가 `APP_VERSION`으로 정한다.
  */
+const BUNDLE_LABEL_LENGTH = 8;
+
 const resolveBundleLabel = (): string => {
   try {
     // 웹·개발 빌드에선 모듈이 값을 주지 않는다 — 표시용이므로 조용히 비운다
     if (Updates.isEmbeddedLaunch) return '내장';
     const updateId = Updates.updateId;
-    return updateId ? updateId.replace(/-/g, '').slice(0, 6) : '내장';
+    return updateId ? updateId.replace(/-/g, '').slice(0, BUNDLE_LABEL_LENGTH) : '내장';
   } catch {
     return '내장';
   }
 };
 
-/** 설정 화면의 버전 행에 붙는 값 — `1.0.0 (a07fe5)` 꼴 */
+/** 설정 화면의 버전 행에 붙는 값 — `1.0.0 (01a0a3c9)` 꼴 */
 export const APP_VERSION_LABEL = `${APP_VERSION} (${resolveBundleLabel()})`;
