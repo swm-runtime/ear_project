@@ -56,3 +56,6 @@ SIZE=$(stat -c %s "$FILE")
 aws s3 cp "$FILE" "s3://${BACKUP_BUCKET}/${PREFIX}/content-${STAMP}.sql.gz" --only-show-errors
 aws s3 cp "$FILE" "s3://${BACKUP_BUCKET}/${PREFIX}/content-latest.sql.gz" --only-show-errors
 echo "content export ok: ${STAMP} (${SIZE} bytes, tables=${TABLES[*]})"
+# 심장박동 지표 — 성공했을 때만 1을 찍는다. CloudWatch 알람이 "25시간 안에 지표 없음"을 잡는다(실패뿐 아니라 미실행도)
+aws cloudwatch put-metric-data --region "${AWS_REGION:-ap-northeast-2}" --namespace ear/ops --metric-name CronSuccess \
+  --dimensions Job=content-export --value 1 --unit Count 2>/dev/null || echo "경고: 심장박동 지표 기록 실패(권한/네트워크) — 알람이 오탐할 수 있다"
