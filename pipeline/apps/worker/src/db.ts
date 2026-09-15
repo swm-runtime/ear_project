@@ -219,7 +219,7 @@ export async function upsertEpisode(e: { id: string; backlog_id: string; prompt_
   const vals = Object.values(keys).map((v) => (v != null && typeof v === "object" ? JSON.stringify(v) : v));
   await pool.query(
     `insert into public.episodes (id, backlog_id, prompt_version${cols.map((c) => `, ${c}`).join("")}) values ($1,$2,$3${cols.map((_, i) => `, $${i + 4}`).join("")})
-     on conflict (id) do update set updated_at = now()${cols.map((c) => `, ${c} = excluded.${c}`).join("")}`,
+     on conflict (id) do update set updated_at = now(), prompt_version = excluded.prompt_version${cols.map((c) => `, ${c} = excluded.${c}`).join("")}`,
     [id, backlog_id, prompt_version, ...vals],
   );
 }
