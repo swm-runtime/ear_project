@@ -40,6 +40,19 @@ export class FirstDripRetryScheduler {
     let userIds: string[];
 
     try {
+      // 마지막 선점 뒤 확정하지 못하고 죽은 작업은 재선점 조건에 걸리지 않으므로 먼저 실패로 확정한다
+      const failedCount = await this.firstDripJobRepository.failExhaustedStale(
+        FIRST_DRIP_MAX_TOTAL_ATTEMPT_COUNT,
+        staleBefore,
+        now,
+      );
+
+      if (failedCount > 0) {
+        this.logger.error('first drip jobs abandoned after final attempt', {
+          failed_count: failedCount,
+        });
+      }
+
       userIds = await this.firstDripJobRepository.claimRetryable(
         now,
         staleBefore,
@@ -59,7 +72,7 @@ export class FirstDripRetryScheduler {
 
     // 건당 로그를 남기지 않고 집계해서 한 번 남긴다 (convention.md 8.5)
     this.logger.log('retrying first drip jobs', {
-      claimedCount: userIds.length,
+      claimed_count: userIds.length,
     });
 
     for (const userId of userIds) {

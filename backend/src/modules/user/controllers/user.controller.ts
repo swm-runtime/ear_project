@@ -30,6 +30,7 @@ import { GetMeResponseDto } from '../dto/get-me-response.dto';
 import { ReplaceCareerRequestDto } from '../dto/replace-career-request.dto';
 import { ReplaceCareerResponseDto } from '../dto/replace-career-response.dto';
 import { UserCareerService } from '../services/user-career.service';
+import { RegisterDeviceParamsDto } from '../dto/register-device-params.dto';
 import { RegisterDeviceRequestDto } from '../dto/register-device-request.dto';
 import { GetActiveEmailVerificationResponseDto } from '../dto/get-active-email-verification-response.dto';
 import { GetWithdrawalPreviewResponseDto } from '../dto/get-withdrawal-preview-response.dto';
@@ -89,13 +90,13 @@ export class UserController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async registerDevice(
     @CurrentUser() currentUser: AuthenticatedUser,
-    @Param('deviceId') deviceId: string,
+    @Param() params: RegisterDeviceParamsDto,
     @Body() request: RegisterDeviceRequestDto,
   ): Promise<void> {
     await this.deviceTokenService.register(
       {
         userId: currentUser.id,
-        deviceId,
+        deviceId: params.deviceId,
         pushToken: request.push_token ?? null,
         platform: request.platform,
         isOsPermissionGranted: request.is_os_permission_granted,

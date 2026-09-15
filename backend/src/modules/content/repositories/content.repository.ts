@@ -5,6 +5,10 @@ import { EntityManager, In, Repository, SelectQueryBuilder } from 'typeorm';
 import { escapeLikePattern } from '@/common/utils/search-text.util';
 
 import {
+  CONTENT_VISIBILITY_CONDITION,
+  contentVisibilityParameters,
+} from '../content.visibility';
+import {
   SEARCH_WEIGHT_AUTHOR,
   SEARCH_WEIGHT_DESCRIPTION,
   SEARCH_WEIGHT_TITLE,
@@ -101,12 +105,10 @@ export class ContentRepository {
     builder: SelectQueryBuilder<Content>,
     now: Date,
   ): SelectQueryBuilder<Content> {
-    return builder
-      .where('content.status = :status', { status: ContentStatus.PUBLISHED })
-      .andWhere(
-        '(content.license_expires_at IS NULL OR content.license_expires_at > :now)',
-        { now },
-      );
+    return builder.where(
+      CONTENT_VISIBILITY_CONDITION,
+      contentVisibilityParameters(now),
+    );
   }
 
   /** 주제 필터는 **OR 조합**이다 — 다중 선택의 의도는 "이 중 아무거나"다 */
@@ -132,6 +134,11 @@ export class ContentRepository {
    * 재발행처럼 같은 행을 읽고 바꾸는 경로를 직렬화한다 — 트랜잭션 필수.
    * 무잠금 `findOne` 뒤 `content_version += 1`은 동시 재발행 두 건이 같은 버전을 읽어
    * 둘 다 N+1을 쓰고 서로의 새 오디오를 지우는 경합이 있었다(2026-09-09 감사).
+   *
+   * `FOR NO KEY UPDATE`인 이유는 `UserRepository.findByIdForUpdate`와 같다 — 재발행이 이 행을
+   * 잠근 채 `playback_progresses`를 지우는 동안, 위치 저장이 같은 콘텐츠의 진행 행을 넣으며
+   * FK 검사(`FOR KEY SHARE`)로 이 행을 기다리면 데드락이 된다. 같은 모드·UPDATE·DELETE와는
+   * 여전히 배타적이라 동시 재발행의 직렬화는 그대로다.
    */
   async findByIdForUpdate(
     id: string,
@@ -139,7 +146,7 @@ export class ContentRepository {
   ): Promise<Content | null> {
     return manager.getRepository(Content).findOne({
       where: { id },
-      lock: { mode: 'pessimistic_write' },
+      lock: { mode: 'for_no_key_update' },
     });
   }
 

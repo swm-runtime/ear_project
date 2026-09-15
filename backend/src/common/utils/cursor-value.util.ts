@@ -41,7 +41,39 @@ export function isRatioValue(value: unknown): value is number {
   );
 }
 
-/** `timestamptz` 비교에 들어가는 값 — 파싱되지 않으면 `Invalid Date`가 그대로 흘러간다 */
+/** Postgres `int8` 상한 — 19자리 안이어도 이 값을 넘으면 `out of range`가 난다 */
+const INT8_MAX = 9_223_372_036_854_775_807n;
+
+/**
+ * `bigint` PK 자리에 들어갈 경로 파라미터 — 숫자 문자열이 아니면 Postgres가
+ * `invalid input syntax for type bigint`를 던져 500이 된다. 존재하지 않는 id와 같은 취급
+ * (not found)을 받을 수 있게 호출부가 먼저 거른다.
+ */
+export function isBigintIdValue(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    /^\d{1,19}$/.test(value) &&
+    BigInt(value) <= INT8_MAX
+  );
+}
+
+/**
+ * 커서에 실릴 수 있는 시각의 창. JS `Date`는 기원전 27만 년까지 읽지만 Postgres `timestamptz`는
+ * 4713 BC가 하한이라, 그 밖의 값은 파싱은 되고 SQL에서 `timestamp out of range`(500)가 난다.
+ * 서비스 데이터(`published_at` · `added_at`)가 이 창 밖으로 갈 이유가 없다.
+ */
+const TIMESTAMP_MIN_MS = Date.UTC(2000, 0, 1);
+const TIMESTAMP_MAX_MS = Date.UTC(2100, 0, 1);
+
+/** `timestamptz` 비교에 들어가는 값 — 파싱되지 않거나 창 밖이면 SQL이 던지므로 여기서 막는다 */
 export function isTimestampValue(value: unknown): value is string {
-  return typeof value === 'string' && !Number.isNaN(new Date(value).getTime());
+  if (typeof value !== 'string') {
+    return false;
+  }
+
+  const time = new Date(value).getTime();
+
+  return (
+    !Number.isNaN(time) && time >= TIMESTAMP_MIN_MS && time < TIMESTAMP_MAX_MS
+  );
 }

@@ -56,7 +56,7 @@ export class PlanService {
     if (!requested) {
       this.logger.error('plan row is missing for tier', {
         tier,
-        fallbackApplied: Boolean(plan),
+        fallback_applied: Boolean(plan),
       });
     }
 
@@ -107,7 +107,7 @@ export class PlanService {
 
     this.logger.error('plan row is missing for tier', {
       tier,
-      fallbackApplied: Boolean(lightPlan),
+      fallback_applied: Boolean(lightPlan),
     });
 
     return lightPlan?.dailyDripCount ?? 0;
@@ -132,7 +132,7 @@ export class PlanService {
 
     this.logger.error('plan row is missing for tier', {
       tier,
-      fallbackApplied: Boolean(lightPlan),
+      fallback_applied: Boolean(lightPlan),
     });
 
     return lightPlan?.dailyDiscoveryCount ?? 0;

@@ -55,6 +55,7 @@ describe('EmailVerificationService', () => {
       countByUserIdSince: jest.fn(() => Promise.resolve(0)),
       findActiveByUserId: jest.fn(),
       findByIdAndUserId: jest.fn(),
+      invalidateById: jest.fn(() => Promise.resolve()),
       // 실제 구현과 같은 규칙 — 상한 미만이면 증가 후 값, 이미 닿았으면 null
       incrementAttemptIfBelow: jest.fn(
         (id: string, limit: number): Promise<number | null> => {
@@ -321,6 +322,18 @@ describe('EmailVerificationService', () => {
   });
 
   describe('verifyCode', () => {
+    it('id가 bigint 형식이 아니면 DB에 묻지 않고 없는 인증으로 응답한다 — 형식 오류 500 방지', async () => {
+      // given — 경로 파라미터에 숫자가 아닌 값이 왔다
+      // when
+      const verifying = service.verifyCode(USER_ID, 'abc', '482913', NOW);
+
+      // then — 계약(auth-api.md 4.10)대로 404이고 Postgres까지 가지 않는다
+      await expect(verifying).rejects.toMatchObject({
+        errorCode: ErrorCode.EMAIL_VERIFICATION_NOT_FOUND,
+      });
+      expect(repository.findByIdAndUserId).not.toHaveBeenCalled();
+    });
+
     it('코드가 일치하면 이메일과 인증 상태를 함께 저장한다', async () => {
       // given
       repository.findByIdAndUserId.mockResolvedValue(buildVerification());

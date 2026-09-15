@@ -13,6 +13,7 @@ import {
 import { normalizeStoredText } from '@/common/utils/search-text.util';
 
 import { WITHDRAWN_SYNC_MAX_LIMIT } from '../content.constant';
+import { isContentVisibleAt } from '../content.visibility';
 import {
   ALL_TIME_PERIOD_START,
   ContentStatus,
@@ -304,8 +305,8 @@ export class ContentService {
 
   /**
    * 라이선스 만료 전환 — 배치(`ContentExpiryScheduler`)가 부른다.
-   * 라이브러리 잔존분은 건드리지 않는다(`partner-control.md` 4.4 미결 —
-   * `changes/pending/license-expiry-library-handling.md`).
+   * 이 메서드는 상태 전환만 한다. 라이브러리 잔존분 삭제는 회수와 같이 처리하며
+   * (`partner-control.md` 4.4 — 확정 2026-09-10) 배치가 같은 트랜잭션에서 수행한다.
    */
   async expireLicensed(now: Date, manager?: EntityManager): Promise<string[]> {
     return this.contentRepository.expireLicensed(now, manager);
@@ -339,11 +340,7 @@ export class ContentService {
      * 코드는 회수와 같은 `CONTENT_WITHDRAWN`이다 — 클라이언트 동작(안내 + 목록 제거)이 같고,
      * 만료 전용 코드를 새로 만들면 `common-error-handling.md` 9장 개정이 필요하다.
      */
-    const isLicenseExpired =
-      content.licenseExpiresAt !== null &&
-      content.licenseExpiresAt.getTime() <= now.getTime();
-
-    if (content.status !== ContentStatus.PUBLISHED || isLicenseExpired) {
+    if (!isContentVisibleAt(content, now)) {
       throw new BusinessForbiddenException({
         errorCode: ErrorCode.CONTENT_WITHDRAWN,
         message: '제공이 종료된 콘텐츠예요',
@@ -391,6 +388,7 @@ export class ContentService {
   async resolvePickTargets(
     contentIds: string[],
     manager?: EntityManager,
+    now: Date = new Date(),
   ): Promise<PickTargetResolution> {
     const contents = await this.findAllByIds(contentIds, manager);
     const byId = new Map(contents.map((content) => [content.id, content]));
@@ -406,7 +404,8 @@ export class ContentService {
         continue;
       }
 
-      if (content.status !== ContentStatus.PUBLISHED) {
+      // 재생·상세·탐색 담기(`getPublishedById`)와 같은 노출 조건 — 라이선스 만료분도 담지 않는다
+      if (!isContentVisibleAt(content, now)) {
         failed.push({ contentId, errorCode: ErrorCode.CONTENT_WITHDRAWN });
         continue;
       }

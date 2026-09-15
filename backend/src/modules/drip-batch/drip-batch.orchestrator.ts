@@ -103,7 +103,9 @@ export class DripBatchOrchestrator {
     const run = await this.dripBatchRunService.claim(runDate, now);
 
     if (!run) {
-      this.logger.log('drip batch already claimed for the date', { runDate });
+      this.logger.log('drip batch already claimed for the date', {
+        run_date: runDate,
+      });
       return;
     }
 
@@ -166,7 +168,14 @@ export class DripBatchOrchestrator {
     }
 
     // 건당 로그를 남기지 않고 실행 결과를 집계해 한 번 남긴다 (convention.md 8.3 — 드립 편성)
-    this.logger.log('drip batch finished', { runDate, ...counts });
+    this.logger.log('drip batch finished', {
+      run_date: runDate,
+      target_count: counts.targetCount,
+      success_count: counts.successCount,
+      skipped_count: counts.skippedCount,
+      exhausted_count: counts.exhaustedCount,
+      failed_count: counts.failedCount,
+    });
   }
 
   private async scheduleForUser(
@@ -183,6 +192,16 @@ export class DripBatchOrchestrator {
       return 'skipped';
     }
 
+    /**
+     * 취향 캐시는 **적립 여부와 무관하게** 배치 시점에 재계산한다(`drip-scheduling.md` 4.3 —
+     * "편성 배치 시점에 최신 신호를 읽어 계산한다"). 아래 재고·플랜 스킵은 **적립 규칙**(4.1)이라
+     * 여기 뒤에 둔다 — 스킵 뒤에 두면 재고가 늘 5편 이상인 사용자(담기를 많이 하는 사용자가 바로
+     * 그 대상)는 캐시가 영영 만들어지지 않아 탐색 피드(같은 캐시를 읽는다)가 무기한 콜드스타트·
+     * 묵은 순서로 남는다(결정 2026-09-15). 스킵 사용자당 6쿼리가 늘지만 편성 결과는 변하지 않는다.
+     */
+    const { preference, difficultyAffinity, isColdStart } =
+      await this.rebuildPreference(user.id, now);
+
     // 미청취 재고 스킵(4.1) — 탐험 편성도 함께 건너뛴다(4.8)
     const unfinishedCount = await this.libraryService.countUnfinished(user.id);
 
@@ -198,9 +217,6 @@ export class DripBatchOrchestrator {
     if (dripCount <= 0 && discoveryCount <= 0) {
       return 'skipped';
     }
-
-    const { preference, difficultyAffinity, isColdStart } =
-      await this.rebuildPreference(user.id, now);
 
     const completedEpisodesBySeries =
       await this.libraryService.findCompletedSeriesMaxEpisodes(user.id);

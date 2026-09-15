@@ -231,7 +231,8 @@ export class AuthService {
       throw new BusinessException({
         status: HttpStatus.FORBIDDEN,
         errorCode: ErrorCode.FORBIDDEN,
-        message: `${email} 이메일의 제품 관리자 계정이 없어요`,
+        // 이메일 원문은 응답·로그 어디에도 싣지 않는다(convention.md 8.4) — 필터가 message를 그대로 로그에 남긴다
+        message: '이 이메일로 등록된 제품 관리자 계정이 없어요',
       });
     }
 

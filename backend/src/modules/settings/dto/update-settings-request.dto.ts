@@ -1,7 +1,17 @@
 import { Type } from 'class-transformer';
-import { IsBoolean, IsEnum, IsInt, IsOptional } from 'class-validator';
+import {
+  IsBoolean,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  Max,
+  Min,
+} from 'class-validator';
 
 import { PlaybackRate } from '@/modules/user/user.enum';
+
+/** 순번은 단조 증가하는 정수다 — 정수 범위 밖 값을 받지 않는다(architecture.md 9.3, explore DTO와 같은 상한) */
+const MAX_CLIENT_SEQ = Number.MAX_SAFE_INTEGER;
 
 /**
  * settings-api.md 4.2 — 바꿀 필드만 보내는 부분 갱신.
@@ -40,5 +50,7 @@ export class UpdateSettingsRequestDto {
    */
   @Type(() => Number)
   @IsInt()
+  @Min(0)
+  @Max(MAX_CLIENT_SEQ)
   readonly client_seq: number;
 }

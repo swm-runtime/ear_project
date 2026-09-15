@@ -351,9 +351,10 @@ export class LibraryService {
    */
   async findPage(
     query: LibraryPageQuery,
+    now: Date,
     manager?: EntityManager,
   ): Promise<LibraryPage> {
-    const rows = await this.libraryItemRepository.findPage(query, manager);
+    const rows = await this.libraryItemRepository.findPage(query, now, manager);
     const hasNext = rows.length > query.limit;
 
     return { items: hasNext ? rows.slice(0, query.limit) : rows, hasNext };
@@ -363,9 +364,10 @@ export class LibraryService {
   /** 주제 필터 팝업의 주제별 건수(library-api.md 4.2) — 집계는 SQL이 한다 */
   async countByTopicForUser(
     userId: string,
+    now: Date,
     manager?: EntityManager,
   ): Promise<{ topicId: string; name: string; itemCount: number }[]> {
-    return this.libraryItemRepository.countByTopicForUser(userId, manager);
+    return this.libraryItemRepository.countByTopicForUser(userId, now, manager);
   }
 
   /**
@@ -377,9 +379,10 @@ export class LibraryService {
    */
   async findResumeTarget(
     userId: string,
+    now: Date,
     manager?: EntityManager,
   ): Promise<LibraryItem | null> {
-    return this.libraryItemRepository.findLatestResumable(userId, manager);
+    return this.libraryItemRepository.findLatestResumable(userId, now, manager);
   }
 
   /**

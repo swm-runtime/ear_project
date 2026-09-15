@@ -31,6 +31,7 @@ import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
 
 import { UploadedFileInput } from './admin.types';
 import {
+  ADMIN_LIST_DEFAULT_LIMIT,
   MAX_AUDIO_FILE_BYTES,
   MAX_ENRICHMENT_FILE_BYTES,
   MAX_THUMBNAIL_FILE_BYTES,
@@ -165,7 +166,7 @@ export class AdminController {
       await this.adminContentService.findPage({
         status: query.status,
         offset: query.offset ?? 0,
-        limit: query.limit ?? 20,
+        limit: query.limit ?? ADMIN_LIST_DEFAULT_LIMIT,
       }),
     );
   }

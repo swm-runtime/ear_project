@@ -76,7 +76,11 @@ export class AudioStreamService {
 
     // 발급 이후 회수됐을 수 있다. 이미 발급된 URL의 유효 상한이 만료 시각이라는 규칙은
     // 그대로지만(9.4), 그 안에서도 스트리밍 시점에 다시 확인하는 편이 노출을 줄인다
-    const content = await this.contentService.getPublishedById(contentId);
+    const content = await this.contentService.getPublishedById(
+      contentId,
+      undefined,
+      now,
+    );
 
     const path = this.resolveAudioPath(content.audioPath);
     const totalSize = await this.statSize(path);

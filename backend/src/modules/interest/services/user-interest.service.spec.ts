@@ -4,6 +4,8 @@ import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 
 import { TopicService } from './topic.service';
+import { UserRepository } from '@/modules/user/repositories/user.repository';
+import { UserOnboardingService } from '@/modules/user/services/user-onboarding.service';
 import { UserService } from '@/modules/user/services/user.service';
 
 import { UserInterestService } from './user-interest.service';
@@ -52,6 +54,7 @@ describe('UserInterestService', () => {
   let service: UserInterestService;
   let repository: jest.Mocked<UserInterestRepository>;
   let topicService: jest.Mocked<TopicService>;
+  let userService: jest.Mocked<UserService>;
 
   beforeEach(() => {
     repository = {
@@ -80,15 +83,28 @@ describe('UserInterestService', () => {
       ),
     } as unknown as DataSource;
 
-    // 관심사 교체는 사용자 행을 잠가 동시 저장을 직렬화한다 — 잠금 자체는 검증 대상이 아니다
-    const userService = {
-      getByIdForUpdate: jest.fn().mockResolvedValue({ id: USER_ID }),
-    } as unknown as UserService;
+    // 관심사 교체는 사용자 행을 잠가 동시 저장을 직렬화한다 — 잠금 자체는 검증 대상이 아니다.
+    // 기본값은 온보딩을 마친 계정이다. 미완료 시나리오는 개별 테스트가 덮어쓴다
+    userService = {
+      getById: jest
+        .fn()
+        .mockResolvedValue({ id: USER_ID, onboardingCompleted: true }),
+      getByIdForUpdate: jest
+        .fn()
+        .mockResolvedValue({ id: USER_ID, onboardingCompleted: true }),
+    } as unknown as jest.Mocked<UserService>;
+
+    // 온보딩 완료 판정은 실제 구현을 쓴다 — 여기서 검증하는 것이 그 판정의 적용 여부다
+    const userOnboardingService = new UserOnboardingService(
+      {} as UserRepository,
+      userService,
+    );
 
     service = new UserInterestService(
       repository,
       topicService,
       userService,
+      userOnboardingService,
       dataSource,
     );
   });
@@ -257,6 +273,21 @@ describe('UserInterestService', () => {
   });
 
   describe('findEditableSelection', () => {
+    it('온보딩을 마치지 않은 계정의 조회는 거부한다', async () => {
+      // given — 관리 화면은 온보딩 완료 이후의 것이다
+      userService.getById.mockResolvedValue({
+        id: USER_ID,
+        onboardingCompleted: false,
+      } as never);
+
+      // when / then
+      await expectErrorCode(
+        () => service.findEditableSelection(USER_ID),
+        ErrorCode.ONBOARDING_NOT_COMPLETED,
+      );
+      expect(repository.findAllActiveByUserId).not.toHaveBeenCalled();
+    });
+
     it('숨겨진 주제의 활성 관심사는 응답에서 제외한다', async () => {
       // given — TOPIC_B가 관리자에 의해 숨겨졌다
       repository.findAllActiveByUserId.mockResolvedValue([
@@ -290,6 +321,21 @@ describe('UserInterestService', () => {
   });
 
   describe('replaceManagedSelection', () => {
+    it('온보딩을 마치지 않은 계정의 저장은 입력이 정상이어도 거부한다', async () => {
+      // given — 온보딩 저장과 이 저장이 동시에 열리면 출처가 다른 행이 겹쳐 상한(3)이 6으로 굳는다
+      userService.getByIdForUpdate.mockResolvedValue({
+        id: USER_ID,
+        onboardingCompleted: false,
+      } as never);
+
+      // when / then
+      await expectErrorCode(
+        () => service.replaceManagedSelection(USER_ID, [TOPIC_A], NOW),
+        ErrorCode.ONBOARDING_NOT_COMPLETED,
+      );
+      expect(repository.saveAll).not.toHaveBeenCalled();
+    });
+
     it('주제를 하나도 보내지 않으면 거부한다', async () => {
       // given / when / then — 0개 저장은 클라이언트가 막지만 서버도 방어한다
       await expectErrorCode(

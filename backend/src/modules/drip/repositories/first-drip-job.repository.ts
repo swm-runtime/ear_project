@@ -115,6 +115,37 @@ export class FirstDripJobRepository {
     return toUserIds(result);
   }
 
+  /**
+   * 선점 뒤 확정을 못 한 채 죽은 작업의 정리. `claimRetryable`은 선점과 함께 `attempt_count`를
+   * 올리므로, 마지막(10회째) 선점 직후 프로세스가 죽으면 행이 `pending` · `attempt_count = 10`으로
+   * 남는다 — 재선점 조건(`< max`)에 영영 걸리지 않고 `completed_at`도 없어 파기 배치도 집지 않는다.
+   * 그런 행을 `failed`로 확정해 운영 알림 대상으로 넘긴다. 반환값은 확정한 행 수.
+   */
+  async failExhaustedStale(
+    maxAttemptCount: number,
+    staleBefore: Date,
+    now: Date,
+    manager?: EntityManager,
+  ): Promise<number> {
+    const result: unknown = await this.scoped(manager).query(
+      `UPDATE first_drip_jobs
+          SET status = $1,
+              updated_at = $2
+        WHERE status = ANY($3)
+          AND attempt_count >= $4
+          AND last_attempted_at < $5`,
+      [
+        FirstDripJobStatus.FAILED,
+        now,
+        [...RETRYABLE_FIRST_DRIP_STATUSES],
+        maxAttemptCount,
+        staleBefore,
+      ],
+    );
+
+    return toAffectedCount(result);
+  }
+
   async deleteByUserId(userId: string, manager?: EntityManager): Promise<void> {
     await this.scoped(manager).delete({ userId });
   }
@@ -140,6 +171,11 @@ export class FirstDripJobRepository {
  * 하나도 없어도 길이 2짜리 배열이 되어, 스케줄러가 매 주기마다 `undefined`를
  * 처리하려 든다(실행해 보고 발견한 문제다).
  */
+/** `UPDATE`의 `[행 배열, 영향받은 행 수]` 응답에서 두 번째 값만 꺼낸다 */
+function toAffectedCount(result: unknown): number {
+  return Array.isArray(result) && typeof result[1] === 'number' ? result[1] : 0;
+}
+
 function toUserIds(result: unknown): string[] {
   if (!Array.isArray(result)) {
     return [];

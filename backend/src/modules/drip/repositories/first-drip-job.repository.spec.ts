@@ -73,4 +73,40 @@ describe('FirstDripJobRepository', () => {
       expect(userIds).toEqual([USER_ID]);
     });
   });
+
+  describe('failExhaustedStale', () => {
+    it('마지막 선점 뒤 확정되지 않은 작업을 failed로 넘기고 그 수를 돌려준다', async () => {
+      // given — UPDATE는 [행 배열, 영향받은 행 수]로 온다
+      typeormRepository.query.mockResolvedValue([[], 2]);
+
+      // when
+      const failedCount = await repository.failExhaustedStale(
+        10,
+        STALE_BEFORE,
+        NOW,
+      );
+
+      // then
+      expect(failedCount).toBe(2);
+      expect(typeormRepository.query).toHaveBeenCalledWith(
+        expect.stringContaining('attempt_count >= $4'),
+        ['failed', NOW, ['pending', 'queued'], 10, STALE_BEFORE],
+      );
+    });
+
+    it('대상이 없으면 0이다', async () => {
+      // given
+      typeormRepository.query.mockResolvedValue([[], 0]);
+
+      // when
+      const failedCount = await repository.failExhaustedStale(
+        10,
+        STALE_BEFORE,
+        NOW,
+      );
+
+      // then
+      expect(failedCount).toBe(0);
+    });
+  });
 });

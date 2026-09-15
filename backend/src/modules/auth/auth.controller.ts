@@ -19,6 +19,15 @@ import {
 } from '@/common/rate-limit.constant';
 
 import { AuthService } from './services/auth.service';
+import { LogoutRequestDto } from './dto/logout-request.dto';
+import { PipelineLoginRequestDto } from './dto/pipeline-login-request.dto';
+import { PipelineLoginResponseDto } from './dto/pipeline-login-response.dto';
+import { RefreshTokenRequestDto } from './dto/refresh-token-request.dto';
+import { RefreshTokenResponseDto } from './dto/refresh-token-response.dto';
+import { SignUpRequestDto } from './dto/sign-up-request.dto';
+import { SignUpResponseDto } from './dto/sign-up-response.dto';
+import { SocialLoginRequestDto } from './dto/social-login-request.dto';
+import { SocialLoginResponseDto } from './dto/social-login-response.dto';
 
 /**
  * 인증 라우트 한도(architecture.md 9.6) — 사용자가 아직 없으니 **IP**로 센다.
@@ -32,15 +41,6 @@ const AUTH_THROTTLE = {
     getTracker: ipTracker,
   },
 };
-import { LogoutRequestDto } from './dto/logout-request.dto';
-import { PipelineLoginRequestDto } from './dto/pipeline-login-request.dto';
-import { PipelineLoginResponseDto } from './dto/pipeline-login-response.dto';
-import { RefreshTokenRequestDto } from './dto/refresh-token-request.dto';
-import { RefreshTokenResponseDto } from './dto/refresh-token-response.dto';
-import { SignUpRequestDto } from './dto/sign-up-request.dto';
-import { SignUpResponseDto } from './dto/sign-up-response.dto';
-import { SocialLoginRequestDto } from './dto/social-login-request.dto';
-import { SocialLoginResponseDto } from './dto/social-login-response.dto';
 
 /** auth-api.md 3장 */
 @Controller('auth')

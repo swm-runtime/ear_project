@@ -75,7 +75,10 @@ export class LibraryScreenController {
     @CurrentUser() currentUser: AuthenticatedUser,
   ): Promise<LibraryTopicListResponseDto> {
     return LibraryTopicListResponseDto.from(
-      await this.libraryScreenOrchestrator.getTopics(currentUser.id),
+      await this.libraryScreenOrchestrator.getTopics(
+        currentUser.id,
+        new Date(),
+      ),
     );
   }
 
@@ -131,7 +134,11 @@ export class LibraryScreenController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<RestoreLibraryItemResponseDto> {
     return RestoreLibraryItemResponseDto.from(
-      await this.libraryScreenOrchestrator.restoreItem(currentUser.id, id),
+      await this.libraryScreenOrchestrator.restoreItem(
+        currentUser.id,
+        id,
+        new Date(),
+      ),
     );
   }
 }

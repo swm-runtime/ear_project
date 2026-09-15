@@ -44,6 +44,19 @@ export class ConsentService {
       }
       seenTypes.add(input.consentType);
 
+      // 필수 동의는 철회 행을 받지 않는다 — 약관을 버리는 정식 경로는 탈퇴다(auth-api.md 4.5는
+      // 이 API의 용도를 재동의·마케팅 변경으로 둔다). 가입(UserService)과 같은 코드로 거부한다
+      if (
+        REQUIRED_CONSENT_TYPES.includes(input.consentType) &&
+        !input.isAgreed
+      ) {
+        throw new BusinessException({
+          status: HttpStatus.BAD_REQUEST,
+          errorCode: ErrorCode.CONSENT_REQUIRED,
+          message: '필수 약관은 철회할 수 없어요',
+        });
+      }
+
       const currentVersion = CURRENT_CONSENT_VERSIONS[input.consentType];
       if (input.version !== null && input.version !== currentVersion) {
         throw new BusinessException({

@@ -82,5 +82,48 @@ describe('ConsentService', () => {
       });
       expect(repository.saveAll).not.toHaveBeenCalled();
     });
+
+    it('필수 동의의 철회(is_agreed: false)는 가입 경로와 같은 코드로 거부한다 — 약관을 버리는 경로는 탈퇴다', async () => {
+      // when
+      const recording = service.recordConsents(
+        USER_ID,
+        [
+          {
+            consentType: ConsentType.TERMS,
+            version: CURRENT_CONSENT_VERSIONS[ConsentType.TERMS],
+            isAgreed: false,
+          },
+        ],
+        NOW,
+      );
+
+      // then
+      await expect(recording).rejects.toMatchObject({
+        errorCode: ErrorCode.CONSENT_REQUIRED,
+      });
+      expect(repository.saveAll).not.toHaveBeenCalled();
+    });
+
+    it('마케팅 동의의 철회는 false 행 추가로 기록한다', async () => {
+      // when
+      const saved = await service.recordConsents(
+        USER_ID,
+        [
+          {
+            consentType: ConsentType.MARKETING,
+            version: null,
+            isAgreed: false,
+          },
+        ],
+        NOW,
+      );
+
+      // then
+      expect(saved).toHaveLength(1);
+      expect(saved[0]).toMatchObject({
+        consentType: ConsentType.MARKETING,
+        isAgreed: false,
+      });
+    });
   });
 });

@@ -13,8 +13,9 @@ import { TargetAudience } from '../content.types';
 /**
  * domain.md 5.1 — 단일 표준 에피소드. 같은 콘텐츠는 전 사용자에게 동일하며 변형은 없다.
  *
- * `partner_id`는 FK지만 `partners` 테이블이 아직 없으므로 **제약 없는 uuid 컬럼**으로 둔다.
- * partner 모듈을 만들 때 FK를 붙이는 마이그레이션을 추가한다.
+ * `partner_id`의 FK(`fk_contents_partners` → `partners`)는 마이그레이션(`AddMissingDomainTables`)이
+ * 소유하고 Entity에는 관계를 선언하지 않는다 — `partners` Entity가 아직 없어(파트너 포털은 MVP
+ * 비범위) 관계 객체를 둘 대상이 없다. `synchronize`를 쓰지 않으므로 스키마와 어긋나지 않는다.
  */
 @Entity('contents')
 @Index('idx_contents_status_published_at', ['status', 'publishedAt'])
