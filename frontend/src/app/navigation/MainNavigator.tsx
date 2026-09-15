@@ -36,6 +36,9 @@ const TAB_BAR_CONTENT_HEIGHT = 60;
 /** 탭 아이콘 크기. 네비게이터가 넘겨주는 기본값(약 24)보다 키운다 */
 const TAB_ICON_SIZE = 28;
 
+/** 탭 라벨 크기. 시스템 탭바(iOS 10)와 와이어프레임(10.5)에 맞춰 테마 최솟값 12에서 낮췄다 */
+const TAB_LABEL_SIZE = 11;
+
 /**
  * 하단 탭 3개 — 앱을 실행하면 라이브러리로 들어온다(library.md 2).
  * **온보딩을 막 끝낸 진입만 탐색으로 착지한다**(2026-09-02) — 갓 만든 라이브러리보다
@@ -70,8 +73,11 @@ function MainTabs() {
         headerShown: false,
         tabBarActiveTintColor: theme.color.primary,
         tabBarInactiveTintColor: theme.color.textSecondary,
-        // 아이콘과 라벨을 함께 둔다 — 라벨을 빼면 어느 탭인지 아이콘 해석에만 기댄다
-        tabBarLabelStyle: { fontSize: theme.font.size.xs, fontWeight: '600' },
+        // 아이콘과 라벨을 함께 둔다 — 라벨을 빼면 어느 탭인지 아이콘 해석에만 기댄다.
+        // 크기는 테마 토큰(xs = 12)이 아니라 리터럴이다 — 스케일의 최솟값이 12라 이 한 곳
+        // 때문에 토큰을 늘리면 다른 화면까지 영향을 준다. 와이어프레임의 `.tabbar a`가
+        // 10.5px이므로 11은 시안 쪽으로 가는 값이다(wireframe/style.css).
+        tabBarLabelStyle: { fontSize: TAB_LABEL_SIZE, fontWeight: '600' },
         tabBarStyle: {
           height: TAB_BAR_CONTENT_HEIGHT + insets.bottom,
           // 안전영역만 아래에 두고 위쪽 여백은 주지 않는다 — paddingTop을 주면
