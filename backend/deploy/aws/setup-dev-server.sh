@@ -6,7 +6,7 @@
 #
 # 만드는 것(전부 신규 — 운영 리소스는 참조만, 무변경):
 #   키페어 ear-dev(→ out/ear-dev-isb.pem) — 이름은 SERVER_NAME(기본 ear-dev) · SG ear-dev-sg(22 관리자IP · 80 · 443) · IAM 역할/프로필 ear-dev-ec2
-#   (secrets-read ear/dev/api · 로그 /ear-dev/* · ses-send · CloudWatchAgentServerPolicy — 버킷 권한은 2단계에서)
+#   (secrets-read ear/dev/api · 로그 /ear-dev/* · ses-send · content-sync-read(백업 버킷 content-sync/* 읽기) · CloudWatchAgentServerPolicy)
 #   EC2 t4g.small(AL2023 arm64, gp3 20GB, IMDSv2 hop 2, user-data: docker·compose·buildx·cronie·스왑 2G) · EIP
 #   Secrets Manager ear/dev/api — 운영과 같은 8개 키. 랜덤 비밀은 새로 만들고(운영 값 재사용 금지) 화면에 찍지 않는다
 #   out/ear-dev.env.prod — 서버 .env.prod 초안(관리자 콘솔 설정은 만들지 않는다 — 콘솔은 AI 서버 몫)(비밀 항목은 자리표시 — push.sh 가 배포마다 Secrets Manager 값으로 덮어쓴다)
@@ -38,6 +38,11 @@ APPLE_CLIENT_ID="${APPLE_CLIENT_ID:-com.runtime.ear}"
 APPLE_SERVICES_ID="${APPLE_SERVICES_ID:-com.runtime.ear.signin}"
 KAKAO_APP_ID="${KAKAO_APP_ID:-0000000}"             # 숫자 앱 ID — 운영 .env.prod 또는 Kakao Developers 에서. 기본값은 자리표시(카카오 로그인만 실패)
 APP_VERSION="${APP_VERSION:-1.0.0}"
+# 2단계(setup-dev-cdn-key.sh) 뒤: CF_KEY_PAIR_ID=<개발 공개키 ID> CF_DOMAIN=<운영 배포 도메인> 을 넘기면 cloudfront 모드 env 를 만든다
+CF_KEY_PAIR_ID="${CF_KEY_PAIR_ID:-}"
+CF_DOMAIN="${CF_DOMAIN:-dp04jswjfphd3.cloudfront.net}"
+if [ -n "$CF_KEY_PAIR_ID" ]; then AUDIO_DELIVERY=cloudfront; AUDIO_URL_BASE_URL="https://$CF_DOMAIN"; AUDIO_BUCKET=earcast-audio-prod
+else AUDIO_DELIVERY=local; AUDIO_URL_BASE_URL="https://$API_DOMAIN/api/v1/audio"; AUDIO_BUCKET=""; fi
 
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 OUT="$(cd "$(dirname "$0")" && pwd)/out"
@@ -90,6 +95,8 @@ put() { aws iam put-role-policy --role-name "$ROLE" --policy-name "$1" --policy-
 put secrets-read "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Action\":[\"secretsmanager:GetSecretValue\",\"secretsmanager:DescribeSecret\"],\"Resource\":\"arn:aws:secretsmanager:$REGION:$ACCOUNT:secret:${SECRET_ID}-*\"}]}"
 put ear-logs-write "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Action\":[\"logs:CreateLogGroup\",\"logs:CreateLogStream\",\"logs:PutLogEvents\",\"logs:PutRetentionPolicy\",\"logs:DescribeLogGroups\"],\"Resource\":[\"arn:aws:logs:$REGION:$ACCOUNT:log-group:${LOG_PREFIX}/*\",\"arn:aws:logs:$REGION:$ACCOUNT:log-group:${LOG_PREFIX}/*:log-stream:*\"]}]}"
 put ses-send '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["ses:SendEmail","ses:SendRawEmail"],"Resource":"*"}]}'
+# 콘텐츠 동기화(3단계): 운영이 올린 콘텐츠 덤프만 읽는다 — 백업 버킷의 content-sync/* 한정, 쓰기 없음
+put content-sync-read '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"s3:GetObject","Resource":"arn:aws:s3:::earcast-backup-prod/content-sync/*"}]}'
 aws iam attach-role-policy --role-name "$ROLE" --policy-arn arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
 echo "  관리형 정책: CloudWatchAgentServerPolicy"
 if aws iam get-instance-profile --instance-profile-name "$ROLE" >/dev/null 2>&1; then
@@ -205,14 +212,15 @@ LATEST_APP_VERSION_ANDROID=$APP_VERSION
 MIN_SUPPORTED_APP_VERSION_IOS=$APP_VERSION
 MIN_SUPPORTED_APP_VERSION_ANDROID=$APP_VERSION
 AUDIO_URL_SIGNING_KEY=from-secrets-manager
-# 1단계: 로컬 전달(우리 서버가 서명·스트리밍). 2단계에서 cloudfront 로 전환하며 아래 세 값을 채운다
-AUDIO_DELIVERY=local
-AUDIO_URL_BASE_URL=https://$API_DOMAIN/api/v1/audio
+# 오디오 전달 — CF_KEY_PAIR_ID 가 있으면(2단계 setup-dev-cdn-key.sh 이후) 운영 CloudFront 를 읽기 전용으로 공유, 없으면 로컬 전달
+AUDIO_DELIVERY=$AUDIO_DELIVERY
+AUDIO_URL_BASE_URL=$AUDIO_URL_BASE_URL
 AUDIO_STORAGE_ROOT=./storage/audio
-CLOUDFRONT_KEY_PAIR_ID=
+CLOUDFRONT_KEY_PAIR_ID=$CF_KEY_PAIR_ID
 CLOUDFRONT_PRIVATE_KEY_BASE64=from-secrets-manager
 AWS_REGION=$REGION
-AUDIO_BUCKET=
+# 업로드 대상 이름만 — 개발계 롤에 쓰기 권한이 없어 업로드·회수는 S3 에서 거부된다(의도, 결정 7)
+AUDIO_BUCKET=$AUDIO_BUCKET
 BACKUP_BUCKET=
 MAIL_DELIVERY=ses
 MAIL_FROM_ADDRESS=이어 개발계 <no-reply@$BASE_DOMAIN>
