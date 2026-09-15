@@ -30,7 +30,7 @@ services:
       driver: awslogs
       options:
         awslogs-region: ${AWS_REGION:-ap-northeast-2}
-        awslogs-group: /ear/caddy
+        awslogs-group: ${LOG_GROUP_PREFIX:-/ear}/caddy
         awslogs-stream: caddy
         awslogs-create-group: 'true'
 
@@ -59,7 +59,7 @@ services:
       driver: awslogs
       options:
         awslogs-region: ${AWS_REGION:-ap-northeast-2}
-        awslogs-group: /ear/api
+        awslogs-group: ${LOG_GROUP_PREFIX:-/ear}/api
         awslogs-stream: api
         awslogs-create-group: 'true'
 
