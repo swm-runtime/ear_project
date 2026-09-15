@@ -33,7 +33,6 @@ export default function ExploreTile({ item, onPress, onMorePress }: ExploreTileP
         accessibilityRole="button"
         accessibilityLabel={EXPLORE_COPY.row.a11yLabel({
           title: item.content.title,
-          sourceName: item.content.sourceName,
           minutes,
           completed: isCompleted,
         })}
@@ -50,7 +49,7 @@ export default function ExploreTile({ item, onPress, onMorePress }: ExploreTileP
           {item.content.title}
         </Text>
         <Text style={styles.meta} numberOfLines={1}>
-          {item.content.sourceName} · {EXPLORE_COPY.row.durationLabel(minutes)}
+          {EXPLORE_COPY.row.durationLabel(minutes)}
         </Text>
       </Pressable>
 

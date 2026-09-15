@@ -28,7 +28,7 @@ export default function ContentPickCard({ content, isSelected, onPress }: Conten
       onPress={onPress}
       accessibilityRole="checkbox"
       accessibilityState={{ checked: isSelected }}
-      accessibilityLabel={`${content.title}, ${content.sourceName}, ${formatDurationLabel(content.durationSec)}`}
+      accessibilityLabel={`${content.title}, ${formatDurationLabel(content.durationSec)}`}
     >
       <Image source={{ uri: content.thumbnailUrl }} style={styles.thumbnail} />
       <View style={styles.body}>
@@ -40,9 +40,6 @@ export default function ContentPickCard({ content, isSelected, onPress }: Conten
           이 화면은 카드가 선택 대상이라 길이가 눈에 먼저 들어와야 한다 — 줄을 나눈다.
           시간의 글자 크기·색은 라이브러리 카드의 메타와 같다
         */}
-        <Text style={styles.meta} numberOfLines={1}>
-          {content.sourceName} · {content.authorName}
-        </Text>
         <Text style={styles.meta} numberOfLines={1}>
           {formatDurationLabel(content.durationSec)}
         </Text>

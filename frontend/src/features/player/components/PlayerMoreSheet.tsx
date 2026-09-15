@@ -12,8 +12,6 @@ interface PlayerMoreSheetProps {
   /** 대상 요약 — 딤 처리된 화면 대신 삭제 대상을 눈으로 확인시킨다(player-uiux.md 4.7) */
   summary: {
     title: string | null;
-    authorName: string | null;
-    sourceName: string | null;
     thumbnailUrl: string | null;
     durationSec: number;
   };
@@ -72,7 +70,7 @@ export default function PlayerMoreSheet({
                   {summary.title ?? ''}
                 </Text>
                 <Text style={styles.subtitle} numberOfLines={1}>
-                  {[summary.sourceName, summary.authorName, formatPlaybackTime(summary.durationSec)]
+                  {[formatPlaybackTime(summary.durationSec)]
                     .filter(Boolean)
                     .join(' · ')}
                 </Text>
