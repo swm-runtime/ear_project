@@ -18,14 +18,8 @@ import { PROFILE_COPY } from '../profile.copy';
 
 const SETTINGS_ICON_SIZE = 22;
 
-/**
- * 설정 아이콘을 아래로 미는 양.
- *
- * 슬롯은 `PROFILE_IDENTITY_ROW_HEIGHT`(위쪽 여백 24 + 아바타 64) 안에서 세로 가운데를
- * 잡는데, 그 높이에 **위쪽 여백이 포함**돼 있어 결과적으로 아바타의 중심보다 위로 뜬다.
- * 여백의 절반만큼 내려 아바타 중심에 맞춘다.
- */
-const SETTINGS_TOP_OFFSET = theme.spacing.sm;
+/** 아이콘 크기(22)를 터치 타깃 44pt로 채운다 — 보이는 상자를 키우면 닉네임 줄이 함께 커진다 */
+const SETTINGS_HIT_SLOP = (theme.touchTarget.minHeight - SETTINGS_ICON_SIZE) / 2;
 
 /**
  * 프로필 탭(P1~P10) — 화면은 뷰만 담당하고 로직은 useProfileScreen이 소유한다.
@@ -38,23 +32,27 @@ export default function ProfileScreen() {
   // 0.3초 미만 로딩은 표시하지 않는다(common-error-handling.md 5장)
   const showSkeleton = useDelayedVisible(screen.isInitialLoading);
 
+  /**
+   * 설정 아이콘 — **화면이 소유하고 자리만 헤더에 빌려준다.**
+   * 조회 결과와 무관하게 노출해야 하는데(P6) 헤더는 실패·로딩 중에 그려지지 않는다.
+   * 그래서 헤더가 있으면 닉네임 줄에 넣고(스크롤하면 이름과 함께 올라간다),
+   * 없으면 화면 오른쪽 위에 직접 띄운다 — 어느 쪽이든 설정 진입은 사라지지 않는다.
+   */
+  const settingsButton = (
+    <Pressable
+      style={styles.settingsButton}
+      onPress={screen.openSettings}
+      hitSlop={SETTINGS_HIT_SLOP}
+      accessibilityRole="button"
+      accessibilityLabel={PROFILE_COPY.header.settingsA11y}
+    >
+      <SettingsIcon size={SETTINGS_ICON_SIZE} color={theme.color.textPrimary} />
+    </Pressable>
+  );
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/*
-        설정 아이콘 — 헤더(프로필 줄)의 오른쪽 끝에 세로 가운데로 얹는다.
-        헤더 안에 넣지 않는 이유는 **조회 결과와 무관하게 즉시 노출해야** 하기 때문이다(P6).
-        헤더는 조회 실패·로딩 중에는 그려지지 않으므로, 그 안에 두면 설정 진입이 함께 사라진다.
-      */}
-      <View style={styles.settingsSlot}>
-        <Pressable
-          style={styles.settingsButton}
-          onPress={screen.openSettings}
-          accessibilityRole="button"
-          accessibilityLabel={PROFILE_COPY.header.settingsA11y}
-        >
-          <SettingsIcon size={SETTINGS_ICON_SIZE} color={theme.color.textPrimary} />
-        </Pressable>
-      </View>
+      {screen.header === null ? <View style={styles.settingsSlot}>{settingsButton}</View> : null}
 
       {screen.isInitialLoading ? (
         showSkeleton ? (
@@ -87,6 +85,7 @@ export default function ProfileScreen() {
                 onEmailPress={screen.openEmail}
                 plan={screen.planCard}
                 onPlanPress={screen.openPlan}
+                settingsSlot={settingsButton}
               />
             ) : null}
             {/* 이메일 카드를 두지 않는다 — 주소는 헤더가 이미 보여준다. 같은 값을 한 화면에
@@ -164,19 +163,24 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.color.background,
   },
-  /** 헤더 높이만큼만 차지하는 겹침 층 — 그 안에서 세로 가운데로 정렬된다 */
+  /** 헤더가 없을 때만 쓰는 겹침 층 — 헤더 높이만큼 차지하고 그 안에서 세로 가운데로 정렬된다 */
   settingsSlot: {
     position: 'absolute',
-    top: SETTINGS_TOP_OFFSET,
-    right: theme.spacing.sm,
+    top: 0,
+    // 헤더가 들어올 때 아이콘이 옆으로 튀지 않게 identityRow 의 오른쪽 여백과 같은 값을 쓴다
+    right: theme.spacing.md,
+    /**
+     * `PROFILE_IDENTITY_ROW_HEIGHT`(위쪽 여백 24 + 아바타 64) 안에서 가운데를 잡으면
+     * 위쪽 여백이 포함된 만큼 위로 올라가 **닉네임 줄과 거의 같은 높이**가 된다 —
+     * 헤더가 들어오면서 아이콘이 위아래로 뛰지 않는다.
+     */
     height: PROFILE_IDENTITY_ROW_HEIGHT,
     justifyContent: 'center',
     // 스크롤 내용 위에 떠 있어야 눌린다
     zIndex: 1,
   },
+  /** 보이는 상자는 아이콘 크기 그대로 두고 터치 타깃은 hitSlop 으로 채운다 */
   settingsButton: {
-    minHeight: theme.touchTarget.minHeight,
-    minWidth: theme.touchTarget.minWidth,
     alignItems: 'center',
     justifyContent: 'center',
   },

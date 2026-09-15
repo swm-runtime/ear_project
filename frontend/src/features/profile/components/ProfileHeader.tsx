@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
@@ -22,6 +23,13 @@ interface ProfileHeaderProps {
   /** 플랜은 목록 항목이 아니라 "내가 누구인지"의 일부라 여기 붙인다. null이면 조회 중·실패 */
   plan: SectionState<PlanCardVM> | null;
   onPlanPress: () => void;
+  /**
+   * 설정 아이콘 — **소유자는 화면이고 여기서는 자리만 빌려준다.**
+   * 헤더가 없을 때도(조회 실패·로딩) 설정 진입은 남아야 해서 화면이 들고 있다(P6).
+   * 닉네임과 같은 줄에 두는 것은 화면 위에 띄우면 스크롤해도 따라다니기 때문이다 —
+   * 이름 옆 아이콘은 이름과 함께 밀려 올라가야 한 덩어리로 읽힌다.
+   */
+  settingsSlot: ReactNode;
 }
 
 // 가로 배치라 세로로 쌓을 때보다 작게 잡는다 — 88이면 옆의 두 줄(닉네임·이메일)보다 훨씬 커져 균형이 깨진다
@@ -29,9 +37,9 @@ const AVATAR_SIZE = 64;
 const VERTICAL_PADDING = theme.spacing.lg;
 
 /**
- * 아바타 줄의 높이(플랜 줄 제외). 설정 아이콘은 헤더 밖(화면)이 그리면서 이 줄의 세로
- * 가운데에 맞춰야 하는데, 조회 실패·로딩 중에는 헤더가 없어 높이를 잴 수 없다 —
- * 값을 여기서 내보내 한 곳에서 관리한다.
+ * 아바타 줄의 높이(플랜 줄 제외). **헤더가 없을 때만** 쓰인다 — 그때는 화면이 설정
+ * 아이콘을 직접 띄우면서 이 줄의 세로 가운데에 맞추는데, 잴 헤더가 없어 값이 필요하다.
+ * 헤더가 있으면 아이콘은 닉네임 줄 안에 들어가므로 이 값과 무관하다.
  */
 export const PROFILE_IDENTITY_ROW_HEIGHT = VERTICAL_PADDING + AVATAR_SIZE;
 const PROVIDER_BADGE_SIZE = 24;
@@ -79,6 +87,7 @@ export default function ProfileHeader({
   onEmailPress,
   plan,
   onPlanPress,
+  settingsSlot,
 }: ProfileHeaderProps) {
   const trimmed = nickname?.trim() ?? '';
   const displayName = trimmed || PROFILE_COPY.header.noNickname;
@@ -113,9 +122,13 @@ export default function ProfileHeader({
         </View>
 
         <View style={styles.names}>
-          <Text style={styles.nickname} numberOfLines={1}>
-            {displayName}
-          </Text>
+          {/* 닉네임과 설정 아이콘은 같은 줄이다. 아이콘 폭은 고정이라 이름 쪽이 줄어든다 */}
+          <View style={styles.nicknameRow}>
+            <Text style={styles.nickname} numberOfLines={1}>
+              {displayName}
+            </Text>
+            {settingsSlot}
+          </View>
           {/* 이메일 줄 — 등록·인증·변경의 프로필 진입점(profile.md 4.3). 줄 자체가 작아
               hitSlop으로 터치 타깃 44pt를 채운다(profile-uiux.md 7장) */}
           <Pressable
@@ -205,9 +218,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: theme.spacing.md,
     paddingLeft: theme.spacing.md,
-    // 오른쪽 끝에는 화면이 그리는 설정 아이콘이 얹힌다 — 그만큼 비워 두지 않으면
-    // 긴 닉네임·이메일이 아이콘 아래로 파고든다
-    paddingRight: theme.touchTarget.minWidth + theme.spacing.sm,
+    paddingRight: theme.spacing.md,
     paddingTop: VERTICAL_PADDING,
   },
   /** 아바타 줄 바로 아래 — 이름 글자와 x를 맞춰 한 블록으로 읽히게 한다 */
@@ -280,7 +291,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  nicknameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
   nickname: {
+    // 긴 이름이 아이콘을 밀어내지 않게 이름 쪽이 줄어든다
+    flex: 1,
     fontSize: theme.font.size.lg,
     fontWeight: '700',
     color: theme.color.textPrimary,
