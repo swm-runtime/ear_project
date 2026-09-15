@@ -18,7 +18,7 @@
 | 리소스 | ID/값 | 비고 |
 |---|---|---|
 | EC2 인스턴스 | `i-04f1f70f5484ffafd` | t4g.small, AL2023 arm64, ap-northeast-2a, EBS gp3 20GB |
-| Elastic IP | `43.203.57.240` | 가비아 A 레코드 2개(api·admin)가 가리킴 |
+| Elastic IP | `43.203.57.240` | 가비아 A 레코드 `api`가 가리킴 (`admin`은 2026-09-03 부터 AI 서버 — 3장) |
 | 보안그룹 | `sg-048aaaf95e4d12b2e` (`ear-prod-sg`) | 80·443/tcp·443/udp 공개. **22는 `/32` 3개**(2026-09-15 실측: `125.130.96.174` · `211.105.23.163`(준현 데스크톱) · `175.198.222.109`) + CI가 배포 중 러너 IP 임시 추가·회수. ⚠️ 나머지 두 IP의 소유자를 확인해 여기 적을 것 — 모르는 IP는 닫는다 |
 | 인스턴스 롤 | `ear-prod-ec2` | 인라인: `backup-put` · `content-upload`(S3 Put/Delete) · `ses-send` · 관리형 `CloudWatchAgentServerPolicy`(2026-09-11 — 아래 4장 에이전트) |
 | IAM 정책 (고객 관리형) | `ear-pipeline-bucket-rw` | **파이프라인** (2026-09-01 신설) — `earcast-pipeline-prod`의 `episodes/*`·`sweeps/*`·`datasets/*` Get/Put/List(삭제 없음). AI 서버 롤 `ear-ai-ec2`에 부착됨(2026-09-02). IAM 사용자·액세스 키는 만들지 않음. 생성: `pipeline/deploy/aws/setup-pipeline-bucket.sh` |
@@ -49,8 +49,7 @@
 | 레코드 | 값 | 용도 |
 |---|---|---|
 | `api.earcast.co.kr` A | `43.203.57.240` | API (Caddy가 LE 인증서 자동) |
-| `admin.earcast.co.kr` A | `43.203.57.240` | 관리자 콘솔 |
-| `pipeline.earcast.co.kr` A | `54.116.31.183` | 파이프라인 관리 UI (AI 서버 — 2026-09-02 등록, TTL 1800) |
+| `admin.earcast.co.kr` A | `54.116.31.183` (**AI 서버**) | 관리자 콘솔 = 파이프라인 웹(`/publish` 제품 발행·주제·회수 + 백엔드 로그 콘솔). 2026-09-03 통합(PR #86) — `pipeline.earcast.co.kr` 레코드는 삭제됨. 2026-09-15 실측 |
 | `<token>._domainkey` CNAME ×3 | SES DKIM — **검증 완료**(값은 SES 콘솔·memory 참조) | 이메일 인증 발송 |
 | `@` TXT | `v=spf1 include:amazonses.com ~all` (2026-09-07) | SPF |
 | `_dmarc` TXT | `v=DMARC1; p=none; rua=mailto:runtime364@gmail.com` (2026-09-07) | DMARC — **`p=none`은 관찰 단계 값**. 2주 리포트 확인 후 상향(`tickets/backend/pending/email-spf-dmarc-records.md`, KAN-31) |

@@ -25,7 +25,7 @@
    │ JSON (HTTPS)
    ▼
 api.earcast.co.kr ──▶ Caddy(TLS 자동발급) ─▶ api(NestJS) ─▶ postgres
-admin.earcast.co.kr ─▶ Caddy file_server (정적 콘솔 1장)      │
+(admin.earcast.co.kr 은 2026-09-03 부터 AI 서버의 파이프라인 웹 — 아래 정적 콘솔 블록은 퇴역 대상) │
    ▲ EC2 t4g.small 한 대, docker compose 3컨테이너            │ 업로드 시 쓰기
    │                                                          ▼
    │ 오디오·썸네일 바이트                     S3 ear-audio-prod (비공개)
@@ -38,7 +38,7 @@ admin.earcast.co.kr ─▶ Caddy file_server (정적 콘솔 1장)      │
 ```
 
 - **JSON과 바이트의 분리가 설계의 중심이다(R2).** EC2 egress는 GB당 과금이지만 CloudFront는 월 1TB 무료 구간이 있다. 오디오가 서버를 지나는 순간 비용 모델(R4)이 깨진다.
-- 관리자 콘솔은 별도 인프라가 아니라 **같은 Caddy의 정적 파일 서빙 한 블록**이다. 서버·빌드·배포가 늘지 않는다(C1).
+- ~~관리자 콘솔은 같은 Caddy의 정적 파일 서빙 한 블록이다~~ → **2026-09-03 파이프라인 웹 `/publish`로 통합**(PR #86, AI 서버). API EC2의 Caddy `ADMIN_DOMAIN` 블록과 `backend/deploy/admin/`은 남아 있지만 DNS가 더 가리키지 않는 **퇴역 대상**이다(2026-09-15 확인 — 정리 시 Caddy 블록·compose 마운트·env·문서를 함께 제거).
 
 ## 3. 주요 결정과 근거
 
