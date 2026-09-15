@@ -150,7 +150,7 @@ export class FirstDripService {
       // 신규 사용자의 첫 편성 실패는 편성 배치 장애의 조기 신호다 — 조용히 넘기지 않는다
       this.logger.error('first drip retry failed', {
         user_id: userId,
-        attemptCount: job.attemptCount,
+        attempt_count: job.attemptCount,
         status: job.status,
         error: toErrorMessage(error),
       });
@@ -176,7 +176,7 @@ export class FirstDripService {
       await this.firstDripJobRepository.save(job);
 
       // 후보 고갈은 실패가 아니지만, 신규 사용자에게 줄 것이 없다는 사실은 운영이 알아야 한다
-      this.logger.error('first drip found no candidates', { userId });
+      this.logger.error('first drip found no candidates', { user_id: userId });
       return;
     }
 
@@ -209,7 +209,7 @@ export class FirstDripService {
 
     this.logger.log('first drip scheduled', {
       user_id: userId,
-      scheduledCount: contentIds.length,
+      scheduled_count: contentIds.length,
     });
   }
 
@@ -295,7 +295,7 @@ export class FirstDripService {
 
     this.logger.error('first drip handed to retry queue', {
       user_id: userId,
-      attemptCount: job.attemptCount,
+      attempt_count: job.attemptCount,
     });
   }
 }

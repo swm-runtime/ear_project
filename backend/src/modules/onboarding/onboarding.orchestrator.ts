@@ -104,10 +104,14 @@ export class OnboardingOrchestrator {
     topicIds: string[],
     now: Date,
   ): Promise<{ selectedTopicIds: string[]; onboardingStep: OnboardingStep }> {
-    const user = await this.userOnboardingService.getUser(userId);
-    this.userOnboardingService.assertNotCompleted(user);
-
     return this.dataSource.transaction(async (manager) => {
+      // 잠근 채 읽은 인스턴스만 저장한다 — 밖에서 읽은 낡은 엔티티의 save는 동시 변경을 되돌린다
+      const user = await this.userOnboardingService.getUserForUpdate(
+        userId,
+        manager,
+      );
+      this.userOnboardingService.assertNotCompleted(user);
+
       const saved = await this.userInterestService.replaceOnboardingSelection(
         userId,
         topicIds,
@@ -145,10 +149,13 @@ export class OnboardingOrchestrator {
     yearsOfExperience: YearsOfExperienceRange | null;
     onboardingStep: OnboardingStep;
   }> {
-    const user = await this.userOnboardingService.getUser(userId);
-    this.userOnboardingService.assertNotCompleted(user);
-
     return this.dataSource.transaction(async (manager) => {
+      const user = await this.userOnboardingService.getUserForUpdate(
+        userId,
+        manager,
+      );
+      this.userOnboardingService.assertNotCompleted(user);
+
       const command: {
         jobCategory?: string | null;
         jobTitle?: string | null;
@@ -241,7 +248,7 @@ export class OnboardingOrchestrator {
       // 5xx로 내리면 클라이언트는 에러 화면을 그릴 수밖에 없다(onboarding-api.md 4.5).
       this.logger.error('onboarding recommendations returned nothing', {
         user_id: userId,
-        topicCount: topicIds.length,
+        topic_count: topicIds.length,
       });
     }
 
@@ -263,8 +270,11 @@ export class OnboardingOrchestrator {
     // 중복 값은 하나로 취급한다 (onboarding-api.md 4.6)
     const uniqueContentIds = [...new Set(contentIds)];
 
-    const { available, failed } =
-      await this.contentService.resolvePickTargets(uniqueContentIds);
+    const { available, failed } = await this.contentService.resolvePickTargets(
+      uniqueContentIds,
+      undefined,
+      now,
+    );
 
     const savedContentIds = await this.libraryService.addItems(
       userId,
@@ -308,8 +318,15 @@ export class OnboardingOrchestrator {
     }
 
     const completed = await this.dataSource.transaction(async (manager) => {
+      // 완료 판정도 잠근 인스턴스로 다시 한다 — 밖에서 읽은 `user`는 판정 참고용일 뿐이다
+      const locked = await this.userOnboardingService.getUserForUpdate(
+        userId,
+        manager,
+      );
+      this.userOnboardingService.assertNotCompleted(locked);
+
       const saved = await this.userOnboardingService.complete(
-        user,
+        locked,
         now,
         manager,
       );

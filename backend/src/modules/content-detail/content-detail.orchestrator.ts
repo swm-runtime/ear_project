@@ -40,7 +40,11 @@ export class ContentDetailOrchestrator {
     contentId: string,
     now: Date,
   ): Promise<ContentDetailView> {
-    const content = await this.contentService.getPublishedById(contentId);
+    const content = await this.contentService.getPublishedById(
+      contentId,
+      undefined,
+      now,
+    );
 
     const [topicViews, libraryItems, countedContentIds, sources] =
       await Promise.all([

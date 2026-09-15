@@ -46,6 +46,8 @@ export class AudioUrlService {
     // 1. 회수된 콘텐츠는 여기서 막힌다 — **회수 반영의 차단 지점이다**(9.4)
     const content = await this.contentService.getPublishedById(
       command.contentId,
+      undefined,
+      command.now,
     );
 
     // 2. 목록에서 걸렀어도 다시 확인한다. 차감은 하지 않는다
@@ -87,7 +89,7 @@ export class AudioUrlService {
     this.logger.log('audio url issued', {
       user_id: command.userId,
       content_id: command.contentId,
-      expiresAt: audio.expiresAt.toISOString(),
+      expires_at: audio.expiresAt.toISOString(),
     });
 
     return {

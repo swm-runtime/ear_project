@@ -26,6 +26,13 @@ export class UserRepository {
    * 읽고-판정하고-쓰는 흐름(재생 한도 차감·탈퇴 아카이브)은 READ COMMITTED에서 두 요청이
    * 같은 스냅샷을 보고 둘 다 통과한다. 잠글 행은 사용자 자신이다 — 판정 대상 테이블이
    * 여러 개라 그것들을 각각 잠그는 것보다 사용자 하나를 잠그는 편이 단순하고 확실하다.
+   *
+   * **`FOR UPDATE`가 아니라 `FOR NO KEY UPDATE`다.** 자식 테이블(`user_signals` ·
+   * `playback_progresses` 등)에 행을 넣는 다른 트랜잭션은 FK 검사로 이 행에 `FOR KEY SHARE`를
+   * 요구하는데, `FOR UPDATE`는 그것과 충돌해 "재생 시작(사용자 행 잠금 → play_records 삽입)"과
+   * "위치 저장(play_records 갱신 → user_signals 삽입)"이 서로를 기다리는 데드락이 됐다.
+   * `NO KEY UPDATE`는 같은 모드끼리·일반 UPDATE·DELETE와는 여전히 배타적이라 직렬화 목적은
+   * 그대로 지키면서 자식 INSERT의 KEY SHARE와는 충돌하지 않는다.
    */
   async findByIdForUpdate(
     id: string,
@@ -33,7 +40,7 @@ export class UserRepository {
   ): Promise<User | null> {
     return manager.getRepository(User).findOne({
       where: { id },
-      lock: { mode: 'pessimistic_write' },
+      lock: { mode: 'for_no_key_update' },
     });
   }
 

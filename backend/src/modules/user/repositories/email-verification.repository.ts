@@ -178,6 +178,19 @@ export class EmailVerificationRepository {
     return result.affected ?? 0;
   }
 
+  /**
+   * 무효화 표시만 쓴다. `save(verification)`은 저장 시점에 행을 다시 읽어 메모리와 다른 컬럼을
+   * 전부 되쓰므로, 같은 코드가 동시에 제출돼 다른 트랜잭션이 먼저 `verified_at`을 세운 뒤라면
+   * 낡은 인스턴스의 `null`이 그 값을 지운다. 바꿀 컬럼만 UPDATE한다.
+   */
+  async invalidateById(
+    id: string,
+    invalidatedAt: Date,
+    manager?: EntityManager,
+  ): Promise<void> {
+    await this.scoped(manager).update({ id }, { invalidatedAt });
+  }
+
   async deleteById(id: string, manager?: EntityManager): Promise<void> {
     await this.scoped(manager).delete({ id });
   }

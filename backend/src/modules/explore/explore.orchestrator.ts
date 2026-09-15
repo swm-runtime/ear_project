@@ -455,7 +455,11 @@ export class ExploreOrchestrator {
   async saveContent(command: SaveContentCommand): Promise<SaveContentResult> {
     return this.dataSource.transaction(async (manager) => {
       // 회수 여부는 피드에서 걸러도 이미 화면에 떠 있는 행이 탭될 수 있다
-      await this.contentService.getPublishedById(command.contentId, manager);
+      await this.contentService.getPublishedById(
+        command.contentId,
+        manager,
+        command.now,
+      );
 
       const saved = await this.libraryService.save(
         command.userId,

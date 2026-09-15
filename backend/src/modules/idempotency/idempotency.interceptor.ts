@@ -108,7 +108,16 @@ export class IdempotencyInterceptor implements NestInterceptor {
         idempotencyKey,
         // 경로 파라미터가 있어도 같은 엔드포인트로 묶이도록 라우트 패턴을 쓴다
         endpoint: `${request.method} ${request.baseUrl}${resolveRoutePath(request)}`,
-        requestHash: sha256Hex(JSON.stringify(request.body ?? {})),
+        // 요청 대상을 정하는 것은 본문만이 아니다 — `:contentId` 라우트는 본문이 비어 있어
+        // 파라미터를 빼면 A·B 두 콘텐츠의 요청이 같은 해시가 되고, 같은 키의 두 번째가
+        // 409가 아니라 첫 응답 재생으로 처리돼 신호가 조용히 유실된다(domain.md 1.4)
+        requestHash: sha256Hex(
+          JSON.stringify({
+            params:
+              (request.params as Record<string, string> | undefined) ?? {},
+            body: (request.body as unknown) ?? {},
+          }),
+        ),
       },
       new Date(),
     );

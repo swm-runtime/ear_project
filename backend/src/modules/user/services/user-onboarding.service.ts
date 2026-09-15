@@ -30,6 +30,21 @@ export class UserOnboardingService {
   }
 
   /**
+   * 온보딩 상태를 **쓰는** 경로는 트랜잭션 안에서 이 메서드로 다시 읽은 인스턴스만 저장한다.
+   *
+   * TypeORM `save()`는 저장 시점에 행을 다시 읽어 메모리와 다른 컬럼을 **전부** UPDATE로 잡는다.
+   * 트랜잭션 밖에서 읽어 둔 낡은 `User`를 넘기면, 그 사이 커밋된 다른 요청의 변경(예: 완료 처리의
+   * `onboarding_completed = true`)이 낡은 값으로 되돌아간다 — 지연 도착한 재시도 한 건이 온보딩
+   * 완료를 취소시킬 수 있다. 사용자 행을 잠근 채 읽으면 판정과 저장이 같은 스냅샷 위에서 끝난다.
+   */
+  async getUserForUpdate(
+    userId: string,
+    manager: EntityManager,
+  ): Promise<User> {
+    return this.userService.getByIdForUpdate(userId, manager);
+  }
+
+  /**
    * 온보딩이 끝난 계정의 온보딩 API 호출을 막는다.
    *
    * 완료 이후의 관심사·커리어 변경은 `interest-management` · `profile` 소관이다.
