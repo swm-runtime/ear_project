@@ -3,6 +3,7 @@ import { DataSource, EntityManager } from 'typeorm';
 
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
+import { UserOnboardingService } from '@/modules/user/services/user-onboarding.service';
 import { UserService } from '@/modules/user/services/user.service';
 
 import { TopicService } from './topic.service';
@@ -34,6 +35,7 @@ export class UserInterestService {
     private readonly userInterestRepository: UserInterestRepository,
     private readonly topicService: TopicService,
     private readonly userService: UserService,
+    private readonly userOnboardingService: UserOnboardingService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -239,11 +241,22 @@ export class UserInterestService {
    * 선택지를 내려줘도 화면이 할 수 있는 일이 없고, 저장(4.3)의 diff·개수 판정 범위와 응답
    * 범위가 같아야 "조회한 것을 고쳐서 되돌려보낸다"는 계약이 성립한다. 행 자체는 그대로
    * 남으며 관리자가 다시 노출하면 되살아난다(`interest-management.md` 7장).
+   *
+   * **온보딩을 마친 계정만 쓸 수 있다**(`ONBOARDING_NOT_COMPLETED`, 409 — 저장 4.3도 같다).
+   * 관리 화면은 온보딩 완료 이후에만 열리지만 API는 토큰만 있으면 닿는다. 미완료 계정이
+   * 저장(4.3)으로 `manual` 3개를 넣고 온보딩 저장으로 `onboarding` 3개를 더 넣으면 — 온보딩
+   * 교체는 `onboarding` 출처 행만 내리므로 — 활성 6개가 되고, 4.3의 상한 `max(3, 현재 개수)`가
+   * 그 6개를 영구히 허용한다. 두 저장 경로가 같은 계정에 동시에 열려 있지 않게 막는 것이
+   * 상한을 지키는 가장 단순한 방법이다. 조회도 같은 문으로 막아 두 엔드포인트의 전제를 맞춘다.
    */
   async findEditableSelection(
     userId: string,
     manager?: EntityManager,
   ): Promise<UserInterestSelectionView[]> {
+    this.userOnboardingService.assertCompleted(
+      await this.userService.getById(userId, manager),
+    );
+
     const active = await this.findAllActive(userId, manager);
 
     return active.map((interest) => ({
@@ -272,10 +285,6 @@ export class UserInterestService {
     now: Date,
   ): Promise<UserInterestSelectionView[]> {
     return this.dataSource.transaction(async (manager) => {
-      // 검증 순서는 하한 → 주제 유효성 → 상한 (interest-management-api.md 4.3)
-      this.assertManagedShape(topicIds);
-      await this.assertTopicsAvailable(topicIds, manager);
-
       /**
        * **같은 사용자의 동시 저장을 직렬화한다.**
        *
@@ -286,7 +295,15 @@ export class UserInterestService {
        * 게다가 `allowedMax = max(3, 현재 개수)`라, 한 번 6이 되면 **6이 영구히 허용된다** —
        * 스스로 낫지 않고 드립이 여섯 주제로 쪼개진다.
        */
-      await this.userService.getByIdForUpdate(userId, manager);
+      const user = await this.userService.getByIdForUpdate(userId, manager);
+
+      // 온보딩 저장과 이 저장이 같은 계정에 동시에 열려 있으면 상한이 우회된다 —
+      // 사유는 `findEditableSelection` 참고. 입력 검증보다 앞선 전제 조건이다
+      this.userOnboardingService.assertCompleted(user);
+
+      // 검증 순서는 하한 → 주제 유효성 → 상한 (interest-management-api.md 4.3)
+      this.assertManagedShape(topicIds);
+      await this.assertTopicsAvailable(topicIds, manager);
 
       const existing = await this.userInterestRepository.findAllByUserId(
         userId,
@@ -375,10 +392,10 @@ export class UserInterestService {
         // 성립), 드립 편성 배치도 실행 시점에 읽는다. 캐시가 도입되면 여기서 무효화한다.
         this.logger.log('user interests replaced', {
           user_id: userId,
-          addedCount: addedTopicIds.length,
-          removedCount: removedTopicIds.length,
-          addedTopicIds,
-          removedTopicIds,
+          added_count: addedTopicIds.length,
+          removed_count: removedTopicIds.length,
+          added_topic_ids: addedTopicIds,
+          removed_topic_ids: removedTopicIds,
         });
       }
 

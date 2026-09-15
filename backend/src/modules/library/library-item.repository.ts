@@ -9,7 +9,10 @@ import {
   SelectQueryBuilder,
 } from 'typeorm';
 
-import { ContentStatus } from '@/modules/content/content.enum';
+import {
+  CONTENT_VISIBILITY_CONDITION,
+  contentVisibilityParameters,
+} from '@/modules/content/content.visibility';
 
 import { LibraryItem } from './library-item.entity';
 import {
@@ -20,9 +23,6 @@ import {
   LibraryItemStatus,
 } from './library.enum';
 import { LibraryPageQuery } from './library.types';
-
-/** 목록·복원 조회가 공유하는 노출 조건 — 회수된 콘텐츠는 어느 쪽에도 나타나지 않는다 */
-const VISIBLE_CONTENT_CONDITION = 'content.status = :publishedStatus';
 
 /**
  * 출처 필터 한 값이 덮는 `library_items.source` 값들(library-api.md 4.1).
@@ -310,6 +310,7 @@ export class LibraryItemRepository {
    */
   async findPage(
     query: LibraryPageQuery,
+    now: Date,
     manager?: EntityManager,
   ): Promise<LibraryItem[]> {
     const isDescending = query.sort === LibraryItemSort.ADDED_DESC;
@@ -319,10 +320,8 @@ export class LibraryItemRepository {
       .innerJoinAndSelect(
         'item.content',
         'content',
-        VISIBLE_CONTENT_CONDITION,
-        {
-          publishedStatus: ContentStatus.PUBLISHED,
-        },
+        CONTENT_VISIBILITY_CONDITION,
+        contentVisibilityParameters(now),
       )
       .where('item.user_id = :userId', { userId: query.userId });
 
@@ -361,13 +360,17 @@ export class LibraryItemRepository {
    */
   async countByTopicForUser(
     userId: string,
+    now: Date,
     manager?: EntityManager,
   ): Promise<{ topicId: string; name: string; itemCount: number }[]> {
     const rows = await this.scoped(manager)
       .createQueryBuilder('item')
-      .innerJoin('item.content', 'content', VISIBLE_CONTENT_CONDITION, {
-        publishedStatus: ContentStatus.PUBLISHED,
-      })
+      .innerJoin(
+        'item.content',
+        'content',
+        CONTENT_VISIBILITY_CONDITION,
+        contentVisibilityParameters(now),
+      )
       .innerJoin(
         'content_topics',
         'content_topic',
@@ -402,6 +405,7 @@ export class LibraryItemRepository {
    */
   async findLatestResumable(
     userId: string,
+    now: Date,
     manager?: EntityManager,
   ): Promise<LibraryItem | null> {
     return this.scoped(manager)
@@ -409,10 +413,8 @@ export class LibraryItemRepository {
       .innerJoinAndSelect(
         'item.content',
         'content',
-        VISIBLE_CONTENT_CONDITION,
-        {
-          publishedStatus: ContentStatus.PUBLISHED,
-        },
+        CONTENT_VISIBILITY_CONDITION,
+        contentVisibilityParameters(now),
       )
       .where('item.user_id = :userId', { userId })
       .andWhere(

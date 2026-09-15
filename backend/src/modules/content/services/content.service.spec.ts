@@ -104,6 +104,52 @@ describe('ContentService', () => {
     });
   });
 
+  describe('resolvePickTargets', () => {
+    it('발행 상태여도 라이선스 만료일이 지난 콘텐츠는 담기 대상에서 빼고 회수 코드로 알린다', async () => {
+      // given — 만료 배치(04:10)가 돌기 전, 재생·탐색 담기가 이미 막는 구간이다
+      const expired = buildContent({
+        id: CONTENT_ID,
+        licenseExpiresAt: new Date(NOW.getTime() - 1000),
+      });
+      contentRepository.findAllByIds = jest.fn().mockResolvedValue([expired]);
+
+      // when
+      const resolution = await service.resolvePickTargets(
+        [CONTENT_ID],
+        undefined,
+        NOW,
+      );
+
+      // then — 다른 담기 경로(getPublishedById)와 같은 노출 조건이다
+      expect(resolution.available).toEqual([]);
+      expect(resolution.failed).toEqual([
+        { contentId: CONTENT_ID, errorCode: ErrorCode.CONTENT_WITHDRAWN },
+      ]);
+    });
+
+    it('만료일이 남은 발행 콘텐츠는 담기 대상이다', async () => {
+      // given
+      contentRepository.findAllByIds = jest.fn().mockResolvedValue([
+        buildContent({
+          licenseExpiresAt: new Date(NOW.getTime() + 86_400_000),
+        }),
+      ]);
+
+      // when
+      const resolution = await service.resolvePickTargets(
+        [CONTENT_ID],
+        undefined,
+        NOW,
+      );
+
+      // then
+      expect(resolution.available.map((content) => content.id)).toEqual([
+        CONTENT_ID,
+      ]);
+      expect(resolution.failed).toEqual([]);
+    });
+  });
+
   describe('findWithdrawnSince', () => {
     const SINCE = new Date('2026-09-01T00:00:00.000Z');
     const T1 = new Date('2026-09-02T00:00:00.000Z');
