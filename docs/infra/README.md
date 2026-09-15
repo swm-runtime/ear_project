@@ -10,7 +10,7 @@
 
 ## 현재 상태 요약 (2026-09-15 실측)
 
-- **가동 중**: `api.earcast.co.kr`(API EC2) · `admin.earcast.co.kr`(관리자 콘솔) · `pipeline.earcast.co.kr`(AI 서버 EC2 — 파이프라인 콘솔·워커·임베딩) · CloudFront 오디오 CDN. 발행 콘텐츠 10편, 사용자 21명.
+- **가동 중**: `api.earcast.co.kr`(API EC2) · `admin.earcast.co.kr`(**AI 서버 EC2** — 파이프라인 웹 = 제품 발행 콘솔 `/publish` + 백엔드 로그 콘솔, 워커, 임베딩) · CloudFront 오디오 CDN. 발행 콘텐츠 10편, 사용자 21명. `pipeline.` 도메인은 2026-09-03 `admin.`으로 통합돼 없다.
 - **환경은 한 벌뿐이고 그것이 실운영이다.** 스테이징·개발계 없음. dev 머지가 곧 실서버 배포다(아래).
 - **배포는 CI**: dev 푸시 → GitHub Actions(OIDC 롤 `ear-ci-deploy`, SSH 임시 개방) → 두 EC2에 각각 `push.sh`. PR은 검증만. `main`은 백엔드·파이프라인 배포와 무관(앱 OTA 채널만). 비밀값 원천은 Secrets Manager `ear/prod/api`(배포마다 반영, 2026-09-09).
 - **네트워크는 기본 VPC 하나**(172.31.0.0/16), 서브넷 4개 전부 퍼블릭, NAT·ALB·WAF 없음. 두 EC2는 같은 서브넷(2a).
