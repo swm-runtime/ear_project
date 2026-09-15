@@ -19,6 +19,15 @@ import { PROFILE_COPY } from '../profile.copy';
 const SETTINGS_ICON_SIZE = 22;
 
 /**
+ * 설정 아이콘을 아래로 미는 양.
+ *
+ * 슬롯은 `PROFILE_IDENTITY_ROW_HEIGHT`(위쪽 여백 24 + 아바타 64) 안에서 세로 가운데를
+ * 잡는데, 그 높이에 **위쪽 여백이 포함**돼 있어 결과적으로 아바타의 중심보다 위로 뜬다.
+ * 여백의 절반만큼 내려 아바타 중심에 맞춘다.
+ */
+const SETTINGS_TOP_OFFSET = theme.spacing.sm;
+
+/**
  * 프로필 탭(P1~P10) — 화면은 뷰만 담당하고 로직은 useProfileScreen이 소유한다.
  * 하나의 세로 스크롤: 헤더 / 플랜 / 관심 주제 / 커리어 / 통계 3영역(profile-uiux.md 4.1).
  * 카드 순서는 바꾸지 않는다 — 위는 계정·결제, 아래 둘은 추천에 쓰이는 값이다.
@@ -158,7 +167,7 @@ const styles = StyleSheet.create({
   /** 헤더 높이만큼만 차지하는 겹침 층 — 그 안에서 세로 가운데로 정렬된다 */
   settingsSlot: {
     position: 'absolute',
-    top: 0,
+    top: SETTINGS_TOP_OFFSET,
     right: theme.spacing.sm,
     height: PROFILE_IDENTITY_ROW_HEIGHT,
     justifyContent: 'center',
