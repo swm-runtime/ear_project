@@ -14,9 +14,12 @@ interface ExploreFeaturedCardProps {
 
 const toMinutes = (durationSec: number): number => Math.max(1, Math.round(durationSec / 60));
 
-/** 화면 폭의 78% — 다음 카드가 옆에 걸쳐 보여야 가로로 더 있다는 것이 드러난다 */
-const WIDTH_RATIO = 0.78;
-const MAX_WIDTH = 340;
+/**
+ * 화면 폭의 72% — 다음 카드가 옆에 걸쳐 보여야 가로로 더 있다는 것이 드러난다.
+ * 78%에서 낮췄다(2026-09-15) — 카드가 화면을 덜 차지하면서 걸침은 오히려 커진다.
+ */
+const WIDTH_RATIO = 0.72;
+const MAX_WIDTH = 312;
 
 interface Rect {
   x: number;
@@ -65,7 +68,6 @@ export default function ExploreFeaturedCard({
         accessibilityRole="button"
         accessibilityLabel={EXPLORE_COPY.row.a11yLabel({
           title: item.content.title,
-          sourceName: item.content.sourceName,
           minutes,
           completed: isCompleted,
         })}
@@ -78,9 +80,6 @@ export default function ExploreFeaturedCard({
             </View>
           ) : null}
         </View>
-        <Text style={styles.meta} numberOfLines={1}>
-          {item.content.sourceName} · {item.content.authorName}
-        </Text>
         <Text style={styles.title} numberOfLines={2}>
           {item.content.title}
         </Text>
@@ -97,7 +96,6 @@ export default function ExploreFeaturedCard({
           accessibilityRole="button"
           accessibilityLabel={EXPLORE_COPY.row.a11yLabel({
             title: item.content.title,
-            sourceName: item.content.sourceName,
             minutes,
             completed: isCompleted,
           })}
@@ -153,11 +151,6 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.xs,
     fontWeight: '700',
     color: theme.color.onPrimary,
-  },
-  meta: {
-    fontSize: theme.font.size.xs,
-    fontWeight: '600',
-    color: theme.color.textSecondary,
   },
   title: {
     fontSize: theme.font.size.md,

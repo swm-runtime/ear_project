@@ -57,9 +57,6 @@ export default function ExploreMoreSheet({
                   <Text style={styles.title} numberOfLines={2}>
                     {item.content.title}
                   </Text>
-                  <Text style={styles.meta} numberOfLines={1}>
-                    {item.content.sourceName} · {item.content.authorName}
-                  </Text>
                 </View>
               </View>
               <Pressable
@@ -168,10 +165,6 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.sm,
     fontWeight: '600',
     color: theme.color.textPrimary,
-  },
-  meta: {
-    fontSize: theme.font.size.xs,
-    color: theme.color.textSecondary,
   },
   action: {
     minHeight: theme.touchTarget.minHeight,

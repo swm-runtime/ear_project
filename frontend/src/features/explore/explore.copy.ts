@@ -77,15 +77,9 @@ export const EXPLORE_COPY = {
     /** 완청 체크는 색이 아니라 형태 단서 + 스크린리더 텍스트로 전달한다(library 카드와 동일) */
     completedA11y: '완청한 콘텐츠',
     /** 행은 하나의 탭 영역으로 읽힌다 — 값과 동작을 한 문장으로(uiux 7) */
-    a11yLabel: (parts: {
-      title: string;
-      sourceName: string;
-      minutes: number;
-      completed: boolean;
-    }) =>
+    a11yLabel: (parts: { title: string; minutes: number; completed: boolean }) =>
       [
         parts.title,
-        parts.sourceName,
         `${parts.minutes}분`,
         ...(parts.completed ? ['완청한 콘텐츠'] : []),
         '재생',
