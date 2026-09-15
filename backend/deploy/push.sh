@@ -15,13 +15,16 @@ REF="${REF:-HEAD}"
 DEST=/opt/ear
 HEALTH_URL="${HEALTH_URL:-https://api.earcast.co.kr/api/v1/health}"
 SECRET_ID="${SECRET_ID:-ear/prod/api}"   # Secrets Manager 비밀값 묶음 — 환경마다 다르다(운영 ear/prod/api · 개발 ear/dev/api)
+# API_IMAGE=<ECR uri>:<tag> 를 주면 서버가 빌드하지 않고 그 이미지를 pull 해 띄운다(KAN-62 4단계). 비우면 종전처럼 서버 빌드.
+# 롤백 = 이전 커밋 SHA 태그로 다시 실행. 인스턴스 롤에 ecr-pull(setup-ecr.sh)이 있어야 한다.
+API_IMAGE="${API_IMAGE:-}"
 
 # keepalive — 서버 빌드가 수 분간 출력 없이 돌면 유휴 연결이 끊긴다(AI 서버에서 실측된 실패 원인)
 SSH="ssh -i $PEM -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=15 -o ServerAliveCountMax=60"
 REV="$(git -C "$ROOT" rev-parse --short "$REF")"
 [ -z "$(git -C "$ROOT" status --porcelain -- backend)" ] || REV="$REV-dirty"
 
-echo "▶ $HOST 에 $REV 반입 (git archive → tar)"
+echo "▶ $HOST 에 $REV 반입 (git archive → tar)${API_IMAGE:+ · 이미지 $API_IMAGE}"
 # `backend` 경로만 뜬다 — 아카이브 안 경로가 backend/… 라 $DEST 에서 풀면 /opt/ear/backend 가 된다
 git -C "$ROOT" archive "$REF" backend | $SSH "ec2-user@$HOST" "tar -x -C $DEST"
 
@@ -45,7 +48,16 @@ $SSH "ec2-user@$HOST" "
   cp .env.prod .env.prod.bak          # 갱신이 깨졌을 때 되돌릴 자리 — 한 세대만 유지
   python3 deploy/apply-secrets.py \"\$SECRET_TMP\" .env.prod
 
-  docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build api
+  if [ -n \"$API_IMAGE\" ]; then
+    REGISTRY=\"${API_IMAGE%%/*}\"
+    aws ecr get-login-password --region \${AWS_REGION:-ap-northeast-2} | docker login --username AWS --password-stdin \"\$REGISTRY\" >/dev/null
+    API_IMAGE=\"$API_IMAGE\" docker compose -f docker-compose.prod.yml --env-file .env.prod pull api
+    API_IMAGE=\"$API_IMAGE\" docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --no-build api
+    # 다음에 API_IMAGE 없이(옛 방식) 배포해도 compose 가 같은 컨테이너를 잡도록 남겨둔다 — 값은 기록용
+    echo \"$API_IMAGE\" > .api-image
+  else
+    docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build api
+  fi
 "
 
 # 기동 확인 — 마이그레이션이 실패하면 컨테이너가 안 뜨고(의도), 헬스가 200 을 주지 않는다

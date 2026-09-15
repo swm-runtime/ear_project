@@ -131,6 +131,47 @@ jobs:
         if: steps.scope.outputs.backend == 'true'
         run: npm run test:e2e
 
+  build-push:
+    name: 이미지 빌드 → ECR
+    # 검증을 통과한 커밋만 이미지가 된다. 배포 job 과는 아직 독립이다 — 서버는 여전히 자기 빌드로 배포한다
+    # (KAN-62 4단계 1~3: 이미지가 쌓이는지·개발계에서 그 이미지로 뜨는지 먼저 본다. pull 전환은 별도 결정).
+    needs: verify
+    if: github.event_name != 'pull_request'
+    # 공개 저장소라 GitHub arm64 러너가 무료다 — 서버(t4g, arm64)와 같은 아키텍처를 네이티브로 빌드한다.
+    # 저장소를 비공개로 바꾸면: (a) 그대로 두면 분 단위 과금(무료 2,000분/월 안에 대개 들어온다) 또는
+    # (b) runs-on 을 ubuntu-latest 로 바꾸고 docker/setup-qemu-action 을 앞에 넣어 에뮬레이션(빌드 2~3배 느림).
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    permissions:
+      id-token: write
+      contents: read
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: AWS 자격 (OIDC — dev 브랜치만 신뢰, ecr-push 인라인 정책)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::639177726357:role/ear-ci-deploy
+          aws-region: ap-northeast-2
+      - name: ECR 로그인
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: 태그 결정 — 커밋 SHA(불변) + 브랜치 이동 태그
+        id: meta
+        run: |
+          REG="${{ steps.ecr.outputs.registry }}"
+          echo "image=$REG/ear/api:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "moving=$REG/ear/api:${GITHUB_REF_NAME}-latest" >> "$GITHUB_OUTPUT"
+      - name: 빌드 (arm64 네이티브 — Dockerfile 그대로)
+        working-directory: backend
+        run: docker build -t "${{ steps.meta.outputs.image }}" -t "${{ steps.meta.outputs.moving }}" .
+      - name: 푸시
+        run: |
+          docker push "${{ steps.meta.outputs.image }}"
+          docker push "${{ steps.meta.outputs.moving }}"
+          echo "::notice::pushed ${{ steps.meta.outputs.image }}"
+
   deploy:
     name: 배포 (EC2)
     # 검증을 통과했을 때만 배포한다
