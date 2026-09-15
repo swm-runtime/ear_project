@@ -9,9 +9,13 @@
 #   (secrets-read ear/dev/api · 로그 /ear-dev/* · ses-send · CloudWatchAgentServerPolicy — 버킷 권한은 2단계에서)
 #   EC2 t4g.small(AL2023 arm64, gp3 20GB, IMDSv2 hop 2, user-data: docker·compose·buildx·cronie·스왑 2G) · EIP
 #   Secrets Manager ear/dev/api — 운영과 같은 8개 키. 랜덤 비밀은 새로 만들고(운영 값 재사용 금지) 화면에 찍지 않는다
-#   out/ear-dev.env.prod — 서버 .env.prod 초안(비밀 항목은 자리표시 — push.sh 가 배포마다 Secrets Manager 값으로 덮어쓴다)
+#   out/ear-dev.env.prod — 서버 .env.prod 초안(관리자 콘솔 설정은 만들지 않는다 — 콘솔은 AI 서버 몫)(비밀 항목은 자리표시 — push.sh 가 배포마다 Secrets Manager 값으로 덮어쓴다)
 # 만들지 않는 것: 운영 이미지 복제(실사용자 데이터·운영 비밀이 따라온다) · NAT · ALB · RDS · WAF
-# 사람 몫(끝에 출력): 가비아 A 레코드 2개 · Google OAuth 클라이언트에 admin-dev 원본 추가 · KAKAO_APP_ID
+# 사람 몫(끝에 출력): 가비아 A 레코드 1개(api-dev) · KAKAO_APP_ID
+#
+# 관리자 콘솔은 개발계에 두지 않는다 — 콘솔은 2026-09-03 부터 AI 서버의 파이프라인 웹(admin.earcast.co.kr /publish)이고
+# 그 서버는 운영 하나만 둔다(결정 3). 백엔드 Caddy 의 정적 콘솔 블록(ADMIN_DOMAIN)은 퇴역 대상이라 개발계에서는
+# 외부에 노출되지 않는 내부 포트(:8099)에 묶어 두기만 한다.
 set -euo pipefail
 
 REGION="${AWS_REGION:-ap-northeast-2}"
@@ -26,7 +30,8 @@ SECRET_ID="${SECRET_ID:-ear/dev/api}"
 LOG_PREFIX="${LOG_PREFIX:-/ear-dev}"
 BASE_DOMAIN="${BASE_DOMAIN:-earcast.co.kr}"
 API_DOMAIN="${API_DOMAIN:-api-dev.$BASE_DOMAIN}"
-ADMIN_DOMAIN="${ADMIN_DOMAIN:-admin-dev.$BASE_DOMAIN}"
+ADMIN_DOMAIN="${ADMIN_DOMAIN:-:8099}"   # 정적 콘솔 블록을 죽이는 값 — compose 가 8099 를 공개하지 않아 밖에서 닿지 않는다
+CONSOLE_ORIGIN="${CONSOLE_ORIGIN:-https://admin.$BASE_DOMAIN}"   # 파이프라인 웹(발행 콘솔)의 오리진 — 개발계 API 를 겨눌 때를 위해 CORS 에 넣어둔다
 # 비밀 아닌 클라이언트 식별자 — 운영과 같은 앱이라 같은 값 (frontend/app.json · inventory.md 5장)
 GOOGLE_WEB_CLIENT_ID="${GOOGLE_WEB_CLIENT_ID:-475643832949-q10v2jk03pjh0f37vurot61c216snist.apps.googleusercontent.com}"
 APPLE_CLIENT_ID="${APPLE_CLIENT_ID:-com.runtime.ear}"
@@ -187,7 +192,7 @@ DB_PORT=5432
 DB_USERNAME=ear
 DB_PASSWORD=from-secrets-manager
 DB_NAME=ear
-CORS_ORIGINS=https://$ADMIN_DOMAIN
+CORS_ORIGINS=$CONSOLE_ORIGIN
 JWT_SECRET=from-secrets-manager
 ARCHIVE_HASH_PEPPER=from-secrets-manager
 WITHDRAWAL_HASH_PEPPER=from-secrets-manager
@@ -213,18 +218,12 @@ MAIL_DELIVERY=ses
 MAIL_FROM_ADDRESS=이어 개발계 <no-reply@$BASE_DOMAIN>
 TRUST_PROXY_HOPS=1
 API_DOMAIN=$API_DOMAIN
+# 개발계에 관리자 콘솔 없음 — 정적 콘솔 Caddy 블록을 내부 포트에 묶어 둔다(공개 안 됨)
 ADMIN_DOMAIN=$ADMIN_DOMAIN
 LOG_GROUP_PREFIX=$LOG_PREFIX
 PIPELINE_SSO_SECRET=from-secrets-manager
 SLACK_ERROR_WEBHOOK_URL=from-secrets-manager
 ENV
-cat > "$OUT/${SERVER_NAME}.admin-config.js" <<JS
-// 개발계 관리자 콘솔 설정 (deploy/admin/config.js) — setup-dev-server.sh 생성
-window.EAR_ADMIN_CONFIG = {
-  apiBaseUrl: 'https://$API_DOMAIN/api/v1',
-  googleClientId: '$GOOGLE_WEB_CLIENT_ID',
-};
-JS
 echo "작성됨 (비밀값 없음 — 자리표시만)"
 
 # ── 8. (선택) 서버 부트스트랩 — env 반입 + 첫 배포 ──────────────
@@ -234,9 +233,7 @@ if [ "${BOOTSTRAP:-0}" = "1" ]; then
   SSH="ssh -i $PEM -o StrictHostKeyChecking=accept-new -o ConnectTimeout=8 -o ServerAliveInterval=15"
   for i in $(seq 1 40); do $SSH ec2-user@$EIP 'cloud-init status --wait >/dev/null 2>&1; command -v docker >/dev/null && docker compose version >/dev/null' 2>/dev/null && break; echo "  cloud-init 대기 ($i)"; sleep 15; done
   scp -q -i "$PEM" "$OUT/${SERVER_NAME}.env.prod" ec2-user@$EIP:/opt/ear/backend/.env.prod
-  $SSH ec2-user@$EIP 'mkdir -p /opt/ear/backend/deploy/admin'
-  scp -q -i "$PEM" "$OUT/${SERVER_NAME}.admin-config.js" ec2-user@$EIP:/opt/ear/backend/deploy/admin/config.js
-  echo "env·콘솔 설정 반입됨 → push.sh"
+  echo "env 반입됨 → push.sh"
   HOST=$EIP PEM=$PEM SECRET_ID=$SECRET_ID HEALTH_URL="https://$API_DOMAIN/api/v1/health" bash "$ROOT/backend/deploy/push.sh"
 fi
 
@@ -244,8 +241,8 @@ say "완료"
 cat <<DONE
 인스턴스: $INSTANCE_ID ($INSTANCE_TYPE) · 공인 IP(EIP): $EIP · 사설 IP: $PRIV · SG: $SG_ID · 롤: $ROLE · 시크릿: $SECRET_ID
 사람 몫:
-  1) 가비아 A 레코드 2개 — $API_DOMAIN → $EIP · $ADMIN_DOMAIN → $EIP (TTL 기본). Caddy 가 인증서를 받으려면 DNS 가 먼저 있어야 한다
-  2) Google Cloud Console → 사용자 인증 정보 → 웹 클라이언트 → 승인된 JavaScript 원본에 https://$ADMIN_DOMAIN 추가 (관리자 콘솔 로그인)
+  1) 가비아 A 레코드 1개 — $API_DOMAIN → $EIP (TTL 기본). Caddy 가 인증서를 받으려면 DNS 가 먼저 있어야 한다
+  2) (관리자 콘솔은 개발계에 없다 — admin.$BASE_DOMAIN 은 AI 서버의 파이프라인 웹, 운영 하나만)
   3) KAKAO_APP_ID 실값 — 운영 서버 .env.prod 의 KAKAO_APP_ID 줄 또는 Kakao Developers 앱 ID. 확보하면 $OUT/${SERVER_NAME}.env.prod 에 적고 재배포
   4) DNS 반영 후: BOOTSTRAP=1 로 다시 실행(env 반입 + push.sh). 이미 떠 있으면 서버에서 docker compose … restart caddy 로 인증서 재시도
   5) docs/infra/inventory.md 에 등재 (티켓 9단계에서 일괄)
