@@ -49,7 +49,11 @@ export async function runDraft(job: Job, ex: Executor) {
   // 규칙 묶음: 에피소드에 고정된 버전이 있으면 그것, 없으면 지금 active 를 읽어 고정한다 (spec/10 3.2)
   const prior = await getEpisode(episodeId);
   const { assetRoot, bundle } = await prepareAssets(prior?.asset_versions ?? null);
-  const promptVersion = attempt === 1 && cfg.draftMode === "two-stage" ? `${bundle.labels.draft}+2stage` : (prior?.prompt_version ?? bundle.labels.draft); // 2단계는 라벨에 표시 — 통과율·비용을 방식별로 집계한다
+  // 실험 no-gold (2026-09-15): settings.experiments.no_gold_backlog_ids 에 든 후보는 골드 예시 없이 설계·대본을 쓴다 — 라벨 "+no-gold" 로 runs·episodes 에 남긴다
+  const experiments = await getSetting<{ no_gold_backlog_ids?: string[] }>("experiments").catch(() => null);
+  const noGold = (experiments?.no_gold_backlog_ids ?? []).includes(backlogId);
+  const promptVersion = attempt === 1 && cfg.draftMode === "two-stage" ? `${bundle.labels.draft}+2stage${noGold ? "+no-gold" : ""}` : (prior?.prompt_version ?? bundle.labels.draft); // 2단계는 라벨에 표시 — 통과율·비용을 방식별로 집계한다
+  if (noGold) log(`  draft ${episodeId}: 실험 no-gold — 골드 예시 없이 설계·대본`);
   if (!prior?.asset_versions) await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: promptVersion, asset_versions: bundle.versions });
   const rel = `episodes/${episodeId}`;
   const dir = path.join(cfg.workRoot, rel);
@@ -85,7 +89,7 @@ export async function runDraft(job: Job, ex: Executor) {
     const seed = await countEpisodes();
     const intro = pickIntroStyle(seed);
     const [templates, majorTopic] = await Promise.all([getSetting<Templates>("templates"), majorOfMidTopic(cand.mid_topic)]);
-    const t = await runTwoStageDraft({ job, ex, episodeId, candidate: cand, dir, rel, assetRoot, promptVersion, templates, majorTopic: majorTopic ?? undefined, introStyle: intro, fileTools, signoffSeed: Number(cand.id.replace(/\D/g, "")) || seed }); // 클로징 골격은 후보 번호로 돌린다 — 같은 시각에 시작한 3편이 같은 에피소드 수를 받아 골격이 겹쳤다 (T260909-005·007·009)
+    const t = await runTwoStageDraft({ job, ex, episodeId, candidate: cand, dir, rel, assetRoot, promptVersion, noGold, templates, majorTopic: majorTopic ?? undefined, introStyle: intro, fileTools, signoffSeed: Number(cand.id.replace(/\D/g, "")) || seed }); // 클로징 골격은 후보 번호로 돌린다 — 같은 시각에 시작한 3편이 같은 에피소드 수를 받아 골격이 겹쳤다 (T260909-005·007·009)
     out = { turns: t.stats.turns, chars: t.stats.chars, minutes: t.stats.minutes, sources_used: t.design?.sources_used ?? [], sources_excluded: t.design?.sources_excluded ?? [], self_check_fixes: t.write.self_check_fixes, notes: t.write.notes };
     oneLiner = t.write.one_liner?.trim() || null; // KAN-50 3-1 — 썸네일 {핵심 개념}·발행 메타 설명 첫 줄
     model = t.model; costUsd = t.costUsd; tokens = t.tokens; summary = t.summary;

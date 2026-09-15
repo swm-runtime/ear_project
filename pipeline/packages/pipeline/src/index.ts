@@ -695,9 +695,10 @@ ${fence(i.guidelines)}
 ### 2.2 대본 규격·페르소나 — spec/04 (3~6장)
 ${fence(specSections(i.specScript, [3, 4, 5, 6]))}
 
-### 2.3 골드 예시 — 톤·리듬·티키타카의 기준 (이 에피소드와 같은 역할 배치: ${explainer} 해설)
+${i.goldFullEum || i.goldFullYuna ? `### 2.3 골드 예시 — 톤·리듬·티키타카의 기준 (이 에피소드와 같은 역할 배치: ${explainer} 해설)
 ${GOLD_USAGE}
-${fence(explainer === "이음" ? i.goldFullEum : i.goldFullYuna)}
+${fence(explainer === "이음" ? i.goldFullEum : i.goldFullYuna)}` : `### 2.3 골드 예시 — 이 실행에는 없다 (실험 no-gold, 2026-09-15)
+톤·리듬·티키타카·전언체는 guidelines 규칙(1~10·19)과 spec/04 3장 페르소나만 따른다. 참조할 문장이 없으므로 확인구·정리 진입·클로징 문장은 규칙과 템플릿 골격대로 새로 쓴다.`}
 
 ## 3. 이 에피소드의 재료
 ### 3.1 구성안 — outline.md (계약: 구간 순서·목적·재료·진행자 질문·전환 장치를 그대로 실행한다)
@@ -925,8 +926,8 @@ export function buildDesignPromptInline(i: DesignInlineInput): string {
 ${fence(i.guidelines)}
 ### 1.2 대본 규격·페르소나 — spec/04 (3·4·6·7장)
 ${fence(specSections(i.specScript, [3, 4, 6, 7]))}
-### 1.3 골드 예시 — 구간 형태·리듬의 기준 (같은 역할 배치: ${explainer} 해설. 문장을 베끼지 않는다)
-${fence(explainer === "이음" ? i.goldFullEum : i.goldFullYuna)}
+${i.goldFullEum || i.goldFullYuna ? `### 1.3 골드 예시 — 구간 형태·리듬의 기준 (같은 역할 배치: ${explainer} 해설. 문장을 베끼지 않는다)
+${fence(explainer === "이음" ? i.goldFullEum : i.goldFullYuna)}` : `### 1.3 골드 예시 — 이 실행에는 없다 (실험 no-gold, 2026-09-15). 구간 형태·리듬은 spec/04 4장 구조와 guidelines 규칙만으로 설계한다.`}
 
 ## 2. 에피소드 정보 (백로그 ${i.candidate.id}, 게이트1 승인 완료)
 - 에피소드 ID: ${i.episodeId} · 제목(가): "${i.candidate.title}" · 중분류: ${i.candidate.mid_topic}
