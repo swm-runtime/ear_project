@@ -5,6 +5,7 @@ import { ReconsentScreen, SplashScreen, sessionService, useSessionStore } from '
 import { useShareLinkGate } from '@/features/share';
 
 import AuthNavigator from './AuthNavigator';
+import { primeTabToRestore } from './last-tab';
 import MainNavigator from './MainNavigator';
 import OnboardingNavigator from './OnboardingNavigator';
 import type { RootStackParamList } from './types';
@@ -46,6 +47,9 @@ export default function RootNavigator() {
     if (hasStartedRestore.current) return;
     hasStartedRestore.current = true;
     void sessionService.restoreSession();
+    // 마지막 탭은 세션 복원과 나란히 읽는다(splash.md 4장 4-1) — 관문이 기다리는
+    // 동안 끝나야 탭 내비게이터가 initialRouteName 을 동기로 읽을 수 있다
+    void primeTabToRestore();
   }, []);
 
   useEffect(() => {

@@ -18,6 +18,7 @@ import {
 import { profileKeys } from '@/features/profile';
 import { settingsKeys } from '@/features/settings';
 
+import { forgetTab } from '../navigation/last-tab';
 import { queryClient } from '../query-client';
 
 /**
@@ -88,6 +89,8 @@ export const bootstrapApp = (): void => {
      */
     if (previous.status === 'authenticated' && state.status !== 'authenticated') {
       stopPlaybackForSignOut();
+      // 다음 사용자가 앞 사용자의 탭에서 시작하면 안 된다(splash.md 4장 4-1)
+      forgetTab();
     }
   });
 };
