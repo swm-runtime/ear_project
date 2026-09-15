@@ -85,4 +85,7 @@ zcat "$FILE" | tail -n 20 | grep -q 'PostgreSQL database dump complete' \
 SIZE=$(stat -c %s "$FILE")
 aws s3 cp "$FILE" "s3://${BACKUP_BUCKET}/pg/ear-${STAMP}.sql.gz" --only-show-errors
 echo "backup ok: ${STAMP} (${SIZE} bytes, db=${DB_NAME})"
+# 심장박동 지표 — 성공했을 때만 1을 찍는다. CloudWatch 알람이 "25시간 안에 지표 없음"을 잡는다(실패뿐 아니라 미실행도)
+aws cloudwatch put-metric-data --region "${AWS_REGION:-ap-northeast-2}" --namespace ear/ops --metric-name CronSuccess \
+  --dimensions Job=backup --value 1 --unit Count 2>/dev/null || echo "경고: 심장박동 지표 기록 실패(권한/네트워크) — 알람이 오탐할 수 있다"
 # 보관 기간은 버킷 라이프사이클(30일) — deploy/aws/setup-audio-cdn.sh 가 pg/ 접두사에 건다.
