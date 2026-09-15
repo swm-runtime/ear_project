@@ -1068,6 +1068,7 @@ ${failures}
 - 구간 헤더(\`### #n\`)·구역 헤더·턴 번호 체계는 바꾸지 않는다. 턴을 지워야 하면 after 를 빈 문자열로 (연번은 워커가 유지한다 — 지운 번호는 비워 둔다).
 - 같은 인용·문장을 다른 턴에서 이미 쓰고 있지 않은지 확인한다 (중복 낭독 금지).
 - 수정으로 새 비한글 표기(영문 용어·인명)를 도입했으면 pronunciations_added 에 한글 발음을 적는다.
+- **고친 턴마다 남아 있는 claims ID 를 fixes.claims 에 전부 적는다** — 워커가 이것으로 턴별 claims 표(script-notes)를 갱신하고, L0 는 그 표로 "소스가 배정 구간 밖에서 쓰였는지"를 다시 잰다. 지적을 받아 뺀 claim 은 목록에서도 빠져야 한다 (T260915-007: 문장은 지웠는데 표가 그대로라 같은 지적이 두 번 더 났다). 턴을 지웠으면 빈 배열.
 
 ## 대본 규칙 (참조)
 ${fence(i.guidelines)}
@@ -1092,7 +1093,7 @@ export const REVISION_INLINE_SCHEMA = {
   additionalProperties: false,
   required: ["fixes", "pronunciations_added", "claims_note", "notes"],
   properties: {
-    fixes: { type: "array", items: { type: "object", additionalProperties: false, required: ["turn", "before", "after", "why"], properties: { turn: { type: "string" }, before: { type: "string" }, after: { type: "string" }, why: { type: "string" } } } },
+    fixes: { type: "array", items: { type: "object", additionalProperties: false, required: ["turn", "before", "after", "why", "claims"], properties: { turn: { type: "string" }, before: { type: "string" }, after: { type: "string" }, why: { type: "string" }, claims: { type: "array", items: { type: "string" }, description: "고친 뒤 그 턴에 남아 있는 claims ID 전부 (C01 형식). 턴을 지웠거나 claims 를 쓰지 않으면 빈 배열" } } } },
     pronunciations_added: { type: "array", items: { type: "object", additionalProperties: false, required: ["term", "reading"], properties: { term: { type: "string" }, reading: { type: "string" } } } },
     claims_note: { type: "string", description: "claims.md 끝에 붙일 'QA 반영' 절 본문 — 어떤 주장이 어떻게 축소·삭제됐는지" },
     notes: { type: "string" },

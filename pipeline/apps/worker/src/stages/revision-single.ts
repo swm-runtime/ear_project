@@ -11,7 +11,26 @@ import { exists, log } from "../util.js";
  * 워커가 script.md 의 해당 턴 줄을 통째로 치환한다(after 가 비면 줄 삭제). claims.md 끝에 "QA attempt N 반영" 절, 발음 맵 병합도 워커가 쓴다.
  * 에이전트 방식(Read·Edit·python 루프)은 긴 턴 2개 고치는 데 $1.92 였다(T260909-002).
  */
-export interface RevisionInlineOut { fixes: { turn: string; before: string; after: string; why: string }[]; pronunciations_added: { term: string; reading: string }[]; claims_note: string; notes: string }
+export interface RevisionInlineOut { fixes: { turn: string; before: string; after: string; why: string; claims?: string[] }[]; pronunciations_added: { term: string; reading: string }[]; claims_note: string; notes: string }
+
+/**
+ * script-notes.md 의 턴별 claims 표를 수정 결과로 갱신한다 (2026-09-15, T260915-007): 수정이 턴에서 claim 문장을 지워도 표가 그대로면
+ * L0 "구간 밖 사용"이 같은 턴을 계속 잡아 L0 수정 한도(2회)에서 실패한다. 표 행 `| E4 | C01, C20 |` 를 모델이 보고한 남은 claims 로 바꾸고, 지운 턴은 행을 없앤다
+ */
+export function updateNotesClaims(notesMd: string, fixes: { turn: string; after: string; claims?: string[] }[]): string {
+  const lines = notesMd.split("\n");
+  for (const f of fixes) {
+    if (!f.claims) continue; // 구 스키마 응답 — 표를 건드리지 않는다
+    const id = f.turn.trim().toUpperCase().replace(/[^EY0-9]/g, "");
+    const ids = [...new Set(f.claims.map((c) => c.trim().toUpperCase()).filter((c) => /^C\d{2,3}$/.test(c)))];
+    const row = ids.length ? `| ${id} | ${ids.join(", ")} |` : null;
+    const idx = lines.findIndex((l) => new RegExp(`^\\|\\s*${id}\\s*\\|`).test(l));
+    if (!f.after.trim() || !row) { if (idx >= 0) lines.splice(idx, 1); continue; }
+    if (idx >= 0) lines[idx] = row;
+    else { const last = lines.map((l, i) => (/^\|\s*[EY]\d+\s*\|/.test(l) ? i : -1)).filter((i) => i >= 0).pop(); if (last !== undefined) lines.splice(last + 1, 0, row); else lines.push(row); }
+  }
+  return lines.join("\n");
+}
 
 export async function runRevisionSingle(a: { job: Job; ex: Executor; episodeId: string; dir: string; assetRoot: string; attempt: number; qaFailures: { location: string; item: string; reason: string }[] }):
   Promise<{ output: { fixes: { location: string; before: string; after: string }[]; notes: string }; model: string | null; costUsd: number; tokens: unknown; unmatched: string[] }> {
@@ -44,6 +63,8 @@ export async function runRevisionSingle(a: { job: Job; ex: Executor; episodeId: 
   }
   if (!applied.length && o.fixes.length) throw new Error(`수정 턴을 대본에서 찾지 못함: ${unmatched.join(", ")} — 턴 번호 형식 확인`);
   await fs.writeFile(path.join(dir, "script.md"), lines.join("\n"), "utf8");
+  const notesFile = path.join(dir, "script-notes.md");
+  if (await exists(notesFile)) await fs.writeFile(notesFile, updateNotesClaims(await read(notesFile), o.fixes.filter((f) => !unmatched.includes(f.turn))), "utf8");
   if (o.claims_note.trim()) await fs.writeFile(path.join(dir, "claims.md"), `${claimsMd.trimEnd()}\n\n## QA attempt ${attempt - 1} 반영 (단발 수정)\n\n${o.claims_note.trim()}\n${unmatched.length ? `\n(대본에서 못 찾은 턴: ${unmatched.join(", ")})\n` : ""}`, "utf8");
   if (o.pronunciations_added.length) {
     let cur: Record<string, string> = {}; try { cur = JSON.parse(pronunciationsJson); } catch { cur = {}; }

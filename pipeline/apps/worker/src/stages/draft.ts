@@ -40,7 +40,7 @@ export async function runDraft(job: Job, ex: Executor) {
       }
     }
     // 재집기(워커 사망 후 회수) 시 같은 에피소드를 이어받도록 작업 payload 에 ID 를 고정한다
-    episodeId = String(job.payload.episode_id ?? "") || (await allocateEpisodeId(episodeDatePrefix("T")));
+    episodeId = String(job.payload.episode_id ?? "") || (await allocateEpisodeId(episodeDatePrefix("T"), backlogId));
     if (!job.payload.episode_id) await updateJobPayload(job.id, { episode_id: episodeId });
   } else {
     episodeId = String(job.payload.episode_id ?? "");
@@ -233,13 +233,16 @@ async function readOrigin(file: string): Promise<{ backlog_id: string; episode_i
  * 에피소드 id 할당 — DB 의 다음 번호에서 시작하되, 로컬 디렉토리나 S3 에 흔적이 남은 번호는 건너뛴다 (2026-09-09).
  * 에피소드를 지우면 DB 에서는 번호가 비지만 산출물 디렉토리는 남을 수 있고, 그 번호를 다시 쓰면 재집기 복구가 옛 산출물을 이어받는다.
  */
-async function allocateEpisodeId(prefix: string): Promise<string> {
+async function allocateEpisodeId(prefix: string, backlogId: string): Promise<string> {
   let id = await nextEpisodeId(prefix);
   for (let i = 0; i < 50; i++) {
     const local = await exists(path.join(cfg.workRoot, "episodes", id));
     const remote = local ? true : (await listPrefix(`episodes/${id}/`, 1).catch(() => [])).length > 0;
-    if (!local && !remote) return id;
-    log(`  episode id ${id}: ${local ? "로컬 디렉토리" : "S3 객체"}가 남아 있어 건너뜀`);
+    // 예약 (2026-09-15): 워커 3개가 5초 안에 같은 번호를 계산해 한 디렉토리를 나눠 썼다(T260915-005 — C123·C106, 한쪽의 실패 정리가 다른 쪽 산출물을 지웠다).
+    // "다음 번호"는 읽기라 원자적이지 않다 — 에피소드 행 삽입(on conflict do nothing)이 잠금이다. 실패하면 onDraftFailed 가 대본 없는 행을 지운다
+    const reserved = !local && !remote && (await pool.query("insert into public.episodes (id, backlog_id, prompt_version) values ($1, $2, 'allocating') on conflict (id) do nothing returning id", [id, backlogId])).rowCount === 1;
+    if (reserved) return id;
+    log(`  episode id ${id}: ${local ? "로컬 디렉토리" : remote ? "S3 객체" : "다른 워커의 예약"}이(가) 있어 건너뜀`);
     const n = Number(id.split("-")[1]) + 1;
     id = `${prefix}-${String(n).padStart(3, "0")}`;
   }

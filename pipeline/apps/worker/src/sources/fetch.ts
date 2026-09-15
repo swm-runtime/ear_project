@@ -86,7 +86,10 @@ export async function fetchArticle(n: number, url: string): Promise<FetchedSourc
   if (!res.ok) return { ...base, ok: false, status: res.status, note: res.status === 403 || res.status === 429 ? "접근 차단 — 우회하지 않음" : `HTTP ${res.status}` };
   const ct = res.headers.get("content-type") ?? "";
   if (!/html|xml/.test(ct)) return { ...base, ok: false, status: res.status, note: `HTML 아님 (${ct.slice(0, 40)})` };
-  const html = await res.text();
+  // 본문 수신도 같은 25초 시그널 아래 있다 — 여기서 나는 TimeoutError 를 잡지 않으면 설계 전체가 죽는다 (2026-09-15: 워커 3개 동시 실행 중 초안 3건이 여기서 실패)
+  let html: string;
+  try { html = await res.text(); }
+  catch (e) { return { ...base, ok: false, status: "network", note: `본문 수신 실패: ${String((e as Error).message ?? e).slice(0, 100)}` }; }
   const { document } = parseHTML(html);
   let art: { title?: string | null; byline?: string | null; content?: string | null } | null = null;
   try { art = new Readability(document as any, { charThreshold: 200 }).parse(); } catch { art = null; }
