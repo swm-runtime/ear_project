@@ -279,13 +279,15 @@ export function attributionViolations(scriptMd: string, turns: { id: string | nu
   for (const list of names.values()) for (const n of list) if (n.length >= 3) known.add(n);
   for (const n of known) { const c = countIn(eText, n); if (c >= 3) v.push(`"${n}" 이 해설 턴에서 ${c}회 — 이름은 소개 때 한 번, 이후는 지시어("이 사람"·"연구팀")로 잇는다 (규칙 21)`); }
   // 소스 목록에 없는 이름 (규칙 21 — 001 "Knowable Magazine"): 라틴 문자 고유명(두 단어 이상)과 "X 라는 매체/곳/기관"이 sources.md·claims·발음 맵에 없으면 지어낸 것
-  // 대조 코퍼스는 sources.md(원문 발췌·발행처·저자)와 발음 맵뿐 — claims.md 는 모델이 쓴 문장이고 QA 기록에 지어낸 이름이 남아(001 "Knowable Magazine") 대조 대상이 못 된다
-  const corpus = sourcesMd + "\n" + Object.keys(readings).join("\n") + "\n" + Object.values(readings).join("\n");
-  const candidates = new Set<string>();
-  for (const m of eText.matchAll(/(?<![A-Za-z])([A-Z][A-Za-z.&'-]+(?: [A-Z][A-Za-z.&'-]+)+)(?![A-Za-z])/g)) candidates.add(m[1]);
+  // 라틴 문자 이름의 대조 코퍼스는 sources.md(원문 발췌·발행처·저자)뿐 — claims.md 는 QA 기록에, pronunciations.json 은 모델이 새 표기마다 발음을 넣어서
+  // 지어낸 이름("Knowable Magazine")이 둘 다에 남아 있었다. 한글 토큰("LG경영연구원 이라는")만 발음 맵의 한글 표기까지 허용한다
+  const latinCorpus = sourcesMd;
+  const koreanCorpus = sourcesMd + "\n" + Object.values(readings).join("\n");
+  const candidates = new Map<string, string>(); // 이름 → 대조 코퍼스
+  for (const m of eText.matchAll(/(?<![A-Za-z])([A-Z][A-Za-z.&'-]+(?: [A-Z][A-Za-z.&'-]+)+)(?![A-Za-z])/g)) candidates.set(m[1], latinCorpus);
   // "X 라는 매체/곳": X 는 공백 없는 한 토큰만 — 공백을 허용하면 앞 문장 끝("자리예요. Eos")까지 끌려 들어와 오탐이 난다. 라틴 두 단어 이상은 위 정규식이 잡는다
-  for (const m of eText.matchAll(/(?<![A-Za-z0-9가-힣])([A-Za-z0-9가-힣&'-]{2,20})\s?(?:이라는|라는) (?:[가-힣]+ )?(?:매체|곳|회사|기관|연구소|연구원|저널|신문)/g)) candidates.add(m[1]);
-  const invented = [...candidates].filter((n) => n.length >= 3 && !corpus.includes(n));
+  for (const m of eText.matchAll(/(?<![A-Za-z0-9가-힣])([A-Za-z0-9가-힣&'-]{2,20})\s?(?:이라는|라는) (?:[가-힣]+ )?(?:매체|곳|회사|기관|연구소|연구원|저널|신문)/g)) if (!candidates.has(m[1])) candidates.set(m[1], /[가-힣]/.test(m[1]) ? koreanCorpus : latinCorpus);
+  const invented = [...candidates].filter(([n, corpus]) => n.length >= 3 && !corpus.includes(n)).map(([n]) => n);
   const inventedTop = invented.filter((n) => !invented.some((o) => o !== n && o.includes(n))); // "Quantum Weekly"가 잡히면 부분 문자열 "Weekly"는 따로 세지 않는다
   if (inventedTop.length) v.push(`소스 목록에 없는 이름 (${inventedTop.slice(0, 5).join(", ")}) — 매체명·기관명·인명은 sources.md 에 있는 것만 부른다. 없으면 익명("한 매체에서")으로 (규칙 21)`);
   // 되돌림 표지 (규칙 22): 앞 블록의 소스를 다시 식별하지 않는다 — 축 소스도 내용으로만 되짚는다
