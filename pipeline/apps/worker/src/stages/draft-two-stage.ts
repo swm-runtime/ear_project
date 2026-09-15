@@ -19,7 +19,7 @@ import { runDesignSingle } from "./design-single.js";
  * 산출물 파일은 워커가 쓴다(script.md · script-notes.md · pronunciations.json 병합). 이후 L0·QA·비평 연쇄는 구 방식과 같다.
  * 설계 산출물이 이미 있으면(재집기·2단계만 실패) 설계를 건너뛴다.
  */
-export interface DesignOut { axis: string; axis_type: string; landing_section: number; sections: { n: number; title: string; sources: string[]; ratio: number }[]; excerpts: number; claims: number; estimated_minutes: number; split_proposal: string; sources_used: string[]; sources_excluded: { url: string; reason: string }[]; gaps: string[]; self_check: string; notes: string }
+export interface DesignOut { axis: string; axis_type: string; landing_section: number; axis_source?: string; sections: { n: number; title: string; sources: string[]; ratio: number }[]; excerpts: number; claims: number; estimated_minutes: number; split_proposal: string; sources_used: string[]; sources_excluded: { url: string; reason: string }[]; gaps: string[]; self_check: string; notes: string }
 export interface WriteOut { title: string; one_liner?: string; script: string; sections_followed: boolean; turn_claims: { turn: string; claims: string[] }[]; bridges: { turn: string; note: string }[]; terms?: { term: string; turn: string; explained_by: string }[]; pronunciations_added: { term: string; reading: string }[]; self_check_fixes: string[]; notes: string }
 
 export interface TwoStageArgs {
@@ -152,7 +152,8 @@ export function scriptStats(md: string): { turns: number; chars: number; minutes
 
 /** 2단계 L0 — 구성안 계약(구간 수·순서)과 분량 하한(13분 ≈ 4,000자)을 기계로 검사한다. 위반은 재생성 연쇄로 */
 /** @param opts.signoffHeads 템플릿 클로징 인사 골격들의 고정 머리(첫 {슬롯} 앞 문구, tpl-v2). 있으면 마지막 턴이 진행(Y) 턴이고 그중 하나를 담아야 한다 */
-export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { signoffHeads?: string[] } = {}): string[] {
+export interface L0AttributionInput { claimsMd?: string; sourcesMd?: string; notesMd?: string; pronunciations?: Record<string, string> }
+export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { signoffHeads?: string[] } & L0AttributionInput = {}): string[] {
   const v: string[] = [];
   const planned = [...outlineMd.matchAll(/^구간 #(\d+)/gm)].map((m) => Number(m[1]));
   const written = [...scriptMd.matchAll(/^### #(\d+)/gm)].map((m) => Number(m[1]));
@@ -223,8 +224,101 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
   const todayRe = /오늘(의)? (얘기|이야기|출발점|주제)/;
   const today = eTurns.filter((t) => todayRe.test(t.text));
   if (today.length >= 4) v.push(`해설 턴 ${today.length}개가 "오늘 얘기/오늘의 출발점" 틀로 위치를 잡음 (${today.slice(0, 6).map((t) => t.id).join(", ")}) — 같은 틀 세 번이면 각본이다. 내용으로 잇는다 (규칙 16)`);
-  const a = attributionStats(p.turns);
-  if (a.eTurns >= 10 && a.ratio > 0.5) v.push(`해설 턴 ${a.eTurns}개 중 ${a.attributed}개(${Math.round(a.ratio * 100)}%)에 귀속 표현("~에 따르면"·"라고 합니다"·"이 글/기사는"·매체명)이 있음 — 절반 초과, 소스 순회. 개념·원리·정의는 해설자의 말로 바꾸고, 이름은 근거 앵커·직접 인용에만 (규칙 20~22)`);
+  // full-v7 (2026-09-15): 귀속 표현 턴 비율 검사는 폐지 — 32~36% 인 편에서도 소스 순회(재식별 15건)가 있었다. 구조 검사로 대체
+  v.push(...attributionViolations(scriptMd, p.turns, opts));
+  return v;
+}
+
+/**
+ * full-v7 귀속 구조 검사 (guidelines 규칙 20~22·25). claims.md(구간·귀속 열)·sources.md(이름)·script-notes.md(턴별 claims)가 있을 때만
+ * 구조를 검사하고, 없으면(구 형식 산출물) 진행 턴 검사만 한다. 이름 검출은 sources.md 머리의 발행처·저자 원문 표기와 발음 맵의 한글 표기로 잰다 —
+ * 못 잡는 이름이 있을 수는 있어도 잡힌 것은 확실하다(보수적).
+ */
+export function attributionViolations(scriptMd: string, turns: { id: string | null; text: string }[], opts: L0AttributionInput): string[] {
+  const v: string[] = [];
+  const yTurns = turns.filter((t) => t.id?.startsWith("Y"));
+  // 규칙 25: 진행 턴은 되물음 하나 아니면 수긍 하나 (판정 001 "반문이 너무 과도함", 직접 수정 Y11·Y4). 물음표 둘은 ⭐ 턴(003 Y12 "…금지라고요? …인사말 아닌가요?")에도
+  // 흔해 기준으로 못 쓴다 — 셋부터 잡는다. 꼬리 질문 자체는 루브릭 3.12 가 본다
+  const manyQ = yTurns.filter((t) => (t.text.match(/\?/g)?.length ?? 0) >= 3).map((t) => t.id ?? "?");
+  if (manyQ.length) v.push(`진행 턴 ${manyQ.length}개에 질문이 셋 이상 (${manyQ.slice(0, 6).join(", ")}) — 진행 턴은 되물음 하나 아니면 수긍 하나. 꼬리 질문을 뺀다 (규칙 25)`);
+  // 진행자가 만든 비유 — "로 치면"은 콜백(003 ⭐ Y21 "아까 회사 얘기로 치면")에도 쓰여 제외, 명시적 비유 표지만
+  const yMeta = yTurns.filter((t) => /(비유하자면|같은 거예요|같은 셈이|인 셈이(에요|네요|죠))/.test(t.text)).map((t) => t.id ?? "?");
+  if (yMeta.length) v.push(`진행 턴 ${yMeta.length}개가 비유를 만듦 (${yMeta.join(", ")}) — 진행자는 비유를 만들지 않는다. 자기 말로 바꿔 되돌린다 (규칙 3·25)`);
+
+  const { claimsMd, sourcesMd, notesMd } = opts;
+  if (!claimsMd || !sourcesMd) return v;
+  // claims.md (full-v7): | ID | 주장 | 발췌 ID | 유형 | 구간 | 저명 | 의견 | 귀속 |
+  const claims = new Map<string, { source: number | null; section: number | null; grade: string }>();
+  for (const m of claimsMd.matchAll(/^\|\s*(C\d{2,3})\s*\|[^\n]*$/gm)) {
+    const cells = m[0].split("|").map((s) => s.trim());
+    if (cells.length < 10) continue; // 구 형식(귀속 5열)은 구조 검사 대상이 아니다
+    const src = cells[3].match(/S(\d+)-/)?.[1];
+    const sec = cells[5].match(/\d+/)?.[0];
+    claims.set(m[1], { source: src ? Number(src) : null, section: sec ? Number(sec) : null, grade: cells[8] });
+  }
+  if (!claims.size) return v;
+  const axis = Number(claimsMd.match(/^> 축 소스: S(\d+)/m)?.[1] ?? NaN);
+  const bodySections = [...scriptMd.matchAll(/^### #(\d+)/gm)].map((m) => Number(m[1]));
+  // 소스별 이름 후보 — sources.md 머리의 발행처·저자. 인명은 원문 표기(규칙 14)라 영문으로 잡히고, 기관은 발음 맵의 한글 표기로도 잡는다
+  const names = new Map<number, string[]>();
+  for (const m of sourcesMd.matchAll(/^## S(\d+)\. (.+?) — "/gm)) names.set(Number(m[1]), [m[2].trim()]);
+  for (const m of sourcesMd.matchAll(/^## S(\d+)\.[^\n]*\n- URL:[^\n]*· 저자 ([^\n·]+)/gm)) {
+    const list = names.get(Number(m[1])) ?? [];
+    for (const n of m[2].split(/,\s*/).map((s) => s.trim()).filter((s) => s.length >= 3)) list.push(n);
+    names.set(Number(m[1]), list);
+  }
+  const readings = opts.pronunciations ?? {};
+  const variants = (n: string): string[] => (readings[n] ? [n, readings[n]] : [n]);
+  const eText = turns.filter((t) => t.id?.startsWith("E")).map((t) => t.text).join("\n");
+  const named = new Set<number>();
+  const nameUsed = new Map<number, string>();
+  for (const [s, list] of names) for (const n of list) for (const vn of variants(n)) if (vn.length >= 3 && eText.includes(vn)) { named.add(s); if (!nameUsed.has(s)) nameUsed.set(s, n); }
+  // 이름 상한 = 본문 구간 수 + 1 (저명 포함 — v6.1 기관명 예외 폐지)
+  if (bodySections.length && named.size > bodySections.length + 1) v.push(`이름(매체·저자·기관)이 나오는 소스가 ${named.size}곳 (${[...named].map((s) => `S${s}`).join(", ")}) — 상한은 본문 구간 ${bodySections.length}개 + 1. 앵커·저명 주체가 아닌 소스는 익명으로 (규칙 21)`);
+  // 앵커도 저명도 아닌 소스의 이름
+  const grades = new Map<number, Set<string>>();
+  for (const c of claims.values()) if (c.source !== null) { const g = grades.get(c.source) ?? new Set<string>(); g.add(c.grade); grades.set(c.source, g); }
+  const unnamed = [...named].filter((s) => !grades.get(s)?.has("이름"));
+  if (unnamed.length) v.push(`이름 등급이 없는 소스의 이름이 대본에 나옴 (${unnamed.map((s) => `S${s} "${nameUsed.get(s)}"`).join(", ")}) — 앵커·저명 주체만 이름을 부른다. 익명("한 연구에서는")으로 바꾼다 (규칙 20·21)`);
+  // 이름 형태: 풀네임(두 토큰 이상)이 한 번이라도 나왔으면 성만 따로 부르지 않는다 (직접 수정 "Sucher 교수 → Sandra Sucher 교수")
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  for (const list of names.values()) for (const n of list) {
+    const parts = n.split(/\s+/);
+    if (parts.length < 2 || !eText.includes(n)) continue;
+    const last = parts[parts.length - 1];
+    if (last.length < 3) continue;
+    const bare = eText.match(new RegExp(`(?<!${esc(parts.slice(0, -1).join(" "))}\\s)${esc(last)}`, "g"))?.length ?? 0;
+    if (bare > 0) v.push(`"${n}" 을 풀네임으로 부른 뒤 "${last}" 만으로도 ${bare}회 부름 — 이름 형태는 첫 등장 그대로, 성만 따로 부르지 않는다 (규칙 21)`);
+  }
+  // 구간 밖 사용·마무리 claims — script-notes 의 턴별 claims 로 (모델 자기 보고지만 구간 경계는 대본에서 직접 잰다)
+  if (!notesMd) return v;
+  type Zone = number | "인트로" | "도입" | "마무리";
+  const turnZone = new Map<string, Zone>();
+  let cur: Zone = "인트로";
+  for (const line of scriptMd.split(/\r?\n/)) {
+    const h = line.match(/^## \[(인트로|도입|본문|마무리)\]/);
+    if (h) { if (h[1] !== "본문") cur = h[1] as Zone; continue; }
+    const s = line.match(/^### #(\d+)/);
+    if (s) { cur = Number(s[1]); continue; }
+    const t = line.match(/^\s*(?:\[[^\]]+\]\s*)?\**([EY]\d+)\b/); // 줄 문법: "[이음] E1 · …" (spec/04 4장)
+    if (t) turnZone.set(t[1], cur);
+  }
+  const outside: string[] = [];
+  const closing: string[] = [];
+  for (const m of notesMd.matchAll(/^\|\s*([EY]\d+)\s*\|\s*([^|]*)\|/gm)) {
+    const ids = m[2].match(/C\d{2,3}/g) ?? [];
+    if (!ids.length) continue;
+    const zone = turnZone.get(m[1]);
+    if (zone === "마무리") { closing.push(m[1]); continue; }
+    if (typeof zone !== "number") continue;
+    for (const id of ids) {
+      const c = claims.get(id);
+      if (!c || c.section === null || c.source === null || c.source === axis) continue;
+      if (c.section !== zone) outside.push(`${m[1]}:${id}(S${c.source}→#${c.section})`);
+    }
+  }
+  if (outside.length) v.push(`소스가 배정 구간 밖에서 쓰임 (${outside.slice(0, 6).join(", ")}${outside.length > 6 ? " …" : ""}) — 소스는 claims 의 구간에서만, 축 소스만 도입·착지 (규칙 22)`);
+  if (closing.length) v.push(`마무리 턴 ${closing.join(", ")} 이 claims 를 씀 — 마무리는 새 사실 없는 무귀속 요약이다 (규칙 22)`);
   return v;
 }
 

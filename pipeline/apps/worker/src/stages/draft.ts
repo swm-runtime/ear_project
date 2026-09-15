@@ -164,7 +164,12 @@ export async function runDraft(job: Job, ex: Executor) {
   const scriptMd = await fs.readFile(path.join(dir, "script.md"), "utf8");
   const outlineFile = path.join(dir, "outline.md");
   const signoffHeads = signoffVariants(await getSetting<Templates>("templates")).map((v) => v.split("{")[0].trim()); // tpl-v2 클로징 인사 골격들의 고정 머리 — 비어 있으면 검사 없음
-  const violations = [...formatViolations(scriptMd), ...((await exists(outlineFile)) ? twoStageViolations(scriptMd, await fs.readFile(outlineFile, "utf8"), { signoffHeads }) : [])];
+  // full-v7 귀속 구조 검사 재료 — 없으면(구 형식 산출물) 구조 검사는 건너뛴다
+  const readIf = async (f: string) => ((await exists(path.join(dir, f))) ? fs.readFile(path.join(dir, f), "utf8") : undefined);
+  const [claimsMd, sourcesMd, notesMd] = await Promise.all([readIf("claims.md"), readIf("sources.md"), readIf("script-notes.md")]);
+  let pronunciations: Record<string, string> | undefined;
+  try { pronunciations = JSON.parse(await fs.readFile(pronFile, "utf8")) as Record<string, string>; } catch { pronunciations = undefined; }
+  const violations = [...formatViolations(scriptMd), ...((await exists(outlineFile)) ? twoStageViolations(scriptMd, await fs.readFile(outlineFile, "utf8"), { signoffHeads, claimsMd, sourcesMd, notesMd, pronunciations }) : [])];
   if (violations.length) {
     // L0 수정은 QA 회차와 별도로 센다 (2026-09-09): 같은 카운터를 쓰니 시점 표현 1건 고치는 데 QA 회차 하나가 사라졌고, QA 수정본이 통계 용어로 L0 에 걸리자 attempt 3 한도에 막혀 검토 대기로 빠졌다(T260909-009)
     const l0Fixes = Number(job.payload.l0_fixes ?? 0);
