@@ -38,3 +38,7 @@
 - Given `interest-management-api.md` 4.3 에러 표 / When 읽는다 / Then `ONBOARDING_NOT_COMPLETED` 409 행이 있다
 - Given 온보딩을 마치지 않은 계정 / When `GET`·`PUT /users/me/interests`를 부른다 / Then 409 `ONBOARDING_NOT_COMPLETED`이고 `user_interests`에 `manual` 행이 생기지 않는다 (`test/onboarding.e2e-spec.ts` "완료 전에는 관심사 관리 API(조회·저장)를 쓸 수 없다")
 - Given 온보딩을 마친 계정 / When 같은 API를 부른다 / Then 기존 계약(4.2·4.3) 그대로 동작한다
+
+## 처리 기록 (반영 날짜: 2026-09-15)
+
+`interest-management-api.md` 4.2 에러 문구·4.3 에러 표 행·5장 재사용 설명, `common-error-handling.md` 9.8 재사용 표기, `interest-management.md` 3장 규칙 한 줄을 반영했다. 코드는 PR #349(`UserInterestService`)로 dev에 반영돼 있다.

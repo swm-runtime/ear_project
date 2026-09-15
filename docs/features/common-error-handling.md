@@ -207,7 +207,7 @@ NetworkState  { reachable, connection_type }                        // 클라이
 | `AUTH_PROVIDER_TOKEN_INVALID` | 401 | false | 토스트 후 시작 화면 유지 |
 | `AUTH_PROVIDER_UNAVAILABLE` | 502 | **true** | [다시 시도] — 제공자 인증부터 재수행 |
 | `AUTH_SIGNUP_TOKEN_EXPIRED` | 401 | false | 시작 화면으로, 로그인부터 재시작 |
-| `CONSENT_REQUIRED` | 400 | false | 필수 동의 체크 유도 |
+| `CONSENT_REQUIRED` | 400 | false | 필수 동의 체크 유도. `auth-api.md` 4.5에서 필수 동의 철회(`is_agreed: false`)를 시도해도 같은 코드(정상 클라이언트는 도달하지 않음) |
 | `CONSENT_VERSION_STALE` | 409 | false | 최신 약관 다시 조회 후 재동의 |
 | `AUTH_REFRESH_TOKEN_INVALID` | 401 | false | 로컬 세션 정리 → 시작 화면 |
 | `AUTH_REFRESH_TOKEN_REUSED` | 401 | false | 동일. 서버는 전 세션 무효화 |
@@ -271,6 +271,7 @@ NetworkState  { reachable, connection_type }                        // 클라이
 | `INTEREST_TOPIC_UNAVAILABLE` | 400 | false | 존재하지 않거나 숨겨진 주제 포함 → 주제 목록 재조회 + 인라인 안내. 편집 값은 유지 |
 
 - 세 코드 모두 신설(2026-08-10 — 등재 협의 완료). `ONBOARDING_INTEREST_*`를 재사용하지 않는 이유는 상한 판정 규칙이 다르기 때문이다(상수 3 vs 초과 보유자 통과 — `architecture.md` 7.5 "코드 의미 불변").
+- **`ONBOARDING_NOT_COMPLETED`(409 — 9.4의 코드)는 관심사 관리 4.2·4.3도 낸다**(반영 2026-09-15). 온보딩을 마치지 않은 계정의 조회·저장을 거부한다. 뜻("온보딩이 끝나지 않았다")이 같아 재사용했다. 관리 화면은 온보딩 완료 이후에만 진입 경로가 있어 정상 클라이언트는 도달하지 않는다 — 도달하면 일반 오류 처리.
 
 ### 9.9 커리어 (`career-api.md` 5장)
 

@@ -919,7 +919,7 @@ uq_user_preference_vectors_user_id (user_id)
 ```
 
 - `user_signals`를 집계한 결과다. 원천은 `user_signals`이고 이것은 파생 캐시다.
-- 갱신 주기: 편성 배치 시점에 계산한다. **실시간 재계산은 하지 않는다**(`drip-scheduling.md` 4.3). 탐색 피드 랭킹(조회 시점 계산)도 이 캐시를 읽는다 — 랭킹마다 재집계하지 않는다.
+- 갱신 주기: 편성 배치 시점에 계산한다. **실시간 재계산은 하지 않는다**(`drip-scheduling.md` 4.3). 탐색 피드 랭킹(조회 시점 계산)도 이 캐시를 읽는다 — 랭킹마다 재집계하지 않는다. **재고·플랜 편수로 그날 적립을 건너뛴 사용자도 재계산 대상이다** — 스킵은 적립 규칙이지 신호 집계 규칙이 아니다(명시 2026-09-15).
 - `signal_count < 3`(완청 기준)이면 콜드스타트로 판정하고 인기도·신선도 비중을 높인다(`drip-scheduling.md` 4.4).
 - **`taste_embedding`은 긍정 신호(완청·저장·재청취) 콘텐츠 임베딩의 최근성 가중 평균**이다(`drip-scheduling.md` 4.3-1). 부정 신호는 벡터에 빼지 않는다 — 감점은 룰 축(`keyword_weights` 등 음수 가중)이 담당한다. 긍정 신호 콘텐츠에 임베딩이 하나도 없으면 NULL이며, 스코어링에서 임베딩 축을 중립 처리한다.
 - `keyword_weights` · `format_weights` · `duration_pref`의 원천은 `user_signals` ⨝ `contents`의 추천 메타(5.1)다. 메타가 NULL인 콘텐츠는 해당 집계에서 제외한다.
