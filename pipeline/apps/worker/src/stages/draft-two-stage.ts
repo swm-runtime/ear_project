@@ -226,6 +226,18 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
   const todayRe = /오늘(의)? (얘기|이야기|출발점|주제)/;
   const today = eTurns.filter((t) => todayRe.test(t.text));
   if (today.length >= 4) v.push(`해설 턴 ${today.length}개가 "오늘 얘기/오늘의 출발점" 틀로 위치를 잡음 (${today.slice(0, 6).map((t) => t.id).join(", ")}) — 같은 틀 세 번이면 각본이다. 내용으로 잇는다 (규칙 16)`);
+  // full-v7.1 판정 반영 (2026-09-15, T260915-001~004 직접 수정 85건): 화자 없는 인용 예고 · 발행 시기 · 해설자 전환 선언 · 발화 안 가운뎃점
+  const quoteCueRe = /((이런|그런|이) (문장|표현|구절|말)(이|도|을|가) (있어요|있는데요|있습니다|나와요|하나 있|있거든요)|(글|기사|책|보고서|논문|연구)(도|은|는|이|가|에서)? ?이렇게 (말해요|말합니다|적어요|적었어요|씁니다|썼어요|써요))/;
+  const quoteCue = eTurns.filter((t) => quoteCueRe.test(t.text)).map((t) => t.id ?? "?");
+  if (quoteCue.length) v.push(`해설 턴 ${quoteCue.length}개가 화자 없는 인용 예고("이런 문장이 있어요"·"그 글도 이렇게 말해요")로 들어감 (${quoteCue.slice(0, 6).join(", ")}) — 표지를 지우고 해설자의 문장으로 두거나 화자를 붙인다 (규칙 20·23)`);
+  const pubDateRe = /20\d\d년(?: \d{1,2}월)?에 [^.!?…]{0,14}(?:낸|발표한|실린|나온|쓴|펴낸|출간한|발행한|올린|내놓은) /;
+  const pubDate = eTurns.filter((t) => pubDateRe.test(t.text)).map((t) => t.id ?? "?");
+  if (pubDate.length) v.push(`해설 턴 ${pubDate.length}개가 소스의 발행 시기를 말함 (${pubDate.slice(0, 6).join(", ")}) — "2026년 8월에 낸"은 각주다. 시점이 축에 필요한 비교가 아니면 뺀다 (규칙 21)`);
+  const handoffRe = /(다음 (질문|얘기|이야기)(은|는|이) (이거|이건|이렇)|다음 (얘기|이야기|질문)(예요|이에요|입니다)|다음으로 넘어가)/;
+  const handoff = eTurns.filter((t) => handoffRe.test(t.text)).map((t) => t.id ?? "?");
+  if (handoff.length) v.push(`해설 턴 ${handoff.length}개가 구간 전환을 선언함 (${handoff.slice(0, 6).join(", ")}) — "그럼 다음 질문은 이거죠"는 대본 진행을 알리는 말이다. 앞 구간이 남긴 질문에서 진행자가 묻거나 내용으로 잇는다 (규칙 1)`);
+  const midDot = p.turns.filter((t) => /[가-힣A-Za-z)]·[가-힣A-Za-z(]/.test(t.text)).map((t) => t.id ?? "?");
+  if (midDot.length) v.push(`턴 ${midDot.length}개의 발화 안에 가운뎃점(·) 나열 (${midDot.slice(0, 6).join(", ")}) — 귀로는 낱말이 붙어 들린다. 쉼표로 나누거나 둘로 줄인다 (규칙 14)`);
   // full-v7 (2026-09-15): 귀속 표현 턴 비율 검사는 폐지 — 32~36% 인 편에서도 소스 순회(재식별 15건)가 있었다. 구조 검사로 대체
   v.push(...attributionViolations(scriptMd, p.turns, opts));
   return v;
@@ -243,6 +255,10 @@ export function attributionViolations(scriptMd: string, turns: { id: string | nu
   // 흔해 기준으로 못 쓴다 — 셋부터 잡는다. 꼬리 질문 자체는 루브릭 3.12 가 본다
   const manyQ = yTurns.filter((t) => (t.text.match(/\?/g)?.length ?? 0) >= 3).map((t) => t.id ?? "?");
   if (manyQ.length) v.push(`진행 턴 ${manyQ.length}개에 질문이 셋 이상 (${manyQ.slice(0, 6).join(", ")}) — 진행 턴은 되물음 하나 아니면 수긍 하나. 꼬리 질문을 뺀다 (규칙 25)`);
+  // 진행만 하는 짧은 되물음 턴 (규칙 25, full-v7.1 판정 반영 — 002 Y36 "셌더니요?"·Y41, 003 Y13 "어떤 일이었는데요?" 가 "없어도 되는 턴"으로 삭제됨): 열 자 이하의 물음 한 마디
+  // 4편 실측 10턴("첫 번째가 뭔데요?"·"뭘 물어봤는데요?"…) 중 사람이 지운 건 002·003 의 3턴 — 한둘은 리듬이라 셋부터 잡는다(001 2턴 통과, 002 5·003 3 적중)
+  const stubQ = yTurns.filter((t) => /\?/.test(t.text) && t.text.replace(/[\s.,!?…"'“”‘’]/g, "").length <= 10).map((t) => t.id ?? "?");
+  if (stubQ.length >= 3) v.push(`진행 턴 ${stubQ.length}개가 내용 없이 다음 해설을 부르는 한 마디 되물음 (${stubQ.slice(0, 6).join(", ")}) — 해설이 끊지 않고 이어 말한다. 되물음은 청취자가 막히는 자리에만 (규칙 4·25)`);
   // 진행자가 만든 비유 — "로 치면"은 콜백(003 ⭐ Y21 "아까 회사 얘기로 치면")에도 쓰여 제외, 명시적 비유 표지만
   const yMeta = yTurns.filter((t) => /(비유하자면|같은 거예요|같은 셈이|인 셈이(에요|네요|죠))/.test(t.text)).map((t) => t.id ?? "?");
   if (yMeta.length) v.push(`진행 턴 ${yMeta.length}개가 비유를 만듦 (${yMeta.join(", ")}) — 진행자는 비유를 만들지 않는다. 자기 말로 바꿔 되돌린다 (규칙 3·25)`);
