@@ -283,7 +283,8 @@ export function attributionViolations(scriptMd: string, turns: { id: string | nu
   const corpus = sourcesMd + "\n" + Object.keys(readings).join("\n") + "\n" + Object.values(readings).join("\n");
   const candidates = new Set<string>();
   for (const m of eText.matchAll(/(?<![A-Za-z])([A-Z][A-Za-z.&'-]+(?: [A-Z][A-Za-z.&'-]+)+)(?![A-Za-z])/g)) candidates.add(m[1]);
-  for (const m of eText.matchAll(/([A-Za-z0-9가-힣][A-Za-z0-9가-힣.&'-]{1,20}(?: [A-Za-z][A-Za-z.&'-]{1,20})*)\s?(?:이라는|라는) (?:[가-힣]+ )?(?:매체|곳|회사|기관|연구소|연구원|저널|신문)/g)) candidates.add(m[1].trim());
+  // "X 라는 매체/곳": X 는 공백 없는 한 토큰만 — 공백을 허용하면 앞 문장 끝("자리예요. Eos")까지 끌려 들어와 오탐이 난다. 라틴 두 단어 이상은 위 정규식이 잡는다
+  for (const m of eText.matchAll(/(?<![A-Za-z0-9가-힣])([A-Za-z0-9가-힣&'-]{2,20})\s?(?:이라는|라는) (?:[가-힣]+ )?(?:매체|곳|회사|기관|연구소|연구원|저널|신문)/g)) candidates.add(m[1]);
   const invented = [...candidates].filter((n) => n.length >= 3 && !corpus.includes(n));
   const inventedTop = invented.filter((n) => !invented.some((o) => o !== n && o.includes(n))); // "Quantum Weekly"가 잡히면 부분 문자열 "Weekly"는 따로 세지 않는다
   if (inventedTop.length) v.push(`소스 목록에 없는 이름 (${inventedTop.slice(0, 5).join(", ")}) — 매체명·기관명·인명은 sources.md 에 있는 것만 부른다. 없으면 익명("한 매체에서")으로 (규칙 21)`);
