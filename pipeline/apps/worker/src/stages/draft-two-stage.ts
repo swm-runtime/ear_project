@@ -270,20 +270,37 @@ export function attributionViolations(scriptMd: string, turns: { id: string | nu
     names.set(Number(m[1]), list);
   }
   const readings = opts.pronunciations ?? {};
-  const variants = (n: string): string[] => (readings[n] ? [n, readings[n]] : [n]);
   const eText = turns.filter((t) => t.id?.startsWith("E")).map((t) => t.text).join("\n");
-  const named = new Set<number>();
-  const nameUsed = new Map<number, string>();
-  for (const [s, list] of names) for (const n of list) for (const vn of variants(n)) if (vn.length >= 3 && eText.includes(vn)) { named.add(s); if (!nameUsed.has(s)) nameUsed.set(s, n); }
-  // 이름 상한 = 본문 구간 수 + 1 (저명 포함 — v6.1 기관명 예외 폐지)
-  if (bodySections.length && named.size > bodySections.length + 1) v.push(`이름(매체·저자·기관)이 나오는 소스가 ${named.size}곳 (${[...named].map((s) => `S${s}`).join(", ")}) — 상한은 본문 구간 ${bodySections.length}개 + 1. 앵커·저명 주체가 아닌 소스는 익명으로 (규칙 21)`);
-  // 앵커도 저명도 아닌 소스의 이름
-  const grades = new Map<number, Set<string>>();
-  for (const c of claims.values()) if (c.source !== null) { const g = grades.get(c.source) ?? new Set<string>(); g.add(c.grade); grades.set(c.source, g); }
-  const unnamed = [...named].filter((s) => !grades.get(s)?.has("이름"));
-  if (unnamed.length) v.push(`이름 등급이 없는 소스의 이름이 대본에 나옴 (${unnamed.map((s) => `S${s} "${nameUsed.get(s)}"`).join(", ")}) — 앵커·저명 주체만 이름을 부른다. 익명("한 연구에서는")으로 바꾼다 (규칙 20·21)`);
-  // 이름 형태: 풀네임(두 토큰 이상)이 한 번이라도 나왔으면 성만 따로 부르지 않는다 (직접 수정 "Sucher 교수 → Sandra Sucher 교수")
   const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const countIn = (hay: string, needle: string) => hay.match(new RegExp(esc(needle), "g"))?.length ?? 0;
+  void bodySections;
+  // 같은 이름 3회 이상 (규칙 21, full-v7.1 — 002 Sanjay Khosla ×6): 소개 때 한 번, 이후는 지시어
+  const known = new Set<string>();
+  for (const list of names.values()) for (const n of list) if (n.length >= 3) known.add(n);
+  for (const n of known) { const c = countIn(eText, n); if (c >= 3) v.push(`"${n}" 이 해설 턴에서 ${c}회 — 이름은 소개 때 한 번, 이후는 지시어("이 사람"·"연구팀")로 잇는다 (규칙 21)`); }
+  // 소스 목록에 없는 이름 (규칙 21 — 001 "Knowable Magazine"): 라틴 문자 고유명(두 단어 이상)과 "X 라는 매체/곳/기관"이 sources.md·claims·발음 맵에 없으면 지어낸 것
+  const corpus = sourcesMd + "\n" + (claimsMd ?? "") + "\n" + Object.keys(readings).join("\n") + "\n" + Object.values(readings).join("\n");
+  const invented = new Set<string>();
+  for (const m of eText.matchAll(/(?<![A-Za-z])([A-Z][A-Za-z.&'-]+(?: [A-Z][A-Za-z.&'-]+)+)(?![A-Za-z])/g)) if (!corpus.includes(m[1])) invented.add(m[1]);
+  for (const m of eText.matchAll(/([A-Za-z0-9가-힣][A-Za-z0-9가-힣.&'-]{1,20})\s?(?:이라는|라는) (?:[가-힣]+ )?(?:매체|곳|회사|기관|연구소|연구원|저널|신문)/g)) if (!corpus.includes(m[1])) invented.add(m[1]);
+  if (invented.size) v.push(`소스 목록에 없는 이름 (${[...invented].slice(0, 5).join(", ")}) — 매체명·기관명·인명은 sources.md 에 있는 것만 부른다. 없으면 익명("한 매체에서")으로 (규칙 21)`);
+  // 되돌림 표지 (규칙 22): 앞 블록의 소스를 다시 식별하지 않는다 — 축 소스도 내용으로만 되짚는다
+  const backRe = /(로 돌아가(면|서|볼게요|볼까요)|아까 그 |앞에서 말한 그 |아까 말한 그 )/;
+  const back = turns.filter((t) => backRe.test(t.text)).map((t) => t.id ?? "?");
+  if (back.length) v.push(`되돌림 표지("~로 돌아가면"·"아까 그") ${back.length}턴 (${back.slice(0, 5).join(", ")}) — 앞 블록의 소스를 다시 식별하지 않는다. 축 소스도 내용으로만 되짚는다 (규칙 22)`);
+  // 블록 첫 해설 턴이 앞 블록의 지시어로 시작 (규칙 22 — 004 "그 교수"가 #4·#5 에서 다른 사람)
+  {
+    let sec = 0; let seen = new Set<number>(); const bad: string[] = [];
+    for (const line of scriptMd.split(/\r?\n/)) {
+      const s = line.match(/^### #(\d+)/); if (s) { sec = Number(s[1]); continue; }
+      const t = line.match(/^\s*(?:\[[^\]]+\]\s*)?\**(E\d+)\b\s*[·:]?\s*(.*)$/);
+      if (!t || !sec || seen.has(sec)) continue;
+      seen.add(sec);
+      if (/^(그|이) (교수|연구|연구팀|연구진|팀|사람|글|보고서|회장|저자|연구자|기사|논문)/.test(t[2].trim())) bad.push(`${t[1]}(#${sec})`);
+    }
+    if (bad.length) v.push(`블록의 첫 해설 턴이 앞 블록의 지시어로 시작 (${bad.join(", ")}) — 새 블록은 소개 한 문장으로 연다. 익명이어도 된다("미국의 한 대학 연구팀이") (규칙 22)`);
+  }
+  // 이름 형태: 풀네임(두 토큰 이상)이 한 번이라도 나왔으면 성만 따로 부르지 않는다 (직접 수정 "Sucher 교수 → Sandra Sucher 교수")
   for (const list of names.values()) for (const n of list) {
     const parts = n.split(/\s+/);
     if (parts.length < 2 || !eText.includes(n)) continue;
