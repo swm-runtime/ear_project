@@ -1,11 +1,16 @@
 name: deploy-api
-# backend/ 변경을 검증하고, dev 에 머지되면 제품 API 서버(EC2)에 자동 배포한다 (backend/deploy/aws/README.md CI 장).
+# backend/ 변경을 검증하고, 브랜치에 따라 배포한다 (KAN-62 6·4-4단계, 2026-09-16 전환):
+#   dev  머지 → 개발계 (GitHub Environment api-dev)
+#   main 머지 → 운영   (GitHub Environment api-prod) + 태그 v<backend/package.json version>
+# 서버는 더 이상 빌드하지 않는다 — build-push 가 ECR 에 올린 커밋 SHA 이미지를 push.sh 가 pull 한다.
 # 검증(verify)과 배포(deploy)를 job 으로 나눈다 — 검증이 실패하면 SG 개폐·SSH 자체가 일어나지 않는다.
-# PR 에서는 검증만 돈다. AWS 접근은 OIDC 역할 ear-ci-deploy(SG 개폐 권한만) — 저장된 AWS 키 없음.
-# SSH 는 CI 전용 키(secret CI_SSH_KEY_API). 1회 설정: bash backend/deploy/aws/setup-ci.sh
+# PR 에서는 검증 + "원본 브랜치 확인" 만 돈다. AWS 접근은 OIDC 역할 ear-ci-deploy — 저장된 AWS 키 없음.
+#   신뢰 sub: 브랜치(refs/heads/dev·main — verify·build-push) + environment:api-dev·api-prod(deploy — environment: 가 있는 job 은 sub 형식이 바뀐다).
+# 환경별 값(호스트·SG·Secrets 경로·헬스 URL)은 Environment 변수 vars.API_* 에, SSH 키는 secret CI_SSH_KEY_API 에 있다
+# (api-dev 는 환경 시크릿 = 개발계 키, api-prod 는 레포 시크릿 = 운영 키). 1회 설정: backend/deploy/aws/setup-ci.sh · setup-ci-envs.sh
 
 on:
-  # 머지 전에 막는다 — push 만 있으면 이미 dev 에 들어온 뒤에야 안다.
+  # 머지 전에 막는다 — push 만 있으면 이미 브랜치에 들어온 뒤에야 안다.
   #
   # **paths 필터를 두지 않는다.** 필수 상태 체크로 걸려면 검증 job 이 **모든 PR 에서 결론을
   # 보고해야** 한다 — GitHub 은 실행되지 않은 필수 체크를 영원히 pending 으로 보므로, 필터를
@@ -13,7 +18,7 @@ on:
   # 관계없는 PR 은 단계를 건너뛰고 성공으로 끝낸다 (tickets/infra 의 A 안).
   pull_request:
   push:
-    branches: [dev]
+    branches: [dev, main]
     paths: ['backend/**', '.github/workflows/deploy-api.yml']
   workflow_dispatch:
 
@@ -131,10 +136,27 @@ jobs:
         if: steps.scope.outputs.backend == 'true'
         run: npm run test:e2e
 
+  # main 으로의 PR 은 dev 에서만 — main 보호 규칙의 필수 체크다(setup-main-protection.sh).
+  # **이 job 의 name 도 필수 상태 체크 이름이다.** 바꾸면 main 보호 설정도 같이 갱신할 것.
+  # dev 로의 PR 에서도 돌지만 항상 통과한다(결론을 보고해야 pending 에 걸리지 않는다).
+  source-check:
+    name: 원본 브랜치 확인 (dev)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: main 으로의 PR 은 head 가 dev 여야 한다
+        run: |
+          if [ "${{ github.base_ref }}" = "main" ] && [ "${{ github.head_ref }}" != "dev" ]; then
+            echo "::error::main 으로의 PR 은 dev 브랜치에서만 연다 (현재 head: ${{ github.head_ref }}). 운영 반영 흐름: 작업 브랜치 → dev → main"
+            exit 1
+          fi
+          echo "ok: base=${{ github.base_ref }} head=${{ github.head_ref }}"
+
   build-push:
     name: 이미지 빌드 → ECR
-    # 검증을 통과한 커밋만 이미지가 된다. 배포 job 과는 아직 독립이다 — 서버는 여전히 자기 빌드로 배포한다
-    # (KAN-62 4단계 1~3: 이미지가 쌓이는지·개발계에서 그 이미지로 뜨는지 먼저 본다. pull 전환은 별도 결정).
+    # 검증을 통과한 커밋만 이미지가 된다. 배포 job 이 이 이미지를 서버에서 pull 한다(4-4 전환, 2026-09-16).
+    # 태그: 커밋 SHA(불변 — 롤백은 이전 SHA 로 push.sh) + <브랜치>-latest(이동).
     needs: verify
     if: github.event_name != 'pull_request'
     # 공개 저장소라 GitHub arm64 러너가 무료다 — 서버(t4g, arm64)와 같은 아키텍처를 네이티브로 빌드한다.
@@ -149,7 +171,7 @@ jobs:
       image: ${{ steps.meta.outputs.image }}
     steps:
       - uses: actions/checkout@v4
-      - name: AWS 자격 (OIDC — dev 브랜치만 신뢰, ecr-push 인라인 정책)
+      - name: AWS 자격 (OIDC — dev·main 브랜치 신뢰, ecr-push 인라인 정책)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::639177726357:role/ear-ci-deploy
@@ -174,64 +196,102 @@ jobs:
 
   deploy:
     name: 배포 (EC2)
-    # 검증을 통과했을 때만 배포한다
-    needs: verify
-    # PR 이벤트에서는 SG 개폐·SSH 가 일어나지 않는다. dev push·수동 실행에서만 배포한다
+    # 검증 통과 + 이미지가 있을 때만 배포한다
+    needs: [verify, build-push]
+    # PR 이벤트에서는 SG 개폐·SSH 가 일어나지 않는다. dev·main push·수동 실행에서만 배포한다
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # 브랜치 → 환경. Environment 의 배포 브랜치 정책이 dev→api-dev, main→api-prod 만 허용한다(setup-ci-envs.sh)
+    environment: ${{ github.ref_name == 'main' && 'api-prod' || 'api-dev' }}
     permissions:
       id-token: write
       contents: read
+    env:
+      API_HOST: ${{ vars.API_HOST }}
+      API_SG_ID: ${{ vars.API_SG_ID }}
+      API_SECRET_ID: ${{ vars.API_SECRET_ID }}
+      API_HEALTH_URL: ${{ vars.API_HEALTH_URL }}
+      API_IMAGE: ${{ needs.build-push.outputs.image }}
     steps:
-      # 1회 설정(backend/deploy/aws/setup-ci.sh)이 아직이면 조용히 건너뛴다 —
-      # 설정 전까지 모든 dev 머지가 빨간 X 로 남는 것을 막는다
+      # 1회 설정(setup-ci.sh · setup-ci-envs.sh)이 아직이면 조용히 건너뛴다
       - name: 설정 여부 확인
         id: guard
         run: |
-          if [ -z "${{ secrets.CI_SSH_KEY_API }}" ]; then
+          if [ -z "${{ secrets.CI_SSH_KEY_API }}" ] || [ -z "$API_HOST" ] || [ -z "$API_SG_ID" ]; then
             echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::CI_SSH_KEY_API 가 없다 — 자동 배포가 아직 켜지지 않았다. bash backend/deploy/aws/setup-ci.sh 를 실행할 것"
+            echo "::notice::CI_SSH_KEY_API 또는 Environment 변수(API_HOST·API_SG_ID)가 없다 — 이 환경의 자동 배포가 아직 켜지지 않았다. setup-ci-envs.sh 를 실행할 것"
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::환경 ${{ github.ref_name == 'main' && 'api-prod' || 'api-dev' }} → $API_HOST · 이미지 $API_IMAGE"
           fi
 
       - uses: actions/checkout@v4
         if: steps.guard.outputs.ready == 'true'
 
-      - name: AWS 자격 (OIDC — dev 브랜치만 신뢰)
+      - name: AWS 자격 (OIDC — dev·main 브랜치 신뢰)
         if: steps.guard.outputs.ready == 'true'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::639177726357:role/ear-ci-deploy
           aws-region: ap-northeast-2
 
-      - name: SSH 개방 — 러너 IP 를 SG 에 잠깐 추가
+      - name: SSH 개방 — 러너 IP 를 이 환경의 SG 에 잠깐 추가
         id: sg
         if: steps.guard.outputs.ready == 'true'
         run: |
           IP=$(curl -s https://checkip.amazonaws.com)
           echo "ip=$IP" >> "$GITHUB_OUTPUT"
-          aws ec2 authorize-security-group-ingress --group-id sg-048aaaf95e4d12b2e \
+          aws ec2 authorize-security-group-ingress --group-id "$API_SG_ID" \
             --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=$IP/32,Description=\"github-actions deploy\"}]" \
             || echo "(이미 열려 있음)"
 
-      - name: 배포 (push.sh — 서버 git pull + compose 빌드·재기동 + 헬스 확인)
+      - name: 배포 (push.sh — 코드 반입 + Secrets 적용 + ECR 이미지 pull·재기동 + 헬스 확인)
         if: steps.guard.outputs.ready == 'true'
         run: |
           mkdir -p ~/.ssh
           printf '%s\n' "${{ secrets.CI_SSH_KEY_API }}" > ~/.ssh/ci_deploy_api
           chmod 600 ~/.ssh/ci_deploy_api
-          # REF 를 넘기지 않는다 — 러너가 체크아웃한 HEAD 를 그대로 뜬다
-          PEM=~/.ssh/ci_deploy_api bash backend/deploy/push.sh
+          # REF 를 넘기지 않는다 — 러너가 체크아웃한 HEAD 를 그대로 뜬다. API_IMAGE 가 있으므로 서버는 빌드하지 않고 pull 한다
+          HOST="$API_HOST" SECRET_ID="$API_SECRET_ID" HEALTH_URL="$API_HEALTH_URL" API_IMAGE="$API_IMAGE" \
+            PEM=~/.ssh/ci_deploy_api bash backend/deploy/push.sh
 
       - name: 실패 시 최근 로그 — 원인을 런에서 바로 본다
         if: failure()
-        run: aws logs tail /ear/api --since 10m --format short || echo "(로그 조회 실패 — 역할에 logs 읽기 권한이 없다)"
+        run: aws logs tail "${{ vars.LOG_GROUP_PREFIX || '/ear' }}/api" --since 10m --format short || echo "(로그 조회 실패 — 역할에 logs 읽기 권한이 없다)"
 
       - name: SSH 폐쇄 — 러너 IP 제거 (배포 실패해도 실행)
         if: always() && steps.sg.outputs.ip != ''
         run: |
-          aws ec2 revoke-security-group-ingress --group-id sg-048aaaf95e4d12b2e \
+          aws ec2 revoke-security-group-ingress --group-id "$API_SG_ID" \
             --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${{ steps.sg.outputs.ip }}/32}]" \
             || true
+
+  # main 배포가 끝나면 그 커밋에 버전 태그를 붙인다(결정 5: release 브랜치 없이 main = 운영 배포 + 태그).
+  # 태그 = v<backend/package.json version>. 같은 버전 태그가 이미 있으면(버전을 안 올리고 머지) v<version>-<UTC 시각> 으로 붙인다 —
+  # 배포는 막지 않고 흔적만 남긴다. 어떤 이미지가 나갔는지는 태그 메시지의 ECR 이미지 URI 로 추적한다.
+  tag:
+    name: 운영 배포 태그
+    needs: [deploy, build-push]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: 태그 생성·푸시
+        run: |
+          VER=$(node -p "require('./backend/package.json').version")
+          TAG="v$VER"
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            TAG="v$VER-$(date -u +%Y%m%d-%H%M)"
+            echo "::warning::v$VER 태그가 이미 있다(package.json version 미변경) — $TAG 로 붙인다"
+          fi
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git tag -a "$TAG" -m "prod deploy $(date -u +%FT%TZ) · image ${{ needs.build-push.outputs.image }}"
+          git push origin "$TAG"
+          echo "::notice::tagged $TAG"

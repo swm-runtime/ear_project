@@ -106,7 +106,19 @@ aws cloudfront-keyvaluestore delete-key --kvs-arn $KVS_ARN --key <contentId> --i
 
 ## 4. 코드 배포
 
-**기본 경로는 CI다(2026-09-04~).** dev에 머지되면 `.github/workflows/deploy-api.yml`이 `backend/deploy/push.sh`를, `deploy-pipeline.yml`이 `pipeline/deploy/push.sh`를 실행한다 — 이 두 스크립트가 배포의 원본이며 로컬에서도 같은 것을 쓴다(`bash backend/deploy/push.sh`). 아래는 CI·push.sh가 모두 막혔을 때의 최후 수단이다.
+**기본 경로는 CI다(2026-09-04~). 2026-09-16 전환 후 브랜치가 환경을 정한다.**
+
+| 브랜치 | 워크플로 | 가는 곳 | 방식 |
+|---|---|---|---|
+| `dev` 머지 | `deploy-api.yml` | **개발계** `api-dev.earcast.co.kr` (Environment `api-dev`) | CI가 arm64 이미지를 빌드해 ECR에 올리고, 서버는 그 이미지를 pull(서버 빌드 없음) |
+| `main` 머지(dev→main PR, 리뷰 1) | `deploy-api.yml` | **운영** `api.earcast.co.kr` (Environment `api-prod`) | 같은 이미지(커밋 SHA 태그)를 pull. 성공 시 태그 `v<backend/package.json version>` 자동 |
+| `dev` 머지 | `deploy-pipeline.yml` | AI 서버(파이프라인 웹·워커) | 종전대로(AI 파트 동의) |
+
+- 배포의 원본은 `backend/deploy/push.sh`·`pipeline/deploy/push.sh`이며 로컬에서도 같은 것을 쓴다. 환경별 값은 GitHub Environment 변수(`API_HOST`·`API_SG_ID`·`API_SECRET_ID`·`API_HEALTH_URL`)에 있다 — `backend/deploy/aws/setup-ci-envs.sh`가 넣는다.
+- **운영 반영 절차**: dev에서 검증(개발계 헬스·앱 확인) → GitHub에서 `dev` → `main` PR → 팀원 1명 승인 → 머지 → Actions `deploy-api` 런 성공·`https://api.earcast.co.kr/api/v1/health` 200·태그 확인. main으로의 PR은 dev 브랜치에서만 열 수 있다(필수 체크 "원본 브랜치 확인 (dev)").
+- **버전**: 운영에 나가는 변경에는 `backend/package.json`의 `version`을 올린다. 올리지 않고 머지하면 `v<version>-<UTC시각>` 태그가 붙어 배포는 되지만 경고가 남는다.
+- **롤백**: 이전 커밋 SHA 이미지를 그대로 다시 띄운다 — PC에서 `API_IMAGE=639177726357.dkr.ecr.ap-northeast-2.amazonaws.com/ear/api:<이전 SHA> bash backend/deploy/push.sh`(운영 pem·SG 22 개방 필요). 이미지 목록: `aws ecr describe-images --repository-name ear/api --query 'sort_by(imageDetails,&imagePushedAt)[-10:].[imagePushedAt,imageTags[0]]' --output table`. 마이그레이션이 포함된 배포는 스키마가 앞서 있을 수 있어 롤백 전에 5.3 덤프 유무를 확인한다.
+- 아래 4.1은 CI·push.sh가 모두 막혔을 때의 최후 수단이다.
 
 ### 4.1 수동 배포 (비상용)
 
@@ -181,7 +193,7 @@ aws ec2 create-volume --snapshot-id <snap> --availability-zone ap-northeast-2a -
 
 - [ ] `ear-backup-prod/pg/`에 최근 덤프가 매일 쌓이는가 · `/var/log/ear-content-sync.log`에 내보내기가 매일 찍히는가
 - [ ] 스냅샷이 매일 1개 늘고 8일째 것이 지워지는가: `aws ec2 describe-snapshots --owner-ids 639177726357 --filters Name=tag:Source,Values=ear-daily --query 'length(Snapshots)'` = 7 안팎
-- [ ] Budgets 메일·CloudWatch 알람 상태: `aws cloudwatch describe-alarms --alarm-name-prefix ear-prod --query 'MetricAlarms[].[AlarmName,StateValue]' --output table` — 전부 `OK`. `INSUFFICIENT_DATA`면 크론이 지표를 못 찍는 것(권한·네트워크), `ALARM`이면 25시간 미실행
-- [ ] UptimeRobot 모니터 `ear api health`가 Up 인가. **설정값(재등록 시)**: 유형 Keyword · URL `https://api.earcast.co.kr/api/v1/health` · 키워드 `"status":"ok"` · 존재하면 Up · 간격 5분 · 알림 연락처 = 팀 메일 + Slack(Integrations → Slack, 알림 채널 웹훅). 키워드 방식이라 DB가 죽어 `/health`가 503 `degraded`를 내는 경우도 Down으로 잡힌다
+- [ ] Budgets 메일·CloudWatch 알람 상태: `aws cloudwatch describe-alarms --alarm-name-prefix ear-prod --query 'MetricAlarms[].[AlarmName,StateValue]' --output table` — 전부 `OK`. `INSUFFICIENT_DATA`면 크론이 지표를 못 찍는 것(권한·네트워크), `ALARM`이면 25시간 미실행. **새로 만든 알람은 첫 1시간 안에 오탐 ALARM 메일이 한 번 올 수 있다** — 첫 평가가 지표를 찍기 직전의 빈 1시간 구간을 보기 때문(2026-09-15 backup 알람 실측). 다음 크론 성공 뒤 OK 메일이 오면 정상이고, 그 뒤에도 ALARM이면 진짜 미실행이다
+- [ ] UptimeRobot 모니터 `ear api health`가 Up 인가. **설정값(재등록 시)**: 유형 Keyword · URL `https://api.earcast.co.kr/api/v1/health` · 키워드 `"status":"ok"` · 존재하면 Up · 간격 5분 · 알림 연락처 = 메일(무료 플랜은 Slack 연동이 잠겨 있다 — 메일만). 키워드 방식이라 DB가 죽어 `/health`가 503 `degraded`를 내는 경우도 Down으로 잡힌다
 - [ ] `df -h` 디스크 (20GB — docker 이미지가 쌓이면 `docker system prune -f`)
 - [ ] 인증서는 Caddy 자동 — 만료 걱정 없음. `docker compose … logs caddy | grep -i renew`로 확인만

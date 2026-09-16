@@ -10,6 +10,7 @@
 | `k6/scenarios/library-browse.js` | 둘러보기(탭·필터·페이지네이션·탐색·검색·프로필). 읽기 집중 |
 | `k6/scenarios/library-delete-undo.js` | 삭제 → 실행 취소 |
 | `k6/scenarios/paywall-limit.js` | 무료 한도 → 403 페이월, 재청취 창. 부하 아래 판정 정확성 |
+| `k6/scenarios/library-listen-ramp.js` | 청취 여정을 계단식으로 올려 한계 지점 찾기(스트레스). `MAX_VUS`·`STEP`·`STEP_DURATION`·`HOLD`. 임계값을 어겨도 중단하지 않음 |
 | `k6/lib/config.js` · `http.js` | 주소·토큰·임계값·HTTP 도우미 |
 | `server/seed-users.js` · `issue-tokens.js` · `cleanup-users.js` | 계정 시드·토큰 발급·정리(**실서버 api 컨테이너 안에서 실행**) |
 | `out/` | 토큰 파일 등 산출물. gitignore — 비밀이다 |
@@ -116,6 +117,12 @@ PC에서 `rm backend/load-test/out/tokens.json`.
 | `checks` | > 99 % |
 
 PRD 7장의 성능 요구는 "재생 탭 후 2초 내 시작"뿐이다. 위 수치는 그것을 API 단위로 나눈 출발점이지 확정값이 아니다.
+
+### 대시보드 · 연속 실행
+
+- `K6_WEB_DASHBOARD=true`로 실행하면 `http://localhost:5665`에 실시간 그래프가 뜨고, `K6_WEB_DASHBOARD_EXPORT=<파일>.html`로 종료 시 보고서를 남긴다.
+- **k6는 종료 후 요약·내보내기에 수 분을 쓰며 포트를 계속 잡는다.** 바로 다음 실행을 띄우면 대시보드가 "address already in use"로 조용히 빠진다 — 이전 프로세스 종료를 확인하거나 `K6_WEB_DASHBOARD_PORT`를 바꾼다(2026-09-16 실측).
+- 개발계(`api-dev`)에서 돌릴 때: `plans`에는 마이그레이션이 만든 light 행만 있으므로 pro·daily 판정을 보려면 운영과 같은 행이 있어야 한다(2026-09-16 pro 행 추가됨). 정리 절차는 운영과 같다.
 
 ## 결과 읽을 때
 

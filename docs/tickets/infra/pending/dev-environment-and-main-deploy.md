@@ -10,7 +10,7 @@
 | 발견 시점 | 2026-09-15 인프라 인수 — 실계정 대조(PR #343). 환경이 한 벌뿐이고 그것이 실운영이라 dev 머지가 검증 없이 실사용자에게 닿는다 |
 | 근거 문서 | `docs/infra/architecture.md` 6장(2026-09-15 미결) · `docs/infra/inventory.md` 1장 · 루트 `CLAUDE.md` Git 절(main = 배포 기준선) · `backend/load-test/README.md`(상한 실측) |
 | 중요도 | **Low** — 이번 주 안에 착수. 지금 당장 장애는 없지만, 사용자 유입(광고) 전에 "검증된 것만 운영에" 구조가 있어야 한다 |
-| 상태 | **진행 중** — 1·2·3단계 · 4-1~4-3 · 5단계(스냅샷·알람) 완료(2026-09-15). **대기: 4-4 운영 pull 전환(6단계에 묶음)** · 다음 6단계 |
+| 상태 | **진행 중** — 1·2·3단계 · 4-1~4-3 · 5단계 완료(2026-09-15) · 6단계 준비 + 워크플로 변경안(draft PR) · 7 보호 스크립트 준비(2026-09-16). **전환(6 머지 → 7 적용 → 8 dev→main) 2026-09-16 23:00 KST 예정** |
 
 ## 배경 · 확인된 현재 상태 (2026-09-15 실측)
 
@@ -48,19 +48,23 @@
    - 4-4 운영 pull 전환 — `push.sh`/워크플로 기본을 이미지로. **대기**
 5. 스냅샷 · 알람
    - 5-스냅샷 ✅ (2026-09-15) `setup-ebs-snapshots.sh`(볼륨 태그·롤 정책) + 운영 크론 `40 19 * * *` `ebs-snapshot.sh` 등록, 첫 스냅샷 `snap-0490cb092c774d4a6` 생성 확인. 복구 절차 `runbook.md` 5.4-A
-   - 5-알람 ✅ 결정·구현(2026-09-15) — 기존 Slack 알림(워커 ERROR 감시·resource-alert·backup.sh 실패)은 전부 "자기 보고"라 서버 다운·크론 미실행에 침묵한다. 그래서 두 개만 더한다: **(c) 크론 심장박동** — 백업·콘텐츠 내보내기·스냅샷 스크립트가 성공 시 `ear/ops CronSuccess` 지표를 찍고, 25시간 미기록이면 기존 SNS(서울, 메일 4명, 재인증 없음)로 알람(`setup-cron-alarms.sh`). **(b) 외부 헬스체크 = UptimeRobot 무료**(5분, 키워드 `"status":"ok"`, 메일+Slack) — Route 53(월 $0.5)은 us-east-1 토픽·메일 재인증이 필요해 제외. (a) ERROR·(d) 자원 알람은 기존 Slack 모듈과 중복이라 추가하지 않음. UptimeRobot 가입·Slack 연결은 사람 몫(설정값 `runbook.md` 6장)
+   - 5-알람 ✅ 결정·구현(2026-09-15) — 기존 Slack 알림(워커 ERROR 감시·resource-alert·backup.sh 실패)은 전부 "자기 보고"라 서버 다운·크론 미실행에 침묵한다. 그래서 두 개만 더한다: **(c) 크론 심장박동** — 백업·콘텐츠 내보내기·스냅샷 스크립트가 성공 시 `ear/ops CronSuccess` 지표를 찍고, 25시간 미기록이면 기존 SNS(서울, 메일 4명, 재인증 없음)로 알람(`setup-cron-alarms.sh`). **(b) 외부 헬스체크 = UptimeRobot 무료**(5분, 키워드 `"status":"ok"`, 메일 — Slack 연동은 유료 플랜이라 제외) — Route 53(월 $0.5)은 us-east-1 토픽·메일 재인증이 필요해 제외. (a) ERROR·(d) 자원 알람은 기존 Slack 모듈과 중복이라 추가하지 않음. UptimeRobot 모니터 `ear api health` 등록 완료(2026-09-15, 메일 알림). 대시보드 `ear`에 알람 상태·크론 심장박동·백업 경과 위젯 추가(2026-09-15). backup 알람이 생성 직후 첫 평가 타이밍으로 오탐 ALARM 1회 → 원인·대응을 `runbook.md` 6장에 기록
 6. 워크플로 환경 매트릭스(브랜치 → 호스트·SG·SSH 시크릿·Secrets 경로·헬스 URL, GitHub Environments) · IAM `ear-ci-deploy` 신뢰 조건에 `refs/heads/main` 추가 · `eas-update.yml` 채널별 API 주소 분리
-7. `main` 브랜치 보호(검증·"원본 dev" 체크·리뷰 1·관리자 포함·force push 금지)
+   - 6-준비 ✅ (2026-09-16, `setup-ci-envs.sh` — 배포 동작 무변경) GitHub Environments `api-dev`(브랜치 dev만)·`api-prod`(main만) 생성, 변수 `API_HOST`·`API_SG_ID`·`API_SECRET_ID`·`API_HEALTH_URL`·`LOG_GROUP_PREFIX` 각 환경에 등록, 개발계 CI 전용 SSH 키 `out/ear-ci-deploy-api-dev` 생성 → `api-dev/CI_SSH_KEY_API` 시크릿(운영은 레포 시크릿 그대로). 기존 `Preview`·`Production` 환경은 Expo 것이라 미사용. 개발계 서버 `authorized_keys`에 CI 공개키 설치·CI 키 로그인 확인 · IAM `ear-ci-deploy` 신뢰 sub에 `refs/heads/main` 추가(dev 유지) + 인라인 `sg-open-close-api-dev` 부착 — 전부 완료(2026-09-16). backup 심장박동 알람은 2026-09-15 23:32 OK 복귀, 09-16 04:00 백업 지표 정상 확인
+   - 6-워크플로: `deploy-api.yml` 변경안 준비 완료(2026-09-16, draft PR) — push 트리거 dev·main, `environment: api-dev|api-prod`, `vars.API_*`로 호스트·SG·시크릿·헬스 URL, 배포 job이 `build-push` 이미지를 `API_IMAGE`로 push.sh에 넘김(**4-4 포함**), `source-check` job("원본 브랜치 확인 (dev)"), main 성공 시 `tag` job(`v<package.json version>`). **머지 = 전환 시작** — 2026-09-16 23:00 KST 예정(사용자 확인 후). **1차 시도(PR #378, 21:06)**: 예정보다 먼저 머지돼 첫 개발계 배포 런이 `sts:AssumeRoleWithWebIdentity` 거부로 실패 → PR #380으로 revert. 원인: `environment:`를 쓰는 job은 OIDC sub가 `environment:api-dev` 형식이라 브랜치 형식만 신뢰한 정책에 안 맞음 → `setup-ci-envs.sh`에 environment sub 2개 추가(재실행 필요)
+7. `main` 브랜치 보호(검증·"원본 dev" 체크·리뷰 1·관리자 포함·force push 금지) — 초안 `setup-main-protection.sh`(2026-09-16, `DRY_RUN=1`로 JSON 확인. 실행은 6-워크플로의 `원본 브랜치 확인` job이 들어간 뒤)
 8. **전환**: main을 dev와 동기화(dev→main PR) → 운영 배포 스위치를 main으로. 예고 후 머지 없는 시간에 6~8을 붙여서. 전환 절차·롤백을 `runbook.md`에 기록
 9. `docs/infra/architecture.md`·`inventory.md`·`runbook.md` 개정(개발계·배포 흐름·알람·스냅샷)
 
 전환 이후 팀에 공유할 것: dev 머지는 개발계에만 반영 · 운영 반영은 dev→main PR(리뷰 1명) · 앱 테스트는 preview 빌드(TestFlight 내부/Play 내부 트랙)를 설치해 두면 dev 머지 시 개발계 API를 보는 OTA가 자동 반영, 스토어 앱은 main 머지 시 운영 API로 OTA · 네이티브 변경은 OTA 불가(빌드 재배포).
 
-**미결(그 단계에서 결정)**: 앱 preview 빌드의 번들 ID 분리 여부·배포 시점(FE 담당과) · 파이프라인·AI 서버 배포 트리거를 dev에 남길지(AI 파트와) · SSO 역할의 SSM 권한(후보 SSM 도입 시).
+**미결(그 단계에서 결정)**: 앱 preview 빌드의 번들 ID 분리 여부·배포 시점 → **FE 티켓 [KAN-65](https://runtime364.atlassian.net/browse/KAN-65)로 이관(2026-09-16, `tickets/frontend/pending/dev-api-test-method.md` — preview 채널 전환 또는 앱 내 스위치, FE 담당 선택)** · 파이프라인·AI 서버 배포 트리거를 dev에 남길지(AI 파트와) · SSO 역할의 SSM 권한(후보 SSM 도입 시).
 
 ## 후속 후보 (이 티켓 범위 밖)
 
 - SSM Session Manager로 SG 22번 폐쇄(공존 후 전환) · Dependabot·시크릿 스캐닝 · API 프로세스 2~4개 + Redis(동시 100명 근처) · Route 53 이관.
+- **API 프로세스 복제 실측**(2026-09-16 개발계 램프 결과: t4g.small 상한 초당 150~170 · 동시 청취 약 350명, 병목 Node 단일 프로세스 CPU 105%, PostgreSQL 42%): 개발계에서 api 컨테이너 2개 + Caddy 라운드 로빈으로 같은 램프를 다시 돌려 상한 변화를 본다(오버라이드 compose·Caddyfile, 약 30분). 운영 적용 조건은 인메모리 레이트 리밋의 Redis 이전. 결과: `backend/load-test/results/2026-09-16-dev/REPORT.md`(로컬).
+- compose 프로젝트 이름이 `name: ear-prod` 고정이라 개발계 컨테이너도 `ear-prod-api-1`로 보인다(운영 오인 위험). `${COMPOSE_PROJECT:-ear-prod}`로 열고 개발계만 `ear-dev`로 — 이름을 바꾸면 DB 볼륨이 새로 생기므로 개발계 작업 재개 시 콘텐츠 동기화와 함께.
 - 트래픽 스파이크 대비: 캠페인 D-1 t4g.large 상향 + API 컨테이너 3~4 복제(상한 ~500~600 req/s), 사용자 무관 응답 캐시, 05시 푸시 분산. ALB·RDS는 동시 수천 명 규모부터(ALB는 DB 분리와 세트).
 
 ## 완료 조건

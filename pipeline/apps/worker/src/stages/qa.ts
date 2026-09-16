@@ -40,7 +40,7 @@ export async function runQa(job: Job, ex: Executor) {
     });
     log(`  qa ${episodeId} attempt ${attempt} (단발, 공유 ${Math.round(parts.system.length / 1000)}K + 편별 ${Math.round(parts.user.length / 1000)}K자)`);
     const ri = await ex.run<QaInlineOut>({
-      prompt: parts.user, systemPrompt: parts.system, schema: QA_INLINE_SCHEMA, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 30 * 60_000, model: cfg.qaModel, maxThinkingTokens: cfg.thinkingQa,
+      prompt: parts.user, systemPrompt: parts.system, schema: QA_INLINE_SCHEMA, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 30 * 60_000, model: cfg.qaModel, effort: qaRound >= 2 ? cfg.effortQaRecheck : cfg.effortQa, maxThinkingTokens: cfg.thinkingQa,
       onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: `QA ${qaRound}/${MAX_ATTEMPTS}회 (대본 ${attempt}회차, 단발)`, detail: pr.turns > 0 ? "발췌 대조·판정 중 (도구 없음)" : pr.detail }).catch(() => {}),
     });
     const reportFile = path.join(dir, "qa-report.md");

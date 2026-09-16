@@ -43,6 +43,7 @@ export class ClaudeCliExecutor implements Executor {
       "--output-format", "stream-json", "--verbose",
       "--json-schema", JSON.stringify(req.schema),
       "--disable-slash-commands",
+      "--strict-mcp-config", // 사용자 설정의 MCP 서버(Slack 등)를 물려받지 않는다 (2026-09-16: 수정 재생성 기록에 "Slack MCP 미인증" 문장이 섞였다)
       "--no-session-persistence",
       "--permission-mode", "acceptEdits",
     ];
@@ -52,7 +53,11 @@ export class ClaudeCliExecutor implements Executor {
     const model = req.model ?? this.defaultModel;
     if (model) args.push("--model", model);
     if (req.effort) args.push("--effort", req.effort);
-    if (req.systemPrompt) {
+    // A/B 스위치 (2026-09-16): PROMPT_SYSTEM_SPLIT=off 면 공유 블록을 시스템 프롬프트로 보내지 않고 예전처럼 사용자 메시지 앞에 붙인다(캐시 없음).
+    // v7.3 배치(T260916-001~003)에서 사람 점수 67→63, 주어형 귀속·분량 초과가 돌아와 "규칙이 시스템으로 멀어져 덜 지켜진다" 가설을 가른다
+    const splitOff = process.env.PROMPT_SYSTEM_SPLIT === "off";
+    const promptText = req.systemPrompt && splitOff ? `${req.systemPrompt}\n\n${req.prompt}` : req.prompt;
+    if (req.systemPrompt && !splitOff) {
       // 파일 이름은 본문 해시 — 같은 블록이면 같은 파일을 다시 쓴다(내용 동일). 인자 길이 한계를 피하려고 파일로 넘긴다
       const dir = path.join(req.cwd, ".system-prompts");
       fs.mkdirSync(dir, { recursive: true });
@@ -145,7 +150,7 @@ export class ClaudeCliExecutor implements Executor {
         });
       });
       child.stdin.on("error", () => {});
-      child.stdin.write(req.prompt);
+      child.stdin.write(promptText);
       child.stdin.end();
     });
   }

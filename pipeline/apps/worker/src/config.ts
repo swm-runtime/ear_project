@@ -59,6 +59,8 @@ export const cfg = {
   criticModel: process.env.CRITIC_MODEL || "claude-opus-5",
   /** QA 통과 연쇄가 큐에 넣는 비평 루브릭 (spec/09 7.1 — 회귀 세트 판정은 critic-v2 배점으로, v1 5축에 사람 시간을 쓰지 않는다). 2026-09-07 기본 v2. 되돌리려면 CRITIC_RUBRIC=v1 */
   criticRubric: (process.env.CRITIC_RUBRIC === "v1" ? "v1" : "v2") as "v1" | "v2",
+  /** 비평 실행 형태 (2026-09-16 비용): single = 루브릭·규칙·골드 인라인(시스템 블록 캐시)·도구 없음·리포트는 JSON 으로(기본 — 같은 루브릭 3편 대조에서 편향 −1.3 vs −2.7, 동의 플래그 유지 19/41 vs 18/41, ⭐ 10/19 vs 12/19, 비용 $1.23 vs $2.41) · agent = 파일 Read·Write 루프(CRITIC_MODE=agent). 측정 작업은 payload.mode 로 지정 */
+  criticMode: (process.env.CRITIC_MODE === "agent" ? "agent" : "single") as "single" | "agent",
   /** QA·군집화 모델 — 2026-09-03 박수헌: 발췌 대조·구조 분석은 Fable 이 필요 없다 → Opus 기본 (속도·한도 절약). QA 도 평가자라 바꾸면 spec/09 7.4 */
   /** QA 모델 — 2026-09-08 Sonnet 5 기본 (비용 절감 ⑤): 심은 오류 프로브 8건 중 7건 검출·오탐 0(opus 상한판 8/8). 놓친 1건(시점 고정 표현)은 L0 코드 검사로 이관. 되돌리려면 QA_MODEL=claude-opus-5 */
   qaModel: process.env.QA_MODEL || "claude-sonnet-5",
@@ -74,7 +76,13 @@ export const cfg = {
   /** 설계·대본 effort (2026-09-09): opus-5 는 적응형 생각이라 MAX_THINKING_TOKENS 를 무시한다(상한 8000 인데 대본 3.6만~14.5만 실측). `claude --effort` 만 듣는다.
    *  T260909-004 대본 실측 — high $2.02·생각 3.6만·11분 → medium $1.63·1.4만·7분(QA 1회 통과) → low $1.35·0.5만·4분(QA 실패 3: 필수 한계 누락·미근거). 기본 medium. 비우면 CLI 기본(high) */
   effortDesign: envEffort("EFFORT_DESIGN", "medium"),
-  effortWrite: envEffort("EFFORT_WRITE", "medium"), // 비평은 회귀 세트로 편향을 재는 중 — 상한은 재검증(spec/09 7.4) 후에 (기본 없음)
+  effortWrite: envEffort("EFFORT_WRITE", "medium"),
+  /** QA·수정 effort (2026-09-16 비용): QA 는 effort 미지정이라 CLI 기본(high)으로 sonnet 생각 1.8만~2.7만 = QA 비용의 56%. 2회차부터는 해소 확인이 주라 low */
+  effortQa: envEffort("EFFORT_QA", "medium"),
+  effortQaRecheck: envEffort("EFFORT_QA_RECHECK", "low"),
+  effortRevision: envEffort("EFFORT_REVISION", "medium"),
+  /** 비평 effort (2026-09-16): 기본 없음(CLI 기본 high) — 점수가 사람 판정에 보정된 상태라 바꾸려면 판정된 편 재비평(critic-measure)으로 편향·플래그 유지를 확인한 뒤. 측정은 EFFORT_CRITIC=medium 으로 */
+  effortCritic: envEffort("EFFORT_CRITIC", null), // 비평은 회귀 세트로 편향을 재는 중 — 상한은 재검증(spec/09 7.4) 후에 (기본 없음)
   clusterModel: process.env.CLUSTER_MODEL || "claude-opus-5",
   /** 군집화 방식 (2026-09-09 ①): v2 = 축 먼저·역할·다양성(단발) · v1 = 유사성 묶기(현행, 기본). ③ 판정 3편 후 v2 로 전환 */
   clusterMode: (process.env.CLUSTER_MODE === "v2" ? "v2" : "v1") as "v1" | "v2",

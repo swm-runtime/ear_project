@@ -3,7 +3,7 @@ import path from "node:path";
 import { cfg, executedBy } from "../config.js";
 import { getBacklog, getEpisode, insertRun, setJobProgress, upsertEpisode, type Job } from "../db.js";
 import type { Executor } from "../executors/index.js";
-import { buildCriticPrompt, CRITIC_SCHEMA, CRITIC_SCHEMA_V2 } from "@ear/pipeline";
+import { assetPaths, buildCriticPrompt, buildCriticPromptInlineParts, CRITIC_INLINE_SCHEMA, CRITIC_SCHEMA, CRITIC_SCHEMA_V2 } from "@ear/pipeline";
 import { readFile } from "node:fs/promises";
 import { log } from "../util.js";
 import { prepareAssets, workerRev, type AssetBundle } from "../assets.js";
@@ -12,7 +12,7 @@ import { localPathOf, pullPrefix, pushPrefix, s3Key } from "../storage.js";
 interface CriticOut { scores: { immersion: number; naturalness: number; density: number; persona: number; structure: number }; violations: number; suspects: number; stars: number; report_written: boolean; summary: string }
 interface CriticV2Out {
   scores: { content: { value: number; argument: number; perspective: number; resonance: number }; structure: { opening: number; flow: number; ending: number }; naturalness: { spoken: number; exchange: number }; immersion: number; persona: { voice: number; listener: number } };
-  evidence: Record<string, string>; total: number; violations: number; suspects: number; stars: number; report_written: boolean; summary: string;
+  evidence: Record<string, string>; total: number; violations: number; suspects: number; stars: number; report_written?: boolean; report_md?: string; summary: string;
 }
 
 /** 비평 (spec/09 7장) — QA 통과본 기준으로만 실행 (검수 순서 규정). 판정 열은 비워 사람 몫으로. */
@@ -38,7 +38,7 @@ export async function runCritic(job: Job, ex: Executor) {
   const r = await ex.run<CriticOut>({
     prompt, schema: CRITIC_SCHEMA,
     allowedTools: ["Read", `Write(${rel}/critic-report.md)`, `Edit(${rel}/critic-report.md)`],
-    addDirs: [dir, assetRoot], cwd: cfg.workRoot, timeoutMs: 40 * 60_000, model: cfg.criticModel, maxThinkingTokens: cfg.thinkingCritic,
+    addDirs: [dir, assetRoot], cwd: cfg.workRoot, timeoutMs: 40 * 60_000, model: cfg.criticModel, maxThinkingTokens: cfg.thinkingCritic, effort: cfg.effortCritic,
     onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: "비평" }).catch(() => {}),
     describe: (tool, input, counts) => {
       const f = String(input?.file_path ?? "").split("/").pop() ?? "";
@@ -75,8 +75,9 @@ export async function runCriticMeasure(job: Job, ex: Executor) {
   await pullPrefix(`${rel}/`);
   const scriptFile = localPathOf(ep.script_key);
   const { assetRoot, bundle } = await prepareAssets({ ...(ep.asset_versions ?? {}), "skills/critic/rubric-v2.md": rubricVersion });
-  const reportFile = `critic-measure-${rubricVersion.replace(/[^A-Za-z0-9.-]+/g, "_")}.md`;
-  return runCriticV2(job, ex, { episodeId, backlogId, rel, dir, scriptFile, title: cand.title, midTopic: cand.mid_topic, assetRoot, bundle, measure: { rubricVersion, reportFile } });
+  const variant = `${job.payload.mode === "single" ? "-single" : ""}${job.payload.effort ? `-${String(job.payload.effort)}` : ""}`; // 실행 형태·effort 측정 (2026-09-16)
+  const reportFile = `critic-measure-${rubricVersion.replace(/[^A-Za-z0-9.-]+/g, "_")}${variant}.md`;
+  return runCriticV2(job, ex, { episodeId, backlogId, rel, dir, scriptFile, title: cand.title, midTopic: cand.mid_topic, assetRoot, bundle, measure: { rubricVersion: rubricVersion + variant, reportFile } });
 }
 
 /** critic-v2 초안 실행 (spec/09 v2 · rubric-v2.md). 리포트는 critic-report-v2.md — v1 스냅샷은 보존. 앵커 없음 기준선. measure 가 있으면 측정 모드(위) */
@@ -85,12 +86,29 @@ async function runCriticV2(job: Job, ex: Executor, e: { episodeId: string; backl
   const scriptText = await readFile(scriptPath, "utf8").catch(() => "");
   const preTemplate = /\{인트로[^}]*\}|\{클로징[^}]*\}/.test(scriptText); // tpl-v1 이전 세대: 자리표기 감점 금지
   const reportFile = e.measure?.reportFile ?? "critic-report-v2.md";
+  const mode: "single" | "agent" = job.payload.mode === "single" ? "single" : job.payload.mode === "agent" ? "agent" : cfg.criticMode;
+  const effort = (typeof job.payload.effort === "string" ? (job.payload.effort as typeof cfg.effortCritic) : undefined) ?? cfg.effortCritic;
+  let r: Awaited<ReturnType<typeof ex.run<CriticV2Out>>>;
+  if (mode === "single") {
+    // 단발 (2026-09-16): 루브릭·규칙·골드는 시스템 블록(캐시), 대본은 사용자 메시지, 리포트는 report_md 로 받아 워커가 쓴다
+    const ap = assetPaths(e.assetRoot, cfg.workRoot);
+    const [rubricV2Md, guidelines, goldFullEum, goldFullYuna] = await Promise.all([ap.criticRubricV2, ap.guidelines, ap.goldFullEum, ap.goldFullYuna].map((p) => readFile(p, "utf8")));
+    const parts = buildCriticPromptInlineParts({ episodeId: e.episodeId, title: e.title, midTopic: e.midTopic as never, rubricV2Md, guidelines, goldFullEum, goldFullYuna, scriptMd: scriptText, preTemplate });
+    log(`  critic v2 ${e.episodeId} (단발, 공유 ${Math.round(parts.system.length / 1000)}K + 편별 ${Math.round(parts.user.length / 1000)}K자${preTemplate ? " · tpl 이전 세대" : ""}${e.measure ? ` · 측정 ${e.measure.rubricVersion}` : ""})`);
+    r = await ex.run<CriticV2Out>({
+      prompt: parts.user, systemPrompt: parts.system, schema: CRITIC_INLINE_SCHEMA, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 45 * 60_000, model: cfg.criticModel, maxThinkingTokens: cfg.thinkingCritic, effort,
+      onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: e.measure ? `비평 측정 ${e.measure.rubricVersion}` : "비평 v2 (단발, 100점 채점)", detail: pr.turns > 0 ? "채점·플래그 작성 중 (도구 없음)" : pr.detail }).catch(() => {}),
+    });
+    const md = String(r.output.report_md ?? "").trim();
+    if (md.length < 500 || !/##\s*2\./.test(md)) throw new Error(`단발 비평의 report_md 가 규격에 못 미침 (${md.length}자) — 플래그 절(## 2.) 없음`);
+    await fs.writeFile(path.join(e.dir, reportFile), md + "\n", "utf8");
+  } else {
   const prompt = buildCriticPrompt({ assetRoot: e.assetRoot, workRoot: cfg.workRoot, episodeId: e.episodeId, title: e.title, midTopic: e.midTopic as never, scriptFile: e.scriptFile, rubric: "v2", preTemplate, reportFile });
   log(`  critic v2 ${e.episodeId}${preTemplate ? " (tpl 이전 세대)" : ""}${e.measure ? ` · 측정 ${e.measure.rubricVersion}` : ""}`);
-  const r = await ex.run<CriticV2Out>({
+  r = await ex.run<CriticV2Out>({
     prompt, schema: CRITIC_SCHEMA_V2,
     allowedTools: ["Read", `Write(${e.rel}/${reportFile})`, `Edit(${e.rel}/${reportFile})`],
-    addDirs: [e.dir, e.assetRoot], cwd: cfg.workRoot, timeoutMs: 45 * 60_000, model: cfg.criticModel, maxThinkingTokens: cfg.thinkingCritic,
+    addDirs: [e.dir, e.assetRoot], cwd: cfg.workRoot, timeoutMs: 45 * 60_000, model: cfg.criticModel, maxThinkingTokens: cfg.thinkingCritic, effort,
     onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: e.measure ? `비평 측정 ${e.measure.rubricVersion}` : "비평 v2 (100점 채점)" }).catch(() => {}),
     describe: (tool, input, counts) => {
       const f = String(input?.file_path ?? "").split("/").pop() ?? "";
@@ -99,6 +117,7 @@ async function runCriticV2(job: Job, ex: Executor, e: { episodeId: string; backl
       return null;
     },
   });
+  }
   const o = r.output; const s = o.scores;
   const sum = { content: s.content.value + s.content.argument + s.content.perspective + s.content.resonance, structure: s.structure.opening + s.structure.flow + s.structure.ending, naturalness: s.naturalness.spoken + s.naturalness.exchange, immersion: s.immersion, persona: s.persona.voice + s.persona.listener };
   const total = sum.content + sum.structure + sum.naturalness + sum.immersion + sum.persona;
