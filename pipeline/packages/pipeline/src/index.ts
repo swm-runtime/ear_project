@@ -390,6 +390,64 @@ ${pre}
 ## 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. 리포트 파일 작성이 먼저다. evidence의 각 항목은 리포트에 적은 인용과 같아야 한다.`;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 비평 단발화 (2026-09-16 비용): 에이전트 비평(파일 6개 Read · 리포트 Write · 10~12턴)은 편당 $1.8~2.7, 그중 62% 가 턴마다 다시 쓰이는 입력이었다.
+// 루브릭·규칙·골드를 시스템 블록(편 사이 캐시)으로, 대본을 사용자 메시지로 보내고 리포트 본문은 JSON(report_md)으로 받는다. 채점·플래그 규격은 v2 와 같다.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+export interface CriticInlineInput {
+  episodeId: string; title: string; midTopic: MidTopic;
+  rubricV2Md: string; guidelines: string; goldFullEum: string; goldFullYuna: string; scriptMd: string;
+  preTemplate?: boolean;
+}
+
+export function buildCriticPromptInlineParts(i: CriticInlineInput): PromptParts {
+  const fence = (s: string) => "````\n" + s.trim() + "\n````";
+  const explainer = explainerFor(i.midTopic);
+  const host = explainer === "윤아" ? "이음" : "윤아";
+  const system = `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 대본 비평가다. 스타일·구성 품질을 독립 평가한다. 생성 맥락·QA 결과·기계 검사(L0) 결과는 일절 모른 채 평가하는 것이 원칙이다.
+
+이 실행에는 도구가 없다. 루브릭·규칙·골드는 아래에, 평가 대상 대본은 이어지는 메시지에 전부 들어 있다. 파일을 읽거나 쓰지 않고, 리포트 본문은 완료 보고의 report_md 에 넣는다.
+
+## 1. 비평 루브릭 v2 — 판단 항목(2.1)·배점과 구간 정의(3장)·리포트 규격(4장)을 그대로 따른다
+${fence(i.rubricV2Md)}
+
+## 2. 대본 규칙 — guidelines (평가 기준의 원본)
+${fence(i.guidelines)}
+
+## 3. 골드 예시 2종 (비교 기준선 — 만점 구간은 이보다 명백히 나을 때만)
+### 3.1 이음 해설 골드
+${fence(i.goldFullEum)}
+### 3.2 윤아 해설 골드
+${fence(i.goldFullYuna)}
+
+## 4. 작업
+report_md 에 루브릭 v2 4장 규격의 리포트 전문을 넣는다 — 첫 줄 제목("# 비평 리포트 — {에피소드} …")부터 4. 집계까지, 마크다운 그대로. 순서:
+1. **점수 (100점)** — 3장의 하위 항목 12개를 **각각 독립적으로** 채점한다. 항목마다 구간 정의를 대본과 대조하고, 점수 옆에 반드시 대본 자구를 \`[E12] "…"\` 형식으로 인용한다 (인용 없는 점수는 무효). 합계는 계산 결과일 뿐 — 합계를 보고 조정하지 않는다. 몰입(3.10)은 다른 축의 합으로 역산하지 말고 통으로 판단한다.
+   - **앵커 자리(\`{앵커 …: }\`)는 이번 실행에서 비어 있다.** 구간 정의만으로 채점한다. 이 실행은 "앵커 없음" 기준선이다.
+   - 만점 구간은 **골드 2종보다 그 항목에서 명백히 나을 때만** 준다. 평범하면 평범하다고 쓴다.
+   - 리포트의 "사람 점수"·"사람 사유" 열은 비워 둔다.
+2. **플래그** — 2.1의 판단 항목 22개(A1~A10·B2·C1·C2·C3·C5·D1·D3·F1·F2·F4·F5·G1)만. A9(귀속 과밀·소스 순회)·A10(독후감 화법)은 대본이 주제가 아니라 소스를 소개하거나 읽은 감상을 말하는 것처럼 들리는가로 판단한다. **2.2의 이관 항목(B1·B3·B4·C4·D2·D4·D5·F3·F6)은 플래그하지 않는다** — 코드와 QA가 잰다. 강도는 위반/의심, 15건 이내, 자구 인용 필수, "판정(사람)"·"사유" 열은 비운다.
+   - G1: 골드 2종과 대조해 관용구·진입 문구·정리 문구의 재사용을 찾는다.
+3. **⭐ 잘된 지점** 3~7건 (빈 판정 열 포함).
+4. **집계** 행은 사람 판정 후 채우므로 플래그·⭐ 수만 적는다.
+
+## 5. 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. scores·evidence 의 각 항목은 report_md 의 점수·인용과 같아야 한다. 완료 보고 전에 다른 텍스트를 출력하지 않는다.`;
+  const pre = i.preTemplate
+    ? `## 이 대본은 tpl-v1 이전 세대다
+인트로·마무리에 \`{인트로 시그니처 …}\` \`{클로징 …}\` 같은 자리표기가 있다. 생성 당시 템플릿이 없었던 것이지 대본 결함이 아니다.
+- 3.5 오프닝·3.7 마무리: 자리표기를 **tpl-v1 골격이 있는 것으로 간주**하고 도입 구간·정리 내용만 채점한다. 자리표기 자체를 감점하지 않는다.
+- C2: 주제 선언은 자리표기 안에 있는 것으로 간주한다.
+- G1: 템플릿 골격 복제 판단에서 제외한다 (골드 관용구 복제는 그대로 본다).
+
+`
+    : "";
+  const user = `${pre}## 평가 대상 대본 — ${i.episodeId} "${i.title}" (해설 ${explainer} / 진행 ${host}, ${i.midTopic})
+${fence(i.scriptMd)}
+
+위 루브릭 v2 대로 채점·플래그·⭐ 를 매기고, 리포트 전문을 report_md 에 담아 완료 보고 JSON 만 출력한다.`;
+  return { system, user };
+}
+
 const int = { type: "integer" } as const;
 const str = { type: "string" } as const;
 export const CRITIC_SCHEMA_V2 = {
@@ -421,6 +479,13 @@ export const CRITIC_SCHEMA_V2 = {
     summary: { type: "string", description: "총평 3문장" },
   },
 } as const;
+
+/** 단발 비평 완료 보고 — v2 스키마에서 report_written 대신 report_md(리포트 전문) */
+export const CRITIC_INLINE_SCHEMA = (() => {
+  const { report_written: _rw, ...props } = CRITIC_SCHEMA_V2.properties as Record<string, unknown> & { report_written: unknown };
+  void _rw;
+  return { type: "object", additionalProperties: false, required: [...CRITIC_SCHEMA_V2.required.filter((k) => k !== "report_written"), "report_md"], properties: { ...props, report_md: { type: "string", description: "비평 리포트 전문 (루브릭 v2 4장 규격, 첫 줄 제목부터 4. 집계까지 마크다운 그대로)" } } };
+})();
 
 export const CRITIC_SCHEMA = {
   type: "object",

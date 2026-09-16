@@ -59,6 +59,8 @@ export const cfg = {
   criticModel: process.env.CRITIC_MODEL || "claude-opus-5",
   /** QA 통과 연쇄가 큐에 넣는 비평 루브릭 (spec/09 7.1 — 회귀 세트 판정은 critic-v2 배점으로, v1 5축에 사람 시간을 쓰지 않는다). 2026-09-07 기본 v2. 되돌리려면 CRITIC_RUBRIC=v1 */
   criticRubric: (process.env.CRITIC_RUBRIC === "v1" ? "v1" : "v2") as "v1" | "v2",
+  /** 비평 실행 형태 (2026-09-16 비용): single = 루브릭·규칙·골드 인라인(시스템 블록 캐시)·도구 없음·리포트는 JSON 으로(기본 — 같은 루브릭 3편 대조에서 편향 −1.3 vs −2.7, 동의 플래그 유지 19/41 vs 18/41, ⭐ 10/19 vs 12/19, 비용 $1.23 vs $2.41) · agent = 파일 Read·Write 루프(CRITIC_MODE=agent). 측정 작업은 payload.mode 로 지정 */
+  criticMode: (process.env.CRITIC_MODE === "agent" ? "agent" : "single") as "single" | "agent",
   /** QA·군집화 모델 — 2026-09-03 박수헌: 발췌 대조·구조 분석은 Fable 이 필요 없다 → Opus 기본 (속도·한도 절약). QA 도 평가자라 바꾸면 spec/09 7.4 */
   /** QA 모델 — 2026-09-08 Sonnet 5 기본 (비용 절감 ⑤): 심은 오류 프로브 8건 중 7건 검출·오탐 0(opus 상한판 8/8). 놓친 1건(시점 고정 표현)은 L0 코드 검사로 이관. 되돌리려면 QA_MODEL=claude-opus-5 */
   qaModel: process.env.QA_MODEL || "claude-sonnet-5",
