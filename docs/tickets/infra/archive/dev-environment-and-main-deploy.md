@@ -10,7 +10,7 @@
 | 발견 시점 | 2026-09-15 인프라 인수 — 실계정 대조(PR #343). 환경이 한 벌뿐이고 그것이 실운영이라 dev 머지가 검증 없이 실사용자에게 닿는다 |
 | 근거 문서 | `docs/infra/architecture.md` 6장(2026-09-15 미결) · `docs/infra/inventory.md` 1장 · 루트 `CLAUDE.md` Git 절(main = 배포 기준선) · `backend/load-test/README.md`(상한 실측) |
 | 중요도 | **Low** — 이번 주 안에 착수. 지금 당장 장애는 없지만, 사용자 유입(광고) 전에 "검증된 것만 운영에" 구조가 있어야 한다 |
-| 상태 | **전환 완료(2026-09-16 23:00~23:25 KST)** — 1~8단계 전부 완료. dev 머지 = 개발계 배포, main 머지 = 운영 배포(ECR pull) + `v1.0.0` 태그. 남은 것: 9단계 문서 개정·팀 공유, FE 개발계 테스트 방법(KAN-65) |
+| 상태 | **완료** — 1~9단계 전부 반영(2026-09-17 archive). dev 머지 = 개발계 배포, main 머지 = 운영 배포(ECR pull) + `v1.0.0` 태그. 후속은 별도 티켓: FE 개발계 테스트 방법(KAN-65), 개발계 API 2컨테이너 재측정(보류) |
 
 ## 배경 · 확인된 현재 상태 (2026-09-15 실측)
 
@@ -54,7 +54,7 @@
    - 6-워크플로: `deploy-api.yml` 변경안 준비 완료(2026-09-16, draft PR) — push 트리거 dev·main, `environment: api-dev|api-prod`, `vars.API_*`로 호스트·SG·시크릿·헬스 URL, 배포 job이 `build-push` 이미지를 `API_IMAGE`로 push.sh에 넘김(**4-4 포함**), `source-check` job("원본 브랜치 확인 (dev)"), main 성공 시 `tag` job(`v<package.json version>`). **머지 = 전환 시작** — 2026-09-16 23:00 KST 예정(사용자 확인 후). **1차 시도(PR #378, 21:06)**: 예정보다 먼저 머지돼 첫 개발계 배포 런이 `sts:AssumeRoleWithWebIdentity` 거부로 실패 → PR #380으로 revert. 원인: `environment:`를 쓰는 job은 OIDC sub가 `environment:api-dev` 형식이라 브랜치 형식만 신뢰한 정책에 안 맞음 → `setup-ci-envs.sh`에 environment sub 2개 추가(재실행 필요). **2차 실행(PR #381, 23:00 머지 ✅)**: 배포 job이 또 같은 거부로 실패 → 저장소 OIDC가 **불변 주체(immutable subject)** 모드라 실제 sub 접두사가 `repo:swm-runtime@310554093/ear_project@1315970250`이었음(평문 `repo:swm-runtime/ear_project` 줄은 하나도 매치 안 됨. dev 브랜치가 되던 것은 이전에 넣어 둔 ID 박힌 줄 덕분). `setup-ci-envs.sh`가 `gh api …/actions/oidc/customization/sub`로 접두사를 읽어 두 형식 × 4주체(총 8줄)를 넣도록 수정·재실행 → 실패 job만 재실행해 **개발계 배포 성공**(23:08, 이미지 `6ce8955`, 헬스 200, SG 폐쇄 확인)
 7. ✅ `main` 브랜치 보호 적용(2026-09-16 23:10) — 필수 체크 `검증 (lint · build · 유닛 · e2e)`·`원본 브랜치 확인 (dev)`, 리뷰 1, 관리자 포함, force push·삭제 금지(`setup-main-protection.sh`). **strict("브랜치가 main 최신 포함")는 끔** — main은 dev→main 머지 커밋을 자기만 갖게 되어 dev가 항상 '뒤'로 보이므로 켜면 모든 dev→main PR이 BEHIND로 막힌다(첫 PR에서 실측)
 8. ✅ **전환 완료**(2026-09-16 23:11~23:24) — dev→main PR #384 생성 → 박수헌 승인(23:18) → 머지(`808e526`) → 새 흐름 첫 운영 배포: 검증·이미지 빌드·`api-prod` 배포·태그 job 전부 success, 운영 헬스 연속 200(다운타임 없음), 운영 실행 이미지 = `808e526`, 태그 **`v1.0.0`** 생성. 절차·롤백은 `runbook.md` 4장
-9. `docs/infra/architecture.md`·`inventory.md`·`runbook.md` 개정(개발계·배포 흐름·알람·스냅샷)
+9. ✅ `docs/infra/architecture.md`·`inventory.md`·`README.md` 개정(2026-09-17 — 개발계 EC2·SG·롤·시크릿·CDN 개발 키·ECR·GitHub Environments·main 보호·CI 롤 신뢰 8줄, 6장 '개발계 없음' 해소). `runbook.md` 4장은 PR #381에서 새 흐름·롤백으로 갱신됨. 팀 공유(Slack)는 사용자가 게시
 
 전환 이후 팀에 공유할 것: dev 머지는 개발계에만 반영 · 운영 반영은 dev→main PR(작성자 외 리뷰 1명 승인) · main 배포마다 `v<package.json version>` 태그가 붙으니 운영 반영 전 version을 올린다 · **앱은 아직 두 채널 모두 운영 API를 본다**(`eas-update.yml` 미변경) — 개발계 API를 앱에서 보는 방법은 FE 티켓 KAN-65에서 FE가 선택(A preview 채널 전환 / B 앱 내 스위치). 그 전까지 개발계는 로컬 Metro(`EXPO_PUBLIC_API_BASE_URL`)로만.
 
@@ -76,3 +76,12 @@
 - Given API가 5xx를 1분에 N건 이상 내거나 `/health`가 실패하거나 백업이 24시간 안 돌았다 / When 알람 조건이 충족된다 / Then `ear-prod-alerts` 메일이 온다
 - Given DLM 정책이 있다 / When 하루가 지난다 / Then 각 EC2 루트 볼륨 스냅샷이 1개 늘고, 8일째 것은 지워져 있다
 - Given 전환 당일 / When 6~8단계를 수행한다 / Then 운영 API 다운타임 없이(헬스 연속 200) 배포 대상이 바뀌고, 절차·롤백이 `runbook.md`에 있다
+
+## 처리 기록
+
+| 항목 | 값 |
+|---|---|
+| 반영 날짜 | 2026-09-17 (전환 실행 2026-09-16 23:00~23:25 KST) |
+| 반영 PR | #353 · #356 · #357 · #360 · #361 · #362 · #363 · #374 · #381 · #384(dev→main, v1.0.0) · #385 · #386 · 문서 개정 PR(이 이동) |
+| 완료 조건 확인 | ① dev 머지 → `api-dev` 헬스 200·운영 무변경(#385 머지로 확인, 개발계 이미지 `e0fa08b`·운영 `808e526`) ② main 보호 — 승인 없는 머지 차단(PR #384에서 `REVIEW_REQUIRED` 확인), 필수 체크 2개 ③ main 머지 → 운영 헬스 200·태그 `v1.0.0`·운영 실행 이미지 = 개발계에서 검증한 SHA ④ 전환 당일 헬스 연속 200(다운타임 없음) |
+| 남긴 후속 | KAN-65(FE 개발계 테스트 방법) · 개발계 API 컨테이너 2개 + Caddy 분배 재측정(보류) · SSM으로 22번 폐쇄·Dependabot(후속 후보 그대로) |
