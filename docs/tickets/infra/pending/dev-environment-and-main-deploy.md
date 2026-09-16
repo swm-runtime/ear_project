@@ -63,6 +63,8 @@
 ## 후속 후보 (이 티켓 범위 밖)
 
 - SSM Session Manager로 SG 22번 폐쇄(공존 후 전환) · Dependabot·시크릿 스캐닝 · API 프로세스 2~4개 + Redis(동시 100명 근처) · Route 53 이관.
+- **API 프로세스 복제 실측**(2026-09-16 개발계 램프 결과: t4g.small 상한 초당 150~170 · 동시 청취 약 350명, 병목 Node 단일 프로세스 CPU 105%, PostgreSQL 42%): 개발계에서 api 컨테이너 2개 + Caddy 라운드 로빈으로 같은 램프를 다시 돌려 상한 변화를 본다(오버라이드 compose·Caddyfile, 약 30분). 운영 적용 조건은 인메모리 레이트 리밋의 Redis 이전. 결과: `backend/load-test/results/2026-09-16-dev/REPORT.md`(로컬).
+- compose 프로젝트 이름이 `name: ear-prod` 고정이라 개발계 컨테이너도 `ear-prod-api-1`로 보인다(운영 오인 위험). `${COMPOSE_PROJECT:-ear-prod}`로 열고 개발계만 `ear-dev`로 — 이름을 바꾸면 DB 볼륨이 새로 생기므로 개발계 작업 재개 시 콘텐츠 동기화와 함께.
 - 트래픽 스파이크 대비: 캠페인 D-1 t4g.large 상향 + API 컨테이너 3~4 복제(상한 ~500~600 req/s), 사용자 무관 응답 캐시, 05시 푸시 분산. ALB·RDS는 동시 수천 명 규모부터(ALB는 DB 분리와 세트).
 
 ## 완료 조건
