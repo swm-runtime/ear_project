@@ -1,5 +1,7 @@
 /** convention.md 3.2 — 모듈 밖으로 공개되는 타입만 둔다 */
 
+import { YearsOfExperienceRange } from '@/modules/user/user.enum';
+
 import {
   ContentDifficulty,
   ContentFormat,
@@ -51,11 +53,24 @@ export interface ContentCandidateQuery {
  * 검증을 통과한 `enrichment.json`(`ai/metadata-pipeline.md` 4.4)의 저장 입력.
  * 생략된 키는 저장하지 않는다 — 결손은 스코어링 중립 처리다(domain.md 5.1·5.6).
  */
+/**
+ * 이 콘텐츠가 맞는 청자 — (직군, 연차 구간) 한 쌍. 값 집합은 온보딩 커리어 입력과 같다
+ * (`JOB_CATEGORIES` · `YearsOfExperienceRange`) — 그래야 사용자 프로필과 그대로 대조된다
+ * (`drip-scheduling.md` 4.2 ③ 커리어 적합도, domain.md 5.1 — 신설 2026-09-11).
+ */
+export interface TargetAudience {
+  jobCategory: string;
+  yearsOfExperience: YearsOfExperienceRange;
+}
+
 export interface EnrichmentInput {
+  /** `enrichment.json`의 `schema_version`. 생략된 구형 파일은 1 (`CURRENT_ENRICHMENT_SCHEMA_VERSION`) */
+  schemaVersion: number;
   difficulty?: ContentDifficulty;
   format?: ContentFormat;
   isEvergreen?: boolean;
   keywords?: string[];
+  targetAudiences?: TargetAudience[];
   embedding?: { model: string; vector: number[] };
 }
 

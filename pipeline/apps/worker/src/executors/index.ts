@@ -18,6 +18,8 @@ class ApiExecutor implements Executor {
   }
 }
 
+export { setJobAbort, jobAbortSignal } from "./abort.js";
+
 export function makeExecutor(kind: ExecutorKind, model?: string): Executor {
   switch (kind) {
     case "claude-cli": return new ClaudeCliExecutor(model);

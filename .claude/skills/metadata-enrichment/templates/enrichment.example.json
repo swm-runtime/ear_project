@@ -1,10 +1,16 @@
 {
-  "_설명": "docs/ai/metadata-pipeline.md 4.4의 산출물 예시. 확정본에는 _로 시작하는 키를 넣지 않는다 — scripts/finalize.py가 거부한다. 판정 불능 항목은 키 자체를 생략한다.",
+  "_설명": "docs/ai/metadata-pipeline.md 4.4의 산출물 예시(형식 버전 2). 확정본에는 _로 시작하는 키를 넣지 않는다 — scripts/finalize.py가 거부한다. 판정 불능 항목은 키 자체를 생략한다.",
   "_임베딩": "embedding 키는 모델 확정(domain.md 15.1 #11) 전까지 넣지 않는다. 확정 후 형식: { \"model\": \"<모델 식별자>\", \"vector\": [0.1, ...] }",
   "_폴백": "대본 없이 제목+설명으로 산출한 경우에만 \"source\": \"title_description\" 을 추가한다(명세 4.5)",
+  "_청자": "target_audiences는 직군(GET /job-categories 목록)·연차(0-1|2-3|4-6|7+) 값만, 최대 8세트. 직군·연차 무관한 범용 대본이면 키를 생략한다",
 
+  "schema_version": 2,
   "difficulty": "beginner",
   "format": "overview",
   "is_evergreen": true,
-  "keywords": ["ISA 계좌", "비과세 한도", "만기 전환 전략"]
+  "keywords": ["ISA 계좌", "비과세 한도", "만기 전환 전략"],
+  "target_audiences": [
+    { "job_category": "개발", "years_of_experience": "2-3" },
+    { "job_category": "개발", "years_of_experience": "4-6" }
+  ]
 }

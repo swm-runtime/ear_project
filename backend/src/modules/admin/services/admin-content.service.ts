@@ -167,6 +167,7 @@ export class AdminContentService {
           await this.contentService.applyEnrichment(
             published,
             enrichment.data,
+            now,
             manager,
           );
         }
@@ -366,6 +367,7 @@ export class AdminContentService {
           await this.contentService.applyEnrichment(
             republished,
             enrichment.data,
+            new Date(),
             manager,
           );
         }
@@ -446,6 +448,7 @@ export class AdminContentService {
       await this.contentService.applyEnrichment(
         current,
         enrichment.data,
+        new Date(),
         manager,
       );
 

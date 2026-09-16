@@ -342,7 +342,7 @@ export const useLibraryScreen = () => {
         // 목록이 이미 아는 메타 — 플레이어가 진입과 동시에 그린다(player-uiux.md 4.3)
         meta: {
           title: item.content.title,
-          authorName: item.content.authorName,
+          authorName: item.content.authorName ?? undefined,
           sourceName: item.content.sourceName,
           thumbnailUrl: item.content.thumbnailUrl,
           durationSec: item.content.durationSec,

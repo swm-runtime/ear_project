@@ -73,10 +73,7 @@ export default function LibraryItemCard({
           <Text style={styles.title} numberOfLines={1}>
             {item.content.title}
           </Text>
-          {/* 제목 → 출처·저자 → 시간 세 줄. 온보딩 선택 카드와 같은 배열이다(2026-09-02) */}
-          <Text style={styles.meta} numberOfLines={1}>
-            {item.content.sourceName} · {item.content.authorName}
-          </Text>
+          {/* 제목 → 시간 두 줄. 출처·저자는 콘텐츠 상세에서만 보인다(결정 2026-09-15) */}
           <Text style={styles.meta} numberOfLines={1}>
             {formatDuration(item.content.durationSec)}
           </Text>

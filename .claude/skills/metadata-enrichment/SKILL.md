@@ -1,6 +1,6 @@
 ---
 name: metadata-enrichment
-description: 발행 준비된 콘텐츠의 대본에서 추천 메타 4종(difficulty·format·is_evergreen·keywords)을 판정해 enrichment.json을 만들 때 사용 — origin(파트너/AI 생성) 무관 전 콘텐츠 대상. 임베딩(Phase B)은 모델 확정 전까지 생략
+description: 발행 준비된 콘텐츠의 대본에서 추천 메타 5종(difficulty·format·is_evergreen·keywords·target_audiences)을 판정해 enrichment.json(schema_version 2)을 만들 때 사용 — origin(파트너/AI 생성) 무관 전 콘텐츠 대상, 기존 발행분 재부여 포함. 임베딩(Phase B)은 모델 확정 전까지 생략
 arguments: [script-path]
 argument-hint: [대본 파일 경로 — 생략 시 대본 텍스트나 위치를 사용자에게 요청]
 ---
@@ -35,13 +35,14 @@ argument-hint: [대본 파일 경로 — 생략 시 대본 텍스트나 위치�
 | title · description | 콘텐츠 제목·설명. AI 생성이면 같은 runs 디렉토리의 `upload-meta.json`에서 읽는다 |
 | topic_names[] | 부여된 주제 — 키워드가 주제의 단순 반복이 되지 않게 대조용 |
 | origin | `partner` / `ai_generated` |
+| job_categories[] · years_ranges[] | 청자 판정의 값 집합 — 직군은 `backend/src/modules/user/user.constant.ts`의 `JOB_CATEGORIES`(`GET /job-categories`와 동일), 연차 구간은 `0-1 · 2-3 · 4-6 · 7+`. **이 목록 밖의 값을 만들지 않는다** |
 
 - **대본이 없는 파트너 콘텐츠**면 5장의 폴백으로 간다.
 - **시리즈(여러 편)면 편 단위로 각각 실행한다.** 시리즈 공통 산출물은 만들지 않는다 — 스코어링 단위가 콘텐츠 행이다.
 
 ### 2. 메타 판정 (Phase A)
 
-[`reference/judgment-criteria.md`](reference/judgment-criteria.md)를 읽고 대본 전문을 근거로 4종을 판정한다.
+[`reference/judgment-criteria.md`](reference/judgment-criteria.md)를 읽고 대본 전문을 근거로 5종을 판정한다.
 
 | 항목 | 값 집합 |
 |---|---|
@@ -49,13 +50,14 @@ argument-hint: [대본 파일 경로 — 생략 시 대본 텍스트나 위치�
 | `format` | `news_analysis` \| `howto` \| `interview` \| `opinion` \| `case_study` \| `overview` — 혼합이면 분량 기준 지배 형식 하나 |
 | `is_evergreen` | `true` \| `false` |
 | `keywords` | 대본에 실제로 다뤄진 세부 개념의 명사구 3~8개. 주제명 반복 금지 — 주제보다 잘게 잡는 것이 존재 이유다 |
+| `target_audiences` | 이 대본이 맞는 청자 — `{ job_category, years_of_experience }` 1~8세트, 복수 가능. 값은 1단계 값 집합 안에서만. **직군·연차 무관한 범용 대본이면 키 생략**(억지로 좁히지 않는다 — 소폭 가점 항목이라 없어도 불리하지 않다). 신설 2026-09-11 |
 
 - 각 판정에 **대본의 어느 대목이 근거인지** 한 줄씩 함께 남긴다(4단계 보고용). 근거를 못 대는 판정은 판정 불능이다.
 - 키워드가 3개 미만으로 나오면 억지로 채우지 않는다 — 나온 만큼만(1~2개 허용), 0개면 키 생략.
 
 ### 3. 산출·검증 (Phase C)
 
-1. 판정 결과를 대본과 같은 디렉토리에 `enrichment.draft.json`으로 쓴다. 형식은 [`templates/enrichment.example.json`](templates/enrichment.example.json) — 판정 불능 키는 넣지 않는다.
+1. 판정 결과를 대본과 같은 디렉토리에 `enrichment.draft.json`으로 쓴다. 형식은 [`templates/enrichment.example.json`](templates/enrichment.example.json) — **`schema_version: 2`를 항상 넣고**, 판정 불능 키는 넣지 않는다.
 2. 검증 스크립트를 돌린다:
 
    ```bash
@@ -71,7 +73,7 @@ argument-hint: [대본 파일 경로 — 생략 시 대본 텍스트나 위치�
 
 사용자에게 남긴다:
 
-- 산출 파일 경로와 내용 요약(4종 값 + 키워드 목록)
+- 산출 파일 경로와 내용 요약(5종 값 + 키워드·청자 세트 목록)
 - 각 판정의 근거 한 줄
 - 생략한 키와 사유(판정 불능·폴백 등) — 생략이 있으면 **partial 상태**임을 명시
 - 다음 단계 안내: 관리자 업로드 화면의 **추천 메타 파일 입력**(`admin.md` 3.1)에 첨부. 개별 필드 수동 입력 경로는 없다
@@ -94,6 +96,7 @@ AI 생성 콘텐츠의 `upload-meta.json`과는 **별개 파일**로 둔다 — 
 | 키워드 3개 미만 | 나온 만큼만 낸다(1~2개 허용) · 0개면 키 생략 |
 | 시리즈 대본 | 편 단위 각각 실행 |
 | 재발행인데 대본 무변경(오디오·썸네일만 교체) | 재실행 생략 가능 — 임베딩 `content_version` 갱신은 서버 몫(미결) |
+| **기존 발행분 재부여**(형식 버전이 올라갔거나 메타가 없음) | 대본으로 이 스킬을 그대로 실행해 `enrichment.json`을 만들고, 관리자 콘솔 재발행에서 **`enrichment_file`만** 첨부한다(`admin-api.md` 4.10 — 버전 무변경·재생 위치 보존). 대상은 어드민 목록의 `enrichment_schema_version`이 2 미만 또는 null인 콘텐츠 |
 
 ## Phase B — 임베딩 (모델 확정 후 추가)
 

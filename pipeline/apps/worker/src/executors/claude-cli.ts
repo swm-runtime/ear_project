@@ -1,3 +1,7 @@
+import { createHash } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import { jobAbortSignal } from "./abort.js";
 import { spawn } from "node:child_process";
 import readline from "node:readline";
 import type { ExecRequest, ExecResult, Executor, Progress } from "./types.js";
@@ -15,7 +19,25 @@ export class ClaudeCliExecutor implements Executor {
   readonly kind = "claude-cli" as const;
   constructor(private defaultModel?: string) {}
 
-  run<T>(req: ExecRequest): Promise<ExecResult<T>> {
+  /**
+   * 안전장치 (2026-09-12): Opus 5 가 "safeguards flagged this message ([reasoning_extraction])" 로 거부한 원인은 완료 보고 스키마의
+   * "검토했으나 내지 않은 축·탈락 사유" 필드(추론 과정을 내놓으라는 요구)였다 — 필드를 뺀 뒤 Opus 가 통과. 폴백 모델은 SAFEGUARD_FALLBACK_MODEL 을
+   * 명시할 때만 쓴다(기본 없음): 모델을 바꾸면 결과가 달라지므로 자동으로 바꾸지 않는다. 거부되면 원인 후보를 붙여 실패시킨다.
+   */
+  async run<T>(req: ExecRequest): Promise<ExecResult<T>> {
+    try { return await this.runOnce<T>(req); }
+    catch (e: any) {
+      const msg = String(e?.message ?? e);
+      const model = req.model ?? this.defaultModel ?? "";
+      const fallback = process.env.SAFEGUARD_FALLBACK_MODEL || ""; // 기본 없음 — 모델을 바꾸면 결과가 달라진다(박수헌 2026-09-12). 원인은 요청 쪽에서 고친다
+      if (!/safeguards flagged/i.test(msg)) throw e;
+      if (!fallback || model === fallback) throw new Error(`${msg}\n  → 원인 후보: 완료 보고 스키마에 "검토했으나 버린 것과 사유" 같은 추론 과정 필드가 있는가 (2026-09-12 군집화 axis_pool·dropped_notes). SAFEGUARD_FALLBACK_MODEL 을 두면 그 모델로 재시도한다`);
+      console.log(`  ⚠ ${model} 안전장치 거부 — ${fallback} 로 폴백 (${msg.match(/Details: `([^`]+)`/)?.[1] ?? "사유 미상"})`);
+      return this.runOnce<T>({ ...req, model: fallback });
+    }
+  }
+
+  private runOnce<T>(req: ExecRequest): Promise<ExecResult<T>> {
     const args = [
       "-p",
       "--output-format", "stream-json", "--verbose",
@@ -30,6 +52,14 @@ export class ClaudeCliExecutor implements Executor {
     const model = req.model ?? this.defaultModel;
     if (model) args.push("--model", model);
     if (req.effort) args.push("--effort", req.effort);
+    if (req.systemPrompt) {
+      // 파일 이름은 본문 해시 — 같은 블록이면 같은 파일을 다시 쓴다(내용 동일). 인자 길이 한계를 피하려고 파일로 넘긴다
+      const dir = path.join(req.cwd, ".system-prompts");
+      fs.mkdirSync(dir, { recursive: true });
+      const file = path.join(dir, `${createHash("sha1").update(req.systemPrompt).digest("hex").slice(0, 16)}.md`);
+      if (!fs.existsSync(file)) fs.writeFileSync(file, req.systemPrompt, "utf8");
+      args.push("--append-system-prompt-file", file, "--exclude-dynamic-system-prompt-sections");
+    }
 
     return new Promise((resolve, reject) => {
       const started = Date.now();
@@ -90,10 +120,16 @@ export class ClaudeCliExecutor implements Executor {
         child.kill("SIGTERM");
         setTimeout(() => child.kill("SIGKILL"), 10_000);
       }, req.timeoutMs);
+      // 작업 취소 (2026-09-12): 콘솔이 취소하면 index.ts 가 abort → 자식 프로세스를 끝내고 취소 오류로 거절한다
+      const abort = jobAbortSignal();
+      const onAbort = () => { child.kill("SIGTERM"); setTimeout(() => child.kill("SIGKILL"), 5_000); };
+      abort?.addEventListener("abort", onAbort, { once: true });
 
-      child.on("error", (e) => { clearTimeout(timer); reject(new Error(`claude 실행 실패: ${e.message}`)); });
+      child.on("error", (e) => { clearTimeout(timer); abort?.removeEventListener("abort", onAbort); reject(new Error(`claude 실행 실패: ${e.message}`)); });
       child.on("close", (code) => {
         clearTimeout(timer);
+        abort?.removeEventListener("abort", onAbort);
+        if (abort?.aborted) return reject(Object.assign(new Error("작업이 취소됨 (콘솔) — claude 프로세스 종료"), { name: "JobCancelled" }));
         const durationMs = Date.now() - started;
         if (!final) return reject(new Error(`claude -p 결과 없음 (exit ${code}, ${Math.round(durationMs / 1000)}s). stderr: ${err.slice(-800)}`));
         if (final.is_error || final.subtype !== "success") return reject(new Error(`claude -p 오류: ${String(final.result ?? final.subtype).slice(0, 800)}`));

@@ -315,6 +315,7 @@
 **Response 200** — 갱신 후 현재 동의 상태.
 
 - **`UPDATE`하지 않고 행을 추가한다.** 철회도 `is_agreed: false` 행 추가다(`domain.md` 3.2).
+- **필수 동의(`terms`·`privacy`·`age_confirmation`)는 철회할 수 없다.** `is_agreed: false`를 보내면 **400 `CONSENT_REQUIRED`**(가입 4.2와 같은 코드 — 반영 2026-09-15)다. 약관을 거부하는 경로는 탈퇴(4.7)다. 철회 행 추가는 마케팅 같은 선택 동의에만 해당한다.
 - 마케팅 동의만 바꿨는데 약관 동의 이력이 함께 갱신되면 안 된다.
 
 ---
@@ -619,7 +620,7 @@
 | `AUTH_PROVIDER_TOKEN_INVALID` | 401 | false | 토스트 후 시작 화면 유지 |
 | `AUTH_PROVIDER_UNAVAILABLE` | 502 | **true** | [다시 시도] — 제공자 인증부터 재수행 |
 | `AUTH_SIGNUP_TOKEN_EXPIRED` | 401 | false | 시작 화면으로, 로그인부터 재시작 |
-| `CONSENT_REQUIRED` | 400 | false | 필수 동의 체크 유도 |
+| `CONSENT_REQUIRED` | 400 | false | 필수 동의 체크 유도. 4.5에서 필수 동의 철회(`is_agreed: false`)를 시도해도 같은 코드(정상 클라이언트는 도달하지 않음) |
 | `CONSENT_VERSION_STALE` | 409 | false | 최신 약관 다시 조회 후 재동의 |
 | `AUTH_REFRESH_TOKEN_INVALID` | 401 | false | 로컬 세션 정리 → 시작 화면 |
 | `AUTH_REFRESH_TOKEN_REUSED` | 401 | false | 동일. 서버는 전 세션 무효화 |

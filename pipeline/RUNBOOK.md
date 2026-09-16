@@ -21,7 +21,7 @@ AI 단계는 **노트북 워커가 떠 있을 때만** 진행된다. 콘솔에�
 1. Node 20+, `cd pipeline && npm install`.
 2. Claude Code 설치 후 `claude` → `/login` (워커의 AI 단계가 이 로그인 = 본인 구독을 쓴다. API 키 없음).
 3. `apps/worker/.env` — `cp apps/worker/.env.example apps/worker/.env` 후 값을 채운다. 최소: `DATABASE_URL`, `PIPELINE_WEB_URL`, `PIPELINE_WORKER_TOKEN`.
-   비밀은 두 개뿐이다 — `DATABASE_URL`(Supabase 비밀번호 포함)과 `PIPELINE_WORKER_TOKEN`(웹·워커 공유 키). 새 팀원은 이 둘만 기존 팀원에게 **안전한 경로**(비밀 관리 도구·만료되는 메시지)로 받는다. `.env` 파일을 통째로 주고받거나 채팅에 붙이지 않는다. `ELEVENLABS_API_KEY`는 서버 워커 전용이라 노트북에는 넣지 않는다.
+   비밀은 두 개뿐이다 — `DATABASE_URL`(Supabase 비밀번호 포함)과 `PIPELINE_WORKER_TOKEN`(웹·워커 공유 키). 새 팀원은 이 둘만 기존 팀원에게 **안전한 경로**(비밀 관리 도구·만료되는 메시지)로 받는다. `.env` 파일을 통째로 주고받거나 채팅에 붙이지 않는다. `ELEVENLABS_API_KEY`·`OPENAI_API_KEY`는 서버 워커 전용이라 노트북에는 넣지 않는다.
 4. **산출물 저장소 접근** — `S3_MODE=direct` + `AWS_PROFILE=<SSO 프로필>`. 워커가 AWS SDK 로 S3 를 직접 읽고 쓴다. SSO 세션은 **매일 만료**되므로 3장의 `aws sso login`이 매일 켜기의 첫 단계다.
 5. `WORK_ROOT`는 레포 밖 경로(기본 `pipeline/.work`). 지워도 S3에서 다시 내려받는다.
 
@@ -63,6 +63,11 @@ npm run worker                # 계속 폴링. 끄려면 Ctrl+C (진행 중 작�
 
 **비용 목표(2026-09-09 박수헌): 대본 생성 완료(설계 + 대본 + L0 수정 + QA 통과)까지 편당 $1.5.** 상한이 아니라 목표다. 현재 구성(설계·대본 opus-5, QA Sonnet 5, 단발 호출)의 실측은 약 $6 (T260909-002: 3.48 + 1.92 + 0.65), 구 방식은 $13~20. 비평은 별도(약 $2). LLM 비용은 구독이라 실제 청구는 없고, TTS만 실비다.
 
+- **후보 보강** (2026-09-10): 백로그의 held·proposed 행에 [보강] 버튼 — 빈 역할(없으면 발행처 다양화: 다른 발행처의 근거 앵커)을 웹 검색(WebSearch)으로 채우고 그 후보만 군집화 v2 로 재판정한다. AI 워커가 집는다(`requires_ai`). 후보당 1회, $1 안팎. 검색 소스는 `sources.origin='search'`, 풀 밖 사이트는 도메인 후보로만 등록된다(판정 후 다음 보강에서 쓰인다). 마이그레이션 0019.
+
+- **추천 메타 자동 부여** (2026-09-11): 패키지가 끝나면 `enrich` 작업이 자동으로 걸려 AI 워커가 `episodes/<id>/enrichment.json` 을 만든다. 업로드 화면이 "추천 메타 v2 첨부됨"을 보이면 발행 때 같이 나간다. 없으면 발행은 되고 아래 재부여로 소급.
+- **추천 메타 재부여** (KAN-53·54, 0021): 제품 발행 목록의 "구형·없음 메타만" 필터 → [다시 뽑기](AI 워커 `enrich`, Sonnet, 편당 $0.1~0.3) → 행에 "준비됨"이 뜨면 [반영]. 반영은 `enrichment_file` 단독 PATCH 라 콘텐츠 버전이 오르지 않는다. 대본은 백로그의 `published_content_ref` 로 찾고, 없는 콘텐츠(수동 업로드)는 제목+설명 폴백. 판정 기준 파일은 레포 `.claude/skills/metadata-enrichment/reference/judgment-criteria.md` — 워커 체크아웃에 있어야 한다.
+
 ## 5. 막혔을 때 — 상황별 대처
 
 | 증상 | 원인 | 대처 |
@@ -95,14 +100,24 @@ npm run worker                # 계속 폴링. 끄려면 Ctrl+C (진행 중 작�
 | `CRITIC_RUBRIC` | `v2` | 비평 루브릭 |
 | `S3_MODE` / `AWS_PROFILE` | `direct` / SSO 프로필 | 산출물 저장소 접근. 비워 두면 `PIPELINE_WEB_URL` 유무로 정해지니 `direct`를 명시한다 |
 | `TTS_SPEED_YUNA` / `TTS_SPEED_EUM` | 1.2 / 1 | 화자별 배속 |
+| `OPENAI_API_KEY` | 없음 | 썸네일 생성(KAN-50). **서버 워커 전용** — 비우면 그 워커는 `thumbnail` 작업을 집지 않고 큐에 남긴다 |
+| `THUMBNAIL_MODEL` / `THUMBNAIL_QUALITY` | `gpt-image-2` / `medium` | 이미지 모델. 확정 2026-09-10 — mini 가 3배 싸지만 기준은 **화풍 일관성**이다. 월 100편 약 $3 |
+| `THUMBNAIL_ANCHOR_KEY` | 없음 | 스타일 앵커의 **기본값**. 실제 값은 콘솔 썸네일 탭에서 지정하며 `settings.thumbnail.anchor` 가 이긴다 |
 
 바꾼 뒤에는 워커 재시작. 어느 구성으로 만든 에피소드인지는 `runs.prompt_version`(예: `full-v5.2+2stage`, `qa-v1.2+single`)로 구분한다.
+
+- **Opus 안전장치 거부** (2026-09-12): "safeguards flagged this message ([reasoning_extraction])"의 원인은 완료 보고 스키마에 "검토했으나 내지 않은 축·탈락 사유"를 내라는 필드(군집화 `axis_pool`·`dropped_notes`)였다 — 추론 과정을 내놓으라는 요구로 읽힌다(CLI 2.1.269). 필드를 뺐다. 다른 단계에서 같은 오류가 나면 그 단계의 스키마에서 "왜 버렸나·무엇을 검토했나" 류 필드를 의심한다. `SAFEGUARD_FALLBACK_MODEL` 을 두면 그 모델로 한 번 재시도하지만 기본은 비어 있다 — 모델을 바꾸면 결과가 달라진다.
 
 ## 7. 규칙을 고칠 때
 
 - 대본 규칙·골드·QA 프롬프트·루브릭·TTS 음차 사전은 **콘솔 → 규칙 자산(`/assets`)** 에서 새 버전(draft) 저장 → 활성화. git 의 `docs/ai/skills/`는 스냅샷이다.
 - 단계 규칙(spec/02~07)·프롬프트 조립(`packages/pipeline`)은 코드/문서 PR. 규칙(`guidelines`)을 고치면 루브릭·QA 프롬프트·생성 프롬프트를 같이 본다(spec/09 4.3).
 - 에피소드는 만들 때의 규칙 버전에 고정된다(`episodes.asset_versions`). 규칙을 바꿔도 이미 만든 편의 QA·비평은 그 버전으로 돈다.
+
+- **루브릭 개정안 측정** (0020, 2026-09-11): 개정안을 활성화하기 전에 회귀 세트(사람 판정 21편)에 돌려 편향을 잰다. ① 개정안을 `prompt_assets` 에 **draft** 로 넣고(콘솔 /assets 새 버전 저장, 활성화하지 않음) ② `critic_measure` 작업을 큐에 넣는다(`.work/verdicts/enqueue-measure.mts <버전>`) — AI 워커 여러 대가 나눠 집는다 ③ 리포트는 `episodes/<id>/critic-measure-<버전>.md` 로 따로 쓰고 사람 판정이 붙은 `critic-report-v2.md` 는 건드리지 않는다 ④ `.work/verdicts/measure-compare.mts <버전>` 으로 항목별 편향을 이전과 비교한 뒤 활성화를 정한다. 옛 코드의 워커는 이 유형을 몰라 실패만 한다(덮어쓰기 없음) — 측정 전에 워커를 최신으로.
+
+- **활성화는 자동이다 (2026-09-12)**: `docs/ai/skills/**` 가 dev 에 머지되면 배포 워크플로가 서버에서 `assets:import --force` 를 돌려 git 사본을 새 active 버전으로 올린다. 사람이 콘솔이나 CLI 로 활성화할 일은 없다(응급으로 되돌릴 때만 콘솔 /assets). 콘솔에서 고친 draft 는 여전히 `assets:export` 로 git 에 내려 PR 을 거친다.
+- **옛 워커는 작업을 집지 않는다 (2026-09-12)**: 같은 배포가 `settings.worker.min_rev` 에 커밋 시각을 적고, 워커는 자기 커밋이 그보다 오래됐으면 "git pull 후 재시작" 로그를 내고 60초마다 다시 볼 뿐 작업을 집지 않는다. `npm run rev:status` 로 확인. 노트북 워커를 올리기 전 `git pull` 이 습관이 안 돼도 사고는 안 난다.
 
 ## 8. 참고
 

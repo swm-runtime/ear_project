@@ -77,6 +77,9 @@ Frontend는 다음 5가지를 책임진다.
 | `production` | 스토어 AAB | ○ |
 
 - **발행은 CI가 한다** — `.github/workflows/eas-update.yml`이 `dev` merge → `preview`, `main` merge → `production`으로 자동 발행한다. 팀원은 로컬 EAS CLI 없이 merge만 하면 된다. 수동 발행은 `workflow_dispatch` 또는 조직 멤버의 `eas update`.
+- **실기기 검증은 `preview` 빌드로 한다**(결정 2026-09-15 — `changes/archive/verify-on-preview-build.md`). 스토어 빌드는 `production` 채널이라 `dev` merge가 닿지 않는다 — 스토어 빌드로 검증하면 **고친 것이 안 고쳐진 것처럼 보인다**(2026-09-15 실제 발생). 검증이 끝난 것만 `main`을 통해 스토어 빌드로 간다. `dev` merge마다 `production`에도 발행하는 안은 검증 기기와 실사용자 기기가 같아져 버렸다.
+- **검증을 부탁할 때 기대 번들 ID(8자리)를 함께 준다.** 기기에 붙었는지를 눈으로 가를 수 있어야 한다. 발행 로그의 `Android update ID`·`iOS update ID` 또는 `eas update:list`의 값과 대조한다. 앞 6자리는 UUIDv7 시각 비트라 약 4.6시간을 한 값으로 뭉치므로 8자리를 쓴다.
+- `preview` 빌드도 `runtimeVersion`이 맞아야 받는다. 정책 전환 전 빌드(2026-09-06 vc=6)는 지문이 옛 값이라 지금 발행을 받지 못한다 — **새로 뽑는다.**
 - **`runtimeVersion`은 고정 문자열이다**(`app.json`) — **`fingerprint` 정책을 쓰지 않는다.**
 
   처음에는 fingerprint 정책이었다. 사람이 "이 변경이 네이티브인가"를 판단하지 않아도 된다는 것이 이유였는데, **이 프로젝트에서 재현되지 않았다.** 같은 트리에서 계산 주체마다 값이 다르다(2026-09-07 실측).

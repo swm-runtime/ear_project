@@ -3,7 +3,7 @@ import path from "node:path";
 import { cfg, executedBy } from "../config.js";
 import { enqueue, getEpisode, insertRun, setBacklogStatus, setJobProgress, upsertEpisode, type Job } from "../db.js";
 import type { Executor } from "../executors/index.js";
-import { buildQaPrompt, buildQaPromptInline, QA_SCHEMA, QA_INLINE_SCHEMA, todayKst } from "@ear/pipeline";
+import { buildQaPrompt, buildQaPromptInlineParts, QA_SCHEMA, QA_INLINE_SCHEMA, todayKst } from "@ear/pipeline";
 import { log } from "../util.js";
 import { prepareAssets, workerRev } from "../assets.js";
 import { localPathOf, pullPrefix, pushPrefix, s3Key } from "../storage.js";
@@ -33,14 +33,14 @@ export async function runQa(job: Job, ex: Executor) {
     // 단발 호출 (2026-09-08 비용 절감 ②): 입력 3종 + 자산을 인라인, 도구 없음. 리포트는 JSON 으로 받아 워커가 qa-report.md 에 추기한다
     const read = (p: string) => fs.readFile(p, "utf8");
     const [scriptMd, claimsMd, sourcesMd] = await Promise.all([read(scriptFile ?? path.join(dir, "script.md")), read(path.join(dir, "claims.md")), read(path.join(dir, "sources.md"))]);
-    const prompt = buildQaPromptInline({
+    const parts = buildQaPromptInlineParts({
       episodeId, attempt, qaPromptMd: bundle.contents["skills/qa/prompt.md"], specQaMd: bundle.contents["spec/05-qa.md"], scriptMd, claimsMd, sourcesMd,
       priorFailures: (job.payload.prior_failures ?? []) as QaOut["failures"], fixes: (job.payload.fixes ?? []) as { location: string; before: string; after: string }[],
       humanRevision: !!job.payload.human_revision,
     });
-    log(`  qa ${episodeId} attempt ${attempt} (단발, 프롬프트 ${Math.round(prompt.length / 1000)}K자)`);
+    log(`  qa ${episodeId} attempt ${attempt} (단발, 공유 ${Math.round(parts.system.length / 1000)}K + 편별 ${Math.round(parts.user.length / 1000)}K자)`);
     const ri = await ex.run<QaInlineOut>({
-      prompt, schema: QA_INLINE_SCHEMA, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 30 * 60_000, model: cfg.qaModel, maxThinkingTokens: cfg.thinkingQa,
+      prompt: parts.user, systemPrompt: parts.system, schema: QA_INLINE_SCHEMA, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 30 * 60_000, model: cfg.qaModel, maxThinkingTokens: cfg.thinkingQa,
       onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: `QA ${qaRound}/${MAX_ATTEMPTS}회 (대본 ${attempt}회차, 단발)`, detail: pr.turns > 0 ? "발췌 대조·판정 중 (도구 없음)" : pr.detail }).catch(() => {}),
     });
     const reportFile = path.join(dir, "qa-report.md");

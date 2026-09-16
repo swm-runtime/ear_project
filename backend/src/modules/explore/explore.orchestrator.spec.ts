@@ -9,6 +9,7 @@ import { ContentService } from '@/modules/content/services/content.service';
 import { DripExclusionReason } from '@/modules/drip/drip.enum';
 import { UserPreferenceWeights } from '@/modules/drip/drip.types';
 import { DripExclusionService } from '@/modules/drip/services/drip-exclusion.service';
+import { DripScoringService } from '@/modules/drip/services/drip-scoring.service';
 import { PreferenceVectorService } from '@/modules/drip/services/preference-vector.service';
 import { Topic } from '@/modules/interest/entities/topic.entity';
 import { UserInterest } from '@/modules/interest/entities/user-interest.entity';
@@ -133,6 +134,7 @@ describe('ExploreOrchestrator', () => {
         .fn()
         .mockResolvedValue({ items: [], hasNext: false }),
       findTopicViews: jest.fn().mockResolvedValue([]),
+      findScorableEmbeddings: jest.fn().mockResolvedValue(new Map()),
       getPublishedById: jest.fn().mockResolvedValue(buildContent(CONTENT_ID)),
       getById: jest.fn().mockResolvedValue(buildContent(CONTENT_ID)),
     } as unknown as jest.Mocked<ContentService>;
@@ -188,6 +190,8 @@ describe('ExploreOrchestrator', () => {
       topicService,
       dripExclusionService,
       preferenceVectorService,
+      // 순수 판정 서비스라 모킹하지 않는다 — 랭킹 규칙 자체가 검증 대상이다
+      new DripScoringService(),
       dataSource,
     );
   });
@@ -254,6 +258,74 @@ describe('ExploreOrchestrator', () => {
       expect(playbackService.findRecentSignals).not.toHaveBeenCalled();
       expect(playbackService.countSignals).not.toHaveBeenCalled();
       expect(preferenceVectorService.findWeights).toHaveBeenCalledWith(USER_ID);
+    });
+
+    it('같은 주제의 콘텐츠도 취향 임베딩에 가까운 편이 앞에 온다 — 주제 가중치만으로는 동점이다', async () => {
+      // given — 둘 다 TOPIC_ID 하나뿐이라 주제 점수는 같다. 취향 벡터는 OTHER 쪽과 같은 방향
+      userInterestService.findActiveTopicIds.mockResolvedValue([TOPIC_ID]);
+      preferenceVectorService.findWeights.mockResolvedValue({
+        ...buildPreference(5, { [TOPIC_ID]: 2 }),
+        tasteEmbedding: [0, 1],
+      });
+      // 후보는 인기순으로 CONTENT_ID가 먼저 들어온다
+      contentService.findCandidates.mockResolvedValue([
+        buildContent(CONTENT_ID),
+        buildContent(OTHER_CONTENT_ID),
+      ]);
+      contentService.findTopicViews.mockResolvedValue([
+        { contentId: CONTENT_ID, topicId: TOPIC_ID },
+        { contentId: OTHER_CONTENT_ID, topicId: TOPIC_ID },
+      ] as never);
+      contentService.findScorableEmbeddings.mockResolvedValue(
+        new Map([
+          [CONTENT_ID, [1, 0]],
+          [OTHER_CONTENT_ID, [0, 1]],
+        ]),
+      );
+
+      // when
+      const result = await orchestrator.getFeed(USER_ID, NOW);
+
+      // then — 종전(주제 가중치만)이면 인기순 그대로 CONTENT_ID가 먼저였다
+      const interest = result.sections.find(
+        (section) => section.key === ExploreSectionKey.INTEREST,
+      );
+      expect(interest?.items.map((item) => item.content.id)).toEqual([
+        OTHER_CONTENT_ID,
+        CONTENT_ID,
+      ]);
+    });
+
+    it('임베딩·취향 벡터가 없으면 주제 가중치와 인기순으로 종전과 같이 정렬한다', async () => {
+      // given — 취향 벡터 null, 콘텐츠 임베딩 없음 → 임베딩 축이 빠지고 주제 축만 남는다
+      const LIKED_TOPIC = 'dddddddd-1111-4111-8111-111111111111';
+      userInterestService.findActiveTopicIds.mockResolvedValue([
+        TOPIC_ID,
+        LIKED_TOPIC,
+      ]);
+      preferenceVectorService.findWeights.mockResolvedValue(
+        buildPreference(5, { [TOPIC_ID]: -1, [LIKED_TOPIC]: 2 }),
+      );
+      contentService.findCandidates.mockResolvedValue([
+        buildContent(CONTENT_ID),
+        buildContent(OTHER_CONTENT_ID),
+      ]);
+      contentService.findTopicViews.mockResolvedValue([
+        { contentId: CONTENT_ID, topicId: TOPIC_ID },
+        { contentId: OTHER_CONTENT_ID, topicId: LIKED_TOPIC },
+      ] as never);
+
+      // when
+      const result = await orchestrator.getFeed(USER_ID, NOW);
+
+      // then
+      const interest = result.sections.find(
+        (section) => section.key === ExploreSectionKey.INTEREST,
+      );
+      expect(interest?.items.map((item) => item.content.id)).toEqual([
+        OTHER_CONTENT_ID,
+        CONTENT_ID,
+      ]);
     });
 
     it('선호도 캐시가 없는 사용자는 콜드스타트로 그린다', async () => {

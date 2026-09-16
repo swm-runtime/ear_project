@@ -22,6 +22,7 @@ const EMPTY_BREAKDOWN: ScoreBreakdown = {
     freshness: null,
     popularity: null,
     difficultyFit: null,
+    careerFit: null,
     seriesContinuity: null,
     exposureFatigue: null,
   },
@@ -77,6 +78,7 @@ function buildContext(
     completedEpisodesBySeries: new Map(),
     recentDripTopicIds: [],
     isColdStart: true,
+    career: null,
     now: NOW,
     ...overrides,
   };
@@ -358,6 +360,153 @@ describe('DripScoringService', () => {
 
       // then — 축 결여는 재정규화라 점수가 계산되고, NaN·0 고정이 아니다
       expect(Number.isFinite(withoutTaste[0].score)).toBe(true);
+    });
+  });
+
+  describe('rankByPersonalFit', () => {
+    it('취향이 없으면 들어온 순서를 그대로 유지하고 입력 배열을 바꾸지 않는다', () => {
+      const candidates = [buildCandidate('c1'), buildCandidate('c2')];
+
+      const ranked = service.rankByPersonalFit(candidates, null, NOW);
+
+      expect(ranked.map((c) => c.content.id)).toEqual(['c1', 'c2']);
+      expect(ranked).not.toBe(candidates);
+    });
+
+    it('가중치가 높은 주제의 콘텐츠를 앞으로, 음수 주제를 뒤로 보낸다', () => {
+      const preference = buildPreference({
+        topicWeights: { [TOPIC_A]: -1, [TOPIC_B]: 2 },
+      });
+      const disliked = buildCandidate('disliked', { topicIds: [TOPIC_A] });
+      const liked = buildCandidate('liked', { topicIds: [TOPIC_B] });
+
+      const ranked = service.rankByPersonalFit(
+        [disliked, liked],
+        preference,
+        NOW,
+      );
+
+      expect(ranked.map((c) => c.content.id)).toEqual(['liked', 'disliked']);
+    });
+
+    it('같은 주제의 콘텐츠는 취향 임베딩에 가까운 편이 앞에 온다', () => {
+      const preference = buildPreference({
+        topicWeights: { [TOPIC_A]: 1 },
+        tasteEmbedding: [0, 1],
+      });
+      const far = buildCandidate('far', { embedding: [1, 0] });
+      const near = buildCandidate('near', { embedding: [0, 1] });
+
+      const ranked = service.rankByPersonalFit([far, near], preference, NOW);
+
+      expect(ranked.map((c) => c.content.id)).toEqual(['near', 'far']);
+    });
+
+    it('근거가 없는 후보는 중립값으로 두어 들어온 순서를 지킨다 — 정보가 없다고 밀어내지 않는다', () => {
+      const preference = buildPreference({ topicWeights: { [TOPIC_B]: -2 } });
+      // unknown은 주제 가중치·임베딩 근거가 없다(중립 0.5), disliked는 부정 신호(0.5 미만)
+      const unknown = buildCandidate('unknown', { topicIds: [TOPIC_A] });
+      const disliked = buildCandidate('disliked', { topicIds: [TOPIC_B] });
+
+      const ranked = service.rankByPersonalFit(
+        [disliked, unknown],
+        preference,
+        NOW,
+      );
+
+      expect(ranked.map((c) => c.content.id)).toEqual(['unknown', 'disliked']);
+    });
+  });
+
+  describe('커리어 적합도(4.2 ③)', () => {
+    const career = { jobCategory: '개발', yearsOfExperience: 2 }; // 2-3년 구간
+
+    function audienceCandidate(id: string, audiences: [string, string][]) {
+      return buildCandidate(id, {
+        content: {
+          targetAudiences: audiences.map(([jobCategory, years]) => ({
+            jobCategory,
+            yearsOfExperience: years as never,
+          })),
+        },
+      });
+    }
+
+    it('직군·연차가 정확히 맞는 콘텐츠 > 이웃 연차 > 직군만 > 불일치 순으로 점수가 갈린다', () => {
+      const exact = audienceCandidate('exact', [['개발', '2-3']]);
+      const adjacent = audienceCandidate('adjacent', [['개발', '4-6']]);
+      const jobOnly = audienceCandidate('jobOnly', [['개발', '7+']]);
+      const none = audienceCandidate('none', [['디자인', '2-3']]);
+
+      const scored = service.scoreRegularCandidates(
+        [none, jobOnly, adjacent, exact],
+        buildContext({ career }),
+      );
+
+      expect(scored.map((c) => c.content.id)).toEqual([
+        'exact',
+        'adjacent',
+        'jobOnly',
+        'none',
+      ]);
+      expect(scored[0].breakdown.metaItems.careerFit).toBe(1);
+      expect(scored[3].breakdown.metaItems.careerFit).toBe(0);
+    });
+
+    it('여러 세트 중 가장 가까운 것을 쓴다', () => {
+      const multi = audienceCandidate('multi', [
+        ['디자인', '0-1'],
+        ['개발', '2-3'],
+      ]);
+
+      const [scored] = service.scoreRegularCandidates(
+        [multi],
+        buildContext({ career }),
+      );
+
+      expect(scored.breakdown.metaItems.careerFit).toBe(1);
+    });
+
+    it('콘텐츠에 청자 세트가 없거나 사용자가 커리어를 안 넣었으면 항목이 빠진다(null) — 불리해지지 않는다', () => {
+      const bare = buildCandidate('bare');
+      const targeted = audienceCandidate('targeted', [['개발', '2-3']]);
+
+      const [withoutAudience] = service.scoreRegularCandidates(
+        [bare],
+        buildContext({ career }),
+      );
+      const [withoutCareer] = service.scoreRegularCandidates(
+        [targeted],
+        buildContext({ career: null }),
+      );
+
+      expect(withoutAudience.breakdown.metaItems.careerFit).toBeNull();
+      expect(withoutCareer.breakdown.metaItems.careerFit).toBeNull();
+    });
+
+    it('사용자 연차가 없으면 직군만 대조해 부분 점수를 준다', () => {
+      const targeted = audienceCandidate('targeted', [['개발', '2-3']]);
+
+      const [scored] = service.scoreRegularCandidates(
+        [targeted],
+        buildContext({
+          career: { jobCategory: '개발', yearsOfExperience: null },
+        }),
+      );
+
+      expect(scored.breakdown.metaItems.careerFit).toBe(0.3);
+    });
+
+    it('콜드스타트에서도 살아 있다 — 신규 사용자의 첫 개인화 신호다', () => {
+      const exact = audienceCandidate('exact', [['개발', '2-3']]);
+      const none = audienceCandidate('none', [['디자인', '2-3']]);
+
+      const scored = service.scoreRegularCandidates(
+        [none, exact],
+        buildContext({ isColdStart: true, career }),
+      );
+
+      expect(scored[0].content.id).toBe('exact');
     });
   });
 

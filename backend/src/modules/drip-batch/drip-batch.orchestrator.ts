@@ -18,6 +18,7 @@ import {
   PreferenceSignalInput,
   ScoredCandidate,
   ScoringCandidate,
+  UserCareer,
   UserPreferenceWeights,
 } from '@/modules/drip/drip.types';
 import { DripBatchRunService } from '@/modules/drip/services/drip-batch-run.service';
@@ -102,7 +103,9 @@ export class DripBatchOrchestrator {
     const run = await this.dripBatchRunService.claim(runDate, now);
 
     if (!run) {
-      this.logger.log('drip batch already claimed for the date', { runDate });
+      this.logger.log('drip batch already claimed for the date', {
+        run_date: runDate,
+      });
       return;
     }
 
@@ -159,25 +162,20 @@ export class DripBatchOrchestrator {
         afterId = users[users.length - 1].id;
       }
     } finally {
-      /**
-       * **`exhaustedCount`는 저장하지 않는다.** `drip_batch_runs`에 그 컬럼이 없고
-       * (`domain.md` 7.3), 문서에 없는 컬럼을 코드가 만들지 않는다. 지금은 아래 집계
-       * 로그로만 남는다 — 컬럼 신설은 `changes/`로 요청했다.
-       */
-      await this.dripBatchRunService.finish(
-        run,
-        {
-          targetCount: counts.targetCount,
-          successCount: counts.successCount,
-          skippedCount: counts.skippedCount,
-          failedCount: counts.failedCount,
-        },
-        new Date(),
-      );
+      // 네 카운트 합 = targetCount (domain.md 7.3). exhausted는 2026-09-11부터 컬럼에 남는다 —
+      // 그전엔 로그에만 있어 "대상 13 · 성공 3"의 나머지 10명이 표에서 사라졌다
+      await this.dripBatchRunService.finish(run, counts, new Date());
     }
 
     // 건당 로그를 남기지 않고 실행 결과를 집계해 한 번 남긴다 (convention.md 8.3 — 드립 편성)
-    this.logger.log('drip batch finished', { runDate, ...counts });
+    this.logger.log('drip batch finished', {
+      run_date: runDate,
+      target_count: counts.targetCount,
+      success_count: counts.successCount,
+      skipped_count: counts.skippedCount,
+      exhausted_count: counts.exhaustedCount,
+      failed_count: counts.failedCount,
+    });
   }
 
   private async scheduleForUser(
@@ -193,6 +191,16 @@ export class DripBatchOrchestrator {
     if (activeTopicIds.length === 0) {
       return 'skipped';
     }
+
+    /**
+     * 취향 캐시는 **적립 여부와 무관하게** 배치 시점에 재계산한다(`drip-scheduling.md` 4.3 —
+     * "편성 배치 시점에 최신 신호를 읽어 계산한다"). 아래 재고·플랜 스킵은 **적립 규칙**(4.1)이라
+     * 여기 뒤에 둔다 — 스킵 뒤에 두면 재고가 늘 5편 이상인 사용자(담기를 많이 하는 사용자가 바로
+     * 그 대상)는 캐시가 영영 만들어지지 않아 탐색 피드(같은 캐시를 읽는다)가 무기한 콜드스타트·
+     * 묵은 순서로 남는다(결정 2026-09-15). 스킵 사용자당 6쿼리가 늘지만 편성 결과는 변하지 않는다.
+     */
+    const { preference, difficultyAffinity, isColdStart } =
+      await this.rebuildPreference(user.id, now);
 
     // 미청취 재고 스킵(4.1) — 탐험 편성도 함께 건너뛴다(4.8)
     const unfinishedCount = await this.libraryService.countUnfinished(user.id);
@@ -210,9 +218,6 @@ export class DripBatchOrchestrator {
       return 'skipped';
     }
 
-    const { preference, difficultyAffinity, isColdStart } =
-      await this.rebuildPreference(user.id, now);
-
     const completedEpisodesBySeries =
       await this.libraryService.findCompletedSeriesMaxEpisodes(user.id);
 
@@ -224,6 +229,11 @@ export class DripBatchOrchestrator {
             preference,
             difficultyAffinity,
             isColdStart,
+            // 커리어 적합도(4.2 ③) — 프로필이라 신호가 없어도 쓴다
+            career: {
+              jobCategory: user.jobCategory,
+              yearsOfExperience: user.yearsOfExperience,
+            },
             dripCount,
             now,
           })
@@ -337,6 +347,7 @@ export class DripBatchOrchestrator {
       preference: UserPreferenceWeights | null;
       difficultyAffinity: Record<string, number> | null;
       isColdStart: boolean;
+      career: UserCareer;
       dripCount: number;
       now: Date;
     },
@@ -373,6 +384,7 @@ export class DripBatchOrchestrator {
       completedEpisodesBySeries: input.completedEpisodesBySeries,
       recentDripTopicIds,
       isColdStart: input.isColdStart,
+      career: input.career,
       now: input.now,
     });
 
@@ -530,6 +542,7 @@ export class DripBatchOrchestrator {
           freshness: round(pick.breakdown.metaItems.freshness),
           popularity: round(pick.breakdown.metaItems.popularity),
           difficulty_fit: round(pick.breakdown.metaItems.difficultyFit),
+          career_fit: round(pick.breakdown.metaItems.careerFit),
           series_continuity: round(pick.breakdown.metaItems.seriesContinuity),
           exposure_fatigue: round(pick.breakdown.metaItems.exposureFatigue),
         },

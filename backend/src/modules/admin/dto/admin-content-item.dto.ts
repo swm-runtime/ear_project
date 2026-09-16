@@ -26,6 +26,12 @@ export class AdminContentItemDto {
   readonly published_at: string;
   readonly withdrawn_at: string | null;
   readonly topics: AdminContentTopicDto[];
+  /**
+   * 마지막으로 적용된 추천 메타 파일의 형식 버전과 시각(admin-api.md 8장). null이면 메타를 받은 적이
+   * 없다. 현재 형식(`CURRENT_ENRICHMENT_SCHEMA_VERSION`)보다 낮으면 구형 메타 — 다시 뽑을 대상이다
+   */
+  readonly enrichment_schema_version: number | null;
+  readonly enriched_at: string | null;
   /** 요청에 `enrichment_file`이 있었을 때만 — 거부여도 콘텐츠 처리 자체는 성공이다(admin.md 3.1) */
   readonly enrichment_applied?: boolean;
   /** 거부됐을 때만 — 콘솔이 그대로 노출하는 사유 */
@@ -56,6 +62,8 @@ export class AdminContentItemDto {
         topic_id: topic.topicId,
         name: topic.name,
       })),
+      enrichment_schema_version: content.enrichmentSchemaVersion,
+      enriched_at: content.enrichedAt?.toISOString() ?? null,
       ...(view.enrichment && {
         enrichment_applied: view.enrichment.applied,
         ...(view.enrichment.rejectedReason !== null && {

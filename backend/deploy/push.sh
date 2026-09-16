@@ -6,7 +6,7 @@
 # 그대로 남는다 — rsync --delete 처럼 지워버릴 위험이 없다.
 #
 #   bash backend/deploy/push.sh                 # 현재 HEAD 를 서버에 반영
-#   HOST=<ip> PEM=<pem> REF=<커밋> 로 대상 변경
+#   HOST=<ip> PEM=<pem> REF=<커밋> 로 대상 변경. 개발계는 SECRET_ID=ear/dev/api HEALTH_URL=https://api-dev.… (setup-dev-server.sh 가 넘긴다)
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 HOST="${HOST:-43.203.57.240}"
@@ -14,13 +14,17 @@ PEM="${PEM:-$ROOT/backend/deploy/aws/out/ear-prod-isb.pem}"
 REF="${REF:-HEAD}"
 DEST=/opt/ear
 HEALTH_URL="${HEALTH_URL:-https://api.earcast.co.kr/api/v1/health}"
+SECRET_ID="${SECRET_ID:-ear/prod/api}"   # Secrets Manager 비밀값 묶음 — 환경마다 다르다(운영 ear/prod/api · 개발 ear/dev/api)
+# API_IMAGE=<ECR uri>:<tag> 를 주면 서버가 빌드하지 않고 그 이미지를 pull 해 띄운다(KAN-62 4단계). 비우면 종전처럼 서버 빌드.
+# 롤백 = 이전 커밋 SHA 태그로 다시 실행. 인스턴스 롤에 ecr-pull(setup-ecr.sh)이 있어야 한다.
+API_IMAGE="${API_IMAGE:-}"
 
 # keepalive — 서버 빌드가 수 분간 출력 없이 돌면 유휴 연결이 끊긴다(AI 서버에서 실측된 실패 원인)
 SSH="ssh -i $PEM -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=15 -o ServerAliveCountMax=60"
 REV="$(git -C "$ROOT" rev-parse --short "$REF")"
 [ -z "$(git -C "$ROOT" status --porcelain -- backend)" ] || REV="$REV-dirty"
 
-echo "▶ $HOST 에 $REV 반입 (git archive → tar)"
+echo "▶ $HOST 에 $REV 반입 (git archive → tar)${API_IMAGE:+ · 이미지 $API_IMAGE}"
 # `backend` 경로만 뜬다 — 아카이브 안 경로가 backend/… 라 $DEST 에서 풀면 /opt/ear/backend 가 된다
 git -C "$ROOT" archive "$REF" backend | $SSH "ec2-user@$HOST" "tar -x -C $DEST"
 
@@ -32,7 +36,7 @@ $SSH "ec2-user@$HOST" "
   find deploy -type f -name '*.sh' -exec sed -i 's/\r\$//' {} +
   [ -f .env.prod ] || { echo '.env.prod 가 서버에 없다 — 최초 설치는 README 2장'; exit 1; }
 
-  # 비밀값의 원천은 Secrets Manager 다(ear/prod/api — tickets/infra prod-secrets-storage).
+  # 비밀값의 원천은 Secrets Manager 다($SECRET_ID — tickets/infra prod-secrets-storage).
   # 배포마다 내려받아 .env.prod 의 비밀 항목만 덮어쓴다. 조회가 실패하면 set -e 로 여기서
   # 멈춘다 — .env.prod 도 컨테이너도 아직 건드리지 않은 상태라 돌던 API 가 그대로 산다.
   command -v aws >/dev/null || { echo 'aws CLI 가 서버에 없다'; exit 1; }
@@ -40,11 +44,20 @@ $SSH "ec2-user@$HOST" "
   SECRET_TMP=\$(mktemp /tmp/ear-secret.XXXXXX.json); chmod 600 \"\$SECRET_TMP\"
   trap 'shred -u \"\$SECRET_TMP\" 2>/dev/null || rm -f \"\$SECRET_TMP\"' EXIT
   aws secretsmanager get-secret-value --region \${AWS_REGION:-ap-northeast-2} \
-    --secret-id ear/prod/api --query SecretString --output text > \"\$SECRET_TMP\"
+    --secret-id $SECRET_ID --query SecretString --output text > \"\$SECRET_TMP\"
   cp .env.prod .env.prod.bak          # 갱신이 깨졌을 때 되돌릴 자리 — 한 세대만 유지
   python3 deploy/apply-secrets.py \"\$SECRET_TMP\" .env.prod
 
-  docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build api
+  if [ -n \"$API_IMAGE\" ]; then
+    REGISTRY=\"${API_IMAGE%%/*}\"
+    aws ecr get-login-password --region \${AWS_REGION:-ap-northeast-2} | docker login --username AWS --password-stdin \"\$REGISTRY\" >/dev/null
+    API_IMAGE=\"$API_IMAGE\" docker compose -f docker-compose.prod.yml --env-file .env.prod pull api
+    API_IMAGE=\"$API_IMAGE\" docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --no-build api
+    # 다음에 API_IMAGE 없이(옛 방식) 배포해도 compose 가 같은 컨테이너를 잡도록 남겨둔다 — 값은 기록용
+    echo \"$API_IMAGE\" > .api-image
+  else
+    docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build api
+  fi
 "
 
 # 기동 확인 — 마이그레이션이 실패하면 컨테이너가 안 뜨고(의도), 헬스가 200 을 주지 않는다

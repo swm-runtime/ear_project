@@ -196,6 +196,37 @@ describe('DripBatchOrchestrator', () => {
     );
   });
 
+  it('미청취 재고로 적립을 건너뛴 사용자도 취향 캐시는 재계산한다 — 스킵은 적립 규칙이다(4.1·4.3)', async () => {
+    // given — 재고 5편 이상이라 편성은 건너뛴다
+    libraryService.countUnfinished.mockResolvedValue(5);
+
+    // when
+    await orchestrator.run(NOW);
+
+    // then — 탐색 피드가 읽는 캐시는 그 사용자에게도 갱신된다
+    expect(preferenceVectorService.rebuild).toHaveBeenCalledTimes(1);
+    expect(dripPlacementService.placeItems).not.toHaveBeenCalled();
+  });
+
+  it('후보가 고갈된 사용자는 skipped가 아니라 exhausted로 집계된다 — 콘텐츠 수급 신호다', async () => {
+    contentService.findCandidates.mockResolvedValue([]);
+
+    await orchestrator.run(NOW);
+
+    expect(dripPlacementService.placeItems).not.toHaveBeenCalled();
+    expect(dripBatchRunService.finish).toHaveBeenCalledWith(
+      run,
+      expect.objectContaining({
+        targetCount: 1,
+        successCount: 0,
+        skippedCount: 0,
+        exhaustedCount: 1,
+        failedCount: 0,
+      }),
+      expect.any(Date),
+    );
+  });
+
   it('정규 2편은 drip으로, 탐험 1편은 discovery로 적립된다', async () => {
     await orchestrator.run(NOW);
 

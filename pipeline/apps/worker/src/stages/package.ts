@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { cfg, executedBy } from "../config.js";
-import { getBacklog, getEpisode, insertRun, majorOfMidTopic, pool, setBacklogStatus, type Job } from "../db.js";
+import { enqueue, getBacklog, getEpisode, insertRun, majorOfMidTopic, pool, setBacklogStatus, type Job } from "../db.js";
 import { workerRev } from "../assets.js";
 import { probeDurationSec } from "../tts/audio.js";
 import { exists, localPathOf, pullPrefix, pushPrefix, s3Key } from "../storage.js";
@@ -21,7 +21,7 @@ export async function runPackage(job: Job) {
   const rel = `episodes/${episodeId}`;
   await pullPrefix(`${rel}/`);
   const row = await pool.query(
-    "select b.summary, b.status, e.script_key, e.claims_key, e.sources_key, e.qa_report_key, e.critic_report_key, e.audio_master_key, e.audio_dist_key from public.backlog b join public.episodes e on e.backlog_id = b.id where b.id = $1 and e.id = $2",
+    "select b.summary, b.status, e.one_liner, e.script_key, e.claims_key, e.sources_key, e.qa_report_key, e.critic_report_key, e.audio_master_key, e.audio_dist_key, e.thumbnail_key from public.backlog b join public.episodes e on e.backlog_id = b.id where b.id = $1 and e.id = $2",
     [backlogId, episodeId],
   );
   const r = row.rows[0];
@@ -48,17 +48,23 @@ export async function runPackage(job: Job) {
     episode_id: episodeId,
     backlog_id: backlogId,
     title: cand.title,                       // 초안 — 게이트 2 검수에서 확정 (클릭베이트 금지)
-    description: (r.summary as string) ?? "",
+    // 설명 첫 줄은 한 줄 요약(KAN-50 3-1) — 축 해설(summary)은 백로그의 기획 언어라 청취자에게 그대로 보이기엔 딱딱하다.
+    // 요약이 없는 구 에피소드는 종전대로 축 해설만 들어간다
+    description: [r.one_liner, r.summary].filter((v) => typeof v === "string" && v.trim()).join("\n\n"),
+    one_liner: (r.one_liner as string) ?? null,
     major_topic: major,
     mid_topic: cand.mid_topic,
     explainer,
     host: explainer === "윤아" ? "이음" : "윤아",
     duration_min_estimate: durationMin,
     sources: cand.sources.map((s) => ({ publisher: s.publisher, title: s.title, url: s.url })), // 노출 표기 규격은 미결 #16
+    // 업로드 화면이 썸네일을 미리 채울 때 쓴다(KAN-50 4번). 실제 바이트는 /api/publish 가 S3 에서 중계한다
+    thumbnail_key: r.thumbnail_key ?? null,
     artifacts: {
       script: r.script_key, claims: r.claims_key, sources: r.sources_key,
       qa_report: r.qa_report_key, critic_report: r.critic_report_key,
       audio_master: r.audio_master_key, audio_dist: r.audio_dist_key,
+      thumbnail: r.thumbnail_key ?? null,
     },
     prompt_version: ep.prompt_version,
     asset_versions: ep.asset_versions ?? null,
@@ -74,8 +80,10 @@ export async function runPackage(job: Job) {
   log(`  package ${episodeId}: upload-meta.json → ${metaKey}${r.status === "qa_passed" ? " · 상태 packaged(게이트 2 대기)" : ""}`);
   await insertRun({
     backlog_id: backlogId, phase: "package",
-    result: `패키지 완료 — 제목·설명 초안, 소스 ${meta.sources.length}건, 분량 ${durationMin ?? "?"}분, 오디오 ${r.audio_dist_key ? "있음" : "없음(TTS 전)"} · 게이트 2 검수 대기`,
+    result: `패키지 완료 — 제목·설명 초안, 소스 ${meta.sources.length}건, 분량 ${durationMin ?? "?"}분, 오디오 ${r.audio_dist_key ? "있음" : "없음(TTS 전)"}, 썸네일 ${r.thumbnail_key ? "있음" : "없음"} · 게이트 2 검수 대기`,
     prompt_version: "package-v1 (worker)", artifacts: [metaKey], executed_by: executedBy, worker_rev: workerRev(),
   });
-  return { episode_id: episodeId, meta_key: metaKey, duration_min: durationMin, status_after: r.status === "qa_passed" ? "packaged" : r.status };
+  // 추천 메타 부여를 이어서 건다 (metadata-pipeline 2장 — 패키지 직후, 2026-09-11 구현). AI 워커가 집어 episodes/<id>/enrichment.json 을 만들고 업로드 화면이 발행 때 첨부한다
+  const enrichJobId = job.payload.skip_enrich ? null : await enqueue({ type: "enrich", requires_ai: true, payload: { episode_id: episodeId, backlog_id: backlogId }, parent_job_id: job.id }).catch((e) => { log(`  package ${episodeId}: enrich 작업 생성 실패 (${String(e?.message ?? e).slice(0, 80)})`); return null; });
+  return { episode_id: episodeId, meta_key: metaKey, duration_min: durationMin, status_after: r.status === "qa_passed" ? "packaged" : r.status, enrich_job_id: enrichJobId };
 }

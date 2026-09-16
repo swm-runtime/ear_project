@@ -8,6 +8,7 @@ import { BusinessConflictException } from '@/common/exceptions/business-conflict
 import { BusinessNotFoundException } from '@/common/exceptions/business-not-found.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { withMinimumDuration } from '@/common/utils/constant-time.util';
+import { isBigintIdValue } from '@/common/utils/cursor-value.util';
 import { equalsInConstantTime, sha256Hex } from '@/common/utils/hash.util';
 
 import { EmailVerificationRepository } from '../repositories/email-verification.repository';
@@ -251,6 +252,11 @@ export class EmailVerificationService {
     verificationId: string,
     now: Date,
   ): Promise<void> {
+    // bigint PK가 아닌 값은 "없는 인증"과 같다 — DB까지 보내면 형식 오류 500이 된다
+    if (!isBigintIdValue(verificationId)) {
+      return;
+    }
+
     const verification =
       await this.emailVerificationRepository.findByIdAndUserId(
         verificationId,
@@ -288,6 +294,12 @@ export class EmailVerificationService {
     now: Date,
     manager: EntityManager,
   ): Promise<VerifyOutcome> {
+    // bigint PK가 아닌 값은 존재하지 않는 인증과 같다(auth-api.md 4.10 — 404).
+    // 걸러 주지 않으면 Postgres 형식 오류가 500 INTERNAL_ERROR(retryable)로 나간다
+    if (!isBigintIdValue(verificationId)) {
+      return { result: 'not_found' };
+    }
+
     const verification =
       await this.emailVerificationRepository.findByIdAndUserId(
         verificationId,
@@ -322,7 +334,11 @@ export class EmailVerificationService {
 
     if (attemptCount === null) {
       verification.invalidatedAt = now;
-      await this.emailVerificationRepository.save(verification, manager);
+      await this.emailVerificationRepository.invalidateById(
+        verification.id,
+        now,
+        manager,
+      );
       return { result: 'attempts_exceeded' };
     }
 
@@ -341,7 +357,11 @@ export class EmailVerificationService {
       // 시도를 모두 쓰면 그 코드를 무효화한다 (domain.md 3.7)
       if (attemptsRemaining <= 0) {
         verification.invalidatedAt = now;
-        await this.emailVerificationRepository.save(verification, manager);
+        await this.emailVerificationRepository.invalidateById(
+          verification.id,
+          now,
+          manager,
+        );
         return { result: 'attempts_exceeded' };
       }
 
@@ -358,8 +378,13 @@ export class EmailVerificationService {
     const user = await this.userService.getByIdForUpdate(userId, manager);
 
     if (user.isEmailVerified) {
+      // 바꿀 컬럼만 쓴다 — 같은 코드의 동시 제출에서 먼저 성공한 쪽의 `verified_at`을 지우지 않는다
       verification.invalidatedAt = now;
-      await this.emailVerificationRepository.save(verification, manager);
+      await this.emailVerificationRepository.invalidateById(
+        verification.id,
+        now,
+        manager,
+      );
       return { result: 'already_verified' };
     }
 

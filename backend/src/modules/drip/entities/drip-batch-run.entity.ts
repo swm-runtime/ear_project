@@ -30,6 +30,10 @@ export class DripBatchRun extends BaseEntity {
   @Column({ name: 'skipped_count', type: 'int', default: 0 })
   skippedCount: number;
 
+  /** 편성 대상이었으나 후보 고갈로 0편 — 콘텐츠 수급 신호 (domain.md 7.3, 2026-09-11) */
+  @Column({ name: 'exhausted_count', type: 'int', default: 0 })
+  exhaustedCount: number;
+
   @Column({ name: 'failed_count', type: 'int', default: 0 })
   failedCount: number;
 

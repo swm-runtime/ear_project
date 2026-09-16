@@ -1,9 +1,11 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
 import TabBarIcon from '@/shared/ui/TabBarIcon';
+
 
 import { EmailVerificationScreen, useSessionStore, WithdrawalScreen } from '@/features/auth';
 import { CareerInfoScreen } from '@/features/career';
@@ -21,6 +23,7 @@ import { PlayerScreen } from '@/features/player';
 import { ProfileScreen } from '@/features/profile';
 import { SettingsScreen } from '@/features/settings';
 
+import { rememberTab, takePrimedTab, type RestorableTab } from './last-tab';
 import PlaceholderScreen from './PlaceholderScreen';
 import type { MainStackParamList, MainTabParamList } from './types';
 
@@ -33,27 +36,48 @@ const TAB_BAR_CONTENT_HEIGHT = 60;
 /** 탭 아이콘 크기. 네비게이터가 넘겨주는 기본값(약 24)보다 키운다 */
 const TAB_ICON_SIZE = 28;
 
+/** 탭 라벨 크기. 시스템 탭바(iOS 10)와 와이어프레임(10.5)에 맞춰 테마 최솟값 12에서 낮췄다 */
+const TAB_LABEL_SIZE = 11;
+
 /**
  * 하단 탭 3개 — 앱을 실행하면 라이브러리로 들어온다(library.md 2).
  * **온보딩을 막 끝낸 진입만 탐색으로 착지한다**(2026-09-02) — 갓 만든 라이브러리보다
  * 고를 것이 많은 화면을 먼저 보여준다. `initialRouteName`은 첫 마운트에만 읽히는데,
  * 온보딩 → Main 전환에서 이 내비게이터가 새로 마운트되므로 그 시점 값이 그대로 쓰인다.
+ *
+ * **그 둘 다 아니면 마지막으로 본 탭으로 착지한다**(splash.md 4장 4-1 — 2026-09-15).
+ * 우선순위는 온보딩 직후 > 마지막 탭 > 라이브러리다 — 온보딩을 막 끝낸 사람에게는
+ * 이전 기록보다 "고를 것이 많은 화면"이 먼저다.
  */
 function MainTabs() {
   // 높이를 직접 정하면 기본 안전영역 처리가 덮이므로 홈 인디케이터 높이를 직접 더한다.
   // 이걸 빼먹으면 인디케이터가 있는 기기에서 라벨이 인디케이터에 깔린다
   const insets = useSafeAreaInsets();
   const justCompletedOnboarding = useSessionStore((s) => s.justCompletedOnboarding);
+  // 마운트 시 한 번만 꺼낸다 — 리렌더마다 부르면 두 번째부터 null 이라 탭이 흔들린다
+  const [restoredTab] = useState(takePrimedTab);
 
   return (
     <MainTab.Navigator
-      initialRouteName={justCompletedOnboarding ? 'Explore' : 'Library'}
+      initialRouteName={justCompletedOnboarding ? 'Explore' : (restoredTab ?? 'Library')}
+      screenListeners={{
+        // 탭을 떠난 시각이 아니라 도착한 시각을 적는다 — 마지막으로 머문 탭이 곧
+        // 마지막으로 본 탭이고, 떠나는 시점을 잡으려면 이탈 경로마다 훅이 필요하다
+        state: (e) => {
+          const s = e.data.state;
+          const name = s?.routeNames?.[s.index ?? 0];
+          if (name) rememberTab(name as RestorableTab);
+        },
+      }}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: theme.color.primary,
         tabBarInactiveTintColor: theme.color.textSecondary,
-        // 아이콘과 라벨을 함께 둔다 — 라벨을 빼면 어느 탭인지 아이콘 해석에만 기댄다
-        tabBarLabelStyle: { fontSize: theme.font.size.xs, fontWeight: '600' },
+        // 아이콘과 라벨을 함께 둔다 — 라벨을 빼면 어느 탭인지 아이콘 해석에만 기댄다.
+        // 크기는 테마 토큰(xs = 12)이 아니라 리터럴이다 — 스케일의 최솟값이 12라 이 한 곳
+        // 때문에 토큰을 늘리면 다른 화면까지 영향을 준다. 와이어프레임의 `.tabbar a`가
+        // 10.5px이므로 11은 시안 쪽으로 가는 값이다(wireframe/style.css).
+        tabBarLabelStyle: { fontSize: TAB_LABEL_SIZE, fontWeight: '600' },
         tabBarStyle: {
           height: TAB_BAR_CONTENT_HEIGHT + insets.bottom,
           // 안전영역만 아래에 두고 위쪽 여백은 주지 않는다 — paddingTop을 주면

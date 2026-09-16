@@ -2,7 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase-server";
 import { loadArtifact, replaceTurn, writeArtifact } from "@/lib/artifacts";
-import { deletePrefix, putText } from "@/lib/storage";
+import { deletePrefix, getBytes, getText, putBytes, putText } from "@/lib/storage";
 import { majorOrder } from "@/lib/taxonomy";
 
 /** 음차 사전·발음 맵 공통 형식 검증 — {"표기": "발음"} 객체, 값은 비어 있지 않은 문자열 (spec/06 6장) */
@@ -40,7 +40,7 @@ export async function setBacklogStatus(id: string, status: "approved" | "rejecte
 /** 작업 요청 (사람 트리거): sweep · tts · thumbnail · package · cluster 재실행. requested_by 는 트리거가 찍는다. */
 export async function enqueueJob(type: "sweep" | "cluster" | "tts" | "thumbnail" | "package" | "domain_check", payload: Record<string, unknown>) {
   const sb = await supabaseServer();
-  const requires_ai = type === "cluster";
+  const requires_ai = type === "cluster" || (type === "sweep" && payload.mode === "B"); // 보강 스윕(모드 B-①)은 WebSearch 를 쓰는 AI 실행 (0019)
   const { data, error } = await sb.from("jobs").insert({ type, requires_ai, payload, status: "queued" }).select("id").single();
   if (error) throw new Error(error.message);
   revalidatePath("/"); revalidatePath("/sweep"); revalidatePath("/episodes");
@@ -114,11 +114,13 @@ export async function listUnlinkedPublished(): Promise<{ backlog_id: string; tit
   return (bls ?? []).map((b) => ({ backlog_id: b.id, title: b.title, episode_id: epOf.get(b.id) ?? null, status: b.status }));
 }
 
+/** 작업 취소 — 대기 중이면 즉시, 진행 중이면 워커가 하트비트(15초)에서 알아채고 claude 프로세스를 끊는다 (2026-09-12). 완료·실패한 작업은 대상이 아니다 */
 export async function cancelJob(id: string) {
   const sb = await supabaseServer();
-  const { error } = await sb.from("jobs").update({ status: "cancelled" }).eq("id", id).eq("status", "queued");
+  const { data, error } = await sb.from("jobs").update({ status: "cancelled", finished_at: new Date().toISOString(), error: "사람이 콘솔에서 취소" }).eq("id", id).in("status", ["queued", "claimed", "running"]).select("id,type");
   if (error) throw new Error(error.message);
-  revalidatePath("/"); revalidatePath("/sweep");
+  if (!data?.length) throw new Error("취소할 수 없는 상태입니다 (이미 끝났거나 취소됨)");
+  revalidatePath("/"); revalidatePath("/sweep"); revalidatePath("/jobs");
 }
 
 /**
@@ -165,6 +167,59 @@ export async function listPipelineTopicsForSync(): Promise<{ major: string; mid:
 
 /** 도메인 판정 (사람): tier·license_basis. decided_by·decided_at 는 트리거가 찍는다. */
 /** 소스 풀 확인 항목 ①~④ 자동 수집 — AI 없이 HTTP만 (robots·홈·약관·표본 기사). 판정은 여전히 사람. */
+/**
+ * 추천 메타 재부여 (KAN-53, 0021): 발행 콘텐츠마다 enrich 작업을 큐에 넣는다. 대본은 그 콘텐츠를 발행한 백로그의 에피소드에서 찾고(없으면 폴백),
+ * 산출물은 워커가 S3 datasets/enrichment/<content_id>.json 에 둔다. 제품 반영은 브라우저가 [반영]으로 PATCH(enrichment_file 단독)한다.
+ */
+export async function requestEnrich(items: { content_id: string; title: string; description: string; topic_names: string[]; origin: string }[], jobCategories: string[]) {
+  const sb = await supabaseServer();
+  const ids = items.map((i) => i.content_id);
+  const [{ data: bls }, { data: active }] = await Promise.all([
+    sb.from("backlog").select("id,published_content_ref").in("published_content_ref", ids),
+    sb.from("jobs").select("payload").eq("type", "enrich").in("status", ["queued", "claimed", "running"]),
+  ]);
+  const backlogOf = new Map((bls ?? []).map((b) => [String(b.published_content_ref), b.id]));
+  const { data: eps } = backlogOf.size ? await sb.from("episodes").select("id,backlog_id").in("backlog_id", [...backlogOf.values()]) : { data: [] as { id: string; backlog_id: string }[] };
+  const episodeOf = new Map((eps ?? []).map((e) => [e.backlog_id, e.id]));
+  const running = new Set((active ?? []).map((j) => String((j.payload as { content_id?: string } | null)?.content_id ?? "")));
+  let queued = 0, skipped = 0;
+  for (const it of items) {
+    if (running.has(it.content_id)) { skipped++; continue; }
+    const bid = backlogOf.get(it.content_id); const episode_id = bid ? episodeOf.get(bid) ?? null : null;
+    const { error } = await sb.from("jobs").insert({ type: "enrich", requires_ai: true, status: "queued", payload: { content_id: it.content_id, episode_id, title: it.title, description: it.description, topic_names: it.topic_names, origin: it.origin, job_categories: jobCategories } });
+    if (error) throw new Error(error.message);
+    queued++;
+  }
+  return { queued, skipped };
+}
+/** 콘텐츠별 최근 enrich 작업 상태 + 산출물 유무 — 목록의 메타 셀이 읽는다 */
+export async function enrichStates(contentIds: string[]): Promise<Record<string, { status: string; error: string | null; at: string | null; ready: boolean }>> {
+  if (!contentIds.length) return {};
+  const sb = await supabaseServer();
+  const { data: jobs } = await sb.from("jobs").select("payload,status,error,created_at,finished_at").eq("type", "enrich").order("created_at", { ascending: false }).limit(500);
+  const out: Record<string, { status: string; error: string | null; at: string | null; ready: boolean }> = {};
+  const want = new Set(contentIds);
+  for (const j of jobs ?? []) { const cid = String((j.payload as { content_id?: string } | null)?.content_id ?? ""); if (!want.has(cid) || out[cid]) continue; out[cid] = { status: j.status, error: j.error ? String(j.error).split("\n")[0].slice(0, 200) : null, at: j.finished_at ?? j.created_at, ready: false }; }
+  const { data: runs } = await sb.from("runs").select("artifacts").eq("phase", "enrich").order("executed_at", { ascending: false }).limit(500);
+  const ready = new Set<string>();
+  for (const r of runs ?? []) for (const a of (r.artifacts as string[] | null) ?? []) { const m = String(a).match(/datasets\/enrichment\/([A-Za-z0-9-]+)\.json$/); if (m) ready.add(m[1]); }
+  for (const cid of contentIds) { if (ready.has(cid)) { (out[cid] ??= { status: "done", error: null, at: null, ready: true }).ready = true; } }
+  return out;
+}
+/** 산출물 본문 — 브라우저가 File 로 감싸 PATCH 한다 (S3 는 서버가 중계) */
+export async function readEnrichment(contentId: string): Promise<string | null> {
+  if (!/^[A-Za-z0-9-]{1,64}$/.test(contentId)) throw new Error("잘못된 content_id");
+  return getText(`datasets/enrichment/${contentId}.json`);
+}
+
+/** 보강 스윕 요청 (0019, spec/02 6장 B-①): held 후보의 빈 역할을 웹 검색으로 채우고 그 후보만 재판정. 후보당 1회 — 워커가 reinforced_at 으로 막는다 */
+export async function requestReinforce(backlogId: string) {
+  const sb = await supabaseServer();
+  const { data: dupe } = await sb.from("jobs").select("id").eq("type", "sweep").in("status", ["queued", "claimed", "running"]).eq("payload->>backlog_id", backlogId).limit(1);
+  if (dupe && dupe.length) throw new Error("이미 보강 작업이 대기·진행 중입니다");
+  return enqueueJob("sweep", { mode: "B", backlog_id: backlogId });
+}
+
 export async function requestDomainCheck(domainIds: string[] | null, onlyUnchecked = true) {
   return enqueueJob("domain_check", { domain_ids: domainIds, only_unchecked: onlyUnchecked });
 }
@@ -227,6 +282,40 @@ export async function editScriptTurn(episodeId: string, turn: string, after: str
 
   revalidatePath(`/episodes/${episodeId}`);
   return { changed: true };
+}
+
+/** 한 줄 요약 저장 (KAN-50 3-1) — 다음 썸네일 생성과 다음 패키지부터 반영된다 */
+export async function saveOneLiner(episodeId: string, oneLiner: string) {
+  const sb = await supabaseServer();
+  const v = oneLiner.trim();
+  const { error } = await sb.from("episodes").update({ one_liner: v || null }).eq("id", episodeId);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/episodes/${episodeId}`);
+}
+
+/**
+ * 스타일 앵커 지정 (KAN-50) — 이 에피소드의 썸네일을 이후 생성의 화풍 기준으로 삼는다.
+ *
+ * **에피소드 파일을 가리키지 않고 복사한다.** 그 편을 다시 뽑으면 같은 키를 덮어써
+ * **앵커가 소리 없이 바뀌고** 이후 생성 전부의 화풍이 따라 움직인다.
+ *
+ * 키를 `datasets/` 아래에 두는 이유: IAM 정책과 저장소 키 규칙이 `episodes`·`sweeps`·`datasets`
+ * 세 접두사만 허용한다(pipeline/CLAUDE.md 1장).
+ */
+export async function setThumbnailAnchor(episodeId: string) {
+  const sb = await supabaseServer();
+  const src = `episodes/${episodeId}/thumbnail.png`;
+  const bytes = await getBytes(src);
+  if (!bytes) throw new Error("이 에피소드에 썸네일이 없어요 — 먼저 생성하세요");
+  const key = "datasets/thumbnail/anchor.png";
+  await putBytes(key, bytes, "image/png");
+  const { error } = await sb.from("settings").upsert({
+    key: "thumbnail.anchor",
+    value: { key, episode_id: episodeId, bytes: bytes.length, set_at: new Date().toISOString() },
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath(`/episodes/${episodeId}`); revalidatePath("/settings");
+  return { key, bytes: bytes.length };
 }
 
 /** 규칙 자산 — 새 버전(draft) 저장 (spec/10 3.2). 규약(active 불변·활성화 note 필수·기존 active 자동 retired)은 DB 트리거가 강제한다 */

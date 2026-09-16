@@ -87,7 +87,7 @@ export class KakaoClient extends SocialProviderClient {
     if (appId === undefined || appId === null || String(appId) !== expected) {
       // 숫자로도 문자열로도 오므로 문자열로 맞춰 비교한다
       this.logger.warn('kakao access token was issued for another app', {
-        appId: appId ?? null,
+        app_id: appId ?? null,
       });
       throw this.tokenInvalid();
     }

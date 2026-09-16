@@ -40,7 +40,7 @@ export async function runDraft(job: Job, ex: Executor) {
       }
     }
     // 재집기(워커 사망 후 회수) 시 같은 에피소드를 이어받도록 작업 payload 에 ID 를 고정한다
-    episodeId = String(job.payload.episode_id ?? "") || (await allocateEpisodeId(episodeDatePrefix("T")));
+    episodeId = String(job.payload.episode_id ?? "") || (await allocateEpisodeId(episodeDatePrefix("T"), backlogId));
     if (!job.payload.episode_id) await updateJobPayload(job.id, { episode_id: episodeId });
   } else {
     episodeId = String(job.payload.episode_id ?? "");
@@ -49,7 +49,11 @@ export async function runDraft(job: Job, ex: Executor) {
   // 규칙 묶음: 에피소드에 고정된 버전이 있으면 그것, 없으면 지금 active 를 읽어 고정한다 (spec/10 3.2)
   const prior = await getEpisode(episodeId);
   const { assetRoot, bundle } = await prepareAssets(prior?.asset_versions ?? null);
-  const promptVersion = attempt === 1 && cfg.draftMode === "two-stage" ? `${bundle.labels.draft}+2stage` : (prior?.prompt_version ?? bundle.labels.draft); // 2단계는 라벨에 표시 — 통과율·비용을 방식별로 집계한다
+  // 실험 no-gold (2026-09-15): settings.experiments.no_gold_backlog_ids 에 든 후보는 골드 예시 없이 설계·대본을 쓴다 — 라벨 "+no-gold" 로 runs·episodes 에 남긴다
+  const experiments = await getSetting<{ no_gold_backlog_ids?: string[] }>("experiments").catch(() => null);
+  const noGold = (experiments?.no_gold_backlog_ids ?? []).includes(backlogId);
+  const promptVersion = attempt === 1 && cfg.draftMode === "two-stage" ? `${bundle.labels.draft}+2stage${noGold ? "+no-gold" : ""}` : (prior?.prompt_version ?? bundle.labels.draft); // 2단계는 라벨에 표시 — 통과율·비용을 방식별로 집계한다
+  if (noGold) log(`  draft ${episodeId}: 실험 no-gold — 골드 예시 없이 설계·대본`);
   if (!prior?.asset_versions) await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: promptVersion, asset_versions: bundle.versions });
   const rel = `episodes/${episodeId}`;
   const dir = path.join(cfg.workRoot, rel);
@@ -69,6 +73,7 @@ export async function runDraft(job: Job, ex: Executor) {
   let summary: string;
   let model: string | null;
   let out: DraftOut | RevisionOut;
+  let oneLiner: string | null = null;
   let costUsd: number | undefined;
   let tokens: unknown;
   const resumable = attempt === 1 && (await allArtifactsSettled(dir));
@@ -84,8 +89,9 @@ export async function runDraft(job: Job, ex: Executor) {
     const seed = await countEpisodes();
     const intro = pickIntroStyle(seed);
     const [templates, majorTopic] = await Promise.all([getSetting<Templates>("templates"), majorOfMidTopic(cand.mid_topic)]);
-    const t = await runTwoStageDraft({ job, ex, episodeId, candidate: cand, dir, rel, assetRoot, promptVersion, templates, majorTopic: majorTopic ?? undefined, introStyle: intro, fileTools, signoffSeed: Number(cand.id.replace(/\D/g, "")) || seed }); // 클로징 골격은 후보 번호로 돌린다 — 같은 시각에 시작한 3편이 같은 에피소드 수를 받아 골격이 겹쳤다 (T260909-005·007·009)
+    const t = await runTwoStageDraft({ job, ex, episodeId, candidate: cand, dir, rel, assetRoot, promptVersion, noGold, templates, majorTopic: majorTopic ?? undefined, introStyle: intro, fileTools, signoffSeed: Number(cand.id.replace(/\D/g, "")) || seed }); // 클로징 골격은 후보 번호로 돌린다 — 같은 시각에 시작한 3편이 같은 에피소드 수를 받아 골격이 겹쳤다 (T260909-005·007·009)
     out = { turns: t.stats.turns, chars: t.stats.chars, minutes: t.stats.minutes, sources_used: t.design?.sources_used ?? [], sources_excluded: t.design?.sources_excluded ?? [], self_check_fixes: t.write.self_check_fixes, notes: t.write.notes };
+    oneLiner = t.write.one_liner?.trim() || null; // KAN-50 3-1 — 썸네일 {핵심 개념}·발행 메타 설명 첫 줄
     model = t.model; costUsd = t.costUsd; tokens = t.tokens; summary = t.summary;
   } else if (attempt === 1) {
     const introSeed = await countEpisodes();
@@ -153,6 +159,8 @@ export async function runDraft(job: Job, ex: Executor) {
   const artifacts = [s3Key(`${rel}/script.md`), s3Key(`${rel}/sources.md`), s3Key(`${rel}/claims.md`), s3Key(`${rel}/pronunciations.json`)];
   if (attempt === 1) {
     await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: promptVersion, script_key: artifacts[0], claims_key: artifacts[2], sources_key: artifacts[1] });
+    // 구 방식(single) 초안은 one_liner 를 내지 않는다 — null 이면 썸네일 단계가 설계 축으로 대체한다
+    if (oneLiner) await pool.query("update public.episodes set one_liner = $2, updated_at = now() where id = $1", [episodeId, oneLiner.slice(0, 120)]);
     await setBacklogStatus(backlogId, "drafted");
   }
   // L0 형식 검사 (spec/09 6.2 "대본 형식 계약", spec/04 4장 줄 문법) — 위반 대본은 QA 로 보내지 않고 재생성 연쇄(spec/05 4장)로 돌린다.
@@ -160,7 +168,12 @@ export async function runDraft(job: Job, ex: Executor) {
   const scriptMd = await fs.readFile(path.join(dir, "script.md"), "utf8");
   const outlineFile = path.join(dir, "outline.md");
   const signoffHeads = signoffVariants(await getSetting<Templates>("templates")).map((v) => v.split("{")[0].trim()); // tpl-v2 클로징 인사 골격들의 고정 머리 — 비어 있으면 검사 없음
-  const violations = [...formatViolations(scriptMd), ...((await exists(outlineFile)) ? twoStageViolations(scriptMd, await fs.readFile(outlineFile, "utf8"), { signoffHeads }) : [])];
+  // full-v7 귀속 구조 검사 재료 — 없으면(구 형식 산출물) 구조 검사는 건너뛴다
+  const readIf = async (f: string) => ((await exists(path.join(dir, f))) ? fs.readFile(path.join(dir, f), "utf8") : undefined);
+  const [claimsMd, sourcesMd, notesMd] = await Promise.all([readIf("claims.md"), readIf("sources.md"), readIf("script-notes.md")]);
+  let pronunciations: Record<string, string> | undefined;
+  try { pronunciations = JSON.parse(await fs.readFile(pronFile, "utf8")) as Record<string, string>; } catch { pronunciations = undefined; }
+  const violations = [...formatViolations(scriptMd), ...((await exists(outlineFile)) ? twoStageViolations(scriptMd, await fs.readFile(outlineFile, "utf8"), { signoffHeads, claimsMd, sourcesMd, notesMd, pronunciations }) : [])];
   if (violations.length) {
     // L0 수정은 QA 회차와 별도로 센다 (2026-09-09): 같은 카운터를 쓰니 시점 표현 1건 고치는 데 QA 회차 하나가 사라졌고, QA 수정본이 통계 용어로 L0 에 걸리자 attempt 3 한도에 막혀 검토 대기로 빠졌다(T260909-009)
     const l0Fixes = Number(job.payload.l0_fixes ?? 0);
@@ -220,13 +233,16 @@ async function readOrigin(file: string): Promise<{ backlog_id: string; episode_i
  * 에피소드 id 할당 — DB 의 다음 번호에서 시작하되, 로컬 디렉토리나 S3 에 흔적이 남은 번호는 건너뛴다 (2026-09-09).
  * 에피소드를 지우면 DB 에서는 번호가 비지만 산출물 디렉토리는 남을 수 있고, 그 번호를 다시 쓰면 재집기 복구가 옛 산출물을 이어받는다.
  */
-async function allocateEpisodeId(prefix: string): Promise<string> {
+async function allocateEpisodeId(prefix: string, backlogId: string): Promise<string> {
   let id = await nextEpisodeId(prefix);
   for (let i = 0; i < 50; i++) {
     const local = await exists(path.join(cfg.workRoot, "episodes", id));
     const remote = local ? true : (await listPrefix(`episodes/${id}/`, 1).catch(() => [])).length > 0;
-    if (!local && !remote) return id;
-    log(`  episode id ${id}: ${local ? "로컬 디렉토리" : "S3 객체"}가 남아 있어 건너뜀`);
+    // 예약 (2026-09-15): 워커 3개가 5초 안에 같은 번호를 계산해 한 디렉토리를 나눠 썼다(T260915-005 — C123·C106, 한쪽의 실패 정리가 다른 쪽 산출물을 지웠다).
+    // "다음 번호"는 읽기라 원자적이지 않다 — 에피소드 행 삽입(on conflict do nothing)이 잠금이다. 실패하면 onDraftFailed 가 대본 없는 행을 지운다
+    const reserved = !local && !remote && (await pool.query("insert into public.episodes (id, backlog_id, prompt_version) values ($1, $2, 'allocating') on conflict (id) do nothing returning id", [id, backlogId])).rowCount === 1;
+    if (reserved) return id;
+    log(`  episode id ${id}: ${local ? "로컬 디렉토리" : remote ? "S3 객체" : "다른 워커의 예약"}이(가) 있어 건너뜀`);
     const n = Number(id.split("-")[1]) + 1;
     id = `${prefix}-${String(n).padStart(3, "0")}`;
   }

@@ -24,6 +24,7 @@ backend/      서버 구조·스키마·코드 규칙 (스키마의 유일한 �
 frontend/     클라이언트 구조·코드 규칙
 changes/      개발 중 발견한 문서 수정 사항의 기록 — 통합 과정에서 반영 (pending/ → archive/)
 tickets/      통합 테스트 중 발견한 코드 수정 사항의 기록 — 테스트 종료 후 반영 (<파트>/pending/ → <파트>/archive/)
+retrospective/ 주간 회고와 다음 주 계획 (YYYY-Wn.md). 회의 중에는 구글 문서를 쓰고, 끝나면 여기로 옮겨 보관한다
 ```
 
 문서 간 규칙이 충돌하면 **동작 규칙은 `features/`가, 스키마는 `backend/domain.md`가, 통신 계약은 `spec/api/`가 기준**이다.

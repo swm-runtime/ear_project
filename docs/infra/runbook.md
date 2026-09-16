@@ -104,7 +104,11 @@ aws cloudfront-keyvaluestore delete-key --kvs-arn $KVS_ARN --key <contentId> --i
 ```
 `library_items` 일괄 삭제 등 노출면 전체 반영은 `partner-control.md` 4.3 — 회수 API 구현 시 함께.
 
-## 4. 코드 배포 (수동)
+## 4. 코드 배포
+
+**기본 경로는 CI다(2026-09-04~).** dev에 머지되면 `.github/workflows/deploy-api.yml`이 `backend/deploy/push.sh`를, `deploy-pipeline.yml`이 `pipeline/deploy/push.sh`를 실행한다 — 이 두 스크립트가 배포의 원본이며 로컬에서도 같은 것을 쓴다(`bash backend/deploy/push.sh`). 아래는 CI·push.sh가 모두 막혔을 때의 최후 수단이다.
+
+### 4.1 수동 배포 (비상용)
 
 ```bash
 # 로컬(Windows)에서 — 워킹트리 기준 반입. dist·node_modules 제외
@@ -127,19 +131,57 @@ ssh -i … ec2-user@<IP> 'cd /opt/ear/backend \
 403 = 서명 문제(서버 `CLOUDFRONT_*` env vs CloudFront 키페어 불일치) · 404 = KVS 매핑 없음(전파 10초 대기 → 그래도면 `get-key`로 존재 확인) · 썸네일 403 = `thumb/*` behavior 누락(1.2 함정).
 
 ### 5.3 DB 복원
-```bash
-aws s3 cp s3://ear-backup-prod/pg/<최신>.sql.gz . && gunzip <최신>.sql.gz
-docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T postgres \
-  psql -U ear -d ear < <최신>.sql
-```
-새 서버면 먼저 빈 DB로 기동(마이그레이션 적용) 후 복원.
 
-### 5.4 서버 교체 (이미지 통째 재구축이 더 빠르다)
-1.3~1.5 재실행 → Elastic IP를 새 인스턴스로 옮기면 DNS 변경 불필요 → 5.3 복원.
+**덤프를 서버에서 직접 받을 수 없다.** 인스턴스 롤 `ear-prod-ec2`는 `s3:PutObject`만 갖고 있어
+`aws s3 cp s3://…` 가 **403**으로 막힌다(2026-09-12 실측). 자기 노트북(SSO 프로필)이나 콘솔에서
+받아 서버로 올린다.
+
+```bash
+# 1) 노트북에서 — 최신 덤프 확인 후 내려받아 서버로
+aws s3 ls s3://earcast-backup-prod/pg/ | tail -5
+aws s3 cp s3://earcast-backup-prod/pg/<최신>.sql.gz .
+scp -i deploy/aws/out/ear-prod-isb.pem <최신>.sql.gz ec2-user@<EIP>:/tmp/
+
+# 2) 서버에서 — 반드시 ON_ERROR_STOP. 없으면 psql 이 에러를 지나치고 exit 0 을 내
+#    "복원된 것처럼 보이는 반쪽짜리 DB"가 남는다
+zcat /tmp/<최신>.sql.gz | docker compose -f docker-compose.prod.yml --env-file .env.prod \
+  exec -T postgres psql -U ear -d ear -v ON_ERROR_STOP=1
+
+# 3) 대조 — 테이블 수·주요 행 수가 덤프 시점과 맞는지 본다
+docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T postgres \
+  psql -U ear -d ear -tAc "select count(*) from information_schema.tables where table_schema='public' and table_type='BASE TABLE'"
+```
+
+**새 서버라면 마이그레이션을 돌리지 않은 빈 DB에 넣는다.** 덤프에 `CREATE TABLE`·`CREATE INDEX`·
+`CREATE EXTENSION vector`가 모두 들어 있어, 마이그레이션을 먼저 적용하면 전부 "이미 존재한다"로
+충돌한다. 컨테이너를 처음 띄우면 postgres가 빈 DB를 만들어 주므로 **api 컨테이너를 멈춘 채**
+복원한 뒤 기동하면 된다.
+
+> **리허설 기록 (2026-09-12)** — 운영 덤프를 서버의 **임시 컨테이너**(`pgvector/pgvector:pg16`,
+> 운영과 분리)에 복원해 전 항목이 일치함을 확인했다: 테이블 31/31 · users 21/21 ·
+> library_items 92/92 · 인덱스 87/87 · FK 31/31 · `vector` 확장 0.8.6. psql 에러 0건.
+> **운영 DB는 읽기만 했다.** 같은 방식으로 언제든 안전하게 다시 연습할 수 있다.
+
+### 5.4 서버 교체
+
+**A. 스냅샷에서 복구(2026-09-15 이후 — 가장 빠르다, 10분).** 운영 API 루트 볼륨은 매일 04:40 KST 스냅샷이 7일 보존된다(`deploy/ebs-snapshot.sh`, 태그 `Source=ear-daily`). 볼륨·인증서·`.env.prod`·도커 이미지가 통째로 돌아온다. 스냅샷 시점 이후의 DB 변경은 5.3 덤프로 덧씌운다.
+```bash
+aws ec2 describe-snapshots --owner-ids 639177726357 --filters Name=tag:Source,Values=ear-daily --query 'sort_by(Snapshots,&StartTime)[-3:].[StartTime,SnapshotId,State]' --output table
+# 1) 스냅샷 → 볼륨 (같은 AZ ap-northeast-2a, gp3)
+aws ec2 create-volume --snapshot-id <snap> --availability-zone ap-northeast-2a --volume-type gp3 --tag-specifications 'ResourceType=volume,Tags=[{Key=Name,Value=ear-prod},{Key=Backup,Value=daily},{Key=Project,Value=ear}]'
+# 2) 새 인스턴스를 그 볼륨으로 띄우거나(run-instances --block-device-mappings 로 스냅샷 지정), 기존 인스턴스를 stop → 루트 볼륨 detach → 새 볼륨을 /dev/xvda 로 attach → start
+# 3) Elastic IP 를 새 인스턴스로 옮기면 DNS 변경 불필요. 기동 후 헬스 200 확인, 필요하면 5.3 으로 최신 덤프 덧씌우기
+```
+- 스냅샷은 크래시 컨시스턴트다(전원이 끊긴 순간의 디스크). postgres 는 WAL 로 스스로 복구하지만, 정합성이 중요한 복구는 5.3 덤프를 우선한다.
+- 새 볼륨에서 부팅한 인스턴스에도 인스턴스 롤·SG·키페어를 같은 것으로 준다(1.3).
+
+**B. 처음부터 재구축(스냅샷이 없거나 못 믿을 때, 2~3시간).** 1.3~1.5 재실행 → Elastic IP를 새 인스턴스로 옮기면 DNS 변경 불필요 → 5.3 복원.
 
 ## 6. 정기 점검 (주 1회 권장)
 
-- [ ] `ear-backup-prod/pg/`에 최근 덤프가 매일 쌓이는가
-- [ ] Budgets 메일·CloudWatch 알람 상태 (SNS 구독 Confirm 됐는가)
+- [ ] `ear-backup-prod/pg/`에 최근 덤프가 매일 쌓이는가 · `/var/log/ear-content-sync.log`에 내보내기가 매일 찍히는가
+- [ ] 스냅샷이 매일 1개 늘고 8일째 것이 지워지는가: `aws ec2 describe-snapshots --owner-ids 639177726357 --filters Name=tag:Source,Values=ear-daily --query 'length(Snapshots)'` = 7 안팎
+- [ ] Budgets 메일·CloudWatch 알람 상태: `aws cloudwatch describe-alarms --alarm-name-prefix ear-prod --query 'MetricAlarms[].[AlarmName,StateValue]' --output table` — 전부 `OK`. `INSUFFICIENT_DATA`면 크론이 지표를 못 찍는 것(권한·네트워크), `ALARM`이면 25시간 미실행
+- [ ] UptimeRobot 모니터 `ear api health`가 Up 인가. **설정값(재등록 시)**: 유형 Keyword · URL `https://api.earcast.co.kr/api/v1/health` · 키워드 `"status":"ok"` · 존재하면 Up · 간격 5분 · 알림 연락처 = 팀 메일 + Slack(Integrations → Slack, 알림 채널 웹훅). 키워드 방식이라 DB가 죽어 `/health`가 503 `degraded`를 내는 경우도 Down으로 잡힌다
 - [ ] `df -h` 디스크 (20GB — docker 이미지가 쌓이면 `docker system prune -f`)
 - [ ] 인증서는 Caddy 자동 — 만료 걱정 없음. `docker compose … logs caddy | grep -i renew`로 확인만

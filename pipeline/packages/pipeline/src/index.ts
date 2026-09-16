@@ -94,7 +94,8 @@ export function specSections(md: string, nums: number[]): string {
   return parts.filter((p) => { const m = p.match(/^## (\d+)\. /); return m && nums.includes(Number(m[1])); }).map((p) => p.trim()).join("\n\n");
 }
 
-const GOLD_USAGE = `   **골드 사용법 (중요)**: 골드에서 배울 것은 구조·리듬·기법·전언체뿐이다. 골드의 **구체 비유(요리 재료·마트 진열대·사진 현상 등), 특정 문구(확인구 "예리하세요"·"정확해요"·"딱 그 그림이에요", 역질문 답변 "솔직히 반반이에요", 피벗 "오늘 이야기가 정확히 그 얘기예요" 등), 도입 형태는 재사용 금지** — 같은 기법을 새 재료로 구현하라.`;
+// full-v7.2: 금지 문구를 인용하지 않는다 — "이 문장은 쓰지 마"가 변형을 유도한다(실측). 문구 목록은 L0(goldRe)·루브릭 G1 만 갖는다
+const GOLD_USAGE = `   **골드 사용법 (중요)**: 골드에서 배울 것은 구조·리듬·기법·전언체뿐이다. 골드의 **구체 비유·확인구·역질문 진입·피벗·도입 형태·마무리 마지막 문장은 재사용 금지** — 자리만 배우고 같은 기법을 새 재료·새 문장으로 구현하라.`;
 
 export interface Templates {
   version: string;
@@ -318,6 +319,8 @@ export interface CriticInput {
   rubric?: "v1" | "v2";
   /** tpl-v1 이전 세대 대본 (인트로·마무리가 자리표기) — v2 채점 시 3.5·3.7·G1에서 자리표기를 감점하지 않는다 */
   preTemplate?: boolean;
+  /** 리포트 파일명 (기본 critic-report-v2.md). 측정 모드(0020)는 critic-measure-<버전>.md 로 따로 쓴다 — 사람 판정이 붙은 리포트를 덮지 않는다 */
+  reportFile?: string;
 }
 
 export function buildCriticPrompt(i: CriticInput): string {
@@ -353,6 +356,7 @@ function buildCriticPromptV2(i: CriticInput): string {
   const a = assetPaths(i.assetRoot, i.workRoot);
   const dir = a.episodeDir(i.episodeId);
   const script = i.scriptFile ?? `${dir}/script.md`;
+  const report = i.reportFile ?? "critic-report-v2.md";
   const explainer = explainerFor(i.midTopic);
   const host = explainer === "윤아" ? "이음" : "윤아";
   const pre = i.preTemplate
@@ -366,14 +370,14 @@ function buildCriticPromptV2(i: CriticInput): string {
     : "";
   return `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 대본 비평가다. 스타일·구성 품질을 독립 평가한다. 생성 맥락·QA 결과·기계 검사(L0) 결과는 일절 모른 채 평가하는 것이 원칙이다.
 
-## 입력 (정확히 이 파일들만 읽는다 — 다른 프로젝트 파일 금지. 특히 같은 디렉토리의 qa-report, claims, sources, critic-report.md(구판) 및 다른 에피소드 금지)
+## 입력 (정확히 이 파일들만 읽는다 — 다른 프로젝트 파일 금지. 특히 같은 디렉토리의 qa-report, claims, sources, critic-report*.md(기존 비평) 및 다른 에피소드 금지)
 1. ${a.criticRubricV2} — 비평 루브릭 v2. 이 문서의 판단 항목(2.1)·배점과 구간 정의(3장)·리포트 규격(4장)을 그대로 따른다.
 2. ${a.guidelines} — 대본 규칙 (평가 기준의 원본).
 3. ${script} — 평가 대상 대본 (에피소드: "${i.title}", 해설 ${explainer} / 진행 ${host}, ${i.midTopic}).
 4. 골드 예시 2종 (비교 기준선): ${a.goldFullEum}, ${a.goldFullYuna}
 ${pre}
 ## 작업
-결과를 ${dir}/critic-report-v2.md 에 작성한다 (루브릭 v2 4장 규격). 순서:
+결과를 ${dir}/${report} 에 작성한다 (루브릭 v2 4장 규격). 순서:
 1. **점수 (100점)** — 3장의 하위 항목 12개를 **각각 독립적으로** 채점한다. 항목마다 구간 정의를 대본과 대조하고, 점수 옆에 반드시 대본 자구를 \`[E12] "…"\` 형식으로 인용한다 (인용 없는 점수는 무효). 합계는 계산 결과일 뿐 — 합계를 보고 조정하지 않는다. 몰입(3.10)은 다른 축의 합으로 역산하지 말고 통으로 판단한다.
    - **앵커 자리(\`{앵커 …: }\`)는 이번 실행에서 비어 있다.** 구간 정의만으로 채점한다. 이 실행은 "앵커 없음" 기준선이다.
    - 만점 구간은 **골드 2종보다 그 항목에서 명백히 나을 때만** 준다. 평범하면 평범하다고 쓴다.
@@ -467,7 +471,6 @@ ${list}
 export const CLUSTER_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["candidates", "reserve_notes", "dropped_notes"],
   properties: {
     candidates: {
       type: "array",
@@ -487,8 +490,6 @@ export const CLUSTER_SCHEMA = {
         },
       },
     },
-    reserve_notes: { type: "array", items: { type: "string" }, description: "성립 가능하나 이번엔 안 낸 군집 메모" },
-    dropped_notes: { type: "array", items: { type: "string" }, description: "탈락 사유 메모 (사건 축·소스 부족 등)" },
   },
 } as const;
 
@@ -554,7 +555,7 @@ ${sources}
 - **발췌가 말하지 않는 것을 요지에 보태지 않는다** — 인물의 성별·연령·관계, 문장의 원문 내 위치("마지막 문장"), 순서·수량은 원문에 그대로 있는 정도까지만.
 
 ### b) claims.md — 사실 주장 대조표
-표 한 개: \`| C## | 주장 (한국어, 한 문장) | 발췌 ID | 유형 |\`. 유형은 수치·인용·고유명사·인과·정의·실천 중 하나.
+표 한 개: \`| C## | 주장 (한국어, 한 문장) | 발췌 ID | 유형 | 구간 | 저명 | 의견 |\`. 유형은 수치·인용·고유명사·인과·정의·실천 중 하나. 구간 = 이 claim 을 쓰는 본문 구간 번호(같은 소스의 claims 는 전부 같은 구간, 축 소스만 둘) · 저명 = 주체가 소개 없이 통하는 인물·기관이면 ○ · 의견 = 특정인의 의견·해석·예측·논쟁적 주장이면 ○. 귀속 등급(귀속·없음)은 유형·의견에서 대본 단계가 도출한다(규칙 20, full-v7.1).
 - **발췌 ID가 없는 주장은 적을 수 없다.** 두 발췌를 합쳐야 성립하는 주장은 두 ID를 다 적는다.
 - 주장 문장은 발췌보다 구체적이면 안 된다 — 발췌의 헤지("~일 수 있다", "때로", "일부")와 귀속 주체("이 글은/기사는" vs 원저자 발언)를 그대로 옮긴다.
 - 소스 사이를 잇는 해석("A와 B는 같은 원리다")은 여기 적지 않는다 — 그건 구성안의 "연결·비유" 목록으로 간다.
@@ -571,7 +572,8 @@ ${sources}
 예상 분량: n분 (재료 총량 기준 — 아래 분량 규칙)
 
 역할표
-- 근거 앵커: S? (축의 핵심 주장을 받치는 소스)
+- 축 소스: S? (도입과 착지를 잇는 소스 하나 — 없으면 "없음". 이 소스만 두 구간에 걸칠 수 있다)
+- 블록 순서의 근거: 구간 #1 → #n 이 축의 논리 단계인 이유 한 줄 (소스의 서술·발행 순서가 아니다. 마무리 정리 턴이 이 순서대로 블록당 한 줄을 인과로 이어 축으로 수렴한다)
 - 사례: S?, S? (청취자 일상 또는 구체 일화)
 - 반론·한계: S?
 - 수치·조사: S?
@@ -580,11 +582,11 @@ ${sources}
 
 구간 #1 — 소제목
   목적: 청취자에게 남길 것 한 줄
-  재료: C01, C03 (S1) · C07 (S3)   ← 한 구간에 소스 2개 이상이 원칙. 한 소스만 쓰는 구간은 최대 1개. 사례·일화 재료는 구간당 하나만(예시 과다 방지)
+  재료: C01, C03 (S1) · C07 (S3)   ← **소스는 한 구간에만 배정한다**(축 소스만 예외). 한 구간에 소스가 여럿이어도, 하나여도 된다. 사례·일화 재료는 구간당 하나만(예시 과다 방지)
   진행자 질문: 기원 서사가 붙은 질문 한 개 (왜 궁금해졌는지 한 조각 + 질문)
   전환 장치: 번역 맞장구로 닫기 | 인용구 던지기 | 되물음 | 딴 얘기 끼어들기 | 역질문 중 하나
   비율: n%
-구간 #2 … (본문 구간 4~6개. 도입은 구간에 넣지 않는다 — [도입] 구역이 따로 맡는다. **한 소스의 재료가 본문의 1/3 을 넘지 않게**, 소스의 서술 순서를 그대로 구간 순서로 삼지 않는다 — 기사 순서가 구조가 되면 나열이 이해를 앞선다)
+구간 #2 … (본문 구간 4~6개. 도입은 구간에 넣지 않는다 — [도입] 구역이 따로 맡는다. 소스의 서술 순서를 그대로 구간 순서로 삼지 않는다 — 기사 순서가 구조가 되면 나열이 이해를 앞선다. **사용 소스 수는 본문 구간 수 + 1 이하** — 넘치면 얇은 소스를 제외한다)
 
 연결·비유 (대본이 만드는 것 — 사실이 아님, QA 대상 아님)
 - "X를 Y로 옮김" — 근거 C##/C##, 어느 구간에서
@@ -596,7 +598,7 @@ ${sources}
 
 설계 규칙:
 - 축은 반드시 대립("A인데 B"), 역설("A하려다 B가 된다"), 재정의("A는 사실 B다") 중 하나. "X란 무엇인가"형은 축이 아니다. 사건이 아니라 개념이 이끈다 (규칙 13-1).
-- **소스 순회 금지**: 구간이 소스 단위로 나뉘면 실패다. 구간은 축의 논리 단계로 나누고, 각 단계에 여러 소스의 재료를 배치한다.
+- **소스 순회 금지**: 구간 순서가 소스의 서술 순서·발행 순서를 따라가면 실패다. 구간은 축의 논리 단계로 나눈다. **소스는 한 구간에만 배정한다**(축 소스 하나만 도입·착지 두 구간) — 앞 구간의 소스를 뒤 구간에서 되부르는 재료 배치가 없어야 한다. 실측(2026-09-15): 소스를 여러 구간에 흩뿌린 구성안이 매 구간의 재식별("그 하버드 교수는")과 귀속 과밀을 만들었다.
 - 착지 구간을 반드시 지정하고, 그 구간의 재료가 실제로 축을 증명하는지 스스로 확인한다.
 - 전환 장치는 구간마다 다르게 — 같은 장치 연속 금지.
 - 청취자 일상 사례 왕복은 에피소드 전체에 최소 2회.
@@ -608,7 +610,7 @@ ${sources}
 ## 4. 자기 점검 (필수 — python 등으로 기계 확인)
 - claims의 모든 행에 발췌 ID가 있는가. 발췌 ID가 실제 sources.md에 존재하는가.
 - 구성안의 재료 ID가 전부 claims에 있는가.
-- 소스 단위 구간이 없는가. **한 소스의 재료가 본문 구간의 1/3 을 넘지 않는가**, 소스의 서술 순서가 그대로 구간 순서가 되지 않았는가 (판정: "음료 얘기가 불필요하게 길었음" — 기사 순서가 구조가 되면 나열이 이해를 앞선다). 착지 구간이 지정됐는가. 예상 분량이 13분 이상인가.
+- 소스마다 배정 구간이 하나인가(축 소스만 둘). 소스의 서술 순서가 그대로 구간 순서가 되지 않았는가 (판정: "음료 얘기가 불필요하게 길었음" — 기사 순서가 구조가 되면 나열이 이해를 앞선다). 사용 소스 수가 구간 수 + 1 이하인가. 착지 구간이 지정됐는가. 예상 분량이 13분 이상인가.
 
 ## 5. 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다.`;
 }
@@ -633,6 +635,9 @@ export const DESIGN_SCHEMA = {
     notes: { type: "string" },
   },
 } as const;
+
+/** 프롬프트를 캐시 단위로 나눈 것 (2026-09-16): system = 편에 무관한 규칙·규격·자기 점검(claude --append-system-prompt-file 로 보내 편 사이에 캐시 재사용), user = 이 편의 정보·재료 */
+export interface PromptParts { system: string; user: string }
 
 export interface WriteInput {
   episodeId: string;
@@ -662,61 +667,46 @@ export const WRITE_FACT_RULES = `- **사실 주장**(수치·인용·고유명�
   1. 헤지·양태를 그대로 — claims가 "~일 수 있다", "때로", "일부", "~로 알려져 있다"면 대본도 그 강도로. 단정("~이다", "흔하다")으로 올리지 않는다. 가설로 제시된 문장("~라고 추정했다")을 결과처럼 쓰지 않는다.
   2. 귀속 주체를 그대로 — claims의 주체가 "이 글은/기사는"이면 원저자 발언("○○가 그 예를 든다", "~가 말한다")으로 바꾸지 않는다. 서평·소개 기사 본문의 서술과 그 안의 인용은 다르다. 확실치 않으면 매체 귀속("이 글은 ~라고 해요")으로 낮춘다.
   3. 소스의 예시에 우리가 덧붙인 장면을 소스 귀속 문장 안에 넣지 않는다 — 발췌에 "회의실"이 없으면 "이 글은 회의실 예를 들어요"라고 쓸 수 없다. 장면을 옮기고 싶으면 화자의 번역으로 분리한다("이걸 회의실로 옮기면…", 또는 진행자의 일상 장면).
-  4. **발췌보다 구체적으로 쓰지 않는다** — 성별·연령·관계(sister→"여동생" 금지, "자매"까지), 순서·위치("그 글의 마지막 문장" — 발췌가 말하지 않으면 "그 글에 이런 문장이 있어요"), 수량·빈도는 원문이 밝힌 정도까지만.
+  4. **발췌보다 구체적으로 쓰지 않는다** — 성별·연령·관계(sister→"여동생" 금지, "자매"까지), 순서·위치("그 글의 마지막 문장" — 발췌가 말하지 않으면 위치 없이 화자 귀속으로 "저자는 이렇게 말해요"; 화자 없는 인용 예고 "이런 문장이 있어요"는 금지), 수량·빈도는 원문이 밝힌 정도까지만.
 - **구성안은 구조의 계약이지 문구의 계약이 아니다** — 구성안의 소제목·진행자 질문·설계 메모에 claims 범위를 넘는 표현(환산 수치·발췌에 없는 비교)이 있으면 대본에서 고쳐 쓴다. 소제목(\`### #n\`)도 QA 대상이다.
-- **귀속은 claims 의 \`귀속\` 열대로** (guidelines 규칙 20~22, 2026-09-09):
-  · \`불필요\` 주장은 **해설자가 자기 말로 설명한다** — "이 글은 ~라고 해요", "~에 따르면"으로 감싸지 않는다. 사실 검증은 claims 로 하므로 출처를 말하지 않아도 된다.
-  · \`필수\` 주장만 귀속을 단다. 그중 **매체명·저자명을 말하는 것은 근거 앵커의 첫 소개 · 직접 인용 · 특정인의 의견**일 때뿐이고, 나머지는 익명 귀속("한 연구에서는", "어느 글은", "연구진은"). 소스당 이름 언급 최대 2회, 이름이 나오는 소스는 2~3곳까지.
-  · 소스는 처음 나올 때 한 문장으로 소개하고 끝. "아까 그 기사", "같은 글에서", "다른 글에서는" 식 되돌림·갈아타기를 쓰지 않는다 — 구성안의 축이 이끄는 한 흐름 안에 사실을 놓는다.
-  · 자기 점검: 해설 턴 중 귀속 표현이 있는 턴이 절반을 넘으면 소스 순회다. L0 가 60% 초과를 재생성으로 돌린다.
+- **귀속은 claims 의 \`귀속\` 열대로, 누구인지는 블록이 정한다** (guidelines 규칙 20~22, full-v7.1 2026-09-15):
+  · **소스는 claims 의 \`구간\` 열에 적힌 구간(블록)에서만 쓴다** — 다른 구간에서 되부르지 않는다(축 소스만 도입·착지, 그것도 내용으로만 — "그 조사로 돌아가면"은 되돌림이다). 블록이 겹치지 않으니 문장은 말하지 않아도 그 블록 소스의 것이다.
+  · **블록의 첫 해설 턴은 소개 한 문장으로 연다** — 익명이어도 된다("미국의 한 대학 연구팀이", "국내 한 보고서가"). 앞 블록의 지시어("그 교수는")로 새 블록을 시작하지 않는다.
+  · \`없음\` 주장은 **해설자가 자기 말로 설명한다** — "이 글은 ~라고 해요", "~에 따르면", "~라는 얘기가 있어요"로 감싸지 않는다. **블록의 문장 대부분은 이쪽이어야 한다** — 소스의 모든 문장에 전언체를 붙이면 "그 교수의 말로는"이 여덟 턴 이어진다(v7 4편). 소스가 말한 것을 해설자가 아는 것으로 바꿔 말한다.
+  · \`귀속\` 주장(수치·인용·의견)만 블록 소스를 가리키는 지시 귀속과 전언체 — 그 사실이 처음 나오는 문장 앞에. **기본형은 주어 없는 전언**("~라고 보고됐어요", "~로 추정돼요", "~라고 해요"); "연구팀은 ~라고 봐요"·"저자들 말로는" 같은 주어형은 블록 소개 직후 한 번, 저자 판단을 사실과 가를 때 한 번까지 (full-v7.3 — 여섯 턴 내내 "저자들은"이면 소스 소개문이다).
+  · **이름은 선택이다** — 그 이름 자체가 정보일 때만(저명 주체, 직접 인용문의 화자, 사례 당사자). 부를 때는 소스당 하나, 소개 뒤 재언급은 지시어("이 사람", "연구팀"), 풀네임 재호명은 블록에서 최대 한 번, 형태는 첫 등장 그대로(성만 따로 부르지 않는다). **매체명·기관명은 sources.md 에 있는 것만** — 없으면 익명으로.
+  · **블록의 마지막 해설 턴은 그 블록이 축에 보태는 한 문장으로 닫는다**(구성안 "구간 목적").
+  · **마무리 정리 턴이 수렴의 자리** — 블록마다 한 줄씩을 "그래서·반대로·그런데"로 앞 줄에 걸어 잇고 마지막 줄이 축 문장. 열거("A였고, B였고")가 아니라 인과. claims 를 새로 쓰지 않고 이름을 부르지 않는다. 축을 회수한 문장에서 끝난다(사족 없음).
+  · 자기 점검: 소스를 블록 밖에서 쓰지 않았는가 · 블록 첫 턴이 앞 블록 지시어로 시작하지 않는가 · 같은 이름을 세 번 이상 부르지 않았는가 · 소스 목록에 없는 이름이 없는가 · 귀속 표현이 든 해설 턴이 다섯 턴 연속이 아닌가(어미만 걷어내지 말고 해설자의 말로). L0 가 잡는다.
 - **해설자는 독자가 아니라 아는 사람이다** (규칙 23): "저도 그 부분에서 멈췄어요", "다시 읽어보니", "저도 그렇게 읽었어요", "이 문장이 인상적이었는데", "글을 읽다가" 같은 **읽은 경험·감상 서술 금지**. 짚고 싶은 대목은 내용을 직접 말한다("여기서 중요한 건 ~예요"). L0 가 이 표현을 잡아 재생성한다.
 - **연결·비유**(소스 사이를 잇는 해석, 청취자 일상으로 옮기는 번역)는 구성안의 "연결·비유" 목록을 쓴다. 새로 만든 연결·비유는 완료 보고 bridges 에 전부 적는다. 비유는 직전 해설의 재료로 만든다 — 새 재료를 끌어오지 않는다. 소스 사이 병치는 "두 글이 서로를 인용한 건 아니지만" 같은 하향 표지로 해석임을 밝힌다.`;
 
 /** 2단계 — 대본 (단발 호출: 도구 없음, 모든 입력 인라인, 대본은 완료 보고 JSON 의 script 로 돌려준다) */
-export function buildWritePrompt(i: WriteInput): string {
+export function buildWritePromptParts(i: WriteInput): PromptParts {
   const explainer = explainerFor(i.candidate.mid_topic);
   const host = explainer === "윤아" ? "이음" : "윤아";
   const fence = (s: string) => "````\n" + s.trim() + "\n````";
-  return `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 **대본 작가**다. 청취자는 자기계발을 원하는 2030 한국 직장인 (IT 개발자 아님). 2인 대화 팟캐스트 대본을 쓴다.
+  const system = `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 **대본 작가**다. 청취자는 자기계발을 원하는 2030 한국 직장인 (IT 개발자 아님). 2인 대화 팟캐스트 대본을 쓴다.
 
-이 단계에는 소스 원문이 없고 도구도 없다. 필요한 것은 전부 이 프롬프트 안에 있다 — 파일을 읽거나 검색하지 않는다. 당신이 쓸 수 있는 사실은 **claims.md에 있는 것이 전부**이고, 전개는 **outline.md가 계약**이다. 기억으로 보충하지 않는다 — 발췌에 없는 사실을 쓰면 그 대본은 폐기된다.
+이 단계에는 소스 원문이 없고 도구도 없다. 필요한 것은 전부 이 지시와 이어지는 메시지 안에 있다 — 파일을 읽거나 검색하지 않는다. 당신이 쓸 수 있는 사실은 **claims.md에 있는 것이 전부**이고, 전개는 **outline.md가 계약**이다. 기억으로 보충하지 않는다 — 발췌에 없는 사실을 쓰면 그 대본은 폐기된다.
 
-## 1. 에피소드 정보 (백로그 ${i.candidate.id})
-- 에피소드 ID: ${i.episodeId} · 제목(가): "${i.candidate.title}" · 중분류: ${i.candidate.mid_topic}
-- 해설: **${explainer}** / 진행: **${host}** — 역할 고정, 페르소나는 spec/04 3장.
-- 제목은 구성안의 축에 맞게 새로 지어도 된다 (클릭베이트 금지).
-
-## 2. 규칙 (전부 준수)
-### 2.1 대본 규칙 — guidelines (${i.promptVersion})
+## 1. 규칙 (전부 준수)
+### 1.1 대본 규칙 — guidelines (${i.promptVersion})
 ${fence(i.guidelines)}
 
-### 2.2 대본 규격·페르소나 — spec/04 (3~6장)
+### 1.2 대본 규격·페르소나 — spec/04 (3~6장)
 ${fence(specSections(i.specScript, [3, 4, 5, 6]))}
 
-### 2.3 골드 예시 — 톤·리듬·티키타카의 기준 (이 에피소드와 같은 역할 배치: ${explainer} 해설)
+${i.goldFullEum || i.goldFullYuna ? `### 1.3 골드 예시 — 톤·리듬·티키타카의 기준 (이 에피소드와 같은 역할 배치: ${explainer} 해설)
 ${GOLD_USAGE}
-${fence(explainer === "이음" ? i.goldFullEum : i.goldFullYuna)}
+${fence(explainer === "이음" ? i.goldFullEum : i.goldFullYuna)}` : `### 1.3 골드 예시 — 이 실행에는 없다 (실험 no-gold, 2026-09-15)
+톤·리듬·티키타카·전언체는 guidelines 규칙(1~10·19)과 spec/04 3장 페르소나만 따른다. 참조할 문장이 없으므로 확인구·정리 진입·클로징 문장은 규칙과 템플릿 골격대로 새로 쓴다.`}
 
-## 3. 이 에피소드의 재료
-### 3.1 구성안 — outline.md (계약: 구간 순서·목적·재료·진행자 질문·전환 장치를 그대로 실행한다)
-${fence(i.outlineMd)}
-
-### 3.2 사실 주장 대조표 — claims.md (쓸 수 있는 사실의 전부)
-${fence(i.claimsMd)}
-
-### 3.3 소스 발췌 — sources.md (claims 의 원문 근거. 인용·재서술의 강도를 여기에 맞춘다)
-${fence(i.sourcesMd)}
-
-### 3.4 발음 맵 — pronunciations.json (등재된 표기만 대본에 쓰는 것이 원칙. 새 비한글 표기를 도입하면 완료 보고 pronunciations_added 에 발음을 적는다)
-${fence(i.pronunciationsJson)}
-
-## 4. 대본 규격
+## 2. 대본 규격
 ### 구조 (spec/04 4장)
 - 첫 줄 메타: \`에피소드 ID · 제목 · 중분류 · 해설/진행 · 프롬프트 버전 ${i.promptVersion} · 사용 소스 수\`
 - 구역 헤더는 \`## [인트로]\` \`## [도입]\` \`## [본문]\` \`## [마무리]\` 4개뿐. **[콜드오픈] 구역은 폐지** — 만들지 않는다.
 - [본문] 안의 구간 경계는 \`### #n 소제목\` 한 줄로 표시한다 (구성안의 구간 번호·순서 그대로. TTS는 이 줄을 읽지 않는다).
-${templateBlock({ templates: i.templates, majorTopic: i.majorTopic, signoffSeed: i.signoffSeed } as DraftInput)}
-- 도입 (규칙 13): 주제 선언 뒤 첫 해설 턴 사이에 청취자가 "대화에 앉는" 두세 턴. 주제를 다시 발견하는 척 금지. 이 에피소드의 진입 방식: **${i.introStyle.label}** — ${i.introStyle.hint}
 
 ### 줄 문법 (TTS 파서 계약 — 정확히)
 - 번호 턴은 \`[윤아] E1 · 문장\` / \`[이음] Y1 · 문장\`. 화자 라벨이 먼저, 번호 뒤는 **가운뎃점(·)**. \`E1.\`·\`E1 [윤아]\` 변형 금지.
@@ -726,29 +716,61 @@ ${templateBlock({ templates: i.templates, majorTopic: i.majorTopic, signoffSeed:
 ${WRITE_FACT_RULES}
 
 ### 분량 (2026-09-08 확정 규칙)
-- **이 에피소드의 목표: 약 ${i.estimatedMinutes ?? 15}분 = 공백·기호 제외 약 ${Math.round((i.estimatedMinutes ?? 15) * 350)}자 (±15%)** — 구성안의 "예상 분량"이다 (350자/분). 하한 13분(약 4,000자)은 필수이고 상한을 규칙으로 두지는 않지만, **예상 분량은 설계가 재료 총량으로 이미 정한 크기다** — 그보다 크게 쓰는 것은 재료가 많아서가 아니라 풀어 쓰기가 길어진 것이다.
 - **claims 는 쓸 수 있는 것의 상한이지 채워야 할 목록이 아니다.** 구간의 목적에 필요한 것만 쓴다. 채우기용 잡담·같은 말 반복 금지. 구간 비율(구성안의 %)은 참고값 — 비율을 맞추려고 문장을 늘리지 않는다.
 - 턴 길이 규격: 해설 1턴 2~5문장(에피소드 평균), **한 턴 최대 6문장** — 7문장 이상 턴은 L0가 잡아 재생성한다. 진행 1턴 1~2문장.
 
-## 5. 자기 점검 (출력 전에, 머릿속에서 끝까지)
+## 3. 자기 점검 (출력 전에, 머릿속에서 끝까지)
 - 구간 헤더의 순서·개수가 구성안과 같은가. 4,000자 이상인가. 해설 턴 평균 문장 수가 5 이하인가.
 - **해설 턴의 사실 문장마다** 대응하는 claims 행이 있는가, 헤지·귀속 주체가 같은가, 발췌보다 구체적이지 않은가. 어긋난 문장은 삭제하거나 claims 범위로 축소한 뒤 self_check_fixes 에 적는다. 결과를 turn_claims(턴별 사용 claims ID)로 보고한다.
-- 진행 턴에 사실 주장이 없는가. 지시어·콜백("아까 그 ~")이 가리키는 대상이 대본 안에 있는가.
+- 진행 턴에 사실 주장이 없는가 — **수치·배수·비율("시간도 두 배로 들고")도 사실 주장이다**, 발췌에 없으면 진행 턴에 쓰지 않는다. 지시어·콜백("아까 그 ~")이 가리키는 대상이 대본 안에 있는가.
+- **표기 (규칙 14)**: 인명은 원문 표기(Hemingway, E. Ashby Plant — 한글 음차 "헤밍웨이"는 QA 항목 6 이 거부한다), 기관·지명·매체는 한국어 관용 표기(플로리다 주립대, 뉴욕 연준)로 적었는가.
+- **비유 (규칙 3·18)**: 진행 턴이 비유를 지어내지 않았는가. 비유가 어려운 대목에만, 에피소드에 셋 이내인가. 개념 사이의 관계를 다른 사물의 관계로 옮긴 비유(배터리/충전기 류)는 없는가. 비유로 들어갈 때 무엇을 옮기는지 말했는가("이 상황을 ~로 옮기면"). 다른 구간의 장면을 되부르는 콜백이 없는가.
+- **진행 턴 (규칙 25)**: 앞 질문 뒤에 꼬리 질문("뭐가 멈춘다는 거예요?")이 붙지 않았는가. 이해했으면 확인형("~에 가깝다는 거죠?")으로 받았는가. 진행자가 예시·비유를 만들지 않았는가 (L0 가 물음표 셋 이상·비유 표지를 잡는다).
+- **귀속·소스 (규칙 20~22)**: 소스를 claims 의 블록 밖에서 쓰지 않았는가. 블록 첫 해설 턴이 소개 문장인가, 마지막 해설 턴이 축에 보태는 문장인가. 귀속은 수치·인용·의견에만 있고 나머지는 해설자의 말인가. 이름은 정보일 때만, 소스당 하나, 세 번 이상 반복하지 않았는가, 소스 목록에 있는 이름인가. 마무리가 블록당 한 줄을 인과로 이어 축으로 수렴하는가(열거 아님, claims·이름 없음). 퍼센트/퍼센트포인트 표기가 한 대본 안에서 같은가(규칙 24).
+- **턴 끝**: 모든 턴이 완결된 문장으로 끝나는가 — 말줄임표·미완 구로 끝난 턴은 오디오가 끊긴 인상을 준다.
 - **용어 (규칙 24)**: 청취자(IT·경제·생물학 비전공 직장인)가 모를 전문 용어·외국어 개념·통계 표현을 전부 terms 에 적는다 — 한 턴에 하나, 그 자리에서 한 문장으로 풀었거나 다음 진행 턴이 되물어 풀게 했는가. 풀지 못한 용어는 이름 없이 현상으로 바꿔 쓴다. 논문 결과 문장("평균적으로 더 큰 순유출이 났다", "공통 흐름이 반대로 움직였다")은 말로 옮긴다("돈이 더 많이 빠져나갔다", "한쪽이 오르면 다른 쪽이 내렸다"). (판정 6편 공통 저점: "어려운 말이 많은데 풀어가는 과정이 없다")
 - **사례 상한**: 사례·일화·예시 문장은 구간당 하나, 에피소드에 4~5개. 같은 개념에 두 번째 예시를 붙이지 않는다 — 모든 것을 예시로 해결하면 논지가 사라진다 (판정: "예시가 너무 많음").
 - **뜸**: 해설이 연속 열 턴 넘게 말줄임표 없이 흐르지 않는가 (규칙 7 — L0 가 잡는다). 긴 해설 구간에는 문장 중간 뜸("...")을 둔다.
-- **골드 문장 복제**: 골드의 확인구·역질문 진입·마무리 마지막 문장 틀("한 번쯤 떠올려 보셔도", "그 그림이 맞습니다", "정확히 ~의 핵심")을 자리째 쓰지 않았는가 (L0 가 2회 이상이면 잡는다).
+- **골드 문장 복제**: 골드의 확인구·역질문 진입·마무리 마지막 문장 틀을 자리째 쓰지 않았는가 (L0 가 1회라도 잡는다 — 피하려 애쓰지 말고 자기 문장을 쓴다). "그 번역이"·"구간"·"발췌" 같은 제작 용어가 대사에 없는가.
 
-## 6. 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. script 필드에 script.md 전문(첫 줄 메타부터 마지막 턴까지, 마크다운 그대로)을 넣는다.
+## 4. 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. script 필드에 script.md 전문(첫 줄 메타부터 마지막 턴까지, 마크다운 그대로)을 넣는다.
 **완료 보고 전에 대본이나 설명을 일반 텍스트로 먼저 쓰지 않는다** — 대본은 JSON 안에 한 번만 존재한다 (두 번 쓰면 출력 비용이 두 배가 된다).`;
+  const user = `## 이 에피소드 (백로그 ${i.candidate.id})
+- 에피소드 ID: ${i.episodeId} · 제목(가): "${i.candidate.title}" · 중분류: ${i.candidate.mid_topic}
+- 해설: **${explainer}** / 진행: **${host}** — 역할 고정, 페르소나는 spec/04 3장.
+- 제목은 구성안의 축에 맞게 새로 지어도 된다 (클릭베이트 금지).
+${templateBlock({ templates: i.templates, majorTopic: i.majorTopic, signoffSeed: i.signoffSeed } as DraftInput)}
+- 도입 (규칙 13): 주제 선언 뒤 첫 해설 턴 사이에 청취자가 "대화에 앉는" 두세 턴. 주제를 다시 발견하는 척 금지. 이 에피소드의 진입 방식: **${i.introStyle.label}** — ${i.introStyle.hint}
+- **이 에피소드의 목표: 약 ${i.estimatedMinutes ?? 15}분 = 공백·기호 제외 약 ${Math.round((i.estimatedMinutes ?? 15) * 350)}자 (±15%)** — 구성안의 "예상 분량"이다 (350자/분). 하한 13분(약 4,000자)은 필수이고 상한을 규칙으로 두지는 않지만, **예상 분량은 설계가 재료 총량으로 이미 정한 크기다** — 그보다 크게 쓰는 것은 재료가 많아서가 아니라 풀어 쓰기가 길어진 것이다.
+
+## 이 에피소드의 재료
+### 구성안 — outline.md (계약: 구간 순서·목적·재료·진행자 질문·전환 장치를 그대로 실행한다)
+${fence(i.outlineMd)}
+
+### 사실 주장 대조표 — claims.md (쓸 수 있는 사실의 전부)
+${fence(i.claimsMd)}
+
+### 소스 발췌 — sources.md (claims 의 원문 근거. 인용·재서술의 강도를 여기에 맞춘다)
+${fence(i.sourcesMd)}
+
+### 발음 맵 — pronunciations.json (등재된 표기만 대본에 쓰는 것이 원칙. 새 비한글 표기를 도입하면 완료 보고 pronunciations_added 에 발음을 적는다)
+${fence(i.pronunciationsJson)}
+
+위 지시의 규칙·규격·자기 점검대로 쓰고, 완료 보고 JSON 만 출력한다.`;
+  return { system, user };
 }
+/** 하위 호환 — 한 문자열. 캐시를 쓰려면 Parts 를 executor 의 systemPrompt/prompt 로 나눠 보낸다 (2026-09-16) */
+export function buildWritePrompt(i: WriteInput): string { const p = buildWritePromptParts(i); return `${p.system}\n\n${p.user}`; }
 
 export const WRITE_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["title", "script", "sections_followed", "turn_claims", "bridges", "pronunciations_added", "self_check_fixes", "notes"],
+  required: ["title", "one_liner", "script", "sections_followed", "turn_claims", "bridges", "pronunciations_added", "self_check_fixes", "notes"],
   properties: {
     title: { type: "string" },
+    // KAN-50 3-1 — 썸네일 프롬프트의 {핵심 개념}이자 발행 메타 설명 첫 줄. 여기서 받는 이유는
+    // 모델이 대본 전체 맥락을 이미 갖고 있어 추가 호출·비용이 0 이기 때문이다
+    one_liner: { type: "string", description: "40자 이내 한 줄 요약. 사실 주장이 아니라 이 편의 축을 청취자 언어로 (예: \"소득이 끊겨도 버티는 현금흐름 구조\"). 제목을 그대로 복창하지 않는다" },
     script: { type: "string", description: "script.md 전문 (마크다운)" },
     sections_followed: { type: "boolean", description: "구성안 구간 순서·개수 준수" },
     turn_claims: { type: "array", items: { type: "object", additionalProperties: false, required: ["turn", "claims"], properties: { turn: { type: "string" }, claims: { type: "array", items: { type: "string" } } } }, description: "해설 턴별 사용 claims ID" },
@@ -782,7 +804,7 @@ export interface QaInlineInput {
   humanRevision?: boolean;
 }
 
-export function buildQaPromptInline(i: QaInlineInput): string {
+export function buildQaPromptInlineParts(i: QaInlineInput): PromptParts {
   const fence = (s: string) => "````\n" + s.trim() + "\n````";
   const prior = i.attempt > 1 && (i.priorFailures?.length || i.fixes?.length)
     ? `
@@ -799,7 +821,7 @@ ${(i.fixes ?? []).map((f, n) => `${n + 1}. ${f.location}\n   전: ${f.before}\n 
 3. 수정으로 새로 생긴 문장·바뀐 문장은 1회차와 같은 엄격함으로 본다.`
     : "";
   const human = i.humanRevision ? `\n(이 대본은 사람이 웹에서 수정한 뒤 재QA를 요청한 것이다 — 사람 수정도 환각·중복을 만들 수 있으므로 1회차와 같은 엄격함으로 전수 검사한다.)` : "";
-  return `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 QA 검수자다. 대본의 사실 무결성을 독립 검증한다. 생성 맥락은 일절 모른 채 검사하는 것이 원칙이다.${human}
+  const system = `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 QA 검수자다. 대본의 사실 무결성을 독립 검증한다. 생성 맥락은 일절 모른 채 검사하는 것이 원칙이다.
 
 이 실행에는 도구가 없다. 필요한 것은 전부 아래에 있다 — 파일을 읽거나 원문 URL 에 접속하지 않는다. 검증 기준은 소스 발췌가 최종이다.
 
@@ -812,20 +834,25 @@ ${fence(i.specQaMd)}
 ${QA_ITEM6_NOTE}
 
 특히 주의 깊게 볼 유형: ① 발췌에 없는 주장 (비교 축 추가, 연관의 방향 확정, 귀속 범위 확장, 연대·수치의 무근거 환산, 문장 위치 주장) — **본문 소제목(\`### #n\`)도 검사 대상**, ② 귀속 정확성 — 게재 매체 지시("~라는 매체", "같은 매체", "아까 그 ~")가 발췌의 실제 게재처와 일치하는지 지시 사슬 전수 추적, ③ 수치·시점의 상향 왜곡 (하향 범위 표현은 의도된 규격), ④ 구역이 [인트로]·[도입]·[본문]·[마무리] 4개인가 ([콜드오픈] 구역이 있으면 위반 — 2026-09-07 폐지), ⑤ 화자 규칙 (진행 담당의 사실 주장 금지 — 감상·추측 허용), ⑥ 수정 잔존 참조 (지시어·콜백이 가리키는 대상이 현재 대본 안에 실재하는지), ⑦ claims가 스스로 "발췌 밖" 등으로 표시한 항목은 그 판단을 믿지 말고 발췌 기준으로 독립 재판정. 소스 사이를 잇는 해석·비유·청취자 일상 번역은 해석임이 표시돼 있으면(“제 연결인데”, “~로 옮기면”, “서로를 인용한 건 아니지만”) 사실 주장이 아니다. **귀속 표현이 없는 사실 문장은 귀속 부재 자체를 실패로 잡지 않는다** — claims·발췌 대조로만 판정한다 (2026-09-09 귀속 등급 규칙: 개념·원리·정의는 해설자의 말로 하는 것이 규격이다). 익명 귀속("한 연구에서는")은 그 주장이 어느 발췌에든 있으면 통과다.
+
+
+## 3. 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. report_md 에는 QA 프롬프트 자산의 출력 규격대로 "### 항목별 판정" 표(10행) · "### 실패 상세" 표 · "### 비고 — 실패로 잡지 않은 경계 사례" · "### 종합 판정"을 마크다운으로 넣는다 (파일 헤더·attempt 헤더는 워커가 붙인다). failures 배열과 실패 상세 표는 같은 내용이어야 한다. 완료 보고 전에 다른 텍스트를 출력하지 않는다.`;
+  const user = `## 검사 대상 — ${i.episodeId} attempt ${i.attempt}${human}
 ${prior}
 
-## 3. 검사 대상 — ${i.episodeId} attempt ${i.attempt}
-### 3.1 대본 script.md
+### 대본 script.md
 ${fence(i.scriptMd)}
 
-### 3.2 claims 대조표 claims.md (검증의 지도 — 최종 기준은 아니다)
+### claims 대조표 claims.md (검증의 지도 — 최종 기준은 아니다)
 ${fence(i.claimsMd)}
 
-### 3.3 소스 발췌 sources.md (검증의 최종 기준)
+### 소스 발췌 sources.md (검증의 최종 기준)
 ${fence(i.sourcesMd)}
 
-## 4. 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. report_md 에는 QA 프롬프트 자산의 출력 규격대로 "### 항목별 판정" 표(10행) · "### 실패 상세" 표 · "### 비고 — 실패로 잡지 않은 경계 사례" · "### 종합 판정"을 마크다운으로 넣는다 (파일 헤더·attempt 헤더는 워커가 붙인다). failures 배열과 실패 상세 표는 같은 내용이어야 한다. 완료 보고 전에 다른 텍스트를 출력하지 않는다.`;
+위 지시의 절차·항목대로 검사하고, 완료 보고 JSON 만 출력한다.`;
+  return { system, user };
 }
+export function buildQaPromptInline(i: QaInlineInput): string { const p = buildQaPromptInlineParts(i); return `${p.system}\n\n${p.user}`; }
 
 export const QA_INLINE_SCHEMA = {
   type: "object",
@@ -847,10 +874,38 @@ export const QA_INLINE_SCHEMA = {
 // 출력 토큰(구 방식 4만+)이 claims·구성안만으로 준다. 에이전트 루프(WebFetch·파일 쓰기·python 점검 29턴)의 문맥 재읽기도 사라진다.
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
+/**
+ * 규칙 자산에서 **모델에게 보낼 본문만** 남긴다 (2026-09-10, 썸네일 프롬프트에서 발견된 문제를 대본·QA·비평 자산에 확장).
+ * 자산은 사람이 읽는 문서이기도 해서 맨 위에 제목·버전 이력(인용 블록)이, 본문 앞에 "이전 판과 무엇이 달라졌나" 절이 있다.
+ * 그 안에는 폐기된 기준("절 셋부터 위반" 등)이 설명을 위해 인용돼 있는데, 모델은 설명과 지시를 구분하지 않는다.
+ * 규칙: 맨 앞의 `# 제목`과 이어지는 `>` 블록을 버리고, dropSections 에 맞는 `## ` 절을 통째로 버린다. 단독 `---` 이후(부록)도 버린다.
+ * 골드 예시·spec 에는 쓰지 않는다 — 대본 본문에 `---` 가 있을 수 있고, 골드의 머리 인용은 배치 정보다.
+ */
+export function promptBody(content: string, opts: { dropSections?: RegExp[] } = {}): string {
+  const lines = content.split("\n");
+  let start = 0;
+  while (start < lines.length && (lines[start].startsWith("# ") || lines[start].startsWith(">") || lines[start].trim() === "")) start++;
+  let rest = lines.slice(start);
+  const hr = rest.findIndex((l) => l.trim() === "---");
+  if (hr >= 0) rest = rest.slice(0, hr);
+  const drop = opts.dropSections ?? [];
+  if (drop.length) {
+    const out: string[] = []; let skipping = false;
+    for (const l of rest) {
+      if (/^## /.test(l)) skipping = drop.some((re) => re.test(l));
+      if (!skipping) out.push(l);
+    }
+    rest = out;
+  }
+  return rest.join("\n").trim();
+}
+
 export interface InlineSource {
   n: number; url: string; publisher: string; title: string; published?: string | null; backbone?: boolean;
   ok: boolean; byline?: string | null; note?: string | null;
   blocks: { id: string; text: string }[];
+  /** 다른 편이 이미 발췌한 문단 — 본문 없이 자리만 보여 준다 (2026-09-10 문단 단위 중복 방지). by = 그 편의 에피소드 ID */
+  usedBlocks?: { id: string; by: string }[];
 }
 
 export interface DesignInlineInput {
@@ -864,35 +919,33 @@ export interface DesignInlineInput {
   sources: InlineSource[];
 }
 
-export function buildDesignPromptInline(i: DesignInlineInput): string {
+export function buildDesignPromptInlineParts(i: DesignInlineInput): PromptParts {
   const explainer = explainerFor(i.candidate.mid_topic);
   const host = explainer === "윤아" ? "이음" : "윤아";
   const fence = (s: string) => "````\n" + s.trim() + "\n````";
   const srcBlocks = i.sources.map((s) => {
     const head = `### S${s.n}. ${s.publisher} — "${s.title}"${s.backbone ? " (뼈대 후보)" : ""}\n- URL: ${s.url}${s.published ? ` · 발행 ${String(s.published).slice(0, 10)}` : ""}${s.byline ? ` · 저자 ${s.byline}` : ""}`;
     if (!s.ok) return `${head}\n- **본문 없음** (${s.note ?? "가져오기 실패"}) — 이 소스는 제외 대상. sources_excluded 에 사유를 적는다.`;
-    return `${head}${s.note ? `\n- 추출 메모: ${s.note}` : ""}\n${s.blocks.map((b) => `[${b.id}] ${b.text}`).join("\n")}`;
+    const used = s.usedBlocks ?? [];
+    const usedNote = used.length ? `\n- **이미 쓴 대목 ${used.length}문단 제외** (${[...new Set(used.map((u) => u.by))].join("·")} 에서 발췌함) — 아래 ⛔ 자리의 내용은 이 편에서 쓸 수 없다. 남은 문단으로 다른 대목을 쓰거나, 얇으면 이 소스를 제외한다` : "";
+    const all = [...s.blocks.map((b) => ({ id: b.id, line: `[${b.id}] ${b.text}` })), ...used.map((u) => ({ id: u.id, line: `[${u.id}] ⛔ (${u.by} 에서 이미 쓴 대목 — 제외)` }))]
+      .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+    return `${head}${s.note ? `\n- 추출 메모: ${s.note}` : ""}${usedNote}\n${all.map((x) => x.line).join("\n")}`;
   }).join("\n\n");
-  return `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 **설계 담당**이다. 대본을 쓰지 않는다. 소스 본문을 정독해 재료(발췌·claims)와 구성안을 만든다. 다음 단계(대본)는 원문을 보지 못하고 여기서 만든 파일만 본다. 그러므로 **발췌에 없는 사실은 대본에 존재할 수 없다** — 넉넉하게 골라라.
+  const anyUsed = i.sources.some((s) => s.usedBlocks?.length);
+  const system = `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 **설계 담당**이다. 대본을 쓰지 않는다. 소스 본문을 정독해 재료(발췌·claims)와 구성안을 만든다. 다음 단계(대본)는 원문을 보지 못하고 여기서 만든 파일만 본다. 그러므로 **발췌에 없는 사실은 대본에 존재할 수 없다** — 넉넉하게 골라라.
 
-이 실행에는 도구가 없다. 소스 본문은 아래 4장에 문단 ID 와 함께 전부 들어 있다 — 검색하거나 기억으로 보충하지 않는다. **발췌는 당신이 쓰는 것이 아니라 고르는 것이다**: 문단 ID 목록을 돌려주면 워커가 원문 그대로 sources.md 에 옮긴다.
+이 실행에는 도구가 없다. 소스 본문은 이어지는 메시지에 문단 ID 와 함께 전부 들어 있다 — 검색하거나 기억으로 보충하지 않는다. **발췌는 당신이 쓰는 것이 아니라 고르는 것이다**: 문단 ID 목록을 돌려주면 워커가 원문 그대로 sources.md 에 옮긴다.
 
 ## 1. 규칙 (구성안이 이 규칙을 만족할 수 있게 설계한다)
 ### 1.1 대본 규칙 — guidelines (${i.promptVersion})
 ${fence(i.guidelines)}
 ### 1.2 대본 규격·페르소나 — spec/04 (3·4·6·7장)
 ${fence(specSections(i.specScript, [3, 4, 6, 7]))}
-### 1.3 골드 예시 — 구간 형태·리듬의 기준 (같은 역할 배치: ${explainer} 해설. 문장을 베끼지 않는다)
-${fence(explainer === "이음" ? i.goldFullEum : i.goldFullYuna)}
+${i.goldFullEum || i.goldFullYuna ? `### 1.3 골드 예시 — 구간 형태·리듬의 기준 (같은 역할 배치: ${explainer} 해설. 문장을 베끼지 않는다)
+${fence(explainer === "이음" ? i.goldFullEum : i.goldFullYuna)}` : `### 1.3 골드 예시 — 이 실행에는 없다 (실험 no-gold, 2026-09-15). 구간 형태·리듬은 spec/04 4장 구조와 guidelines 규칙만으로 설계한다.`}
 
-## 2. 에피소드 정보 (백로그 ${i.candidate.id}, 게이트1 승인 완료)
-- 에피소드 ID: ${i.episodeId} · 제목(가): "${i.candidate.title}" · 중분류: ${i.candidate.mid_topic}
-- 해설: **${explainer}** / 진행: **${host}** — 역할 고정
-- 청취자: 자기계발을 원하는 2030 한국 직장인 (IT 개발자 아님). 편도 30분 통근.
-${candidateAxisBlock(i.candidate)}
-- 타깃 정합 메모: ${i.candidate.target_fit ?? "-"}
-
-## 3. 산출물 규칙 (완료 보고 JSON 의 각 필드)
+## 2. 산출물 규칙 (완료 보고 JSON 의 각 필드)
 
 ### a) excerpt_ids — 넉넉한 발췌 선택
 - 소스당 10~20개 문단 ID. 핵심 주장, 수치·조사 설계, 구체 사례·일화, 저자의 단서·한계 서술, 인용된 다른 연구의 이름과 결론, 실천 제안을 전부. "대본 작가가 이 대목을 쓰고 싶어 했는데 발췌에 없어서 못 쓰는 일"이 없어야 한다 — 빠뜨리는 쪽이 넘치는 쪽보다 비용이 크다.
@@ -901,15 +954,15 @@ ${candidateAxisBlock(i.candidate)}
 - 본문이 없거나 너무 얇은 소스는 제외하고 sources_excluded 에 사유. 최소 3건 유지, 미달이면 구성안을 만들지 말고 notes 에 보고.
 
 ### b) claims — 사실 주장 대조표
-- 각 항목: id(C01…) · text(한국어 한 문장) · excerpt_ids(근거 문단 ID — 없으면 적을 수 없다. 두 문단을 합쳐야 성립하면 둘 다) · type(수치·인용·고유명사·인과·정의·실천).
+- 각 항목: id(C01…) · text(한국어 한 문장) · excerpt_ids(근거 문단 ID — 없으면 적을 수 없다. 두 문단을 합쳐야 성립하면 둘 다) · type(수치·인용·고유명사·인과·정의·실천) · **section**(이 claim 을 쓰는 본문 구간 번호 — **같은 소스의 claims 는 전부 같은 구간**이어야 한다. axis_source 로 지정한 축 소스만 도입·착지 두 구간) · **notable**(주체가 청취자가 소개 없이 이름만으로 아는 저명 인물·기관인가 — 프로이트·하버드·연준·통계청 수준. 일반 대학·연구소·매체·개별 연구자는 false) · **opinion**(특정인의 의견·해석·예측, 또는 논쟁적·이해당사자 주장인가).
 - 주장 문장은 발췌보다 구체적이면 안 된다 — 발췌의 헤지("~일 수 있다", "때로", "일부")와 귀속 주체("이 글은/기사는" vs 원저자 발언)를 그대로 옮긴다. 연대를 경과 연수로 환산하지 않는다.
-- **attribution — 귀속 등급** (guidelines 규칙 20): \`필수\` = 직접 인용 · 수치·조사 결과 · 특정인의 의견·해석·예측 · 논쟁적/반직관적 주장. \`불필요\` = 개념·원리·정의 · 널리 알려진 사실 · 소스가 설명하는 일반 메커니즘. 대본은 \`불필요\` 주장을 해설자의 말로 설명하고 출처를 달지 않는다. **절반 이상이 \`필수\`면 등급을 다시 본다** — 대부분의 설명은 불필요 등급이다.
+- **귀속 등급(귀속·없음)은 당신이 고르지 않는다 — 워커가 type·opinion 에서 도출한다** (guidelines 규칙 20, full-v7.1): 수치·인용·opinion 은 귀속(대본이 블록 소스를 지시 귀속 "연구팀은 ~라고 봐요"로 표시), 그 외(고유명사·인과·정의·실천)는 무귀속 — 해설자의 말. 대본은 소스를 이름으로 구별하지 않으므로(블록 하나 = 소스 하나, 규칙 22) **이름을 위해 claims 를 모을 필요가 없다.** 스치는 소스는 소스를 줄인다(**사용 소스 수 ≤ 본문 구간 수 + 1**). notable 은 "이름을 불러도 정보가 되는 주체"라는 표시일 뿐 등급을 바꾸지 않는다.
 - 소스 사이를 잇는 해석("A와 B는 같은 원리다")은 여기 적지 않는다 — 구성안의 "연결·비유" 목록으로.
-- 역할표의 **근거 앵커 1~2곳이 대본에서 이름이 불리는 소스**다(규칙 21). 나머지 소스는 익명 귀속("한 연구", "어느 글")으로만 등장하므로, 이름을 꼭 불러야 할 소스(직접 인용·특정인 의견의 출처)가 있으면 근거 앵커로 두거나 설계 메모에 적는다.
+- 소스 안의 개인 사례(특정 직원의 일화)는 논지에 꼭 필요할 때만 claims 에 넣고, 직장·연차·이니셜 같은 식별 정보는 text 에서 뺀다(규칙 20).
 
 ### c) outline_md — 구성안 (대본 단계의 계약). 아래 형식을 그대로 따른다.
 \`\`\`
-# 구성안 — ${i.episodeId}
+# 구성안 — {에피소드 ID — 이어지는 메시지의 에피소드 정보에 있는 값}
 
 축: [대립|역설|재정의] 한 문장
 축 해설: 왜 이 축이 청취자에게 긴장을 만드는가, 두 줄
@@ -917,7 +970,8 @@ ${candidateAxisBlock(i.candidate)}
 예상 분량: n분 (재료 총량 기준 — 아래 분량 규칙)
 
 역할표
-- 근거 앵커: S? (축의 핵심 주장을 받치는 소스)
+- 축 소스: S? (도입과 착지를 잇는 소스 하나 — 없으면 "없음". 이 소스만 두 구간에 걸칠 수 있다)
+- 블록 순서의 근거: 구간 #1 → #n 이 축의 논리 단계인 이유 한 줄 (소스의 서술·발행 순서가 아니다. 마무리 정리 턴이 이 순서대로 블록당 한 줄을 인과로 이어 축으로 수렴한다)
 - 사례: S?, S? (청취자 일상 또는 구체 일화)
 - 반론·한계: S?
 - 수치·조사: S?
@@ -926,11 +980,11 @@ ${candidateAxisBlock(i.candidate)}
 
 구간 #1 — 소제목
   목적: 청취자에게 남길 것 한 줄
-  재료: C01, C03 (S1) · C07 (S3)   ← 한 구간에 소스 2개 이상이 원칙. 한 소스만 쓰는 구간은 최대 1개. 사례·일화 재료는 구간당 하나만(예시 과다 방지)
+  재료: C01, C03 (S1) · C07 (S3)   ← **소스는 한 구간에만 배정한다**(축 소스만 예외). 한 구간에 소스가 여럿이어도, 하나여도 된다. 사례·일화 재료는 구간당 하나만(예시 과다 방지)
   진행자 질문: 기원 서사가 붙은 질문 한 개 (왜 궁금해졌는지 한 조각 + 질문)
   전환 장치: 번역 맞장구로 닫기 | 인용구 던지기 | 되물음 | 딴 얘기 끼어들기 | 역질문 중 하나
   비율: n%
-구간 #2 … (본문 구간 4~6개. 도입은 구간에 넣지 않는다 — [도입] 구역이 따로 맡는다. **한 소스의 재료가 본문의 1/3 을 넘지 않게**, 소스의 서술 순서를 그대로 구간 순서로 삼지 않는다 — 기사 순서가 구조가 되면 나열이 이해를 앞선다)
+구간 #2 … (본문 구간 4~6개. 도입은 구간에 넣지 않는다 — [도입] 구역이 따로 맡는다. 소스의 서술 순서를 그대로 구간 순서로 삼지 않는다 — 기사 순서가 구조가 되면 나열이 이해를 앞선다. **사용 소스 수는 본문 구간 수 + 1 이하** — 넘치면 얇은 소스를 제외한다)
 
 연결·비유 (대본이 만드는 것 — 사실이 아님, QA 대상 아님)
 - "X를 Y로 옮김" — 근거 C##/C##, 어느 구간에서
@@ -940,7 +994,7 @@ ${candidateAxisBlock(i.candidate)}
 \`\`\`
 설계 규칙:
 - 축은 반드시 대립("A인데 B"), 역설("A하려다 B가 된다"), 재정의("A는 사실 B다") 중 하나. "X란 무엇인가"형은 축이 아니다. 사건이 아니라 개념이 이끈다 (규칙 13-1).
-- **소스 순회 금지**: 구간이 소스 단위로 나뉘면 실패다. 구간은 축의 논리 단계로 나누고, 각 단계에 여러 소스의 재료를 배치한다.
+- **소스 순회 금지**: 구간 순서가 소스의 서술 순서·발행 순서를 따라가면 실패다. 구간은 축의 논리 단계로 나눈다. **소스는 한 구간에만 배정한다**(축 소스 하나만 도입·착지 두 구간) — 앞 구간의 소스를 뒤 구간에서 되부르는 재료 배치가 없어야 한다. 실측(2026-09-15): 소스를 여러 구간에 흩뿌린 구성안이 매 구간의 재식별("그 하버드 교수는")과 귀속 과밀을 만들었다.
 - 착지 구간을 반드시 지정하고, 그 구간의 재료가 실제로 축을 증명하는지 스스로 확인한다.
 - 전환 장치는 구간마다 다르게 — 같은 장치 연속 금지. 청취자 일상 사례 왕복은 에피소드 전체에 최소 2회.
 - **구간 소제목·진행자 질문·설계 메모에도 발췌 밖 수치·환산을 쓰지 않는다** — "1960년대"를 "60년 된"으로 바꾸는 식의 환산, 발췌에 없는 비교 축은 소제목에서도 QA 실패다.
@@ -949,25 +1003,39 @@ ${candidateAxisBlock(i.candidate)}
 
 ### d) pronunciations — 대본에 등장할 모든 비한글 표기(영문 용어·인명·기관·매체) → 한글 발음. 없으면 빈 배열.
 
-## 4. 소스 본문 (${i.sources.length}건 — 문단 ID 로 인용한다)
-${srcBlocks}
+## 3. 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. 완료 보고 전에 다른 텍스트를 출력하지 않는다.`;
+  const user = `## 에피소드 정보 (백로그 ${i.candidate.id}, 게이트1 승인 완료)
+- 에피소드 ID: ${i.episodeId} · 제목(가): "${i.candidate.title}" · 중분류: ${i.candidate.mid_topic}
+- outline_md 첫 줄은 정확히 "# 구성안 — ${i.episodeId}" 로 쓴다.
+- 해설: **${explainer}** / 진행: **${host}** — 역할 고정
+- 청취자: 자기계발을 원하는 2030 한국 직장인 (IT 개발자 아님). 편도 30분 통근.
+${candidateAxisBlock(i.candidate)}
+- 타깃 정합 메모: ${i.candidate.target_fit ?? "-"}
 
-## 5. 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. 완료 보고 전에 다른 텍스트를 출력하지 않는다.`;
+## 소스 본문 (${i.sources.length}건 — 문단 ID 로 인용한다)
+${srcBlocks}
+${anyUsed ? `
+- **⛔ 문단은 다른 편이 이미 쓴 대목이다** — excerpt_ids·claims 에 넣지 않는다(넣으면 설계가 실패한다). 같은 소스라도 남은 문단으로 **다른 대목**을 쓴다. 남은 문단이 그 편과 같은 이야기를 반복하게 만들면 이 소스를 제외하고 sources_excluded 에 "이미 쓴 대목"이라고 적는다.` : ""}
+
+위 지시의 규칙대로 설계하고, 완료 보고 JSON 만 출력한다.`;
+  return { system, user };
 }
+export function buildDesignPromptInline(i: DesignInlineInput): string { const p = buildDesignPromptInlineParts(i); return `${p.system}\n\n${p.user}`; }
 
 const strArr = { type: "array", items: { type: "string" } } as const;
 export const DESIGN_INLINE_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["axis", "axis_type", "landing_section", "sections", "excerpt_ids", "gists", "claims", "outline_md", "pronunciations", "estimated_minutes", "split_proposal", "sources_used", "sources_excluded", "gaps", "notes"],
+  required: ["axis", "axis_type", "landing_section", "axis_source", "sections", "excerpt_ids", "gists", "claims", "outline_md", "pronunciations", "estimated_minutes", "split_proposal", "sources_used", "sources_excluded", "gaps", "notes"],
   properties: {
     axis: { type: "string" },
     axis_type: { type: "string", enum: ["대립", "역설", "재정의"] },
     landing_section: { type: "integer" },
+    axis_source: { type: "string", description: "도입과 착지를 잇는 축 소스 하나 (S3 형식). 없으면 빈 문자열. 이 소스만 두 구간에 걸칠 수 있다" },
     sections: { type: "array", items: { type: "object", additionalProperties: false, required: ["n", "title", "sources", "ratio"], properties: { n: { type: "integer" }, title: { type: "string" }, sources: strArr, ratio: { type: "integer" } } } },
     excerpt_ids: { ...strArr, description: "선택한 문단 ID (S1-03 …)" },
     gists: { type: "array", items: { type: "object", additionalProperties: false, required: ["s", "lines"], properties: { s: { type: "integer" }, lines: strArr } }, description: "소스별 한국어 요지 3줄" },
-    claims: { type: "array", items: { type: "object", additionalProperties: false, required: ["id", "text", "excerpt_ids", "type", "attribution"], properties: { id: { type: "string" }, text: { type: "string" }, excerpt_ids: strArr, type: { type: "string", enum: ["수치", "인용", "고유명사", "인과", "정의", "실천"] }, attribution: { type: "string", enum: ["필수", "불필요"], description: "귀속 등급 (guidelines 규칙 20): 필수 = 직접 인용·수치·특정인 의견·논쟁적 주장 / 불필요 = 개념·원리·정의·널리 알려진 사실" } } } },
+    claims: { type: "array", items: { type: "object", additionalProperties: false, required: ["id", "text", "excerpt_ids", "type", "section", "notable", "opinion"], properties: { id: { type: "string" }, text: { type: "string" }, excerpt_ids: strArr, type: { type: "string", enum: ["수치", "인용", "고유명사", "인과", "정의", "실천"] }, section: { type: "integer", description: "이 claim 을 쓰는 본문 구간 번호 — 같은 소스의 claims 는 전부 같은 구간(axis_source 만 도입·착지 두 구간)" }, notable: { type: "boolean", description: "주체가 청취자가 소개 없이 아는 저명 인물·기관인가 (프로이트·하버드·연준 수준. 일반 대학·연구소·매체·개별 연구자는 false)" }, opinion: { type: "boolean", description: "특정인의 의견·해석·예측, 또는 논쟁적·이해당사자 주장인가" } } } },
     outline_md: { type: "string", description: "outline.md 전문" },
     pronunciations: { type: "array", items: { type: "object", additionalProperties: false, required: ["term", "reading"], properties: { term: { type: "string" }, reading: { type: "string" } } } },
     estimated_minutes: { type: "number" },
@@ -997,15 +1065,12 @@ export interface RevisionInlineInput {
   pronunciationsJson: string;
 }
 
-export function buildRevisionPromptInline(i: RevisionInlineInput): string {
+export function buildRevisionPromptInlineParts(i: RevisionInlineInput): PromptParts {
   const fence = (s: string) => "````\n" + s.trim() + "\n````";
   const failures = i.qaFailures.map((f, n) => `${n + 1}. [${f.location}] 항목 ${f.item}: ${f.reason}`).join("\n");
-  return `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 대본 작가다. QA(사실 무결성 검증) 또는 형식 검사(L0)가 실패한 대본을 **최소 수정**한다 (attempt ${i.attempt}/3).
+  const system = `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 대본 작가다. QA(사실 무결성 검증) 또는 형식 검사(L0)가 실패한 대본을 **최소 수정**한다.
 
 이 실행에는 도구가 없다. 필요한 것은 전부 아래에 있다. 파일을 고치지 말고, **바꿀 턴의 전문만** 완료 보고로 돌려준다 — 워커가 그 턴을 통째로 갈아끼운다.
-
-## 지적 사항 (전부 해소해야 한다)
-${failures}
 
 ## 수정 원칙
 - 지적된 턴만 고친다. 전면 재작성 금지 — 나머지 턴은 건드리지 않는다.
@@ -1017,9 +1082,16 @@ ${failures}
 - 구간 헤더(\`### #n\`)·구역 헤더·턴 번호 체계는 바꾸지 않는다. 턴을 지워야 하면 after 를 빈 문자열로 (연번은 워커가 유지한다 — 지운 번호는 비워 둔다).
 - 같은 인용·문장을 다른 턴에서 이미 쓰고 있지 않은지 확인한다 (중복 낭독 금지).
 - 수정으로 새 비한글 표기(영문 용어·인명)를 도입했으면 pronunciations_added 에 한글 발음을 적는다.
+- **고친 턴마다 남아 있는 claims ID 를 fixes.claims 에 전부 적는다** — 워커가 이것으로 턴별 claims 표(script-notes)를 갱신하고, L0 는 그 표로 "소스가 배정 구간 밖에서 쓰였는지"를 다시 잰다. 지적을 받아 뺀 claim 은 목록에서도 빠져야 한다 (T260915-007: 문장은 지웠는데 표가 그대로라 같은 지적이 두 번 더 났다). 턴을 지웠으면 빈 배열.
 
 ## 대본 규칙 (참조)
 ${fence(i.guidelines)}
+
+## 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. fixes 의 turn 은 "E12"·"Y7" 처럼 턴 번호, after 는 그 턴의 **발화 전문**(화자 라벨·번호·가운뎃점 없이 문장만). before 는 바꾸기 전 발화의 앞 30자. 완료 보고 전에 다른 텍스트를 출력하지 않는다.`;
+  const user = `## 이번 수정 — attempt ${i.attempt}/3
+
+## 지적 사항 (전부 해소해야 한다)
+${failures}
 
 ## 대본 script.md (수정 대상 — 줄 문법: \`[윤아] E1 · 문장\` / \`[이음] Y1 · 문장\`)
 ${fence(i.scriptMd)}
@@ -1033,15 +1105,17 @@ ${i.outlineMd ? `\n## outline.md (구성안 — 구간 계약, 구조는 유지)
 ## pronunciations.json
 ${fence(i.pronunciationsJson)}
 
-## 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. fixes 의 turn 은 "E12"·"Y7" 처럼 턴 번호, after 는 그 턴의 **발화 전문**(화자 라벨·번호·가운뎃점 없이 문장만). before 는 바꾸기 전 발화의 앞 30자. 완료 보고 전에 다른 텍스트를 출력하지 않는다.`;
+위 지시의 수정 원칙대로 고치고, 완료 보고 JSON 만 출력한다.`;
+  return { system, user };
 }
+export function buildRevisionPromptInline(i: RevisionInlineInput): string { const p = buildRevisionPromptInlineParts(i); return `${p.system}\n\n${p.user}`; }
 
 export const REVISION_INLINE_SCHEMA = {
   type: "object",
   additionalProperties: false,
   required: ["fixes", "pronunciations_added", "claims_note", "notes"],
   properties: {
-    fixes: { type: "array", items: { type: "object", additionalProperties: false, required: ["turn", "before", "after", "why"], properties: { turn: { type: "string" }, before: { type: "string" }, after: { type: "string" }, why: { type: "string" } } } },
+    fixes: { type: "array", items: { type: "object", additionalProperties: false, required: ["turn", "before", "after", "why", "claims"], properties: { turn: { type: "string" }, before: { type: "string" }, after: { type: "string" }, why: { type: "string" }, claims: { type: "array", items: { type: "string" }, description: "고친 뒤 그 턴에 남아 있는 claims ID 전부 (C01 형식). 턴을 지웠거나 claims 를 쓰지 않으면 빈 배열" } } } },
     pronunciations_added: { type: "array", items: { type: "object", additionalProperties: false, required: ["term", "reading"], properties: { term: { type: "string" }, reading: { type: "string" } } } },
     claims_note: { type: "string", description: "claims.md 끝에 붙일 'QA 반영' 절 본문 — 어떤 주장이 어떻게 축소·삭제됐는지" },
     notes: { type: "string" },
@@ -1065,12 +1139,24 @@ export interface ClusterV2Input {
   existingTitles: string[];
   /** spec/03 3장(후보 구성)·6장(게이트 1) 등 인라인으로 넣을 규격 발췌 */
   specBacklogExcerpt: string;
+  /** 보강 재판정 (0019, 모드 B-①): held 후보 하나의 축을 고정하고, 기존 소스 + 검색 소스로 역할표만 다시 짠다. candidates 는 정확히 1개 */
+  reinforce?: { id: string; title: string; axis: string; axis_type: string; gaps: string[]; currentM: string[] };
 }
 
 export function buildClusterPromptV2(i: ClusterV2Input): string {
-  const list = i.sources.map((s) => `[M${s.n}] ${s.publisher || s.domain} · ${s.published ?? "날짜 미상"}${s.used ? " · (이미 사용된 소스)" : ""}\n   ${s.title}\n   ${(s.summary ?? "").replace(/\s+/g, " ").slice(0, 240)}`).join("\n");
+  const cur = new Set(i.reinforce?.currentM ?? []);
+  const list = i.sources.map((s) => `[M${s.n}] ${s.publisher || s.domain} · ${s.published ?? "날짜 미상"}${s.used ? " · (이미 사용된 소스)" : ""}${cur.has(`M${s.n}`) ? " · (현재 후보 소스)" : ""}\n   ${s.title}\n   ${(s.summary ?? "").replace(/\s+/g, " ").slice(0, 240)}`).join("\n");
+  const reinforce = i.reinforce ? `
+## 0. 보강 재판정 — 후보 하나만
+이 실행은 새 후보를 뽑는 것이 아니라 **기존 후보 ${i.reinforce.id} 의 역할표를 다시 짜는 것**이다. 축은 고정한다.
+- 후보: "${i.reinforce.title}" · 축(${i.reinforce.axis_type}): ${i.reinforce.axis}
+- 비어 있던 역할: ${i.reinforce.gaps.length ? i.reinforce.gaps.join(" · ") : "(없음 — 발행처 쏠림을 풀기 위한 보강이다. 새 소스가 다른 발행처의 근거를 주면 같은 계열 소스 하나를 빼고 넣어 한 발행처 계열이 절반을 넘지 않게 한다)"}
+- 아래 소스 목록에는 **현재 후보 소스**(표시됨)와 그 빈 역할을 채우려고 검색으로 새로 넣은 소스가 섞여 있다. 새 소스 중 축에 맞고 빈 역할을 실제로 채우는 것만 넣는다 — 역할이 맞지 않는 소스를 억지로 끼우지 않는다.
+- candidates 는 **정확히 1개**, id 는 "${i.reinforce.id}", 제목·축은 그대로(문구 다듬기만 허용). 아래 3장 절차의 1단계(축 후보 내기)는 건너뛴다. gaps 에는 여전히 빈 역할을 적는다.
+` : "";
   return `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 **군집화 담당(v2)**이다. 스윕된 소스 **메타데이터만** 보고(원문 접속 금지 — 이 실행에는 도구가 없다) 에피소드 후보를 뽑는다. "비슷한 것을 묶는" 방식이 아니라, **축을 먼저 세우고 그 축에 필요한 역할을 소스로 채우는** 방식이다.
 
+${reinforce}
 ## 1. 타깃·중분류
 - 청취자: 자기계발을 원하는 2030 한국 직장인(IT 개발자 아님), 편도 30분 통근.
 - 중분류 후보: ${i.midTopics.join(" · ")}${i.majorTopic ? ` (대분류 ${i.majorTopic})` : ""}. 후보마다 하나를 고른다 — 소스의 커버 중분류를 참고하되 축에 맞는 것으로.
@@ -1109,10 +1195,164 @@ ${list}
 ## 6. 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. 성립 3~5개 + 보강 필요 0~4개를 목표로 하되 억지로 채우지 않는다. 완료 보고 전에 다른 텍스트를 출력하지 않는다.`;
 }
 
+// ── 보강 검색 (0019, spec/02 6장 모드 B-①): held 후보의 빈 역할을 채울 소스를 웹 검색으로 찾는다. 도구는 WebSearch 만 — 본문을 읽지 않고 메타데이터(제목·요약·발행처·날짜)만 돌려준다 (스윕과 같은 층)
+export const ROLE_INTENT: Record<string, string> = {
+  "근거 앵커": "축의 핵심 주장을 직접 받치는 연구·해설 (리뷰 논문, 전문가 해설, 기관 보고서)",
+  사례: "청취자 일상에 닿는 구체 일화·르포·인터뷰·현장 이야기",
+  "반론·한계": "축에 반대하거나 한계를 짚는 글 — 비판, 반박 연구, '그렇지 않은 경우'",
+  "수치·조사": "설문·통계·실험 수치가 있는 조사 결과, 기관 통계",
+  "역사·맥락": "이 현상의 기원·연혁·과거 사례, 개념이 생긴 배경",
+};
+export interface ReinforceSearchInput {
+  candidate: { id: string; title: string; mid_topic: string; axis: string | null; axis_type: string | null; gaps: string[]; sources: { publisher: string; title: string }[] };
+  /** 우선 검색 대상 — 풀 도메인(차단 제외). 검색어에 site: 로 묶어 쓴다 */
+  poolHosts: string[];
+  maxSearches: number;
+}
+export function buildReinforceSearchPrompt(i: ReinforceSearchInput): string {
+  const c = i.candidate;
+  const pubCount = new Map<string, number>(); for (const s of c.sources) pubCount.set(s.publisher, (pubCount.get(s.publisher) ?? 0) + 1);
+  const top = [...pubCount].sort((a, b) => b[1] - a[1])[0];
+  // 빈 역할이 없는데 보강을 부른 경우 = 다양성이 얇은 후보(한 계열 발행처 쏠림). 목표를 "다른 발행처의 근거 앵커"로 잡는다
+  const diversify = !c.gaps.length && top ? `발행처 다양화 — 현재 ${top[0]} 계열이 ${top[1]}/${c.sources.length}건. **이미 있는 발행처가 아닌 곳**에서 축을 받치는 근거 앵커 1~2건과 사례 1건` : null;
+  const roles = c.gaps.length ? c.gaps : ["근거 앵커", "사례"];
+  return `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 **소스 보강 담당**이다. 에피소드 후보 하나의 축은 이미 서 있는데 역할표에 빈 칸이 있다. 그 빈 역할을 채울 소스를 웹 검색으로 찾는다.
+이 실행의 도구는 **WebSearch 뿐**이다 — 페이지 본문을 읽지 않는다(원문 정독은 설계 단계가 한다). 검색 결과의 제목·요약·발행처·날짜만 돌려준다.
+
+## 후보
+- ${c.id} "${c.title}" · 중분류 ${c.mid_topic}
+- 축(${c.axis_type ?? "-"}): ${c.axis ?? "(없음)"}
+- 이미 있는 소스: ${c.sources.map((s) => `${s.publisher} "${s.title}"`).join(" / ") || "(없음)"}
+- **채워야 할 역할**: ${roles.map((r) => `${r} — ${ROLE_INTENT[r] ?? ""}`).join("\n  · ")}${diversify ? `\n- **이번 보강의 목표**: ${diversify}. 같은 발행처(계열 저널 포함)의 결과는 넣지 않는다.` : ""}
+
+## 검색 규칙
+- 검색은 최대 ${i.maxSearches}회. 역할마다 검색 의도가 다르다(위 설명). 한국어·영어 둘 다 쓴다 — 청취자는 한국 직장인이지만 근거는 영어 소스가 많다.
+- **우선 검색 사이트** (소스 풀 — 여기서 나온 결과만 바로 쓸 수 있다). 검색어에 \`site:\` 로 2~3곳씩 묶어서 넣는다:
+  ${i.poolHosts.join(", ")}
+- 풀 밖 사이트의 결과는 버리지 말고 in_pool=false 로 돌려준다 — 워커가 도메인 후보로만 등록하고 소스로는 쓰지 않는다(사람이 판정한 뒤 다음 보강에서 쓴다).
+- 뉴스 속보·보도자료·상품 페이지·SNS·위키는 제외. **논문 저장소·유료 DB(researchgate, ssrn, academia.edu, semanticscholar, sciencedirect, springer/wiley 유료 페이지)도 제외** — 본문을 못 가져온다. 2년 넘게 지난 글은 역사·맥락 역할일 때만.
+- 한 소스가 두 역할을 겸할 수 있다. 축에 맞지 않는데 키워드만 겹치는 글은 넣지 않는다 — 빈 손으로 돌아오는 것이 억지 소스보다 낫다.
+
+## 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. sources 는 최대 8건, 각 항목에 url(검색 결과의 실제 URL 그대로) · title · publisher(사이트/발행처명) · published(YYYY-MM-DD 또는 null) · summary(검색 결과 요약을 한국어 두 문장으로) · roles · why(이 역할을 채우는 이유 한 줄) · in_pool. queries 에는 실제로 쓴 검색어를 전부 적는다.`;
+}
+export const REINFORCE_SEARCH_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["queries", "sources", "notes"],
+  properties: {
+    queries: { type: "array", items: { type: "string" } },
+    sources: { type: "array", items: { type: "object", additionalProperties: false, required: ["url", "title", "publisher", "published", "summary", "roles", "why", "in_pool"], properties: {
+      url: { type: "string" }, title: { type: "string" }, publisher: { type: "string" }, published: { type: ["string", "null"] }, summary: { type: "string" },
+      roles: { type: "array", items: { type: "string", enum: SOURCE_ROLES } }, why: { type: "string" }, in_pool: { type: "boolean" } } } },
+    notes: { type: "string", description: "못 채운 역할과 이유" },
+  },
+} as const;
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 추천 메타 부여 (KAN-53, 2026-09-11) — docs/ai/metadata-pipeline.md 4.2·4.4 의 워커 구현. 판정 기준의 원본은
+// .claude/skills/metadata-enrichment/reference/judgment-criteria.md 이고 워커가 그 파일을 읽어 프롬프트에 넣는다 (여기 복사하지 않는다).
+// 값 집합은 backend domain.md 5.1 · user.constant.ts JOB_CATEGORIES 와 글자 단위로 같아야 한다 — 어긋나면 업로드 검증이 거부한다.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+export const ENRICHMENT_SCHEMA_VERSION = 2;
+export const ENRICH_DIFFICULTY = ["beginner", "intermediate", "advanced"] as const;
+export const ENRICH_FORMAT = ["news_analysis", "howto", "interview", "opinion", "case_study", "overview"] as const;
+export const ENRICH_YEARS = ["0-1", "2-3", "4-6", "7+"] as const;
+/** 서버 GET /job-categories 와 같은 값 — 콘솔이 서버 목록을 넘기면 그것을 쓰고, 없을 때만 이 기본값 */
+export const ENRICH_JOB_CATEGORIES_DEFAULT = ["개발", "기획", "디자인", "마케팅·영업", "운영·CS", "연구·교육", "기타"];
+
+export interface EnrichInput {
+  title: string; description: string; topicNames: string[]; origin: string;
+  /** 대본 전문 — 없으면 4.5 폴백(제목+설명) */
+  script: string | null;
+  jobCategories: string[]; yearsRanges: string[];
+  /** judgment-criteria.md 본문 */
+  criteria: string;
+}
+export function buildEnrichPrompt(i: EnrichInput): string {
+  const fence = (s: string) => "````\n" + s.trim() + "\n````";
+  return `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 **추천 메타 판정 담당**이다. 대본을 근거로 메타 5종을 판정한다. 이 실행에는 도구가 없다 — 아래 입력만 본다.
+
+## 원칙
+- **판정은 대본 근거로만.** 대본 밖 지식으로 값을 보강하지 않는다. 대본에 없는 개념은 키워드에 넣지 않는다.
+- **지어내지 않는다.** 판정 불능이면 그 키를 생략한다(null 을 넣지 말고 키 자체를 뺀다). 잘못된 값보다 결손이 낫다.
+- 값은 아래 집합 **안에서만**, 글자 단위로 같게. 밖의 값은 업로드 검증이 거부한다.
+  - difficulty: ${ENRICH_DIFFICULTY.join(" | ")}
+  - format: ${ENRICH_FORMAT.join(" | ")}
+  - target_audiences[].job_category: ${i.jobCategories.join(" | ")}
+  - target_audiences[].years_of_experience: ${i.yearsRanges.join(" | ")}
+- 각 판정에 **대본의 어느 대목이 근거인지** 한 줄씩 evidence 에 적는다. 근거를 못 대는 판정은 판정 불능이다.
+
+## 판정 기준
+${fence(i.criteria)}
+
+## 콘텐츠
+- 제목: ${i.title}
+- 설명: ${i.description}
+- 주제: ${i.topicNames.join(", ") || "(없음)"} — 키워드는 이 주제명의 단순 반복이 아니라 **주제보다 잘게** 잡는다
+- origin: ${i.origin}
+${i.script ? `
+## 대본 전문
+${fence(i.script)}` : `
+## 대본 없음 — 폴백(명세 4.5)
+제목·설명만으로 판정한다. keywords 는 제목+설명에서 뽑고 source 는 "title_description" 으로 적는다. difficulty·format 은 얕은 근거로 판정하지 말고 불능이면 생략한다. is_evergreen 은 판정 가능하면 적는다.`}
+
+## 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. 판정 불능 키는 넣지 않는다. keywords 는 대본에 실제로 다뤄진 세부 개념의 명사구 3~8개(3개 미만이면 나온 만큼만, 0개면 생략). target_audiences 는 1~8세트, 직군·연차 무관한 범용 대본이면 생략.`;
+}
+export const ENRICH_SCHEMA = {
+  type: "object", additionalProperties: false, required: ["evidence"],
+  properties: {
+    difficulty: { type: "string", enum: ENRICH_DIFFICULTY },
+    format: { type: "string", enum: ENRICH_FORMAT },
+    is_evergreen: { type: "boolean" },
+    keywords: { type: "array", items: { type: "string" }, maxItems: 8 },
+    target_audiences: { type: "array", maxItems: 8, items: { type: "object", additionalProperties: false, required: ["job_category", "years_of_experience"], properties: { job_category: { type: "string" }, years_of_experience: { type: "string", enum: ENRICH_YEARS } } } },
+    source: { type: "string", enum: ["title_description"] },
+    evidence: { type: "object", additionalProperties: false, properties: { difficulty: { type: "string" }, format: { type: "string" }, is_evergreen: { type: "string" }, keywords: { type: "string" }, target_audiences: { type: "string" } } },
+  },
+} as const;
+export interface EnrichmentFile { schema_version: number; difficulty?: string; format?: string; is_evergreen?: boolean; keywords?: string[]; target_audiences?: { job_category: string; years_of_experience: string }[]; source?: "title_description" }
+/** finalize.py 와 같은 규칙: 키워드 NFC 정규화·공백 정리·중복 제거·주제명 반복 제거·상한 8, enum 글자 일치 검증. 실패면 errors 를 돌려주고 파일을 만들지 않는다 */
+export function normalizeEnrichment(raw: Record<string, unknown>, topicNames: string[], jobCategories: string[]): { file: EnrichmentFile | null; errors: string[]; warnings: string[] } {
+  const errors: string[] = [], warnings: string[] = [];
+  const file: EnrichmentFile = { schema_version: ENRICHMENT_SCHEMA_VERSION };
+  if (raw.difficulty != null) { if ((ENRICH_DIFFICULTY as readonly string[]).includes(String(raw.difficulty))) file.difficulty = String(raw.difficulty); else errors.push(`difficulty enum 불일치: ${String(raw.difficulty)}`); }
+  if (raw.format != null) { if ((ENRICH_FORMAT as readonly string[]).includes(String(raw.format))) file.format = String(raw.format); else errors.push(`format enum 불일치: ${String(raw.format)}`); }
+  if (raw.is_evergreen != null) { if (typeof raw.is_evergreen === "boolean") file.is_evergreen = raw.is_evergreen; else errors.push("is_evergreen 이 boolean 이 아님"); }
+  if (raw.source != null) { if (raw.source === "title_description") file.source = "title_description"; else errors.push(`source 값 불일치: ${String(raw.source)}`); }
+  if (Array.isArray(raw.keywords)) {
+    const topics = new Set(topicNames.map((t) => t.normalize("NFC").replace(/\s+/g, " ").trim().toLowerCase()));
+    const out: string[] = [];
+    for (const k of raw.keywords) {
+      if (typeof k !== "string") continue;
+      const n = k.normalize("NFC").replace(/\s+/g, " ").trim();
+      if (!n) continue;
+      if (topics.has(n.toLowerCase())) { warnings.push(`주제명 반복 키워드 제외: ${n}`); continue; }
+      if (out.some((x) => x.toLowerCase() === n.toLowerCase())) continue;
+      out.push(n);
+    }
+    if (out.length > 8) { warnings.push(`키워드 ${out.length}개 → 8개로 자름`); out.length = 8; }
+    if (out.length && out.length < 3) warnings.push(`키워드 ${out.length}개 — 3개 미만(대본이 얇거나 단일 주제)`);
+    if (out.length) file.keywords = out;
+  }
+  if (Array.isArray(raw.target_audiences)) {
+    const out: { job_category: string; years_of_experience: string }[] = [];
+    for (const t of raw.target_audiences as { job_category?: unknown; years_of_experience?: unknown }[]) {
+      const jc = String(t?.job_category ?? "").normalize("NFC").trim(), yr = String(t?.years_of_experience ?? "").trim();
+      if (!jobCategories.includes(jc)) { errors.push(`job_category 값 집합 밖: ${jc}`); continue; }
+      if (!(ENRICH_YEARS as readonly string[]).includes(yr)) { errors.push(`years_of_experience 값 집합 밖: ${yr}`); continue; }
+      if (!out.some((x) => x.job_category === jc && x.years_of_experience === yr)) out.push({ job_category: jc, years_of_experience: yr });
+    }
+    if (out.length > 8) { warnings.push(`청자 세트 ${out.length} → 8`); out.length = 8; }
+    if (out.length) file.target_audiences = out;
+  }
+  const missing = ["difficulty", "format", "is_evergreen", "keywords", "target_audiences"].filter((k) => !(k in file));
+  if (missing.length) warnings.push(`생략된 키: ${missing.join(", ")} (partial)`);
+  return { file: errors.length ? null : file, errors, warnings };
+}
+
 export const CLUSTER_SCHEMA_V2 = {
   type: "object",
   additionalProperties: false,
-  required: ["candidates", "axis_pool", "dropped_notes"],
   properties: {
     candidates: {
       type: "array",
@@ -1129,7 +1369,5 @@ export const CLUSTER_SCHEMA_V2 = {
         },
       },
     },
-    axis_pool: { type: "array", items: { type: "string" }, description: "검토했으나 후보로 내지 않은 축 (사유 포함)" },
-    dropped_notes: { type: "array", items: { type: "string" } },
   },
 } as const;

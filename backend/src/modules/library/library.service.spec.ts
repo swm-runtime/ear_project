@@ -100,7 +100,7 @@ describe('LibraryService', () => {
       ]);
 
       // when
-      const page = await service.findPage(buildPageQuery(2));
+      const page = await service.findPage(buildPageQuery(2), NOW);
 
       // then
       expect(page.items).toHaveLength(2);
@@ -112,7 +112,7 @@ describe('LibraryService', () => {
       repository.findPage.mockResolvedValue([buildItem()]);
 
       // when
-      const page = await service.findPage(buildPageQuery(2));
+      const page = await service.findPage(buildPageQuery(2), NOW);
 
       // then
       expect(page.items).toHaveLength(1);

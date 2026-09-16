@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
 import { ContentService } from '@/modules/content/services/content.service';
-import { ContentStatus } from '@/modules/content/content.enum';
+import { isContentVisibleAt } from '@/modules/content/content.visibility';
 import { BusinessForbiddenException } from '@/common/exceptions/business-forbidden.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { DripExclusionReason } from '@/modules/drip/drip.enum';
@@ -71,14 +71,17 @@ export class LibraryScreenOrchestrator {
       topicIds: query.topicIds,
     };
 
-    const page = await this.libraryService.findPage({
-      userId,
-      ...conditions,
-      cursor: query.cursor
-        ? decodeLibraryCursor(query.cursor, conditions)
-        : null,
-      limit: query.limit,
-    });
+    const page = await this.libraryService.findPage(
+      {
+        userId,
+        ...conditions,
+        cursor: query.cursor
+          ? decodeLibraryCursor(query.cursor, conditions)
+          : null,
+        limit: query.limit,
+      },
+      now,
+    );
 
     const [items, quota] = await Promise.all([
       this.toItemViews(userId, page.items, now),
@@ -110,10 +113,10 @@ export class LibraryScreenOrchestrator {
    * **탭 선택과 무관하게 라이브러리 전체를 기준으로 센다** — 탭을 옮길 때마다 팝업의 주제
    * 구성과 개수가 흔들리면 두 필터를 조합할 수 없다.
    */
-  async getTopics(userId: string): Promise<LibraryTopicView[]> {
+  async getTopics(userId: string, now: Date): Promise<LibraryTopicView[]> {
     // 집계·정렬(`topics.display_order`)은 SQL이 끝낸다 — 여기서 다시 세지 않는다.
     // 담긴 항목이 하나도 없으면 빈 배열이다. **404가 아니다** — 빈 라이브러리는 정상 상태다
-    return this.libraryService.countByTopicForUser(userId);
+    return this.libraryService.countByTopicForUser(userId, now);
   }
 
   /**
@@ -131,7 +134,7 @@ export class LibraryScreenOrchestrator {
     now: Date,
   ): Promise<LibraryResumeResult> {
     const [item, quota] = await Promise.all([
-      this.libraryService.findResumeTarget(userId),
+      this.libraryService.findResumeTarget(userId, now),
       this.playbackService.buildQuotaForUser(userId, now),
     ]);
 
@@ -228,7 +231,11 @@ export class LibraryScreenOrchestrator {
    * 구분할 수 없다 — 지우면 **이미 들은 콘텐츠가 드립으로 다시 오게 된다.** 실질적인
    * 차이도 없다. 드립 후보 필터는 `library_items` 행이 존재하기만 하면 제외한다.
    */
-  async restoreItem(userId: string, itemId: string): Promise<LibraryItem> {
+  async restoreItem(
+    userId: string,
+    itemId: string,
+    now: Date,
+  ): Promise<LibraryItem> {
     return this.dataSource.transaction(async (manager) => {
       const item = await this.libraryService.getOwnedItemWithDeleted(
         itemId,
@@ -236,8 +243,8 @@ export class LibraryScreenOrchestrator {
         manager,
       );
 
-      // 삭제해 둔 사이 파트너가 회수했다면 복구해도 목록에 나타나지 않는다
-      if (item.content?.status !== ContentStatus.PUBLISHED) {
+      // 삭제해 둔 사이 회수·라이선스 만료됐다면 복구해도 목록에 나타나지 않는다 — 목록과 같은 노출 조건
+      if (!item.content || !isContentVisibleAt(item.content, now)) {
         throw new BusinessForbiddenException({
           errorCode: ErrorCode.CONTENT_WITHDRAWN,
           message: '제공이 종료된 콘텐츠예요',

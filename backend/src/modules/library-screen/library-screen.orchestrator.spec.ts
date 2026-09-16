@@ -213,6 +213,7 @@ describe('LibraryScreenOrchestrator', () => {
         expect.objectContaining({
           sourceFilter: LibraryItemSourceFilter.SAVE,
         }),
+        NOW,
       );
     });
 
@@ -272,10 +273,13 @@ describe('LibraryScreenOrchestrator', () => {
       ]);
 
       // when
-      const topics = await orchestrator.getTopics(USER_ID);
+      const topics = await orchestrator.getTopics(USER_ID, NOW);
 
       // then
-      expect(libraryService.countByTopicForUser).toHaveBeenCalledWith(USER_ID);
+      expect(libraryService.countByTopicForUser).toHaveBeenCalledWith(
+        USER_ID,
+        NOW,
+      );
       expect(topics).toEqual([
         { topicId: 'topic-1', name: '커리어', itemCount: 2 },
         { topicId: 'topic-2', name: '생산성', itemCount: 1 },
@@ -286,7 +290,7 @@ describe('LibraryScreenOrchestrator', () => {
       // given — 빈 라이브러리는 정상 상태다. 404가 아니다
 
       // when
-      const topics = await orchestrator.getTopics(USER_ID);
+      const topics = await orchestrator.getTopics(USER_ID, NOW);
 
       // then
       expect(topics).toEqual([]);
@@ -313,7 +317,10 @@ describe('LibraryScreenOrchestrator', () => {
       await orchestrator.getResumeTarget(USER_ID, NOW);
 
       // then
-      expect(libraryService.findResumeTarget).toHaveBeenCalledWith(USER_ID);
+      expect(libraryService.findResumeTarget).toHaveBeenCalledWith(
+        USER_ID,
+        NOW,
+      );
       expect(playbackService.findStartedContentIds).not.toHaveBeenCalled();
     });
   });
@@ -396,7 +403,28 @@ describe('LibraryScreenOrchestrator', () => {
 
       // when
       const error = await catchError(
-        orchestrator.restoreItem(USER_ID, ITEM_ID_1),
+        orchestrator.restoreItem(USER_ID, ITEM_ID_1, NOW),
+      );
+
+      // then
+      expect(error.errorCode).toBe(ErrorCode.CONTENT_WITHDRAWN);
+      expect(libraryService.restore).not.toHaveBeenCalled();
+    });
+
+    it('삭제해 둔 사이 라이선스가 만료된 콘텐츠도 복구하지 않는다 — 목록과 같은 노출 조건이다', async () => {
+      // given — 만료 배치(04:10)가 돌기 전이라 status는 아직 published다
+      libraryService.getOwnedItemWithDeleted.mockResolvedValue(
+        buildItem({
+          deletedAt: NOW,
+          content: buildContent(CONTENT_ID, {
+            licenseExpiresAt: new Date(NOW.getTime() - 1000),
+          }),
+        }),
+      );
+
+      // when
+      const error = await catchError(
+        orchestrator.restoreItem(USER_ID, ITEM_ID_1, NOW),
       );
 
       // then
@@ -411,7 +439,7 @@ describe('LibraryScreenOrchestrator', () => {
       );
 
       // when
-      await orchestrator.restoreItem(USER_ID, ITEM_ID_1);
+      await orchestrator.restoreItem(USER_ID, ITEM_ID_1, NOW);
 
       // then
       expect(dripExclusionService.exclude).not.toHaveBeenCalled();

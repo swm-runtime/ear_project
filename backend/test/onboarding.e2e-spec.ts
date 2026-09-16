@@ -345,6 +345,37 @@ describe('온보딩 E2E', () => {
     });
   }, 60_000);
 
+  it('완료 전에는 관심사 관리 API(조회·저장)를 쓸 수 없다', async () => {
+    // given — 온보딩 저장(onboarding 출처)과 관리 저장(manual 출처)이 같은 계정에 동시에
+    // 열려 있으면 서로의 행을 내리지 않아 활성 6개가 되고, 관리 상한 max(3, 보유)가 그 6개를
+    // 영구히 허용한다. 관리 화면은 완료 이후에만 열리므로 API도 같은 전제를 강제한다
+    const { auth } = await createUser('management-before-complete');
+    await put('/onboarding/interests', auth, {
+      topic_ids: [topicIds[0]],
+    }).expect(HttpStatus.OK);
+
+    // when
+    const listed = await get('/users/me/interests', auth).expect(
+      HttpStatus.CONFLICT,
+    );
+    const saved = await put('/users/me/interests', auth, {
+      topic_ids: [topicIds[1], topicIds[2]],
+    }).expect(HttpStatus.CONFLICT);
+
+    // then — 온보딩 선택만 남고 manual 행은 생기지 않는다
+    expect(listed.body).toMatchObject({
+      error_code: ErrorCode.ONBOARDING_NOT_COMPLETED,
+    });
+    expect(saved.body).toMatchObject({
+      error_code: ErrorCode.ONBOARDING_NOT_COMPLETED,
+    });
+    const state = await get('/onboarding/state', auth).expect(HttpStatus.OK);
+    expect(state.body).toMatchObject({
+      onboarding_completed: false,
+      selected_topic_ids: [topicIds[0]],
+    });
+  }, 60_000);
+
   it('인증 없이 호출하면 401이다', async () => {
     // given / when
     const response = await request(app.getHttpServer())

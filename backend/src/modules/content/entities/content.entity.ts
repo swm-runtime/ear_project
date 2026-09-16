@@ -8,12 +8,14 @@ import {
   ContentOrigin,
   ContentStatus,
 } from '../content.enum';
+import { TargetAudience } from '../content.types';
 
 /**
  * domain.md 5.1 — 단일 표준 에피소드. 같은 콘텐츠는 전 사용자에게 동일하며 변형은 없다.
  *
- * `partner_id`는 FK지만 `partners` 테이블이 아직 없으므로 **제약 없는 uuid 컬럼**으로 둔다.
- * partner 모듈을 만들 때 FK를 붙이는 마이그레이션을 추가한다.
+ * `partner_id`의 FK(`fk_contents_partners` → `partners`)는 마이그레이션(`AddMissingDomainTables`)이
+ * 소유하고 Entity에는 관계를 선언하지 않는다 — `partners` Entity가 아직 없어(파트너 포털은 MVP
+ * 비범위) 관계 객체를 둘 대상이 없다. `synchronize`를 쓰지 않으므로 스키마와 어긋나지 않는다.
  */
 @Entity('contents')
 @Index('idx_contents_status_published_at', ['status', 'publishedAt'])
@@ -36,8 +38,12 @@ export class Content extends BaseEntity {
   @Column({ name: 'author_name', type: 'varchar', length: 100, nullable: true })
   authorName: string | null;
 
-  /** 파트너명의 비정규화 사본. 발행 시점 값을 고정한다 (domain.md 5.1 — B-5) */
-  @Column({ name: 'source_name', type: 'varchar', length: 100 })
+  /**
+   * 파트너명의 비정규화 사본. 발행 시점 값을 고정한다 (domain.md 5.1 — B-5).
+   * ai_generated는 "참고한 자료: 발행처1, 발행처2, …"로 소스 발행처를 **전부** 적으므로(admin.md 3.1)
+   * 소스 5~6건이면 100자를 넘는다 — 500자(domain.md 5.1, 개정 2026-09-10).
+   */
+  @Column({ name: 'source_name', type: 'varchar', length: 500 })
   sourceName: string;
 
   /** origin 분기 — partner 필수 / ai_generated 선택. null이면 [원문 보기] 미노출 */
@@ -91,6 +97,17 @@ export class Content extends BaseEntity {
   /** 세부 키워드 배열 — 주제(수십 개 단위)보다 잘게 취향을 잡는다(`drip-scheduling.md` 4.2 ②) */
   @Column({ name: 'keywords', type: 'jsonb', nullable: true })
   keywords: string[] | null;
+
+  /** 맞는 청자 (직군·연차 구간) 세트 — 커리어 적합도의 입력. null: 미부여(항목 제외) */
+  @Column({ name: 'target_audiences', type: 'jsonb', nullable: true })
+  targetAudiences: TargetAudience[] | null;
+
+  /** 마지막으로 적용된 `enrichment.json`의 형식 버전. null: 메타 파일을 한 번도 안 받음 */
+  @Column({ name: 'enrichment_schema_version', type: 'int', nullable: true })
+  enrichmentSchemaVersion: number | null;
+
+  @Column({ name: 'enriched_at', type: 'timestamptz', nullable: true })
+  enrichedAt: Date | null;
 
   /** 재발행 시 같은 행의 값을 올린다. 새 행을 만들지 않으므로 참조가 유지된다 */
   @Column({ name: 'content_version', type: 'int', default: 1 })

@@ -70,3 +70,8 @@
 
 `tickets/frontend/pending/share-p1-activation-next-build.md`의 처리 기록에 "텍스트 = SH3 세 줄로
 확정"이 남아 있다. **이 개정이 그 결정을 대체한다** — 해당 티켓에도 정정 한 줄을 적어 뒀다.
+
+## 처리 기록 (반영 날짜: 2026-09-11)
+
+`share-uiux.md` 6장(값·형식 두 행, "(제안)" → 확정)과 `features/share.md` 35행·4.1·완료 조건 두 줄을 수정 내용대로 반영했다.
+FE 코드(`buildShareMessage` 두 줄)와 대조해 줄 구성이 일치한다. 딸린 정정(`share-p1-activation-next-build.md`)은 발행 시 이미 적혀 있었다.

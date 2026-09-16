@@ -30,11 +30,13 @@ services:
       driver: awslogs
       options:
         awslogs-region: ${AWS_REGION:-ap-northeast-2}
-        awslogs-group: /ear/caddy
+        awslogs-group: ${LOG_GROUP_PREFIX:-/ear}/caddy
         awslogs-stream: caddy
         awslogs-create-group: 'true'
 
   api:
+    # API_IMAGE 가 있으면 그 이미지를 쓴다(ECR pull 배포 — push.sh). 없으면 종전처럼 여기서 빌드한다
+    image: ${API_IMAGE:-ear-prod-api}
     build:
       context: .
       dockerfile: Dockerfile
@@ -59,7 +61,7 @@ services:
       driver: awslogs
       options:
         awslogs-region: ${AWS_REGION:-ap-northeast-2}
-        awslogs-group: /ear/api
+        awslogs-group: ${LOG_GROUP_PREFIX:-/ear}/api
         awslogs-stream: api
         awslogs-create-group: 'true'
 

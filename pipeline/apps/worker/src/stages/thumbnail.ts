@@ -3,6 +3,7 @@ import path from "node:path";
 import { cfg, executedBy } from "../config.js";
 import { getBacklog, getEpisode, getSetting, insertRun, majorOfMidTopic, pool, setJobProgress, type Job } from "../db.js";
 import { THUMBNAIL_ANCHOR_PROMPT_KEY, THUMBNAIL_PROMPT_KEY, workerRev } from "../assets.js";
+import { advanceChain } from "../chain.js";
 import { exists, localPathOf, pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { log } from "../util.js";
 
@@ -70,7 +71,9 @@ export async function runThumbnail(job: Job) {
   const existingKey = row.rows[0]?.thumbnail_key as string | null;
   if (!force && existingKey && (await exists(outFile))) {
     log(`  thumbnail ${episodeId}: 이미 있음 — 건너뜀 (${existingKey})`);
-    return { episode_id: episodeId, skipped: true, thumbnail_key: existingKey };
+    // 건너뛰어도 연쇄는 이어진다 — 여기서 멈추면 [발행 준비]가 패키지에 닿지 못한다
+    const next = await advanceChain(job);
+    return { episode_id: episodeId, skipped: true, thumbnail_key: existingKey, next: next?.type ?? null };
   }
 
   const progress = (detail: string) =>
@@ -128,7 +131,8 @@ export async function runThumbnail(job: Job) {
     tokens: { images: 1, quality: cfg.thumbnailQuality, size: cfg.thumbnailSize, bytes: png.length, anchor: !!anchor },
     worker_rev: workerRev(),
   });
-  return { episode_id: episodeId, thumbnail_key: key, bytes: png.length, model: cfg.thumbnailModel, anchor: !!anchor };
+  const next = await advanceChain(job);
+  return { episode_id: episodeId, thumbnail_key: key, bytes: png.length, model: cfg.thumbnailModel, anchor: !!anchor, next: next?.type ?? null };
 }
 
 /** 프롬프트의 진실은 DB 다 (spec/10 3.2) — git 사본으로 조용히 폴백하지 않는다. 시딩: npm run assets:import */
@@ -178,14 +182,24 @@ function fillSlots(template: string, slots: Record<string, string>): string {
   return out;
 }
 
-/** 스타일 앵커 — 지정돼 있는데 실제로 없으면 조용히 넘어가지 않는다(화풍 고정이 깨진 걸 모르고 100편을 찍게 된다) */
+/**
+ * 스타일 앵커 — **설정이 env 를 이긴다.**
+ *
+ * 콘솔 썸네일 탭에서 마음에 드는 편을 앵커로 지정하면 `settings.thumbnail.anchor` 에 들어간다.
+ * env 는 그 설정이 아직 없을 때의 기본값이다 — 앵커를 바꾸는 데 배포가 필요하면 화풍을 맞추는
+ * 실험을 사람이 못 돌린다.
+ *
+ * 지정돼 있는데 실제로 없으면 조용히 넘어가지 않는다 — 화풍 고정이 깨진 걸 모르고 100편을 찍게 된다.
+ */
 async function loadAnchor(): Promise<Buffer | null> {
-  if (!cfg.thumbnailAnchorKey) return null;
-  const key = cfg.thumbnailAnchorKey.replace(/^s3:/, "");
+  const setting = await getSetting<{ key?: string }>("thumbnail.anchor");
+  const configured = setting?.key || cfg.thumbnailAnchorKey;
+  if (!configured) return null;
+  const key = configured.replace(/^s3:/, "");
   await pullPrefix(key.slice(0, key.lastIndexOf("/") + 1));
   const local = localPathOf(`s3:${key}`);
   if (!local || !(await exists(local))) {
-    throw new Error(`스타일 앵커 이미지를 찾지 못했다: ${cfg.thumbnailAnchorKey} — 설정에서 지우거나 실제 키로 고친다`);
+    throw new Error(`스타일 앵커 이미지를 찾지 못했다: ${configured} — 콘솔 썸네일 탭에서 다시 지정하거나 설정에서 지운다`);
   }
   return fs.readFile(local);
 }

@@ -175,7 +175,7 @@ users
   onboarding_completed_at   timestamptz     NULL
   job_category              varchar         NULL   ← UserCareer 병합 (C-2)
   job_title                 varchar         NULL
-  years_of_experience       int             NULL
+  years_of_experience       int             NULL   구간 하한값 — 0(0-1년) · 2(2-3년) · 4(4-6년) · 7(7년+). 구간 enum ↔ 하한 환산은 `user.constant.ts`(`YEARS_OF_EXPERIENCE_LOWER_BOUND`) 한 곳 — 15.1 #4의 매핑 명시(2026-09-11)
   withdrawn_at              timestamptz     NULL
 
 uq_users_provider_provider_user_id (provider, provider_user_id)
@@ -465,7 +465,7 @@ contents
   title                     varchar
   description               text
   author_name               varchar         NULL 허용 — origin 분기 (합의 2026-08-06, 아래)
-  source_name               varchar         ★origin 분기 — partner: 파트너명 (B-5) / ai_generated: "참고한 자료" 표기
+  source_name               varchar(500)    ★origin 분기 — partner: 파트너명 (B-5) / ai_generated: "참고한 자료: 발행처1, 발행처2, …" 표기. 소스 발행처를 전부 적으므로 100자로는 부족했다(500자로 확장 2026-09-10 — KAN-52)
   source_url                varchar         NULL 허용 — origin 분기 (합의 2026-08-06, 아래)
   origin                    enum            partner | ai_generated
   partner_id                uuid            FK → partners, NULL 허용 (partner만 채운다)
@@ -479,6 +479,9 @@ contents
   format                    enum            NULL 허용 — news_analysis | howto | interview | opinion | case_study | overview ★추천 메타
   is_evergreen              boolean         NULL 허용 — true: 에버그린 / false: 시의성 ★추천 메타
   keywords                  jsonb           NULL 허용 — ["세부 키워드", ...] ★추천 메타
+  target_audiences          jsonb           NULL 허용 — [{ "jobCategory": "개발", "yearsOfExperience": "2-3" }, ...] ★추천 메타 5종째 (신설 2026-09-11) — 값 집합은 3.1의 커리어 입력과 동일(직군 목록 · 연차 구간 0-1|2-3|4-6|7+), 최대 8세트. 파일(`enrichment.json`)은 snake_case, 컬럼은 엔티티 필드명(camelCase)으로 저장한다
+  enrichment_schema_version int             NULL 허용 — 마지막으로 적용된 enrichment.json의 형식 버전(1: 메타 4종 / 2: target_audiences 추가). NULL = 메타 파일을 받은 적 없음 (신설 2026-09-11)
+  enriched_at               timestamptz     NULL 허용 — 마지막 메타 파일 적용 시각 (신설 2026-09-11)
   content_version           int             DEFAULT 1
   license_expires_at        timestamptz     NULL
   status                    enum            published | withdrawn | expired
@@ -516,6 +519,8 @@ chk_contents_partner_disclosure
 - `WithdrawnContent` 테이블은 만들지 않는다 (B-3). 클라이언트 동기화는 `GET /contents/withdrawn?since=<timestamp>`로 이 테이블에서 조회한다.
 
 **추천 메타 4종 — `difficulty` · `format` · `is_evergreen` · `keywords`** (신설 2026-08-26 — 추천 스코어링 고도화, `drip-scheduling.md` 4.2)
+
+**5종째 `target_audiences` + 형식 버전(신설 2026-09-11)** — 이 콘텐츠가 맞는 청자를 (직군, 연차 구간) 세트로 적는다. `drip-scheduling.md` 4.2 ③ "커리어 적합도" 행이 문서에만 있고 구현이 없던 이유가 콘텐츠 쪽 대조 상대가 없어서였다. 값 집합을 **3.1 사용자 커리어 입력과 같게** 두어(직군 = `GET /job-categories` 목록, 연차 = `0-1 | 2-3 | 4-6 | 7+`; 사용자 저장값은 구간 하한 0·2·4·7) 프로필과 그대로 대조한다. `enrichment_schema_version`·`enriched_at`은 **어떤 형식의 파일이 언제 적용됐는지**의 기록이다 — 형식이 바뀌면(1→2) 어드민이 `enrichment_schema_version < 현재`인 콘텐츠를 골라 다시 뽑는다. 기존 행은 마이그레이션 시 NULL(받은 적 없음과 구형을 구분할 수 없어 둘 다 재부여 대상으로 본다).
 
 - **메타데이터 부여 파이프라인**(`ai/metadata-pipeline.md` — 앱 밖 운영 절차)이 대본에서 산출해 업로드 패키지에 포함하고, 관리자 업로드 시 저장된다(`admin.md` 3.1). origin(파트너/AI 생성) 무관 전 콘텐츠 대상이다.
 - **전부 NULL 허용이다.** 파이프라인을 거치지 않은 콘텐츠도 발행을 막지 않는다 — NULL이면 스코어링에서 해당 항목을 중립 처리한다(`drip-scheduling.md` 4.2). 업로드 검증이 이 값들을 필수로 요구하지 않는다.
@@ -914,7 +919,7 @@ uq_user_preference_vectors_user_id (user_id)
 ```
 
 - `user_signals`를 집계한 결과다. 원천은 `user_signals`이고 이것은 파생 캐시다.
-- 갱신 주기: 편성 배치 시점에 계산한다. **실시간 재계산은 하지 않는다**(`drip-scheduling.md` 4.3). 탐색 피드 랭킹(조회 시점 계산)도 이 캐시를 읽는다 — 랭킹마다 재집계하지 않는다.
+- 갱신 주기: 편성 배치 시점에 계산한다. **실시간 재계산은 하지 않는다**(`drip-scheduling.md` 4.3). 탐색 피드 랭킹(조회 시점 계산)도 이 캐시를 읽는다 — 랭킹마다 재집계하지 않는다. **재고·플랜 편수로 그날 적립을 건너뛴 사용자도 재계산 대상이다** — 스킵은 적립 규칙이지 신호 집계 규칙이 아니다(명시 2026-09-15).
 - `signal_count < 3`(완청 기준)이면 콜드스타트로 판정하고 인기도·신선도 비중을 높인다(`drip-scheduling.md` 4.4).
 - **`taste_embedding`은 긍정 신호(완청·저장·재청취) 콘텐츠 임베딩의 최근성 가중 평균**이다(`drip-scheduling.md` 4.3-1). 부정 신호는 벡터에 빼지 않는다 — 감점은 룰 축(`keyword_weights` 등 음수 가중)이 담당한다. 긍정 신호 콘텐츠에 임베딩이 하나도 없으면 NULL이며, 스코어링에서 임베딩 축을 중립 처리한다.
 - `keyword_weights` · `format_weights` · `duration_pref`의 원천은 `user_signals` ⨝ `contents`의 추천 메타(5.1)다. 메타가 NULL인 콘텐츠는 해당 집계에서 제외한다.
@@ -928,6 +933,7 @@ drip_batch_runs
   target_count              int
   success_count             int
   skipped_count             int
+  exhausted_count           int             DEFAULT 0       -- 2026-09-11 신설
   failed_count              int
   started_at                timestamptz
   finished_at               timestamptz     NULL
@@ -937,6 +943,8 @@ uq_drip_batch_runs_run_date (run_date)
 
 - `uq_drip_batch_runs_run_date`가 **배치 중복 실행을 막는다** (A-5). 사용자 단위 중복은 `library_items` 유니크가 막는다.
 - 운영 콘솔 조회용으로 DB에 유지한다 (B-8).
+- **네 카운트의 합이 `target_count`다.** `success`(1편 이상 적립) · `skipped`(관심 주제 0 · 미청취 재고 ≥ 5 · 플랜 0으로 애초에 편성하지 않음 — `drip-scheduling.md` 4.1) · `exhausted`(편성 대상이었으나 **후보 고갈**로 0편 — 4.6-3 "대체 없음") · `failed`(예외).
+  - `exhausted_count`는 **콘텐츠 수급 신호**다(`drip-scheduling.md` 4.7 운영 지표 "고갈 사용자 수"). 2026-09-11 실서버에서 대상 13명 중 10명이 고갈이었는데 `skipped`·`failed`가 0이라 표만 보면 원인을 알 수 없었다 — 로그에만 남던 값을 컬럼으로 올렸다.
 
 ### 7.4 `first_drip_jobs`
 

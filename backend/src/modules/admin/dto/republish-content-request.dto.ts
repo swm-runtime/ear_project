@@ -33,7 +33,7 @@ export class RepublishContentRequestDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(100)
+  @MaxLength(500)
   readonly source_name?: string;
 
   /** 넘기면 전체 교체다. 빈 배열은 주제 없는 콘텐츠를 만들므로 막는다(4.6과 동일) */

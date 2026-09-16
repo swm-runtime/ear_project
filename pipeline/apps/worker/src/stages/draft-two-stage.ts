@@ -6,7 +6,7 @@ import { executedBy } from "../config.js";
 import { workerRev } from "../assets.js";
 import { RetryLater } from "../util.js";
 import type { Executor } from "../executors/index.js";
-import { assetPaths, buildDesignPrompt, buildWritePrompt, DESIGN_SCHEMA, WRITE_SCHEMA, type BacklogCandidate, type INTRO_STYLES, type Templates } from "@ear/pipeline";
+import { assetPaths, buildDesignPrompt, buildWritePromptParts, DESIGN_SCHEMA, WRITE_SCHEMA, type BacklogCandidate, type INTRO_STYLES, type Templates } from "@ear/pipeline";
 import { exists, hostOf, log } from "../util.js";
 import { parseScriptForTts } from "../tts/script.js";
 import { runDesignSingle } from "./design-single.js";
@@ -19,14 +19,16 @@ import { runDesignSingle } from "./design-single.js";
  * 산출물 파일은 워커가 쓴다(script.md · script-notes.md · pronunciations.json 병합). 이후 L0·QA·비평 연쇄는 구 방식과 같다.
  * 설계 산출물이 이미 있으면(재집기·2단계만 실패) 설계를 건너뛴다.
  */
-export interface DesignOut { axis: string; axis_type: string; landing_section: number; sections: { n: number; title: string; sources: string[]; ratio: number }[]; excerpts: number; claims: number; estimated_minutes: number; split_proposal: string; sources_used: string[]; sources_excluded: { url: string; reason: string }[]; gaps: string[]; self_check: string; notes: string }
-export interface WriteOut { title: string; script: string; sections_followed: boolean; turn_claims: { turn: string; claims: string[] }[]; bridges: { turn: string; note: string }[]; terms?: { term: string; turn: string; explained_by: string }[]; pronunciations_added: { term: string; reading: string }[]; self_check_fixes: string[]; notes: string }
+export interface DesignOut { axis: string; axis_type: string; landing_section: number; axis_source?: string; sections: { n: number; title: string; sources: string[]; ratio: number }[]; excerpts: number; claims: number; estimated_minutes: number; split_proposal: string; sources_used: string[]; sources_excluded: { url: string; reason: string }[]; gaps: string[]; self_check: string; notes: string }
+export interface WriteOut { title: string; one_liner?: string; script: string; sections_followed: boolean; turn_claims: { turn: string; claims: string[] }[]; bridges: { turn: string; note: string }[]; terms?: { term: string; turn: string; explained_by: string }[]; pronunciations_added: { term: string; reading: string }[]; self_check_fixes: string[]; notes: string }
 
 export interface TwoStageArgs {
   job: Job; ex: Executor; episodeId: string; candidate: BacklogCandidate; dir: string; rel: string;
   assetRoot: string; promptVersion: string; templates: Templates | null; majorTopic?: string;
   introStyle: (typeof INTRO_STYLES)[number]; fileTools: string[];
   signoffSeed?: number;
+  /** 실험 no-gold (2026-09-15): 설계·대본 프롬프트에서 골드 예시를 뺀다 — settings.experiments.no_gold_backlog_ids 에 든 후보만 */
+  noGold?: boolean;
 }
 export interface TwoStageResult { summary: string; model: string | null; costUsd: number; tokens: unknown; design: DesignOut | null; write: WriteOut; stats: { turns: number; chars: number; minutes: number } }
 
@@ -45,7 +47,7 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
     designSummary = "설계 이어받기(기존 산출물)";
   } else if (cfg.designMode === "single") {
     log(`  draft ${episodeId} ← ${cand.id} "${cand.title}" · 1/2 설계 (단발, 소스 ${cand.sources.length})`);
-    const d = await runDesignSingle({ job, ex, episodeId, candidate: cand, dir, assetRoot: a.assetRoot, promptVersion: a.promptVersion });
+    const d = await runDesignSingle({ job, ex, episodeId, candidate: cand, dir, assetRoot: a.assetRoot, promptVersion: a.promptVersion, noGold: a.noGold });
     design = d.design; designCost = d.costUsd; designTokens = d.tokens; designModel = d.model;
     designSummary = `설계(단발): 축 [${design.axis_type}] ${design.axis} · 구간 ${design.sections.length} (착지 #${design.landing_section}) · 발췌 ${design.excerpts}·claims ${design.claims} · 예상 ${design.estimated_minutes}분 · 본문 ${d.fetched.filter((f) => f.ok).length}/${d.fetched.length}${design.gaps.length ? ` · 빈 역할 ${design.gaps.join("/")}` : ""}${design.sources_excluded.length ? ` · 제외 ${design.sources_excluded.map((x) => `${hostOf(x.url)} ${x.reason}`).join("; ").slice(0, 200)}` : ""}${design.split_proposal ? ` · ⚠ 분할 제안: ${design.split_proposal.slice(0, 200)}` : ""}`;
   } else {
@@ -78,14 +80,14 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
   const ap = assetPaths(a.assetRoot, cfg.workRoot);
   const read = (p: string) => fs.readFile(p, "utf8");
   const [guidelines, specScript, goldFullEum, goldFullYuna, sourcesMd, claimsMd, outlineMd] = await Promise.all([
-    read(ap.guidelines), read(ap.specScript), read(ap.goldFullEum), read(ap.goldFullYuna),
+    read(ap.guidelines), read(ap.specScript), a.noGold ? Promise.resolve("") : read(ap.goldFullEum), a.noGold ? Promise.resolve("") : read(ap.goldFullYuna),
     read(path.join(dir, "sources.md")), read(path.join(dir, "claims.md")), read(path.join(dir, "outline.md")),
   ]);
   const pronFile = path.join(dir, "pronunciations.json");
   const pronunciationsJson = (await exists(pronFile)) ? await read(pronFile) : "{}";
   const estimatedMinutes = design?.estimated_minutes || Number(outlineMd.match(/^예상 분량:\s*(\d+(?:\.\d+)?)\s*분/m)?.[1]) || 15; // 설계 이어받기면 outline.md 에서 읽는다
-  const prompt = buildWritePrompt({ episodeId, candidate: cand, introStyle: a.introStyle, promptVersion: a.promptVersion, templates: a.templates, majorTopic: a.majorTopic, signoffSeed: a.signoffSeed, estimatedMinutes, guidelines, specScript, goldFullEum, goldFullYuna, sourcesMd, claimsMd, outlineMd, pronunciationsJson });
-  log(`  draft ${episodeId} · 2/2 대본 (단발, 프롬프트 ${Math.round(prompt.length / 1000)}K자)`);
+  const parts = buildWritePromptParts({ episodeId, candidate: cand, introStyle: a.introStyle, promptVersion: a.promptVersion, templates: a.templates, majorTopic: a.majorTopic, signoffSeed: a.signoffSeed, estimatedMinutes, guidelines, specScript, goldFullEum, goldFullYuna, sourcesMd, claimsMd, outlineMd, pronunciationsJson });
+  log(`  draft ${episodeId} · 2/2 대본 (단발, 공유 ${Math.round(parts.system.length / 1000)}K + 편별 ${Math.round(parts.user.length / 1000)}K자)`);
   let w: Awaited<ReturnType<typeof ex.run<WriteOut>>>;
   try {
     w = await runWrite();
@@ -102,7 +104,7 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
     throw e;
   }
   async function runWrite() { return ex.run<WriteOut>({
-    prompt, schema: WRITE_SCHEMA,
+    prompt: parts.user, systemPrompt: parts.system, schema: WRITE_SCHEMA,
     tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 60 * 60_000, model: cfg.draftWriteModel, maxThinkingTokens: cfg.thinkingWrite, effort: cfg.effortWrite, // 60분 — opus 대본 실측 30분+ (2026-09-09)
     onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: "대본 2/2 — 단발 작성", detail: pr.turns > 0 ? "대본 작성 중 (도구 없음)" : pr.detail }).catch(() => {}),
   }); }
@@ -152,7 +154,8 @@ export function scriptStats(md: string): { turns: number; chars: number; minutes
 
 /** 2단계 L0 — 구성안 계약(구간 수·순서)과 분량 하한(13분 ≈ 4,000자)을 기계로 검사한다. 위반은 재생성 연쇄로 */
 /** @param opts.signoffHeads 템플릿 클로징 인사 골격들의 고정 머리(첫 {슬롯} 앞 문구, tpl-v2). 있으면 마지막 턴이 진행(Y) 턴이고 그중 하나를 담아야 한다 */
-export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { signoffHeads?: string[] } = {}): string[] {
+export interface L0AttributionInput { claimsMd?: string; sourcesMd?: string; notesMd?: string; pronunciations?: Record<string, string> }
+export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { signoffHeads?: string[] } & L0AttributionInput = {}): string[] {
   const v: string[] = [];
   const planned = [...outlineMd.matchAll(/^구간 #(\d+)/gm)].map((m) => Number(m[1]));
   const written = [...scriptMd.matchAll(/^### #(\d+)/gm)].map((m) => Number(m[1]));
@@ -180,8 +183,13 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
     if (!last?.id?.startsWith("Y")) v.push(`마지막 턴이 진행(Y) 턴이 아님 (${last?.id ?? "없음"}) — 해설 정리 뒤 진행 담당의 클로징 인사 1턴("${heads[0]} …")으로 끝나야 한다 (tpl-v2, spec/04 4장)`);
     else if (!heads.some((h) => text.includes(h))) v.push(`마지막 턴 ${last.id}에 클로징 인사 골격("${heads[0]}"${heads.length > 1 ? ` 외 ${heads.length - 1}종` : ""})이 없음 — 템플릿 골격 그대로 {슬롯}만 채운다 (tpl-v2)`);
   }
+  // 클로징 마지막 문장 "다음(에) ~하면" 틀 (규칙 22, full-v7.3 — 002 Y48·006 Y22·007 Y34 직접 수정이 매번 "다음"만 지웠다): 마지막 진행 턴의 문장 머리만 본다
+  {
+    const last = p.turns[p.turns.length - 1];
+    if (last?.id?.startsWith("Y") && /(^|[.!?…]\s*)다음(에|\s[가-힣]{1,6}(에|에서|부터|엔))\s/.test(last.text.replace(/\s+/g, " "))) v.push(`마지막 턴 ${last.id} 의 문장이 "다음(에) ~" 틀로 시작 — 클로징은 조건 없이 바로 말한다("회의에서 침묵이 흐르거든", "매일 아침 점수가 낮게 떠도") (규칙 22)`);
+  }
   // 통계 용어 (규칙 24, full-v6 2026-09-09): 논문 결과 문장의 직역 — 판정 3편 공통 사유 "너무 어려움". 말로 옮기게 재생성
-  const statRe = /(유의하|유의미|유의했|유의한|상호작용\s?효과|매개\s?(효과|분석|변인)|매개했|매개하|정적\s?(관계|상관)|부적\s?(관계|상관)|변인|효과\s?크기|표본\s?크기|회귀\s?계수)/; // "상호작용" 단독은 일상어라 제외
+  const statRe = /(유의하|유의미|유의했|유의한|상호작용\s?효과|매개\s?(효과|분석|변인)|매개했|매개하|정적\s?(관계|상관)|부적\s?(관계|상관)|변인|효과\s?크기|표본\s?크기|회귀\s?계수|조절\s?효과|조절하지 않|조절했|통제\s?조건|통제\s?집단)/; // "상호작용" 단독은 일상어라 제외
   const stat = p.turns.filter((t) => t.id?.startsWith("E") && statRe.test(t.text)).map((t) => t.id);
   if (stat.length) v.push(`해설 턴 ${stat.length}개에 통계 용어(유의·매개·정적/부적 관계·변인·효과 크기) (${stat.slice(0, 8).join(", ")}) — 말로 옮긴다: "같이 움직였다", "~할수록 ~했다", "A 가 B 를 거쳐 C 로" (규칙 24)`);
   // 뜸 부재 (규칙 7, 판정 3편 A7 전부 동의 "수정 필요"): 해설 턴이 말줄임표 없이 열 턴 넘게 이어지면 낭독
@@ -190,18 +198,183 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
   for (const t of eTurns) { if (/\.{3}|…/.test(t.text)) gap = 0; else { gap++; if (gap > maxGap) { maxGap = gap; gapEnd = t.id; } } }
   if (maxGap >= 10) v.push(`해설 턴 ${maxGap}개가 연속으로 뜸(말줄임표) 없이 이어짐 (${gapEnd} 까지) — 긴 해설 구간에 문장 중간 뜸 "..." 을 둔다 (규칙 7). 낭독이 아니라 말이어야 한다`);
   // 골드 특유 문구 (골드 사용법·루브릭 G1, 판정 3편 전부 동의): 자리째 복제 틀이 2회 이상이면 재생성
-  const goldRe = /(그 그림이 (맞|정확)|정확한 표현이|정확히 [^.。!?]{1,14}(핵심|조각|얘기|그거)|한 번쯤 떠올려 보셔도|짧게 모아|한번 모아볼까요|그런데 (윤아|이음)님은 어떠세요|솔직히 반반|예리하세요)/;
+  // full-v6.2 (판정 3편 G1 동의 11건): 문장이 골드에서 그대로 온 것은 1턴이어도 수정 — "자리까지 막기는 어렵고 완전 복제만 피하면 된다"(판정 부분동의)
+  const goldRe = /(그 그림이 [^.。!?]{0,14}(맞|정확|가까|그거)|정확한 표현이|정확히 [^.。!?]{1,14}(핵심|조각|얘기|그거)|한 번쯤 떠올려 보셔도|떠올려 보셔도 좋겠|(해|두|보)셔도 좋겠(습니다|네요)|짧게 모아|모아 볼게요|모아 보면|한번 모아볼까요|한 번 묶어|묶어 주실|그런데 (윤아|이음)님은 어떠세요|(윤아|이음)님(한테|께|,)? ?하나 (여쭤|물어)볼게요|하나 여쭤볼게요|솔직히 반반|예리하세요|반만 맞(았|아)|그 감각이 [^.。!?]{0,12}(정확|맞|핵심|통해|방향)|그 정리가 맞아요)/;
   const gold = p.turns.filter((t) => goldRe.test(t.text)).map((t) => t.id ?? "?");
-  if (gold.length >= 2) v.push(`골드 특유 문구가 ${gold.length}턴 (${gold.slice(0, 6).join(", ")}) — 확인구·역질문 진입·마무리 마지막 문장 틀을 자리째 쓰지 않는다. 같은 기능을 새 문장으로 (골드 사용법)`);
-  const a = attributionStats(p.turns);
-  if (a.eTurns >= 10 && a.ratio > 0.5) v.push(`해설 턴 ${a.eTurns}개 중 ${a.attributed}개(${Math.round(a.ratio * 100)}%)에 귀속 표현("~에 따르면"·"라고 합니다"·"이 글/기사는"·매체명)이 있음 — 절반 초과, 소스 순회. 개념·원리·정의는 해설자의 말로 바꾸고, 이름은 근거 앵커·직접 인용에만 (규칙 20~22)`);
+  if (gold.length >= 1) v.push(`골드 특유 문구가 ${gold.length}턴 (${gold.slice(0, 6).join(", ")}) — 확인구("반만 맞았어요"·"그 감각이 …"·"그 그림이 …"·"그 정리가 맞아요")·정리 진입("…짧게 모아 보면요")·마무리 마지막 문장 틀("~해 보셔도 좋겠습니다")을 자리째 쓰지 않는다. 같은 기능을 새 문장으로 (골드 사용법)`);
+  // 귀속 연속 (규칙 22, full-v6.2 — 판정 3편 A9 전부 동의, T260910-013 은 한 저자 글을 11턴 연속 옮김): 귀속 동사로 닫히는 해설 턴이 4턴 연속이면 책 소개다
+  // full-v6.3: "동사로 끝남" 대신 "귀속 표현이 든 턴"으로 세고 5연속 — 018 은 E15~E18 이 전부 전언인데 E18 이 "거예요"로 끝나 4연속에서 끊겼다
+  let run = 0, maxRun = 0, runEnd: string | null = null;
+  for (const t of eTurns) { if (attributionRe.test(t.text)) { run++; if (run > maxRun) { maxRun = run; runEnd = t.id; } } else run = 0; }
+  if (maxRun >= 5) v.push(`해설 턴 ${maxRun}개가 연속으로 귀속 표현("~라고요"·"~라고 해요"·"~라고 불러요"·"그가 말하는 건")을 담음 (${runEnd} 까지) — 한 소스를 옮겨 적는 구간이다. 소스가 말한 것을 해설자가 아는 것으로 바꾸어 말하고, 귀속은 직접 인용·수치·특정인 의견에만 (규칙 20~23)`);
+  // full-v6.4 (2026-09-12 직접 수정 43건): 기원 서사 틀 반복 · 턴 끝 미완결 · 비유 표지 밀도
+  const originRe = /(아까|방금|앞에서)[^.!?]{0,25}(때부터|부터)[^.!?]{0,8}(걸리|걸렸|궁금|정리)|(아까|방금)부터 (궁금|정리|걸리)/;
+  const origin = p.turns.filter((t) => t.id?.startsWith("Y") && originRe.test(t.text)).map((t) => t.id ?? "?");
+  if (origin.length >= 2) v.push(`진행 턴 ${origin.length}개가 같은 기원 서사 틀("아까 ~하셨을 때부터 걸렸는데요")로 시작 (${origin.join(", ")}) — 기원은 내용으로 붙이고 "방금"과 "~부터"를 같이 쓰지 않는다 (규칙 1)`);
+  const openEnd = p.turns.filter((t) => /(\.{3}|…)["'”’]?\s*$|[는고라데며서면]\.\s*$/.test(t.text.trim())).map((t) => t.id ?? "?");
+  if (openEnd.length >= 3) v.push(`턴 ${openEnd.length}개가 완결되지 않은 채 끝남 (${openEnd.slice(0, 6).join(", ")}) — 말줄임표·연결어미로 끝나면 오디오가 끊긴 인상을 준다. 완결형 문장으로 (규칙 16)`);
+  const metaphorRe = /(같은 거예요|같은 거네요|같은 거죠|같은 셈|같은 건데|비유하자면|이라고 보면 돼요|처럼요[.?]|인 셈이(에요|네요|죠))/g;
+  const metaphors = p.turns.reduce((a, t) => a + (t.text.match(metaphorRe)?.length ?? 0), 0);
+  if (metaphors >= 8) v.push(`비유 표지("같은 거예요"·"같은 셈"·"비유하자면")가 ${metaphors}회 — 비유는 어려운 대목에만, 에피소드에 셋 이내. 쉬운 대목의 비유와 개념 간 관계 비유를 뺀다 (규칙 18)`);
+  // 진행자가 지어낸 관계 비유 "X는 A가 아니라 B네요" (규칙 3·18, 직접 수정: 당직자·배터리/충전기·창고/검수대 전부 삭제됨)
+  const relRe = /(은|는) [가-힣 ]{1,12}(이|가) 아니라[^.!?]{0,14}(같은|이네요|이에요|예요|네요|거네요|인 거|죠)/;
+  const hostMeta = p.turns.filter((t) => t.id?.startsWith("Y") && relRe.test(t.text)).map((t) => t.id ?? "?");
+  if (hostMeta.length) v.push(`진행 턴 ${hostMeta.length}개가 관계 비유("X는 A가 아니라 B네요")를 지어냄 (${hostMeta.join(", ")}) — 진행자는 비유를 만들지 않는다. 자기 말로 바꿔 되돌린다 (규칙 3·18)`);
+  // 제작 용어 누설 (골드 사용법, full-v6.3 — T260910-020 "저는 그 번역이 맞다고 봅니다")
+  const leak = p.turns.filter((t) => /(그|이) 번역이|번역이 (맞|정확)|번역 맞장구|이 구간에서|구간 #|발췌에|클레임|골드 예시/.test(t.text)).map((t) => t.id ?? "?");
+  if (leak.length) v.push(`제작 용어가 대사에 새어 나옴 (${leak.slice(0, 6).join(", ")}) — "번역"·"구간"·"발췌"·"클레임"은 규칙 문서의 말이다. 두 사람의 말로 바꾼다`);
+  // 한글로 풀어 쓴 세 자리 이상 정확한 수 (규칙 24, full-v6.3 — "오백일흔다섯 명"은 듣기에 어색). 반올림해 말한다
+  const numRe = /[일이삼사오육칠팔구]?(백|천)\s?(?:[일이삼사오육칠팔구]?십[일이삼사오육칠팔구]?|[일이삼사오육칠팔구]백[일이삼사오육칠팔구십]*|(?:스물|서른|마흔|쉰|예순|일흔|여든|아흔)(?:하나|둘|셋|넷|다섯|여섯|일곱|여덟|아홉)?)/; // "오백일흔다섯"·"삼백쉰일곱"·"천구백구십"
+  const nums = p.turns.filter((t) => t.id?.startsWith("E") && numRe.test(t.text.replace(/이천[일이삼사오육칠팔구십]*년/g, ""))).map((t) => t.id);
+  if (nums.length >= 2) v.push(`해설 턴 ${nums.length}개가 세 자리 이상 수를 한글로 정확히 풀어 읽음 (${nums.slice(0, 6).join(", ")}) — "약 육백 명"처럼 반올림한다. 정확한 수가 축에 필요한 자리만 예외 (규칙 24)`);
+  // "오늘 얘기" 틀 반복 (규칙 16 문어 은유, full-v6.2 — T260910-013 E2·E7·E12·E42 "오늘 얘기가/오늘의 출발점/오늘 얘기의 두 갈래/오늘 얘기를 한 줄로")
+  const todayRe = /오늘(의)? (얘기|이야기|출발점|주제)/;
+  const today = eTurns.filter((t) => todayRe.test(t.text));
+  if (today.length >= 4) v.push(`해설 턴 ${today.length}개가 "오늘 얘기/오늘의 출발점" 틀로 위치를 잡음 (${today.slice(0, 6).map((t) => t.id).join(", ")}) — 같은 틀 세 번이면 각본이다. 내용으로 잇는다 (규칙 16)`);
+  // full-v7.1 판정 반영 (2026-09-15, T260915-001~004 직접 수정 85건): 화자 없는 인용 예고 · 발행 시기 · 해설자 전환 선언 · 발화 안 가운뎃점
+  const quoteCueRe = /((이런|그런|이) (문장|표현|구절|말)(이|도|을|가) (있어요|있는데요|있습니다|나와요|하나 있|있거든요)|(글|기사|책|보고서|논문|연구)(도|은|는|이|가|에서)? ?이렇게 (말해요|말합니다|적어요|적었어요|씁니다|썼어요|써요))/;
+  const quoteCue = eTurns.filter((t) => quoteCueRe.test(t.text)).map((t) => t.id ?? "?");
+  if (quoteCue.length) v.push(`해설 턴 ${quoteCue.length}개가 화자 없는 인용 예고("이런 문장이 있어요"·"그 글도 이렇게 말해요")로 들어감 (${quoteCue.slice(0, 6).join(", ")}) — 표지를 지우고 해설자의 문장으로 두거나 화자를 붙인다 (규칙 20·23)`);
+  const pubDateRe = /20\d\d년(?: \d{1,2}월)?에 [^.!?…]{0,14}(?:낸|발표한|실린|나온|쓴|펴낸|출간한|발행한|올린|내놓은) /;
+  const pubDate = eTurns.filter((t) => pubDateRe.test(t.text)).map((t) => t.id ?? "?");
+  if (pubDate.length) v.push(`해설 턴 ${pubDate.length}개가 소스의 발행 시기를 말함 (${pubDate.slice(0, 6).join(", ")}) — "2026년 8월에 낸"은 각주다. 시점이 축에 필요한 비교가 아니면 뺀다 (규칙 21)`);
+  const handoffRe = /(다음 (질문|얘기|이야기)(은|는|이) (이거|이건|이렇)|다음 (얘기|이야기|질문)(예요|이에요|입니다)|다음으로 넘어가)/;
+  const handoff = eTurns.filter((t) => handoffRe.test(t.text)).map((t) => t.id ?? "?");
+  if (handoff.length) v.push(`해설 턴 ${handoff.length}개가 구간 전환을 선언함 (${handoff.slice(0, 6).join(", ")}) — "그럼 다음 질문은 이거죠"는 대본 진행을 알리는 말이다. 앞 구간이 남긴 질문에서 진행자가 묻거나 내용으로 잇는다 (규칙 1)`);
+  const midDot = p.turns.filter((t) => /[가-힣A-Za-z)]·[가-힣A-Za-z(]/.test(t.text)).map((t) => t.id ?? "?");
+  if (midDot.length) v.push(`턴 ${midDot.length}개의 발화 안에 가운뎃점(·) 나열 (${midDot.slice(0, 6).join(", ")}) — 귀로는 낱말이 붙어 들린다. 쉼표로 나누거나 둘로 줄인다 (규칙 14)`);
+  // full-v7 (2026-09-15): 귀속 표현 턴 비율 검사는 폐지 — 32~36% 인 편에서도 소스 순회(재식별 15건)가 있었다. 구조 검사로 대체
+  v.push(...attributionViolations(scriptMd, p.turns, opts));
   return v;
 }
 
-/** 귀속 표현이 있는 해설 턴의 비율 — 규칙 22 의 자기 점검 지표. 매체·저자 고유명은 알 수 없으니 전언·지시 표현으로 잰다 */
+/**
+ * full-v7 귀속 구조 검사 (guidelines 규칙 20~22·25). claims.md(구간·귀속 열)·sources.md(이름)·script-notes.md(턴별 claims)가 있을 때만
+ * 구조를 검사하고, 없으면(구 형식 산출물) 진행 턴 검사만 한다. 이름 검출은 sources.md 머리의 발행처·저자 원문 표기와 발음 맵의 한글 표기로 잰다 —
+ * 못 잡는 이름이 있을 수는 있어도 잡힌 것은 확실하다(보수적).
+ */
+export function attributionViolations(scriptMd: string, turns: { id: string | null; text: string }[], opts: L0AttributionInput): string[] {
+  const v: string[] = [];
+  const yTurns = turns.filter((t) => t.id?.startsWith("Y"));
+  // 규칙 25: 진행 턴은 되물음 하나 아니면 수긍 하나 (판정 001 "반문이 너무 과도함", 직접 수정 Y11·Y4). 물음표 둘은 ⭐ 턴(003 Y12 "…금지라고요? …인사말 아닌가요?")에도
+  // 흔해 기준으로 못 쓴다 — 셋부터 잡는다. 꼬리 질문 자체는 루브릭 3.12 가 본다
+  const manyQ = yTurns.filter((t) => (t.text.match(/\?/g)?.length ?? 0) >= 3).map((t) => t.id ?? "?");
+  if (manyQ.length) v.push(`진행 턴 ${manyQ.length}개에 질문이 셋 이상 (${manyQ.slice(0, 6).join(", ")}) — 진행 턴은 되물음 하나 아니면 수긍 하나. 꼬리 질문을 뺀다 (규칙 25)`);
+  // 진행만 하는 짧은 되물음 턴 (규칙 25, full-v7.1 판정 반영 — 002 Y36 "셌더니요?"·Y41, 003 Y13 "어떤 일이었는데요?" 가 "없어도 되는 턴"으로 삭제됨): 열 자 이하의 물음 한 마디
+  // 4편 실측 10턴("첫 번째가 뭔데요?"·"뭘 물어봤는데요?"…) 중 사람이 지운 건 002·003 의 3턴 — 한둘은 리듬이라 셋부터 잡는다(001 2턴 통과, 002 5·003 3 적중)
+  const stubQ = yTurns.filter((t) => /\?/.test(t.text) && t.text.replace(/[\s.,!?…"'“”‘’]/g, "").length <= 10).map((t) => t.id ?? "?");
+  if (stubQ.length >= 3) v.push(`진행 턴 ${stubQ.length}개가 내용 없이 다음 해설을 부르는 한 마디 되물음 (${stubQ.slice(0, 6).join(", ")}) — 해설이 끊지 않고 이어 말한다. 되물음은 청취자가 막히는 자리에만 (규칙 4·25)`);
+  // 진행자가 만든 비유 — "로 치면"은 콜백(003 ⭐ Y21 "아까 회사 얘기로 치면")에도 쓰여 제외, 명시적 비유 표지만
+  const yMeta = yTurns.filter((t) => /(비유하자면|같은 거예요|같은 셈이|인 셈이(에요|네요|죠))/.test(t.text)).map((t) => t.id ?? "?");
+  if (yMeta.length) v.push(`진행 턴 ${yMeta.length}개가 비유를 만듦 (${yMeta.join(", ")}) — 진행자는 비유를 만들지 않는다. 자기 말로 바꿔 되돌린다 (규칙 3·25)`);
+
+  const { claimsMd, sourcesMd, notesMd } = opts;
+  if (!claimsMd || !sourcesMd) return v;
+  // claims.md (full-v7): | ID | 주장 | 발췌 ID | 유형 | 구간 | 저명 | 의견 | 귀속 |
+  const claims = new Map<string, { source: number | null; section: number | null; grade: string }>();
+  for (const m of claimsMd.matchAll(/^\|\s*(C\d{2,3})\s*\|[^\n]*$/gm)) {
+    const cells = m[0].split("|").map((s) => s.trim());
+    if (cells.length < 10) continue; // 구 형식(귀속 5열)은 구조 검사 대상이 아니다
+    const src = cells[3].match(/S(\d+)-/)?.[1];
+    const sec = cells[5].match(/\d+/)?.[0];
+    claims.set(m[1], { source: src ? Number(src) : null, section: sec ? Number(sec) : null, grade: cells[8] });
+  }
+  if (!claims.size) return v;
+  const axis = Number(claimsMd.match(/^> 축 소스: S(\d+)/m)?.[1] ?? NaN);
+  const bodySections = [...scriptMd.matchAll(/^### #(\d+)/gm)].map((m) => Number(m[1]));
+  // 소스별 이름 후보 — sources.md 머리의 발행처·저자. 인명은 원문 표기(규칙 14)라 영문으로 잡히고, 기관은 발음 맵의 한글 표기로도 잡는다
+  const names = new Map<number, string[]>();
+  for (const m of sourcesMd.matchAll(/^## S(\d+)\. (.+?) — "/gm)) names.set(Number(m[1]), [m[2].trim()]);
+  for (const m of sourcesMd.matchAll(/^## S(\d+)\.[^\n]*\n- URL:[^\n]*· 저자 ([^\n·]+)/gm)) {
+    const list = names.get(Number(m[1])) ?? [];
+    for (const n of m[2].split(/,\s*/).map((s) => s.trim()).filter((s) => s.length >= 3)) list.push(n);
+    names.set(Number(m[1]), list);
+  }
+  const readings = opts.pronunciations ?? {};
+  const eText = turns.filter((t) => t.id?.startsWith("E")).map((t) => t.text).join("\n");
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const countIn = (hay: string, needle: string) => hay.match(new RegExp(esc(needle), "g"))?.length ?? 0;
+  void bodySections;
+  // 같은 이름 3회 이상 (규칙 21, full-v7.1 — 002 Sanjay Khosla ×6): 소개 때 한 번, 이후는 지시어
+  const known = new Set<string>();
+  for (const list of names.values()) for (const n of list) if (n.length >= 3) known.add(n);
+  for (const n of known) { const c = countIn(eText, n); if (c >= 3) v.push(`"${n}" 이 해설 턴에서 ${c}회 — 이름은 소개 때 한 번, 이후는 지시어("이 사람"·"연구팀")로 잇는다 (규칙 21)`); }
+  // 소스 목록에 없는 이름 (규칙 21 — 001 "Knowable Magazine"): 라틴 문자 고유명(두 단어 이상)과 "X 라는 매체/곳/기관"이 sources.md·claims·발음 맵에 없으면 지어낸 것
+  // 라틴 문자 이름의 대조 코퍼스는 sources.md(원문 발췌·발행처·저자)뿐 — claims.md 는 QA 기록에, pronunciations.json 은 모델이 새 표기마다 발음을 넣어서
+  // 지어낸 이름("Knowable Magazine")이 둘 다에 남아 있었다. 한글 토큰("LG경영연구원 이라는")만 발음 맵의 한글 표기까지 허용한다
+  const latinCorpus = sourcesMd;
+  const koreanCorpus = sourcesMd + "\n" + Object.values(readings).join("\n");
+  const candidates = new Map<string, string>(); // 이름 → 대조 코퍼스
+  for (const m of eText.matchAll(/(?<![A-Za-z])([A-Z][A-Za-z.&'-]+(?: [A-Z][A-Za-z.&'-]+)+)(?![A-Za-z])/g)) candidates.set(m[1], latinCorpus);
+  // "X 라는 매체/곳": X 는 공백 없는 한 토큰만 — 공백을 허용하면 앞 문장 끝("자리예요. Eos")까지 끌려 들어와 오탐이 난다. 라틴 두 단어 이상은 위 정규식이 잡는다
+  for (const m of eText.matchAll(/(?<![A-Za-z0-9가-힣])([A-Za-z0-9가-힣&'-]{2,20})\s?(?:이라는|라는) (?:[가-힣]+ )?(?:매체|곳|회사|기관|연구소|연구원|저널|신문)/g)) if (!candidates.has(m[1])) candidates.set(m[1], /[가-힣]/.test(m[1]) ? koreanCorpus : latinCorpus);
+  // 대소문자·구두점 무시 — 매체가 URL 로만 있는 경우("Eos" ↔ eos.org, "Nautilus" ↔ nautil.us)를 허용한다
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9가-힣]/g, "");
+  const invented = [...candidates].filter(([n, corpus]) => n.length >= 3 && !norm(corpus).includes(norm(n))).map(([n]) => n);
+  const inventedTop = invented.filter((n) => !invented.some((o) => o !== n && o.includes(n))); // "Quantum Weekly"가 잡히면 부분 문자열 "Weekly"는 따로 세지 않는다
+  if (inventedTop.length) v.push(`소스 목록에 없는 이름 (${inventedTop.slice(0, 5).join(", ")}) — 매체명·기관명·인명은 sources.md 에 있는 것만 부른다. 없으면 익명("한 매체에서")으로 (규칙 21)`);
+  // 되돌림 표지 (규칙 22): 앞 블록의 소스를 다시 식별하지 않는다 — 축 소스도 내용으로만 되짚는다
+  const backRe = /(로 돌아가(면|서|볼게요|볼까요)|아까 그 |앞에서 말한 그 |아까 말한 그 )/;
+  const back = turns.filter((t) => backRe.test(t.text)).map((t) => t.id ?? "?");
+  if (back.length) v.push(`되돌림 표지("~로 돌아가면"·"아까 그") ${back.length}턴 (${back.slice(0, 5).join(", ")}) — 앞 블록의 소스를 다시 식별하지 않는다. 축 소스도 내용으로만 되짚는다 (규칙 22)`);
+  // 블록 첫 해설 턴이 앞 블록의 지시어로 시작 (규칙 22 — 004 "그 교수"가 #4·#5 에서 다른 사람)
+  {
+    let sec = 0; let seen = new Set<number>(); const bad: string[] = [];
+    for (const line of scriptMd.split(/\r?\n/)) {
+      const s = line.match(/^### #(\d+)/); if (s) { sec = Number(s[1]); continue; }
+      const t = line.match(/^\s*(?:\[[^\]]+\]\s*)?\**(E\d+)\b\s*[·:]?\s*(.*)$/);
+      if (!t || !sec || seen.has(sec)) continue;
+      seen.add(sec);
+      if (/^(그|이) (교수|연구|연구팀|연구진|팀|사람|글|보고서|회장|저자|연구자|기사|논문)/.test(t[2].trim())) bad.push(`${t[1]}(#${sec})`);
+    }
+    if (bad.length) v.push(`블록의 첫 해설 턴이 앞 블록의 지시어로 시작 (${bad.join(", ")}) — 새 블록은 소개 한 문장으로 연다. 익명이어도 된다("미국의 한 대학 연구팀이") (규칙 22)`);
+  }
+  // 이름 형태: 풀네임(두 토큰 이상)이 한 번이라도 나왔으면 성만 따로 부르지 않는다 (직접 수정 "Sucher 교수 → Sandra Sucher 교수")
+  for (const list of names.values()) for (const n of list) {
+    const parts = n.split(/\s+/);
+    if (parts.length < 2 || !eText.includes(n)) continue;
+    const last = parts[parts.length - 1];
+    if (last.length < 3) continue;
+    const bare = eText.match(new RegExp(`(?<!${esc(parts.slice(0, -1).join(" "))}\\s)${esc(last)}`, "g"))?.length ?? 0;
+    if (bare > 0) v.push(`"${n}" 을 풀네임으로 부른 뒤 "${last}" 만으로도 ${bare}회 부름 — 이름 형태는 첫 등장 그대로, 성만 따로 부르지 않는다 (규칙 21)`);
+  }
+  // 구간 밖 사용·마무리 claims — script-notes 의 턴별 claims 로 (모델 자기 보고지만 구간 경계는 대본에서 직접 잰다)
+  if (!notesMd) return v;
+  type Zone = number | "인트로" | "도입" | "마무리";
+  const turnZone = new Map<string, Zone>();
+  let cur: Zone = "인트로";
+  for (const line of scriptMd.split(/\r?\n/)) {
+    const h = line.match(/^## \[(인트로|도입|본문|마무리)\]/);
+    if (h) { if (h[1] !== "본문") cur = h[1] as Zone; continue; }
+    const s = line.match(/^### #(\d+)/);
+    if (s) { cur = Number(s[1]); continue; }
+    const t = line.match(/^\s*(?:\[[^\]]+\]\s*)?\**([EY]\d+)\b/); // 줄 문법: "[이음] E1 · …" (spec/04 4장)
+    if (t) turnZone.set(t[1], cur);
+  }
+  const outside: string[] = [];
+  const closing: string[] = [];
+  for (const m of notesMd.matchAll(/^\|\s*([EY]\d+)\s*\|\s*([^|]*)\|/gm)) {
+    const ids = m[2].match(/C\d{2,3}/g) ?? [];
+    if (!ids.length) continue;
+    const zone = turnZone.get(m[1]);
+    if (zone === "마무리") { closing.push(m[1]); continue; }
+    if (typeof zone !== "number") continue;
+    for (const id of ids) {
+      const c = claims.get(id);
+      if (!c || c.section === null || c.source === null || c.source === axis) continue;
+      if (c.section !== zone) outside.push(`${m[1]}:${id}(S${c.source}→#${c.section})`);
+    }
+  }
+  if (outside.length) v.push(`소스가 배정 구간 밖에서 쓰임 (${outside.slice(0, 6).join(", ")}${outside.length > 6 ? " …" : ""}) — 소스는 claims 의 구간에서만, 축 소스만 도입·착지 (규칙 22)`);
+  if (closing.length) v.push(`마무리 턴 ${closing.join(", ")} 이 claims 를 씀 — 마무리는 새 사실 없는 무귀속 요약이다 (규칙 22)`);
+  return v;
+}
+
+/** 귀속 표현 — 규칙 22 의 자기 점검 지표. 매체·저자 고유명은 알 수 없으니 전언·지시 표현으로 잰다 */
+const attributionRe = /(에 따르면|라고 합니다|라고 해요|라고 하는데요|고 합니다|고 해요|다고 적|라고요|다고요|냐고요|라고 불러요|라고 부르|라고 썼|라고 써요|썼어요|씁니다|말을 남겼|문장이 있어요|문장을 남겼|가 말하는 건|가 말하기를|이 말하는 건|라고 봤|라고 봅니다|라고 믿|라고 주장|내놓는 처방|내놓은|이 글|그 글|이 기사|그 기사|같은 글|같은 기사|아까 그|저자는|저자가|저자들|필자는|말로는|라고 봐요|라고 보고|고 보고하|라고 지적|연구진은|연구진이|연구팀은|연구자는|연구자도|기사는|글은|글에서|기사에서|논문에서|보고서에서|책에서)/; // full-v6.3: "~라고요"·"라고 불러요"·"그가 말하는 건"을 못 세어 전언 68% 대본(T260910-018)을 통과시켰다
+/** 귀속 표현이 있는 해설 턴의 비율 */
 export function attributionStats(turns: { id: string | null; text: string }[]): { eTurns: number; attributed: number; ratio: number } {
-  const re = /(에 따르면|라고 합니다|라고 해요|라고 하는데요|고 합니다|고 해요|다고 적|이 글|그 글|이 기사|그 기사|같은 글|같은 기사|아까 그|저자는|저자가|필자는|연구진은|연구진이|연구팀은|기사는|글은|글에서|기사에서|논문에서|보고서에서|책에서)/;
   const e = turns.filter((t) => t.id?.startsWith("E"));
-  const attributed = e.filter((t) => re.test(t.text)).length;
+  const attributed = e.filter((t) => attributionRe.test(t.text)).length;
   return { eTurns: e.length, attributed, ratio: e.length ? attributed / e.length : 0 };
 }

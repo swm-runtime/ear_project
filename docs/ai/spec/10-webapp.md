@@ -21,7 +21,7 @@ spec/08의 원칙 "UI와 실행기의 결합은 상태 테이블로만"을 그�
 | AI 생성 주제 목록 확인 | 백로그 보드 — 군집화 결과가 `proposed` 카드로 즉시 표시 (소스 묶음·축·타깃 정합) |
 | 주제 선택 → 대본 생성 | 카드 승인(게이트 1) = `approved` 전환 → **자동으로 `draft` → `qa`(최대 3회) → `critic` 연쇄**. spec/09 v2의 L0 기계 검사·L1 지시 준수·L3 이해도 프로브는 이 연쇄에 추가 예정(L0 코드는 실측 완료, 편입 전) |
 | 대본 확인·판정 | 에피소드 화면 — 대본·발췌·claims·QA·비평 리포트 열람 · **대본 턴 인라인 수정**(사람 피드백의 기본 형태, spec/09 3.1) + 수정 로그 + 재QA 요청 · 비평 플래그 판정 입력 |
-| TTS 변환 | **수동 전용** — 사람이 에피소드에서 "TTS 변환" 버튼을 눌러야만 `tts` 작업 생성 (자동 연쇄 없음. 대본 고도화 단계이므로 구현만 해둠) |
+| 발행 준비 | **수동 트리거 + 연쇄**(개정 2026-09-10, KAN-50) — 에피소드의 [발행 준비] 하나로 `tts → thumbnail → package`. 개별 강제 재실행은 각 산출물 탭([음원 다시 변환]·[썸네일 다시 만들기])이며 둘 다 `package`가 따라온다. 남은 단계는 payload `chain` 배열이 들고 다닌다. **이미 있는 산출물은 건너뛰고**(음원은 대본이 그 뒤로 바뀌었을 때만 재합성), **실패하면 연쇄가 멈춘다** |
 
 만들지 않는 것: 제품 DB 연동, 커스텀 인증 서버, 별도 큐 인프라(SQS 등 — `jobs` 테이블이 큐), 모니터링 대시보드 선구축 (spec/08 7장 유지).
 
@@ -123,6 +123,13 @@ claude -p --output-format json --json-schema <단계별 결과 스키마> \
 - git 사본: `assets:export`가 active를 `docs/ai/skills/`로 덤프(PR에서 규칙 diff가 보이게, CHANGELOG는 note에서 생성). 방향은 웹 → DB → git 한쪽. active 행은 수정 불가 — 고치려면 새 버전을 만들어 활성화한다(`runs`에 남은 버전 = 그때 실제 내용).
 - 프롬프트 빌더 안의 문자열 규칙(`COMMON_RULES`·`GOLD_USAGE` 등)은 2차에서 자산(`prompts/draft.md`)으로 뺀다.
 
+**활성화는 배포가 한다** (2026-09-12): `docs/ai/skills/**` 가 dev 에 머지되면 deploy-pipeline 이 서버 컨테이너에서 `assets:import --force` 를 돌려 git 사본을 active 로 올린다 — git 이 진실의 원본, DB 는 그 사본의 활성 버전. 콘솔 편집은 draft → `assets:export` → PR 경로로 git 에 돌아온 뒤 머지로 활성화된다. 같은 배포가 `settings.worker.min_rev` 를 적어 그보다 오래된 워커는 작업을 집지 않는다(`apps/worker/src/cli/rev.ts`).
+
+**본문만 보낸다** (2026-09-10, KAN-50 썸네일 프롬프트에서 발견 → 대본·QA·비평 자산에 확장): 규칙 자산은 사람이 읽는 문서이기도 해서 제목·버전 이력(`>` 블록)·"이전 판과의 차이" 절에
+폐기된 기준("절 셋부터 위반" 등)이 설명으로 인용돼 있는데, 모델은 설명과 지시를 구분하지 않는다. 로더는 `guidelines.md`·`qa/prompt.md`·`critic/rubric.md`·`rubric-v2.md`(0장 제외)를
+번들에 실을 때 `promptBody`(`@ear/pipeline`)로 **머리글·이전 판 절·`---` 이후 부록을 잘라** 스냅샷에 내려놓는다 — 인라인 임베딩과 비평의 Read 경로가 같은 파일을 보므로 한 곳에서 끝난다.
+골드 예시·spec·음차 사전은 자르지 않는다. 규칙을 바꾸면 번들 해시의 `PROMPT_BODY_REV` 를 올린다. 이후 자산 본문에는 지시만 두고, 판정 근거와 이전 판 문구는 CHANGELOG 로만 보낸다(작성 규율).
+
 ### 3.3 산출물 저장 — 원본은 S3, WORK_ROOT 는 캐시 (2026-09-02 구현, M4)
 
 규칙 자산(3.2)이 DB 로 갔듯 **산출물 파일은 파이프라인 S3 가 원본**이다(spec/08 1장 배치 기준 · 2장 버킷 규격). Supabase 에는 키·판정·수정 로그만 남는다.
@@ -143,7 +150,7 @@ claude -p --output-format json --json-schema <단계별 결과 스키마> \
 -- 작업 큐: UI는 여기에 넣기만, 워커는 여기서 집기만
 create table jobs (
   id uuid primary key default gen_random_uuid(),
-  type text not null check (type in ('sweep','cluster','draft','qa','critic','tts','package','domain_check')),
+  type text not null check (type in ('sweep','cluster','draft','qa','critic','tts','package','thumbnail','domain_check')),   -- thumbnail: 0018
   requires_ai boolean not null,
   payload jsonb not null default '{}',           -- 예: {"mid_topic":"인문·교양"} / {"backlog_id":"C23"} / {"episode_id":"T260829-001"}
   status text not null default 'queued' check (status in ('queued','claimed','running','done','failed','cancelled')),
@@ -164,6 +171,8 @@ create table episodes (
   script_key text, claims_key text, sources_key text,
   qa_report_key text, critic_report_key text,
   audio_master_key text, audio_dist_key text,
+  thumbnail_key text,                             -- 0018: 썸네일 PNG (KAN-50)
+  one_liner text,                                 -- 0018: 40자 이내 한 줄 요약 — 썸네일 {핵심 개념}·발행 설명 첫 줄
   critic_verdicts jsonb,                          -- 사람 판정 (플래그별 동의/부분/비동의+사유)
   created_at timestamptz not null default now(), updated_at timestamptz not null default now()
 );
@@ -177,7 +186,7 @@ create table episodes (
   워커의 `pickupApproved` 는 작업 없는 approved 후보(에디터 승인 등)만 큐에 넣는 폴백이다.
 - RLS(0003): `authenticated` 팀 계정 — 전 테이블 select, 사람 몫만 write. 승격 규약은 **트리거 스탬프**로 강제: `approved_by/at`·`decided_by/at`·`jobs.requested_by`·`settings.updated_by` 를 세션(이메일)에서 찍고 클라이언트 값은 덮어쓴다 (spec/08 4장). 워커는 secret key/postgres 로 우회.
 - 상태 연쇄 (워커가 수행): `sweep done → cluster 생성` · `approved → draft 생성` · `draft done → qa 생성` ·
-  `qa 실패 → draft(attempt+1, 피드백 payload) 생성, 3회 초과 → review_required` · `draft 실패(대본 없음) → 에피소드 삭제 + proposed 복귀, 재생성 실패 → review_required` · `qa 통과 → critic 생성`(**rubric v2 기본** — 2026-09-07, 워커 env `CRITIC_RUBRIC=v1`로 되돌림. 회귀 세트 판정은 v2 배점으로만, spec/09 7.1) · **tts는 연쇄 없음**.
+  `qa 실패 → draft(attempt+1, 피드백 payload) 생성, 3회 초과 → review_required` · `draft 실패(대본 없음) → 에피소드 삭제 + proposed 복귀, 재생성 실패 → review_required` · `qa 통과 → critic 생성`(**rubric v2 기본** — 2026-09-07, 워커 env `CRITIC_RUBRIC=v1`로 되돌림. 회귀 세트 판정은 v2 배점으로만, spec/09 7.1) · **`tts → thumbnail → package`**(개정 2026-09-10 KAN-50 — 사람이 [발행 준비]를 눌러 시작하며, 자동으로 시작되지는 않는다).
 
 **0009 — 규칙 동기화·계측 (예정)**
 

@@ -6,10 +6,12 @@ import { Panel, btnCls } from "@/components/ui";
 
 const inp = "rounded border border-line px-2.5 py-1.5 text-[13px] outline-none focus:border-brand";
 
-export function SettingsForm({ tts, worker, templates, meta }: { tts: any; worker: any; templates: any; meta: any }) {
+export function SettingsForm({ tts, worker, templates, thumbnail, anchor, meta }: { tts: any; worker: any; templates: any; thumbnail: any; anchor: any; meta: any }) {
   const [t, setT] = useState({ voices: { 윤아: "", 이음: "" }, speed: { 윤아: 1, 이음: 1 }, mode: "per-turn", model: "eleven_v3", ...tts });
   const [w, setW] = useState({ default_model: "", ...worker });
   const [tpl, setTpl] = useState({ version: "tpl-v1", intro: "", closing: "", closing_signoff: "", major_lines: {} as Record<string, string>, ...templates });
+  // 썸네일 대분류 띠 색(KAN-50 3-2) — 비우면 워커의 thumb-v1 기본값이 쓰인다
+  const [th, setTh] = useState<Record<string, string>>({ ...(thumbnail ?? {}) });
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
   const save = (key: string, value: unknown, name: string) =>
@@ -17,6 +19,30 @@ export function SettingsForm({ tts, worker, templates, meta }: { tts: any; worke
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
+      <Panel title="썸네일 — 대분류 띠 색 (KAN-50)" className="text-[13px]">
+        <p className="mb-3 text-xs text-ink-soft">
+          썸네일 오른쪽 위 삼각형의 색이다. 프롬프트에는 <code>이름 (#HEX)</code> 형태로 그대로 들어간다 —
+          이름 없이 HEX 만 주면 모델이 색을 덜 정확히 맞춘다. <b>비우면 워커의 기본값</b>(thumb-v1 표)이 쓰인다.
+          44pt 에서 띠는 작은 점 크기라 명도·색상이 모두 달라야 구분된다.
+        </p>
+        {MAJOR_TOPICS.map((m) => (
+          <div key={m} className="mb-2 grid grid-cols-[7rem_1fr_1.75rem] items-center gap-2">
+            <span className="text-ink-soft">{m}</span>
+            <input className={inp} placeholder="딥 그린 (#2F6B4F)" value={th[m] ?? ""} onChange={(e) => setTh({ ...th, [m]: e.target.value })} />
+            <span className="h-5 w-5 rounded border border-line" style={{ background: (th[m] ?? "").match(/#[0-9a-fA-F]{6}/)?.[0] ?? "transparent" }} />
+          </div>
+        ))}
+        <div className="mt-3 flex items-center gap-2">
+          <button className={btnCls("primary")} disabled={pending}
+            onClick={() => save("thumbnail.colors", Object.fromEntries(Object.entries(th).filter(([, v]) => v.trim())), "띠 색")}>저장</button>
+          {meta["thumbnail.colors"]?.updated_by && <span className="text-xs text-ink-soft">마지막 {meta["thumbnail.colors"].updated_by}</span>}
+        </div>
+        <p className="mt-3 border-t border-line pt-3 text-xs text-ink-soft">
+          <b>스타일 앵커</b>: {anchor?.episode_id
+            ? <>현재 <code>{anchor.episode_id}</code> 의 썸네일 (<code>{anchor.key}</code>). 바꾸려면 그 에피소드의 썸네일 탭에서 [이 썸네일을 앵커로 지정].</>
+            : <>지정되지 않음 — 에피소드의 썸네일 탭에서 지정하면 이후 생성이 그 화풍을 따라간다.</>}
+        </p>
+      </Panel>
       <Panel title="TTS (ElevenLabs, spec/06)" className="text-[13px]">
         <p className="mb-3 text-xs text-ink-soft">보이스 ID는 채널 아이덴티티 — 확정 후 고정한다 (미결 #8). 변환은 에피소드 화면에서 사람이 요청할 때만 실행된다.</p>
         {(["윤아", "이음"] as const).map((sp) => (

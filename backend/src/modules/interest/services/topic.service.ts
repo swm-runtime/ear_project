@@ -86,10 +86,9 @@ export class TopicService {
   /**
    * 노출 주제 목록, `display_order` 오름차순.
    *
-   * **`getSelectableTopics`와 달리 폴백이 없다.** 그쪽은 온보딩 1단계가 통째로 막히는 것을
-   * 막으려고 노출 주제가 0건이면 전체를 내려보내지만(`onboarding.md` 7), 탐색 칩 줄에는 그
-   * 사정이 없다 — 고를 것이 없으면 피드도 비어 화면이 칩 줄 자체를 숨긴다
-   * (`explore-uiux.md` 4.7).
+   * `getSelectableTopics`와 같은 조회이되 운영 알림을 남기지 않는다 — 탐색 칩 줄은 고를
+   * 것이 없으면 피드도 비어 화면이 칩 줄 자체를 숨기므로(`explore-uiux.md` 4.7), 빈 목록이
+   * 그 자체로 이상 상태는 아니다.
    */
   async findAllVisible(manager?: EntityManager): Promise<Topic[]> {
     return this.topicRepository.findAllVisible(manager);

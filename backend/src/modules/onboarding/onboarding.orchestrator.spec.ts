@@ -62,6 +62,9 @@ describe('OnboardingOrchestrator', () => {
 
     userOnboardingService = {
       getUser: jest.fn().mockImplementation(() => Promise.resolve(user)),
+      getUserForUpdate: jest
+        .fn()
+        .mockImplementation(() => Promise.resolve(user)),
       // 완료 여부 판정은 실제 구현을 그대로 쓴다 — 여기서 검증하려는 규칙이다
       assertNotCompleted: jest
         .fn()
@@ -374,9 +377,11 @@ describe('OnboardingOrchestrator', () => {
       await orchestrator.pickContents(USER_ID, ['content-1', 'content-1'], NOW);
 
       // then
-      expect(contentService.resolvePickTargets).toHaveBeenCalledWith([
-        'content-1',
-      ]);
+      expect(contentService.resolvePickTargets).toHaveBeenCalledWith(
+        ['content-1'],
+        undefined,
+        NOW,
+      );
     });
   });
 });

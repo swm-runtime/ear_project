@@ -7,7 +7,7 @@ export const pool = new pg.Pool({ connectionString: cfg.databaseUrl, max: 3, idl
 // Supabase 풀러가 유휴 연결을 끊으면 풀이 'error' 를 낸다 — 받지 않으면 EventEmitter 규칙상 프로세스가 죽는다 (2026-08-31 워커 사망 원인 후보)
 pool.on("error", (e) => console.error(`[pg pool] 연결 오류 (무시하고 재연결): ${e.message}`));
 
-export type JobType = "sweep" | "cluster" | "draft" | "qa" | "critic" | "tts" | "package" | "domain_check" | "thumbnail";
+export type JobType = "sweep" | "cluster" | "draft" | "qa" | "critic" | "tts" | "package" | "domain_check" | "thumbnail" | "critic_measure" | "enrich";
 export interface Job {
   id: string;
   type: JobType;
@@ -23,17 +23,20 @@ export async function claimJob(worker: string, canAi: boolean, canTts: boolean, 
   const r = await pool.query("select * from public.claim_job($1, $2, $3, $4)", [worker, canAi, canTts, canThumbnail]);
   return (r.rows[0] as Job) ?? null;
 }
-export async function heartbeat(jobId: string) {
-  await pool.query("update public.jobs set heartbeat_at = now() where id = $1", [jobId]);
+/** 하트비트 — 현재 status 를 돌려준다. 콘솔이 진행 중 작업을 취소하면(status=cancelled) 워커가 여기서 알아채고 중단한다 (2026-09-12) */
+export async function heartbeat(jobId: string): Promise<string | null> {
+  const r = await pool.query("update public.jobs set heartbeat_at = now() where id = $1 returning status", [jobId]);
+  return (r.rows[0]?.status as string) ?? null;
 }
+export class JobCancelled extends Error { constructor(msg = "작업이 취소됨 (콘솔)") { super(msg); this.name = "JobCancelled"; } }
 export async function startJob(jobId: string) {
   await pool.query("update public.jobs set status = 'running', started_at = now(), heartbeat_at = now() where id = $1", [jobId]);
 }
 export async function finishJob(jobId: string, result: unknown) {
-  await pool.query("update public.jobs set status = 'done', finished_at = now(), result = $2 where id = $1", [jobId, JSON.stringify(result ?? null)]);
+  await pool.query("update public.jobs set status = 'done', finished_at = now(), result = $2 where id = $1 and status <> 'cancelled'", [jobId, JSON.stringify(result ?? null)]); // 취소된 작업은 덮지 않는다
 }
 export async function failJob(jobId: string, error: string) {
-  await pool.query("update public.jobs set status = 'failed', finished_at = now(), error = $2 where id = $1", [jobId, error.slice(0, 4000)]);
+  await pool.query("update public.jobs set status = 'failed', finished_at = now(), error = $2 where id = $1 and status <> 'cancelled'", [jobId, error.slice(0, 4000)]);
 }
 const lastProgressLog = new Map<string, number>();
 /** 진행 상황을 jobs.progress에 기록 (웹 UI가 읽음) + 터미널에도 30초에 한 번 한 줄 (2026-09-01: 웹을 안 띄워도 보이게). */
@@ -179,6 +182,27 @@ export async function usedSourceUrls(): Promise<Set<string>> {
   const r = await pool.query("select jsonb_array_elements(sources)->>'url' as url from public.backlog where status in ('drafted','qa_passed','packaged','published','review_required','claimed')");
   return new Set(r.rows.map((x) => x.url as string).filter(Boolean));
 }
+/** 살아 있는 후보(반려·만료 제외)가 쓴 소스 URL → 후보 ID 목록 (2026-09-10, T260910-005↔013): 군집화 v2 가 같은 소스 2건 이상 겹치는 후보를 표시한다 — 막지는 않는다 */
+export async function liveCandidateSources(): Promise<Map<string, string[]>> {
+  const r = await pool.query("select id, jsonb_array_elements(sources)->>'url' as url from public.backlog where status not in ('rejected','expired')");
+  const m = new Map<string, string[]>();
+  for (const x of r.rows) { if (!x.url) continue; const a = m.get(x.url) ?? []; a.push(x.id); m.set(x.url, a); }
+  return m;
+}
+/** 이 URL 들을 소스로 쓴 **다른 후보의 에피소드** (설계 산출물이 있는 것만): 설계 단계가 그 편의 발췌 문단을 제외한다 — 같은 소스를 써도 같은 대목은 두 번 풀지 않게 */
+export async function priorEpisodesUsingUrls(urls: string[], excludeBacklogId: string): Promise<{ episode_id: string; backlog_id: string; title: string; sources_key: string | null; urls: string[] }[]> {
+  if (!urls.length) return [];
+  const r = await pool.query(
+    `select e.id as episode_id, b.id as backlog_id, b.title, e.sources_key,
+            array(select s->>'url' from jsonb_array_elements(b.sources) s where s->>'url' = any($1)) as urls
+       from public.episodes e join public.backlog b on b.id = e.backlog_id
+      where b.id <> $2 and b.status not in ('rejected','expired') and e.sources_key is not null
+        and exists (select 1 from jsonb_array_elements(b.sources) s where s->>'url' = any($1))
+      order by e.id`,
+    [urls, excludeBacklogId],
+  );
+  return r.rows;
+}
 /** 중복 대조는 전 중분류 대상 — 축이 겹치는 후보가 다른 중분류로 들어오는 것을 막는다 (C32↔C26 사례, 2026-08-29) */
 export async function existingBacklogTitles(): Promise<string[]> {
   const r = await pool.query("select id || ' [' || mid_topic || '] ' || title as t from public.backlog where status not in ('rejected','expired') order by id");
@@ -195,7 +219,7 @@ export async function upsertEpisode(e: { id: string; backlog_id: string; prompt_
   const vals = Object.values(keys).map((v) => (v != null && typeof v === "object" ? JSON.stringify(v) : v));
   await pool.query(
     `insert into public.episodes (id, backlog_id, prompt_version${cols.map((c) => `, ${c}`).join("")}) values ($1,$2,$3${cols.map((_, i) => `, $${i + 4}`).join("")})
-     on conflict (id) do update set updated_at = now()${cols.map((c) => `, ${c} = excluded.${c}`).join("")}`,
+     on conflict (id) do update set updated_at = now(), prompt_version = excluded.prompt_version${cols.map((c) => `, ${c} = excluded.${c}`).join("")}`,
     [id, backlog_id, prompt_version, ...vals],
   );
 }
@@ -203,8 +227,8 @@ export async function upsertEpisode(e: { id: string; backlog_id: string; prompt_
 export async function deleteEpisode(id: string) {
   await pool.query("delete from public.episodes where id = $1", [id]);
 }
-export async function getEpisode(id: string): Promise<{ id: string; backlog_id: string; prompt_version: string; script_key: string | null; asset_versions: Record<string, string> | null } | null> {
-  const r = await pool.query("select id, backlog_id, prompt_version, script_key, asset_versions from public.episodes where id = $1", [id]);
+export async function getEpisode(id: string): Promise<{ id: string; backlog_id: string; prompt_version: string; script_key: string | null; audio_dist_key: string | null; thumbnail_key: string | null; asset_versions: Record<string, string> | null } | null> {
+  const r = await pool.query("select id, backlog_id, prompt_version, script_key, audio_dist_key, thumbnail_key, asset_versions from public.episodes where id = $1", [id]);
   return r.rows[0] ?? null;
 }
 
@@ -236,12 +260,42 @@ export async function latestSourceUrl(domainId: string): Promise<string | null> 
 export async function appendDomainNote(domainId: string, note: string) {
   await pool.query("update public.domains set note = coalesce(nullif(note,''),'') || ' | ' || $2 where id = $1", [domainId, note]);
 }
-export async function upsertSource(s: { domain_id: string; url: string; title: string; summary: string; author: string; published: string | null; swept_at: string }) {
+export async function upsertSource(s: { domain_id: string; url: string; title: string; summary: string; author: string; published: string | null; swept_at: string; origin?: "feed" | "search" }) {
   await pool.query(
-    `insert into public.sources (domain_id, url, title, summary, author, published, swept_at) values ($1,$2,$3,$4,$5,$6,$7)
+    `insert into public.sources (domain_id, url, title, summary, author, published, swept_at, origin) values ($1,$2,$3,$4,$5,$6,$7,$8)
      on conflict (url) do update set title = excluded.title, summary = excluded.summary, swept_at = excluded.swept_at`,
-    [s.domain_id, s.url, s.title, s.summary, s.author, s.published, s.swept_at],
+    [s.domain_id, s.url, s.title, s.summary, s.author, s.published, s.swept_at, s.origin ?? "feed"],
   );
+}
+/** 보강 스윕(0019)의 검색 범위 — 차단이 아니고 도메인째 접근 차단도 아닌 풀 도메인. 1·2군에 피드가 거의 없어 후보 도메인도 포함한다 (판정 전 소스는 승인 화면에서 tier 가 보인다) */
+export async function poolDomainsForTopics(mids: string[]): Promise<{ id: string; domain: string; publisher: string; tier: string }[]> {
+  const r = await pool.query(
+    "select id, domain, publisher, tier from public.domains where tier in ('allow_open','allow_support','candidate') and fetch_blocked_at is null and topic_coverage && $1::text[] order by tier, domain",
+    [mids],
+  );
+  return r.rows;
+}
+/** URL → 풀 도메인 행 (호스트 또는 공유 호스트 경로 단위, spec/01 3장). 없으면 null */
+export async function findDomainForUrl(url: string): Promise<{ id: string; domain: string; tier: string; fetch_blocked_at: string | null } | null> {
+  let u: URL; try { u = new URL(url); } catch { return null; }
+  const host = u.hostname.replace(/^www\./, "");
+  const seg = u.pathname.split("/").filter(Boolean)[0];
+  const keys = seg ? [`${host}/${seg}`, host] : [host];
+  const r = await pool.query("select id, domain, tier, fetch_blocked_at from public.domains where domain = any($1::text[]) or domain = any($2::text[]) order by length(domain) desc limit 1", [keys, keys.map((k) => `www.${k}`)]);
+  return r.rows[0] ?? null;
+}
+/** 보강 검색이 풀 밖에서 찾은 도메인 — 소스는 넣지 않고 후보 행만 만든다 (spec/02 7장 완료 조건). 이미 있으면 그대로 */
+export async function insertCandidateDomain(d: { domain: string; publisher: string; topic_coverage: string[]; note: string }): Promise<boolean> {
+  const r = await pool.query(
+    "insert into public.domains (domain, publisher, tier, category, feed_url, topic_coverage, note) values ($1,$2,'candidate','보강 검색 발견',null,$3,$4) on conflict (domain) do nothing returning id",
+    [d.domain, d.publisher, d.topic_coverage, d.note],
+  );
+  return r.rowCount === 1;
+}
+export async function getBacklogFull(id: string): Promise<(BacklogCandidate & { status: string; dedup_note: string | null; reinforced_at: string | null }) | null> {
+  const r = await pool.query("select id, mid_topic, title, target_fit, angle, sources, axis, axis_type, gaps, status, dedup_note, reinforced_at from public.backlog where id = $1", [id]);
+  const row = r.rows[0]; if (!row) return null;
+  return { id: row.id, mid_topic: row.mid_topic, title: row.title, target_fit: row.target_fit, angle: row.angle, sources: (row.sources ?? []) as SourceRef[], axis: row.axis, axis_type: row.axis_type, gaps: row.gaps ?? [], status: row.status, dedup_note: row.dedup_note, reinforced_at: row.reinforced_at };
 }
 export async function recentSourcesForTopic(midTopic: string, days: number, limit: number) {
   const r = await pool.query(
@@ -253,6 +307,11 @@ export async function recentSourcesForTopic(midTopic: string, days: number, limi
     [midTopic, String(days), limit],
   );
   return r.rows as { url: string; title: string; summary: string | null; publisher: string; domain: string; published: string | null }[];
+}
+/** 사람이 차단(blocked)으로 판정한 도메인 (호스트 또는 공유 호스트 경로). 설계 단계·보강 재판정이 그 URL 을 쓰지 않는다 */
+export async function blockedTierHosts(): Promise<Set<string>> {
+  const r = await pool.query("select domain from public.domains where tier = 'blocked'");
+  return new Set(r.rows.map((x) => String(x.domain).replace(/^www\./, "")));
 }
 export async function domainTierByHost(): Promise<Map<string, string>> {
   const r = await pool.query("select domain, tier from public.domains");

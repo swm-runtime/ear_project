@@ -17,7 +17,12 @@ import unicodedata
 # 값 집합의 원본은 docs/backend/domain.md 5.1 — 어긋나면 domain.md가 기준이다
 DIFFICULTY_ENUM = {"beginner", "intermediate", "advanced"}
 FORMAT_ENUM = {"news_analysis", "howto", "interview", "opinion", "case_study", "overview"}
-ALLOWED_KEYS = {"difficulty", "format", "is_evergreen", "keywords", "embedding", "source"}
+ALLOWED_KEYS = {"schema_version", "difficulty", "format", "is_evergreen", "keywords", "target_audiences", "embedding", "source"}
+SCHEMA_VERSION = 2  # 산출물 형식 버전 — metadata-pipeline.md 4.4. 서버 CURRENT_ENRICHMENT_SCHEMA_VERSION과 같아야 한다
+# 값 집합의 원본은 backend/src/modules/user/user.constant.ts JOB_CATEGORIES · user.enum.ts YearsOfExperienceRange
+JOB_CATEGORIES = {"개발", "기획", "디자인", "마케팅·영업", "운영·CS", "연구·교육", "기타"}
+YEARS_RANGES = {"0-1", "2-3", "4-6", "7+"}
+TARGET_AUDIENCES_MAX = 8
 KEYWORDS_MAX = 8
 KEYWORDS_RECOMMENDED_MIN = 3  # 미만은 경고만 — 억지로 채우지 않는다(명세 7장)
 
@@ -91,6 +96,35 @@ def main() -> int:
 
             data["keywords"] = normalized
 
+    if "schema_version" in data and data["schema_version"] != SCHEMA_VERSION:
+        errors.append(f"schema_version은 {SCHEMA_VERSION}이어야 한다: {data['schema_version']!r}")
+    data["schema_version"] = SCHEMA_VERSION  # 새 실행은 항상 현재 형식 버전을 적는다(명세 4.4)
+
+    if "target_audiences" in data:
+        tas = data["target_audiences"]
+        if not isinstance(tas, list) or not tas:
+            errors.append("target_audiences는 비어 있지 않은 배열이어야 한다 — 범용 대본이면 키를 생략한다")
+        elif len(tas) > TARGET_AUDIENCES_MAX:
+            errors.append(f"target_audiences {len(tas)}세트 — 최대 {TARGET_AUDIENCES_MAX}. 그 이상이면 범용이므로 키를 생략한다")
+        else:
+            seen: set[tuple[str, str]] = set()
+            deduped = []
+            for ta in tas:
+                if not isinstance(ta, dict) or set(ta) != {"job_category", "years_of_experience"}:
+                    errors.append(f"target_audiences 항목은 {{job_category, years_of_experience}}만 가진 객체여야 한다: {ta!r}")
+                    continue
+                job, years = ta["job_category"], ta["years_of_experience"]
+                if job not in JOB_CATEGORIES:
+                    errors.append(f"job_category가 직군 목록에 없다: {job!r} — 허용값 {sorted(JOB_CATEGORIES)}")
+                if years not in YEARS_RANGES:
+                    errors.append(f"years_of_experience가 구간 밖이다: {years!r} — 허용값 {sorted(YEARS_RANGES)}")
+                if (job, years) in seen:
+                    warnings.append(f"중복 청자 세트 제거: {job} {years}")
+                    continue
+                seen.add((job, years))
+                deduped.append({"job_category": job, "years_of_experience": years})
+            data["target_audiences"] = deduped
+
     if "embedding" in data:
         emb = data["embedding"]
         if not isinstance(emb, dict):
@@ -102,8 +136,8 @@ def main() -> int:
             if not (isinstance(vec, list) and vec and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in vec)):
                 errors.append("embedding.vector는 비어 있지 않은 숫자 배열이어야 한다")
 
-    if not any(k in data for k in ("difficulty", "format", "is_evergreen", "keywords")):
-        errors.append("메타 4종이 전부 생략됐다 — 산출할 내용이 없다. 판정을 다시 하거나 실행을 중단한다")
+    if not any(k in data for k in ("difficulty", "format", "is_evergreen", "keywords", "target_audiences")):
+        errors.append("메타 5종이 전부 생략됐다 — 산출할 내용이 없다. 판정을 다시 하거나 실행을 중단한다")
 
     for w in warnings:
         print(f"경고: {w}")
@@ -118,7 +152,7 @@ def main() -> int:
         json.dump(data, f, ensure_ascii=False, indent=2)
         f.write("\n")
 
-    omitted = sorted({"difficulty", "format", "is_evergreen", "keywords"} - set(data))
+    omitted = sorted({"difficulty", "format", "is_evergreen", "keywords", "target_audiences"} - set(data))
     print(f"확정: {args.output}")
     if omitted:
         print(f"생략된 키(partial): {omitted}")

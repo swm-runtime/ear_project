@@ -109,7 +109,6 @@ export default function PlayerScreen() {
   const isEnded = session.state === 'ended';
   const isControlDisabled = session.state === 'loading' || session.state === 'load_failed';
   const isCompleted = session.libraryItem?.status === 'completed';
-  const metaLine = [session.meta.sourceName, session.meta.authorName].filter(Boolean).join(' · ');
 
   const playButtonA11y = isEnded
     ? PLAYER_COPY.screen.replayA11y
@@ -212,12 +211,11 @@ export default function PlayerScreen() {
           <Text style={styles.title} numberOfLines={2}>
             {session.meta.title ?? ''}
           </Text>
-          {/* 저자·출처 상시 노출(FR-12) — 오디오 멘트와 별개로 화면 고지를 생략하지 않는다 */}
-          {metaLine.length > 0 ? (
-            <Text style={styles.sourceText} numberOfLines={1}>
-              {metaLine}
-            </Text>
-          ) : null}
+          {/*
+            저자·출처는 여기서 그리지 않는다(결정 2026-09-15) — 콘텐츠 상세에서만 보인다.
+            FR-12의 고지는 "적합한 형태로"이며 오디오 멘트(content-pipeline.md 4.3)와
+            상세 화면(content-detail.md 4.3)이 그 몫을 진다. [원문 보기] 칩은 그대로 둔다.
+          */}
           {/* 출처 텍스트에 붙여 두면 링크인지 메타의 일부인지 구분되지 않는다 — 칩으로 뗀다 */}
           {session.meta.sourceUrl !== null ? (
             <Pressable
@@ -354,8 +352,6 @@ export default function PlayerScreen() {
         isVisible={screen.isMoreSheetVisible}
         summary={{
           title: session.meta.title,
-          authorName: session.meta.authorName,
-          sourceName: session.meta.sourceName,
           thumbnailUrl: session.meta.thumbnailUrl,
           durationSec: session.durationSec,
         }}
@@ -465,11 +461,6 @@ const styles = StyleSheet.create({
     lineHeight: theme.font.size.xl * 1.3,
   },
 
-  sourceText: {
-    flexShrink: 1,
-    fontSize: theme.font.size.md,
-    color: theme.color.textSecondary,
-  },
   sourceLinkChip: {
     alignSelf: 'flex-start',
     flexDirection: 'row',

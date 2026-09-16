@@ -32,7 +32,8 @@ create table if not exists sources (
   swept_at    date not null,
   created_at  timestamptz not null default now(),
   fetch_status text check (fetch_status in ('ok','robots','blocked','empty','network')), -- 0017: 본문 접근 결과 (설계·군집화 사전 검사가 기록)
-  fetch_checked_at timestamptz
+  fetch_checked_at timestamptz,
+  origin text not null default 'feed' check (origin in ('feed','search')) -- 0019: 보강 검색(모드 B-①)으로 들어온 소스 표시
 );
 create index if not exists idx_sources_published on sources (published desc);
 create index if not exists idx_sources_fetch_status on sources (fetch_status);
@@ -59,6 +60,8 @@ create table if not exists backlog (
   axis_type   text check (axis_type in ('대립','역설','재정의')),
   gaps        text[] not null default '{}',    -- 비어 있는 소스 역할 (탐색 보강의 입력). sources[].role 이 역할표
   cluster_version text,                        -- v1 / v2
+  reinforced_at timestamptz,                   -- 0019: 보강 스윕 실행 시각 (후보당 1회)
+  reinforce_note text,                         -- 0019: 보강 결과 요약 (검색 소스 수·채워진 역할)
   published_content_ref text,                  -- 발행 후 제품 content_id (0012 부터 발행 화면이 자동 기록, 이전은 수기)
   published_version int,                       -- 제품 content_version (재발행마다 +1 — 0012)
   published_at timestamptz,                    -- 최근 발행·재발행 시각 (0012) — TTS 재합성 시각과 비교해 재발행 버튼을 띄운다
@@ -88,7 +91,7 @@ create table if not exists runs (
   id          uuid primary key default gen_random_uuid(),
   backlog_id  text references backlog(id),
   phase       text not null
-              check (phase in ('sweep','cluster','draft','critic','qa','package','tts','domain_check','thumbnail')), -- 0008: domain_check(스냅샷 누락분 정정) · 0018: thumbnail
+              check (phase in ('sweep','cluster','draft','critic','qa','package','tts','domain_check','thumbnail','enrich')), -- 0008: domain_check(스냅샷 누락분 정정) · 0018: thumbnail · 0021: enrich
               -- critic: 품질 사이클의 선행 비평 실행 (spec/09 7장) — QA(사실)와 별개의 스타일 검수
   attempt     int not null default 1,          -- QA 재생성 차수 (1~3)
   result      text,                            -- 통과/실패 + 사유 요약
@@ -128,7 +131,7 @@ alter table runs    enable row level security;
 
 create table if not exists public.jobs (
   id uuid primary key default gen_random_uuid(),
-  type text not null check (type in ('sweep','cluster','draft','qa','critic','tts','package','domain_check','thumbnail')), -- 0007: domain_check(스냅샷 누락분 정정) · 0018: thumbnail
+  type text not null check (type in ('sweep','cluster','draft','qa','critic','tts','package','domain_check','thumbnail','critic_measure','enrich')), -- 0007: domain_check(스냅샷 누락분 정정) · 0018: thumbnail · 0020: critic_measure(루브릭 개정안 측정) · 0021: enrich(추천 메타)
   requires_ai boolean not null,
   payload jsonb not null default '{}'::jsonb,
   status text not null default 'queued' check (status in ('queued','claimed','running','done','failed','cancelled')),

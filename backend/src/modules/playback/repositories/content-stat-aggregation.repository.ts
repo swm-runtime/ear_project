@@ -93,17 +93,17 @@ export class ContentStatAggregationRepository {
         is_final                = EXCLUDED.is_final,
         updated_at              = now()
       WHERE content_stats.is_final = false
+      RETURNING 1
       `,
       [periodType, periodStart, periodEndExclusive, isFinal],
     );
 
     /**
-     * TypeORM의 `query`는 INSERT에서 `[rows, affectedCount]`를 준다. 형태가 드라이버에
-     * 달려 있어 방어적으로 읽는다 — **이 값은 로그용이고 판정에 쓰지 않는다.**
+     * TypeORM의 `query`는 INSERT에서 `rows`만 돌려준다(`[rows, affected]` 형태는 UPDATE·DELETE
+     * 한정 — PostgresQueryRunner). 그래서 `RETURNING 1`로 쓴 행을 한 줄씩 받아 그 수를 센다.
+     * **이 값은 로그용이고 판정에 쓰지 않는다.**
      */
-    return Array.isArray(result) && typeof result[1] === 'number'
-      ? result[1]
-      : 0;
+    return Array.isArray(result) ? result.length : 0;
   }
 }
 

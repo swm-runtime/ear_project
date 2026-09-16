@@ -25,7 +25,7 @@
    │ JSON (HTTPS)
    ▼
 api.earcast.co.kr ──▶ Caddy(TLS 자동발급) ─▶ api(NestJS) ─▶ postgres
-admin.earcast.co.kr ─▶ Caddy file_server (정적 콘솔 1장)      │
+(admin.earcast.co.kr 은 2026-09-03 부터 AI 서버의 파이프라인 웹 — 아래 정적 콘솔 블록은 퇴역 대상) │
    ▲ EC2 t4g.small 한 대, docker compose 3컨테이너            │ 업로드 시 쓰기
    │                                                          ▼
    │ 오디오·썸네일 바이트                     S3 ear-audio-prod (비공개)
@@ -38,7 +38,7 @@ admin.earcast.co.kr ─▶ Caddy file_server (정적 콘솔 1장)      │
 ```
 
 - **JSON과 바이트의 분리가 설계의 중심이다(R2).** EC2 egress는 GB당 과금이지만 CloudFront는 월 1TB 무료 구간이 있다. 오디오가 서버를 지나는 순간 비용 모델(R4)이 깨진다.
-- 관리자 콘솔은 별도 인프라가 아니라 **같은 Caddy의 정적 파일 서빙 한 블록**이다. 서버·빌드·배포가 늘지 않는다(C1).
+- ~~관리자 콘솔은 같은 Caddy의 정적 파일 서빙 한 블록이다~~ → **2026-09-03 파이프라인 웹 `/publish`로 통합**(PR #86, AI 서버). API EC2의 Caddy `ADMIN_DOMAIN` 블록과 `backend/deploy/admin/`은 남아 있지만 DNS가 더 가리키지 않는 **퇴역 대상**이다(2026-09-15 확인 — 정리 시 Caddy 블록·compose 마운트·env·문서를 함께 제거).
 
 ## 3. 주요 결정과 근거
 
@@ -87,10 +87,10 @@ Caddy가 Let's Encrypt를 자동 발급·갱신한다(운영 손 0). DNS는 가�
 | S3 오디오 | 퍼블릭 차단 + 버킷 정책이 해당 CloudFront 배포 ARN만 허용(OAC). 직접 접근 403 확인 |
 | 재생 URL | RSA 서명(키페어는 CloudFront Key Group), 만료 5분. 무서명 403·미등록 id 404 확인 |
 | DB | 호스트 포트 미개방 — docker 네트워크 내부에서만. 접근은 SSH 후 `docker exec` |
-| SSH | 보안그룹 22번이 관리자 IP `/32` 하나만. 키는 `out/ear-prod.pem` |
+| SSH | 보안그룹 22번은 관리자 IP `/32` 목록(2026-09-15 실측 API 3개·AI 4개 — 소유자 대조는 `inventory.md` 1장) + CI가 배포 중에만 러너 IP를 추가·회수. 키는 `out/ear-prod-isb.pem`, CI는 별도 키 |
 | 관리자 API | JWT `role=admin` 서버 검증(403). 관리자 승격은 DB 직접 UPDATE만 |
 | 인스턴스 롤 | 최소권한: 백업 버킷 PutObject / 오디오 버킷 Put·Delete / KVS 3액션. IMDSv2 강제, hop limit 2(컨테이너) |
-| 비밀값 | `.env.prod`(서버)·`deploy/aws/out/`(로컬)에만. 저장소 커밋 금지(.gitignore). ⚠️ 시크릿 매니저 미도입 — 티켓 `api-server-deployment` 요구사항 미충족 항목 |
+| 비밀값 | **원천은 Secrets Manager `ear/prod/api`**(2026-09-09). `push.sh`가 배포마다 내려받아 서버 `.env.prod`의 비밀 항목을 덮어쓴다(`deploy/apply-secrets.py`). 로컬 사본은 `deploy/aws/out/`. 저장소 커밋 금지 |
 
 ## 5. 비용 모델 (월, 서울 리전)
 
@@ -106,11 +106,19 @@ Caddy가 Let's Encrypt를 자동 발급·갱신한다(운영 손 0). DNS는 가�
 
 깨지는 조건: 오디오가 EC2로 나가기 시작(R2 위반), CloudFront 월 1TB 초과(MAU 1만 규모까지 여유), RDS/ALB/NAT 추가. 20% 도달 알림: Budgets $10 (80%/예측 100% 시 메일).
 
-## 6. 미결·알려진 한계
+## 6. 미결·알려진 한계 (2026-09-15 갱신)
 
-- 시크릿 매니저 미도입 — pepper·JWT_SECRET이 서버 파일시스템의 `.env.prod`에 있다.
-- 배포가 수동(`git archive | ssh tar`, runbook 4장) — CI/CD 없음.
-- 모니터링: EC2 상태 검사 CloudWatch 알람 1개뿐(메일 구독 확인 대기). 애플리케이션 레벨(5xx율·헬스) 감시 없음.
-- 이메일 발송 — SES identity·프로덕션 신청까지 됨(DKIM DNS 대기). 서버 `SesMailClient` 구현은 미착수(`LoggingMailClient` 유지).
-- `KAKAO_APP_ID`가 플레이스홀더 — 실값 필요(카카오 로그인만 실패).
-- 스테이징 환경 없음 — 운영 한 벌뿐.
+해소된 것(8월 말 작성 당시 미결이던 항목):
+- ~~시크릿 매니저 미도입~~ → Secrets Manager `ear/prod/api`가 원천(2026-09-09, 4장).
+- ~~배포 수동·CI/CD 없음~~ → dev 머지 시 GitHub Actions 자동 배포(2026-09-04, `.github/workflows/deploy-api.yml`·`deploy-pipeline.yml`).
+- ~~SES 서버 구현 미착수~~ → `SesMailClient` 구현·DKIM 검증·프로덕션 승인 완료(2026-08-31~09-08).
+- ~~알람 메일 구독 대기~~ → SNS `ear-prod-alerts` 구독 4건 확정. CloudWatch Agent로 CPU·메모리·스왑·디스크 1분 수집(2026-09-11).
+
+남은 것:
+- **스테이징·개발계 없음 — 운영 한 벌뿐.** dev 머지가 곧 실서버 배포라 검증 없이 나가는 변경이 실사용자에게 닿는다. 환경 분리·release 브랜치·운영 자동 배포가 2026-09-15 인프라 과제(담당 박준현).
+- **네트워크 분리 없음.** 기본 VPC, 서브넷 전부 퍼블릭, DB는 API 인스턴스 안의 컨테이너(호스트 포트 미개방으로만 보호). NAT·프라이빗 서브넷은 비용(R4) 때문에 두지 않았다 — 환경 분리 시 재검토.
+- **WAF 없음.** API 트래픽이 EC2의 Caddy에 직접 닿아 WAF를 붙일 앞단(CloudFront 또는 ALB)이 없다. 레이트 리밋(인메모리, 분당 사용자 300·인증 IP 20)이 유일한 트래픽 통제.
+- **API 상한 초당 130~150요청**(2026-09-11 부하 테스트 — `backend/load-test/README.md`). 병목은 Node 단일 프로세스 CPU. 동시 100명 안팎이 안전선.
+- 애플리케이션 레벨(5xx율·헬스) 알람 없음 — 지표는 있으나 알람은 EC2 상태 검사 1개. Slack 알림(ERROR 감시·자원 임계·백업 실패)은 전부 "자기 보고"라 서버가 죽으면 조용하다. → **2026-09-15 해소**: 크론 3개(백업·콘텐츠 내보내기·스냅샷)에 심장박동 지표 + 25시간 미기록 알람(기존 SNS), 서버 다운은 UptimeRobot 외부 헬스체크(5분, Slack). ERROR 급증·자원 알람은 기존 Slack 모듈(워커 log-watch·resource-alert)이 담당해 중복 추가하지 않음.
+- ~~서버 통째 복구 수단 없음~~ → 운영 API 루트 볼륨 일일 스냅샷 7일 보존(2026-09-15, 서버 크론 — DLM·AWS Backup은 SCP 거부). `inventory.md` 4장.
+- `KAKAO_APP_ID` 실값 여부는 2026-09-15 기준 미검증(서버 `.env.prod`·Secrets Manager 확인 필요).

@@ -2,10 +2,13 @@ import { Injectable } from '@nestjs/common';
 
 import { ContentDifficulty } from '@/modules/content/content.enum';
 import { Content } from '@/modules/content/entities/content.entity';
+import { toYearsOfExperienceRange } from '@/modules/user/user.constant';
+import { YearsOfExperienceRange } from '@/modules/user/user.enum';
 
 import {
   AXIS_WEIGHT_EMBEDDING,
   AXIS_WEIGHT_META,
+  CAREER_FIT_SCORES,
   AXIS_WEIGHT_SIGNAL,
   DISCOVERY_ITEM_WEIGHTS,
   DISCOVERY_QUALITY_FLOOR_POOL_RATIO,
@@ -57,6 +60,20 @@ interface ScoreItem {
  * **커리어 적합도(4.2 ③)는 미구현이다** — 콘텐츠 쪽에 직군·연차 대응 데이터가 없어
  * 매칭할 입력 자체가 없다. 콘텐츠 메타가 생기면 항목을 추가한다.
  */
+/**
+ * 개인 적합도의 중립값 — 두 취향 축 모두 근거가 없는 후보의 점수. 축 점수는 0~1(`squash`·코사인
+ * 정규화)이라 0.5가 "선호도 알 수 없음"이다. 0으로 두면 정보 없는 신작이 부정 신호 콘텐츠 아래로 밀린다.
+ */
+const PERSONAL_FIT_NEUTRAL_SCORE = 0.5;
+
+/** 연차 구간의 순서 — "이웃 구간" 판정용. enum 선언 순서가 곧 구간 순서다 */
+const YEARS_RANGE_ORDER: readonly YearsOfExperienceRange[] = [
+  YearsOfExperienceRange.ZERO_TO_ONE,
+  YearsOfExperienceRange.TWO_TO_THREE,
+  YearsOfExperienceRange.FOUR_TO_SIX,
+  YearsOfExperienceRange.SEVEN_PLUS,
+];
+
 @Injectable()
 export class DripScoringService {
   /**
@@ -81,6 +98,67 @@ export class DripScoringService {
         content.episodeNo - 1
       );
     });
+  }
+
+  /**
+   * 개인 적합도 랭킹 — 탐색 관심사 섹션(`explore.md` 4.1)이 쓴다.
+   *
+   * 4.2의 세 축 중 **사용자 취향에서 나오는 두 축(① 임베딩·② 신호 선호)만** 결합한다. ③ 메타 축은
+   * 편성(적립) 판단용이라 뺀다 — 인기·신선도는 후보 풀이 이미 그 순서로 들어오고, 시리즈 순서·
+   * 노출 피로·다양성(MMR)은 "무엇을 적립할까"의 규칙이지 "발견 화면에서 어떤 순서로 보일까"의
+   * 규칙이 아니다. 축 결합 가중치·재정규화는 편성과 같은 상수·같은 함수다 — 같은 규칙의 구현이
+   * 두 벌이 되는 것이 종전(주제 가중치만 읽는 별도 함수)의 문제였다.
+   *
+   * 여섯 취향 축(주제·저자·키워드·형식·길이·취향 임베딩)을 전부 읽으므로 같은 주제의 콘텐츠끼리도
+   * 순서가 갈린다. 근거가 없는 후보(취향 벡터가 비었거나 콘텐츠에 임베딩·메타가 없음)는 **중립값**으로
+   * 두어 들어온 순서(인기·신선도)를 지킨다 — 정보가 없다는 이유로 밀어내지 않는다.
+   *
+   * **입력 배열을 바꾸지 않는다.** 콜드스타트 판정은 호출부의 몫이다(4.4 — 이 함수는 취향이 있다는
+   * 전제로 계산하고, `preference`가 null이면 순서를 그대로 돌려준다).
+   */
+  rankByPersonalFit(
+    candidates: ScoringCandidate[],
+    preference: UserPreferenceWeights | null,
+    now: Date,
+  ): ScoringCandidate[] {
+    if (preference === null) {
+      return [...candidates];
+    }
+
+    const context: RegularScoringContext = {
+      activeTopicIds: [],
+      preference,
+      difficultyAffinity: null,
+      completedEpisodesBySeries: new Map(),
+      recentDripTopicIds: [],
+      // 탐색은 임베딩·신호 두 축만 쓴다 — 커리어 적합도는 메타 축 항목이라 여기서는 읽지 않는다
+      career: null,
+      isColdStart: false,
+      now,
+    };
+
+    const scores = new Map(
+      candidates.map((candidate) => [
+        candidate.content.id,
+        weightedMean([
+          {
+            score: this.embeddingAxisScore(candidate, context),
+            weight: AXIS_WEIGHT_EMBEDDING,
+          },
+          {
+            score: this.signalAxisScore(candidate, context),
+            weight: AXIS_WEIGHT_SIGNAL,
+          },
+        ]) ?? PERSONAL_FIT_NEUTRAL_SCORE,
+      ]),
+    );
+
+    // 안정 정렬 — 점수가 같으면(중립값 포함) 들어온 순서(인기·신선도)가 tie-break다
+    return [...candidates].sort(
+      (a, b) =>
+        (scores.get(b.content.id) ?? PERSONAL_FIT_NEUTRAL_SCORE) -
+        (scores.get(a.content.id) ?? PERSONAL_FIT_NEUTRAL_SCORE),
+    );
   }
 
   /** 정규 편성 스코어링(4.2) — 점수 내림차순으로 돌려준다 */
@@ -434,6 +512,7 @@ export class DripScoringService {
       freshness: this.freshnessScore(content, context.now),
       popularity: this.popularityScore(candidate, poolAverageCompleteRate),
       difficultyFit: this.difficultyFitScore(content, context),
+      careerFit: this.careerFitScore(content, context),
       // 시리즈 연속 편에만 존재하는 강한 가점 — 해당 없으면 항목 자체가 빠진다
       seriesContinuity: isSeriesContinuation ? 1 : null,
       exposureFatigue: 1 - fatigueOverlap,
@@ -444,6 +523,7 @@ export class DripScoringService {
       { score: scores.freshness, weight: weights.freshness },
       { score: scores.popularity, weight: weights.popularity },
       { score: scores.difficultyFit, weight: weights.difficultyFit },
+      { score: scores.careerFit, weight: weights.careerFit },
       { score: scores.seriesContinuity, weight: weights.seriesContinuity },
       { score: scores.exposureFatigue, weight: weights.exposureFatigue },
     ];
@@ -486,6 +566,7 @@ export class DripScoringService {
           freshness,
           popularity: quality,
           difficultyFit: null,
+          careerFit: null,
           seriesContinuity: null,
           // 저노출 가점을 노출 피로 자리에 싣는다 — 둘 다 "얼마나 덜 보였나"다
           exposureFatigue: lowExposure,
@@ -546,6 +627,51 @@ export class DripScoringService {
   }
 
   /** 난이도 적합도(4.2 ③) — 콜드스타트는 beginner 우선(4.4), 이후는 완청 분포 매칭 */
+  /**
+   * 커리어 적합도(4.2 ③) — 사용자 (직군, 연차 구간)과 콘텐츠 청자 세트 중 **가장 가까운 것**의 점수.
+   * 콘텐츠에 세트가 없거나 사용자가 커리어를 안 넣었으면 null(항목 제외 — 재정규화라 불리해지지 않는다).
+   * 프로필 기반이라 콜드스타트에서도 살아 있다 — 신규 사용자에게 주제·인기 외의 첫 개인화 신호다.
+   */
+  private careerFitScore(
+    content: Content,
+    context: RegularScoringContext,
+  ): number | null {
+    const career = context.career;
+    // 엔티티는 null이지만 테스트 픽스처·부분 로드 객체는 undefined일 수 있다 — 둘 다 "없음"이다
+    const audiences = content.targetAudiences ?? null;
+
+    if (!career?.jobCategory || audiences === null || audiences.length === 0) {
+      return null;
+    }
+
+    const userYears = toYearsOfExperienceRange(career.yearsOfExperience);
+    let best: number = CAREER_FIT_SCORES.none;
+
+    for (const audience of audiences) {
+      if (audience.jobCategory !== career.jobCategory) {
+        continue;
+      }
+      if (userYears === null) {
+        best = Math.max(best, CAREER_FIT_SCORES.jobOnly);
+        continue;
+      }
+      const distance = Math.abs(
+        YEARS_RANGE_ORDER.indexOf(audience.yearsOfExperience) -
+          YEARS_RANGE_ORDER.indexOf(userYears),
+      );
+      best = Math.max(
+        best,
+        distance === 0
+          ? CAREER_FIT_SCORES.exact
+          : distance === 1
+            ? CAREER_FIT_SCORES.adjacentYears
+            : CAREER_FIT_SCORES.jobOnly,
+      );
+    }
+
+    return best;
+  }
+
   private difficultyFitScore(
     content: Content,
     context: RegularScoringContext,

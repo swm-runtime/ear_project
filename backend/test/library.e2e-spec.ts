@@ -501,6 +501,30 @@ describe('라이브러리 E2E', () => {
       );
   }, 60_000);
 
+  it('라이선스가 만료된 콘텐츠는 만료 배치 전이라도 목록에서 빠진다 — 재생·탐색과 같은 노출 조건', async () => {
+    // given
+    const { auth } = await createOnboardedUser('expired');
+    const items = await listItems(auth);
+    const target = items[0];
+
+    // when — 만료일이 지났지만 04:10 배치가 아직 status를 바꾸지 않았다
+    await dataSource
+      .getRepository(Content)
+      .update(
+        { id: target.content.id },
+        { licenseExpiresAt: new Date(Date.now() - 60_000) },
+      );
+
+    // then — 목록에서 사라진다. 재생 게이트가 막는 것과 같은 창을 목록도 닫는다
+    const afterExpiry = await listItems(auth);
+    expect(afterExpiry.map((item) => item.id)).not.toContain(target.id);
+
+    // 원상 복구 — 다른 시나리오가 같은 카탈로그를 쓴다
+    await dataSource
+      .getRepository(Content)
+      .update({ id: target.content.id }, { licenseExpiresAt: null });
+  }, 60_000);
+
   it('남의 항목은 존재를 알리지 않고 찾을 수 없음으로 응답한다', async () => {
     // given — 403은 "그 항목이 존재한다"를 알려준다
     const owner = await createOnboardedUser('owner');

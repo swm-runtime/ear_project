@@ -103,8 +103,26 @@ export const META_ITEM_WEIGHTS = {
   freshness: 0.2,
   popularity: 0.25,
   difficultyFit: 0.1,
+  /**
+   * 커리어 적합도(4.2 ③ "직군·연차와 맞는 콘텐츠에 소폭 가점", 신설 2026-09-11). 난이도·시리즈(0.1)보다
+   * 조금 크고 주제 적합도(0.25)보다 작다 — 메타 축이 최종의 0.35이므로 전체의 약 5%. 동점 구간의
+   * 순서는 확실히 바꾸되 주제·인기를 뒤집지는 않는 크기다. 시범 운영 로그(`career_fit`)로 조정한다
+   */
+  careerFit: 0.15,
   seriesContinuity: 0.1,
   exposureFatigue: 0.1,
+} as const;
+
+/**
+ * 커리어 적합도 점수표 — 사용자 (직군, 연차 구간)과 콘텐츠 청자 세트 중 가장 가까운 것의 값.
+ * 연차 구간이 이웃(`0-1`↔`2-3` 등)이면 절반 이상은 인정한다 — 연차 경계는 원래 흐릿하다.
+ * 사용자 연차가 없으면 직군만 대조하고 `jobOnly`로 본다.
+ */
+export const CAREER_FIT_SCORES = {
+  exact: 1,
+  adjacentYears: 0.6,
+  jobOnly: 0.3,
+  none: 0,
 } as const;
 export const META_ITEM_WEIGHTS_COLD_START = {
   ...META_ITEM_WEIGHTS,

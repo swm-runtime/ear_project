@@ -62,6 +62,8 @@ export const cfg = {
   /** QA·군집화 모델 — 2026-09-03 박수헌: 발췌 대조·구조 분석은 Fable 이 필요 없다 → Opus 기본 (속도·한도 절약). QA 도 평가자라 바꾸면 spec/09 7.4 */
   /** QA 모델 — 2026-09-08 Sonnet 5 기본 (비용 절감 ⑤): 심은 오류 프로브 8건 중 7건 검출·오탐 0(opus 상한판 8/8). 놓친 1건(시점 고정 표현)은 L0 코드 검사로 이관. 되돌리려면 QA_MODEL=claude-opus-5 */
   qaModel: process.env.QA_MODEL || "claude-sonnet-5",
+  /** 추천 메타 판정 (KAN-53) — 판정 5종은 분류 작업이라 Sonnet 으로 충분. 편당 $0.1~0.3 */
+  enrichModel: process.env.ENRICH_MODEL || "claude-sonnet-5",
   /** QA 실행 형태 (2026-09-08 비용 절감 ②): single = 입력 인라인·도구 없음·리포트는 JSON 으로(기본) · agent = 구 방식(파일 읽기·리포트 쓰기 루프). QA_MODE=agent 로 복귀 */
   qaMode: (process.env.QA_MODE === "agent" ? "agent" : "single") as "single" | "agent",
   /** 단계별 생각 토큰 상한 (2026-09-08 비용 절감 ④). 비우면 모델 기본. 판정·대조(QA·비평·설계)는 상한을 걸어도 판정이 유지됨을 실측 후 기본값을 둔다 */
@@ -92,7 +94,7 @@ export const cfg = {
   ttsVoiceYuna: process.env.TTS_VOICE_YUNA || "Lb7qkOn5hF8p7qfCDH8q",
   ttsVoiceEum: process.env.TTS_VOICE_EUM || "4JJwo477JUAx3HV0T7n7",
   // 화자별 배속 (spec/06 6장) — 다중화자 1콜은 속도 설정이 없어 타임스탬프 정렬 후 ffmpeg atempo 로 후처리한다. 1 이면 원속.
-  ttsSpeedYuna: process.env.TTS_SPEED_YUNA ? Number(process.env.TTS_SPEED_YUNA) : 1.2, // 2026-09-07 박수헌: 윤아 보이스가 느려 1.2
+  ttsSpeedYuna: process.env.TTS_SPEED_YUNA ? Number(process.env.TTS_SPEED_YUNA) : 1.1, // 2026-09-07 박수헌: 윤아 보이스가 느려 1.2 → 2026-09-12 1.1 로 완화
   ttsSpeedEum: process.env.TTS_SPEED_EUM ? Number(process.env.TTS_SPEED_EUM) : 1,
   /** TTS 비용 환산용 1천 자당 USD — eleven_v3 API 종량 단가 $0.10/1천 자 (2026-09 ElevenLabs, v2/v3 공통·1자=1크레딧. Flash/Turbo 는 $0.05).
    *  LLM 정가 환산과 달리 이건 실제 종량 요금이다. 요금제/모델 바뀌면 TTS_USD_PER_1K_CHARS 로 덮는다 */

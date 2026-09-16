@@ -153,10 +153,14 @@ export class OnboardingController {
 
 /**
  * PATCH의 "보낸 필드만 반영"을 지키려면 **미전송(undefined)과 비우기(null)를 구분**해야 한다.
- * DTO 인스턴스에 키가 있는지로 판정하며, 전역 `ValidationPipe`의 `whitelist`가 선언되지 않은
- * 필드를 이미 잘라내므로 이 판정이 안전하다.
+ *
+ * **`hasOwnProperty`로 판정하지 않는다.** `tsconfig`가 ES2022+ 타깃(`useDefineForClassFields`
+ * 기본 true)이라 컴파일된 DTO 클래스는 선언한 필드를 전부 own property(`undefined`)로 만들고,
+ * `plainToInstance`가 `new`로 인스턴스를 만들면 **보내지 않은 키도 항상 존재**한다 — 그 판정으로는
+ * 모든 필드가 "보냈다"가 되어 PATCH가 전체 교체로 둔갑했다(빈 본문 [건너뛰기]가 저장된 커리어를
+ * 전부 비웠다). 이 DTO는 `null`을 값으로 허용하므로 `undefined` 여부가 곧 미전송이다.
  */
-function toCareerPatch(request: UpdateOnboardingCareerRequestDto): {
+export function toCareerPatch(request: UpdateOnboardingCareerRequestDto): {
   jobCategory?: string | null;
   jobTitle?: string | null;
   yearsOfExperience?: YearsOfExperienceRange | null;
@@ -167,14 +171,14 @@ function toCareerPatch(request: UpdateOnboardingCareerRequestDto): {
     yearsOfExperience?: YearsOfExperienceRange | null;
   } = {};
 
-  if (Object.prototype.hasOwnProperty.call(request, 'job_category')) {
-    patch.jobCategory = request.job_category ?? null;
+  if (request.job_category !== undefined) {
+    patch.jobCategory = request.job_category;
   }
-  if (Object.prototype.hasOwnProperty.call(request, 'job_title')) {
-    patch.jobTitle = request.job_title ?? null;
+  if (request.job_title !== undefined) {
+    patch.jobTitle = request.job_title;
   }
-  if (Object.prototype.hasOwnProperty.call(request, 'years_of_experience')) {
-    patch.yearsOfExperience = request.years_of_experience ?? null;
+  if (request.years_of_experience !== undefined) {
+    patch.yearsOfExperience = request.years_of_experience;
   }
 
   return patch;

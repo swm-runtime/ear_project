@@ -62,9 +62,18 @@ export interface ScoreBreakdown {
     freshness: number | null;
     popularity: number | null;
     difficultyFit: number | null;
+    /** 커리어 적합도(4.2 ③) — 콘텐츠 청자 세트와 사용자 직군·연차 대조. 어느 쪽이든 없으면 null */
+    careerFit: number | null;
     seriesContinuity: number | null;
     exposureFatigue: number | null;
   };
+}
+
+/** 사용자 커리어 — 커리어 적합도의 입력(`users.job_category` · `years_of_experience`) */
+export interface UserCareer {
+  jobCategory: string | null;
+  /** 구간 하한값(0·2·4·7) — `YEARS_OF_EXPERIENCE_LOWER_BOUND` */
+  yearsOfExperience: number | null;
 }
 
 export interface ScoredCandidate extends ScoringCandidate {
@@ -86,6 +95,8 @@ export interface RegularScoringContext {
   recentDripTopicIds: string[];
   /** 완청 3건 미만(`drip-scheduling.md` 4.4) */
   isColdStart: boolean;
+  /** 커리어 적합도 입력 — 프로필이라 콜드스타트에서도 살아 있는 항목이다 */
+  career: UserCareer | null;
   now: Date;
 }
 

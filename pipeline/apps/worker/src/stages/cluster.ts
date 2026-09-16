@@ -8,8 +8,8 @@ import { runClusterV2 } from "./cluster-v2.js";
 
 interface ClusterOut {
   candidates: { id: string; mid_topic: string; title: string; summary: string; target_fit: string; angle: string; sources: { url: string; title: string; publisher: string; backbone: boolean }[]; dedup_note: string }[];
-  reserve_notes: string[];
-  dropped_notes: string[];
+  reserve_notes?: string[]; // 2026-09-12 이후 요구하지 않는다(안전장치)
+  dropped_notes?: string[];
 }
 
 /** 군집화 (spec/03): 최근 스윕 메타데이터 → 주제 축 후보. 원문 접속 없음 (WebFetch 미허용). */
@@ -46,11 +46,11 @@ export async function runCluster(job: Job, ex: Executor) {
 
   await insertRun({
     phase: "cluster",
-    result: `중분류 ${midTopic} · 입력 ${sources.length}건 → 후보 ${inserted.length}건 proposed: ${inserted.join(" / ").slice(0, 900)}${r.output.reserve_notes.length ? ` · 예비: ${r.output.reserve_notes.join(" | ").slice(0, 400)}` : ""}${r.output.dropped_notes.length ? ` · 탈락: ${r.output.dropped_notes.join(" | ").slice(0, 400)}` : ""}`,
+    result: `중분류 ${midTopic} · 입력 ${sources.length}건 → 후보 ${inserted.length}건 proposed: ${inserted.join(" / ").slice(0, 900)}${(r.output.reserve_notes?.length ?? 0) ? ` · 예비: ${(r.output.reserve_notes ?? []).join(" | ").slice(0, 400)}` : ""}${(r.output.dropped_notes?.length ?? 0) ? ` · 탈락: ${(r.output.dropped_notes ?? []).join(" | ").slice(0, 400)}` : ""}`,
     prompt_version: "cluster-worker-v1 (주제 축 + 소스 5+ 표준)",
     executed_by: executedBy,
     model: r.model,
     cost_usd: r.listCostUsd, tokens: (r.raw as { usage?: unknown } | undefined)?.usage, worker_rev: workerRev(),
   });
-  return { mid_topic: midTopic, input_sources: sources.length, candidates: inserted, reserve_notes: r.output.reserve_notes, dropped_notes: r.output.dropped_notes, model: r.model, list_cost_usd: r.listCostUsd };
+  return { mid_topic: midTopic, input_sources: sources.length, candidates: inserted, reserve_notes: r.output.reserve_notes ?? [], dropped_notes: r.output.dropped_notes ?? [], model: r.model, list_cost_usd: r.listCostUsd };
 }

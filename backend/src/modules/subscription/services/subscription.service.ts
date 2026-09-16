@@ -105,9 +105,9 @@ export class SubscriptionService {
 
     this.logger.warn('cancelled subscription has auto renew on', {
       user_id: userId,
-      subscriptionId: subscription.id,
+      subscription_id: subscription.id,
       status: subscription.status,
-      isAutoRenew: subscription.isAutoRenew,
+      is_auto_renew: subscription.isAutoRenew,
     });
   }
 

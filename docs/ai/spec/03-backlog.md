@@ -82,6 +82,10 @@
 
 - 소스 재사용 자체는 금지가 아니다 — 같은 소스가 다른 각도의 에피소드에 쓰일 수 있다.
   중복 대조의 목적은 **같은 이야기를 두 번 만드는 것**의 방지이며, 판단 재료를 게이트 1에 제공하는 것이다.
+- **소스 겹침 표시** (2026-09-10, T260910-005↔013): 군집화 v2 는 살아 있는 후보(반려·만료 제외 — proposed·held·approved 포함, 같은 실행에서 방금 넣은 후보도)와 URL 이
+  **2건 이상** 겹치면 `dedup_note` 머리에 `⚠️ 소스 겹침: C61 2건`을 적고 승인 화면이 배지로 보여 준다. 막지 않는다 — 같은 대목의 반복은 설계 단계가 문단 단위로 막는다(spec/04 2.1).
+  "사용된 소스 1건 상한"(v2)은 제작된 편(drafted 이상)에만 남긴다. 사고: C61(9일 실행, proposed)의 소스가 다음 날 같은 대분류 실행에서 자유 소스로 취급돼 C85 가 2건을 가져갔고,
+  두 편의 설계가 같은 문단을 골라 두 구간의 대사가 거의 같았다.
 
 ## 5. 상태 전이
 
@@ -97,7 +101,7 @@ proposed ─승인→ approved ─집기→ claimed → drafted → qa_passed �
 | → `proposed` | AI (군집화 적재) | runs `phase=cluster` |
 | `proposed` → `approved` | **사람만** (게이트 1) | `approved_by` · `approved_at` — 사람만 기입 |
 | `proposed` → `rejected` | 사람 | 사유를 `dedup_note` 또는 `note`에 |
-| → `held` | AI(경계 판단 요청) 또는 사람 | 보류 사유 명시. 해소도 사람만 |
+| → `held` | AI(경계 판단 요청) 또는 사람 | 보류 사유 명시. 해소는 사람(승인·반려) 또는 **보강 스윕**([spec/02](02-sweep.md) 6장 B-①, 2026-09-10) — 사람이 [보강]을 누르면 워커가 빈 역할을 검색으로 채워 재판정하고 `proposed`/`held` 를 다시 정한다(후보당 1회, `reinforced_at`·`reinforce_note`) |
 | `approved` → `claimed` | 제작 실행 시작 시 (AI/사람) | `claimed_by` · `claimed_at` — 동시 작업 충돌 방지. 이미 claimed면 집을 수 없다 |
 | `claimed` → `drafted` 이후 | [spec/04](04-script.md)~[07](07-publish.md) | 각 단계 명세를 따른다 |
 | `approved` → `expired` | 사람 (소스 신선도 상실 등) | 처리 주기는 미결 (PIPELINE.md 7장 #13) |

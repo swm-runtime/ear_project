@@ -5,6 +5,7 @@ import { ReconsentScreen, SplashScreen, sessionService, useSessionStore } from '
 import { useShareLinkGate } from '@/features/share';
 
 import AuthNavigator from './AuthNavigator';
+import { primeTabToRestore } from './last-tab';
 import MainNavigator from './MainNavigator';
 import OnboardingNavigator from './OnboardingNavigator';
 import type { RootStackParamList } from './types';
@@ -39,6 +40,12 @@ export default function RootNavigator() {
    * 응답이면 판정이 몇십 ms 에 끝나 화면이 번쩍인다.
    */
   const [isMinElapsed, setIsMinElapsed] = useState(false);
+  /**
+   * 마지막 탭을 다 읽었는가(splash.md 4장 4-1). **이걸 기다리지 않으면 탭이 라이브러리로
+   * 먼저 마운트되고, 마운트 직후 기록이 저장값을 덮어써 다음 실행도 계속 실패한다.**
+   * 읽기가 실패해도 true 로 둔다 — 복원은 편의지 관문을 막을 이유가 아니다.
+   */
+  const [isTabPrimed, setIsTabPrimed] = useState(false);
   const hasStartedRestore = useRef(false);
 
   useEffect(() => {
@@ -46,6 +53,9 @@ export default function RootNavigator() {
     if (hasStartedRestore.current) return;
     hasStartedRestore.current = true;
     void sessionService.restoreSession();
+    // 마지막 탭은 세션 복원과 나란히 읽는다(splash.md 4장 4-1). 관문이 **이 완료를
+    // 기다려야** 탭 내비게이터가 initialRouteName 을 동기로 읽을 수 있다
+    void primeTabToRestore().finally(() => setIsTabPrimed(true));
   }, []);
 
   useEffect(() => {
@@ -53,8 +63,8 @@ export default function RootNavigator() {
     return () => clearTimeout(timer);
   }, []);
 
-  // 판정 전이거나 최소 노출 전이면 스플래시를 유지한다
-  const isGatePending = status === 'restoring' || !isMinElapsed;
+  // 판정 전이거나·최소 노출 전이거나·마지막 탭을 아직 못 읽었으면 스플래시를 유지한다
+  const isGatePending = status === 'restoring' || !isMinElapsed || !isTabPrimed;
 
   return (
     <RootStack.Navigator screenOptions={{ headerShown: false }}>

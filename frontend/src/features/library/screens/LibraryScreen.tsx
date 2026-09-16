@@ -26,6 +26,7 @@ import TopicFilterSheet from '../components/TopicFilterSheet';
 import UndoSnackbar from '../components/UndoSnackbar';
 import { useLibraryScreen } from '../hooks/useLibraryScreen';
 import { LIBRARY_COPY } from '../library.copy';
+import { filterLibraryRows, normalizeLibraryQuery } from '../library.search';
 import type { LibraryListRow } from '../library.types';
 
 /** L1 라이브러리 — 앱의 첫 화면. 화면은 뷰만 담당하고 로직은 useLibraryScreen이 소유한다 */
@@ -37,21 +38,14 @@ export default function LibraryScreen() {
    * 아직 불러오지 않은 페이지는 대상이 아니며, 스크롤로 더 불러오면 그만큼 대상이 늘어난다.
    */
   const [query, setQuery] = useState('');
-  const normalizedQuery = query.trim().toLowerCase();
+  const normalizedQuery = normalizeLibraryQuery(query);
   const isSearching = normalizedQuery.length > 0;
 
-  const visibleRows = useMemo(() => {
-    if (!isSearching) return screen.listRows;
-    // 검색 중에는 구획 헤더를 빼고 하나의 결과 목록으로 보여준다 —
-    // 헤더만 남고 아래가 비는 구획이 생기지 않게
-    return screen.listRows.filter((row) => {
-      if (row.kind !== 'item') return false;
-      const { title, authorName, sourceName } = row.item.content;
-      return [title, authorName, sourceName].some((field) =>
-        field.toLowerCase().includes(normalizedQuery),
-      );
-    });
-  }, [screen.listRows, isSearching, normalizedQuery]);
+  // 매칭 규칙은 library.search.ts가 소유한다 — 저자 null(AI 생성) 처리 포함
+  const visibleRows = useMemo(
+    () => filterLibraryRows(screen.listRows, normalizedQuery),
+    [screen.listRows, normalizedQuery],
+  );
 
   // L6·L9는 목록 전체가 빈 상태 — 탭 줄·필터 아이콘·복원 미니플레이어를 감춘다(uiux 4.8)
   const isWholeEmpty = screen.emptyKind === 'newUser' || screen.emptyKind === 'deletedAll';

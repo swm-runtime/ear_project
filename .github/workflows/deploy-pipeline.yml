@@ -1,12 +1,12 @@
 name: deploy-pipeline
-# dev 에 pipeline/ai-server 변경이 머지되면 AI 서버(EC2)에 자동 배포한다 (pipeline/deploy/README.md CI 장).
+# dev 에 pipeline/ai-server/docs/ai 변경이 머지되면 AI 서버(EC2)에 자동 배포하고 규칙 자산을 활성화하며 워커 최소 버전을 기록한다 (pipeline/deploy/README.md 8장).
 # AWS 접근은 OIDC 역할 ear-ci-deploy(SG 개폐 권한만) — 저장된 AWS 키 없음. SSH 는 CI 전용 키(secret CI_SSH_KEY).
 # 1회 설정: bash pipeline/deploy/aws/setup-ci.sh
 
 on:
   push:
     branches: [dev]
-    paths: ['pipeline/**', 'ai-server/**']
+    paths: ['pipeline/**', 'ai-server/**', 'docs/ai/**'] # docs/ai: 규칙 자산 — 머지가 곧 활성화 (push.sh 가 assets:import)
   workflow_dispatch:
 
 concurrency:

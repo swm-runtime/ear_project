@@ -261,6 +261,10 @@ describe('exploreCursor', () => {
         { p: 1e308, t: PUBLISHED_AT.toISOString(), i: CONTENT_ID, q: 'x' },
       ],
       ['해석되지 않는 시각', { p: 1, t: 'not-a-date', i: CONTENT_ID, q: 'x' }],
+      [
+        'Postgres 범위 밖의 시각(기원전) — 파싱은 되지만 SQL이 던진다',
+        { p: 1, t: '-005000-01-01T00:00:00.000Z', i: CONTENT_ID, q: 'x' },
+      ],
     ])('%s는 400으로 거절한다', (_label, payload) => {
       // when
       const error = catchError(() =>
