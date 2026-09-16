@@ -76,14 +76,19 @@ if [ -z "${SKIP_AWS:-}" ]; then
   say "3) IAM 역할 $CI_ROLE — 신뢰에 main 추가 · 개발계 SG 개폐"
   ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
   TRUST_NOW=$(aws iam get-role --role-name "$CI_ROLE" --query 'Role.AssumeRolePolicyDocument' --output json)
-  TRUST_NEW=$(REPO="$REPO" python3 - "$TRUST_NOW" <<'PY'
+  # 저장소가 "불변 주체(immutable subject)" 모드면 토큰의 sub 접두사가 repo:<org>@<id>/<repo>@<id> 다(2026-09-16 23:05 실측 —
+  # 평문 repo:<org>/<repo> 줄은 하나도 매치되지 않아 배포 job 이 AssumeRoleWithWebIdentity 에서 막혔다. dev 브랜치가 되던 것도
+  # 이전에 누군가 넣어 둔 ID 박힌 줄 덕분). 그래서 평문·불변 두 접두사 × 네 주체를 모두 넣는다.
+  SUB_PREFIX=$(gh api "repos/$REPO/actions/oidc/customization/sub" --jq 'if .use_immutable_subject then .sub_claim_prefix else "" end' 2>/dev/null || true)
+  [ -n "$SUB_PREFIX" ] && echo "불변 주체 모드 — 접두사 $SUB_PREFIX 형식도 신뢰에 넣는다"
+  TRUST_NEW=$(REPO="$REPO" SUB_PREFIX="$SUB_PREFIX" python3 - "$TRUST_NOW" <<'PY'
 import json, os, sys
-doc = json.loads(sys.argv[1]); repo = os.environ["REPO"]
+doc = json.loads(sys.argv[1]); repo = os.environ["REPO"]; imm = os.environ.get("SUB_PREFIX", "")
 # 브랜치 형식(environment 없는 job: verify·build-push) + Environment 형식(environment: 를 쓰는 deploy job).
-# GitHub 은 job 에 environment 가 있으면 OIDC sub 를 "repo:<repo>:environment:<name>" 으로 발급한다 —
-# 브랜치 형식만 신뢰하면 배포 job 이 "Not authorized to perform sts:AssumeRoleWithWebIdentity" 로 죽는다(2026-09-16 실측).
-want = [f"repo:{repo}:ref:refs/heads/dev", f"repo:{repo}:ref:refs/heads/main",
-        f"repo:{repo}:environment:api-dev", f"repo:{repo}:environment:api-prod"]
+# GitHub 은 job 에 environment 가 있으면 OIDC sub 를 "<접두사>:environment:<name>" 으로 발급한다.
+prefixes = [f"repo:{repo}"] + ([imm] if imm and imm != f"repo:{repo}" else [])
+suffixes = ["ref:refs/heads/dev", "ref:refs/heads/main", "environment:api-dev", "environment:api-prod"]
+want = [f"{p}:{s}" for p in prefixes for s in suffixes]
 changed = False
 for st in doc["Statement"]:
     fed = st.get("Principal", {}).get("Federated", "")
