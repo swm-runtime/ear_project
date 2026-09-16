@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
 import { jobAbortSignal } from "./abort.js";
 import { spawn } from "node:child_process";
 import readline from "node:readline";
@@ -49,6 +52,14 @@ export class ClaudeCliExecutor implements Executor {
     const model = req.model ?? this.defaultModel;
     if (model) args.push("--model", model);
     if (req.effort) args.push("--effort", req.effort);
+    if (req.systemPrompt) {
+      // 파일 이름은 본문 해시 — 같은 블록이면 같은 파일을 다시 쓴다(내용 동일). 인자 길이 한계를 피하려고 파일로 넘긴다
+      const dir = path.join(req.cwd, ".system-prompts");
+      fs.mkdirSync(dir, { recursive: true });
+      const file = path.join(dir, `${createHash("sha1").update(req.systemPrompt).digest("hex").slice(0, 16)}.md`);
+      if (!fs.existsSync(file)) fs.writeFileSync(file, req.systemPrompt, "utf8");
+      args.push("--append-system-prompt-file", file, "--exclude-dynamic-system-prompt-sections");
+    }
 
     return new Promise((resolve, reject) => {
       const started = Date.now();

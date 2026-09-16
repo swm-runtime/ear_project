@@ -3,7 +3,7 @@ import path from "node:path";
 import { cfg } from "../config.js";
 import { setJobProgress, type Job } from "../db.js";
 import type { Executor } from "../executors/index.js";
-import { assetPaths, buildRevisionPromptInline, REVISION_INLINE_SCHEMA } from "@ear/pipeline";
+import { assetPaths, buildRevisionPromptInlineParts, REVISION_INLINE_SCHEMA } from "@ear/pipeline";
 import { exists, log } from "../util.js";
 
 /**
@@ -41,10 +41,10 @@ export async function runRevisionSingle(a: { job: Job; ex: Executor; episodeId: 
   const [guidelines, scriptMd, claimsMd, sourcesMd] = await Promise.all([read(ap.guidelines), read(path.join(dir, "script.md")), read(path.join(dir, "claims.md")), read(path.join(dir, "sources.md"))]);
   const outlineMd = (await exists(outlineFile)) ? await read(outlineFile) : null;
   const pronunciationsJson = (await exists(pronFile)) ? await read(pronFile) : "{}";
-  const prompt = buildRevisionPromptInline({ episodeId, attempt, qaFailures: a.qaFailures, guidelines, scriptMd, claimsMd, sourcesMd, outlineMd, pronunciationsJson });
-  log(`  draft(revision ${attempt}) ${episodeId}: 지적 ${a.qaFailures.length}건 단발 수정 (프롬프트 ${Math.round(prompt.length / 1000)}K자)`);
+  const parts = buildRevisionPromptInlineParts({ episodeId, attempt, qaFailures: a.qaFailures, guidelines, scriptMd, claimsMd, sourcesMd, outlineMd, pronunciationsJson });
+  log(`  draft(revision ${attempt}) ${episodeId}: 지적 ${a.qaFailures.length}건 단발 수정 (공유 ${Math.round(parts.system.length / 1000)}K + 편별 ${Math.round(parts.user.length / 1000)}K자)`);
   const r = await ex.run<RevisionInlineOut>({
-    prompt, schema: REVISION_INLINE_SCHEMA, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 20 * 60_000, model: cfg.revisionModel, maxThinkingTokens: cfg.thinkingRevision,
+    prompt: parts.user, systemPrompt: parts.system, schema: REVISION_INLINE_SCHEMA, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 20 * 60_000, model: cfg.revisionModel, maxThinkingTokens: cfg.thinkingRevision,
     onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: `대본 수정 (attempt ${attempt}, 단발)`, detail: pr.turns > 0 ? "지적 대조·수정 중 (도구 없음)" : pr.detail }).catch(() => {}),
   });
   const o = r.output;

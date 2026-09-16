@@ -4,7 +4,7 @@ import { cfg, executedBy } from "../config.js";
 import { blockedTierHosts, insertRun, priorEpisodesUsingUrls, recordFetchStatus, refreshDomainFetchBlock, setJobProgress, type Job } from "../db.js";
 import { getFile } from "../storage.js";
 import type { Executor } from "../executors/index.js";
-import { assetPaths, buildDesignPromptInline, DESIGN_INLINE_SCHEMA, type BacklogCandidate, type InlineSource } from "@ear/pipeline";
+import { assetPaths, buildDesignPromptInlineParts, DESIGN_INLINE_SCHEMA, type BacklogCandidate, type InlineSource } from "@ear/pipeline";
 import { fetchArticle, fetchStatusOf, type FetchedSource } from "../sources/fetch.js";
 import { log } from "../util.js";
 import { workerRev } from "../assets.js";
@@ -116,10 +116,10 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
   const [guidelines, specScript, goldFullEum, goldFullYuna] = await Promise.all([read(ap.guidelines), read(ap.specScript), a.noGold ? Promise.resolve("") : read(ap.goldFullEum), a.noGold ? Promise.resolve("") : read(ap.goldFullYuna)]);
   const sources: InlineSource[] = fetched.map((f, i) => ({ n: f.n, url: f.url, publisher: cand.sources[i].publisher, title: cand.sources[i].title || f.title || "", published: cand.sources[i].published, backbone: cand.sources[i].backbone, ok: f.ok, byline: f.byline, note: f.note,
     blocks: f.blocks.filter((b) => !usedBlocks.has(b.id)), usedBlocks: f.blocks.filter((b) => usedBlocks.has(b.id)).map((b) => ({ id: b.id, by: usedBlocks.get(b.id)! })) }));
-  const prompt = buildDesignPromptInline({ episodeId, candidate: cand, promptVersion: a.promptVersion, guidelines, specScript, goldFullEum, goldFullYuna, sources });
-  log(`  design ${episodeId}: 단발 호출 (프롬프트 ${Math.round(prompt.length / 1000)}K자)`);
+  const parts = buildDesignPromptInlineParts({ episodeId, candidate: cand, promptVersion: a.promptVersion, guidelines, specScript, goldFullEum, goldFullYuna, sources });
+  log(`  design ${episodeId}: 단발 호출 (공유 ${Math.round(parts.system.length / 1000)}K + 편별 ${Math.round(parts.user.length / 1000)}K자)`);
   const r = await ex.run<DesignInlineOut>({
-    prompt, schema: DESIGN_INLINE_SCHEMA, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 40 * 60_000, model: cfg.draftDesignModel, maxThinkingTokens: cfg.thinkingDesign, effort: cfg.effortDesign,
+    prompt: parts.user, systemPrompt: parts.system, schema: DESIGN_INLINE_SCHEMA, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 40 * 60_000, model: cfg.draftDesignModel, maxThinkingTokens: cfg.thinkingDesign, effort: cfg.effortDesign,
     onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: "설계 1/2 — 발췌 선택·claims·구성안 (단발)", detail: pr.turns > 0 ? "설계 중 (도구 없음)" : pr.detail }).catch(() => {}),
   });
   const o = { ...r.output, outline_md: normalizeOutline(r.output.outline_md) };
