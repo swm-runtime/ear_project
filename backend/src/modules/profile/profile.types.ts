@@ -10,6 +10,8 @@ import { ProfileSection } from './profile.enum';
 /** 헤더 — 표시 전용이다. 편집 진입점이 없다(`profile-api.md` 4.1) */
 export interface ProfileUserView {
   nickname: string | null;
+  /** 제공자 프로필 사진 URL. null이면 화면이 이니셜·아이콘으로 대신 그린다 */
+  profileImageUrl: string | null;
   provider: SocialProvider;
   /**
    * **`null`은 "등록되지 않음"이다.** 값이 있는데 `isEmailVerified = false`면

@@ -20,6 +20,8 @@ export interface CreateUserCommand {
   isEmailVerified: boolean;
   /** null = 제공자가 주지 않음. 온보딩에서 채운다 (domain.md 3.1) */
   nickname: string | null;
+  /** null = 제공자가 주지 않음 (domain.md 3.1 `profile_image_url`) */
+  profileImageUrl: string | null;
   consents: ConsentInput[];
 }
 

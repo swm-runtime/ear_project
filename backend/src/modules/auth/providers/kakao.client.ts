@@ -16,7 +16,13 @@ interface KakaoProfileResponse {
     email?: string;
     is_email_valid?: boolean;
     is_email_verified?: boolean;
-    profile?: { nickname?: string };
+    profile?: {
+      nickname?: string;
+      /** 640×640. `thumbnail_image_url`(110×110)은 3배율 기기에서 흐려 쓰지 않는다 */
+      profile_image_url?: string;
+      /** 사용자가 사진을 올리지 않아 카카오 기본 실루엣인 경우 — 우리 폴백을 쓴다 */
+      is_default_image?: boolean;
+    };
   };
 }
 
@@ -65,12 +71,19 @@ export class KakaoClient extends SocialProviderClient {
     const isEmailValid = account?.is_email_valid === true;
     const isEmailVerified = account?.is_email_verified === true;
     const email = isEmailValid ? (account?.email ?? null) : null;
+    const kakaoProfile = account?.profile;
+    // 기본 이미지는 카카오 실루엣이라 우리 폴백(이니셜·사람 아이콘)보다 못하다 — null로 환산한다
+    const profileImageUrl =
+      kakaoProfile?.is_default_image === true
+        ? null
+        : (kakaoProfile?.profile_image_url ?? null);
 
     return {
       providerUserId: String(payload.id),
       email,
       isEmailVerified: email !== null && isEmailVerified,
-      nickname: account?.profile?.nickname ?? null,
+      nickname: kakaoProfile?.nickname ?? null,
+      profileImageUrl,
     };
   }
 

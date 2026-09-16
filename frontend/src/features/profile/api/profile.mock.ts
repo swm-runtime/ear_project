@@ -85,6 +85,8 @@ const toWeeklyDtoAt = (index: number): WeeklyListeningResponseDto => {
 // 같은 상태를 읽어, 인증 성공 후 복귀 시 갱신을 함께 본다(career mock과 같은 패턴)
 const USER_BASE = (): ProfileUserDto => ({
   nickname: '수현',
+  // 목은 사진 없음으로 둔다 — 이니셜 폴백 경로가 기본 화면에서 보이게
+  profile_image_url: null,
   provider: 'kakao',
   ...getEmailMockAccount(),
 });

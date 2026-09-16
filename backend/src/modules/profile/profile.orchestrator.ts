@@ -267,6 +267,7 @@ export class ProfileOrchestrator {
 function toUserView(user: User): ProfileUserView {
   return {
     nickname: user.nickname,
+    profileImageUrl: user.profileImageUrl,
     provider: user.provider,
     email: user.email,
     isEmailVerified: user.isEmailVerified,

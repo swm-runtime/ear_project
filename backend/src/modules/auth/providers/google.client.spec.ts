@@ -22,6 +22,7 @@ const jwks = {
 
 /** 다른 발급자가 쓰는 키 — 서명 위조 상황을 만든다 */
 const foreign = generateKeyPairSync('rsa', { modulusLength: 2048 });
+const PICTURE = 'https://lh3.googleusercontent.com/a/photo=s96-c';
 
 interface TokenOverrides {
   audience?: string;
@@ -29,6 +30,7 @@ interface TokenOverrides {
   email?: string | null;
   emailVerified?: boolean | string;
   name?: string | null;
+  picture?: string | null;
   expiresIn?: SignOptions['expiresIn'];
   key?: KeyObject;
   keyid?: string;
@@ -45,6 +47,9 @@ function buildIdToken(overrides: TokenOverrides = {}): string {
   }
   if (overrides.name !== null) {
     payload.name = overrides.name ?? '이어';
+  }
+  if (overrides.picture !== null) {
+    payload.picture = overrides.picture ?? PICTURE;
   }
 
   return sign(payload, overrides.key ?? privateKey, {
@@ -109,6 +114,13 @@ describe('GoogleClient', () => {
     expect(profile.email).toBe('user@example.com');
     expect(profile.isEmailVerified).toBe(true);
     expect(profile.nickname).toBe('이어');
+    expect(profile.profileImageUrl).toBe(PICTURE);
+  });
+
+  it('picture 클레임이 없으면 프로필 사진은 null이다', async () => {
+    const profile = await client.fetchProfile(buildIdToken({ picture: null }));
+
+    expect(profile.profileImageUrl).toBeNull();
   });
 
   it('제공자 API(userinfo)를 부르지 않고 토큰만으로 검증한다', async () => {

@@ -29,6 +29,7 @@ export class DevClient extends SocialProviderClient {
       email: null,
       isEmailVerified: false,
       nickname: null,
+      profileImageUrl: null,
     });
   }
 }

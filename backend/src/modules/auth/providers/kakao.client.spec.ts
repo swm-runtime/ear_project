@@ -12,14 +12,24 @@ interface KakaoAccount {
   email?: string;
   is_email_valid?: boolean;
   is_email_verified?: boolean;
-  profile?: { nickname?: string };
+  profile?: {
+    nickname?: string;
+    profile_image_url?: string;
+    is_default_image?: boolean;
+  };
 }
+
+const PROFILE_IMAGE_URL = 'https://k.kakaocdn.net/dn/abc/img_640x640.jpg';
 
 const defaultAccount: KakaoAccount = {
   email: 'user@example.com',
   is_email_valid: true,
   is_email_verified: true,
-  profile: { nickname: '이어' },
+  profile: {
+    nickname: '이어',
+    profile_image_url: PROFILE_IMAGE_URL,
+    is_default_image: false,
+  },
 };
 
 /** 목이 받은 요청 대상을 문자열로 만든다 — `Request` 객체로 올 수도 있다 */
@@ -104,6 +114,34 @@ describe('KakaoClient', () => {
     expect(profile.email).toBe('user@example.com');
     expect(profile.isEmailVerified).toBe(true);
     expect(profile.nickname).toBe('이어');
+    expect(profile.profileImageUrl).toBe(PROFILE_IMAGE_URL);
+  });
+
+  it('카카오 기본 이미지면 프로필 사진을 null로 환산한다 — 우리 폴백을 쓴다', async () => {
+    mockKakao({
+      account: {
+        ...defaultAccount,
+        profile: {
+          nickname: '이어',
+          profile_image_url: PROFILE_IMAGE_URL,
+          is_default_image: true,
+        },
+      },
+    });
+
+    const profile = await client.fetchProfile(TOKEN);
+
+    expect(profile.profileImageUrl).toBeNull();
+  });
+
+  it('프로필 동의가 없어 사진이 안 오면 null이다', async () => {
+    mockKakao({
+      account: { ...defaultAccount, profile: { nickname: '이어' } },
+    });
+
+    const profile = await client.fetchProfile(TOKEN);
+
+    expect(profile.profileImageUrl).toBeNull();
   });
 
   it('토큰 정보 조회를 반드시 거친다 — 프로필만 받아오지 않는다', async () => {

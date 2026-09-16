@@ -51,12 +51,12 @@ export class AuthService {
       nonce: command.nonce,
     });
 
-    const user = await this.userService.findByProvider(
+    const existing = await this.userService.findByProvider(
       command.provider,
       profile.providerUserId,
     );
 
-    if (!user) {
+    if (!existing) {
       const signupToken = this.tokenService.issueSignupToken(
         command.provider,
         profile,
@@ -84,6 +84,12 @@ export class AuthService {
         ],
       };
     }
+
+    // 프로필 사진은 제공자 값이 진실이다 — 로그인마다 최신 URL로 맞춘다 (auth.md 4.1)
+    const user = await this.userService.syncProfileImageUrl(
+      existing,
+      profile.profileImageUrl,
+    );
 
     const tokens = await this.issueSession(user, command.deviceId, now);
     this.logger.log('social login succeeded', {
@@ -122,6 +128,7 @@ export class AuthService {
           isEmailVerified: payload.isEmailVerified,
           // 제공자가 주지 않으면 비워 둔다 — 온보딩에서 채운다 (domain.md 3.1)
           nickname: payload.nickname,
+          profileImageUrl: payload.profileImageUrl,
           consents: command.consents,
         },
         now,

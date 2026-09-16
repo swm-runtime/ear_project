@@ -13,6 +13,7 @@ interface NaverProfileResponse {
     id?: string;
     email?: string;
     nickname?: string;
+    profile_image?: string;
   };
 }
 
@@ -56,6 +57,7 @@ export class NaverClient extends SocialProviderClient {
       email,
       isEmailVerified: email !== null,
       nickname: profile.nickname ?? null,
+      profileImageUrl: profile.profile_image ?? null,
     };
   }
 }

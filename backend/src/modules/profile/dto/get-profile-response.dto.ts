@@ -10,6 +10,8 @@ import { WeeklyListeningResponseDto } from './weekly-listening-response.dto';
 /** 헤더 — 표시 전용이다. 닉네임 편집·제공자 변경은 MVP 비범위(`profile.md` 미결) */
 class ProfileUserDto {
   readonly nickname: string | null;
+  /** 제공자 프로필 사진 URL(`profile-api.md` 4.1). null이면 클라이언트가 폴백을 그린다 */
+  readonly profile_image_url: string | null;
   readonly provider: SocialProvider;
   /**
    * **마스킹하지 않는다**(`profile-api.md` 7장). 본인 인증된 세션의 자기 정보이며,
@@ -96,6 +98,7 @@ export class GetProfileResponseDto {
     return {
       user: {
         nickname: result.user.nickname,
+        profile_image_url: result.user.profileImageUrl,
         provider: result.user.provider,
         email: result.user.email,
         is_email_verified: result.user.isEmailVerified,

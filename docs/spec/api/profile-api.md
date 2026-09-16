@@ -73,6 +73,7 @@
 {
   "user": {
     "nickname": "수현",
+    "profile_image_url": "https://k.kakaocdn.net/dn/.../img_640x640.jpg",
     "provider": "kakao",
     "email": "user@example.com",
     "is_email_verified": false
@@ -126,6 +127,7 @@
 
 - `nickname` · `provider`는 헤더에 그대로 그린다. **편집 진입점이 없다** — 닉네임 편집·제공자 변경은 MVP 비범위다(`profile.md` 미결).
 - **`nickname`은 `null`일 수 있다.** `domain.md` 3.1이 NULL을 허용한다 — 제공자가 닉네임을 주지 않는 경우가 있고, **애플은 이름을 최초 인가 때 한 번만 주며 사용자가 가릴 수도 있다**(`auth.md` 4.1). **서버가 기본 문자열로 채우지 않는다** — 채워 버리면 "아직 없다"와 "사용자가 그 값으로 정했다"가 구분되지 않는다(`email` · `device_tokens.token`과 같은 원칙). 화면 표기는 `profile-uiux.md` 4.1이 소유한다.
+- **`profile_image_url`은 제공자 프로필 사진의 CDN 주소다**(`domain.md` 3.1 — 도입 2026-09-16). 서버가 파일을 받아 두지 않으므로 우리 도메인이 아니며, 로그인 시점의 값이다. **`null`이면 클라이언트가 이니셜·아이콘 폴백을 그린다** — 제공자가 주지 않은 경우(애플은 항상, 카카오 기본 이미지는 null로 환산)다. **로드 실패도 같은 폴백으로 처리한다** — 제공자 쪽에서 사진을 바꾸면 옛 URL이 죽는데, 다음 로그인 전까지는 저장값이 그대로라 실패가 정상 경로다. 서버 조회 실패로 취급하지 않는다.
 - `provider`는 `kakao` · `naver` · `google` · `apple` 넷 중 하나다(`auth-api.md` 4.1과 같은 값).
 - `email`이 `null`이면 "등록되지 않음" 상태다. `email`이 있고 `is_email_verified = false`면 **"인증되지 않음" 배지** 상태다(`profile.md` 4.3). **두 값을 항상 함께 내려준다** — 한쪽만으로는 세 상태를 구분할 수 없다.
 
