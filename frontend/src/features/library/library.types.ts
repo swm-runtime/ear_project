@@ -28,7 +28,8 @@ export type LibrarySort = 'added_desc' | 'added_asc';
 export interface LibraryContent {
   id: string;
   title: string;
-  authorName: string;
+  /** AI 생성 콘텐츠는 저자가 없다(domain.md 5.1). 표시·검색 모두 null을 건너뛴다 */
+  authorName: string | null;
   sourceName: string;
   /** null이면 L4 [원문 보기]를 노출하지 않는다 — 자리도 남기지 않는다(library-uiux.md 4.7) */
   sourceUrl: string | null;

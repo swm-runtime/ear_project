@@ -15,7 +15,8 @@ import type {
 export interface LibraryContentDto {
   id: string;
   title: string;
-  author_name: string;
+  /** `origin = ai_generated`는 null일 수 있다(domain.md 5.1) — 서버 DTO와 같은 계약 */
+  author_name: string | null;
   source_name: string;
   /**
    * L4 [원문 보기] 노출 근거(library.md 3장 — 확정 2026-08-10, null이면 미노출).
