@@ -181,7 +181,7 @@ aws ec2 create-volume --snapshot-id <snap> --availability-zone ap-northeast-2a -
 
 - [ ] `ear-backup-prod/pg/`에 최근 덤프가 매일 쌓이는가 · `/var/log/ear-content-sync.log`에 내보내기가 매일 찍히는가
 - [ ] 스냅샷이 매일 1개 늘고 8일째 것이 지워지는가: `aws ec2 describe-snapshots --owner-ids 639177726357 --filters Name=tag:Source,Values=ear-daily --query 'length(Snapshots)'` = 7 안팎
-- [ ] Budgets 메일·CloudWatch 알람 상태: `aws cloudwatch describe-alarms --alarm-name-prefix ear-prod --query 'MetricAlarms[].[AlarmName,StateValue]' --output table` — 전부 `OK`. `INSUFFICIENT_DATA`면 크론이 지표를 못 찍는 것(권한·네트워크), `ALARM`이면 25시간 미실행
-- [ ] UptimeRobot 모니터 `ear api health`가 Up 인가. **설정값(재등록 시)**: 유형 Keyword · URL `https://api.earcast.co.kr/api/v1/health` · 키워드 `"status":"ok"` · 존재하면 Up · 간격 5분 · 알림 연락처 = 팀 메일 + Slack(Integrations → Slack, 알림 채널 웹훅). 키워드 방식이라 DB가 죽어 `/health`가 503 `degraded`를 내는 경우도 Down으로 잡힌다
+- [ ] Budgets 메일·CloudWatch 알람 상태: `aws cloudwatch describe-alarms --alarm-name-prefix ear-prod --query 'MetricAlarms[].[AlarmName,StateValue]' --output table` — 전부 `OK`. `INSUFFICIENT_DATA`면 크론이 지표를 못 찍는 것(권한·네트워크), `ALARM`이면 25시간 미실행. **새로 만든 알람은 첫 1시간 안에 오탐 ALARM 메일이 한 번 올 수 있다** — 첫 평가가 지표를 찍기 직전의 빈 1시간 구간을 보기 때문(2026-09-15 backup 알람 실측). 다음 크론 성공 뒤 OK 메일이 오면 정상이고, 그 뒤에도 ALARM이면 진짜 미실행이다
+- [ ] UptimeRobot 모니터 `ear api health`가 Up 인가. **설정값(재등록 시)**: 유형 Keyword · URL `https://api.earcast.co.kr/api/v1/health` · 키워드 `"status":"ok"` · 존재하면 Up · 간격 5분 · 알림 연락처 = 메일(무료 플랜은 Slack 연동이 잠겨 있다 — 메일만). 키워드 방식이라 DB가 죽어 `/health`가 503 `degraded`를 내는 경우도 Down으로 잡힌다
 - [ ] `df -h` 디스크 (20GB — docker 이미지가 쌓이면 `docker system prune -f`)
 - [ ] 인증서는 Caddy 자동 — 만료 걱정 없음. `docker compose … logs caddy | grep -i renew`로 확인만
