@@ -105,7 +105,12 @@ describe('AdminTopicService', () => {
   });
 
   describe('update', () => {
-    it('노출을 켜면 before/after가 감사 로그에 남는다', async () => {
+    it('콘텐츠가 있는 주제의 노출을 켜면 before/after가 감사 로그에 남는다', async () => {
+      // given
+      contentService.countByTopicIds.mockResolvedValue(
+        new Map([[TOPIC_ID, 1]]),
+      );
+
       // when
       const result = await service.update(ACTOR_ID, TOPIC_ID, {
         isVisible: true,
@@ -121,6 +126,46 @@ describe('AdminTopicService', () => {
         }),
         manager,
       );
+    });
+
+    it('콘텐츠 0건인 주제의 노출을 켜면 409로 거부하고 아무것도 바꾸지 않는다', async () => {
+      // given — countByTopicIds 기본값 = 빈 Map = 0건
+
+      // when
+      const act = service.update(ACTOR_ID, TOPIC_ID, { isVisible: true });
+
+      // then
+      await expect(act).rejects.toMatchObject({
+        errorCode: ErrorCode.ADMIN_TOPIC_HAS_NO_CONTENTS,
+        details: { content_count: 0 },
+      });
+      expect(topicService.update).not.toHaveBeenCalled();
+      expect(auditLogService.record).not.toHaveBeenCalled();
+    });
+
+    it('이미 노출 중인 0건 주제의 이름만 바꾸는 요청은 전이가 아니라 통과한다', async () => {
+      // given
+      topicService.getById.mockResolvedValue(buildTopic({ isVisible: true }));
+
+      // when
+      const result = await service.update(ACTOR_ID, TOPIC_ID, {
+        name: '이직 준비',
+      });
+
+      // then
+      expect(result.topic.name).toBe('이직 준비');
+      expect(result.topic.isVisible).toBe(true);
+    });
+
+    it('숨김 주제의 노출을 끄는 쪽(true 전달 아님)은 건수와 무관하게 통과한다', async () => {
+      // when
+      const result = await service.update(ACTOR_ID, TOPIC_ID, {
+        isVisible: false,
+      });
+
+      // then
+      expect(result.topic.isVisible).toBe(false);
+      expect(contentService.countByTopicIds).toHaveBeenCalledTimes(1); // 응답용 건수 조회만
     });
   });
 

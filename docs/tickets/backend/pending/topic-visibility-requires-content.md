@@ -48,3 +48,12 @@
 - Given `admin.md` 4.5 · `admin-api.md` 4.3 / When 읽는다 / Then "서버가 거부한다"와 번복 사유가 적혀 있다
 - Given 콘솔 주제 관리 표의 0건·숨김 주제 / When 노출 체크박스를 본다 / Then 비활성이고 "콘텐츠가 0건이라 노출할 수 없어요 …" 문구가 보이며 `confirm`은 뜨지 않는다
 - Given 목록 조회 뒤 콘텐츠가 전부 지워져 건수가 어긋난 주제 / When 노출을 켠다 / Then 서버 409를 받아 체크박스가 원복되고 서버 문구가 표시된 뒤 목록이 재조회된다
+
+## 처리 기록
+
+| 항목 | 값 |
+|---|---|
+| 백엔드 반영 | 2026-09-17 — `AdminTopicService.update`가 **false → true 전이 + 콘텐츠 0건**이면 409 `ADMIN_TOPIC_HAS_NO_CONTENTS`(`details.content_count: 0`, retryable=false). 건수는 삭제 판정과 같은 `countByTopicIds`(상태 무관 배정 건수). 이미 노출 중인 0건 주제의 이름·정렬 수정, 노출 끄기는 통과. 단위 테스트 4건 추가 |
+| 문서 | `docs/changes/pending/admin-topic-visibility-requires-content.md` 발행 — `admin.md` 4.5·완료 조건, `admin-api.md` 4.3·5장, `common-error-handling.md` 9장 |
+| **남은 것(콘솔 UI, 파이프라인 파트)** | `pipeline/apps/web/app/publish/topics/page.tsx` — 0건·숨김 주제의 노출 체크박스 비활성 + 사유 문구, `confirm` 분기 제거, 409 `ADMIN_TOPIC_HAS_NO_CONTENTS` 수신 시 원복·재조회. **AI 파트(박수헌)에 전달**(Jira KAN-58 코멘트). 콘솔이 고쳐지기 전까지는 0건 주제를 켜면 확인창 뒤 서버 409를 받아 "재시도" 안내가 뜬다 — 운영상 무해(켜지지 않음) |
+| 미결 그대로 | 콘텐츠 전부 영구 삭제로 다시 0건이 된 노출 주제의 FK 잔여 경로((a) 삭제 시 `user_interests` 확인 vs (b) 운영 규칙) |

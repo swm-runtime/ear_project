@@ -143,6 +143,8 @@ export enum ErrorCode {
   ADMIN_LICENSE_EXPIRED = 'ADMIN_LICENSE_EXPIRED',
   /** 콘텐츠가 배정된 주제는 삭제할 수 없다 — 숨김을 안내한다(admin.md 4.5) */
   ADMIN_TOPIC_HAS_CONTENTS = 'ADMIN_TOPIC_HAS_CONTENTS',
+  /** 콘텐츠 0건인 주제의 노출(is_visible=true) 켜기 거부 — admin.md 4.5(2026-09-15 번복), KAN-58 */
+  ADMIN_TOPIC_HAS_NO_CONTENTS = 'ADMIN_TOPIC_HAS_NO_CONTENTS',
   /** 저장소(S3·KVS) 업로드 실패 — 부분 업로드는 정리된다(admin.md 7) */
   ADMIN_STORAGE_FAILED = 'ADMIN_STORAGE_FAILED',
 
