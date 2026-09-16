@@ -58,7 +58,7 @@
 
 전환 이후 팀에 공유할 것: dev 머지는 개발계에만 반영 · 운영 반영은 dev→main PR(리뷰 1명) · 앱 테스트는 preview 빌드(TestFlight 내부/Play 내부 트랙)를 설치해 두면 dev 머지 시 개발계 API를 보는 OTA가 자동 반영, 스토어 앱은 main 머지 시 운영 API로 OTA · 네이티브 변경은 OTA 불가(빌드 재배포).
 
-**미결(그 단계에서 결정)**: 앱 preview 빌드의 번들 ID 분리 여부·배포 시점(FE 담당과) · 파이프라인·AI 서버 배포 트리거를 dev에 남길지(AI 파트와) · SSO 역할의 SSM 권한(후보 SSM 도입 시).
+**미결(그 단계에서 결정)**: 앱 preview 빌드의 번들 ID 분리 여부·배포 시점 → **FE 티켓 [KAN-65](https://runtime364.atlassian.net/browse/KAN-65)로 이관(2026-09-16, `tickets/frontend/pending/dev-api-test-method.md` — preview 채널 전환 또는 앱 내 스위치, FE 담당 선택)** · 파이프라인·AI 서버 배포 트리거를 dev에 남길지(AI 파트와) · SSO 역할의 SSM 권한(후보 SSM 도입 시).
 
 ## 후속 후보 (이 티켓 범위 밖)
 
