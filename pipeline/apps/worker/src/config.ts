@@ -78,7 +78,9 @@ export const cfg = {
   /** QA·수정 effort (2026-09-16 비용): QA 는 effort 미지정이라 CLI 기본(high)으로 sonnet 생각 1.8만~2.7만 = QA 비용의 56%. 2회차부터는 해소 확인이 주라 low */
   effortQa: envEffort("EFFORT_QA", "medium"),
   effortQaRecheck: envEffort("EFFORT_QA_RECHECK", "low"),
-  effortRevision: envEffort("EFFORT_REVISION", "medium"), // 비평은 회귀 세트로 편향을 재는 중 — 상한은 재검증(spec/09 7.4) 후에 (기본 없음)
+  effortRevision: envEffort("EFFORT_REVISION", "medium"),
+  /** 비평 effort (2026-09-16): 기본 없음(CLI 기본 high) — 점수가 사람 판정에 보정된 상태라 바꾸려면 판정된 편 재비평(critic-measure)으로 편향·플래그 유지를 확인한 뒤. 측정은 EFFORT_CRITIC=medium 으로 */
+  effortCritic: envEffort("EFFORT_CRITIC", null), // 비평은 회귀 세트로 편향을 재는 중 — 상한은 재검증(spec/09 7.4) 후에 (기본 없음)
   clusterModel: process.env.CLUSTER_MODEL || "claude-opus-5",
   /** 군집화 방식 (2026-09-09 ①): v2 = 축 먼저·역할·다양성(단발) · v1 = 유사성 묶기(현행, 기본). ③ 판정 3편 후 v2 로 전환 */
   clusterMode: (process.env.CLUSTER_MODE === "v2" ? "v2" : "v1") as "v1" | "v2",
