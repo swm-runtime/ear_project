@@ -23,7 +23,7 @@ CHECKS='"검증 (lint · build · 유닛 · e2e)"'
 
 BODY=$(cat <<JSON
 {
-  "required_status_checks": { "strict": true, "contexts": [ $CHECKS ] },
+  "required_status_checks": { "strict": false, "contexts": [ $CHECKS ] },
   "enforce_admins": true,
   "required_pull_request_reviews": {
     "required_approving_review_count": 1,
@@ -38,7 +38,8 @@ BODY=$(cat <<JSON
 }
 JSON
 )
-# strict=true: PR 브랜치가 main 최신을 포함해야 머지 가능 — dev→main 이라 항상 참이고, 누가 main 에 먼저 넣었으면 다시 검증하게 한다.
+# strict=false: "브랜치가 main 최신을 포함" 조건을 끈다. main 은 dev→main 머지 커밋을 자기만 갖게 되어 dev 가 항상 main 보다
+#   '뒤'로 보이므로 strict=true 면 모든 dev→main PR 이 BEHIND 로 막힌다(2026-09-16 23:10 실측). main 에는 dev 에서만 들어오니 경합이 없다.
 # required_linear_history=false: 머지 커밋을 허용한다(dev→main 은 머지 커밋으로 남겨 어느 dev 시점인지 추적).
 
 if [ -n "${DRY_RUN:-}" ]; then echo "$BODY"; exit 0; fi
