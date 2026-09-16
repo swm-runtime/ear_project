@@ -13,6 +13,7 @@ import {
 import { PLAYER_COPY } from '../player.copy';
 import { PauseIcon, PlayIcon } from './PlayerIcons';
 import { playbackService } from '../services/playback.service';
+import { useMiniPlayerLayoutStore } from '../store/mini-player-layout.store';
 import { usePlaybackStore } from '../store/playback.store';
 
 /** 미니플레이어 재생 버튼 아이콘 — 전체 플레이어보다 작게 */
@@ -55,6 +56,10 @@ export default function MiniPlayer({
 
   const [barWidth, setBarWidth] = useState(0);
   const translateX = useAnimatedValue(0);
+  // 플레이어 열림·닫힘 모션의 도착 지점 — 내 화면 좌표를 올려 두고, 사라질 땐 지운다
+  const rootRef = useRef<View>(null);
+  const setMiniLayout = useMiniPlayerLayoutStore((s) => s.setLayout);
+  useEffect(() => () => setMiniLayout(null), [setMiniLayout]);
 
   const isLiveVisible =
     session !== null &&
@@ -181,8 +186,15 @@ export default function MiniPlayer({
 
   return (
     <Animated.View
+      ref={rootRef}
       style={[styles.container, { transform: [{ translateX }], opacity: swipeOpacity }]}
-      onLayout={(event) => setBarWidth(event.nativeEvent.layout.width)}
+      onLayout={(event) => {
+        setBarWidth(event.nativeEvent.layout.width);
+        // 플레이어 열림·닫힘 모션의 도착 지점 — 화면 좌표로 올려 둔다(mini-player-layout.store)
+        rootRef.current?.measureInWindow((x, y, width, height) =>
+          setMiniLayout({ x, y, width, height }),
+        );
+      }}
       {...swipePanResponder.panHandlers}
     >
       <View

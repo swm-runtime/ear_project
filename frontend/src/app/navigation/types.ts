@@ -3,7 +3,7 @@ import type { NavigatorScreenParams } from '@react-navigation/native';
 import type { AuthStackParamList } from '@/features/auth';
 import type { ContentDetailEntryPoint } from '@/features/content-detail';
 import type { OnboardingStackParamList } from '@/features/onboarding';
-import type { PlayEntryPoint } from '@/features/player';
+import type { PlayEntryPoint, PlaybackStartMeta } from '@/features/player';
 
 /** 하단 탭 3개 — 라이브러리가 기본이고 설정은 탭이 아니라 프로필 안이다(library.md 2) */
 export type MainTabParamList = {
@@ -22,9 +22,15 @@ export type MainStackParamList = {
   /**
    * 플레이어(player.md). 게이트 통과 진입은 contentId만 넘긴다(재생은 PlaybackService가 이미
    * 시작). entryPoint·autoplay는 게이트를 거치지 않는 경로(미니플레이어 확대·푸시 딥링크)용 —
-   * 기본은 miniplayer·autoplay false다(FR-24 자동 재생 금지).
+   * 기본은 miniplayer·autoplay false다(FR-24 자동 재생 금지). meta는 목록이 이미 아는 제목·썸네일 —
+   * 넘기지 않으면 발급 응답이 올 때까지 플레이어·미니플레이어가 빈 채로 그려진다(2026-09-16).
    */
-  Player: { contentId: string; entryPoint?: PlayEntryPoint; autoplay?: boolean };
+  Player: {
+    contentId: string;
+    entryPoint?: PlayEntryPoint;
+    autoplay?: boolean;
+    meta?: PlaybackStartMeta;
+  };
   /**
    * 콘텐츠 상세(content-detail.md, FR-40) — 진입은 세 화면(라이브러리 L4·탐색 E12·플레이어
    * PL7) 더보기 시트의 [상세 정보]뿐이다. entryPoint는 [재생]의 entry_point 전달 값이자

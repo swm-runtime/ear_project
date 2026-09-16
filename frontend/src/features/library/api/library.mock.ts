@@ -43,12 +43,14 @@ const PAGE_SIZE = 20;
 
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
+// id는 interest mock(INTEREST_MOCK_TOPICS)과 같은 값 — 플레이어가 주제 목록에서 이름을 찾으므로
+// 두 mock의 id가 다르면 카테고리가 비어 보인다(2026-09-16). import 대신 값을 맞춘다(library → interest 의존 없음)
 const MOCK_TOPICS = [
-  { id: 'topic-career', name: '커리어' },
-  { id: 'topic-productivity', name: '생산성' },
-  { id: 'topic-tech', name: 'IT·테크' },
-  { id: 'topic-ai', name: '인공지능' },
-  { id: 'topic-psychology', name: '심리' },
+  { id: 'fb8bdf91-14b6-4bbc-8429-b45476167ddf', name: '커리어' },
+  { id: '08950c1f-8dc5-4912-84a1-0f33e56602cb', name: '생산성' },
+  { id: 'c7e55922-09b2-417d-a17b-ab7cc9df0f48', name: 'AI·테크 트렌드' },
+  { id: '1ccc9700-8455-42e6-8409-6e23aa8142b0', name: '커뮤니케이션' },
+  { id: 'cacf0479-847b-4ebf-9d53-1ca334fa8f7d', name: '리더십' },
 ];
 
 interface MockItem {

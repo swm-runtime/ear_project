@@ -62,8 +62,7 @@ export const useContentDetailScreen = () => {
     );
   };
 
-  const invalidateLibrary = () =>
-    void queryClient.invalidateQueries({ queryKey: libraryKeys.all });
+  const invalidateLibrary = () => void queryClient.invalidateQueries({ queryKey: libraryKeys.all });
   const invalidateDetail = () =>
     void queryClient.invalidateQueries({ queryKey: contentDetailKeys.detail(contentId) });
 
@@ -87,9 +86,7 @@ export const useContentDetailScreen = () => {
     if (redirectErrorCode === null || !isFocused || hasRedirectedRef.current) return;
     hasRedirectedRef.current = true;
     // 서버 message 우선(architecture.md 8.1) — 회수 안내는 세 화면 공통 문자열이다
-    showToast(
-      (isApiError(error) ? error.message : null) ?? CONTENT_DETAIL_COPY.withdrawnToast,
-    );
+    showToast((isApiError(error) ? error.message : null) ?? CONTENT_DETAIL_COPY.withdrawnToast);
     if (redirectErrorCode === ERROR_CODES.CONTENT_WITHDRAWN) {
       // 라이브러리에서 진입했다면 복귀한 목록도 갱신되어야 한다(library.md 회수 동기화)
       invalidateLibrary();
@@ -155,6 +152,7 @@ export const useContentDetailScreen = () => {
           sourceName: detail.content.sourceName,
           thumbnailUrl: detail.content.thumbnailUrl,
           durationSec: detail.content.durationSec,
+          topicIds: detail.content.topics.map((topic) => topic.id),
         },
         // 재생 시도 중 회수 — 재조회가 CD4 흐름(안내 후 복귀)을 태운다
         onWithdrawn: () => {
