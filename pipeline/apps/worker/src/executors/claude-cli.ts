@@ -43,6 +43,7 @@ export class ClaudeCliExecutor implements Executor {
       "--output-format", "stream-json", "--verbose",
       "--json-schema", JSON.stringify(req.schema),
       "--disable-slash-commands",
+      "--strict-mcp-config", // 사용자 설정의 MCP 서버(Slack 등)를 물려받지 않는다 (2026-09-16: 수정 재생성 기록에 "Slack MCP 미인증" 문장이 섞였다)
       "--no-session-persistence",
       "--permission-mode", "acceptEdits",
     ];

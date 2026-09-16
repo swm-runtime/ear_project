@@ -74,7 +74,11 @@ export const cfg = {
   /** 설계·대본 effort (2026-09-09): opus-5 는 적응형 생각이라 MAX_THINKING_TOKENS 를 무시한다(상한 8000 인데 대본 3.6만~14.5만 실측). `claude --effort` 만 듣는다.
    *  T260909-004 대본 실측 — high $2.02·생각 3.6만·11분 → medium $1.63·1.4만·7분(QA 1회 통과) → low $1.35·0.5만·4분(QA 실패 3: 필수 한계 누락·미근거). 기본 medium. 비우면 CLI 기본(high) */
   effortDesign: envEffort("EFFORT_DESIGN", "medium"),
-  effortWrite: envEffort("EFFORT_WRITE", "medium"), // 비평은 회귀 세트로 편향을 재는 중 — 상한은 재검증(spec/09 7.4) 후에 (기본 없음)
+  effortWrite: envEffort("EFFORT_WRITE", "medium"),
+  /** QA·수정 effort (2026-09-16 비용): QA 는 effort 미지정이라 CLI 기본(high)으로 sonnet 생각 1.8만~2.7만 = QA 비용의 56%. 2회차부터는 해소 확인이 주라 low */
+  effortQa: envEffort("EFFORT_QA", "medium"),
+  effortQaRecheck: envEffort("EFFORT_QA_RECHECK", "low"),
+  effortRevision: envEffort("EFFORT_REVISION", "medium"), // 비평은 회귀 세트로 편향을 재는 중 — 상한은 재검증(spec/09 7.4) 후에 (기본 없음)
   clusterModel: process.env.CLUSTER_MODEL || "claude-opus-5",
   /** 군집화 방식 (2026-09-09 ①): v2 = 축 먼저·역할·다양성(단발) · v1 = 유사성 묶기(현행, 기본). ③ 판정 3편 후 v2 로 전환 */
   clusterMode: (process.env.CLUSTER_MODE === "v2" ? "v2" : "v1") as "v1" | "v2",
