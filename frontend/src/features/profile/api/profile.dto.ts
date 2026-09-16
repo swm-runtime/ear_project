@@ -11,6 +11,8 @@ export type ProfileFailedSectionDto = 'plan' | 'interest_summary' | 'stats';
 export interface ProfileUserDto {
   /** null 허용 — 제공자가 주지 않으면 비어 있다(domain.md 3.1: 가입 시 미정) */
   nickname: string | null;
+  /** 제공자 프로필 사진 URL. null이면 이니셜·아이콘 폴백(profile-api.md 4.1, 2026-09-16) */
+  profile_image_url: string | null;
   provider: ProfileProviderDto;
   /** null = 미등록. is_email_verified와 항상 함께 온다(profile-api.md 4.1) */
   email: string | null;

@@ -160,6 +160,7 @@
   "user": {
     "id": "uuid",
     "nickname": "지훈",
+    "profile_image_url": "https://k.kakaocdn.net/dn/.../img_640x640.jpg",
     "email": "user@example.com",
     "is_email_verified": true,
     "provider": "kakao",
@@ -590,7 +591,7 @@
 // 200
 {
   "user": {
-    "id": "uuid", "nickname": null, "email": null, "is_email_verified": false,
+    "id": "uuid", "nickname": null, "profile_image_url": null, "email": null, "is_email_verified": false,
     "provider": "kakao", "tier": "light", "role": "user",
     "onboarding_completed": false, "onboarding_step": "topic"
   },

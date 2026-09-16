@@ -54,6 +54,7 @@ describe('AuthService', () => {
           email: 'user@example.com',
           isEmailVerified: true,
           nickname: '지훈',
+          profileImageUrl: 'https://k.kakaocdn.net/dn/profile.jpg',
         }),
       ),
     } as unknown as jest.Mocked<SocialProviderClient>;
@@ -66,6 +67,7 @@ describe('AuthService', () => {
       findByProvider: jest.fn(() => Promise.resolve(null)),
       getById: jest.fn(() => Promise.resolve(buildUser())),
       createUser: jest.fn(() => Promise.resolve(buildUser())),
+      syncProfileImageUrl: jest.fn((user: User) => Promise.resolve(user)),
     } as unknown as jest.Mocked<UserService>;
 
     consentService = {
@@ -81,10 +83,15 @@ describe('AuthService', () => {
       revokeByUserIdAndDeviceId: jest.fn(),
     } as unknown as jest.Mocked<SessionRepository>;
 
+    // 서명한 페이로드를 그대로 돌려주는 목 — signup token 왕복(발급→검증)을 spec 안에서 닫는다
+    let lastSignedPayload: unknown;
     const tokenService = new TokenService(
       {
-        sign: jest.fn(() => 'signed-token'),
-        verify: jest.fn(),
+        sign: jest.fn((payload: unknown) => {
+          lastSignedPayload = payload;
+          return 'signed-token';
+        }),
+        verify: jest.fn(() => lastSignedPayload),
       } as never,
       { get: jest.fn() } as never,
     );
@@ -136,6 +143,62 @@ describe('AuthService', () => {
       // then
       expect(result.status).toBe('authenticated');
       expect(sessionRepository.save).toHaveBeenCalledTimes(1);
+    });
+
+    it('기존 계정 로그인마다 제공자 프로필 사진 URL을 최신값으로 맞춘다', async () => {
+      // given
+      const user = buildUser();
+      userService.findByProvider.mockResolvedValue(user);
+
+      // when
+      await service.socialLogin(
+        {
+          provider: SocialProvider.KAKAO,
+          providerToken: 'token',
+          deviceId: 'device-1',
+        },
+        NOW,
+      );
+
+      // then
+      expect(userService.syncProfileImageUrl).toHaveBeenCalledWith(
+        user,
+        'https://k.kakaocdn.net/dn/profile.jpg',
+      );
+    });
+
+    it('가입 시 signup token에 실린 프로필 사진 URL로 계정을 만든다', async () => {
+      // given
+      userService.findByProvider.mockResolvedValue(null);
+      const login = await service.socialLogin(
+        {
+          provider: SocialProvider.KAKAO,
+          providerToken: 'token',
+          deviceId: 'device-1',
+        },
+        NOW,
+      );
+      if (login.status !== 'consent_required') {
+        throw new Error('consent_required를 기대했다');
+      }
+
+      // when
+      await service.signUp(
+        {
+          signupToken: login.signupToken,
+          deviceId: 'device-1',
+          consents: [],
+        },
+        NOW,
+      );
+
+      // then
+      expect(userService.createUser).toHaveBeenCalledWith(
+        expect.objectContaining({
+          profileImageUrl: 'https://k.kakaocdn.net/dn/profile.jpg',
+        }),
+        NOW,
+      );
     });
   });
 

@@ -21,6 +21,8 @@ export type EmailStatus = 'unregistered' | 'unverified' | 'verified';
 export interface ProfileUser {
   /** null 허용 — 제공자가 닉네임을 주지 않은 계정 */
   nickname: string | null;
+  /** 제공자 프로필 사진 URL — 파일이 아니라 제공자 CDN 주소다. null이면 폴백을 그린다 */
+  profileImageUrl: string | null;
   provider: SocialProvider;
   /** null이면 미등록 — isEmailVerified와 항상 함께 판정한다(profile-api.md 4.1) */
   email: string | null;

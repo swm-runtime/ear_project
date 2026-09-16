@@ -167,6 +167,7 @@ users
   email                     varchar         NULL 허용 (미제공 · 마스킹 주소)
   is_email_verified         boolean         DEFAULT false   ★소유 확인 완료 여부
   nickname                  varchar         NULL 허용 (가입 시 미정 · 온보딩에서 입력)
+  profile_image_url         varchar(2048)   NULL 허용 — 제공자 프로필 사진 URL. 파일이 아니라 제공자 CDN 주소만 보관하며 로그인마다 제공자 값으로 덮어쓴다(auth.md 4.1). 애플은 항상 NULL (도입 2026-09-16 — profile.md 미결 확정)
   role                      enum            user | admin          DEFAULT 'user'
   tier                      enum            light | daily | pro   DEFAULT 'light'   ★캐시
   status                    enum            active | withdrawn    DEFAULT 'active'   ※ 아래 주석

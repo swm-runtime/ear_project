@@ -141,6 +141,7 @@ export class UserService {
         email: command.email,
         isEmailVerified: command.isEmailVerified,
         nickname: command.nickname,
+        profileImageUrl: command.profileImageUrl,
         role: UserRole.USER,
         tier: UserTier.LIGHT,
         status: UserStatus.ACTIVE,
@@ -175,6 +176,24 @@ export class UserService {
     user.isEmailVerified = true;
 
     return this.userRepository.save(user, manager);
+  }
+
+  /**
+   * 로그인마다 제공자 프로필 사진 URL을 최신값으로 맞춘다 (auth.md 4.1).
+   * 제공자 CDN 주소는 사용자가 사진을 바꾸면 죽으므로 저장값을 오래 믿지 않는다.
+   * 같은 값이면 쓰지 않는다 — 로그인마다 `users` 행을 갱신할 이유가 없다.
+   */
+  async syncProfileImageUrl(
+    user: User,
+    profileImageUrl: string | null,
+  ): Promise<User> {
+    if (user.profileImageUrl === profileImageUrl) {
+      return user;
+    }
+
+    user.profileImageUrl = profileImageUrl;
+
+    return this.userRepository.save(user);
   }
 
   async deleteById(userId: string, manager?: EntityManager): Promise<void> {

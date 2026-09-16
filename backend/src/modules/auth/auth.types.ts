@@ -9,6 +9,12 @@ export interface SocialProfile {
   email: string | null;
   isEmailVerified: boolean;
   nickname: string | null;
+  /**
+   * 제공자 프로필 사진 URL (domain.md 3.1 `profile_image_url`, 2026-09-16 도입).
+   * 파일을 받아 저장하지 않고 제공자 CDN 주소만 보관한다. 제공자가 주지 않거나
+   * 기본 이미지면 null — 애플은 identity token에 사진이 없어 항상 null이다.
+   */
+  profileImageUrl: string | null;
 }
 
 export interface SocialLoginCommand {
