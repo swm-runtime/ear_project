@@ -4,7 +4,8 @@ name: deploy-api
 #   main 머지 → 운영   (GitHub Environment api-prod) + 태그 v<backend/package.json version>
 # 서버는 더 이상 빌드하지 않는다 — build-push 가 ECR 에 올린 커밋 SHA 이미지를 push.sh 가 pull 한다.
 # 검증(verify)과 배포(deploy)를 job 으로 나눈다 — 검증이 실패하면 SG 개폐·SSH 자체가 일어나지 않는다.
-# PR 에서는 검증 + "원본 브랜치 확인" 만 돈다. AWS 접근은 OIDC 역할 ear-ci-deploy(dev·main 신뢰) — 저장된 AWS 키 없음.
+# PR 에서는 검증 + "원본 브랜치 확인" 만 돈다. AWS 접근은 OIDC 역할 ear-ci-deploy — 저장된 AWS 키 없음.
+#   신뢰 sub: 브랜치(refs/heads/dev·main — verify·build-push) + environment:api-dev·api-prod(deploy — environment: 가 있는 job 은 sub 형식이 바뀐다).
 # 환경별 값(호스트·SG·Secrets 경로·헬스 URL)은 Environment 변수 vars.API_* 에, SSH 키는 secret CI_SSH_KEY_API 에 있다
 # (api-dev 는 환경 시크릿 = 개발계 키, api-prod 는 레포 시크릿 = 운영 키). 1회 설정: backend/deploy/aws/setup-ci.sh · setup-ci-envs.sh
 
