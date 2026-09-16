@@ -33,6 +33,7 @@ function buildCommand(consents: ConsentInput[]): CreateUserCommand {
     email: 'user@example.com',
     isEmailVerified: false,
     nickname: null,
+    profileImageUrl: null,
     consents,
   };
 }

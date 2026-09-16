@@ -114,6 +114,8 @@ export class AppleClient extends SocialProviderClient {
       // identity token에 이름이 없다. 클라이언트가 보낸 이름은 서명으로 검증할 수 없어
       // 쓰지 않는다(`architecture.md` 9.1 — 클라이언트 제공 프로필 불신).
       nickname: null,
+      // 애플은 프로필 사진을 어떤 경로로도 주지 않는다
+      profileImageUrl: null,
     };
   }
 

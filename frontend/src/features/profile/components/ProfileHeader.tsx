@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
 import PersonIcon from '@/shared/ui/PersonIcon';
@@ -13,6 +14,8 @@ import { PROFILE_COPY } from '../profile.copy';
 interface ProfileHeaderProps {
   /** null = 제공자가 주지 않은 계정. 카카오 닉네임은 선택 동의라 실제로 흔하다 */
   nickname: string | null;
+  /** 제공자 프로필 사진 URL. null이거나 로드에 실패하면 이니셜·사람 아이콘으로 대신 그린다 */
+  profileImageUrl: string | null;
   provider: SocialProvider;
   /** null = 제공자가 주지 않았거나 미등록 */
   email: string | null;
@@ -50,10 +53,9 @@ const AVATAR_ICON_SIZE = 36;
 /**
  * 헤더 — 프로필 사진 옆에 닉네임·이메일을 세로로 쌓아 가로로 배치한다(profile-uiux.md 4.1).
  *
- * **프로필 사진 원본이 아직 없다.** 서버 응답(`ProfileUserDto`)에도 `users` 테이블에도
- * 이미지 필드가 없어 **닉네임 첫 글자로, 닉네임도 없으면 사람 아이콘으로** 대신 그린다.
- * 제공자에게 이미지를 받아오려면 동의항목·컬럼·API 필드가 함께 필요하다 —
- * 그때 이 컴포넌트만 교체한다.
+ * **아바타는 제공자 프로필 사진이 1순위다**(`users.profile_image_url` — 2026-09-16 도입).
+ * 없거나 로드에 실패하면 **닉네임 첫 글자로, 닉네임도 없으면 사람 아이콘으로** 대신 그린다.
+ * 제공자 CDN 주소는 사용자가 사진을 바꾸면 죽으므로 실패를 오류로 띄우지 않고 폴백으로 넘긴다.
  *
  * 제공자는 아바타 우하단 배지로 붙인다. 명세 4.1이 요구하는 표시를 유지하면서
  * 닉네임·이메일의 세로 정렬을 흐트러뜨리지 않는다.
@@ -81,6 +83,7 @@ const planText = (vm: PlanCardVM): string => {
 
 export default function ProfileHeader({
   nickname,
+  profileImageUrl,
   provider,
   email,
   isEmailVerified,
@@ -98,12 +101,23 @@ export default function ProfileHeader({
    */
   const initial = trimmed === '' ? null : ([...trimmed][0] ?? null);
 
+  // 로드 실패는 URL 단위로 기억한다 — 새로고침으로 URL이 바뀌면 비교가 어긋나 저절로 다시 시도한다
+  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
+  const imageUrl =
+    profileImageUrl !== null && profileImageUrl !== failedImageUrl ? profileImageUrl : null;
+
   return (
     <View>
       <View style={styles.identityRow}>
         <View style={styles.avatarWrap}>
           <View style={styles.avatar} accessibilityElementsHidden importantForAccessibility="no">
-            {initial !== null ? (
+            {imageUrl !== null ? (
+              <Image
+                source={{ uri: imageUrl }}
+                style={styles.avatarImage}
+                onError={() => setFailedImageUrl(imageUrl)}
+              />
+            ) : initial !== null ? (
               <Text style={styles.initial}>{initial}</Text>
             ) : (
               <PersonIcon size={AVATAR_ICON_SIZE} color={theme.color.textSecondary} filled />
@@ -271,6 +285,13 @@ const styles = StyleSheet.create({
     backgroundColor: theme.color.surface,
     alignItems: 'center',
     justifyContent: 'center',
+    // 사진 모서리가 원 밖으로 나가지 않게 — 이미지에도 같은 반지름을 주지만 이중으로 막는다
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: AVATAR_SIZE / 2,
   },
   initial: {
     fontSize: theme.font.size.xl,

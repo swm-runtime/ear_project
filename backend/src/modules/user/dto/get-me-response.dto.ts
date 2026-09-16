@@ -23,6 +23,7 @@ import { PendingConsent } from '../user.types';
 class MeUserDto {
   readonly id: string;
   readonly nickname: string | null;
+  readonly profile_image_url: string | null;
   readonly email: string | null;
   readonly is_email_verified: boolean;
   readonly provider: SocialProvider;
@@ -47,6 +48,7 @@ export class GetMeResponseDto {
       user: {
         id: user.id,
         nickname: user.nickname,
+        profile_image_url: user.profileImageUrl,
         email: user.email,
         is_email_verified: user.isEmailVerified,
         provider: user.provider,

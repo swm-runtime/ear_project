@@ -40,6 +40,19 @@ export class User extends BaseEntity {
   @Column({ name: 'nickname', type: 'varchar', length: 50, nullable: true })
   nickname: string | null;
 
+  /**
+   * 제공자 프로필 사진 URL (domain.md 3.1, 2026-09-16). 파일을 받아 두지 않고 제공자
+   * CDN 주소만 보관하며, **로그인할 때마다 제공자 값으로 덮어쓴다** — 제공자 쪽에서
+   * 사진을 바꾸면 옛 URL이 죽으므로 저장값을 신뢰하지 않는다. null = 제공자가 주지 않음.
+   */
+  @Column({
+    name: 'profile_image_url',
+    type: 'varchar',
+    length: 2048,
+    nullable: true,
+  })
+  profileImageUrl: string | null;
+
   @Column({ name: 'role', type: 'varchar', length: 20, default: UserRole.USER })
   role: UserRole;
 

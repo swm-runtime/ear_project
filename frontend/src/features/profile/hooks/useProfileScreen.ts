@@ -187,6 +187,7 @@ export const useProfileScreen = () => {
     header: summary
       ? {
           nickname: summary.user.nickname,
+          profileImageUrl: summary.user.profileImageUrl,
           provider: summary.user.provider,
           email: summary.user.email,
           isEmailVerified: summary.user.isEmailVerified,

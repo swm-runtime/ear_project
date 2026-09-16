@@ -21,6 +21,8 @@ interface GoogleIdTokenPayload {
   /** 문자열로 오는 경우가 있어 boolean으로 단정하지 않는다 */
   email_verified?: boolean | string;
   name?: string;
+  /** ID 토큰 표준 클레임 — `profile` 스코프에 딸려온다 */
+  picture?: string;
 }
 
 const isFalse = (value: boolean | string | undefined): boolean =>
@@ -77,6 +79,7 @@ export class GoogleClient extends SocialProviderClient {
       // 간주하되, `email_verified`를 내려주면 그 값을 그대로 쓴다
       isEmailVerified: email !== null && !isFalse(payload.email_verified),
       nickname: payload.name ?? null,
+      profileImageUrl: payload.picture ?? null,
     };
   }
 

@@ -79,6 +79,7 @@ export default function ProfileScreen() {
             {screen.header !== null ? (
               <ProfileHeader
                 nickname={screen.header.nickname}
+                profileImageUrl={screen.header.profileImageUrl}
                 provider={screen.header.provider}
                 email={screen.header.email}
                 isEmailVerified={screen.header.isEmailVerified}

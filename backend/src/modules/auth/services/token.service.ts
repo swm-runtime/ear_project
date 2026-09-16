@@ -28,6 +28,7 @@ interface SignupTokenPayload {
   email: string | null;
   isEmailVerified: boolean;
   nickname: string | null;
+  profileImageUrl: string | null;
 }
 
 export interface IssuedToken {
@@ -82,6 +83,7 @@ export class TokenService {
       email: profile.email,
       isEmailVerified: profile.isEmailVerified,
       nickname: profile.nickname,
+      profileImageUrl: profile.profileImageUrl,
     };
 
     return {

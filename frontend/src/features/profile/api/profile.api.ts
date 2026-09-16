@@ -33,6 +33,7 @@ const toWeeklyListening = (dto: WeeklyListeningDto): WeeklyListening => ({
 const toProfileSummary = (dto: ProfileSummaryResponseDto): ProfileSummary => ({
   user: {
     nickname: dto.user.nickname,
+    profileImageUrl: dto.user.profile_image_url,
     provider: dto.user.provider,
     email: dto.user.email,
     isEmailVerified: dto.user.is_email_verified,
