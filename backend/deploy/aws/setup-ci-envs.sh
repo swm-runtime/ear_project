@@ -13,7 +13,8 @@
 #      - 변수    API_HOST · API_SG_ID · API_SECRET_ID · API_HEALTH_URL · LOG_GROUP_PREFIX (환경마다 다른 값 전부)
 #      기존 Preview·Production 환경은 Expo(EAS) 것이라 건드리지 않는다.
 #   3) IAM 역할 ear-ci-deploy
-#      - 신뢰 정책 sub 에 refs/heads/main 추가(dev 는 유지) — main 머지 배포가 OIDC 로 역할을 맡을 수 있게
+#      - 신뢰 정책 sub 에 refs/heads/main + environment:api-dev·api-prod 추가(dev 는 유지)
+#        (environment: 를 쓰는 배포 job 은 sub 가 environment 형식으로 바뀐다 — 브랜치 형식만으로는 배포 job 이 역할을 못 맡는다)
 #      - 인라인 sg-open-close-api-dev : 개발계 SG 22 번 개폐 + /ear-dev/* 로그 읽기
 #
 # 이 스크립트가 하지 **않는** 것: 워크플로 수정(6단계) · main 보호(7단계, setup-main-protection.sh) · 배포 스위치(8단계).
@@ -78,7 +79,11 @@ if [ -z "${SKIP_AWS:-}" ]; then
   TRUST_NEW=$(REPO="$REPO" python3 - "$TRUST_NOW" <<'PY'
 import json, os, sys
 doc = json.loads(sys.argv[1]); repo = os.environ["REPO"]
-want = [f"repo:{repo}:ref:refs/heads/dev", f"repo:{repo}:ref:refs/heads/main"]
+# 브랜치 형식(environment 없는 job: verify·build-push) + Environment 형식(environment: 를 쓰는 deploy job).
+# GitHub 은 job 에 environment 가 있으면 OIDC sub 를 "repo:<repo>:environment:<name>" 으로 발급한다 —
+# 브랜치 형식만 신뢰하면 배포 job 이 "Not authorized to perform sts:AssumeRoleWithWebIdentity" 로 죽는다(2026-09-16 실측).
+want = [f"repo:{repo}:ref:refs/heads/dev", f"repo:{repo}:ref:refs/heads/main",
+        f"repo:{repo}:environment:api-dev", f"repo:{repo}:environment:api-prod"]
 changed = False
 for st in doc["Statement"]:
     fed = st.get("Principal", {}).get("Federated", "")
@@ -99,7 +104,7 @@ PY
 )
   if [ -n "$TRUST_NEW" ]; then
     aws iam update-assume-role-policy --role-name "$CI_ROLE" --policy-document "$TRUST_NEW"
-    echo "신뢰 정책 갱신 — sub 에 refs/heads/main 추가"
+    echo "신뢰 정책 갱신 — sub 에 refs/heads/main · environment:api-dev · environment:api-prod 추가"
   else
     echo "신뢰 정책 이미 dev·main 포함"
   fi
