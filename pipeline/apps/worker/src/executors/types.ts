@@ -12,6 +12,9 @@ export interface Progress {
 
 export interface ExecRequest {
   prompt: string;
+  /** 편에 무관한 규칙·규격 블록 — claude --append-system-prompt-file 로 보낸다. 시스템 프롬프트는 프로세스가 달라도 캐시가 재사용되지만(실측 2026-09-16: 3.3만 토큰 cache_read),
+   *  사용자 메시지는 한 블록이라 앞부분이 같아도 재사용되지 않는다. --exclude-dynamic-system-prompt-sections 로 기본 시스템 프롬프트의 가변 절도 뺀다 */
+  systemPrompt?: string;
   /** JSON Schema — 결과는 반드시 이 형식 (claude -p --json-schema / API structured output) */
   schema: object;
   /** 허용 도구 규칙 (Claude Code 권한 규칙 문법: "Read", "Write(episodes/T…/**)", "WebFetch(domain:example.com)", "Bash(python3 *)") */
