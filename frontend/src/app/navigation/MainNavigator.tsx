@@ -6,7 +6,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/shared/theme';
 import TabBarIcon from '@/shared/ui/TabBarIcon';
 
-
 import { EmailVerificationScreen, useSessionStore, WithdrawalScreen } from '@/features/auth';
 import { CareerInfoScreen } from '@/features/career';
 import { ContentDetailScreen } from '@/features/content-detail';
@@ -131,12 +130,14 @@ export default function MainNavigator() {
     <>
       <MainStack.Navigator screenOptions={{ headerShown: false }}>
         <MainStack.Screen name="Tabs" component={MainTabs} />
-        {/* 플레이어 — 탭 위 풀스크린 모달(architecture.md 6.1). 앱바(셰브론·더보기)는 화면이
-          직접 그리고, 뒤로가기·아래로 스와이프는 축소다(재생 유지 — player-uiux.md 4.8) */}
+        {/* 플레이어 — 탭 위 모달(architecture.md 6.1). 앱바(셰브론·더보기)는 화면이 직접 그리고,
+          뒤로가기·아래로 스와이프는 축소다(재생 유지 — player-uiux.md 4.8).
+          투명 모달 + 전환 없음(2026-09-16): 열림·닫힘은 화면이 직접 그린다 — 라이브러리의 미니플레이어
+          자리에서 아트워크·제목이 커져 올라오고, 닫을 때 그 자리로 되돌아가 붙는다 */}
         <MainStack.Screen
           name="Player"
           component={PlayerScreen}
-          options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}
+          options={{ presentation: 'transparentModal', animation: 'none' }}
         />
         {/* 콘텐츠 상세 — 앱바(뒤로 + 타이틀)를 화면이 직접 그린다(content-detail-uiux.md 4.1).
           플레이어(모달) 위에도 쌓일 수 있다 — 진입해도 재생은 유지된다(content-detail.md 2장) */}

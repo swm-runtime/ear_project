@@ -346,6 +346,7 @@ export const useLibraryScreen = () => {
           sourceName: item.content.sourceName,
           thumbnailUrl: item.content.thumbnailUrl,
           durationSec: item.content.durationSec,
+          topicIds: item.content.topicIds,
         },
       },
       'library',
@@ -384,6 +385,12 @@ export const useLibraryScreen = () => {
         contentId: visibleResumeTarget.content.id,
         entryPoint: 'miniplayer',
         autoplay: false,
+        // 복원 스냅샷이 아는 메타 — 세션이 새로 열리며 미니플레이어가 빈 채로 깜빡이지 않게(2026-09-16)
+        meta: {
+          title: visibleResumeTarget.content.title,
+          thumbnailUrl: visibleResumeTarget.content.thumbnailUrl,
+          durationSec: visibleResumeTarget.content.durationSec,
+        },
       },
     });
   };

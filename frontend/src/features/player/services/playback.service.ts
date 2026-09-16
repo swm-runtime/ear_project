@@ -126,6 +126,7 @@ const initialSession = (request: StartPlaybackRequest): PlaybackSession => ({
     sourceUrl: null,
     thumbnailUrl: request.meta?.thumbnailUrl ?? null,
     contentVersion: null,
+    topicIds: request.meta?.topicIds ?? [],
   },
   libraryItem: null,
   isPlaying: false,
@@ -233,6 +234,8 @@ class PlaybackService {
           sourceUrl: issue.content.sourceUrl,
           thumbnailUrl: issue.content.thumbnailUrl,
           contentVersion: issue.content.contentVersion,
+          // 발급 응답에는 주제가 없다 — 진입 목록이 넘긴 값을 그대로 둔다
+          topicIds: store.getState().session?.meta.topicIds ?? [],
         },
         libraryItem: issue.libraryItem,
         durationSec: issue.content.durationSec,

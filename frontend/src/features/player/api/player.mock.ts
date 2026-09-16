@@ -19,6 +19,7 @@
 import { ApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
 
+import type { QueueItem, ScriptSegment } from '../player.types';
 import type {
   AudioUrlsResponseDto,
   PlaybackProgressDto,
@@ -239,4 +240,92 @@ export const mockSendReplaySignal = async (_contentId: string): Promise<void> =>
 /** POST /contents/:id/source-link-clicks의 대역 — 클릭 1회 = 1행 적재(player-api.md 4.5) */
 export const mockSendSourceLinkClick = async (_contentId: string): Promise<void> => {
   await delay(150);
+};
+
+/* ── 스크립트(PL6, P1) mock — 2인 대화체 대본을 재생 길이에 맞춰 문단으로 편다(2026-09-16 시연용) ── */
+
+const MOCK_SCRIPT_LINES: readonly [string, string][] = [
+  [
+    '윤아',
+    '오늘은 오래 일하는 사람들의 습관 이야기를 해볼게요. 이음 님은 하루를 어떻게 시작하세요?',
+  ],
+  ['이음', '저는 출근하면 메일부터 안 열어요. 제일 중요한 일 하나를 먼저 30분 잡고 시작합니다.'],
+  ['윤아', '메일을 먼저 열면 남의 우선순위로 하루가 시작된다는 얘기가 있죠.'],
+  [
+    '이음',
+    '맞아요. 그리고 오래 일하는 분들 공통점이 하나 있는데, 일을 끝내는 시간을 정해둔다는 거예요.',
+  ],
+  ['윤아', '끝내는 시간이요? 시작 시간이 아니라?'],
+  [
+    '이음',
+    '네. 끝이 정해져 있어야 그 안에서 뭘 버릴지 결정하게 되거든요. 무한정이면 다 붙잡고 있게 돼요.',
+  ],
+  [
+    '윤아',
+    '그게 번아웃이랑도 연결되는 것 같아요. 제 주변에 10년 넘게 한 분야에서 일하는 분들은 쉬는 걸 잘하더라고요.',
+  ],
+  ['이음', '쉬는 것도 기술이죠. 회복이 안 되면 다음 날 집중력이 반으로 떨어지니까요.'],
+  ['윤아', '두 번째 습관으로 넘어가 볼까요. 기록이요.'],
+  ['이음', '오래 일하는 사람들은 자기 실수를 기록해요. 잘한 건 기억이 나는데 실수는 반복하거든요.'],
+  ['윤아', '실수 노트 같은 거네요. 저는 주간 회고를 쓰는데 비슷한 효과가 있어요.'],
+  [
+    '이음',
+    '회고에서 중요한 건 "다음엔 뭘 다르게 할까" 한 줄이에요. 감상만 쓰면 다음 주에 똑같아요.',
+  ],
+  ['윤아', '세 번째는 관계 얘기를 해보고 싶어요. 혼자 오래 일하긴 어렵잖아요.'],
+  ['이음', '동료한테 먼저 묻는 사람이 오래 가요. 모르는 걸 숨기는 데 쓰는 에너지가 생각보다 커요.'],
+  ['윤아', '질문하는 게 약점이 아니라는 걸 아는 팀이면 더 그렇죠.'],
+  [
+    '이음',
+    '그리고 자기 일의 의미를 스스로 설명할 수 있어야 해요. 왜 이 일을 하는지 한 문장으로요.',
+  ],
+  ['윤아', '그 문장이 흔들릴 때가 이직 신호일 수도 있고요.'],
+  ['이음', '네, 그래서 가끔 꺼내 보는 게 좋아요. 1년에 한 번쯤은요.'],
+  [
+    '윤아',
+    '정리해 볼게요. 제일 중요한 일부터, 끝내는 시간을 정하고, 실수를 기록하고, 먼저 묻고, 의미를 말할 수 있을 것.',
+  ],
+  ['이음', '다섯 개 중에 하나만 이번 주에 해보셔도 충분해요. 다 하려고 하면 그게 또 오래 못 가요.'],
+  ['윤아', '오늘 이야기는 여기까지예요. 내일 출근길에 또 만나요.'],
+  ['이음', '고맙습니다. 편안한 하루 보내세요.'],
+];
+
+/**
+ * 스크립트 mock — 길이를 문단 수로 나눠 균등하게 시간을 붙인다. AI 생성 콘텐츠(seq % 5 === 3)는
+ * "스크립트 없음"으로 두어 손잡이 미노출 경로(uiux 4.6)를 함께 확인한다.
+ */
+export const getMockScript = async (
+  contentId: string,
+  durationSec: number,
+): Promise<ScriptSegment[] | null> => {
+  await delay(RESPONSE_DELAY_MS);
+  if (isMockAiGeneratedContent(contentId)) return null;
+
+  const total = Math.max(durationSec, 60);
+  const step = total / MOCK_SCRIPT_LINES.length;
+  return MOCK_SCRIPT_LINES.map(([speaker, text], index) => ({
+    startSec: Math.round(index * step),
+    endSec: Math.round((index + 1) * step),
+    speaker,
+    text,
+  }));
+};
+
+/* ── 다음 재생 목록 mock(2026-09-16 시연용) — 현재 콘텐츠 다음 번호부터 6편. 실제 순서 규칙은 미정 ── */
+
+const MOCK_QUEUE_TOPICS = ['생산성', 'AI·테크 트렌드', '커뮤니케이션', '리더십', '커리어'] as const;
+
+export const getMockQueue = async (contentId: string): Promise<QueueItem[]> => {
+  await delay(RESPONSE_DELAY_MS);
+  const seq = Number(contentId.replace(/\D/g, '')) || 1;
+  return Array.from({ length: 6 }, (_, offset) => {
+    const next = seq + offset + 1;
+    const topic = MOCK_QUEUE_TOPICS[next % MOCK_QUEUE_TOPICS.length];
+    return {
+      contentId: `content-${next}`,
+      title: `${topic} 이야기 ${next} — 오래 일하는 사람들의 습관`,
+      durationSec: 240 + (next % 5) * 30,
+      thumbnailUrl: `https://picsum.photos/seed/content-${next}/200`,
+    };
+  });
 };
