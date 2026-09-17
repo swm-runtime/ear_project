@@ -3,6 +3,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { APP_VERSION, APP_VERSION_LABEL } from '@/shared/lib/app-version';
+import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
 import { theme } from '@/shared/theme';
 import ConfirmDialog from '@/shared/ui/ConfirmDialog';
 
@@ -86,16 +87,19 @@ export default function SettingsScreen() {
               ) : null}
             </SettingsSection>
 
-            <SettingsSection title={SETTINGS_COPY.sections.subscription}>
-              {screen.planRow !== null ? (
-                <PlanSummaryCard
-                  state={screen.planRow}
-                  onPress={screen.openPlan}
-                  onRetry={screen.retry}
-                  isRetrying={screen.isRetrying}
-                />
-              ) : null}
-            </SettingsSection>
+            {/* 구독 섹션 — 결제 구현 전 MVP 바이너리에서는 그리지 않는다(KAN-66, feature-flags.ts) */}
+            {IS_SUBSCRIPTION_UI_ENABLED ? (
+              <SettingsSection title={SETTINGS_COPY.sections.subscription}>
+                {screen.planRow !== null ? (
+                  <PlanSummaryCard
+                    state={screen.planRow}
+                    onPress={screen.openPlan}
+                    onRetry={screen.retry}
+                    isRetrying={screen.isRetrying}
+                  />
+                ) : null}
+              </SettingsSection>
+            ) : null}
           </>
         )}
 

@@ -10,7 +10,10 @@ export const PLAYER_COPY = {
     label: (remaining: number, limit: number) => `${remaining}/${limit}`,
     /** "1/2"가 "일 슬래시 이"로 읽히지 않게 한다(library-uiux.md 7) */
     a11yLabel: (remaining: number, limit: number) => `오늘 재생 ${limit}회 중 ${remaining}회 남음`,
-    a11yLabelExhausted: '오늘 재생 0회 남음, 구독 안내 열기',
+    /** 결제 구현 전 MVP 바이너리(KAN-66) — 구독 안내를 읽지 않는다. 탭은 한도 안내 토스트만 띄운다 */
+    a11yLabelExhausted: '오늘 재생 0회 남음',
+    /** 구독 UI 가 켜진 빌드에서만(feature-flags.ts) — library-uiux.md 7장 원문 */
+    a11yLabelExhaustedWithPaywall: '오늘 재생 0회 남음, 구독 안내 열기',
   },
 
   /** L3 재생 확인 팝업(library-uiux.md 4.6) — 탐색 E4도 같은 팝업이다(explore-uiux.md 4.5) */

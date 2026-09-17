@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
 import { theme } from '@/shared/theme';
 
 import { PLAYER_COPY } from '../player.copy';
@@ -45,7 +46,11 @@ export default function RemainingPlaysIndicator({
       style={[styles.row, styles.exhaustedButton]}
       onPress={onExhaustedPress}
       accessibilityRole="button"
-      accessibilityLabel={PLAYER_COPY.remaining.a11yLabelExhausted}
+      accessibilityLabel={
+        IS_SUBSCRIPTION_UI_ENABLED
+          ? PLAYER_COPY.remaining.a11yLabelExhaustedWithPaywall
+          : PLAYER_COPY.remaining.a11yLabelExhausted
+      }
     >
       <HeadphonesIcon size={ICON_SIZE} color={theme.color.danger} />
       <Text style={styles.exhaustedLabel}>{PLAYER_COPY.remaining.label(0, limit)}</Text>

@@ -9,8 +9,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
 import { theme } from '@/shared/theme';
 import FullScreenError from '@/shared/ui/FullScreenError';
+
 
 import { WITHDRAWAL_REASON_CODES } from '../auth.constants';
 import { AUTH_COPY } from '../auth.copy';
@@ -159,7 +161,10 @@ export default function WithdrawalScreen() {
                 {/* 5. 탈퇴 사유(선택) — 식별자 없이 해시로만 남는다(domain.md 3.4) */}
                 <Text style={styles.sectionLabel}>{COPY.reason.label}</Text>
                 <View style={styles.chipRow}>
-                  {WITHDRAWAL_REASON_CODES.map((code) => {
+                  {WITHDRAWAL_REASON_CODES.filter(
+                    // 결제 구현 전 MVP 바이너리(KAN-66) — 구독을 언급하는 사유는 고를 수 없다
+                    (code) => IS_SUBSCRIPTION_UI_ENABLED || code !== 'price',
+                  ).map((code) => {
                     const isSelected = screen.reasonCode === code;
                     return (
                       <Pressable
