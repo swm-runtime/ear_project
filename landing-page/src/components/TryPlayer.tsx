@@ -266,6 +266,9 @@ export function TryPlayer() {
           </p>
         ) : null}
 
+        {/* 파형 — 소리와 무관한 장식이다(결정 2026-09-18). 재생 중에만 움직이고 멈추면 잔잔해진다 */}
+        <Waveform active={isPlaying} muted={isLocked} />
+
         {/* 시크바 — 채워진 만큼을 --p 로 넘겨 트랙 배경을 그린다 */}
         <div className={s.seek} style={{ ["--p" as string]: `${progress}%` }}>
           <input
@@ -340,6 +343,50 @@ export function TryPlayer() {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** 막대 수. 카드 폭에 맞춰 CSS가 gap을 조절하므로 개수는 고정이다 */
+const WAVE_BARS = 56;
+
+/**
+ * 파형 한 줄 — **소리를 분석하지 않는 장식**이다(결정 2026-09-18: 실제 분석 파형은 CloudFront의
+ * CORS 헤더에 의존해 비용 대비 이득이 작았다).
+ *
+ * 막대마다 기준 높이(`--h`)와 주기·지연을 결정론적으로 다르게 주어 매번 같은 모양이면서도
+ * 서로 어긋나게 움직인다. 재생 중(`active`)에만 애니메이션이 붙고, 멈추면 기준 높이로 부드럽게
+ * 내려앉는다. 잠긴 상태(`muted`)에서는 채도를 낮춘다. prefers-reduced-motion이면 CSS가 애니메이션을
+ * 끄고 정지 막대만 보인다(globals.css). 순수 장식이라 스크린리더에서는 숨긴다.
+ */
+function Waveform({ active, muted }: { active: boolean; muted: boolean }) {
+  const bars = Array.from({ length: WAVE_BARS }, (_, i) => {
+    // 가운데가 높고 양끝이 낮은 완만한 봉우리 + 짧은 주기의 잔물결. 0.18~0.95 사이
+    const t = i / (WAVE_BARS - 1);
+    const hill = Math.sin(Math.PI * t);
+    const ripple = 0.5 + 0.5 * Math.sin(i * 1.7) * Math.cos(i * 0.6);
+    const h = 0.18 + 0.77 * (0.55 * hill + 0.45 * ripple) * (0.6 + 0.4 * hill);
+    const duration = 0.9 + ((i * 37) % 7) * 0.1; // 0.9~1.5s
+    const delay = -(((i * 53) % 11) / 11) * duration; // 시작 위상을 흩는다
+    return (
+      <span
+        key={i}
+        className={s.waveBar}
+        style={{
+          ["--h" as string]: h.toFixed(3),
+          animationDuration: `${duration.toFixed(2)}s`,
+          animationDelay: `${delay.toFixed(2)}s`,
+        }}
+      />
+    );
+  });
+
+  return (
+    <div
+      className={`${s.wave} ${active ? s.waveActive : ""} ${muted ? s.waveMuted : ""}`}
+      aria-hidden="true"
+    >
+      {bars}
     </div>
   );
 }
