@@ -44,7 +44,11 @@
   min-width: 0;
 }
 
+/* 제목·출처는 API에서 오는 글자라 빌드 서브셋(Pretendard·Paperlogy)에 없을 수 있다.
+   동적 서브셋 "Pretendard Variable"(lib/dynamic-font.ts)을 먼저 두고, 그 뒤는 평소 스택이다.
+   제목은 다른 소제목(Paperlogy)과 서체가 살짝 다르다 — Paperlogy 동적 서브셋 CSS는 770KB라 뺐다. */
 .meta {
+  font-family: "Pretendard Variable", var(--sans);
   font-size: 12.5px;
   font-weight: 600;
   letter-spacing: 0.01em;
@@ -53,6 +57,8 @@
 
 .trackTitle {
   margin-top: 4px;
+  font-family: "Pretendard Variable", var(--sans);
+  font-weight: 800;
   font-size: clamp(17px, 2vw, 21px);
   line-height: 1.35;
   letter-spacing: -0.03em;
@@ -473,6 +479,7 @@
 }
 
 .miniTitle {
+  font-family: "Pretendard Variable", var(--sans);
   font-size: 14px;
   font-weight: 700;
   letter-spacing: -0.02em;

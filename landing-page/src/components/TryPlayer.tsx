@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PUBLIC_API_BASE_URL, trySample } from "@/content/site";
+import { ensureDynamicFont } from "@/lib/dynamic-font";
 import s from "./TrySample.module.css";
 
 /** `GET /public/sample` 응답(public-api.md 2.2). 표시에 필요한 값과 서명 URL만 온다 */
@@ -124,6 +125,8 @@ export function TryPlayer() {
   const load = useCallback(async () => {
     try {
       const body = await fetchSample();
+      // 제목·출처는 서버에서 오는 글자라 빌드 서브셋에 없을 수 있다 — 동적 서브셋 폰트를 이때 꽂는다
+      ensureDynamicFont();
       setSample(toSample(body));
       setDurationSec(body.content.duration_sec);
       applyAudio(body);

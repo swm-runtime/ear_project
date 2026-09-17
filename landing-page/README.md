@@ -113,6 +113,8 @@ npm run build && bash scripts/subset-fonts.sh && npm run build
 
 서브셋에 없는 글자는 시스템 글꼴로 떨어져서 한 문장 안에서 서체가 섞여 보인다. (필요: `python3`, `curl`)
 
+API에서 오는 동적 텍스트(Try 플레이어의 콘텐츠 제목·출처)는 빌드 때 알 수 없어 서브셋으로 덮지 못한다. 그 요소는 Pretendard **동적 서브셋**(jsDelivr, `src/lib/dynamic-font.ts`)을 필요할 때 한 번 꽂아 쓴다 — 새 동적 텍스트 자리가 생기면 같은 가족명(`"Pretendard Variable"`)을 CSS에 앞세우고 `ensureDynamicFont()`를 부른다.
+
 공유 이미지 문구(`scripts/og-pages.mjs`)를 고쳤다면 그쪽 서브셋도 따로 만든다.
 
 ```bash
