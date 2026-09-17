@@ -13,6 +13,8 @@ interface SeekBarProps {
   /** 오디오 준비 전에는 조작을 받지 않는다(player-uiux.md 4.3) */
   disabled: boolean;
   onSeekTo: (targetSec: number) => void;
+  /** 사진 위에 얹힐 때(재생 목록 열림) — 트랙·라벨을 흰색 계열로 */
+  tone?: 'default' | 'onImage';
 }
 
 /**
@@ -20,7 +22,14 @@ interface SeekBarProps {
  * (player-uiux.md 4.2 — 드래그마다 오디오를 끊으면 위치를 고르는 동안 소리가 튄다).
  * 완청 기준선(90%) 등 판정 지점 표식은 그리지 않는다(8장 금지 사항).
  */
-export default function SeekBar({ positionSec, durationSec, disabled, onSeekTo }: SeekBarProps) {
+export default function SeekBar({
+  positionSec,
+  durationSec,
+  disabled,
+  onSeekTo,
+  tone = 'default',
+}: SeekBarProps) {
+  const onImage = tone === 'onImage';
   const [trackWidth, setTrackWidth] = useState(0);
   const [dragPositionSec, setDragPositionSec] = useState<number | null>(null);
 
@@ -97,8 +106,10 @@ export default function SeekBar({ positionSec, durationSec, disabled, onSeekTo }
           onSeekTo(Math.max(0, positionSec + delta));
         }}
       >
-        <View style={styles.track}>
-          <View style={[styles.fill, { width: `${ratio * 100}%` }]} />
+        <View style={[styles.track, onImage && styles.trackOnImage]}>
+          <View
+            style={[styles.fill, onImage && styles.fillOnImage, { width: `${ratio * 100}%` }]}
+          />
           {/* 전체 폭으로 흘리면 0%·100%에서 손잡이 절반이 화면 밖으로 나간다 —
               측정한 폭 안으로 가둬 항상 온전히 보이게 한다 */}
           <View
@@ -113,14 +124,19 @@ export default function SeekBar({ positionSec, durationSec, disabled, onSeekTo }
                       )
                     : 0,
               },
-              disabled && styles.thumbDisabled,
+              onImage && styles.fillOnImage,
+              disabled && (onImage ? styles.thumbDisabledOnImage : styles.thumbDisabled),
             ]}
           />
         </View>
       </View>
       <View style={styles.timeRow} importantForAccessibility="no-hide-descendants">
-        <Text style={styles.timeLabel}>{formatPlaybackTime(displaySec)}</Text>
-        <Text style={styles.timeLabel}>{formatPlaybackTime(durationSec)}</Text>
+        <Text style={[styles.timeLabel, onImage && styles.timeLabelOnImage]}>
+          {formatPlaybackTime(displaySec)}
+        </Text>
+        <Text style={[styles.timeLabel, onImage && styles.timeLabelOnImage]}>
+          {formatPlaybackTime(durationSec)}
+        </Text>
       </View>
     </View>
   );
@@ -164,5 +180,18 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.xs,
     color: theme.color.textSecondary,
     fontVariant: ['tabular-nums'],
+  },
+  // 사진 위 — 어두운 오버레이 위에서 읽히는 흰색 계열(재생 목록 열림, 2026-09-17)
+  trackOnImage: {
+    backgroundColor: 'rgba(255, 255, 255, 0.35)',
+  },
+  fillOnImage: {
+    backgroundColor: '#FFFFFF',
+  },
+  thumbDisabledOnImage: {
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  timeLabelOnImage: {
+    color: 'rgba(255, 255, 255, 0.85)',
   },
 });
