@@ -64,11 +64,12 @@
 // 200
 { "items": [
   { "id": "...", "name": "생산성", "parent_category": "자기계발",
-    "is_visible": true, "display_order": 1, "content_count": 12 }
+    "is_visible": true, "display_order": 1, "content_count": 12, "visible_content_count": 10 }
 ] }
 ```
 
 - **`content_count`는 조회 시 집계한다.** `topics`에 컬럼을 두지 않는다 — 파생값이라 컬럼과 집계가 어긋날 수 있다(`admin.md` 4.5).
+- **`content_count`는 원시 연결 건수**(회수·만료 포함 — 4.4 삭제 판정), **`visible_content_count`는 노출 가능 건수**(`published` + 라이선스 미만료 — 4.3 노출 판정)다(추가 2026-09-17, KAN-58). 콘솔은 `is_visible = false`이고 `visible_content_count = 0`인 주제의 노출 켜기를 비활성으로 그린다.
 
 ### 4.2 `POST /admin/topics`
 
@@ -86,7 +87,8 @@
 
 200으로 갱신된 항목을 반환한다.
 
-- **콘텐츠 0건인 주제의 `is_visible: true`를 서버가 거부하지 않는다.** 경고 확인은 콘솔이 수행하고 서버는 기록만 남긴다(`admin.md` 4.5 — 판정이 아니라 확인 UX다).
+- 409 `ADMIN_TOPIC_HAS_NO_CONTENTS` — `is_visible` false → true 전이인데 **노출 가능 콘텐츠가 0건**이다. `content_count: 0`을 싣고 주제는 바뀌지 않는다. 이미 노출 중인 주제의 다른 필드 수정·끄기는 판정하지 않는다(`admin.md` 4.5 — 개정 2026-09-17, 종전 "서버가 거부하지 않는다"를 번복). 콘솔은 서버 `message`를 표시하고 목록을 재조회한다.
+- 노출 중인 주제가 0건이 되면 서버가 자동으로 숨긴다(회수 4.7 · 재발행 주제 교체 4.10 · 매일 04:15 일일 판정). 이 엔드포인트를 거치지 않으며 감사 로그 `topic.auto_hide`로 남는다.
 
 ### 4.4 `DELETE /admin/topics/:topicId`
 
@@ -272,6 +274,7 @@
 | `ADMIN_LICENSE_EXPIRED` | 400 | false | 4.6 — 만료된 파트너 라이선스 |
 | `FORBIDDEN` | 403 | false | 전 라우트 — `role != admin` |
 | `ADMIN_TOPIC_HAS_CONTENTS` | 409 | false | 4.4 — `details.content_count` |
+| `ADMIN_TOPIC_HAS_NO_CONTENTS` | 409 | false | 4.3 — 노출 가능 콘텐츠 0건인 주제의 노출 켜기. `details.content_count = 0` |
 | `CONFLICT` | 409 | false | 4.7 — 이미 회수됨 / 4.8 — 회수 상태가 아님 / 4.10 · 4.11 — `withdrawn`이 아님 |
 | `VALIDATION_FAILED` | 400 | false | 4.10 — 파트가 하나도 없음(`details.field = "audio"`) / `sources` 교체가 `origin`의 공시 규칙에 어긋남(`details.field = "sources"`) |
 | `ADMIN_STORAGE_FAILED` | 502 | **true** | 4.6·4.10 — 저장소 실패 |

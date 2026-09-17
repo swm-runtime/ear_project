@@ -115,7 +115,7 @@ export class AdminController {
   @Get('topics')
   async listTopics(): Promise<AdminTopicListResponseDto> {
     return AdminTopicListResponseDto.from(
-      await this.adminTopicService.findAll(),
+      await this.adminTopicService.findAll(new Date()),
     );
   }
 
@@ -140,12 +140,17 @@ export class AdminController {
     @Body() request: UpdateTopicRequestDto,
   ): Promise<AdminTopicItemDto> {
     return AdminTopicItemDto.from(
-      await this.adminTopicService.update(currentUser.id, topicId, {
-        name: request.name,
-        parentCategory: request.parent_category,
-        isVisible: request.is_visible,
-        displayOrder: request.display_order,
-      }),
+      await this.adminTopicService.update(
+        currentUser.id,
+        topicId,
+        {
+          name: request.name,
+          parentCategory: request.parent_category,
+          isVisible: request.is_visible,
+          displayOrder: request.display_order,
+        },
+        new Date(),
+      ),
     );
   }
 

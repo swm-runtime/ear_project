@@ -289,6 +289,7 @@ NetworkState  { reachable, connection_type }                        // 클라이
 | `ADMIN_TOPIC_NOT_FOUND` | 400 | false | 존재하지 않는 주제가 포함됨. 주제 목록 재조회 후 선택 초기화. **숨김 주제는 허용된다** |
 | `ADMIN_LICENSE_EXPIRED` | 400 | false | 만료일이 지난 파트너 콘텐츠 업로드 (`partner-control.md` 4.4). 라이선스 갱신 전에는 재시도해도 같다 |
 | `ADMIN_TOPIC_HAS_CONTENTS` | 409 | false | 콘텐츠가 있는 주제 삭제 시도 (`admin.md` 4.5). `details.content_count`를 안내에 쓴다 |
+| `ADMIN_TOPIC_HAS_NO_CONTENTS` | 409 | false | 노출 가능 콘텐츠가 0건인 주제의 노출 켜기 (`admin.md` 4.5, 2026-09-17). 서버 문구를 표시하고 주제 목록을 재조회한다 — 콘텐츠를 먼저 발행해야 하므로 재시도해도 같다 |
 | `ADMIN_STORAGE_FAILED` | 502 | **true** | 저장소 실패. 4.2의 자동 재시도 대상이다 |
 
 - 신설(2026-08-30 — 관리자 웹 콘솔 도입). **발행 요청서는 "6장"으로 적었으나 에러 코드 표는 9장이다** — 6장은 `ApiError`의 필드 규격만 정한다(9장 머리말). 여기 등재한다.

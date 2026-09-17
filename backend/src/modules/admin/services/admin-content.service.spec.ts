@@ -17,6 +17,7 @@ import { LibraryService } from '@/modules/library/library.service';
 import { PlaybackService } from '@/modules/playback/services/playback.service';
 
 import { AdminContentService } from './admin-content.service';
+import { TopicExposureService } from './topic-exposure.service';
 import {
   RepublishContentCommand,
   UploadContentCommand,
@@ -112,6 +113,7 @@ describe('AdminContentService', () => {
   let libraryService: jest.Mocked<LibraryService>;
   let playbackService: jest.Mocked<PlaybackService>;
   let topicService: jest.Mocked<TopicService>;
+  let topicExposureService: jest.Mocked<TopicExposureService>;
   let auditLogService: jest.Mocked<AuditLogService>;
   let storage: jest.Mocked<ContentStorageClient>;
   let audioProbe: jest.Mocked<AudioProbe>;
@@ -179,6 +181,10 @@ describe('AdminContentService', () => {
         .mockResolvedValue([{ id: TOPIC_ID, name: '이직' } as Topic]),
     } as unknown as jest.Mocked<TopicService>;
 
+    topicExposureService = {
+      hideEmptyTopics: jest.fn().mockResolvedValue([]),
+    } as unknown as jest.Mocked<TopicExposureService>;
+
     auditLogService = {
       record: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<AuditLogService>;
@@ -208,6 +214,7 @@ describe('AdminContentService', () => {
       libraryService,
       playbackService,
       topicService,
+      topicExposureService,
       auditLogService,
       storage,
       audioProbe,
@@ -478,6 +485,31 @@ describe('AdminContentService', () => {
           action: 'content.withdraw',
           target: `content:${CONTENT_ID}`,
         }),
+        manager,
+      );
+    });
+
+    it('회수하면 그 콘텐츠의 주제 중 노출 콘텐츠가 0건이 된 주제를 같은 트랜잭션에서 숨긴다', async () => {
+      // given — 회수로 주제의 마지막 노출분이 빠질 수 있다(admin.md 4.5, KAN-58)
+      contentService.findTopicViews.mockResolvedValue([
+        { contentId: CONTENT_ID, topicId: TOPIC_ID, name: '이직' },
+      ]);
+
+      // when
+      await service.withdraw(ACTOR_ID, CONTENT_ID, '품질 문제', NOW);
+
+      // then
+      expect(contentService.findTopicViews).toHaveBeenCalledWith(
+        [CONTENT_ID],
+        manager,
+      );
+      expect(topicExposureService.hideEmptyTopics).toHaveBeenCalledWith(
+        {
+          topicIds: [TOPIC_ID],
+          actor: ACTOR_ID,
+          trigger: 'withdraw',
+          now: NOW,
+        },
         manager,
       );
     });
@@ -782,6 +814,40 @@ describe('AdminContentService', () => {
         errorCode: ErrorCode.ADMIN_AUDIO_UNREADABLE,
       });
       expect(storage.putAudio).not.toHaveBeenCalled();
+    });
+
+    it('주제를 교체하면 교체 전 주제 중 노출 콘텐츠가 0건이 된 주제를 숨긴다', async () => {
+      // given — 빠진 주제의 마지막 노출분이 이 콘텐츠였을 수 있다(KAN-58)
+      const previousTopicId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+      contentService.findTopicViews.mockResolvedValue([
+        { contentId: CONTENT_ID, topicId: previousTopicId, name: '연봉' },
+      ]);
+      const command = buildRepublishCommand({ topicIds: [TOPIC_ID] });
+
+      // when
+      await service.republish(command);
+
+      // then — 교체 **전에** 읽은 주제로 판정한다(교체 뒤에 읽으면 빠진 주제를 알 수 없다)
+      expect(topicExposureService.hideEmptyTopics).toHaveBeenCalledWith(
+        containing({
+          topicIds: [previousTopicId],
+          actor: ACTOR_ID,
+          trigger: 'republish',
+        }),
+        manager,
+      );
+      const readOrder =
+        contentService.findTopicViews.mock.invocationCallOrder[0];
+      const replaceOrder = contentService.republish.mock.invocationCallOrder[0];
+      expect(readOrder).toBeLessThan(replaceOrder);
+    });
+
+    it('주제를 바꾸지 않은 재발행은 주제 숨김을 판정하지 않는다', async () => {
+      // when
+      await service.republish(buildRepublishCommand());
+
+      // then — 주제 연결이 그대로면 노출 건수도 그대로다
+      expect(topicExposureService.hideEmptyTopics).not.toHaveBeenCalled();
     });
 
     it('존재하지 않는 주제로 교체하려 하면 거부한다', async () => {
