@@ -17,6 +17,7 @@ import { DatabaseModule } from '@/database/database.module';
 import { AdminModule } from '@/modules/admin/admin.module';
 import { AuthModule } from '@/modules/auth/auth.module';
 import { ContentDetailModule } from '@/modules/content-detail/content-detail.module';
+import { NoticeModule } from '@/modules/notice/notice.module';
 import { DripBatchModule } from '@/modules/drip-batch/drip-batch.module';
 import { ExploreModule } from '@/modules/explore/explore.module';
 import { HealthModule } from '@/modules/health/health.module';
@@ -69,6 +70,7 @@ import { UserModule } from '@/modules/user/user.module';
     ExploreModule,
     DripBatchModule,
     ContentDetailModule,
+    NoticeModule,
     ProfileModule,
     SettingsModule,
     PartnerModule,

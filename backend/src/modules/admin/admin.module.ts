@@ -5,6 +5,7 @@ import { AudioDelivery, EnvironmentVariables } from '@/config/env.validation';
 import { ContentModule } from '@/modules/content/content.module';
 import { InterestModule } from '@/modules/interest/interest.module';
 import { LibraryModule } from '@/modules/library/library.module';
+import { NoticeModule } from '@/modules/notice/notice.module';
 import { PartnerModule } from '@/modules/partner/partner.module';
 import { PlaybackModule } from '@/modules/playback/playback.module';
 
@@ -17,6 +18,7 @@ import { AdminContentService } from './services/admin-content.service';
 import { AdminSystemStatsService } from './services/admin-system-stats.service';
 import { ResourceAlertService } from './services/resource-alert.service';
 import { AdminTopicService } from './services/admin-topic.service';
+import { AdminNoticeService } from './services/admin-notice.service';
 import { TopicExposureService } from './services/topic-exposure.service';
 import { TopicExposureScheduler } from './topic-exposure.scheduler';
 
@@ -37,6 +39,8 @@ import { TopicExposureScheduler } from './topic-exposure.scheduler';
     ContentModule,
     InterestModule,
     LibraryModule,
+    // 공지 관리(KAN-67) — notice 는 admin 을 모르므로 순환이 없다
+    NoticeModule,
     PartnerModule,
     PlaybackModule,
   ],
@@ -45,6 +49,7 @@ import { TopicExposureScheduler } from './topic-exposure.scheduler';
     AdminContentService,
     AdminSystemStatsService,
     AdminTopicService,
+    AdminNoticeService,
     TopicExposureService,
     TopicExposureScheduler,
     ResourceAlertService,

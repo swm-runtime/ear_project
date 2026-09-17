@@ -50,6 +50,19 @@ import {
 } from './dto/republish-content-request.dto';
 import { WithdrawContentRequestDto } from './dto/withdraw-content-request.dto';
 import { UpdateTopicRequestDto } from './dto/update-topic-request.dto';
+import { CreateNoticeRequestDto } from './dto/create-notice-request.dto';
+import { UpdateNoticeRequestDto } from './dto/update-notice-request.dto';
+import {
+  AdminNoticeItemDto,
+  AdminNoticeListResponseDto,
+} from './dto/admin-notice-item.dto';
+import { AdminNoticeService } from './services/admin-notice.service';
+import { GetNoticesQueryRequestDto } from '@/modules/notice/dto/get-notices-query-request.dto';
+import { NOTICE_LIST_DEFAULT_LIMIT } from '@/modules/notice/notice.constant';
+import {
+  decodeAdminNoticeCursor,
+  encodeAdminNoticeCursor,
+} from '@/modules/notice/notice.cursor';
 import {
   UploadContentFormRequestDto,
   UploadContentRequestDto,
@@ -101,6 +114,7 @@ export class AdminController {
     private readonly adminSystemStatsService: AdminSystemStatsService,
     private readonly adminTopicService: AdminTopicService,
     private readonly resourceAlertService: ResourceAlertService,
+    private readonly adminNoticeService: AdminNoticeService,
   ) {}
 
   /** 자원·DB 부하 스냅샷 — 로그 콘솔 서버 상태 탭 (읽기 전용, 부작용 없음) */
@@ -161,6 +175,91 @@ export class AdminController {
     @Param('topicId', ParseUUIDPipe) topicId: string,
   ): Promise<void> {
     await this.adminTopicService.remove(currentUser.id, topicId);
+  }
+
+  /** admin-api.md 4.12 — 초안·예약 포함 전체, 작성 최신순 */
+  @Get('notices')
+  async listNotices(
+    @Query() query: GetNoticesQueryRequestDto,
+  ): Promise<AdminNoticeListResponseDto> {
+    const page = await this.adminNoticeService.findPage(
+      query.cursor ? decodeAdminNoticeCursor(query.cursor) : null,
+      query.limit ?? NOTICE_LIST_DEFAULT_LIMIT,
+    );
+    const last = page.items[page.items.length - 1];
+
+    return AdminNoticeListResponseDto.from(
+      page.items,
+      page.hasNext && last
+        ? encodeAdminNoticeCursor({ createdAt: last.createdAt, id: last.id })
+        : null,
+    );
+  }
+
+  /** admin-api.md 4.13 — `published_at` 없으면 초안 */
+  @Post('notices')
+  async createNotice(
+    @CurrentUser() currentUser: AuthenticatedUser,
+    @Body() request: CreateNoticeRequestDto,
+  ): Promise<AdminNoticeItemDto> {
+    return AdminNoticeItemDto.from(
+      await this.adminNoticeService.create(currentUser.id, {
+        title: request.title,
+        body: request.body,
+        isPinned: request.is_pinned ?? false,
+        publishedAt: request.published_at
+          ? new Date(request.published_at)
+          : null,
+      }),
+    );
+  }
+
+  /** admin-api.md 4.14 — 담긴 키만. `published_at: null`은 발행 취소 */
+  @Patch('notices/:noticeId')
+  async updateNotice(
+    @CurrentUser() currentUser: AuthenticatedUser,
+    @Param('noticeId') noticeId: string,
+    @Body() request: UpdateNoticeRequestDto,
+  ): Promise<AdminNoticeItemDto> {
+    // 바꿀 키가 하나도 없으면 400 — 형식이 아니라 조합의 문제라 DTO가 아니다(설정 PATCH와 같은 규칙).
+    // 통과시키면 변화 없는 `notice.update` 감사 기록만 쌓인다
+    if (
+      request.title === undefined &&
+      request.body === undefined &&
+      request.is_pinned === undefined &&
+      request.published_at === undefined
+    ) {
+      throw new BusinessException({
+        status: HttpStatus.BAD_REQUEST,
+        errorCode: ErrorCode.VALIDATION_FAILED,
+        message: '바꿀 항목이 없어요',
+        logLevel: 'warn',
+      });
+    }
+
+    return AdminNoticeItemDto.from(
+      await this.adminNoticeService.update(currentUser.id, noticeId, {
+        title: request.title,
+        body: request.body,
+        isPinned: request.is_pinned,
+        publishedAt:
+          request.published_at === undefined
+            ? undefined
+            : request.published_at === null
+              ? null
+              : new Date(request.published_at),
+      }),
+    );
+  }
+
+  /** admin-api.md 4.15 — soft delete. 사용자 목록·상세에서 즉시 사라진다 */
+  @Delete('notices/:noticeId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteNotice(
+    @CurrentUser() currentUser: AuthenticatedUser,
+    @Param('noticeId') noticeId: string,
+  ): Promise<void> {
+    await this.adminNoticeService.remove(currentUser.id, noticeId);
   }
 
   @Get('contents')

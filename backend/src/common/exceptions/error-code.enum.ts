@@ -85,6 +85,15 @@ export enum ErrorCode {
    */
   CAREER_JOB_CATEGORY_UNAVAILABLE = 'CAREER_JOB_CATEGORY_UNAVAILABLE',
 
+  // --- 공지사항 (settings-api.md 5장 · admin-api.md 5장, KAN-67) ---
+  /** 커서 형식 오류, 또는 사용자·관리자 목록 커서를 서로 바꿔 넣음 — 클라이언트는 첫 페이지부터 다시 조회한다 */
+  NOTICE_CURSOR_INVALID = 'NOTICE_CURSOR_INVALID',
+  /**
+   * 공지가 없거나 삭제됨. 사용자 조회에서는 **초안·예약 발행도 같은 코드다** — 발행 전 글의 존재를
+   * 드러내지 않는다. 앱은 "삭제된 공지예요" 안내 후 목록으로 돌아간다
+   */
+  NOTICE_NOT_FOUND = 'NOTICE_NOT_FOUND',
+
   // --- 라이브러리 (library-api.md 5장) ---
   /** 커서 형식 오류, 또는 발급 시점과 다른 `filter`·`sort`·`topic_filter` */
   LIBRARY_CURSOR_INVALID = 'LIBRARY_CURSOR_INVALID',

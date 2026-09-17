@@ -142,3 +142,13 @@ idx_notices_list (is_pinned DESC, published_at DESC) WHERE deleted_at IS NULL
 - Given `domain.md` / When `notices` 를 찾는다 / Then 위 스키마와 소유 모듈이 있다
 - Given `admin-api.md` / When 공지 관리 4건을 찾는다 / Then 요청·검증·에러가 있다
 - Given `frontend/architecture.md` 4.4 / When notice 행을 본다 / Then settings → notice 의존이 없다고 적혀 있다
+
+## 처리 기록
+
+| 항목 | 값 |
+|---|---|
+| 부분 반영 | 2026-09-17 — **C(계약)·D(스키마)·관리자 부분**을 KAN-67 BE PR에서 반영: `spec/api/settings-api.md` 3·4.4·4.5·5·9장 · `spec/api/admin-api.md` 3·4.12~4.15·5장 · `features/admin.md` 4.5-1 · `backend/domain.md` 2장·9.2·12.1 · `features/common-error-handling.md` 9.10-1 · `backend/architecture.md` 4.5 |
+| 계약 구체화 | 관리자 목록 응답 형태(본문 포함, `created_at DESC` 정렬), 커서 오류 코드 `NOTICE_CURSOR_INVALID` 신설, 공백만 있는 제목·본문 거부, 감사 로그 `notice.*` — 요청서에 없던 부분을 BE가 정해 문서에 적었다 |
+| 남은 것 | **A(`features/settings.md` 4.1·4.7) · B(`spec/uiux/settings-uiux.md`) · E(`frontend/architecture.md` 4.4)** — FE 소유 문서라 FE 통합 때 반영. 반영되면 archive로 옮긴다 |
+| 보류 | 삭제 30일 뒤 hard delete 배치 — `domain.md` 12.1에 정책만 적고 구현하지 않았다(공지는 수십 건 규모) |
+
