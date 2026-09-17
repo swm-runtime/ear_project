@@ -1,6 +1,8 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+
+import { topicImageSource } from '@/features/interest';
 
 import type { InterestCardVM, SectionState } from '../hooks/useProfileScreen';
 import { PROFILE_COPY } from '../profile.copy';
@@ -29,6 +31,11 @@ const cardA11y = (vm: InterestCardVM): string =>
  * [관심 주제 관리] 카드 — 관심사 관리 화면 진입점(profile-uiux.md 4.5).
  * 칩은 표시 전용이다 — 탭해도 개별 편집이 아니라 카드와 같은 목적지다(개별 편집을 열면
  * 저장 규칙이 두 벌이 된다). 대표 3개는 서버 응답 순서의 앞 3개 그대로다.
+ *
+ * 칩 시각은 온보딩 1단계·관심사 관리의 알약과 같다 — 사진 배경 + 어두운 오버레이 + 흰 라벨
+ * (`TopicChip`). 같은 주제를 세 화면에서 서로 다른 모양으로 보여주면 같은 것으로 읽히지 않는다.
+ * 여기서는 `TopicChip`을 쓰지 않고 사진만 빌려 온다 — 그쪽은 체크박스(선택 토글)라
+ * 표시 전용인 이 카드에 쓰면 낭독기가 "선택 안 됨"으로 읽는다.
  */
 export default function InterestCard({ state, onPress, onRetry, isRetrying }: InterestCardProps) {
   const hasError = state.kind === 'error';
@@ -40,24 +47,35 @@ export default function InterestCard({ state, onPress, onRetry, isRetrying }: In
       hasError={hasError}
       onRetry={onRetry}
       isRetrying={isRetrying}
+      labelAccessory={
+        state.kind === 'data' ? (
+          <Text style={styles.count}>{PROFILE_COPY.interest.count(state.data.count)}</Text>
+        ) : undefined
+      }
     >
       {state.kind === 'data' ? (
-        <View style={styles.content}>
-          <Text style={styles.count}>{PROFILE_COPY.interest.count(state.data.count)}</Text>
-          <View style={styles.chips}>
-            {state.data.topTopics.map((topic) => (
-              <View key={topic.id} style={styles.chip}>
-                <Text style={styles.chipText}>{topic.name}</Text>
-              </View>
-            ))}
-            {state.data.overflowCount !== null ? (
-              <View style={[styles.chip, styles.overflowChip]}>
-                <Text style={styles.chipText}>
-                  {PROFILE_COPY.interest.overflow(state.data.overflowCount)}
-                </Text>
-              </View>
-            ) : null}
-          </View>
+        <View style={styles.chips}>
+          {state.data.topTopics.map((topic) => (
+            <View key={topic.id} style={styles.chip}>
+              <Image
+                source={topicImageSource(topic.name)}
+                resizeMode="cover"
+                style={styles.photo}
+              />
+              <View style={styles.overlay} />
+              <Text style={styles.chipText} numberOfLines={1}>
+                {topic.name}
+              </Text>
+            </View>
+          ))}
+          {state.data.overflowCount !== null ? (
+            // "외 N개"는 주제가 아니다 — 사진을 깔면 없는 주제의 사진처럼 읽힌다
+            <View style={[styles.chip, styles.overflowChip]}>
+              <Text style={[styles.chipText, styles.overflowText]} numberOfLines={1}>
+                {PROFILE_COPY.interest.overflow(state.data.overflowCount)}
+              </Text>
+            </View>
+          ) : null}
         </View>
       ) : null}
     </ProfileCard>
@@ -65,11 +83,9 @@ export default function InterestCard({ state, onPress, onRetry, isRetrying }: In
 }
 
 const styles = StyleSheet.create({
-  content: {
-    gap: theme.spacing.sm,
-  },
   count: {
     fontSize: theme.font.size.md,
+    fontWeight: '600',
     color: theme.color.textPrimary,
   },
   chips: {
@@ -78,18 +94,54 @@ const styles = StyleSheet.create({
     gap: theme.spacing.xs,
   },
   chip: {
-    backgroundColor: theme.color.background,
-    borderRadius: theme.radius.lg,
-    borderWidth: 1,
-    borderColor: theme.color.border,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs,
+    // 알약 — 사진·오버레이 클리핑은 여기서 한 번만 한다(TopicChip과 같은 구조)
+    borderRadius: theme.radius.full,
+    overflow: 'hidden',
+    minHeight: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    /*
+     * **패딩을 칩이 갖지 않는다.** 배경 사진의 `width/height: '100%'`가 부모의 콘텐츠
+     * 박스(패딩 제외)로 풀려서, 칩에 패딩이 있으면 알약 가장자리에 배경이 드러난다
+     * (TopicChip이 iOS 실기기에서 겪은 것과 같은 문제). 좌우 여백은 아래 chipText가 갖는다.
+     */
+  },
+  /** 배경 사진 — inset과 퍼센트 크기를 함께 준다(웹에서 inset만으로는 원본 크기가 남는다) */
+  photo: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+  },
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.42)',
   },
   overflowChip: {
     backgroundColor: theme.color.surface,
+    borderWidth: 1,
+    borderColor: theme.color.border,
   },
   chipText: {
+    // 칩이 아니라 라벨이 좌우 여백을 갖는다 — 위 chip 주석 참조
+    paddingHorizontal: theme.spacing.md,
     fontSize: theme.font.size.xs,
+    fontWeight: '700',
+    color: theme.color.onPrimary,
+    textShadowColor: 'rgba(0, 0, 0, 0.45)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  overflowText: {
+    fontWeight: '600',
     color: theme.color.textSecondary,
+    textShadowColor: 'transparent',
   },
 });

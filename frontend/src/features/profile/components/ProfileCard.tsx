@@ -18,6 +18,11 @@ interface ProfileCardProps {
   hasError: boolean;
   onRetry: () => void;
   isRetrying: boolean;
+  /**
+   * 라벨 오른쪽에 붙는 요약값(예: "2개 선택"). 라벨과 한 줄로 읽히는 짧은 값만 둔다 —
+   * 본문으로 내리면 요약 한 줄에 카드 높이를 한 줄 더 쓰게 된다. 에러 상태에서는 그리지 않는다.
+   */
+  labelAccessory?: ReactNode;
   children: ReactNode;
 }
 
@@ -32,6 +37,7 @@ export default function ProfileCard({
   hasError,
   onRetry,
   isRetrying,
+  labelAccessory,
   children,
 }: ProfileCardProps) {
   const readsAsSingleUnit = a11yLabel !== null && !hasError;
@@ -44,7 +50,10 @@ export default function ProfileCard({
       accessibilityLabel={readsAsSingleUnit ? a11yLabel : undefined}
     >
       <View style={styles.body}>
-        <Text style={styles.label}>{label}</Text>
+        <View style={styles.labelRow}>
+          <Text style={styles.label}>{label}</Text>
+          {!hasError && labelAccessory !== undefined ? labelAccessory : null}
+        </View>
         {hasError ? (
           <View style={styles.errorRow}>
             <Text style={styles.errorText}>{PROFILE_COPY.cardError}</Text>
@@ -89,6 +98,13 @@ const styles = StyleSheet.create({
   body: {
     flex: 1,
     gap: theme.spacing.xs,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    // 동적 텍스트 200%에서 요약값이 다음 줄로 내려가게 둔다 — 고정 높이를 두지 않는다(convention.md 3.4)
+    flexWrap: 'wrap',
   },
   label: {
     fontSize: theme.font.size.xs,
