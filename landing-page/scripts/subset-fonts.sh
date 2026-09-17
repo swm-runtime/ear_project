@@ -36,7 +36,11 @@ echo "2/4  Pretendard $PRETENDARD_VERSION 내려받기"
 curl -sSfL -o "$WORK/var.ttf" \
   "https://cdn.jsdelivr.net/npm/pretendard@$PRETENDARD_VERSION/dist/public/variable/PretendardVariable.ttf"
 
-echo "3/4  out/ 의 HTML에서 쓰인 글자 추출"
+echo "3/4  out/ 의 HTML + src/ 의 문구 파일에서 쓰인 글자 추출"
+# HTML만 보면 **클라이언트에서만 그려지는 문구**(API 응답 뒤에 바뀌는 상태 문구·토스트 등)가
+# 빠진다 — 실제로 Try 플레이어의 "준비하고 있어요"가 빠져 서체가 섞였다(2026-09-18). 그래서
+# 문구의 원천(src/content)과 컴포넌트 안 문자열(src/components·src/app)도 함께 훑는다.
+# API에서 오는 동적 텍스트(콘텐츠 제목 등)는 여기서 알 수 없다 — 그 자리는 CSS가 따로 처리한다.
 python3 - "$WORK/chars.txt" <<'PY'
 import html, pathlib, re, sys
 
@@ -45,6 +49,10 @@ for path in pathlib.Path("out").rglob("*.html"):
     body = path.read_text(encoding="utf-8").split("<body", 1)[-1]
     body = re.sub(r"<script.*?</script>", " ", body, flags=re.S)
     chars |= set(html.unescape(re.sub(r"<[^>]+>", " ", body)))
+
+for pattern in ("src/content/**/*.ts", "src/components/**/*.tsx", "src/app/**/*.tsx"):
+    for path in pathlib.Path(".").glob(pattern):
+        chars |= set(path.read_text(encoding="utf-8"))
 
 chars = {c for c in chars if c.isprintable() and not c.isspace()}
 pathlib.Path(sys.argv[1]).write_text("".join(sorted(chars)), encoding="utf-8")
