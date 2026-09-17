@@ -1,7 +1,13 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useEffect, useRef, useState } from 'react';
 
-import { ReconsentScreen, SplashScreen, sessionService, useSessionStore } from '@/features/auth';
+import {
+  ReconsentScreen,
+  SplashScreen,
+  sessionService,
+  useSessionStore,
+  useSplashStore,
+} from '@/features/auth';
 import { useShareLinkGate } from '@/features/share';
 
 import AuthNavigator from './AuthNavigator';
@@ -11,9 +17,6 @@ import OnboardingNavigator from './OnboardingNavigator';
 import type { RootStackParamList } from './types';
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
-
-/** 스플래시 최소 노출(splash.md 4-6) — 판정이 더 빨리 끝나도 이만큼은 유지한다 */
-const SPLASH_MIN_MS = 800;
 
 /**
  * 루트 분기 — 세션 상태로 스택을 조건 렌더링하므로 로그인·탈퇴·세션 만료 시
@@ -36,10 +39,11 @@ export default function RootNavigator() {
   useShareLinkGate();
 
   /**
-   * 최소 노출(4-6) — 판정이 순식간에 끝나도 스플래시를 이만큼 유지한다. mock 이나 캐시된
-   * 응답이면 판정이 몇십 ms 에 끝나 화면이 번쩍인다.
+   * 최소 노출(4-6) — 판정이 순식간에 끝나도 로고 모션이 끝날 때까지 스플래시를 유지한다. mock 이나
+   * 캐시된 응답이면 판정이 몇십 ms 에 끝나 화면이 번쩍인다. 끝난 시점은 SplashScreen 이 영상의
+   * 재생 위치로 판정해 올린다(모션 축소 설정이면 0.8초, 영상이 못 뜨면 최대 6초 안전장치).
    */
-  const [isMinElapsed, setIsMinElapsed] = useState(false);
+  const isMotionDone = useSplashStore((s) => s.isMotionDone);
   /**
    * 마지막 탭을 다 읽었는가(splash.md 4장 4-1). **이걸 기다리지 않으면 탭이 라이브러리로
    * 먼저 마운트되고, 마운트 직후 기록이 저장값을 덮어써 다음 실행도 계속 실패한다.**
@@ -58,13 +62,8 @@ export default function RootNavigator() {
     void primeTabToRestore().finally(() => setIsTabPrimed(true));
   }, []);
 
-  useEffect(() => {
-    const timer = setTimeout(() => setIsMinElapsed(true), SPLASH_MIN_MS);
-    return () => clearTimeout(timer);
-  }, []);
-
-  // 판정 전이거나·최소 노출 전이거나·마지막 탭을 아직 못 읽었으면 스플래시를 유지한다
-  const isGatePending = status === 'restoring' || !isMinElapsed || !isTabPrimed;
+  // 판정 전이거나·로고 모션 전이거나·마지막 탭을 아직 못 읽었으면 스플래시를 유지한다
+  const isGatePending = status === 'restoring' || !isMotionDone || !isTabPrimed;
 
   return (
     <RootStack.Navigator screenOptions={{ headerShown: false }}>

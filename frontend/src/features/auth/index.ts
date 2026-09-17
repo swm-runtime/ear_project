@@ -5,6 +5,8 @@
 export { default as ProviderIcon } from './components/ProviderIcon';
 export { default as ReconsentScreen } from './screens/ReconsentScreen';
 export { default as SplashScreen } from './screens/SplashScreen';
+/** 스플래시 로고 모션 완료 — 관문(RootNavigator)이 최소 노출 판정에 읽는다(splash.md 4-6) */
+export { useSplashStore } from './store/splash.store';
 export { default as StartScreen } from './screens/StartScreen';
 export { default as TermsConsentScreen } from './screens/TermsConsentScreen';
 export { default as EmailVerificationScreen } from './screens/EmailVerificationScreen';
