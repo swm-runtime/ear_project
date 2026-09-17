@@ -9,6 +9,7 @@ import { billingNotes, planComparison } from "@/content/site";
 import { breadcrumb, graph } from "@/lib/schema";
 import { routeMetadata } from "@/lib/seo";
 import s from "./page.module.css";
+import { Sentences } from "@/components/Sentences";
 
 export const metadata: Metadata = routeMetadata("pricing");
 
@@ -45,11 +46,8 @@ export default function PricingPage() {
         <div className="container">
           <p className="eyebrow">Compare</p>
           <h2 className="sectionTitle">무엇이 같고, 무엇이 다를까요</h2>
-          {/* 문장 단위로 줄을 끊는다 — 두 문장이 애매한 자리에서 감기면 읽기 흐름이 깨진다(피드백 2026-09-18) */}
           <p className="sectionLede">
-            모든 요금제에서 같은 콘텐츠를 받아요.
-            <br />
-            요금제가 올라갈수록 하루에 더 많이 들을 수 있어요.
+            <Sentences text="모든 요금제에서 같은 콘텐츠를 받아요. 요금제가 올라갈수록 하루에 더 많이 들을 수 있어요." />
           </p>
 
           <div className={s.compareGrid}>
@@ -93,8 +91,7 @@ export default function PricingPage() {
           <p className="eyebrow">Billing</p>
           <h2 className="sectionTitle">결제와 해지</h2>
           <p className="sectionLede">
-            구독은 앱 스토어의 인앱 결제로 해요. 결제 전에 알아 두면 좋은 것들을
-            모았어요.
+            <Sentences text="구독은 앱 스토어의 인앱 결제로 해요. 결제 전에 알아 두면 좋은 것들을 모았어요." />
           </p>
 
           <ol className={s.billing}>

@@ -1,4 +1,5 @@
 import s from "./Faq.module.css";
+import { Sentences } from "./Sentences";
 
 /**
  * 아코디언을 native <details>/<summary>로 만든다.
@@ -57,7 +58,11 @@ export function Faq({
           <div className={s.head}>
             <p className="eyebrow">FAQ</p>
             <h2 className="sectionTitle">{title}</h2>
-            {lede && <p className={s.headLede}>{lede}</p>}
+            {lede && (
+              <p className={s.headLede}>
+                <Sentences text={lede} />
+              </p>
+            )}
             {footer && <div className={s.headFooter}>{footer}</div>}
           </div>
 

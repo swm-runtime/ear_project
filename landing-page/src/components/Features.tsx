@@ -1,5 +1,6 @@
 import { icons, type IconName } from "./Icons";
 import s from "./Features.module.css";
+import { Sentences } from "./Sentences";
 
 export type FeatureItem = {
   icon: string;
@@ -34,7 +35,11 @@ export function Features({
       <div className="container">
         <p className="eyebrow">{eyebrow}</p>
         <h2 className="sectionTitle">{title}</h2>
-        {lede && <p className="sectionLede">{lede}</p>}
+        {lede && (
+          <p className="sectionLede">
+            <Sentences text={lede} />
+          </p>
+        )}
 
         <ul className={s.grid}>
           {items.map((f) => (

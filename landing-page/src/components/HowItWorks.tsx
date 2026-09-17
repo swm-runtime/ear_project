@@ -1,5 +1,6 @@
 import { steps } from "@/content/site";
 import s from "./HowItWorks.module.css";
+import { Sentences } from "./Sentences";
 
 export function HowItWorks() {
   return (
@@ -11,7 +12,7 @@ export function HowItWorks() {
             <h2 className="sectionTitle">고르지 않아도, 매일 도착해요</h2>
           </div>
           <p className={s.headLede}>
-            처음에 주제만 고르면 끝이에요. 그다음부터는 앱을 열기만 하면 돼요.
+            <Sentences text="처음에 주제만 고르면 끝이에요. 그다음부터는 앱을 열기만 하면 돼요." />
           </p>
         </div>
 
@@ -31,8 +32,7 @@ export function HowItWorks() {
         </ol>
 
         <p className={s.footnote}>
-          고른 주제에 맞는 콘텐츠가 라이브러리에 알아서 쌓여요. 무료 요금제도 똑같이
-          받아요.
+          <Sentences text="고른 주제에 맞는 콘텐츠가 라이브러리에 알아서 쌓여요. 무료 요금제도 똑같이 받아요." />
         </p>
       </div>
     </section>
