@@ -86,7 +86,7 @@
 | Google OAuth 웹 클라이언트 | GCP — `475643832949-q10v…snist` | 콘솔 로그인(GIS ID 토큰) + 서버 `GOOGLE_WEB_CLIENT_ID`. JS 원본에 `https://admin.earcast.co.kr` |
 | 관리자 계정 | 승격 완료 — 콘솔로 콘텐츠 10편 발행 중(2026-09-15) | 추가 승격은 [`runbook.md`](runbook.md) 2장 |
 | GitHub Environments | `api-dev`(브랜치 dev만) · `api-prod`(main만) — 2026-09-16 | 변수 `API_HOST`·`API_SG_ID`·`API_SECRET_ID`·`API_HEALTH_URL`·`LOG_GROUP_PREFIX`. 시크릿 `CI_SSH_KEY_API`는 `api-dev`에만(운영은 레포 시크릿). `Preview`·`Production`은 Expo(EAS) 것 — 백엔드와 무관. 생성·갱신 `deploy/aws/setup-ci-envs.sh` |
-| GitHub 브랜치 보호 `main` | 필수 체크 `검증 (lint · build · 유닛 · e2e)`·`원본 브랜치 확인 (dev)` · 리뷰 1 · 관리자 포함 · force push·삭제 금지 · **strict 꺼짐** — 2026-09-16 `setup-main-protection.sh` | dev 보호는 검증 체크만(리뷰 없음). main 머지 = 운영 배포 + `v<package.json version>` 태그(첫 태그 `v1.0.0` = `808e526`) |
+| GitHub 브랜치 보호 `main` | 필수 체크 `검증 (lint · build · 유닛 · e2e)`·`원본 브랜치 확인 (dev)` · 리뷰 1 · 관리자 포함 · force push·삭제 금지 · **strict 꺼짐** — 2026-09-16 `setup-main-protection.sh` | dev 보호는 검증 체크만(리뷰 없음). main 머지 = 운영 배포 + `v<앱 버전>[+배포 순번]` 태그(첫 태그 `v1.0.0` = `808e526`). 기준은 `frontend/app.json` 버전(2026-09-17 개정 — `docs/backend/convention.md` 6.3) |
 | 로컬 비밀 묶음 | `backend/deploy/aws/out/` | `ear-prod-isb.pem`(SSH) · `cf_private.pem`(CDN 서명) · `.env.prod.isb` · `admin-config.js` · **개발계**: `ear-dev-isb.pem` · `cf_private_dev.pem` · `ear-ci-deploy-api-dev`(CI 개인키) · `ear-dev.env.prod`. **유일한 사본 — 백업할 것** |
 
 ## 6. 계정 이관 절차 (실행 완료 — 재사용 가능한 기록)

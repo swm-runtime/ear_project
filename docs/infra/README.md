@@ -12,7 +12,7 @@
 
 - **가동 중**: `api.earcast.co.kr`(API EC2) · `admin.earcast.co.kr`(**AI 서버 EC2** — 파이프라인 웹 = 제품 발행 콘솔 `/publish` + 백엔드 로그 콘솔, 워커, 임베딩) · CloudFront 오디오 CDN. 발행 콘텐츠 10편, 사용자 21명. `pipeline.` 도메인은 2026-09-03 `admin.`으로 통합돼 없다.
 - **환경 두 벌**(2026-09-16 전환): 운영 `api.earcast.co.kr`(API EC2) + **개발계** `api-dev.earcast.co.kr`(EC2 `ear-dev`, 같은 VPC). 개발계는 운영 콘텐츠를 매일 04:30 한 방향으로 받고 오디오는 운영 CloudFront를 읽기 공유, 사용자 데이터·비밀값은 분리. AI 서버는 한 대(운영)만 있고 개발계에도 공유된다.
-- **배포는 CI**: 백엔드는 **dev 머지 → 개발계, main 머지(dev→main PR, 작성자 외 승인 1) → 운영**(`deploy-api.yml` — CI가 arm64 이미지를 빌드해 ECR에 올리고 서버는 pull, 운영 배포 뒤 `v<package.json version>` 태그). 파이프라인·AI 서버는 종전대로 dev 머지 → AI 서버 `push.sh`(`deploy-pipeline.yml`). PR은 검증만. 비밀값 원천은 Secrets Manager `ear/prod/api`·`ear/dev/api`(배포마다 반영). 절차·롤백 [`runbook.md`](runbook.md) 4장.
+- **배포는 CI**: 백엔드는 **dev 머지 → 개발계, main 머지(dev→main PR, 작성자 외 승인 1) → 운영**(`deploy-api.yml` — CI가 arm64 이미지를 빌드해 ECR에 올리고 서버는 pull, 운영 배포 뒤 `v<앱 버전>[+배포 순번]` 태그 — 기준은 `frontend/app.json`, 2026-09-17 개정). 파이프라인·AI 서버는 종전대로 dev 머지 → AI 서버 `push.sh`(`deploy-pipeline.yml`). PR은 검증만. 비밀값 원천은 Secrets Manager `ear/prod/api`·`ear/dev/api`(배포마다 반영). 절차·롤백 [`runbook.md`](runbook.md) 4장.
 - **네트워크는 기본 VPC 하나**(172.31.0.0/16), 서브넷 4개 전부 퍼블릭, NAT·ALB·WAF 없음. 두 EC2는 같은 서브넷(2a).
 - 계정: **ISB `639177726357`**(SW마에스트로 지원 조직 계정, SSO). 최초 구축된 개인 계정(574748894595)은 2026-08-31 이관 후 전소 — 이력·절차는 [`inventory.md`](inventory.md).
 - 조직 SCP가 KVS를 거부해 재생 URL은 **무작위 키 직접 서명**이다([`architecture.md`](architecture.md) 3.2).
