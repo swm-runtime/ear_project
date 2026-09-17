@@ -665,13 +665,14 @@
 }
 
 /* 아트워크 영역 — 남는 높이를 먹고 정사각 아트워크를 가운데 둔다(앱 hero 접힘 상태) */
+/* 위아래 여백을 비대칭으로 — 아트워크·시크바 묶음이 가운데보다 살짝 위에 놓인다(피드백 2026-09-18) */
 .pHero {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: calc(8 * var(--pt)) 0;
+  padding: 0 0 calc(24 * var(--pt));
 }
 
 .pArt {
@@ -780,6 +781,8 @@
   justify-content: center;
   gap: calc(16 * var(--pt));
   padding: calc(24 * var(--pt)) 0;
+  /* 손잡이("재생 목록")는 바닥에 두고, 그 위 묶음(아트워크·제목·시크바·컨트롤)만 살짝 올린다(피드백 2026-09-18) */
+  margin-bottom: calc(28 * var(--pt));
 }
 
 .pRate {
@@ -839,6 +842,12 @@
   padding-bottom: calc(8 * var(--pt));
 }
 
+.pHandleLabel {
+  font-size: calc(12 * var(--pt));
+  font-weight: 600;
+  color: #6e6e76;
+}
+
 .pHandleBar {
   width: calc(36 * var(--pt));
   height: calc(4 * var(--pt));
@@ -846,11 +855,6 @@
   background: #e3e3e8;
 }
 
-.pHandleLabel {
-  font-size: calc(12 * var(--pt));
-  font-weight: 600;
-  color: #6e6e76;
-}
 
 /* 미니플레이어 — 탭바 바로 위 전폭. 표면색 바탕 + 위 hairline, 상단 2pt 진행선, 행 높이 62pt */
 .miniScene {
