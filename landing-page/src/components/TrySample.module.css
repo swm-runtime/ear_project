@@ -64,6 +64,60 @@
   color: var(--text-2);
 }
 
+/* ---------- 파형(장식) ---------- */
+
+/* 시크바 바로 위에 놓인다. 막대는 flex로 카드 폭을 나눠 쓰고, 높이는 --h(0~1) 비율로 세운다 */
+.wave {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 34px;
+  margin-top: 18px;
+}
+
+/* 막대는 가늘게 고정하고 간격이 폭을 흡수한다 — 굵어지면 파형이 아니라 블록 그래프로 읽힌다 */
+.waveBar {
+  flex: none;
+  width: 3px;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--brand-700);
+  opacity: 0.85;
+  transform: scaleY(var(--h, 0.3));
+  transform-origin: center;
+  /* 재생을 멈추면 기준 높이로 내려앉는다 — 애니메이션이 빠질 때 이 전환이 보인다 */
+  transition: transform 0.45s ease, opacity 0.3s ease;
+}
+
+.waveActive .waveBar {
+  animation-name: waveBob;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  /* 주기·지연은 막대마다 인라인으로 다르게 준다(TryPlayer.Waveform) */
+}
+
+.waveMuted .waveBar {
+  background: var(--line-2);
+  opacity: 1;
+}
+
+/* 기준 높이와 꼭대기 사이를 오간다. 꼭대기도 막대마다 조금 달라 한 줄로 서지 않는다 */
+@keyframes waveBob {
+  0%,
+  100% {
+    transform: scaleY(var(--h, 0.3));
+  }
+  50% {
+    transform: scaleY(calc(0.55 + var(--h, 0.3) * 0.45));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .waveActive .waveBar {
+    animation: none;
+  }
+}
+
 /* ---------- 시크바 ---------- */
 
 .seek {
@@ -261,8 +315,13 @@
     padding: 24px;
   }
 
-  .seek {
+  .wave {
+    height: 40px;
     margin-top: 22px;
+  }
+
+  .seek {
+    margin-top: 14px;
   }
 
   .transport {
@@ -291,8 +350,13 @@
     align-items: center;
   }
 
-  .seek {
+  .wave {
+    height: 48px;
     margin-top: 26px;
+  }
+
+  .seek {
+    margin-top: 16px;
   }
 
   .controls {
