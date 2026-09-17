@@ -12,15 +12,12 @@
  *                      숨김 처리된다 — 재조회 후 편집 상태 재구성(사라진 선택 걷어내기) 검증
  * - load-fail          진입 조회(주제 목록·관심사)가 각 1회 실패 — IM9 전체 화면 에러 +
  *                      [다시 시도] 성공 경로 검증
+ * - few-topics         노출 주제 5개만 — 온보딩 마퀴가 적은 주제 수에서도 이음새 없이 흐르는지(KAN-59)
  */
 import { ApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
 
-import type {
-  InterestsResponseDto,
-  TopicListResponseDto,
-  UserInterestDto,
-} from './interest.dto';
+import type { InterestsResponseDto, TopicListResponseDto, UserInterestDto } from './interest.dto';
 
 const SCENARIO = process.env.EXPO_PUBLIC_INTEREST_MOCK_SCENARIO ?? 'default';
 
@@ -47,13 +44,33 @@ const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
  */
 export const INTEREST_MOCK_TOPICS: TopicListResponseDto['items'] = [
   { topic_id: 'f941e9e4-6e77-4cf1-a311-0b05b72907b2', name: '재테크', parent_category: '돈·경제' },
-  { topic_id: '740cbca6-a6c3-444f-89c7-74fc380beab6', name: '커리어 성장', parent_category: '커리어' },
-  { topic_id: '9bb3a706-2035-4635-82e2-5a9579d8987b', name: '경제 상식', parent_category: '돈·경제' },
-  { topic_id: '15f02c9e-f4cc-4695-848e-fa20a842aca9', name: '이직·면접', parent_category: '커리어' },
-  { topic_id: 'c7e55922-09b2-417d-a17b-ab7cc9df0f48', name: 'AI·테크 트렌드', parent_category: '테크' },
+  {
+    topic_id: '740cbca6-a6c3-444f-89c7-74fc380beab6',
+    name: '커리어 성장',
+    parent_category: '커리어',
+  },
+  {
+    topic_id: '9bb3a706-2035-4635-82e2-5a9579d8987b',
+    name: '경제 상식',
+    parent_category: '돈·경제',
+  },
+  {
+    topic_id: '15f02c9e-f4cc-4695-848e-fa20a842aca9',
+    name: '이직·면접',
+    parent_category: '커리어',
+  },
+  {
+    topic_id: 'c7e55922-09b2-417d-a17b-ab7cc9df0f48',
+    name: 'AI·테크 트렌드',
+    parent_category: '테크',
+  },
   { topic_id: 'b24e6676-b5d2-4af6-8772-2afa3394a62b', name: '투자', parent_category: '돈·경제' },
   { topic_id: '5cf5e669-b312-4025-965c-aa1356fa96fc', name: '부동산', parent_category: '돈·경제' },
-  { topic_id: '0f7adc79-7b39-46a2-ab1f-8a0d13e5b433', name: '인문·교양', parent_category: '인문·교양' },
+  {
+    topic_id: '0f7adc79-7b39-46a2-ab1f-8a0d13e5b433',
+    name: '인문·교양',
+    parent_category: '인문·교양',
+  },
   { topic_id: '56b711a6-2d25-4430-8b2a-2a2ffeaa7331', name: '경제', parent_category: '경제 상식' },
   { topic_id: 'fb8bdf91-14b6-4bbc-8429-b45476167ddf', name: '커리어', parent_category: '일' },
   { topic_id: '08950c1f-8dc5-4912-84a1-0f33e56602cb', name: '생산성', parent_category: '일' },
@@ -63,24 +80,76 @@ export const INTEREST_MOCK_TOPICS: TopicListResponseDto['items'] = [
   { topic_id: '1bca0724-fc4c-4bbe-bad7-4f6ed0d0bb6d', name: '산업안전', parent_category: '일' },
   { topic_id: 'f4437504-93ff-40ad-b64f-9b7f8e4efdb9', name: '디자인', parent_category: '일' },
   { topic_id: '9f156c16-6c62-4b9c-9889-a9afb903f5fb', name: '마케팅', parent_category: '비즈니스' },
-  { topic_id: '76198306-b237-4c37-9494-524c7266195d', name: '스타트업', parent_category: '비즈니스' },
+  {
+    topic_id: '76198306-b237-4c37-9494-524c7266195d',
+    name: '스타트업',
+    parent_category: '비즈니스',
+  },
   { topic_id: 'd23d0230-ccae-4f91-b52b-57c451b8de67', name: '트렌드', parent_category: '비즈니스' },
   { topic_id: '7f073abf-aef9-4fb3-b427-f8e5ae86e365', name: '경영', parent_category: '비즈니스' },
-  { topic_id: '011b86a7-e01a-48d5-8e26-d8381774fd28', name: '데이터·AI', parent_category: '과학·기술' },
-  { topic_id: 'bc60b2ee-4dbd-4fed-a905-d180a1080f36', name: 'IT·개발', parent_category: '과학·기술' },
-  { topic_id: '6c4e1f8d-d188-4b3a-b79c-9b5aa4df8fd8', name: '자연과학', parent_category: '과학·기술' },
-  { topic_id: 'd8b06b43-1bca-497f-a2f5-784d1309449e', name: '심리학', parent_category: '심리·마음' },
-  { topic_id: '513a5413-6911-4ef3-b73a-fe979540bfdb', name: '뇌과학·인지', parent_category: '심리·마음' },
-  { topic_id: 'de1b49c5-2302-4f2c-bfe5-ceb8e3f4d49e', name: '습관·동기', parent_category: '심리·마음' },
-  { topic_id: '31f7325d-7c9b-4d70-a5fa-c78b14561469', name: '인간관계', parent_category: '심리·마음' },
+  {
+    topic_id: '011b86a7-e01a-48d5-8e26-d8381774fd28',
+    name: '데이터·AI',
+    parent_category: '과학·기술',
+  },
+  {
+    topic_id: 'bc60b2ee-4dbd-4fed-a905-d180a1080f36',
+    name: 'IT·개발',
+    parent_category: '과학·기술',
+  },
+  {
+    topic_id: '6c4e1f8d-d188-4b3a-b79c-9b5aa4df8fd8',
+    name: '자연과학',
+    parent_category: '과학·기술',
+  },
+  {
+    topic_id: 'd8b06b43-1bca-497f-a2f5-784d1309449e',
+    name: '심리학',
+    parent_category: '심리·마음',
+  },
+  {
+    topic_id: '513a5413-6911-4ef3-b73a-fe979540bfdb',
+    name: '뇌과학·인지',
+    parent_category: '심리·마음',
+  },
+  {
+    topic_id: 'de1b49c5-2302-4f2c-bfe5-ceb8e3f4d49e',
+    name: '습관·동기',
+    parent_category: '심리·마음',
+  },
+  {
+    topic_id: '31f7325d-7c9b-4d70-a5fa-c78b14561469',
+    name: '인간관계',
+    parent_category: '심리·마음',
+  },
   { topic_id: 'ef51225f-5692-4564-85a1-a3c2d1e85988', name: '철학', parent_category: '인문·교양' },
   { topic_id: '1faff59a-7f3e-4123-9552-50905af98359', name: '역사', parent_category: '인문·교양' },
-  { topic_id: '90735e17-54d2-4f84-a8cc-560fd8464a6c', name: '사회·문화', parent_category: '인문·교양' },
+  {
+    topic_id: '90735e17-54d2-4f84-a8cc-560fd8464a6c',
+    name: '사회·문화',
+    parent_category: '인문·교양',
+  },
   { topic_id: '60c2ae95-8df0-42d8-8e89-c16d9c4cb453', name: '예술', parent_category: '인문·교양' },
-  { topic_id: 'c64765d6-06ea-4917-ba77-b3c2cd22ff24', name: '산업안전기사', parent_category: '자격증·시험' },
-  { topic_id: '248d76c7-bf9d-419e-9b1f-ed23856bb046', name: 'TOPCIT', parent_category: '자격증·시험' },
-  { topic_id: 'acd0a7f4-ad6e-42a3-be76-81b3229f52e4', name: '한능검', parent_category: '자격증·시험' },
-  { topic_id: '8de02ec7-fa7e-482c-ac3a-255587fd964e', name: '공인중개사', parent_category: '자격증·시험' },
+  {
+    topic_id: 'c64765d6-06ea-4917-ba77-b3c2cd22ff24',
+    name: '산업안전기사',
+    parent_category: '자격증·시험',
+  },
+  {
+    topic_id: '248d76c7-bf9d-419e-9b1f-ed23856bb046',
+    name: 'TOPCIT',
+    parent_category: '자격증·시험',
+  },
+  {
+    topic_id: 'acd0a7f4-ad6e-42a3-be76-81b3229f52e4',
+    name: '한능검',
+    parent_category: '자격증·시험',
+  },
+  {
+    topic_id: '8de02ec7-fa7e-482c-ac3a-255587fd964e',
+    name: '공인중개사',
+    parent_category: '자격증·시험',
+  },
   { topic_id: '8b6bfb5b-e1d3-404a-ba0c-91348ff596b1', name: '글쓰기', parent_category: '배움' },
 ];
 
@@ -135,8 +204,12 @@ const throwLoadFail = (traceSuffix: string): never => {
   );
 };
 
+const FEW_TOPICS_COUNT = 5;
 const visibleTopics = (): TopicListResponseDto['items'] =>
-  INTEREST_MOCK_TOPICS.filter((t) => !state.hiddenTopicIds.has(t.topic_id));
+  (SCENARIO === 'few-topics'
+    ? INTEREST_MOCK_TOPICS.slice(0, FEW_TOPICS_COUNT)
+    : INTEREST_MOCK_TOPICS
+  ).filter((t) => !state.hiddenTopicIds.has(t.topic_id));
 
 /** 숨겨진 주제의 활성 관심사는 응답에서 제외한다(interest-management-api.md 4.2) */
 const visibleInterests = (): UserInterestDto[] =>

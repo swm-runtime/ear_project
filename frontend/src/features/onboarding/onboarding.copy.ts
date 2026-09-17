@@ -27,11 +27,15 @@ export const ONBOARDING_COPY = {
   topic: {
     /* TODO(카피 미확정): 상단 툴바 타이틀 — uiux 반영 요청은 changes/pending/onboarding-o1-visual-refresh.md */
     toolbarTitle: '관심 주제',
-    /** 큰 헤드라인 한 문장으로 안내까지 합쳤다 — 별도 개수 안내 줄이 없다(시각 개편) */
-    title: '궁금한 이야기를\n최대 3개까지 골라주세요',
+    /**
+     * 큰 헤드라인 한 문장으로 안내까지 합쳤다 — 별도 개수 안내 줄이 없다(시각 개편).
+     * 상한은 서버 max_selectable 이다(onboarding-api.md 142·147 — 클라이언트 상수 금지, KAN-59). 조회 전(0)에는 개수 없이
+     */
+    title: (max: number) =>
+      max > 0 ? `궁금한 이야기를\n최대 ${max}개까지 골라주세요` : '궁금한 이야기를\n골라주세요',
     /** 선택 후에는 "N/3 선택" 형식 — countLabel로 만든다 */
     countLabel: (count: number, max: number) => `${count}/${max} 선택`,
-    limitToast: '관심 주제는 3개까지 선택할 수 있어요',
+    limitToast: (max: number) => `관심 주제는 ${max}개까지 선택할 수 있어요`,
     next: '다음',
     /** O6 목록 조회 실패(onboarding-uiux.md 4.2) */
     loadFailedTitle: '주제를 불러오지 못했어요',

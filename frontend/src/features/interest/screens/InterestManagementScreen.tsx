@@ -63,7 +63,9 @@ export default function InterestManagementScreen() {
             <Text style={styles.headline}>{INTEREST_COPY.headline}</Text>
             {screen.isLoading ? (
               // 개수 표기 자리도 스켈레톤에 포함한다(uiux 4.7)
-              screen.showSkeleton ? <View style={styles.skeletonCount} /> : null
+              screen.showSkeleton ? (
+                <View style={styles.skeletonCount} />
+              ) : null
             ) : (
               <View
                 style={styles.countRow}
@@ -87,32 +89,30 @@ export default function InterestManagementScreen() {
             {screen.overLimitCount > 0 ? (
               <View style={styles.overLimitBanner} accessibilityLiveRegion="polite">
                 <Text style={styles.overLimitText}>
-                  {INTEREST_COPY.overLimitBanner(screen.overLimitCount)}
+                  {INTEREST_COPY.overLimitBanner(screen.overLimitCount, screen.maxSelectable)}
                 </Text>
               </View>
             ) : null}
           </View>
 
           <ScrollView contentContainerStyle={styles.chipArea}>
-            {screen.isLoading ? (
-              screen.showSkeleton ? (
-                Array.from({ length: SKELETON_CHIP_COUNT }, (_, index) => (
-                  <View key={index} style={styles.skeletonChip} />
-                ))
-              ) : null
-            ) : (
-              // 선택 개수로 칩을 비활성 처리하지 않는다(변경 2026-08-11) — 상한은 저장 게이트가 안내한다
-              screen.topics.map((topic) => (
-                <TopicChip
-                  key={topic.topicId}
-                  topicId={topic.topicId}
-                  label={topic.name}
-                  isSelected={topic.isSelected}
-                  isDimmed={false}
-                  onPress={() => screen.toggleTopic(topic.topicId)}
-                />
-              ))
-            )}
+            {screen.isLoading
+              ? screen.showSkeleton
+                ? Array.from({ length: SKELETON_CHIP_COUNT }, (_, index) => (
+                    <View key={index} style={styles.skeletonChip} />
+                  ))
+                : null
+              : // 선택 개수로 칩을 비활성 처리하지 않는다(변경 2026-08-11) — 상한은 저장 게이트가 안내한다
+                screen.topics.map((topic) => (
+                  <TopicChip
+                    key={topic.topicId}
+                    topicId={topic.topicId}
+                    label={topic.name}
+                    isSelected={topic.isSelected}
+                    isDimmed={false}
+                    onPress={() => screen.toggleTopic(topic.topicId)}
+                  />
+                ))}
           </ScrollView>
 
           {/* 하단 고정 독 — 칩이 늘어 스크롤이 생겨도 [저장]이 묻히지 않는다(uiux 4.1) */}
@@ -122,7 +122,9 @@ export default function InterestManagementScreen() {
             ) : null}
             {/* 상한 초과 — 0개 사유와 같은 패턴으로 저장이 왜 잠겼는지 상시 노출한다(변경 2026-08-11) */}
             {screen.isOverLimit && !screen.isLoading ? (
-              <Text style={styles.dockNotice}>{INTEREST_COPY.limitNotice}</Text>
+              <Text style={styles.dockNotice}>
+                {INTEREST_COPY.limitNotice(screen.maxSelectable)}
+              </Text>
             ) : null}
             {screen.saveErrorMessage !== null ? (
               <Text style={styles.dockError} accessibilityLiveRegion="polite">
