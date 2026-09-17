@@ -161,7 +161,7 @@ function AppPreview() {
     <div className={s.previewWrap}>
       <p className="srOnly">
         앱 탐색 화면 예시 — 검색창과 주제 칩 아래로 &lsquo;지금 인기&rsquo;, &lsquo;관심사에 맞는
-        추천&rsquo; 섹션이 가로로 넘겨 보는 카드 목록으로 놓여 있습니다.
+        추천&rsquo; 섹션이 가로로 넘겨 보는 카드 목록으로 놓여 있어요.
       </p>
       {/* 흰 페이지 위에 놓이는 검은 컴포넌트는 기기 껍데기뿐이다. 화면 안은 앱과 같은
           흰 배경이라 토큰을 뒤집지 않는다(darkTokens를 붙이지 않는 이유다). */}

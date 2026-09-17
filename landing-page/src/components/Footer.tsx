@@ -39,7 +39,7 @@ export function Footer() {
         <p>
           © {year} {site.name}. All rights reserved.
         </p>
-        <p className={s.pre}>정식 출시 준비 중입니다.</p>
+        <p className={s.pre}>정식 출시를 준비하고 있어요.</p>
       </div>
     </footer>
   );

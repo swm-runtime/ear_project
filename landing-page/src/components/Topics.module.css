@@ -6,13 +6,16 @@
 
 .groups {
   display: grid;
-  gap: 28px;
+  gap: 16px;
   margin-top: clamp(40px, 5vw, 56px);
 }
 
 .group {
-  padding-top: 22px;
-  border-top: 2px solid var(--ink-900);
+  padding: 24px 24px 26px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .groupName {
@@ -29,9 +32,8 @@
 
 .chip {
   padding: 8px 15px;
-  border: 1px solid var(--line-2);
   border-radius: var(--r-pill);
-  background: var(--surface);
+  background: var(--paper-2);
   font-size: 14px;
   font-weight: 600;
   color: var(--text-2);
@@ -47,7 +49,7 @@
 
 @media (min-width: 820px) {
   .groups {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 32px;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
   }
 }

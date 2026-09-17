@@ -17,25 +17,26 @@ export default function PricingPage() {
     <>
       <JsonLd
         data={graph([
-          breadcrumb([{ name: routes.pricing.label, path: routes.pricing.path }]),
+          breadcrumb([
+            { name: routes.pricing.label, path: routes.pricing.path },
+          ]),
         ])}
       />
 
       <PageHeader
         crumbs={[{ name: routes.pricing.label }]}
-        title="무료로도 매일 2편, 그대로 도착합니다"
-        lede="구독 서비스에서 무료와 유료를 가르는 가장 흔한 방법은 공급량입니다. 이어는 반대로 잡았습니다. 도착하는 편수는 모두 같고, 요금제는 하루에 재생할 수 있는 분량만 가릅니다."
+        title="무료로도 매일 2편이 도착해요"
+        lede="무료로 가볍게 시작해 보고, 더 많이 듣고 싶어지면 데일리와 프로로 하루를 넉넉하게 채워 보세요."
       />
 
       <Pricing
         title="세 가지 요금제"
-        lede="라이트는 지금도 앞으로도 무료입니다. 데일리와 프로의 가격과 재생 한도는 시범 운영에서 실제 청취 데이터를 본 뒤 확정합니다."
+        lede="라이트는 앞으로도 계속 무료예요. 데일리와 프로의 가격과 재생 한도는 시범 운영에서 실제로 얼마나 듣는지 확인한 뒤 정할게요."
         note={
           <p>
-            유료 요금제의 숫자를 아직 적지 않은 이유는 단순합니다. 한도를 감으로 정하면
-            너무 좁아 매일 막히거나, 너무 넓어 무료와 다를 게 없어집니다. 어느 쪽이든
-            나중에 고치는 비용이 지금 기다리는 비용보다 큽니다. 확정되는 대로 이 페이지에
-            반영하겠습니다.
+            유료 요금제의 숫자를 아직 적지 않은 이유가 있어요. 한도를 감으로
+            정하면 너무 좁아 매일 막히거나, 너무 넓어 무료와 다를 게
+            없어지거든요. 정해지는 대로 이 페이지에서 알려 드릴게요.
           </p>
         }
       />
@@ -43,16 +44,18 @@ export default function PricingPage() {
       <section className={`section ${s.compare}`}>
         <div className="container">
           <p className="eyebrow">Compare</p>
-          <h2 className="sectionTitle">무엇이 같고 무엇이 다른가</h2>
+          <h2 className="sectionTitle">무엇이 같고, 무엇이 다를까요</h2>
           <p className="sectionLede">
-            가장 많이 오해받는 지점입니다. 요금제를 올려도 콘텐츠가 더 많이 오지는
-            않습니다.
+            모든 요금제에서 같은 콘텐츠를 받아요. 요금제가 올라갈수록 하루에 더
+            많이 들을 수 있어요.
           </p>
 
           <div className={s.compareGrid}>
             <div className={s.compareCol}>
               <h3 className={s.compareTitle}>
-                <span className={`${s.badge} ${s.badgeSame}`}>모든 요금제 동일</span>
+                <span className={`${s.badge} ${s.badgeSame}`}>
+                  모든 요금제 동일
+                </span>
               </h3>
               <dl className={s.rows}>
                 {planComparison.same.map((row) => (
@@ -66,7 +69,9 @@ export default function PricingPage() {
 
             <div className={s.compareCol}>
               <h3 className={s.compareTitle}>
-                <span className={`${s.badge} ${s.badgeDiff}`}>요금제별로 다름</span>
+                <span className={`${s.badge} ${s.badgeDiff}`}>
+                  요금제별로 다름
+                </span>
               </h3>
               <dl className={s.rows}>
                 {planComparison.different.map((row) => (
@@ -86,8 +91,8 @@ export default function PricingPage() {
           <p className="eyebrow">Billing</p>
           <h2 className="sectionTitle">결제와 해지</h2>
           <p className="sectionLede">
-            구독은 앱 스토어의 인앱 결제로 이뤄집니다. 결제 전에 알아 두면 좋은 것들을
-            모았습니다.
+            구독은 앱 스토어의 인앱 결제로 해요. 결제 전에 알아 두면 좋은 것들을
+            모았어요.
           </p>
 
           <ol className={s.billing}>

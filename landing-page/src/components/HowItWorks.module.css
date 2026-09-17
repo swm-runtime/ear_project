@@ -1,11 +1,9 @@
 .head {
   display: grid;
-  gap: 20px;
-  align-items: end;
+  gap: 16px;
 }
 
 .headLede {
-  max-width: 44ch;
   color: var(--text-2);
   font-size: clamp(15.5px, 1.5vw, 17px);
   line-height: 1.75;
@@ -70,9 +68,8 @@
 
 .footnote {
   margin-top: 30px;
-  max-width: 66ch;
   color: var(--text-3);
-  font-size: 14px;
+  font-size: 15.5px;
   line-height: 1.75;
 }
 
@@ -82,11 +79,6 @@
 }
 
 @media (min-width: 900px) {
-  .head {
-    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-    gap: 48px;
-  }
-
   .step {
     gap: 40px;
     padding: 34px 0;

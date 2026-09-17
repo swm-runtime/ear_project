@@ -33,8 +33,8 @@ export default function Page() {
 
       <Features
         id="features"
-        title="듣는 데 걸리는 마찰을 없앴습니다"
-        lede="고르는 수고, 기다리는 시간, 다시 찾는 번거로움. 오디오로 콘텐츠를 듣게 만드는 데 실제로 방해가 되는 것들을 하나씩 걷어냈습니다."
+        title="듣기까지 번거로운 과정을 없앴어요"
+        lede="고르는 수고, 기다리는 시간, 다시 찾는 번거로움을 하나씩 없앴어요."
         items={features.slice(0, 3).map((f) => ({
           icon: f.icon,
           title: f.title,
@@ -42,7 +42,7 @@ export default function Page() {
         }))}
         footer={
           <Link href={routes.features.path} className="btn btnGhost">
-            기능 여섯 가지 전부 보기
+            기능 전부 보기
           </Link>
         }
       />
@@ -50,20 +50,23 @@ export default function Page() {
       <Topics />
       <PricingTeaser />
 
-      <section className={`section ${s.blog}`}>
-        <div className="container">
-          <div className={s.blogHead}>
-            <div>
-              <p className="eyebrow">Blog</p>
-              <h2 className="sectionTitle">만들면서 정리한 기준들</h2>
+      {/* 글이 없으면 미리보기 섹션을 통째로 뺀다 — 빈 카드 자리만 남는다 */}
+      {allPosts.length > 0 && (
+        <section className={`section ${s.blog}`}>
+          <div className="container">
+            <div className={s.blogHead}>
+              <div>
+                <p className="eyebrow">Blog</p>
+                <h2 className="sectionTitle">이어 블로그</h2>
+              </div>
+              <Link href={routes.blog.path} className="btn btnGhost">
+                글 전체 보기
+              </Link>
             </div>
-            <Link href={routes.blog.path} className="btn btnGhost">
-              글 전체 보기
-            </Link>
+            <PostList posts={allPosts.slice(0, 2)} headingLevel="h3" />
           </div>
-          <PostList posts={allPosts.slice(0, 2)} headingLevel="h3" />
-        </div>
-      </section>
+        </section>
+      )}
 
       <Faq
         id="faq"

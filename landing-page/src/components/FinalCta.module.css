@@ -26,7 +26,6 @@
 
 .content {
   position: relative;
-  max-width: 46ch;
 }
 
 .title {
@@ -35,6 +34,7 @@
 }
 
 .lede {
+  max-width: 46ch;
   margin-top: 18px;
   color: var(--ink-200);
   font-size: clamp(15.5px, 1.6vw, 17px);
