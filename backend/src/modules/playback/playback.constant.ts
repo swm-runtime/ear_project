@@ -25,3 +25,13 @@ export const AUDIO_URL_TTL_SEC = 300;
  * — 백그라운드 동기화라 사용자에게 알릴 수단이 없고, 거부하면 정상 청취분까지 유실된다.
  */
 export const MAX_LISTENED_SEC_DELTA = 3600;
+
+/**
+ * 공개 샘플(`GET /public/sample`)의 서명에 넣는 사용자 자리표시 값.
+ *
+ * 서명 URL 발급기(`AudioUrlIssuer`)는 `userId`를 요구한다 — local 서명기는 HMAC 재료에 넣고,
+ * 스트리밍 라우트는 `user` 쿼리를 UUID로 검증한다. 샘플은 로그인 없이 발급되므로 실제 사용자가
+ * 없고, **어떤 사용자 행에도 대응하지 않는 고정 UUID**를 넣어 서명이 성립하게 한다. 이 값으로
+ * `audio_access_logs`를 남기지 않는다(FK가 users를 가리킨다) — 발급 사실은 구조화 로그로만 남긴다.
+ */
+export const PUBLIC_SAMPLE_USER_ID = '00000000-0000-4000-8000-000000000000';
