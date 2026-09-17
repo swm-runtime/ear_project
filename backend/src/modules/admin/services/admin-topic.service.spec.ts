@@ -54,7 +54,7 @@ describe('AdminTopicService', () => {
         .mockImplementation((topic: Topic, command: Partial<Topic>) =>
           Promise.resolve({ ...topic, ...command }),
         ),
-      remove: jest.fn().mockResolvedValue(undefined),
+      remove: jest.fn().mockResolvedValue(0),
     } as unknown as jest.Mocked<TopicService>;
 
     contentService = {
@@ -279,6 +279,27 @@ describe('AdminTopicService', () => {
         details: { content_count: 3 },
       });
       expect(topicService.remove).not.toHaveBeenCalled();
+    });
+
+    it('사용자가 고른 주제를 삭제하면 함께 지운 관심사 수가 감사 로그에 남는다', async () => {
+      // given — TypeORM remove 는 끝나면 엔티티 id 를 비운다(감사 대상이 topic:undefined 로 남던 원인)
+      topicService.remove.mockImplementation((topic: Topic) => {
+        (topic as { id?: string }).id = undefined;
+        return Promise.resolve(4);
+      });
+
+      // when
+      await service.remove(ACTOR_ID, TOPIC_ID);
+
+      // then
+      expect(auditLogService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'topic.delete',
+          target: `topic:${TOPIC_ID}`,
+          after: { removed_interest_count: 4 },
+        }),
+        manager,
+      );
     });
 
     it('콘텐츠가 없는 주제는 감사 로그를 남기고 삭제한다', async () => {

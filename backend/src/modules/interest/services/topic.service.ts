@@ -16,6 +16,7 @@ import {
   UpdateTopicCommand,
 } from '../interest.types';
 import { TopicRepository } from '../repositories/topic.repository';
+import { UserInterestRepository } from '../repositories/user-interest.repository';
 
 /**
  * `topics`는 interest 모듈 소유다(domain.md 2장).
@@ -25,7 +26,10 @@ import { TopicRepository } from '../repositories/topic.repository';
 export class TopicService {
   private readonly logger = new Logger(TopicService.name);
 
-  constructor(private readonly topicRepository: TopicRepository) {}
+  constructor(
+    private readonly topicRepository: TopicRepository,
+    private readonly userInterestRepository: UserInterestRepository,
+  ) {}
 
   /**
    * onboarding-api.md 4.2 — 1단계에 노출할 목록. **`is_visible`인 것만 내려준다.**
@@ -230,9 +234,22 @@ export class TopicService {
     return this.topicRepository.saveAll(targets, manager);
   }
 
-  /** 콘텐츠가 배정된 주제의 삭제 거부는 호출부(admin)가 건수를 보고 판정한다(admin.md 4.5) */
-  async remove(topic: Topic, manager?: EntityManager): Promise<void> {
+  /**
+   * 주제 삭제. **그 주제를 고른 사용자 관심사 행을 먼저 지운다**(결정 2026-09-17) — 지우지 않으면
+   * `fk_user_interests_topics`에 걸려 500이 났다. 재발행으로 주제 교체가 일어나면 "콘텐츠 0건인데
+   * 누군가 고른 주제"가 생기고(KAN-58 남은 결정 ③), 그 주제는 자동 숨김돼 사용자 화면에서는 이미 빠져 있다
+   * (interest-management.md 7 — 숨김 주제는 관심사에서 제외). 행이 남는 것은 보장이 아니라 부산물이었다.
+   *
+   * 콘텐츠가 배정된 주제의 삭제 거부는 호출부(admin)가 건수를 보고 판정한다(admin.md 4.5).
+   * **호출부 트랜잭션 안에서 부른다** — 관심사만 지워지고 주제가 남는 상태를 만들지 않는다.
+   * @returns 함께 지운 관심사 행 수(감사 로그용)
+   */
+  async remove(topic: Topic, manager?: EntityManager): Promise<number> {
+    const removedInterestCount =
+      await this.userInterestRepository.deleteByTopicId(topic.id, manager);
     await this.topicRepository.remove(topic, manager);
+
+    return removedInterestCount;
   }
 }
 

@@ -1,6 +1,7 @@
 import { TopicService } from './topic.service';
 import { Topic } from '../entities/topic.entity';
 import { TopicRepository } from '../repositories/topic.repository';
+import { UserInterestRepository } from '../repositories/user-interest.repository';
 
 /** '한'을 자모로 풀어 쓴 NFD 표기 — macOS 파일명·일부 입력기에서 이렇게 들어온다 */
 const NFD_HAN = '한';
@@ -8,6 +9,7 @@ const NFD_HAN = '한';
 describe('TopicService', () => {
   let service: TopicService;
   let repository: jest.Mocked<TopicRepository>;
+  let userInterestRepository: jest.Mocked<UserInterestRepository>;
 
   beforeEach(() => {
     repository = {
@@ -16,7 +18,26 @@ describe('TopicService', () => {
       saveAll: jest.fn((values: Topic[]) => Promise.resolve(values)),
     } as unknown as jest.Mocked<TopicRepository>;
 
-    service = new TopicService(repository);
+    userInterestRepository = {
+      deleteByTopicId: jest.fn().mockResolvedValue(2),
+    } as unknown as jest.Mocked<UserInterestRepository>;
+    repository.remove = jest.fn().mockResolvedValue(undefined);
+
+    service = new TopicService(repository, userInterestRepository);
+  });
+
+  it('주제를 삭제하면 그 주제를 고른 관심사 행을 먼저 지우고 지운 수를 돌려준다', async () => {
+    // given — 관심사 행이 남아 있으면 FK 에 걸려 주제 삭제가 500 이 된다
+    const topic = { id: 'topic-1' } as Topic;
+
+    // when
+    const removed = await service.remove(topic);
+
+    // then
+    expect(removed).toBe(2);
+    expect(
+      userInterestRepository.deleteByTopicId.mock.invocationCallOrder[0],
+    ).toBeLessThan(repository.remove.mock.invocationCallOrder[0]);
   });
 
   it('생성 시 주제명을 NFC로 정규화해 적재한다 — 검색 4필드 중 주제명만 빠져 있던 규칙', async () => {
