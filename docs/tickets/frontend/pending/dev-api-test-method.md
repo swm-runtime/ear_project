@@ -10,7 +10,7 @@
 | 발견 시점 | 2026-09-16 23:00 KST 배포 흐름 전환(KAN-62) — 이후 **dev 머지는 개발계(`api-dev.earcast.co.kr`)에만 배포**되고 운영은 dev→main PR로만 반영된다. 앱 OTA(`eas-update.yml`)는 이번 전환에서 건드리지 않아 preview·production 채널 모두 계속 **운영 API**를 본다 → dev에 머지된 백엔드 변경을 폰의 앱으로는 확인할 수 없다(로컬 Metro로만 가능) |
 | 근거 문서 | `docs/tickets/infra/pending/dev-environment-and-main-deploy.md`(KAN-62 결정 6·미결 "앱 preview 빌드") · `docs/infra/runbook.md` 4장 · `docs/frontend/architecture.md`(환경변수 `EXPO_PUBLIC_API_BASE_URL`) |
 | 중요도 | **Medium** — 3일 안에 방법 결정. 서버 배포 전환은 이 결정과 무관하게 진행되며, 결정 전까지 개발계 확인은 로컬 실행으로 한다 |
-| 상태 | 대기 — FE 담당이 두 방법 중 하나를 선택해 진행 |
+| 상태 | 진행 — **A 선택**(2026-09-17). 설정 반영, preview 빌드 배포·팀 공유 남음 |
 
 ## 배경
 
@@ -44,3 +44,11 @@
 ## 처리 기록
 
 - 2026-09-16 발행. 서버 배포 전환(KAN-62 6~8단계)은 이 결정과 무관하게 진행한다.
+
+## 처리 기록 (2026-09-17 — A 선택, 설정 반영)
+
+- **A(preview 채널 = 개발계)를 택했다.** 사유: 코드 작업 없이 워크플로·`eas.json` 두 줄이고, 마침 네이티브 재빌드(expo-video, runtimeVersion 2)를 뽑는 참이라 같은 커밋으로 preview 빌드를 같이 낼 수 있다. B는 토큰 환경별 분리·스토어 빌드 노출 차단까지 만들 게 많고 실수로 운영을 가리킬 여지가 생긴다. 3인 팀이라 "테스트 폰엔 preview 하나"로 충분하다.
+- `.github/workflows/eas-update.yml`: 채널 결정 단계가 `api_base_url` 도 정한다 — preview `api-dev.earcast.co.kr`, production `api.earcast.co.kr`.
+- `frontend/eas.json`: `preview` env 를 개발계로, `production` env 는 `extends` 상속에 기대지 않고 운영 주소를 명시.
+- **번들 ID 는 분리하지 않았다** — 한 폰에 스토어 앱과 preview 앱을 같이 못 깐다(preview 가 덮는다). 소셜 로그인 키를 번들별로 다시 등록하는 비용이 더 커서 지금은 받아들인다. 필요해지면 별도 티켓.
+- 남은 것: preview 빌드(`eas build --profile preview --platform all`) → TestFlight 내부 / Play 내부 트랙 → 팀 Slack 에 "앱으로 개발계 확인하는 법" 한 줄. 그 뒤 archive · KAN-65 완료.
