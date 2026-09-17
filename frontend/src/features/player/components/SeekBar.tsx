@@ -13,8 +13,10 @@ interface SeekBarProps {
   /** 오디오 준비 전에는 조작을 받지 않는다(player-uiux.md 4.3) */
   disabled: boolean;
   onSeekTo: (targetSec: number) => void;
-  /** 사진 위에 얹힐 때(재생 목록 열림) — 트랙·라벨을 흰색 계열로 */
+  /** 사진 위에 얹힐 때(재생 목록 열림) — 트랙을 흰색 계열로. 시간 라벨은 사진 밖이라 그대로다 */
   tone?: 'default' | 'onImage';
+  /** 트랙 선의 아래 변(이 컴포넌트 기준 y) — 재생 목록이 열리면 앨범 커버 하한을 여기에 맞춘다 */
+  onTrackBottom?: (bottom: number) => void;
 }
 
 /**
@@ -28,6 +30,7 @@ export default function SeekBar({
   disabled,
   onSeekTo,
   tone = 'default',
+  onTrackBottom,
 }: SeekBarProps) {
   const onImage = tone === 'onImage';
   const [trackWidth, setTrackWidth] = useState(0);
@@ -106,7 +109,13 @@ export default function SeekBar({
           onSeekTo(Math.max(0, positionSec + delta));
         }}
       >
-        <View style={[styles.track, onImage && styles.trackOnImage]}>
+        <View
+          style={[styles.track, onImage && styles.trackOnImage]}
+          // touchArea 가 첫 자식이라 touchArea 기준 y == 컴포넌트 기준 y
+          onLayout={(event) =>
+            onTrackBottom?.(event.nativeEvent.layout.y + event.nativeEvent.layout.height)
+          }
+        >
           <View
             style={[styles.fill, onImage && styles.fillOnImage, { width: `${ratio * 100}%` }]}
           />
@@ -131,12 +140,8 @@ export default function SeekBar({
         </View>
       </View>
       <View style={styles.timeRow} importantForAccessibility="no-hide-descendants">
-        <Text style={[styles.timeLabel, onImage && styles.timeLabelOnImage]}>
-          {formatPlaybackTime(displaySec)}
-        </Text>
-        <Text style={[styles.timeLabel, onImage && styles.timeLabelOnImage]}>
-          {formatPlaybackTime(durationSec)}
-        </Text>
+        <Text style={styles.timeLabel}>{formatPlaybackTime(displaySec)}</Text>
+        <Text style={styles.timeLabel}>{formatPlaybackTime(durationSec)}</Text>
       </View>
     </View>
   );
@@ -190,8 +195,5 @@ const styles = StyleSheet.create({
   },
   thumbDisabledOnImage: {
     backgroundColor: 'rgba(255, 255, 255, 0.5)',
-  },
-  timeLabelOnImage: {
-    color: 'rgba(255, 255, 255, 0.85)',
   },
 });

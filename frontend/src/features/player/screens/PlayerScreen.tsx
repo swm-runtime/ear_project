@@ -108,9 +108,8 @@ export default function PlayerScreen() {
   // 헤더 애니메이션의 기준 치수 — 화면 폭·컨트롤 높이는 실측한다(기기마다 다르다)
   const [contentSize, setContentSize] = useState({ width: 0, height: 0 });
   const [controlsHeight, setControlsHeight] = useState(0);
-  /** 시크바 블록(트랙 + 시간 라벨) 높이 — 재생 목록 열림 때 배경 사진이 여기까지 내려온다 */
-  const [seekHeight, setSeekHeight] = useState(0);
-  const onSeekLayout = (event: LayoutChangeEvent) => setSeekHeight(event.nativeEvent.layout.height);
+  /** 시크바 트랙 선의 아래 변(시크바 블록 기준) — 재생 목록이 열리면 앨범 커버 하한을 정확히 여기에 맞춘다(PM 2026-09-17) */
+  const [seekTrackBottom, setSeekTrackBottom] = useState(0);
   // 앱바·손잡이도 실측한다 — 상수로 두면 몇 px 어긋나 접힘 상태의 히어로가 넘치고 컨트롤이 패널을 열 때마다 튄다
   const [appBarHeight, setAppBarHeight] = useState(APP_BAR_HEIGHT);
   const [handleHeight, setHandleHeight] = useState(SCRIPT_HANDLE_HEIGHT);
@@ -399,11 +398,11 @@ export default function PlayerScreen() {
   });
   /*
    * 아트워크의 content 좌표 — 히어로 원점(실측) + 히어로 안 좌표. 재생 목록이 열리면 (0,0)에서 화면 폭 ×
-   * (앱바 + 히어로 + 시크바 블록) 크기로 확대된다: 아래 변이 시크바 시간 라벨 밑변과 맞는다
+   * (앱바 + 히어로 + 시크바 트랙 아래 변) 크기로 확대된다: 아래 변이 시크바 트랙 선과 맞고 시간 라벨은 커버 밖이다
    */
   const heroX = heroBox?.x ?? theme.spacing.lg;
   const heroY = heroBox?.y ?? appBarHeight;
-  const queueArtHeight = appBarHeight + queueHeroHeight + seekHeight;
+  const queueArtHeight = appBarHeight + queueHeroHeight + seekTrackBottom;
   const art = {
     left: Animated.add(
       Animated.add(heroBase.artLeft, heroX),
@@ -517,7 +516,7 @@ export default function PlayerScreen() {
       ? contentSize.width
       : artSizeCollapsed;
   const fullArtHeight = isQueueOpen
-    ? appBarHeight + QUEUE_BANNER_HEIGHT + seekHeight
+    ? appBarHeight + QUEUE_BANNER_HEIGHT + seekTrackBottom
     : fullArtWidth;
   const fullArtLeft = isHeroCompact
     ? theme.spacing.lg
@@ -941,7 +940,7 @@ export default function PlayerScreen() {
         ) : null}
 
         <View style={styles.controlArea} onLayout={onControlsLayout}>
-          <View onLayout={onSeekLayout}>
+          <View>
             <Animated.View
               style={{ opacity: queueInverse }}
               pointerEvents={isQueueOpen ? 'none' : 'auto'}
@@ -951,6 +950,7 @@ export default function PlayerScreen() {
                 durationSec={session.durationSec}
                 disabled={isControlDisabled}
                 onSeekTo={screen.seekTo}
+                onTrackBottom={setSeekTrackBottom}
               />
             </Animated.View>
             <Animated.View
