@@ -392,6 +392,11 @@ export default function PlayerScreen() {
   const queueClosedTop = Math.max(0, contentSize.height - handleHeight);
   const queueOpenTop = Math.min(queueClosedTop, appBarHeight + queueHeroHeight + controlsHeight);
   const queueInverse = Animated.subtract(1, queueProgress);
+  // 컨트롤 줄 위아래 여백도 재생 목록이 올라온 만큼 접는다 — 목록에 자리를 더 준다(2026-09-17 PM)
+  const controlRowPadding = queueProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [theme.spacing.lg, theme.spacing.sm],
+  });
   /*
    * 아트워크의 content 좌표 — 히어로 원점(실측) + 히어로 안 좌표. 재생 목록이 열리면 (0,0)에서 화면 폭 ×
    * (앱바 + 히어로 + 시크바 블록) 크기로 확대된다: 아래 변이 시크바 시간 라벨 밑변과 맞는다
@@ -962,7 +967,7 @@ export default function PlayerScreen() {
             </Animated.View>
           </View>
 
-          <View style={styles.controlRow}>
+          <Animated.View style={[styles.controlRow, { paddingVertical: controlRowPadding }]}>
             {/* 배속은 컨트롤 줄 맨 왼쪽에 텍스트로만 둔다(2026-09-16 — 칩 배경 제거, 보조 줄에서 이동).
                 오른쪽에 같은 폭의 빈 자리를 두어 재생 버튼이 화면 가운데를 지키게 한다 */}
             <Pressable
@@ -1056,7 +1061,7 @@ export default function PlayerScreen() {
                 importantForAccessibility="no"
               />
             )}
-          </View>
+          </Animated.View>
 
           {renderBannerArea()}
         </View>
@@ -1230,7 +1235,7 @@ const SCRIPT_TOGGLE_DURATION_MS = 320;
  * 재생 목록을 끌어올렸을 때의 히어로 높이 — 앨범 사진이 화면 가로를 꽉 채우고 앱바·제목·시크바까지 그 위에
  * 얹힌다(2026-09-17 PM, 유튜브 뮤직). 사진 전체 높이 = 앱바 + 이 값 + 시크바
  */
-const QUEUE_BANNER_HEIGHT = 280;
+const QUEUE_BANNER_HEIGHT = 232;
 /** 사진 위 텍스트·아이콘 색 */
 const ON_IMAGE_COLOR = '#FFFFFF';
 /** 손잡이를 놓았을 때 열림/닫힘 확정 — 이동 비율·속도(dp/ms). 실기기 검증 대상 제안값 */
@@ -1275,7 +1280,7 @@ const HERO_COMPACT_META_TOP = 12;
 const HERO_MIN_ARTWORK = 120;
 /** 바닥 손잡이 높이(터치 타깃 44 + 아래 여백 8) */
 const SCRIPT_HANDLE_HEIGHT = 52;
-const PLAY_ICON_SIZE = 32;
+const PLAY_ICON_SIZE = 28;
 /** ±10초 아이콘 — 숫자 "10"이 아이콘 안에 박혀 있다(SeekBackIcon·SeekForwardIcon). player.constants의 이동 값과 같아야 한다 */
 const SEEK_ICON_SIZE = 32;
 
@@ -1420,7 +1425,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     // 배속이 줄에 들어오면서 xl(32)은 양끝이 너무 벌어졌다 — md(16)로 줄임(2026-09-16)
     gap: theme.spacing.md,
-    paddingVertical: theme.spacing.lg,
   },
   stepButton: {
     minWidth: theme.touchTarget.minWidth,
@@ -1432,9 +1436,9 @@ const styles = StyleSheet.create({
     color: theme.color.border,
   },
   playButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: theme.color.primary,
