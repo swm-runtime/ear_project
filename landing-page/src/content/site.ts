@@ -88,13 +88,17 @@ export const stats = [
  * 브라우저에서 직접 부르는 공개 API의 기준 주소(`docs/spec/api/public-api.md`).
  *
  * 빌드 시점 fetch(`public-topics.ts`의 `LANDING_API_BASE_URL`)와 달리 **클라이언트 번들에 박히는
- * 값**이라 `NEXT_PUBLIC_` 접두가 필요하다. 폴백은 운영 API다 — 환경 변수를 빠뜨린 배포가 조용히
- * 다른 곳을 보지 않게 한다(`SITE_URL`과 같은 이유). 로컬에서 개발계·로컬 API를 보려면
- * `.env.local`에 `NEXT_PUBLIC_API_BASE_URL`을 둔다.
+ * 값**이라 `NEXT_PUBLIC_` 접두가 필요하다.
+ *
+ * **폴백은 개발계 API다**(결정 2026-09-18). 랜딩은 검증이 중요한 화면이 아니라 AI 서버처럼
+ * `dev` 머지만으로 배포·확인이 끝나야 하고, 그러려면 새 공개 엔드포인트가 `dev`에 머지되는
+ * 즉시 랜딩이 그것을 봐야 한다 — 운영은 `dev → main` PR과 승인이 필요해 한 박자 늦다.
+ * 운영 API를 보게 하려면 환경 변수로 덮어쓴다. 폴백을 자리표시자로 두지 않는 이유는
+ * `SITE_URL`과 같다.
  */
 export const PUBLIC_API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ??
-  "https://api.earcast.co.kr/api/v1";
+  "https://api-dev.earcast.co.kr/api/v1";
 
 /**
  * Try 섹션 — 가입 전에 샘플 한 편을 바로 들려준다.

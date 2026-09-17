@@ -12,7 +12,8 @@
 
 export type TopicGroup = { name: string; topics: string[] };
 
-const DEFAULT_API_BASE_URL = "https://api.earcast.co.kr/api/v1";
+/** 폴백은 개발계다 — 랜딩은 `dev` 머지만으로 배포·확인한다(`site.ts`의 PUBLIC_API_BASE_URL 주석, 2026-09-18) */
+const DEFAULT_API_BASE_URL = "https://api-dev.earcast.co.kr/api/v1";
 const FETCH_TIMEOUT_MS = 5_000;
 
 const fallbackTopicGroups: TopicGroup[] = [
