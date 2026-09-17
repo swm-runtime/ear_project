@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
 import {
   ActivityIndicator,
@@ -107,6 +108,9 @@ export default function PlayerScreen() {
   // 헤더 애니메이션의 기준 치수 — 화면 폭·컨트롤 높이는 실측한다(기기마다 다르다)
   const [contentSize, setContentSize] = useState({ width: 0, height: 0 });
   const [controlsHeight, setControlsHeight] = useState(0);
+  /** 시크바 블록(트랙 + 시간 라벨) 높이 — 재생 목록 열림 때 배경 사진이 여기까지 내려온다 */
+  const [seekHeight, setSeekHeight] = useState(0);
+  const onSeekLayout = (event: LayoutChangeEvent) => setSeekHeight(event.nativeEvent.layout.height);
   // 앱바·손잡이도 실측한다 — 상수로 두면 몇 px 어긋나 접힘 상태의 히어로가 넘치고 컨트롤이 패널을 열 때마다 튄다
   const [appBarHeight, setAppBarHeight] = useState(APP_BAR_HEIGHT);
   const [handleHeight, setHandleHeight] = useState(SCRIPT_HANDLE_HEIGHT);
@@ -320,12 +324,10 @@ export default function PlayerScreen() {
    * 재생 목록 시트가 올라왔을 때의 히어로 — 아트워크는 가운데 작게, 제목은 바로 아래. 세로 구조는 그대로다.
    * 스크립트 압축(panelProgress)과는 서로 배타라(동시에 열리지 않는다) 두 값의 변위를 그냥 더한다
    */
-  const queueHeroHeight =
-    theme.spacing.sm +
-    QUEUE_ARTWORK_HEIGHT +
-    theme.spacing.md +
-    (HERO_META_BLOCK_HEIGHT - theme.spacing.lg);
-  const queueMetaTop = theme.spacing.sm + QUEUE_ARTWORK_HEIGHT + theme.spacing.md;
+  const queueHeroHeight = QUEUE_BANNER_HEIGHT;
+  // 제목은 사진 아래쪽 가장자리에 붙는다(유튜브 뮤직) — 메타 블록 높이만큼 위, 아래 여백 sm
+  const queueMetaTop =
+    QUEUE_BANNER_HEIGHT - (HERO_META_BLOCK_HEIGHT - theme.spacing.lg) - theme.spacing.sm;
   const queueShift = (from: number, to: number) => Animated.multiply(queueProgress, to - from);
   const heroBase = {
     height: panelProgress.interpolate({
@@ -382,8 +384,11 @@ export default function PlayerScreen() {
     ),
     // 배너 — 폭은 화면 안쪽 폭까지 늘고 높이는 낮아진다(cover 로 잘린다). 유튜브 뮤직의 재생목록 열림과 같다
     artSize: Animated.add(heroBase.artSize, queueShift(artSizeCollapsed, innerWidth)),
-    artHeight: Animated.add(heroBase.artSize, queueShift(artSizeCollapsed, QUEUE_ARTWORK_HEIGHT)),
-    artTop: Animated.add(heroBase.artTop, queueShift(collapsedArtTop, theme.spacing.sm)),
+    artHeight: Animated.add(heroBase.artSize, queueShift(artSizeCollapsed, QUEUE_BANNER_HEIGHT)),
+    artTop: Animated.add(heroBase.artTop, queueShift(collapsedArtTop, 0)),
+    artRadius: Animated.add(heroBase.artRadius, queueShift(theme.radius.lg, 0)),
+    // 히어로 안의 아트워크는 꽉 차게 커지며 사라지고, 화면 가로를 다 덮는 배경 레이어가 그 자리를 잇는다
+    artOpacity: Animated.subtract(1, queueProgress),
     artLeft: Animated.add(heroBase.artLeft, queueShift((innerWidth - artSizeCollapsed) / 2, 0)),
     metaTop: Animated.add(
       heroBase.metaTop,
@@ -393,6 +398,21 @@ export default function PlayerScreen() {
   // 시트의 위쪽 끝 — 닫힘: 손잡이만 남는다 / 열림: 압축된 플레이어(앱바 + 히어로 + 컨트롤) 바로 아래
   const queueClosedTop = Math.max(0, contentSize.height - handleHeight);
   const queueOpenTop = Math.min(queueClosedTop, appBarHeight + queueHeroHeight + controlsHeight);
+  // 배경 사진 = 앱바 + 히어로 + 시크바(라벨 포함)까지. 컨트롤 줄은 사진 밖 흰 바탕이다
+  const queueBackdropHeight = appBarHeight + queueHeroHeight + seekHeight;
+  const queueInverse = Animated.subtract(1, queueProgress);
+  /** 사진 위에 얹히는 순간 색이 바뀌는 요소 — 어두운 것과 흰 것을 겹쳐 두고 진행값으로 교차한다 */
+  const dualTone = (dark: ReactNode, light: ReactNode) => (
+    <View>
+      <Animated.View style={{ opacity: queueInverse }}>{dark}</Animated.View>
+      <Animated.View
+        pointerEvents="none"
+        style={[StyleSheet.absoluteFill, styles.dualToneOverlay, { opacity: queueProgress }]}
+      >
+        {light}
+      </Animated.View>
+    </View>
+  );
   const queueTop = queueProgress.interpolate({
     inputRange: [0, 1],
     outputRange: [queueClosedTop, queueOpenTop],
@@ -483,7 +503,7 @@ export default function PlayerScreen() {
     : isQueueOpen
       ? innerWidth
       : artSizeCollapsed;
-  const fullArtHeight = isQueueOpen ? QUEUE_ARTWORK_HEIGHT : fullArtWidth;
+  const fullArtHeight = isQueueOpen ? QUEUE_BANNER_HEIGHT : fullArtWidth;
   const fullArtLeft = isHeroCompact
     ? theme.spacing.lg
     : theme.spacing.lg + (innerWidth - fullArtWidth) / 2;
@@ -740,6 +760,17 @@ export default function PlayerScreen() {
         onLayout={onContentLayout}
         {...collapsePanResponder.panHandlers}
       >
+        {/* 재생 목록 배경 — 앨범 사진이 화면 가로를 꽉 채우고 앱바·제목·시크바가 그 위에 얹힌다(열림 진행값으로 나타난다) */}
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.queueBackdrop, { height: queueBackdropHeight, opacity: queueProgress }]}
+        >
+          {session.meta.thumbnailUrl ? (
+            <Image source={{ uri: session.meta.thumbnailUrl }} style={StyleSheet.absoluteFill} />
+          ) : null}
+          <View style={styles.queueBackdropOverlay} />
+        </Animated.View>
+
         {/* 앱바 — 제목을 두지 않는다. 동적 텍스트 200%에서 앱바가 먼저 넘친다(uiux 4.1) */}
         <View style={styles.appBar} onLayout={onAppBarLayout}>
           <Pressable
@@ -748,11 +779,14 @@ export default function PlayerScreen() {
             accessibilityRole="button"
             accessibilityLabel={PLAYER_COPY.screen.collapseA11y}
           >
-            <ChevronIcon
-              direction="down"
-              size={APP_BAR_ICON_SIZE}
-              color={theme.color.textPrimary}
-            />
+            {dualTone(
+              <ChevronIcon
+                direction="down"
+                size={APP_BAR_ICON_SIZE}
+                color={theme.color.textPrimary}
+              />,
+              <ChevronIcon direction="down" size={APP_BAR_ICON_SIZE} color={ON_IMAGE_COLOR} />,
+            )}
           </Pressable>
           <View style={styles.appBarActions}>
             {/* 수면 타이머(P1) — 재생 조작이 아니라 세션 설정이라 앱바에 둔다(2026-09-16).
@@ -764,7 +798,10 @@ export default function PlayerScreen() {
               accessibilityLabel={PLAYER_COPY.screen.timerA11y}
               accessibilityState={{ disabled: true }}
             >
-              <SleepTimerIcon size={APP_BAR_ICON_SIZE} color={theme.color.textPrimary} />
+              {dualTone(
+                <SleepTimerIcon size={APP_BAR_ICON_SIZE} color={theme.color.textPrimary} />,
+                <SleepTimerIcon size={APP_BAR_ICON_SIZE} color={ON_IMAGE_COLOR} />,
+              )}
             </Pressable>
             <Pressable
               style={styles.appBarButton}
@@ -772,7 +809,10 @@ export default function PlayerScreen() {
               accessibilityRole="button"
               accessibilityLabel={PLAYER_COPY.screen.moreA11y}
             >
-              <MoreIcon size={APP_BAR_ICON_SIZE} color={theme.color.textPrimary} />
+              {dualTone(
+                <MoreIcon size={APP_BAR_ICON_SIZE} color={theme.color.textPrimary} />,
+                <MoreIcon size={APP_BAR_ICON_SIZE} color={ON_IMAGE_COLOR} />,
+              )}
             </Pressable>
           </View>
         </View>
@@ -796,6 +836,7 @@ export default function PlayerScreen() {
                 width: hero.artSize,
                 height: hero.artHeight,
                 borderRadius: hero.artRadius,
+                opacity: hero.artOpacity,
               },
             ]}
             onLayout={onHeroArtLayout}
@@ -817,11 +858,29 @@ export default function PlayerScreen() {
 
           <Animated.View style={[styles.heroMeta, { top: hero.metaTop, left: hero.metaLeft }]}>
             {/* 제목은 크기가 달라 두 겹을 교차 페이드한다 — 글자 크기 자체는 보간하지 않는다 */}
-            <Animated.View style={{ opacity: hero.collapsedOpacity }} onLayout={onTitleLayout}>
+            <Animated.View
+              style={{ opacity: Animated.multiply(hero.collapsedOpacity, queueInverse) }}
+              onLayout={onTitleLayout}
+            >
               {/* 한 줄 고정 — 넘치면 흘러서 끝까지 보여준다(2026-09-16, 두 줄 접기에서 변경) */}
               <MarqueeText text={session.meta.title ?? ''} style={styles.title} />
               {categoryLabel !== null ? (
                 <Text style={styles.category} numberOfLines={1}>
+                  {categoryLabel}
+                </Text>
+              ) : null}
+            </Animated.View>
+            {/* 사진 위 제목 — 열림 진행값으로 흰 글자가 나타난다(유튜브 뮤직) */}
+            <Animated.View
+              style={[styles.heroTitleOnImageLayer, { opacity: queueProgress }]}
+              pointerEvents="none"
+            >
+              <MarqueeText
+                text={session.meta.title ?? ''}
+                style={[styles.title, styles.onImageTitle]}
+              />
+              {categoryLabel !== null ? (
+                <Text style={[styles.category, styles.onImageCategory]} numberOfLines={1}>
                   {categoryLabel}
                 </Text>
               ) : null}
@@ -866,12 +925,31 @@ export default function PlayerScreen() {
         ) : null}
 
         <View style={styles.controlArea} onLayout={onControlsLayout}>
-          <SeekBar
-            positionSec={session.positionSec}
-            durationSec={session.durationSec}
-            disabled={isControlDisabled}
-            onSeekTo={screen.seekTo}
-          />
+          <View onLayout={onSeekLayout}>
+            <Animated.View
+              style={{ opacity: queueInverse }}
+              pointerEvents={isQueueOpen ? 'none' : 'auto'}
+            >
+              <SeekBar
+                positionSec={session.positionSec}
+                durationSec={session.durationSec}
+                disabled={isControlDisabled}
+                onSeekTo={screen.seekTo}
+              />
+            </Animated.View>
+            <Animated.View
+              style={[StyleSheet.absoluteFill, { opacity: queueProgress }]}
+              pointerEvents={isQueueOpen ? 'auto' : 'none'}
+            >
+              <SeekBar
+                positionSec={session.positionSec}
+                durationSec={session.durationSec}
+                disabled={isControlDisabled}
+                onSeekTo={screen.seekTo}
+                tone="onImage"
+              />
+            </Animated.View>
+          </View>
 
           <View style={styles.controlRow}>
             {/* 배속은 컨트롤 줄 맨 왼쪽에 텍스트로만 둔다(2026-09-16 — 칩 배경 제거, 보조 줄에서 이동).
@@ -1137,8 +1215,13 @@ const SCRIPT_SWIPE_AXIS_RATIO = 1.5;
 const COMPACT_ARTWORK_SIZE = 56;
 /** 펼침·접힘 전환 시간 */
 const SCRIPT_TOGGLE_DURATION_MS = 320;
-/** 재생 목록을 끌어올렸을 때 남는 아트워크 배너 높이 — 폭은 그대로, 위아래가 잘린다(2026-09-17 PM, 유튜브 뮤직) */
-const QUEUE_ARTWORK_HEIGHT = 180;
+/**
+ * 재생 목록을 끌어올렸을 때의 히어로 높이 — 앨범 사진이 화면 가로를 꽉 채우고 앱바·제목·시크바까지 그 위에
+ * 얹힌다(2026-09-17 PM, 유튜브 뮤직). 사진 전체 높이 = 앱바 + 이 값 + 시크바
+ */
+const QUEUE_BANNER_HEIGHT = 280;
+/** 사진 위 텍스트·아이콘 색 */
+const ON_IMAGE_COLOR = '#FFFFFF';
 /** 손잡이를 놓았을 때 열림/닫힘 확정 — 이동 비율·속도(dp/ms). 실기기 검증 대상 제안값 */
 const QUEUE_COMMIT_RATIO = 0.35;
 const QUEUE_COMMIT_VELOCITY = 0.5;
@@ -1371,6 +1454,40 @@ const styles = StyleSheet.create({
     borderTopColor: theme.color.border,
   },
   scriptHandleWrap: {},
+  queueBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    overflow: 'hidden',
+    backgroundColor: theme.color.surface,
+  },
+  // 사진 위 글자·아이콘 대비 — 아래로 갈수록 어둡게 두 겹(제목·시크바가 아래에 있다)
+  queueBackdropOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+  },
+  dualToneOverlay: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroTitleOnImageLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    gap: theme.spacing.xs,
+  },
+  onImageTitle: {
+    color: ON_IMAGE_COLOR,
+  },
+  onImageCategory: {
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
   scriptHandle: {
     minHeight: theme.touchTarget.minHeight,
     alignItems: 'center',
