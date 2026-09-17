@@ -63,8 +63,10 @@ export function HeroPhoneScene({ track }: { track: Track }) {
       const reset = window.setTimeout(() => setScene(null), 0);
       return () => window.clearTimeout(reset);
     }
-    let index = 0;
-    let timer = window.setTimeout(step, 400);
+    // 첫 바퀴는 정지 장면을 건너뛰고 바로 탭부터 — 페이지를 열자마자 움직임이 보여야 한다(피드백 2026-09-18).
+    // 이후 바퀴에서는 idle(2.8s)이 미니플레이어와 다음 탭 사이의 숨 고르기가 된다
+    let index = 1;
+    let timer = window.setTimeout(step, 1200);
     function step() {
       const current = SCENES[index];
       setScene(current.name);
