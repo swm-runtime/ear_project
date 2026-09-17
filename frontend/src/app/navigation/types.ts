@@ -57,8 +57,10 @@ export type MainStackParamList = {
   InterestManagement: undefined;
   /** 커리어 정보(career.md) — 관심사 관리와 별도 화면. 진입 경로는 둘(프로필 카드·설정 콘텐츠)이다 */
   Career: undefined;
-  /** TODO: 공지사항 인앱 화면 — 명세 작성 후 교체(settings.md 4.1, 합의 2026-08-06) */
+  /** 공지 목록(settings.md 4.7 S8) — 진입점은 설정 > 정보 > [공지사항] 하나다 */
   Notice: undefined;
+  /** 공지 상세(S9) — 목록 행 탭의 목적지. 제목·날짜는 목록 캐시로 즉시 그리고 본문만 조회한다 */
+  NoticeDetail: { noticeId: string };
   /**
    * 회원 탈퇴(A7·A8, auth.md 4.3) — 설정 [회원 탈퇴]의 목적지. 진입점은 그 하나다.
    * 처리 중(A8)에는 화면이 뒤로가기·스와이프를 스스로 막고, 완료 시 세션 정리로

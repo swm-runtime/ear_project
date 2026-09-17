@@ -12,6 +12,7 @@ import { ContentDetailScreen } from '@/features/content-detail';
 import { ExploreScreen, ExploreSearchScreen } from '@/features/explore';
 import { InterestManagementScreen } from '@/features/interest';
 import { LibraryScreen } from '@/features/library';
+import { NoticeDetailScreen, NoticeListScreen } from '@/features/notice';
 import {
   NotificationPrePromptModal,
   usePrePromptGate,
@@ -168,12 +169,10 @@ export default function MainNavigator() {
         {/* 커리어 정보 — 앱바(뒤로 + "커리어 정보" + [초기화])를 화면이 직접 그린다(career-uiux.md 4.1).
           변경 있음 상태의 이탈(뒤로가기·스와이프)은 화면이 beforeRemove로 가로챈다(CR5) */}
         <MainStack.Screen name="Career" component={CareerInfoScreen} />
-        {/* 설정 메뉴의 목적지 — 공지(명세 추후)·관리자(admin.md)는 아직 플레이스홀더다 */}
-        <MainStack.Screen
-          name="Notice"
-          component={PlaceholderScreen}
-          options={{ headerShown: true, headerTitle: '', headerBackTitle: '설정' }}
-        />
+        {/* 공지 목록·상세 — 앱바(뒤로 + "공지사항" / 뒤로만)를 화면이 직접 그린다(settings-uiux.md 4.7 S8·S9).
+          settings → notice 의존 없이 라우트 이름으로만 이동한다(content-detail과 같은 방식) */}
+        <MainStack.Screen name="Notice" component={NoticeListScreen} />
+        <MainStack.Screen name="NoticeDetail" component={NoticeDetailScreen} />
         {/* 회원 탈퇴(A7·A8) — 앱바(뒤로 + "회원 탈퇴")를 화면이 직접 그린다(auth-uiux.md 4.5).
           처리 중 이탈 차단(뒤로가기·스와이프)은 화면이 beforeRemove·gestureEnabled로 소유한다 */}
         <MainStack.Screen name="Withdrawal" component={WithdrawalScreen} />
