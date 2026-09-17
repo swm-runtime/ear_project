@@ -35,6 +35,8 @@ const SKIP_SEC = 10;
 const RATES = [1, 1.25, 1.5, 2] as const;
 /** 만료 몇 초 전부터는 새 URL을 받고 재생한다 — 재생 도중 끊기지 않게 여유를 둔다 */
 const REFRESH_MARGIN_MS = 10_000;
+/** 미니플레이어가 사라질 때 슬라이드가 끝나기를 기다리는 시간(ms). CSS 전환과 같아야 한다 */
+const MINI_LEAVE_MS = 320;
 
 function formatTime(sec: number): string {
   const whole = Math.max(0, Math.floor(sec));
@@ -94,6 +96,8 @@ export function TryPlayer() {
    * 돌아간다(2026-09-18 버그). ref는 함수 정체성을 바꾸지 않는다.
    */
   const rateRef = useRef<number>(RATES[0]);
+  /** 카드 자체. 화면 밖으로 나갔는지를 재서 미니플레이어를 띄울지 정한다 */
+  const cardRef = useRef<HTMLDivElement>(null);
 
   const [status, setStatus] = useState<Status>("loading");
   const [sample, setSample] = useState<Sample | null>(null);
@@ -101,6 +105,12 @@ export function TryPlayer() {
   const [currentSec, setCurrentSec] = useState(0);
   const [durationSec, setDurationSec] = useState(0);
   const [rateIndex, setRateIndex] = useState(0);
+  /** 카드가 뷰포트에 조금이라도 보이는가 */
+  const [isCardVisible, setIsCardVisible] = useState(true);
+  /** 하단 CTA 패널이 보이는가 — 그 위에는 미니플레이어를 얹지 않는다 */
+  const [isCtaVisible, setIsCtaVisible] = useState(false);
+  /** 미니플레이어 표시 단계. leaving은 슬라이드 아웃이 끝날 때까지 DOM에 남는 구간 */
+  const [miniStage, setMiniStage] = useState<"hidden" | "shown" | "leaving">("hidden");
 
   const applyAudio = useCallback((body: SampleResponse) => {
     const audio = audioRef.current;
@@ -193,6 +203,52 @@ export function TryPlayer() {
     };
   }, [refreshAudio]);
 
+  /* ── 미니플레이어 — 재생 중에 카드가 화면 밖으로 나가면 하단에 붙는다(랜딩 고급화 2/6) ── */
+  useEffect(() => {
+    const card = cardRef.current;
+    if (!card || typeof IntersectionObserver === "undefined") return;
+    const cardObserver = new IntersectionObserver(
+      ([entry]) => setIsCardVisible(entry.isIntersecting),
+      { threshold: 0 },
+    );
+    cardObserver.observe(card);
+
+    // 하단 CTA 패널(FinalCta, id="cta")과 겹치지 않는다 — 두 검은 덩어리가 포개지면 둘 다 죽는다
+    const cta = document.getElementById("cta");
+    const ctaObserver = cta
+      ? new IntersectionObserver(([entry]) => setIsCtaVisible(entry.isIntersecting), { threshold: 0 })
+      : null;
+    if (cta && ctaObserver) ctaObserver.observe(cta);
+
+    return () => {
+      cardObserver.disconnect();
+      ctaObserver?.disconnect();
+    };
+  }, []);
+
+  const wantsMini = isPlaying && !isCardVisible && !isCtaVisible;
+  useEffect(() => {
+    if (wantsMini) {
+      // 동기 setState 회피(react-hooks/set-state-in-effect)
+      const id = window.setTimeout(() => setMiniStage("shown"), 0);
+      return () => window.clearTimeout(id);
+    }
+    // 보이던 것만 슬라이드 아웃을 거친다. 처음부터 숨김이면 그대로
+    const leave = window.setTimeout(() => setMiniStage((stage) => (stage === "shown" ? "leaving" : stage)), 0);
+    const hide = window.setTimeout(() => setMiniStage("hidden"), MINI_LEAVE_MS);
+    return () => {
+      window.clearTimeout(leave);
+      window.clearTimeout(hide);
+    };
+  }, [wantsMini]);
+
+  const scrollToCard = useCallback(() => {
+    const card = cardRef.current;
+    if (!card) return;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    card.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "center" });
+  }, []);
+
   const isLocked = status !== "ready";
 
   const togglePlay = useCallback(async () => {
@@ -244,7 +300,11 @@ export function TryPlayer() {
     sample?.title ?? (status === "loading" ? trySample.loadingTitle : trySample.unavailableTitle);
 
   return (
-    <div className={`${s.player} ${isLocked ? s.playerLocked : ""}`} aria-busy={status === "loading"}>
+    <div
+      ref={cardRef}
+      className={`${s.player} ${isLocked ? s.playerLocked : ""}`}
+      aria-busy={status === "loading"}
+    >
       <audio ref={audioRef} preload="metadata" />
 
       {/* 썸네일은 서명 URL과 같은 CDN에서 온다. 호스트가 배포마다 달라 next/image 원격 패턴에 묶지
@@ -343,6 +403,71 @@ export function TryPlayer() {
           </button>
         </div>
       </div>
+
+      {miniStage !== "hidden" && sample ? (
+        <MiniPlayer
+          sample={sample}
+          isPlaying={isPlaying}
+          progress={progress}
+          leaving={miniStage === "leaving"}
+          onToggle={() => void togglePlay()}
+          onOpen={scrollToCard}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * 하단 미니플레이어 — 앱의 미니플레이어와 같은 문법(작은 커버 · 제목 한 줄 · 재생/일시정지 · 상단 진행선).
+ *
+ * 재생 중에 카드가 화면 밖으로 나갔을 때만 뜬다. 일시정지하면 사라진다(결정 2026-09-18 — 앱과 달리
+ * 랜딩에는 "이어 듣기" 세션 개념이 없다). 본체를 탭하면 Try 카드로 부드럽게 돌아간다.
+ * `position: fixed`라 카드 안에 렌더해도 화면에 고정된다(카드 조상에 transform이 없다).
+ */
+function MiniPlayer({
+  sample,
+  isPlaying,
+  progress,
+  leaving,
+  onToggle,
+  onOpen,
+}: {
+  sample: Sample;
+  isPlaying: boolean;
+  progress: number;
+  leaving: boolean;
+  onToggle: () => void;
+  onOpen: () => void;
+}) {
+  return (
+    <div className={`${s.mini} ${leaving ? s.miniLeaving : ""}`} role="region" aria-label="지금 재생 중">
+      <span className={s.miniProgress} style={{ width: `${progress}%` }} aria-hidden="true" />
+      <button type="button" className={s.miniBody} onClick={onOpen} aria-label="플레이어로 돌아가기">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className={s.miniCover} src={sample.thumbnailUrl} alt="" width={80} height={80} />
+        <span className={s.miniText}>
+          <span className={s.miniTitle}>{sample.title}</span>
+          <span className={s.miniMeta}>지금 재생 중 · 탭하면 플레이어로</span>
+        </span>
+      </button>
+      <button
+        type="button"
+        className={s.miniPlay}
+        onClick={onToggle}
+        aria-label={isPlaying ? "일시정지" : "재생"}
+        aria-pressed={isPlaying}
+      >
+        {isPlaying ? (
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="currentColor" d="M7.5 5h3.2v14H7.5zM13.3 5h3.2v14h-3.2z" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="currentColor" d="M8 5.2 19 12 8 18.8z" />
+          </svg>
+        )}
+      </button>
     </div>
   );
 }
