@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { routes } from "@/content/routes";
 import s from "./PageHeader.module.css";
+import { Sentences } from "./Sentences";
 
 export type Crumb = { name: string; path?: string };
 
@@ -47,7 +48,11 @@ export function PageHeader({
         </nav>
 
         <h1 className={s.title}>{title}</h1>
-        {lede && <p className={s.lede}>{lede}</p>}
+        {lede && (
+          <p className={s.lede}>
+            <Sentences text={lede} />
+          </p>
+        )}
         {meta && <p className={s.meta}>{meta}</p>}
       </div>
     </div>

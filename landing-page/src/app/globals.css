@@ -289,6 +289,13 @@ svg {
   background: rgba(127, 127, 137, 0.09);
 }
 
+/* 문장 단위 줄바꿈 조각(components/Sentences.tsx). 한 줄에 들어오면 그대로, 안 들어오면 문장째로 내려간다 */
+.sentence {
+  display: inline-block;
+  /* 한 줄보다 긴 문장은 두 줄을 고르게 나눈다 — 마지막 줄에 "정할거에요." 한 어절만 남는 일을 막는다 */
+  text-wrap: balance;
+}
+
 /* ---------- 접근성 ---------- */
 
 .skipLink {

@@ -1,6 +1,7 @@
 import { trySample } from "@/content/site";
 import { TryPlayer } from "./TryPlayer";
 import s from "./TrySample.module.css";
+import { Sentences } from "./Sentences";
 
 /**
  * Try 섹션 — 히어로 바로 아래에서 샘플 한 편을 들려준다.
@@ -15,13 +16,17 @@ export function TrySample() {
       <div className="container">
         <p className="eyebrow">{trySample.eyebrow}</p>
         <h2 className="sectionTitle">{trySample.title}</h2>
-        <p className="sectionLede">{trySample.lede}</p>
+        <p className="sectionLede">
+          <Sentences text={trySample.lede} />
+        </p>
 
         <div className={s.playerWrap}>
           <TryPlayer />
         </div>
 
-        <p className={s.note}>{trySample.note}</p>
+        <p className={s.note}>
+          <Sentences text={trySample.note} />
+        </p>
       </div>
     </section>
   );

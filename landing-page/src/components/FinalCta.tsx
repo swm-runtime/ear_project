@@ -1,5 +1,6 @@
 import { releaseMailto } from "@/content/site";
 import s from "./FinalCta.module.css";
+import { Sentences } from "./Sentences";
 
 export function FinalCta() {
   return (
@@ -14,8 +15,7 @@ export function FinalCta() {
               남들과 다른 시작을 하고 싶다면
             </h2>
             <p className={s.lede}>
-              이어는 지금 정식 출시를 준비하고 있어요. 메일을 남겨 주시면
-              출시하는 날 가장 먼저 알려 드릴게요.
+              <Sentences text="이어는 지금 정식 출시를 준비하고 있어요. 메일을 남겨 주시면 출시하는 날 가장 먼저 알려 드릴게요." />
             </p>
 
             <div className={s.actions}>

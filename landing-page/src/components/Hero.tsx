@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { releaseMailto, site, stats } from "@/content/site";
 import { CountUp } from "./CountUp";
+import { HeroPhoneScene } from "./HeroPhoneScene";
 import { routes } from "@/content/routes";
 import s from "./Hero.module.css";
 
@@ -279,6 +280,10 @@ function AppPreview() {
           </div>
 
           <span className={s.homeIndicator} />
+
+          {/* 정적 화면 위에서 앱 흐름(카드 탭 → 플레이어 → 미니플레이어)을 반복하는 덧씌움 층.
+              reduced-motion이면 아무것도 그리지 않아 위 정적 화면만 남는다 */}
+          <HeroPhoneScene track={POPULAR[0]} />
         </div>
       </div>
     </div>
@@ -308,10 +313,13 @@ export function Hero() {
           {/* 히어로 문구에는 편수·한도 같은 정책 수치를 넣지 않는다. 정책이 바뀔 때마다
               첫 화면을 고쳐야 하고, 무엇보다 여기서 할 말은 규격이 아니라 약속이다.
               구체적인 숫자는 바로 아래 숫자 띠와 요금제 페이지가 맡는다. */}
+          {/* 문장 단위로 끊는다(components/Sentences.tsx와 같은 규칙) — 굵은 조각이 있어 직접 감싼다 */}
           <p className={s.lede}>
-            관심 있는 주제만 한 번 골라 두세요. 매일 아침, 그 주제로 만든 15분짜리
-            에피소드가 도착해 있어요. 오늘은 뭘 듣지 고민할 일 없이,
-            <strong> 이어폰만 꽂으면 돼요.</strong>
+            <span className="sentence">관심 있는 주제만 한 번 골라 두세요.</span>{" "}
+            <span className="sentence">매일 아침, 그 주제로 만든 15분짜리 에피소드가 도착해 있어요.</span>{" "}
+            <span className="sentence">
+              오늘은 뭘 듣지 고민할 일 없이,<strong> 이어폰만 꽂으면 돼요.</strong>
+            </span>
           </p>
 
           <div className={s.actions}>

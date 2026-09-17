@@ -1,5 +1,6 @@
 import { plans } from "@/content/site";
 import s from "./Pricing.module.css";
+import { Sentences } from "./Sentences";
 
 function Check({ ok }: { ok: boolean }) {
   return (
@@ -49,7 +50,11 @@ export function Pricing({
       <div className="container">
         <p className="eyebrow">{eyebrow}</p>
         <h2 className="sectionTitle">{title}</h2>
-        {lede && <p className="sectionLede">{lede}</p>}
+        {lede && (
+          <p className="sectionLede">
+            <Sentences text={lede} />
+          </p>
+        )}
 
         <ul className={s.grid}>
           {plans.map((plan) => (
