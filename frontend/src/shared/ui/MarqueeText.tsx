@@ -23,7 +23,8 @@ interface MarqueeTextProps {
 const DEFAULT_SPEED = 36;
 const DEFAULT_PAUSE_MS = 1800;
 const DEFAULT_GAP = 56;
-const DEFAULT_FADE_WIDTH = 32;
+/** 글자 두 개 폭쯤 — 한 글자 폭이면 마지막 글자가 반쯤 남은 채 잘린다(2026-09-17 PM 지적) */
+const DEFAULT_FADE_WIDTH = 64;
 /** 트랙 폭 — 어떤 제목보다 넓기만 하면 된다. 뷰포트가 잘라 보이지 않는다 */
 const TRACK_WIDTH = 10000;
 /** 한글·라틴 글자의 시각적 가운데는 기준선에서 글자 크기의 이 비율만큼 위다 — SVG 텍스트를 줄 가운데에 앉히는 값 */
@@ -141,12 +142,20 @@ export default function MarqueeText({
         <Svg width={viewportWidth} height={lineHeight} pointerEvents="none">
           <Defs>
             {/* 마스크는 밝기다 — 흰색 = 보임, 검정 = 안 보임. 양끝 그라데이션이 글자를 투명하게 만든다 */}
+            {/* 끝으로 갈수록 가파르게 — 선형이면 끝 글자가 반쯤 보이다 툭 끊긴다 */}
+            {/* 가장자리 15%는 완전 투명 — 경계에서 잔여 불투명도가 남으면 마지막 글자가 세로로 툭 끊긴다 */}
             <LinearGradient id={`${uid}-left`} x1="0" y1="0" x2="1" y2="0">
               <Stop offset="0" stopColor="#000000" />
+              <Stop offset="0.15" stopColor="#000000" />
+              <Stop offset="0.45" stopColor="#555555" />
+              <Stop offset="0.75" stopColor="#CCCCCC" />
               <Stop offset="1" stopColor="#FFFFFF" />
             </LinearGradient>
             <LinearGradient id={`${uid}-right`} x1="0" y1="0" x2="1" y2="0">
               <Stop offset="0" stopColor="#FFFFFF" />
+              <Stop offset="0.25" stopColor="#CCCCCC" />
+              <Stop offset="0.55" stopColor="#555555" />
+              <Stop offset="0.85" stopColor="#000000" />
               <Stop offset="1" stopColor="#000000" />
             </LinearGradient>
             <Mask
