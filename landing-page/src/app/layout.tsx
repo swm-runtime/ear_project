@@ -3,6 +3,7 @@ import { Analytics } from "@/components/Analytics";
 import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
 import { JsonLd } from "@/components/JsonLd";
+import { ScrollReveal } from "@/components/ScrollReveal";
 import { routes } from "@/content/routes";
 import { site, SITE_URL } from "@/content/site";
 import { siteGraph } from "@/lib/schema";
@@ -87,6 +88,8 @@ export default function RootLayout({
         </a>
         <Header />
         <main id="main">{children}</main>
+        {/* 아래쪽 섹션의 스크롤 등장 — 표식이 없으면 전부 보이므로 크롤러·JS 꺼짐에 영향이 없다 */}
+        <ScrollReveal />
         <Footer />
         {/* GA4. 본문 뒤에 두어 측정 스크립트가 첫 화면 렌더를 붙잡지 않게 한다. */}
         <Analytics />
