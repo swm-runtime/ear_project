@@ -26,6 +26,8 @@ interface PlayerQueuePanelProps {
   onRetry: () => void;
   /** 항목 위에서 오른쪽으로 밀면 접는다 — 아트워크 화면으로 "돌아가는" 방향 */
   onSwipeRight: () => void;
+  /** 시트 안에서는 손잡이 라벨이 제목 역할이라 패널 제목을 다시 그리지 않는다 */
+  showHeader?: boolean;
 }
 
 const SWIPE_RIGHT_DISTANCE = 40;
@@ -54,6 +56,7 @@ export default function PlayerQueuePanel({
   onSelect,
   onRetry,
   onSwipeRight,
+  showHeader = true,
 }: PlayerQueuePanelProps) {
   const swipeRightRef = useRef(onSwipeRight);
   useEffect(() => {
@@ -72,11 +75,11 @@ export default function PlayerQueuePanel({
     [],
   );
 
-  const header = (
+  const header = showHeader ? (
     <Text style={styles.title} accessibilityRole="header">
       {PLAYER_COPY.queuePanel.title}
     </Text>
-  );
+  ) : null;
 
   if (isError) {
     return (
@@ -175,7 +178,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listContent: {
-    paddingTop: theme.spacing.md,
+    // 시트가 화면 폭을 꽉 채우므로 행의 좌우 여백은 여기서 — 행 자체 패딩(sm)과 합쳐 화면 여백(lg)이 된다
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.sm,
     paddingBottom: theme.spacing.md,
     gap: theme.spacing.xs,
   },

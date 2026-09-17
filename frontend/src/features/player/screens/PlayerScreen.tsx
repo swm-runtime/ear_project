@@ -75,22 +75,33 @@ export default function PlayerScreen() {
    * 열린 채로 다른 패널로 바꾸면 전환 없이 내용만 바뀐다
    */
   const panelProgress = useAnimatedValue(0);
+  /*
+   * 재생 목록(2026-09-17 PM 확정) — 스크립트와 달리 **아래에서 올라오는 시트**다. 손잡이를 끌어올리면 시트가
+   * 올라온 만큼 위의 플레이어가 세로 구조(아트워크·제목·시크바·컨트롤) 그대로 공백을 접으며 압축되고, 목록은
+   * 컨트롤 **아래**에 선다(유튜브 뮤직). 값 하나(queueProgress, 0 닫힘 → 1 열림)가 시트 위치와 압축을 함께 몬다
+   */
+  const queueProgress = useAnimatedValue(0);
   const [mountedPanel, setMountedPanel] = useState<PlayerPanelKind | null>(null);
   const setPanel = (kind: PlayerPanelKind | null) => {
     if (kind !== null && !isPanelAvailable(kind)) return;
-    if (kind !== null) {
-      screen.openPanel(kind);
-      setMountedPanel(kind);
-    } else {
-      screen.closePanel();
-    }
+    if (kind !== null) screen.openPanel(kind);
+    else screen.closePanel();
+    Animated.timing(queueProgress, {
+      toValue: kind === 'queue' ? 1 : 0,
+      duration: SCRIPT_TOGGLE_DURATION_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+    // 스크립트 패널(히어로 위) — 열 때 마운트, 닫힘 애니메이션이 끝나면 내린다. 둘은 동시에 열리지 않는다
+    const isScriptOpen = kind === 'script';
+    if (isScriptOpen) setMountedPanel('script');
     Animated.timing(panelProgress, {
-      toValue: kind !== null ? 1 : 0,
+      toValue: isScriptOpen ? 1 : 0,
       duration: SCRIPT_TOGGLE_DURATION_MS,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start(({ finished }) => {
-      if (finished && kind === null) setMountedPanel(null);
+      if (finished && !isScriptOpen) setMountedPanel(null);
     });
   };
   // 헤더 애니메이션의 기준 치수 — 화면 폭·컨트롤 높이는 실측한다(기기마다 다르다)
@@ -117,7 +128,7 @@ export default function PlayerScreen() {
    */
   const [contentOrigin, setContentOrigin] = useState({ x: 0, y: 0 });
   const [heroBox, setHeroBox] = useState<{ x: number; y: number } | null>(null);
-  const [heroArtBox, setHeroArtBox] = useState<{ x: number; y: number; size: number } | null>(null);
+  const [heroArtBox, setHeroArtBox] = useState<LayoutBox | null>(null);
   const [titleBox, setTitleBox] = useState<LayoutBox | null>(null);
   const [compactTitleBox, setCompactTitleBox] = useState<LayoutBox | null>(null);
   const onHeroLayout = (event: LayoutChangeEvent) =>
@@ -126,7 +137,8 @@ export default function PlayerScreen() {
     setHeroArtBox({
       x: event.nativeEvent.layout.x,
       y: event.nativeEvent.layout.y,
-      size: event.nativeEvent.layout.width,
+      width: event.nativeEvent.layout.width,
+      height: event.nativeEvent.layout.height,
     });
   const onTitleLayout = (event: LayoutChangeEvent) => setTitleBox(event.nativeEvent.layout);
   const onCompactTitleLayout = (event: LayoutChangeEvent) =>
@@ -261,34 +273,15 @@ export default function PlayerScreen() {
 
   // 스크립트 펼침·접힘 제스처 — 콜백은 ref로 최신을 유지하고 responder는 한 번만 만든다
   const panelGestureRef = useRef({
-    openQueue: () => {},
     openScript: () => {},
     close: () => {},
   });
   useEffect(() => {
     panelGestureRef.current = {
-      openQueue: () => setPanel('queue'),
       openScript: () => setPanel('script'),
       close: () => setPanel(null),
     };
   });
-  // 바닥 손잡이 — 양쪽 상태에서 같은 자리다. 위로 끌면 펼치고 아래로 끌면 접는다(탭은 토글).
-  // 세로 드래그 전용이라 몇 px에 먼저 잡고(화면 축소 제스처보다 우선), 놓는 순간의 거리로 판정한다
-  const handlePanResponder = useMemo(
-    () =>
-      // eslint-disable-next-line react-hooks/refs -- 콜백은 렌더가 아니라 제스처 시점에 실행된다(표준 PanResponder 패턴)
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_, gesture) =>
-          Math.abs(gesture.dy) > SCRIPT_HANDLE_CLAIM_DISTANCE &&
-          Math.abs(gesture.dy) > Math.abs(gesture.dx),
-        onPanResponderRelease: (_, gesture) => {
-          if (gesture.dy < -SCRIPT_EXPAND_SWIPE_DISTANCE) panelGestureRef.current.openQueue();
-          else if (gesture.dy > SCRIPT_EXPAND_SWIPE_DISTANCE) panelGestureRef.current.close();
-        },
-        onPanResponderTerminationRequest: () => false,
-      }),
-    [],
-  );
   // 좌우 스와이프 — 아트워크(접힘)·압축 헤더(펼침)에서 왼쪽으로 밀면 펼치고 오른쪽으로 밀면 접는다.
   // 가사 페이지를 옆으로 넘기는 문법(2026-09-16). 세로 성분이 크면 축소 제스처에 양보한다
   const horizontalSwipeResponder = useMemo(
@@ -323,7 +316,18 @@ export default function PlayerScreen() {
     HERO_MIN_ARTWORK,
     Math.min(innerWidth, artAreaHeight - theme.spacing.sm),
   );
-  const hero = {
+  /*
+   * 재생 목록 시트가 올라왔을 때의 히어로 — 아트워크는 가운데 작게, 제목은 바로 아래. 세로 구조는 그대로다.
+   * 스크립트 압축(panelProgress)과는 서로 배타라(동시에 열리지 않는다) 두 값의 변위를 그냥 더한다
+   */
+  const queueHeroHeight =
+    theme.spacing.sm +
+    QUEUE_ARTWORK_HEIGHT +
+    theme.spacing.md +
+    (HERO_META_BLOCK_HEIGHT - theme.spacing.lg);
+  const queueMetaTop = theme.spacing.sm + QUEUE_ARTWORK_HEIGHT + theme.spacing.md;
+  const queueShift = (from: number, to: number) => Animated.multiply(queueProgress, to - from);
+  const heroBase = {
     height: panelProgress.interpolate({
       inputRange: [0, 1],
       outputRange: [artAreaHeight + HERO_META_BLOCK_HEIGHT, HERO_COMPACT_HEIGHT],
@@ -368,6 +372,80 @@ export default function PlayerScreen() {
     }),
     panelOffset: panelProgress.interpolate({ inputRange: [0, 1], outputRange: [40, 0] }),
   };
+  const collapsedArtTop =
+    theme.spacing.sm + (artAreaHeight - theme.spacing.sm - artSizeCollapsed) / 2;
+  const hero = {
+    ...heroBase,
+    height: Animated.add(
+      heroBase.height,
+      queueShift(artAreaHeight + HERO_META_BLOCK_HEIGHT, queueHeroHeight),
+    ),
+    // 배너 — 폭은 화면 안쪽 폭까지 늘고 높이는 낮아진다(cover 로 잘린다). 유튜브 뮤직의 재생목록 열림과 같다
+    artSize: Animated.add(heroBase.artSize, queueShift(artSizeCollapsed, innerWidth)),
+    artHeight: Animated.add(heroBase.artSize, queueShift(artSizeCollapsed, QUEUE_ARTWORK_HEIGHT)),
+    artTop: Animated.add(heroBase.artTop, queueShift(collapsedArtTop, theme.spacing.sm)),
+    artLeft: Animated.add(heroBase.artLeft, queueShift((innerWidth - artSizeCollapsed) / 2, 0)),
+    metaTop: Animated.add(
+      heroBase.metaTop,
+      queueShift(artAreaHeight + theme.spacing.lg, queueMetaTop),
+    ),
+  };
+  // 시트의 위쪽 끝 — 닫힘: 손잡이만 남는다 / 열림: 압축된 플레이어(앱바 + 히어로 + 컨트롤) 바로 아래
+  const queueClosedTop = Math.max(0, contentSize.height - handleHeight);
+  const queueOpenTop = Math.min(queueClosedTop, appBarHeight + queueHeroHeight + controlsHeight);
+  const queueTop = queueProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [queueClosedTop, queueOpenTop],
+  });
+
+  // 재생 목록 손잡이 — 손가락이 곧 queueProgress 다. 위로 끌면 시트가 따라 올라오며 위가 압축되고, 놓으면
+  // 거리(35%)·속도로 열림/닫힘을 확정한다(탭은 토글). 세로 드래그 전용이라 몇 px에 먼저 잡는다(화면 축소보다 우선)
+  const queueGestureRef = useRef({
+    travel: 1,
+    isOpen: false,
+    open: () => {},
+    close: () => {},
+  });
+  useEffect(() => {
+    queueGestureRef.current = {
+      travel: Math.max(1, queueClosedTop - queueOpenTop),
+      isOpen: activePanel === 'queue',
+      open: () => setPanel('queue'),
+      close: () => setPanel(null),
+    };
+  });
+  const handlePanResponder = useMemo(
+    () =>
+      // eslint-disable-next-line react-hooks/refs -- 콜백은 렌더가 아니라 제스처 시점에 실행된다(표준 PanResponder 패턴)
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gesture) =>
+          Math.abs(gesture.dy) > SCRIPT_HANDLE_CLAIM_DISTANCE &&
+          Math.abs(gesture.dy) > Math.abs(gesture.dx),
+        onPanResponderMove: (_, gesture) => {
+          const { travel, isOpen } = queueGestureRef.current;
+          // 위로 끌면 dy 가 음수다 — 열림 방향이 +1 이 되도록 부호를 뒤집는다
+          const next = (isOpen ? 1 : 0) - gesture.dy / travel;
+          queueProgress.setValue(Math.min(1, Math.max(0, next)));
+        },
+        onPanResponderRelease: (_, gesture) => {
+          const { travel, isOpen, open, close } = queueGestureRef.current;
+          // 속도가 실렸으면 거리가 모자라도 그 방향으로 — 짧게 튕기는 조작을 받는다
+          if (gesture.vy < -QUEUE_COMMIT_VELOCITY) return open();
+          if (gesture.vy > QUEUE_COMMIT_VELOCITY) return close();
+          const progressed = (isOpen ? 1 : 0) - gesture.dy / travel;
+          if (isOpen ? progressed > 1 - QUEUE_COMMIT_RATIO : progressed > QUEUE_COMMIT_RATIO)
+            open();
+          else close();
+        },
+        onPanResponderTerminate: () => {
+          const { isOpen, open, close } = queueGestureRef.current;
+          if (isOpen) open();
+          else close();
+        },
+        onPanResponderTerminationRequest: () => false,
+      }),
+    [queueProgress],
+  );
 
   /* ── 모션 좌표 — 출발(미니플레이어 썸네일·제목)과 도착(풀 화면 아트워크·제목)을 window 좌표로 잇는다 ── */
   const mini = miniLayout ?? {
@@ -398,24 +476,33 @@ export default function PlayerScreen() {
   const miniButtonTop =
     mini.y + MINI_PROGRESS_HEIGHT + (mini.height - MINI_PROGRESS_HEIGHT - MINI_BUTTON_WIDTH) / 2;
   // 패널이 열려 있으면 히어로가 압축돼 있다 — 모션의 "풀 화면" 쪽 좌표도 그 상태를 따라야 교차 순간 안 튄다
-  const isHeroCompact = activePanel !== null;
-  const fullArtSize = isHeroCompact ? COMPACT_ARTWORK_SIZE : artSizeCollapsed;
+  const isHeroCompact = activePanel === 'script';
+  const isQueueOpen = activePanel === 'queue';
+  const fullArtWidth = isHeroCompact
+    ? COMPACT_ARTWORK_SIZE
+    : isQueueOpen
+      ? innerWidth
+      : artSizeCollapsed;
+  const fullArtHeight = isQueueOpen ? QUEUE_ARTWORK_HEIGHT : fullArtWidth;
   const fullArtLeft = isHeroCompact
     ? theme.spacing.lg
-    : theme.spacing.lg + (innerWidth - artSizeCollapsed) / 2;
-  const fullArtTop = isHeroCompact
-    ? insets.top + appBarHeight + theme.spacing.sm
-    : insets.top +
-      appBarHeight +
-      theme.spacing.sm +
-      (artAreaHeight - theme.spacing.sm - artSizeCollapsed) / 2;
+    : theme.spacing.lg + (innerWidth - fullArtWidth) / 2;
+  const fullArtTop =
+    isHeroCompact || isQueueOpen
+      ? insets.top + appBarHeight + theme.spacing.sm
+      : insets.top +
+        appBarHeight +
+        theme.spacing.sm +
+        (artAreaHeight - theme.spacing.sm - artSizeCollapsed) / 2;
   const fullArtRadius = isHeroCompact ? theme.radius.md : theme.radius.lg;
   const fullTitleLeft = isHeroCompact
     ? theme.spacing.lg + COMPACT_ARTWORK_SIZE + theme.spacing.md
     : theme.spacing.lg;
   const fullTitleTop = isHeroCompact
     ? insets.top + appBarHeight + HERO_COMPACT_META_TOP
-    : insets.top + appBarHeight + artAreaHeight + theme.spacing.lg;
+    : isQueueOpen
+      ? insets.top + appBarHeight + queueMetaTop
+      : insets.top + appBarHeight + artAreaHeight + theme.spacing.lg;
   const fullTitleWidth = isHeroCompact
     ? innerWidth - COMPACT_ARTWORK_SIZE - theme.spacing.md
     : innerWidth;
@@ -426,13 +513,18 @@ export default function PlayerScreen() {
       ? {
           left: contentOrigin.x + heroBox.x + heroArtBox.x,
           top: contentOrigin.y + heroBox.y + heroArtBox.y,
-          size: heroArtBox.size,
+          width: heroArtBox.width,
+          height: heroArtBox.height,
         }
-      : { left: fullArtLeft, top: fullArtTop, size: fullArtSize };
+      : { left: fullArtLeft, top: fullArtTop, width: fullArtWidth, height: fullArtHeight };
   // 제목 블록(heroMeta)의 위치는 실측하지 않는다 — 웹의 onLayout 은 크기가 바뀔 때만 다시 불려, 위치만
   // 움직이는 절대 배치 요소는 첫 값(0)에 머문다(2026-09-17 실측: 제목이 화면 위 y≈92 로 날아갔다).
   // 위치는 hero.metaTop 과 같은 수식으로 두고, 히어로 원점과 제목 줄의 크기만 실측값을 쓴다
-  const metaTop = isHeroCompact ? HERO_COMPACT_META_TOP : artAreaHeight + theme.spacing.lg;
+  const metaTop = isHeroCompact
+    ? HERO_COMPACT_META_TOP
+    : isQueueOpen
+      ? queueMetaTop
+      : artAreaHeight + theme.spacing.lg;
   const metaLeft = isHeroCompact ? COMPACT_ARTWORK_SIZE + theme.spacing.md : 0;
   const fullTitle =
     heroBox && measuredTitleLayer
@@ -451,9 +543,13 @@ export default function PlayerScreen() {
       inputRange: [0, 1],
       outputRange: [miniThumbTop, fullArt.top],
     }),
-    artSize: openProgress.interpolate({
+    artWidth: openProgress.interpolate({
       inputRange: [0, 1],
-      outputRange: [miniThumbSize, fullArt.size],
+      outputRange: [miniThumbSize, fullArt.width],
+    }),
+    artHeight: openProgress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [miniThumbSize, fullArt.height],
     }),
     artRadius: openProgress.interpolate({
       inputRange: [0, 1],
@@ -698,7 +794,7 @@ export default function PlayerScreen() {
                 top: hero.artTop,
                 left: hero.artLeft,
                 width: hero.artSize,
-                height: hero.artSize,
+                height: hero.artHeight,
                 borderRadius: hero.artRadius,
               },
             ]}
@@ -763,17 +859,6 @@ export default function PlayerScreen() {
                 segments={scriptSegments}
                 positionSec={session.positionSec}
                 onSeek={screen.seekTo}
-                onSwipeRight={() => setPanel(null)}
-              />
-            ) : null}
-            {mountedPanel === 'queue' ? (
-              <PlayerQueuePanel
-                items={queueItems}
-                isLoading={queueQuery.isPending}
-                isError={queueQuery.isError}
-                currentContentId={session.contentId}
-                onSelect={screen.playQueueItem}
-                onRetry={() => void queueQuery.refetch()}
                 onSwipeRight={() => setPanel(null)}
               />
             ) : null}
@@ -887,32 +972,46 @@ export default function PlayerScreen() {
           {renderBannerArea()}
         </View>
 
-        {/* 다음 재생 목록 — 화면 바닥의 서랍 손잡이(2026-09-16, 스크립트와 자리 교환). 접힘·펼침 양쪽에서
-            같은 자리라 "같은 물건"으로 읽힌다. 위로 끌면 목록이 올라오고 아래로 끌면 열린 패널이 내려간다,
-            탭은 토글. 목록 = 라이브러리 첫 페이지라 손잡이는 항상 있다 */}
-        {
-          // 드래그 핸들러는 감싼 View에 — Pressable은 자기 press 응답자로 panHandlers를 덮어쓴다
-          <View
-            style={styles.scriptHandleWrap}
-            onLayout={onHandleLayout}
-            {...handlePanResponder.panHandlers}
-          >
-            <Pressable
-              style={styles.scriptHandle}
-              onPress={() => setPanel(activePanel === 'queue' ? null : 'queue')}
-              accessibilityRole="button"
-              accessibilityLabel={
-                activePanel === 'queue'
-                  ? PLAYER_COPY.screen.queueCollapseA11y
-                  : PLAYER_COPY.screen.queueHandleA11y
-              }
-              accessibilityState={{ expanded: activePanel === 'queue' }}
+        {/* 손잡이 자리 — 시트가 닫혀 있을 때 손잡이가 덮는 높이만큼 비워 컨트롤 위치를 고정한다 */}
+        <View style={{ height: handleHeight }} />
+
+        {/* 재생 목록 시트 — 화면 바닥에서 올라온다(2026-09-17 PM). 닫힘엔 손잡이만 보이고, 위로 끌면 시트가
+            따라 올라오며 위의 플레이어가 세로 구조 그대로 공백을 접는다. 목록은 컨트롤 아래에 선다 */}
+        <Animated.View style={[styles.queueSheet, { top: queueTop }]}>
+          {
+            // 드래그 핸들러는 감싼 View에 — Pressable은 자기 press 응답자로 panHandlers를 덮어쓴다
+            <View
+              style={styles.scriptHandleWrap}
+              onLayout={onHandleLayout}
+              {...handlePanResponder.panHandlers}
             >
-              <View style={styles.scriptHandleBar} />
-              <Text style={styles.scriptHandleLabel}>{PLAYER_COPY.screen.queueHandle}</Text>
-            </Pressable>
-          </View>
-        }
+              <Pressable
+                style={styles.scriptHandle}
+                onPress={() => setPanel(activePanel === 'queue' ? null : 'queue')}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  activePanel === 'queue'
+                    ? PLAYER_COPY.screen.queueCollapseA11y
+                    : PLAYER_COPY.screen.queueHandleA11y
+                }
+                accessibilityState={{ expanded: activePanel === 'queue' }}
+              >
+                <View style={styles.scriptHandleBar} />
+                <Text style={styles.scriptHandleLabel}>{PLAYER_COPY.screen.queueHandle}</Text>
+              </Pressable>
+            </View>
+          }
+          <PlayerQueuePanel
+            items={queueItems}
+            isLoading={queueQuery.isPending}
+            isError={queueQuery.isError}
+            currentContentId={session.contentId}
+            showHeader={false}
+            onSelect={screen.playQueueItem}
+            onRetry={() => void queueQuery.refetch()}
+            onSwipeRight={() => setPanel(null)}
+          />
+        </Animated.View>
       </Animated.View>
 
       {/* 모션 레이어 — 열리고 닫히는 동안만. 아트워크·제목이 미니플레이어 자리와 풀 화면 자리 사이를 난다 */}
@@ -927,8 +1026,8 @@ export default function PlayerScreen() {
               {
                 left: morph.artLeft,
                 top: morph.artTop,
-                width: morph.artSize,
-                height: morph.artSize,
+                width: morph.artWidth,
+                height: morph.artHeight,
                 borderRadius: morph.artRadius,
               },
             ]}
@@ -1028,8 +1127,6 @@ export default function PlayerScreen() {
 
 /** 앱바(닫기·더보기) 아이콘 */
 const APP_BAR_ICON_SIZE = 24;
-/** 바닥 손잡이를 이만큼 위로 끌면 스크립트를 펼친다 */
-const SCRIPT_EXPAND_SWIPE_DISTANCE = 24;
 /** 손잡이가 드래그를 먼저 잡는 최소 이동 — 화면 축소 제스처(PLAYER_COLLAPSE_START_DISTANCE)보다 작아야 한다 */
 const SCRIPT_HANDLE_CLAIM_DISTANCE = 4;
 /** 좌우로 이만큼 밀면 스크립트를 펼치거나(←) 접는다(→) */
@@ -1040,6 +1137,11 @@ const SCRIPT_SWIPE_AXIS_RATIO = 1.5;
 const COMPACT_ARTWORK_SIZE = 56;
 /** 펼침·접힘 전환 시간 */
 const SCRIPT_TOGGLE_DURATION_MS = 320;
+/** 재생 목록을 끌어올렸을 때 남는 아트워크 배너 높이 — 폭은 그대로, 위아래가 잘린다(2026-09-17 PM, 유튜브 뮤직) */
+const QUEUE_ARTWORK_HEIGHT = 180;
+/** 손잡이를 놓았을 때 열림/닫힘 확정 — 이동 비율·속도(dp/ms). 실기기 검증 대상 제안값 */
+const QUEUE_COMMIT_RATIO = 0.35;
+const QUEUE_COMMIT_VELOCITY = 0.5;
 /** 아래로 끌기 — 화면 높이의 이 비율만큼 끌면 진행값이 0(미니플레이어)에 닿는다 */
 const PLAYER_DRAG_RANGE_RATIO = 0.7;
 /** 드래그 후 닫힘 모션의 하한 — 이보다 짧으면 놓는 순간 미니플레이어가 "나타난" 것처럼 보인다 */
@@ -1257,9 +1359,18 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   // 스크립트 손잡이 — 화면 바닥에 붙는다. 바(pill) + 라벨이 "위로 끌어올릴 수 있다"를 말한다
-  scriptHandleWrap: {
-    marginTop: 'auto',
+  // 재생 목록 시트 — 절대 배치의 기준은 content 의 바깥 모서리(패딩 안쪽이 아니다 — 2026-09-17 웹 실측).
+  // inset 0 이면 화면 폭을 꽉 채운다. 목록의 좌우 여백은 패널이 갖는다
+  queueSheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: theme.color.background,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: theme.color.border,
   },
+  scriptHandleWrap: {},
   scriptHandle: {
     minHeight: theme.touchTarget.minHeight,
     alignItems: 'center',
