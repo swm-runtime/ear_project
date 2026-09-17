@@ -6,6 +6,10 @@ export interface MiniPlayerLayout {
   y: number;
   width: number;
   height: number;
+  /** 썸네일 실측(window 좌표) — 모션의 아트워크가 정확히 이 자리에 내려앉는다. 없으면 상수로 추정한다 */
+  thumb?: { x: number; y: number; size: number };
+  /** 제목 텍스트 실측(window 좌표) */
+  title?: { x: number; y: number; width: number; height: number };
 }
 
 interface MiniPlayerLayoutStore {
