@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { BlogEmpty } from "@/components/BlogEmpty";
 import { FinalCta } from "@/components/FinalCta";
 import { JsonLd } from "@/components/JsonLd";
 import { NextLinks } from "@/components/NextLinks";
@@ -30,11 +31,7 @@ export default function BlogPage() {
 
       <div className="section">
         <div className="container">
-          {allPosts.length > 0 ? (
-            <PostList posts={allPosts} />
-          ) : (
-            <p className="sectionLede">아직 올라온 글이 없어요. 곧 찾아올게요.</p>
-          )}
+          {allPosts.length > 0 ? <PostList posts={allPosts} /> : <BlogEmpty />}
         </div>
       </div>
 
