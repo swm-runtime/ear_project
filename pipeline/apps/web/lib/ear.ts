@@ -112,6 +112,8 @@ export async function connectEar(): Promise<{ role: string; sub: string }> {
 export interface EarTopic {
   id: string; name: string; parent_category: string;
   is_visible: boolean; display_order: number; content_count: number;
+  /** 발행 중 + 라이선스 미만료 건수 — 노출 켜기 판정 기준(admin.md 4.5, KAN-58). 배포 전 서버는 주지 않는다 */
+  visible_content_count?: number;
 }
 export interface EarContent {
   id: string; title: string; description: string; origin: string; status: string;

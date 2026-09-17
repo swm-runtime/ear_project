@@ -8,13 +8,15 @@ import { listPipelineTopicsForSync } from "../../actions";
 /**
  * 제품 주제 관리 (admin.md 4.5) — **앱 사용자에게 보이는 제품 쪽 주제**. 파이프라인 주제 체계(/topics)의
  * 중분류와 이름·대분류를 1:1 로 맞추는 게 규약이라(2026-09-06 체계 통일) [체계와 맞추기]로 차이를 미리 보고 반영한다.
- * 새 주제는 숨김으로 생기고, 콘텐츠가 쌓인 뒤 노출을 켠다 — 노출은 여기서 사람만 바꾼다.
+ * 새 주제는 숨김으로 생기고, 콘텐츠가 쌓인 뒤 노출을 켠다 — 노출을 켜는 것은 여기서 사람만 한다.
+ * **노출 가능 콘텐츠(발행 중 + 라이선스 미만료)가 0건이면 켤 수 없다**(서버 409 `ADMIN_TOPIC_HAS_NO_CONTENTS`),
+ * 노출 중인 주제가 회수·만료로 0건이 되면 서버가 자동으로 숨긴다(KAN-58). 다시 켜는 것은 사람이다.
  */
 export default function EarTopicsPage() {
   return (
     <div className="space-y-3">
       <PageHeader title="제품 주제" breadcrumb={["파이프라인", "제품 발행", "제품 주제"]}
-        desc="앱 온보딩·탐색에 쓰이는 제품 쪽 주제. 파이프라인 주제 체계(/topics)의 중분류·대분류와 1:1 로 맞춘다 — [체계와 맞추기]가 없는 주제를 숨김으로 만들고 대분류·정렬을 맞춘다. 노출 여부만 사람이 켠다. 콘텐츠가 있는 주제는 삭제할 수 없다(숨김 권장)."
+        desc="앱 온보딩·탐색에 쓰이는 제품 쪽 주제. 파이프라인 주제 체계(/topics)의 중분류·대분류와 1:1 로 맞춘다 — [체계와 맞추기]가 없는 주제를 숨김으로 만들고 대분류·정렬을 맞춘다. 노출 여부만 사람이 켠다 — 노출 가능 콘텐츠(발행 중·라이선스 유효)가 0건이면 켤 수 없고, 노출 중에 0건이 되면 자동으로 숨겨진다. 콘텐츠가 있는 주제는 삭제할 수 없다(숨김 권장)."
         actions={<EarSession />} />
       <EarGate><TopicTable /></EarGate>
     </div>
@@ -115,16 +117,26 @@ function TopicTable() {
                 <td className="px-4 py-2.5 font-medium text-ink">{t.name}</td>
                 <td className="px-4 py-2.5 text-ink-soft">{t.parent_category}</td>
                 <td className="px-4 py-2.5 tabular-nums text-ink-soft">{t.display_order}</td>
-                <td className="px-4 py-2.5 tabular-nums text-ink-soft">{t.content_count}</td>
+                <td className="px-4 py-2.5 tabular-nums text-ink-soft" title="발행 중 / 전체 연결(회수·만료 포함 — 삭제 판정 기준)">
+                  {t.visible_content_count ?? "?"} / {t.content_count}
+                </td>
                 <td className="px-4 py-2.5">
-                  <label className="flex items-center gap-1.5 text-xs">
-                    <input type="checkbox" checked={t.is_visible} disabled={busy} onChange={(e) => {
-                      const on = e.target.checked;
-                      if (on && t.content_count === 0 && !confirm(`"${t.name}"에 콘텐츠가 0건이에요. 노출하면 "고를 수는 있는데 볼 게 없는 주제"가 생겨요. 그래도 켤까요?`)) { e.target.checked = false; return; }
-                      void act(() => patchEarTopic(t.id, { is_visible: on }));
-                    }} />
-                    {t.is_visible ? "노출" : "숨김"}
-                  </label>
+                  {(() => {
+                    // 숨김 → 노출만 막는다. 노출 중인 0건 주제(규칙 이전에 켜진 것)는 끌 수 있어야 한다
+                    const blocked = !t.is_visible && t.visible_content_count === 0;
+                    return (
+                      <label className="flex items-center gap-1.5 text-xs" title={blocked ? "콘텐츠가 0건이라 노출할 수 없어요. 콘텐츠를 먼저 발행해주세요" : undefined}>
+                        <input type="checkbox" checked={t.is_visible} disabled={busy || blocked} onChange={(e) => {
+                          const on = e.target.checked;
+                          // 규칙 배포 전 서버(운영은 main 머지 때 반영)는 막지 않는다 — 그동안은 종전 확인창으로 버틴다
+                          if (on && t.visible_content_count === undefined && t.content_count === 0 && !confirm(`"${t.name}"에 콘텐츠가 0건이에요. 그래도 켤까요?`)) { e.target.checked = false; return; }
+                          // 409 가 오면 act 가 서버 문구를 띄우고 목록을 다시 읽어 체크를 되돌린다
+                          void act(() => patchEarTopic(t.id, { is_visible: on }));
+                        }} />
+                        {t.is_visible ? "노출" : blocked ? "숨김 (콘텐츠 0건)" : "숨김"}
+                      </label>
+                    );
+                  })()}
                 </td>
                 <td className="px-4 py-2.5 text-right">
                   <button className={btnCls("danger")} disabled={busy} onClick={() => {
