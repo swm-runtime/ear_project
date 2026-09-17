@@ -24,7 +24,7 @@
 .steps::before {
   content: "";
   position: absolute;
-  left: 3.5px;
+  left: -8.5px; /* 번호 열 바깥, 살짝 왼쪽(피드백 2026-09-18) */
   top: 36px;
   bottom: 36px;
   width: 1px;
@@ -56,7 +56,7 @@
   position: relative;
   flex: none;
   width: 52px;
-  padding-left: 20px;
+  padding-left: 8px;
   font-family: var(--mono);
   font-size: 13px;
   font-weight: 700;
@@ -69,7 +69,7 @@
 .n::before {
   content: "";
   position: absolute;
-  left: 0;
+  left: -12px;
   top: 8px;
   width: 8px;
   height: 8px;
