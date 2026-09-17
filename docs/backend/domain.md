@@ -123,6 +123,7 @@ idx_idempotency_keys_expires_at
 | `drip` | `drip_excluded_contents`, `user_preference_vectors`, `drip_batch_runs`, `first_drip_jobs` |
 | `subscription` | `plans`, `subscriptions`, `purchase_intents`, `store_notification_logs` |
 | `notification` | `notification_logs` |
+| `notice` | `notices` — 공지사항 게시판(신설 2026-09-17, [9.2](#92-notices)). 다른 모듈을 의존하지 않는다 |
 | `partner` | `partners`, `content_control_requests`, `audit_logs` |
 | `user` (archive 스키마) | `archived_users`, `archived_consents`, `archived_subscriptions` |
 | `idempotency` | `idempotency_keys` — 도메인이 없는 플랫폼 모듈([1.4](#14-멱등-요청-저장--idempotency_keys)) |
@@ -1124,6 +1125,26 @@ idx_notification_logs_user_id_scheduled_at (user_id, scheduled_at DESC)
 - `skip_reason`에서 `quiet_hours`도 **제거했다**(합의 2026-08-06 — `notification.md` 4.3). 방해금지 개념 자체를 폐기했으므로(전역·사용자별 모두) 이 사유가 발생하지 않는다. 드립 도착은 순수 정보성 알림이라 편성 직후(05:00 확정 배치) 야간 제한 없이 발송한다.
 - **탈퇴 시 즉시 파기한다.** 보존해야 할 법령 근거가 없고(개인정보보호법 제21조 제1항 — 원칙은 파기), 이 테이블의 목적인 중복 발송 방지는 탈퇴한 사용자에게 성립하지 않는다. 발송량·개봉률 같은 운영 지표가 필요하면 개인 식별자가 없는 집계로 따로 남긴다.
 
+### 9.2 `notices`
+
+설정 > 공지사항의 운영 공지 게시판(신설 2026-09-17 — `changes/pending/notice-screen-spec.md` D, KAN-67). **푸시가 아니라 사용자가 당겨서 보는 채널**이고, 점검 공지([13.3](#133-배포-설정으로-관리))와 별개다. 소유 모듈 `notice`.
+
+```
+notices
+  id                        uuid            PK
+  title                     varchar(100)    NOT NULL
+  body                      text            NOT NULL     줄바꿈 보존 plain text
+  is_pinned                 boolean         DEFAULT false
+  published_at              timestamptz     NULL         NULL = 초안, 미래 = 예약 발행
+  created_at / updated_at / deleted_at                   (1.1 공통, soft delete)
+
+idx_notices_list (is_pinned DESC, published_at DESC) WHERE deleted_at IS NULL
+```
+
+- **"발행됨"은 `published_at <= 서버 시각`** 이다. 상태 컬럼을 따로 두지 않는다 — 예약 발행이 시각이 지나는 것만으로 공개되게 하려면 상태를 바꾸는 배치가 필요해진다([1.5](#15-파생값을-컬럼으로-두지-않는다)).
+- **작성자 컬럼을 두지 않는다.** 관리자 행위는 `audit_logs`(10.3)가 `notice.*`로 남긴다.
+- 사용자 개인정보가 없는 운영 데이터다 — 탈퇴와 무관하다.
+
 ---
 
 ## 10. 파트너
@@ -1341,6 +1362,7 @@ idx_archived_subscriptions_archived_at
 | `audio_access_logs` | **hard** — `created_at` 90일 후 배치 삭제 | 이상 탐지·감사용이며 그 판단은 최근 구간으로 한다. 재생 중 5분마다 갱신 발급이 쌓여 **성장이 가장 빠른 테이블**이다 (확정 2026-09-10) |
 | `notification_logs` | **hard** — `created_at` 90일 후 배치 삭제 | 목적이 중복 발송 방지라 그 판정 창을 넘기면 쓰이지 않는다 (확정 2026-09-10) |
 | `audit_logs` | **삭제하지 않는다** | 관리자 행위의 증적이다. 파트너 계약 분쟁은 몇 년 뒤에도 제기될 수 있고, 그때 되짚을 수 있어야 한다 (확정 2026-09-10) |
+| `notices` | **soft** (`deleted_at`) — **삭제 30일 뒤 hard delete 대상**(배치 미구현) | 관리자 실수 삭제를 되짚을 창. 사용자 데이터가 아니라 법적 보존 근거는 없다 (확정 2026-09-17) |
 | `play_records` | **보류** — 기간을 정하지 않는다 | 프로필 통계가 **전 기간 청취 시간 합계**를 이 테이블에서 읽는다([6.3](#63-play_records)). 지금 지우면 사용자가 보던 숫자가 줄어든다. 비식별 누적 집계로 옮긴 뒤 정한다 (보류 2026-09-10) |
 | 나머지 | hard | |
 

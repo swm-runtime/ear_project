@@ -52,6 +52,10 @@
 | POST | `/admin/contents/:contentId/restore` | 회수 복구 |
 | PATCH | `/admin/contents/:contentId` | 재발행 — 오디오·메타 교체, `content_version` 증가 (4.10) |
 | DELETE | `/admin/contents/:contentId/storage` | 저장소 파일 회수 — 회수된 콘텐츠의 오디오·썸네일 삭제 (4.11) |
+| GET | `/admin/notices` | 공지 목록 — 초안·예약 포함, 작성 최신순, 커서 (4.12) |
+| POST | `/admin/notices` | 공지 작성 — `published_at` 없으면 초안 (4.13) |
+| PATCH | `/admin/notices/:noticeId` | 공지 부분 수정 — `published_at: null`은 발행 취소 (4.14) |
+| DELETE | `/admin/notices/:noticeId` | 공지 삭제(soft) (4.15) |
 | GET | `/admin/system-stats` | 서버 자원·DB 부하 스냅샷 (로그 콘솔 상태 탭) |
 
 ## 4. 엔드포인트 상세
@@ -264,6 +268,52 @@
 - 사용자에게 보이는 차이는 없다 — 노출은 회수가 이미 막고 있다.
 - `audit_logs`에 `content.purge_storage`로 기록한다. **파일이 사라진 뒤 그 콘텐츠가 왜 재생되지 않는지를 이 기록으로만 설명할 수 있다.**
 
+### 4.12 `GET /admin/notices` — 공지 목록
+
+신설 2026-09-17(`changes/pending/notice-screen-spec.md` C, KAN-67). 쿼리는 `settings-api.md` 4.4와 같다(`cursor` · `limit` 기본 20·최대 50).
+
+```jsonc
+{ "items": [
+  { "id": "...", "title": "...", "body": "...", "is_pinned": false,
+    "published_at": null, "created_at": "...", "updated_at": "..." }   // published_at null = 초안
+], "next_cursor": null }
+```
+
+- **초안·예약을 포함하고 삭제분은 뺀다.** 정렬은 작성 최신순(`created_at DESC, id DESC`). 사용자 목록과 정렬이 달라 **커서를 서로 바꿔 넣으면 400 `NOTICE_CURSOR_INVALID`**.
+- 사용자 목록과 달리 **본문을 싣는다** — 콘솔이 수정 화면을 바로 연다.
+
+### 4.13 `POST /admin/notices` — 공지 작성
+
+```jsonc
+{ "title": "9월 업데이트 안내", "body": "줄바꿈은\n그대로", "is_pinned": false, "published_at": "2026-09-17T09:00:00Z" }  // is_pinned·published_at 선택
+```
+
+201로 4.12의 항목 한 건을 반환한다.
+
+- 검증(위반은 400 `VALIDATION_FAILED`):
+  - `title` 1~100자 · `body` 1~5000자 — **공백만은 불가**, 글자 수는 **코드 포인트**로 센다(DB `varchar`와 같은 단위 — 조합 이모지는 2자 이상)
+  - `published_at` — **날짜·시각·오프셋(`Z` 또는 `±hh:mm`)이 모두 있는 ISO 8601**, 2000~2100년. 오프셋 없는 시각은 서버 시간대에 따라 해석이 달라져 받지 않는다
+- **`published_at`을 빼면 초안**이다. 미래 시각이면 예약 발행 — 그 시각부터 사용자 목록에 보인다(조회 시점의 서버 시각으로 판정).
+- `audit_logs`에 `notice.create`로 기록한다 — `notices`에 작성자 컬럼이 없어 누가 게시했는지는 이 기록만 안다. 본문 원문은 남기지 않고 길이만 남긴다.
+
+### 4.14 `PATCH /admin/notices/:noticeId` — 공지 수정
+
+```jsonc
+{ "title": "...", "body": "...", "is_pinned": true, "published_at": null }  // 전부 선택
+```
+
+200으로 갱신된 항목을 반환한다.
+
+- **담긴 키만 바꾼다.** `published_at: null`은 **발행 취소**(초안으로 되돌림), 키를 빼면 그대로다. `title`·`body`·`is_pinned`에 `null`은 400이다.
+- 바꿀 키가 하나도 없으면 400 `VALIDATION_FAILED`. 검증은 4.13과 같다.
+- 수정·삭제는 행을 잠그고 한다 — 감사 로그 `before`가 동시 수정으로 낡지 않는다.
+- 없거나 삭제된 공지는 404 `NOTICE_NOT_FOUND`. `audit_logs`에 `notice.update`(before/after).
+
+### 4.15 `DELETE /admin/notices/:noticeId` — 공지 삭제
+
+- 204. **soft delete**(`deleted_at`) — 사용자 목록·상세에서 즉시 사라진다(상세는 404).
+- 없거나 이미 삭제된 공지는 404 `NOTICE_NOT_FOUND`. `audit_logs`에 `notice.delete`.
+
 ## 5. 에러 코드 표
 
 | error_code | HTTP | retryable | 발생 지점 |
@@ -278,6 +328,8 @@
 | `CONFLICT` | 409 | false | 4.7 — 이미 회수됨 / 4.8 — 회수 상태가 아님 / 4.10 · 4.11 — `withdrawn`이 아님 |
 | `VALIDATION_FAILED` | 400 | false | 4.10 — 파트가 하나도 없음(`details.field = "audio"`) / `sources` 교체가 `origin`의 공시 규칙에 어긋남(`details.field = "sources"`) |
 | `ADMIN_STORAGE_FAILED` | 502 | **true** | 4.6·4.10 — 저장소 실패 |
+| `NOTICE_CURSOR_INVALID` | 400 | false | 4.12 — 커서 형식 오류, 사용자 목록 커서를 넣음 |
+| `NOTICE_NOT_FOUND` | 404 | false | 4.14·4.15 — 없거나 삭제된 공지 |
 
 전체 목록·클라이언트 동작은 `common-error-handling.md` 9.10이 기준이다.
 

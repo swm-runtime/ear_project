@@ -198,6 +198,7 @@ src/
 | Profile | User, Subscription, Interest, Library, Playback, Content | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
 | Settings | User, Subscription, Interest | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
 | Notification | User | `notification_logs` 소유(`domain.md` 2장). 발송 대상 판정에 기기 토큰(`device_tokens`)·알림 토글(`user_settings`)이 필요하다. `User`는 `Notification`을 모르므로 순환은 없다 — 신설 2026-09-17(KAN-68) |
+| Notice | *(없음)* | `notices` 소유(`domain.md` 9.2). 관리자 쓰기의 감사 기록은 admin 모듈이 조합한다 — 신설 2026-09-17(KAN-67) |
 | Retention | *(없음)* | **Entity도 다른 모듈도 갖지 않는 정책 집행 모듈**, 아래 참고 |
 | *(도메인 확정 시 계속 추가)* | | |
 

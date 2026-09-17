@@ -40,3 +40,14 @@
 ## 처리 기록
 
 - 2026-09-17 발행.
+
+| 항목 | 값 |
+|---|---|
+| 반영 날짜 | 2026-09-17 |
+| 코드 | 신규 `notice` 모듈(`Notice` 엔티티 · `NoticeRepository` · `NoticeService` · `NoticeController` · `notice.cursor.ts`) · admin `AdminNoticeService` + 컨트롤러 4개 라우트 · 마이그레이션 `1787500000000-AddNotices` · 에러 코드 `NOTICE_NOT_FOUND` · `NOTICE_CURSOR_INVALID` |
+| 요청 대비 결정 | ① 커서 오류는 400 `NOTICE_CURSOR_INVALID`(신설 — 라이브러리·탐색과 같은 계약) ② 관리자 목록은 `created_at DESC, id DESC`, **본문 포함**, 커서를 사용자 목록과 섞으면 거절 ③ `created_at`은 밀리초로 잘라 정렬·비교(DB 마이크로초 vs 커서 밀리초 경계 누락 방지) ④ 공백만 있는 제목·본문 거부 ⑤ 쓰기는 `audit_logs`(`notice.create/update/delete`)와 한 트랜잭션 — 본문 원문 대신 길이만 기록 ⑥ `is_pinned`는 선택(기본 false) |
+| 문서 | `changes/pending/notice-screen-spec.md` C·D·관리자 부분 반영(처리 기록 참고). FE 소유 A·B·E는 남음 |
+| 범위 밖 | 관리자 콘솔 화면(후속), 삭제 30일 뒤 hard delete 배치(정책만 `domain.md` 12.1) |
+| 검증 반영 | 교차 검토에서 **관리자 입력이 500이 되는 경로 4가지**를 막았다 — PATCH `null`(NOT NULL 컬럼) · `IsISO8601`이 통과시키는 비표준 형식(`2026-W38-4`)·오프셋 없는 시각 · 2000년 이전 발행 시각(목록 커서가 거절해 앱 페이징이 멈춤) · 조합 이모지 제목(검증기 1자 vs DB 2자). 빈 PATCH 400, uuid 아닌 id 404, 수정·삭제 행 잠금 |
+| FE 영향 | 응답 필드명은 티켓 그대로다 — 변경 없음 |
+| 검증 | 단위(커서·관리자 서비스) · e2e `test/notice.e2e-spec.ts` 8건(정렬·초안/예약 제외 · 21건 커서 이어받기 · 상세 404 · 발행/발행 취소 · 관리자 목록 초안·감사 로그 · 관리자 커서 · 검증 400/403 · 깨진 커서) |
