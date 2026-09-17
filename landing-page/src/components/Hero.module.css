@@ -140,6 +140,14 @@
   justify-content: center;
 }
 
+/* 마우스 시차 기울기(PhoneTilt). 원근은 이 상자가, 회전은 .phone 이 맡는다.
+   --rx/--ry 는 PhoneTilt 가 포인터 위치로 채우고, 벗어나면 0으로 돌려 놓는다 */
+.tilt {
+  --rx: 0deg;
+  --ry: 0deg;
+  perspective: 1200px;
+}
+
 /* 기기 껍데기. 흰 페이지 위의 검은 컴포넌트는 이것뿐이다.
    테두리 두께(--bezel)는 화면 폭에 비례해야 넓은 화면에서 테가 얇아 보이지 않는다. */
 .phone {
@@ -148,9 +156,16 @@
   /* 아이폰 화면 모서리는 폭의 약 14%다. 껍데기 모서리는 거기에 테 두께를 더한다. */
   --screen-r: calc(var(--screen-w) * 0.14);
 
+  --base-rot: 0deg;
+
   position: relative;
   padding: var(--bezel);
   border-radius: calc(var(--screen-r) + var(--bezel));
+  /* 기본 회전(넓은 화면 -1.6deg) 위에 포인터 기울기를 얹는다. 따라오는 동안은 짧게, 제자리로 돌아갈 때(.is-resting)는 길게 */
+  transform: rotate(var(--base-rot)) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  transform-style: preserve-3d;
+  transition: transform 0.18s ease-out;
+  will-change: transform;
   background: linear-gradient(152deg, #4a4a52 0%, #17171c 26%, #0d0d10 62%, #34343c 100%);
   box-shadow: 0 2px 10px rgba(10, 10, 12, 0.2), 0 44px 90px -34px rgba(10, 10, 12, 0.5),
     inset 0 0 0 1px rgba(255, 255, 255, 0.14);
@@ -992,7 +1007,11 @@
   }
 
   .phone {
-    transform: rotate(-1.6deg);
+    --base-rot: -1.6deg;
   }
+}
+
+:global(.is-resting) .phone {
+  transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 

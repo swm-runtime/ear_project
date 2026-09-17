@@ -3,6 +3,7 @@ import Link from "next/link";
 import { releaseMailto, site, stats } from "@/content/site";
 import { CountUp } from "./CountUp";
 import { HeroPhoneScene } from "./HeroPhoneScene";
+import { PhoneTilt } from "./PhoneTilt";
 import { routes } from "@/content/routes";
 import s from "./Hero.module.css";
 
@@ -167,6 +168,8 @@ function AppPreview() {
       </p>
       {/* 흰 페이지 위에 놓이는 검은 컴포넌트는 기기 껍데기뿐이다. 화면 안은 앱과 같은
           흰 배경이라 토큰을 뒤집지 않는다(darkTokens를 붙이지 않는 이유다). */}
+      {/* 마우스 위치에 따라 살짝 기울어진다(PhoneTilt) — 변환은 .phone 이, 값은 --rx/--ry 가 든다 */}
+      <PhoneTilt className={s.tilt}>
       <div className={s.phone} aria-hidden="true">
         {/* 측면 버튼 — 왼쪽은 액션·볼륨, 오른쪽은 전원 */}
         <span className={`${s.sideBtn} ${s.btnAction}`} />
@@ -286,6 +289,7 @@ function AppPreview() {
           <HeroPhoneScene track={POPULAR[0]} />
         </div>
       </div>
+      </PhoneTilt>
     </div>
   );
 }
