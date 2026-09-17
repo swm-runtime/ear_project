@@ -10,10 +10,35 @@
 }
 
 .steps {
+  position: relative;
   display: grid;
   gap: 0;
   margin-top: clamp(44px, 6vw, 68px);
   counter-reset: step;
+}
+
+/* ---------- 스텝 연결선(랜딩 고급화 6/6, 2026-09-18) ----------
+   번호 왼쪽에 점 하나씩, 점들을 잇는 세로선 하나. 섹션이 스크롤로 들어오면(ScrollReveal의
+   `is-visible`) 선이 위에서 아래로 그려지고 점이 01→02→03 순서로 채워진다. 표식(`html[data-reveal]`)이
+   없으면 — JS 꺼짐·크롤러·reduced-motion — 처음부터 완성된 상태로 보인다. */
+.steps::before {
+  content: "";
+  position: absolute;
+  left: 3.5px;
+  top: 36px;
+  bottom: 36px;
+  width: 1px;
+  background: var(--line-2);
+  transform-origin: top;
+  transition: transform 1.1s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+:global(html[data-reveal]) .steps::before {
+  transform: scaleY(0);
+}
+
+:global(html[data-reveal] .is-visible) .steps::before {
+  transform: scaleY(1);
 }
 
 .step {
@@ -28,8 +53,10 @@
 }
 
 .n {
+  position: relative;
   flex: none;
   width: 52px;
+  padding-left: 20px;
   font-family: var(--mono);
   font-size: 13px;
   font-weight: 700;
@@ -37,6 +64,35 @@
   color: var(--brand-700);
   padding-top: 4px;
 }
+
+/* 점 — 선 위에 놓인다. 채워질 때 살짝 커졌다 돌아온다 */
+.n::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--brand-700);
+  box-shadow: 0 0 0 3px var(--paper);
+  transition: transform 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.4), background-color 0.3s ease;
+}
+
+:global(html[data-reveal]) .n::before {
+  background: var(--line-2);
+  transform: scale(0.6);
+}
+
+:global(html[data-reveal] .is-visible) .n::before {
+  background: var(--brand-700);
+  transform: scale(1);
+}
+
+/* 선이 그 점에 닿는 시점에 맞춰 순서대로 채운다 */
+:global(html[data-reveal] .is-visible) .step:nth-child(1) .n::before { transition-delay: 0.15s; }
+:global(html[data-reveal] .is-visible) .step:nth-child(2) .n::before { transition-delay: 0.6s; }
+:global(html[data-reveal] .is-visible) .step:nth-child(3) .n::before { transition-delay: 1.05s; }
 
 .stepBody {
   min-width: 0;
@@ -87,5 +143,14 @@
   .n {
     width: 72px;
     font-size: 14px;
+  }
+
+  .steps::before {
+    top: 42px;
+    bottom: 42px;
+  }
+
+  .n::before {
+    top: 9px;
   }
 }
