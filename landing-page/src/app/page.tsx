@@ -9,6 +9,7 @@ import { PostList } from "@/components/PostList";
 import { PricingTeaser } from "@/components/PricingTeaser";
 import { Problem } from "@/components/Problem";
 import { Topics } from "@/components/Topics";
+import { TrySample } from "@/components/TrySample";
 import { allPosts } from "@/content/blog";
 import { routes } from "@/content/routes";
 import { features, homeFaqs } from "@/content/site";
@@ -28,6 +29,8 @@ export default function Page() {
   return (
     <>
       <Hero />
+      {/* 설명보다 소리가 먼저다 — Why 섹션 앞에서 샘플 한 편을 바로 들려준다 */}
+      <TrySample />
       <Problem />
       <HowItWorks />
 

@@ -35,7 +35,7 @@ npm run build    # out/ 에 정적 파일 생성 (prebuild가 og:image를 먼저
 
 홈의 "고를 수 있는 주제"는 관리자 콘솔에서 **공개한 주제**를 그린다. `next build` 때 백엔드 `GET /public/topics`(`docs/spec/api/public-api.md`)를 한 번 부르고 결과를 HTML에 굽는다(`src/content/public-topics.ts`).
 
-- API 주소는 환경변수 `LANDING_API_BASE_URL`(기본 `https://api.earcast.co.kr/api/v1`). 개발계를 보려면 `https://api-dev.earcast.co.kr/api/v1`.
+- API 주소는 두 개다. 빌드 시점 fetch(주제 목록)는 `LANDING_API_BASE_URL`, 브라우저에서 부르는 것(Try 샘플 플레이어)은 `NEXT_PUBLIC_API_BASE_URL`. **기본값은 둘 다 개발계 `https://api-dev.earcast.co.kr/api/v1`** — 랜딩은 `dev` 머지만으로 배포·확인한다(2026-09-18). 운영을 보게 하려면 두 변수를 `https://api.earcast.co.kr/api/v1`로 준다.
 - **실패해도 빌드는 멈추지 않는다** — 네트워크 오류·404·공개 주제 0개면 내장 기본 목록(주제 체계 v2)을 그리고 빌드 로그에 `[public-topics]` 경고를 남긴다.
 - 관리자에서 바꾼 주제는 **다시 빌드해야** 반영된다. `.github/workflows/landing-daily-rebuild.yml`이 매일 05:30 KST에 Vercel 배포 훅을 호출한다(repo secret `LANDING_VERCEL_DEPLOY_HOOK` 필요). 급하면 Actions에서 수동 실행한다.
 
