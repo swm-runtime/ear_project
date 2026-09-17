@@ -382,13 +382,6 @@ export default function PlayerScreen() {
       heroBase.height,
       queueShift(artAreaHeight + HERO_META_BLOCK_HEIGHT, queueHeroHeight),
     ),
-    // 배너 — 폭은 화면 안쪽 폭까지 늘고 높이는 낮아진다(cover 로 잘린다). 유튜브 뮤직의 재생목록 열림과 같다
-    artSize: Animated.add(heroBase.artSize, queueShift(artSizeCollapsed, innerWidth)),
-    artHeight: Animated.add(heroBase.artSize, queueShift(artSizeCollapsed, QUEUE_BANNER_HEIGHT)),
-    artTop: Animated.add(heroBase.artTop, queueShift(collapsedArtTop, 0)),
-    artRadius: Animated.add(heroBase.artRadius, queueShift(theme.radius.lg, 0)),
-    // 히어로 안의 아트워크는 꽉 차게 커지며 사라지고, 화면 가로를 다 덮는 배경 레이어가 그 자리를 잇는다
-    artOpacity: Animated.subtract(1, queueProgress),
     artLeft: Animated.add(heroBase.artLeft, queueShift((innerWidth - artSizeCollapsed) / 2, 0)),
     metaTop: Animated.add(
       heroBase.metaTop,
@@ -398,9 +391,24 @@ export default function PlayerScreen() {
   // 시트의 위쪽 끝 — 닫힘: 손잡이만 남는다 / 열림: 압축된 플레이어(앱바 + 히어로 + 컨트롤) 바로 아래
   const queueClosedTop = Math.max(0, contentSize.height - handleHeight);
   const queueOpenTop = Math.min(queueClosedTop, appBarHeight + queueHeroHeight + controlsHeight);
-  // 배경 사진 = 앱바 + 히어로 + 시크바(라벨 포함)까지. 컨트롤 줄은 사진 밖 흰 바탕이다
-  const queueBackdropHeight = appBarHeight + queueHeroHeight + seekHeight;
   const queueInverse = Animated.subtract(1, queueProgress);
+  /*
+   * 아트워크의 content 좌표 — 히어로 원점(실측) + 히어로 안 좌표. 재생 목록이 열리면 (0,0)에서 화면 폭 ×
+   * (앱바 + 히어로 + 시크바 블록) 크기로 확대된다: 아래 변이 시크바 시간 라벨 밑변과 맞는다
+   */
+  const heroX = heroBox?.x ?? theme.spacing.lg;
+  const heroY = heroBox?.y ?? appBarHeight;
+  const queueArtHeight = appBarHeight + queueHeroHeight + seekHeight;
+  const art = {
+    left: Animated.add(
+      Animated.add(heroBase.artLeft, heroX),
+      queueShift(heroX + (innerWidth - artSizeCollapsed) / 2, 0),
+    ),
+    top: Animated.add(Animated.add(heroBase.artTop, heroY), queueShift(heroY + collapsedArtTop, 0)),
+    width: Animated.add(heroBase.artSize, queueShift(artSizeCollapsed, contentSize.width)),
+    height: Animated.add(heroBase.artSize, queueShift(artSizeCollapsed, queueArtHeight)),
+    radius: Animated.add(heroBase.artRadius, queueShift(theme.radius.lg, 0)),
+  };
   /** 사진 위에 얹히는 순간 색이 바뀌는 요소 — 어두운 것과 흰 것을 겹쳐 두고 진행값으로 교차한다 */
   const dualTone = (dark: ReactNode, light: ReactNode) => (
     <View>
@@ -501,15 +509,20 @@ export default function PlayerScreen() {
   const fullArtWidth = isHeroCompact
     ? COMPACT_ARTWORK_SIZE
     : isQueueOpen
-      ? innerWidth
+      ? contentSize.width
       : artSizeCollapsed;
-  const fullArtHeight = isQueueOpen ? QUEUE_BANNER_HEIGHT : fullArtWidth;
+  const fullArtHeight = isQueueOpen
+    ? appBarHeight + QUEUE_BANNER_HEIGHT + seekHeight
+    : fullArtWidth;
   const fullArtLeft = isHeroCompact
     ? theme.spacing.lg
-    : theme.spacing.lg + (innerWidth - fullArtWidth) / 2;
-  const fullArtTop =
-    isHeroCompact || isQueueOpen
-      ? insets.top + appBarHeight + theme.spacing.sm
+    : isQueueOpen
+      ? 0
+      : theme.spacing.lg + (innerWidth - fullArtWidth) / 2;
+  const fullArtTop = isHeroCompact
+    ? insets.top + appBarHeight + theme.spacing.sm
+    : isQueueOpen
+      ? insets.top
       : insets.top +
         appBarHeight +
         theme.spacing.sm +
@@ -528,15 +541,14 @@ export default function PlayerScreen() {
     : innerWidth;
   const fullTitleFontSize = isHeroCompact ? theme.font.size.lg : theme.font.size.xl;
   const measuredTitleLayer = isHeroCompact ? compactTitleBox : titleBox;
-  const fullArt =
-    heroBox && heroArtBox
-      ? {
-          left: contentOrigin.x + heroBox.x + heroArtBox.x,
-          top: contentOrigin.y + heroBox.y + heroArtBox.y,
-          width: heroArtBox.width,
-          height: heroArtBox.height,
-        }
-      : { left: fullArtLeft, top: fullArtTop, width: fullArtWidth, height: fullArtHeight };
+  const fullArt = heroArtBox
+    ? {
+        left: contentOrigin.x + heroArtBox.x,
+        top: contentOrigin.y + heroArtBox.y,
+        width: heroArtBox.width,
+        height: heroArtBox.height,
+      }
+    : { left: fullArtLeft, top: fullArtTop, width: fullArtWidth, height: fullArtHeight };
   // 제목 블록(heroMeta)의 위치는 실측하지 않는다 — 웹의 onLayout 은 크기가 바뀔 때만 다시 불려, 위치만
   // 움직이는 절대 배치 요소는 첫 값(0)에 머문다(2026-09-17 실측: 제목이 화면 위 y≈92 로 날아갔다).
   // 위치는 hero.metaTop 과 같은 수식으로 두고, 히어로 원점과 제목 줄의 크기만 실측값을 쓴다
@@ -760,15 +772,43 @@ export default function PlayerScreen() {
         onLayout={onContentLayout}
         {...collapsePanResponder.panHandlers}
       >
-        {/* 재생 목록 배경 — 앨범 사진이 화면 가로를 꽉 채우고 앱바·제목·시크바가 그 위에 얹힌다(열림 진행값으로 나타난다) */}
+        {/*
+          아트워크 — 히어로 밖, content 기준 절대 배치(2026-09-17 PM). 재생 목록이 올라오면 **이 아트워크가
+          그대로 확대**돼 화면 가로를 꽉 채우고 위로는 앱바까지, 아래로는 시크바 시간 라벨 밑변까지 덮는다.
+          히어로 안에 두면 overflow 에 잘려 그 밖으로 커질 수 없다. 앱바·제목·시크바보다 앞(먼저) 그려 그 밑에 깔린다
+        */}
         <Animated.View
-          pointerEvents="none"
-          style={[styles.queueBackdrop, { height: queueBackdropHeight, opacity: queueProgress }]}
+          style={[
+            styles.heroArtwork,
+            {
+              left: art.left,
+              top: art.top,
+              width: art.width,
+              height: art.height,
+              borderRadius: art.radius,
+              opacity: morph.heroOpacity,
+            },
+          ]}
+          onLayout={onHeroArtLayout}
         >
           {session.meta.thumbnailUrl ? (
-            <Image source={{ uri: session.meta.thumbnailUrl }} style={StyleSheet.absoluteFill} />
+            <Image source={{ uri: session.meta.thumbnailUrl }} style={styles.artwork} />
+          ) : (
+            <View style={[styles.artwork, styles.artworkPlaceholder]} />
+          )}
+          {isCompleted ? (
+            <Animated.View
+              style={[styles.completedBadge, { opacity: hero.collapsedOpacity }]}
+              accessibilityLabel={PLAYER_COPY.screen.completedBadgeA11y}
+            >
+              <Text style={styles.completedBadgeGlyph}>✓</Text>
+            </Animated.View>
           ) : null}
-          <View style={styles.queueBackdropOverlay} />
+          {/* 사진 위 글자·시크바 대비용 어두운 막 — 열린 만큼만 */}
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.queueTint, { opacity: queueProgress }]}
+          />
         </Animated.View>
 
         {/* 앱바 — 제목을 두지 않는다. 동적 텍스트 200%에서 앱바가 먼저 넘친다(uiux 4.1) */}
@@ -827,35 +867,6 @@ export default function PlayerScreen() {
           onLayout={onHeroLayout}
           {...horizontalSwipeResponder.panHandlers}
         >
-          <Animated.View
-            style={[
-              styles.heroArtwork,
-              {
-                top: hero.artTop,
-                left: hero.artLeft,
-                width: hero.artSize,
-                height: hero.artHeight,
-                borderRadius: hero.artRadius,
-                opacity: hero.artOpacity,
-              },
-            ]}
-            onLayout={onHeroArtLayout}
-          >
-            {session.meta.thumbnailUrl ? (
-              <Image source={{ uri: session.meta.thumbnailUrl }} style={styles.artwork} />
-            ) : (
-              <View style={[styles.artwork, styles.artworkPlaceholder]} />
-            )}
-            {isCompleted ? (
-              <Animated.View
-                style={[styles.completedBadge, { opacity: hero.collapsedOpacity }]}
-                accessibilityLabel={PLAYER_COPY.screen.completedBadgeA11y}
-              >
-                <Text style={styles.completedBadgeGlyph}>✓</Text>
-              </Animated.View>
-            ) : null}
-          </Animated.View>
-
           <Animated.View style={[styles.heroMeta, { top: hero.metaTop, left: hero.metaLeft }]}>
             {/* 제목은 크기가 달라 두 겹을 교차 페이드한다 — 글자 크기 자체는 보간하지 않는다 */}
             <Animated.View
@@ -1454,16 +1465,8 @@ const styles = StyleSheet.create({
     borderTopColor: theme.color.border,
   },
   scriptHandleWrap: {},
-  queueBackdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    overflow: 'hidden',
-    backgroundColor: theme.color.surface,
-  },
-  // 사진 위 글자·아이콘 대비 — 아래로 갈수록 어둡게 두 겹(제목·시크바가 아래에 있다)
-  queueBackdropOverlay: {
+  // 사진 위 글자·시크바 대비 — 재생 목록이 열린 만큼 어두워진다
+  queueTint: {
     position: 'absolute',
     top: 0,
     left: 0,
