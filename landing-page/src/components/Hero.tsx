@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { releaseMailto, site, stats } from "@/content/site";
+import { CountUp } from "./CountUp";
 import { routes } from "@/content/routes";
 import s from "./Hero.module.css";
 
@@ -344,7 +345,10 @@ export function Hero() {
           {stats.map((stat) => (
             <div key={stat.label} className={s.stat}>
               <dt className={s.statLabel}>{stat.label}</dt>
-              <dd className={s.statValue}>{stat.value}</dd>
+              {/* 숫자만 짧게 카운트업 — 스크롤해서 들어올 때 한 번(CountUp) */}
+              <dd className={s.statValue}>
+                <CountUp value={stat.value} />
+              </dd>
               <dd className={s.statNote}>{stat.note}</dd>
             </div>
           ))}
