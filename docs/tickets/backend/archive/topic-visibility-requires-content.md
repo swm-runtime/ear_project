@@ -54,4 +54,11 @@
 | 항목 | 값 |
 |---|---|
 | 보류 | 2026-09-17 — 백엔드 409 거부를 구현한 PR #388을 **머지 전에 닫음**. 서버가 먼저 거부하면 콘솔이 `confirm` 뒤 "재시도"만 안내하게 되므로, **관리자 콘솔 UI(요청 3번, pipeline 파트)를 먼저 맞추고 순서를 상의한 뒤** 서버를 바꾼다. 방향(0건 주제 노출 금지)은 유지 |
-| 남은 결정 | ① 콘솔 UI → 서버 순서와 담당(AI 파트) 일정 ② "발행 직전 준비" 운영 순서 고정 여부 ③ 콘텐츠 영구 삭제로 다시 0건이 된 노출 주제의 FK 잔여 경로((a) 삭제 시 `user_interests` 확인 / (b) 운영 규칙) |
+| 반영 날짜 | 2026-09-17 — 서버·콘솔·문서를 한 PR로 반영 |
+| 보류 사유 해소 | 콘솔 UI를 같은 PR에 담았다. 콘솔(pipeline)은 **dev 머지 때** AI 서버에 배포되고 운영 API는 **main 머지 때** 바뀌므로 콘솔이 항상 먼저 나간다. 규칙이 없는 서버(`visible_content_count` 미응답)에서는 콘솔이 종전 확인창으로 동작한다 |
+| 범위 확장(사용자 결정 2026-09-17) | ① **"0건" = 노출 가능 콘텐츠**(`published` + 라이선스 미만료)로 센다 — 요청 1의 `countByTopicIds`(원시 건수)가 아니다. 삭제 판정만 원시 건수 유지 ② **노출 중 0건이 된 주제는 서버가 자동으로 숨긴다** — 회수 직후 · 재발행 주제 교체 직후 · 매일 04:15 일일 판정. 감사 로그 `topic.auto_hide` ③ 숨긴 주제는 기존 규칙대로 사용자 관심사에서 빠진다(`interest-management.md` 7, 변경 없음) |
+| 남은 결정 ① 순서·담당 | 해소 — 위 "보류 사유 해소" |
+| 남은 결정 ② 발행 직전 준비 | 해소 — 콘텐츠는 숨김 주제에도 배정되므로 "콘텐츠 발행 → 주제 노출" 순서로 고정(`changes/archive/topic-visibility-requires-visible-contents.md`) |
+| 남은 결정 ③ FK 잔여 경로 | **미해소 — 별도 결정 필요.** 콘텐츠 행은 삭제되지 않아(회수·저장소 회수 모두 행 유지) 원시 건수가 0으로 돌아가는 경로는 **재발행 주제 교체** 하나다. 주제 A의 유일한 콘텐츠를 B로 옮기면 A는 원시 0건 + 자동 숨김이 되지만 `user_interests` 행은 남아(숨김은 조회 필터), A 삭제 시 FK 500이다. (a) 삭제 시 `user_interests` 확인 / (b) 운영 규칙 중 택일 |
+| 코드 | `admin/services/topic-exposure.service.ts`(판정·숨김) · `admin/topic-exposure.scheduler.ts`(04:15) · `admin-topic.service.ts`(409·건수 2종) · `admin-content.service.ts`(회수·재발행 연결) · `content-topic.repository.ts`(`countVisibleByTopicIds`) · `topic.repository.ts`(행 잠금) · 콘솔 `publish/topics/page.tsx` |
+| 검증 | 단위 651 · e2e 29(신규 `test/topic-exposure.e2e-spec.ts` 6 — 409·원시 vs 노출 건수·회수 자동 숨김 → 관심사 제외·동시 회수(잠금 제거 시 실패 확인)·일일 판정) · 검증 에이전트 교차 검토 반영(행 잠금, admin 모듈로 이동, 잔존 문서 문구) |
