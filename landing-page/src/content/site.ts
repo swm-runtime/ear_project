@@ -84,6 +84,38 @@ export const stats = [
   },
 ] as const;
 
+/**
+ * 브라우저에서 직접 부르는 공개 API의 기준 주소(`docs/spec/api/public-api.md`).
+ *
+ * 빌드 시점 fetch(`public-topics.ts`의 `LANDING_API_BASE_URL`)와 달리 **클라이언트 번들에 박히는
+ * 값**이라 `NEXT_PUBLIC_` 접두가 필요하다. 폴백은 운영 API다 — 환경 변수를 빠뜨린 배포가 조용히
+ * 다른 곳을 보지 않게 한다(`SITE_URL`과 같은 이유). 로컬에서 개발계·로컬 API를 보려면
+ * `.env.local`에 `NEXT_PUBLIC_API_BASE_URL`을 둔다.
+ */
+export const PUBLIC_API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ??
+  "https://api.earcast.co.kr/api/v1";
+
+/**
+ * Try 섹션 — 가입 전에 샘플 한 편을 바로 들려준다.
+ *
+ * 히어로 바로 아래, Why 섹션 위에 놓인다. "우리 서비스가 좋다"는 말보다 실제 소리를 먼저
+ * 들려주는 편이 빠르다. **오디오 파일을 이 저장소에 두지 않는다** — 제목·저자·길이·썸네일과
+ * 짧은 만료의 서명 오디오 URL을 `GET /public/sample`(public-api.md 2.2)에서 재생 시점에 받는다.
+ * 어떤 콘텐츠를 들려줄지는 서버 설정(`PUBLIC_SAMPLE_CONTENT_ID`)이 정하고, API가 404·403이면
+ * 플레이어가 "준비 중" 안내를 띄우고 조작을 잠근다(TryPlayer).
+ */
+export const trySample = {
+  eyebrow: "Try",
+  title: "먼저 들어보고 결정하세요",
+  lede: "가입하지 않아도 샘플 한 편을 바로 들을 수 있어요. 앱에서 매일 받는 콘텐츠와 같은 목소리, 같은 길이예요.",
+  note: "이어폰을 꽂고 들어 보세요. 출근길 한 구간이면 끝나는 길이예요.",
+  /** API가 답하기 전·실패했을 때 자리에 그리는 문구 */
+  loadingTitle: "샘플을 불러오고 있어요",
+  unavailableTitle: "샘플을 준비하고 있어요",
+  unavailableBody: "조금만 기다려 주세요. 곧 들을 수 있어요.",
+} as const;
+
 export const problems = [
   {
     title: "출퇴근길엔 눈도 손도 자유롭지 않아요",
