@@ -87,6 +87,13 @@ export function TryPlayer() {
   /** 오디오 오류 시 URL을 한 번만 다시 받는다 — 만료가 원인인 경우를 흡수한다 */
   const retriedRef = useRef(false);
   const expiresAtRef = useRef(0);
+  /**
+   * 현재 배속. state(`rateIndex`)와 별도로 ref에도 두는 이유 — `applyAudio`가 배속을 읽으면서
+   * state에 의존하면 배속을 바꿀 때마다 `applyAudio` → `load`가 새 함수가 되고, 마운트 시 한 번만
+   * 돌아야 할 `load` 효과가 다시 돌아 `audio.src`를 갈아끼운다. 그러면 재생이 멈추고 처음으로
+   * 돌아간다(2026-09-18 버그). ref는 함수 정체성을 바꾸지 않는다.
+   */
+  const rateRef = useRef<number>(RATES[0]);
 
   const [status, setStatus] = useState<Status>("loading");
   const [sample, setSample] = useState<Sample | null>(null);
@@ -100,8 +107,8 @@ export function TryPlayer() {
     if (!audio) return;
     expiresAtRef.current = Date.now() + body.audio.expires_in_sec * 1000;
     audio.src = body.audio.url;
-    audio.playbackRate = RATES[rateIndex];
-  }, [rateIndex]);
+    audio.playbackRate = rateRef.current;
+  }, []);
 
   /** 표시 정보와 첫 URL을 받는다 */
   const load = useCallback(async () => {
@@ -142,6 +149,8 @@ export function TryPlayer() {
 
     const onLoaded = () => {
       if (Number.isFinite(audio.duration) && audio.duration > 0) setDurationSec(audio.duration);
+      // 소스를 갈아끼우면 브라우저가 배속을 1로 되돌릴 수 있다 — 고른 값을 다시 건다
+      audio.playbackRate = rateRef.current;
       if (pendingSeekRef.current !== null) {
         audio.currentTime = pendingSeekRef.current;
         pendingSeekRef.current = null;
@@ -220,9 +229,11 @@ export function TryPlayer() {
     setCurrentSec(sec);
   }, []);
 
+  /** 배속만 바꾼다 — 소스·위치·재생 상태는 건드리지 않는다 */
   const cycleRate = useCallback(() => {
     const audio = audioRef.current;
     const nextIndex = (rateIndex + 1) % RATES.length;
+    rateRef.current = RATES[nextIndex];
     setRateIndex(nextIndex);
     if (audio) audio.playbackRate = RATES[nextIndex];
   }, [rateIndex]);
