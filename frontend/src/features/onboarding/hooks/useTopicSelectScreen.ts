@@ -16,8 +16,7 @@ import { useSaveInterestsMutation } from './useSaveInterestsMutation';
 import { useOnboardingStore } from '../store/onboarding.store';
 
 export const useTopicSelectScreen = () => {
-  const navigation =
-    useNavigation<NativeStackNavigationProp<OnboardingStackParamList, 'Topic'>>();
+  const navigation = useNavigation<NativeStackNavigationProp<OnboardingStackParamList, 'Topic'>>();
   const showToast = useToastStore((s) => s.show);
   // 주제 목록은 관심사 관리와 같은 계약·같은 캐시다(interest-management-api.md 4.1)
   const topicsQuery = useTopicsQuery();
@@ -54,7 +53,7 @@ export const useTopicSelectScreen = () => {
     }
     // 4번째 탭은 무시하지 않고 토스트로 이유를 알린다 — 무반응은 버그로 읽힌다(onboarding-uiux.md 4.1)
     if (isLimitReached) {
-      showToast(ONBOARDING_COPY.topic.limitToast);
+      showToast(ONBOARDING_COPY.topic.limitToast(maxSelectable));
       return;
     }
     setSelectedTopicIds([...selectedTopicIds, topicId]);

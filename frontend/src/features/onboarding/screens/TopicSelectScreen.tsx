@@ -10,24 +10,14 @@ import { topicImageSource } from '@/features/interest';
 import TopicMarqueeRow from '../components/TopicMarqueeRow';
 import { useTopicSelectScreen } from '../hooks/useTopicSelectScreen';
 import { ONBOARDING_COPY } from '../onboarding.copy';
+import { MAX_MARQUEE_ROWS, toTopicRows } from '../services/topic-rows';
 
-const ROW_COUNT = 4;
 const PILL_WIDTH = 156;
 /** 기본 흐름 속도(px/초)와 줄별 배율 — 같은 박자로 움직이면 기계적으로 보인다 */
 const BASE_SPEED = 18;
 const SPEED_SCALES = [1, 0.9, 1.05, 1.1] as const;
 /** 줄마다 다른 시작 위상 — 벽돌 어긋남 + 열이 겹쳐 보이지 않게 전부 다르다 */
 const PHASES = [40, 122, 96, 10] as const;
-
-/**
- * 칩을 4줄에 라운드로빈으로 나눈다 — 세로 스크롤 없이 줄마다 가로로 흐른다.
- * 읽는 순서는 열 단위(위→아래)가 되지만 선택 동작·목록 순서 자체는 그대로다.
- */
-function toRows<T>(items: T[]): T[][] {
-  const rows: T[][] = Array.from({ length: ROW_COUNT }, () => []);
-  items.forEach((item, index) => rows[index % ROW_COUNT].push(item));
-  return rows.filter((row) => row.length > 0);
-}
 
 /**
  * O1–O3 관심 주제 선택(1/3). 이 화면에는 [건너뛰기]가 없다 —
@@ -40,6 +30,7 @@ export default function TopicSelectScreen() {
   const insets = useSafeAreaInsets();
   const {
     topics,
+    maxSelectable,
     selectedCount,
     canGoNext,
     isSubmitting,
@@ -69,7 +60,7 @@ export default function TopicSelectScreen() {
         <Text style={styles.stepLabel} accessibilityLabel="3단계 중 1단계">
           1/3 단계
         </Text>
-        <Text style={styles.title}>{ONBOARDING_COPY.topic.title}</Text>
+        <Text style={styles.title}>{ONBOARDING_COPY.topic.title(maxSelectable)}</Text>
         {/*
           선택 요약 자리 — 0개면 공백, 고르면 아래 알약과 같은 사진 칩이 가로로 쌓인다.
           ✕ 포함 칩 전체가 해제 버튼이다. 높이를 고정해 아래 캐러셀이 튀지 않게 한다.
@@ -110,9 +101,7 @@ export default function TopicSelectScreen() {
       */}
       {isUnavailable ? (
         <FullScreenError
-          title={
-            isEmpty ? ONBOARDING_COPY.topic.emptyTitle : ONBOARDING_COPY.topic.loadFailedTitle
-          }
+          title={isEmpty ? ONBOARDING_COPY.topic.emptyTitle : ONBOARDING_COPY.topic.loadFailedTitle}
           description={
             isEmpty
               ? ONBOARDING_COPY.topic.emptyDescription
@@ -127,31 +116,29 @@ export default function TopicSelectScreen() {
           {/* 캐러셀을 헤더와 하단 버튼 사이 세로 중앙에 앉힌다 */}
           <View style={styles.centerSpacer} />
           <View style={styles.marqueeArea}>
-            {isLoading ? (
-              showSkeleton ? (
-                Array.from({ length: ROW_COUNT }, (_, rowIndex) => (
-                  <View key={rowIndex} style={styles.skeletonRow}>
-                    <View style={styles.skeletonChip} />
-                    <View style={styles.skeletonChip} />
-                    <View style={styles.skeletonChip} />
-                  </View>
-                ))
-              ) : null
-            ) : (
-              toRows(topics).map((row, rowIndex) => (
-                <TopicMarqueeRow
-                  key={row[0].topicId}
-                  topics={row}
-                  // 홀수 줄(1·3번째)은 왼쪽으로, 짝수 줄(2·4번째)은 오른쪽으로 흐른다
-                  direction={rowIndex % 2 === 0 ? 1 : -1}
-                  phase={PHASES[rowIndex % PHASES.length]}
-                  speed={BASE_SPEED * SPEED_SCALES[rowIndex % SPEED_SCALES.length]}
-                  pillWidth={PILL_WIDTH}
-                  dimmedHint={ONBOARDING_COPY.topic.limitToast}
-                  onToggle={toggleTopic}
-                />
-              ))
-            )}
+            {isLoading
+              ? showSkeleton
+                ? Array.from({ length: MAX_MARQUEE_ROWS }, (_, rowIndex) => (
+                    <View key={rowIndex} style={styles.skeletonRow}>
+                      <View style={styles.skeletonChip} />
+                      <View style={styles.skeletonChip} />
+                      <View style={styles.skeletonChip} />
+                    </View>
+                  ))
+                : null
+              : toTopicRows(topics).map((row, rowIndex) => (
+                  <TopicMarqueeRow
+                    key={row[0].topicId}
+                    topics={row}
+                    // 홀수 줄(1·3번째)은 왼쪽으로, 짝수 줄(2·4번째)은 오른쪽으로 흐른다
+                    direction={rowIndex % 2 === 0 ? 1 : -1}
+                    phase={PHASES[rowIndex % PHASES.length]}
+                    speed={BASE_SPEED * SPEED_SCALES[rowIndex % SPEED_SCALES.length]}
+                    pillWidth={PILL_WIDTH}
+                    dimmedHint={ONBOARDING_COPY.topic.limitToast(maxSelectable)}
+                    onToggle={toggleTopic}
+                  />
+                ))}
           </View>
           <View style={styles.centerSpacer} />
         </>

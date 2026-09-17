@@ -9,6 +9,8 @@
 | 근거 문서 | `features/onboarding.md` 3장 · `spec/uiux/onboarding-uiux.md` 4.1~4.2 · `spec/api/onboarding-api.md` 142·147행(`max_selectable`) |
 | 심각도 | **중** — 지금 운영 노출 주제 36건에서는 증상 없음. 운영이 `is_visible`을 소수만 켜는 시점(신규 주제 공개 초기, 노출 조건 강화 이후)에 첫 화면에서 드러난다 |
 | 우선순위 | Medium(3일 안) |
+| Jira | [KAN-59](https://runtime364.atlassian.net/browse/KAN-59) |
+| 상태 | 대기 — 코드 선반영(2026-09-17), **실기기 확인 남음** |
 
 ## 잘 되는 것(변경 불필요)
 
@@ -37,3 +39,12 @@
 - Given 노출 주제 4개·7개 / When 온보딩 1단계를 연다 / Then 모든 줄이 이음새 없이 흐른다(또는 격자로 폴백된다)
 - Given 노출 주제 36개 / When 온보딩 1단계를 연다 / Then 현행과 같은 4줄 마퀴가 유지된다
 - Given 서버 `max_selectable`이 3이 아닌 값 / When 헤드라인·상한 토스트·관리 화면 안내를 본다 / Then 그 값이 표시된다(3이 남아 있지 않다)
+
+## 처리 기록 (2026-09-17 — 코드 선반영, 실기기 확인 대기)
+
+- 요청 1: 벌 수를 `marqueeCopyCount(뷰포트 폭, 한 벌 폭) = max(3, ceil(W/w) + 2)` 로 계산한다(`onboarding/services/topic-rows.ts`). 세 플랫폼 구현이 공통 `MarqueeCopies`에 `copyCount`를 넘기고, Android 는 콘텐츠 폭을 같은 벌 수로 나눠 시작 위치·되감기 임계를 잡는다. 낭독 대상은 1번 벌 고정. 뷰포트는 창 폭(`useWindowDimensions`)으로 본다 — 줄이 화면 폭을 꽉 채우므로 onLayout 한 프레임 지연을 피했다.
+- 요청 2: 줄 수 = `min(4, ceil(n / 3))` (`toTopicRows`). 1~3개 1줄, 4~6개 2줄, 7~9개 3줄, 10개부터 4줄. 격자 폴백은 넣지 않았다 — 벌 수 계산으로 이음새가 사라지니 마퀴 하나로 충분하고, 폴백은 상태가 하나 더 느는 것이다.
+- 요청 3: "3" 하드코딩 제거 — `onboarding.copy.ts` `title(max)`·`limitToast(max)`, `interest.copy.ts` `limitNotice(max)`·`overLimitBanner(n, max)`. 값은 두 화면 훅의 `maxSelectable`(서버 `max_selectable`). 조회 전(0)에는 헤드라인이 개수 없이 "궁금한 이야기를 골라주세요".
+- 테스트: `topic-rows.test.ts`(줄 수·분배·벌 수 10건). interest mock 에 `few-topics` 시나리오(주제 5개) 추가.
+- 확인: web(헤드리스 Chrome, `EXPO_PUBLIC_INTEREST_MOCK_SCENARIO=few-topics`) — 5개가 2줄(3+2)로 흐르고 10초 동안 빈 공간 없음. 36개는 기존과 같은 4줄.
+- **남은 것(요청 4)**: iOS·Android 실기기에서 주제 1·2·4·7·8개 확인(특히 Android ScrollView 되감기). 확인되면 archive · KAN-59 완료.

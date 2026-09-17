@@ -1,13 +1,28 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { Animated, Easing, PanResponder, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  Animated,
+  Easing,
+  PanResponder,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 
 import { theme } from '@/shared/theme';
 
 import { TopicChip } from '@/features/interest';
 
-/** 무한 루프 — 같은 묶음 3벌을 이어 붙이고 한 벌 폭 주기로 되감는다 */
-const LOOP_COPIES = [0, 1, 2] as const;
+import { marqueeCopyCount } from '../services/topic-rows';
+
+/**
+ * 무한 루프 — 같은 묶음을 여러 벌 이어 붙이고 한 벌 폭 주기로 되감는다. 벌 수는 고정 3이 아니라 뷰포트
+ * 폭에 맞춘다(`marqueeCopyCount`, KAN-59) — 한 벌이 뷰포트보다 좁으면(주제 1~2개) 3벌로는 되감기 주기마다
+ * 오른쪽에 빈 공간이 드러났고 Android 는 스크롤 범위 밖으로 되감아 흐름이 멈췄다. 낭독 대상은 항상 1번 벌이다
+ */
+const ACCESSIBLE_COPY = 1;
 /** 손을 뗀 뒤 자동 흐름이 다시 시작되기까지의 유예 */
 const RESUME_MS = 1500;
 /** 이만큼 가로로 움직여야 스와이프로 본다 — 그 전까지는 탭이다(iOS 마퀴) */
@@ -57,21 +72,30 @@ export default function TopicMarqueeRow(props: TopicMarqueeRowProps) {
 const copyWidthOf = (count: number, pillWidth: number): number =>
   count * (pillWidth + theme.spacing.sm);
 
+/** 뷰포트 폭 기준 벌 수 — 줄은 화면 폭을 꽉 채우므로 창 폭을 뷰포트로 본다(onLayout 한 프레임 지연 회피) */
+const useCopyCount = (copyWidth: number): number => {
+  const { width } = useWindowDimensions();
+  return marqueeCopyCount(width, copyWidth);
+};
+
 function MarqueeCopies({
   topics,
   pillWidth,
   dimmedHint,
   onToggle,
-}: Pick<TopicMarqueeRowProps, 'topics' | 'pillWidth' | 'dimmedHint' | 'onToggle'>) {
+  copyCount,
+}: Pick<TopicMarqueeRowProps, 'topics' | 'pillWidth' | 'dimmedHint' | 'onToggle'> & {
+  copyCount: number;
+}) {
   return (
     <>
-      {LOOP_COPIES.map((copy) => (
+      {Array.from({ length: copyCount }, (_, copy) => (
         <View
           key={copy}
           style={styles.copy}
-          // 반복 벌은 시각 전용 — 낭독기에는 가운데 벌 하나만 들린다
-          accessibilityElementsHidden={copy !== 1}
-          importantForAccessibility={copy !== 1 ? 'no-hide-descendants' : 'auto'}
+          // 반복 벌은 시각 전용 — 낭독기에는 1번 벌 하나만 들린다
+          accessibilityElementsHidden={copy !== ACCESSIBLE_COPY}
+          importantForAccessibility={copy !== ACCESSIBLE_COPY ? 'no-hide-descendants' : 'auto'}
         >
           {topics.map((topic) => (
             <TopicChip
@@ -111,6 +135,7 @@ function WebMarqueeRow({
   };
 
   const copyWidth = copyWidthOf(topics.length, pillWidth);
+  const copyCount = useCopyCount(copyWidth);
 
   // Web Animations API — 컴포지터에서 돌아 JS 지연·픽셀 반올림과 무관하게 부드럽다.
   // (react-native-web의 animationKeyframes는 이 버전에서 적용되지 않아 실측 후 대체 — 2026-09-03)
@@ -141,6 +166,7 @@ function WebMarqueeRow({
           pillWidth={pillWidth}
           dimmedHint={dimmedHint}
           onToggle={onToggle}
+          copyCount={copyCount}
         />
       </View>
     </View>
@@ -157,6 +183,7 @@ function IosMarqueeRow({
   onToggle,
 }: TopicMarqueeRowProps) {
   const copyWidth = copyWidthOf(topics.length, pillWidth);
+  const copyCount = useCopyCount(copyWidth);
   /** 이동량 — 0에서 한 벌 폭까지 가면 같은 그림이라 되감아도 티가 나지 않는다 */
   const progress = useMemo(() => new Animated.Value(0), []);
   const loopRef = useRef<Animated.CompositeAnimation | null>(null);
@@ -273,6 +300,7 @@ function IosMarqueeRow({
           pillWidth={pillWidth}
           dimmedHint={dimmedHint}
           onToggle={onToggle}
+          copyCount={copyCount}
         />
       </Animated.View>
     </View>
@@ -289,6 +317,7 @@ function AndroidMarqueeRow({
   onToggle,
 }: TopicMarqueeRowProps) {
   const scrollRef = useRef<ScrollView>(null);
+  const copyCount = useCopyCount(copyWidthOf(topics.length, pillWidth));
   const copyWidth = useRef(0);
   const paused = useRef(false);
   const resumeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -325,9 +354,9 @@ function AndroidMarqueeRow({
     return null;
   };
 
-  /** 벌 폭 = 콘텐츠 폭 ÷ 벌 수. 최초 측정 시 가운데 벌 + 위상으로 이동한다 */
+  /** 벌 폭 = 콘텐츠 폭 ÷ 벌 수. 최초 측정 시 1번 벌 + 위상으로 이동한다 */
   const handleContentSize = (contentWidth: number) => {
-    const width = contentWidth / LOOP_COPIES.length;
+    const width = contentWidth / copyCount;
     if (width > 0 && copyWidth.current === 0) {
       posX.current = width + phase;
       scrollRef.current?.scrollTo({ x: width + phase, animated: false });
@@ -394,6 +423,7 @@ function AndroidMarqueeRow({
           pillWidth={pillWidth}
           dimmedHint={dimmedHint}
           onToggle={onToggle}
+          copyCount={copyCount}
         />
       </View>
     </ScrollView>
