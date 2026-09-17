@@ -36,7 +36,7 @@ export default function ContentsRedirectPage() {
         <p className={s.eyebrow}>이어 콘텐츠</p>
         <h1 className={s.title}>이어 앱에서 들을 수 있어요</h1>
         <p className={s.lede}>
-          공유받은 콘텐츠는 이어 앱에서 재생됩니다. 앱을 설치한 뒤 링크를 다시 열면
+          공유받은 콘텐츠는 이어 앱에서 들을 수 있어요. 앱을 설치한 뒤 링크를 다시 열면
           해당 콘텐츠로 바로 이동해요.
         </p>
 

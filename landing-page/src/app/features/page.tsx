@@ -17,19 +17,21 @@ export default function FeaturesPage() {
     <>
       <JsonLd
         data={graph([
-          breadcrumb([{ name: routes.features.label, path: routes.features.path }]),
+          breadcrumb([
+            { name: routes.features.label, path: routes.features.path },
+          ]),
         ])}
       />
 
       <PageHeader
         crumbs={[{ name: routes.features.label }]}
-        title="고르지 않아도, 매일 도착합니다"
-        lede="이어가 하는 일은 결국 하나입니다. 통근길에 앱을 열었을 때 들을 것이 이미 준비되어 있게 하는 것. 그 하나를 위해 무엇을 만들었는지 정리했습니다."
+        title="고르지 않아도, 매일 도착해요"
+        lede="이어가 하는 일은 하나예요. 출퇴근길에 앱을 열면 들을 게 이미 준비되어 있게 하는 것. 그걸 위해 무엇을 만들었는지 정리했어요."
       />
 
       <Features
         title="여섯 가지 기능"
-        lede="기능을 늘리는 것보다 마찰을 줄이는 쪽에 시간을 썼습니다. 아래 여섯 가지는 모두 '듣기까지 걸리는 단계'를 하나씩 없애기 위한 것입니다."
+        lede="기능을 늘리기보다 번거로움을 줄이는 데 집중했어요. 아래 여섯 가지는 모두 듣기까지의 단계를 하나씩 없애기 위한 거예요."
         items={features.map((f) => ({
           icon: f.icon,
           title: f.title,
@@ -45,24 +47,24 @@ export default function FeaturesPage() {
               <h2 className="sectionTitle">
                 즉시 재생이 가능한 건
                 <br />
-                구조를 그렇게 짰기 때문입니다
+                처음부터 그렇게 만들었기 때문이에요
               </h2>
             </div>
             <div className={s.whyBody}>
               <p>
-                이어는 요청을 받은 뒤에 콘텐츠를 만들지 않습니다. 화면에 보이는
-                에피소드는 전부 오디오 변환이 끝난 상태이고, 재생 버튼은 이미 있는
-                파일을 트는 일만 합니다. 그래서 &lsquo;생성 중&rsquo; 화면이 존재하지
-                않습니다.
+                이어는 누른 뒤에 콘텐츠를 만들지 않아요. 화면에 보이는
+                에피소드는 모두 오디오로 만들어져 있고, 재생 버튼은 이미 있는
+                파일을 틀기만 해요. 그래서 &lsquo;생성 중&rsquo; 화면이 없어요.
               </p>
               <p>
-                이게 가능한 이유는 <strong>대본을 사람마다 다르게 만들지 않기</strong>{" "}
-                때문입니다. 같은 에피소드는 모든 사용자에게 동일하고, 개인화는 무엇을
-                언제 들려줄지를 정하는 편성 단계에서만 일어납니다.
+                이게 가능한 이유는{" "}
+                <strong>대본을 사람마다 다르게 만들지 않기</strong> 때문이에요.
+                같은 에피소드는 모두에게 똑같고, 개인화는 무엇을 언제 들려
+                드릴지 정하는 단계에만 적용돼요.
               </p>
               <p>
-                덕분에 듣는 사람이 늘어도 콘텐츠를 만드는 비용이 그만큼 늘지 않습니다.
-                무료 요금제에도 매일 두 편을 줄 수 있는 것은 이 구조 덕분입니다.
+                덕분에 듣는 사람이 늘어도 콘텐츠를 만드는 비용이 크게 늘지
+                않아요. 무료 요금제에도 매일 두 편을 드릴 수 있는 이유예요.
               </p>
             </div>
           </div>
@@ -74,8 +76,8 @@ export default function FeaturesPage() {
           <p className="eyebrow">Non-goals</p>
           <h2 className="sectionTitle">하지 않기로 정한 것</h2>
           <p className="sectionLede">
-            무엇을 만들었는지보다 무엇을 만들지 않기로 했는지가 서비스의 경계를 더
-            정확히 설명한다고 생각합니다.
+            무엇을 만들었는지보다 무엇을 하지 않기로 했는지가 이어를 더 잘
+            설명해 줘요.
           </p>
 
           <ul className={s.nonGoals}>

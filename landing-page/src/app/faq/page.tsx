@@ -32,7 +32,7 @@ export default function FaqPage() {
       <PageHeader
         crumbs={[{ name: routes.faq.label }]}
         title="자주 묻는 질문"
-        lede="가장 많이 받는 질문을 주제별로 모았습니다. 여기서 답을 찾지 못하셨다면 메일로 편하게 물어봐 주세요."
+        lede="가장 많이 받는 질문을 주제별로 모았어요. 여기서 답을 찾지 못하셨다면 메일로 편하게 물어봐 주세요."
       />
 
       <div className="section">

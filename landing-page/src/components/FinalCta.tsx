@@ -11,11 +11,11 @@ export function FinalCta() {
             <h2 className={s.title}>
               내일 아침 출근길에,
               <br />
-              들을 게 준비되어 있다면
+              남들과 다른 시작을 하고 싶다면
             </h2>
             <p className={s.lede}>
-              이어는 지금 정식 출시를 준비하고 있습니다. 메일을 남겨 주시면 열리는
-              날 가장 먼저 알려 드릴게요.
+              이어는 지금 정식 출시를 준비하고 있어요. 메일을 남겨 주시면
+              출시하는 날 가장 먼저 알려 드릴게요.
             </p>
 
             <div className={s.actions}>
