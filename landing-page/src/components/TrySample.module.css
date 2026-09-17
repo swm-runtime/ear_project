@@ -514,12 +514,28 @@
 }
 
 @media (min-width: 820px) {
-  /* 데스크톱은 컨테이너 오른쪽 여백선에 맞춘 작은 카드 */
+  /* 데스크톱은 뷰포트 오른쪽 아래 구석의 작은 카드 — 컨테이너 여백선에 맞추면 본문 오른쪽 열을
+     가린다(확인 2026-09-18). 구석에 붙이고 폭을 줄여 가리는 면적을 최소화한다 */
   .mini {
     left: auto;
-    right: max(24px, calc((100vw - var(--container)) / 2 + var(--gutter)));
-    bottom: 24px;
-    width: 400px;
+    right: 20px;
+    bottom: 20px;
+    width: 320px;
+    padding: 8px 8px 8px 10px;
+  }
+
+  .miniCover {
+    width: 36px;
+    height: 36px;
+  }
+
+  .miniPlay {
+    width: 36px;
+    height: 36px;
+  }
+
+  .miniTitle {
+    font-size: 13.5px;
   }
 }
 
