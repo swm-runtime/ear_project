@@ -5,6 +5,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
   Matches,
   Max,
   MaxLength,
@@ -126,6 +127,15 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   EXPO_ACCESS_TOKEN?: string;
+
+  /**
+   * 랜딩 페이지 Try 섹션이 **로그인 없이** 들려주는 샘플 콘텐츠의 `contents.id`
+   * (`public-api.md` 2.2). 발행 상태·라이선스 유효인 콘텐츠여야 한다 — 회수·만료되면
+   * `GET /public/sample`이 404를 내고 랜딩은 "준비 중" 상태를 그린다. 비워 두면 같은 404다.
+   */
+  @IsOptional()
+  @IsUUID()
+  PUBLIC_SAMPLE_CONTENT_ID?: string;
 
   /**
    * 애플 identity token의 `aud`로 실려 오는 값 — iOS 앱의 Bundle ID다(`auth-api.md` 4.1).
