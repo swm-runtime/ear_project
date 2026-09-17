@@ -25,8 +25,8 @@
   content: "";
   position: absolute;
   left: -8.5px; /* 번호 열 바깥, 살짝 왼쪽(피드백 2026-09-18) */
-  top: 39px;
-  bottom: 33px;
+  top: 38px;
+  bottom: 34px;
   width: 1px;
   background: var(--line-2);
   transform-origin: top;
@@ -70,7 +70,7 @@
   content: "";
   position: absolute;
   left: -12px;
-  top: 11px; /* 숫자 글줄 가운데에 맞춘다 — 8px은 살짝 높았다(피드백 2026-09-18) */
+  top: 10px; /* 숫자 글줄 가운데에 맞춘다 — 8px은 살짝 높았다(피드백 2026-09-18) */
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -146,11 +146,11 @@
   }
 
   .steps::before {
-    top: 45px;
-    bottom: 39px;
+    top: 44px;
+    bottom: 40px;
   }
 
   .n::before {
-    top: 12px;
+    top: 11px;
   }
 }
