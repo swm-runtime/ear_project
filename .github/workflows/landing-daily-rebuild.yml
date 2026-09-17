@@ -1,0 +1,37 @@
+name: landing-daily-rebuild
+# 랜딩 페이지(Vercel)를 매일 한 번 다시 빌드한다.
+#
+# 랜딩은 정적 내보내기라 "고를 수 있는 주제" 섹션이 **빌드할 때** 백엔드 `GET /public/topics`
+# (docs/spec/api/public-api.md)를 받아 HTML에 굽는다. 관리자 콘솔에서 주제를 공개·숨겨도
+# 다시 빌드하기 전까지는 랜딩에 반영되지 않으므로, 하루 한 번 Vercel 배포 훅을 호출한다.
+#
+# 시각: 매일 05:30 KST — 0건 주제 자동 숨김(04:15)과 드립 편성(05:00) 뒤. 그날 공개 상태가 확정된 다음이다.
+#
+# 1회 설정: Vercel 프로젝트 Settings → Git → Deploy Hooks 에서 운영 브랜치용 훅을 만들고,
+# 그 URL 을 repo secret LANDING_VERCEL_DEPLOY_HOOK 에 넣는다. 미설정이면 조용히 건너뛴다.
+
+on:
+  schedule:
+    - cron: '30 20 * * *' # UTC 20:30 = KST 05:30
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Vercel 배포 훅 호출
+        env:
+          HOOK: ${{ secrets.LANDING_VERCEL_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "LANDING_VERCEL_DEPLOY_HOOK 미설정 — 재빌드를 건너뜁니다"
+            exit 0
+          fi
+          # 훅 URL 자체가 비밀이라 출력하지 않는다
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$HOOK")
+          echo "Vercel 응답: $code"
+          [ "$code" -ge 200 ] && [ "$code" -lt 300 ]
