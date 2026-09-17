@@ -6,6 +6,7 @@ import { UserModule } from '@/modules/user/user.module';
 import { Topic } from './entities/topic.entity';
 import { UserInterest } from './entities/user-interest.entity';
 import { InterestController } from './interest.controller';
+import { PublicTopicController } from './public-topic.controller';
 import { TopicRepository } from './repositories/topic.repository';
 import { UserInterestRepository } from './repositories/user-interest.repository';
 import { TopicService } from './services/topic.service';
@@ -18,7 +19,8 @@ import { UserInterestService } from './services/user-interest.service';
     // (interest-management.md 7 — last-write-wins)
     UserModule,
   ],
-  controllers: [InterestController],
+  // 공개 주제 목록(랜딩 빌드용, 인증 없음) — public-api.md
+  controllers: [InterestController, PublicTopicController],
   providers: [
     TopicRepository,
     UserInterestRepository,
