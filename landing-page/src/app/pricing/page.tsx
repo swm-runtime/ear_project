@@ -45,9 +45,11 @@ export default function PricingPage() {
         <div className="container">
           <p className="eyebrow">Compare</p>
           <h2 className="sectionTitle">무엇이 같고, 무엇이 다를까요</h2>
+          {/* 문장 단위로 줄을 끊는다 — 두 문장이 애매한 자리에서 감기면 읽기 흐름이 깨진다(피드백 2026-09-18) */}
           <p className="sectionLede">
-            모든 요금제에서 같은 콘텐츠를 받아요. 요금제가 올라갈수록 하루에 더
-            많이 들을 수 있어요.
+            모든 요금제에서 같은 콘텐츠를 받아요.
+            <br />
+            요금제가 올라갈수록 하루에 더 많이 들을 수 있어요.
           </p>
 
           <div className={s.compareGrid}>
