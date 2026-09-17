@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 
 /**
@@ -12,8 +13,14 @@ import { useEffect } from "react";
  *
  * 깜빡임 방지: 표식을 붙이기 **전에** 이미 뷰포트 안에 있는 섹션에 먼저 `is-visible`을 준다.
  * 히어로(#top)·Try(#try)는 첫 화면이라 대상에서 뺀다. `prefers-reduced-motion`이면 아무것도 하지 않는다.
+ *
+ * 루트 레이아웃에 놓여 페이지를 옮겨도 살아 있으므로 **경로가 바뀔 때마다** 다시 돈다 — 안 그러면
+ * 새 페이지의 섹션들이 표식만 남은 채 관찰되지 않아 여백으로 보인다(기능 페이지에서 실제로 그랬다,
+ * 2026-09-18). 정리 단계가 표식을 떼므로 다음 페이지가 그려지는 사이에는 내용이 그대로 보인다.
  */
 export function ScrollReveal() {
+  const pathname = usePathname();
+
   useEffect(() => {
     if (typeof IntersectionObserver === "undefined") return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -49,7 +56,7 @@ export function ScrollReveal() {
       observer.disconnect();
       document.documentElement.removeAttribute("data-reveal");
     };
-  }, []);
+  }, [pathname]);
 
   return null;
 }
