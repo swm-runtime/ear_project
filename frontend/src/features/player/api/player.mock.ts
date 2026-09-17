@@ -19,7 +19,7 @@
 import { ApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
 
-import type { QueueItem, ScriptSegment } from '../player.types';
+import type { ScriptSegment } from '../player.types';
 import type {
   AudioUrlsResponseDto,
   PlaybackProgressDto,
@@ -309,23 +309,4 @@ export const getMockScript = async (
     speaker,
     text,
   }));
-};
-
-/* ── 다음 재생 목록 mock(2026-09-16 시연용) — 현재 콘텐츠 다음 번호부터 6편. 실제 순서 규칙은 미정 ── */
-
-const MOCK_QUEUE_TOPICS = ['생산성', 'AI·테크 트렌드', '커뮤니케이션', '리더십', '커리어'] as const;
-
-export const getMockQueue = async (contentId: string): Promise<QueueItem[]> => {
-  await delay(RESPONSE_DELAY_MS);
-  const seq = Number(contentId.replace(/\D/g, '')) || 1;
-  return Array.from({ length: 6 }, (_, offset) => {
-    const next = seq + offset + 1;
-    const topic = MOCK_QUEUE_TOPICS[next % MOCK_QUEUE_TOPICS.length];
-    return {
-      contentId: `content-${next}`,
-      title: `${topic} 이야기 ${next} — 오래 일하는 사람들의 습관`,
-      durationSec: 240 + (next % 5) * 30,
-      thumbnailUrl: `https://picsum.photos/seed/content-${next}/200`,
-    };
-  });
 };
