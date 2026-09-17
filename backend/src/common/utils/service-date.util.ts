@@ -34,6 +34,21 @@ function toServiceDay(date: Date): Date {
   );
 }
 
+/**
+ * 주어진 시각이 속한 **서비스 날짜의 시각 범위** `[start, end)` — 04:00 KST부터 다음 날 04:00 KST 전까지.
+ *
+ * 날짜 라벨이 아니라 `timestamptz` 컬럼을 하루 단위로 잘라야 하는 판정에 쓴다(예: 알림 하루 1건 —
+ * `notification.md` 4.3). 라벨로 바꿔 비교하면 SQL이 행마다 KST 변환을 해야 해 인덱스를 못 탄다.
+ */
+export function toServiceDayRange(date: Date): { start: Date; end: Date } {
+  const start = new Date(
+    parseDateLabel(toServiceDate(date)).getTime() +
+      (SERVICE_DAY_START_HOUR * 60 - KST_OFFSET_MINUTES) * MINUTE_MS,
+  );
+
+  return { start, end: new Date(start.getTime() + DAY_MS) };
+}
+
 /** 04시 경계를 적용한 서비스 날짜 (`YYYY-MM-DD`) */
 export function toServiceDate(date: Date): string {
   const serviceDay = toServiceDay(date);

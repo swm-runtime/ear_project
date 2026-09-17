@@ -66,6 +66,22 @@ export class UserSettingService {
     return toView(saved);
   }
 
+  /**
+   * "이어 PICK 알림" 앱 토글을 끈 사용자(`notification.md` 4.2). **행이 없으면 켜짐이다** —
+   * `getSettings`의 기본값과 같은 근거(domain.md 3.5 DEFAULT true)라 끈 사람만 골라낸다.
+   */
+  async findDripNotificationDisabledUserIds(
+    userIds: string[],
+    manager?: EntityManager,
+  ): Promise<Set<string>> {
+    return new Set(
+      await this.userSettingRepository.findDripNotificationDisabledUserIds(
+        userIds,
+        manager,
+      ),
+    );
+  }
+
   /** 탈퇴 파기. FK가 `ON DELETE CASCADE`라 실제로는 계정 삭제로 함께 사라진다(domain.md 12.3) */
   async purgeByUserId(userId: string, manager?: EntityManager): Promise<void> {
     await this.userSettingRepository.deleteByUserId(userId, manager);

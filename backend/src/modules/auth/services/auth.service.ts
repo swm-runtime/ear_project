@@ -10,6 +10,7 @@ import {
   REQUIRED_CONSENT_TYPES,
 } from '@/modules/user/user.constant';
 import { ConsentType } from '@/modules/user/user.enum';
+import { DeviceTokenService } from '@/modules/user/services/device-token.service';
 import { UserService } from '@/modules/user/services/user.service';
 
 import {
@@ -36,6 +37,7 @@ export class AuthService {
     private readonly consentService: ConsentService,
     private readonly tokenService: TokenService,
     private readonly sessionRepository: SessionRepository,
+    private readonly deviceTokenService: DeviceTokenService,
   ) {}
 
   /**
@@ -214,7 +216,19 @@ export class AuthService {
       now,
     );
 
-    // TODO(notification 모듈 도입 시): 푸시 토큰(`device_tokens`) 등록도 함께 해제한다 (auth.md 4.2)
+    /**
+     * 푸시 토큰 등록도 해제한다(auth.md 4.2 · notification.md 7) — 로그아웃한 기기로 이 사용자의
+     * 드립 알림이 가지 않게 한다. 행은 지우지 않고 무효화만 한다: 같은 기기에서 다시 로그인하면
+     * 앱의 기기 등록(onboarding-api.md 4.9)이 표시를 지운다.
+     *
+     * 세션 폐기와 한 트랜잭션으로 묶지 않는다. 둘 다 멱등이라 중간에 실패해도 클라이언트의 재시도가
+     * 같은 결과로 수렴하고, 로그아웃 응답을 기다리게 할 만큼의 원자성이 필요한 쌍이 아니다.
+     */
+    await this.deviceTokenService.invalidateByUserIdAndDeviceId(
+      command.userId,
+      command.deviceId,
+      now,
+    );
     this.logger.log('logout completed', { user_id: command.userId });
   }
 

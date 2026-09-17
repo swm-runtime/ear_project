@@ -182,7 +182,7 @@ src/
 
 | 모듈 | 의존하는 모듈 | 비고 |
 |---|---|---|
-| Auth | User, Idempotency | 로그인·토큰 발급 시 사용자 조회·생성 |
+| Auth | User, Idempotency | 로그인·토큰 발급 시 사용자 조회·생성. 로그아웃 시 그 기기의 푸시 토큰 무효화(`DeviceTokenService`) |
 | User | Subscription, Idempotency | 탈퇴 시 결제 이력 판정 — **한시적 방향**, 아래 참고 |
 | Interest | *(없음)* | `topics` · `user_interests` 소유. 다른 모듈을 모른다 |
 | Content | Interest | `content_topics`가 `topics`를 참조한다 |
@@ -190,13 +190,14 @@ src/
 | Playback | Content, Library, Subscription, **User**, **Drip**, **Idempotency** | `domain.md` 2장의 세 방향 + 재생 한도 판정에 `users.tier`가 필요해 User를, 재생 시 드립 영구 제외 적재(`drip_excluded_contents`)에 Drip을, `replay`·원문 클릭의 멱등키(`player-api.md` 4.4·4.5 — 신호 테이블에 유니크 제약이 없어 재전송 중복을 DB가 못 막는다)에 Idempotency를 더한다. 세 모듈 모두 `Playback`을 모르므로 순환은 없다 |
 | Subscription | *(없음)* | `plans` · `subscriptions` 소유. 다른 모듈을 모른다 |
 | Drip | Content, Library, Interest, Subscription, **User** | `domain.md` 2장의 네 방향 + 편성 편수 판정에 `users.tier`가 필요해 User를 더한다. `User`는 `Drip`을 모르므로 순환은 없다 |
-| DripBatch | User, Interest, Subscription, Content, Library, Playback, Drip | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
+| DripBatch | User, Interest, Subscription, Content, Library, Playback, Drip, **Notification** | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고. Notification은 편성 직후 드립 도착 알림(`notification.md` 4.3, 2026-09-17) |
 | Onboarding | User, Interest, Content, Library, Drip, Idempotency | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
 | LibraryScreen | Library, Playback, Content, Drip | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
 | Explore | Content, Library, Playback, Interest, Drip | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
 | ContentDetail | Content, Library, Playback | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
 | Profile | User, Subscription, Interest, Library, Playback, Content | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
 | Settings | User, Subscription, Interest | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
+| Notification | User | `notification_logs` 소유(`domain.md` 2장). 발송 대상 판정에 기기 토큰(`device_tokens`)·알림 토글(`user_settings`)이 필요하다. `User`는 `Notification`을 모르므로 순환은 없다 — 신설 2026-09-17(KAN-68) |
 | Retention | *(없음)* | **Entity도 다른 모듈도 갖지 않는 정책 집행 모듈**, 아래 참고 |
 | *(도메인 확정 시 계속 추가)* | | |
 

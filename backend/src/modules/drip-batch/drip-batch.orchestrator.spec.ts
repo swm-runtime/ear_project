@@ -11,6 +11,7 @@ import { DripBatchRun } from '@/modules/drip/entities/drip-batch-run.entity';
 import { UserInterestService } from '@/modules/interest/services/user-interest.service';
 import { LibraryItemSource } from '@/modules/library/library.enum';
 import { LibraryService } from '@/modules/library/library.service';
+import { DripArrivalNotificationService } from '@/modules/notification/services/drip-arrival-notification.service';
 import { PlaybackService } from '@/modules/playback/services/playback.service';
 import { PlanService } from '@/modules/subscription/services/plan.service';
 import { User } from '@/modules/user/entities/user.entity';
@@ -31,6 +32,7 @@ function buildUser(id: string = USER_ID): User {
 function buildContent(id: string): Content {
   return {
     id,
+    title: `제목 ${id}`,
     authorName: null,
     seriesId: null,
     episodeNo: null,
@@ -56,6 +58,7 @@ describe('DripBatchOrchestrator', () => {
   let dripPlacementService: jest.Mocked<DripPlacementService>;
   let dripExclusionService: jest.Mocked<DripExclusionService>;
   let dripBatchRunService: jest.Mocked<DripBatchRunService>;
+  let dripArrivalNotificationService: jest.Mocked<DripArrivalNotificationService>;
   let run: DripBatchRun;
 
   // 정규 후보 2편(주제 A·B) + 탐험 후보 1편(주제 B — 관심 밖)
@@ -145,6 +148,15 @@ describe('DripBatchOrchestrator', () => {
       finish: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<DripBatchRunService>;
 
+    dripArrivalNotificationService = {
+      notify: jest.fn().mockResolvedValue({
+        sentCount: 1,
+        failedCount: 0,
+        skippedCount: 0,
+        invalidatedDeviceCount: 0,
+      }),
+    } as unknown as jest.Mocked<DripArrivalNotificationService>;
+
     orchestrator = new DripBatchOrchestrator(
       userService,
       userInterestService,
@@ -158,6 +170,7 @@ describe('DripBatchOrchestrator', () => {
       dripPlacementService,
       dripExclusionService,
       dripBatchRunService,
+      dripArrivalNotificationService,
     );
   });
 
@@ -325,5 +338,115 @@ describe('DripBatchOrchestrator', () => {
       }),
       expect.any(Date),
     );
+  });
+
+  describe('드립 도착 알림', () => {
+    it('정규 편성과 탐험 편성이 끝난 뒤 두 적립분을 합쳐 알림에 넘긴다', async () => {
+      // when
+      await orchestrator.run(NOW);
+
+      // then — 정규 + 탐험을 합친 하루 1건(notification.md 4.3)
+      expect(dripArrivalNotificationService.notify).toHaveBeenCalledTimes(1);
+      const [arrivals, at] =
+        dripArrivalNotificationService.notify.mock.calls[0];
+      expect(at).toBe(NOW);
+      expect(arrivals).toEqual([
+        {
+          userId: USER_ID,
+          regular: expect.arrayContaining([
+            { contentId: 'r1', title: '제목 r1' },
+            { contentId: 'r2', title: '제목 r2' },
+          ]) as unknown,
+          discovery: [{ contentId: 'd1', title: '제목 d1' }],
+        },
+      ]);
+      expect(
+        dripArrivalNotificationService.notify.mock.invocationCallOrder[0],
+      ).toBeGreaterThan(
+        Math.max(...dripPlacementService.placeItems.mock.invocationCallOrder),
+      );
+    });
+
+    it('탐험 편성이 실패하면 정규 적립분만 넘긴다', async () => {
+      // given
+      dripPlacementService.placeItems.mockImplementation(
+        (_userId, _contentIds, source) =>
+          source === LibraryItemSource.DISCOVERY
+            ? Promise.reject(new Error('discovery failed'))
+            : Promise.resolve(),
+      );
+
+      // when
+      await orchestrator.run(NOW);
+
+      // then
+      const [arrivals] = dripArrivalNotificationService.notify.mock.calls[0];
+      expect(arrivals[0].regular).toHaveLength(2);
+      expect(arrivals[0].discovery).toEqual([]);
+    });
+
+    it('정규 후보가 고갈돼 탐험 편만 적립돼도 알림에 넘긴다', async () => {
+      // given — 관심 주제 풀만 비었다
+      contentService.findCandidates.mockImplementation(
+        (query: ContentCandidateQuery) =>
+          Promise.resolve(query.includeTopicIds ? [] : discoveryPool),
+      );
+
+      // when
+      await orchestrator.run(NOW);
+
+      // then
+      const [arrivals] = dripArrivalNotificationService.notify.mock.calls[0];
+      expect(arrivals).toEqual([
+        {
+          userId: USER_ID,
+          regular: [],
+          discovery: [{ contentId: 'd1', title: '제목 d1' }],
+        },
+      ]);
+    });
+
+    it('적립이 없는 사용자는 알림에 넘기지 않는다', async () => {
+      // given — 미청취 재고로 건너뛴다
+      libraryService.countUnfinished.mockResolvedValue(5);
+
+      // when
+      await orchestrator.run(NOW);
+
+      // then
+      expect(dripArrivalNotificationService.notify).not.toHaveBeenCalled();
+    });
+
+    it('알림이 실패해도 배치는 끝까지 돌고 편성 집계는 그대로다', async () => {
+      // given — 적립은 이미 커밋됐다
+      dripArrivalNotificationService.notify.mockRejectedValue(
+        new Error('push down'),
+      );
+
+      // when
+      await orchestrator.run(NOW);
+
+      // then
+      expect(dripBatchRunService.finish).toHaveBeenCalledWith(
+        run,
+        expect.objectContaining({ successCount: 1, failedCount: 0 }),
+        expect.any(Date),
+      );
+    });
+
+    it('사용자 페이지마다 한 번씩 모아서 넘긴다', async () => {
+      // given — 페이지 두 개
+      userService.findDripTargetsPage
+        .mockReset()
+        .mockResolvedValueOnce([buildUser('u1')])
+        .mockResolvedValueOnce([buildUser('u2')])
+        .mockResolvedValue([]);
+
+      // when
+      await orchestrator.run(NOW);
+
+      // then
+      expect(dripArrivalNotificationService.notify).toHaveBeenCalledTimes(2);
+    });
   });
 });

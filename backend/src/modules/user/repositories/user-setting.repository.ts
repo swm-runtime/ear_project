@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
+import { EntityManager, In, Repository } from 'typeorm';
 
 import { UserSetting } from '../entities/user-setting.entity';
 
@@ -13,6 +13,23 @@ export class UserSettingRepository {
 
   private scoped(manager?: EntityManager): Repository<UserSetting> {
     return manager ? manager.getRepository(UserSetting) : this.repository;
+  }
+
+  /** 알림 토글을 끈 사용자만 — 행이 없는 사용자는 기본값(켜짐)이라 여기 나오지 않는다 */
+  async findDripNotificationDisabledUserIds(
+    userIds: string[],
+    manager?: EntityManager,
+  ): Promise<string[]> {
+    if (userIds.length === 0) {
+      return [];
+    }
+
+    const rows = await this.scoped(manager).find({
+      select: { userId: true },
+      where: { userId: In(userIds), isDripNotificationEnabled: false },
+    });
+
+    return rows.map((row) => row.userId);
   }
 
   /** 행이 없는 사용자가 정상이다(domain.md 3.5) — 없으면 `null`이고 호출부가 기본값을 만든다 */

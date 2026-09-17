@@ -4,6 +4,7 @@ import { ContentModule } from '@/modules/content/content.module';
 import { DripModule } from '@/modules/drip/drip.module';
 import { InterestModule } from '@/modules/interest/interest.module';
 import { LibraryModule } from '@/modules/library/library.module';
+import { NotificationModule } from '@/modules/notification/notification.module';
 import { PlaybackModule } from '@/modules/playback/playback.module';
 import { SubscriptionModule } from '@/modules/subscription/subscription.module';
 import { UserModule } from '@/modules/user/user.module';
@@ -27,6 +28,8 @@ import { DripBatchScheduler } from './drip-batch.scheduler';
     LibraryModule,
     PlaybackModule,
     DripModule,
+    // 편성 직후 드립 도착 알림(notification.md 4.3) — notification 은 user 만 알아 순환이 없다
+    NotificationModule,
   ],
   providers: [DripBatchOrchestrator, DripBatchScheduler],
 })

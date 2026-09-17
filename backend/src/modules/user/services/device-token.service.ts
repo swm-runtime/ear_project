@@ -80,6 +80,62 @@ export class DeviceTokenService {
     return saved;
   }
 
+  /** 푸시 발송 대상 기기(`notification.md` 4.2) — 판정은 notification 모듈이 하고 여기는 조회만 한다 */
+  async findDeliverableByUserIds(
+    userIds: string[],
+    manager?: EntityManager,
+  ): Promise<DeviceToken[]> {
+    return this.deviceTokenRepository.findDeliverableByUserIds(
+      userIds,
+      manager,
+    );
+  }
+
+  /**
+   * 발송 서비스가 "더 이상 이 기기에 닿지 않는다"(Expo `DeviceNotRegistered`)고 알려준 토큰을 뺀다
+   * (`notification.md` 7). 행을 지우지 않는다 — 앱이 다시 등록하면 upsert가 표시를 지운다.
+   * 보낸 토큰이 아직 그 행에 있을 때만 끈다 — 그사이 새 토큰으로 재등록됐으면 건드리지 않는다.
+   */
+  async invalidateDeliveredTokens(
+    targets: { id: string; token: string }[],
+    now: Date,
+    manager?: EntityManager,
+  ): Promise<number> {
+    const unique = [
+      ...new Map(
+        targets.map((target) => [`${target.id}:${target.token}`, target]),
+      ).values(),
+    ];
+
+    if (unique.length === 0) {
+      return 0;
+    }
+
+    return this.deviceTokenRepository.invalidateByIdAndToken(
+      unique,
+      now,
+      manager,
+    );
+  }
+
+  /**
+   * 로그아웃한 기기로 이전 사용자의 알림이 가지 않게 한다(`auth.md` 4.2 · `notification.md` 7).
+   * 같은 기기에서 다시 로그인하면 앱의 등록(`register`)이 표시를 지운다.
+   */
+  async invalidateByUserIdAndDeviceId(
+    userId: string,
+    deviceId: string,
+    now: Date,
+    manager?: EntityManager,
+  ): Promise<number> {
+    return this.deviceTokenRepository.invalidateByUserIdAndDeviceId(
+      userId,
+      deviceId,
+      now,
+      manager,
+    );
+  }
+
   async purgeByUserId(userId: string, manager?: EntityManager): Promise<void> {
     await this.deviceTokenRepository.deleteByUserId(userId, manager);
   }

@@ -25,9 +25,9 @@ function toDeletedCount(result: unknown): number {
  *
  * 1. `LIMIT`이 붙은 `DELETE`는 TypeORM의 `delete()`로 표현할 수 없다. 배치로 끊는 것이
  *    이 배치의 요구사항 자체이므로(락·WAL — `retention.constant.ts`) 우회가 아니라 필수다.
- * 2. `notification_logs`에는 **Entity가 없다.** `domain.md` 9.1이 정의하고 스키마에도
- *    있지만 아직 이 테이블을 쓰는 기능 코드가 없어 Entity를 만들지 않았다. Entity 기반
- *    삭제로는 네 테이블을 같은 코드로 다룰 수 없다.
+ * 2. 네 테이블의 Entity가 네 모듈에 흩어져 있다(`notification_logs`는 2026-09-17 `notification`
+ *    모듈에 생겼다). 소유 모듈의 Entity를 가져오면 이 모듈이 네 모듈을 의존하게 되고,
+ *    Entity 기반 삭제로는 네 테이블을 같은 코드로 다룰 수 없다.
  *
  * 테이블 이름은 `RetentionTable` 유니온이라 컴파일 시점에 네 값으로 고정된다 —
  * 사용자 입력이 식별자 자리에 오는 경로가 없다. 경계 시각·배치 크기는 바인딩 파라미터다.

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
+import { EntityManager, In, IsNull, Not, Repository } from 'typeorm';
 
 import { DeviceToken } from '../entities/device-token.entity';
 
@@ -75,6 +75,70 @@ export class DeviceTokenRepository {
         'uq_device_tokens_user_id_device_id',
       )
       .execute();
+  }
+
+  /**
+   * 푸시를 보낼 수 있는 기기 — OS 권한 허용 · 토큰 있음 · 무효화되지 않음(`notification.md` 4.2).
+   * 사용자당 여러 기기가 있을 수 있고 전부 대상이다(7장 "여러 기기 로그인").
+   */
+  async findDeliverableByUserIds(
+    userIds: string[],
+    manager?: EntityManager,
+  ): Promise<DeviceToken[]> {
+    if (userIds.length === 0) {
+      return [];
+    }
+
+    return this.scoped(manager).findBy({
+      userId: In(userIds),
+      isOsPermissionGranted: true,
+      token: Not(IsNull()),
+      invalidatedAt: IsNull(),
+    });
+  }
+
+  /**
+   * **행 id 와 보낸 토큰이 둘 다 맞을 때만** 무효화한다. receipt 는 발송 15분 뒤에 오는데, 그사이 앱을
+   * 다시 깔아 같은 `device_id` 행에 새 토큰이 upsert 됐을 수 있다 — id 만 보면 새 토큰을 끈다.
+   */
+  async invalidateByIdAndToken(
+    targets: { id: string; token: string }[],
+    now: Date,
+    manager?: EntityManager,
+  ): Promise<number> {
+    let affected = 0;
+
+    for (const target of targets) {
+      const result = await this.scoped(manager)
+        .createQueryBuilder()
+        .update(DeviceToken)
+        .set({ invalidatedAt: now })
+        .where('id = :id', { id: target.id })
+        .andWhere('token = :token', { token: target.token })
+        .andWhere('invalidated_at IS NULL')
+        .execute();
+      affected += result.affected ?? 0;
+    }
+
+    return affected;
+  }
+
+  async invalidateByUserIdAndDeviceId(
+    userId: string,
+    deviceId: string,
+    now: Date,
+    manager?: EntityManager,
+  ): Promise<number> {
+    const result = await this.scoped(manager)
+      .createQueryBuilder()
+      .update(DeviceToken)
+      .set({ invalidatedAt: now })
+      .where('user_id = :userId', { userId })
+      .andWhere('device_id = :deviceId', { deviceId })
+      .andWhere('invalidated_at IS NULL')
+      .execute();
+
+    return result.affected ?? 0;
   }
 
   /**

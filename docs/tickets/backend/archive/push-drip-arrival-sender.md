@@ -61,3 +61,17 @@
 - Given 로그아웃한 기기 / When 이전 사용자에게 드립이 편성된다 / Then 해당 기기로 알림이 가지 않는다
 - Given 발송이 실패한다 / When 편성 배치 결과를 본다 / Then 적립은 그대로 남고 발송 실패만 `failed`로 기록된다
 - Given 개발계 / When 편성이 돈다 / Then 스위치가 꺼져 있으면 실제 Expo Push 호출이 일어나지 않는다
+
+## 처리 기록
+
+| 항목 | 값 |
+|---|---|
+| 반영 날짜 | 2026-09-17 |
+| 코드 | 신규 `notification` 모듈(`NotificationLog` · `DripArrivalNotificationService` · `PushReceiptService`/`PushReceiptScheduler`(10분) · `PushClient` = `ExpoPushClient`/`LogPushClient`) · `DripBatchOrchestrator`(페이지 단위로 정규 + 탐험 적립분 전달) · `AuthService.logout`(토큰 무효화) · `DeviceTokenService`(발송 대상 조회·토큰 무효화) · `UserSettingService`(토글 끈 사용자) · `toServiceDayRange` · env `PUSH_DELIVERY`(기본 `log`) · `EXPO_ACCESS_TOKEN` |
+| 요청 대비 결정 | ① 발송은 **사용자 페이지(100명) 단위** — 사용자마다 부르면 요청이 사용자 수만큼, 전체 뒤에 몰면 앞 사용자가 배치 시간만큼 늦는다 ② receipt 대기 목록은 **메모리** — `notification_logs`는 사용자 단위 1행이라 기기별 ticket id 컬럼이 없다. 재기동 시 잃는 것은 토큰 정리 한 번이다 ③ 토큰 무효화는 **행 id + 보낸 토큰이 둘 다 맞을 때만** — receipt(15분 뒤) 사이 재설치로 새 토큰이 upsert되면 끄지 않는다 ④ 발송 기록을 토큰 정리보다 **먼저** 남긴다 ⑤ Expo 429·5xx는 1s·3s 백오프로 두 번 재시도, 타임아웃은 재시도하지 않는다(중복 발송 방지) ⑥ 같은 토큰이 여러 행에 있으면 한 번만 보낸다 ⑦ 운영(`NODE_ENV=production`)에서 `PUSH_DELIVERY=log`면 기동 시 경고 |
+| 요청과 다른 점 | 요청 6번 "개발계 발송 스위치" = `PUSH_DELIVERY`. **운영은 Secrets Manager `ear/prod/api`에 `PUSH_DELIVERY=expo`를 넣어야 실제로 나간다**(PR 본문 명령어) |
+| 이번에 구현하지 않은 것(`notification.md` 7) | "발송 전 사용자가 이미 앱을 열었으면 취소" · "발송 직전 콘텐츠 유효성 재확인" — 지금 발송은 적립 **직후(수 초 이내)** 이고 지연 재시도가 없어 해당 구간이 생기지 않는다. 지연 발송(예: 07:30 고정)을 도입하면 그때 필요하다. "30일 이상 발송 실패 토큰 정리" — `DeviceNotRegistered` 즉시 무효화로 대체되고, 그 밖의 반복 실패 누적은 기록 컬럼이 없어 보류 |
+| 의존(FE) | KAN-69 — 앱이 실제 Expo 토큰을 등록하고 **포그라운드 복귀마다 재등록**해야 로그아웃 후 재로그인한 기기가 다시 대상이 된다. 딥링크 형식 확인도 KAN-69에 적었다 |
+| 문서 | `changes/archive/drip-arrival-push-payload.md` — `notification.md` 3장 페이로드·딥링크, `architecture.md` 4.5 |
+| 검증 | 단위 · e2e(`test/drip-arrival-notification.e2e-spec.ts` 6건 — 실 DB 대상 판정·하루 1건 경계·기록·DeviceNotRegistered 무효화·로그아웃·재설치 토큰 보호) · 검증 에이전트 교차 검토 반영 |
+

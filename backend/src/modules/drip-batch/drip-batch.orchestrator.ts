@@ -29,6 +29,11 @@ import { PreferenceVectorService } from '@/modules/drip/services/preference-vect
 import { UserInterestService } from '@/modules/interest/services/user-interest.service';
 import { LibraryItemSource } from '@/modules/library/library.enum';
 import { LibraryService } from '@/modules/library/library.service';
+import {
+  ArrivedContent,
+  DripArrival,
+} from '@/modules/notification/notification.types';
+import { DripArrivalNotificationService } from '@/modules/notification/services/drip-arrival-notification.service';
 import { UserSignalAction } from '@/modules/playback/playback.enum';
 import { PlaybackService } from '@/modules/playback/services/playback.service';
 import { PlanService } from '@/modules/subscription/services/plan.service';
@@ -47,6 +52,12 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
  * "0편 고갈"이 같은 숫자에 들어가, 후보가 말라 가는 것을 지표로 알 수 없다.
  */
 type UserOutcome = 'scheduled' | 'skipped' | 'exhausted';
+
+/** 편성 결과 + 알림에 넘길 그날 적립분(정규·탐험). 적립이 없으면 `arrival`은 null */
+interface UserScheduleResult {
+  outcome: UserOutcome;
+  arrival: DripArrival | null;
+}
 
 /** 티어별 편성 편수 — 실행 1회 안에서 한 번만 읽는다(아래 `PlanCountCache`) */
 interface PlanCounts {
@@ -91,6 +102,7 @@ export class DripBatchOrchestrator {
     private readonly dripPlacementService: DripPlacementService,
     private readonly dripExclusionService: DripExclusionService,
     private readonly dripBatchRunService: DripBatchRunService,
+    private readonly dripArrivalNotificationService: DripArrivalNotificationService,
   ) {}
 
   /**
@@ -137,11 +149,21 @@ export class DripBatchOrchestrator {
           break;
         }
 
+        const arrivals: DripArrival[] = [];
+
         for (const user of users) {
           counts.targetCount += 1;
 
           try {
-            const outcome = await this.scheduleForUser(user, now, planCounts);
+            const { outcome, arrival } = await this.scheduleForUser(
+              user,
+              now,
+              planCounts,
+            );
+
+            if (arrival) {
+              arrivals.push(arrival);
+            }
 
             if (outcome === 'scheduled') {
               counts.successCount += 1;
@@ -159,6 +181,7 @@ export class DripBatchOrchestrator {
           }
         }
 
+        await this.notifyArrivals(arrivals, now);
         afterId = users[users.length - 1].id;
       }
     } finally {
@@ -178,18 +201,43 @@ export class DripBatchOrchestrator {
     });
   }
 
+  /**
+   * 드립 도착 알림(`notification.md` 4.3). **페이지 단위로 모아 보낸다** — 사용자마다 부르면 발송 요청이
+   * 사용자 수만큼 나가고, 전체가 끝난 뒤에 몰아 보내면 앞 사용자의 알림이 배치 시간만큼 늦는다.
+   * 페이지 안의 사용자는 **탐험 편성까지 끝난 뒤**라 정규 + 탐험을 합친 1건이 된다.
+   *
+   * 알림 실패는 편성을 되돌리지 않고 배치도 멈추지 않는다 — 적립은 이미 커밋됐다.
+   */
+  private async notifyArrivals(
+    arrivals: DripArrival[],
+    now: Date,
+  ): Promise<void> {
+    if (arrivals.length === 0) {
+      return;
+    }
+
+    try {
+      await this.dripArrivalNotificationService.notify(arrivals, now);
+    } catch (error) {
+      this.logger.warn('drip arrival notification failed', {
+        user_count: arrivals.length,
+        error: toErrorMessage(error),
+      });
+    }
+  }
+
   private async scheduleForUser(
     user: User,
     now: Date,
     planCounts: PlanCountCache,
-  ): Promise<UserOutcome> {
+  ): Promise<UserScheduleResult> {
     // 관심사 0은 방어적 처리 — 정상 경로에서는 도달 불가(`drip-scheduling.md` 4.1)
     const activeTopicIds = await this.userInterestService.findActiveTopicIds(
       user.id,
     );
 
     if (activeTopicIds.length === 0) {
-      return 'skipped';
+      return { outcome: 'skipped', arrival: null };
     }
 
     /**
@@ -206,7 +254,7 @@ export class DripBatchOrchestrator {
     const unfinishedCount = await this.libraryService.countUnfinished(user.id);
 
     if (unfinishedCount >= UNFINISHED_INVENTORY_LIMIT) {
-      return 'skipped';
+      return { outcome: 'skipped', arrival: null };
     }
 
     const { dripCount, discoveryCount } = await this.resolvePlanCounts(
@@ -215,7 +263,7 @@ export class DripBatchOrchestrator {
     );
 
     if (dripCount <= 0 && discoveryCount <= 0) {
-      return 'skipped';
+      return { outcome: 'skipped', arrival: null };
     }
 
     const completedEpisodesBySeries =
@@ -237,12 +285,14 @@ export class DripBatchOrchestrator {
             dripCount,
             now,
           })
-        : { ids: [], topicIds: [], embeddings: [] };
+        : { ids: [], topicIds: [], embeddings: [], arrived: [] };
 
     // 탐험 실패는 정규 편성을 되돌리지 않는다(4.8 — 부가 슬롯이 본편을 막으면 안 된다)
+    let discoveryArrived: ArrivedContent[] = [];
+
     try {
       if (discoveryCount > 0) {
-        await this.scheduleDiscovery(user.id, {
+        discoveryArrived = await this.scheduleDiscovery(user.id, {
           activeTopicIds,
           // 방금 뽑은 정규 편성분만 넘긴다 — 누적 이력은 SQL의 NOT EXISTS가 본다
           alreadyPickedIds: regularPicks.ids,
@@ -261,7 +311,19 @@ export class DripBatchOrchestrator {
 
     // 정규 편성이 0편이면 후보가 마른 것이다(4.1의 스킵 조건은 위에서 이미 걸렀다).
     // 탐험 슬롯만 채워졌더라도 본편이 없으면 그날의 편성은 성공이 아니다
-    return regularPicks.ids.length > 0 ? 'scheduled' : 'exhausted';
+    const arrival: DripArrival | null =
+      regularPicks.arrived.length + discoveryArrived.length > 0
+        ? {
+            userId: user.id,
+            regular: regularPicks.arrived,
+            discovery: discoveryArrived,
+          }
+        : null;
+
+    return {
+      outcome: regularPicks.ids.length > 0 ? 'scheduled' : 'exhausted',
+      arrival,
+    };
   }
 
   private async resolvePlanCounts(
@@ -351,7 +413,13 @@ export class DripBatchOrchestrator {
       dripCount: number;
       now: Date;
     },
-  ): Promise<{ ids: string[]; topicIds: string[]; embeddings: number[][] }> {
+  ): Promise<{
+    ids: string[];
+    topicIds: string[];
+    embeddings: number[][];
+    /** 알림에 넘길 적립분(`notification.md` 4.3 — 대표 제목) */
+    arrived: ArrivedContent[];
+  }> {
     const pool = await this.contentService.findCandidates({
       includeTopicIds: input.activeTopicIds,
       excludeSeenByUserId: userId,
@@ -369,7 +437,7 @@ export class DripBatchOrchestrator {
 
     if (gated.length === 0) {
       // 고갈 — 대체 없이 그날 적립을 건너뛴다(`drip-scheduling.md` 7, 합의 2026-08-06)
-      return { ids: [], topicIds: [], embeddings: [] };
+      return { ids: [], topicIds: [], embeddings: [], arrived: [] };
     }
 
     const recentDripTopicIds = await this.findRecentDripTopicIds(
@@ -409,6 +477,7 @@ export class DripBatchOrchestrator {
       embeddings: picks.flatMap((pick) =>
         pick.embedding === null ? [] : [pick.embedding],
       ),
+      arrived: picks.map(toArrivedContent),
     };
   }
 
@@ -424,7 +493,7 @@ export class DripBatchOrchestrator {
       discoveryCount: number;
       now: Date;
     },
-  ): Promise<void> {
+  ): Promise<ArrivedContent[]> {
     const pool = await this.contentService.findCandidates({
       excludeSeenByUserId: userId,
       excludeContentIds: input.alreadyPickedIds,
@@ -439,7 +508,7 @@ export class DripBatchOrchestrator {
     const candidates = await this.buildScoringCandidates(pool);
 
     if (candidates.length === 0) {
-      return;
+      return [];
     }
 
     const [exposureCounts, userRemovedTopicIds] = await Promise.all([
@@ -468,6 +537,8 @@ export class DripBatchOrchestrator {
       LibraryItemSource.DISCOVERY,
       input.now,
     );
+
+    return picks.map(toArrivedContent);
   }
 
   /** 후보 콘텐츠에 스코어링 입력(전체 구간 집계·주제·임베딩)을 붙인다 */
@@ -609,4 +680,8 @@ function toErrorMessage(error: unknown): string {
 /** 로그에 싣는 점수는 소수점 셋째 자리까지. `null`(축 제외)은 그대로 둔다 */
 function round(value: number | null): number | null {
   return value === null ? null : Math.round(value * 1000) / 1000;
+}
+
+function toArrivedContent(pick: ScoredCandidate): ArrivedContent {
+  return { contentId: pick.content.id, title: pick.content.title };
 }
