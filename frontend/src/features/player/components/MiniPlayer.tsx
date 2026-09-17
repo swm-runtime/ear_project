@@ -58,6 +58,9 @@ export default function MiniPlayer({
   const translateX = useAnimatedValue(0);
   // 플레이어 열림·닫힘 모션의 도착 지점 — 내 화면 좌표를 올려 두고, 사라질 땐 지운다
   const rootRef = useRef<View>(null);
+  // 썸네일·제목의 실제 자리 — 상수로 추정하면 몇 px 어긋나 착지 순간 잔상이 겹친다(2026-09-17)
+  const thumbRef = useRef<View>(null);
+  const titleRef = useRef<Text>(null);
   const setMiniLayout = useMiniPlayerLayoutStore((s) => s.setLayout);
   useEffect(() => () => setMiniLayout(null), [setMiniLayout]);
 
@@ -191,9 +194,24 @@ export default function MiniPlayer({
       onLayout={(event) => {
         setBarWidth(event.nativeEvent.layout.width);
         // 플레이어 열림·닫힘 모션의 도착 지점 — 화면 좌표로 올려 둔다(mini-player-layout.store)
-        rootRef.current?.measureInWindow((x, y, width, height) =>
-          setMiniLayout({ x, y, width, height }),
-        );
+        const thumb = thumbRef.current;
+        const title = titleRef.current;
+        rootRef.current?.measureInWindow((x, y, width, height) => {
+          const base = { x, y, width, height };
+          if (!thumb || !title) {
+            setMiniLayout(base);
+            return;
+          }
+          thumb.measureInWindow((tx, ty, tw) => {
+            title.measureInWindow((lx, ly, lw, lh) => {
+              setMiniLayout({
+                ...base,
+                thumb: { x: tx, y: ty, size: tw },
+                title: { x: lx, y: ly, width: lw, height: lh },
+              });
+            });
+          });
+        });
       }}
       {...swipePanResponder.panHandlers}
     >
@@ -218,12 +236,12 @@ export default function MiniPlayer({
             if (event.nativeEvent.actionName === 'dismissPlayback') dismissForAccessibility();
           }}
         >
-          {view.thumbnailUrl ? (
-            <Image source={{ uri: view.thumbnailUrl }} style={styles.thumbnail} />
-          ) : (
-            <View style={styles.thumbnail} />
-          )}
-          <Text style={styles.title} numberOfLines={1}>
+          <View ref={thumbRef} style={styles.thumbnail}>
+            {view.thumbnailUrl ? (
+              <Image source={{ uri: view.thumbnailUrl }} style={StyleSheet.absoluteFill} />
+            ) : null}
+          </View>
+          <Text ref={titleRef} style={styles.title} numberOfLines={1}>
             {view.title}
           </Text>
         </Pressable>
@@ -278,6 +296,7 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: theme.radius.sm,
     backgroundColor: theme.color.background,
+    overflow: 'hidden',
   },
   title: {
     flex: 1,

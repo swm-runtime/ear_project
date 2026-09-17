@@ -102,11 +102,34 @@ export default function PlayerScreen() {
     setAppBarHeight(event.nativeEvent.layout.height);
   const onHandleLayout = (event: LayoutChangeEvent) =>
     setHandleHeight(event.nativeEvent.layout.height);
-  const onContentLayout = (event: LayoutChangeEvent) =>
+  const onContentLayout = (event: LayoutChangeEvent) => {
     setContentSize({
       width: event.nativeEvent.layout.width,
       height: event.nativeEvent.layout.height,
     });
+    setContentOrigin({ x: event.nativeEvent.layout.x, y: event.nativeEvent.layout.y });
+  };
+  /*
+   * 히어로 실측 — 열림·닫힘 모션의 "풀 화면" 쪽 좌표. 같은 수식으로 계산해도 레이아웃 반올림·패딩으로
+   * 몇 px 어긋나 교차 순간 아트워크·제목이 두 장으로 보였다(2026-09-17 PM). onLayout 값은 transform 을
+   * 타지 않아 모션 중에도 정지 좌표를 준다. 부모 기준 값이라 content → hero → 요소 순으로 더한다
+   */
+  const [contentOrigin, setContentOrigin] = useState({ x: 0, y: 0 });
+  const [heroBox, setHeroBox] = useState<{ x: number; y: number } | null>(null);
+  const [heroArtBox, setHeroArtBox] = useState<{ x: number; y: number; size: number } | null>(null);
+  const [titleBox, setTitleBox] = useState<LayoutBox | null>(null);
+  const [compactTitleBox, setCompactTitleBox] = useState<LayoutBox | null>(null);
+  const onHeroLayout = (event: LayoutChangeEvent) =>
+    setHeroBox({ x: event.nativeEvent.layout.x, y: event.nativeEvent.layout.y });
+  const onHeroArtLayout = (event: LayoutChangeEvent) =>
+    setHeroArtBox({
+      x: event.nativeEvent.layout.x,
+      y: event.nativeEvent.layout.y,
+      size: event.nativeEvent.layout.width,
+    });
+  const onTitleLayout = (event: LayoutChangeEvent) => setTitleBox(event.nativeEvent.layout);
+  const onCompactTitleLayout = (event: LayoutChangeEvent) =>
+    setCompactTitleBox(event.nativeEvent.layout);
   const onControlsLayout = (event: LayoutChangeEvent) =>
     setControlsHeight(event.nativeEvent.layout.height);
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
@@ -353,16 +376,26 @@ export default function PlayerScreen() {
     width: contentSize.width,
     height: MINI_ROW_HEIGHT,
   };
-  const miniThumbLeft = mini.x + theme.spacing.md;
-  const miniThumbTop = mini.y + MINI_PROGRESS_HEIGHT + theme.spacing.sm;
-  const miniTitleLeft = miniThumbLeft + MINI_THUMB_SIZE + theme.spacing.sm;
-  const miniTitleWidth = Math.max(
-    80,
-    mini.width -
-      (theme.spacing.md + MINI_THUMB_SIZE + theme.spacing.sm) -
-      MINI_BUTTON_WIDTH -
-      theme.spacing.md,
-  );
+  // 실측값 우선 — 상수 추정은 미니플레이어가 없을 때(탐색 진입 등)의 대체다
+  const miniThumbLeft = mini.thumb?.x ?? mini.x + theme.spacing.md;
+  const miniThumbTop = mini.thumb?.y ?? mini.y + MINI_PROGRESS_HEIGHT + theme.spacing.sm;
+  const miniThumbSize = mini.thumb?.size ?? MINI_THUMB_SIZE;
+  const miniTitleLeft = mini.title?.x ?? miniThumbLeft + miniThumbSize + theme.spacing.sm;
+  const miniTitleTop = mini.title?.y ?? miniThumbTop + (miniThumbSize - MINI_TITLE_LINE_HEIGHT) / 2;
+  const miniTitleHeight = mini.title?.height ?? MINI_TITLE_LINE_HEIGHT;
+  const miniTitleWidth =
+    mini.title?.width ??
+    Math.max(
+      80,
+      mini.width -
+        (theme.spacing.md + MINI_THUMB_SIZE + theme.spacing.sm) -
+        MINI_BUTTON_WIDTH -
+        theme.spacing.md,
+    );
+  // 미니플레이어 ▶ 버튼 자리 — 시트가 자라는 첫 순간에 사라진다(교차 없이 자리만 잇는다)
+  const miniButtonLeft = mini.x + mini.width - theme.spacing.md - MINI_BUTTON_WIDTH;
+  const miniButtonTop =
+    mini.y + MINI_PROGRESS_HEIGHT + (mini.height - MINI_PROGRESS_HEIGHT - MINI_BUTTON_WIDTH) / 2;
   // 패널이 열려 있으면 히어로가 압축돼 있다 — 모션의 "풀 화면" 쪽 좌표도 그 상태를 따라야 교차 순간 안 튄다
   const isHeroCompact = activePanel !== null;
   const fullArtSize = isHeroCompact ? COMPACT_ARTWORK_SIZE : artSizeCollapsed;
@@ -386,18 +419,40 @@ export default function PlayerScreen() {
     ? innerWidth - COMPACT_ARTWORK_SIZE - theme.spacing.md
     : innerWidth;
   const fullTitleFontSize = isHeroCompact ? theme.font.size.lg : theme.font.size.xl;
+  const measuredTitleLayer = isHeroCompact ? compactTitleBox : titleBox;
+  const fullArt =
+    heroBox && heroArtBox
+      ? {
+          left: contentOrigin.x + heroBox.x + heroArtBox.x,
+          top: contentOrigin.y + heroBox.y + heroArtBox.y,
+          size: heroArtBox.size,
+        }
+      : { left: fullArtLeft, top: fullArtTop, size: fullArtSize };
+  // 제목 블록(heroMeta)의 위치는 실측하지 않는다 — 웹의 onLayout 은 크기가 바뀔 때만 다시 불려, 위치만
+  // 움직이는 절대 배치 요소는 첫 값(0)에 머문다(2026-09-17 실측: 제목이 화면 위 y≈92 로 날아갔다).
+  // 위치는 hero.metaTop 과 같은 수식으로 두고, 히어로 원점과 제목 줄의 크기만 실측값을 쓴다
+  const metaTop = isHeroCompact ? HERO_COMPACT_META_TOP : artAreaHeight + theme.spacing.lg;
+  const metaLeft = isHeroCompact ? COMPACT_ARTWORK_SIZE + theme.spacing.md : 0;
+  const fullTitle =
+    heroBox && measuredTitleLayer
+      ? {
+          left: contentOrigin.x + heroBox.x + metaLeft + measuredTitleLayer.x,
+          top: contentOrigin.y + heroBox.y + metaTop + measuredTitleLayer.y,
+          width: measuredTitleLayer.width,
+        }
+      : { left: fullTitleLeft, top: fullTitleTop, width: fullTitleWidth };
   const morph = {
     artLeft: openProgress.interpolate({
       inputRange: [0, 1],
-      outputRange: [miniThumbLeft, fullArtLeft],
+      outputRange: [miniThumbLeft, fullArt.left],
     }),
     artTop: openProgress.interpolate({
       inputRange: [0, 1],
-      outputRange: [miniThumbTop, fullArtTop],
+      outputRange: [miniThumbTop, fullArt.top],
     }),
     artSize: openProgress.interpolate({
       inputRange: [0, 1],
-      outputRange: [MINI_THUMB_SIZE, fullArtSize],
+      outputRange: [miniThumbSize, fullArt.size],
     }),
     artRadius: openProgress.interpolate({
       inputRange: [0, 1],
@@ -405,15 +460,15 @@ export default function PlayerScreen() {
     }),
     titleLeft: openProgress.interpolate({
       inputRange: [0, 1],
-      outputRange: [miniTitleLeft, fullTitleLeft],
+      outputRange: [miniTitleLeft, fullTitle.left],
     }),
     titleTop: openProgress.interpolate({
       inputRange: [0, 1],
-      outputRange: [miniThumbTop + (MINI_THUMB_SIZE - MINI_TITLE_LINE_HEIGHT) / 2, fullTitleTop],
+      outputRange: [miniTitleTop, fullTitle.top],
     }),
     titleWidth: openProgress.interpolate({
       inputRange: [0, 1],
-      outputRange: [miniTitleWidth, fullTitleWidth],
+      outputRange: [miniTitleWidth, fullTitle.width],
     }),
     titleFontSize: openProgress.interpolate({
       inputRange: [0, 1],
@@ -423,19 +478,35 @@ export default function PlayerScreen() {
     // 교차 순간 제목이 몇 px 튄다
     titleLineHeight: openProgress.interpolate({
       inputRange: [0, 1],
-      outputRange: [MINI_TITLE_LINE_HEIGHT, fullTitleFontSize * 1.3],
+      outputRange: [miniTitleHeight, fullTitleFontSize * 1.3],
     }),
-    // 모션 레이어는 도착 직전까지 보이고, 실제 화면은 그 직후 나타난다 — 겹치는 구간에서 교차한다
-    // 모션 레이어와 실제 화면은 마지막 10%에서만 교차한다 — 닫힘이 시작되면 실제 화면이 곧장 사라져
-    // 큰 아트워크 잔상 위로 작은 아트워크가 날아가는 겹침이 생기지 않는다
-    // 시작 15%는 시트·모션 레이어가 투명에서 올라온다 — 그동안 뒤의 진짜 미니플레이어가 보이므로,
-    // 모션 레이어의 아트워크가 아직 안 그려졌어도 빈 사각이 비치지 않는다
+    /*
+     * 교차 페이드를 쓰지 않는다(2026-09-17 PM — "애플처럼"). 미니플레이어 쪽 끝에서 모션 레이어를 투명하게
+     * 하면 뒤의 진짜 미니플레이어와 몇 px 어긋난 잔상이 겹쳐 보였다. 대신 모션 레이어는 도착까지 불투명하고,
+     * 착지 좌표를 미니플레이어 실측값으로 맞춰 화면을 바꿔치는 순간이 보이지 않게 한다.
+     * 풀 화면 쪽 끝(0.96~1)만 실제 히어로와 교차한다 — 같은 좌표라 겹쳐도 한 장으로 보인다
+     */
     layerOpacity: openProgress.interpolate({
-      inputRange: [0, 0.15, 0.96, 1],
-      outputRange: [0, 1, 1, 0],
+      inputRange: [0, 0.94, 1],
+      outputRange: [1, 1, 0],
     }),
-    sheetOpacity: openProgress.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 1, 1] }),
-    contentOpacity: openProgress.interpolate({ inputRange: [0, 0.96, 1], outputRange: [0, 0, 1] }),
+    // 히어로(큰 아트워크·제목)는 모션 레이어가 대신 그린다 — 둘이 같이 보이면 아트워크가 두 장이 된다
+    heroOpacity: openProgress.interpolate({ inputRange: [0, 0.94, 1], outputRange: [0, 0, 1] }),
+    // 컨트롤·시크바·앱바는 시트와 함께 아래로 내려가며 중간에 사라진다 — 카드가 통째로 접히는 느낌
+    contentOpacity: openProgress.interpolate({
+      inputRange: [0, 0.45, 0.8, 1],
+      outputRange: [0, 0, 1, 1],
+    }),
+    // 마지막 8%는 제자리 — 히어로와 모션 레이어가 교차하는 동안 콘텐츠가 움직이면 같은 좌표가 아니게 된다
+    contentTranslateY: openProgress.interpolate({
+      inputRange: [0, 0.92, 1],
+      outputRange: [mini.y, 0, 0],
+    }),
+    // 미니플레이어 ▶ — 시트가 자라기 시작하면 바로 사라진다(닫힐 땐 마지막 12%에서 나타난다)
+    miniButtonOpacity: openProgress.interpolate({
+      inputRange: [0, 0.12, 1],
+      outputRange: [1, 0, 0],
+    }),
     // 시트 — 미니플레이어 카드(회색, 바닥 한 줄)가 그대로 자라 풀 화면(흰색)이 된다.
     // 배경을 통째로 페이드하면 그림만 떠다니는 것처럼 보인다
     sheetTop: openProgress.interpolate({ inputRange: [0, 1], outputRange: [mini.y, 0] }),
@@ -560,13 +631,15 @@ export default function PlayerScreen() {
             borderTopLeftRadius: morph.sheetRadius,
             borderTopRightRadius: morph.sheetRadius,
             backgroundColor: morph.sheetColor,
-            opacity: morph.sheetOpacity,
           },
         ]}
         pointerEvents="none"
       />
       <Animated.View
-        style={[styles.content, { opacity: morph.contentOpacity }]}
+        style={[
+          styles.content,
+          { opacity: morph.contentOpacity, transform: [{ translateY: morph.contentTranslateY }] },
+        ]}
         onLayout={onContentLayout}
         {...collapsePanResponder.panHandlers}
       >
@@ -613,7 +686,8 @@ export default function PlayerScreen() {
           절대 배치로 두 배치 사이를 보간한다 — 레이아웃 전환이면 "다른 화면"으로 읽힌다.
         */}
         <Animated.View
-          style={[styles.hero, { height: hero.height }]}
+          style={[styles.hero, { height: hero.height, opacity: morph.heroOpacity }]}
+          onLayout={onHeroLayout}
           {...(scriptSegments !== null || queueItems !== null
             ? horizontalSwipeResponder.panHandlers
             : {})}
@@ -629,6 +703,7 @@ export default function PlayerScreen() {
                 borderRadius: hero.artRadius,
               },
             ]}
+            onLayout={onHeroArtLayout}
           >
             {session.meta.thumbnailUrl ? (
               <Image source={{ uri: session.meta.thumbnailUrl }} style={styles.artwork} />
@@ -647,7 +722,7 @@ export default function PlayerScreen() {
 
           <Animated.View style={[styles.heroMeta, { top: hero.metaTop, left: hero.metaLeft }]}>
             {/* 제목은 크기가 달라 두 겹을 교차 페이드한다 — 글자 크기 자체는 보간하지 않는다 */}
-            <Animated.View style={{ opacity: hero.collapsedOpacity }}>
+            <Animated.View style={{ opacity: hero.collapsedOpacity }} onLayout={onTitleLayout}>
               {/* 한 줄 고정 — 넘치면 흘러서 끝까지 보여준다(2026-09-16, 두 줄 접기에서 변경) */}
               <MarqueeText text={session.meta.title ?? ''} style={styles.title} />
               {categoryLabel !== null ? (
@@ -659,6 +734,7 @@ export default function PlayerScreen() {
             <Animated.View
               style={[styles.heroTitleCompactLayer, { opacity: hero.expandedOpacity }]}
               pointerEvents="none"
+              onLayout={onCompactTitleLayout}
             >
               <MarqueeText text={session.meta.title ?? ''} style={styles.compactTitle} />
               {categoryLabel !== null ? (
@@ -862,6 +938,18 @@ export default function PlayerScreen() {
               <View style={[styles.artwork, styles.artworkPlaceholder]} />
             )}
           </Animated.View>
+          <Animated.View
+            style={[
+              styles.morphMiniButton,
+              { left: miniButtonLeft, top: miniButtonTop, opacity: morph.miniButtonOpacity },
+            ]}
+          >
+            {session.isPlaying ? (
+              <PauseIcon size={MINI_PLAY_ICON_SIZE} color={theme.color.textPrimary} />
+            ) : (
+              <PlayIcon size={MINI_PLAY_ICON_SIZE} color={theme.color.textPrimary} />
+            )}
+          </Animated.View>
           <Animated.Text
             style={[
               styles.morphTitle,
@@ -959,6 +1047,15 @@ const MINI_BUTTON_WIDTH = 44;
 const MINI_ROW_HEIGHT = 62;
 /** 미니플레이어 제목(14pt) 한 줄 높이 */
 const MINI_TITLE_LINE_HEIGHT = 20;
+/** onLayout 이 주는 부모 기준 사각형 */
+interface LayoutBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+/** 미니플레이어 ▶ 아이콘 크기(MiniPlayer.tsx 와 같은 값) */
+const MINI_PLAY_ICON_SIZE = 20;
 /** 미니플레이어 좌표가 없을 때 출발점을 두는 바닥 여백 — 탭 바 위쯤 */
 const MINI_FALLBACK_BOTTOM = 130;
 /** 모션 레이어 아트워크 로드를 기다리는 상한 — 보통은 onLoad가 먼저 온다(캐시). 실패·지연 시 이 뒤엔 그냥 출발 */
@@ -1004,6 +1101,13 @@ const styles = StyleSheet.create({
     position: 'absolute',
     fontWeight: '700',
     color: theme.color.textPrimary,
+  },
+  morphMiniButton: {
+    position: 'absolute',
+    width: MINI_BUTTON_WIDTH,
+    height: MINI_BUTTON_WIDTH,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   content: {
     flex: 1,
