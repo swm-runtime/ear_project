@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { releaseMailto, site, stats } from "@/content/site";
 import { CountUp } from "./CountUp";
+import { HeroPhoneScene } from "./HeroPhoneScene";
 import { routes } from "@/content/routes";
 import s from "./Hero.module.css";
 
@@ -279,6 +280,10 @@ function AppPreview() {
           </div>
 
           <span className={s.homeIndicator} />
+
+          {/* 정적 화면 위에서 앱 흐름(카드 탭 → 플레이어 → 미니플레이어)을 반복하는 덧씌움 층.
+              reduced-motion이면 아무것도 그리지 않아 위 정적 화면만 남는다 */}
+          <HeroPhoneScene track={POPULAR[0]} />
         </div>
       </div>
     </div>

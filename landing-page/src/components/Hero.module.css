@@ -586,6 +586,299 @@
   opacity: 0.85;
 }
 
+/* ---------- 살아 움직이는 장면(HeroPhoneScene) ---------- */
+
+/* 화면 전체를 덮는 투명 층. 아래 정적 탐색 화면은 그대로 보이고, 장면 요소만 이 위에 얹힌다 */
+.scene {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font-size: calc(var(--screen-w) / 28.8); /* 10px @288 — 화면 폭에 비례하는 기준 단위 */
+}
+
+/* 탭 파문 — 첫 인기 카드 아트워크 위쪽 */
+.tapRipple {
+  position: absolute;
+  left: 30%;
+  top: 41%;
+  width: 2.2em;
+  height: 2.2em;
+  border-radius: 50%;
+  border: 2px solid rgba(10, 10, 12, 0.55);
+  background: rgba(10, 10, 12, 0.12);
+  opacity: 0;
+  transform: scale(0.4);
+}
+
+.tapRippleOn {
+  animation: heroTap 0.7s ease-out both;
+}
+
+@keyframes heroTap {
+  0% { opacity: 0; transform: scale(0.4); }
+  25% { opacity: 1; transform: scale(0.8); }
+  100% { opacity: 0; transform: scale(1.8); }
+}
+
+/* 플레이어 화면 — 아래에서 올라온다. 상태바 아래부터 덮는다 */
+.playerScene {
+  position: absolute;
+  inset: 4.4em 0 0 0; /* 상태바는 덮지 않는다 — 실제 앱도 플레이어 위에 상태바가 남는다 */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.8em 1.6em 0;
+  background: var(--paper);
+  transform: translateY(100%);
+  transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
+}
+
+.playerSceneIn {
+  transform: translateY(0);
+}
+
+.pAppBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  height: 2.4em;
+  color: var(--text);
+}
+
+.pChevron {
+  width: 1em;
+  height: 1em;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg) translate(-0.2em, -0.2em);
+}
+
+.pMore {
+  font-size: 1.4em;
+  line-height: 1;
+}
+
+.pArt {
+  display: block;
+  width: 72%;
+  height: auto;
+  aspect-ratio: 1;
+  margin-top: 1.2em;
+  border-radius: 1.2em;
+  object-fit: cover;
+  box-shadow: 0 1.2em 2.4em -1.4em rgba(10, 10, 12, 0.55);
+}
+
+.pTitle {
+  margin-top: 1.8em;
+  width: 100%;
+  font-size: 1.35em;
+  font-weight: 800;
+  line-height: 1.3;
+  letter-spacing: -0.03em;
+  text-align: center;
+  color: var(--text);
+}
+
+.pMeta {
+  margin-top: 0.5em;
+  font-size: 0.95em;
+  font-weight: 600;
+  color: var(--text-3);
+}
+
+.pSource {
+  margin-top: 0.8em;
+  padding: 0.35em 0.9em;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-pill);
+  font-size: 0.85em;
+  font-weight: 700;
+  color: var(--text-2);
+}
+
+/* 장식 파형 — 재생 중(플레이어가 보이는 동안)만 움직인다 */
+.pWave {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  height: 2.2em;
+  margin-top: 1.4em;
+}
+
+.pWaveBar {
+  width: 0.25em;
+  height: 100%;
+  border-radius: 0.2em;
+  background: var(--brand-700);
+  opacity: 0.8;
+  transform: scaleY(var(--h, 0.3));
+}
+
+.playerSceneIn .pWaveBar {
+  animation-name: heroWave;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+@keyframes heroWave {
+  0%, 100% { transform: scaleY(var(--h, 0.3)); }
+  50% { transform: scaleY(calc(0.5 + var(--h, 0.3) * 0.5)); }
+}
+
+.pSeek {
+  position: relative;
+  width: 100%;
+  height: 0.3em;
+  margin-top: 1em;
+  border-radius: 0.2em;
+  background: var(--line);
+  overflow: hidden;
+}
+
+/* 진행선 — 플레이어가 떠 있는 동안 0 → 38%까지 찬다(재생 중이라는 뜻) */
+.pSeekFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  background: var(--brand-700);
+}
+
+.playerSceneIn .pSeekFill {
+  animation: heroSeek 5.6s linear both;
+}
+
+@keyframes heroSeek {
+  from { width: 0; }
+  to { width: 38%; }
+}
+
+.pTimes {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 0.5em;
+  font-family: var(--mono);
+  font-size: 0.8em;
+  color: var(--text-3);
+}
+
+.pControls {
+  display: flex;
+  align-items: center;
+  gap: 2.4em;
+  margin-top: 1.4em;
+}
+
+.pSkip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.6em;
+  height: 2.6em;
+  border: 1.5px solid var(--text);
+  border-radius: 50%;
+  font-family: var(--mono);
+  font-size: 0.8em;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.pPlay {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 5em;
+  height: 5em;
+  border-radius: 50%;
+  background: var(--brand-700);
+  color: var(--paper);
+}
+
+.pPlay svg {
+  width: 2.2em;
+  height: 2.2em;
+}
+
+.pRate {
+  margin-top: 1.4em;
+  padding: 0.35em 1em;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-pill);
+  font-family: var(--mono);
+  font-size: 0.85em;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* 미니플레이어 — 탭바 위에 떠 있는 검은 바. 플레이어가 내려간 뒤 잠깐 남는다 */
+.miniScene {
+  position: absolute;
+  left: 0.8em;
+  right: 0.8em;
+  bottom: 6.2em;
+  display: flex;
+  align-items: center;
+  gap: 0.8em;
+  height: 4.6em;
+  padding: 0 1em 0 0.7em;
+  border-radius: 1.2em;
+  background: var(--ink-950);
+  color: #f2f2f5;
+  box-shadow: 0 1em 2em -1.2em rgba(10, 10, 12, 0.7);
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(1.2em);
+  transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.miniSceneIn {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.mProgress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 2px;
+  width: 38%;
+  background: #fff;
+}
+
+.mCover {
+  display: block;
+  width: 3.2em;
+  height: 3.2em;
+  border-radius: 0.7em;
+  object-fit: cover;
+  flex: none;
+}
+
+.mTitle {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 1em;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mPause {
+  flex: none;
+  width: 1.8em;
+  height: 1.8em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene { display: none; }
+}
+
 /* ---------- 숫자 띠 ---------- */
 
 .statsWrap {
