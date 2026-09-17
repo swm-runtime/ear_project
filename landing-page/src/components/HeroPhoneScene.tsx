@@ -18,7 +18,6 @@ const SCENES = [
 ] as const;
 type SceneName = (typeof SCENES)[number]["name"];
 
-const WAVE_BARS = 28;
 const COVER_PX = 420;
 
 /**
@@ -51,6 +50,14 @@ export function HeroPhoneScene({ track }: { track: Track }) {
   }, []);
 
   useEffect(() => {
+    // 개발 중 확인용 — `?scene=player` 처럼 장면을 고정한다. 프로덕션 번들에서는 이 분기가 사라진다
+    if (process.env.NODE_ENV !== "production") {
+      const forced = new URLSearchParams(window.location.search).get("scene");
+      if (forced && SCENES.some((item) => item.name === forced)) {
+        const pin = window.setTimeout(() => setScene(forced as SceneName), 0);
+        return () => window.clearTimeout(pin);
+      }
+    }
     if (!isActive) {
       // 화면 밖으로 나가면 처음 장면으로 되돌린다 — 돌아왔을 때 어색한 중간 장면에서 시작하지 않게
       const reset = window.setTimeout(() => setScene(null), 0);
@@ -75,64 +82,101 @@ export function HeroPhoneScene({ track }: { track: Track }) {
       {/* 탭 파문 — 인기 카드 위. 실제 손가락 자리라기보다 "여기를 눌렀다"는 신호다 */}
       <span className={`${s.tapRipple} ${scene === "tap" ? s.tapRippleOn : ""}`} />
 
-      {/* 플레이어 화면 — 앱 플레이어 구성(player-uiux.md 4.1)을 축소해 옮겼다 */}
+      {/* 플레이어 화면 — 실제 앱 PlayerScreen의 구성·치수를 그대로 옮겼다(1em = 앱 1pt).
+          앱바(셰브론 · 타이머 · 더보기) / 아트워크 / 제목 · 카테고리 / 시크바 · 시간 /
+          배속 · 10초 뒤로 · 재생 · 10초 앞으로 · 스크립트 / 재생 목록 손잡이 */}
       <div className={`${s.playerScene} ${showPlayer ? s.playerSceneIn : ""}`}>
         <div className={s.pAppBar}>
-          <span className={s.pChevron} />
-          <span className={s.pMore}>⋯</span>
+          <svg className={s.pIcon} viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span className={s.pAppBarActions}>
+            <svg className={`${s.pIcon} ${s.pIconDisabled}`} viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M14.5 3.5a8.5 8.5 0 1 0 6 14.5 7 7 0 0 1-6-14.5z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+            </svg>
+            <svg className={s.pIcon} viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="5.5" cy="12" r="1.8" fill="currentColor" />
+              <circle cx="12" cy="12" r="1.8" fill="currentColor" />
+              <circle cx="18.5" cy="12" r="1.8" fill="currentColor" />
+            </svg>
+          </span>
         </div>
-        <Image className={s.pArt} src={track.cover} alt="" width={COVER_PX} height={COVER_PX} />
-        <span className={s.pTitle}>{track.title}</span>
-        <span className={s.pMeta}>{track.meta}</span>
-        <span className={s.pSource}>원문 보기 ↗</span>
 
-        <div className={s.pWave}>
-          {Array.from({ length: WAVE_BARS }, (_, i) => {
-            const t = i / (WAVE_BARS - 1);
-            const h = 0.25 + 0.7 * Math.sin(Math.PI * t) * (0.55 + 0.45 * Math.abs(Math.sin(i * 1.9)));
-            return (
-              <span
-                key={i}
-                className={s.pWaveBar}
-                style={{
-                  ["--h" as string]: h.toFixed(3),
-                  animationDuration: `${(0.8 + ((i * 37) % 6) * 0.1).toFixed(2)}s`,
-                  animationDelay: `${(-(((i * 53) % 11) / 11) * 1.2).toFixed(2)}s`,
-                }}
-              />
-            );
-          })}
+        <div className={s.pHero}>
+          <Image className={s.pArt} src={track.cover} alt="" width={COVER_PX} height={COVER_PX} />
+        </div>
+
+        <div className={s.pMeta}>
+          <span className={s.pTitle}>{track.title}</span>
+          <span className={s.pCategory}>커리어</span>
         </div>
 
         <div className={s.pSeek}>
-          <span className={s.pSeekFill} />
-        </div>
-        <div className={s.pTimes}>
-          <span>0:00</span>
-          <span>-{track.min}:00</span>
+          <span className={s.pSeekTrack}>
+            <span className={s.pSeekFill} />
+            <span className={s.pSeekThumb} />
+          </span>
+          <span className={s.pTimes}>
+            <span>0:00</span>
+            <span>{track.min}:00</span>
+          </span>
         </div>
 
         <div className={s.pControls}>
-          <span className={s.pSkip}>10</span>
+          <span className={s.pRate}>1.0×</span>
+          <span className={s.pStep}>
+            <SeekGlyph mirrored={false} />
+          </span>
           <span className={s.pPlay}>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path fill="currentColor" d="M7.5 5h3.2v14H7.5zM13.3 5h3.2v14h-3.2z" />
             </svg>
           </span>
-          <span className={s.pSkip}>10</span>
+          <span className={s.pStep}>
+            <SeekGlyph mirrored />
+          </span>
+          <span className={s.pScript}>
+            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round">
+              <path d="M6 4.5h7.5a2.5 2.5 0 0 1 2.5 2.5v3a2.5 2.5 0 0 1-2.5 2.5H8.5l-2.5 3v-3H6a2.5 2.5 0 0 1-2.5-2.5V7A2.5 2.5 0 0 1 6 4.5z" />
+              <path d="M16 9h2a2.5 2.5 0 0 1 2.5 2.5v3a2.5 2.5 0 0 1-2.5 2.5h-1.5v3l-3-3H13a1.5 1.5 0 0 1-1.5-1.5v-3" />
+            </svg>
+          </span>
         </div>
-        <span className={s.pRate}>1.0×</span>
+
+        <div className={s.pHandle}>
+          <span className={s.pHandleBar} />
+          <span className={s.pHandleLabel}>재생 목록</span>
+        </div>
       </div>
 
-      {/* 미니플레이어 — 탭바 바로 위. 앱과 같은 문법(커버·제목·일시정지·상단 진행선) */}
+      {/* 미니플레이어 — 실제 앱 MiniPlayer 그대로: 탭바 바로 위 전폭, 표면색 바탕, 상단 2pt 진행선,
+          44pt 썸네일 · 제목 한 줄 · 일시정지 */}
       <div className={`${s.miniScene} ${showMini ? s.miniSceneIn : ""}`}>
-        <span className={s.mProgress} />
-        <Image className={s.mCover} src={track.cover} alt="" width={COVER_PX} height={COVER_PX} />
-        <span className={s.mTitle}>{track.title}</span>
-        <svg className={s.mPause} viewBox="0 0 24 24" aria-hidden="true">
-          <path fill="currentColor" d="M7.5 5h3.2v14H7.5zM13.3 5h3.2v14h-3.2z" />
-        </svg>
+        <span className={s.mTrack}>
+          <span className={s.mFill} />
+        </span>
+        <span className={s.mRow}>
+          <Image className={s.mCover} src={track.cover} alt="" width={COVER_PX} height={COVER_PX} />
+          <span className={s.mTitle}>{track.title}</span>
+          <svg className={s.mPause} viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="currentColor" d="M7.5 5h3.2v14H7.5zM13.3 5h3.2v14h-3.2z" />
+          </svg>
+        </span>
       </div>
     </div>
+  );
+}
+
+/** 앱 PlayerIcons의 SeekBack/SeekForward — 왼쪽이 트인 화살표 원호 + "10". 앞으로는 좌우 반전 */
+function SeekGlyph({ mirrored }: { mirrored: boolean }) {
+  const flip = mirrored ? "translate(24 0) scale(-1 1)" : undefined;
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M5.99 5.99A8.5 8.5 0 1 1 4.64 16.25" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" transform={flip} />
+      <path d="M4.25 7.75L7.95 7.35L4.63 4.03Z" fill="currentColor" transform={flip} />
+      <text x="12" y="15.4" textAnchor="middle" fontSize="9.6" fontWeight="700" fill="currentColor" fontFamily="var(--sans)">
+        10
+      </text>
+    </svg>
   );
 }
