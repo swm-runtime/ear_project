@@ -1465,8 +1465,6 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: theme.color.background,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: theme.color.border,
   },
   scriptHandleWrap: {},
   // 사진 위 글자·시크바 대비 — 재생 목록이 열린 만큼 어두워진다
