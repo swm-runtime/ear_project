@@ -7,12 +7,13 @@ function tokenize(value: string): string[] {
   return value.split(/(\d+)/).filter((part) => part !== "");
 }
 
-const DURATION_MS = 800;
+/** 0.8s는 2·10처럼 작은 수가 한 박자에 끝나 버렸다(피드백 2026-09-18) — 두 배로 늘리고 끝을 더 느리게 뺀다 */
+const DURATION_MS = 1600;
 /** 0이 목표면 0에서 0으로 셀 게 없다 — 5에서 0으로 내려가는 쪽이 "기다림 0초"에 어울린다 */
 const COUNTDOWN_FROM = 5;
 
-function easeOutCubic(t: number): number {
-  return 1 - Math.pow(1 - t, 3);
+function easeOutQuart(t: number): number {
+  return 1 - Math.pow(1 - t, 4);
 }
 
 /**
@@ -44,7 +45,7 @@ export function CountUp({ value }: { value: string }) {
       const start = performance.now();
       const tick = (now: number) => {
         const p = Math.min(1, (now - start) / DURATION_MS);
-        const e = easeOutCubic(p);
+        const e = easeOutQuart(p);
         setShown(
           tokens.map((t, i) => {
             const target = targets[i];
