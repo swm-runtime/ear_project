@@ -116,13 +116,23 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  /**
+   * 사진 위 가독성용 오버레이 — **`TopicChip`의 선택 상태(0.62)와 같은 값**이다.
+   *
+   * 0.42로는 밝은 주제 사진(예: 생산성)에서 흰 글씨가 묻혔다(실측 2026-09-17, 390×844).
+   * 온보딩 칩의 기본값 0.34보다도 더 짙어야 하는 이유는 둘이다 — 라벨이 `xs`(12)로 절반이고,
+   * 칩 높이가 30이라 사진의 밝은 한 구역이 알약을 통째로 채운다.
+   *
+   * 선택 상태 값을 고른 것은 대비 때문만이 아니다. 이 카드가 보여 주는 것이 **사용자가 고른
+   * 주제**라, 온보딩에서 선택된 칩과 같은 농도로 읽히는 쪽이 맞다.
+   */
   overlay: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.42)',
+    backgroundColor: 'rgba(0, 0, 0, 0.62)',
   },
   overflowChip: {
     backgroundColor: theme.color.surface,
