@@ -408,9 +408,16 @@ export default function PlayerScreen() {
       Animated.add(heroBase.artLeft, heroX),
       queueShift(heroX + (innerWidth - artSizeCollapsed) / 2, 0),
     ),
-    top: Animated.add(Animated.add(heroBase.artTop, heroY), queueShift(heroY + collapsedArtTop, 0)),
+    // 열리면 상태바 영역(insets.top)까지 위로 덮는다 — 화면 꼭대기까지 사진이다(유튜브 뮤직)
+    top: Animated.add(
+      Animated.add(heroBase.artTop, heroY),
+      queueShift(heroY + collapsedArtTop, -insets.top),
+    ),
     width: Animated.add(heroBase.artSize, queueShift(artSizeCollapsed, contentSize.width)),
-    height: Animated.add(heroBase.artSize, queueShift(artSizeCollapsed, queueArtHeight)),
+    height: Animated.add(
+      heroBase.artSize,
+      queueShift(artSizeCollapsed, queueArtHeight + insets.top),
+    ),
     radius: Animated.add(heroBase.artRadius, queueShift(theme.radius.lg, 0)),
   };
   /** 사진 위에 얹히는 순간 색이 바뀌는 요소 — 어두운 것과 흰 것을 겹쳐 두고 진행값으로 교차한다 */
@@ -516,7 +523,7 @@ export default function PlayerScreen() {
       ? contentSize.width
       : artSizeCollapsed;
   const fullArtHeight = isQueueOpen
-    ? appBarHeight + QUEUE_BANNER_HEIGHT + seekTrackBottom
+    ? insets.top + appBarHeight + QUEUE_BANNER_HEIGHT + seekTrackBottom
     : fullArtWidth;
   const fullArtLeft = isHeroCompact
     ? theme.spacing.lg
@@ -526,7 +533,7 @@ export default function PlayerScreen() {
   const fullArtTop = isHeroCompact
     ? insets.top + appBarHeight + theme.spacing.sm
     : isQueueOpen
-      ? insets.top
+      ? 0
       : insets.top +
         appBarHeight +
         theme.spacing.sm +
@@ -1371,9 +1378,9 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
   },
+  // 둥근 모서리는 컨테이너(heroArtwork, overflow hidden)가 자른다 — 여기 radius 를 두면 확대돼 모서리가 0 이 될 때 흰 틈이 남는다
   artwork: {
     flex: 1,
-    borderRadius: theme.radius.lg,
     backgroundColor: theme.color.surface,
   },
   artworkPlaceholder: {
