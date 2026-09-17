@@ -55,7 +55,7 @@ Frontend는 다음 5가지를 책임진다.
 | 오디오 | **expo-audio** | SDK 57부터 백그라운드 재생·잠금화면 컨트롤·오디오 포커스 자체 지원. config plugin 필요(잠금화면·백그라운드는 dev build에서 활성) — 개정 2026-08-11, `changes/archive/frontend-architecture-player-impl(fe).md` |
 | 인앱 결제 | **react-native-iap** | 스토어 SDK 가격 조회, pending 트랜잭션 처리, 서버 검증 후 finish (→ `subscription.md`) |
 | 소셜 로그인 | **@react-native-google-signin/google-signin · @react-native-kakao/core+user · @react-native-seoul/naver-login · expo-apple-authentication** | 전부 config plugin 기반(prebuild 주입). Expo Go에는 네이티브 모듈이 없어 **dev client에서만 실동작** — Expo Go 개발은 provider mock(`EXPO_PUBLIC_PROVIDER_AUTH` 미설정 기본값)으로 진행. 앱 키는 `app.json` `extra.socialAuth` + plugin 옵션으로 관리(→ 9.1) — 개정 2026-08-26, `changes/archive/frontend-architecture-social-login-sdk(fe).md` |
-| 푸시 | **@react-native-firebase/messaging** | FCM 기반. APNs 연동 포함 |
+| 푸시 | **expo-notifications** + Expo Push | 권한·Expo 푸시 토큰(`getExpoPushTokenAsync`)·수신·탭 처리. iOS APNs 키·Android FCM 자격 증명은 **EAS 자격 증명**에 두고 Firebase 설정 파일·`@react-native-firebase/*`는 쓰지 않는다. config plugin 필요(dev build에서 실동작) — 개정 2026-09-17, `changes/archive/push-expo-and-discovery-in-drip-alert.md` |
 | 로컬 DB | **expo-sqlite** | 오프라인 큐·재생 위치 등 구조적 데이터 (→ 7.2) |
 | Key-Value 저장 | **react-native-mmkv** | 플래그·최근 검색어·소형 캐시 |
 | 보안 저장소 | **expo-secure-store** | access/refresh token 전용 |
@@ -511,6 +511,6 @@ RootStack
 - 무료 티어 광고 형태(오디오 프리롤 / 배너 — PRD 결정 포인트 #20)에 따른 플레이어·광고 SDK 구조
 - Query 캐시의 디스크 영속(persistQueryClient) 도입 여부 — MVP는 수동 캐시(MMKV 1페이지)로 시작
 - Android 애플 로그인(웹 OAuth) — 네이티브 모듈이 iOS 전용이라 별도 구현 필요. 콘솔 준비(Services ID)는 완료, 콜백 처리 방식은 백엔드 협의 대기(`changes/pending/auth-api-apple-android-web-flow(fe).md`)
-- 푸시 토큰 갱신·`UNREGISTERED` 처리 세부 흐름 — notification 명세 확정 후
+- ~~푸시 토큰 갱신·`UNREGISTERED` 처리 세부 흐름~~ → **확정(2026-09-17)**: 토큰 변경은 `addPushTokenListener`로 받아 `PUT /users/me/devices/:device_id`로 동기화하고, 무효 토큰(`DeviceNotRegistered`)은 서버가 Expo receipt로 판정해 무효화한다(`notification.md` 7)
 - 다크 모드 대응 범위(`auth-uiux.md` 미결) — theme 토큰 구조는 대응 가능하게 설계하되 MVP 범위 미정
 - E2E 테스트 도구(Maestro / Detox) 도입 여부와 시점

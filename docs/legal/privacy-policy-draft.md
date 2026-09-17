@@ -137,10 +137,25 @@
 |---|---|
 | Amazon Web Services, Inc. (AWS) | 서비스 운영을 위한 클라우드 인프라 제공(데이터 보관·처리) |
 | [확인 필요: 이메일 발송 대행사 — SES·SendGrid 등 인프라 미확정 (auth.md 미결 사항)] | 인증 코드 등 이메일 발송 |
-| [확인 필요: 푸시 알림 발송 인프라(FCM/APNs 등) 기재 여부] | 푸시 알림 발송 |
+| 650 Industries, Inc. (Expo) | 푸시 알림 발송 대행(Apple·Google 알림 서비스로 전달) |
+| Apple Inc. (Apple Push Notification service) · Google LLC (Firebase Cloud Messaging) | iOS·Android 기기로 푸시 알림 전달 |
 
 - [확인 필요: AWS 리전이 국내(서울)인 경우 국외 이전 고지 불요, 국외 리전 사용 시 개인정보의 국외 이전 항목 추가 필요]
 - Apple App Store·Google Play는 회사의 수탁자가 아니라 결제를 자체 책임으로 처리하는 별도의 사업자이며, 각 사의 개인정보 처리방침이 적용됩니다.
+
+### 6.1 개인정보의 국외 이전
+
+회사는 푸시 알림 발송을 위하여 다음과 같이 개인정보를 국외로 이전(처리 위탁)합니다.
+
+| 항목 | 내용 |
+|---|---|
+| 이전받는 자 (연락처) | 650 Industries, Inc. — Expo (https://expo.dev/privacy) · Apple Inc. (https://www.apple.com/legal/privacy/) · Google LLC (https://policies.google.com/privacy) |
+| 이전되는 국가 | 미국 |
+| 이전 일시 및 방법 | 푸시 알림을 발송할 때마다 정보통신망을 통해 전송 |
+| 이전되는 항목 | 푸시 알림 토큰, 알림 내용(제목·본문·앱 내 이동 경로) |
+| 이전 목적 | 이용자 기기로 푸시 알림(드립 도착 알림 등) 전달 |
+| 보유 및 이용 기간 | 알림 전달에 필요한 기간 동안 보유하며, 각 사의 개인정보 처리방침에 따라 파기 |
+| 거부 방법 및 거부 시 불이익 | 기기의 알림 권한을 허용하지 않거나 앱 설정에서 알림을 끄면 이전되지 않습니다. 이 경우 푸시 알림을 받을 수 없으며, 그 외 서비스 이용에는 제한이 없습니다. |
 
 ## 7. 이용자의 권리·의무 및 행사 방법
 

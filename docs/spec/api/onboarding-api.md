@@ -485,7 +485,7 @@
 
 ```json
 {
-  "push_token": "<FCM/APNs 토큰>",
+  "push_token": "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]",
   "platform": "ios",
   "is_os_permission_granted": true,
   "app_version": "1.0.0"
@@ -494,7 +494,7 @@
 
 | 필드 | 타입 | 필수 | 비고 |
 |---|---|---|---|
-| `push_token` | string | 조건부 | 권한이 거부되면 `null`. 발급받지 못한 토큰을 만들어 보내지 않는다 |
+| `push_token` | string | 조건부 | **Expo 푸시 토큰**(`getExpoPushTokenAsync` — 개정 2026-09-17, Expo Push). 권한이 거부되면 `null`. 발급받지 못한 토큰을 만들어 보내지 않는다 |
 | `platform` | enum `ios` / `android` | 필수 | |
 | `is_os_permission_granted` | boolean | 필수 | **device 단위 값이다**(`domain.md` 3.6) |
 | `app_version` | string | 필수 | |
