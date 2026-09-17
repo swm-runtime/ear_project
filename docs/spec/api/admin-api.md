@@ -97,6 +97,7 @@
 ### 4.4 `DELETE /admin/topics/:topicId`
 
 - 204 — 삭제됨
+- **관심사로 고른 사용자가 있어도 삭제한다** — 그 `user_interests` 행을 함께 지운다(2026-09-17, `admin.md` 4.5). 감사 로그 `after.removed_interest_count`
 - 409 `ADMIN_TOPIC_HAS_CONTENTS` — 연결된 콘텐츠가 있다. `details.content_count`에 건수를 싣는다. 콘솔은 삭제 대신 `is_visible = false`를 안내한다(`admin.md` 4.5 — FK 위반 방지)
 
 ### 4.5 `GET /admin/contents`

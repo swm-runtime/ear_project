@@ -168,16 +168,24 @@ export class AdminTopicService {
         });
       }
 
+      // `remove`가 끝나면 TypeORM 이 엔티티의 id 를 비운다 — 감사 대상은 먼저 잡아 둔다
+      const target = `topic:${topic.id}`;
+      const before = snapshot(topic);
+      // 그 주제를 고른 사용자 관심사도 함께 지운다(결정 2026-09-17 — 숨김 주제는 이미 사용자 화면에서 빠져 있다)
+      const removedInterestCount = await this.topicService.remove(
+        topic,
+        manager,
+      );
       await this.auditLogService.record(
         {
           actor: actorUserId,
           action: AUDIT_ACTION_TOPIC_DELETE,
-          target: `topic:${topic.id}`,
-          before: snapshot(topic),
+          target,
+          before,
+          after: { removed_interest_count: removedInterestCount },
         },
         manager,
       );
-      await this.topicService.remove(topic, manager);
     });
   }
 }

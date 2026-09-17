@@ -235,6 +235,31 @@ describe('주제 노출 E2E', () => {
     expect(audits).toEqual([{ actor: 'system' }]);
   });
 
+  it('콘텐츠 연결이 없고 사용자가 고른 주제도 삭제되고 관심사가 함께 정리된다', async () => {
+    // given — 재발행으로 유일한 콘텐츠가 다른 주제로 옮겨 원시 0건 + 관심사 행이 남은 상태
+    const topic = await seedTopic('delete-with-interest', false);
+    const user = await createUser('delete-viewer', UserRole.USER);
+    await seedInterests(user.userId, [topic.id]);
+
+    // when — 종전에는 fk_user_interests_topics 위반으로 500 이었다
+    await request(app.getHttpServer())
+      .delete(`/api/v1/admin/topics/${topic.id}`)
+      .set('Authorization', adminAuth)
+      .expect(HttpStatus.NO_CONTENT);
+
+    // then
+    const remaining = await dataSource.query<{ count: string }[]>(
+      `SELECT COUNT(*) AS count FROM user_interests WHERE topic_id = $1`,
+      [topic.id],
+    );
+    expect(Number(remaining[0].count)).toBe(0);
+    const audits = await dataSource.query<{ after: unknown }[]>(
+      `SELECT after FROM audit_logs WHERE action = 'topic.delete' AND target = $1`,
+      [`topic:${topic.id}`],
+    );
+    expect(audits).toEqual([{ after: { removed_interest_count: 1 } }]);
+  });
+
   // --- 헬퍼 ---
 
   const patchTopic = (topicId: string, body: object) =>
