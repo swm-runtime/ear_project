@@ -35,9 +35,11 @@
 | 값 | 설명 |
 |---|---|
 | type | drip_arrival (MVP에서는 이 하나 — 탐험 편도 별도 종류 없이 여기에 합친다, 4.3) |
-| title, body | 알림 문구 |
-| deep_link | 이동 대상 (라이브러리 또는 특정 콘텐츠) |
+| title, body | 알림 문구 — title "오늘의 콘텐츠 N편이 도착했어요", body 대표 콘텐츠 제목(4.3) |
+| deep_link | 이동 대상 — **`ear://library`**(2편 이상) 또는 **`ear://contents/{content_id}`**(1편). 앱 스킴(`app.json` `scheme: ear`)이다 — 라이브러리는 웹 주소가 없고 앱 안 이동이라 공유 링크를 거치지 않는다(확정 2026-09-17, KAN-68) |
 | content_count | 도착한 편수 — **정규 + 탐험** |
+
+- 앱은 위 값을 푸시의 **`data`** 필드에서 읽는다: `{ "type": "drip_arrival", "deep_link": "...", "content_count": 3 }`. title·body는 OS 알림 표시용이다.
 
 ## 4. 처리 로직
 

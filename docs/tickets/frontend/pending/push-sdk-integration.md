@@ -35,6 +35,8 @@
 
 ## 결정 사항 (2026-09-17)
 
+- **서버 페이로드 확정(KAN-68)** — 앱은 푸시의 `data`에서 `{ type: "drip_arrival", deep_link, content_count }`를 읽는다. `deep_link`는 `ear://library` · `ear://contents/{content_id}`(`notification.md` 3장). 앱에 링킹 설정이 아직 없으니 착수 시 이 형식을 확인하고, 공유 링크 경로로 합치고 싶으면 BE에 알린다(서버 상수 두 개).
+- **포그라운드 복귀 동기화가 필수다(요청 3번)** — 서버는 로그아웃 시 그 기기의 토큰을 무효화한다(KAN-68). 같은 계정으로 다시 로그인한 뒤 앱이 `PUT /users/me/devices/:device_id`를 다시 부르지 않으면 **그 기기로 알림이 영영 가지 않는다.** 지금은 사전 안내·설정에서만 호출한다(`useSettingsScreen.ts` 포그라운드 동기화 TODO).
 - **발송 수단 = Expo Push** — 앱은 `expo-notifications` + Expo 푸시 토큰. `frontend/architecture.md` 2 푸시 행·`onboarding-api.md` 4.9에 **반영 완료**(2026-09-17 — `changes/archive/push-expo-and-discovery-in-drip-alert.md`). 문서대로 바로 구현하면 된다.
 - 드립 도착 알림은 정규 + 탐험 편을 합쳐 하루 1건이다(BE 티켓). 앱 쪽 딥링크 규칙(1편 → 콘텐츠, 2편 이상 → 라이브러리)은 그대로다.
 - 스토어 빌드 일정 — 재빌드·재심사가 필요하므로 다음 바이너리 빌드에 묶는다.
