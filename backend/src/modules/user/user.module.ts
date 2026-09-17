@@ -86,6 +86,8 @@ import { EmailVerificationPurgeScheduler } from './email-verification-purge.sche
   ],
   exports: [
     UserService,
+    // 푸시 발송 대상 기기 조회·무효화(notification) · 로그아웃 시 토큰 해제(auth)
+    DeviceTokenService,
     ConsentService,
     UserOnboardingService,
     UserSettingService,

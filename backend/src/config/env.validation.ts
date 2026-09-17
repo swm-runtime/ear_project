@@ -16,6 +16,18 @@ import {
 
 import { SEMVER_PATTERN } from '@/common/utils/semver.util';
 
+/**
+ * 푸시 발송 구현(`notification.md` 4.3 — Expo Push, 결정 2026-09-17).
+ * 기본값은 `log`다 — 로컬·테스트·개발계가 실수로 실제 기기에 알림을 보내지 않게, **켜는 쪽이 명시한다.**
+ * 개발계는 사용자 데이터가 분리돼 있어도 푸시 토큰은 기기 값이라 같은 기기가 운영에도 등록돼 있을 수 있다.
+ */
+export enum PushDelivery {
+  /** 보내지 않고 로그만 남긴다(대상 판정·`notification_logs` 기록은 똑같이 한다) */
+  LOG = 'log',
+  /** Expo Push API로 실제 발송한다 */
+  EXPO = 'expo',
+}
+
 /** 오디오 바이트를 누가 나르는가 — 배포 토폴로지가 정한다 */
 export enum AudioDelivery {
   /** 우리 서버가 서명하고 우리 스트리밍 라우트가 내보낸다(개발·단일 서버) */
@@ -102,6 +114,18 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   SLACK_ERROR_WEBHOOK_URL?: string;
+
+  /** 푸시 발송 구현 — 위 `PushDelivery` 주석 참고. 운영만 `expo`로 둔다 */
+  @IsEnum(PushDelivery)
+  PUSH_DELIVERY: PushDelivery = PushDelivery.LOG;
+
+  /**
+   * Expo Push 보안 발송 토큰(EAS 프로젝트 설정의 "Enhanced security for push notifications").
+   * 그 설정을 켜지 않았으면 비워도 발송된다 — 켜는 순간 이 값이 없으면 전부 거부되므로 선택값이다.
+   */
+  @IsOptional()
+  @IsString()
+  EXPO_ACCESS_TOKEN?: string;
 
   /**
    * 애플 identity token의 `aud`로 실려 오는 값 — iOS 앱의 Bundle ID다(`auth-api.md` 4.1).

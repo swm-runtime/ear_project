@@ -1,6 +1,7 @@
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { sha256Hex } from '@/common/utils/hash.util';
 import { ConsentService } from '@/modules/user/services/consent.service';
+import { DeviceTokenService } from '@/modules/user/services/device-token.service';
 import { User } from '@/modules/user/entities/user.entity';
 import { SocialProvider } from '@/modules/user/user.enum';
 import { UserService } from '@/modules/user/services/user.service';
@@ -43,6 +44,7 @@ describe('AuthService', () => {
   let userService: jest.Mocked<UserService>;
   let consentService: jest.Mocked<ConsentService>;
   let sessionRepository: jest.Mocked<SessionRepository>;
+  let deviceTokenService: jest.Mocked<DeviceTokenService>;
   let providerClient: jest.Mocked<SocialProviderClient>;
 
   beforeEach(() => {
@@ -74,6 +76,10 @@ describe('AuthService', () => {
       findPendingConsents: jest.fn(() => Promise.resolve([])),
     } as unknown as jest.Mocked<ConsentService>;
 
+    deviceTokenService = {
+      invalidateByUserIdAndDeviceId: jest.fn().mockResolvedValue(1),
+    } as unknown as jest.Mocked<DeviceTokenService>;
+
     sessionRepository = {
       create: jest.fn((value: Partial<Session>) => value as Session),
       save: jest.fn((value: Session) => Promise.resolve(value)),
@@ -102,6 +108,7 @@ describe('AuthService', () => {
       consentService,
       tokenService,
       sessionRepository,
+      deviceTokenService,
     );
   });
 
@@ -314,6 +321,19 @@ describe('AuthService', () => {
         NOW,
       );
       expect(sessionRepository.revokeAllByUserId).not.toHaveBeenCalled();
+    });
+
+    it('로그아웃하면 그 기기의 푸시 토큰 등록을 무효화한다', async () => {
+      // given — 로그아웃한 기기로 이전 사용자의 드립 알림이 가면 안 된다(notification.md 7)
+      const command = { userId: USER_ID, deviceId: 'device-1' };
+
+      // when
+      await service.logout(command, NOW);
+
+      // then
+      expect(
+        deviceTokenService.invalidateByUserIdAndDeviceId,
+      ).toHaveBeenCalledWith(USER_ID, 'device-1', NOW);
     });
   });
 });
