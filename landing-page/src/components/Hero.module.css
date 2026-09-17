@@ -780,7 +780,8 @@
   align-items: center;
   justify-content: center;
   gap: calc(16 * var(--pt));
-  padding: calc(24 * var(--pt)) 0;
+  /* 위 여백을 조금 더 — 제목·시크바가 컨트롤에서 살짝 떨어져 올라간다(피드백 2026-09-18) */
+  padding: calc(36 * var(--pt)) 0 calc(24 * var(--pt));
   /* 손잡이("재생 목록")는 바닥에 두고, 그 위 묶음(아트워크·제목·시크바·컨트롤)만 살짝 올린다(피드백 2026-09-18) */
   margin-bottom: calc(28 * var(--pt));
 }
