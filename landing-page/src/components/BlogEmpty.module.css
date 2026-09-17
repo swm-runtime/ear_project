@@ -1,0 +1,21 @@
+.wrap {
+  display: grid;
+  gap: clamp(28px, 3.5vw, 40px);
+}
+
+.head {
+  display: grid;
+  gap: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px;
+}
+
+.note {
+  color: var(--text-3);
+  font-size: 14px;
+}
