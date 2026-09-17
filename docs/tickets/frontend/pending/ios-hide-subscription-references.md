@@ -9,6 +9,8 @@
 | 근거 문서 | Apple 반려 메시지(아래 인용) · `features/paywall.md` · `features/subscription.md` · `spec/uiux/settings-uiux.md` 4.1 · `spec/uiux/profile-uiux.md` 4.1 |
 | 심각도 | **상** — 스토어 심사가 이 건으로 멈춰 있다. 고치고 새 바이너리로 재제출해야 심사가 재개된다 |
 | 우선순위 | High(오늘 안) |
+| Jira | [KAN-66](https://runtime364.atlassian.net/browse/KAN-66) |
+| 상태 | 대기 — 코드 선반영(2026-09-17), **재빌드·재제출 남음** |
 
 ## 문제
 
@@ -50,3 +52,14 @@ Apple 반려 메시지:
 - Given 낭독기 / When 잔여 재생 표시(소진)에 초점 / Then "구독 안내 열기"를 읽지 않는다
 - Given 기능 플래그를 켠다 / When 같은 화면을 본다 / Then 종전 구독 UI가 그대로 돌아온다(삭제가 아님)
 - Given 그 빌드로 재제출 / When Apple 심사 / Then 2.1(b) 구독 상품 미제출 사유로 반려되지 않는다
+
+## 처리 기록 (2026-09-17 — 코드 선반영, 빌드 대기)
+
+- 플래그 `IS_SUBSCRIPTION_UI_ENABLED`(`frontend/src/shared/lib/feature-flags.ts`) 신설. **기본 꺼짐**, `EXPO_PUBLIC_SUBSCRIPTION_UI=on` 으로만 켠다 — env 누락으로 구독 문구가 실린 바이너리가 심사에 나가는 사고가 없는 쪽을 골랐다(요청 5).
+- 요청 1 설정: 구독 섹션(제목 + 플랜 카드) 자체를 그리지 않는다 — `SettingsScreen.tsx`.
+- 요청 2 프로필: 헤더 플랜 줄은 정보 표시만("무료 이용 중 · 하루 N편"). 탭 불가, [구독 알아보기] 칩 없음, 낭독에 "구독 관리 열기" 없음 — `ProfileHeader.tsx`.
+- 요청 3 한도 소진: 낭독 "오늘 재생 0회 남음"(구독 안내 문구 제거). `openPaywall` 은 종전대로 자리 토스트만 — `player.copy.ts` · `RemainingPlaysIndicator.tsx`. 종전 문구는 `a11yLabelExhaustedWithPaywall` 로 남겨 플래그 켜면 돌아온다.
+- 추가: 탈퇴 사유 선택지 `price`("구독 가격이 부담됐어요")도 플래그 꺼짐이면 뺀다 — 리뷰어가 탈퇴 화면까지 열면 보이는 구독 언급이라 같이 숨겼다(`WithdrawalScreen.tsx`). 활성 구독 안내·"결제·구독 이력" 보존 항목은 결제 없는 MVP 에서 도달 불가라 그대로.
+- 요청 4 확인: 외부 결제 안내를 넣지 않았다. 문구는 기존 한도 안내 토스트뿐이다.
+- 문서 영향은 `changes/pending/subscription-ui-hidden-mvp.md` 로 발행(settings-uiux 4.1 · profile-uiux 4.1·7 · library-uiux 7 · paywall 4.5 · auth-uiux 4.5).
+- **남은 것(요청 6·7)**: 새 네이티브 빌드(스플래시 로고 영상의 expo-video 추가와 같은 빌드, runtimeVersion `2`) → TestFlight → 재제출 + App Review 메시지 답장. 빌드 제출 후 이 티켓을 archive 로 옮기고 KAN-66 을 완료로 전이한다.
