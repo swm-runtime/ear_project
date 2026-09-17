@@ -17,7 +17,7 @@ import { useDeferredSheetShare } from '@/features/share';
 
 import { BUFFERING_INDICATOR_DELAY_MS, PLAYER_DELETE_UNDO_DURATION_MS } from '../player.constants';
 import { PLAYER_COPY } from '../player.copy';
-import type { PlayEntryPoint, PlaybackStartMeta } from '../player.types';
+import type { PlayEntryPoint, PlaybackStartMeta, QueueItem } from '../player.types';
 import { usePlayGate } from './usePlayGate';
 import { playbackService } from '../services/playback.service';
 import { getPlayerLibraryBridge } from '../services/player-library.bridge';
@@ -189,6 +189,31 @@ export const usePlayerScreen = () => {
     playbackService.togglePlayPause();
   };
 
+  /**
+   * 재생 목록에서 다른 편을 고른다 — **게이트를 거친다.** 재생 진입점이 하나 늘어난 것이므로 여기서
+   * playbackService.start 를 직접 부르면 한도 확인 팝업을 건너뛰는 다섯 번째 경로가 생긴다
+   * (paywall.md 4.2 — 모든 경로가 단일 게이트). 진입점은 목록의 정체를 따라 `library`다.
+   * 지금 듣고 있는 편을 다시 고르면 아무 일도 하지 않는다 — 재시작이 아니라 오조작이다.
+   */
+  const playQueueItem = (item: QueueItem) => {
+    setActivePanel(null);
+    if (item.contentId === contentId) return;
+    playGate.requestPlay(
+      {
+        contentId: item.contentId,
+        isCountedToday: item.isCountedToday,
+        meta: {
+          title: item.title,
+          authorName: item.authorName ?? undefined,
+          sourceName: item.sourceName ?? undefined,
+          thumbnailUrl: item.thumbnailUrl ?? undefined,
+          durationSec: item.durationSec ?? undefined,
+        },
+      },
+      'library',
+    );
+  };
+
   /** PL7 [상세 정보] — 시트를 닫고 상세 화면으로 이동한다(player-uiux.md 4.7, 추가 2026-08-23).
       재생은 유지되고 뒤로가기로 플레이어에 복귀한다(content-detail.md 2장) */
   const openDetail = () => {
@@ -279,6 +304,7 @@ export const usePlayerScreen = () => {
     activePanel,
     openPanel: (kind: PlayerPanelKind) => setActivePanel(kind),
     closePanel: () => setActivePanel(null),
+    playQueueItem,
     // 더보기 시트
     isMoreSheetVisible,
     openMoreSheet: () => setIsMoreSheetVisible(true),

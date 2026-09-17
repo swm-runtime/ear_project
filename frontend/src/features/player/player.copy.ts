@@ -73,9 +73,20 @@ export const PLAYER_COPY = {
 
   /** PL6 스크립트 시트 — 현재 구간 하이라이트·문단 탭 seek(player-uiux.md 4.6). P1이라 지금은 dev mock만 채운다 */
   /** 다음 재생 목록 패널(2026-09-16 목업) */
+  /**
+   * 재생 목록 패널 — 목록 = 필터 없는 라이브러리 첫 페이지(2026-09-17).
+   * TODO(카피 미확정): player-uiux.md 에 이 패널의 확정 카피가 아직 없다 — changes/pending/player-queue-panel.md
+   */
   queuePanel: {
-    title: '다음 재생',
-    itemA11y: (order: number, title: string) => `${order}번째, ${title}`,
+    title: '재생 목록',
+    /** 지금 재생 중인 줄에 붙는 낭독 꼬리표 — 시각 표시(굵게)만으로는 전달되지 않는다 */
+    nowPlayingA11y: '재생 중',
+    completedA11y: '완청함',
+    empty: '라이브러리가 비어 있어요',
+    loadFailed: '목록을 불러오지 못했어요',
+    retry: '다시 시도',
+    itemA11y: (title: string, minutes: number, tags: string[]) =>
+      [title, `${minutes}분`, ...tags].join(', '),
   },
 
   scriptSheet: {

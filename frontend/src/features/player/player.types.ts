@@ -167,10 +167,22 @@ export interface ScriptSegment {
   text: string;
 }
 
-/** 다음 재생 목록 항목(2026-09-16 목업). 원천 계약 미정 — 편성 순서 vs 라이브러리 미청취 순서 */
+/**
+ * 재생 목록 패널의 한 줄 = 필터 없는 라이브러리 첫 페이지의 항목(2026-09-17 확정).
+ * **library의 `LibraryItem`을 그대로 쓰지 않는다** — 타입이라도 player가 library를 가리키면 의존 표
+ * (architecture.md 4.4)의 방향이 뒤집힌다. 화면이 실제로 그리는 필드만 추려 여기서 선언하고, 변환은
+ * 주입하는 쪽(app/bootstrap)이 맡는다.
+ */
 export interface QueueItem {
+  /** library_items.id */
+  itemId: string;
   contentId: string;
   title: string;
-  durationSec: number;
-  thumbnailUrl: string;
+  authorName: string | null;
+  sourceName: string | null;
+  thumbnailUrl: string | null;
+  durationSec: number | null;
+  /** 오늘 이미 차감됐는가 — 재생 게이트의 확인 팝업 여부 힌트(library-api.md 4.1) */
+  isCountedToday: boolean;
+  isCompleted: boolean;
 }

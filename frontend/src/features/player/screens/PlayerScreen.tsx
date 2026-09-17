@@ -60,11 +60,12 @@ export default function PlayerScreen() {
   // 스크립트(PL6) — 데이터가 없으면 손잡이 자체를 그리지 않는다(uiux 4.6). 지금은 dev mock만 채운다
   const scriptQuery = useScriptQuery(session?.contentId ?? null, session?.durationSec ?? 0);
   const scriptSegments = scriptQuery.data ?? null;
-  // 다음 재생 목록 — 바닥 서랍이 연다(2026-09-16, 스크립트와 자리 교환). 원천 계약 미정이라 dev mock만
-  const queueQuery = useQueueQuery(session?.contentId ?? null);
-  const queueItems = queueQuery.data ?? null;
+  // 재생 목록 — 바닥 서랍이 연다(2026-09-16, 스크립트와 자리 교환). 목록 = 라이브러리 첫 페이지(브리지),
+  // 열었을 때만 조회한다. 손잡이는 항상 있다 — 라이브러리는 언제나 있으므로
+  const queueQuery = useQueueQuery(screen.activePanel === 'queue');
+  const queueItems = queueQuery.data ?? [];
   const isPanelAvailable = (kind: PlayerPanelKind) =>
-    kind === 'script' ? scriptSegments !== null : queueItems !== null;
+    kind === 'script' ? scriptSegments !== null : true;
   const activePanel =
     screen.activePanel !== null && isPanelAvailable(screen.activePanel) ? screen.activePanel : null;
   /*
@@ -688,9 +689,7 @@ export default function PlayerScreen() {
         <Animated.View
           style={[styles.hero, { height: hero.height, opacity: morph.heroOpacity }]}
           onLayout={onHeroLayout}
-          {...(scriptSegments !== null || queueItems !== null
-            ? horizontalSwipeResponder.panHandlers
-            : {})}
+          {...horizontalSwipeResponder.panHandlers}
         >
           <Animated.View
             style={[
@@ -767,8 +766,16 @@ export default function PlayerScreen() {
                 onSwipeRight={() => setPanel(null)}
               />
             ) : null}
-            {mountedPanel === 'queue' && queueItems !== null ? (
-              <PlayerQueuePanel items={queueItems} onSwipeRight={() => setPanel(null)} />
+            {mountedPanel === 'queue' ? (
+              <PlayerQueuePanel
+                items={queueItems}
+                isLoading={queueQuery.isPending}
+                isError={queueQuery.isError}
+                currentContentId={session.contentId}
+                onSelect={screen.playQueueItem}
+                onRetry={() => void queueQuery.refetch()}
+                onSwipeRight={() => setPanel(null)}
+              />
             ) : null}
           </Animated.View>
         ) : null}
@@ -882,8 +889,8 @@ export default function PlayerScreen() {
 
         {/* 다음 재생 목록 — 화면 바닥의 서랍 손잡이(2026-09-16, 스크립트와 자리 교환). 접힘·펼침 양쪽에서
             같은 자리라 "같은 물건"으로 읽힌다. 위로 끌면 목록이 올라오고 아래로 끌면 열린 패널이 내려간다,
-            탭은 토글. 목록 원천이 없으면(실서버) 그리지 않는다 */}
-        {queueItems !== null ? (
+            탭은 토글. 목록 = 라이브러리 첫 페이지라 손잡이는 항상 있다 */}
+        {
           // 드래그 핸들러는 감싼 View에 — Pressable은 자기 press 응답자로 panHandlers를 덮어쓴다
           <View
             style={styles.scriptHandleWrap}
@@ -905,7 +912,7 @@ export default function PlayerScreen() {
               <Text style={styles.scriptHandleLabel}>{PLAYER_COPY.screen.queueHandle}</Text>
             </Pressable>
           </View>
-        ) : null}
+        }
       </Animated.View>
 
       {/* 모션 레이어 — 열리고 닫히는 동안만. 아트워크·제목이 미니플레이어 자리와 풀 화면 자리 사이를 난다 */}
