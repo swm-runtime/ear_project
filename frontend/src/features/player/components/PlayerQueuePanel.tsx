@@ -167,12 +167,10 @@ export default function PlayerQueuePanel({
 }
 
 const styles = StyleSheet.create({
-  // 헤더와의 경계 — 목록이 헤더 밑으로 스크롤돼 들어갈 때 잘린 행이 그대로 보이지 않게 선을 긋는다
+  // 구분선 없음(PM 2026-09-17) — 손잡이와 목록 사이는 여백으로만 가른다
   panel: {
     flex: 1,
     minHeight: 0,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: theme.color.border,
   },
   list: {
     flex: 1,
