@@ -71,6 +71,29 @@ export class TopicRepository {
       .getMany();
   }
 
+  /**
+   * 행을 잠그고 읽는다 — 노출 판정(콘텐츠 건수)과 `is_visible` 갱신 사이에 다른 트랜잭션이
+   * 끼어들지 못하게 한다(admin.md 4.5, KAN-58).
+   *
+   * **id 오름차순으로 잠근다.** 여러 주제를 잠그는 트랜잭션끼리 순서가 다르면 데드락이 된다.
+   * `FOR NO KEY UPDATE`인 이유는 `ContentRepository.findByIdForUpdate`와 같다 — `content_topics` ·
+   * `user_interests`의 FK 검사(`FOR KEY SHARE`)를 막지 않아 온보딩·업로드가 기다리지 않는다.
+   */
+  async findAllByIdsForUpdate(
+    ids: string[],
+    manager: EntityManager,
+  ): Promise<Topic[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+
+    return manager.getRepository(Topic).find({
+      where: { id: In(ids) },
+      order: { id: 'ASC' },
+      lock: { mode: 'for_no_key_update' },
+    });
+  }
+
   async findById(id: string, manager?: EntityManager): Promise<Topic | null> {
     return this.scoped(manager).findOneBy({ id });
   }

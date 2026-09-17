@@ -46,3 +46,12 @@ export const AUDIT_ACTION_CONTENT_PURGE_STORAGE = 'content.purge_storage';
 export const AUDIT_ACTION_TOPIC_CREATE = 'topic.create';
 export const AUDIT_ACTION_TOPIC_UPDATE = 'topic.update';
 export const AUDIT_ACTION_TOPIC_DELETE = 'topic.delete';
+/**
+ * 노출 가능 콘텐츠가 0건이 된 주제의 자동 숨김(admin.md 4.5, KAN-58).
+ *
+ * 관리자 토글(`topic.update`)과 **다른 액션으로 남긴다.** 시스템이 바꾼 경우를 구분하지 못하면
+ * "누가 이 주제를 숨겼나"에 답할 수 없다.
+ */
+export const AUDIT_ACTION_TOPIC_AUTO_HIDE = 'topic.auto_hide';
+/** 자동 숨김을 배치가 수행했을 때의 감사 로그 actor — 사람이 아닌 실행 주체를 명시한다 */
+export const SYSTEM_AUDIT_ACTOR = 'system';

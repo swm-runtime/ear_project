@@ -116,6 +116,33 @@ export class TopicService {
     return this.topicRepository.findAll(manager);
   }
 
+  /** 잠금 조회 — 노출 판정과 갱신을 직렬화한다(`TopicRepository.findAllByIdsForUpdate`) */
+  async findAllByIdsForUpdate(
+    topicIds: string[],
+    manager: EntityManager,
+  ): Promise<Topic[]> {
+    return this.topicRepository.findAllByIdsForUpdate(
+      [...new Set(topicIds)],
+      manager,
+    );
+  }
+
+  async getByIdForUpdate(id: string, manager: EntityManager): Promise<Topic> {
+    const [topic] = await this.topicRepository.findAllByIdsForUpdate(
+      [id],
+      manager,
+    );
+
+    if (!topic) {
+      throw new BusinessNotFoundException({
+        errorCode: ErrorCode.NOT_FOUND,
+        message: '주제를 찾을 수 없어요',
+      });
+    }
+
+    return topic;
+  }
+
   async getById(id: string, manager?: EntityManager): Promise<Topic> {
     const topic = await this.topicRepository.findById(id, manager);
 
@@ -180,6 +207,27 @@ export class TopicService {
 
     const [saved] = await this.topicRepository.saveAll([topic], manager);
     return saved;
+  }
+
+  /**
+   * 주제들을 숨긴다 — 노출 가능 콘텐츠가 0건이 된 주제의 자동 숨김 전용(admin.md 4.5, KAN-58).
+   *
+   * **언제 숨길지는 여기서 판정하지 않는다.** 판정에는 콘텐츠 건수가 필요한데 이 모듈은 콘텐츠를
+   * 모른다(`interest`는 다른 모듈을 의존하지 않는다 — architecture.md 4.5). 호출부가 대상을 골라 넘긴다.
+   * 이미 숨겨진 주제는 건드리지 않고 돌려주지도 않는다 — 호출부가 감사 로그를 실제로 바뀐 것만 남긴다.
+   */
+  async hideAll(topics: Topic[], manager?: EntityManager): Promise<Topic[]> {
+    const targets = topics.filter((topic) => topic.isVisible);
+
+    if (targets.length === 0) {
+      return [];
+    }
+
+    for (const topic of targets) {
+      topic.isVisible = false;
+    }
+
+    return this.topicRepository.saveAll(targets, manager);
   }
 
   /** 콘텐츠가 배정된 주제의 삭제 거부는 호출부(admin)가 건수를 보고 판정한다(admin.md 4.5) */
