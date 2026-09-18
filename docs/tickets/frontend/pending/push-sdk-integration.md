@@ -79,3 +79,11 @@
 3. 실기기에서 완료 조건 7개 확인. 그 뒤 archive · KAN-69 완료.
 
 **알려진 공백** — 딥링크 대상이 **삭제**(404 `CONTENT_NOT_FOUND`)된 경우는 라이브러리 폴백이 아니라 플레이어의 로드 실패 화면이 뜬다. 재생 서비스가 404 를 네트워크 실패와 같은 `load_failed`로 내려 진입점이 둘을 가를 수 없다 — 회수(403)만 폴백된다. 발송 직후 삭제되는 경우라 드물다. 고치려면 player 의 세션 상태에 구분을 더해야 한다.
+
+## 처리 기록 (2026-09-19 — runtime 3 빌드 결과)
+
+- **Android production** versionCode 11(aab) · **Android preview** versionCode 11(apk, 개발계 API) — 성공. 둘 다 푸시 코드가 내장돼 있다.
+- **iOS production build 8 — 실패.** `Provisioning profile … doesn't include the Push Notifications capability / aps-environment entitlement`. App ID 에 푸시 권한을 켜고 프로파일을 다시 만들어야 하는데, 그 작업은 Apple 계정 로그인(2단계 인증)이 필요해 `--non-interactive` 로는 되지 않는다.
+  - **사람 손**: `cd frontend && npx eas-cli build --profile production --platform ios` 를 **대화형으로** 한 번 돌린다. Apple 로그인 → EAS 가 Push Notifications 권한 동기화 · 프로파일 재생성 · **푸시 키(APNs) 생성**까지 물어보며 해 준다(전부 Yes). 한 번 해 두면 이후 빌드는 다시 비대화형으로 돈다.
+- **Android 발송용 FCM V1 서비스 계정 키**도 EAS 에 올려야 한다(`eas credentials` → Android → Google Service Account → FCM V1). 없으면 Android 토큰은 나와도 발송이 실패한다.
+- **마감 사유**(Low, 발행 2026-09-17 → 이번 주): 코드는 기한 안에 끝났다. iOS 빌드와 발송 확인이 계정 소유자의 수동 작업에 걸려 있다.
