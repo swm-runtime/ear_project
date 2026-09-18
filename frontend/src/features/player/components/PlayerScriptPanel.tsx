@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { FlatList, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import ScrollFade from '@/shared/ui/ScrollFade';
 
 import { PLAYER_COPY } from '../player.copy';
 import { formatPlaybackTime } from '../player.format';
@@ -113,6 +114,10 @@ export default function PlayerScriptPanel({
           );
         }}
       />
+      {/* 헤더와의 경계 — 선을 긋지 않고, 목록이 헤더 밑으로 올라가며 배경색으로 흐려져 사라진다(2026-09-18 PM) */}
+      <ScrollFade edge="top" />
+      {/* 아래쪽도 대칭 — 컨트롤 위에서 문단이 잘린 채 끝나지 않고 흐려지며 사라진다 */}
+      <ScrollFade edge="bottom" />
       {/* 손잡이는 서랍의 아랫단이다 — 접힌 상태의 바닥 손잡이와 같은 자리·같은 모양이라,
           위로 끌어 올린 것을 아래로 끌어 내리는 것으로 읽힌다. 탭도 접는다 */}
     </View>
@@ -120,12 +125,10 @@ export default function PlayerScriptPanel({
 }
 
 const styles = StyleSheet.create({
-  // 헤더와의 경계 — 목록이 헤더 밑으로 스크롤돼 들어갈 때 잘린 문단이 그대로 보이지 않게 선을 긋는다
+  // 헤더와의 경계는 선이 아니라 위쪽 페이드(ScrollFade top)가 만든다
   panel: {
     flex: 1,
     minHeight: 0,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: theme.color.border,
   },
   list: {
     flex: 1,
