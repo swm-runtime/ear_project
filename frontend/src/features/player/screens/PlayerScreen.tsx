@@ -48,6 +48,7 @@ import {
 } from '../player.constants';
 import { PLAYER_COPY } from '../player.copy';
 import { useMiniPlayerLayoutStore } from '../store/mini-player-layout.store';
+import { usePlayerOpenGestureStore } from '../store/player-open-gesture.store';
 
 /**
  * 플레이어(PL1~PL10) — 화면은 뷰만 담당하고 로직은 usePlayerScreen이 소유한다.
@@ -178,21 +179,6 @@ export default function PlayerScreen() {
     const timer = setTimeout(() => setIsMorphImageReady(true), MORPH_IMAGE_WAIT_MS);
     return () => clearTimeout(timer);
   }, [isMeasured, isMorphImageReady]);
-  useEffect(() => {
-    // 출발·도착 좌표가 실측돼야 어긋나지 않는다 — 첫 레이아웃 뒤에 시작한다
-    if (!isMeasured || !isMorphImageReady || hasOpenedRef.current) return;
-    hasOpenedRef.current = true;
-    setIsShellVisible(true);
-    Animated.timing(openProgress, {
-      toValue: 1,
-      duration: PLAYER_OPEN_MS,
-      // 빠르게 떠서 부드럽게 멈춘다 — iOS 시트가 올라오는 곡선
-      easing: Easing.bezier(0.2, 0.8, 0.2, 1),
-      useNativeDriver: false,
-    }).start(({ finished }) => {
-      if (finished) setIsMorphing(false);
-    });
-  }, [isMeasured, isMorphImageReady, openProgress]);
   // 드래그로 이미 내려온 만큼은 빼고 남은 거리만큼만 시간을 쓴다 — 거의 다 끌어내린 뒤 340ms를 다 쓰면 굼뜨다
   const dragProgressRef = useRef(1);
   const dismissPlayer = () => {
@@ -230,14 +216,50 @@ export default function PlayerScreen() {
    */
   const gestureContext = useRef({
     windowHeight,
+    open: () => {},
     begin: () => {},
     drag: (_dy: number) => {},
+    follow: (_progress: number) => {},
     dismiss: () => {},
     restore: () => {},
   });
   useEffect(() => {
     gestureContext.current = {
       windowHeight,
+      /*
+       * 열림의 출발 — 미니플레이어를 끌어올려 연 경우(2026-09-18)엔 통로 스토어의 단계를 읽는다.
+       * - 아직 끄는 중: 스스로 달리지 않는다. 진행도를 그대로 받고, 이후는 아래 구독이 이어 간다.
+       * - 준비되기 전에 이미 놓았다: 취소면 0에서 곧장 걷고(미니와 같은 모습이라 티가 안 난다),
+       *   열기면 그 진행도에서 끝까지 달린다.
+       * - 단계 없음(탭): 평소처럼 0에서 1까지 달린다.
+       */
+      open: () => {
+        const openGesture = usePlayerOpenGestureStore.getState();
+        if (openGesture.phase === 'cancel') {
+          openGesture.reset();
+          dragProgressRef.current = 0;
+          dismissPlayer();
+          return;
+        }
+        if (openGesture.phase === 'dragging') {
+          dragProgressRef.current = openGesture.progress;
+          openProgress.setValue(openGesture.progress);
+          return;
+        }
+        if (openGesture.phase === 'open') {
+          openProgress.setValue(openGesture.progress);
+          openGesture.reset();
+        }
+        Animated.timing(openProgress, {
+          toValue: 1,
+          duration: PLAYER_OPEN_MS,
+          // 빠르게 떠서 부드럽게 멈춘다 — iOS 시트가 올라오는 곡선
+          easing: Easing.bezier(0.2, 0.8, 0.2, 1),
+          useNativeDriver: false,
+        }).start(({ finished }) => {
+          if (finished) setIsMorphing(false);
+        });
+      },
       begin: () => setIsMorphing(true),
       drag: (dy: number) => {
         const progress = Math.max(
@@ -247,10 +269,48 @@ export default function PlayerScreen() {
         dragProgressRef.current = progress;
         openProgress.setValue(progress);
       },
+      // 끌어올리는 손가락을 따른다 — 진행도가 곧 openProgress 다
+      follow: (progress: number) => {
+        dragProgressRef.current = progress;
+        openProgress.setValue(progress);
+      },
       dismiss: dismissPlayer,
       restore: restorePlayer,
     };
   });
+
+  useEffect(() => {
+    // 출발·도착 좌표가 실측돼야 어긋나지 않는다 — 첫 레이아웃 뒤에 시작한다.
+    // gestureContext 갱신 effect 뒤에 선언해야 같은 커밋에서 최신 open 을 부른다
+    if (!isMeasured || !isMorphImageReady || hasOpenedRef.current) return;
+    hasOpenedRef.current = true;
+    setIsShellVisible(true);
+    gestureContext.current.open();
+  }, [isMeasured, isMorphImageReady]);
+
+  /*
+   * 끌어올려 열기 — 미니플레이어가 올리는 진행도를 openProgress 로 옮긴다. 놓으면 끌어내리기와 같은 마무리를
+   * 쓴다: 열기 = 그 자리에서 스프링으로 1까지(restore), 취소 = 남은 거리만큼 되감고 화면을 걷는다(dismiss).
+   * 준비(실측·이미지) 전의 이벤트는 위 열림 effect 가 준비되는 순간 스토어에서 직접 읽는다
+   */
+  useEffect(() => {
+    const unsubscribe = usePlayerOpenGestureStore.subscribe((state) => {
+      if (!hasOpenedRef.current || state.phase === 'idle') return;
+      if (state.phase === 'dragging') {
+        gestureContext.current.follow(state.progress);
+        return;
+      }
+      const released = state.phase;
+      state.reset();
+      if (released === 'open') gestureContext.current.restore();
+      else gestureContext.current.dismiss();
+    });
+    return () => {
+      unsubscribe();
+      // 화면이 걷힐 때 남은 단계를 지운다 — 다음 탭 열림이 "끄는 중"으로 오인되면 안 된다
+      usePlayerOpenGestureStore.getState().reset();
+    };
+  }, [openProgress]);
 
   const collapsePanResponder = useMemo(
     () =>
