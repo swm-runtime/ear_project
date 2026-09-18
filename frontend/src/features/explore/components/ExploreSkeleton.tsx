@@ -4,15 +4,17 @@ import { theme } from '@/shared/theme';
 
 import { EXPLORE_TILE_WIDTH } from './ExploreTile';
 
-/** 세로 목록(주제 필터 결과)의 카드 스켈레톤 — 썸네일 + 두 줄 텍스트 자리 */
-function RowSkeleton() {
+/** 두 칸 격자(주제 필터 결과)의 한 행 스켈레톤 — 정사각 아트워크 + 두 줄 텍스트 자리 × 2 */
+function GridRowSkeleton() {
   return (
-    <View style={styles.row}>
-      <View style={styles.rowThumbnail} />
-      <View style={styles.info}>
-        <View style={[styles.lineWide, styles.onCard]} />
-        <View style={[styles.lineNarrow, styles.onCard]} />
-      </View>
+    <View style={styles.gridRow}>
+      {[0, 1].map((index) => (
+        <View key={index} style={styles.gridTile}>
+          <View style={styles.gridArtwork} />
+          <View style={styles.lineWide} />
+          <View style={styles.lineNarrow} />
+        </View>
+      ))}
     </View>
   );
 }
@@ -29,7 +31,7 @@ function TileSkeleton() {
 }
 
 interface ExploreSkeletonProps {
-  /** 필터 전환(단일 목록) 로딩에는 섹션 제목 자리를 그리지 않는다 — 세로 행 스켈레톤만 */
+  /** 필터 전환(단일 목록) 로딩에는 섹션 제목 자리를 그리지 않는다 — 격자 행 스켈레톤만 */
   showSectionTitles?: boolean;
 }
 
@@ -57,9 +59,7 @@ export default function ExploreSkeleton({ showSectionTitles = true }: ExploreSke
             </View>
           ) : (
             <>
-              <RowSkeleton />
-              <RowSkeleton />
-              <RowSkeleton />
+              <GridRowSkeleton />
             </>
           )}
         </View>
@@ -99,26 +99,22 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.md,
     backgroundColor: theme.color.surface,
   },
-  // 세로 목록의 카드(ExploreContentRow)와 같은 크기·간격
-  row: {
+  // 주제 필터 결과의 격자(ExploreScreen gridContent·gridRow)와 같은 크기·간격
+  gridRow: {
     flexDirection: 'row',
-    gap: theme.spacing.md,
-    marginHorizontal: theme.spacing.md,
-    marginBottom: theme.spacing.sm,
-    padding: theme.spacing.md,
+    gap: theme.spacing.sm * 1.5,
+    paddingHorizontal: theme.spacing.md,
+    marginBottom: theme.spacing.lg,
+  },
+  gridTile: {
+    flex: 1,
+    gap: theme.spacing.sm,
+  },
+  gridArtwork: {
+    width: '100%',
+    aspectRatio: 1,
     borderRadius: theme.radius.lg,
     backgroundColor: theme.color.surface,
-  },
-  rowThumbnail: {
-    width: 72,
-    height: 72,
-    borderRadius: theme.radius.md,
-    backgroundColor: theme.color.background,
-  },
-  info: {
-    flex: 1,
-    justifyContent: 'center',
-    gap: theme.spacing.sm,
   },
   lineWide: {
     height: theme.font.size.md,
@@ -131,9 +127,5 @@ const styles = StyleSheet.create({
     width: '55%',
     borderRadius: theme.radius.sm,
     backgroundColor: theme.color.surface,
-  },
-  // 카드(surface) 위에 놓이는 선은 같은 색이면 보이지 않는다 — 배경색으로 뒤집는다
-  onCard: {
-    backgroundColor: theme.color.background,
   },
 });
