@@ -674,7 +674,6 @@ export default function PlayerScreen() {
   const fullTitleWidth = isHeroCompact
     ? innerWidth - COMPACT_ARTWORK_SIZE - theme.spacing.md
     : innerWidth;
-  const fullTitleFontSize = isHeroCompact ? theme.font.size.lg : theme.font.size.xl;
   const measuredTitleLayer = isHeroCompact ? compactTitleBox : titleBox;
   const fullArt = heroArtBox
     ? {
@@ -702,25 +701,30 @@ export default function PlayerScreen() {
         }
       : { left: fullTitleLeft, top: fullTitleTop, width: fullTitleWidth };
   const morph = {
+    /*
+     * 아트워크는 교차가 시작되기 **전에** 풀 화면 자리에 도착해 있어야 한다(2026-09-19 PM 지적). 끝(1)에서야
+     * 도착하면, 모션 레이어와 실제 히어로가 바뀌는 구간(0.94~1)에 모션 아트워크가 아직 덜 커진 채로 겹쳐
+     * 그림이 두 장으로 보인다. 콘텐츠가 제자리에 서는 0.92 에 맞춰 도착시키고 그 뒤로는 움직이지 않는다
+     */
     artLeft: openProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [miniThumbLeft, fullArt.left],
+      inputRange: MORPH_ART_INPUT,
+      outputRange: [miniThumbLeft, fullArt.left, fullArt.left],
     }),
     artTop: openProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [miniThumbTop, fullArt.top],
+      inputRange: MORPH_ART_INPUT,
+      outputRange: [miniThumbTop, fullArt.top, fullArt.top],
     }),
     artWidth: openProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [miniThumbSize, fullArt.width],
+      inputRange: MORPH_ART_INPUT,
+      outputRange: [miniThumbSize, fullArt.width, fullArt.width],
     }),
     artHeight: openProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [miniThumbSize, fullArt.height],
+      inputRange: MORPH_ART_INPUT,
+      outputRange: [miniThumbSize, fullArt.height, fullArt.height],
     }),
     artRadius: openProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [theme.radius.sm, fullArtRadius],
+      inputRange: MORPH_ART_INPUT,
+      outputRange: [theme.radius.sm, fullArtRadius, fullArtRadius],
     }),
     /*
      * 제목은 날지 않는다(2026-09-18 PM — 제자리 페이드). 미니 자리(썸네일 옆 14px)에서 풀 화면 자리(아트워크
@@ -1397,24 +1401,37 @@ export default function PlayerScreen() {
           </Animated.Text>
           {/* 풀 화면 제목 — 최종 자리에 고정된 채 콘텐츠(컨트롤·시크바)와 같은 이동·불투명도로 들어온다.
               마지막 교차(0.94~1)에서 실제 히어로 제목과 같은 좌표라 한 장으로 보인다 */}
-          <Animated.Text
+          {/* 실제 히어로와 **같은 컴포넌트·같은 간격**으로 그린다 — 말줄임 Text 로 그리면 교차 순간 흐르는 제목
+              (끝이 페이드)과 끝 모양이 달라 글자가 겹쳐 보인다. 카테고리도 함께 둬 교차 때 새로 튀어나오지 않게 한다 */}
+          <Animated.View
             style={[
-              styles.morphTitle,
+              styles.morphFullMeta,
               {
                 left: fullTitle.left,
                 top: fullTitle.top,
                 width: fullTitle.width,
-                fontSize: fullTitleFontSize,
-                lineHeight: fullTitleFontSize * 1.3,
-                color: isQueueOpen ? ON_IMAGE_COLOR : playerColor.textPrimary,
                 opacity: morph.contentOpacity,
                 transform: [{ translateY: morph.contentTranslateY }],
               },
             ]}
-            numberOfLines={1}
           >
-            {session.meta.title ?? ''}
-          </Animated.Text>
+            <MarqueeText
+              text={session.meta.title ?? ''}
+              style={[
+                isHeroCompact ? styles.compactTitle : styles.title,
+                isQueueOpen && styles.onImageTitle,
+              ]}
+              isPaused
+            />
+            {categoryLabel !== null ? (
+              <Text
+                style={[styles.category, isQueueOpen && styles.onImageCategory]}
+                numberOfLines={1}
+              >
+                {categoryLabel}
+              </Text>
+            ) : null}
+          </Animated.View>
         </Animated.View>
       ) : null}
 
@@ -1507,6 +1524,8 @@ const QUEUE_COMMIT_VELOCITY = 0.5;
 /** 아래로 끌기 — 화면 높이의 이 비율만큼 끌면 진행값이 0(미니플레이어)에 닿는다 */
 /** 목록을 받기 전의 빈 재생 목록 — 렌더마다 새 배열을 만들면 순서 계산(useMemo)이 매번 다시 돈다 */
 const EMPTY_QUEUE: QueueItem[] = [];
+/** 모션 아트워크의 도착 시점 — 0.92 에 풀 화면 자리에 서고 교차(0.94~1) 동안 움직이지 않는다 */
+const MORPH_ART_INPUT = [0, 0.92, 1];
 const PLAYER_DRAG_RANGE_RATIO = 0.7;
 /** 바탕 커버의 흐림 — 형태가 남지 않고 색 덩어리만 보일 만큼 */
 const BACKDROP_BLUR_RADIUS = 60;
@@ -1601,6 +1620,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     overflow: 'hidden',
     backgroundColor: playerColor.surface,
+  },
+  // 풀 화면 제목·카테고리 묶음 — 히어로의 제목 층(heroTitleLayer)과 같은 간격
+  morphFullMeta: {
+    position: 'absolute',
+    gap: theme.spacing.xs,
   },
   morphTitle: {
     position: 'absolute',
