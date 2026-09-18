@@ -32,6 +32,95 @@
 .icon svg {
   width: 23px;
   height: 23px;
+  overflow: visible;
+}
+
+/* ---------- 아이콘 등장 애니메이션(2026-09-18) ----------
+   섹션이 스크롤로 나타날 때(ScrollReveal의 .is-visible) 한 번, 카드에 마우스를 올릴 때 다시 한 번 움직인다.
+   표식(html[data-reveal])이 없으면 — JS 꺼짐·reduced-motion — 정지 아이콘 그대로다. */
+.icon svg path {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* 드립 — 물방울이 떨어져 쌓이고, 아래 두 줄이 차례로 나타난다 */
+:global(html[data-reveal] .is-visible) .icon[data-icon="drip"] path:nth-child(1),
+.card:hover .icon[data-icon="drip"] path:nth-child(1) {
+  animation: dripFall 0.7s cubic-bezier(0.2, 0.8, 0.2, 1.2) 0.15s both;
+}
+
+:global(html[data-reveal] .is-visible) .icon[data-icon="drip"] path:nth-child(2),
+.card:hover .icon[data-icon="drip"] path:nth-child(2) {
+  animation: lineIn 0.4s ease-out 0.55s both;
+}
+
+:global(html[data-reveal] .is-visible) .icon[data-icon="drip"] path:nth-child(3),
+.card:hover .icon[data-icon="drip"] path:nth-child(3) {
+  animation: lineIn 0.4s ease-out 0.7s both;
+}
+
+@keyframes dripFall {
+  0% { transform: translateY(-9px) scaleY(1.15); opacity: 0; }
+  60% { transform: translateY(1px) scaleY(0.92); opacity: 1; }
+  100% { transform: translateY(0) scaleY(1); opacity: 1; }
+}
+
+@keyframes lineIn {
+  from { transform: scaleX(0.2); opacity: 0; }
+  to { transform: scaleX(1); opacity: 1; }
+}
+
+/* 번개 — 두 번 번쩍이고 살짝 커졌다 돌아온다 */
+:global(html[data-reveal] .is-visible) .icon[data-icon="bolt"] path,
+.card:hover .icon[data-icon="bolt"] path {
+  animation: boltFlash 0.9s ease-out 0.2s both;
+}
+
+@keyframes boltFlash {
+  0% { opacity: 0.2; transform: scale(0.8); }
+  25% { opacity: 1; transform: scale(1.12); }
+  45% { opacity: 0.45; transform: scale(1); }
+  65% { opacity: 1; transform: scale(1.08); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* 이어듣기 — 되감기 원호가 한 바퀴 돌고, 시침·분침이 뒤따라 나타난다 */
+:global(html[data-reveal] .is-visible) .icon[data-icon="resume"] path:nth-child(1),
+.card:hover .icon[data-icon="resume"] path:nth-child(1) {
+  animation: resumeSpin 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) 0.15s both;
+}
+
+:global(html[data-reveal] .is-visible) .icon[data-icon="resume"] path:nth-child(2),
+.card:hover .icon[data-icon="resume"] path:nth-child(2) {
+  animation: resumeSpin 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) 0.15s both;
+}
+
+:global(html[data-reveal] .is-visible) .icon[data-icon="resume"] path:nth-child(3),
+.card:hover .icon[data-icon="resume"] path:nth-child(3) {
+  animation: handsIn 0.4s ease-out 0.8s both;
+}
+
+/* 원호·화살촉은 아이콘 전체 중심(12,12)을 축으로 돈다 */
+.icon[data-icon="resume"] path:nth-child(1),
+.icon[data-icon="resume"] path:nth-child(2) {
+  transform-box: view-box;
+  transform-origin: 12px 12px;
+}
+
+@keyframes resumeSpin {
+  from { transform: rotate(-300deg); opacity: 0.3; }
+  to { transform: rotate(0deg); opacity: 1; }
+}
+
+@keyframes handsIn {
+  from { opacity: 0; transform: rotate(-40deg); }
+  to { opacity: 1; transform: rotate(0deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icon svg path {
+    animation: none !important;
+  }
 }
 
 .cardTitle {

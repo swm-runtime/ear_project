@@ -12,6 +12,13 @@
   box-shadow: var(--shadow-lg);
 }
 
+.panel {
+  --gx: 50%;
+  --gy: 50%;
+  --glow: 0;
+}
+
+/* 고정 빛(우상단) — 포인터를 따라가는 동안은 살짝 죽여 두 빛이 겹치지 않게 한다 */
 .glow {
   position: absolute;
   inset: -50% -10% 20% 40%;
@@ -22,6 +29,54 @@
     transparent 74%
   );
   pointer-events: none;
+  transition: opacity 0.6s ease;
+}
+
+.tracking .glow {
+  opacity: 0.35;
+}
+
+/* 포인터를 따라가는 빛(CtaPanel) — 위치는 --gx/--gy, 세기·크기는 --glow(0~1).
+   버튼에 가까워질수록 밝고 커진다. 멀어지면(--glow 0) 사라진다 */
+.pointerGlow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: var(--glow);
+  background: radial-gradient(
+    calc(220px + 260px * var(--glow)) calc(220px + 260px * var(--glow)) at var(--gx) var(--gy),
+    rgba(255, 255, 255, calc(0.08 + 0.2 * var(--glow))) 0%,
+    rgba(255, 255, 255, calc(0.03 + 0.06 * var(--glow))) 45%,
+    transparent 72%
+  );
+  transition: opacity 0.5s ease;
+}
+
+/* 버튼 — 가까워지는 빛을 받아 흰 후광이 자라고, 올리면 살짝 떠오른다. 빛이 잦아들면 후광도 함께 */
+.cta {
+  position: relative;
+  box-shadow:
+    0 10px 26px -14px rgba(10, 10, 12, 0.7),
+    0 0 calc(6px + 34px * var(--glow)) calc(1px + 6px * var(--glow)) rgba(255, 255, 255, calc(0.28 * var(--glow)));
+  transition: transform 0.2s ease, box-shadow 0.25s ease;
+}
+
+.cta:hover {
+  transform: translateY(-2px) scale(1.03);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pointerGlow {
+    display: none;
+  }
+
+  .tracking .glow {
+    opacity: 1;
+  }
+
+  .cta {
+    box-shadow: 0 10px 26px -14px rgba(10, 10, 12, 0.7);
+  }
 }
 
 .content {

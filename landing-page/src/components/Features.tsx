@@ -44,7 +44,10 @@ export function Features({
         <ul className={s.grid}>
           {items.map((f) => (
             <li key={f.title} className={s.card}>
-              <span className={s.icon}>{icons[f.icon as IconName]}</span>
+              {/* data-icon 으로 아이콘별 등장 애니메이션을 건다(Features.module.css) */}
+              <span className={s.icon} data-icon={f.icon}>
+                {icons[f.icon as IconName]}
+              </span>
               <h3 className={s.cardTitle}>{f.title}</h3>
               <p className={s.cardBody}>{f.text}</p>
             </li>
