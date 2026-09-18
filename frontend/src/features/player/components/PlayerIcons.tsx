@@ -158,26 +158,17 @@ export function SleepTimerIcon({ size, color }: IconProps) {
 }
 
 /**
- * 스크립트 — 말풍선 두 개. 윤아·이음 2인 대화체 대본이라 "대화를 글로 본다"로 읽힌다(2026-09-16 확정).
- * 크기는 ±10초 링(지름 17칸)에 맞춘다 — 24칸을 다 쓰면 옆 아이콘보다 커 보인다. 두 풍선의 합집합 중심이 (12,12)다.
- * 선은 1.5 — 닫힌 도형 두 개가 겹쳐 있어 링(1.8)과 같은 굵기면 더 무거워 보인다
+ * 스크립트 — "T" 글자(텍스트 도구 관례). 말풍선 두 개는 대화가 아니라 채팅·댓글로 읽혔다(2026-09-18 PM).
+ * 크기는 ±10초 링(지름 17칸)에 맞춘다 — 가로 획 13칸, 세로 획 12칸, 중심 (12,12). 선 굵기는 링과 같은 1.8
  */
 export function ScriptIcon({ size, color }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Path
-        d="M6 4.5h7.5a2.5 2.5 0 0 1 2.5 2.5v3a2.5 2.5 0 0 1-2.5 2.5H8.5l-2.5 3v-3H6a2.5 2.5 0 0 1-2.5-2.5V7A2.5 2.5 0 0 1 6 4.5z"
+        d="M5.5 6h13M12 6v12"
         stroke={color}
-        strokeWidth={1.5}
-        strokeLinejoin="round"
-        fill="none"
-      />
-      <Path
-        d="M16 9h2a2.5 2.5 0 0 1 2.5 2.5v3a2.5 2.5 0 0 1-2.5 2.5h-1.5v3l-3-3H13a1.5 1.5 0 0 1-1.5-1.5v-3"
-        stroke={color}
-        strokeWidth={1.5}
+        strokeWidth={1.8}
         strokeLinecap="round"
-        strokeLinejoin="round"
         fill="none"
       />
     </Svg>
