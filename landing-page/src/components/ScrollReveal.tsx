@@ -30,10 +30,13 @@ export function ScrollReveal() {
     );
     if (sections.length === 0) return;
 
-    const viewportBottom = window.innerHeight;
+    // 마운트 시점에 이미 **충분히** 보이는 섹션(위쪽 절반에 머리가 들어온 것)만 바로 보여 준다. 화면 아래쪽에
+    // 살짝 걸친 섹션은 남겨 두어 스크롤하며 나타난다 — 세로가 긴 화면(QHD)에서는 첫 화면에 여러 섹션이 걸쳐
+    // 있어 전부 미리 보이면 등장 효과가 사라졌다(피드백 2026-09-18)
+    const revealLine = window.innerHeight * 0.55;
     for (const section of sections) {
       const rect = section.getBoundingClientRect();
-      if (rect.top < viewportBottom && rect.bottom > 0) section.classList.add("is-visible");
+      if (rect.top < revealLine && rect.bottom > 0) section.classList.add("is-visible");
     }
     document.documentElement.setAttribute("data-reveal", "");
 
@@ -45,8 +48,9 @@ export function ScrollReveal() {
           observer.unobserve(entry.target);
         }
       },
-      // 섹션 위쪽 12%가 들어오면 시작 — 너무 이르면 효과가 안 보이고, 늦으면 빈 화면이 보인다
-      { threshold: 0.12, rootMargin: "0px 0px -6% 0px" },
+      // 섹션 머리가 화면 아래 30% 선을 지나 올라올 때 시작 — 아래 가장자리에 걸친 순간 나타나면
+      // "미리 나와 있는" 느낌이고, 너무 늦으면 빈 화면이 보인다
+      { threshold: 0, rootMargin: "0px 0px -30% 0px" },
     );
     for (const section of sections) {
       if (!section.classList.contains("is-visible")) observer.observe(section);
