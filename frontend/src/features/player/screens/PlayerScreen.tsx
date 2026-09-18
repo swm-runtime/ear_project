@@ -1332,6 +1332,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    // 상태바 밑에 바로 붙지 않게 — 아이콘 윗선이 탭 화면의 첫 요소(24)와 비슷한 선에 온다(2026-09-18 PM).
+    // 재생 목록의 아트워크 높이는 앱바 실측(onAppBarLayout)을 쓰므로 함께 늘어난다
+    paddingTop: theme.spacing.md,
   },
   appBarButton: {
     minWidth: theme.touchTarget.minWidth,
