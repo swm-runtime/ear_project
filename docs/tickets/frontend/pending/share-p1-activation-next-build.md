@@ -9,6 +9,7 @@
 | 근거 문서 | `features/share.md` 2장(P1 활성화 조건) · `spec/uiux/share-uiux.md` 6·9장(카피 미확정) · README 결정 42 |
 | 심각도 | **중** — 기능 자체는 완성돼 있어 위험은 없다. 다만 **빌드 타임 상수라 다음 빌드를 놓치면 그다음 빌드까지 못 켠다** |
 | 상태 | pending — 요청 1~3 완료. 요청 4(스토어 링크)는 값 확정, **Play 게시 대기** |
+| Jira | [KAN-34](https://runtime364.atlassian.net/browse/KAN-34) |
 
 ## 배경 — 스위치 하나만 꺼져 있다
 
