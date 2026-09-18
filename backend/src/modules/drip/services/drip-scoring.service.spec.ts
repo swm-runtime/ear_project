@@ -16,6 +16,7 @@ import {
 const EMPTY_BREAKDOWN: ScoreBreakdown = {
   embedding: null,
   signal: null,
+  signalItems: null,
   meta: null,
   metaItems: {
     topicMatch: null,
@@ -30,6 +31,7 @@ const EMPTY_BREAKDOWN: ScoreBreakdown = {
 
 const NOW = new Date('2026-08-27T05:00:00.000Z');
 const TOPIC_A = 'aaaaaaaa-1111-4111-8111-111111111111';
+const TOPIC_A_REMOVED = 'cccccccc-1111-4111-8111-111111111111';
 const TOPIC_B = 'bbbbbbbb-1111-4111-8111-111111111111';
 
 function buildContent(id: string, overrides: Partial<Content> = {}): Content {
@@ -644,6 +646,44 @@ describe('DripScoringService', () => {
       const picks = service.selectWithDiversity(scored, 2);
 
       expect(picks).toHaveLength(2);
+    });
+  });
+
+  describe('rankDiscovery', () => {
+    it('제외된 후보와 사유, 통과 후보의 점수를 함께 돌려주고 selectDiscovery와 같은 순위를 쓴다', () => {
+      const removed = buildCandidate('removed', { topicIds: [TOPIC_B] });
+      const poor = buildCandidate('poor', {
+        topicIds: [TOPIC_B],
+        playCount: 1000,
+        completeCount: 50,
+      });
+      const good = buildCandidate('good', {
+        topicIds: [TOPIC_B],
+        playCount: 100,
+        completeCount: 60,
+      });
+      const input = {
+        candidates: [removed, poor, good],
+        exposureCounts: new Map(),
+        activeTopicIds: [TOPIC_A],
+        userRemovedTopicIds: [TOPIC_A_REMOVED],
+        pickedTopicIds: [],
+        count: 1,
+        now: NOW,
+      };
+      removed.topicIds = [TOPIC_A_REMOVED];
+
+      const ranking = service.rankDiscovery(input);
+
+      expect(ranking.excluded).toEqual([
+        { candidate: removed, reason: 'user_removed_topic' },
+        { candidate: poor, reason: 'below_quality_floor' },
+      ]);
+      expect(ranking.scored.map((c) => c.content.id)).toEqual(['good']);
+      expect(ranking.qualityFloor).toBeGreaterThan(0);
+      expect(service.selectDiscovery(input).map((c) => c.content.id)).toEqual([
+        'good',
+      ]);
     });
   });
 

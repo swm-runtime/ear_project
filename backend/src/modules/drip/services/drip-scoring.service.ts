@@ -25,6 +25,7 @@ import {
   SIGNAL_ITEM_WEIGHTS,
 } from '../drip.constant';
 import {
+  DiscoveryRanking,
   DiscoverySelectionInput,
   RegularScoringContext,
   ScoredCandidate,
@@ -146,7 +147,7 @@ export class DripScoringService {
             weight: AXIS_WEIGHT_EMBEDDING,
           },
           {
-            score: this.signalAxisScore(candidate, context),
+            score: this.signalAxisScore(candidate, context)?.score ?? null,
             weight: AXIS_WEIGHT_SIGNAL,
           },
         ]) ?? PERSONAL_FIT_NEUTRAL_SCORE,
@@ -186,7 +187,7 @@ export class DripScoringService {
 
         const axes: ScoreItem[] = [
           { score: embedding, weight: AXIS_WEIGHT_EMBEDDING },
-          { score: signal, weight: AXIS_WEIGHT_SIGNAL },
+          { score: signal?.score ?? null, weight: AXIS_WEIGHT_SIGNAL },
           { score: meta.score, weight: AXIS_WEIGHT_META },
         ];
 
@@ -196,7 +197,8 @@ export class DripScoringService {
           isSeriesContinuation,
           breakdown: {
             embedding,
-            signal,
+            signal: signal?.score ?? null,
+            signalItems: signal?.items ?? null,
             meta: meta.score,
             metaItems: meta.items,
           },
@@ -289,14 +291,14 @@ export class DripScoringService {
   }
 
   /**
-   * 탐험 편성 선정(4.8) — 관심 밖(인접·미보유 주제) 우선 + 관심 안 저노출 포함(혼합),
-   * 품질 최소선(스무딩 완청률) 미달 제외, 직접 해제 주제 제외.
+   * 탐험 후보 순위(4.8) — 직접 해제 주제 제외 → 품질 최소선(스무딩 완청률) 판정 → 탐험 점수 정렬.
+   * `selectDiscovery`의 앞부분을 그대로 떼어 공개한 것이다: 배치는 여기서 뽑고, 편성 미리보기(admin)는
+   * 후보 전부의 점수와 제외 사유를 그대로 보인다. **순수 계산이며 입력을 바꾸지 않는다.**
    */
-  selectDiscovery(input: DiscoverySelectionInput): ScoredCandidate[] {
+  rankDiscovery(input: DiscoverySelectionInput): DiscoveryRanking {
     const poolAverageCompleteRate = this.poolAverageCompleteRate(
       input.candidates,
     );
-    const activeTopicIds = new Set(input.activeTopicIds);
     const userRemovedTopicIds = new Set(input.userRemovedTopicIds);
     /**
      * 품질 하한(4.8-3)은 **풀에 상대적**이다 — `min(절대 하한, 후보들의 전형적 완청률 × 비율)`.
@@ -323,10 +325,12 @@ export class DripScoringService {
       typicalCompleteRate * DISCOVERY_QUALITY_FLOOR_POOL_RATIO,
     );
 
+    const excluded: DiscoveryRanking['excluded'] = [];
     const eligible = input.candidates.filter((candidate) => {
       if (
         candidate.topicIds.some((topicId) => userRemovedTopicIds.has(topicId))
       ) {
+        excluded.push({ candidate, reason: 'user_removed_topic' });
         return false;
       }
 
@@ -335,7 +339,12 @@ export class DripScoringService {
         return true;
       }
 
-      return (smoothedRates.get(candidate.content.id) ?? 0) >= qualityFloor;
+      if ((smoothedRates.get(candidate.content.id) ?? 0) >= qualityFloor) {
+        return true;
+      }
+
+      excluded.push({ candidate, reason: 'below_quality_floor' });
+      return false;
     });
 
     const scored = eligible
@@ -351,6 +360,17 @@ export class DripScoringService {
       .sort(
         (a, b) => b.score - a.score || a.content.id.localeCompare(b.content.id),
       );
+
+    return { qualityFloor, typicalCompleteRate, scored, excluded };
+  }
+
+  /**
+   * 탐험 편성 선정(4.8) — 관심 밖(인접·미보유 주제) 우선 + 관심 안 저노출 포함(혼합),
+   * 품질 최소선(스무딩 완청률) 미달 제외, 직접 해제 주제 제외. 순위는 `rankDiscovery`가 만든다.
+   */
+  selectDiscovery(input: DiscoverySelectionInput): ScoredCandidate[] {
+    const { scored } = this.rankDiscovery(input);
+    const activeTopicIds = new Set(input.activeTopicIds);
 
     const outside = scored.filter(
       (candidate) =>
@@ -428,11 +448,17 @@ export class DripScoringService {
     return (cosineSimilarity(taste, candidate.embedding) + 1) / 2;
   }
 
-  /** ② 신호 선호 축 — 취향 가중치·콜드스타트가 없으면 축 자체가 빠진다(null) */
+  /**
+   * ② 신호 선호 축 — 취향 가중치·콜드스타트가 없으면 축 자체가 빠진다(null).
+   * 메타 축처럼 **항목별 점수를 함께 돌려준다** — 편성 미리보기가 "어느 취향 항목이 밀었나"를 보인다.
+   */
   private signalAxisScore(
     candidate: ScoringCandidate,
     context: RegularScoringContext,
-  ): number | null {
+  ): {
+    score: number | null;
+    items: NonNullable<ScoreBreakdown['signalItems']>;
+  } | null {
     if (context.isColdStart || context.preference === null) {
       return null;
     }
@@ -440,40 +466,45 @@ export class DripScoringService {
     const preference = context.preference;
     const { content } = candidate;
 
+    const scores: NonNullable<ScoreBreakdown['signalItems']> = {
+      topicPreference: this.preferenceLookupScore(
+        candidate.topicIds.map((topicId) => preference.topicWeights[topicId]),
+      ),
+      authorPreference:
+        content.authorName !== null &&
+        preference.authorWeights[content.authorName] !== undefined
+          ? squash(preference.authorWeights[content.authorName])
+          : null,
+      keywordMatch: this.keywordMatchScore(content, preference),
+      formatPreference:
+        content.format !== null &&
+        Object.keys(preference.formatWeights).length > 0
+          ? squash(preference.formatWeights[content.format] ?? 0)
+          : null,
+      durationCloseness: this.durationClosenessScore(content, preference),
+    };
+
     const items: ScoreItem[] = [
       {
-        score: this.preferenceLookupScore(
-          candidate.topicIds.map((topicId) => preference.topicWeights[topicId]),
-        ),
+        score: scores.topicPreference,
         weight: SIGNAL_ITEM_WEIGHTS.topicPreference,
       },
       {
-        score:
-          content.authorName !== null &&
-          preference.authorWeights[content.authorName] !== undefined
-            ? squash(preference.authorWeights[content.authorName])
-            : null,
+        score: scores.authorPreference,
         weight: SIGNAL_ITEM_WEIGHTS.authorPreference,
       },
+      { score: scores.keywordMatch, weight: SIGNAL_ITEM_WEIGHTS.keywordMatch },
       {
-        score: this.keywordMatchScore(content, preference),
-        weight: SIGNAL_ITEM_WEIGHTS.keywordMatch,
-      },
-      {
-        score:
-          content.format !== null &&
-          Object.keys(preference.formatWeights).length > 0
-            ? squash(preference.formatWeights[content.format] ?? 0)
-            : null,
+        score: scores.formatPreference,
         weight: SIGNAL_ITEM_WEIGHTS.formatPreference,
       },
       {
-        score: this.durationClosenessScore(content, preference),
+        score: scores.durationCloseness,
         weight: SIGNAL_ITEM_WEIGHTS.durationCloseness,
       },
     ];
 
-    return weightedMean(items);
+    return { score: weightedMean(items), items: scores };
   }
 
   /** ③ 메타 규칙 축 — 콜드스타트에서도 살아 있는 축(4.4) */
@@ -560,6 +591,7 @@ export class DripScoringService {
         // 탐험은 임베딩·신호 축을 쓰지 않는다 — 그 사실도 로그에 남는다
         embedding: null,
         signal: null,
+        signalItems: null,
         meta: score,
         metaItems: {
           topicMatch: null,

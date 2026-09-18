@@ -56,6 +56,17 @@ export interface ScoreBreakdown {
   embedding: number | null;
   signal: number | null;
   meta: number | null;
+  /**
+   * 신호 선호 축 안의 항목별 점수(4.2 ②). 축이 빠졌으면(콜드스타트·취향 없음) null.
+   * 항목 하나가 null이면 그 항목의 입력이 없어 축에서 빠진 것이다(메타 항목과 같은 규칙).
+   */
+  signalItems: {
+    topicPreference: number | null;
+    authorPreference: number | null;
+    keywordMatch: number | null;
+    formatPreference: number | null;
+    durationCloseness: number | null;
+  } | null;
   /** 메타 축 안의 항목별 점수(4.2 ③) */
   metaItems: {
     topicMatch: number | null;
@@ -129,4 +140,22 @@ export interface DiscoverySelectionInput {
   pickedEmbeddings?: number[][];
   count: number;
   now: Date;
+}
+
+/** 탐험 후보가 선정 전에 빠진 이유(4.8) — 미리보기가 "왜 후보가 아니었나"를 보이기 위한 값 */
+export type DiscoveryExclusionReason =
+  'user_removed_topic' | 'below_quality_floor';
+
+/**
+ * 탐험 후보 전체의 순위 — `selectDiscovery`가 뽑기 전에 만드는 중간 결과를 그대로 공개한다.
+ * 배치는 `picks`만 쓰고, 편성 미리보기(admin)는 후보 전부의 점수와 제외 사유를 보인다.
+ */
+export interface DiscoveryRanking {
+  /** 이 풀에 적용된 품질 하한 — `min(절대 하한, 전형 완청률 × 비율)` */
+  qualityFloor: number;
+  /** 후보별 스무딩 완청률의 단순 평균 */
+  typicalCompleteRate: number;
+  /** 하한·해제 주제를 통과한 후보, 탐험 점수 내림차순 */
+  scored: ScoredCandidate[];
+  excluded: { candidate: ScoringCandidate; reason: DiscoveryExclusionReason }[];
 }
