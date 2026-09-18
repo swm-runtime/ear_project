@@ -39,7 +39,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: theme.spacing.sm,
     paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
+    // 위쪽 여백은 프로필 탭의 신원 행(24)과 같은 값 — 세 탭의 첫 요소가 같은 높이에서 시작한다(2026-09-18 PM)
+    paddingTop: theme.spacing.lg,
+    paddingBottom: theme.spacing.sm,
   },
   searchBox: {
     flex: 1,
