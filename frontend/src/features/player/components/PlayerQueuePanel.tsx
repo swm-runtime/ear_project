@@ -14,6 +14,7 @@ import { theme } from '@/shared/theme';
 
 import { PLAYER_COPY } from '../player.copy';
 import { formatPlaybackTime } from '../player.format';
+import { playerColor } from '../player.theme';
 import type { QueueItem } from '../player.types';
 
 interface PlayerQueuePanelProps {
@@ -105,7 +106,7 @@ export default function PlayerQueuePanel({
       <View style={styles.panel} {...swipeRightResponder.panHandlers}>
         {header}
         <View style={styles.placeholder}>
-          <ActivityIndicator color={theme.color.textSecondary} />
+          <ActivityIndicator color={playerColor.textSecondary} />
         </View>
       </View>
     );
@@ -185,7 +186,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: theme.font.size.xs,
     fontWeight: '600',
-    color: theme.color.textSecondary,
+    color: playerColor.textSecondary,
     paddingHorizontal: theme.spacing.sm,
     paddingTop: theme.spacing.md,
     paddingBottom: theme.spacing.xs,
@@ -197,7 +198,7 @@ const styles = StyleSheet.create({
   },
   placeholderText: {
     fontSize: theme.font.size.sm,
-    color: theme.color.textSecondary,
+    color: playerColor.textSecondary,
   },
   retry: {
     minHeight: theme.touchTarget.minHeight,
@@ -207,7 +208,7 @@ const styles = StyleSheet.create({
   retryLabel: {
     fontSize: theme.font.size.sm,
     fontWeight: '600',
-    color: theme.color.primary,
+    color: playerColor.primary,
   },
   row: {
     flexDirection: 'row',
@@ -218,13 +219,13 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.md,
   },
   rowPressed: {
-    backgroundColor: theme.color.surface,
+    backgroundColor: playerColor.surface,
   },
   thumbnail: {
     width: THUMBNAIL_SIZE,
     height: THUMBNAIL_SIZE,
     borderRadius: theme.radius.sm,
-    backgroundColor: theme.color.surface,
+    backgroundColor: playerColor.surface,
   },
   rowMeta: {
     flex: 1,
@@ -233,7 +234,7 @@ const styles = StyleSheet.create({
   rowTitle: {
     fontSize: theme.font.size.md,
     fontWeight: '500',
-    color: theme.color.textPrimary,
+    color: playerColor.textPrimary,
   },
   // 재생 중 — 굵기로 구분한다(색만으로 구분하지 않는다, uiux 7장)
   rowTitleCurrent: {
@@ -241,7 +242,7 @@ const styles = StyleSheet.create({
   },
   rowDuration: {
     fontSize: theme.font.size.xs,
-    color: theme.color.textSecondary,
+    color: playerColor.textSecondary,
     fontVariant: ['tabular-nums'],
   },
 });

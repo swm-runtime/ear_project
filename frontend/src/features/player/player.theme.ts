@@ -1,0 +1,28 @@
+import { theme } from '@/shared/theme';
+
+/**
+ * 전체 플레이어 전용 색 — **바탕 검정, 포인트 흰색**(2026-09-18 PM 결정).
+ *
+ * 앱의 나머지(탭 화면·미니플레이어)는 밝은 `theme.color`를 그대로 쓰고, 전체 플레이어와 그 안의 패널
+ * (재생 목록·대본)·바텀시트(더보기·배속)만 이 팔레트를 쓴다. 키 이름을 `theme.color`와 같게 둬서
+ * 컴포넌트는 참조하는 객체만 바꾸면 된다.
+ *
+ * 왜 어둡게: 아트워크가 가장 도드라지고, 재생 목록을 올려 사진이 화면을 채울 때 앱바·제목·재생바가
+ * 사진 위/밖 어디에 있든 같은 흰색으로 읽힌다 — 밝은 바탕에서는 사진에 걸친 재생바 색이 끝내 맞지 않았다.
+ * 미니플레이어 ↔ 전체 화면 모션의 시트 색은 밝은 회색(미니)에서 이 검정으로 보간된다(PlayerScreen sheetColor).
+ * 값은 `theme.color`와 마찬가지로 디자인 확정 전 임시값이다.
+ */
+export const playerColor = {
+  background: '#000000',
+  /** 카드·현재 문단·시트처럼 바탕에서 한 단 올라온 면 */
+  surface: '#1C1C1E',
+  textPrimary: '#FFFFFF',
+  textSecondary: '#A0A0A8',
+  /** 트랙·비활성 아이콘·구분 — 검정 위에서 보이되 튀지 않는 회색 */
+  border: '#3A3A3C',
+  /** 포인트 — 재생 버튼·채움·현재 표시 */
+  primary: '#FFFFFF',
+  onPrimary: '#000000',
+  danger: theme.color.danger,
+  overlay: 'rgba(0, 0, 0, 0.6)',
+} as const;
