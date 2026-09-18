@@ -15,6 +15,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { theme } from '@/shared/theme';
@@ -936,6 +937,35 @@ export default function PlayerScreen() {
             pointerEvents="none"
             style={[styles.queueTint, { opacity: queueProgress }]}
           />
+          {/*
+            아래쪽 그라데이션 — 사진 밑변으로 갈수록 플레이어 바탕색으로 잠긴다(유튜브 뮤직, 2026-09-19 PM).
+            제목·카테고리·재생바가 놓이는 띠가 어떤 사진에서도 어둡고, 사진의 밑변이 칼같이 끊기지 않고 바탕으로
+            녹아든다. 끝 불투명도는 1 이 아니다 — 사진 밖 바탕이 단색이 아니라 흐린 커버라, 완전히 덮으면 밑변이
+            바탕보다 어두운 띠로 남는다. 밝은 테마 시절엔 아래가 흰 바탕이라 어울리지 않아 뺐었다(#440) — 검정 플레이어에서는 맞는다
+          */}
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.queueArtFade, { opacity: queueProgress }]}
+            accessibilityElementsHidden
+            importantForAccessibility="no"
+          >
+            <Svg width="100%" height={QUEUE_ART_FADE_HEIGHT}>
+              <Defs>
+                <LinearGradient id="queueArtFade" x1="0" y1="0" x2="0" y2="1">
+                  <Stop offset="0" stopColor={playerColor.background} stopOpacity={0} />
+                  <Stop offset="0.45" stopColor={playerColor.background} stopOpacity={0.3} />
+                  <Stop offset="1" stopColor={playerColor.background} stopOpacity={0.68} />
+                </LinearGradient>
+              </Defs>
+              <Rect
+                x="0"
+                y="0"
+                width="100%"
+                height={QUEUE_ART_FADE_HEIGHT}
+                fill="url(#queueArtFade)"
+              />
+            </Svg>
+          </Animated.View>
         </Animated.View>
 
         {/* 앱바 — 제목을 두지 않는다. 동적 텍스트 200%에서 앱바가 먼저 넘친다(uiux 4.1) */}
@@ -1407,6 +1437,8 @@ const SCRIPT_TOGGLE_DURATION_MS = 320;
  * 얹힌다(2026-09-17 PM, 유튜브 뮤직). 사진 전체 높이 = 앱바 + 이 값 + 시크바
  */
 const QUEUE_BANNER_HEIGHT = 232;
+/** 사진 아래쪽 그라데이션 높이 — 제목·카테고리 블록과 재생바를 넉넉히 덮는다 */
+const QUEUE_ART_FADE_HEIGHT = 160;
 /** 재생 목록 열림 상태의 제목 줄(xl × 1.3)·카테고리 줄(sm 글자의 줄 높이) — 메타 블록을 사진 밑변에 맞추는 셈에 쓴다 */
 const QUEUE_TITLE_LINE_HEIGHT = theme.font.size.xl * 1.3;
 const QUEUE_CATEGORY_LINE_HEIGHT = 20;
@@ -1691,6 +1723,13 @@ const styles = StyleSheet.create({
   },
   scriptHandleWrap: {},
   // 사진 위 글자·시크바 대비 — 재생 목록이 열린 만큼 어두워진다
+  queueArtFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: QUEUE_ART_FADE_HEIGHT,
+  },
   queueTint: {
     position: 'absolute',
     top: 0,
