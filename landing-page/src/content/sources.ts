@@ -22,6 +22,7 @@
  *   - Nautilus — 약관 "어떤 자료도 복제·재게재·배포 불가"(명시 허락 제외), 상업 매체
  *   - The Transmitter — 시몬스 재단 약관 "개인적·비상업적 이용만, 자동화된 수집 금지"; 재게재는 원문 무편집 조건
  *   - Eos — 기사 라이선스 CC BY-NC-ND 3.0(비상업·변경 금지)
+ *   - PsyPost — 약관 페이지가 자동 접근을 막아 확인 불가(상업 매체). 확인될 때까지 제외
  *
  * 다시 뽑을 때: 로그인한 세션으로 `domains` + `domain_stats` 를 읽어 같은 기준으로 걸러 이 목록을 갈아 끼운다.
  * `style` 은 서체 계열(카테고리에서 추정 — 학술·매체는 serif, 오픈소스 공식은 mono, 그 외 sans). **한글 이름은 항상 sans** —
@@ -34,7 +35,6 @@ export const sourceItems = [
   { name: "The Public Domain Review", style: "serif" }, // publicdomainreview.org · 100건
   { name: "뱅크샐러드 기술블로그", style: "sans" }, // blog.banksalad.com · 78건
   { name: "MDN Web Docs Blog", style: "mono" }, // developer.mozilla.org · 71건
-  { name: "PsyPost", style: "serif" }, // www.psypost.org · 60건
   { name: "MIT News", style: "serif" }, // news.mit.edu · 50건
   { name: "arXiv", style: "serif" }, // arxiv.org · 49건
   { name: "The Marginalian", style: "sans" }, // www.themarginalian.org · 40건
