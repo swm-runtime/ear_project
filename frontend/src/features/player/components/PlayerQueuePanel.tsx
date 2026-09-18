@@ -45,9 +45,19 @@ const ROW_HEIGHT = THUMBNAIL_SIZE + theme.spacing.sm * 2;
 const ROW_GAP = theme.spacing.xs;
 const ROW_STEP = ROW_HEIGHT + ROW_GAP;
 const REORDER_ICON_SIZE = 22;
+/** 끄는 줄의 확대 비율 — 떠 있다는 단서만 줄 만큼 */
+const DRAG_SCALE = 1.03;
+/** 끄는 줄의 면 — 플레이어 면(surface)보다 한 단 밝은 불투명 회색 */
+const DRAG_SURFACE_COLOR = '#35353B';
 /** 비켜 주는 행이 한 칸 움직이는 시간 · 놓은 행이 제자리에 앉는 시간 */
 const ROW_SHIFT_MS = 140;
 const ROW_SETTLE_MS = 120;
+/** 끄는 행이 뷰포트 끝에서 이 거리 안에 들어오면 자동 스크롤이 시작된다 */
+const AUTO_SCROLL_EDGE = 56;
+/** 자동 스크롤 속도(px/프레임) — 끝에 깊이 들어갈수록 빨라지고 이 값에서 멈춘다 */
+const AUTO_SCROLL_MAX_SPEED = 14;
+const speedOf = (depth: number): number =>
+  Math.max(2, Math.min(AUTO_SCROLL_MAX_SPEED, (depth / AUTO_SCROLL_EDGE) * AUTO_SCROLL_MAX_SPEED));
 
 const toMinutes = (durationSec: number | null): number =>
   durationSec === null ? 0 : Math.max(1, Math.round(durationSec / 60));
@@ -92,6 +102,8 @@ function QueueRow({
   onDragEnd,
   onNudge,
 }: QueueRowProps) {
+  // 눌림 표시는 본문이 아니라 **줄 전체**(손잡이 포함)에 깐다 — 본문만 밝히면 줄이 알약과 아이콘으로 쪼개져 보인다
+  const [isPressed, setIsPressed] = useState(false);
   const shiftY = useAnimatedValue(0);
   useEffect(() => {
     if (!animateShift) {
@@ -137,13 +149,22 @@ function QueueRow({
     <Animated.View
       style={[
         styles.rowWrap,
+        isPressed && styles.rowWrapPressed,
         isDragging && styles.rowWrapDragging,
-        { transform: [{ translateY: isDragging ? dragY : shiftY }] },
+        {
+          transform: [
+            { translateY: isDragging ? dragY : shiftY },
+            // 끄는 줄은 살짝 커져 떠 있는 것으로 읽힌다
+            { scale: isDragging ? DRAG_SCALE : 1 },
+          ],
+        },
       ]}
     >
       <Pressable
-        style={({ pressed }) => [styles.row, (pressed || isDragging) && styles.rowPressed]}
+        style={styles.row}
         onPress={() => onSelect(item)}
+        onPressIn={() => setIsPressed(true)}
+        onPressOut={() => setIsPressed(false)}
         accessibilityRole="button"
         accessibilityLabel={PLAYER_COPY.queuePanel.itemA11y(
           item.title,
@@ -243,6 +264,28 @@ export default function PlayerQueuePanel({
     countRef.current = items.length;
     onReorderRef.current = onReorder;
   });
+  /*
+   * 가장자리 자동 스크롤 — 끄는 행이 뷰포트 위·아래 끝에 가까워지면 목록이 그쪽으로 흘러, 한 번의 끌기로
+   * 보이지 않는 칸까지 옮길 수 있다. 손가락은 가만히 있어도 목록이 밑에서 흐르므로 행의 이동량은
+   * "손가락 이동 + 그동안 스크롤된 거리"다. 스크롤은 프레임마다 직접 옮긴다(끄는 동안 사용자 스크롤은 꺼져 있다)
+   */
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollState = useRef({
+    offset: 0, // 현재 스크롤 위치
+    startOffset: 0, // 끌기 시작 때의 스크롤 위치
+    viewport: 0, // 목록 뷰포트 높이
+    content: 0, // 목록 콘텐츠 높이
+    rowsTop: 0, // 첫 행의 콘텐츠 기준 y(패딩·제목 아래)
+    lastDy: 0, // 마지막 손가락 이동량
+    frame: 0 as number | 0, // 자동 스크롤 루프(requestAnimationFrame id)
+  });
+
+  const applyRef = useRef<() => number>(() => 0);
+  // 화면이 걷히는 중에 끌기가 남아 있어도 루프가 돌지 않게 한다
+  useEffect(() => {
+    const state = scrollState.current;
+    return () => cancelAnimationFrame(state.frame);
+  }, []);
 
   const handlers = useMemo(
     () => ({
@@ -250,25 +293,59 @@ export default function PlayerQueuePanel({
         dragY.setValue(0);
         dragRef.current = { from: index, hover: index };
         setDrag(dragRef.current);
+        const state = scrollState.current;
+        state.startOffset = state.offset;
+        state.lastDy = 0;
+        // 자동 스크롤 루프 — 끄는 동안 프레임마다 가장자리 근접을 본다
+        const tick = () => {
+          const current = dragRef.current;
+          if (!current) return;
+          const offset = apply();
+          const rowTop = state.rowsTop + current.from * ROW_STEP + offset - state.offset;
+          const rowBottom = rowTop + ROW_HEIGHT;
+          const maxScroll = Math.max(0, state.content - state.viewport);
+          let delta = 0;
+          if (rowTop < AUTO_SCROLL_EDGE && state.offset > 0) {
+            delta = -speedOf(AUTO_SCROLL_EDGE - rowTop);
+          } else if (rowBottom > state.viewport - AUTO_SCROLL_EDGE && state.offset < maxScroll) {
+            delta = speedOf(rowBottom - (state.viewport - AUTO_SCROLL_EDGE));
+          }
+          if (delta !== 0) {
+            state.offset = Math.max(0, Math.min(maxScroll, state.offset + delta));
+            scrollRef.current?.scrollTo({ y: state.offset, animated: false });
+            apply();
+          }
+          state.frame = requestAnimationFrame(tick);
+        };
+        // 끄는 행의 이동량을 다시 계산해 반영하고 돌려준다
+        const apply = (): number => {
+          const current = dragRef.current;
+          if (!current) return 0;
+          // 목록 밖으로는 끌려 나가지 않는다
+          const min = -current.from * ROW_STEP;
+          const max = (countRef.current - 1 - current.from) * ROW_STEP;
+          const raw = state.lastDy + (state.offset - state.startOffset);
+          const clamped = Math.max(min, Math.min(max, raw));
+          dragY.setValue(clamped);
+          const hover = current.from + Math.round(clamped / ROW_STEP);
+          if (hover !== current.hover) {
+            dragRef.current = { from: current.from, hover };
+            setDrag(dragRef.current);
+          }
+          return clamped;
+        };
+        applyRef.current = apply;
+        state.frame = requestAnimationFrame(tick);
       },
       move: (dy: number) => {
-        const current = dragRef.current;
-        if (!current) return;
-        // 목록 밖으로는 끌려 나가지 않는다
-        const min = -current.from * ROW_STEP;
-        const max = (countRef.current - 1 - current.from) * ROW_STEP;
-        const clamped = Math.max(min, Math.min(max, dy));
-        dragY.setValue(clamped);
-        const hover = current.from + Math.round(clamped / ROW_STEP);
-        if (hover !== current.hover) {
-          dragRef.current = { from: current.from, hover };
-          setDrag(dragRef.current);
-        }
+        scrollState.current.lastDy = dy;
+        applyRef.current();
       },
       end: () => {
         const current = dragRef.current;
         if (!current) return;
         dragRef.current = null;
+        cancelAnimationFrame(scrollState.current.frame);
         Animated.timing(dragY, {
           toValue: (current.hover - current.from) * ROW_STEP,
           duration: ROW_SETTLE_MS,
@@ -335,11 +412,25 @@ export default function PlayerQueuePanel({
   return (
     <View style={styles.panel} {...swipeRightResponder.panHandlers}>
       <ScrollView
+        ref={scrollRef}
         style={styles.list}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-        // 끄는 동안 목록이 같이 스크롤되면 손가락과 행이 어긋난다
+        // 끄는 동안 목록이 같이 스크롤되면 손가락과 행이 어긋난다 — 가장자리 자동 스크롤만 직접 옮긴다
         scrollEnabled={drag === null}
+        scrollEventThrottle={16}
+        onScroll={(event) => {
+          // 끄는 중에는 자동 스크롤이 직접 적는 값이 기준이다(이벤트는 한 박자 늦다)
+          if (dragRef.current === null) {
+            scrollState.current.offset = event.nativeEvent.contentOffset.y;
+          }
+        }}
+        onLayout={(event) => {
+          scrollState.current.viewport = event.nativeEvent.layout.height;
+        }}
+        onContentSizeChange={(_, height) => {
+          scrollState.current.content = height;
+        }}
       >
         {header}
         {items.length === 0 ? (
@@ -347,24 +438,31 @@ export default function PlayerQueuePanel({
             <Text style={styles.placeholderText}>{PLAYER_COPY.queuePanel.empty}</Text>
           </View>
         ) : (
-          items.map((item, index) => (
-            <QueueRow
-              key={item.itemId}
-              item={item}
-              index={index}
-              total={items.length}
-              isCurrent={item.contentId === currentContentId}
-              isDragging={drag !== null && drag.from === index}
-              shift={shiftOf(index)}
-              animateShift={drag !== null}
-              dragY={dragY}
-              onSelect={onSelect}
-              onDragStart={handlers.start}
-              onDragMove={handlers.move}
-              onDragEnd={handlers.end}
-              onNudge={handlers.nudge}
-            />
-          ))
+          <View
+            style={styles.rows}
+            onLayout={(event) => {
+              scrollState.current.rowsTop = event.nativeEvent.layout.y;
+            }}
+          >
+            {items.map((item, index) => (
+              <QueueRow
+                key={item.itemId}
+                item={item}
+                index={index}
+                total={items.length}
+                isCurrent={item.contentId === currentContentId}
+                isDragging={drag !== null && drag.from === index}
+                shift={shiftOf(index)}
+                animateShift={drag !== null}
+                dragY={dragY}
+                onSelect={onSelect}
+                onDragStart={handlers.start}
+                onDragMove={handlers.move}
+                onDragEnd={handlers.end}
+                onNudge={handlers.nudge}
+              />
+            ))}
+          </View>
         )}
       </ScrollView>
     </View>
@@ -380,18 +478,19 @@ const styles = StyleSheet.create({
   list: {
     flex: 1,
   },
+  // 좌우 여백은 행이 갖는다 — 눌림·끌기 배경이 화면 끝에서 끝까지 깔려야 한다(애플 뮤직 방식, 2026-09-18)
   listContent: {
-    // 시트가 화면 폭을 꽉 채우므로 행의 좌우 여백은 여기서 — 행 자체 패딩(sm)과 합쳐 화면 여백(lg)이 된다
-    paddingHorizontal: theme.spacing.md,
     paddingTop: theme.spacing.sm,
     paddingBottom: theme.spacing.md,
+  },
+  rows: {
     gap: ROW_GAP,
   },
   title: {
     fontSize: theme.font.size.xs,
     fontWeight: '600',
     color: playerColor.textSecondary,
-    paddingHorizontal: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.lg,
     paddingTop: theme.spacing.md,
     paddingBottom: theme.spacing.xs,
   },
@@ -418,11 +517,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     height: ROW_HEIGHT,
+    // 행 패딩(sm)과 합쳐 화면 여백(lg)
+    paddingHorizontal: theme.spacing.md,
   },
-  // 끄는 행은 다른 행 위로 뜬다
+  // 누르는 동안만 — 불투명 면이 아니라 옅은 흰색이라 바탕의 커버 색이 비친다. 선택 상태는 따로 두지 않는다
+  rowWrapPressed: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  // 끄는 행은 다른 행 위로 뜬다 — 밝은 면 + 그림자. 면은 **불투명**이다: 빠르게 지나갈 때 비켜 주는 행이
+  // 한 박자 늦어 잠깐 겹치는데, 반투명이면 밑의 글자가 비쳐 두 제목이 섞여 보인다
   rowWrapDragging: {
     zIndex: 1,
-    elevation: 4,
+    elevation: 6,
+    backgroundColor: DRAG_SURFACE_COLOR,
+    shadowColor: '#000000',
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
   },
   row: {
     flex: 1,
@@ -432,9 +543,6 @@ const styles = StyleSheet.create({
     height: ROW_HEIGHT,
     paddingHorizontal: theme.spacing.sm,
     borderRadius: theme.radius.md,
-  },
-  rowPressed: {
-    backgroundColor: playerColor.surface,
   },
   thumbnail: {
     width: THUMBNAIL_SIZE,
