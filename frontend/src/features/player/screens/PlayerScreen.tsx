@@ -1027,7 +1027,10 @@ export default function PlayerScreen() {
           <Animated.View style={[styles.heroMeta, { top: hero.metaTop, left: hero.metaLeft }]}>
             {/* 제목은 크기가 달라 두 겹을 교차 페이드한다 — 글자 크기 자체는 보간하지 않는다 */}
             <Animated.View
-              style={{ opacity: Animated.multiply(hero.collapsedOpacity, queueInverse) }}
+              style={[
+                styles.heroTitleLayer,
+                { opacity: Animated.multiply(hero.collapsedOpacity, queueInverse) },
+              ]}
               onLayout={onTitleLayout}
             >
               {/* 한 줄 고정 — 넘치면 흘러서 끝까지 보여준다(2026-09-16, 두 줄 접기에서 변경) */}
@@ -1485,11 +1488,13 @@ const MORPH_IMAGE_WAIT_MS = 800;
 /** 앱바 높이(터치 타깃 44) — 히어로가 쓸 수 있는 높이를 셈할 때 뺀다 */
 const APP_BAR_HEIGHT = 44;
 /**
- * 접힘 상태의 제목·카테고리 블록 높이 — 위 여백 24 + 제목 줄 36.4 + 간격 4 + 카테고리 20. **아래 여백은 두지 않는다**
+ * 접힘 상태의 제목·카테고리 블록 높이 — 위 여백 24 + 제목 줄 36.4 + 간격 4 + 카테고리 20 = 84.4(숫자로 적지 않고
+ * 같은 상수에서 셈한다 — 84 로 적었더니 두 상태의 간격이 0.4 어긋났다). **아래 여백은 두지 않는다**
  * (2026-09-19 PM — 재생 목록 열림 상태와 같은 간격으로): 바로 아래 시크바 터치 영역(44pt)의 위쪽 절반(≈20px)이
  * 이미 재생바까지의 여백이라, 여기에 8을 더 두면 카테고리와 재생바 사이가 벌어진다. 줄어든 만큼 아트워크가 커진다
  */
-const HERO_META_BLOCK_HEIGHT = 84;
+const HERO_META_BLOCK_HEIGHT =
+  theme.spacing.lg + QUEUE_TITLE_LINE_HEIGHT + theme.spacing.xs + PLAYER_CATEGORY_LINE_HEIGHT;
 /** 펼침 상태의 한 줄 헤더 높이 — 위 8 + 썸네일 56 + 아래 8 */
 const HERO_COMPACT_HEIGHT = 72;
 /** 펼침 상태에서 제목 블록(26 + 2 + 20 ≈ 48)을 썸네일 세로 가운데에 맞추는 위치 */
@@ -1741,6 +1746,14 @@ const styles = StyleSheet.create({
   dualToneOverlay: {
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  /*
+   * 기본 제목 층 — 사진 위 층(heroTitleOnImageLayer)과 **같은 간격**이어야 한다(2026-09-19). 이 층에만 간격이
+   * 없어서 카테고리가 4px 위에 있었고, 그 탓에 (1) 재생바까지의 간격이 두 상태에서 23.6 / 20 으로 달랐고
+   * (2) 재생 목록을 올리는 동안 두 층의 카테고리가 어긋난 채 교차해 글자가 겹쳐 보였다
+   */
+  heroTitleLayer: {
+    gap: theme.spacing.xs,
   },
   heroTitleOnImageLayer: {
     position: 'absolute',
