@@ -575,14 +575,18 @@ idx_content_topics_topic_id
 ```
 content_scripts
   id                        uuid            PK
-  content_id                uuid            FK → contents
-  segments                  jsonb           [{ start_sec, end_sec, text }]
+  content_id                uuid            FK → contents (ON DELETE CASCADE)
+  segments                  jsonb           [{ start_sec, end_sec, speaker, text }]   ★speaker 추가 (2026-09-19, KAN-71)
+  created_at · updated_at   timestamptz
 
 uq_content_scripts_content_id (content_id)
 ```
 
-- FR-25(스크립트 열람). 소유 모듈은 `content`로 확정한다 (C-1).
-- 세그먼트 단위 조회·검색 요구가 아직 없으므로 `jsonb` 한 컬럼으로 둔다.
+- FR-25(스크립트 열람). 소유 모듈은 `content`로 확정한다 (C-1). **실서버 구현 2026-09-19**(KAN-71 — `tickets/backend/archive/script-api.md`).
+- 세그먼트 단위 조회·검색 요구가 아직 없으므로 `jsonb` 한 컬럼으로 둔다. 키는 jsonb 내부라 snake_case 그대로다(`duration_pref`와 같은 규칙).
+- **`speaker`는 화자 표시명**("윤아"·"이음" — 대본이 2인 대화체, `ai/PIPELINE.md`)이며 1인 낭독·파트너 콘텐츠는 `null`. 시각은 초(소수 허용), **최종 배포본 기준**. `start_sec` 오름차순·겹침 없음은 적재 시 검증한다(admin-api.md 4.6 `script_file`).
+- 콘텐츠당 1행. 재발행으로 오디오가 바뀌면 시각도 바뀌므로 부분 갱신 없이 통째로 교체한다.
+- **접근 통제는 오디오와 같다**(architecture.md 9.4) — 조회(`player-api.md` 4.7)는 재생 발급과 같은 판정을 거친다.
 
 ### 5.4 `content_stats`
 

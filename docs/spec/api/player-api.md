@@ -28,7 +28,7 @@
 | 완청 상태 전이의 **명시 트리거** 엔드포인트 | `library-api.md` 4.5 | `duration_sec`이 없어 서버가 90%를 판정할 수 없는 콘텐츠의 폴백 경로로만 참조한다(4.3) |
 | 배속 저장(`user_settings.default_playback_rate`) | `settings-api.md` 4.2 | **그 계약을 그대로 호출한다.** 배속 시트(PL4)의 저장 요청을 여기서 재정의하지 않는다 |
 | 수면 타이머(P1) — `sleep_timer_last_choice` 저장 | `player.md` 4.7 · `settings-api.md` 8장 | 값 집합이 미정이라(`domain.md` 3.5) **P1 구현 시 이 문서에 추가한다.** 조회·변경 모두 플레이어 소관이라는 경계만 확정이다 |
-| 스크립트 조회(P1) — `content_scripts` | `player.md` 4.6 · `domain.md` 5.3 | P1 구현 시 추가한다. 접근 통제는 오디오와 동일해야 한다(`architecture.md` 9.4 — "오디오만 막고 텍스트를 열어두지 않는다") |
+| ~~스크립트 조회(P1)~~ → **구현(2026-09-19, KAN-71)** | `player.md` 4.6 · `domain.md` 5.3 | 4.7 `GET /contents/:content_id/script`. 접근 통제는 오디오와 동일하다(`architecture.md` 9.4). 발급 응답(4.1)의 `has_script`가 버튼 노출을 정한다 |
 | **스킵 신호** | **존재하지 않는다** — 제거 확정 2026-08-10(`player.md` 4.4, `domain.md` 6.4 enum 반영 완료) | 엔드포인트도 필드도 두지 않는다. 초반 이탈은 어떤 요청으로도 표현되지 않는다 |
 | 미니플레이어 복원 대상 조회 | `library-api.md` 4.3 | 참조만 한다. 복원 후 재생 시작은 4.2와 동일 경로다 |
 | 더보기의 [라이브러리에서 삭제] | `library-api.md` 4.6 | 발급 응답의 `library_item.id`(4.1)로 그 계약을 호출한다. 삭제 후에도 화면·재생은 유지된다(`player.md` 7 — 확정 2026-08-10) |
@@ -69,6 +69,7 @@
 | 4 | POST | `/contents/:content_id/replay` | `replay` 신호 — 완료 상태에서 위치 0 재생 | 필요 | **필수** |
 | 5 | POST | `/contents/:content_id/source-link-clicks` | 원문 유입 클릭 — **세 화면 공용** | 필요 | |
 | 6 | GET | `/contents/withdrawn` | 회수 동기화 — 마지막 동기화 이후 회수된 콘텐츠 목록 (4.6, 등재 2026-09-08) | 필요 | |
+| 7 | GET | `/contents/:content_id/script` | 대본(자막) 세그먼트 — **접근 통제는 발급(1)과 동일**, 차감 없음 (4.7, 등재 2026-09-19 KAN-71) | 필요 | |
 
 **설계 메모**
 
@@ -111,8 +112,10 @@
     "source_url": "https://...",
     "duration_sec": 1470,
     "thumbnail_url": "https://...",
-    "content_version": 1
+    "content_version": 1,
+    "topics": [{ "id": "uuid", "name": "커리어" }]
   },
+  "has_script": true,
   "library_item": { "id": "uuid", "status": "in_progress" },
   "progress": { "position_sec": 552, "max_reached_sec": 552 },
   "audio": {
@@ -127,6 +130,8 @@
 |---|---|
 | `content.source_url` | **`null`이면 [원문 보기]를 노출하지 않는다**(`player.md` 4.5 — `origin = ai_generated`는 선택 필드다, `domain.md` 5.1) |
 | `content.content_version` | 현재 발행본의 버전. **재발행 후 낡은 위치는 서버가 이미 폐기했으므로**(`admin-api.md` 4.10 — 개정 2026-09-07) 진입 시점에 클라이언트가 비교·폐기할 것은 없다. 이 값의 용도는 4.3 위치 저장의 버전 가드 입력(응답의 버전을 저장 요청에 되돌려 보낸다)과 **재생 중 재발행 감지**다 — 갱신 호출로 받은 버전이 세션과 다르면 세션 위치를 폐기한다(`player.md` 7) |
+| `content.topics` | 플레이어 카테고리 줄(`player-controls-redesign.md` 계약 요청 1, 등재 2026-09-19). **진입 경로와 무관하게 이 값이 원천이다** — 목록 응답에서 `topic_ids`를 끼워 넣던 우회(#478)를 걷어낸다. `topics.display_order` 순 |
+| `has_script` | 대본 세그먼트 적재 여부(KAN-71). **화면이 대본 버튼을 그릴지 조회(4.7) 전에 이 값으로 정한다** — 없으면 플레이어를 열 때마다 대본을 미리 받아야 한다. `false`면 버튼을 그리지 않고 4.7을 부르지 않는다 |
 | `library_item` | 라이브러리에 없는 콘텐츠면 **`null`**. `id`는 더보기의 삭제(`library-api.md` 4.6) 호출에, `status`는 완료 화면(PL3) 판단에 쓴다 |
 | `progress` | `playback_progresses` 행이 없으면 **`null`** — 0부터 재생한다. `start_position_sec` 입력(`player.md` 3장)이 있으면 그것이 우선한다 |
 | `audio.url` | 단기 서명 URL. **재생기에 전달하는 용도 외로 보관·기록하지 않는다**(7장) |
@@ -135,7 +140,7 @@
 
 - **`expires_in_sec`을 함께 내려주는 이유** — 갱신 타이밍을 `expires_at`과 기기 시계로 계산하면 기기 시각 오차·조작만큼 갱신이 빗나간다. 상대값이면 시계와 무관하게 수신 시점부터 세면 된다. 만료 **판정**은 어차피 스토리지가 서명으로 한다 — 클라이언트 값은 둘 다 스케줄링 힌트다.
 - **오디오 메타에 원본 경로가 없다.** `contents.audio_path`는 응답에 절대 실리지 않는다(`domain.md` 5.1 — URL은 컬럼이 아니라 응답 DTO 필드).
-- **`description`·`topic_ids`는 내려주지 않는다.** 플레이어 화면이 쓰지 않는 값이다(PL1~PL3). 필요해지는 화면이 생기면 그 화면 계약에 추가한다.
+- **`description`은 내려주지 않는다.** 플레이어 화면이 쓰지 않는 값이다(PL1~PL3). `topic_ids` 대신 이름이 붙은 `content.topics`를 내려준다(개정 2026-09-19 — 카테고리 줄이 화면에 생겼다).
 
 **서버 처리**
 
@@ -324,6 +329,38 @@
   신호와 한 문서에서 읽혀야 두 채널의 역할 분담이 보인다. 동작 규칙의 소유는 여전히
   `partner-control.md` 4.3이다.
 
+### 4.7 `GET /contents/:content_id/script` — 대본(자막) 세그먼트
+
+> 등재 2026-09-19 (KAN-71 — `tickets/backend/archive/script-api.md`). 규칙: `player.md` 4.6 · `architecture.md` 9.4 · `domain.md` 5.3.
+
+플레이어 대본 패널(PL6)의 원천. **발급 응답(4.1)의 `has_script`가 `true`일 때, 패널을 처음 열 때** 호출한다 — 플레이어 진입마다 미리 받지 않는다.
+
+**Response 200**
+
+```json
+{
+  "segments": [
+    { "start_sec": 0, "end_sec": 12.4, "speaker": "윤아", "text": "…" },
+    { "start_sec": 12.4, "end_sec": 27.9, "speaker": "이음", "text": "…" }
+  ]
+}
+```
+
+| 필드 | 의미 |
+|---|---|
+| `segments[]` | **`start_sec` 오름차순, 겹치지 않는다.** 시각은 초(소수 허용), **최종 배포본(`dist.mp3`) 기준** — 배속·이어붙이기 적용 후의 값이다(AI 티켓 KAN-72) |
+| `speaker` | 화자 표시명("윤아"·"이음"). 1인 낭독·파트너 콘텐츠는 **`null`** — 화면은 화자 줄을 생략한다 |
+| `text` | 사람이 읽는 원문. TTS용 표기(발음 교정·태그)가 아니다 |
+
+- **스크립트가 없는 콘텐츠는 404가 아니라 `segments: []`다.** 없는 것은 정상 상태이고, 화면은 빈 배열도 "없음"으로 취급해 버튼을 그리지 않는다(`has_script`와 어긋난 경우의 방어).
+- **접근 통제는 발급(4.1)과 동일하다** — "오디오만 막고 텍스트를 열어두지 않는다"(`architecture.md` 9.4). 서버 처리 순서도 같다: ① 콘텐츠 조회 → 없으면 `CONTENT_NOT_FOUND`, `status != 'published'`면 `CONTENT_WITHDRAWN` ② `paywall.md` 4.1 판정 → `BLOCKED` / `LIMIT_REACHED`면 403. **차감은 하지 않는다**(발급과 같다). 판정 함수도 발급과 같은 것을 쓴다 — 두 벌이면 오디오는 막히는데 대본은 열리는 어긋남이 생긴다.
+- 응답은 `Cache-Control: no-store`. 대량 수집 방어(레이트 리밋)는 발급과 같은 값이다.
+- **복사·선택 차단은 화면 규칙이다**(`player.md` 4.6 — FR-33). 서버는 텍스트를 그대로 내려준다.
+
+**에러** — 4.1과 같다(`PLAY_LIMIT_EXCEEDED` · `PLAY_LIMIT_REACHED` · `CONTENT_WITHDRAWN` 403, `CONTENT_NOT_FOUND` 404).
+
+---
+
 ## 5. 에러 코드 표
 
 **이 표는 `common-error-handling.md` 9장 중앙 표의 발췌다**(재생 계열 9.5 + 공용 콘텐츠 9.2 + 기반 9.1) — 두 곳이 어긋나면 9장이 기준이다. **플레이어 고유의 신규 코드는 없다** — 이 화면의 모든 분기가 기존 코드로 표현된다(9장에 새로 등재할 것이 없다).
@@ -411,7 +448,7 @@ POST /contents/:content_id/audio-urls (재호출)
 | `source_link_clicks` — 원문 유입 클릭. `content_stats.source_link_click_count`의 유일한 원천 | 6.6 |
 | `contents` — `audio_path`(비노출) · `duration_sec` · `content_version` · `status` · 출처 고지 필드 | 5.1 |
 | `library_items` — 완청 전이(`status` · `completed_at`)의 대상 | 6.1 |
-| `content_scripts` — **P1.** 스크립트 계약 추가 시 사용 | 5.3 |
+| `content_scripts` — 대본 세그먼트(4.7) · 발급 응답의 `has_script`(4.1) | 5.3 |
 | `user_settings` — 배속(`settings-api.md` 4.2 소관) · `sleep_timer_last_choice`(P1, 플레이어 소관) | 3.5 |
 | `idempotency_keys` — `replay`의 중복 흡수 | 1.4 |
 
@@ -426,4 +463,4 @@ POST /contents/:content_id/audio-urls (재호출)
 - ~~90% 도달 시점의 즉시 전송~~ → **해소(2026-08-10): 현행 유지.** 주기 저장에 실려 도달 후 최대 5초 안에 판정이 도착하는 것을 수용한다 — 판정 주체(서버)와 결과는 동일하고, 이탈·일시정지 시에는 어차피 즉시 저장이 나간다. `player.md` 4.3 저장 시점 목록은 바꾸지 않는다.
 - ~~원문 클릭의 오프라인 큐 편입 여부~~ → **해소(2026-08-10): 큐에 편입한다.** `common-error-handling.md` 4.5 표에 등재됨(전부 보존·순서대로 전송). 이에 따라 이 엔드포인트는 `Idempotency-Key` 필수가 됐다(4.5 — 재전송 중복이 정산 지표를 부풀리는 문제는 replay와 같다).
 - **서명 URL 만료값과 갱신 선행 임계** — 만료는 "수 분 단위"(`architecture.md` 9.4)로만 확정이며 구체 값은 서버 설정이다. 계약은 `expires_in_sec`으로 값에 독립적이므로 확정돼도 계약 변경은 없다. 클라이언트의 갱신 선행 시점(만료 몇 초 전)은 구현 규칙으로 정한다.
-- **P1 추가분** — 스크립트 조회(오디오와 동일한 접근 통제 + 발급 응답의 스크립트 존재 플래그 — 버튼 노출 판단용)와 수면 타이머 마지막 선택 저장(`sleep_timer_last_choice` 값 집합 확정 후)은 P1 구현 시 이 문서에 엔드포인트를 추가한다.
+- ~~**P1 추가분** — 스크립트 조회~~ → **해소(2026-09-19, KAN-71)**: 4.7 `GET /contents/:content_id/script` + 4.1 `has_script`. 수면 타이머 마지막 선택 저장(`sleep_timer_last_choice` 값 집합 확정 후)만 P1로 남는다.
