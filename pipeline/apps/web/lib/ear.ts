@@ -180,3 +180,51 @@ export function uploadEarContent(payload: UploadPayload, audio: File, thumbnail:
   if (enrichment) fd.append("enrichment_file", enrichment); // 추천 메타(metadata-pipeline 4.4) — 있으면 첫 발행부터 v2
   return earFetch<EarContent>("/admin/contents", { method: "POST", body: fd });
 }
+
+// ── 편성 미리보기 (admin-api `GET /admin/drip/preview` — 추천 검증 콘솔, 2026-09-18) ──
+
+export interface EarDripTopicRef { topic_id: string; name: string | null }
+export interface EarDripWeight { key: string; name: string | null; weight: number }
+export interface EarDripBreakdown {
+  embedding: number | null; signal: number | null; meta: number | null;
+  signal_items: {
+    topic_preference: number | null; author_preference: number | null; keyword_match: number | null;
+    format_preference: number | null; duration_closeness: number | null;
+  } | null;
+  meta_items: {
+    topic_match: number | null; freshness: number | null; popularity: number | null; difficulty_fit: number | null;
+    career_fit: number | null; series_continuity: number | null; exposure_fatigue: number | null;
+  };
+}
+export interface EarDripCandidate {
+  content_id: string; title: string; author_name: string | null; source_name: string; duration_sec: number;
+  published_at: string; difficulty: string | null; format: string | null; is_evergreen: boolean | null;
+  series_id: string | null; episode_no: number | null; topics: EarDripTopicRef[];
+  play_count: number; complete_count: number; has_embedding: boolean;
+  score: number; is_series_continuation: boolean; breakdown: EarDripBreakdown;
+  /** 최종 편성분이면 1부터, 아니면 null */
+  pick_order: number | null;
+  exposure_count: number | null; is_outside_interests: boolean | null;
+}
+export interface EarDripPreview {
+  computed_at: string; service_date: string;
+  user: { id: string; email: string | null; nickname: string | null; tier: string; job_category: string | null; years_of_experience: number | null; onboarding_completed: boolean };
+  skip_reason: "no_interests" | "unfinished_inventory" | "plan_disabled" | null;
+  unfinished_count: number | null; unfinished_limit: number; drip_count: number | null; discovery_count: number | null;
+  interests: (EarDripTopicRef & { source: string })[]; removed_topics: EarDripTopicRef[];
+  preference: {
+    is_cold_start: boolean | null; complete_signal_count: number | null; cold_start_threshold: number; signal_count: number | null;
+    has_taste_embedding: boolean; duration_pref: { median_sec: number; p25_sec: number; p75_sec: number } | null;
+    topic_weights: EarDripWeight[]; author_weights: EarDripWeight[]; keyword_weights: EarDripWeight[]; format_weights: EarDripWeight[];
+    difficulty_affinity: Record<string, number> | null;
+  };
+  signals: { content_id: string; title: string | null; action: string; created_at: string }[];
+  weights: { axes: { embedding: number; signal: number; meta: number }; signal_items: Record<string, number>; meta_items: Record<string, number>; meta_items_cold_start: Record<string, number>; discovery_items: Record<string, number> };
+  regular: { pool_size: number; gated_out: { content_id: string; title: string; reason: string }[]; recent_drip_topics: EarDripTopicRef[]; candidates: EarDripCandidate[] } | null;
+  discovery: { pool_size: number; quality_floor: number; typical_complete_rate: number; excluded: { content_id: string; title: string; reason: string }[]; candidates: EarDripCandidate[] } | null;
+  discovery_error: string | null;
+  today_placed: { content_id: string; title: string }[];
+}
+/** 매 호출이 서버에서 새로 계산한다(서버도 no-store). 브라우저 캐시도 끈다 */
+export const getEarDripPreview = (email: string) =>
+  earFetch<EarDripPreview>(`/admin/drip/preview?email=${encodeURIComponent(email)}`, { cache: "no-store" });
