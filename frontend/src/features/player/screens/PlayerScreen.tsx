@@ -14,7 +14,6 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { theme } from '@/shared/theme';
@@ -110,7 +109,7 @@ export default function PlayerScreen() {
   const [contentSize, setContentSize] = useState({ width: 0, height: 0 });
   const [controlsHeight, setControlsHeight] = useState(0);
   /** 시크바 트랙 선의 아래 변(시크바 블록 기준) — 재생 목록이 열리면 앨범 커버 하한을 정확히 여기에 맞춘다(PM 2026-09-17) */
-  const [seekTrackBottom, setSeekTrackBottom] = useState(0);
+  const [seekTrackCenter, setSeekTrackCenter] = useState(0);
   // 앱바·손잡이도 실측한다 — 상수로 두면 몇 px 어긋나 접힘 상태의 히어로가 넘치고 컨트롤이 패널을 열 때마다 튄다
   const [appBarHeight, setAppBarHeight] = useState(APP_BAR_HEIGHT);
   const [handleHeight, setHandleHeight] = useState(SCRIPT_HANDLE_HEIGHT);
@@ -403,7 +402,7 @@ export default function PlayerScreen() {
    */
   const heroX = heroBox?.x ?? theme.spacing.lg;
   const heroY = heroBox?.y ?? appBarHeight;
-  const queueArtHeight = appBarHeight + queueHeroHeight + seekTrackBottom;
+  const queueArtHeight = appBarHeight + queueHeroHeight + seekTrackCenter;
   const art = {
     left: Animated.add(
       Animated.add(heroBase.artLeft, heroX),
@@ -524,7 +523,7 @@ export default function PlayerScreen() {
       ? contentSize.width
       : artSizeCollapsed;
   const fullArtHeight = isQueueOpen
-    ? insets.top + appBarHeight + QUEUE_BANNER_HEIGHT + seekTrackBottom
+    ? insets.top + appBarHeight + QUEUE_BANNER_HEIGHT + seekTrackCenter
     : fullArtWidth;
   const fullArtLeft = isHeroCompact
     ? theme.spacing.lg
@@ -821,27 +820,6 @@ export default function PlayerScreen() {
             pointerEvents="none"
             style={[styles.queueTint, { opacity: queueProgress }]}
           />
-          {/*
-            아래쪽 스크림 — 사진 밑변(=시크바 트랙선)으로 갈수록 검게. 하늘처럼 밝은 사진에선 균일한 막만으로
-            흰 시크바가 안 보였다(2026-09-18 PM, 애플 뮤직 방식으로 결정). 열린 만큼만
-          */}
-          <Animated.View
-            pointerEvents="none"
-            style={[styles.queueScrim, { opacity: queueProgress }]}
-            accessibilityElementsHidden
-            importantForAccessibility="no"
-          >
-            <Svg width="100%" height={QUEUE_SCRIM_HEIGHT}>
-              <Defs>
-                <LinearGradient id="queueScrim" x1="0" y1="0" x2="0" y2="1">
-                  <Stop offset="0" stopColor="#000000" stopOpacity={0} />
-                  <Stop offset="0.5" stopColor="#000000" stopOpacity={0.35} />
-                  <Stop offset="1" stopColor="#000000" stopOpacity={0.8} />
-                </LinearGradient>
-              </Defs>
-              <Rect x="0" y="0" width="100%" height={QUEUE_SCRIM_HEIGHT} fill="url(#queueScrim)" />
-            </Svg>
-          </Animated.View>
         </Animated.View>
 
         {/* 앱바 — 제목을 두지 않는다. 동적 텍스트 200%에서 앱바가 먼저 넘친다(uiux 4.1) */}
@@ -979,7 +957,7 @@ export default function PlayerScreen() {
                 durationSec={session.durationSec}
                 disabled={isControlDisabled}
                 onSeekTo={screen.seekTo}
-                onTrackBottom={setSeekTrackBottom}
+                onTrackCenter={setSeekTrackCenter}
               />
             </Animated.View>
             <Animated.View
@@ -1284,8 +1262,6 @@ const MINI_BUTTON_WIDTH = 44;
 const MINI_ROW_HEIGHT = 62;
 /** 미니플레이어 제목(14pt) 한 줄 높이 */
 const MINI_TITLE_LINE_HEIGHT = 20;
-/** 사진 아래쪽 스크림 높이 — 시크바 위로 제목 블록까지 살짝 걸치는 정도 */
-const QUEUE_SCRIM_HEIGHT = 120;
 /** onLayout 이 주는 부모 기준 사각형 */
 interface LayoutBox {
   x: number;
@@ -1498,13 +1474,6 @@ const styles = StyleSheet.create({
     backgroundColor: theme.color.background,
   },
   scriptHandleWrap: {},
-  queueScrim: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: QUEUE_SCRIM_HEIGHT,
-  },
   // 사진 위 글자·시크바 대비 — 재생 목록이 열린 만큼 어두워진다
   queueTint: {
     position: 'absolute',

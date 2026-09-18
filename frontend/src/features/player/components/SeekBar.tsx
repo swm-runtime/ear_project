@@ -15,8 +15,8 @@ interface SeekBarProps {
   onSeekTo: (targetSec: number) => void;
   /** 사진 위에 얹힐 때(재생 목록 열림) — 트랙을 흰색 계열로. 시간 라벨은 사진 밖이라 그대로다 */
   tone?: 'default' | 'onImage';
-  /** 트랙 선의 아래 변(이 컴포넌트 기준 y) — 재생 목록이 열리면 앨범 커버 하한을 여기에 맞춘다 */
-  onTrackBottom?: (bottom: number) => void;
+  /** 트랙 선의 세로 중심(이 컴포넌트 기준 y) — 재생 목록이 열리면 앨범 커버 하한을 여기에 맞춰 썸이 밑변에 걸친다 */
+  onTrackCenter?: (center: number) => void;
 }
 
 /**
@@ -30,7 +30,7 @@ export default function SeekBar({
   disabled,
   onSeekTo,
   tone = 'default',
-  onTrackBottom,
+  onTrackCenter,
 }: SeekBarProps) {
   const onImage = tone === 'onImage';
   const [trackWidth, setTrackWidth] = useState(0);
@@ -113,12 +113,10 @@ export default function SeekBar({
           style={[styles.track, onImage && styles.trackOnImage]}
           // touchArea 가 첫 자식이라 touchArea 기준 y == 컴포넌트 기준 y
           onLayout={(event) =>
-            onTrackBottom?.(event.nativeEvent.layout.y + event.nativeEvent.layout.height)
+            onTrackCenter?.(event.nativeEvent.layout.y + event.nativeEvent.layout.height / 2)
           }
         >
-          <View
-            style={[styles.fill, onImage && styles.fillOnImage, { width: `${ratio * 100}%` }]}
-          />
+          <View style={[styles.fill, { width: `${ratio * 100}%` }]} />
           {/* 전체 폭으로 흘리면 0%·100%에서 손잡이 절반이 화면 밖으로 나간다 —
               측정한 폭 안으로 가둬 항상 온전히 보이게 한다 */}
           <View
@@ -133,7 +131,6 @@ export default function SeekBar({
                       )
                     : 0,
               },
-              onImage && styles.fillOnImage,
               disabled && (onImage ? styles.thumbDisabledOnImage : styles.thumbDisabled),
             ]}
           />
@@ -186,12 +183,10 @@ const styles = StyleSheet.create({
     color: theme.color.textSecondary,
     fontVariant: ['tabular-nums'],
   },
-  // 사진 위 — 어두운 오버레이 위에서 읽히는 흰색 계열(재생 목록 열림, 2026-09-17)
+  // 사진 위(재생 목록 열림) — 트랙만 흰 반투명. 채움·썸은 브랜드색 그대로 두어 밝은 사진에서도
+  // 구분된다(2026-09-18 PM: 흰 채움은 하늘 사진에서 사라졌다)
   trackOnImage: {
     backgroundColor: 'rgba(255, 255, 255, 0.35)',
-  },
-  fillOnImage: {
-    backgroundColor: '#FFFFFF',
   },
   thumbDisabledOnImage: {
     backgroundColor: 'rgba(255, 255, 255, 0.5)',
