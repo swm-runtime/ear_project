@@ -135,6 +135,21 @@ export const blogEmpty = {
   note: "글이 올라오면 이 자리가 목록으로 바뀌어요.",
 } as const;
 
+/**
+ * Topics 섹션의 주제 고르기 — 앱 온보딩 1단계와 같은 규칙(최대 3개, 3개 채우면 미선택 칩 비활성 + 탭 시 토스트,
+ * `onboarding.md` 3장). 랜딩에서는 저장하지 않는다 — 고르는 감각을 먼저 겪게 하고 출시 알림 메일로 잇는다.
+ */
+export const topicPicker = {
+  max: 3,
+  countLabel: (count: number, max: number) => `${count}/${max} 선택`,
+  limitToast: (max: number) => `관심 주제는 ${max}개까지 선택할 수 있어요`,
+  emptyHint: "주제를 눌러 보세요.",
+  summaryTitle: "이 주제로 시작하면",
+  summaryBody: (count: number) => `매일 아침 ${count}개 주제에서 고른 2편이 라이브러리에 도착해요.`,
+  cta: "이 주제로 출시 소식 받기",
+  reset: "다시 고르기",
+} as const;
+
 export const problems = [
   {
     title: "출퇴근길엔 눈도 손도 자유롭지 않아요",
