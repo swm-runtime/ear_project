@@ -31,12 +31,170 @@
 }
 
 .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 8px 15px;
   border-radius: var(--r-pill);
   background: var(--paper-2);
   font-size: 14px;
   font-weight: 600;
   color: var(--text-2);
+}
+
+/* ---------- 고르기(TopicPicker) — 앱 온보딩 1단계 칩과 같은 상태 3종: 기본 · 선택 · 상한 도달 ---------- */
+
+.picker {
+  position: relative;
+}
+
+.counter {
+  margin-top: clamp(28px, 3.5vw, 40px);
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+  transition: color 0.2s ease;
+}
+
+.counterOn {
+  color: var(--brand-700);
+}
+
+.picker .groups {
+  margin-top: 14px;
+}
+
+.chipBtn {
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.18s ease,
+    opacity 0.18s ease;
+}
+
+.chipBtn:hover {
+  border-color: var(--line-2);
+}
+
+.chipBtn:active {
+  transform: scale(0.97);
+}
+
+.chipBtn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* 선택 — 앱처럼 검정 면 위 흰 글자 + 체크 */
+.chipOn {
+  background: var(--brand-700);
+  color: var(--brand-300);
+}
+
+.chipBtn.chipOn:hover {
+  border-color: var(--brand-700);
+}
+
+
+/* 3개를 채운 뒤의 미선택 칩 — 흐려지지만 눌러 볼 수는 있다(토스트가 이유를 말한다) */
+.chipBlocked {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.chipBlocked:hover {
+  border-color: transparent;
+}
+
+.chipSmall {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+/* 요약 패널 — 고르면 아래에서 펼쳐진다 */
+.summary {
+  display: grid;
+  gap: 20px;
+  margin-top: 20px;
+  padding: 0 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-height 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s ease, padding 0.3s ease;
+}
+
+.summaryOn {
+  max-height: 480px;
+  opacity: 1;
+  padding: 24px;
+}
+
+.summaryTitle {
+  font-family: var(--display);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+
+.summaryBody {
+  margin-top: 6px;
+  color: var(--text-2);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.summaryChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.summaryActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.resetBtn {
+  cursor: pointer;
+}
+
+/* 토스트 — 화면 아래 가운데. 앱 토스트와 같은 문구 */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  z-index: 70;
+  padding: 12px 18px;
+  border-radius: var(--r-pill);
+  background: var(--ink-950);
+  color: #f2f2f5;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  transform: translate(-50%, 12px);
+  pointer-events: none;
+  transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.toastOn {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+@media (min-width: 820px) {
+  .summary {
+    grid-template-columns: 1fr auto;
+    align-items: center;
+  }
 }
 
 .note {
