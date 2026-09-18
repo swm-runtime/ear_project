@@ -10,7 +10,8 @@
  * 정렬은 적재 건수 내림차순. 주석의 도메인·건수는 추출 당시 값이다.
  *
  * 다시 뽑을 때: 로그인한 세션으로 `domains` + `domain_stats` 를 읽어 같은 기준으로 걸러 이 목록을 갈아 끼운다.
- * `style` 은 서체 계열(카테고리에서 추정 — 학술·매체는 serif, 오픈소스 공식은 mono, 그 외 sans).
+ * `style` 은 서체 계열(카테고리에서 추정 — 학술·매체는 serif, 오픈소스 공식은 mono, 그 외 sans). **한글 이름은 항상 sans** —
+ * serif·mono 는 라틴 서체라 한글이 시스템 글꼴로 떨어져 서체가 섞인다.
  */
 export const sourceItems = [
   { name: "Thoughtworks Insights", style: "sans" }, // www.thoughtworks.com · 2715건
@@ -26,7 +27,7 @@ export const sourceItems = [
   { name: "Kellogg Insight", style: "serif" }, // insight.kellogg.northwestern.edu · 33건
   { name: "Martin Fowler", style: "sans" }, // martinfowler.com · 30건
   { name: "Nautilus", style: "serif" }, // nautil.us · 30건
-  { name: "어피티", style: "serif" }, // uppity.co.kr · 29건
+  { name: "어피티", style: "sans" }, // uppity.co.kr · 29건 — 한글 이름은 serif 로 두지 않는다(라틴 serif 서체라 한글이 시스템 글꼴로 떨어진다)
   { name: "World History Encyclopedia", style: "serif" }, // www.worldhistory.org · 27건
   { name: "Kubernetes Blog", style: "mono" }, // kubernetes.io · 25건
   { name: "Hugging Face Blog", style: "sans" }, // huggingface.co · 25건
