@@ -97,13 +97,14 @@ export default function MarqueeText({
   }, []);
 
   const overflows = viewportWidth > 0 && textWidth > viewportWidth;
+  /** 한 바퀴 이동 거리 — 원문 + 간격. 반복본이 원문 자리에 오는 지점 */
+  const distance = textWidth + gap;
   const shouldScroll = overflows && !reduceMotion;
 
   useEffect(() => {
     translateX.setValue(0);
     if (!shouldScroll) return;
 
-    const distance = textWidth + gap;
     const loop = Animated.loop(
       Animated.sequence([
         Animated.delay(pauseMs),
@@ -120,7 +121,7 @@ export default function MarqueeText({
     );
     loop.start();
     return () => loop.stop();
-  }, [shouldScroll, textWidth, gap, pauseMs, speed, translateX]);
+  }, [shouldScroll, distance, pauseMs, speed, translateX]);
 
   const flat = StyleSheet.flatten(style) ?? {};
   const fontSize = flat.fontSize ?? 16;
@@ -132,18 +133,22 @@ export default function MarqueeText({
     setViewportWidth(event.nativeEvent.layout.width);
   const onTextLayout = (event: LayoutChangeEvent) => setTextWidth(event.nativeEvent.layout.width);
 
-  // 왼쪽 페이드 — 글자가 페이드 폭만큼 흘러 들어간 뒤 완전히 켜진다(멈춰 있는 처음엔 0)
-  const leftFadeOpacity = translateX.interpolate({
-    inputRange: [-fadeWidth, 0],
-    outputRange: [1, 0],
-    extrapolate: 'clamp',
-  });
-  const leftSolidOpacity = translateX.interpolate({
-    inputRange: [-fadeWidth, 0],
-    outputRange: [0, 1],
-    extrapolate: 'clamp',
-  });
   const fade = Math.min(fadeWidth, viewportWidth / 3);
+  /*
+   * 왼쪽 페이드 — 글자가 페이드 폭만큼 흘러 들어간 뒤 켜지고(멈춰 있는 처음엔 0), 한 바퀴의 **마지막 페이드
+   * 폭 구간에서 미리 꺼진다**(2026-09-18 PM). 그 구간엔 반복본의 머리가 왼쪽 끝으로 들어오는 중이라, 켜 둔 채
+   * 0으로 되감으면 흐리던 첫 글자가 순간 진해지는 팝이 보인다. 미리 꺼 두면 멈추는 순간 이미 진하다
+   */
+  const leftFadeRange =
+    distance > fade * 2
+      ? { inputRange: [-distance, -distance + fade, -fade, 0], outputRange: [0, 1, 1, 0] }
+      : { inputRange: [-fade, 0], outputRange: [1, 0] };
+  const leftFadeOpacity = translateX.interpolate({ ...leftFadeRange, extrapolate: 'clamp' });
+  const leftSolidOpacity = translateX.interpolate({
+    inputRange: leftFadeRange.inputRange,
+    outputRange: leftFadeRange.outputRange.map((v) => 1 - v),
+    extrapolate: 'clamp',
+  });
   const baselineY = lineHeight / 2 + fontSize * BASELINE_RATIO;
 
   return (
