@@ -95,7 +95,7 @@ export const useSettingsScreen = () => {
   useFocusEffect(refreshOsPermission);
 
   // OS 설정에서 권한을 바꾸고 돌아온 경우 토글 톤·배너 노출을 갱신한다(settings.md 7장).
-  // TODO(notification 본개발): 서버 동기화(PUT devices)는 AppLifecycleService가 이어받는다(architecture.md 5.5)
+  // 서버 동기화(PUT devices)는 여기가 아니라 notification 의 기기 동기화 서비스가 한다(architecture.md 5.5)
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => {
       if (state === 'active') refreshOsPermission();

@@ -11,6 +11,13 @@ import {
   restoreLibraryItem,
 } from '@/features/library';
 import {
+  clearPushState,
+  resetDeviceSync,
+  startDeviceSync,
+  startPushReceiving,
+  syncDeviceNow,
+} from '@/features/notification';
+import {
   registerPlayerLibraryBridge,
   startWithdrawnSync,
   stopPlaybackForSignOut,
@@ -91,7 +98,24 @@ export const bootstrapApp = (): void => {
    * 로그인 여부 판정을 주입한다: player가 auth를 직접 import하면 의존 표(4.4)를 어기고,
    * 로그아웃 상태로 조회하면 401이 토큰 갱신 실패로 번진다.
    */
-  startWithdrawnSync(() => useSessionStore.getState().status === 'authenticated');
+  const isSignedIn = (): boolean => useSessionStore.getState().status === 'authenticated';
+  startWithdrawnSync(isSignedIn);
+
+  /*
+   * 기기 동기화(notification.md 4.2 · architecture.md 5.5) — 포그라운드 복귀·토큰 변경마다
+   * OS 권한과 푸시 토큰을 서버에 맞춘다. 로그인 여부를 주입하는 이유는 회수 동기화와 같다.
+   */
+  startDeviceSync(isSignedIn);
+
+  /*
+   * 푸시 수신·탭(notification.md 4.4·4.5). 포그라운드 도착이면 라이브러리 목록을 조용히
+   * 갱신한다 — notification이 library의 쿼리 키를 알지 않도록 여기서 배선한다.
+   */
+  startPushReceiving({
+    onForegroundArrival: () => {
+      void queryClient.invalidateQueries({ queryKey: libraryKeys.all });
+    },
+  });
 
   /*
    * **로그인 완료를 동기화 신호로 삼는다.** 기동 시점의 세션은 아직 `restoring`이라
@@ -101,6 +125,8 @@ export const bootstrapApp = (): void => {
   useSessionStore.subscribe((state, previous) => {
     if (state.status === 'authenticated' && previous.status !== 'authenticated') {
       syncWithdrawnContents();
+      // 서버는 로그아웃 때 이 기기의 토큰을 지운다 — 다시 로그인했으면 다시 올려야 알림이 온다
+      syncDeviceNow();
     }
     /*
      * 로그아웃·탈퇴·세션 만료 → **재생을 끊는다**(auth.md 4.2-3). 지금까지 세션만
@@ -110,6 +136,9 @@ export const bootstrapApp = (): void => {
      */
     if (previous.status === 'authenticated' && state.status !== 'authenticated') {
       stopPlaybackForSignOut();
+      // 앞 사용자가 탭한 알림의 목적지·배너를 다음 사용자에게 넘기지 않는다
+      clearPushState();
+      resetDeviceSync();
       // 다음 사용자가 앞 사용자의 탭에서 시작하면 안 된다(splash.md 4장 4-1)
       forgetTab();
     }

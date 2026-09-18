@@ -15,11 +15,13 @@ import { LibraryScreen } from '@/features/library';
 import { NoticeDetailScreen, NoticeListScreen } from '@/features/notice';
 import {
   NotificationPrePromptModal,
+  PushArrivalBanner,
   usePrePromptGate,
+  usePushLinkGate,
   useNotificationStore,
 } from '@/features/notification';
 import { FirstRunTutorial } from '@/features/onboarding';
-import { PlayerScreen } from '@/features/player';
+import { PlayConfirmDialog, PlayerScreen } from '@/features/player';
 import { ProfileScreen } from '@/features/profile';
 import { SettingsScreen } from '@/features/settings';
 
@@ -126,6 +128,8 @@ export default function MainNavigator() {
   const clearPrePromptPending = useNotificationStore((s) => s.clearPrePromptPending);
   // 코치마크가 끝난 뒤에야 열린다 — 동시에 뜨면 모달이 코치마크를 덮는다(usePrePromptGate)
   const isPrePromptVisible = usePrePromptGate();
+  // 탭된 알림의 목적지로 보낸다 — Main 이 떴다는 것이 관문 통과다(notification.md 4.4)
+  const pushGate = usePushLinkGate();
 
   return (
     <>
@@ -197,6 +201,18 @@ export default function MainNavigator() {
         syncOnDismiss
         onFinished={clearPrePromptPending}
       />
+
+      {/* 푸시 딥링크 재생의 확인 팝업 — 딥링크도 팝업 규칙의 예외가 아니다(paywall.md 4.2) */}
+      <PlayConfirmDialog
+        visible={pushGate.confirmState !== null}
+        remaining={pushGate.confirmState?.remaining ?? 0}
+        onConfirm={pushGate.confirmPlay}
+        onCancel={pushGate.cancelConfirm}
+        onSuppressToday={pushGate.suppressAndPlay}
+      />
+
+      {/* 포그라운드 수신 — OS 배너 대신 그린다(notification.md 4.5). 어느 화면 위에도 얹힌다 */}
+      <PushArrivalBanner />
     </>
   );
 }
