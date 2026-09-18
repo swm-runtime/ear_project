@@ -116,7 +116,9 @@ export default function SeekBar({
             onTrackCenter?.(event.nativeEvent.layout.y + event.nativeEvent.layout.height / 2)
           }
         >
-          <View style={[styles.fill, { width: `${ratio * 100}%` }]} />
+          <View
+            style={[styles.fill, onImage && styles.fillOnImage, { width: `${ratio * 100}%` }]}
+          />
           {/* 전체 폭으로 흘리면 0%·100%에서 손잡이 절반이 화면 밖으로 나간다 —
               측정한 폭 안으로 가둬 항상 온전히 보이게 한다 */}
           <View
@@ -131,6 +133,7 @@ export default function SeekBar({
                       )
                     : 0,
               },
+              onImage && styles.fillOnImage,
               disabled && (onImage ? styles.thumbDisabledOnImage : styles.thumbDisabled),
             ]}
           />
@@ -145,6 +148,8 @@ export default function SeekBar({
 }
 
 const THUMB_SIZE = 14;
+/** 사진 위 채움·썸 — 밝은·어두운 사진 어느 쪽에서도 떨어지는 중간 회색 */
+const ON_IMAGE_FILL_COLOR = '#A0A0A8';
 
 const styles = StyleSheet.create({
   touchArea: {
@@ -183,10 +188,13 @@ const styles = StyleSheet.create({
     color: theme.color.textSecondary,
     fontVariant: ['tabular-nums'],
   },
-  // 사진 위(재생 목록 열림) — 트랙만 흰 반투명. 채움·썸은 브랜드색 그대로 두어 밝은 사진에서도
-  // 구분된다(2026-09-18 PM: 흰 채움은 하늘 사진에서 사라졌다)
+  // 사진 위(재생 목록 열림) — 트랙은 흰 반투명, 채움·썸은 중간 회색(2026-09-18 PM). 흰색은 하늘 사진에서,
+  // 검정은 어두운 사진에서 사라졌다 — 회색은 어느 쪽 배경과도 어느 정도 떨어진다
   trackOnImage: {
     backgroundColor: 'rgba(255, 255, 255, 0.35)',
+  },
+  fillOnImage: {
+    backgroundColor: ON_IMAGE_FILL_COLOR,
   },
   thumbDisabledOnImage: {
     backgroundColor: 'rgba(255, 255, 255, 0.5)',
