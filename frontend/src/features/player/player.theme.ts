@@ -1,7 +1,7 @@
 import { theme } from '@/shared/theme';
 
 /**
- * 전체 플레이어 전용 색 — **바탕 검정, 포인트 흰색**(2026-09-18 PM 결정).
+ * 전체 플레이어 전용 색 — **바탕 어두운 차콜, 포인트 흰색**(2026-09-18 PM 결정).
  *
  * 앱의 나머지(탭 화면·미니플레이어)는 밝은 `theme.color`를 그대로 쓰고, 전체 플레이어와 그 안의 패널
  * (재생 목록·대본)·바텀시트(더보기·배속)만 이 팔레트를 쓴다. 키 이름을 `theme.color`와 같게 둬서
@@ -13,13 +13,14 @@ import { theme } from '@/shared/theme';
  * 값은 `theme.color`와 마찬가지로 디자인 확정 전 임시값이다.
  */
 export const playerColor = {
-  background: '#000000',
+  // 순검정(#000)은 너무 꺼멓다는 PM 지적(2026-09-18) — 살짝 띄운 차콜. 사진·흰 글자 대비는 그대로 충분하다
+  background: '#17171A',
   /** 카드·현재 문단·시트처럼 바탕에서 한 단 올라온 면 */
-  surface: '#1C1C1E',
+  surface: '#26262B',
   textPrimary: '#FFFFFF',
   textSecondary: '#A0A0A8',
   /** 트랙·비활성 아이콘·구분 — 검정 위에서 보이되 튀지 않는 회색 */
-  border: '#3A3A3C',
+  border: '#45454C',
   /** 포인트 — 재생 버튼·채움·현재 표시 */
   primary: '#FFFFFF',
   onPrimary: '#000000',
