@@ -7,7 +7,21 @@
  *   - 본문 접근 차단 표시(`fetch_blocked_at`)가 없는 곳
  *   - 스윕으로 실제 적재된 소스가 10건 이상인 곳(domain_stats.source_count)
  *   - 표시 이름은 `publisher` 에서 괄호 설명을 뗀 것. Frontiers 저널 8종은 "Frontiers" 하나로 합쳤다
+ *   - **robots.txt · 약관 · 라이선스 확인(2026-09-18)에서 걸린 곳은 뺐다** — 아래 "제외" 목록. 확인 방법: robots 의
+ *     전면·AI 봇 차단, 홈 푸터의 라이선스 표기, 약관 페이지의 AI·TDM·스크래핑·비상업 조항. 금지 조항이 확인된 곳만
+ *     뺐고, 약관을 못 찾은 상업 매체·개인 블로그는 스펙(01-source-pool 2장)대로 2군 후보로 남겼다
  * 정렬은 적재 건수 내림차순. 주석의 도메인·건수는 추출 당시 값이다.
+ *
+ * 제외(금지 조항 확인):
+ *   - World History Encyclopedia — 약관에 AI 학습·자동 수집 금지 명시, 라이선스가 CC BY-NC(비상업)
+ *   - Cloudflare Blog — 웹사이트 약관 8조 "AI 제한" — 봇으로 자료를 수집해 AI 시스템에 쓰는 것을 금지
+ *   - Stack Overflow Blog — robots.txt 가 GPTBot 을 차단하고 데이터 라이선스 판매 프로그램을 운영(무허가 AI 이용 반대 입장)
+ *   - JSTOR Daily — 약관 "개인적·비상업적 이용만", 그 외는 ITHAKA 서면 허락 필요
+ *   - JetBrains Blog — 웹사이트 약관 "비상업 목적만", 2차적 저작물 금지
+ *   - 어피티 — 저작권 안내 — 상업적 이용 시 손해배상, 기사 전문 이용은 비상업이라도 허락 필요
+ *   - Nautilus — 약관 "어떤 자료도 복제·재게재·배포 불가"(명시 허락 제외), 상업 매체
+ *   - The Transmitter — 시몬스 재단 약관 "개인적·비상업적 이용만, 자동화된 수집 금지"; 재게재는 원문 무편집 조건
+ *   - Eos — 기사 라이선스 CC BY-NC-ND 3.0(비상업·변경 금지)
  *
  * 다시 뽑을 때: 로그인한 세션으로 `domains` + `domain_stats` 를 읽어 같은 기준으로 걸러 이 목록을 갈아 끼운다.
  * `style` 은 서체 계열(카테고리에서 추정 — 학술·매체는 serif, 오픈소스 공식은 mono, 그 외 sans). **한글 이름은 항상 sans** —
@@ -26,14 +40,10 @@ export const sourceItems = [
   { name: "The Marginalian", style: "sans" }, // www.themarginalian.org · 40건
   { name: "Kellogg Insight", style: "serif" }, // insight.kellogg.northwestern.edu · 33건
   { name: "Martin Fowler", style: "sans" }, // martinfowler.com · 30건
-  { name: "Nautilus", style: "serif" }, // nautil.us · 30건
-  { name: "어피티", style: "sans" }, // uppity.co.kr · 29건 — 한글 이름은 serif 로 두지 않는다(라틴 serif 서체라 한글이 시스템 글꼴로 떨어진다)
-  { name: "World History Encyclopedia", style: "serif" }, // www.worldhistory.org · 27건
   { name: "Kubernetes Blog", style: "mono" }, // kubernetes.io · 25건
   { name: "Hugging Face Blog", style: "sans" }, // huggingface.co · 25건
   { name: "LINE 기술블로그", style: "sans" }, // techblog.lycorp.co.jp · 25건
   { name: "SK플래닛 기술블로그", style: "sans" }, // techtopic.skplanet.com · 25건
-  { name: "Stack Overflow Blog", style: "sans" }, // stackoverflow.blog · 25건
   { name: "Node.js Blog", style: "mono" }, // nodejs.org · 25건
   { name: "데브시스터즈 기술블로그", style: "sans" }, // tech.devsisters.com · 25건
   { name: "카카오스타일 기술블로그", style: "sans" }, // devblog.kakaostyle.com · 25건
@@ -43,16 +53,12 @@ export const sourceItems = [
   { name: "토스 블로그", style: "sans" }, // blog.toss.im · 23건
   { name: "Frontiers", style: "serif" }, // frontiersin.org/journals/cognition · 20건
   { name: "Mozilla Hacks", style: "sans" }, // hacks.mozilla.org · 20건
-  { name: "Cloudflare Blog", style: "sans" }, // blog.cloudflare.com · 20건
   { name: "네이버 D2", style: "sans" }, // d2.naver.com · 20건
   { name: "토스 기술블로그", style: "sans" }, // toss.tech · 20건
   { name: "Google Developers Blog", style: "sans" }, // developers.googleblog.com · 20건
-  { name: "JSTOR Daily", style: "serif" }, // daily.jstor.org · 17건
   { name: "The Pragmatic Engineer", style: "sans" }, // blog.pragmaticengineer.com · 15건
   { name: "InfoQ", style: "serif" }, // www.infoq.com · 15건
-  { name: "Eos", style: "serif" }, // eos.org · 15건
   { name: "미국 연방준비제도", style: "sans" }, // www.federalreserve.gov · 15건
-  { name: "JetBrains Blog", style: "sans" }, // blog.jetbrains.com · 12건
   { name: "HBS Working Knowledge", style: "serif" }, // hbswk.hbs.edu · 12건
   { name: "Our World in Data", style: "serif" }, // ourworldindata.org · 12건
   { name: "Neuroscience News", style: "serif" }, // neurosciencenews.com · 12건
@@ -65,7 +71,6 @@ export const sourceItems = [
   { name: "우아한형제들 기술블로그", style: "sans" }, // techblog.woowahan.com · 10건
   { name: "NASA", style: "sans" }, // www.nasa.gov · 10건
   { name: "The Public Medievalist", style: "sans" }, // www.publicmedievalist.com · 10건
-  { name: "The Transmitter", style: "serif" }, // www.thetransmitter.org · 10건
   { name: "Microsoft DevBlogs", style: "sans" }, // devblogs.microsoft.com · 10건
   { name: "Dropbox Tech", style: "sans" }, // dropbox.tech · 10건
   { name: "카카오 기술블로그", style: "sans" }, // tech.kakao.com · 10건
