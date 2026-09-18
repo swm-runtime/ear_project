@@ -10,7 +10,7 @@ import s from "./Sources.module.css";
 const LINE_STARTS = [90, 300, 500, 700, 900, 1110];
 const VIEW_W = 1200;
 const VIEW_H = 220;
-/** 선을 타고 내려오는 대표 5곳 — 이름·로고·타는 줄기는 content/sources.ts(운영 DB에서 가져온 값)가 원천이다 */
+/** 선을 타고 내려오는 대표 5곳 — 이름·약칭·색·타는 줄기는 content/sources.ts(운영 DB에서 가져온 값)가 원천이다 */
 const TRAVELERS = sources.featured;
 /** 이어 마크 원(.nodeMark 56px)의 중심은 선 끝보다 이만큼 아래다 — 배지가 마지막에 그 중심까지 내려와 스며든다 */
 const NODE_CENTER_DY = 28;
@@ -32,7 +32,7 @@ const easeInOut = (t: number) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2,
  * 자료 칩의 위치는 실제 SVG 선(`getPointAtLength`)에서 읽어 어느 화면 폭에서도 선 위를 정확히 탄다.
  *
  * 좁은·낮은 화면과 reduced-motion에서는 고정하지 않고 종전 스크롤 등장(ScrollReveal의 .is-visible)만 쓴다.
- * 띠의 이름과 배지의 로고는 운영 DB(admin) 출처 풀에서 가져온다 — content/sources.ts.
+ * 띠의 이름과 배지의 약칭은 운영 DB(admin) 출처 풀에서 가져온다 — content/sources.ts. 로고 그림은 쓰지 않는다.
  */
 export function Sources() {
   const stageRef = useRef<HTMLElement>(null);
@@ -196,12 +196,11 @@ export function Sources() {
                 ref={(el) => {
                   chipRefs.current[i] = el;
                 }}
-                className={s.badge}
+                className={`${s.badge} ${s[`badge_${t.style}`]}`}
+                style={{ "--brand": t.color, "--fs": `${t.size}px` } as React.CSSProperties}
                 title={t.name}
               >
-                {/* 공식 아이콘 — 정적 PNG라 next/image 최적화가 필요 없다 */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img className={s.badgeLogo} src={t.logo} alt="" width={34} height={34} loading="lazy" />
+                {t.mark}
               </span>
             ))}
           </div>

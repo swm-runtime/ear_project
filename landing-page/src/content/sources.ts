@@ -82,13 +82,14 @@ export const sourceItems = [
 
 /**
  * 선을 타고 내려오는 대표 5곳 — 위 목록 중 적재·실제 참고(ok_count)가 많고 알아보기 쉬운 곳을 골랐다.
- * 로고는 각 사이트의 공식 아이콘(favicon)을 받아 `public/sources/` 에 두었다. **로고 그림을 쓰기로 한 결정은
- * 2026-09-18 사용자 지시**다(종전 "상표 문제로 글자만" 결정을 뒤집음).
+ * 배지는 **글자 약칭**을 원 위에 얹는다. 로고 그림은 쓰지 않는다 — 마케팅 페이지의 로고는 제휴·보증으로 읽히고
+ * 기관 브랜드 가이드가 사전 허락을 요구한다(2026-09-18 로고로 바꿨다가 같은 날 글자로 되돌림). `size`는 글자 크기(px),
+ * `style`은 서체 계열, `line`은 타는 줄기(Sources.tsx LINE_STARTS 인덱스).
  */
 export const featuredSources = [
-  { name: "MIT News", logo: "/sources/mit-news.png", line: 0 }, // news.mit.edu · 대학 발행
-  { name: "arXiv", logo: "/sources/arxiv.png", line: 1 }, // arxiv.org · 학술 오픈액세스
-  { name: "Frontiers", logo: "/sources/frontiers.png", line: 2 }, // frontiersin.org · 학술 오픈액세스, 실제 참고 최다 묶음
-  { name: "PsyPost", logo: "/sources/psypost.jpg", line: 4 }, // psypost.org · 글로벌 미디어, 실제 참고 1위(14건)
-  { name: "토스 기술블로그", logo: "/sources/toss-tech.png", line: 5 }, // toss.tech · 국내 기업 기술블로그
+  { name: "MIT News", mark: "MIT", color: "#a31f34", size: 13, style: "sans", line: 0 }, // news.mit.edu · 대학 발행
+  { name: "arXiv", mark: "arXiv", color: "#b31b1b", size: 12, style: "mono", line: 1 }, // arxiv.org · 학술 오픈액세스
+  { name: "Frontiers", mark: "Frontiers", color: "#1a1a1e", size: 9.5, style: "serif", line: 2 }, // frontiersin.org · 학술 오픈액세스, 실제 참고 최다 묶음
+  { name: "PsyPost", mark: "PsyPost", color: "#1d4ed8", size: 10.5, style: "sans", line: 4 }, // psypost.org · 글로벌 미디어, 실제 참고 1위(14건)
+  { name: "토스 기술블로그", mark: "toss", color: "#0064ff", size: 13, style: "sans", line: 5 }, // toss.tech · 국내 기업 기술블로그
 ] as const;

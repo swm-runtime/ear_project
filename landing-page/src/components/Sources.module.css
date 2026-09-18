@@ -174,7 +174,7 @@
   pointer-events: none;
 }
 
-/* 원형 배지 — 흰 원 안에 출처의 공식 아이콘(public/sources). 이어 마크 원(.nodeMark)과 같은 결 */
+/* 원형 배지 — 브랜드 색 원 위에 약칭 글자. 로고 그림 대신(상표·보증 오인) "로고처럼" 읽히는 최소 형태 */
 .badge {
   position: absolute;
   left: 0;
@@ -184,20 +184,31 @@
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  border: 1px solid var(--line);
-  background: var(--paper);
+  border: 2px solid var(--paper);
+  background: var(--brand, var(--ink-900));
+  color: #fff;
+  font-size: var(--fs, 13px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  white-space: nowrap;
   box-shadow: var(--shadow-md);
-  overflow: hidden;
   will-change: transform, opacity;
   opacity: 0;
 }
 
-.badgeLogo {
-  display: block;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  object-fit: cover;
+.badge_serif {
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 700;
+}
+
+.badge_mono {
+  font-family: var(--mono);
+  letter-spacing: 0;
+}
+
+.badge_sans {
+  font-family: var(--sans);
 }
 
 .pinned .badge {
