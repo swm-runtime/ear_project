@@ -131,7 +131,6 @@
   from { transform: skewX(-18deg) translateX(0); }
   to { transform: skewX(-18deg) translateX(-33.3333%); }
 }
-}
 
 @media (prefers-reduced-motion: reduce) {
   .pointerGlow {
