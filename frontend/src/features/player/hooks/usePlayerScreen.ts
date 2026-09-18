@@ -208,6 +208,8 @@ export const usePlayerScreen = () => {
           sourceName: item.sourceName ?? undefined,
           thumbnailUrl: item.thumbnailUrl ?? undefined,
           durationSec: item.durationSec ?? undefined,
+          // 고른 편의 주제 — 빠뜨리면 카테고리 줄이 사라진다(2026-09-18 PM 지적)
+          topicIds: item.topicIds,
         },
       },
       'library',

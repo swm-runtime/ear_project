@@ -262,6 +262,16 @@ export const useLibraryScreen = () => {
       ? resumeTarget
       : null;
 
+  /*
+   * 복원 대상의 주제 — 복원 계약(library-api.md 4.3)의 content 에는 주제가 없다. 받아 둔 목록에서 같은 항목을
+   * 찾아 채운다: 이게 없으면 미니플레이어로 연 플레이어에서만 카테고리 줄이 빈다(2026-09-18 PM 지적).
+   * 목록에 아직 없으면(다음 페이지) 비워 둔다 — 재생 시작 응답에 topics 를 싣는 BE 요청이 근본 해결이다
+   * (changes/pending/player-controls-redesign.md 계약 요청 1)
+   */
+  const resumeTopicIds = visibleResumeTarget
+    ? items.find((item) => item.id === visibleResumeTarget.id)?.content.topicIds
+    : undefined;
+
   /** L4 [상세 정보] — 시트를 닫고 상세 화면으로 이동한다(content-detail.md 2장). 뒤로가기로
       복귀하며 목록 스크롤 위치는 유지된다(화면이 스택 위에 쌓일 뿐 목록은 언마운트되지 않는다) */
   const openDetail = (item: LibraryItem) => {
@@ -368,6 +378,7 @@ export const useLibraryScreen = () => {
           title: target.content.title,
           thumbnailUrl: target.content.thumbnailUrl,
           durationSec: target.content.durationSec,
+          topicIds: resumeTopicIds,
         },
         // 회수된 콘텐츠면 미니플레이어를 내리고 같은 안내를 띄운다(uiux 4.11)
         onWithdrawn: () => dismissResume(target.id),
@@ -390,6 +401,7 @@ export const useLibraryScreen = () => {
           title: visibleResumeTarget.content.title,
           thumbnailUrl: visibleResumeTarget.content.thumbnailUrl,
           durationSec: visibleResumeTarget.content.durationSec,
+          topicIds: resumeTopicIds,
         },
       },
     });
