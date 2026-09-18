@@ -161,6 +161,8 @@ export const sources = {
   eyebrow: "Sources",
   title: "다른 팟캐스트에는 없는 자료를 들려드려요",
   lede: "대학 연구실, 해외 매체, 기술 블로그, 논문. 읽어야만 볼 수 있던 자료를 활용해 팟캐스트로 만들어요.",
+  /** 리드 아래 한 줄 — 출처 표기 원칙을 먼저 밝힌다(2026-09-18, 사용자 요청: 자료 활용에 대한 방어 태세) */
+  note: "모든 활용 자료는 저작권을 확인한 후 출처를 남기고 있어요.",
   caption: "이런 자료를 담아 매일 팟캐스트를 만들어요.",
   items: sourceItems,
   featured: featuredSources,

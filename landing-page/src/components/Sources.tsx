@@ -141,6 +141,7 @@ export function Sources() {
           <p className="sectionLede">
             <Sentences text={sources.lede} />
           </p>
+          <p className={s.note}>{sources.note}</p>
         </div>
 
         {/* 워드마크 띠 — 컨테이너 밖까지 흐른다. 반복 목록이라 보조기기에는 첫 목록만 읽힌다 */}

@@ -29,6 +29,13 @@
   overflow: hidden;
 }
 
+/* 리드 아래 출처 원칙 한 줄 — TRY 섹션의 안내 문구(.note, TrySample.module.css)와 같은 크기·색 */
+.note {
+  margin-top: 14px;
+  color: var(--text-3);
+  font-size: 14px;
+}
+
 /* ---------- 워드마크 띠 ---------- */
 
 .band {
