@@ -27,7 +27,28 @@ const DEFAULT_GAP = 56;
  * 글자 두 개 폭쯤. 좁으면 마지막 글자가 반쯤 남은 채 가장자리에 부딪히고(2026-09-17), 넓으면 가리는 게 세서
  * 제목 폭이 줄어 보인다(2026-09-18 PM) — 끝 10%만 완전 투명이면 이 폭으로 충분하다
  */
-const DEFAULT_FADE_WIDTH = 56;
+const DEFAULT_FADE_WIDTH = 64;
+/** 페이드 구간에서 완전 투명이 되는 지점(0~1) — 그 뒤는 가장자리까지 0 */
+const FADE_END = 0.9;
+/** 곡선을 이 개수의 stop 으로 근사한다 — 선형 보간 사이 꺾임이 보이지 않을 만큼 */
+const FADE_STOPS = 9;
+
+/**
+ * 가장자리 페이드 곡선 — 코사인 ease-in-out. 양끝에서 기울기가 0이라 "진하다가 갑자기 흐려지는" 꺾임도,
+ * "옅게 오래 끌리는" 꼬리도 없다(2026-09-18 PM: 계단처럼 보이는 3단 곡선 대신 자연스럽게).
+ * `edge` 는 0(뷰포트 바깥쪽 끝)~1(안쪽), 반환은 그 지점의 글자 불투명도
+ */
+const fadeOpacity = (edge: number) => {
+  const t = Math.min(1, edge / FADE_END);
+  return 0.5 - 0.5 * Math.cos(Math.PI * t);
+};
+/** 바깥쪽이 offset 0 인 방향(왼쪽 페이드)과 안쪽이 0 인 방향(오른쪽 페이드)의 stop 목록 */
+const fadeStops = (outerFirst: boolean) =>
+  Array.from({ length: FADE_STOPS }, (_, i) => {
+    const offset = i / (FADE_STOPS - 1);
+    const edge = outerFirst ? offset : 1 - offset;
+    return { offset, opacity: Number(fadeOpacity(edge).toFixed(3)) };
+  });
 /** 트랙 폭 — 어떤 제목보다 넓기만 하면 된다. 뷰포트가 잘라 보이지 않는다 */
 const TRACK_WIDTH = 10000;
 /** 한글·라틴 글자의 시각적 가운데는 기준선에서 글자 크기의 이 비율만큼 위다 — SVG 텍스트를 줄 가운데에 앉히는 값 */
@@ -152,22 +173,28 @@ export default function MarqueeText({
             {/*
               마스크는 **알파**로 쓴다(2026-09-18) — 밝기(luminance) 마스크는 회색을 감마 보정해 읽어서 플랫폼마다
               곡선이 달랐고, 웹에선 가장자리에 20~30% 불투명도가 남아 글자가 세로로 툭 끊겼다. 알파는 stopOpacity 가
-              곧 글자의 불투명도라 어디서나 같다. 가장자리 10%만 완전 투명 — 경계에 닿기 전에 0이 되되, 그 앞은
-              최대한 진하게 남겨 제목 폭이 줄어 보이지 않게 한다
+              곧 글자의 불투명도라 어디서나 같다. 곡선은 `fadeOpacity` — 가장자리 10%는 완전 투명이라 경계에 닿기
+              전에 0이 된다
             */}
             <LinearGradient id={`${uid}-left`} x1="0" y1="0" x2="1" y2="0">
-              <Stop offset="0" stopColor="#FFFFFF" stopOpacity="0" />
-              <Stop offset="0.1" stopColor="#FFFFFF" stopOpacity="0" />
-              <Stop offset="0.35" stopColor="#FFFFFF" stopOpacity="0.35" />
-              <Stop offset="0.65" stopColor="#FFFFFF" stopOpacity="0.8" />
-              <Stop offset="1" stopColor="#FFFFFF" stopOpacity="1" />
+              {fadeStops(true).map((stop) => (
+                <Stop
+                  key={stop.offset}
+                  offset={stop.offset}
+                  stopColor="#FFFFFF"
+                  stopOpacity={stop.opacity}
+                />
+              ))}
             </LinearGradient>
             <LinearGradient id={`${uid}-right`} x1="0" y1="0" x2="1" y2="0">
-              <Stop offset="0" stopColor="#FFFFFF" stopOpacity="1" />
-              <Stop offset="0.35" stopColor="#FFFFFF" stopOpacity="0.8" />
-              <Stop offset="0.65" stopColor="#FFFFFF" stopOpacity="0.35" />
-              <Stop offset="0.9" stopColor="#FFFFFF" stopOpacity="0" />
-              <Stop offset="1" stopColor="#FFFFFF" stopOpacity="0" />
+              {fadeStops(false).map((stop) => (
+                <Stop
+                  key={stop.offset}
+                  offset={stop.offset}
+                  stopColor="#FFFFFF"
+                  stopOpacity={stop.opacity}
+                />
+              ))}
             </LinearGradient>
             {/*
               마스크는 뷰포트보다 훨씬 넓게 잡는다 — 네이티브 SVG 는 마스크 영역 밖의 글자를 숨기지 않아, 흐르는
