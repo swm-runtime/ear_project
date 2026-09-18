@@ -933,7 +933,13 @@ export default function PlayerScreen() {
               onLayout={onTitleLayout}
             >
               {/* 한 줄 고정 — 넘치면 흘러서 끝까지 보여준다(2026-09-16, 두 줄 접기에서 변경) */}
-              <MarqueeText text={session.meta.title ?? ''} style={styles.title} />
+              {/* 전환(모션 레이어) 동안은 0에 세워 둔다 — 가려진 채 흘러가 있으면 전환이 끝나는 순간 중간부터
+                  나타나 정지 제목과 어긋난다. 다 올라오면 처음부터 흐른다(2026-09-18 PM) */}
+              <MarqueeText
+                text={session.meta.title ?? ''}
+                style={styles.title}
+                isPaused={isMorphing}
+              />
               {categoryLabel !== null ? (
                 <Text style={styles.category} numberOfLines={1}>
                   {categoryLabel}
@@ -948,6 +954,7 @@ export default function PlayerScreen() {
               <MarqueeText
                 text={session.meta.title ?? ''}
                 style={[styles.title, styles.onImageTitle]}
+                isPaused={isMorphing}
               />
               {categoryLabel !== null ? (
                 <Text style={[styles.category, styles.onImageCategory]} numberOfLines={1}>
@@ -960,7 +967,11 @@ export default function PlayerScreen() {
               pointerEvents="none"
               onLayout={onCompactTitleLayout}
             >
-              <MarqueeText text={session.meta.title ?? ''} style={styles.compactTitle} />
+              <MarqueeText
+                text={session.meta.title ?? ''}
+                style={styles.compactTitle}
+                isPaused={isMorphing}
+              />
               {categoryLabel !== null ? (
                 <Text style={styles.category} numberOfLines={1}>
                   {categoryLabel}

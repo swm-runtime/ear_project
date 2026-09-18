@@ -1,4 +1,4 @@
-import { useNavigation } from '@react-navigation/native';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
@@ -66,6 +66,9 @@ export default function MiniPlayer({
   onResumeDismiss,
 }: MiniPlayerProps) {
   const navigation = useNavigation();
+  // 플레이어(투명 모달)가 위에 떠 있는 동안 이 화면은 포커스를 잃는다 — 그동안 제목 흐름을 0에 세워 두면
+  // 플레이어가 닫혀 내려앉는 순간 정지 제목과 같은 자리라 어긋나지 않고, 돌아와서는 처음부터 흐른다
+  const isFocused = useIsFocused();
   const session = usePlaybackStore((s) => s.session);
   const isDismissed = usePlaybackStore((s) => s.isMiniPlayerDismissed);
 
@@ -327,7 +330,7 @@ export default function MiniPlayer({
           </View>
           {/* 긴 제목은 전체 플레이어처럼 흘러 끝을 보여준다(2026-09-18 PM) — 측정용 래퍼가 착지 좌표를 준다 */}
           <View ref={titleRef} style={styles.titleBox}>
-            <MarqueeText text={view.title} style={styles.title} />
+            <MarqueeText text={view.title} style={styles.title} isPaused={!isFocused} />
           </View>
         </Pressable>
         <Pressable

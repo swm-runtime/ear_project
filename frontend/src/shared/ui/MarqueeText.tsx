@@ -18,6 +18,11 @@ interface MarqueeTextProps {
   gap?: number;
   /** 양끝에서 글자가 투명해지는 구간(px). 0이면 그냥 잘린다 */
   fadeWidth?: number;
+  /**
+   * 멈춰 두기 — 켜져 있는 동안 첫 글자 자리(0)에 서 있고, 꺼지면 정지 시간부터 **처음부터** 다시 흐른다.
+   * 화면 전환 중처럼 글자가 가려져 있거나 정지 그림과 맞물려야 할 때 쓴다(2026-09-18)
+   */
+  isPaused?: boolean;
 }
 
 const DEFAULT_SPEED = 36;
@@ -74,6 +79,7 @@ export default function MarqueeText({
   pauseMs = DEFAULT_PAUSE_MS,
   gap = DEFAULT_GAP,
   fadeWidth = DEFAULT_FADE_WIDTH,
+  isPaused = false,
 }: MarqueeTextProps) {
   const [viewportWidth, setViewportWidth] = useState(0);
   const [textWidth, setTextWidth] = useState(0);
@@ -103,7 +109,7 @@ export default function MarqueeText({
 
   useEffect(() => {
     translateX.setValue(0);
-    if (!shouldScroll) return;
+    if (!shouldScroll || isPaused) return;
 
     const loop = Animated.loop(
       Animated.sequence([
@@ -121,7 +127,7 @@ export default function MarqueeText({
     );
     loop.start();
     return () => loop.stop();
-  }, [shouldScroll, distance, pauseMs, speed, translateX]);
+  }, [shouldScroll, isPaused, distance, pauseMs, speed, translateX]);
 
   const flat = StyleSheet.flatten(style) ?? {};
   const fontSize = flat.fontSize ?? 16;
