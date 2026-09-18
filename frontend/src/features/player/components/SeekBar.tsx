@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { PanResponder, StyleSheet, Text, View } from 'react-native';
+import { Animated, PanResponder, StyleSheet, Text, View } from 'react-native';
 
+import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { theme } from '@/shared/theme';
 
 import { SEEK_STEP_SEC } from '../player.constants';
@@ -13,6 +14,10 @@ interface SeekBarProps {
   /** 오디오 준비 전에는 조작을 받지 않는다(player-uiux.md 4.3) */
   disabled: boolean;
   onSeekTo: (targetSec: number) => void;
+  /** 사진 위에 얹힐 때(재생 목록 열림) — 트랙을 흰색 계열로. 시간 라벨은 사진 밖이라 그대로다 */
+  tone?: 'default' | 'onImage';
+  /** 트랙 선의 세로 중심(이 컴포넌트 기준 y) — 재생 목록이 열리면 앨범 커버 하한을 여기에 맞춰 썸이 밑변에 걸친다 */
+  onTrackCenter?: (center: number) => void;
 }
 
 /**
@@ -20,7 +25,15 @@ interface SeekBarProps {
  * (player-uiux.md 4.2 — 드래그마다 오디오를 끊으면 위치를 고르는 동안 소리가 튄다).
  * 완청 기준선(90%) 등 판정 지점 표식은 그리지 않는다(8장 금지 사항).
  */
-export default function SeekBar({ positionSec, durationSec, disabled, onSeekTo }: SeekBarProps) {
+export default function SeekBar({
+  positionSec,
+  durationSec,
+  disabled,
+  onSeekTo,
+  tone = 'default',
+  onTrackCenter,
+}: SeekBarProps) {
+  const onImage = tone === 'onImage';
   const [trackWidth, setTrackWidth] = useState(0);
   const [dragPositionSec, setDragPositionSec] = useState<number | null>(null);
 
@@ -68,6 +81,27 @@ export default function SeekBar({ positionSec, durationSec, disabled, onSeekTo }
   }, []);
 
   const displaySec = dragPositionSec ?? positionSec;
+  const isDragging = dragPositionSec !== null;
+  // 썸은 잡고 있는 동안만 — 평소엔 채움과 트랙의 경계가 위치를 말해 주고, 사진 밑변에 걸친 썸만 튀어 보였다
+  // (2026-09-18 PM, 애플 뮤직 방식). 손가락 밑에서 어디를 끌고 있는지는 썸이 커지며 보여 준다
+  const thumbProgress = useAnimatedValue(0);
+  useEffect(() => {
+    // 나타날 땐 스프링으로 살짝 튀며 커지고, 사라질 땐 짧게 흐려진다 — 손을 뗀 뒤 튀는 건 어색하다
+    const animation = isDragging
+      ? Animated.spring(thumbProgress, {
+          toValue: 1,
+          friction: 6,
+          tension: 140,
+          useNativeDriver: true,
+        })
+      : Animated.timing(thumbProgress, {
+          toValue: 0,
+          duration: THUMB_HIDE_MS,
+          useNativeDriver: true,
+        });
+    animation.start();
+    return () => animation.stop();
+  }, [isDragging, thumbProgress]);
   const ratio = durationSec > 0 ? Math.min(1, Math.max(0, displaySec / durationSec)) : 0;
 
   return (
@@ -97,14 +131,32 @@ export default function SeekBar({ positionSec, durationSec, disabled, onSeekTo }
           onSeekTo(Math.max(0, positionSec + delta));
         }}
       >
-        <View style={styles.track}>
-          <View style={[styles.fill, { width: `${ratio * 100}%` }]} />
+        <View
+          style={[styles.track, onImage && styles.trackOnImage]}
+          // touchArea 가 첫 자식이라 touchArea 기준 y == 컴포넌트 기준 y
+          onLayout={(event) =>
+            onTrackCenter?.(event.nativeEvent.layout.y + event.nativeEvent.layout.height / 2)
+          }
+        >
+          <View
+            style={[styles.fill, onImage && styles.fillOnImage, { width: `${ratio * 100}%` }]}
+          />
           {/* 전체 폭으로 흘리면 0%·100%에서 손잡이 절반이 화면 밖으로 나간다 —
               측정한 폭 안으로 가둬 항상 온전히 보이게 한다 */}
-          <View
+          <Animated.View
+            pointerEvents="none"
             style={[
               styles.thumb,
               {
+                opacity: thumbProgress,
+                transform: [
+                  {
+                    scale: thumbProgress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.3, 1],
+                    }),
+                  },
+                ],
                 left:
                   trackWidth > 0
                     ? Math.min(
@@ -113,7 +165,8 @@ export default function SeekBar({ positionSec, durationSec, disabled, onSeekTo }
                       )
                     : 0,
               },
-              disabled && styles.thumbDisabled,
+              onImage && styles.fillOnImage,
+              disabled && (onImage ? styles.thumbDisabledOnImage : styles.thumbDisabled),
             ]}
           />
         </View>
@@ -127,6 +180,10 @@ export default function SeekBar({ positionSec, durationSec, disabled, onSeekTo }
 }
 
 const THUMB_SIZE = 14;
+/** 손을 뗀 뒤 썸이 사라지는 시간 */
+const THUMB_HIDE_MS = 140;
+/** 사진 위 채움·썸 — 밝은·어두운 사진 어느 쪽에서도 떨어지는 중간 회색 */
+const ON_IMAGE_FILL_COLOR = '#A0A0A8';
 
 const styles = StyleSheet.create({
   touchArea: {
@@ -164,5 +221,16 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.xs,
     color: theme.color.textSecondary,
     fontVariant: ['tabular-nums'],
+  },
+  // 사진 위(재생 목록 열림) — 트랙은 흰 반투명, 채움·썸은 중간 회색(2026-09-18 PM). 흰색은 하늘 사진에서,
+  // 검정은 어두운 사진에서 사라졌다 — 회색은 어느 쪽 배경과도 어느 정도 떨어진다
+  trackOnImage: {
+    backgroundColor: 'rgba(255, 255, 255, 0.35)',
+  },
+  fillOnImage: {
+    backgroundColor: ON_IMAGE_FILL_COLOR,
+  },
+  thumbDisabledOnImage: {
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
   },
 });

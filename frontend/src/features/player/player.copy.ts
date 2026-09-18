@@ -10,7 +10,10 @@ export const PLAYER_COPY = {
     label: (remaining: number, limit: number) => `${remaining}/${limit}`,
     /** "1/2"가 "일 슬래시 이"로 읽히지 않게 한다(library-uiux.md 7) */
     a11yLabel: (remaining: number, limit: number) => `오늘 재생 ${limit}회 중 ${remaining}회 남음`,
-    a11yLabelExhausted: '오늘 재생 0회 남음, 구독 안내 열기',
+    /** 결제 구현 전 MVP 바이너리(KAN-66) — 구독 안내를 읽지 않는다. 탭은 한도 안내 토스트만 띄운다 */
+    a11yLabelExhausted: '오늘 재생 0회 남음',
+    /** 구독 UI 가 켜진 빌드에서만(feature-flags.ts) — library-uiux.md 7장 원문 */
+    a11yLabelExhaustedWithPaywall: '오늘 재생 0회 남음, 구독 안내 열기',
   },
 
   /** L3 재생 확인 팝업(library-uiux.md 4.6) — 탐색 E4도 같은 팝업이다(explore-uiux.md 4.5) */
@@ -38,8 +41,7 @@ export const PLAYER_COPY = {
 
   /* ── 플레이어 화면(player-uiux.md 6장 — 사용자 노출 문자열 전수) ── */
   screen: {
-    /** PL1 — source_url이 있을 때만 노출한다. 없으면 자리도 남기지 않는다(uiux 4.1) */
-    sourceLink: '원문 보기',
+    // [원문 보기] 칩은 화면에서 뺐다(2026-09-16) — 더보기 시트(moreSheet.sourceLink)가 유일한 진입점
     /** 배속 칩 상시 표시 "N.N×" — a11y는 "재생 속도, N.N배"로 읽힌다(uiux 7장) */
     rateChip: (rate: number) => `${rate.toFixed(1)}×`,
     rateChipA11y: (rate: number) => `재생 속도, ${rate.toFixed(1)}배`,
@@ -47,22 +49,50 @@ export const PLAYER_COPY = {
      * P1 보조 칩(uiux 6장 카피) — 기능(FR-25)은 미구현이라 비활성으로만 노출한다.
      * uiux 2장·8장의 "MVP 미노출" 규칙과 충돌 — 노출 결정 2026-08-11(사용자 지시), 문서 개정 대기.
      */
-    timerChip: '타이머',
-    timerChipA11y: '수면 타이머, 준비 중',
-    scriptChip: '스크립트',
-    scriptChipA11y: '스크립트, 준비 중',
+    timerA11y: '수면 타이머, 준비 중',
+    /** 바닥 서랍 손잡이 — 다음 재생 목록(2026-09-16, 스크립트와 자리 교환) */
+    queueHandle: '재생 목록',
+    queueHandleA11y: '다음 재생 목록 열기',
+    queueCollapseA11y: '재생 목록 접기',
     /** 재생 버튼 라벨 — 상태별로 다르다. 완료의 ▶가 "재생"으로만 읽히면 이어듣기로 오해된다 */
     playA11y: '재생',
     pauseA11y: '일시정지',
     replayA11y: '처음부터 다시 재생',
     seekBackA11y: '10초 뒤로',
     seekForwardA11y: '10초 앞으로',
+    /** 컨트롤 줄 맨 오른쪽 — 스크립트 열기/접기(2026-09-16, 재생 목록과 자리 교환) */
+    scriptOpenA11y: '스크립트 열기',
+    scriptCloseA11y: '스크립트 접기',
     collapseA11y: '플레이어 축소',
     moreA11y: '더보기',
     bufferingA11y: '재생 준비 중',
     /** 시크바 aria-valuetext — "09:12"가 "영 구 콜론 일 이"로 읽히지 않게 한다(uiux 7장) */
     seekBarA11yValue: (position: string, duration: string) => `${duration} 중 ${position}`,
     completedBadgeA11y: '완청함',
+  },
+
+  /** PL6 스크립트 시트 — 현재 구간 하이라이트·문단 탭 seek(player-uiux.md 4.6). P1이라 지금은 dev mock만 채운다 */
+  /** 다음 재생 목록 패널(2026-09-16 목업) */
+  /**
+   * 재생 목록 패널 — 목록 = 필터 없는 라이브러리 첫 페이지(2026-09-17).
+   * TODO(카피 미확정): player-uiux.md 에 이 패널의 확정 카피가 아직 없다 — changes/pending/player-queue-panel.md
+   */
+  queuePanel: {
+    title: '재생 목록',
+    /** 지금 재생 중인 줄에 붙는 낭독 꼬리표 — 시각 표시(굵게)만으로는 전달되지 않는다 */
+    nowPlayingA11y: '재생 중',
+    completedA11y: '완청함',
+    empty: '라이브러리가 비어 있어요',
+    loadFailed: '목록을 불러오지 못했어요',
+    retry: '다시 시도',
+    itemA11y: (title: string, minutes: number, tags: string[]) =>
+      [title, `${minutes}분`, ...tags].join(', '),
+  },
+
+  scriptSheet: {
+    title: '스크립트',
+    segmentA11y: (time: string, speaker: string | null) =>
+      speaker ? `${time}, ${speaker}, 이 구간부터 재생` : `${time}, 이 구간부터 재생`,
   },
 
   /** PL4 배속 선택 시트 — 탭 즉시 적용 + 전역 저장 + 닫힘. [확인] 버튼을 두지 않는다 */

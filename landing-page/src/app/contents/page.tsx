@@ -3,6 +3,7 @@ import Link from "next/link";
 import { OpenInApp } from "./OpenInApp";
 import { StoreRedirect } from "./StoreRedirect";
 import s from "./page.module.css";
+import { Sentences } from "@/components/Sentences";
 
 /**
  * 공유 링크 수신 페이지.
@@ -36,8 +37,7 @@ export default function ContentsRedirectPage() {
         <p className={s.eyebrow}>이어 콘텐츠</p>
         <h1 className={s.title}>이어 앱에서 들을 수 있어요</h1>
         <p className={s.lede}>
-          공유받은 콘텐츠는 이어 앱에서 재생됩니다. 앱을 설치한 뒤 링크를 다시 열면
-          해당 콘텐츠로 바로 이동해요.
+          <Sentences text="공유받은 콘텐츠는 이어 앱에서 들을 수 있어요. 앱을 설치한 뒤 링크를 다시 열면 해당 콘텐츠로 바로 이동해요." />
         </p>
 
         {/* 스토어 등록 전까지의 임시 안내 — URL 확정 시 StoreRedirect가 자동 이동을 맡고,

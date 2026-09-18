@@ -11,6 +11,8 @@ export { libraryKeys } from './api/library.api';
  * (player → library 직접 의존은 순환이라 금지 — architecture.md 4.3·4.4).
  */
 export { completeLibraryItem, deleteLibraryItem, restoreLibraryItem } from './api/library.api';
+/** 재생 목록 패널 — player가 브리지로 주입받는 목록의 원천(architecture.md 4.3 의존 역전) */
+export { fetchLibraryItems } from './api/library.api';
 export type { LibraryFilter, LibraryItem, LibraryItemStatus, LibrarySource } from './library.types';
 
 /* ── mock 브리지(dev 전용) — 탐색 mock이 라이브러리 mock 상태와 정합을 맞출 때 쓴다 ── */
@@ -20,7 +22,7 @@ export {
   mockUnsaveLibraryItemByContent,
 } from './api/library.mock';
 export type { MockLibrarySaveMeta, MockLibrarySaveResult } from './api/library.mock';
-export { default as LibraryItemCard } from './components/LibraryItemCard';
+export { default as LibraryItemTile } from './components/LibraryItemTile';
 /** 상단 배너 — 첫 사용 튜토리얼이 드립 도착을 실제와 같은 컴포넌트·문구로 그린다 */
 export { default as LibraryBanner } from './components/LibraryBanner';
 export type { LibraryBannerState } from './components/LibraryBanner';

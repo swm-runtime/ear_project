@@ -17,11 +17,9 @@ export function PricingTeaser() {
         <div className={s.grid}>
           <div className={s.copy}>
             <p className="eyebrow">Pricing</p>
-            <h2 className="sectionTitle">요금제가 가르는 건 재생 한도뿐입니다</h2>
+            <h2 className="sectionTitle">무료로도 이용 가능해요</h2>
             <p className="sectionLede">
-              매일 도착하는 콘텐츠는 무료 요금제도 똑같이 2편입니다. 돈을 더 낸다고
-              더 많이 도착하지 않습니다. 달라지는 것은 하루에 재생할 수 있는
-              분량입니다.
+              먼저 무료로 들어보고, 더 듣고 싶어지면 그때 요금제를 바꿔 보세요.
             </p>
             <Link href={routes.pricing.path} className={`btn btnGhost ${s.link}`}>
               요금제 자세히 보기

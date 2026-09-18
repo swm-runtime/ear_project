@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { navRoutes } from "@/content/routes";
 import s from "./not-found.module.css";
+import { Sentences } from "@/components/Sentences";
 
 export const metadata: Metadata = {
   title: "페이지를 찾을 수 없어요",
@@ -16,7 +17,7 @@ export default function NotFound() {
         <p className={s.code}>404</p>
         <h1 className={s.title}>찾으시는 페이지가 없어요</h1>
         <p className={s.lede}>
-          주소가 바뀌었거나 삭제된 페이지일 수 있습니다. 아래에서 다시 찾아봐 주세요.
+          <Sentences text="주소가 바뀌었거나 삭제된 페이지일 수 있어요. 아래에서 다시 찾아봐 주세요." />
         </p>
 
         <Link href="/" className="btn btnPrimary">

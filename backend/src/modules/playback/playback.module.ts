@@ -19,6 +19,7 @@ import { CloudFrontAudioUrlSigner } from './cloudfront-audio-url.signer';
 import { AudioStreamController } from './controllers/audio-stream.controller';
 import { PlaybackProgressController } from './controllers/playback-progress.controller';
 import { PlayController } from './controllers/play.controller';
+import { PublicSampleController } from './controllers/public-sample.controller';
 import { AudioAccessLog } from './entities/audio-access-log.entity';
 import { PlaybackProgress } from './entities/playback-progress.entity';
 import { PlayRecord } from './entities/play-record.entity';
@@ -35,6 +36,7 @@ import { PlaybackProgressService } from './services/playback-progress.service';
 import { PlaybackSignalService } from './services/playback-signal.service';
 import { PlayPolicyService } from './services/play-policy.service';
 import { PlayService } from './services/play.service';
+import { PublicSampleService } from './services/public-sample.service';
 import { PlaybackService } from './services/playback.service';
 
 /**
@@ -72,6 +74,8 @@ import { PlaybackService } from './services/playback.service';
     PlayController,
     PlaybackProgressController,
     AudioStreamController,
+    // 랜딩 페이지용 공개 샘플(public-api.md 2.2) — 서명기를 공유하므로 이 모듈에 둔다
+    PublicSampleController,
   ],
   providers: [
     ContentStatAggregationRepository,
@@ -105,6 +109,7 @@ import { PlaybackService } from './services/playback.service';
     PlayService,
     AudioUrlService,
     AudioStreamService,
+    PublicSampleService,
     PlaybackProgressService,
     PlaybackSignalService,
   ],

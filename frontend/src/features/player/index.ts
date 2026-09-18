@@ -36,6 +36,7 @@ export type {
   PlayEntryPoint,
   PlayLimitSnapshot,
   PlayStartResult,
+  PlaybackStartMeta,
 } from './player.types';
 
 /* ── 의존 역전 지점 — app/bootstrap이 library 공개 API로 구현을 주입한다(architecture.md 4.3) ── */

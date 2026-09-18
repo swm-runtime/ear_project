@@ -7,6 +7,7 @@ import { useState } from "react";
 const CONSOLES = [
   { href: "/", label: "파이프라인" },
   { href: "/backend-logs", label: "백엔드 로그" },
+  { href: "/drip-check", label: "추천 검증" },
 ];
 
 type NavItem = {
@@ -24,6 +25,11 @@ const LOG_NAV: NavItem[] = [
   { href: "/backend-logs", label: "실시간 로그", icon: List, exact: true },
   { href: "/backend-logs/errors", label: "에러 모아보기", icon: Alert },
   { href: "/backend-logs/traffic", label: "요청 통계", icon: Chart },
+];
+
+/** 추천 검증 콘솔의 메뉴 — 제품 서버의 편성 미리보기(admin-api `GET /admin/drip/preview`)를 그대로 보인다 */
+const DRIP_NAV: NavItem[] = [
+  { href: "/drip-check", label: "편성 미리보기", icon: Radar, exact: true, note: "읽기 전용" },
 ];
 
 /** 파이프라인 콘솔 메뉴 — 구분선으로 묶는다 (2026-09-09 박수헌): 현황 / 제작 흐름(스윕·군집화 → 백로그 → 에피소드) / 자산(소스 풀·주제·규칙) / 발행 */
@@ -50,8 +56,9 @@ export function Sidebar({ pending }: { pending?: { backlog?: number; review?: nu
   const on = (href: string, exact?: boolean) => (exact ? path === href : path.startsWith(href));
   const [consoleOpen, setConsoleOpen] = useState(false);
   const isLogsConsole = path.startsWith("/backend-logs");
-  const activeConsole = isLogsConsole ? CONSOLES[1] : CONSOLES[0];
-  const nav: (NavItem | typeof DIVIDER)[] = isLogsConsole ? LOG_NAV : NAV;
+  const isDripConsole = path.startsWith("/drip-check");
+  const activeConsole = isLogsConsole ? CONSOLES[1] : isDripConsole ? CONSOLES[2] : CONSOLES[0];
+  const nav: (NavItem | typeof DIVIDER)[] = isLogsConsole ? LOG_NAV : isDripConsole ? DRIP_NAV : NAV;
   return (
     <aside className="fixed inset-y-0 left-0 z-20 flex w-[188px] flex-col bg-side text-side-ink">
       <div className="relative flex h-14 items-center gap-2 px-5">
@@ -94,8 +101,8 @@ export function Sidebar({ pending }: { pending?: { backlog?: number; review?: nu
           );
         })}
       </nav>
-      {/* 설정은 파이프라인 콘솔 전용 — 로그 콘솔에는 해당 메뉴가 없다 */}
-      {!isLogsConsole && (
+      {/* 설정은 파이프라인 콘솔 전용 — 로그·추천 검증 콘솔에는 해당 메뉴가 없다 */}
+      {!isLogsConsole && !isDripConsole && (
         <Link href="/settings" className={`m-2 flex items-center gap-2.5 rounded px-3 py-2 text-[13px] ${on("/settings") ? "bg-brand text-white" : "hover:bg-side-soft hover:text-white"}`}>
           <Gear className="h-4 w-4 opacity-90" /> 설정
         </Link>

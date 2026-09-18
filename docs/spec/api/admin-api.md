@@ -6,7 +6,7 @@
 > 스키마: [`docs/backend/domain.md`](../../backend/domain.md) 4.1 · 5.1 · 5.5
 > 연관: [`features/partner-control.md`](../../features/partner-control.md) 4.4(라이선스 만료 거부)
 
-작성: 2026-09-03 (구현 계약 등재 — `changes/archive/admin-web-console.md`) · 2026-09-07 4.10 재발행 등재·구현(`tickets/backend/archive/content-republish-audio.md`)
+작성: 2026-09-03 (구현 계약 등재 — `changes/archive/admin-web-console.md`) · 2026-09-07 4.10 재발행 등재·구현(`tickets/backend/archive/content-republish-audio.md`) · 2026-09-18 4.16 편성 미리보기 등재
 
 ## 1. 범위
 
@@ -17,6 +17,7 @@
 - 콘텐츠 업로드 → 즉시 발행 (FR-37, `admin.md` 4.2)
 - 콘텐츠 **회수·복구** (FR-32, `admin.md` 4.4)
 - 콘텐츠 **재발행** — 오디오·메타 교체, `content_version` 증가 (`admin.md` 4.3)
+- **편성 미리보기** — 추천 검증 콘솔용 읽기 전용 계산 (`drip-scheduling.md` 4장·5장 "편성 품질", 2026-09-18)
 
 **이 문서는 동작 규칙을 새로 정하지 않는다.** 규칙이 충돌하면 `admin.md`가 기준이며, 스키마는 `domain.md`가 유일한 기준이다.
 
@@ -52,7 +53,12 @@
 | POST | `/admin/contents/:contentId/restore` | 회수 복구 |
 | PATCH | `/admin/contents/:contentId` | 재발행 — 오디오·메타 교체, `content_version` 증가 (4.10) |
 | DELETE | `/admin/contents/:contentId/storage` | 저장소 파일 회수 — 회수된 콘텐츠의 오디오·썸네일 삭제 (4.11) |
+| GET | `/admin/notices` | 공지 목록 — 초안·예약 포함, 작성 최신순, 커서 (4.12) |
+| POST | `/admin/notices` | 공지 작성 — `published_at` 없으면 초안 (4.13) |
+| PATCH | `/admin/notices/:noticeId` | 공지 부분 수정 — `published_at: null`은 발행 취소 (4.14) |
+| DELETE | `/admin/notices/:noticeId` | 공지 삭제(soft) (4.15) |
 | GET | `/admin/system-stats` | 서버 자원·DB 부하 스냅샷 (로그 콘솔 상태 탭) |
+| GET | `/admin/drip/preview` | 편성 미리보기 — 지금 데이터로 배치를 돌리면 갈 정규·탐험 편성분과 점수 분해, 읽기 전용 (4.16) |
 
 ## 4. 엔드포인트 상세
 
@@ -64,11 +70,12 @@
 // 200
 { "items": [
   { "id": "...", "name": "생산성", "parent_category": "자기계발",
-    "is_visible": true, "display_order": 1, "content_count": 12 }
+    "is_visible": true, "display_order": 1, "content_count": 12, "visible_content_count": 10 }
 ] }
 ```
 
 - **`content_count`는 조회 시 집계한다.** `topics`에 컬럼을 두지 않는다 — 파생값이라 컬럼과 집계가 어긋날 수 있다(`admin.md` 4.5).
+- **`content_count`는 원시 연결 건수**(회수·만료 포함 — 4.4 삭제 판정), **`visible_content_count`는 노출 가능 건수**(`published` + 라이선스 미만료 — 4.3 노출 판정)다(추가 2026-09-17, KAN-58). 콘솔은 `is_visible = false`이고 `visible_content_count = 0`인 주제의 노출 켜기를 비활성으로 그린다.
 
 ### 4.2 `POST /admin/topics`
 
@@ -86,11 +93,13 @@
 
 200으로 갱신된 항목을 반환한다.
 
-- **콘텐츠 0건인 주제의 `is_visible: true`를 서버가 거부하지 않는다.** 경고 확인은 콘솔이 수행하고 서버는 기록만 남긴다(`admin.md` 4.5 — 판정이 아니라 확인 UX다).
+- 409 `ADMIN_TOPIC_HAS_NO_CONTENTS` — `is_visible` false → true 전이인데 **노출 가능 콘텐츠가 0건**이다. `content_count: 0`을 싣고 주제는 바뀌지 않는다. 이미 노출 중인 주제의 다른 필드 수정·끄기는 판정하지 않는다(`admin.md` 4.5 — 개정 2026-09-17, 종전 "서버가 거부하지 않는다"를 번복). 콘솔은 서버 `message`를 표시하고 목록을 재조회한다.
+- 노출 중인 주제가 0건이 되면 서버가 자동으로 숨긴다(회수 4.7 · 재발행 주제 교체 4.10 · 매일 04:15 일일 판정). 이 엔드포인트를 거치지 않으며 감사 로그 `topic.auto_hide`로 남는다.
 
 ### 4.4 `DELETE /admin/topics/:topicId`
 
 - 204 — 삭제됨
+- **관심사로 고른 사용자가 있어도 삭제한다** — 그 `user_interests` 행을 함께 지운다(2026-09-17, `admin.md` 4.5). 감사 로그 `after.removed_interest_count`
 - 409 `ADMIN_TOPIC_HAS_CONTENTS` — 연결된 콘텐츠가 있다. `details.content_count`에 건수를 싣는다. 콘솔은 삭제 대신 `is_visible = false`를 안내한다(`admin.md` 4.5 — FK 위반 방지)
 
 ### 4.5 `GET /admin/contents`
@@ -262,6 +271,98 @@
 - 사용자에게 보이는 차이는 없다 — 노출은 회수가 이미 막고 있다.
 - `audit_logs`에 `content.purge_storage`로 기록한다. **파일이 사라진 뒤 그 콘텐츠가 왜 재생되지 않는지를 이 기록으로만 설명할 수 있다.**
 
+### 4.12 `GET /admin/notices` — 공지 목록
+
+신설 2026-09-17(`changes/pending/notice-screen-spec.md` C, KAN-67). 쿼리는 `settings-api.md` 4.4와 같다(`cursor` · `limit` 기본 20·최대 50).
+
+```jsonc
+{ "items": [
+  { "id": "...", "title": "...", "body": "...", "is_pinned": false,
+    "published_at": null, "created_at": "...", "updated_at": "..." }   // published_at null = 초안
+], "next_cursor": null }
+```
+
+- **초안·예약을 포함하고 삭제분은 뺀다.** 정렬은 작성 최신순(`created_at DESC, id DESC`). 사용자 목록과 정렬이 달라 **커서를 서로 바꿔 넣으면 400 `NOTICE_CURSOR_INVALID`**.
+- 사용자 목록과 달리 **본문을 싣는다** — 콘솔이 수정 화면을 바로 연다.
+
+### 4.13 `POST /admin/notices` — 공지 작성
+
+```jsonc
+{ "title": "9월 업데이트 안내", "body": "줄바꿈은\n그대로", "is_pinned": false, "published_at": "2026-09-17T09:00:00Z" }  // is_pinned·published_at 선택
+```
+
+201로 4.12의 항목 한 건을 반환한다.
+
+- 검증(위반은 400 `VALIDATION_FAILED`):
+  - `title` 1~100자 · `body` 1~5000자 — **공백만은 불가**, 글자 수는 **코드 포인트**로 센다(DB `varchar`와 같은 단위 — 조합 이모지는 2자 이상)
+  - `published_at` — **날짜·시각·오프셋(`Z` 또는 `±hh:mm`)이 모두 있는 ISO 8601**, 2000~2100년. 오프셋 없는 시각은 서버 시간대에 따라 해석이 달라져 받지 않는다
+- **`published_at`을 빼면 초안**이다. 미래 시각이면 예약 발행 — 그 시각부터 사용자 목록에 보인다(조회 시점의 서버 시각으로 판정).
+- `audit_logs`에 `notice.create`로 기록한다 — `notices`에 작성자 컬럼이 없어 누가 게시했는지는 이 기록만 안다. 본문 원문은 남기지 않고 길이만 남긴다.
+
+### 4.14 `PATCH /admin/notices/:noticeId` — 공지 수정
+
+```jsonc
+{ "title": "...", "body": "...", "is_pinned": true, "published_at": null }  // 전부 선택
+```
+
+200으로 갱신된 항목을 반환한다.
+
+- **담긴 키만 바꾼다.** `published_at: null`은 **발행 취소**(초안으로 되돌림), 키를 빼면 그대로다. `title`·`body`·`is_pinned`에 `null`은 400이다.
+- 바꿀 키가 하나도 없으면 400 `VALIDATION_FAILED`. 검증은 4.13과 같다.
+- 수정·삭제는 행을 잠그고 한다 — 감사 로그 `before`가 동시 수정으로 낡지 않는다.
+- 없거나 삭제된 공지는 404 `NOTICE_NOT_FOUND`. `audit_logs`에 `notice.update`(before/after).
+
+### 4.15 `DELETE /admin/notices/:noticeId` — 공지 삭제
+
+- 204. **soft delete**(`deleted_at`) — 사용자 목록·상세에서 즉시 사라진다(상세는 404).
+- 없거나 이미 삭제된 공지는 404 `NOTICE_NOT_FOUND`. `audit_logs`에 `notice.delete`.
+
+### 4.16 `GET /admin/drip/preview` — 편성 미리보기 (읽기 전용)
+
+> 추가: 2026-09-18 (admin 콘솔 "추천 검증" 탭). 근거: `drip-scheduling.md` 4.1~4.8 · 5장 운영 콘솔 "편성 품질".
+
+"지금 데이터로 편성 배치를 돌리면 이 사용자에게 어떤 정규 N편·탐험 M편이 가는가"를 **계산만 하고 돌려준다.**
+배치와 같은 계산기(`DripBatchOrchestrator.planForUser`)를 쓰되 취향 캐시 저장·라이브러리 적립·제외 기록·알림·배치 기록을
+전부 하지 않는다. 호출해도 서버 상태는 바뀌지 않는다. 응답은 `Cache-Control: no-store`이며 매 요청 다시 계산한다.
+
+**요청**
+
+| 쿼리 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `email` | string(email) | ✓ | 대상 사용자 이메일. 역할 무관, 같은 주소가 여럿이면 가입이 가장 이른 사용자 |
+
+**응답 200**
+
+| 필드 | 설명 |
+|---|---|
+| `computed_at` · `service_date` | 계산 시각(ISO), 서비스 날짜(04시 경계) |
+| `user` | `id` `email` `nickname` `tier` `job_category` `years_of_experience` `onboarding_completed` |
+| `skip_reason` | `no_interests` \| `unfinished_inventory` \| `plan_disabled` \| null — 배치라면 스킵될 사유. 미리보기는 사유를 적은 채 끝까지 계산한다 |
+| `unfinished_count` · `unfinished_limit` | 미청취 재고와 스킵 기준(5) |
+| `drip_count` · `discovery_count` | 티어 편수(`plans`) |
+| `interests[]` | `topic_id` `name` `source` — 활성 관심 주제 |
+| `removed_topics[]` | 사용자가 직접 해제한 주제(탐험 제외) |
+| `preference` | `is_cold_start` `complete_signal_count` `cold_start_threshold` `signal_count` `has_taste_embedding` `duration_pref` `topic_weights[]` `author_weights[]` `keyword_weights[]` `format_weights[]`(절대값 상위 15, `{key,name,weight}`) `difficulty_affinity` — **저장하지 않은** 계산값 |
+| `signals[]` | `content_id` `title` `action` `created_at` — 취향 계산 입력(90일·최대 500건) |
+| `weights` | 스코어링 상수: `axes` `signal_items` `meta_items` `meta_items_cold_start` `discovery_items` |
+| `regular` | `pool_size` `gated_out[]`(시리즈 순서 게이트 제외, `reason: episode_order`) `recent_drip_topics[]` `candidates[]` — null이면 정규 편수 0 |
+| `discovery` | `pool_size` `quality_floor` `typical_complete_rate` `excluded[]`(`user_removed_topic` \| `below_quality_floor`) `candidates[]` — null이면 탐험 편수 0 |
+| `discovery_error` | 탐험 계산이 던졌으면 메시지, 아니면 null(정규는 영향 없음 — 4.8) |
+| `today_placed[]` | 오늘 서비스 날짜에 실제 배치가 적립한 편(`library_items.source in drip,discovery`) |
+
+`candidates[]` 항목: 콘텐츠 메타(`content_id` `title` `author_name` `source_name` `duration_sec` `published_at` `difficulty` `format`
+`is_evergreen` `series_id` `episode_no` `topics[]`) + 스코어링 입력(`play_count` `complete_count` `has_embedding`) + `score` `is_series_continuation`
+`breakdown`(`embedding` `signal` `signal_items{}` `meta` `meta_items{}` — null은 입력 없어 축·항목에서 빠짐) + `pick_order`(최종 편성분이면 1부터, 아니면 null)
++ 탐험만 `exposure_count` `is_outside_interests`. 정렬은 점수 내림차순. **`audio_path`는 싣지 않는다**(7장).
+
+**오류**
+
+| 상태 | `error_code` | 조건 |
+|---|---|---|
+| 400 | `VALIDATION_FAILED` | `email` 누락·형식 오류 |
+| 401 / 403 | `UNAUTHORIZED` / `FORBIDDEN` | 2장 공통 규약 |
+| 404 | `NOT_FOUND` | 그 이메일의 사용자 없음 |
+
 ## 5. 에러 코드 표
 
 | error_code | HTTP | retryable | 발생 지점 |
@@ -272,9 +373,12 @@
 | `ADMIN_LICENSE_EXPIRED` | 400 | false | 4.6 — 만료된 파트너 라이선스 |
 | `FORBIDDEN` | 403 | false | 전 라우트 — `role != admin` |
 | `ADMIN_TOPIC_HAS_CONTENTS` | 409 | false | 4.4 — `details.content_count` |
+| `ADMIN_TOPIC_HAS_NO_CONTENTS` | 409 | false | 4.3 — 노출 가능 콘텐츠 0건인 주제의 노출 켜기. `details.content_count = 0` |
 | `CONFLICT` | 409 | false | 4.7 — 이미 회수됨 / 4.8 — 회수 상태가 아님 / 4.10 · 4.11 — `withdrawn`이 아님 |
 | `VALIDATION_FAILED` | 400 | false | 4.10 — 파트가 하나도 없음(`details.field = "audio"`) / `sources` 교체가 `origin`의 공시 규칙에 어긋남(`details.field = "sources"`) |
 | `ADMIN_STORAGE_FAILED` | 502 | **true** | 4.6·4.10 — 저장소 실패 |
+| `NOTICE_CURSOR_INVALID` | 400 | false | 4.12 — 커서 형식 오류, 사용자 목록 커서를 넣음 |
+| `NOTICE_NOT_FOUND` | 404 | false | 4.14·4.15 — 없거나 삭제된 공지 |
 
 전체 목록·클라이언트 동작은 `common-error-handling.md` 9.10이 기준이다.
 

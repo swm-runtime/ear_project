@@ -85,6 +85,15 @@ export enum ErrorCode {
    */
   CAREER_JOB_CATEGORY_UNAVAILABLE = 'CAREER_JOB_CATEGORY_UNAVAILABLE',
 
+  // --- 공지사항 (settings-api.md 5장 · admin-api.md 5장, KAN-67) ---
+  /** 커서 형식 오류, 또는 사용자·관리자 목록 커서를 서로 바꿔 넣음 — 클라이언트는 첫 페이지부터 다시 조회한다 */
+  NOTICE_CURSOR_INVALID = 'NOTICE_CURSOR_INVALID',
+  /**
+   * 공지가 없거나 삭제됨. 사용자 조회에서는 **초안·예약 발행도 같은 코드다** — 발행 전 글의 존재를
+   * 드러내지 않는다. 앱은 "삭제된 공지예요" 안내 후 목록으로 돌아간다
+   */
+  NOTICE_NOT_FOUND = 'NOTICE_NOT_FOUND',
+
   // --- 라이브러리 (library-api.md 5장) ---
   /** 커서 형식 오류, 또는 발급 시점과 다른 `filter`·`sort`·`topic_filter` */
   LIBRARY_CURSOR_INVALID = 'LIBRARY_CURSOR_INVALID',
@@ -143,6 +152,11 @@ export enum ErrorCode {
   ADMIN_LICENSE_EXPIRED = 'ADMIN_LICENSE_EXPIRED',
   /** 콘텐츠가 배정된 주제는 삭제할 수 없다 — 숨김을 안내한다(admin.md 4.5) */
   ADMIN_TOPIC_HAS_CONTENTS = 'ADMIN_TOPIC_HAS_CONTENTS',
+  /**
+   * 발행 중인 콘텐츠가 0건인 주제는 노출을 켤 수 없다(admin.md 4.5 — KAN-58, 2026-09-17 번복).
+   * `ADMIN_TOPIC_HAS_CONTENTS`의 대칭이다. 콘솔은 건수가 어긋났을 때만 받는다(목록 재조회)
+   */
+  ADMIN_TOPIC_HAS_NO_CONTENTS = 'ADMIN_TOPIC_HAS_NO_CONTENTS',
   /** 저장소(S3·KVS) 업로드 실패 — 부분 업로드는 정리된다(admin.md 7) */
   ADMIN_STORAGE_FAILED = 'ADMIN_STORAGE_FAILED',
 

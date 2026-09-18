@@ -91,7 +91,10 @@ export interface AdminContentListQuery {
 
 export interface AdminTopicView {
   topic: Topic;
+  /** 연결 행 전체 — 삭제 판정 기준(회수·만료 포함) */
   contentCount: number;
+  /** 노출 가능한 콘텐츠만 — 노출 켜기 판정 기준(admin.md 4.5, KAN-58) */
+  visibleContentCount: number;
 }
 
 /** 저장된 파일의 위치. `key`는 삭제용, `url`은 썸네일처럼 공개 경로가 있을 때만 */

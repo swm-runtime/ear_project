@@ -100,6 +100,8 @@ retrospective/ 주간 회고와 다음 주 계획 (YYYY-Wn.md). 회의 중에는
 - 브랜치: `<type>(<파트>)/<kebab-설명>` — 파트 표기는 `fe`/`be` (예: `feat(fe)/playback-gate`, `feat(be)/drip-batch`)
 - **통합 흐름은 `작업 브랜치 → dev → main`이다.** 브랜치는 `dev`에서 분기하고 **PR 대상도 `dev`**다 — `main`으로 바로 PR하지 않는다. `main`은 `dev → main` PR로만 갱신한다(배포 기준선).
 - main·dev 직접 push 금지, PR로만 병합한다. PR 본문에 변경 요약·관련 FR·테스트 방법을 포함한다.
+- **`dev` 머지 = 개발계 배포, `main` 머지 = 운영 배포**(2026-09-16 전환). `dev → main` PR은 작성자 외 **1명 승인**이 필수이고, 머지되면 운영에 자동 배포된 뒤 태그가 붙는다. 절차·롤백은 `docs/infra/runbook.md` 4장.
+- **버전의 기준은 앱이다**(2026-09-17 개정). 제품 버전 = `frontend/app.json`의 `expo.version`(스토어 버전)이고, **`backend/package.json`의 `version`은 항상 앱과 같게 두며 백엔드 혼자 올리지 않는다.** 태그는 `v<앱 버전>`으로 붙고, 같은 앱 버전에서 백엔드만 다시 배포하면 `v1.0.0+2`, `v1.0.0+3`처럼 배포 순번만 는다. 앱이 스토어 버전을 올릴 때(1.0.0 → 1.1.0) **그 PR에서 `backend/package.json`도 같은 값으로 올린다** — 다르면 PR의 필수 체크 "원본 브랜치 확인 (dev)"가 막는다(dev·main으로의 PR 모두). **이것은 "자기 파트 코드만 수정한다"의 유일한 예외다** — 버전을 올리는 FE 담당이 같은 PR에서 `cd backend && npm version <버전> --no-git-tag-version`으로 올린다(`package-lock.json`까지 함께 바뀐다. 손으로 고치면 lockfile이 뒤처진다). 태그는 **"그 앱 버전 시기의 운영 API 배포"** 표시이지 스토어 출시 표시가 아니다 — 스토어 심사·승인 여부와 무관하게 main 배포 시점에 붙는다. 종전 규칙("main 머지마다 백엔드 버전을 올린다")은 폐기했다: 백엔드는 자주·앱은 드물게 나가서 `v1.0.5` 태그가 존재하지 않는 앱 버전을 가리켰다.
 
 ## Jira
 

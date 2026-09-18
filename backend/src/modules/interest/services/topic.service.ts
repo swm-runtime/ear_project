@@ -16,6 +16,7 @@ import {
   UpdateTopicCommand,
 } from '../interest.types';
 import { TopicRepository } from '../repositories/topic.repository';
+import { UserInterestRepository } from '../repositories/user-interest.repository';
 
 /**
  * `topics`는 interest 모듈 소유다(domain.md 2장).
@@ -25,7 +26,10 @@ import { TopicRepository } from '../repositories/topic.repository';
 export class TopicService {
   private readonly logger = new Logger(TopicService.name);
 
-  constructor(private readonly topicRepository: TopicRepository) {}
+  constructor(
+    private readonly topicRepository: TopicRepository,
+    private readonly userInterestRepository: UserInterestRepository,
+  ) {}
 
   /**
    * onboarding-api.md 4.2 — 1단계에 노출할 목록. **`is_visible`인 것만 내려준다.**
@@ -116,6 +120,33 @@ export class TopicService {
     return this.topicRepository.findAll(manager);
   }
 
+  /** 잠금 조회 — 노출 판정과 갱신을 직렬화한다(`TopicRepository.findAllByIdsForUpdate`) */
+  async findAllByIdsForUpdate(
+    topicIds: string[],
+    manager: EntityManager,
+  ): Promise<Topic[]> {
+    return this.topicRepository.findAllByIdsForUpdate(
+      [...new Set(topicIds)],
+      manager,
+    );
+  }
+
+  async getByIdForUpdate(id: string, manager: EntityManager): Promise<Topic> {
+    const [topic] = await this.topicRepository.findAllByIdsForUpdate(
+      [id],
+      manager,
+    );
+
+    if (!topic) {
+      throw new BusinessNotFoundException({
+        errorCode: ErrorCode.NOT_FOUND,
+        message: '주제를 찾을 수 없어요',
+      });
+    }
+
+    return topic;
+  }
+
   async getById(id: string, manager?: EntityManager): Promise<Topic> {
     const topic = await this.topicRepository.findById(id, manager);
 
@@ -182,9 +213,43 @@ export class TopicService {
     return saved;
   }
 
-  /** 콘텐츠가 배정된 주제의 삭제 거부는 호출부(admin)가 건수를 보고 판정한다(admin.md 4.5) */
-  async remove(topic: Topic, manager?: EntityManager): Promise<void> {
+  /**
+   * 주제들을 숨긴다 — 노출 가능 콘텐츠가 0건이 된 주제의 자동 숨김 전용(admin.md 4.5, KAN-58).
+   *
+   * **언제 숨길지는 여기서 판정하지 않는다.** 판정에는 콘텐츠 건수가 필요한데 이 모듈은 콘텐츠를
+   * 모른다(`interest`는 다른 모듈을 의존하지 않는다 — architecture.md 4.5). 호출부가 대상을 골라 넘긴다.
+   * 이미 숨겨진 주제는 건드리지 않고 돌려주지도 않는다 — 호출부가 감사 로그를 실제로 바뀐 것만 남긴다.
+   */
+  async hideAll(topics: Topic[], manager?: EntityManager): Promise<Topic[]> {
+    const targets = topics.filter((topic) => topic.isVisible);
+
+    if (targets.length === 0) {
+      return [];
+    }
+
+    for (const topic of targets) {
+      topic.isVisible = false;
+    }
+
+    return this.topicRepository.saveAll(targets, manager);
+  }
+
+  /**
+   * 주제 삭제. **그 주제를 고른 사용자 관심사 행을 먼저 지운다**(결정 2026-09-17) — 지우지 않으면
+   * `fk_user_interests_topics`에 걸려 500이 났다. 재발행으로 주제 교체가 일어나면 "콘텐츠 0건인데
+   * 누군가 고른 주제"가 생기고(KAN-58 남은 결정 ③), 그 주제는 자동 숨김돼 사용자 화면에서는 이미 빠져 있다
+   * (interest-management.md 7 — 숨김 주제는 관심사에서 제외). 행이 남는 것은 보장이 아니라 부산물이었다.
+   *
+   * 콘텐츠가 배정된 주제의 삭제 거부는 호출부(admin)가 건수를 보고 판정한다(admin.md 4.5).
+   * **호출부 트랜잭션 안에서 부른다** — 관심사만 지워지고 주제가 남는 상태를 만들지 않는다.
+   * @returns 함께 지운 관심사 행 수(감사 로그용)
+   */
+  async remove(topic: Topic, manager?: EntityManager): Promise<number> {
+    const removedInterestCount =
+      await this.userInterestRepository.deleteByTopicId(topic.id, manager);
     await this.topicRepository.remove(topic, manager);
+
+    return removedInterestCount;
   }
 }
 

@@ -1,3 +1,4 @@
+import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
 interface IconProps {
@@ -60,12 +61,118 @@ export function HeadphonesIcon({ size, color }: IconProps) {
       <Path
         fill="none"
         stroke={color}
-        strokeWidth={2.2}
+        strokeWidth={1.8}
         strokeLinecap="round"
         d="M4.6 14.5v-2.4a7.4 7.4 0 0 1 14.8 0v2.4"
       />
       <Rect x="2.4" y="13.4" width="4.6" height="7.4" rx="2.3" fill={color} />
       <Rect x="17" y="13.4" width="4.6" height="7.4" rx="2.3" fill={color} />
+    </Svg>
+  );
+}
+
+/**
+ * ±10초 아이콘 — 왼쪽(또는 오른쪽) 위가 트인 원호 끝에 화살촉, 가운데 "10" (시안 2026-09-16).
+ * 숫자는 SVG 글리프가 아니라 RN Text로 겹쳐 그린다 — 기기 폰트로 렌더돼 앱의 다른 숫자와 같은 얼굴이 된다.
+ * 호: 중심(12,12) 반지름 8.5. 10시 반(화살촉)에서 시계 방향으로 8시까지 285° — 왼쪽 아래가 트인다.
+ */
+const SEEK_RING_PATH = 'M5.99 5.99A8.5 8.5 0 1 1 4.64 16.25';
+/** 화살촉 — 호의 10시 반 끝에서 반시계(왼쪽 아래) 방향을 가리키는 삼각형 */
+const SEEK_HEAD_PATH = 'M4.25 7.75L7.95 7.35L4.63 4.03Z';
+/** 앞으로 — 호·화살촉을 좌우 반전. 숫자는 그대로 */
+const MIRROR = 'translate(24 0) scale(-1 1)';
+
+function SeekIcon({ size, color, mirrored }: IconProps & { mirrored: boolean }) {
+  return (
+    <View style={{ width: size, height: size }}>
+      <Svg width={size} height={size} viewBox="0 0 24 24">
+        <Path
+          d={SEEK_RING_PATH}
+          stroke={color}
+          strokeWidth={1.8}
+          strokeLinecap="round"
+          fill="none"
+          transform={mirrored ? MIRROR : undefined}
+        />
+        <Path d={SEEK_HEAD_PATH} fill={color} transform={mirrored ? MIRROR : undefined} />
+      </Svg>
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <Text
+          style={[seekStyles.label, { color, fontSize: size * 0.4, lineHeight: size }]}
+          allowFontScaling={false}
+        >
+          10
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+/** 10초 뒤로 — 왼쪽이 트인 반시계 화살표 원호 + "10" */
+export function SeekBackIcon(props: IconProps) {
+  return <SeekIcon {...props} mirrored={false} />;
+}
+
+/** 10초 앞으로 — 오른쪽이 트인 시계 화살표 원호 + "10" */
+export function SeekForwardIcon(props: IconProps) {
+  return <SeekIcon {...props} mirrored />;
+}
+
+const seekStyles = StyleSheet.create({
+  label: {
+    textAlign: 'center',
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+});
+
+/** 다음 재생 목록 — 줄 세 개 + 재생 삼각형(2026-09-16 추가). 선 굵기는 ±10초 아이콘의 호와 같다 */
+export function QueueIcon({ size, color }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path
+        d="M4 7h12M4 12h12M4 17h7"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        fill="none"
+      />
+      <Path d="M14 14v6l5.5-3z" fill={color} />
+    </Svg>
+  );
+}
+
+/** 수면 타이머 — 초승달(2026-09-16, 앱바로 이동). 선 굵기는 ±10초 아이콘과 같다 */
+export function SleepTimerIcon({ size, color }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path
+        d="M14.5 3.5a8.5 8.5 0 1 0 6 14.5 7 7 0 0 1-6-14.5z"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </Svg>
+  );
+}
+
+/**
+ * 스크립트 — 길이가 다른 가로줄 세 개("글"). 말풍선은 채팅으로, T 는 글꼴 도구로 읽혔다(2026-09-18 PM, 4안 중 채택).
+ * 크기는 ±10초 링(지름 17칸)에 맞춘다 — 가장 긴 줄 13칸, 줄 간격 5칸, 세 줄의 중심이 (12,12).
+ * 선은 1.5 — 짧은 선 셋이 나란히 있어 링(1.8)과 같은 굵기면 잉크가 몰려 더 무거워 보인다(2026-09-18 PM).
+ * 재생 목록 아이콘(줄 + 재생 삼각형)과 헷갈리지 않게 삼각형 없이 줄 길이만 달리한다
+ */
+export function ScriptIcon({ size, color }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path
+        d="M5.5 7h13M5.5 12h9M5.5 17h11"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        fill="none"
+      />
     </Svg>
   );
 }

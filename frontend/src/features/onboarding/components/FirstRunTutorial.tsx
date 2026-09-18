@@ -29,7 +29,7 @@ import {
 } from '@/features/explore';
 import {
   LibraryBanner,
-  LibraryItemCard,
+  LibraryItemTile,
   LibrarySearchBarRow,
   LibraryTabs,
   type LibraryItem,
@@ -71,7 +71,12 @@ const THUMBS = [
 ];
 
 const CONTENTS = [
-  { id: 't1', title: '금리가 내려가면 내 월급은 어떻게 되나', authorName: '이음', durationSec: 600 },
+  {
+    id: 't1',
+    title: '금리가 내려가면 내 월급은 어떻게 되나',
+    authorName: '이음',
+    durationSec: 600,
+  },
   { id: 't2', title: '회의에서 말수가 적어도 인정받는 법', authorName: '윤아', durationSec: 540 },
   { id: 't3', title: 'AI가 대체하지 못하는 일의 조건', authorName: '이음', durationSec: 720 },
   { id: 't4', title: '번아웃이 오기 전에 몸이 보내는 신호', authorName: '윤아', durationSec: 480 },
@@ -362,10 +367,16 @@ export default function FirstRunTutorial() {
               </View>
             ) : null}
             <ScrollView scrollEnabled={false} contentContainerStyle={styles.list}>
-              {/* 라이브러리 단계가 가리키는 것은 카드가 아니라 탭바다(libraryTab) — 여기는 재지 않는다 */}
-              <LibraryItemCard item={libraryItem(0)} onPress={noop} onMorePress={noop} />
-              <LibraryItemCard item={libraryItem(1)} onPress={noop} onMorePress={noop} />
-              <LibraryItemCard item={libraryItem(2)} onPress={noop} onMorePress={noop} />
+              {/* 라이브러리 단계가 가리키는 것은 타일이 아니라 탭바다(libraryTab) — 여기는 재지 않는다.
+                  실제 화면과 같은 두 칸 격자(LibraryScreen gridRow) */}
+              <View style={styles.gridRow}>
+                <LibraryItemTile item={libraryItem(0)} onPress={noop} onMorePress={noop} />
+                <LibraryItemTile item={libraryItem(1)} onPress={noop} onMorePress={noop} />
+              </View>
+              <View style={styles.gridRow}>
+                <LibraryItemTile item={libraryItem(2)} onPress={noop} onMorePress={noop} />
+                <View style={styles.gridSpacer} />
+              </View>
             </ScrollView>
           </>
         )}
@@ -415,13 +426,14 @@ export default function FirstRunTutorial() {
       <View
         key={`${step}-${Math.round(headTop)}`}
         ref={headRef}
-        onLayout={() => headRef.current?.measureInWindow((x, y, w, h) => setHeadRect({ x, y, w, h }))}
+        onLayout={() =>
+          headRef.current?.measureInWindow((x, y, w, h) => setHeadRect({ x, y, w, h }))
+        }
         style={[styles.head, { top: headTop }]}
       >
         <Text style={styles.title}>{current.title}</Text>
         <Text style={styles.body}>{current.body}</Text>
       </View>
-
 
       <Pressable
         style={[styles.skip, { top: insets.top, right: theme.spacing.sm }]}
@@ -485,7 +497,16 @@ const styles = StyleSheet.create({
   },
   list: {
     paddingHorizontal: theme.spacing.md,
-    gap: theme.spacing.sm,
+    paddingTop: theme.spacing.sm,
+    gap: theme.spacing.lg,
+  },
+  // 실제 라이브러리 격자와 같은 값(LibraryScreen gridRow)
+  gridRow: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm * 1.5,
+  },
+  gridSpacer: {
+    flex: 1,
   },
   tabBar: {
     position: 'absolute',

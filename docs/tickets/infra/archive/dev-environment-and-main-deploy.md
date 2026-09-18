@@ -1,0 +1,87 @@
+# [INFRA] 개발계 분리와 운영 배포 흐름 전환 — dev→개발계 · main→운영계
+
+| 항목 | 값 |
+|---|---|
+| 대상 | AWS(개발계 EC2·SG·롤·EIP·버킷·CloudFront·DLM·알람·ECR) · `.github/workflows/deploy-api.yml`·`deploy-pipeline.yml`·`eas-update.yml` · GitHub 브랜치 보호(`main`) · IAM 롤 `ear-ci-deploy` 신뢰 조건 · `backend/deploy/`·`docs/infra/` 문서 |
+| 요청 파트 | 인프라 (담당 박준현, 2026-09-15 인수) |
+| 요청자 | 박준현 |
+| 발행 날짜 | 2026-09-15 |
+| Jira | [KAN-62](https://runtime364.atlassian.net/browse/KAN-62) |
+| 발견 시점 | 2026-09-15 인프라 인수 — 실계정 대조(PR #343). 환경이 한 벌뿐이고 그것이 실운영이라 dev 머지가 검증 없이 실사용자에게 닿는다 |
+| 근거 문서 | `docs/infra/architecture.md` 6장(2026-09-15 미결) · `docs/infra/inventory.md` 1장 · 루트 `CLAUDE.md` Git 절(main = 배포 기준선) · `backend/load-test/README.md`(상한 실측) |
+| 중요도 | **Low** — 이번 주 안에 착수. 지금 당장 장애는 없지만, 사용자 유입(광고) 전에 "검증된 것만 운영에" 구조가 있어야 한다 |
+| 상태 | **완료** — 1~9단계 전부 반영(2026-09-17 archive). dev 머지 = 개발계 배포, main 머지 = 운영 배포(ECR pull) + `v1.0.0` 태그. 후속은 별도 티켓: FE 개발계 테스트 방법(KAN-65), 개발계 API 2컨테이너 재측정(보류) |
+
+## 배경 · 확인된 현재 상태 (2026-09-15 실측)
+
+- 서버 2대(API `i-04f1f70f5484ffafd` · AI `i-0c414b676584733da`)가 이미 같은 기본 VPC·같은 서브넷(2a)에 있다. **"VPC 통합" 과제는 필요 없다.**
+- 환경이 한 벌뿐이고 그것이 실운영(`api.earcast.co.kr`, 사용자 21명·콘텐츠 10편). **dev 머지가 곧 실서버 배포**다(`deploy-api.yml`).
+- `main`은 앱 OTA production 채널 외에 역할이 없고 dev보다 70커밋 뒤. 브랜치 보호 없음.
+- CI 롤 `ear-ci-deploy`의 OIDC 신뢰 조건은 `refs/heads/dev`만.
+- 부하 테스트(2026-09-11) 상한 초당 130~150요청, 병목은 API 프로세스 CPU. NAT·ALB·WAF·RDS 없음.
+
+## 결정 (2026-09-15)
+
+1. **지금 서버 = 운영계 확정.** 개발계를 새로 만든다(운영을 옮기지 않음 — 데이터·EIP·DNS·서명 키가 묶여 있어 이동량이 가장 적다).
+2. **VPC 하나 유지.** 개발계는 같은 VPC에 EC2 1대(`ear-dev`, 운영과 같은 compose), 별도 SG·롤·EIP·Secrets Manager `ear/dev/api`·도메인 `api-dev.earcast.co.kr`. 운영 인스턴스 이미지를 뜨지 않는다(실사용자 데이터·운영 비밀값이 따라온다) — 셋업 스크립트로 새로 만든다. **관리자 콘솔은 개발계에 두지 않는다**(정정 2026-09-15 — 콘솔은 2026-09-03부터 AI 서버의 파이프라인 웹 `admin.earcast.co.kr`이고 그 서버는 운영 하나. 개발계 도메인은 `api-dev` 하나).
+3. **AI 서버는 운영 1대만.** 개발계 API가 임베딩이 필요하면 운영 AI 서버 8000을 개발 SG에도 개방.
+4. **WAF 제외.** 앞단(CloudFront/ALB)이 없어 공사가 크고 레이트 리밋으로 충분. CloudFront 앞단 설계는 후속 문서로만.
+5. **release 브랜치 없음. `main` = 운영 배포 + 버전 태그.** 흐름: 작업 → dev(개발계 자동 배포) → main(운영 자동 배포 + `vX.Y.Z` 태그).
+6. **운영 배포는 자동.** main 머지 조건 = dev에서만(원본 검사 워크플로를 필수 체크로) · 검증 통과 · **리뷰 1명 승인**. 별도 수동 승인 게이트 없음.
+7. **콘텐츠 계층은 운영과 동일.** 개발계 DB는 별도이되 `topics·contents·content_topics·content_sources·content_embeddings·content_stats`만 운영→개발 한 방향 복사(id 유지, 매일 새벽 + 수동). 이중 쓰기(운영·개발 동시 발행) 안 함.
+   - **복사 경로(확정 2026-09-15)**: 운영 서버 크론 `deploy/sync-content-export.sh`(04:10 KST)가 6개 표를 `--data-only --column-inserts`로 덤프해 백업 버킷 `content-sync/content-latest.sql.gz`에 올린다(사용자 표가 섞이면 스스로 중단). 개발계 크론 `deploy/sync-content-import.sh`(04:30 KST)가 받아 stage 스키마에 적재 후 public으로 **upsert**(삭제 없음 — 개발계 사용자 데이터가 콘텐츠를 참조하므로). 개발계는 운영 DB·서버에 접근하지 않고, 개발계 롤은 그 접두사 `s3:GetObject`만 갖는다. 로컬 검증: 196행 upsert, 2회 실행 멱등.
+   - **오디오·CloudFront(정정 2026-09-15)**: 개발계 버킷·개발계 CloudFront를 **만들지 않는다**. 운영 S3·운영 CloudFront를 읽기 전용으로 공유하고, 운영 키 그룹 `ear-audio-keygroup`에 **개발계 전용 공개키 `K3CJ80YUPY9I0V`(ear-audio-key-dev)** 를 추가해 개발계는 자기 개인키(Secrets Manager `ear/dev/api`)로 서명한다. 개발계 롤에 오디오 버킷 쓰기·삭제 권한 없음 → 개발계 업로드·회수는 S3에서 거부(의도). 회수는 키 그룹에서 개발 키만 제거. 검증: 개발 키 서명 URL 206, 무서명 403. 백업 버킷도 만들지 않는다(개발계 DB는 잃어도 되는 데이터).
+8. **사용자 데이터는 복사하지 않는다.** 개발계에서 자체 생성. 가명화 복사는 협업 필터링 검증 등 필요해질 때 추가.
+9. **이미지는 CI가 빌드해 ECR에 올리고 서버는 pull만.** 태그 = 커밋 SHA. 개발계에서 검증된 같은 이미지가 운영으로. 배포 중 운영 CPU 경합 제거.
+10. **알람 3종**: CloudWatch Logs `/ear/api` 지표 필터 5xx·ERROR 급증 · `/health` 외부 모니터 · 백업 24시간 미실행. 기존 SNS `ear-prod-alerts`.
+11. **EBS 일일 스냅샷** — **운영 API 루트 볼륨만**(정정 2026-09-15: AI 서버는 Supabase·S3가 실체, 개발계는 버려도 됨). 매일 04:40 KST, 7일 보존 후 자동 삭제, 월 500~700원. **DLM·AWS Backup은 조직 SCP가 거부**(dlm:* 명시 거부, Backup 볼트 생성 거부 — `inventory.md` 계정 제약)해서 `backup.sh`와 같은 자리인 **서버 크론 `deploy/ebs-snapshot.sh` + 인스턴스 롤 `ebs-snapshot`**(이 볼륨 생성·`ear-daily` 태그만 삭제)로 구현.
+
+## 요청 내용 (착수 순서 — 한 단계씩, 앞 단계 완료 후 다음)
+
+1. ✅ 개발계 EC2(`setup-dev-server.sh`) — `i-0a22112e947856a71` · EIP `54.116.155.248` · SG `sg-0f8f793be74bd58e4` · 롤 `ear-dev-ec2` · 시크릿 `ear/dev/api` · `https://api-dev.earcast.co.kr/api/v1/health` 200 (2026-09-15). 첫 부트에서 셸 변수 `NAME` 충돌로 이름이 잘못 붙어 재생성한 기록은 PR #353
+2. ✅ 오디오 서명 키(`setup-dev-cdn-key.sh`) — 운영 CloudFront 키 그룹에 개발 키 추가, 개발계 env `AUDIO_DELIVERY=cloudfront` 전환·재배포 (2026-09-15). 버킷·배포 신설은 하지 않음(결정 7 정정)
+3. ✅ 콘텐츠 동기화 — 운영 크론 `10 19 * * *`(04:10 KST) `sync-content-export.sh` 등록·첫 내보내기 15KB 업로드, 개발계 크론 `30 19 * * *`(04:30 KST) `sync-content-import.sh` 등록·첫 들여오기 161행(topics 36 · contents 11 · content_topics 13 · content_sources 66 · content_stats 35 · content_embeddings 0 — 운영에 임베딩 행이 아직 없음). 개발계 users 0 유지. 로그 양쪽 `/var/log/ear-content-sync.log` (2026-09-15)
+4. CI 이미지 빌드 → ECR → 서버 pull — 네 조각으로 나눈다. **4-4(운영 pull 전환)는 팀 공유 후 사용자가 시점을 정한다(2026-09-15).**
+   - 4-1 ✅ ECR `ear/api`(스캔·최근 10개 보존) + CI 롤 `ecr-push` + 인스턴스 롤 `ear-prod-ec2`·`ear-dev-ec2` `ecr-pull` (`setup-ecr.sh`, 2026-09-15). 권한만 붙었고 배포 방식 무변경
+   - 4-2 ✅ 워크플로 `build-push` job(PR #360, 2026-09-15) — 첫 런: 검증 2.5분 · **빌드+푸시 70초**(arm64 네이티브) · 배포 30초. ECR에 `4df2660…`·`dev-latest` 78MB(압축). 배포 job은 독립 — 서버는 여전히 자기 빌드
+   - 4-3 ✅ 개발계 pull 배포 시험(2026-09-15) — `API_IMAGE=…:4df2660…`로 pull → 헬스 200, 실행 컨테이너 이미지 = ECR 태그 확인, 마이그레이션 24 유지. **롤백 훈련**: `API_IMAGE` 없이 재배포 → 옛 서버 빌드 경로로 헬스 200(폴백 동작 확인) → 다시 ECR 이미지로. 개발계 최종 상태 = ECR 이미지 실행
+   - 4-4 운영 pull 전환 — `push.sh`/워크플로 기본을 이미지로. **대기**
+5. 스냅샷 · 알람
+   - 5-스냅샷 ✅ (2026-09-15) `setup-ebs-snapshots.sh`(볼륨 태그·롤 정책) + 운영 크론 `40 19 * * *` `ebs-snapshot.sh` 등록, 첫 스냅샷 `snap-0490cb092c774d4a6` 생성 확인. 복구 절차 `runbook.md` 5.4-A
+   - 5-알람 ✅ 결정·구현(2026-09-15) — 기존 Slack 알림(워커 ERROR 감시·resource-alert·backup.sh 실패)은 전부 "자기 보고"라 서버 다운·크론 미실행에 침묵한다. 그래서 두 개만 더한다: **(c) 크론 심장박동** — 백업·콘텐츠 내보내기·스냅샷 스크립트가 성공 시 `ear/ops CronSuccess` 지표를 찍고, 25시간 미기록이면 기존 SNS(서울, 메일 4명, 재인증 없음)로 알람(`setup-cron-alarms.sh`). **(b) 외부 헬스체크 = UptimeRobot 무료**(5분, 키워드 `"status":"ok"`, 메일 — Slack 연동은 유료 플랜이라 제외) — Route 53(월 $0.5)은 us-east-1 토픽·메일 재인증이 필요해 제외. (a) ERROR·(d) 자원 알람은 기존 Slack 모듈과 중복이라 추가하지 않음. UptimeRobot 모니터 `ear api health` 등록 완료(2026-09-15, 메일 알림). 대시보드 `ear`에 알람 상태·크론 심장박동·백업 경과 위젯 추가(2026-09-15). backup 알람이 생성 직후 첫 평가 타이밍으로 오탐 ALARM 1회 → 원인·대응을 `runbook.md` 6장에 기록
+6. 워크플로 환경 매트릭스(브랜치 → 호스트·SG·SSH 시크릿·Secrets 경로·헬스 URL, GitHub Environments) · IAM `ear-ci-deploy` 신뢰 조건에 `refs/heads/main` 추가 · `eas-update.yml` 채널별 API 주소 분리
+   - 6-준비 ✅ (2026-09-16, `setup-ci-envs.sh` — 배포 동작 무변경) GitHub Environments `api-dev`(브랜치 dev만)·`api-prod`(main만) 생성, 변수 `API_HOST`·`API_SG_ID`·`API_SECRET_ID`·`API_HEALTH_URL`·`LOG_GROUP_PREFIX` 각 환경에 등록, 개발계 CI 전용 SSH 키 `out/ear-ci-deploy-api-dev` 생성 → `api-dev/CI_SSH_KEY_API` 시크릿(운영은 레포 시크릿 그대로). 기존 `Preview`·`Production` 환경은 Expo 것이라 미사용. 개발계 서버 `authorized_keys`에 CI 공개키 설치·CI 키 로그인 확인 · IAM `ear-ci-deploy` 신뢰 sub에 `refs/heads/main` 추가(dev 유지) + 인라인 `sg-open-close-api-dev` 부착 — 전부 완료(2026-09-16). backup 심장박동 알람은 2026-09-15 23:32 OK 복귀, 09-16 04:00 백업 지표 정상 확인
+   - 6-워크플로: `deploy-api.yml` 변경안 준비 완료(2026-09-16, draft PR) — push 트리거 dev·main, `environment: api-dev|api-prod`, `vars.API_*`로 호스트·SG·시크릿·헬스 URL, 배포 job이 `build-push` 이미지를 `API_IMAGE`로 push.sh에 넘김(**4-4 포함**), `source-check` job("원본 브랜치 확인 (dev)"), main 성공 시 `tag` job(`v<package.json version>`). **머지 = 전환 시작** — 2026-09-16 23:00 KST 예정(사용자 확인 후). **1차 시도(PR #378, 21:06)**: 예정보다 먼저 머지돼 첫 개발계 배포 런이 `sts:AssumeRoleWithWebIdentity` 거부로 실패 → PR #380으로 revert. 원인: `environment:`를 쓰는 job은 OIDC sub가 `environment:api-dev` 형식이라 브랜치 형식만 신뢰한 정책에 안 맞음 → `setup-ci-envs.sh`에 environment sub 2개 추가(재실행 필요). **2차 실행(PR #381, 23:00 머지 ✅)**: 배포 job이 또 같은 거부로 실패 → 저장소 OIDC가 **불변 주체(immutable subject)** 모드라 실제 sub 접두사가 `repo:swm-runtime@310554093/ear_project@1315970250`이었음(평문 `repo:swm-runtime/ear_project` 줄은 하나도 매치 안 됨. dev 브랜치가 되던 것은 이전에 넣어 둔 ID 박힌 줄 덕분). `setup-ci-envs.sh`가 `gh api …/actions/oidc/customization/sub`로 접두사를 읽어 두 형식 × 4주체(총 8줄)를 넣도록 수정·재실행 → 실패 job만 재실행해 **개발계 배포 성공**(23:08, 이미지 `6ce8955`, 헬스 200, SG 폐쇄 확인)
+7. ✅ `main` 브랜치 보호 적용(2026-09-16 23:10) — 필수 체크 `검증 (lint · build · 유닛 · e2e)`·`원본 브랜치 확인 (dev)`, 리뷰 1, 관리자 포함, force push·삭제 금지(`setup-main-protection.sh`). **strict("브랜치가 main 최신 포함")는 끔** — main은 dev→main 머지 커밋을 자기만 갖게 되어 dev가 항상 '뒤'로 보이므로 켜면 모든 dev→main PR이 BEHIND로 막힌다(첫 PR에서 실측)
+8. ✅ **전환 완료**(2026-09-16 23:11~23:24) — dev→main PR #384 생성 → 박수헌 승인(23:18) → 머지(`808e526`) → 새 흐름 첫 운영 배포: 검증·이미지 빌드·`api-prod` 배포·태그 job 전부 success, 운영 헬스 연속 200(다운타임 없음), 운영 실행 이미지 = `808e526`, 태그 **`v1.0.0`** 생성. 절차·롤백은 `runbook.md` 4장
+9. ✅ `docs/infra/architecture.md`·`inventory.md`·`README.md` 개정(2026-09-17 — 개발계 EC2·SG·롤·시크릿·CDN 개발 키·ECR·GitHub Environments·main 보호·CI 롤 신뢰 8줄, 6장 '개발계 없음' 해소). `runbook.md` 4장은 PR #381에서 새 흐름·롤백으로 갱신됨. 팀 공유(Slack)는 사용자가 게시
+
+전환 이후 팀에 공유할 것: dev 머지는 개발계에만 반영 · 운영 반영은 dev→main PR(작성자 외 리뷰 1명 승인) · main 배포마다 `v<package.json version>` 태그가 붙으니 운영 반영 전 version을 올린다 · **앱은 아직 두 채널 모두 운영 API를 본다**(`eas-update.yml` 미변경) — 개발계 API를 앱에서 보는 방법은 FE 티켓 KAN-65에서 FE가 선택(A preview 채널 전환 / B 앱 내 스위치). 그 전까지 개발계는 로컬 Metro(`EXPO_PUBLIC_API_BASE_URL`)로만.
+
+**미결(그 단계에서 결정)**: 앱 preview 빌드의 번들 ID 분리 여부·배포 시점 → **FE 티켓 [KAN-65](https://runtime364.atlassian.net/browse/KAN-65)로 이관(2026-09-16, `tickets/frontend/pending/dev-api-test-method.md` — preview 채널 전환 또는 앱 내 스위치, FE 담당 선택)** · 파이프라인·AI 서버 배포 트리거를 dev에 남길지(AI 파트와) · SSO 역할의 SSM 권한(후보 SSM 도입 시).
+
+## 후속 후보 (이 티켓 범위 밖)
+
+- SSM Session Manager로 SG 22번 폐쇄(공존 후 전환) · Dependabot·시크릿 스캐닝 · API 프로세스 2~4개 + Redis(동시 100명 근처) · Route 53 이관.
+- **API 프로세스 복제 실측**(2026-09-16 개발계 램프 결과: t4g.small 상한 초당 150~170 · 동시 청취 약 350명, 병목 Node 단일 프로세스 CPU 105%, PostgreSQL 42%): 개발계에서 api 컨테이너 2개 + Caddy 라운드 로빈으로 같은 램프를 다시 돌려 상한 변화를 본다(오버라이드 compose·Caddyfile, 약 30분). 운영 적용 조건은 인메모리 레이트 리밋의 Redis 이전. 결과: `backend/load-test/results/2026-09-16-dev/REPORT.md`(로컬).
+- compose 프로젝트 이름이 `name: ear-prod` 고정이라 개발계 컨테이너도 `ear-prod-api-1`로 보인다(운영 오인 위험). `${COMPOSE_PROJECT:-ear-prod}`로 열고 개발계만 `ear-dev`로 — 이름을 바꾸면 DB 볼륨이 새로 생기므로 개발계 작업 재개 시 콘텐츠 동기화와 함께.
+- 트래픽 스파이크 대비: 캠페인 D-1 t4g.large 상향 + API 컨테이너 3~4 복제(상한 ~500~600 req/s), 사용자 무관 응답 캐시, 05시 푸시 분산. ALB·RDS는 동시 수천 명 규모부터(ALB는 DB 분리와 세트).
+
+## 완료 조건
+
+- Given 개발계 EC2·DNS가 있다 / When dev에 백엔드 변경이 머지된다 / Then `api-dev.earcast.co.kr/api/v1/health`가 새 커밋으로 200을 주고 **운영(`api.earcast.co.kr`)은 바뀌지 않는다**
+- Given dev→main PR / When 리뷰 1명 승인 + 검증 통과 전에 머지를 시도한다 / Then GitHub가 머지를 막는다. dev가 아닌 브랜치에서 main으로 PR을 열면 "원본 dev" 체크가 실패한다
+- Given main에 머지된다 / When 배포 워크플로가 끝난다 / Then 운영 헬스가 200이고 커밋에 `vX.Y.Z` 태그가 붙는다. 배포된 이미지 태그(커밋 SHA)가 개발계에서 검증된 것과 같다
+- Given 운영에 콘텐츠가 발행된다 / When 동기화가 돈다(새벽 또는 수동) / Then 개발계 콘텐츠 목록에 같은 id로 나타나고 개발계 앱에서 재생된다. 운영 `users` 행은 개발계에 없다
+- Given API가 5xx를 1분에 N건 이상 내거나 `/health`가 실패하거나 백업이 24시간 안 돌았다 / When 알람 조건이 충족된다 / Then `ear-prod-alerts` 메일이 온다
+- Given DLM 정책이 있다 / When 하루가 지난다 / Then 각 EC2 루트 볼륨 스냅샷이 1개 늘고, 8일째 것은 지워져 있다
+- Given 전환 당일 / When 6~8단계를 수행한다 / Then 운영 API 다운타임 없이(헬스 연속 200) 배포 대상이 바뀌고, 절차·롤백이 `runbook.md`에 있다
+
+## 처리 기록
+
+| 항목 | 값 |
+|---|---|
+| 반영 날짜 | 2026-09-17 (전환 실행 2026-09-16 23:00~23:25 KST) |
+| 반영 PR | #353 · #356 · #357 · #360 · #361 · #362 · #363 · #374 · #381 · #384(dev→main, v1.0.0) · #385 · #386 · 문서 개정 PR(이 이동) |
+| 완료 조건 확인 | ① dev 머지 → `api-dev` 헬스 200·운영 무변경(#385 머지로 확인, 개발계 이미지 `e0fa08b`·운영 `808e526`) ② main 보호 — 승인 없는 머지 차단(PR #384에서 `REVIEW_REQUIRED` 확인), 필수 체크 2개 ③ main 머지 → 운영 헬스 200·태그 `v1.0.0`·운영 실행 이미지 = 개발계에서 검증한 SHA ④ 전환 당일 헬스 연속 200(다운타임 없음) |
+| 남긴 후속 | KAN-65(FE 개발계 테스트 방법) · 개발계 API 컨테이너 2개 + Caddy 분배 재측정(보류) · SSM으로 22번 폐쇄·Dependabot(후속 후보 그대로) |

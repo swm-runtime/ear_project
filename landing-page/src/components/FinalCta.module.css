@@ -12,6 +12,33 @@
   box-shadow: var(--shadow-lg);
 }
 
+/* 변수를 등록해 값 변화에 전환을 건다 — 포인터를 따라가는 빛이 프레임마다 툭툭 튀지 않고 미끄러진다 */
+@property --glow {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
+@property --gx {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --gy {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+.panel {
+  --gx: 50%;
+  --gy: 50%;
+  --glow: 0;
+  transition: --glow 0.35s ease, --gx 0.16s ease-out, --gy 0.16s ease-out;
+}
+
+/* 고정 빛(우상단) — 포인터를 따라가는 동안도 대부분 남긴다. 멀어져서 어두워지는 폭은 작게(피드백 2026-09-18) */
 .glow {
   position: absolute;
   inset: -50% -10% 20% 40%;
@@ -22,11 +49,109 @@
     transparent 74%
   );
   pointer-events: none;
+  transition: opacity 0.6s ease;
+}
+
+.tracking .glow {
+  opacity: 0.75;
+}
+
+/* 포인터를 따라가는 빛(CtaPanel) — 위치는 --gx/--gy, 세기·크기는 --glow(0~1).
+   바닥값을 두어 멀리 있어도 은은하게 남고, 버튼에 가까워질수록 밝고 커지며 색이 살짝 따뜻해진다 */
+.pointerGlow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    calc(260px + 220px * var(--glow)) calc(260px + 220px * var(--glow)) at var(--gx) var(--gy),
+    rgba(255, 244, 214, calc(0.07 + 0.16 * var(--glow))) 0%,
+    rgba(255, 240, 200, calc(0.03 + 0.05 * var(--glow))) 45%,
+    transparent 72%
+  );
+  transition: opacity 0.45s ease;
+}
+
+.tracking .pointerGlow {
+  opacity: 1;
+}
+
+/* 버튼 — 가까워지는 빛을 받아 후광이 자라고, 올리면 황금빛으로 바뀐다.
+   배경 그라데이션은 전환이 안 되므로 ::before 겹층의 불투명도로 서서히 켠다 */
+.cta {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  box-shadow:
+    0 10px 26px -14px rgba(10, 10, 12, 0.7),
+    0 0 calc(6px + 30px * var(--glow)) calc(1px + 5px * var(--glow)) rgba(255, 236, 190, calc(0.26 * var(--glow)));
+  transition: transform 0.22s ease, box-shadow 0.3s ease, color 0.3s ease;
+}
+
+/* 금빛 겹층 — 무늬는 **가로(90deg)** 로만 반복시킨다. 대각선 그라데이션은 반복 주기가 상자 폭과 맞지 않아
+   한 무늬만큼 움직여도 이음새가 보였다(피드백 2026-09-18). 대각선 느낌은 층 전체를 기울여(skew) 낸다.
+   폭 3배 · 같은 무늬 3번 → 정확히 1/3만큼 이동하면 처음과 끝이 같은 그림이라 반복 지점이 없다 */
+.cta::before {
+  content: "";
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: -40%;
+  width: 300%;
+  z-index: -1;
+  background: repeating-linear-gradient(
+    90deg,
+    #e6bf5c 0%,
+    #f7e3a8 8%,
+    #fff1c2 15%,
+    #f0cf74 24%,
+    #e6bf5c 33.3333%
+  );
+  opacity: 0;
+  transform: skewX(-18deg) translateX(0);
+  will-change: transform;
+  transition: opacity 0.4s ease;
+}
+
+.cta:hover {
+  transform: translateY(-2px) scale(1.03);
+  color: #1a1a1e;
+  box-shadow:
+    0 14px 30px -14px rgba(10, 10, 12, 0.8),
+    0 0 42px 8px rgba(233, 196, 99, 0.45);
+}
+
+.cta:hover::before {
+  opacity: 1;
+  /* 느리게 — 빛이 "지나가는" 속도지 반짝이는 속도가 아니다(피드백 2026-09-18) */
+  animation: ctaShimmer 5s linear infinite;
+}
+
+@keyframes ctaShimmer {
+  from { transform: skewX(-18deg) translateX(0); }
+  to { transform: skewX(-18deg) translateX(-33.3333%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pointerGlow {
+    display: none;
+  }
+
+  .tracking .glow {
+    opacity: 1;
+  }
+
+  .cta {
+    box-shadow: 0 10px 26px -14px rgba(10, 10, 12, 0.7);
+  }
+
+  .cta:hover::before {
+    animation: none;
+  }
 }
 
 .content {
   position: relative;
-  max-width: 46ch;
 }
 
 .title {
@@ -35,6 +160,7 @@
 }
 
 .lede {
+  max-width: 46ch;
   margin-top: 18px;
   color: var(--ink-200);
   font-size: clamp(15.5px, 1.6vw, 17px);

@@ -43,6 +43,16 @@ export class UserInterestRepository {
     return this.repository.create(interest);
   }
 
+  /** 주제 삭제용 — `fk_user_interests_topics`(ON DELETE 없음)를 풀기 위해 먼저 지운다. 지운 행 수를 돌려준다 */
+  async deleteByTopicId(
+    topicId: string,
+    manager?: EntityManager,
+  ): Promise<number> {
+    const result = await this.scoped(manager).delete({ topicId });
+
+    return result.affected ?? 0;
+  }
+
   /** 탈퇴 파기용 (domain.md 12.3) */
   async deleteByUserId(userId: string, manager?: EntityManager): Promise<void> {
     await this.scoped(manager).delete({ userId });

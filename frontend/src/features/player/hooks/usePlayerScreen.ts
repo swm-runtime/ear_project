@@ -17,7 +17,7 @@ import { useDeferredSheetShare } from '@/features/share';
 
 import { BUFFERING_INDICATOR_DELAY_MS, PLAYER_DELETE_UNDO_DURATION_MS } from '../player.constants';
 import { PLAYER_COPY } from '../player.copy';
-import type { PlayEntryPoint } from '../player.types';
+import type { PlayEntryPoint, PlaybackStartMeta, QueueItem } from '../player.types';
 import { usePlayGate } from './usePlayGate';
 import { playbackService } from '../services/playback.service';
 import { getPlayerLibraryBridge } from '../services/player-library.bridge';
@@ -25,10 +25,18 @@ import { usePlaybackStore } from '../store/playback.store';
 
 /** Player 라우트 파라미터 — app 내비게이션 타입(MainStackParamList)과 모양을 맞춘다 */
 type PlayerRouteParams = {
-  Player: { contentId: string; entryPoint?: PlayEntryPoint; autoplay?: boolean };
+  Player: {
+    contentId: string;
+    entryPoint?: PlayEntryPoint;
+    autoplay?: boolean;
+    meta?: PlaybackStartMeta;
+  };
 };
 
 /** PL1~PL10 화면 로직 전부 — Screen은 이 훅이 준 상태를 배치만 한다(convention.md 3.1) */
+/** 플레이어 안에서 펼쳐지는 패널의 종류 — 하나만 열린다 */
+export type PlayerPanelKind = 'script' | 'queue';
+
 export const usePlayerScreen = () => {
   const navigation = useNavigation();
   const route = useRoute<RouteProp<PlayerRouteParams, 'Player'>>();
@@ -44,6 +52,7 @@ export const usePlayerScreen = () => {
   const playGate = usePlayGate();
 
   const [isRateSheetVisible, setIsRateSheetVisible] = useState(false);
+  const [activePanel, setActivePanel] = useState<PlayerPanelKind | null>(null);
   const [isMoreSheetVisible, setIsMoreSheetVisible] = useState(false);
   const [pendingDeleteItemId, setPendingDeleteItemId] = useState<string | null>(null);
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -60,6 +69,8 @@ export const usePlayerScreen = () => {
         contentId,
         entryPoint: route.params.entryPoint ?? 'miniplayer',
         autoplay: route.params.autoplay ?? false,
+        // 목록이 넘긴 메타 — 발급 전에도 제목·썸네일을 그린다(미니플레이어가 비지 않는다)
+        meta: route.params.meta,
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 진입 시 1회: contentId가 이 화면의 정체성이다
@@ -167,6 +178,7 @@ export const usePlayerScreen = () => {
                 sourceName: session.meta.sourceName ?? undefined,
                 thumbnailUrl: session.meta.thumbnailUrl ?? undefined,
                 durationSec: session.durationSec,
+                topicIds: session.meta.topicIds,
               }
             : undefined,
         },
@@ -175,6 +187,31 @@ export const usePlayerScreen = () => {
       return;
     }
     playbackService.togglePlayPause();
+  };
+
+  /**
+   * 재생 목록에서 다른 편을 고른다 — **게이트를 거친다.** 재생 진입점이 하나 늘어난 것이므로 여기서
+   * playbackService.start 를 직접 부르면 한도 확인 팝업을 건너뛰는 다섯 번째 경로가 생긴다
+   * (paywall.md 4.2 — 모든 경로가 단일 게이트). 진입점은 목록의 정체를 따라 `library`다.
+   * 지금 듣고 있는 편을 다시 고르면 아무 일도 하지 않는다 — 재시작이 아니라 오조작이다.
+   */
+  const playQueueItem = (item: QueueItem) => {
+    setActivePanel(null);
+    if (item.contentId === contentId) return;
+    playGate.requestPlay(
+      {
+        contentId: item.contentId,
+        isCountedToday: item.isCountedToday,
+        meta: {
+          title: item.title,
+          authorName: item.authorName ?? undefined,
+          sourceName: item.sourceName ?? undefined,
+          thumbnailUrl: item.thumbnailUrl ?? undefined,
+          durationSec: item.durationSec ?? undefined,
+        },
+      },
+      'library',
+    );
   };
 
   /** PL7 [상세 정보] — 시트를 닫고 상세 화면으로 이동한다(player-uiux.md 4.7, 추가 2026-08-23).
@@ -263,6 +300,11 @@ export const usePlayerScreen = () => {
     openRateSheet: () => setIsRateSheetVisible(true),
     closeRateSheet: () => setIsRateSheetVisible(false),
     selectRate,
+    // 펼침 패널(스크립트 PL6 · 다음 재생 목록) — 하나만 열리고, 열리면 아트워크가 압축된다
+    activePanel,
+    openPanel: (kind: PlayerPanelKind) => setActivePanel(kind),
+    closePanel: () => setActivePanel(null),
+    playQueueItem,
     // 더보기 시트
     isMoreSheetVisible,
     openMoreSheet: () => setIsMoreSheetVisible(true),

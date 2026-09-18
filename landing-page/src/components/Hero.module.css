@@ -140,6 +140,14 @@
   justify-content: center;
 }
 
+/* 마우스 시차 기울기(PhoneTilt). 원근은 이 상자가, 회전은 .phone 이 맡는다.
+   --rx/--ry 는 PhoneTilt 가 포인터 위치로 채우고, 벗어나면 0으로 돌려 놓는다 */
+.tilt {
+  --rx: 0deg;
+  --ry: 0deg;
+  perspective: 1200px;
+}
+
 /* 기기 껍데기. 흰 페이지 위의 검은 컴포넌트는 이것뿐이다.
    테두리 두께(--bezel)는 화면 폭에 비례해야 넓은 화면에서 테가 얇아 보이지 않는다. */
 .phone {
@@ -148,9 +156,16 @@
   /* 아이폰 화면 모서리는 폭의 약 14%다. 껍데기 모서리는 거기에 테 두께를 더한다. */
   --screen-r: calc(var(--screen-w) * 0.14);
 
+  --base-rot: 0deg;
+
   position: relative;
   padding: var(--bezel);
   border-radius: calc(var(--screen-r) + var(--bezel));
+  /* 기본 회전(넓은 화면 -1.6deg) 위에 포인터 기울기를 얹는다. 따라오는 동안은 짧게, 제자리로 돌아갈 때(.is-resting)는 길게 */
+  transform: rotate(var(--base-rot)) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  transform-style: preserve-3d;
+  transition: transform 0.18s ease-out;
+  will-change: transform;
   background: linear-gradient(152deg, #4a4a52 0%, #17171c 26%, #0d0d10 62%, #34343c 100%);
   box-shadow: 0 2px 10px rgba(10, 10, 12, 0.2), 0 44px 90px -34px rgba(10, 10, 12, 0.5),
     inset 0 0 0 1px rgba(255, 255, 255, 0.14);
@@ -586,6 +601,347 @@
   opacity: 0.85;
 }
 
+/* ---------- 살아 움직이는 장면(HeroPhoneScene) ----------
+   치수는 실제 앱(frontend/src/features/player)의 pt 값을 그대로 쓴다: `--pt`가 앱 1pt다.
+   앱 화면 폭 393pt이므로 --pt = 화면 폭 / 393 (288px 화면이면 약 0.73px). 폰이 커져도 비례가 유지된다.
+   (em으로 쓰면 font-size의 em은 부모 글자 크기 기준이라 중첩에서 값이 폭발한다 — calc(N * var(--pt))로 통일) */
+.scene {
+  --pt: calc(var(--screen-w) / 393);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* 탭 파문 — 첫 인기 카드 아트워크 위쪽 */
+.tapRipple {
+  position: absolute;
+  left: 30%;
+  top: 41%;
+  width: calc(30 * var(--pt));
+  height: calc(30 * var(--pt));
+  border-radius: 50%;
+  border: 2px solid rgba(10, 10, 12, 0.55);
+  background: rgba(10, 10, 12, 0.12);
+  opacity: 0;
+  transform: scale(0.4);
+}
+
+.tapRippleOn {
+  animation: heroTap 0.7s ease-out both;
+}
+
+@keyframes heroTap {
+  0% { opacity: 0; transform: scale(0.4); }
+  25% { opacity: 1; transform: scale(0.8); }
+  100% { opacity: 0; transform: scale(1.8); }
+}
+
+/* 플레이어 — 상태바 아래부터 덮는 시트. 앱 content 패딩 lg(24) */
+.playerScene {
+  position: absolute;
+  inset: calc(54 * var(--pt)) 0 0 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0 calc(24 * var(--pt));
+  background: var(--paper);
+  color: #1a1a1e;
+  transform: translateY(100%);
+  transition: transform 0.42s cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
+}
+
+.playerSceneIn {
+  transform: translateY(0);
+}
+
+/* 앱바 44pt — 제목 없음. 왼쪽 셰브론, 오른쪽 타이머(비활성)·더보기 */
+.pAppBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: calc(44 * var(--pt));
+  flex: none;
+}
+
+.pAppBarActions {
+  display: flex;
+  align-items: center;
+  gap: calc(8 * var(--pt));
+}
+
+.pIcon {
+  width: calc(24 * var(--pt));
+  height: calc(24 * var(--pt));
+  color: #1a1a1e;
+}
+
+.pIconDisabled {
+  color: #e3e3e8;
+}
+
+/* 아트워크 영역 — 남는 높이를 먹고 정사각 아트워크를 가운데 둔다(앱 hero 접힘 상태) */
+/* 위아래 여백을 비대칭으로 — 아트워크·시크바 묶음이 가운데보다 살짝 위에 놓인다(피드백 2026-09-18) */
+.pHero {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0 calc(24 * var(--pt));
+}
+
+.pArt {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  max-height: 100%;
+  aspect-ratio: 1;
+  border-radius: calc(16 * var(--pt));
+  object-fit: cover;
+  background: #f5f5f7;
+}
+
+/* 제목 28pt 700 한 줄(앱은 마퀴) + 카테고리 14pt 600 보조색. 시크바 바로 위에 붙는다 */
+.pMeta {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: calc(4 * var(--pt));
+  padding-bottom: calc(8 * var(--pt));
+}
+
+.pTitle {
+  font-size: calc(28 * var(--pt));
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pCategory {
+  font-size: calc(14 * var(--pt));
+  font-weight: 600;
+  color: #6e6e76;
+}
+
+/* 시크바 — 트랙 4pt(border), 채움 primary, 썸 14pt. 히트 영역 44pt. 시간 라벨 12pt */
+.pSeek {
+  flex: none;
+}
+
+.pSeekTrack {
+  position: relative;
+  display: block;
+  height: calc(4 * var(--pt));
+  margin: calc(20 * var(--pt)) 0;
+  border-radius: calc(2 * var(--pt));
+  background: #e3e3e8;
+}
+
+.pSeekFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  border-radius: calc(2 * var(--pt));
+  background: #000;
+}
+
+.pSeekThumb {
+  position: absolute;
+  top: calc(-5 * var(--pt));
+  left: 0;
+  width: calc(14 * var(--pt));
+  height: calc(14 * var(--pt));
+  margin-left: calc(-7 * var(--pt));
+  border-radius: 50%;
+  background: #000;
+}
+
+/* 재생 중 — 플레이어가 떠 있는 5.6초 동안 0 → 38%까지 찬다 */
+.playerSceneIn .pSeekFill {
+  animation: heroSeek 5.6s linear both;
+}
+
+.playerSceneIn .pSeekThumb {
+  animation: heroSeekThumb 5.6s linear both;
+}
+
+@keyframes heroSeek {
+  from { width: 0; }
+  to { width: 38%; }
+}
+
+@keyframes heroSeekThumb {
+  from { left: 0; }
+  to { left: 38%; }
+}
+
+.pTimes {
+  display: flex;
+  justify-content: space-between;
+  margin-top: calc(-12 * var(--pt));
+  font-size: calc(12 * var(--pt));
+  font-variant-numeric: tabular-nums;
+  color: #6e6e76;
+}
+
+/* 컨트롤 줄 — 배속(44) · 뒤로(44) · 재생(72) · 앞으로(44) · 스크립트(44), 간격 md(16), 위아래 lg(24) */
+.pControls {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(16 * var(--pt));
+  /* 위 여백을 조금 더 — 제목·시크바가 컨트롤에서 살짝 떨어져 올라간다(피드백 2026-09-18) */
+  padding: calc(36 * var(--pt)) 0 calc(24 * var(--pt));
+  /* 손잡이("재생 목록")는 바닥에 두고, 그 위 묶음(아트워크·제목·시크바·컨트롤)만 살짝 올린다(피드백 2026-09-18) */
+  margin-bottom: calc(28 * var(--pt));
+}
+
+.pRate {
+  width: calc(44 * var(--pt));
+  text-align: center;
+  font-size: calc(14 * var(--pt));
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #6e6e76;
+}
+
+.pStep,
+.pScript {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(44 * var(--pt));
+  height: calc(44 * var(--pt));
+  color: #6e6e76;
+}
+
+.pStep svg {
+  width: calc(32 * var(--pt));
+  height: calc(32 * var(--pt));
+}
+
+.pScript svg {
+  width: calc(24 * var(--pt));
+  height: calc(24 * var(--pt));
+}
+
+.pPlay {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(72 * var(--pt));
+  height: calc(72 * var(--pt));
+  border-radius: 50%;
+  background: #000;
+  color: #fff;
+}
+
+.pPlay svg {
+  width: calc(28 * var(--pt));
+  height: calc(28 * var(--pt));
+}
+
+/* 재생 목록 손잡이 — 바닥. 알약 36×4 + 라벨 12pt */
+.pHandle {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(4 * var(--pt));
+  min-height: calc(44 * var(--pt));
+  padding-bottom: calc(8 * var(--pt));
+}
+
+.pHandleLabel {
+  font-size: calc(12 * var(--pt));
+  font-weight: 600;
+  color: #6e6e76;
+}
+
+.pHandleBar {
+  width: calc(36 * var(--pt));
+  height: calc(4 * var(--pt));
+  border-radius: var(--r-pill);
+  background: #e3e3e8;
+}
+
+
+/* 미니플레이어 — 탭바 바로 위 전폭. 표면색 바탕 + 위 hairline, 상단 2pt 진행선, 행 높이 62pt */
+.miniScene {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(75 * var(--pt)); /* 탭바(약 55px ≈ 75pt) 바로 위 */
+  border-top: 1px solid #e3e3e8;
+  background: #f5f5f7;
+  color: #1a1a1e;
+  opacity: 0;
+  transform: translateY(calc(8 * var(--pt)));
+  transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.miniSceneIn {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.mTrack {
+  display: block;
+  height: calc(2 * var(--pt));
+  background: #e3e3e8;
+}
+
+.mFill {
+  display: block;
+  width: 38%;
+  height: 100%;
+  background: #000;
+}
+
+.mRow {
+  display: flex;
+  align-items: center;
+  gap: calc(8 * var(--pt));
+  height: calc(60 * var(--pt));
+  padding: 0 0 0 calc(16 * var(--pt));
+}
+
+.mCover {
+  display: block;
+  width: calc(44 * var(--pt));
+  height: calc(44 * var(--pt));
+  border-radius: calc(8 * var(--pt));
+  object-fit: cover;
+  flex: none;
+}
+
+.mTitle {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: calc(14 * var(--pt));
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mPause {
+  flex: none;
+  width: calc(20 * var(--pt));
+  height: calc(20 * var(--pt));
+  margin: 0 calc(12 * var(--pt));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene { display: none; }
+}
+
 /* ---------- 숫자 띠 ---------- */
 
 .statsWrap {
@@ -651,7 +1007,11 @@
   }
 
   .phone {
-    transform: rotate(-1.6deg);
+    --base-rot: -1.6deg;
   }
+}
+
+:global(.is-resting) .phone {
+  transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 

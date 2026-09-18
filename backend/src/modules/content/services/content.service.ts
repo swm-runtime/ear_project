@@ -589,6 +589,22 @@ export class ContentService {
     return this.contentRepository.findAdminPage(query, manager);
   }
 
+  /**
+   * admin.md 4.5 — 주제 노출 판정용 **노출 가능** 콘텐츠 건수(KAN-58). 삭제 판정용
+   * `countByTopicIds`(연결 행 전체)와 다르다 — 이유는 저장소 메서드 주석
+   */
+  async countVisibleByTopicIds(
+    topicIds: string[],
+    now: Date,
+    manager?: EntityManager,
+  ): Promise<Map<string, number>> {
+    return this.contentTopicRepository.countVisibleByTopicIds(
+      topicIds,
+      now,
+      manager,
+    );
+  }
+
   /** admin.md 4.5 — 주제 삭제 판정·주제 목록의 건수 집계 */
   async countByTopicIds(
     topicIds: string[],

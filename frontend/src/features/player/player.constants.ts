@@ -44,6 +44,16 @@ export const MINI_PLAYER_DISMISS_DISTANCE_RATIO = 0.4;
 export const MINI_PLAYER_DISMISS_VELOCITY = 0.8; // dp/ms = 800dp/s
 /** 수평 이동이 수직의 2배 이상 + 16dp를 넘어야 제스처를 시작한다(세로 스크롤 충돌 방지) */
 export const MINI_PLAYER_SWIPE_START_DISTANCE = 16;
+/** 미니플레이어를 끌어올려 여는 제스처(2026-09-18) — 이만큼 위로 움직여야 시작한다(탭·가로 스와이프와 가른다) */
+export const MINI_PLAYER_OPEN_START_DISTANCE = 10;
+/** 화면 높이의 이 비율만큼 끌어올리면 진행도 1 — 플레이어의 끌어내리기(PLAYER_DRAG_RANGE_RATIO)와 같은 감도 */
+export const MINI_PLAYER_OPEN_DRAG_RANGE_RATIO = 0.7;
+/** 놓았을 때 이 진행도를 넘었거나 */
+export const MINI_PLAYER_OPEN_COMMIT_PROGRESS = 0.25;
+/** 위로 이 속도(dp/ms)보다 빠르게 튕겼으면 연다 */
+export const MINI_PLAYER_OPEN_COMMIT_VELOCITY = 0.5;
+/** 마지막 움직임에서 이 시간 안에 놓아야 튕김으로 본다 — 멈췄다 놓으면 속도 값이 남아 있어도 무시한다 */
+export const MINI_PLAYER_OPEN_FLICK_WINDOW_MS = 80;
 
 /** player-uiux.md 4.8 — 전체 플레이어 아래로 스와이프 축소 임계(제안값) */
 export const PLAYER_COLLAPSE_START_DISTANCE = 12;

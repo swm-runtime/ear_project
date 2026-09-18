@@ -1,3 +1,5 @@
+import type { QueueItem } from '../player.types';
+
 /**
  * player → library 동작의 의존 역전 지점. library는 player의 게이트를 쓰는 상위 소비자라
  * (architecture.md 4.4: library → player) player가 library를 직접 import하면 순환이 된다.
@@ -14,6 +16,11 @@ export interface PlayerLibraryBridge {
   completeItem(itemId: string): Promise<void>;
   /** 완청 전이·삭제 후 라이브러리 목록 재조회 — player는 library의 쿼리 키를 모른다 */
   invalidateLibrary(): void;
+  /**
+   * 재생 목록 패널이 그릴 목록 = library-api.md 4.1의 첫 페이지. 필터·커서를 받지 않는다 — 패널은
+   * "지금 재생 중인 것이 속한 목록"을 보여주는 자리지 라이브러리 화면의 복제가 아니다(2026-09-17)
+   */
+  fetchQueue(): Promise<QueueItem[]>;
 }
 
 let bridge: PlayerLibraryBridge | null = null;

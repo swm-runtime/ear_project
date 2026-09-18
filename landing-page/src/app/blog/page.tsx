@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { BlogEmpty } from "@/components/BlogEmpty";
 import { FinalCta } from "@/components/FinalCta";
 import { JsonLd } from "@/components/JsonLd";
 import { NextLinks } from "@/components/NextLinks";
@@ -23,14 +24,14 @@ export default function BlogPage() {
 
       <PageHeader
         crumbs={[{ name: routes.blog.label }]}
-        title="만들면서 정리한 기준들"
-        lede="왜 오디오여야 하는지, AI가 만든 콘텐츠를 어디까지 믿을 수 있는지, 요금제를 왜 그렇게 잘랐는지. 제품을 만들며 답해야 했던 질문들을 남깁니다."
-        meta={`글 ${allPosts.length}편`}
+        title="이어 블로그"
+        lede="이어를 만드는 팀의 이야기와 서비스 소식을 전해요."
+        meta={allPosts.length > 0 ? `글 ${allPosts.length}편` : undefined}
       />
 
       <div className="section">
         <div className="container">
-          <PostList posts={allPosts} />
+          {allPosts.length > 0 ? <PostList posts={allPosts} /> : <BlogEmpty />}
         </div>
       </div>
 

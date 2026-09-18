@@ -26,7 +26,7 @@
 | 드립 편성 알고리즘·배치 실행 | `drip-scheduling.md` | 저장이 **캐시를 무효화한다**는 사실까지만. 다음 배치가 무엇을 편성하는지는 다루지 않는다 |
 | 자동 확장 배치(FR-18, P1) | `drip-scheduling.md` · `domain.md` 4.3 | 토글 값 저장 경로만 안다(4.4). 배치는 MVP에서 돌지 않는다 |
 | 관심 주제 요약 표시(프로필·설정 카드) | `profile-api.md` 4.1 · `settings-api.md` 4.1 | 정의하지 않는다. 요약은 각 화면 조회 응답의 몫이다 |
-| 주제 노출(`is_visible`) 변경 | `admin.md` | **관리자만 변경한다**(FR-38). 이 API는 읽기만 한다 |
+| 주제 노출(`is_visible`) 변경 | `admin.md` | **켜기는 관리자만**, 노출 가능 콘텐츠 0건이면 서버가 자동으로 숨긴다(FR-38, `admin.md` 4.5). 이 API는 읽기만 한다 |
 | 해제된 주제의 기존 라이브러리 콘텐츠 | `library.md` | **아무것도 하지 않는다.** 해제는 신규 적립만 중단하며, 라이브러리 항목을 지우는 요청·응답이 없다(FR-05) |
 
 ---
@@ -282,7 +282,7 @@ PUT /users/me/interests
 | 사용하는 것 | domain.md |
 |---|---|
 | `user_interests` — `source` · `is_active` · `is_user_removed` · `deactivated_at`, `(user_id, topic_id)` 유니크 | 4.2 |
-| `topics` — `is_visible`(관리자만 변경) · `display_order` | 4.1 |
+| `topics` — `is_visible`(켜기는 관리자만 · 0건 자동 숨김) · `display_order` | 4.1 |
 | `user_settings.is_auto_expand_enabled` — 자동 확장 토글의 저장소(변경은 `settings-api.md` 4.2) | 3.5 |
 | `topic_adjacencies` — 자동 확장 배치(P1). **이 API는 읽지도 쓰지도 않는다** | 4.3 |
 

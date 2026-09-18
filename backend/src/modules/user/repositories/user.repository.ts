@@ -68,6 +68,19 @@ export class UserRepository {
    * 같은 주소의 관리자가 둘이면 `LIMIT 1`이 **매번 다른 행**을 줄 수 있다. 그러면
    * `audit_logs.actor`가 실행할 때마다 갈린다.
    */
+  /**
+   * 이메일로 사용자 한 명 — 역할 무관. 편성 미리보기(admin 콘솔 "추천 검증")가 대상 사용자를 고르는
+   * 조회다. `email`은 유니크가 아니라 `findAdminByEmail`과 같은 이유로 정렬을 고정한다.
+   */
+  async findByEmail(email: string): Promise<User | null> {
+    return this.repository
+      .createQueryBuilder('user')
+      .where('LOWER(user.email) = LOWER(:email)', { email: email.trim() })
+      .orderBy('user.created_at', 'ASC')
+      .addOrderBy('user.id', 'ASC')
+      .getOne();
+  }
+
   async findAdminByEmail(email: string): Promise<User | null> {
     return this.repository
       .createQueryBuilder('user')

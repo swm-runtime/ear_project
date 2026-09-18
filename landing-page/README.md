@@ -23,13 +23,21 @@ npm run build    # out/ 에 정적 파일 생성 (prebuild가 og:image를 먼저
 | `/` | 히어로 + 각 주제 요약. 판단에 필요한 것은 전용 페이지로 넘긴다 |
 | `/features/` | 기능 여섯 가지 상세 + 즉시 재생이 가능한 이유 + 하지 않기로 정한 것 |
 | `/pricing/` | 요금제 3종 + 무엇이 같고 다른가 + 결제·해지 안내 |
-| `/blog/`, `/blog/<slug>/` | 글 목록과 상세. 글은 `src/content/blog.ts`에 있다 |
+| `/blog/` | 글 목록. 글은 `src/content/blog.ts`에 있다 — **지금은 0편**(2026-09-17 초안 글을 내렸다)이라 빈 상태를 보이고, 글 상세(`/blog/<slug>/`)와 홈의 미리보기 섹션은 빠져 있다. 되살리는 법은 `blog.ts` 주석 |
 | `/faq/` | 주제별 전체 FAQ. FAQPage 구조화 데이터는 **이 페이지만** 내보낸다 |
 | `/privacy/`, `/terms/` | 개인정보 처리방침·이용약관 |
 
 **중복 콘텐츠를 만들지 않는 것이 규칙이다.** 홈에도 기능·요금제·FAQ가 나오지만 전부 짧은 판본이고, 전용 페이지는 문장 자체가 다르다(`features[].body` vs `features[].detail`). 같은 문단을 두 주소에 그대로 실으면 어느 쪽을 대표로 볼지 흔들린다.
 
 페이지를 추가할 때는 **`src/content/routes.ts`에만 넣으면 된다.** 내비게이션·바닥글·사이트맵·breadcrumb이 전부 거기서 나온다.
+
+## 주제 섹션은 빌드할 때 백엔드에서 받아 온다
+
+홈의 "고를 수 있는 주제"는 관리자 콘솔에서 **공개한 주제**를 그린다. `next build` 때 백엔드 `GET /public/topics`(`docs/spec/api/public-api.md`)를 한 번 부르고 결과를 HTML에 굽는다(`src/content/public-topics.ts`).
+
+- API 주소는 두 개다. 빌드 시점 fetch(주제 목록)는 `LANDING_API_BASE_URL`, 브라우저에서 부르는 것(Try 샘플 플레이어)은 `NEXT_PUBLIC_API_BASE_URL`. **기본값은 둘 다 개발계 `https://api-dev.earcast.co.kr/api/v1`** — 랜딩은 `dev` 머지만으로 배포·확인한다(2026-09-18). 운영을 보게 하려면 두 변수를 `https://api.earcast.co.kr/api/v1`로 준다.
+- **실패해도 빌드는 멈추지 않는다** — 네트워크 오류·404·공개 주제 0개면 내장 기본 목록(주제 체계 v2)을 그리고 빌드 로그에 `[public-topics]` 경고를 남긴다.
+- 관리자에서 바꾼 주제는 **다시 빌드해야** 반영된다. `.github/workflows/landing-daily-rebuild.yml`이 매일 05:30 KST에 Vercel 배포 훅을 호출한다(repo secret `LANDING_VERCEL_DEPLOY_HOOK` 필요). 급하면 Actions에서 수동 실행한다.
 
 ## 배포 전 반드시 바꿀 것
 
@@ -104,6 +112,8 @@ npm run build && bash scripts/subset-fonts.sh && npm run build
 ```
 
 서브셋에 없는 글자는 시스템 글꼴로 떨어져서 한 문장 안에서 서체가 섞여 보인다. (필요: `python3`, `curl`)
+
+API에서 오는 동적 텍스트(Try 플레이어의 콘텐츠 제목·출처)는 빌드 때 알 수 없어 서브셋으로 덮지 못한다. 그 요소는 Pretendard **동적 서브셋**(jsDelivr, `src/lib/dynamic-font.ts`)을 필요할 때 한 번 꽂아 쓴다 — 새 동적 텍스트 자리가 생기면 같은 가족명(`"Pretendard Variable"`)을 CSS에 앞세우고 `ensureDynamicFont()`를 부른다.
 
 공유 이미지 문구(`scripts/og-pages.mjs`)를 고쳤다면 그쪽 서브셋도 따로 만든다.
 

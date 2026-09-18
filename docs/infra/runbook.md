@@ -58,6 +58,7 @@ sudo mkdir -p /opt/ear && sudo chown ec2-user /opt/ear
 - 관리자 콘솔: `deploy/admin/config.example.js` → 서버 `/opt/ear/backend/deploy/admin/config.js` (API 주소 + Google 웹 클라이언트 ID)
 - 기동: `docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build` (마이그레이션 자동)
 - 백업 크론: `(crontab -l; echo "0 19 * * * /opt/ear/backend/deploy/backup.sh >> /var/log/ear-backup.log 2>&1") | crontab -`
+- **크론이 부르는 스크립트는 반드시 실행 권한(git `100755`)으로 커밋한다.** 크론은 경로로 직접 실행하므로 644면 `Permission denied`로 아예 안 돈다. 서버에서 `chmod +x`해도 배포(`git archive | tar -x`)가 git 모드대로 되돌린다. 손으로 `bash x.sh`로 테스트하면 권한이 필요 없어 **테스트로는 안 잡힌다** — 새 스크립트는 `git update-index --chmod=+x`로 올리고, 확인은 `env -i HOME=$HOME PATH=/usr/bin:/bin /bin/sh -c /opt/ear/backend/deploy/x.sh`(크론과 같은 환경 — HOME 이 없으면 aws CLI 가 크론에선 안 나는 오류를 낸다)로 한다. 등록된 크론 전체: 운영 `0 19` backup · `10 19` sync-content-export · `40 19` ebs-snapshot, 개발계 `30 19` sync-content-import (전부 UTC). `backend/deploy/*.sh`가 `100755`가 아니면 CI 검증이 막는다.
 
 ### 1.5 DNS·확인
 
@@ -111,13 +112,13 @@ aws cloudfront-keyvaluestore delete-key --kvs-arn $KVS_ARN --key <contentId> --i
 | 브랜치 | 워크플로 | 가는 곳 | 방식 |
 |---|---|---|---|
 | `dev` 머지 | `deploy-api.yml` | **개발계** `api-dev.earcast.co.kr` (Environment `api-dev`) | CI가 arm64 이미지를 빌드해 ECR에 올리고, 서버는 그 이미지를 pull(서버 빌드 없음) |
-| `main` 머지(dev→main PR, 리뷰 1) | `deploy-api.yml` | **운영** `api.earcast.co.kr` (Environment `api-prod`) | 같은 이미지(커밋 SHA 태그)를 pull. 성공 시 태그 `v<backend/package.json version>` 자동 |
+| `main` 머지(dev→main PR, 리뷰 1) | `deploy-api.yml` | **운영** `api.earcast.co.kr` (Environment `api-prod`) | 같은 이미지(커밋 SHA 태그)를 pull. 성공 시 태그 `v<앱 버전>[+배포 순번]` 자동 |
 | `dev` 머지 | `deploy-pipeline.yml` | AI 서버(파이프라인 웹·워커) | 종전대로(AI 파트 동의) |
 
 - 배포의 원본은 `backend/deploy/push.sh`·`pipeline/deploy/push.sh`이며 로컬에서도 같은 것을 쓴다. 환경별 값은 GitHub Environment 변수(`API_HOST`·`API_SG_ID`·`API_SECRET_ID`·`API_HEALTH_URL`)에 있다 — `backend/deploy/aws/setup-ci-envs.sh`가 넣는다.
 - **운영 반영 절차**: dev에서 검증(개발계 헬스·앱 확인) → GitHub에서 `dev` → `main` PR → 팀원 1명 승인 → 머지 → Actions `deploy-api` 런 성공·`https://api.earcast.co.kr/api/v1/health` 200·태그 확인. main으로의 PR은 dev 브랜치에서만 열 수 있다(필수 체크 "원본 브랜치 확인 (dev)").
-- **버전**: 운영에 나가는 변경에는 `backend/package.json`의 `version`을 올린다. 올리지 않고 머지하면 `v<version>-<UTC시각>` 태그가 붙어 배포는 되지만 경고가 남는다.
-- **롤백**: 이전 커밋 SHA 이미지를 그대로 다시 띄운다 — PC에서 `API_IMAGE=639177726357.dkr.ecr.ap-northeast-2.amazonaws.com/ear/api:<이전 SHA> bash backend/deploy/push.sh`(운영 pem·SG 22 개방 필요). 이미지 목록: `aws ecr describe-images --repository-name ear/api --query 'sort_by(imageDetails,&imagePushedAt)[-10:].[imagePushedAt,imageTags[0]]' --output table`. 마이그레이션이 포함된 배포는 스키마가 앞서 있을 수 있어 롤백 전에 5.3 덤프 유무를 확인한다.
+- **버전**(2026-09-17 개정): 기준은 **앱 버전**(`frontend/app.json` `expo.version`)이다. 백엔드만 배포할 때는 버전을 올리지 않는다 — 태그가 `v1.0.0` → `v1.0.0+2` → `v1.0.0+3`으로 배포 순번만 는다. 앱이 스토어 버전을 올리면 같은 PR에서 `backend/package.json`도 맞추고, 그 뒤 첫 배포가 `v1.1.0`이 된다. 두 값이 다르면 `dev → main` PR의 "원본 브랜치 확인 (dev)" 체크가 실패한다. 규칙 원본은 `docs/backend/convention.md` 6.3.
+- **롤백**: 이전 커밋 SHA 이미지를 그대로 다시 띄운다 — PC에서 `API_IMAGE=639177726357.dkr.ecr.ap-northeast-2.amazonaws.com/ear/api:<이전 SHA> bash backend/deploy/push.sh`(운영 pem·SG 22 개방 필요). 이미지 목록: `aws ecr describe-images --repository-name ear/api --query 'sort_by(imageDetails,&imagePushedAt)[-10:].[imagePushedAt,imageTags[0]]' --output table`. 마이그레이션이 포함된 배포는 스키마가 앞서 있을 수 있어 롤백 전에 5.3 덤프 유무를 확인한다. **2026-09-17 이전 커밋으로 롤백하면 크론 스크립트 실행 권한이 다시 사라진다**(그 커밋의 git 모드가 644라 배포가 덮어쓴다) — 롤백 뒤 서버에서 `chmod +x /opt/ear/backend/deploy/*.sh`를 다시 하거나, 그 이후 커밋으로만 롤백한다. 크론 알람은 약 25시간 뒤에야 울린다.
 - 아래 4.1은 CI·push.sh가 모두 막혔을 때의 최후 수단이다.
 
 ### 4.1 수동 배포 (비상용)

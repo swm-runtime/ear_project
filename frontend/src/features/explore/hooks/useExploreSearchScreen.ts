@@ -282,6 +282,7 @@ export const useExploreSearchScreen = () => {
           sourceName: item.content.sourceName,
           thumbnailUrl: item.content.thumbnailUrl,
           durationSec: item.content.durationSec,
+          topicIds: item.content.topicIds,
         },
         onWithdrawn: () => hideRow(item.content.id),
       },

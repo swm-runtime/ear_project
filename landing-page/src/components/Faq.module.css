@@ -8,10 +8,11 @@
   gap: clamp(32px, 4vw, 56px);
 }
 
+/* 크기는 공용 .sectionLede와 같게 — 섹션마다 리드 글자 크기가 다르면 한 페이지에서 결이 갈린다(피드백 2026-09-18) */
 .headLede {
   margin-top: 16px;
   color: var(--text-2);
-  font-size: 15.5px;
+  font-size: clamp(15.5px, 1.5vw, 17.5px);
   line-height: 1.75;
 }
 

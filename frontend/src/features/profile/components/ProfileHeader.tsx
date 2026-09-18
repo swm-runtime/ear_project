@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
 import { theme } from '@/shared/theme';
 import PersonIcon from '@/shared/ui/PersonIcon';
 
@@ -197,6 +198,19 @@ export default function ProfileHeader({
       {plan === null ? null : plan.kind === 'error' ? (
         <View style={styles.planRow}>
           <Text style={styles.planMuted}>{PROFILE_COPY.cardError}</Text>
+        </View>
+      ) : !IS_SUBSCRIPTION_UI_ENABLED ? (
+        // 결제 구현 전 MVP 바이너리(KAN-66) — 플랜은 정보로만 보이고, 구독 화면 진입·유도 칩을 두지 않는다
+        <View
+          style={styles.planRow}
+          accessibilityLabel={`${PROFILE_COPY.cardLabels.plan}, ${planText(plan.data)}`}
+        >
+          <Text
+            style={[styles.planText, plan.data.kind === 'grace' && styles.planDanger]}
+            numberOfLines={1}
+          >
+            {planText(plan.data)}
+          </Text>
         </View>
       ) : (
         <Pressable

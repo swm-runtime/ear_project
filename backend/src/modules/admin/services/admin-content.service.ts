@@ -37,6 +37,7 @@ import {
 } from '../admin.constant';
 import { AudioProbe } from '../audio-probe';
 import { ContentStorageClient } from '../content-storage.client';
+import { TopicExposureService } from './topic-exposure.service';
 
 /**
  * admin.md 4.2 — 업로드 → 즉시 발행.
@@ -63,6 +64,7 @@ export class AdminContentService {
     private readonly libraryService: LibraryService,
     private readonly playbackService: PlaybackService,
     private readonly topicService: TopicService,
+    private readonly topicExposureService: TopicExposureService,
     private readonly auditLogService: AuditLogService,
     private readonly storage: ContentStorageClient,
     private readonly audioProbe: AudioProbe,
@@ -332,6 +334,15 @@ export class AdminContentService {
         this.assertRepublishable(current);
 
         const previousVersion = current.contentVersion;
+        // 주제를 교체하면 빠진 주제의 노출 콘텐츠가 0건이 될 수 있다(KAN-58) — 교체 전 주제를 기억한다
+        const previousTopicIds = command.topicIds
+          ? (
+              await this.contentService.findTopicViews(
+                [command.contentId],
+                manager,
+              )
+            ).map((view) => view.topicId)
+          : [];
         if (audioPath) {
           replacedKeys.push(current.audioPath);
         }
@@ -383,6 +394,18 @@ export class AdminContentService {
           command.contentId,
           manager,
         );
+
+        if (previousTopicIds.length > 0) {
+          await this.topicExposureService.hideEmptyTopics(
+            {
+              topicIds: previousTopicIds,
+              actor: command.actorUserId,
+              trigger: 'republish',
+              now: new Date(),
+            },
+            manager,
+          );
+        }
 
         await this.auditLogService.record(
           {
@@ -604,6 +627,22 @@ export class AdminContentService {
           action: AUDIT_ACTION_CONTENT_WITHDRAW,
           target: `content:${contentId}`,
           after: { reason, removed_library_items: removedCount },
+        },
+        manager,
+      );
+
+      // 이 콘텐츠가 주제의 마지막 노출 콘텐츠였다면 그 주제를 숨긴다(admin.md 4.5, KAN-58).
+      // 같은 트랜잭션 — 따로 커밋되면 "콘텐츠는 내려갔는데 주제는 노출 중"이 남는다
+      const topicViews = await this.contentService.findTopicViews(
+        [contentId],
+        manager,
+      );
+      await this.topicExposureService.hideEmptyTopics(
+        {
+          topicIds: topicViews.map((view) => view.topicId),
+          actor: actorUserId,
+          trigger: 'withdraw',
+          now,
         },
         manager,
       );

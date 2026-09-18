@@ -1,7 +1,8 @@
 name: deploy-api
 # backend/ 변경을 검증하고, 브랜치에 따라 배포한다 (KAN-62 6·4-4단계, 2026-09-16 전환):
 #   dev  머지 → 개발계 (GitHub Environment api-dev)
-#   main 머지 → 운영   (GitHub Environment api-prod) + 태그 v<backend/package.json version>
+#   main 머지 → 운영   (GitHub Environment api-prod) + 태그 v<앱 버전>[+배포 순번]
+# 버전의 기준은 frontend/app.json 의 expo.version(스토어 버전)이다. 백엔드는 따로 올리지 않고 앱을 따른다 (2026-09-17).
 # 서버는 더 이상 빌드하지 않는다 — build-push 가 ECR 에 올린 커밋 SHA 이미지를 push.sh 가 pull 한다.
 # 검증(verify)과 배포(deploy)를 job 으로 나눈다 — 검증이 실패하면 SG 개폐·SSH 자체가 일어나지 않는다.
 # PR 에서는 검증 + "원본 브랜치 확인" 만 돈다. AWS 접근은 OIDC 역할 ear-ci-deploy — 저장된 AWS 키 없음.
@@ -72,6 +73,29 @@ jobs:
     steps:
       # 판정보다 앞에 둔다 — defaults 의 working-directory(backend) 가 이 시점에 있어야 한다
       - uses: actions/checkout@v4
+
+      # 서버 스크립트 실행 권한. **백엔드 변경 판정과 무관하게 항상 돈다**(git 조회 한 번이라 싸다).
+      #
+      # 배포(push.sh)가 `git archive | tar -x` 로 서버 파일을 **git 에 기록된 모드 그대로** 덮어쓴다.
+      # 그래서 git 에 644 로 들어간 스크립트는 서버에서 chmod 해도 다음 배포에 되돌아가고, 크론이
+      # 경로로 직접 부르면 Permission denied 로 **아예 돌지 않는다.** 손으로 `bash x.sh` 로 테스트하면
+      # 실행 권한이 필요 없어 통과하므로 테스트로는 안 잡힌다. 같은 사고가 세 번 났다:
+      #   backup.sh (2026-08-31~09-11, 11일 백업 없음) · sync-content-export.sh · ebs-snapshot.sh
+      #   (2026-09-15 추가 후 크론으로 한 번도 안 돎 — 스냅샷·개발계 콘텐츠 동기화 이틀 공백)
+      #
+      # 크론 대상만 골라 검사하지 않고 **deploy/ 바로 아래 .sh 전부**를 본다 — 새 크론이 생길 때
+      # 목록 갱신을 잊으면 같은 구멍이 난다. aws/ 아래 설정 스크립트는 사람이 `bash` 로 부르므로 제외.
+      # `:(glob)` 필수 — git pathspec 의 기본 `*` 는 `/` 를 넘어 aws/ 까지 잡는다(7개가 아니라 16개).
+      - name: 서버 스크립트 실행 권한
+        run: |
+          BAD=$(git ls-files -s ':(glob)deploy/*.sh' | awk '$1 != "100755" {print $4}')
+          if [ -n "$BAD" ]; then
+            echo "::error::실행 권한 없이 커밋된 서버 스크립트 — 크론이 Permission denied 로 돌지 않는다:"
+            echo "$BAD" | sed 's/^/  backend\//'
+            echo "고치기: git update-index --chmod=+x backend/<파일>"
+            exit 1
+          fi
+          echo "ok: backend/deploy/*.sh 전부 100755"
 
       # 트리거에서 뗀 paths 필터를 여기서 대신한다. 관계없는 PR 도 job 자체는 뜨고,
       # 아래 단계를 전부 건너뛴 채 **success 로 결론을 보고한다**.
@@ -152,6 +176,25 @@ jobs:
             exit 1
           fi
           echo "ok: base=${{ github.base_ref }} head=${{ github.head_ref }}"
+
+      # 앱·백엔드 버전 일치 — main 으로 나가기 전에 막는다. 태그 번호의 기준이 앱 버전인데 백엔드
+      # package.json 이 다르면, 배포 기록(태그)과 코드가 가리키는 버전이 어긋난다. 한쪽만 올리는
+      # 실수를 사람이 기억할 필요가 없게 여기서 잡는다. 새 job 이 아니라 이 job 안에 두는 이유는
+      # job 이름이 main 보호의 필수 체크라서다 — 새 job 은 보호 설정 변경 없이는 강제되지 않는다.
+      #
+      # **dev 로의 PR 에서도 검사한다.** main 으로의 PR 에서만 보면, 앱 버전만 올린 PR 이 dev 에 들어가
+      # 한동안 어긋난 채로 있다가 릴리스 PR 에서야 막히고, 고치려면 dev 로 PR 을 또 열어야 한다.
+      # dev 가 일치 상태이면 무관한 PR 은 항상 통과한다 — 한쪽만 올린 PR 만 걸린다.
+      - uses: actions/checkout@v4
+      - name: 앱·백엔드 버전 일치
+        run: |
+          APP=$(node -p "require('./frontend/app.json').expo.version")
+          BE=$(node -p "require('./backend/package.json').version")
+          if [ "$APP" != "$BE" ]; then
+            echo "::error::버전 불일치 — 앱(frontend/app.json) $APP · 백엔드(backend/package.json) $BE. 버전의 기준은 앱이다: backend/package.json 의 version 을 $APP 로 맞춘다"
+            exit 1
+          fi
+          echo "ok: 앱·백엔드 모두 $APP"
 
   build-push:
     name: 이미지 빌드 → ECR
@@ -268,8 +311,14 @@ jobs:
             || true
 
   # main 배포가 끝나면 그 커밋에 버전 태그를 붙인다(결정 5: release 브랜치 없이 main = 운영 배포 + 태그).
-  # 태그 = v<backend/package.json version>. 같은 버전 태그가 이미 있으면(버전을 안 올리고 머지) v<version>-<UTC 시각> 으로 붙인다 —
-  # 배포는 막지 않고 흔적만 남긴다. 어떤 이미지가 나갔는지는 태그 메시지의 ECR 이미지 URI 로 추적한다.
+  #
+  # **번호의 기준은 앱 버전(frontend/app.json expo.version)이다** (2026-09-17 개정). 종전에는 백엔드
+  # package.json 이 기준이라 머지마다 올렸는데, 백엔드는 자주·앱은 스토어 심사 때문에 드물게 나가서
+  # "v1.0.5" 태그가 존재하지 않는 앱 버전을 가리켰다. 이제:
+  #   v1.0.0     그 앱 버전 시기의 첫 운영 배포
+  #   v1.0.0+2   같은 앱 버전에서 백엔드만 두 번째 배포 (+N 은 SemVer 빌드 메타데이터 — "같은 버전의 다른 빌드")
+  #   v1.1.0     앱이 1.1.0 으로 올라간 뒤 첫 배포
+  # 어떤 이미지가 나갔는지는 태그 메시지의 ECR 이미지 URI 로 추적한다.
   tag:
     name: 운영 배포 태그
     needs: [deploy, build-push]
@@ -284,11 +333,21 @@ jobs:
           fetch-depth: 0
       - name: 태그 생성·푸시
         run: |
-          VER=$(node -p "require('./backend/package.json').version")
-          TAG="v$VER"
-          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
-            TAG="v$VER-$(date -u +%Y%m%d-%H%M)"
-            echo "::warning::v$VER 태그가 이미 있다(package.json version 미변경) — $TAG 로 붙인다"
+          VER=$(node -p "require('./frontend/app.json').expo.version")
+          BE=$(node -p "require('./backend/package.json').version")
+          # PR 단계에서 막지만 보호 우회 머지로 들어왔을 수 있다 — 배포는 이미 끝났으므로 막지 않고 경고로 남긴다.
+          # 태그는 기준(앱 버전)으로 붙인다. (workflow_dispatch 로 운영 배포하면 이 job 은 돌지 않아 태그가 없다)
+          [ "$VER" = "$BE" ] || echo "::warning::버전 불일치 — 앱 $VER · 백엔드 $BE. 태그는 앱 버전 기준으로 붙인다"
+          # 재실행(Re-run all jobs)으로 같은 커밋에 두 번째 태그가 붙지 않게 — 이미 이 버전 태그가 이 커밋에 있으면 끝낸다
+          EXIST=$(git tag --points-at HEAD -l "v$VER" "v$VER+*" | head -1)
+          if [ -n "$EXIST" ]; then echo "::notice::이 커밋에 이미 $EXIST 태그가 있다 — 건너뜀"; exit 0; fi
+          if ! git rev-parse -q --verify "refs/tags/v$VER" >/dev/null; then
+            TAG="v$VER"
+          else
+            # 개수가 아니라 **최댓값 + 1** — 중간 태그가 지워졌거나(+2 삭제) 부분 재실행이 있었으면 개수로는
+            # 이미 있는 번호를 다시 만들어 tag 가 실패한다. 순번 없는 v$VER 는 1 로 친다.
+            MAX=$(git tag -l "v$VER+*" | sed "s/^v$VER+//" | grep -E '^[0-9]+$' | sort -n | tail -1)
+            TAG="v$VER+$(( ${MAX:-1} + 1 ))"
           fi
           git config user.name github-actions
           git config user.email github-actions@github.com

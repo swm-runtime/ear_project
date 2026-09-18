@@ -8,7 +8,7 @@
 #   한다. 반대로 운영이 "콘텐츠만" 내보내면 사용자 개인정보는 운영 밖으로 한 바이트도 나가지 않고,
 #   개발계는 S3 읽기 권한(이 접두사만) 하나로 끝난다.
 #
-#   0 10 19 * * * /opt/ear/backend/deploy/sync-content-export.sh >> /var/log/ear-content-sync.log 2>&1   # 04:10 KST
+#   10 19 * * * /opt/ear/backend/deploy/sync-content-export.sh >> /var/log/ear-content-sync.log 2>&1   # 04:10 KST
 #
 # 표: topics · contents · content_topics · content_sources · content_embeddings · content_stats (사용자 표는 절대 넣지 않는다)
 set -euo pipefail

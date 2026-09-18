@@ -124,6 +124,8 @@ export interface PlaybackStartMeta {
   sourceName?: string;
   thumbnailUrl?: string;
   durationSec?: number;
+  /** 제목 아래 카테고리 표시용(2026-09-16). 목록이 아는 주제 id — 이름은 플레이어가 주제 목록에서 찾는다 */
+  topicIds?: string[];
 }
 
 /** 전역 재생 세션 스냅샷 — PlaybackService가 쓰고 화면·미니플레이어가 구독한다 */
@@ -141,6 +143,8 @@ export interface PlaybackSession {
     sourceUrl: string | null;
     thumbnailUrl: string | null;
     contentVersion: number | null;
+    /** 진입 목록이 넘긴 주제 id. 발급 응답에는 없어(player-api.md 4.1) 진입 시 값을 유지한다 — 모르면 빈 배열 */
+    topicIds: string[];
   };
   libraryItem: { id: string; status: PlayedLibraryItemStatus } | null;
   isPlaying: boolean;
@@ -149,4 +153,36 @@ export interface PlaybackSession {
   /** 서버가 내려준 콘텐츠 길이(발급 전에는 목록 값). 0이면 미상 — 완청은 폴백 경로다 */
   durationSec: number;
   banner: PlaybackBannerKind | null;
+}
+
+/**
+ * 스크립트 문단(PL6 — FR-25 P1). 시작·끝 초로 현재 재생 구간을 판정하고, 탭하면 startSec으로 seek한다.
+ * 서버 계약은 P1 확정 시 player-api.md에 추가된다 — 지금은 dev mock만 이 모양을 만든다(2026-09-16).
+ */
+export interface ScriptSegment {
+  startSec: number;
+  endSec: number;
+  /** 화자 표기 — 2인 대화체 대본(ai/PIPELINE.md)이라 문단마다 화자가 있다. 없으면 null */
+  speaker: string | null;
+  text: string;
+}
+
+/**
+ * 재생 목록 패널의 한 줄 = 필터 없는 라이브러리 첫 페이지의 항목(2026-09-17 확정).
+ * **library의 `LibraryItem`을 그대로 쓰지 않는다** — 타입이라도 player가 library를 가리키면 의존 표
+ * (architecture.md 4.4)의 방향이 뒤집힌다. 화면이 실제로 그리는 필드만 추려 여기서 선언하고, 변환은
+ * 주입하는 쪽(app/bootstrap)이 맡는다.
+ */
+export interface QueueItem {
+  /** library_items.id */
+  itemId: string;
+  contentId: string;
+  title: string;
+  authorName: string | null;
+  sourceName: string | null;
+  thumbnailUrl: string | null;
+  durationSec: number | null;
+  /** 오늘 이미 차감됐는가 — 재생 게이트의 확인 팝업 여부 힌트(library-api.md 4.1) */
+  isCountedToday: boolean;
+  isCompleted: boolean;
 }

@@ -54,7 +54,7 @@ export const routes: Record<RouteKey, RouteMeta> = {
     label: "홈",
     title: "이어 — 출근길에 듣는 AI 오디오 자기계발",
     description:
-      "관심 주제만 고르면 자기계발·커리어·교양 콘텐츠가 매일 2편씩 오디오로 도착합니다. 무엇을 들을지 고르는 수고 없이, 이어폰만 꽂으면 되는 AI 팟캐스트 서비스 '이어'.",
+      "관심 주제만 고르면 자기계발·커리어·교양 콘텐츠가 매일 2편씩 오디오로 도착해요. 무엇을 들을지 고민 없이, 이어폰만 꽂으면 되는 AI 팟캐스트 서비스 '이어'.",
     ogImage: "/og/home.png",
     inNav: false,
     footerGroup: null,
@@ -67,7 +67,7 @@ export const routes: Record<RouteKey, RouteMeta> = {
     label: "기능",
     title: "기능 — 고르지 않아도 매일 도착하는 오디오",
     description:
-      "매일 2편이 쌓이는 드립, 대기 없는 즉시 재생, 끊긴 지점부터 이어듣기. 통근길에 오디오 콘텐츠를 듣는 데 실제로 방해가 되는 마찰을 어떻게 걷어냈는지 정리했습니다.",
+      "매일 2편씩 도착하는 팟캐스트, 대기 없는 즉시 재생, 끊긴 지점부터 이어듣기. 출퇴근길에 오디오 콘텐츠를 듣기까지의 번거로움을 어떻게 없앴는지 정리했어요.",
     ogImage: "/og/features.png",
     inNav: true,
     footerGroup: "product",
@@ -78,9 +78,9 @@ export const routes: Record<RouteKey, RouteMeta> = {
   pricing: {
     path: "/pricing/",
     label: "요금제",
-    title: "요금제 — 무료로도 매일 2편, 유료는 재생 한도만 넓힙니다",
+    title: "요금제 — 무료로도 매일 2편, 유료는 더 많이 들을 수 있어요",
     description:
-      "라이트(무료)·데일리·프로 세 가지 요금제. 매일 도착하는 콘텐츠는 무료 요금제도 똑같이 2편이고, 요금제가 가르는 것은 하루에 재생할 수 있는 분량뿐입니다.",
+      "라이트(무료)·데일리·프로 세 가지 요금제. 매일 도착하는 콘텐츠는 무료 요금제도 똑같이 2편이고, 요금제에 따라 하루에 들을 수 있는 양이 달라져요.",
     ogImage: "/og/pricing.png",
     inNav: true,
     footerGroup: "product",
@@ -91,9 +91,9 @@ export const routes: Record<RouteKey, RouteMeta> = {
   blog: {
     path: "/blog/",
     label: "블로그",
-    title: "블로그 — 오디오로 듣는 자기계발 이야기",
+    title: "블로그 — 이어 팀 이야기와 서비스 소식",
     description:
-      "통근길 청취, AI 오디오 콘텐츠의 신뢰성, 자동 편성(드립)의 설계 원칙까지. 이어를 만들면서 정리한 생각과 기준을 남깁니다.",
+      "오디오 자기계발 서비스 이어를 만드는 팀의 이야기와 새 기능·업데이트 소식을 전해요.",
     ogImage: "/og/blog.png",
     inNav: true,
     footerGroup: "resources",
@@ -107,7 +107,7 @@ export const routes: Record<RouteKey, RouteMeta> = {
     navLabel: "FAQ",
     title: "자주 묻는 질문",
     description:
-      "무료로 어디까지 쓸 수 있는지, AI가 만든 콘텐츠를 믿어도 되는지, 관심 주제를 나중에 바꿀 수 있는지. 이어에 대해 가장 많이 묻는 것들을 모았습니다.",
+      "무료로 어디까지 쓸 수 있는지, AI가 만든 콘텐츠를 믿어도 되는지, 관심 주제를 나중에 바꿀 수 있는지. 이어에 대해 가장 많이 묻는 것들을 모았어요.",
     ogImage: "/og/faq.png",
     inNav: true,
     footerGroup: "resources",

@@ -2,6 +2,7 @@ import {
   toPreviousFinalMonthStart,
   toPreviousFinalWeekStart,
   toServiceDate,
+  toServiceDayRange,
 } from './service-date.util';
 
 describe('serviceDateUtil', () => {
@@ -37,6 +38,32 @@ describe('serviceDateUtil', () => {
 
       // then
       expect(serviceDate).toBe('2026-08-04');
+    });
+  });
+
+  describe('toServiceDayRange', () => {
+    it('KST 04시 이후의 시각은 그날 04시부터 다음 날 04시 전까지다', () => {
+      // given — 2026-09-17 05:00 KST = 2026-09-16 20:00 UTC
+      const at = new Date('2026-09-16T20:00:00.000Z');
+
+      // when
+      const range = toServiceDayRange(at);
+
+      // then — 2026-09-17 04:00 KST ~ 2026-09-18 04:00 KST
+      expect(range.start.toISOString()).toBe('2026-09-16T19:00:00.000Z');
+      expect(range.end.toISOString()).toBe('2026-09-17T19:00:00.000Z');
+    });
+
+    it('KST 03시 59분은 전날 서비스 날짜의 범위에 든다', () => {
+      // given — 2026-09-17 03:59 KST = 2026-09-16 18:59 UTC
+      const at = new Date('2026-09-16T18:59:00.000Z');
+
+      // when
+      const range = toServiceDayRange(at);
+
+      // then — 2026-09-16 04:00 KST 시작
+      expect(range.start.toISOString()).toBe('2026-09-15T19:00:00.000Z');
+      expect(at.getTime()).toBeLessThan(range.end.getTime());
     });
   });
 

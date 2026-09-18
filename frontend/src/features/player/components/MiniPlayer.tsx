@@ -1,19 +1,35 @@
 import { useNavigation } from '@react-navigation/native';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Image, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Animated,
+  Dimensions,
+  Image,
+  PanResponder,
+  Pressable,
+  StyleSheet,
+  View,
+} from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { theme } from '@/shared/theme';
+import MarqueeText from '@/shared/ui/MarqueeText';
 
 import {
   MINI_PLAYER_DISMISS_DISTANCE_RATIO,
   MINI_PLAYER_DISMISS_VELOCITY,
+  MINI_PLAYER_OPEN_COMMIT_PROGRESS,
+  MINI_PLAYER_OPEN_COMMIT_VELOCITY,
+  MINI_PLAYER_OPEN_DRAG_RANGE_RATIO,
+  MINI_PLAYER_OPEN_FLICK_WINDOW_MS,
+  MINI_PLAYER_OPEN_START_DISTANCE,
   MINI_PLAYER_SWIPE_START_DISTANCE,
 } from '../player.constants';
 import { PLAYER_COPY } from '../player.copy';
 import { PauseIcon, PlayIcon } from './PlayerIcons';
 import { playbackService } from '../services/playback.service';
+import { useMiniPlayerLayoutStore } from '../store/mini-player-layout.store';
 import { usePlaybackStore } from '../store/playback.store';
+import { usePlayerOpenGestureStore } from '../store/player-open-gesture.store';
 
 /** 미니플레이어 재생 버튼 아이콘 — 전체 플레이어보다 작게 */
 const MINI_PLAY_ICON_SIZE = 20;
@@ -55,6 +71,13 @@ export default function MiniPlayer({
 
   const [barWidth, setBarWidth] = useState(0);
   const translateX = useAnimatedValue(0);
+  // 플레이어 열림·닫힘 모션의 도착 지점 — 내 화면 좌표를 올려 두고, 사라질 땐 지운다
+  const rootRef = useRef<View>(null);
+  // 썸네일·제목의 실제 자리 — 상수로 추정하면 몇 px 어긋나 착지 순간 잔상이 겹친다(2026-09-17)
+  const thumbRef = useRef<View>(null);
+  const titleRef = useRef<View>(null);
+  const setMiniLayout = useMiniPlayerLayoutStore((s) => s.setLayout);
+  useEffect(() => () => setMiniLayout(null), [setMiniLayout]);
 
   const isLiveVisible =
     session !== null &&
@@ -67,10 +90,31 @@ export default function MiniPlayer({
     barWidth,
     isLive: isLiveVisible,
     onResumeDismiss,
+    expand: () => {},
   });
   useEffect(() => {
-    gestureContext.current = { barWidth, isLive: isLiveVisible, onResumeDismiss };
+    gestureContext.current = {
+      barWidth,
+      isLive: isLiveVisible,
+      onResumeDismiss,
+      // 본문 탭과 같은 확대 경로 — 재생 상태 그대로, 재생을 시작시키지 않는다(uiux 4.8)
+      expand: () => {
+        if (isLiveVisible && session !== null) {
+          navigation.navigate('Main', {
+            screen: 'Player',
+            params: { contentId: session.contentId },
+          });
+          return;
+        }
+        onResumeExpandPress?.();
+      },
+    };
   });
+
+  /** 이번 제스처의 종류 — 시작할 때 방향으로 정한다(왼쪽 = 종료, 위 = 끌어올려 열기) */
+  const gestureModeRef = useRef<'dismiss' | 'open'>('dismiss');
+  /** 마지막으로 손가락이 움직인 시각(터치 이벤트의 timestamp) — PanResponder 의 속도는 멈춰 있어도 지난 값이 남는다 */
+  const lastMoveAtRef = useRef(0);
 
   const swipePanResponder = useMemo(() => {
     const dismiss = () => {
@@ -85,17 +129,60 @@ export default function MiniPlayer({
       translateX.setValue(0);
     };
 
+    /*
+     * 한 제스처는 시작할 때 방향으로 갈린다(2026-09-18) — 왼쪽이면 종료 스와이프, **위쪽이면 끌어올려 열기**.
+     * 끌어올리기는 시작하는 순간 플레이어(투명 모달)를 띄우고, 손가락의 이동을 진행도로 바꿔 통로 스토어에
+     * 올린다. 플레이어가 그 진행도를 openProgress 로 받아 썸네일·제목이 손을 따라 커진다
+     */
+    const openGesture = usePlayerOpenGestureStore.getState;
+    const openProgressOf = (dy: number) =>
+      Math.max(
+        0,
+        Math.min(1, -dy / (Dimensions.get('window').height * MINI_PLAYER_OPEN_DRAG_RANGE_RATIO)),
+      );
+
     // eslint-disable-next-line react-hooks/refs -- 콜백은 렌더가 아니라 제스처 시점에 실행된다(표준 PanResponder 패턴)
     return PanResponder.create({
-      // 수평 이동이 수직의 2배 이상 + 16dp를 넘어야 시작한다(세로 스크롤·탭 충돌 방지)
-      onMoveShouldSetPanResponder: (_, gesture) =>
-        gesture.dx < -MINI_PLAYER_SWIPE_START_DISTANCE &&
-        Math.abs(gesture.dx) > Math.abs(gesture.dy) * 2,
-      onPanResponderMove: (_, gesture) => {
+      onMoveShouldSetPanResponder: (_, gesture) => {
+        // 종료 — 수평 이동이 수직의 2배 이상 + 16dp를 넘어야 시작한다(세로 스크롤·탭 충돌 방지)
+        const isDismiss =
+          gesture.dx < -MINI_PLAYER_SWIPE_START_DISTANCE &&
+          Math.abs(gesture.dx) > Math.abs(gesture.dy) * 2;
+        // 열기 — 위로, 수직 이동이 수평보다 확실히 클 때만
+        const isOpen =
+          gesture.dy < -MINI_PLAYER_OPEN_START_DISTANCE &&
+          Math.abs(gesture.dy) > Math.abs(gesture.dx) * 1.5;
+        if (!isDismiss && !isOpen) return false;
+        gestureModeRef.current = isDismiss ? 'dismiss' : 'open';
+        return true;
+      },
+      onPanResponderGrant: (_, gesture) => {
+        if (gestureModeRef.current !== 'open') return;
+        openGesture().begin();
+        openGesture().update(openProgressOf(gesture.dy));
+        // 탭과 같은 경로로 플레이어를 띄운다 — 재생을 시작시키지 않는다(uiux 4.8)
+        gestureContext.current.expand();
+      },
+      onPanResponderMove: (event, gesture) => {
+        if (gestureModeRef.current === 'open') {
+          lastMoveAtRef.current = event.nativeEvent.timestamp;
+          openGesture().update(openProgressOf(gesture.dy));
+          return;
+        }
         // 반대 방향(왼→오른쪽)은 무시한다 — 다른 기능을 할당하지 않는다(uiux 4.8)
         translateX.setValue(Math.min(0, gesture.dx));
       },
-      onPanResponderRelease: (_, gesture) => {
+      onPanResponderRelease: (event, gesture) => {
+        if (gestureModeRef.current === 'open') {
+          // 튕김은 "움직이던 중에 놓았을 때"만 친다 — 끌어올린 뒤 멈췄다 놓으면 속도 값은 남아 있어도 튕김이 아니다
+          const isFlick =
+            event.nativeEvent.timestamp - lastMoveAtRef.current <
+              MINI_PLAYER_OPEN_FLICK_WINDOW_MS && -gesture.vy > MINI_PLAYER_OPEN_COMMIT_VELOCITY;
+          const shouldOpen =
+            openProgressOf(gesture.dy) > MINI_PLAYER_OPEN_COMMIT_PROGRESS || isFlick;
+          openGesture().release(shouldOpen ? 'open' : 'cancel');
+          return;
+        }
         const { barWidth: width } = gestureContext.current;
         const shouldDismiss =
           (width > 0 && -gesture.dx > width * MINI_PLAYER_DISMISS_DISTANCE_RATIO) ||
@@ -112,6 +199,11 @@ export default function MiniPlayer({
         Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
       },
       onPanResponderTerminate: () => {
+        if (gestureModeRef.current === 'open') {
+          // 플레이어는 이미 떠 있다 — 터치를 빼앗기면(모달 전환 등) 닫지 말고 끝까지 연다. 탭한 것과 같은 결과다
+          openGesture().release('open');
+          return;
+        }
         Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
       },
     });
@@ -181,8 +273,30 @@ export default function MiniPlayer({
 
   return (
     <Animated.View
+      ref={rootRef}
       style={[styles.container, { transform: [{ translateX }], opacity: swipeOpacity }]}
-      onLayout={(event) => setBarWidth(event.nativeEvent.layout.width)}
+      onLayout={(event) => {
+        setBarWidth(event.nativeEvent.layout.width);
+        // 플레이어 열림·닫힘 모션의 도착 지점 — 화면 좌표로 올려 둔다(mini-player-layout.store)
+        const thumb = thumbRef.current;
+        const title = titleRef.current;
+        rootRef.current?.measureInWindow((x, y, width, height) => {
+          const base = { x, y, width, height };
+          if (!thumb || !title) {
+            setMiniLayout(base);
+            return;
+          }
+          thumb.measureInWindow((tx, ty, tw) => {
+            title.measureInWindow((lx, ly, lw, lh) => {
+              setMiniLayout({
+                ...base,
+                thumb: { x: tx, y: ty, size: tw },
+                title: { x: lx, y: ly, width: lw, height: lh },
+              });
+            });
+          });
+        });
+      }}
       {...swipePanResponder.panHandlers}
     >
       <View
@@ -206,14 +320,15 @@ export default function MiniPlayer({
             if (event.nativeEvent.actionName === 'dismissPlayback') dismissForAccessibility();
           }}
         >
-          {view.thumbnailUrl ? (
-            <Image source={{ uri: view.thumbnailUrl }} style={styles.thumbnail} />
-          ) : (
-            <View style={styles.thumbnail} />
-          )}
-          <Text style={styles.title} numberOfLines={1}>
-            {view.title}
-          </Text>
+          <View ref={thumbRef} style={styles.thumbnail}>
+            {view.thumbnailUrl ? (
+              <Image source={{ uri: view.thumbnailUrl }} style={StyleSheet.absoluteFill} />
+            ) : null}
+          </View>
+          {/* 긴 제목은 전체 플레이어처럼 흘러 끝을 보여준다(2026-09-18 PM) — 측정용 래퍼가 착지 좌표를 준다 */}
+          <View ref={titleRef} style={styles.titleBox}>
+            <MarqueeText text={view.title} style={styles.title} />
+          </View>
         </Pressable>
         <Pressable
           style={styles.playButton}
@@ -266,9 +381,12 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: theme.radius.sm,
     backgroundColor: theme.color.background,
+    overflow: 'hidden',
+  },
+  titleBox: {
+    flex: 1,
   },
   title: {
-    flex: 1,
     fontSize: theme.font.size.sm,
     fontWeight: '600',
     color: theme.color.textPrimary,

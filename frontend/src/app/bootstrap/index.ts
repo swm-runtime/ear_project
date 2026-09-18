@@ -6,6 +6,7 @@ import { registerInterestSavedListener } from '@/features/interest';
 import {
   completeLibraryItem,
   deleteLibraryItem,
+  fetchLibraryItems,
   libraryKeys,
   restoreLibraryItem,
 } from '@/features/library';
@@ -62,6 +63,25 @@ export const bootstrapApp = (): void => {
     },
     invalidateLibrary: () => {
       void queryClient.invalidateQueries({ queryKey: libraryKeys.all });
+    },
+    /*
+     * 재생 목록 패널의 목록. 필터를 걸지 않은 첫 페이지를 그대로 준다 — 패널은 라이브러리 화면의 복제가
+     * 아니라 "지금 듣는 것의 이웃"을 보여주는 자리다. 변환을 여기서 하는 이유는 player가 LibraryItem
+     * 타입을 알면 의존 방향이 뒤집히기 때문이다(4.4)
+     */
+    fetchQueue: async () => {
+      const page = await fetchLibraryItems({ filter: 'all', topicIds: [], sourceFilter: null });
+      return page.items.map((item) => ({
+        itemId: item.id,
+        contentId: item.content.id,
+        title: item.content.title,
+        authorName: item.content.authorName || null,
+        sourceName: item.content.sourceName || null,
+        thumbnailUrl: item.content.thumbnailUrl || null,
+        durationSec: item.content.durationSec ?? null,
+        isCountedToday: item.isCountedToday,
+        isCompleted: item.status === 'completed',
+      }));
     },
   });
 

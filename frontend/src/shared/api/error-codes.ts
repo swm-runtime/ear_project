@@ -56,6 +56,9 @@ export const ERROR_CODES = {
   /** 가입 주 이전·미래 주 조회 — 사용자에게 노출하지 않고 현재 표시 주를 유지한다 */
   STATS_WEEK_OUT_OF_RANGE: 'STATS_WEEK_OUT_OF_RANGE',
 
+  // settings-api.md 5장(공지 — changes/pending/notice-screen-spec.md C) — 미발행·삭제 공지 상세
+  NOTICE_NOT_FOUND: 'NOTICE_NOT_FOUND',
+
   // 공용 코드(common-error-handling.md 4.1)
   VALIDATION_FAILED: 'VALIDATION_FAILED',
   CONTENT_NOT_FOUND: 'CONTENT_NOT_FOUND',
