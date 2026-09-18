@@ -159,7 +159,8 @@ export function SleepTimerIcon({ size, color }: IconProps) {
 
 /**
  * 스크립트 — 길이가 다른 가로줄 세 개("글"). 말풍선은 채팅으로, T 는 글꼴 도구로 읽혔다(2026-09-18 PM, 4안 중 채택).
- * 크기는 ±10초 링(지름 17칸)에 맞춘다 — 가장 긴 줄 13칸, 줄 간격 5칸, 세 줄의 중심이 (12,12). 선 굵기는 링과 같은 1.8.
+ * 크기는 ±10초 링(지름 17칸)에 맞춘다 — 가장 긴 줄 13칸, 줄 간격 5칸, 세 줄의 중심이 (12,12).
+ * 선은 1.5 — 짧은 선 셋이 나란히 있어 링(1.8)과 같은 굵기면 잉크가 몰려 더 무거워 보인다(2026-09-18 PM).
  * 재생 목록 아이콘(줄 + 재생 삼각형)과 헷갈리지 않게 삼각형 없이 줄 길이만 달리한다
  */
 export function ScriptIcon({ size, color }: IconProps) {
@@ -168,7 +169,7 @@ export function ScriptIcon({ size, color }: IconProps) {
       <Path
         d="M5.5 7h13M5.5 12h9M5.5 17h11"
         stroke={color}
-        strokeWidth={1.8}
+        strokeWidth={1.5}
         strokeLinecap="round"
         fill="none"
       />
