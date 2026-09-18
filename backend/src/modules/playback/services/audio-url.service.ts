@@ -57,13 +57,17 @@ export class AudioUrlService {
       command.now,
     );
 
-    const [libraryItem, progress] = await Promise.all([
-      this.libraryService.findItemByContentId(
-        command.userId,
-        command.contentId,
-      ),
-      this.playbackService.findProgress(command.userId, command.contentId),
-    ]);
+    const [libraryItem, progress, topicViews, scriptContentIds] =
+      await Promise.all([
+        this.libraryService.findItemByContentId(
+          command.userId,
+          command.contentId,
+        ),
+        this.playbackService.findProgress(command.userId, command.contentId),
+        this.contentService.findTopicViews([command.contentId]),
+        // 본문은 읽지 않는다 — 대본은 4.7이 같은 판정을 거쳐 따로 내준다
+        this.contentService.findScriptContentIds([command.contentId]),
+      ]);
 
     // 3. 만료는 수 분 단위. 값은 서버 설정이고 계약은 `expires_in_sec`으로 값에 독립적이다
     const audio = this.audioUrlIssuer.sign(
@@ -103,7 +107,12 @@ export class AudioUrlService {
         durationSec: content.durationSec,
         thumbnailUrl: content.thumbnailUrl,
         contentVersion: content.contentVersion,
+        topics: topicViews.map((view) => ({
+          id: view.topicId,
+          name: view.name,
+        })),
       },
+      hasScript: scriptContentIds.has(command.contentId),
       libraryItem: libraryItem
         ? { id: libraryItem.id, status: libraryItem.status }
         : null,

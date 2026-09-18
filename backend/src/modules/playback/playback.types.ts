@@ -78,7 +78,14 @@ export interface AudioUrlResult {
     durationSec: number;
     thumbnailUrl: string;
     contentVersion: number;
+    /** 플레이어 카테고리 줄용(`player-api.md` 4.1, 2026-09-19) — 진입 경로마다 목록 응답에서 끼워 넣던 우회를 걷어낸다 */
+    topics: { id: string; name: string }[];
   };
+  /**
+   * 대본 존재 여부(`player-api.md` 4.1, KAN-71) — 화면이 대본 버튼을 그릴지 **조회 전에** 정한다.
+   * 없으면 플레이어를 열 때마다 대본을 미리 받아야 버튼 노출을 정할 수 있다.
+   */
+  hasScript: boolean;
   /** 라이브러리에 없는 콘텐츠면 `null` — 발급이 담기를 유발하지 않는다 */
   libraryItem: { id: string; status: string } | null;
   /** 행이 없으면 `null` — 0으로 채우지 않는다. 0부터 재생한다는 뜻이다 */

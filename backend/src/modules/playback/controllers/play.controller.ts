@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   Header,
   HttpCode,
   HttpStatus,
@@ -23,6 +24,7 @@ import {
 } from '@/common/rate-limit.constant';
 import { IdempotencyInterceptor } from '@/modules/idempotency/idempotency.interceptor';
 
+import { GetScriptResponseDto } from '../dto/get-script-response.dto';
 import { IssueAudioUrlRequestDto } from '../dto/issue-audio-url-request.dto';
 import { IssueAudioUrlResponseDto } from '../dto/issue-audio-url-response.dto';
 import { StartPlayRequestDto } from '../dto/start-play-request.dto';
@@ -30,6 +32,7 @@ import { StartPlayResponseDto } from '../dto/start-play-response.dto';
 import { AudioUrlService } from '../services/audio-url.service';
 import { PlaybackSignalService } from '../services/playback-signal.service';
 import { PlayService } from '../services/play.service';
+import { ScriptService } from '../services/script.service';
 
 /**
  * 콘텐츠 축의 재생 계열 엔드포인트(`player-api.md` 3장).
@@ -45,7 +48,33 @@ export class PlayController {
     private readonly playService: PlayService,
     private readonly audioUrlService: AudioUrlService,
     private readonly playbackSignalService: PlaybackSignalService,
+    private readonly scriptService: ScriptService,
   ) {}
+
+  /**
+   * 대본(자막) 조회(player-api.md 4.7, KAN-71). 오디오와 같은 접근 통제(9.4) — 회수·한도·구독을 발급과 같은
+   * 판정으로 거치고 차감은 없다. 본문이 보호 대상이라 `no-store`, 대량 수집 방어도 발급과 같은 레이트 리밋.
+   */
+  @Get(':contentId/script')
+  @Header('Cache-Control', 'no-store')
+  @Throttle({
+    default: {
+      limit: RATE_LIMIT_AUDIO_URL_PER_MINUTE,
+      ttl: RATE_LIMIT_WINDOW_MS,
+    },
+  })
+  async getScript(
+    @CurrentUser() currentUser: AuthenticatedUser,
+    @Param('contentId', ParseUUIDPipe) contentId: string,
+  ): Promise<GetScriptResponseDto> {
+    return GetScriptResponseDto.from(
+      await this.scriptService.get({
+        userId: currentUser.id,
+        contentId,
+        now: new Date(),
+      }),
+    );
+  }
 
   /**
    * 서명 URL 발급 + 진입 메타(`player-api.md` 4.1). **재생 중 갱신도 이 호출이다.**
