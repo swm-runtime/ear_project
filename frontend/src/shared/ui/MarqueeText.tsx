@@ -23,8 +23,8 @@ interface MarqueeTextProps {
 const DEFAULT_SPEED = 36;
 const DEFAULT_PAUSE_MS = 1800;
 const DEFAULT_GAP = 56;
-/** 글자 두 개 폭쯤 — 한 글자 폭이면 마지막 글자가 반쯤 남은 채 잘린다(2026-09-17 PM 지적) */
-const DEFAULT_FADE_WIDTH = 64;
+/** 글자 세 개 폭쯤 — 좁으면 마지막 글자가 반쯤 남은 채 가장자리에 부딪힌다(2026-09-17·18 PM 지적) */
+const DEFAULT_FADE_WIDTH = 88;
 /** 트랙 폭 — 어떤 제목보다 넓기만 하면 된다. 뷰포트가 잘라 보이지 않는다 */
 const TRACK_WIDTH = 10000;
 /** 한글·라틴 글자의 시각적 가운데는 기준선에서 글자 크기의 이 비율만큼 위다 — SVG 텍스트를 줄 가운데에 앉히는 값 */
@@ -114,6 +114,11 @@ export default function MarqueeText({
     outputRange: [1, 0],
     extrapolate: 'clamp',
   });
+  const leftSolidOpacity = translateX.interpolate({
+    inputRange: [-fadeWidth, 0],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
   const fade = Math.min(fadeWidth, viewportWidth / 3);
   const baselineY = lineHeight / 2 + fontSize * BASELINE_RATIO;
 
@@ -141,26 +146,29 @@ export default function MarqueeText({
       {shouldScroll ? (
         <Svg width={viewportWidth} height={lineHeight} pointerEvents="none">
           <Defs>
-            {/* 마스크는 밝기다 — 흰색 = 보임, 검정 = 안 보임. 양끝 그라데이션이 글자를 투명하게 만든다 */}
-            {/* 끝으로 갈수록 가파르게 — 선형이면 끝 글자가 반쯤 보이다 툭 끊긴다 */}
-            {/* 가장자리 15%는 완전 투명 — 경계에서 잔여 불투명도가 남으면 마지막 글자가 세로로 툭 끊긴다 */}
+            {/*
+              마스크는 **알파**로 쓴다(2026-09-18) — 밝기(luminance) 마스크는 회색을 감마 보정해 읽어서 플랫폼마다
+              곡선이 달랐고, 웹에선 가장자리에 20~30% 불투명도가 남아 글자가 세로로 툭 끊겼다. 알파는 stopOpacity 가
+              곧 글자의 불투명도라 어디서나 같다. 가장자리 20%는 완전 투명 — 경계에 닿기 전에 0이 된다
+            */}
             <LinearGradient id={`${uid}-left`} x1="0" y1="0" x2="1" y2="0">
-              <Stop offset="0" stopColor="#000000" />
-              <Stop offset="0.15" stopColor="#000000" />
-              <Stop offset="0.45" stopColor="#555555" />
-              <Stop offset="0.75" stopColor="#CCCCCC" />
-              <Stop offset="1" stopColor="#FFFFFF" />
+              <Stop offset="0" stopColor="#FFFFFF" stopOpacity="0" />
+              <Stop offset="0.2" stopColor="#FFFFFF" stopOpacity="0" />
+              <Stop offset="0.45" stopColor="#FFFFFF" stopOpacity="0.18" />
+              <Stop offset="0.7" stopColor="#FFFFFF" stopOpacity="0.55" />
+              <Stop offset="1" stopColor="#FFFFFF" stopOpacity="1" />
             </LinearGradient>
             <LinearGradient id={`${uid}-right`} x1="0" y1="0" x2="1" y2="0">
-              <Stop offset="0" stopColor="#FFFFFF" />
-              <Stop offset="0.25" stopColor="#CCCCCC" />
-              <Stop offset="0.55" stopColor="#555555" />
-              <Stop offset="0.85" stopColor="#000000" />
-              <Stop offset="1" stopColor="#000000" />
+              <Stop offset="0" stopColor="#FFFFFF" stopOpacity="1" />
+              <Stop offset="0.3" stopColor="#FFFFFF" stopOpacity="0.55" />
+              <Stop offset="0.55" stopColor="#FFFFFF" stopOpacity="0.18" />
+              <Stop offset="0.8" stopColor="#FFFFFF" stopOpacity="0" />
+              <Stop offset="1" stopColor="#FFFFFF" stopOpacity="0" />
             </LinearGradient>
             {/*
-              마스크는 뷰포트보다 훨씬 넓게 잡고 바깥을 검정으로 채운다 — 네이티브 SVG 는 마스크 영역 밖의
-              글자를 숨기지 않아, 흐르는 글자가 페이드 뒤에서 잘린 채 드러났다(2026-09-18 실기기)
+              마스크는 뷰포트보다 훨씬 넓게 잡는다 — 네이티브 SVG 는 마스크 영역 밖의 글자를 숨기지 않아, 흐르는
+              글자가 페이드 뒤에서 잘린 채 드러났다(2026-09-18 실기기). 알파 마스크라 안 그린 곳은 투명이다.
+              가운데(양끝 페이드 사이)만 불투명 흰색으로 채운다
             */}
             <Mask
               id={`${uid}-mask`}
@@ -169,15 +177,24 @@ export default function MarqueeText({
               width={TRACK_WIDTH * 2 + viewportWidth}
               height={lineHeight}
               maskUnits="userSpaceOnUse"
+              maskType="alpha"
             >
               <Rect
-                x={-TRACK_WIDTH}
+                x={fade}
                 y="0"
-                width={TRACK_WIDTH * 2 + viewportWidth}
+                width={Math.max(0, viewportWidth - fade * 2)}
                 height={lineHeight}
-                fill="#000000"
+                fill="#FFFFFF"
               />
-              <Rect x="0" y="0" width={viewportWidth} height={lineHeight} fill="#FFFFFF" />
+              {/* 왼쪽 페이드가 꺼져 있는 동안(멈춘 처음)은 왼쪽 끝까지 불투명 */}
+              <AnimatedRect
+                x="0"
+                y="0"
+                width={fade}
+                height={lineHeight}
+                fill="#FFFFFF"
+                opacity={leftSolidOpacity}
+              />
               <AnimatedRect
                 x="0"
                 y="0"
