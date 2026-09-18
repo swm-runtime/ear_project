@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { PanResponder, StyleSheet, Text, View } from 'react-native';
+import { Animated, PanResponder, StyleSheet, Text, View } from 'react-native';
 
+import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { theme } from '@/shared/theme';
 
 import { SEEK_STEP_SEC } from '../player.constants';
@@ -80,6 +81,27 @@ export default function SeekBar({
   }, []);
 
   const displaySec = dragPositionSec ?? positionSec;
+  const isDragging = dragPositionSec !== null;
+  // 썸은 잡고 있는 동안만 — 평소엔 채움과 트랙의 경계가 위치를 말해 주고, 사진 밑변에 걸친 썸만 튀어 보였다
+  // (2026-09-18 PM, 애플 뮤직 방식). 손가락 밑에서 어디를 끌고 있는지는 썸이 커지며 보여 준다
+  const thumbProgress = useAnimatedValue(0);
+  useEffect(() => {
+    // 나타날 땐 스프링으로 살짝 튀며 커지고, 사라질 땐 짧게 흐려진다 — 손을 뗀 뒤 튀는 건 어색하다
+    const animation = isDragging
+      ? Animated.spring(thumbProgress, {
+          toValue: 1,
+          friction: 6,
+          tension: 140,
+          useNativeDriver: true,
+        })
+      : Animated.timing(thumbProgress, {
+          toValue: 0,
+          duration: THUMB_HIDE_MS,
+          useNativeDriver: true,
+        });
+    animation.start();
+    return () => animation.stop();
+  }, [isDragging, thumbProgress]);
   const ratio = durationSec > 0 ? Math.min(1, Math.max(0, displaySec / durationSec)) : 0;
 
   return (
@@ -121,10 +143,20 @@ export default function SeekBar({
           />
           {/* 전체 폭으로 흘리면 0%·100%에서 손잡이 절반이 화면 밖으로 나간다 —
               측정한 폭 안으로 가둬 항상 온전히 보이게 한다 */}
-          <View
+          <Animated.View
+            pointerEvents="none"
             style={[
               styles.thumb,
               {
+                opacity: thumbProgress,
+                transform: [
+                  {
+                    scale: thumbProgress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.3, 1],
+                    }),
+                  },
+                ],
                 left:
                   trackWidth > 0
                     ? Math.min(
@@ -148,6 +180,8 @@ export default function SeekBar({
 }
 
 const THUMB_SIZE = 14;
+/** 손을 뗀 뒤 썸이 사라지는 시간 */
+const THUMB_HIDE_MS = 140;
 /** 사진 위 채움·썸 — 밝은·어두운 사진 어느 쪽에서도 떨어지는 중간 회색 */
 const ON_IMAGE_FILL_COLOR = '#A0A0A8';
 
