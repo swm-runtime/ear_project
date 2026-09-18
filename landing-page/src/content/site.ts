@@ -145,7 +145,7 @@ export const topicPicker = {
   limitToast: (max: number) => `관심 주제는 ${max}개까지 선택할 수 있어요`,
   emptyHint: "주제를 눌러 보세요.",
   summaryTitle: "이 주제로 시작하면",
-  summaryBody: (count: number) => `매일 아침 ${count}개 주제에서 고른 2편이 라이브러리에 도착해요.`,
+  summaryBody: "매일 아침 선택한 주제에 맞는 콘텐츠 2편이 라이브러리에 도착해요.",
   cta: "이 주제로 출시 소식 받기",
   reset: "다시 고르기",
 } as const;

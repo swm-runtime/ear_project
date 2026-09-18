@@ -96,11 +96,6 @@
   border-color: var(--brand-700);
 }
 
-.chipCheck {
-  width: 14px;
-  height: 14px;
-  margin-left: -2px;
-}
 
 /* 3개를 채운 뒤의 미선택 칩 — 흐려지지만 눌러 볼 수는 있다(토스트가 이유를 말한다) */
 .chipBlocked {

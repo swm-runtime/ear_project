@@ -13,7 +13,7 @@ export async function Topics() {
         <p className="eyebrow">Topics</p>
         <h2 className="sectionTitle">관심 있는 주제를 골라 보세요</h2>
         <p className="sectionLede">
-          <Sentences text="아래 주제 중에서 최대 3개까지 고를 수 있어요. 앱에서 고르는 것과 똑같이 눌러 보세요." />
+          <Sentences text="아래 주제 중에서 최대 3개까지 고를 수 있어요." />
         </p>
 
         {/* 실제로 고를 수 있다 — 앱 온보딩 1단계 규칙(최대 3개)을 그대로 겪게 한다(2026-09-18) */}

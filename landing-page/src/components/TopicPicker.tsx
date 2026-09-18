@@ -69,11 +69,6 @@ export function TopicPicker({ groups }: { groups: TopicGroup[] }) {
                       aria-pressed={on}
                       aria-disabled={blocked || undefined}
                     >
-                      {on ? (
-                        <svg className={s.chipCheck} viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="M5 12.5l4.2 4.2L19 7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      ) : null}
                       {item}
                     </button>
                   </li>
@@ -88,7 +83,7 @@ export function TopicPicker({ groups }: { groups: TopicGroup[] }) {
       <div className={`${s.summary} ${selected.length > 0 ? s.summaryOn : ""}`} aria-hidden={selected.length === 0}>
         <div className={s.summaryText}>
           <p className={s.summaryTitle}>{topicPicker.summaryTitle}</p>
-          <p className={s.summaryBody}>{topicPicker.summaryBody(selected.length)}</p>
+          <p className={s.summaryBody}>{topicPicker.summaryBody}</p>
           <ul className={s.summaryChips} aria-label="고른 주제">
             {selected.map((item) => (
               <li key={item} className={`${s.chip} ${s.chipOn} ${s.chipSmall}`}>
