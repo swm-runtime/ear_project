@@ -136,6 +136,9 @@ const initialSession = (request: StartPlaybackRequest): PlaybackSession => ({
   banner: null,
 });
 
+/** 페이드아웃 음량 갱신 주기 — 계단이 들리지 않을 만큼 */
+const FADE_STEP_MS = 100;
+
 class PlaybackService {
   private player: AudioPlayer | null = null;
   private statusSubscription: { remove: () => void } | null = null;
@@ -454,6 +457,34 @@ class PlaybackService {
     this.player?.pause();
     // 일시정지는 즉시 저장 트리거다(player.md 4.3)
     this.flushProgress('pause');
+  }
+
+  /**
+   * 소리를 서서히 줄인 뒤 일시정지한다 — 수면 타이머 만료(player.md 4.7). 멈춘 뒤에는 음량을 되돌려 놓아
+   * 다음 재생이 작은 소리로 시작하지 않게 한다. 이미 멈춰 있거나 도중에 사용자가 멈추면 음량만 되돌린다
+   */
+  fadeOutAndPause(durationMs: number): void {
+    const player = this.player;
+    const session = store.getState().session;
+    if (!player || !session || session.state !== 'ready' || !session.isPlaying) return;
+    const startVolume = player.volume;
+    const startedAt = Date.now();
+    const timer = setInterval(() => {
+      const current = store.getState().session;
+      // 도중에 세션이 바뀌었거나 사용자가 직접 멈췄다 — 페이드를 접고 음량만 되돌린다
+      if (this.player !== player || !current || !current.isPlaying) {
+        clearInterval(timer);
+        player.volume = startVolume;
+        return;
+      }
+      const progress = Math.min(1, (Date.now() - startedAt) / durationMs);
+      player.volume = startVolume * (1 - progress);
+      if (progress >= 1) {
+        clearInterval(timer);
+        this.pause();
+        player.volume = startVolume;
+      }
+    }, FADE_STEP_MS);
   }
 
   /** 시크바·±10초 공용. 끝 도달은 완료 처리다(player.md 4.2 — [10초 앞으로] 규칙) */

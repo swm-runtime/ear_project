@@ -180,8 +180,12 @@ export function QueueIcon({ size, color }: IconProps) {
   );
 }
 
-/** 수면 타이머 — 초승달(2026-09-16, 앱바로 이동). 선 굵기는 ±10초 아이콘과 같다 */
-export function SleepTimerIcon({ size, color }: IconProps) {
+/**
+ * 수면 타이머 — 초승달(2026-09-16, 앱바로 이동). 선 굵기는 ±10초 아이콘과 같다.
+ * `filled` = 타이머가 걸려 있다(2026-09-19) — 달을 채워 그린다. 옆의 남은 시간 알약과 함께 켜짐을 알린다:
+ * 선으로만 그린 달은 켜졌는지 꺼졌는지 아이콘만 봐서는 알 수 없었다. 색이 아니라 형태(채움)로 구분한다
+ */
+export function SleepTimerIcon({ size, color, filled = false }: IconProps & { filled?: boolean }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Path
@@ -189,7 +193,7 @@ export function SleepTimerIcon({ size, color }: IconProps) {
         stroke={color}
         strokeWidth={1.8}
         strokeLinejoin="round"
-        fill="none"
+        fill={filled ? color : 'none'}
       />
     </Svg>
   );
