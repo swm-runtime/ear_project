@@ -38,6 +38,7 @@ import PlayerMoreSheet from '../components/PlayerMoreSheet';
 import PlayerQueuePanel from '../components/PlayerQueuePanel';
 import PlayerRateSheet from '../components/PlayerRateSheet';
 import PlayerScriptPanel from '../components/PlayerScriptPanel';
+import PlayerSleepTimerSheet from '../components/PlayerSleepTimerSheet';
 import SeekBar from '../components/SeekBar';
 import { usePlayerScreen } from '../hooks/usePlayerScreen';
 import type { PlayerPanelKind } from '../hooks/usePlayerScreen';
@@ -52,8 +53,15 @@ import {
 import { PLAYER_COPY } from '../player.copy';
 import { playerColor } from '../player.theme';
 import type { QueueItem } from '../player.types';
+import {
+  formatSleepTimerRemaining,
+  formatSleepTimerRemainingA11y,
+  type SleepTimerChoice,
+} from '../services/sleep-timer';
+import { sleepTimerService } from '../services/sleep-timer.service';
 import { useMiniPlayerLayoutStore } from '../store/mini-player-layout.store';
 import { usePlayerOpenGestureStore } from '../store/player-open-gesture.store';
+import { useSleepTimerStore } from '../store/sleep-timer.store';
 
 /**
  * 플레이어(PL1~PL10) — 화면은 뷰만 담당하고 로직은 usePlayerScreen이 소유한다.
@@ -116,6 +124,28 @@ export default function PlayerScreen() {
   // 헤더 애니메이션의 기준 치수 — 화면 폭·컨트롤 높이는 실측한다(기기마다 다르다)
   const [contentSize, setContentSize] = useState({ width: 0, height: 0 });
   const [controlsHeight, setControlsHeight] = useState(0);
+  // 수면 타이머(FR-25 P1) — 시간은 서비스가 세고 화면은 스토어를 구독해 그린다(화면을 닫아도 타이머는 간다)
+  const sleepTimerChoice = useSleepTimerStore((s) => s.choice);
+  const sleepTimerRemainingSec = useSleepTimerStore((s) => s.remainingSec);
+  const selectSleepTimer = (choice: SleepTimerChoice | null) => {
+    if (choice === null) sleepTimerService.clear();
+    else sleepTimerService.start(choice);
+    screen.closeSleepTimerSheet();
+  };
+  const sleepTimerPill =
+    sleepTimerChoice === null
+      ? null
+      : sleepTimerChoice.kind === 'endOfEpisode'
+        ? PLAYER_COPY.screen.timerEndOfEpisodePill
+        : formatSleepTimerRemaining(sleepTimerRemainingSec ?? 0);
+  const sleepTimerA11y =
+    sleepTimerChoice === null
+      ? PLAYER_COPY.screen.timerA11y
+      : sleepTimerChoice.kind === 'endOfEpisode'
+        ? PLAYER_COPY.screen.timerEndOfEpisodeA11y
+        : PLAYER_COPY.screen.timerActiveA11y(
+            formatSleepTimerRemainingA11y(sleepTimerRemainingSec ?? 0),
+          );
   // ±10초 버튼을 누른 횟수 — 바뀔 때마다 아이콘의 원호가 한 번 돈다(SeekIcon spinKey)
   const [seekSpin, setSeekSpin] = useState({ back: 0, forward: 0 });
   /** 시크바 트랙 선의 아래 변(시크바 블록 기준) — 재생 목록이 열리면 앨범 커버 하한을 정확히 여기에 맞춘다(PM 2026-09-17) */
@@ -926,7 +956,11 @@ export default function PlayerScreen() {
           )}
           {isCompleted ? (
             <Animated.View
-              style={[styles.completedBadge, { opacity: hero.collapsedOpacity }]}
+              // 재생 목록이 열려 사진이 화면을 채우면 배지가 좌상단(셰브론 옆)으로 끌려가 겹친다 — 그때는 감춘다
+              style={[
+                styles.completedBadge,
+                { opacity: Animated.multiply(hero.collapsedOpacity, queueInverse) },
+              ]}
               accessibilityLabel={PLAYER_COPY.screen.completedBadgeA11y}
             >
               <Text style={styles.completedBadgeGlyph}>✓</Text>
@@ -986,18 +1020,30 @@ export default function PlayerScreen() {
             )}
           </Pressable>
           <View style={styles.appBarActions}>
-            {/* 수면 타이머(P1) — 재생 조작이 아니라 세션 설정이라 앱바에 둔다(2026-09-16).
-                설정되면 이 자리에 남은 시간 알약이 붙는다. TODO: P1에서 시트·남은 시간 연결 */}
+            {/* 수면 타이머(FR-25 P1) — 재생 조작이 아니라 세션 설정이라 앱바에 둔다(2026-09-16).
+                걸려 있으면 달을 채워 그리고 왼쪽에 남은 시간 알약을 붙인다(2026-09-19) */}
             <Pressable
-              style={styles.appBarButton}
-              disabled
+              style={styles.timerButton}
+              onPress={screen.openSleepTimerSheet}
               accessibilityRole="button"
-              accessibilityLabel={PLAYER_COPY.screen.timerA11y}
-              accessibilityState={{ disabled: true }}
+              accessibilityLabel={sleepTimerA11y}
             >
+              {sleepTimerPill !== null ? (
+                <Text style={styles.timerPill} allowFontScaling={false}>
+                  {sleepTimerPill}
+                </Text>
+              ) : null}
               {dualTone(
-                <SleepTimerIcon size={APP_BAR_ICON_SIZE} color={playerColor.textPrimary} />,
-                <SleepTimerIcon size={APP_BAR_ICON_SIZE} color={ON_IMAGE_COLOR} />,
+                <SleepTimerIcon
+                  size={APP_BAR_ICON_SIZE}
+                  color={playerColor.textPrimary}
+                  filled={sleepTimerChoice !== null}
+                />,
+                <SleepTimerIcon
+                  size={APP_BAR_ICON_SIZE}
+                  color={ON_IMAGE_COLOR}
+                  filled={sleepTimerChoice !== null}
+                />,
               )}
             </Pressable>
             <Pressable
@@ -1387,6 +1433,12 @@ export default function PlayerScreen() {
         </View>
       ) : null}
 
+      <PlayerSleepTimerSheet
+        isVisible={screen.isSleepTimerSheetVisible}
+        currentChoice={sleepTimerChoice}
+        onSelect={selectSleepTimer}
+        onClose={screen.closeSleepTimerSheet}
+      />
       <PlayerRateSheet
         isVisible={screen.isRateSheetVisible}
         currentRate={screen.rate}
@@ -1580,6 +1632,22 @@ const styles = StyleSheet.create({
     // 상태바 밑에 바로 붙지 않게 — 아이콘 윗선이 탭 화면의 첫 요소(24)와 비슷한 선에 온다(2026-09-18 PM).
     // 재생 목록의 아트워크 높이는 앱바 실측(onAppBarLayout)을 쓰므로 함께 늘어난다
     paddingTop: theme.spacing.md,
+  },
+  // 수면 타이머 — 알약이 붙으면 옆으로 늘어난다. 히트 영역은 44pt 를 지킨다
+  timerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.xs,
+    minWidth: theme.touchTarget.minWidth,
+    minHeight: theme.touchTarget.minHeight,
+  },
+  // 남은 시간 — 숫자 폭이 흔들리지 않게 고정폭 숫자. 사진 위에서도 읽히게 흰 글자
+  timerPill: {
+    fontSize: theme.font.size.xs,
+    fontWeight: '700',
+    color: ON_IMAGE_COLOR,
+    fontVariant: ['tabular-nums'],
   },
   appBarButton: {
     minWidth: theme.touchTarget.minWidth,

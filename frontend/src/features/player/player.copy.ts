@@ -45,11 +45,13 @@ export const PLAYER_COPY = {
     /** 배속 칩 상시 표시 "N.N×" — a11y는 "재생 속도, N.N배"로 읽힌다(uiux 7장) */
     rateChip: (rate: number) => `${rate.toFixed(1)}×`,
     rateChipA11y: (rate: number) => `재생 속도, ${rate.toFixed(1)}배`,
-    /**
-     * P1 보조 칩(uiux 6장 카피) — 기능(FR-25)은 미구현이라 비활성으로만 노출한다.
-     * uiux 2장·8장의 "MVP 미노출" 규칙과 충돌 — 노출 결정 2026-08-11(사용자 지시), 문서 개정 대기.
-     */
-    timerA11y: '수면 타이머, 준비 중',
+    /** 수면 타이머 버튼(FR-25 P1, 구현 2026-09-19) — 꺼짐 / 분 단위 남은 시간 / 이 에피소드 종료 시 */
+    timerA11y: '수면 타이머',
+    /** "수면 타이머, 9분 41초 남음" — 시각 문자열("09:41")을 그대로 읽히지 않는다(uiux 7장) */
+    timerActiveA11y: (remaining: string) => `수면 타이머, ${remaining}`,
+    timerEndOfEpisodeA11y: '수면 타이머, 이 에피소드 종료 시',
+    /** 앱바 알약의 "이 에피소드 종료 시" 표시 — 남은 시간이 없는 선택이라 짧은 말로 */
+    timerEndOfEpisodePill: '종료 시',
     /** 바닥 서랍 손잡이 — 다음 재생 목록(2026-09-16, 스크립트와 자리 교환) */
     queueHandle: '재생 목록',
     queueHandleA11y: '다음 재생 목록 열기',
@@ -101,6 +103,14 @@ export const PLAYER_COPY = {
   },
 
   /** PL4 배속 선택 시트 — 탭 즉시 적용 + 전역 저장 + 닫힘. [확인] 버튼을 두지 않는다 */
+  /** PL5 수면 타이머 시트(player-uiux.md 4.6 · 6장 카피) */
+  sleepTimerSheet: {
+    title: '수면 타이머',
+    minutes: (minutes: number) => `${minutes}분`,
+    endOfEpisode: '이 에피소드 종료 시',
+    off: '해제',
+  },
+
   rateSheet: {
     title: '재생 속도',
     optionLabel: (rate: number) => `${rate.toFixed(1)}×`,
