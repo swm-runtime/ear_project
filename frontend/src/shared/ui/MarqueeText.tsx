@@ -158,14 +158,25 @@ export default function MarqueeText({
               <Stop offset="0.85" stopColor="#000000" />
               <Stop offset="1" stopColor="#000000" />
             </LinearGradient>
+            {/*
+              마스크는 뷰포트보다 훨씬 넓게 잡고 바깥을 검정으로 채운다 — 네이티브 SVG 는 마스크 영역 밖의
+              글자를 숨기지 않아, 흐르는 글자가 페이드 뒤에서 잘린 채 드러났다(2026-09-18 실기기)
+            */}
             <Mask
               id={`${uid}-mask`}
-              x="0"
+              x={-TRACK_WIDTH}
               y="0"
-              width={viewportWidth}
+              width={TRACK_WIDTH * 2 + viewportWidth}
               height={lineHeight}
               maskUnits="userSpaceOnUse"
             >
+              <Rect
+                x={-TRACK_WIDTH}
+                y="0"
+                width={TRACK_WIDTH * 2 + viewportWidth}
+                height={lineHeight}
+                fill="#000000"
+              />
               <Rect x="0" y="0" width={viewportWidth} height={lineHeight} fill="#FFFFFF" />
               <AnimatedRect
                 x="0"
