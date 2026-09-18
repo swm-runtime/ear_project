@@ -47,7 +47,7 @@ export const featuredCardArtworkRect = (card: Rect): Rect => {
 
 /**
  * 인기 섹션의 큰 카드 — 가로 캐러셀의 항목이다.
- * 정보 구성은 목록 행(ExploreContentRow)과 같다: 썸네일·출처·저자·제목·길이.
+ * 정보 구성은 타일(ExploreTile)과 같다: 썸네일·제목·길이.
  * 담기/제거는 여기서도 더보기 시트가 소유한다(explore.md 4.3 — 행에 담기 버튼을 두지 않는다).
  */
 export default function ExploreFeaturedCard({

@@ -10,6 +10,11 @@ interface ExploreTileProps {
   /** 타일 탭 = 곧장 재생 판정. 상세 화면을 끼우지 않는다(explore-uiux.md 4.1) */
   onPress: (item: ExploreItem) => void;
   onMorePress: (item: ExploreItem) => void;
+  /**
+   * `carousel`(기본) = 가로 캐러셀의 고정 폭 타일. `grid` = 두 칸 격자의 한 칸 — 칸 폭을 그대로 채운다.
+   * 주제 필터 결과·검색 결과는 라이브러리와 같은 썸네일 격자로 그린다(2026-09-18 PM)
+   */
+  layout?: 'carousel' | 'grid';
 }
 
 const toMinutes = (durationSec: number): number => Math.max(1, Math.round(durationSec / 60));
@@ -22,12 +27,18 @@ export const EXPLORE_TILE_WIDTH = 156;
  * 더보기(⋯)를 아트워크 위에 얹는다 — 담기·제거 진입점이 더보기 시트뿐이라
  * 타일에서도 빠지면 탐색에서 담을 방법이 사라진다(explore.md 4.3).
  */
-export default function ExploreTile({ item, onPress, onMorePress }: ExploreTileProps) {
+export default function ExploreTile({
+  item,
+  onPress,
+  onMorePress,
+  layout = 'carousel',
+}: ExploreTileProps) {
+  const isGrid = layout === 'grid';
   const isCompleted = item.library?.status === 'completed';
   const minutes = toMinutes(item.content.durationSec);
 
   return (
-    <View style={styles.tile}>
+    <View style={isGrid ? styles.gridTile : styles.tile}>
       <Pressable
         onPress={() => onPress(item)}
         accessibilityRole="button"
@@ -37,8 +48,11 @@ export default function ExploreTile({ item, onPress, onMorePress }: ExploreTileP
           completed: isCompleted,
         })}
       >
-        <View style={styles.artworkFrame}>
-          <Image source={{ uri: item.content.thumbnailUrl }} style={styles.artwork} />
+        <View style={isGrid ? styles.gridArtworkFrame : styles.artworkFrame}>
+          <Image
+            source={{ uri: item.content.thumbnailUrl }}
+            style={[styles.artwork, isGrid && styles.gridArtwork]}
+          />
           {isCompleted ? (
             <View style={styles.completedMark}>
               <Text style={styles.completedGlyph}>✓</Text>
@@ -75,6 +89,18 @@ const styles = StyleSheet.create({
     width: EXPLORE_TILE_WIDTH,
     height: EXPLORE_TILE_WIDTH,
     marginBottom: theme.spacing.sm,
+  },
+  // 격자 — 라이브러리 격자 타일(LibraryItemTile)과 같은 모양: 칸 폭 정사각, 라운드 lg
+  gridTile: {
+    flex: 1,
+  },
+  gridArtworkFrame: {
+    width: '100%',
+    aspectRatio: 1,
+    marginBottom: theme.spacing.sm,
+  },
+  gridArtwork: {
+    borderRadius: theme.radius.lg,
   },
   artwork: {
     flex: 1,

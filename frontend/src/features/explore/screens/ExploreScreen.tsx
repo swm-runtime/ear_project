@@ -15,7 +15,6 @@ import FullScreenError from '@/shared/ui/FullScreenError';
 
 import { MiniPlayer, PlayConfirmDialog, RemainingPlaysIndicator } from '@/features/player';
 
-import ExploreContentRow from '../components/ExploreContentRow';
 import ExploreEmptyState from '../components/ExploreEmptyState';
 import ExploreFeaturedCard from '../components/ExploreFeaturedCard';
 import ExploreMoreSheet from '../components/ExploreMoreSheet';
@@ -25,6 +24,7 @@ import ExploreTile from '../components/ExploreTile';
 import PopularPeriodToggle from '../components/PopularPeriodToggle';
 import TopicChips from '../components/TopicChips';
 import { EXPLORE_COPY } from '../explore.copy';
+import { exploreGridKey, toExploreGridData } from '../explore.grid';
 import { buildSectionListKey } from '../explore.section-key';
 import type { ExploreSection } from '../explore.types';
 import { useExploreScreen } from '../hooks/useExploreScreen';
@@ -115,7 +115,10 @@ export default function ExploreScreen() {
       <View key={buildSectionListKey(section)} style={styles.section}>
         {section.period !== null ? (
           <View style={styles.sectionHeaderRow}>
-            <Text style={[styles.sectionTitle, styles.sectionHeaderTitle]} accessibilityRole="header">
+            <Text
+              style={[styles.sectionTitle, styles.sectionHeaderTitle]}
+              accessibilityRole="header"
+            >
               {section.title}
             </Text>
             <PopularPeriodToggle
@@ -174,16 +177,23 @@ export default function ExploreScreen() {
     if (screen.isFiltered) {
       return (
         <FlatList
-          data={screen.filteredItems}
-          keyExtractor={(item) => item.content.id}
-          renderItem={({ item }) => (
-            <ExploreContentRow
-              item={item}
-              onPress={screen.handleRowPress}
-              onMorePress={screen.openMoreSheet}
-            />
-          )}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
+          data={toExploreGridData(screen.filteredItems)}
+          keyExtractor={exploreGridKey}
+          numColumns={2}
+          columnWrapperStyle={styles.gridRow}
+          renderItem={({ item }) =>
+            item === null ? (
+              <View style={styles.gridSpacer} />
+            ) : (
+              <ExploreTile
+                item={item}
+                layout="grid"
+                onPress={screen.handleRowPress}
+                onMorePress={screen.openMoreSheet}
+              />
+            )
+          }
+          ItemSeparatorComponent={() => <View style={styles.gridSeparator} />}
           ListEmptyComponent={
             screen.emptyKind === 'filtered' ? (
               <ExploreEmptyState
@@ -195,7 +205,7 @@ export default function ExploreScreen() {
           }
           ListFooterComponent={renderFooter()}
           contentContainerStyle={
-            screen.filteredItems.length === 0 ? styles.emptyContent : styles.listContent
+            screen.filteredItems.length === 0 ? styles.emptyContent : styles.gridContent
           }
           refreshControl={refreshControl}
           onEndReached={screen.loadMore}
@@ -274,7 +284,6 @@ export default function ExploreScreen() {
         onCancel={screen.cancelPlayConfirm}
         onSuppressToday={screen.suppressAndPlay}
       />
-
     </SafeAreaView>
   );
 }
@@ -287,8 +296,19 @@ const styles = StyleSheet.create({
   feedContent: {
     paddingBottom: theme.spacing.lg,
   },
-  listContent: {
+  // 주제 필터 결과 — 라이브러리와 같은 두 칸 썸네일 격자(2026-09-18 PM). 좌우 여백은 검색 줄과 같은 선
+  gridContent: {
+    paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
+  },
+  gridRow: {
+    gap: theme.spacing.sm * 1.5,
+  },
+  gridSpacer: {
+    flex: 1,
+  },
+  gridSeparator: {
+    height: theme.spacing.lg,
   },
   /**
    * 섹션 구분은 **배경색이 아니라 제목 크기와 근접성**으로 만든다(2026-09-02).
@@ -334,10 +354,6 @@ const styles = StyleSheet.create({
   },
   dimmed: {
     opacity: 0.5,
-  },
-  // 카드가 자기 배경을 갖게 되어 구분선이 필요 없다 — 카드 사이 간격만 둔다
-  separator: {
-    height: theme.spacing.sm,
   },
   emptyContent: {
     flexGrow: 1,
