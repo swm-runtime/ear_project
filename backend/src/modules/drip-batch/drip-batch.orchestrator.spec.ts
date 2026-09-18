@@ -124,15 +124,18 @@ describe('DripBatchOrchestrator', () => {
       countSignals: jest.fn().mockResolvedValue(0),
     } as unknown as jest.Mocked<PlaybackService>;
 
+    const emptyWeights = {
+      topicWeights: {},
+      authorWeights: {},
+      keywordWeights: {},
+      formatWeights: {},
+      durationPref: null,
+      tasteEmbedding: null,
+      signalCount: 0,
+    };
     preferenceVectorService = {
-      rebuild: jest.fn().mockResolvedValue({
-        topicWeights: {},
-        authorWeights: {},
-        keywordWeights: {},
-        formatWeights: {},
-        durationPref: null,
-        signalCount: 0,
-      }),
+      rebuild: jest.fn().mockResolvedValue(emptyWeights),
+      compute: jest.fn().mockReturnValue(emptyWeights),
     } as unknown as jest.Mocked<PreferenceVectorService>;
 
     dripPlacementService = {
@@ -289,6 +292,76 @@ describe('DripBatchOrchestrator', () => {
       expect.objectContaining({ successCount: 1, failedCount: 0 }),
       expect.any(Date),
     );
+  });
+
+  describe('planForUser — 편성 미리보기가 쓰는 계산 경로', () => {
+    it('저장 없는 계산의 편성분이 실제 배치가 적립한 것과 같다 — 미리보기와 배치는 같은 계산기다', async () => {
+      // given — 같은 입력으로 계산만 한다
+      const plan = await orchestrator.planForUser(buildUser(), NOW, new Map(), {
+        persistPreference: false,
+        stopAtSkip: true,
+      });
+
+      // when — 실제 배치를 돌린다
+      await orchestrator.run(NOW);
+
+      // then — 정규·탐험 편성분이 적립 호출과 일치한다
+      const placed = new Map(
+        dripPlacementService.placeItems.mock.calls.map(
+          ([, contentIds, source]) => [source, contentIds],
+        ),
+      );
+      expect(plan.regular?.picks.map((pick) => pick.content.id)).toEqual(
+        placed.get(LibraryItemSource.DRIP),
+      );
+      expect(plan.discovery?.picks.map((pick) => pick.content.id)).toEqual(
+        placed.get(LibraryItemSource.DISCOVERY),
+      );
+    });
+
+    it('persistPreference가 꺼져 있으면 취향 캐시를 저장하지 않고 적립도 하지 않는다', async () => {
+      await orchestrator.planForUser(buildUser(), NOW, new Map(), {
+        persistPreference: false,
+        stopAtSkip: false,
+      });
+
+      expect(preferenceVectorService.rebuild).not.toHaveBeenCalled();
+      expect(preferenceVectorService.compute).toHaveBeenCalledTimes(1);
+      expect(dripPlacementService.placeItems).not.toHaveBeenCalled();
+      expect(dripBatchRunService.claim).not.toHaveBeenCalled();
+      expect(dripArrivalNotificationService.notify).not.toHaveBeenCalled();
+    });
+
+    it('stopAtSkip이 꺼져 있으면 스킵 사유를 적은 채 편성 계산까지 이어 간다 — "스킵이 아니었다면"을 보이기 위해', async () => {
+      libraryService.countUnfinished.mockResolvedValue(5);
+
+      const plan = await orchestrator.planForUser(buildUser(), NOW, new Map(), {
+        persistPreference: false,
+        stopAtSkip: false,
+      });
+
+      expect(plan.skipReason).toBe('unfinished_inventory');
+      expect(plan.regular?.picks.map((pick) => pick.content.id)).toEqual(
+        expect.arrayContaining(['r1', 'r2']),
+      );
+    });
+
+    it('후보 전부의 점수와 시리즈 게이트에서 빠진 편을 함께 돌려준다', async () => {
+      const plan = await orchestrator.planForUser(buildUser(), NOW, new Map(), {
+        persistPreference: false,
+        stopAtSkip: true,
+      });
+
+      expect(plan.regular?.poolSize).toBe(2);
+      expect(plan.regular?.scored.map((c) => c.content.id).sort()).toEqual([
+        'r1',
+        'r2',
+      ]);
+      expect(plan.regular?.gatedOut).toEqual([]);
+      expect(plan.discovery?.ranking.scored.map((c) => c.content.id)).toEqual([
+        'd1',
+      ]);
+    });
   });
 
   it('티어별 편성 편수는 실행 1회에 한 번만 읽는다 — 사용자마다 plans를 다시 읽지 않는다', async () => {
