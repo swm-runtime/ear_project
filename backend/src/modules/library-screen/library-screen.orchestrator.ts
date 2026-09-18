@@ -96,13 +96,27 @@ export class LibraryScreenOrchestrator {
       nextCursor:
         page.hasNext && lastItem
           ? encodeLibraryCursor(
-              { addedAt: lastItem.addedAt, id: lastItem.id },
+              {
+                addedAt: lastItem.addedAt,
+                id: lastItem.id,
+                queuePosition: lastItem.queuePosition,
+              },
               conditions,
             )
           : null,
       hasNext: page.hasNext,
       quota,
     };
+  }
+
+  /**
+   * library-api.md 4.8 — 재생 목록 순서 저장. 판정이 없는 표시 순서라 검증은 소유권만이고,
+   * 남의 항목·삭제된 항목은 Service가 조용히 뺀다(끌기 한 번마다 오는 호출을 실패시키지 않는다).
+   */
+  async reorderQueue(userId: string, itemIds: string[]): Promise<void> {
+    await this.dataSource.transaction((manager) =>
+      this.libraryService.reorderQueue(userId, itemIds, manager),
+    );
   }
 
   /**

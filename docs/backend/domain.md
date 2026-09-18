@@ -696,12 +696,22 @@ library_items
   last_played_at            timestamptz     NULL
   completed_at              timestamptz     NULL
   deleted_at                timestamptz     NULL   ★소프트 삭제
+  queue_position            int             NULL   ★재생 목록 순서 (2026-09-19, KAN-70) — NULL = 순서 미지정
 
 uq_library_items_user_id_content_id (user_id, content_id)
 idx_library_items_user_id_deleted_at_added_at_id (user_id, deleted_at, added_at DESC, id DESC)
 idx_library_items_user_id_deleted_at_last_played_at (user_id, deleted_at, last_played_at DESC)
+idx_library_items_user_id_deleted_at_queue_position (user_id, deleted_at, queue_position ASC NULLS FIRST, added_at DESC, id DESC)
 idx_library_items_content_id (content_id)
 ```
+
+**`queue_position`은 사용자가 정한 재생 목록 순서다**(`library-api.md` 4.1 `sort=queue` · 4.8, 2026-09-19 — `tickets/backend/archive/queue-order-sync.md`).
+
+- 1부터의 정수. **NULL = 순서를 정하지 않은 항목**이며, 목록은 `queue_position ASC NULLS FIRST, added_at DESC, id DESC`로 읽는다 — 새로 담긴 항목이 최신순으로 **맨 위**, 그 아래 저장한 순서. 사용자가 정리해 둔 아래쪽을 새 항목이 흔들지 않는다(FE 기기 저장 시절의 규칙과 같다).
+- 저장은 목록을 통째로 받아 **1..n을 다시 쓴다**. 이번 저장에 없는데 순서가 있던 항목(첫 페이지 밖)은 저장한 순서대로 n+1부터 이어 붙인다 — 사용자가 보지 못한 항목의 순서를 지우지 않는다.
+- **삭제해도 값을 지우지 않는다.** 복구(`4.7`)가 `added_at`과 함께 자리도 되살린다. 삭제·회수된 항목은 목록 조회에서 빠지므로 순서에도 나타나지 않는다.
+- **표시 순서일 뿐 판정에 쓰지 않는다.** 연속 재생의 "다음 편" 판정은 비범위이며(`player.md` 8장), 들어오면 이 컬럼을 읽는다.
+- 인덱스가 정렬을 그대로 담는 이유는 다른 목록 인덱스와 같다(keyset의 세 키). TypeORM `@Index`가 NULLS FIRST를 표현하지 못해 마이그레이션 SQL이 정의의 원본이다.
 
 - `uq_library_items_user_id_content_id`가 **중복 적립 방지의 최종 방어선이다** (A-5). 드립과 사용자 담기가 동시에 같은 콘텐츠를 적립해도 DB가 1건만 남긴다.
 

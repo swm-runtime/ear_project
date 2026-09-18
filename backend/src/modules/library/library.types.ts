@@ -15,6 +15,11 @@ import {
 export interface LibraryCursorPosition {
   addedAt: Date;
   id: string;
+  /**
+   * `sort=queue`일 때의 첫 정렬 키(`queue_position`). `null`은 순서 미지정 구간(NULLS FIRST)에 있다는
+   * 뜻이고, `undefined`는 다른 정렬(키를 쓰지 않음)이다.
+   */
+  queuePosition?: number | null;
 }
 
 export interface LibraryPageQuery {

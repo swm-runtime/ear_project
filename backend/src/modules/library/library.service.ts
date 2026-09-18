@@ -537,6 +537,47 @@ export class LibraryService {
   }
 
   /**
+   * 재생 목록 순서 저장(`library-api.md` 4.8, KAN-70).
+   *
+   * 보내온 id를 **위에서부터 1, 2, 3…** 으로 적고, 이미 순서가 있는데 이번 목록에 없는 항목(첫 페이지 밖)은
+   * 저장한 순서 그대로 그 뒤에 이어 붙인다 — 사용자가 보지 못한 항목의 순서를 지우지 않는다.
+   * 순서가 없던 항목은 이번 목록에 들어왔을 때만 순서를 얻는다(새로 담긴 것은 맨 위 규칙이 표시에서 처리한다).
+   *
+   * **남의 항목·삭제된 항목은 조용히 뺀다.** 끌기 한 번마다 오는 호출이라 그 사이 삭제된 항목 하나 때문에
+   * 전체 저장을 실패시키면 순서가 기기마다 갈린다(티켓 요구 1 — 실패해도 재생에 영향이 없어야 한다).
+   * 트랜잭션은 호출부(Orchestrator)가 연다 — 확인·쓰기 사이에 삭제가 끼어도 한 스냅샷 안에서 끝난다.
+   */
+  async reorderQueue(
+    userId: string,
+    itemIds: string[],
+    manager: EntityManager,
+  ): Promise<void> {
+    const ownedIds = new Set(
+      await this.libraryItemRepository.findActiveIdsByUserIdAndIds(
+        userId,
+        itemIds,
+        manager,
+      ),
+    );
+    const listed = itemIds.filter((id) => ownedIds.has(id));
+    const trailing =
+      await this.libraryItemRepository.findPositionedIdsByUserIdExcluding(
+        userId,
+        listed,
+        manager,
+      );
+
+    await this.libraryItemRepository.updateQueuePositions(
+      userId,
+      [...listed, ...trailing].map((id, index) => ({
+        id,
+        position: index + 1,
+      })),
+      manager,
+    );
+  }
+
+  /**
    * 회수 반영(partner-control.md 4.3-3) — 전 사용자에게서 해당 콘텐츠 항목을 제거한다.
    * 회수를 되돌려도 이 삭제는 복구되지 않는다(사용자 라이브러리를 임의로 되살리지 않는다).
    */

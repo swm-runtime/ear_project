@@ -98,6 +98,7 @@ describe('LibraryScreenOrchestrator', () => {
   beforeEach(() => {
     libraryService = {
       findPage: jest.fn().mockResolvedValue({ items: [], hasNext: false }),
+      reorderQueue: jest.fn().mockResolvedValue(undefined),
       countByTopicForUser: jest.fn().mockResolvedValue([]),
       findResumeTarget: jest.fn().mockResolvedValue(null),
       getOwnedItem: jest.fn(),
@@ -443,6 +444,20 @@ describe('LibraryScreenOrchestrator', () => {
 
       // then
       expect(dripExclusionService.exclude).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('reorderQueue', () => {
+    it('트랜잭션 안에서 Service에 위임한다 — 확인과 쓰기가 한 스냅샷에서 끝난다', async () => {
+      // when
+      await orchestrator.reorderQueue(USER_ID, [ITEM_ID_1, ITEM_ID_2]);
+
+      // then
+      expect(libraryService.reorderQueue).toHaveBeenCalledWith(
+        USER_ID,
+        [ITEM_ID_1, ITEM_ID_2],
+        expect.anything(),
+      );
     });
   });
 });
