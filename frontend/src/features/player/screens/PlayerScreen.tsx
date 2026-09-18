@@ -1603,10 +1603,12 @@ const styles = StyleSheet.create({
   glyphDisabled: {
     color: playerColor.border,
   },
+  // 64 — 어두운 테마에서 순백 72 원은 화면에서 가장 밝고 큰 덩어리라 아트워크보다 먼저 보였다(2026-09-18 PM).
+  // 아이콘(28)은 그대로 둔다: 원 대비 39% → 44% 로 올라 저절로 또렷해진다
   playButton: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: playerColor.primary,
