@@ -59,8 +59,31 @@
   display: grid;
   gap: 14px;
   margin-top: clamp(36px, 4.5vw, 56px);
-  /* 양끝을 흐리게 — 잘린 글자가 아니라 흘러 들어오는 것으로 읽힌다 */
-  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  overflow: hidden;
+}
+
+/* 양끝을 흐리게 — 잘린 글자가 아니라 흘러 들어오는 것으로 읽힌다.
+   mask-image 대신 종이색 그라데이션을 덧씌운다: 마스크 + 움직이는 행 + sticky 조합에서 스크롤 방향을 바꿀 때
+   행 하나가 통째로 안 그려지는 합성 오류가 있었다(2026-09-18). 덧씌우기는 일반 레이어라 그 경로를 타지 않는다 */
+.band::before,
+.band::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 12%;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.band::before {
+  left: 0;
+  background: linear-gradient(90deg, var(--paper), transparent);
+}
+
+.band::after {
+  right: 0;
+  background: linear-gradient(270deg, var(--paper), transparent);
 }
 
 .row {
@@ -71,6 +94,8 @@
   margin: 0;
   list-style: none;
   animation: marquee 150s linear infinite;
+  /* 행을 자기 레이어에 두어 sticky 안에서 스크롤할 때 다시 그리지 않게 한다 */
+  will-change: transform;
 }
 
 .rowB {
@@ -354,7 +379,8 @@
     display: none;
   }
 
-  .band {
-    mask-image: none;
+  .band::before,
+  .band::after {
+    display: none;
   }
 }
