@@ -8,7 +8,7 @@
 | 발견 시점 | PM 결정 — 자막(대본) 기능을 실서버에서 연다. FE 화면은 이미 있고 mock 으로만 돈다 |
 | 근거 문서 | PRD FR-25(P1) · `features/player.md` 4.6 · `spec/uiux/player-uiux.md` 4.6 PL6 · `spec/api/player-api.md` 2장·9장("P1 구현 시 추가") · `backend/domain.md` 5.3 · `backend/architecture.md` 9.4 |
 | 중요도 | **Medium**(3일 안) — 이게 없으면 FE·AI 쪽 작업이 끝나도 기능을 열 수 없다(세 티켓의 병목) |
-| 상태 | 대기 |
+| 상태 | **완료** — 구현·계약 등재 (2026-09-19) |
 | Jira | KAN-71 |
 | 짝 티켓 | `tickets/ai/pending/script-timed-segments.md`(데이터 생산) · `tickets/frontend/pending/script-real-api.md`(연동) |
 
@@ -67,3 +67,14 @@
 - Given 재생 발급 응답 / When 읽는다 / Then `has_script` 가 실제 적재 여부와 일치한다
 - Given 관리자 업로드에 `script_segments` 를 실었다 / When 발행한다 / Then `content_scripts` 에 적재되고 위 조회로 같은 내용이 나온다
 - Given `player-api.md`·`admin-api.md`·`domain.md` 5.3 / When 읽는다 / Then 엔드포인트·`has_script`·`speaker`·업로드 형식이 적혀 있다
+
+## 처리 기록 (2026-09-19 — 구현, PR `feat(be)/content-script-api`)
+
+- **1. 조회** `GET /contents/:content_id/script` → `{ segments: [{ start_sec, end_sec, speaker, text }] }`, 없으면 200 + `[]`. `player-api.md` 4.7 등재. 접근 통제는 발급과 **같은 함수**(`getPublishedById` → `PlayPolicyService.assertPlayable`)를 거치고 차감 없음. `no-store` + 발급과 같은 레이트 리밋. 위치는 `playback` 모듈(`ScriptService` · `PlayController`) — 판정 함수가 거기 있다.
+- **2. `speaker`** — `content_scripts.segments`에 `speaker: string | null` 추가(`domain.md` 5.3). jsonb라 마이그레이션 없음… 단 **테이블 자체가 코드에 없어** 이번에 만들었다(마이그레이션 `1787700000000-AddContentScripts`, FK CASCADE, `(content_id)` 유니크).
+- **3. `has_script`** — **재생 발급 응답(`POST /contents/:id/audio-urls`, player-api 4.1)에 실었다.** 티켓 본문은 4.2(`/play`)를 가리켰지만 `/play`는 오디오가 실제로 소리를 낸 뒤 호출되어 버튼 노출 판단에 늦고, player-api 9장의 예고("발급 응답의 스크립트 존재 플래그")와 FE 티켓(KAN-73 2항 "재생 발급 응답")이 가리키는 곳도 발급 응답이다. 4.2 계약은 `library-api.md` 소유라 바꾸지 않았다.
+- **4. 업로드 적재** — 업로드·재발행의 multipart 파트 **`script_file`**(JSON 배열 파일, ≤2MB). 파이프라인 패키지의 세그먼트 JSON을 그대로 첨부한다(KAN-72와 형식 일치 — `admin.md` 8장 미결 "수동 vs SRT/VTT"는 파이프라인 JSON으로 닫음, `changes/pending/admin-script-input-format.md`). 검증(오름차순·겹침·필드)에 하나라도 어긋나면 **파일만 거부하고 업로드는 진행**(추천 메타와 같은 규칙), 응답 `script_applied` / `script_rejected_reason`. 대본 파일만 보내는 재발행은 **버전을 올리지 않는다**(감사 `content.script`). `AdminContentItem`에 `has_script`.
+- **5. `topics`** — 발급 응답 `content.topics: [{ id, name }]` 추가(`display_order` 순). `player-api.md` 4.1의 "`topic_ids`는 내려주지 않는다"를 개정.
+- 검증: 단위 테스트 188(admin·content·playback) 통과, 신규 10개(파서 5 · 조회 3 · 업로드/재발행 4 중 일부 겹침). 로컬 실측: 대본 단독 재발행 204→200·버전 1 유지·감사 `content.script`, 겹치는 파일은 거부 사유와 함께 업로드 진행, 사용자 토큰으로 조회 3세그먼트·`no-store`, 발급 응답 `has_script: true`·`topics: [커리어]`, 토큰 없음 401, 없는 콘텐츠 404, 스크립트 없는 콘텐츠 `[]`.
+- **FE(KAN-73)에 전달**: `has_script`는 발급 응답 최상위, 조회는 `GET /contents/:id/script`, `topics`는 `content.topics`. **AI(KAN-72)에 전달**: 발행 시 `script_file` 파트로 세그먼트 JSON 첨부(파이프라인 웹 `/api/publish` 라우트가 `enrichment_file`처럼 붙이면 된다).
+- 반영 날짜: 2026-09-19. Jira KAN-71은 PR 머지 시 완료로 넘긴다.

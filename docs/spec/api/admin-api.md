@@ -18,6 +18,7 @@
 - 콘텐츠 **회수·복구** (FR-32, `admin.md` 4.4)
 - 콘텐츠 **재발행** — 오디오·메타 교체, `content_version` 증가 (`admin.md` 4.3)
 - **편성 미리보기** — 추천 검증 콘솔용 읽기 전용 계산 (`drip-scheduling.md` 4장·5장 "편성 품질", 2026-09-18)
+- **대본(자막) 적재** — 업로드·재발행의 `script_file` 파트 → `content_scripts` (FR-25, KAN-71, 2026-09-19)
 
 **이 문서는 동작 규칙을 새로 정하지 않는다.** 규칙이 충돌하면 `admin.md`가 기준이며, 스키마는 `domain.md`가 유일한 기준이다.
 
@@ -28,7 +29,8 @@
 | 미구현 | 사유 |
 |---|---|
 | 운영 현황 조회 (`admin.md` 4.6) | |
-| 스크립트 업로드 | FR-25가 P1이다 |
+
+> ~~스크립트 업로드~~ — **구현(2026-09-19, KAN-71)**: 4.6·4.10의 `script_file` 파트.
 
 > **회수·복구는 발행 요청서가 "범위 밖"으로 적었으나 그 뒤 구현됐다**(코드 대조 2026-09-03). 4.7·4.8로 등재한다.
 
@@ -131,6 +133,7 @@
 | `thumbnail` | jpg / png / webp, **≤5MB** | 필수 |
 | `payload` | JSON **문자열** | 필수 |
 | `enrichment_file` | `enrichment.json`(`ai/metadata-pipeline.md` 4.4), **≤1MB** | 선택 (등재 2026-09-08 — 구현 완료) |
+| `script_file` | 대본 세그먼트 JSON 배열(아래), **≤2MB** | 선택 (등재 2026-09-19 — KAN-71) |
 
 `payload` 필드:
 
@@ -171,6 +174,19 @@
 - **검증 실패는 파일만 거부하고 업로드는 진행한다** — 추천 메타는 발행 요건이 아니다.
 - 응답에 처리 결과가 실린다(**파일이 있었을 때만** 존재): `enrichment_applied: boolean`,
   거부 시 `enrichment_rejected_reason: string`(콘솔이 그대로 노출하는 사유).
+
+**`script_file` — 대본(자막) 세그먼트** (`admin.md` 3.1 `script_segments`의 계약 표현, 등재 2026-09-19 KAN-71)
+
+- 형식은 파이프라인 발행 패키지가 만드는 JSON **그대로**(짝 티켓 KAN-72 — `admin.md` 8장 미결 "수동 입력 vs SRT/VTT"를 **파이프라인 JSON**으로 닫는다):
+  ```json
+  [
+    { "start_sec": 0, "end_sec": 12.4, "speaker": "윤아", "text": "…" },
+    { "start_sec": 12.4, "end_sec": 27.9, "speaker": "이음", "text": "…" }
+  ]
+  ```
+- 검증: 최상위 배열(1~2000개), 각 항목은 `start_sec ≥ 0`, `end_sec > start_sec`, `speaker` 문자열(≤50자) 또는 `null`(생략 = `null`), `text` 비어 있지 않은 문자열(≤2000자). **`start_sec` 오름차순·겹침 없음**(50ms 오차 허용). 모르는 키는 거부.
+- **하나라도 어긋나면 파일을 통째로 거부한다** — 틀린 자막보다 없는 편이 낫다. 거부는 파일에 한하고 **업로드는 진행한다**(대본은 발행 요건이 아니다 — 추천 메타와 같은 규칙).
+- 저장: `content_scripts`에 콘텐츠당 1행 upsert(`domain.md` 5.3). 응답에 처리 결과가 실린다(**파일이 있었을 때만**): `script_applied: boolean`, 거부 시 `script_rejected_reason: string`. 목록·단건 응답의 `has_script`(8장)가 적재 여부다.
 
 201로 `AdminContentItem`을 반환한다.
 
@@ -238,9 +254,10 @@
 | `thumbnail` | jpg / png / webp, ≤5MB | 선택 |
 | `payload` | JSON 문자열 — 4.6 `payload`의 부분집합(`title` `description` `source_name` `topic_ids` `sources`). 넘긴 키만 바꾼다 | 선택 |
 | `enrichment_file` | `enrichment.json` — 규격·검증·응답 필드는 4.6과 같다 | 선택 (등재 2026-09-08) |
+| `script_file` | 대본 세그먼트 JSON — 규격·검증·응답 필드는 4.6과 같다. **통째로 교체**된다(콘텐츠당 1행) | 선택 (등재 2026-09-19) |
 
 - **오디오를 교체하면 `duration_sec`을 다시 추출**한다(4.6과 동일 — 클라이언트 값을 받지 않는다). 이전 파일은 새 파일 저장·트랜잭션 성공 후 지운다.
-- **`content_version`은 파트가 무엇이든 1 증가**한다. 메타만 바뀌어도 올린다 — 클라이언트의 재발행 판정(`player-api.md` 4.1·4.2)이 버전 하나로 동작해야 한다. **단 하나의 예외가 `enrichment_file` 단독 전송이다**(2026-09-08): 추천 메타만 반영하고 **버전을 올리지 않으며** 아래 재생 위치 폐기도 일어나지 않는다 — 오디오가 그대로인데 버전이 오르면 전 사용자의 재생 위치가 헛되이 폐기된다. 기존 발행분 소급 부여가 이 경로를 쓰고, 감사 로그는 `content.enrich`로 남는다(`republish`와 구분).
+- **`content_version`은 파트가 무엇이든 1 증가**한다. 메타만 바뀌어도 올린다 — 클라이언트의 재발행 판정(`player-api.md` 4.1·4.2)이 버전 하나로 동작해야 한다. **예외는 `enrichment_file`·`script_file`만 보내는 전송이다**(2026-09-08 · 2026-09-19): 추천 메타·대본만 반영하고 **버전을 올리지 않으며** 아래 재생 위치 폐기도 일어나지 않는다 — 오디오가 그대로면 대본 시각도 그대로다. 대본 단독의 감사 로그는 `content.script`다 — 오디오가 그대로인데 버전이 오르면 전 사용자의 재생 위치가 헛되이 폐기된다. 기존 발행분 소급 부여가 이 경로를 쓰고, 감사 로그는 `content.enrich`로 남는다(`republish`와 구분).
 - `origin` · `partner_id` · `series_id` · `episode_no` · `total_episodes` · `license_expires_at`은 **바꾸지 않는다** — 발행 단위의 정체성이라 필요하면 회수 후 새로 올린다.
 - `status`가 `published`가 아니면 **409 `CONFLICT`** (회수·만료 상태에서는 재발행하지 않는다 — `admin.md` 4.6 "만료 상태에서는 재발행을 막는다").
 - `topic_ids`를 넘기면 전체 교체다(빈 배열 불가 — 최소 1개, 4.6과 동일).
@@ -420,6 +437,8 @@ enrichment_schema_version, enriched_at          // 마지막 적용 메타 파�
 - `enrichment_schema_version`이 현재 형식(목록 응답 최상위 `current_enrichment_schema_version` — 4.5, 지금 2)보다 낮거나 null이면 **구형 메타**다. 콘솔이 그 콘텐츠를 골라 메타를 다시 뽑아 4.10의 `enrichment_file` 단독 전송으로 갱신한다(콘솔 기능은 `tickets/ai/pending` 참조).
 
 **`audio_path`는 싣지 않는다**(7장).
+
+- `has_script`(boolean, 2026-09-19 KAN-71) — `content_scripts` 행 존재 여부. 콘솔이 목록에 "자막" 표시를 그린다. `script_applied` · `script_rejected_reason`은 요청에 `script_file`이 있었을 때만 실린다(4.6).
 
 ## 9. 미결 사항
 

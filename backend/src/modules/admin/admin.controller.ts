@@ -34,6 +34,7 @@ import {
   ADMIN_LIST_DEFAULT_LIMIT,
   MAX_AUDIO_FILE_BYTES,
   MAX_ENRICHMENT_FILE_BYTES,
+  MAX_SCRIPT_FILE_BYTES,
   MAX_THUMBNAIL_FILE_BYTES,
 } from './admin.constant';
 import { AdminContentListResponseDto } from './dto/admin-content-list-response.dto';
@@ -77,6 +78,7 @@ interface UploadFiles {
   audio?: Express.Multer.File[];
   thumbnail?: Express.Multer.File[];
   enrichment_file?: Express.Multer.File[];
+  script_file?: Express.Multer.File[];
 }
 
 /**
@@ -91,15 +93,17 @@ const UPLOAD_FILE_FIELDS = [
   { name: 'audio', maxCount: 1 },
   { name: 'thumbnail', maxCount: 1 },
   { name: 'enrichment_file', maxCount: 1 },
+  { name: 'script_file', maxCount: 1 },
 ];
 const UPLOAD_MULTER_OPTIONS = {
   storage: diskStorage({ destination: tmpdir() }),
-  limits: { fileSize: MAX_AUDIO_FILE_BYTES, files: 3 },
+  limits: { fileSize: MAX_AUDIO_FILE_BYTES, files: 4 },
 };
 const FILE_FIELD_MAX_BYTES: Record<string, number> = {
   audio: MAX_AUDIO_FILE_BYTES,
   thumbnail: MAX_THUMBNAIL_FILE_BYTES,
   enrichment_file: MAX_ENRICHMENT_FILE_BYTES,
+  script_file: MAX_SCRIPT_FILE_BYTES,
 };
 
 /**
@@ -387,6 +391,9 @@ export class AdminController {
         enrichment: files.enrichment_file?.[0]
           ? toFileInput(files.enrichment_file[0])
           : null,
+        script: files.script_file?.[0]
+          ? toFileInput(files.script_file[0])
+          : null,
       },
       new Date(),
     );
@@ -449,6 +456,7 @@ export class AdminController {
       enrichment: files.enrichment_file?.[0]
         ? toFileInput(files.enrichment_file[0])
         : null,
+      script: files.script_file?.[0] ? toFileInput(files.script_file[0]) : null,
     });
 
     return AdminContentItemDto.from(view);
@@ -527,6 +535,7 @@ async function discardUploads(files: UploadFiles | undefined): Promise<void> {
     ...(files?.audio ?? []),
     ...(files?.thumbnail ?? []),
     ...(files?.enrichment_file ?? []),
+    ...(files?.script_file ?? []),
   ];
   const paths = uploaded
     .map((file) => file.path)

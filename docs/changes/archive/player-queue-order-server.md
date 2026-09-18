@@ -21,3 +21,7 @@
 
 - Given `player.md` 재생 목록 절 / When 읽는다 / Then 위 여섯 규칙이 적혀 있고 `library-api.md` 4.8을 가리킨다
 - Given `library.md` 4장 / When 읽는다 / Then 라이브러리 화면 정렬과 재생 목록 순서가 별개라는 문장이 있다
+
+## 처리 기록
+
+- **반영 날짜: 2026-09-19** — `features/player.md` 4.7-1(재생 목록 순서) 신설, `features/library.md` 4.1에 화면 정렬과의 분리 문장 추가. 같은 PR(`feat(be)/content-script-api`)에서 archive로 옮김.

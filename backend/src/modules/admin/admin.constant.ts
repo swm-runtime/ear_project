@@ -8,6 +8,15 @@ export const MAX_THUMBNAIL_FILE_BYTES = 5 * 1024 * 1024;
 /** enrichment.json — 벡터 1536개 float라도 수십 KB다. 1MB면 넉넉한 보호 상한 */
 export const MAX_ENRICHMENT_FILE_BYTES = 1 * 1024 * 1024;
 
+/**
+ * 대본 세그먼트 파일(`script_file`, admin-api.md 4.6) 상한. 20분 에피소드가 턴 100~200개·본문 20~40KB 라
+ * 2MB면 넉넉하다. 세그먼트 수·글자 수 상한은 화면(대본 패널)이 그릴 수 있는 규모를 크게 웃도는 방어값이다.
+ */
+export const MAX_SCRIPT_FILE_BYTES = 2 * 1024 * 1024;
+export const MAX_SCRIPT_SEGMENTS = 2000;
+export const MAX_SCRIPT_TEXT_LENGTH = 2000;
+export const MAX_SCRIPT_SPEAKER_LENGTH = 50;
+
 /** admin.md 3.1 — mp3 / m4a */
 export const AUDIO_CONTENT_TYPES: Readonly<Record<string, string>> = {
   mp3: 'audio/mpeg',
@@ -36,6 +45,8 @@ export const AUDIT_ACTION_CONTENT_UPLOAD = 'content.upload';
 export const AUDIT_ACTION_CONTENT_REPUBLISH = 'content.republish';
 /** 재발행 없이 추천 메타 파일만 반영한 경우 — 버전이 오르지 않아 republish와 구분한다 */
 export const AUDIT_ACTION_CONTENT_ENRICH = 'content.enrich';
+/** 대본 파일 단독 재발행 — 버전을 올리지 않는 메타 반영(enrich 와 같은 성격, KAN-71) */
+export const AUDIT_ACTION_CONTENT_SCRIPT = 'content.script';
 export const AUDIT_ACTION_CONTENT_WITHDRAW = 'content.withdraw';
 export const AUDIT_ACTION_CONTENT_RESTORE = 'content.restore';
 /**

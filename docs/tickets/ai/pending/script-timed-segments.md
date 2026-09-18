@@ -54,3 +54,7 @@
 - Given 턴 경계를 못 잡은 에피소드 / When 패키지를 만든다 / Then 세그먼트를 싣지 않고 실행 기록에 사유가 남는다
 - Given `ai/spec/06-audio.md`·`08-infra.md` / When 읽는다 / Then 세그먼트 산출물의 형식·시각 기준(배포본)·실패 시 동작이 적혀 있다
 - Given 기존 발행분 / When 이 티켓의 조사 결과를 읽는다 / Then 소급 가능한 편수와 방법이 적혀 있다
+
+## 처리 기록
+
+- 2026-09-19 — **BE 적재 계약 확정(KAN-71)**: 발행·재발행 multipart 파트 **`script_file`**(세그먼트 JSON 배열 파일, ≤2MB, `enrichment_file`과 같은 방식). 패키지 안 `script-segments.json`으로 두고 웹 `/api/publish` 라우트가 첨부하면 된다. 서버 검증: 1~2000개, `start_sec ≥ 0`, `end_sec > start_sec`, 오름차순·겹침 없음(50ms 오차), text ≤2000자, speaker ≤50자 또는 null, 모르는 키 거부 — 어긋나면 파일만 거부(`script_applied: false` + 사유). 대본 파일만 보내는 재발행은 버전을 올리지 않으므로 **기존 발행분 소급은 `PATCH /admin/contents/:id` + `script_file`** 로 가능하다. 계약: `admin-api.md` 4.6·4.10.

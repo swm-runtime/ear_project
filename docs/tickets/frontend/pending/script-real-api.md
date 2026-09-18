@@ -37,3 +37,7 @@
 - Given 스크립트가 없는 콘텐츠(`has_script: false` 또는 `segments: []`) / When 플레이어를 연다 / Then 대본 버튼이 보이지 않고 컨트롤 줄 배치가 흔들리지 않는다
 - Given 스크립트 조회가 실패한다 / When 패널을 연다 / Then 패널 안에 실패 안내와 [다시 시도]가 보이고 재생은 계속된다
 - Given mock 빌드 / When 플레이어를 연다 / Then 종전과 같이 mock 대본이 보인다
+
+## 처리 기록
+
+- 2026-09-19 — **BE 계약 확정(KAN-71, `feat(be)/content-script-api`)**: 조회 `GET /contents/:content_id/script`(`player-api.md` 4.7, 없으면 `segments: []`), **`has_script`·`content.topics`는 재생 발급 응답(`POST /contents/:id/audio-urls`, 4.1) 최상위/`content` 필드**다 — `/play` 응답이 아니다. `speaker`는 `string | null`. 접근 통제는 오디오와 동일(회수·한도 403, 없는 콘텐츠 404). dev 머지 후 개발계, `dev → main` 후 운영. 5항(카테고리 우회 제거)은 `content.topics`로 가능하다.
