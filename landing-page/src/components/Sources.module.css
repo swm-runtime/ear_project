@@ -21,7 +21,9 @@
   top: 0;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  /* safe: 내용이 100vh 보다 크면 가운데 정렬 대신 위에서부터 놓는다 — 가운데 정렬은 위·아래를 같이 잘라
+     띠 윗줄이 헤더 뒤로 들어갔다(고지 문구 추가 뒤 낮은 화면에서, 2026-09-18) */
+  justify-content: safe center;
   box-sizing: border-box;
   height: 100vh;
   /* 헤더(sticky)에 머리가 가리지 않게 — 낮은 화면에서 가운데 정렬만으로는 여유가 모자란다 */
@@ -34,6 +36,20 @@
   margin-top: 14px;
   color: var(--text-3);
   font-size: 14px;
+}
+
+/* 핀 모드에서는 세로 치수를 화면 높이에도 맞춘다 — 낮은 화면(720~900px)에서 장면 전체가 100vh 안에 들어가야 한다 */
+.pinned .band {
+  margin-top: clamp(20px, 3.5vh, 56px);
+}
+
+.pinned .funnel,
+.pinned .travelers {
+  height: clamp(100px, min(16vw, 20vh), 220px);
+}
+
+.pinned .tail {
+  height: clamp(32px, 5vh, 88px);
 }
 
 /* ---------- 워드마크 띠 ---------- */
