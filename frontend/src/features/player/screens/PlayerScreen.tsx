@@ -517,6 +517,7 @@ export default function PlayerScreen() {
   const queueGestureRef = useRef({
     travel: 1,
     isOpen: false,
+    isScriptOpen: false,
     open: () => {},
     close: () => {},
   });
@@ -524,10 +525,17 @@ export default function PlayerScreen() {
     queueGestureRef.current = {
       travel: Math.max(1, queueClosedTop - queueOpenTop),
       isOpen: activePanel === 'queue',
+      isScriptOpen: activePanel === 'script',
       open: () => setPanel('queue'),
       close: () => setPanel(null),
     };
   });
+  /*
+   * 끌기 직후의 탭을 거른다 — 손잡이는 손가락을 따라 움직이므로 누른 자리와 뗀 자리가 같은 요소다. 웹에서는
+   * 그때 click 이 발생해 Pressable 의 onPress(토글)가 끌기로 방금 연 시트를 도로 닫았다(2026-09-19).
+   * 네이티브는 응답자를 빼앗긴 Pressable 이 press 를 취소해 해당 없지만 같은 규칙으로 둔다
+   */
+  const handleDraggedRef = useRef(false);
   const handlePanResponder = useMemo(
     () =>
       // eslint-disable-next-line react-hooks/refs -- 콜백은 렌더가 아니라 제스처 시점에 실행된다(표준 PanResponder 패턴)
@@ -535,6 +543,16 @@ export default function PlayerScreen() {
         onMoveShouldSetPanResponder: (_, gesture) =>
           Math.abs(gesture.dy) > SCRIPT_HANDLE_CLAIM_DISTANCE &&
           Math.abs(gesture.dy) > Math.abs(gesture.dx),
+        /*
+         * 대본이 펼쳐진 채로 손잡이를 끌면 먼저 대본을 접는다(2026-09-19 PM 지적). 탭은 setPanel 이 두 패널을
+         * 함께 다뤄 배타가 지켜지지만, 끌기는 queueProgress 만 직접 움직여서 대본(히어로 압축)과 재생 목록
+         * (시트 압축)이 동시에 걸려 화면이 겹쳤다. 접힘 애니메이션과 끌기가 나란히 진행된다
+         */
+        onPanResponderGrant: () => {
+          handleDraggedRef.current = true;
+          const { isScriptOpen, close } = queueGestureRef.current;
+          if (isScriptOpen) close();
+        },
         onPanResponderMove: (_, gesture) => {
           const { travel, isOpen } = queueGestureRef.current;
           // 위로 끌면 dy 가 음수다 — 열림 방향이 +1 이 되도록 부호를 뒤집는다
@@ -1205,7 +1223,13 @@ export default function PlayerScreen() {
             >
               <Pressable
                 style={styles.scriptHandle}
-                onPress={() => setPanel(activePanel === 'queue' ? null : 'queue')}
+                onPressIn={() => {
+                  handleDraggedRef.current = false;
+                }}
+                onPress={() => {
+                  if (handleDraggedRef.current) return;
+                  setPanel(activePanel === 'queue' ? null : 'queue');
+                }}
                 accessibilityRole="button"
                 accessibilityLabel={
                   activePanel === 'queue'
@@ -1385,7 +1409,9 @@ const SCRIPT_TOGGLE_DURATION_MS = 320;
 const QUEUE_BANNER_HEIGHT = 232;
 /** 재생 목록 열림 상태의 제목 줄(xl × 1.3)·카테고리 줄(sm 글자의 줄 높이) — 메타 블록을 사진 밑변에 맞추는 셈에 쓴다 */
 const QUEUE_TITLE_LINE_HEIGHT = theme.font.size.xl * 1.3;
-const QUEUE_CATEGORY_LINE_HEIGHT = 18;
+const QUEUE_CATEGORY_LINE_HEIGHT = 20;
+/** 카테고리 줄 높이 — 스타일과 위 셈이 같은 값을 쓴다 */
+const PLAYER_CATEGORY_LINE_HEIGHT = QUEUE_CATEGORY_LINE_HEIGHT;
 /** 사진 위 텍스트·아이콘 색 */
 const ON_IMAGE_COLOR = '#FFFFFF';
 /** 손잡이를 놓았을 때 열림/닫힘 확정 — 이동 비율·속도(dp/ms). 실기기 검증 대상 제안값 */
@@ -1598,8 +1624,11 @@ const styles = StyleSheet.create({
     lineHeight: theme.font.size.xl * 1.3,
   },
   // 카테고리 — 제목 바로 아래, 보조색. 링크처럼 보이면 안 되므로 칩·밑줄을 두지 않는다
+  // md(16) — sm(14)은 제목(28)의 절반이라 각주처럼 읽혔다(2026-09-19 PM). 줄 높이를 못 박아 세 자리
+  // (기본·대본 압축 헤더·재생 목록 열림)의 블록 높이 셈이 글꼴 기본값에 흔들리지 않게 한다
   category: {
-    fontSize: theme.font.size.sm,
+    fontSize: theme.font.size.md,
+    lineHeight: PLAYER_CATEGORY_LINE_HEIGHT,
     fontWeight: '600',
     color: playerColor.textSecondary,
   },
