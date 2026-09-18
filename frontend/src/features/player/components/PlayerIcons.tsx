@@ -85,14 +85,13 @@ const SEEK_HEAD_PATH = 'M4.25 7.75L7.95 7.35L4.63 4.03Z';
 /** 앞으로 — 호·화살촉을 좌우 반전. 숫자는 그대로 */
 const MIRROR = 'translate(24 0) scale(-1 1)';
 
-/** 누를 때 원호가 도는 각도 · 돌아가는 시간 — 눈에 띄되 다음 탭을 방해하지 않을 만큼 */
-const SEEK_SPIN_DEG = 55;
-const SEEK_SPIN_OUT_MS = 110;
+/** 누를 때 원호가 한 바퀴 도는 시간 — 빠르게 출발해 부드럽게 멈춘다. 연타를 방해하지 않을 만큼 짧게 */
+const SEEK_SPIN_MS = 480;
 
 interface SeekIconProps extends IconProps {
   mirrored: boolean;
   /**
-   * 값이 바뀔 때마다 원호·화살촉이 가리키는 방향으로 휙 돌았다가 제자리로 돌아온다(2026-09-18 PM —
+   * 값이 바뀔 때마다 원호·화살촉이 가리키는 방향으로 **한 바퀴** 돌아 제자리에 선다(2026-09-18 PM —
    * 애플 팟캐스트·유튜브의 ±초 버튼 피드백). 숫자 "10"은 돌지 않는다. 버튼을 누른 횟수를 넘기면 된다
    */
   spinKey?: number;
@@ -104,22 +103,20 @@ function SeekIcon({ size, color, mirrored, spinKey = 0 }: SeekIconProps) {
     if (spinKey === 0) return;
     // 연타하면 앞선 회전을 끊고 처음부터 — 탭마다 같은 크기의 반응이 나온다
     spin.setValue(0);
-    const animation = Animated.sequence([
-      Animated.timing(spin, {
-        toValue: 1,
-        duration: SEEK_SPIN_OUT_MS,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.spring(spin, { toValue: 0, friction: 6, tension: 120, useNativeDriver: true }),
-    ]);
+    const animation = Animated.timing(spin, {
+      toValue: 1,
+      duration: SEEK_SPIN_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    });
     animation.start();
     return () => animation.stop();
   }, [spinKey, spin]);
   // 뒤로 = 반시계, 앞으로 = 시계 — 화살촉이 가리키는 방향이다
   const rotate = spin.interpolate({
     inputRange: [0, 1],
-    outputRange: ['0deg', `${mirrored ? SEEK_SPIN_DEG : -SEEK_SPIN_DEG}deg`],
+    // 한 바퀴 — 360° 는 0° 와 같은 모습이라 끝나면 그대로 제자리다(되돌리는 동작이 없다)
+    outputRange: ['0deg', mirrored ? '360deg' : '-360deg'],
   });
 
   return (
