@@ -161,8 +161,8 @@ export default function PlayerScreen() {
   /*
    * ── 열림·닫힘 모션(2026-09-16) — 미니플레이어와 이어진다 ──
    * 플레이어는 투명 모달이라 라이브러리(와 그 위 미니플레이어)가 뒤에 그대로 있다. openProgress가
-   * 0(미니플레이어 자리)→1(풀 화면)로 가는 동안, 아트워크는 미니 썸네일 자리에서 커져 올라오고
-   * 제목은 썸네일 옆에서 아트워크 아래로 옮겨 간다. 나머지(컨트롤·앱바)는 뒤늦게 페이드인.
+   * 0(미니플레이어 자리)→1(풀 화면)로 가는 동안, 아트워크는 미니 썸네일 자리에서 커져 올라온다.
+   * 제목은 날지 않는다 — 미니 제목은 제자리에서 사라지고 풀 화면 제목은 컨트롤·앱바와 함께 뒤늦게 들어온다(2026-09-18).
    * 닫을 땐 그대로 되감아 미니플레이어 위에 정확히 내려앉은 뒤 화면을 걷는다.
    */
   const openProgress = useAnimatedValue(0);
@@ -658,27 +658,15 @@ export default function PlayerScreen() {
       inputRange: [0, 1],
       outputRange: [theme.radius.sm, fullArtRadius],
     }),
-    titleLeft: openProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [miniTitleLeft, fullTitle.left],
-    }),
-    titleTop: openProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [miniTitleTop, fullTitle.top],
-    }),
-    titleWidth: openProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [miniTitleWidth, fullTitle.width],
-    }),
-    titleFontSize: openProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [theme.font.size.sm, fullTitleFontSize],
-    }),
-    // 줄 높이도 함께 — 실제 제목(MarqueeText)은 lineHeight 36.4 안에 세로 가운데라, 이걸 안 맞추면
-    // 교차 순간 제목이 몇 px 튄다
-    titleLineHeight: openProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [miniTitleHeight, fullTitleFontSize * 1.3],
+    /*
+     * 제목은 날지 않는다(2026-09-18 PM — 제자리 페이드). 미니 자리(썸네일 옆 14px)에서 풀 화면 자리(아트워크
+     * 아래 28px)까지 대각선으로 날며 크기까지 바뀌면 커지는 아트워크와 경로가 겹치고, 손으로 끌 때 글자만 따로
+     * 논다. 미니 제목은 제자리에서 초반에 사라지고(▶ 와 같은 구간), 풀 화면 제목은 컨트롤·시크바와 한 덩어리로
+     * 시트를 따라 올라오며 나타난다(contentOpacity·contentTranslateY). 움직이는 건 아트워크와 시트뿐이다
+     */
+    miniTitleOpacity: openProgress.interpolate({
+      inputRange: [0, 0.12, 1],
+      outputRange: [1, 0, 0],
     }),
     /*
      * 교차 페이드를 쓰지 않는다(2026-09-17 PM — "애플처럼"). 미니플레이어 쪽 끝에서 모션 레이어를 투명하게
@@ -1175,7 +1163,7 @@ export default function PlayerScreen() {
         </Animated.View>
       </Animated.View>
 
-      {/* 모션 레이어 — 열리고 닫히는 동안만. 아트워크·제목이 미니플레이어 자리와 풀 화면 자리 사이를 난다 */}
+      {/* 모션 레이어 — 열리고 닫히는 동안만. 아트워크가 미니플레이어 자리와 풀 화면 자리 사이를 난다(제목은 제자리 페이드) */}
       {isMorphing ? (
         <Animated.View
           style={[StyleSheet.absoluteFill, { opacity: morph.layerOpacity }]}
@@ -1217,15 +1205,37 @@ export default function PlayerScreen() {
               <PlayIcon size={MINI_PLAY_ICON_SIZE} color={theme.color.textPrimary} />
             )}
           </Animated.View>
+          {/* 미니 제목 — 미니플레이어 실측 자리에 고정, 초반에 사라진다 */}
+          <Animated.Text
+            style={[
+              styles.morphTitle,
+              styles.morphMiniTitle,
+              {
+                left: miniTitleLeft,
+                top: miniTitleTop,
+                width: miniTitleWidth,
+                lineHeight: miniTitleHeight,
+                opacity: morph.miniTitleOpacity,
+              },
+            ]}
+            numberOfLines={1}
+          >
+            {session.meta.title ?? ''}
+          </Animated.Text>
+          {/* 풀 화면 제목 — 최종 자리에 고정된 채 콘텐츠(컨트롤·시크바)와 같은 이동·불투명도로 들어온다.
+              마지막 교차(0.94~1)에서 실제 히어로 제목과 같은 좌표라 한 장으로 보인다 */}
           <Animated.Text
             style={[
               styles.morphTitle,
               {
-                left: morph.titleLeft,
-                top: morph.titleTop,
-                width: morph.titleWidth,
-                fontSize: morph.titleFontSize,
-                lineHeight: morph.titleLineHeight,
+                left: fullTitle.left,
+                top: fullTitle.top,
+                width: fullTitle.width,
+                fontSize: fullTitleFontSize,
+                lineHeight: fullTitleFontSize * 1.3,
+                color: isQueueOpen ? ON_IMAGE_COLOR : theme.color.textPrimary,
+                opacity: morph.contentOpacity,
+                transform: [{ translateY: morph.contentTranslateY }],
               },
             ]}
             numberOfLines={1}
@@ -1376,6 +1386,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     fontWeight: '700',
     color: theme.color.textPrimary,
+  },
+  // 미니플레이어 제목과 같은 글자(MiniPlayer styles.title) — 착지 순간 뒤의 진짜 제목과 겹쳐 한 장으로 보인다
+  morphMiniTitle: {
+    fontSize: theme.font.size.sm,
+    fontWeight: '600',
   },
   morphMiniButton: {
     position: 'absolute',
