@@ -157,7 +157,7 @@ export const topicPicker = {
  */
 export const sources = {
   eyebrow: "Sources",
-  title: "팟캐스트에는 없던 자료를 듣게 해요",
+  title: "다른 팟캐스트에는 없는 자료를 들려드려요",
   lede: "대학 연구실, 해외 매체, 기술 블로그, 논문. 읽어야만 볼 수 있던 자료를 15분 오디오로 바꿔요.",
   caption: "이런 자료를 담아 매일 팟캐스트를 만들어요.",
   /** 워드마크. `style`은 서체 계열만 가른다 — 색은 전부 잉크색이다 */
