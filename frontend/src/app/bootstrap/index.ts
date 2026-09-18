@@ -81,6 +81,7 @@ export const bootstrapApp = (): void => {
         durationSec: item.content.durationSec ?? null,
         isCountedToday: item.isCountedToday,
         isCompleted: item.status === 'completed',
+        topicIds: item.content.topicIds,
       }));
     },
   });
