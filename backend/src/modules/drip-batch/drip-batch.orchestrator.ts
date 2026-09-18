@@ -41,6 +41,13 @@ import { User } from '@/modules/user/entities/user.entity';
 import { UserService } from '@/modules/user/services/user.service';
 import { UserTier } from '@/modules/user/user.enum';
 
+import {
+  DiscoveryPlan,
+  PlanOptions,
+  RegularPlan,
+  UserDripPlan,
+} from './drip-batch.types';
+
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /** 사용자 단위 처리 결과 — `drip_batch_runs`의 카운트로 접힌다(domain.md 7.3) */
@@ -71,7 +78,7 @@ interface PlanCounts {
  * 맞다. 없으면 사용자마다 2~4번(폴백 포함) `plans`를 다시 읽어, 5천 명이면 만 번 넘는
  * 왕복이 편성 자체와 무관한 데서 나간다(2026-09-09 감사 — 사용자당 20~24쿼리 중 일부).
  */
-type PlanCountCache = Map<UserTier, PlanCounts>;
+export type PlanCountCache = Map<UserTier, PlanCounts>;
 
 /**
  * 일일 편성 배치 — `drip-scheduling.md` 2(트리거)·4(처리 로직)의 실행부다.
@@ -84,6 +91,10 @@ type PlanCountCache = Map<UserTier, PlanCounts>;
  *
  * **전체를 한 트랜잭션으로 묶지 않는다**(architecture.md 8.1) — 사용자 단위로 처리해
  * 실패한 사용자만 남기고 계속 간다(`drip-scheduling.md` 7 — 전체 롤백하지 않는다).
+ *
+ * **계산(`planForUser`)과 쓰기(`scheduleForUser`의 적립·알림)를 갈라 둔다**(2026-09-18) — 편성
+ * 미리보기(`DripPreviewService`)가 같은 계산을 저장 없이 돌려 "이대로라면 무엇이 가는가"를 보이기
+ * 위해서다. 계산기가 하나여야 미리보기와 실제 배치가 어긋나지 않는다.
  */
 @Injectable()
 export class DripBatchOrchestrator {
@@ -231,13 +242,115 @@ export class DripBatchOrchestrator {
     now: Date,
     planCounts: PlanCountCache,
   ): Promise<UserScheduleResult> {
+    const plan = await this.planForUser(user, now, planCounts, {
+      persistPreference: true,
+      stopAtSkip: true,
+    });
+
+    if (plan.skipReason !== null) {
+      return { outcome: 'skipped', arrival: null };
+    }
+
+    const regularPicks = plan.regular?.picks ?? [];
+
+    if (regularPicks.length > 0) {
+      this.logPicks(
+        'regular',
+        user.id,
+        regularPicks,
+        plan.isColdStart === true,
+      );
+      await this.dripPlacementService.placeItems(
+        user.id,
+        regularPicks.map((pick) => pick.content.id),
+        LibraryItemSource.DRIP,
+        now,
+      );
+    }
+
+    // 탐험 실패는 정규 편성을 되돌리지 않는다(4.8 — 부가 슬롯이 본편을 막으면 안 된다)
+    let discoveryPicks: ScoredCandidate[] = [];
+
+    if (plan.discoveryError !== null) {
+      this.logger.warn('discovery scheduling failed', {
+        user_id: user.id,
+        error: plan.discoveryError,
+      });
+    } else if (plan.discovery !== null && plan.discovery.picks.length > 0) {
+      try {
+        this.logPicks('discovery', user.id, plan.discovery.picks, false);
+        await this.dripPlacementService.placeItems(
+          user.id,
+          plan.discovery.picks.map((pick) => pick.content.id),
+          LibraryItemSource.DISCOVERY,
+          now,
+        );
+        discoveryPicks = plan.discovery.picks;
+      } catch (error) {
+        this.logger.warn('discovery scheduling failed', {
+          user_id: user.id,
+          error: toErrorMessage(error),
+        });
+      }
+    }
+
+    // 정규 편성이 0편이면 후보가 마른 것이다(4.1의 스킵 조건은 위에서 이미 걸렀다).
+    // 탐험 슬롯만 채워졌더라도 본편이 없으면 그날의 편성은 성공이 아니다
+    const arrival: DripArrival | null =
+      regularPicks.length + discoveryPicks.length > 0
+        ? {
+            userId: user.id,
+            regular: regularPicks.map(toArrivedContent),
+            discovery: discoveryPicks.map(toArrivedContent),
+          }
+        : null;
+
+    return {
+      outcome: regularPicks.length > 0 ? 'scheduled' : 'exhausted',
+      arrival,
+    };
+  }
+
+  /**
+   * 사용자 한 명의 편성을 **계산만** 한다(`drip-scheduling.md` 4.1~4.8). 적립·알림·배치 기록은 하지
+   * 않는다 — 유일한 쓰기는 `persistPreference`가 켜졌을 때의 취향 캐시 저장이다(4.3).
+   *
+   * 배치(`scheduleForUser`)와 편성 미리보기(`DripPreviewService`)가 **같은 함수**를 부른다. 미리보기가
+   * "이대로라면 어떤 2편·어떤 1편이 가는가"에 실제 배치와 같은 답을 내려면 계산기가 하나여야 한다.
+   */
+  async planForUser(
+    user: User,
+    now: Date,
+    planCounts: PlanCountCache,
+    options: PlanOptions,
+  ): Promise<UserDripPlan> {
+    const plan: UserDripPlan = {
+      userId: user.id,
+      activeTopicIds: [],
+      skipReason: null,
+      unfinishedCount: null,
+      dripCount: null,
+      discoveryCount: null,
+      signals: [],
+      signalContentsById: new Map(),
+      completeSignalCount: null,
+      isColdStart: null,
+      preference: null,
+      difficultyAffinity: null,
+      completedEpisodesBySeries: new Map(),
+      regular: null,
+      discovery: null,
+      discoveryError: null,
+    };
+
     // 관심사 0은 방어적 처리 — 정상 경로에서는 도달 불가(`drip-scheduling.md` 4.1)
-    const activeTopicIds = await this.userInterestService.findActiveTopicIds(
+    plan.activeTopicIds = await this.userInterestService.findActiveTopicIds(
       user.id,
     );
 
-    if (activeTopicIds.length === 0) {
-      return { outcome: 'skipped', arrival: null };
+    if (plan.activeTopicIds.length === 0) {
+      plan.skipReason = 'no_interests';
+      return plan;
     }
 
     /**
@@ -247,83 +360,90 @@ export class DripBatchOrchestrator {
      * 그 대상)는 캐시가 영영 만들어지지 않아 탐색 피드(같은 캐시를 읽는다)가 무기한 콜드스타트·
      * 묵은 순서로 남는다(결정 2026-09-15). 스킵 사용자당 6쿼리가 늘지만 편성 결과는 변하지 않는다.
      */
-    const { preference, difficultyAffinity, isColdStart } =
-      await this.rebuildPreference(user.id, now);
+    const preferenceResult = await this.rebuildPreference(
+      user.id,
+      now,
+      options.persistPreference,
+    );
+    plan.signals = preferenceResult.signals;
+    plan.signalContentsById = preferenceResult.contentsById;
+    plan.completeSignalCount = preferenceResult.completeSignalCount;
+    plan.preference = preferenceResult.preference;
+    plan.difficultyAffinity = preferenceResult.difficultyAffinity;
+    plan.isColdStart = preferenceResult.isColdStart;
 
     // 미청취 재고 스킵(4.1) — 탐험 편성도 함께 건너뛴다(4.8)
-    const unfinishedCount = await this.libraryService.countUnfinished(user.id);
+    plan.unfinishedCount = await this.libraryService.countUnfinished(user.id);
 
-    if (unfinishedCount >= UNFINISHED_INVENTORY_LIMIT) {
-      return { outcome: 'skipped', arrival: null };
+    if (plan.unfinishedCount >= UNFINISHED_INVENTORY_LIMIT) {
+      plan.skipReason = 'unfinished_inventory';
+
+      if (options.stopAtSkip) {
+        return plan;
+      }
     }
 
     const { dripCount, discoveryCount } = await this.resolvePlanCounts(
       user.tier,
       planCounts,
     );
+    plan.dripCount = dripCount;
+    plan.discoveryCount = discoveryCount;
 
     if (dripCount <= 0 && discoveryCount <= 0) {
-      return { outcome: 'skipped', arrival: null };
+      // 재고 스킵이 먼저 났으면 그 사유를 유지한다(배치가 보는 순서와 같다)
+      plan.skipReason ??= 'plan_disabled';
+
+      if (options.stopAtSkip) {
+        return plan;
+      }
     }
 
-    const completedEpisodesBySeries =
+    plan.completedEpisodesBySeries =
       await this.libraryService.findCompletedSeriesMaxEpisodes(user.id);
 
-    const regularPicks =
-      dripCount > 0
-        ? await this.scheduleRegular(user.id, {
-            activeTopicIds,
-            completedEpisodesBySeries,
-            preference,
-            difficultyAffinity,
-            isColdStart,
-            // 커리어 적합도(4.2 ③) — 프로필이라 신호가 없어도 쓴다
-            career: {
-              jobCategory: user.jobCategory,
-              yearsOfExperience: user.yearsOfExperience,
-            },
-            dripCount,
-            now,
-          })
-        : { ids: [], topicIds: [], embeddings: [], arrived: [] };
+    if (dripCount > 0) {
+      plan.regular = await this.planRegular(user.id, {
+        activeTopicIds: plan.activeTopicIds,
+        completedEpisodesBySeries: plan.completedEpisodesBySeries,
+        preference: plan.preference,
+        difficultyAffinity: plan.difficultyAffinity,
+        isColdStart: plan.isColdStart,
+        // 커리어 적합도(4.2 ③) — 프로필이라 신호가 없어도 쓴다
+        career: {
+          jobCategory: user.jobCategory,
+          yearsOfExperience: user.yearsOfExperience,
+        },
+        dripCount,
+        now,
+      });
+    }
 
-    // 탐험 실패는 정규 편성을 되돌리지 않는다(4.8 — 부가 슬롯이 본편을 막으면 안 된다)
-    let discoveryArrived: ArrivedContent[] = [];
-
+    // 탐험 계산 실패는 정규 편성을 되돌리지 않는다(4.8) — 사유만 남긴다
     try {
       if (discoveryCount > 0) {
-        discoveryArrived = await this.scheduleDiscovery(user.id, {
-          activeTopicIds,
+        const regularPicks = plan.regular?.picks ?? [];
+
+        plan.discovery = await this.planDiscovery(user.id, {
+          activeTopicIds: plan.activeTopicIds,
           // 방금 뽑은 정규 편성분만 넘긴다 — 누적 이력은 SQL의 NOT EXISTS가 본다
-          alreadyPickedIds: regularPicks.ids,
-          pickedTopicIds: regularPicks.topicIds,
-          pickedEmbeddings: regularPicks.embeddings,
+          alreadyPickedIds: regularPicks.map((pick) => pick.content.id),
+          pickedTopicIds: [
+            ...new Set(regularPicks.flatMap((pick) => pick.topicIds)),
+          ],
+          // 탐험 편의 MMR 비교 대상(4.2-3) — 정규 편과 내용이 겹치는 탐험 편을 막는다
+          pickedEmbeddings: regularPicks.flatMap((pick) =>
+            pick.embedding === null ? [] : [pick.embedding],
+          ),
           discoveryCount,
           now,
         });
       }
     } catch (error) {
-      this.logger.warn('discovery scheduling failed', {
-        user_id: user.id,
-        error: toErrorMessage(error),
-      });
+      plan.discoveryError = toErrorMessage(error);
     }
 
-    // 정규 편성이 0편이면 후보가 마른 것이다(4.1의 스킵 조건은 위에서 이미 걸렀다).
-    // 탐험 슬롯만 채워졌더라도 본편이 없으면 그날의 편성은 성공이 아니다
-    const arrival: DripArrival | null =
-      regularPicks.arrived.length + discoveryArrived.length > 0
-        ? {
-            userId: user.id,
-            regular: regularPicks.arrived,
-            discovery: discoveryArrived,
-          }
-        : null;
-
-    return {
-      outcome: regularPicks.ids.length > 0 ? 'scheduled' : 'exhausted',
-      arrival,
-    };
+    return plan;
   }
 
   private async resolvePlanCounts(
@@ -345,8 +465,11 @@ export class DripBatchOrchestrator {
     return counts;
   }
 
-  /** 4.3 — 배치 시점에 최신 신호를 읽어 취향 캐시를 재계산한다 */
-  private async rebuildPreference(userId: string, now: Date) {
+  /**
+   * 4.3 — 배치 시점에 최신 신호를 읽어 취향 캐시를 재계산한다.
+   * `persist`가 꺼져 있으면 같은 계산을 저장 없이 한다(편성 미리보기).
+   */
+  private async rebuildPreference(userId: string, now: Date, persist: boolean) {
     const since = new Date(now.getTime() - SIGNAL_LOOKBACK_DAYS * MS_PER_DAY);
     const signals = await this.playbackService.findRecentSignals(
       userId,
@@ -381,17 +504,29 @@ export class DripBatchOrchestrator {
       }),
     );
 
-    const preference = await this.preferenceVectorService.rebuild(
-      userId,
-      preferenceSignals,
-      contentsById,
-      topicIdsByContentId,
-      completeSignalCount,
-      now,
-      embeddingsByContentId,
-    );
+    const preference = persist
+      ? await this.preferenceVectorService.rebuild(
+          userId,
+          preferenceSignals,
+          contentsById,
+          topicIdsByContentId,
+          completeSignalCount,
+          now,
+          embeddingsByContentId,
+        )
+      : this.preferenceVectorService.compute(
+          preferenceSignals,
+          contentsById,
+          topicIdsByContentId,
+          completeSignalCount,
+          now,
+          embeddingsByContentId,
+        );
 
     return {
+      signals: preferenceSignals,
+      contentsById,
+      completeSignalCount,
       preference,
       difficultyAffinity: buildDifficultyAffinity(
         preferenceSignals,
@@ -401,7 +536,8 @@ export class DripBatchOrchestrator {
     };
   }
 
-  private async scheduleRegular(
+  /** 정규 편성 계산(4.2) — 후보 조회 → 시리즈 게이트 → 스코어링 → 다양성 선정. 적립은 하지 않는다 */
+  private async planRegular(
     userId: string,
     input: {
       activeTopicIds: string[];
@@ -413,13 +549,7 @@ export class DripBatchOrchestrator {
       dripCount: number;
       now: Date;
     },
-  ): Promise<{
-    ids: string[];
-    topicIds: string[];
-    embeddings: number[][];
-    /** 알림에 넘길 적립분(`notification.md` 4.3 — 대표 제목) */
-    arrived: ArrivedContent[];
-  }> {
+  ): Promise<RegularPlan> {
     const pool = await this.contentService.findCandidates({
       includeTopicIds: input.activeTopicIds,
       excludeSeenByUserId: userId,
@@ -434,10 +564,20 @@ export class DripBatchOrchestrator {
       candidates,
       input.completedEpisodesBySeries,
     );
+    const gatedIds = new Set(gated.map((candidate) => candidate.content.id));
+    const gatedOut = candidates.filter(
+      (candidate) => !gatedIds.has(candidate.content.id),
+    );
 
     if (gated.length === 0) {
       // 고갈 — 대체 없이 그날 적립을 건너뛴다(`drip-scheduling.md` 7, 합의 2026-08-06)
-      return { ids: [], topicIds: [], embeddings: [], arrived: [] };
+      return {
+        poolSize: pool.length,
+        gatedOut,
+        recentDripTopicIds: [],
+        scored: [],
+        picks: [],
+      };
     }
 
     const recentDripTopicIds = await this.findRecentDripTopicIds(
@@ -461,28 +601,17 @@ export class DripBatchOrchestrator {
       input.dripCount,
     );
 
-    this.logPicks('regular', userId, picks, input.isColdStart);
-
-    await this.dripPlacementService.placeItems(
-      userId,
-      picks.map((pick) => pick.content.id),
-      LibraryItemSource.DRIP,
-      input.now,
-    );
-
     return {
-      ids: picks.map((pick) => pick.content.id),
-      topicIds: [...new Set(picks.flatMap((pick) => pick.topicIds))],
-      // 탐험 편의 MMR 비교 대상(4.2-3) — 정규 편과 내용이 겹치는 탐험 편을 막는다
-      embeddings: picks.flatMap((pick) =>
-        pick.embedding === null ? [] : [pick.embedding],
-      ),
-      arrived: picks.map(toArrivedContent),
+      poolSize: pool.length,
+      gatedOut,
+      recentDripTopicIds,
+      scored,
+      picks,
     };
   }
 
-  /** 탐험 편성(4.8) — 관심 주제 교집합 필터만 우회하고 나머지 필터는 동일하다 */
-  private async scheduleDiscovery(
+  /** 탐험 편성 계산(4.8) — 관심 주제 교집합 필터만 우회하고 나머지 필터는 동일하다. 적립은 하지 않는다 */
+  private async planDiscovery(
     userId: string,
     input: {
       activeTopicIds: string[];
@@ -493,7 +622,7 @@ export class DripBatchOrchestrator {
       discoveryCount: number;
       now: Date;
     },
-  ): Promise<ArrivedContent[]> {
+  ): Promise<DiscoveryPlan> {
     const pool = await this.contentService.findCandidates({
       excludeSeenByUserId: userId,
       excludeContentIds: input.alreadyPickedIds,
@@ -508,7 +637,18 @@ export class DripBatchOrchestrator {
     const candidates = await this.buildScoringCandidates(pool);
 
     if (candidates.length === 0) {
-      return [];
+      return {
+        poolSize: 0,
+        exposureCounts: new Map(),
+        userRemovedTopicIds: [],
+        ranking: {
+          qualityFloor: 0,
+          typicalCompleteRate: 0,
+          scored: [],
+          excluded: [],
+        },
+        picks: [],
+      };
     }
 
     const [exposureCounts, userRemovedTopicIds] = await Promise.all([
@@ -518,7 +658,7 @@ export class DripBatchOrchestrator {
       this.userInterestService.findUserRemovedTopicIds(userId),
     ]);
 
-    const picks = this.dripScoringService.selectDiscovery({
+    const selectionInput = {
       candidates,
       exposureCounts,
       activeTopicIds: input.activeTopicIds,
@@ -527,18 +667,15 @@ export class DripBatchOrchestrator {
       pickedEmbeddings: input.pickedEmbeddings,
       count: input.discoveryCount,
       now: input.now,
-    });
+    };
 
-    this.logPicks('discovery', userId, picks, false);
-
-    await this.dripPlacementService.placeItems(
-      userId,
-      picks.map((pick) => pick.content.id),
-      LibraryItemSource.DISCOVERY,
-      input.now,
-    );
-
-    return picks.map(toArrivedContent);
+    return {
+      poolSize: pool.length,
+      exposureCounts,
+      userRemovedTopicIds,
+      ranking: this.dripScoringService.rankDiscovery(selectionInput),
+      picks: this.dripScoringService.selectDiscovery(selectionInput),
+    };
   }
 
   /** 후보 콘텐츠에 스코어링 입력(전체 구간 집계·주제·임베딩)을 붙인다 */
