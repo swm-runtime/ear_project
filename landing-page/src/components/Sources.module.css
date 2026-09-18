@@ -162,6 +162,14 @@
   line-height: 1.35;
 }
 
+/* 캡션 아래 제휴 아님 고지 — 각주 크기. 캡션과 함께 나타난다 */
+.disclaimer {
+  margin-top: -4px;
+  color: var(--text-3);
+  font-size: 12.5px;
+  letter-spacing: -0.01em;
+}
+
 /* 꼬리 — 캡션 아래에서 섹션 바닥(= TRY 윗선)까지 내려가는 한 줄기 */
 .tail {
   display: block;
@@ -270,7 +278,8 @@
   transform: none;
 }
 
-.pinned .caption {
+.pinned .caption,
+.pinned .disclaimer {
   opacity: calc(clamp(0, (var(--p) - 0.8) / 0.12, 1));
   transform: translateY(calc(8px * (1 - clamp(0, (var(--p) - 0.8) / 0.12, 1))));
 }

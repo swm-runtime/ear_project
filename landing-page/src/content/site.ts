@@ -164,6 +164,8 @@ export const sources = {
   /** 리드 아래 한 줄 — 출처 표기 원칙을 먼저 밝힌다(2026-09-18, 사용자 요청: 자료 활용에 대한 방어 태세) */
   note: "모든 활용 자료는 저작권을 확인한 후 출처를 남기고 있어요.",
   caption: "이런 자료를 담아 매일 팟캐스트를 만들어요.",
+  /** 캡션 아래 작은 한 줄 — 이름 나열이 제휴·보증으로 읽히지 않게(2026-09-18) */
+  disclaimer: "자료 제공처와의 제휴를 뜻하지 않습니다.",
   items: sourceItems,
   featured: featuredSources,
 } as const;
