@@ -329,6 +329,19 @@ export class LibraryItemRepository {
     this.applySourceFilter(builder, query.sourceFilter);
     this.applyTopicFilter(builder, query.topicIds);
 
+    if (query.sort === LibraryItemSort.QUEUE) {
+      this.applyQueueCursor(builder, query.cursor);
+
+      // 재생 목록 순서(library-api.md 4.1·4.8) — 순서 미지정(NULL)이 최신순으로 맨 위, 그 아래 저장한 순서.
+      // 인덱스 idx_library_items_user_id_deleted_at_queue_position 이 이 정렬 그대로다
+      return builder
+        .orderBy('item.queue_position', 'ASC', 'NULLS FIRST')
+        .addOrderBy('item.added_at', 'DESC')
+        .addOrderBy('item.id', 'DESC')
+        .limit(query.limit + 1)
+        .getMany();
+    }
+
     if (query.cursor) {
       // Postgres 행 비교 — keyset 페이지네이션의 tie-break를 한 조건으로 표현한다
       builder.andWhere(
@@ -342,6 +355,114 @@ export class LibraryItemRepository {
       .addOrderBy('item.id', isDescending ? 'DESC' : 'ASC')
       .limit(query.limit + 1)
       .getMany();
+  }
+
+  /**
+   * `sort=queue`의 keyset — 정렬이 세 키(`queue_position NULLS FIRST, added_at DESC, id DESC`)라 행 비교
+   * 하나로 쓸 수 없어 두 경우로 나눈다. 커서가 NULL 구간이면 "같은 NULL 구간에서 더 뒤" 또는 "순서가 있는
+   * 구간 전부", 커서가 순서 구간이면 "더 큰 순서" 또는 "같은 순서에서 더 뒤"다.
+   */
+  private applyQueueCursor(
+    builder: SelectQueryBuilder<LibraryItem>,
+    cursor: LibraryPageQuery['cursor'],
+  ): void {
+    if (!cursor) {
+      return;
+    }
+
+    const params = { cursorAddedAt: cursor.addedAt, cursorId: cursor.id };
+
+    if (cursor.queuePosition === null || cursor.queuePosition === undefined) {
+      builder.andWhere(
+        `((item.queue_position IS NULL AND (item.added_at, item.id) < (:cursorAddedAt, :cursorId))
+          OR item.queue_position IS NOT NULL)`,
+        params,
+      );
+      return;
+    }
+
+    builder.andWhere(
+      `(item.queue_position > :cursorQueuePosition
+        OR (item.queue_position = :cursorQueuePosition AND (item.added_at, item.id) < (:cursorAddedAt, :cursorId)))`,
+      { ...params, cursorQueuePosition: cursor.queuePosition },
+    );
+  }
+
+  /** 순서 저장 대상 확인 — 요청자의 **살아 있는** 항목 id만 남긴다(남의 것·삭제된 것은 조용히 뺀다) */
+  async findActiveIdsByUserIdAndIds(
+    userId: string,
+    ids: string[],
+    manager?: EntityManager,
+  ): Promise<string[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+
+    const rows = await this.scoped(manager).find({
+      select: { id: true },
+      where: { userId, id: In(ids), deletedAt: IsNull() },
+    });
+
+    return rows.map((row) => row.id);
+  }
+
+  /**
+   * 이미 순서가 있는 살아 있는 항목 중 이번 저장에 들어오지 않은 것 — 저장한 순서 그대로 뒤에 이어 붙이기 위해
+   * 현재 순서(`queue_position ASC, added_at DESC, id DESC`)로 돌려준다. 첫 페이지 밖의 항목이 여기 온다.
+   */
+  async findPositionedIdsByUserIdExcluding(
+    userId: string,
+    excludedIds: string[],
+    manager?: EntityManager,
+  ): Promise<string[]> {
+    const builder = this.scoped(manager)
+      .createQueryBuilder('item')
+      .select('item.id', 'id')
+      .where('item.user_id = :userId', { userId })
+      .andWhere('item.deleted_at IS NULL')
+      .andWhere('item.queue_position IS NOT NULL');
+
+    if (excludedIds.length > 0) {
+      builder.andWhere('item.id NOT IN (:...excludedIds)', { excludedIds });
+    }
+
+    const rows = await builder
+      .orderBy('item.queue_position', 'ASC')
+      .addOrderBy('item.added_at', 'DESC')
+      .addOrderBy('item.id', 'DESC')
+      .getRawMany<{ id: string }>();
+
+    return rows.map((row) => row.id);
+  }
+
+  /**
+   * 순서를 한 번에 다시 쓴다 — `id → position` 목록을 VALUES 조인 한 문장으로. 항목마다 UPDATE를 돌리면
+   * 200편에 200왕복이고, 그 사이 목록을 읽는 요청이 반쯤 바뀐 순서를 본다.
+   */
+  async updateQueuePositions(
+    userId: string,
+    positions: { id: string; position: number }[],
+    manager?: EntityManager,
+  ): Promise<void> {
+    if (positions.length === 0) {
+      return;
+    }
+
+    const values = positions
+      .map((_, index) => `($${index * 2 + 2}::uuid, $${index * 2 + 3}::int)`)
+      .join(', ');
+    const parameters = [
+      userId,
+      ...positions.flatMap((entry) => [entry.id, entry.position]),
+    ];
+
+    await this.scoped(manager).query(
+      `UPDATE library_items AS item
+          SET queue_position = ordered.position
+         FROM (VALUES ${values}) AS ordered(id, position)
+        WHERE item.id = ordered.id AND item.user_id = $1`,
+      parameters,
+    );
   }
 
   /**

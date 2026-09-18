@@ -1,5 +1,7 @@
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
+import { EntityManager } from 'typeorm';
+
 import { Content } from '@/modules/content/entities/content.entity';
 
 import { LibraryItem } from './library-item.entity';
@@ -85,9 +87,62 @@ describe('LibraryService', () => {
       findAllContentIdsByUserId: jest.fn().mockResolvedValue([]),
       countByUserIdAndSource: jest.fn(),
       deleteByUserId: jest.fn(),
+      findActiveIdsByUserIdAndIds: jest.fn().mockResolvedValue([]),
+      findPositionedIdsByUserIdExcluding: jest.fn().mockResolvedValue([]),
+      updateQueuePositions: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<LibraryItemRepository>;
 
     service = new LibraryService(repository);
+  });
+
+  describe('reorderQueue — 재생 목록 순서 저장(library-api.md 4.8)', () => {
+    const manager = {} as EntityManager;
+
+    it('보낸 순서대로 1부터 적고, 목록에 없던 기존 순서 항목은 그 뒤에 저장한 순서대로 이어 붙인다', async () => {
+      // given — 사용자가 첫 페이지 세 편을 옮겼고, 첫 페이지 밖에 순서가 있던 두 편이 더 있다
+      repository.findActiveIdsByUserIdAndIds.mockResolvedValue(['a', 'b', 'c']);
+      repository.findPositionedIdsByUserIdExcluding.mockResolvedValue([
+        'x',
+        'y',
+      ]);
+
+      // when
+      await service.reorderQueue(USER_ID, ['c', 'a', 'b'], manager);
+
+      // then — 보낸 순서 그대로 1..3, 나머지는 4..5
+      expect(repository.updateQueuePositions).toHaveBeenCalledWith(
+        USER_ID,
+        [
+          { id: 'c', position: 1 },
+          { id: 'a', position: 2 },
+          { id: 'b', position: 3 },
+          { id: 'x', position: 4 },
+          { id: 'y', position: 5 },
+        ],
+        manager,
+      );
+      expect(
+        repository.findPositionedIdsByUserIdExcluding,
+      ).toHaveBeenCalledWith(USER_ID, ['c', 'a', 'b'], manager);
+    });
+
+    it('남의 항목·삭제된 항목은 조용히 빼고 나머지만 저장한다 — 끌기마다 오는 호출을 실패시키지 않는다', async () => {
+      // given — 'stranger'는 요청자의 살아 있는 항목이 아니다
+      repository.findActiveIdsByUserIdAndIds.mockResolvedValue(['a', 'b']);
+
+      // when
+      await service.reorderQueue(USER_ID, ['a', 'stranger', 'b'], manager);
+
+      // then
+      expect(repository.updateQueuePositions).toHaveBeenCalledWith(
+        USER_ID,
+        [
+          { id: 'a', position: 1 },
+          { id: 'b', position: 2 },
+        ],
+        manager,
+      );
+    });
   });
 
   describe('findPage', () => {

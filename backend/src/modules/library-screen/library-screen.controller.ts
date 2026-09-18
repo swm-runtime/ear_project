@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Delete,
   Get,
@@ -7,6 +8,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -25,6 +27,7 @@ import { GetLibraryResumeResponseDto } from './dto/get-library-resume-response.d
 import { LibraryItemListResponseDto } from './dto/library-item-list-response.dto';
 import { LibraryItemQueryRequestDto } from './dto/library-item-query-request.dto';
 import { LibraryTopicListResponseDto } from './dto/library-topic-list-response.dto';
+import { QueueOrderRequestDto } from './dto/queue-order-request.dto';
 import { RestoreLibraryItemResponseDto } from './dto/restore-library-item-response.dto';
 import { LibraryScreenOrchestrator } from './library-screen.orchestrator';
 
@@ -91,6 +94,22 @@ export class LibraryScreenController {
         currentUser.id,
         new Date(),
       ),
+    );
+  }
+
+  /**
+   * 재생 목록 순서 저장(library-api.md 4.8, KAN-70). **PUT — 목록을 통째로 보내고 결과가 수렴한다.**
+   * 같은 순서를 두 번 보내도 같은 상태라 멱등키가 없다. 본문 없는 204 — 순서의 진실은 `GET ?sort=queue`다.
+   */
+  @Put('queue-order')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async reorderQueue(
+    @CurrentUser() currentUser: AuthenticatedUser,
+    @Body() body: QueueOrderRequestDto,
+  ): Promise<void> {
+    await this.libraryScreenOrchestrator.reorderQueue(
+      currentUser.id,
+      body.item_ids,
     );
   }
 
