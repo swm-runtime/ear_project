@@ -17,18 +17,21 @@ import {
   AdminContentPage,
   AdminContentView,
   EnrichmentOutcome,
+  ScriptOutcome,
   RepublishContentCommand,
   SourceInput,
   UploadContentCommand,
   UploadedFileInput,
 } from '../admin.types';
 import { EnrichmentParseResult, parseEnrichmentFile } from '../enrichment-file';
+import { ScriptParseResult, parseScriptFile } from '../script-file';
 import {
   AUDIO_CONTENT_TYPES,
   AUDIT_ACTION_CONTENT_ENRICH,
   AUDIT_ACTION_CONTENT_PURGE_STORAGE,
   AUDIT_ACTION_CONTENT_REPUBLISH,
   AUDIT_ACTION_CONTENT_RESTORE,
+  AUDIT_ACTION_CONTENT_SCRIPT,
   AUDIT_ACTION_CONTENT_UPLOAD,
   AUDIT_ACTION_CONTENT_WITHDRAW,
   MAX_AUDIO_FILE_BYTES,
@@ -78,6 +81,10 @@ export class AdminContentService {
     // 파일 검증은 업로드 전에 — 거부여도 업로드는 진행하므로(admin.md 3.1) 예외가 아니다
     const enrichment = command.enrichment
       ? await parseEnrichmentFile(command.enrichment)
+      : null;
+    // 대본도 같은 규칙 — 거부는 파일에 한하고 발행은 진행한다(대본은 발행 요건이 아니다, KAN-71)
+    const script = command.script
+      ? await parseScriptFile(command.script)
       : null;
     const audioExtension = this.resolveExtension(
       command.audio,
@@ -174,6 +181,14 @@ export class AdminContentService {
           );
         }
 
+        if (script?.data) {
+          await this.contentService.saveScript(
+            published.id,
+            script.data,
+            manager,
+          );
+        }
+
         // 검수 확인 입력값을 `after`에 남긴다 — 이행 증적은 이 기록이다(domain.md 5.1)
         await this.auditLogService.record(
           {
@@ -190,6 +205,7 @@ export class AdminContentService {
               ...(enrichment && {
                 enrichment_applied: enrichment.data !== null,
               }),
+              ...(script && { script_applied: script.data !== null }),
             },
           },
           manager,
@@ -207,11 +223,14 @@ export class AdminContentService {
       actor: command.actorUserId,
     });
     this.logEnrichmentOutcome(content.id, enrichment);
+    this.logScriptOutcome(content.id, script);
 
     return {
       content,
       topics: topics.map((topic) => ({ topicId: topic.id, name: topic.name })),
+      hasScript: script?.data != null,
       ...(enrichment && { enrichment: toEnrichmentOutcome(enrichment) }),
+      ...(script && { script: toScriptOutcome(script) }),
     };
   }
 
@@ -234,14 +253,19 @@ export class AdminContentService {
     const enrichment = command.enrichment
       ? await parseEnrichmentFile(command.enrichment)
       : null;
+    const script = command.script
+      ? await parseScriptFile(command.script)
+      : null;
 
     /**
      * 추천 메타 파일 **단독**이면 버전을 올리지 않는다 — 오디오·메타가 그대로인데 버전이
      * 오르면 전 사용자의 재생 위치가 헛되이 폐기된다. 기존 발행분 소급 부여가 이 경로를
      * 쓴다(`metadata-pipeline-after-script-quality.md` 개발 범위 4).
      */
-    if (changedParts.every((part) => part === 'enrichment')) {
-      return this.enrichOnly(command, enrichment);
+    if (
+      changedParts.every((part) => part === 'enrichment' || part === 'script')
+    ) {
+      return this.applyFilesOnly(command, enrichment, script);
     }
 
     const audioExtension = command.audio
@@ -383,6 +407,15 @@ export class AdminContentService {
           );
         }
 
+        if (script?.data) {
+          // 오디오가 바뀌면 시각도 바뀐다 — 통째로 교체한다(콘텐츠당 1행)
+          await this.contentService.saveScript(
+            republished.id,
+            script.data,
+            manager,
+          );
+        }
+
         /**
          * 낡은 재생 위치 폐기(안 A — `republish-stale-playback-position.md`). 콜드오픈
          * 폐지·재편집처럼 같은 초가 다른 내용을 가리키게 되는 재발행에서, 남은 행이
@@ -420,6 +453,7 @@ export class AdminContentService {
               ...(enrichment && {
                 enrichment_applied: enrichment.data !== null,
               }),
+              ...(script && { script_applied: script.data !== null }),
             },
           },
           manager,
@@ -442,20 +476,21 @@ export class AdminContentService {
       actor: command.actorUserId,
     });
     this.logEnrichmentOutcome(content.id, enrichment);
+    this.logScriptOutcome(content.id, script);
 
-    const view = await this.toView(content);
-    return enrichment
-      ? { ...view, enrichment: toEnrichmentOutcome(enrichment) }
-      : view;
+    return this.withOutcomes(await this.toView(content), enrichment, script);
   }
 
   /**
-   * 추천 메타 파일 단독 반영 — 버전 불변, 파일 저장소 무접촉. 검증 실패면 아무것도 바꾸지
-   * 않고 거부 사유만 돌려준다(파일 거부는 오류가 아니다 — admin.md 3.1).
+   * 추천 메타·대본 파일만 반영하는 재발행 — **버전을 올리지 않고** 재생 위치도 폐기하지 않는다.
+   * 오디오가 그대로면 시각도 그대로라 폐기할 이유가 없다. 감사 로그는 파일마다 따로 남긴다
+   * (`content.enrich` · `content.script`) — `republish`와 구분되어야 "버전이 오르지 않은 이유"를 기록에서 읽는다.
+   * 파일 검증 실패는 파일만 거부하고 나머지는 반영한다(추천 메타 규칙과 같다 — admin.md 3.1).
    */
-  private async enrichOnly(
+  private async applyFilesOnly(
     command: RepublishContentCommand,
     enrichment: EnrichmentParseResult | null,
+    script: ScriptParseResult | null,
   ): Promise<AdminContentView> {
     const content = await this.dataSource.transaction(async (manager) => {
       const current = await this.contentService.getById(
@@ -464,42 +499,88 @@ export class AdminContentService {
       );
       this.assertRepublishable(current);
 
-      if (!enrichment?.data) {
-        return current;
+      if (enrichment?.data) {
+        await this.contentService.applyEnrichment(
+          current,
+          enrichment.data,
+          new Date(),
+          manager,
+        );
+
+        await this.auditLogService.record(
+          {
+            actor: command.actorUserId,
+            action: AUDIT_ACTION_CONTENT_ENRICH,
+            target: `content:${command.contentId}`,
+            after: {
+              content_version: current.contentVersion,
+              enrichment_applied: true,
+            },
+          },
+          manager,
+        );
       }
 
-      await this.contentService.applyEnrichment(
-        current,
-        enrichment.data,
-        new Date(),
-        manager,
-      );
+      if (script?.data) {
+        await this.contentService.saveScript(current.id, script.data, manager);
 
-      await this.auditLogService.record(
-        {
-          actor: command.actorUserId,
-          action: AUDIT_ACTION_CONTENT_ENRICH,
-          target: `content:${command.contentId}`,
-          after: {
-            content_version: current.contentVersion,
-            enrichment_applied: true,
+        await this.auditLogService.record(
+          {
+            actor: command.actorUserId,
+            action: AUDIT_ACTION_CONTENT_SCRIPT,
+            target: `content:${command.contentId}`,
+            after: {
+              content_version: current.contentVersion,
+              script_applied: true,
+              segment_count: script.data.length,
+            },
           },
-        },
-        manager,
-      );
+          manager,
+        );
+      }
 
       return current;
     });
 
     this.logEnrichmentOutcome(content.id, enrichment);
+    this.logScriptOutcome(content.id, script);
 
-    const view = await this.toView(content);
-    return enrichment
-      ? { ...view, enrichment: toEnrichmentOutcome(enrichment) }
-      : view;
+    return this.withOutcomes(await this.toView(content), enrichment, script);
   }
 
-  /** 파일이 있었을 때만 — 거부는 warn(운영자가 파일을 고쳐 다시 보내야 한다) */
+  private withOutcomes(
+    view: AdminContentView,
+    enrichment: EnrichmentParseResult | null,
+    script: ScriptParseResult | null,
+  ): AdminContentView {
+    return {
+      ...view,
+      ...(enrichment && { enrichment: toEnrichmentOutcome(enrichment) }),
+      ...(script && { script: toScriptOutcome(script) }),
+    };
+  }
+
+  private logScriptOutcome(
+    contentId: string,
+    script: ScriptParseResult | null,
+  ): void {
+    if (!script) {
+      return;
+    }
+
+    if (script.data) {
+      this.logger.log('script file applied', {
+        content_id: contentId,
+        segment_count: script.data.length,
+      });
+    } else {
+      this.logger.warn('script file rejected', {
+        content_id: contentId,
+        reason: script.rejectedReason,
+      });
+    }
+  }
+
   private logEnrichmentOutcome(
     contentId: string,
     enrichment: EnrichmentParseResult | null,
@@ -571,6 +652,9 @@ export class AdminContentService {
     }
     if (command.enrichment) {
       parts.push('enrichment');
+    }
+    if (command.script) {
+      parts.push('script');
     }
     for (const [name, value] of [
       ['title', command.title],
@@ -791,7 +875,10 @@ export class AdminContentService {
   }
 
   private async toView(content: Content): Promise<AdminContentView> {
-    const topicViews = await this.contentService.findTopicViews([content.id]);
+    const [topicViews, scriptContentIds] = await Promise.all([
+      this.contentService.findTopicViews([content.id]),
+      this.contentService.findScriptContentIds([content.id]),
+    ]);
 
     return {
       content,
@@ -799,18 +886,23 @@ export class AdminContentService {
         topicId: view.topicId,
         name: view.name,
       })),
+      hasScript: scriptContentIds.has(content.id),
     };
   }
 
   async findPage(query: AdminContentListQuery): Promise<AdminContentPage> {
     const { items, total } = await this.contentService.findAdminPage(query);
-    const topicViews = await this.contentService.findTopicViews(
-      items.map((content) => content.id),
-    );
+    const [topicViews, scriptContentIds] = await Promise.all([
+      this.contentService.findTopicViews(items.map((content) => content.id)),
+      this.contentService.findScriptContentIds(
+        items.map((content) => content.id),
+      ),
+    ]);
 
     return {
       items: items.map((content) => ({
         content,
+        hasScript: scriptContentIds.has(content.id),
         topics: topicViews
           .filter((view) => view.contentId === content.id)
           .map((view) => ({ topicId: view.topicId, name: view.name })),
@@ -934,6 +1026,13 @@ export class AdminContentService {
 }
 
 function toEnrichmentOutcome(result: EnrichmentParseResult): EnrichmentOutcome {
+  return {
+    applied: result.data !== null,
+    rejectedReason: result.rejectedReason,
+  };
+}
+
+function toScriptOutcome(result: ScriptParseResult): ScriptOutcome {
   return {
     applied: result.data !== null,
     rejectedReason: result.rejectedReason,
