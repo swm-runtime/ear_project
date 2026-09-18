@@ -1,3 +1,4 @@
+import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
@@ -14,6 +15,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { theme } from '@/shared/theme';
@@ -36,9 +38,11 @@ import PlayerMoreSheet from '../components/PlayerMoreSheet';
 import PlayerQueuePanel from '../components/PlayerQueuePanel';
 import PlayerRateSheet from '../components/PlayerRateSheet';
 import PlayerScriptPanel from '../components/PlayerScriptPanel';
+import PlayerSleepTimerSheet from '../components/PlayerSleepTimerSheet';
 import SeekBar from '../components/SeekBar';
 import { usePlayerScreen } from '../hooks/usePlayerScreen';
 import type { PlayerPanelKind } from '../hooks/usePlayerScreen';
+import { useQueueOrder } from '../hooks/useQueueOrder';
 import { useQueueQuery } from '../hooks/useQueueQuery';
 import { useScriptQuery } from '../hooks/useScriptQuery';
 import {
@@ -47,8 +51,17 @@ import {
   PLAYER_COLLAPSE_VELOCITY,
 } from '../player.constants';
 import { PLAYER_COPY } from '../player.copy';
+import { playerColor } from '../player.theme';
+import type { QueueItem } from '../player.types';
+import {
+  formatSleepTimerRemaining,
+  formatSleepTimerRemainingA11y,
+  type SleepTimerChoice,
+} from '../services/sleep-timer';
+import { sleepTimerService } from '../services/sleep-timer.service';
 import { useMiniPlayerLayoutStore } from '../store/mini-player-layout.store';
 import { usePlayerOpenGestureStore } from '../store/player-open-gesture.store';
+import { useSleepTimerStore } from '../store/sleep-timer.store';
 
 /**
  * 플레이어(PL1~PL10) — 화면은 뷰만 담당하고 로직은 usePlayerScreen이 소유한다.
@@ -65,7 +78,9 @@ export default function PlayerScreen() {
   // 재생 목록 — 바닥 서랍이 연다(2026-09-16, 스크립트와 자리 교환). 목록 = 라이브러리 첫 페이지(브리지),
   // 열었을 때만 조회한다. 손잡이는 항상 있다 — 라이브러리는 언제나 있으므로
   const queueQuery = useQueueQuery(screen.activePanel === 'queue');
-  const queueItems = queueQuery.data ?? [];
+  // 사용자가 손잡이로 바꾼 순서를 기기에 저장해 두고 받아 온 목록 위에 입힌다(2026-09-18)
+  const queueOrder = useQueueOrder(queueQuery.data ?? EMPTY_QUEUE);
+  const queueItems = queueOrder.orderedItems;
   const isPanelAvailable = (kind: PlayerPanelKind) =>
     kind === 'script' ? scriptSegments !== null : true;
   const activePanel =
@@ -109,6 +124,30 @@ export default function PlayerScreen() {
   // 헤더 애니메이션의 기준 치수 — 화면 폭·컨트롤 높이는 실측한다(기기마다 다르다)
   const [contentSize, setContentSize] = useState({ width: 0, height: 0 });
   const [controlsHeight, setControlsHeight] = useState(0);
+  // 수면 타이머(FR-25 P1) — 시간은 서비스가 세고 화면은 스토어를 구독해 그린다(화면을 닫아도 타이머는 간다)
+  const sleepTimerChoice = useSleepTimerStore((s) => s.choice);
+  const sleepTimerRemainingSec = useSleepTimerStore((s) => s.remainingSec);
+  const selectSleepTimer = (choice: SleepTimerChoice | null) => {
+    if (choice === null) sleepTimerService.clear();
+    else sleepTimerService.start(choice);
+    screen.closeSleepTimerSheet();
+  };
+  const sleepTimerPill =
+    sleepTimerChoice === null
+      ? null
+      : sleepTimerChoice.kind === 'endOfEpisode'
+        ? PLAYER_COPY.screen.timerEndOfEpisodePill
+        : formatSleepTimerRemaining(sleepTimerRemainingSec ?? 0);
+  const sleepTimerA11y =
+    sleepTimerChoice === null
+      ? PLAYER_COPY.screen.timerA11y
+      : sleepTimerChoice.kind === 'endOfEpisode'
+        ? PLAYER_COPY.screen.timerEndOfEpisodeA11y
+        : PLAYER_COPY.screen.timerActiveA11y(
+            formatSleepTimerRemainingA11y(sleepTimerRemainingSec ?? 0),
+          );
+  // ±10초 버튼을 누른 횟수 — 바뀔 때마다 아이콘의 원호가 한 번 돈다(SeekIcon spinKey)
+  const [seekSpin, setSeekSpin] = useState({ back: 0, forward: 0 });
   /** 시크바 트랙 선의 아래 변(시크바 블록 기준) — 재생 목록이 열리면 앨범 커버 하한을 정확히 여기에 맞춘다(PM 2026-09-17) */
   const [seekTrackCenter, setSeekTrackCenter] = useState(0);
   // 앱바·손잡이도 실측한다 — 상수로 두면 몇 px 어긋나 접힘 상태의 히어로가 넘치고 컨트롤이 패널을 열 때마다 튄다
@@ -384,9 +423,16 @@ export default function PlayerScreen() {
    * 스크립트 압축(panelProgress)과는 서로 배타라(동시에 열리지 않는다) 두 값의 변위를 그냥 더한다
    */
   const queueHeroHeight = QUEUE_BANNER_HEIGHT;
-  // 제목은 사진 아래쪽 가장자리에 붙는다(유튜브 뮤직) — 메타 블록 높이만큼 위, 아래 여백 sm
-  const queueMetaTop =
-    QUEUE_BANNER_HEIGHT - (HERO_META_BLOCK_HEIGHT - theme.spacing.lg) - theme.spacing.sm;
+  /*
+   * 제목·카테고리는 사진 아래쪽 가장자리에 **바짝** 붙는다(유튜브 뮤직). 블록의 밑변을 히어로 밑변에 맞춘다 —
+   * 그 아래 시크바 터치 영역(44pt)의 위쪽 절반(≈20px)이 이미 재생바까지의 여백이라, 여기에 여백을 더 두면
+   * 카테고리와 재생바 사이가 40px 가까이 벌어진다(2026-09-18 PM 지적). 카테고리가 없으면 제목 줄만큼만 잡는다
+   */
+  const hasQueueCategory = (session?.meta.topicIds.length ?? 0) > 0;
+  const queueMetaHeight =
+    QUEUE_TITLE_LINE_HEIGHT +
+    (hasQueueCategory ? theme.spacing.xs + QUEUE_CATEGORY_LINE_HEIGHT : 0);
+  const queueMetaTop = QUEUE_BANNER_HEIGHT - queueMetaHeight;
   const queueShift = (from: number, to: number) => Animated.multiply(queueProgress, to - from);
   const heroBase = {
     height: panelProgress.interpolate({
@@ -502,6 +548,7 @@ export default function PlayerScreen() {
   const queueGestureRef = useRef({
     travel: 1,
     isOpen: false,
+    isScriptOpen: false,
     open: () => {},
     close: () => {},
   });
@@ -509,10 +556,17 @@ export default function PlayerScreen() {
     queueGestureRef.current = {
       travel: Math.max(1, queueClosedTop - queueOpenTop),
       isOpen: activePanel === 'queue',
+      isScriptOpen: activePanel === 'script',
       open: () => setPanel('queue'),
       close: () => setPanel(null),
     };
   });
+  /*
+   * 끌기 직후의 탭을 거른다 — 손잡이는 손가락을 따라 움직이므로 누른 자리와 뗀 자리가 같은 요소다. 웹에서는
+   * 그때 click 이 발생해 Pressable 의 onPress(토글)가 끌기로 방금 연 시트를 도로 닫았다(2026-09-19).
+   * 네이티브는 응답자를 빼앗긴 Pressable 이 press 를 취소해 해당 없지만 같은 규칙으로 둔다
+   */
+  const handleDraggedRef = useRef(false);
   const handlePanResponder = useMemo(
     () =>
       // eslint-disable-next-line react-hooks/refs -- 콜백은 렌더가 아니라 제스처 시점에 실행된다(표준 PanResponder 패턴)
@@ -520,6 +574,16 @@ export default function PlayerScreen() {
         onMoveShouldSetPanResponder: (_, gesture) =>
           Math.abs(gesture.dy) > SCRIPT_HANDLE_CLAIM_DISTANCE &&
           Math.abs(gesture.dy) > Math.abs(gesture.dx),
+        /*
+         * 대본이 펼쳐진 채로 손잡이를 끌면 먼저 대본을 접는다(2026-09-19 PM 지적). 탭은 setPanel 이 두 패널을
+         * 함께 다뤄 배타가 지켜지지만, 끌기는 queueProgress 만 직접 움직여서 대본(히어로 압축)과 재생 목록
+         * (시트 압축)이 동시에 걸려 화면이 겹쳤다. 접힘 애니메이션과 끌기가 나란히 진행된다
+         */
+        onPanResponderGrant: () => {
+          handleDraggedRef.current = true;
+          const { isScriptOpen, close } = queueGestureRef.current;
+          if (isScriptOpen) close();
+        },
         onPanResponderMove: (_, gesture) => {
           const { travel, isOpen } = queueGestureRef.current;
           // 위로 끌면 dy 가 음수다 — 열림 방향이 +1 이 되도록 부호를 뒤집는다
@@ -610,7 +674,6 @@ export default function PlayerScreen() {
   const fullTitleWidth = isHeroCompact
     ? innerWidth - COMPACT_ARTWORK_SIZE - theme.spacing.md
     : innerWidth;
-  const fullTitleFontSize = isHeroCompact ? theme.font.size.lg : theme.font.size.xl;
   const measuredTitleLayer = isHeroCompact ? compactTitleBox : titleBox;
   const fullArt = heroArtBox
     ? {
@@ -638,25 +701,30 @@ export default function PlayerScreen() {
         }
       : { left: fullTitleLeft, top: fullTitleTop, width: fullTitleWidth };
   const morph = {
+    /*
+     * 아트워크는 교차가 시작되기 **전에** 풀 화면 자리에 도착해 있어야 한다(2026-09-19 PM 지적). 끝(1)에서야
+     * 도착하면, 모션 레이어와 실제 히어로가 바뀌는 구간(0.94~1)에 모션 아트워크가 아직 덜 커진 채로 겹쳐
+     * 그림이 두 장으로 보인다. 콘텐츠가 제자리에 서는 0.92 에 맞춰 도착시키고 그 뒤로는 움직이지 않는다
+     */
     artLeft: openProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [miniThumbLeft, fullArt.left],
+      inputRange: MORPH_ART_INPUT,
+      outputRange: [miniThumbLeft, fullArt.left, fullArt.left],
     }),
     artTop: openProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [miniThumbTop, fullArt.top],
+      inputRange: MORPH_ART_INPUT,
+      outputRange: [miniThumbTop, fullArt.top, fullArt.top],
     }),
     artWidth: openProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [miniThumbSize, fullArt.width],
+      inputRange: MORPH_ART_INPUT,
+      outputRange: [miniThumbSize, fullArt.width, fullArt.width],
     }),
     artHeight: openProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [miniThumbSize, fullArt.height],
+      inputRange: MORPH_ART_INPUT,
+      outputRange: [miniThumbSize, fullArt.height, fullArt.height],
     }),
     artRadius: openProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [theme.radius.sm, fullArtRadius],
+      inputRange: MORPH_ART_INPUT,
+      outputRange: [theme.radius.sm, fullArtRadius, fullArtRadius],
     }),
     /*
      * 제목은 날지 않는다(2026-09-18 PM — 제자리 페이드). 미니 자리(썸네일 옆 14px)에서 풀 화면 자리(아트워크
@@ -708,9 +776,24 @@ export default function PlayerScreen() {
       outputRange: [mini.height, windowHeight],
     }),
     sheetRadius: openProgress.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0, 20, 0] }),
+    /*
+     * 출발은 뒤의 진짜 미니플레이어(밝은 theme.surface), 도착은 플레이어의 검정. 끝까지 고르게 섞으면 중간이
+     * 탁한 회색 판으로 오래 보인다 — 미니 제목·▶ 이 사라지는 12%까지만 밝게 두고, 40%에서 이미 검정에
+     * 닿게 해 회색 구간을 짧게 지난다(2026-09-18)
+     */
     sheetColor: openProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [theme.color.surface, theme.color.background],
+      inputRange: [0, 0.12, 0.4, 1],
+      outputRange: [
+        theme.color.surface,
+        theme.color.surface,
+        playerColor.background,
+        playerColor.background,
+      ],
+    }),
+    // 흐린 커버 바탕 — 시트가 검정으로 넘어가는 구간에 함께 나타난다(그 전엔 밝은 미니플레이어 색이어야 한다)
+    backdropOpacity: openProgress.interpolate({
+      inputRange: [0, 0.12, 0.4, 1],
+      outputRange: [0, 0, 1, 1],
     }),
     // 뒤의 라이브러리는 살짝 가라앉는다 — 시트가 그 위에 얹혔다는 층 감각
     dimOpacity: openProgress.interpolate({ inputRange: [0, 1], outputRange: [0, 0.35] }),
@@ -745,6 +828,13 @@ export default function PlayerScreen() {
     .filter((name): name is string => name !== undefined);
   // 이름을 못 찾으면(목록 미도착·모르는 id) 자리도 남기지 않는다. 최대 두 개까지만 — 그 이상은 제목을 밀어낸다
   const categoryLabel = topicNames.length > 0 ? topicNames.slice(0, 2).join(' · ') : null;
+  // 재생 목록 줄의 카테고리 — 플레이어 제목 아래 줄과 같은 규칙(주제 이름 앞 두 개). 이름을 못 찾으면 null
+  const queueCategoryOf = (item: QueueItem): string | null => {
+    const names = item.topicIds
+      .map((id) => topicsQuery.data?.items.find((topic) => topic.topicId === id)?.name)
+      .filter((name): name is string => Boolean(name));
+    return names.length > 0 ? names.slice(0, 2).join(' · ') : null;
+  };
 
   const isEnded = session.state === 'ended';
   const isControlDisabled = session.state === 'loading' || session.state === 'load_failed';
@@ -803,6 +893,8 @@ export default function PlayerScreen() {
 
   return (
     <View style={[containerStyle, !isShellVisible && styles.shellHidden]}>
+      {/* 플레이어는 검정 바탕이다 — 떠 있는 동안 상태바 글자를 밝게. 화면이 걷히면 앱 기본(auto)으로 돌아간다 */}
+      <StatusBar style="light" />
       {/* 뒤 화면 딤 + 미니플레이어 자리에서 자라나는 시트 — 0일 때는 카드 그 자체, 1일 때 풀 화면 */}
       <Animated.View
         style={[StyleSheet.absoluteFill, styles.dim, { opacity: morph.dimOpacity }]}
@@ -822,7 +914,25 @@ export default function PlayerScreen() {
           },
         ]}
         pointerEvents="none"
-      />
+      >
+        {/*
+          바탕 — 커버를 크게 흐려 깔고 어두운 막을 얹는다(2026-09-18 PM, 애플 뮤직 방식). 무채색 단색은 값이
+          뭐든 "꺼멓게" 읽혔다. 곡의 색이 바탕에 배면 같은 어두움이라도 답답하지 않다. 시트 안에 둬서 시트가
+          자라는 모양대로 잘리고, 시트 색이 검정으로 넘어가는 구간(12~40%)에 함께 나타난다. 색 추출은 네이티브
+          모듈이 필요해 쓰지 않았다 — 이미지 흐림은 기본 기능이라 OTA 로 나간다
+        */}
+        {session.meta.thumbnailUrl ? (
+          <Animated.View style={[styles.backdrop, { opacity: morph.backdropOpacity }]}>
+            <Image
+              source={{ uri: session.meta.thumbnailUrl }}
+              style={styles.backdropImage}
+              blurRadius={BACKDROP_BLUR_RADIUS}
+              resizeMode="cover"
+            />
+            <View style={styles.backdropScrim} />
+          </Animated.View>
+        ) : null}
+      </Animated.View>
       <Animated.View
         style={[
           styles.content,
@@ -857,7 +967,11 @@ export default function PlayerScreen() {
           )}
           {isCompleted ? (
             <Animated.View
-              style={[styles.completedBadge, { opacity: hero.collapsedOpacity }]}
+              // 재생 목록이 열려 사진이 화면을 채우면 배지가 좌상단(셰브론 옆)으로 끌려가 겹친다 — 그때는 감춘다
+              style={[
+                styles.completedBadge,
+                { opacity: Animated.multiply(hero.collapsedOpacity, queueInverse) },
+              ]}
               accessibilityLabel={PLAYER_COPY.screen.completedBadgeA11y}
             >
               <Text style={styles.completedBadgeGlyph}>✓</Text>
@@ -868,6 +982,35 @@ export default function PlayerScreen() {
             pointerEvents="none"
             style={[styles.queueTint, { opacity: queueProgress }]}
           />
+          {/*
+            아래쪽 그라데이션 — 사진 밑변으로 갈수록 플레이어 바탕색으로 잠긴다(유튜브 뮤직, 2026-09-19 PM).
+            제목·카테고리·재생바가 놓이는 띠가 어떤 사진에서도 어둡고, 사진의 밑변이 칼같이 끊기지 않고 바탕으로
+            녹아든다. 끝 불투명도는 1 이 아니다 — 사진 밖 바탕이 단색이 아니라 흐린 커버라, 완전히 덮으면 밑변이
+            바탕보다 어두운 띠로 남는다. 밝은 테마 시절엔 아래가 흰 바탕이라 어울리지 않아 뺐었다(#440) — 검정 플레이어에서는 맞는다
+          */}
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.queueArtFade, { opacity: queueProgress }]}
+            accessibilityElementsHidden
+            importantForAccessibility="no"
+          >
+            <Svg width="100%" height={QUEUE_ART_FADE_HEIGHT}>
+              <Defs>
+                <LinearGradient id="queueArtFade" x1="0" y1="0" x2="0" y2="1">
+                  <Stop offset="0" stopColor={playerColor.background} stopOpacity={0} />
+                  <Stop offset="0.45" stopColor={playerColor.background} stopOpacity={0.3} />
+                  <Stop offset="1" stopColor={playerColor.background} stopOpacity={0.68} />
+                </LinearGradient>
+              </Defs>
+              <Rect
+                x="0"
+                y="0"
+                width="100%"
+                height={QUEUE_ART_FADE_HEIGHT}
+                fill="url(#queueArtFade)"
+              />
+            </Svg>
+          </Animated.View>
         </Animated.View>
 
         {/* 앱바 — 제목을 두지 않는다. 동적 텍스트 200%에서 앱바가 먼저 넘친다(uiux 4.1) */}
@@ -882,24 +1025,36 @@ export default function PlayerScreen() {
               <ChevronIcon
                 direction="down"
                 size={APP_BAR_ICON_SIZE}
-                color={theme.color.textPrimary}
+                color={playerColor.textPrimary}
               />,
               <ChevronIcon direction="down" size={APP_BAR_ICON_SIZE} color={ON_IMAGE_COLOR} />,
             )}
           </Pressable>
           <View style={styles.appBarActions}>
-            {/* 수면 타이머(P1) — 재생 조작이 아니라 세션 설정이라 앱바에 둔다(2026-09-16).
-                설정되면 이 자리에 남은 시간 알약이 붙는다. TODO: P1에서 시트·남은 시간 연결 */}
+            {/* 수면 타이머(FR-25 P1) — 재생 조작이 아니라 세션 설정이라 앱바에 둔다(2026-09-16).
+                걸려 있으면 달을 채워 그리고 왼쪽에 남은 시간 알약을 붙인다(2026-09-19) */}
             <Pressable
-              style={styles.appBarButton}
-              disabled
+              style={styles.timerButton}
+              onPress={screen.openSleepTimerSheet}
               accessibilityRole="button"
-              accessibilityLabel={PLAYER_COPY.screen.timerA11y}
-              accessibilityState={{ disabled: true }}
+              accessibilityLabel={sleepTimerA11y}
             >
+              {sleepTimerPill !== null ? (
+                <Text style={styles.timerPill} allowFontScaling={false}>
+                  {sleepTimerPill}
+                </Text>
+              ) : null}
               {dualTone(
-                <SleepTimerIcon size={APP_BAR_ICON_SIZE} color={theme.color.textPrimary} />,
-                <SleepTimerIcon size={APP_BAR_ICON_SIZE} color={ON_IMAGE_COLOR} />,
+                <SleepTimerIcon
+                  size={APP_BAR_ICON_SIZE}
+                  color={playerColor.textPrimary}
+                  filled={sleepTimerChoice !== null}
+                />,
+                <SleepTimerIcon
+                  size={APP_BAR_ICON_SIZE}
+                  color={ON_IMAGE_COLOR}
+                  filled={sleepTimerChoice !== null}
+                />,
               )}
             </Pressable>
             <Pressable
@@ -909,7 +1064,7 @@ export default function PlayerScreen() {
               accessibilityLabel={PLAYER_COPY.screen.moreA11y}
             >
               {dualTone(
-                <MoreIcon size={APP_BAR_ICON_SIZE} color={theme.color.textPrimary} />,
+                <MoreIcon size={APP_BAR_ICON_SIZE} color={playerColor.textPrimary} />,
                 <MoreIcon size={APP_BAR_ICON_SIZE} color={ON_IMAGE_COLOR} />,
               )}
             </Pressable>
@@ -929,11 +1084,20 @@ export default function PlayerScreen() {
           <Animated.View style={[styles.heroMeta, { top: hero.metaTop, left: hero.metaLeft }]}>
             {/* 제목은 크기가 달라 두 겹을 교차 페이드한다 — 글자 크기 자체는 보간하지 않는다 */}
             <Animated.View
-              style={{ opacity: Animated.multiply(hero.collapsedOpacity, queueInverse) }}
+              style={[
+                styles.heroTitleLayer,
+                { opacity: Animated.multiply(hero.collapsedOpacity, queueInverse) },
+              ]}
               onLayout={onTitleLayout}
             >
               {/* 한 줄 고정 — 넘치면 흘러서 끝까지 보여준다(2026-09-16, 두 줄 접기에서 변경) */}
-              <MarqueeText text={session.meta.title ?? ''} style={styles.title} />
+              {/* 전환(모션 레이어) 동안은 0에 세워 둔다 — 가려진 채 흘러가 있으면 전환이 끝나는 순간 중간부터
+                  나타나 정지 제목과 어긋난다. 다 올라오면 처음부터 흐른다(2026-09-18 PM) */}
+              <MarqueeText
+                text={session.meta.title ?? ''}
+                style={styles.title}
+                isPaused={isMorphing}
+              />
               {categoryLabel !== null ? (
                 <Text style={styles.category} numberOfLines={1}>
                   {categoryLabel}
@@ -948,6 +1112,7 @@ export default function PlayerScreen() {
               <MarqueeText
                 text={session.meta.title ?? ''}
                 style={[styles.title, styles.onImageTitle]}
+                isPaused={isMorphing}
               />
               {categoryLabel !== null ? (
                 <Text style={[styles.category, styles.onImageCategory]} numberOfLines={1}>
@@ -960,7 +1125,11 @@ export default function PlayerScreen() {
               pointerEvents="none"
               onLayout={onCompactTitleLayout}
             >
-              <MarqueeText text={session.meta.title ?? ''} style={styles.compactTitle} />
+              <MarqueeText
+                text={session.meta.title ?? ''}
+                style={styles.compactTitle}
+                isPaused={isMorphing}
+              />
               {categoryLabel !== null ? (
                 <Text style={styles.category} numberOfLines={1}>
                   {categoryLabel}
@@ -1039,14 +1208,18 @@ export default function PlayerScreen() {
 
             <Pressable
               style={styles.stepButton}
-              onPress={screen.seekBackward}
+              onPress={() => {
+                setSeekSpin((prev) => ({ ...prev, back: prev.back + 1 }));
+                screen.seekBackward();
+              }}
               disabled={isControlDisabled}
               accessibilityRole="button"
               accessibilityLabel={PLAYER_COPY.screen.seekBackA11y}
             >
               <SeekBackIcon
+                spinKey={seekSpin.back}
                 size={SEEK_ICON_SIZE}
-                color={isControlDisabled ? theme.color.border : theme.color.textSecondary}
+                color={isControlDisabled ? playerColor.border : playerColor.textSecondary}
               />
             </Pressable>
 
@@ -1061,25 +1234,29 @@ export default function PlayerScreen() {
             >
               {screen.showBufferingIndicator ? (
                 // 로딩 표시는 재생 버튼 자리에만, 2초 초과 시만(uiux 4.3)
-                <ActivityIndicator color={theme.color.onPrimary} />
+                <ActivityIndicator color={playerColor.onPrimary} />
               ) : (
                 (() => {
                   const Icon = !isEnded && session.isPlaying ? PauseIcon : PlayIcon;
-                  return <Icon size={PLAY_ICON_SIZE} color={theme.color.onPrimary} />;
+                  return <Icon size={PLAY_ICON_SIZE} color={playerColor.onPrimary} />;
                 })()
               )}
             </Pressable>
 
             <Pressable
               style={styles.stepButton}
-              onPress={screen.seekForward}
+              onPress={() => {
+                setSeekSpin((prev) => ({ ...prev, forward: prev.forward + 1 }));
+                screen.seekForward();
+              }}
               disabled={isControlDisabled}
               accessibilityRole="button"
               accessibilityLabel={PLAYER_COPY.screen.seekForwardA11y}
             >
               <SeekForwardIcon
+                spinKey={seekSpin.forward}
                 size={SEEK_ICON_SIZE}
-                color={isControlDisabled ? theme.color.border : theme.color.textSecondary}
+                color={isControlDisabled ? playerColor.border : playerColor.textSecondary}
               />
             </Pressable>
 
@@ -1102,10 +1279,10 @@ export default function PlayerScreen() {
                   size={SEEK_ICON_SIZE}
                   color={
                     isControlDisabled
-                      ? theme.color.border
+                      ? playerColor.border
                       : activePanel === 'script'
-                        ? theme.color.primary
-                        : theme.color.textSecondary
+                        ? playerColor.primary
+                        : playerColor.textSecondary
                   }
                 />
               </Pressable>
@@ -1136,7 +1313,13 @@ export default function PlayerScreen() {
             >
               <Pressable
                 style={styles.scriptHandle}
-                onPress={() => setPanel(activePanel === 'queue' ? null : 'queue')}
+                onPressIn={() => {
+                  handleDraggedRef.current = false;
+                }}
+                onPress={() => {
+                  if (handleDraggedRef.current) return;
+                  setPanel(activePanel === 'queue' ? null : 'queue');
+                }}
                 accessibilityRole="button"
                 accessibilityLabel={
                   activePanel === 'queue'
@@ -1157,6 +1340,8 @@ export default function PlayerScreen() {
             currentContentId={session.contentId}
             showHeader={false}
             onSelect={screen.playQueueItem}
+            onReorder={queueOrder.move}
+            categoryOf={queueCategoryOf}
             onRetry={() => void queueQuery.refetch()}
             onSwipeRight={() => setPanel(null)}
           />
@@ -1224,24 +1409,37 @@ export default function PlayerScreen() {
           </Animated.Text>
           {/* 풀 화면 제목 — 최종 자리에 고정된 채 콘텐츠(컨트롤·시크바)와 같은 이동·불투명도로 들어온다.
               마지막 교차(0.94~1)에서 실제 히어로 제목과 같은 좌표라 한 장으로 보인다 */}
-          <Animated.Text
+          {/* 실제 히어로와 **같은 컴포넌트·같은 간격**으로 그린다 — 말줄임 Text 로 그리면 교차 순간 흐르는 제목
+              (끝이 페이드)과 끝 모양이 달라 글자가 겹쳐 보인다. 카테고리도 함께 둬 교차 때 새로 튀어나오지 않게 한다 */}
+          <Animated.View
             style={[
-              styles.morphTitle,
+              styles.morphFullMeta,
               {
                 left: fullTitle.left,
                 top: fullTitle.top,
                 width: fullTitle.width,
-                fontSize: fullTitleFontSize,
-                lineHeight: fullTitleFontSize * 1.3,
-                color: isQueueOpen ? ON_IMAGE_COLOR : theme.color.textPrimary,
                 opacity: morph.contentOpacity,
                 transform: [{ translateY: morph.contentTranslateY }],
               },
             ]}
-            numberOfLines={1}
           >
-            {session.meta.title ?? ''}
-          </Animated.Text>
+            <MarqueeText
+              text={session.meta.title ?? ''}
+              style={[
+                isHeroCompact ? styles.compactTitle : styles.title,
+                isQueueOpen && styles.onImageTitle,
+              ]}
+              isPaused
+            />
+            {categoryLabel !== null ? (
+              <Text
+                style={[styles.category, isQueueOpen && styles.onImageCategory]}
+                numberOfLines={1}
+              >
+                {categoryLabel}
+              </Text>
+            ) : null}
+          </Animated.View>
         </Animated.View>
       ) : null}
 
@@ -1260,6 +1458,12 @@ export default function PlayerScreen() {
         </View>
       ) : null}
 
+      <PlayerSleepTimerSheet
+        isVisible={screen.isSleepTimerSheetVisible}
+        currentChoice={sleepTimerChoice}
+        onSelect={selectSleepTimer}
+        onClose={screen.closeSleepTimerSheet}
+      />
       <PlayerRateSheet
         isVisible={screen.isRateSheetVisible}
         currentRate={screen.rate}
@@ -1313,13 +1517,28 @@ const SCRIPT_TOGGLE_DURATION_MS = 320;
  * 얹힌다(2026-09-17 PM, 유튜브 뮤직). 사진 전체 높이 = 앱바 + 이 값 + 시크바
  */
 const QUEUE_BANNER_HEIGHT = 232;
+/** 사진 아래쪽 그라데이션 높이 — 제목·카테고리 블록과 재생바를 넉넉히 덮는다 */
+const QUEUE_ART_FADE_HEIGHT = 160;
+/** 재생 목록 열림 상태의 제목 줄(xl × 1.3)·카테고리 줄(sm 글자의 줄 높이) — 메타 블록을 사진 밑변에 맞추는 셈에 쓴다 */
+const QUEUE_TITLE_LINE_HEIGHT = theme.font.size.xl * 1.3;
+const QUEUE_CATEGORY_LINE_HEIGHT = 20;
+/** 카테고리 줄 높이 — 스타일과 위 셈이 같은 값을 쓴다 */
+const PLAYER_CATEGORY_LINE_HEIGHT = QUEUE_CATEGORY_LINE_HEIGHT;
 /** 사진 위 텍스트·아이콘 색 */
 const ON_IMAGE_COLOR = '#FFFFFF';
 /** 손잡이를 놓았을 때 열림/닫힘 확정 — 이동 비율·속도(dp/ms). 실기기 검증 대상 제안값 */
 const QUEUE_COMMIT_RATIO = 0.35;
 const QUEUE_COMMIT_VELOCITY = 0.5;
 /** 아래로 끌기 — 화면 높이의 이 비율만큼 끌면 진행값이 0(미니플레이어)에 닿는다 */
+/** 목록을 받기 전의 빈 재생 목록 — 렌더마다 새 배열을 만들면 순서 계산(useMemo)이 매번 다시 돈다 */
+const EMPTY_QUEUE: QueueItem[] = [];
+/** 모션 아트워크의 도착 시점 — 0.92 에 풀 화면 자리에 서고 교차(0.94~1) 동안 움직이지 않는다 */
+const MORPH_ART_INPUT = [0, 0.92, 1];
 const PLAYER_DRAG_RANGE_RATIO = 0.7;
+/** 바탕 커버의 흐림 — 형태가 남지 않고 색 덩어리만 보일 만큼 */
+const BACKDROP_BLUR_RADIUS = 60;
+/** 흐린 커버 위 어두운 막 — 플레이어 바탕색(#17171A)의 72% */
+const BACKDROP_SCRIM_COLOR = 'rgba(23, 23, 26, 0.72)';
 /** 드래그 후 닫힘 모션의 하한 — 이보다 짧으면 놓는 순간 미니플레이어가 "나타난" 것처럼 보인다 */
 const PLAYER_CLOSE_MIN_MS = 140;
 /** 열림·닫힘 모션 길이 — 닫힘이 조금 짧다: 되돌아가는 동작은 짧아야 가볍게 느껴진다 */
@@ -1347,8 +1566,14 @@ const MINI_FALLBACK_BOTTOM = 130;
 const MORPH_IMAGE_WAIT_MS = 800;
 /** 앱바 높이(터치 타깃 44) — 히어로가 쓸 수 있는 높이를 셈할 때 뺀다 */
 const APP_BAR_HEIGHT = 44;
-/** 접힘 상태의 제목·카테고리 블록 높이 — 위 여백 24 + 제목 줄 36.4 + 간격 4 + 카테고리 20 + 아래 여백 8 */
-const HERO_META_BLOCK_HEIGHT = 92;
+/**
+ * 접힘 상태의 제목·카테고리 블록 높이 — 위 여백 24 + 제목 줄 36.4 + 간격 4 + 카테고리 20 = 84.4(숫자로 적지 않고
+ * 같은 상수에서 셈한다 — 84 로 적었더니 두 상태의 간격이 0.4 어긋났다). **아래 여백은 두지 않는다**
+ * (2026-09-19 PM — 재생 목록 열림 상태와 같은 간격으로): 바로 아래 시크바 터치 영역(44pt)의 위쪽 절반(≈20px)이
+ * 이미 재생바까지의 여백이라, 여기에 8을 더 두면 카테고리와 재생바 사이가 벌어진다. 줄어든 만큼 아트워크가 커진다
+ */
+const HERO_META_BLOCK_HEIGHT =
+  theme.spacing.lg + QUEUE_TITLE_LINE_HEIGHT + theme.spacing.xs + PLAYER_CATEGORY_LINE_HEIGHT;
 /** 펼침 상태의 한 줄 헤더 높이 — 위 8 + 썸네일 56 + 아래 8 */
 const HERO_COMPACT_HEIGHT = 72;
 /** 펼침 상태에서 제목 블록(26 + 2 + 20 ≈ 48)을 썸네일 세로 가운데에 맞추는 위치 */
@@ -1377,20 +1602,49 @@ const styles = StyleSheet.create({
     position: 'absolute',
     overflow: 'hidden',
   },
+  backdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  // 흐린 가장자리는 투명해진다 — 살짝 키워 가장자리를 화면 밖으로 밀어낸다
+  backdropImage: {
+    width: '100%',
+    height: '100%',
+    transform: [{ scale: 1.25 }],
+  },
+  // 글자·컨트롤 대비를 지키는 어두운 막 — 팔레트 바탕색을 그대로 써서 커버가 밝아도 전체 톤이 차콜에 머문다
+  backdropScrim: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: BACKDROP_SCRIM_COLOR,
+  },
   morphArtwork: {
     position: 'absolute',
     overflow: 'hidden',
-    backgroundColor: theme.color.surface,
+    backgroundColor: playerColor.surface,
+  },
+  // 풀 화면 제목·카테고리 묶음 — 히어로의 제목 층(heroTitleLayer)과 같은 간격
+  morphFullMeta: {
+    position: 'absolute',
+    gap: theme.spacing.xs,
   },
   morphTitle: {
     position: 'absolute',
     fontWeight: '700',
-    color: theme.color.textPrimary,
+    color: playerColor.textPrimary,
   },
   // 미니플레이어 제목과 같은 글자(MiniPlayer styles.title) — 착지 순간 뒤의 진짜 제목과 겹쳐 한 장으로 보인다
   morphMiniTitle: {
     fontSize: theme.font.size.sm,
     fontWeight: '600',
+    // 이 순간의 시트는 아직 밝은 미니플레이어 색이다 — 밝은 테마의 글자색
+    color: theme.color.textPrimary,
   },
   morphMiniButton: {
     position: 'absolute',
@@ -1410,6 +1664,22 @@ const styles = StyleSheet.create({
     // 상태바 밑에 바로 붙지 않게 — 아이콘 윗선이 탭 화면의 첫 요소(24)와 비슷한 선에 온다(2026-09-18 PM).
     // 재생 목록의 아트워크 높이는 앱바 실측(onAppBarLayout)을 쓰므로 함께 늘어난다
     paddingTop: theme.spacing.md,
+  },
+  // 수면 타이머 — 알약이 붙으면 옆으로 늘어난다. 히트 영역은 44pt 를 지킨다
+  timerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.xs,
+    minWidth: theme.touchTarget.minWidth,
+    minHeight: theme.touchTarget.minHeight,
+  },
+  // 남은 시간 — 숫자 폭이 흔들리지 않게 고정폭 숫자. 사진 위에서도 읽히게 흰 글자
+  timerPill: {
+    fontSize: theme.font.size.xs,
+    fontWeight: '700',
+    color: ON_IMAGE_COLOR,
+    fontVariant: ['tabular-nums'],
   },
   appBarButton: {
     minWidth: theme.touchTarget.minWidth,
@@ -1438,7 +1708,7 @@ const styles = StyleSheet.create({
   heroArtwork: {
     position: 'absolute',
     overflow: 'hidden',
-    backgroundColor: theme.color.surface,
+    backgroundColor: playerColor.surface,
   },
   heroMeta: {
     position: 'absolute',
@@ -1459,15 +1729,15 @@ const styles = StyleSheet.create({
   // 둥근 모서리는 컨테이너(heroArtwork, overflow hidden)가 자른다 — 여기 radius 를 두면 확대돼 모서리가 0 이 될 때 흰 틈이 남는다
   artwork: {
     flex: 1,
-    backgroundColor: theme.color.surface,
+    backgroundColor: playerColor.surface,
   },
   artworkPlaceholder: {
-    backgroundColor: theme.color.surface,
+    backgroundColor: playerColor.surface,
   },
   compactTitle: {
     fontSize: theme.font.size.lg,
     fontWeight: '700',
-    color: theme.color.textPrimary,
+    color: playerColor.textPrimary,
     lineHeight: theme.font.size.lg * 1.3,
   },
   completedBadge: {
@@ -1480,25 +1750,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     // 밝은 아트워크 위에서도 보이도록 배경을 깐다(마킹 배경 처리는 시안 검증 미결)
-    backgroundColor: theme.color.overlay,
+    backgroundColor: playerColor.overlay,
   },
   completedBadgeGlyph: {
-    color: theme.color.onPrimary,
+    color: playerColor.onPrimary,
     fontSize: theme.font.size.sm,
     fontWeight: '700',
   },
   title: {
     fontSize: theme.font.size.xl,
     fontWeight: '700',
-    color: theme.color.textPrimary,
+    color: playerColor.textPrimary,
     // 한 줄 마퀴 — lineHeight가 곧 뷰포트 높이다(MarqueeText)
     lineHeight: theme.font.size.xl * 1.3,
   },
   // 카테고리 — 제목 바로 아래, 보조색. 링크처럼 보이면 안 되므로 칩·밑줄을 두지 않는다
+  // md(16) — sm(14)은 제목(28)의 절반이라 각주처럼 읽혔다(2026-09-19 PM). 줄 높이를 못 박아 세 자리
+  // (기본·대본 압축 헤더·재생 목록 열림)의 블록 높이 셈이 글꼴 기본값에 흔들리지 않게 한다
   category: {
-    fontSize: theme.font.size.sm,
+    fontSize: theme.font.size.md,
+    lineHeight: PLAYER_CATEGORY_LINE_HEIGHT,
     fontWeight: '600',
-    color: theme.color.textSecondary,
+    color: playerColor.textSecondary,
   },
 
   controlArea: {
@@ -1518,15 +1791,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   glyphDisabled: {
-    color: theme.color.border,
+    color: playerColor.border,
   },
+  // 64 — 어두운 테마에서 순백 72 원은 화면에서 가장 밝고 큰 덩어리라 아트워크보다 먼저 보였다(2026-09-18 PM).
+  // 아이콘(28)은 그대로 둔다: 원 대비 39% → 44% 로 올라 저절로 또렷해진다
   playButton: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: theme.color.primary,
+    backgroundColor: playerColor.primary,
   },
   // 배속 — 칩 배경 없이 텍스트만. 폭은 고정해 왼쪽 버튼과 오른쪽 빈 자리가 같은 폭을 갖게 한다
   rateButton: {
@@ -1538,21 +1813,28 @@ const styles = StyleSheet.create({
   rateLabel: {
     fontSize: theme.font.size.sm,
     fontWeight: '600',
-    color: theme.color.textSecondary,
+    color: playerColor.textSecondary,
     fontVariant: ['tabular-nums'],
   },
   // 스크립트 손잡이 — 화면 바닥에 붙는다. 바(pill) + 라벨이 "위로 끌어올릴 수 있다"를 말한다
   // 재생 목록 시트 — 절대 배치의 기준은 content 의 바깥 모서리(패딩 안쪽이 아니다 — 2026-09-17 웹 실측).
   // inset 0 이면 화면 폭을 꽉 채운다. 목록의 좌우 여백은 패널이 갖는다
+  // 배경을 칠하지 않는다 — 흐린 커버 바탕이 목록 뒤까지 이어진다. 시트 위쪽은 늘 컨트롤 줄 아래라 겹칠 것이 없다
   queueSheet: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: theme.color.background,
   },
   scriptHandleWrap: {},
   // 사진 위 글자·시크바 대비 — 재생 목록이 열린 만큼 어두워진다
+  queueArtFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: QUEUE_ART_FADE_HEIGHT,
+  },
   queueTint: {
     position: 'absolute',
     top: 0,
@@ -1564,6 +1846,14 @@ const styles = StyleSheet.create({
   dualToneOverlay: {
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  /*
+   * 기본 제목 층 — 사진 위 층(heroTitleOnImageLayer)과 **같은 간격**이어야 한다(2026-09-19). 이 층에만 간격이
+   * 없어서 카테고리가 4px 위에 있었고, 그 탓에 (1) 재생바까지의 간격이 두 상태에서 23.6 / 20 으로 달랐고
+   * (2) 재생 목록을 올리는 동안 두 층의 카테고리가 어긋난 채 교차해 글자가 겹쳐 보였다
+   */
+  heroTitleLayer: {
+    gap: theme.spacing.xs,
   },
   heroTitleOnImageLayer: {
     position: 'absolute',
@@ -1589,12 +1879,12 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: theme.radius.full,
-    backgroundColor: theme.color.border,
+    backgroundColor: playerColor.border,
   },
   scriptHandleLabel: {
     fontSize: theme.font.size.xs,
     fontWeight: '600',
-    color: theme.color.textSecondary,
+    color: playerColor.textSecondary,
   },
   banner: {
     minHeight: 64,
@@ -1606,11 +1896,11 @@ const styles = StyleSheet.create({
   bannerTitle: {
     fontSize: theme.font.size.sm,
     fontWeight: '600',
-    color: theme.color.textPrimary,
+    color: playerColor.textPrimary,
   },
   bannerDescription: {
     fontSize: theme.font.size.xs,
-    color: theme.color.textSecondary,
+    color: playerColor.textSecondary,
   },
   bannerAction: {
     minHeight: theme.touchTarget.minHeight,
@@ -1620,7 +1910,7 @@ const styles = StyleSheet.create({
   bannerActionLabel: {
     fontSize: theme.font.size.sm,
     fontWeight: '600',
-    color: theme.color.primary,
+    color: playerColor.primary,
   },
   withdrawn: {
     flex: 1,
@@ -1632,7 +1922,7 @@ const styles = StyleSheet.create({
   withdrawnTitle: {
     fontSize: theme.font.size.md,
     fontWeight: '600',
-    color: theme.color.textPrimary,
+    color: playerColor.textPrimary,
     textAlign: 'center',
   },
   withdrawnClose: {
@@ -1643,7 +1933,7 @@ const styles = StyleSheet.create({
   withdrawnCloseLabel: {
     fontSize: theme.font.size.md,
     fontWeight: '600',
-    color: theme.color.primary,
+    color: playerColor.primary,
   },
   snackbar: {
     position: 'absolute',
@@ -1654,13 +1944,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     borderRadius: theme.radius.md,
-    backgroundColor: theme.color.textPrimary,
+    backgroundColor: playerColor.textPrimary,
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
   },
   snackbarMessage: {
     fontSize: theme.font.size.sm,
-    color: theme.color.onPrimary,
+    color: playerColor.onPrimary,
   },
   snackbarAction: {
     minHeight: theme.touchTarget.minHeight,
@@ -1670,6 +1960,7 @@ const styles = StyleSheet.create({
   snackbarActionLabel: {
     fontSize: theme.font.size.sm,
     fontWeight: '700',
-    color: theme.color.primary,
+    // 스낵바 면이 흰색(textPrimary)이라 그 위 글자는 onPrimary(검정)
+    color: playerColor.onPrimary,
   },
 });

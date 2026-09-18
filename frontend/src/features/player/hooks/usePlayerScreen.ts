@@ -52,6 +52,7 @@ export const usePlayerScreen = () => {
   const playGate = usePlayGate();
 
   const [isRateSheetVisible, setIsRateSheetVisible] = useState(false);
+  const [isSleepTimerSheetVisible, setIsSleepTimerSheetVisible] = useState(false);
   const [activePanel, setActivePanel] = useState<PlayerPanelKind | null>(null);
   const [isMoreSheetVisible, setIsMoreSheetVisible] = useState(false);
   const [pendingDeleteItemId, setPendingDeleteItemId] = useState<string | null>(null);
@@ -208,6 +209,8 @@ export const usePlayerScreen = () => {
           sourceName: item.sourceName ?? undefined,
           thumbnailUrl: item.thumbnailUrl ?? undefined,
           durationSec: item.durationSec ?? undefined,
+          // 고른 편의 주제 — 빠뜨리면 카테고리 줄이 사라진다(2026-09-18 PM 지적)
+          topicIds: item.topicIds,
         },
       },
       'library',
@@ -299,6 +302,9 @@ export const usePlayerScreen = () => {
     isRateSheetVisible,
     openRateSheet: () => setIsRateSheetVisible(true),
     closeRateSheet: () => setIsRateSheetVisible(false),
+    isSleepTimerSheetVisible,
+    openSleepTimerSheet: () => setIsSleepTimerSheetVisible(true),
+    closeSleepTimerSheet: () => setIsSleepTimerSheetVisible(false),
     selectRate,
     // 펼침 패널(스크립트 PL6 · 다음 재생 목록) — 하나만 열리고, 열리면 아트워크가 압축된다
     activePanel,

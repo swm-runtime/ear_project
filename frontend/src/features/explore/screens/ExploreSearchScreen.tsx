@@ -13,12 +13,13 @@ import { theme } from '@/shared/theme';
 
 import { MiniPlayer, PlayConfirmDialog } from '@/features/player';
 
-import ExploreContentRow from '../components/ExploreContentRow';
 import ExploreMoreSheet from '../components/ExploreMoreSheet';
+import ExploreTile from '../components/ExploreTile';
 import RecentSearchList from '../components/RecentSearchList';
 import SearchInputRow from '../components/SearchInputRow';
 import SuggestedKeywordChips from '../components/SuggestedKeywordChips';
 import { EXPLORE_COPY } from '../explore.copy';
+import { exploreGridKey, toExploreGridData } from '../explore.grid';
 import { useExploreSearchScreen } from '../hooks/useExploreSearchScreen';
 
 /**
@@ -88,16 +89,24 @@ export default function ExploreSearchScreen() {
     if (screen.isNoResult) {
       return (
         <FlatList
-          data={screen.fallbackItems}
-          keyExtractor={(item) => item.content.id}
-          renderItem={({ item }) => (
-            <ExploreContentRow
-              item={item}
-              onPress={screen.handleRowPress}
-              onMorePress={screen.openMoreSheet}
-            />
-          )}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
+          data={toExploreGridData(screen.fallbackItems)}
+          keyExtractor={exploreGridKey}
+          numColumns={2}
+          columnWrapperStyle={styles.gridRow}
+          contentContainerStyle={styles.gridContent}
+          renderItem={({ item }) =>
+            item === null ? (
+              <View style={styles.gridSpacer} />
+            ) : (
+              <ExploreTile
+                item={item}
+                layout="grid"
+                onPress={screen.handleRowPress}
+                onMorePress={screen.openMoreSheet}
+              />
+            )
+          }
+          ItemSeparatorComponent={() => <View style={styles.gridSeparator} />}
           ListHeaderComponent={
             <View style={styles.noResultHeader}>
               <Text style={styles.noResultTitle}>
@@ -139,16 +148,24 @@ export default function ExploreSearchScreen() {
         ) : null}
         <FlatList
           style={screen.isShowingStaleResults ? styles.dimmed : undefined}
-          data={screen.results}
-          keyExtractor={(item) => item.content.id}
-          renderItem={({ item }) => (
-            <ExploreContentRow
-              item={item}
-              onPress={screen.handleRowPress}
-              onMorePress={screen.openMoreSheet}
-            />
-          )}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
+          data={toExploreGridData(screen.results)}
+          keyExtractor={exploreGridKey}
+          numColumns={2}
+          columnWrapperStyle={styles.gridRow}
+          contentContainerStyle={styles.gridContent}
+          renderItem={({ item }) =>
+            item === null ? (
+              <View style={styles.gridSpacer} />
+            ) : (
+              <ExploreTile
+                item={item}
+                layout="grid"
+                onPress={screen.handleRowPress}
+                onMorePress={screen.openMoreSheet}
+              />
+            )
+          }
+          ItemSeparatorComponent={() => <View style={styles.gridSeparator} />}
           ListFooterComponent={renderResultFooter()}
           onEndReached={screen.loadMore}
           onEndReachedThreshold={0.4}
@@ -228,8 +245,8 @@ const styles = StyleSheet.create({
   dimmed: {
     opacity: 0.5,
   },
+  // 좌우 여백은 격자 컨테이너(gridContent)가 이미 준다
   noResultHeader: {
-    paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.lg,
     gap: theme.spacing.md,
   },
@@ -274,8 +291,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   // 카드가 자기 배경을 갖게 되어 구분선이 필요 없다 — 카드 사이 간격만 둔다
-  separator: {
-    height: theme.spacing.sm,
+  // 검색 결과·결과 없음의 인기 콘텐츠 — 라이브러리와 같은 두 칸 썸네일 격자(2026-09-18 PM)
+  gridContent: {
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+  },
+  gridRow: {
+    gap: theme.spacing.sm * 1.5,
+  },
+  gridSpacer: {
+    flex: 1,
+  },
+  gridSeparator: {
+    height: theme.spacing.lg,
   },
   footer: {
     paddingVertical: theme.spacing.md,

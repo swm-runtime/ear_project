@@ -185,4 +185,6 @@ export interface QueueItem {
   /** 오늘 이미 차감됐는가 — 재생 게이트의 확인 팝업 여부 힌트(library-api.md 4.1) */
   isCountedToday: boolean;
   isCompleted: boolean;
+  /** 주제 — 이 편을 골라 재생할 때 플레이어의 카테고리 줄이 된다(세션 메타로 넘긴다) */
+  topicIds: string[];
 }

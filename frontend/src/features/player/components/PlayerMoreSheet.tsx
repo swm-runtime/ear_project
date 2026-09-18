@@ -6,6 +6,7 @@ import { IS_SHARE_ENABLED, SHARE_COPY } from '@/features/share';
 
 import { PLAYER_COPY } from '../player.copy';
 import { formatPlaybackTime } from '../player.format';
+import { playerColor } from '../player.theme';
 
 interface PlayerMoreSheetProps {
   isVisible: boolean;
@@ -70,9 +71,7 @@ export default function PlayerMoreSheet({
                   {summary.title ?? ''}
                 </Text>
                 <Text style={styles.subtitle} numberOfLines={1}>
-                  {[formatPlaybackTime(summary.durationSec)]
-                    .filter(Boolean)
-                    .join(' · ')}
+                  {[formatPlaybackTime(summary.durationSec)].filter(Boolean).join(' · ')}
                 </Text>
               </View>
             </View>
@@ -137,13 +136,13 @@ export default function PlayerMoreSheet({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: theme.color.overlay,
+    backgroundColor: playerColor.overlay,
     justifyContent: 'flex-end',
   },
   sheet: {
     borderTopLeftRadius: theme.radius.lg,
     borderTopRightRadius: theme.radius.lg,
-    backgroundColor: theme.color.background,
+    backgroundColor: playerColor.background,
     paddingHorizontal: theme.spacing.md,
     paddingTop: theme.spacing.sm,
     paddingBottom: theme.spacing.xl,
@@ -153,7 +152,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: theme.color.border,
+    backgroundColor: playerColor.border,
     marginBottom: theme.spacing.sm,
   },
   summary: {
@@ -166,10 +165,10 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: theme.radius.sm,
-    backgroundColor: theme.color.surface,
+    backgroundColor: playerColor.surface,
   },
   thumbnailPlaceholder: {
-    backgroundColor: theme.color.surface,
+    backgroundColor: playerColor.surface,
   },
   summaryText: {
     flex: 1,
@@ -178,15 +177,15 @@ const styles = StyleSheet.create({
   title: {
     fontSize: theme.font.size.sm,
     fontWeight: '600',
-    color: theme.color.textPrimary,
+    color: playerColor.textPrimary,
   },
   subtitle: {
     fontSize: theme.font.size.xs,
-    color: theme.color.textSecondary,
+    color: playerColor.textSecondary,
   },
   divider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: theme.color.border,
+    backgroundColor: playerColor.border,
     marginVertical: theme.spacing.xs,
   },
   action: {
@@ -195,13 +194,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.sm,
   },
   actionPressed: {
-    backgroundColor: theme.color.surface,
+    backgroundColor: playerColor.surface,
   },
   actionLabel: {
     fontSize: theme.font.size.md,
-    color: theme.color.textPrimary,
+    color: playerColor.textPrimary,
   },
   actionLabelDanger: {
-    color: theme.color.danger,
+    color: playerColor.danger,
   },
 });

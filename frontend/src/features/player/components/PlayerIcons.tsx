@@ -1,5 +1,8 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect } from 'react';
+import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
+
+import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 
 interface IconProps {
   size: number;
@@ -82,20 +85,55 @@ const SEEK_HEAD_PATH = 'M4.25 7.75L7.95 7.35L4.63 4.03Z';
 /** 앞으로 — 호·화살촉을 좌우 반전. 숫자는 그대로 */
 const MIRROR = 'translate(24 0) scale(-1 1)';
 
-function SeekIcon({ size, color, mirrored }: IconProps & { mirrored: boolean }) {
+/** 누를 때 원호가 한 바퀴 도는 시간 — 빠르게 출발해 부드럽게 멈춘다. 연타를 방해하지 않을 만큼 짧게 */
+const SEEK_SPIN_MS = 480;
+
+interface SeekIconProps extends IconProps {
+  mirrored: boolean;
+  /**
+   * 값이 바뀔 때마다 원호·화살촉이 가리키는 방향으로 **한 바퀴** 돌아 제자리에 선다(2026-09-18 PM —
+   * 애플 팟캐스트·유튜브의 ±초 버튼 피드백). 숫자 "10"은 돌지 않는다. 버튼을 누른 횟수를 넘기면 된다
+   */
+  spinKey?: number;
+}
+
+function SeekIcon({ size, color, mirrored, spinKey = 0 }: SeekIconProps) {
+  const spin = useAnimatedValue(0);
+  useEffect(() => {
+    if (spinKey === 0) return;
+    // 연타하면 앞선 회전을 끊고 처음부터 — 탭마다 같은 크기의 반응이 나온다
+    spin.setValue(0);
+    const animation = Animated.timing(spin, {
+      toValue: 1,
+      duration: SEEK_SPIN_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [spinKey, spin]);
+  // 뒤로 = 반시계, 앞으로 = 시계 — 화살촉이 가리키는 방향이다
+  const rotate = spin.interpolate({
+    inputRange: [0, 1],
+    // 한 바퀴 — 360° 는 0° 와 같은 모습이라 끝나면 그대로 제자리다(되돌리는 동작이 없다)
+    outputRange: ['0deg', mirrored ? '360deg' : '-360deg'],
+  });
+
   return (
     <View style={{ width: size, height: size }}>
-      <Svg width={size} height={size} viewBox="0 0 24 24">
-        <Path
-          d={SEEK_RING_PATH}
-          stroke={color}
-          strokeWidth={1.8}
-          strokeLinecap="round"
-          fill="none"
-          transform={mirrored ? MIRROR : undefined}
-        />
-        <Path d={SEEK_HEAD_PATH} fill={color} transform={mirrored ? MIRROR : undefined} />
-      </Svg>
+      <Animated.View style={{ transform: [{ rotate }] }}>
+        <Svg width={size} height={size} viewBox="0 0 24 24">
+          <Path
+            d={SEEK_RING_PATH}
+            stroke={color}
+            strokeWidth={1.8}
+            strokeLinecap="round"
+            fill="none"
+            transform={mirrored ? MIRROR : undefined}
+          />
+          <Path d={SEEK_HEAD_PATH} fill={color} transform={mirrored ? MIRROR : undefined} />
+        </Svg>
+      </Animated.View>
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
         <Text
           style={[seekStyles.label, { color, fontSize: size * 0.4, lineHeight: size }]}
@@ -109,12 +147,12 @@ function SeekIcon({ size, color, mirrored }: IconProps & { mirrored: boolean }) 
 }
 
 /** 10초 뒤로 — 왼쪽이 트인 반시계 화살표 원호 + "10" */
-export function SeekBackIcon(props: IconProps) {
+export function SeekBackIcon(props: IconProps & { spinKey?: number }) {
   return <SeekIcon {...props} mirrored={false} />;
 }
 
 /** 10초 앞으로 — 오른쪽이 트인 시계 화살표 원호 + "10" */
-export function SeekForwardIcon(props: IconProps) {
+export function SeekForwardIcon(props: IconProps & { spinKey?: number }) {
   return <SeekIcon {...props} mirrored />;
 }
 
@@ -142,14 +180,34 @@ export function QueueIcon({ size, color }: IconProps) {
   );
 }
 
-/** 수면 타이머 — 초승달(2026-09-16, 앱바로 이동). 선 굵기는 ±10초 아이콘과 같다 */
-export function SleepTimerIcon({ size, color }: IconProps) {
+/**
+ * 수면 타이머 — **통통한 초승달 + z z**(2026-09-19 PM, 애플의 `moon.zzz` 문법).
+ *
+ * - 가는 선 초승달은 작은 크기에서 달이 아니라 "C"·괄호로 읽혔고, 달 하나만 있으면 다크 모드 전환으로도 읽힌다.
+ *   몸통이 두꺼운 초승달(오목한 쪽이 오른쪽 위)에 그 오목한 자리로 작은 z 두 개를 넣어 "잠"을 명시한다.
+ * - 꺼짐 = 선, **켜짐(`filled`) = 채움** — 애플이 시스템 전반에서 쓰는 규칙이다(선 = 비활성, 채움 = 활성).
+ *   색이 아니라 형태로 구분한다. z 는 어느 상태에서도 선이다.
+ * - 달은 24칸 안에서 왼쪽 아래로 치우쳐 앉고 z 가 오른쪽 위를 채워, 묶음 전체의 중심이 (12,12) 근처에 온다.
+ *   선 굵기는 ±10초 아이콘과 같은 1.8, z 는 작아서 1.5
+ */
+const SLEEP_MOON_PATH = 'M16.44 13.94A7.56 7.56 0 1 1 8.22 5.72 5.88 5.88 0 0 0 16.44 13.94z';
+const SLEEP_Z_PATH = 'M14.4 3.2h4.4l-4.4 4.8h4.4M19.7 9.8h2.9l-2.9 3.2h2.9';
+
+export function SleepTimerIcon({ size, color, filled = false }: IconProps & { filled?: boolean }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Path
-        d="M14.5 3.5a8.5 8.5 0 1 0 6 14.5 7 7 0 0 1-6-14.5z"
+        d={SLEEP_MOON_PATH}
         stroke={color}
         strokeWidth={1.8}
+        strokeLinejoin="round"
+        fill={filled ? color : 'none'}
+      />
+      <Path
+        d={SLEEP_Z_PATH}
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinecap="round"
         strokeLinejoin="round"
         fill="none"
       />
@@ -170,6 +228,24 @@ export function ScriptIcon({ size, color }: IconProps) {
         d="M5.5 7h13M5.5 12h9M5.5 17h11"
         stroke={color}
         strokeWidth={1.5}
+        strokeLinecap="round"
+        fill="none"
+      />
+    </Svg>
+  );
+}
+
+/**
+ * 순서 변경 손잡이 — 가로줄 두 개(재생 목록 행 오른쪽, 2026-09-18). 잡고 끄는 자리라는 관례 표식이다.
+ * 대본 아이콘(길이가 다른 세 줄)과 헷갈리지 않게 같은 길이 두 줄로 둔다
+ */
+export function ReorderIcon({ size, color }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path
+        d="M5 9.5h14M5 14.5h14"
+        stroke={color}
+        strokeWidth={1.8}
         strokeLinecap="round"
         fill="none"
       />

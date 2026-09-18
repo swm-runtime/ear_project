@@ -47,6 +47,6 @@ export interface ExecResult<T = unknown> {
 }
 
 export interface Executor {
-  readonly kind: "claude-cli" | "api" | "none";
+  readonly kind: "claude-cli" | "api" | "openai" | "none";
   run<T>(req: ExecRequest): Promise<ExecResult<T>>;
 }

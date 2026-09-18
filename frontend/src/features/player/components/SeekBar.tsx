@@ -7,6 +7,7 @@ import { theme } from '@/shared/theme';
 import { SEEK_STEP_SEC } from '../player.constants';
 import { PLAYER_COPY } from '../player.copy';
 import { formatPlaybackTime, formatPlaybackTimeA11y } from '../player.format';
+import { playerColor } from '../player.theme';
 
 interface SeekBarProps {
   positionSec: number;
@@ -138,9 +139,7 @@ export default function SeekBar({
             onTrackCenter?.(event.nativeEvent.layout.y + event.nativeEvent.layout.height / 2)
           }
         >
-          <View
-            style={[styles.fill, onImage && styles.fillOnImage, { width: `${ratio * 100}%` }]}
-          />
+          <View style={[styles.fill, { width: `${ratio * 100}%` }]} />
           {/* 전체 폭으로 흘리면 0%·100%에서 손잡이 절반이 화면 밖으로 나간다 —
               측정한 폭 안으로 가둬 항상 온전히 보이게 한다 */}
           <Animated.View
@@ -165,7 +164,6 @@ export default function SeekBar({
                       )
                     : 0,
               },
-              onImage && styles.fillOnImage,
               disabled && (onImage ? styles.thumbDisabledOnImage : styles.thumbDisabled),
             ]}
           />
@@ -182,8 +180,12 @@ export default function SeekBar({
 const THUMB_SIZE = 14;
 /** 손을 뗀 뒤 썸이 사라지는 시간 */
 const THUMB_HIDE_MS = 140;
-/** 사진 위 채움·썸 — 밝은·어두운 사진 어느 쪽에서도 떨어지는 중간 회색 */
-const ON_IMAGE_FILL_COLOR = '#A0A0A8';
+/*
+ * 사진 위(재생 목록 열림) 트랙 — 선이 사진 밑변에 걸쳐 위 절반은 사진, 아래 절반은 플레이어의 검정 바탕이다.
+ * 반투명 흰색은 두 바탕 모두에서 같은 "어두운 위의 옅은 선"으로 읽힌다(밝은 바탕이던 때는 아래 절반에서
+ * 사라져 불투명 색을 썼다 — 2026-09-18 검정 플레이어로 바뀌며 되돌렸다). 채움·썸은 기본과 같은 흰색
+ */
+const ON_IMAGE_TRACK_COLOR = 'rgba(255, 255, 255, 0.35)';
 
 const styles = StyleSheet.create({
   touchArea: {
@@ -194,12 +196,12 @@ const styles = StyleSheet.create({
   track: {
     height: 4,
     borderRadius: 2,
-    backgroundColor: theme.color.border,
+    backgroundColor: playerColor.border,
   },
   fill: {
     height: '100%',
     borderRadius: 2,
-    backgroundColor: theme.color.primary,
+    backgroundColor: playerColor.primary,
   },
   thumb: {
     position: 'absolute',
@@ -208,10 +210,10 @@ const styles = StyleSheet.create({
     width: THUMB_SIZE,
     height: THUMB_SIZE,
     borderRadius: THUMB_SIZE / 2,
-    backgroundColor: theme.color.primary,
+    backgroundColor: playerColor.primary,
   },
   thumbDisabled: {
-    backgroundColor: theme.color.border,
+    backgroundColor: playerColor.border,
   },
   timeRow: {
     flexDirection: 'row',
@@ -219,18 +221,14 @@ const styles = StyleSheet.create({
   },
   timeLabel: {
     fontSize: theme.font.size.xs,
-    color: theme.color.textSecondary,
+    color: playerColor.textSecondary,
     fontVariant: ['tabular-nums'],
   },
-  // 사진 위(재생 목록 열림) — 트랙은 흰 반투명, 채움·썸은 중간 회색(2026-09-18 PM). 흰색은 하늘 사진에서,
-  // 검정은 어두운 사진에서 사라졌다 — 회색은 어느 쪽 배경과도 어느 정도 떨어진다
+  // 사진 위 — 색의 근거는 위 ON_IMAGE_* 상수 주석
   trackOnImage: {
-    backgroundColor: 'rgba(255, 255, 255, 0.35)',
-  },
-  fillOnImage: {
-    backgroundColor: ON_IMAGE_FILL_COLOR,
+    backgroundColor: ON_IMAGE_TRACK_COLOR,
   },
   thumbDisabledOnImage: {
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    backgroundColor: ON_IMAGE_TRACK_COLOR,
   },
 });

@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export type ExecutorKind = "claude-cli" | "api" | "none";
+export type ExecutorKind = "claude-cli" | "api" | "openai" | "none";
 export type Capability = "ai" | "io";
 export type StorageMode = "direct" | "web";
 
@@ -39,7 +39,7 @@ export const cfg = {
    *  생성 컨텍스트에 섞이므로 레포 밖(기본 pipeline/.work, gitignore)에 둔다. 원본은 S3 (storage.ts) — 지워도 다음 단계가 다시 내려받는다. 구 REPO_ROOT 는 호환용 */
   workRoot: process.env.WORK_ROOT || process.env.REPO_ROOT || path.resolve(here, "..", "..", "..", ".work"),
   workerName: process.env.WORKER_NAME || `${os.userInfo().username}@${os.hostname()}`,
-  executor: (process.env.EXECUTOR || "claude-cli") as ExecutorKind,
+  executor: (process.env.EXECUTOR || "claude-cli") as ExecutorKind, // openai (2026-09-19 실험): OPENAI_API_KEY(썸네일과 공유)로 Responses API — 단계 모델은 claude 이름을 동급 GPT 로 사상 (executors/openai-api.ts)
   capabilities: (process.env.CAPABILITIES || "ai,io").split(",").map((s) => s.trim()) as Capability[],
   /** 대본 생성 모델 — 미설정이면 claude CLI 기본 모델(현재 Fable). 생성 품질이 제품이라 최상위 모델을 쓴다. 바꾸면 spec/09 7.4(생성 대개정) 재검증 */
   claudeModel: process.env.CLAUDE_MODEL || undefined,
@@ -57,6 +57,9 @@ export const cfg = {
   draftWriteModel: process.env.DRAFT_WRITE_MODEL || "claude-opus-5", // 2026-09-08 박수헌: 판정용 3편을 opus-5 로 만들어 사람 판정으로 확정 (Fable 대본 ≈$4.5 → opus ≈$2). 되돌리려면 DRAFT_WRITE_MODEL=claude-fable-5-1
   /** 비평 전용 모델 — 2026-09-01 박수헌: 비평은 Opus 고정 (Fable 한도 부족). 판정자 모델은 회귀 세트 재검증 트리거이므로 바꾸면 spec/09 7.4 */
   criticModel: process.env.CRITIC_MODEL || "claude-opus-5",
+  /** 축 심사 (full-v8.1): 설계 직후 구성안의 구간이 축의 하위 질문에 답하는지 값싼 단발 호출로 보고, fail 이면 한 번 재설계. AXIS_CHECK=off 로 끔 */
+  axisCheck: process.env.AXIS_CHECK !== "off",
+  axisCheckModel: process.env.AXIS_CHECK_MODEL || "claude-sonnet-5",
   /** QA 통과 연쇄가 큐에 넣는 비평 루브릭 (spec/09 7.1 — 회귀 세트 판정은 critic-v2 배점으로, v1 5축에 사람 시간을 쓰지 않는다). 2026-09-07 기본 v2. 되돌리려면 CRITIC_RUBRIC=v1 */
   criticRubric: (process.env.CRITIC_RUBRIC === "v1" ? "v1" : "v2") as "v1" | "v2",
   /** 비평 실행 형태 (2026-09-16 비용): single = 루브릭·규칙·골드 인라인(시스템 블록 캐시)·도구 없음·리포트는 JSON 으로(기본 — 같은 루브릭 3편 대조에서 편향 −1.3 vs −2.7, 동의 플래그 유지 19/41 vs 18/41, ⭐ 10/19 vs 12/19, 비용 $1.23 vs $2.41) · agent = 파일 Read·Write 루프(CRITIC_MODE=agent). 측정 작업은 payload.mode 로 지정 */
@@ -110,7 +113,7 @@ export const cfg = {
   ttsUsdPer1kChars: process.env.TTS_USD_PER_1K_CHARS ? Number(process.env.TTS_USD_PER_1K_CHARS) : 0.1,
 
   /** 썸네일 (KAN-50) — OpenAI 이미지 API. 키는 서버 env.prod 에만 두고 코드·.env.example 에 실값을 넣지 않는다 */
-  openaiKey: process.env.OPENAI_API_KEY || "",
+  openaiKey: process.env.OPENAI_API_KEY || "", // 썸네일(gpt-image) + EXECUTOR=openai 실행기가 공유
   /**
    * **gpt-image-2 확정** (2026-09-10 박수헌 — mini 와 같은 에피소드로 뽑아 비교한 뒤).
    * 티켓의 열린 항목("mini 가 앵커 화풍을 얼마나 따르는지 첫 5편 실측 후 확정")을 닫은 값이다.
