@@ -1,9 +1,10 @@
 import { useNavigation } from '@react-navigation/native';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Image, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Image, PanResponder, Pressable, StyleSheet, View } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { theme } from '@/shared/theme';
+import MarqueeText from '@/shared/ui/MarqueeText';
 
 import {
   MINI_PLAYER_DISMISS_DISTANCE_RATIO,
@@ -60,7 +61,7 @@ export default function MiniPlayer({
   const rootRef = useRef<View>(null);
   // 썸네일·제목의 실제 자리 — 상수로 추정하면 몇 px 어긋나 착지 순간 잔상이 겹친다(2026-09-17)
   const thumbRef = useRef<View>(null);
-  const titleRef = useRef<Text>(null);
+  const titleRef = useRef<View>(null);
   const setMiniLayout = useMiniPlayerLayoutStore((s) => s.setLayout);
   useEffect(() => () => setMiniLayout(null), [setMiniLayout]);
 
@@ -241,9 +242,10 @@ export default function MiniPlayer({
               <Image source={{ uri: view.thumbnailUrl }} style={StyleSheet.absoluteFill} />
             ) : null}
           </View>
-          <Text ref={titleRef} style={styles.title} numberOfLines={1}>
-            {view.title}
-          </Text>
+          {/* 긴 제목은 전체 플레이어처럼 흘러 끝을 보여준다(2026-09-18 PM) — 측정용 래퍼가 착지 좌표를 준다 */}
+          <View ref={titleRef} style={styles.titleBox}>
+            <MarqueeText text={view.title} style={styles.title} />
+          </View>
         </Pressable>
         <Pressable
           style={styles.playButton}
@@ -298,8 +300,10 @@ const styles = StyleSheet.create({
     backgroundColor: theme.color.background,
     overflow: 'hidden',
   },
-  title: {
+  titleBox: {
     flex: 1,
+  },
+  title: {
     fontSize: theme.font.size.sm,
     fontWeight: '600',
     color: theme.color.textPrimary,
