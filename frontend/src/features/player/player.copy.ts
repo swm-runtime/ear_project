@@ -87,6 +87,11 @@ export const PLAYER_COPY = {
     retry: '다시 시도',
     itemA11y: (title: string, minutes: number, tags: string[]) =>
       [title, `${minutes}분`, ...tags].join(', '),
+    /** 순서 변경 손잡이 — 끌기의 낭독기 대체 수단은 아래 두 액션이다 */
+    reorderA11y: (title: string, position: number, total: number) =>
+      `${title} 순서 변경, ${total}개 중 ${position}번째`,
+    moveUpA11y: '위로 이동',
+    moveDownA11y: '아래로 이동',
   },
 
   scriptSheet: {
