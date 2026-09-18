@@ -176,3 +176,21 @@ export function ScriptIcon({ size, color }: IconProps) {
     </Svg>
   );
 }
+
+/**
+ * 순서 변경 손잡이 — 가로줄 두 개(재생 목록 행 오른쪽, 2026-09-18). 잡고 끄는 자리라는 관례 표식이다.
+ * 대본 아이콘(길이가 다른 세 줄)과 헷갈리지 않게 같은 길이 두 줄로 둔다
+ */
+export function ReorderIcon({ size, color }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path
+        d="M5 9.5h14M5 14.5h14"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        fill="none"
+      />
+    </Svg>
+  );
+}

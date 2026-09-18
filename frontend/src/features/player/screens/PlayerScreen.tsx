@@ -40,6 +40,7 @@ import PlayerScriptPanel from '../components/PlayerScriptPanel';
 import SeekBar from '../components/SeekBar';
 import { usePlayerScreen } from '../hooks/usePlayerScreen';
 import type { PlayerPanelKind } from '../hooks/usePlayerScreen';
+import { useQueueOrder } from '../hooks/useQueueOrder';
 import { useQueueQuery } from '../hooks/useQueueQuery';
 import { useScriptQuery } from '../hooks/useScriptQuery';
 import {
@@ -49,6 +50,7 @@ import {
 } from '../player.constants';
 import { PLAYER_COPY } from '../player.copy';
 import { playerColor } from '../player.theme';
+import type { QueueItem } from '../player.types';
 import { useMiniPlayerLayoutStore } from '../store/mini-player-layout.store';
 import { usePlayerOpenGestureStore } from '../store/player-open-gesture.store';
 
@@ -67,7 +69,9 @@ export default function PlayerScreen() {
   // 재생 목록 — 바닥 서랍이 연다(2026-09-16, 스크립트와 자리 교환). 목록 = 라이브러리 첫 페이지(브리지),
   // 열었을 때만 조회한다. 손잡이는 항상 있다 — 라이브러리는 언제나 있으므로
   const queueQuery = useQueueQuery(screen.activePanel === 'queue');
-  const queueItems = queueQuery.data ?? [];
+  // 사용자가 손잡이로 바꾼 순서를 기기에 저장해 두고 받아 온 목록 위에 입힌다(2026-09-18)
+  const queueOrder = useQueueOrder(queueQuery.data ?? EMPTY_QUEUE);
+  const queueItems = queueOrder.orderedItems;
   const isPanelAvailable = (kind: PlayerPanelKind) =>
     kind === 'script' ? scriptSegments !== null : true;
   const activePanel =
@@ -1205,6 +1209,7 @@ export default function PlayerScreen() {
             currentContentId={session.contentId}
             showHeader={false}
             onSelect={screen.playQueueItem}
+            onReorder={queueOrder.move}
             onRetry={() => void queueQuery.refetch()}
             onSwipeRight={() => setPanel(null)}
           />
@@ -1367,6 +1372,8 @@ const ON_IMAGE_COLOR = '#FFFFFF';
 const QUEUE_COMMIT_RATIO = 0.35;
 const QUEUE_COMMIT_VELOCITY = 0.5;
 /** 아래로 끌기 — 화면 높이의 이 비율만큼 끌면 진행값이 0(미니플레이어)에 닿는다 */
+/** 목록을 받기 전의 빈 재생 목록 — 렌더마다 새 배열을 만들면 순서 계산(useMemo)이 매번 다시 돈다 */
+const EMPTY_QUEUE: QueueItem[] = [];
 const PLAYER_DRAG_RANGE_RATIO = 0.7;
 /** 바탕 커버의 흐림 — 형태가 남지 않고 색 덩어리만 보일 만큼 */
 const BACKDROP_BLUR_RADIUS = 60;
