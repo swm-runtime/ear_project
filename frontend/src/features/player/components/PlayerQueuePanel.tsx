@@ -119,7 +119,10 @@ function QueueRow({
       toValue: shift,
       duration: ROW_SHIFT_MS,
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
+      // JS 드라이버 — 같은 뷰의 translateY 가 끄는 동안엔 dragY(손가락마다 setValue 하는 JS 값)로 바뀐다.
+      // 이 값을 네이티브로 돌리면 뷰가 네이티브 구동으로 넘어가 **JS 값의 변화가 화면에 반영되지 않는다** —
+      // 실기기에서 줄이 들리기만 하고 손가락을 따라오지 않았다(2026-09-19 아이폰). 웹엔 네이티브 드라이버가 없어 안 잡혔다
+      useNativeDriver: false,
     });
     animation.start();
     return () => animation.stop();
@@ -138,6 +141,8 @@ function QueueRow({
         onMoveShouldSetPanResponder: () => true,
         // 끄는 동안 목록 스크롤·플레이어 끌어내리기·시트 끌기에 터치를 내주지 않는다
         onPanResponderTerminationRequest: () => false,
+        // Android — 네이티브 스크롤뷰가 이 터치를 가로채지 못하게 한다
+        onShouldBlockNativeResponder: () => true,
         onPanResponderGrant: () => latest.current.onDragStart(latest.current.index),
         onPanResponderMove: (_, gesture) => latest.current.onDragMove(gesture.dy),
         onPanResponderRelease: () => latest.current.onDragEnd(),
@@ -359,7 +364,8 @@ export default function PlayerQueuePanel({
           toValue: (current.hover - current.from) * ROW_STEP,
           duration: ROW_SETTLE_MS,
           easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
+          // 위 shiftY 와 같은 이유 — dragY 는 끄는 내내 JS 에서 직접 움직이는 값이다
+          useNativeDriver: false,
         }).start(() => {
           if (current.hover !== current.from) onReorderRef.current(current.from, current.hover);
           setDrag(null);
