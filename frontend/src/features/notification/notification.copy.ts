@@ -18,6 +18,19 @@ export const NOTIFICATION_COPY = {
     later: '나중에',
   },
 
+  /** 푸시 수신·탭(notification.md 4.4·4.5) */
+  push: {
+    arrivalBanner: (count: number) => `새 콘텐츠 ${count}개 도착`,
+    /** 편수를 못 읽은 통지 — 틀린 숫자를 말하지 않는다 */
+    arrivalBannerNoCount: '새 콘텐츠 도착',
+    arrivalBannerHint: '라이브러리로 이동해요',
+    /** 딥링크 대상이 회수·삭제된 경우의 폴백 안내(4.4-4) */
+    contentUnavailableToast: '콘텐츠를 찾을 수 없어요',
+  },
+
+  /** Android 알림 채널의 표시 이름 — 기기 설정 > 알림에 보인다. "드립"은 쓰지 않는다 */
+  androidChannelName: '새 콘텐츠 도착',
+
   /**
    * 재고 팝업 — [나중에] 뒤에 한 번만 되짚는다(onboarding-uiux.md 4.8).
    * 출처 있는 통계를 확보하지 못해 수치 없는 정성 문구를 쓴다 —
