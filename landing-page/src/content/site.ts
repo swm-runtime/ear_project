@@ -1,3 +1,5 @@
+import { featuredSources, sourceItems } from "./sources";
+
 /**
  * 랜딩페이지의 문구·수치를 한곳에 모은 파일.
  *
@@ -152,27 +154,16 @@ export const topicPicker = {
 
 /**
  * Sources 섹션 — 히어로 바로 아래. "팟캐스트로는 들을 수 없던 자료"가 이어의 강점이라는 멘토 피드백(2026-09-18)을
- * 첫 화면 다음에 바로 보여 준다. 자료 이름은 **글자 워드마크**로만 그린다 — 실제 로고 이미지는 상표 사용 허락이
- * 필요해 넣지 않는다(결정 보류). 목록은 지금까지 콘텐츠가 실제로 참고한 출처에서 골랐다.
+ * 첫 화면 다음에 바로 보여 준다. 출처 목록과 대표 5곳(로고)은 운영 DB에서 가져온 `./sources.ts` 가 원천이다 —
+ * 여기서 임의로 이름을 적지 않는다.
  */
 export const sources = {
   eyebrow: "Sources",
   title: "다른 팟캐스트에는 없는 자료를 들려드려요",
   lede: "대학 연구실, 해외 매체, 기술 블로그, 논문. 읽어야만 볼 수 있던 자료를 활용해 팟캐스트로 만들어요.",
   caption: "이런 자료를 담아 매일 팟캐스트를 만들어요.",
-  /** 워드마크. `style`은 서체 계열만 가른다 — 색은 전부 잉크색이다 */
-  items: [
-    { name: "MIT McGovern Institute", style: "sans" },
-    { name: "The New York Times Magazine", style: "serif" },
-    { name: "arXiv", style: "mono" },
-    { name: "toss tech", style: "sans" },
-    { name: "Harvard Business Review", style: "serif" },
-    { name: "Nature", style: "serif" },
-    { name: "Stanford HAI", style: "sans" },
-    { name: "The Conversation", style: "serif" },
-    { name: "Psychology Today", style: "sans" },
-    { name: "Neuroscience News", style: "mono" },
-  ],
+  items: sourceItems,
+  featured: featuredSources,
 } as const;
 
 export const problems = [

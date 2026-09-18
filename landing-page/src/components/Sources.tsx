@@ -10,18 +10,8 @@ import s from "./Sources.module.css";
 const LINE_STARTS = [90, 300, 500, 700, 900, 1110];
 const VIEW_W = 1200;
 const VIEW_H = 220;
-/**
- * 선을 타고 내려오는 대표 자료 5개 — 원형 배지(사용자 요청 2026-09-18: 글자 칩이 아니라 로고를 원형으로).
- * 실제 로고 그림은 상표 사용 허락 문제로 쓰지 않는다(site.ts sources 주석) — 대신 각 매체의 이름 첫 글자·약칭을
- * 브랜드 색 원 위에 얹어 "로고처럼" 보이게 한다. `line`은 어느 줄기를 타는지(LINE_STARTS 인덱스).
- */
-const TRAVELERS: { name: string; mark: string; color: string; size: number; line: number; style: string }[] = [
-  { name: "MIT McGovern Institute", mark: "MIT", color: "#a31f34", size: 13, line: 0, style: "sans" },
-  { name: "The New York Times Magazine", mark: "T", color: "#121212", size: 26, line: 1, style: "serif" },
-  { name: "arXiv", mark: "arXiv", color: "#b31b1b", size: 12, line: 2, style: "mono" },
-  { name: "toss tech", mark: "toss", color: "#0064ff", size: 13, line: 4, style: "sans" },
-  { name: "Harvard Business Review", mark: "HBR", color: "#c8102e", size: 14, line: 5, style: "serif" },
-];
+/** 선을 타고 내려오는 대표 5곳 — 이름·로고·타는 줄기는 content/sources.ts(운영 DB에서 가져온 값)가 원천이다 */
+const TRAVELERS = sources.featured;
 /** 이어 마크 원(.nodeMark 56px)의 중심은 선 끝보다 이만큼 아래다 — 배지가 마지막에 그 중심까지 내려와 스며든다 */
 const NODE_CENTER_DY = 28;
 /** 핀 모드가 켜지는 최소 화면. 좁거나 낮은 화면에서는 고정 없이 종전처럼 스크롤 등장만 한다 */
@@ -42,7 +32,7 @@ const easeInOut = (t: number) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2,
  * 자료 칩의 위치는 실제 SVG 선(`getPointAtLength`)에서 읽어 어느 화면 폭에서도 선 위를 정확히 탄다.
  *
  * 좁은·낮은 화면과 reduced-motion에서는 고정하지 않고 종전 스크롤 등장(ScrollReveal의 .is-visible)만 쓴다.
- * 로고 이미지는 쓰지 않는다 — 워드마크 글자만(site.ts sources 주석).
+ * 띠의 이름과 배지의 로고는 운영 DB(admin) 출처 풀에서 가져온다 — content/sources.ts.
  */
 export function Sources() {
   const stageRef = useRef<HTMLElement>(null);
@@ -206,11 +196,12 @@ export function Sources() {
                 ref={(el) => {
                   chipRefs.current[i] = el;
                 }}
-                className={`${s.badge} ${s[`badge_${t.style}`]}`}
-                style={{ "--brand": t.color, "--fs": `${t.size}px` } as React.CSSProperties}
+                className={s.badge}
                 title={t.name}
               >
-                {t.mark}
+                {/* 공식 아이콘 — 정적 PNG라 next/image 최적화가 필요 없다 */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img className={s.badgeLogo} src={t.logo} alt="" width={34} height={34} loading="lazy" />
               </span>
             ))}
           </div>
