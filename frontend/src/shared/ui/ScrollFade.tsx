@@ -14,6 +14,11 @@ interface ScrollFadeProps {
   edge?: 'top' | 'bottom';
   /** 흘러 들어갈 배경색 — 기본은 앱 배경. 바탕색이 다른 화면(검정 플레이어)은 그 색을 준다 */
   color?: string;
+  /**
+   * 가장자리에서의 최대 불투명도(기본 1 = 배경색으로 완전히 덮는다). 바탕이 단색이 아니라 그림(흐린 커버)이면
+   * 1로 덮은 띠가 바탕과 달라 막대처럼 보인다 — 낮춰서 옅은 그늘처럼 쓴다
+   */
+  maxOpacity?: number;
 }
 
 /**
@@ -28,10 +33,11 @@ interface ScrollFadeProps {
 export default function ScrollFade({
   edge = 'bottom',
   color = theme.color.background,
+  maxOpacity = 1,
 }: ScrollFadeProps) {
   const isTop = edge === 'top';
   // 그라데이션 id 는 문서 안에서 유일해야 한다 — 방향·색이 다른 것들이 한 화면(웹 문서)에 있을 수 있다
-  const gradientId = `scrollFade${isTop ? 'Top' : 'Bottom'}${color.replace(/[^a-zA-Z0-9]/g, '')}`;
+  const gradientId = `scrollFade${isTop ? 'Top' : 'Bottom'}${color.replace(/[^a-zA-Z0-9]/g, '')}${Math.round(maxOpacity * 100)}`;
   return (
     <View
       style={[styles.fade, isTop ? styles.top : styles.bottom]}
@@ -42,8 +48,8 @@ export default function ScrollFade({
       <Svg width="100%" height={FADE_HEIGHT}>
         <Defs>
           <LinearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={color} stopOpacity={isTop ? 1 : 0} />
-            <Stop offset="1" stopColor={color} stopOpacity={isTop ? 0 : 1} />
+            <Stop offset="0" stopColor={color} stopOpacity={isTop ? maxOpacity : 0} />
+            <Stop offset="1" stopColor={color} stopOpacity={isTop ? 0 : maxOpacity} />
           </LinearGradient>
         </Defs>
         <Rect x="0" y="0" width="100%" height={FADE_HEIGHT} fill={`url(#${gradientId})`} />

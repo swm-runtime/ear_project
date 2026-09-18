@@ -116,14 +116,17 @@ export default function PlayerScriptPanel({
         }}
       />
       {/* 헤더와의 경계 — 선을 긋지 않고, 목록이 헤더 밑으로 올라가며 배경색으로 흐려져 사라진다(2026-09-18 PM) */}
-      <ScrollFade edge="top" color={playerColor.background} />
+      <ScrollFade edge="top" color={playerColor.background} maxOpacity={SCRIPT_FADE_OPACITY} />
       {/* 아래쪽도 대칭 — 컨트롤 위에서 문단이 잘린 채 끝나지 않고 흐려지며 사라진다 */}
-      <ScrollFade edge="bottom" color={playerColor.background} />
+      <ScrollFade edge="bottom" color={playerColor.background} maxOpacity={SCRIPT_FADE_OPACITY} />
       {/* 손잡이는 서랍의 아랫단이다 — 접힌 상태의 바닥 손잡이와 같은 자리·같은 모양이라,
           위로 끌어 올린 것을 아래로 끌어 내리는 것으로 읽힌다. 탭도 접는다 */}
     </View>
   );
 }
+
+/** 목록 위·아래 페이드의 최대 불투명도 — 바탕이 흐린 커버라 완전히 덮으면 띠가 막대처럼 보인다(2026-09-18) */
+const SCRIPT_FADE_OPACITY = 0.6;
 
 const styles = StyleSheet.create({
   // 헤더와의 경계는 선이 아니라 위쪽 페이드(ScrollFade top)가 만든다

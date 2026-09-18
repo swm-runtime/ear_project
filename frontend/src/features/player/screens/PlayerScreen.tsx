@@ -724,6 +724,11 @@ export default function PlayerScreen() {
         playerColor.background,
       ],
     }),
+    // 흐린 커버 바탕 — 시트가 검정으로 넘어가는 구간에 함께 나타난다(그 전엔 밝은 미니플레이어 색이어야 한다)
+    backdropOpacity: openProgress.interpolate({
+      inputRange: [0, 0.12, 0.4, 1],
+      outputRange: [0, 0, 1, 1],
+    }),
     // 뒤의 라이브러리는 살짝 가라앉는다 — 시트가 그 위에 얹혔다는 층 감각
     dimOpacity: openProgress.interpolate({ inputRange: [0, 1], outputRange: [0, 0.35] }),
   };
@@ -836,7 +841,25 @@ export default function PlayerScreen() {
           },
         ]}
         pointerEvents="none"
-      />
+      >
+        {/*
+          바탕 — 커버를 크게 흐려 깔고 어두운 막을 얹는다(2026-09-18 PM, 애플 뮤직 방식). 무채색 단색은 값이
+          뭐든 "꺼멓게" 읽혔다. 곡의 색이 바탕에 배면 같은 어두움이라도 답답하지 않다. 시트 안에 둬서 시트가
+          자라는 모양대로 잘리고, 시트 색이 검정으로 넘어가는 구간(12~40%)에 함께 나타난다. 색 추출은 네이티브
+          모듈이 필요해 쓰지 않았다 — 이미지 흐림은 기본 기능이라 OTA 로 나간다
+        */}
+        {session.meta.thumbnailUrl ? (
+          <Animated.View style={[styles.backdrop, { opacity: morph.backdropOpacity }]}>
+            <Image
+              source={{ uri: session.meta.thumbnailUrl }}
+              style={styles.backdropImage}
+              blurRadius={BACKDROP_BLUR_RADIUS}
+              resizeMode="cover"
+            />
+            <View style={styles.backdropScrim} />
+          </Animated.View>
+        ) : null}
+      </Animated.View>
       <Animated.View
         style={[
           styles.content,
@@ -1345,6 +1368,10 @@ const QUEUE_COMMIT_RATIO = 0.35;
 const QUEUE_COMMIT_VELOCITY = 0.5;
 /** 아래로 끌기 — 화면 높이의 이 비율만큼 끌면 진행값이 0(미니플레이어)에 닿는다 */
 const PLAYER_DRAG_RANGE_RATIO = 0.7;
+/** 바탕 커버의 흐림 — 형태가 남지 않고 색 덩어리만 보일 만큼 */
+const BACKDROP_BLUR_RADIUS = 60;
+/** 흐린 커버 위 어두운 막 — 플레이어 바탕색(#17171A)의 72% */
+const BACKDROP_SCRIM_COLOR = 'rgba(23, 23, 26, 0.72)';
 /** 드래그 후 닫힘 모션의 하한 — 이보다 짧으면 놓는 순간 미니플레이어가 "나타난" 것처럼 보인다 */
 const PLAYER_CLOSE_MIN_MS = 140;
 /** 열림·닫힘 모션 길이 — 닫힘이 조금 짧다: 되돌아가는 동작은 짧아야 가볍게 느껴진다 */
@@ -1401,6 +1428,28 @@ const styles = StyleSheet.create({
   sheet: {
     position: 'absolute',
     overflow: 'hidden',
+  },
+  backdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  // 흐린 가장자리는 투명해진다 — 살짝 키워 가장자리를 화면 밖으로 밀어낸다
+  backdropImage: {
+    width: '100%',
+    height: '100%',
+    transform: [{ scale: 1.25 }],
+  },
+  // 글자·컨트롤 대비를 지키는 어두운 막 — 팔레트 바탕색을 그대로 써서 커버가 밝아도 전체 톤이 차콜에 머문다
+  backdropScrim: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: BACKDROP_SCRIM_COLOR,
   },
   morphArtwork: {
     position: 'absolute',
@@ -1571,12 +1620,12 @@ const styles = StyleSheet.create({
   // 스크립트 손잡이 — 화면 바닥에 붙는다. 바(pill) + 라벨이 "위로 끌어올릴 수 있다"를 말한다
   // 재생 목록 시트 — 절대 배치의 기준은 content 의 바깥 모서리(패딩 안쪽이 아니다 — 2026-09-17 웹 실측).
   // inset 0 이면 화면 폭을 꽉 채운다. 목록의 좌우 여백은 패널이 갖는다
+  // 배경을 칠하지 않는다 — 흐린 커버 바탕이 목록 뒤까지 이어진다. 시트 위쪽은 늘 컨트롤 줄 아래라 겹칠 것이 없다
   queueSheet: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: playerColor.background,
   },
   scriptHandleWrap: {},
   // 사진 위 글자·시크바 대비 — 재생 목록이 열린 만큼 어두워진다
