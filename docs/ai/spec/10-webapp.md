@@ -55,6 +55,7 @@ spec/08의 원칙 "UI와 실행기의 결합은 상태 테이블로만"을 그�
   서버 워커는 `io`만, 로컬 워커는 `ai`(+`io`)를 집는다.
 - 로컬 워커가 꺼져 있으면 AI 작업은 `queued`에 머문다 — 화면에 "대기 중(AI 워커 없음)"으로 표시. 테스트 단계의 의도된 제약.
 - API 키 실행기(`--executor=api`, Anthropic SDK)는 코드만 준비하고 기본 비활성. 전환은 미결 #12(비용 합의) 후.
+- **OpenAI 실행기 `EXECUTOR=openai`** (실험, 2026-09-19): 썸네일과 같은 `OPENAI_API_KEY` 로 Responses API 를 직접 호출(구조화 출력 strict). 단발 호출만(설계·대본·수정·QA·비평·군집화 v2) — 도구가 필요한 보강 스윕은 거절. 단계 env 의 claude 모델 이름은 단가 동급 GPT 로 사상(opus→gpt-5.6-sol, sonnet→gpt-5.6-terra, fable→gpt-6-astra; `OPENAI_MODEL_*` 로 바꿈). 비용은 usage×단가표로 환산. 목적: API 전환 비용과 GPT 대본 품질을 같은 후보 짝으로 비교 — 기본값(claude-cli)에는 영향 없음.
 - **구독 토큰을 서버에 두지 않는다** (2026-08-29 확인: 헤드리스 `claude -p`는 개인 기기·스크립트 용도로 문서화, 장기 실행 서버·Agent SDK는 API 키 요구).
 
 ## 3. 실행기 규약 — `claude -p` 헤드리스

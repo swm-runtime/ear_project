@@ -1,5 +1,6 @@
 import type { Executor, ExecRequest, ExecResult, Progress } from "./types.js";
 import { ClaudeCliExecutor } from "./claude-cli.js";
+import { OpenAiExecutor } from "./openai-api.js";
 import type { ExecutorKind } from "../config.js";
 
 class NoneExecutor implements Executor {
@@ -24,6 +25,7 @@ export function makeExecutor(kind: ExecutorKind, model?: string): Executor {
   switch (kind) {
     case "claude-cli": return new ClaudeCliExecutor(model);
     case "api": return new ApiExecutor();
+    case "openai": return new OpenAiExecutor(model); // 실험 (2026-09-19): GPT 로 같은 후보를 재생성해 비용·품질 비교. 단발 호출만
     default: return new NoneExecutor();
   }
 }
