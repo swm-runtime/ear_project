@@ -63,9 +63,7 @@ export interface LibraryItem {
  * 목록 렌더 행 — [이어 PICK] 뷰에서만 탐험 구획 헤더가 행으로 끼어든다(library.md 4.6-1).
  * 전체 목록은 item 행뿐이다(구획 없이 시간순 유지 + 행 배지).
  */
-export type LibraryListRow =
-  | { kind: 'item'; item: LibraryItem }
-  | { kind: 'discoveryHeader' };
+export type LibraryListRow = { kind: 'item'; item: LibraryItem } | { kind: 'discoveryHeader' };
 
 export interface LibraryPage {
   items: LibraryItem[];

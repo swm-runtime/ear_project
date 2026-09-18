@@ -17,8 +17,8 @@ import { MiniPlayer, PlayConfirmDialog, RemainingPlaysIndicator } from '@/featur
 
 import LibraryBanner from '../components/LibraryBanner';
 import LibraryEmptyState from '../components/LibraryEmptyState';
-import LibraryItemCard from '../components/LibraryItemCard';
 import LibraryItemSkeleton from '../components/LibraryItemSkeleton';
+import LibraryItemTile from '../components/LibraryItemTile';
 import LibrarySearchBarRow from '../components/LibrarySearchBarRow';
 import LibraryTabs from '../components/LibraryTabs';
 import MoreActionsSheet from '../components/MoreActionsSheet';
@@ -27,7 +27,36 @@ import UndoSnackbar from '../components/UndoSnackbar';
 import { useLibraryScreen } from '../hooks/useLibraryScreen';
 import { LIBRARY_COPY } from '../library.copy';
 import { filterLibraryRows, normalizeLibraryQuery } from '../library.search';
-import type { LibraryListRow } from '../library.types';
+import type { LibraryItem, LibraryListRow } from '../library.types';
+
+/** 격자 렌더 행 — 타일 두 장이 한 행, 탐험 구획 헤더는 전체 폭 한 행 */
+type LibraryGridRow =
+  { kind: 'pair'; key: string; items: LibraryItem[] } | { kind: 'discoveryHeader'; key: string };
+
+/**
+ * 목록 행을 두 칸 격자 행으로 묶는다(2026-09-18 PM: 썸네일 격자). `numColumns`는 헤더처럼 전체 폭
+ * 행이 끼면 격자가 어긋나므로 쓰지 않는다. 구획 헤더 앞뒤로 짝이 끊기면 마지막 타일은 혼자 남긴다
+ */
+const toGridRows = (rows: LibraryListRow[]): LibraryGridRow[] => {
+  const result: LibraryGridRow[] = [];
+  let pending: LibraryItem[] = [];
+  const flush = () => {
+    if (pending.length === 0) return;
+    result.push({ kind: 'pair', key: pending[0].id, items: pending });
+    pending = [];
+  };
+  rows.forEach((row) => {
+    if (row.kind === 'discoveryHeader') {
+      flush();
+      result.push({ kind: 'discoveryHeader', key: 'discovery-header' });
+      return;
+    }
+    pending.push(row.item);
+    if (pending.length === 2) flush();
+  });
+  flush();
+  return result;
+};
 
 /** L1 라이브러리 — 앱의 첫 화면. 화면은 뷰만 담당하고 로직은 useLibraryScreen이 소유한다 */
 export default function LibraryScreen() {
@@ -46,6 +75,7 @@ export default function LibraryScreen() {
     () => filterLibraryRows(screen.listRows, normalizedQuery),
     [screen.listRows, normalizedQuery],
   );
+  const gridRows = useMemo(() => toGridRows(visibleRows), [visibleRows]);
 
   // L6·L9는 목록 전체가 빈 상태 — 탭 줄·필터 아이콘·복원 미니플레이어를 감춘다(uiux 4.8)
   const isWholeEmpty = screen.emptyKind === 'newUser' || screen.emptyKind === 'deletedAll';
@@ -191,8 +221,8 @@ export default function LibraryScreen() {
         <View style={styles.container} />
       ) : (
         <FlatList
-          data={visibleRows}
-          keyExtractor={(row) => (row.kind === 'item' ? row.item.id : 'discovery-header')}
+          data={gridRows}
+          keyExtractor={(row) => row.key}
           renderItem={({ item: row }) =>
             row.kind === 'discoveryHeader' ? (
               // [이어 PICK] 뷰의 탐험 구획 타이틀 — 정규 드립 구획 뒤에 온다(library.md 4.6-1)
@@ -200,22 +230,29 @@ export default function LibraryScreen() {
                 {LIBRARY_COPY.discovery.sectionTitle}
               </Text>
             ) : (
-              <LibraryItemCard
-                item={row.item}
-                onPress={screen.handleItemPress}
-                onMorePress={screen.openMoreSheet}
-                // 행 배지는 전체 목록에서만 — PICK 뷰는 구획이 구분한다(library.md 4.6-1)
-                showDiscoveryBadge={!screen.isPickView}
-              />
+              <View style={styles.gridRow}>
+                {row.items.map((item) => (
+                  <LibraryItemTile
+                    key={item.id}
+                    item={item}
+                    onPress={screen.handleItemPress}
+                    onMorePress={screen.openMoreSheet}
+                    // 배지는 전체 목록에서만 — PICK 뷰는 구획이 구분한다(library.md 4.6-1)
+                    showDiscoveryBadge={!screen.isPickView}
+                  />
+                ))}
+                {/* 홀수 마지막 행 — 빈 칸을 채워 남은 타일이 전체 폭으로 늘지 않게 한다 */}
+                {row.items.length === 1 ? <View style={styles.gridSpacer} /> : null}
+              </View>
             )
           }
-          ItemSeparatorComponent={({ leadingItem }: { leadingItem: LibraryListRow }) =>
-            // 구획 타이틀 바로 아래에는 구분선을 긋지 않는다 — 타이틀이 밑줄처럼 보인다
+          ItemSeparatorComponent={({ leadingItem }: { leadingItem: LibraryGridRow }) =>
+            // 구획 타이틀 바로 아래에는 간격을 두지 않는다 — 타이틀 자체가 아래 여백을 가진다
             leadingItem.kind === 'discoveryHeader' ? null : <View style={styles.separator} />
           }
           ListEmptyComponent={renderEmpty()}
           ListFooterComponent={renderFooter()}
-          contentContainerStyle={visibleRows.length === 0 ? styles.emptyContent : undefined}
+          contentContainerStyle={gridRows.length === 0 ? styles.emptyContent : styles.gridContent}
           refreshControl={
             <RefreshControl
               refreshing={screen.isManualRefreshing}
@@ -276,14 +313,25 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.color.background,
   },
-  // 카드가 자기 배경을 갖게 되어 구분선이 필요 없다 — 카드 사이 간격만 둔다
+  // 격자 — 좌우 여백은 검색 줄과 같은 선(md), 타일 사이는 sm×1.5
+  gridContent: {
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.sm,
+  },
+  gridRow: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm * 1.5,
+  },
+  gridSpacer: {
+    flex: 1,
+  },
+  // 타일 행 사이 세로 간격 — 제목 두 줄 뒤에 다음 사진이 바로 붙지 않게 가로 간격보다 크게
   separator: {
-    height: theme.spacing.sm,
+    height: theme.spacing.lg,
   },
   // 구획 앞뒤 여백을 카드 간격(8)보다 크게 벌린다 — 그래야 타이틀이 앞 카드의 꼬리가
   // 아니라 뒤 묶음의 머리로 읽힌다. 타이틀 아래는 구분선을 긋지 않으므로 여백이 유일한 단서다
   discoverySectionTitle: {
-    paddingHorizontal: theme.spacing.md,
     paddingTop: theme.spacing.xl,
     paddingBottom: theme.spacing.sm,
     fontSize: theme.font.size.lg,
