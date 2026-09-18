@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Analytics as VercelAnalytics } from "@vercel/analytics/next";
 import { Analytics } from "@/components/Analytics";
 import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
@@ -93,6 +94,9 @@ export default function RootLayout({
         <Footer />
         {/* GA4. 본문 뒤에 두어 측정 스크립트가 첫 화면 렌더를 붙잡지 않게 한다. */}
         <Analytics />
+        {/* Vercel Web Analytics(2026-09-18 추가). 클라이언트에서 스크립트를 주입하므로 정적 내보내기에서도 동작하고,
+            Vercel 밖(localhost)에서는 아무 것도 보내지 않는다. 페이지뷰만 잡는다 — 개인정보 동의 배너가 필요 없는 범위 */}
+        <VercelAnalytics />
       </body>
     </html>
   );
