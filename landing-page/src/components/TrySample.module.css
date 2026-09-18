@@ -1,4 +1,4 @@
-/* Try 섹션은 히어로 바로 아래라 위쪽 여백을 조금 줄여 히어로와 한 덩어리로 읽히게 한다 */
+/* Sources 섹션의 꼬리선이 이 윗선에 닿는다 — 위쪽 여백은 조금 줄여 한 흐름으로 읽히게 한다 */
 .section {
   padding-top: clamp(40px, 6vw, 72px);
   border-top: 1px solid var(--line);

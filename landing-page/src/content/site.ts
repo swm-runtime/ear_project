@@ -1,3 +1,5 @@
+import { featuredSources, sourceItems } from "./sources";
+
 /**
  * 랜딩페이지의 문구·수치를 한곳에 모은 파일.
  *
@@ -148,6 +150,22 @@ export const topicPicker = {
   summaryBody: "매일 아침 선택한 주제에 맞는 콘텐츠 2편이 라이브러리에 도착해요.",
   cta: "이 주제로 출시 소식 받기",
   reset: "다시 고르기",
+} as const;
+
+/**
+ * Sources 섹션 — 히어로 바로 아래. "팟캐스트로는 들을 수 없던 자료"가 이어의 강점이라는 멘토 피드백(2026-09-18)을
+ * 첫 화면 다음에 바로 보여 준다. 출처 목록과 대표 5곳(로고)은 운영 DB에서 가져온 `./sources.ts` 가 원천이다 —
+ * 여기서 임의로 이름을 적지 않는다.
+ */
+export const sources = {
+  eyebrow: "Sources",
+  title: "다른 팟캐스트에는 없는 자료를 들려드려요",
+  lede: "대학 연구실, 해외 매체, 기술 블로그, 논문. 읽어야만 볼 수 있던 자료를 활용해 팟캐스트로 만들어요.",
+  /** 리드 아래 한 줄 — 출처 표기 원칙을 먼저 밝힌다(2026-09-18, 사용자 요청: 자료 활용에 대한 방어 태세) */
+  note: "모든 활용 자료는 저작권을 확인한 후 출처를 남기고 있어요.",
+  caption: "이런 자료를 담아 매일 팟캐스트를 만들어요.",
+  items: sourceItems,
+  featured: featuredSources,
 } as const;
 
 export const problems = [

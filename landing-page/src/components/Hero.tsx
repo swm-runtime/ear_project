@@ -90,11 +90,11 @@ const COVER_PX = 420;
    "지금 인기"가 맨 앞, 그다음 "관심사에 맞는 추천"). */
 const POPULAR = [
   { title: "AI를 도구로 쓰는 사람들의 습관", meta: "이어 오리지널 · 윤태경", min: 13, cover: "/preview/cover-1.webp" },
-  { title: "설득은 논리가 아니라 순서다", meta: "퍼블리 · 배준호", min: 12, cover: "/preview/cover-2.webp" },
+  { title: "설득은 논리가 아니라 순서다", meta: "이어 오리지널 · 12분", min: 12, cover: "/preview/cover-2.webp" },
 ];
 
 const RECOMMENDED = [
-  { title: "주니어가 3년 차에 가장 많이 하는 착각", meta: "퍼블리 · 14분", cover: "/preview/cover-3.webp" },
+  { title: "주니어가 3년 차에 가장 많이 하는 착각", meta: "이어 오리지널 · 14분", cover: "/preview/cover-3.webp" },
   { title: "멀티태스킹은 왜 항상 실패하는가", meta: "이어 오리지널 · 10분", cover: "/preview/cover-4.webp" },
   { title: "위임이 어려운 진짜 이유", meta: "이어 오리지널 · 11분", cover: "/preview/cover-5.webp" },
 ];
