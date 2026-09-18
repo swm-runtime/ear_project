@@ -150,6 +150,31 @@ export const topicPicker = {
   reset: "다시 고르기",
 } as const;
 
+/**
+ * Sources 섹션 — 히어로 바로 아래. "팟캐스트로는 들을 수 없던 자료"가 이어의 강점이라는 멘토 피드백(2026-09-18)을
+ * 첫 화면 다음에 바로 보여 준다. 자료 이름은 **글자 워드마크**로만 그린다 — 실제 로고 이미지는 상표 사용 허락이
+ * 필요해 넣지 않는다(결정 보류). 목록은 지금까지 콘텐츠가 실제로 참고한 출처에서 골랐다.
+ */
+export const sources = {
+  eyebrow: "Sources",
+  title: "팟캐스트에는 없던 자료를 듣게 해요",
+  lede: "대학 연구실, 해외 매체, 기술 블로그, 논문. 읽어야만 볼 수 있던 자료를 15분 오디오로 바꿔요.",
+  caption: "이런 자료를 담아 매일 팟캐스트를 만들어요.",
+  /** 워드마크. `style`은 서체 계열만 가른다 — 색은 전부 잉크색이다 */
+  items: [
+    { name: "MIT McGovern Institute", style: "sans" },
+    { name: "The New York Times Magazine", style: "serif" },
+    { name: "arXiv", style: "mono" },
+    { name: "toss tech", style: "sans" },
+    { name: "Harvard Business Review", style: "serif" },
+    { name: "Nature", style: "serif" },
+    { name: "Stanford HAI", style: "sans" },
+    { name: "The Conversation", style: "serif" },
+    { name: "Psychology Today", style: "sans" },
+    { name: "Neuroscience News", style: "mono" },
+  ],
+} as const;
+
 export const problems = [
   {
     title: "출퇴근길엔 눈도 손도 자유롭지 않아요",

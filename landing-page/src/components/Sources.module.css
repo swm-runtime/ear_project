@@ -1,0 +1,192 @@
+.wrap {
+  /* 아래로 TRY 섹션 윗선에 꼬리선이 닿도록 아래 여백은 0 — 꼬리(.tail)가 그 자리를 채운다 */
+  padding-bottom: 0;
+  overflow: hidden;
+}
+
+/* ---------- 워드마크 띠 ---------- */
+
+.band {
+  position: relative;
+  display: grid;
+  gap: 14px;
+  margin-top: clamp(36px, 4.5vw, 56px);
+  /* 양끝을 흐리게 — 잘린 글자가 아니라 흘러 들어오는 것으로 읽힌다 */
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+
+.row {
+  display: flex;
+  gap: 14px;
+  width: max-content;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  animation: marquee 48s linear infinite;
+}
+
+.rowB {
+  animation-direction: reverse;
+  animation-duration: 56s;
+}
+
+.band:hover .row {
+  animation-play-state: paused;
+}
+
+/* 같은 목록을 두 번 이어 붙였으므로 절반만 움직이면 처음과 같은 그림이다 */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.mark {
+  flex: none;
+  padding: 12px 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--ink-800);
+  font-size: 15.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+/* 서체 계열만 가른다 — 로고 이미지를 쓰지 않으니 글자 결이 곧 "출처마다 다른 얼굴"이다 */
+.mark_serif {
+  font-family: Georgia, "Times New Roman", "Noto Serif KR", serif;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.mark_mono {
+  font-family: var(--mono);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.mark_sans {
+  font-family: var(--sans);
+}
+
+/* ---------- 모이는 선 + 마크 + 캡션 ---------- */
+
+.funnelWrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 22px; /* 두 번째 띠 바로 아래에서 선이 시작한다 — 칩과 붙지 않게 숨을 둔다 */
+}
+
+.funnel {
+  display: block;
+  width: 100%;
+  height: clamp(120px, 16vw, 220px);
+}
+
+.line {
+  fill: none;
+  stroke: var(--line-2);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  margin-top: -2px;
+  text-align: center;
+}
+
+/* 이어 마크(logo.png는 잉크색 그림) — 흰 원 위에 올린다 */
+.nodeMark {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  box-shadow: var(--shadow-md);
+}
+
+.nodeLogo {
+  width: 28px;
+  height: 28px;
+}
+
+.caption {
+  max-width: 34ch;
+  font-family: var(--display);
+  font-size: clamp(18px, 2.2vw, 24px);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.35;
+}
+
+/* 꼬리 — 캡션 아래에서 섹션 바닥(= TRY 윗선)까지 내려가는 한 줄기 */
+.tail {
+  display: block;
+  width: 1.5px;
+  height: clamp(48px, 6vw, 88px);
+  margin-top: 18px;
+  background: var(--line-2);
+  transform-origin: top;
+}
+
+/* ---------- 등장 — 표식이 있을 때만 시작 상태로 두고, 섹션이 보이면 순서대로 그린다 ---------- */
+
+:global(html[data-reveal]) .line {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+
+:global(html[data-reveal] .is-visible) .line {
+  animation: drawLine 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+}
+
+@keyframes drawLine {
+  to { stroke-dashoffset: 0; }
+}
+
+:global(html[data-reveal]) .node {
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.5s ease 0.9s, transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) 0.9s;
+}
+
+:global(html[data-reveal] .is-visible) .node {
+  opacity: 1;
+  transform: none;
+}
+
+:global(html[data-reveal]) .tail {
+  transform: scaleY(0);
+  transition: transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) 1.4s;
+}
+
+:global(html[data-reveal] .is-visible) .tail {
+  transform: scaleY(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row {
+    animation: none;
+    flex-wrap: wrap;
+    width: auto;
+    justify-content: center;
+  }
+
+  .rowB {
+    display: none;
+  }
+
+  .band {
+    mask-image: none;
+  }
+}

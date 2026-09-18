@@ -8,6 +8,7 @@ import { HowItWorks } from "@/components/HowItWorks";
 import { PostList } from "@/components/PostList";
 import { PricingTeaser } from "@/components/PricingTeaser";
 import { Problem } from "@/components/Problem";
+import { Sources } from "@/components/Sources";
 import { Topics } from "@/components/Topics";
 import { TrySample } from "@/components/TrySample";
 import { allPosts } from "@/content/blog";
@@ -29,6 +30,8 @@ export default function Page() {
   return (
     <>
       <Hero />
+      {/* 강점부터 — 팟캐스트로는 못 듣던 자료(멘토 피드백 2026-09-18). 선이 TRY로 이어진다 */}
+      <Sources />
       {/* 설명보다 소리가 먼저다 — Why 섹션 앞에서 샘플 한 편을 바로 들려준다 */}
       <TrySample />
       <Problem />
