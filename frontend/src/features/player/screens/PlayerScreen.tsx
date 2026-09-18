@@ -994,7 +994,10 @@ export default function PlayerScreen() {
             accessibilityElementsHidden
             importantForAccessibility="no"
           >
-            <Svg width="100%" height={QUEUE_ART_FADE_HEIGHT}>
+            {/* 폭은 **숫자**로 준다 — 네이티브 SVG 는 "100%" 를 퍼센트가 아니라 100 으로 받아, 실기기에서 그라데이션이
+                왼쪽 100pt 에만 그려졌다(2026-09-19 아이폰 실기기). 웹은 퍼센트로 동작해 테스트에 안 잡혔다.
+                재생 목록이 열리면 아트워크 폭 = 화면 폭(contentSize.width)이다 */}
+            <Svg width={contentSize.width} height={QUEUE_ART_FADE_HEIGHT}>
               <Defs>
                 <LinearGradient id="queueArtFade" x1="0" y1="0" x2="0" y2="1">
                   <Stop offset="0" stopColor={playerColor.background} stopOpacity={0} />
@@ -1005,7 +1008,7 @@ export default function PlayerScreen() {
               <Rect
                 x="0"
                 y="0"
-                width="100%"
+                width={contentSize.width}
                 height={QUEUE_ART_FADE_HEIGHT}
                 fill="url(#queueArtFade)"
               />
