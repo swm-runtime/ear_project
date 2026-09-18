@@ -25,6 +25,9 @@ const SWIPE_AXIS_RATIO = 1.5;
 /** 현재 문단을 뷰포트의 이 비율 지점에 둔다 — 다음 문단이 미리 보여 읽기가 끊기지 않는다 */
 const CURRENT_VIEW_POSITION = 0.3;
 
+/** 현재가 아닌 문단의 글자 불투명도 — 보조 글자색 위에 한 번 더 낮춰 현재 문단과의 밝기 차이를 키운다 */
+const DIMMED_OPACITY = 0.7;
+
 /** 문단 하나의 자리(스크롤 콘텐츠 기준) */
 interface SegmentBox {
   y: number;
@@ -96,7 +99,7 @@ function SegmentRow({
   return (
     <Animated.View style={{ opacity }} onLayout={onLayout}>
       <Pressable
-        style={[styles.segment, isCurrent && styles.segmentCurrent]}
+        style={styles.segment}
         onPress={() => onSeek(segment.startSec)}
         accessibilityRole="button"
         accessibilityLabel={PLAYER_COPY.scriptSheet.segmentA11y(time, segment.speaker)}
@@ -104,13 +107,16 @@ function SegmentRow({
       >
         <View style={styles.segmentHead}>
           {segment.speaker ? (
-            <Text style={[styles.speaker, isCurrent && styles.speakerCurrent]}>
+            <Text style={[styles.speaker, isCurrent ? styles.speakerCurrent : styles.dimmed]}>
               {segment.speaker}
             </Text>
           ) : null}
-          <Text style={styles.time}>{time}</Text>
+          <Text style={[styles.time, !isCurrent && styles.dimmed]}>{time}</Text>
         </View>
-        <Text style={[styles.text, isCurrent && styles.textCurrent]} selectable={false}>
+        <Text
+          style={[styles.text, isCurrent ? styles.textCurrent : styles.dimmed]}
+          selectable={false}
+        >
           {segment.text}
         </Text>
       </Pressable>
@@ -245,8 +251,13 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.md,
     gap: theme.spacing.xs,
   },
-  segmentCurrent: {
-    backgroundColor: playerColor.surface,
+  /*
+   * 현재 문단은 상자로 감싸지 않는다(2026-09-18 PM — 애플 뮤직·팟캐스트·유튜브 뮤직 가사 방식). 흐린 커버 바탕
+   * 위에 불투명 카드가 올라가면 그 문단만 덩어리져 보이고 바탕의 색을 가린다. 구분은 글자가 한다: 현재 문단은
+   * 흰색 + 굵게, 나머지는 한 단 더 흐리게. 굵기 차이가 있어 색만으로 구분하지 않는다(uiux 7장)
+   */
+  dimmed: {
+    opacity: DIMMED_OPACITY,
   },
   segmentHead: {
     flexDirection: 'row',
