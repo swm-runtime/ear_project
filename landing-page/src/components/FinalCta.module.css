@@ -88,22 +88,27 @@
   transition: transform 0.22s ease, box-shadow 0.3s ease, color 0.3s ease;
 }
 
+/* 금빛 겹층 — 폭을 3배로 두고 같은 무늬를 세 번 이어 붙인 뒤 정확히 한 무늬(1/3)만큼 움직인다.
+   끝과 처음이 같은 그림이라 반복 지점에서 튀지 않는다(종전 background-position 방식은 되감길 때 툭 끊겼다) */
 .cta::before {
   content: "";
   position: absolute;
-  inset: 0;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 300%;
   z-index: -1;
-  background: linear-gradient(
+  background: repeating-linear-gradient(
     115deg,
-    #f3dc9a 0%,
-    #e6bf5c 22%,
-    #fff1c2 45%,
-    #e9c463 68%,
-    #f7e3a8 100%
+    #e6bf5c 0%,
+    #f7e3a8 8%,
+    #fff1c2 15%,
+    #f0cf74 24%,
+    #e6bf5c 33.333%
   );
-  background-size: 220% 100%;
   opacity: 0;
-  transition: opacity 0.35s ease;
+  will-change: transform;
+  transition: opacity 0.4s ease;
 }
 
 .cta:hover {
@@ -116,13 +121,13 @@
 
 .cta:hover::before {
   opacity: 1;
-  animation: ctaShimmer 2.2s linear infinite;
+  /* 느리게 — 빛이 "지나가는" 속도지 반짝이는 속도가 아니다(피드백 2026-09-18) */
+  animation: ctaShimmer 5s linear infinite;
 }
 
-/* 금빛이 왼쪽에서 오른쪽으로 흐른다 — 정지한 금색은 그냥 노란 버튼이다 */
 @keyframes ctaShimmer {
-  from { background-position: 0% 50%; }
-  to { background-position: 220% 50%; }
+  from { transform: translateX(0); }
+  to { transform: translateX(-33.333%); }
 }
 
 @media (prefers-reduced-motion: reduce) {
