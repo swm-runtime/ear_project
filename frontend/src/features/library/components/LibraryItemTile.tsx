@@ -33,7 +33,8 @@ export default function LibraryItemTile({
   showDiscoveryBadge = false,
 }: LibraryItemTileProps) {
   const isCompleted = item.status === 'completed';
-  const hasDiscoveryBadge = showDiscoveryBadge && item.source === 'discovery';
+  // 완청한 탐험 편에는 배지를 그리지 않는다 — 제안 성격은 이미 다했고, 사진 위 표식 셋이 붐빈다(2026-09-18)
+  const hasDiscoveryBadge = showDiscoveryBadge && item.source === 'discovery' && !isCompleted;
   const progressRatio =
     item.status === 'in_progress' && item.progress && item.content.durationSec > 0
       ? Math.min(1, item.progress.positionSec / item.content.durationSec)
@@ -62,6 +63,12 @@ export default function LibraryItemTile({
               <Text style={styles.completedGlyph}>✓</Text>
             </View>
           ) : null}
+          {hasDiscoveryBadge ? (
+            // 사진 좌하단 — 제목 위에 두면 그 타일만 글 블록이 밀려 옆 타일과 줄이 어긋난다(2026-09-18 PM)
+            <View style={styles.discoveryBadge}>
+              <Text style={styles.discoveryBadgeLabel}>{LIBRARY_COPY.discovery.badge}</Text>
+            </View>
+          ) : null}
           {progressPercent !== null ? (
             // 진행률 바만 있으면 색 외 단서가 없다 — a11y 텍스트를 반드시 제공한다(uiux 7)
             <View
@@ -74,11 +81,6 @@ export default function LibraryItemTile({
           ) : null}
         </View>
         <View style={styles.info}>
-          {hasDiscoveryBadge ? (
-            <View style={styles.discoveryBadge}>
-              <Text style={styles.discoveryBadgeLabel}>{LIBRARY_COPY.discovery.badge}</Text>
-            </View>
-          ) : null}
           <Text style={styles.title} numberOfLines={2}>
             {item.content.title}
           </Text>
@@ -105,6 +107,7 @@ export default function LibraryItemTile({
 
 const MORE_CIRCLE_SIZE = 28;
 const COMPLETED_MARK_SIZE = 22;
+const DISCOVERY_BADGE_HEIGHT = 20;
 
 const styles = StyleSheet.create({
   container: {
@@ -157,18 +160,21 @@ const styles = StyleSheet.create({
     paddingTop: theme.spacing.sm,
     gap: theme.spacing.xs,
   },
+  // 흰 알약 + 검정 글자 — 사진이 밝든 어둡든 읽힌다. 아래 변의 진행률 바(4px)와 겹치지 않게 sm 띄운다
   discoveryBadge: {
-    alignSelf: 'flex-start',
+    position: 'absolute',
+    left: theme.spacing.sm,
+    bottom: theme.spacing.sm + 4,
+    height: DISCOVERY_BADGE_HEIGHT,
     paddingHorizontal: theme.spacing.sm,
-    paddingVertical: 2,
     borderRadius: theme.radius.full,
-    borderWidth: 1,
-    borderColor: theme.color.primary,
+    backgroundColor: theme.color.background,
+    justifyContent: 'center',
   },
   discoveryBadgeLabel: {
     fontSize: theme.font.size.xs,
-    fontWeight: '600',
-    color: theme.color.primary,
+    fontWeight: '700',
+    color: theme.color.textPrimary,
   },
   title: {
     fontSize: theme.font.size.sm,
