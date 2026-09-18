@@ -115,6 +115,8 @@ export default function PlayerScreen() {
   // 헤더 애니메이션의 기준 치수 — 화면 폭·컨트롤 높이는 실측한다(기기마다 다르다)
   const [contentSize, setContentSize] = useState({ width: 0, height: 0 });
   const [controlsHeight, setControlsHeight] = useState(0);
+  // ±10초 버튼을 누른 횟수 — 바뀔 때마다 아이콘의 원호가 한 번 돈다(SeekIcon spinKey)
+  const [seekSpin, setSeekSpin] = useState({ back: 0, forward: 0 });
   /** 시크바 트랙 선의 아래 변(시크바 블록 기준) — 재생 목록이 열리면 앨범 커버 하한을 정확히 여기에 맞춘다(PM 2026-09-17) */
   const [seekTrackCenter, setSeekTrackCenter] = useState(0);
   // 앱바·손잡이도 실측한다 — 상수로 두면 몇 px 어긋나 접힘 상태의 히어로가 넘치고 컨트롤이 패널을 열 때마다 튄다
@@ -1091,12 +1093,16 @@ export default function PlayerScreen() {
 
             <Pressable
               style={styles.stepButton}
-              onPress={screen.seekBackward}
+              onPress={() => {
+                setSeekSpin((prev) => ({ ...prev, back: prev.back + 1 }));
+                screen.seekBackward();
+              }}
               disabled={isControlDisabled}
               accessibilityRole="button"
               accessibilityLabel={PLAYER_COPY.screen.seekBackA11y}
             >
               <SeekBackIcon
+                spinKey={seekSpin.back}
                 size={SEEK_ICON_SIZE}
                 color={isControlDisabled ? playerColor.border : playerColor.textSecondary}
               />
@@ -1124,12 +1130,16 @@ export default function PlayerScreen() {
 
             <Pressable
               style={styles.stepButton}
-              onPress={screen.seekForward}
+              onPress={() => {
+                setSeekSpin((prev) => ({ ...prev, forward: prev.forward + 1 }));
+                screen.seekForward();
+              }}
               disabled={isControlDisabled}
               accessibilityRole="button"
               accessibilityLabel={PLAYER_COPY.screen.seekForwardA11y}
             >
               <SeekForwardIcon
+                spinKey={seekSpin.forward}
                 size={SEEK_ICON_SIZE}
                 color={isControlDisabled ? playerColor.border : playerColor.textSecondary}
               />

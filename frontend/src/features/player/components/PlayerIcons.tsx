@@ -1,5 +1,8 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect } from 'react';
+import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
+
+import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 
 interface IconProps {
   size: number;
@@ -82,20 +85,58 @@ const SEEK_HEAD_PATH = 'M4.25 7.75L7.95 7.35L4.63 4.03Z';
 /** 앞으로 — 호·화살촉을 좌우 반전. 숫자는 그대로 */
 const MIRROR = 'translate(24 0) scale(-1 1)';
 
-function SeekIcon({ size, color, mirrored }: IconProps & { mirrored: boolean }) {
+/** 누를 때 원호가 도는 각도 · 돌아가는 시간 — 눈에 띄되 다음 탭을 방해하지 않을 만큼 */
+const SEEK_SPIN_DEG = 55;
+const SEEK_SPIN_OUT_MS = 110;
+
+interface SeekIconProps extends IconProps {
+  mirrored: boolean;
+  /**
+   * 값이 바뀔 때마다 원호·화살촉이 가리키는 방향으로 휙 돌았다가 제자리로 돌아온다(2026-09-18 PM —
+   * 애플 팟캐스트·유튜브의 ±초 버튼 피드백). 숫자 "10"은 돌지 않는다. 버튼을 누른 횟수를 넘기면 된다
+   */
+  spinKey?: number;
+}
+
+function SeekIcon({ size, color, mirrored, spinKey = 0 }: SeekIconProps) {
+  const spin = useAnimatedValue(0);
+  useEffect(() => {
+    if (spinKey === 0) return;
+    // 연타하면 앞선 회전을 끊고 처음부터 — 탭마다 같은 크기의 반응이 나온다
+    spin.setValue(0);
+    const animation = Animated.sequence([
+      Animated.timing(spin, {
+        toValue: 1,
+        duration: SEEK_SPIN_OUT_MS,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.spring(spin, { toValue: 0, friction: 6, tension: 120, useNativeDriver: true }),
+    ]);
+    animation.start();
+    return () => animation.stop();
+  }, [spinKey, spin]);
+  // 뒤로 = 반시계, 앞으로 = 시계 — 화살촉이 가리키는 방향이다
+  const rotate = spin.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', `${mirrored ? SEEK_SPIN_DEG : -SEEK_SPIN_DEG}deg`],
+  });
+
   return (
     <View style={{ width: size, height: size }}>
-      <Svg width={size} height={size} viewBox="0 0 24 24">
-        <Path
-          d={SEEK_RING_PATH}
-          stroke={color}
-          strokeWidth={1.8}
-          strokeLinecap="round"
-          fill="none"
-          transform={mirrored ? MIRROR : undefined}
-        />
-        <Path d={SEEK_HEAD_PATH} fill={color} transform={mirrored ? MIRROR : undefined} />
-      </Svg>
+      <Animated.View style={{ transform: [{ rotate }] }}>
+        <Svg width={size} height={size} viewBox="0 0 24 24">
+          <Path
+            d={SEEK_RING_PATH}
+            stroke={color}
+            strokeWidth={1.8}
+            strokeLinecap="round"
+            fill="none"
+            transform={mirrored ? MIRROR : undefined}
+          />
+          <Path d={SEEK_HEAD_PATH} fill={color} transform={mirrored ? MIRROR : undefined} />
+        </Svg>
+      </Animated.View>
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
         <Text
           style={[seekStyles.label, { color, fontSize: size * 0.4, lineHeight: size }]}
@@ -109,12 +150,12 @@ function SeekIcon({ size, color, mirrored }: IconProps & { mirrored: boolean }) 
 }
 
 /** 10초 뒤로 — 왼쪽이 트인 반시계 화살표 원호 + "10" */
-export function SeekBackIcon(props: IconProps) {
+export function SeekBackIcon(props: IconProps & { spinKey?: number }) {
   return <SeekIcon {...props} mirrored={false} />;
 }
 
 /** 10초 앞으로 — 오른쪽이 트인 시계 화살표 원호 + "10" */
-export function SeekForwardIcon(props: IconProps) {
+export function SeekForwardIcon(props: IconProps & { spinKey?: number }) {
   return <SeekIcon {...props} mirrored />;
 }
 
