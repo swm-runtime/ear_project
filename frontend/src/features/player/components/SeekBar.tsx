@@ -182,8 +182,14 @@ export default function SeekBar({
 const THUMB_SIZE = 14;
 /** 손을 뗀 뒤 썸이 사라지는 시간 */
 const THUMB_HIDE_MS = 140;
-/** 사진 위 채움·썸 — 밝은·어두운 사진 어느 쪽에서도 떨어지는 중간 회색 */
-const ON_IMAGE_FILL_COLOR = '#A0A0A8';
+/*
+ * 사진 위(재생 목록 열림) 색 — 선이 사진 밑변에 걸쳐 있어 위 절반은 사진, 아래 절반은 흰 바탕이다(2026-09-18 PM).
+ * 반투명 흰 트랙은 흰 바탕 쪽에서 사라져 안 채운 구간이 안 보였다. 두 바탕 모두에서 읽히게 **불투명** 색을 쓴다:
+ * 트랙은 밝은 회색(흰 바탕에선 기본 트랙처럼, 어두운 사진에선 밝은 선으로), 채움·썸은 거의 검정(아래 절반이
+ * 늘 흰 바탕이라 어떤 사진에서도 끊기지 않고 읽힌다)
+ */
+const ON_IMAGE_TRACK_COLOR = '#C9C9CF';
+const ON_IMAGE_FILL_COLOR = '#1A1A1E';
 
 const styles = StyleSheet.create({
   touchArea: {
@@ -222,15 +228,14 @@ const styles = StyleSheet.create({
     color: theme.color.textSecondary,
     fontVariant: ['tabular-nums'],
   },
-  // 사진 위(재생 목록 열림) — 트랙은 흰 반투명, 채움·썸은 중간 회색(2026-09-18 PM). 흰색은 하늘 사진에서,
-  // 검정은 어두운 사진에서 사라졌다 — 회색은 어느 쪽 배경과도 어느 정도 떨어진다
+  // 사진 위 — 색의 근거는 위 ON_IMAGE_* 상수 주석
   trackOnImage: {
-    backgroundColor: 'rgba(255, 255, 255, 0.35)',
+    backgroundColor: ON_IMAGE_TRACK_COLOR,
   },
   fillOnImage: {
     backgroundColor: ON_IMAGE_FILL_COLOR,
   },
   thumbDisabledOnImage: {
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    backgroundColor: ON_IMAGE_TRACK_COLOR,
   },
 });
