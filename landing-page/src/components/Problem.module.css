@@ -4,55 +4,16 @@
   margin-top: clamp(40px, 5vw, 60px);
 }
 
-/* 뒤집기 무대 — 원근은 슬롯이, 회전은 버튼(.flip)이 맡는다. 높이는 앞면이 정한다(뒷면은 절대 배치) */
-.cardSlot {
-  perspective: 1200px;
-}
-
-.flip {
-  position: relative;
-  display: block;
-  width: 100%;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: inherit;
-  text-align: left;
-  font: inherit;
-  cursor: pointer;
-  transform-style: preserve-3d;
-  transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-.flip:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 4px;
-  border-radius: var(--r-lg);
-}
-
-/* 마우스를 올리거나(hover) 눌러 고정하면(.flipOn) 뒤집힌다 */
-@media (hover: hover) {
-  .flip:hover {
-    transform: rotateY(180deg);
-  }
-}
-
-.flipOn {
-  transform: rotateY(180deg);
-}
-
 .card {
   position: relative;
-  display: block;
   padding: 30px 28px 32px;
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   background: var(--surface);
   box-shadow: var(--shadow-sm);
-  backface-visibility: hidden;
 }
 
-/* 카드 위쪽에 짧은 선 하나. 세 카드를 한 줄로 묶어 읽히게 하는 역할만 한다. */
+/* 카드 위쪽에 짧은 앰버 선 하나. 세 카드를 한 줄로 묶어 읽히게 하는 역할만 한다. */
 .card::before {
   content: "";
   position: absolute;
@@ -64,25 +25,6 @@
   background: linear-gradient(90deg, var(--brand-400), var(--brand-600));
 }
 
-/* 뒷면 — 앞면과 같은 자리·크기. 검정 면 위 흰 글자로 "답"임을 한눈에 가른다 */
-.back {
-  position: absolute;
-  inset: 0;
-  transform: rotateY(180deg);
-  background: var(--ink-900);
-  border-color: var(--ink-900);
-  color: #f2f2f5;
-  overflow: hidden;
-}
-
-.back::before {
-  background: #ffffff;
-}
-
-.back .cardBody {
-  color: var(--ink-200);
-}
-
 .num {
   display: block;
   font-family: var(--mono);
@@ -92,63 +34,22 @@
   color: var(--brand-600);
 }
 
-.backEyebrow {
-  display: block;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--ink-300);
-}
-
 .cardTitle {
-  display: block;
   margin-top: 14px;
-  font-family: var(--display);
   font-size: 19.5px;
-  font-weight: 700;
   letter-spacing: -0.04em;
   line-height: 1.4;
 }
 
 .cardBody {
-  display: block;
   margin-top: 12px;
   color: var(--text-2);
   font-size: 15.5px;
   line-height: 1.75;
 }
 
-/* 앞면 오른쪽 아래의 작은 안내 — 뒤집힌다는 신호. hover가 없는 기기에서 특히 필요하다 */
-.hint {
-  display: block;
-  margin-top: 18px;
-  font-size: 12.5px;
-  font-weight: 700;
-  color: var(--text-3);
-}
-
 @media (min-width: 820px) {
   .grid {
     grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-/* 회전 대신 교차 페이드 — 3D 회전은 모션 민감한 사용자에게 가장 부담이 큰 종류다 */
-@media (prefers-reduced-motion: reduce) {
-  .flip,
-  .flip:hover,
-  .flipOn {
-    transform: none;
-  }
-
-  .back {
-    transform: none;
-    opacity: 0;
-    transition: opacity 0.25s ease;
-  }
-
-  .flip:hover .back,
-  .flipOn .back {
-    opacity: 1;
   }
 }

@@ -12,13 +12,33 @@
   box-shadow: var(--shadow-lg);
 }
 
+/* 변수를 등록해 값 변화에 전환을 건다 — 포인터를 따라가는 빛이 프레임마다 툭툭 튀지 않고 미끄러진다 */
+@property --glow {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
+@property --gx {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --gy {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
 .panel {
   --gx: 50%;
   --gy: 50%;
   --glow: 0;
+  transition: --glow 0.35s ease, --gx 0.16s ease-out, --gy 0.16s ease-out;
 }
 
-/* 고정 빛(우상단) — 포인터를 따라가는 동안은 살짝 죽여 두 빛이 겹치지 않게 한다 */
+/* 고정 빛(우상단) — 포인터를 따라가는 동안도 대부분 남긴다. 멀어져서 어두워지는 폭은 작게(피드백 2026-09-18) */
 .glow {
   position: absolute;
   inset: -50% -10% 20% 40%;
@@ -33,36 +53,76 @@
 }
 
 .tracking .glow {
-  opacity: 0.35;
+  opacity: 0.75;
 }
 
 /* 포인터를 따라가는 빛(CtaPanel) — 위치는 --gx/--gy, 세기·크기는 --glow(0~1).
-   버튼에 가까워질수록 밝고 커진다. 멀어지면(--glow 0) 사라진다 */
+   바닥값을 두어 멀리 있어도 은은하게 남고, 버튼에 가까워질수록 밝고 커지며 색이 살짝 따뜻해진다 */
 .pointerGlow {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: var(--glow);
+  opacity: 0;
   background: radial-gradient(
-    calc(220px + 260px * var(--glow)) calc(220px + 260px * var(--glow)) at var(--gx) var(--gy),
-    rgba(255, 255, 255, calc(0.08 + 0.2 * var(--glow))) 0%,
-    rgba(255, 255, 255, calc(0.03 + 0.06 * var(--glow))) 45%,
+    calc(260px + 220px * var(--glow)) calc(260px + 220px * var(--glow)) at var(--gx) var(--gy),
+    rgba(255, 244, 214, calc(0.07 + 0.16 * var(--glow))) 0%,
+    rgba(255, 240, 200, calc(0.03 + 0.05 * var(--glow))) 45%,
     transparent 72%
   );
-  transition: opacity 0.5s ease;
+  transition: opacity 0.45s ease;
 }
 
-/* 버튼 — 가까워지는 빛을 받아 흰 후광이 자라고, 올리면 살짝 떠오른다. 빛이 잦아들면 후광도 함께 */
+.tracking .pointerGlow {
+  opacity: 1;
+}
+
+/* 버튼 — 가까워지는 빛을 받아 후광이 자라고, 올리면 황금빛으로 바뀐다.
+   배경 그라데이션은 전환이 안 되므로 ::before 겹층의 불투명도로 서서히 켠다 */
 .cta {
   position: relative;
+  isolation: isolate;
+  overflow: hidden;
   box-shadow:
     0 10px 26px -14px rgba(10, 10, 12, 0.7),
-    0 0 calc(6px + 34px * var(--glow)) calc(1px + 6px * var(--glow)) rgba(255, 255, 255, calc(0.28 * var(--glow)));
-  transition: transform 0.2s ease, box-shadow 0.25s ease;
+    0 0 calc(6px + 30px * var(--glow)) calc(1px + 5px * var(--glow)) rgba(255, 236, 190, calc(0.26 * var(--glow)));
+  transition: transform 0.22s ease, box-shadow 0.3s ease, color 0.3s ease;
+}
+
+.cta::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    115deg,
+    #f3dc9a 0%,
+    #e6bf5c 22%,
+    #fff1c2 45%,
+    #e9c463 68%,
+    #f7e3a8 100%
+  );
+  background-size: 220% 100%;
+  opacity: 0;
+  transition: opacity 0.35s ease;
 }
 
 .cta:hover {
   transform: translateY(-2px) scale(1.03);
+  color: #1a1a1e;
+  box-shadow:
+    0 14px 30px -14px rgba(10, 10, 12, 0.8),
+    0 0 42px 8px rgba(233, 196, 99, 0.45);
+}
+
+.cta:hover::before {
+  opacity: 1;
+  animation: ctaShimmer 2.2s linear infinite;
+}
+
+/* 금빛이 왼쪽에서 오른쪽으로 흐른다 — 정지한 금색은 그냥 노란 버튼이다 */
+@keyframes ctaShimmer {
+  from { background-position: 0% 50%; }
+  to { background-position: 220% 50%; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -76,6 +136,10 @@
 
   .cta {
     box-shadow: 0 10px 26px -14px rgba(10, 10, 12, 0.7);
+  }
+
+  .cta:hover::before {
+    animation: none;
   }
 }
 

@@ -38,9 +38,9 @@ export function CtaPanel({ className, children }: { className: string; children:
       const cx = bx.left + bx.width / 2;
       const cy = bx.top + bx.height / 2;
       const dist = Math.hypot(event.clientX - cx, event.clientY - cy);
-      // 가까울수록 1. 끝을 부드럽게(ease-out) — 멀리서부터 서서히 밝아진다
+      // 가까울수록 1. 멀어도 0이 되지 않게 바닥(0.2)을 둔다 — 너무 어두워지지 않는다(피드백 2026-09-18)
       const raw = Math.max(0, 1 - dist / REACH_PX);
-      const glow = 1 - Math.pow(1 - raw, 2);
+      const glow = 0.2 + 0.8 * (1 - Math.pow(1 - raw, 2));
       el.style.setProperty("--gx", `${(((event.clientX - rect.left) / rect.width) * 100).toFixed(1)}%`);
       el.style.setProperty("--gy", `${(((event.clientY - rect.top) / rect.height) * 100).toFixed(1)}%`);
       el.style.setProperty("--glow", glow.toFixed(3));
