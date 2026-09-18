@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { XMLParser } from "fast-xml-parser";
 import { cfg, executedBy } from "../config.js";
-import { appendDomainNote, enqueue, insertRun, sweepDomains, upsertSource, type Job } from "../db.js";
+import { appendDomainNote, enqueue, insertRun, majorOfMidTopic, sweepDomains, upsertSource, type Job } from "../db.js";
 import { log, sleep, stripHtml } from "../util.js";
 import { todayKst } from "@ear/pipeline";
 import { workerRev } from "../assets.js";
@@ -15,7 +15,7 @@ interface Item { title: string; url: string; summary: string; author: string; pu
 /**
  * 모드 A 스윕 (spec/02): 풀 도메인의 피드를 도메인당 1회 요청, 메타데이터만 적재. 본문 요청 없음.
  * 원본 아카이브는 S3 `sweeps/`(180일 만료)에 올린다 — 조회는 sources 테이블이 담당 (spec/08 1장).
- * 끝나면 군집화(cluster) 작업을 자동 생성한다.
+ * 끝나면 군집화(cluster) 작업을 자동 생성한다 — v2(축 먼저), 콘솔의 [군집화 v2] 버튼과 같은 페이로드(중분류가 속한 대분류 풀). 2026-09-18 까지 v1 으로 남아 있었다.
  */
 export async function runSweep(job: Job) {
   const midTopic = String(job.payload.mid_topic ?? "");
@@ -67,7 +67,8 @@ export async function runSweep(job: Job) {
     worker_rev: workerRev(),
   });
 
-  const clusterJobId = await enqueue({ type: "cluster", requires_ai: true, payload: { mid_topic: midTopic, sweep_job_id: job.id, sources_count: total }, parent_job_id: job.id });
+  const majorTopic = await majorOfMidTopic(midTopic);
+  const clusterJobId = await enqueue({ type: "cluster", requires_ai: true, payload: { mid_topic: midTopic, cluster_version: "v2", ...(majorTopic ? { major_topic: majorTopic } : {}), sweep_job_id: job.id, sources_count: total }, parent_job_id: job.id });
   return { mid_topic: midTopic, feeds_ok: ok, feeds_total: domains.length, items: total, failures, archive: s3Key(relArchive), next: { cluster_job_id: clusterJobId } };
 }
 
