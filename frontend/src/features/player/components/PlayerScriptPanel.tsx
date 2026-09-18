@@ -6,6 +6,7 @@ import ScrollFade from '@/shared/ui/ScrollFade';
 
 import { PLAYER_COPY } from '../player.copy';
 import { formatPlaybackTime } from '../player.format';
+import { playerColor } from '../player.theme';
 import type { ScriptSegment } from '../player.types';
 
 interface PlayerScriptPanelProps {
@@ -115,9 +116,9 @@ export default function PlayerScriptPanel({
         }}
       />
       {/* 헤더와의 경계 — 선을 긋지 않고, 목록이 헤더 밑으로 올라가며 배경색으로 흐려져 사라진다(2026-09-18 PM) */}
-      <ScrollFade edge="top" />
+      <ScrollFade edge="top" color={playerColor.background} />
       {/* 아래쪽도 대칭 — 컨트롤 위에서 문단이 잘린 채 끝나지 않고 흐려지며 사라진다 */}
-      <ScrollFade edge="bottom" />
+      <ScrollFade edge="bottom" color={playerColor.background} />
       {/* 손잡이는 서랍의 아랫단이다 — 접힌 상태의 바닥 손잡이와 같은 자리·같은 모양이라,
           위로 끌어 올린 것을 아래로 끌어 내리는 것으로 읽힌다. 탭도 접는다 */}
     </View>
@@ -145,7 +146,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing.xs,
   },
   segmentCurrent: {
-    backgroundColor: theme.color.surface,
+    backgroundColor: playerColor.surface,
   },
   segmentHead: {
     flexDirection: 'row',
@@ -155,24 +156,24 @@ const styles = StyleSheet.create({
   speaker: {
     fontSize: theme.font.size.xs,
     fontWeight: '600',
-    color: theme.color.textSecondary,
+    color: playerColor.textSecondary,
   },
   speakerCurrent: {
-    color: theme.color.primary,
+    color: playerColor.primary,
   },
   time: {
     fontSize: theme.font.size.xs,
-    color: theme.color.textSecondary,
+    color: playerColor.textSecondary,
     fontVariant: ['tabular-nums'],
   },
   text: {
     fontSize: theme.font.size.md,
     lineHeight: theme.font.size.md * 1.55,
-    color: theme.color.textSecondary,
+    color: playerColor.textSecondary,
     userSelect: 'none',
   },
   textCurrent: {
     fontWeight: '600',
-    color: theme.color.textPrimary,
+    color: playerColor.textPrimary,
   },
 });

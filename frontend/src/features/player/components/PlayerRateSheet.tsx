@@ -5,6 +5,7 @@ import { theme } from '@/shared/theme';
 import type { PlaybackRate } from '@/features/settings';
 
 import { PLAYER_COPY } from '../player.copy';
+import { playerColor } from '../player.theme';
 
 /** 허용값 5개뿐이다 — 슬라이더·커스텀 입력을 두지 않는다(player-uiux.md 4.5) */
 const RATE_OPTIONS: PlaybackRate[] = [0.8, 1.0, 1.2, 1.5, 2.0];
@@ -70,13 +71,13 @@ export default function PlayerRateSheet({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: theme.color.overlay,
+    backgroundColor: playerColor.overlay,
     justifyContent: 'flex-end',
   },
   sheet: {
     borderTopLeftRadius: theme.radius.lg,
     borderTopRightRadius: theme.radius.lg,
-    backgroundColor: theme.color.background,
+    backgroundColor: playerColor.background,
     paddingHorizontal: theme.spacing.md,
     paddingTop: theme.spacing.sm,
     paddingBottom: theme.spacing.xl,
@@ -86,13 +87,13 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: theme.color.border,
+    backgroundColor: playerColor.border,
     marginBottom: theme.spacing.sm,
   },
   title: {
     fontSize: theme.font.size.sm,
     fontWeight: '600',
-    color: theme.color.textSecondary,
+    color: playerColor.textSecondary,
     paddingVertical: theme.spacing.sm,
   },
   option: {
@@ -103,19 +104,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.sm,
   },
   optionPressed: {
-    backgroundColor: theme.color.surface,
+    backgroundColor: playerColor.surface,
   },
   optionLabel: {
     fontSize: theme.font.size.md,
-    color: theme.color.textPrimary,
+    color: playerColor.textPrimary,
   },
   optionLabelSelected: {
     fontWeight: '700',
-    color: theme.color.primary,
+    color: playerColor.primary,
   },
   check: {
     fontSize: theme.font.size.md,
     fontWeight: '700',
-    color: theme.color.primary,
+    color: playerColor.primary,
   },
 });

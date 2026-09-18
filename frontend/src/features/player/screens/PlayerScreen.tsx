@@ -1,3 +1,4 @@
+import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
@@ -47,6 +48,7 @@ import {
   PLAYER_COLLAPSE_VELOCITY,
 } from '../player.constants';
 import { PLAYER_COPY } from '../player.copy';
+import { playerColor } from '../player.theme';
 import { useMiniPlayerLayoutStore } from '../store/mini-player-layout.store';
 import { usePlayerOpenGestureStore } from '../store/player-open-gesture.store';
 
@@ -708,9 +710,19 @@ export default function PlayerScreen() {
       outputRange: [mini.height, windowHeight],
     }),
     sheetRadius: openProgress.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0, 20, 0] }),
+    /*
+     * 출발은 뒤의 진짜 미니플레이어(밝은 theme.surface), 도착은 플레이어의 검정. 끝까지 고르게 섞으면 중간이
+     * 탁한 회색 판으로 오래 보인다 — 미니 제목·▶ 이 사라지는 12%까지만 밝게 두고, 40%에서 이미 검정에
+     * 닿게 해 회색 구간을 짧게 지난다(2026-09-18)
+     */
     sheetColor: openProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [theme.color.surface, theme.color.background],
+      inputRange: [0, 0.12, 0.4, 1],
+      outputRange: [
+        theme.color.surface,
+        theme.color.surface,
+        playerColor.background,
+        playerColor.background,
+      ],
     }),
     // 뒤의 라이브러리는 살짝 가라앉는다 — 시트가 그 위에 얹혔다는 층 감각
     dimOpacity: openProgress.interpolate({ inputRange: [0, 1], outputRange: [0, 0.35] }),
@@ -803,6 +815,8 @@ export default function PlayerScreen() {
 
   return (
     <View style={[containerStyle, !isShellVisible && styles.shellHidden]}>
+      {/* 플레이어는 검정 바탕이다 — 떠 있는 동안 상태바 글자를 밝게. 화면이 걷히면 앱 기본(auto)으로 돌아간다 */}
+      <StatusBar style="light" />
       {/* 뒤 화면 딤 + 미니플레이어 자리에서 자라나는 시트 — 0일 때는 카드 그 자체, 1일 때 풀 화면 */}
       <Animated.View
         style={[StyleSheet.absoluteFill, styles.dim, { opacity: morph.dimOpacity }]}
@@ -882,7 +896,7 @@ export default function PlayerScreen() {
               <ChevronIcon
                 direction="down"
                 size={APP_BAR_ICON_SIZE}
-                color={theme.color.textPrimary}
+                color={playerColor.textPrimary}
               />,
               <ChevronIcon direction="down" size={APP_BAR_ICON_SIZE} color={ON_IMAGE_COLOR} />,
             )}
@@ -898,7 +912,7 @@ export default function PlayerScreen() {
               accessibilityState={{ disabled: true }}
             >
               {dualTone(
-                <SleepTimerIcon size={APP_BAR_ICON_SIZE} color={theme.color.textPrimary} />,
+                <SleepTimerIcon size={APP_BAR_ICON_SIZE} color={playerColor.textPrimary} />,
                 <SleepTimerIcon size={APP_BAR_ICON_SIZE} color={ON_IMAGE_COLOR} />,
               )}
             </Pressable>
@@ -909,7 +923,7 @@ export default function PlayerScreen() {
               accessibilityLabel={PLAYER_COPY.screen.moreA11y}
             >
               {dualTone(
-                <MoreIcon size={APP_BAR_ICON_SIZE} color={theme.color.textPrimary} />,
+                <MoreIcon size={APP_BAR_ICON_SIZE} color={playerColor.textPrimary} />,
                 <MoreIcon size={APP_BAR_ICON_SIZE} color={ON_IMAGE_COLOR} />,
               )}
             </Pressable>
@@ -1057,7 +1071,7 @@ export default function PlayerScreen() {
             >
               <SeekBackIcon
                 size={SEEK_ICON_SIZE}
-                color={isControlDisabled ? theme.color.border : theme.color.textSecondary}
+                color={isControlDisabled ? playerColor.border : playerColor.textSecondary}
               />
             </Pressable>
 
@@ -1072,11 +1086,11 @@ export default function PlayerScreen() {
             >
               {screen.showBufferingIndicator ? (
                 // 로딩 표시는 재생 버튼 자리에만, 2초 초과 시만(uiux 4.3)
-                <ActivityIndicator color={theme.color.onPrimary} />
+                <ActivityIndicator color={playerColor.onPrimary} />
               ) : (
                 (() => {
                   const Icon = !isEnded && session.isPlaying ? PauseIcon : PlayIcon;
-                  return <Icon size={PLAY_ICON_SIZE} color={theme.color.onPrimary} />;
+                  return <Icon size={PLAY_ICON_SIZE} color={playerColor.onPrimary} />;
                 })()
               )}
             </Pressable>
@@ -1090,7 +1104,7 @@ export default function PlayerScreen() {
             >
               <SeekForwardIcon
                 size={SEEK_ICON_SIZE}
-                color={isControlDisabled ? theme.color.border : theme.color.textSecondary}
+                color={isControlDisabled ? playerColor.border : playerColor.textSecondary}
               />
             </Pressable>
 
@@ -1113,10 +1127,10 @@ export default function PlayerScreen() {
                   size={SEEK_ICON_SIZE}
                   color={
                     isControlDisabled
-                      ? theme.color.border
+                      ? playerColor.border
                       : activePanel === 'script'
-                        ? theme.color.primary
-                        : theme.color.textSecondary
+                        ? playerColor.primary
+                        : playerColor.textSecondary
                   }
                 />
               </Pressable>
@@ -1244,7 +1258,7 @@ export default function PlayerScreen() {
                 width: fullTitle.width,
                 fontSize: fullTitleFontSize,
                 lineHeight: fullTitleFontSize * 1.3,
-                color: isQueueOpen ? ON_IMAGE_COLOR : theme.color.textPrimary,
+                color: isQueueOpen ? ON_IMAGE_COLOR : playerColor.textPrimary,
                 opacity: morph.contentOpacity,
                 transform: [{ translateY: morph.contentTranslateY }],
               },
@@ -1391,17 +1405,19 @@ const styles = StyleSheet.create({
   morphArtwork: {
     position: 'absolute',
     overflow: 'hidden',
-    backgroundColor: theme.color.surface,
+    backgroundColor: playerColor.surface,
   },
   morphTitle: {
     position: 'absolute',
     fontWeight: '700',
-    color: theme.color.textPrimary,
+    color: playerColor.textPrimary,
   },
   // 미니플레이어 제목과 같은 글자(MiniPlayer styles.title) — 착지 순간 뒤의 진짜 제목과 겹쳐 한 장으로 보인다
   morphMiniTitle: {
     fontSize: theme.font.size.sm,
     fontWeight: '600',
+    // 이 순간의 시트는 아직 밝은 미니플레이어 색이다 — 밝은 테마의 글자색
+    color: theme.color.textPrimary,
   },
   morphMiniButton: {
     position: 'absolute',
@@ -1449,7 +1465,7 @@ const styles = StyleSheet.create({
   heroArtwork: {
     position: 'absolute',
     overflow: 'hidden',
-    backgroundColor: theme.color.surface,
+    backgroundColor: playerColor.surface,
   },
   heroMeta: {
     position: 'absolute',
@@ -1470,15 +1486,15 @@ const styles = StyleSheet.create({
   // 둥근 모서리는 컨테이너(heroArtwork, overflow hidden)가 자른다 — 여기 radius 를 두면 확대돼 모서리가 0 이 될 때 흰 틈이 남는다
   artwork: {
     flex: 1,
-    backgroundColor: theme.color.surface,
+    backgroundColor: playerColor.surface,
   },
   artworkPlaceholder: {
-    backgroundColor: theme.color.surface,
+    backgroundColor: playerColor.surface,
   },
   compactTitle: {
     fontSize: theme.font.size.lg,
     fontWeight: '700',
-    color: theme.color.textPrimary,
+    color: playerColor.textPrimary,
     lineHeight: theme.font.size.lg * 1.3,
   },
   completedBadge: {
@@ -1491,17 +1507,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     // 밝은 아트워크 위에서도 보이도록 배경을 깐다(마킹 배경 처리는 시안 검증 미결)
-    backgroundColor: theme.color.overlay,
+    backgroundColor: playerColor.overlay,
   },
   completedBadgeGlyph: {
-    color: theme.color.onPrimary,
+    color: playerColor.onPrimary,
     fontSize: theme.font.size.sm,
     fontWeight: '700',
   },
   title: {
     fontSize: theme.font.size.xl,
     fontWeight: '700',
-    color: theme.color.textPrimary,
+    color: playerColor.textPrimary,
     // 한 줄 마퀴 — lineHeight가 곧 뷰포트 높이다(MarqueeText)
     lineHeight: theme.font.size.xl * 1.3,
   },
@@ -1509,7 +1525,7 @@ const styles = StyleSheet.create({
   category: {
     fontSize: theme.font.size.sm,
     fontWeight: '600',
-    color: theme.color.textSecondary,
+    color: playerColor.textSecondary,
   },
 
   controlArea: {
@@ -1529,7 +1545,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   glyphDisabled: {
-    color: theme.color.border,
+    color: playerColor.border,
   },
   playButton: {
     width: 72,
@@ -1537,7 +1553,7 @@ const styles = StyleSheet.create({
     borderRadius: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: theme.color.primary,
+    backgroundColor: playerColor.primary,
   },
   // 배속 — 칩 배경 없이 텍스트만. 폭은 고정해 왼쪽 버튼과 오른쪽 빈 자리가 같은 폭을 갖게 한다
   rateButton: {
@@ -1549,7 +1565,7 @@ const styles = StyleSheet.create({
   rateLabel: {
     fontSize: theme.font.size.sm,
     fontWeight: '600',
-    color: theme.color.textSecondary,
+    color: playerColor.textSecondary,
     fontVariant: ['tabular-nums'],
   },
   // 스크립트 손잡이 — 화면 바닥에 붙는다. 바(pill) + 라벨이 "위로 끌어올릴 수 있다"를 말한다
@@ -1560,7 +1576,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: theme.color.background,
+    backgroundColor: playerColor.background,
   },
   scriptHandleWrap: {},
   // 사진 위 글자·시크바 대비 — 재생 목록이 열린 만큼 어두워진다
@@ -1600,12 +1616,12 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: theme.radius.full,
-    backgroundColor: theme.color.border,
+    backgroundColor: playerColor.border,
   },
   scriptHandleLabel: {
     fontSize: theme.font.size.xs,
     fontWeight: '600',
-    color: theme.color.textSecondary,
+    color: playerColor.textSecondary,
   },
   banner: {
     minHeight: 64,
@@ -1617,11 +1633,11 @@ const styles = StyleSheet.create({
   bannerTitle: {
     fontSize: theme.font.size.sm,
     fontWeight: '600',
-    color: theme.color.textPrimary,
+    color: playerColor.textPrimary,
   },
   bannerDescription: {
     fontSize: theme.font.size.xs,
-    color: theme.color.textSecondary,
+    color: playerColor.textSecondary,
   },
   bannerAction: {
     minHeight: theme.touchTarget.minHeight,
@@ -1631,7 +1647,7 @@ const styles = StyleSheet.create({
   bannerActionLabel: {
     fontSize: theme.font.size.sm,
     fontWeight: '600',
-    color: theme.color.primary,
+    color: playerColor.primary,
   },
   withdrawn: {
     flex: 1,
@@ -1643,7 +1659,7 @@ const styles = StyleSheet.create({
   withdrawnTitle: {
     fontSize: theme.font.size.md,
     fontWeight: '600',
-    color: theme.color.textPrimary,
+    color: playerColor.textPrimary,
     textAlign: 'center',
   },
   withdrawnClose: {
@@ -1654,7 +1670,7 @@ const styles = StyleSheet.create({
   withdrawnCloseLabel: {
     fontSize: theme.font.size.md,
     fontWeight: '600',
-    color: theme.color.primary,
+    color: playerColor.primary,
   },
   snackbar: {
     position: 'absolute',
@@ -1665,13 +1681,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     borderRadius: theme.radius.md,
-    backgroundColor: theme.color.textPrimary,
+    backgroundColor: playerColor.textPrimary,
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
   },
   snackbarMessage: {
     fontSize: theme.font.size.sm,
-    color: theme.color.onPrimary,
+    color: playerColor.onPrimary,
   },
   snackbarAction: {
     minHeight: theme.touchTarget.minHeight,
@@ -1681,6 +1697,7 @@ const styles = StyleSheet.create({
   snackbarActionLabel: {
     fontSize: theme.font.size.sm,
     fontWeight: '700',
-    color: theme.color.primary,
+    // 스낵바 면이 흰색(textPrimary)이라 그 위 글자는 onPrimary(검정)
+    color: playerColor.onPrimary,
   },
 });
