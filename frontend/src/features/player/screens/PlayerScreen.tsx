@@ -828,6 +828,13 @@ export default function PlayerScreen() {
     .filter((name): name is string => name !== undefined);
   // 이름을 못 찾으면(목록 미도착·모르는 id) 자리도 남기지 않는다. 최대 두 개까지만 — 그 이상은 제목을 밀어낸다
   const categoryLabel = topicNames.length > 0 ? topicNames.slice(0, 2).join(' · ') : null;
+  // 재생 목록 줄의 카테고리 — 플레이어 제목 아래 줄과 같은 규칙(주제 이름 앞 두 개). 이름을 못 찾으면 null
+  const queueCategoryOf = (item: QueueItem): string | null => {
+    const names = item.topicIds
+      .map((id) => topicsQuery.data?.items.find((topic) => topic.topicId === id)?.name)
+      .filter((name): name is string => Boolean(name));
+    return names.length > 0 ? names.slice(0, 2).join(' · ') : null;
+  };
 
   const isEnded = session.state === 'ended';
   const isControlDisabled = session.state === 'loading' || session.state === 'load_failed';
@@ -1334,6 +1341,7 @@ export default function PlayerScreen() {
             showHeader={false}
             onSelect={screen.playQueueItem}
             onReorder={queueOrder.move}
+            categoryOf={queueCategoryOf}
             onRetry={() => void queueQuery.refetch()}
             onSwipeRight={() => setPanel(null)}
           />

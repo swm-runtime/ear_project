@@ -33,6 +33,8 @@ interface PlayerQueuePanelProps {
   onSwipeRight: () => void;
   /** 손잡이를 끌어 `from` 줄을 `to` 줄로 옮겼다 — 순서의 저장은 부모(useQueueOrder) 몫이다 */
   onReorder: (from: number, to: number) => void;
+  /** 줄의 카테고리(주제 이름) — 이름 해석은 주제 목록을 가진 화면 몫이다. 없으면 길이만 보인다 */
+  categoryOf?: (item: QueueItem) => string | null;
   /** 시트 안에서는 손잡이 라벨이 제목 역할이라 패널 제목을 다시 그리지 않는다 */
   showHeader?: boolean;
 }
@@ -64,6 +66,8 @@ const toMinutes = (durationSec: number | null): number =>
 
 interface QueueRowProps {
   item: QueueItem;
+  /** 제목 아래 보조 줄 앞에 붙는 카테고리 — "AI·테크 트렌드 · 5:00" */
+  category: string | null;
   index: number;
   total: number;
   isCurrent: boolean;
@@ -89,6 +93,7 @@ interface QueueRowProps {
  */
 function QueueRow({
   item,
+  category,
   index,
   total,
   isCurrent,
@@ -182,8 +187,11 @@ function QueueRow({
           <Text style={[styles.rowTitle, isCurrent && styles.rowTitleCurrent]} numberOfLines={1}>
             {item.title}
           </Text>
-          <Text style={styles.rowDuration}>
-            {item.durationSec === null ? '' : formatPlaybackTime(item.durationSec)}
+          {/* 카테고리 · 길이 한 줄(2026-09-19 PM) — 무슨 편인지가 길이보다 먼저 읽힌다 */}
+          <Text style={styles.rowDuration} numberOfLines={1}>
+            {[category, item.durationSec === null ? null : formatPlaybackTime(item.durationSec)]
+              .filter(Boolean)
+              .join(' · ')}
           </Text>
         </View>
       </Pressable>
@@ -231,6 +239,7 @@ export default function PlayerQueuePanel({
   onRetry,
   onSwipeRight,
   onReorder,
+  categoryOf,
   showHeader = true,
 }: PlayerQueuePanelProps) {
   const swipeRightRef = useRef(onSwipeRight);
@@ -448,6 +457,7 @@ export default function PlayerQueuePanel({
               <QueueRow
                 key={item.itemId}
                 item={item}
+                category={categoryOf ? categoryOf(item) : null}
                 index={index}
                 total={items.length}
                 isCurrent={item.contentId === currentContentId}
