@@ -181,19 +181,35 @@ export function QueueIcon({ size, color }: IconProps) {
 }
 
 /**
- * 수면 타이머 — 초승달(2026-09-16, 앱바로 이동). 선 굵기는 ±10초 아이콘과 같다.
- * `filled` = 타이머가 걸려 있다(2026-09-19) — 달을 채워 그린다. 옆의 남은 시간 알약과 함께 켜짐을 알린다:
- * 선으로만 그린 달은 켜졌는지 꺼졌는지 아이콘만 봐서는 알 수 없었다. 색이 아니라 형태(채움)로 구분한다
+ * 수면 타이머 — **통통한 초승달 + z z**(2026-09-19 PM, 애플의 `moon.zzz` 문법).
+ *
+ * - 가는 선 초승달은 작은 크기에서 달이 아니라 "C"·괄호로 읽혔고, 달 하나만 있으면 다크 모드 전환으로도 읽힌다.
+ *   몸통이 두꺼운 초승달(오목한 쪽이 오른쪽 위)에 그 오목한 자리로 작은 z 두 개를 넣어 "잠"을 명시한다.
+ * - 꺼짐 = 선, **켜짐(`filled`) = 채움** — 애플이 시스템 전반에서 쓰는 규칙이다(선 = 비활성, 채움 = 활성).
+ *   색이 아니라 형태로 구분한다. z 는 어느 상태에서도 선이다.
+ * - 달은 24칸 안에서 왼쪽 아래로 치우쳐 앉고 z 가 오른쪽 위를 채워, 묶음 전체의 중심이 (12,12) 근처에 온다.
+ *   선 굵기는 ±10초 아이콘과 같은 1.8, z 는 작아서 1.5
  */
+const SLEEP_MOON_PATH = 'M16.44 13.94A7.56 7.56 0 1 1 8.22 5.72 5.88 5.88 0 0 0 16.44 13.94z';
+const SLEEP_Z_PATH = 'M14.4 3.2h4.4l-4.4 4.8h4.4M19.7 9.8h2.9l-2.9 3.2h2.9';
+
 export function SleepTimerIcon({ size, color, filled = false }: IconProps & { filled?: boolean }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Path
-        d="M14.5 3.5a8.5 8.5 0 1 0 6 14.5 7 7 0 0 1-6-14.5z"
+        d={SLEEP_MOON_PATH}
         stroke={color}
         strokeWidth={1.8}
         strokeLinejoin="round"
         fill={filled ? color : 'none'}
+      />
+      <Path
+        d={SLEEP_Z_PATH}
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
       />
     </Svg>
   );
