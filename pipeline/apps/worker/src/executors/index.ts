@@ -21,9 +21,23 @@ class ApiExecutor implements Executor {
 
 export { setJobAbort, jobAbortSignal } from "./abort.js";
 
+/**
+ * 모델 이름으로 실행기를 고르는 라우터 (2026-09-19): 기본 실행기(claude-cli)에서 단계 env 가 `gpt-…` 모델이면 그 호출만 OpenAI 로 보낸다.
+ * 같은 워커에서 초안(설계·대본·수정)은 GPT, QA·비평은 Claude 로 두는 짝 비교가 이걸로 된다 — 예: DRAFT_DESIGN_MODEL=gpt-5.6-sol DRAFT_WRITE_MODEL=gpt-5.6-sol npm run worker
+ */
+class RoutedExecutor implements Executor {
+  readonly kind = "claude-cli" as const;
+  private openai = new OpenAiExecutor();
+  constructor(private cli: ClaudeCliExecutor) {}
+  run<T>(req: ExecRequest): Promise<ExecResult<T>> {
+    if (/^(gpt-|o\d)/.test(req.model ?? "")) return this.openai.run<T>(req);
+    return this.cli.run<T>(req);
+  }
+}
+
 export function makeExecutor(kind: ExecutorKind, model?: string): Executor {
   switch (kind) {
-    case "claude-cli": return new ClaudeCliExecutor(model);
+    case "claude-cli": return new RoutedExecutor(new ClaudeCliExecutor(model));
     case "api": return new ApiExecutor();
     case "openai": return new OpenAiExecutor(model); // 실험 (2026-09-19): GPT 로 같은 후보를 재생성해 비용·품질 비교. 단발 호출만
     default: return new NoneExecutor();
