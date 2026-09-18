@@ -6,7 +6,7 @@
 > 스키마: [`docs/backend/domain.md`](../../backend/domain.md) 4.1 · 5.1 · 5.5
 > 연관: [`features/partner-control.md`](../../features/partner-control.md) 4.4(라이선스 만료 거부)
 
-작성: 2026-09-03 (구현 계약 등재 — `changes/archive/admin-web-console.md`) · 2026-09-07 4.10 재발행 등재·구현(`tickets/backend/archive/content-republish-audio.md`)
+작성: 2026-09-03 (구현 계약 등재 — `changes/archive/admin-web-console.md`) · 2026-09-07 4.10 재발행 등재·구현(`tickets/backend/archive/content-republish-audio.md`) · 2026-09-18 4.16 편성 미리보기 등재
 
 ## 1. 범위
 
@@ -17,6 +17,7 @@
 - 콘텐츠 업로드 → 즉시 발행 (FR-37, `admin.md` 4.2)
 - 콘텐츠 **회수·복구** (FR-32, `admin.md` 4.4)
 - 콘텐츠 **재발행** — 오디오·메타 교체, `content_version` 증가 (`admin.md` 4.3)
+- **편성 미리보기** — 추천 검증 콘솔용 읽기 전용 계산 (`drip-scheduling.md` 4장·5장 "편성 품질", 2026-09-18)
 
 **이 문서는 동작 규칙을 새로 정하지 않는다.** 규칙이 충돌하면 `admin.md`가 기준이며, 스키마는 `domain.md`가 유일한 기준이다.
 
@@ -57,6 +58,7 @@
 | PATCH | `/admin/notices/:noticeId` | 공지 부분 수정 — `published_at: null`은 발행 취소 (4.14) |
 | DELETE | `/admin/notices/:noticeId` | 공지 삭제(soft) (4.15) |
 | GET | `/admin/system-stats` | 서버 자원·DB 부하 스냅샷 (로그 콘솔 상태 탭) |
+| GET | `/admin/drip/preview` | 편성 미리보기 — 지금 데이터로 배치를 돌리면 갈 정규·탐험 편성분과 점수 분해, 읽기 전용 (4.16) |
 
 ## 4. 엔드포인트 상세
 
@@ -314,6 +316,52 @@
 
 - 204. **soft delete**(`deleted_at`) — 사용자 목록·상세에서 즉시 사라진다(상세는 404).
 - 없거나 이미 삭제된 공지는 404 `NOTICE_NOT_FOUND`. `audit_logs`에 `notice.delete`.
+
+### 4.16 `GET /admin/drip/preview` — 편성 미리보기 (읽기 전용)
+
+> 추가: 2026-09-18 (admin 콘솔 "추천 검증" 탭). 근거: `drip-scheduling.md` 4.1~4.8 · 5장 운영 콘솔 "편성 품질".
+
+"지금 데이터로 편성 배치를 돌리면 이 사용자에게 어떤 정규 N편·탐험 M편이 가는가"를 **계산만 하고 돌려준다.**
+배치와 같은 계산기(`DripBatchOrchestrator.planForUser`)를 쓰되 취향 캐시 저장·라이브러리 적립·제외 기록·알림·배치 기록을
+전부 하지 않는다. 호출해도 서버 상태는 바뀌지 않는다. 응답은 `Cache-Control: no-store`이며 매 요청 다시 계산한다.
+
+**요청**
+
+| 쿼리 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `email` | string(email) | ✓ | 대상 사용자 이메일. 역할 무관, 같은 주소가 여럿이면 가입이 가장 이른 사용자 |
+
+**응답 200**
+
+| 필드 | 설명 |
+|---|---|
+| `computed_at` · `service_date` | 계산 시각(ISO), 서비스 날짜(04시 경계) |
+| `user` | `id` `email` `nickname` `tier` `job_category` `years_of_experience` `onboarding_completed` |
+| `skip_reason` | `no_interests` \| `unfinished_inventory` \| `plan_disabled` \| null — 배치라면 스킵될 사유. 미리보기는 사유를 적은 채 끝까지 계산한다 |
+| `unfinished_count` · `unfinished_limit` | 미청취 재고와 스킵 기준(5) |
+| `drip_count` · `discovery_count` | 티어 편수(`plans`) |
+| `interests[]` | `topic_id` `name` `source` — 활성 관심 주제 |
+| `removed_topics[]` | 사용자가 직접 해제한 주제(탐험 제외) |
+| `preference` | `is_cold_start` `complete_signal_count` `cold_start_threshold` `signal_count` `has_taste_embedding` `duration_pref` `topic_weights[]` `author_weights[]` `keyword_weights[]` `format_weights[]`(절대값 상위 15, `{key,name,weight}`) `difficulty_affinity` — **저장하지 않은** 계산값 |
+| `signals[]` | `content_id` `title` `action` `created_at` — 취향 계산 입력(90일·최대 500건) |
+| `weights` | 스코어링 상수: `axes` `signal_items` `meta_items` `meta_items_cold_start` `discovery_items` |
+| `regular` | `pool_size` `gated_out[]`(시리즈 순서 게이트 제외, `reason: episode_order`) `recent_drip_topics[]` `candidates[]` — null이면 정규 편수 0 |
+| `discovery` | `pool_size` `quality_floor` `typical_complete_rate` `excluded[]`(`user_removed_topic` \| `below_quality_floor`) `candidates[]` — null이면 탐험 편수 0 |
+| `discovery_error` | 탐험 계산이 던졌으면 메시지, 아니면 null(정규는 영향 없음 — 4.8) |
+| `today_placed[]` | 오늘 서비스 날짜에 실제 배치가 적립한 편(`library_items.source in drip,discovery`) |
+
+`candidates[]` 항목: 콘텐츠 메타(`content_id` `title` `author_name` `source_name` `duration_sec` `published_at` `difficulty` `format`
+`is_evergreen` `series_id` `episode_no` `topics[]`) + 스코어링 입력(`play_count` `complete_count` `has_embedding`) + `score` `is_series_continuation`
+`breakdown`(`embedding` `signal` `signal_items{}` `meta` `meta_items{}` — null은 입력 없어 축·항목에서 빠짐) + `pick_order`(최종 편성분이면 1부터, 아니면 null)
++ 탐험만 `exposure_count` `is_outside_interests`. 정렬은 점수 내림차순. **`audio_path`는 싣지 않는다**(7장).
+
+**오류**
+
+| 상태 | `error_code` | 조건 |
+|---|---|---|
+| 400 | `VALIDATION_FAILED` | `email` 누락·형식 오류 |
+| 401 / 403 | `UNAUTHORIZED` / `FORBIDDEN` | 2장 공통 규약 |
+| 404 | `NOT_FOUND` | 그 이메일의 사용자 없음 |
 
 ## 5. 에러 코드 표
 

@@ -53,6 +53,11 @@ export class UserService {
     return this.userRepository.findDripTargetsPage(afterId, limit, manager);
   }
 
+  /** 편성 미리보기(admin) — 이메일로 대상 사용자 한 명. 역할 무관, 없으면 null */
+  async findByEmail(email: string): Promise<User | null> {
+    return this.userRepository.findByEmail(email);
+  }
+
   /** 파이프라인 SSO — 검증된 이메일과 같은 관리자 계정 (changes/pending/pipeline-sso-login.md) */
   async findAdminByEmail(email: string): Promise<User | null> {
     return this.userRepository.findAdminByEmail(email);
