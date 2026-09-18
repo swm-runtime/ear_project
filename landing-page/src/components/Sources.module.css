@@ -1,6 +1,31 @@
-.wrap {
+/* ---------- 무대 · 고정 ----------
+   기본(좁은·낮은 화면, reduced-motion): 보통 섹션. 넓은 화면(.pinned): 무대를 키 크게 두고 안쪽(.pin)을
+   sticky로 고정한다 — 그 사이 스크롤한 양이 진행값 --p 가 되어 자료 칩이 선을 타고 내려온다 */
+.stage {
+  --p: 0;
+  padding-top: clamp(72px, 11vw, 132px);
   /* 아래로 TRY 섹션 윗선에 꼬리선이 닿도록 아래 여백은 0 — 꼬리(.tail)가 그 자리를 채운다 */
   padding-bottom: 0;
+  overflow: hidden;
+}
+
+.pinned {
+  /* 100vh 고정 + 130vh 만큼 스크롤하는 동안 장면이 진행된다 */
+  height: 230vh;
+  padding-top: 0;
+  overflow: visible;
+}
+
+.pinned .pin {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 100vh;
+  /* 헤더(sticky)에 머리가 가리지 않게 — 낮은 화면에서 가운데 정렬만으로는 여유가 모자란다 */
+  padding-top: 72px;
   overflow: hidden;
 }
 
@@ -122,6 +147,7 @@
 
 .caption {
   max-width: 34ch;
+  will-change: opacity, transform;
   font-family: var(--display);
   font-size: clamp(18px, 2.2vw, 24px);
   font-weight: 700;
@@ -139,14 +165,124 @@
   transform-origin: top;
 }
 
-/* ---------- 등장 — 표식이 있을 때만 시작 상태로 두고, 섹션이 보이면 순서대로 그린다 ---------- */
+/* ---------- 선을 타고 내려오는 자료(핀 모드) ---------- */
 
-:global(html[data-reveal]) .line {
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
+.travelers {
+  position: absolute;
+  inset: 0 var(--gutter) auto;
+  height: clamp(120px, 16vw, 220px);
+  pointer-events: none;
 }
 
-:global(html[data-reveal] .is-visible) .line {
+/* 원형 배지 — 브랜드 색 원 위에 약칭. 실제 로고 그림 대신(상표) "로고처럼" 읽히는 최소 형태 */
+.badge {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: none;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 2px solid var(--paper);
+  background: var(--brand, var(--ink-900));
+  color: #fff;
+  font-size: var(--fs, 13px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: var(--shadow-md);
+  will-change: transform, opacity;
+  opacity: 0;
+}
+
+.badge_serif {
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 700;
+}
+
+.badge_mono {
+  font-family: var(--mono);
+  letter-spacing: 0;
+}
+
+.badge_sans {
+  font-family: var(--sans);
+}
+
+.pinned .badge {
+  display: grid;
+}
+
+/* 마크가 자료를 "받는" 순간 — 한 번 부풀고, 고리가 퍼진다(0.7~0.85) */
+.nodeMark {
+  position: relative;
+}
+
+.nodeRing {
+  position: absolute;
+  inset: -1px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ink-300);
+  opacity: 0;
+}
+
+.pinned .nodeMark {
+  transform: scale(calc(1 + 0.18 * clamp(0, (var(--p) - 0.7) / 0.08, 1) * clamp(0, (0.86 - var(--p)) / 0.08, 1)));
+}
+
+.pinned .nodeRing {
+  opacity: calc(0.7 * clamp(0, (var(--p) - 0.7) / 0.05, 1) * clamp(0, (0.92 - var(--p)) / 0.14, 1));
+  transform: scale(calc(1 + 1.6 * clamp(0, (var(--p) - 0.7) / 0.22, 1)));
+}
+
+/* 핀 모드에서는 선·캡션·꼬리를 --p 로 몬다(스크롤 등장 클래스가 아니라) */
+/* 아래 핀 모드 규칙은 `.stage.pinned`로 명시도를 올린다 — 등장 규칙(html[data-reveal] .is-visible …)이
+   더 높아 꼬리·선이 진행값을 무시하고 바로 다 그려졌다(2026-09-18). pathLength=100이라 대시 단위는 px(=사용자 단위) */
+.stage.pinned .line {
+  stroke-dasharray: 100px;
+  stroke-dashoffset: calc((1 - clamp(0, var(--p) / 0.15, 1)) * 100px);
+  animation: none !important;
+}
+
+.stage.pinned .node {
+  opacity: calc(clamp(0, (var(--p) - 0.78) / 0.12, 1));
+  transform: translateY(calc(10px * (1 - clamp(0, (var(--p) - 0.78) / 0.12, 1))));
+  transition: none;
+}
+
+.stage.pinned .nodeMark,
+.stage.pinned .node .nodeLogo {
+  opacity: 1;
+}
+
+/* 마크 자체는 처음부터 보인다 — 자료가 도착할 자리가 있어야 한다. 캡션만 뒤에 */
+.stage.pinned .node {
+  opacity: 1;
+  transform: none;
+}
+
+.pinned .caption {
+  opacity: calc(clamp(0, (var(--p) - 0.8) / 0.12, 1));
+  transform: translateY(calc(8px * (1 - clamp(0, (var(--p) - 0.8) / 0.12, 1))));
+}
+
+.stage.pinned .tail {
+  transform: scaleY(calc(clamp(0, (var(--p) - 0.86) / 0.14, 1)));
+  transition: none;
+}
+
+/* ---------- 등장 — 표식이 있을 때만 시작 상태로 두고, 섹션이 보이면 순서대로 그린다 ----------
+   `.is-visible`과 `.pinned`는 같은 요소(.stage)에 붙는다. 핀 모드에서는 --p 가 그리므로 등장 규칙은
+   `:not(.pinned)`로 물러난다 — 안 그러면 명시도가 더 높은 등장 규칙이 꼬리·선을 미리 다 그려 놓는다 */
+
+:global(html[data-reveal]) .line {
+  stroke-dasharray: 100px;
+  stroke-dashoffset: 100px;
+}
+
+:global(html[data-reveal] .is-visible:not(.pinned)) .line {
   animation: drawLine 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
 }
 
@@ -160,7 +296,7 @@
   transition: opacity 0.5s ease 0.9s, transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) 0.9s;
 }
 
-:global(html[data-reveal] .is-visible) .node {
+:global(html[data-reveal] .is-visible:not(.pinned)) .node {
   opacity: 1;
   transform: none;
 }
@@ -170,7 +306,7 @@
   transition: transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) 1.4s;
 }
 
-:global(html[data-reveal] .is-visible) .tail {
+:global(html[data-reveal] .is-visible:not(.pinned)) .tail {
   transform: scaleY(1);
 }
 
