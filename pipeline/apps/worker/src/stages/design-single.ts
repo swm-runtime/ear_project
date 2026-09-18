@@ -4,7 +4,7 @@ import { cfg, executedBy } from "../config.js";
 import { blockedTierHosts, insertRun, priorEpisodesUsingUrls, recordFetchStatus, refreshDomainFetchBlock, setJobProgress, type Job } from "../db.js";
 import { getFile } from "../storage.js";
 import type { Executor } from "../executors/index.js";
-import { assetPaths, buildDesignPromptInlineParts, DESIGN_INLINE_SCHEMA, type BacklogCandidate, type InlineSource } from "@ear/pipeline";
+import { assetPaths, AXIS_CHECK_SCHEMA, buildAxisCheckPromptParts, buildDesignPromptInlineParts, DESIGN_INLINE_SCHEMA, type BacklogCandidate, type InlineSource } from "@ear/pipeline";
 import { fetchArticle, fetchStatusOf, type FetchedSource } from "../sources/fetch.js";
 import { log } from "../util.js";
 import { workerRev } from "../assets.js";
@@ -118,11 +118,41 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
     blocks: f.blocks.filter((b) => !usedBlocks.has(b.id)), usedBlocks: f.blocks.filter((b) => usedBlocks.has(b.id)).map((b) => ({ id: b.id, by: usedBlocks.get(b.id)! })) }));
   const parts = buildDesignPromptInlineParts({ episodeId, candidate: cand, promptVersion: a.promptVersion, guidelines, specScript, goldFullEum, goldFullYuna, sources });
   log(`  design ${episodeId}: 단발 호출 (공유 ${Math.round(parts.system.length / 1000)}K + 편별 ${Math.round(parts.user.length / 1000)}K자)`);
-  const r = await ex.run<DesignInlineOut>({
-    prompt: parts.user, systemPrompt: parts.system, schema: DESIGN_INLINE_SCHEMA, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 40 * 60_000, model: cfg.draftDesignModel, maxThinkingTokens: cfg.thinkingDesign, effort: cfg.effortDesign,
-    onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: "설계 1/2 — 발췌 선택·claims·구성안 (단발)", detail: pr.turns > 0 ? "설계 중 (도구 없음)" : pr.detail }).catch(() => {}),
+  const runDesign = (userPrompt: string, phase: string) => ex.run<DesignInlineOut>({
+    prompt: userPrompt, systemPrompt: parts.system, schema: DESIGN_INLINE_SCHEMA, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 40 * 60_000, model: cfg.draftDesignModel, maxThinkingTokens: cfg.thinkingDesign, effort: cfg.effortDesign,
+    onProgress: (pr) => setJobProgress(job.id, { ...pr, phase, detail: pr.turns > 0 ? "설계 중 (도구 없음)" : pr.detail }).catch(() => {}),
   });
-  const o = { ...r.output, outline_md: normalizeOutline(r.output.outline_md) };
+  let r = await runDesign(parts.user, "설계 1/2 — 발췌 선택·claims·구성안 (단발)");
+  let o = { ...r.output, outline_md: normalizeOutline(r.output.outline_md) };
+  // 축 심사 (full-v8.1, 2026-09-19): 구성안의 구간이 축의 하위 질문에 답하는지 값싼 단발 호출로 본다. fail 이면 반려 사유를 붙여 한 번 재설계하고,
+  // 그래도 fail 이면 기록만 남기고 진행한다(설계를 막지 않는다 — 사람 판정 3.6 이 최종). T260918-003: #3~#5 가 "리뷰"에서 "통계의 함정"으로 번져 3.6 사람 4점
+  let axisNote = "축 심사 끔";
+  let axisCost = 0;
+  if (cfg.axisCheck) {
+    const check = async (outlineMd: string) => {
+      const ap2 = buildAxisCheckPromptParts({ outlineMd });
+      const rc = await ex.run<{ axis: string; sections: { n: number; question: string; answers_axis: boolean; why: string }[]; verdict: "pass" | "fail"; note: string }>({
+        prompt: ap2.user, systemPrompt: ap2.system, schema: AXIS_CHECK_SCHEMA, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 5 * 60_000, model: cfg.axisCheckModel, effort: "low",
+        onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: "설계 1/2 — 축 심사 (단발)", detail: "구간이 축의 하위 질문인지 대조 중" }).catch(() => {}),
+      });
+      axisCost += rc.listCostUsd ?? 0;
+      return rc.output;
+    };
+    const c1 = await check(o.outline_md);
+    const off1 = c1.sections.filter((x) => !x.answers_axis);
+    // 이탈 구간이 하나면 기록만(루브릭 C6 과 같은 기준: 하나 = 의심, 둘 이상 = 위반). 실측 2026-09-19: 사람 75점 편(001)도 착지 앞 구간 하나가 걸렸다 — 그걸로 $2 짜리 재설계를 부르지 않는다
+    if (off1.length === 1) axisNote = `의심 #${off1[0].n} (재설계 없음)`;
+    else if (c1.verdict === "fail" && off1.length >= 2) {
+      const reasons = off1.map((x) => `- 구간 #${x.n} "${x.question}": ${x.why}`).join("\n");
+      log(`  design ${episodeId}: 축 심사 반려 — 구간 ${off1.map((x) => `#${x.n}`).join("·")} 이탈. 재설계 1회`);
+      const feedback = `\n\n## 축 심사 결과 — 1차 구성안 반려 (full-v8.1)\n축: ${c1.axis}\n축의 질문에 답하지 않는 구간:\n${reasons}\n${c1.note}\n**이 구간들을 빼고**(그 재료 소스는 "역할 없는 소스"로 제외 — 소스 3건 하한만 지키면 된다) 남은 구간으로 다시 짜거나, 소스 전체가 답하는 질문으로 축을 다시 세운다. 뺀 뒤 분량이 13분 아래면 notes 에 사유를 적고 구성안을 내지 않는다.`;
+      r = await runDesign(parts.user + feedback, "설계 1/2 — 축 심사 반려 → 재설계 (단발)");
+      o = { ...r.output, outline_md: normalizeOutline(r.output.outline_md) };
+      const c2 = await check(o.outline_md);
+      const off2 = c2.sections.filter((x) => !x.answers_axis);
+      axisNote = off2.length ? `1차 반려(#${off1.map((x) => x.n).join(",#")}) → 재설계 뒤에도 #${off2.map((x) => x.n).join(",#")} 이탈 (기록만)` : `1차 반려(#${off1.map((x) => x.n).join(",#")}) → 재설계 통과`;
+    } else axisNote = "통과";
+  }
   // 검증 실패도 비용이 든 실행이다 — 원본 출력을 남기고 runs 에 기록한 뒤 실패시킨다 (재현·진단용. 이전엔 흔적 없이 버려졌다)
   const fail = async (msg: string): Promise<never> => {
     await fs.mkdir(dir, { recursive: true }).catch(() => {});
@@ -162,7 +192,10 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
   }
   const spread = [...sectionsOf].filter(([s, secs]) => secs.size > (s === axis ? 2 : 1)).map(([s, secs]) => `S${s}→#${[...secs].sort((a, b) => a - b).join(",#")}`);
   if (spread.length) await fail(`소스가 여러 구간에 배정됨: ${spread.join(" · ")} — 소스는 한 구간에만(축 소스 ${axis ? `S${axis}` : "없음"}만 둘). 한 구간으로 모으거나 소스를 제외한다 (규칙 22, full-v7)`);
-  if (sectionsOf.size > o.sections.length + 1) await fail(`사용 소스 ${sectionsOf.size}개 > 본문 구간 ${o.sections.length}개 + 1 — 얇은 소스를 제외한다 (full-v7)`);
+  // full-v8.1: "사용 소스 ≤ 구간 + 1" 상한 폐지 — 소스를 소화하려고 구간이 생기는 것이 축 이탈의 원인이었다. 대신 구간마다 축의 하위 질문(`질문:`) 이 있어야 한다
+  const sectionHeads = (o.outline_md.match(/^구간 #\d+/gm) ?? []).length;
+  const questionLines = (o.outline_md.match(/^\s*질문:\s*\S/gm) ?? []).length;
+  if (sectionHeads && questionLines < sectionHeads) await fail(`구성안 구간 ${sectionHeads}개 중 \`질문:\` 줄이 ${questionLines}개 — 구간마다 축의 하위 질문을 적는다 (full-v8.1)`);
   const attribution = deriveAttribution(o.claims);
   if (!/^축:/m.test(o.outline_md) || !/^구간 #1/m.test(o.outline_md)) await fail(`outline_md 형식 위반 — '축:' 또는 '구간 #1' 줄이 없음 (정규화 후). 앞부분: ${o.outline_md.replace(/\s+/g, " ").slice(0, 160)}`);
   if (o.estimated_minutes && o.estimated_minutes < 13) await fail(`재료 부족 — 설계 예상 분량 ${o.estimated_minutes}분 < 하한 13분. ${o.notes.slice(0, 200)}`);
@@ -199,7 +232,7 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
     axis: o.axis, axis_type: o.axis_type, landing_section: o.landing_section, axis_source: axisRaw, sections: o.sections, excerpts: chosen.size, claims: o.claims.length,
     estimated_minutes: o.estimated_minutes, split_proposal: o.split_proposal, sources_used: o.sources_used, sources_excluded: [
       ...o.sources_excluded, ...fetched.filter((f) => !f.ok && !o.sources_excluded.some((x) => x.url === f.url)).map((f) => ({ url: f.url, reason: `${f.status} ${f.note ?? ""}`.trim() })),
-    ], gaps: o.gaps, self_check: `ID 검증: 발췌 ${chosen.size} · claims ${o.claims.length} · 구성안 참조 ${outlineRefs.length} 전부 유효${usedBlocks.size ? ` · 이미 쓴 문단 ${usedBlocks.size}개 제외 (${priorNotes.join(" · ")})` : ""}`, notes: o.notes,
+    ], gaps: o.gaps, self_check: `ID 검증: 발췌 ${chosen.size} · claims ${o.claims.length} · 구성안 참조 ${outlineRefs.length} 전부 유효${usedBlocks.size ? ` · 이미 쓴 문단 ${usedBlocks.size}개 제외 (${priorNotes.join(" · ")})` : ""} · 축 심사 ${axisNote}`, notes: o.notes,
   };
-  return { design, model: r.model, costUsd: r.listCostUsd ?? 0, tokens: (r.raw as { usage?: unknown } | undefined)?.usage, fetched };
+  return { design, model: r.model, costUsd: (r.listCostUsd ?? 0) + axisCost, tokens: (r.raw as { usage?: unknown } | undefined)?.usage, fetched };
 }
