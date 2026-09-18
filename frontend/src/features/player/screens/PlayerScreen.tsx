@@ -392,9 +392,16 @@ export default function PlayerScreen() {
    * 스크립트 압축(panelProgress)과는 서로 배타라(동시에 열리지 않는다) 두 값의 변위를 그냥 더한다
    */
   const queueHeroHeight = QUEUE_BANNER_HEIGHT;
-  // 제목은 사진 아래쪽 가장자리에 붙는다(유튜브 뮤직) — 메타 블록 높이만큼 위, 아래 여백 sm
-  const queueMetaTop =
-    QUEUE_BANNER_HEIGHT - (HERO_META_BLOCK_HEIGHT - theme.spacing.lg) - theme.spacing.sm;
+  /*
+   * 제목·카테고리는 사진 아래쪽 가장자리에 **바짝** 붙는다(유튜브 뮤직). 블록의 밑변을 히어로 밑변에 맞춘다 —
+   * 그 아래 시크바 터치 영역(44pt)의 위쪽 절반(≈20px)이 이미 재생바까지의 여백이라, 여기에 여백을 더 두면
+   * 카테고리와 재생바 사이가 40px 가까이 벌어진다(2026-09-18 PM 지적). 카테고리가 없으면 제목 줄만큼만 잡는다
+   */
+  const hasQueueCategory = (session?.meta.topicIds.length ?? 0) > 0;
+  const queueMetaHeight =
+    QUEUE_TITLE_LINE_HEIGHT +
+    (hasQueueCategory ? theme.spacing.xs + QUEUE_CATEGORY_LINE_HEIGHT : 0);
+  const queueMetaTop = QUEUE_BANNER_HEIGHT - queueMetaHeight;
   const queueShift = (from: number, to: number) => Animated.multiply(queueProgress, to - from);
   const heroBase = {
     height: panelProgress.interpolate({
@@ -1376,6 +1383,9 @@ const SCRIPT_TOGGLE_DURATION_MS = 320;
  * 얹힌다(2026-09-17 PM, 유튜브 뮤직). 사진 전체 높이 = 앱바 + 이 값 + 시크바
  */
 const QUEUE_BANNER_HEIGHT = 232;
+/** 재생 목록 열림 상태의 제목 줄(xl × 1.3)·카테고리 줄(sm 글자의 줄 높이) — 메타 블록을 사진 밑변에 맞추는 셈에 쓴다 */
+const QUEUE_TITLE_LINE_HEIGHT = theme.font.size.xl * 1.3;
+const QUEUE_CATEGORY_LINE_HEIGHT = 18;
 /** 사진 위 텍스트·아이콘 색 */
 const ON_IMAGE_COLOR = '#FFFFFF';
 /** 손잡이를 놓았을 때 열림/닫힘 확정 — 이동 비율·속도(dp/ms). 실기기 검증 대상 제안값 */
