@@ -52,3 +52,10 @@
 - `frontend/eas.json`: `preview` env 를 개발계로, `production` env 는 `extends` 상속에 기대지 않고 운영 주소를 명시.
 - **번들 ID 는 분리하지 않았다** — 한 폰에 스토어 앱과 preview 앱을 같이 못 깐다(preview 가 덮는다). 소셜 로그인 키를 번들별로 다시 등록하는 비용이 더 커서 지금은 받아들인다. 필요해지면 별도 티켓.
 - 남은 것: preview 빌드(`eas build --profile preview --platform all`) → TestFlight 내부 / Play 내부 트랙 → 팀 Slack 에 "앱으로 개발계 확인하는 법" 한 줄. 그 뒤 archive · KAN-65 완료.
+
+## 처리 기록 (2026-09-19 티켓 정리)
+
+- preview 채널 = 개발계 API 는 동작 중이다(dev 머지마다 preview OTA 발행, 2026-09-18~19 에 40여 건).
+- Android preview APK 는 2026-09-17 에 빌드됐다(versionCode 9, runtime 2). **iOS preview 는 아직 없다** — ad-hoc 배포에 등록된 기기가 0대라 `eas device:create` 로 팀 기기를 먼저 등록해야 한다(계정 소유자 작업).
+- **남은 것**: ① iOS 기기 등록 → iOS preview 빌드, ② 팀 Slack 에 "앱으로 개발계 확인하는 법" 공지. 그 뒤 archive · KAN-65 완료.
+- **마감 초과 사유**(Medium, 발행 2026-09-16): 방법 결정·설정 반영은 기한 안(2026-09-17)에 끝났다. iOS 기기 등록이 수동 작업이라 밀렸다.

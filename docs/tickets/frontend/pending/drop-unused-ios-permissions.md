@@ -9,6 +9,7 @@
 | 근거 문서 | `frontend/architecture.md` 2.1 (재빌드·`runtimeVersion` 판단) |
 | 심각도 | **최상** — 스토어 출시가 막힌다 |
 | 상태 | 대기 — 코드 선반영, **재빌드·재제출 남음** |
+| Jira | [KAN-64](https://runtime364.atlassian.net/browse/KAN-64) |
 
 ## 문제
 
@@ -65,3 +66,9 @@ architecture.md 2.1의 "네이티브가 바뀌면 손으로 올린다"는 **새 
 - Given 재빌드한 iOS 빌드를 받는다 / When Info.plist 를 본다 / Then `NSMicrophoneUsageDescription` · `NSFaceIDUsageDescription` 이 없다
 - Given 그 빌드를 제출한다 / When 심사 결과를 받는다 / Then 권한 불일치로 반려되지 않는다
 - Given 이미 배포된 Android v8 / When `production` 채널에 OTA 를 발행한다 / Then 그대로 수신한다(`runtimeVersion` 이 `"1"` 로 유지되므로)
+
+## 처리 기록 (2026-09-19 티켓 정리)
+
+- 코드(`faceIDPermission: false`·`microphonePermission: false`)는 **iOS 빌드 6**(runtimeVersion 2, 2026-09-17 EAS 빌드 → App Store Connect 업로드 완료)에 들어 있다. 이 빌드는 TestFlight 로 실기기에 설치돼 돌고 있다(2026-09-19 PM 기기).
+- **남은 것은 사람 손 하나**: App Store Connect 에서 빌드 6 을 심사에 제출한다(KAN-66 과 같은 제출). 제출되면 이 티켓과 KAN-64 를 함께 닫는다.
+- **마감 초과 사유**(Medium, 발행 2026-09-15 → 3일 마감 2026-09-18): 코드·빌드는 기한 안에 끝났고, 심사 제출이 계정 소유자의 수동 작업이라 밀렸다. 중요도는 내리지 않는다.

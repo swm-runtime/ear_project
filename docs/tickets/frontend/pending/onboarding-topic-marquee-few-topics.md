@@ -48,3 +48,9 @@
 - 테스트: `topic-rows.test.ts`(줄 수·분배·벌 수 10건). interest mock 에 `few-topics` 시나리오(주제 5개) 추가.
 - 확인: web(헤드리스 Chrome, `EXPO_PUBLIC_INTEREST_MOCK_SCENARIO=few-topics`) — 5개가 2줄(3+2)로 흐르고 10초 동안 빈 공간 없음. 36개는 기존과 같은 4줄.
 - **남은 것(요청 4)**: iOS·Android 실기기에서 주제 1·2·4·7·8개 확인(특히 Android ScrollView 되감기). 확인되면 archive · KAN-59 완료.
+
+## 처리 기록 (2026-09-19 티켓 정리)
+
+- 코드는 운영 OTA(runtime 2)로 나가 있다 — TestFlight 빌드 6 / Android 빌드 9·10 을 깐 기기에서 바로 확인할 수 있다.
+- **남은 것(요청 4) 그대로**: 주제 1·2·4·7·8개에서 실기기 확인. 운영 데이터는 주제가 8개를 넘으므로 이 개수는 개발계(preview 앱) 또는 mock(`few-topics`)으로만 재현된다 — 확인 수단이 곧 KAN-65(preview 앱 배포)에 걸려 있다.
+- **마감 초과 사유**(Medium, 발행 2026-09-15): 코드는 2026-09-17 에 끝났고, 실기기 확인 수단(적은 주제 수를 가진 환경의 앱)이 아직 팀에 배포되지 않았다.

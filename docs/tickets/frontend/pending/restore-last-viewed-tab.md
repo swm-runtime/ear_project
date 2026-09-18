@@ -9,6 +9,7 @@
 | 근거 문서 | `features/splash.md` 4장 · `changes/pending/splash-restore-last-tab.md` |
 | 심각도 | 하 — 편의 개선. 지금 동작이 틀린 것은 아니다 |
 | 상태 | 대기 — 코드 선반영, **실기기 확인 남음** |
+| Jira | [KAN-60](https://runtime364.atlassian.net/browse/KAN-60) |
 
 ## 문제
 
@@ -77,3 +78,9 @@
 
 문서 반영 요청은 `changes/pending/splash-restore-last-tab.md`에 있다 — `splash.md` 4장에
 4-1 단계를 넣어야 한다. 통합 시 함께 반영한다.
+
+## 처리 기록 (2026-09-19 티켓 정리)
+
+- 코드는 운영 OTA(runtime 2)로 나가 있다. **실기기 확인만 남았다**: 탐색 탭을 본 채로 앱을 완전히 종료 → 30분 안에 다시 실행 → 탐색 탭으로 열리는지, 30분 넘겨 실행하면 라이브러리로 열리는지, 로그아웃 뒤엔 라이브러리인지.
+- TestFlight 빌드 6 기기에서 지금 확인할 수 있다. 확인되면 archive · KAN-60 완료.
+- **마감 초과 사유**(Medium, 발행 2026-09-15): 코드는 기한 안에 끝났고 실기기 확인이 밀렸다.

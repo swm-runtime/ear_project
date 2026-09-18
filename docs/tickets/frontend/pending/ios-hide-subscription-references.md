@@ -63,3 +63,9 @@ Apple 반려 메시지:
 - 요청 4 확인: 외부 결제 안내를 넣지 않았다. 문구는 기존 한도 안내 토스트뿐이다.
 - 문서 영향은 `changes/pending/subscription-ui-hidden-mvp.md` 로 발행(settings-uiux 4.1 · profile-uiux 4.1·7 · library-uiux 7 · paywall 4.5 · auth-uiux 4.5).
 - **남은 것(요청 6·7)**: 새 네이티브 빌드(스플래시 로고 영상의 expo-video 추가와 같은 빌드, runtimeVersion `2`) → TestFlight → 재제출 + App Review 메시지 답장. 빌드 제출 후 이 티켓을 archive 로 옮기고 KAN-66 을 완료로 전이한다.
+
+## 처리 기록 (2026-09-19 티켓 정리)
+
+- 구독 UI 숨김은 **iOS 빌드 6**(runtimeVersion 2, 2026-09-17)에 들어 App Store Connect 에 올라가 있고, TestFlight 로 실기기에서 돌고 있다.
+- **남은 것은 사람 손 둘**: ① App Store Connect 에서 빌드 6 심사 제출, ② App Review 메시지 답장(초안은 KAN-66 코멘트). 제출되면 archive · KAN-66 완료.
+- **마감 초과 사유**(High, 발행 2026-09-16): 코드·빌드는 2026-09-17 에 끝났다. 제출이 계정 소유자의 수동 작업이라 밀렸다. 중요도는 내리지 않는다.
