@@ -3,7 +3,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
-  Image,
   PanResponder,
   Pressable,
   StyleSheet,
@@ -13,6 +12,7 @@ import {
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { theme } from '@/shared/theme';
 import MarqueeText from '@/shared/ui/MarqueeText';
+import RemoteImage from '@/shared/ui/RemoteImage';
 
 import {
   MINI_PLAYER_DISMISS_DISTANCE_RATIO,
@@ -325,7 +325,7 @@ export default function MiniPlayer({
         >
           <View ref={thumbRef} style={styles.thumbnail}>
             {view.thumbnailUrl ? (
-              <Image source={{ uri: view.thumbnailUrl }} style={StyleSheet.absoluteFill} />
+              <RemoteImage uri={view.thumbnailUrl} style={StyleSheet.absoluteFill} />
             ) : null}
           </View>
           {/* 긴 제목은 전체 플레이어처럼 흘러 끝을 보여준다(2026-09-18 PM) — 측정용 래퍼가 착지 좌표를 준다 */}

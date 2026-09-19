@@ -1,6 +1,7 @@
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import RemoteImage from '@/shared/ui/RemoteImage';
 
 import { EXPLORE_COPY } from '../explore.copy';
 import type { ExploreItem } from '../explore.types';
@@ -49,8 +50,7 @@ export default function ExploreTile({
         })}
       >
         <View style={isGrid ? styles.gridArtworkFrame : styles.artworkFrame}>
-          <Image
-            source={{ uri: item.content.thumbnailUrl }}
+          <RemoteImage uri={item.content.thumbnailUrl} recyclingKey={item.content.id}
             style={[styles.artwork, isGrid && styles.gridArtwork]}
           />
           {isCompleted ? (

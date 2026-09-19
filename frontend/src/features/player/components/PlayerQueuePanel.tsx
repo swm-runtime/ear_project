@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
-  Image,
   PanResponder,
   Pressable,
   ScrollView,
@@ -14,6 +13,7 @@ import {
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { theme } from '@/shared/theme';
+import RemoteImage from '@/shared/ui/RemoteImage';
 
 import { PLAYER_COPY } from '../player.copy';
 import { formatPlaybackTime } from '../player.format';
@@ -184,7 +184,7 @@ function QueueRow({
         accessibilityState={{ selected: isCurrent }}
       >
         {item.thumbnailUrl ? (
-          <Image source={{ uri: item.thumbnailUrl }} style={styles.thumbnail} />
+          <RemoteImage uri={item.thumbnailUrl} recyclingKey={item.contentId} style={styles.thumbnail} />
         ) : (
           <View style={styles.thumbnail} />
         )}
