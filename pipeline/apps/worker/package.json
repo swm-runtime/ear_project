@@ -8,7 +8,8 @@
     "assets": "tsx src/cli/assets.ts",
     "storage": "tsx src/cli/storage.ts",
     "rev": "tsx src/cli/rev.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test src/**/*.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-cloudwatch-logs": "^3.1126.0",
