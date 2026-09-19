@@ -6,11 +6,11 @@
 | 요청 파트 | 프론트엔드 (담당 이주호) |
 | 요청자 | 박준현(백엔드) |
 | 발행 날짜 | 2026-09-20 |
-| Jira | **등록 대기** — Atlassian MCP 연결 장애로 세 번 실패(2026-09-20). 연결 복구 후 발행하고 번호를 여기와 `app.json`의 `_runtimeVersionNote`에 채운다 |
+| Jira | [KAN-80](https://runtime364.atlassian.net/browse/KAN-80) |
 | 발견 시점 | preview 앱(`dev.runtime.ear`)에서 카카오·네이버·구글 로그인이 모두 실패 — 원인 조사(2026-09-20) |
 | 근거 문서 | `tickets/frontend/pending/dev-app-separate-bundle.md`(KAN-76 — 콘솔 등록 6항목) · `frontend/architecture.md` 2.1(runtimeVersion) |
 | 중요도 | **High**(오늘 안) — 로그인이 막혀 preview 앱으로 **아무것도 검증할 수 없다.** 개발계 앱을 만든 목적 자체가 서 있지 않다 |
-| 상태 | 대기 — 구글 iOS 클라이언트 생성(사람 손)이 선행 |
+| 상태 | 진행 — 코드 반영 완료(PR #521), **머지·재빌드·실기기 확인 남음** |
 
 ## 배경 — 확인된 사실
 
@@ -48,9 +48,9 @@ KAN-76 으로 앱 식별자를 `dev.runtime.ear` 로 바꾼 뒤 소셜 로그인
 |---|---|---|---|
 | 1 | 카카오 개발자 콘솔 | 네이티브 앱 키 `ear-dev-native-key` 생성 — 패키지·번들 `dev.runtime.ear`, 키 해시 2종 | **완료**(2026-09-20) |
 | 2 | 구글 클라우드 | **Android** 클라이언트 — 패키지 `dev.runtime.ear` + SHA-1 `66:B6:…` | **완료** |
-| 3 | 구글 클라우드 | **iOS** 클라이언트 — 번들 `dev.runtime.ear`. 클라이언트 ID 를 2번 항목에 넣는다 | **대기 — 이 티켓의 선행** |
+| 3 | 구글 클라우드 | **iOS** 클라이언트 — 번들 `dev.runtime.ear`. 클라이언트 ID 를 2번 항목에 넣는다 | **완료**(2026-09-20 — `475643832949-8p18o951…`) |
 | 4 | 네이버 개발자센터 | Android 패키지 `dev.runtime.ear` 추가 | 확인 필요 |
-| 5 | 개발계 서버 | `APPLE_CLIENT_ID=dev.runtime.ear` — `tickets/infra/pending/dev-server-apple-client-id.md`(KAN-77) | 대기 |
+| 5 | 개발계 서버 | `APPLE_CLIENT_ID=dev.runtime.ear` — `tickets/infra/archive/dev-server-apple-client-id.md`(KAN-77) | **완료**(2026-09-20) |
 
 ## 확인된 식별자 (다음에 또 찾지 않도록)
 
@@ -73,7 +73,7 @@ Play 스토어로 설치한 앱은 **Play 가 다시 서명**하므로 실제 �
 ## 범위 밖
 
 - 운영 앱(`com.runtime.ear`)의 소셜 설정 — 건드리지 않는다. `app.json` 은 운영 원본이고 `app.config.js` 는 `APP_VARIANT=dev` 일 때만 덮는다.
-- 개발계 서버 `APPLE_CLIENT_ID` — 인프라 티켓 KAN-77.
+- 개발계 서버 `APPLE_CLIENT_ID` — 인프라 티켓 KAN-77(완료).
 - 네이버·구글 Android 콘솔 등록 — 앱에 심는 값이 없어 재빌드와 무관하다.
 
 ## 완료 조건
