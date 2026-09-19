@@ -39,6 +39,9 @@
     "preview-store": {
       "extends": "preview",
       "distribution": "store",
+      "android": {
+        "buildType": "app-bundle"
+      },
       "autoIncrement": true
     },
     "production": {
