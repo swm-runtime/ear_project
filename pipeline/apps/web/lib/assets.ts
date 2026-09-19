@@ -1,6 +1,7 @@
 /** 규칙 자산 목록 (spec/10 3.2) — 워커 apps/worker/src/assets.ts 의 DB_ASSET_KEYS 7개 + TTS 음차 사전. 순서 = 화면 순서 */
-export const ASSET_KEYS: { key: string; label: string; group: string }[] = [
+export const ASSET_KEYS: { key: string; label: string; group: string; optional?: boolean }[] = [
   { key: "skills/draft/guidelines.md", label: "대본 가이드라인", group: "생성" },
+  { key: "skills/draft/guidelines.gpt.md", label: "대본 가이드라인 — GPT 프로파일 (서버 OpenAI 워커만, 없으면 기본으로 폴백)", group: "생성", optional: true },
   { key: "skills/draft/examples/gold-T260820-001-short.md", label: "골드 — 숏폼 (T260820-001)", group: "생성" },
   { key: "skills/draft/examples/gold-T260820-002-full.md", label: "골드 — 본편 이음 해설 (T260820-002)", group: "생성" },
   { key: "skills/draft/examples/gold-T260828-001-full.md", label: "골드 — 본편 윤아 해설 (T260828-001)", group: "생성" },

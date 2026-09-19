@@ -80,6 +80,7 @@ services:
       OPENAI_MODEL_FABLE: ${OPENAI_MODEL_FABLE:-}
       OPENAI_VERBOSITY: ${OPENAI_VERBOSITY:-}
       OPENAI_MAX_OUTPUT_TOKENS: ${OPENAI_MAX_OUTPUT_TOKENS:-}
+      ASSET_PROFILE: ${ASSET_PROFILE:-} # 비우면 실행기가 openai 일 때 gpt(guidelines.gpt.md 사용), 아니면 default (spec/10 3.2)
       WORKER_NAME: ${WORKER_NAME:-ai-server-io}
       WORK_ROOT: /work # S3 캐시. AI 실행기일 땐 규칙 자산 번들(DB prompt_assets)도 여기 assets/<해시>/ 로 내려놓는다
       ASSET_ROOT: /srv/docs/ai # 규칙 자산 git 사본(마운트) — 배포 시 assets:import 가 여기서 읽는다 (2026-09-12)
