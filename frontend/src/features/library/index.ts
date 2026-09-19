@@ -12,7 +12,7 @@ export { libraryKeys } from './api/library.api';
  */
 export { completeLibraryItem, deleteLibraryItem, restoreLibraryItem } from './api/library.api';
 /** 재생 목록 패널 — player가 브리지로 주입받는 목록의 원천(architecture.md 4.3 의존 역전) */
-export { fetchLibraryItems } from './api/library.api';
+export { fetchLibraryItems, saveQueueOrder } from './api/library.api';
 export type { LibraryFilter, LibraryItem, LibraryItemStatus, LibrarySource } from './library.types';
 
 /* ── mock 브리지(dev 전용) — 탐색 mock이 라이브러리 mock 상태와 정합을 맞출 때 쓴다 ── */

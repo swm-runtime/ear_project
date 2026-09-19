@@ -40,6 +40,8 @@ const SCENARIO = process.env.EXPO_PUBLIC_LIBRARY_MOCK_SCENARIO ?? 'default';
 /** 스켈레톤(0.3초 지연 규칙)이 실제로 보이도록 네트워크 지연을 흉내 낸다 */
 const RESPONSE_DELAY_MS = 600;
 const PAGE_SIZE = 20;
+/** 서버가 강제하는 상한(library-api.md 4.1) */
+const MAX_PAGE_SIZE = 50;
 
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -136,6 +138,8 @@ interface MockServerState {
 const initialState = (): MockServerState => ({ items: initialItems() });
 
 let state = initialState();
+/** `queue_position`(domain.md 6.1) 대역 — 항목 id → 순서. 없으면 순서 미지정(NULL)이다 */
+const queuePositions = new Map<string, number>();
 
 export const resetLibraryMock = (): void => {
   state = initialState();
@@ -195,6 +199,14 @@ export const mockFetchItems = async (
     items = items.filter((item) => item.topicIds.some((id) => topicIds.includes(id)));
   }
   items = [...items].sort((a, b) => (a.addedAt < b.addedAt ? 1 : -1));
+  // sort=queue(4.1) — 순서 없는(새로 담긴) 항목이 최신순으로 맨 위, 그 아래 저장한 순서
+  if (params.sort === 'queue') {
+    const fresh = items.filter((item) => !queuePositions.has(item.id));
+    const known = items
+      .filter((item) => queuePositions.has(item.id))
+      .sort((a, b) => (queuePositions.get(a.id) ?? 0) - (queuePositions.get(b.id) ?? 0));
+    items = [...fresh, ...known];
+  }
 
   const startIndex = params.cursor ? items.findIndex((item) => item.id === params.cursor) + 1 : 0;
   if (params.cursor !== undefined && startIndex === 0) {
@@ -207,8 +219,9 @@ export const mockFetchItems = async (
       400,
     );
   }
-  const page = items.slice(startIndex, startIndex + PAGE_SIZE);
-  const hasNext = startIndex + PAGE_SIZE < items.length;
+  const pageSize = Math.min(params.limit ?? PAGE_SIZE, MAX_PAGE_SIZE);
+  const page = items.slice(startIndex, startIndex + pageSize);
+  const hasNext = startIndex + pageSize < items.length;
 
   return {
     items: page.map(toItemDto),
@@ -216,6 +229,22 @@ export const mockFetchItems = async (
     has_next: hasNext,
     ...mockPlayLimitFields(),
   };
+};
+
+/**
+ * 재생 목록 순서 저장(4.8) — 받은 목록에 1..n 을 적고, 이번 목록에 없던 기존 순서 항목은
+ * 저장돼 있던 순서 그대로 그 뒤에 이어 붙인다. 모르는 id 는 조용히 뺀다.
+ */
+export const mockSaveQueueOrder = async (itemIds: string[]): Promise<void> => {
+  await delay(RESPONSE_DELAY_MS);
+  const alive = new Set(visibleItems().map((item) => item.id));
+  const head = itemIds.filter((id) => alive.has(id));
+  const tail = [...queuePositions.entries()]
+    .filter(([id]) => !head.includes(id))
+    .sort((a, b) => a[1] - b[1])
+    .map(([id]) => id);
+  queuePositions.clear();
+  [...head, ...tail].forEach((id, index) => queuePositions.set(id, index + 1));
 };
 
 export const mockFetchTopics = async (): Promise<LibraryTopicsResponseDto> => {
