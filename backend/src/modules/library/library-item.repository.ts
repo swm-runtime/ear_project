@@ -436,6 +436,35 @@ export class LibraryItemRepository {
   }
 
   /**
+   * 순서가 없는 살아 있는 항목 중 이번 저장에 들어오지 않은 것(KAN-75) — 저장이 `NULL`을 남기지 않도록
+   * 맨 뒤에 이어 붙이기 위해 조회 규칙이 그 항목들에 보여 주던 순서(`added_at DESC, id DESC`)로 돌려준다.
+   * 이번 목록보다 오래돼 다음 페이지에 있던 항목이 여기 온다.
+   */
+  async findUnpositionedIdsByUserIdExcluding(
+    userId: string,
+    excludedIds: string[],
+    manager?: EntityManager,
+  ): Promise<string[]> {
+    const builder = this.scoped(manager)
+      .createQueryBuilder('item')
+      .select('item.id', 'id')
+      .where('item.user_id = :userId', { userId })
+      .andWhere('item.deleted_at IS NULL')
+      .andWhere('item.queue_position IS NULL');
+
+    if (excludedIds.length > 0) {
+      builder.andWhere('item.id NOT IN (:...excludedIds)', { excludedIds });
+    }
+
+    const rows = await builder
+      .orderBy('item.added_at', 'DESC')
+      .addOrderBy('item.id', 'DESC')
+      .getRawMany<{ id: string }>();
+
+    return rows.map((row) => row.id);
+  }
+
+  /**
    * 순서를 한 번에 다시 쓴다 — `id → position` 목록을 VALUES 조인 한 문장으로. 항목마다 UPDATE를 돌리면
    * 200편에 200왕복이고, 그 사이 목록을 읽는 요청이 반쯤 바뀐 순서를 본다.
    */
