@@ -13,6 +13,8 @@
  * - OTA: `.github/workflows/eas-update.yml` 의 preview 채널 발행(`extra.socialAuth` 는 OTA
  *   매니페스트로 전달된다 — `Constants.expoConfig`)
  */
+const { withInfoPlist } = require('expo/config-plugins');
+
 const IS_DEV_APP = process.env.APP_VARIANT === 'dev';
 
 const DEV_APP_ID = 'dev.runtime.ear';
@@ -32,6 +34,21 @@ const DEV_SOCIAL_AUTH = {
 const googleIosUrlScheme = (clientId) =>
   `com.googleusercontent.apps.${clientId.replace('.apps.googleusercontent.com', '')}`;
 
+/**
+ * iOS 번들 이름(CFBundleName)을 고정한다.
+ *
+ * Expo 는 앱 이름에서 ASCII 만 남겨 PRODUCT_NAME·CFBundleName 을 만든다 — "이어 - preview" 는
+ * **"preview"** 가 되고, 이는 애플 기본 앱 "미리보기(Preview)"와 같아 App Store Connect 가
+ * `ITMS-90129: bundle name or display name that is already taken` 으로 빌드를 거부한다
+ * (2026-09-19, 빌드 2·3 연속 실패). 홈 화면 이름(CFBundleDisplayName)은 그대로 둔다.
+ */
+const DEV_BUNDLE_NAME = 'EarPreview';
+const withDevBundleName = (config) =>
+  withInfoPlist(config, (mod) => {
+    mod.modResults.CFBundleName = DEV_BUNDLE_NAME;
+    return mod;
+  });
+
 module.exports = ({ config }) => {
   if (!IS_DEV_APP) return config;
 
@@ -43,7 +60,7 @@ module.exports = ({ config }) => {
   const { associatedDomains: _associatedDomains, ...ios } = config.ios;
   const { intentFilters: _intentFilters, ...android } = config.android;
 
-  return {
+  return withDevBundleName({
     ...config,
     // App Store Connect 에 등록한 앱 이름과 같게 둔다 — 다르면 업로드가 ITMS-90129
     // ("display name that is already taken")로 거부된다(2026-09-19, "이어 - preview" 로 올렸다가 실패)
@@ -68,5 +85,5 @@ module.exports = ({ config }) => {
       appVariant: 'dev',
       socialAuth: { ...config.extra.socialAuth, googleIosClientId },
     },
-  };
+  });
 };

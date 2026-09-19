@@ -80,3 +80,9 @@
 - iOS `preview-store` 1.0.0 (2)(EAS `9670032f`)는 App Store Connect 업로드는 됐으나 Apple 처리에서 **실패** — `ITMS-90129: The bundle uses a bundle name or display name that is already taken`. 앱 표시 이름 "이어(Preview)"가 ASC 에 등록한 앱 이름 "이어 - preview"(Apple ID `6813738593`)와 달랐다.
 - 표시 이름을 **"이어 - preview"** 로 바꿨다(iOS·Android 공통, `app.config.js`). 이 문서 위쪽의 "이어(Preview)"는 이 값으로 읽는다. Play Console 의 등록 이름("이어(Preview)")은 스토어 표시용이라 그대로 둬도 된다 — Android 홈 화면 이름은 다음 네이티브 빌드부터 바뀐다.
 - ASC 등록정보(설명·스크린샷·심사 연락처·부제·카테고리·콘텐츠 권한)는 입력·저장했다. `eas.json` `submit.preview-store` 에 ascAppId 등록(PR #515).
+
+## 처리 기록 (2026-09-19 — ITMS-90129 의 진짜 원인: CFBundleName "Preview")
+
+- 표시 이름을 "이어 - preview" 로 바꾼 빌드 3 도 같은 `ITMS-90129` 로 실패했다. IPA 를 풀어 보니 **`CFBundleName` 이 `Preview`** 였다 — Expo 는 앱 이름에서 ASCII 만 남겨 PRODUCT_NAME·CFBundleName 을 만들고("이어(Preview)"·"이어 - preview" → "Preview"/"preview"), 이것이 애플 기본 앱 "미리보기(Preview)"와 겹친다. 운영 앱은 같은 규칙으로 "app" 이 돼 문제가 없었다.
+- `app.config.js` 에 dev 변형 전용 config plugin 을 두어 `CFBundleName` 을 **`EarPreview`** 로 고정했다. `expo config --type introspect` 로 확인: dev `CFBundleName=EarPreview`·`CFBundleDisplayName=이어 - preview`, 운영은 `$(PRODUCT_NAME)`·`이어` 그대로.
+- 교훈: 앱 이름을 바꿀 때는 **ASCII 만 남긴 결과**가 흔한 단어가 아닌지 본다. Windows 에서는 `expo prebuild -p ios` 가 막히므로 introspect 로 Info.plist 를 검증한다.
