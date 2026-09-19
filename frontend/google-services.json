@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "800761431485",
+    "project_id": "ear-push",
+    "storage_bucket": "ear-push.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:800761431485:android:e6e91abef179eab7457ed4",
+        "android_client_info": {
+          "package_name": "com.runtime.ear"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBODJd0Y_b4BMjPMRHAxRVZqfrWCnUF010"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:800761431485:android:7a0ccb0a5ad802f9457ed4",
+        "android_client_info": {
+          "package_name": "dev.runtime.ear"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBODJd0Y_b4BMjPMRHAxRVZqfrWCnUF010"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
