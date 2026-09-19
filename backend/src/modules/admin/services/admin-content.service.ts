@@ -1,3 +1,5 @@
+import { rm } from 'node:fs/promises';
+
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
@@ -25,6 +27,7 @@ import {
 } from '../admin.types';
 import { EnrichmentParseResult, parseEnrichmentFile } from '../enrichment-file';
 import { ScriptParseResult, parseScriptFile } from '../script-file';
+import { NormalizedThumbnail, ThumbnailImage } from '../thumbnail-image';
 import {
   AUDIO_CONTENT_TYPES,
   AUDIT_ACTION_CONTENT_ENRICH,
@@ -71,6 +74,7 @@ export class AdminContentService {
     private readonly auditLogService: AuditLogService,
     private readonly storage: ContentStorageClient,
     private readonly audioProbe: AudioProbe,
+    private readonly thumbnailImage: ThumbnailImage,
   ) {}
 
   async upload(
@@ -92,7 +96,8 @@ export class AdminContentService {
       MAX_AUDIO_FILE_BYTES,
       'audio',
     );
-    const thumbnailExtension = this.resolveExtension(
+    // 입력 형식·크기 판정만 한다 — 저장 확장자는 언제나 webp 라 돌려받은 값은 쓰지 않는다
+    this.resolveExtension(
       command.thumbnail,
       THUMBNAIL_CONTENT_TYPES,
       MAX_THUMBNAIL_FILE_BYTES,
@@ -119,18 +124,21 @@ export class AdminContentService {
       });
     }
 
+    // 입력 형식 검증(확장자·크기)은 위에서 끝났다. 저장 규격(WebP 768px)으로 다시 쓰는 것은 여기다
+    const thumbnail = await this.normalizeThumbnail(command.thumbnail);
+
     const uploadedKeys: string[] = [];
     let audioPath: string;
     let thumbnailUrl: string;
     try {
       audioPath = await this.storage.putAudio(command.audio, audioExtension);
       uploadedKeys.push(audioPath);
-      const thumbnail = await this.storage.putThumbnail(
-        command.thumbnail,
-        thumbnailExtension,
+      const stored = await this.storage.putThumbnail(
+        thumbnail.file,
+        thumbnail.extension,
       );
-      uploadedKeys.push(thumbnail.key);
-      thumbnailUrl = thumbnail.url ?? '';
+      uploadedKeys.push(stored.key);
+      thumbnailUrl = stored.url ?? '';
     } catch (error) {
       await this.storage.remove(uploadedKeys);
       this.logger.error('content upload to storage failed', {
@@ -141,6 +149,8 @@ export class AdminContentService {
         message: '파일 저장에 실패했어요. 다시 시도해 주세요',
         retryable: true,
       });
+    } finally {
+      await rm(thumbnail.file.path, { force: true });
     }
 
     let content: Content;
@@ -316,6 +326,11 @@ export class AdminContentService {
       }
     }
 
+    const thumbnail =
+      command.thumbnail && thumbnailExtension
+        ? await this.normalizeThumbnail(command.thumbnail)
+        : null;
+
     const uploadedKeys: string[] = [];
     let audioPath: string | undefined;
     let thumbnailUrl: string | undefined;
@@ -324,13 +339,13 @@ export class AdminContentService {
         audioPath = await this.storage.putAudio(command.audio, audioExtension);
         uploadedKeys.push(audioPath);
       }
-      if (command.thumbnail && thumbnailExtension) {
-        const thumbnail = await this.storage.putThumbnail(
-          command.thumbnail,
-          thumbnailExtension,
+      if (thumbnail) {
+        const stored = await this.storage.putThumbnail(
+          thumbnail.file,
+          thumbnail.extension,
         );
-        uploadedKeys.push(thumbnail.key);
-        thumbnailUrl = thumbnail.url ?? '';
+        uploadedKeys.push(stored.key);
+        thumbnailUrl = stored.url ?? '';
       }
     } catch (error) {
       await this.storage.remove(uploadedKeys);
@@ -343,6 +358,10 @@ export class AdminContentService {
         message: '파일 저장에 실패했어요. 다시 시도해 주세요',
         retryable: true,
       });
+    } finally {
+      if (thumbnail) {
+        await rm(thumbnail.file.path, { force: true });
+      }
     }
 
     const replacedKeys: string[] = [];
@@ -1012,6 +1031,25 @@ export class AdminContentService {
     }
 
     return extension;
+  }
+
+  /**
+   * 썸네일을 저장 규격으로 다시 쓴다(`ThumbnailImage`). 읽지 못하면 오디오 길이 추출 실패와 같은 종류 —
+   * 형식 판정은 통과했지만 내용이 이미지가 아닌 것이라 400 필드 오류다. 새 코드는 두지 않는다
+   */
+  private async normalizeThumbnail(
+    file: UploadedFileInput,
+  ): Promise<NormalizedThumbnail> {
+    const normalized = await this.thumbnailImage.normalize(file);
+
+    if (!normalized) {
+      throw this.validationFailed(
+        'thumbnail',
+        '이미지를 읽을 수 없어요. 파일을 확인해 주세요',
+      );
+    }
+
+    return normalized;
   }
 
   /** admin.md 5장 — 검증 실패는 필드별 인라인 에러로 보여야 하므로 `field`를 싣는다 */

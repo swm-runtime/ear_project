@@ -30,6 +30,16 @@ export const THUMBNAIL_CONTENT_TYPES: Readonly<Record<string, string>> = {
   webp: 'image/webp',
 };
 
+/**
+ * 저장되는 썸네일의 규격(admin-api.md 4.6, 2026-09-19) — 입력 형식과 무관하게 서버가 이 규격으로 다시 쓴다.
+ * 긴 변 768px 는 플레이어 아트워크(3x 약 1080px)에 무리 없고 격자 타일(약 180pt)에 넉넉한 값이다.
+ * 1024px PNG 1.5MB 가 60~100KB 로 준다. `ThumbnailImage` 주석에 이유가 있다.
+ */
+export const THUMBNAIL_MAX_EDGE_PX = 768;
+export const THUMBNAIL_WEBP_QUALITY = 82;
+export const THUMBNAIL_OUTPUT_EXTENSION = 'webp';
+export const THUMBNAIL_OUTPUT_CONTENT_TYPE = 'image/webp';
+
 /** 관리자 목록 페이지 크기 (convention.md 3.3 — 기본 20 / 최대 50) */
 export const ADMIN_LIST_DEFAULT_LIMIT = 20;
 export const ADMIN_LIST_MAX_LIMIT = 50;
@@ -47,6 +57,9 @@ export const AUDIT_ACTION_CONTENT_REPUBLISH = 'content.republish';
 export const AUDIT_ACTION_CONTENT_ENRICH = 'content.enrich';
 /** 대본 파일 단독 재발행 — 버전을 올리지 않는 메타 반영(enrich 와 같은 성격, KAN-71) */
 export const AUDIT_ACTION_CONTENT_SCRIPT = 'content.script';
+/** 기존 썸네일을 저장 규격(WebP 768px)으로 다시 써서 교체 — `scripts/reprocess-thumbnails.ts`(2026-09-19). 버전은 오르지 않는다 */
+export const AUDIT_ACTION_CONTENT_THUMBNAIL_REPROCESS =
+  'content.thumbnail_reprocess';
 export const AUDIT_ACTION_CONTENT_WITHDRAW = 'content.withdraw';
 export const AUDIT_ACTION_CONTENT_RESTORE = 'content.restore';
 /**

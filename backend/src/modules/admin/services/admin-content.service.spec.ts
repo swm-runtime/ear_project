@@ -24,10 +24,12 @@ import {
   UploadedFileInput,
 } from '../admin.types';
 import { AudioProbe } from '../audio-probe';
+import { ThumbnailImage } from '../thumbnail-image';
 import { ContentStorageClient } from '../content-storage.client';
 
 // `music-metadata`는 ESM 전용이라 jest(CJS)가 실제 모듈을 읽지 못한다. Probe는 mock 대상이다
 jest.mock('../audio-probe', () => ({ AudioProbe: class {} }));
+jest.mock('../thumbnail-image', () => ({ ThumbnailImage: class {} }));
 
 const ACTOR_ID = '11111111-1111-4111-8111-111111111111';
 const TOPIC_ID = '22222222-2222-4222-8222-222222222222';
@@ -136,6 +138,7 @@ describe('AdminContentService', () => {
   let auditLogService: jest.Mocked<AuditLogService>;
   let storage: jest.Mocked<ContentStorageClient>;
   let audioProbe: jest.Mocked<AudioProbe>;
+  let thumbnailImage: jest.Mocked<ThumbnailImage>;
   let manager: EntityManager;
 
   beforeEach(() => {
@@ -228,6 +231,21 @@ describe('AdminContentService', () => {
     audioProbe = {
       readDurationSec: jest.fn().mockResolvedValue(600),
     };
+    thumbnailImage = {
+      normalize: jest.fn().mockImplementation((file: UploadedFileInput) =>
+        Promise.resolve({
+          file: {
+            ...file,
+            path: `${file.path}.webp`,
+            mimeType: 'image/webp',
+            size: 60_000,
+          },
+          extension: 'webp',
+          width: 768,
+          height: 768,
+        }),
+      ),
+    };
 
     service = new AdminContentService(
       dataSource,
@@ -239,6 +257,7 @@ describe('AdminContentService', () => {
       auditLogService,
       storage,
       audioProbe,
+      thumbnailImage,
     );
   });
 
@@ -493,6 +512,36 @@ describe('AdminContentService', () => {
       await expect(act).rejects.toMatchObject({
         details: { field: 'episode_no' },
       });
+    });
+
+    it('썸네일은 원본이 아니라 저장 규격(WebP 768px)으로 변환된 파일을 올린다', async () => {
+      // when
+      await service.upload(buildCommand(), NOW);
+
+      // then
+      expect(thumbnailImage.normalize).toHaveBeenCalledWith(
+        expect.objectContaining({ originalName: 'thumb.png' }),
+      );
+      expect(storage.putThumbnail).toHaveBeenCalledWith(
+        expect.objectContaining({ mimeType: 'image/webp' }),
+        'webp',
+      );
+    });
+
+    it('썸네일을 이미지로 읽지 못하면 400 필드 오류이고 저장소에는 아무것도 올리지 않는다', async () => {
+      // given
+      thumbnailImage.normalize.mockResolvedValue(null);
+
+      // when
+      const act = service.upload(buildCommand(), NOW);
+
+      // then
+      await expect(act).rejects.toMatchObject({
+        errorCode: ErrorCode.VALIDATION_FAILED,
+        details: { field: 'thumbnail' },
+      });
+      expect(storage.putAudio).not.toHaveBeenCalled();
+      expect(storage.putThumbnail).not.toHaveBeenCalled();
     });
 
     it('썸네일 업로드가 실패하면 먼저 올라간 오디오를 지우고 저장소 오류를 알린다', async () => {
