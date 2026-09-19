@@ -4,7 +4,8 @@
 # env 파일은 점 없는 이름(env.prod·env.ai-server)을 쓴다 — .env* 는 dockerignore·편집 도구 차단 대상
 #
 # - AWS 자격증명은 인스턴스 역할 `ear-ai-ec2` (IMDSv2 hop limit 2 — 컨테이너가 역할을 읽는 조건)
-# - worker 는 IO 전용(EXECUTOR=none) — 구독 토큰·API 키를 서버에 두지 않는다 (spec/10 2장)
+# - worker 는 기본 IO 전용(EXECUTOR=none) — 구독 토큰을 서버에 두지 않는다 (spec/10 2장). API 키 실행기로 AI 작업까지 집게 하려면
+#   env.prod 에 WORKER_EXECUTOR=openai WORKER_CAPABILITIES=ai,io (2026-09-19 API 전환 실험 — 그동안 노트북 워커는 끈다)
 # - ai-server(:8000)는 호스트 포트로만 열리고 SG 가 소스를 제품 SG 로 한정한다 — 공개 도메인 없음
 name: ear-ai
 
@@ -57,10 +58,30 @@ services:
     command: ['npm', 'run', 'worker']
     environment:
       DATABASE_URL: ${DATABASE_URL:?}
-      EXECUTOR: none
-      CAPABILITIES: io
+      EXECUTOR: ${WORKER_EXECUTOR:-none}       # none(IO 전용, 기본) · openai(AI 단계를 OpenAI API 로 — env.prod, 2026-09-19)
+      CAPABILITIES: ${WORKER_CAPABILITIES:-io} # io(기본) · ai,io(AI 작업까지 — EXECUTOR 가 none 이면 무시된다)
+      # API 실행기일 때의 단계 모델·effort — 비우면 코드 기본값(config.ts). claude 모델 이름은 OpenAI 실행기가 동급 GPT 로 사상한다
+      DRAFT_DESIGN_MODEL: ${DRAFT_DESIGN_MODEL:-}
+      DRAFT_WRITE_MODEL: ${DRAFT_WRITE_MODEL:-}
+      REVISION_MODEL: ${REVISION_MODEL:-}
+      QA_MODEL: ${QA_MODEL:-}
+      CRITIC_MODEL: ${CRITIC_MODEL:-}
+      AXIS_CHECK_MODEL: ${AXIS_CHECK_MODEL:-}
+      CLUSTER_MODEL: ${CLUSTER_MODEL:-}
+      ENRICH_MODEL: ${ENRICH_MODEL:-}
+      EFFORT_DESIGN: ${EFFORT_DESIGN:-}
+      EFFORT_WRITE: ${EFFORT_WRITE:-}
+      EFFORT_REVISION: ${EFFORT_REVISION:-}
+      EFFORT_QA: ${EFFORT_QA:-}
+      EFFORT_QA_RECHECK: ${EFFORT_QA_RECHECK:-}
+      EFFORT_CRITIC: ${EFFORT_CRITIC:-}
+      OPENAI_MODEL_OPUS: ${OPENAI_MODEL_OPUS:-}
+      OPENAI_MODEL_SONNET: ${OPENAI_MODEL_SONNET:-}
+      OPENAI_MODEL_FABLE: ${OPENAI_MODEL_FABLE:-}
+      OPENAI_VERBOSITY: ${OPENAI_VERBOSITY:-}
+      OPENAI_MAX_OUTPUT_TOKENS: ${OPENAI_MAX_OUTPUT_TOKENS:-}
       WORKER_NAME: ${WORKER_NAME:-ai-server-io}
-      WORK_ROOT: /work # S3 캐시 (io 워커는 규칙 자산을 읽지 않는다)
+      WORK_ROOT: /work # S3 캐시. AI 실행기일 땐 규칙 자산 번들(DB prompt_assets)도 여기 assets/<해시>/ 로 내려놓는다
       ASSET_ROOT: /srv/docs/ai # 규칙 자산 git 사본(마운트) — 배포 시 assets:import 가 여기서 읽는다 (2026-09-12)
       PIPELINE_BUCKET: ${PIPELINE_BUCKET:?}
       AWS_REGION: ${AWS_REGION:-ap-northeast-2}
