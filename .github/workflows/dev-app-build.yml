@@ -24,7 +24,7 @@ permissions:
 jobs:
   android:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -51,6 +51,22 @@ jobs:
       - name: 의존성 설치
         working-directory: frontend
         run: npm ci
+
+      # 러너 기본값(프로젝트 gradle.properties 의 Metaspace 512m)으로는 :app:compileReleaseKotlin 에서
+      # `OutOfMemoryError: Metaspace` 로 죽고, 죽은 뒤에도 데몬이 남아 작업이 타임아웃까지 매달린다
+      # (2026-09-19 첫 실행). 사용자 홈의 gradle.properties 는 프로젝트 값을 덮는다.
+      # 아키텍처는 실기기용 arm64 하나만 — 네 개를 다 뽑으면 네이티브 컴파일이 네 배다.
+      - name: Gradle 메모리 설정
+        run: |
+          mkdir -p ~/.gradle
+          cat >> ~/.gradle/gradle.properties <<'PROPS'
+          org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1536m -XX:+HeapDumpOnOutOfMemoryError
+          kotlin.daemon.jvmargs=-Xmx2g -XX:MaxMetaspaceSize=1g
+          org.gradle.daemon=false
+          reactNativeArchitectures=arm64-v8a
+          PROPS
+          sed -i 's/^ *//' ~/.gradle/gradle.properties
+          cat ~/.gradle/gradle.properties
 
       - name: APK 빌드
         working-directory: frontend
