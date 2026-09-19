@@ -87,3 +87,24 @@
   - **사람 손**: `cd frontend && npx eas-cli build --profile production --platform ios` 를 **대화형으로** 한 번 돌린다. Apple 로그인 → EAS 가 Push Notifications 권한 동기화 · 프로파일 재생성 · **푸시 키(APNs) 생성**까지 물어보며 해 준다(전부 Yes). 한 번 해 두면 이후 빌드는 다시 비대화형으로 돈다.
 - **Android 발송용 FCM V1 서비스 계정 키**도 EAS 에 올려야 한다(`eas credentials` → Android → Google Service Account → FCM V1). 없으면 Android 토큰은 나와도 발송이 실패한다.
 - **마감 사유**(Low, 발행 2026-09-17 → 이번 주): 코드는 기한 안에 끝났다. iOS 빌드와 발송 확인이 계정 소유자의 수동 작업에 걸려 있다.
+
+## 처리 기록 (2026-09-20 — 실기기 검증 1차, iPhone)
+
+기기: iPhone · 개발계 앱 "이어 - preview"(TestFlight, `dev.runtime.ear`, runtime 4, 개발계 API). 서버 드립을 기다리지 않고 **Expo Push API 로 직접 발송**했다 — `data = { type: "drip_arrival", deep_link, content_count }`(서버가 보내는 형식 그대로). 발송 영수증은 전부 `ok`.
+
+| 완료 조건 | 결과 |
+|---|---|
+| 1 권한 다이얼로그·토큰 등록 | **통과** — `ExponentPushToken[…]` 발급. 서버 DB 값 대조는 하지 않았다(앱이 받은 토큰으로 발송이 도착함을 확인) |
+| 2 SDK 미연동 오류 없음 | **통과** |
+| 3 OS 설정 끔 → 서버 `false` 동기화 | 미확인 — 서버 값 조회 필요(BE) |
+| 4 백그라운드 수신 → 탭 → 이동 | **통과(라이브러리 경로)** — 잠금 화면·다른 앱 사용 중 도착, 탭하면 라이브러리. **콘텐츠 1편 경로(재생 확인 팝업)는 미확인** — 개발계 콘텐츠 ID 필요 |
+| 5 한도 소진 → 페이월(MVP 는 한도 안내) | 미확인 |
+| 6 포그라운드 인앱 배너 | **통과** — 탐색 탭에서 "새 콘텐츠 N개 도착" 띠 노출, 탭하면 라이브러리. OS 배너는 뜨지 않았다 |
+| 7 회수 콘텐츠 → 라이브러리 + 토스트 | 미확인 — 회수된 콘텐츠 ID 필요(BE) |
+
+- 검증 도구: 개발계 앱에만 설정 > 정보에 **"푸시 토큰 (개발계)"** 행을 넣었다(PR #526) — 탭하면 공유 시트로 토큰을 내보낸다. 발송은 `POST https://exp.host/--/api/v2/push/send`, 결과는 `/push/getReceipts`.
+- 발송 측 주의: Windows 터미널의 `curl -d '…한글…'` 은 UTF-8 이 아니라 알림 본문이 깨진다 — node `fetch` 로 보낸다. 앱·서버 문제가 아니다.
+- 포그라운드 띠 확인 주의: 폰에서 채팅하다 "준비됨"을 보내면 그 순간 앱은 백그라운드라 OS 배너로 간다 — 지연 발송으로 확인했다.
+- **Android 는 이 티켓 범위 밖으로 분리했다(KAN-81)** — `google-services.json` 이 없어 토큰이 조용히 `null` 이었다. 설정 파일·FCM V1 키는 등록했고 실기기 확인이 남았다.
+- 운영 iOS 앱(`com.runtime.ear`)은 EAS 에 푸시 키(APNs)가 아직 없다 — 운영 iOS 대화형 빌드 때 생성된다. 이 검증은 개발계 앱 기준이다.
+- 남은 것: 조건 3·5·7 과 4 의 콘텐츠 경로. 그 뒤 archive · KAN-69 완료.
