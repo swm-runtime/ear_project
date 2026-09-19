@@ -10,7 +10,7 @@
 | 발견 시점 | iOS "이미지 로딩이 느리다" 피드백 조사 — 원인은 썸네일 파일(1024px PNG 1.5MB)이었고 BE가 저장 규격을 바꿔 처리했다(`tickets/backend/archive/thumbnail-resize-on-upload.md`, KAN-79). 앱 쪽 보조 조치가 이 티켓이다 |
 | 근거 문서 | `spec/api/admin-api.md` 4.6(썸네일 저장 규격) · `frontend/architecture.md` 2.1(runtimeVersion) |
 | 중요도 | **Low**(이번 주 안) — 첫 다운로드 용량은 BE 반영으로 이미 해결된다. 이 티켓은 재방문 시 재다운로드와 iOS 디코드 부담을 줄이는 보조 조치 |
-| 상태 | 대기 |
+| 상태 | **완료**(2026-09-20) |
 
 ## 배경
 
@@ -48,3 +48,6 @@ Android의 기본 `Image`는 Fresco가 다운샘플링과 디스크 캐시를 �
   - **그대로 둔 것**: ① 번들 정적 자산(로고·주제 사진·튜토리얼·프로필) — 받아 올 것도 캐시할 것도 없다(요청 2). ② 플레이어의 **흐린 바탕** — expo-image 의 `blurRadius`는 세기 기준이 달라 맞춰 둔 톤이 바뀐다. 같은 URL 을 기본 `Image`가 한 번 더 받는다(768px WebP 라 작다).
   - 확인: tsc · eslint · jest(126건). 웹 mock 에서 라이브러리·플레이어·재생 목록이 종전과 같이 그려지고 열림 모션이 출발한다(onLoad 동작). **디스크 캐시·병렬 디코드(완료 조건 1·2)는 iOS 실기기에서만 확인된다.**
   - **남은 것**: runtime 4 새 빌드(개발계 iOS·Android, 운영 iOS·Android) → iOS 실기기에서 완료 조건 1·2 확인 → archive · KAN-78 완료.
+- 2026-09-20 **완료 — archive 로 옮긴다. 반영 날짜: 2026-09-20.**
+  - PM 이 iOS 실기기(개발계 1.0.0 (5), runtime 4)에서 확인했다 — 앱을 다시 열면 썸네일이 **이미 다 떠 있다**(완료 조건 1·2). 같은 날 넣은 스플래시 미리 받기(PR #525, `changes/pending/splash-prefetch-first-screen.md`)가 함께 작용한 결과다.
+  - 운영 앱에는 runtime 4 운영 빌드가 나갈 때 닿는다 — 운영 iOS 는 프로비저닝 프로파일의 푸시 권한 때문에 대화형 빌드 한 번이 남아 있다(KAN-69 티켓).
