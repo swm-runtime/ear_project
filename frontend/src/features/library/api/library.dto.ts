@@ -67,6 +67,12 @@ export interface LibraryItemsResponseDto extends PlayLimitFieldsDto {
   has_next: boolean;
 }
 
+/** PUT /users/me/library-items/queue-order (library-api.md 4.8) — 응답은 204, 본문 없음 */
+export interface QueueOrderRequestDto {
+  /** 보고 있는 목록의 library_items.id 를 위에서부터. 1~200개, 중복 불가 */
+  item_ids: string[];
+}
+
 /** GET /users/me/library-items/topics (library-api.md 4.2) */
 export interface LibraryTopicsResponseDto {
   topics: { id: string; name: string; item_count: number }[];

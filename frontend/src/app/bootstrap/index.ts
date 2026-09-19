@@ -9,6 +9,7 @@ import {
   fetchLibraryItems,
   libraryKeys,
   restoreLibraryItem,
+  saveQueueOrder,
 } from '@/features/library';
 import {
   clearPushState,
@@ -28,6 +29,9 @@ import { settingsKeys } from '@/features/settings';
 
 import { forgetTab } from '../navigation/last-tab';
 import { queryClient } from '../query-client';
+
+/** 재생 목록 패널이 한 번에 받는 개수 — `GET /users/me/library-items`의 서버 상한(library-api.md 4.1) */
+const QUEUE_PAGE_LIMIT = 50;
 
 /**
  * 앱 초기화 — shared·feature 인터페이스에 도메인 구현을 주입한다(architecture.md 4.3).
@@ -77,7 +81,19 @@ export const bootstrapApp = (): void => {
      * 타입을 알면 의존 방향이 뒤집히기 때문이다(4.4)
      */
     fetchQueue: async () => {
-      const page = await fetchLibraryItems({ filter: 'all', topicIds: [], sourceFilter: null });
+      const page = await fetchLibraryItems({
+        filter: 'all',
+        topicIds: [],
+        sourceFilter: null,
+        // 사용자가 정한 순서를 서버가 입혀 준다(library-api.md 4.1 — KAN-70·74)
+        sort: 'queue',
+        /*
+         * 서버 상한(50)까지 받는다. 순서를 저장하면 **보낸 목록에만** 자리가 매겨지고 나머지는
+         * "순서 없음"으로 남아 맨 위로 온다(NULLS FIRST) — 첫 페이지가 작을수록 한 번도 본 적 없는
+         * 옛 항목이 위로 튀어 오른다. 근본 수정은 BE 티켓 `queue-order-unseen-items.md`
+         */
+        limit: QUEUE_PAGE_LIMIT,
+      });
       return page.items.map((item) => ({
         itemId: item.id,
         contentId: item.content.id,
@@ -91,6 +107,7 @@ export const bootstrapApp = (): void => {
         topicIds: item.content.topicIds,
       }));
     },
+    saveQueueOrder: (itemIds) => saveQueueOrder({ itemIds }),
   });
 
   /*
