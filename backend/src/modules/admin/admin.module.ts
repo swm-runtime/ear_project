@@ -14,6 +14,7 @@ import { AudioProbe } from './audio-probe';
 import { ContentStorageClient } from './content-storage.client';
 import { LocalContentStorageClient } from './local-content-storage.client';
 import { S3ContentStorageClient } from './s3-content-storage.client';
+import { ThumbnailImage } from './thumbnail-image';
 import { AdminContentService } from './services/admin-content.service';
 import { AdminSystemStatsService } from './services/admin-system-stats.service';
 import { ResourceAlertService } from './services/resource-alert.service';
@@ -54,6 +55,7 @@ import { TopicExposureScheduler } from './topic-exposure.scheduler';
     TopicExposureScheduler,
     ResourceAlertService,
     AudioProbe,
+    ThumbnailImage,
     {
       provide: ContentStorageClient,
       inject: [ConfigService],
