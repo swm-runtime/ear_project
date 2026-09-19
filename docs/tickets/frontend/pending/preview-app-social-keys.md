@@ -6,7 +6,7 @@
 | 요청 파트 | 프론트엔드 (담당 이주호) |
 | 요청자 | 박준현(백엔드) |
 | 발행 날짜 | 2026-09-20 |
-| Jira | [KAN-80](https://runtime364.atlassian.net/browse/KAN-80) |
+| Jira | **등록 대기** — Atlassian MCP 연결 장애로 세 번 실패(2026-09-20). 연결 복구 후 발행하고 번호를 여기와 `app.json`의 `_runtimeVersionNote`에 채운다 |
 | 발견 시점 | preview 앱(`dev.runtime.ear`)에서 카카오·네이버·구글 로그인이 모두 실패 — 원인 조사(2026-09-20) |
 | 근거 문서 | `tickets/frontend/pending/dev-app-separate-bundle.md`(KAN-76 — 콘솔 등록 6항목) · `frontend/architecture.md` 2.1(runtimeVersion) |
 | 중요도 | **High**(오늘 안) — 로그인이 막혀 preview 앱으로 **아무것도 검증할 수 없다.** 개발계 앱을 만든 목적 자체가 서 있지 않다 |
@@ -87,3 +87,4 @@ Play 스토어로 설치한 앱은 **Play 가 다시 서명**하므로 실제 �
 ## 처리 기록
 
 - 2026-09-20 발행. 원인은 APK 매니페스트로 확정했다(운영 카카오 키가 박혀 있음).
+- 2026-09-20 **코드 반영**(PR #521 — `fix(fe)/preview-social-keys`). 카카오 개발계 키·구글 iOS 클라이언트를 `DEV_SOCIAL_AUTH`에 넣고 플러그인·`extra` 양쪽을 덮었다. `runtimeVersion` 3 → 4. `expo config --type introspect`로 두 변형을 대조해 운영 값이 그대로임을 확인했고 `npm run lint` 통과. **남은 것**: 머지 → 재빌드 → 실기기 3종 로그인 확인.
