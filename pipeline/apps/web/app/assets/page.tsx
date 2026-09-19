@@ -13,7 +13,7 @@ export default async function AssetsPage() {
   const rows = (data ?? []) as Row[];
   const byKey = new Map<string, Row[]>();
   for (const r of rows) byKey.set(r.key, [...(byKey.get(r.key) ?? []), r]);
-  const missing = ASSET_KEYS.filter((a) => !byKey.get(a.key)?.some((r) => r.status === "active"));
+  const missing = ASSET_KEYS.filter((a) => !a.optional && !byKey.get(a.key)?.some((r) => r.status === "active"));
   return (
     <div className="space-y-4">
       <PageHeader title="규칙 자산" breadcrumb={["파이프라인", "규칙 자산"]}

@@ -132,6 +132,8 @@ claude -p --output-format json --json-schema <단계별 결과 스키마> \
 번들에 실을 때 `promptBody`(`@ear/pipeline`)로 **머리글·이전 판 절·`---` 이후 부록을 잘라** 스냅샷에 내려놓는다 — 인라인 임베딩과 비평의 Read 경로가 같은 파일을 보므로 한 곳에서 끝난다.
 골드 예시·spec·음차 사전은 자르지 않는다. 규칙을 바꾸면 번들 해시의 `PROMPT_BODY_REV` 를 올린다. 이후 자산 본문에는 지시만 두고, 판정 근거와 이전 판 문구는 CHANGELOG 로만 보낸다(작성 규율).
 
+- **실행기 프로파일 키** (2026-09-19): 실행기가 다르면 다른 규칙 판을 동시에 활성으로 둘 수 있어야 한다(Claude 파이프라인 테스트와 서버 OpenAI 실험 병행). 워커 `assets.ts` 의 `PROFILE_KEYS` 가 기본 키 → 프로파일 키를 정한다 — 지금은 `skills/draft/guidelines.md` → `skills/draft/guidelines.gpt.md` 하나. `ASSET_PROFILE`(비우면 `EXECUTOR=openai` 일 때 `gpt`, 아니면 `default`)이 `gpt` 면 프로파일 키의 active 를 읽어 **기본 키 경로**로 스냅샷에 내려놓으므로 프롬프트 빌더는 그대로다. 프로파일 키에 active 가 없으면 기본 키로 폴백하고 로그에 남긴다. `episodes.asset_versions` 에는 실제로 읽은 키(`guidelines.gpt.md@full-v8.2`)가 고정되고, `prompt_version` 라벨에 `(gpt)` 가 붙는다. 프로파일 키는 git 사본이 없어도 `assets:import` 가 건너뛴다(선택 자산). 웹 `/assets` 에서는 "GPT 프로파일" 행으로 보인다.
+
 ### 3.3 산출물 저장 — 원본은 S3, WORK_ROOT 는 캐시 (2026-09-02 구현, M4)
 
 규칙 자산(3.2)이 DB 로 갔듯 **산출물 파일은 파이프라인 S3 가 원본**이다(spec/08 1장 배치 기준 · 2장 버킷 규격). Supabase 에는 키·판정·수정 로그만 남는다.
