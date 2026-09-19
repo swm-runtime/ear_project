@@ -76,6 +76,11 @@
       "ios": {
         "ascAppId": "6807708636"
       }
+    },
+    "preview-store": {
+      "ios": {
+        "ascAppId": "6813738593"
+      }
     }
   }
 }
