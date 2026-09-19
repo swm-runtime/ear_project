@@ -1103,7 +1103,7 @@ export const DESIGN_INLINE_SCHEMA = {
     axis: { type: "string" },
     axis_type: { type: "string", enum: ["대립", "역설", "재정의"] },
     landing_section: { type: "integer" },
-    axis_source: { type: "string", description: "도입과 착지를 잇는 축 소스 하나 (S3 형식). 없으면 빈 문자열. 이 소스만 두 구간에 걸칠 수 있다" },
+    axis_source: { type: "string", description: "도입과 착지를 잇는 축 소스 하나 — 소스 번호만 \"S3\" 형식으로 적는다 (URL·제목 금지). 없으면 빈 문자열. 이 소스만 두 구간에 걸칠 수 있다" },
     sections: { type: "array", items: { type: "object", additionalProperties: false, required: ["n", "title", "sources", "ratio"], properties: { n: { type: "integer" }, title: { type: "string" }, sources: strArr, ratio: { type: "integer" } } } },
     excerpt_ids: { ...strArr, description: "선택한 문단 ID (S1-03 …)" },
     gists: { type: "array", items: { type: "object", additionalProperties: false, required: ["s", "lines"], properties: { s: { type: "integer" }, lines: strArr } }, description: "소스별 한국어 요지 3줄" },
