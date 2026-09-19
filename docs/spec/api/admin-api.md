@@ -130,7 +130,7 @@
 | 파트 | 규격 | 필수 |
 |---|---|---|
 | `audio` | mp3 / m4a, **≤200MB** | 필수 |
-| `thumbnail` | jpg / png / webp, **≤5MB** | 필수 |
+| `thumbnail` | jpg / png / webp, **≤5MB** — **서버가 긴 변 768px WebP 로 다시 써서 저장한다**(개정 2026-09-19, 아래). `thumbnail_url` 은 항상 `.webp` 로 끝난다 | 필수 |
 | `payload` | JSON **문자열** | 필수 |
 | `enrichment_file` | `enrichment.json`(`ai/metadata-pipeline.md` 4.4), **≤1MB** | 선택 (등재 2026-09-08 — 구현 완료) |
 | `script_file` | 대본 세그먼트 JSON 배열(아래), **≤2MB** | 선택 (등재 2026-09-19 — KAN-71) |
@@ -251,7 +251,7 @@
 | 파트 | 규격 | 필수 |
 |---|---|---|
 | `audio` | mp3 / m4a, ≤200MB — 4.6과 같다 | 선택 |
-| `thumbnail` | jpg / png / webp, ≤5MB | 선택 |
+| `thumbnail` | jpg / png / webp, ≤5MB — 4.6 과 같이 서버가 WebP 768px 로 다시 쓴다 | 선택 |
 | `payload` | JSON 문자열 — 4.6 `payload`의 부분집합(`title` `description` `source_name` `topic_ids` `sources`). 넘긴 키만 바꾼다 | 선택 |
 | `enrichment_file` | `enrichment.json` — 규격·검증·응답 필드는 4.6과 같다 | 선택 (등재 2026-09-08) |
 | `script_file` | 대본 세그먼트 JSON — 규격·검증·응답 필드는 4.6과 같다. **통째로 교체**된다(콘텐츠당 1행) | 선택 (등재 2026-09-19) |
@@ -413,6 +413,7 @@
 ```
 
 - **저장소 먼저, DB 나중이다**(`admin.md` 4.2). 반대로 하면 수백 MB 전송 동안 트랜잭션이 열려 있게 된다.
+- **썸네일은 올리기 전에 저장 규격으로 다시 쓴다**(개정 2026-09-19 — `tickets/backend/archive/thumbnail-resize-on-upload.md`). 입력은 jpg/png/webp ≤5MB 그대로 받되, 서버가 EXIF 회전을 굽고 **긴 변 768px(비율 유지·확대 없음) WebP(품질 82)** 로 변환해 `thumb/<random>.webp` 로 올린다. 파이프라인의 1024px PNG(장당 1.5MB)를 그대로 내보내면 앱 목록 첫 화면이 30MB 를 받고, iOS 는 PNG 하드웨어 디코드가 없어 타일이 순서대로 뜨는 것이 보였다. 저장 시점에 줄이면 출처(파이프라인·파트너)와 무관하게 전부 잡히고 앱은 바꿀 것이 없다. 이미지로 읽지 못하는 파일은 `VALIDATION_FAILED`(`field: thumbnail`)다. 규격 도입 이전 파일은 `npm run thumbnails:reprocess` 가 새 키로 다시 써서 URL 을 바꾼다(버전은 올리지 않는다 · 감사 로그 `content.thumbnail_reprocess`).
 - **`draft`가 없다. 업로드 = 발행이다**(`domain.md` 5.1). 별도 발행 버튼이 없다.
 - **재생 경로 등록 단계가 없다.** `audio_path`를 직접 서명하므로 매핑 계층이 없고, 따라서 발행 직후 전파 지연도 없다(`backend/architecture.md` 9.4 — 개정 2026-08-31).
 
