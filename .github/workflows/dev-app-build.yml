@@ -1,5 +1,5 @@
 name: dev-app-build
-# 개발계 앱(dev.runtime.ear · "이어(Preview)")의 Android APK 를 러너에서 직접 빌드한다(KAN-76).
+# 개발계 앱(dev.runtime.ear · "이어(Preview)")의 Android APK·AAB 를 러너에서 직접 빌드한다(KAN-76).
 #
 # EAS 클라우드 빌드가 아니라 `eas build --local` 이다 — 무료 플랜의 월 빌드 한도를 쓰지 않는다
 # (2026-09-19 Android 한도 소진으로 개발계 APK 를 못 뽑은 것이 계기). 서명 키는 EAS 에 저장된
@@ -13,6 +13,12 @@ name: dev-app-build
 
 on:
   workflow_dispatch:
+    inputs:
+      format:
+        description: 'apk = 직접 설치용 · aab = Play Console 내부 테스트 업로드용'
+        type: choice
+        options: [apk, aab]
+        default: apk
 
 concurrency:
   group: dev-app-build
@@ -68,18 +74,16 @@ jobs:
           sed -i 's/^ *//' ~/.gradle/gradle.properties
           cat ~/.gradle/gradle.properties
 
-      - name: APK 빌드
+      # apk 는 preview 프로필, aab 는 preview-store 프로필(같은 env·같은 채널, buildType 만 app-bundle)
+      - name: 앱 빌드
         working-directory: frontend
         run: |
-          eas build --local \
-            --platform android \
-            --profile preview \
-            --non-interactive \
-            --output "$GITHUB_WORKSPACE/ear-dev.apk"
+          if [ "${{ inputs.format }}" = "aab" ]; then PROFILE=preview-store; else PROFILE=preview; fi
+          eas build --local             --platform android             --profile "$PROFILE"             --non-interactive             --output "$GITHUB_WORKSPACE/ear-preview.${{ inputs.format }}"
 
-      - name: APK 업로드
+      - name: 산출물 업로드
         uses: actions/upload-artifact@v4
         with:
-          name: ear-dev-apk
-          path: ear-dev.apk
+          name: ear-preview-${{ inputs.format }}
+          path: ear-preview.${{ inputs.format }}
           retention-days: 30
