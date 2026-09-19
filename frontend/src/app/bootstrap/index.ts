@@ -1,4 +1,5 @@
 import { registerTokenProvider } from '@/shared/api/api-client';
+import { prefetchRemoteImages } from '@/shared/ui/RemoteImage';
 
 import { registerEmailVerifiedListener, sessionService, useSessionStore } from '@/features/auth';
 import { registerCareerSavedListener } from '@/features/career';
@@ -8,6 +9,7 @@ import {
   deleteLibraryItem,
   fetchLibraryItems,
   libraryKeys,
+  prefetchLibraryFirstPage,
   restoreLibraryItem,
   saveQueueOrder,
 } from '@/features/library';
@@ -26,6 +28,7 @@ import {
 } from '@/features/player';
 import { profileKeys } from '@/features/profile';
 import { settingsKeys } from '@/features/settings';
+
 
 import { forgetTab } from '../navigation/last-tab';
 import { queryClient } from '../query-client';
@@ -142,6 +145,15 @@ export const bootstrapApp = (): void => {
   useSessionStore.subscribe((state, previous) => {
     if (state.status === 'authenticated' && previous.status !== 'authenticated') {
       syncWithdrawnContents();
+      /*
+       * 첫 화면을 미리 받는다(2026-09-20). 콜드 스타트에서는 이 시점이 **스플래시의 로고 모션 도중**이다 —
+       * 관문은 모션이 끝날 때까지 어차피 기다리므로(splash.md 4-6) 그 시간에 목록과 썸네일을 받아 두면
+       * 라이브러리가 뜨자마자 그려진다. 관문을 붙잡지 않는다: 못 받았으면 화면이 평소대로 받는다.
+       * 온보딩 전 사용자는 받을 목록이 없다.
+       */
+      if (state.user?.onboardingCompleted === true) {
+        void prefetchLibraryFirstPage(queryClient).then(prefetchRemoteImages);
+      }
       // 서버는 로그아웃 때 이 기기의 토큰을 지운다 — 다시 로그인했으면 다시 올려야 알림이 온다
       syncDeviceNow();
     }
