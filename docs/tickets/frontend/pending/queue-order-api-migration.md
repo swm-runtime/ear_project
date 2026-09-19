@@ -51,3 +51,4 @@
   - 확인: tsc · eslint · jest. 웹 mock(계약대로 만든 `sort=queue`·`queue-order` 대역)에서 — 심어 둔 기기 순서가 올라간 뒤 로컬 값이 사라짐 / 끌고 → 접었다 열어도 같은 순서.
   - **발견한 계약 구멍** — 저장하면 보낸 목록에만 자리가 매겨져, 첫 페이지 밖의 옛 항목이 `NULL`로 남아 **맨 위로 올라온다**. BE 티켓 `tickets/backend/pending/queue-order-unseen-items.md`로 넘겼고, FE 는 상한(50개)까지 받아 보내도록 완화했다(50개 이하 계정에서는 안 보인다).
   - **남은 것**: BE 가 운영에 나간 뒤(릴리즈 PR #499) 두 기기로 완료 조건 1번 확인. 그 뒤 archive · KAN-74 완료.
+- 2026-09-19 **BE KAN-75 반영됨**(PR `fix(be)/queue-order-unseen-items`) — 저장 시 보내지 않은 옛 항목에도 맨 뒤 자리가 매겨져 `NULL`은 마지막 저장 뒤 담긴 것만 뜻한다. FE 50개 상한 완화는 그대로 둬도 된다(범위 밖).
