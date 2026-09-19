@@ -1,6 +1,7 @@
-import { Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import RemoteImage from '@/shared/ui/RemoteImage';
 
 import { IS_SHARE_ENABLED, SHARE_COPY } from '@/features/share';
 
@@ -62,7 +63,7 @@ export default function PlayerMoreSheet({
           <View accessibilityViewIsModal>
             <View style={styles.summary}>
               {summary.thumbnailUrl ? (
-                <Image source={{ uri: summary.thumbnailUrl }} style={styles.thumbnail} />
+                <RemoteImage uri={summary.thumbnailUrl} style={styles.thumbnail} />
               ) : (
                 <View style={[styles.thumbnail, styles.thumbnailPlaceholder]} />
               )}

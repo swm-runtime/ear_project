@@ -1,6 +1,7 @@
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import RemoteImage from '@/shared/ui/RemoteImage';
 
 import { CONTENT_DETAIL_COPY } from '../content-detail.copy';
 import type { ContentDetailContent } from '../content-detail.types';
@@ -33,7 +34,7 @@ export default function ContentDetailHeader({
     <View style={styles.root}>
       <View style={styles.titleRow}>
         {/* 썸네일은 장식 이미지 — 낭독에서 제외한다. 제목이 곧 그 내용이다(uiux 7장) */}
-        <Image source={{ uri: content.thumbnailUrl }} style={styles.thumbnail} />
+        <RemoteImage uri={content.thumbnailUrl} style={styles.thumbnail} />
         <View style={styles.titleArea}>
           <Text style={styles.title} accessibilityRole="header">
             {content.title}
