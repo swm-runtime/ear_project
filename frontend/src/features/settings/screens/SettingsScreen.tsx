@@ -2,13 +2,14 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
-import { APP_VERSION, APP_VERSION_LABEL } from '@/shared/lib/app-version';
+import { APP_VERSION, APP_VERSION_LABEL, IS_DEV_API } from '@/shared/lib/app-version';
 import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
 import { theme } from '@/shared/theme';
 import ConfirmDialog from '@/shared/ui/ConfirmDialog';
 
 import { NotificationPrePromptModal } from '@/features/notification';
 
+import DevPushTokenRow from '../components/DevPushTokenRow';
 import EmailRow from '../components/EmailRow';
 import NotificationBanner from '../components/NotificationBanner';
 import PlanSummaryCard from '../components/PlanSummaryCard';
@@ -175,6 +176,8 @@ export default function SettingsScreen() {
             }
             a11yLabel={SETTINGS_COPY.info.versionA11y(APP_VERSION, screen.isUpdateAvailable)}
           />
+          {/* 개발계 앱 전용 개발 도구 — 운영 앱에는 행 자체가 없다 */}
+          {IS_DEV_API ? <DevPushTokenRow /> : null}
         </SettingsSection>
 
         <SettingsSection title={SETTINGS_COPY.sections.support}>

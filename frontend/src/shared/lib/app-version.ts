@@ -46,8 +46,7 @@ const resolveBundleLabel = (): string => {
  * 채널이 아니라 **실제로 부르는 주소**로 가른다 — preview OTA·빌드는 이 값에 개발계 주소를
  * 싣고(`eas-update.yml`·`eas.json` preview), 운영은 값이 없거나 운영 주소다(api-client.ts).
  */
-const isDevApi = (): boolean =>
-  (process.env.EXPO_PUBLIC_API_BASE_URL ?? '').includes('://api-dev.');
+export const IS_DEV_API = (process.env.EXPO_PUBLIC_API_BASE_URL ?? '').includes('://api-dev.');
 
 /** 설정 화면의 버전 행에 붙는 값 — `1.0.0 (01a0a3c9)` 꼴, 개발계면 `1.0.0 (01a0a3c9) · 개발계` */
-export const APP_VERSION_LABEL = `${APP_VERSION} (${resolveBundleLabel()})${isDevApi() ? ' · 개발계' : ''}`;
+export const APP_VERSION_LABEL = `${APP_VERSION} (${resolveBundleLabel()})${IS_DEV_API ? ' · 개발계' : ''}`;
