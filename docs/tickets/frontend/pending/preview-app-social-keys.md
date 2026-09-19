@@ -10,7 +10,7 @@
 | 발견 시점 | preview 앱(`dev.runtime.ear`)에서 카카오·네이버·구글 로그인이 모두 실패 — 원인 조사(2026-09-20) |
 | 근거 문서 | `tickets/frontend/pending/dev-app-separate-bundle.md`(KAN-76 — 콘솔 등록 6항목) · `frontend/architecture.md` 2.1(runtimeVersion) |
 | 중요도 | **High**(오늘 안) — 로그인이 막혀 preview 앱으로 **아무것도 검증할 수 없다.** 개발계 앱을 만든 목적 자체가 서 있지 않다 |
-| 상태 | 진행 — 코드 반영 완료(PR #521 머지), **재빌드·실기기 확인 남음** |
+| 상태 | 진행 — 코드·재빌드·산출물 검증 완료(2026-09-20), **실기기 로그인 확인 남음** |
 
 ## 배경 — 확인된 사실
 
@@ -88,3 +88,11 @@ Play 스토어로 설치한 앱은 **Play 가 다시 서명**하므로 실제 �
 
 - 2026-09-20 발행. 원인은 APK 매니페스트로 확정했다(운영 카카오 키가 박혀 있음).
 - 2026-09-20 **코드 반영**(PR #521 머지). 카카오 개발계 키·구글 iOS 클라이언트를 `DEV_SOCIAL_AUTH`에 넣고 플러그인·`extra` 양쪽을 덮었다. `runtimeVersion` 3 → 4. introspect 로 운영 값 불변 확인, lint 통과. **남은 것**: 재빌드 → 실기기 3종 로그인 확인.
+- 2026-09-20 **재빌드·산출물 검증 완료 — 실기기 로그인 확인만 남았다.**
+  - runtime 4 빌드(같은 4 에 KAN-78 expo-image 가 함께 실렸다): **iOS 개발계 1.0.0 (5)** TestFlight 업로드 완료 · **Android 개발계 APK** Actions 실행 35457296079, 아티팩트 **`ear-preview-apk`**(이름이 `ear-dev-apk`에서 바뀌었다).
+  - **완료 조건 3** — 새 APK 의 `AndroidManifest.xml`을 뜯어 확인: 패키지 `dev.runtime.ear`, 스킴 `kakaoa67198ac1a489d5d2d3099e8f098a570` 하나뿐이다(운영 키 `kakaoe1f65f…` 없음). 내장 `app.config`: runtime 4 · `appVariant: dev` · 카카오 개발계 키 · 구글 iOS 클라이언트 `…8p18o9514dn…`.
+  - **완료 조건 4** — `APP_VARIANT=production expo config --type introspect`: 번들 `com.runtime.ear`, 카카오 `e1f65f…`, 구글 iOS `…gl9ntr62dss…`, iOS URL 스킴도 운영 값 그대로. dev 변형은 Info.plist 스킴까지 개발계 값으로 바뀐다(`kakaoa67198…` · `com.googleusercontent.apps.…8p18o9514dn…`).
+  - **완료 조건 5** — `app.json` runtimeVersion `4`, 사유 기록됨.
+  - **남은 것(사람 손)**: 새 빌드를 깐 실기기에서 카카오(Android·iOS)·구글(iOS) 로그인 → 완료 조건 1·2. 네이버 Android 패키지 등록(선행 작업 4)은 여전히 "확인 필요"다. 확인되면 archive · KAN-80 완료.
+  - **마감**(High, 오늘 안): 코드·빌드·산출물 검증은 발행 당일에 끝났다. 남은 것은 기기에서 로그인 버튼을 눌러 보는 일이다.
+
