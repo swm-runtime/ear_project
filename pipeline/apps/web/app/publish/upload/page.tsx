@@ -45,6 +45,7 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
   const [meta, setMeta] = useState<UploadMeta | null>(null);
   const [hasAudio, setHasAudio] = useState(false);
   const [hasThumb, setHasThumb] = useState(false);
+  const [scriptSegs, setScriptSegs] = useState<number | null>(null); // episodes/<id>/script-segments.json 의 세그먼트 수 — 없으면 null (자막 없이 발행, 앱은 버튼을 숨긴다)
   const [enrichVer, setEnrichVer] = useState<number | null>(null); // episodes/<id>/enrichment.json 의 schema_version — 없으면 null (발행 후 목록에서 소급 가능)
   const [topics, setTopics] = useState<EarTopic[]>([]);
   const [loadErr, setLoadErr] = useState<string | null>(null);
@@ -76,8 +77,8 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
         if (episodeId) {
           const res = await fetch(`/api/publish/${episodeId}`);
           if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message ?? `HTTP ${res.status}`);
-          const body = (await res.json()) as { meta: UploadMeta; has_audio: boolean; has_thumbnail: boolean; has_enrichment?: boolean; enrichment_version?: number | null };
-          setMeta(body.meta); setHasAudio(body.has_audio); setHasThumb(body.has_thumbnail); setEnrichVer(body.has_enrichment ? body.enrichment_version ?? 1 : null);
+          const body = (await res.json()) as { meta: UploadMeta; has_audio: boolean; has_thumbnail: boolean; has_enrichment?: boolean; enrichment_version?: number | null; has_script?: boolean; script_segments?: number | null };
+          setMeta(body.meta); setHasAudio(body.has_audio); setHasThumb(body.has_thumbnail); setEnrichVer(body.has_enrichment ? body.enrichment_version ?? 1 : null); setScriptSegs(body.has_script ? body.script_segments ?? 0 : null);
           // 제품 주제 = 파이프라인 중분류 1:1 (2026-09-06 체계 통일) — 이름이 같은 제품 주제를 기본 선택한다. 없으면 손으로 고른다
           const same = items.find((t) => t.name === body.meta.mid_topic);
           if (same) setTopicIds([same.id]);
@@ -119,6 +120,12 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
         const res = await fetch(`/api/publish/${episodeId}?enrichment=1`);
         if (res.ok) enrichment = new File([await res.blob()], "enrichment.json", { type: "application/json" });
       }
+      // 자막 세그먼트 — TTS 단계가 만든 script-segments.json 이 있으면 같이 보낸다 (KAN-72). 없으면 자막 없이 발행
+      let script: File | null = null;
+      if (episodeId && scriptSegs != null) {
+        const res = await fetch(`/api/publish/${episodeId}?script=1`);
+        if (res.ok) script = new File([await res.blob()], "script-segments.json", { type: "application/json" });
+      }
       const content = await uploadEarContent({
         title: title.trim(), description: description.trim(), origin: "ai_generated",
         source_name: sourceName.trim(), topic_ids: topicIds,
@@ -126,15 +133,15 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
           title: s.title.trim(), ...(s.author.trim() ? { author: s.author.trim() } : {}), ...(s.url.trim() ? { url: s.url.trim() } : {}),
         })),
         review_confirmed: true,
-      }, audio!, thumb!, enrichment);
-      await markPublished(meta?.backlog_id ?? null, content.id, content.content_version, content.published_at, { action: "publish", parts: ["audio", "thumbnail", "title", "description", "source_name", "topic_ids", ...(enrichment ? ["enrichment"] : [])], episodeId: episodeId ?? undefined }).catch(() => undefined); // 파이프라인에 content_id·버전·이력 기록 — 실패해도 발행은 성립 (spec/07 5장)
-      setMsg({ kind: "ok", text: `발행되었습니다 — ${content.id}${enrichment ? (content.enrichment_applied ? ` · 추천 메타 v${content.enrichment_schema_version ?? "?"} 반영` : ` · 추천 메타 거부: ${content.enrichment_rejected_reason ?? "사유 없음"}`) : " · 추천 메타 없음(목록에서 소급 가능)"}` });
+      }, audio!, thumb!, enrichment, script);
+      await markPublished(meta?.backlog_id ?? null, content.id, content.content_version, content.published_at, { action: "publish", parts: ["audio", "thumbnail", "title", "description", "source_name", "topic_ids", ...(enrichment ? ["enrichment"] : []), ...(script ? ["script"] : [])], episodeId: episodeId ?? undefined }).catch(() => undefined); // 파이프라인에 content_id·버전·이력 기록 — 실패해도 발행은 성립 (spec/07 5장)
+      setMsg({ kind: "ok", text: `발행되었습니다 — ${content.id}${enrichment ? (content.enrichment_applied ? ` · 추천 메타 v${content.enrichment_schema_version ?? "?"} 반영` : ` · 추천 메타 거부: ${content.enrichment_rejected_reason ?? "사유 없음"}`) : " · 추천 메타 없음(목록에서 소급 가능)"}${script ? (content.script_applied ? " · 자막 반영" : ` · 자막 거부: ${content.script_rejected_reason ?? "사유 없음"}`) : " · 자막 없음"}` });
       setTimeout(() => router.push("/publish"), 900);
     } catch (e) {
       const anyE = e as { field?: string };
       setMsg({ kind: "bad", text: `${earErrMsg(e)}${anyE.field ? ` (필드: ${anyE.field})` : ""}` });
     } finally { setBusy(false); }
-  }, [audioFile, episodeId, title, description, sourceName, topicIds, sources, thumbFile, enrichVer, meta, router]);
+  }, [audioFile, episodeId, title, description, sourceName, topicIds, sources, thumbFile, enrichVer, scriptSegs, meta, router]);
 
   if (loadErr) return <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-[13px] text-rose-700">{loadErr}</p>;
 
@@ -218,6 +225,9 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
               {episodeId && (enrichVer != null
                 ? <p className="mt-1 text-[11px] text-emerald-700">추천 메타 v{enrichVer} 첨부됨 (enrichment.json — 발행 때 같이 보내요)</p>
                 : <p className="mt-1 text-[11px] text-ink-soft">추천 메타 없음 — 패키지 직후 메타 부여 작업이 아직 안 끝났거나 실패. 발행은 되고, 목록의 [다시 뽑기]로 소급할 수 있어요.</p>)}
+              {episodeId && (scriptSegs != null
+                ? <p className="mt-1 text-[11px] text-emerald-700">자막 세그먼트 {scriptSegs}건 첨부됨 (script-segments.json — 발행 때 같이 보내요)</p>
+                : <p className="mt-1 text-[11px] text-ink-soft">자막 세그먼트 없음 — TTS 가 턴 경계를 못 잡았거나 KAN-72 이전 음원. 발행은 되고 앱은 대본 버튼을 숨겨요.</p>)}
             </label>
           </div>
         </Panel>

@@ -125,6 +125,8 @@ export interface EarContent {
   enrichment_schema_version: number | null; enriched_at: string | null;
   /** 요청에 enrichment_file 이 있었을 때만 (4.6·4.10) */
   enrichment_applied?: boolean; enrichment_rejected_reason?: string;
+  /** 요청에 script_file 이 있었을 때만 (4.6·4.10, KAN-71) — 서버 검증에 어긋나면 파일만 거부되고 업로드는 진행된다 */
+  script_applied?: boolean; script_rejected_reason?: string;
 }
 /** 현재 추천 메타 형식 버전 — 원본은 서버 CURRENT_ENRICHMENT_SCHEMA_VERSION(admin-api 4.6 "현재 형식 2"). 목록 응답이 현재 버전을 싣게 되면(BE 티켓) 그 값으로 바꾼다 */
 export const ENRICHMENT_SCHEMA_VERSION_FALLBACK = 2;
@@ -163,21 +165,23 @@ export interface UploadPayload {
 }
 
 /** 재발행 — 같은 content_id 에 오디오(·메타) 교체, content_version +1 (admin-api 4.10 — 백엔드 구현 대기: 404 면 아직 없는 것) */
-export function republishEarContent(contentId: string, parts: { audio?: File; thumbnail?: File; enrichment?: File; payload?: Partial<Pick<UploadPayload, "title" | "description" | "source_name" | "topic_ids" | "sources">> }): Promise<EarContent> {
+export function republishEarContent(contentId: string, parts: { audio?: File; thumbnail?: File; enrichment?: File; script?: File; payload?: Partial<Pick<UploadPayload, "title" | "description" | "source_name" | "topic_ids" | "sources">> }): Promise<EarContent> {
   const fd = new FormData();
   if (parts.payload) fd.append("payload", JSON.stringify(parts.payload));
   if (parts.audio) fd.append("audio", parts.audio);
   if (parts.thumbnail) fd.append("thumbnail", parts.thumbnail);
   if (parts.enrichment) fd.append("enrichment_file", parts.enrichment); // 단독 전송이면 content_version 무변경·재생 위치 보존 (4.10)
+  if (parts.script) fd.append("script_file", parts.script); // 자막 세그먼트 — 단독 전송이면 역시 버전 무변경 (4.10, 기존 발행분 소급 경로)
   return earFetch<EarContent>(`/admin/contents/${contentId}`, { method: "PATCH", body: fd });
 }
 
-export function uploadEarContent(payload: UploadPayload, audio: File, thumbnail: File, enrichment?: File | null): Promise<EarContent> {
+export function uploadEarContent(payload: UploadPayload, audio: File, thumbnail: File, enrichment?: File | null, script?: File | null): Promise<EarContent> {
   const fd = new FormData();
   fd.append("payload", JSON.stringify(payload));
   fd.append("audio", audio);
   fd.append("thumbnail", thumbnail);
   if (enrichment) fd.append("enrichment_file", enrichment); // 추천 메타(metadata-pipeline 4.4) — 있으면 첫 발행부터 v2
+  if (script) fd.append("script_file", script); // 자막 세그먼트(admin-api 4.6 script_file, KAN-72) — TTS 단계 산출물
   return earFetch<EarContent>("/admin/contents", { method: "POST", body: fd });
 }
 

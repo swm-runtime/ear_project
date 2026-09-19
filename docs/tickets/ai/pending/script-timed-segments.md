@@ -8,7 +8,7 @@
 | 발견 시점 | PM 결정 — 자막(대본) 기능을 실서버에서 연다 |
 | 근거 문서 | PRD FR-25(P1) · `features/player.md` 4.6 · `ai/spec/06-audio.md` 6장(턴 타임스탬프 부산물 — "스크립트 싱크 대비") · `features/admin.md` 3.1 `script_segments` |
 | 중요도 | **Medium**(3일 안) — 데이터가 없으면 API·화면이 있어도 보여줄 것이 없다 |
-| 상태 | 대기 |
+| 상태 | 구현 완료 · 실편 검증 대기 |
 | Jira | KAN-72 |
 | 짝 티켓 | `tickets/backend/pending/script-api.md`(조회·적재) · `tickets/frontend/pending/script-real-api.md`(연동) |
 
@@ -58,3 +58,6 @@
 ## 처리 기록
 
 - 2026-09-19 — **BE 적재 계약 확정(KAN-71)**: 발행·재발행 multipart 파트 **`script_file`**(세그먼트 JSON 배열 파일, ≤2MB, `enrichment_file`과 같은 방식). 패키지 안 `script-segments.json`으로 두고 웹 `/api/publish` 라우트가 첨부하면 된다. 서버 검증: 1~2000개, `start_sec ≥ 0`, `end_sec > start_sec`, 오름차순·겹침 없음(50ms 오차), text ≤2000자, speaker ≤50자 또는 null, 모르는 키 거부 — 어긋나면 파일만 거부(`script_applied: false` + 사유). 대본 파일만 보내는 재발행은 버전을 올리지 않으므로 **기존 발행분 소급은 `PATCH /admin/contents/:id` + `script_file`** 로 가능하다. 계약: `admin-api.md` 4.6·4.10.
+- 2026-09-19 — **구현(PR 대기)**: TTS 단계가 배속 정렬(`locateTurnStarts`)을 조각별 atempo 비율로 배포본 시각으로 옮기고(앞 무음 2초·요청 사이 0.35초·앞 요청 실측 PCM 길이 누적) `episodes/<id>/script-segments.json`을 만든다 — `apps/worker/src/tts/segments.ts`(단위 테스트 5건). 25초 초과 턴은 문장 경계 분할(원문·TTS 표기의 문장 수가 같을 때만). 원속 폴백이 한 요청이라도 있으면 파일을 만들지 않고 실행 기록에 사유. 웹 업로드 화면이 `/api/publish/<id>?script=1`로 읽어 `script_file`로 첨부, 결과 메시지에 반영/거부 표시. `republishEarContent`에 `script` 파트(소급 경로). 문서: spec/06 7장·07 2장·08 2장.
+- 2026-09-19 — **기존 발행분 소급 조사**: S3 `episodes/` 85편 중 배속 정렬(`timestamps.json`)이 남은 편은 **0편** — 티켓 전제와 달리 정렬을 저장하는 코드가 없었다(배속 계산 뒤 버림). 소급 방법 두 가지: ① `dist.mp3` + `script.md`로 ElevenLabs **Forced Alignment API**(`POST /v1/forced-alignment`, 음원 ≤1GB, 글자·단어 시각 반환)를 돌려 세그먼트를 만들고 `PATCH /admin/contents/:id` + `script_file`로 붙인다 — 재합성 없음, 배포본 직접 정렬이라 배속 계산 불필요, 원속 폴백 편도 가능. 단가는 문서에 없어 1편 실측 후 결정. ② 재합성([음원 다시 변환] → 재발행) — 오디오가 바뀌어 `content_version`이 오르고 재생 위치가 폐기되므로 비추천. 권고: ①을 별도 작업(`script_align` 유형)으로 — 이 티켓 범위 밖.
+- **남은 완료 조건**: 배속 편의 `dist.mp3`에서 임의 턴 시작 시각(앞·중간·끝)으로 이동해 첫 마디가 0.5초 안에 들리는지 — dev 머지·배포 뒤 첫 TTS 편으로 확인한 뒤 archive 로 옮긴다.
