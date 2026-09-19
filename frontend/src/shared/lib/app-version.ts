@@ -38,5 +38,16 @@ const resolveBundleLabel = (): string => {
   }
 };
 
-/** 설정 화면의 버전 행에 붙는 값 — `1.0.0 (01a0a3c9)` 꼴 */
-export const APP_VERSION_LABEL = `${APP_VERSION} (${resolveBundleLabel()})`;
+/**
+ * **개발계 API 를 보는 앱인가** — 화면 표시 전용이다.
+ *
+ * preview 앱(내부 APK·ad-hoc)과 스토어 앱은 번들 ID 가 같아 홈 화면에서 구분되지 않는다.
+ * 어느 쪽을 깔았는지 모르면 개발계에서 확인할 것을 운영에서 보고 "안 고쳐졌다"고 착각한다.
+ * 채널이 아니라 **실제로 부르는 주소**로 가른다 — preview OTA·빌드는 이 값에 개발계 주소를
+ * 싣고(`eas-update.yml`·`eas.json` preview), 운영은 값이 없거나 운영 주소다(api-client.ts).
+ */
+const isDevApi = (): boolean =>
+  (process.env.EXPO_PUBLIC_API_BASE_URL ?? '').includes('://api-dev.');
+
+/** 설정 화면의 버전 행에 붙는 값 — `1.0.0 (01a0a3c9)` 꼴, 개발계면 `1.0.0 (01a0a3c9) · 개발계` */
+export const APP_VERSION_LABEL = `${APP_VERSION} (${resolveBundleLabel()})${isDevApi() ? ' · 개발계' : ''}`;
