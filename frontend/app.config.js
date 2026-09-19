@@ -25,10 +25,17 @@ const DEV_APP_ID = 'dev.runtime.ear';
  * - 구글 iOS 클라이언트는 번들 ID 에 묶여 있다 — 개발계 번들용 iOS 클라이언트를 구글 콘솔에
  *   만들기 전에는 개발계 iOS 앱의 구글 로그인이 실패한다. 만들면 ID 를 여기 넣는다.
  *   (Android 는 패키지+SHA-1 로 콘솔에서 매칭돼 앱 설정값이 없다. 서버 검증 aud 는 웹 클라이언트라 같다.)
- * - 카카오·네이버는 같은 앱 키를 쓰되 콘솔에 개발계 번들·패키지·키 해시를 추가 등록한다.
+ * - **카카오 앱 키는 패키지명·번들 ID 에 묶인다.** 운영 키를 그대로 쓰면 개발계 앱
+ *   (`dev.runtime.ear`)의 로그인이 거부된다 — 콘솔에 개발계 패키지·키 해시를 등록해도
+ *   소용없다. 앱이 내미는 키 자체가 운영 키이기 때문이다(2026-09-20, APK 매니페스트의
+ *   `kakaoe1f65f…` 로 확인). 그래서 개발계 전용 네이티브 앱 키를 따로 받아 쓴다.
+ * - 네이버는 클라이언트 ID 가 패키지·번들에 묶이지 않아 같은 키를 그대로 쓴다. 콘솔에
+ *   Android 패키지만 추가 등록하면 된다(iOS 는 URL 스킴이 같아 등록 없이도 동작한다).
  */
 const DEV_SOCIAL_AUTH = {
-  googleIosClientId: null,
+  googleIosClientId:
+    '475643832949-8p18o9514dniv3i3lanh45o14nubda0a.apps.googleusercontent.com',
+  kakaoNativeAppKey: 'a67198ac1a489d5d2d3099e8f098a570',
 };
 
 const googleIosUrlScheme = (clientId) =>
@@ -54,6 +61,8 @@ module.exports = ({ config }) => {
 
   const googleIosClientId =
     DEV_SOCIAL_AUTH.googleIosClientId ?? config.extra.socialAuth.googleIosClientId;
+  const kakaoNativeAppKey =
+    DEV_SOCIAL_AUTH.kakaoNativeAppKey ?? config.extra.socialAuth.kakaoNativeAppKey;
 
   // 공유 링크(earcast.co.kr)는 운영 앱이 받는다 — 개발계 앱은 도메인 연결을 선언하지 않는다.
   // 선언하면 AASA·assetlinks 에 개발계 앱을 올려야 하고, 한 폰에서 두 앱이 같은 링크를 다툰다.
@@ -75,15 +84,33 @@ module.exports = ({ config }) => {
         foregroundImage: './assets/android-icon-foreground-dev.png',
       },
     },
-    plugins: config.plugins.map((plugin) =>
-      Array.isArray(plugin) && plugin[0] === '@react-native-google-signin/google-signin'
-        ? [plugin[0], { ...plugin[1], iosUrlScheme: googleIosUrlScheme(googleIosClientId) }]
-        : plugin,
-    ),
+    // 네이티브 값이라 여기서 덮어야 한다 — 구글은 iOS URL 스킴, 카카오는 `kakao<앱키>` 스킴이
+    // 매니페스트·Info.plist 에 박힌다. `extra` 만 바꾸면 스킴과 SDK 초기화 값이 갈린다
+    plugins: config.plugins.map((plugin) => {
+      if (!Array.isArray(plugin)) return plugin;
+
+      if (plugin[0] === '@react-native-google-signin/google-signin') {
+        return [
+          plugin[0],
+          { ...plugin[1], iosUrlScheme: googleIosUrlScheme(googleIosClientId) },
+        ];
+      }
+
+      if (plugin[0] === '@react-native-kakao/core') {
+        return [plugin[0], { ...plugin[1], nativeAppKey: kakaoNativeAppKey }];
+      }
+
+      return plugin;
+    }),
     extra: {
       ...config.extra,
       appVariant: 'dev',
-      socialAuth: { ...config.extra.socialAuth, googleIosClientId },
+      socialAuth: {
+        ...config.extra.socialAuth,
+        googleIosClientId,
+        // `provider-auth.service.ts` 의 `initializeKakaoSDK` 가 읽는다 — 위 플러그인 값과 같아야 한다
+        kakaoNativeAppKey,
+      },
     },
   });
 };
