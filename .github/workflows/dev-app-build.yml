@@ -1,0 +1,69 @@
+name: dev-app-build
+# 개발계 앱(com.runtime.ear.dev · "이어 dev")의 Android APK 를 러너에서 직접 빌드한다(KAN-76).
+#
+# EAS 클라우드 빌드가 아니라 `eas build --local` 이다 — 무료 플랜의 월 빌드 한도를 쓰지 않는다
+# (2026-09-19 Android 한도 소진으로 개발계 APK 를 못 뽑은 것이 계기). 서명 키는 EAS 에 저장된
+# 개발계 앱 키스토어를 받아 쓰므로 클라우드 빌드와 같은 서명이다 — 위에 덮어 깔 수 있고,
+# 구글 콘솔에 등록한 SHA-1 도 그대로 맞는다.
+#
+# 언제 돌리나: **네이티브가 바뀌었을 때만**(runtimeVersion 을 올린 뒤). JS 변경은 dev 머지마다
+# preview 채널 OTA 로 나간다(eas-update.yml).
+# iOS 는 macOS 러너·Apple 인증이 필요해 여기서 뽑지 않는다 — `eas build -p ios --profile preview-store`.
+# 1회 설정: repo secret EXPO_TOKEN (eas-update.yml 과 같은 값)
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: dev-app-build
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node 설정
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: JDK 설정
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: EAS CLI 설정
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: 의존성 설치
+        working-directory: frontend
+        run: npm ci
+
+      - name: APK 빌드
+        working-directory: frontend
+        run: |
+          eas build --local \
+            --platform android \
+            --profile preview \
+            --non-interactive \
+            --output "$GITHUB_WORKSPACE/ear-dev.apk"
+
+      - name: APK 업로드
+        uses: actions/upload-artifact@v4
+        with:
+          name: ear-dev-apk
+          path: ear-dev.apk
+          retention-days: 30
