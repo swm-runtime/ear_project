@@ -15,7 +15,7 @@
  */
 const IS_DEV_APP = process.env.APP_VARIANT === 'dev';
 
-const DEV_APP_ID = 'com.runtime.ear.dev';
+const DEV_APP_ID = 'dev.runtime.ear';
 
 /**
  * 개발계 앱 전용 소셜 로그인 값. **null 이면 운영 값을 그대로 쓴다**(콘솔 등록 전 상태).
@@ -45,7 +45,7 @@ module.exports = ({ config }) => {
 
   return {
     ...config,
-    name: '이어 dev',
+    name: '이어(Preview)',
     icon: './assets/icon-dev.png',
     ios: { ...ios, bundleIdentifier: DEV_APP_ID },
     android: {

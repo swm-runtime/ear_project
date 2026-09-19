@@ -9,7 +9,7 @@
 ## 수정 내용
 
 1. 2.1 에 "앱 변형" 항을 추가한다.
-   - 운영 앱 `com.runtime.ear`(production 프로필·production 채널·운영 API), 개발계 앱 `com.runtime.ear.dev` "이어 dev"(preview 계열 프로필·preview 채널·개발계 API).
+   - 운영 앱 `com.runtime.ear`(production 프로필·production 채널·운영 API), 개발계 앱 `dev.runtime.ear` "이어(Preview)"(preview 계열 프로필·preview 채널·개발계 API).
    - **운영 설정의 원본은 `app.json`** 이고 `app.config.js` 는 `APP_VARIANT=dev` 일 때만 덮어쓴다.
    - `APP_VARIANT` 는 **빌드 프로필 env(`eas.json`)와 OTA 발행(`eas-update.yml`) 두 곳에서 같은 값**이어야 한다. production 프로필은 preview 를 extends 하므로 값을 명시한다.
    - 개발계 앱은 도메인 연결을 선언하지 않는다(공유 링크는 운영 앱이 받는다).

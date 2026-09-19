@@ -86,7 +86,7 @@ jobs:
           # 번들에 박히는 값 — 채널 결정 단계가 정한다(preview=개발계 · production=운영).
           # mock 플래그(EXPO_PUBLIC_*_API 등)는 __DEV__ 가드라 릴리스 번들에선 값과 무관하다.
           EXPO_PUBLIC_API_BASE_URL: ${{ steps.channel.outputs.api_base_url }}
-          # 앱 변형 — preview 채널은 개발계 앱(com.runtime.ear.dev)이 받는다(app.config.js · KAN-76).
+          # 앱 변형 — preview 채널은 개발계 앱(dev.runtime.ear)이 받는다(app.config.js · KAN-76).
           # OTA 매니페스트의 expoConfig(extra.socialAuth 등)가 이 값으로 정해진다 — 빌드 프로필 env 와 같아야 한다
           APP_VARIANT: ${{ steps.channel.outputs.app_variant }}
           # 커밋 메시지를 셸에 직접 보간하지 않는다 — 따옴표·개행이 섞여도 안전하게 env 로 받는다
