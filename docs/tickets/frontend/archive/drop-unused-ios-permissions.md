@@ -8,7 +8,7 @@
 | 발견 시점 | **앱스토어 심사 반려** — 권한 불일치 |
 | 근거 문서 | `frontend/architecture.md` 2.1 (재빌드·`runtimeVersion` 판단) |
 | 심각도 | **최상** — 스토어 출시가 막힌다 |
-| 상태 | 대기 — 코드 선반영, **재빌드·재제출 남음** |
+| 상태 | 완료 — 1.0.0 (7) 심사 제출(2026-09-19) |
 | Jira | [KAN-64](https://runtime364.atlassian.net/browse/KAN-64) |
 
 ## 문제
@@ -72,3 +72,8 @@ architecture.md 2.1의 "네이티브가 바뀌면 손으로 올린다"는 **새 
 - 코드(`faceIDPermission: false`·`microphonePermission: false`)는 **iOS 빌드 6**(runtimeVersion 2, 2026-09-17 EAS 빌드 → App Store Connect 업로드 완료)에 들어 있다. 이 빌드는 TestFlight 로 실기기에 설치돼 돌고 있다(2026-09-19 PM 기기).
 - **남은 것은 사람 손 하나**: App Store Connect 에서 빌드 6 을 심사에 제출한다(KAN-66 과 같은 제출). 제출되면 이 티켓과 KAN-64 를 함께 닫는다.
 - **마감 초과 사유**(Medium, 발행 2026-09-15 → 3일 마감 2026-09-18): 코드·빌드는 기한 안에 끝났고, 심사 제출이 계정 소유자의 수동 작업이라 밀렸다. 중요도는 내리지 않는다.
+
+## 처리 기록 (2026-09-19 — 반영 완료)
+
+- **반영 날짜: 2026-09-19.** iOS **1.0.0 (7)**(main `e5a78c5`, runtimeVersion 2)을 App Store Connect 에 올려 2026-09-19 03:27 심사에 제출했다(제출자 박수헌, 상태 "심사 대기 중"). 권한 옵션은 main 의 `app.json` 에서 `faceIDPermission: false`·`microphonePermission: false` 로 확인했다. 같은 커밋의 1.0.0 (9) 도 업로드돼 있다(예비).
+- 완료 조건 "심사 결과로 반려되지 않는다"는 심사 결과가 나와야 판정된다. 권한 불일치로 다시 반려되면 새 티켓을 발행한다.
