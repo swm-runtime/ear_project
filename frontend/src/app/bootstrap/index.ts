@@ -1,4 +1,5 @@
 import { registerTokenProvider } from '@/shared/api/api-client';
+import { prefetchRemoteImages } from '@/shared/ui/RemoteImage';
 
 import { registerEmailVerifiedListener, sessionService, useSessionStore } from '@/features/auth';
 import { registerCareerSavedListener } from '@/features/career';
@@ -8,8 +9,17 @@ import {
   deleteLibraryItem,
   fetchLibraryItems,
   libraryKeys,
+  prefetchLibraryFirstPage,
   restoreLibraryItem,
+  saveQueueOrder,
 } from '@/features/library';
+import {
+  clearPushState,
+  resetDeviceSync,
+  startDeviceSync,
+  startPushReceiving,
+  syncDeviceNow,
+} from '@/features/notification';
 import {
   registerPlayerLibraryBridge,
   startWithdrawnSync,
@@ -19,8 +29,12 @@ import {
 import { profileKeys } from '@/features/profile';
 import { settingsKeys } from '@/features/settings';
 
+
 import { forgetTab } from '../navigation/last-tab';
 import { queryClient } from '../query-client';
+
+/** 재생 목록 패널이 한 번에 받는 개수 — `GET /users/me/library-items`의 서버 상한(library-api.md 4.1) */
+const QUEUE_PAGE_LIMIT = 50;
 
 /**
  * 앱 초기화 — shared·feature 인터페이스에 도메인 구현을 주입한다(architecture.md 4.3).
@@ -70,7 +84,19 @@ export const bootstrapApp = (): void => {
      * 타입을 알면 의존 방향이 뒤집히기 때문이다(4.4)
      */
     fetchQueue: async () => {
-      const page = await fetchLibraryItems({ filter: 'all', topicIds: [], sourceFilter: null });
+      const page = await fetchLibraryItems({
+        filter: 'all',
+        topicIds: [],
+        sourceFilter: null,
+        // 사용자가 정한 순서를 서버가 입혀 준다(library-api.md 4.1 — KAN-70·74)
+        sort: 'queue',
+        /*
+         * 서버 상한(50)까지 받는다. 순서를 저장하면 **보낸 목록에만** 자리가 매겨지고 나머지는
+         * "순서 없음"으로 남아 맨 위로 온다(NULLS FIRST) — 첫 페이지가 작을수록 한 번도 본 적 없는
+         * 옛 항목이 위로 튀어 오른다. 근본 수정은 BE 티켓 `queue-order-unseen-items.md`
+         */
+        limit: QUEUE_PAGE_LIMIT,
+      });
       return page.items.map((item) => ({
         itemId: item.id,
         contentId: item.content.id,
@@ -84,6 +110,7 @@ export const bootstrapApp = (): void => {
         topicIds: item.content.topicIds,
       }));
     },
+    saveQueueOrder: (itemIds) => saveQueueOrder({ itemIds }),
   });
 
   /*
@@ -91,7 +118,24 @@ export const bootstrapApp = (): void => {
    * 로그인 여부 판정을 주입한다: player가 auth를 직접 import하면 의존 표(4.4)를 어기고,
    * 로그아웃 상태로 조회하면 401이 토큰 갱신 실패로 번진다.
    */
-  startWithdrawnSync(() => useSessionStore.getState().status === 'authenticated');
+  const isSignedIn = (): boolean => useSessionStore.getState().status === 'authenticated';
+  startWithdrawnSync(isSignedIn);
+
+  /*
+   * 기기 동기화(notification.md 4.2 · architecture.md 5.5) — 포그라운드 복귀·토큰 변경마다
+   * OS 권한과 푸시 토큰을 서버에 맞춘다. 로그인 여부를 주입하는 이유는 회수 동기화와 같다.
+   */
+  startDeviceSync(isSignedIn);
+
+  /*
+   * 푸시 수신·탭(notification.md 4.4·4.5). 포그라운드 도착이면 라이브러리 목록을 조용히
+   * 갱신한다 — notification이 library의 쿼리 키를 알지 않도록 여기서 배선한다.
+   */
+  startPushReceiving({
+    onForegroundArrival: () => {
+      void queryClient.invalidateQueries({ queryKey: libraryKeys.all });
+    },
+  });
 
   /*
    * **로그인 완료를 동기화 신호로 삼는다.** 기동 시점의 세션은 아직 `restoring`이라
@@ -101,6 +145,17 @@ export const bootstrapApp = (): void => {
   useSessionStore.subscribe((state, previous) => {
     if (state.status === 'authenticated' && previous.status !== 'authenticated') {
       syncWithdrawnContents();
+      /*
+       * 첫 화면을 미리 받는다(2026-09-20). 콜드 스타트에서는 이 시점이 **스플래시의 로고 모션 도중**이다 —
+       * 관문은 모션이 끝날 때까지 어차피 기다리므로(splash.md 4-6) 그 시간에 목록과 썸네일을 받아 두면
+       * 라이브러리가 뜨자마자 그려진다. 관문을 붙잡지 않는다: 못 받았으면 화면이 평소대로 받는다.
+       * 온보딩 전 사용자는 받을 목록이 없다.
+       */
+      if (state.user?.onboardingCompleted === true) {
+        void prefetchLibraryFirstPage(queryClient).then(prefetchRemoteImages);
+      }
+      // 서버는 로그아웃 때 이 기기의 토큰을 지운다 — 다시 로그인했으면 다시 올려야 알림이 온다
+      syncDeviceNow();
     }
     /*
      * 로그아웃·탈퇴·세션 만료 → **재생을 끊는다**(auth.md 4.2-3). 지금까지 세션만
@@ -110,6 +165,9 @@ export const bootstrapApp = (): void => {
      */
     if (previous.status === 'authenticated' && state.status !== 'authenticated') {
       stopPlaybackForSignOut();
+      // 앞 사용자가 탭한 알림의 목적지·배너를 다음 사용자에게 넘기지 않는다
+      clearPushState();
+      resetDeviceSync();
       // 다음 사용자가 앞 사용자의 탭에서 시작하면 안 된다(splash.md 4장 4-1)
       forgetTab();
     }

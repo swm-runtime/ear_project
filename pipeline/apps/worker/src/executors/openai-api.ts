@@ -91,6 +91,9 @@ export class OpenAiExecutor implements Executor {
       text: { format: { type: "json_schema", name: "result", strict: true, schema } },
     };
     if (req.effort) body.reasoning = { effort: EFFORT[req.effort] ?? "medium" };
+    // 출력 길이 성향 (GPT-5 계열 text.verbosity, 기본 medium). Claude 엔 없는 축이라 2026-09-19 첫 짝 비교 때 빠져 있었다 — 대본이 일관되게 짧았던 원인 후보
+    const verbosity = process.env.OPENAI_VERBOSITY || "";
+    if (/^(low|medium|high)$/.test(verbosity)) body.text.verbosity = verbosity;
     const started = Date.now();
     const progress: Progress = { detail: `OpenAI ${model} 요청 중…`, toolCounts: {}, turns: 0, elapsedMs: 0 };
     req.onProgress?.({ ...progress });
@@ -103,6 +106,7 @@ export class OpenAiExecutor implements Executor {
         res = await this.call(key, body, req.timeoutMs);
       }
       if (res.status === 400 && /reasoning|effort/i.test(res.text) && body.reasoning) { delete body.reasoning; res = await this.call(key, body, req.timeoutMs); }
+      if (res.status === 400 && /verbosity/i.test(res.text) && body.text.verbosity) { delete body.text.verbosity; res = await this.call(key, body, req.timeoutMs); }
       if (res.status !== 200) throw new Error(`OpenAI ${res.status}: ${res.text.slice(0, 600)}`);
       const data = JSON.parse(res.text);
       if (data.status && data.status !== "completed") throw new Error(`OpenAI 응답 미완료 (${data.status}: ${JSON.stringify(data.incomplete_details ?? {}).slice(0, 200)}) — max_output_tokens 확인`);

@@ -28,6 +28,13 @@ export const PROMPT_BODY_KEYS: Record<string, RegExp[]> = {
 };
 const PROMPT_BODY_REV = "b1";
 
+/** 실행기 프로파일 키 (2026-09-19, spec/10 3.2): 기본 키 → 프로파일 키. cfg.assetProfile === "gpt" 면 프로파일 키의 active 를 읽어 기본 키 경로에 내려놓는다
+ *  (프롬프트 빌더는 경로가 같아 변경 없음). 프로파일 키에 active 가 없으면 기본 키로 폴백. 에피소드 고정(asset_versions)에는 실제로 쓴 키가 남는다 */
+export const PROFILE_KEYS: Record<string, string> = {
+  "skills/draft/guidelines.md": "skills/draft/guidelines.gpt.md",
+};
+export const OPTIONAL_ASSET_KEYS = Object.values(PROFILE_KEYS);
+
 export const DB_ASSET_KEYS = [
   "skills/draft/guidelines.md",
   "skills/draft/examples/gold-T260820-001-short.md",
@@ -127,26 +134,41 @@ export function workerRevTime(): number {
 type Row = { key: string; version: string; content: string };
 
 /** active 묶음(또는 고정 버전)을 읽는다. 고정 묶음에 없는 키(나중에 추가된 자산)는 active 로 보충한다 */
-export async function loadBundle(pinned?: Record<string, string> | null): Promise<AssetBundle> {
+export async function loadBundle(pinned?: Record<string, string> | null, profile: "default" | "gpt" = cfg.assetProfile): Promise<AssetBundle> {
   const keys: string[] = [...DB_ASSET_KEYS];
-  const versions: Record<string, string> = {};
-  const contents: Record<string, string> = {};
+  // 기본 키 → 실제로 읽을 DB 키: 고정된 프로파일 키 > 고정된 기본 키 > (profile=gpt) 프로파일 키 active > 기본 키 active
+  const dbKeyOf: Record<string, string> = {};
+  for (const k of keys) {
+    const pk = PROFILE_KEYS[k];
+    dbKeyOf[k] = pinned && pk && pk in pinned ? pk : pinned && k in pinned ? k : profile === "gpt" && pk ? pk : k;
+  }
+  const versions: Record<string, string> = {}; // DB 키 기준 (에피소드 고정·번들 해시에 남는다)
+  const contents: Record<string, string> = {}; // 기본 키 경로 기준 (프롬프트 빌더가 읽는 경로)
+  const baseOf = (dbKey: string) => keys.find((k) => dbKeyOf[k] === dbKey) ?? dbKey;
   if (pinned) {
-    const pk = keys.filter((k) => k in pinned);
+    const pk = keys.map((k) => dbKeyOf[k]).filter((dk) => dk in pinned);
     const r = await pool.query<Row>(
       "select key, version, content from public.prompt_assets where (key, version) in (select k, v from unnest($1::text[], $2::text[]) as t(k, v))",
-      [pk, pk.map((k) => pinned[k])],
+      [pk, pk.map((dk) => pinned[dk])],
     );
-    for (const x of r.rows) { versions[x.key] = x.version; contents[x.key] = x.content; }
-    const lost = pk.filter((k) => !(k in versions));
-    if (lost.length) throw new Error(`에피소드에 고정된 자산 버전이 DB 에 없다: ${lost.map((k) => `${k}@${pinned[k]}`).join(", ")} — 버전은 삭제하지 않는다(retired 로만)`);
+    for (const x of r.rows) { versions[x.key] = x.version; contents[baseOf(x.key)] = x.content; }
+    const lost = pk.filter((dk) => !(dk in versions));
+    if (lost.length) throw new Error(`에피소드에 고정된 자산 버전이 DB 에 없다: ${lost.map((dk) => `${dk}@${pinned[dk]}`).join(", ")} — 버전은 삭제하지 않는다(retired 로만)`);
   }
-  const need = keys.filter((k) => !(k in versions));
+  const need = keys.map((k) => dbKeyOf[k]).filter((dk) => !(dk in versions));
   if (need.length) {
     const r = await pool.query<Row>("select key, version, content from public.prompt_assets where status = 'active' and key = any($1::text[])", [need]);
-    for (const x of r.rows) { versions[x.key] = x.version; contents[x.key] = x.content; }
+    for (const x of r.rows) { versions[x.key] = x.version; contents[baseOf(x.key)] = x.content; }
   }
-  const missing = keys.filter((k) => !(k in versions));
+  // 프로파일 키에 active 가 없으면 기본 키로 폴백 (프로파일 판을 아직 안 올린 상태 — 조용히 기본 규칙으로)
+  for (const k of keys) {
+    const dk = dbKeyOf[k];
+    if (dk !== k && !(dk in versions) && !(pinned && dk in pinned)) {
+      const r = await pool.query<Row>("select key, version, content from public.prompt_assets where status = 'active' and key = $1", [k]);
+      if (r.rows[0]) { versions[k] = r.rows[0].version; contents[k] = r.rows[0].content; dbKeyOf[k] = k; log(`  자산 프로파일 ${profile}: ${dk} 에 active 가 없어 ${k} 로 폴백`); }
+    }
+  }
+  const missing = keys.filter((k) => !(dbKeyOf[k] in versions));
   if (missing.length) {
     throw new Error(`prompt_assets 에 active 자산이 없다: ${missing.join(", ")} — 시딩(npm run assets:import) 또는 웹 /assets 에서 활성화 (폴백 없음, spec/10 3.2)`);
   }
@@ -158,7 +180,7 @@ export async function loadBundle(pinned?: Record<string, string> | null): Promis
   for (const [k, drop] of Object.entries(PROMPT_BODY_KEYS)) if (contents[k]) contents[k] = promptBody(contents[k], { dropSections: drop });
   const specDigest = sha(GIT_ASSET_KEYS.map((k) => contents[k]).join(" ")).slice(0, 8);
   const hash = sha(JSON.stringify(Object.entries(versions).sort()) + specDigest + PROMPT_BODY_REV).slice(0, 12);
-  const v = (k: string) => versions[k];
+  const v = (k: string) => versions[dbKeyOf[k]] + (dbKeyOf[k] !== k ? "(gpt)" : ""); // 프로파일 키를 썼으면 라벨에 표시 (prompt_version 으로 남는다)
   return {
     versions, contents, specDigest, hash,
     labels: { draft: v("skills/draft/guidelines.md"), qa: v("skills/qa/prompt.md"), critic: v("skills/critic/rubric.md"), criticV2: v("skills/critic/rubric-v2.md") },

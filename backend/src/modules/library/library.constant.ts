@@ -23,3 +23,9 @@ export const MAX_LIBRARY_TOPIC_FILTER_SIZE = 50;
  * 기준값의 소유자는 `library.md`이며 여기서 바꾸지 않는다(PRD 10 완청률 지표와 연결).
  */
 export const COMPLETION_REACHED_RATIO = 0.9;
+
+/**
+ * `library-api.md` 4.8 — 한 번에 저장할 수 있는 재생 목록 순서의 길이. 재생 목록 패널은 라이브러리
+ * 첫 페이지(최대 50)를 원천으로 하므로 넉넉한 값이고, FE의 기기 저장 상한(`QUEUE_ORDER_MAX_IDS`)과 같다.
+ */
+export const MAX_QUEUE_ORDER_SIZE = 200;

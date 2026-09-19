@@ -575,14 +575,18 @@ idx_content_topics_topic_id
 ```
 content_scripts
   id                        uuid            PK
-  content_id                uuid            FK → contents
-  segments                  jsonb           [{ start_sec, end_sec, text }]
+  content_id                uuid            FK → contents (ON DELETE CASCADE)
+  segments                  jsonb           [{ start_sec, end_sec, speaker, text }]   ★speaker 추가 (2026-09-19, KAN-71)
+  created_at · updated_at   timestamptz
 
 uq_content_scripts_content_id (content_id)
 ```
 
-- FR-25(스크립트 열람). 소유 모듈은 `content`로 확정한다 (C-1).
-- 세그먼트 단위 조회·검색 요구가 아직 없으므로 `jsonb` 한 컬럼으로 둔다.
+- FR-25(스크립트 열람). 소유 모듈은 `content`로 확정한다 (C-1). **실서버 구현 2026-09-19**(KAN-71 — `tickets/backend/archive/script-api.md`).
+- 세그먼트 단위 조회·검색 요구가 아직 없으므로 `jsonb` 한 컬럼으로 둔다. 키는 jsonb 내부라 snake_case 그대로다(`duration_pref`와 같은 규칙).
+- **`speaker`는 화자 표시명**("윤아"·"이음" — 대본이 2인 대화체, `ai/PIPELINE.md`)이며 1인 낭독·파트너 콘텐츠는 `null`. 시각은 초(소수 허용), **최종 배포본 기준**. `start_sec` 오름차순·겹침 없음은 적재 시 검증한다(admin-api.md 4.6 `script_file`).
+- 콘텐츠당 1행. 재발행으로 오디오가 바뀌면 시각도 바뀌므로 부분 갱신 없이 통째로 교체한다.
+- **접근 통제는 오디오와 같다**(architecture.md 9.4) — 조회(`player-api.md` 4.7)는 재생 발급과 같은 판정을 거친다.
 
 ### 5.4 `content_stats`
 
@@ -696,12 +700,22 @@ library_items
   last_played_at            timestamptz     NULL
   completed_at              timestamptz     NULL
   deleted_at                timestamptz     NULL   ★소프트 삭제
+  queue_position            int             NULL   ★재생 목록 순서 (2026-09-19, KAN-70) — NULL = 순서 미지정
 
 uq_library_items_user_id_content_id (user_id, content_id)
 idx_library_items_user_id_deleted_at_added_at_id (user_id, deleted_at, added_at DESC, id DESC)
 idx_library_items_user_id_deleted_at_last_played_at (user_id, deleted_at, last_played_at DESC)
+idx_library_items_user_id_deleted_at_queue_position (user_id, deleted_at, queue_position ASC NULLS FIRST, added_at DESC, id DESC)
 idx_library_items_content_id (content_id)
 ```
+
+**`queue_position`은 사용자가 정한 재생 목록 순서다**(`library-api.md` 4.1 `sort=queue` · 4.8, 2026-09-19 — `tickets/backend/archive/queue-order-sync.md`).
+
+- 1부터의 정수. **NULL = 순서를 정하지 않은 항목**이며, 목록은 `queue_position ASC NULLS FIRST, added_at DESC, id DESC`로 읽는다 — 새로 담긴 항목이 최신순으로 **맨 위**, 그 아래 저장한 순서. 사용자가 정리해 둔 아래쪽을 새 항목이 흔들지 않는다(FE 기기 저장 시절의 규칙과 같다).
+- 저장은 목록을 통째로 받아 **1..n을 다시 쓴다**. 이번 저장에 없는데 순서가 있던 항목(첫 페이지 밖)은 저장한 순서대로 n+1부터 이어 붙이고, 순서도 없던 살아 있는 항목은 그 뒤에 `added_at DESC, id DESC`로 이어 붙인다 — 사용자가 보지 못한 항목의 순서를 지우지 않고, **저장이 NULL을 남기지 않는다**(2026-09-19, KAN-75). 그래서 NULL은 "마지막 저장 뒤에 담긴 것"만 뜻한다.
+- **삭제해도 값을 지우지 않는다.** 복구(`4.7`)가 `added_at`과 함께 자리도 되살린다. 삭제·회수된 항목은 목록 조회에서 빠지므로 순서에도 나타나지 않는다.
+- **표시 순서일 뿐 판정에 쓰지 않는다.** 연속 재생의 "다음 편" 판정은 비범위이며(`player.md` 8장), 들어오면 이 컬럼을 읽는다.
+- 인덱스가 정렬을 그대로 담는 이유는 다른 목록 인덱스와 같다(keyset의 세 키). TypeORM `@Index`가 NULLS FIRST를 표현하지 못해 마이그레이션 SQL이 정의의 원본이다.
 
 - `uq_library_items_user_id_content_id`가 **중복 적립 방지의 최종 방어선이다** (A-5). 드립과 사용자 담기가 동시에 같은 콘텐츠를 적립해도 DB가 1건만 남긴다.
 

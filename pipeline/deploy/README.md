@@ -74,6 +74,7 @@ bash pipeline/deploy/push.sh
 - t4g.small 에서 `next build` OOM → user-data 의 스왑 2G 가 1차 방어. 그래도 죽으면 로컬 arm64 빌드 후 `docker save | ssh … docker load`, 다음이 t4g.medium (spec/10 2장)
 - ai-server 를 노트북(메타 부여 스킬)에서 부를 땐 SSH 터널: `ssh -i … -L 8000:localhost:8000 ec2-user@<EIP>` — 공개 도메인을 만들지 않는다
 - 팀원 노트북 워커는 이 서버가 뜬 뒤부터 web 모드로 동작: `PIPELINE_WEB_URL=https://admin.earcast.co.kr` + 토큰 (spec/10 3.3)
+- **서버에서 AI 단계를 돌리려면**(API 전환 실험, 2026-09-19) env.prod 에 `WORKER_EXECUTOR=openai`·`WORKER_CAPABILITIES=ai,io` 를 넣고 5장대로 재배포 — compose 가 그 값을 워커 `EXECUTOR`/`CAPABILITIES` 로 넘긴다(env.prod.example 의 주석 블록). 시작 로그 `AI=on` 으로 확인. 그동안 노트북 워커는 전부 끄고, 끝나면 두 줄을 지우고 다시 배포한다
 
 ## 8. 자동 배포 (CI — dev 머지)
 

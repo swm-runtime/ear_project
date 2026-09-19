@@ -8,7 +8,7 @@
 | 발견 시점 | FE 가 재생 목록 순서 변경(끌어서 옮기기)을 넣으면서 — PR #470 |
 | 근거 문서 | `docs/changes/pending/player-queue-panel.md` "추가(2026-09-18) — 순서 변경" |
 | 중요도 | **Low**(이번 주 안) — 기능은 기기 저장으로 이미 동작한다. 막힌 것은 없고, 기기 간 일관성만 빠져 있다 |
-| 상태 | 대기 |
+| 상태 | **완료** — B(정렬 키 컬럼) 채택·구현 (2026-09-19) |
 | Jira | KAN-70 |
 
 ## 배경
@@ -55,3 +55,13 @@ B 가 장기적으로 낫다고 본다(첫 페이지 밖의 항목까지 일관�
 - Given 순서에 있던 항목이 라이브러리에서 삭제·회수됐다 / When 조회한다 / Then 그 항목 없이 나머지 순서가 유지된다
 - Given 순서 저장 호출이 실패한다 / When 사용자가 계속 재생한다 / Then 재생·라이브러리 조회에는 영향이 없다
 - Given `domain.md`·api 문서 / When 읽는다 / Then 순서의 저장 위치·상한·새 항목 자리 규칙이 적혀 있다
+
+## 처리 기록 (2026-09-19 — B 채택·구현, PR `feat(be)/queue-order-sync`)
+
+- **B(`library_items.queue_position` 정렬 키)를 택했다.** 사유: 첫 페이지 밖 항목까지 한 정렬로 일관되고, 연속 재생이 들어오면 "다음 편" 판정이 쿼리 한 번이다. A는 목록 밖 항목의 자리를 표현할 수 없다.
+- 계약: `GET /users/me/library-items?sort=queue`(`queue_position ASC NULLS FIRST, added_at DESC, id DESC` — 새로 담긴 항목 맨 위·최신순, 그 아래 저장한 순서) + `PUT /users/me/library-items/queue-order` `{ item_ids: uuid[1..200] }` → 204. `library-api.md` 3장·4.1·4.8·8장, `domain.md` 6.1 반영.
+- 저장 규칙: 보낸 목록을 1..n으로, 이번 목록에 없는 기존 순서 항목은 n+1부터 저장한 순서대로 이어 붙인다. 남의 항목·삭제된 항목은 조용히 뺀다(끌기마다 오는 호출을 실패시키지 않는다 — 요구 1). 삭제해도 값은 남겨 복구 시 자리가 돌아온다(완료 조건 3). 한 트랜잭션·한 UPDATE 문장.
+- 커서: `sort=queue`는 세 키 keyset이라 커서에 `queue_position`(`p`, null 허용)을 더했고 다른 정렬 커서와 섞이지 않는다.
+- 마이그레이션 `1787600000000-AddLibraryItemQueuePosition`(컬럼 + NULLS FIRST 인덱스).
+- **FE 후속 티켓 발행**: `tickets/frontend/pending/queue-order-api-migration.md` · Jira KAN-74(이주호, Low) — `useQueueOrder` 저장소를 로컬 → API로, 로컬 순서는 첫 호출 때 한 번 올려 이관. 서버 규칙이 `applyQueueOrder`와 같아 결과가 바뀌지 않는다.
+- 반영 날짜: 2026-09-19. Jira KAN-70은 PR 머지 시 완료로 넘긴다.

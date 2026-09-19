@@ -1,3 +1,5 @@
+import { rm } from 'node:fs/promises';
+
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
@@ -17,18 +19,22 @@ import {
   AdminContentPage,
   AdminContentView,
   EnrichmentOutcome,
+  ScriptOutcome,
   RepublishContentCommand,
   SourceInput,
   UploadContentCommand,
   UploadedFileInput,
 } from '../admin.types';
 import { EnrichmentParseResult, parseEnrichmentFile } from '../enrichment-file';
+import { ScriptParseResult, parseScriptFile } from '../script-file';
+import { NormalizedThumbnail, ThumbnailImage } from '../thumbnail-image';
 import {
   AUDIO_CONTENT_TYPES,
   AUDIT_ACTION_CONTENT_ENRICH,
   AUDIT_ACTION_CONTENT_PURGE_STORAGE,
   AUDIT_ACTION_CONTENT_REPUBLISH,
   AUDIT_ACTION_CONTENT_RESTORE,
+  AUDIT_ACTION_CONTENT_SCRIPT,
   AUDIT_ACTION_CONTENT_UPLOAD,
   AUDIT_ACTION_CONTENT_WITHDRAW,
   MAX_AUDIO_FILE_BYTES,
@@ -68,6 +74,7 @@ export class AdminContentService {
     private readonly auditLogService: AuditLogService,
     private readonly storage: ContentStorageClient,
     private readonly audioProbe: AudioProbe,
+    private readonly thumbnailImage: ThumbnailImage,
   ) {}
 
   async upload(
@@ -79,13 +86,18 @@ export class AdminContentService {
     const enrichment = command.enrichment
       ? await parseEnrichmentFile(command.enrichment)
       : null;
+    // 대본도 같은 규칙 — 거부는 파일에 한하고 발행은 진행한다(대본은 발행 요건이 아니다, KAN-71)
+    const script = command.script
+      ? await parseScriptFile(command.script)
+      : null;
     const audioExtension = this.resolveExtension(
       command.audio,
       AUDIO_CONTENT_TYPES,
       MAX_AUDIO_FILE_BYTES,
       'audio',
     );
-    const thumbnailExtension = this.resolveExtension(
+    // 입력 형식·크기 판정만 한다 — 저장 확장자는 언제나 webp 라 돌려받은 값은 쓰지 않는다
+    this.resolveExtension(
       command.thumbnail,
       THUMBNAIL_CONTENT_TYPES,
       MAX_THUMBNAIL_FILE_BYTES,
@@ -112,18 +124,21 @@ export class AdminContentService {
       });
     }
 
+    // 입력 형식 검증(확장자·크기)은 위에서 끝났다. 저장 규격(WebP 768px)으로 다시 쓰는 것은 여기다
+    const thumbnail = await this.normalizeThumbnail(command.thumbnail);
+
     const uploadedKeys: string[] = [];
     let audioPath: string;
     let thumbnailUrl: string;
     try {
       audioPath = await this.storage.putAudio(command.audio, audioExtension);
       uploadedKeys.push(audioPath);
-      const thumbnail = await this.storage.putThumbnail(
-        command.thumbnail,
-        thumbnailExtension,
+      const stored = await this.storage.putThumbnail(
+        thumbnail.file,
+        thumbnail.extension,
       );
-      uploadedKeys.push(thumbnail.key);
-      thumbnailUrl = thumbnail.url ?? '';
+      uploadedKeys.push(stored.key);
+      thumbnailUrl = stored.url ?? '';
     } catch (error) {
       await this.storage.remove(uploadedKeys);
       this.logger.error('content upload to storage failed', {
@@ -134,6 +149,8 @@ export class AdminContentService {
         message: '파일 저장에 실패했어요. 다시 시도해 주세요',
         retryable: true,
       });
+    } finally {
+      await rm(thumbnail.file.path, { force: true });
     }
 
     let content: Content;
@@ -174,6 +191,14 @@ export class AdminContentService {
           );
         }
 
+        if (script?.data) {
+          await this.contentService.saveScript(
+            published.id,
+            script.data,
+            manager,
+          );
+        }
+
         // 검수 확인 입력값을 `after`에 남긴다 — 이행 증적은 이 기록이다(domain.md 5.1)
         await this.auditLogService.record(
           {
@@ -190,6 +215,7 @@ export class AdminContentService {
               ...(enrichment && {
                 enrichment_applied: enrichment.data !== null,
               }),
+              ...(script && { script_applied: script.data !== null }),
             },
           },
           manager,
@@ -207,11 +233,14 @@ export class AdminContentService {
       actor: command.actorUserId,
     });
     this.logEnrichmentOutcome(content.id, enrichment);
+    this.logScriptOutcome(content.id, script);
 
     return {
       content,
       topics: topics.map((topic) => ({ topicId: topic.id, name: topic.name })),
+      hasScript: script?.data != null,
       ...(enrichment && { enrichment: toEnrichmentOutcome(enrichment) }),
+      ...(script && { script: toScriptOutcome(script) }),
     };
   }
 
@@ -234,14 +263,19 @@ export class AdminContentService {
     const enrichment = command.enrichment
       ? await parseEnrichmentFile(command.enrichment)
       : null;
+    const script = command.script
+      ? await parseScriptFile(command.script)
+      : null;
 
     /**
      * 추천 메타 파일 **단독**이면 버전을 올리지 않는다 — 오디오·메타가 그대로인데 버전이
      * 오르면 전 사용자의 재생 위치가 헛되이 폐기된다. 기존 발행분 소급 부여가 이 경로를
      * 쓴다(`metadata-pipeline-after-script-quality.md` 개발 범위 4).
      */
-    if (changedParts.every((part) => part === 'enrichment')) {
-      return this.enrichOnly(command, enrichment);
+    if (
+      changedParts.every((part) => part === 'enrichment' || part === 'script')
+    ) {
+      return this.applyFilesOnly(command, enrichment, script);
     }
 
     const audioExtension = command.audio
@@ -292,6 +326,11 @@ export class AdminContentService {
       }
     }
 
+    const thumbnail =
+      command.thumbnail && thumbnailExtension
+        ? await this.normalizeThumbnail(command.thumbnail)
+        : null;
+
     const uploadedKeys: string[] = [];
     let audioPath: string | undefined;
     let thumbnailUrl: string | undefined;
@@ -300,13 +339,13 @@ export class AdminContentService {
         audioPath = await this.storage.putAudio(command.audio, audioExtension);
         uploadedKeys.push(audioPath);
       }
-      if (command.thumbnail && thumbnailExtension) {
-        const thumbnail = await this.storage.putThumbnail(
-          command.thumbnail,
-          thumbnailExtension,
+      if (thumbnail) {
+        const stored = await this.storage.putThumbnail(
+          thumbnail.file,
+          thumbnail.extension,
         );
-        uploadedKeys.push(thumbnail.key);
-        thumbnailUrl = thumbnail.url ?? '';
+        uploadedKeys.push(stored.key);
+        thumbnailUrl = stored.url ?? '';
       }
     } catch (error) {
       await this.storage.remove(uploadedKeys);
@@ -319,6 +358,10 @@ export class AdminContentService {
         message: '파일 저장에 실패했어요. 다시 시도해 주세요',
         retryable: true,
       });
+    } finally {
+      if (thumbnail) {
+        await rm(thumbnail.file.path, { force: true });
+      }
     }
 
     const replacedKeys: string[] = [];
@@ -383,6 +426,15 @@ export class AdminContentService {
           );
         }
 
+        if (script?.data) {
+          // 오디오가 바뀌면 시각도 바뀐다 — 통째로 교체한다(콘텐츠당 1행)
+          await this.contentService.saveScript(
+            republished.id,
+            script.data,
+            manager,
+          );
+        }
+
         /**
          * 낡은 재생 위치 폐기(안 A — `republish-stale-playback-position.md`). 콜드오픈
          * 폐지·재편집처럼 같은 초가 다른 내용을 가리키게 되는 재발행에서, 남은 행이
@@ -420,6 +472,7 @@ export class AdminContentService {
               ...(enrichment && {
                 enrichment_applied: enrichment.data !== null,
               }),
+              ...(script && { script_applied: script.data !== null }),
             },
           },
           manager,
@@ -442,20 +495,21 @@ export class AdminContentService {
       actor: command.actorUserId,
     });
     this.logEnrichmentOutcome(content.id, enrichment);
+    this.logScriptOutcome(content.id, script);
 
-    const view = await this.toView(content);
-    return enrichment
-      ? { ...view, enrichment: toEnrichmentOutcome(enrichment) }
-      : view;
+    return this.withOutcomes(await this.toView(content), enrichment, script);
   }
 
   /**
-   * 추천 메타 파일 단독 반영 — 버전 불변, 파일 저장소 무접촉. 검증 실패면 아무것도 바꾸지
-   * 않고 거부 사유만 돌려준다(파일 거부는 오류가 아니다 — admin.md 3.1).
+   * 추천 메타·대본 파일만 반영하는 재발행 — **버전을 올리지 않고** 재생 위치도 폐기하지 않는다.
+   * 오디오가 그대로면 시각도 그대로라 폐기할 이유가 없다. 감사 로그는 파일마다 따로 남긴다
+   * (`content.enrich` · `content.script`) — `republish`와 구분되어야 "버전이 오르지 않은 이유"를 기록에서 읽는다.
+   * 파일 검증 실패는 파일만 거부하고 나머지는 반영한다(추천 메타 규칙과 같다 — admin.md 3.1).
    */
-  private async enrichOnly(
+  private async applyFilesOnly(
     command: RepublishContentCommand,
     enrichment: EnrichmentParseResult | null,
+    script: ScriptParseResult | null,
   ): Promise<AdminContentView> {
     const content = await this.dataSource.transaction(async (manager) => {
       const current = await this.contentService.getById(
@@ -464,42 +518,88 @@ export class AdminContentService {
       );
       this.assertRepublishable(current);
 
-      if (!enrichment?.data) {
-        return current;
+      if (enrichment?.data) {
+        await this.contentService.applyEnrichment(
+          current,
+          enrichment.data,
+          new Date(),
+          manager,
+        );
+
+        await this.auditLogService.record(
+          {
+            actor: command.actorUserId,
+            action: AUDIT_ACTION_CONTENT_ENRICH,
+            target: `content:${command.contentId}`,
+            after: {
+              content_version: current.contentVersion,
+              enrichment_applied: true,
+            },
+          },
+          manager,
+        );
       }
 
-      await this.contentService.applyEnrichment(
-        current,
-        enrichment.data,
-        new Date(),
-        manager,
-      );
+      if (script?.data) {
+        await this.contentService.saveScript(current.id, script.data, manager);
 
-      await this.auditLogService.record(
-        {
-          actor: command.actorUserId,
-          action: AUDIT_ACTION_CONTENT_ENRICH,
-          target: `content:${command.contentId}`,
-          after: {
-            content_version: current.contentVersion,
-            enrichment_applied: true,
+        await this.auditLogService.record(
+          {
+            actor: command.actorUserId,
+            action: AUDIT_ACTION_CONTENT_SCRIPT,
+            target: `content:${command.contentId}`,
+            after: {
+              content_version: current.contentVersion,
+              script_applied: true,
+              segment_count: script.data.length,
+            },
           },
-        },
-        manager,
-      );
+          manager,
+        );
+      }
 
       return current;
     });
 
     this.logEnrichmentOutcome(content.id, enrichment);
+    this.logScriptOutcome(content.id, script);
 
-    const view = await this.toView(content);
-    return enrichment
-      ? { ...view, enrichment: toEnrichmentOutcome(enrichment) }
-      : view;
+    return this.withOutcomes(await this.toView(content), enrichment, script);
   }
 
-  /** 파일이 있었을 때만 — 거부는 warn(운영자가 파일을 고쳐 다시 보내야 한다) */
+  private withOutcomes(
+    view: AdminContentView,
+    enrichment: EnrichmentParseResult | null,
+    script: ScriptParseResult | null,
+  ): AdminContentView {
+    return {
+      ...view,
+      ...(enrichment && { enrichment: toEnrichmentOutcome(enrichment) }),
+      ...(script && { script: toScriptOutcome(script) }),
+    };
+  }
+
+  private logScriptOutcome(
+    contentId: string,
+    script: ScriptParseResult | null,
+  ): void {
+    if (!script) {
+      return;
+    }
+
+    if (script.data) {
+      this.logger.log('script file applied', {
+        content_id: contentId,
+        segment_count: script.data.length,
+      });
+    } else {
+      this.logger.warn('script file rejected', {
+        content_id: contentId,
+        reason: script.rejectedReason,
+      });
+    }
+  }
+
   private logEnrichmentOutcome(
     contentId: string,
     enrichment: EnrichmentParseResult | null,
@@ -571,6 +671,9 @@ export class AdminContentService {
     }
     if (command.enrichment) {
       parts.push('enrichment');
+    }
+    if (command.script) {
+      parts.push('script');
     }
     for (const [name, value] of [
       ['title', command.title],
@@ -791,7 +894,10 @@ export class AdminContentService {
   }
 
   private async toView(content: Content): Promise<AdminContentView> {
-    const topicViews = await this.contentService.findTopicViews([content.id]);
+    const [topicViews, scriptContentIds] = await Promise.all([
+      this.contentService.findTopicViews([content.id]),
+      this.contentService.findScriptContentIds([content.id]),
+    ]);
 
     return {
       content,
@@ -799,18 +905,23 @@ export class AdminContentService {
         topicId: view.topicId,
         name: view.name,
       })),
+      hasScript: scriptContentIds.has(content.id),
     };
   }
 
   async findPage(query: AdminContentListQuery): Promise<AdminContentPage> {
     const { items, total } = await this.contentService.findAdminPage(query);
-    const topicViews = await this.contentService.findTopicViews(
-      items.map((content) => content.id),
-    );
+    const [topicViews, scriptContentIds] = await Promise.all([
+      this.contentService.findTopicViews(items.map((content) => content.id)),
+      this.contentService.findScriptContentIds(
+        items.map((content) => content.id),
+      ),
+    ]);
 
     return {
       items: items.map((content) => ({
         content,
+        hasScript: scriptContentIds.has(content.id),
         topics: topicViews
           .filter((view) => view.contentId === content.id)
           .map((view) => ({ topicId: view.topicId, name: view.name })),
@@ -922,6 +1033,25 @@ export class AdminContentService {
     return extension;
   }
 
+  /**
+   * 썸네일을 저장 규격으로 다시 쓴다(`ThumbnailImage`). 읽지 못하면 오디오 길이 추출 실패와 같은 종류 —
+   * 형식 판정은 통과했지만 내용이 이미지가 아닌 것이라 400 필드 오류다. 새 코드는 두지 않는다
+   */
+  private async normalizeThumbnail(
+    file: UploadedFileInput,
+  ): Promise<NormalizedThumbnail> {
+    const normalized = await this.thumbnailImage.normalize(file);
+
+    if (!normalized) {
+      throw this.validationFailed(
+        'thumbnail',
+        '이미지를 읽을 수 없어요. 파일을 확인해 주세요',
+      );
+    }
+
+    return normalized;
+  }
+
   /** admin.md 5장 — 검증 실패는 필드별 인라인 에러로 보여야 하므로 `field`를 싣는다 */
   private validationFailed(field: string, message: string): BusinessException {
     return new BusinessException({
@@ -934,6 +1064,13 @@ export class AdminContentService {
 }
 
 function toEnrichmentOutcome(result: EnrichmentParseResult): EnrichmentOutcome {
+  return {
+    applied: result.data !== null,
+    rejectedReason: result.rejectedReason,
+  };
+}
+
+function toScriptOutcome(result: ScriptParseResult): ScriptOutcome {
   return {
     applied: result.data !== null,
     rejectedReason: result.rejectedReason,

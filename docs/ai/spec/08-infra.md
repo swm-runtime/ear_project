@@ -53,7 +53,8 @@
 s3://<버킷>/
   episodes/{에피소드 번호}/
     script.md · claims.md · sources.md(발췌) · qa-report.md · upload-meta.json · feedback.md
-    audio/ master.wav · dist.mp3 · timestamps.json(턴별 합성 시)
+    script-segments.json(자막 세그먼트 — 배포본 시각, spec/06 7장 · 정렬을 못 잡은 편은 없음)
+    audio/ master.wav · dist.mp3   (배속 정렬 timestamps 는 저장하지 않는다 — 세그먼트로만 남는다, 2026-09-19)
   sweeps/{날짜}.json          ← 스윕 원본 아카이브
   datasets/{export 날짜}/      ← 파인튜닝 데이터셋 export (5장 · 미결 #21)
 ```

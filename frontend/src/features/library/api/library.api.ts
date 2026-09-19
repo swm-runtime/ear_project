@@ -8,6 +8,7 @@ import type {
   LibraryItem,
   LibraryPage,
   LibraryProgress,
+  LibrarySort,
   LibrarySourceFilter,
   LibraryTopic,
   ResumeResult,
@@ -18,6 +19,7 @@ import type {
   LibraryItemsResponseDto,
   LibraryProgressDto,
   LibraryTopicsResponseDto,
+  QueueOrderRequestDto,
   ResumeResponseDto,
   RestoreResponseDto,
 } from './library.dto';
@@ -28,6 +30,7 @@ import {
   mockFetchResume,
   mockFetchTopics,
   mockRestore,
+  mockSaveQueueOrder,
 } from './library.mock';
 
 /* ── Query Key factory(convention.md 4.1) ── */
@@ -103,11 +106,17 @@ export const fetchLibraryItems = async (input: {
   topicIds: string[];
   sourceFilter: LibrarySourceFilter | null;
   cursor?: string;
+  /** 생략하면 서버 기본(`added_desc`). `queue` 는 재생 목록 패널만 쓴다(4.1) */
+  sort?: LibrarySort;
+  /** 생략하면 서버 기본(20). 상한 50 은 서버가 강제한다(4.1) */
+  limit?: number;
 }): Promise<LibraryPage> => {
   const params: Record<string, string> = { filter: input.filter };
   if (input.topicIds.length > 0) params.topic_filter = input.topicIds.join(',');
   if (input.sourceFilter !== null) params.source_filter = input.sourceFilter;
   if (input.cursor !== undefined) params.cursor = input.cursor;
+  if (input.sort !== undefined) params.sort = input.sort;
+  if (input.limit !== undefined) params.limit = String(input.limit);
 
   const data = IS_LIBRARY_API_MOCKED
     ? await mockFetchItems({
@@ -115,9 +124,24 @@ export const fetchLibraryItems = async (input: {
         topic_filter: params.topic_filter,
         source_filter: input.sourceFilter ?? undefined,
         cursor: input.cursor,
+        sort: input.sort,
+        limit: input.limit,
       })
     : (await apiClient.get<LibraryItemsResponseDto>('/users/me/library-items', { params })).data;
   return toLibraryPage(data);
+};
+
+/**
+ * 재생 목록 순서 저장(library-api.md 4.8) — 끌기 1회 = 호출 1회, 보이는 목록을 통째로 보낸다.
+ * 서버가 남의 항목·삭제된 항목을 조용히 빼므로 그 사이 삭제된 항목 때문에 실패하지 않는다.
+ */
+export const saveQueueOrder = async (input: { itemIds: string[] }): Promise<void> => {
+  if (IS_LIBRARY_API_MOCKED) {
+    await mockSaveQueueOrder(input.itemIds);
+    return;
+  }
+  const body: QueueOrderRequestDto = { item_ids: input.itemIds };
+  await apiClient.put('/users/me/library-items/queue-order', body);
 };
 
 /** 주제 필터 팝업용 — 라이브러리에 실제로 담긴 주제(library-api.md 4.2) */

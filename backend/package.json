@@ -27,7 +27,8 @@
     "migration:revert": "npm run typeorm -- migration:revert",
     "migration:show": "npm run typeorm -- migration:show",
     "seed:mock": "node -r ts-node/register/transpile-only -r tsconfig-paths/register src/database/seeds/seed-mock-onboarding.ts",
-    "drip:scenarios": "node -r ts-node/register/transpile-only -r tsconfig-paths/register src/database/seeds/drip-scenarios.ts"
+    "drip:scenarios": "node -r ts-node/register/transpile-only -r tsconfig-paths/register src/database/seeds/drip-scenarios.ts",
+    "thumbnails:reprocess": "node -r ts-node/register/transpile-only -r tsconfig-paths/register src/scripts/reprocess-thumbnails.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1121.0",
@@ -50,6 +51,7 @@
     "pg": "^8.22.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "sharp": "^0.35.4",
     "typeorm": "^1.1.0"
   },
   "devDependencies": {

@@ -9,6 +9,7 @@
 | 근거 문서 | Apple 반려 메시지(아래 인용) · `node_modules/expo-audio/plugin/build/withAudio.js` |
 | 심각도 | **상** — 스토어 심사가 이 건으로 멈춰 있다. 고치고 다시 제출해야 심사가 재개된다 |
 | 우선순위 | High(오늘 안) |
+| Jira | [KAN-63](https://runtime364.atlassian.net/browse/KAN-63) |
 
 ## 문제
 
@@ -47,3 +48,9 @@ Apple이 제시한 두 선택지 중 **"리소스를 쓰지 않으면 권한과 
 - Given 새 iOS 네이티브 빌드 / When `Info.plist`를 본다 / Then `NSMicrophoneUsageDescription` 키가 없다
 - Given 그 빌드로 재제출 / When Apple 자동 검사가 돈다 / Then purpose string 반려가 나지 않고 심사가 진행된다
 - Given 그 빌드 / When 콘텐츠 재생·백그라운드 재생·미니플레이어를 쓴다 / Then 종전과 같이 동작한다
+
+## 처리 기록 (2026-09-19 티켓 정리 — archive 로 옮긴다)
+
+- **반영 날짜: 2026-09-15**(코드) — `frontend/app.json` 의 `expo-audio` 플러그인에 `microphonePermission: false`. 이 값을 담은 네이티브 빌드로 재제출됐고, Jira KAN-63 은 그때 완료로 넘어갔다.
+- 원본만 `pending/` 에 남아 있었다(한쪽만 움직인 상태 — `CLAUDE.md` Jira 절이 막으려던 바로 그 경우). 오늘 정리하며 옮긴다.
+- 재제출 뒤 같은 심사에서 나온 후속 반려는 별도 티켓이다: 권한 불일치 `drop-unused-ios-permissions.md`(KAN-64), 구독 언급 `ios-hide-subscription-references.md`(KAN-66).

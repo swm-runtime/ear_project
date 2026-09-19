@@ -34,6 +34,7 @@ import { AudioStreamService } from './services/audio-stream.service';
 import { AudioUrlService } from './services/audio-url.service';
 import { PlaybackProgressService } from './services/playback-progress.service';
 import { PlaybackSignalService } from './services/playback-signal.service';
+import { ScriptService } from './services/script.service';
 import { PlayPolicyService } from './services/play-policy.service';
 import { PlayService } from './services/play.service';
 import { PublicSampleService } from './services/public-sample.service';
@@ -112,6 +113,7 @@ import { PlaybackService } from './services/playback.service';
     PublicSampleService,
     PlaybackProgressService,
     PlaybackSignalService,
+    ScriptService,
   ],
   exports: [PlaybackService],
 })

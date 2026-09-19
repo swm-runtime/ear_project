@@ -156,6 +156,51 @@ describe('libraryScreenCursor', () => {
       expect(position.id).toBe(ITEM_ID);
     });
 
+    it('sort=queue 커서는 queue_position(null 포함)을 함께 담고 그대로 돌려준다', () => {
+      // given
+      const queue = { ...CONDITIONS, sort: LibraryItemSort.QUEUE };
+      const positioned = encodeLibraryCursor(
+        { addedAt: ADDED_AT, id: ITEM_ID, queuePosition: 7 },
+        queue,
+      );
+      const unpositioned = encodeLibraryCursor(
+        { addedAt: ADDED_AT, id: ITEM_ID, queuePosition: null },
+        queue,
+      );
+
+      // when · then
+      expect(decodeLibraryCursor(positioned, queue)).toEqual({
+        addedAt: ADDED_AT,
+        id: ITEM_ID,
+        queuePosition: 7,
+      });
+      expect(decodeLibraryCursor(unpositioned, queue)).toEqual({
+        addedAt: ADDED_AT,
+        id: ITEM_ID,
+        queuePosition: null,
+      });
+    });
+
+    it('다른 정렬로 발급된 커서를 sort=queue 로 이어 쓰면 거절한다 — 정렬이 지문에 들어 있다', () => {
+      // given
+      const cursor = encodeLibraryCursor(
+        { addedAt: ADDED_AT, id: ITEM_ID },
+        CONDITIONS,
+      );
+
+      // when
+      const error = catchError(() =>
+        decodeLibraryCursor(cursor, {
+          ...CONDITIONS,
+          sort: LibraryItemSort.QUEUE,
+        }),
+      );
+
+      // then
+      expect(error).toBeInstanceOf(BusinessException);
+      expect(error.errorCode).toBe(ErrorCode.LIBRARY_CURSOR_INVALID);
+    });
+
     it('형식이 깨진 커서는 거절한다', () => {
       // given
 

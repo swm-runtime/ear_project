@@ -9,15 +9,16 @@ import path from "node:path";
 import os from "node:os";
 import { cfg } from "../config.js";
 import { pool } from "../db.js";
-import { DB_ASSET_KEYS, THUMBNAIL_ANCHOR_PROMPT_KEY, THUMBNAIL_PROMPT_KEY, TTS_DICT_KEY, versionOf, workerRev } from "../assets.js";
+import { DB_ASSET_KEYS, OPTIONAL_ASSET_KEYS, THUMBNAIL_ANCHOR_PROMPT_KEY, THUMBNAIL_PROMPT_KEY, TTS_DICT_KEY, versionOf, workerRev } from "../assets.js";
 
 /** 시딩·상태 대상 = 번들 7개 + TTS 음차 사전 (spec/10 3.2 의 8개) */
-const ALL_ASSET_KEYS = [...DB_ASSET_KEYS, TTS_DICT_KEY, THUMBNAIL_PROMPT_KEY, THUMBNAIL_ANCHOR_PROMPT_KEY];
+const ALL_ASSET_KEYS = [...DB_ASSET_KEYS, ...OPTIONAL_ASSET_KEYS, TTS_DICT_KEY, THUMBNAIL_PROMPT_KEY, THUMBNAIL_ANCHOR_PROMPT_KEY]; // 프로파일 키는 git 사본이 없으면 건너뛴다
 
 async function cmdImport(force: boolean) {
   const by = `seed:${os.userInfo().username}@${os.hostname()}`;
   for (const key of ALL_ASSET_KEYS) {
-    const content = await fs.readFile(path.join(cfg.assetSourceRoot, key), "utf8");
+    const content = await fs.readFile(path.join(cfg.assetSourceRoot, key), "utf8").catch((e) => { if (OPTIONAL_ASSET_KEYS.includes(key)) return null; throw e; });
+    if (content == null) { console.log(`- ${key}  (git 사본 없음 — 프로파일 키, 건너뜀)`); continue; }
     const version = versionOf(key, content);
     const cur = await pool.query<{ version: string; content: string }>("select version, content from public.prompt_assets where key = $1 and status = 'active'", [key]);
     const active = cur.rows[0];

@@ -36,6 +36,11 @@ export class AdminContentItemDto {
   readonly enrichment_applied?: boolean;
   /** 거부됐을 때만 — 콘솔이 그대로 노출하는 사유 */
   readonly enrichment_rejected_reason?: string;
+  /** 대본(자막) 적재 여부 — 콘솔 목록의 "자막" 표시(KAN-71) */
+  readonly has_script: boolean;
+  /** 요청에 `script_file`이 있었을 때만 */
+  readonly script_applied?: boolean;
+  readonly script_rejected_reason?: string;
 
   static from(view: AdminContentView): AdminContentItemDto {
     const { content, topics } = view;
@@ -64,6 +69,13 @@ export class AdminContentItemDto {
       })),
       enrichment_schema_version: content.enrichmentSchemaVersion,
       enriched_at: content.enrichedAt?.toISOString() ?? null,
+      has_script: view.hasScript,
+      ...(view.script && {
+        script_applied: view.script.applied,
+        ...(view.script.rejectedReason !== null && {
+          script_rejected_reason: view.script.rejectedReason,
+        }),
+      }),
       ...(view.enrichment && {
         enrichment_applied: view.enrichment.applied,
         ...(view.enrichment.rejectedReason !== null && {

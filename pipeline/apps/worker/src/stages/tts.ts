@@ -11,6 +11,7 @@ import { parseScriptForTts, chunkTurns, voiceOf, type ScriptTurn } from "../tts/
 import { normalizeForTts, residualIssues } from "../tts/normalize.js";
 import { synthDialogue, synthDialogueWithTimestamps, locateTurnStarts } from "../tts/elevenlabs.js";
 import { assemble, retimePieces, writeBuf, type Segment } from "../tts/audio.js";
+import { chunkSegments, joinChunkSegments, validateSegments, type ScriptSegment } from "../tts/segments.js";
 
 /**
  * TTS 단계 (spec/06) — 다중화자 1콜(Text to Dialogue, eleven_v3) 확정 (2026-09-02).
@@ -18,6 +19,7 @@ import { assemble, retimePieces, writeBuf, type Segment } from "../tts/audio.js"
  *   대본 파싱 → 플레이스홀더 검사(잔존 시 중단) → 음차·숫자 정규화 → 잔존 영문 검사(중단) →
  *   턴 경계 분할(요청당 ~1,800자) → 합성(seed 고정) → [화자별 배속: with-timestamps 정렬로 턴 경계를 잡아 atempo] →
  *   조립(앞뒤 2초 무음)·정규화 → master.wav + dist.mp3 → S3 audio/
+ *   + 대본 세그먼트 script-segments.json (앱 자막, KAN-72 — 배속 정렬을 배포본 시각으로 옮긴 것. 정렬을 못 잡은 편은 싣지 않는다)
  * 콜드오픈은 2026-09-07 폐지 — 구 대본에 [콜드오픈] 구역이 남아 있어도 합성하지 않는다(파서가 분리해 둔 것을 버린다).
  * payload.sample_turns = N: 도입부 N턴만 audio/sample.mp3 로 (보이스·태그 청취 확인용 — 발행 경로 아님, 키 미기록)
  */
@@ -64,8 +66,9 @@ export async function runTts(job: Job) {
   const { version: dictVersion, entries: globalDict } = await loadTtsDict();
   const epMap = await readEpisodePronunciations(path.join(cfg.workRoot, rel, "pronunciations.json"));
   const dict = { ...epMap, ...globalDict };
-  const turns: ScriptTurn[] = (sampleTurns ? parsed.turns.filter((t) => !parsed.placeholders.some((p) => t.text.includes(p))).slice(0, sampleTurns) : parsed.turns)
-    .map((t) => ({ ...t, text: normalizeForTts(t.text, dict) }));
+  type TtsTurn = ScriptTurn & { orig: string }; // orig = 사람이 읽는 원문 (자막 세그먼트용) · text = 합성용 표기
+  const turns: TtsTurn[] = (sampleTurns ? parsed.turns.filter((t) => !parsed.placeholders.some((p) => t.text.includes(p))).slice(0, sampleTurns) : parsed.turns)
+    .map((t) => ({ ...t, orig: t.text, text: normalizeForTts(t.text, dict) }));
   const issues = turns.flatMap((t) => residualIssues(t.text).map((i) => `${t.id ?? t.section}: ${i}`));
   if (issues.length) {
     throw new Error(`정규화 후 잔존 — 에피소드 "발음" 탭(발음 맵) 또는 /assets 의 TTS 음차 사전에 추가 후 재시도 (spec/06 6장, 코드 배포 불필요): ${[...new Set(issues)].slice(0, 12).join(" / ").slice(0, 800)}`);
@@ -74,7 +77,7 @@ export async function runTts(job: Job) {
   // seed: 에피소드 고정 — 부분 재합성 시 같은 결과를 시도 (보장은 없음, spec/06)
   const seed = crypto.createHash("sha256").update(episodeId).digest().readUInt32BE(0) % 4294967295;
   if (parsed.coldOpen) log(`  tts ${episodeId}: [콜드오픈] 구역 무시 (2026-09-07 폐지 — 인트로부터 합성)`);
-  const chunks = chunkTurns(turns, 1800);
+  const chunks = chunkTurns(turns, 1800) as TtsTurn[][];
   log(`  tts ${episodeId}: ${sampleTurns ? `샘플 ${turns.length}턴` : `${turns.length}턴`} · 분할 ${chunks.length}요청 · seed ${seed}`);
 
   // 화자별 배속 (spec/06 6장): 다중화자 API 에 속도 설정이 없어, 타임스탬프 정렬로 턴 경계를 잡고 화자 구간만 atempo 한다
@@ -82,6 +85,9 @@ export async function runTts(job: Job) {
   const wantSpeed = Math.abs(cfg.ttsSpeedYuna - 1) > 0.001 || Math.abs(cfg.ttsSpeedEum - 1) > 0.001;
   let speedFallbacks = 0;
   const segments: Segment[] = [];
+  // 자막 세그먼트 재료 (KAN-72): 요청마다 배속 후 로컬 시각 + 실측 길이. 한 요청이라도 정렬이 없으면 편 전체를 싣지 않는다 (틀린 자막보다 없는 편)
+  const chunkSegs: { segments: ScriptSegment[]; durSec: number }[] = [];
+  let segFail: string | null = wantSpeed ? null : "배속 없음 — 타임스탬프 정렬을 요청하지 않음";
   for (let n = 0; n < chunks.length; n++) {
     const chunk = chunks[n];
     const inputs = chunk.map((t) => ({ text: t.text, voice_id: voiceOf(t.speaker) }));
@@ -95,11 +101,15 @@ export async function runTts(job: Job) {
       await writeBuf(src, ts.audio);
       // 조각 = [이 턴 시작, 다음 턴 시작). 첫 조각은 0 부터, 마지막은 끝까지 — 턴 사이 쉼은 뒤 턴의 화자 배속을 따른다
       const pieces = chunk.map((t, i) => ({ start: i === 0 ? 0 : starts[i], end: i < chunk.length - 1 ? starts[i + 1] : undefined, tempo: speedOf(t.speaker) }));
-      segments.push({ data: await retimePieces(src, pieces, path.join(audioDir, ".tmp")), format: "pcm_44100" });
+      const data = await retimePieces(src, pieces, path.join(audioDir, ".tmp"));
+      segments.push({ data, format: "pcm_44100" });
+      const durSec = data.length / (44100 * 2); // s16le mono 44.1kHz — 배속 후 실측 길이
+      chunkSegs.push({ durSec, segments: chunkSegments(chunk.map((t) => ({ speaker: t.speaker, text: t.orig, ttsText: t.text, tempo: speedOf(t.speaker) })), ts, starts, durSec) });
       await fs.rm(src, { force: true });
     } catch (e: any) {
       // 배속 실패는 합성 실패가 아니다 — 이 요청만 원속으로 폴백하고 기록에 남긴다 (청취 확인에서 판단)
       speedFallbacks++;
+      segFail ??= `요청 ${n + 1} 원속 폴백 — 턴 경계 없음`;
       log(`  tts ${episodeId}: 요청 ${n + 1} 화자별 배속 실패(${String(e.message).slice(0, 120)}) — 원속 폴백`);
       segments.push(await synthDialogue(inputs, seed, { onRetry: progress }));
     }
@@ -111,6 +121,16 @@ export async function runTts(job: Job) {
   const durationSec = await assemble({ segments, workDir: audioDir, masterOut, distOut }); // 앞뒤 무음 2초는 assemble 기본값
   if (sampleTurns) await fs.rm(masterOut, { force: true }); // 샘플은 mp3 만 남긴다
 
+  // 대본 세그먼트 → episodes/<id>/script-segments.json (spec/06 7장, admin-api 4.6 script_file). 샘플은 만들지 않는다
+  const segFile = path.join(cfg.workRoot, rel, "script-segments.json");
+  let segCount = 0;
+  if (!sampleTurns) {
+    const joined = segFail ? [] : joinChunkSegments(chunkSegs); // assemble 기본값과 같은 앞 무음 2초·요청 사이 0.35초
+    segFail ??= validateSegments(joined);
+    if (segFail) { await fs.rm(segFile, { force: true }); log(`  tts ${episodeId}: 자막 세그먼트 없음 — ${segFail}`); }
+    else { await fs.writeFile(segFile, JSON.stringify(joined, null, 1), "utf-8"); segCount = joined.length; }
+  }
+
   await progress("S3 업로드");
   await pushPrefix(`${rel}/`);
   const totalChars = turns.reduce((s, t) => s + t.text.length, 0);
@@ -120,14 +140,14 @@ export async function runTts(job: Job) {
   if (!sampleTurns) {
     await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: ep.prompt_version, audio_master_key: s3Key(`${rel}/audio/master.wav`), audio_dist_key: s3Key(`${rel}/audio/dist.mp3`) });
   }
-  const artifacts = sampleTurns ? [s3Key(`${rel}/audio/sample.mp3`)] : [s3Key(`${rel}/audio/master.wav`), s3Key(`${rel}/audio/dist.mp3`)];
-  const result = `${sampleTurns ? `TTS 샘플 ${turns.length}턴` : "TTS 완료"} — eleven_v3 다중화자 1콜 · 분할 ${chunks.length}요청(세그먼트 포맷 ${fmt}) · ${totalChars}자 → ${min}분 ${sec}초 (앞뒤 무음 2초 포함)${wantSpeed ? ` · 배속 윤아 ${cfg.ttsSpeedYuna}× 이음 ${cfg.ttsSpeedEum}×${speedFallbacks ? ` (원속 폴백 ${speedFallbacks}요청 — 청취 확인)` : ""}` : ""}${parsed.coldOpen ? " · 구 [콜드오픈] 구역 무시(폐지)" : ""} · 사전 ${dictVersion}${Object.keys(epMap).length ? `+발음 맵 ${Object.keys(epMap).length}건` : ""} · 보이스 윤아=${cfg.ttsVoiceYuna.slice(0, 6)}… 이음=${cfg.ttsVoiceEum.slice(0, 6)}… · 사람 청취 확인 대기 (spec/06 8장)`;
+  const artifacts = sampleTurns ? [s3Key(`${rel}/audio/sample.mp3`)] : [s3Key(`${rel}/audio/master.wav`), s3Key(`${rel}/audio/dist.mp3`), ...(segCount ? [s3Key(`${rel}/script-segments.json`)] : [])];
+  const result = `${sampleTurns ? `TTS 샘플 ${turns.length}턴` : "TTS 완료"} — eleven_v3 다중화자 1콜 · 분할 ${chunks.length}요청(세그먼트 포맷 ${fmt}) · ${totalChars}자 → ${min}분 ${sec}초 (앞뒤 무음 2초 포함)${wantSpeed ? ` · 배속 윤아 ${cfg.ttsSpeedYuna}× 이음 ${cfg.ttsSpeedEum}×${speedFallbacks ? ` (원속 폴백 ${speedFallbacks}요청 — 청취 확인)` : ""}` : ""}${parsed.coldOpen ? " · 구 [콜드오픈] 구역 무시(폐지)" : ""}${sampleTurns ? "" : segCount ? ` · 자막 세그먼트 ${segCount}건(배포본 시각)` : ` · 자막 세그먼트 없음(${segFail})`} · 사전 ${dictVersion}${Object.keys(epMap).length ? `+발음 맵 ${Object.keys(epMap).length}건` : ""} · 보이스 윤아=${cfg.ttsVoiceYuna.slice(0, 6)}… 이음=${cfg.ttsVoiceEum.slice(0, 6)}… · 사람 청취 확인 대기 (spec/06 8장)`;
   // 계측: TTS 의 "토큰"은 글자수(ElevenLabs 과금 단위). 비용은 요율(cfg.ttsUsdPer1kChars)이 설정됐을 때만 환산(참고값), 아니면 비운다
   const ttsCost = cfg.ttsUsdPer1kChars != null ? (totalChars / 1000) * cfg.ttsUsdPer1kChars : undefined;
   await insertRun({ backlog_id: backlogId, phase: "tts", result, prompt_version: "tts-v1 (worker)", artifacts, executed_by: executedBy, model: cfg.ttsModel, cost_usd: ttsCost, tokens: { characters: totalChars, chunks: chunks.length, duration_sec: Math.round(durationSec) }, worker_rev: workerRev() });
   // 샘플은 발행 경로가 아니다 — 연쇄를 잇지 않는다
   const next = sampleTurns ? null : await advanceChain(job);
-  return { episode_id: episodeId, sample: !!sampleTurns, duration_sec: Math.round(durationSec), chunks: chunks.length, chars: totalChars, format: fmt, artifacts, next: next?.type ?? null };
+  return { episode_id: episodeId, sample: !!sampleTurns, duration_sec: Math.round(durationSec), chunks: chunks.length, chars: totalChars, format: fmt, artifacts, script_segments: segCount, script_segments_skipped: segFail, next: next?.type ?? null };
 }
 
 /**

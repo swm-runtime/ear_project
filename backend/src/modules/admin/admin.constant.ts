@@ -8,6 +8,15 @@ export const MAX_THUMBNAIL_FILE_BYTES = 5 * 1024 * 1024;
 /** enrichment.json — 벡터 1536개 float라도 수십 KB다. 1MB면 넉넉한 보호 상한 */
 export const MAX_ENRICHMENT_FILE_BYTES = 1 * 1024 * 1024;
 
+/**
+ * 대본 세그먼트 파일(`script_file`, admin-api.md 4.6) 상한. 20분 에피소드가 턴 100~200개·본문 20~40KB 라
+ * 2MB면 넉넉하다. 세그먼트 수·글자 수 상한은 화면(대본 패널)이 그릴 수 있는 규모를 크게 웃도는 방어값이다.
+ */
+export const MAX_SCRIPT_FILE_BYTES = 2 * 1024 * 1024;
+export const MAX_SCRIPT_SEGMENTS = 2000;
+export const MAX_SCRIPT_TEXT_LENGTH = 2000;
+export const MAX_SCRIPT_SPEAKER_LENGTH = 50;
+
 /** admin.md 3.1 — mp3 / m4a */
 export const AUDIO_CONTENT_TYPES: Readonly<Record<string, string>> = {
   mp3: 'audio/mpeg',
@@ -20,6 +29,16 @@ export const THUMBNAIL_CONTENT_TYPES: Readonly<Record<string, string>> = {
   png: 'image/png',
   webp: 'image/webp',
 };
+
+/**
+ * 저장되는 썸네일의 규격(admin-api.md 4.6, 2026-09-19) — 입력 형식과 무관하게 서버가 이 규격으로 다시 쓴다.
+ * 긴 변 768px 는 플레이어 아트워크(3x 약 1080px)에 무리 없고 격자 타일(약 180pt)에 넉넉한 값이다.
+ * 1024px PNG 1.5MB 가 60~100KB 로 준다. `ThumbnailImage` 주석에 이유가 있다.
+ */
+export const THUMBNAIL_MAX_EDGE_PX = 768;
+export const THUMBNAIL_WEBP_QUALITY = 82;
+export const THUMBNAIL_OUTPUT_EXTENSION = 'webp';
+export const THUMBNAIL_OUTPUT_CONTENT_TYPE = 'image/webp';
 
 /** 관리자 목록 페이지 크기 (convention.md 3.3 — 기본 20 / 최대 50) */
 export const ADMIN_LIST_DEFAULT_LIMIT = 20;
@@ -36,6 +55,11 @@ export const AUDIT_ACTION_CONTENT_UPLOAD = 'content.upload';
 export const AUDIT_ACTION_CONTENT_REPUBLISH = 'content.republish';
 /** 재발행 없이 추천 메타 파일만 반영한 경우 — 버전이 오르지 않아 republish와 구분한다 */
 export const AUDIT_ACTION_CONTENT_ENRICH = 'content.enrich';
+/** 대본 파일 단독 재발행 — 버전을 올리지 않는 메타 반영(enrich 와 같은 성격, KAN-71) */
+export const AUDIT_ACTION_CONTENT_SCRIPT = 'content.script';
+/** 기존 썸네일을 저장 규격(WebP 768px)으로 다시 써서 교체 — `scripts/reprocess-thumbnails.ts`(2026-09-19). 버전은 오르지 않는다 */
+export const AUDIT_ACTION_CONTENT_THUMBNAIL_REPROCESS =
+  'content.thumbnail_reprocess';
 export const AUDIT_ACTION_CONTENT_WITHDRAW = 'content.withdraw';
 export const AUDIT_ACTION_CONTENT_RESTORE = 'content.restore';
 /**

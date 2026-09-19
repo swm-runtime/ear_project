@@ -12,6 +12,8 @@ class AudioContentDto {
   readonly thumbnail_url: string;
   /** 재발행 판정용. 보관한 값보다 크면 저장된 위치·오프라인 파일을 폐기한다 */
   readonly content_version: number;
+  /** 플레이어 카테고리 줄 — 진입 경로와 무관하게 발급 응답이 원천이다(2026-09-19) */
+  readonly topics: { id: string; name: string }[];
 }
 
 class AudioLibraryItemDto {
@@ -41,6 +43,8 @@ class AudioDto {
  */
 export class IssueAudioUrlResponseDto {
   readonly content: AudioContentDto;
+  /** 대본 존재 여부 — 화면이 대본 버튼을 그릴지 조회 전에 정한다(`player-api.md` 4.7) */
+  readonly has_script: boolean;
   /** 라이브러리에 없는 콘텐츠면 `null` */
   readonly library_item: AudioLibraryItemDto | null;
   /** 행이 없으면 `null` — 0부터 재생한다 */
@@ -58,7 +62,9 @@ export class IssueAudioUrlResponseDto {
         duration_sec: result.content.durationSec,
         thumbnail_url: result.content.thumbnailUrl,
         content_version: result.content.contentVersion,
+        topics: result.content.topics,
       },
+      has_script: result.hasScript,
       library_item: result.libraryItem
         ? { id: result.libraryItem.id, status: result.libraryItem.status }
         : null,

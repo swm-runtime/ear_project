@@ -42,6 +42,8 @@ export interface UploadContentCommand {
   thumbnail: UploadedFileInput;
   /** 추천 메타 파일(enrichment.json) — 선택. 검증 실패는 파일만 거부한다(admin.md 3.1) */
   enrichment: UploadedFileInput | null;
+  /** 대본 세그먼트 파일(`script_file`) — 선택. 검증 실패는 파일만 거부한다(KAN-71) */
+  script: UploadedFileInput | null;
 }
 
 /**
@@ -63,6 +65,11 @@ export interface RepublishContentCommand {
    * 않고 메타만 반영한다(소급 부여 경로 — `metadata-pipeline-after-script-quality.md` 범위 4).
    */
   enrichment: UploadedFileInput | null;
+  /**
+   * 대본 세그먼트 파일 — 파트로 인정되며 단독 전송도 허용한다. 단독(또는 추천 메타와만 함께)이면
+   * 버전을 올리지 않는다 — 오디오가 그대로면 시각도 그대로라 재생 위치를 폐기할 이유가 없다(KAN-71).
+   */
+  script: UploadedFileInput | null;
 }
 
 /** 추천 메타 파일의 처리 결과 — 요청에 파일이 있었을 때만 응답에 실린다 */
@@ -72,10 +79,19 @@ export interface EnrichmentOutcome {
   rejectedReason: string | null;
 }
 
+/** 대본 파일의 처리 결과 — 요청에 파일이 있었을 때만 응답에 실린다(추천 메타와 같은 규칙) */
+export interface ScriptOutcome {
+  applied: boolean;
+  rejectedReason: string | null;
+}
+
 export interface AdminContentView {
   content: Content;
   topics: { topicId: string; name: string }[];
+  /** 대본 적재 여부 — 콘솔이 목록에서 "자막 있음"을 표시한다(KAN-71) */
+  hasScript: boolean;
   enrichment?: EnrichmentOutcome;
+  script?: ScriptOutcome;
 }
 
 export interface AdminContentPage {

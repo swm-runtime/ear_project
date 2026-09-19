@@ -2,7 +2,11 @@ import { HttpStatus } from '@nestjs/common';
 
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
-import { isTimestampValue, isUuid } from '@/common/utils/cursor-value.util';
+import {
+  isCountValue,
+  isTimestampValue,
+  isUuid,
+} from '@/common/utils/cursor-value.util';
 
 import {
   LibraryItemFilter,
@@ -25,6 +29,8 @@ interface CursorPayload {
   i: string;
   /** 발급 시점의 조회 조건 지문 */
   q: string;
+  /** `sort=queue`의 첫 정렬 키 `queue_position` — `null`은 순서 미지정 구간. 다른 정렬에서는 없다 */
+  p?: number | null;
 }
 
 export interface CursorConditions {
@@ -68,6 +74,10 @@ export function encodeLibraryCursor(
     q: fingerprint(conditions),
   };
 
+  if (conditions.sort === LibraryItemSort.QUEUE) {
+    payload.p = position.queuePosition ?? null;
+  }
+
   return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
 }
 
@@ -90,6 +100,15 @@ export function decodeLibraryCursor(
 
   if (Number.isNaN(addedAt.getTime())) {
     throw invalidCursor();
+  }
+
+  if (conditions.sort === LibraryItemSort.QUEUE) {
+    // 지문이 같으니 `p`는 있어야 한다 — 없으면 다른 정렬로 발급된 커서를 위조한 것이다
+    if (payload.p === undefined) {
+      throw invalidCursor();
+    }
+
+    return { addedAt, id: payload.i, queuePosition: payload.p };
   }
 
   return { addedAt, id: payload.i };
@@ -121,7 +140,10 @@ function isCursorPayload(value: unknown): value is CursorPayload {
   return (
     isTimestampValue(candidate.a) &&
     isUuid(candidate.i) &&
-    typeof candidate.q === 'string'
+    typeof candidate.q === 'string' &&
+    (candidate.p === undefined ||
+      candidate.p === null ||
+      isCountValue(candidate.p))
   );
 }
 
