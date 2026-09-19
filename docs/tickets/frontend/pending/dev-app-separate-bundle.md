@@ -74,3 +74,9 @@
   - 카카오 키 해시 `OtKWz7o+ZM+1d93Fp0vjolXGu1g=`
   - Play 내부 테스트로 배포하면 Play 앱 서명 키가 따로 생긴다 — 그 SHA-1 도 구글·카카오에 함께 등록한다(Play Console > 앱 무결성).
 - iOS: `preview-store` 비대화형 빌드는 "Distribution Certificate is not validated for non-interactive builds" 로 막힌다 — 새 번들의 프로비저닝 프로파일 생성에 Apple 로그인이 필요하다(사람 손 1번 그대로).
+
+## 처리 기록 (2026-09-19 — iOS 첫 업로드 실패, 표시 이름 변경)
+
+- iOS `preview-store` 1.0.0 (2)(EAS `9670032f`)는 App Store Connect 업로드는 됐으나 Apple 처리에서 **실패** — `ITMS-90129: The bundle uses a bundle name or display name that is already taken`. 앱 표시 이름 "이어(Preview)"가 ASC 에 등록한 앱 이름 "이어 - preview"(Apple ID `6813738593`)와 달랐다.
+- 표시 이름을 **"이어 - preview"** 로 바꿨다(iOS·Android 공통, `app.config.js`). 이 문서 위쪽의 "이어(Preview)"는 이 값으로 읽는다. Play Console 의 등록 이름("이어(Preview)")은 스토어 표시용이라 그대로 둬도 된다 — Android 홈 화면 이름은 다음 네이티브 빌드부터 바뀐다.
+- ASC 등록정보(설명·스크린샷·심사 연락처·부제·카테고리·콘텐츠 권한)는 입력·저장했다. `eas.json` `submit.preview-store` 에 ascAppId 등록(PR #515).

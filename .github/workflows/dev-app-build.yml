@@ -1,5 +1,5 @@
 name: dev-app-build
-# 개발계 앱(dev.runtime.ear · "이어(Preview)")의 Android APK·AAB 를 러너에서 직접 빌드한다(KAN-76).
+# 개발계 앱(dev.runtime.ear · "이어 - preview")의 Android APK·AAB 를 러너에서 직접 빌드한다(KAN-76).
 #
 # EAS 클라우드 빌드가 아니라 `eas build --local` 이다 — 무료 플랜의 월 빌드 한도를 쓰지 않는다
 # (2026-09-19 Android 한도 소진으로 개발계 APK 를 못 뽑은 것이 계기). 서명 키는 EAS 에 저장된

@@ -45,7 +45,9 @@ module.exports = ({ config }) => {
 
   return {
     ...config,
-    name: '이어(Preview)',
+    // App Store Connect 에 등록한 앱 이름과 같게 둔다 — 다르면 업로드가 ITMS-90129
+    // ("display name that is already taken")로 거부된다(2026-09-19, "이어 - preview" 로 올렸다가 실패)
+    name: '이어 - preview',
     icon: './assets/icon-dev.png',
     ios: { ...ios, bundleIdentifier: DEV_APP_ID },
     android: {
