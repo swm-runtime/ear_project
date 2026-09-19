@@ -43,7 +43,7 @@ Android의 기본 `Image`는 Fresco가 다운샘플링과 디스크 캐시를 �
 
 - 2026-09-19 발행.
 - 2026-09-20 **코드 반영**(PR `feat(fe)/expo-image`) — 실기기 확인 대기라 `pending/`에 둔다.
-  - `expo-image`(~57.0.5) 설치, **`runtimeVersion` 3 → 4**, `_runtimeVersionNote` 기록(완료 조건 3).
+  - `expo-image`(~57.0.5) 설치, **`runtimeVersion` 4** — 같은 날 KAN-80(개발계 소셜 키)이 먼저 3 → 4 로 올렸고, runtime 4 빌드가 나오기 전이라 같은 값에 함께 싣는다. `_runtimeVersionNote` 기록(완료 조건 3).
   - 공용 `shared/ui/RemoteImage.tsx`를 두고 **서버에서 받아 오는 이미지**를 전부 그쪽으로 옮겼다 — `LibraryItemTile`·`ExploreTile`·`ExploreFeaturedCard`·`ContentPickCard`·`PlayerQueuePanel`(이상 `recyclingKey` = 콘텐츠 id) · `MiniPlayer` · `PlayerScreen`(본 아트워크·열림 모션 아트워크) · 더보기 시트 3종 · `ContentDetailHeader`. `contentFit="cover"`, `cachePolicy="disk"`, 전환 효과 없음(플레이어 열림 모션이 로드 직후 프레임에 맞춰 출발한다).
   - **그대로 둔 것**: ① 번들 정적 자산(로고·주제 사진·튜토리얼·프로필) — 받아 올 것도 캐시할 것도 없다(요청 2). ② 플레이어의 **흐린 바탕** — expo-image 의 `blurRadius`는 세기 기준이 달라 맞춰 둔 톤이 바뀐다. 같은 URL 을 기본 `Image`가 한 번 더 받는다(768px WebP 라 작다).
   - 확인: tsc · eslint · jest(126건). 웹 mock 에서 라이브러리·플레이어·재생 목록이 종전과 같이 그려지고 열림 모션이 출발한다(onLoad 동작). **디스크 캐시·병렬 디코드(완료 조건 1·2)는 iOS 실기기에서만 확인된다.**
