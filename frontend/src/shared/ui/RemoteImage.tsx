@@ -24,6 +24,16 @@ interface RemoteImageProps {
  * 전환 효과는 두지 않는다(`transition` 기본 없음) — 플레이어 열림 모션이 "로드 직후 한 프레임"에
  * 맞춰 출발하므로 페이드가 끼면 첫 컷이 빈다.
  */
+/**
+ * 곧 보일 이미지를 미리 받아 디스크 캐시에 넣는다. 실패는 조용히 넘긴다 — 미리 받기는 편의지
+ * 조건이 아니다(못 받았으면 화면이 뜰 때 평소대로 받는다).
+ */
+export const prefetchRemoteImages = (uris: readonly string[]): void => {
+  const targets = [...new Set(uris.filter((uri) => uri.length > 0))];
+  if (targets.length === 0) return;
+  Image.prefetch(targets, 'disk').catch(() => undefined);
+};
+
 export default function RemoteImage({
   uri,
   style,
