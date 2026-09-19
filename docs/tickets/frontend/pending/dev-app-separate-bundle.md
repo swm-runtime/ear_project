@@ -63,3 +63,14 @@
 ## 처리 기록 (2026-09-19 — 식별자·이름 변경)
 
 - 계정 소유자가 등록한 값에 맞춰 식별자를 `com.runtime.ear.dev` → **`dev.runtime.ear`**, 이름을 "이어 dev" → **"이어(Preview)"**, 아이콘 띠를 DEV → PREVIEW 로 바꿨다. 아직 배포된 개발계 빌드가 없어 영향은 없다.
+
+## 처리 기록 (2026-09-19 — Android APK 첫 빌드)
+
+- `dev-app-build` 첫 실행은 `:app:compileReleaseKotlin` 의 `OutOfMemoryError: Metaspace` 로 실패하고 60분 타임아웃까지 매달렸다 → 러너 홈 `gradle.properties` 로 메모리 상향·데몬 끔·arm64 단일 아키텍처(PR #507). 두 번째 실행 성공(Gradle 11분 44초, 전체 약 14분).
+- 산출물: **이어(Preview) 1.0.0 (versionCode 1)**, `dev.runtime.ear`, preview 채널, runtimeVersion 3, 44MB. APK 안의 매니페스트·`app.config` 로 패키지·채널·변형(`appVariant: dev`)을 확인했다. Actions 실행 35416601680 의 아티팩트 `ear-dev-apk`(30일 보관).
+- **`dev.runtime.ear` Android 서명 키(EAS 저장)** — 콘솔 등록에 쓰는 값:
+  - SHA-1 `3A:D2:96:CF:BA:3E:64:CF:B5:77:DD:C5:A7:4B:E3:A2:55:C6:BB:58`
+  - SHA-256 `6D:61:42:9F:9B:CA:D4:4F:10:C9:45:C6:E2:E5:31:55:33:5D:FD:DE:D8:EC:D1:59:3C:9E:A3:3F:25:D3:72:E6`
+  - 카카오 키 해시 `OtKWz7o+ZM+1d93Fp0vjolXGu1g=`
+  - Play 내부 테스트로 배포하면 Play 앱 서명 키가 따로 생긴다 — 그 SHA-1 도 구글·카카오에 함께 등록한다(Play Console > 앱 무결성).
+- iOS: `preview-store` 비대화형 빌드는 "Distribution Certificate is not validated for non-interactive builds" 로 막힌다 — 새 번들의 프로비저닝 프로파일 생성에 Apple 로그인이 필요하다(사람 손 1번 그대로).
