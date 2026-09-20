@@ -120,6 +120,25 @@ export async function synthDialogueWithTimestamps(inputs: DialogueInput[], seed:
 }
 
 /**
+ * 강제 정렬 (2026-09-20, KAN-72 소급 — spec/06 7장): 완성된 오디오와 그 대본 텍스트를 주면 글자·단어 단위 시각을 돌려준다.
+ * `POST /v1/forced-alignment` multipart(file, text) — 시각은 그 오디오 기준이라 배속·무음 계산이 필요 없다. 1GB 이하.
+ */
+export async function forcedAlignment(audio: Buffer, text: string, timeoutMs = 10 * 60_000): Promise<{ characters: { text: string; start: number; end: number }[]; words: { text: string; start: number; end: number; loss: number }[]; loss: number }> {
+  const form = new FormData();
+  form.append("file", new Blob([new Uint8Array(audio)], { type: "audio/mpeg" }), "dist.mp3");
+  form.append("text", text);
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${BASE}/forced-alignment`, { method: "POST", headers: { "xi-api-key": key() }, body: form, signal: ctrl.signal });
+    const body = await res.text();
+    if (!res.ok) throw new Error(`ElevenLabs forced-alignment 실패: HTTP ${res.status} ${body.slice(0, 300)}`);
+    const data = JSON.parse(body);
+    return { characters: data.characters ?? [], words: data.words ?? [], loss: Number(data.loss ?? 0) };
+  } finally { clearTimeout(t); }
+}
+
+/**
  * 턴 목록의 시작 시각을 문자 정렬에서 순서대로 찾는다 (공백 무시 대조, 앞 턴 뒤에서만 검색).
  * 하나라도 못 찾으면 null — 호출부가 배속 없이 폴백한다.
  */

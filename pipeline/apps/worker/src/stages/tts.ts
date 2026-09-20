@@ -166,7 +166,7 @@ async function audioIsFresh(rel: string, scriptKey: string | null): Promise<bool
 }
 
 /** 에피소드 발음 맵 (spec/04 8장) — 없으면 빈 맵 (구 에피소드 호환). 깨진 JSON 은 조용히 넘기지 않는다 — 웹 "발음" 탭에서 고친다 */
-async function readEpisodePronunciations(file: string): Promise<Record<string, string>> {
+export async function readEpisodePronunciations(file: string): Promise<Record<string, string>> {
   const raw = await fs.readFile(file, "utf-8").catch(() => null);
   if (raw == null || !raw.trim()) return {};
   let parsed: unknown;
