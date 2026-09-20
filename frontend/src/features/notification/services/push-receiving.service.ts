@@ -39,6 +39,15 @@ const handleResponse = (response: Notifications.NotificationResponse): void => {
   // 탭해서 들어왔으면 같은 통지의 인앱 배너는 더 띄울 이유가 없다
   store.hideForegroundArrival();
   store.setPendingPushTarget(arrival.target);
+  /*
+   * 처리한 탭은 OS 쪽 기록에서도 지운다. 남겨 두면 앱이 다시 뜰 때(`getLastNotificationResponse`)
+   * **이미 처리한 옛 알림을 한 번 더 처리한다** — 어제 탭한 콘텐츠의 플레이어가 오늘 앱을 켜자마자 열린다.
+   */
+  try {
+    Notifications.clearLastNotificationResponse();
+  } catch (error) {
+    logger.warn('[notification] failed to clear the handled notification response', error);
+  }
 };
 
 export const startPushReceiving = (options: PushReceivingOptions): void => {
@@ -81,10 +90,7 @@ export const startPushReceiving = (options: PushReceivingOptions): void => {
   // 콜드 스타트 — 앱을 띄운 그 탭은 리스너 등록 전에 지나갔을 수 있다
   try {
     const initial = Notifications.getLastNotificationResponse();
-    if (initial) {
-      handleResponse(initial);
-      Notifications.clearLastNotificationResponse();
-    }
+    if (initial) handleResponse(initial);
   } catch (error) {
     logger.warn('[notification] failed to read the launching notification', error);
   }
