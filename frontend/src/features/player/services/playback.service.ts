@@ -78,6 +78,13 @@ export interface PlaybackCallbacks {
   onServerStateChanged?: () => void;
   /** CONTENT_WITHDRAWN(403) — 진입점별 정리(목록 제거·미니플레이어 내림) */
   onWithdrawn?: () => void;
+  /**
+   * 발급 시점의 CONTENT_NOT_FOUND(404) — **넘기면 플레이어의 로드 실패 화면 대신 이것만 부른다.**
+   * 목록에서 고른 콘텐츠가 404 인 것은 드문 경합이라 [다시 시도]가 있는 화면이 맞지만, 푸시 딥링크는
+   * 애초에 볼 목록이 없었다 — 없는 콘텐츠의 플레이어에 세워 두지 않고 라이브러리로 돌려보낸다
+   * (notification.md 4.4-4). 세션은 서비스가 먼저 내린다.
+   */
+  onNotFound?: () => void;
 }
 
 export interface StartPlaybackRequest {
@@ -275,10 +282,18 @@ class PlaybackService {
         case ERROR_CODES.CONTENT_WITHDRAWN:
           this.markWithdrawn();
           return;
-        case ERROR_CODES.CONTENT_NOT_FOUND:
+        case ERROR_CODES.CONTENT_NOT_FOUND: {
           // 목록 제거는 진입점 몫 — 화면은 로드 실패 처리다(common-error-handling.md 9장)
-          this.ctx?.callbacks.onServerStateChanged?.();
+          const callbacks = this.ctx?.callbacks;
+          callbacks?.onServerStateChanged?.();
+          if (callbacks?.onNotFound) {
+            // 진입점이 폴백을 맡았다(푸시 딥링크) — 세션을 내려 미니플레이어에도 남기지 않는다
+            this.clearSession();
+            callbacks.onNotFound();
+            return;
+          }
           break;
+        }
         default:
           break;
       }

@@ -30,6 +30,11 @@ export const usePushLinkGate = () => {
     navigation.navigate('Main', { screen: 'Tabs', params: { screen: 'Library' } });
   }, [navigation]);
 
+  const fallBackToLibrary = useCallback(() => {
+    goToLibrary();
+    showToast(NOTIFICATION_COPY.push.contentUnavailableToast);
+  }, [goToLibrary, showToast]);
+
   // 무엇과 동기화하나: 탭된 알림의 목적지(외부 이벤트) → 내비게이션. 집는 즉시 비워 한 번만 이동한다
   useEffect(() => {
     if (pendingTarget === null) return;
@@ -43,15 +48,13 @@ export const usePushLinkGate = () => {
         contentId: pendingTarget.contentId,
         // 방금 도착한 콘텐츠다 — 오늘 재생한 적이 없다. 힌트일 뿐이고 판정은 서버가 한다
         isCountedToday: false,
-        // 회수된 콘텐츠 — 라이브러리로 폴백한다(4.4-4). 플레이어의 회수 안내 위에 머물지 않는다
-        onWithdrawn: () => {
-          goToLibrary();
-          showToast(NOTIFICATION_COPY.push.contentUnavailableToast);
-        },
+        // 회수·삭제된 콘텐츠 — 라이브러리로 폴백한다(4.4-4). 플레이어의 안내 화면 위에 머물지 않는다
+        onWithdrawn: fallBackToLibrary,
+        onNotFound: fallBackToLibrary,
       },
       'push',
     );
-  }, [pendingTarget, clearPendingTarget, goToLibrary, requestPlay, showToast]);
+  }, [pendingTarget, clearPendingTarget, goToLibrary, fallBackToLibrary, requestPlay]);
 
   return { confirmState, confirmPlay, cancelConfirm, suppressAndPlay };
 };
