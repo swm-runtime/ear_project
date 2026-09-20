@@ -110,6 +110,8 @@ export default function PlayerScreen() {
    */
   const queueProgress = useAnimatedValue(0);
   const [mountedPanel, setMountedPanel] = useState<PlayerPanelKind | null>(null);
+  // 대본 펼침이 끝났는가 — 문단은 그 뒤에 그린다(펼침과 문단 마운트가 같은 프레임에 겹치면 끊긴다)
+  const [isScriptSettled, setIsScriptSettled] = useState(false);
   const setPanel = (kind: PlayerPanelKind | null) => {
     if (kind !== null && !isPanelAvailable(kind)) return;
     if (kind !== null) screen.openPanel(kind);
@@ -129,7 +131,13 @@ export default function PlayerScreen() {
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start(({ finished }) => {
-      if (finished && !isScriptOpen) setMountedPanel(null);
+      if (!finished) return;
+      if (isScriptOpen) {
+        setIsScriptSettled(true);
+      } else {
+        setMountedPanel(null);
+        setIsScriptSettled(false);
+      }
     });
   };
   // 헤더 애니메이션의 기준 치수 — 화면 폭·컨트롤 높이는 실측한다(기기마다 다르다)
@@ -1199,6 +1207,7 @@ export default function PlayerScreen() {
                 positionSec={session.positionSec}
                 onSeek={screen.seekTo}
                 onSwipeRight={() => setPanel(null)}
+                isSettled={isScriptSettled}
               />
             ) : (
               <PlayerScriptStatus

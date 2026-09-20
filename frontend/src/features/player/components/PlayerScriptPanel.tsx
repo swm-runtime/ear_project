@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { LayoutChangeEvent, ScrollView } from 'react-native';
 import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -17,7 +17,21 @@ interface PlayerScriptPanelProps {
   onSeek: (sec: number) => void;
   /** 문단 위에서 오른쪽으로 밀면 접는다 — 아트워크 화면으로 "돌아가는" 방향(2026-09-16) */
   onSwipeRight: () => void;
+  /**
+   * 펼침 애니메이션이 끝났는가. **문단은 그 뒤에 그린다** — 펼침은 높이·위치를 움직여 JS 스레드에서 도는데,
+   * 같은 순간에 문단 수십~수백 개를 마운트하면 그 프레임들이 밀려 끊긴다(2026-09-21 iOS 실기기).
+   * 한 번 그린 뒤에는 접히는 동안에도 그대로 둔다.
+   */
+  isSettled: boolean;
 }
+
+/** 문단이 나타나는 페이드 — 펼침이 끝난 뒤 빈 자리가 툭 채워지지 않게 한다 */
+const ROWS_FADE_IN_MS = 160;
+/**
+ * 뷰포트 높이를 상태에 반영하기까지의 지연. 펼침·접힘 동안 패널 높이는 **매 프레임** 바뀌는데, 그때마다 상태를
+ * 바꾸면 모든 문단이 다시 그려지고 페이드 보간을 새로 만든다 — 끊김의 큰 몫이었다. 멈춘 뒤의 값만 쓴다.
+ */
+const VIEWPORT_SETTLE_MS = 120;
 
 /** 문단 위에서 오른쪽으로 이만큼 밀면 접는다. 세로 성분이 크면 목록 스크롤에 양보한다 */
 const SWIPE_RIGHT_DISTANCE = 40;
@@ -62,7 +76,7 @@ interface SegmentRowProps {
  * 흐려지기 시작해 가운데가 닿으면 0, 아래 끝도 대칭이다. 잘린 문단이 보이는 구간이 없고 어떤 바탕 위에서도 같다.
  * 네이티브 드라이버로 돌아 스크롤과 같은 프레임에 움직인다
  */
-function SegmentRow({
+const SegmentRow = memo(function SegmentRow({
   segment,
   index,
   isCurrent,
@@ -122,7 +136,7 @@ function SegmentRow({
       </Pressable>
     </Animated.View>
   );
-}
+});
 
 /**
  * PL6 스크립트 — 시트가 아니라 **플레이어 안에서 펼쳐지는 패널**(2026-09-16 개정).
@@ -138,10 +152,49 @@ export default function PlayerScriptPanel({
   positionSec,
   onSeek,
   onSwipeRight,
+  isSettled,
 }: PlayerScriptPanelProps) {
   const scrollRef = useRef<ScrollView>(null);
   const scrollY = useAnimatedValue(0);
   const [viewportHeight, setViewportHeight] = useState(0);
+
+  // 한 번 자리 잡으면 계속 그린다(접히는 동안 문단이 사라지지 않게). 렌더 중 상태 맞춤 — 값이 한 방향으로만 간다
+  const [hasSettled, setHasSettled] = useState(isSettled);
+  if (isSettled && !hasSettled) setHasSettled(true);
+  const rowsOpacity = useAnimatedValue(isSettled ? 1 : 0);
+  useEffect(() => {
+    if (!hasSettled) return;
+    Animated.timing(rowsOpacity, {
+      toValue: 1,
+      duration: ROWS_FADE_IN_MS,
+      useNativeDriver: true,
+    }).start();
+  }, [hasSettled, rowsOpacity]);
+
+  // 문단은 memo 다 — 재생 위치가 0.5초마다 바뀌어도 "현재 문단"이 바뀐 두 칸만 다시 그린다.
+  // 그러려면 넘기는 콜백이 매 렌더 같은 함수여야 한다: 최신 onSeek 은 ref 로 들고 고정된 함수가 부른다
+  const onSeekRef = useRef(onSeek);
+  useEffect(() => {
+    onSeekRef.current = onSeek;
+  });
+  const handleSeek = useCallback((sec: number) => onSeekRef.current(sec), []);
+
+  // 높이는 움직임이 멈춘 뒤에만 상태로 올린다(VIEWPORT_SETTLE_MS)
+  const viewportTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 스크롤 위치 계산은 지연 없는 최신 높이를 쓴다 — 상태(페이드 보간용)만 늦게 따라온다
+  const viewportHeightRef = useRef(0);
+  const onViewportLayout = useCallback((event: LayoutChangeEvent) => {
+    const { height } = event.nativeEvent.layout;
+    viewportHeightRef.current = height;
+    if (viewportTimerRef.current) clearTimeout(viewportTimerRef.current);
+    viewportTimerRef.current = setTimeout(() => setViewportHeight(height), VIEWPORT_SETTLE_MS);
+  }, []);
+  useEffect(
+    () => () => {
+      if (viewportTimerRef.current) clearTimeout(viewportTimerRef.current);
+    },
+    [],
+  );
   const boxesRef = useRef<Record<number, SegmentBox>>({});
   const currentIndex = currentIndexOf(segments, positionSec);
 
@@ -149,11 +202,12 @@ export default function PlayerScriptPanel({
   const scrollToCurrent = useCallback(
     (animated: boolean) => {
       const box = boxesRef.current[currentIndex];
-      if (!box || viewportHeight <= 0) return;
-      const y = Math.max(0, box.y - (viewportHeight - box.height) * CURRENT_VIEW_POSITION);
+      const height = viewportHeightRef.current;
+      if (!box || height <= 0) return;
+      const y = Math.max(0, box.y - (height - box.height) * CURRENT_VIEW_POSITION);
       scrollRef.current?.scrollTo({ y, animated });
     },
-    [currentIndex, viewportHeight],
+    [currentIndex],
   );
   useEffect(() => {
     scrollToCurrent(true);
@@ -208,22 +262,26 @@ export default function PlayerScriptPanel({
         style={styles.list}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-        onLayout={(event: LayoutChangeEvent) => setViewportHeight(event.nativeEvent.layout.height)}
+        onLayout={onViewportLayout}
         onScroll={onScroll}
         scrollEventThrottle={16}
       >
-        {segments.map((segment, index) => (
-          <SegmentRow
-            key={segment.startSec}
-            segment={segment}
-            index={index}
-            isCurrent={index === currentIndex}
-            scrollY={scrollY}
-            viewportHeight={viewportHeight}
-            onSeek={onSeek}
-            onMeasure={onMeasure}
-          />
-        ))}
+        {hasSettled ? (
+          <Animated.View style={[styles.rows, { opacity: rowsOpacity }]}>
+            {segments.map((segment, index) => (
+              <SegmentRow
+                key={segment.startSec}
+                segment={segment}
+                index={index}
+                isCurrent={index === currentIndex}
+                scrollY={scrollY}
+                viewportHeight={viewportHeight}
+                onSeek={handleSeek}
+                onMeasure={onMeasure}
+              />
+            ))}
+          </Animated.View>
+        ) : null}
       </Animated.ScrollView>
       {/* 손잡이는 서랍의 아랫단이다 — 접힌 상태의 바닥 손잡이와 같은 자리·같은 모양이라,
           위로 끌어 올린 것을 아래로 끌어 내리는 것으로 읽힌다. 탭도 접는다 */}
@@ -240,7 +298,10 @@ const styles = StyleSheet.create({
   list: {
     flex: 1,
   },
-  listContent: {
+  listContent: {},
+  // 문단 묶음 — 여백과 간격을 여기에 둔다. 문단의 y 는 **이 묶음 기준**으로 측정되고 묶음은 스크롤 콘텐츠의
+  // 맨 위(y = 0)에 있으므로, 위 여백을 여기 두어야 측정값이 스크롤 위치와 같은 좌표가 된다(가장자리 페이드 계산)
+  rows: {
     paddingTop: theme.spacing.md,
     paddingBottom: theme.spacing.md,
     gap: theme.spacing.xs,
