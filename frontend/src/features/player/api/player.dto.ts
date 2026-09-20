@@ -46,7 +46,11 @@ export interface AudioUrlsResponseDto {
     duration_sec: number;
     thumbnail_url: string;
     content_version: number;
+    /** 카테고리 줄의 원천(4.1, 2026-09-19). 옛 서버 응답에는 없다 — 없으면 진입 목록이 넘긴 값을 쓴다 */
+    topics?: { id: string; name: string }[];
   };
+  /** 대본 세그먼트 적재 여부(4.1, KAN-71). 옛 서버 응답에는 없다 — 없으면 false 로 본다 */
+  has_script?: boolean;
   library_item: { id: string; status: PlayedLibraryItemStatus } | null;
   progress: PlaybackProgressDto | null;
   audio: {
@@ -54,6 +58,11 @@ export interface AudioUrlsResponseDto {
     expires_at: string;
     expires_in_sec: number;
   };
+}
+
+/** GET /contents/:content_id/script (player-api.md 4.7) */
+export interface ScriptResponseDto {
+  segments: { start_sec: number; end_sec: number; speaker: string | null; text: string }[];
 }
 
 /** PUT /users/me/playback-progresses/:content_id (player-api.md 4.3) */

@@ -98,6 +98,9 @@ export const PLAYER_COPY = {
 
   scriptSheet: {
     title: '스크립트',
+    loadFailed: '대본을 불러오지 못했어요',
+    retry: '다시 시도',
+    loadingA11y: '대본을 불러오는 중',
     segmentA11y: (time: string, speaker: string | null) =>
       speaker ? `${time}, ${speaker}, 이 구간부터 재생` : `${time}, 이 구간부터 재생`,
   },

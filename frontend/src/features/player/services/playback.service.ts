@@ -129,6 +129,7 @@ const initialSession = (request: StartPlaybackRequest): PlaybackSession => ({
     topicIds: request.meta?.topicIds ?? [],
   },
   libraryItem: null,
+  hasScript: false,
   isPlaying: false,
   isBuffering: false,
   positionSec: 0,
@@ -237,10 +238,11 @@ class PlaybackService {
           sourceUrl: issue.content.sourceUrl,
           thumbnailUrl: issue.content.thumbnailUrl,
           contentVersion: issue.content.contentVersion,
-          // 발급 응답에는 주제가 없다 — 진입 목록이 넘긴 값을 그대로 둔다
-          topicIds: store.getState().session?.meta.topicIds ?? [],
+          // 발급 응답의 주제가 원천이다(player-api.md 4.1). 옛 서버라 없으면 진입 목록이 넘긴 값을 둔다
+          topicIds: issue.topicIds ?? store.getState().session?.meta.topicIds ?? [],
         },
         libraryItem: issue.libraryItem,
+        hasScript: issue.hasScript,
         durationSec: issue.content.durationSec,
         positionSec: startPositionSec,
       });

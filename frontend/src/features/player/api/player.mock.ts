@@ -193,6 +193,8 @@ export const mockIssueAudioUrls = async (contentId: string): Promise<AudioUrlsRe
 
   return {
     content: { ...content, source_url: getMockSourceUrl(contentId) },
+    // 대본이 있는 mock 콘텐츠만 버튼이 뜬다 — getMockScript 와 같은 규칙이다
+    has_script: !isMockAiGeneratedContent(contentId),
     library_item: snapshot?.library_item ?? null,
     progress: snapshot?.progress ?? null,
     audio: {
