@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chunkSegments, joinChunkSegments, retimedAt, validateSegments } from "./segments.js";
+import { chunkSegments, displayText, joinChunkSegments, retimedAt, validateSegments } from "./segments.js";
 import type { TimestampedSynth } from "./elevenlabs.js";
 
 /** 글자마다 0.1초씩 붙는 가짜 정렬 (공백은 0초) */
@@ -60,4 +60,9 @@ test("요청 합치기 — 앞 무음 2초 + 요청 사이 0.35초 + 앞 요청 
 test("검증 — 겹침·역순을 잡는다", () => {
   assert.match(validateSegments([{ start_sec: 0, end_sec: 2, speaker: null, text: "a" }, { start_sec: 1, end_sec: 3, speaker: null, text: "b" }]) ?? "", /겹침/);
   assert.match(validateSegments([{ start_sec: 2, end_sec: 1, speaker: null, text: "a" }]) ?? "", /시각 오류/);
+});
+
+test("화면용 원문 — TTS 감정 태그를 뺀다", () => {
+  assert.equal(displayText("[surprised] 네? 이자가 나가는데요"), "네? 이자가 나가는데요");
+  assert.equal(displayText("괄호 [한글] 은 남긴다"), "괄호 [한글] 은 남긴다");
 });

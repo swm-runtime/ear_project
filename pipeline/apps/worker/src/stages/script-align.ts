@@ -54,7 +54,9 @@ export async function runScriptAlign(job: Job) {
   const starts = locateTurnStarts(ts, turns.map((t) => t.ttsText));
   if (!starts) throw new Error("턴 경계를 정렬에서 찾지 못함 — 세그먼트를 만들지 않는다 (틀린 자막보다 없는 편, spec/06 7장)");
   const durSec = await probeDurationSec(distFile);
-  const segments = joinChunkSegments([{ segments: chunkSegments(turns, ts, starts, durSec), durSec }], 0, 0);
+  const local = chunkSegments(turns, ts, starts, durSec);
+  if (local.length) local[0].start_sec = Math.max(0, starts[0]); // 첫 턴 시작은 정렬값 — TTS 경로와 달리 앞 무음(2초)이 오디오 안에 있다
+  const segments = joinChunkSegments([{ segments: local, durSec }], 0, 0);
   const bad = validateSegments(segments);
   if (bad) throw new Error(`세그먼트 검증 실패: ${bad}`);
 
