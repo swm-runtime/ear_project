@@ -10,7 +10,7 @@
 | 발견 시점 | preview 앱(`dev.runtime.ear`)에서 카카오·네이버·구글 로그인이 모두 실패 — 원인 조사(2026-09-20) |
 | 근거 문서 | `tickets/frontend/pending/dev-app-separate-bundle.md`(KAN-76 — 콘솔 등록 6항목) · `frontend/architecture.md` 2.1(runtimeVersion) |
 | 중요도 | **High**(오늘 안) — 로그인이 막혀 preview 앱으로 **아무것도 검증할 수 없다.** 개발계 앱을 만든 목적 자체가 서 있지 않다 |
-| 상태 | 진행 — 구글·네이버 확인 완료, **카카오는 개발계 서버 `KAKAO_APP_ID`(KAN-82) 대기** |
+| 상태 | **완료**(2026-09-20) — 3종 로그인 실기기 확인 |
 
 ## 배경 — 확인된 사실
 
@@ -99,4 +99,4 @@ Play 스토어로 설치한 앱은 **Play 가 다시 서명**하므로 실제 �
   - **원인은 앱이 아니라 개발계 서버다.** API 로그: `kakao access token was issued for another app { app_id: 1533429 }`. 개발계 네이티브 키는 별도 카카오 앱(`1533429`)에 속하는데 개발계 서버의 `KAKAO_APP_ID` 가 운영 값이라 서버가 토큰을 거부한다. 카카오 동의까지는 통과한다.
   - 앱 쪽 일치 확인: 네이티브 스킴(APK·iOS) · preview OTA 매니페스트의 `kakaoNativeAppKey` · JS 초기화 경로 — 전부 개발계 키.
   - 인프라 티켓 **KAN-82**(`tickets/infra/pending/dev-server-kakao-app-id.md`) 발행. 그쪽이 반영되면 재빌드 없이 카카오 로그인이 풀린다 → 완료 조건 1 확인 → archive.
-
+- 2026-09-20 **완료 — archive 로 옮긴다. 반영 날짜: 2026-09-20.** KAN-82(개발계 서버 `KAKAO_APP_ID`)가 반영된 뒤 **PM 이 개발계 앱에서 카카오 로그인 성공을 확인했다**(완료 조건 1) — 예상대로 재빌드 없이 풀렸다. 최종: 카카오 ✅ · 구글 iOS ✅(완료 조건 2) · 네이버 Android ✅ · APK 매니페스트 스킴 ✅(3) · 운영 값 불변 ✅(4) · runtimeVersion 4 ✅(5).
