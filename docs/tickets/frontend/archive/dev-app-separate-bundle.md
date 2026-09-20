@@ -9,7 +9,7 @@
 | 발견 시점 | KAN-65(A안) 운영 중 — 개발계 앱과 운영 앱의 번들 ID 가 같아 한 폰에 하나만 깔리고, iOS 는 ad-hoc 기기 등록에서 멈춰 팀 배포가 안 됐다 |
 | 근거 문서 | `docs/tickets/frontend/pending/dev-api-test-method.md`(KAN-65 — "번들 ID 분리는 필요해지면 별도 티켓") · `docs/frontend/architecture.md` 2.1 |
 | 중요도 | **Medium** — 3일 안 |
-| 상태 | 진행 — 코드 반영, **콘솔 등록·iOS 빌드 남음**(사람 손) |
+| 상태 | **완료**(2026-09-20) — 카카오 로그인은 KAN-80·KAN-82 가 이어서 갖는다 |
 
 ## 문제
 
@@ -86,3 +86,10 @@
 - 표시 이름을 "이어 - preview" 로 바꾼 빌드 3 도 같은 `ITMS-90129` 로 실패했다. IPA 를 풀어 보니 **`CFBundleName` 이 `Preview`** 였다 — Expo 는 앱 이름에서 ASCII 만 남겨 PRODUCT_NAME·CFBundleName 을 만들고("이어(Preview)"·"이어 - preview" → "Preview"/"preview"), 이것이 애플 기본 앱 "미리보기(Preview)"와 겹친다. 운영 앱은 같은 규칙으로 "app" 이 돼 문제가 없었다.
 - `app.config.js` 에 dev 변형 전용 config plugin 을 두어 `CFBundleName` 을 **`EarPreview`** 로 고정했다. `expo config --type introspect` 로 확인: dev `CFBundleName=EarPreview`·`CFBundleDisplayName=이어 - preview`, 운영은 `$(PRODUCT_NAME)`·`이어` 그대로.
 - 교훈: 앱 이름을 바꿀 때는 **ASCII 만 남긴 결과**가 흔한 단어가 아닌지 본다. Windows 에서는 `expo prebuild -p ios` 가 막히므로 introspect 로 Info.plist 를 검증한다.
+
+## 처리 기록 (2026-09-20 — 완료, archive 로 옮긴다)
+
+- **반영 날짜: 2026-09-20.** PM 이 완료를 확인했다(Jira KAN-76 을 직접 닫음 — 원본을 같은 상태로 맞춘다).
+- 개발계 앱은 양 플랫폼에 배포돼 팀이 쓰고 있다: iOS TestFlight "이어 - preview" 1.0.0 (5), 내부 그룹 SWM-Team 자동 배포 · Android APK 는 Actions `dev-app-build` 아티팩트 `ear-preview-apk`. 운영 앱과 한 기기에 같이 깔리고 각자 자기 환경(개발계·운영 API)만 본다. 팀 공지는 #dev-fullstack(2026-09-20, KAN-65).
+- 콘솔 등록("사람 손")은 끝났다 — 구글 iOS·네이버 Android 로그인이 개발계 앱에서 성공했다(2026-09-20 실기기). 애플은 KAN-77 로 서버 값이 맞춰졌다.
+- **여기서 갈라져 나가 아직 열려 있는 것**: 카카오 로그인 — 앱 키 분리는 KAN-80(`preview-app-social-keys.md`), 개발계 서버의 `KAKAO_APP_ID` 는 KAN-82(`tickets/infra/pending/dev-server-kakao-app-id.md`). 이 티켓의 범위(앱 분리) 밖이라 그쪽에서 닫는다.

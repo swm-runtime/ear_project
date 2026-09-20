@@ -1,0 +1,182 @@
+name: content-sync-notify-key
+# 운영 → 개발계 "콘텐츠 반영 알림" 키를 설치한다 (KAN-84). 수동 실행 전용.
+#
+# 왜 워크플로인가
+#   설치는 두 서버의 파일 작업이다 — 개발계 `~/.ssh/authorized_keys` 에 공개키(실행 명령 고정),
+#   운영 `deploy/keys/content-sync` 에 개인키. 그런데 개발계 키페어(`ear-dev-isb.pem`)는 사본이
+#   하나뿐이라 PC 가 바뀌면 손에 없고, EC2 Instance Connect 는 조직 SCP 가 막는다(2026-09-20 확인).
+#   CI 는 두 환경의 SSH 키를 이미 갖고 있으므로, 여기서 하면 사람이 키를 들고 다니지 않아도 된다.
+#
+# 무엇을 하는가
+#   1) 운영에서 키페어를 만든다 — **개인키는 운영 밖으로 나가지 않는다.** 공개키만 로그로 나온다.
+#   2) 개발계 authorized_keys 에 그 공개키를 `command="…/sync-content-import.sh"` 로 묶어 넣는다.
+#      그 키로는 들여오기 말고 아무것도 실행되지 않는다(포워딩·PTY 금지).
+#   3) 운영 크론을 `*/1` 로 바꾼다 — 단, 서버의 내보내기 스크립트가 새 버전일 때만(지문 검사가 있어야
+#      매분 전체 덤프를 뜨지 않는다). 옛 버전이면 건너뛰고 알린다.
+#
+# 다시 돌려도 안전하다(키 교체가 된다). 개발계 SG 22 는 운영 SG 에서 이미 열려 있다.
+
+# **실행 브랜치가 대상 서버를 정한다** — Environment 의 배포 브랜치 정책이 api-prod=main · api-dev=dev 만
+# 허용하기 때문이다(deploy-api.yml 과 같은 제약).
+#   1) main 에서 실행 → 운영에 키페어 생성·개인키 설치·크론. **로그에 공개키가 찍힌다**
+#   2) dev 에서 실행 + 그 공개키를 입력으로 넣기 → 개발계 authorized_keys 에 등록
+# 공개키는 비밀이 아니다(개인키는 운영 밖으로 나가지 않는다).
+
+on:
+  workflow_dispatch:
+    inputs:
+      public_key:
+        description: "개발계에 등록할 공개키(dev 에서 실행할 때만 — main 실행 로그에서 복사)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  prod:
+    name: 운영 — 키 생성·설치 (main 에서 실행)
+    if: github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: api-prod
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      API_HOST: ${{ vars.API_HOST }}
+      API_SG_ID: ${{ vars.API_SG_ID }}
+    steps:
+      - name: 설정 여부 확인
+        id: guard
+        run: |
+          if [ -z "${{ secrets.CI_SSH_KEY_API }}" ] || [ -z "$API_HOST" ] || [ -z "$API_SG_ID" ]; then
+            echo "::error::api-prod 환경 설정이 없다 — setup-ci-envs.sh 를 먼저 실행할 것"; exit 1
+          fi
+
+      - name: AWS 자격 (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::639177726357:role/ear-ci-deploy
+          aws-region: ap-northeast-2
+
+      - name: SSH 개방 — 러너 IP
+        id: sg
+        run: |
+          IP=$(curl -s https://checkip.amazonaws.com)
+          echo "ip=$IP" >> "$GITHUB_OUTPUT"
+          aws ec2 authorize-security-group-ingress --group-id "$API_SG_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=$IP/32,Description=\"github-actions content-sync key\"}]" \
+            || echo "(이미 열려 있음)"
+
+      - name: 키페어 생성 + 개인키 설치 + 크론
+        id: key
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.CI_SSH_KEY_API }}" > ~/.ssh/ci_key
+          chmod 600 ~/.ssh/ci_key
+          # 운영에서 만들고 운영에 둔다 — 개인키가 러너·네트워크를 거치지 않는다
+          PUB=$(ssh -i ~/.ssh/ci_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 \
+            "ec2-user@$API_HOST" bash -s 2>/dev/null <<'REMOTE'
+          set -euo pipefail
+          install -d -m 700 /opt/ear/backend/deploy/keys
+          KEY=/opt/ear/backend/deploy/keys/content-sync
+          [ -f "$KEY" ] || ssh-keygen -t ed25519 -N '' -C 'ear content-sync notify (prod -> dev)' -f "$KEY" >/dev/null
+          chmod 600 "$KEY"
+          cat "$KEY.pub"
+          REMOTE
+          )
+          echo "PUBLIC KEY >>> $PUB"
+          echo "::notice::운영 개인키 설치 완료"
+
+      - name: 개발계 주소·크론 설정
+        env:
+          DEV_INSTANCE: i-0a22112e947856a71
+        run: |
+          DEV_IP=$(aws ec2 describe-instances --instance-ids "$DEV_INSTANCE" \
+            --query 'Reservations[0].Instances[0].PrivateIpAddress' --output text)
+          ssh -i ~/.ssh/ci_key -o StrictHostKeyChecking=accept-new "ec2-user@$API_HOST" bash -s <<REMOTE
+          set -euo pipefail
+          cd /opt/ear/backend
+          if grep -q '^CONTENT_SYNC_NOTIFY_HOST=' .env.prod; then
+            sed -i "s|^CONTENT_SYNC_NOTIFY_HOST=.*|CONTENT_SYNC_NOTIFY_HOST=$DEV_IP|" .env.prod
+          else
+            printf '\n# 콘텐츠 발행 시 개발계에 알릴 주소(KAN-84)\nCONTENT_SYNC_NOTIFY_HOST=$DEV_IP\n' >> .env.prod
+          fi
+          # 새 내보내기 스크립트(지문 검사)가 배포된 뒤에만 주기를 줄인다 — 옛 버전은 매분 전체를 덤프한다
+          if grep -q FINGERPRINT_FILE deploy/sync-content-export.sh; then
+            crontab -l 2>/dev/null | grep -v 'sync-content-export.sh' > /tmp/cron || true
+            echo '*/1 * * * * /opt/ear/backend/deploy/sync-content-export.sh >> /var/log/ear-content-sync.log 2>&1' >> /tmp/cron
+            crontab /tmp/cron && rm -f /tmp/cron
+            echo "크론 1분 주기로 설정"
+          else
+            echo "크론 건너뜀 — 서버 스크립트가 아직 옛 버전이다(운영 배포 뒤 이 워크플로를 다시 실행)"
+          fi
+          crontab -l | grep sync-content-export || true
+          REMOTE
+
+      - name: SSH 폐쇄
+        if: always() && steps.sg.outputs.ip != ''
+        run: |
+          aws ec2 revoke-security-group-ingress --group-id "$API_SG_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${{ steps.sg.outputs.ip }}/32}]" || true
+
+  dev:
+    name: 개발계 — 공개키 등록 (dev 에서 실행)
+    if: github.ref_name != 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: api-dev
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      API_HOST: ${{ vars.API_HOST }}
+      API_SG_ID: ${{ vars.API_SG_ID }}
+    steps:
+      - name: 설정 여부 확인
+        run: |
+          if [ -z "${{ secrets.CI_SSH_KEY_API }}" ] || [ -z "$API_HOST" ] || [ -z "$API_SG_ID" ]; then
+            echo "::error::api-dev 환경 설정이 없다"; exit 1
+          fi
+          [ -n "${{ inputs.public_key }}" ] || { echo "::error::public_key 입력이 없다 — main 실행 로그의 공개키를 넣을 것"; exit 1; }
+
+      - name: AWS 자격 (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::639177726357:role/ear-ci-deploy
+          aws-region: ap-northeast-2
+
+      - name: SSH 개방 — 러너 IP
+        id: sg
+        run: |
+          IP=$(curl -s https://checkip.amazonaws.com)
+          echo "ip=$IP" >> "$GITHUB_OUTPUT"
+          aws ec2 authorize-security-group-ingress --group-id "$API_SG_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=$IP/32,Description=\"github-actions content-sync key\"}]" \
+            || echo "(이미 열려 있음)"
+
+      - name: authorized_keys 에 forced command 로 등록
+        env:
+          PUBLIC_KEY: ${{ inputs.public_key }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.CI_SSH_KEY_API }}" > ~/.ssh/ci_key
+          chmod 600 ~/.ssh/ci_key
+          ssh -i ~/.ssh/ci_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 \
+            "ec2-user@$API_HOST" bash -s <<REMOTE
+          set -euo pipefail
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          touch ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys
+          grep -v 'ear content-sync notify' ~/.ssh/authorized_keys > ~/.ssh/authorized_keys.new || true
+          printf 'command="/opt/ear/backend/deploy/sync-content-import.sh >> /var/log/ear-content-sync.log 2>&1",no-agent-forwarding,no-port-forwarding,no-pty,no-X11-forwarding %s\n' '$PUBLIC_KEY' >> ~/.ssh/authorized_keys.new
+          mv ~/.ssh/authorized_keys.new ~/.ssh/authorized_keys
+          chmod 600 ~/.ssh/authorized_keys
+          echo "등록된 알림 키: \$(grep -c 'ear content-sync notify' ~/.ssh/authorized_keys) 개"
+          REMOTE
+
+      - name: SSH 폐쇄
+        if: always() && steps.sg.outputs.ip != ''
+        run: |
+          aws ec2 revoke-security-group-ingress --group-id "$API_SG_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${{ steps.sg.outputs.ip }}/32}]" || true

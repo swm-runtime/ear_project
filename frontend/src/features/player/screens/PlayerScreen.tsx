@@ -39,6 +39,7 @@ import PlayerMoreSheet from '../components/PlayerMoreSheet';
 import PlayerQueuePanel from '../components/PlayerQueuePanel';
 import PlayerRateSheet from '../components/PlayerRateSheet';
 import PlayerScriptPanel from '../components/PlayerScriptPanel';
+import PlayerScriptStatus from '../components/PlayerScriptStatus';
 import PlayerSleepTimerSheet from '../components/PlayerSleepTimerSheet';
 import SeekBar from '../components/SeekBar';
 import { usePlayerScreen } from '../hooks/usePlayerScreen';
@@ -73,9 +74,18 @@ export default function PlayerScreen() {
   const { session } = screen;
   // 제목 아래 카테고리 — 주제 id를 관심사 feature의 주제 목록(같은 캐시)에서 이름으로 바꾼다(2026-09-16)
   const topicsQuery = useTopicsQuery();
-  // 스크립트(PL6) — 데이터가 없으면 손잡이 자체를 그리지 않는다(uiux 4.6). 지금은 dev mock만 채운다
-  const scriptQuery = useScriptQuery(session?.contentId ?? null, session?.durationSec ?? 0);
+  /*
+   * 대본(PL6) — 버튼을 그릴지는 발급 응답의 `has_script`가 정하고, 대본 자체는 **패널을 처음 열 때** 받는다
+   * (player-api.md 4.7). 받아 보니 빈 배열이면 "없음"이다 — 버튼을 숨기고 열려 있던 패널도 접힌다.
+   */
+  const hasScript = session?.hasScript ?? false;
+  const scriptQuery = useScriptQuery(
+    session?.contentId ?? null,
+    session?.durationSec ?? 0,
+    hasScript && screen.activePanel === 'script',
+  );
   const scriptSegments = scriptQuery.data ?? null;
+  const isScriptAvailable = hasScript && !(scriptSegments !== null && scriptSegments.length === 0);
   // 재생 목록 — 바닥 서랍이 연다(2026-09-16, 스크립트와 자리 교환). 목록 = 라이브러리 첫 페이지(브리지),
   // 열었을 때만 조회한다. 손잡이는 항상 있다 — 라이브러리는 언제나 있으므로
   const queueQuery = useQueueQuery(screen.activePanel === 'queue');
@@ -83,7 +93,7 @@ export default function PlayerScreen() {
   const queueOrder = useQueueOrder(queueQuery.data ?? EMPTY_QUEUE);
   const queueItems = queueOrder.orderedItems;
   const isPanelAvailable = (kind: PlayerPanelKind) =>
-    kind === 'script' ? scriptSegments !== null : true;
+    kind === 'script' ? isScriptAvailable : true;
   const activePanel =
     screen.activePanel !== null && isPanelAvailable(screen.activePanel) ? screen.activePanel : null;
   /*
@@ -1158,14 +1168,19 @@ export default function PlayerScreen() {
               { opacity: hero.expandedOpacity, transform: [{ translateY: hero.panelOffset }] },
             ]}
           >
-            {mountedPanel === 'script' && scriptSegments !== null ? (
+            {mountedPanel !== 'script' ? null : scriptSegments !== null ? (
               <PlayerScriptPanel
                 segments={scriptSegments}
                 positionSec={session.positionSec}
                 onSeek={screen.seekTo}
                 onSwipeRight={() => setPanel(null)}
               />
-            ) : null}
+            ) : (
+              <PlayerScriptStatus
+                isError={scriptQuery.isError}
+                onRetry={() => void scriptQuery.refetch()}
+              />
+            )}
           </Animated.View>
         ) : null}
 
@@ -1268,7 +1283,7 @@ export default function PlayerScreen() {
 
             {/* 스크립트 열기/접기(2026-09-16, 재생 목록과 자리 교환) — 배속과 같은 폭이라 재생 버튼이
                 가운데를 지킨다. 스크립트가 없으면 자리만 비워 둔다(uiux 4.6 — 진입점 미노출) */}
-            {scriptSegments !== null ? (
+            {isScriptAvailable ? (
               <Pressable
                 style={styles.rateButton}
                 onPress={() => setPanel(activePanel === 'script' ? null : 'script')}

@@ -58,7 +58,7 @@ sudo mkdir -p /opt/ear && sudo chown ec2-user /opt/ear
 - 관리자 콘솔: `deploy/admin/config.example.js` → 서버 `/opt/ear/backend/deploy/admin/config.js` (API 주소 + Google 웹 클라이언트 ID)
 - 기동: `docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build` (마이그레이션 자동)
 - 백업 크론: `(crontab -l; echo "0 19 * * * /opt/ear/backend/deploy/backup.sh >> /var/log/ear-backup.log 2>&1") | crontab -`
-- **크론이 부르는 스크립트는 반드시 실행 권한(git `100755`)으로 커밋한다.** 크론은 경로로 직접 실행하므로 644면 `Permission denied`로 아예 안 돈다. 서버에서 `chmod +x`해도 배포(`git archive | tar -x`)가 git 모드대로 되돌린다. 손으로 `bash x.sh`로 테스트하면 권한이 필요 없어 **테스트로는 안 잡힌다** — 새 스크립트는 `git update-index --chmod=+x`로 올리고, 확인은 `env -i HOME=$HOME PATH=/usr/bin:/bin /bin/sh -c /opt/ear/backend/deploy/x.sh`(크론과 같은 환경 — HOME 이 없으면 aws CLI 가 크론에선 안 나는 오류를 낸다)로 한다. 등록된 크론 전체: 운영 `0 19` backup · `10 19` sync-content-export · `40 19` ebs-snapshot, 개발계 `30 19` sync-content-import (전부 UTC). `backend/deploy/*.sh`가 `100755`가 아니면 CI 검증이 막는다.
+- **크론이 부르는 스크립트는 반드시 실행 권한(git `100755`)으로 커밋한다.** 크론은 경로로 직접 실행하므로 644면 `Permission denied`로 아예 안 돈다. 서버에서 `chmod +x`해도 배포(`git archive | tar -x`)가 git 모드대로 되돌린다. 손으로 `bash x.sh`로 테스트하면 권한이 필요 없어 **테스트로는 안 잡힌다** — 새 스크립트는 `git update-index --chmod=+x`로 올리고, 확인은 `env -i HOME=$HOME PATH=/usr/bin:/bin /bin/sh -c /opt/ear/backend/deploy/x.sh`(크론과 같은 환경 — HOME 이 없으면 aws CLI 가 크론에선 안 나는 오류를 낸다)로 한다. 등록된 크론 전체: 운영 `0 19` backup · **`*/1` sync-content-export**(2026-09-20 개정 — 바뀐 게 없으면 지문 조회 한 번으로 끝난다) · `40 19` ebs-snapshot, 개발계 `30 19` sync-content-import(**안전망** — 평소에는 운영이 발행 직후 알려서 바로 받는다) (전부 UTC). `backend/deploy/*.sh`가 `100755`가 아니면 CI 검증이 막는다.
 
 ### 1.5 DNS·확인
 
@@ -92,6 +92,25 @@ AUDIO_BUCKET=ear-audio-prod KVS_ARN=<값> deploy/upload-audio.sh <contentId(uuid
 ### 3.3 업로드 스모크 (배포 검증)
 
 콘솔에서 테스트 주제·3초 mp3 업로드 → 목록 노출 확인 → 10초 후 서명 URL 재생 200 → **테스트 데이터 삭제**(콘텐츠 행·KVS 키·S3 오브젝트·주제).
+
+### 3.3-1 개발계에 콘텐츠 반영 (KAN-84, 2026-09-20)
+
+운영에서 발행·회수·주제 변경을 하면 **1분 안에 개발계로 넘어간다.** 손으로 할 일은 없다.
+
+| 단계 | 무엇이 도는가 |
+|---|---|
+| 운영 크론 `*/1` | `sync-content-export.sh` — 콘텐츠 표의 지문(행 수 + 최종 수정 시각)을 재고, **지난번과 같으면 즉시 끝난다**(로그 `content export skip`) |
+| 바뀐 경우 | 덤프 + 표별 행 수 매니페스트를 S3 에 올리고, **개발계에 SSH 로 알린다**(로그 `notify ok`) |
+| 개발계 | 알림을 받은 `sync-content-import.sh` 가 덤프를 받아 upsert 하고, 매니페스트 행 수와 대조한다(로그 `import ok`) |
+| 안전망 | 개발계 크론 `30 19 * * *`(04:30 KST). 알림이 유실돼도 하루 안에 맞춰진다 |
+
+- 알림 키는 개발계 `authorized_keys` 에서 `command="…/sync-content-import.sh"` 로 묶여 있다 — 그 키로 다른 명령은 실행되지 않는다. 개발계 SG 22 는 **운영 SG 에서만** 열려 있다.
+- 경로를 새로 깔거나 키를 바꿀 때: `bash backend/deploy/aws/setup-content-sync-notify.sh` (SSO 로그인·운영/개발계 pem 필요).
+- 확인·문제 해결
+  - 로그: 양쪽 `/var/log/ear-content-sync.log`
+  - 즉시 반영이 필요하면 개발계에서 `bash /opt/ear/backend/deploy/sync-content-import.sh`
+  - `import skip` 만 반복되면 S3 덤프가 안 바뀐 것이다 — 운영 로그에서 `export skip`/`export ok` 를 먼저 본다
+  - 검증 실패(`검증 실패: <표> 운영 N행 / 개발계 M행`)면 ETag 를 적지 않으므로 다음 알림·크론이 같은 덤프로 다시 시도한다
 
 ### 3.4 회수 (API 미구현 — 현재 SQL 수동)
 
