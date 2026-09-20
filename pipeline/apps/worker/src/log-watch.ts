@@ -1,3 +1,4 @@
+import { CloudWatchClient, PutMetricDataCommand } from "@aws-sdk/client-cloudwatch";
 import { CloudWatchLogsClient, FilterLogEventsCommand } from "@aws-sdk/client-cloudwatch-logs";
 import { log } from "./util.js";
 
@@ -14,6 +15,11 @@ import { log } from "./util.js";
  * - 자격은 AI 서버 인스턴스 롤(logs:FilterLogEvents — ear-logs-read 정책). 키를 env 에 두지 않는다
  * - 같은 유형(가변값을 지운 시그니처)은 틱당 한 줄로 묶는다 — 에러 폭풍이 Slack 도배가 되지 않게
  * - 재시작 시 시작 시점 이후만 본다 — 과거분 재알림 방지 (놓친 창은 어드민 웹 에러 모아보기에서)
+ *
+ * **생존 신호**: 틱마다 `ear/ops` 의 `CronSuccess{Job=log-watch}` 에 1을 찍는다. 이 감시자가 죽으면
+ * 백엔드가 500 을 뿜어도 Slack 이 조용해지는데, **그 조용함이 "정상"과 구분되지 않는다.** 작업 큐의
+ * `jobs.heartbeat_at` 은 작업을 집었을 때만 찍혀 "살아있지만 놀고 있음"을 나타내지 못하므로 쓸 수 없다.
+ * 백업·스냅샷 크론과 같은 방식이고, 알람이 "일정 시간 지표 없음"을 잡는다(2026-09-20).
  */
 const WEBHOOK_URL = process.env.SLACK_ERROR_WEBHOOK_URL || "";
 const INTERVAL_MS = Number(process.env.LOG_WATCH_INTERVAL_MS || 5 * 60_000);
@@ -28,6 +34,7 @@ const ADMIN_ERRORS_URL = `https://${process.env.PIPELINE_DOMAIN || "admin.earcas
 const ANSI_RE = /\[[0-9;]*m/g;
 
 let client: CloudWatchLogsClient | undefined;
+let metrics: CloudWatchClient | undefined;
 let cursorTs = Date.now();
 
 /** 워커 기동 시 1회 호출 — 켜졌는지 여부만 돌려준다 */
@@ -53,6 +60,9 @@ async function tick(): Promise<void> {
       }),
     );
 
+    // 로그를 읽는 데 성공한 뒤에 찍는다 — "프로세스가 살아있다"가 아니라 "감시가 동작한다"가 신호다
+    await putAlive();
+
     const events = (out.events ?? [])
       .map((e) => ({ t: e.timestamp ?? 0, message: (e.message ?? "").replace(ANSI_RE, "").trim() }))
       .filter((e) => e.message);
@@ -73,6 +83,24 @@ async function tick(): Promise<void> {
   } catch (e) {
     // 감시 실패는 작업 처리와 무관 — 조용히 다음 틱을 기다린다
     log(`백엔드 로그 감시 실패 (다음 틱에 재시도): ${e instanceof Error ? e.message : e}`);
+  }
+}
+
+/**
+ * 생존 신호 한 점. **실패해도 감시를 멈추지 않는다** — 지표를 못 찍는 것은 알람의 문제이지
+ * ERROR 알림의 문제가 아니다. 대신 로그로 남겨 권한·네트워크 문제를 사람이 볼 수 있게 한다.
+ */
+async function putAlive(): Promise<void> {
+  try {
+    metrics ??= new CloudWatchClient({ region: process.env.AWS_REGION || "ap-northeast-2" });
+    await metrics.send(
+      new PutMetricDataCommand({
+        Namespace: "ear/ops",
+        MetricData: [{ MetricName: "CronSuccess", Dimensions: [{ Name: "Job", Value: "log-watch" }], Value: 1, Unit: "Count" }],
+      }),
+    );
+  } catch (e) {
+    log(`로그 감시 생존 신호 기록 실패(알람이 오탐할 수 있다): ${e instanceof Error ? e.message : e}`);
   }
 }
 
