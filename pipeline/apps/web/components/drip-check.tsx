@@ -41,7 +41,7 @@ const DISCOVERY_LABEL = { low_exposure: "저노출", freshness: "신선도", qua
 
 /** 메타 항목의 뜻 — 계산식 표와 후보 표 머리(툴팁)가 같은 문장을 쓴다 */
 const META_ROWS: [keyof EarDripCandidate["breakdown"]["meta_items"], string, string][] = [
-  ["topic_match", "주제일치", "관심 주제와 겹치는 수 — 1개 0.6, 2개 0.8, 3개 이상 1"],
+  ["topic_match", "주제일치", "**온보딩에서 고른 관심 주제**와 겹치는 수 — 1개 0.6, 2개 0.8, 3개 이상 1. 신호 축의 \"주제\"(행동으로 학습된 것)와 출처가 다르다"],
   ["freshness", "신선도", "발행 후 경과일에 반감기 적용 — 시의성 30일, 미지정 90일, 에버그린은 항상 1"],
   ["popularity", "인기도", "0.7×스무딩 완청률(재생 20회 미만은 풀 평균으로 끌어당김) + 0.3×재생 수 로그"],
   ["difficulty_fit", "난이도", "완청 이력의 난이도 분포와 대조. 콜드스타트는 beginner 1 · intermediate 0.5 · advanced 0.2"],
@@ -230,7 +230,7 @@ export function Preview({ data }: { data: EarDripPreview }) {
       <Section
         no={2}
         title="입력 — 관심 주제·신호·취향"
-        desc="스코어링이 읽는 사용자 쪽 입력이다. 관심 주제는 후보 풀을 가르고, 최근 신호가 취향 벡터를 만든다. 폰에서 완청·담기·해제를 하면 여기부터 바뀐다."
+        desc="스코어링이 읽는 사용자 쪽 입력이다. 관심 주제(선언한 취향)는 후보 풀을 가르고, 최근 행동(드러난 취향)이 취향 벡터를 만든다. 폰에서 완청·담기·해제를 하면 여기부터 바뀐다."
       >
         <div className="grid gap-3 lg:grid-cols-3">
           <Panel title="관심 주제 — 정규 후보의 범위">
@@ -256,7 +256,7 @@ export function Preview({ data }: { data: EarDripPreview }) {
           </Panel>
 
           <Panel
-            title={`최근 신호 ${data.signals.length}건 — 취향 벡터의 재료`}
+            title={`최근 행동 ${data.signals.length}건 — 취향 벡터의 재료`}
             flush
             className="lg:col-span-2"
             right={
@@ -286,7 +286,7 @@ export function Preview({ data }: { data: EarDripPreview }) {
         </div>
 
         <Panel
-          title="취향 벡터 — 신호를 합산한 결과"
+          title="취향 벡터 — 행동을 합산해 학습한 취향"
           right={<span className="text-xs text-ink-soft">지금 계산한 값 · 저장하지 않음 · 절댓값 큰 순 15개</span>}
         >
           {coldStart && (
@@ -295,7 +295,7 @@ export function Preview({ data }: { data: EarDripPreview }) {
             </p>
           )}
           <div className="grid gap-x-6 gap-y-2 lg:grid-cols-2">
-            <WeightList title="주제 — 신호가 쌓인 주제일수록 +, 해제·삭제한 주제는 −" items={pref.topic_weights} />
+            <WeightList title="주제 — 완청·담기한 주제일수록 +, 해제·삭제한 주제는 −" items={pref.topic_weights} />
             <WeightList title="키워드" items={pref.keyword_weights} />
             <WeightList title="형식" items={pref.format_weights} />
             <WeightList title="저자" items={pref.author_weights} />
@@ -325,7 +325,7 @@ export function Preview({ data }: { data: EarDripPreview }) {
             <WeightTable
               rows={[
                 { color: AXIS_COLOR.embedding, name: "임베딩", weight: w.axes.embedding, muted: coldStart, desc: "취향 임베딩과 콘텐츠 임베딩의 코사인 유사도를 0~1로. 콜드스타트·임베딩 없음이면 빠진다" },
-                { color: AXIS_COLOR.signal, name: "신호", weight: w.axes.signal, muted: coldStart, desc: `취향 벡터 대조 — ${SIGNAL_ROWS.map(([k, l]) => `${l} ${w.signal_items[k] ?? "–"}`).join(" · ")}. 콜드스타트면 빠진다` },
+                { color: AXIS_COLOR.signal, name: "신호", weight: w.axes.signal, muted: coldStart, desc: `**완청·담기로 학습된 취향**과 이 콘텐츠를 대조한다. 아래 다섯은 비교하는 축이지 콘텐츠 메타데이터 점수가 아니다 — 예를 들어 "형식"은 이 콘텐츠의 형식이 아니라 그 형식을 사용자가 완청해 온 정도다. ${SIGNAL_ROWS.map(([k, l]) => `${l} ${w.signal_items[k] ?? "–"}`).join(" · ")}. 대조할 취향이 없는 콜드스타트면 축째 빠진다` },
                 { color: AXIS_COLOR.meta, name: "메타", weight: w.axes.meta, desc: "콘텐츠 자체의 규칙 — 아래 7항목의 가중합" },
                 ...META_ROWS.map(([k, name, desc]) => ({ color: AXIS_COLOR.meta, name, weight: metaW[k], desc, indent: true })),
               ]}
@@ -611,7 +611,7 @@ function CandidateTable({ candidates, kind, weights, metaW }: { candidates: EarD
               {kind === "regular" ? (
                 <>
                   <th className={thNum} style={{ color: AXIS_COLOR.embedding }}>임베딩</th>
-                  <th className={thNum} style={{ color: AXIS_COLOR.signal }}>신호</th>
+                  <th className={thNum} style={{ color: AXIS_COLOR.signal }} title="완청·담기로 학습된 취향과의 일치도">신호</th>
                   <th className={thNum} style={{ color: AXIS_COLOR.meta }}>메타</th>
                   {META_ROWS.map(([k, name, desc]) => <th key={k} className={thNum} title={`가중치 ${metaW[k]} — ${desc}`}>{name}<span className="ml-0.5 font-normal opacity-60">{metaW[k]}</span></th>)}
                 </>
@@ -653,8 +653,8 @@ function CandidateRow({ c, rank, kind, weights }: { c: EarDripCandidate; rank: n
   const s = c.breakdown.signal_items;
   const parts = kind === "regular" ? regularParts(c, weights.axes) : discoveryParts(c, weights.discovery_items);
   const signalTitle = s
-    ? `신호 항목 — ${SIGNAL_ROWS.map(([k, l]) => `${l} ${f2(s[k])}`).join(" · ")}`
-    : "신호 축 없음(콜드스타트 또는 취향 없음)";
+    ? `학습된 취향과의 일치도 — ${SIGNAL_ROWS.map(([k, l]) => `${l} ${f2(s[k])}`).join(" · ")}`
+    : "신호 축 없음 — 대조할 취향이 아직 없다(콜드스타트)";
   return (
     <tr className={picked ? "bg-emerald-50/70" : "hover:bg-[#f7f9fb]"}>
       <Td className="px-3 tabular-nums text-ink-soft">{picked ? <OrderBadge order={c.pick_order!} kind={kind} /> : rank}</Td>
