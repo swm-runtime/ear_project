@@ -14,6 +14,7 @@ import { ERROR_CODES } from '@/shared/api/error-codes';
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { generateId } from '@/shared/lib/generate-id';
 import { logger } from '@/shared/lib/logger';
+import { toTab } from '@/shared/navigation/to-tab';
 import { useToastStore } from '@/shared/ui/toast.store';
 
 import { libraryKeys } from '@/features/library';
@@ -534,7 +535,7 @@ export const useExploreScreen = () => {
   };
 
   const goToLibrary = () => {
-    navigation.navigate('Main', { screen: 'Tabs', params: { screen: 'Library' } });
+    navigation.navigate('Main', toTab('Library'));
   };
 
   const retry = () => {

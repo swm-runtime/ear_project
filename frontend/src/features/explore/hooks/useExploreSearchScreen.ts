@@ -7,6 +7,7 @@ import { isApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
 import { generateId } from '@/shared/lib/generate-id';
 import { logger } from '@/shared/lib/logger';
+import { toTab } from '@/shared/navigation/to-tab';
 import { useToastStore } from '@/shared/ui/toast.store';
 
 import { libraryKeys } from '@/features/library';
@@ -408,14 +409,11 @@ export const useExploreSearchScreen = () => {
 
   /** E7 관련 주제 칩 — 그 주제의 단일 목록(E2)으로 이동한다(explore.md 4.5-3). 검색 화면은 pop된다 */
   const openTopicList = (topicId: string) => {
-    navigation.navigate('Main', {
-      screen: 'Tabs',
-      params: { screen: 'Explore', params: { applyTopicId: topicId } },
-    });
+    navigation.navigate('Main', toTab('Explore', { applyTopicId: topicId }));
   };
 
   const goToLibrary = () => {
-    navigation.navigate('Main', { screen: 'Tabs', params: { screen: 'Library' } });
+    navigation.navigate('Main', toTab('Library'));
   };
 
   return {
