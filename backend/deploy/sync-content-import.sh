@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 콘텐츠 계층 들여오기 (S3 → 개발계 DB) — KAN-62 3단계 · 결정 7 · 발행 즉시 반영 KAN-84.
+# 콘텐츠 계층 들여오기 (S3 → 개발계 DB) — KAN-62 3단계 · 결정 7 · 발행 즉시 반영 KAN-84 · 대본 포함 KAN-83.
 #
 # 개발계 서버에서 크론으로 돈다(운영 내보내기 20분 뒤). 운영이 올린 콘텐츠 표 덤프를 받아 **stage 스키마에
 # 적재한 뒤 public 으로 upsert** 한다. 지우지 않는다 — 개발계 사용자 데이터(library_items·play_records 등)가
@@ -22,7 +22,7 @@ set -euo pipefail
 # 크론과 SSH forced command 는 PATH 가 짧다 — aws CLI(/usr/local/bin)를 못 찾는 경우를 막는다
 export PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
-TABLES=(topics contents content_topics content_sources content_embeddings content_stats)
+TABLES=(topics contents content_topics content_sources content_embeddings content_stats content_scripts)
 BUCKET="${CONTENT_SYNC_BUCKET:-earcast-backup-prod}"
 PREFIX="${CONTENT_SYNC_PREFIX:-content-sync}"
 LOCK=/tmp/ear-content-import.lock
@@ -79,7 +79,10 @@ BEGIN
       ('content_topics',     'content_id, topic_id'),
       ('content_sources',    'content_id, position'),
       ('content_embeddings', 'content_id'),
-      ('content_stats',      'content_id, period_type, period_start')
+      ('content_stats',      'content_id, period_type, period_start'),
+      -- 콘텐츠당 1행(uq_content_scripts_content_id). **자체 id 가 아니라 content_id 로 충돌을 잡는다** —
+      -- 대본 행의 id 는 운영과 개발계가 다를 수 있다(KAN-83)
+      ('content_scripts',    'content_id')
     ) AS t(tbl, conflict_cols)
   LOOP
     SELECT string_agg(quote_ident(column_name), ', ' ORDER BY ordinal_position),
@@ -98,6 +101,11 @@ END $$;
 DELETE FROM public.content_topics ct
  WHERE ct.content_id IN (SELECT id FROM sync_stage.contents)
    AND NOT EXISTS (SELECT 1 FROM sync_stage.content_topics s WHERE s.content_id = ct.content_id AND s.topic_id = ct.topic_id);
+-- 운영에서 대본이 지워진 콘텐츠(대본 없는 재발행 등): 스테이지에 온 콘텐츠의 옛 대본만 걷어낸다(KAN-83).
+-- 다른 표가 참조하지 않는 표라 안전하고, 남겨 두면 개발계에만 없는 대본이 계속 보인다
+DELETE FROM public.content_scripts cs
+ WHERE cs.content_id IN (SELECT id FROM sync_stage.contents)
+   AND NOT EXISTS (SELECT 1 FROM sync_stage.content_scripts s WHERE s.content_id = cs.content_id);
 SQL
 
 # 3) 검증 — 운영이 센 행 수(매니페스트)만큼 개발계에도 들어왔는지 본다.
