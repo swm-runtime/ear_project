@@ -1,6 +1,7 @@
 import { useNavigation } from '@react-navigation/native';
 import { useCallback, useEffect } from 'react';
 
+import { toTab } from '@/shared/navigation/to-tab';
 import { useToastStore } from '@/shared/ui/toast.store';
 
 import { usePlayGate } from '@/features/player';
@@ -30,7 +31,7 @@ export const usePushLinkGate = () => {
   const { confirmState, requestPlay, confirmPlay, cancelConfirm, suppressAndPlay } = usePlayGate();
 
   const goToLibrary = useCallback(() => {
-    navigation.navigate('Main', { screen: 'Tabs', params: { screen: 'Library' } });
+    navigation.navigate('Main', toTab('Library'));
   }, [navigation]);
 
   const fallBackToLibrary = useCallback(() => {

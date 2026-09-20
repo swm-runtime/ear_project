@@ -8,6 +8,7 @@ import { ERROR_CODES } from '@/shared/api/error-codes';
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { generateId } from '@/shared/lib/generate-id';
 import { logger } from '@/shared/lib/logger';
+import { toTab } from '@/shared/navigation/to-tab';
 import { useToastStore } from '@/shared/ui/toast.store';
 
 import { libraryKeys } from '@/features/library';
@@ -67,7 +68,7 @@ export const useContentDetailScreen = () => {
     void queryClient.invalidateQueries({ queryKey: contentDetailKeys.detail(contentId) });
 
   const goToLibrary = () => {
-    navigation.navigate('Main', { screen: 'Tabs', params: { screen: 'Library' } });
+    navigation.navigate('Main', toTab('Library'));
   };
 
   /* ── 회수·404 — 상세를 그리지 않고 안내 후 원 화면 복귀(content-detail.md 4.1·7장, CD4) ── */
