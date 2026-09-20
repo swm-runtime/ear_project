@@ -4,6 +4,7 @@ import { getDeviceId } from '@/shared/lib/device-id';
 import { IS_PLAY_API_MOCKED, IS_PLAYER_API_MOCKED } from '../player.constants';
 import type {
   AudioIssueResult,
+  ScriptSegment,
   PlaybackProgress,
   PlayEntryPoint,
   PlayLimitSnapshot,
@@ -18,9 +19,11 @@ import type {
   PlaybackProgressPutResponseDto,
   PlayLimitFieldsDto,
   PlayStartResponseDto,
+  ScriptResponseDto,
   WithdrawnContentsResponseDto,
 } from './player.dto';
 import {
+  getMockScript,
   mockGetWithdrawnContents,
   mockIssueAudioUrls,
   mockSavePlaybackProgress,
@@ -65,6 +68,8 @@ const toAudioIssueResult = (dto: AudioUrlsResponseDto): AudioIssueResult => ({
     thumbnailUrl: dto.content.thumbnail_url,
     contentVersion: dto.content.content_version,
   },
+  topicIds: dto.content.topics ? dto.content.topics.map((topic) => topic.id) : null,
+  hasScript: dto.has_script === true,
   libraryItem: dto.library_item
     ? { id: dto.library_item.id, status: dto.library_item.status }
     : null,
@@ -127,6 +132,27 @@ export const issueAudioUrls = async (input: { contentId: string }): Promise<Audi
     body,
   );
   return toAudioIssueResult(data);
+};
+
+/**
+ * 대본 조회(player-api.md 4.7) — 패널을 처음 열 때 한 번. 접근 통제는 발급과 같고 차감은 없다.
+ * 대본이 없는 콘텐츠는 404 가 아니라 빈 배열이다 — 호출부가 "없음"으로 취급한다.
+ */
+export const fetchScript = async (input: {
+  contentId: string;
+  /** mock 대본을 콘텐츠 길이에 맞춰 펴는 데만 쓴다 */
+  durationSec: number;
+}): Promise<ScriptSegment[]> => {
+  if (IS_PLAYER_API_MOCKED) {
+    return (await getMockScript(input.contentId, input.durationSec)) ?? [];
+  }
+  const { data } = await apiClient.get<ScriptResponseDto>(`/contents/${input.contentId}/script`);
+  return data.segments.map((segment) => ({
+    startSec: segment.start_sec,
+    endSec: segment.end_sec,
+    speaker: segment.speaker,
+    text: segment.text,
+  }));
 };
 
 /**

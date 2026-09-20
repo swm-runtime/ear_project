@@ -65,6 +65,10 @@ export interface PlayerContentMeta {
 /** POST /contents/:content_id/audio-urls 응답(player-api.md 4.1)의 도메인 모델 */
 export interface AudioIssueResult {
   content: PlayerContentMeta;
+  /** 발급 응답의 주제(player-api.md 4.1). 서버가 안 실었으면 null — 진입 목록이 넘긴 값을 유지한다 */
+  topicIds: string[] | null;
+  /** 대본이 적재돼 있는가 — 대본 버튼 노출의 근거다. 조회(4.7)는 패널을 처음 열 때 한다 */
+  hasScript: boolean;
   /** 라이브러리에 없는 콘텐츠면 null. id는 더보기 삭제, status는 완료 화면 판단에 쓴다 */
   libraryItem: { id: string; status: PlayedLibraryItemStatus } | null;
   progress: PlaybackProgress | null;
@@ -143,10 +147,12 @@ export interface PlaybackSession {
     sourceUrl: string | null;
     thumbnailUrl: string | null;
     contentVersion: number | null;
-    /** 진입 목록이 넘긴 주제 id. 발급 응답에는 없어(player-api.md 4.1) 진입 시 값을 유지한다 — 모르면 빈 배열 */
+    /** 주제 id. 발급 응답의 `content.topics`가 원천이고(player-api.md 4.1), 발급 전에는 진입 목록이 넘긴 값이다 */
     topicIds: string[];
   };
   libraryItem: { id: string; status: PlayedLibraryItemStatus } | null;
+  /** 발급 응답의 `has_script`(player-api.md 4.1). 발급 전에는 false — 버튼을 그리지 않는다 */
+  hasScript: boolean;
   isPlaying: boolean;
   isBuffering: boolean;
   positionSec: number;
@@ -157,7 +163,7 @@ export interface PlaybackSession {
 
 /**
  * 스크립트 문단(PL6 — FR-25 P1). 시작·끝 초로 현재 재생 구간을 판정하고, 탭하면 startSec으로 seek한다.
- * 서버 계약은 P1 확정 시 player-api.md에 추가된다 — 지금은 dev mock만 이 모양을 만든다(2026-09-16).
+ * 서버 계약은 player-api.md 4.7(`GET /contents/:content_id/script`, KAN-71)이다.
  */
 export interface ScriptSegment {
   startSec: number;
