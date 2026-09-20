@@ -19,6 +19,8 @@ export interface PlayGateTarget {
   restartFromBeginning?: boolean;
   /** CONTENT_WITHDRAWN(403) 시 진입점별 정리(목록 제거·미니플레이어 내림)에 쓴다 */
   onWithdrawn?: () => void;
+  /** 발급 404 시 로드 실패 화면 대신 부른다 — 푸시 딥링크의 라이브러리 폴백용(playback.service `onNotFound`) */
+  onNotFound?: () => void;
 }
 
 interface PlayGateOptions {
@@ -75,6 +77,7 @@ export const usePlayGate = (options?: PlayGateOptions) => {
           : undefined,
         onServerStateChanged: () => options?.onServerStateChanged?.(),
         onWithdrawn: target.onWithdrawn,
+        onNotFound: target.onNotFound,
       },
     });
     navigation.navigate('Main', {
