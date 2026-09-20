@@ -41,3 +41,4 @@
 | 검증 | 로컬 DB 에 스테이지 7개 표를 만들어 upsert 블록을 실제로 실행(문법·충돌 키·열 매핑 확인 — `content_scripts → 0 rows`) |
 | 남은 것 | **배포 후 개발계에서 한 번 확인**: dev 머지로 개발계에 스크립트가 깔리고 운영(main) 배포로 내보내기 쪽이 반영된 뒤, `bash /opt/ear/backend/deploy/sync-content-import.sh` 를 한 번 돌려 대본이 들어오는지(앱의 대본 버튼) 확인한다. 확인되면 archive 로 옮긴다 |
 
+- 2026-09-20 **완료 — archive 로 옮긴다. 반영 날짜: 2026-09-20.** 코드(PR #536, KAN-84 와 한 PR)가 배포됐고 **PM 이 개발계에서 동작을 확인했다.** 이 티켓이 풀리면서 자막 기능(FR-25)을 개발계 앱에서 확인할 길이 열렸다 — 후속은 `tickets/frontend/pending/script-real-api.md`(KAN-73).
