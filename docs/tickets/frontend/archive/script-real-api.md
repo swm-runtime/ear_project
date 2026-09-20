@@ -8,7 +8,7 @@
 | 발견 시점 | PM 결정 — 자막(대본) 기능을 실서버에서 연다 |
 | 근거 문서 | PRD FR-25(P1) · `features/player.md` 4.6 · `spec/uiux/player-uiux.md` 4.6 PL6 |
 | 중요도 | **Medium** — 단, **BE 티켓이 끝나야 착수할 수 있다**. 마감은 BE 계약 확정일로부터 3일 |
-| 상태 | 진행 — 코드 반영(2026-09-20). **대본이 실린 발행분 + 개발계 동기화(KAN-83) 대기** → 실기기 확인 |
+| 상태 | **완료**(2026-09-20) — PM 실기기 확인 |
 | Jira | KAN-73 |
 | 짝 티켓 | `tickets/backend/pending/script-api.md` · `tickets/ai/pending/script-timed-segments.md` |
 
@@ -59,4 +59,6 @@
   - **더 큰 걸림돌**: 운영 → 개발계 콘텐츠 동기화(`backend/deploy/sync-content-*.sh`)의 `TABLES` 에 `content_scripts` 가 없다. 운영에 대본이 발행돼도 개발계 앱에는 닿지 않는다 → 인프라 티켓 **KAN-83**(`tickets/infra/pending/content-sync-include-scripts.md`) 발행.
   - 개발계 서버 로그: 대본 조회(`/script`) 호출 0건. 모든 콘텐츠가 `has_script: false` 라 버튼이 안 뜨는 정상 동작이다.
   - **실기기 확인이 가능해지는 조건**: ① 대본이 실린 편이 운영에 한 편 발행된다 ② KAN-83 이 반영돼 개발계로 넘어온다. (운영 앱으로 보려면 runtime 4 운영 빌드가 먼저다.)
-
+- 2026-09-20 **완료 — archive 로 옮긴다. 반영 날짜: 2026-09-20.** KAN-83(동기화에 `content_scripts` 포함)이 반영돼 대본이 개발계로 넘어왔고, **PM 이 개발계 앱(iOS 1.0.0 (5), runtime 4)에서 할 일 6 의 세 항목을 모두 확인했다** — ① 긴 대본 스크롤 ② 재생 중 현재 문단 따라가기 ③ 문단 탭 → 그 구간으로 정확히 이동. 대본 버튼 노출·패널 표시(완료 조건 1·2)도 같은 자리에서 확인됐다.
+  - 실서버에서 직접 보지 못한 조건: 조회 실패 시의 [다시 시도](완료 조건 4)는 웹 mock 과 코드 경로로만 확인했다 — 실서버에서 실패를 일부러 만들 수단이 없다.
+  - 운영 앱에는 runtime 4 운영 빌드가 나갈 때 닿는다.
