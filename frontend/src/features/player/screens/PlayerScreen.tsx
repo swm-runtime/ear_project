@@ -362,11 +362,35 @@ export default function PlayerScreen() {
     };
   }, [openProgress]);
 
+  /**
+   * 지금 터치가 **세로로 스크롤되는 목록(대본·재생 목록) 위에서 시작됐는가.** 축소 제스처는 화면 전체에 걸려
+   * 있어서, 목록을 아래로 스크롤하는 손가락(dy > 0)을 "플레이어를 끌어내린다"로 읽고 가로챈다 — iOS 에서
+   * 대본이 내려가지 않고 플레이어가 축소됐다(2026-09-21 실기기). `onTouchStart`는 응답자 협상보다 먼저 오므로
+   * 여기서 표시해 두면 축소 제스처가 그 터치를 아예 넘겨받지 않는다. 목록 밖(앱바·아트워크·컨트롤)에서
+   * 끌어내리는 것은 종전과 같다.
+   */
+  const isTouchOnScrollAreaRef = useRef(false);
+  const scrollAreaTouchHandlers = useMemo(
+    () => ({
+      onTouchStart: () => {
+        isTouchOnScrollAreaRef.current = true;
+      },
+      onTouchEnd: () => {
+        isTouchOnScrollAreaRef.current = false;
+      },
+      onTouchCancel: () => {
+        isTouchOnScrollAreaRef.current = false;
+      },
+    }),
+    [],
+  );
+
   const collapsePanResponder = useMemo(
     () =>
       // eslint-disable-next-line react-hooks/refs -- 콜백은 렌더가 아니라 제스처 시점에 실행된다(표준 PanResponder 패턴)
       PanResponder.create({
         onMoveShouldSetPanResponder: (_, gesture) =>
+          !isTouchOnScrollAreaRef.current &&
           gesture.dy > PLAYER_COLLAPSE_START_DISTANCE &&
           Math.abs(gesture.dy) > Math.abs(gesture.dx),
         onPanResponderGrant: () => gestureContext.current.begin(),
@@ -1167,6 +1191,7 @@ export default function PlayerScreen() {
               styles.scriptPanelWrap,
               { opacity: hero.expandedOpacity, transform: [{ translateY: hero.panelOffset }] },
             ]}
+            {...scrollAreaTouchHandlers}
           >
             {mountedPanel !== 'script' ? null : scriptSegments !== null ? (
               <PlayerScriptPanel
@@ -1354,18 +1379,21 @@ export default function PlayerScreen() {
               </Pressable>
             </View>
           }
-          <PlayerQueuePanel
-            items={queueItems}
-            isLoading={queueQuery.isPending}
-            isError={queueQuery.isError}
-            currentContentId={session.contentId}
-            showHeader={false}
-            onSelect={screen.playQueueItem}
-            onReorder={queueOrder.move}
-            categoryOf={queueCategoryOf}
-            onRetry={() => void queueQuery.refetch()}
-            onSwipeRight={() => setPanel(null)}
-          />
+          {/* 목록 위에서 시작한 세로 끌기는 축소 제스처가 가로채지 않는다(위 `isTouchOnScrollAreaRef`) */}
+          <View style={styles.queuePanelWrap} {...scrollAreaTouchHandlers}>
+            <PlayerQueuePanel
+              items={queueItems}
+              isLoading={queueQuery.isPending}
+              isError={queueQuery.isError}
+              currentContentId={session.contentId}
+              showHeader={false}
+              onSelect={screen.playQueueItem}
+              onReorder={queueOrder.move}
+              categoryOf={queueCategoryOf}
+              onRetry={() => void queueQuery.refetch()}
+              onSwipeRight={() => setPanel(null)}
+            />
+          </View>
         </Animated.View>
       </Animated.View>
 
@@ -1848,6 +1876,11 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
   scriptHandleWrap: {},
+  // 재생 목록 패널의 자리 — 패널 루트(flex 1)를 그대로 채운다. 터치 시작을 듣기 위한 래퍼다
+  queuePanelWrap: {
+    flex: 1,
+    minHeight: 0,
+  },
   // 사진 위 글자·시크바 대비 — 재생 목록이 열린 만큼 어두워진다
   queueArtFade: {
     position: 'absolute',
