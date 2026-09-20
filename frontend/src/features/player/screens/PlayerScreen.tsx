@@ -112,32 +112,54 @@ export default function PlayerScreen() {
   const [mountedPanel, setMountedPanel] = useState<PlayerPanelKind | null>(null);
   // 대본 펼침이 끝났는가 — 문단은 그 뒤에 그린다(펼침과 문단 마운트가 같은 프레임에 겹치면 끊긴다)
   const [isScriptSettled, setIsScriptSettled] = useState(false);
+  /*
+   * 펼침·접힘 모션은 **상태 변경이 화면에 반영된 뒤에** 출발시킨다(2026-09-21 iOS 실기기 — 커버가 줄어드는
+   * 모션이 렉 걸리듯 끊겼다). 이 모션은 높이·위치를 움직여 JS 스레드에서 도는데, 같은 핸들러에서 상태를 바꾸면
+   * 플레이어 화면 전체가 다시 그려지는 수십 ms 동안 모션의 첫 프레임들이 멈췄다가 건너뛴다. 두 프레임 뒤에
+   * 출발하면 그 렌더가 끝난 뒤라 첫 구간이 막히지 않는다(33ms — 손가락에는 느껴지지 않는다).
+   */
+  const panelMotionFrameRef = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (panelMotionFrameRef.current !== null) cancelAnimationFrame(panelMotionFrameRef.current);
+    },
+    [],
+  );
   const setPanel = (kind: PlayerPanelKind | null) => {
     if (kind !== null && !isPanelAvailable(kind)) return;
     if (kind !== null) screen.openPanel(kind);
     else screen.closePanel();
-    Animated.timing(queueProgress, {
-      toValue: kind === 'queue' ? 1 : 0,
-      duration: SCRIPT_TOGGLE_DURATION_MS,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
     // 스크립트 패널(히어로 위) — 열 때 마운트, 닫힘 애니메이션이 끝나면 내린다. 둘은 동시에 열리지 않는다
     const isScriptOpen = kind === 'script';
     if (isScriptOpen) setMountedPanel('script');
-    Animated.timing(panelProgress, {
-      toValue: isScriptOpen ? 1 : 0,
-      duration: SCRIPT_TOGGLE_DURATION_MS,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start(({ finished }) => {
-      if (!finished) return;
-      if (isScriptOpen) {
-        setIsScriptSettled(true);
-      } else {
-        setMountedPanel(null);
-        setIsScriptSettled(false);
-      }
+
+    const startMotion = () => {
+      panelMotionFrameRef.current = null;
+      Animated.timing(queueProgress, {
+        toValue: kind === 'queue' ? 1 : 0,
+        duration: SCRIPT_TOGGLE_DURATION_MS,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }).start();
+      Animated.timing(panelProgress, {
+        toValue: isScriptOpen ? 1 : 0,
+        duration: SCRIPT_TOGGLE_DURATION_MS,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }).start(({ finished }) => {
+        if (!finished) return;
+        if (isScriptOpen) {
+          setIsScriptSettled(true);
+        } else {
+          setMountedPanel(null);
+          setIsScriptSettled(false);
+        }
+      });
+    };
+    // 연타 — 앞서 예약한 출발은 버리고 마지막 것만 출발시킨다
+    if (panelMotionFrameRef.current !== null) cancelAnimationFrame(panelMotionFrameRef.current);
+    panelMotionFrameRef.current = requestAnimationFrame(() => {
+      panelMotionFrameRef.current = requestAnimationFrame(startMotion);
     });
   };
   // 헤더 애니메이션의 기준 치수 — 화면 폭·컨트롤 높이는 실측한다(기기마다 다르다)
