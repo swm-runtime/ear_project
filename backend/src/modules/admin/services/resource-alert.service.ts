@@ -9,6 +9,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
 
+import { isSchedulerProcess } from '@/common/cluster.util';
 import { EnvironmentVariables } from '@/config/env.validation';
 
 import {
@@ -183,6 +184,17 @@ export class ResourceAlertService implements OnModuleInit, OnModuleDestroy {
       if (this.samples.length > HISTORY_MAX) this.samples.shift();
 
       if (!this.webhookUrl) return;
+
+      /**
+       * **표본은 모든 워커가 쌓되 알림은 담당 프로세스만 보낸다.** 이 서비스는 컨테이너가 아니라
+       * 호스트 전체 지표를 읽으므로(`/proc/stat`) 워커마다 같은 값을 보고 각자 Slack 에 보내면
+       * 같은 알림이 워커 수만큼 간다. 표본을 막지 않는 이유는 어드민 "서버 상태" 그래프가
+       * 어느 워커의 응답이든 그려져야 하기 때문이다 — 값 자체는 호스트 전체라 어느 쪽이든 유효하다.
+       *
+       * 이 타이머는 `@nestjs/schedule` 밖이라 `ScheduleModule` 게이팅으로 꺼지지 않는다.
+       */
+      if (!isSchedulerProcess()) return;
+
       for (const event of this.judge.update({ cpu, memory }, Date.now())) {
         await this.postToSlack(event);
       }

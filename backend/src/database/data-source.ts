@@ -2,6 +2,7 @@ import 'dotenv/config';
 
 import { DataSource, DataSourceOptions } from 'typeorm';
 
+import { perWorker } from '@/common/cluster.util';
 import { EnvironmentVariables, validateEnv } from '@/config/env.validation';
 
 import { SLOW_QUERY_MS, SlowQueryLogger } from './slow-query.logger';
@@ -42,8 +43,12 @@ export function buildDataSourceOptions(env: DatabaseEnv): DataSourceOptions {
   };
 }
 
-/** 인스턴스 1대 기준. 인스턴스를 늘리면 합이 DB `max_connections`를 넘지 않게 함께 본다 */
-const DB_POOL_SIZE = 10;
+/**
+ * 인스턴스 1대 기준의 **합**이다. 클러스터로 워커를 늘리면 워커마다 풀이 생기므로 나눠 갖는다
+ * (`perWorker` — 하한 2). 인스턴스 자체를 늘릴 때는 그 합이 DB `max_connections`(postgres 기본
+ * 100)를 넘지 않게 함께 본다.
+ */
+const DB_POOL_SIZE = perWorker(10, 2);
 /** 풀에서 연결을 받기까지의 대기 상한 — 넘기면 예외로 드러난다 */
 const DB_CONNECTION_TIMEOUT_MS = 5_000;
 /** 유휴 연결 회수 — 야간처럼 트래픽이 없을 때 DB 쪽 세션을 오래 붙들지 않는다 */

@@ -10,7 +10,7 @@ import { EnvironmentVariables } from '@/config/env.validation';
 
 import { AppModule } from './app.module';
 
-async function bootstrap(): Promise<void> {
+export async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const configService =
     app.get<ConfigService<EnvironmentVariables, true>>(ConfigService);
@@ -59,4 +59,10 @@ async function bootstrap(): Promise<void> {
   await app.listen(configService.get('PORT', { infer: true }));
 }
 
-void bootstrap();
+/**
+ * 기본 진입점은 `dist/cluster` 다(`Dockerfile` 의 `CMD`). 그쪽이 워커 수를 보고 이 함수를 부른다.
+ * 직접 실행(`node dist/main`)도 종전처럼 앱 하나를 띄운다 — 로컬 실측에서 쓰는 경로다.
+ */
+if (require.main === module) {
+  void bootstrap();
+}
