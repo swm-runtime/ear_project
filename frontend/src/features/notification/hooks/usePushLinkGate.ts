@@ -20,9 +20,6 @@ import { useNotificationStore } from '../store/notification.store';
  * 팝업이 뜨고, 한도 소진이면 발급 403 을 플레이어가 받아 페이월로 전환한다. 호출부는 반환한
  * 팝업 상태로 `PlayConfirmDialog`를 그린다.
  */
-/** 플레이어 모달이 걷히고 라이브러리가 자리 잡을 때까지 — 토스트가 전환에 묻히지 않게 한다 */
-const FALLBACK_TOAST_DELAY_MS = 600;
-
 export const usePushLinkGate = () => {
   const navigation = useNavigation();
   const showToast = useToastStore((s) => s.show);
@@ -35,16 +32,9 @@ export const usePushLinkGate = () => {
   }, [navigation]);
 
   const fallBackToLibrary = useCallback(() => {
+    // 플레이어는 열린 적이 없다(`openAfterIssue`) — 탭만 옮기고 바로 알린다
     goToLibrary();
-    /*
-     * 토스트는 **플레이어가 내려간 뒤에** 띄운다. 플레이어는 네이티브 모달이라 떠 있는 동안 루트의 토스트를
-     * 덮는다 — 같은 틱에 띄우면 모달이 걷히는 사이에 3초가 지나가거나 아예 가려진 채 끝난다
-     * (2026-09-20 실기기: 서버에는 404 가 찍혔고 라이브러리로는 갔는데 토스트가 안 보였다).
-     */
-    setTimeout(
-      () => showToast(NOTIFICATION_COPY.push.contentUnavailableToast),
-      FALLBACK_TOAST_DELAY_MS,
-    );
+    showToast(NOTIFICATION_COPY.push.contentUnavailableToast);
   }, [goToLibrary, showToast]);
 
   // 무엇과 동기화하나: 탭된 알림의 목적지(외부 이벤트) → 내비게이션. 집는 즉시 비워 한 번만 이동한다
@@ -63,6 +53,8 @@ export const usePushLinkGate = () => {
         // 회수·삭제된 콘텐츠 — 라이브러리로 폴백한다(4.4-4). 플레이어의 안내 화면 위에 머물지 않는다
         onWithdrawn: fallBackToLibrary,
         onNotFound: fallBackToLibrary,
+        // 재생 가능하다는 답을 받은 뒤에만 플레이어를 연다 — 없는 콘텐츠로 모달을 띄웠다 닫지 않는다
+        openAfterIssue: true,
       },
       'push',
     );

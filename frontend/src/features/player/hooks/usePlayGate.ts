@@ -21,6 +21,13 @@ export interface PlayGateTarget {
   onWithdrawn?: () => void;
   /** 발급 404 시 로드 실패 화면 대신 부른다 — 푸시 딥링크의 라이브러리 폴백용(playback.service `onNotFound`) */
   onNotFound?: () => void;
+  /**
+   * **발급이 성공한 뒤에 플레이어를 연다**(푸시 딥링크). 기본은 누르는 즉시 연다 — 목록에서 고른 재생은
+   * 메타를 이미 들고 있어 빈 화면이 없다. 푸시는 아무것도 모르는 채로 들어오고, 없는·회수된 콘텐츠면 연
+   * 플레이어를 곧바로 닫아야 하는데 **네이티브 모달을 뜨자마자 닫으면 iOS 에서 화면이 굳는다**
+   * (2026-09-20 실기기). 재생 가능하다는 답을 받은 뒤에만 열면 닫을 일이 없다.
+   */
+  openAfterIssue?: boolean;
 }
 
 interface PlayGateOptions {
@@ -65,6 +72,13 @@ export const usePlayGate = (options?: PlayGateOptions) => {
   };
 
   const startPlayback = (target: PlayGateTarget, entryPoint: PlayEntryPoint) => {
+    const isDeferred = target.openAfterIssue === true;
+    const openPlayer = () => {
+      navigation.navigate('Main', {
+        screen: 'Player',
+        params: { contentId: target.contentId },
+      });
+    };
     playbackService.start({
       contentId: target.contentId,
       entryPoint,
@@ -76,14 +90,25 @@ export const usePlayGate = (options?: PlayGateOptions) => {
           ? (result) => options.onPlayStarted?.(result, target)
           : undefined,
         onServerStateChanged: () => options?.onServerStateChanged?.(),
-        onWithdrawn: target.onWithdrawn,
+        // 플레이어가 안 떠 있으면 회수 안내(PL9)를 그릴 화면이 없다 — 세션을 내리고 진입점에 맡긴다
+        onWithdrawn: isDeferred
+          ? () => {
+              playbackService.clearSession();
+              target.onWithdrawn?.();
+            }
+          : target.onWithdrawn,
         onNotFound: target.onNotFound,
+        onIssued: isDeferred ? openPlayer : undefined,
+        // 플레이어 화면이 하던 차단 처리(usePlayerScreen)를 여기서 대신한다 — 같은 문구·같은 분기다
+        onIssueBlocked: isDeferred
+          ? (blocked) => {
+              if (blocked.kind === 'paywall') openPaywall(blocked.message ?? undefined);
+              else showToast(blocked.message ?? PLAYER_COPY.paidLimitReachedToast);
+            }
+          : undefined,
       },
     });
-    navigation.navigate('Main', {
-      screen: 'Player',
-      params: { contentId: target.contentId },
-    });
+    if (!isDeferred) openPlayer();
   };
 
   /**
