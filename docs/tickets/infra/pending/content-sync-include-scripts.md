@@ -34,11 +34,6 @@
 
 ## 처리 기록
 
-- 2026-09-20 발행. 스크립트 수정은 `feat(infra)/content-sync-on-publish` PR 에 함께 올린다(같은 두 파일을 고치므로 분리하면 충돌한다).
-- **pending 유지 사유**: 요청 4(운영 서버에서 수동 실행해 개발계 반영 확인)가 남았다. 서버 적용은 KAN-84 의 `setup-content-sync-notify.sh` 실행과 같은 시점에 한다 — SSO 로그인·pem 이 필요하다.
-
-## 처리 기록
-
 | 항목 | 값 |
 |---|---|
 | 코드 반영 | 2026-09-20 — `sync-content-export.sh`·`sync-content-import.sh` 의 `TABLES` 에 `content_scripts` 추가, upsert 충돌 키 `('content_scripts', 'content_id')`(자체 id 는 운영·개발계가 다르다), 운영에서 대본이 지워진 경우 개발계에서도 걷어내는 DELETE 추가(`content_topics` 와 같은 방식) |
