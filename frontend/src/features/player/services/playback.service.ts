@@ -85,6 +85,16 @@ export interface PlaybackCallbacks {
    * (notification.md 4.4-4). 세션은 서비스가 먼저 내린다.
    */
   onNotFound?: () => void;
+  /**
+   * 발급(audio-urls)이 성공해 세션이 재생 가능해진 직후. **플레이어를 발급 뒤에 여는 진입점**(푸시 딥링크)이
+   * 여기서 화면을 연다 — 같은 콘텐츠의 살아 있는 세션을 재사용할 때도 부른다(발급을 반복하지 않으므로).
+   */
+  onIssued?: () => void;
+  /**
+   * 발급 시점의 한도 403. **넘기면 세션을 내리고 이것만 부른다** — 플레이어가 떠 있지 않은 진입점이
+   * 페이월·한도 안내를 직접 띄운다. 안 넘기면 종전대로 세션을 `blocked`로 두고 플레이어 화면이 처리한다.
+   */
+  onIssueBlocked?: (blocked: { kind: 'paywall' | 'paid_limit'; message: string | null }) => void;
 }
 
 export interface StartPlaybackRequest {
@@ -185,6 +195,7 @@ class PlaybackService {
       if ((request.autoplay ?? true) && session.state === 'ready' && !session.isPlaying) {
         this.player?.play();
       }
+      request.callbacks?.onIssued?.();
       return;
     }
 
@@ -256,6 +267,7 @@ class PlaybackService {
 
       this.createPlayer(issue.audio.url, startPositionSec, request.autoplay ?? true, generation);
       this.scheduleUrlRefresh(issue.audio.expiresInSec);
+      this.ctx.callbacks.onIssued?.();
     } catch (error) {
       if (generation !== this.generation) return;
       this.handleIssueError(error);
@@ -274,10 +286,10 @@ class PlaybackService {
       switch (error.errorCode) {
         case ERROR_CODES.PLAY_LIMIT_EXCEEDED:
           // 발급 시점의 한도 403은 경합·딥링크에서만 난다 — 화면이 닫고 페이월로 전환(player-api.md 5장)
-          this.markBlocked('paywall', error.message);
+          this.blockAtIssue('paywall', error.message);
           return;
         case ERROR_CODES.PLAY_LIMIT_REACHED:
-          this.markBlocked('paid_limit', error.message);
+          this.blockAtIssue('paid_limit', error.message);
           return;
         case ERROR_CODES.CONTENT_WITHDRAWN:
           this.markWithdrawn();
@@ -760,6 +772,17 @@ class PlaybackService {
   }
 
   /* ── 상태 전이·정리 ── */
+
+  /** 발급 시점의 차단 — 진입점이 직접 처리하겠다고 했으면(플레이어가 안 떠 있다) 세션을 내리고 넘긴다 */
+  private blockAtIssue(kind: 'paywall' | 'paid_limit', message: string | null): void {
+    const onIssueBlocked = this.ctx?.callbacks.onIssueBlocked;
+    if (!onIssueBlocked) {
+      this.markBlocked(kind, message);
+      return;
+    }
+    this.clearSession();
+    onIssueBlocked({ kind, message });
+  }
 
   private markBlocked(kind: 'paywall' | 'paid_limit', message: string | null): void {
     this.player?.pause();
