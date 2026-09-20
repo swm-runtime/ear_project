@@ -11,6 +11,7 @@ import { runTts } from "./tts.js";
 import { runPackage } from "./package.js";
 import { runThumbnail } from "./thumbnail.js";
 import { runEnrich } from "./enrich.js";
+import { runScriptAlign } from "./script-align.js";
 
 export async function runStage(job: Job, ex: Executor): Promise<unknown> {
   switch (job.type) {
@@ -20,6 +21,7 @@ export async function runStage(job: Job, ex: Executor): Promise<unknown> {
     case "qa": return runQa(job, ex);
     case "critic": return runCritic(job, ex);
     case "critic_measure": return runCriticMeasure(job, ex);
+    case "script_align": return runScriptAlign(job); // 자막 세그먼트 소급 (0022, KAN-72 후속) — 강제 정렬, 산출물만. 반영은 콘솔
     case "enrich": return runEnrich(job, ex); // 추천 메타 부여 (KAN-53, 0021) — 산출물만 만든다. 제품 반영은 콘솔이 브라우저 세션으로 // 루브릭 개정안 측정 (0020) — 리포트를 따로 쓰고 에피소드 행은 건드리지 않는다
     case "domain_check": return runDomainCheck(job); // IO 전용 — AI 실행기 불필요
     case "tts": return runTts(job);       // IO 전용 — ElevenLabs (spec/06). 수동 트리거만

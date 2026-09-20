@@ -2,8 +2,9 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { EarContent, listEarContents, listEarJobCategories, restoreEarContent, withdrawEarContent } from "@/lib/ear";
-import { enrichStates, latestPublishEvents, logPublishEvent, requestEnrich, type PublishAction } from "../actions";
+import { enrichStates, latestPublishEvents, logPublishEvent, requestEnrich, requestScriptAlign, scriptAlignStates, type PublishAction } from "../actions";
 import { EnrichCell, isStale, type EnrichState } from "./enrich-cell";
+import { ScriptCell, type ScriptState } from "./script-cell";
 import { Badge, LinkBtn, PageHeader, Panel, Toolbar, btnCls } from "@/components/ui";
 import { fmtTime } from "@/lib/format";
 import { EarGate, EarSession, earErrMsg } from "./ear-connect";
@@ -32,6 +33,7 @@ function ContentList() {
   const [latest, setLatest] = useState<Record<string, { at: string; action: PublishAction; version: number | null }>>({});
   const [staleOnly, setStaleOnly] = useState(false); // KAN-54: 구형·없음만 보기 — 서버에 필터가 없어 전 페이지를 받아 거른다
   const [enrich, setEnrich] = useState<Record<string, EnrichState>>({});
+  const [scripts, setScripts] = useState<Record<string, ScriptState>>({}); // KAN-72 소급: 자막 정렬 작업 상태
   const [jobCats, setJobCats] = useState<string[]>([]);
 
   const load = useCallback(async (st = status, off = offset, stale = staleOnly) => {
@@ -40,15 +42,17 @@ function ContentList() {
       const shown = stale ? { items: d.items.filter(isStale), total: d.items.filter(isStale).length } : d;
       setErr(null); setData(shown); setLatest(ev);
       setEnrich(await enrichStates(shown.items.map((c) => c.id)).catch(() => ({})));
+      setScripts(await scriptAlignStates(shown.items.map((c) => c.id)).catch(() => ({})));
     } catch (e) { setErr(earErrMsg(e)); }
   }, [status, offset, staleOnly]);
   useEffect(() => { listEarJobCategories().then((r) => setJobCats(r.items.map((x) => x.name))).catch(() => setJobCats([])); }, []);
   useEffect(() => { // 재부여 작업이 도는 동안 상태를 20초마다 갱신
-    const running = Object.values(enrich).some((s) => ["queued", "claimed", "running"].includes(s.status));
+    const running = Object.values(enrich).some((s) => ["queued", "claimed", "running"].includes(s.status)) || Object.values(scripts).some((s) => ["queued", "claimed", "running"].includes(s.status));
     if (!running || !data) return;
-    const t = setInterval(() => { enrichStates(data.items.map((c) => c.id)).then(setEnrich).catch(() => {}); }, 20_000);
+    const ids = data.items.map((c) => c.id);
+    const t = setInterval(() => { enrichStates(ids).then(setEnrich).catch(() => {}); scriptAlignStates(ids).then(setScripts).catch(() => {}); }, 20_000);
     return () => clearInterval(t);
-  }, [enrich, data]);
+  }, [enrich, scripts, data]);
   useEffect(() => { queueMicrotask(() => void load()); }, [load]); // 동기 setState 회피 (react-hooks/set-state-in-effect)
 
   async function act(fn: () => Promise<unknown>) {
@@ -75,6 +79,13 @@ function ContentList() {
             void act(async () => { const r = await requestEnrich(data.items.map((c) => ({ content_id: c.id, title: c.title, description: c.description, topic_names: c.topics.map((t) => t.name), origin: c.origin })), jobCats); alert(`요청 ${r.queued}건 · 이미 진행 중 ${r.skipped}건`); });
           }}>전부 다시 뽑기</button>
         )}
+        {data && data.items.some((c) => c.status === "published" && !c.has_script) && (
+          <button className={btnCls()} disabled={busy} title="이 페이지의 자막 없는 발행 콘텐츠 전부에 자막 정렬 작업을 넣는다 (오디오 그대로 · 반영은 각 행의 [반영])" onClick={() => {
+            const targets = data.items.filter((c) => c.status === "published" && !c.has_script).map((c) => c.id);
+            if (!confirm(`${targets.length}건의 자막을 뽑을까요? 서버 워커가 발행본 오디오와 대본을 강제 정렬합니다.`)) return;
+            void act(async () => { const r = await requestScriptAlign(targets); alert(`요청 ${r.queued}건 · 진행 중 ${r.skipped}건 · 에피소드 없음 ${r.noEpisode}건`); });
+          }}>자막 없는 것 전부 뽑기</button>
+        )}
         <button className={btnCls()} onClick={() => void load()}>새로고침</button>
         {data && <span className="text-xs text-ink-soft">총 {data.total}건</span>}
       </Toolbar>
@@ -83,7 +94,7 @@ function ContentList() {
         <table className="w-full text-[13px]">
           <thead>
             <tr className="border-b border-line text-left text-[11px] uppercase tracking-wide text-ink-soft">
-              {["콘텐츠", "주제", "길이", "최근 발행", "추천 메타", "상태", ""].map((h) => <th key={h} className="px-4 py-2.5 font-semibold">{h}</th>)}
+              {["콘텐츠", "주제", "길이", "최근 발행", "추천 메타", "자막", "상태", ""].map((h) => <th key={h} className="px-4 py-2.5 font-semibold">{h}</th>)}
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
@@ -103,6 +114,7 @@ function ContentList() {
                 <td className="px-4 py-2.5 tabular-nums text-ink-soft">{Math.floor(c.duration_sec / 60)}:{String(c.duration_sec % 60).padStart(2, "0")}</td>
                 <td className="px-4 py-2.5 text-ink-soft"><LatestCell c={c} ev={latest[c.id]} /></td>
                 <td className="px-4 py-2.5"><EnrichCell c={c} st={enrich[c.id]} jobCategories={jobCats} onChange={() => void load()} /></td>
+                <td className="px-4 py-2.5"><ScriptCell c={c} st={scripts[c.id]} onChange={() => void load()} /></td>
                 <td className="px-4 py-2.5"><Badge tone={c.status === "published" ? "done" : "failed"}>{c.status}</Badge></td>
                 <td className="px-4 py-2.5 text-right">
                   <Link href={`/publish/${c.id}`} className={`${btnCls()} mr-1.5`}>상세·수정</Link>

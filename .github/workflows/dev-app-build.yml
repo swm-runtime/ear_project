@@ -9,16 +9,25 @@ name: dev-app-build
 # 언제 돌리나: **네이티브가 바뀌었을 때만**(runtimeVersion 을 올린 뒤). JS 변경은 dev 머지마다
 # preview 채널 OTA 로 나간다(eas-update.yml).
 # iOS 는 macOS 러너·Apple 인증이 필요해 여기서 뽑지 않는다 — `eas build -p ios --profile preview-store`.
+#
+# ⚠️ **직접 설치 APK 로는 구글·카카오 로그인이 안 된다.** 그래서 기본값이 aab 다(KAN-85).
+# 여기서 뽑는 APK 는 EAS 의 **업로드 키**로 서명되는데, 구글 콘솔·카카오에 등록한 지문은
+# Play 가 재서명한 **앱 서명 키**의 것이다. 지문이 달라 제공자가 앱을 못 알아보고 로그인이 막힌다.
+# aab → Play 내부 테스트로 올리면 Play 가 앱 서명 키로 다시 서명하므로 지문이 맞는다.
+# APK 는 **로그인이 필요 없는 화면만 볼 때**의 예외 경로다 — 아래 format 입력의 apk 선택지가 그것이다.
+#
 # 1회 설정: repo secret EXPO_TOKEN (eas-update.yml 과 같은 값)
+#           repo secret GOOGLE_PLAY_SERVICE_ACCOUNT_JSON (Play Console 서비스 계정 키 JSON 전문)
 
 on:
   workflow_dispatch:
     inputs:
       format:
-        description: 'apk = 직접 설치용 · aab = Play Console 내부 테스트 업로드용'
+        # 기본값이 aab 인 이유는 위 서명 함정 주석 참조 — apk 는 로그인이 필요 없는 화면 확인용 예외다
+        description: 'aab = Play 내부 테스트 자동 업로드(로그인 됨) · apk = 직접 설치, 소셜 로그인 불가'
         type: choice
-        options: [apk, aab]
-        default: apk
+        options: [aab, apk]
+        default: aab
 
 concurrency:
   group: dev-app-build
@@ -87,3 +96,32 @@ jobs:
           name: ear-preview-${{ inputs.format }}
           path: ear-preview.${{ inputs.format }}
           retention-days: 30
+
+      # Play 내부 테스트 업로드 — aab 일 때만(KAN-85).
+      #
+      # `--latest` 가 아니라 `--path` 다: 그건 **EAS 클라우드 빌드**의 최신 산출물을 가리키는데
+      # 여기는 `--local` 빌드라 EAS 서버에 올라간 것이 없다. 러너가 방금 만든 파일을 직접 준다.
+      #
+      # 키는 파일로만 받는다(eas.json 의 serviceAccountKeyPath). 저장소에 커밋하지 않고 여기서
+      # secret 을 풀어 쓰며, 잡이 끝나면 러너와 함께 사라진다. 파일명은 frontend/.gitignore 에 박아
+      # 두었다 — *.json 은 무시 대상이 아니라 이름으로 막아야 실수로 커밋되지 않는다.
+      - name: Play 내부 테스트 업로드
+        if: inputs.format == 'aab'
+        working-directory: frontend
+        env:
+          KEY_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -z "$KEY_JSON" ]; then
+            echo "::error::GOOGLE_PLAY_SERVICE_ACCOUNT_JSON 이 없다 — Play 업로드를 건너뛴다."
+            echo "  Play Console 에서 서비스 계정 키를 발급하고 dev.runtime.ear 릴리스 권한을 준 뒤"
+            echo "  레포 secret 으로 등록할 것(KAN-85 요청 1 — 계정 소유자만 가능)."
+            echo "  그때까지는 위 아티팩트(ear-preview-aab)를 받아 콘솔에 직접 올린다."
+            exit 1
+          fi
+          printf '%s' "$KEY_JSON" > play-service-account.json
+          trap 'rm -f play-service-account.json' EXIT
+          eas submit \
+            --platform android \
+            --profile preview-store \
+            --path "$GITHUB_WORKSPACE/ear-preview.aab" \
+            --non-interactive

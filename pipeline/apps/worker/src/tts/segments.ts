@@ -13,6 +13,9 @@ import type { TimestampedSynth } from "./elevenlabs.js";
 
 export interface ScriptSegment { start_sec: number; end_sec: number; speaker: string | null; text: string }
 
+/** 화면용 원문 — 대본에 남은 TTS 감정 태그("[surprised]" 류, v3 시절 구 대본)는 읽을 글이 아니라 뺀다 */
+export const displayText = (s: string) => s.replace(/\[[a-z][a-z _-]{1,24}\]/g, "").replace(/\s{2,}/g, " ").trim();
+
 export interface ChunkTurn { speaker: string; text: string; ttsText: string; tempo: number }
 
 /** 배속 전 요청 시각 → 배속 후 시각. 경계 b[i]=턴 i 시작(b[0]=0), 조각 i 의 배속 tempo[i] */
@@ -51,7 +54,7 @@ export function chunkSegments(turns: ChunkTurn[], ts: TimestampedSynth, starts: 
     if (at >= 0) cursor = at + needle.length;
     const pieces = at >= 0 && turnEnd - turnStart > maxTurnSec ? splitLong(t, ts, map, hay, at, starts, tempos, turnStart, turnEnd, maxTurnSec) : null;
     if (pieces) out.push(...pieces);
-    else out.push({ start_sec: turnStart, end_sec: turnEnd, speaker: t.speaker, text: t.text });
+    else out.push({ start_sec: turnStart, end_sec: turnEnd, speaker: t.speaker, text: displayText(t.text) });
   }
   return out;
 }
@@ -80,7 +83,7 @@ function splitLong(t: ChunkTurn, ts: TimestampedSynth, map: number[], hay: strin
     const nextEnd = k + 2 <= orig.length ? (k + 2 < orig.length ? sentStart[k + 2] : turnEnd) : turnEnd;
     const closeHere = k + 1 === orig.length || nextEnd - sentStart[gStart] > maxSec;
     if (closeHere) {
-      out.push({ start_sec: sentStart[gStart], end_sec: endOfK, speaker: t.speaker, text: orig.slice(gStart, k + 1).join(" ") });
+      out.push({ start_sec: sentStart[gStart], end_sec: endOfK, speaker: t.speaker, text: displayText(orig.slice(gStart, k + 1).join(" ")) });
       gStart = k + 1;
     }
   }

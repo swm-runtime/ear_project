@@ -206,6 +206,52 @@ export async function enrichStates(contentIds: string[]): Promise<Record<string,
   for (const cid of contentIds) { if (ready.has(cid)) { (out[cid] ??= { status: "done", error: null, at: null, ready: true }).ready = true; } }
   return out;
 }
+/** 자막 세그먼트 소급 요청 (0022, KAN-72 후속 · spec/06 7장): 발행 콘텐츠 → 연결된 에피소드의 dist.mp3·대본을 강제 정렬. 에피소드 연결이 없으면(수동 업로드) 못 뽑는다 */
+export async function requestScriptAlign(contentIds: string[]) {
+  const sb = await supabaseServer();
+  const [{ data: bls }, { data: active }] = await Promise.all([
+    sb.from("backlog").select("id,published_content_ref").in("published_content_ref", contentIds),
+    sb.from("jobs").select("payload").eq("type", "script_align").in("status", ["queued", "claimed", "running"]),
+  ]);
+  const backlogOf = new Map((bls ?? []).map((b) => [String(b.published_content_ref), b.id]));
+  const { data: eps } = backlogOf.size ? await sb.from("episodes").select("id,backlog_id").in("backlog_id", [...backlogOf.values()]) : { data: [] as { id: string; backlog_id: string }[] };
+  const episodeOf = new Map((eps ?? []).map((e) => [e.backlog_id, e.id]));
+  const running = new Set((active ?? []).map((j) => String((j.payload as { content_id?: string } | null)?.content_id ?? "")));
+  let queued = 0, skipped = 0, noEpisode = 0;
+  for (const cid of contentIds) {
+    if (running.has(cid)) { skipped++; continue; }
+    const bid = backlogOf.get(cid); const episode_id = bid ? episodeOf.get(bid) ?? null : null;
+    if (!episode_id) { noEpisode++; continue; }
+    const { error } = await sb.from("jobs").insert({ type: "script_align", requires_ai: false, status: "queued", payload: { content_id: cid, episode_id, backlog_id: bid } });
+    if (error) throw new Error(error.message);
+    queued++;
+  }
+  return { queued, skipped, noEpisode };
+}
+/** 콘텐츠별 최근 script_align 작업 상태 + 산출물 유무 — 발행 목록의 자막 셀이 읽는다 */
+export async function scriptAlignStates(contentIds: string[]): Promise<Record<string, { status: string; error: string | null; episode_id: string | null; ready: boolean }>> {
+  if (!contentIds.length) return {};
+  const sb = await supabaseServer();
+  const { data: bls } = await sb.from("backlog").select("id,published_content_ref").in("published_content_ref", contentIds);
+  const backlogOf = new Map((bls ?? []).map((b) => [String(b.published_content_ref), b.id]));
+  const { data: eps } = backlogOf.size ? await sb.from("episodes").select("id,backlog_id").in("backlog_id", [...backlogOf.values()]) : { data: [] as { id: string; backlog_id: string }[] };
+  const episodeOf = new Map((eps ?? []).map((e) => [e.backlog_id, e.id]));
+  const out: Record<string, { status: string; error: string | null; episode_id: string | null; ready: boolean }> = {};
+  for (const cid of contentIds) { const bid = backlogOf.get(cid); out[cid] = { status: "none", error: null, episode_id: bid ? episodeOf.get(bid) ?? null : null, ready: false }; }
+  const { data: jobs } = await sb.from("jobs").select("payload,status,error,created_at").eq("type", "script_align").order("created_at", { ascending: false }).limit(500);
+  const seen = new Set<string>();
+  for (const j of jobs ?? []) { const cid = String((j.payload as { content_id?: string } | null)?.content_id ?? ""); if (!(cid in out) || seen.has(cid)) continue; seen.add(cid); out[cid].status = j.status; out[cid].error = (j.error as string | null) ?? null; }
+  const { data: runs } = await sb.from("runs").select("artifacts").eq("phase", "script_align").order("executed_at", { ascending: false }).limit(500);
+  const ready = new Set<string>();
+  for (const r of runs ?? []) for (const a of (r.artifacts as string[] | null) ?? []) { const m = String(a).match(/episodes\/([A-Za-z0-9-]+)\/script-segments\.json$/); if (m) ready.add(m[1]); }
+  for (const cid of contentIds) if (out[cid].episode_id && ready.has(out[cid].episode_id!)) out[cid].ready = true;
+  return out;
+}
+/** 자막 세그먼트 본문 — 브라우저가 File 로 감싸 script_file 로 PATCH 한다 */
+export async function readScriptSegments(episodeId: string): Promise<string | null> {
+  if (!/^[A-Za-z0-9-]{1,64}$/.test(episodeId)) throw new Error("잘못된 episode_id");
+  return getText(`episodes/${episodeId}/script-segments.json`);
+}
 /** 산출물 본문 — 브라우저가 File 로 감싸 PATCH 한다 (S3 는 서버가 중계) */
 export async function readEnrichment(contentId: string): Promise<string | null> {
   if (!/^[A-Za-z0-9-]{1,64}$/.test(contentId)) throw new Error("잘못된 content_id");

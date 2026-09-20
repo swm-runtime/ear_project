@@ -8,6 +8,7 @@ import { ERROR_CODES } from '@/shared/api/error-codes';
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { generateId } from '@/shared/lib/generate-id';
 import { logger } from '@/shared/lib/logger';
+import { toTab } from '@/shared/navigation/to-tab';
 import { useToastStore } from '@/shared/ui/toast.store';
 
 import {
@@ -467,7 +468,7 @@ export const useLibraryScreen = () => {
   };
 
   const goToExplore = () => {
-    navigation.navigate('Main', { screen: 'Tabs', params: { screen: 'Explore' } });
+    navigation.navigate('Main', toTab('Explore'));
   };
 
   return {

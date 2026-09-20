@@ -98,6 +98,12 @@
   자막보다 없는 편이 낫다(앱은 없으면 대본 버튼을 숨긴다). 배속을 끄면(env 둘 다 1) 정렬을 요청하지 않으므로 역시 없다.
   샘플 합성은 만들지 않는다. 발행 화면이 이 파일을 `script_file`로 첨부한다(spec/07 2장 · `admin-api.md` 4.6).
   구현: `apps/worker/src/tts/segments.ts` (단위 테스트 `segments.test.ts`).
+  **기존 발행분 소급 — `script_align` 작업**(2026-09-20, 0022): 배속 정렬을 저장한 편이 없어(85편 중 0) 발행본 `dist.mp3`와 대본을
+  ElevenLabs **강제 정렬**(`POST /v1/forced-alignment`)에 넣어 글자 시각을 받고 같은 `script-segments.json`을 만든다. 정렬에 보내는 글은 합성
+  때와 같은 정규화 표기(음차 사전 + 발음 맵), 세그먼트 `text`는 원문. 정렬 시각이 곧 배포본 시각이라 배속·무음 계산이 없다. 턴 경계를
+  못 찾으면 실패(세그먼트 없음). 오디오를 다시 만들지 않으므로 반영은 `script_file` 단독 PATCH — 콘텐츠 버전 무변경·재생 위치 보존
+  (`admin-api.md` 4.10). 대상은 **서비스에 발행된 콘텐츠만** — 발행 목록 자막 셀 [자막 뽑기] → [반영], "자막 없는 것 전부 뽑기".
+  ElevenLabs 키가 있는 워커(서버)만 집는다(claim_job 게이트). 구현: `stages/script-align.ts`, `tts/elevenlabs.ts` `forcedAlignment`.
 
 ## 8. 검수·기록
 

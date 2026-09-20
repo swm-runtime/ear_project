@@ -127,6 +127,8 @@ export interface EarContent {
   enrichment_applied?: boolean; enrichment_rejected_reason?: string;
   /** 요청에 script_file 이 있었을 때만 (4.6·4.10, KAN-71) — 서버 검증에 어긋나면 파일만 거부되고 업로드는 진행된다 */
   script_applied?: boolean; script_rejected_reason?: string;
+  /** 자막 세그먼트(content_scripts) 적재 여부 (admin-api 8장, KAN-71) */
+  has_script?: boolean;
 }
 /** 현재 추천 메타 형식 버전 — 원본은 서버 CURRENT_ENRICHMENT_SCHEMA_VERSION(admin-api 4.6 "현재 형식 2"). 목록 응답이 현재 버전을 싣게 되면(BE 티켓) 그 값으로 바꾼다 */
 export const ENRICHMENT_SCHEMA_VERSION_FALLBACK = 2;

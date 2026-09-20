@@ -78,6 +78,24 @@ export interface PlaybackCallbacks {
   onServerStateChanged?: () => void;
   /** CONTENT_WITHDRAWN(403) — 진입점별 정리(목록 제거·미니플레이어 내림) */
   onWithdrawn?: () => void;
+  /**
+   * 발급 시점의 CONTENT_NOT_FOUND(404) — **넘기면 플레이어의 로드 실패 화면 대신 이것만 부른다.**
+   * 목록에서 고른 콘텐츠가 404 인 것은 드문 경합이라 [다시 시도]가 있는 화면이 맞지만, 푸시 딥링크는
+   * 애초에 볼 목록이 없었다 — 없는 콘텐츠의 플레이어에 세워 두지 않고 라이브러리로 돌려보낸다
+   * (notification.md 4.4-4). 세션은 서비스가 먼저 내린다.
+   */
+  onNotFound?: () => void;
+  /**
+   * 발급(audio-urls)이 성공해 세션이 재생 가능해진 직후. **플레이어를 발급 뒤에 여는 진입점**(푸시 딥링크)이
+   * 여기서 화면을 연다 — 같은 콘텐츠의 살아 있는 세션을 재사용할 때도 부른다(발급을 반복하지 않으므로).
+   * `isReusedSession` 이면 이미 재생 시작을 기록한 세션이다 — 이어 재생해도 새로 차감되지 않는다.
+   */
+  onIssued?: (info: { isReusedSession: boolean }) => void;
+  /**
+   * 발급 시점의 한도 403. **넘기면 세션을 내리고 이것만 부른다** — 플레이어가 떠 있지 않은 진입점이
+   * 페이월·한도 안내를 직접 띄운다. 안 넘기면 종전대로 세션을 `blocked`로 두고 플레이어 화면이 처리한다.
+   */
+  onIssueBlocked?: (blocked: { kind: 'paywall' | 'paid_limit'; message: string | null }) => void;
 }
 
 export interface StartPlaybackRequest {
@@ -178,6 +196,7 @@ class PlaybackService {
       if ((request.autoplay ?? true) && session.state === 'ready' && !session.isPlaying) {
         this.player?.play();
       }
+      request.callbacks?.onIssued?.({ isReusedSession: true });
       return;
     }
 
@@ -249,6 +268,7 @@ class PlaybackService {
 
       this.createPlayer(issue.audio.url, startPositionSec, request.autoplay ?? true, generation);
       this.scheduleUrlRefresh(issue.audio.expiresInSec);
+      this.ctx.callbacks.onIssued?.({ isReusedSession: false });
     } catch (error) {
       if (generation !== this.generation) return;
       this.handleIssueError(error);
@@ -267,18 +287,26 @@ class PlaybackService {
       switch (error.errorCode) {
         case ERROR_CODES.PLAY_LIMIT_EXCEEDED:
           // 발급 시점의 한도 403은 경합·딥링크에서만 난다 — 화면이 닫고 페이월로 전환(player-api.md 5장)
-          this.markBlocked('paywall', error.message);
+          this.blockAtIssue('paywall', error.message);
           return;
         case ERROR_CODES.PLAY_LIMIT_REACHED:
-          this.markBlocked('paid_limit', error.message);
+          this.blockAtIssue('paid_limit', error.message);
           return;
         case ERROR_CODES.CONTENT_WITHDRAWN:
           this.markWithdrawn();
           return;
-        case ERROR_CODES.CONTENT_NOT_FOUND:
+        case ERROR_CODES.CONTENT_NOT_FOUND: {
           // 목록 제거는 진입점 몫 — 화면은 로드 실패 처리다(common-error-handling.md 9장)
-          this.ctx?.callbacks.onServerStateChanged?.();
+          const callbacks = this.ctx?.callbacks;
+          callbacks?.onServerStateChanged?.();
+          if (callbacks?.onNotFound) {
+            // 진입점이 폴백을 맡았다(푸시 딥링크) — 세션을 내려 미니플레이어에도 남기지 않는다
+            this.clearSession();
+            callbacks.onNotFound();
+            return;
+          }
           break;
+        }
         default:
           break;
       }
@@ -444,6 +472,20 @@ class PlaybackService {
   }
 
   /* ── 컨트롤 ── */
+
+  /**
+   * `autoplay: false` 로 발급만 받아 둔 세션을 재생한다 — 푸시 딥링크가 **발급 → 확인 팝업 → 재생** 순서를
+   * 밟기 위한 두 번째 걸음이다(KAN-86). 오디오가 아직 로드 중이면 로드가 끝나는 대로 재생한다.
+   * 차감은 종전대로 소리가 실제로 난 시점에 한 번 일어난다(`reportPlayStart`).
+   */
+  playWhenReady(): void {
+    if (this.pendingSetup) {
+      this.pendingSetup = { ...this.pendingSetup, autoplay: true };
+      return;
+    }
+    const session = store.getState().session;
+    if (session?.state === 'ready' && !session.isPlaying) this.player?.play();
+  }
 
   togglePlayPause(): void {
     const session = store.getState().session;
@@ -745,6 +787,17 @@ class PlaybackService {
   }
 
   /* ── 상태 전이·정리 ── */
+
+  /** 발급 시점의 차단 — 진입점이 직접 처리하겠다고 했으면(플레이어가 안 떠 있다) 세션을 내리고 넘긴다 */
+  private blockAtIssue(kind: 'paywall' | 'paid_limit', message: string | null): void {
+    const onIssueBlocked = this.ctx?.callbacks.onIssueBlocked;
+    if (!onIssueBlocked) {
+      this.markBlocked(kind, message);
+      return;
+    }
+    this.clearSession();
+    onIssueBlocked({ kind, message });
+  }
 
   private markBlocked(kind: 'paywall' | 'paid_limit', message: string | null): void {
     this.player?.pause();

@@ -5,6 +5,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
 
+import { isSchedulerProcess } from '@/common/cluster.util';
 import { AllExceptionsFilter } from '@/common/filters/all-exceptions.filter';
 import { RateLimitGuard } from '@/common/guards/rate-limit.guard';
 import { LoggingInterceptor } from '@/common/interceptors/logging.interceptor';
@@ -53,7 +54,12 @@ import { UserModule } from '@/modules/user/user.module';
     }),
     // 첫 드립 재시도(`FirstDripRetryScheduler`)가 도는 근거.
     // 별도 큐 인프라 대신 DB 작업 테이블 + 스케줄러를 쓴다 (architecture.md 미결 사항)
-    ScheduleModule.forRoot(),
+    //
+    // **담당 프로세스에서만 등록한다.** 클러스터로 워커를 늘릴 때 워커마다 등록하면 매일 편성
+    // 배치가 워커 수만큼 돈다. 이 모듈이 없으면 explorer 가 돌지 않아 `@Cron`·`@Interval` 이
+    // 아예 등록되지 않는다(`SchedulerRegistry` 를 주입하는 코드가 없어 DI 도 깨지지 않는다).
+    // 단일 프로세스면 항상 참이라 종전과 같다 — `common/cluster.util.ts`
+    ...(isSchedulerProcess() ? [ScheduleModule.forRoot()] : []),
     // architecture.md 9.6 — 전역 기본 한도. 라우트별 한도는 `@Throttle`, 제외는 `@SkipThrottle`
     ThrottlerModule.forRoot({
       throttlers: [

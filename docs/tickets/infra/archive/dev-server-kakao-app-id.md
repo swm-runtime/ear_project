@@ -10,7 +10,7 @@
 | 발견 시점 | KAN-80 실기기 확인(2026-09-20 03:36 KST) — 개발계 앱의 카카오 로그인이 iOS·Android 모두 실패. 구글(iOS)·네이버(Android)는 성공 |
 | 근거 문서 | `backend/src/modules/auth/providers/kakao.client.ts`(`assertIssuedForOurApp`) · `backend/src/config/env.validation.ts`(`KAKAO_APP_ID`) · `infra/inventory.md` 3장("소셜 앱 ID는 운영과 동일") · `tickets/infra/archive/dev-server-apple-client-id.md`(KAN-77 — 같은 절차) |
 | 중요도 | **High**(오늘 안) — 카카오는 가입 비중이 가장 큰 경로다. 이게 막혀 있으면 개발계 앱으로 카카오 계정 흐름을 검증할 수 없고, KAN-80 을 닫지 못한다 |
-| 상태 | 대기 |
+| 상태 | **완료**(2026-09-20) — PM 실기기 확인 |
 
 ## 문제 — 로그로 확정했다
 
@@ -45,3 +45,4 @@ WARN [KakaoClient] kakao access token was issued for another app { app_id: 15334
 ## 처리 기록
 
 - 2026-09-20 발행. FE 세션에서 서버 값까지 바꾸려 했으나 개발계 키페어(`ear-dev-isb.pem`)가 이 PC 에 없고 인스턴스가 SSM 관리 대상이 아니라 접속 수단이 없었다 — 우회(EC2 Instance Connect 로 임시 키 밀어 넣기)는 하지 않았다.
+- 2026-09-20 **완료 — archive 로 옮긴다. 반영 날짜: 2026-09-20.** 인프라 개편 작업에서 개발계 서버의 `KAKAO_APP_ID` 가 개발계 카카오 앱 값으로 맞춰졌다. **PM 이 개발계 앱에서 카카오 로그인 성공을 확인했다**(완료 조건 1). 운영 서버는 건드리지 않았다.
