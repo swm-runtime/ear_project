@@ -1,4 +1,5 @@
 import { Image, type ImageStyle } from 'expo-image';
+import { useCallback, useRef } from 'react';
 import type { StyleProp } from 'react-native';
 
 interface RemoteImageProps {
@@ -11,6 +12,14 @@ interface RemoteImageProps {
   recyclingKey?: string;
   onLoad?: () => void;
   onError?: () => void;
+  /**
+   * **크기가 애니메이션으로 바뀌는 자리**(플레이어 아트워크)에 켠다. expo-image 는 뷰의 크기가 바뀔 때마다
+   * 이미지를 다시 불러온다(iOS `ImageView.bounds.didSet → reload()`, 표시 크기에 맞춰 다시 줄이려는 것) —
+   * 크기를 매 프레임 움직이면 **매 프레임 다시 불러와** 모션이 끊긴다(2026-09-21 iOS 실기기: 대본을 펼칠 때
+   * 아트워크가 줄어드는 모션). 로드가 끝나면 리소스를 잠가(`lockResourceAsync`) 그 뒤의 크기 변화에는 다시
+   * 불러오지 않는다. 잠근 뷰는 주소가 바뀌어도 새로 불러오지 않으므로 **호출부가 `key={uri}` 로 새로 만든다.**
+   */
+  isResized?: boolean;
 }
 
 /**
@@ -40,15 +49,36 @@ export default function RemoteImage({
   recyclingKey,
   onLoad,
   onError,
+  isResized = false,
 }: RemoteImageProps) {
+  const imageRef = useRef<Image>(null);
+  const handleLoad = useCallback(() => {
+    if (isResized) {
+      // 잠금 실패는 넘긴다 — 모션이 끊길 뿐 그림은 그대로 보인다. 웹에는 이 메서드가 없을 수 있다
+      try {
+        const view = imageRef.current;
+        if (view && typeof view.lockResourceAsync === 'function') {
+          view.lockResourceAsync().catch(() => undefined);
+        }
+      } catch {
+        // 네이티브 뷰가 이미 내려간 경우 — 할 일이 없다
+      }
+    }
+    onLoad?.();
+  }, [isResized, onLoad]);
+
   return (
     <Image
+      ref={imageRef}
       source={{ uri }}
       style={style}
       contentFit="cover"
       cachePolicy="disk"
+      // 잠그는 자리는 원본 해상도로 풀어 둔다 — 작을 때(미니플레이어 자리·압축 헤더) 로드돼 그 크기로 줄여진 채
+      // 잠기면 커졌을 때 흐리다. 플레이어 아트워크 한두 장이라 메모리 부담은 작다(768px WebP)
+      allowDownscaling={!isResized}
       recyclingKey={recyclingKey}
-      onLoad={onLoad}
+      onLoad={handleLoad}
       onError={onError}
     />
   );

@@ -1006,7 +1006,13 @@ export default function PlayerScreen() {
           onLayout={onHeroArtLayout}
         >
           {session.meta.thumbnailUrl ? (
-            <RemoteImage uri={session.meta.thumbnailUrl} style={styles.artwork} />
+            <RemoteImage
+              // 잠긴 뷰는 주소가 바뀌어도 다시 불러오지 않는다 — 콘텐츠가 바뀌면 새로 만든다
+              key={session.meta.thumbnailUrl}
+              uri={session.meta.thumbnailUrl}
+              style={styles.artwork}
+              isResized
+            />
           ) : (
             <View style={[styles.artwork, styles.artworkPlaceholder]} />
           )}
@@ -1426,8 +1432,10 @@ export default function PlayerScreen() {
           >
             {session.meta.thumbnailUrl ? (
               <RemoteImage
+                key={session.meta.thumbnailUrl}
                 uri={session.meta.thumbnailUrl}
                 style={styles.artwork}
+                isResized
                 // onLoad 직후 한 프레임은 아직 그려지기 전이다 — 다음 프레임에 출발해야 첫 컷이 비지 않는다
                 onLoad={() => requestAnimationFrame(() => setIsMorphImageReady(true))}
                 onError={() => setIsMorphImageReady(true)}
