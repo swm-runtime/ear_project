@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 /**
  * 백엔드 준비 후 실서버로 붙일 때는 EXPO_PUBLIC_SETTINGS_API=real 로 전환한다.
  */
@@ -22,7 +24,19 @@ export const KAKAO_CHANNEL_URL =
 export const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL ?? 'https://earcast.co.kr/terms';
 export const PRIVACY_POLICY_URL =
   process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL ?? 'https://earcast.co.kr/privacy';
-/** [업데이트] 버튼의 목적지. 스토어 게시 전에는 Play 가 "찾을 수 없음"을 보여준다 */
+/**
+ * [업데이트] 버튼의 목적지 — **플랫폼마다 스토어가 다르다.**
+ *
+ * 한쪽 값만 두면 반대 플랫폼 사용자가 남의 스토어로 간다. iOS 앱이 심사를 통과한 지금
+ * Play 고정값을 그대로 두면 iOS 사용자가 Play 로 떨어진다 — 이 파일이 폴백을 실값으로
+ * 두는 이유(env 누락이 조용히 사고가 되지 않게)와 같은 종류의 사고다.
+ *
+ * iOS 앱 ID 는 `frontend/eas.json` 의 `submit.production.ios.ascAppId` 와 같은 값이다.
+ * 스토어 게시 전에는 어느 쪽이든 "찾을 수 없음"을 보여준다 — [업데이트] 는 서버가 강제
+ * 업데이트를 지시할 때만 뜨고 그 시점은 게시 이후다.
+ */
+const IOS_STORE_URL = 'https://apps.apple.com/app/id6807708636';
+const ANDROID_STORE_URL = 'https://play.google.com/store/apps/details?id=com.runtime.ear';
 export const STORE_URL =
   process.env.EXPO_PUBLIC_STORE_URL ??
-  'https://play.google.com/store/apps/details?id=com.runtime.ear';
+  (Platform.OS === 'ios' ? IOS_STORE_URL : ANDROID_STORE_URL);

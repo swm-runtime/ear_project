@@ -8,7 +8,7 @@
 | 발견 시점 | 2026-09-03 App Links 인프라 완료 후 공유 기능 상태를 점검하다 — **코드·인프라는 전부 준비됐는데 빌드 타임 플래그 하나로 꺼져 있다**는 것을 확인 |
 | 근거 문서 | `features/share.md` 2장(P1 활성화 조건) · `spec/uiux/share-uiux.md` 6·9장(카피 미확정) · README 결정 42 |
 | 심각도 | **중** — 기능 자체는 완성돼 있어 위험은 없다. 다만 **빌드 타임 상수라 다음 빌드를 놓치면 그다음 빌드까지 못 켠다** |
-| 상태 | pending — 요청 1~3 완료. 요청 4(스토어 링크)는 값 확정, **Play 게시 대기** |
+| 상태 | pending — 요청 1~3 완료. 요청 4(스토어 링크)는 값 확정, **양 스토어 게시 대기**(iOS 심사 통과·미게시 확인 2026-09-20) |
 | Jira | [KAN-34](https://runtime364.atlassian.net/browse/KAN-34) |
 
 ## 배경 — 스위치 하나만 꺼져 있다
@@ -126,3 +126,22 @@ iOS 값의 출처는 `frontend/eas.json`의 `submit.production.ios.ascAppId = 68
 랜딩 `StoreRedirect.tsx`의 두 상수는 `null`로 둔다(게시 전에 채우면 방문자가 안내 페이지 대신
 Play "찾을 수 없음" 오류를 본다). 게시되면 ① 위에 적힌 두 줄 교체 ② 미설치 기기에서 링크 탭 —
 두 단계로 닫힌다. **조사할 것은 없다.**
+
+## 진행 기록 (2026-09-20 — iOS 심사 통과. 그런데 **아직 게시되지 않았다**)
+
+- iOS 심사 통과 소식에 요청 4(스토어 링크)를 닫을 수 있는지 확인했다. **아직 아니다.**
+
+  | 확인 | 결과 |
+  |---|---|
+  | `https://apps.apple.com/kr/app/id6807708636` (운영) | **404** |
+  | `https://apps.apple.com/kr/app/id6813738593` (개발계) | 404 |
+  | `https://apps.apple.com/kr/app/id284882215` (대조군) | 301 — 조회 경로 자체는 정상 |
+  | iTunes Lookup API `id=6807708636` | `resultCount: 0` |
+
+  심사 통과와 게시는 다르다 — App Store Connect 에서 **출시 버튼**(출시 대기 상태) 또는 자동 출시 처리가 아직 끝나지 않았다.
+
+- 따라서 랜딩 `contents/StoreRedirect.tsx` 의 `IOS_STORE_URL` 은 **계속 `null` 로 둔다.** 지금 채우면 미설치 방문자가 안내 문구 대신 "찾을 수 없음" 페이지를 본다 — 지금 설계가 의도적으로 피하는 상태다. 게시가 확인되면 그때 채운다.
+
+- **대신 앱 쪽은 고쳤다**(`fix(fe)/store-url-per-platform`). `settings.constants.ts` 의 `STORE_URL` 이 플랫폼과 무관하게 Play 고정이라, iOS 가 게시되는 순간 iOS 사용자의 [업데이트] 가 Play 로 떨어진다. `Platform.OS` 로 갈라 두었다 — 게시 전에 미리 고쳐 두는 쪽이 맞다(이 버튼은 서버가 강제 업데이트를 지시할 때만 뜨고, 그 시점은 게시 이후다).
+
+- 공유 플래그 자체는 이미 켜져 있다 — `IS_SHARE_ENABLED` 의 기본값이 켬이고 `eas.json` 에 `EXPO_PUBLIC_SHARE_ENABLED` 가 없다. **이번 빌드에 공유가 들어가 나갔다**(요청 3 의 의도대로).
