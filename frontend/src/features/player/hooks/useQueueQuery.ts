@@ -19,14 +19,16 @@ export const queueKeys = {
  * 브리지가 아직 주입되지 않았으면(부트스트랩 전) 빈 목록으로 둔다 — 던지면 패널이 에러로 뜨는데,
  * 원인은 서버가 아니라 기동 순서다.
  */
+export const fetchQueueItems = async (): Promise<QueueItem[]> => {
+  // 기기 저장 시절의 순서가 남아 있으면 조회 **전에** 올린다 — 그래야 첫 조회부터 그 순서로 온다
+  await migrateLocalQueueOrder();
+  return (await getPlayerLibraryBridge()?.fetchQueue()) ?? [];
+};
+
 export const useQueueQuery = (enabled: boolean) =>
   useQuery<QueueItem[]>({
     queryKey: queueKeys.all,
-    queryFn: async () => {
-      // 기기 저장 시절의 순서가 남아 있으면 조회 **전에** 올린다 — 그래야 첫 조회부터 그 순서로 온다
-      await migrateLocalQueueOrder();
-      return (await getPlayerLibraryBridge()?.fetchQueue()) ?? [];
-    },
+    queryFn: fetchQueueItems,
     enabled,
     staleTime: 0,
   });

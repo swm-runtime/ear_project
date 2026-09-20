@@ -1,13 +1,16 @@
 import { useNavigation } from '@react-navigation/native';
+import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { useToastStore } from '@/shared/ui/toast.store';
 
 import { PLAYER_COPY } from '../player.copy';
 import type { PlaybackStartMeta, PlayEntryPoint, PlayStartResult } from '../player.types';
+import { fetchQueueItems, queueKeys } from './useQueueQuery';
 import { suppressPlayConfirmForToday } from '../services/play-confirm-suppression.service';
 import { playbackService } from '../services/playback.service';
 import { usePlayLimitStore } from '../store/play-limit.store';
+import { usePlaybackStore } from '../store/playback.store';
 
 export interface PlayGateTarget {
   contentId: string;
@@ -48,6 +51,11 @@ interface ConfirmState {
   entryPoint: PlayEntryPoint;
   /** 팝업에 적는 남은 횟수 — N = max(0, limit - count)는 화면이 계산한다(library-api.md 2) */
   remaining: number;
+  /**
+   * 발급을 이미 받아 둔 재생인가(푸시 딥링크 — `openAfterIssue`). [재생하기]는 새로 시작하지 않고 받아 둔
+   * 세션을 재생하며, [취소]는 그 세션을 내린다(미니플레이어에 남기지 않는다).
+   */
+  isIssued: boolean;
 }
 
 /**
@@ -63,22 +71,19 @@ export const usePlayGate = (options?: PlayGateOptions) => {
   const navigation = useNavigation();
   const showToast = useToastStore((s) => s.show);
   const playLimit = usePlayLimitStore((s) => s.playLimit);
-  const suppressedServiceDate = usePlayLimitStore((s) => s.suppressedServiceDate);
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
+  const queryClient = useQueryClient();
 
   /* TODO(paywall feature): 페이월 바텀시트(paywall.md 4.5)로 교체한다 */
   const openPaywall = (message?: string) => {
     showToast(message ?? PLAYER_COPY.paywallPlaceholderToast);
   };
 
+  const openPlayer = (contentId: string) => {
+    navigation.navigate('Main', { screen: 'Player', params: { contentId } });
+  };
+
   const startPlayback = (target: PlayGateTarget, entryPoint: PlayEntryPoint) => {
-    const isDeferred = target.openAfterIssue === true;
-    const openPlayer = () => {
-      navigation.navigate('Main', {
-        screen: 'Player',
-        params: { contentId: target.contentId },
-      });
-    };
     playbackService.start({
       contentId: target.contentId,
       entryPoint,
@@ -90,25 +95,94 @@ export const usePlayGate = (options?: PlayGateOptions) => {
           ? (result) => options.onPlayStarted?.(result, target)
           : undefined,
         onServerStateChanged: () => options?.onServerStateChanged?.(),
-        // 플레이어가 안 떠 있으면 회수 안내(PL9)를 그릴 화면이 없다 — 세션을 내리고 진입점에 맡긴다
-        onWithdrawn: isDeferred
-          ? () => {
-              playbackService.clearSession();
-              target.onWithdrawn?.();
-            }
-          : target.onWithdrawn,
+        onWithdrawn: target.onWithdrawn,
         onNotFound: target.onNotFound,
-        onIssued: isDeferred ? openPlayer : undefined,
-        // 플레이어 화면이 하던 차단 처리(usePlayerScreen)를 여기서 대신한다 — 같은 문구·같은 분기다
-        onIssueBlocked: isDeferred
-          ? (blocked) => {
-              if (blocked.kind === 'paywall') openPaywall(blocked.message ?? undefined);
-              else showToast(blocked.message ?? PLAYER_COPY.paidLimitReachedToast);
-            }
-          : undefined,
       },
     });
-    if (!isDeferred) openPlayer();
+    openPlayer(target.contentId);
+  };
+
+  /**
+   * 차감이 일어날 재생이면 남은 횟수를, 아니면 null 을 돌려준다 — 팝업을 띄울지의 판단이다(library.md 4.3).
+   * 값은 호출 시점의 store 에서 읽는다: 지연 경로(`startDeferred`)는 발급이 끝난 **뒤에** 부르므로 렌더 때
+   * 잡아 둔 값을 쓰면 그 사이의 변화를 놓친다.
+   */
+  const remainingIfDeducting = (isCountedToday: boolean): number | null => {
+    const { playLimit: limit, suppressedServiceDate: suppressed } = usePlayLimitStore.getState();
+    if (limit === null || limit.dailyPlayLimit === null || limit.dailyPlayCount === null) return null;
+    if (isCountedToday || suppressed === limit.serviceDate) return null;
+    const remaining = Math.max(0, limit.dailyPlayLimit - limit.dailyPlayCount);
+    return remaining > 0 ? remaining : null;
+  };
+
+  /**
+   * 오늘 이미 재생한 콘텐츠인가 — 푸시는 이 힌트 없이 들어온다. 재생 목록(라이브러리 첫 페이지)에서 찾는다.
+   * 못 찾거나 조회가 실패하면 "아직 안 들었다"로 본다 — 팝업이 한 번 더 뜰 뿐 차감 판정은 서버가 한다.
+   */
+  const lookUpIsCountedToday = async (contentId: string): Promise<boolean> => {
+    try {
+      const items = await queryClient.fetchQuery({
+        queryKey: queueKeys.all,
+        queryFn: fetchQueueItems,
+        staleTime: 0,
+      });
+      return items.find((item) => item.contentId === contentId)?.isCountedToday ?? false;
+    } catch {
+      return false;
+    }
+  };
+
+  /**
+   * **발급 → (필요하면) 확인 팝업 → 재생** — 푸시 딥링크의 순서다(KAN-86). 푸시는 그 콘텐츠가 아직 있는지도,
+   * 오늘 들었는지도 모르는 채로 들어온다. 종전 순서(팝업 → 발급)로는 없는 콘텐츠에 "오늘 N회 남았어요"를
+   * 먼저 묻고 [재생하기]를 누른 뒤에야 "콘텐츠를 찾을 수 없어요"가 돌아왔다. 발급은 차감하지 않으므로
+   * (차감은 소리가 난 시점의 `POST /play`) 팝업보다 앞서도 "동의 없이 차감하지 않는다"를 어기지 않는다.
+   *
+   * 플레이어도 발급이 성공한 뒤에만 연다 — 없는 콘텐츠로 네이티브 모달을 띄웠다 닫으면 iOS 에서 굳는다.
+   */
+  const startDeferred = (target: PlayGateTarget, entryPoint: PlayEntryPoint) => {
+    const playIssued = () => {
+      playbackService.playWhenReady();
+      openPlayer(target.contentId);
+    };
+    playbackService.start({
+      contentId: target.contentId,
+      entryPoint,
+      autoplay: false,
+      restartFromBeginning: target.restartFromBeginning,
+      meta: target.meta,
+      callbacks: {
+        onPlayStarted: options?.onPlayStarted
+          ? (result) => options.onPlayStarted?.(result, target)
+          : undefined,
+        onServerStateChanged: () => options?.onServerStateChanged?.(),
+        // 플레이어가 안 떠 있으면 회수 안내(PL9)를 그릴 화면이 없다 — 세션을 내리고 진입점에 맡긴다
+        onWithdrawn: () => {
+          playbackService.clearSession();
+          target.onWithdrawn?.();
+        },
+        onNotFound: target.onNotFound,
+        // 플레이어 화면이 하던 차단 처리(usePlayerScreen)를 여기서 대신한다 — 같은 문구·같은 분기다
+        onIssueBlocked: (blocked) => {
+          if (blocked.kind === 'paywall') openPaywall(blocked.message ?? undefined);
+          else showToast(blocked.message ?? PLAYER_COPY.paidLimitReachedToast);
+        },
+        onIssued: ({ isReusedSession }) => {
+          // 이미 재생을 기록한 세션을 이어 듣는 것이면 새로 차감되지 않는다 — 묻지 않는다
+          if (isReusedSession) {
+            playIssued();
+            return;
+          }
+          void lookUpIsCountedToday(target.contentId).then((isCountedToday) => {
+            // 조회하는 사이에 다른 재생으로 넘어갔으면 이 알림의 몫은 끝났다
+            if (usePlaybackStore.getState().session?.contentId !== target.contentId) return;
+            const remaining = remainingIfDeducting(isCountedToday);
+            if (remaining === null) playIssued();
+            else setConfirmState({ target, entryPoint, remaining, isIssued: true });
+          });
+        },
+      },
+    });
   };
 
   /**
@@ -117,42 +191,48 @@ export const usePlayGate = (options?: PlayGateOptions) => {
    * 플레이어가 닫고 페이월로 전환한다(경합·힌트 노후를 서버 판정이 흡수한다).
    */
   const requestPlay = (target: PlayGateTarget, entryPoint: PlayEntryPoint) => {
-    const wouldDeduct =
-      playLimit !== null &&
-      playLimit.dailyPlayLimit !== null &&
-      playLimit.dailyPlayCount !== null &&
-      !target.isCountedToday;
-    const isSuppressed = playLimit !== null && suppressedServiceDate === playLimit.serviceDate;
-
-    if (wouldDeduct && !isSuppressed) {
-      const remaining = Math.max(
-        0,
-        (playLimit.dailyPlayLimit ?? 0) - (playLimit.dailyPlayCount ?? 0),
-      );
-      if (remaining > 0) {
-        setConfirmState({ target, entryPoint, remaining });
-        return;
-      }
+    if (target.openAfterIssue === true) {
+      startDeferred(target, entryPoint);
+      return;
+    }
+    const remaining = remainingIfDeducting(target.isCountedToday);
+    if (remaining !== null) {
+      setConfirmState({ target, entryPoint, remaining, isIssued: false });
+      return;
     }
     startPlayback(target, entryPoint);
+  };
+
+  /** 팝업을 통과한 재생 — 발급을 받아 둔 재생이면 그 세션을 재생하고, 아니면 지금 시작한다 */
+  const proceed = (state: ConfirmState) => {
+    if (state.isIssued) {
+      playbackService.playWhenReady();
+      openPlayer(state.target.contentId);
+      return;
+    }
+    startPlayback(state.target, state.entryPoint);
   };
 
   /** [재생하기] — 허용 여부는 발급·재생 시작 시점에 서버가 다시 판정한다(paywall.md 4.2) */
   const confirmPlay = () => {
     if (!confirmState) return;
     setConfirmState(null);
-    startPlayback(confirmState.target, confirmState.entryPoint);
+    proceed(confirmState);
   };
 
   /** [취소] — 차감도 없고 억제도 걸리지 않는다(library-uiux.md 4.6) */
-  const cancelConfirm = () => setConfirmState(null);
+  const cancelConfirm = () => {
+    // 발급만 받아 둔 세션은 내린다 — 듣지 않기로 한 콘텐츠가 미니플레이어에 남지 않게
+    if (confirmState?.isIssued) playbackService.clearSession();
+    setConfirmState(null);
+  };
 
   /** [오늘은 그만 보기] — 팝업을 닫고 그대로 재생한다. 차감은 그대로 일어난다(library.md 4.3) */
   const suppressAndPlay = () => {
     if (!confirmState) return;
     if (playLimit) void suppressPlayConfirmForToday(playLimit.serviceDate);
     setConfirmState(null);
-    startPlayback(confirmState.target, confirmState.entryPoint);
+    proceed(confirmState);
   };
 
   return {
