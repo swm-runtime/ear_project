@@ -189,6 +189,23 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T postgres 
 충돌한다. 컨테이너를 처음 띄우면 postgres가 빈 DB를 만들어 주므로 **api 컨테이너를 멈춘 채**
 복원한 뒤 기동하면 된다.
 
+> **리허설 기록 (2026-09-20)** — 최신 덤프(`ear-20260919T190002Z.sql.gz`)를 **노트북의 임시 컨테이너**
+> (`pgvector/pgvector:pg16`)에 복원했다. psql `ON_ERROR_STOP=1` 종료코드 0, 에러 0건. 운영 DB 는
+> 대조를 위한 읽기만 했고 서버에는 아무것도 올리지 않았다.
+>
+> | 항목 | 덤프 | 운영(당시) | 차이의 원인 |
+> |---|---|---|---|
+> | 테이블 | 32 | 33 | 덤프 이후 `AddContentScripts` 적용 |
+> | 인덱스 | 89 | 92 | 위 + `AddLibraryItemQueuePosition` |
+> | FK | 31 | 32 | `fk_content_scripts_contents` |
+> | users | 28 | 28 | 일치 |
+> | library_items | 135 | 138 | 덤프 이후 사용자 활동 |
+> | contents | 15 | 16 | 덤프 이후 발행 1편 |
+>
+> **차이는 전부 설명된다** — 덤프(04:00 KST) 뒤에 마이그레이션 2건이 운영에 나갔다. 복원 후
+> 현재 이미지를 띄우면 진입점이 마이그레이션을 돌려 스키마가 따라잡으므로 그대로 복구해도 된다.
+> `vector` 확장이 0.8.3 으로 뜬 것은 노트북 이미지가 서버(0.8.6)보다 낮아서이고 덤프 문제가 아니다.
+
 > **리허설 기록 (2026-09-12)** — 운영 덤프를 서버의 **임시 컨테이너**(`pgvector/pgvector:pg16`,
 > 운영과 분리)에 복원해 전 항목이 일치함을 확인했다: 테이블 31/31 · users 21/21 ·
 > library_items 92/92 · 인덱스 87/87 · FK 31/31 · `vector` 확장 0.8.6. psql 에러 0건.
