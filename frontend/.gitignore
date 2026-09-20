@@ -17,6 +17,9 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
+# Play 서비스 계정 키 — CI 가 secret 을 이 이름으로 풀어 쓴다(eas.json submit.preview-store.android).
+# *.json 은 무시 대상이 아니므로 파일명으로 못 박는다. 이게 없으면 실수로 커밋된다.
+play-service-account.json
 
 # Metro
 .metro-health-check*
