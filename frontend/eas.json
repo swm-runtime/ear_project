@@ -80,6 +80,10 @@
     "preview-store": {
       "ios": {
         "ascAppId": "6813738593"
+      },
+      "android": {
+        "track": "internal",
+        "serviceAccountKeyPath": "./play-service-account.json"
       }
     }
   }
