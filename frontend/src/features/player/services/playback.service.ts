@@ -88,8 +88,9 @@ export interface PlaybackCallbacks {
   /**
    * 발급(audio-urls)이 성공해 세션이 재생 가능해진 직후. **플레이어를 발급 뒤에 여는 진입점**(푸시 딥링크)이
    * 여기서 화면을 연다 — 같은 콘텐츠의 살아 있는 세션을 재사용할 때도 부른다(발급을 반복하지 않으므로).
+   * `isReusedSession` 이면 이미 재생 시작을 기록한 세션이다 — 이어 재생해도 새로 차감되지 않는다.
    */
-  onIssued?: () => void;
+  onIssued?: (info: { isReusedSession: boolean }) => void;
   /**
    * 발급 시점의 한도 403. **넘기면 세션을 내리고 이것만 부른다** — 플레이어가 떠 있지 않은 진입점이
    * 페이월·한도 안내를 직접 띄운다. 안 넘기면 종전대로 세션을 `blocked`로 두고 플레이어 화면이 처리한다.
@@ -195,7 +196,7 @@ class PlaybackService {
       if ((request.autoplay ?? true) && session.state === 'ready' && !session.isPlaying) {
         this.player?.play();
       }
-      request.callbacks?.onIssued?.();
+      request.callbacks?.onIssued?.({ isReusedSession: true });
       return;
     }
 
@@ -267,7 +268,7 @@ class PlaybackService {
 
       this.createPlayer(issue.audio.url, startPositionSec, request.autoplay ?? true, generation);
       this.scheduleUrlRefresh(issue.audio.expiresInSec);
-      this.ctx.callbacks.onIssued?.();
+      this.ctx.callbacks.onIssued?.({ isReusedSession: false });
     } catch (error) {
       if (generation !== this.generation) return;
       this.handleIssueError(error);
@@ -471,6 +472,20 @@ class PlaybackService {
   }
 
   /* ── 컨트롤 ── */
+
+  /**
+   * `autoplay: false` 로 발급만 받아 둔 세션을 재생한다 — 푸시 딥링크가 **발급 → 확인 팝업 → 재생** 순서를
+   * 밟기 위한 두 번째 걸음이다(KAN-86). 오디오가 아직 로드 중이면 로드가 끝나는 대로 재생한다.
+   * 차감은 종전대로 소리가 실제로 난 시점에 한 번 일어난다(`reportPlayStart`).
+   */
+  playWhenReady(): void {
+    if (this.pendingSetup) {
+      this.pendingSetup = { ...this.pendingSetup, autoplay: true };
+      return;
+    }
+    const session = store.getState().session;
+    if (session?.state === 'ready' && !session.isPlaying) this.player?.play();
+  }
 
   togglePlayPause(): void {
     const session = store.getState().session;
