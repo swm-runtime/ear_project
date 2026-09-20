@@ -843,7 +843,7 @@ export const WRITE_SCHEMA = {
     one_liner: { type: "string", description: "40자 이내 한 줄 요약. 사실 주장이 아니라 이 편의 축을 청취자 언어로 (예: \"소득이 끊겨도 버티는 현금흐름 구조\"). 제목을 그대로 복창하지 않는다" },
     script: { type: "string", description: "script.md 전문 (마크다운)" },
     sections_followed: { type: "boolean", description: "구성안 구간 순서·개수 준수" },
-    turn_claims: { type: "array", items: { type: "object", additionalProperties: false, required: ["turn", "claims"], properties: { turn: { type: "string" }, claims: { type: "array", items: { type: "string" } } } }, description: "해설 턴별 사용 claims ID" },
+    turn_claims: { type: "array", items: { type: "object", additionalProperties: false, required: ["turn", "claims"], properties: { turn: { type: "string" }, claims: { type: "array", items: { type: "string" } } } }, description: "해설 턴별 사용 claims ID — 여기에만 적는다. 대사 본문(script)에는 ID 를 쓰지 않는다" },
     bridges: { type: "array", items: { type: "object", additionalProperties: false, required: ["turn", "note"], properties: { turn: { type: "string" }, note: { type: "string", description: "무엇을 무엇으로 옮김 · 근거 C##" } } }, description: "구성안에 없던 새 연결·비유 전부" },
     pronunciations_added: { type: "array", items: { type: "object", additionalProperties: false, required: ["term", "reading"], properties: { term: { type: "string" }, reading: { type: "string" } } } },
     self_check_fixes: { type: "array", items: { type: "string" } },
