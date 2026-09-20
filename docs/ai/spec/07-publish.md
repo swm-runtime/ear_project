@@ -47,7 +47,7 @@ TTS 다음에 돌며 정사각형 1024×1024 PNG 한 장을 만든다. 종전에
 
 ## 2. 패키지 (AI)
 
-발행에 필요한 메타데이터를 `upload-meta.json`으로 산출하고 상태를 `packaged`(사람 검수 대기)로 전환한다. 패키지가 끝나면 **추천 메타 부여 작업(`enrich`)을 이어서 건다**(2026-09-11, [`metadata-pipeline.md`](../metadata-pipeline.md) 2장) — AI 워커가 `episodes/<id>/enrichment.json`(schema_version 2)을 만들고, 업로드 화면이 발행할 때 `enrichment_file`로 같이 보낸다. 파일이 없어도 발행은 막지 않는다(제품 발행 목록의 [다시 뽑기]로 소급). **자막 세그먼트**도 같은 방식이다(2026-09-19, KAN-72) — TTS 단계가 만든 `episodes/<id>/script-segments.json`(spec/06 7장)이 있으면 업로드 화면이 `script_file`로 같이 보내고(`admin-api.md` 4.6), 없으면 자막 없이 발행한다(앱은 대본 버튼을 숨긴다). 서버가 형식 검증에서 거부하면 파일만 거부되고 발행은 성립한다(`script_applied: false` + 사유).
+발행에 필요한 메타데이터를 `upload-meta.json`으로 산출하고 상태를 `packaged`(사람 검수 대기)로 전환한다. 패키지가 끝나면 **추천 메타 부여 작업(`enrich`)을 이어서 건다**(2026-09-11, [`metadata-pipeline.md`](../metadata-pipeline.md) 2장) — AI 워커가 `episodes/<id>/enrichment.json`(schema_version 2)을 만들고, 업로드 화면이 발행할 때 `enrichment_file`로 같이 보낸다. 파일이 없어도 발행은 막지 않는다(제품 발행 목록의 [다시 뽑기]로 소급). **자막 세그먼트**도 같은 방식이다(2026-09-19, KAN-72) — TTS 단계가 만든 `episodes/<id>/script-segments.json`(spec/06 7장)이 있으면 업로드 화면이 `script_file`로 같이 보내고(`admin-api.md` 4.6), 없으면 자막 없이 발행한다(앱은 대본 버튼을 숨긴다). 서버가 형식 검증에서 거부하면 파일만 거부되고 발행은 성립한다(`script_applied: false` + 사유). 이미 발행된 콘텐츠는 발행 목록의 자막 셀에서 [자막 뽑기](강제 정렬, spec/06 7장) → [반영]으로 소급한다 — `script_file`만 보내므로 버전이 오르지 않는다.
 
 | 필드 | 내용 |
 |---|---|
