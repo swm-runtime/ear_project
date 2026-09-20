@@ -1,6 +1,7 @@
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import RemoteImage from '@/shared/ui/RemoteImage';
 
 import { LIBRARY_COPY } from '../library.copy';
 import type { LibraryItem } from '../library.types';
@@ -56,7 +57,7 @@ export default function LibraryItemTile({
         accessibilityHint="재생"
       >
         <View style={styles.artwork}>
-          <Image source={{ uri: item.content.thumbnailUrl }} style={styles.image} />
+          <RemoteImage uri={item.content.thumbnailUrl} recyclingKey={item.content.id} style={styles.image} />
           {isCompleted ? (
             // 완청은 좌상단 체크로만 — 색이 아니라 형태 단서(uiux 7)
             <View style={styles.completedMark}>

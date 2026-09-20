@@ -42,6 +42,18 @@ import { LibraryItemSource, LibraryItemStatus } from './library.enum';
   'lastPlayedAt',
 ])
 @Index('idx_library_items_content_id', ['contentId'])
+/**
+ * 재생 목록 순서(`sort=queue`)용 — `queue_position ASC NULLS FIRST, added_at DESC, id DESC`.
+ * NULLS FIRST·방향은 TypeORM `@Index`가 표현하지 못해 마이그레이션 SQL이 정확한 정의를 갖는다
+ * (`1787600000000-AddLibraryItemQueuePosition`). 여기 선언은 스키마 diff에서 인덱스가 사라지지 않게 하는 표식이다.
+ */
+@Index('idx_library_items_user_id_deleted_at_queue_position', [
+  'userId',
+  'deletedAt',
+  'queuePosition',
+  'addedAt',
+  'id',
+])
 export class LibraryItem extends BaseEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -85,6 +97,14 @@ export class LibraryItem extends BaseEntity {
 
   @Column({ name: 'completed_at', type: 'timestamptz', nullable: true })
   completedAt: Date | null;
+
+  /**
+   * 사용자가 정한 재생 목록 순서(KAN-70, `library-api.md` 4.8). 1부터의 정수이며 **NULL = 순서 미지정**.
+   * 순서 미지정 항목(새로 담긴 것)은 목록 맨 위에 최신순으로 선다 — 정리해 둔 아래쪽 순서를 건드리지 않는다.
+   * 삭제해도 값은 남겨 복구 시 제자리로 돌아온다. 표시 순서일 뿐 판정에 쓰지 않는다.
+   */
+  @Column({ name: 'queue_position', type: 'int', nullable: true })
+  queuePosition: number | null;
 
   /** 소프트 삭제. 삭제해도 재생 이력·드립 영구 제외 판정은 남아야 한다 */
   @DeleteDateColumn({ name: 'deleted_at', type: 'timestamptz', nullable: true })

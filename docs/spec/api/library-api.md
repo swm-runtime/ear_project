@@ -8,13 +8,14 @@
 
 ## 1. 범위
 
-`library.md`가 정의한 동작을 HTTP 계약으로 옮긴 문서다. 다루는 것은 다음 여섯이다.
+`library.md`가 정의한 동작을 HTTP 계약으로 옮긴 문서다. 다루는 것은 다음 일곱이다.
 
 - 라이브러리 목록 조회 — 상태 탭 3개(전체·미청취·완료) + 출처·주제 필터 + 커서 페이지네이션
 - 목록 응답에 실어 보내는 **잔여 재생 표시값**(`daily_play_limit` · `daily_play_count` · `service_date`)
 - 앱 실행 시 **미니플레이어 복원 대상** 조회
 - 재생 시작 — 카운트 적재와 상태 전이(`unplayed` → `in_progress`)
 - 완청 처리(`in_progress` → `completed`)
+- **재생 목록 순서** — 플레이어 재생 목록 패널의 사용자 지정 순서를 계정 단위로 저장·조회(4.1 `sort=queue` · 4.8, 2026-09-19 KAN-70)
 - 삭제(소프트 삭제 + 실행 취소)와 드립 영구 제외 적재
 
 **이 문서는 동작 규칙을 새로 정하지 않는다.** 규칙이 충돌하면 `library.md`가 기준이며, 이 문서는 그것을 요청·응답으로 표현할 뿐이다. 스키마는 `domain.md`가 유일한 기준이다.
@@ -101,6 +102,7 @@
 | 5 | POST | `/users/me/library-items/:id/complete` | 완청 처리(서버 재검증) | 필요 |  |
 | 6 | DELETE | `/users/me/library-items/:id` | 소프트 삭제 + 드립 영구 제외 적재 | 필요 |  |
 | 7 | POST | `/users/me/library-items/:id/restore` | 삭제 실행 취소 | 필요 |  |
+| 8 | PUT | `/users/me/library-items/queue-order` | 재생 목록 순서 저장 — 목록을 통째로 보내고 결과가 수렴한다 (4.8, 2026-09-19) | 필요 |  |
 
 **설계 메모**
 
@@ -134,13 +136,14 @@
 | filter | enum `all` / `unplayed` / `completed` | 선택(기본 `all`) | 상단 탭(**상태 전용**). 서로 배타적이며 한 번에 하나만 |
 | source_filter | enum `drip` / `save` | 선택 | 필터 시트의 출처 섹션. 단일 선택이며 미선택은 출처를 가리지 않음 |
 | topic_filter | string (uuid 콤마 구분) | 선택 | 주제 필터 팝업의 다중 선택 결과 |
-| sort | enum `added_desc` / `added_asc` | 선택(기본 `added_desc`) | `library_items.added_at` 기준 |
+| sort | enum `added_desc` / `added_asc` / `queue` | 선택(기본 `added_desc`) | `added_*`는 `library_items.added_at` 기준. **`queue`는 재생 목록 순서**(4.8) — `queue_position ASC NULLS FIRST, added_at DESC, id DESC` |
 | cursor | string(opaque) | 선택 | 직전 응답의 `next_cursor`. 클라이언트가 해석하지 않는다 |
 | limit | int | 선택(기본 `20`, 최대 `50`) | 상한을 서버가 강제한다(`architecture.md` 9.3) |
 
 - **`filter`는 상태만, `source_filter`는 출처만 가린다**(`library.md` 4.1-1). 상단 탭이 상태 3개로 좁혀지고 출처가 필터 시트로 옮겨간 개편(2026-08-07)의 결과다.
   - 개편 전에는 `filter=drip`이 있었다. **제거했다** — 같은 조회를 `filter`와 `source_filter` 두 가지로 표현할 수 있게 되면 커서 발급 조건에 두 축이 모두 들어가고, 어느 쪽이 맞는지 판단해야 하는 순간이 생긴다. 배포된 클라이언트가 없어 하위 호환을 지킬 이유도 없다.
 - **`source_filter`의 화면 라벨은 [이어 PICK] · [내가 담은 콘텐츠]이지만 전송 값은 `drip` · `save`다.** 라벨은 화면 문구이고 값은 `library_items.source` 계열 값이다(`domain.md` 6.1). 라벨은 앞으로도 바뀔 수 있지만 `source` enum은 스키마다.
+- **`sort=queue`는 플레이어 재생 목록 패널이 쓴다**(2026-09-19 — `tickets/backend/archive/queue-order-sync.md`). 순서를 정하지 않은 항목(새로 담긴 것)이 **최신순으로 맨 위**, 그 아래 사용자가 저장한 순서(4.8). 라이브러리 **화면**의 정렬은 종전대로 `added_*`다 — 이 순서는 재생 목록에만 쓴다. 커서는 다른 정렬과 같은 불투명 문자열이며, 정렬이 바뀐 커서는 거절된다.
 - **`filter` · `source_filter` · `topic_filter`는 전부 AND, 선택한 주제끼리만 OR다**(`library.md` 4.1-1).
   - 주제 사이를 AND로 걸면 선택한 주제를 **모두** 가진 콘텐츠만 남아 두 개만 골라도 대부분 빈 목록이 된다. 다중 선택의 의도는 "이 중 아무거나"다.
 - **`filter`별 조건**
@@ -494,6 +497,42 @@
 
 ---
 
+### 4.8 `PUT /users/me/library-items/queue-order`
+
+재생 목록 순서 저장(KAN-70, 2026-09-19). 플레이어 재생 목록 패널에서 사용자가 항목을 끌어 옮길 때마다 호출한다 — **끌기 1회 = 호출 1회**, 목록을 통째로 보낸다.
+
+**Request**
+
+```json
+{ "item_ids": ["uuid", "uuid", "..."] }
+```
+
+| 필드 | 타입 | 필수 | 비고 |
+|---|---|---|---|
+| item_ids | uuid[] | ✓ | 사용자가 보고 있는 목록의 `library_items.id`를 **위에서부터**. 1~200개, 중복 불가 |
+
+**Response 204** — 본문 없음. 순서의 진실은 `GET /users/me/library-items?sort=queue`(4.1)다.
+
+**서버 처리** — 하나의 트랜잭션에서 한 문장으로 쓴다.
+
+1. `item_ids` 중 **요청자의 살아 있는 항목만** 남긴다. 남의 항목·삭제된 항목은 **조용히 뺀다**(404가 아니다) — 끌기마다 오는 호출을 그 사이 삭제된 항목 하나 때문에 실패시키면 기기마다 순서가 갈린다(FE 요구: 실패해도 재생에 영향이 없어야 한다).
+2. 남은 항목에 `queue_position = 1, 2, 3…`을 위에서부터 적는다.
+3. 이미 순서가 있는데 이번 목록에 없는 항목(첫 페이지 밖)은 **저장돼 있던 순서 그대로 그 뒤(n+1…)에 이어 붙인다.** 사용자가 보지 못한 항목의 순서를 지우지 않는다.
+4. 순서가 없고 이번 목록에도 없는 **살아 있는 항목(미지정)** 은 3의 뒤에 `added_at DESC, id DESC`로 이어 붙인다(개정 2026-09-19, KAN-75 — `tickets/backend/archive/queue-order-unseen-items.md`). **저장은 `NULL`을 남기지 않는다** — 그래야 `NULL`이 "마지막 저장 뒤에 담긴 것" 하나만 뜻하고, 새로 담긴 항목이 맨 위에 오는 **조회 규칙**(`NULLS FIRST`)이 첫 페이지 밖의 옛 항목까지 맨 위로 올리지 않는다. 뒤에 붙는 항목 수에는 `item_ids`의 상한(200)이 적용되지 않는다 — 상한은 요청 본문의 크기다. 종전(순서가 없던 항목은 이번 목록에 들어왔을 때만 순서를 얻는다)에는 항목이 페이지 크기보다 많은 계정에서 첫 페이지만 저장하면 나머지 옛 항목이 `NULL`이라 맨 위로 왔다.
+
+- **PUT이고 멱등키가 없다.** 같은 목록을 두 번 보내도 같은 상태로 수렴한다. 오프라인 큐가 "마지막 상태만 유지"로 다뤄도 된다(`common-error-handling.md` 4.5).
+- **삭제·복구와의 관계**: 삭제해도 `queue_position`은 남고, 복구(4.7)하면 `added_at`과 함께 자리도 돌아온다. 회수된 콘텐츠는 목록에서 빠지므로 순서에도 나타나지 않는다.
+- **판정에 쓰지 않는다.** 표시 순서다. 연속 재생의 "다음 편" 판정은 비범위이며(`player.md` 8장), 들어오면 이 순서를 읽는다.
+- 클라이언트 이관: 기기 저장 시절의 순서(`player.queue_order`)는 첫 호출 때 한 번 올리면 된다 — 서버 규칙(새 항목 맨 위·미지정은 뒤)이 FE `applyQueueOrder`와 같다. 클라이언트는 보이는 목록만 보내면 되고, 첫 페이지 밖까지 받아 보낼 필요가 없다(서버 처리 4).
+
+**에러**
+
+| 코드 | HTTP | 상황 |
+|---|---|---|
+| `VALIDATION_FAILED` | 400 | `item_ids` 누락·빈 배열·200개 초과·중복·uuid 형식 오류 |
+
+---
+
 ## 5. 에러 코드 표
 
 **이 표는 `common-error-handling.md` 9장 중앙 표의 라이브러리·재생 발췌(9.5)에 공용 콘텐츠 코드(9.2)를 더한 것이다** — 두 곳이 어긋나면 9장이 기준이다. 추가·변경 시 `architecture.md` 7.5에 따라 enum 한 곳에서 관리하고 **9장 표를 먼저 갱신한 뒤** 이 표를 맞춘다. 이미 배포된 코드의 의미를 바꾸지 않는다.
@@ -570,7 +609,7 @@ POST /users/me/library-items/:id/complete
 
 | 사용하는 것 | domain.md |
 |---|---|
-| `library_items` — 소프트 삭제, `(user_id, content_id)` 유니크가 중복 적립 방어선 | 6.1 |
+| `library_items` — 소프트 삭제, `(user_id, content_id)` 유니크가 중복 적립 방어선. `queue_position`(재생 목록 순서, 4.8) | 6.1 |
 | `playback_progresses` — **재생 위치의 단독 소유자**. 목록 조회 시 조인한다 | 6.2 |
 | `play_records` — **잔여 재생 횟수의 유일한 근거**. 집계로 구한다 | 6.3 |
 | `user_signals` — `play` · `delete` 신호 적재 | 6.4 |

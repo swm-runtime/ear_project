@@ -1,6 +1,7 @@
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import RemoteImage from '@/shared/ui/RemoteImage';
 
 import type { RecommendedContent } from '../onboarding.types';
 
@@ -30,7 +31,7 @@ export default function ContentPickCard({ content, isSelected, onPress }: Conten
       accessibilityState={{ checked: isSelected }}
       accessibilityLabel={`${content.title}, ${formatDurationLabel(content.durationSec)}`}
     >
-      <Image source={{ uri: content.thumbnailUrl }} style={styles.thumbnail} />
+      <RemoteImage uri={content.thumbnailUrl} recyclingKey={content.contentId} style={styles.thumbnail} />
       <View style={styles.body}>
         <Text style={styles.title} numberOfLines={1}>
           {content.title}

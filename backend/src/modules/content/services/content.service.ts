@@ -30,6 +30,7 @@ import {
   PopularPageQuery,
   PublishContentCommand,
   RepublishContentCommand,
+  ScriptSegment,
   SearchPage,
   SearchPageQuery,
 } from '../content.types';
@@ -38,6 +39,7 @@ import { ContentSource } from '../entities/content-source.entity';
 import { Content } from '../entities/content.entity';
 import { ContentRepository } from '../repositories/content.repository';
 import { ContentEmbeddingRepository } from '../repositories/content-embedding.repository';
+import { ContentScriptRepository } from '../repositories/content-script.repository';
 import { ContentSourceRepository } from '../repositories/content-source.repository';
 import { ContentTopicRepository } from '../repositories/content-topic.repository';
 
@@ -60,7 +62,49 @@ export class ContentService {
     private readonly contentTopicRepository: ContentTopicRepository,
     private readonly contentSourceRepository: ContentSourceRepository,
     private readonly contentEmbeddingRepository: ContentEmbeddingRepository,
+    private readonly contentScriptRepository: ContentScriptRepository,
   ) {}
+
+  /**
+   * 대본 세그먼트(`player-api.md` 4.7). **없으면 빈 배열** — 스크립트가 없는 콘텐츠는 정상 상태라 404가 아니다.
+   * 접근 통제는 호출부(playback `ScriptService`)가 재생 발급과 같은 판정으로 한다 — 여기서는 읽기만.
+   */
+  async findScriptSegments(
+    contentId: string,
+    manager?: EntityManager,
+  ): Promise<ScriptSegment[]> {
+    const script = await this.contentScriptRepository.findByContentId(
+      contentId,
+      manager,
+    );
+
+    return script?.segments ?? [];
+  }
+
+  /** 발급 응답의 `has_script`·관리자 목록용 — 스크립트가 있는 콘텐츠 id 집합. 본문은 읽지 않는다 */
+  async findScriptContentIds(
+    contentIds: string[],
+    manager?: EntityManager,
+  ): Promise<Set<string>> {
+    return new Set(
+      await this.contentScriptRepository.findContentIdsWithScript(
+        contentIds,
+        manager,
+      ),
+    );
+  }
+
+  /**
+   * 대본 적재(admin-api.md 4.6·4.10 `script_file`). 콘텐츠당 1행이라 있으면 통째로 바꾼다 —
+   * 재발행으로 오디오가 바뀌면 시각도 바뀌므로 부분 갱신은 의미가 없다. 검증은 admin 쪽 파서가 끝냈다.
+   */
+  async saveScript(
+    contentId: string,
+    segments: ScriptSegment[],
+    manager: EntityManager,
+  ): Promise<void> {
+    await this.contentScriptRepository.upsert(contentId, segments, manager);
+  }
 
   /** 회수 동기화(`partner-control.md` 4.3) — 그 시각 이후 회수된 콘텐츠 id 목록 */
   /**

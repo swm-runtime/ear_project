@@ -24,10 +24,12 @@ import {
   UploadedFileInput,
 } from '../admin.types';
 import { AudioProbe } from '../audio-probe';
+import { ThumbnailImage } from '../thumbnail-image';
 import { ContentStorageClient } from '../content-storage.client';
 
 // `music-metadata`는 ESM 전용이라 jest(CJS)가 실제 모듈을 읽지 못한다. Probe는 mock 대상이다
 jest.mock('../audio-probe', () => ({ AudioProbe: class {} }));
+jest.mock('../thumbnail-image', () => ({ ThumbnailImage: class {} }));
 
 const ACTOR_ID = '11111111-1111-4111-8111-111111111111';
 const TOPIC_ID = '22222222-2222-4222-8222-222222222222';
@@ -68,6 +70,23 @@ function buildEnrichmentFile(value: unknown): UploadedFileInput {
 
 const VALID_ENRICHMENT = { difficulty: 'beginner', keywords: ['이직 준비'] };
 
+const VALID_SCRIPT = [
+  { start_sec: 0, end_sec: 12.4, speaker: '윤아', text: '첫 턴' },
+  { start_sec: 12.4, end_sec: 20, speaker: '이음', text: '둘째 턴' },
+];
+
+function buildScriptFile(value: unknown): UploadedFileInput {
+  const content = JSON.stringify(value);
+  const path = join(tempDir, `script-${randomUUID()}.json`);
+  writeFileSync(path, content, 'utf8');
+  return {
+    path,
+    originalName: 'script-segments.json',
+    mimeType: 'application/json',
+    size: Buffer.byteLength(content, 'utf8'),
+  };
+}
+
 function buildRepublishCommand(
   overrides: Partial<RepublishContentCommand> = {},
 ): RepublishContentCommand {
@@ -77,6 +96,7 @@ function buildRepublishCommand(
     audio: buildFile('ep.mp3'),
     thumbnail: null,
     enrichment: null,
+    script: null,
     ...overrides,
   };
 }
@@ -103,6 +123,7 @@ function buildCommand(
     audio: buildFile('ep.mp3'),
     thumbnail: buildFile('thumb.png'),
     enrichment: null,
+    script: null,
     ...overrides,
   };
 }
@@ -117,6 +138,7 @@ describe('AdminContentService', () => {
   let auditLogService: jest.Mocked<AuditLogService>;
   let storage: jest.Mocked<ContentStorageClient>;
   let audioProbe: jest.Mocked<AudioProbe>;
+  let thumbnailImage: jest.Mocked<ThumbnailImage>;
   let manager: EntityManager;
 
   beforeEach(() => {
@@ -165,6 +187,8 @@ describe('AdminContentService', () => {
       findAdminPage: jest.fn(),
       findTopicViews: jest.fn().mockResolvedValue([]),
       applyEnrichment: jest.fn().mockResolvedValue(undefined),
+      findScriptContentIds: jest.fn().mockResolvedValue(new Set()),
+      saveScript: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<ContentService>;
 
     libraryService = {
@@ -207,6 +231,21 @@ describe('AdminContentService', () => {
     audioProbe = {
       readDurationSec: jest.fn().mockResolvedValue(600),
     };
+    thumbnailImage = {
+      normalize: jest.fn().mockImplementation((file: UploadedFileInput) =>
+        Promise.resolve({
+          file: {
+            ...file,
+            path: `${file.path}.webp`,
+            mimeType: 'image/webp',
+            size: 60_000,
+          },
+          extension: 'webp',
+          width: 768,
+          height: 768,
+        }),
+      ),
+    };
 
     service = new AdminContentService(
       dataSource,
@@ -218,6 +257,7 @@ describe('AdminContentService', () => {
       auditLogService,
       storage,
       audioProbe,
+      thumbnailImage,
     );
   });
 
@@ -290,6 +330,49 @@ describe('AdminContentService', () => {
       expect(contentService.applyEnrichment).not.toHaveBeenCalled();
       expect(result.enrichment?.applied).toBe(false);
       expect(result.enrichment?.rejectedReason).toContain('difficulty');
+    });
+
+    it('대본 파일을 첨부하면 같은 트랜잭션에서 저장되고 응답에 적용·has_script 가 표시된다(KAN-71)', async () => {
+      // given
+      const command = buildCommand({ script: buildScriptFile(VALID_SCRIPT) });
+
+      // when
+      const result = await service.upload(command, NOW);
+
+      // then
+      expect(contentService.saveScript).toHaveBeenCalledWith(
+        CONTENT_ID,
+        VALID_SCRIPT,
+        manager,
+      );
+      expect(result.script).toEqual({ applied: true, rejectedReason: null });
+      expect(result.hasScript).toBe(true);
+      expect(auditLogService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          after: containing({ script_applied: true }),
+        }),
+        manager,
+      );
+    });
+
+    it('대본 파일이 어긋나면 파일만 거부되고 업로드는 진행된다 — 틀린 자막보다 없는 편이 낫다', async () => {
+      // given — 겹치는 세그먼트
+      const command = buildCommand({
+        script: buildScriptFile([
+          { start_sec: 0, end_sec: 12, speaker: '윤아', text: 'a' },
+          { start_sec: 5, end_sec: 20, speaker: '이음', text: 'b' },
+        ]),
+      });
+
+      // when
+      const result = await service.upload(command, NOW);
+
+      // then
+      expect(contentService.publish).toHaveBeenCalled();
+      expect(contentService.saveScript).not.toHaveBeenCalled();
+      expect(result.script?.applied).toBe(false);
+      expect(result.script?.rejectedReason).toContain('겹쳐요');
+      expect(result.hasScript).toBe(false);
     });
 
     it('검수 완료 확인이 없으면 업로드를 거부한다', async () => {
@@ -429,6 +512,36 @@ describe('AdminContentService', () => {
       await expect(act).rejects.toMatchObject({
         details: { field: 'episode_no' },
       });
+    });
+
+    it('썸네일은 원본이 아니라 저장 규격(WebP 768px)으로 변환된 파일을 올린다', async () => {
+      // when
+      await service.upload(buildCommand(), NOW);
+
+      // then
+      expect(thumbnailImage.normalize).toHaveBeenCalledWith(
+        expect.objectContaining({ originalName: 'thumb.png' }),
+      );
+      expect(storage.putThumbnail).toHaveBeenCalledWith(
+        expect.objectContaining({ mimeType: 'image/webp' }),
+        'webp',
+      );
+    });
+
+    it('썸네일을 이미지로 읽지 못하면 400 필드 오류이고 저장소에는 아무것도 올리지 않는다', async () => {
+      // given
+      thumbnailImage.normalize.mockResolvedValue(null);
+
+      // when
+      const act = service.upload(buildCommand(), NOW);
+
+      // then
+      await expect(act).rejects.toMatchObject({
+        errorCode: ErrorCode.VALIDATION_FAILED,
+        details: { field: 'thumbnail' },
+      });
+      expect(storage.putAudio).not.toHaveBeenCalled();
+      expect(storage.putThumbnail).not.toHaveBeenCalled();
     });
 
     it('썸네일 업로드가 실패하면 먼저 올라간 오디오를 지우고 저장소 오류를 알린다', async () => {
@@ -631,6 +744,66 @@ describe('AdminContentService', () => {
       await expect(act).rejects.toMatchObject({
         errorCode: ErrorCode.CONFLICT,
       });
+    });
+  });
+
+  describe('republish — 대본 파일(KAN-71)', () => {
+    it('대본 파일 단독이면 버전을 올리지 않고 대본만 교체하며 content.script 감사 로그를 남긴다', async () => {
+      // given — 오디오·메타 없이 대본만
+      const command = buildRepublishCommand({
+        audio: null,
+        script: buildScriptFile(VALID_SCRIPT),
+      });
+
+      // when
+      const result = await service.republish(command);
+
+      // then
+      expect(contentService.republish).not.toHaveBeenCalled();
+      expect(
+        playbackService.deleteProgressesByContentId,
+      ).not.toHaveBeenCalled();
+      expect(contentService.saveScript).toHaveBeenCalledWith(
+        CONTENT_ID,
+        VALID_SCRIPT,
+        manager,
+      );
+      expect(auditLogService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'content.script',
+          after: containing({ script_applied: true, segment_count: 2 }),
+        }),
+        manager,
+      );
+      expect(result.script).toEqual({ applied: true, rejectedReason: null });
+    });
+
+    it('오디오와 함께 온 대본은 새 버전으로 통째로 교체된다', async () => {
+      // given
+      const command = buildRepublishCommand({
+        script: buildScriptFile(VALID_SCRIPT),
+      });
+
+      // when
+      await service.republish(command);
+
+      // then
+      expect(contentService.republish).toHaveBeenCalled();
+      expect(contentService.saveScript).toHaveBeenCalledWith(
+        CONTENT_ID,
+        VALID_SCRIPT,
+        manager,
+      );
+      expect(auditLogService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'content.republish',
+          after: containing({
+            changed_parts: ['audio', 'script'],
+            script_applied: true,
+          }),
+        }),
+        manager,
+      );
     });
   });
 

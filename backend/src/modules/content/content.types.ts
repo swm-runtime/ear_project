@@ -74,6 +74,18 @@ export interface EnrichmentInput {
   embedding?: { model: string; vector: number[] };
 }
 
+/**
+ * 대본 세그먼트 한 턴(domain.md 5.3, `player-api.md` 4.7). **키는 snake_case다** — jsonb에 그대로 저장되고 API 응답에도
+ * 그대로 나가는 형상이라 변환 경계(DTO)를 두지 않는다(`duration_pref`와 같은 규칙). 시각은 초(소수 허용), 최종 배포본 기준.
+ */
+export interface ScriptSegment {
+  start_sec: number;
+  end_sec: number;
+  /** 화자 표시명("윤아"·"이음"). 1인 낭독·파트너 콘텐츠는 null */
+  speaker: string | null;
+  text: string;
+}
+
 /** 콘텐츠에 붙은 주제 — 클라이언트가 주제 배지를 그리는 데 쓴다 */
 export interface ContentTopicView {
   contentId: string;

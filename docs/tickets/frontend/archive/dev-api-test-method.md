@@ -10,7 +10,7 @@
 | 발견 시점 | 2026-09-16 23:00 KST 배포 흐름 전환(KAN-62) — 이후 **dev 머지는 개발계(`api-dev.earcast.co.kr`)에만 배포**되고 운영은 dev→main PR로만 반영된다. 앱 OTA(`eas-update.yml`)는 이번 전환에서 건드리지 않아 preview·production 채널 모두 계속 **운영 API**를 본다 → dev에 머지된 백엔드 변경을 폰의 앱으로는 확인할 수 없다(로컬 Metro로만 가능) |
 | 근거 문서 | `docs/tickets/infra/pending/dev-environment-and-main-deploy.md`(KAN-62 결정 6·미결 "앱 preview 빌드") · `docs/infra/runbook.md` 4장 · `docs/frontend/architecture.md`(환경변수 `EXPO_PUBLIC_API_BASE_URL`) |
 | 중요도 | **Medium** — 3일 안에 방법 결정. 서버 배포 전환은 이 결정과 무관하게 진행되며, 결정 전까지 개발계 확인은 로컬 실행으로 한다 |
-| 상태 | 진행 — **A 선택**(2026-09-17). 설정 반영, preview 빌드 배포·팀 공유 남음 |
+| 상태 | **완료**(2026-09-20) — A 선택 후 개발계 앱을 별도 번들로 분리(KAN-76) |
 
 ## 배경
 
@@ -52,3 +52,19 @@
 - `frontend/eas.json`: `preview` env 를 개발계로, `production` env 는 `extends` 상속에 기대지 않고 운영 주소를 명시.
 - **번들 ID 는 분리하지 않았다** — 한 폰에 스토어 앱과 preview 앱을 같이 못 깐다(preview 가 덮는다). 소셜 로그인 키를 번들별로 다시 등록하는 비용이 더 커서 지금은 받아들인다. 필요해지면 별도 티켓.
 - 남은 것: preview 빌드(`eas build --profile preview --platform all`) → TestFlight 내부 / Play 내부 트랙 → 팀 Slack 에 "앱으로 개발계 확인하는 법" 한 줄. 그 뒤 archive · KAN-65 완료.
+
+## 처리 기록 (2026-09-19 티켓 정리)
+
+- preview 채널 = 개발계 API 는 동작 중이다(dev 머지마다 preview OTA 발행, 2026-09-18~19 에 40여 건).
+- Android preview APK 는 2026-09-17 에 빌드됐다(versionCode 9, runtime 2). **iOS preview 는 아직 없다** — ad-hoc 배포에 등록된 기기가 0대라 `eas device:create` 로 팀 기기를 먼저 등록해야 한다(계정 소유자 작업).
+- **남은 것**: ① iOS 기기 등록 → iOS preview 빌드, ② 팀 Slack 에 "앱으로 개발계 확인하는 법" 공지. 그 뒤 archive · KAN-65 완료.
+- **마감 초과 사유**(Medium, 발행 2026-09-16): 방법 결정·설정 반영은 기한 안(2026-09-17)에 끝났다. iOS 기기 등록이 수동 작업이라 밀렸다.
+
+## 처리 기록 (2026-09-20 — 완료, archive 로 옮긴다)
+
+- **반영 날짜: 2026-09-20.**
+- 2026-09-17 의 결정("번들 ID 는 분리하지 않는다")을 2026-09-19 에 뒤집었다 — 개발계 앱을 **별도 앱**(`dev.runtime.ear`, "이어 - preview")으로 분리했다(KAN-76, `dev-app-separate-bundle.md`). 한 폰에 운영 앱과 같이 깔리고, iOS 는 ad-hoc 기기 등록 없이 TestFlight 내부 테스트로 배포된다 — 2026-09-19 기록의 "iOS 기기 등록" 병목이 이 방식으로 사라졌다.
+- 배포: iOS TestFlight 1.0.0 (4), 내부 그룹 SWM-Team 자동 배포. Android APK 는 Actions `dev-app-build` 아티팩트 `ear-dev-apk`.
+- PM 이 실기기에서 개발계·운영계 분리 동작을 확인했다(2026-09-20). 운영 앱의 API 주소는 빌드·OTA 시점에 고정돼 앱 안에서 바꿀 수단이 없다 — 완료 조건 2.
+- 팀 공지: #dev-fullstack 2026-09-20 (요청 3).
+- 개발계 앱의 남은 사람 손(소셜 로그인 플랫폼 등록 등)은 `dev-app-separate-bundle.md`(KAN-76)가 이어서 갖는다.

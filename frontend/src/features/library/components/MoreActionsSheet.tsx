@@ -1,6 +1,7 @@
-import { Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import RemoteImage from '@/shared/ui/RemoteImage';
 
 import { IS_SHARE_ENABLED, SHARE_COPY } from '@/features/share';
 
@@ -48,7 +49,7 @@ export default function MoreActionsSheet({
           {item ? (
             <>
               <View style={styles.summary}>
-                <Image source={{ uri: item.content.thumbnailUrl }} style={styles.thumbnail} />
+                <RemoteImage uri={item.content.thumbnailUrl} style={styles.thumbnail} />
                 <View style={styles.summaryText}>
                   <Text style={styles.title} numberOfLines={2}>
                     {item.content.title}

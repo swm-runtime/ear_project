@@ -50,8 +50,13 @@ export enum LibraryItemSourceFilter {
   SAVE = 'save',
 }
 
-/** `library_items.added_at` 기준 정렬 */
+/** `library_items.added_at` 기준 정렬 + 재생 목록 순서(`queue_position`, `library-api.md` 4.1·4.8) */
 export enum LibraryItemSort {
   ADDED_DESC = 'added_desc',
   ADDED_ASC = 'added_asc',
+  /**
+   * 사용자가 정한 재생 목록 순서. `queue_position ASC NULLS FIRST, added_at DESC, id DESC` —
+   * 순서를 정하지 않은(새로 담긴) 항목이 최신순으로 맨 위, 그 아래 저장한 순서(KAN-70).
+   */
+  QUEUE = 'queue',
 }

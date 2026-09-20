@@ -21,6 +21,11 @@ export interface PlayerLibraryBridge {
    * "지금 재생 중인 것이 속한 목록"을 보여주는 자리지 라이브러리 화면의 복제가 아니다(2026-09-17)
    */
   fetchQueue(): Promise<QueueItem[]>;
+  /**
+   * 재생 목록 순서 저장(library-api.md 4.8) — 보이는 목록의 항목 id 를 위에서부터. 순서의 진실은
+   * 서버다: `fetchQueue`가 그 순서대로 돌려준다(`sort=queue`)
+   */
+  saveQueueOrder(itemIds: string[]): Promise<void>;
 }
 
 let bridge: PlayerLibraryBridge | null = null;

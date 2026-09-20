@@ -55,6 +55,7 @@ spec/08의 원칙 "UI와 실행기의 결합은 상태 테이블로만"을 그�
   서버 워커는 `io`만, 로컬 워커는 `ai`(+`io`)를 집는다.
 - 로컬 워커가 꺼져 있으면 AI 작업은 `queued`에 머문다 — 화면에 "대기 중(AI 워커 없음)"으로 표시. 테스트 단계의 의도된 제약.
 - API 키 실행기(`--executor=api`, Anthropic SDK)는 코드만 준비하고 기본 비활성. 전환은 미결 #12(비용 합의) 후.
+- **서버 워커의 실행기는 env 로 고른다** (2026-09-19): compose 의 `EXECUTOR`·`CAPABILITIES` 가 `env.prod` 의 `WORKER_EXECUTOR`(기본 none)·`WORKER_CAPABILITIES`(기본 io) 를 읽는다. `WORKER_EXECUTOR=openai WORKER_CAPABILITIES=ai,io` 면 서버가 초안·QA·비평·군집화·축 심사·메타까지 OpenAI API 로 집는다 — API 전환 실험(미결 #12)의 실행 형태. 단계 모델·effort·`OPENAI_MODEL_*`·`OPENAI_VERBOSITY` 도 env.prod 로 넘긴다. 켜는 동안 노트북 워커는 끈다(같은 큐를 두고 경쟁) — 보강 스윕(WebSearch)은 OpenAI 실행기가 거절하므로 그 기간엔 쓰지 않는다.
 - **OpenAI 실행기 `EXECUTOR=openai`** (실험, 2026-09-19): 썸네일과 같은 `OPENAI_API_KEY` 로 Responses API 를 직접 호출(구조화 출력 strict). 단발 호출만(설계·대본·수정·QA·비평·군집화 v2) — 도구가 필요한 보강 스윕은 거절. 단계 env 의 claude 모델 이름은 단가 동급 GPT 로 사상(opus→gpt-5.6-sol, sonnet→gpt-5.6-terra, fable→gpt-6-astra; `OPENAI_MODEL_*` 로 바꿈). 비용은 usage×단가표로 환산. 기본 실행기(claude-cli)에서도 단계 모델이 `gpt-…` 이면 그 호출만 OpenAI 로 라우팅되므로, 초안은 GPT·QA·비평은 Claude 인 짝 비교를 워커 하나로 돌린다(`DRAFT_DESIGN_MODEL=gpt-5.6-sol DRAFT_WRITE_MODEL=gpt-5.6-sol npm run worker`). 목적: API 전환 비용과 GPT 대본 품질을 같은 후보 짝으로 비교 — 기본값에는 영향 없음.
 - **구독 토큰을 서버에 두지 않는다** (2026-08-29 확인: 헤드리스 `claude -p`는 개인 기기·스크립트 용도로 문서화, 장기 실행 서버·Agent SDK는 API 키 요구).
 
@@ -130,6 +131,8 @@ claude -p --output-format json --json-schema <단계별 결과 스키마> \
 폐기된 기준("절 셋부터 위반" 등)이 설명으로 인용돼 있는데, 모델은 설명과 지시를 구분하지 않는다. 로더는 `guidelines.md`·`qa/prompt.md`·`critic/rubric.md`·`rubric-v2.md`(0장 제외)를
 번들에 실을 때 `promptBody`(`@ear/pipeline`)로 **머리글·이전 판 절·`---` 이후 부록을 잘라** 스냅샷에 내려놓는다 — 인라인 임베딩과 비평의 Read 경로가 같은 파일을 보므로 한 곳에서 끝난다.
 골드 예시·spec·음차 사전은 자르지 않는다. 규칙을 바꾸면 번들 해시의 `PROMPT_BODY_REV` 를 올린다. 이후 자산 본문에는 지시만 두고, 판정 근거와 이전 판 문구는 CHANGELOG 로만 보낸다(작성 규율).
+
+- **실행기 프로파일 키** (2026-09-19): 실행기가 다르면 다른 규칙 판을 동시에 활성으로 둘 수 있어야 한다(Claude 파이프라인 테스트와 서버 OpenAI 실험 병행). 워커 `assets.ts` 의 `PROFILE_KEYS` 가 기본 키 → 프로파일 키를 정한다 — 지금은 `skills/draft/guidelines.md` → `skills/draft/guidelines.gpt.md` 하나. `ASSET_PROFILE`(비우면 `EXECUTOR=openai` 일 때 `gpt`, 아니면 `default`)이 `gpt` 면 프로파일 키의 active 를 읽어 **기본 키 경로**로 스냅샷에 내려놓으므로 프롬프트 빌더는 그대로다. 프로파일 키에 active 가 없으면 기본 키로 폴백하고 로그에 남긴다. `episodes.asset_versions` 에는 실제로 읽은 키(`guidelines.gpt.md@full-v8.2`)가 고정되고, `prompt_version` 라벨에 `(gpt)` 가 붙는다. 프로파일 키는 git 사본이 없어도 `assets:import` 가 건너뛴다(선택 자산). 웹 `/assets` 에서는 "GPT 프로파일" 행으로 보인다.
 
 ### 3.3 산출물 저장 — 원본은 S3, WORK_ROOT 는 캐시 (2026-09-02 구현, M4)
 

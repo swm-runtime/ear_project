@@ -21,6 +21,7 @@ import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import MarqueeText from '@/shared/ui/MarqueeText';
+import RemoteImage from '@/shared/ui/RemoteImage';
 
 import { useTopicsQuery } from '@/features/interest';
 
@@ -926,6 +927,8 @@ export default function PlayerScreen() {
             <Image
               source={{ uri: session.meta.thumbnailUrl }}
               style={styles.backdropImage}
+              // 흐린 바탕만은 기본 Image 로 둔다(KAN-78) — expo-image 의 blurRadius 는 세기 기준이 달라
+              // 맞춰 둔 톤이 바뀐다. 같은 URL 을 한 번 더 받는 비용은 작다(768px WebP)
               blurRadius={BACKDROP_BLUR_RADIUS}
               resizeMode="cover"
             />
@@ -961,7 +964,7 @@ export default function PlayerScreen() {
           onLayout={onHeroArtLayout}
         >
           {session.meta.thumbnailUrl ? (
-            <Image source={{ uri: session.meta.thumbnailUrl }} style={styles.artwork} />
+            <RemoteImage uri={session.meta.thumbnailUrl} style={styles.artwork} />
           ) : (
             <View style={[styles.artwork, styles.artworkPlaceholder]} />
           )}
@@ -1370,8 +1373,8 @@ export default function PlayerScreen() {
             ]}
           >
             {session.meta.thumbnailUrl ? (
-              <Image
-                source={{ uri: session.meta.thumbnailUrl }}
+              <RemoteImage
+                uri={session.meta.thumbnailUrl}
                 style={styles.artwork}
                 // onLoad 직후 한 프레임은 아직 그려지기 전이다 — 다음 프레임에 출발해야 첫 컷이 비지 않는다
                 onLoad={() => requestAnimationFrame(() => setIsMorphImageReady(true))}

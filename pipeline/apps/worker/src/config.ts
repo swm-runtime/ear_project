@@ -39,7 +39,10 @@ export const cfg = {
    *  생성 컨텍스트에 섞이므로 레포 밖(기본 pipeline/.work, gitignore)에 둔다. 원본은 S3 (storage.ts) — 지워도 다음 단계가 다시 내려받는다. 구 REPO_ROOT 는 호환용 */
   workRoot: process.env.WORK_ROOT || process.env.REPO_ROOT || path.resolve(here, "..", "..", "..", ".work"),
   workerName: process.env.WORKER_NAME || `${os.userInfo().username}@${os.hostname()}`,
-  executor: (process.env.EXECUTOR || "claude-cli") as ExecutorKind, // openai (2026-09-19 실험): OPENAI_API_KEY(썸네일과 공유)로 Responses API — 단계 모델은 claude 이름을 동급 GPT 로 사상 (executors/openai-api.ts)
+  executor: (process.env.EXECUTOR || "claude-cli") as ExecutorKind,
+  /** 규칙 자산 프로파일 (2026-09-19, spec/10 3.2): "gpt" 면 프로파일 키(skills/draft/guidelines.gpt.md)가 있는 자산은 그 active 를 읽고, 없으면 기본 키로 폴백.
+   *  기본값은 실행기가 openai 면 gpt, 아니면 default — Claude 파이프라인 테스트와 GPT 실험이 서로 다른 규칙 판을 동시에 활성으로 둔다 */
+  assetProfile: (process.env.ASSET_PROFILE || ((process.env.EXECUTOR || "claude-cli") === "openai" ? "gpt" : "default")) as "default" | "gpt", // openai (2026-09-19 실험): OPENAI_API_KEY(썸네일과 공유)로 Responses API — 단계 모델은 claude 이름을 동급 GPT 로 사상 (executors/openai-api.ts)
   capabilities: (process.env.CAPABILITIES || "ai,io").split(",").map((s) => s.trim()) as Capability[],
   /** 대본 생성 모델 — 미설정이면 claude CLI 기본 모델(현재 Fable). 생성 품질이 제품이라 최상위 모델을 쓴다. 바꾸면 spec/09 7.4(생성 대개정) 재검증 */
   claudeModel: process.env.CLAUDE_MODEL || undefined,

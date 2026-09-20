@@ -23,7 +23,8 @@ export type LibraryFilter = 'all' | 'unplayed' | 'completed' | 'drip';
  */
 export type LibrarySourceFilter = 'drip' | 'save';
 
-export type LibrarySort = 'added_desc' | 'added_asc';
+/** `queue` 는 재생 목록 패널 전용 — 사용자가 정한 순서(library-api.md 4.1·4.8, KAN-70) */
+export type LibrarySort = 'added_desc' | 'added_asc' | 'queue';
 
 export interface LibraryContent {
   id: string;

@@ -179,8 +179,8 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
   // full-v7 (2026-09-15): 소스는 한 구간에만 — 축 소스 하나만 도입·착지 두 구간. 실측 3편 모두 구성안이 소스를 4~5구간에 흩뿌린 것이 재식별·귀속 과밀의 원인이었다
   const sectionNs = new Set(o.sections.map((s) => s.n));
   const axisRaw = (o.axis_source ?? "").trim();
-  const axis = axisRaw ? Number(axisRaw.match(/^S(\d+)$/)?.[1] ?? NaN) : null;
-  if (axisRaw && Number.isNaN(axis)) await fail(`axis_source 형식 위반: "${axisRaw}" — "S3" 형식 하나 또는 빈 문자열`);
+  const axis = axisRaw ? parseAxisSource(axisRaw, sources) : null;
+  if (axisRaw && axis == null) await fail(`axis_source 형식 위반: "${axisRaw}" — "S3" 형식 하나 또는 빈 문자열`);
   const sectionsOf = new Map<number, Set<number>>();
   for (const c of o.claims) {
     if (!sectionNs.has(c.section)) await fail(`claims ${c.id} 의 section #${c.section} 이 구성안 구간에 없음 (구간 ${[...sectionNs].join(",")})`);
@@ -235,4 +235,21 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
     ], gaps: o.gaps, self_check: `ID 검증: 발췌 ${chosen.size} · claims ${o.claims.length} · 구성안 참조 ${outlineRefs.length} 전부 유효${usedBlocks.size ? ` · 이미 쓴 문단 ${usedBlocks.size}개 제외 (${priorNotes.join(" · ")})` : ""} · 축 심사 ${axisNote}`, notes: o.notes,
   };
   return { design, model: r.model, costUsd: (r.listCostUsd ?? 0) + axisCost, tokens: (r.raw as { usage?: unknown } | undefined)?.usage, fetched };
+}
+
+
+/**
+ * 축 소스 표기 관용 파서 (2026-09-19). GPT(gpt-5.6-sol) 가 스키마 설명("S3 형식")을 무시하고 소스 URL 을 그대로 적어 C161 설계가 실패했다 —
+ * "S3" 외에 "S03"·"S3 (제목)"·"소스 3"·소스 목록에 있는 URL 을 받아 번호로 돌린다. 목록에 없는 번호·URL 은 null(형식 위반).
+ */
+export function parseAxisSource(raw: string, sources: { n: number; url: string }[]): number | null {
+  const t = raw.trim();
+  const m = t.match(/^S0*(\d+)\b/i) ?? t.match(/^소스\s*0*(\d+)\b/);
+  if (m) { const n = Number(m[1]); return sources.some((s) => s.n === n) ? n : null; }
+  if (/^https?:\/\//i.test(t)) {
+    const norm = (u: string) => u.toLowerCase().replace(/^https?:\/\/(www\.)?/, "").replace(/[/#?]+$/, "");
+    const hit = sources.find((s) => norm(s.url) === norm(t.split(/\s/)[0]));
+    return hit ? hit.n : null;
+  }
+  return null;
 }

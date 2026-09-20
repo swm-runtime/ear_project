@@ -10,6 +10,7 @@
 | 연관 | `tickets/backend/pending/push-drip-arrival-sender.md` — 서버 발송 코드도 아직 없다. **두 티켓이 모두 끝나야 알림이 간다** |
 | 심각도 | **하** — P1 기능 미구현. 장애가 아니다 |
 | 우선순위 | Low(이번 주 안) |
+| Jira | [KAN-69](https://runtime364.atlassian.net/browse/KAN-69) |
 
 ## 문제
 
@@ -50,3 +51,60 @@
 - Given 무료 사용자가 오늘 한도를 소진했다 / When 콘텐츠 딥링크 알림을 탭한다 / Then 페이월이 노출된다
 - Given 앱이 포그라운드 / When 드립 알림이 도착한다 / Then OS 배너 대신 인앱 배너가 노출된다
 - Given 딥링크 대상 콘텐츠가 회수됐다 / When 알림을 탭한다 / Then 라이브러리로 이동하고 "콘텐츠를 찾을 수 없어요" 토스트가 뜬다
+
+## 처리 기록 (2026-09-19 티켓 정리)
+
+- 미착수. 서버 발송 쪽(KAN-68)은 완료됐다 — **이제 이 티켓이 알림의 유일한 병목이다.**
+- `expo-notifications` 는 네이티브 모듈이라 **새 네이티브 빌드 + runtimeVersion 올림**이 필요하다. 2026-09-17 의 빌드(iOS 6 · Android 9)와 2026-09-19 의 Android 빌드 10 에는 들어 있지 않다 — 스토어 제출 전에 넣을지, 다음 빌드로 미룰지는 PM 결정.
+- APNs 키·FCM 서비스 계정 등록(EAS 자격 증명)이 선행이다(계정 소유자 작업).
+
+## 처리 기록 (2026-09-19 — 코드 반영, 실기기 확인 대기)
+
+**들어간 것**
+
+- `expo-notifications`(~57.0.20) 설치 · `app.json` 플러그인 등록(Android 알림 아이콘 `assets/notification-icon.png` — 로고를 흰색 실루엣으로 뽑았다) · **`runtimeVersion` 2 → 3**. iOS 권한 문구는 추가하지 않았다(푸시는 Info.plist 목적 문구가 없다 — 요청 6).
+- 스텁 교체(요청 2) — 세 함수가 실제 SDK를 탄다. 스텁이 남는 곳은 **웹**과 **mock 개발 실행**뿐이다(`IS_OS_PERMISSION_STUBBED`). 운영 빌드에서 `push notification SDK not integrated yet`는 더 나지 않는다. 토큰 발급 실패(네트워크·자격 증명 누락)는 던지지 않고 `null`로 돌려 권한 결과 보고는 계속 가게 했다. Android 13+ 는 채널이 있어야 다이얼로그가 떠서 요청 직전에 `default` 채널을 만든다. 배지 권한은 묻지 않는다(쓰지 않는다).
+- 동기화(요청 3) — `services/device-sync.service.ts`. **로그인 완료 · 포그라운드 복귀 · 토큰 변경(`addPushTokenListener`)** 에 `PUT /users/me/devices/:device_id`. 마지막으로 올린 값과 같으면 보내지 않고, 로그아웃하면 그 기억을 지운다(서버가 토큰을 지웠으므로 다음 로그인은 같은 값이어도 다시 올린다). `architecture.md` 5.5 의 "AppLifecycleService 에 핸들러 등록"은 그 서비스가 아직 없어 **회수 동기화와 같은 방식**(feature 서비스 + bootstrap 이 로그인 판정 주입)으로 했다.
+- 탭 처리(요청 4) — 수신 서비스는 목적지를 store 에 적어 두기만 하고, **Main 안의 `usePushLinkGate`가 집는다.** Main 이 떴다는 것이 관문 통과(세션 복원 → 재동의 → 온보딩 완료)라 "스플래시 판정 먼저"와 "온보딩 미완료면 보류 후 이동"이 같은 구조로 풀린다. 콘텐츠 목적지는 `usePlayGate`(entry `push`)를 그대로 탄다 — 차감되면 확인 팝업, 소진이면 발급 403 → 플레이어가 페이월로 전환. 회수면 라이브러리 + "콘텐츠를 찾을 수 없어요". 모르는 `deep_link`는 라이브러리로 보낸다.
+- 포그라운드 수신 — OS 배너·알림 센터 표시를 끄고 인앱 배너("새 콘텐츠 N개 도착", 5초, 탭 → 라이브러리)를 Main 위에 얹는다. 라이브러리를 보고 있으면 배너 없이 목록만 무효화한다.
+- 로그아웃(요청 5) — 클라이언트는 보류 중인 목적지·배너·동기화 기억을 지운다. **기기 등록 해제 호출은 넣지 않았다** — 서버가 로그아웃 시 토큰을 무효화한다(KAN-68)로 충분하다고 봤다.
+- 링킹 설정은 만들지 않았다 — `deep_link`는 OS 링크가 아니라 푸시 `data` 안의 문자열이라 앱이 직접 해석한다(`services/push-link.ts` + 테스트). 서버 상수는 그대로 둔다.
+
+**확인한 것** — tsc · eslint · jest(129건) 통과. 웹(mock)에서 store 에 직접 넣어 확인: 탐색 탭 위 배너 노출 → 탭하면 라이브러리 / 라이브러리에서는 배너 없음 / 콘텐츠 목적지 → 재생 확인 팝업. **실제 푸시 수신은 웹·시뮬레이터로 확인할 수 없다** — 아래가 남았다.
+
+**남은 것**
+
+1. **EAS 자격 증명**(계정 소유자) — iOS 푸시 키(APNs) · Android FCM V1 서비스 계정 키. 없으면 토큰은 나와도 발송이 실패한다.
+2. **새 네이티브 빌드**(runtime 3) — 기존 빌드(iOS 6 · Android 9·10)는 runtime 2 라 **이 PR 이후의 OTA 를 받지 못한다.** 새 빌드가 깔리기 전까지 그 기기들은 마지막 runtime 2 번들에 머문다.
+3. 실기기에서 완료 조건 7개 확인. 그 뒤 archive · KAN-69 완료.
+
+**알려진 공백** — 딥링크 대상이 **삭제**(404 `CONTENT_NOT_FOUND`)된 경우는 라이브러리 폴백이 아니라 플레이어의 로드 실패 화면이 뜬다. 재생 서비스가 404 를 네트워크 실패와 같은 `load_failed`로 내려 진입점이 둘을 가를 수 없다 — 회수(403)만 폴백된다. 발송 직후 삭제되는 경우라 드물다. 고치려면 player 의 세션 상태에 구분을 더해야 한다.
+
+## 처리 기록 (2026-09-19 — runtime 3 빌드 결과)
+
+- **Android production** versionCode 11(aab) · **Android preview** versionCode 11(apk, 개발계 API) — 성공. 둘 다 푸시 코드가 내장돼 있다.
+- **iOS production build 8 — 실패.** `Provisioning profile … doesn't include the Push Notifications capability / aps-environment entitlement`. App ID 에 푸시 권한을 켜고 프로파일을 다시 만들어야 하는데, 그 작업은 Apple 계정 로그인(2단계 인증)이 필요해 `--non-interactive` 로는 되지 않는다.
+  - **사람 손**: `cd frontend && npx eas-cli build --profile production --platform ios` 를 **대화형으로** 한 번 돌린다. Apple 로그인 → EAS 가 Push Notifications 권한 동기화 · 프로파일 재생성 · **푸시 키(APNs) 생성**까지 물어보며 해 준다(전부 Yes). 한 번 해 두면 이후 빌드는 다시 비대화형으로 돈다.
+- **Android 발송용 FCM V1 서비스 계정 키**도 EAS 에 올려야 한다(`eas credentials` → Android → Google Service Account → FCM V1). 없으면 Android 토큰은 나와도 발송이 실패한다.
+- **마감 사유**(Low, 발행 2026-09-17 → 이번 주): 코드는 기한 안에 끝났다. iOS 빌드와 발송 확인이 계정 소유자의 수동 작업에 걸려 있다.
+
+## 처리 기록 (2026-09-20 — 실기기 검증 1차, iPhone)
+
+기기: iPhone · 개발계 앱 "이어 - preview"(TestFlight, `dev.runtime.ear`, runtime 4, 개발계 API). 서버 드립을 기다리지 않고 **Expo Push API 로 직접 발송**했다 — `data = { type: "drip_arrival", deep_link, content_count }`(서버가 보내는 형식 그대로). 발송 영수증은 전부 `ok`.
+
+| 완료 조건 | 결과 |
+|---|---|
+| 1 권한 다이얼로그·토큰 등록 | **통과** — `ExponentPushToken[…]` 발급. 서버 DB 값 대조는 하지 않았다(앱이 받은 토큰으로 발송이 도착함을 확인) |
+| 2 SDK 미연동 오류 없음 | **통과** |
+| 3 OS 설정 끔 → 서버 `false` 동기화 | 미확인 — 서버 값 조회 필요(BE) |
+| 4 백그라운드 수신 → 탭 → 이동 | **통과(라이브러리 경로)** — 잠금 화면·다른 앱 사용 중 도착, 탭하면 라이브러리. **콘텐츠 1편 경로(재생 확인 팝업)는 미확인** — 개발계 콘텐츠 ID 필요 |
+| 5 한도 소진 → 페이월(MVP 는 한도 안내) | 미확인 |
+| 6 포그라운드 인앱 배너 | **통과** — 탐색 탭에서 "새 콘텐츠 N개 도착" 띠 노출, 탭하면 라이브러리. OS 배너는 뜨지 않았다 |
+| 7 회수 콘텐츠 → 라이브러리 + 토스트 | 미확인 — 회수된 콘텐츠 ID 필요(BE) |
+
+- 검증 도구: 개발계 앱에만 설정 > 정보에 **"푸시 토큰 (개발계)"** 행을 넣었다(PR #526) — 탭하면 공유 시트로 토큰을 내보낸다. 발송은 `POST https://exp.host/--/api/v2/push/send`, 결과는 `/push/getReceipts`.
+- 발송 측 주의: Windows 터미널의 `curl -d '…한글…'` 은 UTF-8 이 아니라 알림 본문이 깨진다 — node `fetch` 로 보낸다. 앱·서버 문제가 아니다.
+- 포그라운드 띠 확인 주의: 폰에서 채팅하다 "준비됨"을 보내면 그 순간 앱은 백그라운드라 OS 배너로 간다 — 지연 발송으로 확인했다.
+- **Android 는 이 티켓 범위 밖으로 분리했다(KAN-81)** — `google-services.json` 이 없어 토큰이 조용히 `null` 이었다. 설정 파일·FCM V1 키는 등록했고 실기기 확인이 남았다.
+- 운영 iOS 앱(`com.runtime.ear`)은 EAS 에 푸시 키(APNs)가 아직 없다 — 운영 iOS 대화형 빌드 때 생성된다. 이 검증은 개발계 앱 기준이다.
+- 남은 것: 조건 3·5·7 과 4 의 콘텐츠 경로. 그 뒤 archive · KAN-69 완료.

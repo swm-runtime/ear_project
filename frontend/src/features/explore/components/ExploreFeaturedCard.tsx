@@ -1,6 +1,7 @@
-import { Image, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import RemoteImage from '@/shared/ui/RemoteImage';
 
 import { EXPLORE_COPY } from '../explore.copy';
 import type { ExploreItem } from '../explore.types';
@@ -73,7 +74,7 @@ export default function ExploreFeaturedCard({
         })}
       >
         <View style={styles.artworkFrame}>
-          <Image source={{ uri: item.content.thumbnailUrl }} style={styles.artwork} />
+          <RemoteImage uri={item.content.thumbnailUrl} recyclingKey={item.content.id} style={styles.artwork} />
           {isCompleted ? (
             <View style={styles.completedMark}>
               <Text style={styles.completedGlyph}>✓</Text>
