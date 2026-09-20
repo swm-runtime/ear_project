@@ -53,3 +53,6 @@
 ## 처리 기록
 
 - 2026-09-20 발행. 스크립트·셋업 스크립트는 같은 PR 에서 함께 올린다(서버 적용은 `setup-content-sync-notify.sh` 실행이 필요하다 — SSO 로그인·pem 필요).
+- 2026-09-20 코드 반영(같은 PR). **남은 것**: ① `bash backend/deploy/aws/setup-content-sync-notify.sh` 로 알림 키·SG·운영 크론을 깐다(SSO 로그인 + 운영·개발계 pem 필요) ② dev·main 배포로 양쪽 스크립트가 서버에 깔린 뒤 운영에서 콘텐츠를 한 번 발행해 `notify ok` · `import ok` 를 확인한다. 확인되면 archive 로 옮긴다.
+- **KAN-83(대본 포함)을 같은 PR에 담았다** — 같은 두 스크립트를 고치는 작업이라 나눠 올리면 충돌한다.
+
