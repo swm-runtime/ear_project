@@ -132,8 +132,8 @@ export async function runTts(job: Job) {
     await writeBuf(src, ts.audio);
     let cutStart = 0, cutEnd: number | undefined;
     if (b) {
-      // 쉼은 문맥 턴 마지막 글자 시작 조금 앞부터 본문 첫 글자 시작 뒤 1.5초 사이 어딘가 — 오디오에서 찾되, 본문 첫 글자 시작 +0.3초 전에 시작하는 구간만
-      const cut = await findPauseCut(src, spansAll[0].lastStart - 0.2, spans[0].start + 1.5, spans[0].start + 0.3);
+      // 쉼은 문맥 턴 마지막 글자 시작 조금 앞부터 본문 첫 글자 시작 뒤 1.5초 사이 어딘가 — 오디오에서 찾는다 (findPauseCut 주석)
+      const cut = await findPauseCut(src, spansAll[0].lastStart - 0.2, spans[0].start + 1.5);
       if (cut == null) throw new Error(`앞 문맥과의 쉼을 못 찾음 (창 ${(spansAll[0].lastStart - 0.2).toFixed(2)}~${(spans[0].start + 1.5).toFixed(2)})`);
       const ctxRate = before[0].text.replace(/\s/g, "").length / Math.max(0.2, spansAll[0].end - spansAll[0].start);
       const prevRate = mainRate[n - 1]?.[mainRate[n - 1].length - 1];
@@ -141,7 +141,7 @@ export async function runTts(job: Job) {
       cutStart = cut;
     }
     if (after.length) {
-      const cut = await findPauseCut(src, spans[m - 1].lastStart - 0.2, spansAll[b + m].start + 1.5, spansAll[b + m].start + 0.3);
+      const cut = await findPauseCut(src, spans[m - 1].lastStart - 0.2, spansAll[b + m].start + 1.5);
       if (cut == null) throw new Error(`뒤 문맥과의 쉼을 못 찾음 (창 ${(spans[m - 1].lastStart - 0.2).toFixed(2)}~${(spansAll[b + m].start + 1.5).toFixed(2)})`);
       cutEnd = cut;
     }

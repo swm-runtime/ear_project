@@ -24,8 +24,9 @@ async function ffmpeg(args: string[]) {
  */
 export function longestQuietRun(db: number[], hopSec: number, minSec: number, opts: { marginDb?: number; capDb?: number; maxStartSec?: number } = {}): { start: number; end: number } | null {
   const { marginDb = 12, capDb = -35, maxStartSec = Infinity } = opts;
-  if (!db.length) return null;
-  const floor = Math.min(...db);
+  const real = db.filter((x) => x > -100); // 디코더 프라이밍의 디지털 0 프레임(−120dB)은 바닥이 아니다 — 끼면 문턱이 −108dB 가 되어 아무것도 안 잡힌다
+  if (!real.length) return null;
+  const floor = Math.min(...real);
   const th = Math.min(floor + marginDb, capDb);
   let best: [number, number] | null = null;
   for (let i = 0; i < db.length; ) {
@@ -42,18 +43,19 @@ export function longestQuietRun(db: number[], hopSec: number, minSec: number, op
 /**
  * [from, to] 창 안에서 가장 긴 조용한 구간의 한가운데 시각 — 문맥 겹침 절단점 (2026-09-22 KAN-87).
  * 정렬 타임스탬프는 쉼을 글자 길이에 흡수하는데 그 위치가 일정하지 않아(앞 턴 마침표·뒤 턴 첫 글자·그 뒤 글자들) 경계 글자만으로 잡은 창은
- * 0.16초처럼 좁아 실패했다(샘플 실측). 창은 넓게 잡고, 조용한 구간이 `notAfter`(뒤 턴 첫 글자 시작 + 여유) 전에 시작하는 것만 고른다 —
- * 쉼이 앞 턴 마침표에 흡수되면 실제 쉼은 "뒤 턴 첫 글자 시작" 보다 앞에, 뒤 턴 첫 글자에 흡수되면 그 뒤에 놓이므로 시작 상한만 둔다.
- * 문맥 턴 안의 쉼표 쉼은 창 시작이 그 턴의 마지막 글자라 애초에 창에 없다. 없으면 null (호출부가 문맥 없이 폴백).
+ * 0.16초처럼 좁아 실패했다(샘플 실측). 창은 [앞 턴 마지막 글자 시작 −0.2초, 뒤 턴 첫 글자 시작 +1.5초]로 넓게 잡고, 조용한 구간 중
+ * **창 시작 후 `maxStartSec`(기본 1.2초) 안에 시작하는 가장 긴 것**을 고른다 — 앞 턴 마지막 낱말은 1.2초를 넘지 않으므로 그 안에 시작하는
+ * 긴 쉼이 곧 턴 사이 쉼이고, 뒤 턴 첫 낱말 뒤의 쉼표 쉼은 그보다 늦게 시작한다. 정렬의 "뒤 턴 첫 글자 시작"은 실제 발화보다 1.4초까지
+ * 앞설 수 있어(쉼이 그 글자에 흡수) 기준으로 못 쓴다. 문맥 턴 안의 쉼표 쉼은 창 시작이 그 턴의 마지막 글자라 창에 없다. 없으면 null.
  */
-export async function findPauseCut(file: string, from: number, to: number, notAfter = to, minSec = 0.12): Promise<number | null> {
+export async function findPauseCut(file: string, from: number, to: number, maxStartSec = 1.2, minSec = 0.08): Promise<number | null> {
   if (!(to > from)) return null;
   const { stdout } = await run("ffmpeg", ["-v", "error", "-ss", from.toFixed(3), "-to", to.toFixed(3), "-i", file, "-f", "s16le", "-ac", "1", "-ar", "44100", "-"], { encoding: "buffer", maxBuffer: 1 << 26 });
   const buf = stdout as unknown as Buffer;
   const win = 882; // 20ms @ 44.1kHz
   const db: number[] = [];
   for (let i = 0; i + win <= buf.length / 2; i += win) { let acc = 0; for (let k = 0; k < win; k++) { const v = buf.readInt16LE((i + k) * 2) / 32768; acc += v * v; } db.push(10 * Math.log10(acc / win + 1e-12)); }
-  const q = longestQuietRun(db, 0.02, minSec, { maxStartSec: Math.max(0, notAfter - from) });
+  const q = longestQuietRun(db, 0.02, minSec, { maxStartSec });
   return q ? from + (q.start + q.end) / 2 : null;
 }
 
