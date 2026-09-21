@@ -68,9 +68,25 @@ export type CutKind = "단락" | "문장" | "질문 뒤";
 const CUT_COST: Record<CutKind, number> = { 단락: 0, 문장: 1, "질문 뒤": 5 };
 const CHUNK_COST = 4; // 요청 하나(이음새 하나)의 비용 — "질문 뒤" 한 곳을 피하려면 요청을 하나 늘여도 되고, "문장" 몇 곳을 "단락"으로 바꾸려고 늘이지는 않는다
 
-export function cutKind(prev: ScriptTurn, next: ScriptTurn): CutKind {
+/** 질문 턴 — 마지막 두 문장 중 하나가 물음표로 끝나면 (진행자는 "…있어요? 푹 잤다고 느낄 것 같은데요." 처럼 질문 뒤에 덧말을 붙인다 — X260919-001 Y15) */
+const isQuestion = (t: ScriptTurn) => t.text.split(/(?<=[.?!？…])\s+/).filter(Boolean).slice(-2).some((sent) => /[?？][\s"'”’」』)\]]*$/.test(sent));
+
+/**
+ * turns[j] 앞에서 자를 때의 경계 종류. 단락 헤더가 진행자의 전환 질문 **뒤**·해설의 대답 **앞**에 놓인 대본이 있어(X260919-001: 5곳 중 4곳),
+ * "헤더 다음 턴"만 보면 질문·대답 사이를 단락으로 잘못 친다 (2026-09-21 KAN-87 테스트). 앞 턴이 질문이면 무조건 "질문 뒤"이고,
+ * 그 질문 자체가 헤더 바로 앞이면 질문 **앞**(해설의 서술이 끝난 자리)이 실제 화제 전환이라 그쪽을 "단락"으로 친다.
+ */
+export function cutKindAt(turns: ScriptTurn[], j: number): CutKind {
+  const prev = turns[j - 1], next = turns[j];
+  if (isQuestion(prev)) return "질문 뒤";
   if (next.blockStart) return "단락";
-  return /[?？][\s"'”’」』)\]]*$/.test(prev.text) ? "질문 뒤" : "문장";
+  if (isQuestion(next) && turns[j + 1]?.blockStart) return "단락"; // 헤더 앞의 전환 질문 — 질문 앞이 화제 경계
+  return "문장";
+}
+
+/** @deprecated cutKindAt 로 — 두 턴만으로는 헤더 앞 전환 질문을 볼 수 없다 */
+export function cutKind(prev: ScriptTurn, next: ScriptTurn): CutKind {
+  return cutKindAt([prev, next], 1);
 }
 
 /**
@@ -101,7 +117,7 @@ function chunkRun(run: ScriptTurn[], maxChars: number): ScriptTurn[][] {
     for (let j = i - 1; j >= 0; j--) {
       len += run[j].text.length;
       if (len > maxChars && i - j > 1) break;
-      const cost = best[j].cost + CHUNK_COST + (j > 0 ? CUT_COST[cutKind(run[j - 1], run[j])] : 0);
+      const cost = best[j].cost + CHUNK_COST + (j > 0 ? CUT_COST[cutKindAt(run, j)] : 0);
       if (cost < best[i].cost) best[i] = { cost, prev: j };
     }
   }
@@ -112,5 +128,7 @@ function chunkRun(run: ScriptTurn[], maxChars: number): ScriptTurn[][] {
 
 /** 묶음 경계의 종류 목록 (실행 기록·청취 확인용) — 첫 묶음 앞은 경계가 아니다 */
 export function describeCuts(chunks: ScriptTurn[][]): CutKind[] {
-  return chunks.slice(1).map((c, n) => cutKind(chunks[n][chunks[n].length - 1], c[0]));
+  const all = chunks.flat();
+  let at = 0;
+  return chunks.slice(0, -1).map((c) => { at += c.length; return cutKindAt(all, at); });
 }

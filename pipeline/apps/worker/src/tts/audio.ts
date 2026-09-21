@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 /**
- * 오디오 조립 (spec/06 7장) — ffmpeg 로: 앞 무음(2초) → 세그먼트 디코드·무음 갭 삽입 연결 → 뒤 무음(2초) → 라우드니스 정규화(-16 LUFS)
+ * 오디오 조립 (spec/06 7장) — ffmpeg 로: 앞 무음(2초) → 세그먼트 디코드·연결(문맥 겹침 경계는 그대로, 폴백 경계는 자연 쉼 길이의 무음) → 뒤 무음(2초) → 라우드니스 정규화(-16 LUFS)
  * → 마스터 wav(무손실) + 배포본 mp3 128kbps. 재처리는 항상 마스터에서.
  * ffmpeg 는 워커 이미지(deploy/Dockerfile)에 포함 — 로컬 실행 시엔 brew install ffmpeg.
  */
@@ -24,6 +24,7 @@ export async function probeDurationSec(file: string): Promise<number> {
 }
 
 import type { AudioFormat } from "./elevenlabs.js";
+import { DEFAULT_GAP_SEC } from "./segments.js";
 
 export interface Segment { data: Buffer; format: AudioFormat }
 
@@ -69,7 +70,7 @@ export async function retimePieces(srcFile: string, pieces: { start: number; end
 export interface AssemblePiece { kind: "segment"; segment: Segment } // 순서대로 연결, 사이에 gapSec 무음
 export interface AssembleInput {
   segments: Segment[];
-  gapSec?: number;       // 세그먼트(분할 요청) 사이 무음 — 요청 안의 턴 간격은 모델이 처리
+  gapSec?: number | number[]; // 세그먼트(분할 요청) 사이 무음 — 배열이면 경계별. 문맥 겹침 경계(spec/06 7장 ④)는 0(양쪽 반쪽 쉼이 오디오에 이미 있다), 폴백 경계는 편의 자연 쉼 중앙값(segments.naturalGapSec)
   leadSec?: number;      // 시작 무음 (기본 2초 — 2026-09-07 박수헌: 재생 시작 직후 첫 음절이 잘리지 않게)
   tailSec?: number;      // 끝 무음 (기본 2초 — 다음 콘텐츠·종료 전 여백)
   workDir: string;       // 임시 파일 디렉토리 (episodes/{id}/audio/)
@@ -82,9 +83,9 @@ export async function assemble(i: AssembleInput): Promise<number> {
   const tmp = path.join(i.workDir, ".tmp");
   await fs.mkdir(tmp, { recursive: true });
   const parts: string[] = [await silenceWav(i.leadSec ?? 2, path.join(tmp, "lead.wav"))];
-  const gap = i.gapSec ?? 0.35;
+  const gapAt = (n: number) => (Array.isArray(i.gapSec) ? i.gapSec[n - 1] ?? 0 : i.gapSec ?? DEFAULT_GAP_SEC);
   for (let n = 0; n < i.segments.length; n++) {
-    if (n > 0) parts.push(await silenceWav(gap, path.join(tmp, `gap-${n}.wav`)));
+    if (n > 0 && gapAt(n) > 0) parts.push(await silenceWav(gapAt(n), path.join(tmp, `gap-${n}.wav`)));
     parts.push(await toWav(i.segments[n], path.join(tmp, `part-${n}.wav`), tmp, n));
   }
   parts.push(await silenceWav(i.tailSec ?? 2, path.join(tmp, "tail.wav")));

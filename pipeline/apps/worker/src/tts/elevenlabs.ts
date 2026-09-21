@@ -143,22 +143,27 @@ export async function forcedAlignment(audio: Buffer, text: string, timeoutMs = 1
  * 하나라도 못 찾으면 null — 호출부가 배속 없이 폴백한다.
  */
 export function locateTurnStarts(t: TimestampedSynth, texts: string[]): number[] | null {
+  return locateTurnSpans(t, texts)?.map((s) => s.start) ?? null;
+}
+
+/** 턴별 [첫 글자 시작, 마지막 글자 끝] — 턴 사이의 자연스러운 쉼 길이(다음 start − 이 end)를 재는 데 쓴다 (2026-09-21 KAN-87) */
+export function locateTurnSpans(t: TimestampedSynth, texts: string[]): { start: number; end: number }[] | null {
   const strip = (s: string) => s.replace(/\s+/g, "");
   const map: number[] = [];                       // 공백 제외 인덱스 → 정렬 배열 인덱스
   const hayChars: string[] = [];
   t.chars.forEach((c, i) => { if (c.trim()) { map.push(i); hayChars.push(c); } });
   const hay = hayChars.join("");
-  const starts: number[] = [];
+  const spans: { start: number; end: number }[] = [];
   let cursor = 0;
   for (const text of texts) {
     const needle = strip(text);
     if (!needle) return null;
     const at = hay.indexOf(needle, cursor);
     if (at < 0) return null;
-    starts.push(t.startSec[map[at]]);
+    spans.push({ start: t.startSec[map[at]], end: t.endSec[map[at + needle.length - 1]] });
     cursor = at + needle.length;
   }
-  return starts;
+  return spans;
 }
 
 /** 발췌(부분 문자열)의 시작·끝 시각을 문자 정렬에서 찾는다. 공백 차이는 무시하고 대조한다 */

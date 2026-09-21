@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chunkTurns, cutKind, describeCuts, parseScriptForTts, type ScriptTurn } from "./script.js";
+import { chunkTurns, cutKind, cutKindAt, describeCuts, parseScriptForTts, type ScriptTurn } from "./script.js";
 
 const T = (text: string, blockStart = false, speaker: "윤아" | "이음" = "윤아"): ScriptTurn => ({ speaker, id: null, text, section: "본문", ...(blockStart ? { blockStart } : {}) });
 const total = (c: ScriptTurn[]) => c.reduce((s, t) => s + t.text.length, 0);
@@ -13,10 +13,23 @@ test("파서 — 구역·단락 헤더 다음 턴에 blockStart 가 붙는다", 
 });
 
 test("경계 종류 — 단락 > 서술 뒤 > 질문 뒤", () => {
-  assert.equal(cutKind(T("질문인가요?"), T("네.", true)), "단락");
+  assert.equal(cutKind(T("서술이에요."), T("네.", true)), "단락");
+  assert.equal(cutKind(T("질문인가요?"), T("네.", true)), "질문 뒤"); // 헤더 다음이라도 앞 턴이 질문이면 질문·대답 사이다
   assert.equal(cutKind(T("서술이에요."), T("네.")), "문장");
   assert.equal(cutKind(T("질문인가요?"), T("네.")), "질문 뒤");
   assert.equal(cutKind(T("그렇죠?\""), T("네.")), "질문 뒤");
+});
+
+test("헤더 앞의 전환 질문 — 질문 앞이 단락 경계, 질문 뒤는 질문 뒤 (X260919-001 유형)", () => {
+  // 이음 서술 → 윤아 질문 → ### 헤더 → 이음 대답
+  const turns = [T("서술이에요.", false, "이음"), T("그건 왜 그래요?", false, "윤아"), T("이유는 이래요.", true, "이음")];
+  assert.equal(cutKindAt(turns, 1), "단락");
+  assert.equal(cutKindAt(turns, 2), "질문 뒤");
+  // 600자씩 4턴: [서술][질문][대답§][서술] → 2요청이면 질문 앞에서 자른다
+  const big = [T("가".repeat(600), false, "이음"), T("나".repeat(599) + "?", false, "윤아"), T("다".repeat(600), true, "이음"), T("라".repeat(600), false, "윤아")];
+  const chunks = chunkTurns(big, 1800);
+  assert.deepEqual(chunks.map((c) => c.length), [1, 3]);
+  assert.deepEqual(describeCuts(chunks), ["단락"]);
 });
 
 test("자르는 자리 — 글자가 찰 때가 아니라 단락 헤더 다음을 고른다 (요청 수는 같게)", () => {
