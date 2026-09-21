@@ -57,3 +57,34 @@
 - **KAN-83(대본 포함)을 같은 PR에 담았다** — 같은 두 스크립트를 고치는 작업이라 나눠 올리면 충돌한다.
 - 2026-09-20 **알림 키 설치 경로 변경** — 개발계 키페어(`ear-dev-isb.pem`)가 이 PC 에 없고, EC2 Instance Connect 는 조직 SCP 가 막고(`explicit deny`), 인스턴스 역할에 SSM 을 붙여도 에이전트가 등록되지 않았다. 그래서 **CI 가 이미 가진 두 환경 SSH 키로** 설치한다: `.github/workflows/content-sync-notify-key.yml`(수동 실행). main 에서 실행하면 운영에 키페어·개인키·크론을, 그 로그의 공개키를 입력으로 dev 에서 실행하면 개발계 `authorized_keys` 에 등록한다. 로컬 `setup-content-sync-notify.sh` 는 개발계 pem 이 있을 때의 경로로 남긴다.
 
+
+## 진행 기록 (2026-09-21 — 어디까지 됐는지 확정했다)
+
+`content-sync-notify-key.yml` 실행 이력을 스텝 단위로 확인한 결과, **키 설치는 이미 끝났다.**
+
+| 스텝 | 결과 |
+|---|---|
+| (main) SSH 개방 — 러너 IP | success — `authorize-security-group-ingress` 권한은 **있다** |
+| (main) 키페어 생성 + 개인키 설치 | **success** — 공개키가 로그에 찍혔다(`ssh-ed25519 AAAA…LUd9`) |
+| (dev) `authorized_keys` 에 forced command 로 등록 | **success** |
+| (main) 개발계 주소·크론 설정 | **failure** |
+
+실패는 한 줄 때문이다 — 개발계 사설 IP 를 얻으려는 `aws ec2 describe-instances` 가
+`UnauthorizedOperation` 으로 거부됐다(`ear-ci-deploy` 역할에 `ec2:DescribeInstances` 없음,
+run 35500421294). **그래서 운영 `.env.prod` 의 `CONTENT_SYNC_NOTIFY_HOST` 와 1분 크론만
+비어 있다.** 지금은 하루 한 번 안전망 크론만 돈다.
+
+### 처리 방향 — IAM 을 건드리지 않는다
+
+사설 IP 는 인스턴스를 중지하지 않는 한 고정이므로 EC2 에 물을 이유가 없다. 워크플로가
+`vars.DEV_PRIVATE_IP` 를 먼저 보고, 없을 때만 EC2 조회로 넘어가게 고쳤다
+(`ci(infra)/content-sync-dev-ip-var`). 값이 비었거나 `None` 이거나 사설 IP 모양이 아니면
+**중단한다** — 그대로 쓰면 알림이 조용히 꺼진 채 "성공"이 되기 때문이다.
+
+### 남은 것
+
+1. ~~`api-prod` 환경 변수 **`DEV_PRIVATE_IP`**~~ — **2026-09-21 완료**(`172.31.14.86`). 값이 문서 어디에도 없어 매번 콘솔을 열어야 했으므로 `infra/inventory.md` 개발계 EC2 행에도 적었다
+2. 이 워크플로 수정이 **`main` 에 있어야** 실행된다(Environment 배포 브랜치 정책상 `api-prod` 는 main 전용) — `dev → main` 머지 필요
+3. main 에서 워크플로 재실행 → 운영에서 콘텐츠 한 번 발행 → `/var/log/ear-content-sync.log` 의 `notify ok` · `import ok` 확인 → archive
+
+dev 쪽은 이미 등록돼 있어 다시 돌릴 필요가 없다(다시 돌려도 안전하다).
