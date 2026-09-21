@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chunkSegments, contextExcerpt, DEFAULT_GAP_SEC, displayText, joinChunkSegments, naturalGapSec, retimedAt, validateSegments } from "./segments.js";
+import { chunkSegments, contextExcerpt, displayText, joinChunkSegments, retimedAt, validateSegments } from "./segments.js";
 import type { TimestampedSynth } from "./elevenlabs.js";
 
 /** 글자마다 0.1초씩 붙는 가짜 정렬 (공백은 0초) */
@@ -71,11 +71,15 @@ test("문맥 발췌 — 끝 문장들(tail)·첫 문장들(head)을 상한 안�
   assert.ok(contextExcerpt(long, "head", 40).length <= 40 && long.startsWith(contextExcerpt(long, "head", 40)));
 });
 
-test("이음새 쉼 — 자연 쉼 중앙값, 3곳 미만이면 기본값, 0.5~1.2 로 묶는다", () => {
-  assert.equal(naturalGapSec([0.8, 1.0, 0.95, 1.1, 0.9]), 0.95);
-  assert.equal(naturalGapSec([0.8, 1.0]), DEFAULT_GAP_SEC);
-  assert.equal(naturalGapSec([3, 4, 5]), 1.2);
-  assert.equal(naturalGapSec([0.1, 0.2, 0.3, NaN, -1]), 0.5);
+test("문맥 발췌 — 끝 문장들(tail)·첫 문장들(head)을 상한 안에서, 원문의 연속 부분 문자열", () => {
+  const t = "첫 문장이에요. 둘째 문장은 조금 더 길어요. 셋째는 질문인가요? 넷째로 끝나요.";
+  assert.equal(contextExcerpt(t, "tail", 12), "넷째로 끝나요.");
+  assert.equal(contextExcerpt(t, "tail", 30), "셋째는 질문인가요? 넷째로 끝나요.");
+  assert.equal(contextExcerpt(t, "head", 20), "첫 문장이에요.");
+  for (const side of ["head", "tail"] as const) assert.ok(t.includes(contextExcerpt(t, side, 30)));
+  const long = "가나다 ".repeat(60).trim(); // 한 문장이 상한을 넘으면 어절 경계로 자른다
+  assert.ok(contextExcerpt(long, "tail", 40).length <= 40 && long.endsWith(contextExcerpt(long, "tail", 40)));
+  assert.ok(contextExcerpt(long, "head", 40).length <= 40 && long.startsWith(contextExcerpt(long, "head", 40)));
 });
 
 test("검증 — 겹침·역순을 잡는다", () => {

@@ -110,17 +110,8 @@ function splitLong(t: ChunkTurn, ts: TimestampedSynth, map: number[], hay: strin
   return out;
 }
 
-/**
- * 분할 요청 사이 이음새 쉼 (2026-09-21 KAN-87): 종전 0.35초 고정은 같은 요청 안 턴 사이 쉼(실측 약 1초)의 3분의 1이라 "말을 쉰다"가 아니라
- * "끊겼다"로 들렸다. 편마다 정렬에서 잰 자연 쉼의 중앙값을 쓰고, 정렬이 없으면 DEFAULT_GAP_SEC. 범위를 묶어 극단값(긴 침묵·정렬 오차)을 막는다.
- */
+/** 폴백(문맥 겹침 실패) 경계의 무음 길이 — 같은 요청 안 턴 사이 쉼의 실측(약 0.9~1.1초, X260919-001 무음 검출)에 맞춘 값 (KAN-87) */
 export const DEFAULT_GAP_SEC = 0.9;
-export function naturalGapSec(pauses: number[], fallback = DEFAULT_GAP_SEC, min = 0.5, max = 1.2): number {
-  const xs = pauses.filter((x) => Number.isFinite(x) && x > 0).sort((a, b) => a - b);
-  if (xs.length < 3) return fallback;
-  const med = xs.length % 2 ? xs[(xs.length - 1) / 2] : (xs[xs.length / 2 - 1] + xs[xs.length / 2]) / 2;
-  return Math.round(Math.min(max, Math.max(min, med)) * 100) / 100;
-}
 
 /** 요청별 세그먼트를 배포본 시각으로 합친다 — 앞 무음 + 요청 사이 무음 + 앞 요청들의 실측 길이 (gapSec 은 assemble 과 같은 값이어야 한다) */
 export function joinChunkSegments(chunks: { segments: ScriptSegment[]; durSec: number }[], leadSec = 2, gapSec: number | number[] = DEFAULT_GAP_SEC): ScriptSegment[] {

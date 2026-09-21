@@ -18,6 +18,25 @@ async function ffmpeg(args: string[]) {
   }
 }
 
+/**
+ * [from, to] 창 안에서 가장 긴 무음(−50dB 이하, 최소 minSec)의 한가운데 시각 — 문맥 겹침 절단점 (2026-09-22 KAN-87).
+ * 정렬 타임스탬프는 쉼을 글자 길이에 흡수해 위치를 주지 않으므로 오디오에서 찾는다. 없으면 null (호출부가 문맥 없이 폴백).
+ */
+export async function findPauseCut(file: string, from: number, to: number, minSec = 0.15): Promise<number | null> {
+  if (!(to > from)) return null;
+  const { stderr } = await run("ffmpeg", ["-hide_banner", "-v", "info", "-ss", from.toFixed(3), "-to", to.toFixed(3), "-i", file, "-af", `silencedetect=noise=-50dB:d=${minSec}`, "-f", "null", "-"]);
+  const text = String(stderr);
+  const starts = [...text.matchAll(/silence_start: (-?[\d.]+)/g)].map((m) => Number(m[1]));
+  const ends = [...text.matchAll(/silence_end: (-?[\d.]+)/g)].map((m) => Number(m[1]));
+  let best: { s: number; e: number } | null = null;
+  for (let i = 0; i < starts.length; i++) {
+    const s0 = Math.max(0, starts[i]), e0 = ends[i] ?? to - from; // 창 끝까지 이어지면 end 가 없다
+    if (!best || e0 - s0 > best.e - best.s) best = { s: s0, e: e0 };
+  }
+  if (!best || best.e - best.s < minSec) return null;
+  return from + (best.s + best.e) / 2;
+}
+
 export async function probeDurationSec(file: string): Promise<number> {
   const { stdout } = await run("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", file]);
   return Number(stdout.trim()) || 0;
@@ -70,7 +89,7 @@ export async function retimePieces(srcFile: string, pieces: { start: number; end
 export interface AssemblePiece { kind: "segment"; segment: Segment } // 순서대로 연결, 사이에 gapSec 무음
 export interface AssembleInput {
   segments: Segment[];
-  gapSec?: number | number[]; // 세그먼트(분할 요청) 사이 무음 — 배열이면 경계별. 문맥 겹침 경계(spec/06 7장 ④)는 0(양쪽 반쪽 쉼이 오디오에 이미 있다), 폴백 경계는 편의 자연 쉼 중앙값(segments.naturalGapSec)
+  gapSec?: number | number[]; // 세그먼트(분할 요청) 사이 무음 — 배열이면 경계별. 문맥 겹침 경계(spec/06 7장 ④)는 0(양쪽 반쪽 쉼이 오디오에 이미 있다), 폴백 경계는 DEFAULT_GAP_SEC
   leadSec?: number;      // 시작 무음 (기본 2초 — 2026-09-07 박수헌: 재생 시작 직후 첫 음절이 잘리지 않게)
   tailSec?: number;      // 끝 무음 (기본 2초 — 다음 콘텐츠·종료 전 여백)
   workDir: string;       // 임시 파일 디렉토리 (episodes/{id}/audio/)
