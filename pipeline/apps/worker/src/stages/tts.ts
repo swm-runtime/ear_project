@@ -122,6 +122,7 @@ export async function runTts(job: Job) {
       const f = path.join(audioDir, "debug-align", `align-${n}${withCtx ? "-ctx" : ""}.json`);
       await fs.mkdir(path.dirname(f), { recursive: true });
       await fs.writeFile(f, JSON.stringify({ inputs: all.map((t) => ({ speaker: t.speaker, text: t.text })), spans: spansAll, chars: ts.chars, start: ts.startSec, end: ts.endSec }), "utf8");
+      await fs.writeFile(f.replace(/\.json$/, ".mp3"), ts.audio); // 요청 원본 — 절단점 탐색을 로컬에서 재현하기 위해
     }
     if (!spansAll) throw new Error("턴 경계를 정렬에서 찾지 못함");
     const b = before.length, m = chunk.length;
@@ -131,8 +132,8 @@ export async function runTts(job: Job) {
     await writeBuf(src, ts.audio);
     let cutStart = 0, cutEnd: number | undefined;
     if (b) {
-      // 쉼은 문맥 턴 마지막 글자 시작 조금 앞부터 본문 첫 글자 시작 뒤 1.5초 사이 어딘가 — 오디오에서 찾되, 본문 첫 글자 시작 직전 이후에 끝나는 구간만
-      const cut = await findPauseCut(src, spansAll[0].lastStart - 0.2, spans[0].start + 1.5, spans[0].start - 0.1);
+      // 쉼은 문맥 턴 마지막 글자 시작 조금 앞부터 본문 첫 글자 시작 뒤 1.5초 사이 어딘가 — 오디오에서 찾되, 본문 첫 글자 시작 +0.3초 전에 시작하는 구간만
+      const cut = await findPauseCut(src, spansAll[0].lastStart - 0.2, spans[0].start + 1.5, spans[0].start + 0.3);
       if (cut == null) throw new Error(`앞 문맥과의 쉼을 못 찾음 (창 ${(spansAll[0].lastStart - 0.2).toFixed(2)}~${(spans[0].start + 1.5).toFixed(2)})`);
       const ctxRate = before[0].text.replace(/\s/g, "").length / Math.max(0.2, spansAll[0].end - spansAll[0].start);
       const prevRate = mainRate[n - 1]?.[mainRate[n - 1].length - 1];
@@ -140,7 +141,7 @@ export async function runTts(job: Job) {
       cutStart = cut;
     }
     if (after.length) {
-      const cut = await findPauseCut(src, spans[m - 1].lastStart - 0.2, spansAll[b + m].start + 1.5, spansAll[b + m].start - 0.1);
+      const cut = await findPauseCut(src, spans[m - 1].lastStart - 0.2, spansAll[b + m].start + 1.5, spansAll[b + m].start + 0.3);
       if (cut == null) throw new Error(`뒤 문맥과의 쉼을 못 찾음 (창 ${(spans[m - 1].lastStart - 0.2).toFixed(2)}~${(spansAll[b + m].start + 1.5).toFixed(2)})`);
       cutEnd = cut;
     }

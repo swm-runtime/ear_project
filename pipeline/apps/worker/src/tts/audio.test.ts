@@ -12,8 +12,8 @@ test("조용한 구간 — 창 최저값 + 12dB 아래로 가장 긴 연속 구�
   // 너무 짧은 쉼은 null
   assert.equal(longestQuietRun([-20, -20, -60, -60, -20, -20], 0.02, 0.12), null);
   assert.equal(longestQuietRun([], 0.02, 0.12), null);
-  // minEndSec 앞에서 끝나는 긴 쉼(문맥 턴 안)은 버리고 그 뒤의 짧은 쉼을 고른다
+  // maxStartSec 뒤에 시작하는 더 긴 쉼(뒤 턴 첫 낱말 뒤)은 버리고 그 앞의 짧은 쉼을 고른다
   const two = [-20, -60, -60, -60, -60, -60, -60, -60, -20, -20, -20, -60, -60, -60, -60, -60, -60, -60, -60, -20];
-  assert.deepEqual(longestQuietRun(two, 0.02, 0.12, { minEndSec: 0.2 }), { start: 0.22, end: 0.38 });
-  assert.deepEqual(longestQuietRun(two, 0.02, 0.12), { start: 0.22, end: 0.38 }); // 같은 길이면 앞 것… 뒤 것이 8칸으로 더 길다
+  assert.deepEqual(longestQuietRun(two, 0.02, 0.12), { start: 0.22, end: 0.38 }); // 제한 없으면 뒤 것(8칸)
+  assert.deepEqual(longestQuietRun(two, 0.02, 0.12, { maxStartSec: 0.1 }), { start: 0.02, end: 0.16 });
 });
