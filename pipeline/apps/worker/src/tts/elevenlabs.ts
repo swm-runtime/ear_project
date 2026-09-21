@@ -146,21 +146,27 @@ export function locateTurnStarts(t: TimestampedSynth, texts: string[]): number[]
   return locateTurnSpans(t, texts)?.map((s) => s.start) ?? null;
 }
 
-/** 턴별 [첫 글자 시작, 마지막 글자 끝] — 턴 사이의 자연스러운 쉼 길이(다음 start − 이 end)를 재는 데 쓴다 (2026-09-21 KAN-87) */
-export function locateTurnSpans(t: TimestampedSynth, texts: string[]): { start: number; end: number }[] | null {
+/**
+ * 턴별 [첫 글자 시작, 마지막 글자 끝] + 첫 글자 끝(firstEnd)·마지막 글자 시작(lastStart) (2026-09-22 KAN-87).
+ * ElevenLabs 정렬은 글자가 빈틈없이 이어진다 — 턴 사이 쉼은 앞 턴 마침표나 뒤 턴 첫 글자의 길이에 흡수된다(실측: "."@61.76–62.48, "그"@24.72–26.16).
+ * 그래서 `다음 start − 이 end` 는 항상 0 이고, 쉼의 실제 위치는 [lastStart, 다음 firstEnd] 창 안에서 오디오로 찾아야 한다(audio.findPauseCut).
+ */
+export interface TurnSpan { start: number; end: number; firstEnd: number; lastStart: number }
+export function locateTurnSpans(t: TimestampedSynth, texts: string[]): TurnSpan[] | null {
   const strip = (s: string) => s.replace(/\s+/g, "");
   const map: number[] = [];                       // 공백 제외 인덱스 → 정렬 배열 인덱스
   const hayChars: string[] = [];
   t.chars.forEach((c, i) => { if (c.trim()) { map.push(i); hayChars.push(c); } });
   const hay = hayChars.join("");
-  const spans: { start: number; end: number }[] = [];
+  const spans: TurnSpan[] = [];
   let cursor = 0;
   for (const text of texts) {
     const needle = strip(text);
     if (!needle) return null;
     const at = hay.indexOf(needle, cursor);
     if (at < 0) return null;
-    spans.push({ start: t.startSec[map[at]], end: t.endSec[map[at + needle.length - 1]] });
+    const i0 = map[at], i1 = map[at + needle.length - 1];
+    spans.push({ start: t.startSec[i0], end: t.endSec[i1], firstEnd: t.endSec[i0], lastStart: t.startSec[i1] });
     cursor = at + needle.length;
   }
   return spans;
