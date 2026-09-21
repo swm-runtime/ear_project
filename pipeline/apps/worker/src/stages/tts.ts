@@ -80,7 +80,9 @@ export async function runTts(job: Job) {
   // seed: 에피소드 고정 — 부분 재합성 시 같은 결과를 시도 (보장은 없음, spec/06)
   const seed = crypto.createHash("sha256").update(episodeId).digest().readUInt32BE(0) % 4294967295;
   if (parsed.coldOpen) log(`  tts ${episodeId}: [콜드오픈] 구역 무시 (2026-09-07 폐지 — 인트로부터 합성)`);
-  const chunks = chunkTurns(turns, 1700) as TtsTurn[][]; // 1,700 + 문맥 겹침 앞뒤 ≤140자 = ElevenLabs 권장 2,000자 안 (KAN-87)
+  const chunkChars = Number(job.payload.chunk_chars ?? 0) || 1700; // 디버그: 샘플을 여러 요청으로 쪼개 문맥 겹침 경계를 관찰할 때 작게 준다
+  const debugAlign = !!job.payload.debug_alignment; // 디버그: 요청별 정렬 원본(글자·시각)을 audio/.debug/ 에 남긴다
+  const chunks = chunkTurns(turns, chunkChars) as TtsTurn[][]; // 1,700 + 문맥 겹침 앞뒤 ≤140자 = ElevenLabs 권장 2,000자 안 (KAN-87)
   // 경계 종류 요약 (spec/06 3장): 단락 헤더 다음 > 서술 뒤 > 질문 뒤. "질문 뒤"가 있으면 청취 확인 때 그 지점을 듣는다
   const cuts = describeCuts(chunks);
   const cutSummary = (["단락", "문장", "질문 뒤"] as const).map((k) => [k, cuts.filter((c) => c === k).length] as const).filter(([, n]) => n).map(([k, n]) => `${k} ${n}`).join("·") || "없음";
@@ -103,7 +105,7 @@ export async function runTts(job: Job) {
    * 안전장치: 쉼 < CTX_MIN_PAUSE 이거나 경계를 못 찾거나 문맥 턴의 말 속도가 본 요청과 40% 넘게 다르면 그 요청만 문맥 없이 다시 합성한다.
    */
   const CTX_MAX = 140, CTX_MIN_PAUSE = 0.15;
-  const useCtx = wantSpeed && !sampleTurns && chunks.length > 1;
+  const useCtx = wantSpeed && (!sampleTurns || debugAlign) && chunks.length > 1;
   const ctxHead = new Array<boolean>(chunks.length).fill(false), ctxTail = new Array<boolean>(chunks.length).fill(false);
   const mainRate: number[][] = []; // [요청][턴] 글자/초 — 문맥 턴 검산용
   let ctxChars = 0;
@@ -115,6 +117,11 @@ export async function runTts(job: Job) {
     const all = [...before, ...chunk, ...after];
     const ts = await synthDialogueWithTimestamps(all.map((t) => ({ text: t.text, voice_id: voiceOf(t.speaker) })), seed, { onRetry: progress });
     const spansAll = locateTurnSpans(ts, all.map((t) => t.text));
+    if (debugAlign) {
+      const f = path.join(audioDir, ".debug", `align-${n}${withCtx ? "-ctx" : ""}.json`);
+      await fs.mkdir(path.dirname(f), { recursive: true });
+      await fs.writeFile(f, JSON.stringify({ inputs: all.map((t) => ({ speaker: t.speaker, text: t.text })), spans: spansAll, chars: ts.chars, start: ts.startSec, end: ts.endSec }), "utf8");
+    }
     if (!spansAll) throw new Error("턴 경계를 정렬에서 찾지 못함");
     const b = before.length, m = chunk.length;
     const spans = spansAll.slice(b, b + m);
@@ -122,7 +129,7 @@ export async function runTts(job: Job) {
     let cutStart = 0, cutEnd: number | undefined;
     if (b) {
       const pause = spans[0].start - spansAll[0].end;
-      if (pause < CTX_MIN_PAUSE) throw new Error(`앞 문맥과의 쉼 ${pause.toFixed(2)}초 — 자를 수 없음`);
+      if (pause < CTX_MIN_PAUSE) throw new Error(`앞 문맥과의 쉼 ${pause.toFixed(2)}초 — 자를 수 없음 (문맥 끝 ${spansAll[0].end.toFixed(2)} / 본문 시작 ${spans[0].start.toFixed(2)})`);
       const ctxRate = before[0].text.replace(/\s/g, "").length / Math.max(0.2, spansAll[0].end - spansAll[0].start);
       const prevRate = mainRate[n - 1]?.[mainRate[n - 1].length - 1];
       if (prevRate && (ctxRate / prevRate < 0.6 || ctxRate / prevRate > 1.6)) throw new Error(`앞 문맥 턴 말 속도 ${ctxRate.toFixed(1)}자/초 vs 원 요청 ${prevRate.toFixed(1)} — 정렬 의심`);
