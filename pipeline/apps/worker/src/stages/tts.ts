@@ -81,7 +81,7 @@ export async function runTts(job: Job) {
   const seed = crypto.createHash("sha256").update(episodeId).digest().readUInt32BE(0) % 4294967295;
   if (parsed.coldOpen) log(`  tts ${episodeId}: [콜드오픈] 구역 무시 (2026-09-07 폐지 — 인트로부터 합성)`);
   const chunkChars = Number(job.payload.chunk_chars ?? 0) || 1700; // 디버그: 샘플을 여러 요청으로 쪼개 문맥 겹침 경계를 관찰할 때 작게 준다
-  const debugAlign = !!job.payload.debug_alignment; // 디버그: 요청별 정렬 원본(글자·시각)을 audio/.debug/ 에 남긴다
+  const debugAlign = !!job.payload.debug_alignment; // 디버그: 요청별 정렬 원본(글자·시각)을 audio/debug-align/ 에 남긴다 (점으로 시작하는 이름은 S3 동기화에서 빠진다)
   const chunks = chunkTurns(turns, chunkChars) as TtsTurn[][]; // 1,700 + 문맥 겹침 앞뒤 ≤140자 = ElevenLabs 권장 2,000자 안 (KAN-87)
   // 경계 종류 요약 (spec/06 3장): 단락 헤더 다음 > 서술 뒤 > 질문 뒤. "질문 뒤"가 있으면 청취 확인 때 그 지점을 듣는다
   const cuts = describeCuts(chunks);
@@ -118,7 +118,7 @@ export async function runTts(job: Job) {
     const ts = await synthDialogueWithTimestamps(all.map((t) => ({ text: t.text, voice_id: voiceOf(t.speaker) })), seed, { onRetry: progress });
     const spansAll = locateTurnSpans(ts, all.map((t) => t.text));
     if (debugAlign) {
-      const f = path.join(audioDir, ".debug", `align-${n}${withCtx ? "-ctx" : ""}.json`);
+      const f = path.join(audioDir, "debug-align", `align-${n}${withCtx ? "-ctx" : ""}.json`);
       await fs.mkdir(path.dirname(f), { recursive: true });
       await fs.writeFile(f, JSON.stringify({ inputs: all.map((t) => ({ speaker: t.speaker, text: t.text })), spans: spansAll, chars: ts.chars, start: ts.startSec, end: ts.endSec }), "utf8");
     }
