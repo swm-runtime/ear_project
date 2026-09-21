@@ -18,6 +18,26 @@ export const displayText = (s: string) => s.replace(/\[[a-z][a-z _-]{1,24}\]/g, 
 
 export interface ChunkTurn { speaker: string; text: string; ttsText: string; tempo: number }
 
+/**
+ * 문맥 겹침(2026-09-22 KAN-87)용 발췌 — 앞 요청 마지막 턴의 **끝 문장들**(tail) 또는 뒤 요청 첫 턴의 **첫 문장들**(head)을 maxChars 안에서.
+ * 한 문장이 maxChars 를 넘으면 그 문장의 끝/앞 maxChars 자(어절 경계). 결과는 원문의 연속 부분 문자열이라 정렬 대조(locateTurnSpans)가 그대로 된다.
+ */
+export function contextExcerpt(text: string, side: "head" | "tail", maxChars = 140): string {
+  const sents = text.split(/(?<=[.!?…。])\s+/).filter((x) => x.trim());
+  const pick: string[] = [];
+  let len = 0;
+  for (const sent of side === "tail" ? [...sents].reverse() : sents) {
+    if (pick.length && len + sent.length + 1 > maxChars) break;
+    pick.push(sent); len += sent.length + 1;
+  }
+  let out = (side === "tail" ? pick.reverse() : pick).join(" ");
+  if (out.length > maxChars) {
+    if (side === "tail") { const cut = out.length - maxChars; const sp = out.indexOf(" ", cut); out = out.slice(sp > 0 ? sp + 1 : cut); }
+    else { const sp = out.lastIndexOf(" ", maxChars); out = out.slice(0, sp > 0 ? sp : maxChars); }
+  }
+  return out.trim();
+}
+
 /** 배속 전 요청 시각 → 배속 후 시각. 경계 b[i]=턴 i 시작(b[0]=0), 조각 i 의 배속 tempo[i] */
 export function retimedAt(t: number, starts: number[], tempos: number[]): number {
   let acc = 0;
@@ -90,12 +110,24 @@ function splitLong(t: ChunkTurn, ts: TimestampedSynth, map: number[], hay: strin
   return out;
 }
 
-/** 요청별 세그먼트를 배포본 시각으로 합친다 — 앞 무음 + 요청 사이 무음 + 앞 요청들의 실측 길이 */
-export function joinChunkSegments(chunks: { segments: ScriptSegment[]; durSec: number }[], leadSec = 2, gapSec = 0.35): ScriptSegment[] {
+/**
+ * 분할 요청 사이 이음새 쉼 (2026-09-21 KAN-87): 종전 0.35초 고정은 같은 요청 안 턴 사이 쉼(실측 약 1초)의 3분의 1이라 "말을 쉰다"가 아니라
+ * "끊겼다"로 들렸다. 편마다 정렬에서 잰 자연 쉼의 중앙값을 쓰고, 정렬이 없으면 DEFAULT_GAP_SEC. 범위를 묶어 극단값(긴 침묵·정렬 오차)을 막는다.
+ */
+export const DEFAULT_GAP_SEC = 0.9;
+export function naturalGapSec(pauses: number[], fallback = DEFAULT_GAP_SEC, min = 0.5, max = 1.2): number {
+  const xs = pauses.filter((x) => Number.isFinite(x) && x > 0).sort((a, b) => a - b);
+  if (xs.length < 3) return fallback;
+  const med = xs.length % 2 ? xs[(xs.length - 1) / 2] : (xs[xs.length / 2 - 1] + xs[xs.length / 2]) / 2;
+  return Math.round(Math.min(max, Math.max(min, med)) * 100) / 100;
+}
+
+/** 요청별 세그먼트를 배포본 시각으로 합친다 — 앞 무음 + 요청 사이 무음 + 앞 요청들의 실측 길이 (gapSec 은 assemble 과 같은 값이어야 한다) */
+export function joinChunkSegments(chunks: { segments: ScriptSegment[]; durSec: number }[], leadSec = 2, gapSec: number | number[] = DEFAULT_GAP_SEC): ScriptSegment[] {
   const out: ScriptSegment[] = [];
   let offset = leadSec;
   chunks.forEach((c, n) => {
-    if (n > 0) offset += gapSec;
+    if (n > 0) offset += Array.isArray(gapSec) ? gapSec[n - 1] ?? 0 : gapSec; // 배열이면 경계별 (문맥 겹침 경계는 0)
     for (const s of c.segments) out.push({ ...s, start_sec: round3(offset + s.start_sec), end_sec: round3(offset + s.end_sec) });
     offset += c.durSec;
   });
