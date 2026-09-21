@@ -109,6 +109,7 @@ export async function runTts(job: Job) {
   const ctxHead = new Array<boolean>(chunks.length).fill(false), ctxTail = new Array<boolean>(chunks.length).fill(false);
   const mainRate: number[][] = []; // [요청][턴] 글자/초 — 문맥 턴 검산용
   let ctxChars = 0;
+  const ctxFails: string[] = []; // 폴백 사유 — 실행 기록에 남긴다 (서버 로그 없이 보이게)
   type Synth = { data: Buffer; durSec: number; segs: ScriptSegment[]; rates: number[] };
   const synthChunk = async (n: number, withCtx: boolean): Promise<Synth> => {
     const chunk = chunks[n];
@@ -163,7 +164,7 @@ export async function runTts(job: Job) {
     let out: Synth | null = null;
     if (useCtx) {
       try { out = await synthChunk(n, true); }
-      catch (e: any) { log(`  tts ${episodeId}: 요청 ${n + 1} 문맥 겹침 실패(${String(e.message).slice(0, 120)}) — 문맥 없이 재합성`); await progress(`합성 ${n + 1}/${chunks.length} 문맥 없이 재시도`); }
+      catch (e: any) { ctxFails.push(`요청 ${n + 1}: ${String(e.message).slice(0, 100)}`); log(`  tts ${episodeId}: 요청 ${n + 1} 문맥 겹침 실패(${String(e.message).slice(0, 120)}) — 문맥 없이 재합성`); await progress(`합성 ${n + 1}/${chunks.length} 문맥 없이 재시도`); }
     }
     if (!out) {
       try { out = await synthChunk(n, false); }
@@ -211,7 +212,7 @@ export async function runTts(job: Job) {
     await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: ep.prompt_version, audio_master_key: s3Key(`${rel}/audio/master.wav`), audio_dist_key: s3Key(`${rel}/audio/dist.mp3`) });
   }
   const artifacts = sampleTurns ? [s3Key(`${rel}/audio/sample.mp3`)] : [s3Key(`${rel}/audio/master.wav`), s3Key(`${rel}/audio/dist.mp3`), ...(segCount ? [s3Key(`${rel}/script-segments.json`)] : [])];
-  const result = `${sampleTurns ? `TTS 샘플 ${turns.length}턴` : "TTS 완료"} — eleven_v3 다중화자 1콜 · 분할 ${chunks.length}요청(경계 ${cutSummary} · 세그먼트 포맷 ${fmt}) · ${totalChars}자 → ${min}분 ${sec}초 (앞뒤 무음 2초 포함) ${useCtx ? ` · 문맥 겹침 ${ctxOk}/${ctxBoundaries.length}경계(+${ctxChars}자)` : ""}${ctxOk < ctxBoundaries.length ? ` · 폴백 경계 무음 ${DEFAULT_GAP_SEC}초` : ""}${wantSpeed ? ` · 배속 윤아 ${cfg.ttsSpeedYuna}× 이음 ${cfg.ttsSpeedEum}×${speedFallbacks ? ` (원속 폴백 ${speedFallbacks}요청 — 청취 확인)` : ""}` : ""}${parsed.coldOpen ? " · 구 [콜드오픈] 구역 무시(폐지)" : ""}${sampleTurns ? "" : segCount ? ` · 자막 세그먼트 ${segCount}건(배포본 시각)` : ` · 자막 세그먼트 없음(${segFail})`} · 사전 ${dictVersion}${Object.keys(epMap).length ? `+발음 맵 ${Object.keys(epMap).length}건` : ""} · 보이스 윤아=${cfg.ttsVoiceYuna.slice(0, 6)}… 이음=${cfg.ttsVoiceEum.slice(0, 6)}… · 사람 청취 확인 대기 (spec/06 8장)`;
+  const result = `${sampleTurns ? `TTS 샘플 ${turns.length}턴` : "TTS 완료"} — eleven_v3 다중화자 1콜 · 분할 ${chunks.length}요청(경계 ${cutSummary} · 세그먼트 포맷 ${fmt}) · ${totalChars}자 → ${min}분 ${sec}초 (앞뒤 무음 2초 포함) ${useCtx ? ` · 문맥 겹침 ${ctxOk}/${ctxBoundaries.length}경계(+${ctxChars}자)` : ""}${ctxOk < ctxBoundaries.length ? ` · 폴백 경계 무음 ${DEFAULT_GAP_SEC}초${ctxFails.length ? ` (사유: ${ctxFails.join(" / ").slice(0, 300)})` : ""}` : ""}${wantSpeed ? ` · 배속 윤아 ${cfg.ttsSpeedYuna}× 이음 ${cfg.ttsSpeedEum}×${speedFallbacks ? ` (원속 폴백 ${speedFallbacks}요청 — 청취 확인)` : ""}` : ""}${parsed.coldOpen ? " · 구 [콜드오픈] 구역 무시(폐지)" : ""}${sampleTurns ? "" : segCount ? ` · 자막 세그먼트 ${segCount}건(배포본 시각)` : ` · 자막 세그먼트 없음(${segFail})`} · 사전 ${dictVersion}${Object.keys(epMap).length ? `+발음 맵 ${Object.keys(epMap).length}건` : ""} · 보이스 윤아=${cfg.ttsVoiceYuna.slice(0, 6)}… 이음=${cfg.ttsVoiceEum.slice(0, 6)}… · 사람 청취 확인 대기 (spec/06 8장)`;
   // 계측: TTS 의 "토큰"은 글자수(ElevenLabs 과금 단위). 비용은 요율(cfg.ttsUsdPer1kChars)이 설정됐을 때만 환산(참고값), 아니면 비운다
   const ttsCost = cfg.ttsUsdPer1kChars != null ? ((totalChars + ctxChars) / 1000) * cfg.ttsUsdPer1kChars : undefined; // 문맥 글자도 과금
   await insertRun({ backlog_id: backlogId, phase: "tts", result, prompt_version: "tts-v1 (worker)", artifacts, executed_by: executedBy, model: cfg.ttsModel, cost_usd: ttsCost, tokens: { characters: totalChars, context_characters: ctxChars, chunks: chunks.length, duration_sec: Math.round(durationSec) }, worker_rev: workerRev() });

@@ -19,22 +19,37 @@ async function ffmpeg(args: string[]) {
 }
 
 /**
- * [from, to] 창 안에서 가장 긴 무음(−50dB 이하, 최소 minSec)의 한가운데 시각 — 문맥 겹침 절단점 (2026-09-22 KAN-87).
+ * 20ms RMS(dB) 궤적에서 "조용한 구간" 중 가장 긴 것 — 문턱은 창 안 최저값 + marginDb (절대 상한 capDb).
+ * 턴 사이 쉼의 바닥은 요청·구간마다 −90~−35dB 로 크게 달라(X260919-001 샘플 실측) 고정 문턱은 못 쓴다. 순수 함수 — 테스트용으로 분리.
+ */
+export function longestQuietRun(db: number[], hopSec: number, minSec: number, marginDb = 12, capDb = -35): { start: number; end: number } | null {
+  if (!db.length) return null;
+  const floor = Math.min(...db);
+  const th = Math.min(floor + marginDb, capDb);
+  let best: [number, number] | null = null;
+  for (let i = 0; i < db.length; ) {
+    if (db[i] > th) { i++; continue; }
+    let j = i; while (j < db.length && db[j] <= th) j++;
+    if (!best || j - i > best[1] - best[0]) best = [i, j];
+    i = j;
+  }
+  if (!best || (best[1] - best[0]) * hopSec < minSec) return null;
+  return { start: best[0] * hopSec, end: best[1] * hopSec };
+}
+
+/**
+ * [from, to] 창 안에서 가장 긴 조용한 구간의 한가운데 시각 — 문맥 겹침 절단점 (2026-09-22 KAN-87).
  * 정렬 타임스탬프는 쉼을 글자 길이에 흡수해 위치를 주지 않으므로 오디오에서 찾는다. 없으면 null (호출부가 문맥 없이 폴백).
  */
-export async function findPauseCut(file: string, from: number, to: number, minSec = 0.15): Promise<number | null> {
+export async function findPauseCut(file: string, from: number, to: number, minSec = 0.12): Promise<number | null> {
   if (!(to > from)) return null;
-  const { stderr } = await run("ffmpeg", ["-hide_banner", "-v", "info", "-ss", from.toFixed(3), "-to", to.toFixed(3), "-i", file, "-af", `silencedetect=noise=-50dB:d=${minSec}`, "-f", "null", "-"]);
-  const text = String(stderr);
-  const starts = [...text.matchAll(/silence_start: (-?[\d.]+)/g)].map((m) => Number(m[1]));
-  const ends = [...text.matchAll(/silence_end: (-?[\d.]+)/g)].map((m) => Number(m[1]));
-  let best: { s: number; e: number } | null = null;
-  for (let i = 0; i < starts.length; i++) {
-    const s0 = Math.max(0, starts[i]), e0 = ends[i] ?? to - from; // 창 끝까지 이어지면 end 가 없다
-    if (!best || e0 - s0 > best.e - best.s) best = { s: s0, e: e0 };
-  }
-  if (!best || best.e - best.s < minSec) return null;
-  return from + (best.s + best.e) / 2;
+  const { stdout } = await run("ffmpeg", ["-v", "error", "-ss", from.toFixed(3), "-to", to.toFixed(3), "-i", file, "-f", "s16le", "-ac", "1", "-ar", "44100", "-"], { encoding: "buffer", maxBuffer: 1 << 26 });
+  const buf = stdout as unknown as Buffer;
+  const win = 882; // 20ms @ 44.1kHz
+  const db: number[] = [];
+  for (let i = 0; i + win <= buf.length / 2; i += win) { let acc = 0; for (let k = 0; k < win; k++) { const v = buf.readInt16LE((i + k) * 2) / 32768; acc += v * v; } db.push(10 * Math.log10(acc / win + 1e-12)); }
+  const q = longestQuietRun(db, 0.02, minSec);
+  return q ? from + (q.start + q.end) / 2 : null;
 }
 
 export async function probeDurationSec(file: string): Promise<number> {
