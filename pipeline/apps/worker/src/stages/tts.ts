@@ -131,17 +131,17 @@ export async function runTts(job: Job) {
     await writeBuf(src, ts.audio);
     let cutStart = 0, cutEnd: number | undefined;
     if (b) {
-      // 쉼은 [문맥 턴 마지막 글자 시작, 본문 첫 글자 끝] 창 안 어딘가 — 오디오 무음으로 찾는다
-      const cut = await findPauseCut(src, spansAll[0].lastStart, spans[0].firstEnd);
-      if (cut == null) throw new Error(`앞 문맥과의 쉼을 못 찾음 (창 ${spansAll[0].lastStart.toFixed(2)}~${spans[0].firstEnd.toFixed(2)})`);
+      // 쉼은 문맥 턴 마지막 글자 시작 조금 앞부터 본문 첫 글자 시작 뒤 1.5초 사이 어딘가 — 오디오에서 찾되, 본문 첫 글자 시작 직전 이후에 끝나는 구간만
+      const cut = await findPauseCut(src, spansAll[0].lastStart - 0.2, spans[0].start + 1.5, spans[0].start - 0.1);
+      if (cut == null) throw new Error(`앞 문맥과의 쉼을 못 찾음 (창 ${(spansAll[0].lastStart - 0.2).toFixed(2)}~${(spans[0].start + 1.5).toFixed(2)})`);
       const ctxRate = before[0].text.replace(/\s/g, "").length / Math.max(0.2, spansAll[0].end - spansAll[0].start);
       const prevRate = mainRate[n - 1]?.[mainRate[n - 1].length - 1];
       if (prevRate && (ctxRate / prevRate < 0.6 || ctxRate / prevRate > 1.6)) throw new Error(`앞 문맥 턴 말 속도 ${ctxRate.toFixed(1)}자/초 vs 원 요청 ${prevRate.toFixed(1)} — 정렬 의심`);
       cutStart = cut;
     }
     if (after.length) {
-      const cut = await findPauseCut(src, spans[m - 1].lastStart, spansAll[b + m].firstEnd);
-      if (cut == null) throw new Error(`뒤 문맥과의 쉼을 못 찾음 (창 ${spans[m - 1].lastStart.toFixed(2)}~${spansAll[b + m].firstEnd.toFixed(2)})`);
+      const cut = await findPauseCut(src, spans[m - 1].lastStart - 0.2, spansAll[b + m].start + 1.5, spansAll[b + m].start - 0.1);
+      if (cut == null) throw new Error(`뒤 문맥과의 쉼을 못 찾음 (창 ${(spans[m - 1].lastStart - 0.2).toFixed(2)}~${(spansAll[b + m].start + 1.5).toFixed(2)})`);
       cutEnd = cut;
     }
     const starts = spans.map((sp) => sp.start);
