@@ -22,8 +22,8 @@ async function ffmpeg(args: string[]) {
  * 20ms RMS(dB) 궤적에서 "조용한 구간" 중 가장 긴 것 — 문턱은 창 안 최저값 + marginDb (절대 상한 capDb).
  * 턴 사이 쉼의 바닥은 요청·구간마다 −90~−35dB 로 크게 달라(X260919-001 샘플 실측) 고정 문턱은 못 쓴다. 순수 함수 — 테스트용으로 분리.
  */
-export function longestQuietRun(db: number[], hopSec: number, minSec: number, opts: { marginDb?: number; capDb?: number; minEndSec?: number } = {}): { start: number; end: number } | null {
-  const { marginDb = 12, capDb = -35, minEndSec = 0 } = opts;
+export function longestQuietRun(db: number[], hopSec: number, minSec: number, opts: { marginDb?: number; capDb?: number; maxStartSec?: number } = {}): { start: number; end: number } | null {
+  const { marginDb = 12, capDb = -35, maxStartSec = Infinity } = opts;
   if (!db.length) return null;
   const floor = Math.min(...db);
   const th = Math.min(floor + marginDb, capDb);
@@ -31,8 +31,8 @@ export function longestQuietRun(db: number[], hopSec: number, minSec: number, op
   for (let i = 0; i < db.length; ) {
     if (db[i] > th) { i++; continue; }
     let j = i; while (j < db.length && db[j] <= th) j++;
-    // minEndSec 앞에서 끝나는 구간(문맥 턴 안의 쉼표 쉼 등)은 후보가 아니다 — 거기서 자르면 문맥 턴의 낱말이 본문에 딸려 온다
-    if (j * hopSec >= minEndSec && (!best || j - i > best[1] - best[0])) best = [i, j];
+    // maxStartSec 뒤에 시작하는 구간(뒤 턴 첫 낱말 뒤의 쉼표 쉼 등)은 후보가 아니다 — 거기서 자르면 뒤 턴의 첫 낱말이 잘려 나간다
+    if (i * hopSec <= maxStartSec && (!best || j - i > best[1] - best[0])) best = [i, j];
     i = j;
   }
   if (!best || (best[1] - best[0]) * hopSec < minSec) return null;
@@ -42,17 +42,18 @@ export function longestQuietRun(db: number[], hopSec: number, minSec: number, op
 /**
  * [from, to] 창 안에서 가장 긴 조용한 구간의 한가운데 시각 — 문맥 겹침 절단점 (2026-09-22 KAN-87).
  * 정렬 타임스탬프는 쉼을 글자 길이에 흡수하는데 그 위치가 일정하지 않아(앞 턴 마침표·뒤 턴 첫 글자·그 뒤 글자들) 경계 글자만으로 잡은 창은
- * 0.16초처럼 좁아 실패했다(샘플 실측). 창은 넓게 잡고, 조용한 구간이 `notBefore`(뒤 턴 첫 글자 시작 − 여유) 이후에 끝나는 것만 고른다.
- * 없으면 null (호출부가 문맥 없이 폴백).
+ * 0.16초처럼 좁아 실패했다(샘플 실측). 창은 넓게 잡고, 조용한 구간이 `notAfter`(뒤 턴 첫 글자 시작 + 여유) 전에 시작하는 것만 고른다 —
+ * 쉼이 앞 턴 마침표에 흡수되면 실제 쉼은 "뒤 턴 첫 글자 시작" 보다 앞에, 뒤 턴 첫 글자에 흡수되면 그 뒤에 놓이므로 시작 상한만 둔다.
+ * 문맥 턴 안의 쉼표 쉼은 창 시작이 그 턴의 마지막 글자라 애초에 창에 없다. 없으면 null (호출부가 문맥 없이 폴백).
  */
-export async function findPauseCut(file: string, from: number, to: number, notBefore = from, minSec = 0.12): Promise<number | null> {
+export async function findPauseCut(file: string, from: number, to: number, notAfter = to, minSec = 0.12): Promise<number | null> {
   if (!(to > from)) return null;
   const { stdout } = await run("ffmpeg", ["-v", "error", "-ss", from.toFixed(3), "-to", to.toFixed(3), "-i", file, "-f", "s16le", "-ac", "1", "-ar", "44100", "-"], { encoding: "buffer", maxBuffer: 1 << 26 });
   const buf = stdout as unknown as Buffer;
   const win = 882; // 20ms @ 44.1kHz
   const db: number[] = [];
   for (let i = 0; i + win <= buf.length / 2; i += win) { let acc = 0; for (let k = 0; k < win; k++) { const v = buf.readInt16LE((i + k) * 2) / 32768; acc += v * v; } db.push(10 * Math.log10(acc / win + 1e-12)); }
-  const q = longestQuietRun(db, 0.02, minSec, { minEndSec: Math.max(0, notBefore - from) });
+  const q = longestQuietRun(db, 0.02, minSec, { maxStartSec: Math.max(0, notAfter - from) });
   return q ? from + (q.start + q.end) / 2 : null;
 }
 
