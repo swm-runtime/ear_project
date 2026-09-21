@@ -83,7 +83,7 @@ run 35500421294). **그래서 운영 `.env.prod` 의 `CONTENT_SYNC_NOTIFY_HOST` 
 
 ### 남은 것
 
-1. `api-prod` 환경 변수 **`DEV_PRIVATE_IP`** 에 개발계(`i-0a22112e947856a71`) 프라이빗 IPv4 를 넣는다
+1. ~~`api-prod` 환경 변수 **`DEV_PRIVATE_IP`**~~ — **2026-09-21 완료**(`172.31.14.86`). 값이 문서 어디에도 없어 매번 콘솔을 열어야 했으므로 `infra/inventory.md` 개발계 EC2 행에도 적었다
 2. 이 워크플로 수정이 **`main` 에 있어야** 실행된다(Environment 배포 브랜치 정책상 `api-prod` 는 main 전용) — `dev → main` 머지 필요
 3. main 에서 워크플로 재실행 → 운영에서 콘텐츠 한 번 발행 → `/var/log/ear-content-sync.log` 의 `notify ok` · `import ok` 확인 → archive
 
