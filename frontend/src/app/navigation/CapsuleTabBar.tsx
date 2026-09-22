@@ -49,14 +49,15 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
   const indicatorX = useAnimatedValue(state.index * ITEM_WIDTH);
   const maxX = (state.routes.length - 1) * ITEM_WIDTH;
   const isDraggingRef = useRef(false);
+  // 알약이 마지막으로 향한 자리 — 네이티브 스프링이 끝난 뒤 JS 쪽 값은 낡아 있을 수 있어 직접 든다.
+  // 끌기 중이 아닐 때 탭 상태가 바뀌면(탭·딥링크·복원) 그 칸으로 스냅한다
+  const pillXRef = useRef(state.index * ITEM_WIDTH);
   useEffect(() => {
     if (isDraggingRef.current) return;
-    pillXRef.current = state.index * ITEM_WIDTH;
-    Animated.spring(indicatorX, {
-      toValue: state.index * ITEM_WIDTH,
-      ...motion.spring.snappy,
-      useNativeDriver: true,
-    }).start();
+    const x = state.index * ITEM_WIDTH;
+     
+    pillXRef.current = x;
+    Animated.spring(indicatorX, { toValue: x, ...motion.spring.snappy, useNativeDriver: true }).start();
   }, [indicatorX, state.index]);
 
   // 끌기 — 핸들러는 렌더가 아니라 제스처 시점에 실행되므로 최신 값은 ref 로 든다
@@ -65,9 +66,8 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
     latestRef.current = { routes: state.routes, index: state.index, navigation, maxX };
   });
   const dragOriginRef = useRef(0);
-  // 알약이 마지막으로 향한 자리 — 네이티브 스프링이 끝난 뒤 JS 쪽 값은 낡아 있을 수 있어 직접 든다
-  const pillXRef = useRef(state.index * ITEM_WIDTH);
   const snapTo = (index: number) => {
+     
     pillXRef.current = index * ITEM_WIDTH;
     Animated.spring(indicatorX, {
       toValue: index * ITEM_WIDTH,
