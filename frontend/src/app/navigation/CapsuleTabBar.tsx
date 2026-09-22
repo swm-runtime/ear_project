@@ -3,7 +3,7 @@ import {
   type BottomTabBarProps,
 } from '@react-navigation/bottom-tabs';
 import { useContext, useEffect, useMemo, useRef } from 'react';
-import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, PanResponder, StyleSheet, Text, View } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion, theme } from '@/shared/theme';
@@ -51,6 +51,7 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
   const isDraggingRef = useRef(false);
   useEffect(() => {
     if (isDraggingRef.current) return;
+    pillXRef.current = state.index * ITEM_WIDTH;
     Animated.spring(indicatorX, {
       toValue: state.index * ITEM_WIDTH,
       ...motion.spring.snappy,
@@ -64,70 +65,71 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
     latestRef.current = { routes: state.routes, index: state.index, navigation, maxX };
   });
   const dragOriginRef = useRef(0);
-  // 캡슐의 화면 x — 탭 위치를 칸 번호로 바꿀 때 쓴다(dock 이 화면 폭 전체라 dock 기준 x 가 곧 화면 x)
-  const capsuleLeftRef = useRef(0);
+  // 알약이 마지막으로 향한 자리 — 네이티브 스프링이 끝난 뒤 JS 쪽 값은 낡아 있을 수 있어 직접 든다
+  const pillXRef = useRef(state.index * ITEM_WIDTH);
   const snapTo = (index: number) => {
+    pillXRef.current = index * ITEM_WIDTH;
     Animated.spring(indicatorX, {
       toValue: index * ITEM_WIDTH,
       ...motion.spring.snappy,
       useNativeDriver: true,
     }).start();
   };
-  const dragPan = useMemo(
+  const selectTab = (target: number) => {
+    const { routes, index, navigation: nav } = latestRef.current;
+    snapTo(target);
+    if (target === index) return;
+    const pressEvent = nav.emit({
+      type: 'tabPress',
+      target: routes[target].key,
+      canPreventDefault: true,
+    });
+    if (!pressEvent.defaultPrevented) nav.navigate(routes[target].name);
+  };
+  /*
+   * 탭·끌기는 **칸 하나하나가** 받는다(2026-09-23). 캡슐(부모)에 두고 칸에서 빼앗거나 처음부터 캡슐이 잡는
+   * 두 방식 모두 실기기에서 알약이 끌려오지 않았다 — 터치를 확실히 받는 건 손가락 아래의 칸이다
+   * (미니플레이어 스와이프와 같은 패턴). 4pt 안 움직이고 놓으면 그 칸으로(탭), 움직였으면 알약이 손가락을
+   * 따라오다 놓은 자리에서 가까운 칸에 스냅. 콜백은 제스처 시점에 실행되므로 최신 값은 latestRef 로 읽는다
+   */
+  const itemPans = useMemo(
     () =>
       // eslint-disable-next-line react-hooks/refs -- 콜백은 렌더가 아니라 제스처 시점에 실행된다(표준 PanResponder 패턴)
-      PanResponder.create({
-        /*
-         * 캡슐이 **터치 시작부터** 응답자다(capture). 칸(Pressable)이 먼저 잡게 두고 이동 중에 빼앗아 오는
-         * 협상은 실기기에서 성립하지 않았다(2026-09-23 — 알약이 끌려오지 않았다). 탭·끌기를 여기서 다 가른다:
-         * 4pt 안 움직이고 놓으면 손가락 위치의 칸으로(탭), 움직였으면 알약이 따라오다 놓은 자리에서 스냅(끌기).
-         * 칸의 Pressable 은 낭독기 활성화용으로만 남는다
-         */
-        onStartShouldSetPanResponderCapture: () => true,
-        onPanResponderGrant: () => {
-          isDraggingRef.current = false;
-          indicatorX.stopAnimation((value) => {
-            dragOriginRef.current = value;
-          });
-        },
-        onPanResponderMove: (_, gesture) => {
-          if (!isDraggingRef.current) {
-            if (Math.abs(gesture.dx) <= DRAG_START_DISTANCE) return;
-            isDraggingRef.current = true;
-          }
-          const { maxX: limit } = latestRef.current;
-          indicatorX.setValue(Math.max(0, Math.min(limit, dragOriginRef.current + gesture.dx)));
-        },
-        onPanResponderRelease: (event, gesture) => {
-          const { routes, index, navigation: nav, maxX: limit } = latestRef.current;
-          let target: number;
-          if (isDraggingRef.current) {
+      state.routes.map((_, itemIndex) =>
+        PanResponder.create({
+          onStartShouldSetPanResponder: () => true,
+          onMoveShouldSetPanResponder: () => true,
+          onPanResponderTerminationRequest: () => false,
+          onPanResponderGrant: () => {
+            isDraggingRef.current = false;
+            indicatorX.stopAnimation();
+            dragOriginRef.current = pillXRef.current;
+          },
+          onPanResponderMove: (_, gesture) => {
+            if (!isDraggingRef.current) {
+              if (Math.abs(gesture.dx) <= DRAG_START_DISTANCE) return;
+              isDraggingRef.current = true;
+            }
+            const { maxX: limit } = latestRef.current;
             const x = Math.max(0, Math.min(limit, dragOriginRef.current + gesture.dx));
-            target = Math.round(x / ITEM_WIDTH);
-          } else {
-            // 탭 — 손가락이 놓인 칸
-            const local = event.nativeEvent.pageX - capsuleLeftRef.current - CAPSULE_INSET;
-            target = Math.max(0, Math.min(routes.length - 1, Math.floor(local / ITEM_WIDTH)));
-          }
-          isDraggingRef.current = false;
-          snapTo(target);
-          if (target !== index) {
-            const pressEvent = nav.emit({
-              type: 'tabPress',
-              target: routes[target].key,
-              canPreventDefault: true,
-            });
-            if (!pressEvent.defaultPrevented) nav.navigate(routes[target].name);
-          }
-        },
-        onPanResponderTerminate: () => {
-          isDraggingRef.current = false;
-          snapTo(latestRef.current.index);
-        },
-        // 목록 스크롤 등이 가져가려 해도 내주지 않는다 — 캡슐 위의 손가락은 캡슐의 것이다
-        onPanResponderTerminationRequest: () => false,
-      }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- indicatorX 는 고정 인스턴스
+            pillXRef.current = x;
+            indicatorX.setValue(x);
+          },
+          onPanResponderRelease: (_, gesture) => {
+            const { maxX: limit } = latestRef.current;
+            const target = isDraggingRef.current
+              ? Math.round(Math.max(0, Math.min(limit, dragOriginRef.current + gesture.dx)) / ITEM_WIDTH)
+              : itemIndex;
+            isDraggingRef.current = false;
+            selectTab(target);
+          },
+          onPanResponderTerminate: () => {
+            isDraggingRef.current = false;
+            snapTo(latestRef.current.index);
+          },
+        }),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 칸 수는 고정(3), indicatorX 는 고정 인스턴스
     [],
   );
 
@@ -137,14 +139,7 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
       pointerEvents="box-none"
       onLayout={(event) => reportHeight?.(event.nativeEvent.layout.height)}
     >
-      <View
-        style={styles.capsule}
-        accessibilityRole="tablist"
-        onLayout={(event) => {
-          capsuleLeftRef.current = event.nativeEvent.layout.x;
-        }}
-        {...dragPan.panHandlers}
-      >
+      <View style={styles.capsule} accessibilityRole="tablist">
         <GlassSurface style={StyleSheet.absoluteFill} />
         <View style={styles.capsuleBorder} pointerEvents="none" />
         <GlassPill style={[styles.indicator, { transform: [{ translateX: indicatorX }] }]} />
@@ -161,23 +156,17 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
             outputRange: [0, 1, 0],
             extrapolate: 'clamp',
           });
-          const onPress = () => {
-            const event = navigation.emit({
-              type: 'tabPress',
-              target: route.key,
-              canPreventDefault: true,
-            });
-            if (!isFocused && !event.defaultPrevented) navigation.navigate(route.name);
-          };
           return (
-            <Pressable
+            <View
               key={route.key}
               style={styles.item}
-              onPress={onPress}
-              onLongPress={() => navigation.emit({ type: 'tabLongPress', target: route.key })}
+              accessible
               accessibilityRole="tab"
               accessibilityState={{ selected: isFocused }}
               accessibilityLabel={options.tabBarAccessibilityLabel ?? label}
+              // 낭독기 활성화 — 터치가 아니라 접근성 경로로 들어온다
+              onAccessibilityTap={() => selectTab(index)}
+              {...itemPans[index].panHandlers}
             >
               {/* 두 겹 — 선·회색(항상) 위에 면·검정(알약이 겹친 만큼) */}
               <View style={styles.glyph}>
@@ -209,7 +198,7 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
                   {label}
                 </Animated.Text>
               </View>
-            </Pressable>
+            </View>
           );
         })}
       </View>
