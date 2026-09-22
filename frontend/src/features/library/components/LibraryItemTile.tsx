@@ -120,7 +120,7 @@ export default function LibraryItemTile({
           </Text>
         </View>
       </Pressable>
-      {/* 아트워크 우상단에 띄운 더보기 — 사진 위라 반투명 검정 원으로 받친다 */}
+      {/* 아트워크 우상단에 띄운 더보기 — 사진 위라 글리프에 그림자를 준다(원 없음) */}
       <Pressable
         style={styles.moreButton}
         onPress={() => onMorePress(item)}
@@ -215,11 +215,10 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     padding: theme.spacing.sm,
   },
+  // 원은 없다 — 흰 ⋯ 만 두고 은은한 그림자로 밝은 사진 위에서도 읽히게 한다(2026-09-22 PM, 반투명 검정 원 제거)
   moreCircle: {
     width: MORE_CIRCLE_SIZE,
     height: MORE_CIRCLE_SIZE,
-    borderRadius: MORE_CIRCLE_SIZE / 2,
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -227,7 +226,10 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.md,
     fontWeight: '700',
     color: '#FFFFFF',
-    // 글리프가 원 안에서 살짝 위로 뜬다 — 기준선 보정
+    textShadowColor: 'rgba(0, 0, 0, 0.55)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+    // 글리프가 상자 안에서 살짝 위로 뜬다 — 기준선 보정
     marginTop: -2,
   },
 });

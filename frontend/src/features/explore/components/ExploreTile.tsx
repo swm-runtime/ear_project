@@ -148,17 +148,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // 원은 없다 — 흰 ⋯ 만 두고 은은한 그림자로 밝은 사진 위에서도 읽히게 한다(2026-09-22 PM, LibraryItemTile 과 같다)
   moreBadge: {
     width: 28,
     height: 28,
-    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: theme.color.overlay,
   },
   moreGlyph: {
     fontSize: theme.font.size.md,
     fontWeight: '700',
     color: theme.color.onPrimary,
+    textShadowColor: 'rgba(0, 0, 0, 0.55)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
 });
