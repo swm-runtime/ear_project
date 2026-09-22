@@ -12,7 +12,7 @@
 | Jira | [KAN-91](https://runtime364.atlassian.net/browse/KAN-91) |
 | 근거 문서 | `library-api.md` 4.1 목록 응답의 `content.topic_ids`(이미 있음) · `player.md` 제목 아래 카테고리 줄 |
 | 중요도 | **Low** — 앱 재실행 직후 복원 스냅샷 한 자리만 빠져 있다. 재생이 시작되면 세션 메타로 채워진다 |
-| 상태 | 대기 |
+| 상태 | 완료 |
 
 ## 배경
 
@@ -36,3 +36,9 @@ FE 는 `MiniPlayerResumeFallback.topicIds` 를 이미 옵션으로 열어 두었
 ## 처리 기록
 
 - 2026-09-22 발행 — Jira KAN-91.
+- **반영 날짜**: 2026-09-22 (박준현 · Claude) — PR `feat(be)/resume-target-topic-ids`.
+- **데이터는 이미 있었다.** `getResumeTarget` 이 목록과 같은 `toItemViews` 를 쓰고 있어 `view.content.topicIds` 가 이미 채워져 있었고(주제 없으면 `[]`), **DTO 만 그 필드를 빼고 있었다.** 그래서 조회 경로·쿼리 변경 없이 `ResumeContentDto` 에 `topic_ids` 를 더하고 매핑 한 줄을 붙였다 — 목록 응답과 같은 출처라는 완료 조건이 구조적으로 보장된다.
+- **테스트**: `get-library-resume-response.dto.spec.ts` 3건 — 값 전달 · 주제 없을 때 `[]`(null 아님) · 대상 없을 때 종전 동작. 전체 763건 + E2E 48건 통과.
+- **문서**: `spec/api/library-api.md` 4.3 응답 예시에 `topic_ids` 추가하고 설명 한 줄을 덧붙였다(`null` 이 아니라 `[]`). 계약 문서라 `changes/archive/resume-target-topic-ids-spec.md` 에 기록을 남겼다.
+- **FE 후속**: `MiniPlayerResumeFallback.topicIds` 매핑 연결은 FE 별건이다. 필드는 이제 내려간다.
+- Jira KAN-91 → 완료로 전환.
