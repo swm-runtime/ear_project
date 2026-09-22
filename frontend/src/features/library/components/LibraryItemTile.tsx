@@ -145,10 +145,13 @@ const styles = StyleSheet.create({
     flex: 1,
     position: 'relative',
   },
+  // 모서리는 연속 곡률(애플 아이콘식) — 원호는 곡률이 변 중간에서 갑자기 시작해 각져 보인다(2026-09-22 PM).
+  // iOS 만 적용되고 안드로이드는 원호 그대로. 라운드·클립은 이 View 가 한다(expo-image 는 borderCurve 를 모른다)
   artwork: {
     width: '100%',
     aspectRatio: 1,
     borderRadius: theme.radius.lg,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
     overflow: 'hidden',
   },

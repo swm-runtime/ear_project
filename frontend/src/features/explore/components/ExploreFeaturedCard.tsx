@@ -127,14 +127,17 @@ const styles = StyleSheet.create({
   body: {
     gap: theme.spacing.xs,
   },
+  // 라운드·클립은 프레임이 한다 — 연속 곡률(borderCurve)은 View 의 것이고 expo-image 는 모른다(2026-09-22 PM)
   artworkFrame: {
     width: '100%',
     aspectRatio: 1,
     marginBottom: theme.spacing.sm,
+    borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
   },
   artwork: {
     flex: 1,
-    borderRadius: theme.radius.md,
     backgroundColor: theme.color.background,
   },
   completedMark: {
