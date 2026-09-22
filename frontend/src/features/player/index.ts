@@ -7,7 +7,7 @@
 export { default as PlayerScreen } from './screens/PlayerScreen';
 export { default as MiniPlayer } from './components/MiniPlayer';
 export type { MiniPlayerResumeFallback } from './components/MiniPlayer';
-export { useMiniPlayerInset } from './store/mini-player-layout.store';
+export { useBottomDockInset, useMiniPlayerInset } from './store/mini-player-layout.store';
 export { default as PlayConfirmDialog } from './components/PlayConfirmDialog';
 export { default as RemainingPlaysIndicator } from './components/RemainingPlaysIndicator';
 export { usePlayGate } from './hooks/usePlayGate';

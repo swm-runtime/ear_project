@@ -1,3 +1,5 @@
+import { BottomTabBarHeightContext } from '@react-navigation/bottom-tabs';
+import { useContext } from 'react';
 import { create } from 'zustand';
 
 /** 미니플레이어 카드의 화면(window) 좌표 — 플레이어 열림·닫힘 모션의 도착·출발 지점이다(2026-09-16) */
@@ -33,3 +35,12 @@ export const useMiniPlayerLayoutStore = create<MiniPlayerLayoutStore>((set) => (
  */
 export const useMiniPlayerInset = (): number =>
   useMiniPlayerLayoutStore((s) => s.layout?.height ?? 0);
+
+/**
+ * 목록 바닥에 남길 여백 전체 = 떠 있는 탭 바 높이(탭 밖에서는 0) + 미니플레이어 높이. 탭 바도 목록 위에
+ * 떠 있으므로(MainNavigator, 2026-09-22) 목록 화면은 이 값을 contentContainerStyle 의 paddingBottom 으로 준다
+ */
+export const useBottomDockInset = (): number => {
+  const tabBarHeight = useContext(BottomTabBarHeightContext) ?? 0;
+  return tabBarHeight + useMiniPlayerInset();
+};
