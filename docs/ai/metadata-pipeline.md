@@ -72,7 +72,7 @@ NestJS 자동화(업로드 시 서비스 서버가 임베딩 API를 호출하는
 ### 4.3 임베딩 생성 (Phase B)
 
 - **AI 서버의 `POST /embeddings`를 호출한다**(확정 2026-09-01 — `ai-server/README.md`). 입력은 **대본 전문**이며, 모델 입력 한도 초과 시의 청킹·각 청크 임베딩·**평균 → L2 정규화**(코사인 유사도 전제 — `domain.md` 5.6)는 전부 AI 서버 안에서 처리된다. 스킬은 응답 `{ model, dim, vector }`를 `enrichment.json`의 `embedding` 키에 그대로 담는다.
-- 모델: **OpenAI `text-embedding-3-small` · 1536차원 확정**(2026-09-01 — `domain.md` 15.1 #11 해소. 소유처는 AI 서버 env `EMBEDDING_MODEL`·`EMBEDDING_DIM`). 서버 쪽 저장(`content_embeddings` 마이그레이션)이 나가기 전까지는 Phase B 산출물이 저장처 없이 대기하므로, 그동안은 건너뛰어도 된다(스코어링은 임베딩 축 제외로 동작 — `drip-scheduling.md` 4.2).
+- 모델: **OpenAI `text-embedding-3-small` · 1536차원 확정**(2026-09-01 — `domain.md` 15.1 #11 해소. 소유처는 AI 서버 env `EMBEDDING_MODEL`·`EMBEDDING_DIM`).md` 4.2).
   - AI 서버의 기본 제공자 `stub`(결정적 무의미 벡터)은 **서버 검증용이다** — stub 벡터를 `content_embeddings`에 저장하지 않는다(`model = dev-stub`이 그 방어선이다).
 - 산출물에 **모델 식별자를 함께 기록**한다(`content_embeddings.model`). 값 없는 벡터는 만들지 않는다.
 - **구현 (2026-09-22 — 이날까지 코드가 없어 발행 콘텐츠 전부 `has_embedding=false` 였다)**: 두 자리에서 부른다. ① 워커 메타 부여(`stages/enrich.ts`)가

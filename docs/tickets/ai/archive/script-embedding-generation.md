@@ -13,7 +13,7 @@
 | 발견 시점 | 2026-09-22 — "대본 임베딩 코드가 다 구현돼 있는가" 확인 중. 양 끝(AI 서버 생성 API·백엔드 저장/스코어링)은 완성돼 있고 **가운데(파이프라인의 호출)만 비어 있었다** |
 | 근거 문서 | `ai/metadata-pipeline.md` 4.1·4.3·4.4·5장 · `backend/domain.md` 5.6 · `features/drip-scheduling.md` 4.2 · `ai-server/README.md` |
 | 중요도 | **Medium** — 추천 3축 중 **가중치가 가장 큰 임베딩 축(0.4)이 통째로 빠진 채** 편성이 돌고 있다. 오류는 나지 않고 결여 축 재정규화로 신호·메타 2축만 쓴다(`drip-scheduling.md` 4.2). 서비스가 멈추는 문제는 아니지만 추천 품질에 직접 영향이다 |
-| 상태 | 대기 |
+| 상태 | 완료 (2026-09-22) |
 
 ## 문제
 
@@ -118,3 +118,12 @@ ssh -i ~/.ssh/ear-prod-isb.pem ec2-user@ec2-43-203-57-240.ap-northeast-2.compute
 ## 처리 기록
 
 - 2026-09-22 발행. Jira KAN-89(담당 박수헌·AI). 선행인 운영 env 확인은 인프라(박준현) 몫으로 분리했다 — 위 "선행 확인 방법".
+- **반영 날짜**: 2026-09-22 (박수헌 · Claude) — PR #592(dev 52ab7fd, 티켓 PR #591 직전에 머지 — 같은 날 같은 결론에 독립적으로 도달) + 이 PR(티켓 세부 반영).
+- **1. 배선**: 워커 `AI_SERVER_URL`(compose 기본 `http://ai-server:8000`)·`AI_SERVER_TOKEN`(= env.ai-server `INTERNAL_AUTH_TOKEN`). 비우면 임베딩만 생략하고 메타는 계속 낸다.
+- **2. Phase B**: `stages/enrich.ts` — 대본 전문, 없으면 제목+설명(`source: title_description` 은 기존 폴백이 이미 남김). 응답 `{model, dim, vector}` 를 가공 없이 `embedding` 에. `.report.json` 에 `embedding: { ok, model, dim, input | reason }`.
+- **3. 잘못된 임베딩은 키 생략**: `packages/pipeline` `embeddingRejectReason` — stub(dev-stub)·모델 불일치·차원≠1536·dim≠1536·비유한 값이면 키를 빼고 메타 5종만 내며 요약·리포트에 사유(partial). 호출 실패(타임아웃·5xx)도 작업은 성공. 단위 테스트 7건.
+- **웹 보완 경로(티켓 밖 추가)**: 발행 첨부 직전(`/api/publish/[id]?enrichment=1`)과 발행 목록 [반영] 직전에 임베딩이 비어 있으면 웹이 같은 검증으로 채운다 — 노트북 워커(AI 서버 미접속)가 메타를 부여한 편과 **기존 발행분 소급**용. 콘텐츠 모드 재실행 없이 [반영]만으로 소급된다(원하면 [다시 뽑기]로 메타도 갱신).
+- **선행(운영 env)**: 2026-09-22 확인 — `EMBEDDING_PROVIDER=openai` 였으나 `OPENAI_API_KEY` 가 무효(OpenAI 401)라 env.prod 의 키로 교체, `INTERNAL_AUTH_TOKEN` 이 예시 기본값(`change-me`)이라 `openssl rand -hex 32` 로 재발급해 양쪽에 반영, worker-io·web·ai-server 재기동. 워커 컨테이너에서 `/embeddings` 호출 → `text-embedding-3-small` 1536d 응답 확인.
+- **문서**: `ai/metadata-pipeline.md` 4.3 낡은 문장("서버 쪽 저장이 나가기 전까지 건너뛰어도 된다") 삭제·구현 위치 기록, `enrich.ts` 상단 주석 교체, spec/10·deploy/README env 안내. `docs/ai` 는 파이프라인 파트 소유 문서라 PR 에서 직접 고쳤다(changes/ 경유 생략 — 반영 즉시).
+- **완료 조건 중 미확인 2건**: "발행 시 `content_embeddings` 1행 생성"과 "편성 배치에서 임베딩 축 동작"은 발행분 [반영] 뒤 백엔드 쪽에서 확인한다(추천 검증 페이지 "임베딩 없음" 소거). 소급은 박수헌이 콘솔에서 진행.
+- Jira KAN-89 → 완료로 전환.
