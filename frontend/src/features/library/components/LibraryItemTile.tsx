@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { theme } from '@/shared/theme';
+import MoreIcon from '@/shared/ui/MoreIcon';
 import RemoteImage from '@/shared/ui/RemoteImage';
 
 import { LIBRARY_COPY } from '../library.copy';
@@ -129,7 +130,7 @@ export default function LibraryItemTile({
         hitSlop={theme.spacing.xs}
       >
         <View style={styles.moreCircle}>
-          <Text style={styles.moreGlyph}>⋯</Text>
+          <MoreIcon size={MORE_ICON_SIZE} color="#FFFFFF" shadow />
         </View>
       </Pressable>
     </View>
@@ -137,6 +138,7 @@ export default function LibraryItemTile({
 }
 
 const MORE_CIRCLE_SIZE = 28;
+const MORE_ICON_SIZE = 22;
 /** 그라데이션 높이 — 글자 한 줄이 어두운 띠 안에 들어올 만큼만. 사진 절반을 덮으면 표식이 아니라 어두운 사진이 된다 */
 const BOTTOM_FADE_HEIGHT = 56;
 
@@ -215,21 +217,11 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     padding: theme.spacing.sm,
   },
-  // 원은 없다 — 흰 ⋯ 만 두고 은은한 그림자로 밝은 사진 위에서도 읽히게 한다(2026-09-22 PM, 반투명 검정 원 제거)
+  // 원은 없다 — 흰 점 3개(MoreIcon, 후광 그림자)만 둔다(2026-09-22 PM, 반투명 검정 원·글자 ⋯ 제거)
   moreCircle: {
     width: MORE_CIRCLE_SIZE,
     height: MORE_CIRCLE_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  moreGlyph: {
-    fontSize: theme.font.size.md,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    textShadowColor: 'rgba(0, 0, 0, 0.55)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
-    // 글리프가 상자 안에서 살짝 위로 뜬다 — 기준선 보정
-    marginTop: -2,
   },
 });

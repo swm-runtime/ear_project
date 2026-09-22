@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import MoreIcon from '@/shared/ui/MoreIcon';
 import RemoteImage from '@/shared/ui/RemoteImage';
 
 import { EXPLORE_COPY } from '../explore.copy';
@@ -106,7 +107,7 @@ export default function ExploreFeaturedCard({
           accessibilityRole="button"
           accessibilityLabel={EXPLORE_COPY.row.moreA11y}
         >
-          <Text style={styles.moreGlyph}>⋯</Text>
+          <MoreIcon size={22} color={theme.color.textSecondary} />
         </Pressable>
       </View>
     </View>
@@ -174,9 +175,5 @@ const styles = StyleSheet.create({
     minHeight: theme.touchTarget.minHeight,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  moreGlyph: {
-    fontSize: theme.font.size.lg,
-    color: theme.color.textSecondary,
   },
 });
