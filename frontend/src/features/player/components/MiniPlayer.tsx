@@ -38,6 +38,10 @@ import { usePlayerOpenGestureStore } from '../store/player-open-gesture.store';
 
 /** 미니플레이어 재생 버튼 아이콘 — 전체 플레이어보다 작게 */
 const MINI_PLAY_ICON_SIZE = 20;
+/** 카드 모서리 — 캡슐 탭 바(높이 60 알약)와 같은 결로 크게 */
+export const MINI_CARD_RADIUS = 22;
+/** 캡슐 탭 바와 미니플레이어 카드 사이(mini-player-layout.store 의 DOCK_GAP 과 같다) */
+const DOCK_GAP = 8;
 
 /** 앱 재실행 복원 대상(library-api.md 4.3) — 노출·대상 판정은 라이브러리 소유(library.md 4.2) */
 export interface MiniPlayerResumeFallback {
@@ -303,7 +307,7 @@ export default function MiniPlayer({
       ref={rootRef}
       style={[
         styles.container,
-        { bottom: tabBarHeight, transform: [{ translateX }], opacity: swipeOpacity },
+        { bottom: tabBarHeight + DOCK_GAP, transform: [{ translateX }], opacity: swipeOpacity },
       ]}
       onLayout={(event) => {
         setBarWidth(event.nativeEvent.layout.width);
@@ -396,21 +400,29 @@ const styles = StyleSheet.create({
    * (화면이 useBottomDockInset 만큼 바닥 여백을 준다) 지나가는 내용이 흐리게 비친다(GlassSurface —
    * iOS 26 리퀴드 글라스, 그 밑은 블러+틴트. runtime 5)
    */
+  // 캡슐 탭 바 위에 떠 있는 둥근 카드(2026-09-23 PM) — 좌우 md 여백, 캡슐과 DOCK_GAP 띄움
   container: {
     position: 'absolute',
-    left: 0,
-    right: 0,
+    left: theme.spacing.md,
+    right: theme.spacing.md,
+    borderRadius: MINI_CARD_RADIUS,
+    borderCurve: 'continuous',
     // 바탕은 GlassSurface(블러·글라스)가 깔고 이 뷰는 투명하다 — 색을 주면 유리가 가려진다
     backgroundColor: 'transparent',
     overflow: 'hidden',
+    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.10)',
   },
+  // 유리 카드의 윤곽 — 밝은 목록 위에서 경계가 사라지지 않게
   topLine: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: theme.color.border,
+    bottom: 0,
+    borderRadius: MINI_CARD_RADIUS,
+    borderCurve: 'continuous',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(0, 0, 0, 0.10)',
   },
   progressTrack: {
     height: 2,
