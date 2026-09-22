@@ -1,5 +1,7 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect } from 'react';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { theme } from '@/shared/theme';
 
 import { EXPLORE_COPY } from '../explore.copy';
@@ -49,38 +51,75 @@ const SEGMENT_HIT_SLOP = {
 };
 
 /**
+ * 알약이 옮겨가는 스프링 — iOS 세그먼트 컨트롤의 결(2026-09-22 PM). 임계 감쇠에 가깝게 두어 한 번에
+ * 멈추고, 응답은 약 0.3초. 위치(translateX)·라벨 불투명도 둘 다 네이티브 드라이버로 돌아 JS 가 바빠도 안 끊긴다
+ */
+const INDICATOR_SPRING = { stiffness: 380, damping: 34, mass: 1 };
+
+/**
  * E13 인기 구간 토글 — 인기 섹션 제목 줄에만 붙는 3택 1 세그먼트 컨트롤.
  * 확정 구간이 없어도 세 구간 모두 항상 고를 수 있다 — 탭을 숨기거나 비활성화하지 않는다
  * (explore.md 4.1-1 · uiux 8장). 선택 상태는 색만이 아니라 **떠 있는 알약(면·그림자)** 형태로도
  * 드러낸다(uiux 7장 — 색만으로 구분하지 않는다). 굵기는 셋이 같다 — 아래 label 주석.
+ *
+ * 알약은 구간마다 하나씩이 아니라 **하나가 미끄러져 간다**(2026-09-22 PM — 애플처럼). 종전엔 탭한 칸에
+ * 알약이 툭 나타났다. 라벨 색도 바꿔치지 않고, 알약이 지나가는 만큼 회색 위에 검정 글자가 겹쳐 보이게
+ * 한다(두 겹 텍스트 + 불투명도 보간) — 알약과 글자가 같은 프레임에 움직인다.
  */
 export default function PopularPeriodToggle({
   selected,
   onSelect,
   disabled,
 }: PopularPeriodToggleProps) {
+  const selectedIndex = Math.max(0, PERIODS.indexOf(selected));
+  const indicatorX = useAnimatedValue(selectedIndex * SEGMENT_WIDTH);
+  useEffect(() => {
+    // 선택은 서버 응답이 정하므로(prop) 탭이 아니라 값이 바뀔 때 움직인다
+    Animated.spring(indicatorX, {
+      toValue: selectedIndex * SEGMENT_WIDTH,
+      useNativeDriver: true,
+      ...INDICATOR_SPRING,
+    }).start();
+  }, [indicatorX, selectedIndex]);
+
   return (
     <View
       style={styles.container}
       accessibilityRole="radiogroup"
       accessibilityLabel={EXPLORE_COPY.popular.toggleA11y}
     >
-      {PERIODS.map((period) => {
+      <Animated.View
+        style={[styles.indicator, { transform: [{ translateX: indicatorX }] }]}
+        pointerEvents="none"
+      />
+      {PERIODS.map((period, index) => {
         const isSelected = period === selected;
+        const label = EXPLORE_COPY.popular.periodLabels[period];
+        // 알약이 이 칸에 얼마나 겹쳐 있는가(0~1) — 검정 글자의 불투명도
+        const selectedOpacity = indicatorX.interpolate({
+          inputRange: [(index - 1) * SEGMENT_WIDTH, index * SEGMENT_WIDTH, (index + 1) * SEGMENT_WIDTH],
+          outputRange: [0, 1, 0],
+          extrapolate: 'clamp',
+        });
         return (
           <Pressable
             key={period}
-            style={[styles.segment, isSelected && styles.segmentSelected]}
+            style={styles.segment}
             onPress={() => onSelect(period)}
             hitSlop={SEGMENT_HIT_SLOP}
             disabled={disabled}
             accessibilityRole="radio"
-            accessibilityLabel={EXPLORE_COPY.popular.periodLabels[period]}
+            accessibilityLabel={label}
             accessibilityState={{ checked: isSelected, disabled }}
           >
-            <Text style={[styles.label, isSelected && styles.labelSelected]}>
-              {EXPLORE_COPY.popular.periodLabels[period]}
-            </Text>
+            <Text style={styles.label}>{label}</Text>
+            <Animated.Text
+              style={[styles.label, styles.labelSelected, { opacity: selectedOpacity }]}
+              accessibilityElementsHidden
+              importantForAccessibility="no"
+            >
+              {label}
+            </Animated.Text>
           </Pressable>
         );
       })}
@@ -110,14 +149,20 @@ const styles = StyleSheet.create({
     width: SEGMENT_WIDTH,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: theme.radius.full,
   },
   /**
    * 선택 알약 — 흰 면을 **부드러운 그림자로 띄운다**(레퍼런스 토글과 같은 결). 이 코드베이스에서
    * 그림자를 쓰는 첫 자리다. `shadow*` 속성 대신 `boxShadow`를 쓴다 — RN 0.86(새 아키텍처)과
    * react-native-web이 같은 문자열을 그대로 그려, 플랫폼마다 값을 따로 맞출 필요가 없다.
+   * 첫 칸 자리에 절대 배치하고 translateX 로 옮긴다
    */
-  segmentSelected: {
+  indicator: {
+    position: 'absolute',
+    top: TRACK_INSET,
+    left: TRACK_INSET,
+    width: SEGMENT_WIDTH,
+    height: SEGMENT_HEIGHT,
+    borderRadius: theme.radius.full,
     backgroundColor: theme.color.background,
     boxShadow: '0 1px 4px rgba(0, 0, 0, 0.14)',
   },
@@ -130,7 +175,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.color.textSecondary,
   },
+  // 검정 글자는 회색 글자 위에 겹친다 — 같은 자리·같은 크기라 불투명도만으로 색이 섞인다
   labelSelected: {
+    position: 'absolute',
     color: theme.color.textPrimary,
   },
 });
