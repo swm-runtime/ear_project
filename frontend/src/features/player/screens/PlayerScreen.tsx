@@ -1515,6 +1515,24 @@ export default function PlayerScreen() {
           >
             {session.meta.title ?? ''}
           </Animated.Text>
+          {/* 미니 카테고리 — 미니플레이어의 제목 아래 줄(MiniPlayer styles.category)과 같은 자리·글자. 이게 없으면
+              착지 순간 뒤의 진짜 미니플레이어에서 카테고리만 툭 나타난다(2026-09-22 PM) */}
+          {categoryLabel !== null ? (
+            <Animated.Text
+              style={[
+                styles.morphMiniCategory,
+                {
+                  left: miniTitleLeft,
+                  top: miniTitleTop + miniTitleHeight + MINI_CATEGORY_GAP,
+                  width: miniTitleWidth,
+                  opacity: morph.miniTitleOpacity,
+                },
+              ]}
+              numberOfLines={1}
+            >
+              {categoryLabel}
+            </Animated.Text>
+          ) : null}
           {/* 풀 화면 제목 — 최종 자리에 고정된 채 콘텐츠(컨트롤·시크바)와 같은 이동·불투명도로 들어온다.
               마지막 교차(0.94~1)에서 실제 히어로 제목과 같은 좌표라 한 장으로 보인다 */}
           {/* 실제 히어로와 **같은 컴포넌트·같은 간격**으로 그린다 — 말줄임 Text 로 그리면 교차 순간 흐르는 제목
@@ -1666,6 +1684,8 @@ const MINI_BUTTON_WIDTH = 44;
 const MINI_ROW_HEIGHT = 62;
 /** 미니플레이어 제목(14pt) 한 줄 높이 */
 const MINI_TITLE_LINE_HEIGHT = 20;
+/** 미니플레이어 제목과 카테고리 줄 사이(MiniPlayer styles.textColumn gap 과 같아야 한다) */
+const MINI_CATEGORY_GAP = 2;
 /** onLayout 이 주는 부모 기준 사각형 */
 interface LayoutBox {
   x: number;
@@ -1762,6 +1782,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     // 이 순간의 시트는 아직 밝은 미니플레이어 색이다 — 밝은 테마의 글자색
     color: theme.color.textPrimary,
+  },
+  // 미니플레이어 카테고리와 같은 글자(MiniPlayer styles.category)
+  morphMiniCategory: {
+    position: 'absolute',
+    fontSize: theme.font.size.xs,
+    color: theme.color.textSecondary,
   },
   morphMiniButton: {
     position: 'absolute',

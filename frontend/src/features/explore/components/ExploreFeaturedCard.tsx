@@ -37,15 +37,16 @@ interface Rect {
  * (제목 두 줄 + 재생 알약까지 합친 높이다). 가리키려는 것은 "담을 수 있는 콘텐츠"이고 그건
  * 썸네일로 충분하다.
  *
- * **이 계산은 아래 `card`·`artworkFrame` 스타일에 묶여 있다** — 썸네일은 카드 패딩 안쪽의
- * 정사각형(`width: '100%'` + `aspectRatio: 1`)이다. 둘 중 하나를 바꾸면 여기도 바꾼다.
+ * **이 계산은 아래 `card`·`artworkFrame` 스타일에 묶여 있다** — 썸네일은 카드의 **위·양옆 변에 붙는**
+ * 정사각형(카드 폭 그대로, 2026-09-22 PM — 위·양쪽 공백 제거)이다. 둘 중 하나를 바꾸면 여기도 바꾼다.
  * 그래서 카드를 쓰는 쪽이 짐작하지 않도록 이 파일이 함께 소유한다.
  */
-export const featuredCardArtworkRect = (card: Rect): Rect => {
-  const inset = theme.spacing.md;
-  const size = Math.max(0, card.w - inset * 2);
-  return { x: card.x + inset, y: card.y + inset, w: size, h: size };
-};
+export const featuredCardArtworkRect = (card: Rect): Rect => ({
+  x: card.x,
+  y: card.y,
+  w: card.w,
+  h: card.w,
+});
 
 /**
  * 인기 섹션의 큰 카드 — 가로 캐러셀의 항목이다.
@@ -115,29 +116,33 @@ export default function ExploreFeaturedCard({
 }
 
 const styles = StyleSheet.create({
+  /*
+   * 커버가 카드의 위·양옆 변에 붙는다(2026-09-22 PM — 카드 안 여백에 갇힌 사진은 액자 속 액자였다). 카드가
+   * 라운드·클립을 맡아 커버의 위 모서리는 카드 곡률을 따르고 아래 모서리는 각지게 제목 블록으로 이어진다.
+   * 패딩은 아래·제목·알약 줄에만 남는다
+   */
   card: {
     borderRadius: theme.radius.lg,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
     backgroundColor: theme.color.surface,
-    padding: theme.spacing.md,
+    paddingBottom: theme.spacing.md,
     gap: theme.spacing.xs,
   },
   body: {
     gap: theme.spacing.xs,
   },
-  // 라운드·클립은 프레임이 한다 — 연속 곡률(borderCurve)은 View 의 것이고 expo-image 는 모른다(2026-09-22 PM)
   artworkFrame: {
     width: '100%',
     aspectRatio: 1,
     marginBottom: theme.spacing.sm,
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    overflow: 'hidden',
   },
   artwork: {
     flex: 1,
     backgroundColor: theme.color.background,
   },
   title: {
+    marginHorizontal: theme.spacing.md,
     fontSize: theme.font.size.md,
     fontWeight: '700',
     color: theme.color.textPrimary,
@@ -151,6 +156,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: theme.spacing.xs,
+    marginHorizontal: theme.spacing.md,
   },
   playPill: {
     flexDirection: 'row',
