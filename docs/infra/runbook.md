@@ -20,7 +20,7 @@
 
 ```bash
 cd backend
-AUDIO_BUCKET=ear-audio-prod BACKUP_BUCKET=ear-backup-prod AWS_REGION=ap-northeast-2 \
+AUDIO_BUCKET=earcast-audio-prod BACKUP_BUCKET=earcast-backup-prod AWS_REGION=ap-northeast-2 \
   bash deploy/aws/setup-audio-cdn.sh
 ```
 - 출력되는 `.env.prod` 4줄 + `AUDIO_BUCKET`/`KVS_ARN`을 보관. `deploy/aws/out/cf_private.pem` 커밋 금지
@@ -85,7 +85,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T postgres 
 ### 3.2 수동 업로드 (콘솔 불가 시 비상용)
 
 ```bash
-AUDIO_BUCKET=ear-audio-prod KVS_ARN=<값> deploy/upload-audio.sh <contentId(uuid)> ./ep.mp3
+AUDIO_BUCKET=earcast-audio-prod KVS_ARN=<값> deploy/upload-audio.sh <contentId(uuid)> ./ep.mp3
 # 출력 키를 contents.audio_path에 직접 INSERT — 콘솔 경로와 달리 검증·감사로그가 없다
 ```
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 오디오 한 편을 S3에 올리고 contentId → 키 매핑을 CloudFront KeyValueStore에 넣는다.
-#   AUDIO_BUCKET=ear-audio-prod KVS_ARN=arn:aws:cloudfront::...:key-value-store/... \
+#   AUDIO_BUCKET=earcast-audio-prod KVS_ARN=arn:aws:cloudfront::...:key-value-store/... \
 #     deploy/upload-audio.sh <contentId> <file.mp3>
 # 출력되는 키를 contents.audio_path 에 넣는다. 키는 무작위라 URL·DB 어디에도 제목이 새지 않는다.
 # (KVS 매핑은 폐기됐다 — 재생 URL이 키를 직접 서명한다. docs/infra/architecture.md 3.2)

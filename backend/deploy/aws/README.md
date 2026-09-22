@@ -15,14 +15,14 @@
 
 ## 1. 오디오 CDN 만들기 (한 번)
 ```bash
-AUDIO_BUCKET=ear-audio-prod BACKUP_BUCKET=ear-backup-prod AWS_REGION=ap-northeast-2 \
+AUDIO_BUCKET=earcast-audio-prod BACKUP_BUCKET=earcast-backup-prod AWS_REGION=ap-northeast-2 \
   deploy/aws/setup-audio-cdn.sh
 ```
 마지막에 출력되는 `.env.prod` 네 줄을 보관. `deploy/aws/out/cf_private.pem`은 커밋 금지(.gitignore 됨).
 
 오디오 올리기 (한 편씩):
 ```bash
-AUDIO_BUCKET=ear-audio-prod KVS_ARN=<setup 출력값> deploy/upload-audio.sh <contentId> ./ep.mp3
+AUDIO_BUCKET=earcast-audio-prod KVS_ARN=<setup 출력값> deploy/upload-audio.sh <contentId> ./ep.mp3
 # → audio/3f9c...a1.mp3   ← 이 값을 contents.audio_path 에 넣는다
 ```
 S3 키는 무작위이고 URL에는 `/play/<contentId>`만 보인다. `contentId → 키` 매핑은 CloudFront
@@ -50,7 +50,7 @@ Function이 재작성한 뒤 서명을 검증하는지 순서가 문서에 명�
 - Amazon Linux 2023 arm64, EBS gp3 20GB
 - 보안그룹: 22(내 IP만), 80, 443. **그 외 전부 닫는다.** DB 포트는 열지 않는다(컨테이너 안에서만).
 - 퍼블릭 서브넷에 둔다. **NAT Gateway·ALB·RDS 만들지 않는다** — 셋이 월 비용의 대부분이다.
-- 인스턴스 롤: `s3:PutObject` on `ear-backup-prod/*` (백업용). 오디오 버킷 권한은 필요 없다(업로드는 로컬에서).
+- 인스턴스 롤: `s3:PutObject` on `earcast-backup-prod/*` (백업용). 오디오 버킷 권한은 필요 없다(업로드는 로컬에서).
 
 ```bash
 # 서버에서 (AL2023에는 compose·buildx·cronie가 없다 — 따로 설치한다)
@@ -77,11 +77,11 @@ AUDIO_URL_BASE_URL=https://dxxxx.cloudfront.net
 CLOUDFRONT_KEY_PAIR_ID=...
 CLOUDFRONT_PRIVATE_KEY_BASE64=...
 AWS_REGION=ap-northeast-2
-AUDIO_BUCKET=ear-audio-prod
+AUDIO_BUCKET=earcast-audio-prod
 AUDIO_KVS_ARN=<setup 출력값>
 ADMIN_DOMAIN=admin.example.com
 CORS_ORIGINS=https://admin.example.com
-BACKUP_BUCKET=ear-backup-prod
+BACKUP_BUCKET=earcast-backup-prod
 ```
 DNS: `api.example.com` · `admin.example.com` A 레코드 → EC2 퍼블릭 IP. Caddy가 인증서를 알아서 받는다.
 
