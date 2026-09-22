@@ -51,11 +51,7 @@ export default function ExploreTile({
       >
         <View style={isGrid ? styles.gridArtworkFrame : styles.artworkFrame}>
           <RemoteImage uri={item.content.thumbnailUrl} recyclingKey={item.content.id} style={styles.artwork} />
-          {isCompleted ? (
-            <View style={styles.completedMark}>
-              <Text style={styles.completedGlyph}>✓</Text>
-            </View>
-          ) : null}
+          {/* 완청 체크는 없다(2026-09-22 PM) — 사진 위 스티커라 뺐다. 완청은 낭독기 라벨(completed)로만 전한다 */}
         </View>
         <Text style={styles.title} numberOfLines={2}>
           {item.content.title}
@@ -108,22 +104,6 @@ const styles = StyleSheet.create({
   artwork: {
     flex: 1,
     backgroundColor: theme.color.surface,
-  },
-  completedMark: {
-    position: 'absolute',
-    top: theme.spacing.sm,
-    left: theme.spacing.sm,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.color.overlay,
-  },
-  completedGlyph: {
-    fontSize: theme.font.size.xs,
-    fontWeight: '700',
-    color: theme.color.onPrimary,
   },
   title: {
     fontSize: theme.font.size.sm,
