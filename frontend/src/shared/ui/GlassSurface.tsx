@@ -61,9 +61,11 @@ interface GlassPillProps {
 export function GlassPill({ style }: GlassPillProps) {
   return (
     <Animated.View style={[style, HAS_LIQUID_GLASS ? styles.pillClear : styles.pillTint]} pointerEvents="none">
-      {/* 틴트 없는 맑은 유리 — 알약은 색이 아니라 굴절로만 보인다(PM 2026-09-23 "완전 투명") */}
+      {/* 캡슐과 같은 재질(regular, 틴트 없음) — 유리는 유리를 샘플링하지 않아 clear 알약은 캡슐을 건너뛰고 뒤의
+          목록만 굴절시켰다(알약 자리에서 캡슐이 사라져 보임, PM 2026-09-23). 같은 재질이면 커져서 넘친 부분이
+          캡슐이 불룩 튀어나온 것으로 읽힌다 */}
       {HAS_LIQUID_GLASS ? (
-        <GlassView style={StyleSheet.absoluteFill} glassEffectStyle="clear" colorScheme="light" />
+        <GlassView style={StyleSheet.absoluteFill} glassEffectStyle="regular" colorScheme="light" />
       ) : null}
     </Animated.View>
   );
