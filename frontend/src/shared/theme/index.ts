@@ -57,6 +57,10 @@ export const theme = {
     },
   },
   /** auth-uiux.md 7 — 터치 타깃 최소 44pt */
+  /** 하단 독 — 캡슐 탭 바와 미니플레이어 카드가 같은 폭으로 가운데 선다(2026-09-23 PM). 칸 96 × 3 */
+  dock: {
+    width: 288,
+  },
   touchTarget: {
     minHeight: 44,
     minWidth: 44,

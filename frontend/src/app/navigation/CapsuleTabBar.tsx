@@ -15,10 +15,14 @@ const CAPSULE_HEIGHT = 60;
 /** 캡슐 안쪽 여백 — 선택 알약이 캡슐 테두리에 붙지 않게 */
 const CAPSULE_INSET = 4;
 /** 칸 폭 — 세 칸이 같은 폭이어야 선택 알약이 옮겨갈 때 크기가 안 변한다(PopularPeriodToggle 과 같은 이유) */
-const ITEM_WIDTH = 96;
+const ITEM_WIDTH = theme.dock.width / 3;
 const ITEM_HEIGHT = CAPSULE_HEIGHT - CAPSULE_INSET * 2;
-/** 홈 인디케이터(안전영역)와 캡슐 사이 */
-const BOTTOM_GAP = 10;
+/**
+ * 캡슐 아래 여백 — 안전영역(홈 인디케이터 34) 위에 더 띄우지 않고 그 안으로 내려 바닥에 붙인다(PM 2026-09-23
+ * "약간의 공백만 빼고 끝으로"). 인디케이터가 없는 기기(안전영역 0)는 최소 여백만 둔다
+ */
+const BOTTOM_INSET_OVERLAP = 18;
+const BOTTOM_MIN_GAP = 8;
 const ICON_SIZE = 24;
 const LABEL_SIZE = 11;
 
@@ -149,7 +153,7 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
 
   return (
     <View
-      style={[styles.dock, { paddingBottom: insets.bottom + BOTTOM_GAP }]}
+      style={[styles.dock, { paddingBottom: Math.max(insets.bottom - BOTTOM_INSET_OVERLAP, BOTTOM_MIN_GAP) }]}
       pointerEvents="box-none"
       onLayout={(event) => reportHeight?.(event.nativeEvent.layout.height)}
     >

@@ -403,8 +403,9 @@ const styles = StyleSheet.create({
   // 캡슐 탭 바 위에 떠 있는 둥근 카드(2026-09-23 PM) — 좌우 md 여백, 캡슐과 DOCK_GAP 띄움
   container: {
     position: 'absolute',
-    left: theme.spacing.md,
-    right: theme.spacing.md,
+    // 캡슐 탭 바와 같은 폭으로 가운데(PM 2026-09-23)
+    width: theme.dock.width,
+    alignSelf: 'center',
     borderRadius: MINI_CARD_RADIUS,
     borderCurve: 'continuous',
     // 바탕은 GlassSurface(블러·글라스)가 깔고 이 뷰는 투명하다 — 색을 주면 유리가 가려진다
