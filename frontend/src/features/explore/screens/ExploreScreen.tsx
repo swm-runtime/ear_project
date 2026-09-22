@@ -13,7 +13,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/shared/theme';
 import FullScreenError from '@/shared/ui/FullScreenError';
 
-import { MiniPlayer, PlayConfirmDialog, RemainingPlaysIndicator } from '@/features/player';
+import {
+  MiniPlayer,
+  PlayConfirmDialog,
+  RemainingPlaysIndicator,
+  useMiniPlayerInset,
+} from '@/features/player';
 
 import ExploreEmptyState from '../components/ExploreEmptyState';
 import ExploreFeaturedCard from '../components/ExploreFeaturedCard';
@@ -32,6 +37,7 @@ import { useExploreScreen } from '../hooks/useExploreScreen';
 /** 탐색 탭(E1~E13) — 화면은 뷰만 담당하고 로직은 useExploreScreen이 소유한다 */
 export default function ExploreScreen() {
   const screen = useExploreScreen();
+  const miniInset = useMiniPlayerInset();
 
   // E10은 검색창 줄·주제 칩·잔여 표시까지 그리지 않는다 — 화면 전체가 에러다(uiux 4.8)
   if (screen.isFullError) {
@@ -204,9 +210,10 @@ export default function ExploreScreen() {
             ) : null
           }
           ListFooterComponent={renderFooter()}
-          contentContainerStyle={
-            screen.filteredItems.length === 0 ? styles.emptyContent : styles.gridContent
-          }
+          contentContainerStyle={[
+            screen.filteredItems.length === 0 ? styles.emptyContent : styles.gridContent,
+            { paddingBottom: miniInset },
+          ]}
           refreshControl={refreshControl}
           onEndReached={screen.loadMore}
           onEndReachedThreshold={0.4}
@@ -217,9 +224,10 @@ export default function ExploreScreen() {
     // E1 — 섹션형 피드. 섹션 구성·순서·제목은 서버 응답 그대로다(explore.md 4.1)
     return (
       <ScrollView
-        contentContainerStyle={
-          screen.sections.length === 0 ? styles.emptyContent : styles.feedContent
-        }
+        contentContainerStyle={[
+          screen.sections.length === 0 ? styles.emptyContent : styles.feedContent,
+          { paddingBottom: miniInset },
+        ]}
         refreshControl={refreshControl}
       >
         {screen.sections.length === 0 ? (

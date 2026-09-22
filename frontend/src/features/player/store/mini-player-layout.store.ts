@@ -26,3 +26,10 @@ export const useMiniPlayerLayoutStore = create<MiniPlayerLayoutStore>((set) => (
   layout: null,
   setLayout: (layout) => set({ layout }),
 }));
+
+/**
+ * 미니플레이어가 목록 위에 떠 있는 만큼 목록 바닥에 남길 여백(2026-09-22 PM — 미니플레이어를 목록 위에 띄움).
+ * 안 보이면 0. 목록 화면은 이 값을 contentContainerStyle 의 paddingBottom 으로 준다
+ */
+export const useMiniPlayerInset = (): number =>
+  useMiniPlayerLayoutStore((s) => s.layout?.height ?? 0);
