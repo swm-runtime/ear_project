@@ -28,7 +28,8 @@ export const HAS_LIQUID_GLASS = Platform.OS === 'ios' && isLiquidGlassAvailable(
 export default function GlassSurface({ style, children }: GlassSurfaceProps) {
   if (HAS_LIQUID_GLASS) {
     return (
-      <GlassView style={style} glassEffectStyle="regular" colorScheme="light">
+      // clear — 맑은 렌즈(PM 2026-09-23 실기기 비교 요청). 밝은 목록 위에서 글리프가 묻히면 regular 로 되돌린다
+      <GlassView style={style} glassEffectStyle="clear" colorScheme="light">
         {children}
       </GlassView>
     );
