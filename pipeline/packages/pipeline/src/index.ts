@@ -54,7 +54,7 @@ export function assetPaths(assetRoot: string, workRoot: string = assetRoot) {
   return {
     guidelines: p("skills", "draft", "guidelines.md"),
     goldShort: p("skills", "draft", "examples", "gold-T260820-001-short.md"),
-    goldFullEum: p("skills", "draft", "examples", "gold-T260820-002-full.md"),
+    goldFullEum: p("skills", "draft", "examples", "gold-T260918-001-full.md"),
     goldFullYuna: p("skills", "draft", "examples", "gold-T260828-001-full.md"),
     specScript: p("spec", "04-script.md"),
     specQa: p("spec", "05-qa.md"),
