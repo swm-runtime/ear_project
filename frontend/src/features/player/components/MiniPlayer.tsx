@@ -393,7 +393,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: theme.color.border,
-    backgroundColor: 'rgba(245, 245, 247, 0.9)',
+    backgroundColor: 'rgba(245, 245, 247, 0.95)',
     boxShadow: '0 -2px 12px rgba(0, 0, 0, 0.06)',
   },
   progressTrack: {
