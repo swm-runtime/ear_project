@@ -16,6 +16,36 @@ const BLUR_INTENSITY = 60;
 /** iOS 26 리퀴드 글라스는 앱 시작 시 한 번만 판정하면 된다(OS 가 바뀌지 않는다) */
 export const HAS_LIQUID_GLASS = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
+/**
+ * 떠 있는 면(미니플레이어·탭 바)의 바탕 — 뒤의 목록이 흐리게 비친다(2026-09-22 PM — "애플처럼").
+ *
+ * - iOS 26+: 애플의 리퀴드 글라스(`expo-glass-effect` GlassView, regular). 시스템이 재질·굴절·하이라이트를 그린다.
+ * - 그 밑 iOS · Android: `expo-blur` 블러 + 밝은 틴트. Android 는 실험 블러(dimezisBlurView)를 켠다 — 안 켜면
+ *   블러 없이 반투명 면만 남는다.
+ *
+ * 자식은 그 위에 그려진다. 크기·위치는 호출부의 style 이 정한다(보통 absoluteFill)
+ */
+export default function GlassSurface({ style, children }: GlassSurfaceProps) {
+  if (HAS_LIQUID_GLASS) {
+    return (
+      <GlassView style={style} glassEffectStyle="regular" colorScheme="light">
+        {children}
+      </GlassView>
+    );
+  }
+  return (
+    <BlurView
+      style={style}
+      tint="light"
+      intensity={BLUR_INTENSITY}
+      experimentalBlurMethod="dimezisBlurView"
+    >
+      <View style={[StyleSheet.absoluteFill, styles.tint]} pointerEvents="none" />
+      {children}
+    </BlurView>
+  );
+}
+
 interface GlassPillProps {
   /** 위치·크기·transform — 호출부의 Animated 스타일 그대로 */
   style: Animated.WithAnimatedValue<StyleProp<ViewStyle>>;
