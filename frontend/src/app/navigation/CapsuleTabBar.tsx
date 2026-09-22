@@ -30,8 +30,8 @@ const ICON_NAMES: Record<string, TabBarIconName> = {
 
 /** 이만큼 가로로 움직이면 탭이 아니라 알약 끌기다 */
 const DRAG_START_DISTANCE = 4;
-/** 누르는 동안 알약 확대 — 캡슐 밖으로 살짝 넘칠 만큼(캡슐은 clip 하지 않는다) */
-const PILL_LIFT_SCALE = 1.12;
+/** 누르는 동안 알약 확대 — 캡슐(60) 밖으로 확실히 넘치게(52 × 1.3 ≈ 68, PM 2026-09-23 "넘치게 해"). 캡슐은 clip 하지 않는다 */
+const PILL_LIFT_SCALE = 1.3;
 
 /**
  * 하단 탭 바 — 화면 폭을 다 쓰는 띠가 아니라 **떠 있는 캡슐**(2026-09-23 PM — iOS 26 탭 바처럼).
