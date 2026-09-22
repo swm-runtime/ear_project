@@ -6,6 +6,8 @@ import { theme } from '@/shared/theme';
 import ConfirmDialog from '@/shared/ui/ConfirmDialog';
 import SettingsIcon from '@/shared/ui/SettingsIcon';
 
+import { useBottomDockInset } from '@/features/player';
+
 import CareerCard from '../components/CareerCard';
 import InterestCard from '../components/InterestCard';
 import ProfileHeader, { PROFILE_IDENTITY_ROW_HEIGHT } from '../components/ProfileHeader';
@@ -29,6 +31,8 @@ const SETTINGS_HIT_SLOP = (theme.touchTarget.minHeight - SETTINGS_ICON_SIZE) / 2
  */
 export default function ProfileScreen() {
   const screen = useProfileScreen();
+  // 탭 바가 목록 위에 떠 있으므로 그 높이만큼 바닥 여백(2026-09-22)
+  const dockInset = useBottomDockInset();
   // 0.3초 미만 로딩은 표시하지 않는다(common-error-handling.md 5장)
   const showSkeleton = useDelayedVisible(screen.isInitialLoading);
 
@@ -60,7 +64,7 @@ export default function ProfileScreen() {
         ) : null
       ) : (
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: theme.spacing.xxl + dockInset }]}
           refreshControl={
             <RefreshControl
               refreshing={screen.isManualRefreshing}
@@ -185,9 +189,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  scrollContent: {
-    paddingBottom: theme.spacing.xxl,
-  },
+  scrollContent: {},
   content: {
     gap: theme.spacing.sm,
   },

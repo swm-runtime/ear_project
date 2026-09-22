@@ -1,9 +1,11 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useState } from 'react';
+import { StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
+import GlassSurface from '@/shared/ui/GlassSurface';
 import TabBarIcon from '@/shared/ui/TabBarIcon';
 
 import { EmailVerificationScreen, useSessionStore, WithdrawalScreen } from '@/features/auth';
@@ -85,7 +87,15 @@ function MainTabs() {
           // 안전영역만 아래에 두고 위쪽 여백은 주지 않는다 — paddingTop을 주면
           // 아이콘·라벨이 그만큼 내려가 탭바 안에서 가운데가 아니게 된다
           paddingBottom: insets.bottom,
+          // 목록 위에 떠 있는 유리 탭 바(2026-09-22 PM — 애플처럼). 배경은 tabBarBackground 의 GlassSurface 가
+          // 그리고, 화면들은 useBottomDockInset 만큼 바닥 여백을 둔다. 경계선은 유리 위에 hairline 으로
+          position: 'absolute',
+          backgroundColor: 'transparent',
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: theme.color.border,
+          elevation: 0,
         },
+        tabBarBackground: () => <GlassSurface style={StyleSheet.absoluteFill} />,
         tabBarItemStyle: { justifyContent: 'center' },
       }}
     >

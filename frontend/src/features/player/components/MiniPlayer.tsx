@@ -1,5 +1,6 @@
+import { BottomTabBarHeightContext } from '@react-navigation/bottom-tabs';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
@@ -12,6 +13,7 @@ import {
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion, theme } from '@/shared/theme';
+import GlassSurface from '@/shared/ui/GlassSurface';
 import MarqueeText from '@/shared/ui/MarqueeText';
 import RemoteImage from '@/shared/ui/RemoteImage';
 
@@ -74,6 +76,8 @@ export default function MiniPlayer({
   // 플레이어(투명 모달)가 위에 떠 있는 동안 이 화면은 포커스를 잃는다 — 그동안 제목 흐름을 0에 세워 두면
   // 플레이어가 닫혀 내려앉는 순간 정지 제목과 같은 자리라 어긋나지 않고, 돌아와서는 처음부터 흐른다
   const isFocused = useIsFocused();
+  // 탭 바가 목록 위에 떠 있으므로(MainNavigator) 그 바로 위에 선다. 탭 밖(검색 화면)에서는 0
+  const tabBarHeight = useContext(BottomTabBarHeightContext) ?? 0;
   const session = usePlaybackStore((s) => s.session);
   const isDismissed = usePlaybackStore((s) => s.isMiniPlayerDismissed);
   // 카테고리 줄(2026-09-22 PM) — 전체 플레이어 제목 아래 줄과 같은 규칙: 주제 이름 앞 두 개, 못 찾으면 자리도 없다
@@ -297,7 +301,10 @@ export default function MiniPlayer({
   return (
     <Animated.View
       ref={rootRef}
-      style={[styles.container, { transform: [{ translateX }], opacity: swipeOpacity }]}
+      style={[
+        styles.container,
+        { bottom: tabBarHeight, transform: [{ translateX }], opacity: swipeOpacity },
+      ]}
       onLayout={(event) => {
         setBarWidth(event.nativeEvent.layout.width);
         // 플레이어 열림·닫힘 모션의 도착 지점 — 화면 좌표로 올려 둔다(mini-player-layout.store)
@@ -322,6 +329,9 @@ export default function MiniPlayer({
       }}
       {...swipePanResponder.panHandlers}
     >
+      {/* 유리 바탕 — 뒤의 목록이 흐리게 비친다. 위 경계선은 이 위에 그린다 */}
+      <GlassSurface style={StyleSheet.absoluteFill} />
+      <View style={styles.topLine} pointerEvents="none" />
       <View
         style={styles.progressTrack}
         accessibilityRole="progressbar"
@@ -382,19 +392,25 @@ export default function MiniPlayer({
 
 const styles = StyleSheet.create({
   /*
-   * 목록 **위에 떠 있는** 반투명 카드(2026-09-22 PM — 애플 미니플레이어처럼). 목록은 이 밑으로 흐르고
-   * (화면이 useMiniPlayerInset 만큼 바닥 여백을 준다) 지나가는 내용이 은은하게 비친다. 블러는 네이티브
-   * 모듈(expo-blur)이 빌드에 없어 아직이다 — 빌드 때 이 면 뒤에 얹는다
+   * 목록 **위에 떠 있는** 유리 카드(2026-09-22 PM — 애플 미니플레이어처럼). 목록은 이 밑으로 흐르고
+   * (화면이 useBottomDockInset 만큼 바닥 여백을 준다) 지나가는 내용이 흐리게 비친다(GlassSurface —
+   * iOS 26 리퀴드 글라스, 그 밑은 블러+틴트. runtime 5)
    */
   container: {
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 0,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: theme.color.border,
-    backgroundColor: 'rgba(245, 245, 247, 0.95)',
-    boxShadow: '0 -2px 12px rgba(0, 0, 0, 0.06)',
+    // 바탕은 GlassSurface(블러·글라스)가 깔고 이 뷰는 투명하다 — 색을 주면 유리가 가려진다
+    backgroundColor: 'transparent',
+    overflow: 'hidden',
+  },
+  topLine: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: theme.color.border,
   },
   progressTrack: {
     height: 2,

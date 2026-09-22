@@ -11,7 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
 
-import { MiniPlayer, PlayConfirmDialog, useMiniPlayerInset } from '@/features/player';
+import { MiniPlayer, PlayConfirmDialog, useBottomDockInset } from '@/features/player';
 
 import ExploreMoreSheet from '../components/ExploreMoreSheet';
 import ExploreTile from '../components/ExploreTile';
@@ -30,7 +30,7 @@ import { useExploreSearchScreen } from '../hooks/useExploreSearchScreen';
  */
 export default function ExploreSearchScreen() {
   const screen = useExploreSearchScreen();
-  const miniInset = useMiniPlayerInset();
+  const miniInset = useBottomDockInset();
 
   const renderInlineError = (message: string, onRetry: () => void) => (
     <View style={styles.footer}>

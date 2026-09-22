@@ -17,7 +17,7 @@ import {
   MiniPlayer,
   PlayConfirmDialog,
   RemainingPlaysIndicator,
-  useMiniPlayerInset,
+  useBottomDockInset,
 } from '@/features/player';
 
 import ExploreEmptyState from '../components/ExploreEmptyState';
@@ -37,7 +37,7 @@ import { useExploreScreen } from '../hooks/useExploreScreen';
 /** 탐색 탭(E1~E13) — 화면은 뷰만 담당하고 로직은 useExploreScreen이 소유한다 */
 export default function ExploreScreen() {
   const screen = useExploreScreen();
-  const miniInset = useMiniPlayerInset();
+  const miniInset = useBottomDockInset();
 
   // E10은 검색창 줄·주제 칩·잔여 표시까지 그리지 않는다 — 화면 전체가 에러다(uiux 4.8)
   if (screen.isFullError) {
