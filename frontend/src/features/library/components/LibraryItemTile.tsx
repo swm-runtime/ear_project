@@ -137,7 +137,6 @@ export default function LibraryItemTile({
 }
 
 const MORE_CIRCLE_SIZE = 28;
-const PROGRESS_BAR_HEIGHT = 4;
 /** 그라데이션 높이 — 글자 한 줄이 어두운 띠 안에 들어올 만큼만. 사진 절반을 덮으면 표식이 아니라 어두운 사진이 된다 */
 const BOTTOM_FADE_HEIGHT = 56;
 
@@ -157,22 +156,17 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  // 진행률 — 트랙은 흰 반투명, 채움은 흰색. 완청은 끝까지 찬 바(유튜브 문법).
-  // 아래 변에 붙이지 않고 sm 띄워 어두운 띠 안에 넣는다 — 변에 붙이면 바로 밑이 흰 화면 배경이라 흰 바가 배경에
-  // 녹아 안 보였다(2026-09-22 PM 실기기). 양 끝을 둥글려 사진 위에 놓인 물체로 읽히게 한다
+  // 사진 아래 변에 붙는 진행률 — 트랙은 흰 반투명, 채움은 흰색(사진 위 대비). 완청은 끝까지 찬 바(유튜브 문법)
   progressTrack: {
     position: 'absolute',
-    left: theme.spacing.sm,
-    right: theme.spacing.sm,
-    bottom: theme.spacing.sm,
-    height: PROGRESS_BAR_HEIGHT,
-    borderRadius: PROGRESS_BAR_HEIGHT / 2,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 4,
     backgroundColor: 'rgba(255, 255, 255, 0.35)',
-    overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    borderRadius: PROGRESS_BAR_HEIGHT / 2,
     backgroundColor: '#FFFFFF',
   },
   info: {
@@ -187,11 +181,11 @@ const styles = StyleSheet.create({
     bottom: 0,
     height: BOTTOM_FADE_HEIGHT,
   },
-  // 흰 글자만 — 배경 박스 없이 그라데이션 위에 놓는다. 진행률 바 자리(sm + 바 높이) 위에 xs 띄운다
+  // 흰 글자만 — 배경 박스 없이 그라데이션 위에 놓는다. 아래 변의 진행률 바(4px)와 겹치지 않게 sm 띄운다
   discoveryLabel: {
     position: 'absolute',
     left: theme.spacing.sm,
-    bottom: theme.spacing.sm + PROGRESS_BAR_HEIGHT + theme.spacing.xs,
+    bottom: theme.spacing.sm + 4,
     fontSize: theme.font.size.xs,
     fontWeight: '700',
     color: '#FFFFFF',
