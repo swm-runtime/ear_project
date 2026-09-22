@@ -2,6 +2,9 @@ import { BottomTabBarHeightContext } from '@react-navigation/bottom-tabs';
 import { useContext } from 'react';
 import { create } from 'zustand';
 
+/** 캡슐 탭 바 · 미니플레이어 카드 · 목록 사이의 간격(MiniPlayer 의 DOCK_GAP 과 같다) */
+const DOCK_GAP = 8;
+
 /** 미니플레이어 카드의 화면(window) 좌표 — 플레이어 열림·닫힘 모션의 도착·출발 지점이다(2026-09-16) */
 export interface MiniPlayerLayout {
   x: number;
@@ -42,5 +45,7 @@ export const useMiniPlayerInset = (): number =>
  */
 export const useBottomDockInset = (): number => {
   const tabBarHeight = useContext(BottomTabBarHeightContext) ?? 0;
-  return tabBarHeight + useMiniPlayerInset();
+  const miniHeight = useMiniPlayerInset();
+  // 카드가 있으면 캡슐과의 간격 + 카드 + 목록과의 간격, 없으면 캡슐 위 간격만
+  return tabBarHeight + (miniHeight > 0 ? DOCK_GAP + miniHeight : 0) + DOCK_GAP;
 };

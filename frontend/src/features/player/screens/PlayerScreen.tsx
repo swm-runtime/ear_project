@@ -24,6 +24,7 @@ import RemoteImage from '@/shared/ui/RemoteImage';
 
 import { useTopicsQuery } from '@/features/interest';
 
+import { MINI_CARD_RADIUS } from '../components/MiniPlayer';
 import PlayConfirmDialog from '../components/PlayConfirmDialog';
 import {
   MoreIcon,
@@ -860,7 +861,11 @@ export default function PlayerScreen() {
       inputRange: [0, MORPH_ART_SHRINK_END, 1],
       outputRange: [mini.height, windowHeight, windowHeight],
     }),
-    sheetRadius: openProgress.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0, 20, 0] }),
+    // 출발은 미니플레이어 카드의 모서리(22) — 0 이면 착지 순간 둥근 카드 밖으로 각진 귀가 비친다(2026-09-23)
+    sheetRadius: openProgress.interpolate({
+      inputRange: [0, 0.3, 1],
+      outputRange: [MINI_CARD_RADIUS, 20, 0],
+    }),
     /*
      * 출발은 뒤의 진짜 미니플레이어(밝은 theme.surface), 도착은 플레이어의 검정. 끝까지 고르게 섞으면 중간이
      * 탁한 회색 판으로 오래 보인다 — 미니 제목·▶ 이 사라지는 12%까지만 밝게 두고, 40%에서 이미 검정에
