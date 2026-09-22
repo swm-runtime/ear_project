@@ -105,6 +105,83 @@ export class ContentStatAggregationRepository {
      */
     return Array.isArray(result) ? result.length : 0;
   }
+
+  /**
+   * **`all` 구간은 원천이 아니라 `month` 행의 합으로 만든다**(domain.md 5.4, KAN-57).
+   *
+   * 원천에서 다시 세면 보존 기간이 서로 다른 것이 드러난다 — `play_records` 는 무기한인데
+   * `user_signals`·`source_link_clicks` 는 180일이라(12.1), 서비스 181일째부터 `all` 이
+   * **분모는 전 기간, 분자는 최근 180일**인 비율이 된다. 완청률이 실제보다 낮게 나오고
+   * 편성 인기도 축과 탐험 품질 하한이 그 값을 읽는다(`drip-scheduling.md` 4.2 ③·4.8-3).
+   *
+   * `month` 행은 그 달이 끝날 때 `is_final = true` 로 잠겨 **원천이 지워져도 값이 남는다.**
+   * 그래서 월별 행이 원천 대신 기억을 맡는다.
+   *
+   * **재생 계열도 함께 합산한다.** 재생만 원천에서 가져오면 분자와 분모의 출처가 갈려,
+   * 배치가 한 달 넘게 멈춰 그 달 행이 비었을 때 같은 왜곡이 다시 난다. 둘 다 월별 합이면
+   * 그 달이 통째로 빠져 값은 줄지만 **비율은 유지된다** — 스코어링이 읽는 것은 비율이다.
+   *
+   * 호출 순서가 중요하다 — `month`(진행 중)를 먼저 재집계한 뒤에 불러야 이번 달이 합에 든다.
+   */
+  async recomputeAllFromMonths(
+    allPeriodStart: string,
+  ): Promise<{ rowCount: number; contentsWithGap: number }> {
+    const result: unknown = await this.dataSource.query(
+      `
+      WITH monthly AS (
+        SELECT content_id,
+               SUM(play_count)              AS play_count,
+               SUM(complete_count)          AS complete_count,
+               SUM(replay_count)            AS replay_count,
+               SUM(total_listen_sec)        AS total_listen_sec,
+               SUM(save_count)              AS save_count,
+               SUM(source_link_click_count) AS source_link_click_count,
+               COUNT(*)                     AS month_rows,
+               /* 발행월부터 이번 달까지 몇 달이어야 하는가 — 빠진 달 탐지용 */
+               (
+                 SELECT COUNT(*) FROM generate_series(
+                   date_trunc('month', c.published_at AT TIME ZONE 'Asia/Seoul'),
+                   date_trunc('month', now() AT TIME ZONE 'Asia/Seoul'),
+                   INTERVAL '1 month'
+                 )
+               ) AS expected_months
+        FROM content_stats s
+        JOIN contents c ON c.id = s.content_id
+        WHERE s.period_type = 'month'
+        GROUP BY s.content_id, c.published_at
+      )
+      INSERT INTO content_stats (
+        content_id, period_type, period_start,
+        play_count, complete_count, replay_count,
+        total_listen_sec, save_count, source_link_click_count, is_final
+      )
+      SELECT content_id, 'all', $1::date,
+             play_count, complete_count, replay_count,
+             total_listen_sec, save_count, source_link_click_count, false
+      FROM monthly
+      ON CONFLICT (content_id, period_type, period_start) DO UPDATE SET
+        play_count              = EXCLUDED.play_count,
+        complete_count          = EXCLUDED.complete_count,
+        replay_count            = EXCLUDED.replay_count,
+        total_listen_sec        = EXCLUDED.total_listen_sec,
+        save_count              = EXCLUDED.save_count,
+        source_link_click_count = EXCLUDED.source_link_click_count,
+        updated_at              = now()
+      WHERE content_stats.is_final = false
+      RETURNING (SELECT month_rows < expected_months FROM monthly m WHERE m.content_id = content_stats.content_id) AS has_gap
+      `,
+      [allPeriodStart],
+    );
+
+    const rows = Array.isArray(result)
+      ? (result as { has_gap: boolean | null }[])
+      : [];
+
+    return {
+      rowCount: rows.length,
+      contentsWithGap: rows.filter((row) => row.has_gap === true).length,
+    };
+  }
 }
 
 /**

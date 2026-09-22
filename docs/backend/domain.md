@@ -618,6 +618,18 @@ idx_content_stats_period_type_period_start_play_count (period_type, period_start
 
 - `all`의 `period_start`를 `NULL`로 두지 않는다. PostgreSQL의 UNIQUE는 NULL을 서로 다른 값으로 취급하므로 중복 행을 막지 못하고, 배치 재실행 한 번에 인기도가 2배로 뛴다.
 
+**`all`은 원천 재집계가 아니라 `month` 행의 합이다** (개정 2026-09-22, KAN-57)
+
+`week`·`month`는 종전대로 원천(`play_records`·`user_signals`·`source_link_clicks`)에서 구간을 잘라 재집계한다. **`all`만 다르다** — `month` 행 전체를 콘텐츠별로 합산해 만든다.
+
+원천에서 다시 세면 **보존 기간이 서로 다른 것이 드러나기 때문이다.** `play_records`는 무기한이고 `user_signals`·`source_link_clicks`는 180일이라(12.1), 서비스 181일째부터 `all`이 **분모는 전 기간, 분자는 최근 180일**인 비율이 된다. 완청률이 실제보다 낮아지고 그 값을 편성 인기도 축과 탐험 품질 하한이 읽는다(`drip-scheduling.md` 4.2 ③·4.8-3). 12.1이 180일을 둔 근거("지나간 구간을 다시 셀 때")는 유한 구간만 염두에 둔 것이고 끝나지 않는 `all`에는 성립하지 않는다.
+
+`month` 행은 그 달이 끝날 때 `is_final = true`로 잠겨 **원천이 지워져도 값이 남는다.** 그래서 월별 행이 원천 대신 기억을 맡는다.
+
+- **재생 계열(`play_count`·`total_listen_sec`)도 함께 합산한다.** 재생만 원천에서 가져오면 분자와 분모의 출처가 갈려, 배치가 한 달 넘게 멈춰 그 달 행이 비었을 때 같은 왜곡이 다시 난다. 둘 다 월별 합이면 그 달이 통째로 빠져 값은 줄지만 **비율은 유지된다**.
+- **호출 순서**: `month`(진행 중)를 재집계한 뒤에 `all`을 합산한다. 그래야 이번 달이 합에 든다.
+- **빠진 달 감지**: 합산 시 콘텐츠의 `month` 행 수가 발행월부터 이번 달까지의 기대 달 수보다 적으면 경고 로그를 남긴다. 배치가 한 달 넘게 멈추면 그 달 행이 영영 생기지 않아(재집계는 직전·진행 중 두 달만 다룬다) **영구 오차가 된다** — 종전에는 매일 원천에서 다시 세어 저절로 메워지던 것이다. 원천이 살아 있는 180일 안이면 그 달을 재집계해 복구할 수 있다.
+
 **갱신 주기** (B-6 결정)
 
 | `period_type` | 실행 시각 |
@@ -1371,7 +1383,7 @@ idx_archived_subscriptions_archived_at
 | `email_verifications` | **hard** — 만료 24시간 후 배치 삭제 | 인증 목적 종료 후 보관 근거 없음 ([3.7](#37-email_verifications)) |
 | `first_drip_jobs` | **hard** — `completed_at` 30일 후 배치 삭제 | 온보딩 1회성 작업 기록. 지표는 구조화 로그로 빠진다 ([7.4](#74-first_drip_jobs)) |
 | `idempotency_keys` | **hard** — `expires_at`(24시간) 경과 후 배치 삭제 | 응답 본문에 개인정보가 섞일 수 있어 재시도 창을 넘겨 보관할 근거가 없다 ([1.4](#14-idempotency_keys)) |
-| `user_signals` | **hard** — `created_at` 180일 후 배치 삭제 | 스코어링이 읽는 창은 최근 90일이다. **그 두 배를 두는 이유는 `content_stats` 재집계** — 지나간 구간을 다시 셀 때 원천이 남아 있어야 한다 (확정 2026-09-10) |
+| `user_signals` | **hard** — `created_at` 180일 후 배치 삭제 | 스코어링이 읽는 창은 최근 90일이다. **그 두 배를 두는 이유는 `content_stats` 재집계** — 지나간 구간을 다시 셀 때 원천이 남아 있어야 한다 (확정 2026-09-10). **`all` 구간은 이 보존과 무관하다** — 원천이 아니라 `month` 행의 합이라 지워져도 값이 줄지 않는다 (5.4, 개정 2026-09-22) |
 | `source_link_clicks` | **hard** — `created_at` 180일 후 배치 삭제 | `content_stats` 재집계 입력이라 `user_signals`와 같은 창을 쓴다 (확정 2026-09-10) |
 | `audio_access_logs` | **hard** — `created_at` 90일 후 배치 삭제 | 이상 탐지·감사용이며 그 판단은 최근 구간으로 한다. 재생 중 5분마다 갱신 발급이 쌓여 **성장이 가장 빠른 테이블**이다 (확정 2026-09-10) |
 | `notification_logs` | **hard** — `created_at` 90일 후 배치 삭제 | 목적이 중복 발송 방지라 그 판정 창을 넘기면 쓰이지 않는다 (확정 2026-09-10) |

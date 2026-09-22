@@ -12,9 +12,6 @@ import {
 
 import { ContentStatAggregationRepository } from '../repositories/content-stat-aggregation.repository';
 
-/** `all` 구간의 끝 — 미래로 충분히 멀리 둬서 "지금까지 전부"를 뜻한다 */
-const ALL_TIME_PERIOD_END = '9999-12-31';
-
 /**
  * `content_stats` 집계(domain.md 5.4). **`playback` 모듈이 실행한다**(같은 절).
  *
@@ -78,13 +75,6 @@ export class ContentStatAggregationService {
         end: shiftMonthStart(currentMonth, 1),
         isFinal: false,
       },
-      // 전체 구간은 끝나지 않으므로 확정하지 않는다
-      {
-        type: StatsPeriodType.ALL,
-        start: ALL_TIME_PERIOD_START,
-        end: ALL_TIME_PERIOD_END,
-        isFinal: false,
-      },
     ];
 
     for (const job of jobs) {
@@ -100,6 +90,35 @@ export class ContentStatAggregationService {
         period_start: job.start,
         is_final: job.isFinal,
         row_count: rowCount,
+      });
+    }
+
+    /**
+     * **`all` 은 원천이 아니라 위에서 갱신한 `month` 행의 합이다**(KAN-57 — 리포지터리 주석).
+     * 반드시 month 재집계 **뒤에** 부른다. 원천에서 다시 세면 보존 기간이 짧은 신호 계열만
+     * 180일로 잘려 완청률이 실제보다 낮아진다.
+     */
+    const all = await this.repository.recomputeAllFromMonths(
+      ALL_TIME_PERIOD_START,
+    );
+
+    this.logger.log('content stats recomputed', {
+      period_type: StatsPeriodType.ALL,
+      period_start: ALL_TIME_PERIOD_START,
+      is_final: false,
+      row_count: all.rowCount,
+      source: 'month_sum',
+    });
+
+    /**
+     * 빠진 달이 있으면 그만큼 `all` 이 적게 잡힌다. 배치가 한 달 넘게 멈추면 `recomputeAll` 이
+     * 직전·진행 중 두 달만 다루므로 그 달 행이 **영영 생기지 않는다** — 종전에는 매일 원천에서
+     * 다시 세어 저절로 메워지던 것이 이 변경 뒤에는 영구 오차가 된다. 그래서 세어서 남긴다.
+     */
+    if (all.contentsWithGap > 0) {
+      this.logger.warn('content stats all-period has missing month rows', {
+        contents_with_gap: all.contentsWithGap,
+        hint: '배치가 멈춘 달이 있는지 확인한다 — 원천이 살아 있는 동안(180일) 그 달을 재집계하면 복구된다',
       });
     }
   }
