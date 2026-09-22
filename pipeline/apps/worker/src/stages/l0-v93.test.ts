@@ -7,7 +7,7 @@ const has = (v: string[], re: RegExp) => v.some((m) => re.test(m));
 
 test("L0 v9.3 — 표본 수·편수 낭독을 잡는다", () => {
   const v = twoStageViolations(wrap("[이음] E1 · 참가자 384명에게 상황을 보여 줬어요.\n\n[윤아] Y2 · 그래서요?\n\n[이음] E2 · 이 문제를 다룬 17개 연구를 모아 살핀 글도 있습니다."), "");
-  assert.ok(has(v, /표본 수·편수·조사 횟수를 낭독 \(E1, E2\)/), v.join("\n"));
+  assert.ok(has(v, /표본 수·편수·조사 횟수·인용 관계를 낭독 \(E1, E2\)/), v.join("\n"));
   const ok = twoStageViolations(wrap("[이음] E1 · 참가자들에게 상황을 보여 줬어요. 관계가 가까울수록 신고가 줄었습니다."), "");
   assert.ok(!has(ok, /표본 수/), ok.join("\n"));
 });
