@@ -93,7 +93,7 @@ retrospective/ 주간 회고와 다음 주 계획 (YYYY-Wn.md). 회의 중에는
 - `architecture.md` 서버 계층·에러 계약(7장)·보안(9장) · `convention.md` 서버 코드 규칙 + **Git 컨벤션(6장, 전 파트 공통 기준)**
 - `domain-conflicts.md` 스키마 통합 히스토리(domain.md에 흡수 후 삭제 예정) — 평소 참조하지 않음
 
-**`frontend/`** — `architecture.md`(계층·feature 의존·전역 서비스·내비게이션·상태·에러·보안·성능) · `convention.md`(네이밍·파일 구조·수정 범위 경계·컴포넌트·상태·API·Git·테스트·lint·로깅)
+**`frontend/`** — `architecture.md`(계층·feature 의존·전역 서비스·내비게이션·상태·에러·보안·성능) · `convention.md`(네이밍·파일 구조·수정 범위 경계·컴포넌트·상태·API·Git·테스트·lint·로깅) · `design.md`(**애플 HIG 기준 디자인 원칙** — 색·모서리·재질·모션 곡선·컴포넌트 규칙. 화면을 만들거나 고칠 때 먼저 본다, 2026-09-23)
 
 ## Git
 
