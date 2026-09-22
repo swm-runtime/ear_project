@@ -53,7 +53,7 @@ interface GlassPillProps {
 
 /**
  * 선택 알약(탭 바·세그먼트) — iOS 26 에서는 **유리 렌즈**(선택된 칸이 유리로 살짝 떠 보인다, iOS 26 탭 바처럼),
- * 그 밑에서는 반투명 흰 면 + 그림자. 항상 pointerEvents none — 눌리는 건 그 위의 칸이다(2026-09-23 PM).
+ * 그 밑에서는 투명 면 + 윤곽선·그림자. 항상 pointerEvents none — 눌리는 건 그 위의 칸이다(2026-09-23 PM).
  *
  * 움직이는 건 **일반 Animated.View** 이고 유리는 그 안에 고정 자식으로 둔다 — GlassView 자체를 Animated 로
  * 만들면 스프링은 돌지만 끌기의 setValue 가 실기기에서 반영되지 않았다(2026-09-23, 세 번 확인)
@@ -61,13 +61,9 @@ interface GlassPillProps {
 export function GlassPill({ style }: GlassPillProps) {
   return (
     <Animated.View style={[style, HAS_LIQUID_GLASS ? styles.pillClear : styles.pillTint]} pointerEvents="none">
+      {/* 틴트 없는 맑은 유리 — 알약은 색이 아니라 굴절로만 보인다(PM 2026-09-23 "완전 투명") */}
       {HAS_LIQUID_GLASS ? (
-        <GlassView
-          style={StyleSheet.absoluteFill}
-          glassEffectStyle="regular"
-          colorScheme="light"
-          tintColor="rgba(255, 255, 255, 0.35)"
-        />
+        <GlassView style={StyleSheet.absoluteFill} glassEffectStyle="clear" colorScheme="light" />
       ) : null}
     </Animated.View>
   );
@@ -77,10 +73,12 @@ const styles = StyleSheet.create({
   tint: {
     backgroundColor: TINT_COLOR,
   },
-  // iOS 26 미만·Android 의 알약 — 회색 틴트는 유리 위에서 얼룩처럼 보였다. 반투명 흰 면 + 그림자로 떠 있게(2026-09-23)
+  // iOS 26 미만·Android 의 알약 — 면을 채우지 않는다(PM "완전 투명"). 윤곽선과 그림자만으로 자리를 보인다
   pillTint: {
-    backgroundColor: 'rgba(255, 255, 255, 0.78)',
-    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.12)',
+    backgroundColor: 'transparent',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(0, 0, 0, 0.14)',
+    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.10)',
   },
   // 유리 자식이 알약 모양으로 잘리게 — 반지름은 호출부 style 이 준다
   pillClear: {
