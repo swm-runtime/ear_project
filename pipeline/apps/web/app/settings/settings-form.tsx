@@ -6,7 +6,7 @@ import { Panel, btnCls } from "@/components/ui";
 
 const inp = "rounded border border-line px-2.5 py-1.5 text-[13px] outline-none focus:border-brand";
 
-export function SettingsForm({ tts, worker, templates, thumbnail, anchor, automation, meta }: { tts: any; worker: any; templates: any; thumbnail: any; anchor: any; automation: { auto_approve?: boolean; auto_publish_prep?: boolean; rule?: string } | null; meta: any }) {
+export function SettingsForm({ tts, worker, templates, thumbnail, anchor, automation, aiPaused, meta }: { tts: any; worker: any; templates: any; thumbnail: any; anchor: any; automation: { auto_approve?: boolean; auto_publish_prep?: boolean; rule?: string } | null; aiPaused: { paused?: boolean; reason?: string; at?: string; job?: string } | null; meta: any }) {
   const [t, setT] = useState({ voices: { 윤아: "", 이음: "" }, speed: { 윤아: 1, 이음: 1 }, mode: "per-turn", model: "eleven_v3", ...tts });
   const [w, setW] = useState({ default_model: "", ...worker });
   const [tpl, setTpl] = useState({ version: "tpl-v1", intro: "", closing: "", closing_signoff: "", major_lines: {} as Record<string, string>, ...templates });
@@ -37,6 +37,19 @@ export function SettingsForm({ tts, worker, templates, thumbnail, anchor, automa
         <div className="mt-3 flex items-center gap-2">
           <button className={btnCls("primary")} disabled={pending} onClick={() => save("automation", auto, "자동화 설정")}>저장</button>
           {meta.automation?.updated_by && <span className="text-xs text-ink-soft">마지막 {meta.automation.updated_by}</span>}
+        </div>
+        {/* API 한도 차단기 (ai-pause.ts): 잔액·예산 소진이면 워커가 여기에 멈춤을 기록하고 AI 작업을 집지 않는다. 분당 한도는 5분 뒤 자동 재개라 여기 안 보인다 */}
+        <div className={`mt-3 rounded border px-3 py-2 text-xs ${aiPaused?.paused ? "border-red-300 bg-red-50 text-red-800" : "border-line text-ink-soft"}`}>
+          {aiPaused?.paused
+            ? <>
+                <b>AI 작업 멈춤 — OpenAI 잔액·예산 소진.</b> 워커가 {aiPaused.job ?? "작업"} 실행 중 429(quota)를 받고 그 작업을 큐로 되돌렸어요{aiPaused.at ? ` (${new Date(aiPaused.at).toLocaleString("ko-KR")})` : ""}. 큐는 그대로이고 TTS 같은 io 작업만 돕니다.
+                <div className="mt-1 font-mono text-[11px] text-red-700">{aiPaused.reason}</div>
+                <button className={`${btnCls("primary")} mt-2`} disabled={pending}
+                  onClick={() => { if (confirm("OpenAI 충전·예산 조정을 마쳤나요? 재개하면 워커가 30초 안에 큐의 AI 작업을 다시 집습니다.")) save("automation.ai_paused", { paused: false, resumed_at: new Date().toISOString() }, "AI 작업 재개"); }}>
+                  AI 작업 재개
+                </button>
+              </>
+            : <>API 한도 차단기: 분당 한도(429 rate)는 5분 멈췄다 자동 재개, 잔액·예산 소진(429 quota)은 여기 멈춤으로 표시되고 재개 버튼이 나타나요. 되돌린 작업은 실패 처리되지 않고 큐에 남습니다.</>}
         </div>
       </Panel>
       <Panel title="썸네일 — 대분류 띠 색 (KAN-50)" className="text-[13px]">

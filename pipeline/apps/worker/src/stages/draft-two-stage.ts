@@ -4,7 +4,7 @@ import { cfg } from "../config.js";
 import { insertRun, setJobProgress, updateJobPayload, type Job } from "../db.js";
 import { executedBy } from "../config.js";
 import { workerRev } from "../assets.js";
-import { RetryLater } from "../util.js";
+import { ApiLimit, RetryLater } from "../util.js";
 import type { Executor } from "../executors/index.js";
 import { assetPaths, buildDesignPrompt, buildWritePromptParts, DESIGN_SCHEMA, WRITE_SCHEMA, type BacklogCandidate, type INTRO_STYLES, type Templates } from "@ear/pipeline";
 import { exists, hostOf, log } from "../util.js";
@@ -94,6 +94,7 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
   } catch (e) {
     // 대본이 실패해도 설계는 끝나 있다 — 비용을 runs 에 남기고(안 남기면 실패 편의 설계 비용이 사라진다), 실행기 시간 초과·결과 없음은 한 번 다시 집는다.
     // 설계 산출물이 디렉토리에 있으므로 다음 집기는 대본만 다시 돈다 (designDone 분기). 두 번째도 실패면 초안 실패 복귀(onDraftFailed)
+    if (e instanceof ApiLimit) throw e; // 한도는 워커 차단기가 처리 — 여기서 재시도로 바꾸지 않는다 (ai-pause.ts)
     const msg = String((e as Error)?.message ?? e);
     if (design) await insertRun({ backlog_id: cand.id, phase: "draft", attempt: 1, result: `설계만 완료(대본 실패: ${msg.slice(0, 160)}) — ${designSummary}`, prompt_version: `${a.promptVersion} (worker)`, artifacts: [], executed_by: executedBy, model: designModel, cost_usd: designCost, tokens: designTokens, worker_rev: workerRev() }).catch(() => {});
     const transient = /결과 없음|exit 143|timeout|ECONNRESET|rate limit|overloaded/i.test(msg);

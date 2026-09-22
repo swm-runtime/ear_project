@@ -1,3 +1,4 @@
+import { ApiLimit } from "../util.js";
 import { jobAbortSignal } from "./abort.js";
 import type { ExecRequest, ExecResult, Executor, Progress } from "./types.js";
 
@@ -107,6 +108,7 @@ export class OpenAiExecutor implements Executor {
       }
       if (res.status === 400 && /reasoning|effort/i.test(res.text) && body.reasoning) { delete body.reasoning; res = await this.call(key, body, req.timeoutMs); }
       if (res.status === 400 && /verbosity/i.test(res.text) && body.text.verbosity) { delete body.text.verbosity; res = await this.call(key, body, req.timeoutMs); }
+      if (res.status === 429) throw classifyLimit(res.text); // 한도 — 작업 실패가 아니라 워커 멈춤 (util.ts ApiLimit, index.ts)
       if (res.status !== 200) throw new Error(`OpenAI ${res.status}: ${res.text.slice(0, 600)}`);
       const data = JSON.parse(res.text);
       if (data.status && data.status !== "completed") throw new Error(`OpenAI 응답 미완료 (${data.status}: ${JSON.stringify(data.incomplete_details ?? {}).slice(0, 200)}) — max_output_tokens 확인`);
@@ -141,6 +143,7 @@ export class OpenAiExecutor implements Executor {
         const r = await fetch(`${base}/responses`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${key}` }, body: JSON.stringify(body), signal: ctl.signal });
         last = { status: r.status, text: await r.text() };
         if (r.status !== 429 && r.status < 500) return last;
+        if (r.status === 429 && classifyLimit(last.text).kind === "quota") return last; // 잔액·예산 소진은 다시 불러도 같다 — 바로 멈춤
       } catch (e: any) {
         if (abort?.aborted) throw Object.assign(new Error("작업이 취소됨 (콘솔) — OpenAI 요청 중단"), { name: "JobCancelled" });
         if (/timeout/.test(String(e?.message ?? e?.cause?.message ?? e))) throw new Error(`OpenAI 요청 시간 초과 (${Math.round(timeoutMs / 1000)}s)`);
@@ -150,4 +153,19 @@ export class OpenAiExecutor implements Executor {
     }
     return last;
   }
+}
+
+/**
+ * 429 본문으로 한도 종류를 가른다 (2026-09-23 차단기).
+ * OpenAI 는 잔액·예산 소진을 429 + error.type/code "insufficient_quota"(본문에 "quota"·"billing"·"budget")로, 분당 한도는 429 + "rate_limit_exceeded"(본문에 "Rate limit reached"·"tokens per min")로 돌려준다.
+ * 어느 쪽인지 모르면 rate 로 본다 — 5분 뒤 다시 시도해 보고 그때도 quota 면 그때 멈춘다.
+ */
+export function classifyLimit(text: string): ApiLimit {
+  let type = "", code = "", message = "";
+  try { const j = JSON.parse(text); type = String(j?.error?.type ?? ""); code = String(j?.error?.code ?? ""); message = String(j?.error?.message ?? ""); } catch { message = text; }
+  const quota = /insufficient_quota|billing_not_active|budget/i.test(`${type} ${code}`) || /exceeded your current quota|billing|budget|insufficient_quota/i.test(message);
+  const brief = (message || text).slice(0, 240);
+  return quota
+    ? new ApiLimit("quota", `OpenAI 잔액·예산 소진 (${code || type || "429"}): ${brief}`)
+    : new ApiLimit("rate", `OpenAI 분당 한도 (${code || type || "429"}): ${brief}`);
 }

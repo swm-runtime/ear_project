@@ -29,3 +29,12 @@ export function stripHtml(s: string | undefined | null, max = 300): string {
 export class RetryLater extends Error {
   constructor(msg: string, public delayMs = 60_000) { super(msg); this.name = "RetryLater"; }
 }
+/**
+ * API 한도 (2026-09-23 차단기): 실행기가 429 를 두 종류로 구분해 던진다 — 워커 루프가 작업을 큐로 되돌리고 AI 집기를 멈춘다 (ai-pause.ts).
+ *   rate  — 분당 토큰·요청 한도. 잠시 뒤 풀린다 → 5분 멈춤 뒤 자동 재개
+ *   quota — 잔액·예산 소진(insufficient_quota, budget). 사람이 충전·조정하기 전엔 안 풀린다 → 콘솔에서 재개할 때까지 멈춤
+ * 작업 실패로 처리하지 않는다 — 실패시키면 초안은 에피소드를 지우고 후보를 되돌려 백로그가 망가진다.
+ */
+export class ApiLimit extends Error {
+  constructor(public kind: "rate" | "quota", msg: string, public retryAfterMs = 5 * 60_000) { super(msg); this.name = "ApiLimit"; }
+}
