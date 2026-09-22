@@ -74,6 +74,8 @@ const styles = StyleSheet.create({
     minHeight: theme.touchTarget.minHeight - theme.spacing.xs,
     paddingLeft: theme.spacing.md,
     borderRadius: theme.radius.md,
+    // 애플 검색 필드와 같은 연속 곡률(iOS 만, 2026-09-22 PM)
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
   },
   input: {

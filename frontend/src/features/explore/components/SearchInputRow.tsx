@@ -64,6 +64,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     paddingVertical: 0,
     borderRadius: theme.radius.md,
+    // 애플 검색 필드와 같은 연속 곡률(iOS 만, 2026-09-22 PM)
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
     fontSize: theme.font.size.sm,
     color: theme.color.textPrimary,
