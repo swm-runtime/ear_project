@@ -5,7 +5,8 @@ import path from "node:path";
 
 /**
  * 오디오 조립 (spec/06 7장) — ffmpeg 로: 앞 무음(2초) → 세그먼트 디코드·연결(문맥 겹침 경계는 그대로, 폴백 경계는 자연 쉼 길이의 무음) → 뒤 무음(2초) → 라우드니스 정규화(-16 LUFS)
- * → 마스터 wav(무손실) + 배포본 mp3 128kbps. 재처리는 항상 마스터에서.
+ * → 마스터 wav + 배포본 mp3 192kbps (2026-09-22: ElevenLabs 원본이 mp3 128k 라 배포본을 128k 로 다시 인코딩하면 손실을 두 번 거친다 —
+ *   192k 는 그 두 번째 열화를 거의 없앤다. 원본이 pcm 이 되면(Pro 플랜) 다시 정한다). 재처리는 항상 마스터에서.
  * ffmpeg 는 워커 이미지(deploy/Dockerfile)에 포함 — 로컬 실행 시엔 brew install ffmpeg.
  */
 const run = promisify(execFile);
@@ -136,7 +137,7 @@ export async function assemble(i: AssembleInput): Promise<number> {
   await ffmpeg(["-f", "concat", "-safe", "0", "-i", listFile, "-c:a", "pcm_s16le", joined]);
   // 라우드니스 정규화 → 마스터 (기준 -16 LUFS / TP -1.5 — 파일럿 기준값, spec/06 7장)
   await ffmpeg(["-i", joined, "-af", "loudnorm=I=-16:TP=-1.5:LRA=11", "-ar", "44100", "-ac", "1", "-c:a", "pcm_s16le", i.masterOut]);
-  await ffmpeg(["-i", i.masterOut, "-c:a", "libmp3lame", "-b:a", "128k", i.distOut]);
+  await ffmpeg(["-i", i.masterOut, "-c:a", "libmp3lame", "-b:a", "192k", i.distOut]); // 128k → 192k (2026-09-22 박수헌): 재인코딩 열화 최소화, 편당 약 17MB → 26MB
   const dur = await probeDurationSec(i.distOut);
   await fs.rm(tmp, { recursive: true, force: true });
   return dur;

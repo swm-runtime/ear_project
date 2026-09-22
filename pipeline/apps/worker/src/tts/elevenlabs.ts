@@ -4,7 +4,7 @@ import { log, sleep } from "../util.js";
 /**
  * ElevenLabs 클라이언트 (spec/06) — 다중화자 1콜(Text to Dialogue, eleven_v3) 확정 (2026-09-02 박수헌).
  * 요청당 권장 총 2,000자 · 분할은 턴 경계(chunkTurns) · seed 고정으로 재현성을 시도한다.
- * 출력 포맷은 사다리로 시도한다: pcm(무손실, Pro+) → mp3 192k(Creator+) → mp3 128k(전 티어).
+ * 출력 포맷은 사다리로 시도한다: pcm(Pro+) → mp3 192k(Pro+, 2026-09-22 요금 페이지 기준) → mp3 128k(전 티어). 현재 플랜은 128k 까지 — 마스터 wav 도 이를 디코드한 것이라 무손실이 아니다.
  * 구독 제한을 만나면 한 단계 내려가 이후 요청도 고정한다 — 한 에피소드 안에서 포맷을 섞지 않는다.
  */
 const BASE = "https://api.elevenlabs.io/v1";
