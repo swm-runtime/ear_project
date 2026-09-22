@@ -267,33 +267,39 @@ export default function PlayerScreen() {
     const timer = setTimeout(() => setIsMorphImageReady(true), MORPH_IMAGE_WAIT_MS);
     return () => clearTimeout(timer);
   }, [isMeasured, isMorphImageReady]);
-  // 드래그로 이미 내려온 만큼은 빼고 남은 거리만큼만 시간을 쓴다 — 거의 다 끌어내린 뒤 340ms를 다 쓰면 굼뜨다
+  /*
+   * 열림·닫힘·되돌림은 전부 **같은 스프링**이고, 손을 뗀 속도를 이어받는다(2026-09-22 PM — "애플처럼").
+   * 고정 길이의 베지어 타이밍은 어디서 놓든 같은 곡선을 그려서, 던지듯 내리면 굼뜨고 살살 놓으면 급했다.
+   * 스프링은 놓는 순간의 속도에서 출발해 감쇠하므로 손의 힘이 그대로 모션이 된다. 진행값은 0·1 을 넘기면
+   * 모션 레이어가 좌표 밖으로 튀어나오므로 overshoot 은 막는다(iOS 시트도 끝점에서 튀지 않는다)
+   */
   const dragProgressRef = useRef(1);
-  const dismissPlayer = () => {
-    setIsMorphing(true);
-    Animated.timing(openProgress, {
-      toValue: 0,
-      duration: Math.max(PLAYER_CLOSE_MIN_MS, PLAYER_CLOSE_MS * dragProgressRef.current),
-      // 천천히 떼어져서 미니플레이어 자리에 빠르게 내려앉는다
-      easing: Easing.bezier(0.4, 0, 0.6, 1),
-      useNativeDriver: false,
-    }).start(({ finished }) => {
-      if (finished) screen.collapse();
-    });
+  // 손을 뗀 순간의 속도(진행값/초). 드래그 핸들러가 채우고 스프링이 한 번 쓰고 비운다
+  const releaseVelocityRef = useRef(0);
+  const takeReleaseVelocity = () => {
+    const velocity = releaseVelocityRef.current;
+    releaseVelocityRef.current = 0;
+    return velocity;
   };
-  // 드래그가 임계에 못 미쳐 놓았을 때 — 끌어내린 만큼에서 스프링으로 되돌아온다
-  const restorePlayer = () => {
-    dragProgressRef.current = 1;
+  const runSheetSpring = (toValue: 0 | 1, onFinished: () => void) => {
     Animated.spring(openProgress, {
-      toValue: 1,
+      toValue,
+      velocity: takeReleaseVelocity(),
       useNativeDriver: false,
-      friction: 9,
-      tension: 60,
-      // 1을 넘기면 모션 레이어가 풀 화면 좌표 밖으로 튀어나온다
+      ...SHEET_SPRING,
       overshootClamping: true,
     }).start(({ finished }) => {
-      if (finished) setIsMorphing(false);
+      if (finished) onFinished();
     });
+  };
+  const dismissPlayer = () => {
+    setIsMorphing(true);
+    runSheetSpring(0, () => screen.collapse());
+  };
+  // 드래그가 임계에 못 미쳐 놓았을 때 — 끌어내린 만큼에서 되돌아온다
+  const restorePlayer = () => {
+    dragProgressRef.current = 1;
+    runSheetSpring(1, () => setIsMorphing(false));
   };
 
   /*
@@ -302,11 +308,13 @@ export default function PlayerScreen() {
    * 놓는 순간 원위치에서 축소 모션이 다시 시작돼 위로 튀었다(2026-09-16). 놓으면 그 자리에서 이어서
    * 내려앉거나(임계 초과) 스프링으로 되돌아온다
    */
+  // 끌어내리는 전체 거리 = 시트가 풀 화면(0)에서 미니플레이어 자리(mini.y)까지 가는 거리. 이 값으로 나눠야 1:1 이다
+  const dragTravel = Math.max(1, miniLayout?.y ?? windowHeight - MINI_FALLBACK_BOTTOM);
   const gestureContext = useRef({
     windowHeight,
     open: () => {},
     begin: () => {},
-    drag: (_dy: number) => {},
+    drag: (_dy: number, _vy: number) => {},
     follow: (_progress: number) => {},
     dismiss: () => {},
     restore: () => {},
@@ -338,23 +346,18 @@ export default function PlayerScreen() {
           openProgress.setValue(openGesture.progress);
           openGesture.reset();
         }
-        Animated.timing(openProgress, {
-          toValue: 1,
-          duration: PLAYER_OPEN_MS,
-          // 빠르게 떠서 부드럽게 멈춘다 — iOS 시트가 올라오는 곡선
-          easing: Easing.bezier(0.2, 0.8, 0.2, 1),
-          useNativeDriver: false,
-        }).start(({ finished }) => {
-          if (finished) setIsMorphing(false);
-        });
+        runSheetSpring(1, () => setIsMorphing(false));
       },
       begin: () => setIsMorphing(true),
-      drag: (dy: number) => {
-        const progress = Math.max(
-          0,
-          Math.min(1, 1 - Math.max(0, dy) / (windowHeight * PLAYER_DRAG_RANGE_RATIO)),
-        );
+      /*
+       * 시트는 손가락과 **1:1** 로 움직인다 — 시트 위치가 mini.y·(1-진행값)이므로 진행값 = 1 - dy/mini.y.
+       * 종전엔 화면 높이의 70%를 끌면 끝이라 시트가 손보다 1.17배 빨리 달아났다(2026-09-22 PM)
+       */
+      drag: (dy: number, vy: number) => {
+        const progress = Math.max(0, Math.min(1, 1 - Math.max(0, dy) / dragTravel));
         dragProgressRef.current = progress;
+        // vy 는 px/ms(아래 +) → 진행값/초(닫힘 −)
+        releaseVelocityRef.current = (-vy * 1000) / dragTravel;
         openProgress.setValue(progress);
       },
       // 끌어올리는 손가락을 따른다 — 진행도가 곧 openProgress 다
@@ -432,7 +435,7 @@ export default function PlayerScreen() {
           gesture.dy > PLAYER_COLLAPSE_START_DISTANCE &&
           Math.abs(gesture.dy) > Math.abs(gesture.dx),
         onPanResponderGrant: () => gestureContext.current.begin(),
-        onPanResponderMove: (_, gesture) => gestureContext.current.drag(gesture.dy),
+        onPanResponderMove: (_, gesture) => gestureContext.current.drag(gesture.dy, gesture.vy),
         onPanResponderRelease: (_, gesture) => {
           const { windowHeight: height, dismiss, restore } = gestureContext.current;
           const shouldCollapse =
@@ -1646,16 +1649,16 @@ const MORPH_ART_ARRIVE = 0.92;
  */
 const MORPH_ART_SHRINK_END = 0.35;
 const MORPH_ART_INPUT = [0, MORPH_ART_SHRINK_END, MORPH_ART_ARRIVE, 1];
-const PLAYER_DRAG_RANGE_RATIO = 0.7;
+/**
+ * 시트 열림·닫힘·되돌림 스프링(2026-09-22 PM — "애플처럼"). iOS 시트의 기본 느낌인 임계 감쇠(튀지 않고 한 번에
+ * 멈춤)·응답 약 0.45초를 stiffness·damping 으로 옮긴 값 — stiffness = (2π/응답)², damping = 2·√(stiffness·mass).
+ * 손을 뗀 속도는 `velocity` 로 따로 넣는다. 실기기에서 조절한다
+ */
+const SHEET_SPRING = { stiffness: 195, damping: 28, mass: 1 };
 /** 바탕 커버의 흐림 — 형태가 남지 않고 색 덩어리만 보일 만큼 */
 const BACKDROP_BLUR_RADIUS = 60;
 /** 흐린 커버 위 어두운 막 — 플레이어 바탕색(#17171A)의 72% */
 const BACKDROP_SCRIM_COLOR = 'rgba(23, 23, 26, 0.72)';
-/** 드래그 후 닫힘 모션의 하한 — 이보다 짧으면 놓는 순간 미니플레이어가 "나타난" 것처럼 보인다 */
-const PLAYER_CLOSE_MIN_MS = 140;
-/** 열림·닫힘 모션 길이 — 닫힘이 조금 짧다: 되돌아가는 동작은 짧아야 가볍게 느껴진다 */
-const PLAYER_OPEN_MS = 420;
-const PLAYER_CLOSE_MS = 340;
 /** 미니플레이어 카드의 내부 치수(MiniPlayer.tsx 스타일과 같아야 한다) — 진행바 2 · 썸네일 44 · 버튼 44 */
 const MINI_PROGRESS_HEIGHT = 2;
 const MINI_THUMB_SIZE = 44;
