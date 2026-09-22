@@ -773,6 +773,13 @@ export default function PlayerScreen() {
           width: measuredTitleLayer.width,
         }
       : { left: fullTitleLeft, top: fullTitleTop, width: fullTitleWidth };
+  /*
+   * 아트워크의 두 단계(2026-09-22 PM — "애플처럼"). 닫힐 때: 시트가 내려가는 동안(0.92→MORPH_ART_SHRINK_END)
+   * 아트워크는 **풀 사이즈 그대로 시트에 실려** 컨트롤과 같은 거리(contentTranslateY)만큼 내려가고, 미니플레이어
+   * 근처에 온 마지막 구간(MORPH_ART_SHRINK_END→0)에서만 썸네일 자리로 줄어든다. 종전엔 0→0.92 내내 선형으로
+   * 커지며 대각선으로 날아 "그림이 따로 논다"고 보였다. 열릴 땐 같은 곡선을 거꾸로 간다
+   */
+  const artRideOffset = (mini.y * (MORPH_ART_ARRIVE - MORPH_ART_SHRINK_END)) / MORPH_ART_ARRIVE;
   const morph = {
     /*
      * 아트워크는 교차가 시작되기 **전에** 풀 화면 자리에 도착해 있어야 한다(2026-09-19 PM 지적). 끝(1)에서야
@@ -781,23 +788,23 @@ export default function PlayerScreen() {
      */
     artLeft: openProgress.interpolate({
       inputRange: MORPH_ART_INPUT,
-      outputRange: [miniThumbLeft, fullArt.left, fullArt.left],
+      outputRange: [miniThumbLeft, fullArt.left, fullArt.left, fullArt.left],
     }),
     artTop: openProgress.interpolate({
       inputRange: MORPH_ART_INPUT,
-      outputRange: [miniThumbTop, fullArt.top, fullArt.top],
+      outputRange: [miniThumbTop, fullArt.top + artRideOffset, fullArt.top, fullArt.top],
     }),
     artWidth: openProgress.interpolate({
       inputRange: MORPH_ART_INPUT,
-      outputRange: [miniThumbSize, fullArt.width, fullArt.width],
+      outputRange: [miniThumbSize, fullArt.width, fullArt.width, fullArt.width],
     }),
     artHeight: openProgress.interpolate({
       inputRange: MORPH_ART_INPUT,
-      outputRange: [miniThumbSize, fullArt.height, fullArt.height],
+      outputRange: [miniThumbSize, fullArt.height, fullArt.height, fullArt.height],
     }),
     artRadius: openProgress.interpolate({
       inputRange: MORPH_ART_INPUT,
-      outputRange: [theme.radius.sm, fullArtRadius, fullArtRadius],
+      outputRange: [theme.radius.sm, fullArtRadius, fullArtRadius, fullArtRadius],
     }),
     /*
      * 제목은 날지 않는다(2026-09-18 PM — 제자리 페이드). 미니 자리(썸네일 옆 14px)에서 풀 화면 자리(아트워크
@@ -828,7 +835,7 @@ export default function PlayerScreen() {
     }),
     // 마지막 8%는 제자리 — 히어로와 모션 레이어가 교차하는 동안 콘텐츠가 움직이면 같은 좌표가 아니게 된다
     contentTranslateY: openProgress.interpolate({
-      inputRange: [0, 0.92, 1],
+      inputRange: [0, MORPH_ART_ARRIVE, 1],
       outputRange: [mini.y, 0, 0],
     }),
     // 미니플레이어 ▶ — 시트가 자라기 시작하면 바로 사라진다(닫힐 땐 마지막 12%에서 나타난다)
@@ -844,9 +851,11 @@ export default function PlayerScreen() {
       inputRange: [0, 1],
       outputRange: [mini.width, windowWidth],
     }),
+    // 높이는 내려가는 동안 화면 높이 그대로다 — 카드가 줄어드는 게 아니라 **미끄러져 내려간다**(아트워크가 풀 사이즈로
+    // 실려 있는 동안 시트 밖으로 삐져나오지 않는다). 아트워크가 줄어드는 마지막 구간에서만 미니 높이로 접힌다
     sheetHeight: openProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [mini.height, windowHeight],
+      inputRange: [0, MORPH_ART_SHRINK_END, 1],
+      outputRange: [mini.height, windowHeight, windowHeight],
     }),
     sheetRadius: openProgress.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0, 20, 0] }),
     /*
@@ -1629,7 +1638,14 @@ const QUEUE_COMMIT_VELOCITY = 0.5;
 /** 목록을 받기 전의 빈 재생 목록 — 렌더마다 새 배열을 만들면 순서 계산(useMemo)이 매번 다시 돈다 */
 const EMPTY_QUEUE: QueueItem[] = [];
 /** 모션 아트워크의 도착 시점 — 0.92 에 풀 화면 자리에 서고 교차(0.94~1) 동안 움직이지 않는다 */
-const MORPH_ART_INPUT = [0, 0.92, 1];
+const MORPH_ART_ARRIVE = 0.92;
+/**
+ * 아트워크가 썸네일로 줄어드는 구간의 끝(닫힐 때 기준) — 이 값 위에서는 풀 사이즈로 시트에 실려 내려가기만 하고,
+ * 이 값 아래에서 미니플레이어 썸네일 자리로 줄어든다(2026-09-22 PM — 애플 뮤직 방식). 손으로 끌 때 화면 높이의
+ * 약 1/3 지점에서 줄어들기 시작하는 값 — 실기기에서 조절한다
+ */
+const MORPH_ART_SHRINK_END = 0.35;
+const MORPH_ART_INPUT = [0, MORPH_ART_SHRINK_END, MORPH_ART_ARRIVE, 1];
 const PLAYER_DRAG_RANGE_RATIO = 0.7;
 /** 바탕 커버의 흐림 — 형태가 남지 않고 색 덩어리만 보일 만큼 */
 const BACKDROP_BLUR_RADIUS = 60;
