@@ -11,7 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
 
-import { MiniPlayer, PlayConfirmDialog } from '@/features/player';
+import { MiniPlayer, PlayConfirmDialog, useMiniPlayerInset } from '@/features/player';
 
 import ExploreMoreSheet from '../components/ExploreMoreSheet';
 import ExploreTile from '../components/ExploreTile';
@@ -30,6 +30,7 @@ import { useExploreSearchScreen } from '../hooks/useExploreSearchScreen';
  */
 export default function ExploreSearchScreen() {
   const screen = useExploreSearchScreen();
+  const miniInset = useMiniPlayerInset();
 
   const renderInlineError = (message: string, onRetry: () => void) => (
     <View style={styles.footer}>
@@ -93,7 +94,7 @@ export default function ExploreSearchScreen() {
           keyExtractor={exploreGridKey}
           numColumns={2}
           columnWrapperStyle={styles.gridRow}
-          contentContainerStyle={styles.gridContent}
+          contentContainerStyle={[styles.gridContent, { paddingBottom: miniInset }]}
           renderItem={({ item }) =>
             item === null ? (
               <View style={styles.gridSpacer} />
@@ -152,7 +153,7 @@ export default function ExploreSearchScreen() {
           keyExtractor={exploreGridKey}
           numColumns={2}
           columnWrapperStyle={styles.gridRow}
-          contentContainerStyle={styles.gridContent}
+          contentContainerStyle={[styles.gridContent, { paddingBottom: miniInset }]}
           renderItem={({ item }) =>
             item === null ? (
               <View style={styles.gridSpacer} />

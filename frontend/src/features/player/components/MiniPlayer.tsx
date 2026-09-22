@@ -230,7 +230,13 @@ export default function MiniPlayer({
     }
   };
 
-  if (!isLiveVisible && !isFallbackVisible) return null;
+  const isVisible = isLiveVisible || isFallbackVisible;
+  // 안 보이면 자리도 비운다 — 목록 바닥 여백(useMiniPlayerInset)이 남지 않게
+  useEffect(() => {
+    if (!isVisible) setMiniLayout(null);
+  }, [isVisible, setMiniLayout]);
+
+  if (!isVisible) return null;
 
   const view = isLiveVisible
     ? {
@@ -375,11 +381,20 @@ export default function MiniPlayer({
 }
 
 const styles = StyleSheet.create({
-  // 탭 바 위에 얹히는 카드 — 배경을 깔아 목록과 층을 나눈다(참조 시안의 미니플레이어)
+  /*
+   * 목록 **위에 떠 있는** 반투명 카드(2026-09-22 PM — 애플 미니플레이어처럼). 목록은 이 밑으로 흐르고
+   * (화면이 useMiniPlayerInset 만큼 바닥 여백을 준다) 지나가는 내용이 은은하게 비친다. 블러는 네이티브
+   * 모듈(expo-blur)이 빌드에 없어 아직이다 — 빌드 때 이 면 뒤에 얹는다
+   */
   container: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: theme.color.border,
-    backgroundColor: theme.color.surface,
+    backgroundColor: 'rgba(245, 245, 247, 0.9)',
+    boxShadow: '0 -2px 12px rgba(0, 0, 0, 0.06)',
   },
   progressTrack: {
     height: 2,

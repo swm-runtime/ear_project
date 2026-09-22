@@ -13,7 +13,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/shared/theme';
 import FullScreenError from '@/shared/ui/FullScreenError';
 
-import { MiniPlayer, PlayConfirmDialog, RemainingPlaysIndicator } from '@/features/player';
+import {
+  MiniPlayer,
+  PlayConfirmDialog,
+  RemainingPlaysIndicator,
+  useMiniPlayerInset,
+} from '@/features/player';
 
 import LibraryBanner from '../components/LibraryBanner';
 import LibraryEmptyState from '../components/LibraryEmptyState';
@@ -61,6 +66,7 @@ const toGridRows = (rows: LibraryListRow[]): LibraryGridRow[] => {
 /** L1 라이브러리 — 앱의 첫 화면. 화면은 뷰만 담당하고 로직은 useLibraryScreen이 소유한다 */
 export default function LibraryScreen() {
   const screen = useLibraryScreen();
+  const miniInset = useMiniPlayerInset();
 
   /*
    * 검색은 **받아 둔 목록만** 좁힌다 — 서버 조회를 추가하지 않는다.
@@ -253,7 +259,10 @@ export default function LibraryScreen() {
           }
           ListEmptyComponent={renderEmpty()}
           ListFooterComponent={renderFooter()}
-          contentContainerStyle={gridRows.length === 0 ? styles.emptyContent : styles.gridContent}
+          contentContainerStyle={[
+            gridRows.length === 0 ? styles.emptyContent : styles.gridContent,
+            { paddingBottom: miniInset },
+          ]}
           refreshControl={
             <RefreshControl
               refreshing={screen.isManualRefreshing}
