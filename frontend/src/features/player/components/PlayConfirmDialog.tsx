@@ -73,6 +73,7 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     backgroundColor: theme.color.background,
     borderRadius: theme.radius.xl,
+    borderCurve: 'continuous',
     padding: theme.spacing.lg,
     gap: theme.spacing.sm,
   },

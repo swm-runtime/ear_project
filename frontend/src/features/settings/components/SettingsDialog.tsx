@@ -79,7 +79,8 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
   },
   dialog: {
-    borderRadius: theme.radius.lg,
+    borderRadius: theme.radius.xl,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.background,
     padding: theme.spacing.lg,
     gap: theme.spacing.sm,
