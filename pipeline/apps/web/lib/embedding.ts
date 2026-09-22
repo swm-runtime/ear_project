@@ -5,6 +5,8 @@
  * 이 파일은 서버 측(라우트·서버 액션)에서만 쓴다 — 토큰이 브라우저로 가지 않게.
  */
 const STUB_MODEL = "dev-stub";
+const EXPECTED_MODEL = "text-embedding-3-small"; // domain.md 5.6 확정 — BE 가 글자 단위 대조
+const EXPECTED_DIM = 1536;
 const MAX_CHARS = 200_000;
 
 export async function ensureEmbedding(enrichmentText: string, script: string | null): Promise<{ text: string; note: string }> {
@@ -22,7 +24,10 @@ export async function ensureEmbedding(enrichmentText: string, script: string | n
     const d = (await res.json()) as { model?: string; dim?: number; vector?: number[] };
     if (!d.model || !Array.isArray(d.vector) || !d.vector.length) return { text: enrichmentText, note: "임베딩 없음 — 응답 형식 오류" };
     if (d.model === STUB_MODEL) return { text: enrichmentText, note: "임베딩 없음 — AI 서버가 stub 제공자(저장 금지)" };
-    file.embedding = { model: d.model, vector: d.vector };
+    // BE parseEmbedding 과 같은 조건 — 어긋난 키를 실으면 메타 5종까지 파일 전체가 거부된다 (KAN-89 3항)
+    if (d.model !== EXPECTED_MODEL) return { text: enrichmentText, note: `임베딩 없음 — 모델 불일치 ${d.model}` };
+    if (d.vector.length !== EXPECTED_DIM || !d.vector.every((x) => typeof x === "number" && Number.isFinite(x))) return { text: enrichmentText, note: `임베딩 없음 — 차원 ${d.vector.length} ≠ ${EXPECTED_DIM} 또는 비정상 값` };
+    file.embedding = { model: d.model, dim: d.dim ?? d.vector.length, vector: d.vector };
     return { text: JSON.stringify(file, null, 2) + "\n", note: `임베딩 보완 ${d.model} ${d.dim ?? d.vector.length}d` };
   } catch (e) { return { text: enrichmentText, note: `임베딩 없음 — ${e instanceof Error ? e.message.slice(0, 80) : "오류"}` }; }
   finally { clearTimeout(t); }

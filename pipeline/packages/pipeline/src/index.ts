@@ -1383,7 +1383,18 @@ export const ENRICH_SCHEMA = {
   },
 } as const;
 /** 대본 임베딩 (metadata-pipeline 4.3 Phase B) — AI 서버 `POST /embeddings` 응답. BE 가 `content_embeddings` 에 upsert (admin-api 4.6). 벡터는 1536차원·model 은 현재 모델과 일치해야 한다 */
-export interface EnrichmentEmbedding { model: string; vector: number[] }
+export interface EnrichmentEmbedding { model: string; dim?: number; vector: number[] }
+export const EMBEDDING_MODEL_EXPECTED = "text-embedding-3-small"; // domain.md 5.6 확정 — BE parseEmbedding 이 글자 단위로 대조, 다르면 enrichment 파일 전체 거부
+export const EMBEDDING_DIM_EXPECTED = 1536;
+/** BE 검증(enrichment-file.ts parseEmbedding)과 같은 조건 — 어긋나면 키를 빼고 내보내야 메타 5종까지 버려지지 않는다 (KAN-89 3항). 통과면 null, 아니면 사유 */
+export function embeddingRejectReason(e: { model: string; dim?: number; vector: number[] }): string | null {
+  if (e.model === EMBEDDING_STUB_MODEL) return "AI 서버가 stub 제공자(dev-stub) — 운영 저장 금지";
+  if (e.model !== EMBEDDING_MODEL_EXPECTED) return `모델 불일치 ${e.model} ≠ ${EMBEDDING_MODEL_EXPECTED}`;
+  if (e.vector.length !== EMBEDDING_DIM_EXPECTED) return `차원 ${e.vector.length} ≠ ${EMBEDDING_DIM_EXPECTED}`;
+  if (e.dim != null && e.dim !== EMBEDDING_DIM_EXPECTED) return `dim ${e.dim} ≠ ${EMBEDDING_DIM_EXPECTED}`;
+  if (!e.vector.every((x) => typeof x === "number" && Number.isFinite(x))) return "벡터에 유한하지 않은 값";
+  return null;
+}
 export const EMBEDDING_STUB_MODEL = "dev-stub"; // AI 서버 stub 제공자의 고정 식별자 — 이 벡터는 저장하지 않는다 (metadata-pipeline 4.3)
 export const EMBEDDING_MAX_CHARS = 200_000; // AI 서버 EmbeddingRequest.text 상한
 
