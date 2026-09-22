@@ -65,8 +65,16 @@ export function GlassPill({ style }: GlassPillProps) {
           목록만 굴절시켰다(알약 자리에서 캡슐이 사라져 보임, PM 2026-09-23). 같은 재질이면 커져서 넘친 부분이
           캡슐이 불룩 튀어나온 것으로 읽힌다 */}
       {HAS_LIQUID_GLASS ? (
-        <GlassView style={StyleSheet.absoluteFill} glassEffectStyle="regular" colorScheme="light" />
+        <GlassView
+          style={StyleSheet.absoluteFill}
+          glassEffectStyle="regular"
+          colorScheme="light"
+          tintColor="rgba(255, 255, 255, 0.22)"
+        />
       ) : null}
+      {/* 림 — 같은 재질의 유리가 겹치면 iOS 가 경계를 그리지 않아 알약 윤곽이 사라진다. 위쪽 흰 하이라이트 +
+          바깥 얇은 그림자로 렌즈의 가장자리를 직접 준다(PM 2026-09-23 "겹치면 안쪽에 보여야") */}
+      <View style={[StyleSheet.absoluteFill, styles.pillRim]} pointerEvents="none" />
     </Animated.View>
   );
 }
@@ -82,9 +90,16 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(0, 0, 0, 0.14)',
     boxShadow: '0 2px 8px rgba(0, 0, 0, 0.10)',
   },
-  // 유리 자식이 알약 모양으로 잘리게 — 반지름은 호출부 style 이 준다
+  // 유리 자식이 알약 모양으로 잘리게 — 반지름은 호출부 style 이 준다. 그림자는 clip 밖으로 나가야 해서 림에 둔다
   pillClear: {
     overflow: 'hidden',
     backgroundColor: 'transparent',
+  },
+  pillRim: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.6)',
+    borderBottomColor: 'rgba(0, 0, 0, 0.10)',
+    boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 1px 3px rgba(0, 0, 0, 0.12)',
   },
 });
