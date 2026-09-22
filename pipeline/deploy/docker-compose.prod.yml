@@ -101,6 +101,7 @@ services:
       THUMBNAIL_ANCHOR_KEY: ${THUMBNAIL_ANCHOR_KEY:-}
       # 백엔드 ERROR → Slack (worker log-watch) — 비우면 꺼짐. 인스턴스 롤(ear-logs-read)로 CloudWatch 를 읽는다
       SLACK_ERROR_WEBHOOK_URL: ${SLACK_ERROR_WEBHOOK_URL:-}
+      PIPELINE_CONSOLE_URL: ${PIPELINE_CONSOLE_URL:-}    # 자동화 알림의 콘솔 링크 (notify.ts) — 비우면 기본값
       PIPELINE_DOMAIN: ${PIPELINE_DOMAIN:-}
     volumes:
       - worker-work:/work

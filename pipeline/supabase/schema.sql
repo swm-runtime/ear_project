@@ -52,7 +52,7 @@ create table if not exists backlog (
                                 'qa_passed','packaged','published',
                                 'rejected','review_required','expired','held')),
   dedup_note  text,
-  approved_by text,                            -- 게이트 1: 사람만 기입
+  approved_by text,                            -- 게이트 1: 사람(이메일) 또는 자동 승인 'auto:<규칙버전>' (0023, 2026-09-23)
   approved_at timestamptz,
   claimed_by  text,                            -- 동시 작업 충돌 방지
   claimed_at  timestamptz,
@@ -91,7 +91,7 @@ create table if not exists runs (
   id          uuid primary key default gen_random_uuid(),
   backlog_id  text references backlog(id),
   phase       text not null
-              check (phase in ('sweep','cluster','draft','critic','qa','package','tts','domain_check','thumbnail','enrich','script_align')), -- 0008: domain_check(스냅샷 누락분 정정) · 0018: thumbnail · 0021: enrich
+              check (phase in ('sweep','cluster','draft','critic','qa','package','tts','domain_check','thumbnail','enrich','script_align','approve')), -- 0023: approve(자동 승인 기록) -- 0008: domain_check(스냅샷 누락분 정정) · 0018: thumbnail · 0021: enrich
               -- critic: 품질 사이클의 선행 비평 실행 (spec/09 7장) — QA(사실)와 별개의 스타일 검수
   attempt     int not null default 1,          -- QA 재생성 차수 (1~3)
   result      text,                            -- 통과/실패 + 사유 요약
@@ -291,7 +291,11 @@ begin
      and (p_can_ai or requires_ai = false)
      and (p_can_tts or type not in ('tts','script_align'))   -- 0022: script_align 도 ElevenLabs 키 게이트
      and (p_can_thumbnail or type <> 'thumbnail')
-   order by created_at
+   order by
+     case when payload ? 'episode_id' then 0      -- 0023: 진행 중인 에피소드의 후속 먼저 (한 편을 승인부터 패키지까지 끝낸 뒤 다음 편)
+          when type = 'draft' then 2              -- 새 초안은 마지막
+          else 1 end,                             -- 사람이 건 작업 (스윕·군집화·도메인 판정·소급 메타)
+     created_at
    for update skip locked
    limit 1;
 

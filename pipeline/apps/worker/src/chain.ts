@@ -43,6 +43,7 @@ export async function advanceChain(job: Job): Promise<{ type: JobType; id: strin
       episode_id: job.payload.episode_id,
       backlog_id: job.payload.backlog_id,
       chain: rest,
+      ...(job.payload.auto ? { auto: true } : {}), // 자동 발행 준비(automation.ts) 표시 — 실패 알림·완료 알림의 근거. force 와 달리 전달한다
     },
     parent_job_id: job.id,
   });
