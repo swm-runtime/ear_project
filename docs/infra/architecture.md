@@ -28,13 +28,13 @@ api.earcast.co.kr ──▶ Caddy(TLS 자동발급) ─▶ api(NestJS) ─▶ po
 (admin.earcast.co.kr 은 2026-09-03 부터 AI 서버의 파이프라인 웹 — 아래 정적 콘솔 블록은 퇴역 대상) │
    ▲ EC2 t4g.small 한 대, docker compose 3컨테이너            │ 업로드 시 쓰기
    │                                                          ▼
-   │ 오디오·썸네일 바이트                     S3 ear-audio-prod (비공개)
+   │ 오디오·썸네일 바이트                     S3 earcast-audio-prod (비공개)
    └── CloudFront d1etxlf8jnqo2c ◀──────────── ▲ OAC로만 읽힘
         ├ /play/<contentId>  : 서명 필수 + viewer-request Function이
         │                      KeyValueStore(contentId→키)로 URI 재작성
         └ /thumb/*           : 무서명 공개 (썸네일)
 
-백업: postgres ──pg_dump 매일 04시 KST──▶ S3 ear-backup-prod (30일 자동 삭제)
+백업: postgres ──pg_dump 매일 04시 KST──▶ S3 earcast-backup-prod (30일 자동 삭제)
 ```
 
 - **JSON과 바이트의 분리가 설계의 중심이다(R2).** EC2 egress는 GB당 과금이지만 CloudFront는 월 1TB 무료 구간이 있다. 오디오가 서버를 지나는 순간 비용 모델(R4)이 깨진다.

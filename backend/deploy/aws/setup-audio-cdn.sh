@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # S3(비공개) + CloudFront(OAC, 서명 URL 필수) 한 번에 만든다. 멱등이 아니다 — 처음 한 번만.
-#   AUDIO_BUCKET=ear-audio-prod BACKUP_BUCKET=ear-backup-prod AWS_REGION=ap-northeast-2 \
+#   AUDIO_BUCKET=earcast-audio-prod BACKUP_BUCKET=earcast-backup-prod AWS_REGION=ap-northeast-2 \
 #     deploy/aws/setup-audio-cdn.sh
 # 끝나면 .env.prod에 넣을 값 네 줄을 출력한다.
 set -euo pipefail
