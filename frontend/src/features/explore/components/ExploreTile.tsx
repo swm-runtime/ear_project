@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import MoreIcon from '@/shared/ui/MoreIcon';
 import RemoteImage from '@/shared/ui/RemoteImage';
 
 import { EXPLORE_COPY } from '../explore.copy';
@@ -68,7 +69,7 @@ export default function ExploreTile({
         accessibilityLabel={EXPLORE_COPY.row.moreA11y}
       >
         <View style={styles.moreBadge}>
-          <Text style={styles.moreGlyph}>⋯</Text>
+          <MoreIcon size={22} color={theme.color.onPrimary} shadow />
         </View>
       </Pressable>
     </View>
@@ -128,19 +129,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // 원은 없다 — 흰 ⋯ 만 두고 은은한 그림자로 밝은 사진 위에서도 읽히게 한다(2026-09-22 PM, LibraryItemTile 과 같다)
+  // 원은 없다 — 흰 점 3개(MoreIcon, 후광 그림자)만 둔다(2026-09-22 PM, LibraryItemTile 과 같다)
   moreBadge: {
     width: 28,
     height: 28,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  moreGlyph: {
-    fontSize: theme.font.size.md,
-    fontWeight: '700',
-    color: theme.color.onPrimary,
-    textShadowColor: 'rgba(0, 0, 0, 0.55)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
   },
 });

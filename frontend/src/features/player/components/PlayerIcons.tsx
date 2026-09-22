@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
-import Svg, { Circle, Path, Rect } from 'react-native-svg';
+import Svg, { Path, Rect } from 'react-native-svg';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 
@@ -27,16 +27,8 @@ export function PauseIcon({ size, color }: IconProps) {
   );
 }
 
-/** 더보기 — 가로 점 3개 */
-export function MoreIcon({ size, color }: IconProps) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24">
-      <Circle cx="5.5" cy="12" r="1.8" fill={color} />
-      <Circle cx="12" cy="12" r="1.8" fill={color} />
-      <Circle cx="18.5" cy="12" r="1.8" fill={color} />
-    </Svg>
-  );
-}
+/** 더보기 — 가로 점 3개. 타일과 같은 그림을 쓰도록 공용(shared/ui/MoreIcon)으로 옮겼다(2026-09-22) */
+export { default as MoreIcon } from '@/shared/ui/MoreIcon';
 
 /** 바깥으로 나가는 링크 — 원문이 앱 밖으로 연다는 것을 알린다 */
 export function ExternalLinkIcon({ size, color }: IconProps) {
