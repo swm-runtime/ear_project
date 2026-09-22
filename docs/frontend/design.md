@@ -73,7 +73,7 @@ HIG 원문: https://developer.apple.com/design/human-interface-guidelines/
 ## 5. 컴포넌트 규칙
 
 ### 탭 바 — 떠 있는 캡슐 (HIG: Tab bars, iOS 26)
-`app/navigation/CapsuleTabBar`. 높이 60, 칸 96×52 ×3, 홈 인디케이터 위 10. **선택 알약은 유리 렌즈**(`GlassPill` — iOS 26 리퀴드 글라스, 그 밑은 검정 6% 틴트). 아이콘 24 + 라벨 11(600). 차지 높이를 `BottomTabBarHeightCallbackContext` 로 보고한다.
+`app/navigation/CapsuleTabBar`. 높이 60, 칸 96×52 ×3, 홈 인디케이터 위 10. **선택 알약은 유리 렌즈**(`GlassPill` — iOS 26 리퀴드 글라스, 그 밑은 검정 6% 틴트). 아이콘 24 + 라벨 11(600) — 채움·색은 알약이 그 칸에 겹친 만큼 바뀐다(두 겹 + 불투명도). **알약은 잡고 끌 수 있다**(가로 4pt 넘게 움직이면 끌기, 놓으면 가까운 칸에 스냅 + 이동). 차지 높이를 `BottomTabBarHeightCallbackContext` 로 보고한다.
 
 ### 미니플레이어 — 유리 카드
 캡슐 위 8, 좌우 16, 모서리 22. 썸네일 44 · 제목 14(600) · 카테고리 12(회색, 주제 앞 두 개 ` · `). 스와이프 퇴장 easeOut 160ms, 임계 미달 복귀 snappy.
