@@ -10,6 +10,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.runtime.ear",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "appleTeamId": "3RJ4N5XLN9",
       "usesAppleSignIn": true,
       "associatedDomains": [

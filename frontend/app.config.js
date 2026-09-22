@@ -75,7 +75,8 @@ module.exports = ({ config }) => {
     // ("display name that is already taken")로 거부된다(2026-09-19, "이어 - preview" 로 올렸다가 실패)
     name: '이어 - preview',
     icon: './assets/icon-dev.png',
-    ios: { ...ios, bundleIdentifier: DEV_APP_ID },
+    // Firebase iOS 설정은 번들 ID 마다 파일이 다르다(Android 는 한 파일에 둘 다 들어간다) — KAN-90
+    ios: { ...ios, bundleIdentifier: DEV_APP_ID, googleServicesFile: './GoogleService-Info.dev.plist' },
     android: {
       ...android,
       package: DEV_APP_ID,

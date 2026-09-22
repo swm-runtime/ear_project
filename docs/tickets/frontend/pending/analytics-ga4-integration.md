@@ -57,3 +57,11 @@
 - Firebase 콘솔: `ear-push`에 Google Analytics 켬(GA 계정 `runtime364`, 속성 자동 생성). iOS 앱 2개 등록(운영 앱 ID `1:800761431485:ios:edba047c74e6a513457ed4`). Analytics·Gemini를 끄고 만든 프로젝트라 이번에 Analytics만 켰다.
 - `docs/features/analytics.md` 초안(이벤트 사전 30여 개) 발행 — 팀 확인 뒤 구현.
 - plist 다운로드 버튼은 크롬 자동화로 눌러도 파일이 떨어지지 않았다(마법사가 다음 단계로 넘어가며 다운로드 생략). Firebase > 프로젝트 설정 > 내 앱 > Apple 앱에서 사람이 받는다.
+
+## 처리 기록 (2026-09-22 — 설정 파일 수급·연결)
+
+- 사람 손 3·4 를 효헌이가 크롬으로 대신 받았다. Firebase 콘솔의 다운로드 버튼은 `find` 참조 클릭으로는 요청이 안 나가고 **링크 글자 좌표 클릭**으로만 떨어졌다. 파일은 바탕화면(플러스 Downloads 의 `.tmp`)에 내려온다.
+- `frontend/GoogleService-Info.plist`(`com.runtime.ear`, 앱 ID `…ios:edba047c…`) · `frontend/GoogleService-Info.dev.plist`(`dev.runtime.ear`, `…ios:87cdb2a7…`) 추가. `app.json` `ios.googleServicesFile` = 운영 plist, `app.config.js` dev 변형 = dev plist. `expo config` 로 두 변형 확인.
+- `google-services.json` 은 다시 받아 비교했더니 **내용이 같았다**(Analytics 를 켜도 Android 파일은 바뀌지 않았다) — 교체 없음.
+- plist 의 `IS_ANALYTICS_ENABLED` 는 `false` 다 — Firebase 가 SDK 설치 여부와 무관하게 내려주는 기본값이고, RN Firebase 는 이 키를 보지 않는다(SDK 를 넣으면 수집된다).
+- SDK 설치·`track()`·이벤트 심기·runtimeVersion 5 는 다음 PR.
