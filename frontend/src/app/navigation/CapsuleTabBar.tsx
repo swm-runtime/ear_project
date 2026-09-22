@@ -64,6 +64,8 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
     latestRef.current = { routes: state.routes, index: state.index, navigation, maxX };
   });
   const dragOriginRef = useRef(0);
+  // 캡슐의 화면 x — 탭 위치를 칸 번호로 바꿀 때 쓴다(dock 이 화면 폭 전체라 dock 기준 x 가 곧 화면 x)
+  const capsuleLeftRef = useRef(0);
   const snapTo = (index: number) => {
     Animated.spring(indicatorX, {
       toValue: index * ITEM_WIDTH,
@@ -75,31 +77,55 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
     () =>
       // eslint-disable-next-line react-hooks/refs -- 콜백은 렌더가 아니라 제스처 시점에 실행된다(표준 PanResponder 패턴)
       PanResponder.create({
-        // 가로 이동이 시작되면 칸(Pressable)에서 응답을 가져온다 — 세로 성분이 크면 손대지 않는다
-        onMoveShouldSetPanResponderCapture: (_, gesture) =>
-          Math.abs(gesture.dx) > DRAG_START_DISTANCE && Math.abs(gesture.dx) > Math.abs(gesture.dy),
+        /*
+         * 캡슐이 **터치 시작부터** 응답자다(capture). 칸(Pressable)이 먼저 잡게 두고 이동 중에 빼앗아 오는
+         * 협상은 실기기에서 성립하지 않았다(2026-09-23 — 알약이 끌려오지 않았다). 탭·끌기를 여기서 다 가른다:
+         * 4pt 안 움직이고 놓으면 손가락 위치의 칸으로(탭), 움직였으면 알약이 따라오다 놓은 자리에서 스냅(끌기).
+         * 칸의 Pressable 은 낭독기 활성화용으로만 남는다
+         */
+        onStartShouldSetPanResponderCapture: () => true,
         onPanResponderGrant: () => {
-          isDraggingRef.current = true;
+          isDraggingRef.current = false;
           indicatorX.stopAnimation((value) => {
             dragOriginRef.current = value;
           });
         },
         onPanResponderMove: (_, gesture) => {
+          if (!isDraggingRef.current) {
+            if (Math.abs(gesture.dx) <= DRAG_START_DISTANCE) return;
+            isDraggingRef.current = true;
+          }
           const { maxX: limit } = latestRef.current;
           indicatorX.setValue(Math.max(0, Math.min(limit, dragOriginRef.current + gesture.dx)));
         },
-        onPanResponderRelease: (_, gesture) => {
-          isDraggingRef.current = false;
+        onPanResponderRelease: (event, gesture) => {
           const { routes, index, navigation: nav, maxX: limit } = latestRef.current;
-          const x = Math.max(0, Math.min(limit, dragOriginRef.current + gesture.dx));
-          const target = Math.round(x / ITEM_WIDTH);
+          let target: number;
+          if (isDraggingRef.current) {
+            const x = Math.max(0, Math.min(limit, dragOriginRef.current + gesture.dx));
+            target = Math.round(x / ITEM_WIDTH);
+          } else {
+            // 탭 — 손가락이 놓인 칸
+            const local = event.nativeEvent.pageX - capsuleLeftRef.current - CAPSULE_INSET;
+            target = Math.max(0, Math.min(routes.length - 1, Math.floor(local / ITEM_WIDTH)));
+          }
+          isDraggingRef.current = false;
           snapTo(target);
-          if (target !== index) nav.navigate(routes[target].name);
+          if (target !== index) {
+            const pressEvent = nav.emit({
+              type: 'tabPress',
+              target: routes[target].key,
+              canPreventDefault: true,
+            });
+            if (!pressEvent.defaultPrevented) nav.navigate(routes[target].name);
+          }
         },
         onPanResponderTerminate: () => {
           isDraggingRef.current = false;
           snapTo(latestRef.current.index);
         },
+        // 목록 스크롤 등이 가져가려 해도 내주지 않는다 — 캡슐 위의 손가락은 캡슐의 것이다
+        onPanResponderTerminationRequest: () => false,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- indicatorX 는 고정 인스턴스
     [],
@@ -111,7 +137,14 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
       pointerEvents="box-none"
       onLayout={(event) => reportHeight?.(event.nativeEvent.layout.height)}
     >
-      <View style={styles.capsule} accessibilityRole="tablist" {...dragPan.panHandlers}>
+      <View
+        style={styles.capsule}
+        accessibilityRole="tablist"
+        onLayout={(event) => {
+          capsuleLeftRef.current = event.nativeEvent.layout.x;
+        }}
+        {...dragPan.panHandlers}
+      >
         <GlassSurface style={StyleSheet.absoluteFill} />
         <View style={styles.capsuleBorder} pointerEvents="none" />
         <GlassPill style={[styles.indicator, { transform: [{ translateX: indicatorX }] }]} />
