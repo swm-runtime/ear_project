@@ -3,6 +3,7 @@ import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion, theme } from '@/shared/theme';
+import { GlassPill, HAS_LIQUID_GLASS } from '@/shared/ui/GlassSurface';
 
 import { EXPLORE_COPY } from '../explore.copy';
 import type { ExplorePeriod } from '../explore.types';
@@ -85,10 +86,15 @@ export default function PopularPeriodToggle({
       accessibilityRole="radiogroup"
       accessibilityLabel={EXPLORE_COPY.popular.toggleA11y}
     >
-      <Animated.View
-        style={[styles.indicator, { transform: [{ translateX: indicatorX }] }]}
-        pointerEvents="none"
-      />
+      {/* iOS 26 은 유리 렌즈, 그 밑은 그림자로 뜬 흰 알약(종전) — GlassPill 의 틴트 면은 흰 트랙에서 안 보여 여기선 흰 알약을 쓴다 */}
+      {HAS_LIQUID_GLASS ? (
+        <GlassPill style={[styles.indicator, { transform: [{ translateX: indicatorX }] }]} />
+      ) : (
+        <Animated.View
+          style={[styles.indicator, styles.indicatorRaised, { transform: [{ translateX: indicatorX }] }]}
+          pointerEvents="none"
+        />
+      )}
       {PERIODS.map((period, index) => {
         const isSelected = period === selected;
         const label = EXPLORE_COPY.popular.periodLabels[period];
@@ -160,6 +166,8 @@ const styles = StyleSheet.create({
     width: SEGMENT_WIDTH,
     height: SEGMENT_HEIGHT,
     borderRadius: theme.radius.full,
+  },
+  indicatorRaised: {
     backgroundColor: theme.color.background,
     boxShadow: '0 1px 4px rgba(0, 0, 0, 0.14)',
   },

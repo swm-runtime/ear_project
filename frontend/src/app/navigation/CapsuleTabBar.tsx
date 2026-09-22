@@ -7,7 +7,7 @@ import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion, theme } from '@/shared/theme';
-import GlassSurface from '@/shared/ui/GlassSurface';
+import GlassSurface, { GlassPill } from '@/shared/ui/GlassSurface';
 import TabBarIcon, { type TabBarIconName } from '@/shared/ui/TabBarIcon';
 
 /** 캡슐 높이 — 아이콘 24 + 라벨 11 + 위아래 숨. iOS 26 탭 바와 같은 눈높이 */
@@ -56,10 +56,7 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
       <View style={styles.capsule} accessibilityRole="tablist">
         <GlassSurface style={StyleSheet.absoluteFill} />
         <View style={styles.capsuleBorder} pointerEvents="none" />
-        <Animated.View
-          style={[styles.indicator, { transform: [{ translateX: indicatorX }] }]}
-          pointerEvents="none"
-        />
+        <GlassPill style={[styles.indicator, { transform: [{ translateX: indicatorX }] }]} />
         {state.routes.map((route, index) => {
           const { options } = descriptors[route.key];
           const isFocused = state.index === index;
@@ -131,7 +128,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(0, 0, 0, 0.10)',
   },
-  // 선택 알약 — 유리보다 한 단 진한 면. 첫 칸 자리에 두고 translateX 로 옮긴다
+  // 선택 알약 — 유리 렌즈(GlassPill). 첫 칸 자리에 두고 translateX 로 옮긴다. 색은 GlassPill 이 정한다
   indicator: {
     position: 'absolute',
     top: CAPSULE_INSET,
@@ -139,7 +136,6 @@ const styles = StyleSheet.create({
     width: ITEM_WIDTH,
     height: ITEM_HEIGHT,
     borderRadius: theme.radius.full,
-    backgroundColor: 'rgba(0, 0, 0, 0.06)',
   },
   item: {
     width: ITEM_WIDTH,
