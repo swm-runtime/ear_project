@@ -2,8 +2,8 @@ import {
   BottomTabBarHeightCallbackContext,
   type BottomTabBarProps,
 } from '@react-navigation/bottom-tabs';
-import { useContext, useEffect } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useContext, useEffect, useMemo, useRef } from 'react';
+import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion, theme } from '@/shared/theme';
@@ -28,10 +28,18 @@ const ICON_NAMES: Record<string, TabBarIconName> = {
   Profile: 'profile',
 };
 
+/** 이만큼 가로로 움직이면 탭이 아니라 알약 끌기다 */
+const DRAG_START_DISTANCE = 4;
+
 /**
  * 하단 탭 바 — 화면 폭을 다 쓰는 띠가 아니라 **떠 있는 캡슐**(2026-09-23 PM — iOS 26 탭 바처럼).
  * 바탕은 GlassSurface(리퀴드 글라스 / 블러), 선택은 캡슐 안의 알약 하나가 스프링으로 옮겨가며 표시한다
  * (PopularPeriodToggle 과 같은 문법). 색만이 아니라 알약·아이콘 채움으로도 갈린다(uiux 7).
+ *
+ * - 아이콘 채움·라벨 색은 **알약이 그 칸에 겹친 만큼** 바뀐다(선·회색 위에 면·검정을 겹쳐 불투명도로) — 알약과
+ *   따로 즉시 바뀌면 둘이 어긋나 보였다(2026-09-23 PM).
+ * - 알약은 **잡고 끌 수 있다**(iOS 26 탭 바) — 손가락을 따라오다 놓으면 가까운 칸에 스냅하고 그 탭으로 간다.
+ *   탭은 그대로 탭이다(가로로 4pt 넘게 움직여야 끌기).
  *
  * 차지하는 높이(안전영역 + 간격 + 캡슐)는 BottomTabBarHeightCallbackContext 로 올린다 — 미니플레이어가 그 위에
  * 서고 목록이 그만큼 바닥 여백을 둔다(useBottomDockInset)
@@ -39,7 +47,10 @@ const ICON_NAMES: Record<string, TabBarIconName> = {
 export default function CapsuleTabBar({ state, descriptors, navigation, insets }: BottomTabBarProps) {
   const reportHeight = useContext(BottomTabBarHeightCallbackContext);
   const indicatorX = useAnimatedValue(state.index * ITEM_WIDTH);
+  const maxX = (state.routes.length - 1) * ITEM_WIDTH;
+  const isDraggingRef = useRef(false);
   useEffect(() => {
+    if (isDraggingRef.current) return;
     Animated.spring(indicatorX, {
       toValue: state.index * ITEM_WIDTH,
       ...motion.spring.snappy,
@@ -47,13 +58,60 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
     }).start();
   }, [indicatorX, state.index]);
 
+  // 끌기 — 핸들러는 렌더가 아니라 제스처 시점에 실행되므로 최신 값은 ref 로 든다
+  const latestRef = useRef({ routes: state.routes, index: state.index, navigation, maxX });
+  useEffect(() => {
+    latestRef.current = { routes: state.routes, index: state.index, navigation, maxX };
+  });
+  const dragOriginRef = useRef(0);
+  const snapTo = (index: number) => {
+    Animated.spring(indicatorX, {
+      toValue: index * ITEM_WIDTH,
+      ...motion.spring.snappy,
+      useNativeDriver: true,
+    }).start();
+  };
+  const dragPan = useMemo(
+    () =>
+      // eslint-disable-next-line react-hooks/refs -- 콜백은 렌더가 아니라 제스처 시점에 실행된다(표준 PanResponder 패턴)
+      PanResponder.create({
+        // 가로 이동이 시작되면 칸(Pressable)에서 응답을 가져온다 — 세로 성분이 크면 손대지 않는다
+        onMoveShouldSetPanResponderCapture: (_, gesture) =>
+          Math.abs(gesture.dx) > DRAG_START_DISTANCE && Math.abs(gesture.dx) > Math.abs(gesture.dy),
+        onPanResponderGrant: () => {
+          isDraggingRef.current = true;
+          indicatorX.stopAnimation((value) => {
+            dragOriginRef.current = value;
+          });
+        },
+        onPanResponderMove: (_, gesture) => {
+          const { maxX: limit } = latestRef.current;
+          indicatorX.setValue(Math.max(0, Math.min(limit, dragOriginRef.current + gesture.dx)));
+        },
+        onPanResponderRelease: (_, gesture) => {
+          isDraggingRef.current = false;
+          const { routes, index, navigation: nav, maxX: limit } = latestRef.current;
+          const x = Math.max(0, Math.min(limit, dragOriginRef.current + gesture.dx));
+          const target = Math.round(x / ITEM_WIDTH);
+          snapTo(target);
+          if (target !== index) nav.navigate(routes[target].name);
+        },
+        onPanResponderTerminate: () => {
+          isDraggingRef.current = false;
+          snapTo(latestRef.current.index);
+        },
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- indicatorX 는 고정 인스턴스
+    [],
+  );
+
   return (
     <View
       style={[styles.dock, { paddingBottom: insets.bottom + BOTTOM_GAP }]}
       pointerEvents="box-none"
       onLayout={(event) => reportHeight?.(event.nativeEvent.layout.height)}
     >
-      <View style={styles.capsule} accessibilityRole="tablist">
+      <View style={styles.capsule} accessibilityRole="tablist" {...dragPan.panHandlers}>
         <GlassSurface style={StyleSheet.absoluteFill} />
         <View style={styles.capsuleBorder} pointerEvents="none" />
         <GlassPill style={[styles.indicator, { transform: [{ translateX: indicatorX }] }]} />
@@ -64,7 +122,12 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
             typeof options.tabBarLabel === 'string'
               ? options.tabBarLabel
               : (options.title ?? route.name);
-          const color = isFocused ? theme.color.primary : theme.color.textSecondary;
+          // 알약이 이 칸에 겹친 비율(0~1) — 채운 아이콘·검정 라벨의 불투명도
+          const selectedOpacity = indicatorX.interpolate({
+            inputRange: [(index - 1) * ITEM_WIDTH, index * ITEM_WIDTH, (index + 1) * ITEM_WIDTH],
+            outputRange: [0, 1, 0],
+            extrapolate: 'clamp',
+          });
           const onPress = () => {
             const event = navigation.emit({
               type: 'tabPress',
@@ -83,15 +146,36 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
               accessibilityState={{ selected: isFocused }}
               accessibilityLabel={options.tabBarAccessibilityLabel ?? label}
             >
-              <TabBarIcon
-                name={ICON_NAMES[route.name] ?? 'library'}
-                color={color}
-                focused={isFocused}
-                size={ICON_SIZE}
-              />
-              <Text style={[styles.label, { color }]} numberOfLines={1}>
-                {label}
-              </Text>
+              {/* 두 겹 — 선·회색(항상) 위에 면·검정(알약이 겹친 만큼) */}
+              <View style={styles.glyph}>
+                <TabBarIcon
+                  name={ICON_NAMES[route.name] ?? 'library'}
+                  color={theme.color.textSecondary}
+                  focused={false}
+                  size={ICON_SIZE}
+                />
+                <Animated.View style={[styles.glyphOverlay, { opacity: selectedOpacity }]}>
+                  <TabBarIcon
+                    name={ICON_NAMES[route.name] ?? 'library'}
+                    color={theme.color.primary}
+                    focused
+                    size={ICON_SIZE}
+                  />
+                </Animated.View>
+              </View>
+              <View>
+                <Text style={styles.label} numberOfLines={1}>
+                  {label}
+                </Text>
+                <Animated.Text
+                  style={[styles.label, styles.labelSelected, { opacity: selectedOpacity }]}
+                  numberOfLines={1}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no"
+                >
+                  {label}
+                </Animated.Text>
+              </View>
             </Pressable>
           );
         })}
@@ -144,8 +228,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 2,
   },
+  glyph: {
+    width: ICON_SIZE,
+    height: ICON_SIZE,
+  },
+  glyphOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+  },
   label: {
     fontSize: LABEL_SIZE,
     fontWeight: '600',
+    color: theme.color.textSecondary,
+  },
+  labelSelected: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    color: theme.color.primary,
   },
 });
