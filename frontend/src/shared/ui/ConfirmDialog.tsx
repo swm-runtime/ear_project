@@ -83,6 +83,7 @@ const styles = StyleSheet.create({
   dialog: {
     // 다이얼로그·바텀시트는 xl 이다 — 면이 큰 표면일수록 곡률을 키워야 같은 부드러움으로 읽힌다
     borderRadius: theme.radius.xl,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.background,
     padding: theme.spacing.lg,
     gap: theme.spacing.sm,

@@ -140,8 +140,9 @@ const styles = StyleSheet.create({
   },
   sheet: {
     backgroundColor: theme.color.background,
-    borderTopLeftRadius: theme.radius.lg,
-    borderTopRightRadius: theme.radius.lg,
+    borderTopLeftRadius: theme.radius.xl,
+    borderTopRightRadius: theme.radius.xl,
+    borderCurve: 'continuous',
     padding: theme.spacing.lg,
     paddingBottom: theme.spacing.xl,
     gap: theme.spacing.sm,

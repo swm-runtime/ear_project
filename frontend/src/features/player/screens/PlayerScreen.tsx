@@ -1716,6 +1716,8 @@ const styles = StyleSheet.create({
   sheet: {
     position: 'absolute',
     overflow: 'hidden',
+    // 위 모서리 반지름은 모션이 움직인다(sheetRadius) — 곡률 종류만 여기서 연속으로 고정한다(iOS, 2026-09-22 PM)
+    borderCurve: 'continuous',
   },
   backdrop: {
     position: 'absolute',

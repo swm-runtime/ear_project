@@ -140,6 +140,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.color.background,
     borderTopLeftRadius: theme.radius.xl,
     borderTopRightRadius: theme.radius.xl,
+    borderCurve: 'continuous',
     paddingVertical: theme.spacing.md,
     paddingBottom: theme.spacing.xl,
   },
