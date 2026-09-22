@@ -8,6 +8,7 @@ import { startLogWatch } from "./log-watch.js";
 import { runStage } from "./stages/index.js";
 import { log, sleep, RetryLater } from "./util.js";
 import { onDraftFailed } from "./stages/draft.js";
+import { autoApprove, notifyOps, opsMessage } from "./automation.js";
 
 /**
  * ear 파이프라인 워커 (spec/10).
@@ -66,7 +67,7 @@ async function main() {
   while (true) {
     try {
       if (await revGate()) { if (once) { log("워커 코드가 오래됨 — 종료"); break; } await sleep(60_000); continue; }
-      if (canAi) await pickupApproved();
+      if (canAi) { await autoApprove().catch((e) => log(`자동 승인 오류 (계속 진행): ${e?.message ?? e}`)); await pickupApproved(); }
       const job = await claimJob(cfg.workerName, canAi, canTts, canThumbnail);
       if (!job) {
         if (once) { log("대기 중인 작업 없음"); break; }
@@ -96,6 +97,8 @@ async function main() {
           await failJob(job.id, e?.stack ?? String(e));
           log(`✖ ${job.type} ${job.id.slice(0, 8)} 실패: ${e?.message ?? e}`);
           if (job.type === "draft") await onDraftFailed(job, e); // 실패한 초안은 에피소드로 남기지 않고 백로그로 (spec/03 5장)
+          // 자동 발행 준비 연쇄가 멈추면 사람에게 — 수동 요청은 화면에서 보이므로 알리지 않는다 (automation.ts)
+          if (job.payload.auto && ["tts", "thumbnail", "package"].includes(job.type)) await notifyOps(opsMessage("prep_failed", { episodeId: job.payload.episode_id, backlogId: String(job.payload.backlog_id ?? "") }, `${job.type} 실패: ${e?.message ?? e}`));
         }
       } finally {
         clearInterval(hb);

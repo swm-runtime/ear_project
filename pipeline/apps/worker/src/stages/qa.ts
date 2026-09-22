@@ -4,6 +4,7 @@ import { cfg, executedBy } from "../config.js";
 import { enqueue, getEpisode, insertRun, setBacklogStatus, setJobProgress, upsertEpisode, type Job } from "../db.js";
 import type { Executor } from "../executors/index.js";
 import { buildQaPrompt, buildQaPromptInlineParts, QA_SCHEMA, QA_INLINE_SCHEMA, todayKst } from "@ear/pipeline";
+import { notifyOps, opsMessage } from "../automation.js";
 import { log } from "../util.js";
 import { prepareAssets, workerRev } from "../assets.js";
 import { localPathOf, pullPrefix, pushPrefix, s3Key } from "../storage.js";
@@ -84,6 +85,7 @@ export async function runQa(job: Job, ex: Executor) {
   } else {
     await setBacklogStatus(backlogId, "review_required");
     next = { review_required: true };
+    await notifyOps(opsMessage("review", { episodeId, backlogId }, `마지막 실패: ${failTxt || o.summary}`)); // 자동화 중엔 아무도 화면을 보지 않는다 — 사람 검토 요청 (automation.ts)
   }
   return { episode_id: episodeId, attempt, verdict: o.verdict, failures: o.failures, holds: o.holds, model: r.model, next };
 }

@@ -6,10 +6,14 @@ import { workerRev } from "../assets.js";
 import { probeDurationSec } from "../tts/audio.js";
 import { exists, localPathOf, pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { log } from "../util.js";
+import { notifyOps, opsMessage } from "../automation.js";
 
 /**
  * 패키지 단계 (spec/07 2장) — 발행 메타 upload-meta.json 산출 + 상태 packaged(사람 검수 대기) 전환.
- * 사람이 웹에서 명시적으로 요청 (자동 연쇄 없음). 제목·설명은 초안일 뿐 — 확정은 게이트 2 검수자가 한다.
+ * 발행 준비 연쇄(tts → thumbnail → package)의 마지막 — 사람의 [발행 준비] 또는 비평 뒤 자동(automation.ts, 2026-09-23).
+ * 제목·설명은 초안일 뿐 — 확정은 게이트 2 검수자가 한다.
+ * 추천 메타(enrich)는 여기서 자동으로 걸지 않는다(2026-09-23 개정) — 발행하지 않을 편까지 뽑는 낭비를 막기 위해 업로드 화면의 [추천 메타 뽑기]로 사람이 건다.
+ * payload.enrich === true 일 때만 이어서 건다 (구 경로 호환).
  */
 export async function runPackage(job: Job) {
   const episodeId = String(job.payload.episode_id ?? "");
@@ -83,7 +87,9 @@ export async function runPackage(job: Job) {
     result: `패키지 완료 — 제목·설명 초안, 소스 ${meta.sources.length}건, 분량 ${durationMin ?? "?"}분, 오디오 ${r.audio_dist_key ? "있음" : "없음(TTS 전)"}, 썸네일 ${r.thumbnail_key ? "있음" : "없음"} · 게이트 2 검수 대기`,
     prompt_version: "package-v1 (worker)", artifacts: [metaKey], executed_by: executedBy, worker_rev: workerRev(),
   });
-  // 추천 메타 부여를 이어서 건다 (metadata-pipeline 2장 — 패키지 직후, 2026-09-11 구현). AI 워커가 집어 episodes/<id>/enrichment.json 을 만들고 업로드 화면이 발행 때 첨부한다
-  const enrichJobId = job.payload.skip_enrich ? null : await enqueue({ type: "enrich", requires_ai: true, payload: { episode_id: episodeId, backlog_id: backlogId }, parent_job_id: job.id }).catch((e) => { log(`  package ${episodeId}: enrich 작업 생성 실패 (${String(e?.message ?? e).slice(0, 80)})`); return null; });
+  // 추천 메타는 요청이 있을 때만 (2026-09-23 개정 — 기본은 업로드 화면에서 사람이 건다, metadata-pipeline 2장)
+  const enrichJobId = job.payload.enrich !== true ? null : await enqueue({ type: "enrich", requires_ai: true, payload: { episode_id: episodeId, backlog_id: backlogId }, parent_job_id: job.id }).catch((e) => { log(`  package ${episodeId}: enrich 작업 생성 실패 (${String(e?.message ?? e).slice(0, 80)})`); return null; });
+  // 자동 연쇄로 왔으면 사람 차례 — 검수·발행 대기 알림 (automation.ts)
+  if (job.payload.auto) await notifyOps(opsMessage("ready", { episodeId, backlogId, title: cand.title }, `분량 ${durationMin ?? "?"}분 · 오디오 ${r.audio_dist_key ? "있음" : "없음"} · 썸네일 ${r.thumbnail_key ? "있음" : "없음"} — 업로드 화면에서 추천 메타 뽑기 → 검수 → 발행`));
   return { episode_id: episodeId, meta_key: metaKey, duration_min: durationMin, status_after: r.status === "qa_passed" ? "packaged" : r.status, enrich_job_id: enrichJobId };
 }

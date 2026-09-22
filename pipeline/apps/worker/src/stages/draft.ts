@@ -5,6 +5,7 @@ import { claimApprovedBacklog, deleteEpisode, enqueue, getBacklog, getBacklogSta
 import type { Executor } from "../executors/index.js";
 import { buildDraftPrompt, buildDraftRevisionPrompt, DRAFT_SCHEMA, DRAFT_REVISION_SCHEMA, episodeDatePrefix, pickIntroStyle, signoffVariants, type Templates } from "@ear/pipeline";
 import { exists, hostOf, log, RetryLater } from "../util.js";
+import { notifyOps, opsMessage } from "../automation.js";
 import { prepareAssets, workerRev } from "../assets.js";
 import { listPrefix, pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { parseScriptForTts } from "../tts/script.js";
@@ -274,6 +275,7 @@ export async function onDraftFailed(job: Job, err: unknown) {
     if (ep && ep.script_key) {
       await setBacklogStatus(backlogId, "review_required", { dedup_note: note });
       log(`  draft ${episodeId}: 재생성 실패 → 백로그 ${backlogId} review_required (대본은 유지)`);
+      await notifyOps(opsMessage("draft_failed", { episodeId, backlogId }, `재생성 실패 → review_required: ${reason}`));
     } else if (/본문 \d+건 — 3건 하한 미달/.test(reason)) {
       // 소스 접근 불가 (2026-09-10 박수헌): 되돌리지 않고 자동 반려 — 중복 대조·사용 소스 목록은 rejected 를 빼므로 같은 축을 다른 소스로 다시 만들 수 있다.
       // 막힌 소스는 fetch_status 로 기록돼 다음 군집화에서 빠진다 (0017)
@@ -287,6 +289,8 @@ export async function onDraftFailed(job: Job, err: unknown) {
       await pool.query("delete from public.episodes where backlog_id = $1 and script_key is null", [backlogId]).catch(() => {});
       await setBacklogStatus(backlogId, "proposed", { claimed_by: null, claimed_at: null, dedup_note: note });
       log(`  draft ${episodeId || "(id 없음)"}: 초안 실패 → 에피소드 제거, 백로그 ${backlogId} proposed 복귀 (사유 dedup_note)`);
+      // 자동 승인된 후보가 proposed 로 돌아오면 규칙을 다시 통과해 무한 재승인될 수 있다 — dedup_note 의 ⚠️ 는 규칙이 걸러내지 않으므로 사람에게 알린다 (automation.ts 는 "초안 실패" 표시가 있으면 건너뛴다)
+      await notifyOps(opsMessage("draft_failed", { episodeId: episodeId || null, backlogId }, `proposed 복귀 (사람이 다시 승인하거나 반려): ${reason}`));
     }
   } catch (e: any) {
     log(`  draft 실패 후처리 실패 (${backlogId}): ${e?.message ?? e}`);

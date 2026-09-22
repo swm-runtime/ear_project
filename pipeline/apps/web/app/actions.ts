@@ -402,6 +402,25 @@ export async function savePronunciations(episodeId: string, content: string) {
 }
 
 /** 사람 수정 후 재QA — 사람 수정도 환각·중복을 만들 수 있으므로 사실 검증을 다시 돌린다 (spec/05) */
+/**
+ * 에피소드 추천 메타 뽑기 (2026-09-23 자동화 개정 — 패키지가 더 이상 enrich 를 자동으로 걸지 않는다, spec/07 2장).
+ * 업로드 화면에서 발행할 편에만 사람이 건다. 산출물 episodes/<id>/enrichment.json 은 발행 때 첨부된다.
+ */
+export async function requestEpisodeEnrich(episodeId: string, backlogId: string) {
+  const sb = await supabaseServer();
+  const { data: active } = await sb.from("jobs").select("id").eq("type", "enrich").in("status", ["queued", "claimed", "running"]).eq("payload->>episode_id", episodeId).is("payload->>content_id", null).limit(1);
+  if (active?.length) return { queued: false as const, job_id: active[0].id as string };
+  const { data, error } = await sb.from("jobs").insert({ type: "enrich", requires_ai: true, status: "queued", payload: { episode_id: episodeId, backlog_id: backlogId } }).select("id").single();
+  if (error) throw new Error(error.message);
+  return { queued: true as const, job_id: data.id as string };
+}
+/** 에피소드 모드 enrich 작업의 최근 상태 — 업로드 화면이 폴링한다 (없으면 null) */
+export async function episodeEnrichState(episodeId: string): Promise<{ status: string; error: string | null; at: string | null } | null> {
+  const sb = await supabaseServer();
+  const { data } = await sb.from("jobs").select("status,error,created_at,finished_at").eq("type", "enrich").eq("payload->>episode_id", episodeId).is("payload->>content_id", null).order("created_at", { ascending: false }).limit(1);
+  const j = data?.[0];
+  return j ? { status: j.status, error: j.error ? String(j.error).split("\n")[0].slice(0, 200) : null, at: (j.finished_at ?? j.created_at) as string | null } : null;
+}
 export async function requestReQa(episodeId: string, backlogId: string) {
   const sb = await supabaseServer();
   const { data, error } = await sb.from("jobs").insert({ type: "qa", requires_ai: true, status: "queued", payload: { episode_id: episodeId, backlog_id: backlogId, attempt: 1, human_revision: true } }).select("id").single();
