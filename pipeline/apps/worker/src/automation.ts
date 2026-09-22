@@ -14,7 +14,7 @@
  *
  * 발행 준비 자동 연쇄: 비평이 끝나면 `tts → thumbnail → package` 를 건다 (사람이 [발행 준비]를 누른 것과 같은 경로, chain.ts).
  * 패키지는 enrich 를 자동으로 걸지 않는다 — 발행하지 않을 편까지 메타를 뽑는 낭비를 막기 위해 업로드 화면의 [추천 메타 뽑기]로 사람이 건다.
- * 알림은 편마다가 아니라 큐가 다 비었을 때 한 번 (digest.ts).
+ * 알림은 편마다가 아니라 큐가 다 비었을 때 한 번 (digest.ts). API 한도(429)는 ai-pause.ts 가 집기를 멈춘다.
  */
 import { approveBacklogAuto, enqueue, getSetting, hasActiveDraftJob, hasActiveJob, insertRun, listProposedForAutoApprove } from "./db.js";
 import { executedBy } from "./config.js";

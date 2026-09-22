@@ -6,7 +6,8 @@ import { probeStorage } from "./storage.js";
 import { makeExecutor, setJobAbort } from "./executors/index.js";
 import { startLogWatch } from "./log-watch.js";
 import { runStage } from "./stages/index.js";
-import { log, sleep, RetryLater } from "./util.js";
+import { log, sleep, ApiLimit, RetryLater } from "./util.js";
+import { aiPaused, pauseForLimit } from "./ai-pause.js";
 import { onDraftFailed } from "./stages/draft.js";
 import { autoApprove } from "./automation.js";
 import { maybeSendDigest } from "./digest.js";
@@ -54,6 +55,7 @@ async function main() {
   // 워커 최소 버전 게이트 (2026-09-12): dev 머지 배포가 적은 최소 커밋 시각보다 이 코드가 오래됐으면 작업을 집지 않는다 — 옛 워커가 새 유형을 실패시키거나 옛 규칙으로 대본을 만드는 사고 방지.
   // 커밋 시각을 모르면(0) 게이트를 건너뛴다. 60초마다 다시 본다.
   let revCheckedAt = 0, revStale = false;
+  let pausedLogged = false;
   const revGate = async () => {
     if (Date.now() - revCheckedAt < 60_000) return revStale;
     revCheckedAt = Date.now();
@@ -68,8 +70,13 @@ async function main() {
   while (true) {
     try {
       if (await revGate()) { if (once) { log("워커 코드가 오래됨 — 종료"); break; } await sleep(60_000); continue; }
-      if (canAi) { await autoApprove().catch((e) => log(`자동 승인 오류 (계속 진행): ${e?.message ?? e}`)); await pickupApproved(); }
-      const job = await claimJob(cfg.workerName, canAi, canTts, canThumbnail);
+      // API 한도 차단기 (ai-pause.ts): 멈춘 동안은 AI 작업을 집지 않는다 — io 작업(TTS·패키지)만
+      const paused = canAi ? await aiPaused() : null;
+      if (paused && !pausedLogged) log(`⏸ AI 작업 집기 멈춤: ${paused}`); else if (!paused && pausedLogged) log("▶ AI 작업 집기 재개");
+      pausedLogged = !!paused;
+      const aiNow = canAi && !paused;
+      if (aiNow) { await autoApprove().catch((e) => log(`자동 승인 오류 (계속 진행): ${e?.message ?? e}`)); await pickupApproved(); }
+      const job = await claimJob(cfg.workerName, aiNow, canTts, canThumbnail);
       if (!job) {
         if (once) { log("대기 중인 작업 없음"); break; }
         if (drain && (await listApprovedBacklog()).length === 0) { log("큐 비움 — drain 종료"); break; }
@@ -91,6 +98,9 @@ async function main() {
         if (ac.signal.aborted || e?.name === "JobCancelled") {
           log(`⏹ ${job.type} ${job.id.slice(0, 8)} 취소 처리 완료`);
           if (job.type === "draft") await onDraftFailed(job, new Error("사람이 콘솔에서 초안을 취소")); // 백로그를 다시 승인 대기로 (자동 재집기 없음)
+        } else if (e instanceof ApiLimit) {
+          await requeueJob(job.id); // 작업은 그대로 큐에 — 실패시키면 초안은 백로그를 되돌려 망가뜨린다
+          await pauseForLimit(e, job).catch((err) => log(`멈춤 기록 실패: ${err?.message ?? err}`));
         } else if (e instanceof RetryLater) {
           await requeueJob(job.id);
           log(`↺ ${job.type} ${job.id.slice(0, 8)} 잠시 후 재시도: ${e.message}`);
