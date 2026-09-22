@@ -171,6 +171,12 @@ class PlaybackService {
   private appStateSubscription: NativeEventSubscription | null = null;
   private isAudioModeConfigured = false;
   private pendingSetup: { startPositionSec: number; autoplay: boolean } | null = null;
+  /**
+   * 이 시각까지는 위치 틱을 화면(스토어)에 올리지 않는다 — 트래킹·완청 판정은 그대로 돈다.
+   * 플레이어 화면의 펼침·접힘 모션이 JS 스레드에서 도는 320ms 동안 0.5초 틱이 화면 전체를 다시 그리면
+   * 프레임이 떨어진다(2026-09-22 PM 실기기). 시크바가 그 시간만큼 멈추는 건 눈에 띄지 않는다
+   */
+  private holdPositionUntil = 0;
 
   /* ── 시작 ── */
 
@@ -385,11 +391,17 @@ class PlaybackService {
     });
 
     const durationSec = ctx.durationSec;
-    store.getState().patchSession({
-      isPlaying: status.playing,
-      isBuffering: status.isBuffering,
-      positionSec: durationSec > 0 ? Math.min(status.currentTime, durationSec) : status.currentTime,
-    });
+    // 보류 중에는 위치만 바뀐 틱을 화면에 올리지 않는다 — 재생·버퍼링 상태 전이는 보류와 무관하게 올린다
+    const isPositionOnlyTick =
+      session.isPlaying === status.playing && session.isBuffering === status.isBuffering;
+    if (!(isPositionOnlyTick && Date.now() < this.holdPositionUntil)) {
+      store.getState().patchSession({
+        isPlaying: status.playing,
+        isBuffering: status.isBuffering,
+        positionSec:
+          durationSec > 0 ? Math.min(status.currentTime, durationSec) : status.currentTime,
+      });
+    }
 
     // 차감·재생 시작 기록은 소리가 실제로 난 시점 한 번뿐이다(paywall.md 4.3)
     if (!ctx.hasReportedPlayStart && status.playing) {
@@ -550,6 +562,14 @@ class PlaybackService {
     ctx.tracking = markSeek(ctx.tracking, clamped);
     store.getState().patchSession({ positionSec: clamped });
     void this.player?.seekTo(clamped);
+  }
+
+  /**
+   * 이 시간 동안 위치 틱을 화면에 올리지 않는다(holdPositionUntil). 화면의 펼침·접힘 모션이 부른다 —
+   * 모션이 끝나면 다음 틱(≤0.5초)에 시크바가 따라잡는다. 트래킹·완청 판정·상태 전이는 보류하지 않는다
+   */
+  holdPositionUpdates(durationMs: number): void {
+    this.holdPositionUntil = Math.max(this.holdPositionUntil, Date.now() + durationMs);
   }
 
   seekBackward(): void {

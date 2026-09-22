@@ -55,6 +55,7 @@ import {
 import { PLAYER_COPY } from '../player.copy';
 import { playerColor } from '../player.theme';
 import type { QueueItem } from '../player.types';
+import { playbackService } from '../services/playback.service';
 import {
   formatSleepTimerRemaining,
   formatSleepTimerRemainingA11y,
@@ -79,10 +80,17 @@ export default function PlayerScreen() {
    * (player-api.md 4.7). 받아 보니 빈 배열이면 "없음"이다 — 버튼을 숨기고 열려 있던 패널도 접힌다.
    */
   const hasScript = session?.hasScript ?? false;
+  // 대본 펼침이 끝났는가 — 문단은 그 뒤에 그린다(펼침과 문단 마운트가 같은 프레임에 겹치면 끊긴다)
+  const [isScriptSettled, setIsScriptSettled] = useState(false);
+  /*
+   * 대본 요청도 **펼침이 끝난 뒤에** 보낸다(2026-09-22 PM). 패널을 여는 순간 보내면 응답이 보통 모션 중간에
+   * 도착해 파싱·상태 갱신·패널 교체 마운트가 JS 스레드를 잡고 커버 축소 프레임이 떨어진다. 처음 여는 편에서만
+   * 응답 도착이 320ms 늦어질 뿐이고, 이미 받은 편은 캐시가 그대로 나온다
+   */
   const scriptQuery = useScriptQuery(
     session?.contentId ?? null,
     session?.durationSec ?? 0,
-    hasScript && screen.activePanel === 'script',
+    hasScript && screen.activePanel === 'script' && isScriptSettled,
   );
   const scriptSegments = scriptQuery.data ?? null;
   const isScriptAvailable = hasScript && !(scriptSegments !== null && scriptSegments.length === 0);
@@ -110,8 +118,6 @@ export default function PlayerScreen() {
    */
   const queueProgress = useAnimatedValue(0);
   const [mountedPanel, setMountedPanel] = useState<PlayerPanelKind | null>(null);
-  // 대본 펼침이 끝났는가 — 문단은 그 뒤에 그린다(펼침과 문단 마운트가 같은 프레임에 겹치면 끊긴다)
-  const [isScriptSettled, setIsScriptSettled] = useState(false);
   /*
    * 펼침·접힘 모션은 **상태 변경이 화면에 반영된 뒤에** 출발시킨다(2026-09-21 iOS 실기기 — 커버가 줄어드는
    * 모션이 렉 걸리듯 끊겼다). 이 모션은 높이·위치를 움직여 JS 스레드에서 도는데, 같은 핸들러에서 상태를 바꾸면
@@ -135,6 +141,8 @@ export default function PlayerScreen() {
 
     const startMotion = () => {
       panelMotionFrameRef.current = null;
+      // 모션 동안 0.5초 위치 틱이 화면 전체를 다시 그리지 않게 한다(2026-09-22 PM) — 끝나면 다음 틱이 따라잡는다
+      playbackService.holdPositionUpdates(SCRIPT_TOGGLE_DURATION_MS);
       Animated.timing(queueProgress, {
         toValue: kind === 'queue' ? 1 : 0,
         duration: SCRIPT_TOGGLE_DURATION_MS,
