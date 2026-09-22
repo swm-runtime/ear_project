@@ -156,7 +156,8 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  // 사진 아래 변에 붙는 진행률 — 트랙은 흰 반투명, 채움은 흰색(사진 위 대비). 완청은 끝까지 찬 바(유튜브 문법)
+  // 사진 아래 변에 붙는 진행률 — 트랙은 흰 반투명, 채움은 채도 있는 색(유튜브 문법). 흰 채움은 아래 변 밑의
+  // 흰 화면 배경에 녹아 안 보였고, 변에서 띄우는 것(#599)은 PM 이 되돌렸다 — 색으로 가른다(2026-09-22 PM)
   progressTrack: {
     position: 'absolute',
     left: 0,
@@ -167,7 +168,7 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.color.progress,
   },
   info: {
     paddingTop: theme.spacing.sm,
