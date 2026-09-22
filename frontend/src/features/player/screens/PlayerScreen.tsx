@@ -5,7 +5,6 @@ import type { LayoutChangeEvent } from 'react-native';
 import {
   ActivityIndicator,
   Animated,
-  Easing,
   Image,
   PanResponder,
   Pressable,
@@ -18,7 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
-import { theme } from '@/shared/theme';
+import { motion, theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import MarqueeText from '@/shared/ui/MarqueeText';
 import RemoteImage from '@/shared/ui/RemoteImage';
@@ -143,16 +142,17 @@ export default function PlayerScreen() {
       panelMotionFrameRef.current = null;
       // 모션 동안 0.5초 위치 틱이 화면 전체를 다시 그리지 않게 한다(2026-09-22 PM) — 끝나면 다음 틱이 따라잡는다
       playbackService.holdPositionUpdates(SCRIPT_TOGGLE_DURATION_MS);
-      Animated.timing(queueProgress, {
+      // 시트와 같은 smooth 스프링(2026-09-22 PM — 전환 곡선 통일). 길이는 응답 0.45초에 감쇠까지 약 SCRIPT_TOGGLE_DURATION_MS
+      Animated.spring(queueProgress, {
         toValue: kind === 'queue' ? 1 : 0,
-        duration: SCRIPT_TOGGLE_DURATION_MS,
-        easing: Easing.out(Easing.cubic),
+        ...motion.spring.smooth,
+        overshootClamping: true,
         useNativeDriver: false,
       }).start();
-      Animated.timing(panelProgress, {
+      Animated.spring(panelProgress, {
         toValue: isScriptOpen ? 1 : 0,
-        duration: SCRIPT_TOGGLE_DURATION_MS,
-        easing: Easing.out(Easing.cubic),
+        ...motion.spring.smooth,
+        overshootClamping: true,
         useNativeDriver: false,
       }).start(({ finished }) => {
         if (!finished) return;
@@ -1636,8 +1636,8 @@ const SCRIPT_SWIPE_DISTANCE = 40;
 const SCRIPT_SWIPE_AXIS_RATIO = 1.5;
 /** 압축 헤더의 아트워크 한 변 */
 const COMPACT_ARTWORK_SIZE = 56;
-/** 펼침·접힘 전환 시간 */
-const SCRIPT_TOGGLE_DURATION_MS = 320;
+/** 펼침·접힘 전환이 사실상 멈추는 시간 — smooth 스프링(응답 0.45초)이 감쇠하는 길이. 위치 틱 보류에 쓴다 */
+const SCRIPT_TOGGLE_DURATION_MS = 450;
 /**
  * 재생 목록을 끌어올렸을 때의 히어로 높이 — 앨범 사진이 화면 가로를 꽉 채우고 앱바·제목·시크바까지 그 위에
  * 얹힌다(2026-09-17 PM, 유튜브 뮤직). 사진 전체 높이 = 앱바 + 이 값 + 시크바
@@ -1672,7 +1672,7 @@ const MORPH_ART_INPUT = [0, MORPH_ART_SHRINK_END, MORPH_ART_ARRIVE, 1];
  * 멈춤)·응답 약 0.45초를 stiffness·damping 으로 옮긴 값 — stiffness = (2π/응답)², damping = 2·√(stiffness·mass).
  * 손을 뗀 속도는 `velocity` 로 따로 넣는다. 실기기에서 조절한다
  */
-const SHEET_SPRING = { stiffness: 195, damping: 28, mass: 1 };
+const SHEET_SPRING = motion.spring.smooth;
 /** 바탕 커버의 흐림 — 형태가 남지 않고 색 덩어리만 보일 만큼 */
 const BACKDROP_BLUR_RADIUS = 60;
 /** 흐린 커버 위 어두운 막 — 플레이어 바탕색(#17171A)의 72% */

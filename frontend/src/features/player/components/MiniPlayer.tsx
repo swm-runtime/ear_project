@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
-import { theme } from '@/shared/theme';
+import { motion, theme } from '@/shared/theme';
 import MarqueeText from '@/shared/ui/MarqueeText';
 import RemoteImage from '@/shared/ui/RemoteImage';
 
@@ -200,13 +200,14 @@ export default function MiniPlayer({
         if (shouldDismiss && width > 0) {
           Animated.timing(translateX, {
             toValue: -width,
-            duration: 160,
+            duration: motion.duration.fast,
+            easing: motion.easing.easeOut,
             useNativeDriver: true,
           }).start(() => dismiss());
           return;
         }
         // 임계 미달 — 스프링 복귀(저항감)가 오조작을 걸러낸다
-        Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
+        Animated.spring(translateX, { toValue: 0, ...motion.spring.snappy, useNativeDriver: true }).start();
       },
       onPanResponderTerminate: () => {
         if (gestureModeRef.current === 'open') {
@@ -214,7 +215,7 @@ export default function MiniPlayer({
           openGesture().release('open');
           return;
         }
-        Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
+        Animated.spring(translateX, { toValue: 0, ...motion.spring.snappy, useNativeDriver: true }).start();
       },
     });
   }, [translateX]);

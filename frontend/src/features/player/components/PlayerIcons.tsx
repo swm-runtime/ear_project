@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
-import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import { Animated, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path, Rect } from 'react-native-svg';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
+import { motion } from '@/shared/theme';
 
 interface IconProps {
   size: number;
@@ -98,7 +99,7 @@ function SeekIcon({ size, color, mirrored, spinKey = 0 }: SeekIconProps) {
     const animation = Animated.timing(spin, {
       toValue: 1,
       duration: SEEK_SPIN_MS,
-      easing: Easing.out(Easing.cubic),
+      easing: motion.easing.easeOut,
       useNativeDriver: true,
     });
     animation.start();
