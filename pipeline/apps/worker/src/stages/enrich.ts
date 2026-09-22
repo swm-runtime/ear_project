@@ -59,7 +59,9 @@ export async function runEnrich(job: Job, ex: Executor) {
   const r = await ex.run<Record<string, unknown> & { evidence?: Record<string, string> }>({ prompt, schema: ENRICH_SCHEMA, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 10 * 60_000, model: cfg.enrichModel, effort: "medium",
     onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: `메타 부여 — 판정 (${label})` }).catch(() => {}) });
   const { evidence, ...raw } = r.output;
-  if (!script) raw.source = "title_description";
+  // source 는 코드가 정한다 (2026-09-23): OpenAI 엄격 스키마는 선택 필드를 "값 또는 null" 로 바꾸는데, GPT 가 대본이 있어도 유일한 허용값
+  // "title_description" 을 골라 넣어 정상 산출물이 폴백으로 표기됐다 (T260923-003). 대본을 읽었으면 지우고, 없을 때만 폴백 표시
+  if (script) delete raw.source; else raw.source = "title_description";
   const n = normalizeEnrichment(raw, topicNames, jobCategories);
   // 대본 임베딩 (Phase B, metadata-pipeline 4.3 · KAN-89): AI 서버가 설정된 워커만. 입력은 대본 전문, 없으면 제목+설명(4.5 폴백 — source 는 이미 title_description).
   // 실패·stub·검증 불일치는 메타 부여 실패가 아니다 — 키를 빼고 파일을 내며(partial) 리포트·요약에 사유를 남긴다. 잘못된 키 하나가 BE 에서 파일 전체 거부를 부른다
