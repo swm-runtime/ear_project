@@ -210,6 +210,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: theme.spacing.lg,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     borderWidth: 1,
     borderColor: theme.color.border,
   },
@@ -223,6 +224,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.primary,
   },
   applyLabel: {
