@@ -118,7 +118,7 @@ export const LIBRARY_COPY = {
   },
 
   card: {
-    /** 완청은 썸네일 좌상단 체크로만 표시한다 — 색이 아니라 형태 단서(uiux 7) */
+    /** 완청은 진행률 바를 끝까지 채워 표시한다(2026-09-22) — 길이 단서 + 이 라벨을 낭독기에 준다(uiux 7) */
     completedA11y: '완청한 콘텐츠',
     /** in_progress는 진행률 바만 있어 텍스트가 없다 — a11y로 반드시 제공한다(uiux 7) */
     progressA11y: (percent: number) => `${percent}% 들음`,

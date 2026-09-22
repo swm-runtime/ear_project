@@ -24,7 +24,7 @@ const formatDuration = (durationSec: number): string =>
   LIBRARY_COPY.card.durationLabel(Math.max(1, Math.round(durationSec / 60)));
 
 /**
- * 격자 타일 — 정사각 아트워크 위에 상태(완청 체크·진행률·더보기)를 얹고, 아래에 제목 두 줄과 길이를 둔다
+ * 격자 타일 — 정사각 아트워크 위에 상태(진행률·완청은 꽉 찬 바·더보기)를 얹고, 아래에 제목 두 줄과 길이를 둔다
  * (2026-09-18 PM: 목록 행 → 썸네일 격자, `docs/changes/pending/library-thumbnail-grid.md`).
  * 정보량은 행 카드(LibraryItemCard)와 같다 — 출처·저자는 상세에서만(결정 2026-09-15).
  * 더보기만 별도 히트 영역(44pt)이다.
@@ -38,8 +38,11 @@ export default function LibraryItemTile({
   const isCompleted = item.status === 'completed';
   // 완청한 탐험 편에는 배지를 그리지 않는다 — 제안 성격은 이미 다했고, 사진 위 표식 셋이 붐빈다(2026-09-18)
   const hasDiscoveryBadge = showDiscoveryBadge && item.source === 'discovery' && !isCompleted;
-  const progressRatio =
-    item.status === 'in_progress' && item.progress && item.content.durationSec > 0
+  // 완청은 바를 100% 로 고정한다 — 실제 위치를 그리면 완청 판정(최대 도달 90%, library.md 4.4) 직후엔 9할,
+  // 완청 뒤 되감으면 3할짜리 바가 "완청" 타일에 남는다. 좌상단 체크는 사진 위 스티커라 뺐다(2026-09-22 PM)
+  const progressRatio = isCompleted
+    ? 1
+    : item.status === 'in_progress' && item.progress && item.content.durationSec > 0
       ? Math.min(1, item.progress.positionSec / item.content.durationSec)
       : null;
   const progressPercent = progressRatio !== null ? Math.round(progressRatio * 100) : null;
@@ -65,12 +68,6 @@ export default function LibraryItemTile({
           onLayout={(event) => setArtworkWidth(event.nativeEvent.layout.width)}
         >
           <RemoteImage uri={item.content.thumbnailUrl} recyclingKey={item.content.id} style={styles.image} />
-          {isCompleted ? (
-            // 완청은 좌상단 체크로만 — 색이 아니라 형태 단서(uiux 7)
-            <View style={styles.completedMark}>
-              <Text style={styles.completedGlyph}>✓</Text>
-            </View>
-          ) : null}
           {hasDiscoveryBadge ? (
             // 사진 아래 변을 검게 흐리고 그 위에 글자만 — 알약 배지는 사진 위에서 스티커처럼 떠 보여 뺐다(2026-09-22 PM).
             // 좌하단인 이유는 그대로: 제목 위에 두면 그 타일만 글 블록이 밀려 옆 타일과 줄이 어긋난다(2026-09-18 PM)
@@ -96,11 +93,15 @@ export default function LibraryItemTile({
             </>
           ) : null}
           {progressPercent !== null ? (
-            // 진행률 바만 있으면 색 외 단서가 없다 — a11y 텍스트를 반드시 제공한다(uiux 7)
+            // 진행률 바만 있으면 색 외 단서가 없다 — a11y 텍스트를 반드시 제공한다(uiux 7). 완청은 "100% 들음"이 아니라 "완청한 콘텐츠"
             <View
               style={styles.progressTrack}
               accessibilityRole="progressbar"
-              accessibilityLabel={LIBRARY_COPY.card.progressA11y(progressPercent)}
+              accessibilityLabel={
+                isCompleted
+                  ? LIBRARY_COPY.card.completedA11y
+                  : LIBRARY_COPY.card.progressA11y(progressPercent)
+              }
             >
               <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
             </View>
@@ -132,7 +133,6 @@ export default function LibraryItemTile({
 }
 
 const MORE_CIRCLE_SIZE = 28;
-const COMPLETED_MARK_SIZE = 22;
 /** 그라데이션 높이 — 글자 한 줄이 어두운 띠 안에 들어올 만큼만. 사진 절반을 덮으면 배지가 아니라 어두운 사진이 된다 */
 const DISCOVERY_FADE_HEIGHT = 56;
 
@@ -152,25 +152,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  completedMark: {
-    position: 'absolute',
-    top: theme.spacing.sm,
-    left: theme.spacing.sm,
-    width: COMPLETED_MARK_SIZE,
-    height: COMPLETED_MARK_SIZE,
-    borderRadius: COMPLETED_MARK_SIZE / 2,
-    backgroundColor: theme.color.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: theme.color.background,
-  },
-  completedGlyph: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: theme.color.onPrimary,
-  },
-  // 사진 아래 변에 붙는 진행률 — 트랙은 흰 반투명, 채움은 흰색(사진 위 대비)
+  // 사진 아래 변에 붙는 진행률 — 트랙은 흰 반투명, 채움은 흰색(사진 위 대비). 완청은 끝까지 찬 바(유튜브 문법)
   progressTrack: {
     position: 'absolute',
     left: 0,
