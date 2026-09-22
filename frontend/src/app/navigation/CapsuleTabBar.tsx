@@ -30,6 +30,8 @@ const ICON_NAMES: Record<string, TabBarIconName> = {
 
 /** 이만큼 가로로 움직이면 탭이 아니라 알약 끌기다 */
 const DRAG_START_DISTANCE = 4;
+/** 누르는 동안 알약 확대 — 캡슐 밖으로 살짝 넘칠 만큼(캡슐은 clip 하지 않는다) */
+const PILL_LIFT_SCALE = 1.12;
 
 /**
  * 하단 탭 바 — 화면 폭을 다 쓰는 띠가 아니라 **떠 있는 캡슐**(2026-09-23 PM — iOS 26 탭 바처럼).
@@ -47,6 +49,15 @@ const DRAG_START_DISTANCE = 4;
 export default function CapsuleTabBar({ state, descriptors, navigation, insets }: BottomTabBarProps) {
   const reportHeight = useContext(BottomTabBarHeightCallbackContext);
   const indicatorX = useAnimatedValue(state.index * ITEM_WIDTH);
+  // 누르는 동안 알약이 살짝 커져 떠오른다(iOS 26 탭 바) — 놓으면 제자리 크기로
+  const indicatorScale = useAnimatedValue(1);
+  const liftPill = (isLifted: boolean) => {
+    Animated.spring(indicatorScale, {
+      toValue: isLifted ? PILL_LIFT_SCALE : 1,
+      ...motion.spring.snappy,
+      useNativeDriver: true,
+    }).start();
+  };
   const maxX = (state.routes.length - 1) * ITEM_WIDTH;
   const isDraggingRef = useRef(false);
   // 알약이 마지막으로 향한 자리 — 네이티브 스프링이 끝난 뒤 JS 쪽 값은 낡아 있을 수 있어 직접 든다.
@@ -102,6 +113,7 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
           onPanResponderTerminationRequest: () => false,
           onPanResponderGrant: () => {
             isDraggingRef.current = false;
+            liftPill(true);
             indicatorX.stopAnimation();
             dragOriginRef.current = pillXRef.current;
           },
@@ -116,6 +128,7 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
             indicatorX.setValue(x);
           },
           onPanResponderRelease: (_, gesture) => {
+            liftPill(false);
             const { maxX: limit } = latestRef.current;
             const target = isDraggingRef.current
               ? Math.round(Math.max(0, Math.min(limit, dragOriginRef.current + gesture.dx)) / ITEM_WIDTH)
@@ -124,6 +137,7 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
             selectTab(target);
           },
           onPanResponderTerminate: () => {
+            liftPill(false);
             isDraggingRef.current = false;
             snapTo(latestRef.current.index);
           },
@@ -140,9 +154,14 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
       onLayout={(event) => reportHeight?.(event.nativeEvent.layout.height)}
     >
       <View style={styles.capsule} accessibilityRole="tablist">
-        <GlassSurface style={StyleSheet.absoluteFill} />
+        <GlassSurface style={[StyleSheet.absoluteFill, styles.capsuleGlass]} />
         <View style={styles.capsuleBorder} pointerEvents="none" />
-        <GlassPill style={[styles.indicator, { transform: [{ translateX: indicatorX }] }]} />
+        <GlassPill
+          style={[
+            styles.indicator,
+            { transform: [{ translateX: indicatorX }, { scale: indicatorScale }] },
+          ]}
+        />
         {state.routes.map((route, index) => {
           const { options } = descriptors[route.key];
           const isFocused = state.index === index;
@@ -220,9 +239,13 @@ const styles = StyleSheet.create({
     height: CAPSULE_HEIGHT,
     padding: CAPSULE_INSET,
     borderRadius: theme.radius.full,
-    overflow: 'hidden',
+    // clip 하지 않는다 — 누른 알약이 캡슐 밖으로 살짝 넘친다(iOS 26). 유리 바탕은 자기 반지름으로 잘린다
     // 유리 위의 하이라이트 대신 얇은 윤곽 — 밝은 목록 위에서 캡슐의 경계가 사라지지 않게
     boxShadow: '0 4px 20px rgba(0, 0, 0, 0.10)',
+  },
+  capsuleGlass: {
+    borderRadius: theme.radius.full,
+    overflow: 'hidden',
   },
   capsuleBorder: {
     position: 'absolute',
