@@ -28,8 +28,7 @@ export const HAS_LIQUID_GLASS = Platform.OS === 'ios' && isLiquidGlassAvailable(
 export default function GlassSurface({ style, children }: GlassSurfaceProps) {
   if (HAS_LIQUID_GLASS) {
     return (
-      // clear — 맑은 렌즈(PM 2026-09-23 실기기 비교 요청). 밝은 목록 위에서 글리프가 묻히면 regular 로 되돌린다
-      <GlassView style={style} glassEffectStyle="clear" colorScheme="light">
+      <GlassView style={style} glassEffectStyle="regular" colorScheme="light">
         {children}
       </GlassView>
     );
@@ -65,13 +64,9 @@ export function GlassPill({ style }: GlassPillProps) {
       {/* 캡슐과 같은 재질(regular, 틴트 없음) — 유리는 유리를 샘플링하지 않아 clear 알약은 캡슐을 건너뛰고 뒤의
           목록만 굴절시켰다(알약 자리에서 캡슐이 사라져 보임, PM 2026-09-23). 같은 재질이면 커져서 넘친 부분이
           캡슐이 불룩 튀어나온 것으로 읽힌다 */}
+      {/* 알약만 clear(맑은 렌즈, PM 2026-09-23) — 캡슐은 regular 그대로. 경계는 아래 림이 그린다 */}
       {HAS_LIQUID_GLASS ? (
-        <GlassView
-          style={StyleSheet.absoluteFill}
-          glassEffectStyle="regular"
-          colorScheme="light"
-          tintColor="rgba(255, 255, 255, 0.22)"
-        />
+        <GlassView style={StyleSheet.absoluteFill} glassEffectStyle="clear" colorScheme="light" />
       ) : null}
       {/* 림 — 같은 재질의 유리가 겹치면 iOS 가 경계를 그리지 않아 알약 윤곽이 사라진다. 위쪽 흰 하이라이트 +
           바깥 얇은 그림자로 렌즈의 가장자리를 직접 준다(PM 2026-09-23 "겹치면 안쪽에 보여야") */}
