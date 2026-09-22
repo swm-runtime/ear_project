@@ -175,6 +175,12 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
             outputRange: [0, 1, 0],
             extrapolate: 'clamp',
           });
+          // 알약이 겹친 만큼 그 칸의 아이콘·라벨도 알약과 같은 배율로 커진다(렌즈 안의 것이 확대되듯) —
+          // 1 + (알약 배율 − 1) × 겹친 비율. 끌면서 옮겨가면 확대도 따라간다
+          const contentScale = Animated.add(
+            1,
+            Animated.multiply(Animated.subtract(indicatorScale, 1), selectedOpacity),
+          );
           return (
             <View
               key={route.key}
@@ -187,6 +193,7 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
               onAccessibilityTap={() => selectTab(index)}
               {...itemPans[index].panHandlers}
             >
+              <Animated.View style={[styles.itemContent, { transform: [{ scale: contentScale }] }]}>
               {/* 두 겹 — 선·회색(항상) 위에 면·검정(알약이 겹친 만큼) */}
               <View style={styles.glyph}>
                 <TabBarIcon
@@ -217,6 +224,7 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
                   {label}
                 </Animated.Text>
               </View>
+              </Animated.View>
             </View>
           );
         })}
@@ -269,6 +277,11 @@ const styles = StyleSheet.create({
   item: {
     width: ITEM_WIDTH,
     height: ITEM_HEIGHT,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  itemContent: {
     alignItems: 'center',
     justifyContent: 'center',
     gap: 2,
