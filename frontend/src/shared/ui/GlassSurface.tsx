@@ -1,7 +1,7 @@
 import { BlurView } from 'expo-blur';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import type { ReactNode } from 'react';
-import { Platform, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Animated, Platform, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 interface GlassSurfaceProps {
   style?: StyleProp<ViewStyle>;
@@ -14,7 +14,33 @@ const TINT_COLOR = 'rgba(245, 245, 247, 0.72)';
 const BLUR_INTENSITY = 60;
 
 /** iOS 26 리퀴드 글라스는 앱 시작 시 한 번만 판정하면 된다(OS 가 바뀌지 않는다) */
-const HAS_LIQUID_GLASS = Platform.OS === 'ios' && isLiquidGlassAvailable();
+export const HAS_LIQUID_GLASS = Platform.OS === 'ios' && isLiquidGlassAvailable();
+
+const AnimatedGlassView = Animated.createAnimatedComponent(GlassView);
+
+interface GlassPillProps {
+  /** 위치·크기·transform — 호출부의 Animated 스타일 그대로 */
+  style: Animated.WithAnimatedValue<StyleProp<ViewStyle>>;
+}
+
+/**
+ * 선택 알약(탭 바·세그먼트) — iOS 26 에서는 **유리 렌즈**(선택된 칸이 유리로 살짝 떠 보인다, iOS 26 탭 바처럼),
+ * 그 밑에서는 검정 6% 틴트 면. 항상 pointerEvents none — 눌리는 건 그 위의 칸이다(2026-09-23 PM)
+ */
+export function GlassPill({ style }: GlassPillProps) {
+  if (HAS_LIQUID_GLASS) {
+    return (
+      <AnimatedGlassView
+        style={style}
+        glassEffectStyle="regular"
+        colorScheme="light"
+        tintColor="rgba(255, 255, 255, 0.35)"
+        pointerEvents="none"
+      />
+    );
+  }
+  return <Animated.View style={[style, styles.pillTint]} pointerEvents="none" />;
+}
 
 /**
  * 떠 있는 면(미니플레이어·탭 바)의 바탕 — 뒤의 목록이 흐리게 비친다(2026-09-22 PM — "애플처럼").
@@ -49,5 +75,8 @@ export default function GlassSurface({ style, children }: GlassSurfaceProps) {
 const styles = StyleSheet.create({
   tint: {
     backgroundColor: TINT_COLOR,
+  },
+  pillTint: {
+    backgroundColor: 'rgba(0, 0, 0, 0.06)',
   },
 });
