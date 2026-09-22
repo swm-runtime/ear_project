@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { theme } from '@/shared/theme';
 import RemoteImage from '@/shared/ui/RemoteImage';
@@ -41,6 +43,8 @@ export default function LibraryItemTile({
       ? Math.min(1, item.progress.positionSec / item.content.durationSec)
       : null;
   const progressPercent = progressRatio !== null ? Math.round(progressRatio * 100) : null;
+  // 네이티브 SVG 는 "100%" 를 100pt 로 받으므로 아트워크 폭을 실측해 그라데이션 폭으로 준다(ScrollFade 와 같은 이유)
+  const [artworkWidth, setArtworkWidth] = useState(0);
 
   return (
     <View style={styles.container}>
@@ -56,7 +60,10 @@ export default function LibraryItemTile({
           .join(', ')}
         accessibilityHint="재생"
       >
-        <View style={styles.artwork}>
+        <View
+          style={styles.artwork}
+          onLayout={(event) => setArtworkWidth(event.nativeEvent.layout.width)}
+        >
           <RemoteImage uri={item.content.thumbnailUrl} recyclingKey={item.content.id} style={styles.image} />
           {isCompleted ? (
             // 완청은 좌상단 체크로만 — 색이 아니라 형태 단서(uiux 7)
@@ -65,10 +72,28 @@ export default function LibraryItemTile({
             </View>
           ) : null}
           {hasDiscoveryBadge ? (
-            // 사진 좌하단 — 제목 위에 두면 그 타일만 글 블록이 밀려 옆 타일과 줄이 어긋난다(2026-09-18 PM)
-            <View style={styles.discoveryBadge}>
-              <Text style={styles.discoveryBadgeLabel}>{LIBRARY_COPY.discovery.badge}</Text>
-            </View>
+            // 사진 아래 변을 검게 흐리고 그 위에 글자만 — 알약 배지는 사진 위에서 스티커처럼 떠 보여 뺐다(2026-09-22 PM).
+            // 좌하단인 이유는 그대로: 제목 위에 두면 그 타일만 글 블록이 밀려 옆 타일과 줄이 어긋난다(2026-09-18 PM)
+            <>
+              <View style={styles.discoveryFade} pointerEvents="none">
+                <Svg width={artworkWidth} height={DISCOVERY_FADE_HEIGHT}>
+                  <Defs>
+                    <LinearGradient id="discoveryFade" x1="0" y1="0" x2="0" y2="1">
+                      <Stop offset="0" stopColor="#000000" stopOpacity={0} />
+                      <Stop offset="1" stopColor="#000000" stopOpacity={0.75} />
+                    </LinearGradient>
+                  </Defs>
+                  <Rect
+                    x="0"
+                    y="0"
+                    width={artworkWidth}
+                    height={DISCOVERY_FADE_HEIGHT}
+                    fill="url(#discoveryFade)"
+                  />
+                </Svg>
+              </View>
+              <Text style={styles.discoveryLabel}>{LIBRARY_COPY.discovery.badge}</Text>
+            </>
           ) : null}
           {progressPercent !== null ? (
             // 진행률 바만 있으면 색 외 단서가 없다 — a11y 텍스트를 반드시 제공한다(uiux 7)
@@ -108,7 +133,8 @@ export default function LibraryItemTile({
 
 const MORE_CIRCLE_SIZE = 28;
 const COMPLETED_MARK_SIZE = 22;
-const DISCOVERY_BADGE_HEIGHT = 20;
+/** 그라데이션 높이 — 글자 한 줄이 어두운 띠 안에 들어올 만큼만. 사진 절반을 덮으면 배지가 아니라 어두운 사진이 된다 */
+const DISCOVERY_FADE_HEIGHT = 56;
 
 const styles = StyleSheet.create({
   container: {
@@ -161,21 +187,22 @@ const styles = StyleSheet.create({
     paddingTop: theme.spacing.sm,
     gap: theme.spacing.xs,
   },
-  // 흰 알약 + 검정 글자 — 사진이 밝든 어둡든 읽힌다. 아래 변의 진행률 바(4px)와 겹치지 않게 sm 띄운다
-  discoveryBadge: {
+  // 사진 아래 변에 깔리는 검정 그라데이션(투명 → 75%) — 밝은 사진에서도 흰 글자가 읽히게 하는 바탕
+  discoveryFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: DISCOVERY_FADE_HEIGHT,
+  },
+  // 흰 글자만 — 배경 박스 없이 그라데이션 위에 놓는다. 아래 변의 진행률 바(4px)와 겹치지 않게 sm 띄운다
+  discoveryLabel: {
     position: 'absolute',
     left: theme.spacing.sm,
     bottom: theme.spacing.sm + 4,
-    height: DISCOVERY_BADGE_HEIGHT,
-    paddingHorizontal: theme.spacing.sm,
-    borderRadius: theme.radius.full,
-    backgroundColor: theme.color.background,
-    justifyContent: 'center',
-  },
-  discoveryBadgeLabel: {
     fontSize: theme.font.size.xs,
     fontWeight: '700',
-    color: theme.color.textPrimary,
+    color: '#FFFFFF',
   },
   title: {
     fontSize: theme.font.size.sm,
