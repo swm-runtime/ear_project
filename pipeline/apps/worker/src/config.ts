@@ -105,6 +105,9 @@ export const cfg = {
   workerToken: process.env.PIPELINE_WORKER_TOKEN || "",
   /** TTS (spec/06) — 보이스는 채널 아이덴티티: 확정·고정 (2026-09-02 박수헌 — 윤아=Annie, 이음=Yohan Koo). 변경은 리브랜딩급 결정 */
   elevenLabsKey: process.env.ELEVENLABS_API_KEY || "",
+  /** AI 서버(ai-server) — 대본 임베딩(metadata-pipeline 4.3). 서버 compose 는 http://ai-server:8000, 토큰은 AI 서버의 INTERNAL_AUTH_TOKEN 과 같은 값. 비우면 임베딩 없이 메타만 낸다(발행 시 웹이 채운다) */
+  aiServerUrl: process.env.AI_SERVER_URL || "",
+  aiServerToken: process.env.AI_SERVER_TOKEN || "",
   ttsModel: process.env.TTS_MODEL || "eleven_v3",
   ttsVoiceYuna: process.env.TTS_VOICE_YUNA || "Lb7qkOn5hF8p7qfCDH8q",
   ttsVoiceEum: process.env.TTS_VOICE_EUM || "4JJwo477JUAx3HV0T7n7",

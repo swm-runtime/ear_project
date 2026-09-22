@@ -1382,7 +1382,31 @@ export const ENRICH_SCHEMA = {
     evidence: { type: "object", additionalProperties: false, properties: { difficulty: { type: "string" }, format: { type: "string" }, is_evergreen: { type: "string" }, keywords: { type: "string" }, target_audiences: { type: "string" } } },
   },
 } as const;
-export interface EnrichmentFile { schema_version: number; difficulty?: string; format?: string; is_evergreen?: boolean; keywords?: string[]; target_audiences?: { job_category: string; years_of_experience: string }[]; source?: "title_description" }
+/** 대본 임베딩 (metadata-pipeline 4.3 Phase B) — AI 서버 `POST /embeddings` 응답. BE 가 `content_embeddings` 에 upsert (admin-api 4.6). 벡터는 1536차원·model 은 현재 모델과 일치해야 한다 */
+export interface EnrichmentEmbedding { model: string; vector: number[] }
+export const EMBEDDING_STUB_MODEL = "dev-stub"; // AI 서버 stub 제공자의 고정 식별자 — 이 벡터는 저장하지 않는다 (metadata-pipeline 4.3)
+export const EMBEDDING_MAX_CHARS = 200_000; // AI 서버 EmbeddingRequest.text 상한
+
+/**
+ * AI 서버에서 대본 임베딩을 받는다 (2026-09-22 구현 — 명세는 09-01 확정, 코드가 없어 발행 콘텐츠 전부 has_embedding=false 였다).
+ * 청킹·평균·L2 정규화는 서버 안. 인증은 `X-Internal-Token`(= AI 서버 INTERNAL_AUTH_TOKEN). 실패는 예외 — 호출부가 임베딩 없이 진행할지 정한다.
+ */
+export async function fetchEmbedding(text: string, opts: { url: string; token: string; timeoutMs?: number }): Promise<{ model: string; dim: number; vector: number[] }> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), opts.timeoutMs ?? 60_000);
+  try {
+    const res = await fetch(`${opts.url.replace(/\/$/, "")}/embeddings`, {
+      method: "POST", headers: { "content-type": "application/json", "X-Internal-Token": opts.token },
+      body: JSON.stringify({ text: text.length > EMBEDDING_MAX_CHARS ? text.slice(0, EMBEDDING_MAX_CHARS) : text }), signal: ctrl.signal,
+    });
+    if (!res.ok) throw new Error(`AI 서버 /embeddings HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
+    const d = (await res.json()) as { model?: string; dim?: number; vector?: number[] };
+    if (!d.model || !Array.isArray(d.vector) || !d.vector.length) throw new Error("AI 서버 /embeddings 응답 형식 오류");
+    return { model: d.model, dim: d.dim ?? d.vector.length, vector: d.vector };
+  } finally { clearTimeout(t); }
+}
+
+export interface EnrichmentFile { schema_version: number; difficulty?: string; format?: string; is_evergreen?: boolean; keywords?: string[]; embedding?: EnrichmentEmbedding; target_audiences?: { job_category: string; years_of_experience: string }[]; source?: "title_description" }
 /** finalize.py 와 같은 규칙: 키워드 NFC 정규화·공백 정리·중복 제거·주제명 반복 제거·상한 8, enum 글자 일치 검증. 실패면 errors 를 돌려주고 파일을 만들지 않는다 */
 export function normalizeEnrichment(raw: Record<string, unknown>, topicNames: string[], jobCategories: string[]): { file: EnrichmentFile | null; errors: string[]; warnings: string[] } {
   const errors: string[] = [], warnings: string[] = [];

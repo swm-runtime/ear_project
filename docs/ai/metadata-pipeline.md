@@ -75,6 +75,11 @@ NestJS 자동화(업로드 시 서비스 서버가 임베딩 API를 호출하는
 - 모델: **OpenAI `text-embedding-3-small` · 1536차원 확정**(2026-09-01 — `domain.md` 15.1 #11 해소. 소유처는 AI 서버 env `EMBEDDING_MODEL`·`EMBEDDING_DIM`). 서버 쪽 저장(`content_embeddings` 마이그레이션)이 나가기 전까지는 Phase B 산출물이 저장처 없이 대기하므로, 그동안은 건너뛰어도 된다(스코어링은 임베딩 축 제외로 동작 — `drip-scheduling.md` 4.2).
   - AI 서버의 기본 제공자 `stub`(결정적 무의미 벡터)은 **서버 검증용이다** — stub 벡터를 `content_embeddings`에 저장하지 않는다(`model = dev-stub`이 그 방어선이다).
 - 산출물에 **모델 식별자를 함께 기록**한다(`content_embeddings.model`). 값 없는 벡터는 만들지 않는다.
+- **구현 (2026-09-22 — 이날까지 코드가 없어 발행 콘텐츠 전부 `has_embedding=false` 였다)**: 두 자리에서 부른다. ① 워커 메타 부여(`stages/enrich.ts`)가
+  `AI_SERVER_URL`·`AI_SERVER_TOKEN` 이 있으면 대본 전문으로 `POST /embeddings` 를 받아 `enrichment.json` 의 `embedding` 에 넣는다(실패·stub 은 임베딩 없이
+  파일을 내고 실행 기록에 사유). ② 웹 발행 경로(`lib/embedding.ts`)가 첨부 직전 `embedding` 이 비어 있으면 같은 compose 의 AI 서버에서 받아 합친다 — 노트북
+  워커(AI 서버에 닿지 않음)가 메타를 부여한 편과 **도입 전 발행분의 소급**(발행 목록 [반영], `enrichment_file` 단독 PATCH·버전 무변경)을 위한 것이다. 수동
+  업로드(대본 없음)는 임베딩 없이 간다. 토큰은 AI 서버 `INTERNAL_AUTH_TOKEN` 과 같은 값(`deploy/env.prod` `AI_SERVER_TOKEN`).
 
 ### 4.4 산출물 (Phase C) — `enrichment.json`
 
