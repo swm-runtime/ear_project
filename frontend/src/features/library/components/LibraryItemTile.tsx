@@ -46,6 +46,8 @@ export default function LibraryItemTile({
       ? Math.min(1, item.progress.positionSec / item.content.durationSec)
       : null;
   const progressPercent = progressRatio !== null ? Math.round(progressRatio * 100) : null;
+  // 흰 진행률 바는 밝은 사진에서 안 보인다 — 바가 있을 때도 아래 변을 어둡힌다(2026-09-22 PM)
+  const hasBottomFade = hasDiscoveryBadge || progressPercent !== null;
   // 네이티브 SVG 는 "100%" 를 100pt 로 받으므로 아트워크 폭을 실측해 그라데이션 폭으로 준다(ScrollFade 와 같은 이유)
   const [artworkWidth, setArtworkWidth] = useState(0);
 
@@ -68,29 +70,31 @@ export default function LibraryItemTile({
           onLayout={(event) => setArtworkWidth(event.nativeEvent.layout.width)}
         >
           <RemoteImage uri={item.content.thumbnailUrl} recyclingKey={item.content.id} style={styles.image} />
+          {hasBottomFade ? (
+            // 사진 아래 변에 깔리는 검정 그라데이션 — 그 위에 놓이는 것("새로운 주제" 글자·흰 진행률 바)이 밝은 사진에서도
+            // 읽히게 하는 바탕. 아래 변에 아무것도 없으면 그리지 않는다(사진을 괜히 어둡히지 않는다)
+            <View style={styles.bottomFade} pointerEvents="none">
+              <Svg width={artworkWidth} height={BOTTOM_FADE_HEIGHT}>
+                <Defs>
+                  <LinearGradient id="tileBottomFade" x1="0" y1="0" x2="0" y2="1">
+                    <Stop offset="0" stopColor="#000000" stopOpacity={0} />
+                    <Stop offset="1" stopColor="#000000" stopOpacity={0.75} />
+                  </LinearGradient>
+                </Defs>
+                <Rect
+                  x="0"
+                  y="0"
+                  width={artworkWidth}
+                  height={BOTTOM_FADE_HEIGHT}
+                  fill="url(#tileBottomFade)"
+                />
+              </Svg>
+            </View>
+          ) : null}
           {hasDiscoveryBadge ? (
-            // 사진 아래 변을 검게 흐리고 그 위에 글자만 — 알약 배지는 사진 위에서 스티커처럼 떠 보여 뺐다(2026-09-22 PM).
+            // 그라데이션 위에 글자만 — 알약 배지는 사진 위에서 스티커처럼 떠 보여 뺐다(2026-09-22 PM).
             // 좌하단인 이유는 그대로: 제목 위에 두면 그 타일만 글 블록이 밀려 옆 타일과 줄이 어긋난다(2026-09-18 PM)
-            <>
-              <View style={styles.discoveryFade} pointerEvents="none">
-                <Svg width={artworkWidth} height={DISCOVERY_FADE_HEIGHT}>
-                  <Defs>
-                    <LinearGradient id="discoveryFade" x1="0" y1="0" x2="0" y2="1">
-                      <Stop offset="0" stopColor="#000000" stopOpacity={0} />
-                      <Stop offset="1" stopColor="#000000" stopOpacity={0.75} />
-                    </LinearGradient>
-                  </Defs>
-                  <Rect
-                    x="0"
-                    y="0"
-                    width={artworkWidth}
-                    height={DISCOVERY_FADE_HEIGHT}
-                    fill="url(#discoveryFade)"
-                  />
-                </Svg>
-              </View>
-              <Text style={styles.discoveryLabel}>{LIBRARY_COPY.discovery.badge}</Text>
-            </>
+            <Text style={styles.discoveryLabel}>{LIBRARY_COPY.discovery.badge}</Text>
           ) : null}
           {progressPercent !== null ? (
             // 진행률 바만 있으면 색 외 단서가 없다 — a11y 텍스트를 반드시 제공한다(uiux 7). 완청은 "100% 들음"이 아니라 "완청한 콘텐츠"
@@ -133,8 +137,8 @@ export default function LibraryItemTile({
 }
 
 const MORE_CIRCLE_SIZE = 28;
-/** 그라데이션 높이 — 글자 한 줄이 어두운 띠 안에 들어올 만큼만. 사진 절반을 덮으면 배지가 아니라 어두운 사진이 된다 */
-const DISCOVERY_FADE_HEIGHT = 56;
+/** 그라데이션 높이 — 글자 한 줄이 어두운 띠 안에 들어올 만큼만. 사진 절반을 덮으면 표식이 아니라 어두운 사진이 된다 */
+const BOTTOM_FADE_HEIGHT = 56;
 
 const styles = StyleSheet.create({
   container: {
@@ -169,13 +173,13 @@ const styles = StyleSheet.create({
     paddingTop: theme.spacing.sm,
     gap: theme.spacing.xs,
   },
-  // 사진 아래 변에 깔리는 검정 그라데이션(투명 → 75%) — 밝은 사진에서도 흰 글자가 읽히게 하는 바탕
-  discoveryFade: {
+  // 사진 아래 변에 깔리는 검정 그라데이션(투명 → 75%) — 밝은 사진에서도 흰 글자·흰 바가 읽히게 하는 바탕
+  bottomFade: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    height: DISCOVERY_FADE_HEIGHT,
+    height: BOTTOM_FADE_HEIGHT,
   },
   // 흰 글자만 — 배경 박스 없이 그라데이션 위에 놓는다. 아래 변의 진행률 바(4px)와 겹치지 않게 sm 띄운다
   discoveryLabel: {
