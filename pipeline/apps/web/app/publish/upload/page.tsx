@@ -115,10 +115,10 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
         thumb = new File([await res.blob()], `${episodeId}.png`, { type: "image/png" });
       }
       // 추천 메타 — 패키지 직후 enrich 작업이 만든 파일이 있으면 같이 보낸다. 없어도 발행은 막지 않는다(목록에서 [다시 뽑기]로 소급)
-      let enrichment: File | null = null;
+      let enrichment: File | null = null; let embeddingNote = "";
       if (episodeId && enrichVer != null) {
         const res = await fetch(`/api/publish/${episodeId}?enrichment=1`);
-        if (res.ok) enrichment = new File([await res.blob()], "enrichment.json", { type: "application/json" });
+        if (res.ok) { enrichment = new File([await res.blob()], "enrichment.json", { type: "application/json" }); embeddingNote = decodeURIComponent(res.headers.get("x-embedding-note") ?? ""); } // 임베딩 보완 결과 (lib/embedding.ts)
       }
       // 자막 세그먼트 — TTS 단계가 만든 script-segments.json 이 있으면 같이 보낸다 (KAN-72). 없으면 자막 없이 발행
       let script: File | null = null;
@@ -135,7 +135,7 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
         review_confirmed: true,
       }, audio!, thumb!, enrichment, script);
       await markPublished(meta?.backlog_id ?? null, content.id, content.content_version, content.published_at, { action: "publish", parts: ["audio", "thumbnail", "title", "description", "source_name", "topic_ids", ...(enrichment ? ["enrichment"] : []), ...(script ? ["script"] : [])], episodeId: episodeId ?? undefined }).catch(() => undefined); // 파이프라인에 content_id·버전·이력 기록 — 실패해도 발행은 성립 (spec/07 5장)
-      setMsg({ kind: "ok", text: `발행되었습니다 — ${content.id}${enrichment ? (content.enrichment_applied ? ` · 추천 메타 v${content.enrichment_schema_version ?? "?"} 반영` : ` · 추천 메타 거부: ${content.enrichment_rejected_reason ?? "사유 없음"}`) : " · 추천 메타 없음(목록에서 소급 가능)"}${script ? (content.script_applied ? " · 자막 반영" : ` · 자막 거부: ${content.script_rejected_reason ?? "사유 없음"}`) : " · 자막 없음"}` });
+      setMsg({ kind: "ok", text: `발행되었습니다 — ${content.id}${enrichment ? (content.enrichment_applied ? ` · 추천 메타 v${content.enrichment_schema_version ?? "?"} 반영${embeddingNote ? ` (${embeddingNote})` : ""}` : ` · 추천 메타 거부: ${content.enrichment_rejected_reason ?? "사유 없음"}`) : " · 추천 메타 없음(목록에서 소급 가능)"}${script ? (content.script_applied ? " · 자막 반영" : ` · 자막 거부: ${content.script_rejected_reason ?? "사유 없음"}`) : " · 자막 없음"}` });
       setTimeout(() => router.push("/publish"), 900);
     } catch (e) {
       const anyE = e as { field?: string };

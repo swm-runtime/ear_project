@@ -3,7 +3,7 @@ import path from "node:path";
 import { cfg, executedBy } from "../config.js";
 import { insertRun, setJobProgress, type Job } from "../db.js";
 import type { Executor } from "../executors/index.js";
-import { buildEnrichPrompt, ENRICH_JOB_CATEGORIES_DEFAULT, ENRICH_SCHEMA, ENRICH_YEARS, ENRICHMENT_SCHEMA_VERSION, normalizeEnrichment } from "@ear/pipeline";
+import { buildEnrichPrompt, EMBEDDING_STUB_MODEL, ENRICH_JOB_CATEGORIES_DEFAULT, ENRICH_SCHEMA, ENRICH_YEARS, ENRICHMENT_SCHEMA_VERSION, fetchEmbedding, normalizeEnrichment } from "@ear/pipeline";
 import { log } from "../util.js";
 import { workerRev } from "../assets.js";
 import { getFile, putFile, s3Key } from "../storage.js";
@@ -67,9 +67,20 @@ export async function runEnrich(job: Job, ex: Executor) {
     await insertRun({ backlog_id: backlogId, phase: "enrich", result: `메타 부여 실패 ${label} "${title.slice(0, 30)}" — ${n.errors.join("; ").slice(0, 300)} (enum 밖 값은 산출물을 내지 않는다, 명세 7장)`, prompt_version: `enrich-v1 (schema ${ENRICHMENT_SCHEMA_VERSION})`, artifacts: [s3Key(reportKey)], executed_by: executedBy, model: r.model, cost_usd: r.listCostUsd, tokens: (r.raw as { usage?: unknown } | undefined)?.usage, worker_rev: workerRev() });
     throw new Error(`메타 판정이 값 집합을 벗어남: ${n.errors.join("; ")}`);
   }
+  // 대본 임베딩 (Phase B, metadata-pipeline 4.3): AI 서버가 설정된 워커만. 실패는 메타 부여 실패가 아니다 — 파일은 내고 사유를 기록·요약에 남긴다 (발행 시 웹이 빈 임베딩을 채운다)
+  let embeddingNote = "임베딩 없음(AI 서버 미설정 — 발행 시 웹이 채움)";
+  if (!script) embeddingNote = "임베딩 없음(대본 없음)";
+  else if (cfg.aiServerUrl && cfg.aiServerToken) {
+    await setJobProgress(job.id, { phase: `메타 부여 — 임베딩 (${label})`, detail: `AI 서버 ${cfg.aiServerUrl}`, toolCounts: {}, turns: 0, elapsedMs: 0 }).catch(() => {});
+    try {
+      const e = await fetchEmbedding(script, { url: cfg.aiServerUrl, token: cfg.aiServerToken });
+      if (e.model === EMBEDDING_STUB_MODEL) embeddingNote = "임베딩 없음(AI 서버가 stub 제공자 — 저장 금지)";
+      else { n.file.embedding = { model: e.model, vector: e.vector }; embeddingNote = `임베딩 ${e.model} ${e.dim}d`; }
+    } catch (e: any) { embeddingNote = `임베딩 실패(${String(e.message).slice(0, 80)})`; log(`  enrich ${label}: ${embeddingNote}`); }
+  }
   const key = outKey;
   await putFile(key, JSON.stringify(n.file, null, 2) + "\n");
-  const summary = `메타 부여 ${label} "${title.slice(0, 30)}" — ${[n.file.difficulty, n.file.format, n.file.is_evergreen == null ? null : n.file.is_evergreen ? "evergreen" : "시의성", n.file.keywords ? `키워드 ${n.file.keywords.length}` : null, n.file.target_audiences ? `청자 ${n.file.target_audiences.length}세트` : null].filter(Boolean).join(" · ")}${n.file.source ? " · 폴백(제목+설명)" : ""}${n.warnings.length ? ` · ${n.warnings.join(" / ").slice(0, 200)}` : ""}${contentId ? " · 반영 대기(콘솔 [반영])" : " · 발행 시 enrichment_file 로 첨부"}`;
+  const summary = `메타 부여 ${label} "${title.slice(0, 30)}" — ${[n.file.difficulty, n.file.format, n.file.is_evergreen == null ? null : n.file.is_evergreen ? "evergreen" : "시의성", n.file.keywords ? `키워드 ${n.file.keywords.length}` : null, n.file.target_audiences ? `청자 ${n.file.target_audiences.length}세트` : null].filter(Boolean).join(" · ")}${n.file.source ? " · 폴백(제목+설명)" : ""}${n.warnings.length ? ` · ${n.warnings.join(" / ").slice(0, 200)}` : ""}${contentId ? " · 반영 대기(콘솔 [반영])" : " · 발행 시 enrichment_file 로 첨부"} · ${embeddingNote}`;
   await insertRun({ backlog_id: backlogId, phase: "enrich", result: summary, prompt_version: `enrich-v1 (schema ${ENRICHMENT_SCHEMA_VERSION})`, artifacts: [s3Key(key), s3Key(reportKey)], executed_by: executedBy, model: r.model, cost_usd: r.listCostUsd, tokens: (r.raw as { usage?: unknown } | undefined)?.usage, worker_rev: workerRev() });
   log(`  enrich: ${summary} ($${(r.listCostUsd ?? 0).toFixed(2)})`);
   return { content_id: contentId, episode_id: episodeId, key, file: n.file, warnings: n.warnings, fallback: !script, list_cost_usd: r.listCostUsd };

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { currentUser } from "@/lib/supabase-server";
 import { getBytes, getText } from "@/lib/storage";
+import { ensureEmbedding } from "@/lib/embedding";
 
 /**
  * 발행 프리필 데이터 — 패키지 산출물을 브라우저에 내준다 (Supabase 로그인 필수).
@@ -38,7 +39,9 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ episodeId: 
   if (req.nextUrl.searchParams.get("enrichment")) {
     const text = await getText(`${base}/enrichment.json`);
     if (!text) return NextResponse.json({ message: "enrichment.json 없음 — 패키지 직후 메타 부여 작업 이후에" }, { status: 404 });
-    return new NextResponse(text, { headers: { "content-type": "application/json", "content-disposition": `attachment; filename="enrichment.json"` } });
+    // 임베딩이 비어 있으면 발행 시점에 AI 서버에서 받아 합친다 (lib/embedding.ts) — 헤더 x-embedding-note 로 결과를 알린다
+    const merged = await ensureEmbedding(text, await getText(`${base}/script.md`));
+    return new NextResponse(merged.text, { headers: { "content-type": "application/json", "content-disposition": `attachment; filename="enrichment.json"`, "x-embedding-note": encodeURIComponent(merged.note) } });
   }
 
   if (req.nextUrl.searchParams.get("script")) {

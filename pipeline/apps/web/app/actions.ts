@@ -4,6 +4,7 @@ import { supabaseServer } from "@/lib/supabase-server";
 import { loadArtifact, replaceTurn, writeArtifact } from "@/lib/artifacts";
 import { deletePrefix, getBytes, getText, putBytes, putText } from "@/lib/storage";
 import { majorOrder } from "@/lib/taxonomy";
+import { ensureEmbedding } from "@/lib/embedding";
 
 /** 음차 사전·발음 맵 공통 형식 검증 — {"표기": "발음"} 객체, 값은 비어 있지 않은 문자열 (spec/06 6장) */
 function assertPronunciationJson(content: string): Record<string, string> {
@@ -253,9 +254,16 @@ export async function readScriptSegments(episodeId: string): Promise<string | nu
   return getText(`episodes/${episodeId}/script-segments.json`);
 }
 /** 산출물 본문 — 브라우저가 File 로 감싸 PATCH 한다 (S3 는 서버가 중계) */
-export async function readEnrichment(contentId: string): Promise<string | null> {
+export async function readEnrichment(contentId: string): Promise<{ text: string; note: string } | null> {
   if (!/^[A-Za-z0-9-]{1,64}$/.test(contentId)) throw new Error("잘못된 content_id");
-  return getText(`datasets/enrichment/${contentId}.json`);
+  const text = await getText(`datasets/enrichment/${contentId}.json`);
+  if (!text) return null;
+  // 임베딩이 비어 있으면 그 콘텐츠의 에피소드 대본으로 AI 서버에서 받아 합친다 (소급 경로 — lib/embedding.ts). 에피소드 연결이 없으면(수동 업로드) 그대로
+  const sb = await supabaseServer();
+  const { data: bl } = await sb.from("backlog").select("id").eq("published_content_ref", contentId).maybeSingle();
+  const { data: ep } = bl ? await sb.from("episodes").select("script_key").eq("backlog_id", bl.id).order("created_at", { ascending: false }).limit(1).maybeSingle() : { data: null };
+  const script = ep?.script_key ? await loadArtifact(ep.script_key) : null;
+  return ensureEmbedding(text, script);
 }
 
 /** 보강 스윕 요청 (0019, spec/02 6장 B-①): held 후보의 빈 역할을 웹 검색으로 채우고 그 후보만 재판정. 후보당 1회 — 워커가 reinforced_at 으로 막는다 */
