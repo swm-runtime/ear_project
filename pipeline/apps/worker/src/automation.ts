@@ -14,11 +14,11 @@
  *
  * 발행 준비 자동 연쇄: 비평이 끝나면 `tts → thumbnail → package` 를 건다 (사람이 [발행 준비]를 누른 것과 같은 경로, chain.ts).
  * 패키지는 enrich 를 자동으로 걸지 않는다 — 발행하지 않을 편까지 메타를 뽑는 낭비를 막기 위해 업로드 화면의 [추천 메타 뽑기]로 사람이 건다.
+ * 알림은 편마다가 아니라 큐가 다 비었을 때 한 번 (digest.ts).
  */
 import { approveBacklogAuto, enqueue, getSetting, hasActiveDraftJob, hasActiveJob, insertRun, listProposedForAutoApprove } from "./db.js";
 import { executedBy } from "./config.js";
 import { workerRev } from "./assets.js";
-import { consoleUrl, notifyOps } from "./notify.js";
 import { log } from "./util.js";
 
 export interface AutomationSetting { auto_approve?: boolean; auto_publish_prep?: boolean; rule?: string }
@@ -71,10 +71,3 @@ export async function startPublishPrepIfEnabled(episodeId: string, backlogId: st
   return id;
 }
 
-/** 사람 차례·사람 손이 필요한 지점 알림 — 본문 한 줄 + 콘솔 링크 */
-export function opsMessage(kind: "review" | "draft_failed" | "prep_failed" | "ready", ep: { episodeId?: string | null; backlogId: string; title?: string | null }, detail: string): string {
-  const where = ep.episodeId ? consoleUrl(`/episodes/${ep.episodeId}`) : consoleUrl("/backlog");
-  const head = { review: ":warning: *검토 필요 — QA 3회 실패*", draft_failed: ":warning: *초안 실패*", prep_failed: ":warning: *발행 준비 연쇄 중단*", ready: ":white_check_mark: *검수 대기 — 패키지 완료*" }[kind];
-  return `${head} ${ep.episodeId ?? ""} (${ep.backlogId}${ep.title ? ` · ${ep.title.slice(0, 40)}` : ""})\n${detail.slice(0, 300)}\n${where}`;
-}
-export { notifyOps };
