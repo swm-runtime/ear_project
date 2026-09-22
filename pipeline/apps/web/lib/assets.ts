@@ -3,7 +3,7 @@ export const ASSET_KEYS: { key: string; label: string; group: string; optional?:
   { key: "skills/draft/guidelines.md", label: "대본 가이드라인", group: "생성" },
   { key: "skills/draft/guidelines.gpt.md", label: "대본 가이드라인 — GPT 프로파일 (서버 OpenAI 워커만, 없으면 기본으로 폴백)", group: "생성", optional: true },
   { key: "skills/draft/examples/gold-T260820-001-short.md", label: "골드 — 숏폼 (T260820-001)", group: "생성" },
-  { key: "skills/draft/examples/gold-T260820-002-full.md", label: "골드 — 본편 이음 해설 (T260820-002)", group: "생성" },
+  { key: "skills/draft/examples/gold-T260918-001-full.md", label: "골드 — 본편 이음 해설 (T260918-001, 귀속 재작성)", group: "생성" },
   { key: "skills/draft/examples/gold-T260828-001-full.md", label: "골드 — 본편 윤아 해설 (T260828-001)", group: "생성" },
   { key: "skills/qa/prompt.md", label: "QA 프롬프트", group: "검수" },
   { key: "skills/critic/rubric.md", label: "비평 루브릭 v1", group: "검수" },
