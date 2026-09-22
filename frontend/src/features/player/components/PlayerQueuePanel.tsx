@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
-  Easing,
   PanResponder,
   Pressable,
   ScrollView,
@@ -12,7 +11,7 @@ import {
 } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
-import { theme } from '@/shared/theme';
+import { motion, theme } from '@/shared/theme';
 import RemoteImage from '@/shared/ui/RemoteImage';
 
 import { PLAYER_COPY } from '../player.copy';
@@ -118,7 +117,7 @@ function QueueRow({
     const animation = Animated.timing(shiftY, {
       toValue: shift,
       duration: ROW_SHIFT_MS,
-      easing: Easing.out(Easing.cubic),
+      easing: motion.easing.easeOut,
       // JS 드라이버 — 같은 뷰의 translateY 가 끄는 동안엔 dragY(손가락마다 setValue 하는 JS 값)로 바뀐다.
       // 이 값을 네이티브로 돌리면 뷰가 네이티브 구동으로 넘어가 **JS 값의 변화가 화면에 반영되지 않는다** —
       // 실기기에서 줄이 들리기만 하고 손가락을 따라오지 않았다(2026-09-19 아이폰). 웹엔 네이티브 드라이버가 없어 안 잡혔다
@@ -363,7 +362,7 @@ export default function PlayerQueuePanel({
         Animated.timing(dragY, {
           toValue: (current.hover - current.from) * ROW_STEP,
           duration: ROW_SETTLE_MS,
-          easing: Easing.out(Easing.cubic),
+          easing: motion.easing.easeOut,
           // 위 shiftY 와 같은 이유 — dragY 는 끄는 내내 JS 에서 직접 움직이는 값이다
           useNativeDriver: false,
         }).start(() => {

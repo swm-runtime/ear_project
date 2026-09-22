@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, PanResponder, StyleSheet, Text, View } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
-import { theme } from '@/shared/theme';
+import { motion, theme } from '@/shared/theme';
 
 import { SEEK_STEP_SEC } from '../player.constants';
 import { PLAYER_COPY } from '../player.copy';
@@ -87,17 +87,17 @@ export default function SeekBar({
   // (2026-09-18 PM, 애플 뮤직 방식). 손가락 밑에서 어디를 끌고 있는지는 썸이 커지며 보여 준다
   const thumbProgress = useAnimatedValue(0);
   useEffect(() => {
-    // 나타날 땐 스프링으로 살짝 튀며 커지고, 사라질 땐 짧게 흐려진다 — 손을 뗀 뒤 튀는 건 어색하다
+    // 나타날 땐 스프링으로 커지고(튀지 않는 애플 곡선), 사라질 땐 짧게 흐려진다 — 손을 뗀 뒤 튀는 건 어색하다
     const animation = isDragging
       ? Animated.spring(thumbProgress, {
           toValue: 1,
-          friction: 6,
-          tension: 140,
+          ...motion.spring.snappy,
           useNativeDriver: true,
         })
       : Animated.timing(thumbProgress, {
           toValue: 0,
           duration: THUMB_HIDE_MS,
+          easing: motion.easing.easeOut,
           useNativeDriver: true,
         });
     animation.start();

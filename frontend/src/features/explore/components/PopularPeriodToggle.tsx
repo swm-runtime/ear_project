@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
-import { theme } from '@/shared/theme';
+import { motion, theme } from '@/shared/theme';
 
 import { EXPLORE_COPY } from '../explore.copy';
 import type { ExplorePeriod } from '../explore.types';
@@ -50,11 +50,8 @@ const SEGMENT_HIT_SLOP = {
   bottom: (theme.touchTarget.minHeight - SEGMENT_HEIGHT) / 2,
 };
 
-/**
- * 알약이 옮겨가는 스프링 — iOS 세그먼트 컨트롤의 결(2026-09-22 PM). 임계 감쇠에 가깝게 두어 한 번에
- * 멈추고, 응답은 약 0.3초. 위치(translateX)·라벨 불투명도 둘 다 네이티브 드라이버로 돌아 JS 가 바빠도 안 끊긴다
- */
-const INDICATOR_SPRING = { stiffness: 380, damping: 34, mass: 1 };
+/** 알약이 옮겨가는 스프링 — 공용 snappy(응답 0.3초, 임계 감쇠). 위치·라벨 불투명도 둘 다 네이티브 드라이버로 돌아 JS 가 바빠도 안 끊긴다 */
+const INDICATOR_SPRING = motion.spring.snappy;
 
 /**
  * E13 인기 구간 토글 — 인기 섹션 제목 줄에만 붙는 3택 1 세그먼트 컨트롤.

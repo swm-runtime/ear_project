@@ -3,7 +3,7 @@ import type { LayoutChangeEvent, ScrollView } from 'react-native';
 import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
-import { theme } from '@/shared/theme';
+import { motion, theme } from '@/shared/theme';
 
 import { PLAYER_COPY } from '../player.copy';
 import { formatPlaybackTime } from '../player.format';
@@ -167,6 +167,7 @@ export default function PlayerScriptPanel({
     Animated.timing(rowsOpacity, {
       toValue: 1,
       duration: ROWS_FADE_IN_MS,
+      easing: motion.easing.easeOut,
       useNativeDriver: true,
     }).start();
   }, [hasSettled, rowsOpacity]);
