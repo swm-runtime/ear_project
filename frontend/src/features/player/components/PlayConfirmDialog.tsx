@@ -26,7 +26,20 @@ export default function PlayConfirmDialog({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <View style={styles.dim}>
         <View style={styles.dialog} accessibilityViewIsModal>
-          <Text style={styles.title}>{PLAYER_COPY.playConfirm.title(remaining)}</Text>
+          {/* 제목 줄 오른쪽 위에 [오늘은 그만 보기](2026-09-22 PM) — 버튼 줄 아래 밑줄 글자로 두면 세 번째 버튼처럼
+              읽혀 시선이 갈렸다. 모서리의 작은 글자는 "설정"으로 읽힌다 */}
+          <View style={styles.header}>
+            <Text style={styles.title}>{PLAYER_COPY.playConfirm.title(remaining)}</Text>
+            <Pressable
+              style={styles.suppressButton}
+              onPress={onSuppressToday}
+              hitSlop={theme.spacing.sm}
+              accessibilityRole="button"
+              accessibilityLabel={PLAYER_COPY.playConfirm.suppressToday}
+            >
+              <Text style={styles.suppressLabel}>{PLAYER_COPY.playConfirm.suppressToday}</Text>
+            </Pressable>
+          </View>
           <Text style={styles.body}>{PLAYER_COPY.playConfirm.body}</Text>
           <View style={styles.buttonRow}>
             <Pressable
@@ -46,15 +59,6 @@ export default function PlayConfirmDialog({
               <Text style={styles.playLabel}>{PLAYER_COPY.playConfirm.play}</Text>
             </Pressable>
           </View>
-          {/* 텍스트 버튼 — [취소]·[재생하기]와 나란히 세우지 않는다(library-uiux.md 4.6) */}
-          <Pressable
-            style={styles.suppressButton}
-            onPress={onSuppressToday}
-            accessibilityRole="button"
-            accessibilityLabel={PLAYER_COPY.playConfirm.suppressToday}
-          >
-            <Text style={styles.suppressLabel}>{PLAYER_COPY.playConfirm.suppressToday}</Text>
-          </Pressable>
         </View>
       </View>
     </Modal>
@@ -77,7 +81,14 @@ const styles = StyleSheet.create({
     padding: theme.spacing.lg,
     gap: theme.spacing.sm,
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: theme.spacing.sm,
+  },
   title: {
+    flex: 1,
     fontSize: theme.font.size.lg,
     fontWeight: '700',
     color: theme.color.textPrimary,
@@ -91,14 +102,15 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
     marginTop: theme.spacing.md,
   },
+  // 취소는 테두리 없이 연한 면으로(2026-09-22 PM) — 검정 [재생하기] 옆에서 선으로 그린 상자는 낡아 보였다
   cancelButton: {
     flex: 1,
     minHeight: theme.touchTarget.minHeight,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: theme.radius.md,
-    borderWidth: 1,
-    borderColor: theme.color.border,
+    borderCurve: 'continuous',
+    backgroundColor: theme.color.surface,
   },
   cancelLabel: {
     fontSize: theme.font.size.md,
@@ -110,6 +122,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.primary,
   },
   playLabel: {
@@ -117,14 +130,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.color.onPrimary,
   },
+  // 제목 줄의 작은 글자 — 히트 44pt 는 hitSlop 으로 채운다
   suppressButton: {
-    minHeight: theme.touchTarget.minHeight,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingTop: 4,
   },
   suppressLabel: {
-    fontSize: theme.font.size.sm,
+    fontSize: theme.font.size.xs,
     color: theme.color.textSecondary,
-    textDecorationLine: 'underline',
   },
 });

@@ -108,6 +108,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: theme.touchTarget.minHeight,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     alignItems: 'center',
     justifyContent: 'center',
   },
