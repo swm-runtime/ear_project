@@ -8,7 +8,7 @@
 | 발행 날짜 | 2026-09-22 |
 | 시작 날짜 | 2026-09-22 |
 | 기한 | 2026-09-25 (Medium — 3일) |
-| 선행 | 티켓 선행 없음. **티켓이 아닌 선행 1건** — 운영 AI 서버 `env.ai-server`에 `EMBEDDING_PROVIDER=openai`·`OPENAI_API_KEY`·`EMBEDDING_MODEL=text-embedding-3-small`이 실제로 들어 있는지 확인(담당: 박준현·인프라 / 상태: **미확인**. AI 서버 SSH가 infra IP로만 열려 있어 저장소에서 확인할 수 없다. 확인 방법은 아래 "선행 확인 방법" 참조). 기본값이 `stub`이라 누락 시 코드를 다 넣어도 `dev-stub` 벡터만 나온다 |
+| 선행 | 티켓 선행 없음. **티켓이 아닌 선행 1건** — 운영 AI 서버 `env.ai-server`에 `EMBEDDING_PROVIDER=openai`·`OPENAI_API_KEY`·`EMBEDDING_MODEL=text-embedding-3-small`이 실제로 들어 있는지 확인(담당: 박준현·인프라 / 상태: **해소 — 2026-09-22 확인.** `provider: openai` · `model: text-embedding-3-small`. 확인 방법은 아래 "선행 확인 방법" 참조). 기본값이 `stub`이라 누락 시 코드를 다 넣어도 `dev-stub` 벡터만 나온다 |
 | Jira | [KAN-89](https://runtime364.atlassian.net/browse/KAN-89) (담당: 박수헌) |
 | 발견 시점 | 2026-09-22 — "대본 임베딩 코드가 다 구현돼 있는가" 확인 중. 양 끝(AI 서버 생성 API·백엔드 저장/스코어링)은 완성돼 있고 **가운데(파이프라인의 호출)만 비어 있었다** |
 | 근거 문서 | `ai/metadata-pipeline.md` 4.1·4.3·4.4·5장 · `backend/domain.md` 5.6 · `features/drip-scheduling.md` 4.2 · `ai-server/README.md` |
@@ -109,12 +109,17 @@ AI 서버는 `/health`에 **비밀값 없이** 현재 provider·model을 싣는�
 `:8000`은 공개 도메인이 없고 SG가 소스를 제품 SG로 한정하므로 **API EC2에서 호출한다.**
 
 ```bash
+# AI 서버(ear-ai, i-0c414b676584733da)의 **사설 IP**로 부른다 — 공인 IP로 나가면
+# IGW 를 거치며 SG 소스 식별이 풀려 타임아웃한다(2026-09-22 실제로 겪었다)
 ssh -i ~/.ssh/ear-prod-isb.pem ec2-user@ec2-43-203-57-240.ap-northeast-2.compute.amazonaws.com \
-  'curl -s http://54.116.31.183:8000/health'
+  'curl -s http://172.31.15.36:8000/health'
 ```
 
-`provider`가 `stub`으로 나오면 서버의 `env.ai-server`에 `EMBEDDING_PROVIDER=openai`·`OPENAI_API_KEY`·`EMBEDDING_MODEL=text-embedding-3-small`을 채우고 `ai-server` 컨테이너를 재기동한다. 결과를 이 티켓의 처리 기록과 Jira 코멘트에 남긴다.
+`provider`가 `stub`으로 나오면 서버의 `env.ai-server`에 `EMBEDDING_PROVIDER=openai`·`OPENAI_API_KEY`·`EMBEDDING_MODEL=text-embedding-3-small`을 채우고 `ai-server` 컨테이너를 재기동한다.
+
+**2026-09-22 확인 결과** — `{"status":"ok","provider":"openai","model":"text-embedding-3-small"}`. 조치 불필요하며 **AI 파트는 이 선행을 기다리지 않고 바로 시작하면 된다.**
 
 ## 처리 기록
 
 - 2026-09-22 발행. Jira KAN-89(담당 박수헌·AI). 선행인 운영 env 확인은 인프라(박준현) 몫으로 분리했다 — 위 "선행 확인 방법".
+- **2026-09-22 선행 해소(인프라)** — 운영 AI 서버 `/health`가 `provider: openai` · `model: text-embedding-3-small`을 반환한다. `env.ai-server`가 stub 이 아니므로 워커가 Phase B 를 켜면 곧바로 실모델 벡터가 나온다. **AI 파트 착수를 막는 것은 이제 없다.**
