@@ -6,7 +6,6 @@ import { workerRev } from "../assets.js";
 import { probeDurationSec } from "../tts/audio.js";
 import { exists, localPathOf, pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { log } from "../util.js";
-import { notifyOps, opsMessage } from "../automation.js";
 
 /**
  * 패키지 단계 (spec/07 2장) — 발행 메타 upload-meta.json 산출 + 상태 packaged(사람 검수 대기) 전환.
@@ -89,7 +88,6 @@ export async function runPackage(job: Job) {
   });
   // 추천 메타는 요청이 있을 때만 (2026-09-23 개정 — 기본은 업로드 화면에서 사람이 건다, metadata-pipeline 2장)
   const enrichJobId = job.payload.enrich !== true ? null : await enqueue({ type: "enrich", requires_ai: true, payload: { episode_id: episodeId, backlog_id: backlogId }, parent_job_id: job.id }).catch((e) => { log(`  package ${episodeId}: enrich 작업 생성 실패 (${String(e?.message ?? e).slice(0, 80)})`); return null; });
-  // 자동 연쇄로 왔으면 사람 차례 — 검수·발행 대기 알림 (automation.ts)
-  if (job.payload.auto) await notifyOps(opsMessage("ready", { episodeId, backlogId, title: cand.title }, `분량 ${durationMin ?? "?"}분 · 오디오 ${r.audio_dist_key ? "있음" : "없음"} · 썸네일 ${r.thumbnail_key ? "있음" : "없음"} — 업로드 화면에서 추천 메타 뽑기 → 검수 → 발행`));
+  // 검수 대기 알림은 편마다 보내지 않는다 — 큐가 비면 요약 알림(digest.ts)에 묶여 나간다
   return { episode_id: episodeId, meta_key: metaKey, duration_min: durationMin, status_after: r.status === "qa_passed" ? "packaged" : r.status, enrich_job_id: enrichJobId };
 }

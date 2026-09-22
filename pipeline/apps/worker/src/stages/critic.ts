@@ -5,7 +5,7 @@ import { getBacklog, getEpisode, insertRun, setJobProgress, upsertEpisode, type 
 import type { Executor } from "../executors/index.js";
 import { assetPaths, buildCriticPrompt, buildCriticPromptInlineParts, CRITIC_INLINE_SCHEMA, CRITIC_SCHEMA, CRITIC_SCHEMA_V2 } from "@ear/pipeline";
 import { readFile } from "node:fs/promises";
-import { notifyOps, opsMessage, startPublishPrepIfEnabled } from "../automation.js";
+import { startPublishPrepIfEnabled } from "../automation.js";
 import { log } from "../util.js";
 import { prepareAssets, workerRev, type AssetBundle } from "../assets.js";
 import { localPathOf, pullPrefix, pushPrefix, s3Key } from "../storage.js";

@@ -24,7 +24,7 @@ export function SettingsForm({ tts, worker, templates, thumbnail, anchor, automa
       <Panel title="자동화 (spec/03 6.1 · spec/07 1장, 2026-09-23)" className="text-[13px] md:col-span-2">
         <p className="mb-3 text-xs text-ink-soft">
           군집화까지는 사람+Claude, 그 뒤는 워커가 잇는다. 끄면 그 지점부터 종전대로 사람이 누른다 — 진행 중인 작업은 끝까지 간다.
-          하루 상한은 두지 않는다(API 쪽 hard limit 이 상한). 멈춘 지점(QA 3회 실패·초안 실패·발행 준비 실패)과 검수 대기는 Slack 으로 알린다.
+          하루 상한은 두지 않는다(API 쪽 hard limit 이 상한). 알림은 편마다가 아니라 큐가 다 비었을 때 한 번 — 검수 대기·검토 필요·초안 실패·연쇄 실패를 Slack 요약으로 보낸다.
         </p>
         <label className="mb-2 flex items-start gap-2">
           <input type="checkbox" className="mt-0.5" checked={!!auto.auto_approve} onChange={(e) => setAuto({ ...auto, auto_approve: e.target.checked })} />
