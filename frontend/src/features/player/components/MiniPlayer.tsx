@@ -6,6 +6,7 @@ import {
   PanResponder,
   Pressable,
   StyleSheet,
+  Text,
   View,
 } from 'react-native';
 
@@ -13,6 +14,8 @@ import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { theme } from '@/shared/theme';
 import MarqueeText from '@/shared/ui/MarqueeText';
 import RemoteImage from '@/shared/ui/RemoteImage';
+
+import { useTopicsQuery } from '@/features/interest';
 
 import {
   MINI_PLAYER_DISMISS_DISTANCE_RATIO,
@@ -41,6 +44,8 @@ export interface MiniPlayerResumeFallback {
   thumbnailUrl: string;
   positionSec: number;
   durationSec: number;
+  /** 카테고리 줄용 주제 id — 복원 응답엔 아직 없어(library-api.md 4.3) 생략되고, 그러면 제목만 그린다 */
+  topicIds?: string[];
 }
 
 interface MiniPlayerProps {
@@ -71,6 +76,8 @@ export default function MiniPlayer({
   const isFocused = useIsFocused();
   const session = usePlaybackStore((s) => s.session);
   const isDismissed = usePlaybackStore((s) => s.isMiniPlayerDismissed);
+  // 카테고리 줄(2026-09-22 PM) — 전체 플레이어 제목 아래 줄과 같은 규칙: 주제 이름 앞 두 개, 못 찾으면 자리도 없다
+  const topicsQuery = useTopicsQuery();
 
   const [barWidth, setBarWidth] = useState(0);
   const translateX = useAnimatedValue(0);
@@ -227,6 +234,7 @@ export default function MiniPlayer({
   const view = isLiveVisible
     ? {
         title: session.meta.title ?? '',
+        topicIds: session.meta.topicIds,
         thumbnailUrl: session.meta.thumbnailUrl,
         positionSec: session.positionSec,
         durationSec: session.durationSec,
@@ -252,6 +260,7 @@ export default function MiniPlayer({
       }
     : {
         title: resumeFallback!.title,
+        topicIds: resumeFallback!.topicIds ?? [],
         thumbnailUrl: resumeFallback!.thumbnailUrl,
         positionSec: resumeFallback!.positionSec,
         durationSec: resumeFallback!.durationSec,
@@ -261,6 +270,10 @@ export default function MiniPlayer({
         onButtonPress: () => onResumePlayPress?.(),
       };
 
+  const topicNames = view.topicIds
+    .map((id) => topicsQuery.data?.items.find((topic) => topic.topicId === id)?.name)
+    .filter((name): name is string => name !== undefined);
+  const categoryLabel = topicNames.length > 0 ? topicNames.slice(0, 2).join(' · ') : null;
   const ratio =
     view.durationSec > 0 ? Math.min(1, Math.max(0, view.positionSec / view.durationSec)) : 0;
   const totalMin = Math.max(1, Math.round(view.durationSec / 60));
@@ -328,9 +341,17 @@ export default function MiniPlayer({
               <RemoteImage uri={view.thumbnailUrl} style={StyleSheet.absoluteFill} />
             ) : null}
           </View>
-          {/* 긴 제목은 전체 플레이어처럼 흘러 끝을 보여준다(2026-09-18 PM) — 측정용 래퍼가 착지 좌표를 준다 */}
-          <View ref={titleRef} style={styles.titleBox}>
-            <MarqueeText text={view.title} style={styles.title} isPaused={!isFocused} />
+          <View style={styles.textColumn}>
+            {/* 긴 제목은 전체 플레이어처럼 흘러 끝을 보여준다(2026-09-18 PM) — 측정용 래퍼가 착지 좌표를 준다.
+                래퍼는 제목만 감싼다: 카테고리까지 넣으면 열림 모션의 제목 착지 높이가 두 줄이 된다 */}
+            <View ref={titleRef} style={styles.titleBox}>
+              <MarqueeText text={view.title} style={styles.title} isPaused={!isFocused} />
+            </View>
+            {categoryLabel !== null ? (
+              <Text style={styles.category} numberOfLines={1}>
+                {categoryLabel}
+              </Text>
+            ) : null}
           </View>
         </Pressable>
         <Pressable
@@ -386,8 +407,17 @@ const styles = StyleSheet.create({
     backgroundColor: theme.color.background,
     overflow: 'hidden',
   },
-  titleBox: {
+  textColumn: {
     flex: 1,
+    gap: 2,
+  },
+  titleBox: {
+    alignSelf: 'stretch',
+  },
+  // 제목 아래 카테고리 — 전체 플레이어와 같은 규칙, 크기만 xs 로(썸네일 44 안에 두 줄이 들어와야 카드 높이가 안 는다)
+  category: {
+    fontSize: theme.font.size.xs,
+    color: theme.color.textSecondary,
   },
   title: {
     fontSize: theme.font.size.sm,
