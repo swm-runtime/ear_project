@@ -1,6 +1,6 @@
 import { BottomTabBarHeightContext } from '@react-navigation/bottom-tabs';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
-import { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useContext, useEffect, useMemo, useRef } from 'react';
 import {
   Animated,
   Dimensions,
@@ -27,7 +27,6 @@ import {
   MINI_PLAYER_OPEN_DRAG_RANGE_RATIO,
   MINI_PLAYER_OPEN_FLICK_WINDOW_MS,
   MINI_PLAYER_OPEN_START_DISTANCE,
-  MINI_PLAYER_SWIPE_START_DISTANCE,
 } from '../player.constants';
 import { PLAYER_COPY } from '../player.copy';
 import { PauseIcon, PlayIcon } from './PlayerIcons';
@@ -45,6 +44,8 @@ export const MINI_THUMB_SIZE = 40;
 const MINI_ROW_PADDING = 6;
 /** 캡슐 탭 바와 미니플레이어 카드 사이(mini-player-layout.store 의 DOCK_GAP 과 같다) */
 const DOCK_GAP = 8;
+/** 아래로 끌어 종료할 때 카드 중심이 캡슐 중심까지 가는 거리 — 카드 반(27) + 간격 8 + 캡슐 반(30) */
+const MINI_DROP_TRAVEL = 65;
 
 /** 앱 재실행 복원 대상(library-api.md 4.3) — 노출·대상 판정은 라이브러리 소유(library.md 4.2) */
 export interface MiniPlayerResumeFallback {
@@ -71,7 +72,7 @@ interface MiniPlayerProps {
 /**
  * 미니플레이어(PL11) — player feature 소유의 공용 컴포넌트. 활성 세션이 있으면 실시간
  * 재생 상태를, 없으면 호스트 화면이 준 복원 스냅샷을 그린다. 오른쪽→왼쪽 스와이프로
- * 종료한다(존치·방향 확정 2026-08-10). 왼쪽→오른쪽은 무시한다 — 플레이리스트가 없다.
+ * 종료한다 — 2026-09-23 부터는 **아래로 끌어 캡슐 탭 바에 흡수**시킨다(종전 왼쪽 스와이프 대체).
  */
 export default function MiniPlayer({
   resumeFallback,
@@ -90,8 +91,11 @@ export default function MiniPlayer({
   // 카테고리 줄(2026-09-22 PM) — 전체 플레이어 제목 아래 줄과 같은 규칙: 주제 이름 앞 두 개, 못 찾으면 자리도 없다
   const topicsQuery = useTopicsQuery();
 
-  const [barWidth, setBarWidth] = useState(0);
-  const translateX = useAnimatedValue(0);
+  /*
+   * 아래로 끌어 캡슐에 흡수시켜 종료(2026-09-23 PM — 종전 왼쪽 스와이프 대체). 0 제자리 → 1 캡슐 안.
+   * 카드가 캡슐 쪽으로 내려가며(translateY) 납작해지고(scaleY) 살짝 좁아지며(scaleX) 사라진다(opacity)
+   */
+  const dropProgress = useAnimatedValue(0);
   // 플레이어 열림·닫힘 모션의 도착 지점 — 내 화면 좌표를 올려 두고, 사라질 땐 지운다
   const rootRef = useRef<View>(null);
   // 썸네일·제목의 실제 자리 — 상수로 추정하면 몇 px 어긋나 착지 순간 잔상이 겹친다(2026-09-17)
@@ -108,14 +112,12 @@ export default function MiniPlayer({
 
   /* PanResponder 콜백은 생성 시점 값을 캡처한다 — 최신 상태는 ref로 읽고, 갱신은 렌더 밖에서 한다 */
   const gestureContext = useRef({
-    barWidth,
     isLive: isLiveVisible,
     onResumeDismiss,
     expand: () => {},
   });
   useEffect(() => {
     gestureContext.current = {
-      barWidth,
       isLive: isLiveVisible,
       onResumeDismiss,
       // 본문 탭과 같은 확대 경로 — 재생 상태 그대로, 재생을 시작시키지 않는다(uiux 4.8)
@@ -132,7 +134,7 @@ export default function MiniPlayer({
     };
   });
 
-  /** 이번 제스처의 종류 — 시작할 때 방향으로 정한다(왼쪽 = 종료, 위 = 끌어올려 열기) */
+  /** 이번 제스처의 종류 — 시작할 때 방향으로 정한다(아래 = 캡슐에 흡수해 종료, 위 = 끌어올려 열기) */
   const gestureModeRef = useRef<'dismiss' | 'open'>('dismiss');
   /** 마지막으로 손가락이 움직인 시각(터치 이벤트의 timestamp) — PanResponder 의 속도는 멈춰 있어도 지난 값이 남는다 */
   const lastMoveAtRef = useRef(0);
@@ -147,11 +149,21 @@ export default function MiniPlayer({
         usePlaybackStore.getState().setMiniPlayerDismissed(true);
         dismissResume?.();
       }
-      translateX.setValue(0);
+      dropProgress.setValue(0);
+    };
+    const settleDrop = (toValue: 0 | 1, onDone?: () => void) => {
+      Animated.spring(dropProgress, {
+        toValue,
+        ...motion.spring.snappy,
+        overshootClamping: true,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished) onDone?.();
+      });
     };
 
     /*
-     * 한 제스처는 시작할 때 방향으로 갈린다(2026-09-18) — 왼쪽이면 종료 스와이프, **위쪽이면 끌어올려 열기**.
+     * 한 제스처는 시작할 때 방향으로 갈린다(2026-09-18) — 아래면 캡슐에 흡수해 종료(2026-09-23), **위쪽이면 끌어올려 열기**.
      * 끌어올리기는 시작하는 순간 플레이어(투명 모달)를 띄우고, 손가락의 이동을 진행도로 바꿔 통로 스토어에
      * 올린다. 플레이어가 그 진행도를 openProgress 로 받아 썸네일·제목이 손을 따라 커진다
      */
@@ -165,10 +177,10 @@ export default function MiniPlayer({
     // eslint-disable-next-line react-hooks/refs -- 콜백은 렌더가 아니라 제스처 시점에 실행된다(표준 PanResponder 패턴)
     return PanResponder.create({
       onMoveShouldSetPanResponder: (_, gesture) => {
-        // 종료 — 수평 이동이 수직의 2배 이상 + 16dp를 넘어야 시작한다(세로 스크롤·탭 충돌 방지)
+        // 종료 — 아래로, 수직 이동이 수평보다 확실히 클 때만(탭·가로 흔들림과 충돌 방지)
         const isDismiss =
-          gesture.dx < -MINI_PLAYER_SWIPE_START_DISTANCE &&
-          Math.abs(gesture.dx) > Math.abs(gesture.dy) * 2;
+          gesture.dy > MINI_PLAYER_OPEN_START_DISTANCE &&
+          Math.abs(gesture.dy) > Math.abs(gesture.dx) * 1.5;
         // 열기 — 위로, 수직 이동이 수평보다 확실히 클 때만
         const isOpen =
           gesture.dy < -MINI_PLAYER_OPEN_START_DISTANCE &&
@@ -190,8 +202,8 @@ export default function MiniPlayer({
           openGesture().update(openProgressOf(gesture.dy));
           return;
         }
-        // 반대 방향(왼→오른쪽)은 무시한다 — 다른 기능을 할당하지 않는다(uiux 4.8)
-        translateX.setValue(Math.min(0, gesture.dx));
+        // 손가락을 따라 캡슐 쪽으로 — 위로 되돌리면 0 에서 멈춘다(위쪽 열기는 별개 제스처)
+        dropProgress.setValue(Math.max(0, Math.min(1, gesture.dy / MINI_DROP_TRAVEL)));
       },
       onPanResponderRelease: (event, gesture) => {
         if (gestureModeRef.current === 'open') {
@@ -204,21 +216,16 @@ export default function MiniPlayer({
           openGesture().release(shouldOpen ? 'open' : 'cancel');
           return;
         }
-        const { barWidth: width } = gestureContext.current;
+        const progress = Math.max(0, Math.min(1, gesture.dy / MINI_DROP_TRAVEL));
         const shouldDismiss =
-          (width > 0 && -gesture.dx > width * MINI_PLAYER_DISMISS_DISTANCE_RATIO) ||
-          -gesture.vx > MINI_PLAYER_DISMISS_VELOCITY;
-        if (shouldDismiss && width > 0) {
-          Animated.timing(translateX, {
-            toValue: -width,
-            duration: motion.duration.fast,
-            easing: motion.easing.easeOut,
-            useNativeDriver: true,
-          }).start(() => dismiss());
+          progress > MINI_PLAYER_DISMISS_DISTANCE_RATIO || gesture.vy > MINI_PLAYER_DISMISS_VELOCITY;
+        if (shouldDismiss) {
+          // 그 자리에서 마저 캡슐로 빨려 들어간 뒤 종료 — 완전히 사라진 뒤에 세션을 정리해야 카드가 툭 꺼지지 않는다
+          settleDrop(1, dismiss);
           return;
         }
         // 임계 미달 — 스프링 복귀(저항감)가 오조작을 걸러낸다
-        Animated.spring(translateX, { toValue: 0, ...motion.spring.snappy, useNativeDriver: true }).start();
+        settleDrop(0);
       },
       onPanResponderTerminate: () => {
         if (gestureModeRef.current === 'open') {
@@ -226,10 +233,10 @@ export default function MiniPlayer({
           openGesture().release('open');
           return;
         }
-        Animated.spring(translateX, { toValue: 0, ...motion.spring.snappy, useNativeDriver: true }).start();
+        settleDrop(0);
       },
     });
-  }, [translateX]);
+  }, [dropProgress]);
 
   /** 스와이프 종료의 스크린리더 대체 수단 — 커스텀 액션이 같은 동작을 한다(uiux 7장) */
   const dismissForAccessibility = () => {
@@ -296,24 +303,27 @@ export default function MiniPlayer({
     view.durationSec > 0 ? Math.min(1, Math.max(0, view.positionSec / view.durationSec)) : 0;
   const totalMin = Math.max(1, Math.round(view.durationSec / 60));
   const currentMin = Math.round(view.positionSec / 60);
-  const swipeOpacity =
-    barWidth > 0
-      ? translateX.interpolate({
-          inputRange: [-barWidth, 0],
-          outputRange: [0.2, 1],
-          extrapolate: 'clamp',
-        })
-      : 1;
+  // 캡슐로 흡수되는 모양 — 내려가며 납작해지고 좁아지며 사라진다. 끝(1)에서 캡슐 세로 중심에 닿는다
+  const dropTranslateY = dropProgress.interpolate({ inputRange: [0, 1], outputRange: [0, MINI_DROP_TRAVEL] });
+  const dropScaleY = dropProgress.interpolate({ inputRange: [0, 1], outputRange: [1, 0.12] });
+  const dropScaleX = dropProgress.interpolate({ inputRange: [0, 1], outputRange: [1, 0.92] });
+  const dropOpacity = dropProgress.interpolate({
+    inputRange: [0, 0.7, 1],
+    outputRange: [1, 0.85, 0],
+  });
 
   return (
     <Animated.View
       ref={rootRef}
       style={[
         styles.container,
-        { bottom: tabBarHeight + DOCK_GAP, transform: [{ translateX }], opacity: swipeOpacity },
+        {
+          bottom: tabBarHeight + DOCK_GAP,
+          transform: [{ translateY: dropTranslateY }, { scaleX: dropScaleX }, { scaleY: dropScaleY }],
+          opacity: dropOpacity,
+        },
       ]}
-      onLayout={(event) => {
-        setBarWidth(event.nativeEvent.layout.width);
+      onLayout={() => {
         // 플레이어 열림·닫힘 모션의 도착 지점 — 화면 좌표로 올려 둔다(mini-player-layout.store)
         const thumb = thumbRef.current;
         const title = titleRef.current;
