@@ -24,7 +24,7 @@ import RemoteImage from '@/shared/ui/RemoteImage';
 
 import { useTopicsQuery } from '@/features/interest';
 
-import { MINI_CARD_RADIUS } from '../components/MiniPlayer';
+import { MINI_CARD_RADIUS, MINI_THUMB_SIZE } from '../components/MiniPlayer';
 import PlayConfirmDialog from '../components/PlayConfirmDialog';
 import {
   MoreIcon,
@@ -1682,11 +1682,10 @@ const SHEET_SPRING = motion.spring.smooth;
 const BACKDROP_BLUR_RADIUS = 60;
 /** 흐린 커버 위 어두운 막 — 플레이어 바탕색(#17171A)의 72% */
 const BACKDROP_SCRIM_COLOR = 'rgba(23, 23, 26, 0.72)';
-/** 미니플레이어 카드의 내부 치수(MiniPlayer.tsx 스타일과 같아야 한다) — 진행바 2 · 썸네일 44 · 버튼 44 */
+/** 미니플레이어 카드의 내부 치수(MiniPlayer.tsx 스타일과 같아야 한다) — 진행바 2 · 썸네일 40(import) · 버튼 44 · 행 54 */
 const MINI_PROGRESS_HEIGHT = 2;
-const MINI_THUMB_SIZE = 44;
 const MINI_BUTTON_WIDTH = 44;
-const MINI_ROW_HEIGHT = 62;
+const MINI_ROW_HEIGHT = 54;
 /** 미니플레이어 제목(14pt) 한 줄 높이 */
 const MINI_TITLE_LINE_HEIGHT = 20;
 /** 미니플레이어 제목과 카테고리 줄 사이(MiniPlayer styles.textColumn gap 과 같아야 한다) */
