@@ -218,7 +218,18 @@ DB 선점이나 멱등한 문장으로 이미 보호돼 있어 **데이터가 �
 
 **걱정할 상황은 아니다.** `free` 의 "used"(= CloudWatch `mem_used_percent`) 가 아니라 **MemAvailable 738MB(40%)** 가 실제 여유이고, 메모리 압박(PSI full)은 23일 누적 62초로 없다. 다만 **운영에는 스왑이 없어서** 여유가 바닥나면 완충 없이 OOM killer 로 간다 — 클러스터 워커를 더 띄우거나(워커당 약 125MB) 트래픽이 크게 늘 때 이 숫자를 본다.
 
-**되돌리는 방법은 dockerd 재시작뿐이다** — 약 300MB 가 돌아와 개발계 수준(≈110MB)이 된다. `docker builder prune` 은 디스크만 지우고 이 메모리 LRU 는 비우지 않는다. 재시작의 대가: `LiveRestoreEnabled=false` 라 **api·caddy·postgres 세 컨테이너가 모두 내려갔다 올라온다**(수십 초, postgres 재기동). 트래픽 낮은 시간에, 04시 서비스 날짜 경계는 피해서, 재시작 뒤 `docker ps` 3개 healthy 를 확인한다. 급하지 않으므로 **팀 상황을 보고 날을 잡는다**(2026-09-23 결정 — 보류).
+**되돌리는 방법은 dockerd 재시작뿐이다** — 약 300MB 가 돌아와 개발계 수준(≈110MB)이 된다. `docker builder prune` 은 디스크만 지우고 이 메모리 LRU 는 비우지 않는다. 재시작의 대가: `LiveRestoreEnabled=false` 라 **api·caddy·postgres 세 컨테이너가 모두 내려갔다 올라온다**(수십 초, postgres 재기동). 트래픽 낮은 시간에, 04시 서비스 날짜 경계는 피해서, 재시작 뒤 `docker ps` 3개 healthy 를 확인한다.
+
+**실행 완료 — 2026-09-23 16:45 KST**(팀원 상황 확인 뒤). 실측:
+
+| | 재시작 전 | 재시작 후 |
+|---|---|---|
+| dockerd RSS | 415MB(23일 가동) | **100MB** (3분 뒤 103MB, 안정) |
+| MemAvailable | 733MB (40%) | **1,094MB (59%)** — `mem_used_percent` 50% → 30% |
+| 다운타임 | — | `systemctl restart` 6초, **health 200 복귀 +10초** |
+| 컨테이너 | — | 3개 `unless-stopped` 로 자동 복귀, restarts=0, api healthy |
+
+재시작 뒤 확인한 것: `/health` 200(24ms), 인증 가드 401, DB 연결(api→pg 2), 크론 3개 그대로, CloudWatch `/ear/api` 부팅 로그 유입·error 0건. caddy 에 `connection refused` 1건은 그 10초 창에서 서버 안에서 돌린 health 폴링이다. 재시작 뒤 dockerd 가 100MB 인 것으로 **디스크의 빌드 캐시는 시작 시 메모리로 올라오지 않는다**는 것도 확인됐다 — 다시 오르는 경우는 서버 빌드를 또 돌릴 때뿐이다.
 
 ```bash
 sudo systemctl restart docker && sleep 20 && docker ps --format '{{.Names}}\t{{.Status}}'
@@ -226,7 +237,9 @@ sudo systemctl restart docker && sleep 20 && docker ps --format '{{.Names}}\t{{.
 
 **재발 방지.** 운영에서 다시 서버 빌드를 돌리면 같은 고수위가 재현된다. `backend/deploy/push.sh` 의 `API_IMAGE` 없는 분기(`up -d --build`)와 `deploy/aws/README.md` 의 `--build` 예시가 아직 남아 있다 — 운영은 **항상 `API_IMAGE=<ECR 태그>` 로만** 띄우는 것으로 스크립트·문서를 정리해야 한다(BE 파트 티켓 감).
 
-별개로 **디스크에 3.8GB 가 회수 가능하다**(빌드 캐시 2.3GB · 미사용 이미지 1.5GB). 20GB 중 44% 사용이라 급하지 않다.
+별개로 **디스크에 3.8GB 가 회수 가능했다**(빌드 캐시 2.3GB · 미사용 이미지 1.5GB). **2026-09-23 17:10 KST 정리 완료** — 무중단(컨테이너·볼륨 무관), `builder prune` 2.87GB/34초 + `image prune` 1.47GB/14초, `/` **9.1G → 4.1G(46% → 21%)**. 이미지는 실행 중인 3개(813MB)만 남았다. 정리 직후 `/health` 20회 p50 22ms·p95 25ms(정리 전과 동일), idle 96%, 5xx 0건.
+
+- **롤백 경로가 하나로 줄었다.** 서버에 남은 옛 SHA 이미지가 없으므로 롤백은 runbook 4장대로 **ECR 에서 이전 SHA 를 pull** 하는 방법뿐이다(수십 초 추가).
 
 ```bash
 docker builder prune -af && docker image prune -af
