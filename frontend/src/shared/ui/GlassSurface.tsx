@@ -1,5 +1,5 @@
 import { BlurView } from 'expo-blur';
-import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
+import { GlassContainer, GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import type { ReactNode } from 'react';
 import { Animated, Platform, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
@@ -44,6 +44,29 @@ export default function GlassSurface({ style, children }: GlassSurfaceProps) {
       {children}
     </BlurView>
   );
+}
+
+interface GlassGroupProps {
+  /** 이 거리 안으로 가까워진 유리끼리 물방울처럼 합쳐진다 */
+  spacing?: number;
+  style?: StyleProp<ViewStyle>;
+  children?: ReactNode;
+}
+
+/**
+ * 유리 묶음 — 같은 묶음 안의 GlassSurface·GlassPill 은 서로 가까워지면 **모핑 병합**된다(iOS 26 UIGlassContainerEffect,
+ * PM 2026-09-23 "물방울이 합쳐지는 애니메이션"). 미니플레이어 카드가 캡슐 탭 바로 내려갈 때 둘이 한 덩어리로
+ * 붙는다. 그 밑 OS 는 그냥 View
+ */
+export function GlassGroup({ spacing = 24, style, children }: GlassGroupProps) {
+  if (HAS_LIQUID_GLASS) {
+    return (
+      <GlassContainer spacing={spacing} style={style}>
+        {children}
+      </GlassContainer>
+    );
+  }
+  return <View style={style}>{children}</View>;
 }
 
 interface GlassPillProps {

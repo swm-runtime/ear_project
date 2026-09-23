@@ -14,7 +14,6 @@ import { theme } from '@/shared/theme';
 import FullScreenError from '@/shared/ui/FullScreenError';
 
 import {
-  MiniPlayer,
   PlayConfirmDialog,
   RemainingPlaysIndicator,
   useBottomDockInset,
@@ -272,7 +271,6 @@ export default function ExploreScreen() {
       {renderBody()}
 
       {/* 미니플레이어(PL11) — 활성 재생 세션만 그린다. 복원 스냅샷 판정은 라이브러리 소유다 */}
-      <MiniPlayer />
 
       <ExploreMoreSheet
         item={screen.moreSheetItem}

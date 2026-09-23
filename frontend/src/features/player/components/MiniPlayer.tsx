@@ -32,6 +32,7 @@ import { PLAYER_COPY } from '../player.copy';
 import { PauseIcon, PlayIcon } from './PlayerIcons';
 import { playbackService } from '../services/playback.service';
 import { useMiniPlayerLayoutStore } from '../store/mini-player-layout.store';
+import { useMiniPlayerResumeStore } from '../store/mini-player-resume.store';
 import { usePlaybackStore } from '../store/playback.store';
 import { usePlayerOpenGestureStore } from '../store/player-open-gesture.store';
 
@@ -67,6 +68,12 @@ interface MiniPlayerProps {
   onResumeExpandPress?: () => void;
   /** 복원 스냅샷의 스와이프 종료 — 이번 실행에서 치우는 조작(다음 실행 복원은 영향 없음) */
   onResumeDismiss?: () => void;
+  /**
+   * 'dock' — 캡슐 탭 바 독(CapsuleTabBar) 안에 흐름대로 놓인다(2026-09-23). 캡슐과 같은 유리 묶음이라 아래로 끌면
+   * 물방울처럼 합쳐진다. 복원 스냅샷은 props 가 아니라 mini-player-resume.store 에서 읽는다.
+   * 'floating' — 탭 밖 화면(검색)에서 바닥에 절대 배치. 종전 방식
+   */
+  placement?: 'dock' | 'floating';
 }
 
 /**
@@ -75,11 +82,21 @@ interface MiniPlayerProps {
  * 종료한다 — 2026-09-23 부터는 **아래로 끌어 캡슐 탭 바에 흡수**시킨다(종전 왼쪽 스와이프 대체).
  */
 export default function MiniPlayer({
-  resumeFallback,
-  onResumePlayPress,
-  onResumeExpandPress,
-  onResumeDismiss,
+  resumeFallback: resumeFallbackProp,
+  onResumePlayPress: onResumePlayPressProp,
+  onResumeExpandPress: onResumeExpandPressProp,
+  onResumeDismiss: onResumeDismissProp,
+  placement = 'floating',
 }: MiniPlayerProps) {
+  // 독에 있으면 라이브러리가 스토어에 올린 복원 스냅샷을 쓴다
+  const resumeStore = useMiniPlayerResumeStore();
+  const isDocked = placement === 'dock';
+  const resumeFallback = isDocked ? resumeStore.fallback : resumeFallbackProp;
+  const onResumePlayPress = isDocked ? (resumeStore.onPlayPress ?? undefined) : onResumePlayPressProp;
+  const onResumeExpandPress = isDocked
+    ? (resumeStore.onExpandPress ?? undefined)
+    : onResumeExpandPressProp;
+  const onResumeDismiss = isDocked ? (resumeStore.onDismiss ?? undefined) : onResumeDismissProp;
   const navigation = useNavigation();
   // 플레이어(투명 모달)가 위에 떠 있는 동안 이 화면은 포커스를 잃는다 — 그동안 제목 흐름을 0에 세워 두면
   // 플레이어가 닫혀 내려앉는 순간 정지 제목과 같은 자리라 어긋나지 않고, 돌아와서는 처음부터 흐른다
@@ -317,8 +334,8 @@ export default function MiniPlayer({
       ref={rootRef}
       style={[
         styles.container,
+        isDocked ? styles.containerDocked : { bottom: tabBarHeight + DOCK_GAP },
         {
-          bottom: tabBarHeight + DOCK_GAP,
           transform: [{ translateY: dropTranslateY }, { scaleX: dropScaleX }, { scaleY: dropScaleY }],
           opacity: dropOpacity,
         },
@@ -425,6 +442,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     overflow: 'hidden',
     boxShadow: '0 4px 20px rgba(0, 0, 0, 0.10)',
+  },
+  // 독 안에서는 흐름대로 — 캡슐 위에 DOCK_GAP 띄우고, 절대 배치가 아니라 위치 스타일을 지운다
+  containerDocked: {
+    position: 'relative',
+    marginBottom: DOCK_GAP,
   },
   // 유리 카드의 윤곽 — 밝은 목록 위에서 경계가 사라지지 않게
   topLine: {
