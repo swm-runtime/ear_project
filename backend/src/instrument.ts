@@ -14,12 +14,16 @@
 import * as Sentry from '@sentry/nestjs';
 
 import { SCHEDULER_WORKER_ENV } from '@/common/cluster.util';
+import { resolveTracesSampleRate } from '@/common/sentry-options';
 import { scrubEvent } from '@/common/sentry-scrub';
 
 const dsn = process.env.SENTRY_DSN?.trim();
 
 if (dsn) {
   const version = process.env.npm_package_version ?? 'unknown';
+  const tracesSampleRate = resolveTracesSampleRate(
+    process.env.SENTRY_TRACES_SAMPLE_RATE,
+  );
 
   Sentry.init({
     dsn,
@@ -31,11 +35,14 @@ if (dsn) {
     release: `ear-api@${version}`,
 
     /**
-     * **성능 추적은 기본으로 끈다(0).** 무료 할당량은 앱 크래시를 받는 데 쓴다 —
-     * 서버 트랜잭션이 먼저 소진하면 정작 봐야 할 것이 가려진다(`tickets/.../sentry` 참조).
-     * 느린 엔드포인트를 쫓을 일이 생기면 env 로 잠깐 올린다.
+     * **성능 추적은 기본으로 끈다 — 키를 아예 넣지 않는다.** `tracesSampleRate: 0` 은 "끔"이
+     * 아니다: SDK 는 값이 있기만 하면 스팬을 켠 것으로 보고 express·nest·pg 계측을 전부
+     * 등록해, 아무것도 보내지 않으면서 CPU 를 쓴다(2026-09-23 개발계 실측 — 온보딩 분당
+     * 600명에서 API CPU 45~55% → 70~93%, `common/sentry-options.ts`). 무료 할당량도
+     * 앱 크래시에 쓴다. 느린 엔드포인트를 쫓을 일이 생기면 **개발계에서만** env 로 잠깐 올린다 —
+     * 운영은 t4g.small 한 대라 이 계측을 켤 여유가 없다.
      */
-    tracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE ?? 0),
+    ...(tracesSampleRate === undefined ? {} : { tracesSampleRate }),
 
     /**
      * **무엇을 수집할지 하나씩 끈다.** 예전 `sendDefaultPii: false` 는 v11 에서 사라지고,

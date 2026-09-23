@@ -132,8 +132,9 @@ export class EnvironmentVariables {
   SENTRY_ENVIRONMENT?: string;
 
   /**
-   * 성능 추적 표본 비율(0~1). **기본 0** — 무료 할당량은 에러에 쓴다(`instrument.ts` 주석).
-   * 느린 엔드포인트를 쫓을 때만 잠깐 올린다.
+   * 성능 추적 표본 비율(0~1). **비우거나 0 이면 성능 계측 자체를 등록하지 않는다** —
+   * 0 을 SDK 에 그대로 넘기면 계측은 켜지고 표본만 0 이라 CPU 만 쓴다(`common/sentry-options.ts`).
+   * 느린 엔드포인트를 쫓을 때 **개발계에서만** 잠깐 올린다. 운영은 켜지 않는다.
    */
   @IsOptional()
   @Type(() => Number)
