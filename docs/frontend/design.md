@@ -82,7 +82,7 @@ HIG 원문: https://developer.apple.com/design/human-interface-guidelines/
 위 모서리 `xl` + 연속 곡률. 버튼 `md` + 연속 곡률. 기본 동작은 검정 채움, 보조 동작은 `surface` 면(테두리 없음). 세 번째 선택지("오늘은 그만 보기" 류)는 버튼 줄에 세우지 않고 **제목 줄 오른쪽 위 작은 회색 글자**(xs, 밑줄 없음, hitSlop 으로 44pt). 탭 가능한 글자에 밑줄을 쓰지 않는다 — 웹 문법이다.
 
 ### 세그먼트 컨트롤 (HIG: Segmented controls)
-`explore/PopularPeriodToggle`. 흰 트랙 + 테두리, 같은 폭 칸, 선택 알약 하나(iOS 26 유리 렌즈 `GlassPill`, 그 밑은 그림자로 뜬 흰 알약)가 snappy 스프링으로 이동, 라벨 굵기는 선택과 무관하게 같다(폭이 변하면 흔들린다).
+`shared/ui/SegmentedControl` — 탐색 주간·월간·전체(`PopularPeriodToggle`, 칸 48)와 라이브러리 전체·미청취·완청(`LibraryTabs`, 칸 64)이 같은 부품. 밑줄 탭은 iOS 문법이 아니다 — 배타적 뷰 전환은 항상 이 부품. 흰 트랙 + 테두리, 같은 폭 칸, 선택 알약 하나(iOS 26 유리 렌즈 `GlassPill`, 그 밑은 그림자로 뜬 흰 알약)가 snappy 스프링으로 이동, 라벨 굵기는 선택과 무관하게 같다(폭이 변하면 흔들린다).
 
 ### 격자 타일 (라이브러리·탐색)
 정사각 아트워크 `lg` 16 연속 곡률. 표식은 사진 위에 최소로: 우상단 더보기 = 흰 둥근 점 3개 + 드롭섀도(원 없음) · 아래 변 진행률 바 4pt(채움 `color.progress`, 완청은 100% 고정) · 탐험 편 "새로운 주제"는 아래 변 그라데이션 위 흰 글자. **완청 체크 마크는 두지 않는다.**

@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import SegmentedControl from '@/shared/ui/SegmentedControl';
 
 import { LIBRARY_COPY } from '../library.copy';
 import type { LibraryFilter } from '../library.types';
@@ -10,6 +11,9 @@ import FilterIcon from './FilterIcon';
 const TABS: LibraryFilter[] = ['all', 'unplayed', 'completed'];
 
 const FILTER_ICON_SIZE = 22;
+/** 칸 폭 — '미청취' 세 글자가 들어가는 폭. 세 칸 같은 폭(SegmentedControl) */
+const SEGMENT_WIDTH = 64;
+const OPTIONS = TABS.map((value) => ({ value, label: LIBRARY_COPY.tab[value] }));
 
 interface LibraryTabsProps {
   filter: LibraryFilter;
@@ -20,12 +24,12 @@ interface LibraryTabsProps {
 }
 
 /**
- * 상단 상태 탭 3개 + 주제 필터 아이콘(library-uiux.md 4.2).
+ * 상단 상태 세그먼트(전체·미청취·완청) + 주제 필터 아이콘(library-uiux.md 4.2).
  *
- * **탭은 등폭 3분할이다.** 라벨이 전부 2–3자라 360dp에서 탭 하나가 90dp 이상 확보된다
- * (2026-08-07 개편으로 [이어 PICK]이 필터 시트로 빠지면서 폭 문제가 없어졌다).
+ * 밑줄 탭 3분할이었던 것을 **세그먼트 컨트롤**로 바꿨다(2026-09-23 PM — HIG: 배타적인 몇 개 뷰를 같은 자리에서
+ * 바꿀 땐 세그먼트. 탐색의 주간·월간·전체와 같은 부품). 구분선도 뺐다 — 캡슐이 스스로 경계다.
  * **필터는 탭이 아니라 다른 축이므로 글자가 아닌 아이콘으로 둔다** — 같은 글자로 두면
- * 상태 탭 옆에 네 번째 탭처럼 읽힌다.
+ * 상태 탭 옆에 네 번째 칸처럼 읽힌다.
  */
 export default function LibraryTabs({
   filter,
@@ -35,24 +39,14 @@ export default function LibraryTabs({
 }: LibraryTabsProps) {
   return (
     <View style={styles.container}>
-      <View style={styles.tabRow} accessibilityRole="tablist">
-        {TABS.map((tab) => {
-          const isSelected = tab === filter;
-          return (
-            <Pressable
-              key={tab}
-              style={[styles.tab, isSelected && styles.tabSelected]}
-              onPress={() => onChange(tab)}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: isSelected }}
-              accessibilityLabel={LIBRARY_COPY.tab[tab]}
-            >
-              <Text style={[styles.tabLabel, isSelected && styles.tabLabelSelected]}>
-                {LIBRARY_COPY.tab[tab]}
-              </Text>
-            </Pressable>
-          );
-        })}
+      <View style={styles.segmentRow}>
+        <SegmentedControl
+          options={OPTIONS}
+          value={filter}
+          onChange={onChange}
+          accessibilityLabel="상태 필터"
+          segmentWidth={SEGMENT_WIDTH}
+        />
       </View>
       <Pressable
         style={styles.filterButton}
@@ -83,34 +77,13 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: theme.color.border,
+    minHeight: theme.touchTarget.minHeight,
+    paddingLeft: theme.spacing.md,
     backgroundColor: theme.color.background,
   },
-  // 등폭 3분할 — 라벨 폭에 맡기면 탭이 왼쪽에 몰리고 우측 필터가 네 번째 탭처럼 보인다
-  tabRow: {
+  // 세그먼트는 왼쪽에, 필터 아이콘은 오른쪽 끝에
+  segmentRow: {
     flex: 1,
-    flexDirection: 'row',
-  },
-  tab: {
-    flex: 1,
-    minHeight: theme.touchTarget.minHeight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: theme.spacing.xs,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  tabSelected: {
-    borderBottomColor: theme.color.primary,
-  },
-  tabLabel: {
-    fontSize: theme.font.size.sm,
-    color: theme.color.textSecondary,
-  },
-  tabLabelSelected: {
-    color: theme.color.textPrimary,
-    fontWeight: '700',
   },
   filterButton: {
     width: theme.touchTarget.minWidth,
