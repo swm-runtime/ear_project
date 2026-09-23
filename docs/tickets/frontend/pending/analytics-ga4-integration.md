@@ -69,6 +69,7 @@
 ## 처리 기록 (2026-09-23 — SDK·래퍼·이벤트 1차)
 
 - `@react-native-firebase/app`·`analytics` ^26.4 설치, `app.json` 플러그인 등록, iOS `useFrameworks: static`(RN Firebase 필수). **runtimeVersion 6 → 7.**
+- (09-23 밤 추가) RNFB 26 은 Firebase 를 SPM 으로 받는 게 기본인데 **SPM 모드는 static 링크를 거부한다**(`pod install` 이 `[react-native-firebase] SPM + static linkage is not supported` 로 실패, iOS 빌드 `438cf752`). 플러그인에 `ios.disableSPM: true` 를 줘 CocoaPods 경로(Expo + static 의 오랜 조합)로 고정했다. Podfile 만 바뀌므로 runtime 7 그대로.
 - `shared/analytics/` — `analytics.events.ts`(이벤트 사전을 TS 유니온으로 고정 — 여기 없는 이벤트는 컴파일이 막는다) · `analytics.ts`(`track` · `trackScreen` · `setAnalyticsUser`(SHA-256 앞 16자) · `setAnalyticsUserProperties`; 웹·`EXPO_PUBLIC_ANALYTICS=mock`이면 no-op, SDK 는 동적 로드, 실패는 warn 만). 공통 파라미터 `app_variant`·`bundle_label` 자동 부착. `search`·`share`·`login`·`sign_up` 은 GA4 예약 이름이라 SDK 의 전용 오버로드를 피해 문자열 오버로드로 보낸다.
 - 화면 자동 추적: `App.tsx` `NavigationContainer.onStateChange` → 포커스 리프 라우트가 바뀔 때만 `screen_view`.
 - 사용자 바인딩: `bootstrap` 세션 전이에서 Sentry 와 나란히 `setAnalyticsUser`(로그인 시 해시, 로그아웃 시 null + 속성 비움), `tier` 속성.
