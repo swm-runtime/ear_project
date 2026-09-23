@@ -47,7 +47,7 @@ export function scrubEvent(event: ErrorEvent): ErrorEvent {
   for (const crumb of event.breadcrumbs ?? []) {
     const data: Record<string, unknown> | undefined = crumb.data;
     const url = data?.url;
-    if (typeof url === 'string') {
+    if (data && typeof url === 'string') {
       data.url = redactSensitiveQuery(url);
     }
   }

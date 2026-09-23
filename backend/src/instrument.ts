@@ -37,8 +37,34 @@ if (dsn) {
      */
     tracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE ?? 0),
 
-    /** IP·쿠키·헤더를 자동으로 싣지 않는다. 추가 세탁은 아래 beforeSend 가 한다 */
-    sendDefaultPii: false,
+    /**
+     * **무엇을 수집할지 하나씩 끈다.** 예전 `sendDefaultPii: false` 는 v11 에서 사라지고,
+     * 후속인 `dataCollection` 은 **기본값이 켜져 있는 항목이 많다** — 쿠키·헤더·요청 바디·
+     * 스택 지역변수·DB 쿼리 데이터가 전부 기본 수집이다. 기본값에 기대면 SDK 를 올릴 때
+     * 조용히 새는 쪽으로 바뀐다(2026-09-23 확인).
+     *
+     * convention.md 8장이 금지하는 것(토큰·인증 코드·이메일 원문·요청 바디)을
+     * **SDK 층에서 먼저 끄고**, 그래도 새는 것을 `beforeSend` 가 한 번 더 턴다.
+     */
+    dataCollection: {
+      userInfo: false,
+      cookies: false,
+      httpHeaders: false,
+      /** 빈 배열 = 요청·응답 바디를 어느 방향으로도 싣지 않는다 */
+      httpBodies: [],
+      /**
+       * **지역변수는 끈다.** 스택 프레임의 변수에는 비밀번호·토큰·요청 바디가 그대로 들어 있다.
+       * 이름으로 거르는 방법은 번들링 뒤 이름이 바뀌어(`password` → `a`) 믿을 수 없다.
+       */
+      stackFrameVariables: false,
+      /** 쿼리 파라미터에 이메일·토큰이 실릴 수 있다 */
+      databaseQueryData: false,
+      /**
+       * URL 쿼리는 **남긴다** — 어느 엔드포인트였는지는 진단에 필요하다.
+       * 민감한 값(`signature`)은 `beforeSend` 가 로그와 같은 규칙으로 가린다.
+       */
+      urlQueryParams: true,
+    },
 
     beforeSend: (event) => scrubEvent(event),
 
