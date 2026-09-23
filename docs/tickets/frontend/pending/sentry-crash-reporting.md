@@ -133,3 +133,10 @@
 | 5 | 빌드 | runtime 6 — iOS·Android 운영/개발계. GA4(KAN-90) SDK 와 묶어 한 번에 | — |
 
 완료 조건은 **DSN 이 들어간 개발계 빌드**로 확인한다(개발계 앱 설정에 "크래시 테스트" 행은 두지 않았다 — 필요하면 다음 PR).
+
+## 처리 기록 (2026-09-23 저녁 — 선행 해소 반영)
+
+- 박준현이 14:37 에 Sentry 프로젝트를 만들었다(org **`runtime-gw`** · project `ear-app`, DSN 은 Jira 코멘트). 오전 PR 의 가정값 `runtime364` 를 실제 슬러그로 고쳤다.
+- `SENTRY_DSN` 을 **EAS 환경변수**(production·preview·development, plaintext) 와 **GitHub repo secret**(OTA 워크플로용) 에 넣었다. DSN 은 클라이언트에 실리는 값이라 비밀이 아니다 — `eas.json` 의 빈 자리는 EAS 환경변수가 덮는다.
+- **`SENTRY_AUTH_TOKEN`(소스맵) 은 아직 없다** — juyear 가 발급해 갖고 있고 Jira·Slack 에 올리지 않기로 했다. 계정 소유자가 직접 받아 `eas env:create --scope project --name SENTRY_AUTH_TOKEN --value '<토큰>' --visibility secret --environment production --environment preview` 로 넣는다. 그 전까지 빌드는 되지만 스택이 난독화된 채로 온다(완료 조건 2 미충족).
+- 남은 것: 토큰 등록 → runtime 6 개발계 빌드 → 완료 조건 6개 실기기 확인 → archive.
