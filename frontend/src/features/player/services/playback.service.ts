@@ -123,6 +123,8 @@ interface SessionContext {
   tracking: PlaybackTrackingState;
   hasReportedPlayStart: boolean;
   isReportingPlayStart: boolean;
+  /** `play_abandon` 은 세션당 한 번 — 백그라운드에서 센 세션을 나중에 교체할 때 또 세지 않는다 */
+  hasReportedAbandon: boolean;
   /** 완료 상태 ▶로 시작한 재생 — 시작 기록과 함께 replay 신호를 보낸다(player-api.md 4.4) */
   isReplay: boolean;
   replayIdempotencyKey: string | null;
@@ -218,7 +220,8 @@ class PlaybackService {
    */
   private trackAbandon(reason: 'switch' | 'background' | 'pause_timeout'): void {
     const ctx = this.ctx;
-    if (!ctx || !ctx.hasReportedPlayStart || ctx.isEnded) return;
+    if (!ctx || !ctx.hasReportedPlayStart || ctx.isEnded || ctx.hasReportedAbandon) return;
+    ctx.hasReportedAbandon = true;
     const position = store.getState().session?.positionSec ?? 0;
     const percent = ctx.durationSec > 0 ? Math.round((position / ctx.durationSec) * 100) : 0;
     track('play_abandon', { content_id: ctx.contentId, percent, reason });
@@ -242,6 +245,7 @@ class PlaybackService {
       tracking: createTrackingState(0),
       hasReportedPlayStart: false,
       isReportingPlayStart: false,
+      hasReportedAbandon: false,
       isReplay: request.restartFromBeginning === true,
       replayIdempotencyKey: null,
       isSaving: false,
@@ -664,6 +668,7 @@ class PlaybackService {
     ctx.isEnded = false;
     ctx.hasReportedPlayStart = false;
     ctx.isReportingPlayStart = false;
+    ctx.hasReportedAbandon = false;
     ctx.isReplay = true;
     ctx.replayIdempotencyKey = null;
     ctx.tracking = markSeek(ctx.tracking, 0);
@@ -971,7 +976,11 @@ class PlaybackService {
     if (this.appStateSubscription) return;
     this.appStateSubscription = AppState.addEventListener('change', (state) => {
       // 백그라운드 진입은 즉시 저장 트리거다(player.md 4.3). 재생 자체는 유지된다
-      if (state === 'background') this.flushProgress('background');
+      if (state === 'background') {
+        // 소리가 나는 채로 나간 건 이탈이 아니다 — 멈춘 채 앱을 떠난 것만 센다(analytics.md 3.4)
+        if (!store.getState().session?.isPlaying) this.trackAbandon('background');
+        this.flushProgress('background');
+      }
     });
   }
 

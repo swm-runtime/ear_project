@@ -254,7 +254,7 @@ export default function ExploreScreen() {
             <RemainingPlaysIndicator
               remaining={screen.remainingDisplay.remaining}
               limit={screen.remainingDisplay.limit}
-              onExhaustedPress={() => screen.openPaywall()}
+              onExhaustedPress={() => screen.openPaywall('explore')}
             />
           ) : null
         }

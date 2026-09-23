@@ -254,6 +254,8 @@ export const useSettingsScreen = () => {
   const confirmLogout = (): void => {
     if (isLoggingOut) return;
     setIsLoggingOut(true);
+    // 세션이 끊기면 user_id 가 비워지므로(bootstrap) 그 전에 보낸다
+    track('logout', {});
     // 성공하면 세션 상태 전환으로 RootNavigator가 시작 화면으로 스택을 통째로 교체한다(architecture.md 6.3)
     sessionService.logout().catch((error) => {
       logger.error('[settings] logout failed', error);

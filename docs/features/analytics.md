@@ -148,11 +148,20 @@
 - Given 로그아웃한다 / When 다른 계정으로 로그인한다 / Then 앞 계정의 `user_id`·`tier` 속성이 새 이벤트에 붙지 않는다
 - Given 웹·mock 실행 / When 어떤 동작을 해도 / Then Firebase 호출이 없고 오류도 없다
 
-## 구현 현황 (2026-09-23, KAN-90 1차)
+## 구현 현황 (2026-09-23, KAN-90)
 
-들어감: `screen_view`(자동) · `onboarding_step`(topic·career·pick) · `push_permission` · `push_open` · `push_foreground_banner` · `play_start` · `play_progress` · `play_complete` · `play_abandon`(switch만) · `play_rate_change` · `play_limit_hit` · `explore_period_change` · `content_save` · `content_remove`(unsave) · `content_detail_view` · `source_link_click` · `share` · `login` · `sign_up` · `settings_toggle`. 사용자 속성 `tier` · `push_permission`.
+3장의 이벤트 전부와 사용자 속성 3종이 들어갔다(1차 20종 + 2차 11종). 코드가 문서와 다르게 정한 것:
 
-**아직 없음**(다음 티켓): `onboarding_step` tutorial·notification · `onboarding_complete` · `drip_arrival_view` · `drip_play` · `play_abandon` background/pause_timeout · `paywall_view` · `play_confirm` · `search` · `share_receive` · `logout` · `withdrawal` · 사용자 속성 `topic_count`.
+- `content_remove` — 라이브러리 삭제는 `entry: 'library'`, 스낵바 5초가 지나 서버 요청이 나갈 때 `undone: false`, 실행취소를 누르면 `undone: true`(서버 호출 없음).
+- `drip_play` — 편성분(source `drip`·`discovery`) 중 **`lastPlayedAt`이 null 인 항목을 눌렀을 때**(첫 재생 시도). 실제 재생 여부는 `play_start`가 따로 말한다. `hours_since_arrival`은 `addedAt` 기준 기기 시각, 소수 1자리.
+- `drip_arrival_view` — 배너가 뜨는 시점. `hours_since_arrival`은 가장 최근 편성 `addedAt` 기준.
+- `play_abandon` `background` — **멈춘 채** 앱을 떠났을 때만(소리가 나는 채로 나간 것은 이탈이 아니다). 세션당 한 번이라 나중에 교체(`switch`)해도 다시 세지 않는다. `pause_timeout`은 **타이머 자체가 없어 보내지 않는다** — 재생 서비스에 일시정지 만료 로직이 생기면 그때 붙인다.
+- `paywall_view` — MVP는 안내 토스트지만 노출 자체를 센다. `entry`는 연 화면(`library`·`explore`·`player`, 푸시 지연 경로는 그 진입점).
+- `onboarding_step` `tutorial` — 건너뛰기 버튼이 없어 마지막 장을 넘긴 것만 `next`로 센다. `notification`은 온보딩 경로의 프리프롬프트에서만(설정에서 다시 연 것은 `push_permission`만).
+- `onboarding_complete` `elapsed_sec` — 1단계 화면이 처음 뜬 시각부터 완료 응답까지. `career_filled`는 [다음]으로 한 필드라도 보냈는가. 재시도 성공도 한 번만.
+- `withdrawal` `reason` — 선택지 키만(`none`이면 미선택). 자유 입력 문장은 싣지 않는다.
+- `search` — 결과 낭독과 같은 "질의당 한 번" 게이트, `result_count`는 첫 페이지 수.
+- `share_receive` — 관문에서 버려지는 진입도 센다. `installed`는 앱 안이라 늘 `true`(MVP는 `IS_SHARE_ENABLED`가 꺼져 있어 실제로는 나가지 않는다).
 
 ## 미결 사항
 

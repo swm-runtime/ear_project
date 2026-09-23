@@ -11,6 +11,7 @@ import { useJobCategoriesQuery } from '@/features/career';
 
 import type { OnboardingStackParamList, YearsOfExperience } from '../onboarding.types';
 import { useSaveCareerMutation } from './useSaveCareerMutation';
+import { onboardingCompletionService } from '../services/onboarding-completion.service';
 
 type PendingAction = 'next' | 'skip' | null;
 
@@ -66,6 +67,7 @@ export const useCareerScreen = () => {
     saveCareerMutation.mutate(input, {
       onSuccess: () => {
         track('onboarding_step', { step: 'career', action });
+        onboardingCompletionService.noteCareer(action === 'next' && Object.keys(input).length > 0);
         navigation.navigate('Pick');
       },
       onError: (error) => {

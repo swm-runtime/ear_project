@@ -14,6 +14,7 @@ import { isTopicListUnavailable, useTopicsQuery } from '@/features/interest';
 import { ONBOARDING_COPY } from '../onboarding.copy';
 import type { OnboardingStackParamList } from '../onboarding.types';
 import { useSaveInterestsMutation } from './useSaveInterestsMutation';
+import { onboardingCompletionService } from '../services/onboarding-completion.service';
 import { useOnboardingStore } from '../store/onboarding.store';
 
 export const useTopicSelectScreen = () => {
@@ -28,6 +29,7 @@ export const useTopicSelectScreen = () => {
   // 1단계에서 더 뒤로는 아무 동작도 하지 않는다 — 이탈 확인 팝업도 띄우지 않는다(onboarding.md 7)
   useFocusEffect(
     useCallback(() => {
+      onboardingCompletionService.noteStarted();
       const subscription = BackHandler.addEventListener('hardwareBackPress', () => true);
       return () => subscription.remove();
     }, []),
@@ -81,6 +83,7 @@ export const useTopicSelectScreen = () => {
       {
         onSuccess: () => {
           track('onboarding_step', { step: 'topic', action: 'next' });
+          onboardingCompletionService.noteTopics(selectedTopicIds.length);
           navigation.navigate('Career');
         },
         onError: (error) => {

@@ -13,6 +13,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
+import { track } from '@/shared/analytics';
 import { theme } from '@/shared/theme';
 import TabBarIcon from '@/shared/ui/TabBarIcon';
 import { useWalkthroughStore } from '@/shared/ui/walkthrough.store';
@@ -188,6 +189,8 @@ export default function FirstRunTutorial() {
     const next = step + delta;
     if (next < 0) return;
     if (next >= steps.length) {
+      // 건너뛰기 버튼이 없는 화면이다 — 마지막 장을 넘긴 것만 한 단계로 센다(analytics.md 3.4)
+      track('onboarding_step', { step: 'tutorial', action: 'next' });
       clear();
       return;
     }

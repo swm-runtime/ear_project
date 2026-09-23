@@ -212,7 +212,7 @@ export default function LibraryScreen() {
               <RemainingPlaysIndicator
                 remaining={screen.remainingDisplay.remaining}
                 limit={screen.remainingDisplay.limit}
-                onExhaustedPress={() => screen.openPaywall()}
+                onExhaustedPress={() => screen.openPaywall('library')}
               />
             ) : null
           }
