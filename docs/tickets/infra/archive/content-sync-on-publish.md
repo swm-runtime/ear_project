@@ -10,6 +10,7 @@
 | 근거 문서 | `tickets/infra/archive/dev-environment-and-main-deploy.md` 결정 7(콘텐츠 계층 한 방향 복사) · `docs/infra/runbook.md` 4장 |
 | 심각도 | 중 — 장애는 아니지만 개발계 검증이 하루 지연된다 |
 | 우선순위 | Medium(3일 안) |
+| 상태 | 완료 |
 
 ## 문제
 
@@ -88,3 +89,9 @@ run 35500421294). **그래서 운영 `.env.prod` 의 `CONTENT_SYNC_NOTIFY_HOST` 
 3. main 에서 워크플로 재실행 → 운영에서 콘텐츠 한 번 발행 → `/var/log/ear-content-sync.log` 의 `notify ok` · `import ok` 확인 → archive
 
 dev 쪽은 이미 등록돼 있어 다시 돌릴 필요가 없다(다시 돌려도 안전하다).
+
+## 처리 기록 (완료)
+
+- **반영 날짜: 2026-09-23** (박준현 · Claude). 남은 것 2·3번은 2026-09-22 에 끝났다 — `dev → main` 머지 뒤 `content-sync-notify-key.yml` 을 main 에서 재실행해 운영 `.env.prod` 의 `CONTENT_SYNC_NOTIFY_HOST` 와 1분 크론이 채워졌고, 운영에서 발행한 콘텐츠가 S3 `content-sync/` 에 **1분 간격**으로 내보내진 것을 객체 시각으로 확인했다(낮 시간대 연속 기록). 개발계 `import ok` 는 같은 날 콘텐츠가 개발계 목록에 즉시 보인 것으로 확인.
+- 하루 한 번 안전망 크론(04:10/04:30)은 그대로 둔다 — 알림 경로가 죽어도 다음 날 새벽에는 맞춰진다.
+- Jira KAN-84 → 완료로 전환.
