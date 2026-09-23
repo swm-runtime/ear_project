@@ -56,8 +56,18 @@ const withDevBundleName = (config) =>
     return mod;
   });
 
+/**
+ * Sentry DSN — 비밀은 아니지만(클라이언트에 실리는 값) 소스에 박지 않고 env 로 받는다(KAN-92).
+ * `eas.json` 프로필 env · `eas-update.yml` 에서 `SENTRY_DSN` 으로 준다. 없으면 빈 문자열 →
+ * 앱은 초기화를 건너뛰고 아무것도 보내지 않는다(DSN 발급 전·로컬 실행).
+ * 운영·개발계는 같은 DSN 을 쓰고 `environment` 로 가른다(`shared/monitoring/sentry.ts`).
+ */
+const SENTRY_DSN = process.env.SENTRY_DSN ?? '';
+
 module.exports = ({ config }) => {
-  if (!IS_DEV_APP) return config;
+  const withDsn = { ...config, extra: { ...config.extra, sentryDsn: SENTRY_DSN } };
+  if (!IS_DEV_APP) return withDsn;
+  config = withDsn;
 
   const googleIosClientId =
     DEV_SOCIAL_AUTH.googleIosClientId ?? config.extra.socialAuth.googleIosClientId;

@@ -89,6 +89,8 @@ jobs:
           # 앱 변형 — preview 채널은 개발계 앱(dev.runtime.ear)이 받는다(app.config.js · KAN-76).
           # OTA 매니페스트의 expoConfig(extra.socialAuth 등)가 이 값으로 정해진다 — 빌드 프로필 env 와 같아야 한다
           APP_VARIANT: ${{ steps.channel.outputs.app_variant }}
+          # 크래시 리포트 DSN(KAN-92) — 번들의 expoConfig.extra 로 실린다. 시크릿 미설정이면 빈 값 → 앱은 수집을 끈다
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           # 커밋 메시지를 셸에 직접 보간하지 않는다 — 따옴표·개행이 섞여도 안전하게 env 로 받는다
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |

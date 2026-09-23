@@ -1,4 +1,5 @@
 import { registerTokenProvider } from '@/shared/api/api-client';
+import { setSentryUser } from '@/shared/monitoring';
 import { prefetchRemoteImages } from '@/shared/ui/RemoteImage';
 
 import { registerEmailVerifiedListener, sessionService, useSessionStore } from '@/features/auth';
@@ -156,6 +157,8 @@ export const bootstrapApp = (): void => {
       }
       // 서버는 로그아웃 때 이 기기의 토큰을 지운다 — 다시 로그인했으면 다시 올려야 알림이 온다
       syncDeviceNow();
+      // 크래시 리포트에 사용자 id 만 붙인다 — 이메일·닉네임은 보내지 않는다(KAN-92)
+      setSentryUser(state.user?.id ?? null);
     }
     /*
      * 로그아웃·탈퇴·세션 만료 → **재생을 끊는다**(auth.md 4.2-3). 지금까지 세션만
@@ -170,6 +173,7 @@ export const bootstrapApp = (): void => {
       resetDeviceSync();
       // 다음 사용자가 앞 사용자의 탭에서 시작하면 안 된다(splash.md 4장 4-1)
       forgetTab();
+      setSentryUser(null);
     }
   });
 };

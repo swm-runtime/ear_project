@@ -13,7 +13,7 @@
 | 발견 시점 | 2026-09-22 Sentry 도입 검토 — 서버는 감시가 촘촘한데 **앱 쪽은 아무것도 없다**는 것이 드러났다 |
 | 근거 문서 | `frontend/architecture.md`(에러 처리) · `features/common-error-handling.md` 4.7(로깅·모니터링) |
 | 중요도 | **Medium** — 지금 앱 버그를 알게 되는 경로가 **앱스토어 리뷰뿐**이다. 가장 느리고 가장 아픈 채널이다 |
-| 상태 | 대기 |
+| 상태 | 진행 — 코드 반영, **DSN·소스맵 토큰·빌드 남음** |
 
 ## 문제
 
@@ -74,3 +74,29 @@
 ## 처리 기록
 
 - 2026-09-23 발행.
+
+## 처리 기록 (2026-09-23 — 코드 반영)
+
+**들어간 것**
+
+- `@sentry/react-native` ~7.11(`expo install`) · `app.json` 플러그인 `@sentry/react-native/expo`(organization `runtime364` · project `ear-app` — 인프라가 만드는 이름과 다르면 맞춘다) · **`runtimeVersion` 5 → 6**(네이티브 모듈).
+- **DSN 주입**(요청 1) — `app.config.js` 가 env `SENTRY_DSN` 을 `extra.sentryDsn` 으로 싣는다. 소스에 값 없음. `eas.json` preview·production env 에 빈 `SENTRY_DSN` 자리, `eas-update.yml` 에 `secrets.SENTRY_DSN`. **값이 없으면 `initSentry()` 가 건너뛰어 아무것도 보내지 않는다** — DSN 발급 전에도 빌드·OTA 가 그대로 돈다. `environment` 는 `IS_DEV_API` 로 `preview`/`production`(설정 "· 개발계" 표시와 같은 판정), `release` 는 `ear@<APP_VERSION>`.
+- **전역 ErrorBoundary**(요청 2) — `shared/monitoring/AppErrorBoundary`. `Sentry.ErrorBoundary` 로 잡아 보내고 기존 `FullScreenError` 로 복구 화면([다시 시도] = 경계 리셋). 경계가 `NavigationContainer` 바깥이라 "홈으로"는 둘 수 없다 — 내비게이션 자체가 죽었을 수 있다. `App` 을 `Sentry.wrap` 으로 감싸 네이티브 크래시·터치 breadcrumb 도 잡는다. `initSentry()` 는 `bootstrapApp()` 보다 먼저.
+- **노이즈 필터**(요청 4) — `shared/monitoring/event-filter.ts` `isExpectedError`: `ApiError` 중 `NETWORK_ERROR`·`TIMEOUT` 과 **4xx 전부**는 `beforeSend` 에서 버린다(서버가 계약대로 내려준 응답은 버그가 아니다). 5xx·상태 미상 `ApiError`·`ApiError` 가 아닌 예외만 보낸다. 유닛 테스트 7건.
+- **개인정보**(요청 5) — `sendDefaultPii: false` + `scrubEvent`: 사용자는 `id` 만(로그인·복원 시 `setSentryUser(id)`, 로그아웃·만료 시 `null` — `bootstrap` 의 세션 전이 한 곳), breadcrumb URL 쿼리 제거, `request` 통째 삭제. 백엔드 `sentry-scrub.ts` 와 같은 기준.
+- 성능 추적은 끔(`enableAutoPerformanceTracing: false`, `tracesSampleRate: 0`).
+- `reportError(error, context)` — 화면·서비스가 "이건 버그다" 지점에서 명시적으로 보낼 때. 같은 필터를 탄다. **`logger.error` 대신 쓰지 않는다** — 지금은 호출부 없음(다음 티켓에서 필요한 곳에만).
+
+**확인한 것** — tsc · eslint · jest 133건 통과. `expo config` 로 운영·개발계 변형 모두 `extra.sentryDsn` 이 env 값을 받고, 플러그인이 1개 등록된 것 확인. 실기기·소스맵은 아래가 남았다.
+
+**남은 것 (사람 손)**
+
+| # | 어디 | 무엇을 | 안 하면 |
+|---|---|---|---|
+| 1 | Sentry(박준현) | 조직·React Native 프로젝트 생성 → **DSN** | 앱이 아무것도 보내지 않는다(빌드는 됨) |
+| 2 | EAS | `eas secret:create --scope project --name SENTRY_DSN --value <dsn>` · GitHub repo secret `SENTRY_DSN` 같은 값 | 빌드·OTA 번들에 DSN 이 안 실린다 |
+| 3 | Sentry > 조직 설정 > Auth Tokens | 소스맵 업로드용 토큰(`project:releases` · `org:read`) → `eas secret:create --name SENTRY_AUTH_TOKEN` | 스택이 난독화된 채로 온다(요청 3) |
+| 4 | `app.json` 플러그인 | 실제 조직 slug·프로젝트 slug 로 맞춘다(지금 `runtime364`/`ear-app` 은 가정) | 소스맵이 엉뚱한 프로젝트로 가거나 실패 |
+| 5 | 빌드 | runtime 6 — iOS·Android 운영/개발계. GA4(KAN-90) SDK 와 묶어 한 번에 | — |
+
+완료 조건은 **DSN 이 들어간 개발계 빌드**로 확인한다(개발계 앱 설정에 "크래시 테스트" 행은 두지 않았다 — 필요하면 다음 PR).
