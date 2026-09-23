@@ -18,6 +18,7 @@
         "buildType": "apk"
       },
       "env": {
+        "SENTRY_DSN": "",
         "APP_VARIANT": "dev",
         "EXPO_PUBLIC_API_BASE_URL": "https://api-dev.earcast.co.kr/api/v1",
         "EXPO_PUBLIC_PROVIDER_AUTH": "real",
@@ -47,6 +48,7 @@
     "production": {
       "extends": "preview",
       "env": {
+        "SENTRY_DSN": "",
         "APP_VARIANT": "production",
         "EXPO_PUBLIC_API_BASE_URL": "https://api.earcast.co.kr/api/v1",
         "EXPO_PUBLIC_PROVIDER_AUTH": "real",
