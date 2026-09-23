@@ -3,7 +3,7 @@ import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion, theme } from '@/shared/theme';
-import { GlassPill, HAS_LIQUID_GLASS } from '@/shared/ui/GlassSurface';
+import GlassSurface, { GlassPill, HAS_LIQUID_GLASS } from '@/shared/ui/GlassSurface';
 
 export interface SegmentOption<T extends string> {
   value: T;
@@ -40,7 +40,8 @@ const SEGMENT_HIT_SLOP = {
  * 세그먼트 컨트롤(HIG: Segmented controls) — 서로 배타적인 2~5개 뷰를 같은 자리에서 바꾼다. 탐색의 주간·월간·전체와
  * 라이브러리의 전체·미청취·완청이 같은 부품을 쓴다(2026-09-23 PM — 앱 안의 문법 통일, `docs/frontend/design.md` §5).
  *
- * - 흰 트랙 + 연한 테두리. 회색 트랙 위 흰 알약은 명도 차가 없어 번져 보였다(2026-09-18).
+ * - 트랙은 유리(GlassSurface regular — 캡슐 탭 바와 같은 재질, PM 2026-09-23 "blur 있는 리퀴드 글라스로") +
+ *   hairline 윤곽. 그 위 선택 알약은 clear 유리 + 림(GlassPill).
  * - 선택 알약은 **하나가 미끄러진다**(snappy 스프링, 네이티브). iOS 26 은 유리 렌즈(GlassPill), 그 밑은 그림자로 뜬 흰 알약.
  * - 라벨 색은 알약이 그 칸에 겹친 만큼 회색 위에 검정을 겹쳐(두 겹 + 불투명도) 알약과 같은 프레임에 바뀐다.
  * - 라벨 굵기는 선택과 무관하게 같다 — 굵히면 폭이 변해 시선이 튄다.
@@ -74,6 +75,8 @@ export default function SegmentedControl<T extends string>({
 
   return (
     <View style={styles.track} accessibilityRole="radiogroup" accessibilityLabel={accessibilityLabel}>
+      <GlassSurface style={[StyleSheet.absoluteFill, styles.trackGlass]} />
+      <View style={styles.trackBorder} pointerEvents="none" />
       {HAS_LIQUID_GLASS ? (
         <GlassPill style={indicatorStyle} />
       ) : (
@@ -114,15 +117,28 @@ export default function SegmentedControl<T extends string>({
 }
 
 const styles = StyleSheet.create({
+  // 트랙 자체는 투명(유리가 깐다). 테두리는 별도 뷰 — 유리를 clip 하는 뷰에 border 를 주면 안쪽이 잘린다
   track: {
     flexDirection: 'row',
     alignSelf: 'flex-start',
-    backgroundColor: theme.color.background,
-    borderWidth: TRACK_BORDER,
-    borderColor: theme.color.border,
+    backgroundColor: 'transparent',
     // 바깥 트랙도 알약 — 안쪽만 둥글면 모서리에 각진 여백이 남는다
     borderRadius: theme.radius.full,
-    padding: TRACK_INSET,
+    padding: TRACK_INSET + TRACK_BORDER,
+  },
+  trackGlass: {
+    borderRadius: theme.radius.full,
+    overflow: 'hidden',
+  },
+  trackBorder: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: theme.radius.full,
+    borderWidth: TRACK_BORDER,
+    borderColor: 'rgba(0, 0, 0, 0.10)',
   },
   segment: {
     height: SEGMENT_HEIGHT,
@@ -131,8 +147,8 @@ const styles = StyleSheet.create({
   },
   indicator: {
     position: 'absolute',
-    top: TRACK_INSET,
-    left: TRACK_INSET,
+    top: TRACK_INSET + TRACK_BORDER,
+    left: TRACK_INSET + TRACK_BORDER,
     height: SEGMENT_HEIGHT,
     borderRadius: theme.radius.full,
   },
