@@ -43,3 +43,11 @@ KAN-40(영수증 검증) + FE 결제 라이브러리 + 스토어 IAP 상품 등�
 - Given 각 문서 / When 해당 절을 읽는다 / Then "MVP 바이너리(플래그 꺼짐)" 단락이 있고 종전 규칙이 플래그 켜짐 조건으로 남아 있다
 - Given 플래그 꺼진 빌드 / When 설정·프로필·플레이어·라이브러리·탐색·탈퇴 화면을 본다 / Then "구독" 단어와 `Subscription` 화면으로 가는 진입점이 없다
 - Given 플래그 켜진 빌드 / When 같은 화면을 본다 / Then 종전 구독 UI 가 그대로 돌아온다
+
+## 처리 기록
+
+| 항목 | 값 |
+|---|---|
+| **반영 날짜** | **2026-09-23** |
+| 반영 내용 | `settings-uiux.md` 4.1, `profile-uiux.md` 4.2·7장, `library-uiux.md` 7장, `paywall.md` 4.5, `auth-uiux.md` 4.5, `settings.md` 4.1 — "MVP 바이너리(플래그 꺼짐)" 단락 추가, 종전 규칙은 플래그 켜짐 조건으로 유지 |
+| 반영 PR | `docs/changes-integration-2026-09-23` (dev) |

@@ -2,7 +2,7 @@
 
 | 항목 | 값 |
 |---|---|
-| 대상 문서 | `features/player.md` 재생 목록 패널 절(`changes/pending/player-queue-panel.md`가 만드는 절) · `features/library.md` 4장 |
+| 대상 문서 | `features/player.md` 재생 목록 패널 절(`changes/archive/player-queue-panel.md`가 만드는 절) · `features/library.md` 4장 |
 | 요청 파트 | 문서(구현은 백엔드 `feat(be)/queue-order-sync`, 계약은 `spec/api/library-api.md` 4.1·4.8에 선반영) |
 | 발행 날짜 | 2026-09-19 |
 | 발견 시점 | KAN-70(`tickets/backend/archive/queue-order-sync.md`) 구현 — 순서가 기기 저장에서 계정 저장으로 옮겨가는데, 동작 규칙의 소유자인 `features/`에 그 규칙이 없다 |

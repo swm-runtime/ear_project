@@ -24,3 +24,11 @@
 
 - Given `paywall.md` 4.2 / When 읽는다 / Then "푸시 딥링크는 발급 뒤에 팝업을 정한다"와 그 근거(발급은 차감하지 않는다)가 적혀 있다
 - Given `notification.md` 4.4 / When 읽는다 / Then 알림 탭의 순서(발급 → 팝업 → 재생 → 플레이어)와 404·403 의 폴백이 적혀 있다
+
+## 처리 기록
+
+| 항목 | 값 |
+|---|---|
+| **반영 날짜** | **2026-09-23** |
+| 반영 내용 | `paywall.md` 4.2 순서 예외 단락, `notification.md` 4.4 순서·404/403 폴백, `frontend/architecture.md` 5.2 |
+| 반영 PR | `docs/changes-integration-2026-09-23` (dev) |

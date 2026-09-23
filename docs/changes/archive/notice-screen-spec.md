@@ -71,7 +71,7 @@
 | 삭제된 공지 | 삭제된 공지예요 |
 | 뒤로 낭독 | 뒤로 가기 |
 
-**금지** — 공지 안에 결제·구독 유도 문구를 싣지 않는다(MVP 바이너리 구독 비노출 — `changes/pending/subscription-ui-hidden-mvp.md`). 공지는 운영 문서라 심사 대상 화면에 곧바로 노출된다.
+**금지** — 공지 안에 결제·구독 유도 문구를 싣지 않는다(MVP 바이너리 구독 비노출 — `changes/archive/subscription-ui-hidden-mvp.md`). 공지는 운영 문서라 심사 대상 화면에 곧바로 노출된다.
 
 ### C. 계약 — `settings-api.md` 3장 목록에 2건 추가, 4.4·4.5 신설, 9장 미결 해소
 
@@ -151,4 +151,4 @@ idx_notices_list (is_pinned DESC, published_at DESC) WHERE deleted_at IS NULL
 | 계약 구체화 | 관리자 목록 응답 형태(본문 포함, `created_at DESC` 정렬), 커서 오류 코드 `NOTICE_CURSOR_INVALID` 신설, 공백만 있는 제목·본문 거부, 감사 로그 `notice.*` — 요청서에 없던 부분을 BE가 정해 문서에 적었다 |
 | 남은 것 | **A(`features/settings.md` 4.1·4.7) · B(`spec/uiux/settings-uiux.md`) · E(`frontend/architecture.md` 4.4)** — FE 소유 문서라 FE 통합 때 반영. 반영되면 archive로 옮긴다 |
 | 보류 | 삭제 30일 뒤 hard delete 배치 — `domain.md` 12.1에 정책만 적고 구현하지 않았다(공지는 수십 건 규모) |
-
+| **반영 날짜** | **2026-09-23** — 남은 A·B·E 반영 — `settings.md` 4.1 정보 행·4.5 신설(번호는 문서 순서상 4.5, 요청서의 4.7)·미결, `settings-uiux.md` 2장 S8~S11·3장 흐름·4.1·4.6·4.7 신설(카피 표)·9장 미결, `frontend/architecture.md` 4.4 notice 행. C·D·관리자 부분은 2026-09-17 KAN-67에서 반영됨. PR `docs/changes-integration-2026-09-23` |

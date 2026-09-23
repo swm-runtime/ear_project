@@ -20,3 +20,11 @@
 ## 완료 조건
 
 - Given 새 팀원이 architecture.md 2.1 을 읽는다 / When 개발계 앱을 새로 뽑아야 한다 / Then 어느 프로필·워크플로를 쓰는지, `APP_VARIANT` 를 어디서 주는지 문서만으로 안다
+
+## 처리 기록
+
+| 항목 | 값 |
+|---|---|
+| **반영 날짜** | **2026-09-23** |
+| 반영 내용 | `frontend/architecture.md` 2.1에 "앱 변형" 표·`APP_VARIANT` 규칙·빌드 절차, runtimeVersion 대상에 `app.config.js` 네이티브 값, 환경변수 표 신설(`APP_VARIANT` 포함) |
+| 반영 PR | `docs/changes-integration-2026-09-23` (dev) |
