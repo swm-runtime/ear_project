@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -14,10 +14,10 @@ import { theme } from '@/shared/theme';
 import FullScreenError from '@/shared/ui/FullScreenError';
 
 import {
-  MiniPlayer,
   PlayConfirmDialog,
   RemainingPlaysIndicator,
   useBottomDockInset,
+  useMiniPlayerResumeStore,
 } from '@/features/player';
 
 import LibraryBanner from '../components/LibraryBanner';
@@ -87,17 +87,41 @@ export default function LibraryScreen() {
   const isWholeEmpty = screen.emptyKind === 'newUser' || screen.emptyKind === 'deletedAll';
   const showTabBar = !screen.isFullError && !isWholeEmpty;
   // 복원 스냅샷 폴백의 노출 조건 — 활성 재생 세션의 표시는 MiniPlayer가 스스로 판단한다
-  const resumeFallback =
-    screen.resumeTarget !== null && !screen.isFullError && !isWholeEmpty
-      ? {
-          contentId: screen.resumeTarget.content.id,
-          title: screen.resumeTarget.content.title,
-          thumbnailUrl: screen.resumeTarget.content.thumbnailUrl,
-          positionSec: screen.resumeTarget.progress?.positionSec ?? 0,
-          durationSec: screen.resumeTarget.content.durationSec,
-          // topicIds 는 복원 응답에 없다(library-api.md 4.3) — 카테고리 줄은 BE 가 topic_ids 를 내려주면 붙는다(tickets/backend)
-        }
-      : null;
+  const resumeTarget = screen.resumeTarget;
+  const isResumeVisible = resumeTarget !== null && !screen.isFullError && !isWholeEmpty;
+  // 스토어에 올리는 값이라 참조가 안정해야 한다 — 매 렌더 새 객체면 독의 미니플레이어가 매번 다시 그린다
+  const resumeFallback = useMemo(
+    () =>
+      isResumeVisible && resumeTarget !== null
+        ? {
+            contentId: resumeTarget.content.id,
+            title: resumeTarget.content.title,
+            thumbnailUrl: resumeTarget.content.thumbnailUrl,
+            positionSec: resumeTarget.progress?.positionSec ?? 0,
+            durationSec: resumeTarget.content.durationSec,
+            // topicIds 는 복원 응답에 없다(library-api.md 4.3) — 카테고리 줄은 BE 가 topic_ids 를 내려주면 붙는다(tickets/backend)
+          }
+        : null,
+    [isResumeVisible, resumeTarget],
+  );
+
+  // 미니플레이어는 탭 바 독(CapsuleTabBar)에 하나만 산다(2026-09-23) — 복원 스냅샷과 핸들러를 스토어로 넘긴다
+  const setMiniPlayerResume = useMiniPlayerResumeStore((s) => s.set);
+  const { handleMiniPlayerPlay, handleMiniPlayerExpand, handleMiniPlayerDismiss } = screen;
+  useEffect(() => {
+    setMiniPlayerResume({
+      fallback: resumeFallback,
+      onPlayPress: handleMiniPlayerPlay,
+      onExpandPress: handleMiniPlayerExpand,
+      onDismiss: handleMiniPlayerDismiss,
+    });
+  }, [
+    setMiniPlayerResume,
+    resumeFallback,
+    handleMiniPlayerPlay,
+    handleMiniPlayerExpand,
+    handleMiniPlayerDismiss,
+  ]);
 
   const renderEmpty = () => {
     if (isSearching) {
@@ -276,12 +300,6 @@ export default function LibraryScreen() {
       )}
 
       {/* 미니플레이어(PL11) — 활성 세션은 실시간, 없으면 복원 스냅샷을 일시정지로 표시한다 */}
-      <MiniPlayer
-        resumeFallback={resumeFallback}
-        onResumePlayPress={screen.handleMiniPlayerPlay}
-        onResumeExpandPress={screen.handleMiniPlayerExpand}
-        onResumeDismiss={screen.handleMiniPlayerDismiss}
-      />
 
       <TopicFilterSheet
         key={screen.topicSheetEpoch}
