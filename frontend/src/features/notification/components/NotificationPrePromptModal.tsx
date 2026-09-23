@@ -92,11 +92,14 @@ export default function NotificationPrePromptModal({
 
   const handleAllowPress = (): void => {
     if (isProcessing) return;
+    // 온보딩 경로에서만 단계 이벤트다 — 설정에서 다시 연 프리프롬프트는 push_permission 만 남긴다
+    if (syncOnDismiss) track('onboarding_step', { step: 'notification', action: 'next' });
     void requestAndFinish();
   };
 
   const handleLaterPress = (): void => {
     if (isProcessing) return;
+    if (syncOnDismiss) track('onboarding_step', { step: 'notification', action: 'skip' });
     dismiss();
   };
 

@@ -3,6 +3,7 @@ import { useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, Linking } from 'react-native';
 
+import { track } from '@/shared/analytics';
 import { isApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
 import { generateId } from '@/shared/lib/generate-id';
@@ -185,6 +186,8 @@ export const useExploreSearchScreen = () => {
     if (announcedQueryRef.current === activeQuery) return;
     announcedQueryRef.current = activeQuery;
     const count = pages.flatMap((page) => page.items).length;
+    // 낭독과 같은 "질의당 한 번" 게이트를 탄다 — 첫 페이지 결과 수이고 검색어 원문은 싣지 않는다
+    track('search', { query_length: activeQuery?.length ?? 0, result_count: count });
     AccessibilityInfo.announceForAccessibility(
       count > 0
         ? EXPLORE_COPY.search.resultCountA11y(activeQuery ?? '', count)

@@ -2,6 +2,7 @@ import { useNavigation, type ParamListBase } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useEffect, useRef, useState } from 'react';
 
+import { track } from '@/shared/analytics';
 import { isApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
@@ -125,6 +126,8 @@ export const useWithdrawalScreen = () => {
         onSuccess: () => {
           idempotencyKeyRef.current = null;
           setIsFinishing(true);
+          // 선택지 키만 보낸다 — 자유 입력 문장은 개인정보일 수 있어 싣지 않는다(analytics.md 7장)
+          track('withdrawal', { reason: reasonCode ?? 'none' });
           // 완료 토스트 → 시작 화면으로 **스택 초기화**(auth-uiux.md 4.6).
           // 세션 정리는 기존 로그아웃 경로가 쓰는 SessionService.clearSession을 그대로 쓴다 —
           // 계정이 이미 사라졌으므로 POST /auth/logout(세션 폐기)은 부르지 않는다.

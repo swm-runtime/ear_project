@@ -78,3 +78,12 @@
 - 개발계 설정 > 정보에 **"분석 디버그"**(마지막 이벤트 이름) · **"크래시 테스트"**(렌더 오류 유발 — KAN-92 완료 조건 확인용) 행 추가 — `DevDiagnosticsRows`, 운영 앱에는 없다.
 - 확인: tsc · eslint(shared→features import 금지에 걸려 진입점 유니온을 사전에 다시 적었다) · jest 133 통과.
 - **남은 것**: 잔여 이벤트 12종(analytics.md "아직 없음") · `topic_count` 속성 · runtime 7 iOS/Android 개발계 빌드 → DebugView 로 완료 조건 6개 · 스토어 개인정보 신고(사람 손).
+
+## 처리 기록 (2026-09-23 밤 — 이벤트 2차, 사전 완주)
+
+- 잔여 12종 중 11종을 심었다(JS 만이라 OTA 로 나간다, runtime 7 그대로): `play_confirm`(3 액션, `usePlayGate`) · `paywall_view`(`openPaywall` 에 진입점 인자를 붙여 4개 호출부 전부) · `logout` · `withdrawal`(선택지 키만) · `search`(낭독 게이트 공용) · `content_remove` 라이브러리 삭제·실행취소 · `drip_arrival_view` · `drip_play`(첫 재생 시도, `lastPlayedAt === null`) · `onboarding_step` tutorial·notification · `onboarding_complete`(완료 서비스가 단계별 재료를 모아 한 번 — `topic_count` 사용자 속성도 여기서) · `share_receive` · `play_abandon` background(멈춘 채 떠난 것만, 세션당 1회 가드 `hasReportedAbandon`).
+- **`play_abandon` `pause_timeout` 은 보내지 않는다** — 재생 서비스에 일시정지 만료 타이머가 없다. 문서 "구현 현황"에 적어 두었다. 사전은 그대로(타이머가 생기면 붙인다).
+- 코드가 정한 세부(어느 시점·어느 값)는 `analytics.md` "구현 현황" 절이 원본이다.
+- 확인: tsc · eslint · jest 133 통과.
+- 빌드: iOS 개발계 **build 11**(runtime 7, SPM 수정 포함) TestFlight 제출 · Android APK Actions run 35855715899 성공. 2차 이벤트는 그 빌드 위에 OTA 로 얹힌다.
+- **남은 것**: 실기기 DebugView 로 완료 조건 6개 · 스토어 개인정보 신고(사람 손).

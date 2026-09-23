@@ -103,7 +103,8 @@ export const usePlayerScreen = () => {
     playbackService.clearSession();
     navigation.goBack();
     if (blockedState.kind === 'paywall') {
-      playGate.openPaywall(blockedState.message ?? undefined);
+      // 세션이 어디서 왔든 사용자가 본 것은 플레이어 화면이다
+      playGate.openPaywall('player', blockedState.message ?? undefined);
     } else {
       showToast(blockedState.message ?? PLAYER_COPY.paidLimitReachedToast);
     }
