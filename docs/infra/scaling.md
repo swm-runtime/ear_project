@@ -197,13 +197,34 @@ DB 선점이나 멱등한 문장으로 이미 보호돼 있어 **데이터가 �
 | 관측·운영 에이전트 (journald 76 · CloudWatch 59 · SSM 14) | 149MB | 16% |
 | systemd 등 나머지 | 약 26MB | 3% |
 
-**가장 큰 덩어리는 dockerd 하나로 395MB이고, 원인은 로그 드라이버다.** API 와 Caddy 가 `awslogs` 드라이버를 쓰는데, 이 드라이버는 컨테이너가 아니라 **dockerd 프로세스 안에서** 로그를 버퍼에 담아 CloudWatch Logs 로 배치 전송한다. Caddy 는 요청마다 JSON 한 줄을 찍어 양이 꾸준하다. 여기에 Go 런타임이 한 번 확보한 메모리를 OS 에 잘 돌려주지 않는 성질이 겹쳤다. (Postgres 는 `json-file` + 로테이션이라 이 경로가 아니다.)
+**가장 큰 덩어리는 dockerd 하나(395~406MB)이고, 원인은 서버에서 직접 돌린 빌드의 잔재다.** (2026-09-23 정정 — 종전에는 `awslogs` 로그 드라이버 버퍼로 적었으나 틀렸다. 아래 근거.)
 
-**누수가 아니라 고점 유지다.** 2주간 평균 49~50% 에서 평평하고, 배포·부하 테스트 때 60~67% 로 잠깐 올랐다 돌아온다. dockerd 의 395MB 는 쌓인 데이터가 아니라 **지금까지 겪은 최대 버퍼 필요량의 흔적**이다. 그래서 **dockerd 를 재시작하면 떨어졌다가 며칠~몇 주에 걸쳐 비슷한 자리로 다시 올라온다.** 컨테이너가 같이 내려가는 대가에 비해 얻는 것이 임시 여유뿐이라 권하지 않는다.
+2026-09-23 운영·개발계 동시 실측(둘 다 t4g.small · 1841MB · 같은 컨테이너 3개 · 같은 로그 드라이버 구성):
 
-**그리고 걱정할 상황이 아니다.** `free` 의 "used" 가 아니라 **MemAvailable 723MB(39%)** 가 실제 여유다. 클러스터 워커를 하나 더 띄워도 약 125MB 가 더 들 뿐이다.
+| 항목 | 운영 | 개발계 | 차이 |
+|---|---|---|---|
+| `free` used | 897MB (48.7%) | 687MB (37.3%) | +210 |
+| **MemAvailable** | **738MB (40%)** | 948MB (51%) | −210 |
+| dockerd RSS | **406MB** | 108MB | **+298** |
+| ㄴ 그중 BuildKit `contenthash` 캐시(힙 프로파일) | **224MB** | 18MB | +206 |
+| ㄴ 그중 awslogs | 1.1MB | 2.1MB | ≈0 |
+| node / postgres / caddy | 126 / 65 / 30 | 141 / 53 / 32 | ≈ |
+| 스왑 | 없음 | 2GB(29MB 사용) | |
+| 빌드 캐시(`docker system df`) | 265건 · 2.3GB · dangling 이미지 37개 | 20건 · 270MB | |
 
-영구적으로 낮추려면 **API·Caddy 의 로그 드라이버를 `awslogs` → `json-file`(로테이션)로 바꾸고, 이미 설치된 CloudWatch 에이전트가 그 파일을 읽어 보내게** 하면 된다. 버퍼링이 dockerd 밖으로 나간다. 지금은 여유가 있으므로 4장 2단계 이후의 후보로 둔다.
+- **dockerd 힙(`/debug/pprof/heap`) 살아있는 245MB 중 224MB가 BuildKit 의 `contenthash`·radix·digest 계열**이다 — `docker compose up --build` 가 레이어별 파일 트리 체크섬을 LRU(20개)로 메모리에 들고 있는 것. 2026-08-31~09-16 사이 운영 서버에서 빌드를 15~20회 돌린 흔적(`docker builder du` 레코드 265건)이 그대로 남아 있다. 09-16 부터는 ECR pull(`push.sh` 의 `--no-build` 경로)이라 **새로 쌓이지는 않지만, 이미 찬 것은 비워지지 않는다.**
+- **awslogs 는 원인이 아니다.** 드라이버 구성이 두 서버 동일하고(api·caddy `awslogs`, postgres `json-file`), 개발계가 로그를 10~16배 더 보내는데도 힙에서 awslogs 가 차지하는 양은 1~2MB다. 종전 문단이 권한 "`json-file` 로 전환" 은 효과가 없으니 **하지 않는다.**
+- LRU 는 20개에서 멈추므로 시간에 비례해 자라지 않는다 — 2주간 49~50% 에서 평평했던 관측과 맞는다. **누수가 아니라 고수위**다.
+
+**걱정할 상황은 아니다.** `free` 의 "used"(= CloudWatch `mem_used_percent`) 가 아니라 **MemAvailable 738MB(40%)** 가 실제 여유이고, 메모리 압박(PSI full)은 23일 누적 62초로 없다. 다만 **운영에는 스왑이 없어서** 여유가 바닥나면 완충 없이 OOM killer 로 간다 — 클러스터 워커를 더 띄우거나(워커당 약 125MB) 트래픽이 크게 늘 때 이 숫자를 본다.
+
+**되돌리는 방법은 dockerd 재시작뿐이다** — 약 300MB 가 돌아와 개발계 수준(≈110MB)이 된다. `docker builder prune` 은 디스크만 지우고 이 메모리 LRU 는 비우지 않는다. 재시작의 대가: `LiveRestoreEnabled=false` 라 **api·caddy·postgres 세 컨테이너가 모두 내려갔다 올라온다**(수십 초, postgres 재기동). 트래픽 낮은 시간에, 04시 서비스 날짜 경계는 피해서, 재시작 뒤 `docker ps` 3개 healthy 를 확인한다. 급하지 않으므로 **팀 상황을 보고 날을 잡는다**(2026-09-23 결정 — 보류).
+
+```bash
+sudo systemctl restart docker && sleep 20 && docker ps --format '{{.Names}}\t{{.Status}}'
+```
+
+**재발 방지.** 운영에서 다시 서버 빌드를 돌리면 같은 고수위가 재현된다. `backend/deploy/push.sh` 의 `API_IMAGE` 없는 분기(`up -d --build`)와 `deploy/aws/README.md` 의 `--build` 예시가 아직 남아 있다 — 운영은 **항상 `API_IMAGE=<ECR 태그>` 로만** 띄우는 것으로 스크립트·문서를 정리해야 한다(BE 파트 티켓 감).
 
 별개로 **디스크에 3.8GB 가 회수 가능하다**(빌드 캐시 2.3GB · 미사용 이미지 1.5GB). 20GB 중 44% 사용이라 급하지 않다.
 
