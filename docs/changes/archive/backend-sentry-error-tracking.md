@@ -35,3 +35,11 @@
 - Given `architecture.md` 7.6 / When 읽는다 / Then 에러가 Sentry 로도 간다는 것과 **`error` 등급만 간다**는 것이 적혀 있다
 - Given 같은 절 / When 읽는다 / Then 세탁 위치(`common/sentry-scrub.ts`)와 "필드를 늘리려면 여기를 본다"가 적혀 있다
 - Given 같은 절 / When 읽는다 / Then `SENTRY_DSN` 이 없으면 꺼진다는 것이 적혀 있다
+
+## 처리 기록
+
+| 항목 | 값 |
+|---|---|
+| **반영 날짜** | **2026-09-23** |
+| 반영 내용 | `backend/architecture.md` 7.6에 Sentry 경로 표·`error` 등급만·`SENTRY_DSN` 스위치·세탁 위치·초기화 위치·릴리스 규칙 추가. `common-error-handling.md` 4.7·미결에 Sentry 확정 반영 |
+| 반영 PR | `docs/changes-integration-2026-09-23` (dev) |

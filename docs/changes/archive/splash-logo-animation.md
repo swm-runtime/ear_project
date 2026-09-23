@@ -60,3 +60,11 @@
 - Given 기기의 모션 축소가 켜져 있다 / When 스플래시가 뜬다 / Then 정지 로고가 바로 보이고 0.8초 뒤 전환된다
 - Given `splash.md` 4장 6항 / When 최소 노출을 읽는다 / Then 3.0초와 모션 축소 예외가 적혀 있다
 - Given `architecture.md` 2.1 / When runtimeVersion 이력을 읽는다 / Then `2` 와 사유가 있다
+
+## 처리 기록
+
+| 항목 | 값 |
+|---|---|
+| **반영 날짜** | **2026-09-23** |
+| 반영 내용 | `splash.md` 4장 6항(완성 후 0.8초·재생 위치 판정·모션 축소 예외·6초 안전장치)·5장 판정 중 행, `frontend/architecture.md` 2.1 runtimeVersion 이력 `2`·10장 |
+| 반영 PR | `docs/changes-integration-2026-09-23` (dev) |

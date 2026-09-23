@@ -109,6 +109,7 @@ GET 요청은 기본 자동 재시도 대상, POST/PUT/DELETE는 멱등키 또�
 - 4xx/5xx, 타임아웃, 재시도 소진을 수집한다(요청 경로·에러 코드·재시도 횟수)
 - 개인정보·토큰·영수증 본문은 로그에 남기지 않는다
 - 재생 실패율·결제 검증 실패율은 별도 지표로 관측한다
+- **수집 도구는 Sentry다**(확정 2026-09-23 — 앱 `ear-app`·API `ear-api`). 앱은 전역 `ErrorBoundary`가 렌더 오류를 잡아 복구 화면([다시 시도])을 띄우고 Sentry로 보낸다 — 흰 화면으로 죽지 않는다. `ApiError`의 `NETWORK_ERROR`·`TIMEOUT`·4xx(계약된 응답)는 보내지 않는다. 서버는 `error` 등급만 보낸다. 초기화·마스킹 위치는 `frontend/architecture.md` 8.4 · `backend/architecture.md` 7.6
 
 ## 5. 화면 상태
 
@@ -316,5 +317,5 @@ NetworkState  { reachable, connection_type }                        // 클라이
 
 - 타임아웃 기준값(일반 10초 / 미디어 20초) 확정
 - 오프라인 큐 상한 및 폐기 정책 확정
-- 크래시·에러 수집 도구 선정(Sentry, Firebase Crashlytics 등)
+- ~~크래시·에러 수집 도구 선정(Sentry, Firebase Crashlytics 등)~~ → **확정(2026-09-23): Sentry(4.7)**
 - 9장은 `spec/api/` 6개 문서(auth·onboarding·library·explore·profile·settings)가 확정한 범위까지다. 플레이어·구독·알림·오프라인 저장의 코드는 각 api 문서가 작성될 때 등재한다

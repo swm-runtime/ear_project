@@ -20,7 +20,7 @@
 
 ## 관계 — `player-controls-redesign.md` 와의 분담
 
-- 손잡이 자리·좌우 스와이프 문법은 `changes/pending/player-controls-redesign.md` 4.2·4.6 과 같다. **재생 목록의 전환은 위 "자리·전환" 절이 우선한다**(4.6 의 압축 패널 설명은 스크립트에만 해당).
+- 손잡이 자리·좌우 스와이프 문법은 `changes/archive/player-controls-redesign.md` 4.2·4.6 과 같다. **재생 목록의 전환은 위 "자리·전환" 절이 우선한다**(4.6 의 압축 패널 설명은 스크립트에만 해당).
 - 이 문서는 **목록이 무엇인지, 줄을 누르면 무엇이 되는지, 카피**를 정한다. `player-controls-redesign.md` 의 계약 요청 3("재생 목록 정의 — 어느 문서에도 없다")은 이 문서로 **해소**된다.
 
 ## 현재 규칙
@@ -106,3 +106,11 @@ FR-24(자동 재생 금지)는 **건드리지 않았다.** 사용자가 직접 �
 - Given 개정된 `player.md`·`player-uiux.md` / When "플레이리스트 없음"을 검색한다 / Then 남아 있지 않고 "연속 재생 비범위"로 좁혀져 있다
 - Given 개정된 `player-uiux.md` 6장 / When 패널 카피를 찾는다 / Then 위 표와 `player.copy.ts` 의 `queuePanel` 블록이 문자열까지 일치한다
 - Given 플레이어에서 재생 목록의 다른 줄을 누른다 / When 오늘 차감이 필요한 콘텐츠다 / Then 라이브러리에서 눌렀을 때와 같은 확인 팝업이 뜬다
+
+## 처리 기록
+
+| 항목 | 값 |
+|---|---|
+| **반영 날짜** | **2026-09-23** |
+| 반영 내용 | `player.md` 4.2 이어폰 행·4.2-1 신설·5장·미결, `player-uiux.md` 2장 PL12·4.4·4.6-1 신설(자리·전환·줄·순서 변경·상태)·5장·6장 카피·7장·8장, `player-api.md` 9장 |
+| 반영 PR | `docs/changes-integration-2026-09-23` (dev) |

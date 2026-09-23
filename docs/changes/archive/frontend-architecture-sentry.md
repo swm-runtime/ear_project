@@ -16,3 +16,11 @@
 ## 완료 조건
 
 - Given 새 팀원이 architecture.md 8.4 를 읽는다 / When 앱 오류를 어디서 보는지 찾는다 / Then Sentry·`shared/monitoring`·보내지 않는 오류 기준·DSN 주입 경로를 문서만으로 안다
+
+## 처리 기록
+
+| 항목 | 값 |
+|---|---|
+| **반영 날짜** | **2026-09-23** |
+| 반영 내용 | `frontend/architecture.md` 8.4 Sentry 확정(`shared/monitoring`·보내지 않는 오류·DSN 주입)·2.1 runtimeVersion 이력 `6`·환경변수 표 `SENTRY_DSN`·`SENTRY_AUTH_TOKEN`·미결 해소. `common-error-handling.md` 4.7 ErrorBoundary |
+| 반영 PR | `docs/changes-integration-2026-09-23` (dev) |

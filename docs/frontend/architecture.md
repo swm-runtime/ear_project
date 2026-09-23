@@ -76,6 +76,19 @@ Frontend는 다음 5가지를 책임진다.
 | `preview` | 내부 테스트 APK | ○ |
 | `production` | 스토어 AAB | ○ |
 
+**앱 변형 — 운영 앱과 개발계 앱은 별개 번들이다**(KAN-76, 2026-09-19 — `changes/archive/frontend-architecture-app-variant.md`).
+
+| 변형 | 번들 ID · 이름 | 빌드 프로필 | 채널 | API |
+|---|---|---|---|---|
+| 운영 앱 | `com.runtime.ear` "이어" | `production` | `production` | 운영 `https://api.earcast.co.kr/api/v1` |
+| 개발계 앱 | `dev.runtime.ear` "이어 - preview" | `preview` 계열(`preview-store` 포함) | `preview` | 개발계 `https://api-dev.earcast.co.kr/api/v1` |
+
+- **운영 설정의 원본은 `app.json`**이고, `app.config.js`는 `APP_VARIANT=dev`일 때만 번들 ID·이름·아이콘을 덮어쓴다.
+- `APP_VARIANT`는 **빌드 프로필 env(`eas.json`)와 OTA 발행(`eas-update.yml`) 두 곳에서 같은 값**이어야 한다. `production` 프로필은 `preview`를 extends하므로 값을 명시한다 — 상속에 기대면 preview를 바꿀 때 스토어 빌드가 따라 바뀐다.
+- 개발계 앱은 도메인 연결(유니버설 링크)을 선언하지 않는다 — 공유 링크는 운영 앱이 받는다.
+- 빌드 절차: iOS 개발계는 `preview-store` 프로필 → TestFlight 내부 테스트, Android 개발계는 `dev-app-build.yml`(러너 로컬 빌드 — EAS 빌드 한도를 쓰지 않는다).
+- 개정 전(2026-09-17 KAN-65)에는 번들 ID가 같아 **한 폰에 스토어 앱과 preview 앱을 같이 깔 수 없었다.** 변형 분리로 해소됐다.
+
 - **발행은 CI가 한다** — `.github/workflows/eas-update.yml`이 `dev` merge → `preview`, `main` merge → `production`으로 자동 발행한다. 팀원은 로컬 EAS CLI 없이 merge만 하면 된다. 수동 발행은 `workflow_dispatch` 또는 조직 멤버의 `eas update`.
 - **실기기 검증은 `preview` 빌드로 한다**(결정 2026-09-15 — `changes/archive/verify-on-preview-build.md`). 스토어 빌드는 `production` 채널이라 `dev` merge가 닿지 않는다 — 스토어 빌드로 검증하면 **고친 것이 안 고쳐진 것처럼 보인다**(2026-09-15 실제 발생). 검증이 끝난 것만 `main`을 통해 스토어 빌드로 간다. `dev` merge마다 `production`에도 발행하는 안은 검증 기기와 실사용자 기기가 같아져 버렸다.
 - **검증을 부탁할 때 기대 번들 ID(8자리)를 함께 준다.** 기기에 붙었는지를 눈으로 가를 수 있어야 한다. 발행 로그의 `Android update ID`·`iOS update ID` 또는 `eas update:list`의 값과 대조한다. 앞 6자리는 UUIDv7 시각 비트라 약 4.6시간을 한 값으로 뭉치므로 8자리를 쓴다.
@@ -94,7 +107,7 @@ Frontend는 다음 5가지를 책임진다.
 
   그래서 **양쪽이 같은 문자열을 쓰도록 못박았다.** 현재 값은 vc=6·7이 embed한 지문 그대로라, **이미 배포된 빌드도 이 업데이트를 받는다**(문자열을 새로 지으면 기존 빌드가 버려진다).
 
-  **대신 네이티브 변경 감지가 수동이 된다.** 네이티브 모듈 추가·삭제, `app.json`의 네이티브 설정(아이콘·앱 이름·권한·plugin), Expo SDK 업그레이드 — 이 중 하나라도 바뀌면 **`runtimeVersion` 문자열을 손으로 올리고 새 빌드를 낸다.** 올리지 않으면 새 JS가 낡은 네이티브 위에 얹혀 깨진다.
+  **대신 네이티브 변경 감지가 수동이 된다.** 네이티브 모듈 추가·삭제, `app.json`·`app.config.js`의 네이티브 값(번들 ID·아이콘·앱 이름·권한·plugin 옵션), Expo SDK 업그레이드 — 이 중 하나라도 바뀌면 **`runtimeVersion` 문자열을 손으로 올리고 새 빌드를 낸다.** 올리지 않으면 새 JS가 낡은 네이티브 위에 얹혀 깨진다.
 
   > **감지되지 않는 자동화보다 규칙이 명확한 수동이 낫다.** fingerprint 정책은 Expo 쪽에서 빌드·업데이트 계산이 일치하게 된 뒤에 다시 검토한다.
 
@@ -116,7 +129,33 @@ Frontend는 다음 5가지를 책임진다.
   > 그래서 **손 절차로 두지 않고 CI로 옮겼다.** 사람이 기억해야 하는 절차는 언젠가 빠진다.
 
   **지금 실행 중인 번들을 눈으로 확인하려면** 설정 › 정보 › 버전을 본다 — `1.0.0 (a0801e)`처럼 괄호 안에 실행 중인 업데이트 ID 앞 6자리가 붙는다(내장 번들이면 `내장`). OTA는 받은 즉시가 아니라 **다음 실행**에 적용되므로(`fallbackToCacheTimeout` 기본값 0), 재시작 한 번으로는 옛 번들이 계속 돈다. **검증 전에 이 값이 바뀌었는지부터 확인한다.**
+
+  **`runtimeVersion` 이력** — 값을 올린 변경과 사유를 남긴다. 올리면 그 뒤의 OTA는 새 값의 빌드에만 닿는다.
+
+  | runtimeVersion | 시점 | 사유 |
+  |---|---|---|
+  | `1` | 2026-09 | 지문 정책 폐기 후 양 플랫폼 통일값 |
+  | `2` | 2026-09-17 | `expo-video` 추가(스플래시 로고 영상 — `splash.md` 4장) |
+  | `6` | 2026-09-23 | `@sentry/react-native` 추가(KAN-92 — 8.4) |
+
+  사이의 값은 각 PR의 `app.json` 이력을 따른다.
 - **OTA 번들의 env는 `eas.json`과 같은 값을 유지해야 한다.** 워크플로가 `EXPO_PUBLIC_API_BASE_URL`을 번들에 박으므로, `eas.json`의 `preview`·`production` env와 어긋나면 **OTA 번들만 다른 서버를 본다.** mock 플래그들은 `__DEV__` 가드라 릴리스 번들에서는 무관하다.
+  - **채널이 API를 정한다**(KAN-65 결정 A, 2026-09-17 — `changes/archive/preview-channel-dev-api.md`). 워크플로의 "채널 결정" 단계가 채널과 함께 API 주소를 정하고, `eas.json`의 같은 프로필 env와 값이 같아야 한다.
+
+  | 채널 / 프로필 | 트리거 | API |
+  |---|---|---|
+  | `preview` | dev 머지 OTA · `eas build --profile preview`(내부 테스트 빌드) | **개발계** `https://api-dev.earcast.co.kr/api/v1` |
+  | `production` | main 머지 OTA · `eas build --profile production`(스토어) | 운영 `https://api.earcast.co.kr/api/v1` |
+
+  - `production` 프로필은 `extends: preview`로 env를 상속하지 않고 운영 주소를 **명시**한다.
+- **환경변수** — 빌드·OTA 시점에 번들에 박히는 값이다.
+
+  | 변수 | 값 | 비고 |
+  |---|---|---|
+  | `EXPO_PUBLIC_API_BASE_URL` | 채널별 API 주소(위 표) | `eas.json` 프로필 env와 워크플로가 같은 값 |
+  | `APP_VARIANT` | `dev` \| `production` | 앱 변형(위 "앱 변형"). 빌드·OTA 두 곳에서 같은 값 |
+  | `SENTRY_DSN` | Sentry `ear-app` DSN | 없으면 수집을 끈다. 소스에 하드코딩하지 않고 `app.config.js` `extra`로 주입(8.4) |
+  | `SENTRY_AUTH_TOKEN` | EAS 시크릿 | 소스맵 업로드 전용. 번들에 들어가지 않는다 |
 - **`eas.json`은 지문 소스이므로 고치면 지문이 바뀐다**(위 정책 변경으로 지금은 무해하지만 기록해 둔다). 지문 소스에 `eas.json`이 포함되기 때문이다(`expo-updates fingerprint:generate` 결과에 `{"filePath":"eas.json","reasons":["easBuild"]}`). 2026-09-07 실측: 트리의 나머지가 완전히 같고 `eas.json`만 달라도 지문이 `64a20ba4…` ↔ `e30b09af…`로 갈린다.
   - **이것이 이 정책의 가장 걸리기 쉬운 함정이다.** env를 추가하는 것은 JS만 바뀌는 변경처럼 보이지만, 배포된 빌드 입장에서는 네이티브가 바뀐 것과 같이 취급된다.
   - 실제로 그렇게 됐다 — v7(runtime `cc07cb6e…`) 배포 후 `eas.json`에 외부 링크 env를 넣었고, 그 뒤의 OTA는 v7에 닿지 않는다. **새 빌드가 필요하다.**
@@ -218,6 +257,7 @@ app  ──▶  features  ──▶  shared
 - `shared/`는 `features/`를 import 하지 않는다. shared가 도메인 동작을 필요로 하면(예: ApiClient가 토큰 필요) **인터페이스를 정의하고 `app/bootstrap`에서 구현을 주입**한다. 예: `ApiClient`는 `TokenProvider` 인터페이스만 알고, auth feature의 SessionService가 그 구현으로 등록된다.
 - feature 간 의존은 **상대 feature의 `index.ts`(공개 API)만** 사용한다. 내부 파일 직접 import를 금지한다.
 - 순환이 생기면 경계가 잘못된 것이다. 공통 부분을 하위 feature 또는 shared(도메인 지식이 없다면)로 추출하거나 의존 방향을 재설계한다. 콜백·이벤트 주입으로 방향을 뒤집을 수 있는지 먼저 검토한다(→ 5.2 페이월 사례).
+- **색·타이포·간격은 `shared/theme` 토큰만 참조한다.** 예외는 하나 — **전체 플레이어 전용 어두운 팔레트 `features/player/player.theme.ts`**(2026-09-18 — `changes/archive/player-dark-theme.md`). 키 이름은 `theme.color`와 같고(`playerColor`), 플레이어 화면·그 안의 재생 목록·대본 패널·더보기·배속 시트만 쓴다. 기기의 다크 모드 설정과 무관하게 **항상 어둡다** — 미결인 다크 모드 대응과는 별개다. 탭 화면·미니플레이어·재생 확인 팝업은 밝은 `theme.color` 그대로다.
 
 ### 4.4 의존 방향 기록
 
@@ -228,7 +268,7 @@ feature가 늘어나면 아래 표를 갱신한다. 표에 없는 의존이 코�
 | library | player, share | 재생 시작 게이트 호출, 미니플레이어 상태 구독 / 시트 [공유] 실행(`IS_SHARE_ENABLED`·`shareContent` — share 공개 API) |
 | explore | player, library, share | 게이트 호출 / 담기(라이브러리 적립) 호출 / 시트 [공유] 실행(share 공개 API) |
 | content-detail | player, library, explore, share | 재생 게이트·확인 팝업·재생 세션 구독(`usePlaybackStore` — 현재 재생 중 콘텐츠 판정)·원문 클릭 계약(`sendSourceLinkClick`) / [삭제] 계약(`deleteLibraryItem`)·목록 무효화(`libraryKeys`) / [담기] 계약(`saveContent` — `explore-api.md` 4.3 재사용, `content-detail-api.md` 4.2 "신규 계약 없음") / 앱바 공유 아이콘(`ShareIcon`)·[공유] 실행(share 공개 API). **세 진입점 화면(library·explore·player)은 content-detail을 import하지 않는다** — 라우트 이름(`ContentDetail`)으로 내비게이션만 하고 화면 등록은 `app/navigation`이 담당한다(역방향 의존 없음 — 순환 미발생) |
-| player | paywall, subscription, settings, share | 차단 시 페이월 시트 표시 / entitlements 조회 / 배속 저장·조회(`user_settings` — `settings-api.md` 4.2 계약 재사용. player가 재선언하면 같은 엔드포인트의 DTO가 두 벌이 된다) / 시트 [공유] 실행(share 공개 API) |
+| player | paywall, subscription, settings, share, interest | 차단 시 페이월 시트 표시 / entitlements 조회 / 배속 저장·조회(`user_settings` — `settings-api.md` 4.2 계약 재사용. player가 재선언하면 같은 엔드포인트의 DTO가 두 벌이 된다) / 시트 [공유] 실행(share 공개 API) / 카테고리 줄의 주제 이름(`useTopicsQuery` — 같은 계약·같은 캐시 `interestKeys.topics()`, onboarding 행과 같은 방식. 역방향 import 없음 — 2026-09-17 `player-controls-redesign`) / 재생 목록 패널은 라이브러리 첫 페이지 조회를 `app/bootstrap`이 주입하는 브리지로 받는다(library → player 역방향 의존 없음) |
 | paywall | subscription | 요금제 비교·결제 실행. **player를 알지 못한다** (→ 5.2) |
 | profile | interest, subscription, auth, career | 관심사·플랜 카드 / 이메일 인증 진입 / 커리어 카드(dev mock 요약 원본 `getCareerMockSummary`). 관심사·커리어 저장 후 요약 invalidate는 각 feature가 노출한 `registerInterestSavedListener` · `registerCareerSavedListener`에 bootstrap이 주입한다(역방향 import 없음 — player ↔ library 브리지와 같은 방식) |
 | settings | auth, subscription, notification, interest | 각 도메인 진입점 허브. 요약 invalidate 배선은 profile 행과 동일(`registerInterestSavedListener`) |
@@ -236,6 +276,7 @@ feature가 늘어나면 아래 표를 갱신한다. 표에 없는 의존이 코�
 | notification | player | 푸시 딥링크 → 재생 게이트 |
 | share | auth | 링크 수신 게이트의 관문 판정(`useSessionStore` — 온보딩 완료 사용자만 상세로 이동, `share.md` 4.3). 순환 없음 — share는 네 진입점 feature를 import하지 않는다 |
 | splash | auth, onboarding | 진입 분기 판정 |
+| notice | (없음) | 조회 전용 화면(공지 목록·상세 — `settings.md` 4.5). **settings는 notice를 import하지 않는다** — 라우트 이름(`Notice`·`NoticeDetail`)으로 이동만 하고 화면 등록은 `app/navigation`이 한다(content-detail과 같은 방식) |
 
 ## 5. 전역 Domain Service
 
@@ -276,6 +317,7 @@ startPlayback(contentId, origin)
 - 확인 팝업의 숫자는 서버가 준 값을 표시만 한다. **[재생하기] 시점의 한도 판정은 서버가 다시 수행한다**(FR-29).
 - 페이월 결제 완료 후 복귀 재생은 **게이트가 수행한다.** paywall은 결제 결과만 반환하고 player를 알지 못한다(의존 역전 방지 — 4.4). `blocked_content_id`는 세션 메모리가 아니라 로컬에 영속한다 — 결제 중 앱이 죽어도 복귀 재생이 가능해야 한다(`paywall.md` 7).
 - 탐색발 재생은 게이트 통과(실제 재생 시작) 시에만 라이브러리 자동 적립한다. 페이월로 차단되면 적립하지 않는다(`explore.md` 4.4).
+- **푸시 딥링크만 순서가 다르다**(개정 2026-09-20, KAN-86 — `changes/archive/push-confirm-after-issue.md`): **발급(`audio-urls`) → (차감될 재생이면) 확인 팝업 → 재생.** 발급은 차감하지 않으므로(`player-api.md` 4.1) 팝업보다 앞서도 "동의 없이 차감하지 않는다"를 어기지 않는다. 발급이 404·403이면 팝업 없이 라이브러리 폴백, 플레이어는 발급이 성공한 뒤에만 연다(없는 콘텐츠로 네이티브 모달을 띄웠다 닫으면 iOS에서 화면이 굳는다). 팝업 여부 힌트는 발급 뒤 재생 목록(`sort=queue` 첫 페이지)에서 찾고, 못 찾으면 "아직 안 들었다"로 본다 — 차감 판정은 서버가 한다. [취소]하면 받아 둔 세션을 내린다. 규칙 원본은 `paywall.md` 4.2 · `notification.md` 4.4.
 
 ### 5.3 SessionService (`features/auth`)
 
@@ -310,6 +352,7 @@ startPlayback(contentId, origin)
 | 포그라운드 복귀 | 구독 상태 동기화, 미처리 스토어 트랜잭션 검증 | subscription |
 | 포그라운드 복귀 | OS 알림 권한 재확인 → 서버 동기화 | notification |
 | 백그라운드 30분 초과 복귀 | 버전 체크·세션 검증만 재수행(**화면 분기는 하지 않는다**) | splash |
+| 세션 확정(로그인 + 온보딩 완료) — 콜드 스타트의 스플래시 도중 | 라이브러리 첫 페이지(전체·필터 없음)를 화면과 **같은 캐시 키**로 미리 받고, 그 썸네일을 디스크 캐시(`expo-image` `Image.prefetch`)로 받아 둔다. **관문을 붙잡지 않는다** — 늦거나 실패해도 스플래시는 종전 조건으로만 넘어가고 화면이 평소대로 받는다(2026-09-20 — `changes/archive/splash-prefetch-first-screen.md`) | library (`app/bootstrap`이 호출) |
 | 온라인 복귀 | 오프라인 큐 재전송 | (OfflineQueue) |
 
 ### 5.6 Entitlements (`features/subscription`)
@@ -467,7 +510,11 @@ RootStack
 ### 8.4 크래시·에러 수집
 
 - 4xx/5xx·타임아웃·재시도 소진을 수집한다(요청 경로·에러 코드·재시도 횟수). 개인정보·토큰·영수증 본문은 수집하지 않는다.
-- 수집 도구는 미결이다(`common-error-handling.md` 미결 — Sentry / Crashlytics). 선정 시 이 장에 초기화 위치·마스킹 규칙을 기록한다.
+- **수집 도구는 Sentry다**(확정 2026-09-23, KAN-92 — `@sentry/react-native`, 프로젝트 `ear-app`. `changes/archive/frontend-architecture-sentry.md`). 코드는 `shared/monitoring`에 모은다 — `initSentry`(앱 진입 최상단) · `AppErrorBoundary`(전역, 렌더 오류를 잡아 복구 화면 [다시 시도]) · `reportError`(명시적 전송) · `setSentryUser`(사용자 id만).
+  - **`logger.error`는 Sentry로 자동 연결하지 않는다.** 필터를 거친 크래시·예상 못한 예외만 보내며, 명시적으로 보낼 때는 `reportError`를 쓴다.
+  - **보내지 않는 것** — `ApiError`의 `NETWORK_ERROR`·`TIMEOUT`·4xx(계약된 응답). 개인정보는 사용자 id만 남기고, breadcrumb URL 쿼리·요청 정보는 제거한다(`sendDefaultPii: false`).
+  - DSN은 `SENTRY_DSN` env로 `app.config.js` `extra`를 통해 주입한다(2.1 환경변수 표) — 소스에 박지 않고, 없으면 수집을 끈다. 소스맵 업로드는 `SENTRY_AUTH_TOKEN`(EAS 시크릿). 네이티브 모듈이라 runtimeVersion `6`이다(2.1).
+  - 서버 쪽은 `backend/architecture.md` 7.6(같은 org, `ear-api`, `error` 등급만).
 
 ## 9. Security
 
@@ -499,7 +546,8 @@ RootStack
 | 재생 시작 | 탭 후 **2초 내** (정상 네트워크, PRD 비기능) | 서명 URL 발급과 플레이어 준비 병렬화, 버퍼링 2초 초과 시 인디케이터 |
 | 로딩 표시 | 0.3초 미만이면 미표시 | shared/ui 로딩 컴포넌트에 지연 내장 |
 | 목록 | 무한 스크롤 프레임 저하 없음 | FlashList, 카드 컴포넌트 메모이제이션 |
-| 스플래시 | 최소 0.8초·판정 병렬화 | 버전 체크와 토큰 검증 동시 수행 후 순차 판정 |
+| 스플래시 | 로고 모션 완성 후 0.8초·판정 병렬화 | 버전 체크와 토큰 검증 동시 수행 후 순차 판정(`splash.md` 4장 6항) |
+| 첫 화면 | 스플래시 뒤 라이브러리가 스켈레톤 없이 그려진다 | 스플래시 동안 목록 첫 페이지·썸네일 미리 받기(5.5). 목록 조회에 5초 신선 구간을 둬 착지 직후 같은 목록을 또 받지 않는다 |
 | 이미지 | 커버 아트 캐싱 | expo-image (메모리+디스크 캐시) |
 | JS 엔진 | Hermes 사용 | Expo 기본값 유지 |
 
@@ -507,10 +555,10 @@ RootStack
 
 ## 미결 사항
 
-- 크래시·에러 수집 도구 선정(Sentry / Firebase Crashlytics)과 마스킹 규칙
+- ~~크래시·에러 수집 도구 선정(Sentry / Firebase Crashlytics)과 마스킹 규칙~~ → **확정(2026-09-23): Sentry(8.4)**
 - 무료 티어 광고 형태(오디오 프리롤 / 배너 — PRD 결정 포인트 #20)에 따른 플레이어·광고 SDK 구조
 - Query 캐시의 디스크 영속(persistQueryClient) 도입 여부 — MVP는 수동 캐시(MMKV 1페이지)로 시작
 - Android 애플 로그인(웹 OAuth) — 네이티브 모듈이 iOS 전용이라 별도 구현 필요. 콘솔 준비(Services ID)는 완료, 콜백 처리 방식은 백엔드 협의 대기(`changes/pending/auth-api-apple-android-web-flow(fe).md`)
 - ~~푸시 토큰 갱신·`UNREGISTERED` 처리 세부 흐름~~ → **확정(2026-09-17)**: 토큰 변경은 `addPushTokenListener`로 받아 `PUT /users/me/devices/:device_id`로 동기화하고, 무효 토큰(`DeviceNotRegistered`)은 서버가 Expo receipt로 판정해 무효화한다(`notification.md` 7)
-- 다크 모드 대응 범위(`auth-uiux.md` 미결) — theme 토큰 구조는 대응 가능하게 설계하되 MVP 범위 미정
+- 다크 모드 대응 범위(`auth-uiux.md` 미결) — theme 토큰 구조는 대응 가능하게 설계하되 MVP 범위 미정. 플레이어의 상시 어두운 팔레트(4.3 예외)는 이 미결과 무관하다
 - E2E 테스트 도구(Maestro / Detox) 도입 여부와 시점

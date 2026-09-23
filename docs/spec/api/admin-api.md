@@ -290,7 +290,7 @@
 
 ### 4.12 `GET /admin/notices` — 공지 목록
 
-신설 2026-09-17(`changes/pending/notice-screen-spec.md` C, KAN-67). 쿼리는 `settings-api.md` 4.4와 같다(`cursor` · `limit` 기본 20·최대 50).
+신설 2026-09-17(`changes/archive/notice-screen-spec.md` C, KAN-67). 쿼리는 `settings-api.md` 4.4와 같다(`cursor` · `limit` 기본 20·최대 50).
 
 ```jsonc
 { "items": [

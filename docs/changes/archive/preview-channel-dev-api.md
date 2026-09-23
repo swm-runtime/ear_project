@@ -30,3 +30,11 @@
 - Given `architecture.md` 2.1 / When OTA env 규칙을 읽는다 / Then preview=개발계·production=운영 표와 "한 폰에 둘 못 깐다" 주의가 있다
 - Given `runbook.md` 4장 / When 배포 흐름 표를 본다 / Then 앱 채널 행이 있다
 - Given dev 에 백엔드 변경이 머지됐다 / When preview 빌드를 깐 폰에서 앱을 연다 / Then 개발계 변경이 보이고, 스토어 앱은 운영을 그대로 본다
+
+## 처리 기록
+
+| 항목 | 값 |
+|---|---|
+| **반영 날짜** | **2026-09-23** |
+| 반영 내용 | `frontend/architecture.md` 2.1 OTA env 규칙에 채널/API 표·"한 폰에 둘 못 깐다"(변형 분리로 해소 기록), `infra/runbook.md` 4장 앱 행 2줄 |
+| 반영 PR | `docs/changes-integration-2026-09-23` (dev) |

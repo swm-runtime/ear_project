@@ -1153,7 +1153,7 @@ idx_notification_logs_user_id_scheduled_at (user_id, scheduled_at DESC)
 
 ### 9.2 `notices`
 
-설정 > 공지사항의 운영 공지 게시판(신설 2026-09-17 — `changes/pending/notice-screen-spec.md` D, KAN-67). **푸시가 아니라 사용자가 당겨서 보는 채널**이고, 점검 공지([13.3](#133-배포-설정으로-관리))와 별개다. 소유 모듈 `notice`.
+설정 > 공지사항의 운영 공지 게시판(신설 2026-09-17 — `changes/archive/notice-screen-spec.md` D, KAN-67). **푸시가 아니라 사용자가 당겨서 보는 채널**이고, 점검 공지([13.3](#133-배포-설정으로-관리))와 별개다. 소유 모듈 `notice`.
 
 ```
 notices
