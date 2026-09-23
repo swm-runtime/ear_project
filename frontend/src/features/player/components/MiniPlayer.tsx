@@ -40,6 +40,9 @@ import { usePlayerOpenGestureStore } from '../store/player-open-gesture.store';
 const MINI_PLAY_ICON_SIZE = 20;
 /** 카드 모서리 — 캡슐 탭 바(높이 60 알약)와 같은 결로 크게 */
 export const MINI_CARD_RADIUS = 22;
+/** 썸네일 한 변·행 위아래 여백 — PlayerScreen 의 대체 치수(MINI_THUMB_SIZE·MINI_ROW_HEIGHT)와 맞아야 한다 */
+export const MINI_THUMB_SIZE = 40;
+const MINI_ROW_PADDING = 6;
 /** 캡슐 탭 바와 미니플레이어 카드 사이(mini-player-layout.store 의 DOCK_GAP 과 같다) */
 const DOCK_GAP = 8;
 
@@ -443,12 +446,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.sm,
-    paddingVertical: theme.spacing.sm,
+    // 위아래 6 — 8 이면 카드가 세로로 길어 보였다(PM 2026-09-23). 진행바 2 + 6 + 40 + 6 = 54
+    paddingVertical: MINI_ROW_PADDING,
   },
+  // 썸네일 40 — 카드 세로가 길어 보여 44 에서 줄였다(PM 2026-09-23). 모서리는 연속 곡률(애플식)
   thumbnail: {
-    width: 44,
-    height: 44,
+    width: MINI_THUMB_SIZE,
+    height: MINI_THUMB_SIZE,
     borderRadius: theme.radius.sm,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.background,
     overflow: 'hidden',
   },
