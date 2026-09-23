@@ -8,12 +8,45 @@
 | 발행 날짜 | 2026-09-23 |
 | 시작 날짜 | 2026-09-23 |
 | 기한 | 2026-09-26 (Medium — 3일) |
-| 선행 | 티켓 선행 없음. **티켓이 아닌 선행 1건** — Sentry 조직·프로젝트(React Native) 생성과 DSN 발급(담당: 박준현·인프라 / 상태: **진행 예정**). DSN 없이도 코드 작업은 끝까지 할 수 있고, 값만 나중에 넣으면 된다 |
+| 선행 | 티켓 선행 없음. 티켓이 아닌 선행(Sentry 조직·`ear-app` 프로젝트·DSN·토큰 발급, 담당 박준현·인프라)은 **2026-09-23 전부 해소** — 아래 "이 티켓의 범위" 참조 |
 | Jira | [KAN-92](https://runtime364.atlassian.net/browse/KAN-92) |
 | 발견 시점 | 2026-09-22 Sentry 도입 검토 — 서버는 감시가 촘촘한데 **앱 쪽은 아무것도 없다**는 것이 드러났다 |
 | 근거 문서 | `frontend/architecture.md`(에러 처리) · `features/common-error-handling.md` 4.7(로깅·모니터링) |
 | 중요도 | **Medium** — 지금 앱 버그를 알게 되는 경로가 **앱스토어 리뷰뿐**이다. 가장 느리고 가장 아픈 채널이다 |
 | 상태 | 진행 — 코드 반영, **DSN·소스맵 토큰·빌드 남음** |
+
+## 이 티켓의 범위 — FE는 여기부터 여기까지만 한다
+
+### 이미 끝난 것 — FE가 손대지 않는다
+
+- **Sentry 콘솔 전부** — 프로젝트 `ear-app` 생성 · Slack `#ops-alerts` 알림 규칙(신규·급증·회귀) · Spike Protection · Allowed Domains `*` · 할당량/주간 리포트 알림. **콘솔에서 아무것도 만들거나 바꾸지 않는다.**
+- **소스맵 업로드용 `SENTRY_AUTH_TOKEN`은 백엔드 개발자 juyear(박준현)가 이미 발급해서 갖고 있다.** FE는 토큰을 새로 만들지 않는다 — **juyear에게 요청해서 받은 뒤** EAS Secret으로 등록만 한다:
+  `eas secret:create --scope project --name SENTRY_AUTH_TOKEN --value '<받은 토큰>'`
+- 백엔드 코드(`backend/`)는 건드리지 않는다. 서버 쪽 Sentry는 별도 PR(#651)로 이미 반영·배포됐다.
+
+### 입력값 (그대로 쓴다)
+
+| 값 | |
+|---|---|
+| DSN | `https://d6db2546c7f36deee309002df93d3596@o4512133734858752.ingest.us.sentry.io/4512133900140544` |
+| organization | `runtime-gw` |
+| project | `ear-app` |
+| 토큰 | juyear에게 요청 (문서·Jira에 적지 않는다) |
+
+### FE가 하는 것 — 여기부터
+
+1. `npx expo install @sentry/react-native` + Expo 플러그인 등록(`organization: runtime-gw`, `project: ear-app`)
+2. DSN을 `app.config.js`의 `extra`로 주입(`DEV_SOCIAL_AUTH`와 같은 패턴). **소스에 하드코딩 금지**
+3. `Sentry.init`: `dsn` · `environment`(빌드 채널 — 프리뷰/운영 구분) · `release`(= `expo.version`) · `sendDefaultPii: false` · `tracesSampleRate: 0`
+4. 전역 **ErrorBoundary** — 렌더 오류를 Sentry로 보내고 흰 화면 대신 복구 화면(다시 시도·홈으로). 문구는 `spec/uiux/` 공통 오류 규칙, 새 문구는 `changes/`에
+5. **소스맵 업로드** — EAS 빌드 후처리에 붙인다(토큰은 위 EAS Secret)
+6. **노이즈 필터** — `beforeSend`에서 네트워크 타임아웃·오프라인, 서버가 계약대로 내려준 4xx(`error_code` 있는 응답)는 보내지 않는다. **크래시와 예상 못한 예외만** 보낸다
+7. 사용자 식별은 `Sentry.setUser({ id })` — id만. 이메일·닉네임 금지
+8. 아래 완료 조건 6개 확인 → 이 파일을 `archive/`로 옮기고(처리 기록·반영 날짜 기입) Jira KAN-92 를 완료로
+
+### 여기까지
+
+이 목록 밖의 것이 필요해 보이면 하지 말고 juyear에게 먼저 묻는다.
 
 ## 문제
 
