@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { Linking } from 'react-native';
 
+import { track } from '@/shared/analytics';
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { logger } from '@/shared/lib/logger';
 import { useToastStore } from '@/shared/ui/toast.store';
@@ -246,6 +247,7 @@ export const usePlayerScreen = () => {
     const url = session?.meta.sourceUrl;
     if (!url) return;
     setIsMoreSheetVisible(false);
+    track('source_link_click', { content_id: contentId });
     playbackService.recordSourceLinkClick(contentId);
     // TODO(인앱 브라우저): architecture.md 9.3 — expo-web-browser 도입 검토. 현재는 설정 화면과
     // 같은 Linking 패턴을 쓴다

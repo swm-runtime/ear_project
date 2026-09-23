@@ -3,6 +3,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCallback } from 'react';
 import { BackHandler } from 'react-native';
 
+import { track } from '@/shared/analytics';
 import { isApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
@@ -78,7 +79,10 @@ export const useTopicSelectScreen = () => {
     saveInterestsMutation.mutate(
       { topicIds: selectedTopicIds },
       {
-        onSuccess: () => navigation.navigate('Career'),
+        onSuccess: () => {
+          track('onboarding_step', { step: 'topic', action: 'next' });
+          navigation.navigate('Career');
+        },
         onError: (error) => {
           if (isApiError(error)) {
             // 노출이 내려간 주제가 섞임 → 목록 재조회 후 선택 초기화(onboarding-api.md 5장)

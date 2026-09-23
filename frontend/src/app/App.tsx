@@ -1,8 +1,9 @@
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, type NavigationState } from '@react-navigation/native';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { trackScreen } from '@/shared/analytics';
 import { AppErrorBoundary, initSentry, wrapWithSentry } from '@/shared/monitoring';
 import Toast from '@/shared/ui/Toast';
 
@@ -14,12 +15,35 @@ import { queryClient } from './query-client';
 initSentry();
 bootstrapApp();
 
+/** 지금 보이는 화면의 라우트 이름 — 중첩 내비게이터를 끝까지 따라 내려간다(PushArrivalBanner 와 같은 규칙) */
+const focusedRouteName = (state: NavigationState | undefined): string | null => {
+  let current: NavigationState | undefined = state;
+  let name: string | null = null;
+  while (current) {
+    const route = current.routes[current.index];
+    if (!route) break;
+    name = route.name;
+    current = route.state as NavigationState | undefined;
+  }
+  return name;
+};
+
+let lastTrackedScreen: string | null = null;
+
+/** GA4 `screen_view` — 포커스된 리프 라우트가 바뀔 때만(같은 화면 재렌더에 중복 발송 금지, analytics.md 4장) */
+const handleNavigationStateChange = (state: NavigationState | undefined): void => {
+  const name = focusedRouteName(state);
+  if (name === null || name === lastTrackedScreen) return;
+  lastTrackedScreen = name;
+  trackScreen(name);
+};
+
 function App() {
   return (
     <AppErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <SafeAreaProvider>
-          <NavigationContainer>
+          <NavigationContainer onStateChange={handleNavigationStateChange}>
             <RootNavigator />
           </NavigationContainer>
           <Toast />

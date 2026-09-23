@@ -4,6 +4,8 @@
   "main": "index.ts",
   "dependencies": {
     "@expo/metro-runtime": "~57.0.9",
+    "@react-native-firebase/analytics": "^26.4.0",
+    "@react-native-firebase/app": "^26.4.0",
     "@react-native-google-signin/google-signin": "^16.1.4",
     "@react-native-kakao/core": "^2.4.6",
     "@react-native-kakao/user": "^2.4.6",

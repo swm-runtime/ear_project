@@ -1,3 +1,4 @@
+import { setAnalyticsUser, setAnalyticsUserProperties } from '@/shared/analytics';
 import { registerTokenProvider } from '@/shared/api/api-client';
 import { setSentryUser } from '@/shared/monitoring';
 import { prefetchRemoteImages } from '@/shared/ui/RemoteImage';
@@ -159,6 +160,9 @@ export const bootstrapApp = (): void => {
       syncDeviceNow();
       // 크래시 리포트에 사용자 id 만 붙인다 — 이메일·닉네임은 보내지 않는다(KAN-92)
       setSentryUser(state.user?.id ?? null);
+      // GA4 user_id 는 서버 id 의 해시 — 원본 id 는 앱 밖으로 나가지 않는다(KAN-90)
+      setAnalyticsUser(state.user?.id ?? null);
+      if (state.user?.tier) setAnalyticsUserProperties({ tier: state.user.tier });
     }
     /*
      * 로그아웃·탈퇴·세션 만료 → **재생을 끊는다**(auth.md 4.2-3). 지금까지 세션만
@@ -174,6 +178,7 @@ export const bootstrapApp = (): void => {
       // 다음 사용자가 앞 사용자의 탭에서 시작하면 안 된다(splash.md 4장 4-1)
       forgetTab();
       setSentryUser(null);
+      setAnalyticsUser(null);
     }
   });
 };

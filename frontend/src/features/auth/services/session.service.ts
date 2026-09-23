@@ -1,3 +1,4 @@
+import { track } from '@/shared/analytics';
 import type { TokenProvider } from '@/shared/api/api-client';
 import { getDeviceId } from '@/shared/lib/device-id';
 import { logger } from '@/shared/lib/logger';
@@ -56,6 +57,8 @@ class SessionService implements TokenProvider {
     pendingConsents: RequiredConsent[] = [],
   ): Promise<void> {
     await this.saveTokens(tokens);
+    // 온보딩을 안 끝낸 세션 시작 = 가입 직후(A20 동의 완료 뒤)로 본다 — 서버에 신규 플래그가 없다
+    track(user.onboardingCompleted ? 'login' : 'sign_up', { method: user.provider });
     useSessionStore.getState().setSession(user, pendingConsents);
   }
 
