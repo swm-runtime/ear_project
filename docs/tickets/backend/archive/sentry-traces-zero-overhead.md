@@ -43,4 +43,4 @@ Sentry 도입(#651)에서 `tracesSampleRate: Number(process.env.SENTRY_TRACES_SA
 | 항목 | 값 |
 |---|---|
 | **반영 날짜** | **2026-09-23** — PR #666(`fix(be)/sentry-traces-off`). 코드·스펙·문서 같은 PR |
-| 남은 확인 | dev 배포 뒤 개발계 재측정(완료 조건 2) — 결과는 `load-test/results/2026-09-23-dev-onboarding/REPORT.md` 에 덧붙인다. 개발계 `.env.prod` 의 `SENTRY_TRACES_SAMPLE_RATE=0.5` 줄은 재측정 뒤 지운다 |
+| 확인 완료 | 2026-09-23 20:30 dev 배포(b5a1207) 뒤 개발계 재측정(완료 조건 2): 분당 600명에서 API CPU 100~140% → **50~80%**, 완료 요청 p95 14.4s → 130ms, 첫 드립 대기 p95 26.7s → 1.16s. Sentry 없음(43~54%)과의 차이 10~20%p 는 에러 수집용 계측 몫 — 감수. 개발계 `.env.prod` 추적 줄 삭제 완료(결정: 어드민 서버 상태 그래프로 충분, Sentry 성능 추적은 필요할 때만 잠깐) |
