@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import GlassSurface from '@/shared/ui/GlassSurface';
 import SegmentedControl from '@/shared/ui/SegmentedControl';
 
 import { LIBRARY_COPY } from '../library.copy';
@@ -10,7 +11,9 @@ import FilterIcon from './FilterIcon';
 // 출처(이어 PICK·담은 콘텐츠)는 탭이 아니라 필터 팝업으로 이동했다(FE 개편 2026-08-07)
 const TABS: LibraryFilter[] = ['all', 'unplayed', 'completed'];
 
-const FILTER_ICON_SIZE = 22;
+const FILTER_ICON_SIZE = 20;
+/** 유리 원 버튼 지름 — 세그먼트 트랙 높이(36)와 같은 눈높이 */
+const FILTER_CIRCLE_SIZE = 36;
 /** 칸 폭 — '미청취' 세 글자가 들어가는 폭. 세 칸 같은 폭(SegmentedControl) */
 const SEGMENT_WIDTH = 64;
 const OPTIONS = TABS.map((value) => ({ value, label: LIBRARY_COPY.tab[value] }));
@@ -56,10 +59,15 @@ export default function LibraryTabs({
           topicFilterCount > 0 ? LIBRARY_COPY.topicFilter.a11yBadge(topicFilterCount) : '주제 필터'
         }
       >
-        <FilterIcon
-          size={FILTER_ICON_SIZE}
-          color={topicFilterCount > 0 ? theme.color.primary : theme.color.textSecondary}
-        />
+        {/* 유리 원 버튼(iOS 26 툴바 버튼처럼, PM 2026-09-23) — 세그먼트 트랙과 같은 재질·윤곽 */}
+        <View style={styles.filterCircle}>
+          <GlassSurface style={[StyleSheet.absoluteFill, styles.filterGlass]} />
+          <View style={styles.filterCircleBorder} pointerEvents="none" />
+          <FilterIcon
+            size={FILTER_ICON_SIZE}
+            color={topicFilterCount > 0 ? theme.color.primary : theme.color.textSecondary}
+          />
+        </View>
         {/* 배지는 아이콘 위에 얹는다 — 옆에 두면 적용될 때 버튼이 넓어져 탭 폭이 흔들린다 */}
         {topicFilterCount > 0 ? (
           <View style={styles.filterBadge}>
@@ -90,6 +98,27 @@ const styles = StyleSheet.create({
     minHeight: theme.touchTarget.minHeight,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  filterCircle: {
+    width: FILTER_CIRCLE_SIZE,
+    height: FILTER_CIRCLE_SIZE,
+    borderRadius: FILTER_CIRCLE_SIZE / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterGlass: {
+    borderRadius: FILTER_CIRCLE_SIZE / 2,
+    overflow: 'hidden',
+  },
+  filterCircleBorder: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: FILTER_CIRCLE_SIZE / 2,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.10)',
   },
   filterBadge: {
     position: 'absolute',
