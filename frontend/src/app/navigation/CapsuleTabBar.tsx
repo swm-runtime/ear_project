@@ -7,8 +7,10 @@ import { Animated, PanResponder, StyleSheet, Text, View } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion, theme } from '@/shared/theme';
-import GlassSurface, { GlassPill } from '@/shared/ui/GlassSurface';
+import GlassSurface, { GlassGroup, GlassPill } from '@/shared/ui/GlassSurface';
 import TabBarIcon, { type TabBarIconName } from '@/shared/ui/TabBarIcon';
+
+import { MiniPlayer } from '@/features/player';
 
 /** 캡슐 높이 — 아이콘 24 + 라벨 11 + 위아래 숨. iOS 26 탭 바와 같은 눈높이 */
 const CAPSULE_HEIGHT = 60;
@@ -23,6 +25,8 @@ const ITEM_HEIGHT = CAPSULE_HEIGHT - CAPSULE_INSET * 2;
  */
 const BOTTOM_INSET_OVERLAP = 18;
 const BOTTOM_MIN_GAP = 8;
+/** 카드와 캡슐이 이 거리 안으로 가까워지면 유리가 합쳐지기 시작한다 — 카드가 내려오는 동안 붙는 게 보일 만큼 */
+const DOCK_MERGE_SPACING = 28;
 const ICON_SIZE = 24;
 const LABEL_SIZE = 11;
 
@@ -52,6 +56,7 @@ const PILL_LIFT_SCALE = 1.3;
  */
 export default function CapsuleTabBar({ state, descriptors, navigation, insets }: BottomTabBarProps) {
   const reportHeight = useContext(BottomTabBarHeightCallbackContext);
+  const bottomPadding = Math.max(insets.bottom - BOTTOM_INSET_OVERLAP, BOTTOM_MIN_GAP);
   const indicatorX = useAnimatedValue(state.index * ITEM_WIDTH);
   // 누르는 동안 알약이 살짝 커져 떠오른다(iOS 26 탭 바) — 놓으면 제자리 크기로
   const indicatorScale = useAnimatedValue(1);
@@ -153,10 +158,14 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
 
   return (
     <View
-      style={[styles.dock, { paddingBottom: Math.max(insets.bottom - BOTTOM_INSET_OVERLAP, BOTTOM_MIN_GAP) }]}
+      style={[styles.dock, { paddingBottom: bottomPadding }]}
       pointerEvents="box-none"
-      onLayout={(event) => reportHeight?.(event.nativeEvent.layout.height)}
+      // 보고하는 높이는 캡슐 + 바닥 여백뿐 — 미니플레이어 카드는 자기 높이를 따로 올린다(useBottomDockInset 이 합산)
+      onLayout={() => reportHeight?.(CAPSULE_HEIGHT + bottomPadding)}
     >
+      {/* 미니플레이어 카드와 캡슐을 한 유리 묶음에 — 카드를 아래로 끌면 캡슐과 물방울처럼 합쳐진다(iOS 26) */}
+      <GlassGroup spacing={DOCK_MERGE_SPACING} style={styles.group}>
+      <MiniPlayer placement="dock" />
       <View style={styles.capsule} accessibilityRole="tablist">
         <GlassSurface style={[StyleSheet.absoluteFill, styles.capsuleGlass]} />
         <View style={styles.capsuleBorder} pointerEvents="none" />
@@ -233,6 +242,7 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
           );
         })}
       </View>
+      </GlassGroup>
     </View>
   );
 }
@@ -245,6 +255,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     alignItems: 'center',
     backgroundColor: 'transparent',
+  },
+  group: {
+    alignItems: 'center',
   },
   capsule: {
     flexDirection: 'row',

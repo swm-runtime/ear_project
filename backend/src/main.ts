@@ -1,4 +1,7 @@
-import { ValidationPipe } from '@nestjs/common';
+// Sentry 는 다른 무엇보다 먼저 로드되어야 한다 — 이 줄의 위치를 바꾸지 않는다 (instrument.ts 주석)
+import { sentryEnabled } from './instrument';
+
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
@@ -55,6 +58,10 @@ export async function bootstrap(): Promise<void> {
    * 스케줄러 작업이 중간에 잘린다(2026-09-09 감사 — 하등급).
    */
   app.enableShutdownHooks();
+
+  if (sentryEnabled) {
+    new Logger('Bootstrap').log('sentry enabled');
+  }
 
   await app.listen(configService.get('PORT', { infer: true }));
 }
