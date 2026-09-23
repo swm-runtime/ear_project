@@ -13,7 +13,8 @@
 | 발견 시점 | 2026-09-22 Sentry 도입 검토 — 서버는 감시가 촘촘한데 **앱 쪽은 아무것도 없다**는 것이 드러났다 |
 | 근거 문서 | `frontend/architecture.md`(에러 처리) · `features/common-error-handling.md` 4.7(로깅·모니터링) |
 | 중요도 | **Medium** — 지금 앱 버그를 알게 되는 경로가 **앱스토어 리뷰뿐**이다. 가장 느리고 가장 아픈 채널이다 |
-| 상태 | 진행 — 코드 반영, **DSN·소스맵 토큰·빌드 남음** |
+| 상태 | **완료** — 2026-09-23 실기기 검증 통과, archive |
+| 반영 날짜 | 2026-09-23 |
 
 ## 이 티켓의 범위 — FE는 여기부터 여기까지만 한다
 
@@ -140,3 +141,11 @@
 - `SENTRY_DSN` 을 **EAS 환경변수**(production·preview·development, plaintext) 와 **GitHub repo secret**(OTA 워크플로용) 에 넣었다. DSN 은 클라이언트에 실리는 값이라 비밀이 아니다 — `eas.json` 의 빈 자리는 EAS 환경변수가 덮는다.
 - **`SENTRY_AUTH_TOKEN`(소스맵) 은 아직 없다** — juyear 가 발급해 갖고 있고 Jira·Slack 에 올리지 않기로 했다. 계정 소유자가 직접 받아 `eas env:create --scope project --name SENTRY_AUTH_TOKEN --value '<토큰>' --visibility secret --environment production --environment preview` 로 넣는다. 그 전까지 빌드는 되지만 스택이 난독화된 채로 온다(완료 조건 2 미충족).
 - 남은 것: 토큰 등록 → runtime 6 개발계 빌드 → 완료 조건 6개 실기기 확인 → archive.
+
+## 처리 기록 (2026-09-23 밤 — 토큰·빌드·검증, 반영 날짜 2026-09-23)
+
+- `SENTRY_AUTH_TOKEN` 을 계정 소유자가 juyear 에게 받아 EAS secret(production·preview)으로 등록. 값은 어디에도 남기지 않았다.
+- 개발계 설정에 **"크래시 테스트 (개발계)"** 행 추가(PR #669, `DevDiagnosticsRows`) — 렌더 오류를 일부러 던진다. 운영 앱에는 없다.
+- 빌드: GA4(KAN-90)와 묶어 **runtime 7** — iOS 개발계 build 11(EAS `fe9565fc`) TestFlight · Android APK(Actions run 35855715899). build 11 부터 소스맵이 올라간다.
+- **실기기 검증 통과** — 2026-09-23 21:15 이주호 확인("Sentry.io 잘되네"): 크래시 테스트 → 복구 화면 → sentry.io `runtime-gw/ear-app` 이슈 확인(완료 조건 1·2). 조건 3·4(네트워크·4xx 미발송)는 `event-filter.test.ts` 유닛 7건, 조건 5(id 만)·6(environment)은 코드 경로가 하나라 같은 이슈에서 함께 확인된다.
+- Jira KAN-92 완료 전이.
