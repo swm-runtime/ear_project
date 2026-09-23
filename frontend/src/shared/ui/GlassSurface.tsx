@@ -50,6 +50,7 @@ interface GlassGroupProps {
   /** 이 거리 안으로 가까워진 유리끼리 물방울처럼 합쳐진다 */
   spacing?: number;
   style?: StyleProp<ViewStyle>;
+  pointerEvents?: 'none' | 'box-none' | 'auto';
   children?: ReactNode;
 }
 
@@ -58,15 +59,19 @@ interface GlassGroupProps {
  * PM 2026-09-23 "물방울이 합쳐지는 애니메이션"). 미니플레이어 카드가 캡슐 탭 바로 내려갈 때 둘이 한 덩어리로
  * 붙는다. 그 밑 OS 는 그냥 View
  */
-export function GlassGroup({ spacing = 24, style, children }: GlassGroupProps) {
+export function GlassGroup({ spacing = 24, style, pointerEvents, children }: GlassGroupProps) {
   if (HAS_LIQUID_GLASS) {
     return (
-      <GlassContainer spacing={spacing} style={style}>
+      <GlassContainer spacing={spacing} style={style} pointerEvents={pointerEvents}>
         {children}
       </GlassContainer>
     );
   }
-  return <View style={style}>{children}</View>;
+  return (
+    <View style={style} pointerEvents={pointerEvents}>
+      {children}
+    </View>
+  );
 }
 
 interface GlassPillProps {

@@ -11,7 +11,6 @@ import {
   View,
 } from 'react-native';
 
-import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion, theme } from '@/shared/theme';
 import GlassSurface from '@/shared/ui/GlassSurface';
 import MarqueeText from '@/shared/ui/MarqueeText';
@@ -31,6 +30,7 @@ import {
 import { PLAYER_COPY } from '../player.copy';
 import { PauseIcon, PlayIcon } from './PlayerIcons';
 import { playbackService } from '../services/playback.service';
+import { miniDropProgress, miniDropStyle, MINI_DROP_TRAVEL } from '../store/mini-drop-motion';
 import { useMiniPlayerLayoutStore } from '../store/mini-player-layout.store';
 import { useMiniPlayerResumeStore } from '../store/mini-player-resume.store';
 import { usePlaybackStore } from '../store/playback.store';
@@ -45,8 +45,6 @@ export const MINI_THUMB_SIZE = 40;
 const MINI_ROW_PADDING = 6;
 /** 캡슐 탭 바와 미니플레이어 카드 사이(mini-player-layout.store 의 DOCK_GAP 과 같다) */
 const DOCK_GAP = 8;
-/** 아래로 끌어 종료할 때 카드 중심이 캡슐 중심까지 가는 거리 — 카드 반(27) + 간격 8 + 캡슐 반(30) */
-const MINI_DROP_TRAVEL = 65;
 
 /** 앱 재실행 복원 대상(library-api.md 4.3) — 노출·대상 판정은 라이브러리 소유(library.md 4.2) */
 export interface MiniPlayerResumeFallback {
@@ -112,7 +110,7 @@ export default function MiniPlayer({
    * 아래로 끌어 캡슐에 흡수시켜 종료(2026-09-23 PM — 종전 왼쪽 스와이프 대체). 0 제자리 → 1 캡슐 안.
    * 카드가 캡슐 쪽으로 내려가며(translateY) 납작해지고(scaleY) 살짝 좁아지며(scaleX) 사라진다(opacity)
    */
-  const dropProgress = useAnimatedValue(0);
+  const dropProgress = miniDropProgress;
   // 플레이어 열림·닫힘 모션의 도착 지점 — 내 화면 좌표를 올려 두고, 사라질 땐 지운다
   const rootRef = useRef<View>(null);
   // 썸네일·제목의 실제 자리 — 상수로 추정하면 몇 px 어긋나 착지 순간 잔상이 겹친다(2026-09-17)
@@ -320,25 +318,16 @@ export default function MiniPlayer({
     view.durationSec > 0 ? Math.min(1, Math.max(0, view.positionSec / view.durationSec)) : 0;
   const totalMin = Math.max(1, Math.round(view.durationSec / 60));
   const currentMin = Math.round(view.positionSec / 60);
-  // 캡슐로 흡수되는 모양 — 내려가며 납작해지고 좁아지며 사라진다. 끝(1)에서 캡슐 세로 중심에 닿는다
-  const dropTranslateY = dropProgress.interpolate({ inputRange: [0, 1], outputRange: [0, MINI_DROP_TRAVEL] });
-  const dropScaleY = dropProgress.interpolate({ inputRange: [0, 1], outputRange: [1, 0.12] });
-  const dropScaleX = dropProgress.interpolate({ inputRange: [0, 1], outputRange: [1, 0.92] });
-  const dropOpacity = dropProgress.interpolate({
-    inputRange: [0, 0.7, 1],
-    outputRange: [1, 0.85, 0],
-  });
+  // 캡슐로 흡수되는 모양 — 내려가며 납작해지고 좁아지며 사라진다. 독의 유리 판(CapsuleTabBar)도 같은 식을 쓴다
+  const dropStyle = miniDropStyle(dropProgress);
 
   return (
     <Animated.View
       ref={rootRef}
       style={[
         styles.container,
-        isDocked ? styles.containerDocked : { bottom: tabBarHeight + DOCK_GAP },
-        {
-          transform: [{ translateY: dropTranslateY }, { scaleX: dropScaleX }, { scaleY: dropScaleY }],
-          opacity: dropOpacity,
-        },
+        isDocked ? styles.containerDocked : [styles.containerFloating, { bottom: tabBarHeight + DOCK_GAP }],
+        dropStyle,
       ]}
       onLayout={() => {
         // 플레이어 열림·닫힘 모션의 도착 지점 — 화면 좌표로 올려 둔다(mini-player-layout.store)
@@ -363,9 +352,13 @@ export default function MiniPlayer({
       }}
       {...swipePanResponder.panHandlers}
     >
-      {/* 유리 바탕 — 뒤의 목록이 흐리게 비친다. 위 경계선은 이 위에 그린다 */}
-      <GlassSurface style={StyleSheet.absoluteFill} />
-      <View style={styles.topLine} pointerEvents="none" />
+      {/* 유리 바탕 — 독에 있으면 CapsuleTabBar 의 GlassGroup 이 뒤 층에서 그린다(캡슐과 물방울 병합). 탭 밖에선 직접 */}
+      {isDocked ? null : (
+        <>
+          <GlassSurface style={StyleSheet.absoluteFill} />
+          <View style={styles.topLine} pointerEvents="none" />
+        </>
+      )}
       <View
         style={styles.progressTrack}
         accessibilityRole="progressbar"
@@ -441,6 +434,8 @@ const styles = StyleSheet.create({
     // 바탕은 GlassSurface(블러·글라스)가 깔고 이 뷰는 투명하다 — 색을 주면 유리가 가려진다
     backgroundColor: 'transparent',
     overflow: 'hidden',
+  },
+  containerFloating: {
     boxShadow: '0 4px 20px rgba(0, 0, 0, 0.10)',
   },
   // 독 안에서는 흐름대로 — 캡슐 위에 DOCK_GAP 띄우고, 절대 배치가 아니라 위치 스타일을 지운다

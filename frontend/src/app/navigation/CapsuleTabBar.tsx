@@ -10,7 +10,7 @@ import { motion, theme } from '@/shared/theme';
 import GlassSurface, { GlassGroup, GlassPill } from '@/shared/ui/GlassSurface';
 import TabBarIcon, { type TabBarIconName } from '@/shared/ui/TabBarIcon';
 
-import { MiniPlayer } from '@/features/player';
+import { MiniPlayer, miniDropStyle, miniDropProgress, useMiniPlayerInset } from '@/features/player';
 
 /** 캡슐 높이 — 아이콘 24 + 라벨 11 + 위아래 숨. iOS 26 탭 바와 같은 눈높이 */
 const CAPSULE_HEIGHT = 60;
@@ -25,8 +25,10 @@ const ITEM_HEIGHT = CAPSULE_HEIGHT - CAPSULE_INSET * 2;
  */
 const BOTTOM_INSET_OVERLAP = 18;
 const BOTTOM_MIN_GAP = 8;
-/** 카드와 캡슐이 이 거리 안으로 가까워지면 유리가 합쳐지기 시작한다 — 카드가 내려오는 동안 붙는 게 보일 만큼 */
-const DOCK_MERGE_SPACING = 28;
+/** 카드와 캡슐이 이 거리 안으로 가까워지면 유리가 합쳐진다 — 제자리 간격(8)보다 작아야 가만히 있을 땐 안 붙는다 */
+const DOCK_MERGE_SPACING = 4;
+/** 카드와 캡슐 사이(mini-player-layout.store·MiniPlayer 의 DOCK_GAP 과 같다) */
+const DOCK_GAP = 8;
 const ICON_SIZE = 24;
 const LABEL_SIZE = 11;
 
@@ -56,6 +58,8 @@ const PILL_LIFT_SCALE = 1.3;
  */
 export default function CapsuleTabBar({ state, descriptors, navigation, insets }: BottomTabBarProps) {
   const reportHeight = useContext(BottomTabBarHeightCallbackContext);
+  // 앞 층 미니플레이어 카드의 실측 높이(안 보이면 0) — 뒤 층 유리 판이 같은 자리에 선다
+  const miniHeight = useMiniPlayerInset();
   const bottomPadding = Math.max(insets.bottom - BOTTOM_INSET_OVERLAP, BOTTOM_MIN_GAP);
   const indicatorX = useAnimatedValue(state.index * ITEM_WIDTH);
   // 누르는 동안 알약이 살짝 커져 떠오른다(iOS 26 탭 바) — 놓으면 제자리 크기로
@@ -163,12 +167,25 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
       // 보고하는 높이는 캡슐 + 바닥 여백뿐 — 미니플레이어 카드는 자기 높이를 따로 올린다(useBottomDockInset 이 합산)
       onLayout={() => reportHeight?.(CAPSULE_HEIGHT + bottomPadding)}
     >
-      {/* 미니플레이어 카드와 캡슐을 한 유리 묶음에 — 카드를 아래로 끌면 캡슐과 물방울처럼 합쳐진다(iOS 26) */}
-      <GlassGroup spacing={DOCK_MERGE_SPACING} style={styles.group}>
+      {/*
+        뒤 층 — 유리 판만(카드·캡슐) 한 유리 묶음에. 카드를 아래로 끌면 캡슐과 물방울처럼 합쳐진다(iOS 26).
+        내용물·알약은 앞 층에 따로 둔다 — 같은 묶음에 넣으면 겹친 유리가 전부 한 덩어리로 뭉쳐 렌즈처럼 일그러진다
+        (2026-09-23 실기기). 판의 자리는 앞 층의 카드·캡슐과 같은 식으로 계산한다(카드 높이는 layout 스토어)
+      */}
+      <GlassGroup spacing={DOCK_MERGE_SPACING} style={styles.glassLayer} pointerEvents="none">
+        {miniHeight > 0 ? (
+          <Animated.View style={[styles.cardGlass, { height: miniHeight }, miniDropStyle(miniDropProgress)]}>
+            <GlassSurface style={[StyleSheet.absoluteFill, styles.cardGlassClip]} />
+            <View style={styles.cardGlassBorder} />
+          </Animated.View>
+        ) : null}
+        <View style={[styles.capsuleGlassBox, { top: miniHeight > 0 ? miniHeight + DOCK_GAP : 0 }]}>
+          <GlassSurface style={[StyleSheet.absoluteFill, styles.capsuleGlass]} />
+          <View style={styles.capsuleBorder} />
+        </View>
+      </GlassGroup>
       <MiniPlayer placement="dock" />
       <View style={styles.capsule} accessibilityRole="tablist">
-        <GlassSurface style={[StyleSheet.absoluteFill, styles.capsuleGlass]} />
-        <View style={styles.capsuleBorder} pointerEvents="none" />
         <GlassPill
           style={[
             styles.indicator,
@@ -242,7 +259,6 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
           );
         })}
       </View>
-      </GlassGroup>
     </View>
   );
 }
@@ -256,17 +272,52 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'transparent',
   },
-  group: {
+  glassLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     alignItems: 'center',
+  },
+  cardGlass: {
+    position: 'absolute',
+    top: 0,
+    width: theme.dock.width,
+    borderRadius: 22,
+    borderCurve: 'continuous',
+    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.10)',
+  },
+  cardGlassClip: {
+    borderRadius: 22,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
+  },
+  cardGlassBorder: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 22,
+    borderCurve: 'continuous',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(0, 0, 0, 0.10)',
+  },
+  capsuleGlassBox: {
+    position: 'absolute',
+    width: theme.dock.width,
+    height: CAPSULE_HEIGHT,
+    borderRadius: theme.radius.full,
+    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.10)',
   },
   capsule: {
     flexDirection: 'row',
     height: CAPSULE_HEIGHT,
     padding: CAPSULE_INSET,
     borderRadius: theme.radius.full,
-    // clip 하지 않는다 — 누른 알약이 캡슐 밖으로 살짝 넘친다(iOS 26). 유리 바탕은 자기 반지름으로 잘린다
-    // 유리 위의 하이라이트 대신 얇은 윤곽 — 밝은 목록 위에서 캡슐의 경계가 사라지지 않게
-    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.10)',
+    // clip 하지 않는다 — 누른 알약이 캡슐 밖으로 살짝 넘친다(iOS 26). 유리·그림자는 뒤 층(capsuleGlassBox)이 그린다
+    backgroundColor: 'transparent',
   },
   capsuleGlass: {
     borderRadius: theme.radius.full,
