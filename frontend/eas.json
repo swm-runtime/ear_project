@@ -32,7 +32,8 @@
         "EXPO_PUBLIC_PROFILE_API": "real",
         "EXPO_PUBLIC_SETTINGS_API": "real",
         "EXPO_PUBLIC_INTEREST_API": "real",
-        "EXPO_PUBLIC_NOTIFICATION_API": "real"
+        "EXPO_PUBLIC_NOTIFICATION_API": "real",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       },
       "channel": "preview"
     },
@@ -61,7 +62,8 @@
         "EXPO_PUBLIC_PROFILE_API": "real",
         "EXPO_PUBLIC_SETTINGS_API": "real",
         "EXPO_PUBLIC_INTEREST_API": "real",
-        "EXPO_PUBLIC_NOTIFICATION_API": "real"
+        "EXPO_PUBLIC_NOTIFICATION_API": "real",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       },
       "distribution": "store",
       "android": {
