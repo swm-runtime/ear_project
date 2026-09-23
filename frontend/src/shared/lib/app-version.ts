@@ -27,7 +27,7 @@ export const APP_VERSION = '1.1.0';
  */
 const BUNDLE_LABEL_LENGTH = 8;
 
-const resolveBundleLabel = (): string => {
+export const resolveBundleLabel = (): string => {
   try {
     // 웹·개발 빌드에선 모듈이 값을 주지 않는다 — 표시용이므로 조용히 비운다
     if (Updates.isEmbeddedLaunch) return '내장';

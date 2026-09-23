@@ -83,10 +83,10 @@
 
 | 이벤트 | 파라미터 | 시점 |
 |---|---|---|
-| `explore_period_change` | `period`: `daily` \| `weekly` \| `monthly` | 인기 구간 토글 |
+| `explore_period_change` | `period`: `week` \| `month` \| `all` (코드 `ExplorePeriod` 그대로) | 인기 구간 토글 |
 | `search` (GA4 권장 이름) | `query_length` · `result_count` | 검색 실행 — **검색어 원문은 넣지 않는다** |
-| `content_save` | `content_id` · `entry` | 담기 |
-| `content_remove` | `content_id` · `entry` · `undone`(bool) | 제거(실행취소 여부 포함) |
+| `content_save` | `content_id` · `entry`: 저장 사유(`user_save` 등 — API 가 진입점을 모른다) | 담기(탐색·상세 공용 API 한 곳) |
+| `content_remove` | `content_id` · `entry` · `undone`(bool) | 담기 해제(`unsave`). **라이브러리 삭제·실행취소는 미구현** — 항목 id→콘텐츠 id 매핑이 호출부에 없다 |
 | `content_detail_view` | `content_id` · `entry`: `ContentDetailEntryPoint` | 상세 진입 |
 | `source_link_click` | `content_id` | 원문 보기 — 서버 `source_link_clicks`와 별개로 기록 |
 
@@ -94,18 +94,18 @@
 
 | 이벤트 | 파라미터 | 시점 |
 |---|---|---|
-| `share` (GA4 권장 이름) | `content_id` · `entry` | OS 공유 시트가 열림(취소는 세지 않는다 — `share.md` 완료 조건) |
+| `share` (GA4 권장 이름) | `content_id` · `entry`(호출부가 안 주면 `unknown`) | OS 공유 시트가 열림(취소는 세지 않는다 — `share.md` 완료 조건) |
 | `share_receive` | `content_id` · `installed`(bool) | 공유 링크로 앱 진입 |
 
 **계정·설정** (`auth.md` · `settings.md`)
 
 | 이벤트 | 파라미터 | 시점 |
 |---|---|---|
-| `login` (GA4 권장 이름) | `method`: `google` \| `kakao` \| `naver` \| `apple` \| `email` | 로그인 성공 |
-| `sign_up` (GA4 권장 이름) | `method` | 첫 가입 |
+| `login` (GA4 권장 이름) | `method`: `google` \| `kakao` \| `naver` \| `apple` | 세션 시작(`startSession`) — 온보딩을 끝낸 사용자 |
+| `sign_up` (GA4 권장 이름) | `method` | 세션 시작 — 온보딩 미완료 사용자(서버에 신규 플래그가 없어 이 기준으로 가른다). 세션 **복원**은 둘 다 아니다 |
 | `logout` | — | 로그아웃 |
 | `withdrawal` | `reason` (선택지 키) | 탈퇴 완료 |
-| `settings_toggle` | `key`: `push` \| `marketing` \| … · `value`(bool) | 설정 토글 |
+| `settings_toggle` | `key`: `drip_notification` \| `marketing_consent` · `value`(bool) | 설정 토글 — 서버 호출이 나가는 시점(권한 미결정으로 막힌 탭은 세지 않는다) |
 
 ## 4. 처리 로직
 
@@ -147,6 +147,12 @@
 - Given 운영 앱 / When 같은 동작을 한다 / Then 운영 스트림에만 잡히고 개발계 스트림에는 없다
 - Given 로그아웃한다 / When 다른 계정으로 로그인한다 / Then 앞 계정의 `user_id`·`tier` 속성이 새 이벤트에 붙지 않는다
 - Given 웹·mock 실행 / When 어떤 동작을 해도 / Then Firebase 호출이 없고 오류도 없다
+
+## 구현 현황 (2026-09-23, KAN-90 1차)
+
+들어감: `screen_view`(자동) · `onboarding_step`(topic·career·pick) · `push_permission` · `push_open` · `push_foreground_banner` · `play_start` · `play_progress` · `play_complete` · `play_abandon`(switch만) · `play_rate_change` · `play_limit_hit` · `explore_period_change` · `content_save` · `content_remove`(unsave) · `content_detail_view` · `source_link_click` · `share` · `login` · `sign_up` · `settings_toggle`. 사용자 속성 `tier` · `push_permission`.
+
+**아직 없음**(다음 티켓): `onboarding_step` tutorial·notification · `onboarding_complete` · `drip_arrival_view` · `drip_play` · `play_abandon` background/pause_timeout · `paywall_view` · `play_confirm` · `search` · `share_receive` · `logout` · `withdrawal` · 사용자 속성 `topic_count`.
 
 ## 미결 사항
 

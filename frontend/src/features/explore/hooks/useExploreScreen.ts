@@ -9,6 +9,7 @@ import { useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, AppState, Linking } from 'react-native';
 
+import { track } from '@/shared/analytics';
 import { isApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
@@ -476,6 +477,7 @@ export const useExploreScreen = () => {
    * 구간에 그대로 남아 있으므로 목록·선택 상태의 되돌림이 따로 필요 없다(uiux 4.10).
    */
   const switchPopularPeriod = (period: ExplorePeriod) => {
+    track('explore_period_change', { period });
     setFailedPeriod(null);
     setPendingPeriod(period);
     queryClient

@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { AppState } from 'react-native';
 
+import { track } from '@/shared/analytics';
 import { logger } from '@/shared/lib/logger';
 
 import { IS_OS_PERMISSION_STUBBED } from '../notification.constants';
@@ -27,7 +28,10 @@ let isStarted = false;
 /** 같은 탭을 두 번 처리하지 않는다 — 콜드 스타트는 리스너와 마지막 응답 조회 양쪽으로 온다 */
 let lastHandledResponseId: string | null = null;
 
-const handleResponse = (response: Notifications.NotificationResponse): void => {
+const handleResponse = (
+  response: Notifications.NotificationResponse,
+  appState: 'background' | 'killed' = 'background',
+): void => {
   const id = `${response.notification.request.identifier}:${response.notification.date}`;
   if (id === lastHandledResponseId) return;
   lastHandledResponseId = id;
@@ -35,6 +39,10 @@ const handleResponse = (response: Notifications.NotificationResponse): void => {
   const arrival = parsePushData(response.notification.request.content.data);
   if (arrival === null) return;
   logger.debug('[notification] push tapped', arrival.target.kind);
+  track('push_open', {
+    target: arrival.target.kind,
+    app_state: appState,
+  });
   const store = useNotificationStore.getState();
   // 탭해서 들어왔으면 같은 통지의 인앱 배너는 더 띄울 이유가 없다
   store.hideForegroundArrival();
@@ -81,6 +89,7 @@ export const startPushReceiving = (options: PushReceivingOptions): void => {
     if (AppState.currentState !== 'active') return;
     const arrival = parsePushData(notification.request.content.data);
     if (arrival === null) return;
+    track('push_foreground_banner', { action: 'view' });
     useNotificationStore.getState().showForegroundArrival(arrival);
     options.onForegroundArrival();
   });
@@ -90,7 +99,7 @@ export const startPushReceiving = (options: PushReceivingOptions): void => {
   // 콜드 스타트 — 앱을 띄운 그 탭은 리스너 등록 전에 지나갔을 수 있다
   try {
     const initial = Notifications.getLastNotificationResponse();
-    if (initial) handleResponse(initial);
+    if (initial) handleResponse(initial, 'killed');
   } catch (error) {
     logger.warn('[notification] failed to read the launching notification', error);
   }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { setAnalyticsUserProperties, track } from '@/shared/analytics';
 import { APP_VERSION } from '@/shared/lib/app-version';
 import { getDeviceId } from '@/shared/lib/device-id';
 import { logger } from '@/shared/lib/logger';
@@ -68,6 +69,11 @@ export default function NotificationPrePromptModal({
     setIsProcessing(true);
     try {
       const isGranted = await requestOsPermission();
+      track('push_permission', {
+        result: isGranted ? 'granted' : 'denied',
+        source: syncOnDismiss ? 'onboarding' : 'settings',
+      });
+      setAnalyticsUserProperties({ push_permission: isGranted ? 'granted' : 'denied' });
       await syncAndFinish(isGranted);
     } catch (error) {
       logger.warn('[notification] permission request failed', error);

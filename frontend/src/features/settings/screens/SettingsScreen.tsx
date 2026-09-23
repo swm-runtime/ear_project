@@ -9,6 +9,7 @@ import ConfirmDialog from '@/shared/ui/ConfirmDialog';
 
 import { NotificationPrePromptModal } from '@/features/notification';
 
+import DevDiagnosticsRows from '../components/DevDiagnosticsRows';
 import DevPushTokenRow from '../components/DevPushTokenRow';
 import EmailRow from '../components/EmailRow';
 import NotificationBanner from '../components/NotificationBanner';
@@ -178,6 +179,7 @@ export default function SettingsScreen() {
           />
           {/* 개발계 앱 전용 개발 도구 — 운영 앱에는 행 자체가 없다 */}
           {IS_DEV_API ? <DevPushTokenRow /> : null}
+          {IS_DEV_API ? <DevDiagnosticsRows /> : null}
         </SettingsSection>
 
         <SettingsSection title={SETTINGS_COPY.sections.support}>

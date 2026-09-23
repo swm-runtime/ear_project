@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { AccessibilityInfo, Linking } from 'react-native';
 
+import { track } from '@/shared/analytics';
 import { isApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
@@ -49,6 +50,9 @@ export const useContentDetailScreen = () => {
   const isFocused = useIsFocused();
 
   const detailQuery = useContentDetailQuery(contentId);
+  useEffect(() => {
+    track('content_detail_view', { content_id: contentId, entry: entryPoint });
+  }, [contentId, entryPoint]);
   const saveMutation = useSaveContentMutation();
   const deleteMutation = useDeleteLibraryItemMutation();
 

@@ -3,6 +3,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCallback, useState } from 'react';
 import { BackHandler } from 'react-native';
 
+import { track } from '@/shared/analytics';
 import { isApiError } from '@/shared/api/api-error';
 import { useToastStore } from '@/shared/ui/toast.store';
 
@@ -63,7 +64,10 @@ export const useCareerScreen = () => {
           };
 
     saveCareerMutation.mutate(input, {
-      onSuccess: () => navigation.navigate('Pick'),
+      onSuccess: () => {
+        track('onboarding_step', { step: 'career', action });
+        navigation.navigate('Pick');
+      },
       onError: (error) => {
         showToast(isApiError(error) ? error.message : '저장하지 못했어요. 다시 시도해주세요');
       },

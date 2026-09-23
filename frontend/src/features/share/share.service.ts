@@ -1,5 +1,6 @@
 import { Share } from 'react-native';
 
+import { track } from '@/shared/analytics';
 import { logger } from '@/shared/lib/logger';
 
 import { buildShareLink } from './share.link';
@@ -11,6 +12,8 @@ import { buildShareLink } from './share.link';
 export interface ShareContentInput {
   contentId: string;
   title: string;
+  /** GA4 `share.entry` — 어느 진입점의 공유인가(analytics.md 3.4). 모르면 생략 */
+  entry?: string;
 }
 
 /**
@@ -34,6 +37,7 @@ export const buildShareMessage = (input: ShareContentInput): string =>
  */
 export const shareContent = async (input: ShareContentInput): Promise<void> => {
   try {
+    track('share', { content_id: input.contentId, entry: input.entry ?? 'unknown' });
     await Share.share({ message: buildShareMessage(input) });
   } catch (error) {
     logger.debug('[share] open share sheet failed', error);

@@ -1,3 +1,4 @@
+import { track } from '@/shared/analytics';
 import { apiClient } from '@/shared/api/api-client';
 
 import { toPlayLimitSnapshot } from '@/features/player';
@@ -188,6 +189,7 @@ export const saveContent = async (input: {
   reason?: SaveReason;
 }): Promise<SaveContentResult> => {
   const body = { client_seq: input.clientSeq, reason: input.reason ?? 'user_save' };
+  track('content_save', { content_id: input.contentId, entry: body.reason });
   const data = IS_EXPLORE_API_MOCKED
     ? await mockSaveContent(input.contentId, body)
     : (
@@ -210,6 +212,7 @@ export const unsaveContent = async (input: {
   contentId: string;
   clientSeq: number;
 }): Promise<{ clientSeq: number }> => {
+  track('content_remove', { content_id: input.contentId, entry: 'unsave', undone: false });
   const data = IS_EXPLORE_API_MOCKED
     ? await mockUnsaveContent(input.contentId, input.clientSeq)
     : (

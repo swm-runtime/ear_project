@@ -16,6 +16,7 @@ import {
 } from 'expo-audio';
 import { AppState, type NativeEventSubscription } from 'react-native';
 
+import { track } from '@/shared/analytics';
 import { isApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
 import { generateId } from '@/shared/lib/generate-id';
@@ -128,6 +129,8 @@ interface SessionContext {
   isSaving: boolean;
   isEnded: boolean;
   isRefreshingUrl: boolean;
+  /** GA4 `play_progress` — 한 세션에 25·50·75 각 1회(analytics.md 3.4) */
+  reportedProgress: Set<25 | 50 | 75>;
 }
 
 const store = usePlaybackStore;
@@ -209,8 +212,21 @@ class PlaybackService {
     void this.startFresh(request);
   }
 
+  /**
+   * GA4 `play_abandon` — 시작 기록이 있고 끝에 닿지 않은 세션이 내려갈 때 한 번. 서버 위치 저장과
+   * 별개의 제품 분석 값이라 저장 성공 여부와 무관하게 보낸다(analytics.md 3.4).
+   */
+  private trackAbandon(reason: 'switch' | 'background' | 'pause_timeout'): void {
+    const ctx = this.ctx;
+    if (!ctx || !ctx.hasReportedPlayStart || ctx.isEnded) return;
+    const position = store.getState().session?.positionSec ?? 0;
+    const percent = ctx.durationSec > 0 ? Math.round((position / ctx.durationSec) * 100) : 0;
+    track('play_abandon', { content_id: ctx.contentId, percent, reason });
+  }
+
   private async startFresh(request: StartPlaybackRequest): Promise<void> {
     // 이전 세션의 미저장분을 흘리지 않는다 — 값 캡처 후 정리(응답은 기다리지 않는다)
+    this.trackAbandon('switch');
     this.flushProgress('switch');
     this.teardownPlayer();
 
@@ -231,6 +247,7 @@ class PlaybackService {
       isSaving: false,
       isEnded: false,
       isRefreshingUrl: false,
+      reportedProgress: new Set(),
     };
     store.setState({ session: initialSession(request), isMiniPlayerDismissed: false });
 
@@ -408,6 +425,17 @@ class PlaybackService {
       void this.reportPlayStart();
     }
 
+    // 구간 통과 — 25·50·75 를 한 세션에 각 1회. 완청 판정(서버)과 별개의 제품 분석 값이다
+    if (durationSec > 0 && ctx.hasReportedPlayStart) {
+      const percent = (status.currentTime / durationSec) * 100;
+      for (const mark of [25, 50, 75] as const) {
+        if (percent >= mark && !ctx.reportedProgress.has(mark)) {
+          ctx.reportedProgress.add(mark);
+          track('play_progress', { content_id: ctx.contentId, percent: mark });
+        }
+      }
+    }
+
     // 재생 끝 도달 → PL3. 서버 길이보다 원본이 길어도 계약 길이에서 끝낸다
     const reachedEnd =
       status.didJustFinish ||
@@ -429,6 +457,13 @@ class PlaybackService {
       const result = await startPlay({ contentId: ctx.contentId, entryPoint: ctx.entryPoint });
       if (generation !== this.generation || !this.ctx) return;
       ctx.hasReportedPlayStart = true;
+      track('play_start', {
+        content_id: ctx.contentId,
+        entry: ctx.entryPoint,
+        // 세션에 origin 이 없다 — 원문 URL 이 있으면 파트너, 없으면 AI 자체 생성(player.mock 규칙과 같다)
+        origin: store.getState().session?.meta.sourceUrl ? 'partner' : 'ai_generated',
+        resumed: (store.getState().session?.positionSec ?? 0) > 0,
+      });
       // 표시값은 적재 이후의 서버 값으로 덮어쓴다 — 클라이언트가 1을 빼지 않는다
       usePlayLimitStore.getState().applyPlayLimit(result.playLimit);
       if (result.libraryItem) {
@@ -454,6 +489,7 @@ class PlaybackService {
         switch (error.errorCode) {
           case ERROR_CODES.PLAY_LIMIT_EXCEEDED:
             // 경합(다른 기기 소진)에서만 나는 경로 — 화면이 닫고 페이월로 전환한다
+            track('play_limit_hit', { remaining: 0 });
             this.markBlocked('paywall', error.message);
             return;
           case ERROR_CODES.PLAY_LIMIT_REACHED:
@@ -586,6 +622,8 @@ class PlaybackService {
 
   /** PL4 배속 — 현재 재생에 즉시 적용. 전역 저장(서버)은 화면 훅이 settings 계약으로 수행한다 */
   applyRate(rate: number): void {
+    const from = store.getState().rate;
+    if (from !== rate) track('play_rate_change', { from, to: rate });
     this.player?.setPlaybackRate(rate, 'high');
   }
 
@@ -595,6 +633,10 @@ class PlaybackService {
     const ctx = this.ctx;
     if (!ctx || ctx.isEnded) return;
     ctx.isEnded = true;
+    track('play_complete', {
+      content_id: ctx.contentId,
+      listen_sec: Math.round(ctx.durationSec > 0 ? ctx.durationSec : (store.getState().session?.positionSec ?? 0)),
+    });
     this.player?.pause();
     store.getState().patchSession({
       state: 'ended',
@@ -842,6 +884,7 @@ class PlaybackService {
 
   /** PL9 [닫기]·blocked 전환 후 화면이 호출한다 — 세션을 내리고 미니플레이어도 띄우지 않는다 */
   clearSession(): void {
+    this.trackAbandon('switch');
     this.generation += 1;
     this.teardownPlayer();
     this.ctx = null;

@@ -12,7 +12,7 @@
 | 발견 시점 | 9월 3주차 회고 — 다음 주 계획 "강준혁 멘토님 멘토링 — 광고 셋팅, 유저 행동 분석". 앱에 분석 SDK가 없고 서버 `user_signals` 는 추천 전용이라 퍼널을 볼 수 없다 |
 | 근거 문서 | `docs/features/analytics.md`(이벤트 사전 — 이 티켓과 함께 신설) · `docs/backend/domain.md` 6.4·12.1(`user_signals` 역할) · `docs/frontend/architecture.md` 2.1(runtimeVersion) |
 | 중요도 | **Medium** — 3일 안. 멘토링 전에 속성·이벤트가 있어야 광고 설정을 얹을 수 있다 |
-| 상태 | 진행 — 문서 초안·Firebase 콘솔 준비 완료, **plist 수급·구현 남음** |
+| 상태 | 진행 — SDK·래퍼·이벤트 1차 반영, **runtime 7 빌드·DebugView 검증·잔여 이벤트 남음** |
 
 ## 문제
 
@@ -65,3 +65,15 @@
 - `google-services.json` 은 다시 받아 비교했더니 **내용이 같았다**(Analytics 를 켜도 Android 파일은 바뀌지 않았다) — 교체 없음.
 - plist 의 `IS_ANALYTICS_ENABLED` 는 `false` 다 — Firebase 가 SDK 설치 여부와 무관하게 내려주는 기본값이고, RN Firebase 는 이 키를 보지 않는다(SDK 를 넣으면 수집된다).
 - SDK 설치·`track()`·이벤트 심기·runtimeVersion 5 는 다음 PR.
+
+## 처리 기록 (2026-09-23 — SDK·래퍼·이벤트 1차)
+
+- `@react-native-firebase/app`·`analytics` ^26.4 설치, `app.json` 플러그인 등록, iOS `useFrameworks: static`(RN Firebase 필수). **runtimeVersion 6 → 7.**
+- `shared/analytics/` — `analytics.events.ts`(이벤트 사전을 TS 유니온으로 고정 — 여기 없는 이벤트는 컴파일이 막는다) · `analytics.ts`(`track` · `trackScreen` · `setAnalyticsUser`(SHA-256 앞 16자) · `setAnalyticsUserProperties`; 웹·`EXPO_PUBLIC_ANALYTICS=mock`이면 no-op, SDK 는 동적 로드, 실패는 warn 만). 공통 파라미터 `app_variant`·`bundle_label` 자동 부착. `search`·`share`·`login`·`sign_up` 은 GA4 예약 이름이라 SDK 의 전용 오버로드를 피해 문자열 오버로드로 보낸다.
+- 화면 자동 추적: `App.tsx` `NavigationContainer.onStateChange` → 포커스 리프 라우트가 바뀔 때만 `screen_view`.
+- 사용자 바인딩: `bootstrap` 세션 전이에서 Sentry 와 나란히 `setAnalyticsUser`(로그인 시 해시, 로그아웃 시 null + 속성 비움), `tier` 속성.
+- 이벤트 심은 곳(20종): 재생 6종은 `PlaybackService` 한 곳(`play_start` 서버 차감 성공 뒤 · `play_progress` 25/50/75 세션당 1회 · `play_complete` · `play_abandon` switch(콘텐츠 전환·닫기) · `play_rate_change` · `play_limit_hit`) / 온보딩 topic·career·pick / 알림 권한·탭(콜드 스타트는 `killed`)·인앱 배너 view·tap / 탐색 인기 구간 / 담기·해제(`explore.api` — 탐색·상세 공용) / 상세 진입 / 원문 보기 / 공유 / 로그인·가입(`startSession`; 온보딩 완료 여부로 가름) / 설정 토글 2종.
+- **문서를 코드에 맞춰 고쳤다**: 인기 구간은 `week|month|all`, 설정 토글 키는 `drip_notification|marketing_consent`, `email` 로그인 방식은 없다(소셜 4종). `analytics.md` 3.4·"구현 현황" 절 참조.
+- 개발계 설정 > 정보에 **"분석 디버그"**(마지막 이벤트 이름) · **"크래시 테스트"**(렌더 오류 유발 — KAN-92 완료 조건 확인용) 행 추가 — `DevDiagnosticsRows`, 운영 앱에는 없다.
+- 확인: tsc · eslint(shared→features import 금지에 걸려 진입점 유니온을 사전에 다시 적었다) · jest 133 통과.
+- **남은 것**: 잔여 이벤트 12종(analytics.md "아직 없음") · `topic_count` 속성 · runtime 7 iOS/Android 개발계 빌드 → DebugView 로 완료 조건 6개 · 스토어 개인정보 신고(사람 손).
