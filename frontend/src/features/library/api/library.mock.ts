@@ -284,6 +284,7 @@ export const mockFetchResume = async (): Promise<ResumeResponseDto> => {
             duration_sec: target.durationSec,
             thumbnail_url: `https://picsum.photos/seed/${target.contentId}/200`,
             content_version: 1,
+            topic_ids: target.topicIds,
           },
           progress: { position_sec: target.positionSec, max_reached_sec: target.maxReachedSec },
         }
