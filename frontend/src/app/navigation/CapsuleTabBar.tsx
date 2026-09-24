@@ -26,11 +26,13 @@ const ITEM_HEIGHT = CAPSULE_HEIGHT - CAPSULE_INSET * 2;
  */
 const CAPSULE_WIDTH = theme.dock.width + CAPSULE_INSET * 2;
 /**
- * 캡슐 아래 여백 — **안전영역(홈 인디케이터 34) 바로 위**에 놓는다(PM 2026-09-24 "애플 내비게이션 바가 떨어져 있는
- * 만큼 대칭으로"). 종전(09-23 "끝으로")에는 안전영역 안으로 18 내려 인디케이터에 걸쳤다. 인디케이터가 없는
- * 기기(안전영역 0)는 최소 여백만 둔다
+ * 캡슐 아래 여백 — **iOS 26 네이티브 탭 바와 같은 자리**(PM 2026-09-24 "애플이 떨어져 있는 만큼"). 애플은 안전영역
+ * (홈 인디케이터 34)에서 12 를 뺀 22pt 에, 인디케이터 없는 기기는 16pt 에 둔다(공식 수치 없음 — 실측 재현들이
+ * 일치: `max(inset − 12, 16)`). 인디케이터 바(바닥 ~13)와 ~9pt 뜬다. 종전 값 16(09-23 "끝으로")·34(09-24 오후)는
+ * 각각 너무 낮고 높았다
  */
-const BOTTOM_MIN_GAP = 8;
+const BOTTOM_INSET_TRIM = 12;
+const BOTTOM_MIN_GAP = 16;
 /** 카드와 캡슐이 이 거리 안으로 가까워지면 유리가 합쳐진다 — 제자리 간격(8)보다 작아야 가만히 있을 땐 안 붙는다 */
 const DOCK_MERGE_SPACING = 4;
 /** 카드와 캡슐 사이(mini-player-layout.store·MiniPlayer 의 DOCK_GAP 과 같다) */
@@ -66,7 +68,7 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
   const reportHeight = useContext(BottomTabBarHeightCallbackContext);
   // 앞 층 미니플레이어 카드의 실측 높이(안 보이면 0) — 뒤 층 유리 판이 같은 자리에 선다
   const miniHeight = useMiniPlayerInset();
-  const bottomPadding = Math.max(insets.bottom, BOTTOM_MIN_GAP);
+  const bottomPadding = Math.max(insets.bottom - BOTTOM_INSET_TRIM, BOTTOM_MIN_GAP);
   const indicatorX = useAnimatedValue(state.index * ITEM_WIDTH);
   // 누르는 동안 알약이 살짝 커져 떠오른다(iOS 26 탭 바) — 놓으면 제자리 크기로
   const indicatorScale = useAnimatedValue(1);
