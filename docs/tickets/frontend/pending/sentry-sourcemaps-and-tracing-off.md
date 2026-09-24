@@ -61,3 +61,8 @@ GitHub secret `SENTRY_AUTH_TOKEN` 은 EAS 에 넣은 것과 같은 값(juyear �
 - Given 위 통과 / When KAN-92 를 본다 / Then 완료 조건 2 가 해소돼 완료로 넘길 수 있다
 
 끝나면 이 파일을 `archive/` 로 옮기고(처리 기록·반영 날짜) KAN-95 를 완료로. KAN-92 도 같은 시점에 닫힌다.
+
+## 처리 기록
+
+- 2026-09-24 22:00 (효헌이): 1·2·3 반영 — `sentry.ts` 의 `tracesSampleRate` 키 삭제, `eas.json` 의 `SENTRY_DISABLE_AUTO_UPLOAD` 두 줄 삭제, `eas-update.yml` 에 "Sentry 소스맵 업로드" 단계 추가(`npx sentry-expo-upload-sourcemaps dist`). **GitHub secret `SENTRY_AUTH_TOKEN` 이 아직 없어** 단계는 경고만 남기고 건너뛴다(발행은 막지 않는다) — 등록은 사람 손(EAS 와 같은 토큰). 등록 뒤 다음 dev 머지 OTA 부터 소스맵이 올라간다. EAS 빌드 쪽은 rt 8 빌드(KAN-94 와 같은 빌드, 2026-09-24 21:45 이후)부터 토큰으로 올라간다.
+- 남은 것: secret 등록(사람 손) → 다음 OTA 로그에서 업로드 단계 성공 확인 → 크래시 테스트 스택에 `.tsx` 파일명·줄 번호 + Trace ID 없음 확인 → archive + KAN-95·KAN-92 완료.
