@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import GlassCapsule from '@/shared/ui/GlassCapsule';
 
 import { EXPLORE_COPY } from '../explore.copy';
 
@@ -20,14 +21,17 @@ interface ExploreSearchBarRowProps {
 export default function ExploreSearchBarRow({ trailing, onPress }: ExploreSearchBarRowProps) {
   return (
     <View style={styles.row}>
-      <Pressable
-        style={styles.searchBox}
-        onPress={onPress}
-        accessibilityRole="search"
-        accessibilityLabel={EXPLORE_COPY.search.placeholder}
-      >
-        <Text style={styles.placeholder}>{EXPLORE_COPY.search.placeholder}</Text>
-      </Pressable>
+      {/* 유리 캡슐(iOS 26 시스템 검색처럼) — 목록 위에 떠 있는 컨트롤이라 면이 아니라 유리다(2026-09-24 PM) */}
+      <GlassCapsule style={styles.searchBox}>
+        <Pressable
+          style={styles.searchPressable}
+          onPress={onPress}
+          accessibilityRole="search"
+          accessibilityLabel={EXPLORE_COPY.search.placeholder}
+        >
+          <Text style={styles.placeholder}>{EXPLORE_COPY.search.placeholder}</Text>
+        </Pressable>
+      </GlassCapsule>
       {trailing}
     </View>
   );
@@ -43,15 +47,14 @@ const styles = StyleSheet.create({
     paddingTop: theme.spacing.lg,
     paddingBottom: theme.spacing.sm,
   },
+  // 유리 캡슐(GlassCapsule 이 바탕·윤곽·full 반지름을 준다). 종전 surface 면 + md 반지름(09-22)에서 바꿈
   searchBox: {
     flex: 1,
+  },
+  searchPressable: {
     minHeight: theme.touchTarget.minHeight - theme.spacing.xs,
     justifyContent: 'center',
     paddingHorizontal: theme.spacing.md,
-    borderRadius: theme.radius.md,
-    // 애플 검색 필드와 같은 연속 곡률(iOS 만, 2026-09-22 PM)
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
   },
   placeholder: {
     fontSize: theme.font.size.sm,

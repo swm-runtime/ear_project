@@ -3,11 +3,14 @@ import Svg, { Circle } from 'react-native-svg';
 
 import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
 import { theme } from '@/shared/theme';
+import GlassCapsule from '@/shared/ui/GlassCapsule';
 
 import { PLAYER_COPY } from '../player.copy';
 
 /** 링 지름 — 검색 박스 높이 안에 들어오면서 두 자리 숫자가 읽히는 크기 */
 const RING_SIZE = 28;
+/** 링을 담는 유리 원 — 라이브러리 필터 원(36)과 같은 크기·재질(2026-09-24 PM "리퀴드 글라스 처리") */
+const RING_CAPSULE_SIZE = 36;
 /** 링 두께 — 숫자를 가리지 않으면서 채움·비움이 갈릴 만큼 */
 const RING_STROKE = 3;
 const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
@@ -40,7 +43,7 @@ export default function RemainingPlaysIndicator({
   const dashOffset = RING_CIRCUMFERENCE * (1 - ratio);
 
   const gauge = (
-    <View style={styles.ring}>
+    <GlassCapsule style={styles.ringCapsule}>
       <Svg width={RING_SIZE} height={RING_SIZE}>
         <Circle
           cx={RING_SIZE / 2}
@@ -70,7 +73,7 @@ export default function RemainingPlaysIndicator({
       <View style={styles.countBox} pointerEvents="none">
         <Text style={[styles.count, isExhausted && styles.countExhausted]}>{remaining}</Text>
       </View>
-    </View>
+    </GlassCapsule>
   );
 
   if (!isExhausted) {
@@ -108,9 +111,11 @@ const styles = StyleSheet.create({
     // 검색 박스 옆에서 링이 너무 붙지 않게 — 칩 배경은 두지 않는다
     paddingHorizontal: theme.spacing.xs,
   },
-  ring: {
-    width: RING_SIZE,
-    height: RING_SIZE,
+  ringCapsule: {
+    width: RING_CAPSULE_SIZE,
+    height: RING_CAPSULE_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   countBox: {
     position: 'absolute',

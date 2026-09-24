@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -11,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
+import FloatingHeader, { useFloatingHeaderInset } from '@/shared/ui/FloatingHeader';
 import FullScreenError from '@/shared/ui/FullScreenError';
 
 import {
@@ -38,6 +40,9 @@ import { useExploreScreen } from '../hooks/useExploreScreen';
 export default function ExploreScreen() {
   const screen = useExploreScreen();
   const miniInset = useBottomDockInset();
+  // 떠 있는 머리 줄(검색창·칩)의 높이 — 목록이 그만큼 위를 비운다
+  const [headerHeight, setHeaderHeight] = useState(0);
+  const headerInset = useFloatingHeaderInset(headerHeight);
 
   // E10은 검색창 줄·주제 칩·잔여 표시까지 그리지 않는다 — 화면 전체가 에러다(uiux 4.8)
   if (screen.isFullError) {
@@ -106,6 +111,8 @@ export default function ExploreScreen() {
       refreshing={screen.isManualRefreshing}
       onRefresh={() => void screen.refresh()}
       tintColor={theme.color.primary}
+      // 스피너가 머리 줄 밑에 숨지 않게
+      progressViewOffset={headerInset}
     />
   );
 
@@ -175,7 +182,13 @@ export default function ExploreScreen() {
 
   const renderBody = () => {
     // 필터 전환 로딩은 단일 목록이 될 자리다 — 섹션 제목 없는 행 스켈레톤만 그린다
-    if (screen.showSkeleton) return <ExploreSkeleton showSectionTitles={!screen.isFiltered} />;
+    if (screen.showSkeleton) {
+      return (
+        <View style={{ paddingTop: headerInset }}>
+          <ExploreSkeleton showSectionTitles={!screen.isFiltered} />
+        </View>
+      );
+    }
     if (screen.isInitialLoading) return <View style={styles.container} />;
 
     // E2 — 주제 필터 단일 목록(무한 스크롤). 필터 결과는 캐러셀이 아니라 세로 목록이다 —
@@ -213,7 +226,7 @@ export default function ExploreScreen() {
           ListFooterComponent={renderFooter()}
           contentContainerStyle={[
             screen.filteredItems.length === 0 ? styles.emptyContent : styles.gridContent,
-            { paddingBottom: miniInset },
+            { paddingTop: headerInset, paddingBottom: miniInset },
           ]}
           refreshControl={refreshControl}
           onEndReached={screen.loadMore}
@@ -228,7 +241,7 @@ export default function ExploreScreen() {
         {...DOCK_SCROLL_PROPS}
         contentContainerStyle={[
           screen.sections.length === 0 ? styles.emptyContent : styles.feedContent,
-          { paddingBottom: miniInset },
+          { paddingTop: headerInset, paddingBottom: miniInset },
         ]}
         refreshControl={refreshControl}
       >
@@ -248,7 +261,9 @@ export default function ExploreScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={styles.container}>
+      {/* 머리 줄은 목록 위에 떠 있다 — 배경 없이 유리 컨트롤만(2026-09-24 PM) */}
+      <FloatingHeader onHeightChange={setHeaderHeight}>
       <ExploreSearchBarRow
         onPress={screen.openSearch}
         trailing={
@@ -270,6 +285,7 @@ export default function ExploreScreen() {
           onToggle={screen.toggleTopic}
         />
       ) : null}
+      </FloatingHeader>
 
       {renderBody()}
 
@@ -293,7 +309,7 @@ export default function ExploreScreen() {
         onCancel={screen.cancelPlayConfirm}
         onSuppressToday={screen.suppressAndPlay}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 

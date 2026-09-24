@@ -27,6 +27,8 @@ interface SegmentedControlProps<T extends string> {
    * 주간·월간·전체는 제목 줄 오른쪽에 붙는 작은 토글이라 늘어나면 안 된다. 늘릴 쪽만 켠다.
    */
   fill?: boolean;
+  /** 칸(=알약) 높이 — 기본 28(제목 줄과 나란한 탐색 토글). 라이브러리 탭은 32 로 조금 두툼하게(2026-09-24 PM) */
+  segmentHeight?: number;
 }
 
 /**
@@ -37,11 +39,6 @@ const SEGMENT_HEIGHT = theme.font.size.xl;
 const TRACK_BORDER = 1;
 const TRACK_INSET = 3;
 const DEFAULT_SEGMENT_WIDTH = 48;
-/** 보이는 높이는 28 이고 44pt 는 hitSlop 으로 채운다(uiux 7) */
-const SEGMENT_HIT_SLOP = {
-  top: (theme.touchTarget.minHeight - SEGMENT_HEIGHT) / 2,
-  bottom: (theme.touchTarget.minHeight - SEGMENT_HEIGHT) / 2,
-};
 
 /**
  * 세그먼트 컨트롤(HIG: Segmented controls) — 서로 배타적인 2~5개 뷰를 같은 자리에서 바꾼다. 탐색의 주간·월간·전체와
@@ -62,7 +59,13 @@ export default function SegmentedControl<T extends string>({
   accessibilityLabel,
   segmentWidth = DEFAULT_SEGMENT_WIDTH,
   fill = false,
+  segmentHeight = SEGMENT_HEIGHT,
 }: SegmentedControlProps<T>) {
+  // 보이는 높이가 44 보다 작은 만큼은 hitSlop 으로 채운다(uiux 7)
+  const hitSlop = {
+    top: Math.max(0, (theme.touchTarget.minHeight - segmentHeight) / 2),
+    bottom: Math.max(0, (theme.touchTarget.minHeight - segmentHeight) / 2),
+  };
   const selectedIndex = Math.max(
     0,
     options.findIndex((option) => option.value === value),
@@ -99,7 +102,7 @@ export default function SegmentedControl<T extends string>({
 
   const indicatorStyle = [
     styles.indicator,
-    { width: effectiveWidth, transform: [{ translateX: indicatorX }] },
+    { width: effectiveWidth, height: segmentHeight, transform: [{ translateX: indicatorX }] },
   ];
   /** interpolate 의 inputRange 는 단조 증가여야 한다 — 측정 전(0)에는 1로 둔다 */
   const rangeWidth = Math.max(effectiveWidth, 1);
@@ -129,9 +132,13 @@ export default function SegmentedControl<T extends string>({
         return (
           <Pressable
             key={option.value}
-            style={[styles.segment, fill ? styles.segmentFill : { width: segmentWidth }]}
+            style={[
+              styles.segment,
+              { height: segmentHeight },
+              fill ? styles.segmentFill : { width: segmentWidth },
+            ]}
             onPress={() => onChange(option.value)}
-            hitSlop={SEGMENT_HIT_SLOP}
+            hitSlop={hitSlop}
             disabled={disabled}
             accessibilityRole="radio"
             accessibilityLabel={option.label}
@@ -181,7 +188,6 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
   },
   segment: {
-    height: SEGMENT_HEIGHT,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -193,7 +199,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: TRACK_INSET + TRACK_BORDER,
     left: TRACK_INSET + TRACK_BORDER,
-    height: SEGMENT_HEIGHT,
     borderRadius: theme.radius.full,
   },
   // iOS 26 미만·Android — 흰 면을 부드러운 그림자로 띄운다. `shadow*` 대신 boxShadow(RN 0.86·웹 공통)

@@ -14,6 +14,8 @@ const TABS: LibraryFilter[] = ['all', 'unplayed', 'completed'];
 const FILTER_ICON_SIZE = 20;
 /** 유리 원 버튼 지름 — 세그먼트 트랙 높이(36)와 같은 눈높이 */
 const FILTER_CIRCLE_SIZE = 36;
+/** 칸 높이 — 기본 28 보다 조금 두툼하게(PM 2026-09-24 "높이 조금 키우고"). 트랙은 +8 = 40 */
+const SEGMENT_HEIGHT = 32;
 const OPTIONS = TABS.map((value) => ({ value, label: LIBRARY_COPY.tab[value] }));
 
 interface LibraryTabsProps {
@@ -51,6 +53,7 @@ export default function LibraryTabs({
           onChange={onChange}
           accessibilityLabel="상태 필터"
           fill
+          segmentHeight={SEGMENT_HEIGHT}
         />
       </View>
       <Pressable
@@ -91,7 +94,8 @@ const styles = StyleSheet.create({
     paddingLeft: theme.spacing.md,
     // 캡슐이 필터 원에 닿지 않게 — 붙으면 둘이 한 덩어리로 읽힌다
     gap: theme.spacing.sm,
-    backgroundColor: theme.color.background,
+    // 배경 없음 — 떠 있는 머리 줄(FloatingHeader) 안이라 목록이 밑으로 흐른다(2026-09-24 PM)
+    backgroundColor: 'transparent',
   },
   // 세그먼트가 필터 직전까지 가로를 다 쓴다(SegmentedControl fill)
   segmentRow: {
