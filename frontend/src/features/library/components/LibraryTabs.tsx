@@ -14,8 +14,6 @@ const TABS: LibraryFilter[] = ['all', 'unplayed', 'completed'];
 const FILTER_ICON_SIZE = 20;
 /** 유리 원 버튼 지름 — 세그먼트 트랙 높이(36)와 같은 눈높이 */
 const FILTER_CIRCLE_SIZE = 36;
-/** 칸 폭 — '미청취' 세 글자가 들어가는 폭. 세 칸 같은 폭(SegmentedControl) */
-const SEGMENT_WIDTH = 64;
 const OPTIONS = TABS.map((value) => ({ value, label: LIBRARY_COPY.tab[value] }));
 
 interface LibraryTabsProps {
@@ -31,6 +29,10 @@ interface LibraryTabsProps {
  *
  * 밑줄 탭 3분할이었던 것을 **세그먼트 컨트롤**로 바꿨다(2026-09-23 PM — HIG: 배타적인 몇 개 뷰를 같은 자리에서
  * 바꿀 땐 세그먼트. 탐색의 주간·월간·전체와 같은 부품). 구분선도 뺐다 — 캡슐이 스스로 경계다.
+ *
+ * **세그먼트는 필터 직전까지 가로를 다 쓴다**(2026-09-24 PM). 고정 폭(64×3)일 때는 캡슐이 왼쪽에 뭉치고
+ * 오른쪽에 빈 띠가 남아, 화면 폭의 절반을 쓰지 않으면서도 탭 하나하나는 작았다. 탐색의 토글은 제목 줄
+ * 오른쪽에 붙는 작은 부품이라 늘리면 안 되므로, 공용 부품은 `fill` 옵션으로 두고 여기서만 켠다.
  * **필터는 탭이 아니라 다른 축이므로 글자가 아닌 아이콘으로 둔다** — 같은 글자로 두면
  * 상태 탭 옆에 네 번째 칸처럼 읽힌다.
  */
@@ -48,7 +50,7 @@ export default function LibraryTabs({
           value={filter}
           onChange={onChange}
           accessibilityLabel="상태 필터"
-          segmentWidth={SEGMENT_WIDTH}
+          fill
         />
       </View>
       <Pressable
@@ -87,9 +89,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     minHeight: theme.touchTarget.minHeight,
     paddingLeft: theme.spacing.md,
+    // 캡슐이 필터 원에 닿지 않게 — 붙으면 둘이 한 덩어리로 읽힌다
+    gap: theme.spacing.sm,
     backgroundColor: theme.color.background,
   },
-  // 세그먼트는 왼쪽에, 필터 아이콘은 오른쪽 끝에
+  // 세그먼트가 필터 직전까지 가로를 다 쓴다(SegmentedControl fill)
   segmentRow: {
     flex: 1,
   },

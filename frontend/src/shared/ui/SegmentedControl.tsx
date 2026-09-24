@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion, theme } from '@/shared/theme';
@@ -20,6 +20,13 @@ interface SegmentedControlProps<T extends string> {
   accessibilityLabel: string;
   /** 칸 폭 — 라벨 길이에 맞춰 호출부가 정한다(전부 같은 폭이어야 알약이 옮겨갈 때 크기가 안 변한다) */
   segmentWidth?: number;
+  /**
+   * 가로를 꽉 채운다 — 부모가 준 폭을 칸 수로 똑같이 나눈다(`segmentWidth`는 무시된다).
+   *
+   * 기본값이 아닌 **옵션**인 이유: 이 부품은 라이브러리와 탐색이 함께 쓰는데, 탐색의
+   * 주간·월간·전체는 제목 줄 오른쪽에 붙는 작은 토글이라 늘어나면 안 된다. 늘릴 쪽만 켠다.
+   */
+  fill?: boolean;
 }
 
 /**
@@ -54,27 +61,56 @@ export default function SegmentedControl<T extends string>({
   disabled = false,
   accessibilityLabel,
   segmentWidth = DEFAULT_SEGMENT_WIDTH,
+  fill = false,
 }: SegmentedControlProps<T>) {
   const selectedIndex = Math.max(
     0,
     options.findIndex((option) => option.value === value),
   );
-  const indicatorX = useAnimatedValue(selectedIndex * segmentWidth);
+
+  /** fill 일 때의 칸 폭 — 트랙 안쪽 폭을 재서 칸 수로 나눈다. 측정 전에는 0(아직 그릴 수 없다) */
+  const [measuredSegmentWidth, setMeasuredSegmentWidth] = useState(0);
+  const handleTrackLayout = (event: LayoutChangeEvent) => {
+    if (!fill) return;
+    const inner = event.nativeEvent.layout.width - 2 * (TRACK_INSET + TRACK_BORDER);
+    const next = inner > 0 ? inner / options.length : 0;
+    // 소수점 떨림으로 매 프레임 리렌더되지 않게 0.5 미만 변화는 무시한다
+    setMeasuredSegmentWidth((prev) => (Math.abs(prev - next) < 0.5 ? prev : next));
+  };
+  const effectiveWidth = fill ? measuredSegmentWidth : segmentWidth;
+
+  const indicatorX = useAnimatedValue(selectedIndex * effectiveWidth);
+  /** 첫 측정에서는 알약이 날아오면 안 된다 — 제자리에 놓고 시작한다 */
+  const hasPlaced = useRef(!fill);
   useEffect(() => {
+    if (effectiveWidth <= 0) return;
+    const toValue = selectedIndex * effectiveWidth;
+    if (!hasPlaced.current) {
+      hasPlaced.current = true;
+      indicatorX.setValue(toValue);
+      return;
+    }
     Animated.spring(indicatorX, {
-      toValue: selectedIndex * segmentWidth,
+      toValue,
       useNativeDriver: true,
       ...motion.spring.snappy,
     }).start();
-  }, [indicatorX, selectedIndex, segmentWidth]);
+  }, [indicatorX, selectedIndex, effectiveWidth]);
 
   const indicatorStyle = [
     styles.indicator,
-    { width: segmentWidth, transform: [{ translateX: indicatorX }] },
+    { width: effectiveWidth, transform: [{ translateX: indicatorX }] },
   ];
+  /** interpolate 의 inputRange 는 단조 증가여야 한다 — 측정 전(0)에는 1로 둔다 */
+  const rangeWidth = Math.max(effectiveWidth, 1);
 
   return (
-    <View style={styles.track} accessibilityRole="radiogroup" accessibilityLabel={accessibilityLabel}>
+    <View
+      style={[styles.track, fill && styles.trackFill]}
+      onLayout={handleTrackLayout}
+      accessibilityRole="radiogroup"
+      accessibilityLabel={accessibilityLabel}
+    >
       <GlassSurface style={[StyleSheet.absoluteFill, styles.trackGlass]} />
       <View style={styles.trackBorder} pointerEvents="none" />
       {HAS_LIQUID_GLASS ? (
@@ -86,14 +122,14 @@ export default function SegmentedControl<T extends string>({
         const isSelected = option.value === value;
         // 알약이 이 칸에 얼마나 겹쳐 있는가(0~1) — 검정 글자의 불투명도
         const selectedOpacity = indicatorX.interpolate({
-          inputRange: [(index - 1) * segmentWidth, index * segmentWidth, (index + 1) * segmentWidth],
+          inputRange: [(index - 1) * rangeWidth, index * rangeWidth, (index + 1) * rangeWidth],
           outputRange: [0, 1, 0],
           extrapolate: 'clamp',
         });
         return (
           <Pressable
             key={option.value}
-            style={[styles.segment, { width: segmentWidth }]}
+            style={[styles.segment, fill ? styles.segmentFill : { width: segmentWidth }]}
             onPress={() => onChange(option.value)}
             hitSlop={SEGMENT_HIT_SLOP}
             disabled={disabled}
@@ -140,10 +176,18 @@ const styles = StyleSheet.create({
     borderWidth: TRACK_BORDER,
     borderColor: 'rgba(0, 0, 0, 0.10)',
   },
+  // fill — 부모가 준 폭을 그대로 쓴다(alignSelf 로 좌측에 붙지 않게)
+  trackFill: {
+    alignSelf: 'stretch',
+  },
   segment: {
     height: SEGMENT_HEIGHT,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // 칸은 똑같이 나눠 가진다 — 알약 폭(측정값)과 어긋나지 않게 셋 다 flex 1
+  segmentFill: {
+    flex: 1,
   },
   indicator: {
     position: 'absolute',
