@@ -608,6 +608,7 @@ export class DripBatchOrchestrator {
       };
     }
 
+    // 스코어링에는 쓰지 않는다(노출 피로 폐기 2026-09-25) — 편성 미리보기가 "최근 편성 주제"로 보여 주기만 한다
     const recentDripTopicIds = await this.findRecentDripTopicIds(
       userId,
       input.now,
@@ -618,7 +619,6 @@ export class DripBatchOrchestrator {
       preference: input.preference,
       difficultyAffinity: input.difficultyAffinity,
       completedEpisodesBySeries: input.completedEpisodesBySeries,
-      recentDripTopicIds,
       isColdStart: input.isColdStart,
       career: input.career,
       now: input.now,
@@ -742,7 +742,6 @@ export class DripBatchOrchestrator {
     return map;
   }
 
-  /** 노출 피로(4.2 ③) — 최근 편성분(드립·탐험)의 주제 */
   /**
    * **왜 이 콘텐츠가 갔는지를 남긴다.**
    *
@@ -786,6 +785,7 @@ export class DripBatchOrchestrator {
     }
   }
 
+  /** 최근 편성분(드립·탐험)의 주제 — 편성 미리보기 표시용. 스코어링 입력이 아니다(노출 피로 폐기 2026-09-25) */
   private async findRecentDripTopicIds(
     userId: string,
     now: Date,

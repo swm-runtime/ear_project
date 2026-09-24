@@ -76,6 +76,11 @@ export interface ScoreBreakdown {
     /** 커리어 적합도(4.2 ③) — 콘텐츠 청자 세트와 사용자 직군·연차 대조. 어느 쪽이든 없으면 null */
     careerFit: number | null;
     seriesContinuity: number | null;
+    /**
+     * 정규 편성에서는 **항상 null** — 노출 피로 항목은 폐기됐다(2026-09-25, `META_ITEM_WEIGHTS` 주석).
+     * 탐험 편성은 이 자리에 저노출 가점(`1/(1+노출수)`)을 싣는다. 필드를 남기는 것은 편성 미리보기 응답
+     * (`exposure_fatigue`)을 어드민 웹이 읽기 때문이다.
+     */
     exposureFatigue: number | null;
   };
 }
@@ -102,8 +107,6 @@ export interface RegularScoringContext {
   difficultyAffinity: Record<string, number> | null;
   /** series_id → 완청 최대 episode_no */
   completedEpisodesBySeries: Map<string, number>;
-  /** 최근 편성분의 주제 — 노출 피로 감점 */
-  recentDripTopicIds: string[];
   /** 완청 3건 미만(`drip-scheduling.md` 4.4) */
   isColdStart: boolean;
   /** 커리어 적합도 입력 — 프로필이라 콜드스타트에서도 살아 있는 항목이다 */
