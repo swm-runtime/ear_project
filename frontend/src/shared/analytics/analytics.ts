@@ -9,6 +9,7 @@ import type {
   AnalyticsEvents,
   AnalyticsUserProperties,
 } from './analytics.events';
+import { forwardToMeta, setMetaUser } from './meta';
 
 /**
  * 제품 분석(GA4) 진입점 — 화면·훅·서비스는 **이 파일의 `track()` 만** 부른다(KAN-90,
@@ -107,6 +108,8 @@ export const track = <E extends AnalyticsEventName>(
   params: AnalyticsEvents[E],
 ): void => {
   const entry = pushDebug(event);
+  // Meta 광고 측정(KAN-94) — 대상 이벤트 셋만 골라 보낸다. GA4 와 독립이라 한쪽 실패가 다른 쪽을 막지 않는다
+  void forwardToMeta(event, params);
   void (async () => {
     const loaded = await getSdk();
     if (!loaded) {
@@ -158,6 +161,12 @@ export const trackScreen = (screenName: string): void => {
  */
 export const setAnalyticsUser = (userId: string | null): void => {
   void (async () => {
+    // Meta(KAN-94)도 같은 해시로 계정을 가른다 — GA4 가 스텁이어도 먼저 준다
+    const userHash =
+      userId === null
+        ? null
+        : (await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, userId)).slice(0, 16);
+    setMetaUser(userHash);
     const loaded = await getSdk();
     if (!loaded) return;
     try {
@@ -170,8 +179,7 @@ export const setAnalyticsUser = (userId: string | null): void => {
         });
         return;
       }
-      const digest = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, userId);
-      await loaded.module.setUserId(loaded.instance, digest.slice(0, 16));
+      await loaded.module.setUserId(loaded.instance, userHash);
     } catch (error) {
       logger.warn('[analytics] setUserId failed', error);
     }

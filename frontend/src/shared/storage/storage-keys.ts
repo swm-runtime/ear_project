@@ -38,4 +38,9 @@ export const STORAGE_KEYS = {
    * 표시 순서다. 로그아웃 때 지우지 않는다 — 다른 계정의 목록에는 이 id 들이 없어 저절로 무시된다.
    */
   PLAYER_QUEUE_ORDER: 'player.queue_order',
+  /**
+   * Meta 광고 측정의 `first_play` 를 이미 보낸 계정 해시 목록(쉼표 구분, KAN-94). 기기 로컬 —
+   * 광고 최적화 목표는 기기당 1회면 충분해 서버 계약을 늘리지 않는다(`shared/analytics/meta.ts`)
+   */
+  META_FIRST_PLAY_SENT: 'analytics.meta_first_play_sent',
 } as const;

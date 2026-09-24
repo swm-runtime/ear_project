@@ -19,6 +19,21 @@ jest.mock('@/shared/lib/app-version', () => ({
   IS_DEV_API: true,
   resolveBundleLabel: () => '내장',
 }));
+// Meta 전달(meta.ts)은 개발계(IS_DEV_API)에서 스텁이지만 모듈이 저장소를 import 한다 — 네이티브 SecureStore 대신 메모리
+jest.mock('@/shared/storage/secure-storage', () => {
+  const memory = new Map<string, string>();
+  return {
+    secureStorage: {
+      get: async (key: string) => memory.get(key) ?? null,
+      set: async (key: string, value: string) => {
+        memory.set(key, value);
+      },
+      remove: async (key: string) => {
+        memory.delete(key);
+      },
+    },
+  };
+});
 
 const mockLogEvent = jest.fn(async () => undefined);
 const mockSetUserId = jest.fn(async () => undefined);
