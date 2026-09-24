@@ -210,6 +210,35 @@ export class LibraryItemRepository {
   }
 
   /**
+   * 무시된 편성분(`drip-scheduling.md` 4.3 "무시" 신호) — 드립·탐험으로 받았고 `addedBefore` 이전에 적립됐는데
+   * 아직 `unplayed`인 살아 있는 항목. **삭제분은 뺀다**(`withDeleted` 없음) — 삭제는 이미 `delete` 신호로 잡히고,
+   * 같은 항목을 두 번 벌주지 않는다. `since` 보다 오래된 것은 감쇠가 0에 가까워 읽지 않는다.
+   */
+  async findUnplayedByUserIdAndSourcesAddedBetween(
+    userId: string,
+    sources: LibraryItemSource[],
+    since: Date,
+    addedBefore: Date,
+    manager?: EntityManager,
+  ): Promise<{ contentId: string; addedAt: Date }[]> {
+    const rows = await this.scoped(manager)
+      .createQueryBuilder('item')
+      .select('item.content_id', 'content_id')
+      .addSelect('item.added_at', 'added_at')
+      .where('item.user_id = :userId', { userId })
+      .andWhere('item.source IN (:...sources)', { sources })
+      .andWhere('item.status = :status', { status: LibraryItemStatus.UNPLAYED })
+      .andWhere('item.added_at >= :since', { since })
+      .andWhere('item.added_at < :addedBefore', { addedBefore })
+      .getRawMany<{ content_id: string; added_at: Date | string }>();
+
+    return rows.map((row) => ({
+      contentId: row.content_id,
+      addedAt: new Date(row.added_at),
+    }));
+  }
+
+  /**
    * 콘텐츠별 **전 사용자 편성 이력 수** — 탐험 편성의 저노출 판정 입력이다
    * (`drip-scheduling.md` 4.8-2). 삭제분도 포함한다 — 한 번 나간 노출이다.
    */

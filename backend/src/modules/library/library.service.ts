@@ -287,6 +287,25 @@ export class LibraryService {
   }
 
   /** 콘텐츠별 전 사용자 편성 이력 수 — 탐험 저노출 판정 입력(`drip-scheduling.md` 4.8-2) */
+  /**
+   * 무시된 편성분 — "무시" 신호(`drip-scheduling.md` 4.3, `PreferenceSignalAction.IGNORE`)의 원천.
+   * 드립·탐험으로 받아 `addedBefore` 이전에 적립됐는데 아직 미청취인 항목(삭제분 제외).
+   */
+  async findIgnoredDripItems(
+    userId: string,
+    since: Date,
+    addedBefore: Date,
+    manager?: EntityManager,
+  ): Promise<{ contentId: string; addedAt: Date }[]> {
+    return this.libraryItemRepository.findUnplayedByUserIdAndSourcesAddedBetween(
+      userId,
+      [LibraryItemSource.DRIP, LibraryItemSource.DISCOVERY],
+      since,
+      addedBefore,
+      manager,
+    );
+  }
+
   async countExposures(
     contentIds: string[],
     manager?: EntityManager,

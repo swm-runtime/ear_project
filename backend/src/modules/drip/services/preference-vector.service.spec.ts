@@ -43,6 +43,56 @@ describe('PreferenceVectorService', () => {
   });
 
   describe('compute', () => {
+    it('무시 신호는 주제·저자 가중치를 음수로 쌓지만 취향 벡터·길이 분포에는 들어가지 않는다(4.3 — 부정은 룰 축만)', () => {
+      const content = buildContent('c1', {
+        authorName: '김OO',
+        durationSec: 900,
+      });
+      const contentsById = new Map([['c1', content]]);
+      const topicMap = new Map([['c1', [TOPIC_A]]]);
+      const embeddings = new Map([['c1', [1, 0, 0]]]);
+
+      const weights = service.compute(
+        [buildSignal('c1', PreferenceSignalAction.IGNORE)],
+        contentsById,
+        topicMap,
+        0,
+        NOW,
+        embeddings,
+      );
+
+      expect(weights.topicWeights[TOPIC_A]).toBeCloseTo(-0.3);
+      expect(weights.authorWeights['김OO']).toBeCloseTo(-0.3);
+      expect(weights.tasteEmbedding).toBeNull();
+      expect(weights.durationPref).toBeNull();
+    });
+
+    it('무시는 삭제보다 약한 부정이다 — 관심이 안 갔을 뿐 싫다는 뜻은 아니다', () => {
+      const content = buildContent('c1');
+      const contentsById = new Map([['c1', content]]);
+      const topicMap = new Map([['c1', [TOPIC_A]]]);
+
+      const ignored = service.compute(
+        [buildSignal('c1', PreferenceSignalAction.IGNORE)],
+        contentsById,
+        topicMap,
+        0,
+        NOW,
+      );
+      const deleted = service.compute(
+        [buildSignal('c1', PreferenceSignalAction.DELETE)],
+        contentsById,
+        topicMap,
+        0,
+        NOW,
+      );
+
+      expect(ignored.topicWeights[TOPIC_A]).toBeLessThan(0);
+      expect(ignored.topicWeights[TOPIC_A]).toBeGreaterThan(
+        deleted.topicWeights[TOPIC_A],
+      );
+    });
+
     it('완청은 담기보다 큰 가중치로 주제에 쌓인다', () => {
       const content = buildContent('c1');
       const contentsById = new Map([['c1', content]]);
