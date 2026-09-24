@@ -43,6 +43,12 @@ export enum PreferenceSignalAction {
   UNSAVE = 'unsave',
   DELETE = 'delete',
   REPLAY = 'replay',
+  /**
+   * 무시 — 드립·탐험으로 준 콘텐츠를 일정 기간(`DRIP_IGNORE_AFTER_DAYS`) 재생하지도 지우지도 않음.
+   * `user_signals`에 적재되는 행이 아니라 편성 배치가 라이브러리 상태에서 **파생**하는 신호다
+   * (`drip-scheduling.md` 4.3, 신설 2026-09-24). 취향 노트(②)에만 들어가고 취향 벡터(①)·길이 분포에는 쓰지 않는다.
+   */
+  IGNORE = 'ignore',
 }
 
 /** 클라이언트가 더 폴링할 이유가 없는 상태 (onboarding-api.md 4.8) */

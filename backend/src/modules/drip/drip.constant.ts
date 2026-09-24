@@ -68,7 +68,20 @@ export const SIGNAL_ACTION_WEIGHTS: Readonly<Record<string, number>> = {
   delete: -0.6,
   // `play`는 해석 표에 없다 — 적재는 되지만 가중치 0으로 무시한다
   play: 0,
+  /**
+   * 무시(2026-09-24 신설) — 준 드립을 `DRIP_IGNORE_AFTER_DAYS` 동안 열지도 지우지도 않음. 삭제(-0.6)의 절반이다:
+   * "싫다"가 아니라 "관심이 안 갔다"이고, 바빠서 못 들은 경우가 섞인다. 긍정만 있던 노트에 부정 폭을 만들어
+   * 신호가 드문 초기에도 ② 축이 중립(0.5) 근처에서 갈리게 하는 것이 목적이다.
+   */
+  ignore: -0.3,
 };
+
+/**
+ * 드립·탐험 콘텍츠가 이 일수 동안 `unplayed`로 남아 있으면 "무시"로 본다(`PreferenceSignalAction.IGNORE`).
+ * 7일 = 한 주 — 통근 사용자가 주말을 포함해 한 번은 볼 시간이다. 판정 시각은 적립 + 이 일수이고, 그날부터
+ * 다른 신호와 같은 반감기로 흐려진다. 나중에 재생하면 `unplayed`가 아니라 자동으로 빠진다.
+ */
+export const DRIP_IGNORE_AFTER_DAYS = 7;
 
 /** 가중치 맵이 무한히 자라지 않게 절대값 상위 N개만 유지한다(키워드가 주 대상) */
 export const PREFERENCE_WEIGHT_MAP_LIMIT = 50;
