@@ -94,23 +94,27 @@ interface GlassPillProps {
  * 만들면 스프링은 돌지만 끌기의 setValue 가 실기기에서 반영되지 않았다(2026-09-23, 세 번 확인)
  */
 export function GlassPill({ style, lens }: GlassPillProps) {
-  /* 캡슐과 같은 재질(regular, 틴트 없음) — 유리는 유리를 샘플링하지 않아 clear 알약은 캡슐을 건너뛰고 뒤의
-     목록만 굴절시켰다(알약 자리에서 캡슐이 사라져 보임, PM 2026-09-23). 같은 재질이면 커져서 넘친 부분이
-     캡슐이 불룩 튀어나온 것으로 읽힌다 → 알약만 clear(맑은 렌즈). 경계는 림이 그린다 */
-  const glass = HAS_LIQUID_GLASS ? (
-    <GlassView style={StyleSheet.absoluteFill} glassEffectStyle="clear" colorScheme="light" />
-  ) : null;
+  /*
+   * 유리는 유리를 샘플링하지 않는다 — 알약 자리에서는 캡슐이 사라지고 뒤의 목록만 보인다(2026-09-23). 그래서
+   * - lens 없이(세그먼트): 알약만 clear(맑은 렌즈). 경계는 림이 그린다.
+   * - lens 있음(탭 바): 용기 자리 안은 **용기와 같은 regular** 로 그려 알약 안에서도 캡슐이 이어지게 한다.
+   *   clear 로 두면 어두운 썸네일 위에서 알약이 캡슐에 뚫린 검은 구멍이 되고, 넘친 부분과 구분이 안 돼 캡슐
+   *   경계가 안 보였다(PM 2026-09-24 스크린샷). regular 안 / 투명 밖이면 경계가 재질 차이로 읽힌다.
+   *   선택 표시는 림·아이콘 채움·떠오르는 확대가 맡는다
+   */
   return (
     <Animated.View style={[style, HAS_LIQUID_GLASS ? styles.pillClear : styles.pillTint]} pointerEvents="none">
       {lens ? (
-        // 용기 자리에 잘린 유리 + 용기 테두리. 알약(clip) ∩ 용기 = 유리, 알약 − 용기 = 투명
+        // 용기 자리에 잘린 유리 + 용기 테두리. 알약(clip) ∩ 용기 = 용기 유리, 알약 − 용기 = 투명
         <Animated.View style={[lens, styles.lensFrame]} pointerEvents="none">
-          {glass}
+          {HAS_LIQUID_GLASS ? (
+            <GlassView style={StyleSheet.absoluteFill} glassEffectStyle="regular" colorScheme="light" />
+          ) : null}
           <View style={[StyleSheet.absoluteFill, styles.lensEdge]} pointerEvents="none" />
         </Animated.View>
-      ) : (
-        glass
-      )}
+      ) : HAS_LIQUID_GLASS ? (
+        <GlassView style={StyleSheet.absoluteFill} glassEffectStyle="clear" colorScheme="light" />
+      ) : null}
       {/* 림 — 같은 재질의 유리가 겹치면 iOS 가 경계를 그리지 않아 알약 윤곽이 사라진다. 위쪽 흰 하이라이트 +
           바깥 얇은 그림자로 렌즈의 가장자리를 직접 준다(PM 2026-09-23 "겹치면 안쪽에 보여야") */}
       <View style={[StyleSheet.absoluteFill, styles.pillRim]} pointerEvents="none" />
