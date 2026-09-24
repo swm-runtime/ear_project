@@ -86,6 +86,9 @@ jobs:
       # apk 는 preview 프로필, aab 는 preview-store 프로필(같은 env·같은 채널, buildType 만 app-bundle)
       - name: 앱 빌드
         working-directory: frontend
+        env:
+          # 내장 번들의 Sentry 소스맵 업로드(KAN-95) — 로컬 빌드는 EAS env 를 못 받으므로 GitHub secret 을 직접 준다
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: |
           if [ "${{ inputs.format }}" = "aab" ]; then PROFILE=preview-store; else PROFILE=preview; fi
           eas build --local             --platform android             --profile "$PROFILE"             --non-interactive             --output "$GITHUB_WORKSPACE/ear-preview.${{ inputs.format }}"
