@@ -87,3 +87,10 @@
 - 확인: tsc · eslint · jest 133 통과.
 - 빌드: iOS 개발계 **build 11**(runtime 7, SPM 수정 포함) TestFlight 제출 · Android APK Actions run 35855715899 성공. 2차 이벤트는 그 빌드 위에 OTA 로 얹힌다.
 - **남은 것**: 실기기 DebugView 로 완료 조건 6개 · 스토어 개인정보 신고(사람 손).
+
+## 처리 기록 (2026-09-24 — iOS 실기기 1차 확인·후속 2건)
+
+- **iOS 도달 확인**(12:05, iOS build 11): GA4 실시간에 `ear preview iOS 1.1.0` 스트림, `screen_view` Library·Profile·Explore·Settings. 완료 조건 1 충족.
+- 후속 (1) **SDK 자동 화면 추적 노이즈** — `RNSScreen` 39·`UIViewController` 6·`RCTFabricModalHostView` 2 가 같이 잡혔다. `frontend/firebase.json` 에 `google_analytics_automatic_screen_reporting_enabled: false` — RNFB 가 iOS plist·Android 매니페스트 둘 다에 반영한다. **runtimeVersion 은 올리지 않는다**: JS 가 이 값에 의존하지 않아 rt 7 빌드 위의 OTA 가 깨질 일이 없고, 값을 올리면 어제 나간 build 11·APK 가 OTA 를 못 받게 된다. 대신 같은 rt 7 로 새 개발계 빌드를 뽑아 그 빌드부터 노이즈가 사라진다(이전 빌드는 노이즈가 남는다 — 대시보드에서 `screen_class` 가 라우트 이름인 것만 본다).
+- 후속 (2) **목록에 Player 없음** — `focusedRouteName` 을 `app/navigation/focused-route.ts` 로 빼고 유닛 5건(투명 모달 플레이어가 스택 위에 있을 때 `Player`, 그 위 상세, 부분 상태, 빈 상태)으로 확인: **코드는 Player 를 잡는다.** 표시 방식(`transparentModal`)은 라우트 상태에 영향을 주지 않는다. 사용자가 그 세션에서 플레이어를 열지 않았을 가능성이 크다. 확인을 쉽게 하려고 "분석 디버그" 행이 `screen_view:Player` 처럼 화면 이름까지 보이게 했다.
+- 남은 것: Android DebugView(이벤트 순서·`topic_count`) · 완료 조건 2~6 → archive.

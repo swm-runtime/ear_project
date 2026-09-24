@@ -79,7 +79,8 @@ export const track = <E extends AnalyticsEventName>(
 
 /** 3.3 화면 전환 — 내비게이션 컨테이너가 포커스된 리프 라우트 이름이 바뀔 때만 부른다 */
 export const trackScreen = (screenName: string): void => {
-  lastEventName = 'screen_view';
+  // 디버그 행에서 "어느 화면"까지 보이게 — 실기기에서 라우트 판정(App.tsx focusedRouteName)을 확인하는 용도
+  lastEventName = `screen_view:${screenName}`;
   void (async () => {
     const loaded = await getSdk();
     if (!loaded) return;
