@@ -43,6 +43,9 @@ export const MINI_CARD_RADIUS = 22;
 /** 썸네일 한 변·행 위아래 여백 — PlayerScreen 의 대체 치수(MINI_THUMB_SIZE·MINI_ROW_HEIGHT)와 맞아야 한다 */
 export const MINI_THUMB_SIZE = 40;
 const MINI_ROW_PADDING = 6;
+/** 진행바 — 아래 변, 캡슐 모서리에 잘리지 않게 양옆 12 안쪽(PM 2026-09-25) */
+const PROGRESS_HEIGHT = 2;
+const PROGRESS_INSET = 12;
 /** 시스템 액세서리(iOS 26) 안 — 컨테이너 높이는 시스템이 주므로 내용은 더 작게, 가운데 정렬(PM 2026-09-24 "아래 공백이 크고 썸네일이 큼") */
 const MINI_ACCESSORY_THUMB_SIZE = 36;
 const MINI_ACCESSORY_ROW_PADDING = 4;
@@ -370,13 +373,6 @@ export default function MiniPlayer({
           <View style={styles.topLine} pointerEvents="none" />
         </>
       )}
-      <View
-        style={[styles.progressTrack, isAccessory && styles.progressTrackAccessory]}
-        accessibilityRole="progressbar"
-        accessibilityLabel={PLAYER_COPY.miniPlayer.progressA11y(totalMin, currentMin)}
-      >
-        <View style={[styles.progressFill, { width: `${Math.round(ratio * 100)}%` }]} />
-      </View>
       <View style={styles.row}>
         <Pressable
           style={[styles.body, isAccessory && styles.bodyAccessory]}
@@ -424,6 +420,15 @@ export default function MiniPlayer({
           )}
         </Pressable>
       </View>
+      {/* 진행바는 **아래 변**(2026-09-25 PM) — 유리 위 림의 흰 하이라이트 밑에 검정 선을 두면 테두리가 두 겹으로 읽혔다.
+          캡슐 모서리에서 잘리지 않게 양옆 12 안쪽, 끝은 둥글게. 카드 밑동이 차오르는 은유(Spotify·YouTube Music) */}
+      <View
+        style={[styles.progressTrack, isAccessory && styles.progressTrackAccessory]}
+        accessibilityRole="progressbar"
+        accessibilityLabel={PLAYER_COPY.miniPlayer.progressA11y(totalMin, currentMin)}
+      >
+        <View style={[styles.progressFill, { width: `${Math.round(ratio * 100)}%` }]} />
+      </View>
     </Animated.View>
   );
 }
@@ -463,11 +468,13 @@ const styles = StyleSheet.create({
     borderRadius: 0,
     justifyContent: 'center',
   },
+  // 액세서리는 높이를 시스템이 주므로 아래 변에 붙인다(카드는 흐름상 마지막이라 그대로 아래다)
   progressTrackAccessory: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
+    bottom: 0,
+    left: PROGRESS_INSET,
+    right: PROGRESS_INSET,
+    marginHorizontal: 0,
   },
   bodyAccessory: {
     paddingVertical: MINI_ACCESSORY_ROW_PADDING,
@@ -489,11 +496,15 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(0, 0, 0, 0.10)',
   },
   progressTrack: {
-    height: 2,
+    height: PROGRESS_HEIGHT,
+    marginHorizontal: PROGRESS_INSET,
+    borderRadius: PROGRESS_HEIGHT / 2,
     backgroundColor: theme.color.border,
+    overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
+    borderRadius: PROGRESS_HEIGHT / 2,
     backgroundColor: theme.color.primary,
   },
   row: {
