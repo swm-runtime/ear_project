@@ -20,6 +20,12 @@ const CAPSULE_INSET = 4;
 const ITEM_WIDTH = theme.dock.width / 3;
 const ITEM_HEIGHT = CAPSULE_HEIGHT - CAPSULE_INSET * 2;
 /**
+ * 캡슐 유리의 폭 — 칸 3개(= dock.width) **+ 양옆 inset**. 앞 층 캡슐은 padding 으로 이미 이 폭인데 뒤 층 유리를
+ * dock.width 로 그려 끝 칸의 알약이 유리 테두리에 딱 붙었다(PM 2026-09-24 "양쪽 끝에 있을 때 공백이 없어").
+ * 위아래와 같은 4pt 가 양옆에도 생긴다. 미니플레이어 카드(dock.width)보다 8 넓다
+ */
+const CAPSULE_WIDTH = theme.dock.width + CAPSULE_INSET * 2;
+/**
  * 캡슐 아래 여백 — 안전영역(홈 인디케이터 34) 위에 더 띄우지 않고 그 안으로 내려 바닥에 붙인다(PM 2026-09-23
  * "약간의 공백만 빼고 끝으로"). 인디케이터가 없는 기기(안전영역 0)는 최소 여백만 둔다
  */
@@ -306,13 +312,14 @@ const styles = StyleSheet.create({
   },
   capsuleGlassBox: {
     position: 'absolute',
-    width: theme.dock.width,
+    width: CAPSULE_WIDTH,
     height: CAPSULE_HEIGHT,
     borderRadius: theme.radius.full,
     boxShadow: '0 4px 20px rgba(0, 0, 0, 0.10)',
   },
   capsule: {
     flexDirection: 'row',
+    width: CAPSULE_WIDTH,
     height: CAPSULE_HEIGHT,
     padding: CAPSULE_INSET,
     borderRadius: theme.radius.full,
