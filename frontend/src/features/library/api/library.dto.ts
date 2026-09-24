@@ -84,6 +84,8 @@ export interface ResumeContentDto {
   duration_sec: number;
   thumbnail_url: string;
   content_version: number;
+  /** 목록 응답(4.1)과 같은 출처·모양(2026-09-22 KAN-91). 주제 없으면 `[]` — 미니플레이어 카테고리 줄 */
+  topic_ids: string[];
 }
 
 export interface ResumeTargetDto {

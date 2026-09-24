@@ -100,7 +100,8 @@ export default function LibraryScreen() {
             thumbnailUrl: resumeTarget.content.thumbnailUrl,
             positionSec: resumeTarget.progress?.positionSec ?? 0,
             durationSec: resumeTarget.content.durationSec,
-            // topicIds 는 복원 응답에 없다(library-api.md 4.3) — 카테고리 줄은 BE 가 topic_ids 를 내려주면 붙는다(tickets/backend)
+            // 카테고리 줄 — 복원 응답의 topic_ids(library-api.md 4.3, KAN-91 반영 2026-09-22 · FE 매핑 09-24)
+            topicIds: resumeTarget.content.topicIds,
           }
         : null,
     [isResumeVisible, resumeTarget],
