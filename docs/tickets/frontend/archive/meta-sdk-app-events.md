@@ -13,7 +13,7 @@
 | 발견 시점 | 메타 광고(페이스북·인스타그램·스레드) 집행 준비 — iOS 출시 완료 후 앱 설치 캠페인을 돌리려 했더니 앱에 광고 측정 수단이 없다 |
 | 근거 문서 | `docs/features/analytics.md`(이벤트 사전·`track()` 단일 진입점·IDFA 미사용 4장) · `docs/frontend/architecture.md` 2.1(runtimeVersion) |
 | 심각도 | 중 (Medium) — 3일 안. 광고는 SDK 없이도 켤 수 있지만 "링크 클릭" 최적화에 머물러 광고비 효율이 떨어진다 |
-| 상태 | 진행 — 구현·유닛 반영(2026-09-24), **운영 빌드(rt 8) 설치 후 Meta 이벤트 관리자 확인 남음** |
+| 상태 | **완료** — 반영 날짜 2026-09-24 |
 
 ## 문제
 
@@ -67,3 +67,4 @@
 
 - 2026-09-24 21:40 (효헌이): 구현 — `react-native-fbsdk-next` 13.4 + app.json 플러그인(App ID·Client Token·표시 이름·스킴, IDFA 끔, 자동 이벤트 켬, ATT 설명문 없음). `shared/analytics/meta.ts` 가 `track()` 안에서 세 이벤트만 Meta 로 전달, `first_play` 는 계정 해시별 기기 로컬 1회. 개발계 변형은 `app.config.js` 에서 네이티브 자동 이벤트·자동 초기화까지 끔. runtimeVersion 8. 유닛 6건(`meta.test.ts`), 전체 152 통과. 문서 요청 `changes/pending/analytics-meta-sdk.md`.
 - 남은 것: 운영 iOS 빌드(rt 8) TestFlight → 완료 조건 1~3·5 를 Meta 이벤트 관리자 "테스트 이벤트" 로 확인 · Android 는 출시 빌드 · 사람 손 4(ASC 개인정보 라벨·처리방침) · 광고 관리자에서 `first_play` 최적화 목표 선택 가능한지(조건 6).
+- **2026-09-24 23:41 완료(반영 날짜)** — 박수헌이 Meta 이벤트 관리자에서 완료 조건 확인(PM 전달). 운영 빌드 iOS 1.1.0 (13)(rt 8) · Android vc 14. Jira KAN-94 완료 전이. 남은 사람 손: ASC 개인정보 라벨·처리방침 Meta 반영 → 운영 (13) 심사 제출, Play 운영 aab 업로드.
