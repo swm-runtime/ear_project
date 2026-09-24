@@ -7,7 +7,11 @@
 export { default as PlayerScreen } from './screens/PlayerScreen';
 export { default as MiniPlayer } from './components/MiniPlayer';
 export type { MiniPlayerResumeFallback } from './components/MiniPlayer';
-export { useBottomDockInset, useMiniPlayerInset } from './store/mini-player-layout.store';
+export {
+  DOCK_SCROLL_PROPS,
+  useBottomDockInset,
+  useMiniPlayerInset,
+} from './store/mini-player-layout.store';
 export { useMiniPlayerResumeStore } from './store/mini-player-resume.store';
 export { miniDropProgress, miniDropStyle } from './store/mini-drop-motion';
 export { default as PlayConfirmDialog } from './components/PlayConfirmDialog';
