@@ -8,6 +8,7 @@
 | 발행 날짜 | 2026-09-24 |
 | 시작 날짜 | 2026-09-24 |
 | 기한 | 2026-09-27 (Medium — 3일) |
+| 상태 | **완료** — 반영 날짜 2026-09-24 |
 | 선행 | 없음. **이 티켓이 KAN-92(Sentry 도입)를 막는다** — 완료 조건 2(스택이 TS 원본으로 풀림)가 이것 때문에 열려 있다 |
 | Jira | [KAN-95](https://runtime364.atlassian.net/browse/KAN-95) |
 | 발견 시점 | 2026-09-23 개발계 부하 테스트(`backend/load-test/results/2026-09-23-dev-onboarding/REPORT.md` 2-3) + 같은 날 build 11 크래시 테스트 이벤트(`ab80549b`) |
@@ -67,3 +68,4 @@ GitHub secret `SENTRY_AUTH_TOKEN` 은 EAS 에 넣은 것과 같은 값(juyear �
 - 2026-09-24 22:00 (효헌이): 1·2·3 반영 — `sentry.ts` 의 `tracesSampleRate` 키 삭제, `eas.json` 의 `SENTRY_DISABLE_AUTO_UPLOAD` 두 줄 삭제, `eas-update.yml` 에 "Sentry 소스맵 업로드" 단계 추가(`npx sentry-expo-upload-sourcemaps dist`). **GitHub secret `SENTRY_AUTH_TOKEN` 이 아직 없어** 단계는 경고만 남기고 건너뛴다(발행은 막지 않는다) — 등록은 사람 손(EAS 와 같은 토큰). 등록 뒤 다음 dev 머지 OTA 부터 소스맵이 올라간다. EAS 빌드 쪽은 rt 8 빌드(KAN-94 와 같은 빌드, 2026-09-24 21:45 이후)부터 토큰으로 올라간다.
 - 남은 것: secret 등록(사람 손) → 다음 OTA 로그에서 업로드 단계 성공 확인 → 크래시 테스트 스택에 `.tsx` 파일명·줄 번호 + Trace ID 없음 확인 → archive + KAN-95·KAN-92 완료.
 - 2026-09-24 22:40 (효헌이): 추가 항목 3-1 반영 — `frontend/metro.config.js` 신설(`getSentryExpoConfig`), 로컬 `expo export` 로 번들에 Debug ID 가 심기는 것 확인. `dev-app-build.yml` 앱 빌드 단계에 `SENTRY_AUTH_TOKEN` env 추가(Android 내장 번들 맵). 머지 뒤 OTA 자동 발행·업로드 + 개발계 iOS·Android 재빌드 → 크래시 테스트로 조건 4 확인.
+- **2026-09-24 23:15 완료(반영 날짜)** — PM 확인 후 archive. 조건 1~3 충족(코드·OTA 업로드 로그 `01a0d3ad` debug id), 조건 4는 metro 반영 OTA 기준으로 PM 이 완료 처리. Jira KAN-95 완료 전이. KAN-92 는 fe-22 세션이 이미 완료(21:17).
