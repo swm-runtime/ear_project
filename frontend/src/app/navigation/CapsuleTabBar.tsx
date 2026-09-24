@@ -51,22 +51,22 @@ const DRAG_START_DISTANCE = 4;
 /** 누르는 동안 알약 확대 — 캡슐(60) 밖으로 확실히 넘치게(52 × 1.3 ≈ 68, PM 2026-09-23 "넘치게 해"). 캡슐은 clip 하지 않는다 */
 const PILL_LIFT_SCALE = 1.3;
 /**
- * 알약이 움직일 때 **진행 방향으로 늘어난다**(iOS 26 탭 바 — 액체처럼, PM 2026-09-24 "모양이 바뀌는 것도").
- * 끌 때는 손가락 속도에 비례해 가로로 늘고(최대 +30%), 탭으로 옮겨갈 때는 한 번 늘었다가 스프링으로 돌아온다.
- * 세로는 면적 보존처럼 늘어난 만큼의 절반이 눌린다. 아이콘·라벨은 늘리지 않는다(렌즈 안의 것이 아니라 알약의 형태다)
+ * 알약의 형태 변화(iOS 26 탭 바, PM 2026-09-24). **움직이는 동안은 줄어들고(둥근 방울), 자리에 닿으면 부푼다**
+ * (jelly bloom). 처음엔 진행 방향으로 늘리게 만들었다가 실기기와 비교해 뒤집었다("가로로 늘어나? 줄어드는 게 정상").
+ * 늘어나는 건 **끝을 넘겼을 때**(overdrag 고무줄)뿐이다. `stretch` 는 가로 배율 − 1 이라 음수가 수축이다.
+ * 세로는 가로가 변한 만큼의 절반이 반대로 움직인다(면적 보존 느낌). 아이콘·라벨은 그대로
  */
-const PILL_STRETCH_MAX = 0.45;
-/** 끌기 속도(pt/ms) → 늘어남. 1pt/ms 에 +25% (2026-09-24 저녁 12% 는 "안 변하는 것 같다") */
-const PILL_STRETCH_PER_VELOCITY = 0.25;
-/** 탭 이동 시 늘어남 — 한 칸 건너뛰면 더 길게 */
-const PILL_STRETCH_ON_JUMP = 0.22;
-const PILL_STRETCH_RISE_MS = 110;
+const PILL_DRAG_CONTRACT = 0.15;
+/** 탭으로 옮겨갈 때도 같은 원리 — 출발하며 줄었다가 도착에서 jelly 로 부푼다 */
+const PILL_JUMP_CONTRACT = 0.12;
+const PILL_CONTRACT_MS = 90;
 const PILL_SQUISH_RATIO = 0.5;
 /**
- * 끝을 넘어 끌면 **고무줄**(iOS 26 overdrag) — 자리는 끝에 걸리고 알약이 넘긴 만큼 늘어난다. 한 칸 폭을 넘기면 최대.
+ * 끝을 넘어 끌면 **고무줄** — 자리는 끝에 걸리고 넘긴 거리만큼 늘어난다(수축분을 상쇄하고 넘어서 +). 한 칸 폭이면 최대.
  * 놓으면 jelly 스프링으로 출렁이며 돌아온다
  */
-const PILL_OVERDRAG_STRETCH_PER_ITEM = 0.35;
+const PILL_OVERDRAG_STRETCH_PER_ITEM = 0.45;
+const PILL_STRETCH_MAX = 0.35;
 
 /**
  * 하단 탭 바 — 화면 폭을 다 쓰는 띠가 아니라 **떠 있는 캡슐**(2026-09-23 PM — iOS 26 탭 바처럼).
@@ -98,31 +98,39 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
     }).start();
   };
   const maxX = (state.routes.length - 1) * ITEM_WIDTH;
-  // 늘어남(가로 배율 − 1 ≥ 0). 끌기 속도·탭 이동이 올리고 스프링이 되돌린다
+  // 가로 배율 − 1. 음수 = 수축(이동 중), 0 = 제자리, 양수 = 끝 넘김 고무줄
   const stretch = useAnimatedValue(0);
-  const stretchTargetRef = useRef(0);
-  /**
-   * 끌기 중 — 손가락 속도를 늘어남으로(지수 평활로 떨림을 죽인다). 끝을 넘긴 만큼(overdrag)은 고무줄로 더한다 —
-   * 속도가 0 이어도 끝에 대고 밀면 늘어난 채 버틴다
-   */
-  const stretchByDrag = (vx: number, overdragPx: number) => {
-    const byVelocity = Math.abs(vx) * PILL_STRETCH_PER_VELOCITY;
-    stretchTargetRef.current = stretchTargetRef.current * 0.6 + byVelocity * 0.4;
-    const byOverdrag = Math.min(overdragPx / ITEM_WIDTH, 1) * PILL_OVERDRAG_STRETCH_PER_ITEM;
-    stretch.setValue(Math.min(stretchTargetRef.current + byOverdrag, PILL_STRETCH_MAX));
+  const isContractedRef = useRef(false);
+  /** 끌기가 시작되면 방울처럼 줄어든다 — 한 번만(매 move 마다 스프링을 새로 걸지 않는다) */
+  const contractForDrag = () => {
+    if (isContractedRef.current) return;
+    isContractedRef.current = true;
+    Animated.spring(stretch, {
+      toValue: -PILL_DRAG_CONTRACT,
+      ...motion.spring.snappy,
+      useNativeDriver: true,
+    }).start();
   };
-  const relaxStretch = () => {
-    stretchTargetRef.current = 0;
+  /** 끝을 넘긴 만큼 고무줄 — 수축을 상쇄하고 넘어서 늘어난다. 0 이면 수축 상태로 되돌린다 */
+  const stretchByOverdrag = (overdragPx: number) => {
+    const byOverdrag = Math.min(overdragPx / ITEM_WIDTH, 1) * PILL_OVERDRAG_STRETCH_PER_ITEM;
+    stretch.stopAnimation();
+    stretch.setValue(Math.min(-PILL_DRAG_CONTRACT + byOverdrag, PILL_STRETCH_MAX));
+    // 안으로 돌아오면 contractForDrag 가 다시 수축 스프링을 건다
+    isContractedRef.current = false;
+  };
+  /** 놓으면 부푼다(jelly bloom) — 수축·고무줄 어느 쪽에서든 출렁이며 제자리로 */
+  const bloom = () => {
+    isContractedRef.current = false;
     Animated.spring(stretch, { toValue: 0, ...motion.spring.jelly, useNativeDriver: true }).start();
   };
-  /** 탭으로 옮겨갈 때 — 진행 방향으로 한 번 늘었다가 출렁이며 제자리로 */
-  const stretchForJump = (cells: number) => {
+  /** 탭으로 옮겨갈 때 — 출발하며 줄었다가 도착에서 부푼다 */
+  const contractForJump = (cells: number) => {
     if (cells === 0) return;
-    stretchTargetRef.current = 0;
     Animated.sequence([
       Animated.timing(stretch, {
-        toValue: Math.min(PILL_STRETCH_ON_JUMP * cells, PILL_STRETCH_MAX),
-        duration: PILL_STRETCH_RISE_MS,
+        toValue: -PILL_JUMP_CONTRACT,
+        duration: PILL_CONTRACT_MS,
         easing: motion.easing.easeOut,
         useNativeDriver: true,
       }),
@@ -196,8 +204,8 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
   const selectTab = (target: number, wasDragged = false) => {
     const { routes, index, navigation: nav } = latestRef.current;
     snapTo(target);
-    // 끌다 놓은 건 relaxStretch 가 되돌린다 — 탭으로 건너뛸 때만 늘어남 펄스
-    if (!wasDragged) stretchForJump(Math.abs(target - index));
+    // 끌다 놓은 건 bloom 이 부풀린다 — 탭으로 건너뛸 때만 줄었다 부푸는 펄스
+    if (!wasDragged) contractForJump(Math.abs(target - index));
     if (target === index) return;
     const pressEvent = nav.emit({
       type: 'tabPress',
@@ -236,9 +244,10 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
             const x = Math.max(0, Math.min(limit, raw));
             pillXRef.current = x;
             indicatorX.setValue(x);
-            // 끝에 막히면 속도 대신 넘긴 거리가 늘린다(고무줄)
+            // 움직이는 동안은 줄어든 방울, 끝을 넘기면 넘긴 만큼 고무줄
             const overdrag = Math.abs(raw - x);
-            stretchByDrag(overdrag > 0 ? 0 : gesture.vx, overdrag);
+            if (overdrag > 0) stretchByOverdrag(overdrag);
+            else contractForDrag();
           },
           onPanResponderRelease: (_, gesture) => {
             liftPill(false);
@@ -248,13 +257,13 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
               ? Math.round(Math.max(0, Math.min(limit, dragOriginRef.current + gesture.dx)) / ITEM_WIDTH)
               : itemIndex;
             isDraggingRef.current = false;
-            if (wasDragged) relaxStretch();
+            if (wasDragged) bloom();
             selectTab(target, wasDragged);
           },
           onPanResponderTerminate: () => {
             liftPill(false);
             isDraggingRef.current = false;
-            relaxStretch();
+            bloom();
             snapTo(latestRef.current.index);
           },
         }),
