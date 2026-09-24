@@ -104,3 +104,10 @@
   - `sanitizeParams` — 불리언 → `'true'|'false'`, 유한 숫자 그대로, 문자열 100자 컷, 그 외(undefined·null·NaN·객체) 제거. Android Bundle 은 불리언 파라미터를 버리므로 플랫폼 차이를 여기서 없앤다. 유닛 3건.
   - "분석 디버그" 행 — **최근 10건 + 결과**(✓ sent · ✕ failed + 사유 · – stubbed · … sending), 시각 포함. 탭하면 새로고침. 재생 → 설정으로 가도 `play_start` 가 목록에 남고, SDK 가 던졀으면 사유가 보인다.
 - 다음 확인 순서: OTA 받은 뒤(껐다 켜기 2번) 재생 → 설정 > 분석 디버그. `play_start` 가 ✓면 앱은 보냈다 → Firebase 업로드 지연/콘솔 문제. ✕면 사유대로 고친다. 목록에 없으면 `POST /play` 가 성공하지 않은 것 — 서버 로그를 본다.
+
+## 처리 기록 (2026-09-24 15:15 — iOS 결론·이어듣기 구간 버그)
+
+- **결론**(OTA `01a0d189`, 15:09): 분석 디버그에 `play_start` 1 · `play_progress` 3 이 ✓ 로 남고 `play_complete` 는 실시간에 떴다 → **앱은 보낸다.** 앞선 "실시간 미도달"은 iOS 배치 업로드 지연. iOS 완료 조건(`screen_view`·`play_start`·`play_progress`·`play_complete` 도달)은 통과.
+- **버그**: `play_progress` 25·50·75 가 재생 시작 10초 안에 셋 다 나갔다 — 사용자 확인 **이어듣기**(시작 위치 75% 초과). `handleStatus` 의 마크 판정이 현재 위치 기준이라 시작 위치 아래 마크가 첫 콜백에 한꺼번에 찍혔다. 수정: `reportPlayStart` 성공 시 시작 위치 이하의 마크를 `reportedProgress` 에 미리 넣는다(`markProgressBelow`) — "이번 세션에 통과한 구간"만 센다. 재청취(`restartFromBeginning`)는 새 세션이라 마크를 비운다.
+- **테스트 보강**(완료 조건 2·5 의 코드 검증): `analytics.test.ts` 8건 — 파라미터 고정 3 · 공통 파라미터·발송 기록 2 · **로그아웃 시 `user_id` null + 속성 3종 null 로 비움** · 해시 앞 16자 · 속성 문자열화. jest 에서 동적 `import()` 가 안 돌아 SDK 로더를 함수 안 `require` 로 바꿨다(Metro 에선 같은 지연 평가).
+- 남은 것: Android DebugView(기기 있으면) — 없으면 위 유닛으로 대체하고 archive.

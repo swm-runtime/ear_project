@@ -449,6 +449,15 @@ class PlaybackService {
     }
   }
 
+  /** `play_progress` 는 이번 세션에 실제로 지나간 구간만 — 시작 위치 이하의 마크를 "이미 보낸 것"으로 둔다 */
+  private markProgressBelow(ctx: SessionContext, positionSec: number): void {
+    if (ctx.durationSec <= 0) return;
+    const percent = (positionSec / ctx.durationSec) * 100;
+    for (const mark of [25, 50, 75] as const) {
+      if (percent >= mark) ctx.reportedProgress.add(mark);
+    }
+  }
+
   /* ── 재생 시작 기록(차감) ── */
 
   private async reportPlayStart(): Promise<void> {
@@ -461,13 +470,17 @@ class PlaybackService {
       const result = await startPlay({ contentId: ctx.contentId, entryPoint: ctx.entryPoint });
       if (generation !== this.generation || !this.ctx) return;
       ctx.hasReportedPlayStart = true;
+      const startPositionSec = store.getState().session?.positionSec ?? 0;
       track('play_start', {
         content_id: ctx.contentId,
         entry: ctx.entryPoint,
         // 세션에 origin 이 없다 — 원문 URL 이 있으면 파트너, 없으면 AI 자체 생성(player.mock 규칙과 같다)
         origin: store.getState().session?.meta.sourceUrl ? 'partner' : 'ai_generated',
-        resumed: (store.getState().session?.positionSec ?? 0) > 0,
+        resumed: startPositionSec > 0,
       });
+      // 시작 위치 아래의 구간은 이번 세션에 "통과"한 게 아니다 — 이어듣기로 80% 에서 시작하면 25·50·75 가
+      // 첫 상태 콜백에 한꺼번에 찍혔다(2026-09-24 실기기). 미리 표시해 두면 handleStatus 가 세지 않는다
+      this.markProgressBelow(ctx, startPositionSec);
       // 표시값은 적재 이후의 서버 값으로 덮어쓴다 — 클라이언트가 1을 빼지 않는다
       usePlayLimitStore.getState().applyPlayLimit(result.playLimit);
       if (result.libraryItem) {
@@ -669,6 +682,8 @@ class PlaybackService {
     ctx.hasReportedPlayStart = false;
     ctx.isReportingPlayStart = false;
     ctx.hasReportedAbandon = false;
+    // 재청취는 새 세션이다 — 구간 통과도 0 부터 다시 센다
+    ctx.reportedProgress = new Set();
     ctx.isReplay = true;
     ctx.replayIdempotencyKey = null;
     ctx.tracking = markSeek(ctx.tracking, 0);

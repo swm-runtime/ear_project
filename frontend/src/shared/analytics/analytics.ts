@@ -28,12 +28,16 @@ type Analytics = ReturnType<AnalyticsModule['getAnalytics']>;
 
 let sdk: { module: AnalyticsModule; instance: Analytics } | null = null;
 
-/** SDK 는 실사용 시점에 동적 로드한다 — 웹 번들·Expo Go 에는 네이티브 모듈이 없다 */
+/**
+ * SDK 는 실사용 시점에 로드한다 — 웹 번들·Expo Go 에는 네이티브 모듈이 없다. 함수 안의 `require` 는
+ * Metro 에서 `import()` 와 같이 첫 호출 때 평가되고, jest(CJS) 에서도 돈다(동적 import 는 vm-modules 없이는 못 돈다).
+ */
 const getSdk = async (): Promise<typeof sdk> => {
   if (IS_ANALYTICS_STUBBED) return null;
   if (sdk) return sdk;
   try {
-    const module = await import('@react-native-firebase/analytics');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- 지연 로드(위 주석)
+    const module = require('@react-native-firebase/analytics') as AnalyticsModule;
     sdk = { module, instance: module.getAnalytics() };
     return sdk;
   } catch (error) {
