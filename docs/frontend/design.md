@@ -73,7 +73,7 @@ HIG 원문: https://developer.apple.com/design/human-interface-guidelines/
 ## 5. 컴포넌트 규칙
 
 ### 탭 바 — 떠 있는 캡슐 (HIG: Tab bars, iOS 26)
-`app/navigation/CapsuleTabBar`. 높이 60, 칸 96×52 ×3, 홈 인디케이터 위 10. **선택 알약은 유리 렌즈**(`GlassPill` — iOS 26 리퀴드 글라스, 그 밑은 검정 6% 틴트). 아이콘 24 + 라벨 11(600) — 채움·색은 알약이 그 칸에 겹친 만큼 바뀐다(두 겹 + 불투명도). **알약은 잡고 끌 수 있다**(가로 4pt 넘게 움직이면 끌기, 놓으면 가까운 칸에 스냅 + 이동). 차지 높이를 `BottomTabBarHeightCallbackContext` 로 보고한다.
+`app/navigation/CapsuleTabBar`. 높이 60, 칸 96×52 ×3, **캡슐 폭 296 = 칸 288 + 양옆 inset 4**(2026-09-24 — 유리를 288 로 그리면 끝 칸의 알약이 테두리에 붙는다; 위아래와 같은 4pt 를 양옆에도 둔다. 미니플레이어 카드 288 보다 8 넓다), 홈 인디케이터 위 10. **선택 알약은 유리 렌즈**(`GlassPill` — iOS 26 리퀴드 글라스, 그 밑은 검정 6% 틴트). 아이콘 24 + 라벨 11(600) — 채움·색은 알약이 그 칸에 겹친 만큼 바뀐다(두 겹 + 불투명도). **알약은 잡고 끌 수 있다**(가로 4pt 넘게 움직이면 끌기, 놓으면 가까운 칸에 스냅 + 이동). 차지 높이를 `BottomTabBarHeightCallbackContext` 로 보고한다.
 
 ### 미니플레이어 — 유리 카드
 **탭 바 독(`CapsuleTabBar`) 안에 하나만 산다** — 캡슐과 같은 `GlassGroup`(spacing 28)이라 아래로 끌면 물방울처럼 합쳐진다(iOS 26). 탭 밖 화면은 `placement="floating"`. 캡슐 위 8, 폭 = 캡슐 폭(`theme.dock.width` 288) 가운데, 모서리 22. 행 54(진행바 2 + 6 + 썸네일 40 + 6) · 썸네일 40(`sm` 8 연속 곡률) · 제목 14(600) · 카테고리 12(회색, 주제 앞 두 개 ` · `). 종료는 **아래로 끌어 캡슐에 흡수**(65pt 이동, scaleY→0.12 · scaleX→0.92 · 페이드, 40%/800dp·s 임계, snappy) — 왼쪽 스와이프는 없다(2026-09-23). 임계 미달 복귀 snappy.
