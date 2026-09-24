@@ -20,6 +20,11 @@ export const motion = {
     smooth: { stiffness: 195, damping: 28, mass: 1 },
     /** 응답 0.3초 — 토글·손잡이처럼 작은 것이 자리를 잡을 때 */
     snappy: { stiffness: 440, damping: 42, mass: 1 },
+    /**
+     * SwiftUI `.bouncy`(bounce 0.3) 상당 — 감쇠비 ≈ 0.5 라 한 번 넘쳤다가 돌아온다(출렁임). **형태**(크기·늘어남)에만
+     * 쓴다 — 위치에 쓰면 좌표 밖으로 튄다. iOS 26 탭 바 알약이 눌러 부풀고 놓으면 출렁이는 그 느낌(2026-09-24)
+     */
+    jelly: { stiffness: 300, damping: 17, mass: 1 },
   },
   /** 짧은 전환 길이 — 페이드·줄 이동. UIKit 기본 0.25s 보다 살짝 짧게 */
   duration: {
