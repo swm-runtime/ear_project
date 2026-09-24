@@ -77,6 +77,13 @@ export function GlassGroup({ spacing = 24, style, pointerEvents, children }: Gla
 interface GlassPillProps {
   /** 위치·크기·transform — 호출부의 Animated 스타일 그대로 */
   style: Animated.WithAnimatedValue<StyleProp<ViewStyle>>;
+  /**
+   * 알약이 담긴 **용기(캡슐)의 자리** — 알약 로컬 좌표로, 알약이 커지고 움직여도 화면에서는 용기와 정확히 겹치게
+   * 호출부가 역변환(translate·1/scale)을 넣어 준다. 주면 유리는 이 자리 안에서만 그려지고 용기의 테두리가 알약을
+   * 통해 보인다 — 알약이 용기 밖으로 넘친 부분은 **완전히 투명**하다(PM 2026-09-24 "안쪽에 캡슐 경계가 보여야 하고
+   * 그 밖은 완전 투명"). 렌즈는 밑에 있는 것을 보이는 것이지 새 면을 만드는 게 아니다. 없으면 알약 전체가 유리다
+   */
+  lens?: Animated.WithAnimatedValue<StyleProp<ViewStyle>>;
 }
 
 /**
@@ -86,16 +93,24 @@ interface GlassPillProps {
  * 움직이는 건 **일반 Animated.View** 이고 유리는 그 안에 고정 자식으로 둔다 — GlassView 자체를 Animated 로
  * 만들면 스프링은 돌지만 끌기의 setValue 가 실기기에서 반영되지 않았다(2026-09-23, 세 번 확인)
  */
-export function GlassPill({ style }: GlassPillProps) {
+export function GlassPill({ style, lens }: GlassPillProps) {
+  /* 캡슐과 같은 재질(regular, 틴트 없음) — 유리는 유리를 샘플링하지 않아 clear 알약은 캡슐을 건너뛰고 뒤의
+     목록만 굴절시켰다(알약 자리에서 캡슐이 사라져 보임, PM 2026-09-23). 같은 재질이면 커져서 넘친 부분이
+     캡슐이 불룩 튀어나온 것으로 읽힌다 → 알약만 clear(맑은 렌즈). 경계는 림이 그린다 */
+  const glass = HAS_LIQUID_GLASS ? (
+    <GlassView style={StyleSheet.absoluteFill} glassEffectStyle="clear" colorScheme="light" />
+  ) : null;
   return (
     <Animated.View style={[style, HAS_LIQUID_GLASS ? styles.pillClear : styles.pillTint]} pointerEvents="none">
-      {/* 캡슐과 같은 재질(regular, 틴트 없음) — 유리는 유리를 샘플링하지 않아 clear 알약은 캡슐을 건너뛰고 뒤의
-          목록만 굴절시켰다(알약 자리에서 캡슐이 사라져 보임, PM 2026-09-23). 같은 재질이면 커져서 넘친 부분이
-          캡슐이 불룩 튀어나온 것으로 읽힌다 */}
-      {/* 알약만 clear(맑은 렌즈, PM 2026-09-23) — 캡슐은 regular 그대로. 경계는 아래 림이 그린다 */}
-      {HAS_LIQUID_GLASS ? (
-        <GlassView style={StyleSheet.absoluteFill} glassEffectStyle="clear" colorScheme="light" />
-      ) : null}
+      {lens ? (
+        // 용기 자리에 잘린 유리 + 용기 테두리. 알약(clip) ∩ 용기 = 유리, 알약 − 용기 = 투명
+        <Animated.View style={[lens, styles.lensFrame]} pointerEvents="none">
+          {glass}
+          <View style={[StyleSheet.absoluteFill, styles.lensEdge]} pointerEvents="none" />
+        </Animated.View>
+      ) : (
+        glass
+      )}
       {/* 림 — 같은 재질의 유리가 겹치면 iOS 가 경계를 그리지 않아 알약 윤곽이 사라진다. 위쪽 흰 하이라이트 +
           바깥 얇은 그림자로 렌즈의 가장자리를 직접 준다(PM 2026-09-23 "겹치면 안쪽에 보여야") */}
       <View style={[StyleSheet.absoluteFill, styles.pillRim]} pointerEvents="none" />
@@ -118,6 +133,18 @@ const styles = StyleSheet.create({
   pillClear: {
     overflow: 'hidden',
     backgroundColor: 'transparent',
+  },
+  // 용기 자리 — 유리를 이 모양으로 자른다. 위치·크기·역변환은 호출부 lens 스타일이 준다
+  lensFrame: {
+    position: 'absolute',
+    overflow: 'hidden',
+    borderRadius: 999,
+  },
+  // 용기의 테두리(CapsuleTabBar.capsuleBorder 와 같은 값) — 알약이 용기 밖으로 넘칠 때 렌즈 안에 보이는 경계
+  lensEdge: {
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(0, 0, 0, 0.10)',
   },
   pillRim: {
     borderRadius: 999,

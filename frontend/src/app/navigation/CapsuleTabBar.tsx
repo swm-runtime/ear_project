@@ -78,6 +78,31 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
     }).start();
   };
   const maxX = (state.routes.length - 1) * ITEM_WIDTH;
+  /*
+   * 알약 안에서 캡슐 자리를 화면과 정확히 겹치게 두는 역변환(GlassPill.lens). 알약은 자기 중심 P 를 기준으로
+   * s 배 커지고 x 만큼 옮겨졌으니, 알약 로컬에 둔 캡슐 크기의 틀을 자기 중심 C 기준 1/s 로 줄이고
+   * tx = (D − x)/s − D (D = C − P 의 가로 거리) 만큼 밀면 화면에서 캡슐과 같은 자리에 선다(세로는 중심이 같아 0).
+   * 그래서 알약이 커져 캡슐 밖으로 넘치면 렌즈 안에 캡슐 테두리가 그대로 보이고, 캡슐 밖은 투명하다
+   */
+  const lensOffset = -CAPSULE_INSET + CAPSULE_WIDTH / 2 - ITEM_WIDTH / 2;
+  const lensStyle = useMemo(
+    () => ({
+      left: -CAPSULE_INSET,
+      top: -CAPSULE_INSET,
+      width: CAPSULE_WIDTH,
+      height: CAPSULE_HEIGHT,
+      transform: [
+        {
+          translateX: Animated.subtract(
+            Animated.divide(Animated.subtract(lensOffset, indicatorX), indicatorScale),
+            lensOffset,
+          ),
+        },
+        { scale: Animated.divide(1, indicatorScale) },
+      ],
+    }),
+    [indicatorScale, indicatorX, lensOffset],
+  );
   const isDraggingRef = useRef(false);
   // 알약이 마지막으로 향한 자리 — 네이티브 스프링이 끝난 뒤 JS 쪽 값은 낡아 있을 수 있어 직접 든다.
   // 끌기 중이 아닐 때 탭 상태가 바뀌면(탭·딥링크·복원) 그 칸으로 스냅한다
@@ -197,6 +222,7 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
             styles.indicator,
             { transform: [{ translateX: indicatorX }, { scale: indicatorScale }] },
           ]}
+          lens={lensStyle}
         />
         {state.routes.map((route, index) => {
           const { options } = descriptors[route.key];
