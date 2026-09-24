@@ -49,6 +49,18 @@
 
 GitHub secret `SENTRY_AUTH_TOKEN` 은 EAS 에 넣은 것과 같은 값(juyear 에게 이미 받은 토큰). **Jira·저장소에 값을 적지 않는다.**
 
+### 3-1. `frontend/metro.config.js` 신설 — Debug ID 주입 (추가 2026-09-24 22:30, 1~3 반영 뒤에도 스택이 안 풀려 발견)
+
+1~3을 반영한 22:04 OTA(iOS update `01a0d386…7c83`, dist 13, runtime 8)의 이벤트도 스택이 `main.jsbundle:1:1654301` 로 남았다. 소스맵은 올라갔지만(`index-d208a2bb….hbc.map`, debug id `55a1a8c6…`) **번들에 Debug ID 가 없어 짝이 안 맞는다** — 업로드가 `Release: None · Dist: None` 이라 Debug ID 가 유일한 연결 고리인데, 그걸 심는 Sentry Metro 설정이 프로젝트에 없었다(`metro.config.js` 부재). 발행자가 빠뜨린 항목이다.
+
+```js
+// frontend/metro.config.js
+const { getSentryExpoConfig } = require('@sentry/react-native/metro');
+module.exports = getSentryExpoConfig(__dirname);
+```
+
+Expo 기본 Metro 설정을 감싸는 것이라 다른 동작은 바뀌지 않는다. OTA 번들·내장 번들 둘 다 이 설정을 거쳐야 풀린다. Android `eas build --local` 워크플로에는 `SENTRY_AUTH_TOKEN` env 도 필요하다(내장 번들 맵 업로드).
+
 ### 4. 확인
 
 빌드 한 번(iOS 개발계) + dev 머지 OTA 한 번 → 설정 > 크래시 테스트 → sentry.io `runtime-gw/ear-app` 이슈 스택에 `DevDiagnosticsRows.tsx` 같은 **파일명·줄 번호**가 보이면 끝. 이벤트에 Trace ID 가 붙지 않는 것도 함께 본다.
@@ -57,6 +69,7 @@ GitHub secret `SENTRY_AUTH_TOKEN` 은 EAS 에 넣은 것과 같은 값(juyear �
 
 - Given `sentry.ts` / When 읽는다 / Then `tracesSampleRate` 키가 없다
 - Given `eas.json` / When 읽는다 / Then `SENTRY_DISABLE_AUTO_UPLOAD` 가 없다
+- Given `frontend/metro.config.js` / When 읽는다 / Then `getSentryExpoConfig` 로 감싸져 있다(Debug ID 주입)
 - Given dev 머지로 OTA 가 나간다 / When 워크플로 로그를 본다 / Then 소스맵 업로드 단계가 성공한다
 - Given 새 빌드·OTA 에서 크래시 테스트 / When Sentry 이슈를 연다 / Then 스택 프레임에 `.tsx` 파일명·줄 번호가 보이고 Trace ID 가 없다
 - Given 위 통과 / When KAN-92 를 본다 / Then 완료 조건 2 가 해소돼 완료로 넘길 수 있다
