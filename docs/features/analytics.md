@@ -42,6 +42,8 @@
 
 `first_open` · `session_start` · `app_update` · `os_update` · `screen_view`(React Navigation `onStateChange`에서 화면 이름을 넘긴다 — 라우트 이름 그대로: `Library` · `Explore` · `Player` · `Settings` …).
 
+**SDK 의 자동 화면 추적은 끈다**(`frontend/firebase.json` `google_analytics_automatic_screen_reporting_enabled: false` — iOS plist `FirebaseAutomaticScreenReportingEnabled`·Android 매니페스트 둘 다 이 한 파일이 정한다). RN 은 화면이 네이티브 뷰컨트롤러가 아니라 켜 두면 `RNSScreen`·`UIViewController`·`RCTFabricModalHostView` 같은 노이즈가 `screen_view` 를 채운다(2026-09-24 실기기에서 확인). 빌드 시점 설정이라 **그 뒤에 만든 빌드부터** 적용된다 — 이전 빌드는 OTA 로 고쳐지지 않는다.
+
 ### 3.4 퍼널별 이벤트
 
 **온보딩** (`onboarding.md`)

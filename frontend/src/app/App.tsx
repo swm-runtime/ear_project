@@ -8,25 +8,13 @@ import { AppErrorBoundary, initSentry, wrapWithSentry } from '@/shared/monitorin
 import Toast from '@/shared/ui/Toast';
 
 import { bootstrapApp } from './bootstrap';
+import { focusedRouteName } from './navigation/focused-route';
 import RootNavigator from './navigation/RootNavigator';
 import { queryClient } from './query-client';
 
 // 부트스트랩보다 먼저 — 부트스트랩 안에서 나는 오류도 잡아야 한다
 initSentry();
 bootstrapApp();
-
-/** 지금 보이는 화면의 라우트 이름 — 중첩 내비게이터를 끝까지 따라 내려간다(PushArrivalBanner 와 같은 규칙) */
-const focusedRouteName = (state: NavigationState | undefined): string | null => {
-  let current: NavigationState | undefined = state;
-  let name: string | null = null;
-  while (current) {
-    const route = current.routes[current.index];
-    if (!route) break;
-    name = route.name;
-    current = route.state as NavigationState | undefined;
-  }
-  return name;
-};
 
 let lastTrackedScreen: string | null = null;
 
