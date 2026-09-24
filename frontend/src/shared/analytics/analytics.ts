@@ -51,27 +51,75 @@ const commonParams = (): Record<string, string> => {
   };
 };
 
-/** 마지막으로 보낸 이벤트 이름 — 개발계 설정의 "분석 디버그" 행이 읽는다(5장) */
-let lastEventName: string | null = null;
-export const getLastAnalyticsEvent = (): string | null => lastEventName;
+/**
+ * 최근 발송 기록 — 개발계 설정의 "분석 디버그" 행이 읽는다(5장). 이름만이 아니라 **결과**를 남긴다:
+ * 화면 이동으로 마지막 1개가 덮이고, 실패가 `logger.warn` 에만 남으면 실기기에서 진단이 안 된다(2026-09-24).
+ */
+export type AnalyticsDebugStatus = 'sending' | 'sent' | 'stubbed' | 'failed';
+export interface AnalyticsDebugEntry {
+  /** 이벤트 이름(화면 전환은 `screen_view:<화면>`) */
+  label: string;
+  status: AnalyticsDebugStatus;
+  /** 실패 사유 — SDK 가 던진 메시지 첫 줄 */
+  reason?: string;
+  at: number;
+}
+const DEBUG_LOG_SIZE = 10;
+const debugLog: AnalyticsDebugEntry[] = [];
+const pushDebug = (label: string): AnalyticsDebugEntry => {
+  const entry: AnalyticsDebugEntry = { label, status: 'sending', at: Date.now() };
+  debugLog.unshift(entry);
+  if (debugLog.length > DEBUG_LOG_SIZE) debugLog.length = DEBUG_LOG_SIZE;
+  return entry;
+};
+const settleDebug = (entry: AnalyticsDebugEntry, status: AnalyticsDebugStatus, error?: unknown) => {
+  entry.status = status;
+  if (error !== undefined) entry.reason = String(error).split('\n')[0].slice(0, 160);
+};
+/** 최신순 사본 */
+export const getAnalyticsDebugLog = (): AnalyticsDebugEntry[] => debugLog.map((e) => ({ ...e }));
+/** @deprecated 디버그 행이 목록으로 바뀌었다 — 호환용 */
+export const getLastAnalyticsEvent = (): string | null => debugLog[0]?.label ?? null;
+
+/**
+ * Firebase 파라미터 값은 **문자열·숫자만** 확실히 통한다. 불리언은 iOS 브리지에선 NSNumber 로 가지만
+ * Android Bundle 에서는 지원 타입이 아니라 파라미터가 버려지고, 값이 undefined/NaN 이면 SDK 마다 다르다.
+ * 여기서 한 번 고정해 플랫폼 차이를 없앤다: 불리언 → `'true'|'false'`, 유한 숫자 그대로, 그 외는 뺀다.
+ */
+export const sanitizeParams = (
+  params: Record<string, unknown>,
+): Record<string, string | number> => {
+  const out: Record<string, string | number> = {};
+  for (const [key, value] of Object.entries(params)) {
+    if (typeof value === 'string') out[key] = value.slice(0, 100);
+    else if (typeof value === 'number' && Number.isFinite(value)) out[key] = value;
+    else if (typeof value === 'boolean') out[key] = value ? 'true' : 'false';
+  }
+  return out;
+};
 
 export const track = <E extends AnalyticsEventName>(
   event: E,
   params: AnalyticsEvents[E],
 ): void => {
-  lastEventName = event;
+  const entry = pushDebug(event);
   void (async () => {
     const loaded = await getSdk();
-    if (!loaded) return;
+    if (!loaded) {
+      settleDebug(entry, 'stubbed');
+      return;
+    }
     try {
       // `search`·`share`·`login`·`sign_up` 은 GA4 예약 이름이라 SDK 가 전용 오버로드를 갖는다 —
       // 우리 파라미터 표는 사전(analytics.events.ts)이 검사하므로 이 호출은 문자열 오버로드로 보낸다
       await loaded.module.logEvent(
         loaded.instance,
         event as string,
-        { ...commonParams(), ...params } as Record<string, unknown>,
+        sanitizeParams({ ...commonParams(), ...(params as Record<string, unknown>) }),
       );
+      settleDebug(entry, 'sent');
     } catch (error) {
+      settleDebug(entry, 'failed', error);
       logger.warn('[analytics] logEvent failed', event, error);
     }
   })();
@@ -80,16 +128,21 @@ export const track = <E extends AnalyticsEventName>(
 /** 3.3 화면 전환 — 내비게이션 컨테이너가 포커스된 리프 라우트 이름이 바뀔 때만 부른다 */
 export const trackScreen = (screenName: string): void => {
   // 디버그 행에서 "어느 화면"까지 보이게 — 실기기에서 라우트 판정(App.tsx focusedRouteName)을 확인하는 용도
-  lastEventName = `screen_view:${screenName}`;
+  const entry = pushDebug(`screen_view:${screenName}`);
   void (async () => {
     const loaded = await getSdk();
-    if (!loaded) return;
+    if (!loaded) {
+      settleDebug(entry, 'stubbed');
+      return;
+    }
     try {
       await loaded.module.logScreenView(loaded.instance, {
         screen_name: screenName,
         screen_class: screenName,
       });
+      settleDebug(entry, 'sent');
     } catch (error) {
+      settleDebug(entry, 'failed', error);
       logger.warn('[analytics] logScreenView failed', error);
     }
   })();

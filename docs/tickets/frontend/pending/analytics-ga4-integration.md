@@ -94,3 +94,13 @@
 - 후속 (1) **SDK 자동 화면 추적 노이즈** — `RNSScreen` 39·`UIViewController` 6·`RCTFabricModalHostView` 2 가 같이 잡혔다. `frontend/firebase.json` 에 `google_analytics_automatic_screen_reporting_enabled: false` — RNFB 가 iOS plist·Android 매니페스트 둘 다에 반영한다. **runtimeVersion 은 올리지 않는다**: JS 가 이 값에 의존하지 않아 rt 7 빌드 위의 OTA 가 깨질 일이 없고, 값을 올리면 어제 나간 build 11·APK 가 OTA 를 못 받게 된다. 대신 같은 rt 7 로 새 개발계 빌드를 뽑아 그 빌드부터 노이즈가 사라진다(이전 빌드는 노이즈가 남는다 — 대시보드에서 `screen_class` 가 라우트 이름인 것만 본다).
 - 후속 (2) **목록에 Player 없음** — `focusedRouteName` 을 `app/navigation/focused-route.ts` 로 빼고 유닛 5건(투명 모달 플레이어가 스택 위에 있을 때 `Player`, 그 위 상세, 부분 상태, 빈 상태)으로 확인: **코드는 Player 를 잡는다.** 표시 방식(`transparentModal`)은 라우트 상태에 영향을 주지 않는다. 사용자가 그 세션에서 플레이어를 열지 않았을 가능성이 크다. 확인을 쉽게 하려고 "분석 디버그" 행이 `screen_view:Player` 처럼 화면 이름까지 보이게 했다.
 - 남은 것: Android DebugView(이벤트 순서·`topic_count`) · 완료 조건 2~6 → archive.
+
+## 처리 기록 (2026-09-24 오후 — 재생 이벤트 미도달 조사·진단 도구)
+
+- **증상**(iOS build 12, 12:41): 재생 시작 2분 뒤에도 실시간에 `play_start` 없음. `drip_play` 는 보임. 28일 집계 `play_start`/`progress`/`complete` 0.
+- **정적 조사**: RNFB `logEvent` 는 이름만 검사한다(예약 이름·접두어·정규식 — 우리 이름 전부 통과). 파라미터 값 타입은 JS 에서 검사하지 않고, iOS 브리지는 불리언을 `NSNumber` 로 넘겨 Firebase 가 받는다. 세 이벤트는 모두 `PlaybackService` 에서 **`POST /play` 성공 뒤**(`hasReportedPlayStart`)에만 나간다 — `play_progress`·`play_complete` 에는 불리언이 없는데도 같이 없으므로 "불리언 거부"만으로는 설명이 안 된다. 코드에서 원인을 못 찍었다.
+- **iOS 실시간 지연 주의**: iOS 는 `-FIRDebugEnabled` 없이는 이벤트를 배치로 올린다(앱이 백그라운드로 갈 때·주기적). TestFlight 빌드에는 그 플래그를 줄 수 없다. "2분 뒤 없음" 은 결정적이지 않다 — **앱을 백그라운드로 보낸 뒤** 실시간을 본다. 이벤트 단위 확인은 **Android APK + `adb shell setprop debug.firebase.analytics.app dev.runtime.ear`** 로 DebugView 를 켜는 것이 유일하게 확실한 길이다.
+- **한 것**(JS, OTA):
+  - `sanitizeParams` — 불리언 → `'true'|'false'`, 유한 숫자 그대로, 문자열 100자 컷, 그 외(undefined·null·NaN·객체) 제거. Android Bundle 은 불리언 파라미터를 버리므로 플랫폼 차이를 여기서 없앤다. 유닛 3건.
+  - "분석 디버그" 행 — **최근 10건 + 결과**(✓ sent · ✕ failed + 사유 · – stubbed · … sending), 시각 포함. 탭하면 새로고침. 재생 → 설정으로 가도 `play_start` 가 목록에 남고, SDK 가 던졀으면 사유가 보인다.
+- 다음 확인 순서: OTA 받은 뒤(껐다 켜기 2번) 재생 → 설정 > 분석 디버그. `play_start` 가 ✓면 앱은 보냈다 → Firebase 업로드 지연/콘솔 문제. ✕면 사유대로 고친다. 목록에 없으면 `POST /play` 가 성공하지 않은 것 — 서버 로그를 본다.
