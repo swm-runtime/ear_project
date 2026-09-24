@@ -111,6 +111,15 @@ module.exports = ({ config }) => {
         return [plugin[0], { ...plugin[1], nativeAppKey: kakaoNativeAppKey }];
       }
 
+      // Meta 광고 측정(KAN-94)은 개발계에서 네이티브부터 끈다 — JS(meta.ts)는 IS_DEV_API 로 스텁이지만
+      // 자동 앱 실행 이벤트는 SDK 가 JS 이전에 보내므로 플러그인 값도 꺼야 테스트 실행이 광고 학습에 안 섞인다
+      if (plugin[0] === 'react-native-fbsdk-next') {
+        return [
+          plugin[0],
+          { ...plugin[1], autoLogAppEventsEnabled: false, isAutoInitEnabled: false },
+        ];
+      }
+
       return plugin;
     }),
     extra: {
