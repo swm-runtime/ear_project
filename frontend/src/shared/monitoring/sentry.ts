@@ -39,9 +39,9 @@ export const initSentry = (): void => {
     environment: IS_DEV_API ? 'preview' : 'production',
     release: `ear@${APP_VERSION}`,
     sendDefaultPii: false,
-    // 성능 추적은 끈다 — 무료 할당량은 크래시에 쓴다(티켓 범위 밖)
+    // 성능 추적은 끈다(팀 결정 2026-09-23, KAN-95) — 에러 수집 전용. `tracesSampleRate` 는 **키 자체를 두지 않는다**:
+    // 0 을 넘기면 "끔"이 아니라 "켜되 표본 0" 이라 SDK 가 계측·트레이스 전파를 전부 등록한다(서버 KAN-93 과 같은 함정)
     enableAutoPerformanceTracing: false,
-    tracesSampleRate: 0,
     beforeSend(event, hint) {
       if (isExpectedError(hint.originalException)) return null;
       return scrubEvent(event);
