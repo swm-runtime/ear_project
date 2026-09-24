@@ -55,13 +55,18 @@ const PILL_LIFT_SCALE = 1.3;
  * 끌 때는 손가락 속도에 비례해 가로로 늘고(최대 +30%), 탭으로 옮겨갈 때는 한 번 늘었다가 스프링으로 돌아온다.
  * 세로는 면적 보존처럼 늘어난 만큼의 절반이 눌린다. 아이콘·라벨은 늘리지 않는다(렌즈 안의 것이 아니라 알약의 형태다)
  */
-const PILL_STRETCH_MAX = 0.3;
-/** 끌기 속도(pt/ms) → 늘어남. 1pt/ms 에 +12% */
-const PILL_STRETCH_PER_VELOCITY = 0.12;
+const PILL_STRETCH_MAX = 0.45;
+/** 끌기 속도(pt/ms) → 늘어남. 1pt/ms 에 +25% (2026-09-24 저녁 12% 는 "안 변하는 것 같다") */
+const PILL_STRETCH_PER_VELOCITY = 0.25;
 /** 탭 이동 시 늘어남 — 한 칸 건너뛰면 더 길게 */
-const PILL_STRETCH_ON_JUMP = 0.16;
+const PILL_STRETCH_ON_JUMP = 0.22;
 const PILL_STRETCH_RISE_MS = 110;
 const PILL_SQUISH_RATIO = 0.5;
+/**
+ * 끝을 넘어 끌면 **고무줄**(iOS 26 overdrag) — 자리는 끝에 걸리고 알약이 넘긴 만큼 늘어난다. 한 칸 폭을 넘기면 최대.
+ * 놓으면 jelly 스프링으로 출렁이며 돌아온다
+ */
+const PILL_OVERDRAG_STRETCH_PER_ITEM = 0.35;
 
 /**
  * 하단 탭 바 — 화면 폭을 다 쓰는 띠가 아니라 **떠 있는 캡슐**(2026-09-23 PM — iOS 26 탭 바처럼).
@@ -84,10 +89,11 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
   const indicatorX = useAnimatedValue(state.index * ITEM_WIDTH);
   // 누르는 동안 알약이 살짝 커져 떠오른다(iOS 26 탭 바) — 놓으면 제자리 크기로
   const indicatorScale = useAnimatedValue(1);
+  // 부풀고 가라앉는 건 jelly — 한 번 넘쳤다 돌아오는 출렁임이 iOS 26 의 "버블"이다(snappy 는 딱 멈춰서 젤리가 아니었다)
   const liftPill = (isLifted: boolean) => {
     Animated.spring(indicatorScale, {
       toValue: isLifted ? PILL_LIFT_SCALE : 1,
-      ...motion.spring.snappy,
+      ...motion.spring.jelly,
       useNativeDriver: true,
     }).start();
   };
@@ -95,17 +101,21 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
   // 늘어남(가로 배율 − 1 ≥ 0). 끌기 속도·탭 이동이 올리고 스프링이 되돌린다
   const stretch = useAnimatedValue(0);
   const stretchTargetRef = useRef(0);
-  /** 끌기 중 — 손가락 속도를 늘어남으로. 지수 평활로 떨림을 죽인다 */
-  const stretchByVelocity = (vx: number) => {
-    const target = Math.min(Math.abs(vx) * PILL_STRETCH_PER_VELOCITY, PILL_STRETCH_MAX);
-    stretchTargetRef.current = stretchTargetRef.current * 0.6 + target * 0.4;
-    stretch.setValue(stretchTargetRef.current);
+  /**
+   * 끌기 중 — 손가락 속도를 늘어남으로(지수 평활로 떨림을 죽인다). 끝을 넘긴 만큼(overdrag)은 고무줄로 더한다 —
+   * 속도가 0 이어도 끝에 대고 밀면 늘어난 채 버틴다
+   */
+  const stretchByDrag = (vx: number, overdragPx: number) => {
+    const byVelocity = Math.abs(vx) * PILL_STRETCH_PER_VELOCITY;
+    stretchTargetRef.current = stretchTargetRef.current * 0.6 + byVelocity * 0.4;
+    const byOverdrag = Math.min(overdragPx / ITEM_WIDTH, 1) * PILL_OVERDRAG_STRETCH_PER_ITEM;
+    stretch.setValue(Math.min(stretchTargetRef.current + byOverdrag, PILL_STRETCH_MAX));
   };
   const relaxStretch = () => {
     stretchTargetRef.current = 0;
-    Animated.spring(stretch, { toValue: 0, ...motion.spring.snappy, useNativeDriver: true }).start();
+    Animated.spring(stretch, { toValue: 0, ...motion.spring.jelly, useNativeDriver: true }).start();
   };
-  /** 탭으로 옮겨갈 때 — 진행 방향으로 한 번 늘었다가 제자리로 */
+  /** 탭으로 옮겨갈 때 — 진행 방향으로 한 번 늘었다가 출렁이며 제자리로 */
   const stretchForJump = (cells: number) => {
     if (cells === 0) return;
     stretchTargetRef.current = 0;
@@ -116,7 +126,7 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
         easing: motion.easing.easeOut,
         useNativeDriver: true,
       }),
-      Animated.spring(stretch, { toValue: 0, ...motion.spring.snappy, useNativeDriver: true }),
+      Animated.spring(stretch, { toValue: 0, ...motion.spring.jelly, useNativeDriver: true }),
     ]).start();
   };
   // 알약의 축별 배율 — 가로 s·(1+stretch), 세로 s·(1 − stretch·½)
@@ -222,11 +232,13 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
               isDraggingRef.current = true;
             }
             const { maxX: limit } = latestRef.current;
-            const x = Math.max(0, Math.min(limit, dragOriginRef.current + gesture.dx));
+            const raw = dragOriginRef.current + gesture.dx;
+            const x = Math.max(0, Math.min(limit, raw));
             pillXRef.current = x;
             indicatorX.setValue(x);
-            // 끝에 막혀 못 움직이면 늘어나지도 않는다
-            stretchByVelocity(x === dragOriginRef.current + gesture.dx ? gesture.vx : 0);
+            // 끝에 막히면 속도 대신 넘긴 거리가 늘린다(고무줄)
+            const overdrag = Math.abs(raw - x);
+            stretchByDrag(overdrag > 0 ? 0 : gesture.vx, overdrag);
           },
           onPanResponderRelease: (_, gesture) => {
             liftPill(false);
