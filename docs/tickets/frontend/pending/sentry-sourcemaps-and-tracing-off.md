@@ -66,3 +66,4 @@ GitHub secret `SENTRY_AUTH_TOKEN` 은 EAS 에 넣은 것과 같은 값(juyear �
 
 - 2026-09-24 22:00 (효헌이): 1·2·3 반영 — `sentry.ts` 의 `tracesSampleRate` 키 삭제, `eas.json` 의 `SENTRY_DISABLE_AUTO_UPLOAD` 두 줄 삭제, `eas-update.yml` 에 "Sentry 소스맵 업로드" 단계 추가(`npx sentry-expo-upload-sourcemaps dist`). **GitHub secret `SENTRY_AUTH_TOKEN` 이 아직 없어** 단계는 경고만 남기고 건너뛴다(발행은 막지 않는다) — 등록은 사람 손(EAS 와 같은 토큰). 등록 뒤 다음 dev 머지 OTA 부터 소스맵이 올라간다. EAS 빌드 쪽은 rt 8 빌드(KAN-94 와 같은 빌드, 2026-09-24 21:45 이후)부터 토큰으로 올라간다.
 - 남은 것: secret 등록(사람 손) → 다음 OTA 로그에서 업로드 단계 성공 확인 → 크래시 테스트 스택에 `.tsx` 파일명·줄 번호 + Trace ID 없음 확인 → archive + KAN-95·KAN-92 완료.
+- 2026-09-24 22:40 (효헌이): 추가 항목 3-1 반영 — `frontend/metro.config.js` 신설(`getSentryExpoConfig`), 로컬 `expo export` 로 번들에 Debug ID 가 심기는 것 확인. `dev-app-build.yml` 앱 빌드 단계에 `SENTRY_AUTH_TOKEN` env 추가(Android 내장 번들 맵). 머지 뒤 OTA 자동 발행·업로드 + 개발계 iOS·Android 재빌드 → 크래시 테스트로 조건 4 확인.
