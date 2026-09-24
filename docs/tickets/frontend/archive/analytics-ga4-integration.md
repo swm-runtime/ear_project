@@ -12,7 +12,8 @@
 | 발견 시점 | 9월 3주차 회고 — 다음 주 계획 "강준혁 멘토님 멘토링 — 광고 셋팅, 유저 행동 분석". 앱에 분석 SDK가 없고 서버 `user_signals` 는 추천 전용이라 퍼널을 볼 수 없다 |
 | 근거 문서 | `docs/features/analytics.md`(이벤트 사전 — 이 티켓과 함께 신설) · `docs/backend/domain.md` 6.4·12.1(`user_signals` 역할) · `docs/frontend/architecture.md` 2.1(runtimeVersion) |
 | 중요도 | **Medium** — 3일 안. 멘토링 전에 속성·이벤트가 있어야 광고 설정을 얹을 수 있다 |
-| 상태 | 진행 — SDK·래퍼·이벤트 1차 반영, **runtime 7 빌드·DebugView 검증·잔여 이벤트 남음** |
+| 상태 | **완료** — 2026-09-24 iOS·Android 실기기 확인, archive |
+| 반영 날짜 | 2026-09-24 |
 
 ## 문제
 
@@ -111,3 +112,12 @@
 - **버그**: `play_progress` 25·50·75 가 재생 시작 10초 안에 셋 다 나갔다 — 사용자 확인 **이어듣기**(시작 위치 75% 초과). `handleStatus` 의 마크 판정이 현재 위치 기준이라 시작 위치 아래 마크가 첫 콜백에 한꺼번에 찍혔다. 수정: `reportPlayStart` 성공 시 시작 위치 이하의 마크를 `reportedProgress` 에 미리 넣는다(`markProgressBelow`) — "이번 세션에 통과한 구간"만 센다. 재청취(`restartFromBeginning`)는 새 세션이라 마크를 비운다.
 - **테스트 보강**(완료 조건 2·5 의 코드 검증): `analytics.test.ts` 8건 — 파라미터 고정 3 · 공통 파라미터·발송 기록 2 · **로그아웃 시 `user_id` null + 속성 3종 null 로 비움** · 해시 앞 16자 · 속성 문자열화. jest 에서 동적 `import()` 가 안 돌아 SDK 로더를 함수 안 `require` 로 바꿨다(Metro 에선 같은 지연 평가).
 - 남은 것: Android DebugView(기기 있으면) — 없으면 위 유닛으로 대체하고 archive.
+
+## 처리 기록 (2026-09-24 16:23 — 완료, 반영 날짜 2026-09-24)
+
+- **Android 확인** — Play 내부 테스트 aab(Actions run 35964319243, rt 7; apk 는 소셜 로그인이 안 돼 aab 로)로 설치해 iOS 와 같은 방식(GA4 실시간 + 설정 > 분석 디버그 행)으로 확인. **adb DebugView 는 하지 않았다** — 완료 조건 2(온보딩 순서·`topic_count`)·5(로그아웃 후 속성 리셋)는 `analytics.test.ts`·`onboarding-completion.service` 의 코드 경로(유닛 8건)로 갈음한다.
+- 사용자 확인 16:23("잘되는 거 같아"). iOS 는 `screen_view`·`play_start`·`play_progress`(이어듣기 수정 뒤 25% 정상)·`play_complete` 실시간 도달, 개발계 스트림(`dev.runtime.ear`)에만 잡힘(조건 4).
+- 조건 6(웹·mock no-op)은 `IS_ANALYTICS_STUBBED` 경로 — 유닛의 stubbed 상태로 확인.
+- 반영 PR: #669(SDK·1차 20종) · #670(SPM off) · #671(2차 11종) · #674(자동 화면 추적 off·라우트 테스트) · #675(파라미터 고정·디버그 목록) · #676(이어듣기 구간·유닛). 빌드: iOS 개발계 build 11·12, Android APK/AAB. 마지막 OTA `01a0d211`.
+- **미결로 남기는 것**(이 티켓 범위 밖): `play_abandon` `pause_timeout`(타이머 없음) · 스토어 개인정보 신고(Apple 라벨·Play 데이터 보안·처리방침 — 사람 손, 분석 수집 고지) · Google Ads 전환 이벤트 선택(analytics.md 미결).
+- Jira KAN-90 완료 전이.
