@@ -2,6 +2,8 @@ import { BottomTabBarHeightContext } from '@react-navigation/bottom-tabs';
 import { useContext } from 'react';
 import { create } from 'zustand';
 
+import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
+
 /** 캡슐 탭 바 · 미니플레이어 카드 · 목록 사이의 간격(MiniPlayer 의 DOCK_GAP 과 같다) */
 const DOCK_GAP = 8;
 
@@ -46,6 +48,17 @@ export const useMiniPlayerInset = (): number =>
 export const useBottomDockInset = (): number => {
   const tabBarHeight = useContext(BottomTabBarHeightContext) ?? 0;
   const miniHeight = useMiniPlayerInset();
+  // 시스템 탭 바(iOS 26)는 탭 바·액세서리(미니플레이어)를 안전영역에 넣어 준다 — 스크롤 뷰가
+  // `contentInsetAdjustmentBehavior="automatic"`(DOCK_SCROLL_PROPS)으로 그만큼 비우므로 여기선 간격만 남긴다
+  if (HAS_NATIVE_TAB_BAR) return DOCK_GAP;
   // 카드가 있으면 캡슐과의 간격 + 카드 + 목록과의 간격, 없으면 캡슐 위 간격만
   return tabBarHeight + (miniHeight > 0 ? DOCK_GAP + miniHeight : 0) + DOCK_GAP;
 };
+
+/**
+ * 탭 화면의 스크롤 뷰에 그대로 펼친다 — 시스템 탭 바일 때만 안전영역(탭 바 + 액세서리)만큼 자동으로 비운다.
+ * 캡슐 탭 바에서는 `never`(RN 기본) — 여백은 useBottomDockInset 이 준다. 두 규칙이 겹치면 여백이 두 배가 된다
+ */
+export const DOCK_SCROLL_PROPS = {
+  contentInsetAdjustmentBehavior: HAS_NATIVE_TAB_BAR ? 'automatic' : 'never',
+} as const;

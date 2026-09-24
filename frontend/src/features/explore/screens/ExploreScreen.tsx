@@ -14,6 +14,7 @@ import { theme } from '@/shared/theme';
 import FullScreenError from '@/shared/ui/FullScreenError';
 
 import {
+  DOCK_SCROLL_PROPS,
   PlayConfirmDialog,
   RemainingPlaysIndicator,
   useBottomDockInset,
@@ -182,6 +183,7 @@ export default function ExploreScreen() {
     if (screen.isFiltered) {
       return (
         <FlatList
+          {...DOCK_SCROLL_PROPS}
           data={toExploreGridData(screen.filteredItems)}
           keyExtractor={exploreGridKey}
           numColumns={2}
@@ -223,6 +225,7 @@ export default function ExploreScreen() {
     // E1 — 섹션형 피드. 섹션 구성·순서·제목은 서버 응답 그대로다(explore.md 4.1)
     return (
       <ScrollView
+        {...DOCK_SCROLL_PROPS}
         contentContainerStyle={[
           screen.sections.length === 0 ? styles.emptyContent : styles.feedContent,
           { paddingBottom: miniInset },

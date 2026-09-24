@@ -6,7 +6,7 @@ import { theme } from '@/shared/theme';
 import ConfirmDialog from '@/shared/ui/ConfirmDialog';
 import SettingsIcon from '@/shared/ui/SettingsIcon';
 
-import { useBottomDockInset } from '@/features/player';
+import { DOCK_SCROLL_PROPS, useBottomDockInset } from '@/features/player';
 
 import CareerCard from '../components/CareerCard';
 import InterestCard from '../components/InterestCard';
@@ -64,6 +64,7 @@ export default function ProfileScreen() {
         ) : null
       ) : (
         <ScrollView
+          {...DOCK_SCROLL_PROPS}
           contentContainerStyle={[styles.scrollContent, { paddingBottom: theme.spacing.xxl + dockInset }]}
           refreshControl={
             <RefreshControl

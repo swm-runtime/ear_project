@@ -2,6 +2,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useState } from 'react';
 
+import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 
 import { EmailVerificationScreen, useSessionStore, WithdrawalScreen } from '@/features/auth';
 import { CareerInfoScreen } from '@/features/career';
@@ -24,6 +25,7 @@ import { SettingsScreen } from '@/features/settings';
 
 import CapsuleTabBar from './CapsuleTabBar';
 import { rememberTab, takePrimedTab, type RestorableTab } from './last-tab';
+import NativeMainTabs from './NativeMainTabs';
 import PlaceholderScreen from './PlaceholderScreen';
 import type { MainStackParamList, MainTabParamList } from './types';
 
@@ -98,7 +100,9 @@ export default function MainNavigator() {
   return (
     <>
       <MainStack.Navigator screenOptions={{ headerShown: false }}>
-        <MainStack.Screen name="Tabs" component={MainTabs} />
+        {/* iOS 26 은 시스템 탭 바(NativeMainTabs) — 알약 애니메이션·미니플레이어 액세서리를 애플이 그린다.
+          그 밑·Android 는 JS 캡슐(MainTabs + CapsuleTabBar) */}
+        <MainStack.Screen name="Tabs" component={HAS_NATIVE_TAB_BAR ? NativeMainTabs : MainTabs} />
         {/* 플레이어 — 탭 위 모달(architecture.md 6.1). 앱바(셰브론·더보기)는 화면이 직접 그리고,
           뒤로가기·아래로 스와이프는 축소다(재생 유지 — player-uiux.md 4.8).
           투명 모달 + 전환 없음(2026-09-16): 열림·닫힘은 화면이 직접 그린다 — 라이브러리의 미니플레이어

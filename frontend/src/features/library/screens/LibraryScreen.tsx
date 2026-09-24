@@ -14,6 +14,7 @@ import { theme } from '@/shared/theme';
 import FullScreenError from '@/shared/ui/FullScreenError';
 
 import {
+  DOCK_SCROLL_PROPS,
   PlayConfirmDialog,
   RemainingPlaysIndicator,
   useBottomDockInset,
@@ -252,6 +253,7 @@ export default function LibraryScreen() {
         <View style={styles.container} />
       ) : (
         <FlatList
+          {...DOCK_SCROLL_PROPS}
           data={gridRows}
           keyExtractor={(row) => row.key}
           renderItem={({ item: row }) =>

@@ -15,6 +15,12 @@ const BLUR_INTENSITY = 60;
 
 /** iOS 26 리퀴드 글라스는 앱 시작 시 한 번만 판정하면 된다(OS 가 바뀌지 않는다) */
 export const HAS_LIQUID_GLASS = Platform.OS === 'ios' && isLiquidGlassAvailable();
+/**
+ * 탭 바를 **시스템(UITabBarController)** 으로 그린다 — iOS 26 에서만(2026-09-24 PM "애플이 제공하는 애니메이션 없나").
+ * 선택 알약의 부풀기·끌기·굴절·고무줄이 애플 코드 그대로 나오고, 미니플레이어는 `bottomAccessory`(Music 앱 자리)가 된다.
+ * 그 밑 iOS·Android 는 JS 캡슐(CapsuleTabBar)이 그대로다. 목록의 바닥 여백 규칙도 갈린다(useBottomDockInset)
+ */
+export const HAS_NATIVE_TAB_BAR = HAS_LIQUID_GLASS;
 
 /**
  * 떠 있는 면(미니플레이어·탭 바)의 바탕 — 뒤의 목록이 흐리게 비친다(2026-09-22 PM — "애플처럼").

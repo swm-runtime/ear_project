@@ -70,8 +70,10 @@ interface MiniPlayerProps {
    * 'dock' — 캡슐 탭 바 독(CapsuleTabBar) 안에 흐름대로 놓인다(2026-09-23). 캡슐과 같은 유리 묶음이라 아래로 끌면
    * 물방울처럼 합쳐진다. 복원 스냅샷은 props 가 아니라 mini-player-resume.store 에서 읽는다.
    * 'floating' — 탭 밖 화면(검색)에서 바닥에 절대 배치. 종전 방식
+   * 'accessory' — iOS 26 시스템 탭 바의 bottomAccessory 안(NativeMainTabs, 2026-09-24). 유리·자리·폭은 시스템이 주므로
+   *   내용만 그린다. 스냅샷은 'dock' 과 같이 스토어에서 읽는다
    */
-  placement?: 'dock' | 'floating';
+  placement?: 'dock' | 'floating' | 'accessory';
 }
 
 /**
@@ -88,7 +90,9 @@ export default function MiniPlayer({
 }: MiniPlayerProps) {
   // 독에 있으면 라이브러리가 스토어에 올린 복원 스냅샷을 쓴다
   const resumeStore = useMiniPlayerResumeStore();
-  const isDocked = placement === 'dock';
+  // 독·액세서리는 호스트 화면이 스토어에 올린 복원 스냅샷을 쓴다(props 는 탭 밖 floating 전용)
+  const isDocked = placement !== 'floating';
+  const isAccessory = placement === 'accessory';
   const resumeFallback = isDocked ? resumeStore.fallback : resumeFallbackProp;
   const onResumePlayPress = isDocked ? (resumeStore.onPlayPress ?? undefined) : onResumePlayPressProp;
   const onResumeExpandPress = isDocked
@@ -326,7 +330,11 @@ export default function MiniPlayer({
       ref={rootRef}
       style={[
         styles.container,
-        isDocked ? styles.containerDocked : [styles.containerFloating, { bottom: tabBarHeight + DOCK_GAP }],
+        isAccessory
+          ? styles.containerAccessory
+          : isDocked
+            ? styles.containerDocked
+            : [styles.containerFloating, { bottom: tabBarHeight + DOCK_GAP }],
         dropStyle,
       ]}
       onLayout={() => {
@@ -442,6 +450,12 @@ const styles = StyleSheet.create({
   containerDocked: {
     position: 'relative',
     marginBottom: DOCK_GAP,
+  },
+  // 시스템 액세서리 안 — 자리·폭·유리·모서리는 시스템이 준다. 내용만 꽉 채운다
+  containerAccessory: {
+    position: 'relative',
+    width: '100%',
+    borderRadius: 0,
   },
   // 유리 카드의 윤곽 — 밝은 목록 위에서 경계가 사라지지 않게
   topLine: {
