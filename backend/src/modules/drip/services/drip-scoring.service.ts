@@ -131,7 +131,6 @@ export class DripScoringService {
       preference,
       difficultyAffinity: null,
       completedEpisodesBySeries: new Map(),
-      recentDripTopicIds: [],
       // 탐색은 임베딩·신호 두 축만 쓴다 — 커리어 적합도는 메타 축 항목이라 여기서는 읽지 않는다
       career: null,
       isColdStart: false,
@@ -527,13 +526,6 @@ export class DripScoringService {
       context.activeTopicIds.includes(topicId),
     ).length;
 
-    const recentTopicIds = new Set(context.recentDripTopicIds);
-    const fatigueOverlap =
-      candidate.topicIds.length === 0
-        ? 0
-        : candidate.topicIds.filter((topicId) => recentTopicIds.has(topicId))
-            .length / candidate.topicIds.length;
-
     const scores: ScoreBreakdown['metaItems'] = {
       // 여러 관심 주제에 걸치면 가점(4.2 ③)
       topicMatch:
@@ -546,7 +538,8 @@ export class DripScoringService {
       careerFit: this.careerFitScore(content, context),
       // 시리즈 연속 편에만 존재하는 강한 가점 — 해당 없으면 항목 자체가 빠진다
       seriesContinuity: isSeriesContinuation ? 1 : null,
-      exposureFatigue: 1 - fatigueOverlap,
+      // 노출 피로는 폐기됐다(`META_ITEM_WEIGHTS` 주석) — 항목이 빠진 것이지 0점이 아니다
+      exposureFatigue: null,
     };
 
     const items: ScoreItem[] = [
@@ -556,7 +549,6 @@ export class DripScoringService {
       { score: scores.difficultyFit, weight: weights.difficultyFit },
       { score: scores.careerFit, weight: weights.careerFit },
       { score: scores.seriesContinuity, weight: weights.seriesContinuity },
-      { score: scores.exposureFatigue, weight: weights.exposureFatigue },
     ];
 
     return { score: weightedMean(items) ?? 0, items: scores };
