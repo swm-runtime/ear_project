@@ -95,21 +95,20 @@ interface GlassPillProps {
  */
 export function GlassPill({ style, lens }: GlassPillProps) {
   /*
-   * 유리는 유리를 샘플링하지 않는다 — 알약 자리에서는 캡슐이 사라지고 뒤의 목록만 보인다(2026-09-23). 그래서
-   * - lens 없이(세그먼트): 알약만 clear(맑은 렌즈). 경계는 림이 그린다.
-   * - lens 있음(탭 바): 용기 자리 안은 **용기와 같은 regular** 로 그려 알약 안에서도 캡슐이 이어지게 한다.
-   *   clear 로 두면 어두운 썸네일 위에서 알약이 캡슐에 뚫린 검은 구멍이 되고, 넘친 부분과 구분이 안 돼 캡슐
-   *   경계가 안 보였다(PM 2026-09-24 스크린샷). regular 안 / 투명 밖이면 경계가 재질 차이로 읽힌다.
-   *   선택 표시는 림·아이콘 채움·떠오르는 확대가 맡는다
+   * **유리 위에 유리를 올리지 않는다**(WWDC25 Meet Liquid Glass: "Always avoid glass on glass … use fills,
+   * transparency, and vibrancy for the top elements"). 유리는 유리를 샘플링하지 않아, 알약을 두 번째 유리로 만들면
+   * 알약이 캡슐을 건너뛰고 밑의 콘텐츠만 비춘다 — clear 면 어두운 썸네일 위에서 검은 구멍, regular 면 회색 판이
+   * 됐다(2026-09-23·24 실기기). 그래서
+   * - lens 있음(탭 바): 알약은 유리가 아니라 **용기 유리 위의 반투명 채움**이다. 용기 자리에 잘라 그리므로
+   *   채움 아래로 캡슐의 유리·경계가 그대로 비치고, 알약이 넘친 부분(용기 밖)은 투명하다.
+   * - lens 없이(세그먼트): 종전대로 clear 유리 알약(세그먼트 바탕은 유리가 아니라 겹침이 없다)
    */
   return (
     <Animated.View style={[style, HAS_LIQUID_GLASS ? styles.pillClear : styles.pillTint]} pointerEvents="none">
       {lens ? (
-        // 용기 자리에 잘린 유리 + 용기 테두리. 알약(clip) ∩ 용기 = 용기 유리, 알약 − 용기 = 투명
+        // 알약(clip) ∩ 용기 = 채움, 알약 − 용기 = 투명. 용기 테두리는 채움 위에 한 번 더 그려 경계가 읽히게
         <Animated.View style={[lens, styles.lensFrame]} pointerEvents="none">
-          {HAS_LIQUID_GLASS ? (
-            <GlassView style={StyleSheet.absoluteFill} glassEffectStyle="regular" colorScheme="light" />
-          ) : null}
+          <View style={[StyleSheet.absoluteFill, styles.pillFill]} pointerEvents="none" />
           <View style={[StyleSheet.absoluteFill, styles.lensEdge]} pointerEvents="none" />
         </Animated.View>
       ) : HAS_LIQUID_GLASS ? (
@@ -143,6 +142,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     overflow: 'hidden',
     borderRadius: 999,
+  },
+  // 선택 채움 — 애플 탭 바의 선택 캡슐처럼 유리 위의 얇은 검정 틴트(systemFill 급). 유리가 아니다
+  pillFill: {
+    backgroundColor: 'rgba(0, 0, 0, 0.08)',
   },
   // 용기의 테두리(CapsuleTabBar.capsuleBorder 와 같은 값) — 알약이 용기 밖으로 넘칠 때 렌즈 안에 보이는 경계
   lensEdge: {
