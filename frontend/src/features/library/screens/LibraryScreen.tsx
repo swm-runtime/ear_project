@@ -8,9 +8,9 @@ import {
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
+import FloatingHeader, { useFloatingHeaderInset } from '@/shared/ui/FloatingHeader';
 import FullScreenError from '@/shared/ui/FullScreenError';
 
 import {
@@ -68,6 +68,9 @@ const toGridRows = (rows: LibraryListRow[]): LibraryGridRow[] => {
 export default function LibraryScreen() {
   const screen = useLibraryScreen();
   const miniInset = useBottomDockInset();
+  // 떠 있는 머리 줄(검색창·탭·배너)의 높이 — 목록이 그만큼 위를 비운다
+  const [headerHeight, setHeaderHeight] = useState(0);
+  const headerInset = useFloatingHeaderInset(headerHeight);
 
   /*
    * 검색은 **받아 둔 목록만** 좁힌다 — 서버 조회를 추가하지 않는다.
@@ -202,8 +205,9 @@ export default function LibraryScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      {/* 브랜드 표시를 두지 않는다(2026-09-02) — 어느 탭인지는 하단 탭이 이미 말한다 */}
+    <View style={styles.container}>
+      {/* 머리 줄은 목록 위에 떠 있다 — 배경 없이 유리 컨트롤만(2026-09-24 PM). 브랜드 표시는 두지 않는다(2026-09-02) */}
+      <FloatingHeader onHeightChange={setHeaderHeight}>
       {showTabBar ? (
         <LibrarySearchBarRow
           query={query}
@@ -235,6 +239,7 @@ export default function LibraryScreen() {
       {screen.banner ? (
         <LibraryBanner banner={screen.banner} onPress={screen.handleBannerPress} />
       ) : null}
+      </FloatingHeader>
 
       {screen.isFullError ? (
         <FullScreenError
@@ -249,7 +254,9 @@ export default function LibraryScreen() {
           onRetry={screen.retry}
         />
       ) : screen.showSkeleton ? (
-        <LibraryItemSkeleton />
+        <View style={{ paddingTop: headerInset }}>
+          <LibraryItemSkeleton />
+        </View>
       ) : screen.isInitialLoading ? (
         <View style={styles.container} />
       ) : (
@@ -288,13 +295,15 @@ export default function LibraryScreen() {
           ListFooterComponent={renderFooter()}
           contentContainerStyle={[
             gridRows.length === 0 ? styles.emptyContent : styles.gridContent,
-            { paddingBottom: miniInset },
+            { paddingTop: headerInset, paddingBottom: miniInset },
           ]}
           refreshControl={
             <RefreshControl
               refreshing={screen.isManualRefreshing}
               onRefresh={() => void screen.refresh()}
               tintColor={theme.color.primary}
+              // 스피너가 머리 줄 밑에 숨지 않게
+              progressViewOffset={headerInset}
             />
           }
           onEndReached={screen.loadMore}
@@ -335,7 +344,7 @@ export default function LibraryScreen() {
 
       {/* 스낵바는 미니플레이어·하단 탭 위에 겹친다 — [실행 취소]가 가려지면 안 된다(uiux 4.4) */}
       <UndoSnackbar visible={screen.pendingDeleteItem !== null} onUndoPress={screen.undoDelete} />
-    </SafeAreaView>
+    </View>
   );
 }
 

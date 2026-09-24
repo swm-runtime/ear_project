@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import GlassCapsule from '@/shared/ui/GlassCapsule';
 
 import { LIBRARY_COPY } from '../library.copy';
 
@@ -26,7 +27,8 @@ export default function LibrarySearchBarRow({
 
   return (
     <View style={styles.row}>
-      <View style={styles.searchBox}>
+      {/* 유리 캡슐(iOS 26 시스템 검색처럼) — 목록 위에 떠 있는 컨트롤이라 면이 아니라 유리다(2026-09-24 PM) */}
+      <GlassCapsule style={styles.searchBox}>
         <TextInput
           style={styles.input}
           value={query}
@@ -51,7 +53,7 @@ export default function LibrarySearchBarRow({
             <Text style={styles.clearGlyph}>✕</Text>
           </Pressable>
         ) : null}
-      </View>
+      </GlassCapsule>
       {trailing}
     </View>
   );
@@ -67,16 +69,13 @@ const styles = StyleSheet.create({
     paddingTop: theme.spacing.lg,
     paddingBottom: theme.spacing.sm,
   },
+  // 유리 캡슐(GlassCapsule 이 바탕·윤곽·full 반지름을 준다). 종전 surface 면 + md 반지름(09-22)에서 바꿈
   searchBox: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     minHeight: theme.touchTarget.minHeight - theme.spacing.xs,
     paddingLeft: theme.spacing.md,
-    borderRadius: theme.radius.md,
-    // 애플 검색 필드와 같은 연속 곡률(iOS 만, 2026-09-22 PM)
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
   },
   input: {
     flex: 1,
