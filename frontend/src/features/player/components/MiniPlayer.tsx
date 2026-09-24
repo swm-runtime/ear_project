@@ -43,6 +43,9 @@ export const MINI_CARD_RADIUS = 22;
 /** 썸네일 한 변·행 위아래 여백 — PlayerScreen 의 대체 치수(MINI_THUMB_SIZE·MINI_ROW_HEIGHT)와 맞아야 한다 */
 export const MINI_THUMB_SIZE = 40;
 const MINI_ROW_PADDING = 6;
+/** 시스템 액세서리(iOS 26) 안 — 컨테이너 높이는 시스템이 주므로 내용은 더 작게, 가운데 정렬(PM 2026-09-24 "아래 공백이 크고 썸네일이 큼") */
+const MINI_ACCESSORY_THUMB_SIZE = 36;
+const MINI_ACCESSORY_ROW_PADDING = 4;
 /** 캡슐 탭 바와 미니플레이어 카드 사이(mini-player-layout.store 의 DOCK_GAP 과 같다) */
 const DOCK_GAP = 8;
 
@@ -368,7 +371,7 @@ export default function MiniPlayer({
         </>
       )}
       <View
-        style={styles.progressTrack}
+        style={[styles.progressTrack, isAccessory && styles.progressTrackAccessory]}
         accessibilityRole="progressbar"
         accessibilityLabel={PLAYER_COPY.miniPlayer.progressA11y(totalMin, currentMin)}
       >
@@ -376,7 +379,7 @@ export default function MiniPlayer({
       </View>
       <View style={styles.row}>
         <Pressable
-          style={styles.body}
+          style={[styles.body, isAccessory && styles.bodyAccessory]}
           onPress={view.onBodyPress}
           accessibilityRole="button"
           accessibilityLabel={PLAYER_COPY.miniPlayer.expandA11y(view.title)}
@@ -388,7 +391,7 @@ export default function MiniPlayer({
             if (event.nativeEvent.actionName === 'dismissPlayback') dismissForAccessibility();
           }}
         >
-          <View ref={thumbRef} style={styles.thumbnail}>
+          <View ref={thumbRef} style={[styles.thumbnail, isAccessory && styles.thumbnailAccessory]}>
             {view.thumbnailUrl ? (
               <RemoteImage uri={view.thumbnailUrl} style={StyleSheet.absoluteFill} />
             ) : null}
@@ -451,11 +454,27 @@ const styles = StyleSheet.create({
     position: 'relative',
     marginBottom: DOCK_GAP,
   },
-  // 시스템 액세서리 안 — 자리·폭·유리·모서리는 시스템이 준다. 내용만 꽉 채운다
+  // 시스템 액세서리 안 — 자리·폭·높이·유리·모서리는 시스템이 준다. 높이를 채우고 행을 세로 가운데 둔다
+  // (내용을 위에 붙이면 아래가 남는다, PM 2026-09-24). 진행바는 위 변에 붙인다
   containerAccessory: {
     position: 'relative',
     width: '100%',
+    height: '100%',
     borderRadius: 0,
+    justifyContent: 'center',
+  },
+  progressTrackAccessory: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+  },
+  bodyAccessory: {
+    paddingVertical: MINI_ACCESSORY_ROW_PADDING,
+  },
+  thumbnailAccessory: {
+    width: MINI_ACCESSORY_THUMB_SIZE,
+    height: MINI_ACCESSORY_THUMB_SIZE,
   },
   // 유리 카드의 윤곽 — 밝은 목록 위에서 경계가 사라지지 않게
   topLine: {
