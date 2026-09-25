@@ -2,7 +2,10 @@ import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { getAnalyticsDebugLog, type AnalyticsDebugEntry } from '@/shared/analytics';
-import { getLastScrollEdgeEffectAttempt } from '@/shared/navigation/useSystemScrollEdgeEffect';
+import {
+  cycleScrollEdgeEffectStyle,
+  getLastScrollEdgeEffectAttempt,
+} from '@/shared/navigation/useSystemScrollEdgeEffect';
 import { theme } from '@/shared/theme';
 
 import SettingsRow from './SettingsRow';
@@ -50,12 +53,13 @@ export default function DevDiagnosticsRows() {
           ))}
         </View>
       ) : null}
-      {/* 상태 바 밑 시스템 블러(scroll edge effect) 적용 결과 — applied:… 만 성공. 탭하면 새로고침 */}
+      {/* 상태 바 밑 시스템 블러(scroll edge effect) 적용 결과 — applied:… 만 성공.
+          탭하면 soft → hard → hidden 으로 바꿔 즉시 다시 건다(hard 는 뿌연 띠 + 선이라 효과 영역이 있으면 확실히 보인다) */}
       <SettingsRow
         label="상단 블러 (개발계)"
         value={edgeEffect}
-        onPress={() => setEdgeEffect(getLastScrollEdgeEffectAttempt())}
-        a11yLabel="상단 블러 적용 결과 새로고침"
+        onPress={() => void cycleScrollEdgeEffectStyle().then(setEdgeEffect)}
+        a11yLabel="상단 블러 스타일 바꾸기"
       />
       <SettingsRow
         label="크래시 테스트 (개발계)"
