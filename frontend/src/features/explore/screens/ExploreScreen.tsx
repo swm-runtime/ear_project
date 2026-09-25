@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -50,7 +50,12 @@ export default function ExploreScreen() {
   // 맨 위에서는 머리 줄 컨트롤이 면, 내리면 유리(PM 2026-09-25)
   const { solidness, scrollProps } = useFloatingHeaderScroll();
   // 상태 바 밑 블러는 iOS 26 시스템 scroll edge effect — 목록이 그려진 뒤에 걸어야 한다
-  useSystemScrollEdgeEffect(!screen.isFullError && !screen.showSkeleton && !screen.isInitialLoading);
+  // 필터 목록·피드 중 하나만 그려지므로 ref 하나를 같이 쓴다
+  const listRef = useRef(null);
+  useSystemScrollEdgeEffect(
+    listRef,
+    !screen.isFullError && !screen.showSkeleton && !screen.isInitialLoading,
+  );
 
   // E10은 검색창 줄·주제 칩·잔여 표시까지 그리지 않는다 — 화면 전체가 에러다(uiux 4.8)
   if (screen.isFullError) {
@@ -204,6 +209,7 @@ export default function ExploreScreen() {
     if (screen.isFiltered) {
       return (
         <Animated.FlatList
+          ref={listRef}
           {...DOCK_SCROLL_PROPS}
           {...scrollProps}
           data={toExploreGridData(screen.filteredItems)}
@@ -247,6 +253,7 @@ export default function ExploreScreen() {
     // E1 — 섹션형 피드. 섹션 구성·순서·제목은 서버 응답 그대로다(explore.md 4.1)
     return (
       <Animated.ScrollView
+        ref={listRef}
         {...DOCK_SCROLL_PROPS}
         {...scrollProps}
         contentContainerStyle={[

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -78,7 +78,11 @@ export default function LibraryScreen() {
   // 맨 위에서는 머리 줄 컨트롤이 면, 내리면 유리(PM 2026-09-25)
   const { solidness, scrollProps } = useFloatingHeaderScroll();
   // 상태 바 밑 블러는 iOS 26 시스템 scroll edge effect — 목록이 그려진 뒤에 걸어야 한다
-  useSystemScrollEdgeEffect(!screen.isFullError && !screen.showSkeleton && !screen.isInitialLoading);
+  const listRef = useRef(null);
+  useSystemScrollEdgeEffect(
+    listRef,
+    !screen.isFullError && !screen.showSkeleton && !screen.isInitialLoading,
+  );
 
   /*
    * 검색은 **받아 둔 목록만** 좁힌다 — 서버 조회를 추가하지 않는다.
@@ -235,6 +239,7 @@ export default function LibraryScreen() {
         <View style={styles.container} />
       ) : (
         <Animated.FlatList
+          ref={listRef}
           {...DOCK_SCROLL_PROPS}
           {...scrollProps}
           data={gridRows}
