@@ -10,7 +10,7 @@ interface SearchInputRowProps {
   onChangeText: (text: string) => void;
   /** 키보드 [검색] 제출 — 디바운스를 기다리지 않고 즉시 실행한다(explore.md 4.5-2) */
   onSubmit: () => void;
-  /** [취소] — 피드로 복귀. 검색 상태는 버려진다(explore.md 4.5-1). 검색 탭(iOS 26)에는 돌아갈 곳이 없어 없다 */
+  /** [취소] — 피드로 복귀. 검색 상태는 버려진다(explore.md 4.5-1) */
   onCancel?: () => void;
   /** `fill` — 콘텐츠 안 검색 필드(검색 탭, 애플 뮤직 검색창처럼 면). 기본은 종전 입력 상자 */
   variant?: 'default' | 'fill';

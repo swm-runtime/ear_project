@@ -13,8 +13,6 @@ export type MainTabParamList = {
    * 전환한다(explore.md 4.5-3). 화면이 처리 후 스스로 소거한다(useExploreScreen).
    */
   Explore: { applyTopicId?: string } | undefined;
-  /** 검색 탭 — iOS 26 시스템 탭 바에서만 있다(탭 바 오른쪽에 떨어진 검색 원, NativeMainTabs). JS 탭 바는 스택의 ExploreSearch */
-  Search: undefined;
   Profile: undefined;
 };
 
