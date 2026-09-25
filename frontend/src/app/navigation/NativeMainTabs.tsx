@@ -6,7 +6,7 @@ import { theme } from '@/shared/theme';
 import { useSessionStore } from '@/features/auth';
 import { ExploreScreen } from '@/features/explore';
 import { LibraryScreen } from '@/features/library';
-import { MiniPlayer } from '@/features/player';
+import { MiniPlayer, useIsMiniPlayerVisible } from '@/features/player';
 import { ProfileScreen } from '@/features/profile';
 
 import { rememberTab, takePrimedTab, type RestorableTab } from './last-tab';
@@ -30,6 +30,10 @@ const NativeTab = createNativeBottomTabNavigator<MainTabParamList>();
 export default function NativeMainTabs() {
   const justCompletedOnboarding = useSessionStore((s) => s.justCompletedOnboarding);
   const [restoredTab] = useState(takePrimedTab);
+  // 볼 게 없으면 액세서리를 **숨긴다**(떼지 않는다) — react-native-screens 의 bottomAccessoryHidden(setBottomAccessory nil animated).
+  // 내용만 비우면 빈 유리 껍데기가 남고(22:56 실기기), 언마운트하면 내용이 먼저 떨어져 애니메이션이 멈춘다(22:29).
+  // React Navigation 이 이 prop 을 안 넘겨 patches/@react-navigation+bottom-tabs 로 tabBarAccessoryHidden 옵션을 뚫었다
+  const hasMiniPlayer = useIsMiniPlayerVisible();
 
   return (
     <NativeTab.Navigator
@@ -49,10 +53,9 @@ export default function NativeMainTabs() {
         // 우리 목록은 최소화가 필요할 만큼 길지 않다
         tabBarMinimizeBehavior: 'none',
         // 미니플레이어 — 시스템이 두 배치(regular·inline)를 모두 렌더하고 하나만 보인다(공유 상태는 스토어).
-        // **항상 붙여 둔다** — 볼 게 없을 때 떼서 시스템 퇴장 애니메이션(setBottomAccessory nil animated)을 쓰려 했으나
-        // react-native-screens 가 내용물을 먼저 떼고 껍데기만 남긴 채 멈췄다(2026-09-25 22:29 실기기, #4176 계열).
-        // 퇴장은 MiniPlayer 의 흡수 모션이 맡는다
+        // 항상 마운트, 보일 게 없으면 숨김(위 주석). 숨김·표시 전환은 시스템 애니메이션(탭 바로 거둬들임·솟아남)
         bottomAccessory: () => <MiniPlayer placement="accessory" />,
+        ...({ tabBarAccessoryHidden: !hasMiniPlayer } as object),
       }}
     >
       <NativeTab.Screen
