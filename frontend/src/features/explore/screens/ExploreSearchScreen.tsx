@@ -1,5 +1,3 @@
-import { useNavigation } from '@react-navigation/native';
-import { useEffect, useLayoutEffect, useRef } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -10,8 +8,8 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import type { SearchBarCommands } from 'react-native-screens';
 
+import { useNativeHeaderSearchBar } from '@/shared/navigation/useNativeHeaderSearchBar';
 import { theme } from '@/shared/theme';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 
@@ -44,7 +42,16 @@ import { useExploreSearchScreen } from '../hooks/useExploreSearchScreen';
 export default function ExploreSearchScreen() {
   const screen = useExploreSearchScreen();
   const miniInset = useBottomDockInset();
-  useNativeSearchBar(screen.inputText, screen.handleChangeText, screen.searchRecentQuery);
+  // 키보드 [검색] 은 그 값을 즉시 실행하고 최근 검색어에 저장한다(4.5-2) — searchRecentQuery 와 같은 동작
+  useNativeHeaderSearchBar({
+    placeholder: EXPLORE_COPY.search.placeholder,
+    cancelButtonText: EXPLORE_COPY.search.cancel,
+    // 탭에 들어오면 바로 입력 — 종전 스택 검색 화면의 autoFocus 와 같은 뜻(uiux 7)
+    autoFocus: true,
+    value: screen.inputText,
+    onChangeText: screen.handleChangeText,
+    onSubmit: screen.searchRecentQuery,
+  });
 
   const renderInlineError = (message: string, onRetry: () => void) => (
     <View style={styles.footer}>
@@ -240,60 +247,6 @@ export default function ExploreSearchScreen() {
     </Frame>
   );
 }
-
-/**
- * 내비게이션 바의 시스템 검색창을 훅의 질의 상태에 잇는다(iOS 26 검색 탭 전용).
- * 옵션은 **한 번만** 건다 — iOS 26 은 검색창 설정이 바뀔 때마다 다시 만들어 깜빡인다(react-native-screens 주석).
- * 핸들러는 ref 로 최신을 본다. 최근 검색어·추천 키워드 탭처럼 훅이 질의를 바꾸면 setText 로 검색창에 되비춘다
- */
-const useNativeSearchBar = (
-  inputText: string,
-  onChangeText: (text: string) => void,
-  /** 키보드 [검색] — 그 값을 즉시 실행하고 최근 검색어에 저장한다(4.5-2). 상태 갱신을 기다리지 않게 값을 넘긴다 */
-  onSubmit: (text: string) => void,
-): void => {
-  const navigation = useNavigation();
-  const searchBarRef = useRef<SearchBarCommands | null>(null);
-  const handlersRef = useRef({ onChangeText, onSubmit });
-  useEffect(() => {
-    handlersRef.current = { onChangeText, onSubmit };
-  });
-  // 검색창이 마지막으로 보낸 값 — 훅이 다른 경로로 바꾼 질의만 되비춘다(타이핑 에코 방지)
-  const lastNativeTextRef = useRef('');
-
-  useLayoutEffect(() => {
-    if (!HAS_NATIVE_TAB_BAR) return;
-    navigation.setOptions({
-      headerSearchBarOptions: {
-        ref: searchBarRef,
-        placeholder: EXPLORE_COPY.search.placeholder,
-        cancelButtonText: EXPLORE_COPY.search.cancel,
-        // 탭에 들어오면 바로 입력 — 종전 스택 검색 화면의 autoFocus 와 같은 뜻(uiux 7)
-        autoFocus: true,
-        hideWhenScrolling: false,
-        obscureBackground: false,
-        onChangeText: (e: { nativeEvent: { text: string } }) => {
-          lastNativeTextRef.current = e.nativeEvent.text;
-          handlersRef.current.onChangeText(e.nativeEvent.text);
-        },
-        onSearchButtonPress: (e: { nativeEvent: { text: string } }) => {
-          lastNativeTextRef.current = e.nativeEvent.text;
-          handlersRef.current.onSubmit(e.nativeEvent.text);
-        },
-        onCancelButtonPress: () => {
-          lastNativeTextRef.current = '';
-          handlersRef.current.onChangeText('');
-        },
-      },
-    } as object);
-  }, [navigation]);
-
-  useEffect(() => {
-    if (!HAS_NATIVE_TAB_BAR || inputText === lastNativeTextRef.current) return;
-    lastNativeTextRef.current = inputText;
-    searchBarRef.current?.setText(inputText);
-  }, [inputText]);
-};
 
 const styles = StyleSheet.create({
   container: {

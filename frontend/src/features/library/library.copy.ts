@@ -5,6 +5,8 @@
 import type { LibrarySourceFilter } from './library.types';
 
 export const LIBRARY_COPY = {
+  /** iOS 26 큰 제목 바의 제목 — 탭 라벨과 같은 말(NativeMainTabs, 2026-09-26) */
+  tabTitle: '라이브러리',
   /**
    * 상단 탭 — 상태 3개(FE 개편 2026-08-07: 카드 정보량 축소로 출처는 필터 팝업으로 이동).
    * drip 라벨은 필터 팝업의 출처 섹션에서 쓴다.
@@ -60,6 +62,8 @@ export const LIBRARY_COPY = {
   /** 라이브러리 검색 — 받아 둔 목록을 그 자리에서 좁힌다(서버 검색이 아니다) */
   search: {
     placeholder: '제목·저자로 찾기',
+    /** iOS 26 바 안 시스템 검색창의 취소 버튼 */
+    cancel: '취소',
     clearA11y: '검색어 지우기',
     emptyTitle: '검색 결과가 없어요',
     emptyDescription: '다른 검색어를 입력해보세요.',
