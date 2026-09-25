@@ -247,13 +247,8 @@ export default function MiniPlayer({
         const shouldDismiss =
           progress > MINI_PLAYER_DISMISS_DISTANCE_RATIO || gesture.vy > MINI_PLAYER_DISMISS_VELOCITY;
         if (shouldDismiss) {
-          if (gestureContext.current.isAccessory) {
-            // 시스템 액세서리 — 제자리로 돌아간 뒤 떼면 iOS 가 탭 바로 거둬들이는 애니메이션을 그린다(물방울 병합).
-            // 우리 흡수 모션을 겹치면 두 번 사라진다
-            settleDrop(0, dismiss);
-            return;
-          }
-          // 그 자리에서 마저 캡슐로 빨려 들어간 뒤 종료 — 완전히 사라진 뒤에 세션을 정리해야 카드가 툭 꺼지지 않는다
+          // 그 자리에서 마저 캡슐로 빨려 들어간 뒤 종료 — 완전히 사라진 뒤에 세션을 정리해야 카드가 툭 꺼지지 않는다.
+          // 시스템 액세서리에서도 같다 — 액세서리를 떼서 시스템 퇴장 모션을 쓰는 건 RNS 버그로 접었다(09-25 22:29)
           settleDrop(1, dismiss);
           return;
         }
