@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useFadingNativeTitle } from '@/shared/navigation/useFadingNativeTitle';
 import {
-  useNativeBarPullProps,
+  useNativeBarPullStyle,
   useNativeHeaderInset,
 } from '@/shared/navigation/useNativeHeaderInset';
 import { useSystemScrollEdgeEffect } from '@/shared/navigation/useSystemScrollEdgeEffect';
@@ -63,9 +63,9 @@ export default function ExploreScreen() {
   const [headerHeight, setHeaderHeight] = useState(0);
   const floatingInset = useFloatingHeaderInset(headerHeight);
   const headerInset = HAS_NATIVE_TAB_BAR ? 0 : floatingInset;
-  // 투명 시스템 바 — 스크롤 뷰가 아닌 상태 화면(스켈레톤·에러)은 상태 바만 비우고, 목록은 바 줄만큼 끌어올린다(제목이 바 줄 자리에)
+  // 투명 시스템 바 — 스크롤 뷰가 아닌 상태 화면(스켈레톤·에러)은 상태 바만 비우고, 목록의 제목 줄은 바 줄만큼 올린다
   const nativeBarInset = useNativeHeaderInset();
-  const nativeBarPull = useNativeBarPullProps();
+  const nativeBarPull = useNativeBarPullStyle();
   // 맨 위에서는 머리 줄 컨트롤이 면, 내리면 유리(PM 2026-09-25)
   const { solidness, scrollY, scrollProps } = useFloatingHeaderScroll();
   useFadingNativeTitle(EXPLORE_COPY.tabTitle, scrollY);
@@ -124,11 +124,11 @@ export default function ExploreScreen() {
   // 시스템 바 갈래에서는 제목 줄·검색 필드·칩이 콘텐츠의 첫 줄이다 — 목록과 같이 스크롤한다.
   // 검색 필드는 유리가 아니라 면(콘텐츠 안) — 누르면 검색 화면(E6), 입력은 거기서(explore.md 4.5-1)
   const contentChips = HAS_NATIVE_TAB_BAR ? (
-    <>
+    <View style={nativeBarPull}>
       {titleRow}
       <ExploreSearchBarRow onPress={screen.openSearch} trailing={null} variant="fill" />
       {chips}
-    </>
+    </View>
   ) : null;
 
   // 인라인 에러 — 기존 목록을 유지한 채 그 자리에서만 알린다(common-error-handling.md 4.3)
@@ -264,7 +264,6 @@ export default function ExploreScreen() {
         <Animated.FlatList
           ref={listRef}
           {...DOCK_SCROLL_PROPS}
-          {...nativeBarPull}
           {...scrollProps}
           data={toExploreGridData(screen.filteredItems)}
           keyExtractor={exploreGridKey}
@@ -311,7 +310,6 @@ export default function ExploreScreen() {
       <Animated.ScrollView
         ref={listRef}
         {...DOCK_SCROLL_PROPS}
-        {...nativeBarPull}
         {...scrollProps}
         contentContainerStyle={[
           screen.sections.length === 0 ? styles.emptyContent : styles.feedContent,
