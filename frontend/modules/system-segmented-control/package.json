@@ -1,0 +1,8 @@
+{
+  "name": "system-segmented-control",
+  "version": "1.0.0",
+  "private": true,
+  "description": "iOS 기본 UISegmentedControl 을 RN 뷰로 노출한다 (로컬 Expo 모듈) — iOS 26 에서는 시스템 유리 선택바",
+  "main": "src/index.tsx",
+  "types": "src/index.tsx"
+}
