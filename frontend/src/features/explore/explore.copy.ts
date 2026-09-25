@@ -3,6 +3,8 @@
  * 잔여 표시·재생 확인 팝업·회수/한도 토스트는 player가 소유한다(PLAYER_COPY) — 여기 두지 않는다.
  */
 export const EXPLORE_COPY = {
+  /** iOS 26 큰 제목 바의 제목 — 탭 라벨과 같은 말(NativeMainTabs, 2026-09-25) */
+  tabTitle: '탐색',
   /** 첫 사용 코치마크(온보딩 직후 착지) — TODO(카피 미확정) */
   walkthrough: {
     searchStep: '궁금한 주제를\n여기서 찾아 담아보세요',
@@ -12,6 +14,8 @@ export const EXPLORE_COPY = {
   },
   /** E6·E7 검색(explore.md 4.5 — MVP 포함 격상, 합의 2026-08-23) */
   search: {
+    /** 검색 탭(iOS 26)의 큰 제목 — 앱스토어·뮤직 검색 탭과 같은 한 단어 */
+    tabTitle: '검색',
     /** TODO(카피): uiux 6장 제안값 — features에 확정 문구가 없다 */
     placeholder: '콘텐츠 검색',
     cancel: '취소',

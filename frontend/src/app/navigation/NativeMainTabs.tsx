@@ -4,9 +4,9 @@ import { useState } from 'react';
 import { theme } from '@/shared/theme';
 
 import { useSessionStore } from '@/features/auth';
-import { ExploreScreen } from '@/features/explore';
+import { EXPLORE_COPY, ExploreScreen, ExploreSearchScreen } from '@/features/explore';
 import { LibraryScreen } from '@/features/library';
-import { MiniPlayer, useIsMiniPlayerVisible } from '@/features/player';
+import { MiniPlayer, RemainingPlaysHeaderItem, useIsMiniPlayerVisible } from '@/features/player';
 import { ProfileScreen } from '@/features/profile';
 
 import { rememberTab, takePrimedTab, type RestorableTab } from './last-tab';
@@ -42,7 +42,7 @@ export default function NativeMainTabs() {
         state: (e) => {
           const s = e.data.state;
           const name = s?.routeNames?.[s.index ?? 0];
-          if (name) rememberTab(name as RestorableTab);
+          if (name && name !== 'Search') rememberTab(name as RestorableTab);
         },
       }}
       screenOptions={{
@@ -69,6 +69,9 @@ export default function NativeMainTabs() {
           }),
         }}
       />
+      {/* 탐색 — **시스템 내비게이션 바 + 큰 제목**(PM 2026-09-25 23:50 "애플이라면 상단을 어떻게"). 바가 있어야
+          그 밑 상태 바 블러(scroll edge effect)를 시스템이 그린다 — 떠 있는 유리 컨트롤(FloatingHeader)은
+          어두운 카드가 밑에 오면 글자가 죽었다. 검색은 검색 탭으로, 링은 바 오른쪽 아이템으로, 주제 칩은 콘텐츠와 같이 스크롤 */}
       <NativeTab.Screen
         name="Explore"
         component={ExploreScreen}
@@ -78,6 +81,23 @@ export default function NativeMainTabs() {
             type: 'sfSymbol',
             name: focused ? 'safari.fill' : 'safari',
           }),
+          headerShown: true,
+          title: EXPLORE_COPY.tabTitle,
+          headerLargeTitleEnabled: true,
+          headerShadowVisible: false,
+          headerRight: () => <RemainingPlaysHeaderItem />,
+        }}
+      />
+      {/* 검색 — iOS 26 이 탭 바 오른쪽에 떨어뜨려 놓는 검색 원(UITabBarItem systemItem search). 뮤직·앱스토어 자리.
+          검색창은 화면이 setOptions(headerSearchBarOptions) 로 바 안에 건다 */}
+      <NativeTab.Screen
+        name="Search"
+        component={ExploreSearchScreen}
+        options={{
+          tabBarSystemItem: 'search',
+          headerShown: true,
+          title: EXPLORE_COPY.search.tabTitle,
+          headerShadowVisible: false,
         }}
       />
       <NativeTab.Screen

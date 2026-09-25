@@ -1,3 +1,5 @@
+import { useNavigation } from '@react-navigation/native';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -8,10 +10,17 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import type { SearchBarCommands } from 'react-native-screens';
 
 import { theme } from '@/shared/theme';
+import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 
-import { MiniPlayer, PlayConfirmDialog, useBottomDockInset } from '@/features/player';
+import {
+  DOCK_SCROLL_PROPS,
+  MiniPlayer,
+  PlayConfirmDialog,
+  useBottomDockInset,
+} from '@/features/player';
 
 import ExploreMoreSheet from '../components/ExploreMoreSheet';
 import ExploreTile from '../components/ExploreTile';
@@ -27,10 +36,15 @@ import { useExploreSearchScreen } from '../hooks/useExploreSearchScreen';
  * 잔여 재생 표시는 없다 — 검색창이 그 줄을 다 쓴다(4.4-1). 숨긴 것은 표시이지 규칙이
  * 아니라서, 결과 재생은 판정·팝업을 피드와 동일하게 거친다(7장).
  * 화면은 뷰만 담당하고 로직은 useExploreSearchScreen이 소유한다.
+ *
+ * **iOS 26 시스템 탭 바에서는 검색 탭이다**(PM 2026-09-25 23:50 — 애플은 검색을 위에 두지 않고 탭 바 옆 검색 원으로
+ * 내렸다). 검색창은 우리 TextInput 이 아니라 **내비게이션 바의 시스템 검색창**(headerSearchBarOptions)이고,
+ * 미니플레이어는 탭 바 액세서리가 맡는다. 그 외 플랫폼은 종전대로 스택 화면 + 검색 줄이다.
  */
 export default function ExploreSearchScreen() {
   const screen = useExploreSearchScreen();
   const miniInset = useBottomDockInset();
+  useNativeSearchBar(screen.inputText, screen.handleChangeText, screen.searchRecentQuery);
 
   const renderInlineError = (message: string, onRetry: () => void) => (
     <View style={styles.footer}>
@@ -61,6 +75,7 @@ export default function ExploreSearchScreen() {
     if (screen.isInitialMode) {
       return (
         <ScrollView
+          {...DOCK_SCROLL_PROPS}
           contentContainerStyle={styles.initialContent}
           keyboardShouldPersistTaps="handled"
         >
@@ -90,6 +105,7 @@ export default function ExploreSearchScreen() {
     if (screen.isNoResult) {
       return (
         <FlatList
+          {...DOCK_SCROLL_PROPS}
           data={toExploreGridData(screen.fallbackItems)}
           keyExtractor={exploreGridKey}
           numColumns={2}
@@ -148,6 +164,7 @@ export default function ExploreSearchScreen() {
           <ActivityIndicator style={styles.inlineLoading} color={theme.color.primary} />
         ) : null}
         <FlatList
+          {...DOCK_SCROLL_PROPS}
           style={screen.isShowingStaleResults ? styles.dimmed : undefined}
           data={toExploreGridData(screen.results)}
           keyExtractor={exploreGridKey}
@@ -176,14 +193,18 @@ export default function ExploreSearchScreen() {
     );
   };
 
+  // 시스템 바 밑에서는 바가 상태 바를 이미 차지한다 — 안전영역을 또 비우면 두 번 내려간다
+  const Frame = HAS_NATIVE_TAB_BAR ? View : SafeAreaView;
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <SearchInputRow
-        value={screen.inputText}
-        onChangeText={screen.handleChangeText}
-        onSubmit={screen.submitSearch}
-        onCancel={screen.cancel}
-      />
+    <Frame style={styles.container} edges={['top']}>
+      {HAS_NATIVE_TAB_BAR ? null : (
+        <SearchInputRow
+          value={screen.inputText}
+          onChangeText={screen.handleChangeText}
+          onSubmit={screen.submitSearch}
+          onCancel={screen.cancel}
+        />
+      )}
 
       {/* 검색 실패 — 이전 결과를 유지하고 상단 배너로 알린다(explore.md 7장). 한 번에 하나(uiux 5장) */}
       {screen.errorBanner ? (
@@ -194,8 +215,8 @@ export default function ExploreSearchScreen() {
 
       {renderBody()}
 
-      {/* 미니플레이어(PL11) — 검색 화면에서도 유지된다(explore.md 4.5-1) */}
-      <MiniPlayer />
+      {/* 미니플레이어(PL11) — 검색 화면에서도 유지된다(explore.md 4.5-1). 시스템 탭 바에서는 액세서리가 맡는다 */}
+      {HAS_NATIVE_TAB_BAR ? null : <MiniPlayer />}
 
       <ExploreMoreSheet
         item={screen.moreSheetItem}
@@ -216,9 +237,63 @@ export default function ExploreSearchScreen() {
         onCancel={screen.cancelPlayConfirm}
         onSuppressToday={screen.suppressAndPlay}
       />
-    </SafeAreaView>
+    </Frame>
   );
 }
+
+/**
+ * 내비게이션 바의 시스템 검색창을 훅의 질의 상태에 잇는다(iOS 26 검색 탭 전용).
+ * 옵션은 **한 번만** 건다 — iOS 26 은 검색창 설정이 바뀔 때마다 다시 만들어 깜빡인다(react-native-screens 주석).
+ * 핸들러는 ref 로 최신을 본다. 최근 검색어·추천 키워드 탭처럼 훅이 질의를 바꾸면 setText 로 검색창에 되비춘다
+ */
+const useNativeSearchBar = (
+  inputText: string,
+  onChangeText: (text: string) => void,
+  /** 키보드 [검색] — 그 값을 즉시 실행하고 최근 검색어에 저장한다(4.5-2). 상태 갱신을 기다리지 않게 값을 넘긴다 */
+  onSubmit: (text: string) => void,
+): void => {
+  const navigation = useNavigation();
+  const searchBarRef = useRef<SearchBarCommands | null>(null);
+  const handlersRef = useRef({ onChangeText, onSubmit });
+  useEffect(() => {
+    handlersRef.current = { onChangeText, onSubmit };
+  });
+  // 검색창이 마지막으로 보낸 값 — 훅이 다른 경로로 바꾼 질의만 되비춘다(타이핑 에코 방지)
+  const lastNativeTextRef = useRef('');
+
+  useLayoutEffect(() => {
+    if (!HAS_NATIVE_TAB_BAR) return;
+    navigation.setOptions({
+      headerSearchBarOptions: {
+        ref: searchBarRef,
+        placeholder: EXPLORE_COPY.search.placeholder,
+        cancelButtonText: EXPLORE_COPY.search.cancel,
+        // 탭에 들어오면 바로 입력 — 종전 스택 검색 화면의 autoFocus 와 같은 뜻(uiux 7)
+        autoFocus: true,
+        hideWhenScrolling: false,
+        obscureBackground: false,
+        onChangeText: (e: { nativeEvent: { text: string } }) => {
+          lastNativeTextRef.current = e.nativeEvent.text;
+          handlersRef.current.onChangeText(e.nativeEvent.text);
+        },
+        onSearchButtonPress: (e: { nativeEvent: { text: string } }) => {
+          lastNativeTextRef.current = e.nativeEvent.text;
+          handlersRef.current.onSubmit(e.nativeEvent.text);
+        },
+        onCancelButtonPress: () => {
+          lastNativeTextRef.current = '';
+          handlersRef.current.onChangeText('');
+        },
+      },
+    } as object);
+  }, [navigation]);
+
+  useEffect(() => {
+    if (!HAS_NATIVE_TAB_BAR || inputText === lastNativeTextRef.current) return;
+    lastNativeTextRef.current = inputText;
+    searchBarRef.current?.setText(inputText);
+  }, [inputText]);
+};
 
 const styles = StyleSheet.create({
   container: {

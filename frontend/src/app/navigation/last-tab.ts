@@ -14,6 +14,7 @@ import { STORAGE_KEYS } from '@/shared/storage/storage-keys';
  */
 
 /** 복원 대상 탭. `MainTabParamList`의 키와 같아야 한다 */
+/** 검색 탭은 복원하지 않는다 — 검색 상태(질의)가 살아나지 않아 빈 검색 화면에 착지한다 */
 export type RestorableTab = 'Library' | 'Explore' | 'Profile';
 
 const RESTORABLE: readonly RestorableTab[] = ['Library', 'Explore', 'Profile'];
