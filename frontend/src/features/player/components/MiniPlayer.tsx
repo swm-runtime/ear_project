@@ -49,6 +49,11 @@ const PROGRESS_INSET = 12;
 /** 시스템 액세서리(iOS 26) 안 — 컨테이너 높이는 시스템이 주므로 내용은 더 작게, 가운데 정렬(PM 2026-09-24 "아래 공백이 크고 썸네일이 큼") */
 const MINI_ACCESSORY_THUMB_SIZE = 36;
 const MINI_ACCESSORY_ROW_PADDING = 4;
+/**
+ * 미니플레이어를 **닫을 수 없다**(PM 2026-09-25 23:24). 애플 뮤직과 같다 — 재생을 끝내거나 다른 콘텐츠로 바꾸는 것만.
+ * 아래로 끌기·낭독기 '재생 종료' 액션이 전부 꺼진다. 되살리려면 true(캡슐 독의 흡수 모션 코드는 그대로 있다)
+ */
+const MINI_PLAYER_DISMISSABLE = false;
 /** 캡슐 탭 바와 미니플레이어 카드 사이(mini-player-layout.store 의 DOCK_GAP 과 같다) */
 const DOCK_GAP = 8;
 
@@ -204,8 +209,11 @@ export default function MiniPlayer({
     // eslint-disable-next-line react-hooks/refs -- 콜백은 렌더가 아니라 제스처 시점에 실행된다(표준 PanResponder 패턴)
     return PanResponder.create({
       onMoveShouldSetPanResponder: (_, gesture) => {
-        // 종료 — 아래로, 수직 이동이 수평보다 확실히 클 때만(탭·가로 흔들림과 충돌 방지)
+        // 종료 — 아래로, 수직 이동이 수평보다 확실히 클 때만(탭·가로 흔들림과 충돌 방지).
+        // **닫기는 없앴다**(PM 2026-09-25 23:24 "그냥 닫을 수 없게") — 애플 뮤직도 미니플레이어를 치울 수 없다.
+        // 시스템 액세서리는 유리 껍데기가 합쳐지는 퇴장 모션을 줄 수 없어 내용만 사라지는 게 더 어색했다
         const isDismiss =
+          MINI_PLAYER_DISMISSABLE &&
           gesture.dy > MINI_PLAYER_OPEN_START_DISTANCE &&
           Math.abs(gesture.dy) > Math.abs(gesture.dx) * 1.5;
         // 열기 — 위로, 수직 이동이 수평보다 확실히 클 때만
@@ -271,8 +279,9 @@ export default function MiniPlayer({
     });
   }, [dropProgress]);
 
-  /** 스와이프 종료의 스크린리더 대체 수단 — 커스텀 액션이 같은 동작을 한다(uiux 7장) */
+  /** 스와이프 종료의 스크린리더 대체 수단 — 커스텀 액션이 같은 동작을 한다(uiux 7장). 닫기를 없앤 뒤엔 액션도 없다 */
   const dismissForAccessibility = () => {
+    if (!MINI_PLAYER_DISMISSABLE) return;
     if (gestureContext.current.isLive) {
       playbackService.dismiss();
     } else {
@@ -387,10 +396,12 @@ export default function MiniPlayer({
           onPress={view.onBodyPress}
           accessibilityRole="button"
           accessibilityLabel={PLAYER_COPY.miniPlayer.expandA11y(view.title)}
-          // 스와이프 종료의 스크린리더 대체 수단 — 커스텀 액션(uiux 7장)
-          accessibilityActions={[
-            { name: 'dismissPlayback', label: PLAYER_COPY.miniPlayer.dismissA11y },
-          ]}
+          // 스와이프 종료의 스크린리더 대체 수단 — 커스텀 액션(uiux 7장). 닫기를 없앤 뒤엔 액션도 두지 않는다
+          accessibilityActions={
+            MINI_PLAYER_DISMISSABLE
+              ? [{ name: 'dismissPlayback', label: PLAYER_COPY.miniPlayer.dismissA11y }]
+              : undefined
+          }
           onAccessibilityAction={(event) => {
             if (event.nativeEvent.actionName === 'dismissPlayback') dismissForAccessibility();
           }}
