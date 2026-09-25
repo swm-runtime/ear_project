@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Animated,
+  FlatList,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -10,10 +10,7 @@ import {
 } from 'react-native';
 
 import { theme } from '@/shared/theme';
-import FloatingHeader, {
-  useFloatingHeaderInset,
-  useFloatingHeaderScroll,
-} from '@/shared/ui/FloatingHeader';
+import FloatingHeader, { useFloatingHeaderInset } from '@/shared/ui/FloatingHeader';
 import FullScreenError from '@/shared/ui/FullScreenError';
 
 import {
@@ -74,8 +71,6 @@ export default function LibraryScreen() {
   // 떠 있는 머리 줄(검색창·탭·배너)의 높이 — 목록이 그만큼 위를 비운다
   const [headerHeight, setHeaderHeight] = useState(0);
   const headerInset = useFloatingHeaderInset(headerHeight);
-  // 스크롤 맨 위에서는 머리 줄 컨트롤이 면, 내리면 유리(2026-09-25 PM)
-  const { solidness, scrollProps } = useFloatingHeaderScroll();
 
   /*
    * 검색은 **받아 둔 목록만** 좁힌다 — 서버 조회를 추가하지 않는다.
@@ -231,9 +226,8 @@ export default function LibraryScreen() {
       ) : screen.isInitialLoading ? (
         <View style={styles.container} />
       ) : (
-        <Animated.FlatList
+        <FlatList
           {...DOCK_SCROLL_PROPS}
-          {...scrollProps}
           data={gridRows}
           keyExtractor={(row) => row.key}
           renderItem={({ item: row }) =>
@@ -286,7 +280,7 @@ export default function LibraryScreen() {
       {/* 머리 줄은 목록 **뒤에 선언**한다(zIndex 로 위에 뜬다) — 목록이 화면의 첫 자손 스크롤 뷰여야 react-native-screens 가
           iOS 26 의 시스템 scroll edge effect(상태 바 밑 블러)를 걸 수 있다(2026-09-25 PM) */}
       {/* 머리 줄은 목록 위에 떠 있다 — 배경 없이 유리 컨트롤만(2026-09-24 PM). 브랜드 표시는 두지 않는다(2026-09-02) */}
-      <FloatingHeader onHeightChange={setHeaderHeight} solidness={solidness}>
+      <FloatingHeader onHeightChange={setHeaderHeight}>
       {showTabBar ? (
         <LibrarySearchBarRow
           query={query}
