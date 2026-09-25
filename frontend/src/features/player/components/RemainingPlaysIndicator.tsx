@@ -21,6 +21,11 @@ interface RemainingPlaysIndicatorProps {
   limit: number;
   /** 소진 상태에서만 탭 → 페이월(library-uiux.md 4.3). N > 0이면 탭 대상이 아니다 */
   onExhaustedPress: () => void;
+  /**
+   * 유리 원 없이 링만 — 호스트가 다른 버튼과 **한 유리 캡슐**에 묶을 때(라이브러리 링 + 필터, 2026-09-25 PM
+   * "유리 조각이 셋"). 기본은 36 유리 원(탐색)
+   */
+  bare?: boolean;
 }
 
 /**
@@ -36,14 +41,16 @@ export default function RemainingPlaysIndicator({
   remaining,
   limit,
   onExhaustedPress,
+  bare = false,
 }: RemainingPlaysIndicatorProps) {
   const isExhausted = remaining === 0;
   const ratio = limit > 0 ? Math.max(0, Math.min(1, remaining / limit)) : 0;
   // 채운 길이만 보이게 — 나머지는 빈 간격(dasharray)으로 둔다
   const dashOffset = RING_CIRCUMFERENCE * (1 - ratio);
 
+  const Frame = bare ? View : GlassCapsule;
   const gauge = (
-    <GlassCapsule style={styles.ringCapsule}>
+    <Frame style={styles.ringCapsule}>
       <Svg width={RING_SIZE} height={RING_SIZE}>
         <Circle
           cx={RING_SIZE / 2}
@@ -73,7 +80,7 @@ export default function RemainingPlaysIndicator({
       <View style={styles.countBox} pointerEvents="none">
         <Text style={[styles.count, isExhausted && styles.countExhausted]}>{remaining}</Text>
       </View>
-    </GlassCapsule>
+    </Frame>
   );
 
   if (!isExhausted) {
