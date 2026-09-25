@@ -43,8 +43,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: theme.spacing.sm,
     paddingHorizontal: theme.spacing.md,
-    // 위쪽 여백은 프로필 탭의 신원 행(24)과 같은 값 — 세 탭의 첫 요소가 같은 높이에서 시작한다(2026-09-18 PM)
-    paddingTop: theme.spacing.lg,
+    // 상태 바 바로 밑(8) — 애플 뮤직 검색창 자리(PM 2026-09-25 비교). 종전 24(프로필 신원 행과 맞춤, 09-18)는 뿌연 구간을 길게 보였다
+    paddingTop: theme.spacing.sm,
     paddingBottom: theme.spacing.sm,
   },
   // 유리 캡슐(GlassCapsule 이 바탕·윤곽·full 반지름을 준다). 종전 surface 면 + md 반지름(09-22)에서 바꿈
