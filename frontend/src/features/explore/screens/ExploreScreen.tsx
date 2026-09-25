@@ -269,6 +269,10 @@ export default function ExploreScreen() {
 
   return (
     <View style={styles.container}>
+
+      {renderBody()}
+      {/* 머리 줄은 목록 **뒤에 선언**한다(zIndex 로 위에 뜬다) — 목록이 화면의 첫 자손 스크롤 뷰여야 react-native-screens 가
+          iOS 26 의 시스템 scroll edge effect(상태 바 밑 블러)를 걸 수 있다(2026-09-25 PM) */}
       {/* 머리 줄은 목록 위에 떠 있다 — 배경 없이 유리 컨트롤만(2026-09-24 PM) */}
       <FloatingHeader onHeightChange={setHeaderHeight} solidness={solidness}>
       <ExploreSearchBarRow
@@ -293,8 +297,6 @@ export default function ExploreScreen() {
         />
       ) : null}
       </FloatingHeader>
-
-      {renderBody()}
 
       {/* 미니플레이어(PL11) — 활성 재생 세션만 그린다. 복원 스냅샷 판정은 라이브러리 소유다 */}
 

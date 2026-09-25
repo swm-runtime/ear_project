@@ -15,14 +15,22 @@ const SOLID_FADE_DISTANCE = 24;
  * 띠 여러 장을 아래로 쌓아 점진 블러를 만들고, 흰 그라데이션(불투명도 계단)을 얹어 상태 바 글자를 지킨다.
  * 안전영역 아래로 이만큼 더 내려가며 사라진다
  */
-const SCRIM_EXTEND = 20;
-const SCRIM_BANDS = [
-  { blur: 40, tint: 0.55 },
-  { blur: 28, tint: 0.4 },
-  { blur: 18, tint: 0.26 },
-  { blur: 10, tint: 0.14 },
-  { blur: 4, tint: 0.05 },
-] as const;
+const SCRIM_EXTEND = 24;
+/**
+ * 띠 수와 곡선 — 5장은 계단이 보였다(PM 2026-09-25 15:06). 14장(약 5pt)에 블러는 (1−t)² 로, 흰 틴트는 (1−t)^1.5 로
+ * 줄여 위는 진하고 아래는 길게 끌린다. 애플의 variableBlur(픽셀마다 반경이 연속으로 변하는 private CAFilter)를
+ * 알파 그라데이션 마스크 없이 흉내내는 한계 — 마스크(MaskedView + LinearGradient)는 네이티브 모듈이라 다음 빌드 과제
+ */
+const SCRIM_BAND_COUNT = 14;
+const SCRIM_MAX_BLUR = 48;
+const SCRIM_MAX_TINT = 0.6;
+const SCRIM_BANDS = Array.from({ length: SCRIM_BAND_COUNT }, (_, i) => {
+  const t = i / (SCRIM_BAND_COUNT - 1);
+  return {
+    blur: Math.round(SCRIM_MAX_BLUR * (1 - t) ** 2),
+    tint: Math.round(SCRIM_MAX_TINT * (1 - t) ** 1.5 * 100) / 100,
+  };
+});
 
 /**
  * 머리 줄 컨트롤(GlassCapsule)이 읽는 "지금 얼마나 불투명해야 하나". 애플은 유리 컨트롤을 항상 유리로 두고
