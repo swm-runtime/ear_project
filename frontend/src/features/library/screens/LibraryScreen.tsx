@@ -79,8 +79,10 @@ export default function LibraryScreen() {
   const { solidness, scrollProps } = useFloatingHeaderScroll();
   // 상태 바 밑 블러는 iOS 26 시스템 scroll edge effect — 목록이 그려진 뒤에 걸어야 한다
   const listRef = useRef(null);
+  const headerRef = useRef<View>(null);
   useSystemScrollEdgeEffect(
     listRef,
+    headerRef,
     !screen.isFullError && !screen.showSkeleton && !screen.isInitialLoading,
   );
 
@@ -218,7 +220,6 @@ export default function LibraryScreen() {
 
   return (
     <View style={styles.container}>
-
       {screen.isFullError ? (
         <FullScreenError
           title={
@@ -294,36 +295,40 @@ export default function LibraryScreen() {
       {/* 머리 줄은 목록 **뒤에 선언**한다(zIndex 로 위에 뜬다) — 목록이 화면의 첫 자손 스크롤 뷰여야 react-native-screens 가
           iOS 26 의 시스템 scroll edge effect(상태 바 밑 블러)를 걸 수 있다(2026-09-25 PM) */}
       {/* 머리 줄은 목록 위에 떠 있다 — 배경 없이 유리 컨트롤만(2026-09-24 PM). 브랜드 표시는 두지 않는다(2026-09-02) */}
-      <FloatingHeader onHeightChange={setHeaderHeight} solidness={solidness}>
-      {showTabBar ? (
-        <LibrarySearchBarRow
-          query={query}
-          onChangeQuery={setQuery}
-          trailing={
-            // 잔여 링(무제한·캐시·값 없음이면 칸 없음 — uiux 4.3) + 필터를 한 유리 캡슐에(2026-09-25 PM).
-            // 상태·출처·주제 필터는 전부 시트 하나 — 세그먼트 탭 줄은 폐지
-            <LibraryToolbar
-              remaining={screen.remainingDisplay}
-              onExhaustedPress={() => screen.openPaywall('library')}
-              activeFilterCount={screen.topicFilterCount}
-              onFilterPress={screen.openTopicSheet}
-            />
-          }
-        />
-      ) : null}
+      <FloatingHeader
+        onHeightChange={setHeaderHeight}
+        solidness={solidness}
+        containerRef={headerRef}
+      >
+        {showTabBar ? (
+          <LibrarySearchBarRow
+            query={query}
+            onChangeQuery={setQuery}
+            trailing={
+              // 잔여 링(무제한·캐시·값 없음이면 칸 없음 — uiux 4.3) + 필터를 한 유리 캡슐에(2026-09-25 PM).
+              // 상태·출처·주제 필터는 전부 시트 하나 — 세그먼트 탭 줄은 폐지
+              <LibraryToolbar
+                remaining={screen.remainingDisplay}
+                onExhaustedPress={() => screen.openPaywall('library')}
+                activeFilterCount={screen.topicFilterCount}
+                onFilterPress={screen.openTopicSheet}
+              />
+            }
+          />
+        ) : null}
 
-      {showTabBar ? (
-        <LibraryFilterSummary
-          conditions={screen.filteredConditions}
-          onPress={screen.openTopicSheet}
-        />
-      ) : null}
+        {showTabBar ? (
+          <LibraryFilterSummary
+            conditions={screen.filteredConditions}
+            onPress={screen.openTopicSheet}
+          />
+        ) : null}
 
-      {/* 배너는 탭 아래 · 목록 바로 위에 둔다 — 세 배너 모두 "이 목록에 무슨 일이
+        {/* 배너는 탭 아래 · 목록 바로 위에 둔다 — 세 배너 모두 "이 목록에 무슨 일이
           있었나"를 알리므로 목록에 붙어 있어야 무엇에 대한 통지인지 읽힌다(uiux 4.1) */}
-      {screen.banner ? (
-        <LibraryBanner banner={screen.banner} onPress={screen.handleBannerPress} />
-      ) : null}
+        {screen.banner ? (
+          <LibraryBanner banner={screen.banner} onPress={screen.handleBannerPress} />
+        ) : null}
       </FloatingHeader>
 
       {/* 미니플레이어(PL11) — 활성 세션은 실시간, 없으면 복원 스냅샷을 일시정지로 표시한다 */}

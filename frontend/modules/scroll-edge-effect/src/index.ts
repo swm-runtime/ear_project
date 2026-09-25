@@ -4,6 +4,7 @@ export type ScrollEdgeEffectStyle = 'automatic' | 'soft' | 'hard' | 'hidden';
 
 interface ScrollEdgeEffectNative {
   apply(viewTag: number, style: ScrollEdgeEffectStyle): Promise<string | boolean>;
+  attachContainer?(containerTag: number, scrollViewTag: number): Promise<string>;
 }
 
 const native = requireOptionalNativeModule<ScrollEdgeEffectNative>('ScrollEdgeEffect');
@@ -32,4 +33,20 @@ export const applyScrollEdgeEffect = async (
     lastResult = `error:${String(error).slice(0, 80)}`;
   }
   return `${lastResult} tag=${viewTag}`;
+};
+
+/**
+ * 스크롤 뷰 위에 얹힌 컨테이너(FloatingHeader)에 `UIScrollEdgeElementContainerInteraction` 을 붙인다 — iOS 26 은
+ * "바 밑"에서만 edge effect 를 그리므로 커스텀 머리 줄은 이걸로 바를 자처해야 한다. 옛 네이티브(함수 없음)는 `no-attach`
+ */
+export const attachScrollEdgeContainer = async (
+  containerTag: number,
+  scrollViewTag: number,
+): Promise<string> => {
+  if (!native?.attachContainer) return 'no-attach';
+  try {
+    return await native.attachContainer(containerTag, scrollViewTag);
+  } catch (error) {
+    return `error:${String(error).slice(0, 80)}`;
+  }
 };

@@ -1,11 +1,12 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, type RefObject } from 'react';
-import { findNodeHandle } from 'react-native';
+import { findNodeHandle, type View } from 'react-native';
 
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 
 import {
   applyScrollEdgeEffect,
+  attachScrollEdgeContainer,
   type ScrollEdgeEffectStyle,
 } from '../../../modules/scroll-edge-effect/src';
 
@@ -41,11 +42,16 @@ const REAPPLY_DELAY_MS = 1000;
  *
  * 목록이 마운트된 뒤·탭이 포커스될 때마다 다시 건다(스크롤 뷰가 바뀔 수 있다). rt 9 이하 빌드·iOS 26 미만·Android 는 no-op.
  *
+ * 그리고 **머리 줄(FloatingHeader)에 `UIScrollEdgeElementContainerInteraction` 을 붙인다** — iOS 26 은 edge effect 를
+ * "바 밑"에서만 그리므로(21:45 실기기: topEdgeEffect 만으로는 hard 도 안 보였다) 커스텀 머리 줄이 바를 자처해야 한다.
+ *
  * @param listRef FlatList/ScrollView(또는 Animated 변형) ref
+ * @param headerRef FloatingHeader 의 containerRef
  * @param isListMounted 스크롤 뷰가 실제로 그려졌는가(스켈레톤·에러 화면이 아닌가)
  */
 export const useSystemScrollEdgeEffect = (
   listRef: RefObject<unknown>,
+  headerRef: RefObject<View | null>,
   isListMounted: boolean,
 ): void => {
   useFocusEffect(
@@ -59,8 +65,11 @@ export const useSystemScrollEdgeEffect = (
           return;
         }
         lastTag = tag;
-        void applyScrollEdgeEffect(tag, currentStyle).then((result) => {
-          lastAttempt = `${label}:${result} style=${currentStyle}`;
+        const headerTag = headerRef.current ? findNodeHandle(headerRef.current) : null;
+        void applyScrollEdgeEffect(tag, currentStyle).then(async (result) => {
+          const attached =
+            headerTag === null ? 'no-header' : await attachScrollEdgeContainer(headerTag, tag);
+          lastAttempt = `${label}:${result} style=${currentStyle} | ${attached}`;
         });
       };
       // 마운트 직후엔 네이티브 뷰·인셋이 아직 없을 수 있다 — 한 프레임 뒤, 그리고 1초 뒤 한 번 더
@@ -70,6 +79,6 @@ export const useSystemScrollEdgeEffect = (
         cancelAnimationFrame(frame);
         clearTimeout(timer);
       };
-    }, [listRef, isListMounted]),
+    }, [listRef, headerRef, isListMounted]),
   );
 };
