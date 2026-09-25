@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 
 import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
@@ -15,8 +16,8 @@ interface WeeklyChartProps {
 const CHART_HEIGHT = 120;
 /** 0 막대의 자리 표시 높이 — 값 생략 없이 요일 자리를 유지한다 */
 const ZERO_BAR_HEIGHT = 3;
-/** 말풍선이 막대 최상단에서도 그래프 영역 안에 머물게 하는 상한 여유 */
-const TOOLTIP_HEIGHT = 26;
+/** 말풍선 높이의 초깃값 — 실제 높이는 onLayout 으로 잰다(큰 글꼴·긴 시간값에서 26 을 넘는다, design.md §6) */
+const TOOLTIP_HEIGHT_FALLBACK = 26;
 
 /** 한 주의 요일 수 — 지난 주의 평균 분모다 */
 const DAYS_IN_WEEK = 7;
@@ -76,6 +77,12 @@ export default function WeeklyChart({ weekly }: WeeklyChartProps) {
   const averageSec =
     displayed === null ? 0 : toDailyAverageSec(displayed.dailyListenedSec, elapsedDayCount);
   const maxSec = displayed === null ? 0 : Math.max(...displayed.dailyListenedSec, 0);
+  // 말풍선 실측 높이 — 최상단 막대에서도 그래프 영역 안에 머물게 하는 상한에 쓴다
+  const [tooltipHeight, setTooltipHeight] = useState(TOOLTIP_HEIGHT_FALLBACK);
+  const handleTooltipLayout = (event: LayoutChangeEvent) => {
+    const measured = Math.ceil(event.nativeEvent.layout.height);
+    if (measured > 0 && measured !== tooltipHeight) setTooltipHeight(measured);
+  };
   // 전체 0인 주는 빈 상태로 빠지므로 선을 그릴 일이 없다
   const averageRatio = maxSec === 0 ? null : Math.min(1, averageSec / maxSec);
 
@@ -157,8 +164,9 @@ export default function WeeklyChart({ weekly }: WeeklyChartProps) {
                         style={[
                           styles.tooltip,
                           // 막대 위에 붙이되 최상단 막대에서도 그래프 영역 안에 머문다
-                          { bottom: Math.min(barHeight + 4, CHART_HEIGHT - TOOLTIP_HEIGHT) },
+                          { bottom: Math.min(barHeight + 4, CHART_HEIGHT - tooltipHeight) },
                         ]}
+                        onLayout={handleTooltipLayout}
                         accessibilityElementsHidden
                         importantForAccessibility="no-hide-descendants"
                       >
@@ -240,6 +248,7 @@ const styles = StyleSheet.create({
   stateBox: {
     height: CHART_HEIGHT + theme.spacing.lg,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
     alignItems: 'center',
     justifyContent: 'center',
@@ -289,10 +298,13 @@ const styles = StyleSheet.create({
     backgroundColor: theme.color.background,
     paddingHorizontal: 4,
   },
+  /**
+   * 칸 사이 간격을 두지 않는다 — 칸 전체가 막대의 탭 영역이라 간격만큼 44pt(design.md §6)가 깎인다.
+   * 360pt 화면에서 (360 − 32) ÷ 7 ≈ 47, 간격 4 를 두면 43 이었다. 막대 자체는 칸의 55% 라 시각 간격은 그대로다
+   */
   chartRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: theme.spacing.xs,
   },
   barColumn: {
     flex: 1,
@@ -309,6 +321,7 @@ const styles = StyleSheet.create({
     width: '55%',
     borderTopLeftRadius: theme.radius.sm,
     borderTopRightRadius: theme.radius.sm,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.primary,
   },
   /** 선택 막대 강조 — 색이 아니라 테두리 형태 단서(색만으로 구분 금지) */
@@ -322,6 +335,7 @@ const styles = StyleSheet.create({
     zIndex: 1,
     backgroundColor: theme.color.textPrimary,
     borderRadius: theme.radius.sm,
+    borderCurve: 'continuous',
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.xs,
   },

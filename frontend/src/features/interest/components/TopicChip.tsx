@@ -201,7 +201,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.34)',
   },
   overlaySelected: {
-    backgroundColor: 'rgba(0, 0, 0, 0.62)',
+    backgroundColor: theme.color.photoScrim,
   },
   // 흐린 칩은 사진째 물러나야 한 덩어리로 읽힌다
   overlayDimmed: {
@@ -214,7 +214,7 @@ const styles = StyleSheet.create({
     // 선택 여부와 무관하게 굵기를 고정한다 — 선택 시 굵어지면 라벨 폭이 변해 시선이 튄다
     fontWeight: '700',
     color: theme.color.onPrimary,
-    textShadowColor: 'rgba(0, 0, 0, 0.45)',
+    textShadowColor: theme.color.photoTextShadow,
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },

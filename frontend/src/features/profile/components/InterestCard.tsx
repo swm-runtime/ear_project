@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.62)',
+    backgroundColor: theme.color.photoScrim,
   },
   overflowChip: {
     backgroundColor: theme.color.surface,
@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.xs,
     fontWeight: '700',
     color: theme.color.onPrimary,
-    textShadowColor: 'rgba(0, 0, 0, 0.45)',
+    textShadowColor: theme.color.photoTextShadow,
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },

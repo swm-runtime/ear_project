@@ -84,6 +84,7 @@ const styles = StyleSheet.create({
   card: {
     height: 72,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
   },
   tilesRow: {
@@ -94,11 +95,13 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 84,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
   },
   chart: {
     height: 150,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
   },
 });

@@ -20,7 +20,11 @@ import { PROFILE_COPY } from '../profile.copy';
 
 const SETTINGS_ICON_SIZE = 22;
 
-/** 아이콘 크기(22)를 터치 타깃 44pt로 채운다 — 보이는 상자를 키우면 닉네임 줄이 함께 커진다 */
+/**
+ * 아이콘 크기(22)를 터치 타깃 44pt로 채운다(design.md §6) — 세로는 hitSlop(위아래 11, 헤더의 `names` 블록 70 안에
+ * 들어간다), 가로는 **상자 자체를 44 로** 둔다. hitSlop 은 부모 경계 밖으로 못 나가는데 아이콘이 이름 블록의 오른쪽 끝에
+ * 붙어 있어 오른쪽 11 은 잘렸다(2026-09-26 프로필 정비). 상자를 세로로도 키우면 닉네임 줄이 함께 커진다
+ */
 const SETTINGS_HIT_SLOP = (theme.touchTarget.minHeight - SETTINGS_ICON_SIZE) / 2;
 
 /**
@@ -46,7 +50,7 @@ export default function ProfileScreen() {
     <Pressable
       style={styles.settingsButton}
       onPress={screen.openSettings}
-      hitSlop={SETTINGS_HIT_SLOP}
+      hitSlop={{ top: SETTINGS_HIT_SLOP, bottom: SETTINGS_HIT_SLOP }}
       accessibilityRole="button"
       accessibilityLabel={PROFILE_COPY.header.settingsA11y}
     >
@@ -185,8 +189,9 @@ const styles = StyleSheet.create({
     // 스크롤 내용 위에 떠 있어야 눌린다
     zIndex: 1,
   },
-  /** 보이는 상자는 아이콘 크기 그대로 두고 터치 타깃은 hitSlop 으로 채운다 */
+  /** 가로 44 상자(아이콘은 가운데) + 세로 hitSlop — 위 SETTINGS_HIT_SLOP 주석 */
   settingsButton: {
+    minWidth: theme.touchTarget.minWidth,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -202,6 +207,7 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.md,
     marginHorizontal: theme.spacing.md,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
     alignItems: 'center',
     paddingVertical: theme.spacing.lg,

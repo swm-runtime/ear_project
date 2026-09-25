@@ -112,14 +112,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // 보조 동작은 테두리 없이 연한 면(design.md §5 — PlayConfirmDialog 의 [취소]와 같은 규칙, 2026-09-22 PM
+  // "검정 버튼 옆에서 선으로 그린 상자는 낡아 보인다"). 09-26 프로필 정비에서 맞췄다
   secondaryButton: {
-    borderWidth: 1.5,
-    borderColor: theme.color.border,
+    backgroundColor: theme.color.surface,
   },
   secondaryLabel: {
     fontSize: theme.font.size.md,
     fontWeight: '600',
-    color: theme.color.textSecondary,
+    color: theme.color.textPrimary,
   },
   primaryButton: {
     backgroundColor: theme.color.primary,

@@ -2,8 +2,12 @@ import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import ChevronIcon from '@/shared/ui/ChevronIcon';
 
 import { PROFILE_COPY } from '../profile.copy';
+
+/** 셰브론 크기 — 주간 그래프의 주 이동 화살표(18)와 같다 */
+const CHEVRON_SIZE = 18;
 
 interface ProfileCardProps {
   label: string;
@@ -72,10 +76,10 @@ export default function ProfileCard({
           children
         )}
       </View>
-      {/* 이동 가능 표시 — 장식이다(카드 라벨이 목적지를 읽는다) */}
-      <Text style={styles.chevron} accessibilityElementsHidden importantForAccessibility="no">
-        ›
-      </Text>
+      {/* 이동 가능 표시 — 장식이다(카드 라벨이 목적지를 읽는다). 글자 `›` 가 아니라 도형(design.md §5) */}
+      <View style={styles.chevron} accessibilityElementsHidden importantForAccessibility="no">
+        <ChevronIcon direction="right" size={CHEVRON_SIZE} color={theme.color.textSecondary} />
+      </View>
     </Pressable>
   );
 }
@@ -86,6 +90,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: theme.color.surface,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.md,
     marginHorizontal: theme.spacing.md,
@@ -135,8 +140,6 @@ const styles = StyleSheet.create({
     color: theme.color.primary,
   },
   chevron: {
-    fontSize: theme.font.size.lg,
-    color: theme.color.textSecondary,
     marginLeft: theme.spacing.sm,
   },
 });
