@@ -1,6 +1,6 @@
 import { BlurView } from 'expo-blur';
 import { useMemo } from 'react';
-import { Animated, StyleSheet } from 'react-native';
+import { Animated, StyleSheet, View } from 'react-native';
 
 import {
   useNativeBarRowHeight,
@@ -18,7 +18,7 @@ interface NativeBarBlurBandProps {
 const BAND_EXTENSION = 8;
 
 /**
- * **스크롤하면 나타나는 상단 블러 띠** — 상태 바 + 바 줄을 꽉 채운 서리 유리(카톡 채팅방 상단, PM 2026-09-26 02:31 스샷
+ * **스크롤하면 나타나는 상단 블러 띠** — 상태 바 + 바 줄을 꽉 채운 흰 서리 유리(블러 + 흰 72%, 카톡 채팅방 상단, PM 2026-09-26 02:31 스샷
  * "스크롤 내리면 이렇게 그냥 상단 만들어라"). 정지 땐 투명해 큰 제목 줄이 또렷하고, 제목 줄이 밀려 올라가면
  * 바의 작은 제목(useFadingNativeTitle)과 같은 구간에 페이드인한다 — 네이티브 드라이버 불투명도.
  *
@@ -43,7 +43,9 @@ export default function NativeBarBlurBand({ scrollY }: NativeBarBlurBandProps) {
   if (!HAS_NATIVE_TAB_BAR) return null;
   return (
     <Animated.View style={[styles.band, { height, opacity }]} pointerEvents="none">
-      <BlurView style={StyleSheet.absoluteFill} tint="systemChromeMaterialLight" intensity={100} />
+      <BlurView style={StyleSheet.absoluteFill} tint="light" intensity={100} />
+      {/* 블러만으론 밑 썸네일이 다 비쳐 작은 제목이 겹쳤다(02:59 실기기) — 카톡처럼 흰 서리에 가깝게 틴트를 얹는다 */}
+      <View style={[StyleSheet.absoluteFill, styles.frost]} />
     </Animated.View>
   );
 }
@@ -55,5 +57,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 1,
+  },
+  frost: {
+    backgroundColor: 'rgba(255, 255, 255, 0.72)',
   },
 });
