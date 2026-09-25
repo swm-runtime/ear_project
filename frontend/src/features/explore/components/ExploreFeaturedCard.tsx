@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
 import MoreIcon from '@/shared/ui/MoreIcon';
@@ -22,6 +22,16 @@ const toMinutes = (durationSec: number): number => Math.max(1, Math.round(durati
  */
 const WIDTH_RATIO = 0.72;
 const MAX_WIDTH = 312;
+/**
+ * 카드 하단(제목·알약 줄)의 바탕은 **앨범아트가 흐리게 이어진 면**이다(PM 2026-09-25 22:01 "blur 처리해서 마치
+ * 이어진 것처럼"). 카드 전체에 흐린 커버를 깔고 위 정사각형만 선명한 커버가 덮는다 — 플레이어 배경과 같은 방식
+ * (기본 Image blurRadius, expo-image 는 세기 기준이 달라 톤이 바뀐다). 우리 커버는 차콜 계열이라 하단 글자는
+ * 플레이어 팔레트(흰 글자)로, 밝은 커버가 와도 읽히게 어두운 막을 한 겹 둔다
+ */
+const BACKDROP_BLUR_RADIUS = 36;
+const BACKDROP_SCRIM = 'rgba(23, 23, 26, 0.45)';
+const ON_ART_TEXT = '#FFFFFF';
+const ON_ART_TEXT_SECONDARY = 'rgba(255, 255, 255, 0.72)';
 
 interface Rect {
   x: number;
@@ -65,6 +75,16 @@ export default function ExploreFeaturedCard({
 
   return (
     <View style={[styles.card, { width: cardWidth }]}>
+      {/* 흐린 커버 바탕 — 카드 전체. 위 정사각형은 아래 선명한 커버가 덮어 하단만 "이어진" 흐림으로 남는다 */}
+      <Image
+        source={{ uri: item.content.thumbnailUrl }}
+        style={styles.backdrop}
+        blurRadius={BACKDROP_BLUR_RADIUS}
+        resizeMode="cover"
+        accessibilityElementsHidden
+        importantForAccessibility="no"
+      />
+      <View style={styles.backdropScrim} pointerEvents="none" />
       <Pressable
         style={styles.body}
         onPress={() => onPress(item)}
@@ -108,7 +128,7 @@ export default function ExploreFeaturedCard({
           accessibilityRole="button"
           accessibilityLabel={EXPLORE_COPY.row.moreA11y}
         >
-          <MoreIcon size={22} color={theme.color.textSecondary} />
+          <MoreIcon size={22} color={ON_ART_TEXT_SECONDARY} />
         </Pressable>
       </View>
     </View>
@@ -125,9 +145,27 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.lg,
     borderCurve: 'continuous',
     overflow: 'hidden',
+    // 바탕은 흐린 커버(backdrop)가 깐다 — 커버가 없을 때의 폴백 색만 남긴다
     backgroundColor: theme.color.surface,
     paddingBottom: theme.spacing.md,
     gap: theme.spacing.xs,
+  },
+  backdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    // 흐림의 가장자리가 비치지 않게 살짝 키운다(플레이어 배경과 같다)
+    transform: [{ scale: 1.2 }],
+  },
+  backdropScrim: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: BACKDROP_SCRIM,
   },
   body: {
     gap: theme.spacing.xs,
@@ -145,7 +183,7 @@ const styles = StyleSheet.create({
     marginHorizontal: theme.spacing.md,
     fontSize: theme.font.size.md,
     fontWeight: '700',
-    color: theme.color.textPrimary,
+    color: ON_ART_TEXT,
     // 두 줄까지 접히는 제목이라 줄 간격을 함께 잡는다
     lineHeight: theme.font.size.md * 1.35,
     // 제목이 한 줄이든 두 줄이든 아래 알약 줄의 높이가 같아야 카드끼리 나란히 선다
