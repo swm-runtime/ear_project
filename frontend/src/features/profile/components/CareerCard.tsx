@@ -73,9 +73,11 @@ const styles = StyleSheet.create({
     color: theme.color.textSecondary,
     flexShrink: 1,
   },
+  // 버튼은 md + 연속 곡률(design.md §2) — 09-26 전엔 sm 8 의 작은 사각이라 같은 화면의 구독 칩·시트 버튼과 모양이 달랐다
   emptyAction: {
     backgroundColor: theme.color.primary,
-    borderRadius: theme.radius.sm,
+    borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.xs,
   },

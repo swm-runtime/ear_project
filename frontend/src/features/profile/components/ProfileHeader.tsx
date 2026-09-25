@@ -39,13 +39,21 @@ interface ProfileHeaderProps {
 // 가로 배치라 세로로 쌓을 때보다 작게 잡는다 — 88이면 옆의 두 줄(닉네임·이메일)보다 훨씬 커져 균형이 깨진다
 const AVATAR_SIZE = 64;
 const VERTICAL_PADDING = theme.spacing.lg;
+/**
+ * 이름·이메일 블록의 최소 높이 — 아바타(64)보다 살짝 크다. hitSlop 은 **부모 경계 밖으로 나가지 못한다**(RN Pressable)
+ * — 설정 아이콘(22 + 위아래 11)·이메일 줄(22 + 위아래 11)의 44pt 가 이 블록 안에 들어가야 실제로 눌린다(design.md §6,
+ * 2026-09-26 프로필 정비). 닉네임 줄 ~24 + 간격 2 + 이메일 줄 ~22 = 48 을 가운데 두면 위아래 11 이 남는다
+ */
+const NAMES_MIN_HEIGHT = 70;
+/** 이메일 줄의 hitSlop — 줄 높이(~22)를 44 로 채운다 */
+const EMAIL_HIT_SLOP = (theme.touchTarget.minHeight - 22) / 2;
 
 /**
  * 아바타 줄의 높이(플랜 줄 제외). **헤더가 없을 때만** 쓰인다 — 그때는 화면이 설정
  * 아이콘을 직접 띄우면서 이 줄의 세로 가운데에 맞추는데, 잴 헤더가 없어 값이 필요하다.
  * 헤더가 있으면 아이콘은 닉네임 줄 안에 들어가므로 이 값과 무관하다.
  */
-export const PROFILE_IDENTITY_ROW_HEIGHT = VERTICAL_PADDING + AVATAR_SIZE;
+export const PROFILE_IDENTITY_ROW_HEIGHT = VERTICAL_PADDING + Math.max(AVATAR_SIZE, NAMES_MIN_HEIGHT);
 const PROVIDER_BADGE_SIZE = 24;
 const PROVIDER_ICON_SIZE = 13;
 /** 닉네임이 없을 때 아바타를 채우는 사람 아이콘 */
@@ -145,11 +153,11 @@ export default function ProfileHeader({
             {settingsSlot}
           </View>
           {/* 이메일 줄 — 등록·인증·변경의 프로필 진입점(profile.md 4.3). 줄 자체가 작아
-              hitSlop으로 터치 타깃 44pt를 채운다(profile-uiux.md 7장) */}
+              hitSlop으로 터치 타깃 44pt를 채운다(profile-uiux.md 7장) — 부모 `names` 가 70 이라 잘리지 않는다 */}
           <Pressable
             style={styles.emailRow}
             onPress={onEmailPress}
-            hitSlop={{ top: theme.spacing.sm, bottom: theme.spacing.sm }}
+            hitSlop={{ top: EMAIL_HIT_SLOP, bottom: EMAIL_HIT_SLOP }}
             accessibilityRole="button"
             accessibilityLabel={PROFILE_COPY.cardA11y(
               PROFILE_COPY.cardLabels.email,
@@ -166,11 +174,8 @@ export default function ProfileHeader({
               **배지 하나가 상태를 말한다** — "이메일 미등록"을 두 번 적지 않는다.
               낭독기에는 줄 전체 라벨로 한 번만 들린다(위 accessibilityLabel).
             */}
-            {email !== null ? (
-              <Text style={styles.email} numberOfLines={1}>
-                {email}
-              </Text>
-            ) : null}
+            {/* 한 줄 말줄임을 강제하지 않는다 — 200% 글꼴에서 줄바꿈(profile-uiux.md 7장) */}
+            {email !== null ? <Text style={styles.email}>{email}</Text> : null}
             {/*
               인증 전이면 배지를 단다 — **미등록도 포함한다.** 사용자에게는 "주소가 없다"와
               "주소가 확인되지 않았다"가 모두 "아직 인증 안 된 상태"이고, 결제 시점에 가서야
@@ -205,10 +210,7 @@ export default function ProfileHeader({
           style={styles.planRow}
           accessibilityLabel={`${PROFILE_COPY.cardLabels.plan}, ${planText(plan.data)}`}
         >
-          <Text
-            style={[styles.planText, plan.data.kind === 'grace' && styles.planDanger]}
-            numberOfLines={1}
-          >
+          <Text style={[styles.planText, plan.data.kind === 'grace' && styles.planDanger]}>
             {planText(plan.data)}
           </Text>
         </View>
@@ -223,10 +225,7 @@ export default function ProfileHeader({
             PROFILE_COPY.destinations.plan,
           )}
         >
-          <Text
-            style={[styles.planText, plan.data.kind === 'grace' && styles.planDanger]}
-            numberOfLines={1}
-          >
+          <Text style={[styles.planText, plan.data.kind === 'grace' && styles.planDanger]}>
             {planText(plan.data)}
           </Text>
           {plan.data.kind === 'free' ? (
@@ -255,7 +254,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: theme.spacing.sm,
     minHeight: theme.touchTarget.minHeight,
-    paddingLeft: theme.spacing.md + 64 + theme.spacing.md,
+    paddingLeft: theme.spacing.md + AVATAR_SIZE + theme.spacing.md,
     paddingRight: theme.spacing.md,
     paddingBottom: theme.spacing.sm,
   },
@@ -287,9 +286,11 @@ const styles = StyleSheet.create({
     // 배지가 아바타 밖으로 나가므로 줄어들지 않게 고정한다
     flexShrink: 0,
   },
-  // 긴 이메일이 아바타를 밀어내지 않도록 남는 폭만 쓴다
+  // 긴 이메일이 아바타를 밀어내지 않도록 남는 폭만 쓴다. 높이는 hitSlop 이 잘리지 않는 최소값(NAMES_MIN_HEIGHT)
   names: {
     flex: 1,
+    minHeight: NAMES_MIN_HEIGHT,
+    justifyContent: 'center',
     gap: 2,
   },
   avatar: {
@@ -342,6 +343,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.sm,
+    // 200% 글꼴에서 배지가 다음 줄로 내려간다 — 고정 높이를 두지 않는다
+    flexWrap: 'wrap',
   },
   email: {
     flexShrink: 1,
