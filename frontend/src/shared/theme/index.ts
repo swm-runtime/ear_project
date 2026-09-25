@@ -54,6 +54,8 @@ export const theme = {
       md: 16,
       lg: 20,
       xl: 28,
+      /** iOS 큰 제목(Large Title) — 콘텐츠 안 제목 줄(LargeTitleRow) */
+      xxl: 34,
     },
   },
   /** auth-uiux.md 7 — 터치 타깃 최소 44pt */

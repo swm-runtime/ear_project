@@ -11,6 +11,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useFadingNativeTitle } from '@/shared/navigation/useFadingNativeTitle';
+import { useNativeHeaderInset } from '@/shared/navigation/useNativeHeaderInset';
 import { useSystemScrollEdgeEffect } from '@/shared/navigation/useSystemScrollEdgeEffect';
 import { theme } from '@/shared/theme';
 import FloatingHeader, {
@@ -19,6 +21,7 @@ import FloatingHeader, {
 } from '@/shared/ui/FloatingHeader';
 import FullScreenError from '@/shared/ui/FullScreenError';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
+import LargeTitleRow from '@/shared/ui/LargeTitleRow';
 
 import {
   DOCK_SCROLL_PROPS,
@@ -44,9 +47,10 @@ import { useExploreScreen } from '../hooks/useExploreScreen';
 /**
  * 탐색 탭(E1~E13) — 화면은 뷰만 담당하고 로직은 useExploreScreen이 소유한다.
  *
- * 상단 두 갈래(PM 2026-09-25 23:50 "애플이라면 상단을 어떻게"):
- * - **iOS 26 시스템 탭 바(HAS_NATIVE_TAB_BAR)** — 머리 줄이 없다. 큰 제목·잔여 링은 내비게이션 바(NativeMainTabs 옵션),
- *   검색은 검색 탭, 주제 칩은 **콘텐츠의 첫 줄**로 같이 스크롤한다(앱스토어 카테고리 알약). 바 밑 블러는 시스템이 그린다.
+ * 상단 두 갈래(PM 2026-09-25 23:50 "애플이라면 상단을 어떻게" · 09-26 00:29 애플 뮤직 스샷):
+ * - **iOS 26 시스템 탭 바(HAS_NATIVE_TAB_BAR)** — 투명 시스템 바(바 밑 블러는 시스템) 밑에 **콘텐츠 안 큰 제목 줄**
+ *   ("탐색" + 오른쪽 잔여 링, 같은 줄)과 주제 칩이 **목록의 첫 줄**로 같이 스크롤한다(앱스토어 카테고리 알약).
+ *   검색은 검색 탭. 제목 줄이 바 밑으로 들어가면 바에 작은 제목이 페이드인한다.
  * - 그 외 — 떠 있는 유리 머리 줄(FloatingHeader: 검색창 + 링 + 칩)이 목록 위에 뜬다(2026-09-24).
  */
 export default function ExploreScreen() {
@@ -56,8 +60,11 @@ export default function ExploreScreen() {
   const [headerHeight, setHeaderHeight] = useState(0);
   const floatingInset = useFloatingHeaderInset(headerHeight);
   const headerInset = HAS_NATIVE_TAB_BAR ? 0 : floatingInset;
+  // 투명 시스템 바의 높이 — 스크롤 뷰가 아닌 상태 화면(스켈레톤·에러)이 비운다
+  const nativeBarInset = useNativeHeaderInset();
   // 맨 위에서는 머리 줄 컨트롤이 면, 내리면 유리(PM 2026-09-25)
-  const { solidness, scrollProps } = useFloatingHeaderScroll();
+  const { solidness, scrollY, scrollProps } = useFloatingHeaderScroll();
+  useFadingNativeTitle(EXPLORE_COPY.tabTitle, scrollY);
   // 상태 바 밑 블러는 iOS 26 시스템 scroll edge effect — 목록이 그려진 뒤에 걸어야 한다
   // 필터 목록·피드 중 하나만 그려지므로 ref 하나를 같이 쓴다
   const listRef = useRef(null);
@@ -70,10 +77,10 @@ export default function ExploreScreen() {
 
   // E10은 검색창 줄·주제 칩·잔여 표시까지 그리지 않는다 — 화면 전체가 에러다(uiux 4.8)
   if (screen.isFullError) {
-    // 시스템 바 밑에서는 바가 상태 바를 이미 차지한다 — 안전영역을 또 비우면 두 번 내려간다
+    // 시스템 바 갈래에서는 투명 바 높이만큼 비운다(안전영역은 그 안에 든다)
     const Frame = HAS_NATIVE_TAB_BAR ? View : SafeAreaView;
     return (
-      <Frame style={styles.container} edges={['top']}>
+      <Frame style={[styles.container, { paddingTop: nativeBarInset }]} edges={['top']}>
         <FullScreenError
           title={
             screen.isFullErrorNetwork
@@ -98,8 +105,25 @@ export default function ExploreScreen() {
       onToggle={screen.toggleTopic}
     />
   ) : null;
-  // 시스템 바 갈래에서는 칩이 콘텐츠의 첫 줄이다 — 목록과 같이 스크롤한다
-  const contentChips = HAS_NATIVE_TAB_BAR ? chips : null;
+  // 잔여 재생 링 — 무제한·캐시·값 없음이면 자리를 비운다, "무제한" 배지도 없다(uiux 4.2)
+  const remainingRing = screen.remainingDisplay ? (
+    <RemainingPlaysIndicator
+      remaining={screen.remainingDisplay.remaining}
+      limit={screen.remainingDisplay.limit}
+      onExhaustedPress={() => screen.openPaywall('explore')}
+    />
+  ) : null;
+  // 시스템 바 갈래의 큰 제목 줄 — 제목과 링이 같은 줄
+  const titleRow = HAS_NATIVE_TAB_BAR ? (
+    <LargeTitleRow title={EXPLORE_COPY.tabTitle} trailing={remainingRing} />
+  ) : null;
+  // 시스템 바 갈래에서는 제목 줄·칩이 콘텐츠의 첫 줄이다 — 목록과 같이 스크롤한다
+  const contentChips = HAS_NATIVE_TAB_BAR ? (
+    <>
+      {titleRow}
+      {chips}
+    </>
+  ) : null;
 
   // 인라인 에러 — 기존 목록을 유지한 채 그 자리에서만 알린다(common-error-handling.md 4.3)
   const renderInlineError = (message: string, onRetry: () => void) => (
@@ -219,7 +243,8 @@ export default function ExploreScreen() {
     // 필터 전환 로딩은 단일 목록이 될 자리다 — 섹션 제목 없는 행 스켈레톤만 그린다
     if (screen.showSkeleton) {
       return (
-        <View style={{ paddingTop: headerInset }}>
+        <View style={{ paddingTop: headerInset + nativeBarInset }}>
+          {titleRow}
           <ExploreSkeleton showSectionTitles={!screen.isFiltered} />
         </View>
       );
@@ -314,19 +339,7 @@ export default function ExploreScreen() {
         solidness={solidness}
         containerRef={headerRef}
       >
-        <ExploreSearchBarRow
-          onPress={screen.openSearch}
-          trailing={
-            // 무제한·캐시·값 없음이면 자리를 비운다 — "무제한" 배지도 없다(uiux 4.2)
-            screen.remainingDisplay ? (
-              <RemainingPlaysIndicator
-                remaining={screen.remainingDisplay.remaining}
-                limit={screen.remainingDisplay.limit}
-                onExhaustedPress={() => screen.openPaywall('explore')}
-              />
-            ) : null
-          }
-        />
+        <ExploreSearchBarRow onPress={screen.openSearch} trailing={remainingRing} />
 
         {chips}
       </FloatingHeader>

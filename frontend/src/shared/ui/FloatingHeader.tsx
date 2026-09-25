@@ -100,6 +100,8 @@ export const useFloatingHeaderScroll = () => {
   );
   return {
     solidness,
+    /** 목록의 contentOffset.y 그대로 — 바의 작은 제목 페이드(useFadingNativeTitle)가 읽는다 */
+    scrollY,
     scrollProps: { onScroll, scrollEventThrottle: 16 } as const,
   };
 };

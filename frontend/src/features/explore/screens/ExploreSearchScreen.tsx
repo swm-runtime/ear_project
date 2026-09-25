@@ -9,9 +9,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useNativeHeaderSearchBar } from '@/shared/navigation/useNativeHeaderSearchBar';
+import { useNativeHeaderInset } from '@/shared/navigation/useNativeHeaderInset';
 import { theme } from '@/shared/theme';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
+import LargeTitleRow from '@/shared/ui/LargeTitleRow';
 
 import {
   DOCK_SCROLL_PROPS,
@@ -36,22 +37,14 @@ import { useExploreSearchScreen } from '../hooks/useExploreSearchScreen';
  * 화면은 뷰만 담당하고 로직은 useExploreSearchScreen이 소유한다.
  *
  * **iOS 26 시스템 탭 바에서는 검색 탭이다**(PM 2026-09-25 23:50 — 애플은 검색을 위에 두지 않고 탭 바 옆 검색 원으로
- * 내렸다). 검색창은 우리 TextInput 이 아니라 **내비게이션 바의 시스템 검색창**(headerSearchBarOptions)이고,
- * 미니플레이어는 탭 바 액세서리가 맡는다. 그 외 플랫폼은 종전대로 스택 화면 + 검색 줄이다.
+ * 내렸다). 상단은 애플 뮤직 검색 탭 그대로(09-26 00:29 스샷) — 투명 시스템 바 밑에 **큰 제목 "검색" + 채움 검색 필드**.
+ * 제목·필드는 목록 밖에 고정한다(결과·로딩으로 목록이 바뀔 때 입력 상자가 내려가면 키보드가 떨어진다).
+ * 취소 버튼은 없다 — 탭이라 돌아갈 곳이 없다. 미니플레이어는 탭 바 액세서리가 맡는다. 그 외 플랫폼은 종전대로 스택 화면 + 검색 줄이다.
  */
 export default function ExploreSearchScreen() {
   const screen = useExploreSearchScreen();
   const miniInset = useBottomDockInset();
-  // 키보드 [검색] 은 그 값을 즉시 실행하고 최근 검색어에 저장한다(4.5-2) — searchRecentQuery 와 같은 동작
-  useNativeHeaderSearchBar({
-    placeholder: EXPLORE_COPY.search.placeholder,
-    cancelButtonText: EXPLORE_COPY.search.cancel,
-    // 탭에 들어오면 바로 입력 — 종전 스택 검색 화면의 autoFocus 와 같은 뜻(uiux 7)
-    autoFocus: true,
-    value: screen.inputText,
-    onChangeText: screen.handleChangeText,
-    onSubmit: screen.searchRecentQuery,
-  });
+  const nativeBarInset = useNativeHeaderInset();
 
   const renderInlineError = (message: string, onRetry: () => void) => (
     <View style={styles.footer}>
@@ -200,11 +193,21 @@ export default function ExploreSearchScreen() {
     );
   };
 
-  // 시스템 바 밑에서는 바가 상태 바를 이미 차지한다 — 안전영역을 또 비우면 두 번 내려간다
+  // 시스템 바 갈래에서는 투명 바 높이만큼 비운다(안전영역은 그 안에 든다)
   const Frame = HAS_NATIVE_TAB_BAR ? View : SafeAreaView;
   return (
-    <Frame style={styles.container} edges={['top']}>
-      {HAS_NATIVE_TAB_BAR ? null : (
+    <Frame style={[styles.container, { paddingTop: nativeBarInset }]} edges={['top']}>
+      {HAS_NATIVE_TAB_BAR ? (
+        <>
+          <LargeTitleRow title={EXPLORE_COPY.search.tabTitle} />
+          <SearchInputRow
+            value={screen.inputText}
+            onChangeText={screen.handleChangeText}
+            onSubmit={screen.submitSearch}
+            variant="fill"
+          />
+        </>
+      ) : (
         <SearchInputRow
           value={screen.inputText}
           onChangeText={screen.handleChangeText}
