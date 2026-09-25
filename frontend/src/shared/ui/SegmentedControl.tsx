@@ -144,7 +144,11 @@ export default function SegmentedControl<T extends string>({
       {HAS_LIQUID_GLASS && !isPlain ? (
         <GlassPill style={indicatorStyle} />
       ) : (
-        <Animated.View style={[indicatorStyle, styles.indicatorRaised]} pointerEvents="none" />
+        // modern 은 검정 채움이 곧 알약이라 흰 면·그림자를 얹지 않는다(얹으면 흰 글자가 사라진다 — 23:41 실기기)
+        <Animated.View
+          style={[indicatorStyle, !isModern && styles.indicatorRaised]}
+          pointerEvents="none"
+        />
       )}
       {options.map((option, index) => {
         const isSelected = option.value === value;
