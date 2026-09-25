@@ -16,18 +16,17 @@ import FullScreenError from '@/shared/ui/FullScreenError';
 import {
   DOCK_SCROLL_PROPS,
   PlayConfirmDialog,
-  RemainingPlaysIndicator,
   useBottomDockInset,
   useMiniPlayerResumeStore,
 } from '@/features/player';
 
 import LibraryBanner from '../components/LibraryBanner';
 import LibraryEmptyState from '../components/LibraryEmptyState';
-import LibraryFilterButton from '../components/LibraryFilterButton';
 import LibraryFilterSummary from '../components/LibraryFilterSummary';
 import LibraryItemSkeleton from '../components/LibraryItemSkeleton';
 import LibraryItemTile from '../components/LibraryItemTile';
 import LibrarySearchBarRow from '../components/LibrarySearchBarRow';
+import LibraryToolbar from '../components/LibraryToolbar';
 import MoreActionsSheet from '../components/MoreActionsSheet';
 import TopicFilterSheet from '../components/TopicFilterSheet';
 import UndoSnackbar from '../components/UndoSnackbar';
@@ -214,21 +213,14 @@ export default function LibraryScreen() {
           query={query}
           onChangeQuery={setQuery}
           trailing={
-            <>
-              {/* 무제한·캐시·값 없음이면 자리를 비운다 — "무제한" 배지도 없다(uiux 4.3) */}
-              {screen.remainingDisplay ? (
-                <RemainingPlaysIndicator
-                  remaining={screen.remainingDisplay.remaining}
-                  limit={screen.remainingDisplay.limit}
-                  onExhaustedPress={() => screen.openPaywall('library')}
-                />
-              ) : null}
-              {/* 상태·출처·주제 필터는 전부 시트 하나 — 세그먼트 탭 줄은 폐지(2026-09-25 PM) */}
-              <LibraryFilterButton
-                activeCount={screen.topicFilterCount}
-                onPress={screen.openTopicSheet}
-              />
-            </>
+            // 잔여 링(무제한·캐시·값 없음이면 칸 없음 — uiux 4.3) + 필터를 한 유리 캡슐에(2026-09-25 PM).
+            // 상태·출처·주제 필터는 전부 시트 하나 — 세그먼트 탭 줄은 폐지
+            <LibraryToolbar
+              remaining={screen.remainingDisplay}
+              onExhaustedPress={() => screen.openPaywall('library')}
+              activeFilterCount={screen.topicFilterCount}
+              onFilterPress={screen.openTopicSheet}
+            />
           }
         />
       ) : null}

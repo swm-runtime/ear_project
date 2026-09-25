@@ -30,9 +30,9 @@ import {
 } from '@/features/explore';
 import {
   LibraryBanner,
-  LibraryFilterButton,
   LibraryItemTile,
   LibrarySearchBarRow,
+  LibraryToolbar,
   type LibraryItem,
 } from '@/features/library';
 import { RemainingPlaysIndicator } from '@/features/player';
@@ -357,10 +357,12 @@ export default function FirstRunTutorial() {
               query=""
               onChangeQuery={noop}
               trailing={
-                <>
-                  <RemainingPlaysIndicator remaining={1} limit={2} onExhaustedPress={noop} />
-                  <LibraryFilterButton activeCount={0} onPress={noop} />
-                </>
+                <LibraryToolbar
+                  remaining={{ remaining: 1, limit: 2 }}
+                  onExhaustedPress={noop}
+                  activeFilterCount={0}
+                  onFilterPress={noop}
+                />
               }
             />
             {/*

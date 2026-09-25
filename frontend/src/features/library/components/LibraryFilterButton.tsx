@@ -14,6 +14,8 @@ interface LibraryFilterButtonProps {
   /** 적용 중인 필터 개수(상태 ≠ 전체 · 출처 · 주제) — 0이면 배지를 그리지 않는다(library-uiux.md 4.2) */
   activeCount: number;
   onPress: () => void;
+  /** 유리 원 없이 아이콘만 — 호스트가 잔여 링과 한 캡슐에 묶는다(LibraryToolbar, 2026-09-25 PM) */
+  bare?: boolean;
 }
 
 /**
@@ -22,7 +24,11 @@ interface LibraryFilterButtonProps {
  * 거르는 건 세그먼트(뷰 전환)가 아니라 **필터 메뉴**(팟캐스트·메일 문법)라 상태를 시트로 옮기고 이 버튼 하나만 남겼다.
  * 유리 원(iOS 26 툴바 버튼처럼, PM 2026-09-23). 배지는 아이콘 위에 얹는다 — 옆에 두면 버튼 폭이 흔들린다
  */
-export default function LibraryFilterButton({ activeCount, onPress }: LibraryFilterButtonProps) {
+export default function LibraryFilterButton({
+  activeCount,
+  onPress,
+  bare = false,
+}: LibraryFilterButtonProps) {
   return (
     <Pressable
       style={styles.button}
@@ -35,8 +41,12 @@ export default function LibraryFilterButton({ activeCount, onPress }: LibraryFil
       }
     >
       <View style={styles.circle}>
-        <GlassSurface style={[StyleSheet.absoluteFill, styles.glass]} />
-        <View style={styles.circleBorder} pointerEvents="none" />
+        {bare ? null : (
+          <>
+            <GlassSurface style={[StyleSheet.absoluteFill, styles.glass]} />
+            <View style={styles.circleBorder} pointerEvents="none" />
+          </>
+        )}
         <FilterIcon
           size={FILTER_ICON_SIZE}
           color={activeCount > 0 ? theme.color.primary : theme.color.textSecondary}
