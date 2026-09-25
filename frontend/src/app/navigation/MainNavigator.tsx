@@ -2,6 +2,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useState } from 'react';
 
+import { USE_NATIVE_PLAYER_ZOOM } from '@/shared/navigation/zoom-transition';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 
 import { EmailVerificationScreen, useSessionStore, WithdrawalScreen } from '@/features/auth';
@@ -110,7 +111,14 @@ export default function MainNavigator() {
         <MainStack.Screen
           name="Player"
           component={PlayerScreen}
-          options={{ presentation: 'transparentModal', animation: 'none' }}
+          options={
+            // iOS 26 + 줌 모듈 빌드: 풀스크린 모달을 시스템이 띄운다 — 미니플레이어에서 등록된 소스 뷰가 있으면 iOS 18 줌 전환
+            // (카드가 부풀어 오르고, 닫으면 그 자리로 줄어든다 — 애플 뮤직, PM 2026-09-26 03:55), 없으면 기본 슬라이드.
+            // 그 외: 투명 모달 + 전환 없음, 열림·닫힘은 화면이 직접 그린다
+            USE_NATIVE_PLAYER_ZOOM
+              ? { presentation: 'fullScreenModal' }
+              : { presentation: 'transparentModal', animation: 'none' }
+          }
         />
         {/* 콘텐츠 상세 — 앱바(뒤로 + 타이틀)를 화면이 직접 그린다(content-detail-uiux.md 4.1).
           플레이어(모달) 위에도 쌓일 수 있다 — 진입해도 재생은 유지된다(content-detail.md 2장) */}

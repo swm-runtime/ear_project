@@ -11,6 +11,11 @@ import {
   View,
 } from 'react-native';
 
+import {
+  armPlayerZoom,
+  MINI_PLAYER_ZOOM_SOURCE_ID,
+  USE_NATIVE_PLAYER_ZOOM,
+} from '@/shared/navigation/zoom-transition';
 import { motion, theme } from '@/shared/theme';
 import GlassSurface from '@/shared/ui/GlassSurface';
 import MarqueeText from '@/shared/ui/MarqueeText';
@@ -128,6 +133,15 @@ export default function MiniPlayer({
   const dropProgress = miniDropProgress;
   // 플레이어 열림·닫힘 모션의 도착 지점 — 내 화면 좌표를 올려 두고, 사라질 땐 지운다
   const rootRef = useRef<View>(null);
+  /** 플레이어 열기 — 줌 전환 갈래면 이 카드(testID)를 소스 뷰로 등록한 뒤 navigate(시스템이 카드에서 부풀려 띄운다) */
+  const openPlayer = (params: { contentId: string }) => {
+    void armPlayerZoom().then(() => {
+      navigation.navigate('Main', { screen: 'Player', params });
+    });
+  };
+  const expandResume = () => {
+    void armPlayerZoom().then(() => onResumeExpandPress?.());
+  };
   // 썸네일·제목의 실제 자리 — 상수로 추정하면 몇 px 어긋나 착지 순간 잔상이 겹친다(2026-09-17)
   const thumbRef = useRef<View>(null);
   const titleRef = useRef<View>(null);
@@ -155,13 +169,10 @@ export default function MiniPlayer({
       // 본문 탭과 같은 확대 경로 — 재생 상태 그대로, 재생을 시작시키지 않는다(uiux 4.8)
       expand: () => {
         if (isLiveVisible && session !== null) {
-          navigation.navigate('Main', {
-            screen: 'Player',
-            params: { contentId: session.contentId },
-          });
+          openPlayer({ contentId: session.contentId });
           return;
         }
-        onResumeExpandPress?.();
+        expandResume();
       },
     };
   });
@@ -216,8 +227,9 @@ export default function MiniPlayer({
           MINI_PLAYER_DISMISSABLE &&
           gesture.dy > MINI_PLAYER_OPEN_START_DISTANCE &&
           Math.abs(gesture.dy) > Math.abs(gesture.dx) * 1.5;
-        // 열기 — 위로, 수직 이동이 수평보다 확실히 클 때만
+        // 열기 — 위로, 수직 이동이 수평보다 확실히 클 때만. 줌 전환 갈래는 시스템이 여는 모션을 맡으므로 탭만(끌어올리기 없음)
         const isOpen =
+          !USE_NATIVE_PLAYER_ZOOM &&
           gesture.dy < -MINI_PLAYER_OPEN_START_DISTANCE &&
           Math.abs(gesture.dy) > Math.abs(gesture.dx) * 1.5;
         if (!isDismiss && !isOpen) return false;
@@ -308,18 +320,12 @@ export default function MiniPlayer({
         isPlaying: session.isPlaying,
         onBodyPress: () => {
           // 확대는 재생 상태 그대로다 — 재생을 시작시키지 않는다(uiux 4.8)
-          navigation.navigate('Main', {
-            screen: 'Player',
-            params: { contentId: session.contentId },
-          });
+          openPlayer({ contentId: session.contentId });
         },
         onButtonPress: () => {
           if (session.state === 'ended') {
             // 완료 세션의 재청취는 판정·팝업 호스트인 플레이어(PL3)에서 시작한다
-            navigation.navigate('Main', {
-              screen: 'Player',
-              params: { contentId: session.contentId },
-            });
+            openPlayer({ contentId: session.contentId });
             return;
           }
           playbackService.togglePlayPause();
@@ -333,7 +339,7 @@ export default function MiniPlayer({
         durationSec: resumeFallback!.durationSec,
         // 복원은 일시정지 상태로만 뜬다 — ▶ 아이콘(일시정지 아이콘은 재생 중으로 읽힌다)
         isPlaying: false,
-        onBodyPress: () => onResumeExpandPress?.(),
+        onBodyPress: expandResume,
         onButtonPress: () => onResumePlayPress?.(),
       };
 
@@ -351,6 +357,7 @@ export default function MiniPlayer({
   return (
     <Animated.View
       ref={rootRef}
+      testID={MINI_PLAYER_ZOOM_SOURCE_ID}
       style={[
         styles.container,
         isAccessory

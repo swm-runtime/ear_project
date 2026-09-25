@@ -1,0 +1,19 @@
+Pod::Spec.new do |s|
+  s.name           = 'ZoomTransition'
+  s.version        = '1.0.0'
+  s.summary        = 'iOS 18 zoom transition source registry for react-native-screens modals'
+  s.description    = 'Local Expo module: registers the UIView a modal should zoom out of. The react-native-screens patch reads it right before presenting.'
+  s.author         = 'Run-Time'
+  s.homepage       = 'https://github.com/swm-runtime/ear_project'
+  s.platforms      = { :ios => '15.1' }
+  s.source         = { git: '' }
+  s.static_framework = true
+
+  s.dependency 'ExpoModulesCore'
+
+  s.pod_target_xcconfig = {
+    'DEFINES_MODULE' => 'YES',
+  }
+
+  s.source_files = "**/*.{h,m,mm,swift}"
+end
