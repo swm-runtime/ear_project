@@ -34,5 +34,17 @@ export const useNativeHeaderInset = (): number => {
  */
 export const useNativeBarPullStyle = (): { marginTop: number } | undefined => {
   const rowHeight = useNativeBarRowHeight();
-  return rowHeight > 0 ? { marginTop: -rowHeight } : undefined;
+  return rowHeight > 0 ? { marginTop: -(rowHeight + BAR_BLUR_EXTENSION) } : undefined;
+};
+
+/**
+ * 바 밑 블러를 바 줄보다 **이만큼 더 아래로** 내린다(PM 2026-09-26 02:12 "블러가 더 아래로 내려오게"). 블러 영역은 스크롤 뷰의
+ * 조정된 인셋이라 contentInset 으로 늘리고, 제목 줄은 그만큼 더 올려 자리를 지킨다(useNativeBarPullStyle)
+ */
+export const BAR_BLUR_EXTENSION = 24;
+
+/** 시스템 탭의 스크롤 뷰에 펼친다 — 블러 영역을 BAR_BLUR_EXTENSION 만큼 늘린다. JS 탭 바 갈래에서는 빈 객체 */
+export const useNativeBarBlurProps = (): { contentInset?: { top: number } } => {
+  const rowHeight = useNativeBarRowHeight();
+  return rowHeight > 0 ? { contentInset: { top: BAR_BLUR_EXTENSION } } : {};
 };

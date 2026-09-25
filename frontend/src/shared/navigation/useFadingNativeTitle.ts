@@ -6,7 +6,11 @@ import { theme } from '@/shared/theme';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 import { LARGE_TITLE_ROW_HEIGHT } from '@/shared/ui/LargeTitleRow';
 
-import { useNativeBarRowHeight, useNativeHeaderInset } from './useNativeHeaderInset';
+import {
+  BAR_BLUR_EXTENSION,
+  useNativeBarRowHeight,
+  useNativeHeaderInset,
+} from './useNativeHeaderInset';
 
 /**
  * iOS 26 시스템 내비게이션 바의 **작은 제목을 스크롤에 따라 페이드인**시킨다 — 콘텐츠 안 큰 제목 줄(`LargeTitleRow`)이
@@ -22,7 +26,7 @@ export const useFadingNativeTitle = (title: string, scrollY: Animated.Value): vo
   const statusInset = useNativeHeaderInset();
   const rowHeight = useNativeBarRowHeight();
   const opacity = useMemo(() => {
-    const rest = -(statusInset + rowHeight);
+    const rest = -(statusInset + rowHeight + BAR_BLUR_EXTENSION);
     // 제목 줄(정지 때 상태 바 밑, 바 줄 자리)이 위로 절반쯤 밀려 나갈 때 시작해 다 나가면 끝난다
     return scrollY.interpolate({
       inputRange: [rest + LARGE_TITLE_ROW_HEIGHT * 0.5, rest + LARGE_TITLE_ROW_HEIGHT],
