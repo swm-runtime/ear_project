@@ -15,6 +15,11 @@ interface GlassCapsuleProps {
   style?: StyleProp<ViewStyle>;
   children?: ReactNode;
   pointerEvents?: 'auto' | 'none' | 'box-none';
+  /**
+   * `fill` — 유리 없이 면(surface)만. **콘텐츠 안**에 놓이는 검색 필드(애플 뮤직 검색 탭의 검색창처럼 목록과 같이 스크롤)는
+   * 유리가 아니라 채움이다(design.md 3장 — 유리는 떠 있는 컨트롤 층). 기본은 유리
+   */
+  variant?: 'glass' | 'fill';
 }
 
 /**
@@ -25,8 +30,20 @@ interface GlassCapsuleProps {
  * FloatingHeader 안에서 solidness 가 주어지면 **스크롤 맨 위에서는 면(surface)으로 덮고, 내리면 유리**가 드러난다
  * (PM 2026-09-25 결정 — 애플처럼 맨 위에선 일반 컴포넌트, 내리면 리퀴드). 덮개는 네이티브 드라이버 불투명도
  */
-export default function GlassCapsule({ style, children, pointerEvents }: GlassCapsuleProps) {
+export default function GlassCapsule({
+  style,
+  children,
+  pointerEvents,
+  variant = 'glass',
+}: GlassCapsuleProps) {
   const solidness = useHeaderSolidness();
+  if (variant === 'fill') {
+    return (
+      <View style={[styles.capsule, styles.solid, style]} pointerEvents={pointerEvents}>
+        {children}
+      </View>
+    );
+  }
   return (
     <View style={[styles.capsule, style]} pointerEvents={pointerEvents}>
       <GlassSurface style={[StyleSheet.absoluteFill, styles.glass]} />

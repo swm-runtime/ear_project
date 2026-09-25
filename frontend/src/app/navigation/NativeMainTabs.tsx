@@ -4,15 +4,23 @@ import { useState } from 'react';
 import { theme } from '@/shared/theme';
 
 import { useSessionStore } from '@/features/auth';
-import { EXPLORE_COPY, ExploreScreen, ExploreSearchScreen } from '@/features/explore';
-import { LIBRARY_COPY, LibraryScreen } from '@/features/library';
-import { MiniPlayer, RemainingPlaysHeaderItem, useIsMiniPlayerVisible } from '@/features/player';
+import { ExploreScreen, ExploreSearchScreen } from '@/features/explore';
+import { LibraryScreen } from '@/features/library';
+import { MiniPlayer, useIsMiniPlayerVisible } from '@/features/player';
 import { ProfileScreen } from '@/features/profile';
 
 import { rememberTab, takePrimedTab, type RestorableTab } from './last-tab';
 import type { MainTabParamList } from './types';
 
 const NativeTab = createNativeBottomTabNavigator<MainTabParamList>();
+
+/** 투명 시스템 바 — 제목은 비워 두고(화면이 페이드 제목을 건다) 그림자 선 없음. 콘텐츠가 바 밑으로 흐른다 */
+const TRANSPARENT_BAR = {
+  headerShown: true,
+  headerTransparent: true,
+  headerShadowVisible: false,
+  title: '',
+} as const;
 
 /**
  * 하단 탭 — **iOS 26 시스템 탭 바**(`UITabBarController`, react-native-screens BottomTabs). JS 캡슐(CapsuleTabBar)
@@ -58,8 +66,11 @@ export default function NativeMainTabs() {
         ...({ tabBarAccessoryHidden: !hasMiniPlayer } as object),
       }}
     >
-      {/* 라이브러리 — 탐색과 같은 문법(PM 2026-09-26 00:14 "라이브러리도"). 검색창(바 안 시스템 검색창)과
-          오른쪽 툴바(링 + 필터)는 화면이 setOptions 로 건다 — 필터 시트·질의가 화면 훅 소유라서 */}
+      {/* 라이브러리·탐색·검색 — **투명 시스템 내비게이션 바**(iOS 26 유리 바 + 바 밑 scroll edge 블러는 시스템이 그린다;
+          react-native-screens 는 배경이 투명일 때만 시스템 모양을 남기고 아니면 불투명 면을 깐다). 제목·컨트롤은 바가 아니라
+          **콘텐츠 안 큰 제목 줄**(LargeTitleRow — 애플 뮤직·앱스토어 탭 화면, PM 2026-09-26 00:29 "얘네는 뭔데")이고,
+          바의 작은 제목은 화면이 스크롤에 따라 페이드인시킨다(useFadingNativeTitle). UIKit 큰 제목은 바 버튼과 같은 줄에
+          못 두므로 쓰지 않는다 */}
       <NativeTab.Screen
         name="Library"
         component={LibraryScreen}
@@ -69,15 +80,11 @@ export default function NativeMainTabs() {
             type: 'sfSymbol',
             name: focused ? 'books.vertical.fill' : 'books.vertical',
           }),
-          headerShown: true,
-          title: LIBRARY_COPY.tabTitle,
-          headerLargeTitleEnabled: true,
-          headerShadowVisible: false,
+          ...TRANSPARENT_BAR,
         }}
       />
-      {/* 탐색 — **시스템 내비게이션 바 + 큰 제목**(PM 2026-09-25 23:50 "애플이라면 상단을 어떻게"). 바가 있어야
-          그 밑 상태 바 블러(scroll edge effect)를 시스템이 그린다 — 떠 있는 유리 컨트롤(FloatingHeader)은
-          어두운 카드가 밑에 오면 글자가 죽었다. 검색은 검색 탭으로, 링은 바 오른쪽 아이템으로, 주제 칩은 콘텐츠와 같이 스크롤 */}
+      {/* 탐색 — 상단을 애플 문법으로(PM 2026-09-25 23:50 "애플이라면 상단을 어떻게"). 떠 있는 유리 컨트롤(FloatingHeader)은
+          어두운 카드가 밑에 오면 글자가 죽었다. 검색은 검색 탭으로, 링은 제목 줄 오른쪽, 주제 칩은 콘텐츠와 같이 스크롤 */}
       <NativeTab.Screen
         name="Explore"
         component={ExploreScreen}
@@ -87,23 +94,17 @@ export default function NativeMainTabs() {
             type: 'sfSymbol',
             name: focused ? 'safari.fill' : 'safari',
           }),
-          headerShown: true,
-          title: EXPLORE_COPY.tabTitle,
-          headerLargeTitleEnabled: true,
-          headerShadowVisible: false,
-          headerRight: () => <RemainingPlaysHeaderItem />,
+          ...TRANSPARENT_BAR,
         }}
       />
       {/* 검색 — iOS 26 이 탭 바 오른쪽에 떨어뜨려 놓는 검색 원(UITabBarItem systemItem search). 뮤직·앱스토어 자리.
-          검색창은 화면이 setOptions(headerSearchBarOptions) 로 바 안에 건다 */}
+          검색창은 애플 뮤직처럼 콘텐츠 안(제목 줄 밑 채움 필드) */}
       <NativeTab.Screen
         name="Search"
         component={ExploreSearchScreen}
         options={{
           tabBarSystemItem: 'search',
-          headerShown: true,
-          title: EXPLORE_COPY.search.tabTitle,
-          headerShadowVisible: false,
+          ...TRANSPARENT_BAR,
         }}
       />
       <NativeTab.Screen

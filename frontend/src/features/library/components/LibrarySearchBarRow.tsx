@@ -11,6 +11,8 @@ interface LibrarySearchBarRowProps {
   onChangeQuery: (query: string) => void;
   /** 검색창 줄 우측의 잔여 재생 표시 자리. null이면 자리를 비운다 */
   trailing: ReactNode;
+  /** `fill` — 콘텐츠 안(제목 줄 밑, 목록과 같이 스크롤)에 놓일 때. 유리가 아니라 면(애플 뮤직 검색 탭의 검색창) */
+  variant?: 'glass' | 'fill';
 }
 
 /**
@@ -22,13 +24,14 @@ export default function LibrarySearchBarRow({
   query,
   onChangeQuery,
   trailing,
+  variant = 'glass',
 }: LibrarySearchBarRowProps) {
   const hasQuery = query.length > 0;
 
   return (
     <View style={styles.row}>
       {/* 유리 캡슐(iOS 26 시스템 검색처럼) — 목록 위에 떠 있는 컨트롤이라 면이 아니라 유리다(2026-09-24 PM) */}
-      <GlassCapsule style={styles.searchBox}>
+      <GlassCapsule style={styles.searchBox} variant={variant}>
         <TextInput
           style={styles.input}
           value={query}

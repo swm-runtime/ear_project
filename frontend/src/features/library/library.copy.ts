@@ -62,8 +62,6 @@ export const LIBRARY_COPY = {
   /** 라이브러리 검색 — 받아 둔 목록을 그 자리에서 좁힌다(서버 검색이 아니다) */
   search: {
     placeholder: '제목·저자로 찾기',
-    /** iOS 26 바 안 시스템 검색창의 취소 버튼 */
-    cancel: '취소',
     clearA11y: '검색어 지우기',
     emptyTitle: '검색 결과가 없어요',
     emptyDescription: '다른 검색어를 입력해보세요.',
