@@ -13,11 +13,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useFadingNativeTitle } from '@/shared/navigation/useFadingNativeTitle';
 import {
-  useNativeBarBlurProps,
   useNativeBarPullStyle,
   useNativeHeaderInset,
 } from '@/shared/navigation/useNativeHeaderInset';
-import { useSystemScrollEdgeEffect } from '@/shared/navigation/useSystemScrollEdgeEffect';
 import { theme } from '@/shared/theme';
 import FloatingHeader, {
   useFloatingHeaderInset,
@@ -26,6 +24,7 @@ import FloatingHeader, {
 import FullScreenError from '@/shared/ui/FullScreenError';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 import LargeTitleRow from '@/shared/ui/LargeTitleRow';
+import NativeBarBlurBand from '@/shared/ui/NativeBarBlurBand';
 
 import {
   DOCK_SCROLL_PROPS,
@@ -67,19 +66,12 @@ export default function ExploreScreen() {
   // 투명 시스템 바 — 스크롤 뷰가 아닌 상태 화면(스켈레톤·에러)은 상태 바만 비우고, 목록의 제목 줄은 바 줄만큼 올린다
   const nativeBarInset = useNativeHeaderInset();
   const nativeBarPull = useNativeBarPullStyle();
-  const nativeBarBlur = useNativeBarBlurProps();
   // 맨 위에서는 머리 줄 컨트롤이 면, 내리면 유리(PM 2026-09-25)
   const { solidness, scrollY, scrollProps } = useFloatingHeaderScroll();
   useFadingNativeTitle(EXPLORE_COPY.tabTitle, scrollY);
-  // 상태 바 밑 블러는 iOS 26 시스템 scroll edge effect — 목록이 그려진 뒤에 걸어야 한다
-  // 필터 목록·피드 중 하나만 그려지므로 ref 하나를 같이 쓴다
+  // 머리 줄(JS 탭 바 갈래)의 루트 ref — 종전 시스템 edge effect 연결용, 지금은 FloatingHeader 가 요구만 한다
   const listRef = useRef(null);
   const headerRef = useRef<View>(null);
-  useSystemScrollEdgeEffect(
-    listRef,
-    headerRef,
-    !screen.isFullError && !screen.showSkeleton && !screen.isInitialLoading,
-  );
 
   // E10은 검색창 줄·주제 칩·잔여 표시까지 그리지 않는다 — 화면 전체가 에러다(uiux 4.8)
   if (screen.isFullError) {
@@ -266,7 +258,6 @@ export default function ExploreScreen() {
         <Animated.FlatList
           ref={listRef}
           {...DOCK_SCROLL_PROPS}
-          {...nativeBarBlur}
           {...scrollProps}
           data={toExploreGridData(screen.filteredItems)}
           keyExtractor={exploreGridKey}
@@ -313,7 +304,6 @@ export default function ExploreScreen() {
       <Animated.ScrollView
         ref={listRef}
         {...DOCK_SCROLL_PROPS}
-        {...nativeBarBlur}
         {...scrollProps}
         contentContainerStyle={[
           screen.sections.length === 0 ? styles.emptyContent : styles.feedContent,
@@ -340,8 +330,10 @@ export default function ExploreScreen() {
   return (
     <View style={styles.container}>
       {renderBody()}
-      {/* 머리 줄은 목록 **뒤에 선언**한다(zIndex 로 위에 뜬다) — 목록이 화면의 첫 자손 스크롤 뷰여야 react-native-screens 가
-          iOS 26 의 시스템 scroll edge effect(상태 바 밑 블러)를 걸 수 있다(2026-09-25 PM) */}
+      {/* 스크롤하면 나타나는 상단 블러 띠(시스템 탭 바 갈래) — 바의 작은 제목이 그 위에 */}
+      <NativeBarBlurBand scrollY={scrollY} />
+
+      {/* 머리 줄은 목록 **뒤에 선언**한다(zIndex 로 위에 뜬다) */}
       {/* 머리 줄은 목록 위에 떠 있다 — 배경 없이 유리 컨트롤만(2026-09-24 PM). 시스템 바 갈래에서는 없다 */}
       {HAS_NATIVE_TAB_BAR ? null : (
       <FloatingHeader
