@@ -29,6 +29,13 @@ interface SegmentedControlProps<T extends string> {
   fill?: boolean;
   /** 칸(=알약) 높이 — 기본 28(제목 줄과 나란한 탐색 토글). 라이브러리 탭은 32 로 조금 두툼하게(2026-09-24 PM) */
   segmentHeight?: number;
+  /**
+   * `glass`(기본) — 유리 트랙 + 유리 렌즈 알약(캡슐 탭 바와 같은 재질).
+   * `system` — **iOS 기본 UISegmentedControl 모양**(PM 2026-09-25 22:12 "리퀴드 말고 애플 기본 토글"): 회색 채움 트랙
+   *   (모서리 9), 흰 선택 칸 + 그림자(모서리 7), 13pt 글자, 선택 글자 semibold. 유리·림 없음. 콘텐츠 층의 세그먼트는
+   *   애플도 유리를 쓰지 않는다(HIG Materials — 유리는 내비게이션 층)
+   */
+  appearance?: 'glass' | 'system';
 }
 
 /**
@@ -60,7 +67,9 @@ export default function SegmentedControl<T extends string>({
   segmentWidth = DEFAULT_SEGMENT_WIDTH,
   fill = false,
   segmentHeight = SEGMENT_HEIGHT,
+  appearance = 'glass',
 }: SegmentedControlProps<T>) {
+  const isSystem = appearance === 'system';
   // 보이는 높이가 44 보다 작은 만큼은 hitSlop 으로 채운다(uiux 7)
   const hitSlop = {
     top: Math.max(0, (theme.touchTarget.minHeight - segmentHeight) / 2),
@@ -102,6 +111,7 @@ export default function SegmentedControl<T extends string>({
 
   const indicatorStyle = [
     styles.indicator,
+    isSystem && styles.indicatorSystem,
     { width: effectiveWidth, height: segmentHeight, transform: [{ translateX: indicatorX }] },
   ];
   /** interpolate 의 inputRange 는 단조 증가여야 한다 — 측정 전(0)에는 1로 둔다 */
@@ -109,14 +119,18 @@ export default function SegmentedControl<T extends string>({
 
   return (
     <View
-      style={[styles.track, fill && styles.trackFill]}
+      style={[styles.track, fill && styles.trackFill, isSystem && styles.trackSystem]}
       onLayout={handleTrackLayout}
       accessibilityRole="radiogroup"
       accessibilityLabel={accessibilityLabel}
     >
-      <GlassSurface style={[StyleSheet.absoluteFill, styles.trackGlass]} />
-      <View style={styles.trackBorder} pointerEvents="none" />
-      {HAS_LIQUID_GLASS ? (
+      {isSystem ? null : (
+        <>
+          <GlassSurface style={[StyleSheet.absoluteFill, styles.trackGlass]} />
+          <View style={styles.trackBorder} pointerEvents="none" />
+        </>
+      )}
+      {HAS_LIQUID_GLASS && !isSystem ? (
         <GlassPill style={indicatorStyle} />
       ) : (
         <Animated.View style={[indicatorStyle, styles.indicatorRaised]} pointerEvents="none" />
@@ -144,9 +158,15 @@ export default function SegmentedControl<T extends string>({
             accessibilityLabel={option.label}
             accessibilityState={{ checked: isSelected, disabled }}
           >
-            <Text style={styles.label}>{option.label}</Text>
+            <Text style={[styles.label, isSystem && styles.labelSystem]}>{option.label}</Text>
             <Animated.Text
-              style={[styles.label, styles.labelSelected, { opacity: selectedOpacity }]}
+              style={[
+                styles.label,
+                isSystem && styles.labelSystem,
+                styles.labelSelected,
+                isSystem && styles.labelSelectedSystem,
+                { opacity: selectedOpacity },
+              ]}
               accessibilityElementsHidden
               importantForAccessibility="no"
             >
@@ -187,6 +207,21 @@ const styles = StyleSheet.create({
   trackFill: {
     alignSelf: 'stretch',
   },
+  // iOS 기본 UISegmentedControl — tertiarySystemFill 트랙, 모서리 9, 안쪽 2
+  trackSystem: {
+    borderRadius: 9,
+    borderCurve: 'continuous',
+    backgroundColor: 'rgba(118, 118, 128, 0.12)',
+    padding: 2,
+  },
+  indicatorSystem: {
+    top: 2,
+    left: 2,
+    borderRadius: 7,
+    borderCurve: 'continuous',
+    backgroundColor: theme.color.background,
+    boxShadow: '0 3px 8px rgba(0, 0, 0, 0.12), 0 3px 1px rgba(0, 0, 0, 0.04)',
+  },
   segment: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -215,5 +250,14 @@ const styles = StyleSheet.create({
   labelSelected: {
     position: 'absolute',
     color: theme.color.textPrimary,
+  },
+  // 애플 기본은 13pt, 비선택 글자도 검정(회색이 아니다)
+  labelSystem: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: theme.color.textPrimary,
+  },
+  labelSelectedSystem: {
+    fontWeight: '600',
   },
 });
