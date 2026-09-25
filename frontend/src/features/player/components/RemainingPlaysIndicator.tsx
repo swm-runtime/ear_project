@@ -3,14 +3,14 @@ import Svg, { Circle } from 'react-native-svg';
 
 import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
 import { theme } from '@/shared/theme';
-import GlassCapsule from '@/shared/ui/GlassCapsule';
+import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
 
 import { PLAYER_COPY } from '../player.copy';
 
 /** 링 지름 — 검색 박스 높이 안에 들어오면서 두 자리 숫자가 읽히는 크기 */
 const RING_SIZE = 28;
-/** 링을 담는 유리 원 — 라이브러리 필터 원(36)과 같은 크기·재질(2026-09-24 PM "리퀴드 글라스 처리") */
-const RING_CAPSULE_SIZE = 36;
+/** 링을 담는 유리 원 — 검색 캡슐과 같은 높이(HEADER_CONTROL_HEIGHT), 유리 재질(2026-09-24 PM "리퀴드 글라스 처리") */
+const RING_CAPSULE_SIZE = HEADER_CONTROL_HEIGHT;
 /** 링 두께 — 숫자를 가리지 않으면서 채움·비움이 갈릴 만큼 */
 const RING_STROKE = 3;
 const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;

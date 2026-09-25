@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
-import GlassCapsule from '@/shared/ui/GlassCapsule';
+import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
 
 import { LIBRARY_COPY } from '../library.copy';
 
@@ -74,7 +74,7 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: theme.touchTarget.minHeight - theme.spacing.xs,
+    height: HEADER_CONTROL_HEIGHT,
     paddingLeft: theme.spacing.md,
   },
   input: {
@@ -86,7 +86,7 @@ const styles = StyleSheet.create({
   },
   clearButton: {
     minWidth: theme.touchTarget.minWidth,
-    minHeight: theme.touchTarget.minHeight - theme.spacing.xs,
+    height: HEADER_CONTROL_HEIGHT,
     alignItems: 'center',
     justifyContent: 'center',
   },

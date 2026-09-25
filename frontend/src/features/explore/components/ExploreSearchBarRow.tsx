@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
-import GlassCapsule from '@/shared/ui/GlassCapsule';
+import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
 
 import { EXPLORE_COPY } from '../explore.copy';
 
@@ -52,7 +52,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   searchPressable: {
-    minHeight: theme.touchTarget.minHeight - theme.spacing.xs,
+    height: HEADER_CONTROL_HEIGHT,
     justifyContent: 'center',
     paddingHorizontal: theme.spacing.md,
   },
