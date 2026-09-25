@@ -18,6 +18,7 @@ import FloatingHeader, {
   useFloatingHeaderScroll,
 } from '@/shared/ui/FloatingHeader';
 import FullScreenError from '@/shared/ui/FullScreenError';
+import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 
 import {
   DOCK_SCROLL_PROPS,
@@ -40,13 +41,21 @@ import { buildSectionListKey } from '../explore.section-key';
 import type { ExploreSection } from '../explore.types';
 import { useExploreScreen } from '../hooks/useExploreScreen';
 
-/** 탐색 탭(E1~E13) — 화면은 뷰만 담당하고 로직은 useExploreScreen이 소유한다 */
+/**
+ * 탐색 탭(E1~E13) — 화면은 뷰만 담당하고 로직은 useExploreScreen이 소유한다.
+ *
+ * 상단 두 갈래(PM 2026-09-25 23:50 "애플이라면 상단을 어떻게"):
+ * - **iOS 26 시스템 탭 바(HAS_NATIVE_TAB_BAR)** — 머리 줄이 없다. 큰 제목·잔여 링은 내비게이션 바(NativeMainTabs 옵션),
+ *   검색은 검색 탭, 주제 칩은 **콘텐츠의 첫 줄**로 같이 스크롤한다(앱스토어 카테고리 알약). 바 밑 블러는 시스템이 그린다.
+ * - 그 외 — 떠 있는 유리 머리 줄(FloatingHeader: 검색창 + 링 + 칩)이 목록 위에 뜬다(2026-09-24).
+ */
 export default function ExploreScreen() {
   const screen = useExploreScreen();
   const miniInset = useBottomDockInset();
-  // 떠 있는 머리 줄(검색창·칩)의 높이 — 목록이 그만큼 위를 비운다
+  // 떠 있는 머리 줄(검색창·칩)의 높이 — 목록이 그만큼 위를 비운다(시스템 바 갈래에서는 0)
   const [headerHeight, setHeaderHeight] = useState(0);
-  const headerInset = useFloatingHeaderInset(headerHeight);
+  const floatingInset = useFloatingHeaderInset(headerHeight);
+  const headerInset = HAS_NATIVE_TAB_BAR ? 0 : floatingInset;
   // 맨 위에서는 머리 줄 컨트롤이 면, 내리면 유리(PM 2026-09-25)
   const { solidness, scrollProps } = useFloatingHeaderScroll();
   // 상태 바 밑 블러는 iOS 26 시스템 scroll edge effect — 목록이 그려진 뒤에 걸어야 한다
@@ -61,8 +70,10 @@ export default function ExploreScreen() {
 
   // E10은 검색창 줄·주제 칩·잔여 표시까지 그리지 않는다 — 화면 전체가 에러다(uiux 4.8)
   if (screen.isFullError) {
+    // 시스템 바 밑에서는 바가 상태 바를 이미 차지한다 — 안전영역을 또 비우면 두 번 내려간다
+    const Frame = HAS_NATIVE_TAB_BAR ? View : SafeAreaView;
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <Frame style={styles.container} edges={['top']}>
         <FullScreenError
           title={
             screen.isFullErrorNetwork
@@ -74,12 +85,21 @@ export default function ExploreScreen() {
           isRetrying={screen.isRetrying}
           onRetry={screen.retry}
         />
-      </SafeAreaView>
+      </Frame>
     );
   }
 
   // E8(콘텐츠 풀 0건)은 주제 칩 줄을 숨긴다 — 어떤 칩을 골라도 결과가 없다(uiux 4.7)
   const showChips = screen.emptyKind !== 'feed';
+  const chips = showChips ? (
+    <TopicChips
+      topics={screen.topics}
+      selectedTopicIds={screen.selectedTopicIds}
+      onToggle={screen.toggleTopic}
+    />
+  ) : null;
+  // 시스템 바 갈래에서는 칩이 콘텐츠의 첫 줄이다 — 목록과 같이 스크롤한다
+  const contentChips = HAS_NATIVE_TAB_BAR ? chips : null;
 
   // 인라인 에러 — 기존 목록을 유지한 채 그 자리에서만 알린다(common-error-handling.md 4.3)
   const renderInlineError = (message: string, onRetry: () => void) => (
@@ -240,6 +260,8 @@ export default function ExploreScreen() {
               />
             ) : null
           }
+          ListHeaderComponent={contentChips}
+          ListHeaderComponentStyle={contentChips ? styles.contentChips : undefined}
           ListFooterComponent={renderFooter()}
           contentContainerStyle={[
             screen.filteredItems.length === 0 ? styles.emptyContent : styles.gridContent,
@@ -264,6 +286,7 @@ export default function ExploreScreen() {
         ]}
         refreshControl={refreshControl}
       >
+        {contentChips}
         {screen.sections.length === 0 ? (
           screen.emptyKind === 'feed' ? (
             <ExploreEmptyState
@@ -284,7 +307,8 @@ export default function ExploreScreen() {
       {renderBody()}
       {/* 머리 줄은 목록 **뒤에 선언**한다(zIndex 로 위에 뜬다) — 목록이 화면의 첫 자손 스크롤 뷰여야 react-native-screens 가
           iOS 26 의 시스템 scroll edge effect(상태 바 밑 블러)를 걸 수 있다(2026-09-25 PM) */}
-      {/* 머리 줄은 목록 위에 떠 있다 — 배경 없이 유리 컨트롤만(2026-09-24 PM) */}
+      {/* 머리 줄은 목록 위에 떠 있다 — 배경 없이 유리 컨트롤만(2026-09-24 PM). 시스템 바 갈래에서는 없다 */}
+      {HAS_NATIVE_TAB_BAR ? null : (
       <FloatingHeader
         onHeightChange={setHeaderHeight}
         solidness={solidness}
@@ -304,14 +328,9 @@ export default function ExploreScreen() {
           }
         />
 
-        {showChips ? (
-          <TopicChips
-            topics={screen.topics}
-            selectedTopicIds={screen.selectedTopicIds}
-            onToggle={screen.toggleTopic}
-          />
-        ) : null}
+        {chips}
       </FloatingHeader>
+      )}
 
       {/* 미니플레이어(PL11) — 활성 재생 세션만 그린다. 복원 스냅샷 판정은 라이브러리 소유다 */}
 
@@ -375,6 +394,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     paddingTop: theme.spacing.lg,
     paddingBottom: theme.spacing.sm,
+  },
+  // 콘텐츠 첫 줄의 칩(시스템 바 갈래) — 좌우 여백은 칩 줄이 갖는다. 격자 목록은 gridContent 의 좌우 여백을 되돌린다
+  contentChips: {
+    marginHorizontal: -theme.spacing.md,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
