@@ -1,14 +1,14 @@
 import { StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
-import GlassCapsule from '@/shared/ui/GlassCapsule';
+import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
 
 import { RemainingPlaysIndicator } from '@/features/player';
 
 import LibraryFilterButton from './LibraryFilterButton';
 
-/** 캡슐 높이 — 검색 캡슐(40)·필터 원(36)과 같은 눈높이 */
-const TOOLBAR_HEIGHT = 36;
+/** 캡슐 높이 = 검색 캡슐과 같다(HEADER_CONTROL_HEIGHT) */
+const TOOLBAR_HEIGHT = HEADER_CONTROL_HEIGHT;
 
 interface LibraryToolbarProps {
   /** null 이면 링 칸을 두지 않는다(무제한·캐시·값 없음 — uiux 4.3) */

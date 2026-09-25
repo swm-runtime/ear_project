@@ -102,7 +102,7 @@ HIG 원문: https://developer.apple.com/design/human-interface-guidelines/
 링 28 + 가운데 숫자(11·700). 원호 = 남은/한도(12시부터 시계 방향, 둥근 끝). 소진은 주의색.
 
 ### 검색 상자
-**유리 캡슐**(`shared/ui/GlassCapsule` — GlassSurface regular + hairline, `full`). iOS 26 시스템 검색과 같은 모양(2026-09-24 PM). 종전 `surface` 면 + `md` 12(09-22)는 폐기. 잔여 재생 링도 같은 유리 원(36, 필터 원과 같은 크기)에 담는다.
+**유리 캡슐**(`shared/ui/GlassCapsule` — GlassSurface regular + hairline, `full`), **높이 40 = `HEADER_CONTROL_HEIGHT`** — 옆의 툴바 캡슐(링 + 필터)·탐색의 링 원과 같은 높이(2026-09-25 PM "높이 맞춰"). iOS 26 시스템 검색과 같은 모양(2026-09-24 PM). 종전 `surface` 면 + `md` 12(09-22)는 폐기. 잔여 재생 링도 같은 유리 원(36, 필터 원과 같은 크기)에 담는다.
 
 ### 더보기 아이콘
 `shared/ui/MoreIcon` — 글자 `⋯` 가 아니라 도형(점 r 1.8 ×3). 사진 위는 `shadow` 로 드롭섀도.
