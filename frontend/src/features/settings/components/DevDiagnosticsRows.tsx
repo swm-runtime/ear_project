@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { getAnalyticsDebugLog, type AnalyticsDebugEntry } from '@/shared/analytics';
+import { getLastScrollEdgeEffectAttempt } from '@/shared/navigation/useSystemScrollEdgeEffect';
 import { theme } from '@/shared/theme';
 
 import SettingsRow from './SettingsRow';
@@ -20,6 +21,7 @@ import SettingsRow from './SettingsRow';
 export default function DevDiagnosticsRows() {
   const [shouldCrash, setShouldCrash] = useState(false);
   const [log, setLog] = useState<AnalyticsDebugEntry[]>(getAnalyticsDebugLog);
+  const [edgeEffect, setEdgeEffect] = useState(getLastScrollEdgeEffectAttempt);
 
   if (shouldCrash) {
     throw new Error('[dev] crash test — 설정 > 크래시 테스트에서 의도적으로 던진 오류');
@@ -48,6 +50,13 @@ export default function DevDiagnosticsRows() {
           ))}
         </View>
       ) : null}
+      {/* 상태 바 밑 시스템 블러(scroll edge effect) 적용 결과 — applied:… 만 성공. 탭하면 새로고침 */}
+      <SettingsRow
+        label="상단 블러 (개발계)"
+        value={edgeEffect}
+        onPress={() => setEdgeEffect(getLastScrollEdgeEffectAttempt())}
+        a11yLabel="상단 블러 적용 결과 새로고침"
+      />
       <SettingsRow
         label="크래시 테스트 (개발계)"
         value="탭하면 앱이 복구 화면으로"
