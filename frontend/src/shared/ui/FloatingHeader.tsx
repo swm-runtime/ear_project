@@ -1,4 +1,6 @@
+import MaskedView from '@react-native-masked-view/masked-view';
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { Animated, Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,28 +12,20 @@ import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 type Solidness = Animated.AnimatedInterpolation<number>;
 const SOLID_FADE_DISTANCE = 24;
 /**
- * 상태 바 밑 **점진 블러 띠**(애플 soft scroll edge effect, 2026-09-25 PM "애플처럼"). 콘텐츠가 상태 바 밑으로
- * 들어올 때만 나타난다(solidness 가 0 으로 갈수록 진해진다). 한 장의 블러는 경계가 칼처럼 끊기므로 세기가 줄어드는
- * 띠 여러 장을 아래로 쌓아 점진 블러를 만들고, 흰 그라데이션(불투명도 계단)을 얹어 상태 바 글자를 지킨다.
- * 안전영역 아래로 이만큼 더 내려가며 사라진다
+ * 상태 바 밑 **점진 블러**(애플 soft scroll edge effect, 2026-09-25 PM "애플처럼"). 콘텐츠가 상태 바 밑으로
+ * 들어올 때만 나타난다(solidness 가 0 으로 갈수록 진해진다).
+ *
+ * 애플은 private `variableBlur` CAFilter(마스크 알파 → 픽셀별 블러 반경)를 쓴다. 심사 안전한 재현은 **블러 한 장을
+ * 알파 그라데이션 마스크로 깎는 것**(MaskedView + LinearGradient, runtime 9) — 반경이 아니라 불투명도가 연속으로
+ * 줄지만 눈에는 같은 결이다. 띠 여러 장(5·14장)은 장마다 경계가 가로줄로 남아 폐기했다(15:06·15:27 스크린샷).
+ * 흰 틴트는 거의 없다 — 애플은 블러만으로 상태 바를 지키고 흰색을 깔지 않는다. 안전영역 아래로 이만큼 더 내려가며 사라진다
  */
 const SCRIM_EXTEND = 8;
-/**
- * 띠 수와 곡선 — 5장은 계단이 보였다(PM 2026-09-25 15:06). 14장(약 5pt)에 블러는 (1−t)² 로, 흰 틴트는 (1−t)^1.5 로
- * 줄여 위는 진하고 아래는 길게 끌린다. 애플의 variableBlur(픽셀마다 반경이 연속으로 변하는 private CAFilter)를
- * 알파 그라데이션 마스크 없이 흉내내는 한계 — 마스크(MaskedView + LinearGradient)는 네이티브 모듈이라 다음 빌드 과제
- */
-const SCRIM_BAND_COUNT = 14;
-const SCRIM_MAX_BLUR = 48;
-/** 흰 틴트는 거의 없다 — 애플은 블러만으로 상태 바를 지키고 흰색을 깔지 않는다(PM 2026-09-25 15:27 비교) */
-const SCRIM_MAX_TINT = 0.2;
-const SCRIM_BANDS = Array.from({ length: SCRIM_BAND_COUNT }, (_, i) => {
-  const t = i / (SCRIM_BAND_COUNT - 1);
-  return {
-    blur: Math.round(SCRIM_MAX_BLUR * (1 - t) ** 2),
-    tint: Math.round(SCRIM_MAX_TINT * (1 - t) ** 1.5 * 100) / 100,
-  };
-});
+const SCRIM_BLUR = 40;
+const SCRIM_TINT = 'rgba(255,255,255,0.18)';
+/** 마스크 알파: 위 1 → 아래 0. 중간에 0.55 를 두어 위쪽이 더 오래 진하다(ease-out) */
+const SCRIM_MASK_COLORS = ['rgba(0,0,0,1)', 'rgba(0,0,0,0.55)', 'rgba(0,0,0,0)'] as const;
+const SCRIM_MASK_LOCATIONS = [0, 0.45, 1] as const;
 
 /**
  * 머리 줄 컨트롤(GlassCapsule)이 읽는 "지금 얼마나 불투명해야 하나". 애플은 유리 컨트롤을 항상 유리로 두고
@@ -70,17 +64,22 @@ export default function FloatingHeader({ children, onHeightChange, solidness }: 
             style={[styles.scrim, { height: insets.top + SCRIM_EXTEND, opacity: scrimOpacity }]}
             pointerEvents="none"
           >
-            {SCRIM_BANDS.map((band, index) => (
-              <View key={index} style={styles.scrimBand}>
-                {/* Android 의 실험 블러는 띠 5장이 무겁다 — 흰 그라데이션만 */}
-                {Platform.OS === 'ios' ? (
-                  <BlurView style={StyleSheet.absoluteFill} tint="light" intensity={band.blur} />
-                ) : null}
-                <View
-                  style={[StyleSheet.absoluteFill, { backgroundColor: `rgba(255,255,255,${band.tint})` }]}
+            <MaskedView
+              style={StyleSheet.absoluteFill}
+              maskElement={
+                <LinearGradient
+                  style={StyleSheet.absoluteFill}
+                  colors={SCRIM_MASK_COLORS}
+                  locations={SCRIM_MASK_LOCATIONS}
                 />
-              </View>
-            ))}
+              }
+            >
+              {/* Android 의 실험 블러는 마스크 안에서 불안정하다 — 흰 그라데이션만 */}
+              {Platform.OS === 'ios' ? (
+                <BlurView style={StyleSheet.absoluteFill} tint="light" intensity={SCRIM_BLUR} />
+              ) : null}
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: SCRIM_TINT }]} />
+            </MaskedView>
           </Animated.View>
         ) : null}
         <View onLayout={(e) => onHeightChange(e.nativeEvent.layout.height)} pointerEvents="box-none">
@@ -147,8 +146,5 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-  },
-  scrimBand: {
-    flex: 1,
   },
 });
