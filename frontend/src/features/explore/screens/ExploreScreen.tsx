@@ -156,7 +156,7 @@ export default function ExploreScreen() {
             />
           </View>
         ) : (
-          <Text style={styles.sectionTitle} accessibilityRole="header">
+          <Text style={[styles.sectionTitle, styles.sectionTitleBlock]} accessibilityRole="header">
             {section.title}
           </Text>
         )}
@@ -372,8 +372,6 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.xl,
     fontWeight: '700',
     color: theme.color.textPrimary,
-    // 크기만 키우면 두 줄로 접힐 때 줄이 붙는다
-    lineHeight: theme.font.size.xl * 1.25,
     paddingHorizontal: theme.spacing.md,
     paddingTop: theme.spacing.lg,
     paddingBottom: theme.spacing.sm,
@@ -388,11 +386,17 @@ const styles = StyleSheet.create({
     paddingTop: theme.spacing.lg,
     paddingBottom: theme.spacing.sm,
   },
+  // 단독 제목만 줄 간격을 키운다 — 크기만 키우면 두 줄로 접힐 때 줄이 붙는다
+  sectionTitleBlock: {
+    lineHeight: theme.font.size.xl * 1.25,
+  },
   sectionHeaderTitle: {
     // 토글과 공간을 나눈다 — 동적 텍스트 200%에서도 제목이 토글을 밀어내지 않게(uiux 7)
     flexShrink: 1,
     paddingTop: 0,
     paddingBottom: 0,
+    // 줄 간격을 키우지 않는다 — iOS 는 늘린 줄 높이의 여분을 글자 위에만 얹어 글자가 상자 아래로 내려앉고,
+    // alignItems:center 로 맞춘 토글이 글자보다 위에 떠 보였다(2026-09-25 23:41 실기기)
   },
   // 캐러셀 좌우 여백은 섹션 제목과 같은 선에서 시작한다
   carousel: {
