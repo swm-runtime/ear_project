@@ -6,7 +6,7 @@ import { theme } from '@/shared/theme';
 import { useSessionStore } from '@/features/auth';
 import { ExploreScreen } from '@/features/explore';
 import { LibraryScreen } from '@/features/library';
-import { MiniPlayer } from '@/features/player';
+import { MiniPlayer, useIsMiniPlayerVisible } from '@/features/player';
 import { ProfileScreen } from '@/features/profile';
 
 import { rememberTab, takePrimedTab, type RestorableTab } from './last-tab';
@@ -30,6 +30,8 @@ const NativeTab = createNativeBottomTabNavigator<MainTabParamList>();
 export default function NativeMainTabs() {
   const justCompletedOnboarding = useSessionStore((s) => s.justCompletedOnboarding);
   const [restoredTab] = useState(takePrimedTab);
+  // 볼 게 없으면 액세서리 자체를 뗀다 — 그래야 iOS 가 탭 바로 거둬들이는 시스템 애니메이션을 그린다(PM 09-25 "물방울처럼")
+  const hasMiniPlayer = useIsMiniPlayerVisible();
 
   return (
     <NativeTab.Navigator
@@ -48,8 +50,9 @@ export default function NativeMainTabs() {
         // react-native-screens 의 최소화 + 액세서리 + 모달(우리 플레이어) 조합 버그 #4176 로 액세서리가 굳는다).
         // 우리 목록은 최소화가 필요할 만큼 길지 않다
         tabBarMinimizeBehavior: 'none',
-        // 미니플레이어 — 시스템이 두 배치(regular·inline)를 모두 렌더하고 하나만 보인다(공유 상태는 스토어)
-        bottomAccessory: () => <MiniPlayer placement="accessory" />,
+        // 미니플레이어 — 시스템이 두 배치(regular·inline)를 모두 렌더하고 하나만 보인다(공유 상태는 스토어).
+        // 붙였다 떼는 것이 곧 등장·퇴장 애니메이션이다(setBottomAccessory animated)
+        bottomAccessory: hasMiniPlayer ? () => <MiniPlayer placement="accessory" /> : undefined,
       }}
     >
       <NativeTab.Screen
