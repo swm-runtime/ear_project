@@ -29,4 +29,4 @@ export { default as LibraryItemTile } from './components/LibraryItemTile';
 export { default as LibraryBanner } from './components/LibraryBanner';
 export type { LibraryBannerState } from './components/LibraryBanner';
 export { default as LibrarySearchBarRow } from './components/LibrarySearchBarRow';
-export { default as LibraryTabs } from './components/LibraryTabs';
+export { default as LibraryFilterButton } from './components/LibraryFilterButton';

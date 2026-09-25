@@ -30,9 +30,9 @@ import {
 } from '@/features/explore';
 import {
   LibraryBanner,
+  LibraryFilterButton,
   LibraryItemTile,
   LibrarySearchBarRow,
-  LibraryTabs,
   type LibraryItem,
 } from '@/features/library';
 import { RemainingPlaysIndicator } from '@/features/player';
@@ -356,9 +356,13 @@ export default function FirstRunTutorial() {
             <LibrarySearchBarRow
               query=""
               onChangeQuery={noop}
-              trailing={<RemainingPlaysIndicator remaining={1} limit={2} onExhaustedPress={noop} />}
+              trailing={
+                <>
+                  <RemainingPlaysIndicator remaining={1} limit={2} onExhaustedPress={noop} />
+                  <LibraryFilterButton activeCount={0} onPress={noop} />
+                </>
+              }
             />
-            <LibraryTabs filter="all" onChange={noop} topicFilterCount={0} onFilterPress={noop} />
             {/*
               드립 도착은 실제 화면과 **같은 컴포넌트·같은 문구·같은 자리**로 그린다 —
               탭 아래 전체 폭 배너다(LibraryScreen: 검색줄 → 탭 → 배너 → 목록).

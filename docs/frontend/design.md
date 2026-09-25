@@ -75,7 +75,7 @@ HIG 원문: https://developer.apple.com/design/human-interface-guidelines/
 ## 5. 컴포넌트 규칙
 
 ### 떠 있는 머리 줄 (HIG: Liquid Glass — 콘텐츠 위의 컨트롤 층)
-라이브러리·탐색의 검색창·세그먼트·칩·배너는 `shared/ui/FloatingHeader` 안에서 **배경 없이 목록 위에 떠 있다**(2026-09-24 PM "배경을 없애버리자"). 목록이 그 밑으로 흐르고 컨트롤은 각자 유리(검색 캡슐·잔여 링·세그먼트 트랙·필터 원). 머리 줄이 상태 바를 채우고 자식 높이를 올리면 목록이 `paddingTop`(`useFloatingHeaderInset`) 으로 비운다 — 시스템 탭 바(iOS 26)에서는 스크롤 뷰가 상태 바를 이미 비우므로 머리 줄 높이만. 새로고침 스피너는 `progressViewOffset` 으로 머리 줄 아래에 띄운다.
+라이브러리(검색창·필터 원·조건 요약·배너)·탐색(검색창·칩)의 머리 줄은 `shared/ui/FloatingHeader` 안에서 **배경 없이 목록 위에 떠 있다**(2026-09-24 PM "배경을 없애버리자"). 목록이 그 밑으로 흐르고 컨트롤은 각자 유리(검색 캡슐·잔여 링·세그먼트 트랙·필터 원). 머리 줄이 상태 바를 채우고 자식 높이를 올리면 목록이 `paddingTop`(`useFloatingHeaderInset`) 으로 비운다 — 시스템 탭 바(iOS 26)에서는 스크롤 뷰가 상태 바를 이미 비우므로 머리 줄 높이만. 새로고침 스피너는 `progressViewOffset` 으로 머리 줄 아래에 띄운다.
 
 ### 탭 바 — 떠 있는 캡슐 (HIG: Tab bars, iOS 26)
 **iOS 26 은 시스템 탭 바를 쓴다**(`app/navigation/NativeMainTabs`, `HAS_NATIVE_TAB_BAR` — 2026-09-24 밤 PM "애플이 기본으로 제공하는 애니메이션 없나"). `@react-navigation/bottom-tabs/unstable` 의 `createNativeBottomTabNavigator` = `UITabBarController`(react-native-screens BottomTabs). 선택 알약의 부풀기·끌기·굴절·색수차·끝 넘김 고무줄이 애플 코드 그대로고, 이건 비공개 API 라 흉내낼 수 없다(아래 캡슐의 형태 스프링은 그 밑 OS 용이다). 미니플레이어는 `bottomAccessory`(Music 앱 자리 — 탭 바 위, 줄어들면 인라인) 로 들어가고 유리·폭·높이·모서리는 시스템이 준다 — 내용은 높이를 채워 세로 가운데, 썸네일 36·행 위아래 4(카드의 40·6 보다 작게. 09-24 밤 "아래 공백이 크고 썸네일이 큼"), 진행바는 위 변. 아이콘은 SF Symbols(`books.vertical`·`safari`·`person`, 선택 시 `.fill`). 배경·알약 색은 iOS 26 에서 바꿀 공개 API 가 없다 — 시스템 값이 곧 0장 원칙이다. 목록 바닥 여백은 시스템 안전영역(탭 바 + 액세서리)을 `contentInsetAdjustmentBehavior="automatic"`(`DOCK_SCROLL_PROPS`)이 비운다. `tabBarMinimizeBehavior: onScrollDown`.
@@ -89,7 +89,7 @@ HIG 원문: https://developer.apple.com/design/human-interface-guidelines/
 위 모서리 `xl` + 연속 곡률. 버튼 `md` + 연속 곡률. 기본 동작은 검정 채움, 보조 동작은 `surface` 면(테두리 없음). 세 번째 선택지("오늘은 그만 보기" 류)는 버튼 줄에 세우지 않고 **제목 줄 오른쪽 위 작은 회색 글자**(xs, 밑줄 없음, hitSlop 으로 44pt). 탭 가능한 글자에 밑줄을 쓰지 않는다 — 웹 문법이다.
 
 ### 세그먼트 컨트롤 (HIG: Segmented controls)
-`shared/ui/SegmentedControl` — 탐색 주간·월간·전체(`PopularPeriodToggle`, 칸 48×28)와 라이브러리 전체·미청취·완청(`LibraryTabs`, 칸 64×32 — 09-24 PM "조금 키우고", 트랙 40)이 같은 부품. 밑줄 탭은 iOS 문법이 아니다 — 배타적 뷰 전환은 항상 이 부품. 흰 트랙 + 테두리, 같은 폭 칸, 선택 알약 하나(iOS 26 유리 렌즈 `GlassPill`, 그 밑은 그림자로 뜬 흰 알약)가 snappy 스프링으로 이동, 라벨 굵기는 선택과 무관하게 같다(폭이 변하면 흔들린다).
+`shared/ui/SegmentedControl` — 탐색 주간·월간·전체(`PopularPeriodToggle`, 칸 48×28). **라이브러리의 전체·미청취·완청은 세그먼트가 아니다**(2026-09-25 PM "애플이었으면") — HIG: 세그먼트는 뷰 전환용이고 같은 목록의 콘텐츠 필터에는 쓰지 않는다. 팟캐스트·메일처럼 **필터 시트의 라디오**로 옮기고(`TopicFilterSheet` 상태 섹션), 머리 줄엔 필터 원 버튼 + 조건 요약 한 줄만 둔다(`changes/pending/library-status-filter-in-sheet.md`). `segmentHeight` prop 은 남아 있다. 밑줄 탭은 iOS 문법이 아니다 — 배타적 뷰 전환은 항상 이 부품. 흰 트랙 + 테두리, 같은 폭 칸, 선택 알약 하나(iOS 26 유리 렌즈 `GlassPill`, 그 밑은 그림자로 뜬 흰 알약)가 snappy 스프링으로 이동, 라벨 굵기는 선택과 무관하게 같다(폭이 변하면 흔들린다).
 
 ### 격자 타일 (라이브러리·탐색)
 정사각 아트워크 `lg` 16 연속 곡률. 표식은 사진 위에 최소로: 우상단 더보기 = 흰 둥근 점 3개 + 드롭섀도(원 없음) · 아래 변 진행률 바 4pt(채움 `color.progress`, 완청은 100% 고정) · 탐험 편 "새로운 주제"는 아래 변 그라데이션 위 흰 글자. **완청 체크 마크는 두지 않는다.**
