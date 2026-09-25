@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { theme } from '@/shared/theme';
 
 import { useSessionStore } from '@/features/auth';
-import { ExploreScreen, ExploreSearchScreen } from '@/features/explore';
+import { ExploreScreen } from '@/features/explore';
 import { LibraryScreen } from '@/features/library';
 import { MiniPlayer, useIsMiniPlayerVisible } from '@/features/player';
 import { ProfileScreen } from '@/features/profile';
@@ -50,7 +50,7 @@ export default function NativeMainTabs() {
         state: (e) => {
           const s = e.data.state;
           const name = s?.routeNames?.[s.index ?? 0];
-          if (name && name !== 'Search') rememberTab(name as RestorableTab);
+          if (name) rememberTab(name as RestorableTab);
         },
       }}
       screenOptions={{
@@ -84,7 +84,8 @@ export default function NativeMainTabs() {
         }}
       />
       {/* 탐색 — 상단을 애플 문법으로(PM 2026-09-25 23:50 "애플이라면 상단을 어떻게"). 떠 있는 유리 컨트롤(FloatingHeader)은
-          어두운 카드가 밑에 오면 글자가 죽었다. 검색은 검색 탭으로, 링은 제목 줄 오른쪽, 주제 칩은 콘텐츠와 같이 스크롤 */}
+          어두운 카드가 밑에 오면 글자가 죽었다. 링은 제목 줄 오른쪽, 검색 필드는 제목 줄 밑(누르면 검색 화면), 주제 칩은
+          콘텐츠와 같이 스크롤. 검색 탭(탭 바 옆 검색 원, #730)은 뺐다 — 입구가 둘이라(PM 09-26 01:20) */}
       <NativeTab.Screen
         name="Explore"
         component={ExploreScreen}
@@ -94,16 +95,6 @@ export default function NativeMainTabs() {
             type: 'sfSymbol',
             name: focused ? 'safari.fill' : 'safari',
           }),
-          ...TRANSPARENT_BAR,
-        }}
-      />
-      {/* 검색 — iOS 26 이 탭 바 오른쪽에 떨어뜨려 놓는 검색 원(UITabBarItem systemItem search). 뮤직·앱스토어 자리.
-          검색창은 애플 뮤직처럼 콘텐츠 안(제목 줄 밑 채움 필드) */}
-      <NativeTab.Screen
-        name="Search"
-        component={ExploreSearchScreen}
-        options={{
-          tabBarSystemItem: 'search',
           ...TRANSPARENT_BAR,
         }}
       />

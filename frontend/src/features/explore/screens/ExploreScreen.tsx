@@ -52,8 +52,8 @@ import { useExploreScreen } from '../hooks/useExploreScreen';
  *
  * 상단 두 갈래(PM 2026-09-25 23:50 "애플이라면 상단을 어떻게" · 09-26 00:29 애플 뮤직 스샷):
  * - **iOS 26 시스템 탭 바(HAS_NATIVE_TAB_BAR)** — 투명 시스템 바(바 밑 블러는 시스템) 밑에 **콘텐츠 안 큰 제목 줄**
- *   ("탐색" + 오른쪽 잔여 링, 같은 줄)과 주제 칩이 **목록의 첫 줄**로 같이 스크롤한다(앱스토어 카테고리 알약).
- *   검색은 검색 탭. 제목 줄이 바 밑으로 들어가면 바에 작은 제목이 페이드인한다.
+ *   ("탐색" + 오른쪽 잔여 링, 같은 줄), 그 밑 채움 검색 필드(누르면 검색 화면 E6), 주제 칩이 **목록의 첫 줄**로 같이
+ *   스크롤한다(앱스토어 카테고리 알약). 제목 줄이 바 밑으로 들어가면 바에 작은 제목이 페이드인한다.
  * - 그 외 — 떠 있는 유리 머리 줄(FloatingHeader: 검색창 + 링 + 칩)이 목록 위에 뜬다(2026-09-24).
  */
 export default function ExploreScreen() {
@@ -121,10 +121,12 @@ export default function ExploreScreen() {
   const titleRow = HAS_NATIVE_TAB_BAR ? (
     <LargeTitleRow title={EXPLORE_COPY.tabTitle} trailing={remainingRing} />
   ) : null;
-  // 시스템 바 갈래에서는 제목 줄·칩이 콘텐츠의 첫 줄이다 — 목록과 같이 스크롤한다
+  // 시스템 바 갈래에서는 제목 줄·검색 필드·칩이 콘텐츠의 첫 줄이다 — 목록과 같이 스크롤한다.
+  // 검색 필드는 유리가 아니라 면(콘텐츠 안) — 누르면 검색 화면(E6), 입력은 거기서(explore.md 4.5-1)
   const contentChips = HAS_NATIVE_TAB_BAR ? (
     <>
       {titleRow}
+      <ExploreSearchBarRow onPress={screen.openSearch} trailing={null} variant="fill" />
       {chips}
     </>
   ) : null;

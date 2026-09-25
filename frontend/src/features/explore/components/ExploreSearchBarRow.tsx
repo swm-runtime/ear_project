@@ -11,6 +11,8 @@ interface ExploreSearchBarRowProps {
   trailing: ReactNode;
   /** 검색창 탭 — 검색 화면(E6) 전환(explore.md 4.5-1) */
   onPress: () => void;
+  /** `fill` — 콘텐츠 안(큰 제목 줄 밑, 목록과 같이 스크롤)에 놓일 때. 유리가 아니라 면(애플 뮤직 검색 탭의 검색창) */
+  variant?: 'glass' | 'fill';
 }
 
 /**
@@ -18,11 +20,15 @@ interface ExploreSearchBarRowProps {
  * 노출" 폐기). 탭하면 검색 화면(E6)으로 전환하고 키보드가 올라온다. 입력은 검색 화면이
  * 받는다 — 이 줄은 진입점일 뿐이라 TextInput을 두지 않는다.
  */
-export default function ExploreSearchBarRow({ trailing, onPress }: ExploreSearchBarRowProps) {
+export default function ExploreSearchBarRow({
+  trailing,
+  onPress,
+  variant = 'glass',
+}: ExploreSearchBarRowProps) {
   return (
     <View style={styles.row}>
       {/* 유리 캡슐(iOS 26 시스템 검색처럼) — 목록 위에 떠 있는 컨트롤이라 면이 아니라 유리다(2026-09-24 PM) */}
-      <GlassCapsule style={styles.searchBox}>
+      <GlassCapsule style={styles.searchBox} variant={variant}>
         <Pressable
           style={styles.searchPressable}
           onPress={onPress}
