@@ -12,7 +12,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useFadingNativeTitle } from '@/shared/navigation/useFadingNativeTitle';
-import { useNativeHeaderInset } from '@/shared/navigation/useNativeHeaderInset';
+import {
+  useNativeBarPullProps,
+  useNativeHeaderInset,
+} from '@/shared/navigation/useNativeHeaderInset';
 import { useSystemScrollEdgeEffect } from '@/shared/navigation/useSystemScrollEdgeEffect';
 import { theme } from '@/shared/theme';
 import FloatingHeader, {
@@ -60,8 +63,9 @@ export default function ExploreScreen() {
   const [headerHeight, setHeaderHeight] = useState(0);
   const floatingInset = useFloatingHeaderInset(headerHeight);
   const headerInset = HAS_NATIVE_TAB_BAR ? 0 : floatingInset;
-  // 투명 시스템 바의 높이 — 스크롤 뷰가 아닌 상태 화면(스켈레톤·에러)이 비운다
+  // 투명 시스템 바 — 스크롤 뷰가 아닌 상태 화면(스켈레톤·에러)은 상태 바만 비우고, 목록은 바 줄만큼 끌어올린다(제목이 바 줄 자리에)
   const nativeBarInset = useNativeHeaderInset();
+  const nativeBarPull = useNativeBarPullProps();
   // 맨 위에서는 머리 줄 컨트롤이 면, 내리면 유리(PM 2026-09-25)
   const { solidness, scrollY, scrollProps } = useFloatingHeaderScroll();
   useFadingNativeTitle(EXPLORE_COPY.tabTitle, scrollY);
@@ -258,6 +262,7 @@ export default function ExploreScreen() {
         <Animated.FlatList
           ref={listRef}
           {...DOCK_SCROLL_PROPS}
+          {...nativeBarPull}
           {...scrollProps}
           data={toExploreGridData(screen.filteredItems)}
           keyExtractor={exploreGridKey}
@@ -304,6 +309,7 @@ export default function ExploreScreen() {
       <Animated.ScrollView
         ref={listRef}
         {...DOCK_SCROLL_PROPS}
+        {...nativeBarPull}
         {...scrollProps}
         contentContainerStyle={[
           screen.sections.length === 0 ? styles.emptyContent : styles.feedContent,
