@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
+import { USE_NATIVE_PLAYER_ZOOM } from '@/shared/navigation/zoom-transition';
 import { motion, theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import MarqueeText from '@/shared/ui/MarqueeText';
@@ -254,8 +255,9 @@ export default function PlayerScreen() {
    * 제목은 날지 않는다 — 미니 제목은 제자리에서 사라지고 풀 화면 제목은 컨트롤·앱바와 함께 뒤늦게 들어온다(2026-09-18).
    * 닫을 땐 그대로 되감아 미니플레이어 위에 정확히 내려앉은 뒤 화면을 걷는다.
    */
-  const openProgress = useAnimatedValue(0);
-  const [isMorphing, setIsMorphing] = useState(true);
+  // 줌 전환 갈래(iOS 26 + 모듈 빌드)는 열림·닫힘 모션을 시스템이 맡는다 — 화면은 처음부터 다 열린 상태(1)로 그린다
+  const openProgress = useAnimatedValue(USE_NATIVE_PLAYER_ZOOM ? 1 : 0);
+  const [isMorphing, setIsMorphing] = useState(!USE_NATIVE_PLAYER_ZOOM);
   /*
    * 아트워크 **재생/정지 배율**(애플 뮤직 Now Playing, 2026-09-25 PM "애플처럼 전환"). 정지하면 아트워크가 작아지고
    * 재생하면 살짝 튕기며 제자리로 커진다 — 화면 전체에서 재생 상태를 한눈에 알리는 애플의 방식. 모션(열림·닫힘) 중과
@@ -277,7 +279,7 @@ export default function PlayerScreen() {
   // 모션 레이어의 아트워크가 뜨기 전에 출발하면 첫 프레임이 회색 빈 사각이다 — 로드(또는 짧은 대기) 뒤 출발.
   // 그때까지 화면 전체를 감춰 두면 뒤의 미니플레이어가 그대로 보여 이음새가 없다
   const [isMorphImageReady, setIsMorphImageReady] = useState(false);
-  const [isShellVisible, setIsShellVisible] = useState(false);
+  const [isShellVisible, setIsShellVisible] = useState(USE_NATIVE_PLAYER_ZOOM);
   useEffect(() => {
     if (!isMeasured || isMorphImageReady) return;
     const timer = setTimeout(() => setIsMorphImageReady(true), MORPH_IMAGE_WAIT_MS);
@@ -309,6 +311,11 @@ export default function PlayerScreen() {
     });
   };
   const dismissPlayer = () => {
+    // 줌 전환 갈래: 화면을 걷으면 시스템이 미니플레이어 자리로 줄이는 모션을 그린다
+    if (USE_NATIVE_PLAYER_ZOOM) {
+      screen.collapse();
+      return;
+    }
     setIsMorphing(true);
     runSheetSpring(0, () => screen.collapse());
   };
@@ -392,6 +399,8 @@ export default function PlayerScreen() {
     if (!isMeasured || !isMorphImageReady || hasOpenedRef.current) return;
     hasOpenedRef.current = true;
     setIsShellVisible(true);
+    // 줌 전환 갈래는 이미 1 — 열림 스프링을 달리지 않는다
+    if (USE_NATIVE_PLAYER_ZOOM) return;
     gestureContext.current.open();
   }, [isMeasured, isMorphImageReady]);
 
@@ -446,7 +455,9 @@ export default function PlayerScreen() {
     () =>
       // eslint-disable-next-line react-hooks/refs -- 콜백은 렌더가 아니라 제스처 시점에 실행된다(표준 PanResponder 패턴)
       PanResponder.create({
+        // 줌 전환 갈래는 시스템의 인터랙티브 닫기(드래그·핀치)가 맡는다 — 우리 제스처는 안 받는다
         onMoveShouldSetPanResponder: (_, gesture) =>
+          !USE_NATIVE_PLAYER_ZOOM &&
           !isTouchOnScrollAreaRef.current &&
           gesture.dy > PLAYER_COLLAPSE_START_DISTANCE &&
           Math.abs(gesture.dy) > Math.abs(gesture.dx),

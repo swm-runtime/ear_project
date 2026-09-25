@@ -1,0 +1,37 @@
+diff --git a/node_modules/react-native-screens/ios/RNSScreenStack.mm b/node_modules/react-native-screens/ios/RNSScreenStack.mm
+index 192f5d2..3b5f33d 100644
+--- a/node_modules/react-native-screens/ios/RNSScreenStack.mm
++++ b/node_modules/react-native-screens/ios/RNSScreenStack.mm
+@@ -481,6 +481,32 @@ RNS_IGNORE_SUPER_CALL_END
+         return;
+       }
+ 
++      // [ear patch] iOS 18 zoom transition — if the app registered a source view (local Expo module
++      // `modules/zoom-transition`, class ZoomTransitionRegistry), the modal zooms out of that view and
++      // shrinks back into it on dismiss (Apple Music mini player -> Now Playing). Looked up by name so
++      // builds without the module keep the stock behaviour.
++#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 180000
++      if (@available(iOS 18.0, *)) {
++        if (shouldAnimate) {
++          Class registry = NSClassFromString(@"ZoomTransitionRegistry");
++          if (registry != nil && [registry respondsToSelector:@selector(takeSourceView)]) {
++#pragma clang diagnostic push
++#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
++            UIView *zoomSource = [registry performSelector:@selector(takeSourceView)];
++#pragma clang diagnostic pop
++            if (zoomSource != nil) {
++              __weak UIView *weakZoomSource = zoomSource;
++              next.preferredTransition = [UIViewControllerTransition
++                  zoomWithOptions:nil
++                sourceViewProvider:^UIView *_Nullable(UIZoomTransitionSourceViewProviderContext *_Nonnull context) {
++                  return weakZoomSource;
++                }];
++            }
++          }
++        }
++      }
++#endif
++
+       [previous presentViewController:next
+                              animated:shouldAnimate
+                            completion:^{
