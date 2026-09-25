@@ -3,8 +3,8 @@ import SegmentedControl from '@/shared/ui/SegmentedControl';
 import { EXPLORE_COPY } from '../explore.copy';
 import type { ExplorePeriod } from '../explore.types';
 
-/** iOS 기본 세그먼트는 전체 32 — 안쪽 2 를 빼면 칸 28 */
-const SYSTEM_SEGMENT_HEIGHT = 28;
+/** 캡슐 선택바 전체 32 — 안쪽 3 을 빼면 칸 26 */
+const SYSTEM_SEGMENT_HEIGHT = 26;
 
 interface PopularPeriodToggleProps {
   /** 선택 상태의 근거는 서버 응답의 period다 — 클라이언트 기본값이 없다(uiux 4.10) */
@@ -34,8 +34,8 @@ export default function PopularPeriodToggle({
       onChange={onSelect}
       disabled={disabled}
       accessibilityLabel={EXPLORE_COPY.popular.toggleA11y}
-      // 콘텐츠 층의 토글 — iOS 기본 세그먼트 모양(PM 2026-09-25 "리퀴드 말고 애플 기본 토글")
-      appearance="system"
+      // 콘텐츠 층의 토글 — iOS 26 캡슐 선택바(PM 2026-09-25 23:30 "현대식 애플 선택바"; 기본 세그먼트는 옛날 것 같다고)
+      appearance="modern"
       segmentHeight={SYSTEM_SEGMENT_HEIGHT}
     />
   );
