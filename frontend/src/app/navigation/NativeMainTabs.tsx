@@ -5,7 +5,7 @@ import { theme } from '@/shared/theme';
 
 import { useSessionStore } from '@/features/auth';
 import { EXPLORE_COPY, ExploreScreen, ExploreSearchScreen } from '@/features/explore';
-import { LibraryScreen } from '@/features/library';
+import { LIBRARY_COPY, LibraryScreen } from '@/features/library';
 import { MiniPlayer, RemainingPlaysHeaderItem, useIsMiniPlayerVisible } from '@/features/player';
 import { ProfileScreen } from '@/features/profile';
 
@@ -58,6 +58,8 @@ export default function NativeMainTabs() {
         ...({ tabBarAccessoryHidden: !hasMiniPlayer } as object),
       }}
     >
+      {/* 라이브러리 — 탐색과 같은 문법(PM 2026-09-26 00:14 "라이브러리도"). 검색창(바 안 시스템 검색창)과
+          오른쪽 툴바(링 + 필터)는 화면이 setOptions 로 건다 — 필터 시트·질의가 화면 훅 소유라서 */}
       <NativeTab.Screen
         name="Library"
         component={LibraryScreen}
@@ -67,6 +69,10 @@ export default function NativeMainTabs() {
             type: 'sfSymbol',
             name: focused ? 'books.vertical.fill' : 'books.vertical',
           }),
+          headerShown: true,
+          title: LIBRARY_COPY.tabTitle,
+          headerLargeTitleEnabled: true,
+          headerShadowVisible: false,
         }}
       />
       {/* 탐색 — **시스템 내비게이션 바 + 큰 제목**(PM 2026-09-25 23:50 "애플이라면 상단을 어떻게"). 바가 있어야

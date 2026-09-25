@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigation } from '@react-navigation/native';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -9,6 +10,7 @@ import {
   View,
 } from 'react-native';
 
+import { useNativeHeaderSearchBar } from '@/shared/navigation/useNativeHeaderSearchBar';
 import { useSystemScrollEdgeEffect } from '@/shared/navigation/useSystemScrollEdgeEffect';
 import { theme } from '@/shared/theme';
 import FloatingHeader, {
@@ -16,6 +18,7 @@ import FloatingHeader, {
   useFloatingHeaderScroll,
 } from '@/shared/ui/FloatingHeader';
 import FullScreenError from '@/shared/ui/FullScreenError';
+import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 
 import {
   DOCK_SCROLL_PROPS,
@@ -68,13 +71,23 @@ const toGridRows = (rows: LibraryListRow[]): LibraryGridRow[] => {
   return result;
 };
 
-/** L1 라이브러리 — 앱의 첫 화면. 화면은 뷰만 담당하고 로직은 useLibraryScreen이 소유한다 */
+/**
+ * L1 라이브러리 — 앱의 첫 화면. 화면은 뷰만 담당하고 로직은 useLibraryScreen이 소유한다.
+ *
+ * 상단 두 갈래(PM 2026-09-26 00:14 "라이브러리도" — 탐색과 같은 문법, design.md 5장 "상단 — 시스템 내비게이션 바"):
+ * - **iOS 26 시스템 탭 바(HAS_NATIVE_TAB_BAR)** — 큰 제목 "라이브러리" 바(NativeMainTabs 옵션), 검색창은 **바 안 시스템
+ *   검색창**(팟캐스트 보관함처럼 받아 둔 목록을 그 자리에서 좁힌다), 링 + 필터 툴바는 **바 오른쪽 아이템**, 조건 요약·배너는
+ *   **목록의 첫 줄**로 같이 스크롤한다. 바 밑 블러는 시스템이 그린다.
+ * - 그 외 — 떠 있는 유리 머리 줄(FloatingHeader: 검색창 + 툴바 + 요약 + 배너)이 목록 위에 뜬다(2026-09-24).
+ */
 export default function LibraryScreen() {
   const screen = useLibraryScreen();
   const miniInset = useBottomDockInset();
-  // 떠 있는 머리 줄(검색창·탭·배너)의 높이 — 목록이 그만큼 위를 비운다
+  const navigation = useNavigation();
+  // 떠 있는 머리 줄(검색창·탭·배너)의 높이 — 목록이 그만큼 위를 비운다(시스템 바 갈래에서는 0)
   const [headerHeight, setHeaderHeight] = useState(0);
-  const headerInset = useFloatingHeaderInset(headerHeight);
+  const floatingInset = useFloatingHeaderInset(headerHeight);
+  const headerInset = HAS_NATIVE_TAB_BAR ? 0 : floatingInset;
   // 맨 위에서는 머리 줄 컨트롤이 면, 내리면 유리(PM 2026-09-25)
   const { solidness, scrollProps } = useFloatingHeaderScroll();
   // 상태 바 밑 블러는 iOS 26 시스템 scroll edge effect — 목록이 그려진 뒤에 걸어야 한다
@@ -104,6 +117,60 @@ export default function LibraryScreen() {
   // L6·L9는 목록 전체가 빈 상태 — 탭 줄·필터 아이콘·복원 미니플레이어를 감춘다(uiux 4.8)
   const isWholeEmpty = screen.emptyKind === 'newUser' || screen.emptyKind === 'deletedAll';
   const showTabBar = !screen.isFullError && !isWholeEmpty;
+
+  /* ── iOS 26 시스템 바 — 검색창과 오른쪽 툴바를 바에 건다 ── */
+  useNativeHeaderSearchBar({
+    enabled: showTabBar,
+    placeholder: LIBRARY_COPY.search.placeholder,
+    cancelButtonText: LIBRARY_COPY.search.cancel,
+    value: query,
+    onChangeText: setQuery,
+  });
+  // 툴바 콜백은 ref 로 최신을 본다 — 바 아이템을 매 렌더 다시 걸지 않게(표시 값이 바뀔 때만)
+  const toolbarHandlersRef = useRef({
+    onFilterPress: screen.openTopicSheet,
+    onExhaustedPress: () => screen.openPaywall('library'),
+  });
+  useEffect(() => {
+    toolbarHandlersRef.current = {
+      onFilterPress: screen.openTopicSheet,
+      onExhaustedPress: () => screen.openPaywall('library'),
+    };
+  });
+  const { remainingDisplay, topicFilterCount } = screen;
+  useLayoutEffect(() => {
+    if (!HAS_NATIVE_TAB_BAR) return;
+    navigation.setOptions({
+      headerRight: showTabBar
+        ? () => (
+            // 잔여 링(무제한·캐시·값 없음이면 칸 없음 — uiux 4.3) + 필터를 한 유리 캡슐에(2026-09-25 PM)
+            <LibraryToolbar
+              remaining={remainingDisplay}
+              onExhaustedPress={() => toolbarHandlersRef.current.onExhaustedPress()}
+              activeFilterCount={topicFilterCount}
+              onFilterPress={() => toolbarHandlersRef.current.onFilterPress()}
+            />
+          )
+        : undefined,
+    } as object);
+  }, [navigation, showTabBar, remainingDisplay, topicFilterCount]);
+
+  // 시스템 바 갈래에서 조건 요약·배너는 목록의 첫 줄이다 — 목록과 같이 스크롤한다
+  const filterSummary = showTabBar ? (
+    <LibraryFilterSummary conditions={screen.filteredConditions} onPress={screen.openTopicSheet} />
+  ) : null;
+  // 배너는 목록 바로 위에 둔다 — 세 배너 모두 "이 목록에 무슨 일이 있었나"를 알리므로 목록에 붙어 있어야
+  // 무엇에 대한 통지인지 읽힌다(uiux 4.1)
+  const banner = screen.banner ? (
+    <LibraryBanner banner={screen.banner} onPress={screen.handleBannerPress} />
+  ) : null;
+  const contentHeader =
+    HAS_NATIVE_TAB_BAR && (filterSummary || banner) ? (
+      <View style={styles.contentHeader}>
+        {filterSummary}
+        {banner}
+      </View>
+    ) : null;
   // 복원 스냅샷 폴백의 노출 조건 — 활성 재생 세션의 표시는 MiniPlayer가 스스로 판단한다
   const resumeTarget = screen.resumeTarget;
   const isResumeVisible = resumeTarget !== null && !screen.isFullError && !isWholeEmpty;
@@ -272,6 +339,7 @@ export default function LibraryScreen() {
             // 구획 타이틀 바로 아래에는 간격을 두지 않는다 — 타이틀 자체가 아래 여백을 가진다
             leadingItem.kind === 'discoveryHeader' ? null : <View style={styles.separator} />
           }
+          ListHeaderComponent={contentHeader}
           ListEmptyComponent={renderEmpty()}
           ListFooterComponent={renderFooter()}
           contentContainerStyle={[
@@ -294,42 +362,34 @@ export default function LibraryScreen() {
 
       {/* 머리 줄은 목록 **뒤에 선언**한다(zIndex 로 위에 뜬다) — 목록이 화면의 첫 자손 스크롤 뷰여야 react-native-screens 가
           iOS 26 의 시스템 scroll edge effect(상태 바 밑 블러)를 걸 수 있다(2026-09-25 PM) */}
-      {/* 머리 줄은 목록 위에 떠 있다 — 배경 없이 유리 컨트롤만(2026-09-24 PM). 브랜드 표시는 두지 않는다(2026-09-02) */}
-      <FloatingHeader
-        onHeightChange={setHeaderHeight}
-        solidness={solidness}
-        containerRef={headerRef}
-      >
-        {showTabBar ? (
-          <LibrarySearchBarRow
-            query={query}
-            onChangeQuery={setQuery}
-            trailing={
-              // 잔여 링(무제한·캐시·값 없음이면 칸 없음 — uiux 4.3) + 필터를 한 유리 캡슐에(2026-09-25 PM).
-              // 상태·출처·주제 필터는 전부 시트 하나 — 세그먼트 탭 줄은 폐지
-              <LibraryToolbar
-                remaining={screen.remainingDisplay}
-                onExhaustedPress={() => screen.openPaywall('library')}
-                activeFilterCount={screen.topicFilterCount}
-                onFilterPress={screen.openTopicSheet}
-              />
-            }
-          />
-        ) : null}
-
-        {showTabBar ? (
-          <LibraryFilterSummary
-            conditions={screen.filteredConditions}
-            onPress={screen.openTopicSheet}
-          />
-        ) : null}
-
-        {/* 배너는 탭 아래 · 목록 바로 위에 둔다 — 세 배너 모두 "이 목록에 무슨 일이
-          있었나"를 알리므로 목록에 붙어 있어야 무엇에 대한 통지인지 읽힌다(uiux 4.1) */}
-        {screen.banner ? (
-          <LibraryBanner banner={screen.banner} onPress={screen.handleBannerPress} />
-        ) : null}
-      </FloatingHeader>
+      {/* 머리 줄은 목록 위에 떠 있다 — 배경 없이 유리 컨트롤만(2026-09-24 PM). 브랜드 표시는 두지 않는다(2026-09-02).
+          시스템 바 갈래에서는 없다 — 검색창·툴바는 바에, 요약·배너는 목록 첫 줄에 */}
+      {HAS_NATIVE_TAB_BAR ? null : (
+        <FloatingHeader
+          onHeightChange={setHeaderHeight}
+          solidness={solidness}
+          containerRef={headerRef}
+        >
+          {showTabBar ? (
+            <LibrarySearchBarRow
+              query={query}
+              onChangeQuery={setQuery}
+              trailing={
+                // 잔여 링(무제한·캐시·값 없음이면 칸 없음 — uiux 4.3) + 필터를 한 유리 캡슐에(2026-09-25 PM).
+                // 상태·출처·주제 필터는 전부 시트 하나 — 세그먼트 탭 줄은 폐지
+                <LibraryToolbar
+                  remaining={screen.remainingDisplay}
+                  onExhaustedPress={() => screen.openPaywall('library')}
+                  activeFilterCount={screen.topicFilterCount}
+                  onFilterPress={screen.openTopicSheet}
+                />
+              }
+            />
+          ) : null}
+          {filterSummary}
+          {banner}
+        </FloatingHeader>
+      )}
 
       {/* 미니플레이어(PL11) — 활성 세션은 실시간, 없으면 복원 스냅샷을 일시정지로 표시한다 */}
 
@@ -373,6 +433,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.color.background,
+  },
+  // 목록 첫 줄의 요약·배너(시스템 바 갈래) — 좌우 여백은 각자 갖는다. 격자의 좌우 여백을 되돌린다
+  contentHeader: {
+    marginHorizontal: -theme.spacing.md,
   },
   // 격자 — 좌우 여백은 검색 줄과 같은 선(md), 타일 사이는 sm×1.5
   gridContent: {
