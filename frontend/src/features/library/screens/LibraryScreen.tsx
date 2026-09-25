@@ -23,10 +23,11 @@ import {
 
 import LibraryBanner from '../components/LibraryBanner';
 import LibraryEmptyState from '../components/LibraryEmptyState';
+import LibraryFilterButton from '../components/LibraryFilterButton';
+import LibraryFilterSummary from '../components/LibraryFilterSummary';
 import LibraryItemSkeleton from '../components/LibraryItemSkeleton';
 import LibraryItemTile from '../components/LibraryItemTile';
 import LibrarySearchBarRow from '../components/LibrarySearchBarRow';
-import LibraryTabs from '../components/LibraryTabs';
 import MoreActionsSheet from '../components/MoreActionsSheet';
 import TopicFilterSheet from '../components/TopicFilterSheet';
 import UndoSnackbar from '../components/UndoSnackbar';
@@ -213,24 +214,29 @@ export default function LibraryScreen() {
           query={query}
           onChangeQuery={setQuery}
           trailing={
-            // 무제한·캐시·값 없음이면 자리를 비운다 — "무제한" 배지도 없다(uiux 4.3)
-            screen.remainingDisplay ? (
-              <RemainingPlaysIndicator
-                remaining={screen.remainingDisplay.remaining}
-                limit={screen.remainingDisplay.limit}
-                onExhaustedPress={() => screen.openPaywall('library')}
+            <>
+              {/* 무제한·캐시·값 없음이면 자리를 비운다 — "무제한" 배지도 없다(uiux 4.3) */}
+              {screen.remainingDisplay ? (
+                <RemainingPlaysIndicator
+                  remaining={screen.remainingDisplay.remaining}
+                  limit={screen.remainingDisplay.limit}
+                  onExhaustedPress={() => screen.openPaywall('library')}
+                />
+              ) : null}
+              {/* 상태·출처·주제 필터는 전부 시트 하나 — 세그먼트 탭 줄은 폐지(2026-09-25 PM) */}
+              <LibraryFilterButton
+                activeCount={screen.topicFilterCount}
+                onPress={screen.openTopicSheet}
               />
-            ) : null
+            </>
           }
         />
       ) : null}
 
       {showTabBar ? (
-        <LibraryTabs
-          filter={screen.filter}
-          onChange={screen.setFilter}
-          topicFilterCount={screen.topicFilterCount}
-          onFilterPress={screen.openTopicSheet}
+        <LibraryFilterSummary
+          conditions={screen.filteredConditions}
+          onPress={screen.openTopicSheet}
         />
       ) : null}
 
@@ -320,6 +326,7 @@ export default function LibraryScreen() {
         isLoading={screen.isTopicsLoading}
         appliedTopicIds={screen.appliedTopicIds}
         appliedSourceFilter={screen.appliedSourceFilter}
+        appliedStatus={screen.filter}
         onApply={screen.applyTopicFilter}
         onDismiss={screen.closeTopicSheet}
       />

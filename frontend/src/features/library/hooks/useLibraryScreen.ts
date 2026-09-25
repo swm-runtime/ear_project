@@ -467,10 +467,16 @@ export const useLibraryScreen = () => {
     setFilter(next);
   };
 
-  const applyTopicFilter = (selected: LibraryTopic[], source: LibrarySourceFilter | null) => {
+  const applyTopicFilter = (
+    selected: LibraryTopic[],
+    source: LibrarySourceFilter | null,
+    status: LibraryFilter,
+  ) => {
     resetArrivalBanner();
     setTopicFilter({ ids: selected.map((t) => t.id), names: selected.map((t) => t.name) });
     setSourceFilter(source);
+    // 상태(전체·미청취·완료)도 시트에서 고른다(2026-09-25 PM — 세그먼트 탭 폐지)
+    setFilter(status);
     setIsTopicSheetVisible(false);
   };
 
@@ -523,7 +529,9 @@ export const useLibraryScreen = () => {
     handleBannerPress,
     openPaywall: playGate.openPaywall,
     // 필터 팝업(출처 + 주제) — 배지는 두 축의 선택 개수 합이다
-    topicFilterCount: topicFilter.ids.length + (sourceFilter !== null ? 1 : 0),
+    // 배지 = 상태(전체가 아니면 1) + 출처 + 주제 수
+    topicFilterCount:
+      topicFilter.ids.length + (sourceFilter !== null ? 1 : 0) + (filter !== 'all' ? 1 : 0),
     appliedTopicIds: topicFilter.ids,
     appliedSourceFilter: sourceFilter,
     isTopicSheetVisible,
