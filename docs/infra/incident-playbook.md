@@ -102,7 +102,9 @@ df -h            # 디스크 (20GB)
 
 | 받은 알림 | 경로 | 코드 |
 |---|---|---|
-| UptimeRobot `ear api health` Down | 메일 | [A001](#a001) · 헬스가 503 이면 [A003](#a003) |
+| Grafana 합성 체크 `ear-api-health` **Failed Checks**(서울·도쿄 2/2 실패, 3분 간격) | Slack | [A001](#a001) · 알림 본문의 실패 사유가 상태코드 503 이면 [A003](#a003), 본문 정규식(`"status":"ok"` 없음)이면 응답은 오는데 형식이 깨진 것 — 배포 직후면 [A004](#a004) |
+| Grafana 합성 체크 `ear-api-health` **TLS Certificate**(만료 14일 미만) | Slack | Caddy 자동 갱신(만료 30일 전)이 실패한 것. `docker compose logs caddy \| grep -i acme` 로 사유 확인 → 대개 80 포트 차단·DNS 변경·Let's Encrypt 속도 제한. 전용 코드 없음 — 처음 겪으면 A 급으로 기록한다 |
+| UptimeRobot `ear api health` Down | 메일 | **2026-09-26 부터 알림 끔**(Grafana 로 이전, 모니터는 예비로 유지 — KAN-97). 메일이 온다면 알림이 다시 켜진 것이니 끄고, 대응은 위 Failed Checks 와 같다 |
 | `ear-prod-ec2-status-check` | SNS | [A002](#a002) |
 | `ear-prod-disk-high` | SNS | [A005](#a005) |
 | `ear-prod-cron-backup-missing` | SNS | [C001](#c001) |

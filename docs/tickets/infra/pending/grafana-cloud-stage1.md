@@ -82,3 +82,4 @@ IAM 액세스 키 · Sentry 읽기 토큰 · Slack 웹훅 URL 은 **Grafana 설�
 ## 처리 기록
 
 - 2026-09-25 발행. Jira KAN-97(담당 박준현·인프라). 2단계 KAN-98 이 이 티켓에 `is blocked by` 로 걸려 있다.
+- 2026-09-26 합성 체크 `ear-api-health` 생성 중(3분·서울·도쿄·2/2 실패·TLS 14일). 7번 문서 항목 중 `incident-playbook.md` 3장 경보 역색인은 이 PR(#726)에서 먼저 반영 — 알림의 Runbook URL 이 `#a001` 앵커를 가리키므로 표가 먼저 맞아야 했다. 나머지 문서(inventory·runbook·backend-monitoring)는 처리 시.
