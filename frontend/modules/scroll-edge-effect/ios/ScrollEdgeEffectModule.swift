@@ -39,6 +39,30 @@ public class ScrollEdgeEffectModule: Module {
       let inset = scrollView.adjustedContentInset.top
       return "applied:\(String(describing: type(of: scrollView))) inset=\(Int(inset)) hidden=\(scrollView.topEdgeEffect.isHidden)"
     }.runOnQueue(.main)
+
+    /**
+     스크롤 뷰 위에 얹힌 **컨테이너(우리 FloatingHeader)** 에 `UIScrollEdgeElementContainerInteraction` 을 붙인다.
+     iOS 26 은 edge effect 를 "바 밑"에서만 그린다 — 시스템 내비게이션 바가 없는 커스텀 머리 줄은 이 인터랙션으로
+     "여기 바가 있다"고 알려야 그 영역에 효과가 그려진다(21:45 실기기: topEdgeEffect 만으로는 hard 도 안 보였다).
+     반환: "attached:<inset>" | "unavailable" | "no-container" | "no-scrollview"
+     */
+    AsyncFunction("attachContainer") { (containerTag: Int, scrollViewTag: Int) -> String in
+      guard #available(iOS 26.0, *) else { return "unavailable" }
+      guard let container = self.appContext?.findView(withTag: containerTag, ofType: UIView.self) else {
+        return "no-container"
+      }
+      guard let host = self.appContext?.findView(withTag: scrollViewTag, ofType: UIView.self),
+            let scrollView = Self.findScrollView(in: host) else {
+        return "no-scrollview"
+      }
+      let existing = container.interactions.compactMap { $0 as? UIScrollEdgeElementContainerInteraction }.first
+      let interaction = existing ?? UIScrollEdgeElementContainerInteraction()
+      interaction.scrollView = scrollView
+      interaction.edge = .top
+      if existing == nil { container.addInteraction(interaction) }
+      scrollView.topEdgeEffect.isHidden = false
+      return "attached inset=\(Int(scrollView.adjustedContentInset.top)) container=\(Int(container.bounds.height))"
+    }.runOnQueue(.main)
   }
 
   /// RCTScrollView(UIView) 는 실제 UIScrollView 를 자식으로 품는다 — 첫 UIScrollView 자손을 찾는다

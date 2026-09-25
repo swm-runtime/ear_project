@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, type ReactNode } from 'react';
+import { createContext, useContext, useMemo, type ReactNode, type RefObject } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -24,6 +24,11 @@ interface FloatingHeaderProps {
   onHeightChange: (height: number) => void;
   /** useFloatingHeaderScroll 의 solidness — 주면 안의 GlassCapsule 이 맨 위에서 면이 된다 */
   solidness?: Solidness;
+  /**
+   * 머리 줄 루트 뷰 ref — useSystemScrollEdgeEffect 가 이 뷰에 `UIScrollEdgeElementContainerInteraction` 을 붙여
+   * iOS 26 이 "바" 로 인식하고 그 밑(상태 바 + 머리 줄)에 점진 블러를 그리게 한다
+   */
+  containerRef?: RefObject<View | null>;
 }
 
 /**
@@ -33,12 +38,24 @@ interface FloatingHeaderProps {
  * 상태 바 밑 블러는 여기서 그리지 않는다 — iOS 26 시스템 scroll edge effect 가 목록에 직접 건다
  * (`useSystemScrollEdgeEffect`). JS 로 만든 띠·마스크 블러는 계단·얼룩으로 폐기했다(2026-09-25).
  */
-export default function FloatingHeader({ children, onHeightChange, solidness }: FloatingHeaderProps) {
+export default function FloatingHeader({
+  children,
+  onHeightChange,
+  solidness,
+  containerRef,
+}: FloatingHeaderProps) {
   const insets = useSafeAreaInsets();
   return (
     <HeaderSolidnessContext.Provider value={solidness ?? null}>
-      <View style={[styles.header, { paddingTop: insets.top }]} pointerEvents="box-none">
-        <View onLayout={(e) => onHeightChange(e.nativeEvent.layout.height)} pointerEvents="box-none">
+      <View
+        ref={containerRef}
+        style={[styles.header, { paddingTop: insets.top }]}
+        pointerEvents="box-none"
+      >
+        <View
+          onLayout={(e) => onHeightChange(e.nativeEvent.layout.height)}
+          pointerEvents="box-none"
+        >
           {children}
         </View>
       </View>
