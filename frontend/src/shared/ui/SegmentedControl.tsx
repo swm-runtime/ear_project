@@ -34,8 +34,11 @@ interface SegmentedControlProps<T extends string> {
    * `system` — **iOS 기본 UISegmentedControl 모양**(PM 2026-09-25 22:12 "리퀴드 말고 애플 기본 토글"): 회색 채움 트랙
    *   (모서리 9), 흰 선택 칸 + 그림자(모서리 7), 13pt 글자, 선택 글자 semibold. 유리·림 없음. 콘텐츠 층의 세그먼트는
    *   애플도 유리를 쓰지 않는다(HIG Materials — 유리는 내비게이션 층)
+   * `modern` — **iOS 26 앱들의 캡슐 선택바**(PM 2026-09-25 23:30 "현대식 애플 선택바" — 기본 세그먼트는 옛날 것 같다):
+   *   완전 둥근 캡슐 트랙(tertiary fill) + 선택 칸은 **검정 채움 알약에 흰 글자**(메일 카테고리·피트니스 기간 문법).
+   *   그림자·유리 없음. 비선택 글자는 회색
    */
-  appearance?: 'glass' | 'system';
+  appearance?: 'glass' | 'system' | 'modern';
 }
 
 /**
@@ -70,6 +73,8 @@ export default function SegmentedControl<T extends string>({
   appearance = 'glass',
 }: SegmentedControlProps<T>) {
   const isSystem = appearance === 'system';
+  const isModern = appearance === 'modern';
+  const isPlain = isSystem || isModern;
   // 보이는 높이가 44 보다 작은 만큼은 hitSlop 으로 채운다(uiux 7)
   const hitSlop = {
     top: Math.max(0, (theme.touchTarget.minHeight - segmentHeight) / 2),
@@ -112,6 +117,7 @@ export default function SegmentedControl<T extends string>({
   const indicatorStyle = [
     styles.indicator,
     isSystem && styles.indicatorSystem,
+    isModern && styles.indicatorModern,
     { width: effectiveWidth, height: segmentHeight, transform: [{ translateX: indicatorX }] },
   ];
   /** interpolate 의 inputRange 는 단조 증가여야 한다 — 측정 전(0)에는 1로 둔다 */
@@ -119,18 +125,23 @@ export default function SegmentedControl<T extends string>({
 
   return (
     <View
-      style={[styles.track, fill && styles.trackFill, isSystem && styles.trackSystem]}
+      style={[
+        styles.track,
+        fill && styles.trackFill,
+        isSystem && styles.trackSystem,
+        isModern && styles.trackModern,
+      ]}
       onLayout={handleTrackLayout}
       accessibilityRole="radiogroup"
       accessibilityLabel={accessibilityLabel}
     >
-      {isSystem ? null : (
+      {isPlain ? null : (
         <>
           <GlassSurface style={[StyleSheet.absoluteFill, styles.trackGlass]} />
           <View style={styles.trackBorder} pointerEvents="none" />
         </>
       )}
-      {HAS_LIQUID_GLASS && !isSystem ? (
+      {HAS_LIQUID_GLASS && !isPlain ? (
         <GlassPill style={indicatorStyle} />
       ) : (
         <Animated.View style={[indicatorStyle, styles.indicatorRaised]} pointerEvents="none" />
@@ -158,13 +169,17 @@ export default function SegmentedControl<T extends string>({
             accessibilityLabel={option.label}
             accessibilityState={{ checked: isSelected, disabled }}
           >
-            <Text style={[styles.label, isSystem && styles.labelSystem]}>{option.label}</Text>
+            <Text style={[styles.label, isSystem && styles.labelSystem, isModern && styles.labelModern]}>
+              {option.label}
+            </Text>
             <Animated.Text
               style={[
                 styles.label,
                 isSystem && styles.labelSystem,
+                isModern && styles.labelModern,
                 styles.labelSelected,
                 isSystem && styles.labelSelectedSystem,
+                isModern && styles.labelSelectedModern,
                 { opacity: selectedOpacity },
               ]}
               accessibilityElementsHidden
@@ -222,6 +237,18 @@ const styles = StyleSheet.create({
     backgroundColor: theme.color.background,
     boxShadow: '0 3px 8px rgba(0, 0, 0, 0.12), 0 3px 1px rgba(0, 0, 0, 0.04)',
   },
+  // iOS 26 캡슐 선택바 — 트랙 tertiary fill, 안쪽 3, 선택 칸 검정 알약
+  trackModern: {
+    borderRadius: theme.radius.full,
+    backgroundColor: 'rgba(118, 118, 128, 0.12)',
+    padding: 3,
+  },
+  indicatorModern: {
+    top: 3,
+    left: 3,
+    borderRadius: theme.radius.full,
+    backgroundColor: theme.color.primary,
+  },
   segment: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -259,5 +286,13 @@ const styles = StyleSheet.create({
   },
   labelSelectedSystem: {
     fontWeight: '600',
+  },
+  labelModern: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.color.textSecondary,
+  },
+  labelSelectedModern: {
+    color: theme.color.onPrimary,
   },
 });
