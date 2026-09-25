@@ -15,8 +15,6 @@ const DONUT_SIZE = 140;
 const DONUT_STROKE = 26;
 const RADIUS = (DONUT_SIZE - DONUT_STROKE) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
-/** 조각 사이 흰 틈 — 회색 단계 팔레트(design.md §1)라 인접 조각의 경계를 틈으로 가른다. 조각이 하나면 틈이 없다 */
-const SLICE_GAP = 2;
 
 interface LegendEntry {
   key: string;
@@ -75,8 +73,7 @@ export default function TopicDonut({ distribution }: TopicDonutProps) {
               {
                 entries.reduce<{ elements: ReactElement[]; offsetRatio: number }>(
                   (acc, entry) => {
-                    const gap = entries.length > 1 ? SLICE_GAP : 0;
-                    const length = Math.max(0, (entry.ratio / 100) * CIRCUMFERENCE - gap);
+                    const length = (entry.ratio / 100) * CIRCUMFERENCE;
                     acc.elements.push(
                       <Circle
                         key={entry.key}
