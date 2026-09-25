@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   FlatList,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -12,7 +12,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
-import FloatingHeader, { useFloatingHeaderInset } from '@/shared/ui/FloatingHeader';
+import FloatingHeader, {
+  useFloatingHeaderInset,
+  useFloatingHeaderScroll,
+} from '@/shared/ui/FloatingHeader';
 import FullScreenError from '@/shared/ui/FullScreenError';
 
 import {
@@ -43,6 +46,8 @@ export default function ExploreScreen() {
   // 떠 있는 머리 줄(검색창·칩)의 높이 — 목록이 그만큼 위를 비운다
   const [headerHeight, setHeaderHeight] = useState(0);
   const headerInset = useFloatingHeaderInset(headerHeight);
+  // 스크롤 맨 위에서는 머리 줄 컨트롤이 면, 내리면 유리(2026-09-25 PM)
+  const { solidness, scrollProps } = useFloatingHeaderScroll();
 
   // E10은 검색창 줄·주제 칩·잔여 표시까지 그리지 않는다 — 화면 전체가 에러다(uiux 4.8)
   if (screen.isFullError) {
@@ -195,8 +200,9 @@ export default function ExploreScreen() {
     // 개수가 정해져 있지 않아 가로로 밀게 하면 끝을 가늠할 수 없다
     if (screen.isFiltered) {
       return (
-        <FlatList
+        <Animated.FlatList
           {...DOCK_SCROLL_PROPS}
+          {...scrollProps}
           data={toExploreGridData(screen.filteredItems)}
           keyExtractor={exploreGridKey}
           numColumns={2}
@@ -237,8 +243,9 @@ export default function ExploreScreen() {
 
     // E1 — 섹션형 피드. 섹션 구성·순서·제목은 서버 응답 그대로다(explore.md 4.1)
     return (
-      <ScrollView
+      <Animated.ScrollView
         {...DOCK_SCROLL_PROPS}
+        {...scrollProps}
         contentContainerStyle={[
           screen.sections.length === 0 ? styles.emptyContent : styles.feedContent,
           { paddingTop: headerInset, paddingBottom: miniInset },
@@ -256,14 +263,14 @@ export default function ExploreScreen() {
         ) : (
           screen.sections.map(renderSection)
         )}
-      </ScrollView>
+      </Animated.ScrollView>
     );
   };
 
   return (
     <View style={styles.container}>
       {/* 머리 줄은 목록 위에 떠 있다 — 배경 없이 유리 컨트롤만(2026-09-24 PM) */}
-      <FloatingHeader onHeightChange={setHeaderHeight}>
+      <FloatingHeader onHeightChange={setHeaderHeight} solidness={solidness}>
       <ExploreSearchBarRow
         onPress={screen.openSearch}
         trailing={
