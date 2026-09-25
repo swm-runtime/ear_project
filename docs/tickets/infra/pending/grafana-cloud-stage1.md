@@ -25,7 +25,7 @@
 ## 할 일
 
 ### 1. Grafana Cloud 조직
-- 무료 조직 생성, 스택 리전은 아시아(싱가포르). 팀 3명 초대 — 무료 한도가 정확히 3명이라 외부 계정을 추가로 넣을 수 없다.
+- 무료 조직 생성, 스택 리전은 **일본(AWS `ap-northeast-1`, 도쿄)**. 우리 API 가 서울(`ap-northeast-2`)이라 가장 가깝고(왕복 30ms 대, 싱가포르는 70ms 대) 같은 AWS 백본이다. 한국 리전은 없다. 대시보드 조회는 어디든 차이가 없지만, 2단계 remote write 와 Logs Insights 왕복이 짧아진다. 팀 3명 초대 — 무료 한도가 정확히 3명이라 외부 계정을 추가로 넣을 수 없다.
 
 ### 2. CloudWatch 데이터소스 (가장 값어치 있는 연결)
 - IAM 사용자 `grafana-cloudwatch-read` 신설, 인라인 정책 최소 권한: `cloudwatch:GetMetricData` · `ListMetrics` · `GetMetricStatistics` · `DescribeAlarms` · `DescribeAlarmHistory`, `logs:DescribeLogGroups` · `StartQuery` · `GetQueryResults` · `StopQuery` · `FilterLogEvents` · `GetLogEvents`, `tag:GetResources`, `ec2:DescribeInstances`(인스턴스 이름 표시용). 리전 `ap-northeast-2`.
@@ -36,7 +36,7 @@
 - 토큰은 Grafana 데이터소스 설정에만. 저장소·Jira·문서·메모리에 남기지 않는다.
 
 ### 4. 합성 모니터링 (UptimeRobot 대체)
-- HTTP 체크 `https://api.earcast.co.kr/api/v1/health`, 5분 간격, 조건: 200 + 본문에 `"status":"ok"` 포함(UptimeRobot 키워드 조건과 같게). 프로브 2곳(도쿄·싱가포르) — 한 프로브 실패는 프로브 문제일 수 있다.
+- HTTP 체크 `https://api.earcast.co.kr/api/v1/health`, 5분 간격, 조건: 200 + 본문에 `"status":"ok"` 포함(UptimeRobot 키워드 조건과 같게). 프로브 2곳 — 스택 리전과 별개로 고른다. 생성 화면의 공개 프로브 목록에서 서울·도쿄에 가까운 아시아 2곳(예: 도쿄·싱가포르). 한 프로브 실패는 프로브 문제일 수 있다.
 - 알림 규칙: **2회 연속 실패 → Slack**. 5분 간격이라 최대 10분 안에 알린다(UptimeRobot 과 같은 수준).
 - UptimeRobot: 알림 연락처(이메일) **끄기**. 모니터 `ear api health` 는 유지. inventory 에 "알림 끔·예비" 로 적는다.
 
