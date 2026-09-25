@@ -1,0 +1,27 @@
+diff --git a/node_modules/@react-navigation/bottom-tabs/lib/module/unstable/NativeBottomTabView.native.js b/node_modules/@react-navigation/bottom-tabs/lib/module/unstable/NativeBottomTabView.native.js
+index 084cc32..c1f0272 100644
+--- a/node_modules/@react-navigation/bottom-tabs/lib/module/unstable/NativeBottomTabView.native.js
++++ b/node_modules/@react-navigation/bottom-tabs/lib/module/unstable/NativeBottomTabView.native.js
+@@ -205,6 +205,8 @@ export function NativeBottomTabView({
+         backgroundColor: colors.background
+       },
+       ios: {
++        // ear patch: see src — 액세서리 숨김 옵션을 react-native-screens 로 넘긴다
++        bottomAccessoryHidden: currentOptions.tabBarAccessoryHidden === true,
+         bottomAccessory: bottomAccessory ? environment => bottomAccessory({
+           placement: environment
+         }) : undefined,
+diff --git a/node_modules/@react-navigation/bottom-tabs/src/unstable/NativeBottomTabView.native.tsx b/node_modules/@react-navigation/bottom-tabs/src/unstable/NativeBottomTabView.native.tsx
+index e918b82..ff57a86 100644
+--- a/node_modules/@react-navigation/bottom-tabs/src/unstable/NativeBottomTabView.native.tsx
++++ b/node_modules/@react-navigation/bottom-tabs/src/unstable/NativeBottomTabView.native.tsx
+@@ -326,6 +326,9 @@ export function NativeBottomTabView({ state, navigation, descriptors }: Props) {
+         colorScheme={dark ? 'dark' : 'light'}
+         nativeContainerStyle={{ backgroundColor: colors.background }}
+         ios={{
++          // ear patch: 액세서리를 숨긴다(react-native-screens bottomAccessoryHidden — setBottomAccessory nil animated).
++          // 내용만 비우면 빈 유리 껍데기가 남고, 언마운트하면 애니메이션이 멈춘다(2026-09-25)
++          bottomAccessoryHidden: (currentOptions as { tabBarAccessoryHidden?: boolean }).tabBarAccessoryHidden === true,
+           bottomAccessory: bottomAccessory
+             ? (environment: TabsBottomAccessoryEnvironment) =>
+                 bottomAccessory({ placement: environment })
