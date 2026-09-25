@@ -138,12 +138,14 @@ export default function MiniPlayer({
   /* PanResponder 콜백은 생성 시점 값을 캡처한다 — 최신 상태는 ref로 읽고, 갱신은 렌더 밖에서 한다 */
   const gestureContext = useRef({
     isLive: isLiveVisible,
+    isAccessory,
     onResumeDismiss,
     expand: () => {},
   });
   useEffect(() => {
     gestureContext.current = {
       isLive: isLiveVisible,
+      isAccessory,
       onResumeDismiss,
       // 본문 탭과 같은 확대 경로 — 재생 상태 그대로, 재생을 시작시키지 않는다(uiux 4.8)
       expand: () => {
@@ -245,6 +247,12 @@ export default function MiniPlayer({
         const shouldDismiss =
           progress > MINI_PLAYER_DISMISS_DISTANCE_RATIO || gesture.vy > MINI_PLAYER_DISMISS_VELOCITY;
         if (shouldDismiss) {
+          if (gestureContext.current.isAccessory) {
+            // 시스템 액세서리 — 제자리로 돌아간 뒤 떼면 iOS 가 탭 바로 거둬들이는 애니메이션을 그린다(물방울 병합).
+            // 우리 흡수 모션을 겹치면 두 번 사라진다
+            settleDrop(0, dismiss);
+            return;
+          }
           // 그 자리에서 마저 캡슐로 빨려 들어간 뒤 종료 — 완전히 사라진 뒤에 세션을 정리해야 카드가 툭 꺼지지 않는다
           settleDrop(1, dismiss);
           return;
