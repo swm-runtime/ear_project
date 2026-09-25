@@ -20,8 +20,7 @@ const NativeTab = createNativeBottomTabNavigator<MainTabParamList>();
  *
  * - 리퀴드 글라스 탭 바·선택 알약의 부풀기·끌기·굴절·색수차·끝 넘김 고무줄이 **애플 코드 그대로**다. 흉내내지 않는다.
  *   iOS 26 에선 배경색·알약 색을 바꿀 공개 API 가 없다 — 시스템 값이 곧 design.md 0장("시스템 앱 같다")이다.
- * - **미니플레이어는 `bottomAccessory`** — Music 앱의 미니플레이어 자리. 탭 바 위에 얹히고 탭 바가 줄어들면
- *   인라인으로 합쳐진다. 유리·폭·모서리는 시스템이 준다(MiniPlayer placement="accessory").
+ * - **미니플레이어는 `bottomAccessory`** — Music 앱의 미니플레이어 자리. 탭 바 위에 얹힌다(최소화는 끔 — 아래 주석). 유리·폭·모서리는 시스템이 준다(MiniPlayer placement="accessory").
  * - 아이콘은 SF Symbols — 캡슐의 SVG(TabBarIcon)와 같은 뜻의 기호를 고르고, 선택 시 채운(fill) 변형.
  * - 착지 규칙(온보딩 직후 탐색 > 마지막 탭 > 라이브러리)은 MainTabs 와 같다.
  *
@@ -45,8 +44,10 @@ export default function NativeMainTabs() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: theme.color.primary,
-        // 스크롤하면 탭 바가 줄어든다(TV·Music 앱) — 미니플레이어는 인라인으로 합쳐진다
-        tabBarMinimizeBehavior: 'onScrollDown',
+        // 최소화(onScrollDown)는 끈다(PM 2026-09-25 18:00 — 줄어드는 유리 모핑 중간 프레임이 큰 아이콘 잔상으로 남고,
+        // react-native-screens 의 최소화 + 액세서리 + 모달(우리 플레이어) 조합 버그 #4176 로 액세서리가 굳는다).
+        // 우리 목록은 최소화가 필요할 만큼 길지 않다
+        tabBarMinimizeBehavior: 'none',
         // 미니플레이어 — 시스템이 두 배치(regular·inline)를 모두 렌더하고 하나만 보인다(공유 상태는 스토어)
         bottomAccessory: () => <MiniPlayer placement="accessory" />,
       }}
