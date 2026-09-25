@@ -11,6 +11,7 @@ import {
 
 import { useFadingNativeTitle } from '@/shared/navigation/useFadingNativeTitle';
 import {
+  useNativeBarBlurProps,
   useNativeBarPullStyle,
   useNativeHeaderInset,
 } from '@/shared/navigation/useNativeHeaderInset';
@@ -94,6 +95,7 @@ export default function LibraryScreen() {
   // 투명 시스템 바 — 스크롤 뷰가 아닌 상태 화면(스켈레톤·에러)은 상태 바만 비우고, 목록의 제목 줄은 바 줄만큼 올린다
   const nativeBarInset = useNativeHeaderInset();
   const nativeBarPull = useNativeBarPullStyle();
+  const nativeBarBlur = useNativeBarBlurProps();
   // 맨 위에서는 머리 줄 컨트롤이 면, 내리면 유리(PM 2026-09-25)
   const { solidness, scrollY, scrollProps } = useFloatingHeaderScroll();
   useFadingNativeTitle(LIBRARY_COPY.tabTitle, scrollY);
@@ -302,6 +304,7 @@ export default function LibraryScreen() {
         <Animated.FlatList
           ref={listRef}
           {...DOCK_SCROLL_PROPS}
+          {...nativeBarBlur}
           {...scrollProps}
           data={gridRows}
           keyExtractor={(row) => row.key}
