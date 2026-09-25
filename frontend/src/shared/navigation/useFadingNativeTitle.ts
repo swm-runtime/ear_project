@@ -37,12 +37,15 @@ export const useFadingNativeTitle = (title: string, scrollY: Animated.Value): vo
       headerTitle: () =>
         createElement(
           Animated.Text,
-          { style: [styles.title, { opacity }], numberOfLines: 1 },
+          { style: [styles.title, { opacity, transform: [{ translateY: TITLE_LIFT }] }], numberOfLines: 1 },
           title,
         ),
     } as object);
   }, [navigation, title, opacity]);
 };
+
+/** 바 줄 가운데보다 이만큼 위 — 띠 아래 끝을 바 줄보다 올려서(NativeBarBlurBand) 제목도 같이 올린다(03:19 PM "글자를 더 올리자") */
+const TITLE_LIFT = -6;
 
 const styles = StyleSheet.create({
   // iOS 바 제목 — 17pt semibold
