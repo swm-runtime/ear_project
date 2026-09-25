@@ -6,6 +6,10 @@ import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 
 import { applyScrollEdgeEffect } from '../../../modules/scroll-edge-effect/src';
 
+/** 마지막 시도 — 태그가 null 이면 ref 가 비어 있던 것. 디버그 행이 읽는다 */
+let lastAttempt = 'not-run';
+export const getLastScrollEdgeEffectAttempt = (): string => lastAttempt;
+
 /**
  * iOS 26 **시스템 scroll edge effect**(상태 바 밑 점진 블러 — 애플 뮤직·설정과 같은 것)를 이 화면의 목록에 건다.
  *
@@ -29,7 +33,13 @@ export const useSystemScrollEdgeEffect = (
       const frame = requestAnimationFrame(() => {
         const node = listRef.current as Parameters<typeof findNodeHandle>[0];
         const tag = node ? findNodeHandle(node) : null;
-        if (tag !== null) void applyScrollEdgeEffect(tag, 'soft');
+        if (tag === null) {
+          lastAttempt = node ? 'no-tag' : 'no-ref';
+          return;
+        }
+        void applyScrollEdgeEffect(tag, 'soft').then((result) => {
+          lastAttempt = result;
+        });
       });
       return () => cancelAnimationFrame(frame);
     }, [listRef, isListMounted]),
