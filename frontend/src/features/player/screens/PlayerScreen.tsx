@@ -256,6 +256,21 @@ export default function PlayerScreen() {
    */
   const openProgress = useAnimatedValue(0);
   const [isMorphing, setIsMorphing] = useState(true);
+  /*
+   * 아트워크 **재생/정지 배율**(애플 뮤직 Now Playing, 2026-09-25 PM "애플처럼 전환"). 정지하면 아트워크가 작아지고
+   * 재생하면 살짝 튕기며 제자리로 커진다 — 화면 전체에서 재생 상태를 한눈에 알리는 애플의 방식. 모션(열림·닫힘) 중과
+   * 재생 목록이 열려 사진이 화면을 채울 땐 1 로 고정한다 — 모션 레이어와 교차하는 순간 크기가 다르면 두 장으로 보인다
+   */
+  const artScale = useAnimatedValue(1);
+  const isArtRelaxed = isMorphing || screen.activePanel === 'queue' || (session?.isPlaying ?? true);
+  useEffect(() => {
+    Animated.spring(artScale, {
+      toValue: isArtRelaxed ? 1 : PAUSED_ART_SCALE,
+      ...motion.spring.smooth,
+      // 같은 뷰의 left·top 이 JS 드라이버라 transform 도 JS 로 — 한 노드에 두 드라이버를 섞을 수 없다
+      useNativeDriver: false,
+    }).start();
+  }, [artScale, isArtRelaxed]);
   const hasOpenedRef = useRef(false);
   const miniLayout = useMiniPlayerLayoutStore((s) => s.layout);
   const isMeasured = contentSize.height > 0 && controlsHeight > 0;
@@ -1048,6 +1063,7 @@ export default function PlayerScreen() {
               height: art.height,
               borderRadius: art.radius,
               opacity: morph.heroOpacity,
+              transform: [{ scale: artScale }],
             },
           ]}
           onLayout={onHeroArtLayout}
@@ -1678,6 +1694,8 @@ const MORPH_ART_INPUT = [0, MORPH_ART_SHRINK_END, MORPH_ART_ARRIVE, 1];
  * 손을 뗀 속도는 `velocity` 로 따로 넣는다. 실기기에서 조절한다
  */
 const SHEET_SPRING = motion.spring.smooth;
+/** 정지 시 아트워크 배율 — 애플 뮤직은 약 0.8 까지 줄인다. 그림자 없는 우리 사진은 조금 덜 줄여도 정지가 읽힌다 */
+const PAUSED_ART_SCALE = 0.85;
 /** 바탕 커버의 흐림 — 형태가 남지 않고 색 덩어리만 보일 만큼 */
 const BACKDROP_BLUR_RADIUS = 60;
 /** 흐린 커버 위 어두운 막 — 플레이어 바탕색(#17171A)의 72% */
