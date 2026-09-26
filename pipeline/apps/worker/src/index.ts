@@ -7,7 +7,7 @@ import { makeExecutor, setJobAbort } from "./executors/index.js";
 import { startLogWatch } from "./log-watch.js";
 import { runStage } from "./stages/index.js";
 import { log, sleep, ApiLimit, RetryLater } from "./util.js";
-import { aiPaused, pauseForLimit, serverClaimOff } from "./ai-pause.js";
+import { aiPaused, pauseForLimit, serverClaimOff, ttsPaused } from "./ai-pause.js";
 import { onDraftFailed } from "./stages/draft.js";
 import { autoApprove } from "./automation.js";
 import { maybeSendDigest } from "./digest.js";
@@ -56,6 +56,7 @@ async function main() {
   // 커밋 시각을 모르면(0) 게이트를 건너뛴다. 60초마다 다시 본다.
   let revCheckedAt = 0, revStale = false;
   let pausedLogged = false;
+  let ttsPausedLogged = false;
   const revGate = async () => {
     if (Date.now() - revCheckedAt < 60_000) return revStale;
     revCheckedAt = Date.now();
@@ -75,9 +76,14 @@ async function main() {
       if (paused && !pausedLogged) log(`⏸ AI 작업 집기 멈춤: ${paused}`); else if (!paused && pausedLogged) log("▶ AI 작업 집기 재개");
       pausedLogged = !!paused;
       const aiNow = canAi && !paused;
+      // ElevenLabs 한도 차단기 (2026-09-26): 멈춘 동안 tts·script_align 을 집지 않는다 — AI 작업은 계속
+      const ttsPause = canTts ? await ttsPaused() : null;
+      if (ttsPause && !ttsPausedLogged) log(`⏸ TTS 집기 멈춤: ${ttsPause}`); else if (!ttsPause && ttsPausedLogged) log("▶ TTS 집기 재개");
+      ttsPausedLogged = !!ttsPause;
+      const ttsNow = canTts && !ttsPause;
       if (aiNow) { await autoApprove().catch((e) => log(`자동 승인 오류 (계속 진행): ${e?.message ?? e}`)); await pickupApproved(); }
       // 0025: 도구(WebSearch)가 필요한 보강·주제 기획(sweep 모드 B·B2)은 Claude CLI 워커만 — API 실행기는 단발 호출뿐이라 집지 않는다
-      const job = await claimJob(cfg.workerName, aiNow, canTts, canThumbnail, (await serverClaimOff()) ? ["sweep"] : [], cfg.executor !== "openai"); // 스위치 꺼짐: 스윕도 노트북 몫
+      const job = await claimJob(cfg.workerName, aiNow, ttsNow, canThumbnail, (await serverClaimOff()) ? ["sweep"] : [], cfg.executor !== "openai"); // 스위치 꺼짐: 스윕도 노트북 몫
       if (!job) {
         if (once) { log("대기 중인 작업 없음"); break; }
         if (drain && (await listApprovedBacklog()).length === 0) { log("큐 비움 — drain 종료"); break; }
