@@ -328,9 +328,13 @@ export default function PlayerScreen() {
       if (finished) onFinished();
     });
   };
+  // goBack 은 한 번만 — 놓기·중단·구독이 겹쳐 두 번 부르면 닫히는 중인 모달을 또 닫으려다 RNS 가 굳는다
+  const isCollapsingRef = useRef(false);
   const dismissPlayer = () => {
     // 줌 전환 갈래: 화면을 걷으면 시스템이 미니플레이어 자리로 줄이는 모션을 그린다
     if (USE_NATIVE_PLAYER_ZOOM) {
+      if (isCollapsingRef.current) return;
+      isCollapsingRef.current = true;
       screen.collapse();
       return;
     }
@@ -465,7 +469,12 @@ export default function PlayerScreen() {
   // 줌 전환 갈래: 시스템의 드래그 닫기도 같은 규칙으로 막는다 — 재생 목록을 끌어내리면 플레이어까지 같이 줄어들었다(15:49 실기기).
   // **터치가 목록·손잡이 위에서 시작했을 때만** 막는다(동기 호출 — 시스템 제스처가 시작되기 전에 반영). 패널이 열려 있어도
   // 앱바·히어로를 끌어내리면 미니플레이어로 줄어들어야 한다(16:51 PM 스샷 — 대본 펼친 채 위쪽을 밀어도 안 줄었다)
-  useEffect(() => () => setPlayerZoomDismissBlocked(false), []);
+  // 열리는 즉시 시스템 닫기를 막는다 — 목록 위 터치 때만 걸었더니 그 전엔 시스템 드래그 닫기가 살아 있어 우리 goBack 과
+  // 동시에 닫혀 RNS 가 굳었다(2026-09-27 00:50 "플레이어가 뜨더니 벽돌"). 지금은 SYSTEM_INTERACTIVE_DISMISS=false 라 항상 막는다
+  useEffect(() => {
+    setPlayerZoomDismissBlocked(true);
+    return () => setPlayerZoomDismissBlocked(false);
+  }, []);
   const scrollAreaTouchHandlers = useMemo(
     () => ({
       onTouchStart: () => {
