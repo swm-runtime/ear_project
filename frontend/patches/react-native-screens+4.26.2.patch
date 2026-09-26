@@ -12,7 +12,7 @@ index b1f482c..925a5a8 100644
  - (CGFloat)calculateHeaderHeightIsModal:(BOOL)isModal;
  - (BOOL)isRemovedFromParent;
 diff --git a/node_modules/react-native-screens/ios/RNSScreen.mm b/node_modules/react-native-screens/ios/RNSScreen.mm
-index 9b66012..0bc3dd2 100644
+index 9b66012..49d243b 100644
 --- a/node_modules/react-native-screens/ios/RNSScreen.mm
 +++ b/node_modules/react-native-screens/ios/RNSScreen.mm
 @@ -1417,6 +1417,10 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
@@ -95,7 +95,7 @@ index 9b66012..0bc3dd2 100644
    // self.navigationController might be null when we are dismissing a modal
    if (!self.transitionCoordinator.isInteractive && self.navigationController != nil) {
      // user might have long pressed ios 14 back button item,
-@@ -1517,7 +1580,18 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
+@@ -1517,7 +1580,23 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
  - (void)viewDidDisappear:(BOOL)animated
  {
    [super viewDidDisappear:animated];
@@ -111,7 +111,12 @@ index 9b66012..0bc3dd2 100644
 +      }
 +    });
 +  }
-+  if (self.parentViewController == nil && self.presentingViewController == nil && !_notifiedInteractiveDismiss) {
++  // [ear patch] for an interactive (zoom) dismissal the stock notify below fires on the transition's last frame —
++  // React then unmounts the screen view while UIKit is still finishing the transition, and the orphaned view
++  // flashed on the next tab switch (2026-09-26 22:42 device trace: modals:n=0 arrived before settled:coordinator).
++  // Only the settle path (coordinator completion / deferred check) may notify in that case.
++  if (self.parentViewController == nil && self.presentingViewController == nil && !_notifiedInteractiveDismiss &&
++      !_dismissingInteractively) {
      if (self.screenView.preventNativeDismiss) {
        // if we want to prevent the native dismiss, we do not send dismissal event,
        // but instead call `updateContainer`, which restores the JS navigation stack
