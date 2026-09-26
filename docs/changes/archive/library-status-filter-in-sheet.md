@@ -38,3 +38,5 @@
 ## 처리 기록
 
 - 2026-09-25 발행 — 코드 PR `feat(fe)/library-status-in-filter-sheet`.
+
+- **반영 날짜: 2026-09-26** — 통합 PR(`docs/changes-integration-fe-2026-09-26`, 백엔드 담당이 FE 발행분을 옮겨 적음). 반영 위치: library-uiux.md 3장 흐름·4.1·4.2(재작성)·4.5·4.8·7장, features/library.md 4.1-1.
