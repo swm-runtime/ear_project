@@ -177,4 +177,28 @@ describe('validateEnv', () => {
     // then
     expect(validate).not.toThrow();
   });
+
+  it('CLUSTER_WORKERS 가 auto 또는 1~8 이 아니면 기동을 실패시킨다 — 오타로 조용히 1워커가 되지 않게', () => {
+    expect(() => validateEnv({ ...validEnv, CLUSTER_WORKERS: 'two' })).toThrow(
+      /CLUSTER_WORKERS/,
+    );
+    expect(() => validateEnv({ ...validEnv, CLUSTER_WORKERS: '0' })).toThrow(
+      /CLUSTER_WORKERS/,
+    );
+    expect(() =>
+      validateEnv({ ...validEnv, CLUSTER_WORKERS: 'auto' }),
+    ).not.toThrow();
+    expect(() =>
+      validateEnv({ ...validEnv, CLUSTER_WORKERS: '2' }),
+    ).not.toThrow();
+  });
+
+  it('AUDIO_URL_BASE_URL 이 비었거나 절대 URL 이 아니면 기동을 실패시킨다 — 서명 URL 이 상대 경로로 나간다', () => {
+    expect(() => validateEnv({ ...validEnv, AUDIO_URL_BASE_URL: '' })).toThrow(
+      /AUDIO_URL_BASE_URL/,
+    );
+    expect(() =>
+      validateEnv({ ...validEnv, AUDIO_URL_BASE_URL: 'audio' }),
+    ).toThrow(/AUDIO_URL_BASE_URL/);
+  });
 });

@@ -1004,6 +1004,14 @@ export class AdminContentService {
           details: { field: 'license_expires_at' },
         });
       }
+      // 파트너 콘텐츠에 참고 소스는 없다 — 재발행(4.10)과 같은 400. 종전 업로드는 조용히 버려 콘솔이 잘못 보낸
+      // 입력을 알 수 없었다(admin-api.md 4.6, 2026-09-26)
+      if (command.sources.length > 0) {
+        throw this.validationFailed(
+          'sources',
+          '파트너 콘텐츠에는 참고 소스를 넣지 않아요',
+        );
+      }
       return;
     }
 

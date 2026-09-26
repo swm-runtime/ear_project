@@ -117,7 +117,9 @@ export class LibraryItemRepository {
   ): Promise<boolean> {
     const result = await this.scoped(manager).update(
       { id, deletedAt: Not(IsNull()) },
-      { deletedAt: null, addedAt, source },
+      // 재담기는 새 담기라 재생 목록에서도 맨 위(NULL = 마지막 저장 뒤에 담긴 것 — library-api.md 4.8).
+      // 옛 자리를 되살리는 것은 복구(4.7)뿐이다(2026-09-26 감사)
+      { deletedAt: null, addedAt, source, queuePosition: null },
     );
 
     return (result.affected ?? 0) > 0;
@@ -730,6 +732,24 @@ export class LibraryItemRepository {
    * 삭제 시각을 인자로 받는 이유는 테스트에서 시각을 고정하기 위해서다
    * (convention.md 7.3 — `Date.now()`를 직접 쓰지 않는다).
    */
+  /**
+   * 완청 전이 — **조건부 UPDATE**. 아직 `completed`가 아닌 행만 바꾸고, affected가 곧 "이번 요청이 처음
+   * 도달했는가"다(player-api.md 4.3 "처음 도달 시 1회", library-api.md 4.5 "completed_at 최초 값 유지").
+   * 두 기기가 90% 근처에서 동시에 저장하면 한쪽만 true를 받아 완청 신호가 두 번 쌓이지 않는다(2026-09-26 감사).
+   */
+  async completeById(
+    id: string,
+    completedAt: Date,
+    manager?: EntityManager,
+  ): Promise<boolean> {
+    const result = await this.scoped(manager).update(
+      { id, status: Not(LibraryItemStatus.COMPLETED) },
+      { status: LibraryItemStatus.COMPLETED, completedAt },
+    );
+
+    return (result.affected ?? 0) > 0;
+  }
+
   /** 살아 있는 행만 지운다 — affected로 이번 요청이 지웠는지 판정한다(`reactivateById`와 같은 이유) */
   async softDeleteById(
     id: string,
