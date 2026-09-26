@@ -50,7 +50,7 @@ public class ZoomTransitionRegistry: NSObject {
 
   @objc public static func noteDiagnostic(_ note: String) {
     diagnostics.append(note)
-    if diagnostics.count > 8 { diagnostics.removeFirst(diagnostics.count - 8) }
+    if diagnostics.count > 14 { diagnostics.removeFirst(diagnostics.count - 14) }
   }
 
   static func diagnosticsText() -> String {
