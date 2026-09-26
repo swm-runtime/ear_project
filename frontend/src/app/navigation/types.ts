@@ -5,14 +5,21 @@ import type { ContentDetailEntryPoint } from '@/features/content-detail';
 import type { OnboardingStackParamList } from '@/features/onboarding';
 import type { PlayEntryPoint, PlaybackStartMeta } from '@/features/player';
 
+/**
+ * 탐색 탭 안의 스택(iOS 26 시스템 탭 바 갈래, ExploreStack) — 검색이 탭 안에서 푸시된다.
+ * applyTopicId: 검색 빈 결과(E7)의 관련 주제 칩 복귀용 — 그 주제의 단일 목록(E2)으로 전환한다(explore.md 4.5-3).
+ * 화면이 처리 후 스스로 소거한다(useExploreScreen)
+ */
+export type ExploreStackParamList = {
+  ExploreHome: { applyTopicId?: string } | undefined;
+  ExploreSearch: undefined;
+};
+
 /** 하단 탭 3개 — 라이브러리가 기본이고 설정은 탭이 아니라 프로필 안이다(library.md 2) */
 export type MainTabParamList = {
   Library: undefined;
-  /**
-   * applyTopicId: 검색 빈 결과(E7)의 관련 주제 칩 복귀용 — 그 주제의 단일 목록(E2)으로
-   * 전환한다(explore.md 4.5-3). 화면이 처리 후 스스로 소거한다(useExploreScreen).
-   */
-  Explore: { applyTopicId?: string } | undefined;
+  /** JS 탭 바 갈래는 화면 하나(applyTopicId 직접), iOS 26 갈래는 안에 스택(ExploreStackParamList) */
+  Explore: NavigatorScreenParams<ExploreStackParamList> | { applyTopicId?: string } | undefined;
   Profile: undefined;
 };
 

@@ -1,4 +1,5 @@
 import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, Linking } from 'react-native';
@@ -9,6 +10,7 @@ import { ERROR_CODES } from '@/shared/api/error-codes';
 import { generateId } from '@/shared/lib/generate-id';
 import { logger } from '@/shared/lib/logger';
 import { toTab } from '@/shared/navigation/to-tab';
+import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 import { useToastStore } from '@/shared/ui/toast.store';
 
 import { libraryKeys } from '@/features/library';
@@ -44,6 +46,9 @@ const isNetworkError = (error: unknown): boolean =>
  */
 export const useExploreSearchScreen = () => {
   const navigation = useNavigation();
+  /** iOS 26 갈래의 탐색 탭 안 스택 — 원본은 app/navigation/types.ts 의 ExploreStackParamList(feature 는 app 을 import 하지 않는다) */
+  const exploreStackNavigation =
+    useNavigation<NativeStackNavigationProp<{ ExploreHome: { applyTopicId?: string } | undefined }>>();
   const queryClient = useQueryClient();
   const showToast = useToastStore((s) => s.show);
 
@@ -410,8 +415,13 @@ export const useExploreSearchScreen = () => {
   /** [취소]·뒤로가기 — 피드로 복귀. 검색 상태는 화면 pop과 함께 버려진다(explore.md 4.5-1) */
   const cancel = () => navigation.goBack();
 
-  /** E7 관련 주제 칩 — 그 주제의 단일 목록(E2)으로 이동한다(explore.md 4.5-3). 검색 화면은 pop된다 */
+  /** E7 관련 주제 칩 — 그 주제의 단일 목록(E2)으로 이동한다(explore.md 4.5-3). 검색 화면은 pop된다.
+      iOS 26 갈래는 같은 스택(ExploreStack)의 홈으로 되돌아간다 — popTo 라 검색 화면이 걷힌다 */
   const openTopicList = (topicId: string) => {
+    if (HAS_NATIVE_TAB_BAR) {
+      exploreStackNavigation.popTo('ExploreHome', { applyTopicId: topicId });
+      return;
+    }
     navigation.navigate('Main', toTab('Explore', { applyTopicId: topicId }));
   };
 

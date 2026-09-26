@@ -4,11 +4,11 @@ import { useState } from 'react';
 import { theme } from '@/shared/theme';
 
 import { useSessionStore } from '@/features/auth';
-import { ExploreScreen } from '@/features/explore';
 import { LibraryScreen } from '@/features/library';
 import { MiniPlayer, useIsMiniPlayerVisible } from '@/features/player';
 import { ProfileScreen } from '@/features/profile';
 
+import ExploreStack from './ExploreStack';
 import { rememberTab, takePrimedTab, type RestorableTab } from './last-tab';
 import type { MainTabParamList } from './types';
 
@@ -86,7 +86,7 @@ export default function NativeMainTabs() {
           콘텐츠와 같이 스크롤. 검색 탭(탭 바 옆 검색 원, #730)은 뺐다 — 입구가 둘이라(PM 09-26 01:20) */}
       <NativeTab.Screen
         name="Explore"
-        component={ExploreScreen}
+        component={ExploreStack}
         options={{
           tabBarLabel: '탐색',
           tabBarIcon: ({ focused }) => ({
