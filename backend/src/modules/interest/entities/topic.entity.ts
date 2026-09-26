@@ -20,9 +20,9 @@ export class Topic extends BaseEntity {
   parentCategory: string;
 
   /**
-   * **관리자만 변경한다**(FR-38). 시스템이 자동으로 내리지 않는다.
-   * 콘텐츠 풀이 없는 주제는 관리자가 여기서 내리므로,
-   * 온보딩에는 "고를 수는 있는데 볼 게 없는 주제"가 존재하지 않는다(onboarding.md 3).
+   * **켜기는 관리자만 한다**(FR-38). 내리기는 `TopicExposureService`가 발행 콘텐츠 0건 주제를
+   * 자동으로 숨긴다(2026-09-17, KAN-58) — 그래서 온보딩에는 "고를 수는 있는데 볼 게 없는 주제"가
+   * 존재하지 않는다(onboarding.md 3).
    */
   // domain.md 4.1 — **기본값은 false다.** true면 생성 즉시 0건 주제가 온보딩·탐색에 노출된다
   @Column({ name: 'is_visible', type: 'boolean', default: false })

@@ -362,6 +362,8 @@ user: User;
 - 파일명: `<타임스탬프>-<변경내용>.ts` (`1730000000000-AddPlayCountToUsers.ts`)
 - 하나의 마이그레이션은 하나의 논리적 변경만 담는다.
 - 컬럼 삭제·타입 변경은 배포 순서를 함께 검토한다(구버전 서버가 살아 있는 동안 깨지지 않아야 한다).
+- **락이 무거운 DDL**(인덱스 생성·NOT NULL 추가·타입 변경)은 별 파일로 두고 `migration:run -t each`로 트랜잭션을 나눠 적용한다. `CREATE INDEX`는 트랜잭션 밖에서 `CONCURRENTLY`를 우선 검토한다 — 기본 모드(`all`)는 pending 전부가 한 트랜잭션이라 SHARE 락이 배치 끝까지 유지된다(2026-09-26).
+- **`migration:generate` 산출물은 검토 후 손으로 줄인다** — `vector` 컬럼(엔티티 `text` + transformer)·NULLS FIRST 인덱스처럼 엔티티가 DB와 의도적으로 다른 곳은 generate가 `ALTER … TYPE text`·인덱스 재생성을 뱉는다.
 
 ## 5. API Convention
 
