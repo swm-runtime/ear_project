@@ -17,7 +17,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
-import { USE_NATIVE_PLAYER_ZOOM } from '@/shared/navigation/zoom-transition';
+import {
+  setPlayerZoomDismissBlocked,
+  USE_NATIVE_PLAYER_ZOOM,
+} from '@/shared/navigation/zoom-transition';
 import { motion, theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import MarqueeText from '@/shared/ui/MarqueeText';
@@ -436,16 +439,29 @@ export default function PlayerScreen() {
    * 끌어내리는 것은 종전과 같다.
    */
   const isTouchOnScrollAreaRef = useRef(false);
+  // 줌 전환 갈래: 시스템의 드래그 닫기도 같은 규칙으로 막는다 — 재생 목록을 끌어내리면 플레이어까지 같이 줄어들었다(15:49 실기기).
+  // 패널이 열려 있는 동안은 통째로 막고, 목록 위에서 시작한 터치도 막는다(동기 호출 — 시스템 제스처가 시작되기 전에 반영)
+  const isPanelOpen = activePanel !== null;
+  const isPanelOpenRef = useRef(isPanelOpen);
+  useEffect(() => {
+    isPanelOpenRef.current = isPanelOpen;
+    setPlayerZoomDismissBlocked(isPanelOpen);
+    return () => setPlayerZoomDismissBlocked(false);
+  }, [isPanelOpen]);
   const scrollAreaTouchHandlers = useMemo(
     () => ({
       onTouchStart: () => {
         isTouchOnScrollAreaRef.current = true;
+        setPlayerZoomDismissBlocked(true);
       },
       onTouchEnd: () => {
         isTouchOnScrollAreaRef.current = false;
+        // 패널이 열려 있으면 계속 막는다
+        setPlayerZoomDismissBlocked(isPanelOpenRef.current);
       },
       onTouchCancel: () => {
         isTouchOnScrollAreaRef.current = false;
+        setPlayerZoomDismissBlocked(isPanelOpenRef.current);
       },
     }),
     [],

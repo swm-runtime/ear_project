@@ -31,6 +31,18 @@ public class ZoomTransitionRegistry: NSObject {
     sourceView = nil
     return view
   }
+
+  /// 시스템의 드래그·핀치 닫기를 지금 막아야 하는가 — 재생 목록·대본 패널이 열려 있거나 손가락이 스크롤 목록 위에서
+  /// 시작했을 때(15:49 PM "재생목록 내려갈 때 미니플레이어도 같이 내려간다"). RNS 패치의 `interactiveDismissShouldBegin` 이 읽는다
+  private static var interactiveDismissBlocked = false
+
+  @objc public static func setInteractiveDismissBlocked(_ blocked: Bool) {
+    interactiveDismissBlocked = blocked
+  }
+
+  @objc public static func isInteractiveDismissBlocked() -> NSNumber {
+    return NSNumber(value: interactiveDismissBlocked)
+  }
 }
 
 public class ZoomTransitionModule: Module {
@@ -52,6 +64,11 @@ public class ZoomTransitionModule: Module {
 
     Function("disarm") {
       ZoomTransitionRegistry.disarm()
+    }
+
+    // 동기 — 패널 열림·목록 위 터치 시작 즉시 반영돼야 시스템 제스처가 시작되기 전에 막힌다
+    Function("setInteractiveDismissBlocked") { (blocked: Bool) in
+      ZoomTransitionRegistry.setInteractiveDismissBlocked(blocked)
     }
   }
 
