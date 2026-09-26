@@ -18,6 +18,7 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import {
+  notePlayerMounted,
   setPlayerZoomDismissBlocked,
   USE_NATIVE_PLAYER_ZOOM,
 } from '@/shared/navigation/zoom-transition';
@@ -285,6 +286,10 @@ export default function PlayerScreen() {
       useNativeDriver: false,
     }).start();
   }, [artScale, isArtRelaxed]);
+  // 진단 — 마운트 횟수(설정 > 스택 라우트 줄). 드래그 닫기 뒤 탭 전환 때 늘면 JS 가 다시 마운트한 것
+  useEffect(() => {
+    notePlayerMounted();
+  }, []);
   const hasOpenedRef = useRef(false);
   const miniLayout = useMiniPlayerLayoutStore((s) => s.layout);
   const isMeasured = contentSize.height > 0 && controlsHeight > 0;
