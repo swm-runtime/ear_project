@@ -964,7 +964,6 @@ export default function PlayerScreen() {
 
   const isEnded = session.state === 'ended';
   const isControlDisabled = session.state === 'loading' || session.state === 'load_failed';
-  const isCompleted = session.libraryItem?.status === 'completed';
 
   const playButtonA11y = isEnded
     ? PLAYER_COPY.screen.replayA11y
@@ -1100,18 +1099,7 @@ export default function PlayerScreen() {
           ) : (
             <View style={[styles.artwork, styles.artworkPlaceholder]} />
           )}
-          {isCompleted ? (
-            <Animated.View
-              // 재생 목록이 열려 사진이 화면을 채우면 배지가 좌상단(셰브론 옆)으로 끌려가 겹친다 — 그때는 감춘다
-              style={[
-                styles.completedBadge,
-                { opacity: Animated.multiply(hero.collapsedOpacity, queueInverse) },
-              ]}
-              accessibilityLabel={PLAYER_COPY.screen.completedBadgeA11y}
-            >
-              <Text style={styles.completedBadgeGlyph}>✓</Text>
-            </Animated.View>
-          ) : null}
+          {/* 완청 표식은 얹지 않는다(player-uiux.md 4.x 개정 2026-09-22 — 라이브러리 체크 마킹 폐기와 같이. 코드는 09-26 17:07 에 뒤늦게 뺐다) */}
           {/* 사진 위 글자·시크바 대비용 어두운 막 — 열린 만큼만 */}
           <Animated.View
             pointerEvents="none"
@@ -1936,23 +1924,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: playerColor.textPrimary,
     lineHeight: theme.font.size.lg * 1.3,
-  },
-  completedBadge: {
-    position: 'absolute',
-    top: theme.spacing.sm,
-    left: theme.spacing.sm,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    // 밝은 아트워크 위에서도 보이도록 배경을 깐다(마킹 배경 처리는 시안 검증 미결)
-    backgroundColor: playerColor.overlay,
-  },
-  completedBadgeGlyph: {
-    color: playerColor.onPrimary,
-    fontSize: theme.font.size.sm,
-    fontWeight: '700',
   },
   title: {
     fontSize: theme.font.size.xl,
