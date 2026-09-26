@@ -25,7 +25,27 @@ bootstrapApp();
 let lastTrackedScreen: string | null = null;
 
 /** GA4 `screen_view` — 포커스된 리프 라우트가 바뀔 때만(같은 화면 재렌더에 중복 발송 금지, analytics.md 4장) */
+/**
+ * 개발계 JS 트레이스 — 라우트 **키** 목록(루트 → Main → Tabs 까지). 이름은 같은데 키가 바뀌면 스택이 재생성된 것이다
+ * (2026-09-27 02:37 — 플레이어 여닫기 뒤 RNSScreen 셋이 unmount 되며 굳는 원인 추적). 바뀔 때만 남긴다
+ */
+let lastRouteKeys = '';
+const routeKeysOf = (state: NavigationState | undefined, depth = 0): string => {
+  if (!state || depth > 2) return '';
+  return state.routes
+    .map((r) => {
+      const nested = routeKeysOf(r.state as NavigationState | undefined, depth + 1);
+      return `${r.name}#${r.key.slice(-4)}${nested ? `[${nested}]` : ''}`;
+    })
+    .join(',');
+};
+
 const handleNavigationStateChange = (state: NavigationState | undefined): void => {
+  const keys = routeKeysOf(state);
+  if (keys !== lastRouteKeys) {
+    lastRouteKeys = keys;
+    traceJs(`keys ${keys}`);
+  }
   const name = focusedRouteName(state);
   if (name === null || name === lastTrackedScreen) return;
   lastTrackedScreen = name;
