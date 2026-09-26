@@ -36,7 +36,7 @@ export function SettingsForm({ tts, worker, templates, thumbnail, anchor, automa
         </label>
         <label className="mb-2 flex items-start gap-2">
           <input type="checkbox" className="mt-0.5" checked={auto.server_ai_claim !== false} onChange={(e) => setAuto({ ...auto, server_ai_claim: e.target.checked })} />
-          <span><b>서버 워커가 AI 작업을 집는다</b> — 끄면 서버(GPT)는 스윕·TTS·패키지 같은 io 작업만 하고, 군집화·초안·QA·비평은 노트북 Claude 워커만 집는다. 큐에 있는 AI 작업은 사라지지 않고 기다린다. 군집화를 Claude 로 돌릴 때 끈다.</span>
+          <span><b>서버 워커가 AI 작업·스윕을 집는다</b> — 끄면 서버(GPT)는 발행 준비(TTS·썸네일·패키지·자막 정렬)만 하고, 스윕·군집화·초안·QA·비평은 노트북 Claude 워커만 집는다. 큐에 있는 작업은 사라지지 않고 기다린다. 스윕·군집화를 로컬에서 돌릴 때 끈다.</span>
         </label>
         <div className="mt-3 flex items-center gap-2">
           <button className={btnCls("primary")} disabled={pending} onClick={() => save("automation", auto, "자동화 설정")}>저장</button>

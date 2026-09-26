@@ -25,10 +25,14 @@ async function dbPaused(): Promise<{ paused: boolean; reason?: string }> {
   return dbCache;
 }
 
+/** 서버 AI 집기 스위치가 꺼졌는가 — API 실행기 워커에만 해당. 꺼지면 AI 작업과 스윕(io)을 집지 않는다 (스윕·군집화는 노트북 Claude, 2026-09-26) */
+export async function serverClaimOff(): Promise<boolean> {
+  return cfg.executor === "openai" && (await readAutomation()).server_ai_claim === false;
+}
 /** AI 작업을 집어도 되는가 — 루프가 매번 부른다 */
 export async function aiPaused(): Promise<string | null> {
   // 설정 스위치 (2026-09-26): 서버(API 실행기) 워커의 AI 집기를 사람이 끈 상태 — 군집화·초안은 노트북 Claude 가 집는다. 한도 멈춤과 달리 알림 없음
-  if (cfg.executor === "openai" && (await readAutomation()).server_ai_claim === false) return "설정에서 서버 워커 AI 집기 꺼짐 — io 작업만";
+  if (await serverClaimOff()) return "설정에서 서버 워커 AI 집기 꺼짐 — 스윕도 건너뛰고 발행 준비(io)만";
   if (Date.now() < rateUntil) return `분당 한도 — ${Math.ceil((rateUntil - Date.now()) / 1000)}초 뒤 재개`;
   const d = await dbPaused();
   if (d.paused) return `잔액·예산 소진 — 콘솔 설정에서 [AI 작업 재개] 전까지 멈춤${d.reason ? ` (${d.reason.slice(0, 80)})` : ""}`;
