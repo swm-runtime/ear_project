@@ -43,6 +43,19 @@ public class ZoomTransitionRegistry: NSObject {
   @objc public static func isInteractiveDismissBlocked() -> NSNumber {
     return NSNumber(value: interactiveDismissBlocked)
   }
+
+  /// RNS 패치가 남기는 진단 기록(최근 8건) — 설정 > 스택 라우트 줄에서 읽는다(2026-09-26 21:57: 드래그 닫기 뒤
+  /// 탭 전환 때 플레이어가 번쩍이는데 JS 는 깨끗했다 → 패치가 실제로 돌았는지 기기에서 확인)
+  private static var diagnostics: [String] = []
+
+  @objc public static func noteDiagnostic(_ note: String) {
+    diagnostics.append(note)
+    if diagnostics.count > 8 { diagnostics.removeFirst(diagnostics.count - 8) }
+  }
+
+  static func diagnosticsText() -> String {
+    return diagnostics.isEmpty ? "none" : diagnostics.joined(separator: " > ")
+  }
 }
 
 public class ZoomTransitionModule: Module {
@@ -69,6 +82,10 @@ public class ZoomTransitionModule: Module {
     // 동기 — 패널 열림·목록 위 터치 시작 즉시 반영돼야 시스템 제스처가 시작되기 전에 막힌다
     Function("setInteractiveDismissBlocked") { (blocked: Bool) in
       ZoomTransitionRegistry.setInteractiveDismissBlocked(blocked)
+    }
+
+    Function("getDiagnostics") { () -> String in
+      return ZoomTransitionRegistry.diagnosticsText()
     }
   }
 

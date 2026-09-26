@@ -10,6 +10,7 @@ import {
 import {
   getLastPlayerZoomArmResult,
   getPlayerMountCount,
+  getPlayerZoomNativeDiagnostics,
 } from '@/shared/navigation/zoom-transition';
 import { theme } from '@/shared/theme';
 
@@ -75,7 +76,7 @@ export default function DevDiagnosticsRows() {
       />
       <SettingsRow
         label="스택 라우트 (개발계)"
-        value={`${stackRoutes ?? '?'} · 줌 ${getLastPlayerZoomArmResult()} · 플레이어 마운트 ${getPlayerMountCount()}회`}
+        value={`${stackRoutes ?? '?'} · 줌 ${getLastPlayerZoomArmResult()} · 플레이어 마운트 ${getPlayerMountCount()}회 · 네이티브 ${getPlayerZoomNativeDiagnostics()}`}
         a11yLabel="내비게이션 스택 라우트"
       />
       <SettingsRow

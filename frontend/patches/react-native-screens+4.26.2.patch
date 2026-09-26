@@ -1,17 +1,57 @@
 diff --git a/node_modules/react-native-screens/ios/RNSScreen.mm b/node_modules/react-native-screens/ios/RNSScreen.mm
-index 9b66012..fa71b19 100644
+index 9b66012..0bc3dd2 100644
 --- a/node_modules/react-native-screens/ios/RNSScreen.mm
 +++ b/node_modules/react-native-screens/ios/RNSScreen.mm
-@@ -1417,6 +1417,8 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
+@@ -1417,6 +1417,10 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
    BOOL _isSwiping;
    BOOL _shouldNotify;
    BOOL _isRemovedFromParent;
 +  // [ear patch] set when an interactive (system-driven) modal dismissal completed and JS was already notified
 +  BOOL _notifiedInteractiveDismiss;
++  // [ear patch] the current disappearance is a system-driven (interactive) modal dismissal
++  BOOL _dismissingInteractively;
  }
  
  #pragma mark - Common
-@@ -1464,6 +1466,28 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
+@@ -1461,9 +1465,68 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
+   }
+ }
+ 
++// [ear patch] settle a system-driven modal dismissal exactly once: drop the zoom transition hook so UIKit lets go of
++// this controller (a dismissed zoom modal re-appeared for a frame when the source view - the tab bar accessory - was
++// re-laid out on a tab switch, 2026-09-26), clean the stack's modal bookkeeping and notify JS.
++- (void)earSettleInteractiveDismissFrom:(NSString *)origin
++{
++  if (_notifiedInteractiveDismiss) {
++    return;
++  }
++  _notifiedInteractiveDismiss = YES;
++  _dismissingInteractively = NO;
++#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 180000
++  if (@available(iOS 18.0, *)) {
++    self.preferredTransition = nil;
++  }
++#endif
++  UIView *container = self.screenView.reactSuperview;
++  if ([container isKindOfClass:[RNSScreenStackView class]]) {
++    [(RNSScreenStackView *)container modalWasDismissedNatively:self];
++  }
++  [RNSScreen earNoteZoomDiagnostic:[NSString stringWithFormat:@"settled:%@", origin]];
++  [self.screenView notifyDismissedWithCount:1];
++}
++
++// [ear patch] diagnostics go to the app's ZoomTransitionRegistry (local Expo module) when present
+++ (void)earNoteZoomDiagnostic:(NSString *)note
++{
++  Class registry = NSClassFromString(@"ZoomTransitionRegistry");
++  if (registry != nil && [registry respondsToSelector:@selector(noteDiagnostic:)]) {
++#pragma clang diagnostic push
++#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
++    [registry performSelector:@selector(noteDiagnostic:) withObject:note];
++#pragma clang diagnostic pop
++  }
++}
++
  - (void)viewWillDisappear:(BOOL)animated
  {
    [super viewWillDisappear:animated];
@@ -19,32 +59,45 @@ index 9b66012..fa71b19 100644
 +  // dismissal and presentationControllerDidDismiss is not called for full-screen presentations, so the stack's
 +  // modal bookkeeping went stale and a later container update re-presented the screen for a frame
 +  // (2026-09-26 — player flashed after switching tabs). Settle it the moment the interactive dismissal completes.
-+  if (self.isBeingDismissed && self.transitionCoordinator != nil && self.transitionCoordinator.isInteractive &&
-+      self.presentingViewController != nil) {
++  _dismissingInteractively = self.isBeingDismissed && self.transitionCoordinator != nil &&
++      self.transitionCoordinator.isInteractive && self.presentingViewController != nil;
++  [RNSScreen earNoteZoomDiagnostic:_dismissingInteractively ? @"willDisappear:interactive" : @"willDisappear:other"];
++  if (_dismissingInteractively) {
 +    __weak RNSScreen *weakSelf = self;
 +    [self.transitionCoordinator
 +        animateAlongsideTransition:nil
 +                        completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
 +                          RNSScreen *strongSelf = weakSelf;
-+                          if (strongSelf == nil || context.isCancelled || strongSelf->_notifiedInteractiveDismiss) {
++                          if (strongSelf == nil) {
 +                            return;
 +                          }
-+                          strongSelf->_notifiedInteractiveDismiss = YES;
-+                          UIView *container = strongSelf.screenView.reactSuperview;
-+                          if ([container isKindOfClass:[RNSScreenStackView class]]) {
-+                            [(RNSScreenStackView *)container modalWasDismissedNatively:strongSelf];
++                          if (context.isCancelled) {
++                            strongSelf->_dismissingInteractively = NO;
++                            [RNSScreen earNoteZoomDiagnostic:@"coordinator:cancelled"];
++                            return;
 +                          }
-+                          [strongSelf.screenView notifyDismissedWithCount:1];
++                          [strongSelf earSettleInteractiveDismissFrom:@"coordinator"];
 +                        }];
 +  }
    // self.navigationController might be null when we are dismissing a modal
    if (!self.transitionCoordinator.isInteractive && self.navigationController != nil) {
      // user might have long pressed ios 14 back button item,
-@@ -1517,7 +1541,7 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
+@@ -1517,7 +1580,18 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
  - (void)viewDidDisappear:(BOOL)animated
  {
    [super viewDidDisappear:animated];
 -  if (self.parentViewController == nil && self.presentingViewController == nil) {
++  // [ear patch] fallback for the interactive (zoom) dismissal: UIKit may still report presentingViewController here,
++  // so re-check on the next run loop turn once the presentation is fully torn down.
++  if (_dismissingInteractively && !_notifiedInteractiveDismiss) {
++    __weak RNSScreen *weakSelf = self;
++    dispatch_async(dispatch_get_main_queue(), ^{
++      RNSScreen *strongSelf = weakSelf;
++      if (strongSelf != nil && strongSelf.parentViewController == nil && strongSelf.presentingViewController == nil) {
++        [strongSelf earSettleInteractiveDismissFrom:@"didDisappear:deferred"];
++      }
++    });
++  }
 +  if (self.parentViewController == nil && self.presentingViewController == nil && !_notifiedInteractiveDismiss) {
      if (self.screenView.preventNativeDismiss) {
        // if we want to prevent the native dismiss, we do not send dismissal event,
