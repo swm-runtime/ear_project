@@ -7,6 +7,8 @@ import { trackScreen } from '@/shared/analytics';
 import { AppErrorBoundary, initSentry, wrapWithSentry } from '@/shared/monitoring';
 import Toast from '@/shared/ui/Toast';
 
+import { UpdateRecommendDialog } from '@/features/app-update';
+
 import { bootstrapApp } from './bootstrap';
 import { focusedRouteName } from './navigation/focused-route';
 import RootNavigator from './navigation/RootNavigator';
@@ -34,6 +36,8 @@ function App() {
           <NavigationContainer onStateChange={handleNavigationStateChange}>
             <RootNavigator />
           </NavigationContainer>
+          {/* 권장 업데이트 안내(splash.md 4.1 · KAN-99) — Modal 이라 어느 스택 위에서든 뜨고, 관문 통과 뒤에만 켜진다 */}
+          <UpdateRecommendDialog />
           <Toast />
           <StatusBar style="auto" />
         </SafeAreaProvider>

@@ -4,6 +4,9 @@
  * 추가 시 spec/api/<화면>-api.md의 에러 코드 표와 대조한다.
  */
 export const ERROR_CODES = {
+  // settings-api.md 4.6 — 스플래시 버전 관문(426). 클라이언트는 비교하지 않는다(splash.md 4.1)
+  APP_UPDATE_REQUIRED: 'APP_UPDATE_REQUIRED',
+
   // auth-api.md 5장
   AUTH_PROVIDER_TOKEN_INVALID: 'AUTH_PROVIDER_TOKEN_INVALID',
   AUTH_PROVIDER_UNAVAILABLE: 'AUTH_PROVIDER_UNAVAILABLE',
