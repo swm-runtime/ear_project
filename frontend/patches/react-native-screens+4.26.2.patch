@@ -1,3 +1,16 @@
+diff --git a/node_modules/react-native-screens/ios/RNSScreen.h b/node_modules/react-native-screens/ios/RNSScreen.h
+index b1f482c..925a5a8 100644
+--- a/node_modules/react-native-screens/ios/RNSScreen.h
++++ b/node_modules/react-native-screens/ios/RNSScreen.h
+@@ -50,6 +50,8 @@ NS_ASSUME_NONNULL_BEGIN
+ - (void)calculateAndNotifyHeaderHeightChangeIsModal:(BOOL)isModal;
+ - (void)notifyFinishTransitioning;
+ - (RNSScreenView *)screenView;
++// [ear patch] diagnostics hook (see RNSScreen.mm)
+++ (void)earNoteZoomDiagnostic:(NSString *)note;
+ - (void)setViewToSnapshot;
+ - (CGFloat)calculateHeaderHeightIsModal:(BOOL)isModal;
+ - (BOOL)isRemovedFromParent;
 diff --git a/node_modules/react-native-screens/ios/RNSScreen.mm b/node_modules/react-native-screens/ios/RNSScreen.mm
 index 9b66012..0bc3dd2 100644
 --- a/node_modules/react-native-screens/ios/RNSScreen.mm
@@ -117,10 +130,27 @@ index 9ae11c3..914df21 100644
  - (void)updateScreenTransition:(double)progress;
  - (void)finishScreenTransition:(BOOL)canceled;
 diff --git a/node_modules/react-native-screens/ios/RNSScreenStack.mm b/node_modules/react-native-screens/ios/RNSScreenStack.mm
-index 192f5d2..a1e981d 100644
+index 192f5d2..9046b7e 100644
 --- a/node_modules/react-native-screens/ios/RNSScreenStack.mm
 +++ b/node_modules/react-native-screens/ios/RNSScreenStack.mm
-@@ -481,6 +481,47 @@ RNS_IGNORE_SUPER_CALL_END
+@@ -394,6 +394,16 @@ RNS_IGNORE_SUPER_CALL_END
+ 
+   _updatingModals = YES;
+ 
++  // [ear patch] diagnostics — what the stack sees when modals get reconciled (a dismissed zoom modal re-appeared
++  // for a frame on a tab switch, 2026-09-26). Read from the app via ZoomTransitionRegistry.noteDiagnostic.
++  {
++    UIViewController *pvc = _controller.presentedViewController;
++    [RNSScreen earNoteZoomDiagnostic:[NSString stringWithFormat:@"modals:n=%lu pm=%lu pvc=%@",
++                                                                (unsigned long)controllers.count,
++                                                                (unsigned long)_presentedModals.count,
++                                                                pvc == nil ? @"nil" : NSStringFromClass([pvc class])]];
++  }
++
+   // We need to find bottom-most view controller that should stay on the stack
+   // for the duration of transition.
+ 
+@@ -481,6 +491,49 @@ RNS_IGNORE_SUPER_CALL_END
          return;
        }
  
@@ -165,10 +195,22 @@ index 192f5d2..a1e981d 100644
 +      }
 +#endif
 +
++      [RNSScreen earNoteZoomDiagnostic:[NSString stringWithFormat:@"present:%@ anim=%d",
++                                                                  NSStringFromClass([next class]), shouldAnimate]];
        [previous presentViewController:next
                               animated:shouldAnimate
                             completion:^{
-@@ -1001,6 +1042,17 @@ RNS_IGNORE_SUPER_CALL_END
+@@ -525,6 +578,9 @@ RNS_IGNORE_SUPER_CALL_END
+         // See: https://github.com/software-mansion/react-native-screens/issues/2048
+         // For now, to mitigate the issue, we also decide to trigger its dismissal before
+         // starting the presentation chain down below in finish() callback.
++        [RNSScreen earNoteZoomDiagnostic:[NSString stringWithFormat:@"dismiss:%@ beingDismissed=%d",
++                                                                    NSStringFromClass([firstModalToBeDismissed class]),
++                                                                    firstModalToBeDismissed.isBeingDismissed]];
+         if (!firstModalToBeDismissed.isBeingDismissed) {
+           // If the modal is owned we let it control whether the dismissal is animated or not. For foreign controllers
+           // we just assume animation.
+@@ -1001,6 +1057,17 @@ RNS_IGNORE_SUPER_CALL_END
    [self updateContainer];
  }
  
