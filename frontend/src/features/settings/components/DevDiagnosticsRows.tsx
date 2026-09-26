@@ -7,7 +7,10 @@ import {
   cycleScrollEdgeEffectStyle,
   getLastScrollEdgeEffectAttempt,
 } from '@/shared/navigation/useSystemScrollEdgeEffect';
-import { getLastPlayerZoomArmResult } from '@/shared/navigation/zoom-transition';
+import {
+  getLastPlayerZoomArmResult,
+  getPlayerMountCount,
+} from '@/shared/navigation/zoom-transition';
 import { theme } from '@/shared/theme';
 
 import SettingsRow from './SettingsRow';
@@ -72,7 +75,7 @@ export default function DevDiagnosticsRows() {
       />
       <SettingsRow
         label="스택 라우트 (개발계)"
-        value={`${stackRoutes ?? '?'} · 줌 ${getLastPlayerZoomArmResult()}`}
+        value={`${stackRoutes ?? '?'} · 줌 ${getLastPlayerZoomArmResult()} · 플레이어 마운트 ${getPlayerMountCount()}회`}
         a11yLabel="내비게이션 스택 라우트"
       />
       <SettingsRow

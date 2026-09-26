@@ -40,3 +40,10 @@ export const setPlayerZoomDismissBlocked = (blocked: boolean): void => {
   if (!USE_NATIVE_PLAYER_ZOOM) return;
   setZoomInteractiveDismissBlocked(blocked);
 };
+
+/** 플레이어 화면 마운트 횟수 — 진단(2026-09-26 20:52): 드래그 닫기 뒤 탭 전환 때 JS 가 플레이어를 다시 마운트하는지 가른다 */
+let playerMountCount = 0;
+export const notePlayerMounted = (): void => {
+  playerMountCount += 1;
+};
+export const getPlayerMountCount = (): number => playerMountCount;
