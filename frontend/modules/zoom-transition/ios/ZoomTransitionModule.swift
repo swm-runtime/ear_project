@@ -120,10 +120,10 @@ public class ZoomTransitionModule: Module {
       if mode == "slide", #available(iOS 18.0, *) { top.preferredTransition = nil }
       top.dismiss(animated: true) {
         if #available(iOS 18.0, *) { top.preferredTransition = nil }
-        // 닫힌 뒤 살아 있는 동안 어떤 포털·스냅샷도 그릴 게 없게 뷰 내용을 비운다(어차피 JS 가 곧 내린다)
+        // 닫힌 뒤 살아 있는 동안 그릴 게 없게 숨긴다. 자식 뷰를 직접 떼면 안 된다 — Fabric 이 관리하는 트리라 React 가 나중에
+        // 같은 자식을 unmount 하며 단언 실패로 크래시했다(2026-09-27 04:53, 빌드 35)
         top.view.isHidden = true
         top.view.layer.contents = nil
-        top.view.subviews.forEach { $0.removeFromSuperview() }
         ZoomTransitionRegistry.markZoomOver()
         ZoomTransitionRegistry.noteDiagnostic("native-dismiss:done")
       }
