@@ -1,3 +1,5 @@
+import { BusinessException } from '@/common/exceptions/business.exception';
+import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { ConfigService } from '@nestjs/config';
 
 import { UserInterestService } from '@/modules/interest/services/user-interest.service';
@@ -69,6 +71,19 @@ function buildDefaultSettings() {
     isAutoExpandEnabled: true,
     isDripNotificationEnabled: true,
   };
+}
+
+/** 던진 BusinessException 을 잡아 돌려준다 — 던지지 않으면 실패 */
+function captureError(act: () => unknown): BusinessException {
+  try {
+    act();
+  } catch (error) {
+    if (error instanceof BusinessException) {
+      return error;
+    }
+    throw error;
+  }
+  throw new Error('expected BusinessException to be thrown');
 }
 
 describe('SettingsOrchestrator', () => {
@@ -228,6 +243,74 @@ describe('SettingsOrchestrator', () => {
         isAgreed: false,
         agreedAt: null,
       });
+    });
+  });
+
+  describe('checkAppVersion — 스플래시 강제 업데이트 관문(settings-api.md 4.6)', () => {
+    it('최소 지원 버전 미만이면 426 APP_UPDATE_REQUIRED 를 던지고 기준 버전을 details 에 싣는다', () => {
+      const error = captureError(() =>
+        orchestrator.checkAppVersion('1.0.0', DevicePlatform.IOS),
+      );
+
+      expect(error).toBeInstanceOf(BusinessException);
+      expect(error.getStatus()).toBe(426);
+      expect(error.errorCode).toBe(ErrorCode.APP_UPDATE_REQUIRED);
+      expect(error.details).toEqual({
+        min_supported_version: MIN_SUPPORTED_VERSION_IOS,
+        latest_version: LATEST_VERSION_IOS,
+      });
+    });
+
+    it('최소 지원 버전과 같으면 통과하고 권장 안내 여부를 돌려준다', () => {
+      const result = orchestrator.checkAppVersion(
+        MIN_SUPPORTED_VERSION_IOS,
+        DevicePlatform.IOS,
+      );
+
+      expect(result).toEqual({
+        latestVersion: LATEST_VERSION_IOS,
+        minSupportedVersion: MIN_SUPPORTED_VERSION_IOS,
+        updateAvailable: true,
+      });
+    });
+
+    it('최신 버전이면 권장 안내도 꺼진 채 통과한다', () => {
+      expect(
+        orchestrator.checkAppVersion(LATEST_VERSION_IOS, DevicePlatform.IOS)
+          .updateAvailable,
+      ).toBe(false);
+    });
+
+    it('플랫폼별 기준을 쓴다 — android 최소 버전으로 판정한다', () => {
+      const error = captureError(() =>
+        orchestrator.checkAppVersion('0.0.1', DevicePlatform.ANDROID),
+      );
+
+      expect(error.details).toEqual(
+        expect.objectContaining({
+          min_supported_version: MIN_SUPPORTED_VERSION_ANDROID,
+        }),
+      );
+    });
+
+    it('최소 지원 버전 설정이 semver 형식이 아니면 차단하지 않는다 — 잘못된 설정으로 전원을 막지 않는다(fail-open)', () => {
+      const brokenConfig = {
+        get: jest.fn((key: string) =>
+          key === 'MIN_SUPPORTED_APP_VERSION_IOS' ? 'oops' : APP_VERSIONS[key],
+        ),
+      };
+      const broken = new SettingsOrchestrator(
+        userService as unknown as UserService,
+        userSettingService as unknown as UserSettingService,
+        consentService as unknown as ConsentService,
+        subscriptionService as unknown as SubscriptionService,
+        userInterestService as unknown as UserInterestService,
+        brokenConfig as unknown as ConfigService<never, true>,
+      );
+
+      expect(() =>
+        broken.checkAppVersion('0.0.1', DevicePlatform.IOS),
+      ).not.toThrow();
     });
   });
 
