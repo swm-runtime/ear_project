@@ -6,7 +6,7 @@ import { Panel, btnCls } from "@/components/ui";
 
 const inp = "rounded border border-line px-2.5 py-1.5 text-[13px] outline-none focus:border-brand";
 
-export function SettingsForm({ tts, worker, templates, thumbnail, anchor, automation, aiPaused, meta }: { tts: any; worker: any; templates: any; thumbnail: any; anchor: any; automation: { auto_approve?: boolean; auto_publish_prep?: boolean; rule?: string; server_ai_claim?: boolean } | null; aiPaused: { paused?: boolean; reason?: string; at?: string; job?: string } | null; meta: any }) {
+export function SettingsForm({ tts, worker, templates, thumbnail, anchor, automation, aiPaused, ttsPaused, meta }: { tts: any; worker: any; templates: any; thumbnail: any; anchor: any; automation: { auto_approve?: boolean; auto_publish_prep?: boolean; rule?: string; server_ai_claim?: boolean } | null; aiPaused: { paused?: boolean; reason?: string; at?: string; job?: string } | null; ttsPaused: { paused?: boolean; reason?: string; at?: string; job?: string } | null; meta: any }) {
   const [t, setT] = useState({ voices: { 윤아: "", 이음: "" }, speed: { 윤아: 1, 이음: 1 }, mode: "per-turn", model: "eleven_v3", ...tts });
   const [w, setW] = useState({ default_model: "", ...worker });
   const [tpl, setTpl] = useState({ version: "tpl-v1", intro: "", closing: "", closing_signoff: "", major_lines: {} as Record<string, string>, ...templates });
@@ -54,6 +54,19 @@ export function SettingsForm({ tts, worker, templates, thumbnail, anchor, automa
                 </button>
               </>
             : <>API 한도 차단기: 분당 한도(429 rate)는 5분 멈췄다 자동 재개, 잔액·예산 소진(429 quota)은 여기 멈춤으로 표시되고 재개 버튼이 나타나요. 되돌린 작업은 실패 처리되지 않고 큐에 남습니다.</>}
+        </div>
+        {/* ElevenLabs 한도 (2026-09-26): TTS 만 멈춘다 — 초안·QA·비평은 계속. 비평이 걸어 둔 tts 작업은 큐에서 기다린다 */}
+        <div className={`mt-2 rounded border px-3 py-2 text-xs ${ttsPaused?.paused ? "border-red-300 bg-red-50 text-red-800" : "border-line text-ink-soft"}`}>
+          {ttsPaused?.paused
+            ? <>
+                <b>TTS 멈춤 — ElevenLabs 크레딧 소진.</b> 워커가 {ttsPaused.job ?? "tts"} 실행 중 quota_exceeded 를 받고 그 작업을 큐로 되돌렸어요{ttsPaused.at ? ` (${new Date(ttsPaused.at).toLocaleString("ko-KR")})` : ""}. 초안·QA·비평은 계속 돌고, 발행 준비 연쇄의 TTS 는 큐에서 기다립니다.
+                <div className="mt-1 font-mono text-[11px] text-red-700">{ttsPaused.reason}</div>
+                <button className={`${btnCls("primary")} mt-2`} disabled={pending}
+                  onClick={() => { if (confirm("ElevenLabs 충전을 마쳤나요? 재개하면 워커가 30초 안에 큐의 TTS 작업을 다시 집습니다.")) save("automation.tts_paused", { paused: false, resumed_at: new Date().toISOString() }, "TTS 재개"); }}>
+                  TTS 재개
+                </button>
+              </>
+            : <>ElevenLabs 한도 차단기: 크레딧 소진(quota_exceeded)이면 여기 멈춤으로 표시되고 [TTS 재개] 버튼이 나타나요. 분당 한도(429)는 5분 뒤 자동 재개. 초안·QA·비평은 영향 없음.</>}
         </div>
       </Panel>
       <Panel title="썸네일 — 대분류 띠 색 (KAN-50)" className="text-[13px]">

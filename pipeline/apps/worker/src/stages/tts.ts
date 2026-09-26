@@ -6,7 +6,7 @@ import { getBacklog, getEpisode, insertRun, pool, setJobProgress, upsertEpisode,
 import { loadTtsDict, workerRev } from "../assets.js";
 import { listPrefix, localPathOf, pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { advanceChain } from "../chain.js";
-import { log } from "../util.js";
+import { ApiLimit, log } from "../util.js";
 import { parseScriptForTts, chunkTurns, describeCuts, type ScriptTurn, type Speaker } from "../tts/script.js";
 import { normalizeForTts, residualIssues } from "../tts/normalize.js";
 import { synthDialogue, synthDialogueWithTimestamps, locateTurnSpans } from "../tts/elevenlabs.js";
@@ -165,11 +165,12 @@ export async function runTts(job: Job) {
     let out: Synth | null = null;
     if (useCtx) {
       try { out = await synthChunk(n, true); }
-      catch (e: any) { ctxFails.push(`요청 ${n + 1}: ${String(e.message).slice(0, 100)}`); log(`  tts ${episodeId}: 요청 ${n + 1} 문맥 겹침 실패(${String(e.message).slice(0, 120)}) — 문맥 없이 재합성`); await progress(`합성 ${n + 1}/${chunks.length} 문맥 없이 재시도`); }
+      catch (e: any) { if (e instanceof ApiLimit) throw e; /* 한도는 폴백이 아니라 멈춤 (ai-pause.ts) */ ctxFails.push(`요청 ${n + 1}: ${String(e.message).slice(0, 100)}`); log(`  tts ${episodeId}: 요청 ${n + 1} 문맥 겹침 실패(${String(e.message).slice(0, 120)}) — 문맥 없이 재합성`); await progress(`합성 ${n + 1}/${chunks.length} 문맥 없이 재시도`); }
     }
     if (!out) {
       try { out = await synthChunk(n, false); }
       catch (e: any) {
+        if (e instanceof ApiLimit) throw e; // 한도는 원속 폴백 대상이 아니다 — 워커가 큐로 되돌리고 TTS 집기를 멈춘다
         // 배속 실패는 합성 실패가 아니다 — 이 요청만 원속으로 폴백하고 기록에 남긴다 (청취 확인에서 판단)
         speedFallbacks++;
         segFail ??= `요청 ${n + 1} 원속 폴백 — 턴 경계 없음`;

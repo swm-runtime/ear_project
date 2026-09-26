@@ -72,7 +72,7 @@ npm run worker                # 계속 폴링. 끄려면 Ctrl+C (진행 중 작�
 - **추천 메타 재부여** (KAN-53·54, 0021): 제품 발행 목록의 "구형·없음 메타만" 필터 → [다시 뽑기](AI 워커 `enrich`, Sonnet, 편당 $0.1~0.3) → 행에 "준비됨"이 뜨면 [반영]. 반영은 `enrichment_file` 단독 PATCH 라 콘텐츠 버전이 오르지 않는다. 대본은 백로그의 `published_content_ref` 로 찾고, 없는 콘텐츠(수동 업로드)는 제목+설명 폴백. 판정 기준 파일은 레포 `.claude/skills/metadata-enrichment/reference/judgment-criteria.md` — 워커 체크아웃에 있어야 한다.
 
 - **서버 디스크** (2026-09-22): 배포가 `no space left on device` 로 실패하면 옛 Docker 이미지가 원인이다. push.sh 가 배포마다 dangling 이미지를 지우지만, 그래도 차면 SG 22 를 열고 `docker image prune -af && docker builder prune -af` (실행 중 컨테이너의 이미지는 남는다). 2026-09-22 에 이미지 143개·12GB 를 지워 11GB 확보.
-- **API 한도 차단기** (2026-09-23): OpenAI 가 429 를 주면 워커는 그 작업을 실패시키지 않고 큐로 되돌린 뒤 AI 작업 집기를 멈춘다. 분당 한도(rate)는 5분 뒤 자동 재개, 잔액·예산 소진(quota)은 설정 화면에 "AI 작업 멈춤"이 뜨고 Slack 으로 즉시 알린다 — 충전·예산 조정 뒤 [AI 작업 재개]. 멈춘 동안 TTS·패키지 같은 io 작업은 계속 돈다.
+- **API 한도 차단기** (2026-09-23): OpenAI 가 429 를 주면 워커는 그 작업을 실패시키지 않고 큐로 되돌린 뒤 AI 작업 집기를 멈춘다. 분당 한도(rate)는 5분 뒤 자동 재개, 잔액·예산 소진(quota)은 설정 화면에 "AI 작업 멈춤"이 뜨고 Slack 으로 즉시 알린다 — 충전·예산 조정 뒤 [AI 작업 재개]. 멈춘 동안 TTS·패키지 같은 io 작업은 계속 돈다. **ElevenLabs** 크레딧 소진(401 quota_exceeded, 2026-09-26)은 반대로 TTS 집기만 멈추고("TTS 멈춤" + [TTS 재개]) 초안·QA·비평은 계속 돈다 — 비평이 걸어 둔 tts 작업은 큐에서 기다린다.
 
 ## 5. 막혔을 때 — 상황별 대처
 
