@@ -440,14 +440,9 @@ export default function PlayerScreen() {
    */
   const isTouchOnScrollAreaRef = useRef(false);
   // 줌 전환 갈래: 시스템의 드래그 닫기도 같은 규칙으로 막는다 — 재생 목록을 끌어내리면 플레이어까지 같이 줄어들었다(15:49 실기기).
-  // 패널이 열려 있는 동안은 통째로 막고, 목록 위에서 시작한 터치도 막는다(동기 호출 — 시스템 제스처가 시작되기 전에 반영)
-  const isPanelOpen = activePanel !== null;
-  const isPanelOpenRef = useRef(isPanelOpen);
-  useEffect(() => {
-    isPanelOpenRef.current = isPanelOpen;
-    setPlayerZoomDismissBlocked(isPanelOpen);
-    return () => setPlayerZoomDismissBlocked(false);
-  }, [isPanelOpen]);
+  // **터치가 목록·손잡이 위에서 시작했을 때만** 막는다(동기 호출 — 시스템 제스처가 시작되기 전에 반영). 패널이 열려 있어도
+  // 앱바·히어로를 끌어내리면 미니플레이어로 줄어들어야 한다(16:51 PM 스샷 — 대본 펼친 채 위쪽을 밀어도 안 줄었다)
+  useEffect(() => () => setPlayerZoomDismissBlocked(false), []);
   const scrollAreaTouchHandlers = useMemo(
     () => ({
       onTouchStart: () => {
@@ -456,12 +451,11 @@ export default function PlayerScreen() {
       },
       onTouchEnd: () => {
         isTouchOnScrollAreaRef.current = false;
-        // 패널이 열려 있으면 계속 막는다
-        setPlayerZoomDismissBlocked(isPanelOpenRef.current);
+        setPlayerZoomDismissBlocked(false);
       },
       onTouchCancel: () => {
         isTouchOnScrollAreaRef.current = false;
-        setPlayerZoomDismissBlocked(isPanelOpenRef.current);
+        setPlayerZoomDismissBlocked(false);
       },
     }),
     [],
@@ -1460,6 +1454,8 @@ export default function PlayerScreen() {
             <View
               style={styles.scriptHandleWrap}
               onLayout={onHandleLayout}
+              // 손잡이 끌기는 재생 목록 시트의 것 — 시스템 줌 닫기가 같이 잡히지 않게 목록과 같은 표시
+              {...scrollAreaTouchHandlers}
               {...handlePanResponder.panHandlers}
             >
               <Pressable
