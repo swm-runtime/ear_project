@@ -2,6 +2,7 @@ import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 
 import {
   armZoomTransition,
+  getZoomTransitionDiagnostics,
   hasZoomTransitionModule,
   setZoomInteractiveDismissBlocked,
 } from '../../../modules/zoom-transition/src';
@@ -47,3 +48,6 @@ export const notePlayerMounted = (): void => {
   playerMountCount += 1;
 };
 export const getPlayerMountCount = (): number => playerMountCount;
+
+/** 네이티브(RNS 패치) 진단 — 닫힘 경로가 어디까지 왔는지 */
+export const getPlayerZoomNativeDiagnostics = (): string => getZoomTransitionDiagnostics();
