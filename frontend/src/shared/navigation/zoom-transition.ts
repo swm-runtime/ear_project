@@ -59,7 +59,11 @@ export const dismissPlayerNatively = async (): Promise<boolean> => {
 /**
  * 닫힘 모션 — `zoom`(미니플레이어 자리로 줄어듦) | `slide`(닫을 때만 줌 훅을 빼 기본 슬라이드). 2026-09-27 04:35 실험:
  * 프록시 소스로도 닫힌 뒤 탭 전환 잔상이 남아, 줌 dismiss 자체가 남기는 이미지인지를 OTA 로 가른다(빌드 35, rt 24).
- * **2026-09-27 05:51 rt 26(빌드 37)에서도 번쩍임 재발 → 다시 `slide`.** 창에 남은 전환 컨테이너를 떼는 것만으로는
+ * **2026-09-27 07:20 rt 27 에서 다시 `zoom`** — 실기기 진단이 원인을 짚었다(`modals:n=0 pm=1 pvc=nil`: UIKit 이 우리가
+ * 직접 닫은 모달을 RNS 스택 장부가 계속 들고 있었다). rt 27 의 RNS 패치(`earDropStaleModals`)가 그 유령을 버린다.
+ * rt 26 이하는 이 OTA 를 안 받으므로 `slide` 그대로다.
+ *
+ * (앞선 기록) **2026-09-27 05:51 rt 26(빌드 37)에서도 번쩍임 재발 → 다시 `slide`.** 창에 남은 전환 컨테이너를 떼는 것만으로는
  * 부족했다(정리 대상이 우리가 기록한 사슬 밖이거나, 컨테이너가 아니라 다른 것이 그려진다). 원인 재조사 전까지 `slide` 를 기본으로 둔다.
  *
  * (앞선 확인) **2026-09-27 05:16 실기기: `slide` 면 안 번쩍인다 — 줌 dismiss 가 범인으로 확정.** rt 26 의 네이티브 정리
@@ -70,7 +74,7 @@ export const dismissPlayerNatively = async (): Promise<boolean> => {
  * 네이티브가 이미 들고 있어 OTA 만으로 갈린다: 번쩍임이 사라지면 **줌 dismiss 가 남기는 이미지**, 남으면 **줌 present 쪽**이다.
  * 열 때의 줌(부풀어 오르기)은 그대로다 — 닫을 때만 기본 모달 닫힘
  */
-export const PLAYER_DISMISS_MODE: 'zoom' | 'slide' = 'slide';
+export const PLAYER_DISMISS_MODE: 'zoom' | 'slide' = 'zoom';
 
 /**
  * 플레이어 위에서 시스템의 드래그·핀치 닫기를 막는다/푼다 — 재생 목록·대본 패널이 열려 있거나 손가락이 스크롤 목록 위에서
