@@ -68,7 +68,7 @@ export default async function BacklogPage({ searchParams }: { searchParams: Prom
                   <tr key={r.id} className="align-top hover:bg-[#f7f9fb]">
                     <Td className="whitespace-nowrap font-mono text-xs text-ink-soft">{r.id}</Td>
                     <Td>
-                      <div className="font-medium">{r.title}</div>
+                      <div className="font-medium">{r.dedup_note?.startsWith("🔎") || r.dedup_note?.includes("🔎 기획") ? <span className="mr-1 rounded bg-sky-100 px-1 py-0.5 text-[10px] font-semibold text-sky-800" title="주제 기획(모드 B-②)으로 만든 후보">🔎 기획</span> : null}{r.title}</div>
                       {r.axis && <p className="mt-0.5 max-w-2xl text-xs leading-relaxed text-ink"><span className="mr-1 rounded bg-brand/10 px-1 py-0.5 text-[10px] font-semibold text-brand-ink">{r.axis_type}</span>{r.axis}</p>}
                       {Array.isArray(r.gaps) && r.gaps.length > 0 && <p className="mt-0.5 text-[11px] text-amber-700">빈 역할: {r.gaps.join(" · ")}{r.status === "held" && !r.reinforced_at ? " — [보강]으로 웹 검색해 채울 수 있다" : ""}</p>}
                       {r.reinforce_note && <p className="mt-0.5 text-[11px] text-sky-700">{r.reinforce_note}</p>}

@@ -272,7 +272,8 @@ create or replace function public.claim_job(
   p_can_ai boolean,
   p_can_tts boolean default true,
   p_can_thumbnail boolean default true,
-  p_exclude_types text[] default '{}'    -- 0024: 서버 AI 집기 스위치가 꺼지면 ['sweep'] — 스윕·군집화는 노트북
+  p_exclude_types text[] default '{}',   -- 0024: 서버 AI 집기 스위치가 꺼지면 ['sweep'] — 스윕·군집화는 노트북
+  p_can_tools boolean default true       -- 0025: 도구(WebSearch) 워커만 sweep 모드 B·B2(보강·주제 기획)를 집는다 — API 실행기는 false
 )
 returns setof public.jobs
 language plpgsql
@@ -293,6 +294,7 @@ begin
      and (p_can_tts or type not in ('tts','script_align'))   -- 0022: script_align 도 ElevenLabs 키 게이트
      and (p_can_thumbnail or type <> 'thumbnail')
      and not (type = any(p_exclude_types))
+     and (p_can_tools or not (type = 'sweep' and coalesce(payload->>'mode', '') in ('B','B2')))
    order by
      case when payload ? 'episode_id' then 0      -- 0023: 진행 중인 에피소드의 후속 먼저 (한 편을 승인부터 패키지까지 끝낸 뒤 다음 편)
           when type = 'draft' then 2              -- 새 초안은 마지막
