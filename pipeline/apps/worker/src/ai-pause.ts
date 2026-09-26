@@ -8,6 +8,8 @@
  * Slack 알림은 멈추는 순간 한 번(quota) · rate 는 1시간에 한 번까지 — 요약(digest.ts)과 별개로 즉시 보낸다.
  */
 import { getSetting, pool } from "./db.js";
+import { cfg } from "./config.js";
+import { readAutomation } from "./automation.js";
 import { consoleUrl, notifyOps } from "./notify.js";
 import { ApiLimit, log } from "./util.js";
 
@@ -25,6 +27,8 @@ async function dbPaused(): Promise<{ paused: boolean; reason?: string }> {
 
 /** AI 작업을 집어도 되는가 — 루프가 매번 부른다 */
 export async function aiPaused(): Promise<string | null> {
+  // 설정 스위치 (2026-09-26): 서버(API 실행기) 워커의 AI 집기를 사람이 끈 상태 — 군집화·초안은 노트북 Claude 가 집는다. 한도 멈춤과 달리 알림 없음
+  if (cfg.executor === "openai" && (await readAutomation()).server_ai_claim === false) return "설정에서 서버 워커 AI 집기 꺼짐 — io 작업만";
   if (Date.now() < rateUntil) return `분당 한도 — ${Math.ceil((rateUntil - Date.now()) / 1000)}초 뒤 재개`;
   const d = await dbPaused();
   if (d.paused) return `잔액·예산 소진 — 콘솔 설정에서 [AI 작업 재개] 전까지 멈춤${d.reason ? ` (${d.reason.slice(0, 80)})` : ""}`;

@@ -6,14 +6,14 @@ import { Panel, btnCls } from "@/components/ui";
 
 const inp = "rounded border border-line px-2.5 py-1.5 text-[13px] outline-none focus:border-brand";
 
-export function SettingsForm({ tts, worker, templates, thumbnail, anchor, automation, aiPaused, meta }: { tts: any; worker: any; templates: any; thumbnail: any; anchor: any; automation: { auto_approve?: boolean; auto_publish_prep?: boolean; rule?: string } | null; aiPaused: { paused?: boolean; reason?: string; at?: string; job?: string } | null; meta: any }) {
+export function SettingsForm({ tts, worker, templates, thumbnail, anchor, automation, aiPaused, meta }: { tts: any; worker: any; templates: any; thumbnail: any; anchor: any; automation: { auto_approve?: boolean; auto_publish_prep?: boolean; rule?: string; server_ai_claim?: boolean } | null; aiPaused: { paused?: boolean; reason?: string; at?: string; job?: string } | null; meta: any }) {
   const [t, setT] = useState({ voices: { 윤아: "", 이음: "" }, speed: { 윤아: 1, 이음: 1 }, mode: "per-turn", model: "eleven_v3", ...tts });
   const [w, setW] = useState({ default_model: "", ...worker });
   const [tpl, setTpl] = useState({ version: "tpl-v1", intro: "", closing: "", closing_signoff: "", major_lines: {} as Record<string, string>, ...templates });
   // 썸네일 대분류 띠 색(KAN-50 3-2) — 비우면 워커의 thumb-v1 기본값이 쓰인다
   const [th, setTh] = useState<Record<string, string>>({ ...(thumbnail ?? {}) });
   // 자동화 스위치 (0023, 2026-09-23) — 워커가 30초 안에 반영한다. 행이 없으면(마이그레이션 전) 전부 off 로 보인다
-  const [auto, setAuto] = useState({ auto_approve: false, auto_publish_prep: false, rule: "v1", ...(automation ?? {}) });
+  const [auto, setAuto] = useState({ auto_approve: false, auto_publish_prep: false, rule: "v1", server_ai_claim: true, ...(automation ?? {}) });
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
   const save = (key: string, value: unknown, name: string) =>
@@ -33,6 +33,10 @@ export function SettingsForm({ tts, worker, templates, thumbnail, anchor, automa
         <label className="mb-2 flex items-start gap-2">
           <input type="checkbox" className="mt-0.5" checked={!!auto.auto_publish_prep} onChange={(e) => setAuto({ ...auto, auto_publish_prep: e.target.checked })} />
           <span><b>비평 뒤 발행 준비 자동</b> — 비평이 끝나면 TTS → 썸네일 → 패키지를 바로 잇는다(ElevenLabs·OpenAI 과금). 추천 메타·검수·발행은 업로드 화면에서 사람이 한다.</span>
+        </label>
+        <label className="mb-2 flex items-start gap-2">
+          <input type="checkbox" className="mt-0.5" checked={auto.server_ai_claim !== false} onChange={(e) => setAuto({ ...auto, server_ai_claim: e.target.checked })} />
+          <span><b>서버 워커가 AI 작업을 집는다</b> — 끄면 서버(GPT)는 스윕·TTS·패키지 같은 io 작업만 하고, 군집화·초안·QA·비평은 노트북 Claude 워커만 집는다. 큐에 있는 AI 작업은 사라지지 않고 기다린다. 군집화를 Claude 로 돌릴 때 끈다.</span>
         </label>
         <div className="mt-3 flex items-center gap-2">
           <button className={btnCls("primary")} disabled={pending} onClick={() => save("automation", auto, "자동화 설정")}>저장</button>
