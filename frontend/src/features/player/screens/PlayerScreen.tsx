@@ -1117,6 +1117,15 @@ export default function PlayerScreen() {
             pointerEvents="none"
             style={[styles.queueTint, { opacity: queueProgress }]}
           />
+          {/* 대본이 펼쳐져 작아진 커버를 탭하면 대본을 접는다(PM 2026-09-26 17:00 스샷) — 평소엔 탭 대상이 아니다 */}
+          {activePanel === 'script' ? (
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={() => setPanel(null)}
+              accessibilityRole="button"
+              accessibilityLabel={PLAYER_COPY.screen.scriptCloseA11y}
+            />
+          ) : null}
           {/*
             아래쪽 그라데이션 — 사진 밑변으로 갈수록 플레이어 바탕색으로 잠긴다(유튜브 뮤직, 2026-09-19 PM).
             제목·카테고리·재생바가 놓이는 띠가 어떤 사진에서도 어둡고, 사진의 밑변이 칼같이 끊기지 않고 바탕으로
