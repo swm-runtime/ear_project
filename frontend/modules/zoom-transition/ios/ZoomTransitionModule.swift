@@ -19,6 +19,18 @@ public class ZoomTransitionRegistry: NSObject {
 
   @objc public static func arm(_ view: UIView) {
     sourceView = view
+    zoomOver = false
+  }
+
+  /// 줌 모달이 닫혔다 — 이후 UIKit 이 소스 뷰 provider 를 다시 불러도 nil 을 준다(RNS 패치가 읽는다)
+  private static var zoomOver = false
+
+  @objc public static func markZoomOver() {
+    zoomOver = true
+  }
+
+  @objc public static func isZoomOver() -> NSNumber {
+    return NSNumber(value: zoomOver)
   }
 
   @objc public static func disarm() {
@@ -108,6 +120,7 @@ public class ZoomTransitionModule: Module {
         // 있는 동안 액세서리(줌 소스) 재배치가 줌 기계를 건드리는 것으로 본다. 줌 훅을 풀고 뷰를 숨긴다(어차피 화면 밖이다)
         if #available(iOS 18.0, *) { top.preferredTransition = nil }
         top.view.isHidden = true
+        ZoomTransitionRegistry.markZoomOver()
         ZoomTransitionRegistry.noteDiagnostic("native-dismiss:done")
       }
       return "dismissed"
