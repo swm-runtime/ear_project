@@ -20,6 +20,7 @@ import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import {
   notePlayerMounted,
   setPlayerZoomDismissBlocked,
+  SYSTEM_INTERACTIVE_DISMISS,
   USE_NATIVE_PLAYER_ZOOM,
 } from '@/shared/navigation/zoom-transition';
 import { motion, theme } from '@/shared/theme';
@@ -388,12 +389,17 @@ export default function PlayerScreen() {
         }
         runSheetSpring(1, () => setIsMorphing(false));
       },
-      begin: () => setIsMorphing(true),
+      // 줌 갈래(시스템 드래그 닫기 꺼짐): 시트는 손가락을 따라가지 않는다 — 놓을 때 임계를 넘으면 goBack(줌 축소), 아니면 그대로
+      begin: () => {
+        if (USE_NATIVE_PLAYER_ZOOM) return;
+        setIsMorphing(true);
+      },
       /*
        * 시트는 손가락과 **1:1** 로 움직인다 — 시트 위치가 mini.y·(1-진행값)이므로 진행값 = 1 - dy/mini.y.
        * 종전엔 화면 높이의 70%를 끌면 끝이라 시트가 손보다 1.17배 빨리 달아났다(2026-09-22 PM)
        */
       drag: (dy: number, vy: number) => {
+        if (USE_NATIVE_PLAYER_ZOOM) return;
         const progress = Math.max(0, Math.min(1, 1 - Math.max(0, dy) / dragTravel));
         dragProgressRef.current = progress;
         // vy 는 px/ms(아래 +) → 진행값/초(닫힘 −)
@@ -406,7 +412,10 @@ export default function PlayerScreen() {
         openProgress.setValue(progress);
       },
       dismiss: dismissPlayer,
-      restore: restorePlayer,
+      restore: () => {
+        if (USE_NATIVE_PLAYER_ZOOM) return;
+        restorePlayer();
+      },
     };
   });
 
@@ -479,9 +488,9 @@ export default function PlayerScreen() {
     () =>
       // eslint-disable-next-line react-hooks/refs -- 콜백은 렌더가 아니라 제스처 시점에 실행된다(표준 PanResponder 패턴)
       PanResponder.create({
-        // 줌 전환 갈래는 시스템의 인터랙티브 닫기(드래그·핀치)가 맡는다 — 우리 제스처는 안 받는다
+        // 줌 전환 갈래: 시스템 인터랙티브 닫기를 켜 뒀을 때만 우리 제스처를 비운다(지금은 꺼져 있어 우리가 받는다)
         onMoveShouldSetPanResponder: (_, gesture) =>
-          !USE_NATIVE_PLAYER_ZOOM &&
+          !(USE_NATIVE_PLAYER_ZOOM && SYSTEM_INTERACTIVE_DISMISS) &&
           !isTouchOnScrollAreaRef.current &&
           gesture.dy > PLAYER_COLLAPSE_START_DISTANCE &&
           Math.abs(gesture.dy) > Math.abs(gesture.dx),
