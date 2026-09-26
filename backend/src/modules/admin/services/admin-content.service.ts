@@ -426,6 +426,8 @@ export class AdminContentService {
           );
         }
 
+        let scriptDropped = false;
+
         if (script?.data) {
           // 오디오가 바뀌면 시각도 바뀐다 — 통째로 교체한다(콘텐츠당 1행)
           await this.contentService.saveScript(
@@ -433,6 +435,15 @@ export class AdminContentService {
             script.data,
             manager,
           );
+        } else if (audioPath) {
+          /**
+           * 오디오가 바뀌었는데 유효한 대본이 함께 오지 않았다(안 보냈거나 검증에서 거부됨).
+           * 옛 세그먼트는 새 오디오의 시각과 어긋나므로 지운다 — 틀린 자막보다 없는 편이 낫다
+           * (domain.md 5.3 "오디오가 바뀌면 통째로 교체", 2026-09-26 감사). 응답의 `has_script`가
+           * false로 내려가고, 콘솔은 [자막 뽑기] → [반영]으로 새 오디오에 맞는 대본을 다시 채운다.
+           */
+          await this.contentService.deleteScript(republished.id, manager);
+          scriptDropped = true;
         }
 
         /**
@@ -473,6 +484,7 @@ export class AdminContentService {
                 enrichment_applied: enrichment.data !== null,
               }),
               ...(script && { script_applied: script.data !== null }),
+              ...(scriptDropped && { script_dropped: true }),
             },
           },
           manager,
@@ -991,6 +1003,14 @@ export class AdminContentService {
           message: '라이선스 기간이 지난 콘텐츠는 올릴 수 없어요',
           details: { field: 'license_expires_at' },
         });
+      }
+      // 파트너 콘텐츠에 참고 소스는 없다 — 재발행(4.10)과 같은 400. 종전 업로드는 조용히 버려 콘솔이 잘못 보낸
+      // 입력을 알 수 없었다(admin-api.md 4.6, 2026-09-26)
+      if (command.sources.length > 0) {
+        throw this.validationFailed(
+          'sources',
+          '파트너 콘텐츠에는 참고 소스를 넣지 않아요',
+        );
       }
       return;
     }

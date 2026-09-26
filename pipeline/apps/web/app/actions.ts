@@ -41,7 +41,7 @@ export async function setBacklogStatus(id: string, status: "approved" | "rejecte
 /** 작업 요청 (사람 트리거): sweep · tts · thumbnail · package · cluster 재실행. requested_by 는 트리거가 찍는다. */
 export async function enqueueJob(type: "sweep" | "cluster" | "tts" | "thumbnail" | "package" | "domain_check", payload: Record<string, unknown>) {
   const sb = await supabaseServer();
-  const requires_ai = type === "cluster" || (type === "sweep" && payload.mode === "B"); // 보강 스윕(모드 B-①)은 WebSearch 를 쓰는 AI 실행 (0019)
+  const requires_ai = type === "cluster" || (type === "sweep" && (payload.mode === "B" || payload.mode === "B2")); // 보강 스윕(모드 B-①)·주제 기획(B-②)은 WebSearch 를 쓰는 AI 실행
   const { data, error } = await sb.from("jobs").insert({ type, requires_ai, payload, status: "queued" }).select("id").single();
   if (error) throw new Error(error.message);
   revalidatePath("/"); revalidatePath("/sweep"); revalidatePath("/episodes");

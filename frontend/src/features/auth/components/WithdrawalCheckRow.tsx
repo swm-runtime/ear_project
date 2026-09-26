@@ -50,6 +50,7 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.sm,
     paddingHorizontal: theme.spacing.sm,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     borderWidth: 1.5,
     // 평소에는 테두리를 드러내지 않는다 — 강조 시에만 색이 붙게 폭만 잡아 둔다
     borderColor: 'transparent',
@@ -61,6 +62,7 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: theme.radius.sm - 2,
+    borderCurve: 'continuous',
     borderWidth: 1.5,
     borderColor: theme.color.border,
     alignItems: 'center',

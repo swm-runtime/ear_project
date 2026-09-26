@@ -55,16 +55,6 @@ export class SubscriptionRepository {
    * 정렬 키가 `expires_at`인 이유: 플랜을 갈아탄 사용자는 행이 여럿이고, 그중 지금 효력이
    * 있는 것은 가장 늦게 끝나는 행이다. 동률이면 나중에 시작한 것을 앞에 둔다.
    */
-  async findLatestByUserId(
-    userId: string,
-    manager?: EntityManager,
-  ): Promise<Subscription | null> {
-    return this.scoped(manager).findOne({
-      where: { userId },
-      order: { expiresAt: 'DESC', startedAt: 'DESC' },
-    });
-  }
-
   async deleteByUserId(userId: string, manager?: EntityManager): Promise<void> {
     await this.scoped(manager).delete({ userId });
   }

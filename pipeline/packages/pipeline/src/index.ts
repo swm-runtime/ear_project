@@ -1215,6 +1215,8 @@ export interface ClusterV2Input {
   specBacklogExcerpt: string;
   /** 보강 재판정 (0019, 모드 B-①): held 후보 하나의 축을 고정하고, 기존 소스 + 검색 소스로 역할표만 다시 짠다. candidates 는 정확히 1개 */
   reinforce?: { id: string; title: string; axis: string; axis_type: string; gaps: string[]; currentM: string[] };
+  /** 주제 기획 판정 (모드 B-②, 2026-09-26): 사람이 준 주제 하나로 후보 하나를 만든다 — 주제는 고정, 축은 소스에서 세운다. candidates 는 정확히 1개 */
+  seed?: { id: string; topic: string; hint: string | null; midTopic: string };
 }
 
 export function buildClusterPromptV2(i: ClusterV2Input): string {
@@ -1228,9 +1230,17 @@ export function buildClusterPromptV2(i: ClusterV2Input): string {
 - 아래 소스 목록에는 **현재 후보 소스**(표시됨)와 그 빈 역할을 채우려고 검색으로 새로 넣은 소스가 섞여 있다. 새 소스 중 축에 맞고 빈 역할을 실제로 채우는 것만 넣는다 — 역할이 맞지 않는 소스를 억지로 끼우지 않는다.
 - candidates 는 **정확히 1개**, id 는 "${i.reinforce.id}", 제목·축은 그대로(문구 다듬기만 허용). 아래 3장 절차의 1단계(축 후보 내기)는 건너뛴다. gaps 에는 여전히 빈 역할을 적는다.
 ` : "";
+  const seed = i.seed ? `
+## 0. 주제 기획 판정 — 후보 하나만
+이 실행은 풀을 훑어 새 후보 여럿을 뽑는 것이 아니라, **사람이 정한 주제 하나로 후보 하나를 세우는 것**이다.
+- 주제(사람 입력): "${i.seed.topic}"${i.seed.hint ? `\n- 힌트(사람 메모): ${i.seed.hint}` : ""}
+- 중분류: ${i.seed.midTopic} (고정)
+- 아래 소스 목록은 이 주제로 웹 검색해 모은 것(+ 같은 중분류의 최근 풀 소스 일부)이다. 주제를 가장 잘 받치는 **축**을 세 꼴 중 하나로 세우고, 그 축에 맞는 역할표를 짠다. 주제와 어긋나는 소스는 넣지 않는다.
+- candidates 는 **정확히 1개**, id 는 "${i.seed.id}". 제목은 주제를 살려 다듬을 수 있지만 다른 주제로 바꾸지 않는다. 기준 미달이면 verdict 를 \`보강 필요\`로 내고 gaps 에 빈 역할을 적는다 — 억지로 채우지 않는다. 기존 후보와 겹치면 dedup_note 에 겹치는 후보 ID 와 이유를 적는다(후보는 그래도 낸다 — 판단은 사람이 한다).
+` : "";
   return `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 **군집화 담당(v2)**이다. 스윕된 소스 **메타데이터만** 보고(원문 접속 금지 — 이 실행에는 도구가 없다) 에피소드 후보를 뽑는다. "비슷한 것을 묶는" 방식이 아니라, **축을 먼저 세우고 그 축에 필요한 역할을 소스로 채우는** 방식이다.
 
-${reinforce}
+${reinforce}${seed}
 ## 1. 타깃·중분류
 - 청취자: 이 주제를 처음 듣는 일반 청취자 (특정 집단으로 좁히지 않는다 — 전문가 대상 표현만 금지), 편당 15분 안팎.
 - 중분류 후보: ${i.midTopics.join(" · ")}${i.majorTopic ? ` (대분류 ${i.majorTopic})` : ""}. 후보마다 하나를 고른다 — 소스의 커버 중분류를 참고하되 축에 맞는 것으로.
@@ -1308,6 +1318,31 @@ export function buildReinforceSearchPrompt(i: ReinforceSearchInput): string {
 - 한 소스가 두 역할을 겸할 수 있다. 축에 맞지 않는데 키워드만 겹치는 글은 넣지 않는다 — 빈 손으로 돌아오는 것이 억지 소스보다 낫다.
 
 ## 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. sources 는 최대 8건, 각 항목에 url(검색 결과의 실제 URL 그대로) · title · publisher(사이트/발행처명) · published(YYYY-MM-DD 또는 null) · summary(검색 결과 요약을 한국어 두 문장으로) · roles · why(이 역할을 채우는 이유 한 줄) · in_pool. queries 에는 실제로 쓴 검색어를 전부 적는다.`;
+}
+// ── 주제 기획 검색 (모드 B-②, spec/02 6장, 2026-09-26 박수헌): 사람이 준 주제로 소스를 찾는다. B-① 과 달리 **풀 밖도 자유롭게** — 접근 제한(robots·차단 도메인·유료 DB)만 피한다.
+export interface TopicSeedSearchInput { id: string; topic: string; hint: string | null; midTopic: string; poolHosts: string[]; maxSearches: number }
+export function buildTopicSeedSearchPrompt(i: TopicSeedSearchInput): string {
+  return `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 **주제 기획 소스 담당**이다. 사람이 에피소드 주제를 하나 정했다. 그 주제로 15분 안팎의 2인 대화 에피소드를 쓸 수 있도록, 근거가 되는 소스를 웹 검색으로 모은다.
+이 실행의 도구는 **WebSearch 뿐**이다 — 페이지 본문을 읽지 않는다(원문 정독은 설계 단계가 한다). 검색 결과의 제목·요약·발행처·날짜만 돌려준다.
+
+## 주제
+- ${i.id} "${i.topic}" · 중분류 ${i.midTopic}${i.hint ? `\n- 사람 메모: ${i.hint}` : ""}
+
+## 무엇을 모으는가 — 역할표
+에피소드 후보는 소스 5~7건에 다음 역할이 배정되어야 성립한다. 각 역할을 채울 소스를 찾는다.
+  · ${SOURCE_ROLES.map((r) => `${r} — ${ROLE_INTENT[r] ?? ""}`).join("\n  · ")}
+성립 기준(워커가 코드로 다시 센다): 소스 3건 이상 · 발행처 3곳 이상 · 한 발행처가 절반을 넘지 않음 · 근거 앵커 1건 이상 · 역할 3종 이상.
+
+## 검색 규칙
+- 검색은 최대 ${i.maxSearches}회. 한국어·영어 둘 다 쓴다 — 대본은 한국어지만 근거는 영어 소스가 많다.
+- **사이트를 풀에 가두지 않는다.** 주제에 맞는 소스라면 어느 발행처든 좋다. 다만 우선순위는 있다: 공공기관·연구기관·대학·학회·오픈액세스 저널·기업 공식 블로그 > 전문 매거진·비영리 매체 > 상업 언론. 아래 소스 풀 사이트는 접근이 확인된 곳이니 검색어에 \`site:\` 로 섞어 쓰면 좋다(의무 아님):
+  ${i.poolHosts.slice(0, 40).join(", ")}
+- **접근이 막힌 곳은 제외** — 워커가 본문을 가져와야 한다: 논문 저장소·유료 DB(researchgate, ssrn, academia.edu, semanticscholar, sciencedirect 유료 페이지, springer/wiley 유료, jstor 본문), 로그인·구독 벽 뒤의 기사, PDF 만 있는 링크, SNS·위키·커뮤니티·상품 페이지·보도자료 단신은 넣지 않는다.
+- 뉴스 속보 하나를 소스로 삼지 않는다 — 이어는 소식이 아니라 축(대립·역설·재정의)을 다룬다. 사건성 글은 사례 재료로만.
+- 2년 넘게 지난 글은 역사·맥락 역할일 때만.
+- 한 소스가 두 역할을 겸할 수 있다. 주제와 어긋나는데 키워드만 겹치는 글은 넣지 않는다 — 빈 손이 억지 소스보다 낫다.
+
+## 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. sources 는 최대 10건, 각 항목에 url(검색 결과의 실제 URL 그대로) · title · publisher(사이트/발행처명) · published(YYYY-MM-DD 또는 null) · summary(검색 결과 요약을 한국어 두 문장으로) · roles · why(이 역할을 채우는 이유 한 줄) · in_pool(위 풀 사이트 목록에 있으면 true). queries 에는 실제로 쓴 검색어를 전부 적고, notes 에는 못 채운 역할과 이유를 적는다.`;
 }
 export const REINFORCE_SEARCH_SCHEMA = {
   type: "object",

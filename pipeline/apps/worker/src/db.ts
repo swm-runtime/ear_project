@@ -19,8 +19,8 @@ export interface Job {
   created_at: string;
 }
 
-export async function claimJob(worker: string, canAi: boolean, canTts: boolean, canThumbnail: boolean): Promise<Job | null> {
-  const r = await pool.query("select * from public.claim_job($1, $2, $3, $4)", [worker, canAi, canTts, canThumbnail]);
+export async function claimJob(worker: string, canAi: boolean, canTts: boolean, canThumbnail: boolean, excludeTypes: JobType[] = [], canTools = true): Promise<Job | null> {
+  const r = await pool.query("select * from public.claim_job($1, $2, $3, $4, $5, $6)", [worker, canAi, canTts, canThumbnail, excludeTypes, canTools]);
   return (r.rows[0] as Job) ?? null;
 }
 /** 하트비트 — 현재 status 를 돌려준다. 콘솔이 진행 중 작업을 취소하면(status=cancelled) 워커가 여기서 알아채고 중단한다 (2026-09-12) */

@@ -311,6 +311,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.sm,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     gap: theme.spacing.xs,
   },
   /*

@@ -1,4 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+
+import { BusinessException } from '@/common/exceptions/business.exception';
+import { ErrorCode } from '@/common/exceptions/error-code.enum';
 
 import { isVersionLowerThan } from '@/common/utils/semver.util';
 import { EnvironmentVariables } from '@/config/env.validation';
@@ -196,6 +199,36 @@ export class SettingsOrchestrator {
    * 화면이 참고할 수 있게 함께 내려주되 이 응답이 차단하지 않는다 — **같은 플랫폼의 값이어야
    * 두 값을 나란히 읽을 수 있다.**
    */
+  /**
+   * 스플래시의 강제 업데이트 관문(`splash.md` 4.1 · settings-api.md 4.6, 신설 2026-09-26). **판정은 서버가 한다.**
+   * `app_version < min_supported_version`이면 426 `APP_UPDATE_REQUIRED`를 던지고, 아니면 4.1의 `version`
+   * 블록과 같은 값을 돌려준다(권장 안내 `update_available` 포함).
+   *
+   * **설정값이 semver 형식이 아니면 차단하지 않는다** — `isVersionLowerThan`이 형식 불량을 `false`로 보는
+   * 규칙 그대로다. 잘못된 배포 설정 하나로 전원을 막는 쪽이 안내 하나 빠지는 쪽보다 훨씬 나쁘다(fail-open).
+   */
+  checkAppVersion(
+    appVersion: string,
+    platform: DevicePlatform,
+  ): AppVersionView {
+    const version = this.buildVersion(appVersion, platform);
+
+    if (isVersionLowerThan(appVersion, version.minSupportedVersion)) {
+      throw new BusinessException({
+        // Nest의 HttpStatus에는 426이 없다 — 의미가 정확히 "Upgrade Required"라 숫자를 그대로 쓴다
+        status: 426 as HttpStatus,
+        errorCode: ErrorCode.APP_UPDATE_REQUIRED,
+        message: '새 버전으로 업데이트해 주세요',
+        details: {
+          min_supported_version: version.minSupportedVersion,
+          latest_version: version.latestVersion,
+        },
+      });
+    }
+
+    return version;
+  }
+
   private buildVersion(
     appVersion: string,
     platform: DevicePlatform,

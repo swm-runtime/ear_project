@@ -34,3 +34,5 @@
 ## 처리 기록
 
 - 2026-09-25 발행 — 코드 PR `feat(fe)/mini-player-not-dismissable`.
+
+- **반영 날짜: 2026-09-26** — 통합 PR(`docs/changes-integration-fe-2026-09-26`, 백엔드 담당이 FE 발행분을 옮겨 적음). 반영 위치: library-uiux.md 4.4, player-uiux.md 4.8 PL11·7장, features/player.md 5장 미니플레이어 행.

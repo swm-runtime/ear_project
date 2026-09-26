@@ -208,4 +208,76 @@ describe('ExpoPushClient', () => {
     await expect(act).rejects.toThrow('400');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it('4xx 본문의 오류 코드를 사유로 싣는다 — 자격 증명·형식 문제는 사람이 봐야 한다', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(400, {
+        errors: [{ code: 'PUSH_TOO_MANY_EXPERIENCE_IDS', message: '...' }],
+      }),
+    );
+    const client = new ExpoPushClient(buildConfig());
+
+    await expect(client.send([MESSAGE])).rejects.toThrow(
+      'expo push request failed: 400 (PUSH_TOO_MANY_EXPERIENCE_IDS)',
+    );
+  });
+
+  it('연결 전 네트워크 오류(ECONNREFUSED)는 기다렸다가 다시 보낸다 — 요청이 나가지 않았으니 중복이 없다', async () => {
+    jest.useFakeTimers();
+    const refused = new TypeError('fetch failed', {
+      cause: Object.assign(new Error('connect ECONNREFUSED'), {
+        code: 'ECONNREFUSED',
+      }),
+    });
+    fetchMock
+      .mockRejectedValueOnce(refused)
+      .mockResolvedValueOnce(
+        jsonResponse(200, { data: [{ status: 'ok', id: 'ticket-1' }] }),
+      );
+
+    try {
+      const client = new ExpoPushClient(buildConfig());
+      const pending = client.send([MESSAGE]);
+      await jest.advanceTimersByTimeAsync(1_000);
+      const tickets = await pending;
+
+      expect(tickets).toEqual([{ status: 'ok', id: 'ticket-1' }]);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('타임아웃은 다시 보내지 않는다 — Expo가 이미 접수했을 수 있다', async () => {
+    fetchMock.mockRejectedValue(
+      new DOMException(
+        'The operation was aborted due to timeout',
+        'TimeoutError',
+      ),
+    );
+
+    const client = new ExpoPushClient(buildConfig());
+
+    await expect(client.send([MESSAGE])).rejects.toThrow(
+      'expo push request failed: TimeoutError',
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('보낸 뒤 끊긴 오류(ECONNRESET)도 다시 보내지 않는다', async () => {
+    fetchMock.mockRejectedValue(
+      new TypeError('fetch failed', {
+        cause: Object.assign(new Error('read ECONNRESET'), {
+          code: 'ECONNRESET',
+        }),
+      }),
+    );
+
+    const client = new ExpoPushClient(buildConfig());
+
+    await expect(client.send([MESSAGE])).rejects.toThrow(
+      'expo push request failed: ECONNRESET',
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });

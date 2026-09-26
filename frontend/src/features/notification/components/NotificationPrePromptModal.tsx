@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { setAnalyticsUserProperties, track } from '@/shared/analytics';
 import { APP_VERSION } from '@/shared/lib/app-version';
 import { getDeviceId } from '@/shared/lib/device-id';
 import { logger } from '@/shared/lib/logger';
 import { theme } from '@/shared/theme';
+import ConfirmDialog from '@/shared/ui/ConfirmDialog';
 
 import { useSyncDevicePermissionMutation } from '../hooks/useSyncDevicePermissionMutation';
 import { NOTIFICATION_COPY } from '../notification.copy';
@@ -106,108 +106,25 @@ export default function NotificationPrePromptModal({
 
 
   return (
-    <Modal visible={isVisible} transparent animationType="fade" onRequestClose={handleLaterPress}>
-      <View style={styles.backdrop}>
-        <View style={styles.dialog} accessibilityViewIsModal>
-          <View accessibilityElementsHidden importantForAccessibility="no">
-            <BellIcon size={BELL_SIZE} color={theme.color.textPrimary} />
-          </View>
-          <Text style={styles.title}>{NOTIFICATION_COPY.prePrompt.title}</Text>
-          <Text style={styles.description}>{NOTIFICATION_COPY.prePrompt.description}</Text>
-
-          <View style={styles.dock}>
-            <Pressable
-              style={[styles.button, styles.later]}
-              disabled={isProcessing}
-              onPress={handleLaterPress}
-              accessibilityRole="button"
-              accessibilityLabel={NOTIFICATION_COPY.prePrompt.later}
-              accessibilityState={{ disabled: isProcessing }}
-            >
-              <Text style={styles.laterLabel}>{NOTIFICATION_COPY.prePrompt.later}</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.button, styles.allow]}
-              disabled={isProcessing}
-              onPress={handleAllowPress}
-              accessibilityRole="button"
-              accessibilityLabel={NOTIFICATION_COPY.prePrompt.allow}
-              accessibilityState={{ disabled: isProcessing }}
-            >
-              {isProcessing ? (
-                <ActivityIndicator color={theme.color.onPrimary} />
-              ) : (
-                <Text style={styles.allowLabel}>{NOTIFICATION_COPY.prePrompt.allow}</Text>
-              )}
-            </Pressable>
-          </View>
-        </View>
-
-      </View>
-    </Modal>
+    <ConfirmDialog
+      isVisible={isVisible}
+      icon={<BellIcon size={BELL_SIZE} color={theme.color.textPrimary} />}
+      title={NOTIFICATION_COPY.prePrompt.title}
+      body={NOTIFICATION_COPY.prePrompt.description}
+      // 딤 탭으로 닫히지 않는다 — [나중에]가 곧 "거절"이라 온보딩 경로에선 동기화까지 딸려 있다. 뒤로가기는 [나중에]와 같다
+      dismissOnBackdrop={false}
+      secondaryAction={{
+        label: NOTIFICATION_COPY.prePrompt.later,
+        onPress: handleLaterPress,
+        disabled: isProcessing,
+      }}
+      primaryAction={{
+        label: NOTIFICATION_COPY.prePrompt.allow,
+        onPress: handleAllowPress,
+        isBusy: isProcessing,
+      }}
+      onCloseRequest={handleLaterPress}
+    />
   );
 }
 
-const styles = StyleSheet.create({
-  // 화면을 채우지 않는다 — 라이브러리 위에 겹쳐 뜨는 중앙 다이얼로그다(2026-09-02).
-  // 전체 화면이면 온보딩의 한 단계처럼 읽혀 "끝났는데 또 나오네"가 된다
-  backdrop: {
-    flex: 1,
-    backgroundColor: theme.color.overlay,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: theme.spacing.lg,
-  },
-  dialog: {
-    alignSelf: 'stretch',
-    alignItems: 'center',
-    borderRadius: theme.radius.xl,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.background,
-    padding: theme.spacing.lg,
-    gap: theme.spacing.sm,
-  },
-  title: {
-    fontSize: theme.font.size.md,
-    fontWeight: '700',
-    color: theme.color.textPrimary,
-    textAlign: 'center',
-    lineHeight: theme.font.size.md * 1.4,
-  },
-  description: {
-    fontSize: theme.font.size.sm,
-    color: theme.color.textSecondary,
-    textAlign: 'center',
-    lineHeight: theme.font.size.sm * 1.5,
-  },
-  dock: {
-    alignSelf: 'stretch',
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-    marginTop: theme.spacing.md,
-  },
-  /** 두 버튼 동등 비중 */
-  button: {
-    flex: 1,
-    minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  allow: {
-    backgroundColor: theme.color.primary,
-  },
-  allowLabel: {
-    fontSize: theme.font.size.md,
-    fontWeight: '600',
-    color: theme.color.onPrimary,
-  },
-  /** [나중에]는 면도 테두리도 없다 — 거절 경로를 숨기지는 않되 시선은 [알림 받기]로 간다 */
-  later: {},
-  laterLabel: {
-    fontSize: theme.font.size.md,
-    fontWeight: '600',
-    color: theme.color.textSecondary,
-  },
-});

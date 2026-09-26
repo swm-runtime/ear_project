@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 
+import { traceJs } from '@/shared/monitoring/js-trace';
 import {
   armPlayerZoom,
   MINI_PLAYER_ZOOM_SOURCE_ID,
@@ -135,7 +136,9 @@ export default function MiniPlayer({
   const rootRef = useRef<View>(null);
   /** 플레이어 열기 — 줌 전환 갈래면 이 카드(testID)를 소스 뷰로 등록한 뒤 navigate(시스템이 카드에서 부풀려 띄운다) */
   const openPlayer = (params: { contentId: string }) => {
+    traceJs('mini open → arm');
     void armPlayerZoom().then(() => {
+      traceJs('mini open → navigate');
       navigation.navigate('Main', { screen: 'Player', params });
     });
   };
@@ -380,6 +383,9 @@ export default function MiniPlayer({
         const thumb = thumbRef.current;
         const title = titleRef.current;
         rootRef.current?.measureInWindow((x, y, width, height) => {
+          // 시스템 탭 바는 액세서리를 두 배치(regular·inline)로 다 렌더한다 — 안 보이는 inline 쪽(폭 0·좁음)의 좌표가
+          // 줌 프록시 자리를 덮지 않게 걸러 낸다
+          if (isAccessory && width < 200) return;
           const base = { x, y, width, height };
           if (!thumb || !title) {
             setMiniLayout(base);

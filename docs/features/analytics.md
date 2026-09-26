@@ -16,6 +16,7 @@
 - 운영·개발계 앱 모두 **항상 켠다.** 사용자 옵트아웃 토글은 두지 않는다(MVP — 개인정보처리방침에 수집 사실을 고지한다, 7장).
 - 웹(`expo start --web`)·mock 실행에서는 **no-op**이다. 푸시 권한 스텁(`IS_OS_PERMISSION_STUBBED`)과 같은 기준.
 - 이벤트를 보내는 곳은 **`shared/analytics`의 `track()` 하나**다. 화면·훅·서비스가 Firebase를 직접 부르지 않는다 — SDK를 바꿀 때 한 곳만 고친다.
+- **Meta(광고 측정)도 `track()` 안에서만 나간다**(2026-09-24, KAN-94 — 3.5). 대상은 세 이벤트(`sign_up`·`onboarding_complete`·계정 첫 `play_start`)뿐이고, **개발계 앱·웹·mock 은 Meta 전송이 없다.**
 
 ## 3. 입력값 — 이벤트 사전
 
@@ -51,7 +52,7 @@
 | 이벤트 | 파라미터 | 시점 |
 |---|---|---|
 | `onboarding_step` | `step`: `topic` \| `career` \| `pick` \| `tutorial` \| `notification` · `action`: `next` \| `skip` | 각 단계의 [다음]·[건너뛰기] |
-| `onboarding_complete` | `topic_count` · `career_filled`(bool) · `picked_count` · `elapsed_sec` | 완료 요청 성공 |
+| `onboarding_complete` | `topic_count` · `career_filled`(bool) · `picked_count` · `elapsed_sec` | 완료 요청 성공 · **Meta 로도**(커스텀 `onboarding_complete` — 3.5) |
 
 **알림** (`notification.md`)
 
@@ -72,7 +73,7 @@
 
 | 이벤트 | 파라미터 | 시점 |
 |---|---|---|
-| `play_start` | `content_id` · `entry`: `PlayEntryPoint` 값 그대로 · `origin`: `ai_generated` \| `partner` · `resumed`(bool) | 재생 시작(차감 성공 뒤) |
+| `play_start` | `content_id` · `entry`: `PlayEntryPoint` 값 그대로 · `origin`: `ai_generated` \| `partner` · `resumed`(bool) | 재생 시작(차감 성공 뒤) · **계정의 첫 재생 1회만 Meta 로도**(커스텀 `first_play` — 3.5) |
 | `play_progress` | `content_id` · `percent`: `25` \| `50` \| `75` | 구간 통과, 한 세션에 각 1회 |
 | `play_complete` | `content_id` · `listen_sec` | 완청 판정(서버 기준과 같은 값 — `player.md` 4장) |
 | `play_abandon` | `content_id` · `percent`(정수) · `reason`: `pause_timeout` \| `switch` \| `background` | 완청 전 이탈 |
@@ -104,10 +105,25 @@
 | 이벤트 | 파라미터 | 시점 |
 |---|---|---|
 | `login` (GA4 권장 이름) | `method`: `google` \| `kakao` \| `naver` \| `apple` | 세션 시작(`startSession`) — 온보딩을 끝낸 사용자 |
-| `sign_up` (GA4 권장 이름) | `method` | 세션 시작 — 온보딩 미완료 사용자(서버에 신규 플래그가 없어 이 기준으로 가른다). 세션 **복원**은 둘 다 아니다 |
+| `sign_up` (GA4 권장 이름) | `method` | 세션 시작 — 온보딩 미완료 사용자(서버에 신규 플래그가 없어 이 기준으로 가른다). 세션 **복원**은 둘 다 아니다 · **Meta 로도**(`fb_mobile_complete_registration` + `fb_registration_method` — 3.5) |
 | `logout` | — | 로그아웃 |
 | `withdrawal` | `reason` (선택지 키) | 탈퇴 완료 |
 | `settings_toggle` | `key`: `drip_notification` \| `marketing_consent` · `value`(bool) | 설정 토글 — 서버 호출이 나가는 시점(권한 미결정으로 막힌 탭은 세지 않는다) |
+
+### 3.5 광고 측정 (Meta, 신설 2026-09-24 — KAN-94)
+
+`track()` 은 GA4 로 보낸 뒤 **Meta 로도** 보낸다 — 단 아래 세 이벤트만. 코드는 `shared/analytics/meta.ts`(`analytics.ts` 의 `track()` 이 `forwardToMeta` 호출), 플러그인은 `app.json`(`react-native-fbsdk-next`), 개발계 끔은 `app.config.js`.
+
+| `track()` 이벤트 | Meta 이벤트 | 비고 |
+|---|---|---|
+| `sign_up` | `fb_mobile_complete_registration` (+ `fb_registration_method`) | 표준 이벤트 |
+| `onboarding_complete` | `onboarding_complete` | 커스텀 |
+| `play_start` 중 **계정의 첫 재생 1회** | `first_play` | 커스텀. 첫 재생 판정은 **기기 로컬**(`analytics.meta_first_play_sent`, 계정 해시 목록) — 광고 최적화 목표엔 기기당 1회면 충분해 서버 계약을 늘리지 않는다 |
+
+- 앱 실행(activate)은 SDK 가 자동 기록한다(`autoLogAppEventsEnabled`).
+- **개발계 앱·웹·mock 은 Meta 전송이 없다** — JS(`IS_META_STUBBED`)와 네이티브(개발계 변형은 플러그인 `autoLogAppEventsEnabled`·`isAutoInitEnabled` false) 둘 다.
+- IDFA 미수집(`advertiserIDCollectionEnabled: false`), ATT 설명문 없음 — 4장 그대로. iOS 성과 측정은 AEM·SKAdNetwork 로 한다.
+- 네이티브 모듈이라 runtimeVersion 7 → **8**(`frontend/architecture.md` 2.1).
 
 ## 4. 처리 로직
 
@@ -116,7 +132,7 @@
 - **재생 이벤트는 `PlaybackService`만 보낸다.** 화면이 보내면 미니플레이어·푸시 딥링크 경로에서 빠진다.
 - **실패해도 앱 동작에 영향이 없다.** 발송 오류는 `logger.warn`으로만 남기고 던지지 않는다.
 - **로그아웃·탈퇴 시 `user_id`·사용자 속성을 지운다**(`setUserId(null)`) — 다음 사용자에게 앞 사용자의 속성이 넘어가지 않게.
-- iOS **광고 식별자(IDFA)는 쓰지 않는다** → ATT 팝업을 띄우지 않는다. Firebase iOS SDK는 `FirebaseAnalyticsWithoutAdIdSupport` 변형을 쓴다.
+- iOS **광고 식별자(IDFA)는 쓰지 않는다** → ATT 팝업을 띄우지 않는다. Firebase iOS SDK는 `FirebaseAnalyticsWithoutAdIdSupport` 변형을 쓴다. **Meta SDK(fbsdk)도 IDFA 를 끈다**(`advertiserIDCollectionEnabled: false`, ATT 설명문 없음 — 3.5).
 
 ## 5. 화면 상태
 

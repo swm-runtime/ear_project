@@ -2,6 +2,7 @@ import { plainToInstance, Type } from 'class-transformer';
 import {
   IsEnum,
   IsInt,
+  IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -125,6 +126,22 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   SENTRY_DSN?: string;
+
+  /**
+   * 클러스터 워커 수(`cluster.ts`) — `auto`(코어 수) 또는 1~8. 부팅 전에 읽는 값이지만 선언은 여기 둔다(9.5
+   * "기본값으로 조용히 넘어가지 않는다" — 오타면 `cluster.util`이 조용히 1워커로 만들어 운영이 2워커라고
+   * 믿는 채로 돌았다, 2026-09-26 감사). 없으면 단일 프로세스.
+   */
+  @IsOptional()
+  @Matches(/^(auto|[1-8])$/, {
+    message: 'CLUSTER_WORKERS must be "auto" or an integer 1-8',
+  })
+  CLUSTER_WORKERS?: string;
+
+  /** 프라이머리가 스케줄러 워커에만 `true`로 박는다 — 사람이 넣는 값이 아니다(`cluster.util`) */
+  @IsOptional()
+  @IsIn(['true', 'false'])
+  EAR_SCHEDULER_WORKER?: string;
 
   /** Sentry 환경 이름. 비우면 `NODE_ENV` 를 쓴다 — 운영/개발계를 가르려면 명시한다 */
   @IsOptional()
@@ -271,6 +288,10 @@ export class EnvironmentVariables {
    * 구현뿐이다 — 계약(`player-api.md` 4.1)은 그대로다.
    */
   @IsString()
+  @IsNotEmpty()
+  @Matches(/^https?:\/\//, {
+    message: 'AUDIO_URL_BASE_URL must be an absolute http(s) URL',
+  })
   @MaxLength(2048)
   AUDIO_URL_BASE_URL: string;
 

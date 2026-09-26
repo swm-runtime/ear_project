@@ -137,6 +137,8 @@ Frontend는 다음 5가지를 책임진다.
   | `1` | 2026-09 | 지문 정책 폐기 후 양 플랫폼 통일값 |
   | `2` | 2026-09-17 | `expo-video` 추가(스플래시 로고 영상 — `splash.md` 4장) |
   | `6` | 2026-09-23 | `@sentry/react-native` 추가(KAN-92 — 8.4) |
+  | `7` | 2026-09-23 | `@react-native-firebase/app`·`analytics` 추가(GA4 — KAN-90, `analytics.md`) |
+  | `8` | 2026-09-24 | `react-native-fbsdk-next` 추가(Meta 광고 측정 — KAN-94, `analytics.md` 3.5) |
 
   사이의 값은 각 PR의 `app.json` 이력을 따른다.
 - **OTA 번들의 env는 `eas.json`과 같은 값을 유지해야 한다.** 워크플로가 `EXPO_PUBLIC_API_BASE_URL`을 번들에 박으므로, `eas.json`의 `preview`·`production` env와 어긋나면 **OTA 번들만 다른 서버를 본다.** mock 플래그들은 `__DEV__` 가드라 릴리스 번들에서는 무관하다.
@@ -276,6 +278,7 @@ feature가 늘어나면 아래 표를 갱신한다. 표에 없는 의존이 코�
 | notification | player | 푸시 딥링크 → 재생 게이트 |
 | share | auth | 링크 수신 게이트의 관문 판정(`useSessionStore` — 온보딩 완료 사용자만 상세로 이동, `share.md` 4.3). 순환 없음 — share는 네 진입점 feature를 import하지 않는다 |
 | splash | auth, onboarding | 진입 분기 판정 |
+| app-update | (없음) | 스플래시 버전 관문(`splash.md` 4.1 처리 1단계 — `GET /app/version`, KAN-99 2026-09-26). 판정은 서버, 결과(`useAppUpdateStore.gate`)로 RootNavigator 가 강제 업데이트 화면을 그린다. 30분 복귀 재검사는 `startAppVersionRecheck`(bootstrap). 설정의 배지와 무관 |
 | notice | (없음) | 조회 전용 화면(공지 목록·상세 — `settings.md` 4.5). **settings는 notice를 import하지 않는다** — 라우트 이름(`Notice`·`NoticeDetail`)으로 이동만 하고 화면 등록은 `app/navigation`이 한다(content-detail과 같은 방식) |
 
 ## 5. 전역 Domain Service

@@ -23,3 +23,7 @@
 ## 완료 조건
 
 - Given analytics.md / When 읽는다 / Then Meta 로 가는 이벤트 3개와 개발계 제외 규칙이 적혀 있다
+
+## 처리 기록
+
+- **반영 날짜: 2026-09-26** — 통합 PR(`docs/changes-integration-fe-2026-09-26`, 백엔드 담당이 FE 발행분을 옮겨 적음). 반영 위치: analytics.md 2장·3.4 표·3.5 신설·4장, frontend/architecture.md 2.1 runtimeVersion 이력(7·8).

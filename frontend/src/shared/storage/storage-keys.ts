@@ -43,4 +43,10 @@ export const STORAGE_KEYS = {
    * 광고 최적화 목표는 기기당 1회면 충분해 서버 계약을 늘리지 않는다(`shared/analytics/meta.ts`)
    */
   META_FIRST_PLAY_SENT: 'analytics.meta_first_play_sent',
+  /**
+   * 스플래시 버전 관문의 마지막 **성공** 판정(`splash.md` 7장 · KAN-99) — `{ appVersion, platform, verdict, … }` JSON.
+   * 조회가 실패하면(망·5xx·타임아웃) 이 값으로 판정하고, 없으면 통과(fail-open — README 결정 39).
+   * 앱 버전이 다르면 무시한다(옛 버전의 판정을 새 버전에 쓰지 않는다). 로그아웃과 무관 — 계정이 아니라 빌드의 값
+   */
+  APP_UPDATE_LAST_VERDICT: 'app_update.last_verdict',
 } as const;

@@ -157,6 +157,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: theme.radius.sm,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
   },
   summaryText: {

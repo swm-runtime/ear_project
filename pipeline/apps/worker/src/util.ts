@@ -36,5 +36,6 @@ export class RetryLater extends Error {
  * 작업 실패로 처리하지 않는다 — 실패시키면 초안은 에피소드를 지우고 후보를 되돌려 백로그가 망가진다.
  */
 export class ApiLimit extends Error {
-  constructor(public kind: "rate" | "quota", msg: string, public retryAfterMs = 5 * 60_000) { super(msg); this.name = "ApiLimit"; }
+  /** provider (2026-09-26): openai 는 AI 집기를, elevenlabs 는 TTS 집기를 멈춘다 — 둘은 독립이라 한쪽 한도로 다른 쪽을 세우지 않는다 */
+  constructor(public kind: "rate" | "quota", msg: string, public retryAfterMs = 5 * 60_000, public provider: "openai" | "elevenlabs" = "openai") { super(msg); this.name = "ApiLimit"; }
 }

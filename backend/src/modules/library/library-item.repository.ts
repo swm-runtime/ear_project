@@ -117,7 +117,9 @@ export class LibraryItemRepository {
   ): Promise<boolean> {
     const result = await this.scoped(manager).update(
       { id, deletedAt: Not(IsNull()) },
-      { deletedAt: null, addedAt, source },
+      // 재담기는 새 담기라 재생 목록에서도 맨 위(NULL = 마지막 저장 뒤에 담긴 것 — library-api.md 4.8).
+      // 옛 자리를 되살리는 것은 복구(4.7)뿐이다(2026-09-26 감사)
+      { deletedAt: null, addedAt, source, queuePosition: null },
     );
 
     return (result.affected ?? 0) > 0;
@@ -188,7 +190,7 @@ export class LibraryItemRepository {
   }
 
   /**
-   * 최근 편성분의 `content_id` — 노출 피로 감점의 입력이다(`drip-scheduling.md` 4.2 ③).
+   * 최근 편성분의 `content_id` — 편성 미리보기 표시용이다(노출 피로 항목은 2026-09-25 폐기).
    * 삭제분도 포함한다(`withDeleted`) — 노출됐다는 사실은 삭제로 사라지지 않는다.
    */
   async findRecentContentIdsByUserIdAndSources(
@@ -207,6 +209,28 @@ export class LibraryItemRepository {
       .getRawMany<{ content_id: string }>();
 
     return rows.map((row) => row.content_id);
+  }
+
+  /**
+   * 어떤 기간에 편성(드립·탐험)된 항목 수 — 배치 재실행의 사용자 단위 멱등 판정 입력이다
+   * (`drip-scheduling.md` 4.6-5 `already_placed`). **삭제분도 센다**(`withDeleted`) — 오늘 받았다가 지운
+   * 사용자에게 재실행이 또 주면 하루 상한이 무너진다.
+   */
+  async countByUserIdAndSourcesAddedBetween(
+    userId: string,
+    sources: LibraryItemSource[],
+    start: Date,
+    end: Date,
+    manager?: EntityManager,
+  ): Promise<number> {
+    return this.scoped(manager)
+      .createQueryBuilder('item')
+      .withDeleted()
+      .where('item.user_id = :userId', { userId })
+      .andWhere('item.source IN (:...sources)', { sources })
+      .andWhere('item.added_at >= :start', { start })
+      .andWhere('item.added_at < :end', { end })
+      .getCount();
   }
 
   /**
@@ -708,6 +732,24 @@ export class LibraryItemRepository {
    * 삭제 시각을 인자로 받는 이유는 테스트에서 시각을 고정하기 위해서다
    * (convention.md 7.3 — `Date.now()`를 직접 쓰지 않는다).
    */
+  /**
+   * 완청 전이 — **조건부 UPDATE**. 아직 `completed`가 아닌 행만 바꾸고, affected가 곧 "이번 요청이 처음
+   * 도달했는가"다(player-api.md 4.3 "처음 도달 시 1회", library-api.md 4.5 "completed_at 최초 값 유지").
+   * 두 기기가 90% 근처에서 동시에 저장하면 한쪽만 true를 받아 완청 신호가 두 번 쌓이지 않는다(2026-09-26 감사).
+   */
+  async completeById(
+    id: string,
+    completedAt: Date,
+    manager?: EntityManager,
+  ): Promise<boolean> {
+    const result = await this.scoped(manager).update(
+      { id, status: Not(LibraryItemStatus.COMPLETED) },
+      { status: LibraryItemStatus.COMPLETED, completedAt },
+    );
+
+    return (result.affected ?? 0) > 0;
+  }
+
   /** 살아 있는 행만 지운다 — affected로 이번 요청이 지웠는지 판정한다(`reactivateById`와 같은 이유) */
   async softDeleteById(
     id: string,

@@ -80,6 +80,7 @@ const styles = StyleSheet.create({
     width: 140,
     height: theme.font.size.lg,
     borderRadius: theme.radius.sm,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
     marginHorizontal: theme.spacing.md,
     marginBottom: theme.spacing.sm,
@@ -97,6 +98,7 @@ const styles = StyleSheet.create({
     width: EXPLORE_TILE_WIDTH,
     height: EXPLORE_TILE_WIDTH,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
   },
   // 주제 필터 결과의 격자(ExploreScreen gridContent·gridRow)와 같은 크기·간격
@@ -114,11 +116,13 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: 1,
     borderRadius: theme.radius.lg,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
   },
   lineWide: {
     height: theme.font.size.md,
     borderRadius: theme.radius.sm,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
     alignSelf: 'stretch',
   },
@@ -126,6 +130,7 @@ const styles = StyleSheet.create({
     height: theme.font.size.xs,
     width: '55%',
     borderRadius: theme.radius.sm,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
   },
 });

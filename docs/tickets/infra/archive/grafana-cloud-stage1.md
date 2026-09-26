@@ -92,6 +92,6 @@ IAM 액세스 키 · Sentry 읽기 토큰 · Slack 웹훅 URL 은 **Grafana 설�
 - **5 알림** — 체크 내장 알림 Failed Checks(5분 창 2/2)·TLS 14일(30일은 Caddy 정상 갱신과 겹쳐 오탐). 연락처 `slack-ear-alerts`(기존 에러 채널 웹훅) → 기본 알림 정책. 테스트 메시지 수신 확인. CPU·메모리 규칙은 사용자가 Alerting 에서 추가(임계 70/80, 5분).
 - **6 대시보드** — "ear 운영"(uid `ear-ops`) Import. JSON 원본 `docs/infra/grafana/ear-ops-dashboard.json`(PR #726). 응답시간 패널은 기본 지표만 발행 시 게이지가 없어 `_sum/_count` 평균으로 교체. Sentry 패널 2개(최근 이슈 7일 고정·시간당 에러 이벤트)는 화면에서 추가. `/ear/api` ERROR 패널이 비어 있는 것은 **실제 0건**(7일 26만 줄 조회 — WARN 3,190줄은 전부 만료 토큰 401).
 - **7 문서** — `incident-playbook.md` 3장 역색인(PR #726) · `inventory.md` Grafana Cloud·IAM·Sentry 토큰·헬스체크 주/예비 행 · `runbook.md` 4-1 표·6장 점검 목록(이 PR) · `features/backend-monitoring.md` 는 `changes/pending/backend-monitoring-grafana-parallel.md`.
-- **완료 조건 미확인 1건** — "개발계 api 를 10분 멈춰 Slack 알림·해소 알림 수신". 개발계 배포가 있는 날 배포 직후 컨테이너를 잠깐 내려 확인하고 이 줄을 갱신한다. 나머지 4건(대시보드 한 화면·IAM 쓰기 없음·inventory 기록·팀 3명 로그인)은 팀 초대만 사용자 확인 대기.
+- **완료 조건 미확인 1건** — "개발계 api 를 10분 멈춰 Slack 알림·해소 알림 수신". **2026-09-26 시도 실패(설계 오류)** — 합성 체크는 운영 URL 을 보는데 개발계 api 를 내렸다(16:07~16:11 KST, dev 자동배포가 되살림). 개발계용 임시 체크(`api-dev.earcast.co.kr`, 1분 간격)를 Grafana 에서 만든 뒤에만 의미가 있다. 개발계 배포가 있는 날 배포 직후 컨테이너를 잠깐 내려 확인하고 이 줄을 갱신한다. 나머지 4건(대시보드 한 화면·IAM 쓰기 없음·inventory 기록·팀 3명 로그인)은 팀 초대만 사용자 확인 대기.
 - **부수 발견** — 운영 디스크 완만 증가(하루 약 50MB)의 원인은 systemd 저널(`refresh-policy-routes@ens5` 10초 주기 소음 + audit 중복). journald 기본 상한(FS 10%, 약 2GB)에서 멈추므로 장애는 아니나 300MB·14일 상한 설정을 제안(별건, 승인 대기).
 

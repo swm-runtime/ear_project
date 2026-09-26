@@ -111,6 +111,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
   },
   titleArea: {
@@ -147,6 +148,7 @@ const styles = StyleSheet.create({
     flexBasis: 140,
     minHeight: theme.touchTarget.minHeight,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.primary,
     alignItems: 'center',
     justifyContent: 'center',
@@ -161,6 +163,7 @@ const styles = StyleSheet.create({
     flexBasis: 100,
     minHeight: theme.touchTarget.minHeight,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     borderWidth: 1,
     borderColor: theme.color.border,
     alignItems: 'center',

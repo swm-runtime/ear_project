@@ -5,7 +5,11 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { trackScreen } from '@/shared/analytics';
 import { AppErrorBoundary, initSentry, wrapWithSentry } from '@/shared/monitoring';
+import { installJsTraceErrorHook, loadJsTrace, traceJs } from '@/shared/monitoring/js-trace';
 import Toast from '@/shared/ui/Toast';
+
+import { UpdateRecommendDialog } from '@/features/app-update';
+import { ZoomSourceProxy } from '@/features/player';
 
 import { bootstrapApp } from './bootstrap';
 import { focusedRouteName } from './navigation/focused-route';
@@ -14,15 +18,39 @@ import { queryClient } from './query-client';
 
 // 부트스트랩보다 먼저 — 부트스트랩 안에서 나는 오류도 잡아야 한다
 initSentry();
+// 개발계 JS 트레이스(2026-09-27 — 플레이어 여닫기 벽돌 조사) — 이전 실행분을 옮기고 전역 오류 훅을 건다
+void loadJsTrace();
+installJsTraceErrorHook();
 bootstrapApp();
 
 let lastTrackedScreen: string | null = null;
 
 /** GA4 `screen_view` — 포커스된 리프 라우트가 바뀔 때만(같은 화면 재렌더에 중복 발송 금지, analytics.md 4장) */
+/**
+ * 개발계 JS 트레이스 — 라우트 **키** 목록(루트 → Main → Tabs 까지). 이름은 같은데 키가 바뀌면 스택이 재생성된 것이다
+ * (2026-09-27 02:37 — 플레이어 여닫기 뒤 RNSScreen 셋이 unmount 되며 굳는 원인 추적). 바뀔 때만 남긴다
+ */
+let lastRouteKeys = '';
+const routeKeysOf = (state: NavigationState | undefined, depth = 0): string => {
+  if (!state || depth > 2) return '';
+  return state.routes
+    .map((r) => {
+      const nested = routeKeysOf(r.state as NavigationState | undefined, depth + 1);
+      return `${r.name}#${r.key.slice(-4)}${nested ? `[${nested}]` : ''}`;
+    })
+    .join(',');
+};
+
 const handleNavigationStateChange = (state: NavigationState | undefined): void => {
+  const keys = routeKeysOf(state);
+  if (keys !== lastRouteKeys) {
+    lastRouteKeys = keys;
+    traceJs(`keys ${keys}`);
+  }
   const name = focusedRouteName(state);
   if (name === null || name === lastTrackedScreen) return;
   lastTrackedScreen = name;
+  traceJs(`screen ${name}`);
   trackScreen(name);
 };
 
@@ -34,6 +62,10 @@ function App() {
           <NavigationContainer onStateChange={handleNavigationStateChange}>
             <RootNavigator />
           </NavigationContainer>
+          {/* 줌 전환 소스 프록시(iOS 26) — 미니플레이어 자리의 투명 뷰. 액세서리 컨테이너 밖에 둬야 닫힌 뒤 잔여 이미지가 안 남는다 */}
+          <ZoomSourceProxy />
+          {/* 권장 업데이트 안내(splash.md 4.1 · KAN-99) — Modal 이라 어느 스택 위에서든 뜨고, 관문 통과 뒤에만 켜진다 */}
+          <UpdateRecommendDialog />
           <Toast />
           <StatusBar style="auto" />
         </SafeAreaProvider>

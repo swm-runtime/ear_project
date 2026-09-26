@@ -31,10 +31,10 @@ export class FirstDripPurgeScheduler {
 
     try {
       const deletedCount =
-        await this.firstDripJobRepository.deleteCompletedBefore(before);
+        await this.firstDripJobRepository.deleteTerminalBefore(before);
 
       if (deletedCount > 0) {
-        this.logger.log('completed first drip jobs purged', {
+        this.logger.log('terminal first drip jobs purged', {
           deleted_count: deletedCount,
         });
       }

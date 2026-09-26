@@ -5,6 +5,7 @@ import { EnvironmentVariables } from '@/config/env.validation';
 import {
   EXPO_PUSH_RETRY_DELAYS_MS,
   EXPO_PUSH_RECEIPTS_URL,
+  EXPO_PUSH_RETRYABLE_NETWORK_CODES,
   EXPO_PUSH_SEND_URL,
   EXPO_PUSH_TIMEOUT_MS,
 } from '../notification.constant';
@@ -23,6 +24,11 @@ interface ExpoSendResponse {
 
 interface ExpoReceiptsResponse {
   data?: Record<string, { status: 'ok' } | ExpoErrorBody>;
+}
+
+/** 요청 단위 오류(4xx) 본문 — `errors[].code`(예: `PUSH_TOO_MANY_EXPERIENCE_IDS`)가 사유다 */
+interface ExpoRequestErrorBody {
+  errors?: { code?: string; message?: string }[];
 }
 
 /**
@@ -97,12 +103,33 @@ export class ExpoPushClient extends PushClient {
     }
 
     for (let attempt = 0; ; attempt++) {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(EXPO_PUSH_TIMEOUT_MS),
-      });
+      let response: Response;
+
+      try {
+        response = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(EXPO_PUSH_TIMEOUT_MS),
+        });
+      } catch (error) {
+        // 연결 전 실패만 다시 보낸다 — 요청이 나가지 않았으니 중복이 없다. 타임아웃·보낸 뒤 끊김은
+        // Expo가 접수했을 수 있어 그대로 던진다(`EXPO_PUSH_RETRYABLE_NETWORK_CODES`)
+        if (
+          !isPreConnectionError(error) ||
+          attempt >= EXPO_PUSH_RETRY_DELAYS_MS.length
+        ) {
+          throw new Error(
+            `expo push request failed: ${describeNetworkError(error)}`,
+            { cause: error },
+          );
+        }
+
+        await new Promise((resolve) =>
+          setTimeout(resolve, EXPO_PUSH_RETRY_DELAYS_MS[attempt]),
+        );
+        continue;
+      }
 
       if (response.ok) {
         return (await response.json()) as T;
@@ -112,7 +139,12 @@ export class ExpoPushClient extends PushClient {
       const retryable = response.status === 429 || response.status >= 500;
 
       if (!retryable || attempt >= EXPO_PUSH_RETRY_DELAYS_MS.length) {
-        throw new Error(`expo push request failed: ${response.status}`);
+        // 사유를 버리지 않는다 — 자격 증명·요청 형식 문제는 사람이 고쳐야 하는 오류라 로그에 남아야 한다
+        const reason = await describeErrorBody(response);
+
+        throw new Error(
+          `expo push request failed: ${response.status}${reason ? ` (${reason})` : ''}`,
+        );
       }
 
       await new Promise((resolve) =>
@@ -120,6 +152,53 @@ export class ExpoPushClient extends PushClient {
       );
     }
   }
+}
+
+/** 4xx 본문의 `errors[].code`를 읽는다 — 본문이 JSON이 아니거나 비어 있으면 빈 문자열 */
+async function describeErrorBody(response: Response): Promise<string> {
+  try {
+    const body = (await response.json()) as ExpoRequestErrorBody;
+    const codes = (body.errors ?? [])
+      .map((error) => error.code)
+      .filter((code): code is string => typeof code === 'string');
+
+    return [...new Set(codes)].slice(0, 3).join(',');
+  } catch {
+    return '';
+  }
+}
+
+/** undici `fetch`는 네트워크 오류를 `TypeError('fetch failed')`로 감싸고 원인을 `cause.code`에 둔다 */
+function networkErrorCode(error: unknown): string | null {
+  const cause = (error as { cause?: { code?: unknown } } | null)?.cause;
+  const code = cause?.code;
+
+  return typeof code === 'string' ? code : null;
+}
+
+function isPreConnectionError(error: unknown): boolean {
+  const code = networkErrorCode(error);
+
+  return code !== null && EXPO_PUSH_RETRYABLE_NETWORK_CODES.has(code);
+}
+
+function describeNetworkError(error: unknown): string {
+  const code = networkErrorCode(error);
+
+  if (code) {
+    return code;
+  }
+
+  // `DOMException`(TimeoutError)은 realm에 따라 `instanceof Error`가 아닐 수 있다 — 필드로 읽는다
+  const named = error as { name?: unknown; message?: unknown } | null;
+
+  if (typeof named?.name !== 'string') {
+    return 'unknown';
+  }
+
+  const message = typeof named.message === 'string' ? named.message : '';
+
+  return `${named.name}: ${message}`;
 }
 
 function toError(body: ExpoErrorBody): {

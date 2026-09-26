@@ -106,6 +106,7 @@ const styles = StyleSheet.create({
   },
   badge: {
     borderRadius: theme.radius.sm,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.xs,

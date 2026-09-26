@@ -153,7 +153,7 @@
 }
 ```
 
-- **origin별 필수 분기는 `admin.md` 3.1 그대로다.** 이 문서가 분기를 새로 정하지 않는다.
+- **origin별 필수 분기는 `admin.md` 3.1 그대로다.** 이 문서가 분기를 새로 정하지 않는다. **`partner`면 `sources`를 넣지 않는다 — 넣으면 400 `VALIDATION_FAILED`(`details.field = "sources"`)**, 4.10과 같은 규칙(명시 2026-09-26). 2026-09-26 현재 업로드 구현은 값을 조용히 버린다 — 하 등급 코드 항목으로 정렬 예정.
 - `sources[]`의 **입력 순서가 곧 표시 순서**다(`content_sources.position` — `domain.md` 5.5).
 - `duration_sec`은 받지 않는다. **서버가 오디오에서 추출한다**(`admin.md` 3.1).
 - `review_confirmed`는 **저장 컬럼이 없다.** 미체크 업로드를 막는 게 목적이고 증적은 `audit_logs`가 담당한다(`domain.md` 5.1, 확정 2026-08-06).
@@ -162,7 +162,7 @@
 **`enrichment_file` — 추천 메타 파일** (`admin.md` 3.1의 계약 표현, 등재 2026-09-08)
 
 - 저장 대상: `difficulty` · `format` · `is_evergreen` · `keywords` · **`target_audiences`**(형식 v2, 2026-09-11) → `contents` 메타,
-  `embedding.vector` → `content_embeddings` upsert(콘텐츠당 1행). 생략된 키는 저장하지 않는다
+  `embedding.vector` → `content_embeddings` upsert(콘텐츠당 1행). 생략된 키는 저장하지 않는다(재부여 시에는 기존 값을 유지한다 — 부분 갱신, 2026-09-26)
   (결손 = 스코어링 중립 — `domain.md` 5.1·5.6).
 - **`schema_version`**(정수, 생략 시 1)을 `contents.enrichment_schema_version`에, 적용 시각을 `enriched_at`에 기록한다.
   현재 형식은 **2**다 — 서버가 아는 최신보다 높으면 파일을 거부한다(모르는 키가 결손으로 둔갑하는 것을 막는다).
@@ -211,7 +211,7 @@
 
 ### 4.9 `GET /admin/system-stats`
 
-서버 자원과 DB 부하의 읽기 전용 스냅샷 (2026-09-06 등재). 어드민 로그 콘솔 서버 상태 탭이 15초 폴링한다 — `features/backend-monitoring.md` 참조.
+서버 자원과 DB 부하의 읽기 전용 스냅샷 (2026-09-06 등재). 어드민 로그 콘솔 서버 상태 탭이 **열 때 1회 + [새로고침]** 으로 호출한다(자동 폴링 없음 — 사용자 결정 2026-09-06, `features/backend-monitoring.md` 3장). 종전 "15초 폴링" 서술은 2026-09-26 정정.
 
 **Response 200**
 
@@ -360,9 +360,10 @@
 | `interests[]` | `topic_id` `name` `source` — 활성 관심 주제 |
 | `removed_topics[]` | 사용자가 직접 해제한 주제(탐험 제외) |
 | `preference` | `is_cold_start` `complete_signal_count` `cold_start_threshold` `signal_count` `has_taste_embedding` `duration_pref` `topic_weights[]` `author_weights[]` `keyword_weights[]` `format_weights[]`(절대값 상위 15, `{key,name,weight}`) `difficulty_affinity` — **저장하지 않은** 계산값 |
-| `signals[]` | `content_id` `title` `action` `created_at` — 취향 계산 입력(90일·최대 500건) |
+| `signals[]` | `content_id` `title` `action` `created_at` — 취향 계산 입력(90일·최대 500건). `action`에는 `user_signals` enum 외에 **파생 신호 `ignore`**(`drip-scheduling.md` 4.3 — 7일 미청취 편성분, 저장되지 않음)가 섞인다. 90일·500건 상한은 저장 신호에만 적용된다(명시 2026-09-26) |
 | `weights` | 스코어링 상수: `axes` `signal_items` `meta_items` `meta_items_cold_start` `discovery_items` |
 | `regular` | `pool_size` `gated_out[]`(시리즈 순서 게이트 제외, `reason: episode_order`) `recent_drip_topics[]` `candidates[]` — null이면 정규 편수 0 |
+| | **`candidates[].breakdown.meta_items.exposure_fatigue`는 정규 편에서 항상 `null`이다**(2026-09-25 — 노출 피로 항목 폐기, `drip-scheduling.md` 4.2 ③). 탐험 편은 종전대로 저노출 가점 값. **`recent_drip_topics[]`는 정보 표시**일 뿐 스코어링 입력이 아니다. 응답 형태는 어드민 웹 호환을 위해 그대로 둔다 |
 | `discovery` | `pool_size` `quality_floor` `typical_complete_rate` `excluded[]`(`user_removed_topic` \| `below_quality_floor`) `candidates[]` — null이면 탐험 편수 0 |
 | `discovery_error` | 탐험 계산이 던졌으면 메시지, 아니면 null(정규는 영향 없음 — 4.8) |
 | `today_placed[]` | 오늘 서비스 날짜에 실제 배치가 적립한 편(`library_items.source in drip,discovery`) |

@@ -38,7 +38,7 @@ import { useExploreSearchScreen } from '../hooks/useExploreSearchScreen';
  *
  * **iOS 26 시스템 탭 바 갈래의 상단은 애플 뮤직 검색 탭 문법**(09-26 00:29 스샷) — 큰 제목 "검색" + 채움 검색 필드 + [취소].
  * 제목·필드는 목록 밖에 고정한다(결과·로딩으로 목록이 바뀔 때 입력 상자가 내려가면 키보드가 떨어진다).
- * 탐색 제목 줄 밑 검색 필드를 누르면 이 화면이 스택에 올라온다(탭 바가 가려지므로 미니플레이어는 여기서 직접 그린다).
+ * 탐색 제목 줄 밑 검색 필드를 누르면 이 화면이 올라온다 — iOS 26 은 탐색 탭 안 스택(탭 바·액세서리 유지), 그 외는 Main 스택.
  * 검색 탭(탭 바 옆 검색 원, #730)은 뺐다 — 입구가 둘이라(PM 09-26 01:20). 그 외 플랫폼은 종전대로 검색 줄만이다.
  */
 export default function ExploreSearchScreen() {
@@ -226,8 +226,9 @@ export default function ExploreSearchScreen() {
 
       {renderBody()}
 
-      {/* 미니플레이어(PL11) — 검색 화면에서도 유지된다(explore.md 4.5-1). 스택 화면이라 탭 바(액세서리)가 가려져 직접 그린다 */}
-      <MiniPlayer />
+      {/* 미니플레이어(PL11) — 검색 화면에서도 유지된다(explore.md 4.5-1). iOS 26 갈래는 탭 안 스택이라 탭 바 액세서리가
+          그대로 보인다(ExploreStack) — 직접 그리면 둘이 된다(02:07 PM "검색에 미니플레이어는 또 왜 보여"). 그 외는 직접 */}
+      {HAS_NATIVE_TAB_BAR ? null : <MiniPlayer />}
 
       <ExploreMoreSheet
         item={screen.moreSheetItem}
