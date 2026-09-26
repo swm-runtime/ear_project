@@ -16,6 +16,8 @@ type NavItem = {
   icon: (props: { className?: string }) => React.JSX.Element;
   exact?: boolean;
   note?: string;
+  /** 하위 메뉴 (2026-09-26 박수헌): 부모를 누르면 아래로 펼쳐진다. 하위 경로에 있으면 항상 펼침 */
+  children?: { href: string; label: string; exact?: boolean }[];
 };
 
 /** 백엔드 로그 콘솔의 메뉴 — 콘솔 전환 시 사이드바가 통째로 이걸로 바뀐다 */
@@ -38,7 +40,11 @@ const NAV: (NavItem | typeof DIVIDER)[] = [
   { href: "/", label: "대시보드", icon: Grid, exact: true },
   { href: "/jobs", label: "작업 기록", icon: List, note: "소요·비용" },
   DIVIDER,
-  { href: "/sweep", label: "스윕·군집화", icon: Radar },
+  { href: "/sweep", label: "스윕·군집화", icon: Radar, children: [
+    { href: "/sweep", label: "스윕", exact: true },
+    { href: "/sweep/cluster", label: "군집화" },
+    { href: "/sweep/topic", label: "주제 기획" },
+  ] },
   { href: "/backlog", label: "백로그", icon: Inbox, note: "게이트 1" },
   { href: "/episodes", label: "에피소드", icon: Doc },
   DIVIDER,
@@ -55,6 +61,7 @@ export function Sidebar({ pending }: { pending?: { backlog?: number; review?: nu
   const path = usePathname();
   const on = (href: string, exact?: boolean) => (exact ? path === href : path.startsWith(href));
   const [consoleOpen, setConsoleOpen] = useState(false);
+  const [opened, setOpened] = useState<string | null>(null); // 사람이 펼친 부모 메뉴 (하위 경로에 있으면 자동 펼침)
   const isLogsConsole = path.startsWith("/backend-logs");
   const isDripConsole = path.startsWith("/drip-check");
   const activeConsole = isLogsConsole ? CONSOLES[1] : isDripConsole ? CONSOLES[2] : CONSOLES[0];
@@ -91,6 +98,27 @@ export function Sidebar({ pending }: { pending?: { backlog?: number; review?: nu
           if ("divider" in n) return <div key={`d${i}`} className="mx-3 my-2 border-t border-side-soft/60" role="separator" />;
           const active = on(n.href, n.exact);
           const badge = n.href === "/backlog" ? (pending?.backlog ?? 0) + (pending?.review ?? 0) : 0;
+          if (n.children) {
+            const open = opened === n.href || on(n.href);
+            return (
+              <div key={n.href}>
+                <button type="button" onClick={() => setOpened(open && !on(n.href) ? null : n.href)}
+                  className={`flex w-full items-center gap-2.5 rounded px-3 py-2 text-left text-[13px] transition ${on(n.href) ? "text-white" : "hover:bg-side-soft hover:text-white"}`}>
+                  <n.icon className="h-4 w-4 shrink-0 opacity-90" />
+                  <span>{n.label}</span>
+                  <svg className={`ml-auto h-3 w-3 opacity-70 transition ${open ? "rotate-180" : ""}`} viewBox="0 0 20 20" fill="currentColor"><path d="M5 7.5l5 5.5 5-5.5H5z" /></svg>
+                </button>
+                {open && (
+                  <div className="ml-4 mt-0.5 space-y-0.5 border-l border-side-soft/60 pl-2">
+                    {n.children.map((c) => {
+                      const ca = c.exact ? path === c.href : path.startsWith(c.href);
+                      return <Link key={c.href} href={c.href} className={`block rounded px-3 py-1.5 text-[12.5px] transition ${ca ? "bg-brand text-white" : "hover:bg-side-soft hover:text-white"}`}>{c.label}</Link>;
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          }
           return (
             <Link key={n.href} href={n.href}
               className={`flex items-center gap-2.5 rounded px-3 py-2 text-[13px] transition ${active ? "bg-brand text-white shadow-[inset_3px_0_0_rgba(255,255,255,0.5)]" : "hover:bg-side-soft hover:text-white"}`}>

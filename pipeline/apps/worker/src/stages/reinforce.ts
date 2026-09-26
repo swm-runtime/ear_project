@@ -6,6 +6,7 @@ import { assetPaths, buildClusterPromptV2, buildReinforceSearchPrompt, CLUSTER_S
 import { hostOf, log } from "../util.js";
 import { prepareAssets, workerRev } from "../assets.js";
 import { putFile, s3Key } from "../storage.js";
+import { checkCandidateSources } from "./candidate-check.js";
 
 interface SearchOut { queries: string[]; sources: { url: string; title: string; publisher: string; published: string | null; summary: string; roles: string[]; why: string; in_pool: boolean }[]; notes: string }
 interface JudgeOut { candidates: { id: string; mid_topic: string; title: string; axis_type: string; axis: string; axis_note: string; verdict: "성립" | "보강 필요"; gaps: string[]; sources: { m: string; roles: string[]; why: string }[]; target_fit: string; landing: string; dedup_note: string }[] }
@@ -83,16 +84,8 @@ export async function runReinforce(job: Job, ex: Executor) {
   const byM = new Map(meta.map((s) => [`M${s.n}`, s]));
   const srcs = c.sources.filter((s) => byM.has(s.m.trim().toUpperCase())).map((s) => ({ ...byM.get(s.m.trim().toUpperCase())!, roles: s.roles, why: s.why }));
   const tiers = await domainTierByHost();
-  const pubs = new Map<string, number>(); for (const s of srcs) pubs.set(s.publisher || s.domain, (pubs.get(s.publisher || s.domain) ?? 0) + 1);
-  const maxShare = srcs.length ? Math.max(...pubs.values()) / srcs.length : 1;
-  const roleSet = new Set(srcs.flatMap((s) => s.roles));
-  const problems: string[] = [];
-  if (srcs.length < 3) problems.push(`소스 ${srcs.length}건`);
-  if (pubs.size < 3) problems.push(`발행처 ${pubs.size}곳`);
-  if (maxShare > 0.5) problems.push(`한 발행처 ${Math.round(maxShare * 100)}%`);
-  if (!roleSet.has("근거 앵커")) problems.push("근거 앵커 없음");
-  if (roleSet.size < 3) problems.push(`역할 ${roleSet.size}종`);
-  const newGaps = Array.from(new Set([...c.gaps, ...SOURCE_ROLES.filter((role) => !roleSet.has(role) && (role === "근거 앵커" || role === "사례"))]));
+  const { pubs, maxShare, roleSet, problems, missingCore } = checkCandidateSources(srcs); // spec/03 다양성 기준 — topic-seed 와 공유
+  const newGaps = Array.from(new Set([...c.gaps, ...missingCore]));
   const ok = c.verdict === "성립" && problems.length === 0;
   const filled = gaps.filter((g) => roleSet.has(g));
   const summary = `보강 1회 ${todayKst()}: 검색 ${r1.output.queries?.length ?? 0}회 · 새 소스 ${added.length}건(풀 밖 ${outside.length})${droppedBlocked.length ? ` · 차단 소스 ${droppedBlocked.length}건 제외` : ""} · 채운 역할 ${filled.join("·") || "없음"}${newGaps.length ? ` · 여전히 빈 역할 ${newGaps.join("·")}` : ""}${problems.length ? ` · ${problems.join(", ")}` : ""} → ${ok ? "성립" : "보류 유지"}`;
