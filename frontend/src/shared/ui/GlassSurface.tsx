@@ -148,6 +148,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     overflow: 'hidden',
     borderRadius: 999,
+    borderCurve: 'continuous',
   },
   // 선택 채움 — 애플 탭 바의 선택 캡슐처럼 유리 위의 얇은 검정 틴트(systemFill 급). 유리가 아니다
   pillFill: {
@@ -156,11 +157,13 @@ const styles = StyleSheet.create({
   // 용기의 테두리(CapsuleTabBar.capsuleBorder 와 같은 값) — 알약이 용기 밖으로 넘칠 때 렌즈 안에 보이는 경계
   lensEdge: {
     borderRadius: 999,
+    borderCurve: 'continuous',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(0, 0, 0, 0.10)',
   },
   pillRim: {
     borderRadius: 999,
+    borderCurve: 'continuous',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.6)',
     borderBottomColor: 'rgba(0, 0, 0, 0.10)',

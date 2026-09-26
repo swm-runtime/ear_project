@@ -251,6 +251,7 @@ const styles = StyleSheet.create({
   },
   changeBadge: {
     borderRadius: theme.radius.lg,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.xs / 2,
@@ -262,6 +263,7 @@ const styles = StyleSheet.create({
   },
   overLimitBanner: {
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
     padding: theme.spacing.md,
   },
@@ -281,6 +283,7 @@ const styles = StyleSheet.create({
     width: 96,
     height: theme.font.size.sm * 1.4,
     borderRadius: theme.radius.sm,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
   },
   skeletonChip: {
@@ -309,6 +312,7 @@ const styles = StyleSheet.create({
   save: {
     minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.primary,
     alignItems: 'center',
     justifyContent: 'center',

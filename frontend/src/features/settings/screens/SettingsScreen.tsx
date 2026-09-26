@@ -358,6 +358,7 @@ const styles = StyleSheet.create({
   summaryErrorCard: {
     marginHorizontal: theme.spacing.md,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
     alignItems: 'center',
     paddingVertical: theme.spacing.lg,

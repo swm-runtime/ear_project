@@ -164,6 +164,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
+    borderCurve: 'continuous',
     borderWidth: 1.5,
     borderColor: theme.color.border,
     alignItems: 'center',

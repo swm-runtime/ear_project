@@ -159,12 +159,14 @@ const styles = StyleSheet.create({
     height: 28,
     width: '85%',
     borderRadius: theme.radius.sm,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
   },
   headerSkeletonDate: {
     height: 14,
     width: '30%',
     borderRadius: theme.radius.sm,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
   },
   bodySkeleton: {
@@ -173,6 +175,7 @@ const styles = StyleSheet.create({
   bodySkeletonLine: {
     height: 16,
     borderRadius: theme.radius.sm,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
     alignSelf: 'stretch',
   },

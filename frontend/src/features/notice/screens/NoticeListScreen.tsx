@@ -229,12 +229,14 @@ const styles = StyleSheet.create({
     height: 16,
     width: '80%',
     borderRadius: theme.radius.sm,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
   },
   skeletonDate: {
     height: 12,
     width: '30%',
     borderRadius: theme.radius.sm,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
   },
   emptyContent: {

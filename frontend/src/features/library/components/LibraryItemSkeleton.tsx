@@ -47,6 +47,7 @@ const styles = StyleSheet.create({
   lineWide: {
     height: 14,
     borderRadius: theme.radius.sm,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
     alignSelf: 'stretch',
   },
@@ -54,6 +55,7 @@ const styles = StyleSheet.create({
     height: 12,
     width: '40%',
     borderRadius: theme.radius.sm,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
   },
 });

@@ -309,6 +309,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: theme.color.border,
     borderRadius: theme.radius.lg,
+    borderCurve: 'continuous',
     padding: theme.spacing.md,
     gap: theme.spacing.xs,
   },
@@ -343,6 +344,7 @@ const styles = StyleSheet.create({
     borderLeftWidth: 3,
     borderLeftColor: theme.color.danger,
     borderRadius: theme.radius.sm,
+    borderCurve: 'continuous',
     padding: theme.spacing.md,
     gap: theme.spacing.xs,
   },
@@ -370,6 +372,7 @@ const styles = StyleSheet.create({
     minHeight: theme.touchTarget.minHeight,
     paddingHorizontal: theme.spacing.md,
     borderRadius: theme.radius.lg + theme.radius.sm,
+    borderCurve: 'continuous',
     borderWidth: 1.5,
     borderColor: theme.color.border,
     alignItems: 'center',
@@ -393,6 +396,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: theme.color.border,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
     fontSize: theme.font.size.md,
@@ -402,6 +406,7 @@ const styles = StyleSheet.create({
   skeletonCard: {
     height: 120,
     borderRadius: theme.radius.lg,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
   },
   dock: {
@@ -418,6 +423,7 @@ const styles = StyleSheet.create({
   submit: {
     minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.danger,
     alignItems: 'center',
     justifyContent: 'center',
