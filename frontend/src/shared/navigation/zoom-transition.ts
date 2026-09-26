@@ -39,14 +39,8 @@ export const armPlayerZoom = async (): Promise<void> => {
  */
 export const setPlayerZoomDismissBlocked = (blocked: boolean): void => {
   if (!USE_NATIVE_PLAYER_ZOOM) return;
-  // 시스템 인터랙티브 닫기는 끈다(2026-09-26 23:19 "안 고쳐지" — 드래그로 닫은 뒤 탭 전환 때 고아 뷰가 번쩍이는 것을
-  // rt 14~17 네 번의 네이티브 패치로도 못 잡았다). 닫기는 우리 드래그가 임계를 넘으면 goBack — 셰브론과 같은 RNS 경로라
-  // 줌 축소 애니메이션은 그대로이고 번쩍임이 없다. 손가락을 따라오는 것만 잃는다. 되살리려면 SYSTEM_INTERACTIVE_DISMISS
-  setZoomInteractiveDismissBlocked(SYSTEM_INTERACTIVE_DISMISS ? blocked : true);
+  setZoomInteractiveDismissBlocked(blocked);
 };
-
-/** 시스템(UIKit 줌) 드래그·핀치 닫기 — false 면 항상 막고 우리 드래그(임계 → goBack)만 쓴다 */
-export const SYSTEM_INTERACTIVE_DISMISS = false;
 
 /** 플레이어 화면 마운트 횟수 — 진단(2026-09-26 20:52): 드래그 닫기 뒤 탭 전환 때 JS 가 플레이어를 다시 마운트하는지 가른다 */
 let playerMountCount = 0;
