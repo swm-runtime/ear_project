@@ -1,3 +1,4 @@
+import { useNavigation } from '@react-navigation/native';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -6,6 +7,7 @@ import {
   cycleScrollEdgeEffectStyle,
   getLastScrollEdgeEffectAttempt,
 } from '@/shared/navigation/useSystemScrollEdgeEffect';
+import { getLastPlayerZoomArmResult } from '@/shared/navigation/zoom-transition';
 import { theme } from '@/shared/theme';
 
 import SettingsRow from './SettingsRow';
@@ -25,6 +27,13 @@ export default function DevDiagnosticsRows() {
   const [shouldCrash, setShouldCrash] = useState(false);
   const [log, setLog] = useState<AnalyticsDebugEntry[]>(getAnalyticsDebugLog);
   const [edgeEffect, setEdgeEffect] = useState(getLastScrollEdgeEffectAttempt);
+  // 줌 전환 진단(2026-09-26 20:28) — 드래그로 닫은 뒤 탭을 바꾸면 플레이어가 번쩍인다. 이 화면(설정)이 속한 스택의
+  // 라우트에 Player 가 남아 있으면 "JS 가 pop 을 못 받은 것", 없으면 RNS 네이티브 쪽 문제다
+  const navigation = useNavigation();
+  const stackRoutes = navigation
+    .getState()
+    ?.routes.map((r) => r.name)
+    .join(' › ');
 
   if (shouldCrash) {
     throw new Error('[dev] crash test — 설정 > 크래시 테스트에서 의도적으로 던진 오류');
@@ -60,6 +69,11 @@ export default function DevDiagnosticsRows() {
         value={edgeEffect}
         onPress={() => void cycleScrollEdgeEffectStyle().then(setEdgeEffect)}
         a11yLabel="상단 블러 스타일 바꾸기"
+      />
+      <SettingsRow
+        label="스택 라우트 (개발계)"
+        value={`${stackRoutes ?? '?'} · 줌 ${getLastPlayerZoomArmResult()}`}
+        a11yLabel="내비게이션 스택 라우트"
       />
       <SettingsRow
         label="크래시 테스트 (개발계)"
