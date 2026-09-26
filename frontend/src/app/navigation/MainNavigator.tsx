@@ -2,6 +2,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useState } from 'react';
 
+import { PUSHED_SCREEN_HEADER } from '@/shared/navigation/pushed-screen-header';
 import { USE_NATIVE_PLAYER_ZOOM } from '@/shared/navigation/zoom-transition';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 
@@ -132,7 +133,8 @@ export default function MainNavigator() {
           options={{ animation: 'none' }}
         />
         {/* 설정 — 앱바(뒤로 + "설정")를 화면이 직접 그린다(settings-uiux.md 4.1) */}
-        <MainStack.Screen name="Settings" component={SettingsScreen} />
+        {/* 설정 — iOS 26: 시스템 투명 바(뒤로만) + 콘텐츠 큰 제목(PUSHED_SCREEN_HEADER). 그 외: 화면이 앱바를 그린다 */}
+        <MainStack.Screen name="Settings" component={SettingsScreen} options={PUSHED_SCREEN_HEADER} />
         {/* TODO: 프로필·설정 목적지 — 각 화면 구현 시 컴포넌트만 교체한다(라우트 이름 유지).
           플레이스홀더 동안은 기본 push + 헤더를 둔다: 화면 안에 돌아갈 수단이 있어야 한다 */}
         <MainStack.Screen

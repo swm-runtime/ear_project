@@ -1,11 +1,15 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { APP_VERSION, APP_VERSION_LABEL, IS_DEV_API } from '@/shared/lib/app-version';
 import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
+import { USES_SYSTEM_PUSHED_HEADER } from '@/shared/navigation/pushed-screen-header';
 import { theme } from '@/shared/theme';
 import ConfirmDialog from '@/shared/ui/ConfirmDialog';
+import { useFloatingHeaderScroll } from '@/shared/ui/FloatingHeader';
+import LargeTitleRow from '@/shared/ui/LargeTitleRow';
+import NativeBarBlurBand from '@/shared/ui/NativeBarBlurBand';
 
 import { NotificationPrePromptModal } from '@/features/notification';
 
@@ -37,26 +41,45 @@ export default function SettingsScreen() {
 
   // 조회 값이 필요한 조작(토글·배속) — 기준값이 없으면 비활성이다(S6: 토글 섹션도 에러 영역)
   const hasControls = screen.controls !== null;
+  // iOS 26: 스크롤에 따라 블러 띠 + 작은 제목(라이브러리·탐색과 같은 부품). 그 외 갈래는 값을 안 쓴다
+  const { scrollY, scrollProps } = useFloatingHeaderScroll();
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      {/* 앱바 — 뒤로가기 + "설정"(settings-uiux.md 4.1) */}
-      <View style={styles.appBar}>
-        <Pressable
-          style={styles.backButton}
-          onPress={screen.goBack}
-          accessibilityRole="button"
-          accessibilityLabel={SETTINGS_COPY.backA11y}
-        >
-          <Text style={styles.backGlyph}>‹</Text>
-        </Pressable>
-        <Text style={styles.appBarTitle} accessibilityRole="header">
-          {SETTINGS_COPY.title}
-        </Text>
-        <View style={styles.appBarSpacer} />
-      </View>
+    <SafeAreaView style={styles.container} edges={USES_SYSTEM_PUSHED_HEADER ? [] : ['top']}>
+      {/* 앱바 — 뒤로가기 + "설정"(settings-uiux.md 4.1). iOS 26 은 시스템 투명 바(뒤로만) + 콘텐츠 큰 제목
+          (PUSHED_SCREEN_HEADER, PM 2026-09-27 01:42 "설정 페이지도 UI 일관되게") */}
+      {USES_SYSTEM_PUSHED_HEADER ? null : (
+        <View style={styles.appBar}>
+          <Pressable
+            style={styles.backButton}
+            onPress={screen.goBack}
+            accessibilityRole="button"
+            accessibilityLabel={SETTINGS_COPY.backA11y}
+          >
+            <Text style={styles.backGlyph}>‹</Text>
+          </Pressable>
+          <Text style={styles.appBarTitle} accessibilityRole="header">
+            {SETTINGS_COPY.title}
+          </Text>
+          <View style={styles.appBarSpacer} />
+        </View>
+      )}
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      {USES_SYSTEM_PUSHED_HEADER ? (
+        <NativeBarBlurBand scrollY={scrollY} title={SETTINGS_COPY.title} underSystemBar />
+      ) : null}
+
+      <Animated.ScrollView
+        contentContainerStyle={styles.scrollContent}
+        // 투명 시스템 바 밑을 비운다(iOS 26). 그 외 갈래는 RN 기본(never)
+        contentInsetAdjustmentBehavior={USES_SYSTEM_PUSHED_HEADER ? 'automatic' : 'never'}
+        {...scrollProps}
+      >
+        {USES_SYSTEM_PUSHED_HEADER ? (
+          <View style={styles.largeTitle}>
+            <LargeTitleRow title={SETTINGS_COPY.title} />
+          </View>
+        ) : null}
         {/* ── 상단 요약(계정·구독) — 서버 값이 필요한 영역만 로딩·에러가 있다(S6) ── */}
         {screen.isInitialLoading ? (
           showSkeleton ? (
@@ -202,7 +225,7 @@ export default function SettingsScreen() {
             <SettingsRow label={SETTINGS_COPY.admin.menu} onPress={screen.openAdmin} />
           </SettingsSection>
         ) : null}
-      </ScrollView>
+      </Animated.ScrollView>
 
       {/* ── 시트·다이얼로그 ── */}
 
@@ -320,6 +343,10 @@ const styles = StyleSheet.create({
   },
   appBarSpacer: {
     minWidth: theme.touchTarget.minWidth,
+  },
+  // 큰 제목 줄 — 섹션 간격(gap)과 겹치지 않게 아래 여백은 줄 자체가 갖는다
+  largeTitle: {
+    marginBottom: -theme.spacing.sm,
   },
   scrollContent: {
     paddingVertical: theme.spacing.md,
