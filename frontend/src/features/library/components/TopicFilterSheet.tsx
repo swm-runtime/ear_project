@@ -217,6 +217,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: theme.spacing.md,
     borderRadius: theme.radius.xl,
+    borderCurve: 'continuous',
     borderWidth: 1,
     borderColor: theme.color.border,
     backgroundColor: theme.color.background,
