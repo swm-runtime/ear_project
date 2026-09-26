@@ -5,6 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { trackScreen } from '@/shared/analytics';
 import { AppErrorBoundary, initSentry, wrapWithSentry } from '@/shared/monitoring';
+import { installJsTraceErrorHook, loadJsTrace, traceJs } from '@/shared/monitoring/js-trace';
 import Toast from '@/shared/ui/Toast';
 
 import { UpdateRecommendDialog } from '@/features/app-update';
@@ -16,6 +17,9 @@ import { queryClient } from './query-client';
 
 // 부트스트랩보다 먼저 — 부트스트랩 안에서 나는 오류도 잡아야 한다
 initSentry();
+// 개발계 JS 트레이스(2026-09-27 — 플레이어 여닫기 벽돌 조사) — 이전 실행분을 옮기고 전역 오류 훅을 건다
+void loadJsTrace();
+installJsTraceErrorHook();
 bootstrapApp();
 
 let lastTrackedScreen: string | null = null;
@@ -25,6 +29,7 @@ const handleNavigationStateChange = (state: NavigationState | undefined): void =
   const name = focusedRouteName(state);
   if (name === null || name === lastTrackedScreen) return;
   lastTrackedScreen = name;
+  traceJs(`screen ${name}`);
   trackScreen(name);
 };
 

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { getAnalyticsDebugLog, type AnalyticsDebugEntry } from '@/shared/analytics';
+import { getJsTrace } from '@/shared/monitoring/js-trace';
 import {
   cycleScrollEdgeEffectStyle,
   getLastScrollEdgeEffectAttempt,
@@ -78,6 +79,11 @@ export default function DevDiagnosticsRows() {
         label="스택 라우트 (개발계)"
         value={`${stackRoutes ?? '?'} · 줌 ${getLastPlayerZoomArmResult()} · 플레이어 마운트 ${getPlayerMountCount()}회 · 네이티브 ${getPlayerZoomNativeDiagnostics()}`}
         a11yLabel="내비게이션 스택 라우트"
+      />
+      <SettingsRow
+        label="JS 트레이스 (개발계)"
+        value={getJsTrace()}
+        a11yLabel="JS 트레이스"
       />
       <SettingsRow
         label="크래시 테스트 (개발계)"

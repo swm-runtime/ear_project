@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
+import { traceJs } from '@/shared/monitoring/js-trace';
 import {
   notePlayerMounted,
   setPlayerZoomDismissBlocked,
@@ -290,6 +291,8 @@ export default function PlayerScreen() {
   // 진단 — 마운트 횟수(설정 > 스택 라우트 줄). 드래그 닫기 뒤 탭 전환 때 늘면 JS 가 다시 마운트한 것
   useEffect(() => {
     notePlayerMounted();
+    traceJs('player mount');
+    return () => traceJs('player unmount');
   }, []);
   const hasOpenedRef = useRef(false);
   const miniLayout = useMiniPlayerLayoutStore((s) => s.layout);
@@ -333,8 +336,12 @@ export default function PlayerScreen() {
   const dismissPlayer = () => {
     // 줌 전환 갈래: 화면을 걷으면 시스템이 미니플레이어 자리로 줄이는 모션을 그린다
     if (USE_NATIVE_PLAYER_ZOOM) {
-      if (isCollapsingRef.current) return;
+      if (isCollapsingRef.current) {
+        traceJs('player collapse (dup ignored)');
+        return;
+      }
       isCollapsingRef.current = true;
+      traceJs('player collapse → goBack');
       screen.collapse();
       return;
     }
