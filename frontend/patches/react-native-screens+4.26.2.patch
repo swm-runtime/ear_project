@@ -162,24 +162,41 @@ index 9b66012..4f9860c 100644
  }
  
 diff --git a/node_modules/react-native-screens/ios/RNSScreenStack.h b/node_modules/react-native-screens/ios/RNSScreenStack.h
-index 9ae11c3..914df21 100644
+index 9ae11c3..c2b6539 100644
 --- a/node_modules/react-native-screens/ios/RNSScreenStack.h
 +++ b/node_modules/react-native-screens/ios/RNSScreenStack.h
-@@ -24,6 +24,9 @@ NS_ASSUME_NONNULL_BEGIN
+@@ -24,6 +24,12 @@ NS_ASSUME_NONNULL_BEGIN
  
  - (void)markChildUpdated;
  - (void)didUpdateChildren;
 +// [ear patch] A modal owned by this stack was dismissed by the system (iOS 18 zoom transition interactive
 +// dismissal) — drop it from the bookkeeping the same way presentationControllerDidDismiss does for sheets.
 +- (void)modalWasDismissedNatively:(UIViewController *)modal;
++
++// [ear patch] forget modals UIKit already dismissed behind our back (see RNSScreenStack.mm)
++- (void)earDropStaleModals;
  - (void)startScreenTransition;
  - (void)updateScreenTransition:(double)progress;
  - (void)finishScreenTransition:(BOOL)canceled;
 diff --git a/node_modules/react-native-screens/ios/RNSScreenStack.mm b/node_modules/react-native-screens/ios/RNSScreenStack.mm
-index 192f5d2..f746013 100644
+index 192f5d2..dac564f 100644
 --- a/node_modules/react-native-screens/ios/RNSScreenStack.mm
 +++ b/node_modules/react-native-screens/ios/RNSScreenStack.mm
-@@ -394,6 +394,16 @@ RNS_IGNORE_SUPER_CALL_END
+@@ -373,6 +373,13 @@ RNS_IGNORE_SUPER_CALL_END
+ 
+ - (void)setModalViewControllers:(NSArray<UIViewController *> *)controllers
+ {
++  // [ear patch] drop modals UIKit already dismissed behind our back before reconciling against them.
++  // The app closes the zoom player by calling `dismiss` on the view controller itself (modules/zoom-transition),
++  // so this stack never learns about it: device trace 2026-09-27 07:06 ended on "modals:n=0 pm=1 pvc=nil" — the
++  // dismissed controller stayed in _presentedModals forever and every later updateContainer (a tab switch runs one)
++  // reconciled against that ghost, which is when the closed player flashed for a frame.
++  [self earDropStaleModals];
++
+   // prevent re-entry
+   if (_updatingModals) {
+     _scheduleModalsUpdate = YES;
+@@ -394,6 +401,16 @@ RNS_IGNORE_SUPER_CALL_END
  
    _updatingModals = YES;
  
@@ -196,7 +213,7 @@ index 192f5d2..f746013 100644
    // We need to find bottom-most view controller that should stay on the stack
    // for the duration of transition.
  
-@@ -481,6 +491,63 @@ RNS_IGNORE_SUPER_CALL_END
+@@ -481,6 +498,63 @@ RNS_IGNORE_SUPER_CALL_END
          return;
        }
  
@@ -260,7 +277,7 @@ index 192f5d2..f746013 100644
        [previous presentViewController:next
                               animated:shouldAnimate
                             completion:^{
-@@ -525,6 +592,9 @@ RNS_IGNORE_SUPER_CALL_END
+@@ -525,6 +599,9 @@ RNS_IGNORE_SUPER_CALL_END
          // See: https://github.com/software-mansion/react-native-screens/issues/2048
          // For now, to mitigate the issue, we also decide to trigger its dismissal before
          // starting the presentation chain down below in finish() callback.
@@ -270,11 +287,33 @@ index 192f5d2..f746013 100644
          if (!firstModalToBeDismissed.isBeingDismissed) {
            // If the modal is owned we let it control whether the dismissal is animated or not. For foreign controllers
            // we just assume animation.
-@@ -1001,6 +1071,17 @@ RNS_IGNORE_SUPER_CALL_END
+@@ -1001,6 +1078,39 @@ RNS_IGNORE_SUPER_CALL_END
    [self updateContainer];
  }
  
 +// [ear patch] see RNSScreenStack.h
++// [ear patch] forget modals that are no longer presented by anyone. Only controllers UIKit has already let go of
++// (presentingViewController == nil) are dropped, so a dismissal this stack is still running is never touched.
++- (void)earDropStaleModals
++{
++  if (_updatingModals || _presentedModals.count == 0) {
++    return;
++  }
++  NSMutableArray<UIViewController *> *alive = [NSMutableArray new];
++  for (UIViewController *modal in _presentedModals) {
++    if (modal.presentingViewController != nil) {
++      [alive addObject:modal];
++    }
++  }
++  if (alive.count != _presentedModals.count) {
++    [RNSScreen earNoteZoomDiagnostic:[NSString stringWithFormat:@"stale-modals:%lu->%lu",
++                                                                (unsigned long)_presentedModals.count,
++                                                                (unsigned long)alive.count]];
++    [_presentedModals setArray:alive];
++    [RNSScreenWindowTraits updateWindowTraits];
++  }
++}
++
 +- (void)modalWasDismissedNatively:(UIViewController *)modal
 +{
 +  if ([_presentedModals containsObject:modal]) {
