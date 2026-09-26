@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
 
@@ -8,6 +8,8 @@ export interface DialogAction {
   onPress: () => void;
   /** 처리 중 중복 탭 차단 — 낭독기에도 비활성으로 읽힌다 */
   disabled?: boolean;
+  /** 처리 중 — 라벨 대신 스피너(알림 사전 안내의 OS 권한 요청·기기 동기화). 탭도 막는다 */
+  isBusy?: boolean;
 }
 
 export interface ConfirmDialogProps {
@@ -18,6 +20,8 @@ export interface ConfirmDialogProps {
   body?: string;
   /** 문자열로 못 적는 본문(선택 가능한 연락처 등) — `body` 아래에 그린다 */
   children?: ReactNode;
+  /** 제목 위 아이콘(알림 사전 안내의 종). 있으면 제목·본문을 가운데 정렬한다 — 아이콘이 가운데인데 글이 왼쪽이면 어긋난다 */
+  icon?: ReactNode;
   /**
    * 딤 영역 탭으로 닫히는가(기본 true). 커리어 이탈 확인(CR5)처럼 **파괴적 결과가 걸린 팝업은 false** —
    * 의도 없는 탭으로 닫히면 어느 쪽을 고른 것인지 알 수 없다(career-uiux.md 4.6). 뒤로가기는 언제나 `onCloseRequest`
@@ -45,13 +49,15 @@ export default function ConfirmDialog({
   title,
   body,
   children,
+  icon,
   dismissOnBackdrop = true,
   secondaryAction,
   primaryAction,
   onCloseRequest,
 }: ConfirmDialogProps) {
-  const secondaryDisabled = secondaryAction.disabled ?? false;
-  const primaryDisabled = primaryAction.disabled ?? false;
+  const secondaryDisabled = (secondaryAction.disabled ?? false) || (secondaryAction.isBusy ?? false);
+  const primaryDisabled = (primaryAction.disabled ?? false) || (primaryAction.isBusy ?? false);
+  const centered = icon !== undefined;
   return (
     <Modal visible={isVisible} transparent animationType="fade" onRequestClose={onCloseRequest}>
       <Pressable
@@ -60,9 +66,18 @@ export default function ConfirmDialog({
         accessible={false}
       >
         <Pressable accessible={false} style={styles.dialogWrap}>
-          <View style={styles.dialog} accessibilityViewIsModal>
-            {title !== undefined ? <Text style={styles.title}>{title}</Text> : null}
-            {body !== undefined ? <Text style={styles.body}>{body}</Text> : null}
+          <View style={[styles.dialog, centered && styles.dialogCentered]} accessibilityViewIsModal>
+            {icon !== undefined ? (
+              <View accessibilityElementsHidden importantForAccessibility="no">
+                {icon}
+              </View>
+            ) : null}
+            {title !== undefined ? (
+              <Text style={[styles.title, centered && styles.textCentered]}>{title}</Text>
+            ) : null}
+            {body !== undefined ? (
+              <Text style={[styles.body, centered && styles.textCentered]}>{body}</Text>
+            ) : null}
             {children}
             <View style={styles.actions}>
               <Pressable
@@ -77,7 +92,11 @@ export default function ConfirmDialog({
                 accessibilityLabel={secondaryAction.label}
                 accessibilityState={{ disabled: secondaryDisabled }}
               >
-                <Text style={styles.secondaryLabel}>{secondaryAction.label}</Text>
+                {secondaryAction.isBusy ? (
+                  <ActivityIndicator color={theme.color.textPrimary} />
+                ) : (
+                  <Text style={styles.secondaryLabel}>{secondaryAction.label}</Text>
+                )}
               </Pressable>
               <Pressable
                 style={[styles.button, styles.primaryButton, primaryDisabled && styles.buttonDisabled]}
@@ -87,7 +106,11 @@ export default function ConfirmDialog({
                 accessibilityLabel={primaryAction.label}
                 accessibilityState={{ disabled: primaryDisabled }}
               >
-                <Text style={styles.primaryLabel}>{primaryAction.label}</Text>
+                {primaryAction.isBusy ? (
+                  <ActivityIndicator color={theme.color.onPrimary} />
+                ) : (
+                  <Text style={styles.primaryLabel}>{primaryAction.label}</Text>
+                )}
               </Pressable>
             </View>
           </View>
@@ -116,6 +139,12 @@ const styles = StyleSheet.create({
     padding: theme.spacing.lg,
     gap: theme.spacing.sm,
   },
+  dialogCentered: {
+    alignItems: 'center',
+  },
+  textCentered: {
+    textAlign: 'center',
+  },
   title: {
     fontSize: theme.font.size.md,
     fontWeight: '700',
@@ -128,6 +157,7 @@ const styles = StyleSheet.create({
     lineHeight: theme.font.size.sm * 1.5,
   },
   actions: {
+    alignSelf: 'stretch',
     flexDirection: 'row',
     gap: theme.spacing.sm,
     marginTop: theme.spacing.md,
