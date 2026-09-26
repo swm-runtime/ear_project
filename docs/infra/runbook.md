@@ -157,12 +157,16 @@ ssh -i … ec2-user@<IP> 'cd /opt/ear/backend \
 - **함정 2**: `git archive HEAD`는 미커밋 파일을 빼먹는다 — 위처럼 `ls-files -co` 사용
 - 마이그레이션은 기동 시 자동, 실패하면 api가 안 뜬다(의도). 상태: `docker compose … ps`, 로그: `… logs api --tail 50`
 
-### 4-1. 감시 체계 한눈에 (2026-09-20 기준)
+### 4-1. 감시 체계 한눈에 (2026-09-26 기준)
+
+**먼저 Grafana 대시보드 "ear 운영"을 연다**(`https://zealouswasp1316.grafana.net`, [`inventory.md`](inventory.md) Grafana Cloud 행). 아래 원천이 한 화면에 모여 있다 — 헬스체크·EC2 4지표·API 에러 로그·caddy 상태코드·Sentry·크론 하트비트·CloudWatch 알람 주석. 어드민 웹 "백엔드 로그" 콘솔은 실시간 로그·에러 본문을 볼 때 그대로 쓴다(둘을 병행한다 — KAN-97 결정).
 
 | 무엇이 죽으면 | 무엇이 알려주나 | 경로 |
 |---|---|---|
 | 인스턴스 | CloudWatch `ear-prod-ec2-status-check` | SNS `ear-prod-alerts` |
-| API 응답 불가 | UptimeRobot | 외부 감시 |
+| API 응답 불가 | **Grafana 합성 체크 `ear-api-health`**(서울·도쿄 3분, 5분 창 2/2 실패) | **Slack**(최대 6분) |
+| 인증서 갱신 실패 | Grafana 합성 체크 TLS(만료 14일 미만) | Slack |
+| (예비) API 응답 불가 | UptimeRobot `ear api health` — **알림 끔**, 화면 확인용 | 없음 |
 | API 가 500 을 뿜음 | 워커의 백엔드 ERROR 감시(5분 주기) | Slack |
 | **그 감시자(AI 서버 워커)** | `ear-prod-cron-log-watch-missing` — 생존 신호 30분 없음 | SNS |
 | 백업·콘텐츠 내보내기·스냅샷 미실행 | `ear-prod-cron-*-missing` | SNS |
@@ -170,7 +174,9 @@ ssh -i … ec2-user@<IP> 'cd /opt/ear/backend \
 | CPU·메모리 임계 | 백엔드 `ResourceAlertService` | Slack |
 
 **CPU·메모리 알림은 백엔드 프로세스 안에서 돈다** — 그 프로세스가 죽으면 같이 멈춘다. 그 경우는
-UptimeRobot 과 EC2 상태 검사가 받는다. 감시가 감시를 덮는 구조를 이 표로 확인한다.
+Grafana 합성 체크와 EC2 상태 검사가 받는다. Grafana Cloud 자체가 죽으면 UptimeRobot 화면(알림 없음)과 SNS 알람이 남는다. 감시가 감시를 덮는 구조를 이 표로 확인한다.
+
+CPU 70%·메모리 80% 는 Grafana Alerting 에도 같은 임계(5분 지속)로 걸려 있다(KAN-97 5번). 백엔드 자체 경보와 몇 주 겹쳐 보고 하나로 정리한다 — 그때까지 같은 사건에 Slack 알림이 두 번 올 수 있다.
 
 ## 5. 장애·복구
 
@@ -249,6 +255,7 @@ aws ec2 create-volume --snapshot-id <snap> --availability-zone ap-northeast-2a -
 - [ ] `earcast-backup-prod/pg/`에 최근 덤프가 매일 쌓이는가 · `/var/log/ear-content-sync.log`에 내보내기가 매일 찍히는가
 - [ ] 스냅샷이 매일 1개 늘고 8일째 것이 지워지는가: `aws ec2 describe-snapshots --owner-ids 639177726357 --filters Name=tag:Source,Values=ear-daily --query 'length(Snapshots)'` = 7 안팎
 - [ ] Budgets 메일·CloudWatch 알람 상태: `aws cloudwatch describe-alarms --alarm-name-prefix ear-prod --query 'MetricAlarms[].[AlarmName,StateValue]' --output table` — 전부 `OK`. `INSUFFICIENT_DATA`면 크론이 지표를 못 찍는 것(권한·네트워크), `ALARM`이면 25시간 미실행. **새로 만든 알람은 첫 1시간 안에 오탐 ALARM 메일이 한 번 올 수 있다** — 첫 평가가 지표를 찍기 직전의 빈 1시간 구간을 보기 때문(2026-09-15 backup 알람 실측). 다음 크론 성공 뒤 OK 메일이 오면 정상이고, 그 뒤에도 ALARM이면 진짜 미실행이다
-- [ ] UptimeRobot 모니터 `ear api health`가 Up 인가. **설정값(재등록 시)**: 유형 Keyword · URL `https://api.earcast.co.kr/api/v1/health` · 키워드 `"status":"ok"` · 존재하면 Up · 간격 5분 · 알림 연락처 = 메일(무료 플랜은 Slack 연동이 잠겨 있다 — 메일만). 키워드 방식이라 DB가 죽어 `/health`가 503 `degraded`를 내는 경우도 Down으로 잡힌다
+- [ ] Grafana 대시보드 "ear 운영" 1행 헬스체크가 서울·도쿄 **UP**, 가동률 24h 가 99.9% 이상인가. 합성 체크가 없어졌으면 [`inventory.md`](inventory.md) 외부 헬스체크 행의 값으로 다시 만든다(3분·서울·도쿄·본문 `"status":"ok"` Invert match·타임아웃 5초·Failed Checks 2/2·TLS 14일)
+- [ ] (예비) UptimeRobot 모니터 `ear api health`가 Up 인가 — **알림은 꺼 둔 상태가 정상**(2026-09-26). **설정값(재등록 시)**: 유형 Keyword · URL `https://api.earcast.co.kr/api/v1/health` · 키워드 `"status":"ok"` · 존재하면 Up · 간격 5분 · 알림 연락처 = 메일(무료 플랜은 Slack 연동이 잠겨 있다 — 메일만). 키워드 방식이라 DB가 죽어 `/health`가 503 `degraded`를 내는 경우도 Down으로 잡힌다
 - [ ] `df -h` 디스크 (20GB — docker 이미지가 쌓이면 `docker system prune -f`)
 - [ ] 인증서는 Caddy 자동 — 만료 걱정 없음. `docker compose … logs caddy | grep -i renew`로 확인만
