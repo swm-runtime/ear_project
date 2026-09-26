@@ -1,6 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 
-import { MINI_PLAYER_ZOOM_PROXY_ID, USE_NATIVE_PLAYER_ZOOM } from '@/shared/navigation/zoom-transition';
+import { MINI_PLAYER_ZOOM_PROXY_ID } from '@/shared/navigation/zoom-transition';
+import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 
 import { useMiniPlayerLayoutStore } from '../store/mini-player-layout.store';
 
@@ -13,8 +14,7 @@ import { useMiniPlayerLayoutStore } from '../store/mini-player-layout.store';
  */
 export default function ZoomSourceProxy() {
   const layout = useMiniPlayerLayoutStore((s) => s.layout);
-  // 줌을 안 쓰면 둘 이유가 없다(2026-09-27 — JS 모프 복귀)
-  if (!USE_NATIVE_PLAYER_ZOOM || !layout) return null;
+  if (!HAS_NATIVE_TAB_BAR || !layout) return null;
   return (
     <View
       testID={MINI_PLAYER_ZOOM_PROXY_ID}

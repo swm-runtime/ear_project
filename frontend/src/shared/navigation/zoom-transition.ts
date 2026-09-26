@@ -9,18 +9,6 @@ import {
 } from '../../../modules/zoom-transition/src';
 
 /**
- * **UIKit 줌 전환을 쓰는가 — 2026-09-27 07:00 부터 끈다**(PM "iOS 26 전용으로 맞추자").
- *
- * 공개 `preferredTransition = .zoom` 은 원래 **사진 앱**(격자 셀 → 상세)용이고, 애플 뮤직의 미니플레이어 → Now Playing 은
- * 이 API 보다 오래된 **애플 자체 전환**이라 우리가 켤 수 있는 물건이 아니다. 게다가 iOS 26 은 이 API 에 애플이 인정한 버그가
- * 있고(포럼 807208 · expo/expo #50049), 닫힌 뒤 탭을 바꾸면 플레이어가 한 프레임 번쩍이는 것을 이틀(09-26~27) 동안
- * RNS 패치 여섯 번·네이티브 정리(rt 26)까지 해 봐도 못 잡았다([[player-zoom-flash]] 메모리).
- *
- * 그래서 **09-26 이전의 JS 모프로 돌아간다** — 투명 모달 + 화면이 직접 그리는 확대·축소(아트워크가 미니플레이어 자리에서
- * 커져 올라오고 닫으면 그 자리로 줄어든다). 그림은 애플 뮤직과 같고, UIKit 줌을 안 타니 OS 버그도 잔상도 없다.
- * 되살리려면 이 상수만 true 로 — 아래 코드는 전부 남겨 뒀다(OTA 로 갈린다).
- */
-/**
  * 플레이어를 **iOS 18 줌 전환**으로 띄우는가 — 미니플레이어 카드에서 부풀어 오르고, 닫으면 그 자리로 줄어든다
  * (애플 뮤직 Now Playing, PM 2026-09-26 03:55 "1 ㄱㄱ"). 조건: iOS 26 시스템 탭 바 갈래 + 로컬 모듈이 든 빌드(runtime 12).
  * 아니면 종전 JS 모핑(transparentModal + 화면이 직접 그리는 확대·축소).
@@ -28,9 +16,7 @@ import {
  * 줌 전환은 RNS 패치(`patches/react-native-screens`)가 모달을 띄우기 직전에 등록된 소스 뷰를 읽어 건다 —
  * `armPlayerZoom` 으로 등록하고 곧바로 navigate 해야 한다.
  */
-const NATIVE_ZOOM_ENABLED = false;
-export const USE_NATIVE_PLAYER_ZOOM =
-  NATIVE_ZOOM_ENABLED && HAS_NATIVE_TAB_BAR && hasZoomTransitionModule();
+export const USE_NATIVE_PLAYER_ZOOM = HAS_NATIVE_TAB_BAR && hasZoomTransitionModule();
 
 /** 마지막 등록 결과 — 실기기 진단용 */
 let lastArmResult = 'not-called';
