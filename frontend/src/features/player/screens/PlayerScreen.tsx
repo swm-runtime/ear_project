@@ -1129,15 +1129,6 @@ export default function PlayerScreen() {
             pointerEvents="none"
             style={[styles.queueTint, { opacity: queueProgress }]}
           />
-          {/* 대본이 펼쳐져 작아진 커버를 탭하면 대본을 접는다(PM 2026-09-26 17:00 스샷) — 평소엔 탭 대상이 아니다 */}
-          {activePanel === 'script' ? (
-            <Pressable
-              style={StyleSheet.absoluteFill}
-              onPress={() => setPanel(null)}
-              accessibilityRole="button"
-              accessibilityLabel={PLAYER_COPY.screen.scriptCloseA11y}
-            />
-          ) : null}
           {/*
             아래쪽 그라데이션 — 사진 밑변으로 갈수록 플레이어 바탕색으로 잠긴다(유튜브 뮤직, 2026-09-19 PM).
             제목·카테고리·재생바가 놓이는 띠가 어떤 사진에서도 어둡고, 사진의 밑변이 칼같이 끊기지 않고 바탕으로
@@ -1240,6 +1231,28 @@ export default function PlayerScreen() {
           onLayout={onHeroLayout}
           {...horizontalSwipeResponder.panHandlers}
         >
+          {/* 대본이 펼쳐져 작아진 커버를 탭하면 대본을 접는다(PM 2026-09-26 17:00 스샷). 아트워크는 히어로 **밑**의 형제라
+              그 안의 Pressable 은 터치를 못 받는다(#758 실패, 17:15) — 히어로 안 같은 자리에 탭 영역을 둔다. 평소엔 없다 */}
+          {activePanel === 'script' ? (
+            <Animated.View
+              style={[
+                styles.heroArtTapArea,
+                {
+                  left: heroBase.artLeft,
+                  top: heroBase.artTop,
+                  width: heroBase.artSize,
+                  height: heroBase.artSize,
+                },
+              ]}
+            >
+              <Pressable
+                style={StyleSheet.absoluteFill}
+                onPress={() => setPanel(null)}
+                accessibilityRole="button"
+                accessibilityLabel={PLAYER_COPY.screen.scriptCloseA11y}
+              />
+            </Animated.View>
+          ) : null}
           <Animated.View style={[styles.heroMeta, { top: hero.metaTop, left: hero.metaLeft }]}>
             {/* 제목은 크기가 달라 두 겹을 교차 페이드한다 — 글자 크기 자체는 보간하지 않는다 */}
             <Animated.View
@@ -1918,6 +1931,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     overflow: 'hidden',
     backgroundColor: playerColor.surface,
+  },
+  heroArtTapArea: {
+    position: 'absolute',
   },
   heroMeta: {
     position: 'absolute',
