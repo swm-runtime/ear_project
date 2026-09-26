@@ -103,7 +103,13 @@ public class ZoomTransitionModule: Module {
     AsyncFunction("dismissPresentedScreen") { () -> String in
       guard let top = Self.topPresentedViewController(), top.presentingViewController != nil else { return "none" }
       ZoomTransitionRegistry.noteDiagnostic("native-dismiss:\(String(describing: type(of: top)))")
-      top.dismiss(animated: true)
+      top.dismiss(animated: true) {
+        // 닫힌 뒤 탭을 바꾸면 플레이어가 한 프레임 다시 떴다(2026-09-27 03:17) — 줌 훅이 걸린 VC 와 그 뷰가 JS pop 까지 살아
+        // 있는 동안 액세서리(줌 소스) 재배치가 줌 기계를 건드리는 것으로 본다. 줌 훅을 풀고 뷰를 숨긴다(어차피 화면 밖이다)
+        if #available(iOS 18.0, *) { top.preferredTransition = nil }
+        top.view.isHidden = true
+        ZoomTransitionRegistry.noteDiagnostic("native-dismiss:done")
+      }
       return "dismissed"
     }.runOnQueue(.main)
   }
