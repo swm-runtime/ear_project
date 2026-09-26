@@ -30,3 +30,7 @@
 - Given `drip-scheduling.md` 4.2 ③ 표 / When 읽는다 / Then 노출 피로 행이 없고 폐기 사유·대체(무시 신호·MMR)가 한 줄로 적혀 있다
 - Given 편성 미리보기 응답 / When 정규 편 breakdown 을 본다 / Then `exposure_fatigue` 가 `null` 이고 탐험 편은 저노출 값이다
 - Given 같은 주제 후보만 있는 사용자 / When 편성 배치가 돈다 / Then 종전과 같은 순위가 나온다(항목이 전 후보를 같은 값으로 깎던 것이라 결과 불변)
+
+## 처리 기록
+
+- **반영 날짜: 2026-09-26** — 통합 PR(`docs/changes-integration-2026-09-26`). 반영 위치: drip-scheduling.md 4.2 ③ 표·폐기 문단, admin-api.md 4.16 regular 표.

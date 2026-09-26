@@ -28,3 +28,7 @@
 - Given `backend-monitoring.md` 3장 / When 읽는다 / Then Grafana 와 콘솔이 병행되며 각자 무엇을 소유하는지, p95 의 기준이 어느 쪽인지 적혀 있다
 - Given 8장 / When 읽는다 / Then "15초" 문구가 없다
 - Given 9장 / When 읽는다 / Then CloudWatch 지표화 항목이 없고 알림 중복 정리 항목이 있다
+
+## 처리 기록
+
+- **반영 날짜: 2026-09-26** — 통합 PR(`docs/changes-integration-2026-09-26`). 반영 위치: backend-monitoring.md 3-1 절 신설·8장 15초 정정·9장 미결 정리, admin-api.md 4.9 15초 정정.

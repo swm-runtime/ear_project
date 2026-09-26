@@ -951,6 +951,7 @@ uq_user_preference_vectors_user_id (user_id)
 - `signal_count < 3`(완청 기준)이면 콜드스타트로 판정하고 인기도·신선도 비중을 높인다(`drip-scheduling.md` 4.4).
 - **`taste_embedding`은 긍정 신호(완청·저장·재청취) 콘텐츠 임베딩의 최근성 가중 평균**이다(`drip-scheduling.md` 4.3-1). 부정 신호는 벡터에 빼지 않는다 — 감점은 룰 축(`keyword_weights` 등 음수 가중)이 담당한다. 긍정 신호 콘텐츠에 임베딩이 하나도 없으면 NULL이며, 스코어링에서 임베딩 축을 중립 처리한다.
 - `keyword_weights` · `format_weights` · `duration_pref`의 원천은 `user_signals` ⨝ `contents`의 추천 메타(5.1)다. 메타가 NULL인 콘텐츠는 해당 집계에서 제외한다.
+- **무시 신호(2026-09-24)는 원천에 `library_items`가 더해진다** — 드립·탐험 편성분이 7일 넘게 `unplayed`이고 삭제되지 않은 행을 배치 시점에 파생해 약한 부정(−0.3)으로 `topic_weights`·`author_weights`·`keyword_weights`·`format_weights`에 반영한다. **저장하지 않는다** — `user_signals`에 행을 만들지 않고 스키마 변경도 없다(`drip-scheduling.md` 4.3). `taste_embedding`·`duration_pref`에는 넣지 않는다.
 
 ### 7.3 `drip_batch_runs`
 

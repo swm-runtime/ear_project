@@ -211,7 +211,7 @@
 
 ### 4.9 `GET /admin/system-stats`
 
-서버 자원과 DB 부하의 읽기 전용 스냅샷 (2026-09-06 등재). 어드민 로그 콘솔 서버 상태 탭이 15초 폴링한다 — `features/backend-monitoring.md` 참조.
+서버 자원과 DB 부하의 읽기 전용 스냅샷 (2026-09-06 등재). 어드민 로그 콘솔 서버 상태 탭이 **열 때 1회 + [새로고침]** 으로 호출한다(자동 폴링 없음 — 사용자 결정 2026-09-06, `features/backend-monitoring.md` 3장). 종전 "15초 폴링" 서술은 2026-09-26 정정.
 
 **Response 200**
 
@@ -363,6 +363,7 @@
 | `signals[]` | `content_id` `title` `action` `created_at` — 취향 계산 입력(90일·최대 500건) |
 | `weights` | 스코어링 상수: `axes` `signal_items` `meta_items` `meta_items_cold_start` `discovery_items` |
 | `regular` | `pool_size` `gated_out[]`(시리즈 순서 게이트 제외, `reason: episode_order`) `recent_drip_topics[]` `candidates[]` — null이면 정규 편수 0 |
+| | **`candidates[].breakdown.meta_items.exposure_fatigue`는 정규 편에서 항상 `null`이다**(2026-09-25 — 노출 피로 항목 폐기, `drip-scheduling.md` 4.2 ③). 탐험 편은 종전대로 저노출 가점 값. **`recent_drip_topics[]`는 정보 표시**일 뿐 스코어링 입력이 아니다. 응답 형태는 어드민 웹 호환을 위해 그대로 둔다 |
 | `discovery` | `pool_size` `quality_floor` `typical_complete_rate` `excluded[]`(`user_removed_topic` \| `below_quality_floor`) `candidates[]` — null이면 탐험 편수 0 |
 | `discovery_error` | 탐험 계산이 던졌으면 메시지, 아니면 null(정규는 영향 없음 — 4.8) |
 | `today_placed[]` | 오늘 서비스 날짜에 실제 배치가 적립한 편(`library_items.source in drip,discovery`) |
