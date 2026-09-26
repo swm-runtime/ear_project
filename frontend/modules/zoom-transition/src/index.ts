@@ -5,6 +5,7 @@ interface ZoomTransitionNative {
   disarm(): void;
   setInteractiveDismissBlocked?(blocked: boolean): void;
   getDiagnostics?(): string;
+  dismissPresentedScreen?(): Promise<string>;
 }
 
 const native = requireOptionalNativeModule<ZoomTransitionNative>('ZoomTransition');
@@ -35,6 +36,19 @@ export const disarmZoomTransition = (): void => {
  */
 export const setZoomInteractiveDismissBlocked = (blocked: boolean): void => {
   native?.setInteractiveDismissBlocked?.(blocked);
+};
+
+/**
+ * 맨 위에 떠 있는 모달을 UIKit 이 먼저 닫는다 — 줌 모달 닫기 전용(JS 가 먼저 pop 하면 RNS 스냅샷 교체와 줌 dismiss 가 충돌해
+ * 굳는다, 2026-09-27). 반환 `dismissed` 면 라우트 pop 은 RNS 의 onDismissed 가 한다. 옛 네이티브(rt 20 이하)엔 없다 → `no-native`
+ */
+export const dismissPresentedScreenNatively = async (): Promise<string> => {
+  if (!native?.dismissPresentedScreen) return 'no-native';
+  try {
+    return await native.dismissPresentedScreen();
+  } catch (error) {
+    return `error:${error instanceof Error ? error.message : String(error)}`;
+  }
 };
 
 /** RNS 패치가 남긴 네이티브 진단(최근 8건) — 옛 네이티브엔 없다 */
