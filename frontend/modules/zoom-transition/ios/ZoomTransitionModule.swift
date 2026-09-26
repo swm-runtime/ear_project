@@ -118,17 +118,61 @@ public class ZoomTransitionModule: Module {
       guard let top = Self.topPresentedViewController(), top.presentingViewController != nil else { return "none" }
       ZoomTransitionRegistry.noteDiagnostic("native-dismiss:\(mode)")
       if mode == "slide", #available(iOS 18.0, *) { top.preferredTransition = nil }
+      // 닫기 **전에** 이 VC 를 감싼 UIKit 래퍼들을 적어 둔다 — 닫히고 나면 `top.view` 가 계층에서 빠져 위로 못 올라간다
+      let containers = Self.presentationContainers(of: top)
       top.dismiss(animated: true) {
         if #available(iOS 18.0, *) { top.preferredTransition = nil }
         // 닫힌 뒤 살아 있는 동안 그릴 게 없게 숨긴다. 자식 뷰를 직접 떼면 안 된다 — Fabric 이 관리하는 트리라 React 가 나중에
         // 같은 자식을 unmount 하며 단언 실패로 크래시했다(2026-09-27 04:53, 빌드 35)
         top.view.isHidden = true
         top.view.layer.contents = nil
+        Self.discardLeftoverContainers(containers)
+        // UIKit 이 한 턴 뒤에 놓는 경우가 있어 다음 런루프에 한 번 더 본다(이미 정리됐으면 window 가 nil 이라 건너뛴다)
+        DispatchQueue.main.async { Self.discardLeftoverContainers(containers) }
         ZoomTransitionRegistry.markZoomOver()
         ZoomTransitionRegistry.noteDiagnostic("native-dismiss:done")
       }
       return "dismissed"
     }.runOnQueue(.main)
+  }
+
+  /**
+   닫을 VC 의 뷰를 감싼 **UIKit 소유 래퍼**(`_UITransitionView` · `UIDropShadowView` 등)를 창 바로 아래까지 모은다.
+
+   창 전체를 클래스 이름으로 훑지 않는 이유: 정상 모달·시스템 화면의 컨테이너까지 지우면 검은 화면·터치 불가가 된다.
+   `top.view` 에서 위로만 타면 **이 VC 의 것**만 잡힌다(추측 없음). Fabric 이 관리하는 `top.view` 의 자식은 건드리지 않는다.
+   */
+  private static func presentationContainers(of controller: UIViewController) -> [UIView] {
+    guard let view = controller.viewIfLoaded else { return [] }
+    var containers: [UIView] = []
+    var current = view.superview
+    // 깊이 상한 — 계층이 예상과 달라도 창까지 통째로 훑지 않는다
+    while let parent = current, !(parent is UIWindow), containers.count < 6 {
+      containers.append(parent)
+      current = parent.superview
+    }
+    return containers
+  }
+
+  /**
+   줌 dismiss 가 끝났는데도 창에 남아 있는 전환 컨테이너를 뗀다.
+
+   **번쩍임의 실제 범인이다**(2026-09-27 05:16 실기기 확정 — 닫기를 `slide` 로 바꾸자 사라졌다): 줌으로 닫으면 UIKit 이
+   이 컨테이너를 창에 분리된 채 남기고, 탭을 바꿀 때 창 레이아웃 패스가 그 transform 을 되돌려 **한 프레임 전체 화면으로**
+   찍혔다. `top.view.isHidden` 이 안 들었던 것은 범인이 그 위 래퍼였기 때문이다.
+
+   - 이미 창에서 빠졌으면(UIKit 이 정상 정리) 아무것도 하지 않는다.
+   - 창의 루트 뷰이거나 루트를 품고 있으면 **절대 건드리지 않는다** — 앱이 검은 화면이 된다.
+   */
+  private static func discardLeftoverContainers(_ containers: [UIView]) {
+    for container in containers {
+      guard let window = container.window else { continue }
+      if container === window.rootViewController?.viewIfLoaded { continue }
+      if let root = window.rootViewController?.viewIfLoaded, root.isDescendant(of: container) { continue }
+      container.isHidden = true
+      container.removeFromSuperview()
+      ZoomTransitionRegistry.noteDiagnostic("cleaned:\(String(describing: type(of: container)))")
+    }
   }
 
   private static func topPresentedViewController() -> UIViewController? {
