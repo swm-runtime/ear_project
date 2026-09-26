@@ -12,7 +12,7 @@ index b1f482c..925a5a8 100644
  - (CGFloat)calculateHeaderHeightIsModal:(BOOL)isModal;
  - (BOOL)isRemovedFromParent;
 diff --git a/node_modules/react-native-screens/ios/RNSScreen.mm b/node_modules/react-native-screens/ios/RNSScreen.mm
-index 9b66012..d741bf6 100644
+index 9b66012..4f9860c 100644
 --- a/node_modules/react-native-screens/ios/RNSScreen.mm
 +++ b/node_modules/react-native-screens/ios/RNSScreen.mm
 @@ -1417,6 +1417,10 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
@@ -138,6 +138,29 @@ index 9b66012..d741bf6 100644
    // if we dismissed the view natively, it will already be detached from view hierarchy
    if (self.view.window != nil) {
      auto afterUpdates = self.screenView.snapshotAfterUpdates;
+@@ -2002,6 +2092,22 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
+     [self.view removeFromSuperview];
+     self.view = snapshot;
+     [superView addSubview:snapshot];
++    // [ear patch] when React unmounts the screen while a system-driven dismissal is still animating (zoom drag),
++    // UIKit removes only the view it knows about at the end of the transition — the snapshot we just added to the
++    // transition container would stay behind as an orphan (device trace 2026-09-27 01:27: snapshot:window=1 detached=0
++    // before settled). Remove it ourselves when that transition completes.
++    id<UIViewControllerTransitionCoordinator> coordinator = self.transitionCoordinator;
++    if (self.isBeingDismissed && coordinator != nil) {
++      [RNSScreen earNoteZoomDiagnostic:@"snapshot:scheduled-removal"];
++      __weak UIView *weakSnapshot = snapshot;
++      [coordinator animateAlongsideTransition:nil
++                                   completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
++                                     if (!context.isCancelled) {
++                                       [weakSnapshot removeFromSuperview];
++                                       [RNSScreen earNoteZoomDiagnostic:@"snapshot:removed"];
++                                     }
++                                   }];
++    }
+   }
+ }
+ 
 diff --git a/node_modules/react-native-screens/ios/RNSScreenStack.h b/node_modules/react-native-screens/ios/RNSScreenStack.h
 index 9ae11c3..914df21 100644
 --- a/node_modules/react-native-screens/ios/RNSScreenStack.h
