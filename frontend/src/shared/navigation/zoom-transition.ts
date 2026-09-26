@@ -22,8 +22,14 @@ export const USE_NATIVE_PLAYER_ZOOM = HAS_NATIVE_TAB_BAR && hasZoomTransitionMod
 let lastArmResult = 'not-called';
 export const getLastPlayerZoomArmResult = (): string => lastArmResult;
 
-/** 미니플레이어 카드 루트의 testID — 네이티브가 이 값으로 지금 보이는 카드를 찾는다 */
+/** 미니플레이어 카드 루트의 testID — 네이티브가 이 값으로 지금 보이는 카드를 찾는다(프록시가 없을 때의 폴백) */
 export const MINI_PLAYER_ZOOM_SOURCE_ID = 'mini-player-zoom-source';
+/**
+ * 줌 소스 **프록시**(ZoomSourceProxy) — 액세서리와 같은 자리의 투명 뷰. 소스를 시스템 액세서리 컨테이너 밖으로 빼서
+ * 닫힌 뒤 탭 전환 때 플레이어가 한 프레임 다시 그려지던 것을 막는다(2026-09-27 04:26 — 줌 등록만 끄면 안 났고,
+ * 닫힌 뒤 provider 호출은 없었다 → 액세서리 컨테이너 쪽 잔여 이미지)
+ */
+export const MINI_PLAYER_ZOOM_PROXY_ID = 'mini-player-zoom-proxy';
 
 /**
  * 다음에 뜨는 플레이어 모달이 미니플레이어 카드에서 부풀어 오르게 등록한다. 줌을 안 쓰는 갈래·뷰 없음이면
@@ -31,7 +37,12 @@ export const MINI_PLAYER_ZOOM_SOURCE_ID = 'mini-player-zoom-source';
  */
 export const armPlayerZoom = async (): Promise<void> => {
   if (!USE_NATIVE_PLAYER_ZOOM) return;
-  lastArmResult = await armZoomTransition(MINI_PLAYER_ZOOM_SOURCE_ID);
+  const proxied = await armZoomTransition(MINI_PLAYER_ZOOM_PROXY_ID);
+  if (proxied === 'armed') {
+    lastArmResult = 'armed:proxy';
+    return;
+  }
+  lastArmResult = `${await armZoomTransition(MINI_PLAYER_ZOOM_SOURCE_ID)}:accessory(${proxied})`;
 };
 
 /**
