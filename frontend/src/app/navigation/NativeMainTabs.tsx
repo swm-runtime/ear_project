@@ -14,13 +14,11 @@ import type { MainTabParamList } from './types';
 
 const NativeTab = createNativeBottomTabNavigator<MainTabParamList>();
 
-/** 투명 시스템 바 — 제목은 비워 두고(화면이 페이드 제목을 건다) 그림자 선 없음. 콘텐츠가 바 밑으로 흐른다 */
-const TRANSPARENT_BAR = {
-  headerShown: true,
-  headerTransparent: true,
-  headerShadowVisible: false,
-  title: '',
-} as const;
+/**
+ * 시스템 내비게이션 바는 **안 쓴다** — 투명 바를 뒀더니 UINavigationBar 가 그 자리의 터치를 먹어 제목 줄의 링·필터가
+ * 안 눌렸다(PM 2026-09-26 17:42). 블러 띠·작은 제목은 화면이 직접 그린다(NativeBarBlurBand)
+ */
+const NO_BAR = { headerShown: false } as const;
 
 /**
  * 하단 탭 — **iOS 26 시스템 탭 바**(`UITabBarController`, react-native-screens BottomTabs). JS 캡슐(CapsuleTabBar)
@@ -80,7 +78,7 @@ export default function NativeMainTabs() {
             type: 'sfSymbol',
             name: focused ? 'books.vertical.fill' : 'books.vertical',
           }),
-          ...TRANSPARENT_BAR,
+          ...NO_BAR,
         }}
       />
       {/* 탐색 — 상단을 애플 문법으로(PM 2026-09-25 23:50 "애플이라면 상단을 어떻게"). 떠 있는 유리 컨트롤(FloatingHeader)은
@@ -95,7 +93,7 @@ export default function NativeMainTabs() {
             type: 'sfSymbol',
             name: focused ? 'safari.fill' : 'safari',
           }),
-          ...TRANSPARENT_BAR,
+          ...NO_BAR,
         }}
       />
       <NativeTab.Screen
