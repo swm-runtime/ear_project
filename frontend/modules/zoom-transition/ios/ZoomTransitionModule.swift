@@ -46,11 +46,19 @@ public class ZoomTransitionRegistry: NSObject {
 
   /// RNS 패치가 남기는 진단 기록(최근 8건) — 설정 > 스택 라우트 줄에서 읽는다(2026-09-26 21:57: 드래그 닫기 뒤
   /// 탭 전환 때 플레이어가 번쩍이는데 JS 는 깨끗했다 → 패치가 실제로 돌았는지 기기에서 확인)
-  private static var diagnostics: [String] = []
+  private static let diagnosticsKey = "ear.zoomTransition.diagnostics"
+  /// 앱을 죽여도 남게 UserDefaults 에 둔다(2026-09-27 01:59 "플레이어가 또 뜨면서 벽돌" — 굳으면 재실행해야 읽을 수 있다).
+  /// 이전 실행분은 "[prev]" 로 앞에 붙여 한 번 보여 주고 이번 실행의 기록으로 덮는다
+  private static var diagnostics: [String] = {
+    let previous = UserDefaults.standard.stringArray(forKey: diagnosticsKey) ?? []
+    UserDefaults.standard.removeObject(forKey: diagnosticsKey)
+    return previous.isEmpty ? [] : ["[prev] " + previous.joined(separator: " > "), "[now]"]
+  }()
 
   @objc public static func noteDiagnostic(_ note: String) {
     diagnostics.append(note)
-    if diagnostics.count > 14 { diagnostics.removeFirst(diagnostics.count - 14) }
+    if diagnostics.count > 24 { diagnostics.removeFirst(diagnostics.count - 24) }
+    UserDefaults.standard.set(diagnostics, forKey: diagnosticsKey)
   }
 
   static func diagnosticsText() -> String {
