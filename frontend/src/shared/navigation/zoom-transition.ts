@@ -2,6 +2,7 @@ import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 
 import {
   armZoomTransition,
+  dismissPresentedScreenNatively,
   getZoomTransitionDiagnostics,
   hasZoomTransitionModule,
   setZoomInteractiveDismissBlocked,
@@ -30,18 +31,19 @@ export const MINI_PLAYER_ZOOM_SOURCE_ID = 'mini-player-zoom-source';
  */
 export const armPlayerZoom = async (): Promise<void> => {
   if (!USE_NATIVE_PLAYER_ZOOM) return;
-  if (!ZOOM_ARM_ENABLED) {
-    lastArmResult = 'experiment:arm-off';
-    return;
-  }
   lastArmResult = await armZoomTransition(MINI_PLAYER_ZOOM_SOURCE_ID);
 };
 
 /**
- * **실험 스위치**(2026-09-27 02:50, ChatGPT 검토 제안 1) — 줌 소스 등록만 끈다(플레이어는 그대로 풀스크린 모달, 기본 슬라이드).
- * 이 상태에서 여닫기 반복이 안 굳으면 "줌 dismiss × RNS 스냅샷 교체" 충돌이 원인. 확인 뒤 되돌린다
+ * 줌으로 띄운 플레이어를 닫는다 — **UIKit 이 먼저 닫고, 라우트 pop 은 RNS 의 onDismissed 가 한다.** JS 가 먼저 goBack 하면
+ * RNS 가 dismiss 전에 화면 뷰를 스냅샷으로 갈아끼우고 줌 dismiss 가 그 위에서 끝나지 못해 앱이 굳었다(2026-09-27 02:57 실험:
+ * 줌 등록만 끄면 안 굳는다). 네이티브가 없거나 떠 있는 모달을 못 찾으면 false — 호출부가 goBack 으로 대신한다
  */
-const ZOOM_ARM_ENABLED = false;
+export const dismissPlayerNatively = async (): Promise<boolean> => {
+  if (!USE_NATIVE_PLAYER_ZOOM) return false;
+  const result = await dismissPresentedScreenNatively();
+  return result === 'dismissed';
+};
 
 /**
  * 플레이어 위에서 시스템의 드래그·핀치 닫기를 막는다/푼다 — 재생 목록·대본 패널이 열려 있거나 손가락이 스크롤 목록 위에서

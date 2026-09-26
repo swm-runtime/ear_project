@@ -95,6 +95,27 @@ public class ZoomTransitionModule: Module {
     Function("getDiagnostics") { () -> String in
       return ZoomTransitionRegistry.diagnosticsText()
     }
+
+    // 줌으로 띄운 모달을 **UIKit 이 먼저** 닫는다(2026-09-27 02:57 실험으로 확정: JS 가 먼저 pop 하면 react-native-screens 가
+    // dismiss 전에 화면 뷰를 스냅샷으로 갈아끼우고, 줌 dismiss 는 그 스냅샷 위에서 끝나지 못해 앱이 굳는다). 닫힘이 끝나면
+    // RNS 가 viewDidDisappear 에서 JS 에 onDismissed 를 보내 라우트가 pop 되고, 그때 뷰는 이미 창 밖이라 스냅샷을 안 만든다.
+    // 반환: "dismissed" | "none"(떠 있는 모달 없음)
+    AsyncFunction("dismissPresentedScreen") { () -> String in
+      guard let top = Self.topPresentedViewController(), top.presentingViewController != nil else { return "none" }
+      ZoomTransitionRegistry.noteDiagnostic("native-dismiss:\(String(describing: type(of: top)))")
+      top.dismiss(animated: true)
+      return "dismissed"
+    }.runOnQueue(.main)
+  }
+
+  private static func topPresentedViewController() -> UIViewController? {
+    let windows = UIApplication.shared.connectedScenes
+      .compactMap { $0 as? UIWindowScene }
+      .flatMap { $0.windows }
+    guard let root = (windows.first { $0.isKeyWindow } ?? windows.first)?.rootViewController else { return nil }
+    var top = root
+    while let presented = top.presentedViewController { top = presented }
+    return top
   }
 
   private static func findVisibleView(testId: String) -> UIView? {
