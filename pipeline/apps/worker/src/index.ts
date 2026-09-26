@@ -7,7 +7,7 @@ import { makeExecutor, setJobAbort } from "./executors/index.js";
 import { startLogWatch } from "./log-watch.js";
 import { runStage } from "./stages/index.js";
 import { log, sleep, ApiLimit, RetryLater } from "./util.js";
-import { aiPaused, pauseForLimit } from "./ai-pause.js";
+import { aiPaused, pauseForLimit, serverClaimOff } from "./ai-pause.js";
 import { onDraftFailed } from "./stages/draft.js";
 import { autoApprove } from "./automation.js";
 import { maybeSendDigest } from "./digest.js";
@@ -76,7 +76,7 @@ async function main() {
       pausedLogged = !!paused;
       const aiNow = canAi && !paused;
       if (aiNow) { await autoApprove().catch((e) => log(`자동 승인 오류 (계속 진행): ${e?.message ?? e}`)); await pickupApproved(); }
-      const job = await claimJob(cfg.workerName, aiNow, canTts, canThumbnail);
+      const job = await claimJob(cfg.workerName, aiNow, canTts, canThumbnail, (await serverClaimOff()) ? ["sweep"] : []); // 스위치 꺼짐: 스윕도 노트북 몫
       if (!job) {
         if (once) { log("대기 중인 작업 없음"); break; }
         if (drain && (await listApprovedBacklog()).length === 0) { log("큐 비움 — drain 종료"); break; }
