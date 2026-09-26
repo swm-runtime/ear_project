@@ -210,6 +210,8 @@ export class DripArrivalNotificationService {
       deviceTokenId: string;
       token: string;
     }[] = [];
+    // DeviceNotRegistered 가 아닌 접수 거절 — 사유별 건수. 자격 증명 불량 같은 사람 몫의 오류가 여기서 드러난다
+    const rejectedByReason: Record<string, number> = {};
 
     for (let i = 0; i < outgoing.length; i += EXPO_PUSH_SEND_CHUNK_SIZE) {
       const chunk = outgoing.slice(i, i + EXPO_PUSH_SEND_CHUNK_SIZE);
@@ -218,7 +220,8 @@ export class DripArrivalNotificationService {
       try {
         tickets = await this.pushClient.send(chunk.map((item) => item.message));
       } catch (error) {
-        this.logger.warn('push send request failed', {
+        // 재시도까지 끝난 외부 연동 실패다(convention.md 8.3 — error). 그 청크의 사용자는 failed 로 남는다
+        this.logger.error('push send request failed', {
           message_count: chunk.length,
           error: error instanceof Error ? error.message : String(error),
         });
@@ -243,7 +246,27 @@ export class DripArrivalNotificationService {
             id: item.deviceTokenId,
             token: item.message.to,
           });
+        } else {
+          const reason = ticket.error ?? 'unknown';
+          rejectedByReason[reason] = (rejectedByReason[reason] ?? 0) + 1;
         }
+      });
+    }
+
+    const rejectedCount = Object.values(rejectedByReason).reduce(
+      (sum, count) => sum + count,
+      0,
+    );
+
+    if (rejectedCount > 0) {
+      /**
+       * 무효 토큰 외의 거절은 전부 사람이 봐야 하는 오류다(`InvalidCredentials` = EAS 자격 증명 재발급,
+       * `MessageTooBig`·`MessageRateExceeded` = 발송 쪽 문제). 조용히 failed 로만 남기면 APNs 키가
+       * 만료돼도 아무도 모른다(2026-09-26 감사) — error 로 남겨 Slack ERROR 감시가 받게 한다.
+       */
+      this.logger.error('push tickets rejected', {
+        rejected_count: rejectedCount,
+        reasons: rejectedByReason,
       });
     }
 
