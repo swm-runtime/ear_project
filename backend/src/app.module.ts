@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { ScheduleModule } from '@nestjs/schedule';
+import { SentryModule } from '@sentry/nestjs/setup';
 import { ThrottlerModule } from '@nestjs/throttler';
 
 import { isSchedulerProcess } from '@/common/cluster.util';
@@ -59,6 +60,11 @@ import { UserModule } from '@/modules/user/user.module';
     // 배치가 워커 수만큼 돈다. 이 모듈이 없으면 explorer 가 돌지 않아 `@Cron`·`@Interval` 이
     // 아예 등록되지 않는다(`SchedulerRegistry` 를 주입하는 코드가 없어 DI 도 깨지지 않는다).
     // 단일 프로세스면 항상 참이라 종전과 같다 — `common/cluster.util.ts`
+    /**
+     * 요청마다 Sentry scope 를 격리한다 — 없으면 동시 요청의 태그·context 가 섞인다.
+     * `SENTRY_DSN` 이 없으면 SDK 가 꺼져 있어 사실상 아무 일도 하지 않는다.
+     */
+    SentryModule.forRoot(),
     ...(isSchedulerProcess() ? [ScheduleModule.forRoot()] : []),
     // architecture.md 9.6 — 전역 기본 한도. 라우트별 한도는 `@Throttle`, 제외는 `@SkipThrottle`
     ThrottlerModule.forRoot({

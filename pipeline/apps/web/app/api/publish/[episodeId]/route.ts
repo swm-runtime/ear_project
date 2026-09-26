@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { currentUser } from "@/lib/supabase-server";
 import { getBytes, getText } from "@/lib/storage";
+import { ensureEmbedding } from "@/lib/embedding";
 
 /**
  * 발행 프리필 데이터 — 패키지 산출물을 브라우저에 내준다 (Supabase 로그인 필수).
  * - GET /api/publish/<episodeId>              → upload-meta.json (+ dist.mp3 · thumbnail.png 존재 여부)
  * - GET /api/publish/<episodeId>?audio=1      → dist.mp3 바이트 (제품 업로드 폼이 File 로 감싼다)
  * - GET /api/publish/<episodeId>?thumbnail=1  → thumbnail.png 바이트 (같은 방식)
- * - GET /api/publish/<episodeId>?enrichment=1 → enrichment.json (추천 메타, 패키지 직후 enrich 작업이 만든다 — 발행 때 enrichment_file 로 첨부)
+ * - GET /api/publish/<episodeId>?enrichment=1 → enrichment.json (추천 메타 — 업로드 화면의 [추천 메타 뽑기]가 건 enrich 작업이 만든다(2026-09-23 개정), 발행 때 enrichment_file 로 첨부)
  * - GET /api/publish/<episodeId>?script=1     → script-segments.json (자막 세그먼트, TTS 단계가 만든다 — 발행 때 script_file 로 첨부, KAN-72)
  * 서버가 중계하는 이유: 파이프라인 S3 에 브라우저 CORS 를 열지 않기 위해서다.
  */
@@ -37,8 +38,10 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ episodeId: 
 
   if (req.nextUrl.searchParams.get("enrichment")) {
     const text = await getText(`${base}/enrichment.json`);
-    if (!text) return NextResponse.json({ message: "enrichment.json 없음 — 패키지 직후 메타 부여 작업 이후에" }, { status: 404 });
-    return new NextResponse(text, { headers: { "content-type": "application/json", "content-disposition": `attachment; filename="enrichment.json"` } });
+    if (!text) return NextResponse.json({ message: "enrichment.json 없음 — 업로드 화면의 [추천 메타 뽑기] 이후에" }, { status: 404 });
+    // 임베딩이 비어 있으면 발행 시점에 AI 서버에서 받아 합친다 (lib/embedding.ts) — 헤더 x-embedding-note 로 결과를 알린다
+    const merged = await ensureEmbedding(text, await getText(`${base}/script.md`));
+    return new NextResponse(merged.text, { headers: { "content-type": "application/json", "content-disposition": `attachment; filename="enrichment.json"`, "x-embedding-note": encodeURIComponent(merged.note) } });
   }
 
   if (req.nextUrl.searchParams.get("script")) {

@@ -1,0 +1,846 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_CLOUDWATCH",
+      "label": "CloudWatch",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "cloudwatch",
+      "pluginName": "CloudWatch"
+    },
+    {
+      "name": "DS_PROM",
+      "label": "Prometheus (합성 모니터링 지표 — grafanacloud-<스택>-prom)",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "__requires": [],
+  "title": "ear 운영",
+  "uid": "ear-ops",
+  "tags": [
+    "ear",
+    "infra"
+  ],
+  "timezone": "Asia/Seoul",
+  "editable": true,
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "schemaVersion": 39,
+  "version": 1,
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      },
+      {
+        "datasource": {
+          "type": "cloudwatch",
+          "uid": "${DS_CLOUDWATCH}"
+        },
+        "enable": true,
+        "iconColor": "red",
+        "name": "CloudWatch 알람 상태 변화",
+        "prefixMatching": true,
+        "alarmNamePrefix": "ear-prod-",
+        "actionPrefix": "",
+        "region": "default"
+      }
+    ]
+  },
+  "templating": {
+    "list": []
+  },
+  "links": [
+    {
+      "title": "장애 플레이북",
+      "type": "link",
+      "url": "https://github.com/swm-runtime/ear_project/blob/main/docs/infra/incident-playbook.md",
+      "targetBlank": true
+    },
+    {
+      "title": "어드민 콘솔 — 백엔드 로그",
+      "type": "link",
+      "url": "https://admin.earcast.co.kr/backend-logs",
+      "targetBlank": true
+    }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "헬스체크 — 프로브별 (최근 6분 최솟값)",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 7,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROM}"
+      },
+      "description": "Grafana 합성 체크 ear-api-health. 3분 간격·서울·도쿄. 한 프로브만 DOWN 이면 프로브 문제일 수 있다 — 둘 다 DOWN 이면 A001.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROM}"
+          },
+          "expr": "min_over_time(probe_success{job=\"ear-api-health\"}[6m])",
+          "legendFormat": "{{probe}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "UP",
+                  "color": "green"
+                },
+                "0": {
+                  "text": "DOWN",
+                  "color": "red"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "가동률 24h",
+      "gridPos": {
+        "x": 7,
+        "y": 0,
+        "w": 4,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROM}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROM}"
+          },
+          "expr": "avg(avg_over_time(probe_success{job=\"ear-api-health\"}[24h]))",
+          "legendFormat": "24h",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.99
+              },
+              {
+                "color": "green",
+                "value": 0.999
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "헬스체크 평균 응답시간 (프로브별, 15분 창)",
+      "gridPos": {
+        "x": 11,
+        "y": 0,
+        "w": 13,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROM}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROM}"
+          },
+          "expr": "sum by (probe) (increase(probe_all_duration_seconds_sum{job=\"ear-api-health\"}[15m])) / sum by (probe) (increase(probe_all_duration_seconds_count{job=\"ear-api-health\"}[15m]))",
+          "legendFormat": "{{probe}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 3
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "description": "프로브에서 /api/v1/health 까지 왕복의 15분 평균 — 합성 체크는 기본 지표만 발행해(전체 지표 발행 끔) 게이지가 없고 _sum/_count 만 있다. 서울 프로브가 기준값(정상 0.05s 대, 도쿄 0.1s 대). 급등하면 A001/A003 보다 먼저 B006(부하) 을 의심."
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "CPU 사용률 (운영 EC2)",
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 6,
+        "h": 7
+      },
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "${DS_CLOUDWATCH}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "${DS_CLOUDWATCH}"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "default",
+          "namespace": "CWAgent",
+          "metricName": "cpu_usage_active",
+          "dimensions": {
+            "InstanceId": [
+              "i-04f1f70f5484ffafd"
+            ],
+            "cpu": [
+              "cpu-total"
+            ]
+          },
+          "statistic": "Average",
+          "period": "",
+          "matchExact": false,
+          "id": "",
+          "expression": "",
+          "sqlExpression": "",
+          "label": "cpu"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 70
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "description": "자체 Slack 경보 임계 70% 3틱과 같은 선. 지속 70% 이상이면 scaling.md 4장."
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "메모리 사용률",
+      "gridPos": {
+        "x": 6,
+        "y": 5,
+        "w": 6,
+        "h": 7
+      },
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "${DS_CLOUDWATCH}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "${DS_CLOUDWATCH}"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "default",
+          "namespace": "CWAgent",
+          "metricName": "mem_used_percent",
+          "dimensions": {
+            "InstanceId": [
+              "i-04f1f70f5484ffafd"
+            ]
+          },
+          "statistic": "Average",
+          "period": "",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "sqlExpression": "",
+          "label": "mem"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "description": "t4g.small 1.8GB, 스왑 없음. dockerd 빌드 캐시 잔재가 원인이었던 이력 — scaling.md 6장."
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "스왑 사용률",
+      "gridPos": {
+        "x": 12,
+        "y": 5,
+        "w": 6,
+        "h": 7
+      },
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "${DS_CLOUDWATCH}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "${DS_CLOUDWATCH}"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "default",
+          "namespace": "CWAgent",
+          "metricName": "swap_used_percent",
+          "dimensions": {
+            "InstanceId": [
+              "i-04f1f70f5484ffafd"
+            ]
+          },
+          "statistic": "Average",
+          "period": "",
+          "matchExact": true,
+          "id": "",
+          "expression": "",
+          "sqlExpression": "",
+          "label": "swap"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "description": "운영은 스왑이 없어 0 이어야 정상. 값이 있으면 누가 스왑을 켠 것."
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "디스크 사용률 (/)",
+      "gridPos": {
+        "x": 18,
+        "y": 5,
+        "w": 6,
+        "h": 7
+      },
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "${DS_CLOUDWATCH}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "${DS_CLOUDWATCH}"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "default",
+          "namespace": "CWAgent",
+          "metricName": "disk_used_percent",
+          "dimensions": {
+            "InstanceId": [
+              "i-04f1f70f5484ffafd"
+            ],
+            "path": [
+              "/"
+            ]
+          },
+          "statistic": "Average",
+          "period": "",
+          "matchExact": false,
+          "id": "",
+          "expression": "",
+          "sqlExpression": "",
+          "label": "disk /"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "description": "CloudWatch 알람 ear-prod-disk-high(80%) 와 같은 선. 넘으면 A005 — docker builder prune."
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "/ear/api ERROR·FATAL 건수 (5분)",
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "${DS_CLOUDWATCH}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "${DS_CLOUDWATCH}"
+          },
+          "queryMode": "Logs",
+          "region": "default",
+          "logGroups": [
+            {
+              "arn": "arn:aws:logs:ap-northeast-2:639177726357:log-group:/ear/api:*",
+              "name": "/ear/api"
+            }
+          ],
+          "expression": "fields @timestamp, @message | filter @message like /ERROR|FATAL/ | stats count(*) as errors by bin(5m)",
+          "statsGroups": [
+            "bin(5m)"
+          ]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 60,
+            "showPoints": "never",
+            "drawStyle": "bars"
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "description": "AI 서버 log-watch 가 5분마다 Slack 으로 묶어 보내는 것과 같은 원천. 여기서 시간대를 보고 콘솔 '에러 모아보기'에서 본문을 본다."
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "/ear/caddy 상태코드 분포 (5분)",
+      "gridPos": {
+        "x": 12,
+        "y": 12,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "${DS_CLOUDWATCH}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "${DS_CLOUDWATCH}"
+          },
+          "queryMode": "Logs",
+          "region": "default",
+          "logGroups": [
+            {
+              "arn": "arn:aws:logs:ap-northeast-2:639177726357:log-group:/ear/caddy:*",
+              "name": "/ear/caddy"
+            }
+          ],
+          "expression": "fields @timestamp, @message | parse @message /\"status\":\\s*(?<status>\\d{3})/ | filter ispresent(status) | stats count(*) as requests by bin(5m), status",
+          "statsGroups": [
+            "bin(5m)",
+            "status"
+          ]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 60,
+            "showPoints": "never",
+            "drawStyle": "bars",
+            "stacking": {
+              "mode": "normal"
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "description": "Caddy 접근 로그에서 status 파싱. 5xx 가 늘면 api 쪽, 4xx 급증은 클라이언트·봇. 파싱이 비면 Caddy 로그 형식이 바뀐 것 — Explore 에서 @message 한 줄 확인."
+    },
+    {
+      "id": 10,
+      "type": "text",
+      "title": "Sentry — 이 행에 패널 2개를 화면에서 추가한다",
+      "gridPos": {
+        "x": 0,
+        "y": 19,
+        "w": 24,
+        "h": 4
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Sentry 플러그인 쿼리 형식은 버전마다 달라 JSON 으로 싣지 않았다. 이 패널의 **Edit → Remove** 로 지우고 같은 자리에 둘을 만든다.\n\n1. **최근 이슈** — Add → Visualization → 데이터소스 Sentry → Query type **Issues**, Projects 전부, Sort by **Last Seen** → 시각화 **Table** (w 12)\n2. **에러 이벤트 수 (1h)** — Query type **Statistics**, Field `sum(quantity)`, Category **error**, Group by **project**, Interval 1h → 시각화 **Time series** 막대 (w 12)\n\n끝나면 이 안내 패널은 삭제."
+      }
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "크론 하트비트 — 지난 1시간 성공 합 (ear/ops CronSuccess)",
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 24,
+        "h": 6
+      },
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "${DS_CLOUDWATCH}"
+      },
+      "description": "backup·content-export·ebs-snapshot 은 하루 1회라 대부분의 시간에 '누락' 으로 보이는 게 정상 — 25시간 창의 CloudWatch 알람이 판정 주체다. log-watch 는 5분마다라 항상 1 이상이어야 한다. 알람 상태 변화는 대시보드 위 주석(빨간 세로선)으로 뜬다.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "${DS_CLOUDWATCH}"
+          },
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "region": "default",
+          "namespace": "ear/ops",
+          "metricName": "CronSuccess",
+          "dimensions": {
+            "Job": [
+              "*"
+            ]
+          },
+          "statistic": "Sum",
+          "period": "3600",
+          "matchExact": false,
+          "id": "",
+          "expression": "",
+          "sqlExpression": "",
+          "label": "${PROP('Dim.Job')}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "누락",
+                  "color": "orange"
+                }
+              }
+            }
+          ],
+          "noValue": "누락",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "orange",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    }
+  ]
+}

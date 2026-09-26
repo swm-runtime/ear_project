@@ -1,0 +1,8 @@
+{
+  "name": "zoom-transition",
+  "version": "1.0.0",
+  "private": true,
+  "description": "iOS 18 줌 전환(UIViewController.preferredTransition = .zoom)의 소스 뷰를 등록한다 — react-native-screens 패치가 모달을 띄우기 직전에 읽는다 (로컬 Expo 모듈)",
+  "main": "src/index.ts",
+  "types": "src/index.ts"
+}

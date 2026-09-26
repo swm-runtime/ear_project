@@ -1,3 +1,6 @@
+// primary 프로세스도 계측한다 — 워커를 못 띄우는 종류의 실패는 여기서만 보인다
+import './instrument';
+
 import cluster from 'node:cluster';
 
 import { Logger } from '@nestjs/common';

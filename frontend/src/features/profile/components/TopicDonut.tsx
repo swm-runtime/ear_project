@@ -130,6 +130,7 @@ const styles = StyleSheet.create({
   emptyBox: {
     height: DONUT_SIZE,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
     alignItems: 'center',
     justifyContent: 'center',

@@ -367,6 +367,20 @@ class BusinessException extends HttpException {
 - 로그에는 **토큰·비밀번호·소셜 액세스 토큰·영수증 본문·개인식별정보를 남기지 않는다.** 마스킹은 로깅 인터셉터에서 일괄 처리한다.
 - 모든 요청 로그에는 `trace_id`, `user_id`(있으면), 처리 시간을 포함한다.
 
+**에러가 가는 곳은 둘이다**(Sentry 도입 2026-09-23 — `changes/archive/backend-sentry-error-tracking.md`).
+
+| 경로 | 무엇이 | 언제 |
+|---|---|---|
+| CloudWatch `/ear/api` → 워커 감시 → Slack | 전 레벨 로그 | 5분 주기 묶음 |
+| **Sentry**(프로젝트 `ear-api`) | **`error` 등급만** | 즉시, 그룹화·빈도·릴리스 포함 |
+
+- **`error` 등급만 보낸다.** 4xx 업무 예외는 정상 흐름이라 보내면 잡음이 되고 무료 할당량을 앱 크래시 대신 갉아먹는다. 판정은 `BusinessException.logLevel`이 이미 하고 있고 `AllExceptionsFilter`가 그 결과를 따른다.
+- **`SENTRY_DSN`이 없으면 초기화 자체를 하지 않는다.** 로컬·테스트·CI 기본값이고, 운영에서 잠깐 끄는 스위치이기도 하다. 환경 이름은 `SENTRY_ENVIRONMENT`(없으면 `NODE_ENV`), 성능 추적 비율은 `SENTRY_TRACES_SAMPLE_RATE`다.
+- **세탁은 `common/sentry-scrub.ts` 한 곳에서 한다.** 8장의 "토큰·인증 코드·이메일 원문·요청 바디를 남기지 않는다"는 Sentry에 더 엄하게 적용된다 — 외부 서비스이기 때문이다. 요청 바디·전 헤더·쿠키를 지우고, 사용자는 id만 남기며, 서명 쿼리는 `redactSensitiveQuery`로 값만 가린다. SDK의 기본 수집(`dataCollection` — 쿠키·헤더·바디·스택 변수·쿼리 데이터)은 `instrument.ts`에서 전부 명시적으로 끈다. **이벤트에 필드를 늘리려면 이 두 파일을 먼저 본다.**
+- **초기화는 `src/instrument.ts`이고 진입점(`main.ts`·`cluster.ts`)의 첫 줄에서 import한다.** Nest 부팅 전에 돌아야 해서 ConfigService를 쓰지 않고 `process.env`를 직접 읽는다. 이 import의 위치를 바꾸면 조용히 계측이 빠진다.
+- **성능 추적은 기본 꺼짐이다 — `SENTRY_TRACES_SAMPLE_RATE`를 비운다.** `0`을 SDK에 넘기면 "끔"이 아니라 "켜되 표본 0"이라 express·nest·pg 계측이 전부 등록되고, t4g.small에서 API CPU를 50~80% 더 쓴다(2026-09-23 개발계 실측 — 온보딩 분당 600명에서 45~55% → 70~93%). `common/sentry-options.ts`가 0·빈값이면 키를 빼고 넘긴다. 무료 할당량도 앱 크래시에 쓴다. 느린 엔드포인트를 볼 일이 있으면 **개발계에서만** 잠깐 올린다 — 운영은 켜지 않는다.
+- 릴리스는 `ear-api@<package.json version>`이다 — 버전의 기준이 앱이므로(CLAUDE.md) Sentry의 릴리스도 앱 버전을 따른다.
+
 ### 7.7 재시도·타임아웃 (서버 → 외부)
 
 | 대상 | 타임아웃 | 재시도 |

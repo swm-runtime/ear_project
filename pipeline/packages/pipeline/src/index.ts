@@ -54,7 +54,7 @@ export function assetPaths(assetRoot: string, workRoot: string = assetRoot) {
   return {
     guidelines: p("skills", "draft", "guidelines.md"),
     goldShort: p("skills", "draft", "examples", "gold-T260820-001-short.md"),
-    goldFullEum: p("skills", "draft", "examples", "gold-T260820-002-full.md"),
+    goldFullEum: p("skills", "draft", "examples", "gold-T260918-001-full.md"),
     goldFullYuna: p("skills", "draft", "examples", "gold-T260828-001-full.md"),
     specScript: p("spec", "04-script.md"),
     specQa: p("spec", "05-qa.md"),
@@ -237,6 +237,7 @@ ${failures}
 
 ## 수정 원칙
 - 지적된 턴만 고친다. 전면 재작성 금지 — 나머지 문장은 그대로 둔다.
+- 마무리 정리 턴을 고칠 때는 사실 주장(수치·인용·이름)만 무귀속 요약으로 바꾸고 문장 수(3~5)는 유지한다 — 문장을 지워 한 줄로 줄이지 않는다 (v9.3: T260922-007 E28).
 - **통계 용어를 대본에 쓰지 않는다** (guidelines 규칙 24, L0 가 잡는다): QA 지적문에 "통계적으로 유의하지 않다"·"매개"·"정적 관계" 같은 말이 있어도 대본에는 말로 옮긴다 — "차이가 뚜렷하지 않았다", "A 가 B 를 거쳐 C 로 이어졌다", "같이 움직였다". (T260909-009: QA 가 요구한 단서를 "통계적으로 유의하지 않았다"로 넣어 L0 에 다시 걸렸다)
 - 수정은 발췌 안으로 들어오는 방향으로만: 발췌에 없는 수식·비교·방향·연대·위치 주장은 삭제하거나 발췌 문장 범위로 축소한다. 발췌를 새로 추가하지 않는다 (원문 재접근 금지).
 - 헤지·귀속 주체·세부(성별·관계·순서·위치·수량)는 발췌 수준으로 낮춘다 — 단정으로 올리거나 원저자 발언으로 바꾸거나 더 구체적으로 쓰지 않는다.
@@ -669,7 +670,7 @@ ${sources}
 - 착지 구간을 반드시 지정하고, 그 구간의 재료가 실제로 축을 증명하는지 스스로 확인한다.
 - 전환 장치는 구간마다 다르게 — 같은 장치 연속 금지.
 - 청취자 일상 사례 왕복은 에피소드 전체에 최소 2회.
-- **구간 소제목·진행자 질문·설계 메모에도 발췌 밖 수치·환산을 쓰지 않는다** — "1960년대"를 "60년 된"으로 바꾸는 식의 경과 연수 환산, 발췌에 없는 비교 축은 소제목에서도 QA 실패다 (T260908-001 1회차 실패가 소제목이었다).
+- **진행자 질문·설계 메모에 발췌 밖 수치·환산을 쓰지 않는다** — "1960년대"를 "60년 된"으로 바꾸는 식의 경과 연수 환산, 발췌에 없는 비교 축은 대사로 옮겨지면 QA 실패다. 구간 소제목은 TTS 가 읽지 않는 구조 표시라 QA 대상이 아니다 (2026-09-21 — 들리지 않는 한 줄로 QA 회차를 쓰지 않는다).
 - **분량 규칙** (2026-09-08 확정): 한 편은 **13분(공백·기호 제외 약 4,000자) 이상이 필수**, 15분이 평균 목표, 상한은 없다. 재료 총량으로 예상 분량을 적는다. 재료가 13분에 못 미치면 구성안을 만들지 말고 완료 보고에 사유를 적는다(반려 대상). 재료가 26분 이상이면 각 편이 13분 이상이 되는 분할안을 완료 보고 \`split_proposal\`에 적되, 구성안은 한 편 기준으로 그대로 만든다 (분할은 사람이 결정).
 
 ### d) pronunciations.json — 대본에 등장할 모든 비한글 표기(영문 용어·인명·기관·매체) → 한글 발음. \`{"표기": "발음"}\` 객체 하나. 없으면 \`{}\`.
@@ -677,7 +678,7 @@ ${sources}
 ## 4. 자기 점검 (필수 — python 등으로 기계 확인)
 - claims의 모든 행에 발췌 ID가 있는가. 발췌 ID가 실제 sources.md에 존재하는가.
 - 구성안의 재료 ID가 전부 claims에 있는가.
-- 소스마다 배정 구간이 하나인가(축 소스만 둘). 소스의 서술 순서가 그대로 구간 순서가 되지 않았는가 (판정: "음료 얘기가 불필요하게 길었음" — 기사 순서가 구조가 되면 나열이 이해를 앞선다). 구간마다 \`질문:\` 이 축의 하위 질문인가, 하위 질문에 답하지 않는 소스를 제외했는가. 착지 구간이 지정됐는가. 예상 분량이 13분 이상인가.
+- 소스마다 배정 구간이 하나인가(축 소스만 둘). 소스의 서술 순서가 그대로 구간 순서가 되지 않았는가 (판정: "음료 얘기가 불필요하게 길었음" — 기사 순서가 구조가 되면 나열이 이해를 앞선다). 구간마다 \`질문:\` 이 축의 하위 질문인가, 하위 질문에 답하지 않는 소스를 제외했는가. **구간의 질문 문장에 축의 대상(축 문장의 주어)이 들어 있는가 — 반론·한계 구간이 인접 주제(같은 상위 개념의 다른 사례)로 빠지지 않았는가** (v8.4: 3편 모두 #4 가 축 이탈 C6). 착지 구간이 지정됐는가. 예상 분량이 13분 이상인가.
 
 ## 5. 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다.`;
 }
@@ -735,7 +736,7 @@ export const WRITE_FACT_RULES = `- **사실 주장**(수치·인용·고유명�
   2. 귀속 주체를 그대로 — claims의 주체가 "이 글은/기사는"이면 원저자 발언("○○가 그 예를 든다", "~가 말한다")으로 바꾸지 않는다. 서평·소개 기사 본문의 서술과 그 안의 인용은 다르다. 확실치 않으면 매체 귀속("이 글은 ~라고 해요")으로 낮춘다.
   3. 소스의 예시에 우리가 덧붙인 장면을 소스 귀속 문장 안에 넣지 않는다 — 발췌에 "회의실"이 없으면 "이 글은 회의실 예를 들어요"라고 쓸 수 없다. 장면을 옮기고 싶으면 화자의 번역으로 분리한다("이걸 회의실로 옮기면…", 또는 진행자의 일상 장면).
   4. **발췌보다 구체적으로 쓰지 않는다** — 성별·연령·관계(sister→"여동생" 금지, "자매"까지), 순서·위치("그 글의 마지막 문장" — 발췌가 말하지 않으면 위치 없이 화자 귀속으로 "저자는 이렇게 말해요"; 화자 없는 인용 예고 "이런 문장이 있어요"는 금지), 수량·빈도는 원문이 밝힌 정도까지만.
-- **구성안은 구조의 계약이지 문구의 계약이 아니다** — 구성안의 소제목·진행자 질문·설계 메모에 claims 범위를 넘는 표현(환산 수치·발췌에 없는 비교)이 있으면 대본에서 고쳐 쓴다. 소제목(\`### #n\`)도 QA 대상이다.
+- **구성안은 구조의 계약이지 문구의 계약이 아니다** — 구성안의 진행자 질문·설계 메모에 claims 범위를 넘는 표현(환산 수치·발췌에 없는 비교)이 있으면 대본에서 고쳐 쓴다. 소제목(\`### #n\`)은 TTS 가 읽지 않는 구조 표시라 QA 대상이 아니다 — 대사만 판정된다.
 - **귀속은 축 소스의 소개 한 번뿐이다** (guidelines 규칙 20~22, full-v8 2026-09-18 — 출처 고지는 대본 밖이 담당한다):
   · **소스는 claims 의 \`구간\` 열에 적힌 구간(블록)에서만 쓴다** — 다른 구간에서 되부르지 않는다(축 소스만 도입·착지, 그것도 내용으로만 — "그 조사로 돌아가면"은 되돌림이다).
   · **한 소스를 앞세워 세 턴 이상 설명하는 블록은 첫 해설 턴에서 소개 한 문장으로 연다** — "~에서 진행한 연구예요", "~라는 곳에서 낸 보고서인데요". 익명이어도 된다("미국의 한 대학에서 진행한 연구"). 앞 블록의 지시어("그 교수는")로 새 블록을 시작하지 않는다.
@@ -843,7 +844,7 @@ export const WRITE_SCHEMA = {
     one_liner: { type: "string", description: "40자 이내 한 줄 요약. 사실 주장이 아니라 이 편의 축을 청취자 언어로 (예: \"소득이 끊겨도 버티는 현금흐름 구조\"). 제목을 그대로 복창하지 않는다" },
     script: { type: "string", description: "script.md 전문 (마크다운)" },
     sections_followed: { type: "boolean", description: "구성안 구간 순서·개수 준수" },
-    turn_claims: { type: "array", items: { type: "object", additionalProperties: false, required: ["turn", "claims"], properties: { turn: { type: "string" }, claims: { type: "array", items: { type: "string" } } } }, description: "해설 턴별 사용 claims ID" },
+    turn_claims: { type: "array", items: { type: "object", additionalProperties: false, required: ["turn", "claims"], properties: { turn: { type: "string" }, claims: { type: "array", items: { type: "string" } } } }, description: "해설 턴별 사용 claims ID — 여기에만 적는다. 대사 본문(script)에는 ID 를 쓰지 않는다" },
     bridges: { type: "array", items: { type: "object", additionalProperties: false, required: ["turn", "note"], properties: { turn: { type: "string" }, note: { type: "string", description: "무엇을 무엇으로 옮김 · 근거 C##" } } }, description: "구성안에 없던 새 연결·비유 전부" },
     pronunciations_added: { type: "array", items: { type: "object", additionalProperties: false, required: ["term", "reading"], properties: { term: { type: "string" }, reading: { type: "string" } } } },
     self_check_fixes: { type: "array", items: { type: "string" } },
@@ -903,7 +904,7 @@ ${fence(i.specQaMd)}
 
 ${QA_ITEM6_NOTE}
 
-특히 주의 깊게 볼 유형: ① 발췌에 없는 주장 (비교 축 추가, 연관의 방향 확정, 귀속 범위 확장, 연대·수치의 무근거 환산, 문장 위치 주장) — **본문 소제목(\`### #n\`)도 검사 대상**, ② 귀속 정확성 — 게재 매체 지시("~라는 매체", "같은 매체", "아까 그 ~")가 발췌의 실제 게재처와 일치하는지 지시 사슬 전수 추적, ③ 수치·시점의 상향 왜곡 (하향 범위 표현은 의도된 규격), ④ 구역이 [인트로]·[도입]·[본문]·[마무리] 4개인가 ([콜드오픈] 구역이 있으면 위반 — 2026-09-07 폐지), ⑤ 화자 규칙 (진행 담당의 사실 주장 금지 — 감상·추측 허용), ⑥ 수정 잔존 참조 (지시어·콜백이 가리키는 대상이 현재 대본 안에 실재하는지), ⑦ claims가 스스로 "발췌 밖" 등으로 표시한 항목은 그 판단을 믿지 말고 발췌 기준으로 독립 재판정. 소스 사이를 잇는 해석·비유·청취자 일상 번역은 해석임이 표시돼 있으면(“제 연결인데”, “~로 옮기면”, “서로를 인용한 건 아니지만”) 사실 주장이 아니다. **귀속 표현이 없는 사실 문장은 귀속 부재 자체를 실패로 잡지 않는다** — claims·발췌 대조로만 판정한다 (2026-09-09 귀속 등급 규칙: 개념·원리·정의는 해설자의 말로 하는 것이 규격이다). 익명 귀속("한 연구에서는")은 그 주장이 어느 발췌에든 있으면 통과다.
+특히 주의 깊게 볼 유형: ① 발췌에 없는 주장 (비교 축 추가, 연관의 방향 확정, 귀속 범위 확장, 연대·수치의 무근거 환산, 문장 위치 주장) — 본문 소제목(\`### #n\`) 줄은 TTS 가 읽지 않는 구조 표시라 **판정하지 않는다**(대사만 본다), ② 귀속 정확성 — 게재 매체 지시("~라는 매체", "같은 매체", "아까 그 ~")가 발췌의 실제 게재처와 일치하는지 지시 사슬 전수 추적, ③ 수치·시점의 상향 왜곡 (하향 범위 표현은 의도된 규격), ④ 구역이 [인트로]·[도입]·[본문]·[마무리] 4개인가 ([콜드오픈] 구역이 있으면 위반 — 2026-09-07 폐지), ⑤ 화자 규칙 (진행 담당의 사실 주장 금지 — 감상·추측 허용), ⑥ 수정 잔존 참조 (지시어·콜백이 가리키는 대상이 현재 대본 안에 실재하는지), ⑦ claims가 스스로 "발췌 밖" 등으로 표시한 항목은 그 판단을 믿지 말고 발췌 기준으로 독립 재판정. 소스 사이를 잇는 해석·비유·청취자 일상 번역은 해석임이 표시돼 있으면(“제 연결인데”, “~로 옮기면”, “서로를 인용한 건 아니지만”) 사실 주장이 아니다. **귀속 표현이 없는 사실 문장은 귀속 부재 자체를 실패로 잡지 않는다** — claims·발췌 대조로만 판정한다 (2026-09-09 귀속 등급 규칙: 개념·원리·정의는 해설자의 말로 하는 것이 규격이다). 익명 귀속("한 연구에서는")은 그 주장이 어느 발췌에든 있으면 통과다.
 
 
 ## 3. 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. report_md 에는 QA 프롬프트 자산의 출력 규격대로 "### 항목별 판정" 표(10행) · "### 실패 상세" 표 · "### 비고 — 실패로 잡지 않은 경계 사례" · "### 종합 판정"을 마크다운으로 넣는다 (파일 헤더·attempt 헤더는 워커가 붙인다). failures 배열과 실패 상세 표는 같은 내용이어야 한다. 완료 보고 전에 다른 텍스트를 출력하지 않는다.`;
@@ -1069,7 +1070,7 @@ ${fence(explainer === "이음" ? i.goldFullEum : i.goldFullYuna)}` : `### 1.3 �
 - **구간은 축의 하위 질문이다** (full-v8.1, 2026-09-19): 축 한 문장을 청취자가 순서대로 묻게 될 질문 3~5개로 펴고, 구간마다 그 질문 하나를 \`질문:\` 줄에 적는다. 하위 질문에 붙지 않는 소스는 **제외한다**(역할표 "역할 없는 소스"에 사유). 인접 주제로 번지는 구간("리뷰는 출처로 읽는다"에서 "설문 가짜 응답자"·"AI 사진 판별"로)은 축 이탈이다 — 사람 판정 3.6 저점 사유 "#3부터 축에서 벗어나 통계의 함정 주제처럼 보임"(T260918-003). 착지 구간의 질문은 축 질문 그 자체다. 설계 직후 워커가 축 심사(별도 호출)로 구간마다 이 질문이 축에 답하는지 확인하고, 아니면 그 구간을 뺀 재설계를 요구한다.
 - 착지 구간을 반드시 지정하고, 그 구간의 재료가 실제로 축을 증명하는지 스스로 확인한다.
 - 전환 장치는 구간마다 다르게 — 같은 장치 연속 금지. 청취자 일상 사례 왕복은 에피소드 전체에 최소 2회.
-- **구간 소제목·진행자 질문·설계 메모에도 발췌 밖 수치·환산을 쓰지 않는다** — "1960년대"를 "60년 된"으로 바꾸는 식의 환산, 발췌에 없는 비교 축은 소제목에서도 QA 실패다.
+- **진행자 질문·설계 메모에 발췌 밖 수치·환산을 쓰지 않는다** — "1960년대"를 "60년 된"으로 바꾸는 식의 환산, 발췌에 없는 비교 축은 대사로 옮겨지면 QA 실패다. 구간 소제목은 읽히지 않는 구조 표시라 QA 대상이 아니다.
 - **분량 규칙** (2026-09-08 확정): 한 편은 **13분(공백·기호 제외 약 4,000자) 이상이 필수**, 15분이 평균 목표, 상한은 없다. 재료 총량으로 예상 분량을 적는다 — 이 숫자가 대본 단계의 목표가 되므로 실제 재료량대로 적는다(부풀리지 않는다). 재료가 13분에 못 미치면 구성안을 만들지 말고 notes 에 사유를 적는다(반려 대상). 26분 이상이면 각 편이 13분 이상이 되는 분할안을 split_proposal 에 적되, 구성안은 한 편 기준으로 그대로 만든다 (분할은 사람이 결정).
 - 구성안의 재료(C##)는 전부 claims 에 있어야 한다.
 
@@ -1146,6 +1147,7 @@ export function buildRevisionPromptInlineParts(i: RevisionInlineInput): PromptPa
 
 ## 수정 원칙
 - 지적된 턴만 고친다. 전면 재작성 금지 — 나머지 턴은 건드리지 않는다.
+- 마무리 정리 턴을 고칠 때는 사실 주장(수치·인용·이름)만 무귀속 요약으로 바꾸고 문장 수(3~5)는 유지한다 — 문장을 지워 한 줄로 줄이지 않는다 (v9.3: T260922-007 E28).
 - **통계 용어를 대본에 쓰지 않는다** (guidelines 규칙 24, L0 가 잡는다): QA 지적문에 "통계적으로 유의하지 않다"·"매개"·"정적 관계" 같은 말이 있어도 대본에는 말로 옮긴다 — "차이가 뚜렷하지 않았다", "A 가 B 를 거쳐 C 로 이어졌다", "같이 움직였다". (T260909-009: QA 가 요구한 단서를 "통계적으로 유의하지 않았다"로 넣어 L0 에 다시 걸렸다)
 - 수정은 발췌 안으로 들어오는 방향으로만: 발췌에 없는 수식·비교·방향·연대·위치 주장은 삭제하거나 발췌 문장 범위로 축소한다. 발췌를 새로 추가하지 않는다.
 - 헤지·귀속 주체·세부(성별·관계·순서·위치·수량)는 발췌 수준으로 낮춘다 — 단정으로 올리거나 원저자 발언으로 바꾸거나 더 구체적으로 쓰지 않는다.
@@ -1382,7 +1384,42 @@ export const ENRICH_SCHEMA = {
     evidence: { type: "object", additionalProperties: false, properties: { difficulty: { type: "string" }, format: { type: "string" }, is_evergreen: { type: "string" }, keywords: { type: "string" }, target_audiences: { type: "string" } } },
   },
 } as const;
-export interface EnrichmentFile { schema_version: number; difficulty?: string; format?: string; is_evergreen?: boolean; keywords?: string[]; target_audiences?: { job_category: string; years_of_experience: string }[]; source?: "title_description" }
+/** 대본 임베딩 (metadata-pipeline 4.3 Phase B) — AI 서버 `POST /embeddings` 응답. BE 가 `content_embeddings` 에 upsert (admin-api 4.6). 벡터는 1536차원·model 은 현재 모델과 일치해야 한다 */
+export interface EnrichmentEmbedding { model: string; dim?: number; vector: number[] }
+export const EMBEDDING_MODEL_EXPECTED = "text-embedding-3-small"; // domain.md 5.6 확정 — BE parseEmbedding 이 글자 단위로 대조, 다르면 enrichment 파일 전체 거부
+export const EMBEDDING_DIM_EXPECTED = 1536;
+/** BE 검증(enrichment-file.ts parseEmbedding)과 같은 조건 — 어긋나면 키를 빼고 내보내야 메타 5종까지 버려지지 않는다 (KAN-89 3항). 통과면 null, 아니면 사유 */
+export function embeddingRejectReason(e: { model: string; dim?: number; vector: number[] }): string | null {
+  if (e.model === EMBEDDING_STUB_MODEL) return "AI 서버가 stub 제공자(dev-stub) — 운영 저장 금지";
+  if (e.model !== EMBEDDING_MODEL_EXPECTED) return `모델 불일치 ${e.model} ≠ ${EMBEDDING_MODEL_EXPECTED}`;
+  if (e.vector.length !== EMBEDDING_DIM_EXPECTED) return `차원 ${e.vector.length} ≠ ${EMBEDDING_DIM_EXPECTED}`;
+  if (e.dim != null && e.dim !== EMBEDDING_DIM_EXPECTED) return `dim ${e.dim} ≠ ${EMBEDDING_DIM_EXPECTED}`;
+  if (!e.vector.every((x) => typeof x === "number" && Number.isFinite(x))) return "벡터에 유한하지 않은 값";
+  return null;
+}
+export const EMBEDDING_STUB_MODEL = "dev-stub"; // AI 서버 stub 제공자의 고정 식별자 — 이 벡터는 저장하지 않는다 (metadata-pipeline 4.3)
+export const EMBEDDING_MAX_CHARS = 200_000; // AI 서버 EmbeddingRequest.text 상한
+
+/**
+ * AI 서버에서 대본 임베딩을 받는다 (2026-09-22 구현 — 명세는 09-01 확정, 코드가 없어 발행 콘텐츠 전부 has_embedding=false 였다).
+ * 청킹·평균·L2 정규화는 서버 안. 인증은 `X-Internal-Token`(= AI 서버 INTERNAL_AUTH_TOKEN). 실패는 예외 — 호출부가 임베딩 없이 진행할지 정한다.
+ */
+export async function fetchEmbedding(text: string, opts: { url: string; token: string; timeoutMs?: number }): Promise<{ model: string; dim: number; vector: number[] }> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), opts.timeoutMs ?? 60_000);
+  try {
+    const res = await fetch(`${opts.url.replace(/\/$/, "")}/embeddings`, {
+      method: "POST", headers: { "content-type": "application/json", "X-Internal-Token": opts.token },
+      body: JSON.stringify({ text: text.length > EMBEDDING_MAX_CHARS ? text.slice(0, EMBEDDING_MAX_CHARS) : text }), signal: ctrl.signal,
+    });
+    if (!res.ok) throw new Error(`AI 서버 /embeddings HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
+    const d = (await res.json()) as { model?: string; dim?: number; vector?: number[] };
+    if (!d.model || !Array.isArray(d.vector) || !d.vector.length) throw new Error("AI 서버 /embeddings 응답 형식 오류");
+    return { model: d.model, dim: d.dim ?? d.vector.length, vector: d.vector };
+  } finally { clearTimeout(t); }
+}
+
+export interface EnrichmentFile { schema_version: number; difficulty?: string; format?: string; is_evergreen?: boolean; keywords?: string[]; embedding?: EnrichmentEmbedding; target_audiences?: { job_category: string; years_of_experience: string }[]; source?: "title_description" }
 /** finalize.py 와 같은 규칙: 키워드 NFC 정규화·공백 정리·중복 제거·주제명 반복 제거·상한 8, enum 글자 일치 검증. 실패면 errors 를 돌려주고 파일을 만들지 않는다 */
 export function normalizeEnrichment(raw: Record<string, unknown>, topicNames: string[], jobCategories: string[]): { file: EnrichmentFile | null; errors: string[]; warnings: string[] } {
   const errors: string[] = [], warnings: string[] = [];

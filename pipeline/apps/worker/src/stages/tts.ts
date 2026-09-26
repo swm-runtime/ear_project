@@ -7,11 +7,11 @@ import { loadTtsDict, workerRev } from "../assets.js";
 import { listPrefix, localPathOf, pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { advanceChain } from "../chain.js";
 import { log } from "../util.js";
-import { parseScriptForTts, chunkTurns, voiceOf, type ScriptTurn } from "../tts/script.js";
+import { parseScriptForTts, chunkTurns, describeCuts, type ScriptTurn, type Speaker } from "../tts/script.js";
 import { normalizeForTts, residualIssues } from "../tts/normalize.js";
-import { synthDialogue, synthDialogueWithTimestamps, locateTurnStarts } from "../tts/elevenlabs.js";
-import { assemble, retimePieces, writeBuf, type Segment } from "../tts/audio.js";
-import { chunkSegments, joinChunkSegments, validateSegments, type ScriptSegment } from "../tts/segments.js";
+import { synthDialogue, synthDialogueWithTimestamps, locateTurnSpans } from "../tts/elevenlabs.js";
+import { assemble, findPauseCut, retimePieces, writeBuf, type Segment } from "../tts/audio.js";
+import { chunkSegments, contextExcerpt, DEFAULT_GAP_SEC, joinChunkSegments, validateSegments, type ScriptSegment } from "../tts/segments.js";
 
 /**
  * TTS 단계 (spec/06) — 다중화자 1콜(Text to Dialogue, eleven_v3) 확정 (2026-09-02).
@@ -23,6 +23,9 @@ import { chunkSegments, joinChunkSegments, validateSegments, type ScriptSegment 
  * 콜드오픈은 2026-09-07 폐지 — 구 대본에 [콜드오픈] 구역이 남아 있어도 합성하지 않는다(파서가 분리해 둔 것을 버린다).
  * payload.sample_turns = N: 도입부 N턴만 audio/sample.mp3 로 (보이스·태그 청취 확인용 — 발행 경로 아님, 키 미기록)
  */
+/** 화자 → ElevenLabs 보이스 ID (config). script.ts 에 두지 않는 이유: 파서·분할은 설정(env) 없이 테스트한다 */
+const voiceOf = (speaker: Speaker): string => (speaker === "윤아" ? cfg.ttsVoiceYuna : cfg.ttsVoiceEum);
+
 export async function runTts(job: Job) {
   const episodeId = String(job.payload.episode_id ?? "");
   const backlogId = String(job.payload.backlog_id ?? "");
@@ -77,8 +80,13 @@ export async function runTts(job: Job) {
   // seed: 에피소드 고정 — 부분 재합성 시 같은 결과를 시도 (보장은 없음, spec/06)
   const seed = crypto.createHash("sha256").update(episodeId).digest().readUInt32BE(0) % 4294967295;
   if (parsed.coldOpen) log(`  tts ${episodeId}: [콜드오픈] 구역 무시 (2026-09-07 폐지 — 인트로부터 합성)`);
-  const chunks = chunkTurns(turns, 1800) as TtsTurn[][];
-  log(`  tts ${episodeId}: ${sampleTurns ? `샘플 ${turns.length}턴` : `${turns.length}턴`} · 분할 ${chunks.length}요청 · seed ${seed}`);
+  const chunkChars = Number(job.payload.chunk_chars ?? 0) || 1700; // 디버그: 샘플을 여러 요청으로 쪼개 문맥 겹침 경계를 관찰할 때 작게 준다
+  const debugAlign = !!job.payload.debug_alignment; // 디버그: 요청별 정렬 원본(글자·시각)을 audio/debug-align/ 에 남긴다 (점으로 시작하는 이름은 S3 동기화에서 빠진다)
+  const chunks = chunkTurns(turns, chunkChars) as TtsTurn[][]; // 1,700 + 문맥 겹침 앞뒤 ≤140자 = ElevenLabs 권장 2,000자 안 (KAN-87)
+  // 경계 종류 요약 (spec/06 3장): 단락 헤더 다음 > 서술 뒤 > 질문 뒤. "질문 뒤"가 있으면 청취 확인 때 그 지점을 듣는다
+  const cuts = describeCuts(chunks);
+  const cutSummary = (["단락", "문장", "질문 뒤"] as const).map((k) => [k, cuts.filter((c) => c === k).length] as const).filter(([, n]) => n).map(([k, n]) => `${k} ${n}`).join("·") || "없음";
+  log(`  tts ${episodeId}: ${sampleTurns ? `샘플 ${turns.length}턴` : `${turns.length}턴`} · 분할 ${chunks.length}요청(경계 ${cutSummary}) · seed ${seed}`);
 
   // 화자별 배속 (spec/06 6장): 다중화자 API 에 속도 설정이 없어, 타임스탬프 정렬로 턴 경계를 잡고 화자 구간만 atempo 한다
   const speedOf = (sp: ScriptTurn["speaker"]) => (sp === "윤아" ? cfg.ttsSpeedYuna : cfg.ttsSpeedEum);
@@ -88,44 +96,111 @@ export async function runTts(job: Job) {
   // 자막 세그먼트 재료 (KAN-72): 요청마다 배속 후 로컬 시각 + 실측 길이. 한 요청이라도 정렬이 없으면 편 전체를 싣지 않는다 (틀린 자막보다 없는 편)
   const chunkSegs: { segments: ScriptSegment[]; durSec: number }[] = [];
   let segFail: string | null = wantSpeed ? null : "배속 없음 — 타임스탬프 정렬을 요청하지 않음";
+  /**
+   * 문맥 겹침 (2026-09-22 박수현 제안, KAN-87): 요청마다 앞 요청 마지막 턴의 끝 문장과 뒤 요청 첫 턴의 첫 문장을 함께 생성하고,
+   * 양쪽 다 문맥 턴과의 **쉼 한가운데**에서 잘라 버린다. 요청 끝은 뒤에 말이 있는 상태로 자연히 감쇠하고, 요청 시작은 앞말에 이어지는
+   * 억양으로 나온다. 이음새 무음은 넣지 않는다(앞 반쪽 쉼 + 뒤 반쪽 쉼이 오디오에 있다). 검증(X260919-001): 절단 제거·쉼 삽입만으로는
+   * 경계가 여전히 구분됐고, 요청 안 화자 교대에 같은 처리를 넣은 가짜 경계와 종류가 달랐다 — 남은 단서는 생성 불연속.
+   * 절단점은 오디오에서 찾는다(findPauseCut) — 정렬 타임스탬프는 쉼을 글자 길이에 흡수해 위치를 주지 않는다(2026-09-22 실측).
+   * 안전장치: 창 안에 무음(≥0.15초)이 없거나 경계를 못 찾거나 문맥 턴의 말 속도가 본 요청과 40% 넘게 다르면 그 요청만 문맥 없이 다시 합성한다.
+   */
+  const CTX_MAX = 140;
+  const useCtx = wantSpeed && (!sampleTurns || debugAlign) && chunks.length > 1;
+  const ctxHead = new Array<boolean>(chunks.length).fill(false), ctxTail = new Array<boolean>(chunks.length).fill(false);
+  const mainRate: number[][] = []; // [요청][턴] 글자/초 — 문맥 턴 검산용
+  let ctxChars = 0;
+  const ctxFails: string[] = []; // 폴백 사유 — 실행 기록에 남긴다 (서버 로그 없이 보이게)
+  type Synth = { data: Buffer; durSec: number; segs: ScriptSegment[]; rates: number[] };
+  const synthChunk = async (n: number, withCtx: boolean): Promise<Synth> => {
+    const chunk = chunks[n];
+    const before = withCtx && n > 0 ? [{ ...chunks[n - 1][chunks[n - 1].length - 1], text: contextExcerpt(chunks[n - 1][chunks[n - 1].length - 1].text, "tail", CTX_MAX) }] : [];
+    const after = withCtx && n + 1 < chunks.length ? [{ ...chunks[n + 1][0], text: contextExcerpt(chunks[n + 1][0].text, "head", CTX_MAX) }] : [];
+    const all = [...before, ...chunk, ...after];
+    const ts = await synthDialogueWithTimestamps(all.map((t) => ({ text: t.text, voice_id: voiceOf(t.speaker) })), seed, { onRetry: progress });
+    const spansAll = locateTurnSpans(ts, all.map((t) => t.text));
+    if (debugAlign) {
+      const f = path.join(audioDir, "debug-align", `align-${n}${withCtx ? "-ctx" : ""}.json`);
+      await fs.mkdir(path.dirname(f), { recursive: true });
+      await fs.writeFile(f, JSON.stringify({ inputs: all.map((t) => ({ speaker: t.speaker, text: t.text })), spans: spansAll, chars: ts.chars, start: ts.startSec, end: ts.endSec }), "utf8");
+      await fs.writeFile(f.replace(/\.json$/, ".mp3"), ts.audio); // 요청 원본 — 절단점 탐색을 로컬에서 재현하기 위해
+    }
+    if (!spansAll) throw new Error("턴 경계를 정렬에서 찾지 못함");
+    const b = before.length, m = chunk.length;
+    const spans = spansAll.slice(b, b + m);
+    const rates = spans.map((sp, i) => chunk[i].text.replace(/\s/g, "").length / Math.max(0.2, sp.end - sp.start));
+    const src = path.join(audioDir, ".tmp", `chunk-${n}.mp3`);
+    await writeBuf(src, ts.audio);
+    let cutStart = 0, cutEnd: number | undefined;
+    if (b) {
+      // 쉼은 문맥 턴 마지막 글자 시작 조금 앞부터 본문 첫 글자 시작 뒤 1.5초 사이 어딘가 — 오디오에서 찾는다 (findPauseCut 주석)
+      const cut = await findPauseCut(src, spansAll[0].lastStart - 0.2, spans[0].start + 1.5);
+      if (cut == null) throw new Error(`앞 문맥과의 쉼을 못 찾음 (창 ${(spansAll[0].lastStart - 0.2).toFixed(2)}~${(spans[0].start + 1.5).toFixed(2)})`);
+      const ctxRate = before[0].text.replace(/\s/g, "").length / Math.max(0.2, spansAll[0].end - spansAll[0].start);
+      const prevRate = mainRate[n - 1]?.[mainRate[n - 1].length - 1];
+      if (prevRate && (ctxRate / prevRate < 0.6 || ctxRate / prevRate > 1.6)) throw new Error(`앞 문맥 턴 말 속도 ${ctxRate.toFixed(1)}자/초 vs 원 요청 ${prevRate.toFixed(1)} — 정렬 의심`);
+      cutStart = cut;
+    }
+    if (after.length) {
+      const cut = await findPauseCut(src, spans[m - 1].lastStart - 0.2, spansAll[b + m].start + 1.5);
+      if (cut == null) throw new Error(`뒤 문맥과의 쉼을 못 찾음 (창 ${(spans[m - 1].lastStart - 0.2).toFixed(2)}~${(spansAll[b + m].start + 1.5).toFixed(2)})`);
+      cutEnd = cut;
+    }
+    const starts = spans.map((sp) => sp.start);
+    // 조각 = [이 턴 시작, 다음 턴 시작). 첫 조각은 앞 절단점(문맥 없으면 0)부터, 마지막은 뒤 절단점(문맥 없으면 끝)까지 — 턴 사이 쉼은 뒤 턴의 화자 배속을 따른다
+    const pieces = chunk.map((t, i) => ({ start: i === 0 ? cutStart : starts[i], end: i < m - 1 ? starts[i + 1] : cutEnd, tempo: speedOf(t.speaker) }));
+    const data = await retimePieces(src, pieces, path.join(audioDir, ".tmp"));
+    await fs.rm(src, { force: true });
+    const durSec = data.length / (44100 * 2); // s16le mono 44.1kHz — 배속 후 실측 길이
+    // 자막 시각은 잘라낸 오디오의 0 기준 — 정렬 시각을 앞 절단점만큼 당긴다
+    const tsRel = { ...ts, startSec: ts.startSec.map((x) => x - cutStart), endSec: ts.endSec.map((x) => x - cutStart) };
+    const segs = chunkSegments(chunk.map((t) => ({ speaker: t.speaker, text: t.orig, ttsText: t.text, tempo: speedOf(t.speaker) })), tsRel, starts.map((x) => x - cutStart), durSec);
+    if (withCtx) { ctxHead[n] = b > 0; ctxTail[n] = after.length > 0; ctxChars += before.reduce((a, t) => a + t.text.length, 0) + after.reduce((a, t) => a + t.text.length, 0); }
+    return { data, durSec, segs, rates };
+  };
   for (let n = 0; n < chunks.length; n++) {
     const chunk = chunks[n];
     const inputs = chunk.map((t) => ({ text: t.text, voice_id: voiceOf(t.speaker) }));
-    await progress(`합성 ${n + 1}/${chunks.length} (${chunk.reduce((s, t) => s + t.text.length, 0)}자)`);
+    await progress(`합성 ${n + 1}/${chunks.length} (${chunk.reduce((s, t) => s + t.text.length, 0)}자${useCtx ? "+문맥" : ""})`);
     if (!wantSpeed) { segments.push(await synthDialogue(inputs, seed, { onRetry: progress })); continue; }
-    try {
-      const ts = await synthDialogueWithTimestamps(inputs, seed, { onRetry: progress });
-      const starts = locateTurnStarts(ts, chunk.map((t) => t.text));
-      if (!starts) throw new Error("턴 경계를 정렬에서 찾지 못함");
-      const src = path.join(audioDir, ".tmp", `chunk-${n}.mp3`);
-      await writeBuf(src, ts.audio);
-      // 조각 = [이 턴 시작, 다음 턴 시작). 첫 조각은 0 부터, 마지막은 끝까지 — 턴 사이 쉼은 뒤 턴의 화자 배속을 따른다
-      const pieces = chunk.map((t, i) => ({ start: i === 0 ? 0 : starts[i], end: i < chunk.length - 1 ? starts[i + 1] : undefined, tempo: speedOf(t.speaker) }));
-      const data = await retimePieces(src, pieces, path.join(audioDir, ".tmp"));
-      segments.push({ data, format: "pcm_44100" });
-      const durSec = data.length / (44100 * 2); // s16le mono 44.1kHz — 배속 후 실측 길이
-      chunkSegs.push({ durSec, segments: chunkSegments(chunk.map((t) => ({ speaker: t.speaker, text: t.orig, ttsText: t.text, tempo: speedOf(t.speaker) })), ts, starts, durSec) });
-      await fs.rm(src, { force: true });
-    } catch (e: any) {
-      // 배속 실패는 합성 실패가 아니다 — 이 요청만 원속으로 폴백하고 기록에 남긴다 (청취 확인에서 판단)
-      speedFallbacks++;
-      segFail ??= `요청 ${n + 1} 원속 폴백 — 턴 경계 없음`;
-      log(`  tts ${episodeId}: 요청 ${n + 1} 화자별 배속 실패(${String(e.message).slice(0, 120)}) — 원속 폴백`);
-      segments.push(await synthDialogue(inputs, seed, { onRetry: progress }));
+    let out: Synth | null = null;
+    if (useCtx) {
+      try { out = await synthChunk(n, true); }
+      catch (e: any) { ctxFails.push(`요청 ${n + 1}: ${String(e.message).slice(0, 100)}`); log(`  tts ${episodeId}: 요청 ${n + 1} 문맥 겹침 실패(${String(e.message).slice(0, 120)}) — 문맥 없이 재합성`); await progress(`합성 ${n + 1}/${chunks.length} 문맥 없이 재시도`); }
     }
+    if (!out) {
+      try { out = await synthChunk(n, false); }
+      catch (e: any) {
+        // 배속 실패는 합성 실패가 아니다 — 이 요청만 원속으로 폴백하고 기록에 남긴다 (청취 확인에서 판단)
+        speedFallbacks++;
+        segFail ??= `요청 ${n + 1} 원속 폴백 — 턴 경계 없음`;
+        log(`  tts ${episodeId}: 요청 ${n + 1} 화자별 배속 실패(${String(e.message).slice(0, 120)}) — 원속 폴백`);
+        segments.push(await synthDialogue(inputs, seed, { onRetry: progress }));
+        mainRate[n] = [];
+        continue;
+      }
+    }
+    segments.push({ data: out.data, format: "pcm_44100" });
+    chunkSegs.push({ durSec: out.durSec, segments: out.segs });
+    mainRate[n] = out.rates;
   }
+  const ctxBoundaries = chunks.slice(1).map((_, k) => ctxTail[k] && ctxHead[k + 1]);
+  const ctxOk = ctxBoundaries.filter(Boolean).length;
 
   await progress("조립·정규화 (ffmpeg)");
   const masterOut = path.join(audioDir, sampleTurns ? "sample-master.wav" : "master.wav");
   const distOut = path.join(audioDir, sampleTurns ? "sample.mp3" : "dist.mp3");
-  const durationSec = await assemble({ segments, workDir: audioDir, masterOut, distOut }); // 앞뒤 무음 2초는 assemble 기본값
+  const gaps = ctxBoundaries.map((ok) => (ok ? 0 : DEFAULT_GAP_SEC)); // 문맥 겹침 경계는 무음 없음, 폴백 경계는 기본 쉼 — 자막 오프셋과 같은 값을 쓴다
+  // 폴백 경계의 배포본 시각 (KAN-87 완료 조건 3 — 끊김 의심 지점을 실행 기록에 표시). 요청마다 실측 길이가 있을 때만(원속 폴백 없음)
+  const mmss = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+  const fallbackAt = chunkSegs.length === chunks.length ? ctxBoundaries.map((ok, k) => (ok ? null : mmss(2 + chunkSegs.slice(0, k + 1).reduce((a, c) => a + c.durSec, 0) + gaps.slice(0, k).reduce((a: number, g) => a + g, 0)))).filter((x): x is string => !!x) : [];
+  const durationSec = await assemble({ segments, gapSec: gaps, workDir: audioDir, masterOut, distOut }); // 앞뒤 무음 2초는 assemble 기본값
   if (sampleTurns) await fs.rm(masterOut, { force: true }); // 샘플은 mp3 만 남긴다
 
   // 대본 세그먼트 → episodes/<id>/script-segments.json (spec/06 7장, admin-api 4.6 script_file). 샘플은 만들지 않는다
   const segFile = path.join(cfg.workRoot, rel, "script-segments.json");
   let segCount = 0;
   if (!sampleTurns) {
-    const joined = segFail ? [] : joinChunkSegments(chunkSegs); // assemble 기본값과 같은 앞 무음 2초·요청 사이 0.35초
+    const joined = segFail ? [] : joinChunkSegments(chunkSegs, 2, gaps); // assemble 과 같은 앞 무음 2초·경계별 이음새 쉼
     segFail ??= validateSegments(joined);
     if (segFail) { await fs.rm(segFile, { force: true }); log(`  tts ${episodeId}: 자막 세그먼트 없음 — ${segFail}`); }
     else { await fs.writeFile(segFile, JSON.stringify(joined, null, 1), "utf-8"); segCount = joined.length; }
@@ -141,10 +216,10 @@ export async function runTts(job: Job) {
     await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: ep.prompt_version, audio_master_key: s3Key(`${rel}/audio/master.wav`), audio_dist_key: s3Key(`${rel}/audio/dist.mp3`) });
   }
   const artifacts = sampleTurns ? [s3Key(`${rel}/audio/sample.mp3`)] : [s3Key(`${rel}/audio/master.wav`), s3Key(`${rel}/audio/dist.mp3`), ...(segCount ? [s3Key(`${rel}/script-segments.json`)] : [])];
-  const result = `${sampleTurns ? `TTS 샘플 ${turns.length}턴` : "TTS 완료"} — eleven_v3 다중화자 1콜 · 분할 ${chunks.length}요청(세그먼트 포맷 ${fmt}) · ${totalChars}자 → ${min}분 ${sec}초 (앞뒤 무음 2초 포함)${wantSpeed ? ` · 배속 윤아 ${cfg.ttsSpeedYuna}× 이음 ${cfg.ttsSpeedEum}×${speedFallbacks ? ` (원속 폴백 ${speedFallbacks}요청 — 청취 확인)` : ""}` : ""}${parsed.coldOpen ? " · 구 [콜드오픈] 구역 무시(폐지)" : ""}${sampleTurns ? "" : segCount ? ` · 자막 세그먼트 ${segCount}건(배포본 시각)` : ` · 자막 세그먼트 없음(${segFail})`} · 사전 ${dictVersion}${Object.keys(epMap).length ? `+발음 맵 ${Object.keys(epMap).length}건` : ""} · 보이스 윤아=${cfg.ttsVoiceYuna.slice(0, 6)}… 이음=${cfg.ttsVoiceEum.slice(0, 6)}… · 사람 청취 확인 대기 (spec/06 8장)`;
+  const result = `${sampleTurns ? `TTS 샘플 ${turns.length}턴` : "TTS 완료"} — eleven_v3 다중화자 1콜 · 분할 ${chunks.length}요청(경계 ${cutSummary} · 세그먼트 포맷 ${fmt}) · ${totalChars}자 → ${min}분 ${sec}초 (앞뒤 무음 2초 포함) ${useCtx ? ` · 문맥 겹침 ${ctxOk}/${ctxBoundaries.length}경계(+${ctxChars}자)` : ""}${ctxOk < ctxBoundaries.length ? ` · 폴백 경계 무음 ${DEFAULT_GAP_SEC}초${fallbackAt.length ? ` @${fallbackAt.join("·")}` : ""}${ctxFails.length ? ` (사유: ${ctxFails.join(" / ").slice(0, 300)})` : ""}` : ""}${wantSpeed ? ` · 배속 윤아 ${cfg.ttsSpeedYuna}× 이음 ${cfg.ttsSpeedEum}×${speedFallbacks ? ` (원속 폴백 ${speedFallbacks}요청 — 청취 확인)` : ""}` : ""}${parsed.coldOpen ? " · 구 [콜드오픈] 구역 무시(폐지)" : ""}${sampleTurns ? "" : segCount ? ` · 자막 세그먼트 ${segCount}건(배포본 시각)` : ` · 자막 세그먼트 없음(${segFail})`} · 사전 ${dictVersion}${Object.keys(epMap).length ? `+발음 맵 ${Object.keys(epMap).length}건` : ""} · 보이스 윤아=${cfg.ttsVoiceYuna.slice(0, 6)}… 이음=${cfg.ttsVoiceEum.slice(0, 6)}… · 사람 청취 확인 대기 (spec/06 8장)`;
   // 계측: TTS 의 "토큰"은 글자수(ElevenLabs 과금 단위). 비용은 요율(cfg.ttsUsdPer1kChars)이 설정됐을 때만 환산(참고값), 아니면 비운다
-  const ttsCost = cfg.ttsUsdPer1kChars != null ? (totalChars / 1000) * cfg.ttsUsdPer1kChars : undefined;
-  await insertRun({ backlog_id: backlogId, phase: "tts", result, prompt_version: "tts-v1 (worker)", artifacts, executed_by: executedBy, model: cfg.ttsModel, cost_usd: ttsCost, tokens: { characters: totalChars, chunks: chunks.length, duration_sec: Math.round(durationSec) }, worker_rev: workerRev() });
+  const ttsCost = cfg.ttsUsdPer1kChars != null ? ((totalChars + ctxChars) / 1000) * cfg.ttsUsdPer1kChars : undefined; // 문맥 글자도 과금
+  await insertRun({ backlog_id: backlogId, phase: "tts", result, prompt_version: "tts-v1 (worker)", artifacts, executed_by: executedBy, model: cfg.ttsModel, cost_usd: ttsCost, tokens: { characters: totalChars, context_characters: ctxChars, chunks: chunks.length, duration_sec: Math.round(durationSec) }, worker_rev: workerRev() });
   // 샘플은 발행 경로가 아니다 — 연쇄를 잇지 않는다
   const next = sampleTurns ? null : await advanceChain(job);
   return { episode_id: episodeId, sample: !!sampleTurns, duration_sec: Math.round(durationSec), chunks: chunks.length, chars: totalChars, format: fmt, artifacts, script_segments: segCount, script_segments_skipped: segFail, next: next?.type ?? null };

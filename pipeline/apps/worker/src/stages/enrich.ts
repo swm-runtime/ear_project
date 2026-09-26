@@ -3,7 +3,7 @@ import path from "node:path";
 import { cfg, executedBy } from "../config.js";
 import { insertRun, setJobProgress, type Job } from "../db.js";
 import type { Executor } from "../executors/index.js";
-import { buildEnrichPrompt, ENRICH_JOB_CATEGORIES_DEFAULT, ENRICH_SCHEMA, ENRICH_YEARS, ENRICHMENT_SCHEMA_VERSION, normalizeEnrichment } from "@ear/pipeline";
+import { buildEnrichPrompt, embeddingRejectReason, ENRICH_JOB_CATEGORIES_DEFAULT, ENRICH_SCHEMA, ENRICH_YEARS, ENRICHMENT_SCHEMA_VERSION, fetchEmbedding, normalizeEnrichment } from "@ear/pipeline";
 import { log } from "../util.js";
 import { workerRev } from "../assets.js";
 import { getFile, putFile, s3Key } from "../storage.js";
@@ -14,7 +14,7 @@ import { getFile, putFile, s3Key } from "../storage.js";
  * - 대본은 episode_id 가 있으면 S3 episodes/<id>/script.md, 없으면 4.5 폴백(제목+설명, source=title_description).
  * - 산출물은 datasets/enrichment/<content_id>.json (+ .report.json: 근거·경고). **DB·제품에 쓰지 않는다** — 반영은 콘솔이 브라우저 세션으로
  *   PATCH /admin/contents/:id 에 enrichment_file 만 보낸다(admin-api 4.10, 버전 무변경). 이 워커는 제품 API 를 부를 수 없다.
- * - 임베딩(Phase B)은 모델 미확정이라 생략(스킬과 같음).
+ * - 임베딩(Phase B, KAN-89 2026-09-22): AI 서버 /embeddings 로 대본 전문(없으면 제목+설명)을 벡터화해 embedding 키에 담는다. AI 서버 미설정·실패·stub·검증 불일치는 키를 빼고 메타만 낸다(partial).
  */
 export const ENRICH_KEY = (contentId: string) => `datasets/enrichment/${contentId}.json`;
 /**
@@ -59,9 +59,26 @@ export async function runEnrich(job: Job, ex: Executor) {
   const r = await ex.run<Record<string, unknown> & { evidence?: Record<string, string> }>({ prompt, schema: ENRICH_SCHEMA, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 10 * 60_000, model: cfg.enrichModel, effort: "medium",
     onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: `메타 부여 — 판정 (${label})` }).catch(() => {}) });
   const { evidence, ...raw } = r.output;
-  if (!script) raw.source = "title_description";
+  // source 는 코드가 정한다 (2026-09-23): OpenAI 엄격 스키마는 선택 필드를 "값 또는 null" 로 바꾸는데, GPT 가 대본이 있어도 유일한 허용값
+  // "title_description" 을 골라 넣어 정상 산출물이 폴백으로 표기됐다 (T260923-003). 대본을 읽었으면 지우고, 없을 때만 폴백 표시
+  if (script) delete raw.source; else raw.source = "title_description";
   const n = normalizeEnrichment(raw, topicNames, jobCategories);
-  const report = { content_id: contentId, episode_id: episodeId, schema_version: ENRICHMENT_SCHEMA_VERSION, script_chars: script?.length ?? 0, fallback: !script, evidence: evidence ?? {}, warnings: n.warnings, errors: n.errors, model: r.model, cost_usd: r.listCostUsd, at: new Date().toISOString() };
+  // 대본 임베딩 (Phase B, metadata-pipeline 4.3 · KAN-89): AI 서버가 설정된 워커만. 입력은 대본 전문, 없으면 제목+설명(4.5 폴백 — source 는 이미 title_description).
+  // 실패·stub·검증 불일치는 메타 부여 실패가 아니다 — 키를 빼고 파일을 내며(partial) 리포트·요약에 사유를 남긴다. 잘못된 키 하나가 BE 에서 파일 전체 거부를 부른다
+  let embeddingNote = "임베딩 없음(AI 서버 미설정 — 발행 시 웹이 채움)";
+  let embeddingInfo: Record<string, unknown> = { ok: false, reason: embeddingNote };
+  if (n.file && cfg.aiServerUrl && cfg.aiServerToken) {
+    const input = script ?? `${title}\n\n${description}`;
+    await setJobProgress(job.id, { phase: `메타 부여 — 임베딩 (${label})`, detail: `${script ? `대본 ${script.length}자` : "제목+설명"} · AI 서버`, toolCounts: {}, turns: 0, elapsedMs: 0 }).catch(() => {});
+    try {
+      const e = await fetchEmbedding(input, { url: cfg.aiServerUrl, token: cfg.aiServerToken });
+      const reject = embeddingRejectReason(e);
+      if (reject) { embeddingNote = `임베딩 없음(${reject})`; embeddingInfo = { ok: false, reason: reject, model: e.model, dim: e.dim }; }
+      else { n.file.embedding = { model: e.model, dim: e.dim, vector: e.vector }; embeddingNote = `임베딩 ${e.model} ${e.dim}d${script ? "" : "(제목+설명)"}`; embeddingInfo = { ok: true, model: e.model, dim: e.dim, input: script ? "script" : "title_description" }; }
+    } catch (e: any) { const m = String(e.message).slice(0, 120); embeddingNote = `임베딩 실패(${m.slice(0, 80)})`; embeddingInfo = { ok: false, reason: m }; }
+    if (!embeddingInfo.ok) log(`  enrich ${label}: ${embeddingNote}`);
+  }
+  const report = { content_id: contentId, episode_id: episodeId, schema_version: ENRICHMENT_SCHEMA_VERSION, script_chars: script?.length ?? 0, fallback: !script, evidence: evidence ?? {}, embedding: embeddingInfo, warnings: n.warnings, errors: n.errors, model: r.model, cost_usd: r.listCostUsd, at: new Date().toISOString() };
   await putFile(reportKey, JSON.stringify(report, null, 1));
   if (!n.file) {
     await insertRun({ backlog_id: backlogId, phase: "enrich", result: `메타 부여 실패 ${label} "${title.slice(0, 30)}" — ${n.errors.join("; ").slice(0, 300)} (enum 밖 값은 산출물을 내지 않는다, 명세 7장)`, prompt_version: `enrich-v1 (schema ${ENRICHMENT_SCHEMA_VERSION})`, artifacts: [s3Key(reportKey)], executed_by: executedBy, model: r.model, cost_usd: r.listCostUsd, tokens: (r.raw as { usage?: unknown } | undefined)?.usage, worker_rev: workerRev() });
@@ -69,7 +86,7 @@ export async function runEnrich(job: Job, ex: Executor) {
   }
   const key = outKey;
   await putFile(key, JSON.stringify(n.file, null, 2) + "\n");
-  const summary = `메타 부여 ${label} "${title.slice(0, 30)}" — ${[n.file.difficulty, n.file.format, n.file.is_evergreen == null ? null : n.file.is_evergreen ? "evergreen" : "시의성", n.file.keywords ? `키워드 ${n.file.keywords.length}` : null, n.file.target_audiences ? `청자 ${n.file.target_audiences.length}세트` : null].filter(Boolean).join(" · ")}${n.file.source ? " · 폴백(제목+설명)" : ""}${n.warnings.length ? ` · ${n.warnings.join(" / ").slice(0, 200)}` : ""}${contentId ? " · 반영 대기(콘솔 [반영])" : " · 발행 시 enrichment_file 로 첨부"}`;
+  const summary = `메타 부여 ${label} "${title.slice(0, 30)}" — ${[n.file.difficulty, n.file.format, n.file.is_evergreen == null ? null : n.file.is_evergreen ? "evergreen" : "시의성", n.file.keywords ? `키워드 ${n.file.keywords.length}` : null, n.file.target_audiences ? `청자 ${n.file.target_audiences.length}세트` : null].filter(Boolean).join(" · ")}${n.file.source ? " · 폴백(제목+설명)" : ""}${n.warnings.length ? ` · ${n.warnings.join(" / ").slice(0, 200)}` : ""}${contentId ? " · 반영 대기(콘솔 [반영])" : " · 발행 시 enrichment_file 로 첨부"} · ${embeddingNote}`;
   await insertRun({ backlog_id: backlogId, phase: "enrich", result: summary, prompt_version: `enrich-v1 (schema ${ENRICHMENT_SCHEMA_VERSION})`, artifacts: [s3Key(key), s3Key(reportKey)], executed_by: executedBy, model: r.model, cost_usd: r.listCostUsd, tokens: (r.raw as { usage?: unknown } | undefined)?.usage, worker_rev: workerRev() });
   log(`  enrich: ${summary} ($${(r.listCostUsd ?? 0).toFixed(2)})`);
   return { content_id: contentId, episode_id: episodeId, key, file: n.file, warnings: n.warnings, fallback: !script, list_cost_usd: r.listCostUsd };

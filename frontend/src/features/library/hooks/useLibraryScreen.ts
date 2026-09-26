@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Linking } from 'react-native';
 
+import { track } from '@/shared/analytics';
 import { isApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
@@ -48,6 +49,13 @@ const EMPTY_TOPIC_FILTER: AppliedTopicFilter = { ids: [], names: [] };
 const isNetworkError = (error: unknown): boolean =>
   isApiError(error) &&
   (error.errorCode === ERROR_CODES.NETWORK_ERROR || error.errorCode === ERROR_CODES.TIMEOUT);
+
+/** 편성 도착(addedAt)부터 지금까지 — 분석 파라미터용이라 기기 시각으로 잰다. 소수 1자리, 음수·비정상은 0 */
+const hoursSince = (isoTime: string | null): number => {
+  if (isoTime === null) return 0;
+  const elapsedMs = Date.now() - new Date(isoTime).getTime();
+  return Number.isFinite(elapsedMs) && elapsedMs > 0 ? Math.round(elapsedMs / 360_000) / 10 : 0;
+};
 
 export const useLibraryScreen = () => {
   const navigation = useNavigation();
@@ -116,6 +124,8 @@ export const useLibraryScreen = () => {
     dripBaselineRef.current = baseline;
     if (newCount > 0) {
       setNewArrivalCount(newCount);
+      // 배너 노출 = 도착을 봤다. 기준값(가장 최근 편성 addedAt)부터 지금까지의 시간 — 분석용이라 기기 시각으로 충분
+      track('drip_arrival_view', { count: newCount, hours_since_arrival: hoursSince(baseline) });
     }
   }, [pages]);
 
@@ -225,6 +235,8 @@ export const useLibraryScreen = () => {
 
   const commitDelete = useCallback(
     (item: LibraryItem) => {
+      // 실행취소 창이 닫힌 시점 — 되돌린 삭제는 undoDelete 가 undone: true 로 따로 센다
+      track('content_remove', { content_id: item.content.id, entry: 'library', undone: false });
       deleteMutation.mutate(
         { itemId: item.id },
         {
@@ -337,6 +349,7 @@ export const useLibraryScreen = () => {
     }
     unhideItem(pending.id);
     setPendingDeleteItem(null);
+    track('content_remove', { content_id: pending.content.id, entry: 'library', undone: true });
   };
 
   /* ── 재생 진입점 — 카드·미니플레이어가 같은 게이트를 거친다(library.md 4.2) ── */
@@ -345,6 +358,14 @@ export const useLibraryScreen = () => {
     if (isOffline) {
       showToast(LIBRARY_COPY.error.offlinePlayToast);
       return;
+    }
+    // 편성분의 첫 재생 시도 — 게이트를 지나면 slot 을 잃으므로 여기서 센다. 실제 재생 여부는 play_start 가 따로 말한다
+    if ((item.source === 'drip' || item.source === 'discovery') && item.lastPlayedAt === null) {
+      track('drip_play', {
+        content_id: item.content.id,
+        slot: item.source === 'drip' ? 'regular' : 'discovery',
+        hours_since_arrival: hoursSince(item.addedAt),
+      });
     }
     playGate.requestPlay(
       {
@@ -446,10 +467,16 @@ export const useLibraryScreen = () => {
     setFilter(next);
   };
 
-  const applyTopicFilter = (selected: LibraryTopic[], source: LibrarySourceFilter | null) => {
+  const applyTopicFilter = (
+    selected: LibraryTopic[],
+    source: LibrarySourceFilter | null,
+    status: LibraryFilter,
+  ) => {
     resetArrivalBanner();
     setTopicFilter({ ids: selected.map((t) => t.id), names: selected.map((t) => t.name) });
     setSourceFilter(source);
+    // 상태(전체·미청취·완료)도 시트에서 고른다(2026-09-25 PM — 세그먼트 탭 폐지)
+    setFilter(status);
     setIsTopicSheetVisible(false);
   };
 
@@ -502,7 +529,9 @@ export const useLibraryScreen = () => {
     handleBannerPress,
     openPaywall: playGate.openPaywall,
     // 필터 팝업(출처 + 주제) — 배지는 두 축의 선택 개수 합이다
-    topicFilterCount: topicFilter.ids.length + (sourceFilter !== null ? 1 : 0),
+    // 배지 = 상태(전체가 아니면 1) + 출처 + 주제 수
+    topicFilterCount:
+      topicFilter.ids.length + (sourceFilter !== null ? 1 : 0) + (filter !== 'all' ? 1 : 0),
     appliedTopicIds: topicFilter.ids,
     appliedSourceFilter: sourceFilter,
     isTopicSheetVisible,

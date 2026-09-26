@@ -84,6 +84,7 @@ export async function runQa(job: Job, ex: Executor) {
   } else {
     await setBacklogStatus(backlogId, "review_required");
     next = { review_required: true };
+    // 자동화 중엔 아무도 화면을 보지 않는다 — 큐가 비면 요약 알림에 "검토 필요"로 묶여 나간다 (digest.ts)
   }
   return { episode_id: episodeId, attempt, verdict: o.verdict, failures: o.failures, holds: o.holds, model: r.model, next };
 }

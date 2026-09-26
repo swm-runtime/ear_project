@@ -68,7 +68,20 @@ export const SIGNAL_ACTION_WEIGHTS: Readonly<Record<string, number>> = {
   delete: -0.6,
   // `play`는 해석 표에 없다 — 적재는 되지만 가중치 0으로 무시한다
   play: 0,
+  /**
+   * 무시(2026-09-24 신설) — 준 드립을 `DRIP_IGNORE_AFTER_DAYS` 동안 열지도 지우지도 않음. 삭제(-0.6)의 절반이다:
+   * "싫다"가 아니라 "관심이 안 갔다"이고, 바빠서 못 들은 경우가 섞인다. 긍정만 있던 노트에 부정 폭을 만들어
+   * 신호가 드문 초기에도 ② 축이 중립(0.5) 근처에서 갈리게 하는 것이 목적이다.
+   */
+  ignore: -0.3,
 };
+
+/**
+ * 드립·탐험 콘텍츠가 이 일수 동안 `unplayed`로 남아 있으면 "무시"로 본다(`PreferenceSignalAction.IGNORE`).
+ * 7일 = 한 주 — 통근 사용자가 주말을 포함해 한 번은 볼 시간이다. 판정 시각은 적립 + 이 일수이고, 그날부터
+ * 다른 신호와 같은 반감기로 흐려진다. 나중에 재생하면 `unplayed`가 아니라 자동으로 빠진다.
+ */
+export const DRIP_IGNORE_AFTER_DAYS = 7;
 
 /** 가중치 맵이 무한히 자라지 않게 절대값 상위 N개만 유지한다(키워드가 주 대상) */
 export const PREFERENCE_WEIGHT_MAP_LIMIT = 50;
@@ -99,9 +112,16 @@ export const SIGNAL_ITEM_WEIGHTS = {
 
 /** ③ 메타 규칙 축 — 축 내 항목 가중치 (콜드스타트는 인기·신선도 비중 확대 — 4.4) */
 export const META_ITEM_WEIGHTS = {
-  topicMatch: 0.25,
+  /**
+   * 노출 피로 항목(종전 0.1)을 폐기하고 그 몫을 주제 적합도·인기도에 나눴다(2026-09-25).
+   * 관심 주제가 최대 3개라 최근 편성 주제와 안 겹치는 후보가 없어 항목이 전 후보를 같은 값으로 깎았고
+   * (변별 0), 저자·키워드 단위로 바꾸면 ② 저자 선호 가점과 정면으로 싸운다. "반복해서 줬는데 반응이
+   * 없다"는 무시 신호(-0.3, `SIGNAL_ACTION_WEIGHTS.ignore`)가 사용자 반응으로 판정하고, 하루 안의
+   * 유사 편은 MMR 이 막는다 — 반응을 보지 않고 반복 자체를 벌주는 항목은 이제 필요가 없다.
+   */
+  topicMatch: 0.3,
   freshness: 0.2,
-  popularity: 0.25,
+  popularity: 0.3,
   difficultyFit: 0.1,
   /**
    * 커리어 적합도(4.2 ③ "직군·연차와 맞는 콘텐츠에 소폭 가점", 신설 2026-09-11). 난이도·시리즈(0.1)보다
@@ -110,7 +130,6 @@ export const META_ITEM_WEIGHTS = {
    */
   careerFit: 0.15,
   seriesContinuity: 0.1,
-  exposureFatigue: 0.1,
 } as const;
 
 /**
@@ -127,7 +146,7 @@ export const CAREER_FIT_SCORES = {
 export const META_ITEM_WEIGHTS_COLD_START = {
   ...META_ITEM_WEIGHTS,
   freshness: 0.3,
-  popularity: 0.45,
+  popularity: 0.5,
 } as const;
 
 /** 신선도 반감기(일) — `is_evergreen` 분기(4.2 ③): true는 감점 없음(반감기 무한) */
@@ -143,7 +162,7 @@ export const GLOBAL_COMPLETE_RATE_FALLBACK = 0.5;
 /** 인기도의 재생 수 성분 — log10(1+play)/이 값, 1로 캡(≈재생 1,000회에서 만점) */
 export const POPULARITY_PLAY_COUNT_LOG_CAP = 3;
 
-/** 노출 피로 조회 범위(일) — 최근 편성에서 반복된 주제 감점(4.2 ③) */
+/** 최근 편성 주제 조회 범위(일) — 편성 미리보기(admin)의 "최근 편성 주제" 표시용. 스코어링에는 쓰지 않는다(노출 피로 폐기 2026-09-25) */
 export const EXPOSURE_FATIGUE_LOOKBACK_DAYS = 14;
 
 /** 스코어링 후보 풀 상한 — 전수 스코어링 전제의 안전판(domain.md 5.6의 규모 근거와 동일) */

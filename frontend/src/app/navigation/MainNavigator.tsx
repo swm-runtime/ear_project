@@ -1,10 +1,9 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useState } from 'react';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { theme } from '@/shared/theme';
-import TabBarIcon from '@/shared/ui/TabBarIcon';
+import { USE_NATIVE_PLAYER_ZOOM } from '@/shared/navigation/zoom-transition';
+import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 
 import { EmailVerificationScreen, useSessionStore, WithdrawalScreen } from '@/features/auth';
 import { CareerInfoScreen } from '@/features/career';
@@ -25,21 +24,14 @@ import { PlayConfirmDialog, PlayerScreen } from '@/features/player';
 import { ProfileScreen } from '@/features/profile';
 import { SettingsScreen } from '@/features/settings';
 
+import CapsuleTabBar from './CapsuleTabBar';
 import { rememberTab, takePrimedTab, type RestorableTab } from './last-tab';
+import NativeMainTabs from './NativeMainTabs';
 import PlaceholderScreen from './PlaceholderScreen';
 import type { MainStackParamList, MainTabParamList } from './types';
 
 const MainTab = createBottomTabNavigator<MainTabParamList>();
 const MainStack = createNativeStackNavigator<MainStackParamList>();
-
-/** 탭바에서 안전영역을 뺀 순수 콘텐츠 높이(기본값 약 49) */
-const TAB_BAR_CONTENT_HEIGHT = 60;
-
-/** 탭 아이콘 크기. 네비게이터가 넘겨주는 기본값(약 24)보다 키운다 */
-const TAB_ICON_SIZE = 28;
-
-/** 탭 라벨 크기. 시스템 탭바(iOS 10)와 와이어프레임(10.5)에 맞춰 테마 최솟값 12에서 낮췄다 */
-const TAB_LABEL_SIZE = 11;
 
 /**
  * 하단 탭 3개 — 앱을 실행하면 라이브러리로 들어온다(library.md 2).
@@ -52,9 +44,6 @@ const TAB_LABEL_SIZE = 11;
  * 이전 기록보다 "고를 것이 많은 화면"이 먼저다.
  */
 function MainTabs() {
-  // 높이를 직접 정하면 기본 안전영역 처리가 덮이므로 홈 인디케이터 높이를 직접 더한다.
-  // 이걸 빼먹으면 인디케이터가 있는 기기에서 라벨이 인디케이터에 깔린다
-  const insets = useSafeAreaInsets();
   const justCompletedOnboarding = useSessionStore((s) => s.justCompletedOnboarding);
   // 마운트 시 한 번만 꺼낸다 — 리렌더마다 부르면 두 번째부터 null 이라 탭이 흔들린다
   const [restoredTab] = useState(takePrimedTab);
@@ -71,32 +60,16 @@ function MainTabs() {
           if (name) rememberTab(name as RestorableTab);
         },
       }}
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: theme.color.primary,
-        tabBarInactiveTintColor: theme.color.textSecondary,
-        // 아이콘과 라벨을 함께 둔다 — 라벨을 빼면 어느 탭인지 아이콘 해석에만 기댄다.
-        // 크기는 테마 토큰(xs = 12)이 아니라 리터럴이다 — 스케일의 최솟값이 12라 이 한 곳
-        // 때문에 토큰을 늘리면 다른 화면까지 영향을 준다. 와이어프레임의 `.tabbar a`가
-        // 10.5px이므로 11은 시안 쪽으로 가는 값이다(wireframe/style.css).
-        tabBarLabelStyle: { fontSize: TAB_LABEL_SIZE, fontWeight: '600' },
-        tabBarStyle: {
-          height: TAB_BAR_CONTENT_HEIGHT + insets.bottom,
-          // 안전영역만 아래에 두고 위쪽 여백은 주지 않는다 — paddingTop을 주면
-          // 아이콘·라벨이 그만큼 내려가 탭바 안에서 가운데가 아니게 된다
-          paddingBottom: insets.bottom,
-        },
-        tabBarItemStyle: { justifyContent: 'center' },
-      }}
+      // 탭 바는 떠 있는 유리 캡슐(CapsuleTabBar, 2026-09-23 PM) — 기본 탭 바의 스타일 옵션은 쓰지 않는다.
+      // 라벨(tabBarLabel)만 각 화면 옵션에서 읽는다
+      tabBar={(props) => <CapsuleTabBar {...props} />}
+      screenOptions={{ headerShown: false }}
     >
       <MainTab.Screen
         name="Library"
         component={LibraryScreen}
         options={{
           tabBarLabel: '라이브러리',
-          tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name="library" color={color} focused={focused} size={TAB_ICON_SIZE} />
-          ),
         }}
       />
       <MainTab.Screen
@@ -104,9 +77,6 @@ function MainTabs() {
         component={ExploreScreen}
         options={{
           tabBarLabel: '탐색',
-          tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name="explore" color={color} focused={focused} size={TAB_ICON_SIZE} />
-          ),
         }}
       />
       <MainTab.Screen
@@ -114,9 +84,6 @@ function MainTabs() {
         component={ProfileScreen}
         options={{
           tabBarLabel: '프로필',
-          tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name="profile" color={color} focused={focused} size={TAB_ICON_SIZE} />
-          ),
         }}
       />
     </MainTab.Navigator>
@@ -134,7 +101,9 @@ export default function MainNavigator() {
   return (
     <>
       <MainStack.Navigator screenOptions={{ headerShown: false }}>
-        <MainStack.Screen name="Tabs" component={MainTabs} />
+        {/* iOS 26 은 시스템 탭 바(NativeMainTabs) — 알약 애니메이션·미니플레이어 액세서리를 애플이 그린다.
+          그 밑·Android 는 JS 캡슐(MainTabs + CapsuleTabBar) */}
+        <MainStack.Screen name="Tabs" component={HAS_NATIVE_TAB_BAR ? NativeMainTabs : MainTabs} />
         {/* 플레이어 — 탭 위 모달(architecture.md 6.1). 앱바(셰브론·더보기)는 화면이 직접 그리고,
           뒤로가기·아래로 스와이프는 축소다(재생 유지 — player-uiux.md 4.8).
           투명 모달 + 전환 없음(2026-09-16): 열림·닫힘은 화면이 직접 그린다 — 라이브러리의 미니플레이어
@@ -142,7 +111,14 @@ export default function MainNavigator() {
         <MainStack.Screen
           name="Player"
           component={PlayerScreen}
-          options={{ presentation: 'transparentModal', animation: 'none' }}
+          options={
+            // iOS 26 + 줌 모듈 빌드: 풀스크린 모달을 시스템이 띄운다 — 미니플레이어에서 등록된 소스 뷰가 있으면 iOS 18 줌 전환
+            // (카드가 부풀어 오르고, 닫으면 그 자리로 줄어든다 — 애플 뮤직, PM 2026-09-26 03:55), 없으면 기본 슬라이드.
+            // 그 외: 투명 모달 + 전환 없음, 열림·닫힘은 화면이 직접 그린다
+            USE_NATIVE_PLAYER_ZOOM
+              ? { presentation: 'fullScreenModal' }
+              : { presentation: 'transparentModal', animation: 'none' }
+          }
         />
         {/* 콘텐츠 상세 — 앱바(뒤로 + 타이틀)를 화면이 직접 그린다(content-detail-uiux.md 4.1).
           플레이어(모달) 위에도 쌓일 수 있다 — 진입해도 재생은 유지된다(content-detail.md 2장) */}

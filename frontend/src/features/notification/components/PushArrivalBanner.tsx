@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { track } from '@/shared/analytics';
 import { toTab } from '@/shared/navigation/to-tab';
 import { theme } from '@/shared/theme';
 
@@ -58,6 +59,7 @@ export default function PushArrivalBanner() {
       : NOTIFICATION_COPY.push.arrivalBanner(arrival.contentCount);
 
   const handlePress = (): void => {
+    track('push_foreground_banner', { action: 'tap' });
     hide();
     // 배너는 도착을 알릴 뿐 재생을 시작시키지 않는다 — 1편이어도 라이브러리로 간다
     navigation.navigate('Main', toTab('Library'));

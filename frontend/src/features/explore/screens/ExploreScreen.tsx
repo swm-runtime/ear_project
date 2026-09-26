@@ -1,19 +1,37 @@
+import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   FlatList,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useFadingNativeTitle } from '@/shared/navigation/useFadingNativeTitle';
+import {
+  useNativeBarPullStyle,
+  useNativeHeaderInset,
+} from '@/shared/navigation/useNativeHeaderInset';
 import { theme } from '@/shared/theme';
+import FloatingHeader, {
+  useFloatingHeaderInset,
+  useFloatingHeaderScroll,
+} from '@/shared/ui/FloatingHeader';
 import FullScreenError from '@/shared/ui/FullScreenError';
+import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
+import LargeTitleRow from '@/shared/ui/LargeTitleRow';
+import NativeBarBlurBand from '@/shared/ui/NativeBarBlurBand';
 
-import { MiniPlayer, PlayConfirmDialog, RemainingPlaysIndicator } from '@/features/player';
+import {
+  DOCK_SCROLL_PROPS,
+  PlayConfirmDialog,
+  RemainingPlaysIndicator,
+  useBottomDockInset,
+} from '@/features/player';
 
 import ExploreEmptyState from '../components/ExploreEmptyState';
 import ExploreFeaturedCard from '../components/ExploreFeaturedCard';
@@ -29,14 +47,38 @@ import { buildSectionListKey } from '../explore.section-key';
 import type { ExploreSection } from '../explore.types';
 import { useExploreScreen } from '../hooks/useExploreScreen';
 
-/** 탐색 탭(E1~E13) — 화면은 뷰만 담당하고 로직은 useExploreScreen이 소유한다 */
+/**
+ * 탐색 탭(E1~E13) — 화면은 뷰만 담당하고 로직은 useExploreScreen이 소유한다.
+ *
+ * 상단 두 갈래(PM 2026-09-25 23:50 "애플이라면 상단을 어떻게" · 09-26 00:29 애플 뮤직 스샷):
+ * - **iOS 26 시스템 탭 바(HAS_NATIVE_TAB_BAR)** — 투명 시스템 바(바 밑 블러는 시스템) 밑에 **콘텐츠 안 큰 제목 줄**
+ *   ("탐색" + 오른쪽 잔여 링, 같은 줄), 그 밑 채움 검색 필드(누르면 검색 화면 E6), 주제 칩이 **목록의 첫 줄**로 같이
+ *   스크롤한다(앱스토어 카테고리 알약). 제목 줄이 바 밑으로 들어가면 바에 작은 제목이 페이드인한다.
+ * - 그 외 — 떠 있는 유리 머리 줄(FloatingHeader: 검색창 + 링 + 칩)이 목록 위에 뜬다(2026-09-24).
+ */
 export default function ExploreScreen() {
   const screen = useExploreScreen();
+  const miniInset = useBottomDockInset();
+  // 떠 있는 머리 줄(검색창·칩)의 높이 — 목록이 그만큼 위를 비운다(시스템 바 갈래에서는 0)
+  const [headerHeight, setHeaderHeight] = useState(0);
+  const floatingInset = useFloatingHeaderInset(headerHeight);
+  const headerInset = HAS_NATIVE_TAB_BAR ? 0 : floatingInset;
+  // 투명 시스템 바 — 스크롤 뷰가 아닌 상태 화면(스켈레톤·에러)은 상태 바만 비우고, 목록의 제목 줄은 바 줄만큼 올린다
+  const nativeBarInset = useNativeHeaderInset();
+  const nativeBarPull = useNativeBarPullStyle();
+  // 맨 위에서는 머리 줄 컨트롤이 면, 내리면 유리(PM 2026-09-25)
+  const { solidness, scrollY, scrollProps } = useFloatingHeaderScroll();
+  useFadingNativeTitle(EXPLORE_COPY.tabTitle, scrollY);
+  // 머리 줄(JS 탭 바 갈래)의 루트 ref — 종전 시스템 edge effect 연결용, 지금은 FloatingHeader 가 요구만 한다
+  const listRef = useRef(null);
+  const headerRef = useRef<View>(null);
 
   // E10은 검색창 줄·주제 칩·잔여 표시까지 그리지 않는다 — 화면 전체가 에러다(uiux 4.8)
   if (screen.isFullError) {
+    // 시스템 바 갈래에서는 투명 바 높이만큼 비운다(안전영역은 그 안에 든다)
+    const Frame = HAS_NATIVE_TAB_BAR ? View : SafeAreaView;
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <Frame style={[styles.container, { paddingTop: nativeBarInset }]} edges={['top']}>
         <FullScreenError
           title={
             screen.isFullErrorNetwork
@@ -48,12 +90,40 @@ export default function ExploreScreen() {
           isRetrying={screen.isRetrying}
           onRetry={screen.retry}
         />
-      </SafeAreaView>
+      </Frame>
     );
   }
 
   // E8(콘텐츠 풀 0건)은 주제 칩 줄을 숨긴다 — 어떤 칩을 골라도 결과가 없다(uiux 4.7)
   const showChips = screen.emptyKind !== 'feed';
+  const chips = showChips ? (
+    <TopicChips
+      topics={screen.topics}
+      selectedTopicIds={screen.selectedTopicIds}
+      onToggle={screen.toggleTopic}
+    />
+  ) : null;
+  // 잔여 재생 링 — 무제한·캐시·값 없음이면 자리를 비운다, "무제한" 배지도 없다(uiux 4.2)
+  const remainingRing = screen.remainingDisplay ? (
+    <RemainingPlaysIndicator
+      remaining={screen.remainingDisplay.remaining}
+      limit={screen.remainingDisplay.limit}
+      onExhaustedPress={() => screen.openPaywall('explore')}
+    />
+  ) : null;
+  // 시스템 바 갈래의 큰 제목 줄 — 제목과 링이 같은 줄
+  const titleRow = HAS_NATIVE_TAB_BAR ? (
+    <LargeTitleRow title={EXPLORE_COPY.tabTitle} trailing={remainingRing} />
+  ) : null;
+  // 시스템 바 갈래에서는 제목 줄·검색 필드·칩이 콘텐츠의 첫 줄이다 — 목록과 같이 스크롤한다.
+  // 검색 필드는 유리가 아니라 면(콘텐츠 안) — 누르면 검색 화면(E6), 입력은 거기서(explore.md 4.5-1)
+  const contentChips = HAS_NATIVE_TAB_BAR ? (
+    <View style={nativeBarPull}>
+      {titleRow}
+      <ExploreSearchBarRow onPress={screen.openSearch} trailing={null} variant="fill" />
+      {chips}
+    </View>
+  ) : null;
 
   // 인라인 에러 — 기존 목록을 유지한 채 그 자리에서만 알린다(common-error-handling.md 4.3)
   const renderInlineError = (message: string, onRetry: () => void) => (
@@ -100,6 +170,8 @@ export default function ExploreScreen() {
       refreshing={screen.isManualRefreshing}
       onRefresh={() => void screen.refresh()}
       tintColor={theme.color.primary}
+      // 스피너가 머리 줄 밑에 숨지 않게
+      progressViewOffset={headerInset}
     />
   );
 
@@ -128,7 +200,7 @@ export default function ExploreScreen() {
             />
           </View>
         ) : (
-          <Text style={styles.sectionTitle} accessibilityRole="header">
+          <Text style={[styles.sectionTitle, styles.sectionTitleBlock]} accessibilityRole="header">
             {section.title}
           </Text>
         )}
@@ -169,14 +241,24 @@ export default function ExploreScreen() {
 
   const renderBody = () => {
     // 필터 전환 로딩은 단일 목록이 될 자리다 — 섹션 제목 없는 행 스켈레톤만 그린다
-    if (screen.showSkeleton) return <ExploreSkeleton showSectionTitles={!screen.isFiltered} />;
+    if (screen.showSkeleton) {
+      return (
+        <View style={{ paddingTop: headerInset + nativeBarInset }}>
+          {titleRow}
+          <ExploreSkeleton showSectionTitles={!screen.isFiltered} />
+        </View>
+      );
+    }
     if (screen.isInitialLoading) return <View style={styles.container} />;
 
     // E2 — 주제 필터 단일 목록(무한 스크롤). 필터 결과는 캐러셀이 아니라 세로 목록이다 —
     // 개수가 정해져 있지 않아 가로로 밀게 하면 끝을 가늠할 수 없다
     if (screen.isFiltered) {
       return (
-        <FlatList
+        <Animated.FlatList
+          ref={listRef}
+          {...DOCK_SCROLL_PROPS}
+          {...scrollProps}
           data={toExploreGridData(screen.filteredItems)}
           keyExtractor={exploreGridKey}
           numColumns={2}
@@ -203,10 +285,13 @@ export default function ExploreScreen() {
               />
             ) : null
           }
+          ListHeaderComponent={contentChips}
+          ListHeaderComponentStyle={contentChips ? styles.contentChips : undefined}
           ListFooterComponent={renderFooter()}
-          contentContainerStyle={
-            screen.filteredItems.length === 0 ? styles.emptyContent : styles.gridContent
-          }
+          contentContainerStyle={[
+            screen.filteredItems.length === 0 ? styles.emptyContent : styles.gridContent,
+            { paddingTop: headerInset, paddingBottom: miniInset },
+          ]}
           refreshControl={refreshControl}
           onEndReached={screen.loadMore}
           onEndReachedThreshold={0.4}
@@ -216,12 +301,17 @@ export default function ExploreScreen() {
 
     // E1 — 섹션형 피드. 섹션 구성·순서·제목은 서버 응답 그대로다(explore.md 4.1)
     return (
-      <ScrollView
-        contentContainerStyle={
-          screen.sections.length === 0 ? styles.emptyContent : styles.feedContent
-        }
+      <Animated.ScrollView
+        ref={listRef}
+        {...DOCK_SCROLL_PROPS}
+        {...scrollProps}
+        contentContainerStyle={[
+          screen.sections.length === 0 ? styles.emptyContent : styles.feedContent,
+          { paddingTop: headerInset, paddingBottom: miniInset },
+        ]}
         refreshControl={refreshControl}
       >
+        {contentChips}
         {screen.sections.length === 0 ? (
           screen.emptyKind === 'feed' ? (
             <ExploreEmptyState
@@ -233,38 +323,31 @@ export default function ExploreScreen() {
         ) : (
           screen.sections.map(renderSection)
         )}
-      </ScrollView>
+      </Animated.ScrollView>
     );
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <ExploreSearchBarRow
-        onPress={screen.openSearch}
-        trailing={
-          // 무제한·캐시·값 없음이면 자리를 비운다 — "무제한" 배지도 없다(uiux 4.2)
-          screen.remainingDisplay ? (
-            <RemainingPlaysIndicator
-              remaining={screen.remainingDisplay.remaining}
-              limit={screen.remainingDisplay.limit}
-              onExhaustedPress={() => screen.openPaywall()}
-            />
-          ) : null
-        }
-      />
-
-      {showChips ? (
-        <TopicChips
-          topics={screen.topics}
-          selectedTopicIds={screen.selectedTopicIds}
-          onToggle={screen.toggleTopic}
-        />
-      ) : null}
-
+    <View style={styles.container}>
       {renderBody()}
+      {/* 스크롤하면 나타나는 상단 블러 띠(시스템 탭 바 갈래) — 바의 작은 제목이 그 위에 */}
+      <NativeBarBlurBand scrollY={scrollY} />
+
+      {/* 머리 줄은 목록 **뒤에 선언**한다(zIndex 로 위에 뜬다) */}
+      {/* 머리 줄은 목록 위에 떠 있다 — 배경 없이 유리 컨트롤만(2026-09-24 PM). 시스템 바 갈래에서는 없다 */}
+      {HAS_NATIVE_TAB_BAR ? null : (
+      <FloatingHeader
+        onHeightChange={setHeaderHeight}
+        solidness={solidness}
+        containerRef={headerRef}
+      >
+        <ExploreSearchBarRow onPress={screen.openSearch} trailing={remainingRing} />
+
+        {chips}
+      </FloatingHeader>
+      )}
 
       {/* 미니플레이어(PL11) — 활성 재생 세션만 그린다. 복원 스냅샷 판정은 라이브러리 소유다 */}
-      <MiniPlayer />
 
       <ExploreMoreSheet
         item={screen.moreSheetItem}
@@ -284,7 +367,7 @@ export default function ExploreScreen() {
         onCancel={screen.cancelPlayConfirm}
         onSuppressToday={screen.suppressAndPlay}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -323,11 +406,13 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.xl,
     fontWeight: '700',
     color: theme.color.textPrimary,
-    // 크기만 키우면 두 줄로 접힐 때 줄이 붙는다
-    lineHeight: theme.font.size.xl * 1.25,
     paddingHorizontal: theme.spacing.md,
     paddingTop: theme.spacing.lg,
     paddingBottom: theme.spacing.sm,
+  },
+  // 콘텐츠 첫 줄의 칩(시스템 바 갈래) — 좌우 여백은 칩 줄이 갖는다. 격자 목록은 gridContent 의 좌우 여백을 되돌린다
+  contentChips: {
+    marginHorizontal: -theme.spacing.md,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
@@ -339,11 +424,17 @@ const styles = StyleSheet.create({
     paddingTop: theme.spacing.lg,
     paddingBottom: theme.spacing.sm,
   },
+  // 단독 제목만 줄 간격을 키운다 — 크기만 키우면 두 줄로 접힐 때 줄이 붙는다
+  sectionTitleBlock: {
+    lineHeight: theme.font.size.xl * 1.25,
+  },
   sectionHeaderTitle: {
     // 토글과 공간을 나눈다 — 동적 텍스트 200%에서도 제목이 토글을 밀어내지 않게(uiux 7)
     flexShrink: 1,
     paddingTop: 0,
     paddingBottom: 0,
+    // 줄 간격을 키우지 않는다 — iOS 는 늘린 줄 높이의 여분을 글자 위에만 얹어 글자가 상자 아래로 내려앉고,
+    // alignItems:center 로 맞춘 토글이 글자보다 위에 떠 보였다(2026-09-25 23:41 실기기)
   },
   // 캐러셀 좌우 여백은 섹션 제목과 같은 선에서 시작한다
   carousel: {

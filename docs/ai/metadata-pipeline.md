@@ -27,7 +27,7 @@ NestJS 자동화(업로드 시 서비스 서버가 임베딩 API를 호출하는
 
 | 트리거 | 설명 |
 |---|---|
-| 신규 콘텐츠 업로드 준비 | AI 생성: [`spec/07`](spec/07-publish.md) 패키지(`packaged` 전환) 직후 이어서 실행 — **구현됨(2026-09-11)**: 패키지 단계가 워커 `enrich` 작업을 자동으로 걸고 산출물 `episodes/<id>/enrichment.json`을 업로드 화면이 발행 때 첨부한다. 파트너: 대본(또는 원문) 확보 시 실행 |
+| 신규 콘텐츠 업로드 준비 | AI 생성: `packaged` 이후 **업로드 화면의 [추천 메타 뽑기]로 사람이 실행**(2026-09-23 개정 — 종전 2026-09-11 "패키지 직후 자동"은 발행하지 않을 편까지 뽑는 낭비라 중단). 워커 `enrich` 작업(에피소드 모드)이 `episodes/<id>/enrichment.json`을 만들고 업로드 화면이 발행 때 첨부한다. 파트너: 대본(또는 원문) 확보 시 실행 |
 | 재발행 | `content_version`이 오르는 재업로드 전에 재실행 — 미갱신은 운영 콘솔 "추천 입력 결손"에 잡힌다(`drip-scheduling.md` 5) |
 | 임베딩 모델 교체 | 발행 콘텐츠 **전량 재실행**(`domain.md` 5.6 — 모델이 섞이면 스코어링 불가) |
 | 기존 발행분 소급 부여 | 이 절차 도입(2026-08-26) 이전 발행분에 일괄 실행 |
@@ -72,9 +72,14 @@ NestJS 자동화(업로드 시 서비스 서버가 임베딩 API를 호출하는
 ### 4.3 임베딩 생성 (Phase B)
 
 - **AI 서버의 `POST /embeddings`를 호출한다**(확정 2026-09-01 — `ai-server/README.md`). 입력은 **대본 전문**이며, 모델 입력 한도 초과 시의 청킹·각 청크 임베딩·**평균 → L2 정규화**(코사인 유사도 전제 — `domain.md` 5.6)는 전부 AI 서버 안에서 처리된다. 스킬은 응답 `{ model, dim, vector }`를 `enrichment.json`의 `embedding` 키에 그대로 담는다.
-- 모델: **OpenAI `text-embedding-3-small` · 1536차원 확정**(2026-09-01 — `domain.md` 15.1 #11 해소. 소유처는 AI 서버 env `EMBEDDING_MODEL`·`EMBEDDING_DIM`). 서버 쪽 저장(`content_embeddings` 마이그레이션)이 나가기 전까지는 Phase B 산출물이 저장처 없이 대기하므로, 그동안은 건너뛰어도 된다(스코어링은 임베딩 축 제외로 동작 — `drip-scheduling.md` 4.2).
+- 모델: **OpenAI `text-embedding-3-small` · 1536차원 확정**(2026-09-01 — `domain.md` 15.1 #11 해소. 소유처는 AI 서버 env `EMBEDDING_MODEL`·`EMBEDDING_DIM`).md` 4.2).
   - AI 서버의 기본 제공자 `stub`(결정적 무의미 벡터)은 **서버 검증용이다** — stub 벡터를 `content_embeddings`에 저장하지 않는다(`model = dev-stub`이 그 방어선이다).
 - 산출물에 **모델 식별자를 함께 기록**한다(`content_embeddings.model`). 값 없는 벡터는 만들지 않는다.
+- **구현 (2026-09-22 — 이날까지 코드가 없어 발행 콘텐츠 전부 `has_embedding=false` 였다)**: 두 자리에서 부른다. ① 워커 메타 부여(`stages/enrich.ts`)가
+  `AI_SERVER_URL`·`AI_SERVER_TOKEN` 이 있으면 대본 전문으로 `POST /embeddings` 를 받아 `enrichment.json` 의 `embedding` 에 넣는다(실패·stub 은 임베딩 없이
+  파일을 내고 실행 기록에 사유). ② 웹 발행 경로(`lib/embedding.ts`)가 첨부 직전 `embedding` 이 비어 있으면 같은 compose 의 AI 서버에서 받아 합친다 — 노트북
+  워커(AI 서버에 닿지 않음)가 메타를 부여한 편과 **도입 전 발행분의 소급**(발행 목록 [반영], `enrichment_file` 단독 PATCH·버전 무변경)을 위한 것이다. 수동
+  업로드(대본 없음)는 임베딩 없이 간다. 토큰은 AI 서버 `INTERNAL_AUTH_TOKEN` 과 같은 값(`deploy/env.prod` `AI_SERVER_TOKEN`).
 
 ### 4.4 산출물 (Phase C) — `enrichment.json`
 

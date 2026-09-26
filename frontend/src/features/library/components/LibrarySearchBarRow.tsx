@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
 
 import { LIBRARY_COPY } from '../library.copy';
 
@@ -10,6 +11,8 @@ interface LibrarySearchBarRowProps {
   onChangeQuery: (query: string) => void;
   /** 검색창 줄 우측의 잔여 재생 표시 자리. null이면 자리를 비운다 */
   trailing: ReactNode;
+  /** `fill` — 콘텐츠 안(제목 줄 밑, 목록과 같이 스크롤)에 놓일 때. 유리가 아니라 면(애플 뮤직 검색 탭의 검색창) */
+  variant?: 'glass' | 'fill';
 }
 
 /**
@@ -21,12 +24,14 @@ export default function LibrarySearchBarRow({
   query,
   onChangeQuery,
   trailing,
+  variant = 'glass',
 }: LibrarySearchBarRowProps) {
   const hasQuery = query.length > 0;
 
   return (
     <View style={styles.row}>
-      <View style={styles.searchBox}>
+      {/* 유리 캡슐(iOS 26 시스템 검색처럼) — 목록 위에 떠 있는 컨트롤이라 면이 아니라 유리다(2026-09-24 PM) */}
+      <GlassCapsule style={styles.searchBox} variant={variant}>
         <TextInput
           style={styles.input}
           value={query}
@@ -51,7 +56,7 @@ export default function LibrarySearchBarRow({
             <Text style={styles.clearGlyph}>✕</Text>
           </Pressable>
         ) : null}
-      </View>
+      </GlassCapsule>
       {trailing}
     </View>
   );
@@ -63,18 +68,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: theme.spacing.sm,
     paddingHorizontal: theme.spacing.md,
-    // 위쪽 여백은 프로필 탭의 신원 행(24)과 같은 값 — 세 탭의 첫 요소가 같은 높이에서 시작한다(2026-09-18 PM)
-    paddingTop: theme.spacing.lg,
+    // 상태 바 바로 밑(8) — 애플 뮤직 검색창 자리(PM 2026-09-25 비교). 종전 24(프로필 신원 행과 맞춤, 09-18)는 뿌연 구간을 길게 보였다
+    paddingTop: theme.spacing.sm,
     paddingBottom: theme.spacing.sm,
   },
+  // 유리 캡슐(GlassCapsule 이 바탕·윤곽·full 반지름을 준다). 종전 surface 면 + md 반지름(09-22)에서 바꿈
   searchBox: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: theme.touchTarget.minHeight - theme.spacing.xs,
+    height: HEADER_CONTROL_HEIGHT,
     paddingLeft: theme.spacing.md,
-    borderRadius: theme.radius.md,
-    backgroundColor: theme.color.surface,
   },
   input: {
     flex: 1,
@@ -85,7 +89,7 @@ const styles = StyleSheet.create({
   },
   clearButton: {
     minWidth: theme.touchTarget.minWidth,
-    minHeight: theme.touchTarget.minHeight - theme.spacing.xs,
+    height: HEADER_CONTROL_HEIGHT,
     alignItems: 'center',
     justifyContent: 'center',
   },

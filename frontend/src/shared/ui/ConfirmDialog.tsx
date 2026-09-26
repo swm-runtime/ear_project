@@ -83,6 +83,7 @@ const styles = StyleSheet.create({
   dialog: {
     // 다이얼로그·바텀시트는 xl 이다 — 면이 큰 표면일수록 곡률을 키워야 같은 부드러움으로 읽힌다
     borderRadius: theme.radius.xl,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.background,
     padding: theme.spacing.lg,
     gap: theme.spacing.sm,
@@ -107,17 +108,19 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: theme.touchTarget.minHeight,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // 보조 동작은 테두리 없이 연한 면(design.md §5 — PlayConfirmDialog 의 [취소]와 같은 규칙, 2026-09-22 PM
+  // "검정 버튼 옆에서 선으로 그린 상자는 낡아 보인다"). 09-26 프로필 정비에서 맞췄다
   secondaryButton: {
-    borderWidth: 1.5,
-    borderColor: theme.color.border,
+    backgroundColor: theme.color.surface,
   },
   secondaryLabel: {
     fontSize: theme.font.size.md,
     fontWeight: '600',
-    color: theme.color.textSecondary,
+    color: theme.color.textPrimary,
   },
   primaryButton: {
     backgroundColor: theme.color.primary,

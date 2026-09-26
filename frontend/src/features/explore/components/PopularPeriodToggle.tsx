@@ -1,9 +1,21 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { StyleSheet, type NativeSyntheticEvent } from 'react-native';
 
-import { theme } from '@/shared/theme';
+import SegmentedControl from '@/shared/ui/SegmentedControl';
 
+import {
+  HAS_SYSTEM_SEGMENTED_CONTROL,
+  SystemSegmentedControl,
+  type SystemSegmentedControlChangeEvent,
+} from '../../../../modules/system-segmented-control/src';
 import { EXPLORE_COPY } from '../explore.copy';
 import type { ExplorePeriod } from '../explore.types';
+
+/** JS 세그먼트(Android·옛 빌드)의 칸 높이 — 캡슐 전체 32, 안쪽 3 을 빼면 26 */
+const FALLBACK_SEGMENT_HEIGHT = 26;
+/** 시스템 컨트롤 크기 — UISegmentedControl 은 Yoga 에 크기를 알리지 않는다. 높이 32 는 iOS 기본, 칸 52×3 */
+const SYSTEM_HEIGHT = 32;
+const SYSTEM_SEGMENT_WIDTH = 52;
 
 interface PopularPeriodToggleProps {
   /** 선택 상태의 근거는 서버 응답의 period다 — 클라이언트 기본값이 없다(uiux 4.10) */
@@ -15,122 +27,86 @@ interface PopularPeriodToggleProps {
 
 /** 라벨은 화면 문구, 값은 전송값 — 순서는 uiux 4.10의 "주간 · 월간 · 전체"다 */
 const PERIODS: ExplorePeriod[] = ['week', 'month', 'all'];
+const LABELS = PERIODS.map((value) => EXPLORE_COPY.popular.periodLabels[value]);
+const OPTIONS = PERIODS.map((value, index) => ({ value, label: LABELS[index] }));
 
 /**
- * 선택 알약 높이 = **섹션 제목 "지금 인기"의 글자 높이**(2026-09-18 지시).
- * 눈에 "알약"으로 읽히는 것은 바깥 트랙이 아니라 **그림자로 떠 있는 흰 알약**이다. 처음에 트랙을
- * 글자에 맞췄더니 알약이 20에 그쳐 제목보다 한참 작아 보였다(사용자 화면 실측: 글자 32 vs 알약 24,
- * 스크린샷 배율). 그래서 알약을 제목 폰트 크기 xl(28)에 맞춘다 — 웹에서 잰 글자 잉크가 27이다.
- */
-const SEGMENT_HEIGHT = theme.font.size.xl;
-/** 트랙 테두리 — 흰 트랙의 윤곽을 준다(아래 container 주석) */
-const TRACK_BORDER = 1;
-/**
- * 트랙 안쪽 여백 — 선택 알약 둘레로 여백이 **눈에 띄게** 남아야 "트랙 안에 떠 있는 알약"으로 읽힌다.
- * 2였을 때는 알약이 트랙 가장자리에 붙어 끼인 것처럼 보였다. 트랙 전체는 28 + (3 + 1) × 2 = 36이 되어
- * 제목 줄(35)보다 1 크다 — 알약이 글자와 맞고 트랙 윤곽이 그 둘레를 살짝 두르는 모양이다.
- */
-const TRACK_INSET = 3;
-/**
- * 알약 폭 — 세 구간을 **같은 폭**으로 둔다. 라벨이 모두 두 글자라 폭이 같아야 선택 알약이
- * 옮겨갈 때 크기가 변하지 않는다. 폭을 내용에 맡기면 글자마다 폭이 조금씩 달라 알약이 옮겨갈 때
- * 늘었다 줄며 흔들린다.
- */
-const SEGMENT_WIDTH = 48;
-
-/**
- * 보이는 높이를 줄이는 대신 위아래로 넓힌 터치 영역. 명세 7장의 44×44pt는
- * **눌리는 영역** 기준이므로 hitSlop으로 채운다 — 알약을 44pt로 그리면
- * 제목 줄이 토글 높이에 끌려가 "인기 콘텐츠" 제목보다 커진다.
- */
-const SEGMENT_HIT_SLOP = {
-  top: (theme.touchTarget.minHeight - SEGMENT_HEIGHT) / 2,
-  bottom: (theme.touchTarget.minHeight - SEGMENT_HEIGHT) / 2,
-};
-
-/**
- * E13 인기 구간 토글 — 인기 섹션 제목 줄에만 붙는 3택 1 세그먼트 컨트롤.
- * 확정 구간이 없어도 세 구간 모두 항상 고를 수 있다 — 탭을 숨기거나 비활성화하지 않는다
- * (explore.md 4.1-1 · uiux 8장). 선택 상태는 색만이 아니라 **떠 있는 알약(면·그림자)** 형태로도
- * 드러낸다(uiux 7장 — 색만으로 구분하지 않는다). 굵기는 셋이 같다 — 아래 label 주석.
+ * E13 인기 구간 토글 — 인기 섹션 제목 줄에만 붙는 3택 1. 확정 구간이 없어도 세 구간 모두 항상 고를 수 있다 —
+ * 탭을 숨기거나 비활성화하지 않는다(explore.md 4.1-1 · uiux 8장).
+ *
+ * iOS 는 **시스템 UISegmentedControl 그대로**(`modules/system-segmented-control`, PM 2026-09-26 02:19 "iOS 26 기본
+ * 토글로") — iOS 26 에서는 OS 가 그리는 유리 선택바다. JS 재현(`SegmentedControl` 의 `system`·`modern`)은 실기기에서
+ * "옛날 것 같다"는 평을 받았다. Android·모듈 없는 빌드는 종전 캡슐 선택바(`modern`)로 내려간다.
  */
 export default function PopularPeriodToggle({
   selected,
   onSelect,
   disabled,
 }: PopularPeriodToggleProps) {
+  if (HAS_SYSTEM_SEGMENTED_CONTROL) {
+    return <SystemPeriodToggle selected={selected} onSelect={onSelect} disabled={disabled} />;
+  }
   return (
-    <View
-      style={styles.container}
-      accessibilityRole="radiogroup"
+    <SegmentedControl
+      options={OPTIONS}
+      value={selected}
+      onChange={onSelect}
+      disabled={disabled}
       accessibilityLabel={EXPLORE_COPY.popular.toggleA11y}
-    >
-      {PERIODS.map((period) => {
-        const isSelected = period === selected;
-        return (
-          <Pressable
-            key={period}
-            style={[styles.segment, isSelected && styles.segmentSelected]}
-            onPress={() => onSelect(period)}
-            hitSlop={SEGMENT_HIT_SLOP}
-            disabled={disabled}
-            accessibilityRole="radio"
-            accessibilityLabel={EXPLORE_COPY.popular.periodLabels[period]}
-            accessibilityState={{ checked: isSelected, disabled }}
-          >
-            <Text style={[styles.label, isSelected && styles.labelSelected]}>
-              {EXPLORE_COPY.popular.periodLabels[period]}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </View>
+      appearance="modern"
+      segmentHeight={FALLBACK_SEGMENT_HEIGHT}
+    />
+  );
+}
+
+/**
+ * 시스템 컨트롤은 탭하는 순간 스스로 선택 칸을 옮긴다(그게 iOS 문법). 선택의 기준은 여전히 `selected`(서버 응답)라,
+ * 비활성 중 탭이거나 전환이 실패해 `selected` 가 안 바뀌면 컨트롤이 보여 주는 칸과 어긋난다 — 그때 `key` 로 다시
+ * 그려 `selected` 로 되돌린다(uiux 4.10 "선택 상태를 직전 구간으로 되돌린다"). `enabled` 를 내리지 않는 이유:
+ * 시스템은 비활성을 흐리게 그려서, 전환마다 잠깐 흐려졌다 돌아오는 깜빡임이 된다
+ */
+function SystemPeriodToggle({ selected, onSelect, disabled }: PopularPeriodToggleProps) {
+  /** 컨트롤이 지금 보여 주는 값 — 탭 이벤트로 갱신한다 */
+  const shownRef = useRef<ExplorePeriod>(selected);
+  const [resyncKey, setResyncKey] = useState(0);
+
+  useEffect(() => {
+    if (!disabled && shownRef.current !== selected) {
+      shownRef.current = selected;
+      setResyncKey((key) => key + 1);
+    }
+  }, [disabled, selected]);
+
+  const handleChange = (event: NativeSyntheticEvent<SystemSegmentedControlChangeEvent>) => {
+    const next = PERIODS[event.nativeEvent.selectedIndex];
+    if (!next) return;
+    if (disabled || next === selected) {
+      // 중복 탭 차단 — 컨트롤이 먼저 움직였으니 되돌린다
+      shownRef.current = selected;
+      setResyncKey((key) => key + 1);
+      return;
+    }
+    shownRef.current = next;
+    onSelect(next);
+  };
+
+  // HAS_SYSTEM_SEGMENTED_CONTROL 이 true 면 항상 있다 — 타입 좁히기용
+  if (!SystemSegmentedControl) return null;
+  return (
+    <SystemSegmentedControl
+      key={resyncKey}
+      segments={LABELS}
+      selectedIndex={PERIODS.indexOf(selected)}
+      onChange={handleChange}
+      accessibilityLabel={EXPLORE_COPY.popular.toggleA11y}
+      style={styles.system}
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  /**
-   * 트랙 — 흰 바탕에 연한 테두리(2026-09-18 지시, 레퍼런스 "일·주·월" 토글).
-   * 회색으로 채운 트랙 위에 흰 알약을 얹으면 두 면의 명도 차가 거의 없어 알약이 번져 보였다.
-   * 트랙을 비우고 테두리로만 둘러야 그림자 진 알약이 "떠 있는" 것으로 읽힌다.
-   */
-  container: {
-    flexDirection: 'row',
-    backgroundColor: theme.color.background,
-    borderWidth: TRACK_BORDER,
-    borderColor: theme.color.border,
-    // 바깥 트랙도 알약으로 둔다 — 안쪽만 둥글면 모서리에 각진 여백이 남는다
-    borderRadius: theme.radius.full,
-    padding: TRACK_INSET,
-  },
-  segment: {
-    // 보이는 높이는 제목에 맞추고, 44pt는 위 SEGMENT_HIT_SLOP이 채운다(uiux 7).
-    // 폭은 48로 고정 — 터치 최소폭 44를 넘고, 세 구간이 같은 폭이 된다(위 SEGMENT_WIDTH)
-    height: SEGMENT_HEIGHT,
-    width: SEGMENT_WIDTH,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: theme.radius.full,
-  },
-  /**
-   * 선택 알약 — 흰 면을 **부드러운 그림자로 띄운다**(레퍼런스 토글과 같은 결). 이 코드베이스에서
-   * 그림자를 쓰는 첫 자리다. `shadow*` 속성 대신 `boxShadow`를 쓴다 — RN 0.86(새 아키텍처)과
-   * react-native-web이 같은 문자열을 그대로 그려, 플랫폼마다 값을 따로 맞출 필요가 없다.
-   */
-  segmentSelected: {
-    backgroundColor: theme.color.background,
-    boxShadow: '0 1px 4px rgba(0, 0, 0, 0.14)',
-  },
-  /**
-   * 라벨 굵기는 선택과 **무관하게 같다** — 선택은 색(회색 → 검정)과 알약으로만 가른다.
-   * 선택만 굵히면 라벨 폭이 변해 시선이 튄다(TopicChip과 같은 이유). 레퍼런스도 셋 다 굵다.
-   */
-  label: {
-    fontSize: theme.font.size.xs,
-    fontWeight: '600',
-    color: theme.color.textSecondary,
-  },
-  labelSelected: {
-    color: theme.color.textPrimary,
+  system: {
+    width: SYSTEM_SEGMENT_WIDTH * PERIODS.length,
+    height: SYSTEM_HEIGHT,
   },
 });

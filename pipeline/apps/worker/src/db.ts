@@ -101,6 +101,21 @@ export async function claimApprovedBacklog(id: string, worker: string): Promise<
   return (r.rowCount ?? 0) > 0;
 }
 /** 이 후보에 대기·진행 중인 draft 작업이 있는가 — 승인 시 UI 가 넣은 작업과 워커 폴백의 중복 방지 */
+/** 에피소드에 걸린 진행 중 작업(유형 지정) — 자동 발행 준비가 두 번 걸리지 않게 */
+export async function hasActiveJob(types: JobType[], episodeId: string): Promise<boolean> {
+  const r = await pool.query("select 1 from public.jobs where type = any($1) and status in ('queued','claimed','running') and payload->>'episode_id' = $2 limit 1", [types, episodeId]);
+  return (r.rowCount ?? 0) > 0;
+}
+/** 자동 승인 후보 (automation.ts 규칙 v1 의 입력) — proposed 전부를 돌려주고 판정은 순수 함수가 한다 */
+export async function listProposedForAutoApprove(): Promise<{ id: string; cluster_version: string | null; gaps: string[] | null; dedup_note: string | null }[]> {
+  const r = await pool.query("select id, cluster_version, gaps, dedup_note from public.backlog where status = 'proposed' order by id");
+  return r.rows;
+}
+/** 자동 승인 — proposed 일 때만 원자적으로 전환 (사람이 그 사이 반려·보류했으면 실패) */
+export async function approveBacklogAuto(id: string, by: string): Promise<boolean> {
+  const r = await pool.query("update public.backlog set status = 'approved', approved_by = $2, approved_at = now(), updated_at = now() where id = $1 and status = 'proposed' returning id", [id, by]);
+  return (r.rowCount ?? 0) > 0;
+}
 export async function hasActiveDraftJob(backlogId: string): Promise<boolean> {
   const r = await pool.query("select 1 from public.jobs where type = 'draft' and status in ('queued','claimed','running') and payload->>'backlog_id' = $1 limit 1", [backlogId]);
   return (r.rowCount ?? 0) > 0;

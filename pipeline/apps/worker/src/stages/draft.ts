@@ -287,6 +287,7 @@ export async function onDraftFailed(job: Job, err: unknown) {
       await pool.query("delete from public.episodes where backlog_id = $1 and script_key is null", [backlogId]).catch(() => {});
       await setBacklogStatus(backlogId, "proposed", { claimed_by: null, claimed_at: null, dedup_note: note });
       log(`  draft ${episodeId || "(id 없음)"}: 초안 실패 → 에피소드 제거, 백로그 ${backlogId} proposed 복귀 (사유 dedup_note)`);
+      // 자동 승인 규칙(automation.ts)은 dedup_note 의 "⚠️ 초안 실패" 표시를 보고 이 후보를 다시 승인하지 않는다 — 큐가 비면 요약 알림(digest.ts)에 묶여 사람에게 간다
     }
   } catch (e: any) {
     log(`  draft 실패 후처리 실패 (${backlogId}): ${e?.message ?? e}`);

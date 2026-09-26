@@ -116,6 +116,7 @@ describe('DripBatchOrchestrator', () => {
       findAllContentIds: jest.fn().mockResolvedValue([]),
       findCompletedSeriesMaxEpisodes: jest.fn().mockResolvedValue(new Map()),
       findRecentDripContentIds: jest.fn().mockResolvedValue([]),
+      findIgnoredDripItems: jest.fn().mockResolvedValue([]),
       countExposures: jest.fn().mockResolvedValue(new Map()),
     } as unknown as jest.Mocked<LibraryService>;
 
@@ -222,6 +223,33 @@ describe('DripBatchOrchestrator', () => {
     // then — 탐색 피드가 읽는 캐시는 그 사용자에게도 갱신된다
     expect(preferenceVectorService.rebuild).toHaveBeenCalledTimes(1);
     expect(dripPlacementService.placeItems).not.toHaveBeenCalled();
+  });
+
+  it('7일 넘게 열지 않은 드립은 "무시" 신호로 취향 재계산에 들어간다 — 시각은 적립 + 7일(4.3)', async () => {
+    // given — 10일 전에 적립돼 아직 미청취인 드립 1편
+    const addedAt = new Date(NOW.getTime() - 10 * 24 * 60 * 60 * 1000);
+    libraryService.findIgnoredDripItems.mockResolvedValue([
+      { contentId: 'r1', addedAt },
+    ]);
+
+    // when
+    await orchestrator.run(NOW);
+
+    // then — user_signals 에는 없는 파생 신호가 rebuild 입력에 합쳐진다
+    const [, signals] = preferenceVectorService.rebuild.mock.calls[0];
+    expect(signals).toEqual([
+      {
+        contentId: 'r1',
+        action: 'ignore',
+        createdAt: new Date(addedAt.getTime() + 7 * 24 * 60 * 60 * 1000),
+      },
+    ]);
+    // 조회 창은 "적립이 7일보다 오래된 것"이다
+    expect(libraryService.findIgnoredDripItems).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(Date),
+      new Date(NOW.getTime() - 7 * 24 * 60 * 60 * 1000),
+    );
   });
 
   it('후보가 고갈된 사용자는 skipped가 아니라 exhausted로 집계된다 — 콘텐츠 수급 신호다', async () => {

@@ -5,6 +5,10 @@
 | 대상 | `src/modules/subscription/` 전체 · `users.tier` 갱신 경로 · `purchase_intents` · `store_notification_logs` |
 | 요청 파트 | 백엔드 |
 | 발행 날짜 | 2026-09-09 |
+| 시작 날짜 | 2026-09-09 |
+| 기한 | 2026-10-01 (Lowest — Jira 기한. 스토어 결제 준비물이 갖춰져야 시작할 수 있다) |
+| 선행 | 티켓 선행 없음. **티켓이 아닌 선행** — App Store Connect 인앱 상품·공유 비밀, Play Console 상품·서비스 계정(담당: FE·대표 / 상태: 미확인) |
+| Jira | [KAN-40](https://runtime364.atlassian.net/browse/KAN-40) (담당: 박준현) |
 | 발견 시점 | 2026-09-08 백엔드 전수 점검 — "미구현 5건" 중 유일하게 **지금 착수할 수 없는** 건이라 분리했다 |
 | 근거 문서 | `features/subscription.md` 4장 · `features/paywall.md` · `backend/domain.md` 1.3 · 8.3 · 8.4 |
 | 심각도 | **중** — 보안 문제는 아니다. **유료 기능을 켤 수 없는 상태**다 |

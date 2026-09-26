@@ -4,7 +4,7 @@ import { cfg } from "../config.js";
 import { insertRun, setJobProgress, updateJobPayload, type Job } from "../db.js";
 import { executedBy } from "../config.js";
 import { workerRev } from "../assets.js";
-import { RetryLater } from "../util.js";
+import { ApiLimit, RetryLater } from "../util.js";
 import type { Executor } from "../executors/index.js";
 import { assetPaths, buildDesignPrompt, buildWritePromptParts, DESIGN_SCHEMA, WRITE_SCHEMA, type BacklogCandidate, type INTRO_STYLES, type Templates } from "@ear/pipeline";
 import { exists, hostOf, log } from "../util.js";
@@ -94,6 +94,7 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
   } catch (e) {
     // 대본이 실패해도 설계는 끝나 있다 — 비용을 runs 에 남기고(안 남기면 실패 편의 설계 비용이 사라진다), 실행기 시간 초과·결과 없음은 한 번 다시 집는다.
     // 설계 산출물이 디렉토리에 있으므로 다음 집기는 대본만 다시 돈다 (designDone 분기). 두 번째도 실패면 초안 실패 복귀(onDraftFailed)
+    if (e instanceof ApiLimit) throw e; // 한도는 워커 차단기가 처리 — 여기서 재시도로 바꾸지 않는다 (ai-pause.ts)
     const msg = String((e as Error)?.message ?? e);
     if (design) await insertRun({ backlog_id: cand.id, phase: "draft", attempt: 1, result: `설계만 완료(대본 실패: ${msg.slice(0, 160)}) — ${designSummary}`, prompt_version: `${a.promptVersion} (worker)`, artifacts: [], executed_by: executedBy, model: designModel, cost_usd: designCost, tokens: designTokens, worker_rev: workerRev() }).catch(() => {});
     const transient = /결과 없음|exit 143|timeout|ECONNRESET|rate limit|overloaded/i.test(msg);
@@ -200,7 +201,7 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
   if (maxGap >= 10) { const targets = maxRunIds.filter((_, i) => i % 4 === 2); v.push(`해설 턴 ${maxGap}개가 연속으로 뜸(말줄임표) 없이 이어짐 (${maxRunIds[0]}~${gapEnd}) — ${targets.join("·")} 각 턴의 문장 중간(절 사이, 생각을 고르는 자리)에 뜸 "..." 을 하나씩 넣는다. 지목한 턴은 전부 고친다 (규칙 7)`); }
   // 골드 특유 문구 (골드 사용법·루브릭 G1, 판정 3편 전부 동의): 자리째 복제 틀이 2회 이상이면 재생성
   // full-v6.2 (판정 3편 G1 동의 11건): 문장이 골드에서 그대로 온 것은 1턴이어도 수정 — "자리까지 막기는 어렵고 완전 복제만 피하면 된다"(판정 부분동의)
-  const goldRe = /(그 그림이 [^.。!?]{0,14}(맞|정확|가까|그거)|정확한 표현이|정확히 [^.。!?]{1,14}(핵심|조각|얘기|그거)|한 번쯤 떠올려 보셔도|떠올려 보셔도 좋겠|(해|두|보)셔도 좋겠(습니다|네요)|짧게 모아|모아 볼게요|모아 보면|한번 모아볼까요|한 번 묶어|묶어 주실|그런데 (윤아|이음)님은 어떠세요|(윤아|이음)님(한테|께|,)? ?하나(만)? (여쭤|물어)볼게요|하나(만)? 여쭤볼게요|솔직히 반반|예리하세요|반만 맞(았|아)|그 감각이 [^.。!?]{0,12}(정확|맞|핵심|통해|방향)|그 정리가 맞아요|솔직히 둘 다|이해하게 (된|됐)|흔히 생각하는 (거|것)(랑|과|이랑)? ?반대|통념(과|이랑) 반대)/; // full-v8.3: 골드 변형 "솔직히 둘 다"(002 Y10) · 학습자 마무리(A10, 001 E33) · 통념 반전 도입 틀(001 E1)
+  const goldRe = /(그 그림이 [^.。!?]{0,14}(맞|정확|가까|그거)|정확한 표현이|정확히 [^.。!?]{1,14}(핵심|조각|얘기|그거)|한 번쯤 떠올려 보셔도|떠올려 보셔도 좋겠|(해|두|보)셔도 좋겠(습니다|네요)|짧게 모아|모아 볼게요|모아 보면|한번 모아볼까요|한 번 묶어|묶어 주실|그런데 (윤아|이음)님은 어떠세요|(윤아|이음)님(한테|께|,)? ?하나(만)? (여쭤|물어)볼게요|하나(만)? 여쭤볼게요|솔직히 반반|예리하세요|반만 맞(았|아)|그 감각이 [^.。!?]{0,12}(정확|맞|핵심|통해|방향)|그 정리가 맞아요|솔직히 둘 다|이해하게 (된|됐)|흔히 생각하는 (거|것)(랑|과|이랑)? ?반대|통념(과|이랑) 반대|거의 그런데|그렇게 들어도 크게 틀리지 않|정확히 같은 패턴|한 번쯤 생각해 볼 필요)/; // v8.4: 새 골드(T260918-001) 특유 문구 4개 추가 — 교정 진입·수긍 교정·확인구·클로징 · full-v8.3: 골드 변형 "솔직히 둘 다"(002 Y10) · 학습자 마무리(A10, 001 E33) · 통념 반전 도입 틀(001 E1)
   const gold = p.turns.filter((t) => goldRe.test(t.text)).map((t) => t.id ?? "?");
   if (gold.length >= 1) v.push(`골드 특유 문구가 ${gold.length}턴 (${gold.slice(0, 6).join(", ")}) — 확인구("반만 맞았어요"·"그 감각이 …"·"그 그림이 …"·"그 정리가 맞아요")·정리 진입("…짧게 모아 보면요")·마무리 마지막 문장 틀("~해 보셔도 좋겠습니다")을 자리째 쓰지 않는다. 같은 기능을 새 문장으로 (골드 사용법)`);
   // 귀속 연속 (규칙 22, full-v6.2 — 판정 3편 A9 전부 동의, T260910-013 은 한 저자 글을 11턴 연속 옮김): 귀속 동사로 닫히는 해설 턴이 4턴 연속이면 책 소개다
@@ -233,6 +234,25 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
   const todayRe = /오늘(의)? (얘기|이야기|출발점|주제)/;
   const today = eTurns.filter((t) => todayRe.test(t.text));
   if (today.length >= 4) v.push(`해설 턴 ${today.length}개가 "오늘 얘기/오늘의 출발점" 틀로 위치를 잡음 (${today.slice(0, 6).map((t) => t.id).join(", ")}) — 같은 틀 세 번이면 각본이다. 내용으로 잇는다 (규칙 16)`);
+
+  // ── v9.3 (2026-09-22, GPT 3편 실측 — 규칙 문장으로는 안 줄고 코드 검사가 확실한 정형 문제) ──
+  const expl = p.turns.filter((t) => t.id?.startsWith("E"));
+  // 표본 수·편수·조사 횟수 낭독 (규칙 20 각주): "384명에게", "278쌍을", "17개 연구", "연구 열일곱 편" — 연구는 대상과 결과로만 소개한다
+  const sampleRe = /(참가자|응답자|학생|직원|관리자|창업자|가구|사람|성인|청소년|환자|기업)\s*(\d[\d,]*|[일이삼사오육칠팔구십백천만]{1,4})\s*(명|쌍|곳)|(\d[\d,]*|[일이삼사오육칠팔구십백천만]{1,4})\s*(명|쌍|곳|가구)(을|를|의|에게|과|이|가|에|씩)?\s*[^.!?]{0,14}(조사|인터뷰|설문|추적|분석|검토|살핀|살펴|모아|모은|묶은|대상|참여|응답|표본|보여|물어|물었|나눠|비교|실험)|(\d+|[일이삼사오육칠팔구십]+)\s*(개|편)의? (연구|논문|실험)|연구 (\d+|[일이삼사오육칠팔구십]+)\s*편|(\d+|[일이삼사오육칠팔구십]+)\s*차례 (조사|측정)/;
+  const citeRe = /(이 글이|그 글이|글이|논문이|보고서가|연구가) 인용한|(앞선|선행|기존) (연구|문헌)(들)?(에서|의|도|가|은|는|을)|(이|를|를 보충한|을 보충한) (연구|논문)에서는|문헌 (관계|편수)/; // 인용 관계·선행 연구 대조 — 소스 안의 서지 관계
+  const sample = expl.filter((t) => sampleRe.test(t.text) || citeRe.test(t.text)).map((t) => t.id);
+  if (sample.length) v.push(`해설 턴 ${sample.length}개가 표본 수·편수·조사 횟수·인용 관계를 낭독 (${sample.slice(0, 8).join(", ")}) — 연구는 대상과 결과로만 소개한다. 사람 수·편수·조사 횟수·조사 연도·앞선 연구와의 관계는 각주라 뺀다 (규칙 20)`);
+  // 수치 나열 (규칙 17): 한 해설 턴에 수치 5개 이상
+  const numCount = (t: string) => (t.match(/\d[\d,.]*\s*(퍼센트|%|명|원|배|년|개|곳|건|시간|분|달|주|센트|달러)?/g) ?? []).length;
+  const dense = expl.map((t) => ({ id: t.id!, n: numCount(t.text) })).filter((x) => x.n >= 5);
+  if (dense.length) v.push(`해설 턴 ${dense.length}개에 수치가 5개 이상 (${dense.slice(0, 6).map((x) => `${x.id}: ${x.n}개`).join(", ")}) — 한 턴에 수치는 3개 이하. 극적 대비·설득에 필요 없는 수치부터 뺀다 (규칙 17)`);
+  // 주어형 귀속 (규칙 8·20): "이 글은 …해요", "저자는", "연구진은", "이 연구에서는" 가 해설 턴 4개 이상이면 소스를 읽어 주는 대본이다 (연속이 아니어도)
+  const subjRe = /(이 글|그 글|이 기사|글쓴이|저자들?|필자|연구진|연구자들?|연구팀|이 연구|그 연구|이 조사|이 실험|이 보고서|이 논문)(은|는|이|가|에서는|에서도)\s|(이 글|그 글|이 연구|이 조사)의 (주장|출발점|결론|해석|권고|제안|핵심)/;
+  const subj = expl.filter((t) => subjRe.test(t.text)).map((t) => t.id);
+  if (subj.length >= 4) v.push(`해설 턴 ${subj.length}개가 주어형 귀속("이 글은"·"저자는"·"연구진은"·"이 연구에서는")으로 말함 (${subj.slice(0, 8).join(", ")}) — 블록 소개 한 문장 뒤에는 주어 없이 내용을 말한다 (규칙 8·20)`);
+  // 마무리 정리 턴 (규칙 22·tpl-v2): 마지막 해설 턴이 3문장 미만이면 수렴이 없다 — 수정 재생성이 claims 를 지우며 문장까지 깎은 사례(T260922-007 E28)
+  const closingE = [...expl].reverse().find((t) => t.section === "마무리");
+  if (closingE) { const n = closingE.text.split(/(?<=[.?!])\s+/).filter((x) => x.trim()).length; if (n < 3) v.push(`마무리 정리 턴 ${closingE.id} 이 ${n}문장 — 정리 턴은 3~5문장이다. 구간마다 한 문장을 인과로 잇고 마지막 문장이 축 (규칙 22). 사실 주장을 지울 때도 문장 수를 줄이지 않는다`); }
   // full-v7.1 판정 반영 (2026-09-15, T260915-001~004 직접 수정 85건): 화자 없는 인용 예고 · 발행 시기 · 해설자 전환 선언 · 발화 안 가운뎃점
   const quoteCueRe = /((이런|그런|이) (문장|표현|구절|말)(이|도|을|가) (있어요|있는데요|있습니다|나와요|하나 있|있거든요)|(글|기사|책|보고서|논문|연구)(도|은|는|이|가|에서)? ?이렇게 (말해요|말합니다|적어요|적었어요|씁니다|썼어요|써요))/;
   const quoteCue = eTurns.filter((t) => quoteCueRe.test(t.text)).map((t) => t.id ?? "?");

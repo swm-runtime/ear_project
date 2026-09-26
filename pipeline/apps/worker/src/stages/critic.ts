@@ -5,6 +5,7 @@ import { getBacklog, getEpisode, insertRun, setJobProgress, upsertEpisode, type 
 import type { Executor } from "../executors/index.js";
 import { assetPaths, buildCriticPrompt, buildCriticPromptInlineParts, CRITIC_INLINE_SCHEMA, CRITIC_SCHEMA, CRITIC_SCHEMA_V2 } from "@ear/pipeline";
 import { readFile } from "node:fs/promises";
+import { startPublishPrepIfEnabled } from "../automation.js";
 import { log } from "../util.js";
 import { prepareAssets, workerRev, type AssetBundle } from "../assets.js";
 import { localPathOf, pullPrefix, pushPrefix, s3Key } from "../storage.js";
@@ -139,5 +140,7 @@ async function runCriticV2(job: Job, ex: Executor, e: { episodeId: string; backl
     result: `비평 v2 완료 (앵커 없음 기준선${preTemplate ? " · tpl 이전 세대" : ""}). 합계 ${total}/100 — 내용 ${sum.content}/35 · 구성 ${sum.structure}/20 · 자연 ${sum.naturalness}/20 · 몰입 ${sum.immersion}/15 · 페르소나 ${sum.persona}/10. 플래그 위반 ${o.violations}·의심 ${o.suspects}, ⭐${o.stars}. ${o.summary} · 사람 판정 대기`,
     prompt_version: `${e.bundle.labels.criticV2} (worker)`, artifacts: [reportKey], executed_by: executedBy, model: r.model, cost_usd: r.listCostUsd, tokens: (r.raw as { usage?: unknown } | undefined)?.usage, worker_rev: workerRev(),
   });
-  return { episode_id: e.episodeId, rubric: "v2", pre_template: preTemplate, scores: s, sums: sum, total, violations: o.violations, suspects: o.suspects, stars: o.stars, summary: o.summary, model: r.model };
+  // 자동화 (2026-09-23): 비평까지 끝나면 발행 준비 연쇄(tts → thumbnail → package)를 바로 건다 — settings.automation.auto_publish_prep 이 켜져 있을 때만
+  const prepJobId = await startPublishPrepIfEnabled(e.episodeId, e.backlogId, job.id).catch((err) => { log(`  자동 발행 준비 걸기 실패: ${err?.message ?? err}`); return null; });
+  return { episode_id: e.episodeId, rubric: "v2", pre_template: preTemplate, scores: s, sums: sum, total, violations: o.violations, suspects: o.suspects, stars: o.stars, summary: o.summary, model: r.model, publish_prep_job_id: prepJobId };
 }

@@ -5,6 +5,8 @@
 import type { LibrarySourceFilter } from './library.types';
 
 export const LIBRARY_COPY = {
+  /** iOS 26 큰 제목 바의 제목 — 탭 라벨과 같은 말(NativeMainTabs, 2026-09-26) */
+  tabTitle: '라이브러리',
   /**
    * 상단 탭 — 상태 3개(FE 개편 2026-08-07: 카드 정보량 축소로 출처는 필터 팝업으로 이동).
    * drip 라벨은 필터 팝업의 출처 섹션에서 쓴다.
@@ -28,11 +30,16 @@ export const LIBRARY_COPY = {
   /** L2 필터 바텀시트(library-uiux.md 4.5) — 출처 섹션 추가(FE 개편 2026-08-07) */
   topicFilter: {
     sheetTitle: '필터',
+    /** 상태 섹션(2026-09-25 PM — 세그먼트 탭을 시트의 라디오로 옮겼다. 애플 팟캐스트·메일의 필터 메뉴 문법) */
+    statusTitle: '상태',
     title: '주제',
     helper: '라이브러리에 담긴 콘텐츠의 주제만 보여줘요',
     reset: '초기화',
     apply: '적용',
     a11yBadge: (count: number) => `필터, ${count}개 적용됨`,
+    a11yNone: '필터',
+    /** 검색줄 아래 적용 중인 조건 한 줄 — 탭하면 시트가 열린다 */
+    summaryA11y: (conditions: string) => `적용 중인 필터 ${conditions}. 바꾸려면 두 번 탭`,
   },
 
   /** L4 더보기 액션시트 — 상세 정보·원문 보기·삭제(library-uiux.md 4.7 — 세 화면 더보기 통일) */
@@ -118,7 +125,7 @@ export const LIBRARY_COPY = {
   },
 
   card: {
-    /** 완청은 썸네일 좌상단 체크로만 표시한다 — 색이 아니라 형태 단서(uiux 7) */
+    /** 완청은 진행률 바를 끝까지 채워 표시한다(2026-09-22) — 길이 단서 + 이 라벨을 낭독기에 준다(uiux 7) */
     completedA11y: '완청한 콘텐츠',
     /** in_progress는 진행률 바만 있어 텍스트가 없다 — a11y로 반드시 제공한다(uiux 7) */
     progressA11y: (percent: number) => `${percent}% 들음`,

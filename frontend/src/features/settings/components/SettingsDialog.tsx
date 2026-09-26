@@ -79,7 +79,8 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
   },
   dialog: {
-    borderRadius: theme.radius.lg,
+    borderRadius: theme.radius.xl,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.background,
     padding: theme.spacing.lg,
     gap: theme.spacing.sm,
@@ -99,6 +100,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: theme.touchTarget.minHeight,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     alignItems: 'center',
     justifyContent: 'center',
   },

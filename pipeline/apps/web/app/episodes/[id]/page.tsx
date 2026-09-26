@@ -148,7 +148,7 @@ export default async function EpisodePage({ params, searchParams }: { params: Pr
                     {f.name} <span className="font-normal text-ink-soft">{f.mb}MB</span>
                     {f.name === "sample.mp3" && <span className="ml-2 text-[11px] text-amber-700">청취 확인용 샘플 — 발행 경로 아님</span>}
                   </div>
-                  {f.mp3 ? <audio controls preload="none" src={f.url} className="w-full" /> : <a className="text-brand underline" href={f.url}>내려받기 (무손실 마스터)</a>}
+                  {f.mp3 ? <audio controls preload="none" src={f.url} className="w-full" /> : <a className="text-brand underline" href={f.url}>내려받기 (마스터 (원본 포맷 기준))</a>}
                 </div>
               ))}
             </div>

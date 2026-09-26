@@ -4,9 +4,11 @@ import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'rea
 import { theme } from '@/shared/theme';
 
 import { LIBRARY_COPY } from '../library.copy';
-import type { LibrarySourceFilter, LibraryTopic } from '../library.types';
+import type { LibraryFilter, LibrarySourceFilter, LibraryTopic } from '../library.types';
 
 const SOURCE_OPTIONS: LibrarySourceFilter[] = ['drip', 'save'];
+/** 상태 — 종전 세그먼트 탭(전체·미청취·완료)이 시트의 라디오로 들어왔다(2026-09-25 PM) */
+const STATUS_OPTIONS: LibraryFilter[] = ['all', 'unplayed', 'completed'];
 
 interface TopicFilterSheetProps {
   visible: boolean;
@@ -14,8 +16,13 @@ interface TopicFilterSheetProps {
   isLoading: boolean;
   appliedTopicIds: string[];
   appliedSourceFilter: LibrarySourceFilter | null;
+  appliedStatus: LibraryFilter;
   /** [적용]으로만 반영된다. 딤·뒤로가기는 변경 폐기(library-uiux.md 4.5) */
-  onApply: (selected: LibraryTopic[], sourceFilter: LibrarySourceFilter | null) => void;
+  onApply: (
+    selected: LibraryTopic[],
+    sourceFilter: LibrarySourceFilter | null,
+    status: LibraryFilter,
+  ) => void;
   onDismiss: () => void;
 }
 
@@ -29,11 +36,14 @@ export default function TopicFilterSheet({
   isLoading,
   appliedTopicIds,
   appliedSourceFilter,
+  appliedStatus,
   onApply,
   onDismiss,
 }: TopicFilterSheetProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>(appliedTopicIds);
   const [sourceDraft, setSourceDraft] = useState<LibrarySourceFilter | null>(appliedSourceFilter);
+  // 상태는 단일 선택(라디오) — '전체'가 해제 상태다
+  const [statusDraft, setStatusDraft] = useState<LibraryFilter>(appliedStatus);
 
   const toggle = (topicId: string) => {
     setSelectedIds((prev) =>
@@ -52,6 +62,27 @@ export default function TopicFilterSheet({
       <View style={styles.sheet}>
         <View style={styles.handle} />
         <Text style={styles.title}>{LIBRARY_COPY.topicFilter.sheetTitle}</Text>
+
+        <Text style={styles.sectionTitle}>{LIBRARY_COPY.topicFilter.statusTitle}</Text>
+        <View style={styles.chipWrap} accessibilityRole="radiogroup">
+          {STATUS_OPTIONS.map((status) => {
+            const isSelected = statusDraft === status;
+            return (
+              <Pressable
+                key={status}
+                style={[styles.chip, isSelected && styles.chipSelected]}
+                onPress={() => setStatusDraft(status)}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: isSelected }}
+                accessibilityLabel={LIBRARY_COPY.tab[status]}
+              >
+                <Text style={[styles.chipLabel, isSelected && styles.chipLabelSelected]}>
+                  {LIBRARY_COPY.tab[status]}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
 
         <Text style={styles.sectionTitle}>{LIBRARY_COPY.sourceFilter.sectionTitle}</Text>
         <View style={styles.chipWrap}>
@@ -108,6 +139,7 @@ export default function TopicFilterSheet({
             onPress={() => {
               setSelectedIds([]);
               setSourceDraft(null);
+              setStatusDraft('all');
             }}
             accessibilityRole="button"
             accessibilityLabel={LIBRARY_COPY.topicFilter.reset}
@@ -120,6 +152,7 @@ export default function TopicFilterSheet({
               onApply(
                 topics.filter((t) => selectedIds.includes(t.id)),
                 sourceDraft,
+                statusDraft,
               )
             }
             accessibilityRole="button"
@@ -140,8 +173,9 @@ const styles = StyleSheet.create({
   },
   sheet: {
     backgroundColor: theme.color.background,
-    borderTopLeftRadius: theme.radius.lg,
-    borderTopRightRadius: theme.radius.lg,
+    borderTopLeftRadius: theme.radius.xl,
+    borderTopRightRadius: theme.radius.xl,
+    borderCurve: 'continuous',
     padding: theme.spacing.lg,
     paddingBottom: theme.spacing.xl,
     gap: theme.spacing.sm,
@@ -209,6 +243,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: theme.spacing.lg,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     borderWidth: 1,
     borderColor: theme.color.border,
   },
@@ -222,6 +257,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.primary,
   },
   applyLabel: {

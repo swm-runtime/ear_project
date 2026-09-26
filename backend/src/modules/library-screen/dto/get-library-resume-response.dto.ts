@@ -8,6 +8,13 @@ class ResumeContentDto {
   readonly duration_sec: number;
   readonly thumbnail_url: string;
   readonly content_version: number;
+  /**
+   * 목록 응답(4.1)의 `content.topic_ids`와 **같은 출처·같은 모양**이다(KAN-91).
+   * 미니플레이어가 제목 아래 카테고리 줄을 그리는데, 이 필드가 없으면 앱 재실행 직후
+   * 복원 스냅샷에서만 그 줄이 사라져 같은 카드가 상황에 따라 한 줄/두 줄이 된다.
+   * 주제가 없으면 **`null`이 아니라 빈 배열**이다 — 화면이 분기하지 않게 한다.
+   */
+  readonly topic_ids: string[];
 }
 
 class ResumeProgressDto {
@@ -62,6 +69,7 @@ function toResumeTarget(view: LibraryItemView): ResumeTargetDto {
       duration_sec: view.content.durationSec,
       thumbnail_url: view.content.thumbnailUrl,
       content_version: view.content.contentVersion,
+      topic_ids: view.content.topicIds,
     },
     progress: view.progress
       ? {

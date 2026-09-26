@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { setAnalyticsUserProperties, track } from '@/shared/analytics';
 import { APP_VERSION } from '@/shared/lib/app-version';
 import { getDeviceId } from '@/shared/lib/device-id';
 import { logger } from '@/shared/lib/logger';
@@ -68,6 +69,11 @@ export default function NotificationPrePromptModal({
     setIsProcessing(true);
     try {
       const isGranted = await requestOsPermission();
+      track('push_permission', {
+        result: isGranted ? 'granted' : 'denied',
+        source: syncOnDismiss ? 'onboarding' : 'settings',
+      });
+      setAnalyticsUserProperties({ push_permission: isGranted ? 'granted' : 'denied' });
       await syncAndFinish(isGranted);
     } catch (error) {
       logger.warn('[notification] permission request failed', error);
@@ -86,11 +92,14 @@ export default function NotificationPrePromptModal({
 
   const handleAllowPress = (): void => {
     if (isProcessing) return;
+    // 온보딩 경로에서만 단계 이벤트다 — 설정에서 다시 연 프리프롬프트는 push_permission 만 남긴다
+    if (syncOnDismiss) track('onboarding_step', { step: 'notification', action: 'next' });
     void requestAndFinish();
   };
 
   const handleLaterPress = (): void => {
     if (isProcessing) return;
+    if (syncOnDismiss) track('onboarding_step', { step: 'notification', action: 'skip' });
     dismiss();
   };
 
@@ -153,6 +162,7 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     alignItems: 'center',
     borderRadius: theme.radius.xl,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.background,
     padding: theme.spacing.lg,
     gap: theme.spacing.sm,
@@ -181,6 +191,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -78,7 +78,6 @@ function buildContext(
     preference: null,
     difficultyAffinity: null,
     completedEpisodesBySeries: new Map(),
-    recentDripTopicIds: [],
     isColdStart: true,
     career: null,
     now: NOW,
@@ -294,21 +293,15 @@ describe('DripScoringService', () => {
       );
     });
 
-    it('최근 편성에서 반복된 주제는 감점된다', () => {
-      const repeated = buildCandidate('repeated', { topicIds: [TOPIC_A] });
-      const fresh = buildCandidate('fresh', { topicIds: [TOPIC_B] });
-
+    it('노출 피로 항목은 폐기됐다 — 정규 편성의 exposureFatigue 는 항상 null(항목 빠짐)이다', () => {
+      // 관심 주제가 최대 3개라 최근 편성 주제와 안 겹치는 후보가 없어 변별이 0이었고,
+      // "반복해서 줬는데 반응이 없다"는 무시 신호가 맡는다(2026-09-25)
       const scored = service.scoreRegularCandidates(
-        [repeated, fresh],
-        buildContext({
-          activeTopicIds: [TOPIC_A, TOPIC_B],
-          recentDripTopicIds: [TOPIC_A],
-        }),
+        [buildCandidate('c1', { topicIds: [TOPIC_A] })],
+        buildContext({ activeTopicIds: [TOPIC_A] }),
       );
 
-      expect(scoreOf(scored, 'fresh')).toBeGreaterThan(
-        scoreOf(scored, 'repeated'),
-      );
+      expect(scored[0].breakdown.metaItems.exposureFatigue).toBeNull();
     });
   });
 

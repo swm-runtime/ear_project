@@ -3,6 +3,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BackHandler } from 'react-native';
 
+import { track } from '@/shared/analytics';
 import { isApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
@@ -47,9 +48,10 @@ export const usePickScreen = () => {
   );
 
   /** 완료 요청을 발사하고 다음 화면으로 넘어간다 — 완료 이후 구간은 뒤로 올 수 없다(navigation.reset) */
-  const proceed = (nextScreen: 'Complete' | 'FirstDripWaiting') => {
+  const proceed = (nextScreen: 'Complete' | 'FirstDripWaiting', action: 'next' | 'skip' = 'next') => {
     if (hasProceededRef.current) return;
     hasProceededRef.current = true;
+    track('onboarding_step', { step: 'pick', action });
     onboardingCompletionService.request();
     navigation.reset({ index: 0, routes: [{ name: nextScreen }] });
   };
@@ -74,7 +76,7 @@ export const usePickScreen = () => {
   /** 우상단 [건너뛰기] — 담은 것과 무관하게 담지 않고 넘어간다(0건 경로와 동일) */
   const handleSkipPress = () => {
     if (savePicksMutation.isPending || hasProceededRef.current) return;
-    proceed('FirstDripWaiting');
+    proceed('FirstDripWaiting', 'skip');
   };
 
   const handleProceedPress = async () => {

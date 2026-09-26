@@ -2,6 +2,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
+import { track } from '@/shared/analytics';
 import { useToastStore } from '@/shared/ui/toast.store';
 
 import { PLAYER_COPY } from '../player.copy';
@@ -75,7 +76,9 @@ export const usePlayGate = (options?: PlayGateOptions) => {
   const queryClient = useQueryClient();
 
   /* TODO(paywall feature): 페이월 바텀시트(paywall.md 4.5)로 교체한다 */
-  const openPaywall = (message?: string) => {
+  const openPaywall = (entry: PlayEntryPoint, message?: string) => {
+    // MVP 는 안내 토스트지만 노출 자체가 퍼널의 끝점이다 — 바텀시트로 바뀌어도 같은 이벤트(analytics.md 3.4)
+    track('paywall_view', { entry });
     showToast(message ?? PLAYER_COPY.paywallPlaceholderToast);
   };
 
@@ -164,7 +167,7 @@ export const usePlayGate = (options?: PlayGateOptions) => {
         onNotFound: target.onNotFound,
         // 플레이어 화면이 하던 차단 처리(usePlayerScreen)를 여기서 대신한다 — 같은 문구·같은 분기다
         onIssueBlocked: (blocked) => {
-          if (blocked.kind === 'paywall') openPaywall(blocked.message ?? undefined);
+          if (blocked.kind === 'paywall') openPaywall(entryPoint, blocked.message ?? undefined);
           else showToast(blocked.message ?? PLAYER_COPY.paidLimitReachedToast);
         },
         onIssued: ({ isReusedSession }) => {
@@ -216,20 +219,24 @@ export const usePlayGate = (options?: PlayGateOptions) => {
   /** [재생하기] — 허용 여부는 발급·재생 시작 시점에 서버가 다시 판정한다(paywall.md 4.2) */
   const confirmPlay = () => {
     if (!confirmState) return;
+    track('play_confirm', { action: 'confirm', remaining: confirmState.remaining });
     setConfirmState(null);
     proceed(confirmState);
   };
 
   /** [취소] — 차감도 없고 억제도 걸리지 않는다(library-uiux.md 4.6) */
   const cancelConfirm = () => {
+    if (!confirmState) return;
+    track('play_confirm', { action: 'cancel', remaining: confirmState.remaining });
     // 발급만 받아 둔 세션은 내린다 — 듣지 않기로 한 콘텐츠가 미니플레이어에 남지 않게
-    if (confirmState?.isIssued) playbackService.clearSession();
+    if (confirmState.isIssued) playbackService.clearSession();
     setConfirmState(null);
   };
 
   /** [오늘은 그만 보기] — 팝업을 닫고 그대로 재생한다. 차감은 그대로 일어난다(library.md 4.3) */
   const suppressAndPlay = () => {
     if (!confirmState) return;
+    track('play_confirm', { action: 'suppress_today', remaining: confirmState.remaining });
     if (playLimit) void suppressPlayConfirmForToday(playLimit.serviceDate);
     setConfirmState(null);
     proceed(confirmState);

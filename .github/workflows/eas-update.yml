@@ -89,6 +89,8 @@ jobs:
           # 앱 변형 — preview 채널은 개발계 앱(dev.runtime.ear)이 받는다(app.config.js · KAN-76).
           # OTA 매니페스트의 expoConfig(extra.socialAuth 등)가 이 값으로 정해진다 — 빌드 프로필 env 와 같아야 한다
           APP_VARIANT: ${{ steps.channel.outputs.app_variant }}
+          # 크래시 리포트 DSN(KAN-92) — 번들의 expoConfig.extra 로 실린다. 시크릿 미설정이면 빈 값 → 앱은 수집을 끈다
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           # 커밋 메시지를 셸에 직접 보간하지 않는다 — 따옴표·개행이 섞여도 안전하게 env 로 받는다
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
@@ -97,3 +99,17 @@ jobs:
             --channel "${{ steps.channel.outputs.channel }}" \
             --message "$MESSAGE" \
             --non-interactive
+
+      # OTA 번들의 소스맵을 Sentry 에 올린다(KAN-95) — 이게 없으면 OTA 에서 난 크래시 스택이 minified 로만 보인다.
+      # 시크릿이 없으면 실패시키지 않고 건너뛴다(발행은 이미 끝났다) — 등록은 사람 손: GitHub secret SENTRY_AUTH_TOKEN(EAS 와 같은 값)
+      - name: Sentry 소스맵 업로드
+        if: steps.guard.outputs.run == 'true'
+        working-directory: frontend
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: |
+          if [ -z "$SENTRY_AUTH_TOKEN" ]; then
+            echo "::warning::SENTRY_AUTH_TOKEN 이 없다 — 소스맵 업로드를 건너뛴다(스택이 minified 로 보인다). GitHub secret 에 EAS 와 같은 토큰을 등록한다"
+            exit 0
+          fi
+          npx sentry-expo-upload-sourcemaps dist

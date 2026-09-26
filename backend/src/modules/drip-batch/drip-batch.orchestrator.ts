@@ -7,6 +7,7 @@ import { Content } from '@/modules/content/entities/content.entity';
 import {
   COLD_START_COMPLETE_THRESHOLD,
   DRIP_BATCH_USER_PAGE_SIZE,
+  DRIP_IGNORE_AFTER_DAYS,
   EXPOSURE_FATIGUE_LOOKBACK_DAYS,
   SCORING_POOL_LIMIT,
   SIGNAL_LOOKBACK_DAYS,
@@ -481,8 +482,34 @@ export class DripBatchOrchestrator {
       UserSignalAction.COMPLETE,
     );
 
+    /**
+     * "무시" 신호(`drip-scheduling.md` 4.3, 2026-09-24) — `user_signals`에 없고 라이브러리 상태에서 파생한다.
+     * 드립·탐험으로 받아 `DRIP_IGNORE_AFTER_DAYS` 동안 열지도 지우지도 않은 항목을 약한 부정으로 본다.
+     * 신호 시각은 **판정 시각(적립 + N일)** 이라 그날부터 다른 신호와 같은 반감기로 흐려지고, 나중에
+     * 재생하면 `unplayed`가 아니어서 자동으로 빠진다. 삭제분은 `delete` 신호가 이미 잡으므로 여기서 제외된다.
+     * 저장하지 않고 배치마다 다시 계산한다 — 스키마 변경 없음.
+     */
+    const ignoredAddedBefore = new Date(
+      now.getTime() - DRIP_IGNORE_AFTER_DAYS * MS_PER_DAY,
+    );
+    const ignoredItems = await this.libraryService.findIgnoredDripItems(
+      userId,
+      since,
+      ignoredAddedBefore,
+    );
+    const ignoreSignals: PreferenceSignalInput[] = ignoredItems.map((item) => ({
+      contentId: item.contentId,
+      action: PreferenceSignalAction.IGNORE,
+      createdAt: new Date(
+        item.addedAt.getTime() + DRIP_IGNORE_AFTER_DAYS * MS_PER_DAY,
+      ),
+    }));
+
     const signalContentIds = [
-      ...new Set(signals.map((signal) => signal.contentId)),
+      ...new Set([
+        ...signals.map((signal) => signal.contentId),
+        ...ignoreSignals.map((signal) => signal.contentId),
+      ]),
     ];
     const signalContents =
       await this.contentService.findAllByIds(signalContentIds);
@@ -496,13 +523,14 @@ export class DripBatchOrchestrator {
     ]);
 
     // 값 집합이 같은 두 enum의 매핑은 Orchestrator의 몫이다 (drip.enum.ts 참고)
-    const preferenceSignals: PreferenceSignalInput[] = signals.map(
-      (signal) => ({
+    const preferenceSignals: PreferenceSignalInput[] = [
+      ...signals.map((signal) => ({
         contentId: signal.contentId,
         action: signal.action as string as PreferenceSignalAction,
         createdAt: signal.createdAt,
-      }),
-    );
+      })),
+      ...ignoreSignals,
+    ];
 
     const preference = persist
       ? await this.preferenceVectorService.rebuild(
@@ -580,6 +608,7 @@ export class DripBatchOrchestrator {
       };
     }
 
+    // 스코어링에는 쓰지 않는다(노출 피로 폐기 2026-09-25) — 편성 미리보기가 "최근 편성 주제"로 보여 주기만 한다
     const recentDripTopicIds = await this.findRecentDripTopicIds(
       userId,
       input.now,
@@ -590,7 +619,6 @@ export class DripBatchOrchestrator {
       preference: input.preference,
       difficultyAffinity: input.difficultyAffinity,
       completedEpisodesBySeries: input.completedEpisodesBySeries,
-      recentDripTopicIds,
       isColdStart: input.isColdStart,
       career: input.career,
       now: input.now,
@@ -714,7 +742,6 @@ export class DripBatchOrchestrator {
     return map;
   }
 
-  /** 노출 피로(4.2 ③) — 최근 편성분(드립·탐험)의 주제 */
   /**
    * **왜 이 콘텐츠가 갔는지를 남긴다.**
    *
@@ -758,6 +785,7 @@ export class DripBatchOrchestrator {
     }
   }
 
+  /** 최근 편성분(드립·탐험)의 주제 — 편성 미리보기 표시용. 스코어링 입력이 아니다(노출 피로 폐기 2026-09-25) */
   private async findRecentDripTopicIds(
     userId: string,
     now: Date,

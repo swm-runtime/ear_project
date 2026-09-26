@@ -3,6 +3,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCallback } from 'react';
 import { BackHandler } from 'react-native';
 
+import { track } from '@/shared/analytics';
 import { isApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
@@ -13,6 +14,7 @@ import { isTopicListUnavailable, useTopicsQuery } from '@/features/interest';
 import { ONBOARDING_COPY } from '../onboarding.copy';
 import type { OnboardingStackParamList } from '../onboarding.types';
 import { useSaveInterestsMutation } from './useSaveInterestsMutation';
+import { onboardingCompletionService } from '../services/onboarding-completion.service';
 import { useOnboardingStore } from '../store/onboarding.store';
 
 export const useTopicSelectScreen = () => {
@@ -27,6 +29,7 @@ export const useTopicSelectScreen = () => {
   // 1단계에서 더 뒤로는 아무 동작도 하지 않는다 — 이탈 확인 팝업도 띄우지 않는다(onboarding.md 7)
   useFocusEffect(
     useCallback(() => {
+      onboardingCompletionService.noteStarted();
       const subscription = BackHandler.addEventListener('hardwareBackPress', () => true);
       return () => subscription.remove();
     }, []),
@@ -78,7 +81,11 @@ export const useTopicSelectScreen = () => {
     saveInterestsMutation.mutate(
       { topicIds: selectedTopicIds },
       {
-        onSuccess: () => navigation.navigate('Career'),
+        onSuccess: () => {
+          track('onboarding_step', { step: 'topic', action: 'next' });
+          onboardingCompletionService.noteTopics(selectedTopicIds.length);
+          navigation.navigate('Career');
+        },
         onError: (error) => {
           if (isApiError(error)) {
             // 노출이 내려간 주제가 섞임 → 목록 재조회 후 선택 초기화(onboarding-api.md 5장)

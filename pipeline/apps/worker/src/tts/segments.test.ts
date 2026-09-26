@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chunkSegments, displayText, joinChunkSegments, retimedAt, validateSegments } from "./segments.js";
+import { chunkSegments, contextExcerpt, displayText, joinChunkSegments, retimedAt, validateSegments } from "./segments.js";
 import type { TimestampedSynth } from "./elevenlabs.js";
 
 /** 글자마다 0.1초씩 붙는 가짜 정렬 (공백은 0초) */
@@ -48,13 +48,38 @@ test("긴 턴은 문장 경계에서 나눈다 — 원문 표기를 싣는다", 
   assert.ok(segs.every((s) => s.end_sec - s.start_sec <= 4 + 1e-6));
 });
 
-test("요청 합치기 — 앞 무음 2초 + 요청 사이 0.35초 + 앞 요청 실측 길이", () => {
-  const joined = joinChunkSegments([
+test("요청 합치기 — 앞 무음 2초 + 요청 사이 이음새 쉼 + 앞 요청 실측 길이", () => {
+  const chunks = [
     { segments: [{ start_sec: 0, end_sec: 3, speaker: "윤아", text: "a" }], durSec: 3.5 },
     { segments: [{ start_sec: 0, end_sec: 2, speaker: "이음", text: "b" }], durSec: 2 },
-  ]);
+  ];
+  const joined = joinChunkSegments(chunks, 2, 0.35);
   assert.deepEqual(joined.map((s) => [s.start_sec, s.end_sec]), [[2, 5], [5.85, 7.85]]);
   assert.equal(validateSegments(joined), null);
+  assert.deepEqual(joinChunkSegments(chunks, 2, 0.9).map((s) => s.start_sec), [2, 6.4]); // 쉼 길이는 assemble 과 같은 값을 넘긴다
+  assert.deepEqual(joinChunkSegments(chunks, 2, [0]).map((s) => s.start_sec), [2, 5.5]); // 문맥 겹침 경계 — 무음 없음
+});
+
+test("문맥 발췌 — 끝 문장들(tail)·첫 문장들(head)을 상한 안에서, 원문의 연속 부분 문자열", () => {
+  const t = "첫 문장이에요. 둘째 문장은 조금 더 길어요. 셋째는 질문인가요? 넷째로 끝나요.";
+  assert.equal(contextExcerpt(t, "tail", 12), "넷째로 끝나요.");
+  assert.equal(contextExcerpt(t, "tail", 30), "셋째는 질문인가요? 넷째로 끝나요.");
+  assert.equal(contextExcerpt(t, "head", 20), "첫 문장이에요.");
+  for (const side of ["head", "tail"] as const) assert.ok(t.includes(contextExcerpt(t, side, 30)));
+  const long = "가나다 ".repeat(60).trim(); // 한 문장이 상한을 넘으면 어절 경계로 자른다
+  assert.ok(contextExcerpt(long, "tail", 40).length <= 40 && long.endsWith(contextExcerpt(long, "tail", 40)));
+  assert.ok(contextExcerpt(long, "head", 40).length <= 40 && long.startsWith(contextExcerpt(long, "head", 40)));
+});
+
+test("문맥 발췌 — 끝 문장들(tail)·첫 문장들(head)을 상한 안에서, 원문의 연속 부분 문자열", () => {
+  const t = "첫 문장이에요. 둘째 문장은 조금 더 길어요. 셋째는 질문인가요? 넷째로 끝나요.";
+  assert.equal(contextExcerpt(t, "tail", 12), "넷째로 끝나요.");
+  assert.equal(contextExcerpt(t, "tail", 30), "셋째는 질문인가요? 넷째로 끝나요.");
+  assert.equal(contextExcerpt(t, "head", 20), "첫 문장이에요.");
+  for (const side of ["head", "tail"] as const) assert.ok(t.includes(contextExcerpt(t, side, 30)));
+  const long = "가나다 ".repeat(60).trim(); // 한 문장이 상한을 넘으면 어절 경계로 자른다
+  assert.ok(contextExcerpt(long, "tail", 40).length <= 40 && long.endsWith(contextExcerpt(long, "tail", 40)));
+  assert.ok(contextExcerpt(long, "head", 40).length <= 40 && long.startsWith(contextExcerpt(long, "head", 40)));
 });
 
 test("검증 — 겹침·역순을 잡는다", () => {

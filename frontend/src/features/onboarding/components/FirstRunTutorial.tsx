@@ -13,6 +13,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
+import { track } from '@/shared/analytics';
 import { theme } from '@/shared/theme';
 import TabBarIcon from '@/shared/ui/TabBarIcon';
 import { useWalkthroughStore } from '@/shared/ui/walkthrough.store';
@@ -31,7 +32,7 @@ import {
   LibraryBanner,
   LibraryItemTile,
   LibrarySearchBarRow,
-  LibraryTabs,
+  LibraryToolbar,
   type LibraryItem,
 } from '@/features/library';
 import { RemainingPlaysIndicator } from '@/features/player';
@@ -188,6 +189,8 @@ export default function FirstRunTutorial() {
     const next = step + delta;
     if (next < 0) return;
     if (next >= steps.length) {
+      // 건너뛰기 버튼이 없는 화면이다 — 마지막 장을 넘긴 것만 한 단계로 센다(analytics.md 3.4)
+      track('onboarding_step', { step: 'tutorial', action: 'next' });
       clear();
       return;
     }
@@ -353,9 +356,15 @@ export default function FirstRunTutorial() {
             <LibrarySearchBarRow
               query=""
               onChangeQuery={noop}
-              trailing={<RemainingPlaysIndicator remaining={1} limit={2} onExhaustedPress={noop} />}
+              trailing={
+                <LibraryToolbar
+                  remaining={{ remaining: 1, limit: 2 }}
+                  onExhaustedPress={noop}
+                  activeFilterCount={0}
+                  onFilterPress={noop}
+                />
+              }
             />
-            <LibraryTabs filter="all" onChange={noop} topicFilterCount={0} onFilterPress={noop} />
             {/*
               드립 도착은 실제 화면과 **같은 컴포넌트·같은 문구·같은 자리**로 그린다 —
               탭 아래 전체 폭 배너다(LibraryScreen: 검색줄 → 탭 → 배너 → 목록).

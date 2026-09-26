@@ -1,0 +1,8 @@
+{
+  "name": "scroll-edge-effect",
+  "version": "1.0.0",
+  "private": true,
+  "description": "iOS 26 UIScrollView.topEdgeEffect 를 RN 스크롤 뷰에 직접 건다 (로컬 Expo 모듈)",
+  "main": "src/index.ts",
+  "types": "src/index.ts"
+}

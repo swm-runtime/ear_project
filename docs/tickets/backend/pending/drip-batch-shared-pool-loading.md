@@ -5,6 +5,10 @@
 | 대상 | `backend/src/modules/drip-batch/drip-batch.orchestrator.ts` (`buildScoringCandidates`·`scheduleRegular`·`scheduleDiscovery`) · `content.repository.ts` `findCandidates` |
 | 요청 파트 | 백엔드 |
 | 발행 날짜 | 2026-09-09 |
+| 시작 날짜 | 2026-09-09 |
+| 기한 | 2026-10-01 (Lowest — Jira 기한. 착수 트리거가 오기 전까지는 밀려도 된다) |
+| 선행 | 없음 |
+| Jira | [KAN-48](https://runtime364.atlassian.net/browse/KAN-48) (담당: 박준현) |
 | 발견 시점 | 백엔드 전수 감사 — 성능 층위. 지금은 문제 없으나 사용자 수에 선형×상수(큰)로 늘어난다 |
 | 근거 문서 | `features/drip-scheduling.md` 2·4 · `backend/architecture.md` 3.3(Orchestrator) |
 | 심각도 | **중** (현재 규모에서는 하 — 수천 명부터 중상) |

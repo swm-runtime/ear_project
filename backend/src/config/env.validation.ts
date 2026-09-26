@@ -116,6 +116,32 @@ export class EnvironmentVariables {
   @IsString()
   SLACK_ERROR_WEBHOOK_URL?: string;
 
+  /**
+   * Sentry DSN. **비우면 Sentry 가 초기화되지 않는다**(로컬·테스트 기본) — 그래서 선택값이다.
+   * 값 자체는 클라이언트에도 박히는 준공개 값이지만, 환경별로 프로젝트가 갈리므로 env 로 둔다.
+   * 실제 읽는 곳은 `src/instrument.ts` 다 — Nest 부팅 전에 돌아야 해서 ConfigService 를 못 쓴다.
+   * 여기 선언은 **"이 서비스가 쓰는 env 목록"의 단일 창구**를 유지하기 위한 것이다.
+   */
+  @IsOptional()
+  @IsString()
+  SENTRY_DSN?: string;
+
+  /** Sentry 환경 이름. 비우면 `NODE_ENV` 를 쓴다 — 운영/개발계를 가르려면 명시한다 */
+  @IsOptional()
+  @IsString()
+  SENTRY_ENVIRONMENT?: string;
+
+  /**
+   * 성능 추적 표본 비율(0~1). **비우거나 0 이면 성능 계측 자체를 등록하지 않는다** —
+   * 0 을 SDK 에 그대로 넘기면 계측은 켜지고 표본만 0 이라 CPU 만 쓴다(`common/sentry-options.ts`).
+   * 느린 엔드포인트를 쫓을 때 **개발계에서만** 잠깐 올린다. 운영은 켜지 않는다.
+   */
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  @Max(1)
+  SENTRY_TRACES_SAMPLE_RATE?: number;
+
   /** 푸시 발송 구현 — 위 `PushDelivery` 주석 참고. 운영만 `expo`로 둔다 */
   @IsEnum(PushDelivery)
   PUSH_DELIVERY: PushDelivery = PushDelivery.LOG;

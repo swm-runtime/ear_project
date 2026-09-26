@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
+import * as Sentry from '@sentry/nestjs';
 import { Request, Response } from 'express';
 
 import {
@@ -169,6 +170,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         exception instanceof Error ? exception.stack : String(exception),
         JSON.stringify(fields),
       );
+      this.reportToSentry(exception, fields);
       return;
     }
 
@@ -181,5 +183,26 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     this.logger.warn(message, fields);
+  }
+
+  /**
+   * **error 등급만 Sentry 로 보낸다.** 4xx 업무 예외(한도 초과·권한 없음 등)는 정상 흐름이라
+   * 올리면 잡음이 되고 무료 할당량을 앱 크래시 대신 갉아먹는다 — 그 판정은 이미
+   * `BusinessException.logLevel` 이 하고 있으므로 여기서는 그 결과를 따른다.
+   *
+   * `SENTRY_DSN` 이 없으면 SDK 가 초기화되지 않아 이 호출은 아무 일도 하지 않는다.
+   * 태그로 올리는 값은 **카디널리티가 낮은 것만**이다(경로·trace_id 는 태그가 아니라 context) —
+   * 태그가 많아지면 Sentry 쪽 그룹화가 흩어진다.
+   */
+  private reportToSentry(
+    exception: unknown,
+    fields: Record<string, unknown>,
+  ): void {
+    Sentry.withScope((scope) => {
+      scope.setTag('error_code', String(fields.error_code));
+      scope.setTag('http_status', String(fields.status));
+      scope.setContext('request', fields);
+      Sentry.captureException(exception);
+    });
   }
 }

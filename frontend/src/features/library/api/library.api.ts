@@ -91,6 +91,8 @@ const toResumeResult = (dto: ResumeResponseDto): ResumeResult => ({
           durationSec: dto.resume_target.content.duration_sec,
           thumbnailUrl: dto.resume_target.content.thumbnail_url,
           contentVersion: dto.resume_target.content.content_version,
+          // 옛 서버 응답(필드 이전)도 깨지지 않게 — 없으면 카테고리 줄만 비운다
+          topicIds: dto.resume_target.content.topic_ids ?? [],
         },
         progress: toProgress(dto.resume_target.progress),
       }

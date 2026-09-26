@@ -38,7 +38,7 @@ export const OPTIONAL_ASSET_KEYS = Object.values(PROFILE_KEYS);
 export const DB_ASSET_KEYS = [
   "skills/draft/guidelines.md",
   "skills/draft/examples/gold-T260820-001-short.md",
-  "skills/draft/examples/gold-T260820-002-full.md",
+  "skills/draft/examples/gold-T260918-001-full.md", // 2026-09-22 교체 (구 gold-T260820-002 — DB 행은 남는다, 고정 참조용)
   "skills/draft/examples/gold-T260828-001-full.md",
   "skills/qa/prompt.md",
   "skills/critic/rubric.md",

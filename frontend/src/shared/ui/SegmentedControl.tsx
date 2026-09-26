@@ -1,0 +1,302 @@
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+
+import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
+import { motion, theme } from '@/shared/theme';
+import GlassSurface, { GlassPill, HAS_LIQUID_GLASS } from '@/shared/ui/GlassSurface';
+
+export interface SegmentOption<T extends string> {
+  value: T;
+  label: string;
+}
+
+interface SegmentedControlProps<T extends string> {
+  options: SegmentOption<T>[];
+  /** 선택값 — 호출부(보통 서버 응답·스토어)가 정한다. 탭 시점이 아니라 값이 바뀔 때 알약이 움직인다 */
+  value: T;
+  onChange: (value: T) => void;
+  /** 전환 중 중복 탭 차단 */
+  disabled?: boolean;
+  accessibilityLabel: string;
+  /** 칸 폭 — 라벨 길이에 맞춰 호출부가 정한다(전부 같은 폭이어야 알약이 옮겨갈 때 크기가 안 변한다) */
+  segmentWidth?: number;
+  /**
+   * 가로를 꽉 채운다 — 부모가 준 폭을 칸 수로 똑같이 나눈다(`segmentWidth`는 무시된다).
+   *
+   * 기본값이 아닌 **옵션**인 이유: 이 부품은 라이브러리와 탐색이 함께 쓰는데, 탐색의
+   * 주간·월간·전체는 제목 줄 오른쪽에 붙는 작은 토글이라 늘어나면 안 된다. 늘릴 쪽만 켠다.
+   */
+  fill?: boolean;
+  /** 칸(=알약) 높이 — 기본 28(제목 줄과 나란한 탐색 토글). 라이브러리 탭은 32 로 조금 두툼하게(2026-09-24 PM) */
+  segmentHeight?: number;
+  /**
+   * `glass`(기본) — 유리 트랙 + 유리 렌즈 알약(캡슐 탭 바와 같은 재질).
+   * `system` — **iOS 기본 UISegmentedControl 모양**(PM 2026-09-25 22:12 "리퀴드 말고 애플 기본 토글"): 회색 채움 트랙
+   *   (모서리 9), 흰 선택 칸 + 그림자(모서리 7), 13pt 글자, 선택 글자 semibold. 유리·림 없음. 콘텐츠 층의 세그먼트는
+   *   애플도 유리를 쓰지 않는다(HIG Materials — 유리는 내비게이션 층)
+   * `modern` — **iOS 26 앱들의 캡슐 선택바**(PM 2026-09-25 23:30 "현대식 애플 선택바" — 기본 세그먼트는 옛날 것 같다):
+   *   완전 둥근 캡슐 트랙(tertiary fill) + 선택 칸은 **검정 채움 알약에 흰 글자**(메일 카테고리·피트니스 기간 문법).
+   *   그림자·유리 없음. 비선택 글자는 회색
+   */
+  appearance?: 'glass' | 'system' | 'modern';
+}
+
+/**
+ * 선택 알약 높이 = 섹션 제목 글자 높이(xl 28). 트랙은 테두리 1 + 안쪽 여백 3 을 더해 36 이 된다 —
+ * 제목 줄(35)과 나란히 서고 알약 둘레로 여백이 눈에 띄게 남아 "트랙 안에 떠 있는 알약"으로 읽힌다
+ */
+const SEGMENT_HEIGHT = theme.font.size.xl;
+const TRACK_BORDER = 1;
+const TRACK_INSET = 3;
+const DEFAULT_SEGMENT_WIDTH = 48;
+
+/**
+ * 세그먼트 컨트롤(HIG: Segmented controls) — 서로 배타적인 2~5개 뷰를 같은 자리에서 바꾼다. 탐색의 주간·월간·전체와
+ * 라이브러리의 전체·미청취·완청이 같은 부품을 쓴다(2026-09-23 PM — 앱 안의 문법 통일, `docs/frontend/design.md` §5).
+ *
+ * - 트랙은 유리(GlassSurface regular — 캡슐 탭 바와 같은 재질, PM 2026-09-23 "blur 있는 리퀴드 글라스로") +
+ *   hairline 윤곽. 그 위 선택 알약은 clear 유리 + 림(GlassPill).
+ * - 선택 알약은 **하나가 미끄러진다**(snappy 스프링, 네이티브). iOS 26 은 유리 렌즈(GlassPill), 그 밑은 그림자로 뜬 흰 알약.
+ * - 라벨 색은 알약이 그 칸에 겹친 만큼 회색 위에 검정을 겹쳐(두 겹 + 불투명도) 알약과 같은 프레임에 바뀐다.
+ * - 라벨 굵기는 선택과 무관하게 같다 — 굵히면 폭이 변해 시선이 튄다.
+ * - 선택은 색만이 아니라 알약(면)으로도 드러난다(uiux 7).
+ */
+export default function SegmentedControl<T extends string>({
+  options,
+  value,
+  onChange,
+  disabled = false,
+  accessibilityLabel,
+  segmentWidth = DEFAULT_SEGMENT_WIDTH,
+  fill = false,
+  segmentHeight = SEGMENT_HEIGHT,
+  appearance = 'glass',
+}: SegmentedControlProps<T>) {
+  const isSystem = appearance === 'system';
+  const isModern = appearance === 'modern';
+  const isPlain = isSystem || isModern;
+  // 보이는 높이가 44 보다 작은 만큼은 hitSlop 으로 채운다(uiux 7)
+  const hitSlop = {
+    top: Math.max(0, (theme.touchTarget.minHeight - segmentHeight) / 2),
+    bottom: Math.max(0, (theme.touchTarget.minHeight - segmentHeight) / 2),
+  };
+  const selectedIndex = Math.max(
+    0,
+    options.findIndex((option) => option.value === value),
+  );
+
+  /** fill 일 때의 칸 폭 — 트랙 안쪽 폭을 재서 칸 수로 나눈다. 측정 전에는 0(아직 그릴 수 없다) */
+  const [measuredSegmentWidth, setMeasuredSegmentWidth] = useState(0);
+  const handleTrackLayout = (event: LayoutChangeEvent) => {
+    if (!fill) return;
+    const inner = event.nativeEvent.layout.width - 2 * (TRACK_INSET + TRACK_BORDER);
+    const next = inner > 0 ? inner / options.length : 0;
+    // 소수점 떨림으로 매 프레임 리렌더되지 않게 0.5 미만 변화는 무시한다
+    setMeasuredSegmentWidth((prev) => (Math.abs(prev - next) < 0.5 ? prev : next));
+  };
+  const effectiveWidth = fill ? measuredSegmentWidth : segmentWidth;
+
+  const indicatorX = useAnimatedValue(selectedIndex * effectiveWidth);
+  /** 첫 측정에서는 알약이 날아오면 안 된다 — 제자리에 놓고 시작한다 */
+  const hasPlaced = useRef(!fill);
+  useEffect(() => {
+    if (effectiveWidth <= 0) return;
+    const toValue = selectedIndex * effectiveWidth;
+    if (!hasPlaced.current) {
+      hasPlaced.current = true;
+      indicatorX.setValue(toValue);
+      return;
+    }
+    Animated.spring(indicatorX, {
+      toValue,
+      useNativeDriver: true,
+      ...motion.spring.snappy,
+    }).start();
+  }, [indicatorX, selectedIndex, effectiveWidth]);
+
+  const indicatorStyle = [
+    styles.indicator,
+    isSystem && styles.indicatorSystem,
+    isModern && styles.indicatorModern,
+    { width: effectiveWidth, height: segmentHeight, transform: [{ translateX: indicatorX }] },
+  ];
+  /** interpolate 의 inputRange 는 단조 증가여야 한다 — 측정 전(0)에는 1로 둔다 */
+  const rangeWidth = Math.max(effectiveWidth, 1);
+
+  return (
+    <View
+      style={[
+        styles.track,
+        fill && styles.trackFill,
+        isSystem && styles.trackSystem,
+        isModern && styles.trackModern,
+      ]}
+      onLayout={handleTrackLayout}
+      accessibilityRole="radiogroup"
+      accessibilityLabel={accessibilityLabel}
+    >
+      {isPlain ? null : (
+        <>
+          <GlassSurface style={[StyleSheet.absoluteFill, styles.trackGlass]} />
+          <View style={styles.trackBorder} pointerEvents="none" />
+        </>
+      )}
+      {HAS_LIQUID_GLASS && !isPlain ? (
+        <GlassPill style={indicatorStyle} />
+      ) : (
+        // modern 은 검정 채움이 곧 알약이라 흰 면·그림자를 얹지 않는다(얹으면 흰 글자가 사라진다 — 23:41 실기기)
+        <Animated.View
+          style={[indicatorStyle, !isModern && styles.indicatorRaised]}
+          pointerEvents="none"
+        />
+      )}
+      {options.map((option, index) => {
+        const isSelected = option.value === value;
+        // 알약이 이 칸에 얼마나 겹쳐 있는가(0~1) — 검정 글자의 불투명도
+        const selectedOpacity = indicatorX.interpolate({
+          inputRange: [(index - 1) * rangeWidth, index * rangeWidth, (index + 1) * rangeWidth],
+          outputRange: [0, 1, 0],
+          extrapolate: 'clamp',
+        });
+        return (
+          <Pressable
+            key={option.value}
+            style={[
+              styles.segment,
+              { height: segmentHeight },
+              fill ? styles.segmentFill : { width: segmentWidth },
+            ]}
+            onPress={() => onChange(option.value)}
+            hitSlop={hitSlop}
+            disabled={disabled}
+            accessibilityRole="radio"
+            accessibilityLabel={option.label}
+            accessibilityState={{ checked: isSelected, disabled }}
+          >
+            <Text style={[styles.label, isSystem && styles.labelSystem, isModern && styles.labelModern]}>
+              {option.label}
+            </Text>
+            <Animated.Text
+              style={[
+                styles.label,
+                isSystem && styles.labelSystem,
+                isModern && styles.labelModern,
+                styles.labelSelected,
+                isSystem && styles.labelSelectedSystem,
+                isModern && styles.labelSelectedModern,
+                { opacity: selectedOpacity },
+              ]}
+              accessibilityElementsHidden
+              importantForAccessibility="no"
+            >
+              {option.label}
+            </Animated.Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  // 트랙 자체는 투명(유리가 깐다). 테두리는 별도 뷰 — 유리를 clip 하는 뷰에 border 를 주면 안쪽이 잘린다
+  track: {
+    flexDirection: 'row',
+    alignSelf: 'flex-start',
+    backgroundColor: 'transparent',
+    // 바깥 트랙도 알약 — 안쪽만 둥글면 모서리에 각진 여백이 남는다
+    borderRadius: theme.radius.full,
+    padding: TRACK_INSET + TRACK_BORDER,
+  },
+  trackGlass: {
+    borderRadius: theme.radius.full,
+    overflow: 'hidden',
+  },
+  trackBorder: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: theme.radius.full,
+    borderWidth: TRACK_BORDER,
+    borderColor: 'rgba(0, 0, 0, 0.10)',
+  },
+  // fill — 부모가 준 폭을 그대로 쓴다(alignSelf 로 좌측에 붙지 않게)
+  trackFill: {
+    alignSelf: 'stretch',
+  },
+  // iOS 기본 UISegmentedControl — tertiarySystemFill 트랙, 모서리 9, 안쪽 2
+  trackSystem: {
+    borderRadius: 9,
+    borderCurve: 'continuous',
+    backgroundColor: 'rgba(118, 118, 128, 0.12)',
+    padding: 2,
+  },
+  indicatorSystem: {
+    top: 2,
+    left: 2,
+    borderRadius: 7,
+    borderCurve: 'continuous',
+    backgroundColor: theme.color.background,
+    boxShadow: '0 3px 8px rgba(0, 0, 0, 0.12), 0 3px 1px rgba(0, 0, 0, 0.04)',
+  },
+  // iOS 26 캡슐 선택바 — 트랙 tertiary fill, 안쪽 3, 선택 칸 검정 알약
+  trackModern: {
+    borderRadius: theme.radius.full,
+    backgroundColor: 'rgba(118, 118, 128, 0.12)',
+    padding: 3,
+  },
+  indicatorModern: {
+    top: 3,
+    left: 3,
+    borderRadius: theme.radius.full,
+    backgroundColor: theme.color.primary,
+  },
+  segment: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // 칸은 똑같이 나눠 가진다 — 알약 폭(측정값)과 어긋나지 않게 셋 다 flex 1
+  segmentFill: {
+    flex: 1,
+  },
+  indicator: {
+    position: 'absolute',
+    top: TRACK_INSET + TRACK_BORDER,
+    left: TRACK_INSET + TRACK_BORDER,
+    borderRadius: theme.radius.full,
+  },
+  // iOS 26 미만·Android — 흰 면을 부드러운 그림자로 띄운다. `shadow*` 대신 boxShadow(RN 0.86·웹 공통)
+  indicatorRaised: {
+    backgroundColor: theme.color.background,
+    boxShadow: '0 1px 4px rgba(0, 0, 0, 0.14)',
+  },
+  label: {
+    fontSize: theme.font.size.xs,
+    fontWeight: '600',
+    color: theme.color.textSecondary,
+  },
+  // 검정 글자는 회색 글자 위에 겹친다 — 같은 자리·같은 크기라 불투명도만으로 색이 섞인다
+  labelSelected: {
+    position: 'absolute',
+    color: theme.color.textPrimary,
+  },
+  // 애플 기본은 13pt, 비선택 글자도 검정(회색이 아니다)
+  labelSystem: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: theme.color.textPrimary,
+  },
+  labelSelectedSystem: {
+    fontWeight: '600',
+  },
+  labelModern: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.color.textSecondary,
+  },
+  labelSelectedModern: {
+    color: theme.color.onPrimary,
+  },
+});

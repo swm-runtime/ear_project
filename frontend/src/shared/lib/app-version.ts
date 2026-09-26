@@ -5,7 +5,7 @@ import * as Updates from 'expo-updates';
  * 업데이트 여부 판정은 서버가 한다(settings-api.md 4.1) — 이 값으로 비교하지 않는다.
  * TODO: expo-constants 도입 후 app.json version과 연결한다.
  */
-export const APP_VERSION = '1.0.0';
+export const APP_VERSION = '1.1.0';
 
 /**
  * **지금 실행 중인 JS 번들의 식별자** — 화면 표시 전용이다.
@@ -27,7 +27,7 @@ export const APP_VERSION = '1.0.0';
  */
 const BUNDLE_LABEL_LENGTH = 8;
 
-const resolveBundleLabel = (): string => {
+export const resolveBundleLabel = (): string => {
   try {
     // 웹·개발 빌드에선 모듈이 값을 주지 않는다 — 표시용이므로 조용히 비운다
     if (Updates.isEmbeddedLaunch) return '내장';
@@ -48,5 +48,5 @@ const resolveBundleLabel = (): string => {
  */
 export const IS_DEV_API = (process.env.EXPO_PUBLIC_API_BASE_URL ?? '').includes('://api-dev.');
 
-/** 설정 화면의 버전 행에 붙는 값 — `1.0.0 (01a0a3c9)` 꼴, 개발계면 `1.0.0 (01a0a3c9) · 개발계` */
+/** 설정 화면의 버전 행에 붙는 값 — `1.1.0 (01a0a3c9)` 꼴, 개발계면 `1.1.0 (01a0a3c9) · 개발계` */
 export const APP_VERSION_LABEL = `${APP_VERSION} (${resolveBundleLabel()})${IS_DEV_API ? ' · 개발계' : ''}`;

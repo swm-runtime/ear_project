@@ -19,9 +19,9 @@ spec/08의 원칙 "UI와 실행기의 결합은 상태 테이블로만"을 그�
 | 소스 풀 관리 | `domains` 목록·판정 화면 (spec/01 4장의 판정 UI — 증거 note 표시, tier·license_basis 기입, decided_by=본인 자동) + 도메인 추가 |
 | 스윕 요청 | 중분류 선택 → `sweep` 작업 생성 → 워커가 RSS 수집 → **자동으로 `cluster` 연쇄** |
 | AI 생성 주제 목록 확인 | 백로그 보드 — 군집화 결과가 `proposed` 카드로 즉시 표시 (소스 묶음·축·타깃 정합) |
-| 주제 선택 → 대본 생성 | 카드 승인(게이트 1) = `approved` 전환 → **자동으로 `draft` → `qa`(최대 3회) → `critic` 연쇄**. spec/09 v2의 L0 기계 검사·L1 지시 준수·L3 이해도 프로브는 이 연쇄에 추가 예정(L0 코드는 실측 완료, 편입 전) |
+| 주제 선택 → 대본 생성 | 카드 승인(게이트 1) = `approved` 전환 → **자동으로 `draft` → `qa`(최대 3회) → `critic` 연쇄**. **자동 승인(2026-09-23, 0023)**: `settings.automation.auto_approve` 가 켜져 있으면 워커가 규칙 v1(군집화 v2 · 빈 역할 0 · 소스 겹침 없음)을 통과한 `proposed` 후보를 `auto:v1` 로 승인하고 같은 연쇄를 건다 — 사람은 조건 밖 후보만 본다(spec/03 6.1). spec/09 v2의 L0 기계 검사는 초안 단계에 편입됨, L1·L3은 추가 예정 |
 | 대본 확인·판정 | 에피소드 화면 — 대본·발췌·claims·QA·비평 리포트 열람 · **대본 턴 인라인 수정**(사람 피드백의 기본 형태, spec/09 3.1) + 수정 로그 + 재QA 요청 · 비평 플래그 판정 입력 |
-| 발행 준비 | **수동 트리거 + 연쇄**(개정 2026-09-10, KAN-50) — 에피소드의 [발행 준비] 하나로 `tts → thumbnail → package`. 개별 강제 재실행은 각 산출물 탭([음원 다시 변환]·[썸네일 다시 만들기])이며 둘 다 `package`가 따라온다. 남은 단계는 payload `chain` 배열이 들고 다닌다. **이미 있는 산출물은 건너뛰고**(음원은 대본이 그 뒤로 바뀌었을 때만 재합성), **실패하면 연쇄가 멈춘다** |
+| 발행 준비 | **비평 뒤 자동 연쇄**(개정 2026-09-23 — `settings.automation.auto_publish_prep`) 또는 수동 트리거(KAN-50) — 비평이 끝나면 워커가, 또는 에피소드의 [발행 준비]로 사람이 `tts → thumbnail → package` 를 건다. 개별 강제 재실행은 각 산출물 탭([음원 다시 변환]·[썸네일 다시 만들기])이며 둘 다 `package`가 따라온다. 남은 단계는 payload `chain` 배열이 들고 다닌다(자동 연쇄는 `auto: true` 표시를 끝까지 전달 — 큐 비움 요약 알림의 "연쇄 실패" 집계 근거). **이미 있는 산출물은 건너뛰고**(음원은 대본이 그 뒤로 바뀌었을 때만 재합성), **실패하면 연쇄가 멈춘다**. 추천 메타(`enrich`)는 패키지가 걸지 않고 업로드 화면의 [추천 메타 뽑기]로 사람이 건다 |
 
 만들지 않는 것: 제품 DB 연동, 커스텀 인증 서버, 별도 큐 인프라(SQS 등 — `jobs` 테이블이 큐), 모니터링 대시보드 선구축 (spec/08 7장 유지).
 
@@ -56,6 +56,8 @@ spec/08의 원칙 "UI와 실행기의 결합은 상태 테이블로만"을 그�
 - 로컬 워커가 꺼져 있으면 AI 작업은 `queued`에 머문다 — 화면에 "대기 중(AI 워커 없음)"으로 표시. 테스트 단계의 의도된 제약.
 - API 키 실행기(`--executor=api`, Anthropic SDK)는 코드만 준비하고 기본 비활성. 전환은 미결 #12(비용 합의) 후.
 - **서버 워커의 실행기는 env 로 고른다** (2026-09-19): compose 의 `EXECUTOR`·`CAPABILITIES` 가 `env.prod` 의 `WORKER_EXECUTOR`(기본 none)·`WORKER_CAPABILITIES`(기본 io) 를 읽는다. `WORKER_EXECUTOR=openai WORKER_CAPABILITIES=ai,io` 면 서버가 초안·QA·비평·군집화·축 심사·메타까지 OpenAI API 로 집는다 — API 전환 실험(미결 #12)의 실행 형태. 단계 모델·effort·`OPENAI_MODEL_*`·`OPENAI_VERBOSITY` 도 env.prod 로 넘긴다. 켜는 동안 노트북 워커는 끈다(같은 큐를 두고 경쟁) — 보강 스윕(WebSearch)은 OpenAI 실행기가 거절하므로 그 기간엔 쓰지 않는다.
+- **대본 임베딩용 AI 서버 접속** (2026-09-22, metadata-pipeline 4.3): worker-io 와 web 이 compose 안의 `ai-server:8000` 을 `AI_SERVER_URL`·`AI_SERVER_TOKEN`(= AI 서버
+  `INTERNAL_AUTH_TOKEN`, `env.prod`)로 부른다. 워커는 메타 부여 때, 웹은 발행·[반영] 직전에 임베딩이 비어 있으면 받아 합친다. 노트북 워커는 비워 두면 된다 — 웹이 발행 때 채운다.
 - **OpenAI 실행기 `EXECUTOR=openai`** (실험, 2026-09-19): 썸네일과 같은 `OPENAI_API_KEY` 로 Responses API 를 직접 호출(구조화 출력 strict). 단발 호출만(설계·대본·수정·QA·비평·군집화 v2) — 도구가 필요한 보강 스윕은 거절. 단계 env 의 claude 모델 이름은 단가 동급 GPT 로 사상(opus→gpt-5.6-sol, sonnet→gpt-5.6-terra, fable→gpt-6-astra; `OPENAI_MODEL_*` 로 바꿈). 비용은 usage×단가표로 환산. 기본 실행기(claude-cli)에서도 단계 모델이 `gpt-…` 이면 그 호출만 OpenAI 로 라우팅되므로, 초안은 GPT·QA·비평은 Claude 인 짝 비교를 워커 하나로 돌린다(`DRAFT_DESIGN_MODEL=gpt-5.6-sol DRAFT_WRITE_MODEL=gpt-5.6-sol npm run worker`). 목적: API 전환 비용과 GPT 대본 품질을 같은 후보 짝으로 비교 — 기본값에는 영향 없음.
 - **구독 토큰을 서버에 두지 않는다** (2026-08-29 확인: 헤드리스 `claude -p`는 개인 기기·스크립트 용도로 문서화, 장기 실행 서버·Agent SDK는 API 키 요구).
 
@@ -184,7 +186,9 @@ create table episodes (
 
 - **에피소드 삭제**(0015, 2026-09-09): 콘솔의 에피소드 상세 [삭제]. RLS 가 회귀 세트·발행된 후보의 에피소드를 막고, 콘솔이 진행 중 작업을 막는다.
   대기 작업은 취소, 후보는 `proposed`(재승인 대기) 또는 `rejected` 로 되돌리며 사유는 `dedup_note` 앞에 🗑. S3 `episodes/{id}/` 는 best-effort 삭제.
-- `backlog.status` 전이 규약(spec/03)은 유지 — 작업 완료 시 워커가 전환. `approved` 전환은 **UI에서 사람만**.
+- **API 한도 차단기** (2026-09-23, 워커 `ai-pause.ts`): OpenAI 429 를 실행기가 `rate`(분당 한도)·`quota`(잔액·예산 소진)로 구분해 `ApiLimit` 으로 던지면 루프가 **작업을 큐로 되돌리고 AI 집기를 멈춘다**(io 작업은 계속). rate 는 5분 뒤 자동 재개, quota 는 `settings."automation.ai_paused"` 에 기록돼 콘솔 설정의 [AI 작업 재개] 전까지 모든 워커가 멈춘다. 실패로 처리하면 초안이 백로그를 되돌려 망가지므로 실패시키지 않는다. Slack 즉시 알림(quota 1회 · rate 시간당 1회).
+- **집기 우선순위** (0023, 2026-09-23): `claim_job` 은 FIFO 가 아니라 **진행 중인 에피소드의 후속 작업(payload 에 `episode_id`) → 사람이 건 작업(스윕·군집화·도메인 판정·소급 메타) → 새 초안** 순으로 집는다. 승인이 여러 건 쌓여도 워커 하나면 한 편이 초안부터 패키지까지 끝난 뒤 다음 편 초안이 시작된다 — 종전 FIFO 는 A 초안·B 초안·C 초안 뒤에야 A QA 가 돌아 첫 편이 나오기까지 너무 오래 걸렸다.
+- `backlog.status` 전이 규약(spec/03)은 유지 — 작업 완료 시 워커가 전환. `approved` 전환은 **UI에서 사람** 또는 **워커의 자동 승인 규칙 v1**(2026-09-23, `approved_by = auto:v1`, `runs.phase=approve`).
   승인 버튼은 `approved` 전환과 함께 **`draft` 작업을 큐에 넣는다**(2026-09-08 개정 — 워커가 꺼져 있어도 "진행 중"에 대기로 보이게).
   `approved → claimed` 선점은 그 작업을 시작하는 워커가 원자적으로 하고, 선점에 실패한 중복 작업은 건너뛴다.
   워커의 `pickupApproved` 는 작업 없는 approved 후보(에디터 승인 등)만 큐에 넣는 폴백이다.

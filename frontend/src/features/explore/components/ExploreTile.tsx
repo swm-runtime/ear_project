@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import MoreIcon from '@/shared/ui/MoreIcon';
 import RemoteImage from '@/shared/ui/RemoteImage';
 
 import { EXPLORE_COPY } from '../explore.copy';
@@ -50,14 +51,8 @@ export default function ExploreTile({
         })}
       >
         <View style={isGrid ? styles.gridArtworkFrame : styles.artworkFrame}>
-          <RemoteImage uri={item.content.thumbnailUrl} recyclingKey={item.content.id}
-            style={[styles.artwork, isGrid && styles.gridArtwork]}
-          />
-          {isCompleted ? (
-            <View style={styles.completedMark}>
-              <Text style={styles.completedGlyph}>✓</Text>
-            </View>
-          ) : null}
+          <RemoteImage uri={item.content.thumbnailUrl} recyclingKey={item.content.id} style={styles.artwork} />
+          {/* 완청 체크는 없다(2026-09-22 PM) — 사진 위 스티커라 뺐다. 완청은 낭독기 라벨(completed)로만 전한다 */}
         </View>
         <Text style={styles.title} numberOfLines={2}>
           {item.content.title}
@@ -74,7 +69,7 @@ export default function ExploreTile({
         accessibilityLabel={EXPLORE_COPY.row.moreA11y}
       >
         <View style={styles.moreBadge}>
-          <Text style={styles.moreGlyph}>⋯</Text>
+          <MoreIcon size={22} color={theme.color.onPrimary} shadow />
         </View>
       </Pressable>
     </View>
@@ -85,10 +80,15 @@ const styles = StyleSheet.create({
   tile: {
     width: EXPLORE_TILE_WIDTH,
   },
+  // 라운드·클립은 프레임(View)이 한다 — 모서리를 연속 곡률(애플 아이콘식)로 마감하는 borderCurve 는 View 의 것이고
+  // expo-image 는 모른다(2026-09-22 PM). iOS 만 적용, 안드로이드는 원호 그대로
   artworkFrame: {
     width: EXPLORE_TILE_WIDTH,
     height: EXPLORE_TILE_WIDTH,
     marginBottom: theme.spacing.sm,
+    borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
   },
   // 격자 — 라이브러리 격자 타일(LibraryItemTile)과 같은 모양: 칸 폭 정사각, 라운드 lg
   gridTile: {
@@ -98,30 +98,13 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: 1,
     marginBottom: theme.spacing.sm,
-  },
-  gridArtwork: {
     borderRadius: theme.radius.lg,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
   },
   artwork: {
     flex: 1,
-    borderRadius: theme.radius.md,
     backgroundColor: theme.color.surface,
-  },
-  completedMark: {
-    position: 'absolute',
-    top: theme.spacing.sm,
-    left: theme.spacing.sm,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.color.overlay,
-  },
-  completedGlyph: {
-    fontSize: theme.font.size.xs,
-    fontWeight: '700',
-    color: theme.color.onPrimary,
   },
   title: {
     fontSize: theme.font.size.sm,
@@ -146,17 +129,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // 원은 없다 — 흰 점 3개(MoreIcon, 후광 그림자)만 둔다(2026-09-22 PM, LibraryItemTile 과 같다)
   moreBadge: {
     width: 28,
     height: 28,
-    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: theme.color.overlay,
-  },
-  moreGlyph: {
-    fontSize: theme.font.size.md,
-    fontWeight: '700',
-    color: theme.color.onPrimary,
   },
 });

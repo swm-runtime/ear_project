@@ -1,6 +1,7 @@
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import MoreIcon from '@/shared/ui/MoreIcon';
 import RemoteImage from '@/shared/ui/RemoteImage';
 
 import { EXPLORE_COPY } from '../explore.copy';
@@ -21,6 +22,16 @@ const toMinutes = (durationSec: number): number => Math.max(1, Math.round(durati
  */
 const WIDTH_RATIO = 0.72;
 const MAX_WIDTH = 312;
+/**
+ * 카드 하단(제목·알약 줄)의 바탕은 **앨범아트가 흐리게 이어진 면**이다(PM 2026-09-25 22:01 "blur 처리해서 마치
+ * 이어진 것처럼"). 카드 전체에 흐린 커버를 깔고 위 정사각형만 선명한 커버가 덮는다 — 플레이어 배경과 같은 방식
+ * (기본 Image blurRadius, expo-image 는 세기 기준이 달라 톤이 바뀐다). 우리 커버는 차콜 계열이라 하단 글자는
+ * 플레이어 팔레트(흰 글자)로, 밝은 커버가 와도 읽히게 어두운 막을 한 겹 둔다
+ */
+const BACKDROP_BLUR_RADIUS = 36;
+const BACKDROP_SCRIM = 'rgba(23, 23, 26, 0.45)';
+const ON_ART_TEXT = '#FFFFFF';
+const ON_ART_TEXT_SECONDARY = 'rgba(255, 255, 255, 0.72)';
 
 interface Rect {
   x: number;
@@ -36,15 +47,16 @@ interface Rect {
  * (제목 두 줄 + 재생 알약까지 합친 높이다). 가리키려는 것은 "담을 수 있는 콘텐츠"이고 그건
  * 썸네일로 충분하다.
  *
- * **이 계산은 아래 `card`·`artworkFrame` 스타일에 묶여 있다** — 썸네일은 카드 패딩 안쪽의
- * 정사각형(`width: '100%'` + `aspectRatio: 1`)이다. 둘 중 하나를 바꾸면 여기도 바꾼다.
+ * **이 계산은 아래 `card`·`artworkFrame` 스타일에 묶여 있다** — 썸네일은 카드의 **위·양옆 변에 붙는**
+ * 정사각형(카드 폭 그대로, 2026-09-22 PM — 위·양쪽 공백 제거)이다. 둘 중 하나를 바꾸면 여기도 바꾼다.
  * 그래서 카드를 쓰는 쪽이 짐작하지 않도록 이 파일이 함께 소유한다.
  */
-export const featuredCardArtworkRect = (card: Rect): Rect => {
-  const inset = theme.spacing.md;
-  const size = Math.max(0, card.w - inset * 2);
-  return { x: card.x + inset, y: card.y + inset, w: size, h: size };
-};
+export const featuredCardArtworkRect = (card: Rect): Rect => ({
+  x: card.x,
+  y: card.y,
+  w: card.w,
+  h: card.w,
+});
 
 /**
  * 인기 섹션의 큰 카드 — 가로 캐러셀의 항목이다.
@@ -63,6 +75,16 @@ export default function ExploreFeaturedCard({
 
   return (
     <View style={[styles.card, { width: cardWidth }]}>
+      {/* 흐린 커버 바탕 — 카드 전체. 위 정사각형은 아래 선명한 커버가 덮어 하단만 "이어진" 흐림으로 남는다 */}
+      <Image
+        source={{ uri: item.content.thumbnailUrl }}
+        style={styles.backdrop}
+        blurRadius={BACKDROP_BLUR_RADIUS}
+        resizeMode="cover"
+        accessibilityElementsHidden
+        importantForAccessibility="no"
+      />
+      <View style={styles.backdropScrim} pointerEvents="none" />
       <Pressable
         style={styles.body}
         onPress={() => onPress(item)}
@@ -75,11 +97,7 @@ export default function ExploreFeaturedCard({
       >
         <View style={styles.artworkFrame}>
           <RemoteImage uri={item.content.thumbnailUrl} recyclingKey={item.content.id} style={styles.artwork} />
-          {isCompleted ? (
-            <View style={styles.completedMark}>
-              <Text style={styles.completedGlyph}>✓</Text>
-            </View>
-          ) : null}
+          {/* 완청 체크는 없다(2026-09-22 PM) — 사진 위 스티커라 뺐다. 완청은 낭독기 라벨(completed)로만 전한다 */}
         </View>
         <Text style={styles.title} numberOfLines={2}>
           {item.content.title}
@@ -110,7 +128,7 @@ export default function ExploreFeaturedCard({
           accessibilityRole="button"
           accessibilityLabel={EXPLORE_COPY.row.moreA11y}
         >
-          <Text style={styles.moreGlyph}>⋯</Text>
+          <MoreIcon size={22} color={ON_ART_TEXT_SECONDARY} />
         </Pressable>
       </View>
     </View>
@@ -118,11 +136,36 @@ export default function ExploreFeaturedCard({
 }
 
 const styles = StyleSheet.create({
+  /*
+   * 커버가 카드의 위·양옆 변에 붙는다(2026-09-22 PM — 카드 안 여백에 갇힌 사진은 액자 속 액자였다). 카드가
+   * 라운드·클립을 맡아 커버의 위 모서리는 카드 곡률을 따르고 아래 모서리는 각지게 제목 블록으로 이어진다.
+   * 패딩은 아래·제목·알약 줄에만 남는다
+   */
   card: {
     borderRadius: theme.radius.lg,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
+    // 바탕은 흐린 커버(backdrop)가 깐다 — 커버가 없을 때의 폴백 색만 남긴다
     backgroundColor: theme.color.surface,
-    padding: theme.spacing.md,
+    paddingBottom: theme.spacing.md,
     gap: theme.spacing.xs,
+  },
+  backdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    // 흐림의 가장자리가 비치지 않게 살짝 키운다(플레이어 배경과 같다)
+    transform: [{ scale: 1.2 }],
+  },
+  backdropScrim: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: BACKDROP_SCRIM,
   },
   body: {
     gap: theme.spacing.xs,
@@ -134,29 +177,13 @@ const styles = StyleSheet.create({
   },
   artwork: {
     flex: 1,
-    borderRadius: theme.radius.md,
     backgroundColor: theme.color.background,
   },
-  completedMark: {
-    position: 'absolute',
-    top: theme.spacing.sm,
-    left: theme.spacing.sm,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.color.overlay,
-  },
-  completedGlyph: {
-    fontSize: theme.font.size.xs,
-    fontWeight: '700',
-    color: theme.color.onPrimary,
-  },
   title: {
+    marginHorizontal: theme.spacing.md,
     fontSize: theme.font.size.md,
     fontWeight: '700',
-    color: theme.color.textPrimary,
+    color: ON_ART_TEXT,
     // 두 줄까지 접히는 제목이라 줄 간격을 함께 잡는다
     lineHeight: theme.font.size.md * 1.35,
     // 제목이 한 줄이든 두 줄이든 아래 알약 줄의 높이가 같아야 카드끼리 나란히 선다
@@ -167,6 +194,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: theme.spacing.xs,
+    marginHorizontal: theme.spacing.md,
   },
   playPill: {
     flexDirection: 'row',
@@ -191,9 +219,5 @@ const styles = StyleSheet.create({
     minHeight: theme.touchTarget.minHeight,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  moreGlyph: {
-    fontSize: theme.font.size.lg,
-    color: theme.color.textSecondary,
   },
 });

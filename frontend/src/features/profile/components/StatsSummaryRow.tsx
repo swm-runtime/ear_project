@@ -70,6 +70,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.color.surface,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     paddingVertical: theme.spacing.md,
     alignItems: 'center',
     gap: theme.spacing.xs,

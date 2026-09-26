@@ -141,8 +141,9 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheet: {
-    borderTopLeftRadius: theme.radius.lg,
-    borderTopRightRadius: theme.radius.lg,
+    borderTopLeftRadius: theme.radius.xl,
+    borderTopRightRadius: theme.radius.xl,
+    borderCurve: 'continuous',
     backgroundColor: playerColor.background,
     paddingHorizontal: theme.spacing.md,
     paddingTop: theme.spacing.sm,

@@ -30,11 +30,11 @@ export function EnrichCell({ c, st, jobCategories, onChange }: { c: EarContent; 
   async function apply() {
     setBusy(true); setMsg(null);
     try {
-      const text = await readEnrichment(c.id);
-      if (!text) throw new Error("산출물이 없어요 — 먼저 [다시 뽑기]");
-      const file = new File([text], "enrichment.json", { type: "application/json" });
+      const got = await readEnrichment(c.id);
+      if (!got) throw new Error("산출물이 없어요 — 먼저 [다시 뽑기]");
+      const file = new File([got.text], "enrichment.json", { type: "application/json" });
       const r = await republishEarContent(c.id, { enrichment: file }); // enrichment_file 단독 — 버전 무변경·재생 위치 보존 (admin-api 4.10)
-      if (r.enrichment_applied) setMsg({ ok: true, text: `반영됨 — v${r.enrichment_schema_version} · 콘텐츠 버전 ${r.content_version} 그대로` });
+      if (r.enrichment_applied) setMsg({ ok: true, text: `반영됨 — v${r.enrichment_schema_version} · ${got.note} · 콘텐츠 버전 ${r.content_version} 그대로` });
       else setMsg({ ok: false, text: `거부됨: ${r.enrichment_rejected_reason ?? "사유 없음"}` });
       onChange();
     } catch (e) { setMsg({ ok: false, text: earErrMsg(e) }); } finally { setBusy(false); }

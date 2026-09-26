@@ -3,6 +3,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCallback, useState } from 'react';
 import { BackHandler } from 'react-native';
 
+import { track } from '@/shared/analytics';
 import { isApiError } from '@/shared/api/api-error';
 import { useToastStore } from '@/shared/ui/toast.store';
 
@@ -10,6 +11,7 @@ import { useJobCategoriesQuery } from '@/features/career';
 
 import type { OnboardingStackParamList, YearsOfExperience } from '../onboarding.types';
 import { useSaveCareerMutation } from './useSaveCareerMutation';
+import { onboardingCompletionService } from '../services/onboarding-completion.service';
 
 type PendingAction = 'next' | 'skip' | null;
 
@@ -63,7 +65,11 @@ export const useCareerScreen = () => {
           };
 
     saveCareerMutation.mutate(input, {
-      onSuccess: () => navigation.navigate('Pick'),
+      onSuccess: () => {
+        track('onboarding_step', { step: 'career', action });
+        onboardingCompletionService.noteCareer(action === 'next' && Object.keys(input).length > 0);
+        navigation.navigate('Pick');
+      },
       onError: (error) => {
         showToast(isApiError(error) ? error.message : '저장하지 못했어요. 다시 시도해주세요');
       },

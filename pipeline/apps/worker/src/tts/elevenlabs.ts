@@ -4,7 +4,7 @@ import { log, sleep } from "../util.js";
 /**
  * ElevenLabs 클라이언트 (spec/06) — 다중화자 1콜(Text to Dialogue, eleven_v3) 확정 (2026-09-02 박수헌).
  * 요청당 권장 총 2,000자 · 분할은 턴 경계(chunkTurns) · seed 고정으로 재현성을 시도한다.
- * 출력 포맷은 사다리로 시도한다: pcm(무손실, Pro+) → mp3 192k(Creator+) → mp3 128k(전 티어).
+ * 출력 포맷은 사다리로 시도한다: pcm(Pro+) → mp3 192k(Pro+, 2026-09-22 요금 페이지 기준) → mp3 128k(전 티어). 현재 플랜은 128k 까지 — 마스터 wav 도 이를 디코드한 것이라 무손실이 아니다.
  * 구독 제한을 만나면 한 단계 내려가 이후 요청도 고정한다 — 한 에피소드 안에서 포맷을 섞지 않는다.
  */
 const BASE = "https://api.elevenlabs.io/v1";
@@ -143,22 +143,33 @@ export async function forcedAlignment(audio: Buffer, text: string, timeoutMs = 1
  * 하나라도 못 찾으면 null — 호출부가 배속 없이 폴백한다.
  */
 export function locateTurnStarts(t: TimestampedSynth, texts: string[]): number[] | null {
+  return locateTurnSpans(t, texts)?.map((s) => s.start) ?? null;
+}
+
+/**
+ * 턴별 [첫 글자 시작, 마지막 글자 끝] + 첫 글자 끝(firstEnd)·마지막 글자 시작(lastStart) (2026-09-22 KAN-87).
+ * ElevenLabs 정렬은 글자가 빈틈없이 이어진다 — 턴 사이 쉼은 앞 턴 마침표나 뒤 턴 첫 글자의 길이에 흡수된다(실측: "."@61.76–62.48, "그"@24.72–26.16).
+ * 그래서 `다음 start − 이 end` 는 항상 0 이고, 쉼의 실제 위치는 [lastStart, 다음 firstEnd] 창 안에서 오디오로 찾아야 한다(audio.findPauseCut).
+ */
+export interface TurnSpan { start: number; end: number; firstEnd: number; lastStart: number }
+export function locateTurnSpans(t: TimestampedSynth, texts: string[]): TurnSpan[] | null {
   const strip = (s: string) => s.replace(/\s+/g, "");
   const map: number[] = [];                       // 공백 제외 인덱스 → 정렬 배열 인덱스
   const hayChars: string[] = [];
   t.chars.forEach((c, i) => { if (c.trim()) { map.push(i); hayChars.push(c); } });
   const hay = hayChars.join("");
-  const starts: number[] = [];
+  const spans: TurnSpan[] = [];
   let cursor = 0;
   for (const text of texts) {
     const needle = strip(text);
     if (!needle) return null;
     const at = hay.indexOf(needle, cursor);
     if (at < 0) return null;
-    starts.push(t.startSec[map[at]]);
+    const i0 = map[at], i1 = map[at + needle.length - 1];
+    spans.push({ start: t.startSec[i0], end: t.endSec[i1], firstEnd: t.endSec[i0], lastStart: t.startSec[i1] });
     cursor = at + needle.length;
   }
-  return starts;
+  return spans;
 }
 
 /** 발췌(부분 문자열)의 시작·끝 시각을 문자 정렬에서 찾는다. 공백 차이는 무시하고 대조한다 */

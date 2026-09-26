@@ -1,0 +1,123 @@
+# [FE] GA4(Firebase Analytics) 연동 — 퍼널·재생·탐색 이벤트 사전대로 계측
+
+| 항목 | 값 |
+|---|---|
+| 대상 | `frontend/src/shared/analytics/`(신설) · `frontend/app.config.js`·`app.json`(plist·runtimeVersion) · `PlaybackService`·내비게이션·각 화면 훅 |
+| 요청 파트 | 프론트엔드 (담당 이주호) |
+| 발행 날짜 | 2026-09-22 |
+| 시작 날짜 | 2026-09-22 |
+| 기한 | 2026-09-25 (Medium +3일) |
+| 선행 | 티켓 없음. 사람 손: `GoogleService-Info.plist` 2개 + `google-services.json` 재다운로드(대기) — Firebase GA 켜기·iOS 앱 등록은 2026-09-22 완료 |
+| Jira | [KAN-90](https://runtime364.atlassian.net/browse/KAN-90) |
+| 발견 시점 | 9월 3주차 회고 — 다음 주 계획 "강준혁 멘토님 멘토링 — 광고 셋팅, 유저 행동 분석". 앱에 분석 SDK가 없고 서버 `user_signals` 는 추천 전용이라 퍼널을 볼 수 없다 |
+| 근거 문서 | `docs/features/analytics.md`(이벤트 사전 — 이 티켓과 함께 신설) · `docs/backend/domain.md` 6.4·12.1(`user_signals` 역할) · `docs/frontend/architecture.md` 2.1(runtimeVersion) |
+| 중요도 | **Medium** — 3일 안. 멘토링 전에 속성·이벤트가 있어야 광고 설정을 얹을 수 있다 |
+| 상태 | **완료** — 2026-09-24 iOS·Android 실기기 확인, archive |
+| 반영 날짜 | 2026-09-24 |
+
+## 문제
+
+- 앱에 제품 분석이 없다. `package.json`·`app.json`에 분석 SDK가 없고 문서에도 결정이 없다.
+- 서버 `user_signals`는 **추천 스코어링 입력 전용**이고 180일 뒤 삭제된다(`domain.md` 6.4·12.1). 온보딩 이탈·화면 체류·재생 진행률 같은 퍼널 지표는 어디에도 없다.
+- 멘토링(광고 셋팅)은 GA4 속성이 있어야 Google Ads를 붙일 수 있다 — 속성·이벤트가 선행이다.
+
+## 요청 내용
+
+1. **문서 먼저** — `docs/features/analytics.md`에 이벤트 사전(3장)·공통 파라미터·사용자 속성·PII 규칙을 확정한다. 화면별 spec에는 "여기서 이 이벤트" 표를 붙이지 않고 analytics.md 한 곳이 소유한다(공유·에러 처리처럼 횡단 문서).
+2. `@react-native-firebase/app` + `@react-native-firebase/analytics` 설치. `shared/analytics/track(event, params)` 래퍼 — 이름·파라미터를 TS 유니온으로 고정, 공통 파라미터 자동 부착, 웹·mock no-op.
+3. 화면 자동 추적 — 내비게이션 `onStateChange`에서 리프 라우트 변경 시 `screen_view`.
+4. iOS `GoogleService-Info.plist` 2개를 `app.config.js` 변형(`APP_VARIANT`)으로 선택. Android `google-services.json`은 Analytics 켠 뒤 다시 받아 교체. **runtimeVersion 4 → 5.**
+5. 이벤트 심기 — 온보딩 → 재생(`PlaybackService` 한 곳) → 드립 → 탐색·공유 → 계정. 로그아웃·탈퇴 시 `setUserId(null)`.
+6. 개발계 앱 설정 > 정보에 "분석 디버그" 행(개발계 전용).
+7. 운영·개발계 iOS/Android 재빌드 — KAN-76 개발계 빌드·심사 빌드 교체와 **같은 빌드로 묶는다**.
+8. 스토어 개인정보 신고 갱신(Apple 라벨·Play 데이터 보안·처리방침) — 사람 손.
+
+## 사람 손
+
+| # | 어디 | 무엇을 | 상태 |
+|---|---|---|---|
+| 1 | Firebase `ear-push` > 통합 | Google Analytics 사용 설정(GA 계정 runtime364) | **완료** 2026-09-22 |
+| 2 | Firebase > 프로젝트 설정 > 내 앱 | iOS 앱 `com.runtime.ear`(ASC 6807708636) · `dev.runtime.ear`(ASC 6813738593) 등록 | **완료** 2026-09-22 |
+| 3 | 같은 화면, Apple 앱 각각 | **`GoogleService-Info.plist` 다운로드 2개** → `frontend/GoogleService-Info.plist`(운영) · `frontend/GoogleService-Info.dev.plist`(개발계) | 대기 — 브라우저 자동화로는 파일이 떨어지지 않아 계정 소유자가 받는다 |
+| 4 | 같은 화면, Android 앱 | `google-services.json` 다시 다운로드(Analytics 켜면서 갱신) → `frontend/google-services.json` 교체 | 대기 |
+| 5 | ASC · Play Console · 처리방침 | 개인정보 수집 항목에 "분석(앱 활동·식별자)" 추가 | 구현 뒤 |
+
+## 완료 조건
+
+`docs/features/analytics.md` 8장과 같다.
+
+- Given 개발계 앱을 처음 실행한다 / When Firebase DebugView를 켠다 / Then `first_open`·`screen_view`가 `dev.runtime.ear` 스트림에 실시간으로 보인다
+- Given 온보딩을 끝까지 진행한다 / When DebugView를 본다 / Then `onboarding_step` 4~5건과 `onboarding_complete` 1건이 순서대로 보이고 `topic_count`가 실제 선택 수와 같다
+- Given 콘텐츠를 끝까지 듣는다 / When DebugView를 본다 / Then `play_start` → `play_progress`(25·50·75) → `play_complete`가 한 번씩이고, 서버 완청 판정 시각과 1초 안에서 일치한다
+- Given 운영 앱 / When 같은 동작을 한다 / Then 운영 스트림에만 잡히고 개발계 스트림에는 없다
+- Given 로그아웃한다 / When 다른 계정으로 로그인한다 / Then 앞 계정의 `user_id`·`tier` 속성이 새 이벤트에 붙지 않는다
+- Given 웹·mock 실행 / When 어떤 동작을 해도 / Then Firebase 호출이 없고 오류도 없다
+
+## 처리 기록 (2026-09-22 — 발행)
+
+- Firebase 콘솔: `ear-push`에 Google Analytics 켬(GA 계정 `runtime364`, 속성 자동 생성). iOS 앱 2개 등록(운영 앱 ID `1:800761431485:ios:edba047c74e6a513457ed4`). Analytics·Gemini를 끄고 만든 프로젝트라 이번에 Analytics만 켰다.
+- `docs/features/analytics.md` 초안(이벤트 사전 30여 개) 발행 — 팀 확인 뒤 구현.
+- plist 다운로드 버튼은 크롬 자동화로 눌러도 파일이 떨어지지 않았다(마법사가 다음 단계로 넘어가며 다운로드 생략). Firebase > 프로젝트 설정 > 내 앱 > Apple 앱에서 사람이 받는다.
+
+## 처리 기록 (2026-09-22 — 설정 파일 수급·연결)
+
+- 사람 손 3·4 를 효헌이가 크롬으로 대신 받았다. Firebase 콘솔의 다운로드 버튼은 `find` 참조 클릭으로는 요청이 안 나가고 **링크 글자 좌표 클릭**으로만 떨어졌다. 파일은 바탕화면(플러스 Downloads 의 `.tmp`)에 내려온다.
+- `frontend/GoogleService-Info.plist`(`com.runtime.ear`, 앱 ID `…ios:edba047c…`) · `frontend/GoogleService-Info.dev.plist`(`dev.runtime.ear`, `…ios:87cdb2a7…`) 추가. `app.json` `ios.googleServicesFile` = 운영 plist, `app.config.js` dev 변형 = dev plist. `expo config` 로 두 변형 확인.
+- `google-services.json` 은 다시 받아 비교했더니 **내용이 같았다**(Analytics 를 켜도 Android 파일은 바뀌지 않았다) — 교체 없음.
+- plist 의 `IS_ANALYTICS_ENABLED` 는 `false` 다 — Firebase 가 SDK 설치 여부와 무관하게 내려주는 기본값이고, RN Firebase 는 이 키를 보지 않는다(SDK 를 넣으면 수집된다).
+- SDK 설치·`track()`·이벤트 심기·runtimeVersion 5 는 다음 PR.
+
+## 처리 기록 (2026-09-23 — SDK·래퍼·이벤트 1차)
+
+- `@react-native-firebase/app`·`analytics` ^26.4 설치, `app.json` 플러그인 등록, iOS `useFrameworks: static`(RN Firebase 필수). **runtimeVersion 6 → 7.**
+- (09-23 밤 추가) RNFB 26 은 Firebase 를 SPM 으로 받는 게 기본인데 **SPM 모드는 static 링크를 거부한다**(`pod install` 이 `[react-native-firebase] SPM + static linkage is not supported` 로 실패, iOS 빌드 `438cf752`). 플러그인에 `ios.disableSPM: true` 를 줘 CocoaPods 경로(Expo + static 의 오랜 조합)로 고정했다. Podfile 만 바뀌므로 runtime 7 그대로.
+- `shared/analytics/` — `analytics.events.ts`(이벤트 사전을 TS 유니온으로 고정 — 여기 없는 이벤트는 컴파일이 막는다) · `analytics.ts`(`track` · `trackScreen` · `setAnalyticsUser`(SHA-256 앞 16자) · `setAnalyticsUserProperties`; 웹·`EXPO_PUBLIC_ANALYTICS=mock`이면 no-op, SDK 는 동적 로드, 실패는 warn 만). 공통 파라미터 `app_variant`·`bundle_label` 자동 부착. `search`·`share`·`login`·`sign_up` 은 GA4 예약 이름이라 SDK 의 전용 오버로드를 피해 문자열 오버로드로 보낸다.
+- 화면 자동 추적: `App.tsx` `NavigationContainer.onStateChange` → 포커스 리프 라우트가 바뀔 때만 `screen_view`.
+- 사용자 바인딩: `bootstrap` 세션 전이에서 Sentry 와 나란히 `setAnalyticsUser`(로그인 시 해시, 로그아웃 시 null + 속성 비움), `tier` 속성.
+- 이벤트 심은 곳(20종): 재생 6종은 `PlaybackService` 한 곳(`play_start` 서버 차감 성공 뒤 · `play_progress` 25/50/75 세션당 1회 · `play_complete` · `play_abandon` switch(콘텐츠 전환·닫기) · `play_rate_change` · `play_limit_hit`) / 온보딩 topic·career·pick / 알림 권한·탭(콜드 스타트는 `killed`)·인앱 배너 view·tap / 탐색 인기 구간 / 담기·해제(`explore.api` — 탐색·상세 공용) / 상세 진입 / 원문 보기 / 공유 / 로그인·가입(`startSession`; 온보딩 완료 여부로 가름) / 설정 토글 2종.
+- **문서를 코드에 맞춰 고쳤다**: 인기 구간은 `week|month|all`, 설정 토글 키는 `drip_notification|marketing_consent`, `email` 로그인 방식은 없다(소셜 4종). `analytics.md` 3.4·"구현 현황" 절 참조.
+- 개발계 설정 > 정보에 **"분석 디버그"**(마지막 이벤트 이름) · **"크래시 테스트"**(렌더 오류 유발 — KAN-92 완료 조건 확인용) 행 추가 — `DevDiagnosticsRows`, 운영 앱에는 없다.
+- 확인: tsc · eslint(shared→features import 금지에 걸려 진입점 유니온을 사전에 다시 적었다) · jest 133 통과.
+- **남은 것**: 잔여 이벤트 12종(analytics.md "아직 없음") · `topic_count` 속성 · runtime 7 iOS/Android 개발계 빌드 → DebugView 로 완료 조건 6개 · 스토어 개인정보 신고(사람 손).
+
+## 처리 기록 (2026-09-23 밤 — 이벤트 2차, 사전 완주)
+
+- 잔여 12종 중 11종을 심었다(JS 만이라 OTA 로 나간다, runtime 7 그대로): `play_confirm`(3 액션, `usePlayGate`) · `paywall_view`(`openPaywall` 에 진입점 인자를 붙여 4개 호출부 전부) · `logout` · `withdrawal`(선택지 키만) · `search`(낭독 게이트 공용) · `content_remove` 라이브러리 삭제·실행취소 · `drip_arrival_view` · `drip_play`(첫 재생 시도, `lastPlayedAt === null`) · `onboarding_step` tutorial·notification · `onboarding_complete`(완료 서비스가 단계별 재료를 모아 한 번 — `topic_count` 사용자 속성도 여기서) · `share_receive` · `play_abandon` background(멈춘 채 떠난 것만, 세션당 1회 가드 `hasReportedAbandon`).
+- **`play_abandon` `pause_timeout` 은 보내지 않는다** — 재생 서비스에 일시정지 만료 타이머가 없다. 문서 "구현 현황"에 적어 두었다. 사전은 그대로(타이머가 생기면 붙인다).
+- 코드가 정한 세부(어느 시점·어느 값)는 `analytics.md` "구현 현황" 절이 원본이다.
+- 확인: tsc · eslint · jest 133 통과.
+- 빌드: iOS 개발계 **build 11**(runtime 7, SPM 수정 포함) TestFlight 제출 · Android APK Actions run 35855715899 성공. 2차 이벤트는 그 빌드 위에 OTA 로 얹힌다.
+- **남은 것**: 실기기 DebugView 로 완료 조건 6개 · 스토어 개인정보 신고(사람 손).
+
+## 처리 기록 (2026-09-24 — iOS 실기기 1차 확인·후속 2건)
+
+- **iOS 도달 확인**(12:05, iOS build 11): GA4 실시간에 `ear preview iOS 1.1.0` 스트림, `screen_view` Library·Profile·Explore·Settings. 완료 조건 1 충족.
+- 후속 (1) **SDK 자동 화면 추적 노이즈** — `RNSScreen` 39·`UIViewController` 6·`RCTFabricModalHostView` 2 가 같이 잡혔다. `frontend/firebase.json` 에 `google_analytics_automatic_screen_reporting_enabled: false` — RNFB 가 iOS plist·Android 매니페스트 둘 다에 반영한다. **runtimeVersion 은 올리지 않는다**: JS 가 이 값에 의존하지 않아 rt 7 빌드 위의 OTA 가 깨질 일이 없고, 값을 올리면 어제 나간 build 11·APK 가 OTA 를 못 받게 된다. 대신 같은 rt 7 로 새 개발계 빌드를 뽑아 그 빌드부터 노이즈가 사라진다(이전 빌드는 노이즈가 남는다 — 대시보드에서 `screen_class` 가 라우트 이름인 것만 본다).
+- 후속 (2) **목록에 Player 없음** — `focusedRouteName` 을 `app/navigation/focused-route.ts` 로 빼고 유닛 5건(투명 모달 플레이어가 스택 위에 있을 때 `Player`, 그 위 상세, 부분 상태, 빈 상태)으로 확인: **코드는 Player 를 잡는다.** 표시 방식(`transparentModal`)은 라우트 상태에 영향을 주지 않는다. 사용자가 그 세션에서 플레이어를 열지 않았을 가능성이 크다. 확인을 쉽게 하려고 "분석 디버그" 행이 `screen_view:Player` 처럼 화면 이름까지 보이게 했다.
+- 남은 것: Android DebugView(이벤트 순서·`topic_count`) · 완료 조건 2~6 → archive.
+
+## 처리 기록 (2026-09-24 오후 — 재생 이벤트 미도달 조사·진단 도구)
+
+- **증상**(iOS build 12, 12:41): 재생 시작 2분 뒤에도 실시간에 `play_start` 없음. `drip_play` 는 보임. 28일 집계 `play_start`/`progress`/`complete` 0.
+- **정적 조사**: RNFB `logEvent` 는 이름만 검사한다(예약 이름·접두어·정규식 — 우리 이름 전부 통과). 파라미터 값 타입은 JS 에서 검사하지 않고, iOS 브리지는 불리언을 `NSNumber` 로 넘겨 Firebase 가 받는다. 세 이벤트는 모두 `PlaybackService` 에서 **`POST /play` 성공 뒤**(`hasReportedPlayStart`)에만 나간다 — `play_progress`·`play_complete` 에는 불리언이 없는데도 같이 없으므로 "불리언 거부"만으로는 설명이 안 된다. 코드에서 원인을 못 찍었다.
+- **iOS 실시간 지연 주의**: iOS 는 `-FIRDebugEnabled` 없이는 이벤트를 배치로 올린다(앱이 백그라운드로 갈 때·주기적). TestFlight 빌드에는 그 플래그를 줄 수 없다. "2분 뒤 없음" 은 결정적이지 않다 — **앱을 백그라운드로 보낸 뒤** 실시간을 본다. 이벤트 단위 확인은 **Android APK + `adb shell setprop debug.firebase.analytics.app dev.runtime.ear`** 로 DebugView 를 켜는 것이 유일하게 확실한 길이다.
+- **한 것**(JS, OTA):
+  - `sanitizeParams` — 불리언 → `'true'|'false'`, 유한 숫자 그대로, 문자열 100자 컷, 그 외(undefined·null·NaN·객체) 제거. Android Bundle 은 불리언 파라미터를 버리므로 플랫폼 차이를 여기서 없앤다. 유닛 3건.
+  - "분석 디버그" 행 — **최근 10건 + 결과**(✓ sent · ✕ failed + 사유 · – stubbed · … sending), 시각 포함. 탭하면 새로고침. 재생 → 설정으로 가도 `play_start` 가 목록에 남고, SDK 가 던졀으면 사유가 보인다.
+- 다음 확인 순서: OTA 받은 뒤(껐다 켜기 2번) 재생 → 설정 > 분석 디버그. `play_start` 가 ✓면 앱은 보냈다 → Firebase 업로드 지연/콘솔 문제. ✕면 사유대로 고친다. 목록에 없으면 `POST /play` 가 성공하지 않은 것 — 서버 로그를 본다.
+
+## 처리 기록 (2026-09-24 15:15 — iOS 결론·이어듣기 구간 버그)
+
+- **결론**(OTA `01a0d189`, 15:09): 분석 디버그에 `play_start` 1 · `play_progress` 3 이 ✓ 로 남고 `play_complete` 는 실시간에 떴다 → **앱은 보낸다.** 앞선 "실시간 미도달"은 iOS 배치 업로드 지연. iOS 완료 조건(`screen_view`·`play_start`·`play_progress`·`play_complete` 도달)은 통과.
+- **버그**: `play_progress` 25·50·75 가 재생 시작 10초 안에 셋 다 나갔다 — 사용자 확인 **이어듣기**(시작 위치 75% 초과). `handleStatus` 의 마크 판정이 현재 위치 기준이라 시작 위치 아래 마크가 첫 콜백에 한꺼번에 찍혔다. 수정: `reportPlayStart` 성공 시 시작 위치 이하의 마크를 `reportedProgress` 에 미리 넣는다(`markProgressBelow`) — "이번 세션에 통과한 구간"만 센다. 재청취(`restartFromBeginning`)는 새 세션이라 마크를 비운다.
+- **테스트 보강**(완료 조건 2·5 의 코드 검증): `analytics.test.ts` 8건 — 파라미터 고정 3 · 공통 파라미터·발송 기록 2 · **로그아웃 시 `user_id` null + 속성 3종 null 로 비움** · 해시 앞 16자 · 속성 문자열화. jest 에서 동적 `import()` 가 안 돌아 SDK 로더를 함수 안 `require` 로 바꿨다(Metro 에선 같은 지연 평가).
+- 남은 것: Android DebugView(기기 있으면) — 없으면 위 유닛으로 대체하고 archive.
+
+## 처리 기록 (2026-09-24 16:23 — 완료, 반영 날짜 2026-09-24)
+
+- **Android 확인** — Play 내부 테스트 aab(Actions run 35964319243, rt 7; apk 는 소셜 로그인이 안 돼 aab 로)로 설치해 iOS 와 같은 방식(GA4 실시간 + 설정 > 분석 디버그 행)으로 확인. **adb DebugView 는 하지 않았다** — 완료 조건 2(온보딩 순서·`topic_count`)·5(로그아웃 후 속성 리셋)는 `analytics.test.ts`·`onboarding-completion.service` 의 코드 경로(유닛 8건)로 갈음한다.
+- 사용자 확인 16:23("잘되는 거 같아"). iOS 는 `screen_view`·`play_start`·`play_progress`(이어듣기 수정 뒤 25% 정상)·`play_complete` 실시간 도달, 개발계 스트림(`dev.runtime.ear`)에만 잡힘(조건 4).
+- 조건 6(웹·mock no-op)은 `IS_ANALYTICS_STUBBED` 경로 — 유닛의 stubbed 상태로 확인.
+- 반영 PR: #669(SDK·1차 20종) · #670(SPM off) · #671(2차 11종) · #674(자동 화면 추적 off·라우트 테스트) · #675(파라미터 고정·디버그 목록) · #676(이어듣기 구간·유닛). 빌드: iOS 개발계 build 11·12, Android APK/AAB. 마지막 OTA `01a0d211`.
+- **미결로 남기는 것**(이 티켓 범위 밖): `play_abandon` `pause_timeout`(타이머 없음) · 스토어 개인정보 신고(Apple 라벨·Play 데이터 보안·처리방침 — 사람 손, 분석 수집 고지) · Google Ads 전환 이벤트 선택(analytics.md 미결).
+- Jira KAN-90 완료 전이.

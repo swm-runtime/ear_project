@@ -1,0 +1,52 @@
+diff --git a/node_modules/react-native-screens/ios/RNSScreenStack.mm b/node_modules/react-native-screens/ios/RNSScreenStack.mm
+index 192f5d2..f9208e8 100644
+--- a/node_modules/react-native-screens/ios/RNSScreenStack.mm
++++ b/node_modules/react-native-screens/ios/RNSScreenStack.mm
+@@ -481,6 +481,47 @@ RNS_IGNORE_SUPER_CALL_END
+         return;
+       }
+ 
++      // [ear patch] iOS 18 zoom transition — if the app registered a source view (local Expo module
++      // `modules/zoom-transition`, class ZoomTransitionRegistry), the modal zooms out of that view and
++      // shrinks back into it on dismiss (Apple Music mini player -> Now Playing). Looked up by name so
++      // builds without the module keep the stock behaviour.
++#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 180000
++      if (@available(iOS 18.0, *)) {
++        if (shouldAnimate) {
++          Class registry = NSClassFromString(@"ZoomTransitionRegistry");
++          if (registry != nil && [registry respondsToSelector:@selector(takeSourceView)]) {
++#pragma clang diagnostic push
++#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
++            UIView *zoomSource = [registry performSelector:@selector(takeSourceView)];
++#pragma clang diagnostic pop
++            if (zoomSource != nil) {
++              __weak UIView *weakZoomSource = zoomSource;
++              UIZoomTransitionOptions *zoomOptions = [UIZoomTransitionOptions new];
++              // The app blocks the system drag/pinch dismissal while a panel is open or the touch started on a
++              // scrolling list (ZoomTransitionRegistry.isInteractiveDismissBlocked, NSNumber for performSelector).
++              zoomOptions.interactiveDismissShouldBegin = ^BOOL(UIZoomTransitionInteractionContext *_Nonnull context) {
++                Class blockedRegistry = NSClassFromString(@"ZoomTransitionRegistry");
++                if (blockedRegistry == nil ||
++                    ![blockedRegistry respondsToSelector:@selector(isInteractiveDismissBlocked)]) {
++                  return YES;
++                }
++#pragma clang diagnostic push
++#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
++                NSNumber *blocked = [blockedRegistry performSelector:@selector(isInteractiveDismissBlocked)];
++#pragma clang diagnostic pop
++                return ![blocked boolValue];
++              };
++              next.preferredTransition = [UIViewControllerTransition
++                  zoomWithOptions:zoomOptions
++                sourceViewProvider:^UIView *_Nullable(UIZoomTransitionSourceViewProviderContext *_Nonnull context) {
++                  return weakZoomSource;
++                }];
++            }
++          }
++        }
++      }
++#endif
++
+       [previous presentViewController:next
+                              animated:shouldAnimate
+                            completion:^{

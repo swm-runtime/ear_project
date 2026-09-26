@@ -9,9 +9,17 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useNativeHeaderInset } from '@/shared/navigation/useNativeHeaderInset';
 import { theme } from '@/shared/theme';
+import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
+import LargeTitleRow from '@/shared/ui/LargeTitleRow';
 
-import { MiniPlayer, PlayConfirmDialog } from '@/features/player';
+import {
+  DOCK_SCROLL_PROPS,
+  MiniPlayer,
+  PlayConfirmDialog,
+  useBottomDockInset,
+} from '@/features/player';
 
 import ExploreMoreSheet from '../components/ExploreMoreSheet';
 import ExploreTile from '../components/ExploreTile';
@@ -27,9 +35,16 @@ import { useExploreSearchScreen } from '../hooks/useExploreSearchScreen';
  * 잔여 재생 표시는 없다 — 검색창이 그 줄을 다 쓴다(4.4-1). 숨긴 것은 표시이지 규칙이
  * 아니라서, 결과 재생은 판정·팝업을 피드와 동일하게 거친다(7장).
  * 화면은 뷰만 담당하고 로직은 useExploreSearchScreen이 소유한다.
+ *
+ * **iOS 26 시스템 탭 바 갈래의 상단은 애플 뮤직 검색 탭 문법**(09-26 00:29 스샷) — 큰 제목 "검색" + 채움 검색 필드 + [취소].
+ * 제목·필드는 목록 밖에 고정한다(결과·로딩으로 목록이 바뀔 때 입력 상자가 내려가면 키보드가 떨어진다).
+ * 탐색 제목 줄 밑 검색 필드를 누르면 이 화면이 스택에 올라온다(탭 바가 가려지므로 미니플레이어는 여기서 직접 그린다).
+ * 검색 탭(탭 바 옆 검색 원, #730)은 뺐다 — 입구가 둘이라(PM 09-26 01:20). 그 외 플랫폼은 종전대로 검색 줄만이다.
  */
 export default function ExploreSearchScreen() {
   const screen = useExploreSearchScreen();
+  const miniInset = useBottomDockInset();
+  const nativeBarInset = useNativeHeaderInset();
 
   const renderInlineError = (message: string, onRetry: () => void) => (
     <View style={styles.footer}>
@@ -60,6 +75,7 @@ export default function ExploreSearchScreen() {
     if (screen.isInitialMode) {
       return (
         <ScrollView
+          {...DOCK_SCROLL_PROPS}
           contentContainerStyle={styles.initialContent}
           keyboardShouldPersistTaps="handled"
         >
@@ -89,11 +105,12 @@ export default function ExploreSearchScreen() {
     if (screen.isNoResult) {
       return (
         <FlatList
+          {...DOCK_SCROLL_PROPS}
           data={toExploreGridData(screen.fallbackItems)}
           keyExtractor={exploreGridKey}
           numColumns={2}
           columnWrapperStyle={styles.gridRow}
-          contentContainerStyle={styles.gridContent}
+          contentContainerStyle={[styles.gridContent, { paddingBottom: miniInset }]}
           renderItem={({ item }) =>
             item === null ? (
               <View style={styles.gridSpacer} />
@@ -147,12 +164,13 @@ export default function ExploreSearchScreen() {
           <ActivityIndicator style={styles.inlineLoading} color={theme.color.primary} />
         ) : null}
         <FlatList
+          {...DOCK_SCROLL_PROPS}
           style={screen.isShowingStaleResults ? styles.dimmed : undefined}
           data={toExploreGridData(screen.results)}
           keyExtractor={exploreGridKey}
           numColumns={2}
           columnWrapperStyle={styles.gridRow}
-          contentContainerStyle={styles.gridContent}
+          contentContainerStyle={[styles.gridContent, { paddingBottom: miniInset }]}
           renderItem={({ item }) =>
             item === null ? (
               <View style={styles.gridSpacer} />
@@ -175,14 +193,29 @@ export default function ExploreSearchScreen() {
     );
   };
 
+  // 시스템 바 갈래에서는 상태 바만 비운다(스택 화면이라 바는 없다)
+  const Frame = HAS_NATIVE_TAB_BAR ? View : SafeAreaView;
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <SearchInputRow
-        value={screen.inputText}
-        onChangeText={screen.handleChangeText}
-        onSubmit={screen.submitSearch}
-        onCancel={screen.cancel}
-      />
+    <Frame style={[styles.container, { paddingTop: nativeBarInset }]} edges={['top']}>
+      {HAS_NATIVE_TAB_BAR ? (
+        <>
+          <LargeTitleRow title={EXPLORE_COPY.search.tabTitle} />
+          <SearchInputRow
+            value={screen.inputText}
+            onChangeText={screen.handleChangeText}
+            onSubmit={screen.submitSearch}
+            onCancel={screen.cancel}
+            variant="fill"
+          />
+        </>
+      ) : (
+        <SearchInputRow
+          value={screen.inputText}
+          onChangeText={screen.handleChangeText}
+          onSubmit={screen.submitSearch}
+          onCancel={screen.cancel}
+        />
+      )}
 
       {/* 검색 실패 — 이전 결과를 유지하고 상단 배너로 알린다(explore.md 7장). 한 번에 하나(uiux 5장) */}
       {screen.errorBanner ? (
@@ -193,7 +226,7 @@ export default function ExploreSearchScreen() {
 
       {renderBody()}
 
-      {/* 미니플레이어(PL11) — 검색 화면에서도 유지된다(explore.md 4.5-1) */}
+      {/* 미니플레이어(PL11) — 검색 화면에서도 유지된다(explore.md 4.5-1). 스택 화면이라 탭 바(액세서리)가 가려져 직접 그린다 */}
       <MiniPlayer />
 
       <ExploreMoreSheet
@@ -215,7 +248,7 @@ export default function ExploreSearchScreen() {
         onCancel={screen.cancelPlayConfirm}
         onSuppressToday={screen.suppressAndPlay}
       />
-    </SafeAreaView>
+    </Frame>
   );
 }
 

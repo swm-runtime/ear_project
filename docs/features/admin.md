@@ -159,14 +159,14 @@ MVP는 자동 콘텐츠 파이프라인을 운영하지 않는다(PRD 4.2). 대�
 
 ### 4.5-1 공지 관리
 
-설정 > 공지사항에 보이는 운영 공지를 작성·수정·삭제한다(신설 2026-09-17 — `changes/pending/notice-screen-spec.md`, KAN-67). 계약은 `admin-api.md` 4.12~4.15.
+설정 > 공지사항에 보이는 운영 공지를 작성·수정·삭제한다(신설 2026-09-17 — `changes/archive/notice-screen-spec.md`, KAN-67). 계약은 `admin-api.md` 4.12~4.15.
 
 - **`published_at`이 발행을 정한다** — 없으면 초안, 미래 시각이면 예약 발행, 과거면 발행. "발행됨" 판정은 조회 시점의 **서버 시각**이다.
 - 발행 취소는 `published_at`을 비우는 수정이다. 삭제는 soft이고 사용자 화면에서 즉시 사라진다.
 - **고정(`is_pinned`)** 공지는 사용자 목록 맨 위에 온다.
 - 작성자 컬럼은 없다 — 누가 언제 무엇을 바꿨는지는 `audit_logs`(`notice.create` · `notice.update` · `notice.delete`)가 남긴다.
 - **콘솔 화면(파이프라인 웹)은 후속이다.** 그 전까지는 관리자 토큰으로 API를 직접 호출해 등록한다.
-- 공지에 결제·구독 유도 문구를 싣지 않는다(MVP 바이너리 구독 비노출 — `changes/pending/subscription-ui-hidden-mvp.md`).
+- 공지에 결제·구독 유도 문구를 싣지 않는다(MVP 바이너리 구독 비노출 — `changes/archive/subscription-ui-hidden-mvp.md`).
 
 ### 4.6 운영 현황 조회
 

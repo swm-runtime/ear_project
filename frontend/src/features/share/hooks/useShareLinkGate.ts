@@ -2,6 +2,8 @@ import { useNavigation } from '@react-navigation/native';
 import { useEffect } from 'react';
 import { Linking } from 'react-native';
 
+import { track } from '@/shared/analytics';
+
 import { useSessionStore } from '@/features/auth';
 
 import { IS_SHARE_ENABLED } from '../share.constants';
@@ -28,6 +30,8 @@ export const useShareLinkGate = (): void => {
     const handleUrl = (url: string) => {
       const contentId = parseShareLink(url);
       if (contentId === null) return;
+      // 관문에서 버려지는 진입도 "링크로 들어왔다"다 — 앱 안에서 보는 이상 installed 는 늘 true
+      track('share_receive', { content_id: contentId, installed: true });
       // 관문 판정 — 스냅샷 1회 평가다. 이후 로그인·온보딩 완료에 반응해 복원하지 않는다
       const { status, user } = useSessionStore.getState();
       if (status !== 'authenticated' || user?.onboardingCompleted !== true) return;

@@ -1,26 +1,43 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
+  Animated,
   Pressable,
   RefreshControl,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useFadingNativeTitle } from '@/shared/navigation/useFadingNativeTitle';
+import {
+  useNativeBarPullStyle,
+  useNativeHeaderInset,
+} from '@/shared/navigation/useNativeHeaderInset';
 import { theme } from '@/shared/theme';
+import FloatingHeader, {
+  useFloatingHeaderInset,
+  useFloatingHeaderScroll,
+} from '@/shared/ui/FloatingHeader';
 import FullScreenError from '@/shared/ui/FullScreenError';
+import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
+import LargeTitleRow from '@/shared/ui/LargeTitleRow';
+import NativeBarBlurBand from '@/shared/ui/NativeBarBlurBand';
 
-import { MiniPlayer, PlayConfirmDialog, RemainingPlaysIndicator } from '@/features/player';
+import {
+  DOCK_SCROLL_PROPS,
+  PlayConfirmDialog,
+  useBottomDockInset,
+  useMiniPlayerResumeStore,
+} from '@/features/player';
 
 import LibraryBanner from '../components/LibraryBanner';
 import LibraryEmptyState from '../components/LibraryEmptyState';
+import LibraryFilterSummary from '../components/LibraryFilterSummary';
 import LibraryItemSkeleton from '../components/LibraryItemSkeleton';
 import LibraryItemTile from '../components/LibraryItemTile';
 import LibrarySearchBarRow from '../components/LibrarySearchBarRow';
-import LibraryTabs from '../components/LibraryTabs';
+import LibraryToolbar from '../components/LibraryToolbar';
 import MoreActionsSheet from '../components/MoreActionsSheet';
 import TopicFilterSheet from '../components/TopicFilterSheet';
 import UndoSnackbar from '../components/UndoSnackbar';
@@ -58,9 +75,31 @@ const toGridRows = (rows: LibraryListRow[]): LibraryGridRow[] => {
   return result;
 };
 
-/** L1 라이브러리 — 앱의 첫 화면. 화면은 뷰만 담당하고 로직은 useLibraryScreen이 소유한다 */
+/**
+ * L1 라이브러리 — 앱의 첫 화면. 화면은 뷰만 담당하고 로직은 useLibraryScreen이 소유한다.
+ *
+ * 상단 두 갈래(PM 2026-09-26 00:14 "라이브러리도" · 00:29 애플 뮤직 스샷 — design.md 5장 "상단 — 시스템 내비게이션 바"):
+ * - **iOS 26 시스템 탭 바(HAS_NATIVE_TAB_BAR)** — 투명 시스템 바(바 밑 블러는 시스템) 밑에 **콘텐츠 안 큰 제목 줄**
+ *   ("라이브러리" + 오른쪽 링·필터 툴바 캡슐, 같은 줄) / 채움 검색 필드 / 조건 요약·배너 — 전부 목록의 첫 줄로 같이 스크롤한다.
+ *   제목 줄이 바 밑으로 들어가면 바에 작은 제목이 페이드인한다(애플 뮤직·앱스토어 탭 화면).
+ * - 그 외 — 떠 있는 유리 머리 줄(FloatingHeader: 검색창 + 툴바 + 요약 + 배너)이 목록 위에 뜬다(2026-09-24).
+ */
 export default function LibraryScreen() {
   const screen = useLibraryScreen();
+  const miniInset = useBottomDockInset();
+  // 떠 있는 머리 줄(검색창·탭·배너)의 높이 — 목록이 그만큼 위를 비운다(시스템 바 갈래에서는 0)
+  const [headerHeight, setHeaderHeight] = useState(0);
+  const floatingInset = useFloatingHeaderInset(headerHeight);
+  const headerInset = HAS_NATIVE_TAB_BAR ? 0 : floatingInset;
+  // 투명 시스템 바 — 스크롤 뷰가 아닌 상태 화면(스켈레톤·에러)은 상태 바만 비우고, 목록의 제목 줄은 바 줄만큼 올린다
+  const nativeBarInset = useNativeHeaderInset();
+  const nativeBarPull = useNativeBarPullStyle();
+  // 맨 위에서는 머리 줄 컨트롤이 면, 내리면 유리(PM 2026-09-25)
+  const { solidness, scrollY, scrollProps } = useFloatingHeaderScroll();
+  useFadingNativeTitle(LIBRARY_COPY.tabTitle, scrollY);
+  // 머리 줄(JS 탭 바 갈래)의 루트 ref — 종전 시스템 edge effect 연결용, 지금은 FloatingHeader 가 요구만 한다
+  const listRef = useRef(null);
+  const headerRef = useRef<View>(null);
 
   /*
    * 검색은 **받아 둔 목록만** 좁힌다 — 서버 조회를 추가하지 않는다.
@@ -80,17 +119,79 @@ export default function LibraryScreen() {
   // L6·L9는 목록 전체가 빈 상태 — 탭 줄·필터 아이콘·복원 미니플레이어를 감춘다(uiux 4.8)
   const isWholeEmpty = screen.emptyKind === 'newUser' || screen.emptyKind === 'deletedAll';
   const showTabBar = !screen.isFullError && !isWholeEmpty;
+
+  // 잔여 링(무제한·캐시·값 없음이면 칸 없음 — uiux 4.3) + 필터를 한 유리 캡슐에(2026-09-25 PM).
+  // 상태·출처·주제 필터는 전부 시트 하나 — 세그먼트 탭 줄은 폐지
+  const toolbar = showTabBar ? (
+    <LibraryToolbar
+      remaining={screen.remainingDisplay}
+      onExhaustedPress={() => screen.openPaywall('library')}
+      activeFilterCount={screen.topicFilterCount}
+      onFilterPress={screen.openTopicSheet}
+    />
+  ) : null;
+  // 시스템 바 갈래의 큰 제목 줄 — 제목과 툴바가 같은 줄(PM 2026-09-26 00:25 "높이 맞추자")
+  const titleRow = HAS_NATIVE_TAB_BAR ? (
+    <LargeTitleRow title={LIBRARY_COPY.tabTitle} trailing={toolbar} />
+  ) : null;
+
+  // 시스템 바 갈래에서 조건 요약·배너는 목록의 첫 줄이다 — 목록과 같이 스크롤한다
+  const filterSummary = showTabBar ? (
+    <LibraryFilterSummary conditions={screen.filteredConditions} onPress={screen.openTopicSheet} />
+  ) : null;
+  // 배너는 목록 바로 위에 둔다 — 세 배너 모두 "이 목록에 무슨 일이 있었나"를 알리므로 목록에 붙어 있어야
+  // 무엇에 대한 통지인지 읽힌다(uiux 4.1)
+  const banner = screen.banner ? (
+    <LibraryBanner banner={screen.banner} onPress={screen.handleBannerPress} />
+  ) : null;
+  const contentHeader = HAS_NATIVE_TAB_BAR ? (
+    <View style={[styles.contentHeader, nativeBarPull]}>
+      {titleRow}
+      {/* 콘텐츠 안 검색 필드 — 유리가 아니라 면(애플 뮤직 검색 탭). 받아 둔 목록을 그 자리에서 좁히는 규칙은 그대로 */}
+      {showTabBar ? (
+        <LibrarySearchBarRow query={query} onChangeQuery={setQuery} trailing={null} variant="fill" />
+      ) : null}
+      {filterSummary}
+      {banner}
+    </View>
+  ) : null;
   // 복원 스냅샷 폴백의 노출 조건 — 활성 재생 세션의 표시는 MiniPlayer가 스스로 판단한다
-  const resumeFallback =
-    screen.resumeTarget !== null && !screen.isFullError && !isWholeEmpty
-      ? {
-          contentId: screen.resumeTarget.content.id,
-          title: screen.resumeTarget.content.title,
-          thumbnailUrl: screen.resumeTarget.content.thumbnailUrl,
-          positionSec: screen.resumeTarget.progress?.positionSec ?? 0,
-          durationSec: screen.resumeTarget.content.durationSec,
-        }
-      : null;
+  const resumeTarget = screen.resumeTarget;
+  const isResumeVisible = resumeTarget !== null && !screen.isFullError && !isWholeEmpty;
+  // 스토어에 올리는 값이라 참조가 안정해야 한다 — 매 렌더 새 객체면 독의 미니플레이어가 매번 다시 그린다
+  const resumeFallback = useMemo(
+    () =>
+      isResumeVisible && resumeTarget !== null
+        ? {
+            contentId: resumeTarget.content.id,
+            title: resumeTarget.content.title,
+            thumbnailUrl: resumeTarget.content.thumbnailUrl,
+            positionSec: resumeTarget.progress?.positionSec ?? 0,
+            durationSec: resumeTarget.content.durationSec,
+            // 카테고리 줄 — 복원 응답의 topic_ids(library-api.md 4.3, KAN-91 반영 2026-09-22 · FE 매핑 09-24)
+            topicIds: resumeTarget.content.topicIds,
+          }
+        : null,
+    [isResumeVisible, resumeTarget],
+  );
+
+  // 미니플레이어는 탭 바 독(CapsuleTabBar)에 하나만 산다(2026-09-23) — 복원 스냅샷과 핸들러를 스토어로 넘긴다
+  const setMiniPlayerResume = useMiniPlayerResumeStore((s) => s.set);
+  const { handleMiniPlayerPlay, handleMiniPlayerExpand, handleMiniPlayerDismiss } = screen;
+  useEffect(() => {
+    setMiniPlayerResume({
+      fallback: resumeFallback,
+      onPlayPress: handleMiniPlayerPlay,
+      onExpandPress: handleMiniPlayerExpand,
+      onDismiss: handleMiniPlayerDismiss,
+    });
+  }, [
+    setMiniPlayerResume,
+    resumeFallback,
+    handleMiniPlayerPlay,
+    handleMiniPlayerExpand,
+    handleMiniPlayerDismiss,
+  ]);
 
   const renderEmpty = () => {
     if (isSearching) {
@@ -169,42 +270,11 @@ export default function LibraryScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      {/* 브랜드 표시를 두지 않는다(2026-09-02) — 어느 탭인지는 하단 탭이 이미 말한다 */}
-      {showTabBar ? (
-        <LibrarySearchBarRow
-          query={query}
-          onChangeQuery={setQuery}
-          trailing={
-            // 무제한·캐시·값 없음이면 자리를 비운다 — "무제한" 배지도 없다(uiux 4.3)
-            screen.remainingDisplay ? (
-              <RemainingPlaysIndicator
-                remaining={screen.remainingDisplay.remaining}
-                limit={screen.remainingDisplay.limit}
-                onExhaustedPress={() => screen.openPaywall()}
-              />
-            ) : null
-          }
-        />
-      ) : null}
-
-      {showTabBar ? (
-        <LibraryTabs
-          filter={screen.filter}
-          onChange={screen.setFilter}
-          topicFilterCount={screen.topicFilterCount}
-          onFilterPress={screen.openTopicSheet}
-        />
-      ) : null}
-
-      {/* 배너는 탭 아래 · 목록 바로 위에 둔다 — 세 배너 모두 "이 목록에 무슨 일이
-          있었나"를 알리므로 목록에 붙어 있어야 무엇에 대한 통지인지 읽힌다(uiux 4.1) */}
-      {screen.banner ? (
-        <LibraryBanner banner={screen.banner} onPress={screen.handleBannerPress} />
-      ) : null}
-
+    <View style={styles.container}>
       {screen.isFullError ? (
-        <FullScreenError
+        <View style={[styles.container, { paddingTop: nativeBarInset }]}>
+          {titleRow}
+          <FullScreenError
           title={
             screen.isFullErrorNetwork
               ? LIBRARY_COPY.error.networkTitle
@@ -212,15 +282,22 @@ export default function LibraryScreen() {
           }
           description={LIBRARY_COPY.error.loadFailedDescription}
           retryLabel={LIBRARY_COPY.error.retry}
-          isRetrying={screen.isRefetching}
-          onRetry={screen.retry}
-        />
+            isRetrying={screen.isRefetching}
+            onRetry={screen.retry}
+          />
+        </View>
       ) : screen.showSkeleton ? (
-        <LibraryItemSkeleton />
+        <View style={{ paddingTop: headerInset + nativeBarInset }}>
+          {titleRow}
+          <LibraryItemSkeleton />
+        </View>
       ) : screen.isInitialLoading ? (
         <View style={styles.container} />
       ) : (
-        <FlatList
+        <Animated.FlatList
+          ref={listRef}
+          {...DOCK_SCROLL_PROPS}
+          {...scrollProps}
           data={gridRows}
           keyExtractor={(row) => row.key}
           renderItem={({ item: row }) =>
@@ -250,14 +327,20 @@ export default function LibraryScreen() {
             // 구획 타이틀 바로 아래에는 간격을 두지 않는다 — 타이틀 자체가 아래 여백을 가진다
             leadingItem.kind === 'discoveryHeader' ? null : <View style={styles.separator} />
           }
+          ListHeaderComponent={contentHeader}
           ListEmptyComponent={renderEmpty()}
           ListFooterComponent={renderFooter()}
-          contentContainerStyle={gridRows.length === 0 ? styles.emptyContent : styles.gridContent}
+          contentContainerStyle={[
+            gridRows.length === 0 ? styles.emptyContent : styles.gridContent,
+            { paddingTop: headerInset, paddingBottom: miniInset },
+          ]}
           refreshControl={
             <RefreshControl
               refreshing={screen.isManualRefreshing}
               onRefresh={() => void screen.refresh()}
               tintColor={theme.color.primary}
+              // 스피너가 머리 줄 밑에 숨지 않게
+              progressViewOffset={headerInset}
             />
           }
           onEndReached={screen.loadMore}
@@ -265,13 +348,27 @@ export default function LibraryScreen() {
         />
       )}
 
+      {/* 스크롤하면 나타나는 상단 블러 띠(시스템 탭 바 갈래) — 바의 작은 제목이 그 위에 */}
+      <NativeBarBlurBand scrollY={scrollY} />
+
+      {/* 머리 줄은 목록 **뒤에 선언**한다(zIndex 로 위에 뜬다) */}
+      {/* 머리 줄은 목록 위에 떠 있다 — 배경 없이 유리 컨트롤만(2026-09-24 PM). 브랜드 표시는 두지 않는다(2026-09-02).
+          시스템 바 갈래에서는 없다 — 검색창·툴바는 바에, 요약·배너는 목록 첫 줄에 */}
+      {HAS_NATIVE_TAB_BAR ? null : (
+        <FloatingHeader
+          onHeightChange={setHeaderHeight}
+          solidness={solidness}
+          containerRef={headerRef}
+        >
+          {showTabBar ? (
+            <LibrarySearchBarRow query={query} onChangeQuery={setQuery} trailing={toolbar} />
+          ) : null}
+          {filterSummary}
+          {banner}
+        </FloatingHeader>
+      )}
+
       {/* 미니플레이어(PL11) — 활성 세션은 실시간, 없으면 복원 스냅샷을 일시정지로 표시한다 */}
-      <MiniPlayer
-        resumeFallback={resumeFallback}
-        onResumePlayPress={screen.handleMiniPlayerPlay}
-        onResumeExpandPress={screen.handleMiniPlayerExpand}
-        onResumeDismiss={screen.handleMiniPlayerDismiss}
-      />
 
       <TopicFilterSheet
         key={screen.topicSheetEpoch}
@@ -280,6 +377,7 @@ export default function LibraryScreen() {
         isLoading={screen.isTopicsLoading}
         appliedTopicIds={screen.appliedTopicIds}
         appliedSourceFilter={screen.appliedSourceFilter}
+        appliedStatus={screen.filter}
         onApply={screen.applyTopicFilter}
         onDismiss={screen.closeTopicSheet}
       />
@@ -304,7 +402,7 @@ export default function LibraryScreen() {
 
       {/* 스낵바는 미니플레이어·하단 탭 위에 겹친다 — [실행 취소]가 가려지면 안 된다(uiux 4.4) */}
       <UndoSnackbar visible={screen.pendingDeleteItem !== null} onUndoPress={screen.undoDelete} />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -312,6 +410,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.color.background,
+  },
+  // 목록 첫 줄의 제목·검색·요약·배너(시스템 바 갈래) — 좌우 여백은 각자 갖는다. 격자의 좌우 여백을 되돌린다
+  contentHeader: {
+    marginHorizontal: -theme.spacing.md,
   },
   // 격자 — 좌우 여백은 검색 줄과 같은 선(md), 타일 사이는 sm×1.5
   gridContent: {

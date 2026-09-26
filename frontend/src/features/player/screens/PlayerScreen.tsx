@@ -5,7 +5,6 @@ import type { LayoutChangeEvent } from 'react-native';
 import {
   ActivityIndicator,
   Animated,
-  Easing,
   Image,
   PanResponder,
   Pressable,
@@ -18,13 +17,18 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
-import { theme } from '@/shared/theme';
+import {
+  setPlayerZoomDismissBlocked,
+  USE_NATIVE_PLAYER_ZOOM,
+} from '@/shared/navigation/zoom-transition';
+import { motion, theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import MarqueeText from '@/shared/ui/MarqueeText';
 import RemoteImage from '@/shared/ui/RemoteImage';
 
 import { useTopicsQuery } from '@/features/interest';
 
+import { MINI_CARD_RADIUS, MINI_THUMB_SIZE } from '../components/MiniPlayer';
 import PlayConfirmDialog from '../components/PlayConfirmDialog';
 import {
   MoreIcon,
@@ -55,6 +59,7 @@ import {
 import { PLAYER_COPY } from '../player.copy';
 import { playerColor } from '../player.theme';
 import type { QueueItem } from '../player.types';
+import { playbackService } from '../services/playback.service';
 import {
   formatSleepTimerRemaining,
   formatSleepTimerRemainingA11y,
@@ -79,10 +84,17 @@ export default function PlayerScreen() {
    * (player-api.md 4.7). 받아 보니 빈 배열이면 "없음"이다 — 버튼을 숨기고 열려 있던 패널도 접힌다.
    */
   const hasScript = session?.hasScript ?? false;
+  // 대본 펼침이 끝났는가 — 문단은 그 뒤에 그린다(펼침과 문단 마운트가 같은 프레임에 겹치면 끊긴다)
+  const [isScriptSettled, setIsScriptSettled] = useState(false);
+  /*
+   * 대본 요청도 **펼침이 끝난 뒤에** 보낸다(2026-09-22 PM). 패널을 여는 순간 보내면 응답이 보통 모션 중간에
+   * 도착해 파싱·상태 갱신·패널 교체 마운트가 JS 스레드를 잡고 커버 축소 프레임이 떨어진다. 처음 여는 편에서만
+   * 응답 도착이 320ms 늦어질 뿐이고, 이미 받은 편은 캐시가 그대로 나온다
+   */
   const scriptQuery = useScriptQuery(
     session?.contentId ?? null,
     session?.durationSec ?? 0,
-    hasScript && screen.activePanel === 'script',
+    hasScript && screen.activePanel === 'script' && isScriptSettled,
   );
   const scriptSegments = scriptQuery.data ?? null;
   const isScriptAvailable = hasScript && !(scriptSegments !== null && scriptSegments.length === 0);
@@ -110,26 +122,57 @@ export default function PlayerScreen() {
    */
   const queueProgress = useAnimatedValue(0);
   const [mountedPanel, setMountedPanel] = useState<PlayerPanelKind | null>(null);
+  /*
+   * 펼침·접힘 모션은 **상태 변경이 화면에 반영된 뒤에** 출발시킨다(2026-09-21 iOS 실기기 — 커버가 줄어드는
+   * 모션이 렉 걸리듯 끊겼다). 이 모션은 높이·위치를 움직여 JS 스레드에서 도는데, 같은 핸들러에서 상태를 바꾸면
+   * 플레이어 화면 전체가 다시 그려지는 수십 ms 동안 모션의 첫 프레임들이 멈췄다가 건너뛴다. 두 프레임 뒤에
+   * 출발하면 그 렌더가 끝난 뒤라 첫 구간이 막히지 않는다(33ms — 손가락에는 느껴지지 않는다).
+   */
+  const panelMotionFrameRef = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (panelMotionFrameRef.current !== null) cancelAnimationFrame(panelMotionFrameRef.current);
+    },
+    [],
+  );
   const setPanel = (kind: PlayerPanelKind | null) => {
     if (kind !== null && !isPanelAvailable(kind)) return;
     if (kind !== null) screen.openPanel(kind);
     else screen.closePanel();
-    Animated.timing(queueProgress, {
-      toValue: kind === 'queue' ? 1 : 0,
-      duration: SCRIPT_TOGGLE_DURATION_MS,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
     // 스크립트 패널(히어로 위) — 열 때 마운트, 닫힘 애니메이션이 끝나면 내린다. 둘은 동시에 열리지 않는다
     const isScriptOpen = kind === 'script';
     if (isScriptOpen) setMountedPanel('script');
-    Animated.timing(panelProgress, {
-      toValue: isScriptOpen ? 1 : 0,
-      duration: SCRIPT_TOGGLE_DURATION_MS,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start(({ finished }) => {
-      if (finished && !isScriptOpen) setMountedPanel(null);
+
+    const startMotion = () => {
+      panelMotionFrameRef.current = null;
+      // 모션 동안 0.5초 위치 틱이 화면 전체를 다시 그리지 않게 한다(2026-09-22 PM) — 끝나면 다음 틱이 따라잡는다
+      playbackService.holdPositionUpdates(SCRIPT_TOGGLE_DURATION_MS);
+      // 시트와 같은 smooth 스프링(2026-09-22 PM — 전환 곡선 통일). 길이는 응답 0.45초에 감쇠까지 약 SCRIPT_TOGGLE_DURATION_MS
+      Animated.spring(queueProgress, {
+        toValue: kind === 'queue' ? 1 : 0,
+        ...motion.spring.smooth,
+        overshootClamping: true,
+        useNativeDriver: false,
+      }).start();
+      Animated.spring(panelProgress, {
+        toValue: isScriptOpen ? 1 : 0,
+        ...motion.spring.smooth,
+        overshootClamping: true,
+        useNativeDriver: false,
+      }).start(({ finished }) => {
+        if (!finished) return;
+        if (isScriptOpen) {
+          setIsScriptSettled(true);
+        } else {
+          setMountedPanel(null);
+          setIsScriptSettled(false);
+        }
+      });
+    };
+    // 연타 — 앞서 예약한 출발은 버리고 마지막 것만 출발시킨다
+    if (panelMotionFrameRef.current !== null) cancelAnimationFrame(panelMotionFrameRef.current);
+    panelMotionFrameRef.current = requestAnimationFrame(() => {
+      panelMotionFrameRef.current = requestAnimationFrame(startMotion);
     });
   };
   // 헤더 애니메이션의 기준 치수 — 화면 폭·컨트롤 높이는 실측한다(기기마다 다르다)
@@ -215,47 +258,74 @@ export default function PlayerScreen() {
    * 제목은 날지 않는다 — 미니 제목은 제자리에서 사라지고 풀 화면 제목은 컨트롤·앱바와 함께 뒤늦게 들어온다(2026-09-18).
    * 닫을 땐 그대로 되감아 미니플레이어 위에 정확히 내려앉은 뒤 화면을 걷는다.
    */
-  const openProgress = useAnimatedValue(0);
-  const [isMorphing, setIsMorphing] = useState(true);
+  // 줌 전환 갈래(iOS 26 + 모듈 빌드)는 열림·닫힘 모션을 시스템이 맡는다 — 화면은 처음부터 다 열린 상태(1)로 그린다
+  const openProgress = useAnimatedValue(USE_NATIVE_PLAYER_ZOOM ? 1 : 0);
+  const [isMorphing, setIsMorphing] = useState(!USE_NATIVE_PLAYER_ZOOM);
+  /*
+   * 아트워크 **재생/정지 배율**(애플 뮤직 Now Playing, 2026-09-25 PM "애플처럼 전환"). 정지하면 아트워크가 작아지고
+   * 재생하면 살짝 튕기며 제자리로 커진다 — 화면 전체에서 재생 상태를 한눈에 알리는 애플의 방식. 모션(열림·닫힘) 중과
+   * 재생 목록이 열려 사진이 화면을 채울 땐 1 로 고정한다 — 모션 레이어와 교차하는 순간 크기가 다르면 두 장으로 보인다
+   */
+  const artScale = useAnimatedValue(1);
+  const isArtRelaxed = isMorphing || screen.activePanel === 'queue' || (session?.isPlaying ?? true);
+  useEffect(() => {
+    Animated.spring(artScale, {
+      toValue: isArtRelaxed ? 1 : PAUSED_ART_SCALE,
+      ...motion.spring.smooth,
+      // 같은 뷰의 left·top 이 JS 드라이버라 transform 도 JS 로 — 한 노드에 두 드라이버를 섞을 수 없다
+      useNativeDriver: false,
+    }).start();
+  }, [artScale, isArtRelaxed]);
   const hasOpenedRef = useRef(false);
   const miniLayout = useMiniPlayerLayoutStore((s) => s.layout);
   const isMeasured = contentSize.height > 0 && controlsHeight > 0;
   // 모션 레이어의 아트워크가 뜨기 전에 출발하면 첫 프레임이 회색 빈 사각이다 — 로드(또는 짧은 대기) 뒤 출발.
   // 그때까지 화면 전체를 감춰 두면 뒤의 미니플레이어가 그대로 보여 이음새가 없다
   const [isMorphImageReady, setIsMorphImageReady] = useState(false);
-  const [isShellVisible, setIsShellVisible] = useState(false);
+  const [isShellVisible, setIsShellVisible] = useState(USE_NATIVE_PLAYER_ZOOM);
   useEffect(() => {
     if (!isMeasured || isMorphImageReady) return;
     const timer = setTimeout(() => setIsMorphImageReady(true), MORPH_IMAGE_WAIT_MS);
     return () => clearTimeout(timer);
   }, [isMeasured, isMorphImageReady]);
-  // 드래그로 이미 내려온 만큼은 빼고 남은 거리만큼만 시간을 쓴다 — 거의 다 끌어내린 뒤 340ms를 다 쓰면 굼뜨다
+  /*
+   * 열림·닫힘·되돌림은 전부 **같은 스프링**이고, 손을 뗀 속도를 이어받는다(2026-09-22 PM — "애플처럼").
+   * 고정 길이의 베지어 타이밍은 어디서 놓든 같은 곡선을 그려서, 던지듯 내리면 굼뜨고 살살 놓으면 급했다.
+   * 스프링은 놓는 순간의 속도에서 출발해 감쇠하므로 손의 힘이 그대로 모션이 된다. 진행값은 0·1 을 넘기면
+   * 모션 레이어가 좌표 밖으로 튀어나오므로 overshoot 은 막는다(iOS 시트도 끝점에서 튀지 않는다)
+   */
   const dragProgressRef = useRef(1);
-  const dismissPlayer = () => {
-    setIsMorphing(true);
-    Animated.timing(openProgress, {
-      toValue: 0,
-      duration: Math.max(PLAYER_CLOSE_MIN_MS, PLAYER_CLOSE_MS * dragProgressRef.current),
-      // 천천히 떼어져서 미니플레이어 자리에 빠르게 내려앉는다
-      easing: Easing.bezier(0.4, 0, 0.6, 1),
-      useNativeDriver: false,
-    }).start(({ finished }) => {
-      if (finished) screen.collapse();
-    });
+  // 손을 뗀 순간의 속도(진행값/초). 드래그 핸들러가 채우고 스프링이 한 번 쓰고 비운다
+  const releaseVelocityRef = useRef(0);
+  const takeReleaseVelocity = () => {
+    const velocity = releaseVelocityRef.current;
+    releaseVelocityRef.current = 0;
+    return velocity;
   };
-  // 드래그가 임계에 못 미쳐 놓았을 때 — 끌어내린 만큼에서 스프링으로 되돌아온다
-  const restorePlayer = () => {
-    dragProgressRef.current = 1;
+  const runSheetSpring = (toValue: 0 | 1, onFinished: () => void) => {
     Animated.spring(openProgress, {
-      toValue: 1,
+      toValue,
+      velocity: takeReleaseVelocity(),
       useNativeDriver: false,
-      friction: 9,
-      tension: 60,
-      // 1을 넘기면 모션 레이어가 풀 화면 좌표 밖으로 튀어나온다
+      ...SHEET_SPRING,
       overshootClamping: true,
     }).start(({ finished }) => {
-      if (finished) setIsMorphing(false);
+      if (finished) onFinished();
     });
+  };
+  const dismissPlayer = () => {
+    // 줌 전환 갈래: 화면을 걷으면 시스템이 미니플레이어 자리로 줄이는 모션을 그린다
+    if (USE_NATIVE_PLAYER_ZOOM) {
+      screen.collapse();
+      return;
+    }
+    setIsMorphing(true);
+    runSheetSpring(0, () => screen.collapse());
+  };
+  // 드래그가 임계에 못 미쳐 놓았을 때 — 끌어내린 만큼에서 되돌아온다
+  const restorePlayer = () => {
+    dragProgressRef.current = 1;
+    runSheetSpring(1, () => setIsMorphing(false));
   };
 
   /*
@@ -264,11 +334,13 @@ export default function PlayerScreen() {
    * 놓는 순간 원위치에서 축소 모션이 다시 시작돼 위로 튀었다(2026-09-16). 놓으면 그 자리에서 이어서
    * 내려앉거나(임계 초과) 스프링으로 되돌아온다
    */
+  // 끌어내리는 전체 거리 = 시트가 풀 화면(0)에서 미니플레이어 자리(mini.y)까지 가는 거리. 이 값으로 나눠야 1:1 이다
+  const dragTravel = Math.max(1, miniLayout?.y ?? windowHeight - MINI_FALLBACK_BOTTOM);
   const gestureContext = useRef({
     windowHeight,
     open: () => {},
     begin: () => {},
-    drag: (_dy: number) => {},
+    drag: (_dy: number, _vy: number) => {},
     follow: (_progress: number) => {},
     dismiss: () => {},
     restore: () => {},
@@ -300,23 +372,18 @@ export default function PlayerScreen() {
           openProgress.setValue(openGesture.progress);
           openGesture.reset();
         }
-        Animated.timing(openProgress, {
-          toValue: 1,
-          duration: PLAYER_OPEN_MS,
-          // 빠르게 떠서 부드럽게 멈춘다 — iOS 시트가 올라오는 곡선
-          easing: Easing.bezier(0.2, 0.8, 0.2, 1),
-          useNativeDriver: false,
-        }).start(({ finished }) => {
-          if (finished) setIsMorphing(false);
-        });
+        runSheetSpring(1, () => setIsMorphing(false));
       },
       begin: () => setIsMorphing(true),
-      drag: (dy: number) => {
-        const progress = Math.max(
-          0,
-          Math.min(1, 1 - Math.max(0, dy) / (windowHeight * PLAYER_DRAG_RANGE_RATIO)),
-        );
+      /*
+       * 시트는 손가락과 **1:1** 로 움직인다 — 시트 위치가 mini.y·(1-진행값)이므로 진행값 = 1 - dy/mini.y.
+       * 종전엔 화면 높이의 70%를 끌면 끝이라 시트가 손보다 1.17배 빨리 달아났다(2026-09-22 PM)
+       */
+      drag: (dy: number, vy: number) => {
+        const progress = Math.max(0, Math.min(1, 1 - Math.max(0, dy) / dragTravel));
         dragProgressRef.current = progress;
+        // vy 는 px/ms(아래 +) → 진행값/초(닫힘 −)
+        releaseVelocityRef.current = (-vy * 1000) / dragTravel;
         openProgress.setValue(progress);
       },
       // 끌어올리는 손가락을 따른다 — 진행도가 곧 openProgress 다
@@ -335,6 +402,8 @@ export default function PlayerScreen() {
     if (!isMeasured || !isMorphImageReady || hasOpenedRef.current) return;
     hasOpenedRef.current = true;
     setIsShellVisible(true);
+    // 줌 전환 갈래는 이미 1 — 열림 스프링을 달리지 않는다
+    if (USE_NATIVE_PLAYER_ZOOM) return;
     gestureContext.current.open();
   }, [isMeasured, isMorphImageReady]);
 
@@ -362,15 +431,54 @@ export default function PlayerScreen() {
     };
   }, [openProgress]);
 
+  /**
+   * 지금 터치가 **세로로 스크롤되는 목록(대본·재생 목록) 위에서 시작됐는가.** 축소 제스처는 화면 전체에 걸려
+   * 있어서, 목록을 아래로 스크롤하는 손가락(dy > 0)을 "플레이어를 끌어내린다"로 읽고 가로챈다 — iOS 에서
+   * 대본이 내려가지 않고 플레이어가 축소됐다(2026-09-21 실기기). `onTouchStart`는 응답자 협상보다 먼저 오므로
+   * 여기서 표시해 두면 축소 제스처가 그 터치를 아예 넘겨받지 않는다. 목록 밖(앱바·아트워크·컨트롤)에서
+   * 끌어내리는 것은 종전과 같다.
+   */
+  const isTouchOnScrollAreaRef = useRef(false);
+  // 줌 전환 갈래: 시스템의 드래그 닫기도 같은 규칙으로 막는다 — 재생 목록을 끌어내리면 플레이어까지 같이 줄어들었다(15:49 실기기).
+  // 패널이 열려 있는 동안은 통째로 막고, 목록 위에서 시작한 터치도 막는다(동기 호출 — 시스템 제스처가 시작되기 전에 반영)
+  const isPanelOpen = activePanel !== null;
+  const isPanelOpenRef = useRef(isPanelOpen);
+  useEffect(() => {
+    isPanelOpenRef.current = isPanelOpen;
+    setPlayerZoomDismissBlocked(isPanelOpen);
+    return () => setPlayerZoomDismissBlocked(false);
+  }, [isPanelOpen]);
+  const scrollAreaTouchHandlers = useMemo(
+    () => ({
+      onTouchStart: () => {
+        isTouchOnScrollAreaRef.current = true;
+        setPlayerZoomDismissBlocked(true);
+      },
+      onTouchEnd: () => {
+        isTouchOnScrollAreaRef.current = false;
+        // 패널이 열려 있으면 계속 막는다
+        setPlayerZoomDismissBlocked(isPanelOpenRef.current);
+      },
+      onTouchCancel: () => {
+        isTouchOnScrollAreaRef.current = false;
+        setPlayerZoomDismissBlocked(isPanelOpenRef.current);
+      },
+    }),
+    [],
+  );
+
   const collapsePanResponder = useMemo(
     () =>
       // eslint-disable-next-line react-hooks/refs -- 콜백은 렌더가 아니라 제스처 시점에 실행된다(표준 PanResponder 패턴)
       PanResponder.create({
+        // 줌 전환 갈래는 시스템의 인터랙티브 닫기(드래그·핀치)가 맡는다 — 우리 제스처는 안 받는다
         onMoveShouldSetPanResponder: (_, gesture) =>
+          !USE_NATIVE_PLAYER_ZOOM &&
+          !isTouchOnScrollAreaRef.current &&
           gesture.dy > PLAYER_COLLAPSE_START_DISTANCE &&
           Math.abs(gesture.dy) > Math.abs(gesture.dx),
         onPanResponderGrant: () => gestureContext.current.begin(),
-        onPanResponderMove: (_, gesture) => gestureContext.current.drag(gesture.dy),
+        onPanResponderMove: (_, gesture) => gestureContext.current.drag(gesture.dy, gesture.vy),
         onPanResponderRelease: (_, gesture) => {
           const { windowHeight: height, dismiss, restore } = gestureContext.current;
           const shouldCollapse =
@@ -711,6 +819,13 @@ export default function PlayerScreen() {
           width: measuredTitleLayer.width,
         }
       : { left: fullTitleLeft, top: fullTitleTop, width: fullTitleWidth };
+  /*
+   * 아트워크의 두 단계(2026-09-22 PM — "애플처럼"). 닫힐 때: 시트가 내려가는 동안(0.92→MORPH_ART_SHRINK_END)
+   * 아트워크는 **풀 사이즈 그대로 시트에 실려** 컨트롤과 같은 거리(contentTranslateY)만큼 내려가고, 미니플레이어
+   * 근처에 온 마지막 구간(MORPH_ART_SHRINK_END→0)에서만 썸네일 자리로 줄어든다. 종전엔 0→0.92 내내 선형으로
+   * 커지며 대각선으로 날아 "그림이 따로 논다"고 보였다. 열릴 땐 같은 곡선을 거꾸로 간다
+   */
+  const artRideOffset = (mini.y * (MORPH_ART_ARRIVE - MORPH_ART_SHRINK_END)) / MORPH_ART_ARRIVE;
   const morph = {
     /*
      * 아트워크는 교차가 시작되기 **전에** 풀 화면 자리에 도착해 있어야 한다(2026-09-19 PM 지적). 끝(1)에서야
@@ -719,23 +834,23 @@ export default function PlayerScreen() {
      */
     artLeft: openProgress.interpolate({
       inputRange: MORPH_ART_INPUT,
-      outputRange: [miniThumbLeft, fullArt.left, fullArt.left],
+      outputRange: [miniThumbLeft, fullArt.left, fullArt.left, fullArt.left],
     }),
     artTop: openProgress.interpolate({
       inputRange: MORPH_ART_INPUT,
-      outputRange: [miniThumbTop, fullArt.top, fullArt.top],
+      outputRange: [miniThumbTop, fullArt.top + artRideOffset, fullArt.top, fullArt.top],
     }),
     artWidth: openProgress.interpolate({
       inputRange: MORPH_ART_INPUT,
-      outputRange: [miniThumbSize, fullArt.width, fullArt.width],
+      outputRange: [miniThumbSize, fullArt.width, fullArt.width, fullArt.width],
     }),
     artHeight: openProgress.interpolate({
       inputRange: MORPH_ART_INPUT,
-      outputRange: [miniThumbSize, fullArt.height, fullArt.height],
+      outputRange: [miniThumbSize, fullArt.height, fullArt.height, fullArt.height],
     }),
     artRadius: openProgress.interpolate({
       inputRange: MORPH_ART_INPUT,
-      outputRange: [theme.radius.sm, fullArtRadius, fullArtRadius],
+      outputRange: [theme.radius.sm, fullArtRadius, fullArtRadius, fullArtRadius],
     }),
     /*
      * 제목은 날지 않는다(2026-09-18 PM — 제자리 페이드). 미니 자리(썸네일 옆 14px)에서 풀 화면 자리(아트워크
@@ -766,7 +881,7 @@ export default function PlayerScreen() {
     }),
     // 마지막 8%는 제자리 — 히어로와 모션 레이어가 교차하는 동안 콘텐츠가 움직이면 같은 좌표가 아니게 된다
     contentTranslateY: openProgress.interpolate({
-      inputRange: [0, 0.92, 1],
+      inputRange: [0, MORPH_ART_ARRIVE, 1],
       outputRange: [mini.y, 0, 0],
     }),
     // 미니플레이어 ▶ — 시트가 자라기 시작하면 바로 사라진다(닫힐 땐 마지막 12%에서 나타난다)
@@ -782,11 +897,17 @@ export default function PlayerScreen() {
       inputRange: [0, 1],
       outputRange: [mini.width, windowWidth],
     }),
+    // 높이는 내려가는 동안 화면 높이 그대로다 — 카드가 줄어드는 게 아니라 **미끄러져 내려간다**(아트워크가 풀 사이즈로
+    // 실려 있는 동안 시트 밖으로 삐져나오지 않는다). 아트워크가 줄어드는 마지막 구간에서만 미니 높이로 접힌다
     sheetHeight: openProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [mini.height, windowHeight],
+      inputRange: [0, MORPH_ART_SHRINK_END, 1],
+      outputRange: [mini.height, windowHeight, windowHeight],
     }),
-    sheetRadius: openProgress.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0, 20, 0] }),
+    // 출발은 미니플레이어 카드의 모서리(22) — 0 이면 착지 순간 둥근 카드 밖으로 각진 귀가 비친다(2026-09-23)
+    sheetRadius: openProgress.interpolate({
+      inputRange: [0, 0.3, 1],
+      outputRange: [MINI_CARD_RADIUS, 20, 0],
+    }),
     /*
      * 출발은 뒤의 진짜 미니플레이어(밝은 theme.surface), 도착은 플레이어의 검정. 끝까지 고르게 섞으면 중간이
      * 탁한 회색 판으로 오래 보인다 — 미니 제목·▶ 이 사라지는 12%까지만 밝게 두고, 40%에서 이미 검정에
@@ -969,12 +1090,19 @@ export default function PlayerScreen() {
               height: art.height,
               borderRadius: art.radius,
               opacity: morph.heroOpacity,
+              transform: [{ scale: artScale }],
             },
           ]}
           onLayout={onHeroArtLayout}
         >
           {session.meta.thumbnailUrl ? (
-            <RemoteImage uri={session.meta.thumbnailUrl} style={styles.artwork} />
+            <RemoteImage
+              // 잠긴 뷰는 주소가 바뀌어도 다시 불러오지 않는다 — 콘텐츠가 바뀌면 새로 만든다
+              key={session.meta.thumbnailUrl}
+              uri={session.meta.thumbnailUrl}
+              style={styles.artwork}
+              isResized
+            />
           ) : (
             <View style={[styles.artwork, styles.artworkPlaceholder]} />
           )}
@@ -1167,6 +1295,7 @@ export default function PlayerScreen() {
               styles.scriptPanelWrap,
               { opacity: hero.expandedOpacity, transform: [{ translateY: hero.panelOffset }] },
             ]}
+            {...scrollAreaTouchHandlers}
           >
             {mountedPanel !== 'script' ? null : scriptSegments !== null ? (
               <PlayerScriptPanel
@@ -1174,6 +1303,7 @@ export default function PlayerScreen() {
                 positionSec={session.positionSec}
                 onSeek={screen.seekTo}
                 onSwipeRight={() => setPanel(null)}
+                isSettled={isScriptSettled}
               />
             ) : (
               <PlayerScriptStatus
@@ -1354,18 +1484,21 @@ export default function PlayerScreen() {
               </Pressable>
             </View>
           }
-          <PlayerQueuePanel
-            items={queueItems}
-            isLoading={queueQuery.isPending}
-            isError={queueQuery.isError}
-            currentContentId={session.contentId}
-            showHeader={false}
-            onSelect={screen.playQueueItem}
-            onReorder={queueOrder.move}
-            categoryOf={queueCategoryOf}
-            onRetry={() => void queueQuery.refetch()}
-            onSwipeRight={() => setPanel(null)}
-          />
+          {/* 목록 위에서 시작한 세로 끌기는 축소 제스처가 가로채지 않는다(위 `isTouchOnScrollAreaRef`) */}
+          <View style={styles.queuePanelWrap} {...scrollAreaTouchHandlers}>
+            <PlayerQueuePanel
+              items={queueItems}
+              isLoading={queueQuery.isPending}
+              isError={queueQuery.isError}
+              currentContentId={session.contentId}
+              showHeader={false}
+              onSelect={screen.playQueueItem}
+              onReorder={queueOrder.move}
+              categoryOf={queueCategoryOf}
+              onRetry={() => void queueQuery.refetch()}
+              onSwipeRight={() => setPanel(null)}
+            />
+          </View>
         </Animated.View>
       </Animated.View>
 
@@ -1389,8 +1522,10 @@ export default function PlayerScreen() {
           >
             {session.meta.thumbnailUrl ? (
               <RemoteImage
+                key={session.meta.thumbnailUrl}
                 uri={session.meta.thumbnailUrl}
                 style={styles.artwork}
+                isResized
                 // onLoad 직후 한 프레임은 아직 그려지기 전이다 — 다음 프레임에 출발해야 첫 컷이 비지 않는다
                 onLoad={() => requestAnimationFrame(() => setIsMorphImageReady(true))}
                 onError={() => setIsMorphImageReady(true)}
@@ -1428,6 +1563,24 @@ export default function PlayerScreen() {
           >
             {session.meta.title ?? ''}
           </Animated.Text>
+          {/* 미니 카테고리 — 미니플레이어의 제목 아래 줄(MiniPlayer styles.category)과 같은 자리·글자. 이게 없으면
+              착지 순간 뒤의 진짜 미니플레이어에서 카테고리만 툭 나타난다(2026-09-22 PM) */}
+          {categoryLabel !== null ? (
+            <Animated.Text
+              style={[
+                styles.morphMiniCategory,
+                {
+                  left: miniTitleLeft,
+                  top: miniTitleTop + miniTitleHeight + MINI_CATEGORY_GAP,
+                  width: miniTitleWidth,
+                  opacity: morph.miniTitleOpacity,
+                },
+              ]}
+              numberOfLines={1}
+            >
+              {categoryLabel}
+            </Animated.Text>
+          ) : null}
           {/* 풀 화면 제목 — 최종 자리에 고정된 채 콘텐츠(컨트롤·시크바)와 같은 이동·불투명도로 들어온다.
               마지막 교차(0.94~1)에서 실제 히어로 제목과 같은 좌표라 한 장으로 보인다 */}
           {/* 실제 히어로와 **같은 컴포넌트·같은 간격**으로 그린다 — 말줄임 Text 로 그리면 교차 순간 흐르는 제목
@@ -1531,8 +1684,8 @@ const SCRIPT_SWIPE_DISTANCE = 40;
 const SCRIPT_SWIPE_AXIS_RATIO = 1.5;
 /** 압축 헤더의 아트워크 한 변 */
 const COMPACT_ARTWORK_SIZE = 56;
-/** 펼침·접힘 전환 시간 */
-const SCRIPT_TOGGLE_DURATION_MS = 320;
+/** 펼침·접힘 전환이 사실상 멈추는 시간 — smooth 스프링(응답 0.45초)이 감쇠하는 길이. 위치 틱 보류에 쓴다 */
+const SCRIPT_TOGGLE_DURATION_MS = 450;
 /**
  * 재생 목록을 끌어올렸을 때의 히어로 높이 — 앨범 사진이 화면 가로를 꽉 채우고 앱바·제목·시크바까지 그 위에
  * 얹힌다(2026-09-17 PM, 유튜브 뮤직). 사진 전체 높이 = 앱바 + 이 값 + 시크바
@@ -1554,24 +1707,34 @@ const QUEUE_COMMIT_VELOCITY = 0.5;
 /** 목록을 받기 전의 빈 재생 목록 — 렌더마다 새 배열을 만들면 순서 계산(useMemo)이 매번 다시 돈다 */
 const EMPTY_QUEUE: QueueItem[] = [];
 /** 모션 아트워크의 도착 시점 — 0.92 에 풀 화면 자리에 서고 교차(0.94~1) 동안 움직이지 않는다 */
-const MORPH_ART_INPUT = [0, 0.92, 1];
-const PLAYER_DRAG_RANGE_RATIO = 0.7;
+const MORPH_ART_ARRIVE = 0.92;
+/**
+ * 아트워크가 썸네일로 줄어드는 구간의 끝(닫힐 때 기준) — 이 값 위에서는 풀 사이즈로 시트에 실려 내려가기만 하고,
+ * 이 값 아래에서 미니플레이어 썸네일 자리로 줄어든다(2026-09-22 PM — 애플 뮤직 방식). 손으로 끌 때 화면 높이의
+ * 약 1/3 지점에서 줄어들기 시작하는 값 — 실기기에서 조절한다
+ */
+const MORPH_ART_SHRINK_END = 0.35;
+const MORPH_ART_INPUT = [0, MORPH_ART_SHRINK_END, MORPH_ART_ARRIVE, 1];
+/**
+ * 시트 열림·닫힘·되돌림 스프링(2026-09-22 PM — "애플처럼"). iOS 시트의 기본 느낌인 임계 감쇠(튀지 않고 한 번에
+ * 멈춤)·응답 약 0.45초를 stiffness·damping 으로 옮긴 값 — stiffness = (2π/응답)², damping = 2·√(stiffness·mass).
+ * 손을 뗀 속도는 `velocity` 로 따로 넣는다. 실기기에서 조절한다
+ */
+const SHEET_SPRING = motion.spring.smooth;
+/** 정지 시 아트워크 배율 — 애플 뮤직은 약 0.8 까지 줄인다. 그림자 없는 우리 사진은 조금 덜 줄여도 정지가 읽힌다 */
+const PAUSED_ART_SCALE = 0.85;
 /** 바탕 커버의 흐림 — 형태가 남지 않고 색 덩어리만 보일 만큼 */
 const BACKDROP_BLUR_RADIUS = 60;
 /** 흐린 커버 위 어두운 막 — 플레이어 바탕색(#17171A)의 72% */
 const BACKDROP_SCRIM_COLOR = 'rgba(23, 23, 26, 0.72)';
-/** 드래그 후 닫힘 모션의 하한 — 이보다 짧으면 놓는 순간 미니플레이어가 "나타난" 것처럼 보인다 */
-const PLAYER_CLOSE_MIN_MS = 140;
-/** 열림·닫힘 모션 길이 — 닫힘이 조금 짧다: 되돌아가는 동작은 짧아야 가볍게 느껴진다 */
-const PLAYER_OPEN_MS = 420;
-const PLAYER_CLOSE_MS = 340;
-/** 미니플레이어 카드의 내부 치수(MiniPlayer.tsx 스타일과 같아야 한다) — 진행바 2 · 썸네일 44 · 버튼 44 */
+/** 미니플레이어 카드의 내부 치수(MiniPlayer.tsx 스타일과 같아야 한다) — 진행바 2 · 썸네일 40(import) · 버튼 44 · 행 54 */
 const MINI_PROGRESS_HEIGHT = 2;
-const MINI_THUMB_SIZE = 44;
 const MINI_BUTTON_WIDTH = 44;
-const MINI_ROW_HEIGHT = 62;
+const MINI_ROW_HEIGHT = 54;
 /** 미니플레이어 제목(14pt) 한 줄 높이 */
 const MINI_TITLE_LINE_HEIGHT = 20;
+/** 미니플레이어 제목과 카테고리 줄 사이(MiniPlayer styles.textColumn gap 과 같아야 한다) */
+const MINI_CATEGORY_GAP = 2;
 /** onLayout 이 주는 부모 기준 사각형 */
 interface LayoutBox {
   x: number;
@@ -1622,6 +1785,8 @@ const styles = StyleSheet.create({
   sheet: {
     position: 'absolute',
     overflow: 'hidden',
+    // 위 모서리 반지름은 모션이 움직인다(sheetRadius) — 곡률 종류만 여기서 연속으로 고정한다(iOS, 2026-09-22 PM)
+    borderCurve: 'continuous',
   },
   backdrop: {
     position: 'absolute',
@@ -1666,6 +1831,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     // 이 순간의 시트는 아직 밝은 미니플레이어 색이다 — 밝은 테마의 글자색
     color: theme.color.textPrimary,
+  },
+  // 미니플레이어 카테고리와 같은 글자(MiniPlayer styles.category)
+  morphMiniCategory: {
+    position: 'absolute',
+    fontSize: theme.font.size.xs,
+    color: theme.color.textSecondary,
   },
   morphMiniButton: {
     position: 'absolute',
@@ -1848,6 +2019,11 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
   scriptHandleWrap: {},
+  // 재생 목록 패널의 자리 — 패널 루트(flex 1)를 그대로 채운다. 터치 시작을 듣기 위한 래퍼다
+  queuePanelWrap: {
+    flex: 1,
+    minHeight: 0,
+  },
   // 사진 위 글자·시크바 대비 — 재생 목록이 열린 만큼 어두워진다
   queueArtFade: {
     position: 'absolute',

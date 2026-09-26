@@ -92,9 +92,27 @@ jobs:
       - name: 개발계 주소·크론 설정
         env:
           DEV_INSTANCE: i-0a22112e947856a71
+          # 개발계 사설 IP. **EC2 에 묻지 않아도 되게** 변수를 먼저 본다 —
+          # `ear-ci-deploy` 역할에 `ec2:DescribeInstances` 가 없어 이 단계가 실패했다
+          # (2026-09-20, run 35500421294). 키 설치까지는 성공했고 여기서만 멈췄다.
+          # 사설 IP 는 인스턴스를 중지하지 않는 한 바뀌지 않으므로 변수로 두어도 안전하다.
+          DEV_PRIVATE_IP: ${{ vars.DEV_PRIVATE_IP }}
         run: |
-          DEV_IP=$(aws ec2 describe-instances --instance-ids "$DEV_INSTANCE" \
-            --query 'Reservations[0].Instances[0].PrivateIpAddress' --output text)
+          DEV_IP="${DEV_PRIVATE_IP:-}"
+          if [ -n "$DEV_IP" ]; then
+            echo "개발계 주소 — api-prod 환경 변수 DEV_PRIVATE_IP 사용"
+          else
+            echo "DEV_PRIVATE_IP 가 없다 — EC2 조회로 넘어간다(권한이 있으면 성공한다)"
+            DEV_IP=$(aws ec2 describe-instances --instance-ids "$DEV_INSTANCE" \
+              --query 'Reservations[0].Instances[0].PrivateIpAddress' --output text) || DEV_IP=""
+          fi
+          # **운영 `.env.prod` 에 쓰는 값이다.** 빈 값이나 `None` 이 들어가면 알림이 조용히
+          # 꺼진 채로 "성공"이 된다 — 사설 IP 모양일 때만 진행한다.
+          if ! printf '%s' "$DEV_IP" | grep -qE '^(10\.[0-9]{1,3}|172\.(1[6-9]|2[0-9]|3[01])|192\.168)\.[0-9]{1,3}\.[0-9]{1,3}$'; then
+            echo "::error::개발계 사설 IP 를 정하지 못했다(값: '${DEV_IP:-<비어 있음>}'). api-prod 환경 변수 DEV_PRIVATE_IP 에 개발계($DEV_INSTANCE) 프라이빗 IPv4 를 넣고 다시 실행할 것"
+            exit 1
+          fi
+          echo "개발계 주소: $DEV_IP"
           ssh -i ~/.ssh/ci_key -o StrictHostKeyChecking=accept-new "ec2-user@$API_HOST" bash -s <<REMOTE
           set -euo pipefail
           cd /opt/ear/backend

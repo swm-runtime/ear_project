@@ -1,0 +1,52 @@
+import { requireOptionalNativeModule } from 'expo-modules-core';
+
+export type ScrollEdgeEffectStyle = 'automatic' | 'soft' | 'hard' | 'hidden';
+
+interface ScrollEdgeEffectNative {
+  apply(viewTag: number, style: ScrollEdgeEffectStyle): Promise<string | boolean>;
+  attachContainer?(containerTag: number, scrollViewTag: number): Promise<string>;
+}
+
+const native = requireOptionalNativeModule<ScrollEdgeEffectNative>('ScrollEdgeEffect');
+
+/** 마지막 적용 결과 — 개발계 설정의 디버그 행이 읽는다(실기기 진단, 2026-09-25) */
+let lastResult = 'not-called';
+export const getLastScrollEdgeEffectResult = (): string => lastResult;
+
+/**
+ * RN 스크롤 뷰(FlatList·ScrollView 의 native tag)에 iOS 26 scroll edge effect 를 건다.
+ * 반환은 진단 문자열 — `applied:…` 만 성공. iOS 26 미만·Android·모듈 없는 빌드는 `no-module`/`unavailable`
+ */
+export const applyScrollEdgeEffect = async (
+  viewTag: number,
+  style: ScrollEdgeEffectStyle,
+): Promise<string> => {
+  if (!native) {
+    lastResult = 'no-module';
+    return lastResult;
+  }
+  try {
+    const result = await native.apply(viewTag, style);
+    // 옛 네이티브(rt 10 첫 빌드)는 불리언을 돌려준다
+    lastResult = typeof result === 'boolean' ? (result ? 'applied(legacy)' : 'false(legacy)') : result;
+  } catch (error) {
+    lastResult = `error:${String(error).slice(0, 80)}`;
+  }
+  return `${lastResult} tag=${viewTag}`;
+};
+
+/**
+ * 스크롤 뷰 위에 얹힌 컨테이너(FloatingHeader)에 `UIScrollEdgeElementContainerInteraction` 을 붙인다 — iOS 26 은
+ * "바 밑"에서만 edge effect 를 그리므로 커스텀 머리 줄은 이걸로 바를 자처해야 한다. 옛 네이티브(함수 없음)는 `no-attach`
+ */
+export const attachScrollEdgeContainer = async (
+  containerTag: number,
+  scrollViewTag: number,
+): Promise<string> => {
+  if (!native?.attachContainer) return 'no-attach';
+  try {
+    return await native.attachContainer(containerTag, scrollViewTag);
+  } catch (error) {
+    return `error:${String(error).slice(0, 80)}`;
+  }
+};

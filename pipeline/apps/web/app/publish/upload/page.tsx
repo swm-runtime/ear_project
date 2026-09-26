@@ -2,7 +2,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { markPublished, listPublishableEpisodes } from "../../actions";
+import { markPublished, listPublishableEpisodes, requestEpisodeEnrich, episodeEnrichState } from "../../actions";
 import { EarTopic, listEarTopics, uploadEarContent } from "@/lib/ear";
 import { Badge, PageHeader, Panel, btnCls } from "@/components/ui";
 import { EarGate, EarSession, earErrMsg } from "../ear-connect";
@@ -47,6 +47,8 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
   const [hasThumb, setHasThumb] = useState(false);
   const [scriptSegs, setScriptSegs] = useState<number | null>(null); // episodes/<id>/script-segments.json 의 세그먼트 수 — 없으면 null (자막 없이 발행, 앱은 버튼을 숨긴다)
   const [enrichVer, setEnrichVer] = useState<number | null>(null); // episodes/<id>/enrichment.json 의 schema_version — 없으면 null (발행 후 목록에서 소급 가능)
+  const [enrichJob, setEnrichJob] = useState<{ status: string; error: string | null } | null>(null); // [추천 메타 뽑기] 진행 상태 — 패키지는 더 이상 자동으로 걸지 않는다 (2026-09-23, spec/07 2장)
+  const [enrichMsg, setEnrichMsg] = useState<string | null>(null);
   const [topics, setTopics] = useState<EarTopic[]>([]);
   const [loadErr, setLoadErr] = useState<string | null>(null);
 
@@ -91,6 +93,30 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
     })();
   }, [episodeId]);
 
+  // 추천 메타 작업 폴링 — 진행 중이면 15초마다, 끝나면 프리필을 다시 읽어 enrichVer 를 채운다
+  useEffect(() => {
+    if (!episodeId || enrichVer != null) return;
+    let stop = false;
+    const tick = async () => {
+      const st = await episodeEnrichState(episodeId).catch(() => null);
+      if (stop) return;
+      setEnrichJob(st);
+      if (st?.status === "done") {
+        const res = await fetch(`/api/publish/${episodeId}`).catch(() => null);
+        if (res?.ok) { const b = (await res.json()) as { has_enrichment?: boolean; enrichment_version?: number | null }; if (b.has_enrichment) setEnrichVer(b.enrichment_version ?? 1); }
+      }
+    };
+    void tick();
+    const t = setInterval(() => { void tick(); }, 15_000);
+    return () => { stop = true; clearInterval(t); };
+  }, [episodeId, enrichVer]);
+  const enrichRunning = !!enrichJob && ["queued", "claimed", "running"].includes(enrichJob.status);
+  const requestEnrichNow = useCallback(async () => {
+    if (!episodeId || !meta) return;
+    try { const r = await requestEpisodeEnrich(episodeId, meta.backlog_id); setEnrichMsg(r.queued ? "추천 메타 요청됨 — AI 워커가 집으면 1~2분" : "이미 진행 중"); setEnrichJob({ status: "queued", error: null }); }
+    catch (e) { setEnrichMsg(earErrMsg(e)); }
+  }, [episodeId, meta]);
+
   const canSubmit = useMemo(() =>
     title.trim() && description.trim() && sourceName.trim() && topicIds.length > 0 &&
     sources.some((s) => s.title.trim()) && checks.every(Boolean) &&
@@ -115,10 +141,10 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
         thumb = new File([await res.blob()], `${episodeId}.png`, { type: "image/png" });
       }
       // 추천 메타 — 패키지 직후 enrich 작업이 만든 파일이 있으면 같이 보낸다. 없어도 발행은 막지 않는다(목록에서 [다시 뽑기]로 소급)
-      let enrichment: File | null = null;
+      let enrichment: File | null = null; let embeddingNote = "";
       if (episodeId && enrichVer != null) {
         const res = await fetch(`/api/publish/${episodeId}?enrichment=1`);
-        if (res.ok) enrichment = new File([await res.blob()], "enrichment.json", { type: "application/json" });
+        if (res.ok) { enrichment = new File([await res.blob()], "enrichment.json", { type: "application/json" }); embeddingNote = decodeURIComponent(res.headers.get("x-embedding-note") ?? ""); } // 임베딩 보완 결과 (lib/embedding.ts)
       }
       // 자막 세그먼트 — TTS 단계가 만든 script-segments.json 이 있으면 같이 보낸다 (KAN-72). 없으면 자막 없이 발행
       let script: File | null = null;
@@ -135,7 +161,7 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
         review_confirmed: true,
       }, audio!, thumb!, enrichment, script);
       await markPublished(meta?.backlog_id ?? null, content.id, content.content_version, content.published_at, { action: "publish", parts: ["audio", "thumbnail", "title", "description", "source_name", "topic_ids", ...(enrichment ? ["enrichment"] : []), ...(script ? ["script"] : [])], episodeId: episodeId ?? undefined }).catch(() => undefined); // 파이프라인에 content_id·버전·이력 기록 — 실패해도 발행은 성립 (spec/07 5장)
-      setMsg({ kind: "ok", text: `발행되었습니다 — ${content.id}${enrichment ? (content.enrichment_applied ? ` · 추천 메타 v${content.enrichment_schema_version ?? "?"} 반영` : ` · 추천 메타 거부: ${content.enrichment_rejected_reason ?? "사유 없음"}`) : " · 추천 메타 없음(목록에서 소급 가능)"}${script ? (content.script_applied ? " · 자막 반영" : ` · 자막 거부: ${content.script_rejected_reason ?? "사유 없음"}`) : " · 자막 없음"}` });
+      setMsg({ kind: "ok", text: `발행되었습니다 — ${content.id}${enrichment ? (content.enrichment_applied ? ` · 추천 메타 v${content.enrichment_schema_version ?? "?"} 반영${embeddingNote ? ` (${embeddingNote})` : ""}` : ` · 추천 메타 거부: ${content.enrichment_rejected_reason ?? "사유 없음"}`) : " · 추천 메타 없음(목록에서 소급 가능)"}${script ? (content.script_applied ? " · 자막 반영" : ` · 자막 거부: ${content.script_rejected_reason ?? "사유 없음"}`) : " · 자막 없음"}` });
       setTimeout(() => router.push("/publish"), 900);
     } catch (e) {
       const anyE = e as { field?: string };
@@ -224,7 +250,15 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
               {episodeId && !hasThumb && <p className="mt-1 text-[11px] text-amber-700">이 에피소드에 thumbnail.png 가 없어요 — [썸네일 생성] 먼저, 또는 파일 직접 선택.</p>}
               {episodeId && (enrichVer != null
                 ? <p className="mt-1 text-[11px] text-emerald-700">추천 메타 v{enrichVer} 첨부됨 (enrichment.json — 발행 때 같이 보내요)</p>
-                : <p className="mt-1 text-[11px] text-ink-soft">추천 메타 없음 — 패키지 직후 메타 부여 작업이 아직 안 끝났거나 실패. 발행은 되고, 목록의 [다시 뽑기]로 소급할 수 있어요.</p>)}
+                : <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
+                    <span className={enrichJob?.status === "failed" ? "text-red-700" : "text-amber-700"}>
+                      {enrichRunning ? "추천 메타 뽑는 중 — 끝나면 자동으로 첨부돼요 (AI 워커, 편당 $0.1~0.3)"
+                        : enrichJob?.status === "failed" ? `추천 메타 실패: ${enrichJob.error ?? "사유 없음"}`
+                        : "추천 메타 없음 — 발행할 편이면 먼저 뽑아 주세요 (발행 자체는 막지 않아요. 나중에 목록의 [다시 뽑기]로 소급 가능)"}
+                    </span>
+                    {!enrichRunning && <button type="button" className={btnCls("ghost")} disabled={busy || !meta} onClick={() => void requestEnrichNow()}>추천 메타 뽑기</button>}
+                    {enrichMsg && <span className="text-ink-soft">{enrichMsg}</span>}
+                  </div>)}
               {episodeId && (scriptSegs != null
                 ? <p className="mt-1 text-[11px] text-emerald-700">자막 세그먼트 {scriptSegs}건 첨부됨 (script-segments.json — 발행 때 같이 보내요)</p>
                 : <p className="mt-1 text-[11px] text-ink-soft">자막 세그먼트 없음 — TTS 가 턴 경계를 못 잡았거나 KAN-72 이전 음원. 발행은 되고 앱은 대본 버튼을 숨겨요.</p>)}

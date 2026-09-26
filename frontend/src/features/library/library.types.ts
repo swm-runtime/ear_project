@@ -86,6 +86,7 @@ export interface ResumeContent {
   durationSec: number;
   thumbnailUrl: string;
   contentVersion: number;
+  topicIds: string[];
 }
 
 /** 미니플레이어 복원 대상(library-api.md 4.3). 항상 일시정지 상태로 표시만 한다 */

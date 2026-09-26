@@ -20,7 +20,7 @@
 
 ```bash
 cd backend
-AUDIO_BUCKET=ear-audio-prod BACKUP_BUCKET=ear-backup-prod AWS_REGION=ap-northeast-2 \
+AUDIO_BUCKET=earcast-audio-prod BACKUP_BUCKET=earcast-backup-prod AWS_REGION=ap-northeast-2 \
   bash deploy/aws/setup-audio-cdn.sh
 ```
 - 출력되는 `.env.prod` 4줄 + `AUDIO_BUCKET`/`KVS_ARN`을 보관. `deploy/aws/out/cf_private.pem` 커밋 금지
@@ -85,7 +85,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T postgres 
 ### 3.2 수동 업로드 (콘솔 불가 시 비상용)
 
 ```bash
-AUDIO_BUCKET=ear-audio-prod KVS_ARN=<값> deploy/upload-audio.sh <contentId(uuid)> ./ep.mp3
+AUDIO_BUCKET=earcast-audio-prod KVS_ARN=<값> deploy/upload-audio.sh <contentId(uuid)> ./ep.mp3
 # 출력 키를 contents.audio_path에 직접 INSERT — 콘솔 경로와 달리 검증·감사로그가 없다
 ```
 
@@ -133,11 +133,14 @@ aws cloudfront-keyvaluestore delete-key --kvs-arn $KVS_ARN --key <contentId> --i
 | `dev` 머지 | `deploy-api.yml` | **개발계** `api-dev.earcast.co.kr` (Environment `api-dev`) | CI가 arm64 이미지를 빌드해 ECR에 올리고, 서버는 그 이미지를 pull(서버 빌드 없음) |
 | `main` 머지(dev→main PR, 리뷰 1) | `deploy-api.yml` | **운영** `api.earcast.co.kr` (Environment `api-prod`) | 같은 이미지(커밋 SHA 태그)를 pull. 성공 시 태그 `v<앱 버전>[+배포 순번]` 자동 |
 | `dev` 머지 | `deploy-pipeline.yml` | AI 서버(파이프라인 웹·워커) | 종전대로(AI 파트 동의) |
+| `dev` 머지 | `eas-update.yml` | **앱 `preview` 채널 OTA** — 개발계 API(`api-dev`)를 보는 개발계 앱(`dev.runtime.ear`) | JS·에셋만. 채널이 API 주소를 정한다(`docs/frontend/architecture.md` 2.1) |
+| `main` 머지 | `eas-update.yml` | **앱 `production` 채널 OTA** — 운영 API를 보는 스토어 앱 | 같은 워크플로, 운영 주소 명시 |
 
 - 배포의 원본은 `backend/deploy/push.sh`·`pipeline/deploy/push.sh`이며 로컬에서도 같은 것을 쓴다. 환경별 값은 GitHub Environment 변수(`API_HOST`·`API_SG_ID`·`API_SECRET_ID`·`API_HEALTH_URL`)에 있다 — `backend/deploy/aws/setup-ci-envs.sh`가 넣는다.
 - **운영 반영 절차**: dev에서 검증(개발계 헬스·앱 확인) → GitHub에서 `dev` → `main` PR → 팀원 1명 승인 → 머지 → Actions `deploy-api` 런 성공·`https://api.earcast.co.kr/api/v1/health` 200·태그 확인. main으로의 PR은 dev 브랜치에서만 열 수 있다(필수 체크 "원본 브랜치 확인 (dev)").
 - **버전**(2026-09-17 개정): 기준은 **앱 버전**(`frontend/app.json` `expo.version`)이다. 백엔드만 배포할 때는 버전을 올리지 않는다 — 태그가 `v1.0.0` → `v1.0.0+2` → `v1.0.0+3`으로 배포 순번만 는다. 앱이 스토어 버전을 올리면 같은 PR에서 `backend/package.json`도 맞추고, 그 뒤 첫 배포가 `v1.1.0`이 된다. 두 값이 다르면 `dev → main` PR의 "원본 브랜치 확인 (dev)" 체크가 실패한다. 규칙 원본은 `docs/backend/convention.md` 6.3.
 - **롤백**: 이전 커밋 SHA 이미지를 그대로 다시 띄운다 — PC에서 `API_IMAGE=639177726357.dkr.ecr.ap-northeast-2.amazonaws.com/ear/api:<이전 SHA> bash backend/deploy/push.sh`(운영 pem·SG 22 개방 필요). 이미지 목록: `aws ecr describe-images --repository-name ear/api --query 'sort_by(imageDetails,&imagePushedAt)[-10:].[imagePushedAt,imageTags[0]]' --output table`. 마이그레이션이 포함된 배포는 스키마가 앞서 있을 수 있어 롤백 전에 5.3 덤프 유무를 확인한다. **2026-09-17 이전 커밋으로 롤백하면 크론 스크립트 실행 권한이 다시 사라진다**(그 커밋의 git 모드가 644라 배포가 덮어쓴다) — 롤백 뒤 서버에서 `chmod +x /opt/ear/backend/deploy/*.sh`를 다시 하거나, 그 이후 커밋으로만 롤백한다. 크론 알람은 약 25시간 뒤에야 울린다.
+- **env만 바꾸고 api 컨테이너를 재생성할 때는 반드시 `API_IMAGE`를 준다**(2026-09-23 개발계에서 실제 발생). `docker-compose.prod.yml`의 이미지가 `${API_IMAGE:-ear-prod-api}`라, `.env.prod`만 고치고 `docker compose … up -d --no-build api`를 치면 **서버에 남아 있는 옛 로컬 빌드 이미지 `ear-prod-api`로 조용히 바뀐다**(개발계는 2026-09-15 빌드 — `dist/cluster`·Sentry 없음). 에러가 나지 않아 알아채기 어렵다. 올바른 명령: `cd /opt/ear/backend && API_IMAGE=$(cat .api-image) docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --no-build api` — `.api-image`는 push.sh가 마지막 배포 이미지를 적어 둔 파일이다. 재생성 뒤 `docker inspect -f '{{.Config.Image}}' ear-prod-api-1`가 ECR 태그인지 확인한다. 운영은 2026-09-23 image prune으로 옛 로컬 이미지가 없어 이 함정이 사라졌다(대신 `API_IMAGE` 없이 치면 빌드로 빠진다 — 그것도 안 된다).
 - 아래 4.1은 CI·push.sh가 모두 막혔을 때의 최후 수단이다.
 
 ### 4.1 수동 배포 (비상용)
@@ -154,12 +157,16 @@ ssh -i … ec2-user@<IP> 'cd /opt/ear/backend \
 - **함정 2**: `git archive HEAD`는 미커밋 파일을 빼먹는다 — 위처럼 `ls-files -co` 사용
 - 마이그레이션은 기동 시 자동, 실패하면 api가 안 뜬다(의도). 상태: `docker compose … ps`, 로그: `… logs api --tail 50`
 
-### 4-1. 감시 체계 한눈에 (2026-09-20 기준)
+### 4-1. 감시 체계 한눈에 (2026-09-26 기준)
+
+**먼저 Grafana 대시보드 "ear 운영"을 연다**(`https://zealouswasp1316.grafana.net`, [`inventory.md`](inventory.md) Grafana Cloud 행). 아래 원천이 한 화면에 모여 있다 — 헬스체크·EC2 4지표·API 에러 로그·caddy 상태코드·Sentry·크론 하트비트·CloudWatch 알람 주석. 어드민 웹 "백엔드 로그" 콘솔은 실시간 로그·에러 본문을 볼 때 그대로 쓴다(둘을 병행한다 — KAN-97 결정).
 
 | 무엇이 죽으면 | 무엇이 알려주나 | 경로 |
 |---|---|---|
 | 인스턴스 | CloudWatch `ear-prod-ec2-status-check` | SNS `ear-prod-alerts` |
-| API 응답 불가 | UptimeRobot | 외부 감시 |
+| API 응답 불가 | **Grafana 합성 체크 `ear-api-health`**(서울·도쿄 3분, 5분 창 2/2 실패) | **Slack**(최대 6분) |
+| 인증서 갱신 실패 | Grafana 합성 체크 TLS(만료 14일 미만) | Slack |
+| (예비) API 응답 불가 | UptimeRobot `ear api health` — **알림 끔**, 화면 확인용 | 없음 |
 | API 가 500 을 뿜음 | 워커의 백엔드 ERROR 감시(5분 주기) | Slack |
 | **그 감시자(AI 서버 워커)** | `ear-prod-cron-log-watch-missing` — 생존 신호 30분 없음 | SNS |
 | 백업·콘텐츠 내보내기·스냅샷 미실행 | `ear-prod-cron-*-missing` | SNS |
@@ -167,7 +174,9 @@ ssh -i … ec2-user@<IP> 'cd /opt/ear/backend \
 | CPU·메모리 임계 | 백엔드 `ResourceAlertService` | Slack |
 
 **CPU·메모리 알림은 백엔드 프로세스 안에서 돈다** — 그 프로세스가 죽으면 같이 멈춘다. 그 경우는
-UptimeRobot 과 EC2 상태 검사가 받는다. 감시가 감시를 덮는 구조를 이 표로 확인한다.
+Grafana 합성 체크와 EC2 상태 검사가 받는다. Grafana Cloud 자체가 죽으면 UptimeRobot 화면(알림 없음)과 SNS 알람이 남는다. 감시가 감시를 덮는 구조를 이 표로 확인한다.
+
+CPU 70%·메모리 80% 는 Grafana Alerting 에도 같은 임계(5분 지속)로 걸려 있다(KAN-97 5번). 백엔드 자체 경보와 몇 주 겹쳐 보고 하나로 정리한다 — 그때까지 같은 사건에 Slack 알림이 두 번 올 수 있다.
 
 ## 5. 장애·복구
 
@@ -243,9 +252,10 @@ aws ec2 create-volume --snapshot-id <snap> --availability-zone ap-northeast-2a -
 
 ## 6. 정기 점검 (주 1회 권장)
 
-- [ ] `ear-backup-prod/pg/`에 최근 덤프가 매일 쌓이는가 · `/var/log/ear-content-sync.log`에 내보내기가 매일 찍히는가
+- [ ] `earcast-backup-prod/pg/`에 최근 덤프가 매일 쌓이는가 · `/var/log/ear-content-sync.log`에 내보내기가 매일 찍히는가
 - [ ] 스냅샷이 매일 1개 늘고 8일째 것이 지워지는가: `aws ec2 describe-snapshots --owner-ids 639177726357 --filters Name=tag:Source,Values=ear-daily --query 'length(Snapshots)'` = 7 안팎
 - [ ] Budgets 메일·CloudWatch 알람 상태: `aws cloudwatch describe-alarms --alarm-name-prefix ear-prod --query 'MetricAlarms[].[AlarmName,StateValue]' --output table` — 전부 `OK`. `INSUFFICIENT_DATA`면 크론이 지표를 못 찍는 것(권한·네트워크), `ALARM`이면 25시간 미실행. **새로 만든 알람은 첫 1시간 안에 오탐 ALARM 메일이 한 번 올 수 있다** — 첫 평가가 지표를 찍기 직전의 빈 1시간 구간을 보기 때문(2026-09-15 backup 알람 실측). 다음 크론 성공 뒤 OK 메일이 오면 정상이고, 그 뒤에도 ALARM이면 진짜 미실행이다
-- [ ] UptimeRobot 모니터 `ear api health`가 Up 인가. **설정값(재등록 시)**: 유형 Keyword · URL `https://api.earcast.co.kr/api/v1/health` · 키워드 `"status":"ok"` · 존재하면 Up · 간격 5분 · 알림 연락처 = 메일(무료 플랜은 Slack 연동이 잠겨 있다 — 메일만). 키워드 방식이라 DB가 죽어 `/health`가 503 `degraded`를 내는 경우도 Down으로 잡힌다
+- [ ] Grafana 대시보드 "ear 운영" 1행 헬스체크가 서울·도쿄 **UP**, 가동률 24h 가 99.9% 이상인가. 합성 체크가 없어졌으면 [`inventory.md`](inventory.md) 외부 헬스체크 행의 값으로 다시 만든다(3분·서울·도쿄·본문 `"status":"ok"` Invert match·타임아웃 5초·Failed Checks 2/2·TLS 14일)
+- [ ] (예비) UptimeRobot 모니터 `ear api health`가 Up 인가 — **알림은 꺼 둔 상태가 정상**(2026-09-26). **설정값(재등록 시)**: 유형 Keyword · URL `https://api.earcast.co.kr/api/v1/health` · 키워드 `"status":"ok"` · 존재하면 Up · 간격 5분 · 알림 연락처 = 메일(무료 플랜은 Slack 연동이 잠겨 있다 — 메일만). 키워드 방식이라 DB가 죽어 `/health`가 503 `degraded`를 내는 경우도 Down으로 잡힌다
 - [ ] `df -h` 디스크 (20GB — docker 이미지가 쌓이면 `docker system prune -f`)
 - [ ] 인증서는 Caddy 자동 — 만료 걱정 없음. `docker compose … logs caddy | grep -i renew`로 확인만
