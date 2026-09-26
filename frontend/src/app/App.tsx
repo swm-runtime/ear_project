@@ -9,6 +9,7 @@ import { installJsTraceErrorHook, loadJsTrace, traceJs } from '@/shared/monitori
 import Toast from '@/shared/ui/Toast';
 
 import { UpdateRecommendDialog } from '@/features/app-update';
+import { ZoomSourceProxy } from '@/features/player';
 
 import { bootstrapApp } from './bootstrap';
 import { focusedRouteName } from './navigation/focused-route';
@@ -61,6 +62,8 @@ function App() {
           <NavigationContainer onStateChange={handleNavigationStateChange}>
             <RootNavigator />
           </NavigationContainer>
+          {/* 줌 전환 소스 프록시(iOS 26) — 미니플레이어 자리의 투명 뷰. 액세서리 컨테이너 밖에 둬야 닫힌 뒤 잔여 이미지가 안 남는다 */}
+          <ZoomSourceProxy />
           {/* 권장 업데이트 안내(splash.md 4.1 · KAN-99) — Modal 이라 어느 스택 위에서든 뜨고, 관문 통과 뒤에만 켜진다 */}
           <UpdateRecommendDialog />
           <Toast />

@@ -383,6 +383,9 @@ export default function MiniPlayer({
         const thumb = thumbRef.current;
         const title = titleRef.current;
         rootRef.current?.measureInWindow((x, y, width, height) => {
+          // 시스템 탭 바는 액세서리를 두 배치(regular·inline)로 다 렌더한다 — 안 보이는 inline 쪽(폭 0·좁음)의 좌표가
+          // 줌 프록시 자리를 덮지 않게 걸러 낸다
+          if (isAccessory && width < 200) return;
           const base = { x, y, width, height };
           if (!thumb || !title) {
             setMiniLayout(base);
