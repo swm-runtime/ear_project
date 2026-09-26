@@ -112,14 +112,18 @@ public class ZoomTransitionModule: Module {
     // dismiss 전에 화면 뷰를 스냅샷으로 갈아끼우고, 줌 dismiss 는 그 스냅샷 위에서 끝나지 못해 앱이 굳는다). 닫힘이 끝나면
     // RNS 가 viewDidDisappear 에서 JS 에 onDismissed 를 보내 라우트가 pop 되고, 그때 뷰는 이미 창 밖이라 스냅샷을 안 만든다.
     // 반환: "dismissed" | "none"(떠 있는 모달 없음)
-    AsyncFunction("dismissPresentedScreen") { () -> String in
+    // mode: "zoom"(줌 축소) | "slide"(닫을 때만 줌 훅을 빼 기본 슬라이드) — 2026-09-27 04:35 실험 스위치(JS 상수로 OTA 전환).
+    // 프록시 소스로도 닫힌 뒤 탭 전환 잔상이 남아, 줌 dismiss 자체가 남기는 이미지인지 가른다
+    AsyncFunction("dismissPresentedScreen") { (mode: String) -> String in
       guard let top = Self.topPresentedViewController(), top.presentingViewController != nil else { return "none" }
-      ZoomTransitionRegistry.noteDiagnostic("native-dismiss:\(String(describing: type(of: top)))")
+      ZoomTransitionRegistry.noteDiagnostic("native-dismiss:\(mode)")
+      if mode == "slide", #available(iOS 18.0, *) { top.preferredTransition = nil }
       top.dismiss(animated: true) {
-        // 닫힌 뒤 탭을 바꾸면 플레이어가 한 프레임 다시 떴다(2026-09-27 03:17) — 줌 훅이 걸린 VC 와 그 뷰가 JS pop 까지 살아
-        // 있는 동안 액세서리(줌 소스) 재배치가 줌 기계를 건드리는 것으로 본다. 줌 훅을 풀고 뷰를 숨긴다(어차피 화면 밖이다)
         if #available(iOS 18.0, *) { top.preferredTransition = nil }
+        // 닫힌 뒤 살아 있는 동안 어떤 포털·스냅샷도 그릴 게 없게 뷰 내용을 비운다(어차피 JS 가 곧 내린다)
         top.view.isHidden = true
+        top.view.layer.contents = nil
+        top.view.subviews.forEach { $0.removeFromSuperview() }
         ZoomTransitionRegistry.markZoomOver()
         ZoomTransitionRegistry.noteDiagnostic("native-dismiss:done")
       }

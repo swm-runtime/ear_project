@@ -52,9 +52,15 @@ export const armPlayerZoom = async (): Promise<void> => {
  */
 export const dismissPlayerNatively = async (): Promise<boolean> => {
   if (!USE_NATIVE_PLAYER_ZOOM) return false;
-  const result = await dismissPresentedScreenNatively();
+  const result = await dismissPresentedScreenNatively(PLAYER_DISMISS_MODE);
   return result === 'dismissed';
 };
+
+/**
+ * 닫힘 모션 — `zoom`(미니플레이어 자리로 줄어듦) | `slide`(닫을 때만 줌 훅을 빼 기본 슬라이드). 2026-09-27 04:35 실험:
+ * 프록시 소스로도 닫힌 뒤 탭 전환 잔상이 남아, 줌 dismiss 자체가 남기는 이미지인지를 OTA 로 가른다(빌드 35, rt 24)
+ */
+export const PLAYER_DISMISS_MODE: 'zoom' | 'slide' = 'zoom';
 
 /**
  * 플레이어 위에서 시스템의 드래그·핀치 닫기를 막는다/푼다 — 재생 목록·대본 패널이 열려 있거나 손가락이 스크롤 목록 위에서
