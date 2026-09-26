@@ -10,14 +10,8 @@ interface IconProps {
   color: string;
 }
 
-/** 재생 — 삼각형. 원형 버튼 안에서 광학 중심이 맞도록 왼쪽 여백을 조금 더 준다 */
-export function PlayIcon({ size, color }: IconProps) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24">
-      <Path fill={color} d="M8 5.2 19 12 8 18.8z" />
-    </Svg>
-  );
-}
+/** 재생 — 삼각형. 탐색 대표 카드와 같은 도형이라 shared 로 옮겼다(2026-09-27) */
+export { default as PlayIcon } from '@/shared/ui/PlayIcon';
 
 /** 일시정지 — 두 막대 */
 export function PauseIcon({ size, color }: IconProps) {

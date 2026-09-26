@@ -2,6 +2,7 @@ import { Image, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'r
 
 import { theme } from '@/shared/theme';
 import MoreIcon from '@/shared/ui/MoreIcon';
+import PlayIcon from '@/shared/ui/PlayIcon';
 import RemoteImage from '@/shared/ui/RemoteImage';
 
 import { EXPLORE_COPY } from '../explore.copy';
@@ -31,6 +32,10 @@ const MAX_WIDTH = 312;
 const BACKDROP_BLUR_RADIUS = 36;
 const BACKDROP_SCRIM = 'rgba(23, 23, 26, 0.45)';
 const ON_ART_TEXT = '#FFFFFF';
+/** 재생 원 버튼 — 지름 36 + hitSlop 4 = 44(design.md §6). 미니플레이어 재생 원과 같은 결 */
+const PLAY_BUTTON_SIZE = 36;
+const PLAY_ICON_SIZE = 18;
+const PLAY_HIT_SLOP = (44 - PLAY_BUTTON_SIZE) / 2;
 const ON_ART_TEXT_SECONDARY = 'rgba(255, 255, 255, 0.72)';
 
 interface Rect {
@@ -106,12 +111,14 @@ export default function ExploreFeaturedCard({
 
       <View style={styles.footer}>
         {/*
-          재생 알약 — 그 자체는 버튼이 아니다. 카드 본문 탭이 이미 재생 판정으로 가므로
-          여기에 Pressable을 또 씌우면 같은 동작의 진입점이 둘이 된다
+          재생 = 흰 원 버튼 + 삼각형(도형), 길이 = 메타 글자(애플 팟캐스트 카드 문법 — PM 2026-09-27 04:31).
+          09-27 전엔 흰 알약에 글자 `▶` + "17분" 이 한 덩어리라 재생 버튼인지 길이 표시인지 애매했고 글리프는 폰트마다
+          달랐다. 카드 본문 탭도 같은 재생 판정으로 가지만 원 버튼은 "여기서 재생된다"는 표식이라 남긴다
         */}
         <Pressable
-          style={styles.playPill}
+          style={styles.playButton}
           onPress={() => onPress(item)}
+          hitSlop={PLAY_HIT_SLOP}
           accessibilityRole="button"
           accessibilityLabel={EXPLORE_COPY.row.a11yLabel({
             title: item.content.title,
@@ -119,9 +126,11 @@ export default function ExploreFeaturedCard({
             completed: isCompleted,
           })}
         >
-          <Text style={styles.playGlyph}>▶</Text>
-          <Text style={styles.playLabel}>{EXPLORE_COPY.row.durationLabel(minutes)}</Text>
+          <PlayIcon size={PLAY_ICON_SIZE} color={theme.color.textPrimary} />
         </Pressable>
+        <Text style={styles.meta} numberOfLines={1}>
+          {item.content.authorName} · {EXPLORE_COPY.row.durationLabel(minutes)}
+        </Text>
         <Pressable
           style={styles.moreButton}
           onPress={() => onMorePress(item)}
@@ -192,27 +201,23 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: theme.spacing.sm + theme.spacing.xs,
     marginTop: theme.spacing.xs,
     marginHorizontal: theme.spacing.md,
   },
-  playPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    minHeight: theme.touchTarget.minHeight - theme.spacing.sm,
-    paddingHorizontal: theme.spacing.md,
-    borderRadius: theme.radius.full,
+  playButton: {
+    width: PLAY_BUTTON_SIZE,
+    height: PLAY_BUTTON_SIZE,
+    borderRadius: PLAY_BUTTON_SIZE / 2,
     backgroundColor: theme.color.background,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  playGlyph: {
-    fontSize: theme.font.size.xs,
-    color: theme.color.textPrimary,
-  },
-  playLabel: {
+  /** 저자 · 길이 — 정보지 버튼 성분이 아니라 보조 글자. 더보기 점을 오른쪽 끝으로 민다 */
+  meta: {
+    flex: 1,
     fontSize: theme.font.size.sm,
-    fontWeight: '700',
-    color: theme.color.textPrimary,
+    color: ON_ART_TEXT_SECONDARY,
   },
   moreButton: {
     minWidth: theme.touchTarget.minWidth,
