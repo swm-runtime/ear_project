@@ -176,7 +176,7 @@ index 9ae11c3..914df21 100644
  - (void)updateScreenTransition:(double)progress;
  - (void)finishScreenTransition:(BOOL)canceled;
 diff --git a/node_modules/react-native-screens/ios/RNSScreenStack.mm b/node_modules/react-native-screens/ios/RNSScreenStack.mm
-index 192f5d2..9046b7e 100644
+index 192f5d2..f746013 100644
 --- a/node_modules/react-native-screens/ios/RNSScreenStack.mm
 +++ b/node_modules/react-native-screens/ios/RNSScreenStack.mm
 @@ -394,6 +394,16 @@ RNS_IGNORE_SUPER_CALL_END
@@ -196,7 +196,7 @@ index 192f5d2..9046b7e 100644
    // We need to find bottom-most view controller that should stay on the stack
    // for the duration of transition.
  
-@@ -481,6 +491,49 @@ RNS_IGNORE_SUPER_CALL_END
+@@ -481,6 +491,63 @@ RNS_IGNORE_SUPER_CALL_END
          return;
        }
  
@@ -233,7 +233,21 @@ index 192f5d2..9046b7e 100644
 +              next.preferredTransition = [UIViewControllerTransition
 +                  zoomWithOptions:zoomOptions
 +                sourceViewProvider:^UIView *_Nullable(UIZoomTransitionSourceViewProviderContext *_Nonnull context) {
-+                  return weakZoomSource;
++                  // [ear patch] once the app says the zoom is over (modal dismissed), hand UIKit no source view —
++                  // a dismissed player re-appeared for a frame on the next tab switch while the source (the tab bar
++                  // accessory) was re-laid out (2026-09-27). Calls are logged to see whether UIKit asks after dismissal.
++                  Class providerRegistry = NSClassFromString(@"ZoomTransitionRegistry");
++                  BOOL over = NO;
++                  if (providerRegistry != nil && [providerRegistry respondsToSelector:@selector(isZoomOver)]) {
++#pragma clang diagnostic push
++#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
++                    over = [[providerRegistry performSelector:@selector(isZoomOver)] boolValue];
++#pragma clang diagnostic pop
++                  }
++                  [RNSScreen earNoteZoomDiagnostic:[NSString stringWithFormat:@"provider:%@ over=%d",
++                                                                              weakZoomSource == nil ? @"nil" : @"view",
++                                                                              over]];
++                  return over ? nil : weakZoomSource;
 +                }];
 +            }
 +          }
@@ -246,7 +260,7 @@ index 192f5d2..9046b7e 100644
        [previous presentViewController:next
                               animated:shouldAnimate
                             completion:^{
-@@ -525,6 +578,9 @@ RNS_IGNORE_SUPER_CALL_END
+@@ -525,6 +592,9 @@ RNS_IGNORE_SUPER_CALL_END
          // See: https://github.com/software-mansion/react-native-screens/issues/2048
          // For now, to mitigate the issue, we also decide to trigger its dismissal before
          // starting the presentation chain down below in finish() callback.
@@ -256,7 +270,7 @@ index 192f5d2..9046b7e 100644
          if (!firstModalToBeDismissed.isBeingDismissed) {
            // If the modal is owned we let it control whether the dismissal is animated or not. For foreign controllers
            // we just assume animation.
-@@ -1001,6 +1057,17 @@ RNS_IGNORE_SUPER_CALL_END
+@@ -1001,6 +1071,17 @@ RNS_IGNORE_SUPER_CALL_END
    [self updateContainer];
  }
  

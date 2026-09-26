@@ -31,18 +31,8 @@ export const MINI_PLAYER_ZOOM_SOURCE_ID = 'mini-player-zoom-source';
  */
 export const armPlayerZoom = async (): Promise<void> => {
   if (!USE_NATIVE_PLAYER_ZOOM) return;
-  if (!ZOOM_ARM_ENABLED) {
-    lastArmResult = 'experiment:arm-off';
-    return;
-  }
   lastArmResult = await armZoomTransition(MINI_PLAYER_ZOOM_SOURCE_ID);
 };
-
-/**
- * **실험 스위치 2**(2026-09-27 03:38, 외부 검토 제안 2) — 네이티브 우선 dismiss 는 유지한 채 줌 소스 등록만 끈다(기본 슬라이드).
- * 닫은 뒤 탭 전환 번쩍임까지 사라지면 줌 전환의 잔여 이미지 문제로 좁혀진다. 확인 뒤 되돌린다
- */
-const ZOOM_ARM_ENABLED = false;
 
 /**
  * 줌으로 띄운 플레이어를 닫는다 — **UIKit 이 먼저 닫고, 라우트 pop 은 RNS 의 onDismissed 가 한다.** JS 가 먼저 goBack 하면
