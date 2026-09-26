@@ -122,6 +122,7 @@ const styles = StyleSheet.create({
     minHeight: theme.touchTarget.minHeight,
     paddingHorizontal: theme.spacing.sm,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
   },
   optionPressed: {
     backgroundColor: playerColor.surface,
