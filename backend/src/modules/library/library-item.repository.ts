@@ -188,7 +188,7 @@ export class LibraryItemRepository {
   }
 
   /**
-   * 최근 편성분의 `content_id` — 노출 피로 감점의 입력이다(`drip-scheduling.md` 4.2 ③).
+   * 최근 편성분의 `content_id` — 편성 미리보기 표시용이다(노출 피로 항목은 2026-09-25 폐기).
    * 삭제분도 포함한다(`withDeleted`) — 노출됐다는 사실은 삭제로 사라지지 않는다.
    */
   async findRecentContentIdsByUserIdAndSources(

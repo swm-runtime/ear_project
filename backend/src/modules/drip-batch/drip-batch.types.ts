@@ -32,7 +32,7 @@ export interface RegularPlan {
   poolSize: number;
   /** 시리즈 순서 게이트(`filterEpisodeOrder`)에서 빠진 후보 */
   gatedOut: ScoringCandidate[];
-  /** 노출 피로 입력 — 최근 편성분의 주제 */
+  /** 최근 편성분의 주제 — 편성 미리보기 표시용(노출 피로 항목은 2026-09-25 폐기, 스코어링 입력이 아니다) */
   recentDripTopicIds: string[];
   /** 게이트 통과 후보 전부, 점수 내림차순 */
   scored: ScoredCandidate[];

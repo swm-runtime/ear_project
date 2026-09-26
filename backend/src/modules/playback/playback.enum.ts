@@ -9,7 +9,6 @@
 export enum UserSignalAction {
   PLAY = 'play',
   COMPLETE = 'complete',
-  SKIP = 'skip',
   SAVE = 'save',
   UNSAVE = 'unsave',
   DELETE = 'delete',

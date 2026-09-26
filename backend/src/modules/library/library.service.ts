@@ -293,7 +293,7 @@ export class LibraryService {
     );
   }
 
-  /** 최근 편성분(드립·탐험) `content_id` — 노출 피로 감점 입력(`drip-scheduling.md` 4.2 ③) */
+  /** 최근 편성분(드립·탐험) `content_id` — 편성 미리보기 표시용(노출 피로 항목은 2026-09-25 폐기) */
   async findRecentDripContentIds(
     userId: string,
     since: Date,
