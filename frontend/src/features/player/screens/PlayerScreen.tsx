@@ -1931,6 +1931,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     overflow: 'hidden',
     backgroundColor: playerColor.surface,
+    // 애플식 연속 곡률(design.md 2장 — 모든 둥근 모서리). 반지름은 보간값(art.radius)이라 여기선 곡률만(17:22 PM)
+    borderCurve: 'continuous',
   },
   heroArtTapArea: {
     position: 'absolute',
