@@ -87,6 +87,7 @@ HIG 원문: https://developer.apple.com/design/human-interface-guidelines/
 - **검색 필드는 콘텐츠 안 채움**(`GlassCapsule variant="fill"` · `SearchInputRow variant="fill"` — full, 40). 유리는 떠 있는 컨트롤 층에만(3장). 라이브러리는 제목 줄 밑(받아 둔 목록을 그 자리에서 좁힌다), 탐색도 제목 줄 밑(누르면 검색 화면 E6 이 스택에 올라온다 — 큰 제목 "검색" + 채움 필드 + 취소, 제목·필드는 목록 밖 **고정**: 결과·로딩으로 목록이 바뀔 때 입력 상자가 내려가면 키보드가 떨어진다). 탭 바 오른쪽 **검색 탭**(`tabBarSystemItem: 'search'`, #730)은 뺐다 — 탐색 검색 필드와 입구가 둘이라(01:20 PM "탐색에 있는 검색은 어떻게 해").
 - 주제 칩(탐색)·조건 요약·배너(라이브러리)는 제목 줄 밑 콘텐츠로 같이 스크롤. 고정하려면 바 *안*에 넣어야 하는데 공개 API 가 없다.
 - 시도했다 버린 것(09-25 23:50 ~ 09-26 00:25, #730·#731): 시스템 큰 제목 + 바 오른쪽 아이템 + 바 안 시스템 검색창 — 링이 제목 위 줄에 혼자 떴다. `useNativeHeaderSearchBar` 도 그때 것으로 삭제.
+- **푸시 화면(설정 …)도 같은 문법**(`shared/navigation/pushed-screen-header.ts` `PUSHED_SCREEN_HEADER`, 09-27 01:42 PM "설정 페이지도 UI 일관되게"): 시스템 투명 바에는 **뒤로 버튼(iOS 26 유리 원)만**(`headerBackButtonDisplayMode: 'minimal'`, 제목 없음, 시스템 edge 블러 끔), 콘텐츠 첫 줄에 큰 제목 줄, 스크롤하면 같은 블러 띠 + 작은 제목(`NativeBarBlurBand underSystemBar` — 정지 오프셋이 −(상태 바 + 44)). 푸시 화면은 콘텐츠가 바 밑에서 시작해 바가 터치를 먹는 문제가 없다. 그 외 플랫폼은 화면이 그리는 앱바(‹ 제목) 그대로. 설정부터 적용, 나머지 푸시 화면(콘텐츠 상세·공지·관심 주제·커리어·탈퇴·이메일 인증)은 같은 부품으로 이어서.
 아래 "떠 있는 머리 줄"은 JS 탭 바 갈래(iOS 26 미만·Android)의 규칙이다.
 
 ### 떠 있는 머리 줄 (HIG: Liquid Glass — 콘텐츠 위의 컨트롤 층)

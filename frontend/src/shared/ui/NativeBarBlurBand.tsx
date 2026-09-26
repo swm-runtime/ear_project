@@ -15,6 +15,11 @@ interface NativeBarBlurBandProps {
   scrollY: Animated.Value;
   /** 바 줄 가운데에 페이드인하는 작은 제목 — 콘텐츠 안 큰 제목 줄이 밀려 올라가면 나타난다 */
   title: string;
+  /**
+   * 푸시 화면(시스템 투명 바 밑, PUSHED_SCREEN_HEADER) — 콘텐츠가 바 줄(44)만큼 더 밑에서 시작하므로 정지 오프셋이
+   * −(상태 바 + 44)다. 탭 화면(바 없음)은 false
+   */
+  underSystemBar?: boolean;
 }
 
 /** 띠의 아래 끝 — 바 줄 끝보다 이만큼 위(음수). 03:19 PM "범위 조금만 올리자 너무 내려와 있다"(+8 → −8 → −16 03:39) */
@@ -31,19 +36,23 @@ const TITLE_LIFT = -12;
  * (17:42 PM). 그래서 작은 제목도 여기서 그린다(iOS 바 제목 17pt semibold, 바 줄 가운데). 띠는 화면 안 절대 배치이고
  * `pointerEvents="none"` 이라 아무것도 가로채지 않는다. 시스템 탭 바 갈래에서만 그린다
  */
-export default function NativeBarBlurBand({ scrollY, title }: NativeBarBlurBandProps) {
+export default function NativeBarBlurBand({
+  scrollY,
+  title,
+  underSystemBar = false,
+}: NativeBarBlurBandProps) {
   const statusInset = useNativeHeaderInset();
   const rowHeight = useNativeBarRowHeight();
   const height = statusInset + rowHeight + BAND_EXTENSION;
   const opacity = useMemo(() => {
-    // 정지 오프셋 = −상태 바(automatic 인셋, 바 없음). 제목 줄이 절반 밀려 나갈 때 시작해 다 나가면 1
-    const rest = -statusInset;
+    // 정지 오프셋 = −상태 바(automatic 인셋). 푸시 화면은 투명 바 줄만큼 더. 제목 줄이 절반 밀려 나갈 때 시작해 다 나가면 1
+    const rest = -(statusInset + (underSystemBar ? rowHeight : 0));
     return scrollY.interpolate({
       inputRange: [rest + LARGE_TITLE_ROW_HEIGHT * 0.5, rest + LARGE_TITLE_ROW_HEIGHT],
       outputRange: [0, 1],
       extrapolate: 'clamp',
     });
-  }, [scrollY, statusInset]);
+  }, [scrollY, statusInset, rowHeight, underSystemBar]);
 
   if (!HAS_NATIVE_TAB_BAR) return null;
   return (
