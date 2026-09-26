@@ -210,6 +210,28 @@ export class LibraryItemRepository {
   }
 
   /**
+   * 어떤 기간에 편성(드립·탐험)된 항목 수 — 배치 재실행의 사용자 단위 멱등 판정 입력이다
+   * (`drip-scheduling.md` 4.6-5 `already_placed`). **삭제분도 센다**(`withDeleted`) — 오늘 받았다가 지운
+   * 사용자에게 재실행이 또 주면 하루 상한이 무너진다.
+   */
+  async countByUserIdAndSourcesAddedBetween(
+    userId: string,
+    sources: LibraryItemSource[],
+    start: Date,
+    end: Date,
+    manager?: EntityManager,
+  ): Promise<number> {
+    return this.scoped(manager)
+      .createQueryBuilder('item')
+      .withDeleted()
+      .where('item.user_id = :userId', { userId })
+      .andWhere('item.source IN (:...sources)', { sources })
+      .andWhere('item.added_at >= :start', { start })
+      .andWhere('item.added_at < :end', { end })
+      .getCount();
+  }
+
+  /**
    * 무시된 편성분(`drip-scheduling.md` 4.3 "무시" 신호) — 드립·탐험으로 받았고 `addedBefore` 이전에 적립됐는데
    * 아직 `unplayed`인 살아 있는 항목. **삭제분은 뺀다**(`withDeleted` 없음) — 삭제는 이미 `delete` 신호로 잡히고,
    * 같은 항목을 두 번 벌주지 않는다. `since` 보다 오래된 것은 감쇠가 0에 가까워 읽지 않는다.

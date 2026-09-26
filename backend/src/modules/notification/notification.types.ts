@@ -25,6 +25,8 @@ export interface PushMessage {
   title: string;
   body: string;
   data: Record<string, unknown>;
+  /** 보관 시한(초, Expo `ttl`). 없으면 제공자 기본값(약 4주) — 당일성 알림은 반드시 준다 */
+  ttl?: number;
 }
 
 /**

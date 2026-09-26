@@ -19,9 +19,13 @@ import {
  * 둘이 어긋나는데, 어긋난 사실을 아무도 알 수 없다(결정 2026-09-18).
  */
 
-/** 4.1의 적립 스킵 사유. `null`이면 스킵 없이 편성 계산까지 갔다 */
+/**
+ * 4.1의 적립 스킵 사유. `null`이면 스킵 없이 편성 계산까지 갔다.
+ * `already_placed` — 오늘 서비스 날짜에 이미 편성분(드립·탐험)이 있다. 중단된 배치를 재실행할 때
+ * 같은 사용자에게 또 주지 않는 사용자 단위 멱등 판정이다(4.6-5, 2026-09-26).
+ */
 export type DripSkipReason =
-  'no_interests' | 'unfinished_inventory' | 'plan_disabled';
+  'no_interests' | 'already_placed' | 'unfinished_inventory' | 'plan_disabled';
 
 export interface RegularPlan {
   /** SQL 필터를 통과한 후보 수(`SCORING_POOL_LIMIT` 상한) */
@@ -49,6 +53,8 @@ export interface UserDripPlan {
   userId: string;
   activeTopicIds: string[];
   skipReason: DripSkipReason | null;
+  /** 오늘 서비스 날짜에 이미 편성된 항목 수(삭제분 포함) — `already_placed` 판정 입력 */
+  placedTodayCount: number | null;
   unfinishedCount: number | null;
   dripCount: number | null;
   discoveryCount: number | null;

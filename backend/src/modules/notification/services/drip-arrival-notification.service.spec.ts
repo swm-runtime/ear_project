@@ -117,6 +117,8 @@ describe('DripArrivalNotificationService', () => {
           deep_link: 'ear://library',
           content_count: 3,
         },
+        // NOW = 05:00 KST 정각 → 다음 05:00 KST까지 24시간(notification.md 4.3 — 결정 2026-09-26)
+        ttl: 24 * 60 * 60,
       },
     ]);
     expect(insertedLogs()).toEqual([

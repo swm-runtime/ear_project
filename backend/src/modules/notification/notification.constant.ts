@@ -16,6 +16,31 @@ export const EXPO_PUSH_RETRY_DELAYS_MS = [1_000, 3_000];
 /** 응답이 없으면 끊는다 — 상한 없는 fetch는 편성 배치 전체를 붙잡는다 */
 export const EXPO_PUSH_TIMEOUT_MS = 10_000;
 
+/**
+ * **연결이 성립하기 전에** 난 네트워크 오류 — 요청이 아직 나가지 않았으므로 다시 보내도 같은 알림이
+ * 두 번 가지 않는다. 그래서 429·5xx와 같은 대기로 재시도한다(2026-09-26 감사 — 05:00 순간의 DNS·연결
+ * 거부 하나로 100명 청크가 통째로 `failed`가 되고 그날 재발송 경로가 없었다).
+ * 타임아웃(`TimeoutError`)·`ECONNRESET`처럼 **보낸 뒤** 끊긴 오류는 여기 없다 — Expo가 접수했을 수 있다.
+ * 코드는 undici `fetch`가 `TypeError('fetch failed')`의 `cause.code`에 싣는 값이다.
+ */
+export const EXPO_PUSH_RETRYABLE_NETWORK_CODES: ReadonlySet<string> = new Set([
+  'ECONNREFUSED',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'EHOSTUNREACH',
+  'ENETUNREACH',
+  'UND_ERR_CONNECT_TIMEOUT',
+]);
+
+/**
+ * 드립 도착 알림의 보관 시한(Expo `ttl`, 초) — **다음 05:00 KST 편성 배치까지**(결정 2026-09-26,
+ * `notification.md` 4.3). "오늘의 콘텐츠"는 당일성 문구라, 며칠 꺼져 있던 기기에 날짜별 알림이 한꺼번에
+ * 쌓이면 하루 1건 규칙이 화면에서 무너진다. 다음 배치가 새 알림을 보내므로 그 뒤의 전달은 의미가 없다.
+ * 하한은 배치 소요 시간 안에 만료되지 않게 둔다.
+ */
+export const DRIP_ARRIVAL_PUSH_TTL_MIN_SEC = 60 * 60;
+export const DRIP_BATCH_HOUR_KST = 5;
+
 /** Expo 문서의 권고 — receipt는 발송 후 약 15분 뒤에 조회한다 */
 export const PUSH_RECEIPT_CHECK_DELAY_MS = 15 * 60 * 1000;
 /** Expo는 receipt를 24시간만 보관한다 — 그 뒤로는 물어봐도 없다 */

@@ -14,6 +14,7 @@ import {
   LibraryPageQuery,
   LibrarySaveResult,
 } from './library.types';
+import { toServiceDayRange } from '@/common/utils/service-date.util';
 
 /**
  * `library_items`는 library 모듈 소유다(domain.md 2장).
@@ -270,6 +271,26 @@ export class LibraryService {
     manager?: EntityManager,
   ): Promise<number> {
     return this.libraryItemRepository.countUnfinishedByUserId(userId, manager);
+  }
+
+  /**
+   * 오늘 서비스 날짜(04:00 KST 경계)에 이미 편성된 항목 수 — 편성 배치 재실행의 `already_placed` 스킵 입력
+   * (`drip-scheduling.md` 4.6-5). 삭제분 포함.
+   */
+  async countPlacedToday(
+    userId: string,
+    now: Date,
+    manager?: EntityManager,
+  ): Promise<number> {
+    const { start, end } = toServiceDayRange(now);
+
+    return this.libraryItemRepository.countByUserIdAndSourcesAddedBetween(
+      userId,
+      [LibraryItemSource.DRIP, LibraryItemSource.DISCOVERY],
+      start,
+      end,
+      manager,
+    );
   }
 
   /** 최근 편성분(드립·탐험) `content_id` — 노출 피로 감점 입력(`drip-scheduling.md` 4.2 ③) */
