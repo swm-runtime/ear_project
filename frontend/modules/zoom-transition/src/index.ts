@@ -3,6 +3,7 @@ import { requireOptionalNativeModule } from 'expo-modules-core';
 interface ZoomTransitionNative {
   arm(testId: string): Promise<string>;
   disarm(): void;
+  setInteractiveDismissBlocked?(blocked: boolean): void;
 }
 
 const native = requireOptionalNativeModule<ZoomTransitionNative>('ZoomTransition');
@@ -25,4 +26,12 @@ export const armZoomTransition = async (testId: string): Promise<string> => {
 
 export const disarmZoomTransition = (): void => {
   native?.disarm();
+};
+
+/**
+ * 시스템의 드래그·핀치 닫기를 막는다/푼다 — 패널(재생 목록·대본)이 열려 있거나 손가락이 스크롤 목록 위에서 시작했을 때.
+ * 동기라 터치 시작 핸들러에서 불러도 시스템 제스처가 시작되기 전에 반영된다. 옛 네이티브(rt 12)엔 없다 — 그럼 no-op
+ */
+export const setZoomInteractiveDismissBlocked = (blocked: boolean): void => {
+  native?.setInteractiveDismissBlocked?.(blocked);
 };

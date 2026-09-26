@@ -1,8 +1,8 @@
 diff --git a/node_modules/react-native-screens/ios/RNSScreenStack.mm b/node_modules/react-native-screens/ios/RNSScreenStack.mm
-index 192f5d2..3b5f33d 100644
+index 192f5d2..f9208e8 100644
 --- a/node_modules/react-native-screens/ios/RNSScreenStack.mm
 +++ b/node_modules/react-native-screens/ios/RNSScreenStack.mm
-@@ -481,6 +481,32 @@ RNS_IGNORE_SUPER_CALL_END
+@@ -481,6 +481,47 @@ RNS_IGNORE_SUPER_CALL_END
          return;
        }
  
@@ -21,8 +21,23 @@ index 192f5d2..3b5f33d 100644
 +#pragma clang diagnostic pop
 +            if (zoomSource != nil) {
 +              __weak UIView *weakZoomSource = zoomSource;
++              UIZoomTransitionOptions *zoomOptions = [UIZoomTransitionOptions new];
++              // The app blocks the system drag/pinch dismissal while a panel is open or the touch started on a
++              // scrolling list (ZoomTransitionRegistry.isInteractiveDismissBlocked, NSNumber for performSelector).
++              zoomOptions.interactiveDismissShouldBegin = ^BOOL(UIZoomTransitionInteractionContext *_Nonnull context) {
++                Class blockedRegistry = NSClassFromString(@"ZoomTransitionRegistry");
++                if (blockedRegistry == nil ||
++                    ![blockedRegistry respondsToSelector:@selector(isInteractiveDismissBlocked)]) {
++                  return YES;
++                }
++#pragma clang diagnostic push
++#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
++                NSNumber *blocked = [blockedRegistry performSelector:@selector(isInteractiveDismissBlocked)];
++#pragma clang diagnostic pop
++                return ![blocked boolValue];
++              };
 +              next.preferredTransition = [UIViewControllerTransition
-+                  zoomWithOptions:nil
++                  zoomWithOptions:zoomOptions
 +                sourceViewProvider:^UIView *_Nullable(UIZoomTransitionSourceViewProviderContext *_Nonnull context) {
 +                  return weakZoomSource;
 +                }];

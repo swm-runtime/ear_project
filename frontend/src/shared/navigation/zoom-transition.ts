@@ -1,6 +1,10 @@
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 
-import { armZoomTransition, hasZoomTransitionModule } from '../../../modules/zoom-transition/src';
+import {
+  armZoomTransition,
+  hasZoomTransitionModule,
+  setZoomInteractiveDismissBlocked,
+} from '../../../modules/zoom-transition/src';
 
 /**
  * 플레이어를 **iOS 18 줌 전환**으로 띄우는가 — 미니플레이어 카드에서 부풀어 오르고, 닫으면 그 자리로 줄어든다
@@ -26,4 +30,13 @@ export const MINI_PLAYER_ZOOM_SOURCE_ID = 'mini-player-zoom-source';
 export const armPlayerZoom = async (): Promise<void> => {
   if (!USE_NATIVE_PLAYER_ZOOM) return;
   lastArmResult = await armZoomTransition(MINI_PLAYER_ZOOM_SOURCE_ID);
+};
+
+/**
+ * 플레이어 위에서 시스템의 드래그·핀치 닫기를 막는다/푼다 — 재생 목록·대본 패널이 열려 있거나 손가락이 스크롤 목록 위에서
+ * 시작했을 때(PM 2026-09-26 15:49 "재생목록 내려갈 때 미니플레이어도 같이 내려간다"). 줌을 안 쓰는 갈래는 no-op
+ */
+export const setPlayerZoomDismissBlocked = (blocked: boolean): void => {
+  if (!USE_NATIVE_PLAYER_ZOOM) return;
+  setZoomInteractiveDismissBlocked(blocked);
 };
