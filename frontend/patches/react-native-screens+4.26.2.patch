@@ -1,5 +1,70 @@
+diff --git a/node_modules/react-native-screens/ios/RNSScreen.mm b/node_modules/react-native-screens/ios/RNSScreen.mm
+index 9b66012..fa71b19 100644
+--- a/node_modules/react-native-screens/ios/RNSScreen.mm
++++ b/node_modules/react-native-screens/ios/RNSScreen.mm
+@@ -1417,6 +1417,8 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
+   BOOL _isSwiping;
+   BOOL _shouldNotify;
+   BOOL _isRemovedFromParent;
++  // [ear patch] set when an interactive (system-driven) modal dismissal completed and JS was already notified
++  BOOL _notifiedInteractiveDismiss;
+ }
+ 
+ #pragma mark - Common
+@@ -1464,6 +1466,28 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
+ - (void)viewWillDisappear:(BOOL)animated
+ {
+   [super viewWillDisappear:animated];
++  // [ear patch] iOS 18 zoom transition: the user dragged/pinched the modal away. The stack never initiated this
++  // dismissal and presentationControllerDidDismiss is not called for full-screen presentations, so the stack's
++  // modal bookkeeping went stale and a later container update re-presented the screen for a frame
++  // (2026-09-26 — player flashed after switching tabs). Settle it the moment the interactive dismissal completes.
++  if (self.isBeingDismissed && self.transitionCoordinator != nil && self.transitionCoordinator.isInteractive &&
++      self.presentingViewController != nil) {
++    __weak RNSScreen *weakSelf = self;
++    [self.transitionCoordinator
++        animateAlongsideTransition:nil
++                        completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
++                          RNSScreen *strongSelf = weakSelf;
++                          if (strongSelf == nil || context.isCancelled || strongSelf->_notifiedInteractiveDismiss) {
++                            return;
++                          }
++                          strongSelf->_notifiedInteractiveDismiss = YES;
++                          UIView *container = strongSelf.screenView.reactSuperview;
++                          if ([container isKindOfClass:[RNSScreenStackView class]]) {
++                            [(RNSScreenStackView *)container modalWasDismissedNatively:strongSelf];
++                          }
++                          [strongSelf.screenView notifyDismissedWithCount:1];
++                        }];
++  }
+   // self.navigationController might be null when we are dismissing a modal
+   if (!self.transitionCoordinator.isInteractive && self.navigationController != nil) {
+     // user might have long pressed ios 14 back button item,
+@@ -1517,7 +1541,7 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
+ - (void)viewDidDisappear:(BOOL)animated
+ {
+   [super viewDidDisappear:animated];
+-  if (self.parentViewController == nil && self.presentingViewController == nil) {
++  if (self.parentViewController == nil && self.presentingViewController == nil && !_notifiedInteractiveDismiss) {
+     if (self.screenView.preventNativeDismiss) {
+       // if we want to prevent the native dismiss, we do not send dismissal event,
+       // but instead call `updateContainer`, which restores the JS navigation stack
+diff --git a/node_modules/react-native-screens/ios/RNSScreenStack.h b/node_modules/react-native-screens/ios/RNSScreenStack.h
+index 9ae11c3..914df21 100644
+--- a/node_modules/react-native-screens/ios/RNSScreenStack.h
++++ b/node_modules/react-native-screens/ios/RNSScreenStack.h
+@@ -24,6 +24,9 @@ NS_ASSUME_NONNULL_BEGIN
+ 
+ - (void)markChildUpdated;
+ - (void)didUpdateChildren;
++// [ear patch] A modal owned by this stack was dismissed by the system (iOS 18 zoom transition interactive
++// dismissal) — drop it from the bookkeeping the same way presentationControllerDidDismiss does for sheets.
++- (void)modalWasDismissedNatively:(UIViewController *)modal;
+ - (void)startScreenTransition;
+ - (void)updateScreenTransition:(double)progress;
+ - (void)finishScreenTransition:(BOOL)canceled;
 diff --git a/node_modules/react-native-screens/ios/RNSScreenStack.mm b/node_modules/react-native-screens/ios/RNSScreenStack.mm
-index 192f5d2..f9208e8 100644
+index 192f5d2..a1e981d 100644
 --- a/node_modules/react-native-screens/ios/RNSScreenStack.mm
 +++ b/node_modules/react-native-screens/ios/RNSScreenStack.mm
 @@ -481,6 +481,47 @@ RNS_IGNORE_SUPER_CALL_END
@@ -50,3 +115,21 @@ index 192f5d2..f9208e8 100644
        [previous presentViewController:next
                               animated:shouldAnimate
                             completion:^{
+@@ -1001,6 +1042,17 @@ RNS_IGNORE_SUPER_CALL_END
+   [self updateContainer];
+ }
+ 
++// [ear patch] see RNSScreenStack.h
++- (void)modalWasDismissedNatively:(UIViewController *)modal
++{
++  if ([_presentedModals containsObject:modal]) {
++    [RNSScreenWindowTraits updateWindowTraits];
++    [_presentedModals removeObject:modal];
++    _updatingModals = NO;
++    [self emitOnFinishTransitioningEvent];
++  }
++}
++
+ - (void)didUpdateChildren
+ {
+   // do nothing
