@@ -14,6 +14,7 @@ import {
   EXPO_PUSH_SEND_CHUNK_SIZE,
   EXPO_PUSH_TOKEN_PATTERN,
 } from '../notification.constant';
+import { ttlUntilNextDripBatchSec } from '../push/push-ttl.util';
 import {
   NotificationSkipReason,
   NotificationStatus,
@@ -127,7 +128,7 @@ export class DripArrivalNotificationService {
       }
 
       deepLinkByUserId.set(arrival.userId, deepLink);
-      const message = buildMessage(arrival, deepLink);
+      const message = buildMessage(arrival, deepLink, now);
       const sentTokens = new Set<string>();
 
       for (const device of devicesByUserId.get(arrival.userId) ?? []) {
@@ -265,12 +266,15 @@ function resolveDeepLink(arrival: DripArrival): string {
 function buildMessage(
   arrival: DripArrival,
   deepLink: string,
+  now: Date,
 ): Omit<PushMessage, 'to'> {
   const contents = [...arrival.regular, ...arrival.discovery];
 
   return {
     title: buildDripArrivalTitle(contents.length),
     body: contents[0].title,
+    // 다음 배치가 새 알림을 보낸다 — 그 뒤까지 보관하면 며칠치 "오늘"이 한꺼번에 뜬다(`notification.md` 4.3)
+    ttl: ttlUntilNextDripBatchSec(now),
     data: {
       type: NotificationType.DRIP_ARRIVAL,
       deep_link: deepLink,

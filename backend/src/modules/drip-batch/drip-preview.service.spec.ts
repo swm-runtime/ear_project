@@ -79,6 +79,7 @@ function buildPlan(): UserDripPlan {
     userId: USER_ID,
     activeTopicIds: [TOPIC_A],
     skipReason: 'unfinished_inventory',
+    placedTodayCount: 0,
     unfinishedCount: 6,
     dripCount: 2,
     discoveryCount: 1,

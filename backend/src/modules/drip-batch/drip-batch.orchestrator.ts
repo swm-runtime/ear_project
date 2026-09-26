@@ -6,7 +6,9 @@ import { ContentStatService } from '@/modules/content/services/content-stat.serv
 import { Content } from '@/modules/content/entities/content.entity';
 import {
   COLD_START_COMPLETE_THRESHOLD,
+  DRIP_BATCH_PAGE_FETCH_RETRY_DELAYS_MS,
   DRIP_BATCH_USER_PAGE_SIZE,
+  DRIP_BATCH_USER_RETRY_DELAY_MS,
   DRIP_IGNORE_AFTER_DAYS,
   EXPOSURE_FATIGUE_LOOKBACK_DAYS,
   SCORING_POOL_LIMIT,
@@ -118,19 +120,35 @@ export class DripBatchOrchestrator {
   ) {}
 
   /**
-   * 배치 1회 실행. **같은 서비스 날짜에 두 번 실행되지 않는다** —
-   * `drip_batch_runs.run_date` 유니크 선점이 배치 단위를, `library_items` 유니크가
-   * 사용자 단위를 막는다(`drip-scheduling.md` 4.6-5).
+   * 배치 1회 실행. **같은 서비스 날짜에 두 번 적립되지 않는다** —
+   * `drip_batch_runs.run_date` 유니크 선점이 배치 단위를, `planForUser`의 `already_placed` 스킵이
+   * 사용자 단위를 막는다(`drip-scheduling.md` 4.6-5 — `library_items` 유니크는 같은 콘텐츠만 막아
+   * 사용자 단위 멱등의 근거가 아니다, 2026-09-26).
+   *
+   * `mode: 'resume'`은 07:30 KST 재실행 슬롯이다 — 중단돼 `finished_at`이 NULL로 남은 오래된 실행만
+   * 이어받고, 정상 종료한 날은 아무것도 하지 않는다.
    */
-  async run(now: Date): Promise<void> {
+  async run(
+    now: Date,
+    mode: 'scheduled' | 'resume' = 'scheduled',
+  ): Promise<void> {
     const runDate = toServiceDate(now);
     const run = await this.dripBatchRunService.claim(runDate, now);
 
     if (!run) {
-      this.logger.log('drip batch already claimed for the date', {
+      this.logger.log(
+        mode === 'resume'
+          ? 'drip batch has no unfinished run to resume'
+          : 'drip batch already claimed for the date',
+        { run_date: runDate },
+      );
+      return;
+    }
+
+    if (mode === 'resume') {
+      this.logger.warn('drip batch resuming an unfinished run', {
         run_date: runDate,
       });
-      return;
     }
 
     const counts = {
@@ -145,17 +163,17 @@ export class DripBatchOrchestrator {
     const planCounts: PlanCountCache = new Map();
 
     /**
-     * **어떻게 끝나든 실행 기록을 닫는다.** 사용자 단위 실패는 아래에서 흡수되지만,
-     * 페이지 조회처럼 루프 자체가 던지는 경로가 남아 있다. 그때 `finish`를 건너뛰면
-     * `finished_at`이 NULL로 남아 **그날 재실행이 막힌다** — 이제는 오래된 행을 다시
-     * 집을 수 있지만(`DRIP_BATCH_STALE_MS`), 그건 마지막 방어선이지 정상 경로가 아니다.
+     * 루프가 끝까지 돌았을 때만 실행 기록을 닫는다. 사용자 단위 실패는 아래에서 흡수되지만,
+     * 페이지 조회처럼 루프 자체가 던지는 경로가 남아 있다 — 그때 `finish`로 `finished_at`을 찍으면
+     * 남은 사용자는 그날 드립을 못 받는데 재실행까지 막힌다(2026-09-26 감사). 닫지 않고 던져 두면
+     * `DRIP_BATCH_STALE_MS`가 지난 뒤 07:30 재실행 슬롯이 이어받고, `already_placed` 스킵이
+     * 이미 받은 사용자를 건너뛴다.
      */
+    let completed = false;
+
     try {
       for (;;) {
-        const users: User[] = await this.userService.findDripTargetsPage(
-          afterId,
-          DRIP_BATCH_USER_PAGE_SIZE,
-        );
+        const users: User[] = await this.findTargetsPageWithRetry(afterId);
 
         if (users.length === 0) {
           break;
@@ -167,7 +185,7 @@ export class DripBatchOrchestrator {
           counts.targetCount += 1;
 
           try {
-            const { outcome, arrival } = await this.scheduleForUser(
+            const { outcome, arrival } = await this.scheduleForUserWithRetry(
               user,
               now,
               planCounts,
@@ -196,10 +214,22 @@ export class DripBatchOrchestrator {
         await this.notifyArrivals(arrivals, now);
         afterId = users[users.length - 1].id;
       }
+
+      completed = true;
     } finally {
-      // 네 카운트 합 = targetCount (domain.md 7.3). exhausted는 2026-09-11부터 컬럼에 남는다 —
-      // 그전엔 로그에만 있어 "대상 13 · 성공 3"의 나머지 10명이 표에서 사라졌다
-      await this.dripBatchRunService.finish(run, counts, new Date());
+      if (completed) {
+        // 네 카운트 합 = targetCount (domain.md 7.3). exhausted는 2026-09-11부터 컬럼에 남는다 —
+        // 그전엔 로그에만 있어 "대상 13 · 성공 3"의 나머지 10명이 표에서 사라졌다
+        await this.dripBatchRunService.finish(run, counts, new Date());
+      } else {
+        this.logger.error(
+          'drip batch aborted — run left open for the resume slot',
+          {
+            run_date: runDate,
+            processed_count: counts.targetCount,
+          },
+        );
+      }
     }
 
     // 건당 로그를 남기지 않고 실행 결과를 집계해 한 번 남긴다 (convention.md 8.3 — 드립 편성)
@@ -211,6 +241,49 @@ export class DripBatchOrchestrator {
       exhausted_count: counts.exhaustedCount,
       failed_count: counts.failedCount,
     });
+  }
+
+  /** 페이지 조회 재시도(`DRIP_BATCH_PAGE_FETCH_RETRY_DELAYS_MS`) — 끝까지 실패하면 그대로 던진다 */
+  private async findTargetsPageWithRetry(
+    afterId: string | null,
+  ): Promise<User[]> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await this.userService.findDripTargetsPage(
+          afterId,
+          DRIP_BATCH_USER_PAGE_SIZE,
+        );
+      } catch (error) {
+        if (attempt >= DRIP_BATCH_PAGE_FETCH_RETRY_DELAYS_MS.length) {
+          throw error;
+        }
+
+        this.logger.warn('drip target page fetch failed, retrying', {
+          attempt: attempt + 1,
+          error: toErrorMessage(error),
+        });
+        await sleep(DRIP_BATCH_PAGE_FETCH_RETRY_DELAYS_MS[attempt]);
+      }
+    }
+  }
+
+  /** 사용자 한 명의 편성을 한 번 더 시도한다(`DRIP_BATCH_USER_RETRY_DELAY_MS`). 두 번째 실패는 호출부가 센다 */
+  private async scheduleForUserWithRetry(
+    user: User,
+    now: Date,
+    planCounts: PlanCountCache,
+  ): Promise<UserScheduleResult> {
+    try {
+      return await this.scheduleForUser(user, now, planCounts);
+    } catch (error) {
+      this.logger.warn('drip scheduling failed for user, retrying once', {
+        user_id: user.id,
+        error: toErrorMessage(error),
+      });
+      await sleep(DRIP_BATCH_USER_RETRY_DELAY_MS);
+
+      return this.scheduleForUser(user, now, planCounts);
+    }
   }
 
   /**
@@ -329,6 +402,7 @@ export class DripBatchOrchestrator {
       userId: user.id,
       activeTopicIds: [],
       skipReason: null,
+      placedTodayCount: null,
       unfinishedCount: null,
       dripCount: null,
       discoveryCount: null,
@@ -373,11 +447,30 @@ export class DripBatchOrchestrator {
     plan.difficultyAffinity = preferenceResult.difficultyAffinity;
     plan.isColdStart = preferenceResult.isColdStart;
 
+    /**
+     * 오늘 이미 편성된 사용자는 건너뛴다(4.6-5 `already_placed`) — 중단된 배치의 재실행이나 사용자 단위
+     * 재시도가 같은 사용자에게 또 2+1편을 주지 않게 하는 **사용자 단위 멱등 판정**이다. 후보 SQL은 이미
+     * 준 콘텐츠를 빼므로 이 판정이 없으면 재실행마다 새 편이 간다. 적립 규칙이라 취향 캐시 재계산 뒤에 둔다.
+     */
+    plan.placedTodayCount = await this.libraryService.countPlacedToday(
+      user.id,
+      now,
+    );
+
+    if (plan.placedTodayCount > 0) {
+      plan.skipReason = 'already_placed';
+
+      if (options.stopAtSkip) {
+        return plan;
+      }
+    }
+
     // 미청취 재고 스킵(4.1) — 탐험 편성도 함께 건너뛴다(4.8)
     plan.unfinishedCount = await this.libraryService.countUnfinished(user.id);
 
     if (plan.unfinishedCount >= UNFINISHED_INVENTORY_LIMIT) {
-      plan.skipReason = 'unfinished_inventory';
+      // 오늘 이미 편성된 사유가 먼저 났으면 유지한다(배치가 보는 순서와 같다)
+      plan.skipReason ??= 'unfinished_inventory';
 
       if (options.stopAtSkip) {
         return plan;
@@ -836,6 +929,10 @@ function buildDifficultyAffinity(
       count / total,
     ]),
   );
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function toErrorMessage(error: unknown): string {

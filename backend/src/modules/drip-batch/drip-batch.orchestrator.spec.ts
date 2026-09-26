@@ -113,6 +113,7 @@ describe('DripBatchOrchestrator', () => {
 
     libraryService = {
       countUnfinished: jest.fn().mockResolvedValue(0),
+      countPlacedToday: jest.fn().mockResolvedValue(0),
       findAllContentIds: jest.fn().mockResolvedValue([]),
       findCompletedSeriesMaxEpisodes: jest.fn().mockResolvedValue(new Map()),
       findRecentDripContentIds: jest.fn().mockResolvedValue([]),
@@ -416,7 +417,76 @@ describe('DripBatchOrchestrator', () => {
     );
   });
 
-  it('사용자 처리 실패는 다른 사용자에게 전파되지 않는다', async () => {
+  it('오늘 이미 편성된 사용자는 already_placed로 건너뛴다 — 재실행이 같은 사용자에게 또 주지 않는다(4.6-5)', async () => {
+    libraryService.countPlacedToday.mockResolvedValue(3);
+
+    await orchestrator.run(NOW);
+
+    expect(dripPlacementService.placeItems).not.toHaveBeenCalled();
+    // 적립 규칙이라 취향 캐시는 그래도 재계산한다(4.3)
+    expect(preferenceVectorService.rebuild).toHaveBeenCalled();
+    expect(dripBatchRunService.finish).toHaveBeenCalledWith(
+      run,
+      expect.objectContaining({
+        targetCount: 1,
+        skippedCount: 1,
+        successCount: 0,
+      }),
+      expect.any(Date),
+    );
+  });
+
+  it('사용자 편성이 한 번 던지면 잠깐 뒤 한 번 더 시도한다 — 일시 오류는 failed로 남지 않는다', async () => {
+    jest.useFakeTimers();
+    userInterestService.findActiveTopicIds
+      .mockRejectedValueOnce(new Error('connection reset'))
+      .mockResolvedValue([TOPIC_A]);
+
+    try {
+      const pending = orchestrator.run(NOW);
+      await jest.advanceTimersByTimeAsync(2_000);
+      await pending;
+
+      expect(dripBatchRunService.finish).toHaveBeenCalledWith(
+        run,
+        expect.objectContaining({ successCount: 1, failedCount: 0 }),
+        expect.any(Date),
+      );
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('사용자 페이지 조회가 계속 실패하면 실행 기록을 닫지 않고 던진다 — 07:30 재실행 슬롯이 이어받는다', async () => {
+    jest.useFakeTimers();
+    userService.findDripTargetsPage
+      .mockReset()
+      .mockRejectedValue(new Error('db down'));
+
+    try {
+      const pending = orchestrator.run(NOW);
+      const assertion = expect(pending).rejects.toThrow('db down');
+      await jest.advanceTimersByTimeAsync(10_000);
+      await assertion;
+
+      expect(dripBatchRunService.finish).not.toHaveBeenCalled();
+      expect(userService.findDripTargetsPage).toHaveBeenCalledTimes(3);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('재실행 슬롯은 이어받을 미완료 실행이 없으면 아무 일도 하지 않는다', async () => {
+    dripBatchRunService.claim.mockResolvedValue(null);
+
+    await orchestrator.run(NOW, 'resume');
+
+    expect(userService.findDripTargetsPage).not.toHaveBeenCalled();
+    expect(dripBatchRunService.finish).not.toHaveBeenCalled();
+  });
+
+  it('사용자 처리 실패는 다른 사용자에게 전파되지 않는다 — 두 번째 시도도 실패하면 failed로 센다', async () => {
+    jest.useFakeTimers();
     userService.findDripTargetsPage
       .mockReset()
       .mockResolvedValueOnce([buildUser('failing'), buildUser(USER_ID)])
@@ -428,17 +498,23 @@ describe('DripBatchOrchestrator', () => {
           : Promise.resolve([TOPIC_A]),
     );
 
-    await orchestrator.run(NOW);
+    try {
+      const pending = orchestrator.run(NOW);
+      await jest.advanceTimersByTimeAsync(2_000);
+      await pending;
 
-    expect(dripBatchRunService.finish).toHaveBeenCalledWith(
-      run,
-      expect.objectContaining({
-        targetCount: 2,
-        successCount: 1,
-        failedCount: 1,
-      }),
-      expect.any(Date),
-    );
+      expect(dripBatchRunService.finish).toHaveBeenCalledWith(
+        run,
+        expect.objectContaining({
+          targetCount: 2,
+          successCount: 1,
+          failedCount: 1,
+        }),
+        expect.any(Date),
+      );
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   describe('드립 도착 알림', () => {
