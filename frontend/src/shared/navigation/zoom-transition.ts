@@ -39,8 +39,17 @@ export const armPlayerZoom = async (): Promise<void> => {
  */
 export const setPlayerZoomDismissBlocked = (blocked: boolean): void => {
   if (!USE_NATIVE_PLAYER_ZOOM) return;
-  setZoomInteractiveDismissBlocked(blocked);
+  setZoomInteractiveDismissBlocked(SYSTEM_INTERACTIVE_DISMISS ? blocked : true);
 };
+
+/**
+ * 시스템(UIKit 줌)의 드래그·핀치 닫기를 쓰는가. **iOS 26 의 알려진 버그로 끈다**(2026-09-27 01:51): iOS 26.0~26.1 은 줌 전환을
+ * 인터랙티브로 닫으면 소스 뷰가 사라지거나 깜빡이고 기하가 어긋난다 — 애플 포럼 807208(애플 "알려진 이슈, 조사 중"), expo/expo
+ * #50049. 우리 증상(드래그로 닫은 뒤 탭 전환 때 죽은 플레이어 뷰가 한 프레임)도 이 부류였고 RNS 패치 여섯 번으로 안 잡혔다.
+ * 비인터랙티브 닫기(뒤로 버튼·goBack)는 멀쩡하므로 우리 끌어내리기가 임계를 넘으면 goBack — 줌 축소는 그대로, 손가락을
+ * 따라오진 않는다. 애플이 고치면(iOS 26.2+) 버전 조건으로 다시 켠다
+ */
+export const SYSTEM_INTERACTIVE_DISMISS = false;
 
 /** 플레이어 화면 마운트 횟수 — 진단(2026-09-26 20:52): 드래그 닫기 뒤 탭 전환 때 JS 가 플레이어를 다시 마운트하는지 가른다 */
 let playerMountCount = 0;
