@@ -220,7 +220,7 @@
     {
       "id": 3,
       "type": "timeseries",
-      "title": "헬스체크 응답시간 (프로브별)",
+      "title": "헬스체크 평균 응답시간 (프로브별, 15분 창)",
       "gridPos": {
         "x": 11,
         "y": 0,
@@ -238,7 +238,7 @@
             "type": "prometheus",
             "uid": "${DS_PROM}"
           },
-          "expr": "probe_all_duration_seconds{job=\"ear-api-health\"}",
+          "expr": "sum by (probe) (increase(probe_all_duration_seconds_sum{job=\"ear-api-health\"}[15m])) / sum by (probe) (increase(probe_all_duration_seconds_count{job=\"ear-api-health\"}[15m]))",
           "legendFormat": "{{probe}}"
         }
       ],
@@ -285,7 +285,7 @@
           "mode": "multi"
         }
       },
-      "description": "프로브에서 /api/v1/health 까지 왕복. 서울 프로브가 기준값(정상 0.1s 대). 급등하면 A001/A003 보다 먼저 B006(부하) 을 의심."
+      "description": "프로브에서 /api/v1/health 까지 왕복의 15분 평균 — 합성 체크는 기본 지표만 발행해(전체 지표 발행 끔) 게이지가 없고 _sum/_count 만 있다. 서울 프로브가 기준값(정상 0.05s 대, 도쿄 0.1s 대). 급등하면 A001/A003 보다 먼저 B006(부하) 을 의심."
     },
     {
       "id": 4,
