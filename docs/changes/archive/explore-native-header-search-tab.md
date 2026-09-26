@@ -31,3 +31,7 @@
 
 - Given 문서 반영 후 explore-uiux.md 4.1 을 읽으면, When iOS 26 갈래를 찾으면, Then 큰 제목 바·검색 탭·스크롤하는 칩이 적혀 있고 검색창 줄이 E1 에 없다.
 - Given features/explore.md 4.5-1, When 검색 진입 경로를 읽으면, Then 검색 탭 경로가 있고 취소의 갈래 차이가 적혀 있다.
+
+## 처리 기록
+
+- **반영 날짜: 2026-09-26** — 통합 PR(`docs/changes-integration-fe-2026-09-26`, 백엔드 담당이 FE 발행분을 옮겨 적음). 반영 위치: explore-uiux.md 2장 E1·4.1 구성(두 갈래)·4.2 자리·4.6 진입·7장, features/explore.md 4.4-1·4.5-1.

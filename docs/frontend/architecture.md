@@ -137,6 +137,8 @@ Frontend는 다음 5가지를 책임진다.
   | `1` | 2026-09 | 지문 정책 폐기 후 양 플랫폼 통일값 |
   | `2` | 2026-09-17 | `expo-video` 추가(스플래시 로고 영상 — `splash.md` 4장) |
   | `6` | 2026-09-23 | `@sentry/react-native` 추가(KAN-92 — 8.4) |
+  | `7` | 2026-09-23 | `@react-native-firebase/app`·`analytics` 추가(GA4 — KAN-90, `analytics.md`) |
+  | `8` | 2026-09-24 | `react-native-fbsdk-next` 추가(Meta 광고 측정 — KAN-94, `analytics.md` 3.5) |
 
   사이의 값은 각 PR의 `app.json` 이력을 따른다.
 - **OTA 번들의 env는 `eas.json`과 같은 값을 유지해야 한다.** 워크플로가 `EXPO_PUBLIC_API_BASE_URL`을 번들에 박으므로, `eas.json`의 `preview`·`production` env와 어긋나면 **OTA 번들만 다른 서버를 본다.** mock 플래그들은 `__DEV__` 가드라 릴리스 번들에서는 무관하다.
