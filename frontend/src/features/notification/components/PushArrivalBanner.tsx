@@ -94,6 +94,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.md,
     borderRadius: theme.radius.lg,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.primary,
     shadowColor: '#000',
     shadowOpacity: 0.18,

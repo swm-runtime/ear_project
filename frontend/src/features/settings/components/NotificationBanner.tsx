@@ -44,6 +44,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
   },
   pressed: {

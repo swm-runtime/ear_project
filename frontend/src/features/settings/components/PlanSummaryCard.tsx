@@ -95,6 +95,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
   },
   pressed: {
@@ -128,6 +129,7 @@ const styles = StyleSheet.create({
   },
   freeAction: {
     borderRadius: theme.radius.sm,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.primary,
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.xs,

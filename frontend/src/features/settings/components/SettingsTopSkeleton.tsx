@@ -28,11 +28,13 @@ const styles = StyleSheet.create({
   row: {
     height: 48,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
   },
   card: {
     height: 64,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
   },
 });

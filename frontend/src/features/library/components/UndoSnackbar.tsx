@@ -41,6 +41,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.textPrimary,
     paddingLeft: theme.spacing.md,
     paddingRight: theme.spacing.xs,

@@ -180,6 +180,7 @@ const styles = StyleSheet.create({
   submit: {
     minHeight: 56,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.primary,
     alignItems: 'center',
     justifyContent: 'center',

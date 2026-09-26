@@ -558,11 +558,13 @@ const styles = StyleSheet.create({
     height: ROW_HEIGHT,
     paddingHorizontal: theme.spacing.sm,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
   },
   thumbnail: {
     width: THUMBNAIL_SIZE,
     height: THUMBNAIL_SIZE,
     borderRadius: theme.radius.sm,
+    borderCurve: 'continuous',
     backgroundColor: playerColor.surface,
   },
   rowMeta: {

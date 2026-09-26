@@ -84,6 +84,7 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
+    borderCurve: 'continuous',
     borderWidth: 1.5,
     borderColor: theme.color.border,
     alignItems: 'center',

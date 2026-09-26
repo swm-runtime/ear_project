@@ -1096,6 +1096,7 @@ export default function PlayerScreen() {
             height: morph.sheetHeight,
             borderTopLeftRadius: morph.sheetRadius,
             borderTopRightRadius: morph.sheetRadius,
+            borderCurve: 'continuous',
             backgroundColor: morph.sheetColor,
           },
         ]}
@@ -1143,6 +1144,7 @@ export default function PlayerScreen() {
               width: art.width,
               height: art.height,
               borderRadius: art.radius,
+              borderCurve: 'continuous',
               opacity: morph.heroOpacity,
               transform: [{ scale: artScale }],
             },
@@ -1584,6 +1586,7 @@ export default function PlayerScreen() {
                 width: morph.artWidth,
                 height: morph.artHeight,
                 borderRadius: morph.artRadius,
+                borderCurve: 'continuous',
               },
             ]}
           >
@@ -2046,6 +2049,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
+    borderCurve: 'continuous',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: playerColor.primary,
@@ -2196,6 +2200,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     backgroundColor: playerColor.textPrimary,
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,

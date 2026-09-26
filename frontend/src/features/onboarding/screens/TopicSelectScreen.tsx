@@ -295,6 +295,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.primary,
     alignItems: 'center',
     justifyContent: 'center',
