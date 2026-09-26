@@ -1,37 +1,22 @@
-import { HeaderHeightContext } from '@react-navigation/elements';
-import { useContext } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 
 /**
- * iOS 26 시스템 탭의 **투명 내비게이션 바 줄 높이**(상태 바 제외, 보통 44) — 콘텐츠 안 큰 제목 줄은 이 줄 자리에 앉는다.
- * 애플 뮤직은 큰 제목이 상태 바 바로 밑이다(PM 2026-09-26 00:52 "위쪽에 공간 너무 많다" — 빈 바 줄만큼 내려가 있었다).
- * 목록의 제목 줄은 `useNativeBarPullStyle` 로 이만큼 올려 앉히고, 바의 작은 제목 페이드(useFadingNativeTitle)는 이 값을 더한 정지
- * 오프셋을 쓴다. JS 탭 바 갈래(바가 없다)에서는 0. `useHeaderHeight` 는 컨텍스트가 없으면 던지므로 직접 읽는다
+ * iOS 26 시스템 탭 갈래의 **상단 바 줄 높이**(상태 바 제외) — iOS 내비게이션 바의 44. 네이티브 바는 쓰지 않는다
+ * (투명해도 UINavigationBar 가 터치를 먹어 그 밑 제목 줄의 링·필터가 안 눌렸다 — PM 2026-09-26 17:42). 블러 띠와
+ * 작은 제목은 `NativeBarBlurBand` 가 이 높이로 직접 그린다
  */
-export const useNativeBarRowHeight = (): number => {
-  const height = useContext(HeaderHeightContext);
-  const insets = useSafeAreaInsets();
-  if (!HAS_NATIVE_TAB_BAR || height === undefined) return 0;
-  return Math.max(0, height - insets.top);
-};
+export const NATIVE_BAR_ROW_HEIGHT = 44;
+
+export const useNativeBarRowHeight = (): number => (HAS_NATIVE_TAB_BAR ? NATIVE_BAR_ROW_HEIGHT : 0);
 
 /**
- * 스크롤 뷰가 아닌 상태 화면(스켈레톤·전체 에러·고정 머리 줄)이 비울 위쪽 — 상태 바만. 바 줄은 제목 줄이 차지한다.
- * 스크롤 뷰는 `contentInsetAdjustmentBehavior="automatic"` + 제목 줄의 `useNativeBarPullStyle` 이 같은 결과를 낸다
+ * 스크롤 뷰가 아닌 상태 화면(스켈레톤·전체 에러·고정 머리 줄)이 비울 위쪽 — 상태 바만. 바가 없으니 콘텐츠(큰 제목 줄)는
+ * 상태 바 바로 밑에서 시작한다. 스크롤 뷰는 `contentInsetAdjustmentBehavior="automatic"` 이 같은 결과를 낸다(DOCK_SCROLL_PROPS).
+ * JS 탭 바 갈래에서는 0(FloatingHeader 가 상태 바를 채운다)
  */
 export const useNativeHeaderInset = (): number => {
   const insets = useSafeAreaInsets();
   return HAS_NATIVE_TAB_BAR ? insets.top : 0;
-};
-
-/**
- * 목록 첫 줄(큰 제목 줄 묶음)에 준다 — `automatic` 이 비운 바 높이(상태 바 + 바 줄)는 **그대로 두고** 제목 줄만 바 줄만큼
- * 위로 올려 상태 바 바로 밑에 앉힌다. 스크롤하면 상태 바 + 바 줄을 덮는 블러 띠(NativeBarBlurBand)가 나타나고
- * 그 위에 바의 작은 제목이 페이드인한다
- */
-export const useNativeBarPullStyle = (): { marginTop: number } | undefined => {
-  const rowHeight = useNativeBarRowHeight();
-  return rowHeight > 0 ? { marginTop: -rowHeight } : undefined;
 };
