@@ -8,7 +8,7 @@ describe('ttlUntilNextDripBatchSec — 다음 05:00 KST 배치까지', () => {
     );
   });
 
-  it('배치가 늦게 돌면 그만큼 짧아진다 — 07:30 KST 재실행이면 21.5시간', () => {
+  it('배치가 늦게 돌면 그만큼 짧아진다 — 07:30 KST 에 재개됐으면 21.5시간', () => {
     expect(ttlUntilNextDripBatchSec(new Date('2026-09-26T22:30:00Z'))).toBe(
       21.5 * 60 * 60,
     );

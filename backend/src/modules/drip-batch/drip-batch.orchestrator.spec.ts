@@ -457,7 +457,7 @@ describe('DripBatchOrchestrator', () => {
     }
   });
 
-  it('사용자 페이지 조회가 계속 실패하면 실행 기록을 닫지 않고 던진다 — 07:30 재실행 슬롯이 이어받는다', async () => {
+  it('사용자 페이지 조회가 계속 실패하면 실행 기록을 닫지 않고 던진다 — 다음 재시작 때 재개된다', async () => {
     jest.useFakeTimers();
     userService.findDripTargetsPage
       .mockReset()
@@ -476,13 +476,28 @@ describe('DripBatchOrchestrator', () => {
     }
   });
 
-  it('재실행 슬롯은 이어받을 미완료 실행이 없으면 아무 일도 하지 않는다', async () => {
+  it('재시작 재개는 미완료 실행을 나이와 무관하게 집고, 없으면 아무 일도 하지 않는다', async () => {
     dripBatchRunService.claim.mockResolvedValue(null);
 
     await orchestrator.run(NOW, 'resume');
 
+    expect(dripBatchRunService.claim).toHaveBeenCalledWith(
+      expect.any(String),
+      NOW,
+      { reclaimUnfinished: true },
+    );
     expect(userService.findDripTargetsPage).not.toHaveBeenCalled();
     expect(dripBatchRunService.finish).not.toHaveBeenCalled();
+  });
+
+  it('05:00 정규 실행은 오래된 미완료 행만 다시 집는다', async () => {
+    await orchestrator.run(NOW);
+
+    expect(dripBatchRunService.claim).toHaveBeenCalledWith(
+      expect.any(String),
+      NOW,
+      { reclaimUnfinished: false },
+    );
   });
 
   it('사용자 처리 실패는 다른 사용자에게 전파되지 않는다 — 두 번째 시도도 실패하면 failed로 센다', async () => {

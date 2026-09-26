@@ -185,15 +185,16 @@ export const DRIP_BATCH_USER_PAGE_SIZE = 100;
  * 건너뜀)이 보장한다.
  *
  * 값은 정상 실행이 끝나는 데 걸리는 시간보다 넉넉해야 한다. 짧으면 아직 돌고 있는 배치를
- * 다른 인스턴스가 가로채 같은 사용자를 동시에 처리한다. 07:30 KST 재실행 슬롯(`DripBatchScheduler`)이
- * 이 기준을 넘긴 미완료 실행만 이어받는다.
+ * 다른 인스턴스가 가로채 같은 사용자를 동시에 처리한다. 프로세스 재시작 직후의 재개
+ * (`DripBatchScheduler.onApplicationBootstrap`)는 이 기준을 따지지 않는다 — 그 프로세스가 유일한
+ * 실행자라 미완료 행은 죽은 실행이 확실하다.
  */
 export const DRIP_BATCH_STALE_MS = 2 * 60 * 60 * 1000;
 
 /**
  * 사용자 페이지 조회가 던지면 잠깐 뒤 다시 읽는다 — 페이지 조회는 사용자 단위 격리 밖이라, 여기서
  * 던지면 남은 사용자 전원이 그날 드립을 못 받는다. 두 번 더 시도하고도 실패하면 실행 기록을 닫지 않고
- * 던져 07:30 재실행 슬롯에 넘긴다(`drip-scheduling.md` 7장).
+ * 던진다 — 다음 재시작 때 재개된다(`drip-scheduling.md` 7장).
  */
 export const DRIP_BATCH_PAGE_FETCH_RETRY_DELAYS_MS = [2_000, 5_000];
 

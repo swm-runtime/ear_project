@@ -125,15 +125,18 @@ export class DripBatchOrchestrator {
    * 사용자 단위를 막는다(`drip-scheduling.md` 4.6-5 — `library_items` 유니크는 같은 콘텐츠만 막아
    * 사용자 단위 멱등의 근거가 아니다, 2026-09-26).
    *
-   * `mode: 'resume'`은 07:30 KST 재실행 슬롯이다 — 중단돼 `finished_at`이 NULL로 남은 오래된 실행만
-   * 이어받고, 정상 종료한 날은 아무것도 하지 않는다.
+   * `mode: 'resume'`은 **프로세스 재시작 직후의 재개**다(`DripBatchScheduler.onApplicationBootstrap`) —
+   * 오늘 날짜의 미완료 실행(`finished_at` NULL)이 있으면 나이와 무관하게 이어받고, 정상 종료한 날은
+   * 아무것도 하지 않는다. 배치가 중간에 죽는 원인이 곧 재시작이라, 재시작이 끝난 시점이 재개 시점이다.
    */
   async run(
     now: Date,
     mode: 'scheduled' | 'resume' = 'scheduled',
   ): Promise<void> {
     const runDate = toServiceDate(now);
-    const run = await this.dripBatchRunService.claim(runDate, now);
+    const run = await this.dripBatchRunService.claim(runDate, now, {
+      reclaimUnfinished: mode === 'resume',
+    });
 
     if (!run) {
       this.logger.log(
@@ -166,8 +169,9 @@ export class DripBatchOrchestrator {
      * 루프가 끝까지 돌았을 때만 실행 기록을 닫는다. 사용자 단위 실패는 아래에서 흡수되지만,
      * 페이지 조회처럼 루프 자체가 던지는 경로가 남아 있다 — 그때 `finish`로 `finished_at`을 찍으면
      * 남은 사용자는 그날 드립을 못 받는데 재실행까지 막힌다(2026-09-26 감사). 닫지 않고 던져 두면
-     * `DRIP_BATCH_STALE_MS`가 지난 뒤 07:30 재실행 슬롯이 이어받고, `already_placed` 스킵이
-     * 이미 받은 사용자를 건너뛴다.
+     * 다음 재시작 때 `mode: 'resume'`이 이어받고(스케줄러 부팅 시 확인), `already_placed` 스킵이
+     * 이미 받은 사용자를 건너뛴다. 던진 뒤 프로세스가 살아 있으면 다음 날 05:00 배치가 새 날짜로
+     * 정상 시작한다.
      */
     let completed = false;
 
