@@ -19,6 +19,18 @@ export const LIVE_SUBSCRIPTION_STATUSES: readonly SubscriptionStatus[] = [
 ];
 
 /**
+ * 아직 끝나지 않은 구독 — `cancelled`(해지 예약)는 만료일까지 유효하므로 포함한다(domain.md 8.2).
+ * `LIVE_SUBSCRIPTION_STATUSES`는 "결제가 살아 있는가"(탈퇴 동의 판정), 이쪽은
+ * "권한이 살아 있는가"(현재 구독 선택)라 대상이 다르다.
+ */
+export const NON_TERMINAL_SUBSCRIPTION_STATUSES: readonly SubscriptionStatus[] =
+  [
+    SubscriptionStatus.ACTIVE,
+    SubscriptionStatus.GRACE,
+    SubscriptionStatus.CANCELLED,
+  ];
+
+/**
  * 화면이 그려야 할 **플랜 4분기로 정규화한 값**(`profile-api.md` 4.1 · `settings-api.md` 4.1).
  *
  * `subscriptions.status` enum을 그대로 내려주지 않는 이유는 화면이 필요한 분기가 raw 상태와
@@ -37,4 +49,11 @@ export enum PlanStatus {
   CANCEL_SCHEDULED = 'cancel_scheduled',
   /** 결제 실패 유예 — 플랜명 + 경고 */
   GRACE = 'grace',
+}
+
+/** domain.md 8.3 — 결제 멱등키의 진행 상태 */
+export enum PurchaseIntentStatus {
+  CREATED = 'created',
+  VERIFIED = 'verified',
+  FAILED = 'failed',
 }
