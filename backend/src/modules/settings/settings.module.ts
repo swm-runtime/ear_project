@@ -4,6 +4,7 @@ import { InterestModule } from '@/modules/interest/interest.module';
 import { SubscriptionModule } from '@/modules/subscription/subscription.module';
 import { UserModule } from '@/modules/user/user.module';
 
+import { AppVersionController } from './app-version.controller';
 import { SettingsController } from './settings.controller';
 import { SettingsOrchestrator } from './settings.orchestrator';
 
@@ -23,7 +24,7 @@ import { SettingsOrchestrator } from './settings.orchestrator';
  */
 @Module({
   imports: [UserModule, SubscriptionModule, InterestModule],
-  controllers: [SettingsController],
+  controllers: [SettingsController, AppVersionController],
   providers: [SettingsOrchestrator],
 })
 export class SettingsModule {}
