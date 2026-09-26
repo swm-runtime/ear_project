@@ -391,6 +391,27 @@ describe('AdminContentService', () => {
       expect(storage.putAudio).not.toHaveBeenCalled();
     });
 
+    it('파트너 콘텐츠에 참고 소스를 넣으면 거부한다 — 재발행(4.10)과 같은 400, 조용히 버리지 않는다', async () => {
+      // given
+      const command = buildCommand({
+        origin: ContentOrigin.PARTNER,
+        authorName: '홍길동',
+        sourceUrl: 'https://partner.example.com/article',
+        partnerId: PARTNER_ID,
+        licenseExpiresAt: new Date('2027-01-01T00:00:00Z'),
+        sources: [{ title: 'x', author: 'y', url: 'https://x.example.com' }],
+      });
+
+      // when
+      const act = service.upload(command, NOW);
+
+      // then
+      await expect(act).rejects.toMatchObject({
+        errorCode: ErrorCode.VALIDATION_FAILED,
+        details: { field: 'sources' },
+      });
+    });
+
     it('파트너 콘텐츠의 원문 링크를 비우면 어느 필드가 문제인지 알려주며 거부한다', async () => {
       // given
       const command = buildCommand({

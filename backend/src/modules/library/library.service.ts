@@ -20,6 +20,12 @@ import { toServiceDayRange } from '@/common/utils/service-date.util';
  * `library_items`는 library 모듈 소유다(domain.md 2장).
  * 다른 모듈은 Repository를 직접 주입받지 않고 이 Service만 호출한다(architecture.md 4.3).
  */
+/** 완청 처리 결과 — `transitioned`가 true 인 호출만 완청 신호를 적재한다 */
+export interface CompleteItemResult {
+  item: LibraryItem;
+  transitioned: boolean;
+}
+
 @Injectable()
 export class LibraryService {
   constructor(private readonly libraryItemRepository: LibraryItemRepository) {}
@@ -510,10 +516,10 @@ export class LibraryService {
     maxReachedSec: number,
     now: Date,
     manager?: EntityManager,
-  ): Promise<LibraryItem> {
+  ): Promise<CompleteItemResult> {
     // 90% 이후 되감아 다시 들어도 상태를 되돌리지 않는다. `completed_at`은 최초 값 유지
     if (item.status === LibraryItemStatus.COMPLETED) {
-      return item;
+      return { item, transitioned: false };
     }
 
     const durationSec = item.content?.durationSec ?? 0;
@@ -529,10 +535,29 @@ export class LibraryService {
       });
     }
 
-    item.status = LibraryItemStatus.COMPLETED;
-    item.completedAt = now;
+    /**
+     * 조건부 UPDATE — 다른 기기가 같은 순간 먼저 완청시켰으면 affected 0 이다. 그때는 상태만 맞춰 돌려주고
+     * `transitioned: false` 로 알린다 — 호출부는 이 값으로만 완청 신호를 적재한다(두 번 쌓이지 않게, 2026-09-26).
+     */
+    const transitioned = await this.libraryItemRepository.completeById(
+      item.id,
+      now,
+      manager,
+    );
 
-    return this.libraryItemRepository.save(item, manager);
+    if (transitioned) {
+      item.status = LibraryItemStatus.COMPLETED;
+      item.completedAt = now;
+      return { item, transitioned: true };
+    }
+
+    const fresh = await this.libraryItemRepository.findByIdAndUserId(
+      item.id,
+      item.userId,
+      manager,
+    );
+
+    return { item: fresh ?? item, transitioned: false };
   }
 
   /**
