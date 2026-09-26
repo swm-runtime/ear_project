@@ -13,6 +13,7 @@
 | 발견 시점 | 2026-09-25 — Sentry 도입·부하 테스트 뒤 "모니터링이 CloudWatch·UptimeRobot·Sentry·어드민 콘솔 네 곳에 흩어져 한곳에서 볼 수 없다"는 문제 제기 |
 | 근거 문서 | `infra/runbook.md` 모니터링 표 · `infra/inventory.md` CloudWatch Agent·알람·UptimeRobot 항목 · `features/backend-monitoring.md`(어드민 콘솔의 데이터 경로) · `infra/scaling.md`(Sentry 추적 비용 실측) |
 | 중요도 | **Medium** — 장애가 아니라 운영 효율. 광고 집행 전에 장애 대응 화면을 한곳으로 모아 두는 것이 목적 |
+| 상태 | **완료 (2026-09-26)** — 알림 실험 1건만 미확인(처리 기록) |
 
 ## 결정 (2026-09-25 박준현)
 
@@ -83,3 +84,14 @@ IAM 액세스 키 · Sentry 읽기 토큰 · Slack 웹훅 URL 은 **Grafana 설�
 
 - 2026-09-25 발행. Jira KAN-97(담당 박준현·인프라). 2단계 KAN-98 이 이 티켓에 `is blocked by` 로 걸려 있다.
 - 2026-09-26 합성 체크 `ear-api-health` 생성 중(3분·서울·도쿄·2/2 실패·TLS 14일). 7번 문서 항목 중 `incident-playbook.md` 3장 경보 역색인은 이 PR(#726)에서 먼저 반영 — 알림의 Runbook URL 이 `#a001` 앵커를 가리키므로 표가 먼저 맞아야 했다. 나머지 문서(inventory·runbook·backend-monitoring)는 처리 시.
+- **반영 날짜: 2026-09-26** (박준현 · Claude). Jira KAN-97 완료(09-26 11:49). 문서 반영 PR 은 이 파일을 archive 로 옮긴 PR.
+- **1 조직** — 무료 티어, 스택 `zealouswasp1316`, 리전 **일본**(ap-northeast-1). 팀 초대는 사용자가 진행.
+- **2 CloudWatch** — IAM 사용자 `grafana-cloudwatch-read` + 인라인 `grafana-cloudwatch-readonly`(09-25). 권한 시뮬레이션으로 읽기 허용·쓰기 전부 거부 확인. `tag:GetResources` 는 상위 SCP 명시 거부 — 태그 필터만 안 됨. 데이터소스 Save & test 지표·로그 API 둘 다 통과. 기본 로그 그룹 `/ear/api`·`/ear/caddy`.
+- **3 Sentry** — 조직 토큰은 `org:ci` 만 가능해 **Internal Integration** `grafana-read`(Project·Issue&Event·Organization Read)로 발급. 티켓 본문의 "조직 토큰" 안내는 이 점이 틀렸다. health check 통과, 프로젝트 2개(EAR-API·EAR-APP).
+- **4 합성 체크** — `ear-api-health`, **3분**(5분 → 3분, 09-25 결정: 월 29,800회 = 무료 한도 30%, 최대 감지 6분), 프로브 **Seoul·Tokyo**(서울 프로브가 있어 도쿄·싱가포르 안 대신), 200 + Body Regexp `"status":"ok"` Invert match, 타임아웃 5초, 전체 지표 발행 끔. 실측 서울 42ms·도쿄 116ms. UptimeRobot 알림 끔·모니터 유지.
+- **5 알림** — 체크 내장 알림 Failed Checks(5분 창 2/2)·TLS 14일(30일은 Caddy 정상 갱신과 겹쳐 오탐). 연락처 `slack-ear-alerts`(기존 에러 채널 웹훅) → 기본 알림 정책. 테스트 메시지 수신 확인. CPU·메모리 규칙은 사용자가 Alerting 에서 추가(임계 70/80, 5분).
+- **6 대시보드** — "ear 운영"(uid `ear-ops`) Import. JSON 원본 `docs/infra/grafana/ear-ops-dashboard.json`(PR #726). 응답시간 패널은 기본 지표만 발행 시 게이지가 없어 `_sum/_count` 평균으로 교체. Sentry 패널 2개(최근 이슈 7일 고정·시간당 에러 이벤트)는 화면에서 추가. `/ear/api` ERROR 패널이 비어 있는 것은 **실제 0건**(7일 26만 줄 조회 — WARN 3,190줄은 전부 만료 토큰 401).
+- **7 문서** — `incident-playbook.md` 3장 역색인(PR #726) · `inventory.md` Grafana Cloud·IAM·Sentry 토큰·헬스체크 주/예비 행 · `runbook.md` 4-1 표·6장 점검 목록(이 PR) · `features/backend-monitoring.md` 는 `changes/pending/backend-monitoring-grafana-parallel.md`.
+- **완료 조건 미확인 1건** — "개발계 api 를 10분 멈춰 Slack 알림·해소 알림 수신". 개발계 배포가 있는 날 배포 직후 컨테이너를 잠깐 내려 확인하고 이 줄을 갱신한다. 나머지 4건(대시보드 한 화면·IAM 쓰기 없음·inventory 기록·팀 3명 로그인)은 팀 초대만 사용자 확인 대기.
+- **부수 발견** — 운영 디스크 완만 증가(하루 약 50MB)의 원인은 systemd 저널(`refresh-policy-routes@ens5` 10초 주기 소음 + audit 중복). journald 기본 상한(FS 10%, 약 2GB)에서 멈추므로 장애는 아니나 300MB·14일 상한 설정을 제안(별건, 승인 대기).
+
