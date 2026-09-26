@@ -74,6 +74,8 @@ export type MainStackParamList = {
 export type RootStackParamList = {
   /** 실행 관문 판정 중(splash.md 4) — 세션 복원이 끝나기 전까지 이 화면만 그린다 */
   Splash: undefined;
+  /** 강제 업데이트(splash.md 4.1 — 서버 426). 닫기 불가라 관문이 이 화면 하나만 그린다(KAN-99) */
+  ForceUpdate: undefined;
   Auth: NavigatorScreenParams<AuthStackParamList>;
   /**
    * A20 재동의 — 로그인은 됐지만 `pending_consents`가 남은 상태(splash.md 4 — 3단계).

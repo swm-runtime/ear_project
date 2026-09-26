@@ -3,6 +3,7 @@ import { registerTokenProvider } from '@/shared/api/api-client';
 import { setSentryUser } from '@/shared/monitoring';
 import { prefetchRemoteImages } from '@/shared/ui/RemoteImage';
 
+import { startAppVersionRecheck } from '@/features/app-update';
 import { registerEmailVerifiedListener, sessionService, useSessionStore } from '@/features/auth';
 import { registerCareerSavedListener } from '@/features/career';
 import { registerInterestSavedListener } from '@/features/interest';
@@ -45,6 +46,8 @@ const QUEUE_PAGE_LIMIT = 50;
  */
 export const bootstrapApp = (): void => {
   registerTokenProvider(sessionService);
+  // 백그라운드 30분 뒤 복귀 시 버전 관문만 재수행(splash.md 2장 · KAN-99). 콜드 스타트 판정은 RootNavigator 가 건다
+  startAppVersionRecheck();
 
   // 관심사 저장 성공 → 프로필·설정 요약 재조회(각 index.ts의 갱신 계약 — 저장 성공에만 호출).
   // interest가 두 feature의 키를 직접 import하면 의존 표(4.4)와 순환이라 여기서 배선한다.

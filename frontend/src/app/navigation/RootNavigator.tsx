@@ -1,6 +1,7 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useEffect, useRef, useState } from 'react';
 
+import { ForceUpdateScreen, checkAppVersionGate, useAppUpdateStore } from '@/features/app-update';
 import {
   ReconsentScreen,
   SplashScreen,
@@ -22,9 +23,10 @@ const RootStack = createNativeStackNavigator<RootStackParamList>();
  * 루트 분기 — 세션 상태로 스택을 조건 렌더링하므로 로그인·탈퇴·세션 만료 시
  * 스택이 통째로 교체된다(스택 초기화 규칙 — architecture.md 6.3).
  *
- * **실행 관문**(`splash.md` 4)의 2·3단계를 여기서 판정한다.
- * 저장된 토큰으로 세션을 복원한 뒤(2단계) 재동의 → 온보딩 순으로 가른다.
- * 버전 체크·점검 안내(1단계)는 아직 붙이지 않았다 — `GET /users/me/settings`가 따로 준다.
+ * **실행 관문**(`splash.md` 4)의 1·2·3단계를 여기서 판정한다.
+ * 버전 관문(1단계 — `GET /app/version`, KAN-99)이 먼저다: 426 이면 강제 업데이트 화면만 그리고 **이후 로직을
+ * 시작하지 않는다**(세션 복원도 그 뒤에 건다). 통과·판정 불가(fail-open)면 저장된 토큰으로 세션을 복원한 뒤(2단계)
+ * 재동의 → 온보딩 순으로 가른다. 점검 안내(notice)는 계약이 없어 아직 없다.
  */
 export default function RootNavigator() {
   const status = useSessionStore((s) => s.status);
@@ -51,23 +53,38 @@ export default function RootNavigator() {
    */
   const [isTabPrimed, setIsTabPrimed] = useState(false);
   const hasStartedRestore = useRef(false);
+  /** 버전 관문(1단계) — `pending` 이면 스플래시, `required` 면 강제 업데이트 화면 하나만 */
+  const versionGate = useAppUpdateStore((s) => s.gate);
 
   useEffect(() => {
     // 앱 수명당 한 번만 — 세션 만료로 status 가 바뀌어도 다시 복원하지 않는다
     if (hasStartedRestore.current) return;
     hasStartedRestore.current = true;
-    void sessionService.restoreSession();
-    // 마지막 탭은 세션 복원과 나란히 읽는다(splash.md 4장 4-1). 관문이 **이 완료를
-    // 기다려야** 탭 내비게이터가 initialRouteName 을 동기로 읽을 수 있다
+    // 1단계 버전 관문이 끝난 뒤에 2단계(세션 복원)를 건다 — 426 이면 뒤 단계를 실행하지 않는다(splash.md 4 "앞 단계에서
+    // 걸리면 뒤 단계는 실행하지 않는다"). 관문은 3초 타임아웃·fail-open 이라 세션 복원이 이만큼 늦어도 로고 모션 안이다.
+    // 마지막 탭 읽기는 판정이 아니라 나란히 읽는다(4-1) — 관문이 **이 완료를 기다려야** 탭 내비게이터가 initialRouteName 을
+    // 동기로 읽을 수 있다
+    void checkAppVersionGate().then(() => {
+      if (useAppUpdateStore.getState().gate === 'required') return;
+      void sessionService.restoreSession();
+    });
     void primeTabToRestore().finally(() => setIsTabPrimed(true));
   }, []);
 
   // 판정 전이거나·로고 모션 전이거나·마지막 탭을 아직 못 읽었으면 스플래시를 유지한다
-  const isGatePending = status === 'restoring' || !isMotionDone || !isTabPrimed;
+  const isGatePending =
+    versionGate === 'pending' || status === 'restoring' || !isMotionDone || !isTabPrimed;
 
   return (
     <RootStack.Navigator screenOptions={{ headerShown: false }}>
-      {isGatePending ? (
+      {versionGate === 'required' ? (
+        // 닫기 불가 — 스택에 이 화면뿐이라 나갈 곳이 없다. 30분 복귀 재검사에서 걸려도 여기로 온다(splash.md 2장)
+        <RootStack.Screen
+          name="ForceUpdate"
+          component={ForceUpdateScreen}
+          options={{ gestureEnabled: false }}
+        />
+      ) : isGatePending ? (
         <RootStack.Screen name="Splash" component={SplashScreen} />
       ) : status !== 'authenticated' ? (
         <RootStack.Screen name="Auth" component={AuthNavigator} />
