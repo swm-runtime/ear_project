@@ -142,6 +142,15 @@ export default function PlayerScreen() {
     // 스크립트 패널(히어로 위) — 열 때 마운트, 닫힘 애니메이션이 끝나면 내린다. 둘은 동시에 열리지 않는다
     const isScriptOpen = kind === 'script';
     if (isScriptOpen) setMountedPanel('script');
+    // 대본이 펼쳐진 채 재생 목록으로 갈 땐 대본을 **즉시** 내린다 — 대본 틀(flex 1)이 컨트롤을 바닥에 밀어 두고 있어,
+    // 닫힘 애니메이션이 끝날 때까지 남겨 두면 재생 목록 시트는 올라오는데 컨트롤은 바닥에 남았다가 툭 뛴다
+    // (PM 2026-09-26 16:13 "스크립트 켜진 채로 재생목록 올리면 플레이 컴포넌트가 같이 안 올라간다").
+    // 재생 목록이 대본 자리를 덮으므로 대본의 페이드아웃은 보이지 않는다
+    // 히어로는 스프링으로 편다(아래 startMotion) — 값을 즉시 0 으로 놓으면 큰 아트워크가 한 프레임 번쩍인다
+    if (kind === 'queue' && mountedPanel === 'script') {
+      setMountedPanel(null);
+      setIsScriptSettled(false);
+    }
 
     const startMotion = () => {
       panelMotionFrameRef.current = null;
@@ -670,6 +679,7 @@ export default function PlayerScreen() {
     isScriptOpen: false,
     open: () => {},
     close: () => {},
+    closeScriptForDrag: () => {},
   });
   useEffect(() => {
     queueGestureRef.current = {
@@ -678,6 +688,20 @@ export default function PlayerScreen() {
       isScriptOpen: activePanel === 'script',
       open: () => setPanel('queue'),
       close: () => setPanel(null),
+      // 대본이 펼쳐진 채 손잡이를 끌 때 — 대본만 즉시 내리고 히어로를 편다. setPanel(null) 은 queueProgress 도 0 으로
+      // 되돌리는 스프링을 걸어 손가락과 싸웠다(위 setPanel 의 재생 목록 갈래와 같은 이유로 즉시 내린다)
+      closeScriptForDrag: () => {
+        screen.closePanel();
+        setMountedPanel(null);
+        setIsScriptSettled(false);
+        playbackService.holdPositionUpdates(SCRIPT_TOGGLE_DURATION_MS);
+        Animated.spring(panelProgress, {
+          toValue: 0,
+          ...motion.spring.smooth,
+          overshootClamping: true,
+          useNativeDriver: false,
+        }).start();
+      },
     };
   });
   /*
@@ -700,8 +724,8 @@ export default function PlayerScreen() {
          */
         onPanResponderGrant: () => {
           handleDraggedRef.current = true;
-          const { isScriptOpen, close } = queueGestureRef.current;
-          if (isScriptOpen) close();
+          const { isScriptOpen, closeScriptForDrag } = queueGestureRef.current;
+          if (isScriptOpen) closeScriptForDrag();
         },
         onPanResponderMove: (_, gesture) => {
           const { travel, isOpen } = queueGestureRef.current;
