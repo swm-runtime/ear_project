@@ -30,8 +30,18 @@ export const MINI_PLAYER_ZOOM_SOURCE_ID = 'mini-player-zoom-source';
  */
 export const armPlayerZoom = async (): Promise<void> => {
   if (!USE_NATIVE_PLAYER_ZOOM) return;
+  if (!ZOOM_ARM_ENABLED) {
+    lastArmResult = 'experiment:arm-off';
+    return;
+  }
   lastArmResult = await armZoomTransition(MINI_PLAYER_ZOOM_SOURCE_ID);
 };
+
+/**
+ * **실험 스위치**(2026-09-27 02:50, ChatGPT 검토 제안 1) — 줌 소스 등록만 끈다(플레이어는 그대로 풀스크린 모달, 기본 슬라이드).
+ * 이 상태에서 여닫기 반복이 안 굳으면 "줌 dismiss × RNS 스냅샷 교체" 충돌이 원인. 확인 뒤 되돌린다
+ */
+const ZOOM_ARM_ENABLED = false;
 
 /**
  * 플레이어 위에서 시스템의 드래그·핀치 닫기를 막는다/푼다 — 재생 목록·대본 패널이 열려 있거나 손가락이 스크롤 목록 위에서
