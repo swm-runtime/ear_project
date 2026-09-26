@@ -215,6 +215,8 @@ DB 선점이나 멱등한 문장으로 이미 보호돼 있어 **데이터가 �
 3. 확인: `ScheduleModule dependencies initialized` **1회** · `Nest application successfully started` **2회** · `docker stats` 메모리 · `GET /admin/system-stats` 의 DB 커넥션.
 4. CPU 경보 임계치를 **호스트 CPU 70%**(4장 1단계)에 맞춘다.
 
+**적용 기록 (2026-09-26 16:12 KST)** — `dev → main` #563 릴리즈(v1.1.0, 이미지 `d725e5c`, 레이트 리밋 수정 포함)가 16:00 에 나간 뒤 운영 `.env.prod` 에 `CLUSTER_WORKERS=2` 를 넣고 `API_IMAGE=$(cat .api-image)` 로 재생성했다(같은 재생성에 `LATEST_APP_VERSION_*=1.1.0` · `SENTRY_DSN`·`SENTRY_ENVIRONMENT=production` 도 함께). 확인: `[Cluster] starting workers {workers: 2}` · `successfully started` 2회 · 프로세스 3개(프라이머리+워커 2) · 재기동 창의 502 는 2건 · 이후 에러 0. **운영은 이날부터 2워커다.** CPU 70% 경보는 Grafana Alerting(5분 지속)과 백엔드 자체 경보 둘 다 걸려 있다(KAN-97).
+
 ## 6. 메모리 — 50%의 정체
 
 "아무것도 안 해도 메모리가 50%"라는 관찰의 원인이다. **애플리케이션이 아니라 도커 계층이다.**
