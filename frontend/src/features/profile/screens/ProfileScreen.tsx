@@ -155,18 +155,35 @@ export default function ProfileScreen() {
                   <StatsSummaryRow summary={screen.stats.data.summary} />
                   <WeeklyChart
                     weekly={screen.weekly}
-                    footer={
-                      // 고른 주의 분포가 있으면 그것(BE 반영 후), 없으면 전체 기간으로 대신한다 — 라벨이 기간을 밝힌다
-                      screen.weekly.displayed?.topicDistribution ? (
+                    footer={(() => {
+                      /*
+                       * 주제 구획의 기간 — 막대를 탭했으면 그날(PM 2026-09-28 04:26), 아니면 고른 주, 서버가 주·일 분포를 아직
+                       * 안 보내면 전체 기간으로 대신한다(KAN-113). 라벨이 기간을 밝힌다. 탭 해제(재탭·그래프 밖 탭)면 주로 돌아간다
+                       */
+                      const week = screen.weekly.displayed;
+                      const day = screen.weekly.selectedBarIndex;
+                      const dayDistribution =
+                        day !== null ? week?.dailyTopicDistributions?.[day] : undefined;
+                      if (day !== null && dayDistribution) {
+                        return (
+                          <TopicDonut
+                            distribution={dayDistribution}
+                            embedded
+                            label={PROFILE_COPY.stats.topTopicDayLabel(day)}
+                          />
+                        );
+                      }
+                      if (week?.topicDistribution) {
+                        return <TopicDonut distribution={week.topicDistribution} embedded />;
+                      }
+                      return (
                         <TopicDonut
-                          distribution={screen.weekly.displayed.topicDistribution}
+                          distribution={screen.stats.data.distribution}
                           embedded
-                          period="week"
+                          label={PROFILE_COPY.stats.topTopicAllTimeLabel}
                         />
-                      ) : (
-                        <TopicDonut distribution={screen.stats.data.distribution} embedded />
-                      )
-                    }
+                      );
+                    })()}
                   />
                 </View>
               )

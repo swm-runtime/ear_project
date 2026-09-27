@@ -87,6 +87,20 @@ const toWeeklyDtoAt = (index: number): WeeklyListeningResponseDto => {
           ].filter((topic) => topic.ratio > 0),
           others_ratio: 0,
         },
+    daily_topic_distribution: week.daily.map((sec, day) =>
+      sec === 0
+        ? { topics: [], others_ratio: 0 }
+        : {
+            topics:
+              day % 2 === 0
+                ? [
+                    { topic_id: 'mock-career', name: '커리어', ratio: 70 },
+                    { topic_id: 'mock-economy', name: '경제', ratio: 30 },
+                  ]
+                : [{ topic_id: 'mock-growth', name: '자기계발', ratio: 100 }],
+            others_ratio: 0,
+          },
+    ),
   };
 };
 

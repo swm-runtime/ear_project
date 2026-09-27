@@ -17,6 +17,8 @@ interface WeeklyChartProps {
 }
 const CHART_HEIGHT = 144;
 const ZERO_BAR_HEIGHT = 3;
+/** 요일 막대 위 모서리 반지름 — radius 토큰(sm 8)보다 작은 값이 필요해 따로 둔다 */
+const BAR_RADIUS = 4;
 const DAYS_IN_WEEK = 7;
 /** 서비스 날짜 경계 04시 — 표시용 오늘 요일을 서버와 같은 날로 맞춘다(toWeekView) */
 const SERVICE_DAY_OFFSET_MS = 4 * 60 * 60 * 1000;
@@ -764,8 +766,9 @@ const styles = StyleSheet.create({
   bar: {
     width: '48%',
     maxWidth: theme.spacing.xl,
-    borderTopLeftRadius: theme.radius.sm,
-    borderTopRightRadius: theme.radius.sm,
+    // 위 모서리만 둥글게 — 폭 20pt 안팎 막대에 8은 반원처럼 보였다(PM 2026-09-28 04:26 "곡률이 너무 심하다"). 연속 곡률
+    borderTopLeftRadius: BAR_RADIUS,
+    borderTopRightRadius: BAR_RADIUS,
     borderCurve: 'continuous',
     backgroundColor: theme.color.primary,
   },

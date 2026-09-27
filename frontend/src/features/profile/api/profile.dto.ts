@@ -73,6 +73,11 @@ export interface WeeklyListeningDto {
    * 서버가 아직 안 보내면 없다 → 화면은 4.1 의 전체 기간 분포로 떨어진다
    */
   topic_distribution?: TopicDistributionDto;
+  /**
+   * 요일별 주제 분포 — 월~일 7개(막대를 탭하면 그날 분포, PM 2026-09-28 04:26). 같은 BE 요청(KAN-113)에 포함.
+   * 없으면 막대를 탭해도 주 분포가 그대로다
+   */
+  daily_topic_distribution?: TopicDistributionDto[];
 }
 
 /** GET /users/me/profile 응답(profile-api.md 4.1) — 섹션 null + failed_sections로 부분 실패 표현 */

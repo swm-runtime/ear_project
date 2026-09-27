@@ -15,10 +15,10 @@ interface TopicDonutProps {
    */
   embedded?: boolean;
   /**
-   * 집계 기간 — `week` 면 위 주간 차트가 고른 주의 분포다(라벨에 기간을 붙이지 않는다). `allTime` 은 서버가 주별 분포를
-   * 아직 안 보낼 때의 대체(라벨 "· 전체 기간"). embedded 에서만 의미가 있다
+   * 헤드라인 라벨 — 무슨 기간의 분포인지 밝힌다. 고른 주면 "가장 많이 들은 주제", 탭한 요일이면 "… · 화요일",
+   * 서버가 주별 분포를 아직 안 보내면 "… · 전체 기간". 없으면 기본 라벨
    */
-  period?: 'week' | 'allTime';
+  label?: string;
 }
 
 interface LegendEntry {
@@ -68,7 +68,7 @@ const ROW_BAR_HEIGHT = 6;
 export default function TopicDonut({
   distribution,
   embedded = false,
-  period = 'allTime',
+  label = PROFILE_COPY.stats.topTopicLabel,
 }: TopicDonutProps) {
   const entries = toLegendEntries(distribution);
   const grow = useAnimatedValue(0);
@@ -100,11 +100,7 @@ export default function TopicDonut({
         >
           {top ? (
             <View style={styles.headline}>
-              <Text style={styles.headlineLabel}>
-                {embedded && period === 'allTime'
-                  ? PROFILE_COPY.stats.topTopicAllTimeLabel
-                  : PROFILE_COPY.stats.topTopicLabel}
-              </Text>
+              <Text style={styles.headlineLabel}>{label}</Text>
               <Text style={styles.headlineValue} numberOfLines={1}>
                 {top.name}{' '}
                 <Text style={styles.headlineRatio}>{PROFILE_COPY.stats.ratioValue(top.ratio)}</Text>
