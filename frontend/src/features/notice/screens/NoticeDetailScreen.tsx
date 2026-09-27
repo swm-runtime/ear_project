@@ -1,9 +1,10 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
+import GlassIconButton from '@/shared/ui/GlassIconButton';
 
 import { useNoticeDetailScreen } from '../hooks/useNoticeDetailScreen';
 import { NOTICE_BODY_LINE_HEIGHT_RATIO } from '../notice.constants';
@@ -41,14 +42,10 @@ export default function NoticeDetailScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* 앱바 — 뒤로가기만. 타이틀 없음(S9) */}
       <View style={styles.appBar}>
-        <Pressable
-          style={styles.backButton}
-          onPress={screen.goBack}
-          accessibilityRole="button"
-          accessibilityLabel={NOTICE_COPY.backA11y}
-        >
+        {/* 뒤로 — 유리 원 안의 셰브론(상세 화면과 같은 문법, PM 2026-09-28 03:07) */}
+        <GlassIconButton onPress={screen.goBack} accessibilityLabel={NOTICE_COPY.backA11y}>
           <ChevronIcon direction="left" size={BACK_ICON_SIZE} color={theme.color.textPrimary} />
-        </Pressable>
+        </GlassIconButton>
       </View>
 
       {screen.isFullError ? (
@@ -96,8 +93,8 @@ export default function NoticeDetailScreen() {
   );
 }
 
-/** 앱바 뒤로 셰브론 — 글자 `‹` 는 폰트마다 굵기·세로 위치가 달라 도형으로 그린다(design.md §5) */
-const BACK_ICON_SIZE = 24;
+/** 앱바 뒤로 셰브론 — 글자 `‹` 는 폰트마다 굵기·세로 위치가 달라 도형으로 그린다(design.md §5). 유리 원(40) 안쪽 값 */
+const BACK_ICON_SIZE = 20;
 
 const styles = StyleSheet.create({
   container: {
@@ -108,12 +105,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: theme.spacing.sm,
-  },
-  backButton: {
-    minHeight: theme.touchTarget.minHeight,
-    minWidth: theme.touchTarget.minWidth,
-    alignItems: 'center',
-    justifyContent: 'center',
+    minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
   },
   content: {
     paddingHorizontal: theme.spacing.md,
