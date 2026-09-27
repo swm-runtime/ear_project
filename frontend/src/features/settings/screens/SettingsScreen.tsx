@@ -45,7 +45,7 @@ export default function SettingsScreen() {
   // iOS 26: **시스템 큰 제목** — 라이브러리·탐색과 같다(PM 2026-09-28 03:14 "이거야"). 뒤로 버튼이 있어 UIKit 이 큰 제목을
   // 버튼 줄 밑에 두고, 스크롤 접힘·바 밑 블러는 시스템이 한다
   // 접힌 작은 제목은 시스템 17 보다 살짝 크게(PM 2026-09-28 03:34 "스와이프 했을 때 설정 제목 크기 살짝만 높이자")
-  useSystemLargeTitle(SETTINGS_COPY.title, null, false, COLLAPSED_TITLE_SIZE);
+  useSystemLargeTitle(SETTINGS_COPY.title, null, { collapsedTitleSize: COLLAPSED_TITLE_SIZE });
 
   return (
     <SafeAreaView style={styles.container} edges={USES_SYSTEM_PUSHED_HEADER ? [] : ['top']}>
