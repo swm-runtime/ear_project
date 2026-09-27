@@ -32,6 +32,12 @@ export interface WeeklyNavigation {
   selectedBarIndex: number | null;
   toggleBar: (dayIndex: number) => void;
   clearBarTooltip: () => void;
+  /**
+   * 이웃 주 — 끌 때 카드 옆에서 딸려 들어오는 주(PM 2026-09-28 03:11 "전 주가 완전히 이어진 것처럼"). 표시 주가 정해지면
+   * 미리 받아 둔다. 없는 쪽(가입 주 이전·이번 주 이후)이나 아직 받는 중이면 null
+   */
+  prevWeek: WeeklyListening | null;
+  nextWeek: WeeklyListening | null;
 }
 
 /**
@@ -64,6 +70,25 @@ export const useWeeklyNavigation = (summaryWeekly: WeeklyListening | null): Week
 
   const displayed = displayedWeekStart === null ? summaryWeekly : (pastWeekQuery.data ?? null);
 
+  // 이웃 주 미리 받기 — 같은 캐시(staleTime Infinity)라 넘길 때 moveToWeek 가 조회 없이 바로 옮긴다. 다음 주가 이번 주면
+  // 요약 응답이 소유자라 따로 받지 않는다. 미리 받기 실패는 조용히 둔다 — 넘길 때 moveToWeek 가 다시 받고 실패를 알린다
+  const prevToken = displayed?.previousWeekStart ?? null;
+  const nextToken = displayed?.nextWeekStart ?? null;
+  const isNextSummary = summaryWeekly !== null && nextToken === summaryWeekly.weekStart;
+  const prevWeekQuery = useQuery({
+    ...weeklyListeningQueryOptions(prevToken ?? ''),
+    enabled: prevToken !== null,
+    retry: false,
+  });
+  const nextWeekQuery = useQuery({
+    ...weeklyListeningQueryOptions(nextToken ?? ''),
+    enabled: nextToken !== null && !isNextSummary,
+    retry: false,
+  });
+  const prevWeek = prevToken === null ? null : (prevWeekQuery.data ?? null);
+  const nextWeek =
+    nextToken === null ? null : isNextSummary ? summaryWeekly : (nextWeekQuery.data ?? null);
+
   // 화면 이탈 시 이번 주로 리셋하고 받아둔 주를 폐기한다 — 주 위치는 저장할 상태가 아니고,
   // "화면을 벗어나기 전까지"가 캐시의 수명이다(profile.md 4.6).
   // 이벤트 콜백의 setState라 effect 동기 setState 규칙(react-hooks/set-state-in-effect)에 걸리지 않는다
@@ -83,6 +108,14 @@ export const useWeeklyNavigation = (summaryWeekly: WeeklyListening | null): Week
     // 주를 이동하면 말풍선을 해제한다 — 같은 주로 되돌아와도 다시 나타나지 않는다
     setSelectedBar(null);
     setFailedWeekStart(null);
+    // 미리 받아 둔 주는 조회 없이 **같은 렌더에서** 옮긴다 — 스와이프가 옆 주를 끌어다 놓는 순간 스켈레톤이 한 프레임
+    // 끼면 이어진 느낌이 깨진다
+    const cached = queryClient.getQueryData(weeklyListeningQueryOptions(weekStart).queryKey);
+    if (cached !== undefined) {
+      setDisplayedWeekStart(weekStart);
+      AccessibilityInfo.announceForAccessibility(PROFILE_COPY.stats.weeklyA11y(cached.weekStart));
+      return;
+    }
     setPendingWeekStart(weekStart);
     queryClient
       .fetchQuery(weeklyListeningQueryOptions(weekStart))
@@ -157,5 +190,7 @@ export const useWeeklyNavigation = (summaryWeekly: WeeklyListening | null): Week
     selectedBarIndex,
     toggleBar,
     clearBarTooltip,
+    prevWeek,
+    nextWeek,
   };
 };

@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Animated,
-  Easing,
   PanResponder,
   Pressable,
   ScrollView,
@@ -17,6 +16,7 @@ import ChevronIcon from '@/shared/ui/ChevronIcon';
 import type { WeeklyNavigation } from '../hooks/useWeeklyNavigation';
 import { PROFILE_COPY } from '../profile.copy';
 import { isWeekAllZero, toBarRatios, toDailyAverageSec } from '../profile.format';
+import type { WeeklyListening } from '../profile.types';
 
 interface WeeklyChartProps {
   weekly: WeeklyNavigation;
@@ -40,8 +40,12 @@ const GRID_RATIOS = [0, 0.5, 1] as const;
 const AXIS_WIDTH = 64;
 /** 축 글자 줄 높이 — 선에 세로 가운데를 맞추고, 평균 라벨과 이만큼 가까운 최대·0 라벨은 숨긴다(겹침) */
 const AXIS_LABEL_HEIGHT = 14;
-/** iOS systemSeparator(라이트) — 회색 카드 위에서도 보이는 격자선. theme.color.border 는 카드 면과 거의 같아 안 보였다 */
-const GRID_COLOR = 'rgba(60, 60, 67, 0.29)';
+/**
+ * 격자선 — 1pt 회색. hairline(0.33pt)은 systemSeparator 색이어도 회색 카드 위에서 안 보였다(PM 2026-09-28 03:11 "격자 안 보인다").
+ * 세로선(요일 경계)은 한 단 옅게 — 가로선(값 눈금)이 주인공이다
+ */
+const GRID_COLOR = 'rgba(60, 60, 67, 0.2)';
+const GRID_COLUMN_COLOR = 'rgba(60, 60, 67, 0.1)';
 /** 주 이동 화살표 원 — 보이는 크기만 줄이고 터치는 hitSlop 으로 44 를 지킨다(PM 2026-09-28 00:32 "버튼 크기 줄이자") */
 const ARROW_SIZE = 28;
 const ARROW_HIT_SLOP = (theme.touchTarget.minHeight - ARROW_SIZE) / 2;
@@ -49,8 +53,6 @@ const ARROW_HIT_SLOP = (theme.touchTarget.minHeight - ARROW_SIZE) / 2;
 const SWIPE_CLAIM_DISTANCE = 12;
 const SWIPE_COMMIT_DISTANCE = 48;
 const SWIPE_COMMIT_VELOCITY = 0.3;
-/** 넘길 때 차트가 빠지고 들어오는 거리 — 카드 폭을 다 쓰지 않고 이만큼만 미끄러지며 흐려진다(애플 건강) */
-const SWIPE_TRAVEL = 120;
 /** 더 갈 주가 없는 쪽으로 끌 때 손가락 대비 따라오는 비율 — 고무줄 */
 const SWIPE_RUBBER = 0.25;
 
@@ -84,23 +86,191 @@ function ArrowButton({
   );
 }
 
+/** 한 주의 차트 몸통에 필요한 파생값 — 가운데 주와 이웃 주(끌 때 옆에 보이는 주)가 같은 계산을 쓴다 */
+const toWeekView = (week: WeeklyListening) => {
+  // 오늘 요일 강조에만 기기 달력을 쓴다. 주 이동은 서버 토큰으로 판정한다.
+  const todayIndex = week.nextWeekStart === null ? (new Date().getDay() + 6) % 7 : null;
+  const averageSec = toDailyAverageSec(
+    week.dailyListenedSec,
+    todayIndex === null ? DAYS_IN_WEEK : todayIndex + 1,
+  );
+  const maxSec = Math.max(...week.dailyListenedSec, 0);
+  const averageRatio = maxSec === 0 ? 0 : Math.min(1, averageSec / maxSec);
+  return {
+    todayIndex,
+    averageSec,
+    maxSec,
+    averageTop: (1 - averageRatio) * CHART_HEIGHT,
+    ratios: toBarRatios(week.dailyListenedSec),
+    isEmpty: isWeekAllZero(week.dailyListenedSec),
+  };
+};
+
+interface WeekBodyProps {
+  week: WeeklyListening;
+  annotationHeight: number;
+  scrollEnabled: boolean;
+  /** 가운데 주만 — 이웃 주는 탭·말풍선이 없다(끌리는 동안 보이는 그림일 뿐이다) */
+  selectedIndex?: number | null;
+  onToggleBar?: (dayIndex: number) => void;
+  onChartLayout?: (width: number) => void;
+  onViewportLayout?: (width: number) => void;
+  tooltip?: ReactNode;
+}
+
+/** 하루 평균 + 막대 그래프(격자·오른쪽 축·요일) — 빈 주면 빈 상태 */
+function WeekBody({
+  week,
+  annotationHeight,
+  scrollEnabled,
+  selectedIndex = null,
+  onToggleBar,
+  onChartLayout,
+  onViewportLayout,
+  tooltip,
+}: WeekBodyProps) {
+  const view = toWeekView(week);
+  if (view.isEmpty) {
+    return (
+      <View style={styles.stateBox}>
+        <Text style={styles.emptyValue}>{PROFILE_COPY.stats.dayValue(0)}</Text>
+        <Text style={styles.stateText}>{PROFILE_COPY.stats.emptyState}</Text>
+      </View>
+    );
+  }
+  const axisLabels = [
+    { key: 'max', top: 0, text: PROFILE_COPY.stats.dayValue(view.maxSec) },
+    { key: 'average', top: view.averageTop, text: PROFILE_COPY.stats.axisAverage },
+    { key: 'zero', top: CHART_HEIGHT, text: PROFILE_COPY.stats.axisZero },
+  ].filter(
+    (label) =>
+      label.key === 'average' || Math.abs(label.top - view.averageTop) >= AXIS_LABEL_HEIGHT,
+  );
+  return (
+    <>
+      <View
+        style={styles.summary}
+        accessible
+        accessibilityLabel={PROFILE_COPY.stats.averageA11y(view.averageSec)}
+      >
+        {/* 점선 범례(─ ─)는 뺐다(PM 2026-09-28 00:23) — 라벨만 */}
+        <Text style={styles.summaryLabel}>{PROFILE_COPY.stats.dailyAverageTitle}</Text>
+        <Text style={styles.summaryValue}>{PROFILE_COPY.stats.dayValue(view.averageSec)}</Text>
+      </View>
+      {/* 보통 화면은 7일을 한 번에, 좁은 화면은 스크롤로 44pt 터치 영역을 유지한다. */}
+      <ScrollView
+        horizontal
+        scrollEnabled={scrollEnabled}
+        alwaysBounceHorizontal={false}
+        onLayout={
+          onViewportLayout
+            ? ({ nativeEvent }) => onViewportLayout(nativeEvent.layout.width)
+            : undefined
+        }
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.chartScrollContent}
+      >
+        <View
+          style={styles.chartArea}
+          onLayout={
+            onChartLayout ? ({ nativeEvent }) => onChartLayout(nativeEvent.layout.width) : undefined
+          }
+          accessibilityLabel={PROFILE_COPY.stats.weeklyA11y(week.weekStart)}
+        >
+          <View
+            pointerEvents="none"
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            style={[styles.grid, { top: annotationHeight }]}
+          >
+            {GRID_RATIOS.map((ratio) => (
+              <View key={ratio} style={[styles.gridLine, { top: ratio * CHART_HEIGHT }]} />
+            ))}
+            <View style={[styles.averageRule, { top: view.averageTop }]} />
+          </View>
+          <View
+            pointerEvents="none"
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            style={[styles.axis, { top: annotationHeight }]}
+          >
+            {axisLabels.map((label) => (
+              <Text
+                key={label.key}
+                numberOfLines={1}
+                style={[
+                  styles.axisLabel,
+                  label.key === 'average' && styles.axisLabelAverage,
+                  { top: label.top - AXIS_LABEL_HEIGHT / 2 },
+                ]}
+              >
+                {label.text}
+              </Text>
+            ))}
+          </View>
+          <View style={styles.chartRow}>
+            {view.ratios.map((ratio, dayIndex) => {
+              const isSelected = dayIndex === selectedIndex;
+              const column = (
+                <>
+                  <View style={{ height: annotationHeight }} />
+                  <View style={styles.barTrack}>
+                    {/* 세로 격자 — 요일 칸 경계. 첫 칸은 왼쪽 선 대신 가로 격자가 끝난다 */}
+                    {dayIndex > 0 ? <View style={styles.columnRule} /> : null}
+                    {isSelected ? <View style={styles.selectionRule} /> : null}
+                    <View
+                      style={[
+                        styles.bar,
+                        { height: Math.max(ratio * CHART_HEIGHT, ZERO_BAR_HEIGHT) },
+                        ratio === 0 && styles.zeroBar,
+                        selectedIndex !== null && !isSelected && styles.barMuted,
+                      ]}
+                    />
+                  </View>
+                  <View style={[styles.dayBadge, isSelected && styles.dayBadgeSelected]}>
+                    <Text
+                      style={[
+                        styles.dayName,
+                        dayIndex === view.todayIndex && styles.dayNameToday,
+                        isSelected && styles.dayNameSelected,
+                      ]}
+                    >
+                      {PROFILE_COPY.stats.dayNames[dayIndex]}
+                    </Text>
+                  </View>
+                </>
+              );
+              return onToggleBar ? (
+                <Pressable
+                  key={dayIndex}
+                  style={styles.barColumn}
+                  onPress={() => onToggleBar(dayIndex)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isSelected }}
+                  accessibilityLabel={PROFILE_COPY.stats.dayBarA11y(
+                    dayIndex,
+                    week.dailyListenedSec[dayIndex],
+                  )}
+                >
+                  {column}
+                </Pressable>
+              ) : (
+                <View key={dayIndex} style={styles.barColumn}>
+                  {column}
+                </View>
+              );
+            })}
+          </View>
+          {tooltip}
+        </View>
+      </ScrollView>
+    </>
+  );
+}
+
 /** P8/P9: 서버 주 경계·상대 높이를 유지하고 탭한 요일의 값을 보여준다. */
 export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
   const { displayed, weekLabelStart, selectedBarIndex: selectedIndex } = weekly;
-  const isEmptyWeek = displayed !== null && isWeekAllZero(displayed.dailyListenedSec);
-  const ratios = displayed === null ? [] : toBarRatios(displayed.dailyListenedSec);
-  // 오늘 요일 강조에만 기기 달력을 쓴다. 주 이동은 서버 토큰으로 판정한다.
-  const todayIndex =
-    displayed !== null && displayed.nextWeekStart === null ? (new Date().getDay() + 6) % 7 : null;
-  const averageSec =
-    displayed === null
-      ? 0
-      : toDailyAverageSec(
-          displayed.dailyListenedSec,
-          todayIndex === null ? DAYS_IN_WEEK : todayIndex + 1,
-        );
-  const maxSec = displayed === null ? 0 : Math.max(...displayed.dailyListenedSec, 0);
-  const averageRatio = maxSec === 0 ? 0 : Math.min(1, averageSec / maxSec);
   /*
    * 카드를 가로로 밀어 주를 넘긴다(PM 2026-09-28 01:40) — 애플 건강·스크린 타임과 같은 방향: 손가락을 **오른쪽으로 밀면
    * 이전 주**(왼쪽 < 와 같은 쪽), 왼쪽으로 밀면 다음 주. 화살표와 같은 판정(canGoPrev/Next · 전환 중 막힘)을 거친다.
@@ -111,41 +281,56 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
     weeklyRef.current = weekly;
   });
   /*
-   * 스와이프 모션(PM 2026-09-28 02:33 "애니메이션이 왜 없어") — 하루 평균·차트 구획만 움직인다(헤더·주제 구획은 고정).
-   * 미는 동안 손가락을 따라오고(갈 수 없는 쪽은 고무줄), 넘기면 민 방향으로 빠지며 흐려졌다가 새 주가 반대쪽에서
-   * 들어온다. 못 넘기면 제자리로 튕겨 온다. 전부 transform·opacity 라 네이티브 드라이버다
+   * **페이지처럼 이어진다**(PM 2026-09-28 03:11 "전 주가 완전히 이어진 것처럼") — 차트 구획에 [이전 주 | 이 주 | 다음 주]
+   * 세 칸을 카드 폭으로 나란히 두고, 끄는 만큼 줄 전체가 따라온다. 옆 칸은 미리 받아 둔 이웃 주(아직 없으면 스켈레톤)라
+   * 끌면 그 주가 실제로 딸려 들어온다. 놓으면 넘기는 쪽 칸이 가운데에 설 때까지 스프링(손가락 속도 이어받음)이 밀고,
+   * 도착하면 표시 주를 바꾸면서 줄을 가운데로 되돌린다(같은 그림이라 이음새가 안 보인다). 헤더·주제 구획은 고정.
+   * 전부 transform 이라 네이티브 드라이버다
    */
-  const swipeX = useAnimatedValue(0);
-  const swipeOpacity = swipeX.interpolate({
-    inputRange: [-SWIPE_TRAVEL, 0, SWIPE_TRAVEL],
-    outputRange: [0, 1, 0],
-    extrapolate: 'clamp',
+  const [pageWidth, setPageWidth] = useState(0);
+  const pageWidthRef = useRef(0);
+  useEffect(() => {
+    pageWidthRef.current = pageWidth;
   });
-  const settleSwipe = () =>
+  const swipeX = useAnimatedValue(0);
+  const pagerX = useMemo(() => Animated.add(swipeX, -pageWidth), [swipeX, pageWidth]);
+  // 표시 주(라벨)가 바뀌면 — 스와이프 도착 · 화살표 · 이동 실패 모두 — 줄을 가운데로. 그리기 전에 해야 한 프레임도 안 튄다
+  useLayoutEffect(() => {
+    swipeX.stopAnimation();
+    swipeX.setValue(0);
+  }, [weekLabelStart, swipeX]);
+  const settleSwipe = (velocity = 0) =>
     Animated.spring(swipeX, {
       toValue: 0,
+      velocity,
       ...motion.spring.snappy,
       useNativeDriver: true,
     }).start();
-  const turnWeek = (direction: 'prev' | 'next') => {
-    // 이전 주 = 손가락이 오른쪽 → 차트도 오른쪽으로 빠지고 새 주는 왼쪽에서 들어온다
-    const out = direction === 'prev' ? SWIPE_TRAVEL : -SWIPE_TRAVEL;
-    Animated.timing(swipeX, {
-      toValue: out,
-      duration: motion.duration.fast,
-      easing: Easing.in(Easing.quad),
-      useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (!finished) return;
+  const turnWeek = (direction: 'prev' | 'next', velocity = 0) => {
+    const width = pageWidthRef.current;
+    const go = () => {
       const current = weeklyRef.current;
       if (direction === 'prev') current.goPrev();
       else current.goNext();
-      swipeX.setValue(-out);
-      Animated.spring(swipeX, {
-        toValue: 0,
-        ...motion.spring.smooth,
-        useNativeDriver: true,
-      }).start();
+    };
+    if (width === 0) {
+      go();
+      return;
+    }
+    Animated.spring(swipeX, {
+      toValue: direction === 'prev' ? width : -width,
+      velocity,
+      ...motion.spring.smooth,
+      overshootClamping: true,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (!finished) return;
+      // 그사이 다른 이동이 걸려 있으면 넘기지 않고 제자리로
+      if (weeklyRef.current.isSwitching) {
+        settleSwipe();
+        return;
+      }
+      go();
     });
   };
   const swipeActionsRef = useRef({ settleSwipe, turnWeek });
@@ -167,6 +352,7 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
           Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.5,
         // 잡은 뒤에는 세로 스크롤 뷰가 가져가지 못하게 한다 — 가로로 판정된 끌기다
         onPanResponderTerminationRequest: () => false,
+        onPanResponderGrant: () => swipeX.stopAnimation(),
         onPanResponderMove: (_, gesture) => {
           const current = weeklyRef.current;
           const canFollow =
@@ -176,11 +362,13 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
         onPanResponderRelease: (_, gesture) => {
           const current = weeklyRef.current;
           const { settleSwipe: settle, turnWeek: turn } = swipeActionsRef.current;
-          const toPrev = gesture.dx > SWIPE_COMMIT_DISTANCE || gesture.vx > SWIPE_COMMIT_VELOCITY;
-          const toNext = gesture.dx < -SWIPE_COMMIT_DISTANCE || gesture.vx < -SWIPE_COMMIT_VELOCITY;
-          if (!current.isSwitching && toPrev && current.canGoPrev) turn('prev');
-          else if (!current.isSwitching && toNext && current.canGoNext) turn('next');
-          else settle();
+          const width = pageWidthRef.current;
+          const commit = Math.min(SWIPE_COMMIT_DISTANCE, width * 0.3 || SWIPE_COMMIT_DISTANCE);
+          const toPrev = gesture.dx > commit || gesture.vx > SWIPE_COMMIT_VELOCITY;
+          const toNext = gesture.dx < -commit || gesture.vx < -SWIPE_COMMIT_VELOCITY;
+          if (!current.isSwitching && toPrev && current.canGoPrev) turn('prev', gesture.vx);
+          else if (!current.isSwitching && toNext && current.canGoNext) turn('next', gesture.vx);
+          else settle(gesture.vx);
         },
         onPanResponderTerminate: () => swipeActionsRef.current.settleSwipe(),
       }),
@@ -193,20 +381,13 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
    */
   const [chartViewportWidth, setChartViewportWidth] = useState(0);
   const needsChartScroll =
-    chartViewportWidth > 0 && chartViewportWidth < DAYS_IN_WEEK * theme.touchTarget.minWidth;
+    chartViewportWidth > 0 &&
+    chartViewportWidth < DAYS_IN_WEEK * theme.touchTarget.minWidth + AXIS_WIDTH;
   const [tooltipSize, setTooltipSize] = useState({ width: 0, height: ANNOTATION_MIN_HEIGHT });
   const annotationHeight = Math.max(ANNOTATION_MIN_HEIGHT, tooltipSize.height) + theme.spacing.sm;
   // 막대 칸 폭 = 차트 폭 − 오른쪽 축
   const selectedCenter =
     ((selectedIndex ?? 0) + 0.5) * (Math.max(0, chartWidth - AXIS_WIDTH) / DAYS_IN_WEEK);
-  const averageTop = (1 - averageRatio) * CHART_HEIGHT;
-  const axisLabels = [
-    { key: 'max', top: 0, text: PROFILE_COPY.stats.dayValue(maxSec) },
-    { key: 'average', top: averageTop, text: PROFILE_COPY.stats.axisAverage },
-    { key: 'zero', top: CHART_HEIGHT, text: PROFILE_COPY.stats.axisZero },
-  ].filter(
-    (label) => label.key === 'average' || Math.abs(label.top - averageTop) >= AXIS_LABEL_HEIGHT,
-  );
   // 좁은 요일 칸 대신 말풍선 전체를 실측하고, 양 끝 요일도 카드 안에 담는다.
   const tooltipLeft = Math.max(
     theme.spacing.sm,
@@ -214,6 +395,83 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
       selectedCenter - tooltipSize.width / 2,
       chartWidth - tooltipSize.width - theme.spacing.sm,
     ),
+  );
+
+  const skeleton = (
+    <View
+      style={styles.stateBox}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      <View style={styles.skeletonValue} />
+      <View style={styles.skeletonChart} />
+    </View>
+  );
+  // 이웃 칸 — 있는 쪽만. 아직 받는 중이면 스켈레톤, 갈 수 없는 쪽은 비운다(끌어도 고무줄이라 거의 안 보인다)
+  const renderNeighbor = (week: WeeklyListening | null, exists: boolean) =>
+    week !== null ? (
+      <WeekBody week={week} annotationHeight={annotationHeight} scrollEnabled={needsChartScroll} />
+    ) : exists ? (
+      skeleton
+    ) : null;
+
+  const current = weekly.hasSwitchError ? (
+    <View style={styles.stateBox}>
+      <Text style={styles.stateText}>{PROFILE_COPY.cardError}</Text>
+      <Pressable
+        style={({ pressed }) => [styles.retryButton, pressed && styles.pressed]}
+        onPress={weekly.retrySwitch}
+        accessibilityRole="button"
+        accessibilityLabel={PROFILE_COPY.retry}
+      >
+        <Text style={styles.retryText}>{PROFILE_COPY.retry}</Text>
+      </Pressable>
+    </View>
+  ) : weekly.isSwitching || displayed === null ? (
+    skeleton
+  ) : (
+    <WeekBody
+      week={displayed}
+      annotationHeight={annotationHeight}
+      scrollEnabled={needsChartScroll}
+      selectedIndex={selectedIndex}
+      onToggleBar={weekly.toggleBar}
+      onChartLayout={setChartWidth}
+      onViewportLayout={setChartViewportWidth}
+      tooltip={
+        selectedIndex !== null ? (
+          <View
+            pointerEvents="none"
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            style={[
+              styles.tooltip,
+              {
+                transform: [{ translateX: tooltipLeft - theme.spacing.sm }],
+                maxWidth: chartWidth > 0 ? chartWidth - theme.spacing.md : undefined,
+                opacity: chartWidth > 0 ? 1 : 0,
+              },
+            ]}
+            onLayout={({ nativeEvent: { layout } }) => {
+              const width = Math.ceil(layout.width);
+              const height = Math.ceil(layout.height);
+              setTooltipSize((previous) =>
+                previous.width === width && previous.height === height
+                  ? previous
+                  : { width, height },
+              );
+            }}
+          >
+            <Text style={styles.tooltipText}>
+              {PROFILE_COPY.stats.dayBarA11y(
+                selectedIndex,
+                displayed.dailyListenedSec[selectedIndex],
+              )}
+            </Text>
+          </View>
+        ) : null
+      }
+    />
   );
 
   return (
@@ -239,167 +497,37 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
             />
           </View>
         </View>
-        <Animated.View style={{ opacity: swipeOpacity, transform: [{ translateX: swipeX }] }}>
-          {weekly.hasSwitchError ? (
-            <View style={styles.stateBox}>
-              <Text style={styles.stateText}>{PROFILE_COPY.cardError}</Text>
-              <Pressable
-                style={({ pressed }) => [styles.retryButton, pressed && styles.pressed]}
-                onPress={weekly.retrySwitch}
-                accessibilityRole="button"
-                accessibilityLabel={PROFILE_COPY.retry}
-              >
-                <Text style={styles.retryText}>{PROFILE_COPY.retry}</Text>
-              </Pressable>
-            </View>
-          ) : weekly.isSwitching || displayed === null ? (
-            <View
-              style={styles.stateBox}
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-            >
-              <View style={styles.skeletonValue} />
-              <View style={styles.skeletonChart} />
-            </View>
-          ) : isEmptyWeek ? (
-            <View style={styles.stateBox}>
-              <Text style={styles.emptyValue}>{PROFILE_COPY.stats.dayValue(0)}</Text>
-              <Text style={styles.stateText}>{PROFILE_COPY.stats.emptyState}</Text>
-            </View>
+        <View
+          style={styles.pager}
+          onLayout={({ nativeEvent }) => setPageWidth(nativeEvent.layout.width)}
+        >
+          {pageWidth === 0 ? (
+            current
           ) : (
-            <>
+            <Animated.View
+              style={[
+                styles.pagerRow,
+                { width: pageWidth * 3, transform: [{ translateX: pagerX }] },
+              ]}
+            >
               <View
-                style={styles.summary}
-                accessible
-                accessibilityLabel={PROFILE_COPY.stats.averageA11y(averageSec)}
+                style={{ width: pageWidth }}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
               >
-                {/* 점선 범례(─ ─)는 뺐다(PM 2026-09-28 00:23) — 라벨만 */}
-                <Text style={styles.summaryLabel}>{PROFILE_COPY.stats.dailyAverageTitle}</Text>
-                <Text style={styles.summaryValue}>{PROFILE_COPY.stats.dayValue(averageSec)}</Text>
+                {renderNeighbor(weekly.prevWeek, weekly.canGoPrev)}
               </View>
-              {/* 보통 화면은 7일을 한 번에, 좁은 화면은 스크롤로 44pt 터치 영역을 유지한다. */}
-              <ScrollView
-                horizontal
-                scrollEnabled={needsChartScroll}
-                alwaysBounceHorizontal={false}
-                onLayout={({ nativeEvent }) => setChartViewportWidth(nativeEvent.layout.width)}
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.chartScrollContent}
+              <View style={{ width: pageWidth }}>{current}</View>
+              <View
+                style={{ width: pageWidth }}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
               >
-                <View
-                  style={styles.chartArea}
-                  onLayout={({ nativeEvent }) => setChartWidth(nativeEvent.layout.width)}
-                  accessibilityLabel={PROFILE_COPY.stats.weeklyA11y(displayed.weekStart)}
-                >
-                  <View
-                    pointerEvents="none"
-                    accessibilityElementsHidden
-                    importantForAccessibility="no-hide-descendants"
-                    style={[styles.grid, { top: annotationHeight }]}
-                  >
-                    {GRID_RATIOS.map((ratio) => (
-                      <View key={ratio} style={[styles.gridLine, { top: ratio * CHART_HEIGHT }]} />
-                    ))}
-                    <View style={[styles.averageRule, { top: averageTop }]} />
-                  </View>
-                  <View
-                    pointerEvents="none"
-                    accessibilityElementsHidden
-                    importantForAccessibility="no-hide-descendants"
-                    style={[styles.axis, { top: annotationHeight }]}
-                  >
-                    {axisLabels.map((label) => (
-                      <Text
-                        key={label.key}
-                        numberOfLines={1}
-                        style={[
-                          styles.axisLabel,
-                          label.key === 'average' && styles.axisLabelAverage,
-                          { top: label.top - AXIS_LABEL_HEIGHT / 2 },
-                        ]}
-                      >
-                        {label.text}
-                      </Text>
-                    ))}
-                  </View>
-                  <View style={styles.chartRow}>
-                    {ratios.map((ratio, dayIndex) => {
-                      const isSelected = dayIndex === selectedIndex;
-                      return (
-                        <Pressable
-                          key={dayIndex}
-                          style={styles.barColumn}
-                          onPress={() => weekly.toggleBar(dayIndex)}
-                          accessibilityRole="button"
-                          accessibilityState={{ selected: isSelected }}
-                          accessibilityLabel={PROFILE_COPY.stats.dayBarA11y(
-                            dayIndex,
-                            displayed.dailyListenedSec[dayIndex],
-                          )}
-                        >
-                          <View style={{ height: annotationHeight }} />
-                          <View style={styles.barTrack}>
-                            {isSelected ? <View style={styles.selectionRule} /> : null}
-                            <View
-                              style={[
-                                styles.bar,
-                                { height: Math.max(ratio * CHART_HEIGHT, ZERO_BAR_HEIGHT) },
-                                ratio === 0 && styles.zeroBar,
-                                selectedIndex !== null && !isSelected && styles.barMuted,
-                              ]}
-                            />
-                          </View>
-                          <View style={[styles.dayBadge, isSelected && styles.dayBadgeSelected]}>
-                            <Text
-                              style={[
-                                styles.dayName,
-                                dayIndex === todayIndex && styles.dayNameToday,
-                                isSelected && styles.dayNameSelected,
-                              ]}
-                            >
-                              {PROFILE_COPY.stats.dayNames[dayIndex]}
-                            </Text>
-                          </View>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                  {selectedIndex !== null ? (
-                    <View
-                      pointerEvents="none"
-                      accessibilityElementsHidden
-                      importantForAccessibility="no-hide-descendants"
-                      style={[
-                        styles.tooltip,
-                        {
-                          transform: [{ translateX: tooltipLeft - theme.spacing.sm }],
-                          maxWidth: chartWidth > 0 ? chartWidth - theme.spacing.md : undefined,
-                          opacity: chartWidth > 0 ? 1 : 0,
-                        },
-                      ]}
-                      onLayout={({ nativeEvent: { layout } }) => {
-                        const width = Math.ceil(layout.width);
-                        const height = Math.ceil(layout.height);
-                        setTooltipSize((previous) =>
-                          previous.width === width && previous.height === height
-                            ? previous
-                            : { width, height },
-                        );
-                      }}
-                    >
-                      <Text style={styles.tooltipText}>
-                        {PROFILE_COPY.stats.dayBarA11y(
-                          selectedIndex,
-                          displayed.dailyListenedSec[selectedIndex],
-                        )}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-              </ScrollView>
-            </>
+                {renderNeighbor(weekly.nextWeek, weekly.canGoNext)}
+              </View>
+            </Animated.View>
           )}
-        </Animated.View>
+        </View>
         {footer}
       </View>
     </View>
@@ -526,9 +654,21 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: 1,
     borderColor: GRID_COLOR,
   },
+  // 요일 칸 경계 세로선 — 막대 칸(barTrack) 왼쪽 변에 칸 높이만큼
+  columnRule: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 1,
+    backgroundColor: GRID_COLUMN_COLOR,
+  },
+  // 스와이프 페이지 — 카드 폭만 보이고 양옆 주는 잘린다
+  pager: { overflow: 'hidden' },
+  pagerRow: { flexDirection: 'row', alignItems: 'flex-start' },
   axis: {
     position: 'absolute',
     right: theme.spacing.md,
