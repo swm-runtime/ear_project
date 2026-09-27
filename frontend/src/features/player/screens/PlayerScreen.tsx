@@ -90,6 +90,13 @@ export default function PlayerScreen() {
   const hasScript = session?.hasScript ?? false;
   // 대본 펼침이 끝났는가 — 문단은 그 뒤에 그린다(펼침과 문단 마운트가 같은 프레임에 겹치면 끊긴다)
   const [isScriptSettled, setIsScriptSettled] = useState(false);
+  /**
+   * 재생 목록이 **제자리에 앉았는가.** 패널 모션은 높이를 움직여 JS 드라이버로 돌 수밖에 없는데(아래 panelProgress
+   * 주석), 그 위에 목록 행 수십 개가 한꺼번에 마운트되면 프레임이 밀린다(PM 2026-09-27 23:02 "올리고 내릴 때
+   * 약간 렉거린다"). 그래서 **모션 중에는 앞 몇 줄만** 그리고, 스프링이 끝난 뒤 나머지를 올린다 —
+   * 대본 패널의 `isScriptSettled` 와 같은 장치다
+   */
+  const [isQueueSettled, setIsQueueSettled] = useState(false);
   /*
    * 대본 요청도 **펼침이 끝난 뒤에** 보낸다(2026-09-22 PM). 패널을 여는 순간 보내면 응답이 보통 모션 중간에
    * 도착해 파싱·상태 갱신·패널 교체 마운트가 JS 스레드를 잡고 커버 축소 프레임이 떨어진다. 처음 여는 편에서만
@@ -146,6 +153,8 @@ export default function PlayerScreen() {
     // 스크립트 패널(히어로 위) — 열 때 마운트, 닫힘 애니메이션이 끝나면 내린다. 둘은 동시에 열리지 않는다
     const isScriptOpen = kind === 'script';
     if (isScriptOpen) setMountedPanel('script');
+    // 모션이 시작되면 목록은 다시 "앉지 않은" 상태다 — 닫는 동안에도 앞 몇 줄만 그려 프레임을 아낀다
+    setIsQueueSettled(false);
     // 대본이 펼쳐진 채 재생 목록으로 갈 땐 대본을 **즉시** 내린다 — 대본 틀(flex 1)이 컨트롤을 바닥에 밀어 두고 있어,
     // 닫힘 애니메이션이 끝날 때까지 남겨 두면 재생 목록 시트는 올라오는데 컨트롤은 바닥에 남았다가 툭 뛴다
     // (PM 2026-09-26 16:13 "스크립트 켜진 채로 재생목록 올리면 플레이 컴포넌트가 같이 안 올라간다").
@@ -166,7 +175,10 @@ export default function PlayerScreen() {
         ...motion.spring.smooth,
         overshootClamping: true,
         useNativeDriver: false,
-      }).start();
+      }).start(({ finished }) => {
+        // 앉은 뒤에 나머지 행을 올린다(위 isQueueSettled 주석). 중간에 끊긴 모션은 다음 모션이 정리한다
+        if (finished) setIsQueueSettled(kind === 'queue');
+      });
       Animated.spring(panelProgress, {
         toValue: isScriptOpen ? 1 : 0,
         ...motion.spring.smooth,
@@ -1563,19 +1575,22 @@ export default function PlayerScreen() {
               한 번 받아 둔 뒤에는 닫혀 있어도 그대로 둔다 — 다시 열 때 목록이 이미 있다
             */}
             {isQueueOpen || queueQuery.data !== undefined ? (
-            <PlayerQueuePanel
-              items={queueItems}
-              // 실제로 요청이 떠 있을 때만 스피너다(`isPending` 은 조회를 안 한 상태도 true)
-              isLoading={queueQuery.isFetching}
-              isError={queueQuery.isError}
-              currentContentId={session.contentId}
-              showHeader={false}
-              onSelect={screen.playQueueItem}
-              onReorder={queueOrder.move}
-              categoryOf={queueCategoryOf}
-              onRetry={() => void queueQuery.refetch()}
-              onSwipeRight={() => setPanel(null)}
-            />
+              <PlayerQueuePanel
+                // 모션 중에는 앞 몇 줄만 — 앉은 뒤 나머지가 올라온다(위 isQueueSettled 주석)
+                items={
+                  isQueueSettled ? queueItems : queueItems.slice(0, QUEUE_MOTION_PREVIEW_COUNT)
+                }
+                // 실제로 요청이 떠 있을 때만 스피너다(`isPending` 은 조회를 안 한 상태도 true)
+                isLoading={queueQuery.isFetching}
+                isError={queueQuery.isError}
+                currentContentId={session.contentId}
+                showHeader={false}
+                onSelect={screen.playQueueItem}
+                onReorder={queueOrder.move}
+                categoryOf={queueCategoryOf}
+                onRetry={() => void queueQuery.refetch()}
+                onSwipeRight={() => setPanel(null)}
+              />
             ) : null}
           </View>
         </Animated.View>
@@ -1766,6 +1781,11 @@ const SCRIPT_SWIPE_AXIS_RATIO = 1.5;
 const COMPACT_ARTWORK_SIZE = 56;
 /** 펼침·접힘 전환이 사실상 멈추는 시간 — smooth 스프링(응답 0.45초)이 감쇠하는 길이. 위치 틱 보류에 쓴다 */
 const SCRIPT_TOGGLE_DURATION_MS = 450;
+/**
+ * 패널 모션 중에 그리는 재생 목록 행 수 — 열리는 시트를 채우기에 충분하고(가장 큰 화면에서도 8줄이면 넘친다)
+ * 마운트 비용은 작다. 모션이 끝나면 전체로 바뀐다
+ */
+const QUEUE_MOTION_PREVIEW_COUNT = 8;
 /**
  * 재생 목록을 끌어올렸을 때의 히어로 높이 — 앨범 사진이 화면 가로를 꽉 채우고 앱바·제목·시크바까지 그 위에
  * 얹힌다(2026-09-17 PM, 유튜브 뮤직). 사진 전체 높이 = 앱바 + 이 값 + 시크바
