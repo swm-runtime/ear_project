@@ -207,13 +207,19 @@ export default function ExploreScreen() {
    * 추가 로딩은 **가로 목록의 onEndReached**가 맡는다 — 세로 화면의 뷰어빌리티로는
    * 가로로 끝까지 민 시점을 알 수 없다(캐러셀 전환 2026-09-02).
    */
-  const renderSection = (section: ExploreSection) => {
+  const renderSection = (section: ExploreSection, index: number) => {
     const isPopular = section.period !== null;
+    /*
+     * 첫 섹션의 제목은 위 여백을 줄인다 — 그 위가 **주제 칩 줄**이라 칩의 아래 여백(8)과 제목의 위 여백(24)이
+     * 겹쳐 32 가 됐다(PM 2026-09-28 00:28 "주제 알약하고 인기콘텐츠 제목 간격이 너무 크다"). 섹션 **사이**의
+     * 24 는 그대로 둔다 — 제목이 "뒤 캐러셀의 머리"로 읽히게 위 여백을 아래의 세 배로 두는 규칙이다(아래 주석)
+     */
+    const headerStyle = index === 0 ? styles.sectionHeaderFirst : null;
 
     return (
       <View key={buildSectionListKey(section)} style={styles.section}>
         {section.period !== null ? (
-          <View style={styles.sectionHeaderRow}>
+          <View style={[styles.sectionHeaderRow, headerStyle]}>
             <Text
               style={[styles.sectionTitle, styles.sectionHeaderTitle]}
               accessibilityRole="header"
@@ -227,7 +233,10 @@ export default function ExploreScreen() {
             />
           </View>
         ) : (
-          <Text style={[styles.sectionTitle, styles.sectionTitleBlock]} accessibilityRole="header">
+          <Text
+            style={[styles.sectionTitle, styles.sectionTitleBlock, headerStyle]}
+            accessibilityRole="header"
+          >
             {section.title}
           </Text>
         )}
@@ -363,15 +372,15 @@ export default function ExploreScreen() {
       {/* 머리 줄은 목록 **뒤에 선언**한다(zIndex 로 위에 뜬다) */}
       {/* 머리 줄은 목록 위에 떠 있다 — 배경 없이 유리 컨트롤만(2026-09-24 PM). 시스템 바 갈래에서는 없다 */}
       {HAS_NATIVE_TAB_BAR ? null : (
-      <FloatingHeader
-        onHeightChange={setHeaderHeight}
-        solidness={solidness}
-        containerRef={headerRef}
-      >
-        <ExploreSearchBarRow onPress={openSearch} trailing={remainingRing} />
+        <FloatingHeader
+          onHeightChange={setHeaderHeight}
+          solidness={solidness}
+          containerRef={headerRef}
+        >
+          <ExploreSearchBarRow onPress={openSearch} trailing={remainingRing} />
 
-        {chips}
-      </FloatingHeader>
+          {chips}
+        </FloatingHeader>
       )}
 
       {/* 미니플레이어(PL11) — 활성 재생 세션만 그린다. 복원 스냅샷 판정은 라이브러리 소유다 */}
@@ -452,6 +461,10 @@ const styles = StyleSheet.create({
     // alignItems:center가 글자가 아니라 그 상자를 기준으로 맞춰 토글이 위로 뜬다
     paddingTop: theme.spacing.lg,
     paddingBottom: theme.spacing.sm,
+  },
+  /** 첫 섹션 — 위가 주제 칩 줄이라 여백이 겹친다(위 headerStyle 주석). 32 → 24 */
+  sectionHeaderFirst: {
+    paddingTop: theme.spacing.md,
   },
   // 단독 제목만 줄 간격을 키운다 — 크기만 키우면 두 줄로 접힐 때 줄이 붙는다
   sectionTitleBlock: {
