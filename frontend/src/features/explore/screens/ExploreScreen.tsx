@@ -85,8 +85,12 @@ export default function ExploreScreen() {
     />
   ) : null;
 
-  if (isSearching) {
-    return (
+  /*
+   * 제자리 검색은 피드 **위에 덮는다** — 피드는 밑에 그대로 둬서 닫을 때 다시 그릴 게 없다(23:12 PM "x 누를 때 렉" — 종전엔
+   * 피드를 통째로 갈아 끼워 닫힘 애니메이션 끝에 피드 전체를 새로 마운트하느라 끊겼다)
+   */
+  const searchOverlay = isSearching ? (
+    <View style={StyleSheet.absoluteFill}>
       <ExploreSearchScreen
         embedding={{
           remaining: screen.remainingDisplay
@@ -101,8 +105,8 @@ export default function ExploreScreen() {
           },
         }}
       />
-    );
-  }
+    </View>
+  ) : null;
 
   // E10은 검색창 줄·주제 칩·잔여 표시까지 그리지 않는다 — 화면 전체가 에러다(uiux 4.8)
   if (screen.isFullError) {
@@ -390,6 +394,8 @@ export default function ExploreScreen() {
         onCancel={screen.cancelPlayConfirm}
         onSuppressToday={screen.suppressAndPlay}
       />
+
+      {searchOverlay}
     </View>
   );
 }
