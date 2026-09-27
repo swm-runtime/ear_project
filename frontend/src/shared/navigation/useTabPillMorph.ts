@@ -116,3 +116,13 @@ export const useTabPillMorph = (hasExtraCell: boolean): Animated.AnimatedInterpo
 
 /** 알약 한 칸 폭 — 터치 최소 폭(44) */
 export const TAB_PILL_CELL = theme.touchTarget.minWidth;
+
+/**
+ * 알약이 앉는 **바깥 자리의 고정 폭**(두 칸) — 알약 자체는 이 안에서 오른쪽에 붙어 폭만 변한다.
+ *
+ * 알약은 시스템 내비게이션 바의 바 버튼이다(`useSystemLargeTitle` → `unstable_headerRightItems`). 네이티브 바 버튼은
+ * **설치 시점의 크기로 고정**되므로(`UIBarButtonItem(customView:)`), 안에서 캡슐 폭을 애니메이션해도 바가 다시 재지 않아
+ * **모핑이 화면에 나오지 않았다**(PM 2026-09-28 04:10 "왜 탭 전환할 때 리퀴드 캡슐 애니메이션이 안 되지"). 바깥 자리를
+ * 두 칸으로 고정해 두면 바가 다시 잴 일이 없고, 그 안에서 캡슐이 44 ↔ 88 로 자란다/줄어든다.
+ */
+export const TAB_PILL_FRAME_WIDTH = TAB_PILL_CELL * 2;
