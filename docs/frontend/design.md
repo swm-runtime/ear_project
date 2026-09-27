@@ -127,6 +127,7 @@ HIG 원문: https://developer.apple.com/design/human-interface-guidelines/
 
 ### 검색 상자
 **유리 캡슐**(`shared/ui/GlassCapsule` — GlassSurface regular + hairline, `full`), **높이 40 = `HEADER_CONTROL_HEIGHT`** — 옆의 툴바 캡슐(링 + 필터)·탐색의 링 원과 같은 높이(2026-09-25 PM "높이 맞춰"). iOS 26 시스템 검색과 같은 모양(2026-09-24 PM). 종전 `surface` 면 + `md` 12(09-22)는 폐기. 잔여 재생 링도 같은 유리 원(36, 필터 원과 같은 크기)에 담는다.
+- **앞에 돋보기**(`shared/ui/MagnifierIcon`, 15pt, `textSecondary`, 플레이스홀더와 간격 6) — iOS 시스템 검색창(UISearchBar `magnifyingglass`)과 같다. 라이브러리·탐색·검색 화면 세 곳 공통(PM 2026-09-27 20:40). 입력 중엔 오른쪽에 지우기(회색 원 안 흰 ✕).
 
 ### 더보기 아이콘
 `shared/ui/MoreIcon` — 글자 `⋯` 가 아니라 도형(점 r 1.8 ×3). 사진 위는 `shadow` 로 드롭섀도.

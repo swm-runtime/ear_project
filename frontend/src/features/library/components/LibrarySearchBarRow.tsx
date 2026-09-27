@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
 import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
+import MagnifierIcon, { SEARCH_ICON_SIZE } from '@/shared/ui/MagnifierIcon';
 
 import { LIBRARY_COPY } from '../library.copy';
 
@@ -32,6 +33,8 @@ export default function LibrarySearchBarRow({
     <View style={styles.row}>
       {/* 유리 캡슐(iOS 26 시스템 검색처럼) — 목록 위에 떠 있는 컨트롤이라 면이 아니라 유리다(2026-09-24 PM) */}
       <GlassCapsule style={styles.searchBox} variant={variant}>
+        {/* iOS 시스템 검색창처럼 앞에 돋보기(2026-09-27) */}
+        <MagnifierIcon size={SEARCH_ICON_SIZE} color={theme.color.textSecondary} />
         <TextInput
           style={styles.input}
           value={query}
@@ -79,6 +82,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     height: HEADER_CONTROL_HEIGHT,
     paddingLeft: theme.spacing.md,
+    gap: theme.spacing.xs + 2,
   },
   input: {
     flex: 1,
