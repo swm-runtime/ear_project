@@ -408,6 +408,12 @@ const styles = StyleSheet.create({
   // 목록 첫 줄의 제목·검색·요약·배너(시스템 바 갈래) — 좌우 여백은 각자 갖는다. 격자의 좌우 여백을 되돌린다
   contentHeader: {
     marginHorizontal: -theme.spacing.md,
+    /*
+     * 머리 줄과 첫 타일 사이 — 종전엔 검색 줄 자체의 아래 패딩(8)뿐이라 큰 사진이 검색창에 붙어 보였다
+     * (PM 2026-09-27 19:10 "텍스트박스 아래 공백이 너무 좁다"). 8 + 16 = 24 로 벌린다. 격자의
+     * `paddingTop` 은 머리 줄 **위**(목록 맨 위 여백)라 여기서 따로 줘야 한다
+     */
+    paddingBottom: theme.spacing.md,
   },
   // 격자 — 좌우 여백은 검색 줄과 같은 선(md), 타일 사이는 sm×1.5
   gridContent: {
