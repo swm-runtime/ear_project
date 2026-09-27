@@ -2,7 +2,6 @@ import { Image, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'r
 
 import { theme } from '@/shared/theme';
 import MoreIcon from '@/shared/ui/MoreIcon';
-import PlayIcon from '@/shared/ui/PlayIcon';
 import RemoteImage from '@/shared/ui/RemoteImage';
 
 import { EXPLORE_COPY } from '../explore.copy';
@@ -32,13 +31,6 @@ const MAX_WIDTH = 312;
 const BACKDROP_BLUR_RADIUS = 36;
 const BACKDROP_SCRIM = 'rgba(23, 23, 26, 0.45)';
 const ON_ART_TEXT = '#FFFFFF';
-/**
- * 재생 표식 — **원을 두지 않는다.** 사진 위 표식에 불투명 원·알약을 쓰지 않는다는 규칙(design.md §3)이고,
- * 흰 원은 흐린 커버 위에서 카드에서 가장 밝은 덩어리가 돼 아트워크·제목과 싸웠다(PM 2026-09-28 00:46).
- * 같은 줄의 더보기 점(⋯)과 같이 **도형 + 드롭섀도**로만 읽히게 한다. 터치는 hitSlop 으로 44 를 채운다
- */
-const PLAY_ICON_SIZE = 20;
-const PLAY_HIT_SLOP = (44 - PLAY_ICON_SIZE) / 2;
 const ON_ART_TEXT_SECONDARY = 'rgba(255, 255, 255, 0.72)';
 
 interface Rect {
@@ -118,23 +110,11 @@ export default function ExploreFeaturedCard({
 
       <View style={styles.footer}>
         {/*
-          재생 = 흰 원 버튼 + 삼각형(도형), 길이 = 메타 글자(애플 팟캐스트 카드 문법 — PM 2026-09-27 04:31).
-          09-27 전엔 흰 알약에 글자 `▶` + "17분" 이 한 덩어리라 재생 버튼인지 길이 표시인지 애매했고 글리프는 폰트마다
-          달랐다. 카드 본문 탭도 같은 재생 판정으로 가지만 원 버튼은 "여기서 재생된다"는 표식이라 남긴다
+          **재생 버튼을 두지 않는다.** 타일의 히트 영역은 둘뿐이다 — 본문 탭 = 재생, ⋯ 만 별도
+          (explore-uiux.md 5장). 09-27 에 길이 알약을 원 버튼으로 바꿨다가 09-28 에 걷었다:
+          같은 동작의 진입점이 둘이 되고(PM "플레이 버튼은 왜 넣은 거야"), 흐린 커버 위 불투명 원은
+          사진 위 스티커 금지(design.md §3)에도 걸렸다. 길이·저자는 정보라 글자로만 둔다
         */}
-        <Pressable
-          style={styles.playButton}
-          onPress={() => onPress(item)}
-          hitSlop={PLAY_HIT_SLOP}
-          accessibilityRole="button"
-          accessibilityLabel={EXPLORE_COPY.row.a11yLabel({
-            title: item.content.title,
-            minutes,
-            completed: isCompleted,
-          })}
-        >
-          <PlayIcon size={PLAY_ICON_SIZE} color={ON_ART_TEXT} shadow />
-        </Pressable>
         <Text style={styles.meta} numberOfLines={1}>
           {item.content.authorName} · {EXPLORE_COPY.row.durationLabel(minutes)}
         </Text>
@@ -211,10 +191,6 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm + theme.spacing.xs,
     marginTop: theme.spacing.xs,
     marginHorizontal: theme.spacing.md,
-  },
-  playButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   /** 저자 · 길이 — 정보지 버튼 성분이 아니라 보조 글자. 더보기 점을 오른쪽 끝으로 민다 */
   meta: {
