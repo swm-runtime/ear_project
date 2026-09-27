@@ -268,7 +268,7 @@ feature가 늘어나면 아래 표를 갱신한다. 표에 없는 의존이 코�
 | feature | 의존하는 feature | 비고 |
 |---|---|---|
 | library | player, share | 재생 시작 게이트 호출, 미니플레이어 상태 구독 / 시트 [공유] 실행(`IS_SHARE_ENABLED`·`shareContent` — share 공개 API) |
-| explore | player, library, share | 게이트 호출 / 담기(라이브러리 적립) 호출 / 시트 [공유] 실행(share 공개 API) |
+| explore | player, library, share, interest | 게이트 호출 / 담기(라이브러리 적립) 호출 / 시트 [공유] 실행(share 공개 API) / 주제 칩 배경 사진(`topicImageSource` — 2026-09-27, 프로필의 관심 주제 카드와 같은 재사용) |
 | content-detail | player, library, explore, share | 재생 게이트·확인 팝업·재생 세션 구독(`usePlaybackStore` — 현재 재생 중 콘텐츠 판정)·원문 클릭 계약(`sendSourceLinkClick`) / [삭제] 계약(`deleteLibraryItem`)·목록 무효화(`libraryKeys`) / [담기] 계약(`saveContent` — `explore-api.md` 4.3 재사용, `content-detail-api.md` 4.2 "신규 계약 없음") / 앱바 공유 아이콘(`ShareIcon`)·[공유] 실행(share 공개 API). **세 진입점 화면(library·explore·player)은 content-detail을 import하지 않는다** — 라우트 이름(`ContentDetail`)으로 내비게이션만 하고 화면 등록은 `app/navigation`이 담당한다(역방향 의존 없음 — 순환 미발생) |
 | player | paywall, subscription, settings, share, interest | 차단 시 페이월 시트 표시 / entitlements 조회 / 배속 저장·조회(`user_settings` — `settings-api.md` 4.2 계약 재사용. player가 재선언하면 같은 엔드포인트의 DTO가 두 벌이 된다) / 시트 [공유] 실행(share 공개 API) / 카테고리 줄의 주제 이름(`useTopicsQuery` — 같은 계약·같은 캐시 `interestKeys.topics()`, onboarding 행과 같은 방식. 역방향 import 없음 — 2026-09-17 `player-controls-redesign`) / 재생 목록 패널은 라이브러리 첫 페이지 조회를 `app/bootstrap`이 주입하는 브리지로 받는다(library → player 역방향 의존 없음) |
 | paywall | subscription | 요금제 비교·결제 실행. **player를 알지 못한다** (→ 5.2) |
