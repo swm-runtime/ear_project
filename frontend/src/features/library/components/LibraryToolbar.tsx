@@ -1,5 +1,6 @@
-import { StyleSheet, View } from 'react-native';
+import { Animated, StyleSheet, View } from 'react-native';
 
+import { useTabPillMorph } from '@/shared/navigation/useTabPillMorph';
 import { theme } from '@/shared/theme';
 import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
 
@@ -29,6 +30,8 @@ export default function LibraryToolbar({
   activeFilterCount,
   onFilterPress,
 }: LibraryToolbarProps) {
+  // 탭 전환 모핑(useTabPillMorph) — 탐색([링])에서 오면 필터 칸이 0 → 44 로 자라난다. 링이 없으면(필터만) 모핑하지 않는다
+  const filterWidth = useTabPillMorph(remaining !== null);
   return (
     <GlassCapsule style={styles.capsule}>
       {remaining ? (
@@ -41,12 +44,14 @@ export default function LibraryToolbar({
               bare
             />
           </View>
-          <View style={styles.divider} pointerEvents="none" />
         </>
       ) : null}
-      <View style={styles.cell}>
-        <LibraryFilterButton activeCount={activeFilterCount} onPress={onFilterPress} bare />
-      </View>
+      <Animated.View style={[styles.morphSlot, remaining ? { width: filterWidth } : null]}>
+        {remaining ? <View style={styles.divider} pointerEvents="none" /> : null}
+        <View style={styles.cell}>
+          <LibraryFilterButton activeCount={activeFilterCount} onPress={onFilterPress} bare />
+        </View>
+      </Animated.View>
     </GlassCapsule>
   );
 }
@@ -63,6 +68,12 @@ const styles = StyleSheet.create({
     height: theme.touchTarget.minHeight,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // 필터 칸(구분선 + 44) — 폭이 줄면 오른쪽이 잘린다
+  morphSlot: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    overflow: 'hidden',
   },
   divider: {
     width: StyleSheet.hairlineWidth,

@@ -33,6 +33,7 @@ import ExploreSearchScreen from './ExploreSearchScreen';
 import ExploreEmptyState from '../components/ExploreEmptyState';
 import ExploreFeaturedCard from '../components/ExploreFeaturedCard';
 import ExploreMoreSheet from '../components/ExploreMoreSheet';
+import ExploreRingPill from '../components/ExploreRingPill';
 import ExploreSearchBarRow from '../components/ExploreSearchBarRow';
 import ExploreSkeleton from '../components/ExploreSkeleton';
 import ExploreTile from '../components/ExploreTile';
@@ -77,7 +78,14 @@ export default function ExploreScreen() {
    * 애플 뮤직 검색 탭과 같다. 피드 상태(필터·구간)는 이 화면 훅이 그대로 들고 있다. JS 탭 바 갈래는 종전 스택 검색 화면
    */
   // 잔여 재생 링 — 무제한·캐시·값 없음이면 자리를 비운다, "무제한" 배지도 없다(uiux 4.2)
-  const remainingRing = screen.remainingDisplay ? (
+  // 시스템 탭 바 갈래는 라이브러리 알약과 같은 캡슐(ExploreRingPill) — 탭 전환 때 필터 칸이 줄었다 자라게(00:32 PM)
+  const remainingRing = HAS_NATIVE_TAB_BAR && screen.remainingDisplay ? (
+    <ExploreRingPill
+      remaining={screen.remainingDisplay.remaining}
+      limit={screen.remainingDisplay.limit}
+      onExhaustedPress={() => screen.openPaywall('explore')}
+    />
+  ) : screen.remainingDisplay ? (
     <RemainingPlaysIndicator
       remaining={screen.remainingDisplay.remaining}
       limit={screen.remainingDisplay.limit}
