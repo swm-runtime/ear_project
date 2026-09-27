@@ -9,6 +9,11 @@ import type { TopicDistribution } from '../profile.types';
 
 interface TopicDonutProps {
   distribution: TopicDistribution;
+  /**
+   * 주간 청취 카드 **안에** 들어간다(PM 2026-09-28 00:47 "주간 청취랑 합쳐봐") — 자기 카드(회색 면·패딩)를 그리지 않고
+   * 부모 카드의 한 구획이 된다. 주별 주제 집계는 아직 서버에 없어(BE 요청 전) 전체 기간 값이므로 라벨에 기간을 밝힌다
+   */
+  embedded?: boolean;
 }
 
 interface LegendEntry {
@@ -55,7 +60,7 @@ const ROW_BAR_HEIGHT = 6;
  * 서버 비율 그대로 그린다(합 100 조정까지 서버 몫 — 재정규화 금지), 절대값(시간)은 표시하지 않는다. 막대는 장식이고
  * 목록 글자가 곧 대체 텍스트다(7장) — 색만으로 구분하지 않는다. 파일·이름은 호출부를 건드리지 않으려 그대로 둔다
  */
-export default function TopicDonut({ distribution }: TopicDonutProps) {
+export default function TopicDonut({ distribution, embedded = false }: TopicDonutProps) {
   const entries = toLegendEntries(distribution);
   const grow = useAnimatedValue(0);
   useEffect(() => {
@@ -68,22 +73,26 @@ export default function TopicDonut({ distribution }: TopicDonutProps) {
   const growStyle = { transform: [{ scaleX: grow }], transformOrigin: 'left' as const };
 
   return (
-    <View style={styles.container}>
+    <View style={embedded ? styles.embeddedContainer : styles.container}>
       {/* 제목 "주로 듣는 주제"는 뺐다 — 카드 안 헤드라인 "가장 많이 들은 주제"와 겹친다(PM 2026-09-27 23:49) */}
       {entries.length === 0 ? (
-        <View style={styles.emptyBox}>
+        <View style={embedded ? styles.embeddedEmptyBox : styles.emptyBox}>
           <Text style={styles.emptyText}>{PROFILE_COPY.stats.emptyState}</Text>
         </View>
       ) : (
         <View
-          style={styles.card}
+          style={embedded ? styles.embeddedBody : styles.card}
           accessible
           // 목록이 곧 대체 텍스트 — "커리어 38%, …, 기타 6%" 순서로 읽힌다(profile-uiux.md 7장)
           accessibilityLabel={PROFILE_COPY.stats.legendA11y(entries)}
         >
           {top ? (
             <View style={styles.headline}>
-              <Text style={styles.headlineLabel}>{PROFILE_COPY.stats.topTopicLabel}</Text>
+              <Text style={styles.headlineLabel}>
+                {embedded
+                  ? PROFILE_COPY.stats.topTopicAllTimeLabel
+                  : PROFILE_COPY.stats.topTopicLabel}
+              </Text>
               <Text style={styles.headlineValue} numberOfLines={1}>
                 {top.name}{' '}
                 <Text style={styles.headlineRatio}>{PROFILE_COPY.stats.ratioValue(top.ratio)}</Text>
@@ -197,6 +206,18 @@ const styles = StyleSheet.create({
   rowBar: {
     height: ROW_BAR_HEIGHT,
     borderRadius: ROW_BAR_HEIGHT / 2,
+  },
+  // 주간 청취 카드 안의 구획 — 면·둥근 모서리는 부모 카드가 갖는다. 위 차트와는 여백으로만 가른다
+  embeddedContainer: {
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.xl,
+  },
+  embeddedBody: {
+    gap: theme.spacing.md,
+  },
+  embeddedEmptyBox: {
+    paddingVertical: theme.spacing.lg,
+    alignItems: 'center',
   },
   emptyBox: {
     height: 140,

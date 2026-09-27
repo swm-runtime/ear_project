@@ -171,6 +171,11 @@ export const PROFILE_COPY = {
     distributionTitle: '주로 듣는 주제',
     /** 1위 주제 헤드라인 앞 라벨 — "가장 많이 들은 주제"(PM 2026-09-27 23:42, 스크린 타임 "가장 많이 사용함" 자리) */
     topTopicLabel: '가장 많이 들은 주제',
+    /**
+     * 주간 청취 카드 안에 합친 뒤의 라벨 — 주별 주제 집계가 서버에 생기기 전까지는 전체 기간 값이라 기간을 밝힌다.
+     * 위 차트는 선택한 주라, 안 밝히면 주를 넘겨도 주제가 그대로인 것이 고장으로 읽힌다
+     */
+    topTopicAllTimeLabel: '가장 많이 들은 주제 · 전체 기간',
     othersLabel: '기타',
     /** 비율은 서버 정수 그대로 "N%"(profile-uiux.md 4.6) */
     ratioValue: (ratio: number) => `${ratio}%`,
