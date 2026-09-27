@@ -18,6 +18,8 @@ export const EXPLORE_COPY = {
     tabTitle: '검색',
     /** TODO(카피): uiux 6장 제안값 — features에 확정 문구가 없다 */
     placeholder: '콘텐츠 검색',
+    /** 입력한 검색어 지우기(ⓧ) 낭독 라벨 */
+    clearA11y: '검색어 지우기',
     cancel: '취소',
     /** 2자 미만·특수문자/이모지만 입력 — 검색을 실행하지 않는다(explore.md 7장, 확정 문구) */
     emptyPrompt: '검색어를 입력해주세요',
