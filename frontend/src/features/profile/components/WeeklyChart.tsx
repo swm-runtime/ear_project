@@ -133,7 +133,6 @@ function WeekBody({
   if (view.isEmpty) {
     return (
       <View style={styles.stateBox}>
-        <Text style={styles.emptyValue}>{PROFILE_COPY.stats.dayValue(0)}</Text>
         <Text style={styles.stateText}>{PROFILE_COPY.stats.emptyState}</Text>
       </View>
     );
@@ -148,15 +147,6 @@ function WeekBody({
   );
   return (
     <>
-      <View
-        style={styles.summary}
-        accessible
-        accessibilityLabel={PROFILE_COPY.stats.averageA11y(view.averageSec)}
-      >
-        {/* 점선 범례(─ ─)는 뺐다(PM 2026-09-28 00:23) — 라벨만 */}
-        <Text style={styles.summaryLabel}>{PROFILE_COPY.stats.dailyAverageTitle}</Text>
-        <Text style={styles.summaryValue}>{PROFILE_COPY.stats.dayValue(view.averageSec)}</Text>
-      </View>
       {/* 보통 화면은 7일을 한 번에, 좁은 화면은 스크롤로 44pt 터치 영역을 유지한다. */}
       <ScrollView
         horizontal
@@ -268,9 +258,48 @@ function WeekBody({
   );
 }
 
+/**
+ * 값이 바뀌면 이전 값에서 새 값까지 **숫자가 굴러가듯** 바뀐다(PM 2026-09-28 03:22 "분은 가만히 있고 숫자만 자연스럽게").
+ * 0.45초 ease-out — 끝으로 갈수록 느려져 새 값에 내려앉는다. 처음 값은 굴리지 않는다
+ */
+const COUNT_DURATION_MS = 450;
+function useCountTo(target: number | null): number | null {
+  const [shown, setShown] = useState(target);
+  const shownRef = useRef(target);
+  useEffect(() => {
+    if (target === null) return undefined;
+    const from = shownRef.current;
+    if (from === null || from === target) {
+      shownRef.current = target;
+      const frame = requestAnimationFrame(() => setShown(target));
+      return () => cancelAnimationFrame(frame);
+    }
+    const startedAt = Date.now();
+    let frame = 0;
+    const tick = () => {
+      const t = Math.min(1, (Date.now() - startedAt) / COUNT_DURATION_MS);
+      const eased = 1 - (1 - t) ** 3;
+      const value = from + (target - from) * eased;
+      shownRef.current = value;
+      setShown(value);
+      if (t < 1) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [target]);
+  return shown;
+}
+
 /** P8/P9: 서버 주 경계·상대 높이를 유지하고 탭한 요일의 값을 보여준다. */
 export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
   const { displayed, weekLabelStart, selectedBarIndex: selectedIndex } = weekly;
+  /*
+   * 하루 평균은 **넘김 구획 밖에 고정**하고 숫자만 굴린다(PM 2026-09-28 03:22) — 차트만 옆 주로 미끄러지고, 평균은
+   * 제자리에서 새 주 값으로 바뀐다. 전환 중(조회)에는 직전 값을 붙들고 있다가 도착하면 굴린다
+   */
+  const targetAverageSec =
+    displayed !== null && !weekly.isSwitching ? toWeekView(displayed).averageSec : null;
+  const shownAverageSec = useCountTo(targetAverageSec);
   /*
    * 카드를 가로로 밀어 주를 넘긴다(PM 2026-09-28 01:40) — 애플 건강·스크린 타임과 같은 방향: 손가락을 **오른쪽으로 밀면
    * 이전 주**(왼쪽 < 와 같은 쪽), 왼쪽으로 밀면 다음 주. 화살표와 같은 판정(canGoPrev/Next · 전환 중 막힘)을 거친다.
@@ -403,7 +432,6 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
-      <View style={styles.skeletonValue} />
       <View style={styles.skeletonChart} />
     </View>
   );
@@ -497,6 +525,23 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
             />
           </View>
         </View>
+        {shownAverageSec === null ? (
+          <View style={styles.summary}>
+            <View style={styles.skeletonValue} />
+          </View>
+        ) : (
+          <View
+            style={styles.summary}
+            accessible
+            accessibilityLabel={PROFILE_COPY.stats.averageA11y(targetAverageSec ?? shownAverageSec)}
+          >
+            {/* 점선 범례(─ ─)는 뺐다(PM 2026-09-28 00:23) — 라벨만 */}
+            <Text style={styles.summaryLabel}>{PROFILE_COPY.stats.dailyAverageTitle}</Text>
+            <Text style={styles.summaryValue}>
+              {PROFILE_COPY.stats.dayValue(Math.round(shownAverageSec))}
+            </Text>
+          </View>
+        )}
         <View
           style={styles.pager}
           onLayout={({ nativeEvent }) => setPageWidth(nativeEvent.layout.width)}
@@ -599,7 +644,7 @@ const styles = StyleSheet.create({
     color: theme.color.textPrimary,
   },
   stateBox: {
-    minHeight: CHART_HEIGHT + ANNOTATION_MIN_HEIGHT + theme.spacing.xxl * 2,
+    minHeight: CHART_HEIGHT + ANNOTATION_MIN_HEIGHT + theme.spacing.xxl,
     padding: theme.spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
@@ -609,11 +654,6 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.sm,
     color: theme.color.textSecondary,
     textAlign: 'center',
-  },
-  emptyValue: {
-    fontSize: theme.font.size.xxl,
-    fontWeight: '600',
-    color: theme.color.textSecondary,
   },
   retryButton: {
     minHeight: theme.touchTarget.minHeight,
