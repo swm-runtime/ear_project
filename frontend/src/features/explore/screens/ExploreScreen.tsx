@@ -79,19 +79,20 @@ export default function ExploreScreen() {
    */
   // 잔여 재생 링 — 무제한·캐시·값 없음이면 자리를 비운다, "무제한" 배지도 없다(uiux 4.2)
   // 시스템 탭 바 갈래는 라이브러리 알약과 같은 캡슐(ExploreRingPill) — 탭 전환 때 필터 칸이 줄었다 자라게(00:32 PM)
-  const remainingRing = HAS_NATIVE_TAB_BAR && screen.remainingDisplay ? (
-    <ExploreRingPill
-      remaining={screen.remainingDisplay.remaining}
-      limit={screen.remainingDisplay.limit}
-      onExhaustedPress={() => screen.openPaywall('explore')}
-    />
-  ) : screen.remainingDisplay ? (
-    <RemainingPlaysIndicator
-      remaining={screen.remainingDisplay.remaining}
-      limit={screen.remainingDisplay.limit}
-      onExhaustedPress={() => screen.openPaywall('explore')}
-    />
-  ) : null;
+  const remainingRing =
+    HAS_NATIVE_TAB_BAR && screen.remainingDisplay ? (
+      <ExploreRingPill
+        remaining={screen.remainingDisplay.remaining}
+        limit={screen.remainingDisplay.limit}
+        onExhaustedPress={() => screen.openPaywall('explore')}
+      />
+    ) : screen.remainingDisplay ? (
+      <RemainingPlaysIndicator
+        remaining={screen.remainingDisplay.remaining}
+        limit={screen.remainingDisplay.limit}
+        onExhaustedPress={() => screen.openPaywall('explore')}
+      />
+    ) : null;
 
   /*
    * 제자리 검색은 피드 **위에 덮는다** — 피드는 밑에 그대로 둬서 닫을 때 다시 그릴 게 없다(23:12 PM "x 누를 때 렉" — 종전엔
@@ -215,6 +216,15 @@ export default function ExploreScreen() {
    * 추가 로딩은 **가로 목록의 onEndReached**가 맡는다 — 세로 화면의 뷰어빌리티로는
    * 가로로 끝까지 민 시점을 알 수 없다(캐러셀 전환 2026-09-02).
    */
+  /**
+   * 콘텐츠의 주제 id 를 이름으로 푼다 — 대표 카드 하단 줄의 해시태그(플레이어 제목 줄의 `queueCategoryOf` 와
+   * 같은 규칙: 못 찾은 id 는 버리고, 자리를 억지로 채우지 않는다). 주제 목록은 칩 줄이 이미 받아 둔 것이다
+   */
+  const topicNamesOf = (topicIds: string[]): string[] =>
+    topicIds
+      .map((id) => screen.topics.find((topic) => topic.id === id)?.name)
+      .filter((name): name is string => Boolean(name));
+
   const renderSection = (section: ExploreSection, index: number) => {
     const isPopular = section.period !== null;
     /*
@@ -259,6 +269,7 @@ export default function ExploreScreen() {
               isPopular ? (
                 <ExploreFeaturedCard
                   item={item}
+                  topicNames={topicNamesOf(item.content.topicIds)}
                   onPress={screen.handleRowPress}
                   onMorePress={screen.openMoreSheet}
                 />

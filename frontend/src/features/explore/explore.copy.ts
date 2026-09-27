@@ -79,6 +79,11 @@ export const EXPLORE_COPY = {
 
   row: {
     durationLabel: (minutes: number) => `${minutes}분`,
+    /**
+     * 주제 해시태그 — 대표 카드의 하단 줄(PM 2026-09-28 01:06 "해시태그 ㄱㄱ"). 이름 사이 공백은 그대로 둔다
+     * (`#경제 상식`) — 붙여 쓰면 주제 목록·필터에 보이는 이름과 달라져 같은 주제로 안 읽힌다
+     */
+    hashtags: (names: string[]) => names.map((name) => `#${name}`).join(' '),
     moreA11y: '더보기, 담기·제거',
     /** 완청 체크는 색이 아니라 형태 단서 + 스크린리더 텍스트로 전달한다(library 카드와 동일) */
     completedA11y: '완청한 콘텐츠',
@@ -104,7 +109,6 @@ export const EXPLORE_COPY = {
     /** 전환 실패 — 직전 목록을 유지한 채 섹션 안에서만 알린다(uiux 4.10) */
     switchFailed: '목록을 불러오지 못했어요',
     /** 전환 완료를 스크린리더에 한 번 알린다 — "월간 인기 콘텐츠, 10개"(uiux 7) */
-    switchedA11y: (periodLabel: string, count: number) =>
-      `${periodLabel} 인기 콘텐츠, ${count}개`,
+    switchedA11y: (periodLabel: string, count: number) => `${periodLabel} 인기 콘텐츠, ${count}개`,
   },
 } as const;
