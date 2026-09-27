@@ -76,6 +76,17 @@ const toWeeklyDtoAt = (index: number): WeeklyListeningResponseDto => {
     previous_week_start:
       previous === null && SCENARIO === 'weekly-out-of-range' ? '2026-06-29' : previous,
     next_week_start: weeks[index - 1]?.weekStart ?? null,
+    // 주별 주제 분포(BE 요청 중인 필드) — 주마다 순위가 바뀌어 스와이프 시 막대 재생장을 확인할 수 있게. 빈 주는 빈 분포
+    topic_distribution: week.daily.every((sec) => sec === 0)
+      ? { topics: [], others_ratio: 0 }
+      : {
+          topics: [
+            { topic_id: 'mock-career', name: '커리어', ratio: [48, 30, 22, 0, 60][index] ?? 40 },
+            { topic_id: 'mock-growth', name: '자기계발', ratio: [32, 45, 38, 0, 40][index] ?? 40 },
+            { topic_id: 'mock-economy', name: '경제', ratio: [20, 25, 40, 0, 0][index] ?? 20 },
+          ].filter((topic) => topic.ratio > 0),
+          others_ratio: 0,
+        },
   };
 };
 

@@ -14,6 +14,11 @@ interface TopicDonutProps {
    * 부모 카드의 한 구획이 된다. 주별 주제 집계는 아직 서버에 없어(BE 요청 전) 전체 기간 값이므로 라벨에 기간을 밝힌다
    */
   embedded?: boolean;
+  /**
+   * 집계 기간 — `week` 면 위 주간 차트가 고른 주의 분포다(라벨에 기간을 붙이지 않는다). `allTime` 은 서버가 주별 분포를
+   * 아직 안 보낼 때의 대체(라벨 "· 전체 기간"). embedded 에서만 의미가 있다
+   */
+  period?: 'week' | 'allTime';
 }
 
 interface LegendEntry {
@@ -60,13 +65,20 @@ const ROW_BAR_HEIGHT = 6;
  * 서버 비율 그대로 그린다(합 100 조정까지 서버 몫 — 재정규화 금지), 절대값(시간)은 표시하지 않는다. 막대는 장식이고
  * 목록 글자가 곧 대체 텍스트다(7장) — 색만으로 구분하지 않는다. 파일·이름은 호출부를 건드리지 않으려 그대로 둔다
  */
-export default function TopicDonut({ distribution, embedded = false }: TopicDonutProps) {
+export default function TopicDonut({
+  distribution,
+  embedded = false,
+  period = 'allTime',
+}: TopicDonutProps) {
   const entries = toLegendEntries(distribution);
   const grow = useAnimatedValue(0);
+  // 분포가 바뀌면(주 이동 — PM 2026-09-28 04:15 "주마다") 막대가 0 에서 다시 자란다. 같은 분포면 다시 그리지 않는다
+  const signature = entries.map((entry) => `${entry.key}:${entry.ratio}`).join('|');
   useEffect(() => {
-    if (entries.length === 0) return;
+    if (signature === '') return;
+    grow.setValue(0);
     Animated.spring(grow, { toValue: 1, ...motion.spring.smooth, useNativeDriver: true }).start();
-  }, [entries.length, grow]);
+  }, [signature, grow]);
 
   const top = distribution.topics[0];
   // scaleX 는 가운데 기준이라 왼쪽에서 자라게 하려면 폭의 절반만큼 되돌린다 — 폭을 모르므로 transformOrigin 을 쓴다
@@ -89,7 +101,7 @@ export default function TopicDonut({ distribution, embedded = false }: TopicDonu
           {top ? (
             <View style={styles.headline}>
               <Text style={styles.headlineLabel}>
-                {embedded
+                {embedded && period === 'allTime'
                   ? PROFILE_COPY.stats.topTopicAllTimeLabel
                   : PROFILE_COPY.stats.topTopicLabel}
               </Text>

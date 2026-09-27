@@ -155,7 +155,18 @@ export default function ProfileScreen() {
                   <StatsSummaryRow summary={screen.stats.data.summary} />
                   <WeeklyChart
                     weekly={screen.weekly}
-                    footer={<TopicDonut distribution={screen.stats.data.distribution} embedded />}
+                    footer={
+                      // 고른 주의 분포가 있으면 그것(BE 반영 후), 없으면 전체 기간으로 대신한다 — 라벨이 기간을 밝힌다
+                      screen.weekly.displayed?.topicDistribution ? (
+                        <TopicDonut
+                          distribution={screen.weekly.displayed.topicDistribution}
+                          embedded
+                          period="week"
+                        />
+                      ) : (
+                        <TopicDonut distribution={screen.stats.data.distribution} embedded />
+                      )
+                    }
                   />
                 </View>
               )

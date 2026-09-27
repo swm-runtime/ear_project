@@ -3,9 +3,10 @@ import { queryOptions } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/api-client';
 
 import { IS_PROFILE_API_MOCKED } from '../profile.constants';
-import type { ProfileSummary, WeeklyListening } from '../profile.types';
+import type { ProfileSummary, TopicDistribution, WeeklyListening } from '../profile.types';
 import type {
   ProfileSummaryResponseDto,
+  TopicDistributionDto,
   WeeklyListeningDto,
   WeeklyListeningResponseDto,
 } from './profile.dto';
@@ -23,11 +24,23 @@ export const profileKeys = {
 
 /* ── 변환 — snake_case ↔ camelCase 변환은 이 모듈 안에서만 일어난다 ── */
 
+const toTopicDistribution = (dto: TopicDistributionDto): TopicDistribution => ({
+  topics: dto.topics.map((topic) => ({
+    topicId: topic.topic_id,
+    name: topic.name,
+    ratio: topic.ratio,
+  })),
+  othersRatio: dto.others_ratio,
+});
+
 const toWeeklyListening = (dto: WeeklyListeningDto): WeeklyListening => ({
   weekStart: dto.week_start,
   dailyListenedSec: dto.daily_listened_sec,
   previousWeekStart: dto.previous_week_start,
   nextWeekStart: dto.next_week_start,
+  ...(dto.topic_distribution
+    ? { topicDistribution: toTopicDistribution(dto.topic_distribution) }
+    : {}),
 });
 
 const toProfileSummary = (dto: ProfileSummaryResponseDto): ProfileSummary => ({
@@ -75,16 +88,7 @@ const toProfileSummary = (dto: ProfileSummaryResponseDto): ProfileSummary => ({
         },
   weeklyListening: dto.weekly_listening === null ? null : toWeeklyListening(dto.weekly_listening),
   topicDistribution:
-    dto.topic_distribution === null
-      ? null
-      : {
-          topics: dto.topic_distribution.topics.map((topic) => ({
-            topicId: topic.topic_id,
-            name: topic.name,
-            ratio: topic.ratio,
-          })),
-          othersRatio: dto.topic_distribution.others_ratio,
-        },
+    dto.topic_distribution === null ? null : toTopicDistribution(dto.topic_distribution),
   failedSections: dto.failed_sections,
 });
 
