@@ -169,10 +169,14 @@ export default function BottomSheet({
         {/* 딤 자체는 낭독 대상이 아니다(라벨 없는 버튼으로 읽히면 더 나쁘다) — 닫기는 시트 안의 동작·뒤로가기로 한다 */}
         <Pressable style={StyleSheet.absoluteFill} onPress={onRequestClose} accessible={false} />
       </Animated.View>
+      {/*
+        `pointerEvents="box-none"` 를 두지 않는다 — 그 값은 **이 View 자체가 터치 대상이 되지 않게** 해서
+        아래 끌기 제스처가 영영 걸리지 않았다(2026-09-27 20:10 실기기). 이 상자는 시트 높이만큼만 차지하고
+        딤은 형제라, 통과시킬 것이 없어 애초에 필요 없었다
+      */}
       <Animated.View
         style={[styles.sheetWrap, { transform: [{ translateY }] }]}
         onLayout={handleLayout}
-        pointerEvents="box-none"
         {...pan.panHandlers}
       >
         <Animated.View style={sheetStyle}>{children}</Animated.View>
