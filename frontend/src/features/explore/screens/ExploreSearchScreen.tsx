@@ -64,15 +64,29 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
     if (!embedding) return;
     Animated.spring(appear, { toValue: 1, ...motion.spring.snappy, useNativeDriver: true }).start();
   }, [embedding, appear]);
+  /*
+   * 닫힘 — 본문만 흐리고 머리(제목·알약·검색창)를 그대로 두었다가 한 번에 떼면 "급발진"으로 사라졌다(PM 2026-09-27 23:19).
+   * 밑의 피드 머리가 같은 자리(제목 "탐색"·링·검색창)라, **덮개 전체를 교차 페이드**하면 머리는 그대로인 채 알약의 닫기 칸만
+   * 녹아 없어지고 본문이 피드로 바뀐다
+   */
+  const overlayFade = useAnimatedValue(1);
   const closeEmbedded = () => {
     if (isClosing) return;
     setIsClosing(true);
-    Animated.timing(appear, {
-      toValue: 0,
-      duration: motion.duration.fast,
-      easing: motion.easing.easeOut,
-      useNativeDriver: true,
-    }).start(() => screen.cancel());
+    Animated.parallel([
+      Animated.timing(appear, {
+        toValue: 0,
+        duration: motion.duration.normal,
+        easing: motion.easing.easeInOut,
+        useNativeDriver: true,
+      }),
+      Animated.timing(overlayFade, {
+        toValue: 0,
+        duration: motion.duration.normal,
+        easing: motion.easing.easeInOut,
+        useNativeDriver: true,
+      }),
+    ]).start(() => screen.cancel());
   };
   const bodyMotion = {
     flex: 1,
@@ -230,9 +244,12 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
   };
 
   // 시스템 바 갈래에서는 상태 바만 비운다(스택 화면이라 바는 없다)
-  const Frame = HAS_NATIVE_TAB_BAR ? View : SafeAreaView;
+  const Frame = HAS_NATIVE_TAB_BAR ? Animated.View : SafeAreaView;
   return (
-    <Frame style={[styles.container, { paddingTop: nativeBarInset }]} edges={['top']}>
+    <Frame
+      style={[styles.container, { paddingTop: nativeBarInset }, embedding ? { opacity: overlayFade } : null]}
+      edges={['top']}
+    >
       {HAS_NATIVE_TAB_BAR ? (
         <>
           {/* 제자리 검색이면 제목은 "탐색" 그대로 — 페이지가 바뀌지 않았다는 신호. 오른쪽에 잔여 링 + 닫기 ✕
