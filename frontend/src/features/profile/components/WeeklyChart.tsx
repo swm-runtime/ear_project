@@ -16,6 +16,9 @@ const ZERO_BAR_HEIGHT = 3;
 const DAYS_IN_WEEK = 7;
 const ANNOTATION_MIN_HEIGHT = 44;
 const GRID_RATIOS = [0, 0.5, 1] as const;
+/** 주 이동 화살표 원 — 보이는 크기만 줄이고 터치는 hitSlop 으로 44 를 지킨다(PM 2026-09-28 00:32 "버튼 크기 줄이자") */
+const ARROW_SIZE = 28;
+const ARROW_HIT_SLOP = (theme.touchTarget.minHeight - ARROW_SIZE) / 2;
 
 function ArrowButton({
   direction,
@@ -31,6 +34,7 @@ function ArrowButton({
       style={({ pressed }) => [styles.arrow, pressed && enabled && styles.pressed]}
       onPress={onPress}
       disabled={!enabled}
+      hitSlop={ARROW_HIT_SLOP}
       accessibilityRole="button"
       accessibilityLabel={
         direction === 'left' ? PROFILE_COPY.stats.prevWeekA11y : PROFILE_COPY.stats.nextWeekA11y
@@ -39,7 +43,7 @@ function ArrowButton({
     >
       <ChevronIcon
         direction={direction}
-        size={16}
+        size={12}
         color={enabled ? theme.color.textPrimary : theme.color.border}
       />
     </Pressable>
@@ -264,8 +268,8 @@ const styles = StyleSheet.create({
   weekControls: {
     flexDirection: 'row',
     alignItems: 'center',
-    // 화살표 글리프(16)는 44 터치 영역 가운데라 보이는 간격은 이보다 14 넓다 — 날짜 칸을 넓힌 만큼 여기서 줄인다
-    gap: theme.spacing.xs,
+    // 화살표 원(28)과 날짜 사이 — 터치 영역은 hitSlop 이 원 밖으로 8씩 넓힌다
+    gap: theme.spacing.sm,
     flexShrink: 0,
     maxWidth: '100%',
   },
@@ -282,8 +286,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   arrow: {
-    width: theme.touchTarget.minWidth,
-    height: theme.touchTarget.minHeight,
+    width: ARROW_SIZE,
+    height: ARROW_SIZE,
     borderRadius: theme.radius.full,
     borderCurve: 'continuous',
     backgroundColor: theme.color.background,
