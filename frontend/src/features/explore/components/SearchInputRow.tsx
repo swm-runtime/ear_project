@@ -114,7 +114,8 @@ const styles = StyleSheet.create({
     gap: theme.spacing.xs + 2,
     minHeight: theme.touchTarget.minHeight - theme.spacing.xs,
     paddingLeft: theme.spacing.md,
-    paddingRight: theme.spacing.xs,
+    // 지우기 원의 오른쪽 여백을 돋보기의 왼쪽 여백(16)과 맞춘다 — 12 + 지우기 버튼 안쪽 4 (PM 2026-09-27 22:24 "너무 오른쪽에 붙어")
+    paddingRight: theme.spacing.sm + theme.spacing.xs,
     borderRadius: theme.radius.md,
     // 애플 검색 필드와 같은 연속 곡률(iOS 만, 2026-09-22 PM)
     borderCurve: 'continuous',
