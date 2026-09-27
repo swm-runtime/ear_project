@@ -126,10 +126,8 @@ export default function ExploreScreen() {
       />
     ) : null;
   }, [isSearching, isClosingSearch, remainingValue, remainingLimit]);
-  // 설정과 같은 .always 큰 제목(04:57 PM) — 접히면 가운데 작은 제목 + 왼쪽 유리 검색 버튼(누르면 제자리 검색)
-  useSystemLargeTitle(EXPLORE_COPY.tabTitle, barTrailing, {
-    collapse: { onSearch: () => setIsSearching(true), searchLabel: EXPLORE_COPY.search.placeholder },
-  });
+  // .inline 큰 제목 — 제목과 캡슐이 한 줄(05:43 PM). 접힘·블러는 시스템
+  useSystemLargeTitle(EXPLORE_COPY.tabTitle, barTrailing);
 
   /*
    * 제자리 검색은 피드 **위에 덮는다** — 피드는 밑에 그대로 둬서 닫을 때 다시 그릴 게 없다(23:12 PM "x 누를 때 렉" — 종전엔
