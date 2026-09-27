@@ -1,6 +1,7 @@
 import { createNativeBottomTabNavigator } from '@react-navigation/bottom-tabs/unstable';
 import { useState } from 'react';
 
+import { selectTab } from '@/shared/navigation/tab-selection.store';
 import { theme } from '@/shared/theme';
 
 import { useSessionStore } from '@/features/auth';
@@ -54,7 +55,11 @@ export default function NativeMainTabs() {
         state: (e) => {
           const s = e.data.state;
           const name = s?.routeNames?.[s.index ?? 0];
-          if (name) rememberTab(name as RestorableTab);
+          if (!name) return;
+          rememberTab(name as RestorableTab);
+          // 제목 줄 알약이 이 값으로 모핑한다 — 화면 쪽 포커스·blur 판정은 모달과 구분되지 않아 걷어냈다
+          // (2026-09-28 04:55, `shared/navigation/tab-selection.store`)
+          selectTab(name);
         },
       }}
       screenOptions={{

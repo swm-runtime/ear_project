@@ -1,15 +1,8 @@
-import { Animated, StyleSheet, View } from 'react-native';
-
-import { TAB_PILL_FRAME_WIDTH, useTabPillMorph } from '@/shared/navigation/useTabPillMorph';
-import { theme } from '@/shared/theme';
-import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
+import TabMorphPill from '@/shared/navigation/TabMorphPill';
 
 import { RemainingPlaysIndicator } from '@/features/player';
 
 import LibraryFilterButton from './LibraryFilterButton';
-
-/** 캡슐 높이 = 검색 캡슐과 같다(HEADER_CONTROL_HEIGHT) */
-const TOOLBAR_HEIGHT = HEADER_CONTROL_HEIGHT;
 
 interface LibraryToolbarProps {
   /** null 이면 링 칸을 두지 않는다(무제한·캐시·값 없음 — uiux 4.3) */
@@ -21,8 +14,10 @@ interface LibraryToolbarProps {
 
 /**
  * 검색줄 오른쪽 툴바 — 잔여 링 + 필터를 **한 유리 캡슐**에 묶는다(2026-09-25 PM "유리 조각이 셋"). iOS 26 은
- * 툴바 버튼을 캡슐 하나로 묶어 유리 덩어리 수를 줄인다(Safari·메일 상단). 머리 줄은 검색 캡슐 + 이 캡슐, 둘로 끝난다.
- * 칸 사이 hairline 구분선 — 링(상태 표시)과 필터(버튼)가 한 덩어리로 읽히지 않게
+ * 툴바 버튼을 캡슐 하나로 묶어 유리 덩어리 수를 줄인다(Safari·메일 상단).
+ *
+ * 탭을 오갈 때의 모핑(탐색 [링] ↔ 라이브러리 [링 | 필터])은 `TabMorphPill` 이 transform·불투명도로 그린다 —
+ * 폭(레이아웃)으로는 시스템 바 버튼 안에서 그려지지 않는다(2026-09-28 04:55).
  */
 export default function LibraryToolbar({
   remaining,
@@ -30,65 +25,20 @@ export default function LibraryToolbar({
   activeFilterCount,
   onFilterPress,
 }: LibraryToolbarProps) {
-  // 탭 전환 모핑(useTabPillMorph) — 탐색([링])에서 오면 필터 칸이 0 → 44 로 자라난다. 링이 없으면(필터만) 모핑하지 않는다
-  const filterWidth = useTabPillMorph(remaining !== null);
   return (
-    // 바깥 자리는 두 칸 고정 — 네이티브 바 버튼(02:53 부터 알약이 사는 곳)은 설치 크기에 고정돼
-    // 다시 재지 않는다. 그래서 자리를 고정해 두고 캡슐이 이 안에서 폭만 바꾼다(TAB_PILL_FRAME_WIDTH)
-    <View style={styles.frame} pointerEvents="box-none">
-      <GlassCapsule style={styles.capsule}>
-        {remaining ? (
-          <>
-            <View style={styles.cell}>
-              <RemainingPlaysIndicator
-                remaining={remaining.remaining}
-                limit={remaining.limit}
-                onExhaustedPress={onExhaustedPress}
-                bare
-              />
-            </View>
-          </>
-        ) : null}
-        <Animated.View style={[styles.morphSlot, remaining ? { width: filterWidth } : null]}>
-          {remaining ? <View style={styles.divider} pointerEvents="none" /> : null}
-          <View style={styles.cell}>
-            <LibraryFilterButton activeCount={activeFilterCount} onPress={onFilterPress} bare />
-          </View>
-        </Animated.View>
-      </GlassCapsule>
-    </View>
+    <TabMorphPill
+      tab="Library"
+      ring={
+        remaining ? (
+          <RemainingPlaysIndicator
+            remaining={remaining.remaining}
+            limit={remaining.limit}
+            onExhaustedPress={onExhaustedPress}
+            bare
+          />
+        ) : null
+      }
+      filter={<LibraryFilterButton activeCount={activeFilterCount} onPress={onFilterPress} bare />}
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  frame: {
-    width: TAB_PILL_FRAME_WIDTH,
-    height: TOOLBAR_HEIGHT,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-  },
-  capsule: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: TOOLBAR_HEIGHT,
-  },
-  // 칸은 44 를 채운다(터치) — 캡슐(36)보다 위아래로 4 씩 넘치는 건 투명한 탭 영역뿐이다
-  cell: {
-    width: theme.touchTarget.minWidth,
-    height: theme.touchTarget.minHeight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  // 필터 칸(구분선 + 44) — 폭이 줄면 오른쪽이 잘린다
-  morphSlot: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    overflow: 'hidden',
-  },
-  divider: {
-    width: StyleSheet.hairlineWidth,
-    height: TOOLBAR_HEIGHT - theme.spacing.md,
-    backgroundColor: 'rgba(0, 0, 0, 0.12)',
-  },
-});
