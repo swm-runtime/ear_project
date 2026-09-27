@@ -72,7 +72,7 @@ export default function ContentDetailHeader({
         </Pressable>
         {isSaved ? (
           <Pressable
-            style={styles.secondaryButton}
+            style={[styles.secondaryButton, styles.deleteButton]}
             disabled={isActionPending}
             onPress={onDeletePress}
             accessibilityRole="button"
@@ -220,9 +220,12 @@ const styles = StyleSheet.create({
     color: theme.color.textPrimary,
   },
   /*
-   * 삭제 변형 — 테두리를 걷었으므로(위 secondaryButton) 위험 표시는 **빨간 글자**가 맡는다. 빨간 면으로 채우면
-   * 검정 [재생]보다 더 눈에 띄어 주 동작이 뒤바뀐다(library-uiux.md 4.7 은 위험색만 요구한다)
+   * 삭제 변형 — **연한 빨간 면 + 빨간 글자**(iOS 의 보조 파괴 버튼 `.bordered` + red tint). 채운 빨강은 쓰지
+   * 않는다 — 검정 [재생]보다 더 튀어 주·보조가 뒤바뀐다(library-uiux.md 4.7 은 위험색만 요구한다)
    */
+  deleteButton: {
+    backgroundColor: theme.color.dangerSurface,
+  },
   deleteLabel: {
     color: theme.color.danger,
   },
