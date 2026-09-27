@@ -22,6 +22,8 @@ export const useSystemLargeTitle = (title: string, trailing: ReactNode, onParent
     const target = onParent ? navigation.getParent() : navigation;
     target?.setOptions({
       title,
+      // headerTitle 이 옵션에 있으면(PUSHED_SCREEN_HEADER 의 '') title 을 이긴다 — 같이 덮는다(09-28 03:25 설정 제목 빈칸)
+      headerTitle: title,
       headerLargeTitleEnabled: true,
       unstable_headerRightItems: () =>
         trailing ? [{ type: 'custom', element: trailing, hidesSharedBackground: true }] : [],
