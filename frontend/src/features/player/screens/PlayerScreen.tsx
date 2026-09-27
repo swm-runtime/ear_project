@@ -1643,9 +1643,11 @@ export default function PlayerScreen() {
                   items={
                     isQueueSettled ? queueItems : queueItems.slice(0, QUEUE_MOTION_PREVIEW_COUNT)
                   }
-                  // 실제로 요청이 떠 있을 때만 스피너다(`isPending` 은 조회를 안 한 상태도 true)
-                  isLoading={queueQuery.isFetching}
-                  isError={queueQuery.isError}
+                  // 실제로 요청이 떠 있을 때만 스피너다(`isPending` 은 조회를 안 한 상태도 true).
+                  // **받아 둔 목록이 있으면 새로 받는 동안에도 목록을 그대로 둔다**(PM 2026-09-28 00:05 "중간중간 깜빡") —
+                  // 열 때마다 다시 받으므로(staleTime 0) 패널이 목록 → 스피너 → 목록으로 번쩍였다. 다시 받기 실패도 같다
+                  isLoading={queueQuery.isFetching && queueQuery.data === undefined}
+                  isError={queueQuery.isError && queueQuery.data === undefined}
                   currentContentId={session.contentId}
                   showHeader={false}
                   onSelect={screen.playQueueItem}
