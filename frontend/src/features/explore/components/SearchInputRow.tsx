@@ -1,7 +1,8 @@
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
-import { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
+import CloseIcon from '@/shared/ui/CloseIcon';
+import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
 import MagnifierIcon, { SEARCH_ICON_SIZE } from '@/shared/ui/MagnifierIcon';
 
 import { EXPLORE_COPY } from '../explore.copy';
@@ -61,14 +62,29 @@ export default function SearchInputRow({
         ) : null}
       </View>
       {onCancel ? (
-        <Pressable
-          onPress={onCancel}
-          style={styles.cancelButton}
-          accessibilityRole="button"
-          accessibilityLabel={EXPLORE_COPY.search.cancel}
-        >
-          <Text style={styles.cancelLabel}>{EXPLORE_COPY.search.cancel}</Text>
-        </Pressable>
+        variant === 'fill' ? (
+          // iOS 26 검색 닫기 — 글자 "취소" 대신 유리 원 안의 ✕(PM 2026-09-27 22:14). 검색창과 같은 높이 40
+          <GlassCapsule style={styles.closeCircle}>
+            <Pressable
+              style={styles.closePressable}
+              onPress={onCancel}
+              accessibilityRole="button"
+              accessibilityLabel={EXPLORE_COPY.search.cancel}
+              hitSlop={4}
+            >
+              <CloseIcon size={16} color={theme.color.textPrimary} />
+            </Pressable>
+          </GlassCapsule>
+        ) : (
+          <Pressable
+            onPress={onCancel}
+            style={styles.cancelButton}
+            accessibilityRole="button"
+            accessibilityLabel={EXPLORE_COPY.search.cancel}
+          >
+            <Text style={styles.cancelLabel}>{EXPLORE_COPY.search.cancel}</Text>
+          </Pressable>
+        )
       ) : null}
     </View>
   );
@@ -123,6 +139,15 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '700',
     color: theme.color.background,
+  },
+  closeCircle: {
+    width: HEADER_CONTROL_HEIGHT,
+    height: HEADER_CONTROL_HEIGHT,
+  },
+  closePressable: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cancelButton: {
     minHeight: theme.touchTarget.minHeight,
