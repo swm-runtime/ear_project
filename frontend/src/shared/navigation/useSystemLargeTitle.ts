@@ -3,6 +3,7 @@ import { useNavigation, type NavigationProp, type ParamListBase } from '@react-n
 import { createElement, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { Animated } from 'react-native';
 
+import CollapsedBarTitle from '@/shared/ui/CollapsedBarTitle';
 import GlassSearchButton from '@/shared/ui/GlassSearchButton';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 
@@ -64,7 +65,10 @@ export const useSystemLargeTitle = (
     target?.setOptions({
       title,
       // headerTitle 이 옵션에 있으면(PUSHED_SCREEN_HEADER 의 '') title 을 이긴다 — 같이 덮는다(09-28 03:25 설정 제목 빈칸)
-      headerTitle: title,
+      // 접힌 동안은 페이드인하는 작은 제목(설정의 UIKit 접힘처럼, 04:15 PM). 펼친 동안은 문자열 — 큰 제목이 이 값을 쓴다
+      headerTitle: showSearch
+        ? () => createElement(CollapsedBarTitle, { title, fontSize: collapsedTitleSize })
+        : title,
       headerLargeTitleEnabled: !showSearch,
       headerTitleStyle: { fontSize: collapsedTitleSize },
       unstable_headerLeftItems: () =>
