@@ -126,10 +126,8 @@ export default function ExploreScreen() {
       />
     ) : null;
   }, [isSearching, isClosingSearch, remainingValue, remainingLimit]);
-  // 바는 탭 화면(ExploreStack 의 부모)의 것
   // 설정과 같은 .always 큰 제목(04:57 PM) — 접히면 가운데 작은 제목 + 왼쪽 유리 검색 버튼(누르면 제자리 검색)
   useSystemLargeTitle(EXPLORE_COPY.tabTitle, barTrailing, {
-    onParent: true,
     collapse: { onSearch: () => setIsSearching(true), searchLabel: EXPLORE_COPY.search.placeholder },
   });
 

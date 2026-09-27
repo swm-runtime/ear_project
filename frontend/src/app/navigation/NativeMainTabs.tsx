@@ -5,11 +5,11 @@ import { selectTab } from '@/shared/navigation/tab-selection.store';
 import { theme } from '@/shared/theme';
 
 import { useSessionStore } from '@/features/auth';
+import { ExploreScreen } from '@/features/explore';
 import { LibraryScreen } from '@/features/library';
 import { MiniPlayer, useIsMiniPlayerVisible } from '@/features/player';
 import { ProfileScreen } from '@/features/profile';
 
-import ExploreStack from './ExploreStack';
 import { rememberTab, takePrimedTab, type RestorableTab } from './last-tab';
 import type { MainTabParamList } from './types';
 
@@ -97,7 +97,9 @@ export default function NativeMainTabs() {
           콘텐츠와 같이 스크롤. 검색 탭(탭 바 옆 검색 원, #730)은 뺐다 — 입구가 둘이라(PM 09-26 01:20) */}
       <NativeTab.Screen
         name="Explore"
-        component={ExploreStack}
+        // 탭에 화면을 바로 붙인다(종전 ExploreStack) — 안에 스택이 한 겹 더 있으면 늦게 뜨는 피드 목록을 시스템 바가 못 붙잡아
+        // 큰 제목이 안 접혔다(PM 2026-09-28 05:35 "탐색은 왜 안 돼" — 라이브러리는 됨). 검색은 제자리 덮개라 스택이 필요 없다
+        component={ExploreScreen}
         options={{
           tabBarLabel: '탐색',
           tabBarIcon: ({ focused }) => ({
