@@ -11,10 +11,8 @@ interface SystemLargeTitleOptions {
   /** 접힌(스크롤한) 작은 제목의 글자 크기 — 없으면 COLLAPSED_TITLE_SIZE */
   collapsedTitleSize?: number;
   /**
-   * 탭 화면 — **설정과 같은 `.always` 모드로 처음부터** 건다(PM 2026-09-28 04:57 "설정은 되는데 이거는 왜 안 되냐").
-   * 큰 제목은 버튼 줄 밑, 스크롤하면 UIKit 이 접어 가운데 작은 제목 + 블러. 접힌 동안에만 **왼쪽에 유리 검색 버튼**(03:44 PM).
-   * 모드는 절대 도중에 바꾸지 않는다 — 스크롤 중 .inline → .always 로 바꾸면 큰 제목이 콘텐츠 위로 다시 펼쳐졌다(04:49 rt 29).
-   * 없으면 `.inline`(큰 제목과 오른쪽 버튼이 같은 줄)
+   * 탭 화면 — 접힌 동안(UIKit 이 큰 제목을 접어 가운데 작은 제목, 05:49 실기기)에만 **왼쪽에 유리 검색 버튼**(03:44 PM).
+   * 모드는 .inline 그대로 — 애플 문서상 .inline 은 왼쪽 항목을 오버플로 메뉴로 옮길 수 있어 실기기로 확인 중(05:50)
    */
   collapse?: {
     onSearch: () => void;
@@ -63,10 +61,10 @@ export const useSystemLargeTitle = (
       title,
       // headerTitle 이 옵션에 있으면(PUSHED_SCREEN_HEADER 의 '') title 을 이긴다 — 같이 덮는다(09-28 03:25 설정 제목 빈칸)
       headerTitle: title,
-      // 큰 제목 모드는 항상 켠다 — 켜져 있어야 scroll edge 블러가 그려진다(04:29 PM). collapse 가 있으면 처음부터 .always
-      // (patches/react-native-screens — largeTitleHideShadow 가 .always 신호, runtime 29), 없으면 .inline. 도중에 안 바꾼다
+      // 큰 제목 모드는 항상 켠다 — 켜져 있어야 scroll edge 블러가 그려진다(04:29 PM). 모드는 .inline 고정 — .always 는 버튼
+      // 줄이 따로 생겨 제목이 캡슐과 한 줄이 아니었다(05:43). 도중에 안 바꾼다(04:49 — 바꾸면 큰 제목이 콘텐츠 위로 펼쳐짐)
       headerLargeTitleEnabled: true,
-      headerLargeTitleShadowVisible: !hasCollapse,
+      headerLargeTitleShadowVisible: true,
       headerTitleStyle: { fontSize: collapsedTitleSize },
       unstable_headerLeftItems: () =>
         showSearch

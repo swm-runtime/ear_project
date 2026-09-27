@@ -92,7 +92,9 @@ export default function LibraryScreen() {
   // 맨 위에서는 머리 줄 컨트롤이 면, 내리면 유리(PM 2026-09-25)
   const { solidness, scrollProps } = useFloatingHeaderScroll();
   // 머리 줄(JS 탭 바 갈래)의 루트 ref — 종전 시스템 edge effect 연결용, 지금은 FloatingHeader 가 요구만 한다
-  const listRef = useTabScrollToTop({ topInset: nativeBarInset });
+  // 접힌 바의 검색 버튼이 부르는 "맨 위로" — 목록 첫 줄의 검색 필드가 드러난다
+  const scrollToTopRef = useRef<(() => void) | null>(null);
+  const listRef = useTabScrollToTop({ topInset: nativeBarInset, controlRef: scrollToTopRef });
   const headerRef = useRef<View>(null);
 
   /*
@@ -137,7 +139,13 @@ export default function LibraryScreen() {
   );
   // .inline 큰 제목 — 제목과 툴바 캡슐이 한 줄(PM 2026-09-28 05:43 "캡슐하고 제목이 같은 줄이어야지"). .always(설정)는 버튼 줄이
   // 따로 생겨 공백이 났다. 접힘·블러는 시스템(rt 30 이 목록을 바에 직접 지정)
-  useSystemLargeTitle(LIBRARY_COPY.tabTitle, toolbar);
+  // 접히면 왼쪽 유리 검색 버튼(05:50 PM "검색버튼 넣어도 상관없는 거 아니야") — 누르면 맨 위 검색 필드로
+  useSystemLargeTitle(LIBRARY_COPY.tabTitle, toolbar, {
+    collapse: {
+      onSearch: () => scrollToTopRef.current?.(),
+      searchLabel: LIBRARY_COPY.search.placeholder,
+    },
+  });
 
   // 시스템 바 갈래에서 조건 요약·배너는 목록의 첫 줄이다 — 목록과 같이 스크롤한다
   const filterSummary = showTabBar ? (
