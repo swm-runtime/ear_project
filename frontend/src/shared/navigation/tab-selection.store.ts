@@ -1,10 +1,8 @@
 import { create } from 'zustand';
 
 interface TabSelectionStore {
-  /** 지금 선택된 탭 */
+  /** 지금 선택된 탭 — 알약은 자기 탭이 아닐 때 이 값의 모양으로 미리 맞춰 둔다(`useTabPillMorph`) */
   selected: string | null;
-  /** 직전에 선택돼 있던 탭 — 제목 줄 알약이 어느 모양에서 출발할지 정한다 */
-  previous: string | null;
   select: (tab: string) => void;
 }
 
@@ -23,8 +21,7 @@ interface TabSelectionStore {
  */
 export const useTabSelectionStore = create<TabSelectionStore>((set) => ({
   selected: null,
-  previous: null,
-  select: (tab) => set((s) => (s.selected === tab ? s : { previous: s.selected, selected: tab })),
+  select: (tab) => set((s) => (s.selected === tab ? s : { selected: tab })),
 }));
 
 /** 리스너에서 부른다(렌더 밖) */

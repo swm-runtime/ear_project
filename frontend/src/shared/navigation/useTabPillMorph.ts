@@ -38,22 +38,26 @@ export const useTabPillMorph = (tab: PillTab, enabled = true): Animated.Value =>
   const rest = shapeOf(tab);
   const progress = useAnimatedValue(rest);
   const selected = useTabSelectionStore((s) => s.selected);
-  const previous = useTabSelectionStore((s) => s.previous);
 
   useEffect(() => {
-    if (!enabled || selected !== tab) return;
-    // 떠나온 탭이 다른 알약 탭이면 그 모양에서 출발한다. 알약 없는 탭(프로필)에서 오면 제 모양 그대로 둔다
-    const from =
-      previous !== null && previous !== tab && previous in PILL_TABS ? shapeOf(previous) : rest;
-    if (from === rest) return;
-    progress.setValue(from);
+    if (!enabled || selected === null) return;
+    if (selected !== tab) {
+      /*
+       * **출발점은 안 보이는 동안 맞춘다**(PM 2026-09-28 06:12 "약간 튕긴다"). 들어온 뒤에 맞추면 알약이 제 모양으로
+       * 한 프레임 그려졌다가 출발점으로 튀고 다시 자란다 — 00:42 에 같은 증상을 겪고 blur 로 옮겼던 이유다.
+       * 지금 선택된 탭이 다른 알약 탭이면 그 모양으로, 알약 없는 탭(프로필)이면 제 모양으로 둔다(돌아올 때 가만히 있게).
+       */
+      progress.setValue(selected in PILL_TABS ? shapeOf(selected) : rest);
+      return;
+    }
+    // 들어왔다 — 출발점은 이미 맞춰져 있으니 제 모양으로 잇는다
     Animated.spring(progress, {
       toValue: rest,
       ...motion.spring.snappy,
       overshootClamping: true,
       useNativeDriver: true,
     }).start();
-  }, [selected, previous, tab, rest, enabled, progress]);
+  }, [selected, tab, rest, enabled, progress]);
 
   return progress;
 };
