@@ -118,6 +118,15 @@ export const usePlayGate = (options?: PlayGateOptions) => {
     return remaining > 0 ? remaining : null;
   };
 
+  /** 서버가 준 잔여가 0 이고 이 편이 오늘 아직 차감 전인가 — 여는 순서를 정하는 힌트일 뿐 차단 판정은 아니다 */
+  const isExhaustedHint = (isCountedToday: boolean): boolean => {
+    const { playLimit: limit } = usePlayLimitStore.getState();
+    if (isCountedToday || limit === null || limit.dailyPlayLimit === null || limit.dailyPlayCount === null) {
+      return false;
+    }
+    return limit.dailyPlayLimit - limit.dailyPlayCount <= 0;
+  };
+
   /**
    * 오늘 이미 재생한 콘텐츠인가 — 푸시는 이 힌트 없이 들어온다. 재생 목록(라이브러리 첫 페이지)에서 찾는다.
    * 못 찾거나 조회가 실패하면 "아직 안 들었다"로 본다 — 팝업이 한 번 더 뜰 뿐 차감 판정은 서버가 한다.
@@ -190,11 +199,14 @@ export const usePlayGate = (options?: PlayGateOptions) => {
 
   /**
    * 진입점 공통의 재생 요청. 차감이 실제로 일어나는 재생에만 팝업을 띄운다(library.md 4.3).
-   * 소진(잔여 0) 힌트라도 클라이언트가 차단하지 않는다 — 그대로 진입해 발급 403이면
-   * 플레이어가 닫고 페이월로 전환한다(경합·힌트 노후를 서버 판정이 흡수한다).
+   * 소진(잔여 0) 힌트라도 클라이언트가 차단하지 않는다 — 다만 플레이어를 먼저 열지 않고 발급부터 받아, 403 이면
+   * 플레이어 없이 페이월 안내, 허용이면 그때 연다(경합·힌트 노후를 서버 판정이 흡수한다, 2026-09-28).
    */
   const requestPlay = (target: PlayGateTarget, entryPoint: PlayEntryPoint) => {
-    if (target.openAfterIssue === true) {
+    // 소진 힌트(서버가 준 잔여 0)면 **플레이어를 먼저 열지 않고** 발급부터 받는다 — 403(한도)이면 플레이어 없이 바로 페이월
+    // 안내가 뜨고, 서버가 허용하면(힌트가 낡았거나 오늘 이미 들은 편) 그때 연다. 종전엔 플레이어가 떴다가 "오늘 이미 다
+    // 들었어요"로 닫혔다(PM 2026-09-28 00:01). 차단 판정은 여전히 서버다 — 클라이언트는 여는 순서만 바꾼다
+    if (target.openAfterIssue === true || isExhaustedHint(target.isCountedToday)) {
       startDeferred(target, entryPoint);
       return;
     }
