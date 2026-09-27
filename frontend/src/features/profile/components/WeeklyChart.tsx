@@ -260,14 +260,13 @@ const styles = StyleSheet.create({
   },
   title: {
     flexShrink: 0,
-    fontSize: theme.font.size.md,
-    fontWeight: '600',
-    color: theme.color.textPrimary,
+    fontSize: theme.font.size.xs,
+    color: theme.color.textSecondary,
   },
   weekControls: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: theme.spacing.xs,
+    gap: theme.spacing.sm,
     flexShrink: 0,
     maxWidth: '100%',
   },
