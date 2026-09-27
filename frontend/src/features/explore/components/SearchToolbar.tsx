@@ -32,16 +32,26 @@ export default function SearchToolbar({
   onClose,
   isOpen = true,
 }: SearchToolbarProps) {
-  // 닫기 칸의 폭(0 → 44)과 ✕ 불투명도 — 폭은 레이아웃이라 JS 드라이버(짧은 스프링 한 번뿐이다)
+  // 들어올 때만 닫기 칸의 폭이 0 → 44 로 자란다(레이아웃이라 JS 드라이버). 나갈 때는 폭을 건드리지 않고 ✕ 만 네이티브로
+  // 페이드아웃한다 — 폭 애니메이션이 닫힘 순간의 JS 작업과 겹쳐 끊겼다(PM 2026-09-27 23:12 "x 누를 때 렉")
   const open = useAnimatedValue(0);
+  const fade = useAnimatedValue(0);
   useEffect(() => {
-    Animated.spring(open, {
+    if (isOpen) {
+      Animated.spring(open, {
+        toValue: 1,
+        ...motion.spring.snappy,
+        overshootClamping: true,
+        useNativeDriver: false,
+      }).start();
+    }
+    Animated.timing(fade, {
       toValue: isOpen ? 1 : 0,
-      ...motion.spring.snappy,
-      overshootClamping: true,
-      useNativeDriver: false,
+      duration: motion.duration.fast,
+      easing: motion.easing.easeOut,
+      useNativeDriver: true,
     }).start();
-  }, [isOpen, open]);
+  }, [isOpen, open, fade]);
   const closeWidth = open.interpolate({ inputRange: [0, 1], outputRange: [0, theme.touchTarget.minWidth] });
 
   return (
@@ -56,18 +66,20 @@ export default function SearchToolbar({
               bare
             />
           </View>
-          <Animated.View style={[styles.divider, { opacity: open }]} pointerEvents="none" />
+          <Animated.View style={[styles.divider, { opacity: fade }]} pointerEvents="none" />
         </>
       ) : null}
-      <Animated.View style={[styles.closeSlot, { width: remaining ? closeWidth : theme.touchTarget.minWidth, opacity: open }]}>
-        <Pressable
-          style={styles.cell}
-          onPress={onClose}
-          accessibilityRole="button"
-          accessibilityLabel={EXPLORE_COPY.search.cancel}
-        >
-          <CloseIcon size={16} color={theme.color.textPrimary} />
-        </Pressable>
+      <Animated.View style={[styles.closeSlot, { width: remaining ? closeWidth : theme.touchTarget.minWidth }]}>
+        <Animated.View style={{ opacity: fade }}>
+          <Pressable
+            style={styles.cell}
+            onPress={onClose}
+            accessibilityRole="button"
+            accessibilityLabel={EXPLORE_COPY.search.cancel}
+          >
+            <CloseIcon size={16} color={theme.color.textPrimary} />
+          </Pressable>
+        </Animated.View>
       </Animated.View>
     </GlassCapsule>
   );
