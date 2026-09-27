@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useNativeHeaderInset } from '@/shared/navigation/useNativeHeaderInset';
 import { theme } from '@/shared/theme';
+import GlassCloseButton from '@/shared/ui/GlassCloseButton';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 import LargeTitleRow from '@/shared/ui/LargeTitleRow';
 
@@ -207,13 +208,27 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
     <Frame style={[styles.container, { paddingTop: nativeBarInset }]} edges={['top']}>
       {HAS_NATIVE_TAB_BAR ? (
         <>
-          {/* 제자리 검색이면 제목은 "탐색" 그대로 — 페이지가 바뀌지 않았다는 신호 */}
-          <LargeTitleRow title={embedding ? EXPLORE_COPY.tabTitle : EXPLORE_COPY.search.tabTitle} />
+          {/* 제자리 검색이면 제목은 "탐색" 그대로 — 페이지가 바뀌지 않았다는 신호. 오른쪽에 잔여 링 + 닫기 ✕
+              (PM 2026-09-27 22:36 "검색할 때도 몇 회 남았는지 뜨게 하고 취소 x 버튼을 그 옆에") — 검색창은 폭을 다 쓴다 */}
+          <LargeTitleRow
+            title={embedding ? EXPLORE_COPY.tabTitle : EXPLORE_COPY.search.tabTitle}
+            trailing={
+              embedding ? (
+                <View style={styles.titleTrailing}>
+                  {embedding.titleTrailing}
+                  <GlassCloseButton
+                    onPress={screen.cancel}
+                    accessibilityLabel={EXPLORE_COPY.search.cancel}
+                  />
+                </View>
+              ) : undefined
+            }
+          />
           <SearchInputRow
             value={screen.inputText}
             onChangeText={screen.handleChangeText}
             onSubmit={screen.submitSearch}
-            onCancel={screen.cancel}
+            onCancel={embedding ? undefined : screen.cancel}
             variant="fill"
           />
         </>
@@ -266,6 +281,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.color.background,
+  },
+  titleTrailing: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
   },
   initialContent: {
     gap: theme.spacing.lg,

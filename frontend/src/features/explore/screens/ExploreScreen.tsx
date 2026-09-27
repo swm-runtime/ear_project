@@ -76,10 +76,20 @@ export default function ExploreScreen() {
    * 이 자리가 "탐색" 제목 + 입력 중인 검색창 + 최근 검색어·추천 키워드(입력하면 결과)로 바뀐다. [취소]면 피드로 돌아온다.
    * 애플 뮤직 검색 탭과 같다. 피드 상태(필터·구간)는 이 화면 훅이 그대로 들고 있다. JS 탭 바 갈래는 종전 스택 검색 화면
    */
+  // 잔여 재생 링 — 무제한·캐시·값 없음이면 자리를 비운다, "무제한" 배지도 없다(uiux 4.2)
+  const remainingRing = screen.remainingDisplay ? (
+    <RemainingPlaysIndicator
+      remaining={screen.remainingDisplay.remaining}
+      limit={screen.remainingDisplay.limit}
+      onExhaustedPress={() => screen.openPaywall('explore')}
+    />
+  ) : null;
+
   if (isSearching) {
     return (
       <ExploreSearchScreen
         embedding={{
+          titleTrailing: remainingRing,
           onExit: () => setIsSearching(false),
           onOpenTopic: (topicId) => {
             screen.clearTopicFilter();
@@ -119,14 +129,6 @@ export default function ExploreScreen() {
       topics={screen.topics}
       selectedTopicIds={screen.selectedTopicIds}
       onToggle={screen.toggleTopic}
-    />
-  ) : null;
-  // 잔여 재생 링 — 무제한·캐시·값 없음이면 자리를 비운다, "무제한" 배지도 없다(uiux 4.2)
-  const remainingRing = screen.remainingDisplay ? (
-    <RemainingPlaysIndicator
-      remaining={screen.remainingDisplay.remaining}
-      limit={screen.remainingDisplay.limit}
-      onExhaustedPress={() => screen.openPaywall('explore')}
     />
   ) : null;
   // 시스템 바 갈래의 큰 제목 줄 — 제목과 링이 같은 줄
