@@ -73,7 +73,8 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
   const closeEmbedded = () => {
     if (isClosing) return;
     setIsClosing(true);
-    Animated.parallel([
+    // 알약이 링 쪽으로 줄어들며 합쳐지는 동안(isClosing → SearchToolbar) 본문이 가라앉고, 다 합쳐진 뒤 덮개를 짧게 걷는다
+    Animated.sequence([
       Animated.timing(appear, {
         toValue: 0,
         duration: motion.duration.normal,
@@ -82,8 +83,8 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
       }),
       Animated.timing(overlayFade, {
         toValue: 0,
-        duration: motion.duration.normal,
-        easing: motion.easing.easeInOut,
+        duration: motion.duration.fast,
+        easing: motion.easing.easeOut,
         useNativeDriver: true,
       }),
     ]).start(() => screen.cancel());
