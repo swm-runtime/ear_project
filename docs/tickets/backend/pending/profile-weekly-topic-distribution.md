@@ -1,4 +1,4 @@
-# [BE] 프로필 주간 응답에 그 주의 주제 분포 싣기
+# [BE] 프로필 주간 응답에 그 주·요일별 주제 분포 싣기
 
 | 항목 | 값 |
 |---|---|
@@ -38,6 +38,7 @@
 
 - **집계 기간 = 그 주**(월요일 04:00 ~ 다음 월요일 04:00, `daily_listened_sec` 와 같은 경계). 나머지 규칙은 4.1 `topic_distribution` 그대로 — 상위 5개 비율 내림차순 · 6위 이하 `others_ratio` · 여러 주제 콘텐츠는 각 주제에 그대로 더한 뒤 정규화 · 합 100 반올림 조정은 서버 · 숨김 주제도 포함 · 비율만(시간 미포함).
 - 그 주 기록이 없으면 `topics: []`, `others_ratio: 0`.
+- **요일별 분포도 함께**(추가 2026-09-28 04:26 PM — 막대를 탭하면 그날의 주제 분포) — `daily_topic_distribution`: 월~일 **7개 고정 배열**, 각 원소는 `topic_distribution` 과 같은 모양이고 집계 기간은 그 서비스 날짜(04:00~다음 날 04:00, `daily_listened_sec` 와 같은 경계). 기록 없는 요일·오지 않은 요일은 `{ "topics": [], "others_ratio": 0 }` 으로 자리를 유지한다(생략 없음).
 - 4.1 최상위 `topic_distribution`(전체 기간)은 FE 가 주별로 옮긴 뒤 폐기 예정 — 이번 티켓에서는 **남겨 둔다**(구버전 앱 호환).
 - FE 는 이웃 주를 미리 받는다(`changes/pending/profile-weekly-swipe-pager.md`) — 4.2 호출이 프로필 진입마다 1~2회 늘어난다. 주 단위 집계 쿼리 비용을 확인해 달라.
 
@@ -46,6 +47,7 @@
 - Given 이번 주 기록이 있는 사용자, When `GET /users/me/profile`, Then `weekly_listening.topic_distribution` 이 그 주 청취만으로 집계된 상위 5 + 기타 비율(합 100)이다
 - Given 과거 주, When `GET /users/me/profile/weekly-listening?week_start=…`, Then 같은 모양의 그 주 분포가 온다
 - Given 기록 없는 주, When 조회, Then `topics: []` · `others_ratio: 0`
+- Given 어느 주든, When 조회, Then `daily_topic_distribution` 이 7개이고 i 번째가 그 요일 청취만의 분포(없는 날은 빈 분포)다
 - Given 문서, When `spec/api/profile-api.md` 4.1·4.2 를 읽으면, Then 새 필드와 집계 기간이 적혀 있다
 
 ## 처리 기록

@@ -93,8 +93,7 @@ export const PROFILE_COPY = {
      * 탭에 아무 반응이 없으면 비활성이 아니라 고장으로 읽히므로 안내를 띄운다.
      */
     lockedTitle: '인증된 이메일은 변경할 수 없어요',
-    lockedBody:
-      '결제 기록을 보관하는 데 쓰이는 주소예요. 변경이 필요하면 문의해 주세요.',
+    lockedBody: '결제 기록을 보관하는 데 쓰이는 주소예요. 변경이 필요하면 문의해 주세요.',
     lockedClose: '닫기',
     lockedContact: '문의하기',
     /** 미인증 주소는 스크린리더가 주소 뒤에 배지를 이어 읽는다(profile-uiux.md 7장) */
@@ -181,6 +180,9 @@ export const PROFILE_COPY = {
      * 위 차트는 선택한 주라, 안 밝히면 주를 넘겨도 주제가 그대로인 것이 고장으로 읽힌다
      */
     topTopicAllTimeLabel: '가장 많이 들은 주제 · 전체 기간',
+    /** 막대를 탭해 그날 분포를 볼 때 — "가장 많이 들은 주제 · 화요일"(PM 2026-09-28 04:26) */
+    topTopicDayLabel: (dayIndex: number) =>
+      `가장 많이 들은 주제 · ${['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일'][dayIndex] ?? ''}`,
     othersLabel: '기타',
     /** 비율은 서버 정수 그대로 "N%"(profile-uiux.md 4.6) */
     ratioValue: (ratio: number) => `${ratio}%`,

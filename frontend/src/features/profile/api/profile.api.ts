@@ -41,6 +41,9 @@ const toWeeklyListening = (dto: WeeklyListeningDto): WeeklyListening => ({
   ...(dto.topic_distribution
     ? { topicDistribution: toTopicDistribution(dto.topic_distribution) }
     : {}),
+  ...(dto.daily_topic_distribution?.length === 7
+    ? { dailyTopicDistributions: dto.daily_topic_distribution.map(toTopicDistribution) }
+    : {}),
 });
 
 const toProfileSummary = (dto: ProfileSummaryResponseDto): ProfileSummary => ({
