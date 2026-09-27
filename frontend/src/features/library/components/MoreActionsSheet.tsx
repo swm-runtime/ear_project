@@ -153,9 +153,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: theme.spacing.md,
     paddingHorizontal: theme.spacing.md,
-    paddingBottom: theme.spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: theme.color.border,
+    // 구분선 없이 여백으로 요약과 액션을 가른다(PM 2026-09-27 23:27 — 액션 줄 사이엔 선이 없어 이 선 하나만 튀었다)
+    paddingBottom: theme.spacing.lg,
   },
   thumbnail: {
     width: 48,
