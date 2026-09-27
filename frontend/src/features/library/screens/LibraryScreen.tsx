@@ -11,6 +11,7 @@ import {
 
 import { useNativeHeaderInset } from '@/shared/navigation/useNativeHeaderInset';
 import { useSystemLargeTitle } from '@/shared/navigation/useSystemLargeTitle';
+import { useTabScrollToTop } from '@/shared/navigation/useTabScrollToTop';
 import { theme } from '@/shared/theme';
 import FloatingHeader, {
   useFloatingHeaderInset,
@@ -91,7 +92,7 @@ export default function LibraryScreen() {
   // 맨 위에서는 머리 줄 컨트롤이 면, 내리면 유리(PM 2026-09-25)
   const { solidness, scrollProps } = useFloatingHeaderScroll();
   // 머리 줄(JS 탭 바 갈래)의 루트 ref — 종전 시스템 edge effect 연결용, 지금은 FloatingHeader 가 요구만 한다
-  const listRef = useRef(null);
+  const listRef = useTabScrollToTop({ topInset: nativeBarInset });
   const headerRef = useRef<View>(null);
 
   /*

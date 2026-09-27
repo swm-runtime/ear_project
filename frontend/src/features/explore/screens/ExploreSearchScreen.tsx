@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { useNativeHeaderInset } from '@/shared/navigation/useNativeHeaderInset';
+import { useTabScrollToTop } from '@/shared/navigation/useTabScrollToTop';
 import { motion, theme } from '@/shared/theme';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 import LargeTitleRow from '@/shared/ui/LargeTitleRow';
@@ -53,6 +54,7 @@ interface ExploreSearchScreenProps {
 
 export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenProps = {}) {
   const screen = useExploreSearchScreen(embedding);
+  const listRef = useTabScrollToTop({ enabled: embedding !== undefined });
   /*
    * 제자리 검색의 등장·퇴장(PM 2026-09-27 23:01 "검색창 누를 때 애니메이션") — 피드 자리에 최근 검색어·결과가 살짝 올라오며
    * 나타나고(snappy 스프링, 네이티브 드라이버), 닫기면 반대로 가라앉으며 사라진 뒤 피드로 돌아간다. 스택 검색 화면은 그대로 1
@@ -129,6 +131,7 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
     if (screen.isInitialMode) {
       return (
         <ScrollView
+          ref={listRef}
           {...DOCK_SCROLL_PROPS}
           contentContainerStyle={styles.initialContent}
           keyboardShouldPersistTaps="handled"
@@ -159,6 +162,7 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
     if (screen.isNoResult) {
       return (
         <FlatList
+          ref={listRef}
           {...DOCK_SCROLL_PROPS}
           data={toExploreGridData(screen.fallbackItems)}
           keyExtractor={exploreGridKey}
@@ -218,6 +222,7 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
           <ActivityIndicator style={styles.inlineLoading} color={theme.color.primary} />
         ) : null}
         <FlatList
+          ref={listRef}
           {...DOCK_SCROLL_PROPS}
           style={screen.isShowingStaleResults ? styles.dimmed : undefined}
           data={toExploreGridData(screen.results)}

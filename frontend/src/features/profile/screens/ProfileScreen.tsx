@@ -2,6 +2,7 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'r
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
+import { useTabScrollToTop } from '@/shared/navigation/useTabScrollToTop';
 import { theme } from '@/shared/theme';
 import ConfirmDialog from '@/shared/ui/ConfirmDialog';
 import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
@@ -38,6 +39,7 @@ const SETTINGS_HIT_SLOP = (theme.touchTarget.minHeight - SETTINGS_GLASS_SIZE) / 
  */
 export default function ProfileScreen() {
   const screen = useProfileScreen();
+  const scrollRef = useTabScrollToTop();
   // 탭 바가 목록 위에 떠 있으므로 그 높이만큼 바닥 여백(2026-09-22)
   const dockInset = useBottomDockInset();
   // 0.3초 미만 로딩은 표시하지 않는다(common-error-handling.md 5장)
@@ -74,6 +76,7 @@ export default function ProfileScreen() {
         ) : null
       ) : (
         <ScrollView
+          ref={scrollRef}
           {...DOCK_SCROLL_PROPS}
           contentContainerStyle={[
             styles.scrollContent,
