@@ -1749,6 +1749,7 @@ export default function PlayerScreen() {
           title: session.meta.title,
           thumbnailUrl: session.meta.thumbnailUrl,
           durationSec: session.durationSec,
+          categoryLabel,
         }}
         sourceUrl={session.meta.sourceUrl}
         canDelete={session.libraryItem !== null}
