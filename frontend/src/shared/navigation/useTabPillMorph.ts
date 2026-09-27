@@ -1,4 +1,9 @@
-import { useFocusEffect, useNavigation, type NavigationProp, type ParamListBase } from '@react-navigation/native';
+import {
+  useFocusEffect,
+  useNavigation,
+  type NavigationProp,
+  type ParamListBase,
+} from '@react-navigation/native';
 import { useCallback, useEffect } from 'react';
 import { Animated } from 'react-native';
 
@@ -60,3 +65,15 @@ export const useTabPillMorph = (hasExtraCell: boolean): Animated.AnimatedInterpo
 
 /** 알약 한 칸 폭 — 터치 최소 폭(44) */
 export const TAB_PILL_CELL = theme.touchTarget.minWidth;
+
+/**
+ * 알약이 앉는 **바깥 자리의 고정 폭**(두 칸) — 알약은 이 안에서 오른쪽에 붙어 폭만 변한다.
+ *
+ * 알약은 2026-09-28 02:53(#902) 부터 **시스템 내비게이션 바의 바 버튼**이다(`useSystemLargeTitle` →
+ * `unstable_headerRightItems`). 네이티브 바 버튼은 `UIBarButtonItem(customView:)` 로 **설치 시점 크기에 고정**되므로,
+ * 그 안에서 캡슐 폭을 애니메이션해도 바가 다시 재지 않아 **모핑이 화면에 나오지 않았다**(04:39 PM "여전히 안 돼").
+ * 바깥 자리를 두 칸으로 고정해 두면 바가 다시 잴 일이 없고, 모핑은 그 안에서 일어난다.
+ *
+ * 00:32 에 모핑이 보였던 것은 알약이 아직 **콘텐츠 안**(`LargeTitleRow`)에 있던 때다
+ */
+export const TAB_PILL_FRAME_WIDTH = TAB_PILL_CELL * 2;

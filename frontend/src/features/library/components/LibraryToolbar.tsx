@@ -1,6 +1,6 @@
 import { Animated, StyleSheet, View } from 'react-native';
 
-import { useTabPillMorph } from '@/shared/navigation/useTabPillMorph';
+import { TAB_PILL_FRAME_WIDTH, useTabPillMorph } from '@/shared/navigation/useTabPillMorph';
 import { theme } from '@/shared/theme';
 import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
 
@@ -33,30 +33,41 @@ export default function LibraryToolbar({
   // 탭 전환 모핑(useTabPillMorph) — 탐색([링])에서 오면 필터 칸이 0 → 44 로 자라난다. 링이 없으면(필터만) 모핑하지 않는다
   const filterWidth = useTabPillMorph(remaining !== null);
   return (
-    <GlassCapsule style={styles.capsule}>
-      {remaining ? (
-        <>
+    // 바깥 자리는 두 칸 고정 — 네이티브 바 버튼(02:53 부터 알약이 사는 곳)은 설치 크기에 고정돼
+    // 다시 재지 않는다. 그래서 자리를 고정해 두고 캡슐이 이 안에서 폭만 바꾼다(TAB_PILL_FRAME_WIDTH)
+    <View style={styles.frame} pointerEvents="box-none">
+      <GlassCapsule style={styles.capsule}>
+        {remaining ? (
+          <>
+            <View style={styles.cell}>
+              <RemainingPlaysIndicator
+                remaining={remaining.remaining}
+                limit={remaining.limit}
+                onExhaustedPress={onExhaustedPress}
+                bare
+              />
+            </View>
+          </>
+        ) : null}
+        <Animated.View style={[styles.morphSlot, remaining ? { width: filterWidth } : null]}>
+          {remaining ? <View style={styles.divider} pointerEvents="none" /> : null}
           <View style={styles.cell}>
-            <RemainingPlaysIndicator
-              remaining={remaining.remaining}
-              limit={remaining.limit}
-              onExhaustedPress={onExhaustedPress}
-              bare
-            />
+            <LibraryFilterButton activeCount={activeFilterCount} onPress={onFilterPress} bare />
           </View>
-        </>
-      ) : null}
-      <Animated.View style={[styles.morphSlot, remaining ? { width: filterWidth } : null]}>
-        {remaining ? <View style={styles.divider} pointerEvents="none" /> : null}
-        <View style={styles.cell}>
-          <LibraryFilterButton activeCount={activeFilterCount} onPress={onFilterPress} bare />
-        </View>
-      </Animated.View>
-    </GlassCapsule>
+        </Animated.View>
+      </GlassCapsule>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  frame: {
+    width: TAB_PILL_FRAME_WIDTH,
+    height: TOOLBAR_HEIGHT,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
   capsule: {
     flexDirection: 'row',
     alignItems: 'center',
