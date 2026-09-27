@@ -343,7 +343,7 @@ export default function LibraryScreen() {
       )}
 
       {/* 스크롤하면 나타나는 상단 블러 띠(시스템 탭 바 갈래) — 바의 작은 제목이 그 위에 */}
-      <NativeBarBlurBand scrollY={scrollY} title={LIBRARY_COPY.tabTitle} material="glass" />
+      <NativeBarBlurBand scrollY={scrollY} title={LIBRARY_COPY.tabTitle} />
 
       {/* 머리 줄은 목록 **뒤에 선언**한다(zIndex 로 위에 뜬다) */}
       {/* 머리 줄은 목록 위에 떠 있다 — 배경 없이 유리 컨트롤만(2026-09-24 PM). 브랜드 표시는 두지 않는다(2026-09-02).
