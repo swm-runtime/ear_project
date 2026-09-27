@@ -69,7 +69,7 @@ export default function TopicDonut({ distribution }: TopicDonutProps) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>{PROFILE_COPY.stats.distributionTitle}</Text>
+      {/* 제목 "주로 듣는 주제"는 뺐다 — 카드 안 헤드라인 "가장 많이 들은 주제"와 겹친다(PM 2026-09-27 23:49) */}
       {entries.length === 0 ? (
         <View style={styles.emptyBox}>
           <Text style={styles.emptyText}>{PROFILE_COPY.stats.emptyState}</Text>
@@ -129,11 +129,6 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: theme.spacing.md,
     gap: theme.spacing.sm,
-  },
-  title: {
-    fontSize: theme.font.size.md,
-    fontWeight: '600',
-    color: theme.color.textPrimary,
   },
   // 주간 그래프(WeeklyChart)와 같은 카드
   card: {
