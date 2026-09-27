@@ -32,10 +32,13 @@ const MAX_WIDTH = 312;
 const BACKDROP_BLUR_RADIUS = 36;
 const BACKDROP_SCRIM = 'rgba(23, 23, 26, 0.45)';
 const ON_ART_TEXT = '#FFFFFF';
-/** 재생 원 버튼 — 지름 36 + hitSlop 4 = 44(design.md §6). 미니플레이어 재생 원과 같은 결 */
-const PLAY_BUTTON_SIZE = 36;
-const PLAY_ICON_SIZE = 18;
-const PLAY_HIT_SLOP = (44 - PLAY_BUTTON_SIZE) / 2;
+/**
+ * 재생 표식 — **원을 두지 않는다.** 사진 위 표식에 불투명 원·알약을 쓰지 않는다는 규칙(design.md §3)이고,
+ * 흰 원은 흐린 커버 위에서 카드에서 가장 밝은 덩어리가 돼 아트워크·제목과 싸웠다(PM 2026-09-28 00:46).
+ * 같은 줄의 더보기 점(⋯)과 같이 **도형 + 드롭섀도**로만 읽히게 한다. 터치는 hitSlop 으로 44 를 채운다
+ */
+const PLAY_ICON_SIZE = 20;
+const PLAY_HIT_SLOP = (44 - PLAY_ICON_SIZE) / 2;
 const ON_ART_TEXT_SECONDARY = 'rgba(255, 255, 255, 0.72)';
 
 interface Rect {
@@ -101,7 +104,11 @@ export default function ExploreFeaturedCard({
         })}
       >
         <View style={styles.artworkFrame}>
-          <RemoteImage uri={item.content.thumbnailUrl} recyclingKey={item.content.id} style={styles.artwork} />
+          <RemoteImage
+            uri={item.content.thumbnailUrl}
+            recyclingKey={item.content.id}
+            style={styles.artwork}
+          />
           {/* 완청 체크는 없다(2026-09-22 PM) — 사진 위 스티커라 뺐다. 완청은 낭독기 라벨(completed)로만 전한다 */}
         </View>
         <Text style={styles.title} numberOfLines={2}>
@@ -126,7 +133,7 @@ export default function ExploreFeaturedCard({
             completed: isCompleted,
           })}
         >
-          <PlayIcon size={PLAY_ICON_SIZE} color={theme.color.textPrimary} />
+          <PlayIcon size={PLAY_ICON_SIZE} color={ON_ART_TEXT} shadow />
         </Pressable>
         <Text style={styles.meta} numberOfLines={1}>
           {item.content.authorName} · {EXPLORE_COPY.row.durationLabel(minutes)}
@@ -206,10 +213,6 @@ const styles = StyleSheet.create({
     marginHorizontal: theme.spacing.md,
   },
   playButton: {
-    width: PLAY_BUTTON_SIZE,
-    height: PLAY_BUTTON_SIZE,
-    borderRadius: PLAY_BUTTON_SIZE / 2,
-    backgroundColor: theme.color.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
