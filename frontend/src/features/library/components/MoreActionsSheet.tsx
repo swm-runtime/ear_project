@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
@@ -37,6 +38,14 @@ export default function MoreActionsSheet({
   onDismiss,
   onDismissed,
 }: MoreActionsSheetProps) {
+  /**
+   * **내려가는 동안 보여 줄 내용.** 닫기는 `item` 을 null 로 만드는데, 그러면 시트가 내려가기 전에 내용이
+   * 먼저 사라져 빈 상자만 미끄러진다(PM 2026-09-27 21:00 "내려갈 때 애니메이션이 이상하다"). 마지막으로
+   * 열렸던 항목을 붙잡아 두고, 보일지 여부만 `item` 이 정한다. 렌더 중 갱신은 React 가 권하는 파생 상태 패턴이다
+   */
+  const [shown, setShown] = useState(item);
+  if (item !== null && item !== shown) setShown(item);
+
   return (
     <BottomSheet
       isVisible={item !== null}
@@ -45,67 +54,67 @@ export default function MoreActionsSheet({
       sheetStyle={styles.sheet}
     >
       <View accessibilityViewIsModal>
-          {item ? (
-            <>
-              <View style={styles.summary}>
-                <RemoteImage uri={item.content.thumbnailUrl} style={styles.thumbnail} />
-                <View style={styles.summaryText}>
-                  <Text style={styles.title} numberOfLines={2}>
-                    {item.content.title}
-                  </Text>
-                </View>
+        {shown ? (
+          <>
+            <View style={styles.summary}>
+              <RemoteImage uri={shown.content.thumbnailUrl} style={styles.thumbnail} />
+              <View style={styles.summaryText}>
+                <Text style={styles.title} numberOfLines={2}>
+                  {shown.content.title}
+                </Text>
               </View>
+            </View>
+            <Pressable
+              style={styles.action}
+              onPress={() => onDetail(shown)}
+              accessibilityRole="button"
+              accessibilityLabel={LIBRARY_COPY.moreSheet.detail}
+            >
+              <Text style={styles.actionLabel}>{LIBRARY_COPY.moreSheet.detail}</Text>
+            </Pressable>
+            {shown.content.sourceUrl !== null ? (
               <Pressable
                 style={styles.action}
-                onPress={() => onDetail(item)}
+                onPress={() => onSourceLink(shown)}
                 accessibilityRole="button"
-                accessibilityLabel={LIBRARY_COPY.moreSheet.detail}
+                accessibilityLabel={LIBRARY_COPY.moreSheet.sourceLink}
               >
-                <Text style={styles.actionLabel}>{LIBRARY_COPY.moreSheet.detail}</Text>
+                <Text style={styles.actionLabel}>{LIBRARY_COPY.moreSheet.sourceLink}</Text>
               </Pressable>
-              {item.content.sourceUrl !== null ? (
-                <Pressable
-                  style={styles.action}
-                  onPress={() => onSourceLink(item)}
-                  accessibilityRole="button"
-                  accessibilityLabel={LIBRARY_COPY.moreSheet.sourceLink}
-                >
-                  <Text style={styles.actionLabel}>{LIBRARY_COPY.moreSheet.sourceLink}</Text>
-                </Pressable>
-              ) : null}
+            ) : null}
+            <Pressable
+              style={styles.action}
+              onPress={() => onDelete(shown)}
+              accessibilityRole="button"
+              accessibilityLabel={LIBRARY_COPY.moreSheet.delete}
+            >
+              <Text style={[styles.actionLabel, styles.deleteLabel]}>
+                {LIBRARY_COPY.moreSheet.delete}
+              </Text>
+            </Pressable>
+            {/* [공유] — 담기/제거류 아래, P1에만(SH1). 모든 콘텐츠에 노출되는 무조건부 행이다 */}
+            {IS_SHARE_ENABLED ? (
               <Pressable
                 style={styles.action}
-                onPress={() => onDelete(item)}
+                onPress={() => onShare(shown)}
                 accessibilityRole="button"
-                accessibilityLabel={LIBRARY_COPY.moreSheet.delete}
+                accessibilityLabel={SHARE_COPY.action}
               >
-                <Text style={[styles.actionLabel, styles.deleteLabel]}>
-                  {LIBRARY_COPY.moreSheet.delete}
-                </Text>
+                <Text style={styles.actionLabel}>{SHARE_COPY.action}</Text>
               </Pressable>
-              {/* [공유] — 담기/제거류 아래, P1에만(SH1). 모든 콘텐츠에 노출되는 무조건부 행이다 */}
-              {IS_SHARE_ENABLED ? (
-                <Pressable
-                  style={styles.action}
-                  onPress={() => onShare(item)}
-                  accessibilityRole="button"
-                  accessibilityLabel={SHARE_COPY.action}
-                >
-                  <Text style={styles.actionLabel}>{SHARE_COPY.action}</Text>
-                </Pressable>
-              ) : null}
-              <Pressable
-                style={styles.action}
-                onPress={onDismiss}
-                accessibilityRole="button"
-                accessibilityLabel={LIBRARY_COPY.moreSheet.close}
-              >
-                <Text style={[styles.actionLabel, styles.closeLabel]}>
-                  {LIBRARY_COPY.moreSheet.close}
-                </Text>
-              </Pressable>
-            </>
-          ) : null}
+            ) : null}
+            <Pressable
+              style={styles.action}
+              onPress={onDismiss}
+              accessibilityRole="button"
+              accessibilityLabel={LIBRARY_COPY.moreSheet.close}
+            >
+              <Text style={[styles.actionLabel, styles.closeLabel]}>
+                {LIBRARY_COPY.moreSheet.close}
+              </Text>
+            </Pressable>
+          </>
+        ) : null}
       </View>
     </BottomSheet>
   );
