@@ -74,6 +74,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: theme.radius.full,
+    borderCurve: 'continuous',
     overflow: 'hidden',
   },
   photo: {

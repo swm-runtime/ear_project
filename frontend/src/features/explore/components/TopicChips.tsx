@@ -76,6 +76,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     // 알약 — 사진·막 클리핑은 여기서 한 번만 한다(TopicChip·InterestCard 와 같은 구조)
     borderRadius: theme.radius.full,
+    borderCurve: 'continuous',
     overflow: 'hidden',
     /*
      * **패딩을 칩이 갖지 않는다.** 배경 사진의 `width/height: '100%'` 가 부모의 콘텐츠 박스(패딩 제외)로
