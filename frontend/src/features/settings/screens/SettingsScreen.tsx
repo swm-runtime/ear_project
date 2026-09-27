@@ -5,12 +5,11 @@ import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { APP_VERSION, APP_VERSION_LABEL, IS_DEV_API } from '@/shared/lib/app-version';
 import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
 import { USES_SYSTEM_PUSHED_HEADER } from '@/shared/navigation/pushed-screen-header';
-import { useFadingNativeTitle } from '@/shared/navigation/useFadingNativeTitle';
+import { useSystemLargeTitle } from '@/shared/navigation/useSystemLargeTitle';
 import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import ConfirmDialog from '@/shared/ui/ConfirmDialog';
 import { useFloatingHeaderScroll } from '@/shared/ui/FloatingHeader';
-import LargeTitleRow from '@/shared/ui/LargeTitleRow';
 
 import { NotificationPrePromptModal } from '@/features/notification';
 
@@ -42,10 +41,10 @@ export default function SettingsScreen() {
 
   // 조회 값이 필요한 조작(토글·배속) — 기준값이 없으면 비활성이다(S6: 토글 섹션도 에러 영역)
   const hasControls = screen.controls !== null;
-  // iOS 26: 스크롤에 따라 블러 띠 + 작은 제목(라이브러리·탐색과 같은 부품). 그 외 갈래는 값을 안 쓴다
-  const { scrollY, scrollProps } = useFloatingHeaderScroll();
-  // 바 밑 블러는 시스템 scroll edge effect, 작은 제목은 바가 그린다(PM 2026-09-28 01:40)
-  useFadingNativeTitle(SETTINGS_COPY.title, scrollY);
+  const { scrollProps } = useFloatingHeaderScroll();
+  // iOS 26: **시스템 큰 제목** — 라이브러리·탐색과 같다(PM 2026-09-28 03:14 "이거야"). 뒤로 버튼이 있어 UIKit 이 큰 제목을
+  // 버튼 줄 밑에 두고, 스크롤 접힘·바 밑 블러는 시스템이 한다
+  useSystemLargeTitle(SETTINGS_COPY.title, null);
 
   return (
     <SafeAreaView style={styles.container} edges={USES_SYSTEM_PUSHED_HEADER ? [] : ['top']}>
@@ -74,11 +73,6 @@ export default function SettingsScreen() {
         contentInsetAdjustmentBehavior={USES_SYSTEM_PUSHED_HEADER ? 'automatic' : 'never'}
         {...scrollProps}
       >
-        {USES_SYSTEM_PUSHED_HEADER ? (
-          <View style={styles.largeTitle}>
-            <LargeTitleRow title={SETTINGS_COPY.title} />
-          </View>
-        ) : null}
         {/* ── 상단 요약(계정·구독) — 서버 값이 필요한 영역만 로딩·에러가 있다(S6) ── */}
         {screen.isInitialLoading ? (
           showSkeleton ? (
@@ -351,9 +345,6 @@ const styles = StyleSheet.create({
     minWidth: theme.touchTarget.minWidth,
   },
   // 큰 제목 줄 — 섹션 간격(gap)과 겹치지 않게 아래 여백은 줄 자체가 갖는다
-  largeTitle: {
-    marginBottom: -theme.spacing.sm,
-  },
   scrollContent: {
     paddingVertical: theme.spacing.md,
     paddingBottom: theme.spacing.xxl,
