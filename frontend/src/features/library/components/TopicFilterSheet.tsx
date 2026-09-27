@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { ActivityIndicator, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import BottomSheet from '@/shared/ui/BottomSheet';
 
 import { topicImageSource } from '@/features/interest';
 
@@ -59,9 +60,8 @@ export default function TopicFilterSheet({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onDismiss}>
-      <Pressable style={styles.dim} onPress={onDismiss} accessibilityLabel="닫기" />
-      <View style={styles.sheet}>
+    <BottomSheet isVisible={visible} onRequestClose={onDismiss} sheetStyle={styles.sheet}>
+      <View>
         <View style={styles.handle} />
         <Text style={styles.title}>{LIBRARY_COPY.topicFilter.sheetTitle}</Text>
 
@@ -172,15 +172,11 @@ export default function TopicFilterSheet({
           </Pressable>
         </View>
       </View>
-    </Modal>
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  dim: {
-    flex: 1,
-    backgroundColor: theme.color.overlay,
-  },
   sheet: {
     backgroundColor: theme.color.background,
     borderTopLeftRadius: theme.radius.xl,

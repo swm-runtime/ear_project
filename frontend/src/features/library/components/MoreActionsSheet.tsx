@@ -1,6 +1,7 @@
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import BottomSheet from '@/shared/ui/BottomSheet';
 import RemoteImage from '@/shared/ui/RemoteImage';
 
 import { IS_SHARE_ENABLED, SHARE_COPY } from '@/features/share';
@@ -37,15 +38,13 @@ export default function MoreActionsSheet({
   onDismissed,
 }: MoreActionsSheetProps) {
   return (
-    <Modal
-      visible={item !== null}
-      transparent
-      animationType="slide"
+    <BottomSheet
+      isVisible={item !== null}
       onRequestClose={onDismiss}
-      onDismiss={onDismissed}
+      onClosed={onDismissed}
+      sheetStyle={styles.sheet}
     >
-      <Pressable style={styles.dim} onPress={onDismiss} accessibilityRole="button">
-        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+      <View accessibilityViewIsModal>
           {item ? (
             <>
               <View style={styles.summary}>
@@ -107,18 +106,12 @@ export default function MoreActionsSheet({
               </Pressable>
             </>
           ) : null}
-        </Pressable>
-      </Pressable>
-    </Modal>
+      </View>
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  dim: {
-    flex: 1,
-    backgroundColor: theme.color.overlay,
-    justifyContent: 'flex-end',
-  },
   sheet: {
     backgroundColor: theme.color.background,
     borderTopLeftRadius: theme.radius.xl,
