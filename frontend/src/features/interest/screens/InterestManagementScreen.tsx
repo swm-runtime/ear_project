@@ -2,6 +2,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
+import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
 
 import InterestDialog from '../components/InterestDialog';
@@ -37,7 +38,7 @@ export default function InterestManagementScreen() {
           accessibilityRole="button"
           accessibilityLabel={INTEREST_COPY.backA11y}
         >
-          <Text style={styles.backGlyph}>‹</Text>
+          <ChevronIcon direction="left" size={BACK_ICON_SIZE} color={theme.color.textPrimary} />
         </Pressable>
         <Text style={styles.appBarTitle} accessibilityRole="header">
           {INTEREST_COPY.appBarTitle}
@@ -197,6 +198,9 @@ export default function InterestManagementScreen() {
   );
 }
 
+/** 앱바 뒤로 셰브론 — 글자 `‹` 는 폰트마다 굵기·세로 위치가 달라 도형으로 그린다(design.md §5) */
+const BACK_ICON_SIZE = 24;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -213,11 +217,6 @@ const styles = StyleSheet.create({
     minHeight: theme.touchTarget.minHeight,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  backGlyph: {
-    fontSize: theme.font.size.xl,
-    color: theme.color.textPrimary,
-    lineHeight: theme.font.size.xl + 2,
   },
   appBarTitle: {
     flex: 1,

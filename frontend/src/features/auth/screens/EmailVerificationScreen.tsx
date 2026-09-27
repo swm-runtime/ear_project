@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
+import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
 
 import { AUTH_COPY } from '../auth.copy';
@@ -36,7 +37,7 @@ export default function EmailVerificationScreen() {
           accessibilityRole="button"
           accessibilityLabel={EMAIL_COPY.backA11y}
         >
-          <Text style={styles.backGlyph}>‹</Text>
+          <ChevronIcon direction="left" size={BACK_ICON_SIZE} color={theme.color.textPrimary} />
         </Pressable>
         <Text style={styles.appBarTitle}>{EMAIL_COPY.appBarTitle}</Text>
         <View style={styles.backButton} />
@@ -116,9 +117,7 @@ export default function EmailVerificationScreen() {
               editable={screen.isCodeEditable}
             />
             {/* 카운트다운 — 표시용. 만료 판정은 서버가 한다(auth-uiux.md 4.10) */}
-            <Text
-              style={[styles.countdown, screen.isCountdownWarning && styles.countdownWarning]}
-            >
+            <Text style={[styles.countdown, screen.isCountdownWarning && styles.countdownWarning]}>
               {screen.countdownLabel}
             </Text>
           </View>
@@ -176,6 +175,9 @@ export default function EmailVerificationScreen() {
   );
 }
 
+/** 앱바 뒤로 셰브론 — 글자 `‹` 는 폰트마다 굵기·세로 위치가 달라 도형으로 그린다(design.md §5) */
+const BACK_ICON_SIZE = 24;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -192,11 +194,6 @@ const styles = StyleSheet.create({
     minHeight: theme.touchTarget.minHeight,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  backGlyph: {
-    fontSize: theme.font.size.xl,
-    color: theme.color.textPrimary,
-    lineHeight: theme.font.size.xl + 2,
   },
   appBarTitle: {
     flex: 1,

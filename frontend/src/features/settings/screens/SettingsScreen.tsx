@@ -6,6 +6,7 @@ import { APP_VERSION, APP_VERSION_LABEL, IS_DEV_API } from '@/shared/lib/app-ver
 import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
 import { USES_SYSTEM_PUSHED_HEADER } from '@/shared/navigation/pushed-screen-header';
 import { theme } from '@/shared/theme';
+import ChevronIcon from '@/shared/ui/ChevronIcon';
 import ConfirmDialog from '@/shared/ui/ConfirmDialog';
 import { useFloatingHeaderScroll } from '@/shared/ui/FloatingHeader';
 import LargeTitleRow from '@/shared/ui/LargeTitleRow';
@@ -56,7 +57,7 @@ export default function SettingsScreen() {
             accessibilityRole="button"
             accessibilityLabel={SETTINGS_COPY.backA11y}
           >
-            <Text style={styles.backGlyph}>‹</Text>
+            <ChevronIcon direction="left" size={BACK_ICON_SIZE} color={theme.color.textPrimary} />
           </Pressable>
           <Text style={styles.appBarTitle} accessibilityRole="header">
             {SETTINGS_COPY.title}
@@ -317,6 +318,9 @@ export default function SettingsScreen() {
   );
 }
 
+/** 앱바 뒤로 셰브론 — 글자 `‹` 는 폰트마다 굵기·세로 위치가 달라 도형으로 그린다(design.md §5) */
+const BACK_ICON_SIZE = 24;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -332,10 +336,6 @@ const styles = StyleSheet.create({
     minWidth: theme.touchTarget.minWidth,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  backGlyph: {
-    fontSize: theme.font.size.xl,
-    color: theme.color.textPrimary,
   },
   appBarTitle: {
     flex: 1,
