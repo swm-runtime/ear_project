@@ -20,18 +20,23 @@ interface TabMorphPillProps {
 }
 
 /**
- * 제목 줄 오른쪽 알약 — 탭을 오갈 때 **칸이 자라고 줄어드는** 모핑을 가진 껍데기(PM 2026-09-28 00:32 · 04:55).
+ * 제목 줄 오른쪽 알약 — 탭을 오갈 때 **한 덩어리 캡슐이 늘어나고 줄어든다**(PM 2026-09-28 00:32 · 06:46).
  *
- * 알약은 시스템 내비게이션 바의 바 버튼 안에서 그려지고, 그 크기는 설치 시점에 고정된다. 그래서
+ * **유리는 언제나 한 장이다.** 넓은 캡슐과 좁은 캡슐을 겹쳐 교차시키면 iOS 26 에서 두 덩어리로 갈라져 보였다
+ * (06:28·06:45 실기기 — 유리 위 유리는 밑의 유리를 샘플링하지 않는다, design.md §3). 애플의 유리 병합
+ * (`GlassGroup` = `UIGlassContainerEffect`)도 시스템 내비게이션 바의 바 버튼 안에서는 먹지 않았다(06:28).
  *
- * - **자리는 두 칸으로 고정**한다(`TAB_PILL_SLOT`) — 바가 다시 잴 일이 없다.
- * - 캡슐은 **두 장**(두 칸 폭 · 한 칸 폭)을 겹쳐 두고 **교차 불투명도**로 바꾼다 — 쉴 때는 각 탭의 제 모양이 그대로라
- *   모서리가 눌리지 않는다(폭을 scaleX 로 늘이면 쉬는 동안 알약 끝이 납작해진다).
- * - 링은 **한 칸 밀어**(translateX) 좁은 알약 안(오른쪽)과 넓은 알약 안(왼쪽)을 오간다.
- * - 필터 칸과 구분선은 **불투명도**로 든다/난다.
+ * 그래서 **한 장을 `scaleX` 로 늘였다 줄인다.** 축은 오른쪽 끝(바의 바깥 여백에 붙어 있는 변)이다:
  *
- * 전부 transform·불투명도라 네이티브 드라이버이고, 레이아웃 패스를 타지 않는다. 지나가는 동안 유리 두 장이 겹치지만
- * (한 장이 사라지는 중이라) 잔상은 남지 않는다 — 쉴 때는 언제나 한 장이다(design.md §3).
+ * - 탐색에서 라이브러리로 오면 캡슐이 한 칸 → 두 칸으로 **자란다**(0.5 → 1)
+ * - 라이브러리에서 탐색으로 오면 두 칸 → 한 칸으로 **줄어든다**(2 → 1)
+ * - 쉴 때는 언제나 `scaleX: 1` 이라 **모서리가 눌리지 않는다**(지나가는 동안만 곡률이 늘어난다)
+ *
+ * 아이콘(링·필터)은 **캡슐 밖 층**에 둔다 — 같이 스케일되면 링이 타원이 된다. 링은 캡슐의 왼쪽 끝을 따라
+ * 한 칸 미끄러지고, 필터는 불투명도로 든다/난다.
+ *
+ * 전부 transform·불투명도라 네이티브 드라이버이고 레이아웃 패스를 타지 않는다 — 알약은 바 버튼이고, 바 버튼은
+ * 설치 시점 크기에 고정돼 **폭(레이아웃) 애니메이션이 그려지지 않는다**(04:39 확인).
  */
 export default function TabMorphPill({ tab, ring, filter }: TabMorphPillProps) {
   const morphs = ring !== null;
@@ -46,21 +51,39 @@ export default function TabMorphPill({ tab, ring, filter }: TabMorphPillProps) {
     );
   }
 
-  const narrow = progress.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
-  const ringShift = progress.interpolate({ inputRange: [0, 1], outputRange: [TAB_PILL_CELL, 0] });
+  /** 내 칸 수와 다른 알약 탭의 칸 수 — 출발 배율이 여기서 나온다 */
+  const cells = filter ? 2 : 1;
+  const other = cells === 2 ? 1 : 2;
+
+  const capsuleScale = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [other / cells, 1],
+  });
+  // 링은 캡슐의 왼쪽 끝을 따라간다 — 줄어든 캡슐 밖으로 링이 나가면 안 된다
+  const ringShift = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [(cells - other) * TAB_PILL_CELL, 0],
+  });
 
   return (
     <View style={styles.slot} pointerEvents="box-none">
-      {/* 두 칸 캡슐(라이브러리 모양) */}
-      <Animated.View style={[styles.wideLayer, { opacity: progress }]} pointerEvents="none">
-        <GlassCapsule style={styles.fill} />
-      </Animated.View>
-      {/* 한 칸 캡슐(탐색 모양) */}
-      <Animated.View style={[styles.narrowLayer, { opacity: narrow }]} pointerEvents="none">
-        <GlassCapsule style={styles.fill} />
-      </Animated.View>
+      {/* 유리 한 장 — 오른쪽 끝을 축으로 늘어나고 줄어든다 */}
       <Animated.View
-        style={[styles.ringCell, { transform: [{ translateX: ringShift }] }]}
+        style={[
+          styles.capsuleLayer,
+          { width: cells * TAB_PILL_CELL, transform: [{ scaleX: capsuleScale }] },
+        ]}
+        pointerEvents="none"
+      >
+        <GlassCapsule style={styles.fill} />
+      </Animated.View>
+
+      {/* 아이콘 층 — 스케일 밖이라 일그러지지 않는다 */}
+      <Animated.View
+        style={[
+          styles.ringCell,
+          { right: (cells - 1) * TAB_PILL_CELL, transform: [{ translateX: ringShift }] },
+        ]}
         pointerEvents="box-none"
       >
         {ring}
@@ -84,6 +107,7 @@ export default function TabMorphPill({ tab, ring, filter }: TabMorphPillProps) {
 const CELL_TOP = (theme.touchTarget.minHeight - HEADER_CONTROL_HEIGHT) / 2;
 
 const styles = StyleSheet.create({
+  // 자리는 두 칸 고정 — 늘어난 캡슐이 잘리지 않게(바 버튼은 설치 크기에 고정된다)
   slot: {
     width: TAB_PILL_SLOT,
     height: theme.touchTarget.minHeight,
@@ -102,23 +126,15 @@ const styles = StyleSheet.create({
   fill: {
     flex: 1,
   },
-  wideLayer: {
+  capsuleLayer: {
     position: 'absolute',
     right: 0,
     top: CELL_TOP,
-    width: TAB_PILL_SLOT,
     height: HEADER_CONTROL_HEIGHT,
-  },
-  narrowLayer: {
-    position: 'absolute',
-    right: 0,
-    top: CELL_TOP,
-    width: TAB_PILL_CELL,
-    height: HEADER_CONTROL_HEIGHT,
+    transformOrigin: 'right center',
   },
   ringCell: {
     position: 'absolute',
-    left: 0,
     top: 0,
     width: TAB_PILL_CELL,
     height: theme.touchTarget.minHeight,
@@ -137,7 +153,7 @@ const styles = StyleSheet.create({
   // 칸 사이 hairline — 링(상태 표시)과 필터(버튼)가 한 덩어리로 읽히지 않게
   divider: {
     position: 'absolute',
-    left: TAB_PILL_CELL,
+    right: TAB_PILL_CELL,
     top: CELL_TOP + theme.spacing.sm,
     width: StyleSheet.hairlineWidth,
     height: HEADER_CONTROL_HEIGHT - theme.spacing.md,
