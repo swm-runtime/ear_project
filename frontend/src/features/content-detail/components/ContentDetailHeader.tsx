@@ -72,7 +72,7 @@ export default function ContentDetailHeader({
         </Pressable>
         {isSaved ? (
           <Pressable
-            style={[styles.secondaryButton, styles.deleteButton]}
+            style={styles.secondaryButton}
             disabled={isActionPending}
             onPress={onDeletePress}
             accessibilityRole="button"
@@ -209,8 +209,8 @@ const styles = StyleSheet.create({
     minHeight: theme.touchTarget.minHeight,
     borderRadius: theme.radius.md,
     borderCurve: 'continuous',
-    borderWidth: 1,
-    borderColor: theme.color.border,
+    // 보조 동작은 테두리 없이 연한 면(design.md §5 — 다이얼로그·시트와 같은 규칙, 2026-09-27 PM)
+    backgroundColor: theme.color.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -219,9 +219,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.color.textPrimary,
   },
-  deleteButton: {
-    borderColor: theme.color.danger,
-  },
+  /*
+   * 삭제 변형 — 테두리를 걷었으므로(위 secondaryButton) 위험 표시는 **빨간 글자**가 맡는다. 빨간 면으로 채우면
+   * 검정 [재생]보다 더 눈에 띄어 주 동작이 뒤바뀐다(library-uiux.md 4.7 은 위험색만 요구한다)
+   */
   deleteLabel: {
     color: theme.color.danger,
   },
