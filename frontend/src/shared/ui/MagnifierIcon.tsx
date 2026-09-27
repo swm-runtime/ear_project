@@ -27,4 +27,4 @@ export default function MagnifierIcon({ size, color, strokeWidth = 2.2 }: Magnif
 }
 
 /** 검색창 돋보기 크기 — 세 검색창(라이브러리·탐색·검색 화면)이 같은 값을 쓴다 */
-export const SEARCH_ICON_SIZE = 15;
+export const SEARCH_ICON_SIZE = 17;
