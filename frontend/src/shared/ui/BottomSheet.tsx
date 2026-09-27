@@ -15,6 +15,11 @@ import {
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion, theme } from '@/shared/theme';
 
+/**
+ * 끌어서 닫을 때 이어받는 속도의 상한(progress/초). 손가락을 세게 던져도 이보다 빠르게 닫지 않는다 —
+ * 8 이면 남은 거리를 최소 0.125초에 지난다
+ */
+const CLOSE_VELOCITY_MAX = 8;
 /** 끌기로 인정하는 최소 이동 — 이보다 작으면 탭이다 */
 const DRAG_START_SLOP = 6;
 /** 끌어 닫기 임계 — 높이의 1/4(최소 80pt)이거나 던진 속도 0.8 이상 */
@@ -70,6 +75,11 @@ export default function BottomSheet({
   /** 제스처 콜백이 최신 값을 읽게 하는 ref — 갱신은 렌더 밖(effect)에서 한다 */
   const heightRef = useRef(0);
   const closeRef = useRef(onRequestClose);
+  /**
+   * 끌어서 닫을 때 손가락 속도(progress/초, 음수). 놓는 순간 적어 두고 나가는 애니메이션이 이어받는다 —
+   * 이게 없으면 놓은 지점에서 ease-in 으로 **새로 시작**해 한 번 멈칫한다(PM 2026-09-27 20:50 "끊기는 것 같다")
+   */
+  const closeVelocityRef = useRef(0);
 
   useEffect(() => {
     closeRef.current = onRequestClose;
@@ -91,15 +101,29 @@ export default function BottomSheet({
       }).start();
       return;
     }
+    const settle = ({ finished }: { finished: boolean }) => {
+      // 모션이 끝나면 모달을 내린다 — `onClosed` 는 그 뒤 `Modal onDismiss` 가 부른다(위 prop 주석)
+      if (finished) setIsMounted(false);
+    };
+    const flickVelocity = closeVelocityRef.current;
+    closeVelocityRef.current = 0;
+    if (flickVelocity < 0) {
+      // 끌어서 닫은 경우 — 손가락 속도를 그대로 이어 스프링으로 내린다(남은 거리도 짧다)
+      Animated.spring(progress, {
+        toValue: 0,
+        velocity: flickVelocity,
+        useNativeDriver: true,
+        ...motion.spring.smooth,
+      }).start(settle);
+      return;
+    }
+    // 딤 탭·버튼으로 닫은 경우 — 제자리에서 시작하므로 곡선으로 충분하다
     Animated.timing(progress, {
       toValue: 0,
       duration: motion.duration.normal,
       easing: motion.easing.easeInOut,
       useNativeDriver: true,
-    }).start(({ finished }) => {
-      // 모션이 끝나면 모달을 내린다 — `onClosed` 는 그 뒤 `Modal onDismiss` 가 부른다(위 prop 주석)
-      if (finished) setIsMounted(false);
-    });
+    }).start(settle);
   }, [isVisible, isMounted, height, progress]);
 
   const handleLayout = (event: LayoutChangeEvent) => {
@@ -146,6 +170,12 @@ export default function BottomSheet({
             gesture.dy > Math.max(DRAG_CLOSE_MIN, sheetHeight * DRAG_CLOSE_RATIO) ||
             gesture.vy > DRAG_CLOSE_VELOCITY;
           if (shouldClose) {
+            /*
+             * 놓는 순간의 속도를 progress 단위로 바꿔 적어 둔다. `gesture.vy` 는 px/ms 이고 시트를 내리는
+             * 방향이 양수이므로 progress/초 로는 `-vy * 1000 / 높이` 다. 나가는 애니메이션이 이어받는다
+             */
+            const perSecond = sheetHeight > 0 ? (-gesture.vy * 1000) / sheetHeight : 0;
+            closeVelocityRef.current = Math.max(-CLOSE_VELOCITY_MAX, Math.min(-0.01, perSecond));
             // 닫기는 화면이 정한다 — `isVisible` 이 false 가 되면 위 effect 가 지금 값에서 이어서 내린다
             closeRef.current();
             return;
