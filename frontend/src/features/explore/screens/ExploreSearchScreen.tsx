@@ -28,7 +28,7 @@ import SearchInputRow from '../components/SearchInputRow';
 import SuggestedKeywordChips from '../components/SuggestedKeywordChips';
 import { EXPLORE_COPY } from '../explore.copy';
 import { exploreGridKey, toExploreGridData } from '../explore.grid';
-import { useExploreSearchScreen } from '../hooks/useExploreSearchScreen';
+import { useExploreSearchScreen, type ExploreSearchEmbedding } from '../hooks/useExploreSearchScreen';
 
 /**
  * 검색 화면(E6·E7, explore.md 4.5 — MVP 포함 격상 2026-08-23).
@@ -41,8 +41,16 @@ import { useExploreSearchScreen } from '../hooks/useExploreSearchScreen';
  * 탐색 제목 줄 밑 검색 필드를 누르면 이 화면이 올라온다 — iOS 26 은 탐색 탭 안 스택(탭 바·액세서리 유지), 그 외는 Main 스택.
  * 검색 탭(탭 바 옆 검색 원, #730)은 뺐다 — 입구가 둘이라(PM 09-26 01:20). 그 외 플랫폼은 종전대로 검색 줄만이다.
  */
-export default function ExploreSearchScreen() {
-  const screen = useExploreSearchScreen();
+interface ExploreSearchScreenProps {
+  /**
+   * 탐색 화면 안에서 제자리로 뜰 때(iOS 26 — PM 2026-09-27 21:03 "검색 화면을 따로 두지 말고 그냥 탐색"). 제목은 "탐색" 그대로,
+   * [취소]는 탐색 피드로 돌아가고 관련 주제 칩은 그 주제로 필터한다. 없으면 종전대로 스택 화면(JS 탭 바 갈래)
+   */
+  embedding?: ExploreSearchEmbedding;
+}
+
+export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenProps = {}) {
+  const screen = useExploreSearchScreen(embedding);
   const miniInset = useBottomDockInset();
   const nativeBarInset = useNativeHeaderInset();
 
@@ -199,7 +207,8 @@ export default function ExploreSearchScreen() {
     <Frame style={[styles.container, { paddingTop: nativeBarInset }]} edges={['top']}>
       {HAS_NATIVE_TAB_BAR ? (
         <>
-          <LargeTitleRow title={EXPLORE_COPY.search.tabTitle} />
+          {/* 제자리 검색이면 제목은 "탐색" 그대로 — 페이지가 바뀌지 않았다는 신호 */}
+          <LargeTitleRow title={embedding ? EXPLORE_COPY.tabTitle : EXPLORE_COPY.search.tabTitle} />
           <SearchInputRow
             value={screen.inputText}
             onChangeText={screen.handleChangeText}

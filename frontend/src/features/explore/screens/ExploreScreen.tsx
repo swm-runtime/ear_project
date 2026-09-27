@@ -29,6 +29,7 @@ import {
   useBottomDockInset,
 } from '@/features/player';
 
+import ExploreSearchScreen from './ExploreSearchScreen';
 import ExploreEmptyState from '../components/ExploreEmptyState';
 import ExploreFeaturedCard from '../components/ExploreFeaturedCard';
 import ExploreMoreSheet from '../components/ExploreMoreSheet';
@@ -66,6 +67,29 @@ export default function ExploreScreen() {
   // 머리 줄(JS 탭 바 갈래)의 루트 ref — 종전 시스템 edge effect 연결용, 지금은 FloatingHeader 가 요구만 한다
   const listRef = useRef(null);
   const headerRef = useRef<View>(null);
+  // 제자리 검색 모드(iOS 26) — 아래 isSearching 분기
+  const [isSearching, setIsSearching] = useState(false);
+  const openSearch = HAS_NATIVE_TAB_BAR ? () => setIsSearching(true) : screen.openSearch;
+
+  /*
+   * 제자리 검색(iOS 26 — PM 2026-09-27 21:03 "검색 화면을 따로 두지 말고 그냥 탐색"): 검색창을 누르면 새 화면으로 가지 않고
+   * 이 자리가 "탐색" 제목 + 입력 중인 검색창 + 최근 검색어·추천 키워드(입력하면 결과)로 바뀐다. [취소]면 피드로 돌아온다.
+   * 애플 뮤직 검색 탭과 같다. 피드 상태(필터·구간)는 이 화면 훅이 그대로 들고 있다. JS 탭 바 갈래는 종전 스택 검색 화면
+   */
+  if (isSearching) {
+    return (
+      <ExploreSearchScreen
+        embedding={{
+          onExit: () => setIsSearching(false),
+          onOpenTopic: (topicId) => {
+            screen.clearTopicFilter();
+            screen.toggleTopic(topicId);
+            setIsSearching(false);
+          },
+        }}
+      />
+    );
+  }
 
   // E10은 검색창 줄·주제 칩·잔여 표시까지 그리지 않는다 — 화면 전체가 에러다(uiux 4.8)
   if (screen.isFullError) {
@@ -114,7 +138,7 @@ export default function ExploreScreen() {
   const contentChips = HAS_NATIVE_TAB_BAR ? (
     <View>
       {titleRow}
-      <ExploreSearchBarRow onPress={screen.openSearch} trailing={null} variant="fill" />
+      <ExploreSearchBarRow onPress={openSearch} trailing={null} variant="fill" />
       {chips}
     </View>
   ) : null;
@@ -335,7 +359,7 @@ export default function ExploreScreen() {
         solidness={solidness}
         containerRef={headerRef}
       >
-        <ExploreSearchBarRow onPress={screen.openSearch} trailing={remainingRing} />
+        <ExploreSearchBarRow onPress={openSearch} trailing={remainingRing} />
 
         {chips}
       </FloatingHeader>
