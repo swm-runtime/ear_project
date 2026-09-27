@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useNativeHeaderInset } from '@/shared/navigation/useNativeHeaderInset';
 import { useSystemLargeTitle } from '@/shared/navigation/useSystemLargeTitle';
+import { useTabScrollToTop } from '@/shared/navigation/useTabScrollToTop';
 import { theme } from '@/shared/theme';
 import FloatingHeader, {
   useFloatingHeaderInset,
@@ -66,12 +67,12 @@ export default function ExploreScreen() {
   // 맨 위에서는 머리 줄 컨트롤이 면, 내리면 유리(PM 2026-09-25)
   const { solidness, scrollProps } = useFloatingHeaderScroll();
   // 머리 줄(JS 탭 바 갈래)의 루트 ref — 종전 시스템 edge effect 연결용, 지금은 FloatingHeader 가 요구만 한다
-  const listRef = useRef(null);
   const headerRef = useRef<View>(null);
   // 제자리 검색 모드(iOS 26) — 아래 isSearching 분기
   const [isSearching, setIsSearching] = useState(false);
   // 제자리 검색 닫기 요청 — ✕ 는 시스템 바 캡슐에 있고, 덮개가 퇴장 애니메이션 끝에 onExit 로 isSearching 을 끈다
   const [isClosingSearch, setIsClosingSearch] = useState(false);
+  const listRef = useTabScrollToTop({ topInset: nativeBarInset, enabled: !isSearching });
   const openSearch = HAS_NATIVE_TAB_BAR ? () => setIsSearching(true) : screen.openSearch;
 
   /*

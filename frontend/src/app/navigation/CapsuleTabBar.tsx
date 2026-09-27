@@ -206,13 +206,14 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
     snapTo(target);
     // 끌다 놓은 건 bloom 이 부풀린다 — 탭으로 건너뛸 때만 줄었다 부푸는 펄스
     if (!wasDragged) contractForJump(Math.abs(target - index));
-    if (target === index) return;
+    // 같은 칸으로 끌어 돌아온 경우는 탭이 아니다. 같은 탭의 재탭은 화면에 전달한다.
+    if (target === index && wasDragged) return;
     const pressEvent = nav.emit({
       type: 'tabPress',
       target: routes[target].key,
       canPreventDefault: true,
     });
-    if (!pressEvent.defaultPrevented) nav.navigate(routes[target].name);
+    if (target !== index && !pressEvent.defaultPrevented) nav.navigate(routes[target].name);
   };
   /*
    * 탭·끌기는 **칸 하나하나가** 받는다(2026-09-23). 캡슐(부모)에 두고 칸에서 빼앗거나 처음부터 캡슐이 잡는
