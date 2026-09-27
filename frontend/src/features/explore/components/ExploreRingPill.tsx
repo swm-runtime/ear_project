@@ -1,6 +1,6 @@
 import { Animated, StyleSheet, View } from 'react-native';
 
-import { useTabPillMorph } from '@/shared/navigation/useTabPillMorph';
+import { TAB_PILL_FRAME_WIDTH, useTabPillMorph } from '@/shared/navigation/useTabPillMorph';
 import { theme } from '@/shared/theme';
 import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
 
@@ -17,24 +17,38 @@ interface ExploreRingPillProps {
  * 탭을 오갈 때 필터 칸이 줄었다 자라는 것만 보이게 한다(useTabPillMorph, PM 2026-09-28 00:32). 라이브러리에서 오면
  * 비어 있는 여분 칸이 44 → 0 으로 줄어든다
  */
-export default function ExploreRingPill({ remaining, limit, onExhaustedPress }: ExploreRingPillProps) {
+export default function ExploreRingPill({
+  remaining,
+  limit,
+  onExhaustedPress,
+}: ExploreRingPillProps) {
   const extraWidth = useTabPillMorph(false);
   return (
-    <GlassCapsule style={styles.capsule}>
-      <View style={styles.cell}>
-        <RemainingPlaysIndicator
-          remaining={remaining}
-          limit={limit}
-          onExhaustedPress={onExhaustedPress}
-          bare
-        />
-      </View>
-      <Animated.View style={{ width: extraWidth }} pointerEvents="none" />
-    </GlassCapsule>
+    // 바깥 자리는 두 칸 고정 — 네이티브 바 버튼이 다시 재지 않아도 캡슐이 이 안에서 줄어든다(TAB_PILL_FRAME_WIDTH)
+    <View style={styles.frame} pointerEvents="box-none">
+      <GlassCapsule style={styles.capsule}>
+        <View style={styles.cell}>
+          <RemainingPlaysIndicator
+            remaining={remaining}
+            limit={limit}
+            onExhaustedPress={onExhaustedPress}
+            bare
+          />
+        </View>
+        <Animated.View style={{ width: extraWidth }} pointerEvents="none" />
+      </GlassCapsule>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  frame: {
+    width: TAB_PILL_FRAME_WIDTH,
+    height: HEADER_CONTROL_HEIGHT,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
   capsule: {
     flexDirection: 'row',
     alignItems: 'center',
