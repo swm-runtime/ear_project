@@ -44,7 +44,15 @@ const isNetworkError = (error: unknown): boolean =>
  * 버려진다(explore.md 4.5-1). 피드 상태는 스택 아래 탐색 화면이 그대로 유지한다.
  * 결과 행의 재생·담기/제거·상세·원문 보기는 피드와 같은 계약·같은 규칙이다(explore.md 4.5-3).
  */
-export const useExploreSearchScreen = () => {
+/**
+ * 탐색 화면 안에 붙어 뜰 때(iOS 26, `embedded`) — 새 화면으로 가지 않으므로 [취소]·관련 주제 칩이 pop 대신 이 콜백을 부른다
+ */
+export interface ExploreSearchEmbedding {
+  onExit: () => void;
+  onOpenTopic: (topicId: string) => void;
+}
+
+export const useExploreSearchScreen = (embedding?: ExploreSearchEmbedding) => {
   const navigation = useNavigation();
   /** iOS 26 갈래의 탐색 탭 안 스택 — 원본은 app/navigation/types.ts 의 ExploreStackParamList(feature 는 app 을 import 하지 않는다) */
   const exploreStackNavigation =
@@ -413,11 +421,21 @@ export const useExploreSearchScreen = () => {
 
   /* ── 이동 ── */
   /** [취소]·뒤로가기 — 피드로 복귀. 검색 상태는 화면 pop과 함께 버려진다(explore.md 4.5-1) */
-  const cancel = () => navigation.goBack();
+  const cancel = () => {
+    if (embedding) {
+      embedding.onExit();
+      return;
+    }
+    navigation.goBack();
+  };
 
   /** E7 관련 주제 칩 — 그 주제의 단일 목록(E2)으로 이동한다(explore.md 4.5-3). 검색 화면은 pop된다.
       iOS 26 갈래는 같은 스택(ExploreStack)의 홈으로 되돌아간다 — popTo 라 검색 화면이 걷힌다 */
   const openTopicList = (topicId: string) => {
+    if (embedding) {
+      embedding.onOpenTopic(topicId);
+      return;
+    }
     if (HAS_NATIVE_TAB_BAR) {
       exploreStackNavigation.popTo('ExploreHome', { applyTopicId: topicId });
       return;
