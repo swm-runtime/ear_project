@@ -9,7 +9,6 @@ import {
 } from '@/shared/navigation/useTabPillMorph';
 import { theme } from '@/shared/theme';
 import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
-import GlassSurface, { GlassGroup, HAS_LIQUID_GLASS } from '@/shared/ui/GlassSurface';
 
 interface TabMorphPillProps {
   /** 이 알약이 사는 탭 — 제 모양(라이브러리 두 칸 · 탐색 한 칸)을 정한다 */
@@ -20,28 +19,19 @@ interface TabMorphPillProps {
   filter?: ReactNode;
 }
 
-/** 이 거리 안으로 가까워진 유리끼리 물방울처럼 합쳐진다(UIGlassContainerEffect) */
-const MERGE_SPACING = 8;
-
 /**
- * 제목 줄 오른쪽 알약 — 탭을 오갈 때 칸이 자라고 줄어든다(PM 2026-09-28 00:32).
+ * 제목 줄 오른쪽 알약 — 탭을 오갈 때 **칸이 자라고 줄어드는** 모핑을 가진 껍데기(PM 2026-09-28 00:32 · 04:55).
  *
- * **iOS 26 에서는 애플이 유리를 합치고 뗀다**(PM 06:19 "유리가 유체처럼 늘어나며 한 덩어리로 변형된 이거 원함").
- * 유리 판을 **두 조각**(링 칸 · 필터 칸)으로 두고 한 `GlassGroup`(=`UIGlassContainerEffect`)에 넣으면, 두 조각이
- * 가까워질 때 애플이 **물방울처럼 이어 붙이고** 멀어질 때 떼어 낸다 — 늘어나는 것도 떨어지는 것도 애플 코드다.
- * 우리가 움직이는 것은 조각의 **자리와 크기**뿐이다:
+ * 알약은 시스템 내비게이션 바의 바 버튼 안에서 그려지고, 그 크기는 설치 시점에 고정된다. 그래서
  *
- * - 링 판: `translateX` 로 한 칸 오른쪽으로 미끄러진다(라이브러리 왼쪽 칸 → 탐색 오른쪽 칸)
- * - 필터 판: `scaleX` 로 **오른쪽 끝을 축으로 짜부라진다** — 링이 다가오는 동안 사이가 붙어 한 덩어리로 읽힌다
+ * - **자리는 두 칸으로 고정**한다(`TAB_PILL_SLOT`) — 바가 다시 잴 일이 없다.
+ * - 캡슐은 **두 장**(두 칸 폭 · 한 칸 폭)을 겹쳐 두고 **교차 불투명도**로 바꾼다 — 쉴 때는 각 탭의 제 모양이 그대로라
+ *   모서리가 눌리지 않는다(폭을 scaleX 로 늘이면 쉬는 동안 알약 끝이 납작해진다).
+ * - 링은 **한 칸 밀어**(translateX) 좁은 알약 안(오른쪽)과 넓은 알약 안(왼쪽)을 오간다.
+ * - 필터 칸과 구분선은 **불투명도**로 든다/난다.
  *
- * 구조는 캡슐 탭 바에서 검증된 것과 같다(`CapsuleTabBar`, 2026-09-23 PM "물방울이 합쳐지는 애니메이션") —
- * **묶음에는 유리 판만 넣고 내용물(아이콘)은 앞 층에 따로 둔다.** 같이 넣으면 겹친 유리가 한 덩어리로 뭉쳐
- * 렌즈처럼 일그러진다.
- *
- * 그 밑 OS(리퀴드 글라스 없음)는 애플의 병합이 없으므로 **캡슐 두 장을 교차 불투명도**로 바꾼다.
- *
- * 둘 다 transform·불투명도라 네이티브 드라이버이고 레이아웃 패스를 타지 않는다 — 알약은 시스템 내비게이션 바의
- * 바 버튼이고, 바 버튼은 설치 시점 크기에 고정돼 **폭(레이아웃) 애니메이션이 그려지지 않는다**(04:39 확인).
+ * 전부 transform·불투명도라 네이티브 드라이버이고, 레이아웃 패스를 타지 않는다. 지나가는 동안 유리 두 장이 겹치지만
+ * (한 장이 사라지는 중이라) 잔상은 남지 않는다 — 쉴 때는 언제나 한 장이다(design.md §3).
  */
 export default function TabMorphPill({ tab, ring, filter }: TabMorphPillProps) {
   const morphs = ring !== null;
@@ -56,46 +46,19 @@ export default function TabMorphPill({ tab, ring, filter }: TabMorphPillProps) {
     );
   }
 
+  const narrow = progress.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
   const ringShift = progress.interpolate({ inputRange: [0, 1], outputRange: [TAB_PILL_CELL, 0] });
 
   return (
     <View style={styles.slot} pointerEvents="box-none">
-      {/* 뒤 층 — 유리 판만 한 묶음에(내용물은 앞 층) */}
-      {HAS_LIQUID_GLASS ? (
-        <GlassGroup spacing={MERGE_SPACING} style={styles.glassLayer} pointerEvents="none">
-          <Animated.View
-            style={[styles.ringPlate, { transform: [{ translateX: ringShift }] }]}
-            pointerEvents="none"
-          >
-            <GlassSurface style={styles.plateGlass} />
-          </Animated.View>
-          {filter ? (
-            <Animated.View
-              style={[styles.filterPlate, { transform: [{ scaleX: progress }] }]}
-              pointerEvents="none"
-            >
-              <GlassSurface style={styles.plateGlass} />
-            </Animated.View>
-          ) : null}
-        </GlassGroup>
-      ) : (
-        <View style={styles.glassLayer} pointerEvents="none">
-          {/* 병합이 없는 OS — 두 칸 캡슐과 한 칸 캡슐을 교차 불투명도로 바꾼다 */}
-          <Animated.View style={[styles.wideLayer, { opacity: progress }]}>
-            <GlassCapsule style={styles.fill} />
-          </Animated.View>
-          <Animated.View
-            style={[
-              styles.narrowLayer,
-              { opacity: progress.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) },
-            ]}
-          >
-            <GlassCapsule style={styles.fill} />
-          </Animated.View>
-        </View>
-      )}
-
-      {/* 앞 층 — 아이콘 */}
+      {/* 두 칸 캡슐(라이브러리 모양) */}
+      <Animated.View style={[styles.wideLayer, { opacity: progress }]} pointerEvents="none">
+        <GlassCapsule style={styles.fill} />
+      </Animated.View>
+      {/* 한 칸 캡슐(탐색 모양) */}
+      <Animated.View style={[styles.narrowLayer, { opacity: narrow }]} pointerEvents="none">
+        <GlassCapsule style={styles.fill} />
+      </Animated.View>
       <Animated.View
         style={[styles.ringCell, { transform: [{ translateX: ringShift }] }]}
         pointerEvents="box-none"
@@ -139,50 +102,17 @@ const styles = StyleSheet.create({
   fill: {
     flex: 1,
   },
-  // 유리 판이 사는 층 — 캡슐 높이만큼만
-  glassLayer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: CELL_TOP,
-    height: HEADER_CONTROL_HEIGHT,
-  },
-  plateGlass: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderRadius: theme.radius.full,
-    overflow: 'hidden',
-  },
-  ringPlate: {
-    position: 'absolute',
-    left: 0,
-    width: TAB_PILL_CELL,
-    height: HEADER_CONTROL_HEIGHT,
-    borderRadius: theme.radius.full,
-  },
-  // 오른쪽 끝을 축으로 짜부라진다 — 링이 다가오는 쪽(왼쪽)이 줄어든다
-  filterPlate: {
-    position: 'absolute',
-    right: 0,
-    width: TAB_PILL_CELL,
-    height: HEADER_CONTROL_HEIGHT,
-    borderRadius: theme.radius.full,
-    transformOrigin: 'right center',
-  },
   wideLayer: {
     position: 'absolute',
-    top: 0,
-    left: 0,
     right: 0,
-    bottom: 0,
+    top: CELL_TOP,
+    width: TAB_PILL_SLOT,
+    height: HEADER_CONTROL_HEIGHT,
   },
   narrowLayer: {
     position: 'absolute',
     right: 0,
-    top: 0,
+    top: CELL_TOP,
     width: TAB_PILL_CELL,
     height: HEADER_CONTROL_HEIGHT,
   },
