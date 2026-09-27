@@ -94,6 +94,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.md,
     flexWrap: 'wrap',
+    // wrap 아래에서는 alignContent 가 줄의 세로 위치를 정한다 — 없으면 flex-start 로 위에 붙는다(SettingsRow 와 같은 이유)
+    alignContent: 'center',
   },
   pressed: {
     backgroundColor: theme.color.border,
