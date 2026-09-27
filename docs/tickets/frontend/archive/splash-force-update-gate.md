@@ -58,3 +58,6 @@
 - 2026-09-26 발행. Jira KAN-99(담당 이주호·FE, Medium, 기한 09-29). BE는 같은 날 #769.
 - 2026-09-26 반영(효헌이 세션). `frontend/src/features/app-update/` 신설 — `fetchVersionGate`(3초 타임아웃·자동 재시도 끔·인증 없음), `checkAppVersionGate`(동시 호출 합침, 마지막 성공 판정을 SecureStore `app_update.last_verdict` 에 캐시 — 실패 시 캐시로 판정, 없으면 통과), `startAppVersionRecheck`(백그라운드 30분 뒤 복귀 재검사, bootstrap 에서 시작), `ForceUpdateScreen`(닫기 불가 — 루트 스택에 이 화면만, Android 뒤로가기 삼킴, 진입 낭독, [업데이트]→`STORE_URL`), `UpdateRecommendDialog`(공용 ConfirmDialog, 앱 수명당 1회). RootNavigator: 관문 1단계가 끝난 뒤 세션 복원을 건다(426 이면 복원 안 함). 설정 배지는 그대로. 유닛 6건. **개발계 실확인·runtime 빌드 포함 여부는 미확인** — 아래 사람 손.
   - 남은 사람 손: 박준현이 개발계 `MIN_SUPPORTED_APP_VERSION_*` 을 앱보다 높게 올려 관문 확인 후 원복 · 이 변경이 실린 dev 빌드(OTA 로도 JS 는 닿지만 티켓 조건은 "스토어 빌드에 포함")
+- **2026-09-27 반영 완료.** 개발계에서 관문 동작 확인(PM "KAN 99 잘됐어") — 최소 지원 버전을 앱보다 높게 두면 강제 업데이트 화면이 뜨고 뒤로 빠져나갈 수 없다. 코드는 PR #783(dev `04c1d68b`)에 들어 있고 개발계 빌드 iOS 1.1.0 (37·38)에 실려 나갔다.
+  - 완료 조건 중 "스토어 빌드에 포함"은 **다음 운영 빌드에서 자동으로 충족된다** — dev 에 있으므로 별도 작업이 없다. 이것 때문에 티켓을 더 열어 두지 않는다.
+  - 운영에서 실제로 막으려면 운영 env `MIN_SUPPORTED_APP_VERSION_IOS/ANDROID` 를 올려야 한다(현재 1.0.0 — 아무도 안 막힌다). 그건 끊어야 할 때의 운영 작업이지 이 티켓의 범위가 아니다.
