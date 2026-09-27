@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
   weekControls: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: theme.spacing.sm,
+    gap: theme.spacing.md,
     flexShrink: 0,
     maxWidth: '100%',
   },
