@@ -6,7 +6,7 @@ import ChevronIcon from '@/shared/ui/ChevronIcon';
 import type { PlanRowVM, SectionState } from '../hooks/useSettingsScreen';
 import { SETTINGS_COPY } from '../settings.copy';
 
-const CHEVRON_SIZE = 18;
+const CHEVRON_SIZE = 16;
 
 interface PlanSummaryCardProps {
   state: SectionState<PlanRowVM>;
@@ -91,15 +91,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: theme.spacing.sm,
-    marginHorizontal: theme.spacing.md,
     paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
+    paddingVertical: theme.spacing.md,
+    flexWrap: 'wrap',
   },
   pressed: {
-    opacity: 0.7,
+    backgroundColor: theme.color.border,
   },
   errorCard: {
     justifyContent: 'space-between',
@@ -107,9 +104,11 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: theme.font.size.sm,
     color: theme.color.textSecondary,
+    flexShrink: 1,
   },
   retry: {
     minHeight: theme.touchTarget.minHeight,
+    minWidth: theme.touchTarget.minWidth,
     justifyContent: 'center',
     paddingHorizontal: theme.spacing.sm,
   },
@@ -128,7 +127,7 @@ const styles = StyleSheet.create({
     color: theme.color.danger,
   },
   freeAction: {
-    borderRadius: theme.radius.sm,
+    borderRadius: theme.radius.md,
     borderCurve: 'continuous',
     backgroundColor: theme.color.primary,
     paddingHorizontal: theme.spacing.sm,

@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 
-const CHEVRON_SIZE = 18;
+const CHEVRON_SIZE = 16;
 
 interface SettingsRowProps {
   label: string;
@@ -43,7 +43,9 @@ export default function SettingsRow({
     <Pressable
       style={({ pressed }) => [styles.row, pressed && onPress !== undefined && styles.pressed]}
       onPress={onPress}
-      disabled={disabled || onPress === undefined}
+      // 값만 표시하는 행도 우측 업데이트 버튼은 조작할 수 있어야 한다.
+      disabled={disabled}
+      focusable={onPress !== undefined && !disabled}
       accessibilityRole={onPress === undefined ? undefined : 'button'}
       accessibilityLabel={a11yLabel ?? label}
       accessibilityState={{ disabled }}
@@ -78,8 +80,7 @@ export default function SettingsRow({
 
 const styles = StyleSheet.create({
   row: {
-    // 44+4 → 44+8. 구분선이 생겨 행 경계가 보이는 만큼 안쪽 숨통을 함께 늘린다
-    minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
+    minHeight: theme.touchTarget.minHeight + theme.spacing.sm + theme.spacing.xs,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -90,7 +91,7 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.sm,
   },
   pressed: {
-    backgroundColor: theme.color.surface,
+    backgroundColor: theme.color.border,
   },
   label: {
     fontSize: theme.font.size.md,
@@ -113,17 +114,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: theme.spacing.sm,
     flexShrink: 1,
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    marginLeft: 'auto',
+    maxWidth: '100%',
   },
-  // 값은 항목명보다 한 단계 작게 두되 굵기로 읽히게 한다 — 배속·개수처럼 확인하러 오는 정보다
+  // 우측 값은 보조색으로 낮추고 숫자 폭을 고정한다.
   value: {
     fontSize: theme.font.size.sm,
-    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
     color: theme.color.textSecondary,
+    flexShrink: 1,
+    textAlign: 'right',
   },
   badge: {
-    borderRadius: theme.radius.sm,
+    borderRadius: theme.radius.full,
     borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
+    backgroundColor: theme.color.background,
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.xs,
   },

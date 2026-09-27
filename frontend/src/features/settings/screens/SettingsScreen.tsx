@@ -199,9 +199,6 @@ export default function SettingsScreen() {
             }
             a11yLabel={SETTINGS_COPY.info.versionA11y(APP_VERSION, screen.isUpdateAvailable)}
           />
-          {/* 개발계 앱 전용 개발 도구 — 운영 앱에는 행 자체가 없다 */}
-          {IS_DEV_API ? <DevPushTokenRow /> : null}
-          {IS_DEV_API ? <DevDiagnosticsRows /> : null}
         </SettingsSection>
 
         <SettingsSection title={SETTINGS_COPY.sections.support}>
@@ -223,6 +220,14 @@ export default function SettingsScreen() {
         {screen.isAdmin ? (
           <SettingsSection title={SETTINGS_COPY.sections.admin}>
             <SettingsRow label={SETTINGS_COPY.admin.menu} onPress={screen.openAdmin} />
+          </SettingsSection>
+        ) : null}
+
+        {/* 개발계 진단은 사용자 메뉴 아래에 별도 묶음으로 둔다. 운영 앱에는 노출하지 않는다. */}
+        {IS_DEV_API ? (
+          <SettingsSection title={SETTINGS_COPY.sections.developer}>
+            <DevPushTokenRow />
+            <DevDiagnosticsRows />
           </SettingsSection>
         ) : null}
       </Animated.ScrollView>
@@ -358,11 +363,12 @@ const styles = StyleSheet.create({
   },
   summaryErrorCard: {
     marginHorizontal: theme.spacing.md,
-    borderRadius: theme.radius.md,
+    borderRadius: theme.radius.xl,
     borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
     alignItems: 'center',
     paddingVertical: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.md,
     gap: theme.spacing.xs,
   },
   summaryErrorText: {
@@ -374,7 +380,10 @@ const styles = StyleSheet.create({
     minWidth: theme.touchTarget.minWidth,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    backgroundColor: theme.color.background,
+    borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
   },
   summaryRetryLabel: {
     fontSize: theme.font.size.sm,
@@ -383,8 +392,13 @@ const styles = StyleSheet.create({
   },
   updateButton: {
     minHeight: theme.touchTarget.minHeight,
+    minWidth: theme.touchTarget.minWidth,
     justifyContent: 'center',
-    paddingHorizontal: theme.spacing.sm,
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.md,
+    backgroundColor: theme.color.background,
+    borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
   },
   updateLabel: {
     fontSize: theme.font.size.sm,

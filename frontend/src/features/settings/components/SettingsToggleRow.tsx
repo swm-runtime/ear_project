@@ -30,7 +30,7 @@ export default function SettingsToggleRow({
 
   return (
     <Pressable
-      style={styles.row}
+      style={({ pressed }) => [styles.row, pressed && !disabled && styles.pressed]}
       onPress={handlePress}
       disabled={disabled}
       accessibilityRole="switch"
@@ -42,6 +42,9 @@ export default function SettingsToggleRow({
         value={value}
         onValueChange={handlePress}
         disabled={disabled}
+        trackColor={{ false: theme.color.border, true: theme.color.primary }}
+        thumbColor={theme.color.onPrimary}
+        ios_backgroundColor={theme.color.border}
         style={isDimmed && styles.switchDimmed}
         // 행 전체가 하나의 스위치로 읽힌다 — 스위치 자체는 보조 표면이 아니다
         accessibilityElementsHidden
@@ -54,13 +57,16 @@ export default function SettingsToggleRow({
 const styles = StyleSheet.create({
   row: {
     // 일반 행(SettingsRow)과 같은 높이 — 한 섹션 안에서 행 높이가 다르면 줄이 어긋나 보인다
-    minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
+    minHeight: theme.touchTarget.minHeight + theme.spacing.sm + theme.spacing.xs,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
-    gap: theme.spacing.sm,
+    gap: theme.spacing.md,
+  },
+  pressed: {
+    backgroundColor: theme.color.border,
   },
   label: {
     fontSize: theme.font.size.md,
