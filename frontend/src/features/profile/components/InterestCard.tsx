@@ -83,8 +83,9 @@ export default function InterestCard({ state, onPress, onRetry, isRetrying }: In
 }
 
 const styles = StyleSheet.create({
+  // 라벨(xs 회색)에 붙는 요약값 — 라벨보다 크면 딸린 값이 제목처럼 튄다(PM 2026-09-28 00:39). 크기는 라벨과 같게, 값은 굵기·색으로
   count: {
-    fontSize: theme.font.size.md,
+    fontSize: theme.font.size.xs,
     fontWeight: '600',
     color: theme.color.textPrimary,
   },
