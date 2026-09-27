@@ -132,10 +132,8 @@ export default function WeeklyChart({ weekly }: WeeklyChartProps) {
               accessible
               accessibilityLabel={PROFILE_COPY.stats.averageA11y(averageSec)}
             >
-              <View style={styles.summaryLabelRow}>
-                <View style={styles.averageKey} />
-                <Text style={styles.summaryLabel}>{PROFILE_COPY.stats.dailyAverageTitle}</Text>
-              </View>
+              {/* 점선 범례(─ ─)는 뺐다(PM 2026-09-28 00:23) — 라벨만 */}
+              <Text style={styles.summaryLabel}>{PROFILE_COPY.stats.dailyAverageTitle}</Text>
               <Text style={styles.summaryValue}>{PROFILE_COPY.stats.dayValue(averageSec)}</Text>
             </View>
             {/* 보통 화면은 7일을 한 번에, 좁은 화면은 스크롤로 44pt 터치 영역을 유지한다. */}
@@ -298,19 +296,12 @@ const styles = StyleSheet.create({
     paddingTop: theme.spacing.lg,
     gap: theme.spacing.xs,
   },
-  summaryLabelRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
   summaryLabel: { fontSize: theme.font.size.sm, color: theme.color.textSecondary, flexShrink: 1 },
   summaryValue: {
     fontSize: theme.font.size.xxl,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
     color: theme.color.textPrimary,
-  },
-  averageKey: {
-    width: theme.spacing.md,
-    borderTopWidth: 1,
-    borderColor: theme.color.textSecondary,
-    borderStyle: 'dashed',
   },
   stateBox: {
     minHeight: CHART_HEIGHT + ANNOTATION_MIN_HEIGHT + theme.spacing.xxl * 2,
