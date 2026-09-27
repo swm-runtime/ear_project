@@ -42,7 +42,7 @@ export default function EmailRow({ state, onPress, onRetry, isRetrying }: EmailR
         <View style={styles.right}>
           <Text style={styles.errorText}>{SETTINGS_COPY.summaryError}</Text>
           <Pressable
-            style={styles.action}
+            style={({ pressed }) => [styles.action, pressed && styles.pressed]}
             onPress={onRetry}
             disabled={isRetrying}
             accessibilityRole="button"
@@ -66,7 +66,7 @@ export default function EmailRow({ state, onPress, onRetry, isRetrying }: EmailR
   return (
     <View style={styles.row}>
       <Pressable
-        style={styles.info}
+        style={({ pressed }) => [styles.info, pressed && styles.pressed]}
         onPress={onPress}
         accessible
         accessibilityRole="button"
@@ -93,7 +93,7 @@ export default function EmailRow({ state, onPress, onRetry, isRetrying }: EmailR
         {actionLabels(vm).map((label) => (
           <Pressable
             key={label}
-            style={styles.action}
+            style={({ pressed }) => [styles.action, pressed && styles.pressed]}
             onPress={onPress}
             accessibilityRole="button"
             accessibilityLabel={label}
@@ -113,13 +113,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
+    paddingVertical: theme.spacing.md,
     gap: theme.spacing.sm,
     flexWrap: 'wrap',
   },
   info: {
+    flexGrow: 1,
+    flexBasis: 160,
     flexShrink: 1,
+    minWidth: 0,
+    maxWidth: '100%',
+    minHeight: theme.touchTarget.minHeight,
+    justifyContent: 'center',
     gap: theme.spacing.xs,
+  },
+  pressed: {
+    opacity: 0.6,
   },
   label: {
     fontSize: theme.font.size.md,
@@ -135,12 +144,12 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.sm,
     color: theme.color.textSecondary,
     flexShrink: 1,
+    maxWidth: '100%',
   },
   badge: {
     borderRadius: theme.radius.full,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.warningSurface,
-    borderWidth: 1,
-    borderColor: theme.color.warning,
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: 2,
   },
@@ -153,15 +162,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.sm,
+    flexWrap: 'wrap',
+    flexShrink: 1,
+    marginLeft: 'auto',
   },
   errorText: {
     fontSize: theme.font.size.sm,
     color: theme.color.textSecondary,
+    flexShrink: 1,
   },
   action: {
     minHeight: theme.touchTarget.minHeight,
+    minWidth: theme.touchTarget.minWidth,
     justifyContent: 'center',
-    paddingHorizontal: theme.spacing.sm,
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
+    backgroundColor: theme.color.background,
   },
   actionLabel: {
     fontSize: theme.font.size.sm,

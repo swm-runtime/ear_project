@@ -11,8 +11,7 @@ interface SettingsSectionProps {
 /**
  * 섹션 구분 리스트의 한 섹션 — 제목 + 항목 묶음(settings-uiux.md 5장).
  *
- * 항목 사이에 구분선을 넣는다(2026-09-02) — 흰 배경 위에 행만 쌓으면 어디까지가 한 묶음인지
- * 보이지 않아 전체가 하나의 긴 목록으로 읽힌다. 섹션 배경을 깔지 않고 선과 여백으로만 나눈다.
+ * 연한 면으로 항목을 묶고, 안쪽 구분선과 보조 라벨로 섹션의 위계를 만든다.
  */
 export default function SettingsSection({ title, children }: SettingsSectionProps) {
   const items = Children.toArray(children);
@@ -26,7 +25,7 @@ export default function SettingsSection({ title, children }: SettingsSectionProp
         {items.map((item, index) => (
           <View key={index}>
             {/* 첫 항목 위에는 긋지 않는다 — 제목이 밑줄 그어진 것처럼 보인다 */}
-            {index > 0 ? <View style={styles.divider} /> : null}
+            {index > 0 ? <View style={styles.divider} pointerEvents="none" /> : null}
             {item}
           </View>
         ))}
@@ -38,21 +37,26 @@ export default function SettingsSection({ title, children }: SettingsSectionProp
 const styles = StyleSheet.create({
   section: {
     gap: theme.spacing.sm,
+    marginHorizontal: theme.spacing.md,
   },
-  // 12 → 14. 12는 보조색과 겹쳐 묶음의 머리로 읽히지 않았다
+  // 프로필 카드의 보조 라벨과 같은 크기, 행의 글자 시작점과 같은 들여쓰기.
   title: {
-    fontSize: theme.font.size.sm,
-    fontWeight: '700',
+    fontSize: theme.font.size.xs,
+    fontWeight: '500',
     color: theme.color.textSecondary,
     paddingHorizontal: theme.spacing.md,
   },
   body: {
-    backgroundColor: theme.color.background,
+    backgroundColor: theme.color.surface,
+    borderRadius: theme.radius.xl,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
   },
   // 항목 글자와 같은 선에서 시작한다 — 왼쪽 끝까지 그으면 섹션 경계와 구분되지 않는다
   divider: {
     height: StyleSheet.hairlineWidth,
     marginLeft: theme.spacing.md,
+    marginRight: theme.spacing.md,
     backgroundColor: theme.color.border,
   },
 });
