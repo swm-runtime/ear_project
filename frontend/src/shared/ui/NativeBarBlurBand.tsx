@@ -1,6 +1,7 @@
 import { BlurView } from 'expo-blur';
-import { useMemo } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { GlassView } from 'expo-glass-effect';
+import { useEffect, useMemo, useState } from 'react';
+import { Animated, StyleSheet, Text, View } from 'react-native';
 
 import {
   useNativeBarRowHeight,
@@ -20,6 +21,11 @@ interface NativeBarBlurBandProps {
    * −(상태 바 + 44)다. 탭 화면(바 없음)은 false
    */
   underSystemBar?: boolean;
+  /**
+   * 띠의 재질. `frost` = 블러 + 흰 35%(카톡 상단, 기본). `glass` = 리퀴드 글라스(PM 2026-09-27 22:58 시험 — 라이브러리·탐색
+   * 탭 화면만. 푸시 화면은 뒤로 버튼 유리 원이 띠 위에 얹혀 유리 위 유리가 되므로 쓰지 않는다 — design.md 3장)
+   */
+  material?: 'frost' | 'glass';
 }
 
 /** 띠의 아래 끝 — 바 줄 끝보다 이만큼 위(음수). 03:19 PM "범위 조금만 올리자 너무 내려와 있다"(+8 → −8 → −16 03:39) */
@@ -40,6 +46,7 @@ export default function NativeBarBlurBand({
   scrollY,
   title,
   underSystemBar = false,
+  material = 'frost',
 }: NativeBarBlurBandProps) {
   const statusInset = useNativeHeaderInset();
   const rowHeight = useNativeBarRowHeight();
@@ -54,7 +61,40 @@ export default function NativeBarBlurBand({
     });
   }, [scrollY, statusInset, rowHeight, underSystemBar]);
 
+  /*
+   * 유리는 불투명도로 흐리게 하지 않는다 — 반투명 부모 밑의 UIVisualEffectView 는 재질이 깨진다. 대신 페이드 구간의
+   * 가운데를 넘을 때 효과를 none ↔ regular 로 바꾸고, 전환은 UIKit 의 유리 나타나기 애니메이션(animate)에 맡긴다.
+   * 작은 제목은 종전처럼 불투명도로 페이드인한다
+   */
+  const [glassShown, setGlassShown] = useState(false);
+  useEffect(() => {
+    if (material !== 'glass') return undefined;
+    const rest = -(statusInset + (underSystemBar ? rowHeight : 0));
+    const threshold = rest + LARGE_TITLE_ROW_HEIGHT * 0.75;
+    const id = scrollY.addListener(({ value }) => setGlassShown(value >= threshold));
+    return () => scrollY.removeListener(id);
+  }, [material, scrollY, statusInset, rowHeight, underSystemBar]);
+
   if (!HAS_NATIVE_TAB_BAR) return null;
+  if (material === 'glass') {
+    return (
+      <View style={[styles.band, { height }]} pointerEvents="none">
+        <GlassView
+          style={StyleSheet.absoluteFill}
+          glassEffectStyle={{ style: glassShown ? 'regular' : 'none', animate: true }}
+          colorScheme="light"
+        />
+        <Animated.View style={[styles.titleRow, { top: statusInset, height: rowHeight, opacity }]}>
+          <Text
+            style={[styles.title, { transform: [{ translateY: TITLE_LIFT }] }]}
+            numberOfLines={1}
+          >
+            {title}
+          </Text>
+        </Animated.View>
+      </View>
+    );
+  }
   return (
     <Animated.View style={[styles.band, { height, opacity }]} pointerEvents="none">
       <BlurView style={StyleSheet.absoluteFill} tint="light" intensity={100} />
