@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
   Modal,
+  PanResponder,
   Pressable,
   StyleSheet,
   type LayoutChangeEvent,
@@ -13,6 +14,11 @@ import {
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion, theme } from '@/shared/theme';
+
+/** 끌어 닫기 임계 — 높이의 1/4(최소 80pt)이거나 던진 속도 0.8 이상 */
+const DRAG_CLOSE_RATIO = 0.25;
+const DRAG_CLOSE_MIN = 80;
+const DRAG_CLOSE_VELOCITY = 0.8;
 
 interface BottomSheetProps {
   isVisible: boolean;
@@ -43,6 +49,9 @@ interface BottomSheetProps {
  * - 나갈 때: `duration.normal` + `easeInOut` 으로 되돌린 **뒤** 모달을 내린다 — `isVisible` 이 false 가 되는
  *   순간 언마운트하면 나가는 모션이 안 보인다. 그래서 내부에 `isMounted` 를 따로 둔다.
  * - 높이를 재기 전에는 화면 밖(창 높이)에 두고 시작한다 — 첫 프레임에 제자리로 찍히는 번쩍임을 막는다.
+ * - **아래로 끌어 닫는다**(PM 2026-09-27 19:55) — 손가락을 따라 내려가고 딤도 같이 밝아진다(애플 시트). 임계를
+ *   넘겨 놓으면 닫히고, 아니면 제자리로 돌아온다. 끌기는 `progress` 를 직접 움직이므로 놓는 순간의 값에서
+ *   이어서 닫혀 튐이 없다.
  */
 export default function BottomSheet({
   isVisible,
@@ -54,8 +63,15 @@ export default function BottomSheet({
 }: BottomSheetProps) {
   const [isMounted, setIsMounted] = useState(isVisible);
   const [height, setHeight] = useState(0);
-  /** 0 = 닫힘(화면 밖·딤 투명) · 1 = 열림 */
+  /** 0 = 닫힘(화면 밖·딤 투명) · 1 = 열림. 끌 때도 이 값을 직접 움직인다 */
   const progress = useAnimatedValue(0);
+  /** 제스처 콜백이 최신 값을 읽게 하는 ref — 갱신은 렌더 밖(effect)에서 한다 */
+  const heightRef = useRef(0);
+  const closeRef = useRef(onRequestClose);
+
+  useEffect(() => {
+    closeRef.current = onRequestClose;
+  }, [onRequestClose]);
 
   // 열리는 순간 **렌더 중에** 붙인다(React 가 권하는 파생 상태 갱신) — effect 로 미루면 한 프레임 늦게 붙어
   // 첫 스프링이 잘린다. 닫는 쪽은 나가는 모션이 끝난 뒤라 아래 effect 가 맡는다
@@ -86,8 +102,53 @@ export default function BottomSheet({
 
   const handleLayout = (event: LayoutChangeEvent) => {
     const measured = Math.ceil(event.nativeEvent.layout.height);
+    heightRef.current = measured;
     if (measured > 0 && measured !== height) setHeight(measured);
   };
+
+  /**
+   * 아래로 끌어 닫기 — 시트 어디서든(맨 위 손잡이 포함) 받는다. 시트 안에는 스크롤 목록이 없어 스크롤과
+   * 다툴 일이 없다. `onMoveShouldSetPanResponder`(capture 아님)라 버튼은 탭을 먼저 받고, 끌기가 시작되면
+   * 버튼이 자기 누름을 취소한다.
+   */
+  // 룰은 "렌더 중 함수에 ref 를 넘긴다"를 잡는다 — 아래 콜백은 등록만 되고 실행은 제스처 시점이다(표준 패턴,
+  // TopicMarqueeRow·MiniPlayer 와 같다)
+  // eslint-disable-next-line react-hooks/refs
+  const pan = PanResponder.create({
+    // 아래로 6pt 이상 · 가로보다 세로가 큰 움직임만 가져온다 — 탭·좌우 스와이프를 훔치지 않는다
+    onMoveShouldSetPanResponder: (_event, gesture) =>
+      gesture.dy > 6 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+    onPanResponderMove: (_event, gesture) => {
+      const sheetHeight = heightRef.current;
+      if (sheetHeight <= 0) return;
+      const next = 1 - Math.max(0, gesture.dy) / sheetHeight;
+      progress.setValue(Math.max(0, Math.min(1, next)));
+    },
+    onPanResponderRelease: (_event, gesture) => {
+      const sheetHeight = heightRef.current;
+      // 높이의 1/4(최소 80pt)을 넘겼거나 빠르게 던졌으면 닫는다 — 아니면 제자리로
+      const shouldClose =
+        gesture.dy > Math.max(DRAG_CLOSE_MIN, sheetHeight * DRAG_CLOSE_RATIO) ||
+        gesture.vy > DRAG_CLOSE_VELOCITY;
+      if (shouldClose) {
+        // 닫기는 화면이 정한다 — `isVisible` 이 false 가 되면 위 effect 가 지금 값에서 이어서 내린다
+        closeRef.current();
+        return;
+      }
+      Animated.spring(progress, {
+        toValue: 1,
+        useNativeDriver: true,
+        ...motion.spring.smooth,
+      }).start();
+    },
+    onPanResponderTerminate: () => {
+      Animated.spring(progress, {
+        toValue: 1,
+        useNativeDriver: true,
+        ...motion.spring.smooth,
+      }).start();
+    },
+  });
 
   const translateY = progress.interpolate({
     inputRange: [0, 1],
@@ -112,6 +173,7 @@ export default function BottomSheet({
         style={[styles.sheetWrap, { transform: [{ translateY }] }]}
         onLayout={handleLayout}
         pointerEvents="box-none"
+        {...pan.panHandlers}
       >
         <Animated.View style={sheetStyle}>{children}</Animated.View>
       </Animated.View>
