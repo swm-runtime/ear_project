@@ -9,7 +9,7 @@ import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 interface SystemLargeTitleOptions {
   /** 바가 부모 내비게이터의 것일 때(탐색은 탭 안 스택) */
   onParent?: boolean;
-  /** 접힌(스크롤한) 작은 제목의 글자 크기 — 없으면 시스템 기본(17) */
+  /** 접힌(스크롤한) 작은 제목의 글자 크기 — 없으면 COLLAPSED_TITLE_SIZE */
   collapsedTitleSize?: number;
   /**
    * 스크롤해 큰 제목이 밀려나면 **작은 제목을 가운데**로 두고 **왼쪽에 유리 검색 버튼**을 띄운다(PM 2026-09-28 03:44).
@@ -29,6 +29,11 @@ const COLLAPSE_AT = 44;
 const EXPAND_AT = 16;
 
 /**
+ * 스크롤해 접힌 바의 작은 제목 크기 — 시스템 기본 17 은 작았다(PM 2026-09-28 03:34 설정 18 → 04:09 "더 글자 키우자 작다" 전 화면 20)
+ */
+const COLLAPSED_TITLE_SIZE = 20;
+
+/**
  * **시스템 큰 제목**(iOS 26 `UINavigationItem.LargeTitleDisplayMode.inline`) — 큰 제목이 바 줄에 앉고 오른쪽 바 버튼과
  * **같은 줄**이다(애플 뮤직 보관함). 바 밑 블러는 시스템 scroll edge effect 가 그린다
  * (PM 2026-09-28 02:40 "애플에서 기본적으로 제공하는거 없어" → `.inline` 발견 → "빌드 ㄱ").
@@ -40,7 +45,7 @@ const EXPAND_AT = 16;
 export const useSystemLargeTitle = (
   title: string,
   trailing: ReactNode,
-  { onParent = false, collapsedTitleSize, collapse }: SystemLargeTitleOptions = {},
+  { onParent = false, collapsedTitleSize = COLLAPSED_TITLE_SIZE, collapse }: SystemLargeTitleOptions = {},
 ): void => {
   const navigation = useNavigation<NavigationProp<ParamListBase>>();
   const collapsed = useCollapsedBar(collapse?.scrollY);
@@ -61,7 +66,7 @@ export const useSystemLargeTitle = (
       // headerTitle 이 옵션에 있으면(PUSHED_SCREEN_HEADER 의 '') title 을 이긴다 — 같이 덮는다(09-28 03:25 설정 제목 빈칸)
       headerTitle: title,
       headerLargeTitleEnabled: !showSearch,
-      ...(collapsedTitleSize ? { headerTitleStyle: { fontSize: collapsedTitleSize } } : null),
+      headerTitleStyle: { fontSize: collapsedTitleSize },
       unstable_headerLeftItems: () =>
         showSearch
           ? [

@@ -44,8 +44,8 @@ export default function SettingsScreen() {
   const { scrollProps } = useFloatingHeaderScroll();
   // iOS 26: **시스템 큰 제목** — 라이브러리·탐색과 같다(PM 2026-09-28 03:14 "이거야"). 뒤로 버튼이 있어 UIKit 이 큰 제목을
   // 버튼 줄 밑에 두고, 스크롤 접힘·바 밑 블러는 시스템이 한다
-  // 접힌 작은 제목은 시스템 17 보다 살짝 크게(PM 2026-09-28 03:34 "스와이프 했을 때 설정 제목 크기 살짝만 높이자")
-  useSystemLargeTitle(SETTINGS_COPY.title, null, { collapsedTitleSize: COLLAPSED_TITLE_SIZE });
+  // 접힌 작은 제목 크기는 훅 기본값(전 화면 공통 — 04:09 PM)
+  useSystemLargeTitle(SETTINGS_COPY.title, null);
 
   return (
     <SafeAreaView style={styles.container} edges={USES_SYSTEM_PUSHED_HEADER ? [] : ['top']}>
@@ -318,9 +318,6 @@ export default function SettingsScreen() {
 
 /** 앱바 뒤로 셰브론 — 글자 `‹` 는 폰트마다 굵기·세로 위치가 달라 도형으로 그린다(design.md §5) */
 const BACK_ICON_SIZE = 24;
-
-/** 스크롤해 접힌 바의 작은 제목 크기 — 시스템 기본 17 에서 +1 */
-const COLLAPSED_TITLE_SIZE = 18;
 
 const styles = StyleSheet.create({
   container: {
