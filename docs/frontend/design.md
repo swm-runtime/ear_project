@@ -25,6 +25,7 @@ HIG 원문: https://developer.apple.com/design/human-interface-guidelines/
 
 - **색만으로 상태를 구분하지 않는다**(HIG Accessibility) — 형태(바의 길이, 알약, 아이콘 채움)나 낭독기 라벨을 함께 둔다. 예: 완청은 "꽉 찬 바 + '완청한 콘텐츠' 라벨".
 - 새 색을 넣고 싶으면 먼저 **"이게 앱의 유일한 유채색이 될 만큼 중요한가"** 를 묻는다. 아니면 회색 단계로 푼다.
+- **파괴적 항목은 의미색 빨강을 그대로 쓴다** — 설정의 회원 탈퇴는 다른 항목과 **같은 크기**이고 색만 `color.danger` 다(2026-09-27 PM, iOS 설정의 "계정 삭제" 문법). 작게 회색으로 흐리면 경고가 아니라 "덜 중요한 항목"으로 읽히고 찾기만 어려워진다 — 오탭 방어는 그 뒤의 확인 절차가 맡는다(`changes/pending/settings-withdraw-destructive.md`).
 - **예외 — 데이터 시각화의 범주 색**(주제 분포 도넛 `color.chart`). 강조가 아니라 구분이고, 애플의 스크린 타임·건강 차트도 색을 쓴다. 회색 단계로 만들지 않는다(2026-09-26 PM).
 
 ## 2. 모서리 (HIG: Layout — corner concentricity)

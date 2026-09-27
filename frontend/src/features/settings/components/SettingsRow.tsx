@@ -16,8 +16,14 @@ interface SettingsRowProps {
   rightSlot?: ReactNode;
   onPress?: () => void;
   disabled?: boolean;
-  /** 파괴적·보조 항목(회원 탈퇴)의 낮은 시각 비중(settings-uiux.md 4.1) */
+  /** 보조 항목(개발계 진단 행 등)의 낮은 시각 비중 — 작은 회색 글자 */
   isSubdued?: boolean;
+  /**
+   * 파괴적 항목(회원 탈퇴) — **항목명과 같은 크기의 빨강**(PM 2026-09-27 22:45 "회원탈퇴 빨간색으로, 로그아웃이랑
+   * 글씨 크기 똑같게"). iOS 설정의 "계정 삭제"와 같은 문법이다. 종전엔 `isSubdued`(작은 회색)였다 —
+   * `changes/pending/settings-withdraw-destructive.md`
+   */
+  isDestructive?: boolean;
   a11yLabel?: string;
 }
 
@@ -30,6 +36,7 @@ export default function SettingsRow({
   onPress,
   disabled = false,
   isSubdued = false,
+  isDestructive = false,
   a11yLabel,
 }: SettingsRowProps) {
   return (
@@ -42,7 +49,12 @@ export default function SettingsRow({
       accessibilityState={{ disabled }}
     >
       <Text
-        style={[styles.label, isSubdued && styles.labelSubdued, disabled && styles.labelDimmed]}
+        style={[
+          styles.label,
+          isSubdued && styles.labelSubdued,
+          isDestructive && styles.labelDestructive,
+          disabled && styles.labelDimmed,
+        ]}
       >
         {label}
       </Text>
@@ -88,6 +100,10 @@ const styles = StyleSheet.create({
   labelSubdued: {
     fontSize: theme.font.size.sm,
     color: theme.color.textSecondary,
+  },
+  /** 파괴적 항목 — 크기는 항목명 그대로, 색만 빨강(design.md §1 의미색) */
+  labelDestructive: {
+    color: theme.color.danger,
   },
   labelDimmed: {
     color: theme.color.textSecondary,

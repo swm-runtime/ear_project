@@ -211,11 +211,12 @@ export default function SettingsScreen() {
 
         <SettingsSection title={SETTINGS_COPY.sections.account}>
           <SettingsRow label={SETTINGS_COPY.account.logout} onPress={screen.openLogoutDialog} />
-          {/* 낮은 시각 비중이지만 숨기지 않는다 — 찾을 수 없는 탈퇴는 다크 패턴이다(settings-uiux.md 4.1) */}
+          {/* 파괴적 항목 — 로그아웃과 같은 크기의 빨강(PM 2026-09-27 22:45, iOS 설정의 "계정 삭제" 문법).
+              숨기지 않는다 — 찾을 수 없는 탈퇴는 다크 패턴이다(settings-uiux.md 4.1) */}
           <SettingsRow
             label={SETTINGS_COPY.account.withdraw}
             onPress={screen.openWithdrawal}
-            isSubdued
+            isDestructive
           />
         </SettingsSection>
 
