@@ -24,8 +24,11 @@ interface NativeBarBlurBandProps {
 
 /** 띠의 아래 끝 — 바 줄 끝보다 이만큼 위(음수). 03:19 PM "범위 조금만 올리자 너무 내려와 있다"(+8 → −8 → −16 03:39) */
 const BAND_EXTENSION = -16;
-/** 블러 세기 — expo-blur 0~100. 100 은 뒤가 거의 안 보이는 서리였다(09-28 00:50) */
-const BLUR_INTENSITY = 60;
+/**
+ * 블러 세기 — expo-blur 0~100. 카톡 채팅방 상단처럼 **균일하고 센 서리 판 + 아래 끝 hairline**(PM 2026-09-28 01:26 "똑같이") —
+ * iOS 25 까지의 내비게이션 바(systemChromeMaterial + shadowImage)와 같은 문법. 00:50 에 60 으로 줄였다가 되돌렸다
+ */
+const BLUR_INTENSITY = 100;
 /** 바 줄 가운데보다 이만큼 위 — 띠 아래 끝을 바 줄보다 올려서 제목도 같이 올린다(03:19 PM "글자를 더 올리자" −6 → 18:02 "조금 올리는 거" −12) */
 const TITLE_LIFT = -12;
 
@@ -64,6 +67,8 @@ export default function NativeBarBlurBand({
       <BlurView style={StyleSheet.absoluteFill} tint="light" intensity={BLUR_INTENSITY} />
       {/* 블러만으론 밑 썸네일이 다 비쳐 작은 제목이 겹쳤다(02:59 실기기) — 카톡처럼 흰 서리에 가깝게 틴트를 얹는다 */}
       <View style={[StyleSheet.absoluteFill, styles.frost]} />
+      {/* 아래 끝 hairline — 판이 끊기는 자리를 "바의 끝"으로 정리한다(iOS 바 shadowImage, 카톡과 같다). 띠와 같이 페이드 */}
+      <View style={styles.hairline} />
       <View style={[styles.titleRow, { top: statusInset, height: rowHeight }]}>
         <Animated.Text
           style={[styles.title, { transform: [{ translateY: TITLE_LIFT }] }]}
@@ -84,9 +89,17 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 1,
   },
+  hairline: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(0, 0, 0, 0.12)',
+  },
   frost: {
-    // 03:19 PM "틴트 줄이고" — 72% → 50% → 35%(03:39) → 25%(09-28 00:50, 블러를 줄이며 같이)
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    // 72% → 50% → 35%(09-27 03:39) → 25%(09-28 00:50) → 60%(01:26 카톡처럼 — 밑의 글자가 안 읽힐 만큼)
+    backgroundColor: 'rgba(255, 255, 255, 0.6)',
   },
   titleRow: {
     position: 'absolute',
