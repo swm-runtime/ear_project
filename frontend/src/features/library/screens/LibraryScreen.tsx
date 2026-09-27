@@ -76,7 +76,7 @@ const toGridRows = (rows: LibraryListRow[]): LibraryGridRow[] => {
  * 상단 두 갈래(PM 2026-09-26 00:14 "라이브러리도" · 00:29 애플 뮤직 스샷 — design.md 5장 "상단 — 시스템 내비게이션 바"):
  * - **iOS 26 시스템 탭 바(HAS_NATIVE_TAB_BAR)** — 시스템 바 없이(터치를 먹어서 껐다, 09-26 17:42) **콘텐츠 안 큰 제목 줄**
  *   ("라이브러리" + 오른쪽 링·필터 툴바 캡슐, 같은 줄) / 채움 검색 필드 / 조건 요약·배너 — 전부 목록의 첫 줄로 같이 스크롤한다.
- *   투명 시스템 바 밑에서 시작하고, 스크롤하면 바 밑 블러는 시스템 scroll edge effect 가, 작은 제목은 바가 그린다(useFadingNativeTitle).
+ *   큰 제목과 툴바 캡슐은 시스템 바가 든다(useSystemLargeTitle — iOS 26 .inline).
  * - 그 외 — 떠 있는 유리 머리 줄(FloatingHeader: 검색창 + 툴바 + 요약 + 배너)이 목록 위에 뜬다(2026-09-24).
  */
 export default function LibraryScreen() {

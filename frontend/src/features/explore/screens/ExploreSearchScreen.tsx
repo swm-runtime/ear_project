@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -27,7 +27,6 @@ import ExploreMoreSheet from '../components/ExploreMoreSheet';
 import ExploreTile from '../components/ExploreTile';
 import RecentSearchList from '../components/RecentSearchList';
 import SearchInputRow from '../components/SearchInputRow';
-import SearchToolbar from '../components/SearchToolbar';
 import SuggestedKeywordChips from '../components/SuggestedKeywordChips';
 import { EXPLORE_COPY } from '../explore.copy';
 import { exploreGridKey, toExploreGridData } from '../explore.grid';
@@ -59,7 +58,6 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
    * 나타나고(snappy 스프링, 네이티브 드라이버), 닫기면 반대로 가라앉으며 사라진 뒤 피드로 돌아간다. 스택 검색 화면은 그대로 1
    */
   const appear = useAnimatedValue(embedding ? 0 : 1);
-  const [isClosing, setIsClosing] = useState(false);
   useEffect(() => {
     if (!embedding) return;
     Animated.spring(appear, { toValue: 1, ...motion.spring.snappy, useNativeDriver: true }).start();
@@ -70,10 +68,15 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
    * 녹아 없어지고 본문이 피드로 바뀐다
    */
   const overlayFade = useAnimatedValue(1);
-  const closeEmbedded = () => {
-    if (isClosing) return;
-    setIsClosing(true);
-    // 알약이 링 쪽으로 줄어들며 합쳐지는 동안(isClosing → SearchToolbar) 본문이 가라앉고, 다 합쳐진 뒤 덮개를 짧게 걷는다
+  // 시스템 바 캡슐의 닫기 ✕ (탐색 화면 소유) → 여기서 퇴장 애니메이션. 캡슐의 ✕ 칸이 링 쪽으로 줄어드는 동안
+  // (SearchToolbar isOpen=false) 본문이 가라앉고, 다 합쳐진 뒤 덮개를 짧게 걷는다
+  const closeRequested = embedding?.isClosing === true;
+  const cancelRef = useRef(screen.cancel);
+  useLayoutEffect(() => {
+    cancelRef.current = screen.cancel;
+  });
+  useEffect(() => {
+    if (!closeRequested) return;
     Animated.sequence([
       Animated.timing(appear, {
         toValue: 0,
@@ -87,8 +90,8 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
         easing: motion.easing.easeOut,
         useNativeDriver: true,
       }),
-    ]).start(() => screen.cancel());
-  };
+    ]).start(() => cancelRef.current());
+  }, [closeRequested, appear, overlayFade]);
   const bodyMotion = {
     flex: 1,
     opacity: appear,
@@ -255,19 +258,9 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
         <>
           {/* 제자리 검색이면 제목은 "탐색" 그대로 — 페이지가 바뀌지 않았다는 신호. 오른쪽에 잔여 링 + 닫기 ✕
               (PM 2026-09-27 22:36 "검색할 때도 몇 회 남았는지 뜨게 하고 취소 x 버튼을 그 옆에") — 검색창은 폭을 다 쓴다 */}
-          <LargeTitleRow
-            title={embedding ? EXPLORE_COPY.tabTitle : EXPLORE_COPY.search.tabTitle}
-            trailing={
-              embedding ? (
-                <SearchToolbar
-                  remaining={embedding.remaining}
-                  onExhaustedPress={embedding.onExhaustedPress}
-                  onClose={closeEmbedded}
-                  isOpen={!isClosing}
-                />
-              ) : undefined
-            }
-          />
+          {/* 제자리 검색은 제목 "탐색" + [링 | ✕] 캡슐을 **시스템 바**가 든다(탐색 화면의 useSystemLargeTitle, 2026-09-28) —
+              여기선 검색창만. 스택 검색 화면(제자리가 아님)만 제목 줄을 그린다 */}
+          {embedding ? null : <LargeTitleRow title={EXPLORE_COPY.search.tabTitle} />}
           <SearchInputRow
             value={screen.inputText}
             onChangeText={screen.handleChangeText}

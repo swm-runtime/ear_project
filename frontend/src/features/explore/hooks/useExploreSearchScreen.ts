@@ -56,6 +56,11 @@ export interface ExploreSearchEmbedding {
    */
   remaining: { remaining: number; limit: number } | null;
   onExhaustedPress: () => void;
+  /**
+   * 닫기 요청 — 닫기 ✕ 는 시스템 바의 캡슐에 있다(탐색 화면이 그린다, 2026-09-28 시스템 큰 제목). true 가 되면 이 화면이
+   * 가라앉는 퇴장 애니메이션을 돌리고 끝에 onExit 를 부른다
+   */
+  isClosing?: boolean;
 }
 
 export const useExploreSearchScreen = (embedding?: ExploreSearchEmbedding) => {
