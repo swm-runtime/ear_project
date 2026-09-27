@@ -88,6 +88,9 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
     // 동적 텍스트 200%에서 항목명·값이 겹치지 않게 두 줄 배치를 허용한다(settings-uiux.md 7장)
     flexWrap: 'wrap',
+    // wrap 이 켜지면 줄의 세로 위치는 alignItems 가 아니라 alignContent 가 정한다. RN 기본값이 flex-start 라서
+    // 내용이 minHeight 보다 짧은 행은 위에 붙어 보였다(PM 2026-09-28 02:40 "각 항목들이 위쪽에 정렬돼있다")
+    alignContent: 'center',
     paddingVertical: theme.spacing.sm,
   },
   pressed: {
