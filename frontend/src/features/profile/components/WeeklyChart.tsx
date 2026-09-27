@@ -1,13 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import {
-  Animated,
-  PanResponder,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion, theme } from '@/shared/theme';
@@ -26,6 +18,8 @@ interface WeeklyChartProps {
 const CHART_HEIGHT = 144;
 const ZERO_BAR_HEIGHT = 3;
 const DAYS_IN_WEEK = 7;
+/** 서비스 날짜 경계 04시 — 표시용 오늘 요일을 서버와 같은 날로 맞춘다(toWeekView) */
+const SERVICE_DAY_OFFSET_MS = 4 * 60 * 60 * 1000;
 /**
  * 막대 위 말풍선 자리의 **최소** 높이 — 실제 높이는 실측값이 이긴다(`annotationHeight`). 말풍선은 14pt 글자 +
  * 위아래 8 여백이라 34 안팎이므로 44 는 10 넘게 과하게 비웠고, 아무 막대도 고르지 않은 기본 상태에서는 그 자리가
@@ -88,11 +82,21 @@ function ArrowButton({
 
 /** 한 주의 차트 몸통에 필요한 파생값 — 가운데 주와 이웃 주(끌 때 옆에 보이는 주)가 같은 계산을 쓴다 */
 const toWeekView = (week: WeeklyListening) => {
-  // 오늘 요일 강조에만 기기 달력을 쓴다. 주 이동은 서버 토큰으로 판정한다.
-  const todayIndex = week.nextWeekStart === null ? (new Date().getDay() + 6) % 7 : null;
+  /*
+   * 오늘 요일 — 표시(오늘 강조 · 평균의 지난 날 수)에만 쓴다. 주 경계·이동은 서버 토큰으로 판정한다.
+   * **서비스 날짜는 04시에 넘어간다**(features/paywall.md) — 기기 자정 기준이면 0~4시에 오늘이 하루 앞서, 서버는 아직 지난주를
+   * 주는데 월요일로 읽어 평균을 1일로 나눴다(PM 2026-09-28 03:43 스샷: 주 합계가 그대로 하루 평균 · 평균선이 막대 위).
+   * 그래서 기기 시각에서 4시간을 빼 요일을 잡고, 기록이 있는 마지막 요일까지는 반드시 지난 날로 센다(데이터 하한)
+   */
+  const serviceNow = new Date(Date.now() - SERVICE_DAY_OFFSET_MS);
+  const todayIndex = week.nextWeekStart === null ? (serviceNow.getDay() + 6) % 7 : null;
+  const lastListenedIndex = week.dailyListenedSec.reduce(
+    (last, sec, index) => (sec > 0 ? index : last),
+    -1,
+  );
   const averageSec = toDailyAverageSec(
     week.dailyListenedSec,
-    todayIndex === null ? DAYS_IN_WEEK : todayIndex + 1,
+    todayIndex === null ? DAYS_IN_WEEK : Math.max(todayIndex, lastListenedIndex) + 1,
   );
   const maxSec = Math.max(...week.dailyListenedSec, 0);
   const averageRatio = maxSec === 0 ? 0 : Math.min(1, averageSec / maxSec);
@@ -109,12 +113,10 @@ const toWeekView = (week: WeeklyListening) => {
 interface WeekBodyProps {
   week: WeeklyListening;
   annotationHeight: number;
-  scrollEnabled: boolean;
   /** 가운데 주만 — 이웃 주는 탭·말풍선이 없다(끌리는 동안 보이는 그림일 뿐이다) */
   selectedIndex?: number | null;
   onToggleBar?: (dayIndex: number) => void;
   onChartLayout?: (width: number) => void;
-  onViewportLayout?: (width: number) => void;
   tooltip?: ReactNode;
 }
 
@@ -122,11 +124,9 @@ interface WeekBodyProps {
 function WeekBody({
   week,
   annotationHeight,
-  scrollEnabled,
   selectedIndex = null,
   onToggleBar,
   onChartLayout,
-  onViewportLayout,
   tooltip,
 }: WeekBodyProps) {
   const view = toWeekView(week);
@@ -139,94 +139,85 @@ function WeekBody({
   }
   return (
     <>
-      {/* 보통 화면은 7일을 한 번에, 좁은 화면은 스크롤로 44pt 터치 영역을 유지한다. */}
-      <ScrollView
-        horizontal
-        scrollEnabled={scrollEnabled}
-        alwaysBounceHorizontal={false}
+      {/*
+        7칸은 늘 칸 폭에 맞춰 나눈다 — 가로 스크롤을 두지 않는다. 축을 고정 칸으로 뺀 뒤(#912) 넘김 칸이 7×44(308)보다
+        좁아져 스크롤이 켜졌고, 월요일이 잘리고 세로선이 한 칸 밀려 그려졌다(PM 2026-09-28 03:43 "좌표가 안 맞는다").
+        요일 칸이 44 보다 좁아도 칸 높이(막대 + 요일) 전체가 탭 영역이라 누르기 어렵지 않다
+      */}
+      <View
+        style={styles.chartArea}
         onLayout={
-          onViewportLayout
-            ? ({ nativeEvent }) => onViewportLayout(nativeEvent.layout.width)
-            : undefined
+          onChartLayout ? ({ nativeEvent }) => onChartLayout(nativeEvent.layout.width) : undefined
         }
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.chartScrollContent}
+        accessibilityLabel={PROFILE_COPY.stats.weeklyA11y(week.weekStart)}
       >
         <View
-          style={styles.chartArea}
-          onLayout={
-            onChartLayout ? ({ nativeEvent }) => onChartLayout(nativeEvent.layout.width) : undefined
-          }
-          accessibilityLabel={PROFILE_COPY.stats.weeklyA11y(week.weekStart)}
+          pointerEvents="none"
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          style={[styles.grid, { top: annotationHeight }]}
         >
-          <View
-            pointerEvents="none"
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-            style={[styles.grid, { top: annotationHeight }]}
-          >
-            {GRID_RATIOS.map((ratio) => (
-              <View key={ratio} style={[styles.gridLine, { top: ratio * CHART_HEIGHT }]} />
-            ))}
-            <View style={[styles.averageRule, { top: view.averageTop }]} />
-          </View>
-          <View style={styles.chartRow}>
-            {view.ratios.map((ratio, dayIndex) => {
-              const isSelected = dayIndex === selectedIndex;
-              const column = (
-                <>
-                  <View style={{ height: annotationHeight }} />
-                  <View style={styles.barTrack}>
-                    {/* 세로 격자 — 요일 칸 경계. 첫 칸은 왼쪽 선 대신 가로 격자가 끝난다 */}
-                    {/* 첫 칸도 긋는다 — 주 경계가 요일 경계와 같은 선이라 옆 주와 한 줄로 이어진다 */}
-                    <View style={styles.columnRule} />
-                    {isSelected ? <View style={styles.selectionRule} /> : null}
-                    <View
-                      style={[
-                        styles.bar,
-                        { height: Math.max(ratio * CHART_HEIGHT, ZERO_BAR_HEIGHT) },
-                        ratio === 0 && styles.zeroBar,
-                        selectedIndex !== null && !isSelected && styles.barMuted,
-                      ]}
-                    />
-                  </View>
-                  <View style={[styles.dayBadge, isSelected && styles.dayBadgeSelected]}>
-                    <Text
-                      style={[
-                        styles.dayName,
-                        dayIndex === view.todayIndex && styles.dayNameToday,
-                        isSelected && styles.dayNameSelected,
-                      ]}
-                    >
-                      {PROFILE_COPY.stats.dayNames[dayIndex]}
-                    </Text>
-                  </View>
-                </>
-              );
-              return onToggleBar ? (
-                <Pressable
-                  key={dayIndex}
-                  style={styles.barColumn}
-                  onPress={() => onToggleBar(dayIndex)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: isSelected }}
-                  accessibilityLabel={PROFILE_COPY.stats.dayBarA11y(
-                    dayIndex,
-                    week.dailyListenedSec[dayIndex],
-                  )}
-                >
-                  {column}
-                </Pressable>
-              ) : (
-                <View key={dayIndex} style={styles.barColumn}>
-                  {column}
-                </View>
-              );
-            })}
-          </View>
-          {tooltip}
+          {GRID_RATIOS.map((ratio) => (
+            <View key={ratio} style={[styles.gridLine, { top: ratio * CHART_HEIGHT }]} />
+          ))}
+          <View style={[styles.averageRule, { top: view.averageTop }]} />
         </View>
-      </ScrollView>
+        <View style={styles.chartRow}>
+          {view.ratios.map((ratio, dayIndex) => {
+            const isSelected = dayIndex === selectedIndex;
+            const column = (
+              <>
+                <View style={{ height: annotationHeight }} />
+                <View style={styles.barTrack}>
+                  {/* 세로 격자 — 요일 칸 경계. 첫 칸은 왼쪽 선 대신 가로 격자가 끝난다 */}
+                  {/* 첫 칸도 긋는다 — 주 경계가 요일 경계와 같은 선이라 옆 주와 한 줄로 이어진다 */}
+                  <View style={styles.columnRule} />
+                  {isSelected ? <View style={styles.selectionRule} /> : null}
+                  <View
+                    style={[
+                      styles.bar,
+                      { height: Math.max(ratio * CHART_HEIGHT, ZERO_BAR_HEIGHT) },
+                      ratio === 0 && styles.zeroBar,
+                      selectedIndex !== null && !isSelected && styles.barMuted,
+                    ]}
+                  />
+                </View>
+                <View style={[styles.dayBadge, isSelected && styles.dayBadgeSelected]}>
+                  <Text
+                    style={[
+                      styles.dayName,
+                      dayIndex === view.todayIndex && styles.dayNameToday,
+                      isSelected && styles.dayNameSelected,
+                    ]}
+                  >
+                    {PROFILE_COPY.stats.dayNames[dayIndex]}
+                  </Text>
+                </View>
+              </>
+            );
+            return onToggleBar ? (
+              <Pressable
+                key={dayIndex}
+                style={styles.barColumn}
+                onPress={() => onToggleBar(dayIndex)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isSelected }}
+                accessibilityLabel={PROFILE_COPY.stats.dayBarA11y(
+                  dayIndex,
+                  week.dailyListenedSec[dayIndex],
+                )}
+              >
+                {column}
+              </Pressable>
+            ) : (
+              <View key={dayIndex} style={styles.barColumn}>
+                {column}
+              </View>
+            );
+          })}
+        </View>
+        {tooltip}
+      </View>
     </>
   );
 }
@@ -407,16 +398,8 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
     [swipeX],
   );
   const [chartWidth, setChartWidth] = useState(0);
-  /*
-   * 차트 가로 스크롤은 **7칸(44pt씩)이 안 들어가는 좁은 화면에서만** 켠다. 보통 폭에서도 켜 두면 iOS 가로 스크롤 뷰가
-   * 좌우 튕김으로 가로 끌기를 네이티브에서 먼저 가져가 주 넘기기 스와이프가 먹지 않았다
-   */
-  const [chartViewportWidth, setChartViewportWidth] = useState(0);
-  const needsChartScroll =
-    chartViewportWidth > 0 && chartViewportWidth < DAYS_IN_WEEK * theme.touchTarget.minWidth;
   const [tooltipSize, setTooltipSize] = useState({ width: 0, height: ANNOTATION_MIN_HEIGHT });
   const annotationHeight = Math.max(ANNOTATION_MIN_HEIGHT, tooltipSize.height) + theme.spacing.sm;
-  // 막대 칸 폭 = 차트 폭 − 오른쪽 축
   const selectedCenter = ((selectedIndex ?? 0) + 0.5) * (chartWidth / DAYS_IN_WEEK);
   // 축은 가운데 주가 그래프로 보일 때만 — 조회 중·실패·빈 주에는 비운다
   const axisView =
@@ -456,7 +439,7 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
   // 이웃 칸 — 있는 쪽만. 아직 받는 중이면 스켈레톤, 갈 수 없는 쪽은 비운다(끌어도 고무줄이라 거의 안 보인다)
   const renderNeighbor = (week: WeeklyListening | null, exists: boolean) =>
     week !== null ? (
-      <WeekBody week={week} annotationHeight={annotationHeight} scrollEnabled={needsChartScroll} />
+      <WeekBody week={week} annotationHeight={annotationHeight} />
     ) : exists ? (
       skeleton
     ) : null;
@@ -479,11 +462,9 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
     <WeekBody
       week={displayed}
       annotationHeight={annotationHeight}
-      scrollEnabled={needsChartScroll}
       selectedIndex={selectedIndex}
       onToggleBar={weekly.toggleBar}
       onChartLayout={setChartWidth}
-      onViewportLayout={setChartViewportWidth}
       tooltip={
         selectedIndex !== null ? (
           <View
@@ -722,8 +703,7 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
     backgroundColor: theme.color.border,
   },
-  chartScrollContent: { flexGrow: 1 },
-  chartArea: { flex: 1, minWidth: DAYS_IN_WEEK * theme.touchTarget.minWidth },
+  chartArea: { flex: 1 },
   // 격자는 칸 끝에서 끝까지 — 옆 주 칸의 선과 이어진다
   grid: { position: 'absolute', left: 0, right: 0 },
   gridLine: {
@@ -772,7 +752,6 @@ const styles = StyleSheet.create({
   chartRow: { flexDirection: 'row', alignItems: 'flex-end' },
   barColumn: {
     flex: 1,
-    minWidth: theme.touchTarget.minWidth,
     alignItems: 'center',
   },
   barTrack: {
