@@ -5,6 +5,7 @@ import { theme } from '@/shared/theme';
 import BottomSheet from '@/shared/ui/BottomSheet';
 import RemoteImage from '@/shared/ui/RemoteImage';
 
+import { useTopicsQuery } from '@/features/interest';
 import { IS_SHARE_ENABLED, SHARE_COPY } from '@/features/share';
 
 import { EXPLORE_COPY } from '../explore.copy';
@@ -48,6 +49,21 @@ export default function ExploreMoreSheet({
   const [shown, setShown] = useState(item);
   if (item !== null && item !== shown) setShown(item);
 
+  // 제목 밑 한 줄 — `카테고리 · N분`(미니플레이어와 같은 주제 이름 규칙: 앞 둘까지). 주제 목록이 아직 없으면 길이만
+  const topicsQuery = useTopicsQuery();
+  const metaLine = shown
+    ? [
+        shown.content.topicIds
+          .map((id) => topicsQuery.data?.items.find((topic) => topic.topicId === id)?.name)
+          .filter((name): name is string => name !== undefined)
+          .slice(0, 2)
+          .join(' · '),
+        EXPLORE_COPY.row.durationLabel(Math.max(1, Math.round(shown.content.durationSec / 60))),
+      ]
+        .filter((part) => part.length > 0)
+        .join(' · ')
+    : '';
+
   const isSaved = shown?.library !== null;
 
   return (
@@ -65,6 +81,9 @@ export default function ExploreMoreSheet({
               <View style={styles.summaryText}>
                 <Text style={styles.title} numberOfLines={2}>
                   {shown.content.title}
+                </Text>
+                <Text style={styles.meta} numberOfLines={1}>
+                  {metaLine}
                 </Text>
               </View>
             </View>
@@ -170,6 +189,10 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.sm,
     fontWeight: '600',
     color: theme.color.textPrimary,
+  },
+  meta: {
+    fontSize: theme.font.size.xs,
+    color: theme.color.textSecondary,
   },
   action: {
     minHeight: theme.touchTarget.minHeight,
