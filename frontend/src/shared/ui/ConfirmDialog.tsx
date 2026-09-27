@@ -10,6 +10,15 @@ export interface DialogAction {
   disabled?: boolean;
   /** 처리 중 — 라벨 대신 스피너(알림 사전 안내의 OS 권한 요청·기기 동기화). 탭도 막는다 */
   isBusy?: boolean;
+  /**
+   * 파괴적 확인(로그아웃 등) — **주 액션 자리에서만** 쓴다. 채운 빨강 + 흰 글자(iOS 의 확인 시트 [삭제],
+   * SwiftUI `.borderedProminent` + red tint). 보조 자리의 파괴적 동작은 연한 면(`dangerSurface`)이다 —
+   * 채운 빨강을 보조에 쓰면 검정 주 동작보다 더 튀어 둘이 뒤바뀐다(design.md §1·§5).
+   *
+   * **저장 전 로컬 편집만 버리는 [나가기] 에는 쓰지 않는다** — 커리어·관심사 이탈 확인은 서버 상태가 그대로라
+   * 파괴적으로 그리면 나가기를 겁내게 된다(interest-management-uiux.md 4.6 금지 항목)
+   */
+  isDestructive?: boolean;
 }
 
 export interface ConfirmDialogProps {
@@ -55,7 +64,9 @@ export default function ConfirmDialog({
   primaryAction,
   onCloseRequest,
 }: ConfirmDialogProps) {
-  const secondaryDisabled = (secondaryAction.disabled ?? false) || (secondaryAction.isBusy ?? false);
+  const isDestructive = primaryAction.isDestructive ?? false;
+  const secondaryDisabled =
+    (secondaryAction.disabled ?? false) || (secondaryAction.isBusy ?? false);
   const primaryDisabled = (primaryAction.disabled ?? false) || (primaryAction.isBusy ?? false);
   const centered = icon !== undefined;
   return (
@@ -99,7 +110,12 @@ export default function ConfirmDialog({
                 )}
               </Pressable>
               <Pressable
-                style={[styles.button, styles.primaryButton, primaryDisabled && styles.buttonDisabled]}
+                style={[
+                  styles.button,
+                  styles.primaryButton,
+                  isDestructive && styles.primaryDestructive,
+                  primaryDisabled && styles.buttonDisabled,
+                ]}
                 onPress={primaryAction.onPress}
                 disabled={primaryDisabled}
                 accessibilityRole="button"
@@ -182,6 +198,10 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     backgroundColor: theme.color.primary,
+  },
+  /** 파괴적 확인 — 채운 빨강(위 isDestructive 주석). 글자는 흰색 그대로다 */
+  primaryDestructive: {
+    backgroundColor: theme.color.danger,
   },
   buttonDisabled: {
     opacity: 0.5,
