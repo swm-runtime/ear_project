@@ -284,6 +284,7 @@ const styles = StyleSheet.create({
     minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
     paddingHorizontal: theme.spacing.md,
     borderRadius: theme.radius.full,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
     alignItems: 'center',
     justifyContent: 'center',
