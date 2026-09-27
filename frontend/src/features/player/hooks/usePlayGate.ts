@@ -3,13 +3,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { track } from '@/shared/analytics';
-import { useToastStore } from '@/shared/ui/toast.store';
 
 import { PLAYER_COPY } from '../player.copy';
 import type { PlaybackStartMeta, PlayEntryPoint, PlayStartResult } from '../player.types';
 import { fetchQueueItems, queueKeys } from './useQueueQuery';
 import { suppressPlayConfirmForToday } from '../services/play-confirm-suppression.service';
 import { playbackService } from '../services/playback.service';
+import { useLimitNoticeStore } from '../store/limit-notice.store';
 import { usePlayLimitStore } from '../store/play-limit.store';
 import { usePlaybackStore } from '../store/playback.store';
 
@@ -70,7 +70,7 @@ interface ConfirmState {
  */
 export const usePlayGate = (options?: PlayGateOptions) => {
   const navigation = useNavigation();
-  const showToast = useToastStore((s) => s.show);
+  const showLimitNotice = useLimitNoticeStore((s) => s.show);
   const playLimit = usePlayLimitStore((s) => s.playLimit);
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const queryClient = useQueryClient();
@@ -79,7 +79,8 @@ export const usePlayGate = (options?: PlayGateOptions) => {
   const openPaywall = (entry: PlayEntryPoint, message?: string) => {
     // MVP 는 안내 토스트지만 노출 자체가 퍼널의 끝점이다 — 바텀시트로 바뀌어도 같은 이벤트(analytics.md 3.4)
     track('paywall_view', { entry });
-    showToast(message ?? PLAYER_COPY.paywallPlaceholderToast);
+    // 토스트 대신 한도 안내 시트(2026-09-28 00:11) — 구독 UI 가 켜지면 이 시트가 페이월 자리다
+    showLimitNotice(message);
   };
 
   const openPlayer = (contentId: string) => {
@@ -177,7 +178,7 @@ export const usePlayGate = (options?: PlayGateOptions) => {
         // 플레이어 화면이 하던 차단 처리(usePlayerScreen)를 여기서 대신한다 — 같은 문구·같은 분기다
         onIssueBlocked: (blocked) => {
           if (blocked.kind === 'paywall') openPaywall(entryPoint, blocked.message ?? undefined);
-          else showToast(blocked.message ?? PLAYER_COPY.paidLimitReachedToast);
+          else showLimitNotice(blocked.message ?? PLAYER_COPY.paidLimitReachedToast);
         },
         onIssued: ({ isReusedSession }) => {
           // 이미 재생을 기록한 세션을 이어 듣는 것이면 새로 차감되지 않는다 — 묻지 않는다

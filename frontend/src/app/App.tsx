@@ -9,7 +9,7 @@ import { installJsTraceErrorHook, loadJsTrace, traceJs } from '@/shared/monitori
 import Toast from '@/shared/ui/Toast';
 
 import { UpdateRecommendDialog } from '@/features/app-update';
-import { ZoomSourceProxy } from '@/features/player';
+import { LimitNoticeSheet, ZoomSourceProxy } from '@/features/player';
 
 import { bootstrapApp } from './bootstrap';
 import { focusedRouteName } from './navigation/focused-route';
@@ -66,6 +66,8 @@ function App() {
           <ZoomSourceProxy />
           {/* 권장 업데이트 안내(splash.md 4.1 · KAN-99) — Modal 이라 어느 스택 위에서든 뜨고, 관문 통과 뒤에만 켜진다 */}
           <UpdateRecommendDialog />
+          {/* 한도 안내 시트(2026-09-28) — 토스트와 같이 루트에 하나. 재생 게이트·플레이어가 연다 */}
+          <LimitNoticeSheet />
           <Toast />
           <StatusBar style="auto" />
         </SafeAreaProvider>
