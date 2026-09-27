@@ -79,6 +79,8 @@ export interface WeeklyListening {
   previousWeekStart: string | null;
   /** null이면 이번 주 — [▶] 비활성 */
   nextWeekStart: string | null;
+  /** 그 주의 주제 분포 — 서버가 아직 안 보내면 undefined(화면은 전체 기간 분포로 대신한다) */
+  topicDistribution?: TopicDistribution;
 }
 
 export interface TopicShare {

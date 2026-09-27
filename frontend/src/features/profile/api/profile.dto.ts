@@ -51,14 +51,6 @@ export interface StatsSummaryDto {
   streak_days: number;
 }
 
-/** 4.1의 weekly_listening과 4.2 응답이 같은 모양이다(profile-api.md 4.2) — 타입 하나로 쓴다 */
-export interface WeeklyListeningDto {
-  week_start: string;
-  daily_listened_sec: number[];
-  previous_week_start: string | null;
-  next_week_start: string | null;
-}
-
 export interface TopicShareDto {
   topic_id: string;
   name: string;
@@ -68,6 +60,19 @@ export interface TopicShareDto {
 export interface TopicDistributionDto {
   topics: TopicShareDto[];
   others_ratio: number;
+}
+
+/** 4.1의 weekly_listening과 4.2 응답이 같은 모양이다(profile-api.md 4.2) — 타입 하나로 쓴다 */
+export interface WeeklyListeningDto {
+  week_start: string;
+  daily_listened_sec: number[];
+  previous_week_start: string | null;
+  next_week_start: string | null;
+  /**
+   * 그 주의 주제 분포(비율만) — BE 요청 중(tickets/backend/pending/profile-weekly-topic-distribution.md).
+   * 서버가 아직 안 보내면 없다 → 화면은 4.1 의 전체 기간 분포로 떨어진다
+   */
+  topic_distribution?: TopicDistributionDto;
 }
 
 /** GET /users/me/profile 응답(profile-api.md 4.1) — 섹션 null + failed_sections로 부분 실패 표현 */
