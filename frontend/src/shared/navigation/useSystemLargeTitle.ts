@@ -1,6 +1,14 @@
 import { HeaderHeightContext } from '@react-navigation/elements';
 import { useNavigation, type NavigationProp, type ParamListBase } from '@react-navigation/native';
-import { createElement, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  createElement,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import type { Animated } from 'react-native';
 
 import CollapsedBarTitle from '@/shared/ui/CollapsedBarTitle';
@@ -30,6 +38,12 @@ const COLLAPSE_AT = 44;
 const EXPAND_AT = 16;
 
 /**
+ * 오른쪽 컨트롤의 항목 이름 — **탭마다 같은 값이어야** iOS 26 이 전환 때 같은 항목으로 알아보고 모핑한다
+ * (`UIBarButtonItem.identifier`). 라이브러리의 [링 | 필터]와 탐색의 [링]이 이 이름으로 이어진다
+ */
+const TRAILING_ITEM_ID = 'ear.header.trailing';
+
+/**
  * 스크롤해 접힌 바의 작은 제목 크기 — 시스템 기본 17 은 작았다(PM 2026-09-28 03:34 설정 18 → 04:09 "더 글자 키우자 작다" 전 화면 20)
  */
 const COLLAPSED_TITLE_SIZE = 20;
@@ -40,13 +54,17 @@ const COLLAPSED_TITLE_SIZE = 20;
  * (PM 2026-09-28 02:40 "애플에서 기본적으로 제공하는거 없어" → `.inline` 발견 → "빌드 ㄱ").
  *
  * react-native-screens 는 큰 제목을 always/never 로만 걸어 `.inline` 을 못 넣는다 — patches/react-native-screens 가
- * iOS 26 에서 `headerLargeTitleEnabled` 를 `.inline` 으로 바꾼다(runtime 28). 오른쪽 컨트롤은 우리 유리 캡슐을 그대로
- * 쓰도록 시스템 공유 유리를 끈다(hidesSharedBackground). 시스템 탭 바 갈래에서만 건다.
+ * iOS 26 에서 `headerLargeTitleEnabled` 를 `.inline` 으로 바꾼다(runtime 28). **오른쪽 컨트롤의 유리는 시스템 것이다**
+ * (`sharesBackground` — 우리 캡슐을 그리지 않는다, 04:18 PM). 시스템 탭 바 갈래에서만 건다.
  */
 export const useSystemLargeTitle = (
   title: string,
   trailing: ReactNode,
-  { onParent = false, collapsedTitleSize = COLLAPSED_TITLE_SIZE, collapse }: SystemLargeTitleOptions = {},
+  {
+    onParent = false,
+    collapsedTitleSize = COLLAPSED_TITLE_SIZE,
+    collapse,
+  }: SystemLargeTitleOptions = {},
 ): void => {
   const navigation = useNavigation<NavigationProp<ParamListBase>>();
   const collapsed = useCollapsedBar(collapse?.scrollY);
@@ -84,8 +102,22 @@ export const useSystemLargeTitle = (
               },
             ]
           : [],
+      // 오른쪽 컨트롤은 **시스템의 공유 유리**에 담는다(`sharesBackground`) — 유리는 애플 것이고, 크기가 달라지는
+      // 전환(라이브러리 [링|필터] ↔ 탐색 [링])도 애플이 애니메이션한다. `identifier` 가 같으면 iOS 26 이 전환 때
+      // **같은 항목으로 알아보고 모핑한다**(UIBarButtonItem.identifier, PM 2026-09-28 04:18 "저거 리퀴드라 애플 자체
+      // 애니메이션 써야 해"). 종전 `hidesSharedBackground: true` 는 애플 유리를 끄고 우리 캡슐을 그리던 것이라,
+      // 애플 애니메이션이 처음부터 없었고 JS 로 폭을 스프링해도 바 버튼이 다시 재지 않아 화면에 안 나왔다
       unstable_headerRightItems: () =>
-        trailing ? [{ type: 'custom', element: trailing, hidesSharedBackground: true }] : [],
+        trailing
+          ? [
+              {
+                type: 'custom',
+                element: trailing,
+                sharesBackground: true,
+                identifier: TRAILING_ITEM_ID,
+              },
+            ]
+          : [],
     } as object);
   }, [navigation, title, trailing, onParent, collapsedTitleSize, showSearch, searchLabel]);
 };

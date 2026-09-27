@@ -133,6 +133,8 @@ export default function LibraryScreen() {
           onExhaustedPress={() => screenRef.current.openPaywall('library')}
           activeFilterCount={topicFilterCount}
           onFilterPress={() => screenRef.current.openTopicSheet()}
+          // 시스템 바에 담길 때는 유리를 시스템이 준다 — JS 유리 머리 줄 갈래에서는 우리 캡슐을 그린다
+          bare={HAS_NATIVE_TAB_BAR}
         />
       ) : null,
     [showTabBar, remainingDisplay, topicFilterCount],
@@ -161,7 +163,12 @@ export default function LibraryScreen() {
     <View style={styles.contentHeader}>
       {/* 콘텐츠 안 검색 필드 — 유리가 아니라 면(애플 뮤직 검색 탭). 받아 둔 목록을 그 자리에서 좁히는 규칙은 그대로 */}
       {showTabBar ? (
-        <LibrarySearchBarRow query={query} onChangeQuery={setQuery} trailing={null} variant="fill" />
+        <LibrarySearchBarRow
+          query={query}
+          onChangeQuery={setQuery}
+          trailing={null}
+          variant="fill"
+        />
       ) : null}
       {filterSummary}
       {banner}
@@ -286,13 +293,13 @@ export default function LibraryScreen() {
       {screen.isFullError ? (
         <View style={[styles.container, { paddingTop: nativeBarInset }]}>
           <FullScreenError
-          title={
-            screen.isFullErrorNetwork
-              ? LIBRARY_COPY.error.networkTitle
-              : LIBRARY_COPY.error.loadFailedTitle
-          }
-          description={LIBRARY_COPY.error.loadFailedDescription}
-          retryLabel={LIBRARY_COPY.error.retry}
+            title={
+              screen.isFullErrorNetwork
+                ? LIBRARY_COPY.error.networkTitle
+                : LIBRARY_COPY.error.loadFailedTitle
+            }
+            description={LIBRARY_COPY.error.loadFailedDescription}
+            retryLabel={LIBRARY_COPY.error.retry}
             isRetrying={screen.isRefetching}
             onRetry={screen.retry}
           />

@@ -4,7 +4,7 @@ import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion, theme } from '@/shared/theme';
 import CloseIcon from '@/shared/ui/CloseIcon';
-import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
+import { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
 
 import { RemainingPlaysIndicator } from '@/features/player';
 
@@ -23,7 +23,7 @@ interface SearchToolbarProps {
 }
 
 /**
- * 제자리 검색의 제목 줄 오른쪽 — 잔여 링 + 닫기(✕)를 **한 유리 캡슐**에 묶는다(PM 2026-09-27 22:53 "두 알약 합쳐").
+ * 제자리 검색의 제목 줄 오른쪽 — 잔여 링 + 닫기(✕)를 **한 덩어리**로 묶는다(PM 2026-09-27 22:53 "두 알약 합쳐").
  * 라이브러리 툴바(링 + 필터, LibraryToolbar)와 같은 문법 — 칸 44, 사이 hairline 구분선
  */
 export default function SearchToolbar({
@@ -50,10 +50,15 @@ export default function SearchToolbar({
       useNativeDriver: true,
     }).start();
   }, [isOpen, open, fade]);
-  const closeWidth = open.interpolate({ inputRange: [0, 1], outputRange: [0, theme.touchTarget.minWidth] });
+  const closeWidth = open.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, theme.touchTarget.minWidth],
+  });
 
   return (
-    <GlassCapsule style={styles.capsule}>
+    // 유리는 시스템이 준다 — 이 툴바는 시스템 내비게이션 바의 바 버튼으로만 쓰이고(`useSystemLargeTitle` 의
+    // `sharesBackground`), 그 위에 우리 캡슐을 겹치면 유리 위 유리가 된다(design.md §3, 2026-09-28 04:18)
+    <View style={styles.capsule}>
       {remaining ? (
         <>
           <View style={styles.cell}>
@@ -67,7 +72,9 @@ export default function SearchToolbar({
           <Animated.View style={[styles.divider, { opacity: fade }]} pointerEvents="none" />
         </>
       ) : null}
-      <Animated.View style={[styles.closeSlot, { width: remaining ? closeWidth : theme.touchTarget.minWidth }]}>
+      <Animated.View
+        style={[styles.closeSlot, { width: remaining ? closeWidth : theme.touchTarget.minWidth }]}
+      >
         <Animated.View style={{ opacity: fade }}>
           <Pressable
             style={styles.cell}
@@ -79,7 +86,7 @@ export default function SearchToolbar({
           </Pressable>
         </Animated.View>
       </Animated.View>
-    </GlassCapsule>
+    </View>
   );
 }
 
