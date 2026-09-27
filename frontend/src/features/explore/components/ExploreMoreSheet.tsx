@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
@@ -39,7 +40,15 @@ export default function ExploreMoreSheet({
   onDismiss,
   onDismissed,
 }: ExploreMoreSheetProps) {
-  const isSaved = item?.library !== null;
+  /**
+   * **내려가는 동안 보여 줄 내용.** 닫기는 `item` 을 null 로 만드는데, 그러면 시트가 내려가기 전에 내용이
+   * 먼저 사라져 빈 상자만 미끄러진다(PM 2026-09-27 21:00 "내려갈 때 애니메이션이 이상하다"). 마지막으로
+   * 열렸던 항목을 붙잡아 두고, 보일지 여부만 `item` 이 정한다. 렌더 중 갱신은 React 가 권하는 파생 상태 패턴이다
+   */
+  const [shown, setShown] = useState(item);
+  if (item !== null && item !== shown) setShown(item);
+
+  const isSaved = shown?.library !== null;
 
   return (
     <BottomSheet
@@ -49,80 +58,80 @@ export default function ExploreMoreSheet({
       sheetStyle={styles.sheet}
     >
       <View accessibilityViewIsModal>
-          {item ? (
-            <>
-              <View style={styles.summary}>
-                <RemoteImage uri={item.content.thumbnailUrl} style={styles.thumbnail} />
-                <View style={styles.summaryText}>
-                  <Text style={styles.title} numberOfLines={2}>
-                    {item.content.title}
-                  </Text>
-                </View>
+        {shown ? (
+          <>
+            <View style={styles.summary}>
+              <RemoteImage uri={shown.content.thumbnailUrl} style={styles.thumbnail} />
+              <View style={styles.summaryText}>
+                <Text style={styles.title} numberOfLines={2}>
+                  {shown.content.title}
+                </Text>
               </View>
+            </View>
+            <Pressable
+              style={styles.action}
+              onPress={() => onDetail(shown)}
+              accessibilityRole="button"
+              accessibilityLabel={EXPLORE_COPY.sheet.detail}
+            >
+              <Text style={styles.actionLabel}>{EXPLORE_COPY.sheet.detail}</Text>
+            </Pressable>
+            {shown.content.sourceUrl !== null ? (
               <Pressable
                 style={styles.action}
-                onPress={() => onDetail(item)}
+                onPress={() => onSourceLink(shown)}
                 accessibilityRole="button"
-                accessibilityLabel={EXPLORE_COPY.sheet.detail}
+                accessibilityLabel={EXPLORE_COPY.sheet.sourceLink}
               >
-                <Text style={styles.actionLabel}>{EXPLORE_COPY.sheet.detail}</Text>
+                <Text style={styles.actionLabel}>{EXPLORE_COPY.sheet.sourceLink}</Text>
               </Pressable>
-              {item.content.sourceUrl !== null ? (
-                <Pressable
-                  style={styles.action}
-                  onPress={() => onSourceLink(item)}
-                  accessibilityRole="button"
-                  accessibilityLabel={EXPLORE_COPY.sheet.sourceLink}
-                >
-                  <Text style={styles.actionLabel}>{EXPLORE_COPY.sheet.sourceLink}</Text>
-                </Pressable>
-              ) : null}
-              {/* 담기/제거는 library 값으로 가른다 — 출처와 무관하게 제거를 허용한다(uiux 4.4) */}
-              {isSaved ? (
-                <Pressable
-                  style={styles.action}
-                  onPress={() => onRemove(item)}
-                  accessibilityRole="button"
-                  accessibilityLabel={EXPLORE_COPY.sheet.remove}
-                >
-                  {/* 라이브러리에서 빼는 조작 — L4의 [삭제]와 같은 결과이므로 같은 위험색을 쓴다 */}
-                  <Text style={[styles.actionLabel, styles.removeLabel]}>
-                    {EXPLORE_COPY.sheet.remove}
-                  </Text>
-                </Pressable>
-              ) : (
-                <Pressable
-                  style={styles.action}
-                  onPress={() => onSave(item)}
-                  accessibilityRole="button"
-                  accessibilityLabel={EXPLORE_COPY.sheet.save}
-                >
-                  <Text style={styles.actionLabel}>{EXPLORE_COPY.sheet.save}</Text>
-                </Pressable>
-              )}
-              {/* [공유] — 담기/제거류 아래, P1에만(SH1). 모든 콘텐츠에 노출되는 무조건부 행이다 */}
-              {IS_SHARE_ENABLED ? (
-                <Pressable
-                  style={styles.action}
-                  onPress={() => onShare(item)}
-                  accessibilityRole="button"
-                  accessibilityLabel={SHARE_COPY.action}
-                >
-                  <Text style={styles.actionLabel}>{SHARE_COPY.action}</Text>
-                </Pressable>
-              ) : null}
+            ) : null}
+            {/* 담기/제거는 library 값으로 가른다 — 출처와 무관하게 제거를 허용한다(uiux 4.4) */}
+            {isSaved ? (
               <Pressable
                 style={styles.action}
-                onPress={onDismiss}
+                onPress={() => onRemove(shown)}
                 accessibilityRole="button"
-                accessibilityLabel={EXPLORE_COPY.sheet.close}
+                accessibilityLabel={EXPLORE_COPY.sheet.remove}
               >
-                <Text style={[styles.actionLabel, styles.closeLabel]}>
-                  {EXPLORE_COPY.sheet.close}
+                {/* 라이브러리에서 빼는 조작 — L4의 [삭제]와 같은 결과이므로 같은 위험색을 쓴다 */}
+                <Text style={[styles.actionLabel, styles.removeLabel]}>
+                  {EXPLORE_COPY.sheet.remove}
                 </Text>
               </Pressable>
-            </>
-          ) : null}
+            ) : (
+              <Pressable
+                style={styles.action}
+                onPress={() => onSave(shown)}
+                accessibilityRole="button"
+                accessibilityLabel={EXPLORE_COPY.sheet.save}
+              >
+                <Text style={styles.actionLabel}>{EXPLORE_COPY.sheet.save}</Text>
+              </Pressable>
+            )}
+            {/* [공유] — 담기/제거류 아래, P1에만(SH1). 모든 콘텐츠에 노출되는 무조건부 행이다 */}
+            {IS_SHARE_ENABLED ? (
+              <Pressable
+                style={styles.action}
+                onPress={() => onShare(shown)}
+                accessibilityRole="button"
+                accessibilityLabel={SHARE_COPY.action}
+              >
+                <Text style={styles.actionLabel}>{SHARE_COPY.action}</Text>
+              </Pressable>
+            ) : null}
+            <Pressable
+              style={styles.action}
+              onPress={onDismiss}
+              accessibilityRole="button"
+              accessibilityLabel={EXPLORE_COPY.sheet.close}
+            >
+              <Text style={[styles.actionLabel, styles.closeLabel]}>
+                {EXPLORE_COPY.sheet.close}
+              </Text>
+            </Pressable>
+          </>
+        ) : null}
       </View>
     </BottomSheet>
   );
