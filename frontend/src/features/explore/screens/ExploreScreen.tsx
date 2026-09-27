@@ -65,7 +65,7 @@ export default function ExploreScreen() {
   // 시스템 탭 갈래(바 없음) — 스크롤 뷰가 아닌 상태 화면(스켈레톤·에러)은 상태 바만 비운다
   const nativeBarInset = useNativeHeaderInset();
   // 맨 위에서는 머리 줄 컨트롤이 면, 내리면 유리(PM 2026-09-25)
-  const { solidness, scrollProps } = useFloatingHeaderScroll();
+  const { solidness, scrollY, scrollProps } = useFloatingHeaderScroll();
   // 머리 줄(JS 탭 바 갈래)의 루트 ref — 종전 시스템 edge effect 연결용, 지금은 FloatingHeader 가 요구만 한다
   const headerRef = useRef<View>(null);
   // 제자리 검색 모드(iOS 26) — 아래 isSearching 분기
@@ -129,7 +129,7 @@ export default function ExploreScreen() {
   // .inline 큰 제목 — 제목과 캡슐이 한 줄(05:43 PM). 접힘·블러는 시스템
   // 접히면 왼쪽 유리 검색 버튼(05:50 PM) — 누르면 제자리 검색
   useSystemLargeTitle(EXPLORE_COPY.tabTitle, barTrailing, {
-    collapse: { onSearch: () => setIsSearching(true), searchLabel: EXPLORE_COPY.search.placeholder },
+    collapse: { scrollY, onSearch: () => setIsSearching(true), searchLabel: EXPLORE_COPY.search.placeholder },
   });
 
   /*
