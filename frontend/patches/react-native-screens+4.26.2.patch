@@ -327,3 +327,23 @@ index 192f5d2..dac564f 100644
  - (void)didUpdateChildren
  {
    // do nothing
+diff --git a/node_modules/react-native-screens/ios/RNSScreenStackHeaderConfig.mm b/node_modules/react-native-screens/ios/RNSScreenStackHeaderConfig.mm
+index 1c84484..a28f2a3 100644
+--- a/node_modules/react-native-screens/ios/RNSScreenStackHeaderConfig.mm
++++ b/node_modules/react-native-screens/ios/RNSScreenStackHeaderConfig.mm
+@@ -521,8 +521,13 @@ RNS_IGNORE_SUPER_CALL_END
+   if (config.largeTitle) {
+     navctr.navigationBar.prefersLargeTitles = YES;
+   }
+-  navitem.largeTitleDisplayMode =
+-      config.largeTitle ? UINavigationItemLargeTitleDisplayModeAlways : UINavigationItemLargeTitleDisplayModeNever;
++  // ear patch: iOS 26 에서 큰 제목은 .inline — 큰 제목이 바 줄에 앉고 오른쪽 바 버튼과 같은 줄(애플 뮤직 보관함).
++  // .always 는 버튼 줄 밑에 큰 제목을 한 줄 더 둔다
++  UINavigationItemLargeTitleDisplayMode largeMode = UINavigationItemLargeTitleDisplayModeAlways;
++  if (@available(iOS 26.0, *)) {
++    largeMode = UINavigationItemLargeTitleDisplayModeInline;
++  }
++  navitem.largeTitleDisplayMode = config.largeTitle ? largeMode : UINavigationItemLargeTitleDisplayModeNever;
+ #endif
+ 
+   UINavigationBarAppearance *appearance = [self buildAppearance:vc withConfig:config];

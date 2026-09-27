@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -9,8 +9,8 @@ import {
   View,
 } from 'react-native';
 
-import { useFadingNativeTitle } from '@/shared/navigation/useFadingNativeTitle';
 import { useNativeHeaderInset } from '@/shared/navigation/useNativeHeaderInset';
+import { useSystemLargeTitle } from '@/shared/navigation/useSystemLargeTitle';
 import { theme } from '@/shared/theme';
 import FloatingHeader, {
   useFloatingHeaderInset,
@@ -18,7 +18,6 @@ import FloatingHeader, {
 } from '@/shared/ui/FloatingHeader';
 import FullScreenError from '@/shared/ui/FullScreenError';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
-import LargeTitleRow from '@/shared/ui/LargeTitleRow';
 
 import {
   DOCK_SCROLL_PROPS,
@@ -90,8 +89,7 @@ export default function LibraryScreen() {
   // 시스템 탭 갈래(바 없음) — 스크롤 뷰가 아닌 상태 화면(스켈레톤·에러)은 상태 바만 비운다
   const nativeBarInset = useNativeHeaderInset();
   // 맨 위에서는 머리 줄 컨트롤이 면, 내리면 유리(PM 2026-09-25)
-  const { solidness, scrollY, scrollProps } = useFloatingHeaderScroll();
-  useFadingNativeTitle(LIBRARY_COPY.tabTitle, scrollY);
+  const { solidness, scrollProps } = useFloatingHeaderScroll();
   // 머리 줄(JS 탭 바 갈래)의 루트 ref — 종전 시스템 edge effect 연결용, 지금은 FloatingHeader 가 요구만 한다
   const listRef = useRef(null);
   const headerRef = useRef<View>(null);
@@ -117,18 +115,28 @@ export default function LibraryScreen() {
 
   // 잔여 링(무제한·캐시·값 없음이면 칸 없음 — uiux 4.3) + 필터를 한 유리 캡슐에(2026-09-25 PM).
   // 상태·출처·주제 필터는 전부 시트 하나 — 세그먼트 탭 줄은 폐지
-  const toolbar = showTabBar ? (
-    <LibraryToolbar
-      remaining={screen.remainingDisplay}
-      onExhaustedPress={() => screen.openPaywall('library')}
-      activeFilterCount={screen.topicFilterCount}
-      onFilterPress={screen.openTopicSheet}
-    />
-  ) : null;
-  // 시스템 바 갈래의 큰 제목 줄 — 제목과 툴바가 같은 줄(PM 2026-09-26 00:25 "높이 맞추자")
-  const titleRow = HAS_NATIVE_TAB_BAR ? (
-    <LargeTitleRow title={LIBRARY_COPY.tabTitle} trailing={toolbar} />
-  ) : null;
+  const { remainingDisplay, topicFilterCount } = screen;
+  // 바 옵션으로 넘기는 요소라 참조가 안정해야 한다 — 매 렌더 새 요소면 setOptions 가 매번 돈다.
+  // 훅의 콜백은 매 렌더 새 함수라 최신 화면 값을 ref 로 읽는다
+  const screenRef = useRef(screen);
+  useLayoutEffect(() => {
+    screenRef.current = screen;
+  });
+  const toolbar = useMemo(
+    () =>
+      showTabBar ? (
+        <LibraryToolbar
+          remaining={remainingDisplay}
+          onExhaustedPress={() => screenRef.current.openPaywall('library')}
+          activeFilterCount={topicFilterCount}
+          onFilterPress={() => screenRef.current.openTopicSheet()}
+        />
+      ) : null,
+    [showTabBar, remainingDisplay, topicFilterCount],
+  );
+  // 시스템 바 갈래 — **시스템 큰 제목**(iOS 26 .inline): 큰 제목과 툴바가 바 줄에 같이 앉고, 스크롤하면 제목이 바에 접히며
+  // 바 밑 블러는 시스템이 그린다(PM 2026-09-28 "애플에서 기본적으로 제공하는거로"). 콘텐츠 안 제목 줄(LargeTitleRow)은 안 그린다
+  useSystemLargeTitle(LIBRARY_COPY.tabTitle, toolbar);
 
   // 시스템 바 갈래에서 조건 요약·배너는 목록의 첫 줄이다 — 목록과 같이 스크롤한다
   const filterSummary = showTabBar ? (
@@ -141,7 +149,6 @@ export default function LibraryScreen() {
   ) : null;
   const contentHeader = HAS_NATIVE_TAB_BAR ? (
     <View style={styles.contentHeader}>
-      {titleRow}
       {/* 콘텐츠 안 검색 필드 — 유리가 아니라 면(애플 뮤직 검색 탭). 받아 둔 목록을 그 자리에서 좁히는 규칙은 그대로 */}
       {showTabBar ? (
         <LibrarySearchBarRow query={query} onChangeQuery={setQuery} trailing={null} variant="fill" />
@@ -268,7 +275,6 @@ export default function LibraryScreen() {
     <View style={styles.container}>
       {screen.isFullError ? (
         <View style={[styles.container, { paddingTop: nativeBarInset }]}>
-          {titleRow}
           <FullScreenError
           title={
             screen.isFullErrorNetwork
@@ -283,7 +289,6 @@ export default function LibraryScreen() {
         </View>
       ) : screen.showSkeleton ? (
         <View style={{ paddingTop: headerInset + nativeBarInset }}>
-          {titleRow}
           <LibraryItemSkeleton />
         </View>
       ) : screen.isInitialLoading ? (
