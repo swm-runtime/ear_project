@@ -1,4 +1,5 @@
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useMemo } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 
@@ -26,6 +27,11 @@ interface NativeBarBlurBandProps {
 const BAND_EXTENSION = -16;
 /** 블러 세기 — expo-blur 0~100. 100 은 뒤가 거의 안 보이는 서리였다(09-28 00:50) */
 const BLUR_INTENSITY = 60;
+/**
+ * 띠 아래 경계를 녹이는 꼬리 높이 — 블러가 칼로 자른 듯 끊겨 어색했다(09-28 00:59). iOS 26 바 밑 edge 는 끝이 흐려지며
+ * 사라진다. 블러 자체는 마스크를 못 받으므로(UIVisualEffectView — 09-25 얼룩 사고) 서리 색 → 투명 그라데이션을 밑에 덧댄다
+ */
+const EDGE_FADE = 20;
 /** 바 줄 가운데보다 이만큼 위 — 띠 아래 끝을 바 줄보다 올려서 제목도 같이 올린다(03:19 PM "글자를 더 올리자" −6 → 18:02 "조금 올리는 거" −12) */
 const TITLE_LIFT = -12;
 
@@ -58,12 +64,19 @@ export default function NativeBarBlurBand({
 
   if (!HAS_NATIVE_TAB_BAR) return null;
   return (
-    <Animated.View style={[styles.band, { height, opacity }]} pointerEvents="none">
+    <Animated.View style={[styles.band, { height: height + EDGE_FADE, opacity }]} pointerEvents="none">
+      <View style={[styles.blurArea, { height }]}>
       {/* 블러 세기 100 → 60(PM 2026-09-28 00:50 "블러 조금만 줄이자") — iOS 26 바 밑 scroll edge 는 뒤가 흐릿하게 비치는 옅은
           블러다(균일한 서리 판이 아니다). 글자가 읽힐 만큼만 */}
       <BlurView style={StyleSheet.absoluteFill} tint="light" intensity={BLUR_INTENSITY} />
       {/* 블러만으론 밑 썸네일이 다 비쳐 작은 제목이 겹쳤다(02:59 실기기) — 카톡처럼 흰 서리에 가깝게 틴트를 얹는다 */}
       <View style={[StyleSheet.absoluteFill, styles.frost]} />
+      </View>
+      {/* 경계 꼬리 — 띠 끝의 서리 색에서 투명으로 */}
+      <LinearGradient
+        style={[styles.edgeFade, { top: height }]}
+        colors={['rgba(255, 255, 255, 0.55)', 'rgba(255, 255, 255, 0)']}
+      />
       <View style={[styles.titleRow, { top: statusInset, height: rowHeight }]}>
         <Animated.Text
           style={[styles.title, { transform: [{ translateY: TITLE_LIFT }] }]}
@@ -83,6 +96,19 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 1,
+  },
+  blurArea: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    overflow: 'hidden',
+  },
+  edgeFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: EDGE_FADE,
   },
   frost: {
     // 03:19 PM "틴트 줄이고" — 72% → 50% → 35%(03:39) → 25%(09-28 00:50, 블러를 줄이며 같이)
