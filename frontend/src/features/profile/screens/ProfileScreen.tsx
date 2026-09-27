@@ -75,7 +75,10 @@ export default function ProfileScreen() {
       ) : (
         <ScrollView
           {...DOCK_SCROLL_PROPS}
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: theme.spacing.xxl + dockInset }]}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: theme.spacing.xxl + dockInset },
+          ]}
           refreshControl={
             <RefreshControl
               refreshing={screen.isManualRefreshing}
@@ -143,11 +146,14 @@ export default function ProfileScreen() {
                   </Pressable>
                 </View>
               ) : (
-                // 통계 3영역 — 요약 → 주간 그래프 → 주제 분포 순서 고정(profile.md 4.1)
+                // 통계 3영역 — 요약 → 주간 그래프 → 주제 분포 순서 고정(profile.md 4.1). 주제 분포는 주간 카드 맨 아래
+                // 구획으로 합쳤다(PM 2026-09-28 00:47 — changes/pending/profile-weekly-topics-merge.md)
                 <View style={styles.statsArea}>
                   <StatsSummaryRow summary={screen.stats.data.summary} />
-                  <WeeklyChart weekly={screen.weekly} />
-                  <TopicDonut distribution={screen.stats.data.distribution} />
+                  <WeeklyChart
+                    weekly={screen.weekly}
+                    footer={<TopicDonut distribution={screen.stats.data.distribution} embedded />}
+                  />
                 </View>
               )
             ) : null}

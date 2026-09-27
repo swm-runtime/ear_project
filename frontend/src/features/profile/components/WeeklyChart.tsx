@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
@@ -10,6 +10,8 @@ import { isWeekAllZero, toBarRatios, toDailyAverageSec } from '../profile.format
 
 interface WeeklyChartProps {
   weekly: WeeklyNavigation;
+  /** 카드 맨 아래 구획 — 주제 분포(PM 2026-09-28 00:47 합침). 주 전환·로딩·빈 주와 무관하게 늘 그린다 */
+  footer?: ReactNode;
 }
 const CHART_HEIGHT = 144;
 const ZERO_BAR_HEIGHT = 3;
@@ -51,7 +53,7 @@ function ArrowButton({
 }
 
 /** P8/P9: 서버 주 경계·상대 높이를 유지하고 탭한 요일의 값을 보여준다. */
-export default function WeeklyChart({ weekly }: WeeklyChartProps) {
+export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
   const { displayed, weekLabelStart, selectedBarIndex: selectedIndex } = weekly;
   const isEmptyWeek = displayed !== null && isWeekAllZero(displayed.dailyListenedSec);
   const ratios = displayed === null ? [] : toBarRatios(displayed.dailyListenedSec);
@@ -239,6 +241,7 @@ export default function WeeklyChart({ weekly }: WeeklyChartProps) {
             </ScrollView>
           </>
         )}
+        {footer}
       </View>
     </View>
   );
