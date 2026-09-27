@@ -61,7 +61,8 @@ export const LIBRARY_COPY = {
   /** 빈 상태 4종 — 원인이 다르므로 문구를 공유하지 않는다(library-uiux.md 4.8) */
   /** 라이브러리 검색 — 받아 둔 목록을 그 자리에서 좁힌다(서버 검색이 아니다) */
   search: {
-    placeholder: '제목·저자로 찾기',
+    // 매칭은 제목·저자·출처 전부지만(library.search.ts) 저자는 AI 생성 편에 없고 타일엔 제목만 보인다 — 보이는 것만 말한다
+    placeholder: '제목으로 찾기',
     clearA11y: '검색어 지우기',
     emptyTitle: '검색 결과가 없어요',
     emptyDescription: '다른 검색어를 입력해보세요.',
