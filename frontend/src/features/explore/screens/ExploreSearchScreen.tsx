@@ -11,7 +11,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useNativeHeaderInset } from '@/shared/navigation/useNativeHeaderInset';
 import { theme } from '@/shared/theme';
-import GlassCloseButton from '@/shared/ui/GlassCloseButton';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 import LargeTitleRow from '@/shared/ui/LargeTitleRow';
 
@@ -26,6 +25,7 @@ import ExploreMoreSheet from '../components/ExploreMoreSheet';
 import ExploreTile from '../components/ExploreTile';
 import RecentSearchList from '../components/RecentSearchList';
 import SearchInputRow from '../components/SearchInputRow';
+import SearchToolbar from '../components/SearchToolbar';
 import SuggestedKeywordChips from '../components/SuggestedKeywordChips';
 import { EXPLORE_COPY } from '../explore.copy';
 import { exploreGridKey, toExploreGridData } from '../explore.grid';
@@ -214,13 +214,11 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
             title={embedding ? EXPLORE_COPY.tabTitle : EXPLORE_COPY.search.tabTitle}
             trailing={
               embedding ? (
-                <View style={styles.titleTrailing}>
-                  {embedding.titleTrailing}
-                  <GlassCloseButton
-                    onPress={screen.cancel}
-                    accessibilityLabel={EXPLORE_COPY.search.cancel}
-                  />
-                </View>
+                <SearchToolbar
+                  remaining={embedding.remaining}
+                  onExhaustedPress={embedding.onExhaustedPress}
+                  onClose={screen.cancel}
+                />
               ) : undefined
             }
           />
@@ -281,11 +279,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.color.background,
-  },
-  titleTrailing: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
   },
   initialContent: {
     gap: theme.spacing.lg,
