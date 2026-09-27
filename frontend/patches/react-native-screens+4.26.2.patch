@@ -12,7 +12,7 @@ index b1f482c..925a5a8 100644
  - (CGFloat)calculateHeaderHeightIsModal:(BOOL)isModal;
  - (BOOL)isRemovedFromParent;
 diff --git a/node_modules/react-native-screens/ios/RNSScreen.mm b/node_modules/react-native-screens/ios/RNSScreen.mm
-index 9b66012..4f9860c 100644
+index 9b66012..8198593 100644
 --- a/node_modules/react-native-screens/ios/RNSScreen.mm
 +++ b/node_modules/react-native-screens/ios/RNSScreen.mm
 @@ -1417,6 +1417,10 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
@@ -120,7 +120,53 @@ index 9b66012..4f9860c 100644
      if (self.screenView.preventNativeDismiss) {
        // if we want to prevent the native dismiss, we do not send dismissal event,
        // but instead call `updateContainer`, which restores the JS navigation stack
-@@ -1994,6 +2073,17 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
+@@ -1558,6 +1637,45 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
+   if (isDisplayedWithinUINavController || isTabScreen || self.screenView.isPresentedAsNativeModal) {
+     [self.screenView updateBounds];
+   }
++
++  // [ear patch] tell UIKit which scroll view drives this screen's navigation bar (see earRegisterContentScrollView)
++  if (@available(iOS 15.0, *)) {
++    [self earRegisterContentScrollView];
++  }
++}
++
++// [ear patch] UIKit only auto-detects the content scroll view along the first-subview chain. On tab screens the list
++// sits deeper (tab wrapper / nested stack), so the large title never collapsed and the scroll edge blur never showed
++// (device 2026-09-28 05:08). Register the first tall scroll view explicitly — a depth-first search reaches the outer
++// vertical list before any horizontal carousel inside it. Re-checked on layout until one is attached and on screen.
++- (void)earRegisterContentScrollView API_AVAILABLE(ios(15.0))
++{
++  UIScrollView *current = [self contentScrollViewForEdge:NSDirectionalRectEdgeTop];
++  if (current != nil && current.window != nil && [current isDescendantOfView:self.view]) {
++    return;
++  }
++  CGFloat minHeight = self.view.bounds.size.height * 0.5;
++  UIScrollView *found = [RNSScreen earFindContentScrollViewIn:self.view minHeight:minHeight];
++  if (found != nil && found != current) {
++    [self setContentScrollView:found forEdge:NSDirectionalRectEdgeTop];
++  }
++}
++
+++ (nullable UIScrollView *)earFindContentScrollViewIn:(UIView *)view minHeight:(CGFloat)minHeight
++{
++  for (UIView *subview in view.subviews) {
++    if (subview.hidden) {
++      continue;
++    }
++    if ([subview isKindOfClass:UIScrollView.class] && subview.bounds.size.height >= minHeight) {
++      return static_cast<UIScrollView *>(subview);
++    }
++    UIScrollView *found = [self earFindContentScrollViewIn:subview minHeight:minHeight];
++    if (found != nil) {
++      return found;
++    }
++  }
++  return nil;
+ }
+ 
+ - (BOOL)isModalWithHeader
+@@ -1994,6 +2112,17 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
  - (void)setViewToSnapshot
  {
    UIView *superView = self.view.superview;
@@ -138,7 +184,7 @@ index 9b66012..4f9860c 100644
    // if we dismissed the view natively, it will already be detached from view hierarchy
    if (self.view.window != nil) {
      auto afterUpdates = self.screenView.snapshotAfterUpdates;
-@@ -2002,6 +2092,22 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
+@@ -2002,6 +2131,22 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
      [self.view removeFromSuperview];
      self.view = snapshot;
      [superView addSubview:snapshot];
@@ -328,7 +374,7 @@ index 192f5d2..dac564f 100644
  {
    // do nothing
 diff --git a/node_modules/react-native-screens/ios/RNSScreenStackHeaderConfig.mm b/node_modules/react-native-screens/ios/RNSScreenStackHeaderConfig.mm
-index 1c84484..a28f2a3 100644
+index 1c84484..e96dbe1 100644
 --- a/node_modules/react-native-screens/ios/RNSScreenStackHeaderConfig.mm
 +++ b/node_modules/react-native-screens/ios/RNSScreenStackHeaderConfig.mm
 @@ -521,8 +521,17 @@ RNS_IGNORE_SUPER_CALL_END
