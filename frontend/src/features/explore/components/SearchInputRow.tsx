@@ -7,8 +7,11 @@ import MagnifierIcon, { SEARCH_ICON_SIZE } from '@/shared/ui/MagnifierIcon';
 
 import { EXPLORE_COPY } from '../explore.copy';
 
-/** 지우기(ⓧ) 자리 폭 — 원 16 + 좌우 여백 4씩. 글자 유무와 무관하게 고정이다 */
-const CLEAR_SLOT_WIDTH = 24;
+/**
+ * 지우기(✕) 자리 폭 — 라이브러리 검색 캡슐(LibrarySearchBarRow)과 같은 44(터치 최소 폭) 가운데에 ✕.
+ * 두 검색창의 ✕ 가 같아야 한다(PM 2026-09-27 22:37 "라이브러리 x 기준으로 통일"). 글자 유무와 무관하게 고정이다
+ */
+const CLEAR_SLOT_WIDTH = theme.touchTarget.minWidth;
 
 interface SearchInputRowProps {
   value: string;
@@ -63,11 +66,8 @@ export default function SearchInputRow({
           accessibilityElementsHidden={value.length === 0}
           importantForAccessibility={value.length === 0 ? 'no-hide-descendants' : 'yes'}
           pointerEvents={value.length === 0 ? 'none' : 'auto'}
-          hitSlop={8}
         >
-          <View style={[styles.clearCircle, value.length === 0 && styles.clearHidden]}>
-            <Text style={styles.clearGlyph}>✕</Text>
-          </View>
+          <Text style={[styles.clearGlyph, value.length === 0 && styles.clearHidden]}>✕</Text>
         </Pressable>
       </View>
       {onCancel ? (
@@ -104,8 +104,8 @@ const styles = StyleSheet.create({
     gap: theme.spacing.xs + 2,
     minHeight: theme.touchTarget.minHeight - theme.spacing.xs,
     paddingLeft: theme.spacing.md,
-    // 지우기 원의 오른쪽 여백을 돋보기의 왼쪽 여백(16)과 맞춘다 — 12 + 지우기 버튼 안쪽 4 (PM 2026-09-27 22:24 "너무 오른쪽에 붙어")
-    paddingRight: theme.spacing.sm + theme.spacing.xs,
+    // 오른쪽 여백은 지우기 자리(44)가 갖는다 — 라이브러리 검색 캡슐과 같은 배치
+    paddingRight: 0,
     borderRadius: theme.radius.md,
     // 애플 검색 필드와 같은 연속 곡률(iOS 만, 2026-09-22 PM)
     borderCurve: 'continuous',
@@ -132,19 +132,10 @@ const styles = StyleSheet.create({
   clearHidden: {
     opacity: 0,
   },
-  // iOS 지우기 버튼 — 회색 원 안의 흰 ✕
-  clearCircle: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.color.textSecondary,
-  },
+  // 라이브러리 검색 캡슐의 지우기와 같은 값
   clearGlyph: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: theme.color.background,
+    fontSize: theme.font.size.sm,
+    color: theme.color.textSecondary,
   },
   cancelButton: {
     minHeight: theme.touchTarget.minHeight,
