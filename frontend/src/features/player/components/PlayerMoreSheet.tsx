@@ -1,6 +1,7 @@
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import BottomSheet from '@/shared/ui/BottomSheet';
 import RemoteImage from '@/shared/ui/RemoteImage';
 
 import { IS_SHARE_ENABLED, SHARE_COPY } from '@/features/share';
@@ -50,15 +51,14 @@ export default function PlayerMoreSheet({
   onDismissed,
 }: PlayerMoreSheetProps) {
   return (
-    <Modal
-      visible={isVisible}
-      transparent
-      animationType="slide"
+    <BottomSheet
+      isVisible={isVisible}
       onRequestClose={onClose}
-      onDismiss={onDismissed}
+      onClosed={onDismissed}
+      sheetStyle={styles.sheet}
+      dimColor={playerColor.overlay}
     >
-      <Pressable style={styles.backdrop} onPress={onClose} accessible={false}>
-        <Pressable style={styles.sheet} accessible={false}>
+      <View accessible={false}>
           <View style={styles.handle} />
           <View accessibilityViewIsModal>
             <View style={styles.summary}>
@@ -128,18 +128,12 @@ export default function PlayerMoreSheet({
               <Text style={styles.actionLabel}>{PLAYER_COPY.moreSheet.close}</Text>
             </Pressable>
           </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
+      </View>
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: playerColor.overlay,
-    justifyContent: 'flex-end',
-  },
   sheet: {
     borderTopLeftRadius: theme.radius.xl,
     borderTopRightRadius: theme.radius.xl,
