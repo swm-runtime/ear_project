@@ -163,10 +163,12 @@ const styles = StyleSheet.create({
   right: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-end',
     gap: theme.spacing.sm,
     flexWrap: 'wrap',
     flexShrink: 1,
-    marginLeft: 'auto',
+    // auto 여백 대신 남는 폭을 차지해 끝으로 민다 — wrap 과 겹치면 우측 묶음이 쪼그라든다(SettingsRow 와 같은 이유)
+    flexGrow: 1,
   },
   errorText: {
     fontSize: theme.font.size.sm,

@@ -119,7 +119,10 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     flexWrap: 'wrap',
     justifyContent: 'flex-end',
-    marginLeft: 'auto',
+    // 남는 폭을 차지하고 내용을 끝으로 민다. `marginLeft: 'auto'` 로 밀면 wrap 과 겹쳐 Yoga 의 shrink 계산이
+    // 어긋나 우측 묶음이 셰브론 폭까지 쪼그라들었다 — 기본 배속 행의 값이 셰브론 위로 밀려 두 줄이 됐다
+    // (PM 2026-09-28 03:26 스크린샷: 값 x=1023..1069 / 셰브론 x=1057..1073 으로 세로로 겹쳐 있었다)
+    flexGrow: 1,
     maxWidth: '100%',
   },
   // 셰브론의 빈 여백만큼 당겨 **보이는 끝**을 줄의 끝선(16)에 세운다 — 토글 행의 스위치 끝과 같은 선이 된다

@@ -45,7 +45,7 @@ export default function SettingsToggleRow({
         trackColor={{ false: theme.color.border, true: theme.color.primary }}
         thumbColor={theme.color.onPrimary}
         ios_backgroundColor={theme.color.border}
-        style={isDimmed && styles.switchDimmed}
+        style={[styles.switch, isDimmed && styles.switchDimmed]}
         // 행 전체가 하나의 스위치로 읽힌다 — 스위치 자체는 보조 표면이 아니다
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
@@ -75,6 +75,16 @@ const styles = StyleSheet.create({
   },
   labelDimmed: {
     color: theme.color.textSecondary,
+  },
+  /**
+   * **RN 의 iOS Switch 는 `alignSelf: 'flex-start'` 를 스타일 밑에 깔고 나온다**(RN 0.86
+   * `Libraries/Components/Switch/Switch.js` — `StyleSheet.compose({alignSelf:'flex-start'}, style)`).
+   * 그래서 행의 `alignItems: 'center'` 가 스위치에만 먹지 않아 **위여백 8 / 아래여백 20** 으로 6pt 떠 있었다
+   * (PM 2026-09-28 03:26 "제목하고 저 토글하고 세로 중앙정렬이 안 맞잖아" — 스크린샷 측정으로 확인).
+   * 여기서 덮어야 라벨과 세로 중앙이 맞는다.
+   */
+  switch: {
+    alignSelf: 'center',
   },
   switchDimmed: {
     opacity: 0.5,
