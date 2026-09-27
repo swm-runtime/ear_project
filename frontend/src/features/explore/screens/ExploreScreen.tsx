@@ -81,7 +81,7 @@ export default function ExploreScreen() {
    * 애플 뮤직 검색 탭과 같다. 피드 상태(필터·구간)는 이 화면 훅이 그대로 들고 있다. JS 탭 바 갈래는 종전 스택 검색 화면
    */
   // 잔여 재생 링 — 무제한·캐시·값 없음이면 자리를 비운다, "무제한" 배지도 없다(uiux 4.2)
-  // 시스템 탭 바 갈래는 라이브러리 툴바와 같은 칸 규격(ExploreRingPill) — 유리와 전환 모핑은 시스템이 준다(04:18 PM)
+  // 시스템 탭 바 갈래는 라이브러리 알약과 같은 캡슐(ExploreRingPill) — 탭 전환 때 필터 칸이 줄었다 자라게(00:32 PM)
   // JS 탭 바 갈래의 떠 있는 머리 줄 링(시스템 바 갈래는 바 캡슐 — 아래 barTrailing)
   const remainingRing = screen.remainingDisplay ? (
     <RemainingPlaysIndicator
@@ -123,7 +123,6 @@ export default function ExploreScreen() {
         remaining={remaining.remaining}
         limit={remaining.limit}
         onExhaustedPress={onExhaustedPress}
-        bare
       />
     ) : null;
   }, [isSearching, isClosingSearch, remainingValue, remainingLimit]);
@@ -133,11 +132,7 @@ export default function ExploreScreen() {
     onParent: true,
     collapse: isSearching
       ? undefined
-      : {
-          scrollY,
-          onSearch: () => setIsSearching(true),
-          searchLabel: EXPLORE_COPY.search.placeholder,
-        },
+      : { scrollY, onSearch: () => setIsSearching(true), searchLabel: EXPLORE_COPY.search.placeholder },
   });
 
   /*
