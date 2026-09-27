@@ -29,9 +29,10 @@ const ANNOTATION_MIN_HEIGHT = 32;
 const GRID_RATIOS = [0, 0.5, 1] as const;
 /**
  * 오른쪽 축(PM 2026-09-28 02:36 — 애플 건강) — 격자 오른쪽 끝에 **위 = 이 주의 최대값, 평균 점선 옆 = "평균", 아래 = 0**.
- * 막대 칸은 이 폭만큼 비켜 선다. "1시간 12분"(xs)이 들어가는 폭
+ * 넘김 구획 오른쪽 고정 칸의 폭 — 11pt "평균" · "180분" + 왼쪽 xs + 카드 오른쪽 여백 md
  */
-const AXIS_WIDTH = 64;
+// 64 → 48(PM 2026-09-28 03:59 "도표 오른쪽 공백이 많다") — 최대값을 분 단위("72분")로 줄여 "평균"과 폭을 맞췄다
+const AXIS_WIDTH = 48;
 /** 축 글자 줄 높이 — 선에 세로 가운데를 맞추고, 평균 라벨과 이만큼 가까운 최대·0 라벨은 숨긴다(겹침) */
 const AXIS_LABEL_HEIGHT = 14;
 /**
@@ -410,7 +411,7 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
     axisView === null || axisView.isEmpty
       ? []
       : [
-          { key: 'max', top: 0, text: PROFILE_COPY.stats.dayValue(axisView.maxSec) },
+          { key: 'max', top: 0, text: PROFILE_COPY.stats.axisMax(axisView.maxSec) },
           { key: 'average', top: axisView.averageTop, text: PROFILE_COPY.stats.axisAverage },
           { key: 'zero', top: CHART_HEIGHT, text: PROFILE_COPY.stats.axisZero },
         ].filter(

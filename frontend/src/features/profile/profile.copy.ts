@@ -160,6 +160,8 @@ export const PROFILE_COPY = {
     averageLabel: (sec: number) => `평균 ${listenedDayValue(sec)}`,
     /** 주간 그래프 오른쪽 축 — 평균 점선 옆 · 바닥선 옆(최대값은 dayValue 형식) */
     axisAverage: '평균',
+    /** 축 맨 위 = 그 주 최대값 — 좁은 축 칸에 맞게 분 단위만("72분"). 말풍선·하루 평균은 "1시간 12분" 형식 그대로 */
+    axisMax: (sec: number) => `${Math.floor(sec / 60)}분`,
     axisZero: '0',
     /** 기준선은 장식이 아니라 값이다 — 그래프 컨테이너 라벨 뒤에 이어 읽힌다 */
     averageA11y: (sec: number) => `하루 평균 ${listenedDayValue(sec)}`,
