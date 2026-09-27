@@ -182,7 +182,13 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: theme.radius.xl,
     borderTopRightRadius: theme.radius.xl,
     borderCurve: 'continuous',
-    padding: theme.spacing.lg,
+    /*
+     * 위쪽은 `sm` — 손잡이가 시트 가장자리에 붙는다(iOS 그래버 자리). 종전 `padding: lg` 는 4pt 손잡이 위에 24를
+     * 비워 상단이 텅 비어 보였다(PM 2026-09-27 23:32). 플레이어 시트 3종이 이미 `paddingTop: sm` 이라 그쪽에 맞춘다.
+     * 좌우는 `lg` 를 유지한다 — 칩이 줄바꿈으로 차는 시트라 여백이 좁으면 칩이 가장자리에 붙는다
+     */
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.sm,
     paddingBottom: theme.spacing.xl,
     gap: theme.spacing.sm,
   },
