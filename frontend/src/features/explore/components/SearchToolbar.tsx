@@ -1,6 +1,8 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useEffect } from 'react';
+import { Animated, Pressable, StyleSheet, View } from 'react-native';
 
-import { theme } from '@/shared/theme';
+import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
+import { motion, theme } from '@/shared/theme';
 import CloseIcon from '@/shared/ui/CloseIcon';
 import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
 
@@ -13,13 +15,35 @@ interface SearchToolbarProps {
   remaining: { remaining: number; limit: number } | null;
   onExhaustedPress: () => void;
   onClose: () => void;
+  /**
+   * 닫기 칸이 펼쳐져 있는가 — 들어올 때 false → true 로 링 옆에서 **닫기 칸이 자라나며** 알약이 늘어나고(PM 2026-09-27 23:01
+   * "알약도 애니메이션"), 나갈 때 true → false 로 줄어든다. 기본 true
+   */
+  isOpen?: boolean;
 }
 
 /**
  * 제자리 검색의 제목 줄 오른쪽 — 잔여 링 + 닫기(✕)를 **한 유리 캡슐**에 묶는다(PM 2026-09-27 22:53 "두 알약 합쳐").
  * 라이브러리 툴바(링 + 필터, LibraryToolbar)와 같은 문법 — 칸 44, 사이 hairline 구분선
  */
-export default function SearchToolbar({ remaining, onExhaustedPress, onClose }: SearchToolbarProps) {
+export default function SearchToolbar({
+  remaining,
+  onExhaustedPress,
+  onClose,
+  isOpen = true,
+}: SearchToolbarProps) {
+  // 닫기 칸의 폭(0 → 44)과 ✕ 불투명도 — 폭은 레이아웃이라 JS 드라이버(짧은 스프링 한 번뿐이다)
+  const open = useAnimatedValue(0);
+  useEffect(() => {
+    Animated.spring(open, {
+      toValue: isOpen ? 1 : 0,
+      ...motion.spring.snappy,
+      overshootClamping: true,
+      useNativeDriver: false,
+    }).start();
+  }, [isOpen, open]);
+  const closeWidth = open.interpolate({ inputRange: [0, 1], outputRange: [0, theme.touchTarget.minWidth] });
+
   return (
     <GlassCapsule style={styles.capsule}>
       {remaining ? (
@@ -32,17 +56,19 @@ export default function SearchToolbar({ remaining, onExhaustedPress, onClose }: 
               bare
             />
           </View>
-          <View style={styles.divider} pointerEvents="none" />
+          <Animated.View style={[styles.divider, { opacity: open }]} pointerEvents="none" />
         </>
       ) : null}
-      <Pressable
-        style={styles.cell}
-        onPress={onClose}
-        accessibilityRole="button"
-        accessibilityLabel={EXPLORE_COPY.search.cancel}
-      >
-        <CloseIcon size={16} color={theme.color.textPrimary} />
-      </Pressable>
+      <Animated.View style={[styles.closeSlot, { width: remaining ? closeWidth : theme.touchTarget.minWidth, opacity: open }]}>
+        <Pressable
+          style={styles.cell}
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel={EXPLORE_COPY.search.cancel}
+        >
+          <CloseIcon size={16} color={theme.color.textPrimary} />
+        </Pressable>
+      </Animated.View>
     </GlassCapsule>
   );
 }
@@ -58,6 +84,10 @@ const styles = StyleSheet.create({
     height: theme.touchTarget.minHeight,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  closeSlot: {
+    overflow: 'hidden',
+    alignItems: 'flex-end',
   },
   divider: {
     width: StyleSheet.hairlineWidth,
