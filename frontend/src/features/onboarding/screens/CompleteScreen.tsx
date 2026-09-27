@@ -93,6 +93,7 @@ const styles = StyleSheet.create({
     minHeight: theme.touchTarget.minHeight,
     paddingHorizontal: theme.spacing.xl,
     borderRadius: theme.radius.full,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.primary,
     alignItems: 'center',
     justifyContent: 'center',
