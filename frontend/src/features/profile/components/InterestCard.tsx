@@ -97,6 +97,7 @@ const styles = StyleSheet.create({
   chip: {
     // 알약 — 사진·오버레이 클리핑은 여기서 한 번만 한다(TopicChip과 같은 구조)
     borderRadius: theme.radius.full,
+    borderCurve: 'continuous',
     overflow: 'hidden',
     minHeight: 30,
     alignItems: 'center',
