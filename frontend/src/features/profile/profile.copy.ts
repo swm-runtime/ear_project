@@ -169,6 +169,8 @@ export const PROFILE_COPY = {
     },
 
     distributionTitle: '주로 듣는 주제',
+    /** 1위 주제 헤드라인 앞 라벨 — "가장 많이 들은 주제"(PM 2026-09-27 23:42, 스크린 타임 "가장 많이 사용함" 자리) */
+    topTopicLabel: '가장 많이 들은 주제',
     othersLabel: '기타',
     /** 비율은 서버 정수 그대로 "N%"(profile-uiux.md 4.6) */
     ratioValue: (ratio: number) => `${ratio}%`,
