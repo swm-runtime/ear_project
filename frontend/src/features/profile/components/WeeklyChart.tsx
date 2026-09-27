@@ -78,24 +78,26 @@ export default function WeeklyChart({ weekly }: WeeklyChartProps) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title} accessibilityRole="header">
-        {PROFILE_COPY.stats.weeklyTitle}
-      </Text>
       <View style={styles.card}>
-        <View style={styles.weekControls}>
-          <ArrowButton
-            direction="left"
-            enabled={weekly.canGoPrev && !weekly.isSwitching}
-            onPress={weekly.goPrev}
-          />
-          <Text style={styles.weekRange}>
-            {weekLabelStart === null ? '' : PROFILE_COPY.stats.weekRange(weekLabelStart)}
+        <View style={styles.headerRow}>
+          <Text style={styles.title} accessibilityRole="header">
+            {PROFILE_COPY.stats.weeklyTitle}
           </Text>
-          <ArrowButton
-            direction="right"
-            enabled={weekly.canGoNext && !weekly.isSwitching}
-            onPress={weekly.goNext}
-          />
+          <View style={styles.weekControls}>
+            <ArrowButton
+              direction="left"
+              enabled={weekly.canGoPrev && !weekly.isSwitching}
+              onPress={weekly.goPrev}
+            />
+            <Text style={styles.weekRange}>
+              {weekLabelStart === null ? '' : PROFILE_COPY.stats.weekRange(weekLabelStart)}
+            </Text>
+            <ArrowButton
+              direction="right"
+              enabled={weekly.canGoNext && !weekly.isSwitching}
+              onPress={weekly.goNext}
+            />
+          </View>
         </View>
         {weekly.hasSwitchError ? (
           <View style={styles.stateBox}>
@@ -242,22 +244,38 @@ export default function WeeklyChart({ weekly }: WeeklyChartProps) {
 
 const styles = StyleSheet.create({
   container: { paddingHorizontal: theme.spacing.md, gap: theme.spacing.sm },
-  title: { fontSize: theme.font.size.md, fontWeight: '600', color: theme.color.textPrimary },
   card: {
     borderRadius: theme.radius.xl,
     borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
     paddingVertical: theme.spacing.md,
   },
-  weekControls: {
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
     gap: theme.spacing.sm,
     paddingHorizontal: theme.spacing.md,
   },
+  title: {
+    flexShrink: 0,
+    fontSize: theme.font.size.md,
+    fontWeight: '600',
+    color: theme.color.textPrimary,
+  },
+  weekControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    flexShrink: 0,
+    maxWidth: '100%',
+  },
   weekRange: {
-    flex: 1,
-    fontSize: theme.font.size.sm,
+    width: 110,
+    minWidth: 110,
+    flexShrink: 1,
+    fontSize: theme.font.size.xs,
     fontWeight: '500',
     color: theme.color.textPrimary,
     textAlign: 'center',
