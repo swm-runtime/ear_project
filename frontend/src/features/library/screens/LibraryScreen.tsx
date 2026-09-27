@@ -440,8 +440,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: theme.color.textPrimary,
   },
+  // 좌우 여백은 격자와 같은 md — 머리 줄(contentHeader)의 음수 여백이 이 패딩을 되돌리는 전제라,
+  // 빠지면 결과 0개일 때 제목·검색창이 화면 양끝에 붙는다
   emptyContent: {
     flexGrow: 1,
+    paddingHorizontal: theme.spacing.md,
   },
   footer: {
     paddingVertical: theme.spacing.md,
