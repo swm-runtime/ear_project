@@ -25,7 +25,11 @@ export default function LimitNoticeSheet() {
   return (
     <BottomSheet isVisible={isVisible} onRequestClose={hide} sheetStyle={styles.sheet}>
       <View style={styles.body} accessibilityViewIsModal>
-        <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        <View
+          style={styles.ring}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
           <Svg width={RING_SIZE} height={RING_SIZE}>
             <Circle
               cx={RING_SIZE / 2}
@@ -36,7 +40,10 @@ export default function LimitNoticeSheet() {
               fill="none"
             />
           </Svg>
-          <Text style={styles.ringValue}>0</Text>
+          {/* 숫자는 줄 높이가 아니라 가운데 정렬 틀로 맞춘다 — lineHeight 로는 글꼴 위아래 여백 때문에 위로 떴다(00:24 PM) */}
+          <View style={styles.ringCenter}>
+            <Text style={styles.ringValue}>0</Text>
+          </View>
         </View>
         <Text style={styles.title} accessibilityRole="header">
           {message ?? PLAYER_COPY.limitNotice.title}
@@ -70,14 +77,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: theme.spacing.sm,
   },
-  ringValue: {
+  ring: {
+    width: RING_SIZE,
+    height: RING_SIZE,
+  },
+  ringCenter: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    textAlign: 'center',
-    lineHeight: RING_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ringValue: {
+    includeFontPadding: false,
+    textAlignVertical: 'center',
     fontSize: theme.font.size.lg,
     fontWeight: '700',
     color: theme.color.danger,
