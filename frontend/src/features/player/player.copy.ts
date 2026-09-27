@@ -35,6 +35,13 @@ export const PLAYER_COPY = {
   /* TODO(paywall feature): 페이월 바텀시트(paywall.md 4.5)는 paywall feature가 소유한다.
      구현 전까지 서버 안내 문구와 같은 토스트로 대체한다. */
   paywallPlaceholderToast: '오늘 들을 수 있는 콘텐츠를 모두 들었어요',
+  /** 한도 안내 시트(LimitNoticeSheet, 2026-09-28) — 제목은 paywall.md 확정 문구. 서버 문구가 오면 그걸 쓴다 */
+  limitNotice: {
+    title: '오늘 청취 한도를 모두 사용했어요',
+    /** 채워지는 시각 안내 — 서비스 날짜 경계(04시)를 알려줄 뿐 판정이 아니다 */
+    description: '매일 새벽 4시에 다시 채워져요',
+    confirm: '확인',
+  },
 
   /** 재생 시작 실패의 공통 폴백 — 서버 message가 없을 때만 쓴다 */
   playFailedToast: '잠시 후 다시 시도해주세요',

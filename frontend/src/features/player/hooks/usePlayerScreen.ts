@@ -22,6 +22,7 @@ import type { PlayEntryPoint, PlaybackStartMeta, QueueItem } from '../player.typ
 import { usePlayGate } from './usePlayGate';
 import { playbackService } from '../services/playback.service';
 import { getPlayerLibraryBridge } from '../services/player-library.bridge';
+import { useLimitNoticeStore } from '../store/limit-notice.store';
 import { usePlaybackStore } from '../store/playback.store';
 
 /** Player 라우트 파라미터 — app 내비게이션 타입(MainStackParamList)과 모양을 맞춘다 */
@@ -106,7 +107,7 @@ export const usePlayerScreen = () => {
       // 세션이 어디서 왔든 사용자가 본 것은 플레이어 화면이다
       playGate.openPaywall('player', blockedState.message ?? undefined);
     } else {
-      showToast(blockedState.message ?? PLAYER_COPY.paidLimitReachedToast);
+      useLimitNoticeStore.getState().show(blockedState.message ?? PLAYER_COPY.paidLimitReachedToast);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- blocked 전이 1회에만 반응한다
   }, [blockedState]);
