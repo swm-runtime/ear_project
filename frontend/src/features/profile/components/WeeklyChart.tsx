@@ -33,6 +33,15 @@ const DAYS_IN_WEEK = 7;
  */
 const ANNOTATION_MIN_HEIGHT = 32;
 const GRID_RATIOS = [0, 0.5, 1] as const;
+/**
+ * 오른쪽 축(PM 2026-09-28 02:36 — 애플 건강) — 격자 오른쪽 끝에 **위 = 이 주의 최대값, 평균 점선 옆 = "평균", 아래 = 0**.
+ * 막대 칸은 이 폭만큼 비켜 선다. "1시간 12분"(xs)이 들어가는 폭
+ */
+const AXIS_WIDTH = 64;
+/** 축 글자 줄 높이 — 선에 세로 가운데를 맞추고, 평균 라벨과 이만큼 가까운 최대·0 라벨은 숨긴다(겹침) */
+const AXIS_LABEL_HEIGHT = 14;
+/** iOS systemSeparator(라이트) — 회색 카드 위에서도 보이는 격자선. theme.color.border 는 카드 면과 거의 같아 안 보였다 */
+const GRID_COLOR = 'rgba(60, 60, 67, 0.29)';
 /** 주 이동 화살표 원 — 보이는 크기만 줄이고 터치는 hitSlop 으로 44 를 지킨다(PM 2026-09-28 00:32 "버튼 크기 줄이자") */
 const ARROW_SIZE = 28;
 const ARROW_HIT_SLOP = (theme.touchTarget.minHeight - ARROW_SIZE) / 2;
@@ -187,7 +196,17 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
     chartViewportWidth > 0 && chartViewportWidth < DAYS_IN_WEEK * theme.touchTarget.minWidth;
   const [tooltipSize, setTooltipSize] = useState({ width: 0, height: ANNOTATION_MIN_HEIGHT });
   const annotationHeight = Math.max(ANNOTATION_MIN_HEIGHT, tooltipSize.height) + theme.spacing.sm;
-  const selectedCenter = ((selectedIndex ?? 0) + 0.5) * (chartWidth / DAYS_IN_WEEK);
+  // 막대 칸 폭 = 차트 폭 − 오른쪽 축
+  const selectedCenter =
+    ((selectedIndex ?? 0) + 0.5) * (Math.max(0, chartWidth - AXIS_WIDTH) / DAYS_IN_WEEK);
+  const averageTop = (1 - averageRatio) * CHART_HEIGHT;
+  const axisLabels = [
+    { key: 'max', top: 0, text: PROFILE_COPY.stats.dayValue(maxSec) },
+    { key: 'average', top: averageTop, text: PROFILE_COPY.stats.axisAverage },
+    { key: 'zero', top: CHART_HEIGHT, text: PROFILE_COPY.stats.axisZero },
+  ].filter(
+    (label) => label.key === 'average' || Math.abs(label.top - averageTop) >= AXIS_LABEL_HEIGHT,
+  );
   // 좁은 요일 칸 대신 말풍선 전체를 실측하고, 양 끝 요일도 카드 안에 담는다.
   const tooltipLeft = Math.max(
     theme.spacing.sm,
@@ -281,9 +300,27 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
                     {GRID_RATIOS.map((ratio) => (
                       <View key={ratio} style={[styles.gridLine, { top: ratio * CHART_HEIGHT }]} />
                     ))}
-                    <View
-                      style={[styles.averageRule, { top: (1 - averageRatio) * CHART_HEIGHT }]}
-                    />
+                    <View style={[styles.averageRule, { top: averageTop }]} />
+                  </View>
+                  <View
+                    pointerEvents="none"
+                    accessibilityElementsHidden
+                    importantForAccessibility="no-hide-descendants"
+                    style={[styles.axis, { top: annotationHeight }]}
+                  >
+                    {axisLabels.map((label) => (
+                      <Text
+                        key={label.key}
+                        numberOfLines={1}
+                        style={[
+                          styles.axisLabel,
+                          label.key === 'average' && styles.axisLabelAverage,
+                          { top: label.top - AXIS_LABEL_HEIGHT / 2 },
+                        ]}
+                      >
+                        {label.text}
+                      </Text>
+                    ))}
                   </View>
                   <View style={styles.chartRow}>
                     {ratios.map((ratio, dayIndex) => {
@@ -478,15 +515,37 @@ const styles = StyleSheet.create({
     backgroundColor: theme.color.border,
   },
   chartScrollContent: { flexGrow: 1 },
-  chartArea: { flex: 1, minWidth: DAYS_IN_WEEK * theme.touchTarget.minWidth },
-  grid: { position: 'absolute', left: theme.spacing.md, right: theme.spacing.md },
+  chartArea: { flex: 1, minWidth: DAYS_IN_WEEK * theme.touchTarget.minWidth + AXIS_WIDTH },
+  // 격자는 막대 칸 왼쪽 여백부터 축 글자 바로 앞까지
+  grid: {
+    position: 'absolute',
+    left: theme.spacing.md,
+    right: AXIS_WIDTH - theme.spacing.xs,
+  },
   gridLine: {
     position: 'absolute',
     left: 0,
     right: 0,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.color.border,
+    borderColor: GRID_COLOR,
   },
+  axis: {
+    position: 'absolute',
+    right: theme.spacing.md,
+    width: AXIS_WIDTH - theme.spacing.md,
+    height: CHART_HEIGHT,
+  },
+  axisLabel: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: AXIS_LABEL_HEIGHT,
+    lineHeight: AXIS_LABEL_HEIGHT,
+    fontSize: 11,
+    color: theme.color.textSecondary,
+    fontVariant: ['tabular-nums'],
+  },
+  axisLabelAverage: { fontWeight: '600' },
   averageRule: {
     position: 'absolute',
     left: 0,
@@ -495,7 +554,7 @@ const styles = StyleSheet.create({
     borderColor: theme.color.textSecondary,
     borderStyle: 'dashed',
   },
-  chartRow: { flexDirection: 'row', alignItems: 'flex-end' },
+  chartRow: { flexDirection: 'row', alignItems: 'flex-end', marginRight: AXIS_WIDTH },
   barColumn: {
     flex: 1,
     minWidth: theme.touchTarget.minWidth,

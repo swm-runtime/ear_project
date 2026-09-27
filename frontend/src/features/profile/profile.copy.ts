@@ -158,6 +158,9 @@ export const PROFILE_COPY = {
     dayValue: listenedDayValue,
     /** 평균 기준선 라벨 — 막대와 견줄 대상이 무엇인지 선 옆에 밝힌다 */
     averageLabel: (sec: number) => `평균 ${listenedDayValue(sec)}`,
+    /** 주간 그래프 오른쪽 축 — 평균 점선 옆 · 바닥선 옆(최대값은 dayValue 형식) */
+    axisAverage: '평균',
+    axisZero: '0',
     /** 기준선은 장식이 아니라 값이다 — 그래프 컨테이너 라벨 뒤에 이어 읽힌다 */
     averageA11y: (sec: number) => `하루 평균 ${listenedDayValue(sec)}`,
     /** 막대 개별 읽기 — "화요일, 32분", 60분 이상이면 "N시간 N분"(profile-uiux.md 7장) */
