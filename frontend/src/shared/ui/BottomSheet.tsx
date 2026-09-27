@@ -15,6 +15,8 @@ import {
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion, theme } from '@/shared/theme';
 
+/** 끌기로 인정하는 최소 이동 — 이보다 작으면 탭이다 */
+const DRAG_START_SLOP = 6;
 /** 끌어 닫기 임계 — 높이의 1/4(최소 80pt)이거나 던진 속도 0.8 이상 */
 const DRAG_CLOSE_RATIO = 0.25;
 const DRAG_CLOSE_MIN = 80;
@@ -108,16 +110,22 @@ export default function BottomSheet({
 
   /**
    * 아래로 끌어 닫기 — 시트 어디서든(맨 위 손잡이 포함) 받는다. 시트 안에는 스크롤 목록이 없어 스크롤과
-   * 다툴 일이 없다. `onMoveShouldSetPanResponder`(capture 아님)라 버튼은 탭을 먼저 받고, 끌기가 시작되면
-   * 버튼이 자기 누름을 취소한다.
+   * 다툴 일이 없다.
+   *
+   * **capture 단계로 가져온다**(2026-09-27 20:23 — bubble 단계로는 실기기에서 전혀 안 걸렸다). 시트 자식이
+   * 대부분 `Pressable` 이라 손을 대는 순간 **자식이 먼저 responder 가 되고**, 그 상태에서 조상이 빼앗으려면
+   * capture 변형을 써야 한다(RN 제스처 responder 협상). MiniPlayer·TopicMarqueeRow 가 bubble 로도 되는 것은
+   * 손이 닿는 자리가 Pressable 이 아니어서다.
+   *
+   * 탭은 그대로 자식에게 간다 — 아래 조건이 "세로로 6pt 이상 이동"이라 누르고 떼는 동작에서는 발화하지 않는다.
    */
   // 룰은 "렌더 중 함수에 ref 를 넘긴다"를 잡는다 — 아래 콜백은 등록만 되고 실행은 제스처 시점이다(표준 패턴,
   // TopicMarqueeRow·MiniPlayer 와 같다)
   // eslint-disable-next-line react-hooks/refs
   const pan = PanResponder.create({
     // 아래로 6pt 이상 · 가로보다 세로가 큰 움직임만 가져온다 — 탭·좌우 스와이프를 훔치지 않는다
-    onMoveShouldSetPanResponder: (_event, gesture) =>
-      gesture.dy > 6 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+    onMoveShouldSetPanResponderCapture: (_event, gesture) =>
+      gesture.dy > DRAG_START_SLOP && Math.abs(gesture.dy) > Math.abs(gesture.dx),
     onPanResponderMove: (_event, gesture) => {
       const sheetHeight = heightRef.current;
       if (sheetHeight <= 0) return;
