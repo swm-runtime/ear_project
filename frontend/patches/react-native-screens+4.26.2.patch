@@ -12,10 +12,10 @@ index b1f482c..925a5a8 100644
  - (CGFloat)calculateHeaderHeightIsModal:(BOOL)isModal;
  - (BOOL)isRemovedFromParent;
 diff --git a/node_modules/react-native-screens/ios/RNSScreen.mm b/node_modules/react-native-screens/ios/RNSScreen.mm
-index 9b66012..8198593 100644
+index 9b66012..67ca1ca 100644
 --- a/node_modules/react-native-screens/ios/RNSScreen.mm
 +++ b/node_modules/react-native-screens/ios/RNSScreen.mm
-@@ -1417,6 +1417,10 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
+@@ -1417,6 +1417,12 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
    BOOL _isSwiping;
    BOOL _shouldNotify;
    BOOL _isRemovedFromParent;
@@ -23,10 +23,12 @@ index 9b66012..8198593 100644
 +  BOOL _notifiedInteractiveDismiss;
 +  // [ear patch] the current disappearance is a system-driven (interactive) modal dismissal
 +  BOOL _dismissingInteractively;
++  // [ear patch] re-checks the content scroll view while the screen is visible (see earRegisterContentScrollView)
++  NSTimer *_earScrollViewTimer;
  }
  
  #pragma mark - Common
-@@ -1461,9 +1465,68 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
+@@ -1461,9 +1467,68 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
    }
  }
  
@@ -95,11 +97,40 @@ index 9b66012..8198593 100644
    // self.navigationController might be null when we are dismissing a modal
    if (!self.transitionCoordinator.isInteractive && self.navigationController != nil) {
      // user might have long pressed ios 14 back button item,
-@@ -1517,7 +1580,23 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
+@@ -1501,6 +1566,25 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
+ - (void)viewDidAppear:(BOOL)animated
+ {
+   [super viewDidAppear:animated];
++  // [ear patch] a list that mounts after the screen appeared (network placeholder -> list, filter swaps the list)
++  // never triggers this controller's layout, so UIKit kept tracking nothing and the large title stayed expanded on the
++  // leading edge (react-native-screens #2871, device 2026-09-28 06:24 "sometimes left, sometimes centered"). Re-check
++  // twice a second while visible; the check is a pointer comparison unless the tracked list left the screen.
++  if (@available(iOS 15.0, *)) {
++    [_earScrollViewTimer invalidate];
++    __weak RNSScreen *weakSelf = self;
++    _earScrollViewTimer = [NSTimer scheduledTimerWithTimeInterval:0.5
++                                                          repeats:YES
++                                                            block:^(NSTimer *_Nonnull timer) {
++                                                              RNSScreen *strongSelf = weakSelf;
++                                                              if (strongSelf == nil) {
++                                                                [timer invalidate];
++                                                                return;
++                                                              }
++                                                              [strongSelf earRegisterContentScrollView];
++                                                            }];
++    [self earRegisterContentScrollView];
++  }
+   if (!_isSwiping || _shouldNotify) {
+     // we are going forward or dismissing without swipe
+     // or successfully swiped back
+@@ -1517,7 +1601,26 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
  - (void)viewDidDisappear:(BOOL)animated
  {
    [super viewDidDisappear:animated];
 -  if (self.parentViewController == nil && self.presentingViewController == nil) {
++  // [ear patch] stop the content scroll view re-check (started in viewDidAppear)
++  [_earScrollViewTimer invalidate];
++  _earScrollViewTimer = nil;
 +  // [ear patch] fallback for the interactive (zoom) dismissal: UIKit may still report presentingViewController here,
 +  // so re-check on the next run loop turn once the presentation is fully torn down.
 +  if (_dismissingInteractively && !_notifiedInteractiveDismiss) {
@@ -120,7 +151,7 @@ index 9b66012..8198593 100644
      if (self.screenView.preventNativeDismiss) {
        // if we want to prevent the native dismiss, we do not send dismissal event,
        // but instead call `updateContainer`, which restores the JS navigation stack
-@@ -1558,6 +1637,45 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
+@@ -1558,6 +1661,49 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
    if (isDisplayedWithinUINavController || isTabScreen || self.screenView.isPresentedAsNativeModal) {
      [self.screenView updateBounds];
    }
@@ -145,6 +176,10 @@ index 9b66012..8198593 100644
 +  UIScrollView *found = [RNSScreen earFindContentScrollViewIn:self.view minHeight:minHeight];
 +  if (found != nil && found != current) {
 +    [self setContentScrollView:found forEdge:NSDirectionalRectEdgeTop];
++    // the bar only re-reads its content scroll view on a layout pass (#2871: rotating the device fixed it)
++    [self.navigationController.navigationBar setNeedsLayout];
++    [self.navigationController.view setNeedsLayout];
++    [self.view setNeedsLayout];
 +  }
 +}
 +
@@ -166,7 +201,7 @@ index 9b66012..8198593 100644
  }
  
  - (BOOL)isModalWithHeader
-@@ -1994,6 +2112,17 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
+@@ -1994,6 +2140,17 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
  - (void)setViewToSnapshot
  {
    UIView *superView = self.view.superview;
@@ -184,7 +219,7 @@ index 9b66012..8198593 100644
    // if we dismissed the view natively, it will already be detached from view hierarchy
    if (self.view.window != nil) {
      auto afterUpdates = self.screenView.snapshotAfterUpdates;
-@@ -2002,6 +2131,22 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
+@@ -2002,6 +2159,22 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
      [self.view removeFromSuperview];
      self.view = snapshot;
      [superView addSubview:snapshot];
