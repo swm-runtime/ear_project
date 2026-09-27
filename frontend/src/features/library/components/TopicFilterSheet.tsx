@@ -302,11 +302,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
     borderRadius: theme.radius.md,
     borderCurve: 'continuous',
-    borderWidth: 1,
-    borderColor: theme.color.border,
+    // 보조 동작은 테두리 없이 연한 면(design.md §5 — ConfirmDialog·재생 확인 팝업과 같은 규칙, 2026-09-27 PM
+    // "초기화·적용 버튼이 다른 모달들과 살짝 다르다"). 선으로 그린 상자는 검정 버튼 옆에서 낡아 보인다
+    backgroundColor: theme.color.surface,
   },
   resetLabel: {
     fontSize: theme.font.size.md,
+    fontWeight: '600',
     color: theme.color.textPrimary,
   },
   applyButton: {
