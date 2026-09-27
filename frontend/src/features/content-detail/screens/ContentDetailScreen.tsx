@@ -1,8 +1,11 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
+import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
+import { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
+import GlassIconButton from '@/shared/ui/GlassIconButton';
 
 import { PlayConfirmDialog } from '@/features/player';
 import { IS_SHARE_ENABLED, SHARE_COPY, ShareIcon } from '@/features/share';
@@ -83,28 +86,19 @@ export default function ContentDetailScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* 앱바는 로딩보다 먼저 그린다(uiux 4.7) — 뒤로가기 + 타이틀(카피 미확정, 6장 TODO) */}
       <View style={styles.appBar}>
-        <Pressable
-          style={styles.backButton}
-          onPress={screen.goBack}
-          accessibilityRole="button"
-          accessibilityLabel={CONTENT_DETAIL_COPY.backA11y}
-        >
-          <Text style={styles.backGlyph}>‹</Text>
-        </Pressable>
+        {/* 뒤로 — 유리 원 안의 셰브론(PM 2026-09-27 23:13). 종전엔 글자 `‹` 였다(폰트마다 굵기·위치가 달랐다) */}
+        <GlassIconButton onPress={screen.goBack} accessibilityLabel={CONTENT_DETAIL_COPY.backA11y}>
+          <ChevronIcon direction="left" size={APP_BAR_ICON_SIZE} color={theme.color.textPrimary} />
+        </GlassIconButton>
         <Text style={styles.appBarTitle} accessibilityRole="header">
           {CONTENT_DETAIL_COPY.appBarTitle}
         </Text>
         {/* SH2 [공유] 아이콘(P1) — 조회가 성공해 상세가 그려진 상태(CD1·CD2)에서만 그린다.
             로딩·전면 에러에는 전달할 값이 없다 — 반쪽 값으로 공유 내용을 만들지 않는다(share-uiux.md 4.2) */}
         {IS_SHARE_ENABLED && screen.detail ? (
-          <Pressable
-            style={styles.shareButton}
-            onPress={screen.shareDetail}
-            accessibilityRole="button"
-            accessibilityLabel={SHARE_COPY.action}
-          >
-            <ShareIcon size={22} color={theme.color.textPrimary} />
-          </Pressable>
+          <GlassIconButton onPress={screen.shareDetail} accessibilityLabel={SHARE_COPY.action}>
+            <ShareIcon size={APP_BAR_ICON_SIZE} color={theme.color.textPrimary} />
+          </GlassIconButton>
         ) : (
           <View style={styles.appBarSpacer} />
         )}
@@ -124,6 +118,9 @@ export default function ContentDetailScreen() {
   );
 }
 
+/** 앱바 유리 버튼 안 아이콘 — 원(40) 안에서 너무 크지 않게 */
+const APP_BAR_ICON_SIZE = 20;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -135,17 +132,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.sm,
     minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
   },
-  backButton: {
-    minWidth: theme.touchTarget.minWidth,
-    minHeight: theme.touchTarget.minHeight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backGlyph: {
-    fontSize: theme.font.size.xl,
-    color: theme.color.textPrimary,
-    lineHeight: theme.font.size.xl + 2,
-  },
+
   appBarTitle: {
     flex: 1,
     textAlign: 'center',
@@ -153,15 +140,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.color.textPrimary,
   },
+  // 공유가 없을 때 타이틀이 가운데에 서게 유리 원과 같은 폭을 비운다
   appBarSpacer: {
-    width: theme.touchTarget.minWidth,
-  },
-  shareButton: {
-    // 다른 화면 앱바 아이콘 버튼과 같은 규칙 — 터치 타깃 최소 44pt(share-uiux.md 7장)
-    minWidth: theme.touchTarget.minWidth,
-    minHeight: theme.touchTarget.minHeight,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: HEADER_CONTROL_HEIGHT,
   },
   scrollContent: {
     paddingHorizontal: theme.spacing.md,
