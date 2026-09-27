@@ -1555,9 +1555,18 @@ export default function PlayerScreen() {
           }
           {/* 목록 위에서 시작한 세로 끌기는 축소 제스처가 가로채지 않는다(위 `isTouchOnScrollAreaRef`) */}
           <View style={styles.queuePanelWrap} {...scrollAreaTouchHandlers}>
+            {/*
+              **아직 조회하지 않았으면 안을 그리지 않는다.** 재생 목록은 패널을 열었을 때만 조회하는데(useQueueQuery
+              `enabled`), 조회를 안 한 쿼리는 react-query 에서 `isPending` 이 계속 true 다 — 그걸 로딩으로 넘겨 주니
+              플레이어를 열면 닫힌 패널의 보이는 틈에서 **스피너가 영원히 돌았다**(PM 2026-09-27 19:02 "무한로딩",
+              열면 조회가 시작돼 사라졌다). 스피너도 빈 상태도 둘 다 거짓이라 아무것도 그리지 않는 것이 맞다.
+              한 번 받아 둔 뒤에는 닫혀 있어도 그대로 둔다 — 다시 열 때 목록이 이미 있다
+            */}
+            {isQueueOpen || queueQuery.data !== undefined ? (
             <PlayerQueuePanel
               items={queueItems}
-              isLoading={queueQuery.isPending}
+              // 실제로 요청이 떠 있을 때만 스피너다(`isPending` 은 조회를 안 한 상태도 true)
+              isLoading={queueQuery.isFetching}
               isError={queueQuery.isError}
               currentContentId={session.contentId}
               showHeader={false}
@@ -1567,6 +1576,7 @@ export default function PlayerScreen() {
               onRetry={() => void queueQuery.refetch()}
               onSwipeRight={() => setPanel(null)}
             />
+            ) : null}
           </View>
         </Animated.View>
       </Animated.View>
