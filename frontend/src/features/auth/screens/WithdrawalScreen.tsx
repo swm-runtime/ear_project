@@ -13,6 +13,8 @@ import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
 import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
+import { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
+import GlassIconButton from '@/shared/ui/GlassIconButton';
 
 import { WITHDRAWAL_REASON_CODES } from '../auth.constants';
 import { AUTH_COPY } from '../auth.copy';
@@ -69,14 +71,10 @@ export default function WithdrawalScreen() {
     <SafeAreaView style={styles.container}>
       {/* 앱바 — 서버 응답과 무관하므로 로딩 중에도 먼저 그린다. 뒤로가기가 취소 경로다 */}
       <View style={styles.appBar}>
-        <Pressable
-          style={styles.backButton}
-          onPress={screen.goBack}
-          accessibilityRole="button"
-          accessibilityLabel={COPY.backA11y}
-        >
+        {/* 뒤로 — 유리 원 안의 셰브론(상세 화면과 같은 문법, PM 2026-09-28 03:07) */}
+        <GlassIconButton onPress={screen.goBack} accessibilityLabel={COPY.backA11y}>
           <ChevronIcon direction="left" size={BACK_ICON_SIZE} color={theme.color.textPrimary} />
-        </Pressable>
+        </GlassIconButton>
         <Text style={styles.appBarTitle} accessibilityRole="header">
           {COPY.appBarTitle}
         </Text>
@@ -240,8 +238,8 @@ export default function WithdrawalScreen() {
   );
 }
 
-/** 앱바 뒤로 셰브론 — 글자 `‹` 는 폰트마다 굵기·세로 위치가 달라 도형으로 그린다(design.md §5) */
-const BACK_ICON_SIZE = 24;
+/** 앱바 뒤로 셰브론 — 글자 `‹` 는 폰트마다 굵기·세로 위치가 달라 도형으로 그린다(design.md §5). 유리 원(40) 안쪽 값 */
+const BACK_ICON_SIZE = 20;
 
 const styles = StyleSheet.create({
   container: {
@@ -274,12 +272,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.sm,
     minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
   },
-  backButton: {
-    minWidth: theme.touchTarget.minWidth,
-    minHeight: theme.touchTarget.minHeight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   appBarTitle: {
     flex: 1,
     textAlign: 'center',
@@ -289,7 +281,7 @@ const styles = StyleSheet.create({
   },
   /** 타이틀을 가운데 두기 위한 뒤로가기 대칭 여백 */
   appBarSpacer: {
-    minWidth: theme.touchTarget.minWidth,
+    minWidth: HEADER_CONTROL_HEIGHT,
   },
   body: {
     paddingHorizontal: theme.spacing.lg,
