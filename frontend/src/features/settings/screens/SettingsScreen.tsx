@@ -5,12 +5,12 @@ import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { APP_VERSION, APP_VERSION_LABEL, IS_DEV_API } from '@/shared/lib/app-version';
 import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
 import { USES_SYSTEM_PUSHED_HEADER } from '@/shared/navigation/pushed-screen-header';
+import { useFadingNativeTitle } from '@/shared/navigation/useFadingNativeTitle';
 import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import ConfirmDialog from '@/shared/ui/ConfirmDialog';
 import { useFloatingHeaderScroll } from '@/shared/ui/FloatingHeader';
 import LargeTitleRow from '@/shared/ui/LargeTitleRow';
-import NativeBarBlurBand from '@/shared/ui/NativeBarBlurBand';
 
 import { NotificationPrePromptModal } from '@/features/notification';
 
@@ -44,6 +44,8 @@ export default function SettingsScreen() {
   const hasControls = screen.controls !== null;
   // iOS 26: 스크롤에 따라 블러 띠 + 작은 제목(라이브러리·탐색과 같은 부품). 그 외 갈래는 값을 안 쓴다
   const { scrollY, scrollProps } = useFloatingHeaderScroll();
+  // 바 밑 블러는 시스템 scroll edge effect, 작은 제목은 바가 그린다(PM 2026-09-28 01:40)
+  useFadingNativeTitle(SETTINGS_COPY.title, scrollY);
 
   return (
     <SafeAreaView style={styles.container} edges={USES_SYSTEM_PUSHED_HEADER ? [] : ['top']}>
@@ -65,10 +67,6 @@ export default function SettingsScreen() {
           <View style={styles.appBarSpacer} />
         </View>
       )}
-
-      {USES_SYSTEM_PUSHED_HEADER ? (
-        <NativeBarBlurBand scrollY={scrollY} title={SETTINGS_COPY.title} underSystemBar />
-      ) : null}
 
       <Animated.ScrollView
         contentContainerStyle={styles.scrollContent}

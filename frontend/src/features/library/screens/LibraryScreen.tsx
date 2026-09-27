@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 
+import { useFadingNativeTitle } from '@/shared/navigation/useFadingNativeTitle';
 import { useNativeHeaderInset } from '@/shared/navigation/useNativeHeaderInset';
 import { theme } from '@/shared/theme';
 import FloatingHeader, {
@@ -18,7 +19,6 @@ import FloatingHeader, {
 import FullScreenError from '@/shared/ui/FullScreenError';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 import LargeTitleRow from '@/shared/ui/LargeTitleRow';
-import NativeBarBlurBand from '@/shared/ui/NativeBarBlurBand';
 
 import {
   DOCK_SCROLL_PROPS,
@@ -77,7 +77,7 @@ const toGridRows = (rows: LibraryListRow[]): LibraryGridRow[] => {
  * 상단 두 갈래(PM 2026-09-26 00:14 "라이브러리도" · 00:29 애플 뮤직 스샷 — design.md 5장 "상단 — 시스템 내비게이션 바"):
  * - **iOS 26 시스템 탭 바(HAS_NATIVE_TAB_BAR)** — 시스템 바 없이(터치를 먹어서 껐다, 09-26 17:42) **콘텐츠 안 큰 제목 줄**
  *   ("라이브러리" + 오른쪽 링·필터 툴바 캡슐, 같은 줄) / 채움 검색 필드 / 조건 요약·배너 — 전부 목록의 첫 줄로 같이 스크롤한다.
- *   제목 줄이 밀려 올라가면 블러 띠 + 작은 제목이 페이드인한다(NativeBarBlurBand)(애플 뮤직·앱스토어 탭 화면).
+ *   투명 시스템 바 밑에서 시작하고, 스크롤하면 바 밑 블러는 시스템 scroll edge effect 가, 작은 제목은 바가 그린다(useFadingNativeTitle).
  * - 그 외 — 떠 있는 유리 머리 줄(FloatingHeader: 검색창 + 툴바 + 요약 + 배너)이 목록 위에 뜬다(2026-09-24).
  */
 export default function LibraryScreen() {
@@ -91,6 +91,7 @@ export default function LibraryScreen() {
   const nativeBarInset = useNativeHeaderInset();
   // 맨 위에서는 머리 줄 컨트롤이 면, 내리면 유리(PM 2026-09-25)
   const { solidness, scrollY, scrollProps } = useFloatingHeaderScroll();
+  useFadingNativeTitle(LIBRARY_COPY.tabTitle, scrollY);
   // 머리 줄(JS 탭 바 갈래)의 루트 ref — 종전 시스템 edge effect 연결용, 지금은 FloatingHeader 가 요구만 한다
   const listRef = useRef(null);
   const headerRef = useRef<View>(null);
@@ -341,9 +342,6 @@ export default function LibraryScreen() {
           onEndReachedThreshold={0.4}
         />
       )}
-
-      {/* 스크롤하면 나타나는 상단 블러 띠(시스템 탭 바 갈래) — 바의 작은 제목이 그 위에 */}
-      <NativeBarBlurBand scrollY={scrollY} title={LIBRARY_COPY.tabTitle} />
 
       {/* 머리 줄은 목록 **뒤에 선언**한다(zIndex 로 위에 뜬다) */}
       {/* 머리 줄은 목록 위에 떠 있다 — 배경 없이 유리 컨트롤만(2026-09-24 PM). 브랜드 표시는 두지 않는다(2026-09-02).
