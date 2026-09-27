@@ -91,9 +91,17 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
     () =>
       // eslint-disable-next-line react-hooks/refs -- 콜백은 렌더가 아니라 제스처 시점에 실행된다(표준 PanResponder 패턴, PlayerScreen 과 같다)
       PanResponder.create({
-        onMoveShouldSetPanResponder: (_, gesture) =>
+        /*
+         * **capture 단계로 묻는다**(PM 2026-09-28 01:54 "스와이프 안 먹어"). 막대(Pressable)와 화면을 감싼 Pressable 이 손을
+         * 대는 순간 responder 가 되는데, 그 뒤 조상이 빼앗으려면 capture 변형이어야 한다 — bubble 의
+         * onMoveShouldSetPanResponder 는 조회되지 않는다(바텀시트 끌기 #825 와 같은 함정). 가로가 확실할 때만 빼앗으므로
+         * 막대 탭은 그대로다
+         */
+        onMoveShouldSetPanResponderCapture: (_, gesture) =>
           Math.abs(gesture.dx) > SWIPE_CLAIM_DISTANCE &&
           Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.5,
+        // 잡은 뒤에는 세로 스크롤 뷰가 가져가지 못하게 한다 — 가로로 판정된 끌기다
+        onPanResponderTerminationRequest: () => false,
         onPanResponderRelease: (_, gesture) => {
           const current = weeklyRef.current;
           if (current.isSwitching) return;
@@ -106,6 +114,13 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
     [],
   );
   const [chartWidth, setChartWidth] = useState(0);
+  /*
+   * 차트 가로 스크롤은 **7칸(44pt씩)이 안 들어가는 좁은 화면에서만** 켠다. 보통 폭에서도 켜 두면 iOS 가로 스크롤 뷰가
+   * 좌우 튕김으로 가로 끌기를 네이티브에서 먼저 가져가 주 넘기기 스와이프가 먹지 않았다
+   */
+  const [chartViewportWidth, setChartViewportWidth] = useState(0);
+  const needsChartScroll =
+    chartViewportWidth > 0 && chartViewportWidth < DAYS_IN_WEEK * theme.touchTarget.minWidth;
   const [tooltipSize, setTooltipSize] = useState({ width: 0, height: ANNOTATION_MIN_HEIGHT });
   const annotationHeight = Math.max(ANNOTATION_MIN_HEIGHT, tooltipSize.height) + theme.spacing.sm;
   const selectedCenter = ((selectedIndex ?? 0) + 0.5) * (chartWidth / DAYS_IN_WEEK);
@@ -181,6 +196,9 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
             {/* 보통 화면은 7일을 한 번에, 좁은 화면은 스크롤로 44pt 터치 영역을 유지한다. */}
             <ScrollView
               horizontal
+              scrollEnabled={needsChartScroll}
+              alwaysBounceHorizontal={false}
+              onLayout={({ nativeEvent }) => setChartViewportWidth(nativeEvent.layout.width)}
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.chartScrollContent}
             >
