@@ -140,6 +140,7 @@ export const PROFILE_COPY = {
     tileA11y: (label: string, value: string) => `${label} ${value}`,
 
     weeklyTitle: '주간 청취',
+    dailyAverageTitle: '하루 평균',
     /** 주 범위 "N월 N일 – N월 N일". 경계 판정은 서버 몫, +6일은 표기 전용(profile.format.ts) */
     weekRange: (weekStart: string) => {
       const { start, end } = toWeekRangeParts(weekStart);

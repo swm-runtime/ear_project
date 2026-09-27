@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
@@ -11,90 +11,81 @@ import { isWeekAllZero, toBarRatios, toDailyAverageSec } from '../profile.format
 interface WeeklyChartProps {
   weekly: WeeklyNavigation;
 }
-
-/** 막대 영역 높이 — 주 내 최댓값 막대가 이 높이다(상대 스케일, profile-uiux.md 4.6) */
-const CHART_HEIGHT = 120;
-/** 0 막대의 자리 표시 높이 — 값 생략 없이 요일 자리를 유지한다 */
+const CHART_HEIGHT = 144;
 const ZERO_BAR_HEIGHT = 3;
-/** 말풍선 높이의 초깃값 — 실제 높이는 onLayout 으로 잰다(큰 글꼴·긴 시간값에서 26 을 넘는다, design.md §6) */
-const TOOLTIP_HEIGHT_FALLBACK = 26;
-
-/** 한 주의 요일 수 — 지난 주의 평균 분모다 */
 const DAYS_IN_WEEK = 7;
+const ANNOTATION_MIN_HEIGHT = 44;
+const GRID_RATIOS = [0, 0.5, 1] as const;
 
-/** 화살표 아이콘 크기 — 날짜 라벨과 나란히 읽히는 크기로 둔다 */
-const ARROW_ICON_SIZE = 18;
-
-interface ArrowButtonProps {
+function ArrowButton({
+  direction,
+  enabled,
+  onPress,
+}: {
   direction: 'left' | 'right';
-  a11yLabel: string;
   enabled: boolean;
   onPress: () => void;
-}
-
-function ArrowButton({ direction, a11yLabel, enabled, onPress }: ArrowButtonProps) {
+}) {
   return (
     <Pressable
-      style={styles.arrow}
+      style={({ pressed }) => [styles.arrow, pressed && enabled && styles.pressed]}
       onPress={onPress}
       disabled={!enabled}
       accessibilityRole="button"
-      accessibilityLabel={a11yLabel}
-      // 비활성 상태가 라벨과 함께 읽힌다(profile-uiux.md 7장)
+      accessibilityLabel={
+        direction === 'left' ? PROFILE_COPY.stats.prevWeekA11y : PROFILE_COPY.stats.nextWeekA11y
+      }
       accessibilityState={{ disabled: !enabled }}
     >
       <ChevronIcon
         direction={direction}
-        size={ARROW_ICON_SIZE}
+        size={16}
         color={enabled ? theme.color.textPrimary : theme.color.border}
       />
     </Pressable>
   );
 }
 
-/**
- * 주간 청취 그래프(profile-uiux.md 4.6~4.7) — 월~일 7막대, 표시 중인 주의 최댓값 기준 상대 높이.
- * 막대에 수치 라벨을 상시 표시하지 않는다(좁은 7분할에 숫자가 겹친다) — 값은 막대 탭 시
- * 말풍선으로, 스크린리더에는 막대 라벨로 제공한다(개정 근거: changes/pending
- * profile-uiux-weekly-bar-tooltip). 주 이동의 판정(가입 주·이번 주)은 서버 토큰의 null 여부뿐이다.
- */
+/** P8/P9: 서버 주 경계·상대 높이를 유지하고 탭한 요일의 값을 보여준다. */
 export default function WeeklyChart({ weekly }: WeeklyChartProps) {
-  const { displayed, weekLabelStart } = weekly;
+  const { displayed, weekLabelStart, selectedBarIndex: selectedIndex } = weekly;
   const isEmptyWeek = displayed !== null && isWeekAllZero(displayed.dailyListenedSec);
   const ratios = displayed === null ? [] : toBarRatios(displayed.dailyListenedSec);
-
-  // 오늘 요일 라벨 강조는 이번 주에서만 의미가 있다(uiux 4.6). 서버가 이번 주임을 알려주고
-  // (nextWeekStart null), 요일 위치만 기기 시각으로 고른다 — 표기 전용이라 판정 금지에 걸리지 않는다
+  // 오늘 요일 강조에만 기기 달력을 쓴다. 주 이동은 서버 토큰으로 판정한다.
   const todayIndex =
     displayed !== null && displayed.nextWeekStart === null ? (new Date().getDay() + 6) % 7 : null;
-
-  /**
-   * 평균 기준선 — 막대와 같은 최댓값 스케일 위에 얹는다.
-   * 이번 주는 오늘까지만 분모로 쓴다(toDailyAverageSec) — 아직 오지 않은 요일을 나누면
-   * 주 초반에 평균이 실제보다 훨씬 낮게 찍힌다. 지난 주는 7일 전체다.
-   */
-  const elapsedDayCount = todayIndex === null ? DAYS_IN_WEEK : todayIndex + 1;
   const averageSec =
-    displayed === null ? 0 : toDailyAverageSec(displayed.dailyListenedSec, elapsedDayCount);
+    displayed === null
+      ? 0
+      : toDailyAverageSec(
+          displayed.dailyListenedSec,
+          todayIndex === null ? DAYS_IN_WEEK : todayIndex + 1,
+        );
   const maxSec = displayed === null ? 0 : Math.max(...displayed.dailyListenedSec, 0);
-  // 말풍선 실측 높이 — 최상단 막대에서도 그래프 영역 안에 머물게 하는 상한에 쓴다
-  const [tooltipHeight, setTooltipHeight] = useState(TOOLTIP_HEIGHT_FALLBACK);
-  const handleTooltipLayout = (event: LayoutChangeEvent) => {
-    const measured = Math.ceil(event.nativeEvent.layout.height);
-    if (measured > 0 && measured !== tooltipHeight) setTooltipHeight(measured);
-  };
-  // 전체 0인 주는 빈 상태로 빠지므로 선을 그릴 일이 없다
-  const averageRatio = maxSec === 0 ? null : Math.min(1, averageSec / maxSec);
+  const averageRatio = maxSec === 0 ? 0 : Math.min(1, averageSec / maxSec);
+  const [chartWidth, setChartWidth] = useState(0);
+  const [tooltipSize, setTooltipSize] = useState({ width: 0, height: ANNOTATION_MIN_HEIGHT });
+  const annotationHeight = Math.max(ANNOTATION_MIN_HEIGHT, tooltipSize.height) + theme.spacing.sm;
+  const selectedCenter = ((selectedIndex ?? 0) + 0.5) * (chartWidth / DAYS_IN_WEEK);
+  // 좁은 요일 칸 대신 말풍선 전체를 실측하고, 양 끝 요일도 카드 안에 담는다.
+  const tooltipLeft = Math.max(
+    theme.spacing.sm,
+    Math.min(
+      selectedCenter - tooltipSize.width / 2,
+      chartWidth - tooltipSize.width - theme.spacing.sm,
+    ),
+  );
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerRow}>
-        <Text style={styles.title}>{PROFILE_COPY.stats.weeklyTitle}</Text>
+      <Text style={styles.title} accessibilityRole="header">
+        {PROFILE_COPY.stats.weeklyTitle}
+      </Text>
+      <View style={styles.card}>
         <View style={styles.weekControls}>
           <ArrowButton
             direction="left"
-            a11yLabel={PROFILE_COPY.stats.prevWeekA11y}
-            enabled={weekly.canGoPrev}
+            enabled={weekly.canGoPrev && !weekly.isSwitching}
             onPress={weekly.goPrev}
           />
           <Text style={styles.weekRange}>
@@ -102,163 +93,219 @@ export default function WeeklyChart({ weekly }: WeeklyChartProps) {
           </Text>
           <ArrowButton
             direction="right"
-            a11yLabel={PROFILE_COPY.stats.nextWeekA11y}
-            enabled={weekly.canGoNext}
+            enabled={weekly.canGoNext && !weekly.isSwitching}
             onPress={weekly.goNext}
           />
         </View>
-      </View>
-
-      {weekly.hasSwitchError ? (
-        // 주 단위 조회 실패 — 그래프 자리만 인라인 에러, 요약·분포는 건드리지 않는다(uiux 4.7)
-        <View style={styles.stateBox}>
-          <Text style={styles.stateText}>{PROFILE_COPY.cardError}</Text>
-          <Pressable
-            style={styles.retryButton}
-            onPress={weekly.retrySwitch}
-            accessibilityRole="button"
-            accessibilityLabel={PROFILE_COPY.retry}
-          >
-            <Text style={styles.retryText}>{PROFILE_COPY.retry}</Text>
-          </Pressable>
-        </View>
-      ) : weekly.isSwitching || displayed === null ? (
-        // 주 이동 로딩 — 그래프 자리만 스켈레톤(uiux 4.7)
-        <View
-          style={[styles.stateBox, styles.skeletonBox]}
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-        />
-      ) : isEmptyWeek ? (
-        // 한 주 전체 0 — 그래프 대신 빈 상태 문구, 영역은 유지한다(uiux 4.6·4.8)
-        <View style={styles.stateBox}>
-          <Text style={styles.stateText}>{PROFILE_COPY.stats.emptyState}</Text>
-        </View>
-      ) : (
-        <View
-          style={styles.chartArea}
-          accessibilityLabel={`${PROFILE_COPY.stats.weeklyA11y(displayed.weekStart)}, ${PROFILE_COPY.stats.averageA11y(averageSec)}`}
-        >
-          <View style={styles.chartRow}>
-            {ratios.map((ratio, dayIndex) => {
-              const barHeight =
-                ratio === 0 ? ZERO_BAR_HEIGHT : Math.max(ratio * CHART_HEIGHT, ZERO_BAR_HEIGHT);
-              const isSelected = dayIndex === weekly.selectedBarIndex;
-              return (
-                <Pressable
-                  key={dayIndex}
-                  style={styles.barColumn}
-                  onPress={() => weekly.toggleBar(dayIndex)}
-                  accessible
-                  accessibilityRole="button"
-                  // 막대별 개별 읽기 — "화요일, 32분"(profile-uiux.md 7장). 라벨이 이미 값을 읽으므로
-                  // 말풍선은 보조기기에 별도 노출하지 않는다(4.6 개정)
-                  accessibilityLabel={PROFILE_COPY.stats.dayBarA11y(
-                    dayIndex,
-                    displayed.dailyListenedSec[dayIndex],
-                  )}
-                >
-                  <View style={styles.barTrack}>
-                    {isSelected ? (
-                      <View
-                        style={[
-                          styles.tooltip,
-                          // 막대 위에 붙이되 최상단 막대에서도 그래프 영역 안에 머문다
-                          { bottom: Math.min(barHeight + 4, CHART_HEIGHT - tooltipHeight) },
-                        ]}
-                        onLayout={handleTooltipLayout}
-                        accessibilityElementsHidden
-                        importantForAccessibility="no-hide-descendants"
-                      >
-                        <Text style={styles.tooltipText}>
-                          {PROFILE_COPY.stats.dayValue(displayed.dailyListenedSec[dayIndex])}
-                        </Text>
-                      </View>
-                    ) : null}
-                    <View
-                      style={[
-                        styles.bar,
-                        ratio === 0
-                          ? { height: ZERO_BAR_HEIGHT, backgroundColor: theme.color.border }
-                          : { height: barHeight },
-                        isSelected && styles.barSelected,
-                      ]}
-                    />
-                  </View>
-                  <Text style={[styles.dayName, dayIndex === todayIndex && styles.dayNameToday]}>
-                    {PROFILE_COPY.stats.dayNames[dayIndex]}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          {/* 평균 기준선 — 막대 위에 얹되 탭은 막대가 받는다. 값은 컨테이너 라벨이 읽으므로
-              이 층은 보조기기에서 제외한다 */}
-          {averageRatio !== null ? (
-            <View
-              style={[styles.averageLayer, { top: (1 - averageRatio) * CHART_HEIGHT }]}
-              pointerEvents="none"
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
+        {weekly.hasSwitchError ? (
+          <View style={styles.stateBox}>
+            <Text style={styles.stateText}>{PROFILE_COPY.cardError}</Text>
+            <Pressable
+              style={({ pressed }) => [styles.retryButton, pressed && styles.pressed]}
+              onPress={weekly.retrySwitch}
+              accessibilityRole="button"
+              accessibilityLabel={PROFILE_COPY.retry}
             >
-              <View style={styles.averageRule} />
-              <Text style={styles.averageLabel}>{PROFILE_COPY.stats.averageLabel(averageSec)}</Text>
+              <Text style={styles.retryText}>{PROFILE_COPY.retry}</Text>
+            </Pressable>
+          </View>
+        ) : weekly.isSwitching || displayed === null ? (
+          <View
+            style={styles.stateBox}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          >
+            <View style={styles.skeletonValue} />
+            <View style={styles.skeletonChart} />
+          </View>
+        ) : isEmptyWeek ? (
+          <View style={styles.stateBox}>
+            <Text style={styles.emptyValue}>{PROFILE_COPY.stats.dayValue(0)}</Text>
+            <Text style={styles.stateText}>{PROFILE_COPY.stats.emptyState}</Text>
+          </View>
+        ) : (
+          <>
+            <View
+              style={styles.summary}
+              accessible
+              accessibilityLabel={PROFILE_COPY.stats.averageA11y(averageSec)}
+            >
+              <View style={styles.summaryLabelRow}>
+                <View style={styles.averageKey} />
+                <Text style={styles.summaryLabel}>{PROFILE_COPY.stats.dailyAverageTitle}</Text>
+              </View>
+              <Text style={styles.summaryValue}>{PROFILE_COPY.stats.dayValue(averageSec)}</Text>
             </View>
-          ) : null}
-        </View>
-      )}
+            {/* 보통 화면은 7일을 한 번에, 좁은 화면은 스크롤로 44pt 터치 영역을 유지한다. */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.chartScrollContent}
+            >
+              <View
+                style={styles.chartArea}
+                onLayout={({ nativeEvent }) => setChartWidth(nativeEvent.layout.width)}
+                accessibilityLabel={PROFILE_COPY.stats.weeklyA11y(displayed.weekStart)}
+              >
+                <View
+                  pointerEvents="none"
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                  style={[styles.grid, { top: annotationHeight }]}
+                >
+                  {GRID_RATIOS.map((ratio) => (
+                    <View key={ratio} style={[styles.gridLine, { top: ratio * CHART_HEIGHT }]} />
+                  ))}
+                  <View style={[styles.averageRule, { top: (1 - averageRatio) * CHART_HEIGHT }]} />
+                </View>
+                <View style={styles.chartRow}>
+                  {ratios.map((ratio, dayIndex) => {
+                    const isSelected = dayIndex === selectedIndex;
+                    return (
+                      <Pressable
+                        key={dayIndex}
+                        style={styles.barColumn}
+                        onPress={() => weekly.toggleBar(dayIndex)}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: isSelected }}
+                        accessibilityLabel={PROFILE_COPY.stats.dayBarA11y(
+                          dayIndex,
+                          displayed.dailyListenedSec[dayIndex],
+                        )}
+                      >
+                        <View style={{ height: annotationHeight }} />
+                        <View style={styles.barTrack}>
+                          {isSelected ? <View style={styles.selectionRule} /> : null}
+                          <View
+                            style={[
+                              styles.bar,
+                              { height: Math.max(ratio * CHART_HEIGHT, ZERO_BAR_HEIGHT) },
+                              ratio === 0 && styles.zeroBar,
+                              selectedIndex !== null && !isSelected && styles.barMuted,
+                            ]}
+                          />
+                        </View>
+                        <View style={[styles.dayBadge, isSelected && styles.dayBadgeSelected]}>
+                          <Text
+                            style={[
+                              styles.dayName,
+                              dayIndex === todayIndex && styles.dayNameToday,
+                              isSelected && styles.dayNameSelected,
+                            ]}
+                          >
+                            {PROFILE_COPY.stats.dayNames[dayIndex]}
+                          </Text>
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                {selectedIndex !== null ? (
+                  <View
+                    pointerEvents="none"
+                    accessibilityElementsHidden
+                    importantForAccessibility="no-hide-descendants"
+                    style={[
+                      styles.tooltip,
+                      {
+                        transform: [{ translateX: tooltipLeft - theme.spacing.sm }],
+                        maxWidth: chartWidth > 0 ? chartWidth - theme.spacing.md : undefined,
+                        opacity: chartWidth > 0 ? 1 : 0,
+                      },
+                    ]}
+                    onLayout={({ nativeEvent: { layout } }) => {
+                      const width = Math.ceil(layout.width);
+                      const height = Math.ceil(layout.height);
+                      setTooltipSize((previous) =>
+                        previous.width === width && previous.height === height
+                          ? previous
+                          : { width, height },
+                      );
+                    }}
+                  >
+                    <Text style={styles.tooltipText}>
+                      {PROFILE_COPY.stats.dayBarA11y(
+                        selectedIndex,
+                        displayed.dailyListenedSec[selectedIndex],
+                      )}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            </ScrollView>
+          </>
+        )}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    paddingHorizontal: theme.spacing.md,
-    gap: theme.spacing.sm,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: theme.spacing.sm,
-    flexWrap: 'wrap',
-  },
-  title: {
-    fontSize: theme.font.size.md,
-    fontWeight: '600',
-    color: theme.color.textPrimary,
+  container: { paddingHorizontal: theme.spacing.md, gap: theme.spacing.sm },
+  title: { fontSize: theme.font.size.md, fontWeight: '600', color: theme.color.textPrimary },
+  card: {
+    borderRadius: theme.radius.xl,
+    borderCurve: 'continuous',
+    backgroundColor: theme.color.surface,
+    paddingVertical: theme.spacing.md,
   },
   weekControls: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
   },
   weekRange: {
-    fontSize: theme.font.size.xs,
-    color: theme.color.textSecondary,
-    minWidth: 110,
+    flex: 1,
+    fontSize: theme.font.size.sm,
+    fontWeight: '500',
+    color: theme.color.textPrimary,
     textAlign: 'center',
   },
   arrow: {
-    minHeight: theme.touchTarget.minHeight,
-    minWidth: theme.touchTarget.minWidth,
+    width: theme.touchTarget.minWidth,
+    height: theme.touchTarget.minHeight,
+    borderRadius: theme.radius.full,
+    borderCurve: 'continuous',
+    backgroundColor: theme.color.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  pressed: { opacity: 0.5 },
+  summary: {
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.lg,
+    gap: theme.spacing.xs,
+  },
+  summaryLabelRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
+  summaryLabel: { fontSize: theme.font.size.sm, color: theme.color.textSecondary, flexShrink: 1 },
+  summaryValue: {
+    fontSize: theme.font.size.xxl,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+    color: theme.color.textPrimary,
+  },
+  averageKey: {
+    width: theme.spacing.md,
+    borderTopWidth: 1,
+    borderColor: theme.color.textSecondary,
+    borderStyle: 'dashed',
+  },
   stateBox: {
-    height: CHART_HEIGHT + theme.spacing.lg,
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
+    minHeight: CHART_HEIGHT + ANNOTATION_MIN_HEIGHT + theme.spacing.xxl * 2,
+    padding: theme.spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
     gap: theme.spacing.sm,
   },
-  skeletonBox: {
-    opacity: 0.6,
-  },
   stateText: {
     fontSize: theme.font.size.sm,
+    color: theme.color.textSecondary,
+    textAlign: 'center',
+  },
+  emptyValue: {
+    fontSize: theme.font.size.xxl,
+    fontWeight: '600',
     color: theme.color.textSecondary,
   },
   retryButton: {
@@ -266,50 +313,51 @@ const styles = StyleSheet.create({
     minWidth: theme.touchTarget.minWidth,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
+    backgroundColor: theme.color.background,
   },
-  retryText: {
-    fontSize: theme.font.size.sm,
-    fontWeight: '600',
-    color: theme.color.primary,
+  retryText: { fontSize: theme.font.size.sm, fontWeight: '600', color: theme.color.primary },
+  skeletonValue: {
+    width: 120,
+    height: theme.font.size.xxl,
+    alignSelf: 'flex-start',
+    borderRadius: theme.radius.sm,
+    borderCurve: 'continuous',
+    backgroundColor: theme.color.border,
   },
-  chartArea: {
-    // 평균선을 막대 위에 절대 배치하기 위한 기준
-    position: 'relative',
+  skeletonChart: {
+    alignSelf: 'stretch',
+    height: CHART_HEIGHT,
+    marginTop: theme.spacing.lg,
+    borderRadius: theme.radius.sm,
+    borderCurve: 'continuous',
+    backgroundColor: theme.color.border,
   },
-  averageLayer: {
+  chartScrollContent: { flexGrow: 1 },
+  chartArea: { flex: 1, minWidth: DAYS_IN_WEEK * theme.touchTarget.minWidth },
+  grid: { position: 'absolute', left: theme.spacing.md, right: theme.spacing.md },
+  gridLine: {
     position: 'absolute',
     left: 0,
     right: 0,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.color.border,
   },
   averageRule: {
-    height: 1,
-    backgroundColor: theme.color.textSecondary,
-    // 막대(검정)와 배경(흰색) 어느 쪽 위에서도 읽히도록 중간 톤으로 낮춘다
-    opacity: 0.5,
-  },
-  averageLabel: {
     position: 'absolute',
+    left: 0,
     right: 0,
-    bottom: 3,
-    fontSize: theme.font.size.xs,
-    color: theme.color.textSecondary,
-    // 막대 위에 겹쳐도 글자가 묻히지 않게 배경을 깐다
-    backgroundColor: theme.color.background,
-    paddingHorizontal: 4,
+    borderTopWidth: 1,
+    borderColor: theme.color.textSecondary,
+    borderStyle: 'dashed',
   },
-  /**
-   * 칸 사이 간격을 두지 않는다 — 칸 전체가 막대의 탭 영역이라 간격만큼 44pt(design.md §6)가 깎인다.
-   * 360pt 화면에서 (360 − 32) ÷ 7 ≈ 47, 간격 4 를 두면 43 이었다. 막대 자체는 칸의 55% 라 시각 간격은 그대로다
-   */
-  chartRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-  },
+  chartRow: { flexDirection: 'row', alignItems: 'flex-end' },
   barColumn: {
     flex: 1,
+    minWidth: theme.touchTarget.minWidth,
     alignItems: 'center',
-    gap: theme.spacing.xs,
   },
   barTrack: {
     height: CHART_HEIGHT,
@@ -318,38 +366,50 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   bar: {
-    width: '55%',
+    width: '48%',
+    maxWidth: theme.spacing.xl,
     borderTopLeftRadius: theme.radius.sm,
     borderTopRightRadius: theme.radius.sm,
     borderCurve: 'continuous',
     backgroundColor: theme.color.primary,
   },
-  /** 선택 막대 강조 — 색이 아니라 테두리 형태 단서(색만으로 구분 금지) */
-  barSelected: {
-    borderWidth: 2,
-    borderColor: theme.color.textPrimary,
+  zeroBar: { backgroundColor: theme.color.border },
+  barMuted: { opacity: 0.24 },
+  selectionRule: {
+    position: 'absolute',
+    top: -theme.spacing.sm,
+    bottom: 0,
+    width: StyleSheet.hairlineWidth,
+    backgroundColor: theme.color.textSecondary,
   },
   tooltip: {
     position: 'absolute',
-    alignSelf: 'center',
-    zIndex: 1,
-    backgroundColor: theme.color.textPrimary,
-    borderRadius: theme.radius.sm,
+    top: 0,
+    left: theme.spacing.sm,
+    borderRadius: theme.radius.md,
     borderCurve: 'continuous',
+    backgroundColor: theme.color.background,
     paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs,
+    paddingVertical: theme.spacing.sm,
   },
   tooltipText: {
-    fontSize: theme.font.size.xs,
+    fontSize: theme.font.size.sm,
     fontWeight: '600',
-    color: theme.color.background,
-  },
-  dayName: {
-    fontSize: theme.font.size.xs,
-    color: theme.color.textSecondary,
-  },
-  dayNameToday: {
     color: theme.color.textPrimary,
-    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
+  dayBadge: {
+    marginTop: theme.spacing.sm,
+    minWidth: theme.spacing.xl,
+    minHeight: theme.spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing.xs,
+    borderRadius: theme.radius.full,
+    borderCurve: 'continuous',
+  },
+  dayBadgeSelected: { backgroundColor: theme.color.primary },
+  dayName: { fontSize: theme.font.size.xs, color: theme.color.textSecondary },
+  dayNameToday: { color: theme.color.textPrimary, fontWeight: '700' },
+  dayNameSelected: { color: theme.color.onPrimary, fontWeight: '600' },
 });
