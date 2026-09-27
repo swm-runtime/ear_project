@@ -11,8 +11,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
 import { theme } from '@/shared/theme';
+import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
-
 
 import { WITHDRAWAL_REASON_CODES } from '../auth.constants';
 import { AUTH_COPY } from '../auth.copy';
@@ -75,7 +75,7 @@ export default function WithdrawalScreen() {
           accessibilityRole="button"
           accessibilityLabel={COPY.backA11y}
         >
-          <Text style={styles.backGlyph}>‹</Text>
+          <ChevronIcon direction="left" size={BACK_ICON_SIZE} color={theme.color.textPrimary} />
         </Pressable>
         <Text style={styles.appBarTitle} accessibilityRole="header">
           {COPY.appBarTitle}
@@ -240,6 +240,9 @@ export default function WithdrawalScreen() {
   );
 }
 
+/** 앱바 뒤로 셰브론 — 글자 `‹` 는 폰트마다 굵기·세로 위치가 달라 도형으로 그린다(design.md §5) */
+const BACK_ICON_SIZE = 24;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -276,11 +279,6 @@ const styles = StyleSheet.create({
     minHeight: theme.touchTarget.minHeight,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  backGlyph: {
-    fontSize: theme.font.size.xl,
-    color: theme.color.textPrimary,
-    lineHeight: theme.font.size.xl + 2,
   },
   appBarTitle: {
     flex: 1,
