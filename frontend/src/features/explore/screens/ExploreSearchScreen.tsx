@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -6,11 +7,12 @@ import {
   StyleSheet,
   Text,
   View,
-} from 'react-native';
+ Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { useNativeHeaderInset } from '@/shared/navigation/useNativeHeaderInset';
-import { theme } from '@/shared/theme';
+import { motion, theme } from '@/shared/theme';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 import LargeTitleRow from '@/shared/ui/LargeTitleRow';
 
@@ -52,6 +54,31 @@ interface ExploreSearchScreenProps {
 
 export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenProps = {}) {
   const screen = useExploreSearchScreen(embedding);
+  /*
+   * 제자리 검색의 등장·퇴장(PM 2026-09-27 23:01 "검색창 누를 때 애니메이션") — 피드 자리에 최근 검색어·결과가 살짝 올라오며
+   * 나타나고(snappy 스프링, 네이티브 드라이버), 닫기면 반대로 가라앉으며 사라진 뒤 피드로 돌아간다. 스택 검색 화면은 그대로 1
+   */
+  const appear = useAnimatedValue(embedding ? 0 : 1);
+  const [isClosing, setIsClosing] = useState(false);
+  useEffect(() => {
+    if (!embedding) return;
+    Animated.spring(appear, { toValue: 1, ...motion.spring.snappy, useNativeDriver: true }).start();
+  }, [embedding, appear]);
+  const closeEmbedded = () => {
+    if (isClosing) return;
+    setIsClosing(true);
+    Animated.timing(appear, {
+      toValue: 0,
+      duration: motion.duration.fast,
+      easing: motion.easing.easeOut,
+      useNativeDriver: true,
+    }).start(() => screen.cancel());
+  };
+  const bodyMotion = {
+    flex: 1,
+    opacity: appear,
+    transform: [{ translateY: appear.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
+  };
   const miniInset = useBottomDockInset();
   const nativeBarInset = useNativeHeaderInset();
 
@@ -217,7 +244,8 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
                 <SearchToolbar
                   remaining={embedding.remaining}
                   onExhaustedPress={embedding.onExhaustedPress}
-                  onClose={screen.cancel}
+                  onClose={closeEmbedded}
+                  isOpen={!isClosing}
                 />
               ) : undefined
             }
@@ -239,14 +267,16 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
         />
       )}
 
-      {/* 검색 실패 — 이전 결과를 유지하고 상단 배너로 알린다(explore.md 7장). 한 번에 하나(uiux 5장) */}
-      {screen.errorBanner ? (
-        <View style={styles.errorBanner} accessibilityLiveRegion="polite">
-          <Text style={styles.errorBannerText}>{screen.errorBanner}</Text>
-        </View>
-      ) : null}
+      <Animated.View style={bodyMotion}>
+        {/* 검색 실패 — 이전 결과를 유지하고 상단 배너로 알린다(explore.md 7장). 한 번에 하나(uiux 5장) */}
+        {screen.errorBanner ? (
+          <View style={styles.errorBanner} accessibilityLiveRegion="polite">
+            <Text style={styles.errorBannerText}>{screen.errorBanner}</Text>
+          </View>
+        ) : null}
 
-      {renderBody()}
+        {renderBody()}
+      </Animated.View>
 
       {/* 미니플레이어(PL11) — 검색 화면에서도 유지된다(explore.md 4.5-1). iOS 26 갈래는 탭 안 스택이라 탭 바 액세서리가
           그대로 보인다(ExploreStack) — 직접 그리면 둘이 된다(02:07 PM "검색에 미니플레이어는 또 왜 보여"). 그 외는 직접 */}
