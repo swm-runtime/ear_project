@@ -3,7 +3,6 @@ import { useNavigation, type NavigationProp, type ParamListBase } from '@react-n
 import { createElement, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { Animated } from 'react-native';
 
-import CollapsedBarTitle from '@/shared/ui/CollapsedBarTitle';
 import GlassSearchButton from '@/shared/ui/GlassSearchButton';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 
@@ -14,8 +13,8 @@ interface SystemLargeTitleOptions {
   collapsedTitleSize?: number;
   /**
    * 스크롤해 큰 제목이 밀려나면 **작은 제목을 가운데**로 두고 **왼쪽에 유리 검색 버튼**을 띄운다(PM 2026-09-28 03:44).
-   * `.inline` 은 왼쪽 항목을 오버플로 메뉴로 치우고 작은 제목도 왼쪽에 두므로, 접힌 동안에는 큰 제목을 끄고(가운데 제목 =
-   * UIKit 기본) 왼쪽 항목을 건다. 맨 위로 돌아오면 큰 제목으로 되돌린다. 없으면 접힘 전환을 하지 않는다
+   * `.inline` 은 왼쪽 항목을 오버플로 메뉴로 치우고 작은 제목도 왼쪽에 두므로, 접힌 동안에는 `.always`(설정과 같은 모드)로
+   * 바꾸고 왼쪽 항목을 건다. 맨 위로 돌아오면 `.inline` 으로 되돌린다(runtime 29). 없으면 접힘 전환을 하지 않는다
    */
   collapse?: {
     /** 목록의 contentOffset.y(useFloatingHeaderScroll 의 것) */
@@ -65,11 +64,12 @@ export const useSystemLargeTitle = (
     target?.setOptions({
       title,
       // headerTitle 이 옵션에 있으면(PUSHED_SCREEN_HEADER 의 '') title 을 이긴다 — 같이 덮는다(09-28 03:25 설정 제목 빈칸)
-      // 접힌 동안은 페이드인하는 작은 제목(설정의 UIKit 접힘처럼, 04:15 PM). 펼친 동안은 문자열 — 큰 제목이 이 값을 쓴다
-      headerTitle: showSearch
-        ? () => createElement(CollapsedBarTitle, { title, fontSize: collapsedTitleSize })
-        : title,
-      headerLargeTitleEnabled: !showSearch,
+      headerTitle: title,
+      // 접힌 동안은 큰 제목을 끄지 않고 .always 로 바꾼다(patches/react-native-screens — largeTitleHideShadow 가 .always 신호).
+      // .always 여야 작은 제목이 가운데·왼쪽 버튼이 살고, 큰 제목 모드가 켜져 있어야 scroll edge 블러가 그려진다(04:29 PM
+      // "상단 blur 왜 사라졌어" — 종전엔 큰 제목을 꺼서 블러가 사라졌다). 작은 제목의 등장도 UIKit 접힘 그대로(설정과 같다)
+      headerLargeTitleEnabled: true,
+      headerLargeTitleShadowVisible: !showSearch,
       headerTitleStyle: { fontSize: collapsedTitleSize },
       unstable_headerLeftItems: () =>
         showSearch

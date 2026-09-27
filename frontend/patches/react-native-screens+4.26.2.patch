@@ -331,17 +331,21 @@ diff --git a/node_modules/react-native-screens/ios/RNSScreenStackHeaderConfig.mm
 index 1c84484..a28f2a3 100644
 --- a/node_modules/react-native-screens/ios/RNSScreenStackHeaderConfig.mm
 +++ b/node_modules/react-native-screens/ios/RNSScreenStackHeaderConfig.mm
-@@ -521,8 +521,13 @@ RNS_IGNORE_SUPER_CALL_END
+@@ -521,8 +521,17 @@ RNS_IGNORE_SUPER_CALL_END
    if (config.largeTitle) {
      navctr.navigationBar.prefersLargeTitles = YES;
    }
 -  navitem.largeTitleDisplayMode =
 -      config.largeTitle ? UINavigationItemLargeTitleDisplayModeAlways : UINavigationItemLargeTitleDisplayModeNever;
 +  // ear patch: iOS 26 에서 큰 제목은 .inline — 큰 제목이 바 줄에 앉고 오른쪽 바 버튼과 같은 줄(애플 뮤직 보관함).
-+  // .always 는 버튼 줄 밑에 큰 제목을 한 줄 더 둔다
++  // .always 는 버튼 줄 밑에 큰 제목을 한 줄 더 둔다. largeTitleHideShadow(JS headerLargeTitleShadowVisible=false)를
++  // .always 선택 신호로 빌려 쓴다 — 스크롤해 접힌 탭 바는 .always 라야 가운데 작은 제목·왼쪽 버튼·scroll edge 블러가
++  // 같이 산다(.inline 은 왼쪽 항목을 오버플로로 치우고, 큰 제목을 끄면 블러가 사라졌다 — 2026-09-28 04:29)
 +  UINavigationItemLargeTitleDisplayMode largeMode = UINavigationItemLargeTitleDisplayModeAlways;
 +  if (@available(iOS 26.0, *)) {
-+    largeMode = UINavigationItemLargeTitleDisplayModeInline;
++    if (!config.largeTitleHideShadow) {
++      largeMode = UINavigationItemLargeTitleDisplayModeInline;
++    }
 +  }
 +  navitem.largeTitleDisplayMode = config.largeTitle ? largeMode : UINavigationItemLargeTitleDisplayModeNever;
  #endif
