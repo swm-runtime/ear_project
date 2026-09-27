@@ -13,8 +13,14 @@ import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
  * 쓰도록 시스템 공유 유리를 끈다(hidesSharedBackground). 시스템 탭 바 갈래에서만 건다.
  *
  * @param onParent 바가 부모 내비게이터의 것일 때(탐색은 탭 안 스택)
+ * @param collapsedTitleSize 접힌(스크롤한) 작은 제목의 글자 크기 — 없으면 시스템 기본(17)
  */
-export const useSystemLargeTitle = (title: string, trailing: ReactNode, onParent = false): void => {
+export const useSystemLargeTitle = (
+  title: string,
+  trailing: ReactNode,
+  onParent = false,
+  collapsedTitleSize?: number,
+): void => {
   const navigation = useNavigation<NavigationProp<ParamListBase>>();
 
   useLayoutEffect(() => {
@@ -25,8 +31,9 @@ export const useSystemLargeTitle = (title: string, trailing: ReactNode, onParent
       // headerTitle 이 옵션에 있으면(PUSHED_SCREEN_HEADER 의 '') title 을 이긴다 — 같이 덮는다(09-28 03:25 설정 제목 빈칸)
       headerTitle: title,
       headerLargeTitleEnabled: true,
+      ...(collapsedTitleSize ? { headerTitleStyle: { fontSize: collapsedTitleSize } } : null),
       unstable_headerRightItems: () =>
         trailing ? [{ type: 'custom', element: trailing, hidesSharedBackground: true }] : [],
     } as object);
-  }, [navigation, title, trailing, onParent]);
+  }, [navigation, title, trailing, onParent, collapsedTitleSize]);
 };
