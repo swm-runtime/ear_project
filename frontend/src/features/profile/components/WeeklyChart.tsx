@@ -89,7 +89,7 @@ export default function WeeklyChart({ weekly }: WeeklyChartProps) {
               enabled={weekly.canGoPrev && !weekly.isSwitching}
               onPress={weekly.goPrev}
             />
-            <Text style={styles.weekRange}>
+            <Text style={styles.weekRange} numberOfLines={1}>
               {weekLabelStart === null ? '' : PROFILE_COPY.stats.weekRange(weekLabelStart)}
             </Text>
             <ArrowButton
@@ -266,14 +266,18 @@ const styles = StyleSheet.create({
   weekControls: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: theme.spacing.md,
+    // 화살표 글리프(16)는 44 터치 영역 가운데라 보이는 간격은 이보다 14 넓다 — 날짜 칸을 넓힌 만큼 여기서 줄인다
+    gap: theme.spacing.xs,
     flexShrink: 0,
     maxWidth: '100%',
   },
+  // 가장 긴 주("10월 26일 – 11월 1일")도 한 줄에 — 110 에서는 접혔다(PM 2026-09-28 00:14). 폭 고정은 주를 넘길 때
+  // 화살표가 좌우로 뛰지 않게 하려는 것
   weekRange: {
-    width: 110,
-    minWidth: 110,
+    width: 140,
+    minWidth: 140,
     flexShrink: 1,
+    fontVariant: ['tabular-nums'],
     fontSize: theme.font.size.xs,
     fontWeight: '500',
     color: theme.color.textPrimary,
