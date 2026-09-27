@@ -110,8 +110,11 @@ export default function PlayerScreen() {
   const scriptSegments = scriptQuery.data ?? null;
   const isScriptAvailable = hasScript && !(scriptSegments !== null && scriptSegments.length === 0);
   // 재생 목록 — 바닥 서랍이 연다(2026-09-16, 스크립트와 자리 교환). 목록 = 라이브러리 첫 페이지(브리지),
-  // 열었을 때만 조회한다. 손잡이는 항상 있다 — 라이브러리는 언제나 있으므로
-  const queueQuery = useQueueQuery(screen.activePanel === 'queue');
+  // 열었을 때만 조회한다. 손잡이는 항상 있다 — 라이브러리는 언제나 있으므로.
+  // **요청은 시트가 앉은 뒤에 보낸다**(PM 2026-09-27 23:37 "여전히 렉거림") — 매번 새로 받는데(staleTime 0) 응답이
+  // 보통 스프링 중간에 도착해 화면 전체 재렌더가 모션 프레임을 밀었다. 대본 요청(isScriptSettled)과 같은 장치다.
+  // 모션 동안은 받아 둔 목록이 그대로 보이고, 처음 여는 경우만 스피너가 한 요청만큼 더 돈다
+  const queueQuery = useQueueQuery(screen.activePanel === 'queue' && isQueueSettled);
   // 사용자가 손잡이로 바꾼 순서를 기기에 저장해 두고 받아 온 목록 위에 입힌다(2026-09-18)
   const queueOrder = useQueueOrder(queueQuery.data ?? EMPTY_QUEUE);
   const queueItems = queueOrder.orderedItems;
