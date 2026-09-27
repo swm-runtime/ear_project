@@ -137,14 +137,6 @@ function WeekBody({
       </View>
     );
   }
-  const axisLabels = [
-    { key: 'max', top: 0, text: PROFILE_COPY.stats.dayValue(view.maxSec) },
-    { key: 'average', top: view.averageTop, text: PROFILE_COPY.stats.axisAverage },
-    { key: 'zero', top: CHART_HEIGHT, text: PROFILE_COPY.stats.axisZero },
-  ].filter(
-    (label) =>
-      label.key === 'average' || Math.abs(label.top - view.averageTop) >= AXIS_LABEL_HEIGHT,
-  );
   return (
     <>
       {/* 보통 화면은 7일을 한 번에, 좁은 화면은 스크롤로 44pt 터치 영역을 유지한다. */}
@@ -178,26 +170,6 @@ function WeekBody({
             ))}
             <View style={[styles.averageRule, { top: view.averageTop }]} />
           </View>
-          <View
-            pointerEvents="none"
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-            style={[styles.axis, { top: annotationHeight }]}
-          >
-            {axisLabels.map((label) => (
-              <Text
-                key={label.key}
-                numberOfLines={1}
-                style={[
-                  styles.axisLabel,
-                  label.key === 'average' && styles.axisLabelAverage,
-                  { top: label.top - AXIS_LABEL_HEIGHT / 2 },
-                ]}
-              >
-                {label.text}
-              </Text>
-            ))}
-          </View>
           <View style={styles.chartRow}>
             {view.ratios.map((ratio, dayIndex) => {
               const isSelected = dayIndex === selectedIndex;
@@ -206,7 +178,8 @@ function WeekBody({
                   <View style={{ height: annotationHeight }} />
                   <View style={styles.barTrack}>
                     {/* 세로 격자 — 요일 칸 경계. 첫 칸은 왼쪽 선 대신 가로 격자가 끝난다 */}
-                    {dayIndex > 0 ? <View style={styles.columnRule} /> : null}
+                    {/* 첫 칸도 긋는다 — 주 경계가 요일 경계와 같은 선이라 옆 주와 한 줄로 이어진다 */}
+                    <View style={styles.columnRule} />
                     {isSelected ? <View style={styles.selectionRule} /> : null}
                     <View
                       style={[
@@ -323,18 +296,44 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
   });
   const swipeX = useAnimatedValue(0);
   const pagerX = useMemo(() => Animated.add(swipeX, -pageWidth), [swipeX, pageWidth]);
-  // 표시 주(라벨)가 바뀌면 — 스와이프 도착 · 화살표 · 이동 실패 모두 — 줄을 가운데로. 그리기 전에 해야 한 프레임도 안 튄다
+  /*
+   * 오른쪽 축(최대·평균·0)은 **넘김 구획 밖 고정 칸**이다(PM 2026-09-28 03:36 "도표가 이어져 있는 것처럼, 평균·0 은 나중에
+   * 생기게") — 주마다 축 칸이 붙어 있으면 옆 주 사이에 틈이 생겼다. 끌기 시작하면 사라지고, 새 주(또는 제자리)에
+   * 앉은 뒤 조금 늦게 나타난다 — 축 값은 주마다 다르므로 미끄러지는 동안 옛 값이 새 막대 옆에 있으면 안 된다
+   */
+  const axisFade = useAnimatedValue(1);
+  const hideAxis = () =>
+    Animated.timing(axisFade, {
+      toValue: 0,
+      duration: motion.duration.fast / 2,
+      useNativeDriver: true,
+    }).start();
+  const showAxis = () =>
+    Animated.timing(axisFade, {
+      toValue: 1,
+      duration: motion.duration.normal,
+      delay: motion.duration.fast,
+      useNativeDriver: true,
+    }).start();
+  // 표시 주(라벨)가 바뀌면 — 스와이프 도착 · 화살표 · 이동 실패 모두 — 줄을 가운데로. 그리기 전에 해야 한 프레임도 안 튄다.
+  // 조회 중이면 축을 숨겨 두고, 자리 잡으면(조회 끝 포함) 늦게 나타낸다
   useLayoutEffect(() => {
     swipeX.stopAnimation();
     swipeX.setValue(0);
-  }, [weekLabelStart, swipeX]);
+    if (weekly.isSwitching) axisFade.setValue(0);
+    else showAxis();
+    // showAxis 는 매 렌더 새로 만들어지지만 값(axisFade)만 쓴다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekLabelStart, weekly.isSwitching, swipeX, axisFade]);
   const settleSwipe = (velocity = 0) =>
     Animated.spring(swipeX, {
       toValue: 0,
       velocity,
       ...motion.spring.snappy,
       useNativeDriver: true,
-    }).start();
+    }).start(({ finished }) => {
+      if (finished) showAxis();
+    });
   const turnWeek = (direction: 'prev' | 'next', velocity = 0) => {
     const width = pageWidthRef.current;
     const go = () => {
@@ -346,6 +345,7 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
       go();
       return;
     }
+    hideAxis();
     Animated.spring(swipeX, {
       toValue: direction === 'prev' ? width : -width,
       velocity,
@@ -362,9 +362,9 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
       go();
     });
   };
-  const swipeActionsRef = useRef({ settleSwipe, turnWeek });
+  const swipeActionsRef = useRef({ settleSwipe, turnWeek, hideAxis });
   useEffect(() => {
-    swipeActionsRef.current = { settleSwipe, turnWeek };
+    swipeActionsRef.current = { settleSwipe, turnWeek, hideAxis };
   });
   const swipeResponder = useMemo(
     () =>
@@ -381,7 +381,10 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
           Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.5,
         // 잡은 뒤에는 세로 스크롤 뷰가 가져가지 못하게 한다 — 가로로 판정된 끌기다
         onPanResponderTerminationRequest: () => false,
-        onPanResponderGrant: () => swipeX.stopAnimation(),
+        onPanResponderGrant: () => {
+          swipeX.stopAnimation();
+          swipeActionsRef.current.hideAxis();
+        },
         onPanResponderMove: (_, gesture) => {
           const current = weeklyRef.current;
           const canFollow =
@@ -410,13 +413,28 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
    */
   const [chartViewportWidth, setChartViewportWidth] = useState(0);
   const needsChartScroll =
-    chartViewportWidth > 0 &&
-    chartViewportWidth < DAYS_IN_WEEK * theme.touchTarget.minWidth + AXIS_WIDTH;
+    chartViewportWidth > 0 && chartViewportWidth < DAYS_IN_WEEK * theme.touchTarget.minWidth;
   const [tooltipSize, setTooltipSize] = useState({ width: 0, height: ANNOTATION_MIN_HEIGHT });
   const annotationHeight = Math.max(ANNOTATION_MIN_HEIGHT, tooltipSize.height) + theme.spacing.sm;
   // 막대 칸 폭 = 차트 폭 − 오른쪽 축
-  const selectedCenter =
-    ((selectedIndex ?? 0) + 0.5) * (Math.max(0, chartWidth - AXIS_WIDTH) / DAYS_IN_WEEK);
+  const selectedCenter = ((selectedIndex ?? 0) + 0.5) * (chartWidth / DAYS_IN_WEEK);
+  // 축은 가운데 주가 그래프로 보일 때만 — 조회 중·실패·빈 주에는 비운다
+  const axisView =
+    displayed !== null && !weekly.isSwitching && !weekly.hasSwitchError
+      ? toWeekView(displayed)
+      : null;
+  const axisLabels =
+    axisView === null || axisView.isEmpty
+      ? []
+      : [
+          { key: 'max', top: 0, text: PROFILE_COPY.stats.dayValue(axisView.maxSec) },
+          { key: 'average', top: axisView.averageTop, text: PROFILE_COPY.stats.axisAverage },
+          { key: 'zero', top: CHART_HEIGHT, text: PROFILE_COPY.stats.axisZero },
+        ].filter(
+          (label) =>
+            label.key === 'average' ||
+            Math.abs(label.top - axisView.averageTop) >= AXIS_LABEL_HEIGHT,
+        );
   // 좁은 요일 칸 대신 말풍선 전체를 실측하고, 양 끝 요일도 카드 안에 담는다.
   const tooltipLeft = Math.max(
     theme.spacing.sm,
@@ -542,36 +560,58 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
             </Text>
           </View>
         )}
-        <View
-          style={styles.pager}
-          onLayout={({ nativeEvent }) => setPageWidth(nativeEvent.layout.width)}
-        >
-          {pageWidth === 0 ? (
-            current
-          ) : (
-            <Animated.View
-              style={[
-                styles.pagerRow,
-                { width: pageWidth * 3, transform: [{ translateX: pagerX }] },
-              ]}
-            >
-              <View
-                style={{ width: pageWidth }}
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
+        <View style={styles.chartStrip}>
+          <View
+            style={styles.pager}
+            onLayout={({ nativeEvent }) => setPageWidth(nativeEvent.layout.width)}
+          >
+            {pageWidth === 0 ? (
+              current
+            ) : (
+              <Animated.View
+                style={[
+                  styles.pagerRow,
+                  { width: pageWidth * 3, transform: [{ translateX: pagerX }] },
+                ]}
               >
-                {renderNeighbor(weekly.prevWeek, weekly.canGoPrev)}
-              </View>
-              <View style={{ width: pageWidth }}>{current}</View>
-              <View
-                style={{ width: pageWidth }}
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
+                <View
+                  style={{ width: pageWidth }}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                >
+                  {renderNeighbor(weekly.prevWeek, weekly.canGoPrev)}
+                </View>
+                <View style={{ width: pageWidth }}>{current}</View>
+                <View
+                  style={{ width: pageWidth }}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                >
+                  {renderNeighbor(weekly.nextWeek, weekly.canGoNext)}
+                </View>
+              </Animated.View>
+            )}
+          </View>
+          <Animated.View
+            pointerEvents="none"
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            style={[styles.axis, { opacity: axisFade }]}
+          >
+            {axisLabels.map((label) => (
+              <Text
+                key={label.key}
+                numberOfLines={1}
+                style={[
+                  styles.axisLabel,
+                  label.key === 'average' && styles.axisLabelAverage,
+                  { top: annotationHeight + label.top - AXIS_LABEL_HEIGHT / 2 },
+                ]}
               >
-                {renderNeighbor(weekly.nextWeek, weekly.canGoNext)}
-              </View>
-            </Animated.View>
-          )}
+                {label.text}
+              </Text>
+            ))}
+          </Animated.View>
         </View>
         {footer}
       </View>
@@ -683,13 +723,9 @@ const styles = StyleSheet.create({
     backgroundColor: theme.color.border,
   },
   chartScrollContent: { flexGrow: 1 },
-  chartArea: { flex: 1, minWidth: DAYS_IN_WEEK * theme.touchTarget.minWidth + AXIS_WIDTH },
-  // 격자는 막대 칸 왼쪽 여백부터 축 글자 바로 앞까지
-  grid: {
-    position: 'absolute',
-    left: theme.spacing.md,
-    right: AXIS_WIDTH - theme.spacing.xs,
-  },
+  chartArea: { flex: 1, minWidth: DAYS_IN_WEEK * theme.touchTarget.minWidth },
+  // 격자는 칸 끝에서 끝까지 — 옆 주 칸의 선과 이어진다
+  grid: { position: 'absolute', left: 0, right: 0 },
   gridLine: {
     position: 'absolute',
     left: 0,
@@ -706,19 +742,18 @@ const styles = StyleSheet.create({
     width: 1,
     backgroundColor: GRID_COLUMN_COLOR,
   },
-  // 스와이프 페이지 — 카드 폭만 보이고 양옆 주는 잘린다
-  pager: { overflow: 'hidden' },
+  // [넘김 구획 | 고정 축] — 넘김 구획은 카드 왼쪽 여백부터 축 앞까지만 보이고 양옆 주는 잘린다
+  chartStrip: { flexDirection: 'row', paddingLeft: theme.spacing.md },
+  pager: { flex: 1, overflow: 'hidden' },
   pagerRow: { flexDirection: 'row', alignItems: 'flex-start' },
   axis: {
-    position: 'absolute',
-    right: theme.spacing.md,
-    width: AXIS_WIDTH - theme.spacing.md,
-    height: CHART_HEIGHT,
+    width: AXIS_WIDTH,
+    paddingRight: theme.spacing.md,
   },
   axisLabel: {
     position: 'absolute',
-    left: 0,
-    right: 0,
+    left: theme.spacing.xs,
+    right: theme.spacing.md,
     height: AXIS_LABEL_HEIGHT,
     lineHeight: AXIS_LABEL_HEIGHT,
     fontSize: 11,
@@ -734,7 +769,7 @@ const styles = StyleSheet.create({
     borderColor: theme.color.textSecondary,
     borderStyle: 'dashed',
   },
-  chartRow: { flexDirection: 'row', alignItems: 'flex-end', marginRight: AXIS_WIDTH },
+  chartRow: { flexDirection: 'row', alignItems: 'flex-end' },
   barColumn: {
     flex: 1,
     minWidth: theme.touchTarget.minWidth,
