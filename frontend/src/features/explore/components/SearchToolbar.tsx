@@ -32,19 +32,17 @@ export default function SearchToolbar({
   onClose,
   isOpen = true,
 }: SearchToolbarProps) {
-  // 들어올 때만 닫기 칸의 폭이 0 → 44 로 자란다(레이아웃이라 JS 드라이버). 나갈 때는 폭을 건드리지 않고 ✕ 만 네이티브로
-  // 페이드아웃한다 — 폭 애니메이션이 닫힘 순간의 JS 작업과 겹쳐 끊겼다(PM 2026-09-27 23:12 "x 누를 때 렉")
+  // 닫기 칸의 폭 0 ↔ 44 — 들어올 때 링 옆에서 자라나고, 나갈 때 링 쪽으로 **줄어들며 합쳐진다**(PM 2026-09-27 23:27 "알약이
+  // 합쳐지는 애니메이션"). 레이아웃이라 JS 드라이버 — 피드를 다시 그리지 않게 된 뒤(#849)라 닫힘에도 끊기지 않는다
   const open = useAnimatedValue(0);
   const fade = useAnimatedValue(0);
   useEffect(() => {
-    if (isOpen) {
-      Animated.spring(open, {
-        toValue: 1,
-        ...motion.spring.snappy,
-        overshootClamping: true,
-        useNativeDriver: false,
-      }).start();
-    }
+    Animated.spring(open, {
+      toValue: isOpen ? 1 : 0,
+      ...motion.spring.snappy,
+      overshootClamping: true,
+      useNativeDriver: false,
+    }).start();
     Animated.timing(fade, {
       toValue: isOpen ? 1 : 0,
       duration: motion.duration.fast,
