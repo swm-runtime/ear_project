@@ -90,11 +90,9 @@ export default function LibraryScreen() {
   // 시스템 탭 갈래(바 없음) — 스크롤 뷰가 아닌 상태 화면(스켈레톤·에러)은 상태 바만 비운다
   const nativeBarInset = useNativeHeaderInset();
   // 맨 위에서는 머리 줄 컨트롤이 면, 내리면 유리(PM 2026-09-25)
-  const { solidness, scrollY, scrollProps } = useFloatingHeaderScroll();
+  const { solidness, scrollProps } = useFloatingHeaderScroll();
   // 머리 줄(JS 탭 바 갈래)의 루트 ref — 종전 시스템 edge effect 연결용, 지금은 FloatingHeader 가 요구만 한다
-  // 접힌 바의 검색 버튼이 부르는 "맨 위로" — 목록 첫 줄의 검색 필드가 드러난다
-  const scrollToTopRef = useRef<(() => void) | null>(null);
-  const listRef = useTabScrollToTop({ topInset: nativeBarInset, controlRef: scrollToTopRef });
+  const listRef = useTabScrollToTop({ topInset: nativeBarInset });
   const headerRef = useRef<View>(null);
 
   /*
@@ -139,14 +137,9 @@ export default function LibraryScreen() {
   );
   // 시스템 바 갈래 — **시스템 큰 제목**(iOS 26 .inline): 큰 제목과 툴바가 바 줄에 같이 앉고, 스크롤하면 제목이 바에 접히며
   // 바 밑 블러는 시스템이 그린다(PM 2026-09-28 "애플에서 기본적으로 제공하는거로"). 콘텐츠 안 제목 줄(LargeTitleRow)은 안 그린다
-  // 내리면 가운데 작은 제목 + 왼쪽 유리 검색 버튼(PM 2026-09-28 03:44) — 누르면 맨 위(검색 필드)로
-  useSystemLargeTitle(LIBRARY_COPY.tabTitle, toolbar, {
-    collapse: {
-      scrollY,
-      onSearch: () => scrollToTopRef.current?.(),
-      searchLabel: LIBRARY_COPY.search.placeholder,
-    },
-  });
+  // 내렸을 때 모드 전환(가운데 제목·왼쪽 검색 버튼)은 걷었다 — 스크롤 중 큰 제목 모드를 바꾸면 큰 제목이 콘텐츠 위에 다시
+  // 펼쳐지고 블러가 깨졌다(PM 2026-09-28 04:49 rt 29 실기기). .inline 그대로 두면 블러·접힘은 시스템이 한다
+  useSystemLargeTitle(LIBRARY_COPY.tabTitle, toolbar);
 
   // 시스템 바 갈래에서 조건 요약·배너는 목록의 첫 줄이다 — 목록과 같이 스크롤한다
   const filterSummary = showTabBar ? (
