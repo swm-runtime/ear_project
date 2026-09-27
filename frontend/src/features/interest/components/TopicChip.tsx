@@ -148,6 +148,7 @@ const styles = StyleSheet.create({
     flexBasis: '40%',
     // 알약 — 사진·오버레이 클리핑은 여기서 한 번만 한다
     borderRadius: theme.radius.full,
+    borderCurve: 'continuous',
     overflow: 'hidden',
     /*
      * 배경 사진의 가로세로비에 맞춘 높이다. 주제 사진은 전부 800x320(2.50:1)이고

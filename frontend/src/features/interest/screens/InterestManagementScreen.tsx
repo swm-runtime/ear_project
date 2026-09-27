@@ -291,6 +291,7 @@ const styles = StyleSheet.create({
     flexBasis: '40%',
     height: theme.touchTarget.minHeight + theme.spacing.md,
     borderRadius: theme.radius.full,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
   },
   dock: {
