@@ -89,7 +89,10 @@ export default function ExploreScreen() {
     return (
       <ExploreSearchScreen
         embedding={{
-          titleTrailing: remainingRing,
+          remaining: screen.remainingDisplay
+            ? { remaining: screen.remainingDisplay.remaining, limit: screen.remainingDisplay.limit }
+            : null,
+          onExhaustedPress: () => screen.openPaywall('explore'),
           onExit: () => setIsSearching(false),
           onOpenTopic: (topicId) => {
             screen.clearTopicFilter();

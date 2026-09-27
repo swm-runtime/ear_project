@@ -50,8 +50,12 @@ const isNetworkError = (error: unknown): boolean =>
 export interface ExploreSearchEmbedding {
   onExit: () => void;
   onOpenTopic: (topicId: string) => void;
-  /** 제목 줄 오른쪽 — 피드와 같은 잔여 재생 링(PM 2026-09-27 22:36 "검색할 때도 몇 회 남았는지"). 닫기 ✕는 그 옆에 붙는다 */
-  titleTrailing?: import('react').ReactNode;
+  /**
+   * 제목 줄 오른쪽 캡슐의 잔여 재생 링(PM 2026-09-27 22:36 "검색할 때도 몇 회 남았는지") — 닫기 ✕ 와 한 캡슐(22:53 "두 알약 합쳐").
+   * null 이면 링 칸 없이 닫기만
+   */
+  remaining: { remaining: number; limit: number } | null;
+  onExhaustedPress: () => void;
 }
 
 export const useExploreSearchScreen = (embedding?: ExploreSearchEmbedding) => {
