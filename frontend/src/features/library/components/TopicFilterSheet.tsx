@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+
+import { topicImageSource } from '@/features/interest';
 
 import { LIBRARY_COPY } from '../library.copy';
 import type { LibraryFilter, LibrarySourceFilter, LibraryTopic } from '../library.types';
@@ -117,13 +119,21 @@ export default function TopicFilterSheet({
               return (
                 <Pressable
                   key={topic.id}
-                  style={[styles.chip, isSelected && styles.chipSelected]}
+                  style={styles.topicChip}
                   onPress={() => toggle(topic.id)}
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: isSelected }}
                   accessibilityLabel={topic.name}
                 >
-                  <Text style={[styles.chipLabel, isSelected && styles.chipLabelSelected]}>
+                  {/* 주제 칩은 사진 알약이다(design.md 주제 칩 — 온보딩·탐색과 같은 문법, PM 2026-09-27 19:31).
+                      선택은 짙어진 막 — 상태·출처 칩은 주제가 아니라 사진이 없으므로 종전 테두리 알약 그대로다 */}
+                  <Image
+                    source={topicImageSource(topic.name)}
+                    resizeMode="cover"
+                    style={styles.topicPhoto}
+                  />
+                  <View style={[styles.topicOverlay, isSelected && styles.topicOverlaySelected]} />
+                  <Text style={styles.topicChipLabel} numberOfLines={1}>
                     {topic.name}
                   </Text>
                 </Pressable>
@@ -233,6 +243,51 @@ const styles = StyleSheet.create({
   chipLabelSelected: {
     color: theme.color.primary,
     fontWeight: '700',
+  },
+  /*
+   * 주제 칩 — 사진 알약(design.md 주제 칩). 위 `chip`(상태·출처)과 구조가 다르다: 클리핑은 알약이 한 번만 하고,
+   * **칩에 패딩을 주지 않는다**(사진의 `100%` 가 콘텐츠 박스로 풀려 가장자리에 배경이 드러난다) — 좌우 여백은 라벨이 갖는다
+   */
+  topicChip: {
+    minHeight: theme.touchTarget.minHeight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: theme.radius.xl,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
+  },
+  /** 사진 — inset 과 퍼센트 크기를 함께 준다(웹은 inset 만으로 원본 800×320 이 남는다) */
+  topicPhoto: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+  },
+  topicOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.34)',
+  },
+  /** 선택 — 막만 짙어진다(온보딩·탐색 칩과 같은 토큰) */
+  topicOverlaySelected: {
+    backgroundColor: theme.color.photoScrim,
+  },
+  topicChipLabel: {
+    // 칩이 아니라 라벨이 좌우 여백을 갖는다 — 위 topicChip 주석 참고
+    paddingHorizontal: theme.spacing.md,
+    fontSize: theme.font.size.sm,
+    // 선택 여부와 무관하게 굵기를 고정한다 — 굵히면 칩 폭이 변해 뒤 칩들이 밀린다
+    fontWeight: '700',
+    color: theme.color.onPrimary,
+    textShadowColor: theme.color.photoTextShadow,
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   buttonRow: {
     flexDirection: 'row',
