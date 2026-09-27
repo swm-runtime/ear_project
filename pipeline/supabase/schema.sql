@@ -145,9 +145,11 @@ create table if not exists public.jobs (
   parent_job_id uuid references public.jobs(id),
   result jsonb,
   error text,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  activity_at timestamptz generated always as (coalesce(finished_at, started_at, created_at)) stored  -- 0026: 마지막 활동 시각 — 콘솔 목록 정렬
 );
 create index if not exists jobs_queue_idx on public.jobs (status, requires_ai, created_at);
+create index if not exists jobs_activity_idx on public.jobs (activity_at desc);
 create index if not exists jobs_payload_backlog_idx on public.jobs ((payload->>'backlog_id'));
 alter table public.jobs enable row level security;
 

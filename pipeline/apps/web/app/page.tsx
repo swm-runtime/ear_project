@@ -7,8 +7,9 @@ import { fmtTime, fmtDuration, fmtTokens, fmtUsd, label } from "@/lib/format";
 
 export default async function Dashboard() {
   const sb = await supabaseServer();
+  // jobs 는 마지막 활동 순 (0026 activity_at)
   const [{ data: jobs }, { data: runs }, { data: backlog }, { data: eps }] = await Promise.all([
-    sb.from("jobs").select("id,type,status,attempt,requires_ai,payload,progress,claimed_by,heartbeat_at,started_at,created_at,finished_at,error").order("created_at", { ascending: false }).limit(25),
+    sb.from("jobs").select("id,type,status,attempt,requires_ai,payload,progress,claimed_by,heartbeat_at,started_at,created_at,finished_at,error").order("activity_at", { ascending: false }).limit(25),
     sb.from("runs").select("phase,attempt,backlog_id,result,model,executed_by,executed_at,cost_usd,tokens").order("executed_at", { ascending: false }).limit(6),
     sb.from("backlog").select("id,title,status"),
     sb.from("episodes").select("id,backlog_id,critic_report_key,critic_verdicts"),

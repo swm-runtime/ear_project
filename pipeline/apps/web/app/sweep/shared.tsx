@@ -11,7 +11,7 @@ export async function loadSweepData(kind: SweepKind) {
   const types = kind === "cluster" ? ["cluster"] : ["sweep"];
   const [{ data: topics }, { data: jobs }, { data: runs }] = await Promise.all([
     sb.from("topics").select("*"),
-    sb.from("jobs").select("id,type,status,attempt,payload,progress,claimed_by,created_at,finished_at,result,error").in("type", types).order("created_at", { ascending: false }).limit(60),
+    sb.from("jobs").select("id,type,status,attempt,payload,progress,claimed_by,created_at,finished_at,result,error").in("type", types).order("activity_at", { ascending: false }).limit(60), // 마지막 활동 순 (0026)
     sb.from("runs").select("phase,result,executed_at,executed_by").in("phase", types).order("executed_at", { ascending: false }).limit(30),
   ]);
   const mids = (topics ?? []).filter((t: any) => t.ai_generation && t.active !== false).map((t: any) => t.mid as string).sort();
