@@ -266,6 +266,8 @@ export default function SettingsScreen() {
         }}
         primaryAction={{
           label: SETTINGS_COPY.account.logoutConfirm,
+          // 파괴적 확인 — 채운 빨강(PM 2026-09-28 00:15). 취소는 연한 면 그대로다
+          isDestructive: true,
           onPress: screen.confirmLogout,
           disabled: screen.isLoggingOut,
         }}
