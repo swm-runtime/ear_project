@@ -127,11 +127,8 @@ export default function ExploreScreen() {
     ) : null;
   }, [isSearching, isClosingSearch, remainingValue, remainingLimit]);
   // 바는 탭 화면(ExploreStack 의 부모)의 것
-  // 설정과 같은 .always 큰 제목(04:57 PM) — 접히면 가운데 작은 제목 + 왼쪽 유리 검색 버튼(누르면 제자리 검색)
-  useSystemLargeTitle(EXPLORE_COPY.tabTitle, barTrailing, {
-    onParent: true,
-    collapse: { onSearch: () => setIsSearching(true), searchLabel: EXPLORE_COPY.search.placeholder },
-  });
+  // 내렸을 때 모드 전환은 걷었다(04:49 rt 29 실기기 — 큰 제목이 콘텐츠 위에 다시 펼쳐짐). .inline 그대로
+  useSystemLargeTitle(EXPLORE_COPY.tabTitle, barTrailing, { onParent: true });
 
   /*
    * 제자리 검색은 피드 **위에 덮는다** — 피드는 밑에 그대로 둬서 닫을 때 다시 그릴 게 없다(23:12 PM "x 누를 때 렉" — 종전엔
