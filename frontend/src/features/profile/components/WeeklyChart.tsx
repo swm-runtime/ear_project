@@ -16,7 +16,12 @@ interface WeeklyChartProps {
 const CHART_HEIGHT = 144;
 const ZERO_BAR_HEIGHT = 3;
 const DAYS_IN_WEEK = 7;
-const ANNOTATION_MIN_HEIGHT = 44;
+/**
+ * 막대 위 말풍선 자리의 **최소** 높이 — 실제 높이는 실측값이 이긴다(`annotationHeight`). 말풍선은 14pt 글자 +
+ * 위아래 8 여백이라 34 안팎이므로 44 는 10 넘게 과하게 비웠고, 아무 막대도 고르지 않은 기본 상태에서는 그 자리가
+ * 그냥 빈 공간으로 보였다(PM 2026-09-28 01:28 "하루 청취 시간 아래 공백이 많다"). 실측이 더 크면(200% 글꼴) 그 값을 쓴다
+ */
+const ANNOTATION_MIN_HEIGHT = 32;
 const GRID_RATIOS = [0, 0.5, 1] as const;
 /** 주 이동 화살표 원 — 보이는 크기만 줄이고 터치는 hitSlop 으로 44 를 지킨다(PM 2026-09-28 00:32 "버튼 크기 줄이자") */
 const ARROW_SIZE = 28;
