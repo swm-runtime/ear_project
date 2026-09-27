@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
-import ChevronIcon from '@/shared/ui/ChevronIcon';
+import ChevronIcon, { chevronTrailingGutter } from '@/shared/ui/ChevronIcon';
 
 import { SETTINGS_COPY } from '../settings.copy';
 
@@ -25,7 +25,7 @@ export default function NotificationBanner({ onPress }: NotificationBannerProps)
       accessibilityLabel={SETTINGS_COPY.notification.bannerA11y}
     >
       <Text style={styles.text}>{SETTINGS_COPY.notification.banner}</Text>
-      <View accessibilityElementsHidden importantForAccessibility="no">
+      <View style={styles.chevron} accessibilityElementsHidden importantForAccessibility="no">
         <ChevronIcon direction="right" size={CHEVRON_SIZE} color={theme.color.textSecondary} />
       </View>
     </Pressable>
@@ -50,5 +50,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.color.textPrimary,
     flexShrink: 1,
+  },
+  // 항목 행의 셰브론과 같은 끝선(SettingsRow 와 같은 이유)
+  chevron: {
+    marginRight: -chevronTrailingGutter(CHEVRON_SIZE),
   },
 });

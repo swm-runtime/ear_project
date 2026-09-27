@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
-import ChevronIcon from '@/shared/ui/ChevronIcon';
+import ChevronIcon, { chevronTrailingGutter } from '@/shared/ui/ChevronIcon';
 
 const CHEVRON_SIZE = 16;
 
@@ -69,7 +69,7 @@ export default function SettingsRow({
         {value !== undefined && value !== null ? <Text style={styles.value}>{value}</Text> : null}
         {rightSlot}
         {onPress !== undefined && rightSlot === undefined ? (
-          <View accessibilityElementsHidden importantForAccessibility="no">
+          <View style={styles.chevron} accessibilityElementsHidden importantForAccessibility="no">
             <ChevronIcon direction="right" size={CHEVRON_SIZE} color={theme.color.textSecondary} />
           </View>
         ) : null}
@@ -121,6 +121,10 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     marginLeft: 'auto',
     maxWidth: '100%',
+  },
+  // 셰브론의 빈 여백만큼 당겨 **보이는 끝**을 줄의 끝선(16)에 세운다 — 토글 행의 스위치 끝과 같은 선이 된다
+  chevron: {
+    marginRight: -chevronTrailingGutter(CHEVRON_SIZE),
   },
   // 우측 값은 보조색으로 낮추고 숫자 폭을 고정한다.
   value: {

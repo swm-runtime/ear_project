@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
-import ChevronIcon from '@/shared/ui/ChevronIcon';
+import ChevronIcon, { chevronTrailingGutter } from '@/shared/ui/ChevronIcon';
 
 import type { PlanRowVM, SectionState } from '../hooks/useSettingsScreen';
 import { SETTINGS_COPY } from '../settings.copy';
@@ -76,7 +76,7 @@ export default function PlanSummaryCard({
           <Text style={styles.freeActionText}>{SETTINGS_COPY.plan.freeAction}</Text>
         </View>
       ) : (
-        <View accessibilityElementsHidden importantForAccessibility="no">
+        <View style={styles.chevron} accessibilityElementsHidden importantForAccessibility="no">
           <ChevronIcon direction="right" size={CHEVRON_SIZE} color={theme.color.textSecondary} />
         </View>
       )}
@@ -99,6 +99,10 @@ const styles = StyleSheet.create({
   },
   pressed: {
     backgroundColor: theme.color.border,
+  },
+  // 항목 행의 셰브론과 같은 끝선(SettingsRow 와 같은 이유)
+  chevron: {
+    marginRight: -chevronTrailingGutter(CHEVRON_SIZE),
   },
   errorCard: {
     justifyContent: 'space-between',
