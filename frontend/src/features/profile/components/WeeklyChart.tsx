@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
@@ -26,6 +26,10 @@ const GRID_RATIOS = [0, 0.5, 1] as const;
 /** 주 이동 화살표 원 — 보이는 크기만 줄이고 터치는 hitSlop 으로 44 를 지킨다(PM 2026-09-28 00:32 "버튼 크기 줄이자") */
 const ARROW_SIZE = 28;
 const ARROW_HIT_SLOP = (theme.touchTarget.minHeight - ARROW_SIZE) / 2;
+/** 가로 스와이프로 주 넘기기 — 이만큼 가로로 움직여야 잡고(세로 스크롤 우선), 이만큼 밀거나 이 속도면 넘긴다 */
+const SWIPE_CLAIM_DISTANCE = 12;
+const SWIPE_COMMIT_DISTANCE = 48;
+const SWIPE_COMMIT_VELOCITY = 0.3;
 
 function ArrowButton({
   direction,
@@ -74,6 +78,33 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
         );
   const maxSec = displayed === null ? 0 : Math.max(...displayed.dailyListenedSec, 0);
   const averageRatio = maxSec === 0 ? 0 : Math.min(1, averageSec / maxSec);
+  /*
+   * 카드를 가로로 밀어 주를 넘긴다(PM 2026-09-28 01:40) — 애플 건강·스크린 타임과 같은 방향: 손가락을 **오른쪽으로 밀면
+   * 이전 주**(왼쪽 < 와 같은 쪽), 왼쪽으로 밀면 다음 주. 화살표와 같은 판정(canGoPrev/Next · 전환 중 막힘)을 거친다.
+   * 세로 움직임이 더 크면 잡지 않는다 — 프로필 화면의 세로 스크롤이 우선이다
+   */
+  const weeklyRef = useRef(weekly);
+  useEffect(() => {
+    weeklyRef.current = weekly;
+  });
+  const swipeResponder = useMemo(
+    () =>
+      // eslint-disable-next-line react-hooks/refs -- 콜백은 렌더가 아니라 제스처 시점에 실행된다(표준 PanResponder 패턴, PlayerScreen 과 같다)
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gesture) =>
+          Math.abs(gesture.dx) > SWIPE_CLAIM_DISTANCE &&
+          Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.5,
+        onPanResponderRelease: (_, gesture) => {
+          const current = weeklyRef.current;
+          if (current.isSwitching) return;
+          const toPrev = gesture.dx > SWIPE_COMMIT_DISTANCE || gesture.vx > SWIPE_COMMIT_VELOCITY;
+          const toNext = gesture.dx < -SWIPE_COMMIT_DISTANCE || gesture.vx < -SWIPE_COMMIT_VELOCITY;
+          if (toPrev && current.canGoPrev) current.goPrev();
+          else if (toNext && current.canGoNext) current.goNext();
+        },
+      }),
+    [],
+  );
   const [chartWidth, setChartWidth] = useState(0);
   const [tooltipSize, setTooltipSize] = useState({ width: 0, height: ANNOTATION_MIN_HEIGHT });
   const annotationHeight = Math.max(ANNOTATION_MIN_HEIGHT, tooltipSize.height) + theme.spacing.sm;
@@ -89,7 +120,7 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.card}>
+      <View style={styles.card} {...swipeResponder.panHandlers}>
         <View style={styles.headerRow}>
           <Text style={styles.title} accessibilityRole="header">
             {PROFILE_COPY.stats.weeklyTitle}
