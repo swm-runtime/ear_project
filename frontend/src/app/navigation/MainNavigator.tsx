@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useState } from 'react';
 
 import { PUSHED_SCREEN_HEADER } from '@/shared/navigation/pushed-screen-header';
+import { selectTab } from '@/shared/navigation/tab-selection.store';
 import { USE_NATIVE_PLAYER_ZOOM } from '@/shared/navigation/zoom-transition';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 
@@ -58,7 +59,10 @@ function MainTabs() {
         state: (e) => {
           const s = e.data.state;
           const name = s?.routeNames?.[s.index ?? 0];
-          if (name) rememberTab(name as RestorableTab);
+          if (!name) return;
+          rememberTab(name as RestorableTab);
+          // 제목 줄 알약 모핑 — 시스템 탭 갈래(NativeMainTabs)와 같은 신호를 이 갈래(Android·구 iOS)에도 준다
+          selectTab(name);
         },
       }}
       // 탭 바는 떠 있는 유리 캡슐(CapsuleTabBar, 2026-09-23 PM) — 기본 탭 바의 스타일 옵션은 쓰지 않는다.
@@ -134,7 +138,11 @@ export default function MainNavigator() {
         />
         {/* 설정 — 앱바(뒤로 + "설정")를 화면이 직접 그린다(settings-uiux.md 4.1) */}
         {/* 설정 — iOS 26: 시스템 투명 바(뒤로만) + 콘텐츠 큰 제목(PUSHED_SCREEN_HEADER). 그 외: 화면이 앱바를 그린다 */}
-        <MainStack.Screen name="Settings" component={SettingsScreen} options={PUSHED_SCREEN_HEADER} />
+        <MainStack.Screen
+          name="Settings"
+          component={SettingsScreen}
+          options={PUSHED_SCREEN_HEADER}
+        />
         {/* TODO: 프로필·설정 목적지 — 각 화면 구현 시 컴포넌트만 교체한다(라우트 이름 유지).
           플레이스홀더 동안은 기본 push + 헤더를 둔다: 화면 안에 돌아갈 수단이 있어야 한다 */}
         <MainStack.Screen
