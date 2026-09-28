@@ -33,6 +33,12 @@ const CAPSULE_WIDTH = theme.dock.width + CAPSULE_INSET * 2;
  */
 const BOTTOM_INSET_TRIM = 12;
 const BOTTOM_MIN_GAP = 16;
+/**
+ * **Android** 는 안전영역을 깎지 않고 내비게이션 바 **위에** 띄운다(PM 2026-09-29 01:28 "갤럭시 하단 네비게이션 바 고려해서 조금
+ * 올리자"). edge-to-edge(SDK 57 기본)라 insets.bottom 이 곧 내비게이션 바 높이다 — 3버튼 ≈48dp, 제스처 ≈16~24dp(힌트 끄면 ~0).
+ * iOS 식(inset − 12)을 쓰면 3버튼 기기에서 캡슐이 버튼을 12dp 덮었다. 방식 구분 없이 '바 높이 + 8' 이면 둘 다 바로 위에 선다
+ */
+const ANDROID_NAV_BAR_GAP = 8;
 /** 카드와 캡슐이 이 거리 안으로 가까워지면 유리가 합쳐진다 — 제자리 간격(8)보다 작아야 가만히 있을 땐 안 붙는다 */
 const DOCK_MERGE_SPACING = 4;
 /** 카드와 캡슐 사이(mini-player-layout.store·MiniPlayer 의 DOCK_GAP 과 같다) */
@@ -92,7 +98,9 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
   const reportHeight = useContext(BottomTabBarHeightCallbackContext);
   // 앞 층 미니플레이어 카드의 실측 높이(안 보이면 0) — 뒤 층 유리 판이 같은 자리에 선다
   const miniHeight = useMiniPlayerInset();
-  const bottomPadding = Math.max(insets.bottom - BOTTOM_INSET_TRIM, BOTTOM_MIN_GAP);
+  const bottomPadding = IS_ANDROID
+    ? Math.max(insets.bottom + ANDROID_NAV_BAR_GAP, BOTTOM_MIN_GAP)
+    : Math.max(insets.bottom - BOTTOM_INSET_TRIM, BOTTOM_MIN_GAP);
   const indicatorX = useAnimatedValue(state.index * ITEM_WIDTH);
   // 누르는 동안 알약이 살짝 커져 떠오른다(iOS 26 탭 바) — 놓으면 제자리 크기로
   const indicatorScale = useAnimatedValue(1);
