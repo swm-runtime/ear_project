@@ -183,3 +183,9 @@ export interface ContentListenedSecView {
   contentId: string;
   listenedSec: number;
 }
+
+/** 콘텐츠 × 서비스 날짜별 청취 시간 — 주간 카드의 주·요일별 주제 분포 원천(`profile.md` 4.7) */
+export interface ContentDailyListenedSecView extends ContentListenedSecView {
+  /** `YYYY-MM-DD` 서비스 날짜(04시 경계, domain.md 1.2) */
+  playDate: string;
+}

@@ -18,6 +18,7 @@ import { ProfileOrchestrator } from './profile.orchestrator';
 const NOW = new Date('2026-08-08T09:00:00.000Z');
 const USER_ID = '11111111-1111-4111-8111-111111111111';
 const TOPIC_ID = 'cccccccc-1111-4111-8111-111111111111';
+const CONTENT_ID = 'aaaaaaaa-1111-4111-8111-111111111111';
 
 function buildUser(overrides: Partial<User> = {}): User {
   return {
@@ -68,6 +69,7 @@ describe('ProfileOrchestrator', () => {
       | 'findPlayDates'
       | 'sumListenedSecByDates'
       | 'sumListenedSecByContent'
+      | 'sumListenedSecByContentAndDates'
     >
   >;
   let contentService: jest.Mocked<Pick<ContentService, 'findTopicViews'>>;
@@ -86,6 +88,7 @@ describe('ProfileOrchestrator', () => {
       findPlayDates: jest.fn().mockResolvedValue([]),
       sumListenedSecByDates: jest.fn().mockResolvedValue(new Map()),
       sumListenedSecByContent: jest.fn().mockResolvedValue([]),
+      sumListenedSecByContentAndDates: jest.fn().mockResolvedValue([]),
     };
     contentService = { findTopicViews: jest.fn().mockResolvedValue([]) };
 
@@ -171,6 +174,46 @@ describe('ProfileOrchestrator', () => {
         previousWeekStart: '2026-07-27',
         nextWeekStart: null,
       });
+    });
+
+    it('이번 주 그래프에 그 주·요일별 주제 분포를 함께 싣는다', async () => {
+      // given — 월요일(08-03) 콘텐츠 A 300초, 주제는 하나
+      playbackService.sumListenedSecByContentAndDates.mockResolvedValue([
+        { contentId: CONTENT_ID, playDate: '2026-08-03', listenedSec: 300 },
+      ]);
+      contentService.findTopicViews.mockResolvedValue([
+        { contentId: CONTENT_ID, topicId: TOPIC_ID, name: '커리어' },
+      ]);
+
+      // when
+      const result = await orchestrator.getSummary(USER_ID, NOW);
+
+      // then — 주제 매핑은 등장한 콘텐츠만 한 번 조회한다
+      expect(contentService.findTopicViews).toHaveBeenCalledWith([CONTENT_ID]);
+      expect(result.weeklyListening?.topicDistribution).toEqual({
+        topics: [{ topicId: TOPIC_ID, name: '커리어', ratio: 100 }],
+        othersRatio: 0,
+      });
+      expect(result.weeklyListening?.dailyTopicDistribution).toHaveLength(7);
+      expect(result.weeklyListening?.dailyTopicDistribution[0].topics).toEqual([
+        { topicId: TOPIC_ID, name: '커리어', ratio: 100 },
+      ]);
+      expect(result.weeklyListening?.dailyTopicDistribution[1]).toEqual({
+        topics: [],
+        othersRatio: 0,
+      });
+    });
+
+    it('기록 없는 주는 주제 매핑을 조회하지 않고 빈 분포를 내려준다', async () => {
+      // when
+      const result = await orchestrator.getSummary(USER_ID, NOW);
+
+      // then
+      expect(result.weeklyListening?.topicDistribution).toEqual({
+        topics: [],
+        othersRatio: 0,
+      });
+      expect(result.weeklyListening?.dailyTopicDistribution).toHaveLength(7);
     });
 
     it('가입 주가 이번 주면 이전 주가 없다고 알린다', async () => {

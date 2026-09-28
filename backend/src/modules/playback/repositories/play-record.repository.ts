@@ -224,6 +224,45 @@ export class PlayRecordRepository {
   }
 
   /**
+   * 지정한 서비스 날짜들의 **콘텐츠 × 날짜별** 청취 시간 — 주간 카드의 그 주·요일별 주제 분포
+   * (`profile.md` 4.7, KAN-113). 위 `sumListenedSecGroupByContentId`와 같은 이유로 주제는
+   * 조인하지 않는다.
+   *
+   * 한 주 7일을 한 번에 받는다 — 요일별 7번 조회하지 않는다. `idx_play_records_user_id_play_date`
+   * 를 타므로 사용자 한 명의 한 주 행(하루 몇 건)만 읽는다.
+   */
+  async sumListenedSecGroupByContentIdAndPlayDate(
+    userId: string,
+    playDates: string[],
+    manager?: EntityManager,
+  ): Promise<{ contentId: string; playDate: string; listenedSec: number }[]> {
+    if (playDates.length === 0) {
+      return [];
+    }
+
+    const rows = await this.scoped(manager)
+      .createQueryBuilder('record')
+      .select('record.content_id', 'content_id')
+      .addSelect('record.play_date', 'play_date')
+      .addSelect('COALESCE(SUM(record.listened_sec), 0)', 'total')
+      .where('record.user_id = :userId', { userId })
+      .andWhere('record.play_date IN (:...playDates)', { playDates })
+      .groupBy('record.content_id')
+      .addGroupBy('record.play_date')
+      .getRawMany<{
+        content_id: string;
+        play_date: string | Date;
+        total: string;
+      }>();
+
+    return rows.map((row) => ({
+      contentId: row.content_id,
+      playDate: toPlayDateLabel(row.play_date),
+      listenedSec: Number(row.total),
+    }));
+  }
+
+  /**
    * 재생 시작 적재. **하루 단위 멱등을 DB가 보장한다** —
    * `uq_play_records_user_id_content_id_play_date`가 같은 날 같은 콘텐츠의 두 번째 행을
    * 막으므로(`paywall.md` 4.3) 유니크 위반을 예외로 만들지 않고 흡수한다

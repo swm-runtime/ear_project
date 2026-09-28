@@ -109,7 +109,23 @@
     "week_start": "2026-08-03",
     "daily_listened_sec": [1220, 0, 845, 0, 0, 0, 0],
     "previous_week_start": "2026-07-27",
-    "next_week_start": null
+    "next_week_start": null,
+    "topic_distribution": {
+      "topics": [
+        { "topic_id": "uuid", "name": "커리어", "ratio": 59 },
+        { "topic_id": "uuid", "name": "경제", "ratio": 41 }
+      ],
+      "others_ratio": 0
+    },
+    "daily_topic_distribution": [
+      { "topics": [{ "topic_id": "uuid", "name": "커리어", "ratio": 100 }], "others_ratio": 0 },
+      { "topics": [], "others_ratio": 0 },
+      { "topics": [{ "topic_id": "uuid", "name": "경제", "ratio": 100 }], "others_ratio": 0 },
+      { "topics": [], "others_ratio": 0 },
+      { "topics": [], "others_ratio": 0 },
+      { "topics": [], "others_ratio": 0 },
+      { "topics": [], "others_ratio": 0 }
+    ]
   },
   "topic_distribution": {
     "topics": [
@@ -191,9 +207,12 @@
 - `previous_week_start`: 이전 주의 `week_start`. **`null`이면 이전 주가 없다(가입 주)** → [◀] 비활성. 값이 있으면 **그대로 4.2의 요청 파라미터로 쓴다** — 클라이언트가 날짜 연산을 하지 않는다.
 - `next_week_start`: `null`이면 이번 주 → [다음 주 ▶] 비활성. **이 응답에서는 항상 `null`이다**(기본 표시가 이번 주이므로).
 - 한 주 전체가 0이면 빈 상태 문구는 클라이언트 표시 규칙이다 — 서버는 0 배열을 내려줄 뿐 "빈 주"를 따로 표현하지 않는다.
+- **`topic_distribution` — 그 주의 주제 분포**(신설 2026-09-28, KAN-113 — PM 결정 "주마다 · 비율만"). 모양은 아래 최상위 `topic_distribution`과 **같고**, 집계 기간만 **그 주**(월요일 04:00 ~ 다음 월요일 04:00, `daily_listened_sec`와 같은 경계)다. 상위 5 · 기타 · 합 100 · 비율만 · 다주제 콘텐츠 그대로 가산 · 숨김 주제 포함 규칙도 같다. 그 주 기록이 없으면 `topics: []` · `others_ratio: 0`. 주간 카드의 주제 구획은 이 값을 그린다.
+- **`daily_topic_distribution` — 요일별 주제 분포**(신설 2026-09-28, 같은 티켓). **월~일 7개 고정 배열**이고 각 원소는 `topic_distribution`과 같은 모양이며, 집계 기간은 그 서비스 날짜(04:00 ~ 다음 날 04:00)다. 기록 없는 요일·아직 오지 않은 요일도 `{ "topics": [], "others_ratio": 0 }`으로 자리를 지킨다(생략 없음) — 막대를 탭하면 그날의 분포를 보여주는 데 쓴다.
 
-**`topic_distribution` — 주제 분포** (`profile.md` 4.7)
+**`topic_distribution` — 주제 분포 (전체 기간)** (`profile.md` 4.7)
 
+- **구버전 호환으로 남긴 값이다**(2026-09-28). 화면은 `weekly_listening.topic_distribution`(그 주)을 쓰고 이 값을 쓰지 않는다 — FE가 주별로 옮긴 뒤 폐기 예정.
 - **집계 기간은 가입 후 전체이며, 비율만 내려준다 — 절대값(시간)을 싣지 않는다**(합의 2026-08-06).
 - `topics`는 **상위 5개**(청취 시간 비율 내림차순), `others_ratio`는 6위 이하를 묶은 비율이다. 상위가 5개 미만이면 있는 만큼만 내려주고 `others_ratio = 0`이다.
 - 집계 규칙(서버): 원천은 `play_records.listened_sec` × `content_topics`. 여러 주제에 속한 콘텐츠는 **각 주제에 청취 시간을 그대로 더한 뒤** 전체 합 대비 정규화한다(분할 배분하지 않는다 — `profile.md` 4.7). **합이 정확히 100이 되도록 반올림 조정까지 서버가 한다** — 클라이언트는 재정규화하지 않고 그대로 그린다. 소수 자릿수 등 표기는 uiux 문서가 정한다.
@@ -243,11 +262,24 @@
   "week_start": "2026-07-27",
   "daily_listened_sec": [0, 3600, 0, 1800, 0, 0, 900],
   "previous_week_start": "2026-07-20",
-  "next_week_start": "2026-08-03"
+  "next_week_start": "2026-08-03",
+  "topic_distribution": {
+    "topics": [{ "topic_id": "uuid", "name": "경제", "ratio": 100 }],
+    "others_ratio": 0
+  },
+  "daily_topic_distribution": [
+    { "topics": [], "others_ratio": 0 },
+    { "topics": [{ "topic_id": "uuid", "name": "경제", "ratio": 100 }], "others_ratio": 0 },
+    { "topics": [], "others_ratio": 0 },
+    { "topics": [{ "topic_id": "uuid", "name": "경제", "ratio": 100 }], "others_ratio": 0 },
+    { "topics": [], "others_ratio": 0 },
+    { "topics": [], "others_ratio": 0 },
+    { "topics": [{ "topic_id": "uuid", "name": "경제", "ratio": 100 }], "others_ratio": 0 }
+  ]
 }
 ```
 
-- 4.1의 `weekly_listening` 오브젝트와 **같은 모양**이다. 두 응답이 다른 행 타입을 쓰면 그래프 렌더가 두 벌이 된다.
+- 4.1의 `weekly_listening` 오브젝트와 **같은 모양**이다. 두 응답이 다른 행 타입을 쓰면 그래프 렌더가 두 벌이 된다. `topic_distribution`(그 주) · `daily_topic_distribution`(요일별 7개)의 규칙도 4.1과 같다(신설 2026-09-28, KAN-113).
 - **가입 주면 `previous_week_start = null`** → [◀] 비활성(`profile.md` 4.6 — 가입 주까지 거슬러 갈 수 있다). "가입 주" 판정은 서버가 한다 — 클라이언트는 `null` 여부만 본다.
 - `next_week_start`는 한 주 뒤의 라벨이다(이번 주를 벗어나지 않는다). 이번 주 라벨을 이 엔드포인트로 다시 조회하는 것도 허용한다 — 다만 첫 진입 표시는 4.1이 담당한다.
 - 한 번 받은 주는 화면을 벗어나기 전까지 재조회하지 않는다(클라이언트 캐시 — `profile.md` 4.6).

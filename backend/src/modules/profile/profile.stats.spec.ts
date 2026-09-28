@@ -1,9 +1,13 @@
 import { ContentTopicView } from '@/modules/content/content.types';
-import { ContentListenedSecView } from '@/modules/playback/playback.types';
+import {
+  ContentDailyListenedSecView,
+  ContentListenedSecView,
+} from '@/modules/playback/playback.types';
 
 import {
   buildTopicDistribution,
   buildWeeklyBuckets,
+  buildWeeklyTopicDistributions,
   calculateStreakDays,
 } from './profile.stats';
 
@@ -26,6 +30,24 @@ function topicOf(
 ): ContentTopicView {
   return { contentId, topicId, name };
 }
+
+function listenedOn(
+  contentId: string,
+  playDate: string,
+  listenedSec: number,
+): ContentDailyListenedSecView {
+  return { contentId, playDate, listenedSec };
+}
+
+const WEEK_DATES = [
+  '2026-09-21',
+  '2026-09-22',
+  '2026-09-23',
+  '2026-09-24',
+  '2026-09-25',
+  '2026-09-26',
+  '2026-09-27',
+];
 
 describe('profile.stats', () => {
   describe('calculateStreakDays', () => {
@@ -261,6 +283,76 @@ describe('profile.stats', () => {
 
       // then
       expect(distribution).toEqual({ topics: [], othersRatio: 0 });
+    });
+  });
+
+  describe('buildWeeklyTopicDistributions', () => {
+    it('주 분포는 7일을 콘텐츠별로 합쳐 집계하고 요일 분포는 그날 청취만으로 집계한다', () => {
+      // given — 화요일 A 100초(커리어), 목요일 A 100초 + B 200초(재테크)
+      const rows = [
+        listenedOn(CONTENT_A, '2026-09-22', 100),
+        listenedOn(CONTENT_A, '2026-09-24', 100),
+        listenedOn(CONTENT_B, '2026-09-24', 200),
+      ];
+      const topicViews = [
+        topicOf(CONTENT_A, TOPIC_CAREER, '커리어'),
+        topicOf(CONTENT_B, TOPIC_MONEY, '재테크'),
+      ];
+
+      // when
+      const { weekly, daily } = buildWeeklyTopicDistributions(
+        WEEK_DATES,
+        rows,
+        topicViews,
+      );
+
+      // then — 주: 커리어 200 / 재테크 200 → 50:50
+      expect(weekly.topics).toEqual([
+        { topicId: TOPIC_CAREER, name: '커리어', ratio: 50 },
+        { topicId: TOPIC_MONEY, name: '재테크', ratio: 50 },
+      ]);
+      // 화요일은 커리어뿐, 목요일은 재테크 200 : 커리어 100
+      expect(daily[1].topics).toEqual([
+        { topicId: TOPIC_CAREER, name: '커리어', ratio: 100 },
+      ]);
+      expect(daily[3].topics).toEqual([
+        { topicId: TOPIC_MONEY, name: '재테크', ratio: 67 },
+        { topicId: TOPIC_CAREER, name: '커리어', ratio: 33 },
+      ]);
+    });
+
+    it('요일 분포는 항상 7개이고 기록 없는 요일은 빈 분포로 자리를 지킨다', () => {
+      // given — 월요일에만 기록
+      const rows = [listenedOn(CONTENT_A, '2026-09-21', 60)];
+      const topicViews = [topicOf(CONTENT_A, TOPIC_CAREER, '커리어')];
+
+      // when
+      const { daily } = buildWeeklyTopicDistributions(
+        WEEK_DATES,
+        rows,
+        topicViews,
+      );
+
+      // then
+      expect(daily).toHaveLength(7);
+      expect(daily[0].topics).toHaveLength(1);
+      daily.slice(1).forEach((day) => {
+        expect(day).toEqual({ topics: [], othersRatio: 0 });
+      });
+    });
+
+    it('기록 없는 주는 주 분포도 요일 분포도 전부 빈 분포다', () => {
+      // when
+      const { weekly, daily } = buildWeeklyTopicDistributions(
+        WEEK_DATES,
+        [],
+        [],
+      );
+
+      // then
+      expect(weekly).toEqual({ topics: [], othersRatio: 0 });
+      expect(daily).toHaveLength(7);
+      expect(daily.every((day) => day.topics.length === 0)).toBe(true);
     });
   });
 });

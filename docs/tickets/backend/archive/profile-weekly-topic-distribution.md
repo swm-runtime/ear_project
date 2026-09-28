@@ -4,7 +4,7 @@
 |---|---|
 | 요청 파트 | backend |
 | 요청자 | 이주호(PM) — 2026-09-28 04:15 "가장 많이 들은 주제를 주마다 · 비율만" |
-| 담당 | (BE 배정) |
+| 담당 | 박준현(백엔드) |
 | 발행 날짜 | 2026-09-28 |
 | 시작 날짜 | 2026-09-28 |
 | 기한 | 2026-10-02 (Low — 이번 주 안) |
@@ -52,4 +52,10 @@
 
 ## 처리 기록
 
-(담당자가 채운다)
+- 2026-09-28 발행(이주호·PM). Jira KAN-113.
+- **2026-09-28 반영 (반영 날짜 2026-09-28)** — PR `feat(be)/profile-weekly-topic-distribution` → dev.
+  - `weekly_listening`(4.1)·`GET /users/me/profile/weekly-listening`(4.2) 응답에 `topic_distribution`(그 주)·`daily_topic_distribution`(월~일 7개) 추가. 4.1 최상위 전체 기간 분포는 그대로 둠(구버전 호환).
+  - 집계: `play_records`를 `(content_id, play_date)`로 묶는 쿼리 **한 번**(그 주 7일, `idx_play_records_user_id_play_date` 사용) + 등장한 콘텐츠의 주제 매핑 **한 번**. 주 분포와 요일 분포 7개는 같은 순수 함수(`buildTopicDistribution`)로 만들어 규칙이 한 곳이다.
+  - **쿼리 비용**: 사용자 한 명의 한 주 행(하루 몇 건)만 인덱스로 읽는다. 4.2 호출이 프로필 진입마다 1~2회 늘어도 요청당 쿼리 2개 추가라 무시할 수준이다(운영 `play_records` 월 100건 규모).
+  - 단위 테스트 5건 추가(주·요일 분포 집계, 7칸 고정, 빈 주, 오케스트레이터 배선 2건).
+  - `spec/api/profile-api.md` 4.1·4.2에 새 필드·집계 기간을 적었다(완료 조건).
