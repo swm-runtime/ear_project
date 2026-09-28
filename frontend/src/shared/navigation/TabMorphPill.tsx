@@ -51,18 +51,25 @@ export default function TabMorphPill({ tab, ring, filter }: TabMorphPillProps) {
     );
   }
 
-  /** 내 칸 수와 다른 알약 탭의 칸 수 — 출발 배율이 여기서 나온다 */
+  /** 내 칸 수(라이브러리 2 · 탐색 1) */
   const cells = filter ? 2 : 1;
-  const other = cells === 2 ? 1 : 2;
+  /** 레이아웃상 캡슐의 왼쪽 끝 — 캡슐은 자리의 오른쪽 끝에 붙는다 */
+  const restLeft = TAB_PILL_SLOT - cells * TAB_PILL_CELL;
 
+  /*
+   * 진행도는 **보이는 칸 수**다 — 0 이면 한 칸, 1 이면 두 칸(`useTabPillMorph` 의 정의). 그래서 배율은
+   * `보이는 칸 / 내 칸` 이다. 제 모양(라이브러리 1 · 탐색 0)에서는 언제나 1 이 된다.
+   * 종전에는 "진행도 1 = 제 모양"으로 잘못 환산해 **탐색 알약이 쉴 때도 두 칸 폭으로 늘어나 있었다**
+   * (PM 2026-09-28 12:40 스크린샷).
+   */
   const capsuleScale = progress.interpolate({
     inputRange: [0, 1],
-    outputRange: [other / cells, 1],
+    outputRange: [1 / cells, 2 / cells],
   });
   // 링은 캡슐의 왼쪽 끝을 따라간다 — 줄어든 캡슐 밖으로 링이 나가면 안 된다
   const ringShift = progress.interpolate({
     inputRange: [0, 1],
-    outputRange: [(cells - other) * TAB_PILL_CELL, 0],
+    outputRange: [TAB_PILL_CELL - restLeft, -restLeft],
   });
 
   return (
@@ -80,10 +87,7 @@ export default function TabMorphPill({ tab, ring, filter }: TabMorphPillProps) {
 
       {/* 아이콘 층 — 스케일 밖이라 일그러지지 않는다 */}
       <Animated.View
-        style={[
-          styles.ringCell,
-          { right: (cells - 1) * TAB_PILL_CELL, transform: [{ translateX: ringShift }] },
-        ]}
+        style={[styles.ringCell, { left: restLeft, transform: [{ translateX: ringShift }] }]}
         pointerEvents="box-none"
       >
         {ring}
