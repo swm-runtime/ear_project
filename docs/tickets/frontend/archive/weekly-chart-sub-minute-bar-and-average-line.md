@@ -13,7 +13,7 @@
 | Jira | [KAN-114](https://runtime364.atlassian.net/browse/KAN-114) |
 | 근거 문서 | `spec/uiux/profile-uiux.md` 4.6(막대 값 표기 "60분 미만 N분(버림)" · "0인 요일도 0분") · `features/profile.md` 4.6 |
 | 중요도 | Low — 표기 문제. 데이터·판정은 정상 |
-| 상태 | 대기 |
+| 상태 | 반영 완료 |
 
 ## 배경
 
@@ -41,3 +41,9 @@ KAN-113(주별 주제 분포) 개발계 확인 중 주간 카드에서 두 가�
 ## 처리 기록
 
 - 2026-09-28 발행. Jira KAN-114(이주호, Low, 기한 10-02).
+- **2026-09-28 반영 완료** (PM "KAN114 티켓 처리해").
+  - **1번(결함)**: `profile.copy.ts` `listenedDayValue` 가 1~59초를 **"1분 미만"** 으로 적는다. 0초는 종전대로 "0분". 축 최대값(`axisMax`)도 같은 규칙. 말풍선·평균 라벨·스크린리더(`dayBarA11y`·`averageA11y`)가 모두 이 함수를 쓰므로 한 곳만 고쳤다. 막대는 그대로 둔다(들은 사실은 맞다).
+  - **2번(결정)**: **(a) 지난 날이 하루면 평균선·"평균" 축 라벨을 그리지 않는다.** `toWeekView` 가 `hasAverageRule`(지난 날 > 1)을 내고 점선과 축 라벨이 그 값을 본다. 이유: 한 점을 자기 자신과 견주는 선은 전할 것이 없고, 겹치면 최대값 라벨까지 가린다. **카드 위 "하루 평균" 요약 지표는 그대로 둔다** — 그건 견줌이 아니라 값이다. (b)로 바꾸려면 `hasAverageRule` 을 `true` 로 고정하면 된다.
+  - **가입 주 분모(부수)는 미결로 남겼다** — 가입일이 주간 응답에 없어 지금 구조로는 7로 나눈다. `changes/pending/profile-weekly-sub-minute-and-average-line.md` "남은 결정"에 적었다.
+  - 테스트: `profile.copy.test.ts` 8건(1분 미만·0분·분 버림·시간 표기·축·스크린리더) 통과.
+  - 문서: `changes/pending/profile-weekly-sub-minute-and-average-line.md` 발행 — `profile-uiux.md` 4.6·7장은 같은 절을 고치는 다른 요청 둘과 **통합 때 함께** 반영한다(저장소 규칙: 개발 중 문서 수정은 changes 에 기록).

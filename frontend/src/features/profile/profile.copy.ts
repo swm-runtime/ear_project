@@ -33,8 +33,17 @@ const monthDay = (iso: string): string => {
   return `${month}월 ${day}일`;
 };
 
-/** 요일 값 표기 — 60분 미만 "N분", 이상 "N시간 N분"(버림). 말풍선(4.6 개정)과 스크린리더(7장)가 같은 형식을 쓴다 */
+/** 1분 미만을 가르는 값 — 버림하면 0이 되는 구간이다 */
+const SECONDS_PER_MINUTE = 60;
+
+/**
+ * 요일 값 표기 — 60분 미만 "N분", 이상 "N시간 N분"(버림). 말풍선(4.6 개정)과 스크린리더(7장)가 같은 형식을 쓴다.
+ *
+ * **1~59초는 "1분 미만"** 이다(KAN-114, 박준현 개발계 확인). 버림하면 "0분"이 되는데 막대는 색이 있는 채로 서 있어
+ * "들은 게 없는데 막대가 있다"로 읽혔다 — 들은 사실은 맞다(연속 청취 일수도 이 날을 "들은 날"로 센다). 0초는 종전대로 "0분".
+ */
 const listenedDayValue = (sec: number): string => {
+  if (sec > 0 && sec < SECONDS_PER_MINUTE) return '1분 미만';
   const { hours, minutes } = toListenedDayParts(sec);
   return hours > 0 ? `${hours}시간 ${minutes}분` : `${minutes}분`;
 };
@@ -160,7 +169,10 @@ export const PROFILE_COPY = {
     /** 주간 그래프 오른쪽 축 — 평균 점선 옆 · 바닥선 옆(최대값은 dayValue 형식) */
     axisAverage: '평균',
     /** 축 맨 위 = 그 주 최대값 — 좁은 축 칸에 맞게 분 단위만("72분"). 말풍선·하루 평균은 "1시간 12분" 형식 그대로 */
-    axisMax: (sec: number) => `${Math.floor(sec / 60)}분`,
+    axisMax: (sec: number) =>
+      sec > 0 && sec < SECONDS_PER_MINUTE
+        ? '1분 미만'
+        : `${Math.floor(sec / SECONDS_PER_MINUTE)}분`,
     axisZero: '0',
     /** 기준선은 장식이 아니라 값이다 — 그래프 컨테이너 라벨 뒤에 이어 읽힌다 */
     averageA11y: (sec: number) => `하루 평균 ${listenedDayValue(sec)}`,
