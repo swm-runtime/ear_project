@@ -97,16 +97,21 @@ const toWeekView = (week: WeeklyListening) => {
     (last, sec, index) => (sec > 0 ? index : last),
     -1,
   );
-  const averageSec = toDailyAverageSec(
-    week.dailyListenedSec,
-    todayIndex === null ? DAYS_IN_WEEK : Math.max(todayIndex, lastListenedIndex) + 1,
-  );
+  const elapsedDayCount =
+    todayIndex === null ? DAYS_IN_WEEK : Math.max(todayIndex, lastListenedIndex) + 1;
+  const averageSec = toDailyAverageSec(week.dailyListenedSec, elapsedDayCount);
   const maxSec = Math.max(...week.dailyListenedSec, 0);
   const averageRatio = maxSec === 0 ? 0 : Math.min(1, averageSec / maxSec);
   return {
     todayIndex,
     averageSec,
     maxSec,
+    /**
+     * **지난 날이 하루뿐이면 평균선을 그리지 않는다**(KAN-114 (a), 박준현 개발계 확인). 월요일에는 1로 나누므로
+     * 평균 = 그날 값이라 점선이 유일한 막대 꼭대기와 정확히 겹치고, 축의 최대값 라벨도 평균 라벨에 가려 사라진다.
+     * 한 점을 자기 자신과 견주는 선은 전할 것이 없다 — 이틀째부터 그린다(하루 평균 요약 지표는 그대로다)
+     */
+    hasAverageRule: elapsedDayCount > 1,
     averageTop: (1 - averageRatio) * CHART_HEIGHT,
     ratios: toBarRatios(week.dailyListenedSec),
     isEmpty: isWeekAllZero(week.dailyListenedSec),
@@ -163,7 +168,9 @@ function WeekBody({
           {GRID_RATIOS.map((ratio) => (
             <View key={ratio} style={[styles.gridLine, { top: ratio * CHART_HEIGHT }]} />
           ))}
-          <View style={[styles.averageRule, { top: view.averageTop }]} />
+          {view.hasAverageRule ? (
+            <View style={[styles.averageRule, { top: view.averageTop }]} />
+          ) : null}
         </View>
         <View style={styles.chartRow}>
           {view.ratios.map((ratio, dayIndex) => {
@@ -414,10 +421,14 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
       ? []
       : [
           { key: 'max', top: 0, text: PROFILE_COPY.stats.axisMax(axisView.maxSec) },
-          { key: 'average', top: axisView.averageTop, text: PROFILE_COPY.stats.axisAverage },
+          // 평균선을 그리지 않는 주(지난 날 하루)에는 "평균" 라벨도 두지 않는다 — 가리킬 선이 없다
+          ...(axisView.hasAverageRule
+            ? [{ key: 'average', top: axisView.averageTop, text: PROFILE_COPY.stats.axisAverage }]
+            : []),
           { key: 'zero', top: CHART_HEIGHT, text: PROFILE_COPY.stats.axisZero },
         ].filter(
           (label) =>
+            !axisView.hasAverageRule ||
             label.key === 'average' ||
             Math.abs(label.top - axisView.averageTop) >= AXIS_LABEL_HEIGHT,
         );
