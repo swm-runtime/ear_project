@@ -12,6 +12,7 @@ import {
 import { ContentService } from '@/modules/content/services/content.service';
 import { UserInterestService } from '@/modules/interest/services/user-interest.service';
 import { LibraryService } from '@/modules/library/library.service';
+import { ContentDailyListenedSecView } from '@/modules/playback/playback.types';
 import { PlaybackService } from '@/modules/playback/services/playback.service';
 import { SubscriptionService } from '@/modules/subscription/services/subscription.service';
 import { User } from '@/modules/user/entities/user.entity';
@@ -22,6 +23,7 @@ import { TOP_TOPIC_LIMIT } from './profile.constant';
 import { ProfileSection } from './profile.enum';
 import {
   buildTopicDistribution,
+  buildWeeklyTopicDistributions,
   buildWeeklyBuckets,
   calculateStreakDays,
 } from './profile.stats';
@@ -206,9 +208,13 @@ export class ProfileOrchestrator {
     }
 
     const weekDates = toWeekDates(weekStart);
-    const listenedSecByDate = await this.playbackService.sumListenedSecByDates(
-      user.id,
+    const [listenedSecByDate, listenedByContentAndDate] = await Promise.all([
+      this.playbackService.sumListenedSecByDates(user.id, weekDates),
+      this.playbackService.sumListenedSecByContentAndDates(user.id, weekDates),
+    ]);
+    const topicDistributions = await this.buildWeeklyTopicDistributions(
       weekDates,
+      listenedByContentAndDate,
     );
     const previousWeekStart = shiftWeekStart(weekStart, -1);
     const nextWeekStart = shiftWeekStart(weekStart, 1);
@@ -216,6 +222,8 @@ export class ProfileOrchestrator {
     return {
       weekStart,
       dailyListenedSec: buildWeeklyBuckets(weekDates, listenedSecByDate),
+      topicDistribution: topicDistributions.weekly,
+      dailyTopicDistribution: topicDistributions.daily,
       // 가입 주보다 앞이면 이전 주가 없다 — 가입 전 주는 조회할 것도 없다
       previousWeekStart:
         previousWeekStart < joinedWeekStart ? null : previousWeekStart,
@@ -232,6 +240,33 @@ export class ProfileOrchestrator {
    * 사용자 한 명의 청취 콘텐츠는 조인 없이 합칠 수 있는 규모다(architecture.md 3.4 — 루프
    * 조회가 아니라 두 번의 벌크 조회다).
    */
+  /**
+   * 주간 카드의 그 주·요일별 주제 분포(KAN-113). 전체 기간 분포와 같은 두 번 조회 구조다 —
+   * 콘텐츠 × 날짜 합은 한 쿼리(사용자·날짜 인덱스), 주제 매핑은 등장한 콘텐츠만 한 번.
+   */
+  private async buildWeeklyTopicDistributions(
+    weekDates: string[],
+    listenedByContentAndDate: ContentDailyListenedSecView[],
+  ): Promise<{
+    weekly: TopicDistributionView;
+    daily: TopicDistributionView[];
+  }> {
+    if (listenedByContentAndDate.length === 0) {
+      return buildWeeklyTopicDistributions(weekDates, [], []);
+    }
+
+    const contentIds = [
+      ...new Set(listenedByContentAndDate.map((row) => row.contentId)),
+    ];
+    const topicViews = await this.contentService.findTopicViews(contentIds);
+
+    return buildWeeklyTopicDistributions(
+      weekDates,
+      listenedByContentAndDate,
+      topicViews,
+    );
+  }
+
   private async buildTopicDistribution(
     userId: string,
   ): Promise<TopicDistributionView> {

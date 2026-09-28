@@ -50,6 +50,13 @@ export interface WeeklyListeningView {
   previousWeekStart: string | null;
   /** `null`이면 이번 주다 → [다음 주 ▶] 비활성 */
   nextWeekStart: string | null;
+  /** **그 주** 청취만으로 집계한 주제 분포(KAN-113). 기록 없는 주면 `topics: []` · `othersRatio: 0` */
+  topicDistribution: TopicDistributionView;
+  /**
+   * 월~일 **7개 고정 배열** — 각 요일(서비스 날짜) 청취만의 주제 분포. 기록 없는 요일·아직 오지 않은
+   * 요일도 빈 분포로 자리를 지킨다(생략 없음) — 막대 인덱스로 요일을 찾는다
+   */
+  dailyTopicDistribution: TopicDistributionView[];
 }
 
 export interface TopicDistributionItemView {

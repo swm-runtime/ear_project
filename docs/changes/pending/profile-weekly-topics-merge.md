@@ -34,7 +34,7 @@ PM 2026-09-28 00:45 "주간 청취랑 가장 많이 들은 주제를 합쳐서 �
 
 ### 진행
 
-- BE: `tickets/backend/pending/profile-weekly-topic-distribution.md` · [KAN-113](https://runtime364.atlassian.net/browse/KAN-113) — 4.1 `weekly_listening` · 4.2 응답에 `topic_distribution`(같은 모양, 그 주 집계).
+- BE **반영 완료(2026-09-28)**: `tickets/backend/archive/profile-weekly-topic-distribution.md` · [KAN-113](https://runtime364.atlassian.net/browse/KAN-113) — 4.1 `weekly_listening` · 4.2 응답에 `topic_distribution`(같은 모양, 그 주 집계) + `daily_topic_distribution`(7개). profile-api.md 4.1·4.2 반영됨.
 - **요일 탭 = 그날 분포**(PM 2026-09-28 04:26): 막대를 탭하면 주제 구획이 그 요일의 분포("가장 많이 들은 주제 · 화요일")로 바뀌고, 탭 해제면 주 분포로 돌아온다. BE 는 같은 티켓에 `daily_topic_distribution`(7개) 추가.
 - FE(선반영 완료): 주 응답에 `topic_distribution` 이 있으면 그 주 분포를 그리고 라벨에서 "· 전체 기간"을 뗀다. 없으면 종전처럼 전체 기간. 주를 넘기면 막대가 0 에서 다시 자란다.
 

@@ -5,7 +5,10 @@ import { YearsOfExperienceRange } from '@/modules/user/user.enum';
 import { ProfileSection } from '../profile.enum';
 import { ProfileSummaryResult } from '../profile.types';
 
-import { WeeklyListeningResponseDto } from './weekly-listening-response.dto';
+import {
+  TopicDistributionDto,
+  WeeklyListeningResponseDto,
+} from './weekly-listening-response.dto';
 
 /** 헤더 — 표시 전용이다. 닉네임 편집·제공자 변경은 MVP 비범위(`profile.md` 미결) */
 class ProfileUserDto {
@@ -61,19 +64,6 @@ class ProfileStatsSummaryDto {
   readonly total_listened_sec: number;
   /** 연속 청취 일수. 오늘 아직 듣지 않았어도 어제까지 이어진 값을 그대로 내려준다 */
   readonly streak_days: number;
-}
-
-class TopicDistributionItemDto {
-  readonly topic_id: string;
-  readonly name: string;
-  readonly ratio: number;
-}
-
-class TopicDistributionDto {
-  /** 상위 5개(비율 내림차순). 5개 미만이면 있는 만큼만 */
-  readonly topics: TopicDistributionItemDto[];
-  /** 6위 이하를 묶은 비율. **"기타" 라벨 문자열은 내려주지 않는다** — 카피는 uiux 소유 */
-  readonly others_ratio: number;
 }
 
 /**
@@ -138,15 +128,10 @@ export class GetProfileResponseDto {
       weekly_listening: result.weeklyListening
         ? WeeklyListeningResponseDto.from(result.weeklyListening)
         : null,
+      // 전체 기간 분포 — 주별 분포(weekly_listening.topic_distribution)로 옮겨 가는 중이라
+      // 구버전 앱 호환으로만 남긴다(KAN-113)
       topic_distribution: result.topicDistribution
-        ? {
-            topics: result.topicDistribution.topics.map((topic) => ({
-              topic_id: topic.topicId,
-              name: topic.name,
-              ratio: topic.ratio,
-            })),
-            others_ratio: result.topicDistribution.othersRatio,
-          }
+        ? TopicDistributionDto.from(result.topicDistribution)
         : null,
       failed_sections: result.failedSections,
     };

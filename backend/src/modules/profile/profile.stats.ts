@@ -1,10 +1,14 @@
 import { shiftServiceDate } from '@/common/utils/service-date.util';
 import { ContentTopicView } from '@/modules/content/content.types';
-import { ContentListenedSecView } from '@/modules/playback/playback.types';
+import {
+  ContentDailyListenedSecView,
+  ContentListenedSecView,
+} from '@/modules/playback/playback.types';
 
 import {
   TOPIC_DISTRIBUTION_TOP_LIMIT,
   TOPIC_DISTRIBUTION_TOTAL_RATIO,
+  WEEKLY_LISTENING_DAY_COUNT,
 } from './profile.constant';
 import {
   TopicDistributionItemView,
@@ -152,6 +156,56 @@ export function buildTopicDistribution(
         );
 
   return adjustToTotalRatio({ topics, othersRatio });
+}
+
+/**
+ * 주간 카드의 **그 주 분포 + 요일별 분포 7개**(`profile.md` 4.7 · KAN-113).
+ *
+ * 원천은 콘텐츠 × 서비스 날짜별 청취 시간이다. 주 분포는 7일을 콘텐츠별로 합친 뒤, 요일 분포는
+ * 그 날짜의 행만으로 각각 `buildTopicDistribution`을 돌린다 — **규칙(상위 5 · 기타 · 합 100)이
+ * 한 함수에만 있다.** 기록 없는 요일·아직 오지 않은 요일도 빈 분포로 자리를 지킨다(생략 없음).
+ *
+ * @param weekDates 그 주가 덮는 서비스 날짜 7개(월→일 순서)
+ * @param listenedByContentAndDate 콘텐츠 × 날짜별 청취 시간(그 주 범위)
+ * @param topicViews 등장한 콘텐츠들의 주제 매핑
+ */
+export function buildWeeklyTopicDistributions(
+  weekDates: readonly string[],
+  listenedByContentAndDate: readonly ContentDailyListenedSecView[],
+  topicViews: readonly ContentTopicView[],
+): {
+  weekly: TopicDistributionView;
+  daily: TopicDistributionView[];
+} {
+  const weeklyByContent = new Map<string, number>();
+  const dailyByDate = new Map<string, ContentListenedSecView[]>();
+
+  for (const row of listenedByContentAndDate) {
+    weeklyByContent.set(
+      row.contentId,
+      (weeklyByContent.get(row.contentId) ?? 0) + row.listenedSec,
+    );
+
+    const rows = dailyByDate.get(row.playDate) ?? [];
+    rows.push({ contentId: row.contentId, listenedSec: row.listenedSec });
+    dailyByDate.set(row.playDate, rows);
+  }
+
+  const weekly = buildTopicDistribution(
+    [...weeklyByContent.entries()].map(([contentId, listenedSec]) => ({
+      contentId,
+      listenedSec,
+    })),
+    topicViews,
+  );
+
+  const daily = weekDates
+    .slice(0, WEEKLY_LISTENING_DAY_COUNT)
+    .map((date) =>
+      buildTopicDistribution(dailyByDate.get(date) ?? [], topicViews),
+    );
+
+  return { weekly, daily };
 }
 
 /**
