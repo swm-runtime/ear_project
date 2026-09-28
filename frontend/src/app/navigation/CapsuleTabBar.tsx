@@ -3,7 +3,7 @@ import {
   type BottomTabBarProps,
 } from '@react-navigation/bottom-tabs';
 import { useContext, useEffect, useMemo, useRef } from 'react';
-import { Animated, PanResponder, StyleSheet, Text, View } from 'react-native';
+import { Animated, PanResponder, Platform, StyleSheet, Text, View } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion, theme } from '@/shared/theme';
@@ -37,6 +37,13 @@ const BOTTOM_MIN_GAP = 16;
 const DOCK_MERGE_SPACING = 4;
 /** 카드와 캡슐 사이(mini-player-layout.store·MiniPlayer 의 DOCK_GAP 과 같다) */
 const DOCK_GAP = 8;
+/**
+ * **Android 리퀴드 룩**(PM 2026-09-29 00:55 "하단 footer 리퀴드 최대한 유사하게", Android 전용 — iOS·옛 아이폰은 그대로).
+ * Android 엔 유리 재질이 없어 블러 위에 iOS 26 유리의 특징을 직접 얹는다: 가장자리의 흰 림(빛이 모서리에서 굴절되는
+ * 하이라이트) + 위쪽 안쪽 광택선. 미니플레이어는 iOS 26 액세서리처럼 캡슐이다(MINI_CARD_RADIUS)
+ */
+const IS_ANDROID = Platform.OS === 'android';
+const CARD_RADIUS = IS_ANDROID ? 28 : 22;
 const ICON_SIZE = 24;
 const LABEL_SIZE = 11;
 
@@ -289,12 +296,12 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
         {miniHeight > 0 ? (
           <Animated.View style={[styles.cardGlass, { height: miniHeight }, miniDropStyle(miniDropProgress)]}>
             <GlassSurface style={[StyleSheet.absoluteFill, styles.cardGlassClip]} />
-            <View style={styles.cardGlassBorder} />
+            <View style={[styles.cardGlassBorder, IS_ANDROID && styles.androidRim]} />
           </Animated.View>
         ) : null}
         <View style={[styles.capsuleGlassBox, { top: miniHeight > 0 ? miniHeight + DOCK_GAP : 0 }]}>
           <GlassSurface style={[StyleSheet.absoluteFill, styles.capsuleGlass]} />
-          <View style={styles.capsuleBorder} />
+          <View style={[styles.capsuleBorder, IS_ANDROID && styles.androidRim]} />
         </View>
       </GlassGroup>
       <MiniPlayer placement="dock" />
@@ -398,12 +405,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     width: theme.dock.width,
-    borderRadius: 22,
+    borderRadius: CARD_RADIUS,
     borderCurve: 'continuous',
     boxShadow: '0 4px 20px rgba(0, 0, 0, 0.10)',
   },
   cardGlassClip: {
-    borderRadius: 22,
+    borderRadius: CARD_RADIUS,
     borderCurve: 'continuous',
     overflow: 'hidden',
   },
@@ -413,7 +420,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    borderRadius: 22,
+    borderRadius: CARD_RADIUS,
     borderCurve: 'continuous',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(0, 0, 0, 0.10)',
@@ -447,6 +454,12 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.full,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(0, 0, 0, 0.10)',
+  },
+  // Android 유리 림 — 바깥 흰 테두리(굴절 하이라이트) + 위쪽 안쪽 광택선. 밝은 목록 위 경계는 판의 그림자가 맡는다
+  androidRim: {
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.75)',
+    boxShadow: 'inset 0 1.5px 0 rgba(255, 255, 255, 0.9), inset 0 -1px 0 rgba(0, 0, 0, 0.04)',
   },
   // 선택 알약 — 유리 렌즈(GlassPill). 첫 칸 자리에 두고 translateX 로 옮긴다. 색은 GlassPill 이 정한다
   indicator: {
