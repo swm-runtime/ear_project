@@ -1,3 +1,5 @@
+import { Logger } from '@nestjs/common';
+
 import { DeviceTokenService } from '@/modules/user/services/device-token.service';
 
 import { PushClient } from '../push/push.client';
@@ -93,5 +95,42 @@ describe('PushReceiptService', () => {
     // then
     expect(pushClient.getReceipts).not.toHaveBeenCalled();
     expect(service.pendingCount()).toBe(0);
+  });
+
+  it('receipt 오류가 DeviceNotRegistered 가 아니면 사유별 건수를 error 로 남긴다 — APNs 키 만료는 여기서만 드러난다', async () => {
+    // given
+    const errorSpy = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+    pushClient.getReceipts.mockResolvedValue(
+      new Map([
+        [
+          'ticket-a',
+          { status: 'error', error: 'InvalidCredentials', message: 'apns' },
+        ],
+        [
+          'ticket-b',
+          { status: 'error', error: 'InvalidCredentials', message: 'apns' },
+        ],
+      ]),
+    );
+
+    try {
+      // when
+      const invalidated = await service.checkDue(minutesAfter(15));
+
+      // then
+      expect(errorSpy).toHaveBeenCalledWith(
+        'push receipts reported delivery errors',
+        expect.objectContaining({
+          error_count: 2,
+          reasons: { InvalidCredentials: 2 },
+        }),
+      );
+      expect(invalidated).toBe(0);
+      expect(service.pendingCount()).toBe(0);
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 });

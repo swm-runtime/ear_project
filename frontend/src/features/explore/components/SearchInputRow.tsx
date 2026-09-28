@@ -2,8 +2,16 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
 import { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
+import GlassCloseButton from '@/shared/ui/GlassCloseButton';
+import MagnifierIcon, { SEARCH_ICON_SIZE } from '@/shared/ui/MagnifierIcon';
 
 import { EXPLORE_COPY } from '../explore.copy';
+
+/**
+ * 지우기(✕) 자리 폭 — 라이브러리 검색 캡슐(LibrarySearchBarRow)과 같은 44(터치 최소 폭) 가운데에 ✕.
+ * 두 검색창의 ✕ 가 같아야 한다(PM 2026-09-27 22:37 "라이브러리 x 기준으로 통일"). 글자 유무와 무관하게 고정이다
+ */
+const CLEAR_SLOT_WIDTH = theme.touchTarget.minWidth;
 
 interface SearchInputRowProps {
   value: string;
@@ -29,28 +37,53 @@ export default function SearchInputRow({
 }: SearchInputRowProps) {
   return (
     <View style={styles.row}>
-      <TextInput
-        style={[styles.input, variant === 'fill' && styles.inputFill]}
-        value={value}
-        onChangeText={onChangeText}
-        onSubmitEditing={onSubmit}
-        placeholder={EXPLORE_COPY.search.placeholder}
-        placeholderTextColor={theme.color.textSecondary}
-        autoFocus
-        returnKeyType="search"
-        autoCorrect={false}
-        accessibilityRole="search"
-        accessibilityLabel={EXPLORE_COPY.search.placeholder}
-      />
-      {onCancel ? (
+      {/* 필드 = 돋보기 + 입력 + 지우기(ⓧ) — iOS 시스템 검색창과 같은 구성(2026-09-27). 면·모서리는 틀이 갖는다 */}
+      <View style={[styles.field, variant === 'fill' && styles.fieldFill]}>
+        <MagnifierIcon size={SEARCH_ICON_SIZE} color={theme.color.textSecondary} />
+        <TextInput
+          style={styles.input}
+          value={value}
+          onChangeText={onChangeText}
+          onSubmitEditing={onSubmit}
+          placeholder={EXPLORE_COPY.search.placeholder}
+          placeholderTextColor={theme.color.textSecondary}
+          autoFocus
+          returnKeyType="search"
+          autoCorrect={false}
+          accessibilityRole="search"
+          accessibilityLabel={EXPLORE_COPY.search.placeholder}
+        />
+        {/*
+          지우기(ⓧ) 자리는 **항상 비워 둔다.** 글자가 생길 때 버튼을 새로 끼우면 입력 칸 폭이 그만큼(자리 24 +
+          간격 6 = 30) 줄어들며 글자·커서가 밀린다(PM 2026-09-27 22:14 "검색바가 미세하게 이동"). 자리는 고정하고
+          보일지만 바꾼다 — 비어 있을 때는 낭독·터치 대상에서도 뺀다
+        */}
         <Pressable
-          onPress={onCancel}
-          style={styles.cancelButton}
+          style={styles.clearButton}
+          onPress={() => onChangeText('')}
           accessibilityRole="button"
-          accessibilityLabel={EXPLORE_COPY.search.cancel}
+          accessibilityLabel={EXPLORE_COPY.search.clearA11y}
+          accessibilityElementsHidden={value.length === 0}
+          importantForAccessibility={value.length === 0 ? 'no-hide-descendants' : 'yes'}
+          pointerEvents={value.length === 0 ? 'none' : 'auto'}
         >
-          <Text style={styles.cancelLabel}>{EXPLORE_COPY.search.cancel}</Text>
+          <Text style={[styles.clearGlyph, value.length === 0 && styles.clearHidden]}>✕</Text>
         </Pressable>
+      </View>
+      {onCancel ? (
+        variant === 'fill' ? (
+          // iOS 26 검색 닫기 — 글자 "취소" 대신 유리 원 안의 ✕(PM 2026-09-27 22:14). 검색창과 같은 높이 40
+          <GlassCloseButton onPress={onCancel} accessibilityLabel={EXPLORE_COPY.search.cancel} />
+        ) : (
+          <Pressable
+            onPress={onCancel}
+            style={styles.cancelButton}
+            accessibilityRole="button"
+            accessibilityLabel={EXPLORE_COPY.search.cancel}
+          >
+            <Text style={styles.cancelLabel}>{EXPLORE_COPY.search.cancel}</Text>
+          </Pressable>
+        )
       ) : null}
     </View>
   );
@@ -64,22 +97,45 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
   },
-  input: {
+  field: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs + 2,
     minHeight: theme.touchTarget.minHeight - theme.spacing.xs,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: 0,
+    paddingLeft: theme.spacing.md,
+    // 오른쪽 여백은 지우기 자리(44)가 갖는다 — 라이브러리 검색 캡슐과 같은 배치
+    paddingRight: 0,
     borderRadius: theme.radius.md,
     // 애플 검색 필드와 같은 연속 곡률(iOS 만, 2026-09-22 PM)
     borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
+  },
+  // 콘텐츠 안 검색 필드(검색 탭) — 라이브러리의 채움 검색 캡슐과 같은 모양(full, 40)
+  fieldFill: {
+    minHeight: HEADER_CONTROL_HEIGHT,
+    borderRadius: theme.radius.full,
+  },
+  input: {
+    flex: 1,
+    paddingVertical: 0,
     fontSize: theme.font.size.sm,
     color: theme.color.textPrimary,
   },
-  // 콘텐츠 안 검색 필드(검색 탭) — 라이브러리의 채움 검색 캡슐과 같은 모양(full, 40)
-  inputFill: {
-    minHeight: HEADER_CONTROL_HEIGHT,
-    borderRadius: theme.radius.full,
+  clearButton: {
+    // 폭을 고정한다 — 위 주석(입력 칸이 밀리지 않게)
+    width: CLEAR_SLOT_WIDTH,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  /** 글자가 없을 때 — 자리는 그대로 두고 보이지만 않게 한다 */
+  clearHidden: {
+    opacity: 0,
+  },
+  // 라이브러리 검색 캡슐의 지우기와 같은 값
+  clearGlyph: {
+    fontSize: theme.font.size.sm,
+    color: theme.color.textSecondary,
   },
   cancelButton: {
     minHeight: theme.touchTarget.minHeight,

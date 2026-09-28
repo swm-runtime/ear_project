@@ -10,7 +10,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
+import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
+import { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
+import GlassIconButton from '@/shared/ui/GlassIconButton';
 
 import { useNoticeListScreen } from '../hooks/useNoticeListScreen';
 import { NOTICE_SKELETON_ROW_COUNT } from '../notice.constants';
@@ -93,14 +96,10 @@ export default function NoticeListScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* 앱바 — 뒤로가기 + "공지사항"(설정과 같은 앱바 문법 — settings-uiux.md 4.7 S8) */}
       <View style={styles.appBar}>
-        <Pressable
-          style={styles.backButton}
-          onPress={screen.goBack}
-          accessibilityRole="button"
-          accessibilityLabel={NOTICE_COPY.backA11y}
-        >
-          <Text style={styles.backGlyph}>‹</Text>
-        </Pressable>
+        {/* 뒤로 — 유리 원 안의 셰브론(상세 화면과 같은 문법, PM 2026-09-28 03:07) */}
+        <GlassIconButton onPress={screen.goBack} accessibilityLabel={NOTICE_COPY.backA11y}>
+          <ChevronIcon direction="left" size={BACK_ICON_SIZE} color={theme.color.textPrimary} />
+        </GlassIconButton>
         <Text style={styles.appBarTitle} accessibilityRole="header">
           {NOTICE_COPY.title}
         </Text>
@@ -147,6 +146,9 @@ export default function NoticeListScreen() {
   );
 }
 
+/** 앱바 뒤로 셰브론 — 글자 `‹` 는 폰트마다 굵기·세로 위치가 달라 도형으로 그린다(design.md §5). 유리 원(40) 안쪽 값 */
+const BACK_ICON_SIZE = 20;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -156,16 +158,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: theme.spacing.sm,
-  },
-  backButton: {
-    minHeight: theme.touchTarget.minHeight,
-    minWidth: theme.touchTarget.minWidth,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backGlyph: {
-    fontSize: theme.font.size.xl,
-    color: theme.color.textPrimary,
+    minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
   },
   appBarTitle: {
     flex: 1,
@@ -175,7 +168,7 @@ const styles = StyleSheet.create({
     color: theme.color.textPrimary,
   },
   appBarSpacer: {
-    minWidth: theme.touchTarget.minWidth,
+    minWidth: HEADER_CONTROL_HEIGHT,
   },
   row: {
     minHeight: theme.touchTarget.minHeight,
@@ -229,12 +222,14 @@ const styles = StyleSheet.create({
     height: 16,
     width: '80%',
     borderRadius: theme.radius.sm,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
   },
   skeletonDate: {
     height: 12,
     width: '30%',
     borderRadius: theme.radius.sm,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
   },
   emptyContent: {

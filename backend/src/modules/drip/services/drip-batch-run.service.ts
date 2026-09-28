@@ -27,12 +27,21 @@ export class DripBatchRunService {
    * 같은 서비스 날짜의 실행을 선점한다. `null`이면 이미 실행됐거나 실행 중이다 —
    * 호출부는 배치를 시작하지 않는다(`drip-scheduling.md` 4.6-5 멱등 규칙).
    */
-  async claim(runDate: string, startedAt: Date): Promise<DripBatchRun | null> {
-    return this.dripBatchRunRepository.claim(
-      runDate,
-      startedAt,
-      new Date(startedAt.getTime() - DRIP_BATCH_STALE_MS),
-    );
+  async claim(
+    runDate: string,
+    startedAt: Date,
+    options: { reclaimUnfinished?: boolean } = {},
+  ): Promise<DripBatchRun | null> {
+    /**
+     * `reclaimUnfinished` — 프로세스 재시작 직후의 재개 경로. 편성을 돌리는 프로세스는 스케줄러 워커
+     * 하나뿐이라, 그 프로세스가 방금 떴다는 것은 미완료 행이 있다면 **죽은 실행**이라는 뜻이다.
+     * 나이를 따지지 않고 다시 집는다. 05:00 정규 경로는 종전대로 `DRIP_BATCH_STALE_MS`가 지난 행만.
+     */
+    const staleBefore = options.reclaimUnfinished
+      ? startedAt
+      : new Date(startedAt.getTime() - DRIP_BATCH_STALE_MS);
+
+    return this.dripBatchRunRepository.claim(runDate, startedAt, staleBefore);
   }
 
   async finish(

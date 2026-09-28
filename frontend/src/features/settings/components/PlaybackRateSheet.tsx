@@ -1,6 +1,7 @@
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import BottomSheet from '@/shared/ui/BottomSheet';
 
 import { SETTINGS_COPY } from '../settings.copy';
 import type { PlaybackRate } from '../settings.types';
@@ -23,11 +24,10 @@ export default function PlaybackRateSheet({
   onSelect,
   onClose,
 }: PlaybackRateSheetProps) {
+  // 딤 탭은 취소다(settings-uiux.md 5장)
   return (
-    <Modal visible={isVisible} transparent animationType="fade" onRequestClose={onClose}>
-      {/* 딤 탭은 취소다(settings-uiux.md 5장) */}
-      <Pressable style={styles.backdrop} onPress={onClose} accessible={false}>
-        <Pressable style={styles.sheet} accessible={false}>
+    <BottomSheet isVisible={isVisible} onRequestClose={onClose} sheetStyle={styles.sheet}>
+      <View accessible={false}>
           <View accessibilityViewIsModal accessibilityRole="radiogroup">
             <Text style={styles.title} accessibilityRole="header">
               {SETTINGS_COPY.playback.sheetTitle}
@@ -59,18 +59,12 @@ export default function PlaybackRateSheet({
               );
             })}
           </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
+      </View>
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: theme.color.overlay,
-    justifyContent: 'flex-end',
-  },
   sheet: {
     borderTopLeftRadius: theme.radius.xl,
     borderTopRightRadius: theme.radius.xl,

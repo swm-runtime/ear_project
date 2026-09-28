@@ -150,8 +150,7 @@ export class PlaybackProgressService {
       return null;
     }
 
-    const before = libraryItem.status;
-    const completed = await this.libraryService
+    const completion = await this.libraryService
       .completeItem(libraryItem, maxReachedSec, command.now, manager)
       .catch((error: unknown) => {
         /**
@@ -172,7 +171,8 @@ export class PlaybackProgressService {
         throw error;
       });
 
-    if (!completed || completed.status === before) {
+    // 조건부 전이에서 진 쪽(다른 기기가 먼저 완청)은 신호를 남기지 않는다 — 완청 신호는 1회다
+    if (!completion || !completion.transitioned) {
       return null;
     }
 
@@ -183,7 +183,7 @@ export class PlaybackProgressService {
       manager,
     );
 
-    return completed;
+    return completion.item;
   }
 }
 

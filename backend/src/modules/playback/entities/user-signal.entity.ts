@@ -17,8 +17,8 @@ import { UserSignalAction } from '../playback.enum';
  * domain.md 6.4 — 추천 스코어링에 쓰는 **행동 이력**이다(FR-15).
  *
  * `playback_progresses` · `library_items`는 "현재 상태"만 알고 있어서 학습에 필요한 이력을
- * 표현할 수 없다. 특히 `skip`은 상태 테이블에서 "아직 듣는 중"과 구분되지 않고,
- * `unsave` · `delete`는 행이 사라져 근거가 남지 않는다.
+ * 표현할 수 없다. `unsave` · `delete`는 행이 사라져 근거가 남지 않고, `replay`는 상태
+ * 테이블에서 첫 완청과 구분되지 않는다(`skip` 신호는 폐기됐다 — `drip-scheduling.md` 4.3).
  *
  * 최근성 가중(`drip-scheduling.md` 4.3)을 위해 `created_at`이 반드시 필요하다.
  * PK가 `bigserial`인 것은 대량 로그성 테이블이기 때문이다(convention.md 4.2 예외 조항).

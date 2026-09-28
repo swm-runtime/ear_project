@@ -136,19 +136,28 @@ export class ContentStatAggregationRepository {
                SUM(total_listen_sec)        AS total_listen_sec,
                SUM(save_count)              AS save_count,
                SUM(source_link_click_count) AS source_link_click_count,
-               COUNT(*)                     AS month_rows,
-               /* 발행월부터 이번 달까지 몇 달이어야 하는가 — 빠진 달 탐지용 */
+               /*
+                * 빠진 달 탐지 — 재생 기록이 있는 달인데 month 행이 없는 달의 수. 배치가 멈춘 달만
+                * 잡는다. 종전 "발행월부터 이번 달까지 달 수"와 비교하면 재생이 0인 조용한 달도
+                * 결손으로 보여 카탈로그가 오래될수록 경고가 상수가 됐다(2026-09-26 감사).
+                * play_date 는 이미 서비스 날짜라 month 행의 라벨(서비스 날짜 월)과 같은 달력이다.
+                */
                (
-                 SELECT COUNT(*) FROM generate_series(
-                   date_trunc('month', c.published_at AT TIME ZONE 'Asia/Seoul'),
-                   date_trunc('month', now() AT TIME ZONE 'Asia/Seoul'),
-                   INTERVAL '1 month'
+                 SELECT COUNT(*) FROM (
+                   SELECT DISTINCT date_trunc('month', pr.play_date)::date AS m
+                   FROM play_records pr
+                   WHERE pr.content_id = s.content_id
+                 ) active
+                 WHERE NOT EXISTS (
+                   SELECT 1 FROM content_stats ms
+                   WHERE ms.content_id = s.content_id
+                     AND ms.period_type = 'month'
+                     AND ms.period_start = active.m
                  )
-               ) AS expected_months
+               ) AS gap_months
         FROM content_stats s
-        JOIN contents c ON c.id = s.content_id
         WHERE s.period_type = 'month'
-        GROUP BY s.content_id, c.published_at
+        GROUP BY s.content_id
       )
       INSERT INTO content_stats (
         content_id, period_type, period_start,
@@ -168,7 +177,7 @@ export class ContentStatAggregationRepository {
         source_link_click_count = EXCLUDED.source_link_click_count,
         updated_at              = now()
       WHERE content_stats.is_final = false
-      RETURNING (SELECT month_rows < expected_months FROM monthly m WHERE m.content_id = content_stats.content_id) AS has_gap
+      RETURNING (SELECT gap_months > 0 FROM monthly m WHERE m.content_id = content_stats.content_id) AS has_gap
       `,
       [allPeriodStart],
     );

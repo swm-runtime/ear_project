@@ -71,7 +71,9 @@ describe('PlaybackProgressService', () => {
     libraryService = {
       findItemWithContentByContentId: jest.fn().mockResolvedValue(buildItem()),
       // 기본은 "상태가 그대로" — 기준 미달이라 전이가 일어나지 않은 경우다
-      completeItem: jest.fn().mockResolvedValue(buildItem()),
+      completeItem: jest
+        .fn()
+        .mockResolvedValue({ item: buildItem(), transitioned: false }),
     } as unknown as jest.Mocked<LibraryService>;
 
     const dataSource = {
@@ -150,10 +152,13 @@ describe('PlaybackProgressService', () => {
     it('도달 위치가 90%에 이르면 완청으로 전이하고 신호를 남긴다', async () => {
       // given
       libraryService.completeItem.mockResolvedValue({
-        id: 'item-1',
-        status: LibraryItemStatus.COMPLETED,
-        completedAt: NOW,
-      } as LibraryItem);
+        item: {
+          id: 'item-1',
+          status: LibraryItemStatus.COMPLETED,
+          completedAt: NOW,
+        } as LibraryItem,
+        transitioned: true,
+      });
 
       // when
       const result = await service.saveProgress(
@@ -172,6 +177,24 @@ describe('PlaybackProgressService', () => {
         UserSignalAction.COMPLETE,
         expect.anything(),
       );
+    });
+
+    it('다른 기기가 먼저 완청시킨 경우(transitioned=false)에는 신호를 다시 남기지 않는다', async () => {
+      // given — 조건부 UPDATE 에서 진 쪽
+      libraryService.completeItem.mockResolvedValue({
+        item: {
+          id: 'item-1',
+          status: LibraryItemStatus.COMPLETED,
+          completedAt: NOW,
+        } as LibraryItem,
+        transitioned: false,
+      });
+
+      // when
+      await service.saveProgress(buildCommand({ maxReachedSec: 900 }));
+
+      // then
+      expect(playbackService.recordSignal).not.toHaveBeenCalled();
     });
 
     it('기준에 못 미치면 상태를 바꾸지 않고 신호도 남기지 않는다', async () => {

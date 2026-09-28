@@ -96,6 +96,7 @@ const styles = StyleSheet.create({
     minWidth: 16,
     height: 16,
     borderRadius: 8,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.primary,
     alignItems: 'center',
     justifyContent: 'center',

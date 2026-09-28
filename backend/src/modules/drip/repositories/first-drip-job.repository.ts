@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, LessThan, Repository } from 'typeorm';
+import { EntityManager, In, LessThan, Repository } from 'typeorm';
+
+import { TERMINAL_FIRST_DRIP_STATUSES } from '../drip.enum';
 
 import {
   FirstDripJobStatus,
@@ -150,13 +152,19 @@ export class FirstDripJobRepository {
     await this.scoped(manager).delete({ userId });
   }
 
-  /** `completed_at`이 기준 시각보다 앞선 완료 작업을 지운다(domain.md 7.4). 반환값은 삭제 행 수 */
-  async deleteCompletedBefore(
+  /**
+   * 종착 상태(`completed`·`no_candidates`·`failed`)에 든 지 기준 시각보다 오래된 작업을 지운다(domain.md 7.4·12.1,
+   * 정정 2026-09-26). 종전에는 `completed_at`만 봐서 `no_candidates`·`failed` 행이 탈퇴 전까지 영영 남았다 —
+   * 카탈로그가 얇을 때는 그 둘이 다수다. 상태 전이 시각은 `updated_at`이다(종착 뒤로는 갱신이 없다).
+   * 반환값은 삭제 행 수
+   */
+  async deleteTerminalBefore(
     before: Date,
     manager?: EntityManager,
   ): Promise<number> {
     const result = await this.scoped(manager).delete({
-      completedAt: LessThan(before),
+      status: In([...TERMINAL_FIRST_DRIP_STATUSES]),
+      updatedAt: LessThan(before),
     });
 
     return result.affected ?? 0;

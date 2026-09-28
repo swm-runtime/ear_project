@@ -3,13 +3,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { track } from '@/shared/analytics';
-import { useToastStore } from '@/shared/ui/toast.store';
 
 import { PLAYER_COPY } from '../player.copy';
 import type { PlaybackStartMeta, PlayEntryPoint, PlayStartResult } from '../player.types';
 import { fetchQueueItems, queueKeys } from './useQueueQuery';
 import { suppressPlayConfirmForToday } from '../services/play-confirm-suppression.service';
 import { playbackService } from '../services/playback.service';
+import { useLimitNoticeStore } from '../store/limit-notice.store';
 import { usePlayLimitStore } from '../store/play-limit.store';
 import { usePlaybackStore } from '../store/playback.store';
 
@@ -70,7 +70,7 @@ interface ConfirmState {
  */
 export const usePlayGate = (options?: PlayGateOptions) => {
   const navigation = useNavigation();
-  const showToast = useToastStore((s) => s.show);
+  const showLimitNotice = useLimitNoticeStore((s) => s.show);
   const playLimit = usePlayLimitStore((s) => s.playLimit);
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const queryClient = useQueryClient();
@@ -79,7 +79,8 @@ export const usePlayGate = (options?: PlayGateOptions) => {
   const openPaywall = (entry: PlayEntryPoint, message?: string) => {
     // MVP 는 안내 토스트지만 노출 자체가 퍼널의 끝점이다 — 바텀시트로 바뀌어도 같은 이벤트(analytics.md 3.4)
     track('paywall_view', { entry });
-    showToast(message ?? PLAYER_COPY.paywallPlaceholderToast);
+    // 토스트 대신 한도 안내 시트(2026-09-28 00:11) — 구독 UI 가 켜지면 이 시트가 페이월 자리다
+    showLimitNotice(message);
   };
 
   const openPlayer = (contentId: string) => {
@@ -116,6 +117,15 @@ export const usePlayGate = (options?: PlayGateOptions) => {
     if (isCountedToday || suppressed === limit.serviceDate) return null;
     const remaining = Math.max(0, limit.dailyPlayLimit - limit.dailyPlayCount);
     return remaining > 0 ? remaining : null;
+  };
+
+  /** 서버가 준 잔여가 0 이고 이 편이 오늘 아직 차감 전인가 — 여는 순서를 정하는 힌트일 뿐 차단 판정은 아니다 */
+  const isExhaustedHint = (isCountedToday: boolean): boolean => {
+    const { playLimit: limit } = usePlayLimitStore.getState();
+    if (isCountedToday || limit === null || limit.dailyPlayLimit === null || limit.dailyPlayCount === null) {
+      return false;
+    }
+    return limit.dailyPlayLimit - limit.dailyPlayCount <= 0;
   };
 
   /**
@@ -168,7 +178,7 @@ export const usePlayGate = (options?: PlayGateOptions) => {
         // 플레이어 화면이 하던 차단 처리(usePlayerScreen)를 여기서 대신한다 — 같은 문구·같은 분기다
         onIssueBlocked: (blocked) => {
           if (blocked.kind === 'paywall') openPaywall(entryPoint, blocked.message ?? undefined);
-          else showToast(blocked.message ?? PLAYER_COPY.paidLimitReachedToast);
+          else showLimitNotice(blocked.message ?? PLAYER_COPY.paidLimitReachedToast);
         },
         onIssued: ({ isReusedSession }) => {
           // 이미 재생을 기록한 세션을 이어 듣는 것이면 새로 차감되지 않는다 — 묻지 않는다
@@ -190,11 +200,14 @@ export const usePlayGate = (options?: PlayGateOptions) => {
 
   /**
    * 진입점 공통의 재생 요청. 차감이 실제로 일어나는 재생에만 팝업을 띄운다(library.md 4.3).
-   * 소진(잔여 0) 힌트라도 클라이언트가 차단하지 않는다 — 그대로 진입해 발급 403이면
-   * 플레이어가 닫고 페이월로 전환한다(경합·힌트 노후를 서버 판정이 흡수한다).
+   * 소진(잔여 0) 힌트라도 클라이언트가 차단하지 않는다 — 다만 플레이어를 먼저 열지 않고 발급부터 받아, 403 이면
+   * 플레이어 없이 페이월 안내, 허용이면 그때 연다(경합·힌트 노후를 서버 판정이 흡수한다, 2026-09-28).
    */
   const requestPlay = (target: PlayGateTarget, entryPoint: PlayEntryPoint) => {
-    if (target.openAfterIssue === true) {
+    // 소진 힌트(서버가 준 잔여 0)면 **플레이어를 먼저 열지 않고** 발급부터 받는다 — 403(한도)이면 플레이어 없이 바로 페이월
+    // 안내가 뜨고, 서버가 허용하면(힌트가 낡았거나 오늘 이미 들은 편) 그때 연다. 종전엔 플레이어가 떴다가 "오늘 이미 다
+    // 들었어요"로 닫혔다(PM 2026-09-28 00:01). 차단 판정은 여전히 서버다 — 클라이언트는 여는 순서만 바꾼다
+    if (target.openAfterIssue === true || isExhaustedHint(target.isCountedToday)) {
       startDeferred(target, entryPoint);
       return;
     }

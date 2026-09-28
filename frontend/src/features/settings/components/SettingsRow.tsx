@@ -2,9 +2,9 @@ import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
-import ChevronIcon from '@/shared/ui/ChevronIcon';
+import ChevronIcon, { chevronTrailingGutter } from '@/shared/ui/ChevronIcon';
 
-const CHEVRON_SIZE = 18;
+const CHEVRON_SIZE = 16;
 
 interface SettingsRowProps {
   label: string;
@@ -16,8 +16,14 @@ interface SettingsRowProps {
   rightSlot?: ReactNode;
   onPress?: () => void;
   disabled?: boolean;
-  /** 파괴적·보조 항목(회원 탈퇴)의 낮은 시각 비중(settings-uiux.md 4.1) */
+  /** 보조 항목(개발계 진단 행 등)의 낮은 시각 비중 — 작은 회색 글자 */
   isSubdued?: boolean;
+  /**
+   * 파괴적 항목(회원 탈퇴) — **항목명과 같은 크기의 빨강**(PM 2026-09-27 22:45 "회원탈퇴 빨간색으로, 로그아웃이랑
+   * 글씨 크기 똑같게"). iOS 설정의 "계정 삭제"와 같은 문법이다. 종전엔 `isSubdued`(작은 회색)였다 —
+   * `changes/pending/settings-withdraw-destructive.md`
+   */
+  isDestructive?: boolean;
   a11yLabel?: string;
 }
 
@@ -30,19 +36,27 @@ export default function SettingsRow({
   onPress,
   disabled = false,
   isSubdued = false,
+  isDestructive = false,
   a11yLabel,
 }: SettingsRowProps) {
   return (
     <Pressable
       style={({ pressed }) => [styles.row, pressed && onPress !== undefined && styles.pressed]}
       onPress={onPress}
-      disabled={disabled || onPress === undefined}
+      // 값만 표시하는 행도 우측 업데이트 버튼은 조작할 수 있어야 한다.
+      disabled={disabled}
+      focusable={onPress !== undefined && !disabled}
       accessibilityRole={onPress === undefined ? undefined : 'button'}
       accessibilityLabel={a11yLabel ?? label}
       accessibilityState={{ disabled }}
     >
       <Text
-        style={[styles.label, isSubdued && styles.labelSubdued, disabled && styles.labelDimmed]}
+        style={[
+          styles.label,
+          isSubdued && styles.labelSubdued,
+          isDestructive && styles.labelDestructive,
+          disabled && styles.labelDimmed,
+        ]}
       >
         {label}
       </Text>
@@ -55,7 +69,7 @@ export default function SettingsRow({
         {value !== undefined && value !== null ? <Text style={styles.value}>{value}</Text> : null}
         {rightSlot}
         {onPress !== undefined && rightSlot === undefined ? (
-          <View accessibilityElementsHidden importantForAccessibility="no">
+          <View style={styles.chevron} accessibilityElementsHidden importantForAccessibility="no">
             <ChevronIcon direction="right" size={CHEVRON_SIZE} color={theme.color.textSecondary} />
           </View>
         ) : null}
@@ -66,8 +80,7 @@ export default function SettingsRow({
 
 const styles = StyleSheet.create({
   row: {
-    // 44+4 → 44+8. 구분선이 생겨 행 경계가 보이는 만큼 안쪽 숨통을 함께 늘린다
-    minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
+    minHeight: theme.touchTarget.minHeight + theme.spacing.sm + theme.spacing.xs,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -75,10 +88,13 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
     // 동적 텍스트 200%에서 항목명·값이 겹치지 않게 두 줄 배치를 허용한다(settings-uiux.md 7장)
     flexWrap: 'wrap',
+    // wrap 이 켜지면 줄의 세로 위치는 alignItems 가 아니라 alignContent 가 정한다. RN 기본값이 flex-start 라서
+    // 내용이 minHeight 보다 짧은 행은 위에 붙어 보였다(PM 2026-09-28 02:40 "각 항목들이 위쪽에 정렬돼있다")
+    alignContent: 'center',
     paddingVertical: theme.spacing.sm,
   },
   pressed: {
-    backgroundColor: theme.color.surface,
+    backgroundColor: theme.color.border,
   },
   label: {
     fontSize: theme.font.size.md,
@@ -89,6 +105,10 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.sm,
     color: theme.color.textSecondary,
   },
+  /** 파괴적 항목 — 크기는 항목명 그대로, 색만 빨강(design.md §1 의미색) */
+  labelDestructive: {
+    color: theme.color.danger,
+  },
   labelDimmed: {
     color: theme.color.textSecondary,
   },
@@ -97,16 +117,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: theme.spacing.sm,
     flexShrink: 1,
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    // 남는 폭을 차지하고 내용을 끝으로 민다. `marginLeft: 'auto'` 로 밀면 wrap 과 겹쳐 Yoga 의 shrink 계산이
+    // 어긋나 우측 묶음이 셰브론 폭까지 쪼그라들었다 — 기본 배속 행의 값이 셰브론 위로 밀려 두 줄이 됐다
+    // (PM 2026-09-28 03:26 스크린샷: 값 x=1023..1069 / 셰브론 x=1057..1073 으로 세로로 겹쳐 있었다)
+    flexGrow: 1,
+    maxWidth: '100%',
   },
-  // 값은 항목명보다 한 단계 작게 두되 굵기로 읽히게 한다 — 배속·개수처럼 확인하러 오는 정보다
+  // 셰브론의 빈 여백만큼 당겨 **보이는 끝**을 줄의 끝선(16)에 세운다 — 토글 행의 스위치 끝과 같은 선이 된다
+  chevron: {
+    marginRight: -chevronTrailingGutter(CHEVRON_SIZE),
+  },
+  // 우측 값은 보조색으로 낮추고 숫자 폭을 고정한다.
   value: {
     fontSize: theme.font.size.sm,
-    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
     color: theme.color.textSecondary,
+    flexShrink: 1,
+    textAlign: 'right',
   },
   badge: {
-    borderRadius: theme.radius.sm,
-    backgroundColor: theme.color.surface,
+    borderRadius: theme.radius.full,
+    borderCurve: 'continuous',
+    backgroundColor: theme.color.background,
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.xs,
   },

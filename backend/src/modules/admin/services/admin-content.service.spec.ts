@@ -189,6 +189,7 @@ describe('AdminContentService', () => {
       applyEnrichment: jest.fn().mockResolvedValue(undefined),
       findScriptContentIds: jest.fn().mockResolvedValue(new Set()),
       saveScript: jest.fn().mockResolvedValue(undefined),
+      deleteScript: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<ContentService>;
 
     libraryService = {
@@ -388,6 +389,27 @@ describe('AdminContentService', () => {
         details: { field: 'review_confirmed' },
       });
       expect(storage.putAudio).not.toHaveBeenCalled();
+    });
+
+    it('파트너 콘텐츠에 참고 소스를 넣으면 거부한다 — 재발행(4.10)과 같은 400, 조용히 버리지 않는다', async () => {
+      // given
+      const command = buildCommand({
+        origin: ContentOrigin.PARTNER,
+        authorName: '홍길동',
+        sourceUrl: 'https://partner.example.com/article',
+        partnerId: PARTNER_ID,
+        licenseExpiresAt: new Date('2027-01-01T00:00:00Z'),
+        sources: [{ title: 'x', author: 'y', url: 'https://x.example.com' }],
+      });
+
+      // when
+      const act = service.upload(command, NOW);
+
+      // then
+      await expect(act).rejects.toMatchObject({
+        errorCode: ErrorCode.VALIDATION_FAILED,
+        details: { field: 'sources' },
+      });
     });
 
     it('파트너 콘텐츠의 원문 링크를 비우면 어느 필드가 문제인지 알려주며 거부한다', async () => {
@@ -804,6 +826,58 @@ describe('AdminContentService', () => {
         }),
         manager,
       );
+    });
+  });
+
+  describe('republish — 오디오 교체와 대본(2026-09-26 감사)', () => {
+    it('오디오만 바꾸면 옛 대본을 지운다 — 새 오디오와 시각이 어긋난 자막을 남기지 않는다', async () => {
+      // given — 파이프라인의 기본 재발행(오디오+썸네일)은 script_file 을 보내지 않는다
+      const command = buildRepublishCommand({ script: null });
+
+      // when
+      await service.republish(command);
+
+      // then
+      expect(contentService.deleteScript).toHaveBeenCalledWith(
+        CONTENT_ID,
+        manager,
+      );
+      expect(contentService.saveScript).not.toHaveBeenCalled();
+      expect(auditLogService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'content.republish',
+          after: containing({ script_dropped: true }),
+        }),
+        manager,
+      );
+    });
+
+    it('오디오와 함께 온 대본이 검증에서 거부돼도 옛 대본은 지운다 — 틀린 자막보다 없는 편이 낫다', async () => {
+      // given — 세그먼트가 어긋난 파일
+      const command = buildRepublishCommand({
+        script: buildScriptFile([{ start_sec: 5, end_sec: 1, text: 'x' }]),
+      });
+
+      // when
+      await service.republish(command);
+
+      // then
+      expect(contentService.saveScript).not.toHaveBeenCalled();
+      expect(contentService.deleteScript).toHaveBeenCalledWith(
+        CONTENT_ID,
+        manager,
+      );
+    });
+
+    it('오디오를 바꾸지 않는 재발행(메타만)은 대본을 건드리지 않는다', async () => {
+      // given
+      const command = buildRepublishCommand({ audio: null, title: '새 제목' });
+
+      // when
+      await service.republish(command);
+
+      // then
+      expect(contentService.deleteScript).not.toHaveBeenCalled();
     });
   });
 

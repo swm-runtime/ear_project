@@ -1,4 +1,6 @@
-import { Repository } from 'typeorm';
+import { In, LessThan, Repository } from 'typeorm';
+
+import { TERMINAL_FIRST_DRIP_STATUSES } from '../drip.enum';
 
 import { FirstDripJob } from '../entities/first-drip-job.entity';
 import { FirstDripJobRepository } from './first-drip-job.repository';
@@ -19,6 +21,7 @@ describe('FirstDripJobRepository', () => {
   beforeEach(() => {
     typeormRepository = {
       query: jest.fn(),
+      delete: jest.fn().mockResolvedValue({ affected: 3 }),
     } as unknown as jest.Mocked<Repository<FirstDripJob>>;
 
     repository = new FirstDripJobRepository(typeormRepository);
@@ -107,6 +110,18 @@ describe('FirstDripJobRepository', () => {
 
       // then
       expect(failedCount).toBe(0);
+    });
+  });
+
+  describe('deleteTerminalBefore', () => {
+    it('종착 상태(completed·no_candidates·failed) 전부를 상태 전이 시각 기준으로 지운다 — completed_at 만 보면 나머지 둘이 영영 남는다', async () => {
+      const deleted = await repository.deleteTerminalBefore(STALE_BEFORE);
+
+      expect(typeormRepository.delete).toHaveBeenCalledWith({
+        status: In([...TERMINAL_FIRST_DRIP_STATUSES]),
+        updatedAt: LessThan(STALE_BEFORE),
+      });
+      expect(deleted).toBe(3);
     });
   });
 });

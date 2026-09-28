@@ -33,8 +33,17 @@ const monthDay = (iso: string): string => {
   return `${month}월 ${day}일`;
 };
 
-/** 요일 값 표기 — 60분 미만 "N분", 이상 "N시간 N분"(버림). 말풍선(4.6 개정)과 스크린리더(7장)가 같은 형식을 쓴다 */
+/** 1분 미만을 가르는 값 — 버림하면 0이 되는 구간이다 */
+const SECONDS_PER_MINUTE = 60;
+
+/**
+ * 요일 값 표기 — 60분 미만 "N분", 이상 "N시간 N분"(버림). 말풍선(4.6 개정)과 스크린리더(7장)가 같은 형식을 쓴다.
+ *
+ * **1~59초는 "1분 미만"** 이다(KAN-114, 박준현 개발계 확인). 버림하면 "0분"이 되는데 막대는 색이 있는 채로 서 있어
+ * "들은 게 없는데 막대가 있다"로 읽혔다 — 들은 사실은 맞다(연속 청취 일수도 이 날을 "들은 날"로 센다). 0초는 종전대로 "0분".
+ */
 const listenedDayValue = (sec: number): string => {
+  if (sec > 0 && sec < SECONDS_PER_MINUTE) return '1분 미만';
   const { hours, minutes } = toListenedDayParts(sec);
   return hours > 0 ? `${hours}시간 ${minutes}분` : `${minutes}분`;
 };
@@ -93,8 +102,7 @@ export const PROFILE_COPY = {
      * 탭에 아무 반응이 없으면 비활성이 아니라 고장으로 읽히므로 안내를 띄운다.
      */
     lockedTitle: '인증된 이메일은 변경할 수 없어요',
-    lockedBody:
-      '결제 기록을 보관하는 데 쓰이는 주소예요. 변경이 필요하면 문의해 주세요.',
+    lockedBody: '결제 기록을 보관하는 데 쓰이는 주소예요. 변경이 필요하면 문의해 주세요.',
     lockedClose: '닫기',
     lockedContact: '문의하기',
     /** 미인증 주소는 스크린리더가 주소 뒤에 배지를 이어 읽는다(profile-uiux.md 7장) */
@@ -140,6 +148,7 @@ export const PROFILE_COPY = {
     tileA11y: (label: string, value: string) => `${label} ${value}`,
 
     weeklyTitle: '주간 청취',
+    dailyAverageTitle: '하루 평균',
     /** 주 범위 "N월 N일 – N월 N일". 경계 판정은 서버 몫, +6일은 표기 전용(profile.format.ts) */
     weekRange: (weekStart: string) => {
       const { start, end } = toWeekRangeParts(weekStart);
@@ -157,6 +166,14 @@ export const PROFILE_COPY = {
     dayValue: listenedDayValue,
     /** 평균 기준선 라벨 — 막대와 견줄 대상이 무엇인지 선 옆에 밝힌다 */
     averageLabel: (sec: number) => `평균 ${listenedDayValue(sec)}`,
+    /** 주간 그래프 오른쪽 축 — 평균 점선 옆 · 바닥선 옆(최대값은 dayValue 형식) */
+    axisAverage: '평균',
+    /** 축 맨 위 = 그 주 최대값 — 좁은 축 칸에 맞게 분 단위만("72분"). 말풍선·하루 평균은 "1시간 12분" 형식 그대로 */
+    axisMax: (sec: number) =>
+      sec > 0 && sec < SECONDS_PER_MINUTE
+        ? '1분 미만'
+        : `${Math.floor(sec / SECONDS_PER_MINUTE)}분`,
+    axisZero: '0',
     /** 기준선은 장식이 아니라 값이다 — 그래프 컨테이너 라벨 뒤에 이어 읽힌다 */
     averageA11y: (sec: number) => `하루 평균 ${listenedDayValue(sec)}`,
     /** 막대 개별 읽기 — "화요일, 32분", 60분 이상이면 "N시간 N분"(profile-uiux.md 7장) */
@@ -168,6 +185,16 @@ export const PROFILE_COPY = {
     },
 
     distributionTitle: '주로 듣는 주제',
+    /** 1위 주제 헤드라인 앞 라벨 — "가장 많이 들은 주제"(PM 2026-09-27 23:42, 스크린 타임 "가장 많이 사용함" 자리) */
+    topTopicLabel: '가장 많이 들은 주제',
+    /**
+     * 주간 청취 카드 안에 합친 뒤의 라벨 — 주별 주제 집계가 서버에 생기기 전까지는 전체 기간 값이라 기간을 밝힌다.
+     * 위 차트는 선택한 주라, 안 밝히면 주를 넘겨도 주제가 그대로인 것이 고장으로 읽힌다
+     */
+    topTopicAllTimeLabel: '가장 많이 들은 주제 · 전체 기간',
+    /** 막대를 탭해 그날 분포를 볼 때 — "가장 많이 들은 주제 · 화요일"(PM 2026-09-28 04:26) */
+    topTopicDayLabel: (dayIndex: number) =>
+      `가장 많이 들은 주제 · ${['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일'][dayIndex] ?? ''}`,
     othersLabel: '기타',
     /** 비율은 서버 정수 그대로 "N%"(profile-uiux.md 4.6) */
     ratioValue: (ratio: number) => `${ratio}%`,

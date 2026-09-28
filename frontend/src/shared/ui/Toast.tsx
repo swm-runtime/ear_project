@@ -63,6 +63,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: theme.color.textPrimary,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     paddingVertical: theme.spacing.sm + theme.spacing.xs,
     paddingHorizontal: theme.spacing.md,
     gap: theme.spacing.md,

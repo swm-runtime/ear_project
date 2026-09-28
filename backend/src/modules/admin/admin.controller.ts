@@ -18,6 +18,8 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
+
+import { UploadCleanupInterceptor } from './upload-cleanup.interceptor';
 import { diskStorage } from 'multer';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
@@ -84,7 +86,8 @@ interface UploadFiles {
 /**
  * 업로드 파일은 **디스크 임시 파일**로 받는다(multer 기본은 메모리). 오디오 200MB를 램에
  * 통째로 올리면 길이 추출·S3 전송이 동시에 보유해 요청당 수백 MB가 되고, 단일 EC2(4GB)에서
- * 동시 2건이면 자원 알림이 울린다. 임시 파일은 요청이 어떻게 끝나든 `discardUploads`가 지운다.
+ * 동시 2건이면 자원 알림이 울린다. 임시 파일은 핸들러의 `discardUploads`(성공·서비스 실패)와
+ * `UploadCleanupInterceptor`(파이프 실패)가 어느 경로든 지운다(2026-09-26).
  *
  * `fileSize`는 필드별로 줄 수 없어(multer 한계) 최대값(오디오)으로 두고, 필드별 상한은
  * 파일이 도착한 직후 `assertFileSizes`가 서비스 진입 전에 검사한다.
@@ -333,6 +336,8 @@ export class AdminController {
   @Post('contents')
   @UseInterceptors(
     FileFieldsInterceptor(UPLOAD_FILE_FIELDS, UPLOAD_MULTER_OPTIONS),
+    // 파이프(400)에서 던져도 임시 파일을 지운다 — 핸들러의 finally 는 파이프 실패에 닿지 않는다
+    UploadCleanupInterceptor,
   )
   async uploadContent(
     @CurrentUser() currentUser: AuthenticatedUser,
@@ -411,6 +416,8 @@ export class AdminController {
   @Patch('contents/:contentId')
   @UseInterceptors(
     FileFieldsInterceptor(UPLOAD_FILE_FIELDS, UPLOAD_MULTER_OPTIONS),
+    // 파이프(400)에서 던져도 임시 파일을 지운다 — 핸들러의 finally 는 파이프 실패에 닿지 않는다
+    UploadCleanupInterceptor,
   )
   async republishContent(
     @CurrentUser() currentUser: AuthenticatedUser,

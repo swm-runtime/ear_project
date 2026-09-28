@@ -220,6 +220,7 @@ const styles = StyleSheet.create({
   selectedChip: {
     height: 36,
     borderRadius: theme.radius.full,
+    borderCurve: 'continuous',
     overflow: 'hidden',
     flexDirection: 'row',
     alignItems: 'center',
@@ -282,6 +283,7 @@ const styles = StyleSheet.create({
     width: PILL_WIDTH,
     height: theme.touchTarget.minHeight + theme.spacing.sm,
     borderRadius: theme.radius.full,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
   },
   dock: {
@@ -295,6 +297,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.primary,
     alignItems: 'center',
     justifyContent: 'center',

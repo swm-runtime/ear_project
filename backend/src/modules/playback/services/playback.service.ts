@@ -14,6 +14,7 @@ import { UserSignalRepository } from '../repositories/user-signal.repository';
 import { REPLAY_WINDOW_DAYS } from '../playback.constant';
 import { UserSignalAction } from '../playback.enum';
 import {
+  ContentDailyListenedSecView,
   ContentListenedSecView,
   DailyPlayQuota,
   ProgressView,
@@ -199,6 +200,22 @@ export class PlaybackService {
     manager?: EntityManager,
   ): Promise<Map<string, number>> {
     return this.playRecordRepository.sumListenedSecByPlayDates(
+      userId,
+      playDates,
+      manager,
+    );
+  }
+
+  /**
+   * 지정한 서비스 날짜들의 콘텐츠 × 날짜별 청취 시간 — 주간 카드의 그 주·요일별 주제 분포
+   * 원천(`profile.md` 4.7, KAN-113)
+   */
+  async sumListenedSecByContentAndDates(
+    userId: string,
+    playDates: string[],
+    manager?: EntityManager,
+  ): Promise<ContentDailyListenedSecView[]> {
+    return this.playRecordRepository.sumListenedSecGroupByContentIdAndPlayDate(
       userId,
       playDates,
       manager,

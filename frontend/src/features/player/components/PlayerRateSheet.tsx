@@ -1,6 +1,7 @@
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import BottomSheet from '@/shared/ui/BottomSheet';
 
 import type { PlaybackRate } from '@/features/settings';
 
@@ -25,11 +26,15 @@ export default function PlayerRateSheet({
   onSelect,
   onClose,
 }: PlayerRateSheetProps) {
+  // 딤 탭·뒤로가기로 닫으면 아무것도 바뀌지 않는다(player-uiux.md 4.5)
   return (
-    <Modal visible={isVisible} transparent animationType="slide" onRequestClose={onClose}>
-      {/* 딤 탭·뒤로가기로 닫으면 아무것도 바뀌지 않는다(player-uiux.md 4.5) */}
-      <Pressable style={styles.backdrop} onPress={onClose} accessible={false}>
-        <Pressable style={styles.sheet} accessible={false}>
+    <BottomSheet
+      isVisible={isVisible}
+      onRequestClose={onClose}
+      sheetStyle={styles.sheet}
+      dimColor={playerColor.overlay}
+    >
+      <View accessible={false}>
           <View style={styles.handle} />
           <View accessibilityViewIsModal accessibilityRole="radiogroup">
             <Text style={styles.title} accessibilityRole="header">
@@ -62,18 +67,12 @@ export default function PlayerRateSheet({
               );
             })}
           </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
+      </View>
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: playerColor.overlay,
-    justifyContent: 'flex-end',
-  },
   sheet: {
     borderTopLeftRadius: theme.radius.xl,
     borderTopRightRadius: theme.radius.xl,

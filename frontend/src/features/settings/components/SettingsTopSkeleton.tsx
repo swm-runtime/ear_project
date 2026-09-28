@@ -1,5 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 
+import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
 import { theme } from '@/shared/theme';
 
 /**
@@ -13,26 +14,42 @@ export default function SettingsTopSkeleton() {
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
-      <View style={styles.row} />
-      <View style={styles.card} />
+      <View style={styles.section}>
+        <View style={styles.label} />
+        <View style={styles.card} />
+      </View>
+      {IS_SUBSCRIPTION_UI_ENABLED ? (
+        <View style={styles.section}>
+          <View style={styles.label} />
+          <View style={styles.card} />
+        </View>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: {
-    gap: theme.spacing.sm,
+    gap: theme.spacing.lg,
     paddingHorizontal: theme.spacing.md,
     overflow: 'hidden',
   },
-  row: {
-    height: 48,
-    borderRadius: theme.radius.md,
+  section: {
+    gap: theme.spacing.sm,
+  },
+  label: {
+    width: theme.spacing.xl * 2,
+    height: theme.font.size.xs,
+    marginLeft: theme.spacing.md,
+    borderRadius: theme.radius.sm,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
   },
   card: {
-    height: 64,
-    borderRadius: theme.radius.md,
+    // 계정 행의 최소 터치 높이 + 위아래 여백에 맞춰 조회 뒤의 위치 이동을 줄인다.
+    height: theme.touchTarget.minHeight + theme.spacing.md * 2,
+    borderRadius: theme.radius.xl,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
   },
 });

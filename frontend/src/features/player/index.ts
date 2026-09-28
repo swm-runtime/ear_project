@@ -16,7 +16,10 @@ export {
 export { useMiniPlayerResumeStore } from './store/mini-player-resume.store';
 export { miniDropProgress, miniDropStyle } from './store/mini-drop-motion';
 export { default as PlayConfirmDialog } from './components/PlayConfirmDialog';
+export { default as LimitNoticeSheet } from './components/LimitNoticeSheet';
+export { useLimitNoticeStore } from './store/limit-notice.store';
 export { default as RemainingPlaysIndicator } from './components/RemainingPlaysIndicator';
+export { default as ZoomSourceProxy } from './components/ZoomSourceProxy';
 export { usePlayGate } from './hooks/usePlayGate';
 export type { PlayGateTarget } from './hooks/usePlayGate';
 export {

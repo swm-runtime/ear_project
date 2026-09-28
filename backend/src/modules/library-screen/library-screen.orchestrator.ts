@@ -183,12 +183,14 @@ export class LibraryScreenOrchestrator {
         manager,
       );
 
-      return this.libraryService.completeItem(
+      const { item: completed } = await this.libraryService.completeItem(
         item,
         progress?.maxReachedSec ?? 0,
         now,
         manager,
       );
+
+      return completed;
     });
   }
 

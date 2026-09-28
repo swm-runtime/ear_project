@@ -1,12 +1,12 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
-import ChevronIcon from '@/shared/ui/ChevronIcon';
+import ChevronIcon, { chevronTrailingGutter } from '@/shared/ui/ChevronIcon';
 
 import type { PlanRowVM, SectionState } from '../hooks/useSettingsScreen';
 import { SETTINGS_COPY } from '../settings.copy';
 
-const CHEVRON_SIZE = 18;
+const CHEVRON_SIZE = 16;
 
 interface PlanSummaryCardProps {
   state: SectionState<PlanRowVM>;
@@ -76,7 +76,7 @@ export default function PlanSummaryCard({
           <Text style={styles.freeActionText}>{SETTINGS_COPY.plan.freeAction}</Text>
         </View>
       ) : (
-        <View accessibilityElementsHidden importantForAccessibility="no">
+        <View style={styles.chevron} accessibilityElementsHidden importantForAccessibility="no">
           <ChevronIcon direction="right" size={CHEVRON_SIZE} color={theme.color.textSecondary} />
         </View>
       )}
@@ -91,14 +91,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: theme.spacing.sm,
-    marginHorizontal: theme.spacing.md,
     paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.radius.md,
-    backgroundColor: theme.color.surface,
+    paddingVertical: theme.spacing.md,
+    flexWrap: 'wrap',
+    // wrap 아래에서는 alignContent 가 줄의 세로 위치를 정한다 — 없으면 flex-start 로 위에 붙는다(SettingsRow 와 같은 이유)
+    alignContent: 'center',
   },
   pressed: {
-    opacity: 0.7,
+    backgroundColor: theme.color.border,
+  },
+  // 항목 행의 셰브론과 같은 끝선(SettingsRow 와 같은 이유)
+  chevron: {
+    marginRight: -chevronTrailingGutter(CHEVRON_SIZE),
   },
   errorCard: {
     justifyContent: 'space-between',
@@ -106,9 +110,11 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: theme.font.size.sm,
     color: theme.color.textSecondary,
+    flexShrink: 1,
   },
   retry: {
     minHeight: theme.touchTarget.minHeight,
+    minWidth: theme.touchTarget.minWidth,
     justifyContent: 'center',
     paddingHorizontal: theme.spacing.sm,
   },
@@ -127,7 +133,8 @@ const styles = StyleSheet.create({
     color: theme.color.danger,
   },
   freeAction: {
-    borderRadius: theme.radius.sm,
+    borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.primary,
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.xs,

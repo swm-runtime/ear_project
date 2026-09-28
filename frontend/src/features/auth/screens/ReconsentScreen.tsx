@@ -116,6 +116,8 @@ export default function ReconsentScreen() {
           onPress: () => {
             if (!isLoggingOut) void confirmLogout();
           },
+          // 설정의 로그아웃 확인과 같은 조작이다 — 채운 빨강(design.md §5 파괴적 확인, 2026-09-28)
+          isDestructive: true,
         }}
         onCloseRequest={cancelLogout}
       />
@@ -180,6 +182,7 @@ const styles = StyleSheet.create({
   submit: {
     minHeight: 56,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.primary,
     alignItems: 'center',
     justifyContent: 'center',

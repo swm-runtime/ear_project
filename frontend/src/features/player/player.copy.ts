@@ -35,6 +35,13 @@ export const PLAYER_COPY = {
   /* TODO(paywall feature): 페이월 바텀시트(paywall.md 4.5)는 paywall feature가 소유한다.
      구현 전까지 서버 안내 문구와 같은 토스트로 대체한다. */
   paywallPlaceholderToast: '오늘 들을 수 있는 콘텐츠를 모두 들었어요',
+  /** 한도 안내 시트(LimitNoticeSheet, 2026-09-28) — 제목은 paywall.md 확정 문구. 서버 문구가 오면 그걸 쓴다 */
+  limitNotice: {
+    title: '오늘 청취 한도를 모두 사용했어요',
+    /** 채워지는 시각 안내 — 서비스 날짜 경계(04시)를 알려줄 뿐 판정이 아니다 */
+    description: '매일 새벽 4시에 다시 채워져요',
+    confirm: '확인',
+  },
 
   /** 재생 시작 실패의 공통 폴백 — 서버 message가 없을 때만 쓴다 */
   playFailedToast: '잠시 후 다시 시도해주세요',
@@ -70,7 +77,6 @@ export const PLAYER_COPY = {
     bufferingA11y: '재생 준비 중',
     /** 시크바 aria-valuetext — "09:12"가 "영 구 콜론 일 이"로 읽히지 않게 한다(uiux 7장) */
     seekBarA11yValue: (position: string, duration: string) => `${duration} 중 ${position}`,
-    completedBadgeA11y: '완청함',
   },
 
   /** PL6 스크립트 시트 — 현재 구간 하이라이트·문단 탭 seek(player-uiux.md 4.6). P1이라 지금은 dev mock만 채운다 */
@@ -123,6 +129,8 @@ export const PLAYER_COPY = {
   /** PL7 더보기 시트 — L4·E12와 같은 시트 문법(대상 요약 + 좌측 정렬 액션 + 닫기).
       [상세 정보] 추가(2026-08-23 — 상세 화면 도입 FR-40, 세 화면 더보기 통일) */
   moreSheet: {
+    /** 대상 요약의 길이 — L4·E12 와 같은 `N분`(최소 1분, 반올림) */
+    durationLabel: (minutes: number) => `${minutes}분`,
     detail: '상세 정보',
     sourceLink: '원문 보기',
     delete: '라이브러리에서 삭제',

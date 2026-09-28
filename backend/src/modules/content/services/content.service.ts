@@ -106,6 +106,15 @@ export class ContentService {
     await this.contentScriptRepository.upsert(contentId, segments, manager);
   }
 
+  /**
+   * 대본 삭제 — 오디오가 교체됐는데 **유효한 대본이 함께 오지 않은** 재발행(admin-api.md 4.10). 옛 세그먼트의
+   * 시각은 새 오디오와 맞지 않으므로 남겨 두면 플레이어가 어긋난 자막을 그린다. 틀린 자막보다 없는 편이
+   * 낫다(`script-file.ts`). 없으면 아무 일도 하지 않는다 — 콘솔이 [자막 뽑기] → [반영]으로 다시 채운다.
+   */
+  async deleteScript(contentId: string, manager: EntityManager): Promise<void> {
+    await this.contentScriptRepository.deleteByContentId(contentId, manager);
+  }
+
   /** 회수 동기화(`partner-control.md` 4.3) — 그 시각 이후 회수된 콘텐츠 id 목록 */
   /**
    * 회수 동기화 한 페이지(`partner-control.md` 4.3).

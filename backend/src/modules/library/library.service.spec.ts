@@ -77,6 +77,7 @@ describe('LibraryService', () => {
       findByUserIdAndContentId: jest.fn().mockResolvedValue(null),
       save: jest.fn().mockImplementation((item: LibraryItem) => item),
       softDeleteById: jest.fn().mockResolvedValue(true),
+      completeById: jest.fn().mockResolvedValue(true),
       restoreById: jest.fn().mockResolvedValue(true),
       insertIgnoringConflicts: jest.fn(),
       insertIfAbsent: jest.fn().mockResolvedValue(true),
@@ -236,7 +237,7 @@ describe('LibraryService', () => {
       // then
       expect(error.errorCode).toBe(ErrorCode.LIBRARY_COMPLETION_NOT_REACHED);
       expect(item.status).toBe(LibraryItemStatus.IN_PROGRESS);
-      expect(repository.save).not.toHaveBeenCalled();
+      expect(repository.completeById).not.toHaveBeenCalled();
     });
 
     it('도달 위치가 90% 이상이면 완료로 전이한다', async () => {
@@ -250,9 +251,40 @@ describe('LibraryService', () => {
         NOW,
       );
 
-      // then
-      expect(completed.status).toBe(LibraryItemStatus.COMPLETED);
-      expect(completed.completedAt).toEqual(NOW);
+      // then — 조건부 UPDATE 가 이번 요청에서 행을 바꿨다
+      expect(repository.completeById).toHaveBeenCalledWith(
+        item.id,
+        NOW,
+        undefined,
+      );
+      expect(completed.transitioned).toBe(true);
+      expect(completed.item.status).toBe(LibraryItemStatus.COMPLETED);
+      expect(completed.item.completedAt).toEqual(NOW);
+    });
+
+    it('다른 기기가 같은 순간 먼저 완청시켰으면(affected 0) 전이로 세지 않는다 — 완청 신호는 1회다', async () => {
+      // given
+      const item = buildItem();
+      const alreadyCompletedAt = new Date('2026-08-04T00:30:00.000Z');
+      repository.completeById.mockResolvedValue(false);
+      repository.findByIdAndUserId.mockResolvedValue(
+        buildItem({
+          status: LibraryItemStatus.COMPLETED,
+          completedAt: alreadyCompletedAt,
+        }),
+      );
+
+      // when
+      const result = await service.completeItem(
+        item,
+        REACHED_THRESHOLD_SEC,
+        NOW,
+      );
+
+      // then — 상태는 DB 의 최신값으로 돌려주되 신호 적재 근거(transitioned)는 false
+      expect(result.transitioned).toBe(false);
+      expect(result.item.status).toBe(LibraryItemStatus.COMPLETED);
+      expect(result.item.completedAt).toEqual(alreadyCompletedAt);
     });
 
     it('이미 완료된 항목은 되감아 다시 들어도 완료 시각을 유지한다', async () => {
@@ -267,8 +299,9 @@ describe('LibraryService', () => {
       const result = await service.completeItem(item, 0, NOW);
 
       // then
-      expect(result.completedAt).toEqual(completedAt);
-      expect(repository.save).not.toHaveBeenCalled();
+      expect(result.transitioned).toBe(false);
+      expect(result.item.completedAt).toEqual(completedAt);
+      expect(repository.completeById).not.toHaveBeenCalled();
     });
 
     it('콘텐츠 길이를 알 수 없으면 재생 종료만으로 완료 처리한다', async () => {
@@ -281,7 +314,7 @@ describe('LibraryService', () => {
       const result = await service.completeItem(item, 0, NOW);
 
       // then
-      expect(result.status).toBe(LibraryItemStatus.COMPLETED);
+      expect(result.item.status).toBe(LibraryItemStatus.COMPLETED);
     });
   });
 

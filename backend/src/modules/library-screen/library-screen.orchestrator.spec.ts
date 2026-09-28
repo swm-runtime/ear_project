@@ -103,7 +103,11 @@ describe('LibraryScreenOrchestrator', () => {
       findResumeTarget: jest.fn().mockResolvedValue(null),
       getOwnedItem: jest.fn(),
       getOwnedItemWithDeleted: jest.fn(),
-      completeItem: jest.fn(),
+      completeItem: jest
+        .fn()
+        .mockImplementation((item: LibraryItem) =>
+          Promise.resolve({ item, transitioned: true }),
+        ),
       softDelete: jest.fn().mockResolvedValue(true),
       restore: jest.fn().mockImplementation((item: LibraryItem) => item),
     } as unknown as jest.Mocked<LibraryService>;

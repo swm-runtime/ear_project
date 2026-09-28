@@ -124,7 +124,7 @@ idx_idempotency_keys_expires_at
 | `subscription` | `plans`, `subscriptions`, `purchase_intents`, `store_notification_logs` |
 | `notification` | `notification_logs` |
 | `notice` | `notices` — 공지사항 게시판(신설 2026-09-17, [9.2](#92-notices)). 다른 모듈을 의존하지 않는다 |
-| `partner` | `partners`, `content_control_requests`, `audit_logs` |
+| `partner` | `partners`, `content_control_requests`, `audit_logs` — `partners`는 테이블만 있고(마이그레이션 1786700000000) 엔티티는 아직 없어 `contents` FK로 읽기만 한다(2026-09-26) |
 | `user` (archive 스키마) | `archived_users`, `archived_consents`, `archived_subscriptions` |
 | `idempotency` | `idempotency_keys` — 도메인이 없는 플랫폼 모듈([1.4](#14-멱등-요청-저장--idempotency_keys)) |
 
@@ -173,7 +173,7 @@ users
   tier                      enum            light | daily | pro   DEFAULT 'light'   ★캐시
   status                    enum            active | withdrawn    DEFAULT 'active'   ※ 아래 주석
   onboarding_completed      boolean         DEFAULT false
-  onboarding_step           enum            topic | career | pick | done
+  onboarding_step           enum            topic | career | pick | done   DEFAULT 'topic'
   onboarding_completed_at   timestamptz     NULL
   job_category              varchar         NULL   ← UserCareer 병합 (C-2)
   job_title                 varchar         NULL
@@ -237,7 +237,7 @@ idx_consents_user_id_consent_type_agreed_at (user_id, consent_type, agreed_at DE
 
 - 설정 화면의 마케팅 수신 동의 토글(즉시 저장)은 **`consents`에 행을 추가하는 것**이며, `user_settings`에 토글 컬럼을 두지 않는다. 상태를 두 곳에 두면 반드시 어긋난다(`users.tier` 캐시와 같은 문제 — 여기는 캐시가 필요할 만큼 자주 읽히지도 않는다). 현재 상태 = `consent_type = marketing`의 `agreed_at` 최신 1건.
 - **2년 재확인(정보통신망법 제50조 제8항)의 기산점은 최신 `is_agreed = true` 행의 `agreed_at`이다.** 재확인 통지 후 사용자가 다시 동의하면 새 행이 추가되어 기산점이 자연히 갱신된다 — "재확인 시각" 컬럼을 따로 두지 않는다(append-only 이력이 그 자체로 시각 기록이다).
-- 재확인 **통지를 보낸 사실**은 `notification_logs`(type으로 구분)에 남는다. 대상 판정(동의일 + 2년 경과)은 서버 배치가 이 테이블 집계로 수행한다 — 파생값이므로 컬럼을 만들지 않는다([1.5](#15-파생값을-컬럼으로-두지-않는다)).
+- 재확인 **통지를 보낸 사실**은 **`audit_logs`**(10.3 — 삭제하지 않는다)에 `consent.reconfirm_notice`로 남긴다(정정 2026-09-26 — 종전 `notification_logs`는 90일 삭제(12.1)라 증적이 되지 못한다). 통지 자체는 아직 미구현이며(`NotificationType`은 `drip_arrival`뿐), 대상 판정(동의일 + 2년 경과)은 서버 배치가 이 테이블 집계로 수행한다 — 파생값이므로 컬럼을 만들지 않는다([1.5](#15-파생값을-컬럼으로-두지-않는다)).
 - 탈퇴 시 처리는 [12장](#12-삭제--보존-정책) 참조 — `archived_consents`로 해시 보존한다.
 
 ### 3.3 `sessions`
@@ -682,7 +682,7 @@ content_embeddings
   content_id                uuid            FK → contents (CASCADE)
   embedding                 vector(1536)    ★text-embedding-3-small 확정 (2026-09-01 — 15.1 #11 해소)
   model                     varchar         ★생성 모델 식별자 — "text-embedding-3-small" 확정
-  content_version           int             ★어느 버전 대본 기준인지 — contents.content_version과 대조해 재발행 후 미갱신 검출
+  content_version           int             DEFAULT 1   ★어느 버전 대본 기준인지 — contents.content_version과 대조해 재발행 후 미갱신 검출
 
 uq_content_embeddings_content_id (content_id)
 ```
@@ -935,13 +935,13 @@ idx_drip_excluded_contents_user_id
 user_preference_vectors
   id                        uuid            PK
   user_id                   uuid            FK → users
-  topic_weights             jsonb           { topic_id: float }
-  author_weights            jsonb           { author: float }
-  keyword_weights           jsonb           { keyword: float }     ★신설 2026-08-26 — contents.keywords 기반
-  format_weights            jsonb           { format: float }      ★신설 2026-08-26 — contents.format 기반
+  topic_weights             jsonb           { topic_id: float }    DEFAULT '{}'
+  author_weights            jsonb           { author: float }      DEFAULT '{}'
+  keyword_weights           jsonb           { keyword: float }     DEFAULT '{}'   ★신설 2026-08-26 — contents.keywords 기반
+  format_weights            jsonb           { format: float }      DEFAULT '{}'   ★신설 2026-08-26 — contents.format 기반
   duration_pref             jsonb           { median_sec, p25_sec, p75_sec } ★신설 2026-08-26 — 완청 길이 분포
   taste_embedding           vector(1536)    NULL 허용 ★신설 2026-08-26 — 취향 벡터 (차원은 content_embeddings와 동일 — 확정 2026-09-01)
-  signal_count              int             ★콜드스타트 판정용
+  signal_count              int             DEFAULT 0   ★콜드스타트 판정용
 
 uq_user_preference_vectors_user_id (user_id)
 ```
@@ -951,6 +951,7 @@ uq_user_preference_vectors_user_id (user_id)
 - `signal_count < 3`(완청 기준)이면 콜드스타트로 판정하고 인기도·신선도 비중을 높인다(`drip-scheduling.md` 4.4).
 - **`taste_embedding`은 긍정 신호(완청·저장·재청취) 콘텐츠 임베딩의 최근성 가중 평균**이다(`drip-scheduling.md` 4.3-1). 부정 신호는 벡터에 빼지 않는다 — 감점은 룰 축(`keyword_weights` 등 음수 가중)이 담당한다. 긍정 신호 콘텐츠에 임베딩이 하나도 없으면 NULL이며, 스코어링에서 임베딩 축을 중립 처리한다.
 - `keyword_weights` · `format_weights` · `duration_pref`의 원천은 `user_signals` ⨝ `contents`의 추천 메타(5.1)다. 메타가 NULL인 콘텐츠는 해당 집계에서 제외한다.
+- **무시 신호(2026-09-24)는 원천에 `library_items`가 더해진다** — 드립·탐험 편성분이 7일 넘게 `unplayed`이고 삭제되지 않은 행을 배치 시점에 파생해 약한 부정(−0.3)으로 `topic_weights`·`author_weights`·`keyword_weights`·`format_weights`에 반영한다. **저장하지 않는다** — `user_signals`에 행을 만들지 않고 스키마 변경도 없다(`drip-scheduling.md` 4.3). `taste_embedding`·`duration_pref`에는 넣지 않는다.
 
 ### 7.3 `drip_batch_runs`
 
@@ -958,11 +959,11 @@ uq_user_preference_vectors_user_id (user_id)
 drip_batch_runs
   id                        uuid            PK
   run_date                  date
-  target_count              int
-  success_count             int
-  skipped_count             int
+  target_count              int             DEFAULT 0
+  success_count             int             DEFAULT 0
+  skipped_count             int             DEFAULT 0
   exhausted_count           int             DEFAULT 0       -- 2026-09-11 신설
-  failed_count              int
+  failed_count              int             DEFAULT 0
   started_at                timestamptz
   finished_at               timestamptz     NULL
 
@@ -1010,7 +1011,7 @@ idx_first_drip_jobs_status_last_attempted_at (status, last_attempted_at)
 - **`no_candidates`를 실패로 뭉뚱그리지 않는다.** 재시도해도 결과가 바뀌지 않는 종료 상태이므로(`onboarding.md` 7), 실패로 취급하면 서버가 헛된 재시도를 하고 사용자는 상한까지 기다린다.
 - **사용자당 1행이다**(`uq_first_drip_jobs_user_id`). 온보딩은 계정 생애에 한 번뿐이고, 유니크가 완료 요청 재시도로 인한 **중복 편성 트리거를 막는 최종 방어선**이다.
 - `attempt_count`는 **서버 내부 재시도 횟수**다. 클라이언트가 보내는 값이 아니며, 사용자 화면에도 노출하지 않는다(`onboarding.md` 4).
-- 보존: 온보딩 완료 후 목적이 끝나므로 **`completed_at` 기준 30일 후 배치 삭제**한다. 운영 지표(0건 담기 비율·편성 실패율)는 그 전에 구조화 로그로 빠져나간다(B-8).
+- 보존: 온보딩 완료 후 목적이 끝나므로 **종착 상태(`completed`·`no_candidates`·`failed`) 전부 상태 전이 시각 기준 30일 후 배치 삭제**한다(정정 2026-09-26 — 코드는 아직 `completed_at`만 봄, 하 등급 항목). ~~`completed_at` 기준 30일 후 배치 삭제~~ 운영 지표(0건 담기 비율·편성 실패율)는 그 전에 구조화 로그로 빠져나간다(B-8).
 
 ---
 
@@ -1026,7 +1027,7 @@ plans
   description               text
   daily_play_limit          int             NULL = 무제한
   daily_drip_count          int             일일 자동 적립 편수
-  daily_discovery_count     int             일일 탐험 편성 편수 ★신설 2026-08-27 (`drip-scheduling.md` 4.8)
+  daily_discovery_count     int             DEFAULT 1   일일 탐험 편성 편수 ★신설 2026-08-27 (`drip-scheduling.md` 4.8)
   is_drip_enabled           boolean
   is_ads_enabled            boolean
   price_krw                 int
@@ -1095,6 +1096,8 @@ idx_subscriptions_user_id_status (user_id, status)
 
 ### 8.3 `purchase_intents`
 
+> **구현 상태(2026-09-26)** — 이 테이블은 아직 만들지 않았다(마이그레이션·엔티티 없음). 구독 영수증 검증(KAN-40)과 함께 생긴다. 12.3 즉시 파기 목록의 이 항목은 테이블이 생길 때 코드에 붙는다.
+
 ```
 purchase_intents
   id                        uuid            PK   ★멱등키
@@ -1109,6 +1112,8 @@ idx_purchase_intents_user_id_created_at (user_id, created_at DESC)
 - 결제 버튼 연타로 인한 중복 결제 요청을 막는 멱등키다(`paywall.md` 7).
 
 ### 8.4 `store_notification_logs`
+
+> **구현 상태(2026-09-26)** — 이 테이블은 아직 만들지 않았다(마이그레이션·엔티티 없음). 구독 영수증 검증(KAN-40)과 함께 생긴다. 12.3 즉시 파기 목록의 이 항목은 테이블이 생길 때 코드에 붙는다.
 
 ```
 store_notification_logs
@@ -1140,7 +1145,7 @@ notification_logs
   scheduled_at              timestamptz
   sent_at                   timestamptz     NULL
   status                    enum            scheduled | sent | failed | skipped
-  skip_reason               enum            no_permission | toggle_off | daily_cap
+  skip_reason               enum            no_permission | toggle_off | daily_cap   NULL 허용 (status ≠ skipped)
   opened_at                 timestamptz     NULL
 
 idx_notification_logs_user_id_scheduled_at (user_id, scheduled_at DESC)
@@ -1381,7 +1386,7 @@ idx_archived_subscriptions_archived_at
 | `device_tokens` | **soft** (`invalidated_at`) | 발송 실패 원인 추적 |
 | `user_interests` | **soft** (`is_active`, `deactivated_at`) | 재활성화 가능 |
 | `email_verifications` | **hard** — 만료 24시간 후 배치 삭제 | 인증 목적 종료 후 보관 근거 없음 ([3.7](#37-email_verifications)) |
-| `first_drip_jobs` | **hard** — `completed_at` 30일 후 배치 삭제 | 온보딩 1회성 작업 기록. 지표는 구조화 로그로 빠진다 ([7.4](#74-first_drip_jobs)) |
+| `first_drip_jobs` | **hard** — 종착 상태(`completed`·`no_candidates`·`failed`) 전부 상태 전이 시각 기준 30일 후 배치 삭제(정정 2026-09-26 — 코드는 아직 `completed_at`만 봄, 하 등급 항목) | 온보딩 1회성 작업 기록. 지표는 구조화 로그로 빠진다 ([7.4](#74-first_drip_jobs)) |
 | `idempotency_keys` | **hard** — `expires_at`(24시간) 경과 후 배치 삭제 | 응답 본문에 개인정보가 섞일 수 있어 재시도 창을 넘겨 보관할 근거가 없다 ([1.4](#14-idempotency_keys)) |
 | `user_signals` | **hard** — `created_at` 180일 후 배치 삭제 | 스코어링이 읽는 창은 최근 90일이다. **그 두 배를 두는 이유는 `content_stats` 재집계** — 지나간 구간을 다시 셀 때 원천이 남아 있어야 한다 (확정 2026-09-10). **`all` 구간은 이 보존과 무관하다** — 원천이 아니라 `month` 행의 합이라 지워져도 값이 줄지 않는다 (5.4, 개정 2026-09-22) |
 | `source_link_clicks` | **hard** — `created_at` 180일 후 배치 삭제 | `content_stats` 재집계 입력이라 `user_signals`와 같은 창을 쓴다 (확정 2026-09-10) |
@@ -1392,7 +1397,7 @@ idx_archived_subscriptions_archived_at
 | `play_records` | **보류** — 기간을 정하지 않는다 | 프로필 통계가 **전 기간 청취 시간 합계**를 이 테이블에서 읽는다([6.3](#63-play_records)). 지금 지우면 사용자가 보던 숫자가 줄어든다. 비식별 누적 집계로 옮긴 뒤 정한다 (보류 2026-09-10) |
 | 나머지 | hard | |
 
-**위 배치들은 아직 구현되지 않았다**(2026-09-10 기준 — `idempotency_keys`만 돈다). 기간을 먼저 정의한 것은 **문서에 없는 삭제를 코드가 임의로 하지 않기 위해서**다. 구현 시 `created_at` 인덱스 유무를 함께 본다 — `user_signals`·`audio_access_logs`에는 단독 인덱스가 없어 삭제 쿼리가 풀스캔이 된다.
+**구현 상태(2026-09-26 기준) — 위 배치는 구현됐다.** `RetentionModule`(`user_signals`·`source_link_clicks`·`audio_access_logs`·`notification_logs`, 04:30 KST) · `SessionPurgeScheduler`(`sessions`, 매시간) · `EmailVerificationPurgeScheduler` · `IdempotencyPurgeScheduler` · `FirstDripPurgeScheduler`(`first_drip_jobs` — 단 `completed_at` 기준이라 `no_candidates`·`failed` 행은 안 지워진다, 하 등급 코드 항목). **`notices`의 삭제 30일 뒤 hard delete만 미구현**이다. ~~2026-09-10 기준 `idempotency_keys`만 돌았다.~~ 기간을 먼저 정의한 것은 **문서에 없는 삭제를 코드가 임의로 하지 않기 위해서**다. ~~`user_signals`·`audio_access_logs`에는 단독 인덱스가 없어 삭제 쿼리가 풀스캔이 된다~~ → 마이그레이션 `1787000000000-AddRetentionCreatedAtIndexes`로 `created_at` 인덱스를 추가해 해소했다.
 
 ### 12.2 법적 근거
 

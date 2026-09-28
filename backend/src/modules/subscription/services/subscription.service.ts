@@ -5,7 +5,11 @@ import { UserTier } from '@/modules/user/user.enum';
 
 import { Subscription } from '../entities/subscription.entity';
 import { SubscriptionRepository } from '../repositories/subscription.repository';
-import { PlanStatus, SubscriptionStatus } from '../subscription.enum';
+import {
+  NON_TERMINAL_SUBSCRIPTION_STATUSES,
+  PlanStatus,
+  SubscriptionStatus,
+} from '../subscription.enum';
 import { PlanView } from '../subscription.types';
 import { PlanService } from './plan.service';
 
@@ -117,12 +121,19 @@ export class SubscriptionService {
    * **`users.tier` 캐시가 아니라 이 행이 진실의 원천이다**(domain.md 3.1 · 8.2).
    * 프로필·설정의 플랜 카드는 이 값으로 조립하고, 캐시 갱신은 이 모듈이 결제 반영 시점에
    * 한 곳에서만 수행한다 — 조회 경로가 캐시를 고치기 시작하면 갱신 지점이 흩어진다.
+   *
+   * 선택 규칙은 `selectCurrentSubscription` 참조. 한 사용자의 구독 행은 많아야 몇 개라
+   * 전부 읽어 메모리에서 고른다.
    */
   async findCurrent(
     userId: string,
     manager?: EntityManager,
   ): Promise<Subscription | null> {
-    return this.subscriptionRepository.findLatestByUserId(userId, manager);
+    const rows = await this.subscriptionRepository.findAllByUserId(
+      userId,
+      manager,
+    );
+    return selectCurrentSubscription(rows);
   }
 
   /** 탈퇴 아카이브 이관용 조회 (domain.md 12.3) */
@@ -166,4 +177,35 @@ function toPlanStatus(subscription: Subscription | null): PlanStatus {
   return subscription.isAutoRenew
     ? PlanStatus.SUBSCRIBED
     : PlanStatus.CANCEL_SCHEDULED;
+}
+
+/**
+ * 여러 구독 행 중 "현재" 행을 고른다(KAN-40 추기, 2026-09-09 감사).
+ *
+ * **비종결 상태(`active` · `grace` · `cancelled`)를 우선하고, 없을 때만 최근 행으로 폴백한다.**
+ * `expires_at DESC` 단건 선택은 연간 구독을 환불(`refunded`, 만료일은 먼 미래)한 뒤 월간을
+ * 재구독한 사용자에게서 **환불 행을 골라 무료로 표시**했다. 종결 상태(`expired` · `refunded`)는
+ * 권한이 없는 행이므로 살아 있는 행이 하나라도 있으면 끼어들 수 없다.
+ *
+ * 같은 묶음 안에서는 `expires_at DESC, started_at DESC` — 종전 정렬과 같다.
+ */
+export function selectCurrentSubscription(
+  rows: readonly Subscription[],
+): Subscription | null {
+  if (rows.length === 0) {
+    return null;
+  }
+  const live = rows.filter((row) =>
+    NON_TERMINAL_SUBSCRIPTION_STATUSES.includes(row.status),
+  );
+  const pool = live.length > 0 ? live : rows;
+  return [...pool].sort(byLatestExpiry)[0];
+}
+
+function byLatestExpiry(a: Subscription, b: Subscription): number {
+  const byExpiry = b.expiresAt.getTime() - a.expiresAt.getTime();
+  if (byExpiry !== 0) {
+    return byExpiry;
+  }
+  return b.startedAt.getTime() - a.startedAt.getTime();
 }

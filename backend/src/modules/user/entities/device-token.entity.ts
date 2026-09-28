@@ -21,8 +21,7 @@ import { DevicePlatform } from '../user.enum';
  *
  * `token`을 nullable로 둔 것은 `onboarding-api.md` 4.9가 **권한 거부 시 `push_token: null`**
  * 을 보내도록 확정했기 때문이다. 거부했을 때도 호출하지 않으면 서버가 "거부"와
- * "아직 안 물어봄"을 구분할 수 없다. domain.md 3.6은 이 컬럼에 NULL 표기가 없어
- * 문서 정리가 필요하다(작업 보고 참조).
+ * "아직 안 물어봄"을 구분할 수 없다.
  */
 @Entity('device_tokens')
 @Unique('uq_device_tokens_user_id_device_id', ['userId', 'deviceId'])

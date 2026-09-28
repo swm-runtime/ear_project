@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 /**
  * Sentry 초기화 — **다른 어떤 모듈보다 먼저 로드되어야 한다.**
  *
@@ -20,7 +22,7 @@ import { scrubEvent } from '@/common/sentry-scrub';
 const dsn = process.env.SENTRY_DSN?.trim();
 
 if (dsn) {
-  const version = process.env.npm_package_version ?? 'unknown';
+  const version = resolveReleaseVersion();
   const tracesSampleRate = resolveTracesSampleRate(
     process.env.SENTRY_TRACES_SAMPLE_RATE,
   );
@@ -86,3 +88,31 @@ if (dsn) {
 
 /** 켜졌는지 — 부팅 로그에 한 줄 남기는 용도 */
 export const sentryEnabled = Boolean(dsn);
+
+/**
+ * 릴리스 버전 — `ear-api@<package.json version>`(architecture.md 7.6). 컨테이너는 `node dist/cluster`로 직접
+ * 뜨므로 `npm_package_version`이 없다(2026-09-26 감사 — 운영 릴리스가 늘 `unknown`이었다). 이미지에 함께 복사되는
+ * `package.json`을 읽는다. `SENTRY_RELEASE`가 있으면 그것이 우선(빌드 파이프라인이 박는 경로).
+ */
+function resolveReleaseVersion(): string {
+  if (process.env.SENTRY_RELEASE) {
+    return process.env.SENTRY_RELEASE;
+  }
+
+  if (process.env.npm_package_version) {
+    return process.env.npm_package_version;
+  }
+
+  try {
+    // src/ 와 dist/ 모두 package.json 의 한 단계 아래다
+    const raw = readFileSync(
+      path.join(__dirname, '..', 'package.json'),
+      'utf8',
+    );
+    const parsed = JSON.parse(raw) as { version?: unknown };
+
+    return typeof parsed.version === 'string' ? parsed.version : 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}

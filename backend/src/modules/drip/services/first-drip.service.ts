@@ -200,12 +200,13 @@ export class FirstDripService {
         })),
         manager,
       );
-    });
 
-    job.status = FirstDripJobStatus.COMPLETED;
-    job.itemCount = contentIds.length;
-    job.completedAt = now;
-    await this.firstDripJobRepository.save(job);
+      // 작업 확정도 같은 트랜잭션이다 — 적립만 커밋되고 확정이 실패하면 재시도가 새 2편을 또 준다(2026-09-26 감사)
+      job.status = FirstDripJobStatus.COMPLETED;
+      job.itemCount = contentIds.length;
+      job.completedAt = now;
+      await this.firstDripJobRepository.save(job, manager);
+    });
 
     this.logger.log('first drip scheduled', {
       user_id: userId,

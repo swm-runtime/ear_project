@@ -18,6 +18,12 @@ export const theme = {
      */
     warning: '#8A5B00',
     warningSurface: '#FFF3CD',
+    /**
+     * 파괴적 **보조** 버튼의 면 — 연한 빨강 + 빨간 글자(2026-09-28 PM "배경도 살짝 빨간색이어야 하는 거 아니야").
+     * iOS 의 `.bordered` + red tint 가 이 모양이다. **채운 빨강(`danger`)은 쓰지 않는다** — 검정 주 버튼보다
+     * 더 튀어 주·보조가 뒤바뀐다. `warningSurface` 와 같은 밝기대(임시값 — 디자인 확정 전)
+     */
+    dangerSurface: '#FDECEC',
     overlay: 'rgba(0, 0, 0, 0.4)',
     onPrimary: '#FFFFFF',
     /**

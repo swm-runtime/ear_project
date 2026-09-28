@@ -10,7 +10,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
+import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
+import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
+import GlassIconButton from '@/shared/ui/GlassIconButton';
 
 import { JOB_TITLE_MAX_LENGTH } from '../career.constants';
 import { CAREER_COPY } from '../career.copy';
@@ -33,30 +36,30 @@ export default function CareerInfoScreen() {
       {/* 앱바 — 뒤로가기 + "커리어 정보" + 우측 [초기화]. [저장](하단 독)과 오탭 거리를 두는
           배치가 확인 팝업 없는 즉시 실행의 전제다(career-uiux.md 4.2) */}
       <View style={styles.appBar}>
-        <Pressable
-          style={styles.backButton}
-          onPress={screen.handleBackPress}
-          accessibilityRole="button"
-          accessibilityLabel={CAREER_COPY.backA11y}
-        >
-          <Text style={styles.backGlyph}>‹</Text>
-        </Pressable>
+        {/* 뒤로 — 유리 원 안의 셰브론(상세 화면과 같은 문법, PM 2026-09-28 03:07) */}
+        <GlassIconButton onPress={screen.handleBackPress} accessibilityLabel={CAREER_COPY.backA11y}>
+          <ChevronIcon direction="left" size={BACK_ICON_SIZE} color={theme.color.textPrimary} />
+        </GlassIconButton>
         <Text style={styles.appBarTitle} accessibilityRole="header">
           {CAREER_COPY.appBarTitle}
         </Text>
-        <Pressable
-          style={styles.resetButton}
-          disabled={!screen.canReset}
-          onPress={screen.resetForm}
-          accessibilityRole="button"
-          accessibilityLabel={CAREER_COPY.resetA11yLabel}
-          accessibilityHint={CAREER_COPY.resetA11yHint}
-          accessibilityState={{ disabled: !screen.canReset }}
-        >
-          <Text style={[styles.resetLabel, !screen.canReset && styles.resetLabelDisabled]}>
-            {CAREER_COPY.reset}
-          </Text>
-        </Pressable>
+        {/* [초기화] — 뒤로와 같은 유리 재질의 알약(글자 버튼이라 원이 아니라 캡슐이다) */}
+        <GlassCapsule style={styles.resetCapsule}>
+          <Pressable
+            style={styles.resetButton}
+            disabled={!screen.canReset}
+            onPress={screen.resetForm}
+            accessibilityRole="button"
+            accessibilityLabel={CAREER_COPY.resetA11yLabel}
+            accessibilityHint={CAREER_COPY.resetA11yHint}
+            accessibilityState={{ disabled: !screen.canReset }}
+            hitSlop={RESET_HIT_SLOP}
+          >
+            <Text style={[styles.resetLabel, !screen.canReset && styles.resetLabelDisabled]}>
+              {CAREER_COPY.reset}
+            </Text>
+          </Pressable>
+        </GlassCapsule>
       </View>
 
       {screen.isError ? (
@@ -197,12 +200,21 @@ export default function CareerInfoScreen() {
         isVisible={screen.isLeaveConfirmVisible}
         title={CAREER_COPY.leaveConfirm.title}
         secondaryAction={{ label: CAREER_COPY.leaveConfirm.stay, onPress: screen.stayEditing }}
-        primaryAction={{ label: CAREER_COPY.leaveConfirm.leave, onPress: screen.leaveWithoutSaving }}
+        primaryAction={{
+          label: CAREER_COPY.leaveConfirm.leave,
+          onPress: screen.leaveWithoutSaving,
+        }}
         onCloseRequest={screen.stayEditing}
       />
     </SafeAreaView>
   );
 }
+
+/** 앱바 뒤로 셰브론 — 글자 `‹` 는 폰트마다 굵기·세로 위치가 달라 도형으로 그린다(design.md §5). 유리 원(40) 안쪽 값 */
+const BACK_ICON_SIZE = 20;
+
+/** 보이는 40 을 터치 44 로 채운다(design.md §6) */
+const RESET_HIT_SLOP = 2;
 
 const styles = StyleSheet.create({
   container: {
@@ -215,17 +227,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.sm,
     minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
   },
-  backButton: {
-    minWidth: theme.touchTarget.minWidth,
-    minHeight: theme.touchTarget.minHeight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backGlyph: {
-    fontSize: theme.font.size.xl,
-    color: theme.color.textPrimary,
-    lineHeight: theme.font.size.xl + 2,
-  },
   appBarTitle: {
     flex: 1,
     textAlign: 'center',
@@ -233,12 +234,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: theme.color.textPrimary,
   },
+  // 유리 알약은 머리 줄 컨트롤 높이(40)를 쓰고, 44 터치는 안쪽 Pressable 의 hitSlop 이 채운다
+  resetCapsule: {
+    height: HEADER_CONTROL_HEIGHT,
+  },
   resetButton: {
-    minWidth: theme.touchTarget.minWidth,
-    minHeight: theme.touchTarget.minHeight,
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.md,
   },
   resetLabel: {
     fontSize: theme.font.size.sm,
@@ -268,6 +272,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: theme.color.border,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     paddingHorizontal: theme.spacing.md,
     fontSize: theme.font.size.md,
     color: theme.color.textPrimary,
@@ -281,6 +286,7 @@ const styles = StyleSheet.create({
     minHeight: theme.touchTarget.minHeight,
     paddingHorizontal: theme.spacing.md,
     borderRadius: theme.radius.lg + theme.radius.sm,
+    borderCurve: 'continuous',
     borderWidth: 1.5,
     borderColor: theme.color.border,
     alignItems: 'center',
@@ -304,11 +310,13 @@ const styles = StyleSheet.create({
     width: 180,
     height: theme.font.size.sm * 1.4,
     borderRadius: theme.radius.sm,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
   },
   skeletonField: {
     height: theme.touchTarget.minHeight,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
     marginTop: theme.spacing.md,
   },
@@ -325,6 +333,7 @@ const styles = StyleSheet.create({
   save: {
     minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.primary,
     alignItems: 'center',
     justifyContent: 'center',

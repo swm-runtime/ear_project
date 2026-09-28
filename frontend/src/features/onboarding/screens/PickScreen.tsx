@@ -220,6 +220,7 @@ const styles = StyleSheet.create({
     width: 140,
     height: theme.font.size.md,
     borderRadius: theme.radius.sm,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
     marginBottom: theme.spacing.sm,
   },
@@ -227,6 +228,7 @@ const styles = StyleSheet.create({
   skeletonCard: {
     height: PICK_CARD_THUMBNAIL + theme.spacing.md * 2,
     borderRadius: theme.radius.lg,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
   },
   section: {
@@ -274,6 +276,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.primary,
     alignItems: 'center',
     justifyContent: 'center',

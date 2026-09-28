@@ -137,6 +137,8 @@ Frontend는 다음 5가지를 책임진다.
   | `1` | 2026-09 | 지문 정책 폐기 후 양 플랫폼 통일값 |
   | `2` | 2026-09-17 | `expo-video` 추가(스플래시 로고 영상 — `splash.md` 4장) |
   | `6` | 2026-09-23 | `@sentry/react-native` 추가(KAN-92 — 8.4) |
+  | `7` | 2026-09-23 | `@react-native-firebase/app`·`analytics` 추가(GA4 — KAN-90, `analytics.md`) |
+  | `8` | 2026-09-24 | `react-native-fbsdk-next` 추가(Meta 광고 측정 — KAN-94, `analytics.md` 3.5) |
 
   사이의 값은 각 PR의 `app.json` 이력을 따른다.
 - **OTA 번들의 env는 `eas.json`과 같은 값을 유지해야 한다.** 워크플로가 `EXPO_PUBLIC_API_BASE_URL`을 번들에 박으므로, `eas.json`의 `preview`·`production` env와 어긋나면 **OTA 번들만 다른 서버를 본다.** mock 플래그들은 `__DEV__` 가드라 릴리스 번들에서는 무관하다.
@@ -265,9 +267,9 @@ feature가 늘어나면 아래 표를 갱신한다. 표에 없는 의존이 코�
 
 | feature | 의존하는 feature | 비고 |
 |---|---|---|
-| library | player, share | 재생 시작 게이트 호출, 미니플레이어 상태 구독 / 시트 [공유] 실행(`IS_SHARE_ENABLED`·`shareContent` — share 공개 API) |
-| explore | player, library, share | 게이트 호출 / 담기(라이브러리 적립) 호출 / 시트 [공유] 실행(share 공개 API) |
-| content-detail | player, library, explore, share | 재생 게이트·확인 팝업·재생 세션 구독(`usePlaybackStore` — 현재 재생 중 콘텐츠 판정)·원문 클릭 계약(`sendSourceLinkClick`) / [삭제] 계약(`deleteLibraryItem`)·목록 무효화(`libraryKeys`) / [담기] 계약(`saveContent` — `explore-api.md` 4.3 재사용, `content-detail-api.md` 4.2 "신규 계약 없음") / 앱바 공유 아이콘(`ShareIcon`)·[공유] 실행(share 공개 API). **세 진입점 화면(library·explore·player)은 content-detail을 import하지 않는다** — 라우트 이름(`ContentDetail`)으로 내비게이션만 하고 화면 등록은 `app/navigation`이 담당한다(역방향 의존 없음 — 순환 미발생) |
+| library | player, share, interest | 재생 시작 게이트 호출, 미니플레이어 상태 구독 / 시트 [공유] 실행(`IS_SHARE_ENABLED`·`shareContent` — share 공개 API) / 필터 시트 주제 칩의 배경 사진(`topicImageSource` — 2026-09-27, 탐색·프로필과 같은 재사용) |
+| explore | player, library, share, interest | 게이트 호출 / 담기(라이브러리 적립) 호출 / 시트 [공유] 실행(share 공개 API) / 주제 칩 배경 사진(`topicImageSource` — 2026-09-27, 프로필의 관심 주제 카드와 같은 재사용) |
+| content-detail | player, library, explore, share, interest | 재생 게이트·확인 팝업·재생 세션 구독(`usePlaybackStore` — 현재 재생 중 콘텐츠 판정)·원문 클릭 계약(`sendSourceLinkClick`) / [삭제] 계약(`deleteLibraryItem`)·목록 무효화(`libraryKeys`) / [담기] 계약(`saveContent` — `explore-api.md` 4.3 재사용, `content-detail-api.md` 4.2 "신규 계약 없음") / 앱바 공유 아이콘(`ShareIcon`)·[공유] 실행(share 공개 API). **세 진입점 화면(library·explore·player)은 content-detail을 import하지 않는다** — 라우트 이름(`ContentDetail`)으로 내비게이션만 하고 화면 등록은 `app/navigation`이 담당한다(역방향 의존 없음 — 순환 미발생)  / 주제 칩 배경 사진(`topicImageSource` — 2026-09-27)|
 | player | paywall, subscription, settings, share, interest | 차단 시 페이월 시트 표시 / entitlements 조회 / 배속 저장·조회(`user_settings` — `settings-api.md` 4.2 계약 재사용. player가 재선언하면 같은 엔드포인트의 DTO가 두 벌이 된다) / 시트 [공유] 실행(share 공개 API) / 카테고리 줄의 주제 이름(`useTopicsQuery` — 같은 계약·같은 캐시 `interestKeys.topics()`, onboarding 행과 같은 방식. 역방향 import 없음 — 2026-09-17 `player-controls-redesign`) / 재생 목록 패널은 라이브러리 첫 페이지 조회를 `app/bootstrap`이 주입하는 브리지로 받는다(library → player 역방향 의존 없음) |
 | paywall | subscription | 요금제 비교·결제 실행. **player를 알지 못한다** (→ 5.2) |
 | profile | interest, subscription, auth, career | 관심사·플랜 카드 / 이메일 인증 진입 / 커리어 카드(dev mock 요약 원본 `getCareerMockSummary`). 관심사·커리어 저장 후 요약 invalidate는 각 feature가 노출한 `registerInterestSavedListener` · `registerCareerSavedListener`에 bootstrap이 주입한다(역방향 import 없음 — player ↔ library 브리지와 같은 방식) |
@@ -276,6 +278,7 @@ feature가 늘어나면 아래 표를 갱신한다. 표에 없는 의존이 코�
 | notification | player | 푸시 딥링크 → 재생 게이트 |
 | share | auth | 링크 수신 게이트의 관문 판정(`useSessionStore` — 온보딩 완료 사용자만 상세로 이동, `share.md` 4.3). 순환 없음 — share는 네 진입점 feature를 import하지 않는다 |
 | splash | auth, onboarding | 진입 분기 판정 |
+| app-update | (없음) | 스플래시 버전 관문(`splash.md` 4.1 처리 1단계 — `GET /app/version`, KAN-99 2026-09-26). 판정은 서버, 결과(`useAppUpdateStore.gate`)로 RootNavigator 가 강제 업데이트 화면을 그린다. 30분 복귀 재검사는 `startAppVersionRecheck`(bootstrap). 설정의 배지와 무관 |
 | notice | (없음) | 조회 전용 화면(공지 목록·상세 — `settings.md` 4.5). **settings는 notice를 import하지 않는다** — 라우트 이름(`Notice`·`NoticeDetail`)으로 이동만 하고 화면 등록은 `app/navigation`이 한다(content-detail과 같은 방식) |
 
 ## 5. 전역 Domain Service

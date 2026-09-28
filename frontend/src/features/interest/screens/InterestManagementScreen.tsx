@@ -2,7 +2,10 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
+import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
+import { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
+import GlassIconButton from '@/shared/ui/GlassIconButton';
 
 import InterestDialog from '../components/InterestDialog';
 import TopicChip from '../components/TopicChip';
@@ -31,14 +34,13 @@ export default function InterestManagementScreen() {
     <SafeAreaView style={styles.container}>
       {/* 앱바 — 뒤로가기 + "관심 주제 관리"(uiux 4.1). 탭바는 그리지 않는다(푸시된 하위 화면) */}
       <View style={styles.appBar}>
-        <Pressable
-          style={styles.backButton}
+        {/* 뒤로 — 유리 원 안의 셰브론(상세 화면과 같은 문법, PM 2026-09-28 03:07) */}
+        <GlassIconButton
           onPress={screen.handleBackPress}
-          accessibilityRole="button"
           accessibilityLabel={INTEREST_COPY.backA11y}
         >
-          <Text style={styles.backGlyph}>‹</Text>
-        </Pressable>
+          <ChevronIcon direction="left" size={BACK_ICON_SIZE} color={theme.color.textPrimary} />
+        </GlassIconButton>
         <Text style={styles.appBarTitle} accessibilityRole="header">
           {INTEREST_COPY.appBarTitle}
         </Text>
@@ -197,6 +199,9 @@ export default function InterestManagementScreen() {
   );
 }
 
+/** 앱바 뒤로 셰브론 — 글자 `‹` 는 폰트마다 굵기·세로 위치가 달라 도형으로 그린다(design.md §5). 유리 원(40) 안쪽 값 */
+const BACK_ICON_SIZE = 20;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -208,17 +213,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.sm,
     minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
   },
-  backButton: {
-    minWidth: theme.touchTarget.minWidth,
-    minHeight: theme.touchTarget.minHeight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backGlyph: {
-    fontSize: theme.font.size.xl,
-    color: theme.color.textPrimary,
-    lineHeight: theme.font.size.xl + 2,
-  },
   appBarTitle: {
     flex: 1,
     textAlign: 'center',
@@ -227,7 +221,7 @@ const styles = StyleSheet.create({
     color: theme.color.textPrimary,
   },
   appBarSpacer: {
-    minWidth: theme.touchTarget.minWidth,
+    minWidth: HEADER_CONTROL_HEIGHT,
   },
   header: {
     paddingHorizontal: theme.spacing.lg,
@@ -251,6 +245,7 @@ const styles = StyleSheet.create({
   },
   changeBadge: {
     borderRadius: theme.radius.lg,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.xs / 2,
@@ -262,6 +257,7 @@ const styles = StyleSheet.create({
   },
   overLimitBanner: {
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
     padding: theme.spacing.md,
   },
@@ -281,6 +277,7 @@ const styles = StyleSheet.create({
     width: 96,
     height: theme.font.size.sm * 1.4,
     borderRadius: theme.radius.sm,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
   },
   skeletonChip: {
@@ -289,6 +286,7 @@ const styles = StyleSheet.create({
     flexBasis: '40%',
     height: theme.touchTarget.minHeight + theme.spacing.md,
     borderRadius: theme.radius.full,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
   },
   dock: {
@@ -309,6 +307,7 @@ const styles = StyleSheet.create({
   save: {
     minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.primary,
     alignItems: 'center',
     justifyContent: 'center',

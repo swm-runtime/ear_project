@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -11,11 +11,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useFadingNativeTitle } from '@/shared/navigation/useFadingNativeTitle';
-import {
-  useNativeBarPullStyle,
-  useNativeHeaderInset,
-} from '@/shared/navigation/useNativeHeaderInset';
+import { useNativeHeaderInset } from '@/shared/navigation/useNativeHeaderInset';
+import { useSystemLargeTitle } from '@/shared/navigation/useSystemLargeTitle';
+import { useTabScrollToTop } from '@/shared/navigation/useTabScrollToTop';
 import { theme } from '@/shared/theme';
 import FloatingHeader, {
   useFloatingHeaderInset,
@@ -23,8 +21,6 @@ import FloatingHeader, {
 } from '@/shared/ui/FloatingHeader';
 import FullScreenError from '@/shared/ui/FullScreenError';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
-import LargeTitleRow from '@/shared/ui/LargeTitleRow';
-import NativeBarBlurBand from '@/shared/ui/NativeBarBlurBand';
 
 import {
   DOCK_SCROLL_PROPS,
@@ -33,13 +29,16 @@ import {
   useBottomDockInset,
 } from '@/features/player';
 
+import ExploreSearchScreen from './ExploreSearchScreen';
 import ExploreEmptyState from '../components/ExploreEmptyState';
 import ExploreFeaturedCard from '../components/ExploreFeaturedCard';
 import ExploreMoreSheet from '../components/ExploreMoreSheet';
+import ExploreRingPill from '../components/ExploreRingPill';
 import ExploreSearchBarRow from '../components/ExploreSearchBarRow';
 import ExploreSkeleton from '../components/ExploreSkeleton';
 import ExploreTile from '../components/ExploreTile';
 import PopularPeriodToggle from '../components/PopularPeriodToggle';
+import SearchToolbar from '../components/SearchToolbar';
 import TopicChips from '../components/TopicChips';
 import { EXPLORE_COPY } from '../explore.copy';
 import { exploreGridKey, toExploreGridData } from '../explore.grid';
@@ -51,9 +50,9 @@ import { useExploreScreen } from '../hooks/useExploreScreen';
  * 탐색 탭(E1~E13) — 화면은 뷰만 담당하고 로직은 useExploreScreen이 소유한다.
  *
  * 상단 두 갈래(PM 2026-09-25 23:50 "애플이라면 상단을 어떻게" · 09-26 00:29 애플 뮤직 스샷):
- * - **iOS 26 시스템 탭 바(HAS_NATIVE_TAB_BAR)** — 투명 시스템 바(바 밑 블러는 시스템) 밑에 **콘텐츠 안 큰 제목 줄**
+ * - **iOS 26 시스템 탭 바(HAS_NATIVE_TAB_BAR)** — 시스템 바 없이(터치를 먹어서 껐다, 09-26 17:42) **콘텐츠 안 큰 제목 줄**
  *   ("탐색" + 오른쪽 잔여 링, 같은 줄), 그 밑 채움 검색 필드(누르면 검색 화면 E6), 주제 칩이 **목록의 첫 줄**로 같이
- *   스크롤한다(앱스토어 카테고리 알약). 제목 줄이 바 밑으로 들어가면 바에 작은 제목이 페이드인한다.
+ *   스크롤한다(앱스토어 카테고리 알약). 큰 제목 "탐색"과 캡슐은 시스템 바가 든다(useSystemLargeTitle — iOS 26 .inline).
  * - 그 외 — 떠 있는 유리 머리 줄(FloatingHeader: 검색창 + 링 + 칩)이 목록 위에 뜬다(2026-09-24).
  */
 export default function ExploreScreen() {
@@ -63,15 +62,100 @@ export default function ExploreScreen() {
   const [headerHeight, setHeaderHeight] = useState(0);
   const floatingInset = useFloatingHeaderInset(headerHeight);
   const headerInset = HAS_NATIVE_TAB_BAR ? 0 : floatingInset;
-  // 투명 시스템 바 — 스크롤 뷰가 아닌 상태 화면(스켈레톤·에러)은 상태 바만 비우고, 목록의 제목 줄은 바 줄만큼 올린다
+  // 시스템 탭 갈래(바 없음) — 스크롤 뷰가 아닌 상태 화면(스켈레톤·에러)은 상태 바만 비운다
   const nativeBarInset = useNativeHeaderInset();
-  const nativeBarPull = useNativeBarPullStyle();
   // 맨 위에서는 머리 줄 컨트롤이 면, 내리면 유리(PM 2026-09-25)
-  const { solidness, scrollY, scrollProps } = useFloatingHeaderScroll();
-  useFadingNativeTitle(EXPLORE_COPY.tabTitle, scrollY);
+  const { solidness, scrollProps } = useFloatingHeaderScroll();
   // 머리 줄(JS 탭 바 갈래)의 루트 ref — 종전 시스템 edge effect 연결용, 지금은 FloatingHeader 가 요구만 한다
-  const listRef = useRef(null);
   const headerRef = useRef<View>(null);
+  // 제자리 검색 모드(iOS 26) — 아래 isSearching 분기
+  const [isSearching, setIsSearching] = useState(false);
+  // 제자리 검색 닫기 요청 — ✕ 는 시스템 바 캡슐에 있고, 덮개가 퇴장 애니메이션 끝에 onExit 로 isSearching 을 끈다
+  const [isClosingSearch, setIsClosingSearch] = useState(false);
+  const listRef = useTabScrollToTop({ topInset: nativeBarInset, enabled: !isSearching });
+  const openSearch = HAS_NATIVE_TAB_BAR ? () => setIsSearching(true) : screen.openSearch;
+
+  /*
+   * 제자리 검색(iOS 26 — PM 2026-09-27 21:03 "검색 화면을 따로 두지 말고 그냥 탐색"): 검색창을 누르면 새 화면으로 가지 않고
+   * 이 자리가 "탐색" 제목 + 입력 중인 검색창 + 최근 검색어·추천 키워드(입력하면 결과)로 바뀐다. [취소]면 피드로 돌아온다.
+   * 애플 뮤직 검색 탭과 같다. 피드 상태(필터·구간)는 이 화면 훅이 그대로 들고 있다. JS 탭 바 갈래는 종전 스택 검색 화면
+   */
+  // 잔여 재생 링 — 무제한·캐시·값 없음이면 자리를 비운다, "무제한" 배지도 없다(uiux 4.2)
+  // 시스템 탭 바 갈래는 라이브러리 알약과 같은 캡슐(ExploreRingPill) — 탭 전환 때 필터 칸이 줄었다 자라게(00:32 PM)
+  // JS 탭 바 갈래의 떠 있는 머리 줄 링(시스템 바 갈래는 바 캡슐 — 아래 barTrailing)
+  const remainingRing = screen.remainingDisplay ? (
+    <RemainingPlaysIndicator
+      remaining={screen.remainingDisplay.remaining}
+      limit={screen.remainingDisplay.limit}
+      onExhaustedPress={() => screen.openPaywall('explore')}
+    />
+  ) : null;
+
+  /*
+   * **시스템 큰 제목**(iOS 26 .inline — 라이브러리와 같다, PM 2026-09-28 03:14 "이거야"): 큰 제목 "탐색"과 오른쪽 캡슐이 바
+   * 줄에 앉고, 스크롤 접힘·바 밑 블러는 시스템. 캡슐은 피드면 [링], 제자리 검색이면 [링 | ✕](닫힐 때 ✕ 칸이 줄어든다).
+   * 바 옵션으로 넘기는 요소라 참조가 안정해야 한다 — 화면 훅의 콜백은 ref 로 읽는다
+   */
+  const screenRef = useRef(screen);
+  useLayoutEffect(() => {
+    screenRef.current = screen;
+  });
+  const remainingValue = screen.remainingDisplay?.remaining;
+  const remainingLimit = screen.remainingDisplay?.limit;
+  const barTrailing = useMemo(() => {
+    const remaining =
+      remainingValue !== undefined && remainingLimit !== undefined
+        ? { remaining: remainingValue, limit: remainingLimit }
+        : null;
+    const onExhaustedPress = () => screenRef.current.openPaywall('explore');
+    if (isSearching) {
+      return (
+        <SearchToolbar
+          remaining={remaining}
+          onExhaustedPress={onExhaustedPress}
+          onClose={() => setIsClosingSearch(true)}
+          isOpen={!isClosingSearch}
+        />
+      );
+    }
+    return remaining ? (
+      <ExploreRingPill
+        remaining={remaining.remaining}
+        limit={remaining.limit}
+        onExhaustedPress={onExhaustedPress}
+      />
+    ) : null;
+  }, [isSearching, isClosingSearch, remainingValue, remainingLimit]);
+  // .inline 큰 제목 — 제목과 캡슐이 한 줄(05:43 PM). 접힘·블러는 시스템
+  // 왼쪽 검색 버튼은 못 둔다(06:03 — .inline 에 왼쪽 항목이 들어가면 큰 제목이 안 접힘)
+  useSystemLargeTitle(EXPLORE_COPY.tabTitle, barTrailing);
+
+  /*
+   * 제자리 검색은 피드 **위에 덮는다** — 피드는 밑에 그대로 둬서 닫을 때 다시 그릴 게 없다(23:12 PM "x 누를 때 렉" — 종전엔
+   * 피드를 통째로 갈아 끼워 닫힘 애니메이션 끝에 피드 전체를 새로 마운트하느라 끊겼다)
+   */
+  const searchOverlay = isSearching ? (
+    <View style={StyleSheet.absoluteFill}>
+      <ExploreSearchScreen
+        embedding={{
+          remaining: screen.remainingDisplay
+            ? { remaining: screen.remainingDisplay.remaining, limit: screen.remainingDisplay.limit }
+            : null,
+          onExhaustedPress: () => screen.openPaywall('explore'),
+          isClosing: isClosingSearch,
+          onExit: () => {
+            setIsSearching(false);
+            setIsClosingSearch(false);
+          },
+          onOpenTopic: (topicId) => {
+            screen.clearTopicFilter();
+            screen.toggleTopic(topicId);
+            setIsSearching(false);
+          },
+        }}
+      />
+    </View>
+  ) : null;
 
   // E10은 검색창 줄·주제 칩·잔여 표시까지 그리지 않는다 — 화면 전체가 에러다(uiux 4.8)
   if (screen.isFullError) {
@@ -103,24 +187,11 @@ export default function ExploreScreen() {
       onToggle={screen.toggleTopic}
     />
   ) : null;
-  // 잔여 재생 링 — 무제한·캐시·값 없음이면 자리를 비운다, "무제한" 배지도 없다(uiux 4.2)
-  const remainingRing = screen.remainingDisplay ? (
-    <RemainingPlaysIndicator
-      remaining={screen.remainingDisplay.remaining}
-      limit={screen.remainingDisplay.limit}
-      onExhaustedPress={() => screen.openPaywall('explore')}
-    />
-  ) : null;
-  // 시스템 바 갈래의 큰 제목 줄 — 제목과 링이 같은 줄
-  const titleRow = HAS_NATIVE_TAB_BAR ? (
-    <LargeTitleRow title={EXPLORE_COPY.tabTitle} trailing={remainingRing} />
-  ) : null;
   // 시스템 바 갈래에서는 제목 줄·검색 필드·칩이 콘텐츠의 첫 줄이다 — 목록과 같이 스크롤한다.
   // 검색 필드는 유리가 아니라 면(콘텐츠 안) — 누르면 검색 화면(E6), 입력은 거기서(explore.md 4.5-1)
   const contentChips = HAS_NATIVE_TAB_BAR ? (
-    <View style={nativeBarPull}>
-      {titleRow}
-      <ExploreSearchBarRow onPress={screen.openSearch} trailing={null} variant="fill" />
+    <View>
+      <ExploreSearchBarRow onPress={openSearch} trailing={null} variant="fill" />
       {chips}
     </View>
   ) : null;
@@ -180,13 +251,28 @@ export default function ExploreScreen() {
    * 추가 로딩은 **가로 목록의 onEndReached**가 맡는다 — 세로 화면의 뷰어빌리티로는
    * 가로로 끝까지 민 시점을 알 수 없다(캐러셀 전환 2026-09-02).
    */
-  const renderSection = (section: ExploreSection) => {
+  /**
+   * 콘텐츠의 주제 id 를 이름으로 푼다 — 대표 카드 하단 줄의 해시태그(플레이어 제목 줄의 `queueCategoryOf` 와
+   * 같은 규칙: 못 찾은 id 는 버리고, 자리를 억지로 채우지 않는다). 주제 목록은 칩 줄이 이미 받아 둔 것이다
+   */
+  const topicNamesOf = (topicIds: string[]): string[] =>
+    topicIds
+      .map((id) => screen.topics.find((topic) => topic.id === id)?.name)
+      .filter((name): name is string => Boolean(name));
+
+  const renderSection = (section: ExploreSection, index: number) => {
     const isPopular = section.period !== null;
+    /*
+     * 첫 섹션의 제목은 위 여백을 줄인다 — 그 위가 **주제 칩 줄**이라 칩의 아래 여백(8)과 제목의 위 여백(24)이
+     * 겹쳐 32 가 됐다(PM 2026-09-28 00:28 "주제 알약하고 인기콘텐츠 제목 간격이 너무 크다"). 섹션 **사이**의
+     * 24 는 그대로 둔다 — 제목이 "뒤 캐러셀의 머리"로 읽히게 위 여백을 아래의 세 배로 두는 규칙이다(아래 주석)
+     */
+    const headerStyle = index === 0 ? styles.sectionHeaderFirst : null;
 
     return (
       <View key={buildSectionListKey(section)} style={styles.section}>
         {section.period !== null ? (
-          <View style={styles.sectionHeaderRow}>
+          <View style={[styles.sectionHeaderRow, headerStyle]}>
             <Text
               style={[styles.sectionTitle, styles.sectionHeaderTitle]}
               accessibilityRole="header"
@@ -200,7 +286,10 @@ export default function ExploreScreen() {
             />
           </View>
         ) : (
-          <Text style={[styles.sectionTitle, styles.sectionTitleBlock]} accessibilityRole="header">
+          <Text
+            style={[styles.sectionTitle, styles.sectionTitleBlock, headerStyle]}
+            accessibilityRole="header"
+          >
             {section.title}
           </Text>
         )}
@@ -215,6 +304,7 @@ export default function ExploreScreen() {
               isPopular ? (
                 <ExploreFeaturedCard
                   item={item}
+                  topicNames={topicNamesOf(item.content.topicIds)}
                   onPress={screen.handleRowPress}
                   onMorePress={screen.openMoreSheet}
                 />
@@ -244,7 +334,6 @@ export default function ExploreScreen() {
     if (screen.showSkeleton) {
       return (
         <View style={{ paddingTop: headerInset + nativeBarInset }}>
-          {titleRow}
           <ExploreSkeleton showSectionTitles={!screen.isFiltered} />
         </View>
       );
@@ -330,21 +419,18 @@ export default function ExploreScreen() {
   return (
     <View style={styles.container}>
       {renderBody()}
-      {/* 스크롤하면 나타나는 상단 블러 띠(시스템 탭 바 갈래) — 바의 작은 제목이 그 위에 */}
-      <NativeBarBlurBand scrollY={scrollY} />
-
       {/* 머리 줄은 목록 **뒤에 선언**한다(zIndex 로 위에 뜬다) */}
       {/* 머리 줄은 목록 위에 떠 있다 — 배경 없이 유리 컨트롤만(2026-09-24 PM). 시스템 바 갈래에서는 없다 */}
       {HAS_NATIVE_TAB_BAR ? null : (
-      <FloatingHeader
-        onHeightChange={setHeaderHeight}
-        solidness={solidness}
-        containerRef={headerRef}
-      >
-        <ExploreSearchBarRow onPress={screen.openSearch} trailing={remainingRing} />
+        <FloatingHeader
+          onHeightChange={setHeaderHeight}
+          solidness={solidness}
+          containerRef={headerRef}
+        >
+          <ExploreSearchBarRow onPress={openSearch} trailing={remainingRing} />
 
-        {chips}
-      </FloatingHeader>
+          {chips}
+        </FloatingHeader>
       )}
 
       {/* 미니플레이어(PL11) — 활성 재생 세션만 그린다. 복원 스냅샷 판정은 라이브러리 소유다 */}
@@ -367,6 +453,8 @@ export default function ExploreScreen() {
         onCancel={screen.cancelPlayConfirm}
         onSuppressToday={screen.suppressAndPlay}
       />
+
+      {searchOverlay}
     </View>
   );
 }
@@ -423,6 +511,10 @@ const styles = StyleSheet.create({
     // alignItems:center가 글자가 아니라 그 상자를 기준으로 맞춰 토글이 위로 뜬다
     paddingTop: theme.spacing.lg,
     paddingBottom: theme.spacing.sm,
+  },
+  /** 첫 섹션 — 위가 주제 칩 줄이라 여백이 겹친다(위 headerStyle 주석). 32 → 24 */
+  sectionHeaderFirst: {
+    paddingTop: theme.spacing.md,
   },
   // 단독 제목만 줄 간격을 키운다 — 크기만 키우면 두 줄로 접힐 때 줄이 붙는다
   sectionTitleBlock: {

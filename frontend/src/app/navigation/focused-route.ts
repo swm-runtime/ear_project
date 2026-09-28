@@ -17,5 +17,13 @@ export const focusedRouteName = (state: AnyNavigationState | undefined): string 
     name = route.name;
     current = route.state;
   }
-  return name;
+  return name === null ? null : (SCREEN_NAME_ALIAS[name] ?? name);
+};
+
+/**
+ * 갈래마다 라우트 이름이 다른 화면을 분석의 한 이름으로 — iOS 26 갈래는 탐색 탭 안에 스택이 있어 홈이 `ExploreHome` 이다
+ * (ExploreStack). 분석·푸시 배너의 "지금 탐색 화면인가" 판정은 `Explore` 하나여야 한다
+ */
+const SCREEN_NAME_ALIAS: Record<string, string> = {
+  ExploreHome: 'Explore',
 };

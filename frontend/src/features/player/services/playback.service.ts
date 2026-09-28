@@ -59,6 +59,10 @@ const PLAY_REPORT_RETRY_DELAY_MS = 3_000;
 const URL_REFRESH_RETRY_DELAY_MS = 15_000;
 /** 끝 도달 판정 여유 — 상태 이벤트 주기 안에서 duration 직전 값이 마지막 관측일 수 있다 */
 const PLAYBACK_END_EPSILON_SEC = 0.3;
+/** 시크 뒤 플레이어 보고 위치가 목표에서 이 안에 들면 자리 잡은 것 — 그때까지 옛 위치 틱을 화면에 안 올린다 */
+const SEEK_SETTLE_TOLERANCE_SEC = 1.5;
+/** 시크 자리 잡기 최대 대기 — 넘기면 보고 위치를 그대로 믿는다(네트워크 스트림의 긴 시크) */
+const SEEK_SETTLE_TIMEOUT_MS = 2_000;
 
 /** 이벤트(AudioStatus)와 속성 폴링이 공유하는 관측 형태 — 트래킹이 실제로 쓰는 필드만 */
 type PlaybackStatusSnapshot = Pick<
@@ -182,6 +186,12 @@ class PlaybackService {
    * 프레임이 떨어진다(2026-09-22 PM 실기기). 시크바가 그 시간만큼 멈추는 건 눈에 띄지 않는다
    */
   private holdPositionUntil = 0;
+  /**
+   * 방금 시크한 목표 — 시크는 비동기라 그 뒤 첫 틱(≤0.5초)이 **옛 위치**를 보고해 시크바가 옛 자리로 튀었다가
+   * 목표로 돌아왔다(PM 2026-09-26 16:40). 목표 근처(SEEK_SETTLE_TOLERANCE_SEC)에 올 때까지, 최대
+   * SEEK_SETTLE_TIMEOUT_MS 동안은 목표에서 먼 위치 틱을 화면에 올리지 않는다. 트래킹·판정은 보류하지 않는다
+   */
+  private pendingSeek: { targetSec: number; until: number } | null = null;
 
   /* ── 시작 ── */
 
@@ -412,15 +422,23 @@ class PlaybackService {
     });
 
     const durationSec = ctx.durationSec;
+    // 시크 직후 — 플레이어가 아직 옛 위치를 보고하는 동안은 위치를 목표에 묶어 둔다(위 pendingSeek)
+    const pending = this.pendingSeek;
+    if (pending !== null) {
+      const isSettled = Math.abs(status.currentTime - pending.targetSec) <= SEEK_SETTLE_TOLERANCE_SEC;
+      if (isSettled || Date.now() >= pending.until) this.pendingSeek = null;
+    }
+    const isStaleAfterSeek = this.pendingSeek !== null;
     // 보류 중에는 위치만 바뀐 틱을 화면에 올리지 않는다 — 재생·버퍼링 상태 전이는 보류와 무관하게 올린다
     const isPositionOnlyTick =
       session.isPlaying === status.playing && session.isBuffering === status.isBuffering;
     if (!(isPositionOnlyTick && Date.now() < this.holdPositionUntil)) {
+      const reportedSec =
+        durationSec > 0 ? Math.min(status.currentTime, durationSec) : status.currentTime;
       store.getState().patchSession({
         isPlaying: status.playing,
         isBuffering: status.isBuffering,
-        positionSec:
-          durationSec > 0 ? Math.min(status.currentTime, durationSec) : status.currentTime,
+        positionSec: isStaleAfterSeek ? session.positionSec : reportedSec,
       });
     }
 
@@ -614,6 +632,7 @@ class PlaybackService {
     }
     ctx.tracking = markSeek(ctx.tracking, clamped);
     store.getState().patchSession({ positionSec: clamped });
+    this.pendingSeek = { targetSec: clamped, until: Date.now() + SEEK_SETTLE_TIMEOUT_MS };
     void this.player?.seekTo(clamped);
   }
 

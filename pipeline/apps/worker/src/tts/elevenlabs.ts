@@ -1,5 +1,5 @@
 import { cfg } from "../config.js";
-import { log, sleep } from "../util.js";
+import { ApiLimit, log, sleep } from "../util.js";
 
 /**
  * ElevenLabs 클라이언트 (spec/06) — 다중화자 1콜(Text to Dialogue, eleven_v3) 확정 (2026-09-02 박수헌).
@@ -34,6 +34,14 @@ async function call(path: string, body: unknown, timeoutMs = 8 * 60_000): Promis
   } finally { clearTimeout(t); }
 }
 
+/**
+ * 한도 (2026-09-26 차단기, T260926-019): ElevenLabs 는 크레딧 소진을 401 + code "quota_exceeded" 로, 분당 한도를 429 로 돌려준다.
+ * 작업 실패로 끝내지 않고 ApiLimit(provider elevenlabs) 을 던진다 — 워커 루프가 작업을 큐로 되돌리고 TTS 집기만 멈춘다 (ai-pause.ts). 초안·QA·비평(OpenAI)은 계속 돈다.
+ */
+function throwIfLimit(status: number, body: string, retriesDone: boolean): void {
+  if (/quota_exceeded|exceeds your (api key|subscription)|character limit|out of credits/i.test(body)) throw new ApiLimit("quota", `ElevenLabs 크레딧 소진 (HTTP ${status}): ${body.slice(0, 200)}`, 5 * 60_000, "elevenlabs");
+  if (status === 429 && retriesDone) throw new ApiLimit("rate", `ElevenLabs 분당 한도 (HTTP 429): ${body.slice(0, 200)}`, 5 * 60_000, "elevenlabs");
+}
 const isTierError = (status: number, body: string) =>
   status === 402 || (status === 403 && /output_format|subscription|tier|upgrade/i.test(body));
 
@@ -44,6 +52,7 @@ export async function synthDialogue(inputs: DialogueInput[], seed: number, opts:
     const res = await call(`/text-to-dialogue?output_format=${format}`, { model_id: cfg.ttsModel, inputs, seed, settings: { stability: 0.5 } });
     if (res.ok) return { data: Buffer.from(await res.arrayBuffer()), format };
     const body = (await res.text()).slice(0, 400);
+    throwIfLimit(res.status, body, false); // 크레딧 소진은 재시도해도 같다 — 바로 멈춤
     if (isTierError(res.status, body) && fmtIdx < FORMATS.length - 1) {
       fmtIdx++;
       log(`  tts: ${format} 티어 제한(HTTP ${res.status}) — ${FORMATS[fmtIdx]} 로 강등`);
@@ -56,6 +65,7 @@ export async function synthDialogue(inputs: DialogueInput[], seed: number, opts:
       await sleep(wait);
       continue;
     }
+    throwIfLimit(res.status, body, true);
     throw new Error(`ElevenLabs dialogue 실패: HTTP ${res.status} ${body}`);
   }
 }
@@ -78,12 +88,14 @@ export async function synthTurnWithTimestamps(voiceId: string, text: string, see
       return { audio: Buffer.from(d.audio_base64, "base64"), format, chars: a.characters, startSec: a.character_start_times_seconds, endSec: a.character_end_times_seconds };
     }
     const body = (await res.text()).slice(0, 400);
+    throwIfLimit(res.status, body, false); // 크레딧 소진은 재시도해도 같다 — 바로 멈춤
     if (isTierError(res.status, body) && fmtIdx < FORMATS.length - 1) {
       fmtIdx = Math.max(fmtIdx, 1) + 1;
       log(`  tts: ${format} 티어 제한(HTTP ${res.status}) — ${FORMATS[Math.max(fmtIdx, 1)]} 로 강등`);
       continue;
     }
     if ((res.status === 429 || res.status >= 500) && retry < 4) { retry++; await sleep(Math.min(60_000, 5_000 * 2 ** retry)); continue; }
+    throwIfLimit(res.status, body, true);
     throw new Error(`ElevenLabs with-timestamps 실패: HTTP ${res.status} ${body}`);
   }
 }
@@ -103,6 +115,7 @@ export async function synthDialogueWithTimestamps(inputs: DialogueInput[], seed:
       return { audio: Buffer.from(d.audio_base64, "base64"), format, chars: a.characters, startSec: a.character_start_times_seconds, endSec: a.character_end_times_seconds };
     }
     const body = (await res.text()).slice(0, 400);
+    throwIfLimit(res.status, body, false); // 크레딧 소진은 재시도해도 같다 — 바로 멈춤
     if (isTierError(res.status, body) && fmtIdx < FORMATS.length - 1) {
       fmtIdx = Math.max(fmtIdx, 1) + 1;
       log(`  tts: ${format} 티어 제한(HTTP ${res.status}) — ${FORMATS[Math.max(fmtIdx, 1)]} 로 강등`);
@@ -115,6 +128,7 @@ export async function synthDialogueWithTimestamps(inputs: DialogueInput[], seed:
       await sleep(wait);
       continue;
     }
+    throwIfLimit(res.status, body, true);
     throw new Error(`ElevenLabs dialogue with-timestamps 실패: HTTP ${res.status} ${body}`);
   }
 }
@@ -132,7 +146,7 @@ export async function forcedAlignment(audio: Buffer, text: string, timeoutMs = 1
   try {
     const res = await fetch(`${BASE}/forced-alignment`, { method: "POST", headers: { "xi-api-key": key() }, body: form, signal: ctrl.signal });
     const body = await res.text();
-    if (!res.ok) throw new Error(`ElevenLabs forced-alignment 실패: HTTP ${res.status} ${body.slice(0, 300)}`);
+    if (!res.ok) { throwIfLimit(res.status, body, true); throw new Error(`ElevenLabs forced-alignment 실패: HTTP ${res.status} ${body.slice(0, 300)}`); }
     const data = JSON.parse(body);
     return { characters: data.characters ?? [], words: data.words ?? [], loss: Number(data.loss ?? 0) };
   } finally { clearTimeout(t); }

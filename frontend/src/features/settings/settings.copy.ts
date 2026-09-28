@@ -27,6 +27,7 @@ export const SETTINGS_COPY = {
     info: '정보',
     support: '지원',
     admin: '관리자',
+    developer: '개발 도구',
   },
 
   email: {

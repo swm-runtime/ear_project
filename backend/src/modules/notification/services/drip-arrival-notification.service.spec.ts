@@ -1,3 +1,5 @@
+import { Logger } from '@nestjs/common';
+
 import { DeviceToken } from '@/modules/user/entities/device-token.entity';
 import { DeviceTokenService } from '@/modules/user/services/device-token.service';
 import { UserSettingService } from '@/modules/user/services/user-setting.service';
@@ -117,6 +119,8 @@ describe('DripArrivalNotificationService', () => {
           deep_link: 'ear://library',
           content_count: 3,
         },
+        // NOW = 05:00 KST 정각 → 다음 05:00 KST까지 24시간(notification.md 4.3 — 결정 2026-09-26)
+        ttl: 24 * 60 * 60,
       },
     ]);
     expect(insertedLogs()).toEqual([
@@ -390,5 +394,36 @@ describe('DripArrivalNotificationService', () => {
       notificationLogRepository.findUserIdsWithStatusBetween,
     ).not.toHaveBeenCalled();
     expect(notificationLogRepository.insertAll).not.toHaveBeenCalled();
+  });
+
+  it('DeviceNotRegistered 가 아닌 접수 거절은 사유별 건수를 error 로 남긴다 — 자격 증명 불량이 조용히 묻히지 않는다', async () => {
+    // given
+    const errorSpy = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+    pushClient.send.mockResolvedValue([
+      { status: 'error', error: 'InvalidCredentials', message: 'bad apns key' },
+    ]);
+
+    try {
+      // when
+      await service.notify([buildArrival()], NOW);
+
+      // then
+      expect(errorSpy).toHaveBeenCalledWith(
+        'push tickets rejected',
+        expect.objectContaining({
+          rejected_count: 1,
+          reasons: { InvalidCredentials: 1 },
+        }),
+      );
+      // 토큰은 무효화하지 않는다 — 기기가 아니라 자격 증명의 문제다
+      expect(deviceTokenService.invalidateDeliveredTokens).toHaveBeenCalledWith(
+        [],
+        NOW,
+      );
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 });

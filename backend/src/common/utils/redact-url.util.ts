@@ -7,8 +7,13 @@
  * **서명 URL 전문이 로그에 남는 것**과 같다(8.4가 첫 항목으로 금지). TTL(수 분) 안에
  * 로그를 본 사람이 서명을 복사해 오디오에 접근할 수 있고, 그 접근은 발급 기록
  * (`audio_access_logs`)에 남지 않는 우회 경로가 된다.
+ *
+ * `email` — 관리자 편성 미리보기(`GET /admin/drip/preview?email=…`, admin-api.md 4.16)가
+ * 대상 사용자를 이메일로 받는다. 8.4는 이메일 원문을 로그에 남기지 않고 `user_id`로만
+ * 남기라고 한다 — 요청 로그는 2xx도 전부 남기므로 가리지 않으면 미리보기를 볼 때마다
+ * 사용자 이메일이 CloudWatch에 한 줄씩 쌓인다(2026-09-26 감사에서 발견).
  */
-const REDACTED_QUERY_PARAMS = ['signature'] as const;
+const REDACTED_QUERY_PARAMS = ['signature', 'email'] as const;
 
 const REDACTED_VALUE = '[redacted]';
 

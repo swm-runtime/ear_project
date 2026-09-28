@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
 import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
+import MagnifierIcon, { SEARCH_ICON_SIZE } from '@/shared/ui/MagnifierIcon';
 
 import { EXPLORE_COPY } from '../explore.copy';
 
@@ -35,6 +36,8 @@ export default function ExploreSearchBarRow({
           accessibilityRole="search"
           accessibilityLabel={EXPLORE_COPY.search.placeholder}
         >
+          {/* iOS 시스템 검색창처럼 앞에 돋보기(2026-09-27) */}
+          <MagnifierIcon size={SEARCH_ICON_SIZE} color={theme.color.textSecondary} />
           <Text style={styles.placeholder}>{EXPLORE_COPY.search.placeholder}</Text>
         </Pressable>
       </GlassCapsule>
@@ -59,7 +62,9 @@ const styles = StyleSheet.create({
   },
   searchPressable: {
     height: HEADER_CONTROL_HEIGHT,
-    justifyContent: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs + 2,
     paddingHorizontal: theme.spacing.md,
   },
   placeholder: {

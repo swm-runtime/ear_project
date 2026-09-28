@@ -16,7 +16,8 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
   const page = Math.max(1, Number(pageStr) || 1);
   const sb = await supabaseServer();
 
-  let q = sb.from("jobs").select("id,type,status,attempt,requires_ai,payload,started_at,finished_at,heartbeat_at,created_at,claimed_by,error", { count: "exact" }).order("created_at", { ascending: false }).range((page - 1) * PAGE, page * PAGE - 1);
+  // 정렬은 마지막 활동 시각(0026 activity_at = 종료 > 시작 > 생성) — 생성 순이면 한꺼번에 승인돼 큐에 오래 있던 초안이 실행돼도 뒤 페이지에 묻힌다
+  let q = sb.from("jobs").select("id,type,status,attempt,requires_ai,payload,started_at,finished_at,heartbeat_at,created_at,claimed_by,error", { count: "exact" }).order("activity_at", { ascending: false }).range((page - 1) * PAGE, page * PAGE - 1);
   if (type && TYPES.includes(type)) q = q.eq("type", type);
   if (status && STATUSES.includes(status)) q = q.eq("status", status);
   const { data: jobs, count } = await q;

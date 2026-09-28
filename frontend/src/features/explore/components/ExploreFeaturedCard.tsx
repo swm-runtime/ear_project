@@ -7,8 +7,16 @@ import RemoteImage from '@/shared/ui/RemoteImage';
 import { EXPLORE_COPY } from '../explore.copy';
 import type { ExploreItem } from '../explore.types';
 
+/** 하단 줄에 적는 주제 수 — 그 이상은 길이를 밀어낸다(플레이어 제목 줄과 같은 규칙) */
+const MAX_TOPIC_TAGS = 2;
+
 interface ExploreFeaturedCardProps {
   item: ExploreItem;
+  /**
+   * 이 콘텐츠의 주제 이름 — 화면이 주제 목록(id → 이름)으로 풀어 넘긴다. 서버 응답의 콘텐츠에는 id 만 있다.
+   * 못 찾으면(목록 미도착·모르는 id) 빈 배열이고, 그때는 길이만 적는다
+   */
+  topicNames?: string[];
   /** 카드 본문 탭 = 곧장 재생 판정. 상세 화면을 끼우지 않는다(explore-uiux.md 4.1) */
   onPress: (item: ExploreItem) => void;
   onMorePress: (item: ExploreItem) => void;
@@ -65,6 +73,7 @@ export const featuredCardArtworkRect = (card: Rect): Rect => ({
  */
 export default function ExploreFeaturedCard({
   item,
+  topicNames = [],
   onPress,
   onMorePress,
 }: ExploreFeaturedCardProps) {
@@ -96,7 +105,11 @@ export default function ExploreFeaturedCard({
         })}
       >
         <View style={styles.artworkFrame}>
-          <RemoteImage uri={item.content.thumbnailUrl} recyclingKey={item.content.id} style={styles.artwork} />
+          <RemoteImage
+            uri={item.content.thumbnailUrl}
+            recyclingKey={item.content.id}
+            style={styles.artwork}
+          />
           {/* 완청 체크는 없다(2026-09-22 PM) — 사진 위 스티커라 뺐다. 완청은 낭독기 라벨(completed)로만 전한다 */}
         </View>
         <Text style={styles.title} numberOfLines={2}>
@@ -106,22 +119,21 @@ export default function ExploreFeaturedCard({
 
       <View style={styles.footer}>
         {/*
-          재생 알약 — 그 자체는 버튼이 아니다. 카드 본문 탭이 이미 재생 판정으로 가므로
-          여기에 Pressable을 또 씌우면 같은 동작의 진입점이 둘이 된다
+          **재생 버튼을 두지 않는다.** 타일의 히트 영역은 둘뿐이다 — 본문 탭 = 재생, ⋯ 만 별도
+          (explore-uiux.md 5장). 09-27 에 길이 알약을 원 버튼으로 바꿨다가 09-28 에 걷었다:
+          같은 동작의 진입점이 둘이 되고(PM "플레이 버튼은 왜 넣은 거야"), 흐린 커버 위 불투명 원은
+          사진 위 스티커 금지(design.md §3)에도 걸렸다. 정보는 글자로만 둔다
         */}
-        <Pressable
-          style={styles.playPill}
-          onPress={() => onPress(item)}
-          accessibilityRole="button"
-          accessibilityLabel={EXPLORE_COPY.row.a11yLabel({
-            title: item.content.title,
-            minutes,
-            completed: isCompleted,
-          })}
-        >
-          <Text style={styles.playGlyph}>▶</Text>
-          <Text style={styles.playLabel}>{EXPLORE_COPY.row.durationLabel(minutes)}</Text>
-        </Pressable>
+        {/*
+          주제 해시태그 + 길이(PM 2026-09-28 01:06). 종전엔 저자(`이음`·`윤아`)를 적었는데 두 값뿐이라 정보가
+          거의 없었고, 작은 타일(ExploreTile)은 애초에 길이만 적어 대표 카드만 저자를 보여 주는 것도 어긋났다.
+          주제는 탐색에서 고르는 축이라 같은 자리에 더 쓸모 있다
+        */}
+        <Text style={styles.meta} numberOfLines={1}>
+          {topicNames.length > 0
+            ? `${EXPLORE_COPY.row.hashtags(topicNames.slice(0, MAX_TOPIC_TAGS))} · ${EXPLORE_COPY.row.durationLabel(minutes)}`
+            : EXPLORE_COPY.row.durationLabel(minutes)}
+        </Text>
         <Pressable
           style={styles.moreButton}
           onPress={() => onMorePress(item)}
@@ -192,27 +204,15 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: theme.spacing.sm + theme.spacing.xs,
     marginTop: theme.spacing.xs,
     marginHorizontal: theme.spacing.md,
   },
-  playPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    minHeight: theme.touchTarget.minHeight - theme.spacing.sm,
-    paddingHorizontal: theme.spacing.md,
-    borderRadius: theme.radius.full,
-    backgroundColor: theme.color.background,
-  },
-  playGlyph: {
-    fontSize: theme.font.size.xs,
-    color: theme.color.textPrimary,
-  },
-  playLabel: {
+  /** 저자 · 길이 — 정보지 버튼 성분이 아니라 보조 글자. 더보기 점을 오른쪽 끝으로 민다 */
+  meta: {
+    flex: 1,
     fontSize: theme.font.size.sm,
-    fontWeight: '700',
-    color: theme.color.textPrimary,
+    color: ON_ART_TEXT_SECONDARY,
   },
   moreButton: {
     minWidth: theme.touchTarget.minWidth,

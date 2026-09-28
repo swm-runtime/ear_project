@@ -1,11 +1,11 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
-import ChevronIcon from '@/shared/ui/ChevronIcon';
+import ChevronIcon, { chevronTrailingGutter } from '@/shared/ui/ChevronIcon';
 
 import { SETTINGS_COPY } from '../settings.copy';
 
-const CHEVRON_SIZE = 18;
+const CHEVRON_SIZE = 16;
 
 interface NotificationBannerProps {
   onPress: () => void;
@@ -25,7 +25,7 @@ export default function NotificationBanner({ onPress }: NotificationBannerProps)
       accessibilityLabel={SETTINGS_COPY.notification.bannerA11y}
     >
       <Text style={styles.text}>{SETTINGS_COPY.notification.banner}</Text>
-      <View accessibilityElementsHidden importantForAccessibility="no">
+      <View style={styles.chevron} accessibilityElementsHidden importantForAccessibility="no">
         <ChevronIcon direction="right" size={CHEVRON_SIZE} color={theme.color.textSecondary} />
       </View>
     </Pressable>
@@ -34,25 +34,25 @@ export default function NotificationBanner({ onPress }: NotificationBannerProps)
 
 const styles = StyleSheet.create({
   banner: {
-    minHeight: theme.touchTarget.minHeight,
+    minHeight: theme.touchTarget.minHeight + theme.spacing.sm + theme.spacing.xs,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: theme.spacing.sm,
-    marginHorizontal: theme.spacing.md,
-    marginBottom: theme.spacing.xs,
     paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.radius.md,
-    backgroundColor: theme.color.surface,
+    paddingVertical: theme.spacing.md,
   },
   pressed: {
-    opacity: 0.7,
+    backgroundColor: theme.color.border,
   },
   text: {
     fontSize: theme.font.size.sm,
     fontWeight: '600',
     color: theme.color.textPrimary,
     flexShrink: 1,
+  },
+  // 항목 행의 셰브론과 같은 끝선(SettingsRow 와 같은 이유)
+  chevron: {
+    marginRight: -chevronTrailingGutter(CHEVRON_SIZE),
   },
 });

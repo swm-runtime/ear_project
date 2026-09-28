@@ -16,6 +16,7 @@ import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { generateId } from '@/shared/lib/generate-id';
 import { logger } from '@/shared/lib/logger';
 import { toTab } from '@/shared/navigation/to-tab';
+import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 import { useToastStore } from '@/shared/ui/toast.store';
 
 import { libraryKeys } from '@/features/library';
@@ -49,6 +50,11 @@ type EmptyKind = 'none' | 'feed' | 'filtered';
 type ExploreRouteParams = {
   Explore: { applyTopicId?: string } | undefined;
 };
+/** iOS 26 갈래의 탐색 탭 안 스택(app/navigation/ExploreStack) — 원본은 app/navigation/types.ts 의 ExploreStackParamList */
+type ExploreStackRouteParams = {
+  ExploreHome: { applyTopicId?: string } | undefined;
+  ExploreSearch: undefined;
+};
 
 const isNetworkError = (error: unknown): boolean =>
   isApiError(error) &&
@@ -71,6 +77,7 @@ export const useExploreScreen = () => {
      handled도 undefined로 되돌아가, 같은 주제를 다시 받아도 다시 동작한다 ── */
   const route = useRoute<RouteProp<ExploreRouteParams, 'Explore'>>();
   const tabNavigation = useNavigation<NavigationProp<ExploreRouteParams, 'Explore'>>();
+  const exploreStackNavigation = useNavigation<NavigationProp<ExploreStackRouteParams>>();
   const applyTopicId = route.params?.applyTopicId;
   const [handledApplyTopicId, setHandledApplyTopicId] = useState<string | undefined>(undefined);
   if (applyTopicId !== handledApplyTopicId) {
@@ -531,8 +538,13 @@ export const useExploreScreen = () => {
   const clearTopicFilter = () => setSelectedTopicIds([]);
 
   /** 검색창 탭 → 검색 화면(E6) 전환(explore.md 4.5-1). 피드 상태(필터·구간·스크롤)는 이
-      화면이 스택 아래 남아 그대로 유지되고, 검색 상태는 검색 화면이 소유한다(pop = 폐기) */
+      화면이 스택 아래 남아 그대로 유지되고, 검색 상태는 검색 화면이 소유한다(pop = 폐기).
+      iOS 26 갈래는 탐색 탭 안의 스택(ExploreStack)에 푸시 — 탭 바·액세서리가 남는다. 그 외는 Main 스택 */
   const openSearch = () => {
+    if (HAS_NATIVE_TAB_BAR) {
+      exploreStackNavigation.navigate('ExploreSearch');
+      return;
+    }
     navigation.navigate('Main', { screen: 'ExploreSearch' });
   };
 

@@ -46,6 +46,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
   },
   headerText: {
@@ -56,6 +57,7 @@ const styles = StyleSheet.create({
   lineWide: {
     height: theme.font.size.md,
     borderRadius: theme.radius.sm,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
     alignSelf: 'stretch',
   },
@@ -63,6 +65,7 @@ const styles = StyleSheet.create({
     height: theme.font.size.md,
     width: '60%',
     borderRadius: theme.radius.sm,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
   },
   metaBlock: {
@@ -72,6 +75,7 @@ const styles = StyleSheet.create({
   metaLine: {
     height: theme.font.size.sm,
     borderRadius: theme.radius.sm,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
     width: '70%',
   },

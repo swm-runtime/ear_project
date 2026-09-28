@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -9,11 +9,9 @@ import {
   View,
 } from 'react-native';
 
-import { useFadingNativeTitle } from '@/shared/navigation/useFadingNativeTitle';
-import {
-  useNativeBarPullStyle,
-  useNativeHeaderInset,
-} from '@/shared/navigation/useNativeHeaderInset';
+import { useNativeHeaderInset } from '@/shared/navigation/useNativeHeaderInset';
+import { useSystemLargeTitle } from '@/shared/navigation/useSystemLargeTitle';
+import { useTabScrollToTop } from '@/shared/navigation/useTabScrollToTop';
 import { theme } from '@/shared/theme';
 import FloatingHeader, {
   useFloatingHeaderInset,
@@ -21,8 +19,6 @@ import FloatingHeader, {
 } from '@/shared/ui/FloatingHeader';
 import FullScreenError from '@/shared/ui/FullScreenError';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
-import LargeTitleRow from '@/shared/ui/LargeTitleRow';
-import NativeBarBlurBand from '@/shared/ui/NativeBarBlurBand';
 
 import {
   DOCK_SCROLL_PROPS,
@@ -79,9 +75,9 @@ const toGridRows = (rows: LibraryListRow[]): LibraryGridRow[] => {
  * L1 라이브러리 — 앱의 첫 화면. 화면은 뷰만 담당하고 로직은 useLibraryScreen이 소유한다.
  *
  * 상단 두 갈래(PM 2026-09-26 00:14 "라이브러리도" · 00:29 애플 뮤직 스샷 — design.md 5장 "상단 — 시스템 내비게이션 바"):
- * - **iOS 26 시스템 탭 바(HAS_NATIVE_TAB_BAR)** — 투명 시스템 바(바 밑 블러는 시스템) 밑에 **콘텐츠 안 큰 제목 줄**
+ * - **iOS 26 시스템 탭 바(HAS_NATIVE_TAB_BAR)** — 시스템 바 없이(터치를 먹어서 껐다, 09-26 17:42) **콘텐츠 안 큰 제목 줄**
  *   ("라이브러리" + 오른쪽 링·필터 툴바 캡슐, 같은 줄) / 채움 검색 필드 / 조건 요약·배너 — 전부 목록의 첫 줄로 같이 스크롤한다.
- *   제목 줄이 바 밑으로 들어가면 바에 작은 제목이 페이드인한다(애플 뮤직·앱스토어 탭 화면).
+ *   큰 제목과 툴바 캡슐은 시스템 바가 든다(useSystemLargeTitle — iOS 26 .inline).
  * - 그 외 — 떠 있는 유리 머리 줄(FloatingHeader: 검색창 + 툴바 + 요약 + 배너)이 목록 위에 뜬다(2026-09-24).
  */
 export default function LibraryScreen() {
@@ -91,14 +87,12 @@ export default function LibraryScreen() {
   const [headerHeight, setHeaderHeight] = useState(0);
   const floatingInset = useFloatingHeaderInset(headerHeight);
   const headerInset = HAS_NATIVE_TAB_BAR ? 0 : floatingInset;
-  // 투명 시스템 바 — 스크롤 뷰가 아닌 상태 화면(스켈레톤·에러)은 상태 바만 비우고, 목록의 제목 줄은 바 줄만큼 올린다
+  // 시스템 탭 갈래(바 없음) — 스크롤 뷰가 아닌 상태 화면(스켈레톤·에러)은 상태 바만 비운다
   const nativeBarInset = useNativeHeaderInset();
-  const nativeBarPull = useNativeBarPullStyle();
   // 맨 위에서는 머리 줄 컨트롤이 면, 내리면 유리(PM 2026-09-25)
-  const { solidness, scrollY, scrollProps } = useFloatingHeaderScroll();
-  useFadingNativeTitle(LIBRARY_COPY.tabTitle, scrollY);
+  const { solidness, scrollProps } = useFloatingHeaderScroll();
   // 머리 줄(JS 탭 바 갈래)의 루트 ref — 종전 시스템 edge effect 연결용, 지금은 FloatingHeader 가 요구만 한다
-  const listRef = useRef(null);
+  const listRef = useTabScrollToTop({ topInset: nativeBarInset });
   const headerRef = useRef<View>(null);
 
   /*
@@ -122,18 +116,30 @@ export default function LibraryScreen() {
 
   // 잔여 링(무제한·캐시·값 없음이면 칸 없음 — uiux 4.3) + 필터를 한 유리 캡슐에(2026-09-25 PM).
   // 상태·출처·주제 필터는 전부 시트 하나 — 세그먼트 탭 줄은 폐지
-  const toolbar = showTabBar ? (
-    <LibraryToolbar
-      remaining={screen.remainingDisplay}
-      onExhaustedPress={() => screen.openPaywall('library')}
-      activeFilterCount={screen.topicFilterCount}
-      onFilterPress={screen.openTopicSheet}
-    />
-  ) : null;
-  // 시스템 바 갈래의 큰 제목 줄 — 제목과 툴바가 같은 줄(PM 2026-09-26 00:25 "높이 맞추자")
-  const titleRow = HAS_NATIVE_TAB_BAR ? (
-    <LargeTitleRow title={LIBRARY_COPY.tabTitle} trailing={toolbar} />
-  ) : null;
+  const { remainingDisplay, topicFilterCount } = screen;
+  // 바 옵션으로 넘기는 요소라 참조가 안정해야 한다 — 매 렌더 새 요소면 setOptions 가 매번 돈다.
+  // 훅의 콜백은 매 렌더 새 함수라 최신 화면 값을 ref 로 읽는다
+  const screenRef = useRef(screen);
+  useLayoutEffect(() => {
+    screenRef.current = screen;
+  });
+  const toolbar = useMemo(
+    () =>
+      showTabBar ? (
+        <LibraryToolbar
+          remaining={remainingDisplay}
+          onExhaustedPress={() => screenRef.current.openPaywall('library')}
+          activeFilterCount={topicFilterCount}
+          onFilterPress={() => screenRef.current.openTopicSheet()}
+        />
+      ) : null,
+    [showTabBar, remainingDisplay, topicFilterCount],
+  );
+  // .inline 큰 제목 — 제목과 툴바 캡슐이 한 줄(PM 2026-09-28 05:43 "캡슐하고 제목이 같은 줄이어야지"). .always(설정)는 버튼 줄이
+  // 따로 생겨 공백이 났다. 접힘·블러는 시스템(rt 30 이 목록을 바에 직접 지정)
+  // 왼쪽 검색 버튼은 못 둔다 — .inline 에 왼쪽 항목이 들어가면 UIKit 이 그걸 숨기고 바를 다시 펼쳐 큰 제목이 안 접혔다
+  // (PM 2026-09-28 06:03 탐색 스샷). 제목과 캡슐 한 줄 + 접히면 가운데 작은 제목·블러(시스템)
+  useSystemLargeTitle(LIBRARY_COPY.tabTitle, toolbar);
 
   // 시스템 바 갈래에서 조건 요약·배너는 목록의 첫 줄이다 — 목록과 같이 스크롤한다
   const filterSummary = showTabBar ? (
@@ -145,8 +151,7 @@ export default function LibraryScreen() {
     <LibraryBanner banner={screen.banner} onPress={screen.handleBannerPress} />
   ) : null;
   const contentHeader = HAS_NATIVE_TAB_BAR ? (
-    <View style={[styles.contentHeader, nativeBarPull]}>
-      {titleRow}
+    <View style={styles.contentHeader}>
       {/* 콘텐츠 안 검색 필드 — 유리가 아니라 면(애플 뮤직 검색 탭). 받아 둔 목록을 그 자리에서 좁히는 규칙은 그대로 */}
       {showTabBar ? (
         <LibrarySearchBarRow query={query} onChangeQuery={setQuery} trailing={null} variant="fill" />
@@ -273,7 +278,6 @@ export default function LibraryScreen() {
     <View style={styles.container}>
       {screen.isFullError ? (
         <View style={[styles.container, { paddingTop: nativeBarInset }]}>
-          {titleRow}
           <FullScreenError
           title={
             screen.isFullErrorNetwork
@@ -288,7 +292,6 @@ export default function LibraryScreen() {
         </View>
       ) : screen.showSkeleton ? (
         <View style={{ paddingTop: headerInset + nativeBarInset }}>
-          {titleRow}
           <LibraryItemSkeleton />
         </View>
       ) : screen.isInitialLoading ? (
@@ -347,9 +350,6 @@ export default function LibraryScreen() {
           onEndReachedThreshold={0.4}
         />
       )}
-
-      {/* 스크롤하면 나타나는 상단 블러 띠(시스템 탭 바 갈래) — 바의 작은 제목이 그 위에 */}
-      <NativeBarBlurBand scrollY={scrollY} />
 
       {/* 머리 줄은 목록 **뒤에 선언**한다(zIndex 로 위에 뜬다) */}
       {/* 머리 줄은 목록 위에 떠 있다 — 배경 없이 유리 컨트롤만(2026-09-24 PM). 브랜드 표시는 두지 않는다(2026-09-02).
@@ -414,6 +414,12 @@ const styles = StyleSheet.create({
   // 목록 첫 줄의 제목·검색·요약·배너(시스템 바 갈래) — 좌우 여백은 각자 갖는다. 격자의 좌우 여백을 되돌린다
   contentHeader: {
     marginHorizontal: -theme.spacing.md,
+    /*
+     * 머리 줄과 첫 타일 사이 — 종전엔 검색 줄 자체의 아래 패딩(8)뿐이라 큰 사진이 검색창에 붙어 보였다
+     * (PM 2026-09-27 19:10 "텍스트박스 아래 공백이 너무 좁다"). 8 + 16 = 24 로 벌린다. 격자의
+     * `paddingTop` 은 머리 줄 **위**(목록 맨 위 여백)라 여기서 따로 줘야 한다
+     */
+    paddingBottom: theme.spacing.md,
   },
   // 격자 — 좌우 여백은 검색 줄과 같은 선(md), 타일 사이는 sm×1.5
   gridContent: {
@@ -440,8 +446,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: theme.color.textPrimary,
   },
+  // 좌우 여백은 격자와 같은 md — 머리 줄(contentHeader)의 음수 여백이 이 패딩을 되돌리는 전제라,
+  // 빠지면 결과 0개일 때 제목·검색창이 화면 양끝에 붙는다
   emptyContent: {
     flexGrow: 1,
+    paddingHorizontal: theme.spacing.md,
   },
   footer: {
     paddingVertical: theme.spacing.md,

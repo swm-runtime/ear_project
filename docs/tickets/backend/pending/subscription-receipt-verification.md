@@ -69,3 +69,13 @@
 선택돼 무료로 표시**된다. 지금은 구독 행을 만드는 경로가 없어 잠재 결함이지만, 영수증 검증(이 티켓)이
 행을 만들기 시작하는 순간 실결함이 된다. 구현 시 **비종결 상태(`active`/`grace`/`cancelled`)를 우선
 선택하고, 없을 때만 최근 행으로 폴백**하도록 함께 고친다.
+
+## 처리 기록
+
+- 2026-09-09 발행.
+- **2026-09-26 선행 반영(코드만으로 가능한 부분)** — 결제 준비물 없이도 할 수 있는 두 건을 먼저 넣었다.
+  - **요청 2 완료**: `purchase_intents` · `store_notification_logs` 테이블·엔티티(`1787800000000-AddPurchaseIntentsAndStoreNotificationLogs`). `user_id` FK ON DELETE CASCADE. 읽고 쓰는 코드는 아직 없다.
+  - **추기 완료**: 현재 구독 선택을 비종결 상태(`active`/`grace`/`cancelled`) 우선, 없을 때 최근 행 폴백으로 고쳤다(`SubscriptionService.findCurrent` → `selectCurrentSubscription`, 단위 테스트 6건).
+  - 문서 갱신은 `changes/pending/subscription-prework-tables-created.md`.
+- **남은 것은 "값 입력"이 아니라 구현이다.** 영수증 제출·복원·S2S 수신 엔드포인트, 스토어 검증 클라이언트, `users.tier` 갱신 경로, 재가입 복원, 탈퇴 계정 구독 탈취 방어(요청 1·3·4·5·6)는 전부 미구현이다. 착수 순서는 요청 1(계약 문서) → 스토어 자격증명 확보 → 나머지. 요청 4는 `SubscriptionModule`이 `UserModule`을 역참조하게 되어 모듈 순환을 어떻게 풀지(티어 갱신 메서드를 어느 쪽에 두는지) 그때 정한다.
+- Jira는 **검토 중**으로 옮겼다(2026-09-26) — 선행 반영분 리뷰용. 본 구현은 스토어 준비물이 갖춰진 뒤 다시 "해야 할 일"로 되돌린다.

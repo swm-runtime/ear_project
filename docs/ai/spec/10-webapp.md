@@ -17,7 +17,8 @@ spec/08의 원칙 "UI와 실행기의 결합은 상태 테이블로만"을 그�
 |---|---|
 | 콘텐츠 주제 관리 | `topics` CRUD 화면 |
 | 소스 풀 관리 | `domains` 목록·판정 화면 (spec/01 4장의 판정 UI — 증거 note 표시, tier·license_basis 기입, decided_by=본인 자동) + 도메인 추가 |
-| 스윕 요청 | 중분류 선택 → `sweep` 작업 생성 → 워커가 RSS 수집 → **자동으로 `cluster` 연쇄** |
+| 스윕 요청 | 중분류 선택 → `sweep` 작업 생성 → 워커가 RSS 수집 → **자동으로 `cluster` 연쇄**. 화면은 사이드바 "스윕·군집화" 아래 **스윕 / 군집화 / 주제 기획** 세 페이지로 나뉜다(2026-09-26) |
+| 주제 기획 (B-②) | 주제 기획 화면: 중분류 + 주제(제목안) + 메모 → `sweep {mode:"B2"}` → 노트북 Claude 워커가 검색·판정 → 백로그에 🔎 후보(`held` → `proposed`) (spec/02 6장) |
 | AI 생성 주제 목록 확인 | 백로그 보드 — 군집화 결과가 `proposed` 카드로 즉시 표시 (소스 묶음·축·타깃 정합) |
 | 주제 선택 → 대본 생성 | 카드 승인(게이트 1) = `approved` 전환 → **자동으로 `draft` → `qa`(최대 3회) → `critic` 연쇄**. **자동 승인(2026-09-23, 0023)**: `settings.automation.auto_approve` 가 켜져 있으면 워커가 규칙 v1(군집화 v2 · 빈 역할 0 · 소스 겹침 없음)을 통과한 `proposed` 후보를 `auto:v1` 로 승인하고 같은 연쇄를 건다 — 사람은 조건 밖 후보만 본다(spec/03 6.1). spec/09 v2의 L0 기계 검사는 초안 단계에 편입됨, L1·L3은 추가 예정 |
 | 대본 확인·판정 | 에피소드 화면 — 대본·발췌·claims·QA·비평 리포트 열람 · **대본 턴 인라인 수정**(사람 피드백의 기본 형태, spec/09 3.1) + 수정 로그 + 재QA 요청 · 비평 플래그 판정 입력 |
@@ -186,7 +187,9 @@ create table episodes (
 
 - **에피소드 삭제**(0015, 2026-09-09): 콘솔의 에피소드 상세 [삭제]. RLS 가 회귀 세트·발행된 후보의 에피소드를 막고, 콘솔이 진행 중 작업을 막는다.
   대기 작업은 취소, 후보는 `proposed`(재승인 대기) 또는 `rejected` 로 되돌리며 사유는 `dedup_note` 앞에 🗑. S3 `episodes/{id}/` 는 best-effort 삭제.
-- **API 한도 차단기** (2026-09-23, 워커 `ai-pause.ts`): OpenAI 429 를 실행기가 `rate`(분당 한도)·`quota`(잔액·예산 소진)로 구분해 `ApiLimit` 으로 던지면 루프가 **작업을 큐로 되돌리고 AI 집기를 멈춘다**(io 작업은 계속). rate 는 5분 뒤 자동 재개, quota 는 `settings."automation.ai_paused"` 에 기록돼 콘솔 설정의 [AI 작업 재개] 전까지 모든 워커가 멈춘다. 실패로 처리하면 초안이 백로그를 되돌려 망가지므로 실패시키지 않는다. Slack 즉시 알림(quota 1회 · rate 시간당 1회).
+- **API 한도 차단기** (2026-09-23, 워커 `ai-pause.ts`): OpenAI 429 를 실행기가 `rate`(분당 한도)·`quota`(잔액·예산 소진)로 구분해 `ApiLimit` 으로 던지면 루프가 **작업을 큐로 되돌리고 AI 집기를 멈춘다**(io 작업은 계속). rate 는 5분 뒤 자동 재개, quota 는 `settings."automation.ai_paused"` 에 기록돼 콘솔 설정의 [AI 작업 재개] 전까지 모든 워커가 멈춘다. 실패로 처리하면 초안이 백로그를 되돌려 망가지므로 실패시키지 않는다. Slack 즉시 알림(quota 1회 · rate 시간당 1회). **ElevenLabs** 한도(401 `quota_exceeded`·429)는 `ApiLimit(provider elevenlabs)` 로 구분해 `settings."automation.tts_paused"` 에 기록하고 TTS·자막 정렬 집기만 멈춘다(2026-09-26, T260926-019) — AI 작업은 계속.
+- **도구 작업은 Claude CLI 워커만** (0025, 2026-09-26): `claim_job(p_can_tools)` — sweep 모드 B(보강)·B2(주제 기획)는 WebSearch 가 필요해 API 실행기 워커(서버)는 집지 않는다. 스위치와 무관.
+- **서버 AI 집기 스위치** (2026-09-26, `settings.automation.server_ai_claim`, 0024): false 면 API 실행기 워커는 `claim_job` 을 AI 불가 + `p_exclude_types=['sweep']` 로 불러 발행 준비(io)만 집는다. 스윕·군집화·초안을 노트북 Claude 가 맡는 기간에 쓴다.
 - **집기 우선순위** (0023, 2026-09-23): `claim_job` 은 FIFO 가 아니라 **진행 중인 에피소드의 후속 작업(payload 에 `episode_id`) → 사람이 건 작업(스윕·군집화·도메인 판정·소급 메타) → 새 초안** 순으로 집는다. 승인이 여러 건 쌓여도 워커 하나면 한 편이 초안부터 패키지까지 끝난 뒤 다음 편 초안이 시작된다 — 종전 FIFO 는 A 초안·B 초안·C 초안 뒤에야 A QA 가 돌아 첫 편이 나오기까지 너무 오래 걸렸다.
 - `backlog.status` 전이 규약(spec/03)은 유지 — 작업 완료 시 워커가 전환. `approved` 전환은 **UI에서 사람** 또는 **워커의 자동 승인 규칙 v1**(2026-09-23, `approved_by = auto:v1`, `runs.phase=approve`).
   승인 버튼은 `approved` 전환과 함께 **`draft` 작업을 큐에 넣는다**(2026-09-08 개정 — 워커가 꺼져 있어도 "진행 중"에 대기로 보이게).

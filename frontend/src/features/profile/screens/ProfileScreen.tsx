@@ -2,8 +2,10 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'r
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
+import { useTabScrollToTop } from '@/shared/navigation/useTabScrollToTop';
 import { theme } from '@/shared/theme';
 import ConfirmDialog from '@/shared/ui/ConfirmDialog';
+import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
 import SettingsIcon from '@/shared/ui/SettingsIcon';
 
 import { DOCK_SCROLL_PROPS, useBottomDockInset } from '@/features/player';
@@ -18,14 +20,16 @@ import WeeklyChart from '../components/WeeklyChart';
 import { useProfileScreen } from '../hooks/useProfileScreen';
 import { PROFILE_COPY } from '../profile.copy';
 
-const SETTINGS_ICON_SIZE = 22;
+const SETTINGS_ICON_SIZE = 20;
+/** 유리 원 지름 — 라이브러리 툴바·탐색 잔여 링과 같은 머리 줄 컨트롤 높이(40) */
+const SETTINGS_GLASS_SIZE = HEADER_CONTROL_HEIGHT;
 
 /**
- * 아이콘 크기(22)를 터치 타깃 44pt로 채운다(design.md §6) — 세로는 hitSlop(위아래 11, 헤더의 `names` 블록 70 안에
+ * 유리 원(40)을 터치 타깃 44pt로 채운다(design.md §6) — 세로는 hitSlop(위아래 2, 헤더의 `names` 블록 70 안에
  * 들어간다), 가로는 **상자 자체를 44 로** 둔다. hitSlop 은 부모 경계 밖으로 못 나가는데 아이콘이 이름 블록의 오른쪽 끝에
- * 붙어 있어 오른쪽 11 은 잘렸다(2026-09-26 프로필 정비). 상자를 세로로도 키우면 닉네임 줄이 함께 커진다
+ * 붙어 있어 오른쪽은 잘린다(2026-09-26 프로필 정비). 상자를 세로로도 키우면 닉네임 줄이 함께 커진다
  */
-const SETTINGS_HIT_SLOP = (theme.touchTarget.minHeight - SETTINGS_ICON_SIZE) / 2;
+const SETTINGS_HIT_SLOP = (theme.touchTarget.minHeight - SETTINGS_GLASS_SIZE) / 2;
 
 /**
  * 프로필 탭(P1~P10) — 화면은 뷰만 담당하고 로직은 useProfileScreen이 소유한다.
@@ -35,6 +39,7 @@ const SETTINGS_HIT_SLOP = (theme.touchTarget.minHeight - SETTINGS_ICON_SIZE) / 2
  */
 export default function ProfileScreen() {
   const screen = useProfileScreen();
+  const scrollRef = useTabScrollToTop();
   // 탭 바가 목록 위에 떠 있으므로 그 높이만큼 바닥 여백(2026-09-22)
   const dockInset = useBottomDockInset();
   // 0.3초 미만 로딩은 표시하지 않는다(common-error-handling.md 5장)
@@ -54,7 +59,10 @@ export default function ProfileScreen() {
       accessibilityRole="button"
       accessibilityLabel={PROFILE_COPY.header.settingsA11y}
     >
-      <SettingsIcon size={SETTINGS_ICON_SIZE} color={theme.color.textPrimary} />
+      {/* 유리 원 — 라이브러리 필터·탐색 잔여 링과 같은 재질(PM 2026-09-27 03:57 "프로필 설정 버튼에 리퀴드 글라스") */}
+      <GlassCapsule style={styles.settingsGlass} pointerEvents="none">
+        <SettingsIcon size={SETTINGS_ICON_SIZE} color={theme.color.textPrimary} />
+      </GlassCapsule>
     </Pressable>
   );
 
@@ -68,8 +76,12 @@ export default function ProfileScreen() {
         ) : null
       ) : (
         <ScrollView
+          ref={scrollRef}
           {...DOCK_SCROLL_PROPS}
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: theme.spacing.xxl + dockInset }]}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: theme.spacing.xxl + dockInset },
+          ]}
           refreshControl={
             <RefreshControl
               refreshing={screen.isManualRefreshing}
@@ -137,11 +149,42 @@ export default function ProfileScreen() {
                   </Pressable>
                 </View>
               ) : (
-                // 통계 3영역 — 요약 → 주간 그래프 → 주제 분포 순서 고정(profile.md 4.1)
+                // 통계 3영역 — 요약 → 주간 그래프 → 주제 분포 순서 고정(profile.md 4.1). 주제 분포는 주간 카드 맨 아래
+                // 구획으로 합쳤다(PM 2026-09-28 00:47 — changes/pending/profile-weekly-topics-merge.md)
                 <View style={styles.statsArea}>
                   <StatsSummaryRow summary={screen.stats.data.summary} />
-                  <WeeklyChart weekly={screen.weekly} />
-                  <TopicDonut distribution={screen.stats.data.distribution} />
+                  <WeeklyChart
+                    weekly={screen.weekly}
+                    footer={(() => {
+                      /*
+                       * 주제 구획의 기간 — 막대를 탭했으면 그날(PM 2026-09-28 04:26), 아니면 고른 주, 서버가 주·일 분포를 아직
+                       * 안 보내면 전체 기간으로 대신한다(KAN-113). 라벨이 기간을 밝힌다. 탭 해제(재탭·그래프 밖 탭)면 주로 돌아간다
+                       */
+                      const week = screen.weekly.displayed;
+                      const day = screen.weekly.selectedBarIndex;
+                      const dayDistribution =
+                        day !== null ? week?.dailyTopicDistributions?.[day] : undefined;
+                      if (day !== null && dayDistribution) {
+                        return (
+                          <TopicDonut
+                            distribution={dayDistribution}
+                            embedded
+                            label={PROFILE_COPY.stats.topTopicDayLabel(day)}
+                          />
+                        );
+                      }
+                      if (week?.topicDistribution) {
+                        return <TopicDonut distribution={week.topicDistribution} embedded />;
+                      }
+                      return (
+                        <TopicDonut
+                          distribution={screen.stats.data.distribution}
+                          embedded
+                          label={PROFILE_COPY.stats.topTopicAllTimeLabel}
+                        />
+                      );
+                    })()}
+                  />
                 </View>
               )
             ) : null}
@@ -192,6 +235,12 @@ const styles = StyleSheet.create({
   /** 가로 44 상자(아이콘은 가운데) + 세로 hitSlop — 위 SETTINGS_HIT_SLOP 주석 */
   settingsButton: {
     minWidth: theme.touchTarget.minWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingsGlass: {
+    width: SETTINGS_GLASS_SIZE,
+    height: SETTINGS_GLASS_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
   },

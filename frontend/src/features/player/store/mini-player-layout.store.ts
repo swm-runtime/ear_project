@@ -61,4 +61,12 @@ export const useBottomDockInset = (): number => {
  */
 export const DOCK_SCROLL_PROPS = {
   contentInsetAdjustmentBehavior: HAS_NATIVE_TAB_BAR ? 'automatic' : 'never',
+  /**
+   * **선택된 탭 재탭(맨 위로)이 상단 인셋만큼 덜 올라가던 것**(PM 2026-09-28 03:47 "완벽히 위로 안 올라가진다").
+   * `automatic` 으로 시스템이 넣은 상단 인셋은 `adjustedContentInset` 에만 있고 `contentInset` 은 0 인데, RN 의
+   * `scrollTo`·`scrollToOffset` 은 클램프 사각형을 **`contentInset` 으로** 만든다
+   * (`RCTScrollViewComponentView.mm` maxRect: `fmin(-contentInset.top, 0)`) — 그래서 진짜 맨 위인 음수 오프셋이
+   * 0 으로 잘렸다. 이 플래그가 그 클램프만 끈다. 이 목록들은 재탭 말고 프로그램으로 스크롤하는 곳이 없다
+   */
+  scrollToOverflowEnabled: HAS_NATIVE_TAB_BAR,
 } as const;

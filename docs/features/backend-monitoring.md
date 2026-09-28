@@ -37,6 +37,14 @@
 - 전 경로가 **읽기 전용**이다. 콘솔·알림 어디에도 서버 상태를 바꾸는 조작이 없다.
 - 로그 원문에 무엇이 찍히는가는 이 기능의 소유가 아니다 — 토큰·이메일 원문·요청 바디 금지는 백엔드 로깅 규칙(`backend/convention.md`)이 소유한다.
 
+### 3-1. Grafana Cloud 와의 병행 (2026-09-25 — KAN-97)
+
+CloudWatch(EC2 지표·`/ear/api`·`/ear/caddy` 로그)·Sentry·합성 헬스체크는 **Grafana Cloud 대시보드 "ear 운영"** 에도 표시된다(`infra/inventory.md` Grafana Cloud 행). 코드 변경 없음 — 같은 원천을 두 화면이 읽는다.
+
+- **콘솔은 그대로 유지한다.** 실시간 로그(5초 폴링)·에러 모아보기·서버 상태(`/admin/system-stats`)·요청 통계는 콘솔이 소유한다. Grafana 는 EC2·헬스체크·Sentry 를 함께 보는 상황판이다.
+- **같은 값이 다르게 보일 때의 기준**: 요청 p50/p95 는 콘솔(로그 파싱)이 현재 기준이다. 백엔드가 `/metrics` 를 내보내는 2단계(KAN-98) 이후에는 Grafana 히스토그램이 기준이 되고 그때 이 절을 고친다.
+- Grafana 알림(헬스체크 실패·TLS·CPU 70%·메모리 80%)은 Slack 에러 채널로 간다. 백엔드 `resource-alert` 의 CPU·메모리 Slack 경보와 임계가 겹치므로 몇 주 비교 뒤 하나로 정리한다(9장 미결).
+
 ## 4. 구성 — 콘솔 5탭
 
 | 탭 | 경로 | 내용 |
@@ -78,12 +86,14 @@
 - Given 팀원이 Supabase 로그인 / When 실시간 로그 탭 진입 / Then api·caddy 로그 꼬리가 SSH 없이 보인다
 - Given 미로그인 사용자 / When 조회 라우트 직접 호출 / Then 401로 거절된다
 - Given 백엔드에 ERROR 발생 / When 5분 틱 도래 / Then Slack에 유형 요약 + 콘솔 링크가 1회 온다 (같은 유형 반복은 묶인다)
-- Given 자원·DB 탭 / When 제품 서버가 system-stats를 서비스 중 / Then CPU·메모리·DB 연결·진행 중 쿼리가 15초마다 갱신된다
+- Given 자원·DB 탭 / When 제품 서버가 system-stats를 서비스 중 / Then CPU·메모리·DB 연결·진행 중 쿼리가 열 때 1회 표시되고 [새로고침]으로 갱신된다(자동 폴링 없음 — 3장)
 - Given log-watch의 어떤 실패 / When 워커가 작업을 처리 중 / Then 작업 처리·종료 동작에 영향이 없다
 
 ## 9. 미결 사항
 
 - **보관 7일 초과 검색 없음** — CloudWatch 보관을 늘리거나 S3 아카이브를 붙일지 미정(비용 대비 필요 불명).
-- **메모리·디스크의 CloudWatch 지표화** — 현재는 백엔드 자가 보고. 인스턴스 자체가 죽으면 이 경로도 죽는다. CW 에이전트 설치(인프라)로 이중화할지 미정.
+- ~~메모리·디스크의 CloudWatch 지표화~~ — **해소**(2026-09-11 CloudWatch Agent `CWAgent` 네임스페이스, `infra/inventory.md`).
+- **자체 CPU·메모리 Slack 경보와 Grafana Alerting 의 중복** — 임계(70/80)는 같고 지속 조건(3틱 vs 5분)이 다르다. 비교 기간 뒤 하나로 정리(2026-09-25).
+- **콘솔 서버 상태·요청 통계 탭의 존속** — 2단계(KAN-98, 백엔드 `/metrics`) 이후 재검토. 지금은 유지(결정 2026-09-25).
 - **알림 채널·임계 설정 UI 없음** — webhook 주소·틱 주기는 서버 env로만 바꾼다.
 - caddy 로그 기반 트래픽 통계(현재는 api 로그 파싱)로의 승격 여부.

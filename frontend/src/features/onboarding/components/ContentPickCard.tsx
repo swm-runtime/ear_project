@@ -60,6 +60,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing.md,
     padding: theme.spacing.md,
     borderRadius: theme.radius.lg,
+    borderCurve: 'continuous',
     borderWidth: 1.5,
     // 미선택도 카드 배경을 깐다 — 테두리는 자리만 잡고 보이지 않는다
     borderColor: theme.color.surface,
@@ -74,6 +75,7 @@ const styles = StyleSheet.create({
     width: PICK_CARD_THUMBNAIL,
     height: PICK_CARD_THUMBNAIL,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     backgroundColor: theme.color.background,
   },
   body: {

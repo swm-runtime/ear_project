@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 
 import FullScreenError from '@/shared/ui/FullScreenError';
 
+import { traceJs } from './js-trace';
 import { MONITORING_COPY } from './monitoring.copy';
 
 interface AppErrorBoundaryProps {
@@ -21,6 +22,8 @@ interface AppErrorBoundaryProps {
 export default function AppErrorBoundary({ children }: AppErrorBoundaryProps) {
   return (
     <Sentry.ErrorBoundary
+      // 개발계 JS 트레이스 — 렌더 트리가 통째로 내려간 이유를 남긴다(2026-09-27)
+      onError={(error) => traceJs(`boundary: ${error instanceof Error ? error.message : String(error)}`)}
       fallback={({ resetError }) => (
         <FullScreenError
           title={MONITORING_COPY.crash.title}

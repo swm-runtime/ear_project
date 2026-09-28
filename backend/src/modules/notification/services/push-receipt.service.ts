@@ -68,6 +68,8 @@ export class PushReceiptService {
 
     const answered = new Set<string>();
     const invalidTokens: { id: string; token: string }[] = [];
+    // DeviceNotRegistered 가 아닌 전달 실패 — 사유별 건수(`InvalidCredentials` 는 ticket 이 ok 로 오고 여기서만 드러난다)
+    const failedByReason: Record<string, number> = {};
 
     for (let i = 0; i < due.length; i += EXPO_PUSH_RECEIPT_CHUNK_SIZE) {
       const chunk = due.slice(i, i + EXPO_PUSH_RECEIPT_CHUNK_SIZE);
@@ -85,13 +87,34 @@ export class PushReceiptService {
 
         answered.add(entry.ticketId);
 
-        if (
-          receipt.status === 'error' &&
-          receipt.error === EXPO_DEVICE_NOT_REGISTERED
-        ) {
+        if (receipt.status !== 'error') {
+          continue;
+        }
+
+        if (receipt.error === EXPO_DEVICE_NOT_REGISTERED) {
           invalidTokens.push({ id: entry.deviceTokenId, token: entry.token });
+        } else {
+          const reason = receipt.error ?? 'unknown';
+          failedByReason[reason] = (failedByReason[reason] ?? 0) + 1;
         }
       }
+    }
+
+    const failedCount = Object.values(failedByReason).reduce(
+      (sum, count) => sum + count,
+      0,
+    );
+
+    if (failedCount > 0) {
+      /**
+       * ticket 단계에서는 `ok` 였는데 전달이 실패한 것 — APNs 키 만료·FCM 자격 증명 불량이 이 경로로
+       * 온다(`notification_logs.status` 는 이미 `sent`). 사유별 건수를 error 로 남긴다(2026-09-26 감사 —
+       * 종전에는 조용히 소비돼 전원 미수신을 감지할 수단이 없었다).
+       */
+      this.logger.error('push receipts reported delivery errors', {
+        error_count: failedCount,
+        reasons: failedByReason,
+      });
     }
 
     this.pending = this.pending.filter(

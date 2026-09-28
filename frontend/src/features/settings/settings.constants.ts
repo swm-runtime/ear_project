@@ -1,4 +1,3 @@
-import { Platform } from 'react-native';
 
 /**
  * 백엔드 준비 후 실서버로 붙일 때는 EXPO_PUBLIC_SETTINGS_API=real 로 전환한다.
@@ -35,8 +34,5 @@ export const PRIVACY_POLICY_URL =
  * 스토어 게시 전에는 어느 쪽이든 "찾을 수 없음"을 보여준다 — [업데이트] 는 서버가 강제
  * 업데이트를 지시할 때만 뜨고 그 시점은 게시 이후다.
  */
-const IOS_STORE_URL = 'https://apps.apple.com/app/id6807708636';
-const ANDROID_STORE_URL = 'https://play.google.com/store/apps/details?id=com.runtime.ear';
-export const STORE_URL =
-  process.env.EXPO_PUBLIC_STORE_URL ??
-  (Platform.OS === 'ios' ? IOS_STORE_URL : ANDROID_STORE_URL);
+// 값은 `shared/lib/store-url.ts` — 스플래시 강제 업데이트 화면(app-update, KAN-99)과 같은 목적지라 shared 로 옮겼다(2026-09-26)
+export { STORE_URL } from '@/shared/lib/store-url';

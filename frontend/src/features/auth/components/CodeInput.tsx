@@ -92,6 +92,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: theme.color.border,
     borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
     textAlign: 'center',
     fontSize: theme.font.size.lg,
     fontWeight: '600',

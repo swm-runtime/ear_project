@@ -1,6 +1,7 @@
 import { createNativeBottomTabNavigator } from '@react-navigation/bottom-tabs/unstable';
 import { useState } from 'react';
 
+import { selectTab } from '@/shared/navigation/tab-selection.store';
 import { theme } from '@/shared/theme';
 
 import { useSessionStore } from '@/features/auth';
@@ -14,7 +15,11 @@ import type { MainTabParamList } from './types';
 
 const NativeTab = createNativeBottomTabNavigator<MainTabParamList>();
 
-/** 투명 시스템 바 — 제목은 비워 두고(화면이 페이드 제목을 건다) 그림자 선 없음. 콘텐츠가 바 밑으로 흐른다 */
+/**
+ * **투명 시스템 바** — 스크롤하면 바 밑 블러를 시스템 scroll edge effect 가 그린다(PM 2026-09-28 01:40 "애플에서 기본적으로
+ * 제공하는거로" — 그리던 서리 띠 NativeBarBlurBand 는 걷었다). 큰 제목·오른쪽 캡슐은 화면이
+ * `useSystemLargeTitle` 로 건다(iOS 26 .inline — 큰 제목과 바 버튼이 같은 줄, 09-28)
+ */
 const TRANSPARENT_BAR = {
   headerShown: true,
   headerTransparent: true,
@@ -50,7 +55,11 @@ export default function NativeMainTabs() {
         state: (e) => {
           const s = e.data.state;
           const name = s?.routeNames?.[s.index ?? 0];
-          if (name) rememberTab(name as RestorableTab);
+          if (!name) return;
+          rememberTab(name as RestorableTab);
+          // 제목 줄 알약이 이 값으로 모핑한다 — 화면 쪽 포커스·blur 판정은 모달과 구분되지 않아 걷어냈다
+          // (2026-09-28 04:55, `shared/navigation/tab-selection.store`)
+          selectTab(name);
         },
       }}
       screenOptions={{
@@ -88,6 +97,8 @@ export default function NativeMainTabs() {
           콘텐츠와 같이 스크롤. 검색 탭(탭 바 옆 검색 원, #730)은 뺐다 — 입구가 둘이라(PM 09-26 01:20) */}
       <NativeTab.Screen
         name="Explore"
+        // 탭에 화면을 바로 붙인다(종전 ExploreStack) — 안에 스택이 한 겹 더 있으면 늦게 뜨는 피드 목록을 시스템 바가 못 붙잡아
+        // 큰 제목이 안 접혔다(PM 2026-09-28 05:35 "탐색은 왜 안 돼" — 라이브러리는 됨). 검색은 제자리 덮개라 스택이 필요 없다
         component={ExploreScreen}
         options={{
           tabBarLabel: '탐색',
