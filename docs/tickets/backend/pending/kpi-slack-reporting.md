@@ -11,7 +11,7 @@
 | 선행 | **1단계**: 없음 — 시크릿 설정까지 끝났다(2026-09-29). `dev`·`main` 배포만 남았다. **2단계**: 없음 |
 | Jira | [KAN-107](https://runtime364.atlassian.net/browse/KAN-107) (담당: 박준현) |
 | 중요도 | Medium — PM 이 중요도를 따로 정하지 않아 기본값. **Jira 우선순위가 Low 로 되어 있어 불일치** — 기한 09-30 은 Medium(+3일) 환산값이므로 Jira 쪽을 Medium 으로 맞춰야 한다 |
-| 상태 | **진행 중** — 1단계(가입 알림) **완료 2026-09-29**, 2단계(일일 보고) 남음 |
+| 상태 | **진행 중** — 1단계 완료 · 2단계 **코드 완료 2026-09-29**, GA4 자격 설정 대기 |
 
 ## 요청 — 2단계로 나눈다
 
@@ -95,6 +95,42 @@ GA4 `sign_up` 이벤트를 받아 Slack 에 게시한다. "하루 한 번"으로
 
 > ⚠️ **키를 새로 넣을 때만 해당.** `deploy/apply-secrets.py` 는 Secrets Manager 에 있는 키가 `.env.prod` 에 **없으면 배포를 중단시킨다**(`tickets/backend/archive/deploy-path-reads-secrets-manager.md`). 서버 파일이 먼저다. 중단 시점이 컨테이너를 건드리기 전이라 돌던 API 는 살아 있다.
 
+### 2단계 구현 (2026-09-29) — GA4 로 간다, 완청률은 뺀다
+
+PM 결정: **GA4 정보**(활성·신규·가입·리텐션)를 매일 17:00 KST 에 Slack 으로. 완청률은 요구하지 않는다. 문서 소유권(`analytics.md` 1장)과도 정합하다.
+
+| 파일 | |
+|---|---|
+| `admin/services/ga4.service.ts` | GA4 Data API 호출. **SDK 지연 로드** — `@google-analytics/data` 는 require 만으로 RSS +40MB, 클라이언트까지 +54MB(실측). 워커 2개가 24시간 108MB 를 내주지 않게 스케줄러 워커가 첫 실행 때만 올린다 |
+| `admin/services/ga4-report.parse.ts` | 응답 행 → 숫자. 순수 함수, 테스트 9건 |
+| `admin/services/daily-metrics.format.ts` | Slack 문구·보고 날짜. 순수 함수, 테스트 6건 |
+| `admin/services/daily-metrics.scheduler.ts` | `@Cron('0 17 * * *', { timeZone: 'Asia/Seoul' })` + 수동 `trigger()`. 테스트 4건 |
+| `admin.controller.ts` | `POST /admin/reports/daily-metrics` — "지금 한 번" 용. 202, 미설정이면 409 `ADMIN_REPORT_NOT_CONFIGURED`. 계약은 `changes/pending/admin-api-daily-metrics-trigger.md` |
+| `env.validation.ts` | `GA4_PROPERTY_ID` · `GA4_SERVICE_ACCOUNT_BASE64`(선택 — 비면 꺼짐) |
+
+문구:
+```
+:bar_chart: *2026-09-28 지표*
+• 활성 사용자 1,234명 · 신규 56명 · 가입 7건
+• 리텐션 D1 41.2% · D7 18.7%
+```
+
+- **보고 대상은 어제(KST)** — 오늘은 안 끝났고 GA4 는 당일 처리에 시간이 걸린다. 17시에 "오늘"을 적으면 반쪽 수를 확정값처럼 읽는다
+- **리텐션 분모가 0 이면 `—`** — 0% 와 다른 사실이다
+- 리텐션 정의: D1 = `date-1` 첫 방문자 중 `date` 에 돌아온 비율, D7 = `date-7` 기준. 코호트 차원 `firstSessionDate`. **첫 실행 뒤 GA4 콘솔 리텐션 보고서와 한 번 대조할 것** — 코호트 오프셋은 실데이터 없이 확정 못 한다
+- 실패해도 던지지 않는다(던지면 스케줄러가 멈춰 다음 날도 안 온다). 부하: 하루 1회, 워커 1개, 우리 DB 접근 없음
+
+### 남은 것 — GA4 자격 두 개 (사람 손)
+
+코드는 자격이 비면 조용히 꺼져 있다. 켜려면:
+
+1. **GA4 속성 ID** — GA4 관리 → 속성 설정 → 숫자 ID (Firebase 프로젝트 `ear-push` 에 연결된 속성, GA 계정 `runtime364`)
+2. **서비스 계정** — GCP 프로젝트 `ear-push` → IAM → 서비스 계정 생성 → JSON 키 다운로드 → **그 서비스 계정 이메일을 GA4 속성에 '뷰어'로 추가**(GA4 관리 → 속성 액세스 관리). 이걸 빼먹으면 403 이다
+3. JSON 을 base64 로(`base64 -w0 key.json`) 두 값을 **운영·개발계 `.env.prod` 에 먼저 줄 추가 → Secrets Manager** 순서로(`apply-secrets.py` 함정 — 새 키다)
+4. 배포 → `POST /admin/reports/daily-metrics` 로 한 번 쏴서 확인
+
+> GA4 는 runtime 7(09-23) 이후 빌드에만 실려 있어 **스토어 1.0.0 사용자는 잡히지 않는다.** 새 빌드가 퍼질 때까지 수치는 실제의 일부다 — PM 이 인지하고 GA4 를 택했다.
+
 ### GA4 는 어떻게 되나
 
 버리지 않는다. 퍼널·리텐션·코호트는 GA4 가 훨씬 낫고, 1.1.0 이 게시되면 `sign_up` 이벤트가 GA4 에도 그대로 쌓인다. **알림만 서버에서 보내는 것**이다.
@@ -125,6 +161,7 @@ GA4 `sign_up` 이벤트를 받아 Slack 에 게시한다. "하루 한 번"으로
   - 백엔드 Slack webhook 은 이미 있다(`SLACK_ERROR_WEBHOOK_URL` · `resource-alert.service.ts`) — 발송 방식을 그대로 따랐다.
 - 2026-09-29 **1단계 코드 반영.** GA4 경로를 접고 서버 직접 발송으로 바꿨다(위 "구현 방식" 참조 — GA4 에 이벤트 웹훅이 없고, 스토어 게시를 기다려야 하기 때문). 백엔드 테스트 842건 통과·타입체크·lint 통과. **남은 것**: `dev`·`main` 배포 후 각 환경에서 실제 가입으로 확인.
 - 2026-09-29 **양쪽 환경 모두 켜기로 결정**(PM). 개발계 가입도 `[development]` 접두로 함께 본다.
+- 2026-09-29 **2단계 코드 반영** — GA4 Data API 일일 보고(17:00 KST) + 수동 트리거 엔드포인트. 테스트 19건 추가, 전체 통과. 남은 것은 GA4 속성 ID·서비스 계정(위 "남은 것").
 - 2026-09-29 **1단계 완료 — 운영에서 실제 가입으로 알림 확인.** 배포 `v1.1.0+3`(run 36526844171, 05:38 재기동) · 헬스 200 · 기동 로그 `resource alert on`(양 워커) · 최근 20분 ERROR 0. PM 이 실제 가입해 Slack 수신을 확인했다. **2단계(DAU·완청률·리텐션 일일 보고)만 남아 티켓은 pending 에 둔다.**
 - 2026-09-29 **개발계 시크릿 설정 완료.** `ear/dev/api` 의 `SLACK_ERROR_WEBHOOK_URL` 이 키만 있고 값이 비어 있어 운영과 같은 값으로 채웠다(키 개수 불변 → 배포 영향 없음). 곁딸려 **자원 경보에도 환경 접두를 붙였다** — 같은 채널에 운영·개발계가 섞이는데 문구에 구분이 없었다.
 - 2026-09-29 **웹훅을 새로 만들지 않기로**(PM). 기존 알림 채널(`SLACK_ERROR_WEBHOOK_URL`)로 폴백하게 고쳤다 — **env 작업이 사라지고 배포만으로 켜진다.** 채널을 가르고 싶어지면 전용 변수만 넣으면 되고 코드는 그대로다. 절차를 적으며 확인한 **`apply-secrets.py` 함정**(Secrets 에만 있고 `.env.prod` 에 없는 키는 배포를 중단시킨다)은 전용 변수를 쓸 때를 위해 남겨 둔다.

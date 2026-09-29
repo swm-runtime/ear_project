@@ -1,0 +1,86 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Cron } from '@nestjs/schedule';
+
+import { EnvironmentVariables } from '@/config/env.validation';
+import { formatDailyMetrics, reportDate } from './daily-metrics.format';
+import { Ga4Service } from './ga4.service';
+
+/** Slack 응답 대기 상한 */
+const SLACK_TIMEOUT_MS = 5_000;
+
+/**
+ * 일일 지표 Slack 보고 (KAN-107 2단계) — **매일 17:00 KST**, 어제 하루치.
+ *
+ * `ScheduleModule` 은 스케줄러 프로세스에만 올라가므로(`app.module.ts` · `isSchedulerProcess`)
+ * 클러스터에서 한 번만 돈다. GA4 자격이나 웹훅이 비면 조용히 건너뛴다 — 로컬·테스트 기본.
+ * 실패해도 던지지 않는다: 던지면 스케줄러가 멈추고 다음 날도 안 온다.
+ */
+@Injectable()
+export class DailyMetricsScheduler {
+  private readonly logger = new Logger(DailyMetricsScheduler.name);
+  private readonly webhookUrl: string;
+  private readonly environment: string;
+
+  constructor(
+    private readonly ga4: Ga4Service,
+    configService: ConfigService<EnvironmentVariables, true>,
+  ) {
+    // 가입 알림과 같은 채널 — 전용 값이 있으면 그것, 없으면 기존 알림 채널
+    this.webhookUrl =
+      configService.get('SLACK_SIGNUP_WEBHOOK_URL', { infer: true })?.trim() ||
+      configService.get('SLACK_ERROR_WEBHOOK_URL', { infer: true })?.trim() ||
+      '';
+    this.environment =
+      configService.get('SENTRY_ENVIRONMENT', { infer: true }) ?? '';
+  }
+
+  /** GA4 자격과 웹훅이 모두 있어야 돈다 — 수동 트리거가 미설정을 409 로 돌려주는 근거 */
+  get configured(): boolean {
+    return this.ga4.enabled && this.webhookUrl !== '';
+  }
+
+  @Cron('0 17 * * *', { name: 'daily-metrics', timeZone: 'Asia/Seoul' })
+  async run(): Promise<void> {
+    if (!this.configured) {
+      this.logger.log('daily metrics skipped (ga4 or webhook not configured)');
+      return;
+    }
+    await this.report(reportDate(new Date()));
+  }
+
+  /**
+   * 지금 당장 한 번 — 관리자 엔드포인트가 부른다. 게시는 기다리지 않는다(GA4 왕복이
+   * 수 초라 HTTP 응답을 붙들 이유가 없다). 실패는 크론과 같이 로그로만 남는다.
+   */
+  trigger(now: Date): string {
+    const date = reportDate(now);
+    void this.report(date);
+    return date;
+  }
+
+  private async report(date: string): Promise<void> {
+    try {
+      const metrics = await this.ga4.fetchDaily(date);
+      await this.post(
+        formatDailyMetrics({ date, ...metrics }, this.environment),
+      );
+      this.logger.log('daily metrics posted', { date });
+    } catch (error) {
+      this.logger.error(
+        'daily metrics failed',
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
+  }
+
+  private async post(text: string): Promise<void> {
+    const res = await fetch(this.webhookUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text }),
+      signal: AbortSignal.timeout(SLACK_TIMEOUT_MS),
+    });
+    if (!res.ok) throw new Error(`slack webhook ${res.status}`);
+  }
+}

@@ -22,6 +22,8 @@ import { AdminTopicService } from './services/admin-topic.service';
 import { AdminNoticeService } from './services/admin-notice.service';
 import { TopicExposureService } from './services/topic-exposure.service';
 import { TopicExposureScheduler } from './topic-exposure.scheduler';
+import { DailyMetricsScheduler } from './services/daily-metrics.scheduler';
+import { Ga4Service } from './services/ga4.service';
 
 /**
  * admin.md — Entity를 소유하지 않는 운영 유스케이스 모듈. 콘텐츠·주제·감사 로그는 각 소유
@@ -54,6 +56,8 @@ import { TopicExposureScheduler } from './topic-exposure.scheduler';
     TopicExposureService,
     TopicExposureScheduler,
     ResourceAlertService,
+    Ga4Service,
+    DailyMetricsScheduler,
     AudioProbe,
     ThumbnailImage,
     {
