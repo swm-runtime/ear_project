@@ -20,6 +20,8 @@ const ZERO_BAR_HEIGHT = 3;
 /** 요일 막대 위 모서리 반지름 — radius 토큰(sm 8)보다 작은 값이 필요해 따로 둔다 */
 const BAR_RADIUS = 4;
 const DAYS_IN_WEEK = 7;
+/** 요일 원(선택 시 검은 원) 지름 */
+const DAY_BADGE_SIZE = theme.spacing.xl;
 /** 서비스 날짜 경계 04시 — 표시용 오늘 요일을 서버와 같은 날로 맞춘다(toWeekView) */
 const SERVICE_DAY_OFFSET_MS = 4 * 60 * 60 * 1000;
 /**
@@ -829,12 +831,13 @@ const styles = StyleSheet.create({
   },
   dayBadge: {
     marginTop: theme.spacing.sm,
-    minWidth: theme.spacing.xl,
-    minHeight: theme.spacing.xl,
+    minWidth: DAY_BADGE_SIZE,
+    minHeight: DAY_BADGE_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
     padding: theme.spacing.xs,
-    borderRadius: theme.radius.full,
+    // 반지름은 크기의 절반을 숫자로 준다 — radius.full(999)이 Android 에서 원이 아니라 사각형으로 칠해졌다(PM 2026-09-29 13:56)
+    borderRadius: DAY_BADGE_SIZE / 2,
     borderCurve: 'continuous',
   },
   dayBadgeSelected: { backgroundColor: theme.color.primary },
