@@ -432,10 +432,13 @@ export default function ExploreScreen() {
         >
           {Platform.OS === 'android' ? (
             <View style={styles.androidTitle}>
-              <LargeTitleRow title={EXPLORE_COPY.tabTitle} />
+              <LargeTitleRow title={EXPLORE_COPY.tabTitle} trailing={remainingRing} />
             </View>
           ) : null}
-          <ExploreSearchBarRow onPress={openSearch} trailing={remainingRing} />
+          <ExploreSearchBarRow
+            onPress={openSearch}
+            trailing={Platform.OS === 'android' ? null : remainingRing}
+          />
 
           {chips}
         </FloatingHeader>
