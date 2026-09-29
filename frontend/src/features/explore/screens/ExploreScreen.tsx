@@ -93,6 +93,15 @@ export default function ExploreScreen() {
   });
   const openSearch =
     HAS_NATIVE_TAB_BAR || ANDROID_IOS_HEADER ? () => setIsSearching(true) : screen.openSearch;
+  /*
+   * 인기 섹션의 **카드가 실제로 바뀐** 구간 — section.period 는 누르는 순간 조회 중인 구간으로 먼저 바뀌므로(토글 표시용), 목록을
+   * 새로 만드는 key 는 조회가 끝난 뒤의 값으로 둔다. 누르자마자 직전 카드로 목록이 다시 만들어져 깜빡였다(PM 2026-09-30 06:20)
+   */
+  const popularPeriod = screen.sections.find((section) => section.period !== null)?.period ?? null;
+  const [settledPopularPeriod, setSettledPopularPeriod] = useState(popularPeriod);
+  if (!screen.isPopularSwitching && popularPeriod !== settledPopularPeriod) {
+    setSettledPopularPeriod(popularPeriod);
+  }
 
   /*
    * 제자리 검색(iOS 26 — PM 2026-09-27 21:03 "검색 화면을 따로 두지 말고 그냥 탐색"): 검색창을 누르면 새 화면으로 가지 않고
@@ -348,7 +357,7 @@ export default function ExploreScreen() {
           >
             <FlatList
               // 구간마다 새로 만든다 — 숨긴 채 먼저 그려 두고(흐르기 전) 맨 앞에서 시작한다
-              key={section.period ?? 'static'}
+              key={settledPopularPeriod ?? 'static'}
               horizontal
               // 인기 캐러셀은 목록 밖으로도 카드를 그린다 — 구간 전환 때 반쯤 보이던 카드가 잘린 채로 떠나지 않게(PeriodSwap).
               // 화면 밖이라 평소엔 보이지 않는다. Android 는 화면 밖 셀을 떼는 최적화도 끈다

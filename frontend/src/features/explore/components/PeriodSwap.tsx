@@ -56,7 +56,12 @@ export default function PeriodSwap({
   const [leaving, setLeaving] = useState<{ slot: Slot; node: ReactNode; direction: number } | null>(
     null,
   );
-  if (swapKey !== renderedKey) {
+  /*
+   * **조회가 끝나 새 카드가 온 뒤에만** 흐른다(PM 2026-09-30 06:20 "다 움직이고 나서 갑자기 콘텐츠가 바뀐다") — 토글을 누르는 순간
+   * 구간 값(section.period)은 조회 중인 구간으로 먼저 바뀌는데 카드는 아직 직전 것이라, 누르자마자 직전 카드끼리 흐르고
+   * 끝난 뒤에 새 카드로 툭 바뀌었다. 조회 중(isDimmed)에는 구간이 바뀐 것으로 보지 않는다
+   */
+  if (!isDimmed && swapKey !== renderedKey) {
     setRenderedKey(swapKey);
     if (PERIOD_ORDER.includes(renderedKey) && PERIOD_ORDER.includes(swapKey)) {
       setLeaving({
