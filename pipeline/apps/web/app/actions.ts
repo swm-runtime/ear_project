@@ -115,13 +115,24 @@ export async function listUnlinkedPublished(): Promise<{ backlog_id: string; tit
   return (bls ?? []).map((b) => ({ backlog_id: b.id, title: b.title, episode_id: epOf.get(b.id) ?? null, status: b.status }));
 }
 
-/** 작업 취소 — 대기 중이면 즉시, 진행 중이면 워커가 하트비트(15초)에서 알아채고 claude 프로세스를 끊는다 (2026-09-12). 완료·실패한 작업은 대상이 아니다 */
+/**
+ * 작업 취소 — 대기 중이면 즉시, 진행 중이면 워커가 하트비트(15초)에서 알아채고 claude 프로세스를 끊는다 (2026-09-12). 완료·실패한 작업은 대상이 아니다.
+ * 1회차 초안(에피소드가 아직 없는 draft)을 취소하면 후보를 approved → proposed(재승인 대기)로 함께 되돌린다 (2026-09-29 박수헌):
+ * 워커의 폴백 집기(index.ts pickupApproved)가 "승인됐는데 초안 작업이 없는 후보"를 폴링마다 다시 큐에 넣으므로, 작업만 취소하면 같은 후보가 곧바로 되살아났다.
+ * 자동 승인을 꺼도 이미 approved 인 행은 남아 있어 취소가 먹지 않았다. 재생성(2회차+)·다른 종류 작업은 후보 상태를 건드리지 않는다.
+ */
 export async function cancelJob(id: string) {
   const sb = await supabaseServer();
-  const { data, error } = await sb.from("jobs").update({ status: "cancelled", finished_at: new Date().toISOString(), error: "사람이 콘솔에서 취소" }).eq("id", id).in("status", ["queued", "claimed", "running"]).select("id,type");
+  const { data, error } = await sb.from("jobs").update({ status: "cancelled", finished_at: new Date().toISOString(), error: "사람이 콘솔에서 취소" }).eq("id", id).in("status", ["queued", "claimed", "running"]).select("id,type,payload");
   if (error) throw new Error(error.message);
   if (!data?.length) throw new Error("취소할 수 없는 상태입니다 (이미 끝났거나 취소됨)");
-  revalidatePath("/"); revalidatePath("/sweep"); revalidatePath("/jobs");
+  const j = data[0] as { type: string; payload: Record<string, unknown> | null };
+  const backlogId = typeof j.payload?.backlog_id === "string" ? j.payload.backlog_id : null;
+  if (j.type === "draft" && backlogId && !j.payload?.episode_id && Number(j.payload?.attempt ?? 1) === 1) {
+    const { error: e2 } = await sb.from("backlog").update({ status: "proposed", approved_by: null, approved_at: null, claimed_by: null, claimed_at: null }).eq("id", backlogId).in("status", ["approved", "claimed"]);
+    if (e2) throw new Error(`작업은 취소됐지만 후보 ${backlogId} 를 재승인 대기로 되돌리지 못함: ${e2.message}`);
+  }
+  revalidatePath("/"); revalidatePath("/sweep"); revalidatePath("/jobs"); revalidatePath("/backlog");
 }
 
 /**
