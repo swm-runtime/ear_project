@@ -56,6 +56,14 @@ const DOCK_GAP = 8;
  * 하이라이트) + 위쪽 안쪽 광택선. 미니플레이어는 iOS 26 액세서리처럼 캡슐이다(MINI_CARD_RADIUS)
  */
 const IS_ANDROID = Platform.OS === 'android';
+/**
+ * **Android 는 불투명 독**(PM 2026-09-30 01:28 "안드로이드에는 리퀴드 특성이 없어서 — 불투명하게, 선택 알약도 불투명하게,
+ * 알약 크기는 안 움직이게"). 캡슐 뒤판은 흰 면(그림자·hairline 은 유지, 유리 림은 뺀다), 선택 알약은 회색 면이 칸 사이를
+ * 미끄러지기만 한다 — 누를 때 부풀기(1.3×)·끌 때 수축·끝 넘김 고무줄·도착 출렁임을 전부 끈다. iOS(26 미만 캡슐)는 그대로
+ */
+const SOLID_DOCK = IS_ANDROID;
+/** 불투명 캡슐 위 선택 알약 — 흰 면 위에서 한 단 내려앉은 중립 회색 */
+const SOLID_PILL_COLOR = '#ECECF0';
 const CARD_RADIUS = IS_ANDROID ? 28 : 22;
 const ICON_SIZE = 24;
 const LABEL_SIZE = 11;
@@ -101,7 +109,12 @@ const PILL_STRETCH_MAX = 0.35;
  * 차지하는 높이(안전영역 + 간격 + 캡슐)는 BottomTabBarHeightCallbackContext 로 올린다 — 미니플레이어가 그 위에
  * 서고 목록이 그만큼 바닥 여백을 둔다(useBottomDockInset)
  */
-export default function CapsuleTabBar({ state, descriptors, navigation, insets }: BottomTabBarProps) {
+export default function CapsuleTabBar({
+  state,
+  descriptors,
+  navigation,
+  insets,
+}: BottomTabBarProps) {
   const reportHeight = useContext(BottomTabBarHeightCallbackContext);
   // 앞 층 미니플레이어 카드의 실측 높이(안 보이면 0) — 뒤 층 유리 판이 같은 자리에 선다
   const miniHeight = useMiniPlayerInset();
@@ -113,6 +126,8 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
   const indicatorScale = useAnimatedValue(1);
   // 부풀고 가라앉는 건 jelly — 한 번 넘쳤다 돌아오는 출렁임이 iOS 26 의 "버블"이다(snappy 는 딱 멈춰서 젤리가 아니었다)
   const liftPill = (isLifted: boolean) => {
+    // Android 는 알약 크기가 변하지 않는다(아래 SOLID_DOCK 주석)
+    if (SOLID_DOCK) return;
     Animated.spring(indicatorScale, {
       toValue: isLifted ? PILL_LIFT_SCALE : 1,
       ...motion.spring.jelly,
@@ -125,7 +140,7 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
   const isContractedRef = useRef(false);
   /** 끌기가 시작되면 방울처럼 줄어든다 — 한 번만(매 move 마다 스프링을 새로 걸지 않는다) */
   const contractForDrag = () => {
-    if (isContractedRef.current) return;
+    if (SOLID_DOCK || isContractedRef.current) return;
     isContractedRef.current = true;
     Animated.spring(stretch, {
       toValue: -PILL_DRAG_CONTRACT,
@@ -135,6 +150,7 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
   };
   /** 끝을 넘긴 만큼 고무줄 — 수축을 상쇄하고 넘어서 늘어난다. 0 이면 수축 상태로 되돌린다 */
   const stretchByOverdrag = (overdragPx: number) => {
+    if (SOLID_DOCK) return;
     const byOverdrag = Math.min(overdragPx / ITEM_WIDTH, 1) * PILL_OVERDRAG_STRETCH_PER_ITEM;
     stretch.stopAnimation();
     stretch.setValue(Math.min(-PILL_DRAG_CONTRACT + byOverdrag, PILL_STRETCH_MAX));
@@ -144,11 +160,12 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
   /** 놓으면 부푼다(jelly bloom) — 수축·고무줄 어느 쪽에서든 출렁이며 제자리로 */
   const bloom = () => {
     isContractedRef.current = false;
+    if (SOLID_DOCK) return;
     Animated.spring(stretch, { toValue: 0, ...motion.spring.jelly, useNativeDriver: true }).start();
   };
   /** 탭으로 옮겨갈 때 — 출발하며 줄었다가 도착에서 부푼다 */
   const contractForJump = (cells: number) => {
-    if (cells === 0) return;
+    if (SOLID_DOCK || cells === 0) return;
     Animated.sequence([
       Animated.timing(stretch, {
         toValue: -PILL_JUMP_CONTRACT,
@@ -203,9 +220,13 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
   useEffect(() => {
     if (isDraggingRef.current) return;
     const x = state.index * ITEM_WIDTH;
-     
+
     pillXRef.current = x;
-    Animated.spring(indicatorX, { toValue: x, ...motion.spring.snappy, useNativeDriver: true }).start();
+    Animated.spring(indicatorX, {
+      toValue: x,
+      ...motion.spring.snappy,
+      useNativeDriver: true,
+    }).start();
   }, [indicatorX, state.index]);
 
   // 끌기 — 핸들러는 렌더가 아니라 제스처 시점에 실행되므로 최신 값은 ref 로 든다
@@ -215,7 +236,6 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
   });
   const dragOriginRef = useRef(0);
   const snapTo = (index: number) => {
-     
     pillXRef.current = index * ITEM_WIDTH;
     Animated.spring(indicatorX, {
       toValue: index * ITEM_WIDTH,
@@ -277,7 +297,9 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
             const { maxX: limit } = latestRef.current;
             const wasDragged = isDraggingRef.current;
             const target = wasDragged
-              ? Math.round(Math.max(0, Math.min(limit, dragOriginRef.current + gesture.dx)) / ITEM_WIDTH)
+              ? Math.round(
+                  Math.max(0, Math.min(limit, dragOriginRef.current + gesture.dx)) / ITEM_WIDTH,
+                )
               : itemIndex;
             isDraggingRef.current = false;
             if (wasDragged) bloom();
@@ -309,25 +331,48 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
       */}
       <GlassGroup spacing={DOCK_MERGE_SPACING} style={styles.glassLayer} pointerEvents="none">
         {miniHeight > 0 ? (
-          <Animated.View style={[styles.cardGlass, { height: miniHeight }, miniDropStyle(miniDropProgress)]}>
+          <Animated.View
+            style={[styles.cardGlass, { height: miniHeight }, miniDropStyle(miniDropProgress)]}
+          >
             <GlassSurface style={[StyleSheet.absoluteFill, styles.cardGlassClip]} />
             <View style={[styles.cardGlassBorder, IS_ANDROID && styles.androidRim]} />
           </Animated.View>
         ) : null}
         <View style={[styles.capsuleGlassBox, { top: miniHeight > 0 ? miniHeight + DOCK_GAP : 0 }]}>
-          <GlassSurface style={[StyleSheet.absoluteFill, styles.capsuleGlass]} />
-          <View style={[styles.capsuleBorder, IS_ANDROID && styles.androidRim]} />
+          {SOLID_DOCK ? (
+            <View style={[StyleSheet.absoluteFill, styles.capsuleGlass, styles.capsuleSolid]} />
+          ) : (
+            <GlassSurface style={[StyleSheet.absoluteFill, styles.capsuleGlass]} />
+          )}
+          <View style={[styles.capsuleBorder, IS_ANDROID && !SOLID_DOCK && styles.androidRim]} />
         </View>
       </GlassGroup>
       <MiniPlayer placement="dock" />
       <View style={styles.capsule} accessibilityRole="tablist">
-        <GlassPill
-          style={[
-            styles.indicator,
-            { transform: [{ translateX: indicatorX }, { scaleX: pillScaleX }, { scaleY: pillScaleY }] },
-          ]}
-          lens={lensStyle}
-        />
+        {SOLID_DOCK ? (
+          <Animated.View
+            style={[
+              styles.indicator,
+              styles.indicatorSolid,
+              { transform: [{ translateX: indicatorX }] },
+            ]}
+            pointerEvents="none"
+          />
+        ) : (
+          <GlassPill
+            style={[
+              styles.indicator,
+              {
+                transform: [
+                  { translateX: indicatorX },
+                  { scaleX: pillScaleX },
+                  { scaleY: pillScaleY },
+                ],
+              },
+            ]}
+            lens={lensStyle}
+          />
+        )}
         {state.routes.map((route, index) => {
           const { options } = descriptors[route.key];
           const isFocused = state.index === index;
@@ -360,36 +405,36 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
               {...itemPans[index].panHandlers}
             >
               <Animated.View style={[styles.itemContent, { transform: [{ scale: contentScale }] }]}>
-              {/* 두 겹 — 선·회색(항상) 위에 면·검정(알약이 겹친 만큼) */}
-              <View style={styles.glyph}>
-                <TabBarIcon
-                  name={ICON_NAMES[route.name] ?? 'library'}
-                  color={theme.color.textSecondary}
-                  focused={false}
-                  size={ICON_SIZE}
-                />
-                <Animated.View style={[styles.glyphOverlay, { opacity: selectedOpacity }]}>
+                {/* 두 겹 — 선·회색(항상) 위에 면·검정(알약이 겹친 만큼) */}
+                <View style={styles.glyph}>
                   <TabBarIcon
                     name={ICON_NAMES[route.name] ?? 'library'}
-                    color={theme.color.primary}
-                    focused
+                    color={theme.color.textSecondary}
+                    focused={false}
                     size={ICON_SIZE}
                   />
-                </Animated.View>
-              </View>
-              <View>
-                <Text style={styles.label} numberOfLines={1}>
-                  {label}
-                </Text>
-                <AnimatedText
-                  style={[styles.label, styles.labelSelected, { opacity: selectedOpacity }]}
-                  numberOfLines={1}
-                  accessibilityElementsHidden
-                  importantForAccessibility="no"
-                >
-                  {label}
-                </AnimatedText>
-              </View>
+                  <Animated.View style={[styles.glyphOverlay, { opacity: selectedOpacity }]}>
+                    <TabBarIcon
+                      name={ICON_NAMES[route.name] ?? 'library'}
+                      color={theme.color.primary}
+                      focused
+                      size={ICON_SIZE}
+                    />
+                  </Animated.View>
+                </View>
+                <View>
+                  <Text style={styles.label} numberOfLines={1}>
+                    {label}
+                  </Text>
+                  <AnimatedText
+                    style={[styles.label, styles.labelSelected, { opacity: selectedOpacity }]}
+                    numberOfLines={1}
+                    accessibilityElementsHidden
+                    importantForAccessibility="no"
+                  >
+                    {label}
+                  </AnimatedText>
+                </View>
               </Animated.View>
             </View>
           );
@@ -460,6 +505,9 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.full,
     overflow: 'hidden',
   },
+  capsuleSolid: {
+    backgroundColor: theme.color.background,
+  },
   capsuleBorder: {
     position: 'absolute',
     top: 0,
@@ -484,6 +532,9 @@ const styles = StyleSheet.create({
     width: ITEM_WIDTH,
     height: ITEM_HEIGHT,
     borderRadius: theme.radius.full,
+  },
+  indicatorSolid: {
+    backgroundColor: SOLID_PILL_COLOR,
   },
   item: {
     width: ITEM_WIDTH,
