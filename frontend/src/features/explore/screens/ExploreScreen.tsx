@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -92,11 +92,10 @@ export default function ExploreScreen() {
     HAS_NATIVE_TAB_BAR || ANDROID_IOS_HEADER ? () => setIsSearching(true) : screen.openSearch;
   // 인기 캐러셀 — Android 는 구간이 바뀌면 목록을 새로 만들지 않고 맨 앞으로만 되돌린다(아래 FlatList key 주석)
   const popularListRef = useRef<FlatList<ExploreSection['items'][number]>>(null);
-  const popularPeriod = screen.sections.find((section) => section.period !== null)?.period ?? null;
-  useEffect(() => {
-    if (Platform.OS !== 'android' || popularPeriod === null) return;
-    popularListRef.current?.scrollToOffset({ offset: 0, animated: false });
-  }, [popularPeriod]);
+  // 새 구간 카드가 들어오기 직전(PeriodSwap) — 같은 목록을 쓰는 Android 는 맨 앞으로 되돌린다
+  const resetPopularScroll = () => {
+    if (Platform.OS === 'android') popularListRef.current?.scrollToOffset({ offset: 0, animated: false });
+  };
 
   /*
    * 제자리 검색(iOS 26 — PM 2026-09-27 21:03 "검색 화면을 따로 두지 말고 그냥 탐색"): 검색창을 누르면 새 화면으로 가지 않고
@@ -335,6 +334,7 @@ export default function ExploreScreen() {
         <PeriodSwap
           swapKey={section.period ?? 'static'}
           isDimmed={isPopular && screen.isPopularSwitching}
+          onBeforeEnter={isPopular ? resetPopularScroll : undefined}
         >
           <FlatList
             // iOS 는 구간마다 새로 만든다(맨 앞에서 시작). **Android 는 그대로 두고 맨 앞으로 스크롤만** — 새로 만들면 썸네일이
