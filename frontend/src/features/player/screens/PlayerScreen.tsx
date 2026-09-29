@@ -731,12 +731,17 @@ export default function PlayerScreen() {
   };
   const collapsedArtTop =
     theme.spacing.sm + (artAreaHeight - theme.spacing.sm - artSizeCollapsed) / 2;
+  /*
+   * 재생 목록이 열릴 때 히어로가 줄어드는 몫. **Android 는 이 몫을 레이아웃이 아니라 transform 으로** 준다(PM 2026-09-30 05:58
+   * "재생목록 끌고 올라가고 내릴 때 굉장히 렉") — 히어로는 흐름 안이라 높이를 매 프레임 바꾸면 그 밑의 재생바·컨트롤·배너가
+   * 전부 매 프레임 다시 배치된다. 이 모션은 JS 드라이버라 Android(Fabric)는 프레임마다 트리 갱신 + 레이아웃이 돌았다.
+   * 레이아웃 높이는 대본 몫(heroBase.height — 대본 패널이 flex 로 빈 자리를 채우므로 레이아웃이어야 한다)만 두고,
+   * 줄어든 만큼 컨트롤 영역을 translateY 로 끌어올린다(controlArea 의 onLayout 높이는 transform 과 무관 — 시트 위치 계산 그대로)
+   */
+  const heroQueueDelta = queueShift(artAreaHeight + HERO_META_BLOCK_HEIGHT, queueHeroHeight);
   const hero = {
     ...heroBase,
-    height: Animated.add(
-      heroBase.height,
-      queueShift(artAreaHeight + HERO_META_BLOCK_HEIGHT, queueHeroHeight),
-    ),
+    height: HERO_QUEUE_BY_TRANSFORM ? heroBase.height : Animated.add(heroBase.height, heroQueueDelta),
     artLeft: Animated.add(heroBase.artLeft, queueShift((innerWidth - artSizeCollapsed) / 2, 0)),
     metaTop: Animated.add(
       heroBase.metaTop,
@@ -1561,7 +1566,13 @@ export default function PlayerScreen() {
           </Animated.View>
         ) : null}
 
-        <View style={styles.controlArea} onLayout={onControlsLayout}>
+        <Animated.View
+          style={[
+            styles.controlArea,
+            HERO_QUEUE_BY_TRANSFORM && { transform: [{ translateY: heroQueueDelta }] },
+          ]}
+          onLayout={onControlsLayout}
+        >
           <View>
             <Animated.View
               style={{ opacity: queueInverse }}
@@ -1698,7 +1709,7 @@ export default function PlayerScreen() {
           <Animated.View style={{ transform: [{ translateY: belowControlRowShift }] }}>
             {renderBannerArea()}
           </Animated.View>
-        </View>
+        </Animated.View>
 
         {/* 손잡이 자리 — 시트가 닫혀 있을 때 손잡이가 덮는 높이만큼 비워 컨트롤 위치를 고정한다 */}
         <View style={{ height: handleHeight }} />
@@ -2003,6 +2014,8 @@ const MORPH_ART_INPUT = [0, MORPH_ART_SHRINK_END, MORPH_ART_ARRIVE, 1];
  * 손을 뗀 속도는 `velocity` 로 따로 넣는다. 실기기에서 조절한다
  */
 const SHEET_SPRING = motion.spring.smooth;
+/** 재생 목록의 히어로 축소를 transform 으로(hero 주석) — Android 만. iOS 는 종전 레이아웃 그대로 */
+const HERO_QUEUE_BY_TRANSFORM = Platform.OS === 'android';
 /** Android 줌 전환(아래 AndroidZoomStage) — iOS 는 종전 갈래 그대로(시스템 줌·JS 모핑) */
 const ANDROID_ZOOM = Platform.OS === 'android';
 /** 줌이 거의 다 커졌을 때의 모서리 — 기기 화면 모서리 느낌으로 둥글다가 마지막에 0 */
