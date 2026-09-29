@@ -165,6 +165,8 @@ export enum ErrorCode {
   ADMIN_STORAGE_FAILED = 'ADMIN_STORAGE_FAILED',
   /** 일일 지표 수동 게시 — GA4 자격이나 Slack 웹훅이 서버에 없다(KAN-107 2단계) */
   ADMIN_REPORT_NOT_CONFIGURED = 'ADMIN_REPORT_NOT_CONFIGURED',
+  /** 추천 테스트 콘솔 — 운영 환경이거나 `RECOMMEND_TEST_EMAIL` 이 없어 꺼져 있다(admin.md 4.7) */
+  ADMIN_RECOMMEND_TEST_DISABLED = 'ADMIN_RECOMMEND_TEST_DISABLED',
 
   // --- 콘텐츠 (공용 — common-error-handling.md 4.1) ---
   /** 담기 등에서 **건별 결과**로도 전달된다 (onboarding-api.md 4.6 `failed[]`) */

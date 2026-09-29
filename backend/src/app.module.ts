@@ -22,6 +22,7 @@ import { AuthModule } from '@/modules/auth/auth.module';
 import { ContentDetailModule } from '@/modules/content-detail/content-detail.module';
 import { NoticeModule } from '@/modules/notice/notice.module';
 import { DripBatchModule } from '@/modules/drip-batch/drip-batch.module';
+import { RecommendTestModule } from '@/modules/recommend-test/recommend-test.module';
 import { ExploreModule } from '@/modules/explore/explore.module';
 import { HealthModule } from '@/modules/health/health.module';
 import { LibraryScreenModule } from '@/modules/library-screen/library-screen.module';
@@ -82,6 +83,8 @@ import { UserModule } from '@/modules/user/user.module';
     LibraryScreenModule,
     ExploreModule,
     DripBatchModule,
+    // 추천 테스트 콘솔 — 개발계 전용, 운영은 env 로 잠긴다(admin.md 4.7)
+    RecommendTestModule,
     ContentDetailModule,
     NoticeModule,
     ProfileModule,

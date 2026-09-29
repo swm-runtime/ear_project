@@ -19,7 +19,7 @@ import { DripPreviewService } from './drip-preview.service';
  * 명시된 Orchestrator 대상). 스코어링 입력인 소비 신호(`user_signals`)의 소유자가
  * `playback`인데 `playback → drip` 의존이 이미 있어(재생 시 영구 제외 적재) `drip`이
  * 신호를 직접 읽으면 순환이 된다 — 그래서 두 모듈 **위에서** 조합한다.
- * 어떤 모듈도 이 모듈을 의존하지 않는다.
+ * 제품 경로의 어떤 모듈도 이 모듈을 의존하지 않는다(예외는 아래 `exports` 주석).
  *
  * 편성 미리보기(`GET /admin/drip/preview`, 읽기 전용)도 여기 둔다 — 배치와 **같은 계산기**
  * (`DripBatchOrchestrator.planForUser`)를 저장 없이 부르는 관리자 조회라 이 모듈 밖에 둘 이유가 없다.
@@ -38,5 +38,11 @@ import { DripPreviewService } from './drip-preview.service';
   ],
   controllers: [DripPreviewController],
   providers: [DripBatchOrchestrator, DripBatchScheduler, DripPreviewService],
+  /**
+   * 추천 테스트 콘솔(`recommend-test`)만 이 모듈을 의존한다(2026-09-29) — 행동 직후 배치가 하는 취향
+   * 캐시 재계산을 같은 함수로 수행해 탐색 피드가 바로 바뀌게 하기 위해서다. 제품 경로에서는 여전히
+   * 어떤 모듈도 이 모듈을 의존하지 않는다.
+   */
+  exports: [DripBatchOrchestrator],
 })
 export class DripBatchModule {}

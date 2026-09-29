@@ -91,6 +91,8 @@ import { EmailVerificationPurgeScheduler } from './email-verification-purge.sche
     ConsentService,
     UserOnboardingService,
     UserSettingService,
+    // 추천 테스트 콘솔(recommend-test) — 테스트 계정의 커리어 교체
+    UserCareerService,
   ],
 })
 export class UserModule {}

@@ -33,5 +33,7 @@ import { ExploreOrchestrator } from './explore.orchestrator';
   ],
   controllers: [ExploreController, ContentSaveController],
   providers: [ExploreOrchestrator],
+  // 추천 테스트 콘솔(recommend-test)이 테스트 계정의 담기·해제·피드를 앱과 같은 경로로 부른다
+  exports: [ExploreOrchestrator],
 })
 export class ExploreModule {}
