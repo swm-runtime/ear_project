@@ -312,6 +312,9 @@ export default function PlayerScreen() {
    */
   // 줌 전환 갈래(iOS 26 + 모듈 빌드)는 열림·닫힘 모션을 시스템이 맡는다 — 화면은 처음부터 다 열린 상태(1)로 그린다
   const openProgress = useAnimatedValue(USE_NATIVE_PLAYER_ZOOM ? 1 : 0);
+  // Android 닫기는 확대의 역재생 대신 화면 크기를 유지한 하강·페이드다.
+  const dismissProgress = useAnimatedValue(0);
+  const isSlideDismissRef = useRef(false);
   const [isMorphing, setIsMorphing] = useState(!USE_NATIVE_PLAYER_ZOOM);
   /*
    * 아트워크 **재생/정지 배율**(애플 뮤직 Now Playing, 2026-09-25 PM "애플처럼 전환"). 정지하면 아트워크가 작아지고
@@ -374,6 +377,19 @@ export default function PlayerScreen() {
     });
   };
   useEffect(() => () => openProgress.stopAnimation(), [openProgress]);
+  useEffect(() => () => dismissProgress.stopAnimation(), [dismissProgress]);
+  const runDismissSpring = (toValue: 0 | 1, onFinished: () => void) => {
+    dismissProgress.stopAnimation();
+    Animated.spring(dismissProgress, {
+      toValue,
+      velocity: takeReleaseVelocity(),
+      useNativeDriver: true,
+      ...SHEET_SPRING,
+      overshootClamping: true,
+    }).start(({ finished }) => {
+      if (finished) onFinished();
+    });
+  };
   // goBack 은 한 번만 — 놓기·중단·구독이 겹쳐 두 번 부르면 닫히는 중인 모달을 또 닫으려다 RNS 가 굳는다
   const isCollapsingRef = useRef(false);
   const dismissPlayer = () => {
@@ -394,11 +410,27 @@ export default function PlayerScreen() {
       });
       return;
     }
+    if (ANDROID_ZOOM) {
+      if (isCollapsingRef.current) return;
+      isCollapsingRef.current = true;
+      isSlideDismissRef.current = true;
+      setIsMorphing(true);
+      runDismissSpring(1, () => screen.collapse());
+      return;
+    }
     setIsMorphing(true);
     runSheetSpring(0, () => screen.collapse());
   };
   // 드래그가 임계에 못 미쳐 놓았을 때 — 끌어내린 만큼에서 되돌아온다
   const restorePlayer = () => {
+    if (ANDROID_ZOOM && isSlideDismissRef.current) {
+      if (isCollapsingRef.current) return;
+      runDismissSpring(0, () => {
+        isSlideDismissRef.current = false;
+        setIsMorphing(false);
+      });
+      return;
+    }
     dragProgressRef.current = 1;
     runSheetSpring(1, () => setIsMorphing(false));
   };
@@ -418,6 +450,7 @@ export default function PlayerScreen() {
     drag: (_dy: number, _vy: number) => {},
     follow: (_progress: number) => {},
     dismiss: () => {},
+    cancelOpen: () => {},
     restore: () => {},
   });
   useEffect(() => {
@@ -435,7 +468,7 @@ export default function PlayerScreen() {
         if (openGesture.phase === 'cancel') {
           openGesture.reset();
           dragProgressRef.current = 0;
-          dismissPlayer();
+          runSheetSpring(0, () => screen.collapse());
           return;
         }
         if (openGesture.phase === 'dragging') {
@@ -452,6 +485,13 @@ export default function PlayerScreen() {
       // 줌 갈래(시스템 드래그 닫기 꺼짐): 시트는 손가락을 따라가지 않는다 — 놓을 때 임계를 넘으면 goBack(줌 축소), 아니면 그대로
       begin: () => {
         if (USE_NATIVE_PLAYER_ZOOM) return;
+        if (ANDROID_ZOOM) {
+          if (isCollapsingRef.current) return;
+          dismissProgress.stopAnimation();
+          isSlideDismissRef.current = true;
+          setIsMorphing(true);
+          return;
+        }
         openProgress.stopAnimation();
         setIsMorphing(true);
       },
@@ -461,6 +501,12 @@ export default function PlayerScreen() {
        */
       drag: (dy: number, vy: number) => {
         if (USE_NATIVE_PLAYER_ZOOM) return;
+        if (ANDROID_ZOOM) {
+          if (isCollapsingRef.current) return;
+          dismissProgress.setValue(Math.max(0, Math.min(1, dy / Math.max(1, windowHeight))));
+          releaseVelocityRef.current = (vy * 1000) / Math.max(1, windowHeight);
+          return;
+        }
         const progress = Math.max(0, Math.min(1, 1 - Math.max(0, dy) / dragTravel));
         dragProgressRef.current = progress;
         // vy 는 px/ms(아래 +) → 진행값/초(닫힘 −)
@@ -473,6 +519,8 @@ export default function PlayerScreen() {
         openProgress.setValue(progress);
       },
       dismiss: dismissPlayer,
+      // 미니플레이어에서 끌어올리다 취소하면 아직 열리지 않았으므로 출발 카드로 되돌린다.
+      cancelOpen: () => runSheetSpring(0, () => screen.collapse()),
       restore: () => {
         if (USE_NATIVE_PLAYER_ZOOM) return;
         restorePlayer();
@@ -506,7 +554,7 @@ export default function PlayerScreen() {
       const released = state.phase;
       state.reset();
       if (released === 'open') gestureContext.current.restore();
-      else gestureContext.current.dismiss();
+      else gestureContext.current.cancelOpen();
     });
     return () => {
       unsubscribe();
@@ -1094,9 +1142,10 @@ export default function PlayerScreen() {
         openProgress,
         { x: mini.x, y: mini.y, width: mini.width, height: mini.height },
         { width: windowWidth, height: windowHeight },
+        dismissProgress,
       ),
     // 재생 위치만 갱신될 때는 네이티브 이동·확대 그래프를 유지한다.
-    [openProgress, mini.x, mini.y, mini.width, mini.height, windowWidth, windowHeight],
+    [openProgress, dismissProgress, mini.x, mini.y, mini.width, mini.height, windowWidth, windowHeight],
   );
 
   if (!session) {
@@ -1196,7 +1245,11 @@ export default function PlayerScreen() {
       <StatusBar style="light" />
       {/* 뒤 화면 딤 + 미니플레이어 자리에서 자라나는 시트 — 0일 때는 카드 그 자체, 1일 때 풀 화면 */}
       <Animated.View
-        style={[StyleSheet.absoluteFill, styles.dim, { opacity: morph.dimOpacity }]}
+        style={[StyleSheet.absoluteFill, styles.dim, {
+          opacity: ANDROID_ZOOM
+            ? Animated.multiply(morph.dimOpacity, Animated.subtract(1, dismissProgress))
+            : morph.dimOpacity,
+        }]}
         pointerEvents="none"
       />
       <Animated.View
