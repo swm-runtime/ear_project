@@ -76,12 +76,13 @@ export default function ExploreScreen() {
   const headerRef = useRef<View>(null);
   // Android 서리 유리 띠의 블러 대상(AndroidBlurTarget)
   const blurTargetRef = useRef<View>(null);
-  // 제자리 검색 모드(iOS 26) — 아래 isSearching 분기
+  // 제자리 검색 모드(iOS 26·Android) — 아래 isSearching 분기
   const [isSearching, setIsSearching] = useState(false);
   // 제자리 검색 닫기 요청 — ✕ 는 시스템 바 캡슐에 있고, 덮개가 퇴장 애니메이션 끝에 onExit 로 isSearching 을 끈다
   const [isClosingSearch, setIsClosingSearch] = useState(false);
   const listRef = useTabScrollToTop({ topInset: nativeBarInset, enabled: !isSearching });
-  const openSearch = HAS_NATIVE_TAB_BAR ? () => setIsSearching(true) : screen.openSearch;
+  const openSearch =
+    HAS_NATIVE_TAB_BAR || ANDROID_IOS_HEADER ? () => setIsSearching(true) : screen.openSearch;
 
   /*
    * 제자리 검색(iOS 26 — PM 2026-09-27 21:03 "검색 화면을 따로 두지 말고 그냥 탐색"): 검색창을 누르면 새 화면으로 가지 않고
@@ -143,7 +144,7 @@ export default function ExploreScreen() {
    * 피드를 통째로 갈아 끼워 닫힘 애니메이션 끝에 피드 전체를 새로 마운트하느라 끊겼다)
    */
   const searchOverlay = isSearching ? (
-    <View style={StyleSheet.absoluteFill}>
+    <View style={[StyleSheet.absoluteFill, { zIndex: 2 }]}>
       <ExploreSearchScreen
         embedding={{
           remaining: screen.remainingDisplay
@@ -151,6 +152,7 @@ export default function ExploreScreen() {
             : null,
           onExhaustedPress: () => screen.openPaywall('explore'),
           isClosing: isClosingSearch,
+          onRequestClose: () => setIsClosingSearch(true),
           onExit: () => {
             setIsSearching(false);
             setIsClosingSearch(false);
@@ -159,6 +161,7 @@ export default function ExploreScreen() {
             screen.clearTopicFilter();
             screen.toggleTopic(topicId);
             setIsSearching(false);
+            setIsClosingSearch(false);
           },
         }}
       />
@@ -435,38 +438,44 @@ export default function ExploreScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Android — 머리 줄의 서리 유리 띠가 흐릴 대상. 머리 줄은 이 뒤에 선언한다 */}
-      <AndroidBlurTarget targetRef={blurTargetRef}>{renderBody()}</AndroidBlurTarget>
-      {/* 머리 줄은 목록 **뒤에 선언**한다(zIndex 로 위에 뜬다) */}
-      {/* 머리 줄은 목록 위에 떠 있다 — 배경 없이 유리 컨트롤만(2026-09-24 PM). 시스템 바 갈래에서는 없다 */}
-      {ANDROID_IOS_HEADER ? (
-        <AndroidCollapsingBar
-          title={EXPLORE_COPY.tabTitle}
-          scrollY={scrollY}
-          trailing={remainingRing}
-          blurTarget={blurTargetRef}
-        />
-      ) : HAS_NATIVE_TAB_BAR ? null : (
-        <FloatingHeader
-          onHeightChange={setHeaderHeight}
-          solidness={solidness}
-          containerRef={headerRef}
-          androidFrostTarget={blurTargetRef}
-        >
-          {Platform.OS === 'android' ? (
-            <View style={styles.androidTitle}>
-              <LargeTitleRow title={EXPLORE_COPY.tabTitle} trailing={remainingRing} />
-            </View>
-          ) : null}
-          <ExploreSearchBarRow
-            onPress={openSearch}
-            trailing={Platform.OS === 'android' ? null : remainingRing}
+      <View
+        style={styles.container}
+        pointerEvents={isSearching ? 'none' : 'auto'}
+        accessibilityElementsHidden={isSearching}
+        importantForAccessibility={isSearching ? 'no-hide-descendants' : 'auto'}
+      >
+        {/* Android — 머리 줄의 서리 유리 띠가 흐릴 대상. 머리 줄은 이 뒤에 선언한다 */}
+        <AndroidBlurTarget targetRef={blurTargetRef}>{renderBody()}</AndroidBlurTarget>
+        {/* 머리 줄은 목록 **뒤에 선언**한다(zIndex 로 위에 뜬다) */}
+        {/* 머리 줄은 목록 위에 떠 있다 — 배경 없이 유리 컨트롤만(2026-09-24 PM). 시스템 바 갈래에서는 없다 */}
+        {ANDROID_IOS_HEADER ? (
+          <AndroidCollapsingBar
+            title={EXPLORE_COPY.tabTitle}
+            scrollY={scrollY}
+            trailing={remainingRing}
+            blurTarget={blurTargetRef}
           />
+        ) : HAS_NATIVE_TAB_BAR ? null : (
+          <FloatingHeader
+            onHeightChange={setHeaderHeight}
+            solidness={solidness}
+            containerRef={headerRef}
+            androidFrostTarget={blurTargetRef}
+          >
+            {Platform.OS === 'android' ? (
+              <View style={styles.androidTitle}>
+                <LargeTitleRow title={EXPLORE_COPY.tabTitle} trailing={remainingRing} />
+              </View>
+            ) : null}
+            <ExploreSearchBarRow
+              onPress={openSearch}
+              trailing={Platform.OS === 'android' ? null : remainingRing}
+            />
 
-          {chips}
-        </FloatingHeader>
-      )}
-
+            {chips}
+          </FloatingHeader>
+        )}
+      </View>
       {/* 미니플레이어(PL11) — 활성 재생 세션만 그린다. 복원 스냅샷 판정은 라이브러리 소유다 */}
 
       <ExploreMoreSheet
