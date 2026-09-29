@@ -8,7 +8,7 @@ import { ApiLimit, RetryLater } from "../util.js";
 import type { Executor } from "../executors/index.js";
 import { assetPaths, buildDesignPrompt, buildWritePromptParts, DESIGN_SCHEMA, WRITE_SCHEMA, type BacklogCandidate, type INTRO_STYLES, type Templates } from "@ear/pipeline";
 import { exists, hostOf, log } from "../util.js";
-import { parseScriptForTts } from "../tts/script.js";
+import { parseScriptForTts, type ScriptTurn } from "../tts/script.js";
 import { runDesignSingle } from "./design-single.js";
 
 /**
@@ -252,7 +252,7 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
   if (subj.length >= 4) v.push(`해설 턴 ${subj.length}개가 주어형 귀속("이 글은"·"저자는"·"연구진은"·"이 연구에서는")으로 말함 (${subj.slice(0, 8).join(", ")}) — 블록 소개 한 문장 뒤에는 주어 없이 내용을 말한다 (규칙 8·20)`);
   // 마무리 정리 턴 (규칙 22·tpl-v2): 마지막 해설 턴이 3문장 미만이면 수렴이 없다 — 수정 재생성이 claims 를 지우며 문장까지 깎은 사례(T260922-007 E28)
   const closingE = [...expl].reverse().find((t) => t.section === "마무리");
-  if (closingE) { const n = closingE.text.split(/(?<=[.?!])\s+/).filter((x) => x.trim()).length; if (n < 3) v.push(`마무리 정리 턴 ${closingE.id} 이 ${n}문장 — 정리 턴은 3~5문장이다. 구간마다 한 문장을 인과로 잇고 마지막 문장이 축 (규칙 22). 사실 주장을 지울 때도 문장 수를 줄이지 않는다`); }
+  if (closingE) { const n = closingE.text.split(/(?<=[.?!])\s+/).filter((x) => x.trim()).length; if (n < 3) v.push(`마무리 정리 턴 ${closingE.id} 이 ${n}문장 — 정리 턴은 3~5문장이다. 구간마다 한 문장을 답의 단계로 잇고 마지막 문장이 축 (규칙 22). 사실 주장을 지울 때도 문장 수를 줄이지 않는다`); }
   // full-v7.1 판정 반영 (2026-09-15, T260915-001~004 직접 수정 85건): 화자 없는 인용 예고 · 발행 시기 · 해설자 전환 선언 · 발화 안 가운뎃점
   const quoteCueRe = /((이런|그런|이) (문장|표현|구절|말)(이|도|을|가) (있어요|있는데요|있습니다|나와요|하나 있|있거든요)|(글|기사|책|보고서|논문|연구)(도|은|는|이|가|에서)? ?이렇게 (말해요|말합니다|적어요|적었어요|씁니다|썼어요|써요))/;
   const quoteCue = eTurns.filter((t) => quoteCueRe.test(t.text)).map((t) => t.id ?? "?");
@@ -265,8 +265,63 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
   if (handoff.length) v.push(`해설 턴 ${handoff.length}개가 구간 전환을 선언함 (${handoff.slice(0, 6).join(", ")}) — "그럼 다음 질문은 이거죠"는 대본 진행을 알리는 말이다. 앞 구간이 남긴 질문에서 진행자가 묻거나 내용으로 잇는다 (규칙 1)`);
   const midDot = p.turns.filter((t) => /[가-힣A-Za-z)]·[가-힣A-Za-z(]/.test(t.text)).map((t) => t.id ?? "?");
   if (midDot.length) v.push(`턴 ${midDot.length}개의 발화 안에 가운뎃점(·) 나열 (${midDot.slice(0, 6).join(", ")}) — 귀로는 낱말이 붙어 들린다. 쉼표로 나누거나 둘로 줄인다 (규칙 14)`);
+  // ── v9.4 (2026-09-29, 자동화 29편 실측 — 규칙은 있었는데 안 지켜진 정형 문제. 임계는 29편 분포에서 상위 절반이 걸리게 잡았다, .work/verdicts/v93) ──
+  v.push(...v94Violations(p.turns));
   // full-v7 (2026-09-15): 귀속 표현 턴 비율 검사는 폐지 — 32~36% 인 편에서도 소스 순회(재식별 15건)가 있었다. 구조 검사로 대체
   v.push(...attributionViolations(scriptMd, p.turns, opts));
+  return v;
+}
+
+/**
+ * v9.4 정형 검사 (2026-09-29) — 29편 실측에서 편마다 같은 틀로 나온 것들. 규칙 문구(1·3·5·13-1·16·22·24)는 v9.3 에도 대부분 있었으나 지켜지지 않았다.
+ * 임계값 근거(29편): 정리형 진행 턴 평균 29%(최대 56%) · "아니라" 편당 12.5회 · 사전 문형 2.2회 · "잠깐" 26편 · "○○님이라면" 28편 · 클로징 다짐형 24편 · "결국"/"이해하게 됩니다" 각 6·12편.
+ * 지목한 턴을 메시지에 적는다 — 수정 호출은 최소 수정 원칙이라 턴을 지목해야 고친다(v8.3 뜸 교훈).
+ */
+export function v94Violations(turns: ScriptTurn[]): string[] {
+  const v: string[] = [];
+  const E = turns.filter((t) => t.id?.startsWith("E"));
+  const Y = turns.filter((t) => t.id?.startsWith("Y"));
+  const bodyY = Y.filter((t) => t.section !== "인트로" && t.section !== "마무리");
+  const ids = (xs: { id: string | null }[], n = 8) => xs.slice(0, n).map((t) => t.id ?? "?").join(", ");
+  // 규칙 3: 물음표 없는 정리형 진행 턴 비율 — 어휘만 바꾼 요약이 진행자의 절반이면 청취자 대리가 아니라 자막기다
+  const summaryRe = /(네요|군요|거군요|거네요|말이군요|뜻이군요|들려요|들립니다|들리네요|같아요|같습니다|겠어요|겠네요|셈이네요|얘기네요|말이네요)[.!]?\s*$/;
+  const summaryY = bodyY.filter((t) => !/\?/.test(t.text) && summaryRe.test(t.text.trim()));
+  if (bodyY.length >= 12 && summaryY.length / bodyY.length > 0.35) {
+    const over = summaryY.length - Math.floor(bodyY.length / 3);
+    v.push(`진행 턴 ${bodyY.length}개 중 ${summaryY.length}개가 물음표 없는 정리형("~네요"·"~군요"·"~로 들려요")으로 끝남 — 셋 중 하나가 상한이다. 이 가운데 ${over}개 이상을 이해가 막힌 자리의 되물음이나 한두 마디 수긍으로 바꾼다 (${ids(summaryY, 10)}) (규칙 3·25)`);
+  }
+  // 규칙 3: 진행자가 각주를 부르는 질문 — 청취자는 조사 기관·표본·척도·오차·통계 절차를 묻지 않는다
+  const footnoteQ = bodyY.filter((t) => /\?/.test(t.text) && /(표본|응답률|척도|오차|조사 기관|조사 방식|조사 방법|대조군|통계적|통계 (절차|처리)|재현(됐|되|이)|인과(관계)?(를|가) (입증|확인|증명)|유의)/.test(t.text));
+  if (footnoteQ.length) v.push(`진행 턴 ${footnoteQ.length}개가 조사 기관·표본·척도·오차·통계 절차를 묻음 (${ids(footnoteQ)}) — 청취자가 하지 않는 질문이고 해설이 각주로 답하게 된다. 그 자리의 내용에서 막히는 것을 묻는다 (규칙 3)`);
+  // 규칙 16: "A가 아니라 B" 대조 문장 밀도 — 블록당 한 번. 29편 평균 12.5회, 거의 모든 블록 마지막 문장이 이 틀
+  const contrast = E.filter((t) => /아니라/.test(t.text));
+  const contrastN = E.reduce((a, t) => a + (t.text.match(/아니라/g)?.length ?? 0), 0);
+  if (contrastN >= 7) v.push(`해설에 "~가 아니라 ~다" 대조 문장이 ${contrastN}회 (${ids(contrast, 10)}) — 블록당 한 번, 편 전체 여섯 번 이하다. 블록 끝의 대조 경구를 그 블록의 구체 내용으로 바꾼다 (규칙 16)`);
+  // 규칙 24: 사전 정의 문형 "X는 ~을 뜻해요/말해요/가리켜요"
+  const glossRe = /[가-힣A-Za-z0-9 ]{1,30}(은|는|이란|란)\s[^.!?]{2,60}(을|를|이라고|라고)\s(뜻|말|가리)(해요|합니다|킵니다|켜요|하는|하죠|하거든요)/;
+  const gloss = E.filter((t) => glossRe.test(t.text));
+  if (gloss.length >= 3) v.push(`해설 턴 ${gloss.length}개가 용어를 사전 정의 문형("X는 ~을 뜻해요/말해요")으로 풀음 (${ids(gloss)}) — 그 말이 쓰이는 상황이나 앞 문장과의 차이로 풀거나 진행자의 되물음으로 해소한다 (규칙 24)`);
+  // 규칙 1: 화제 끼워 넣기 표지 — "잠깐"·"딴 얘기"가 29편 중 26편, 거의 같은 자리(#4 첫 진행 턴)
+  const interject = Y.filter((t) => /(^|[.!?…]\s*)잠깐[,\s]|딴 (얘기|이야기)|끼워 (볼게요|넣|보고)|끼어드는 것 같/.test(t.text.trim()));
+  if (interject.length) v.push(`진행 턴 ${interject.length}개가 "잠깐"·"딴 얘기"로 화제를 끼워 넣음 (${ids(interject)}) — 구간 이동 선언이다. 앞 해설에서 남은 의문을 내용으로 묻는다 (규칙 1)`);
+  // 규칙 5: 역질문 서두 "○○님이라면" — 예고 관용구가 됐다(28/29편)
+  const rq = turns.filter((t) => /(이음|윤아)\s?님이라면/.test(t.text));
+  if (rq.length) v.push(`턴 ${rq.length}개가 "○○님이라면"으로 역질문을 여는 관용구 (${ids(rq)}) — 이미 설명한 상황의 선택·느낌을 바로 묻는다. 서두 없이, 두 갈래 고르기 형식도 매번 반복하지 않는다 (규칙 5)`);
+  // 규칙 22: 클로징 슬롯 다짐형 "저도/저는 ~하겠습니다·것 같습니다" (24/29편)
+  const last = turns[turns.length - 1];
+  if (last?.id?.startsWith("Y") && /저(도|는)\s[^.!?]{2,80}(겠습니다|겠어요|것 같습니다|것 같아요|보려 합니다|해 두겠습니다|두겠습니다)[.!]?/.test(last.text)) {
+    v.push(`마지막 턴 ${last.id} 의 슬롯이 "저도/저는 ~하겠습니다" 다짐형 — 이 편의 내용에서 나온 감상·남은 질문·짧은 장면 가운데 하나로 바꾼다. 청취자에게 시키지도 않는다 (규칙 22)`);
+  }
+  // 규칙 13-1·22: 정리 턴 마지막 문장 "결국 …" / "… 이해하게 됩니다"
+  const closingE = [...E].reverse().find((t) => t.section === "마무리");
+  if (closingE) {
+    const sents = closingE.text.split(/(?<=[.?!])\s+/).filter((x) => x.trim());
+    const lastS = (sents[sents.length - 1] ?? "").trim();
+    const bad: string[] = [];
+    if (/^결국/.test(lastS)) bad.push('"결국"으로 시작');
+    if (/이해(하게|할 수 있게) (됩니다|돼요|되는 겁니다|될 것입니다)\.?$|이해할 수 있습니다\.?$/.test(lastS)) bad.push('"~을 이해하게 됩니다"로 끝남');
+    if (bad.length) v.push(`마무리 정리 턴 ${closingE.id} 의 마지막 문장이 ${bad.join("·")} — 축 문장을 그대로 말하고 끝낸다. 접속사 서두와 고정 어미를 뺀다 (규칙 13-1·22)`);
+  }
   return v;
 }
 
