@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
+import { Text } from '@/shared/ui/Typography';
 
 import { PROFILE_COPY } from '../profile.copy';
 

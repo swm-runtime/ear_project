@@ -1,11 +1,12 @@
 import { useNavigation, useNavigationState } from '@react-navigation/native';
 import { useEffect } from 'react';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { track } from '@/shared/analytics';
 import { toTab } from '@/shared/navigation/to-tab';
 import { theme } from '@/shared/theme';
+import { Text } from '@/shared/ui/Typography';
 
 import BellIcon from './BellIcon';
 import { ARRIVAL_BANNER_DURATION_MS } from '../notification.constants';

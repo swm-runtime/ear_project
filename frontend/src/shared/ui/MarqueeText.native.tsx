@@ -2,9 +2,10 @@ import MaskedView from '@react-native-masked-view/masked-view';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
-import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Animated, Easing, StyleSheet, View } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
+import { Text } from '@/shared/ui/Typography';
 
 import {
   DEFAULT_FADE_WIDTH,

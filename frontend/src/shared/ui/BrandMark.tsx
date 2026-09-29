@@ -1,6 +1,7 @@
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import { Text } from '@/shared/ui/Typography';
 
 /** 서비스명 — 화면마다 흩어 적지 않는다 */
 const BRAND_NAME = '이어';

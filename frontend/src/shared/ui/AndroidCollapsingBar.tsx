@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
 import { LARGE_TITLE_ROW_HEIGHT } from '@/shared/ui/LargeTitleRow';
+import { AnimatedText } from '@/shared/ui/Typography';
 
 interface AndroidCollapsingBarProps {
   /** 가운데 작은 제목 — 콘텐츠 첫 줄의 큰 제목(LargeTitleRow)이 밀려 올라가면 나타난다 */
@@ -62,14 +63,14 @@ export default function AndroidCollapsingBar({
         <View style={styles.edge} />
       </Animated.View>
       <View style={styles.row} pointerEvents="box-none">
-        <Animated.Text
+        <AnimatedText
           style={[styles.title, { opacity: collapse }]}
           numberOfLines={1}
           importantForAccessibility="no"
           pointerEvents="none"
         >
           {title}
-        </Animated.Text>
+        </AnimatedText>
         {leading}
         <View style={styles.spacer} pointerEvents="none" />
         {trailing}
@@ -111,7 +112,7 @@ const styles = StyleSheet.create({
     right: 0,
     textAlign: 'center',
     fontSize: theme.font.size.lg,
-    fontWeight: '600',
+    fontWeight: '700',
     color: theme.color.textPrimary,
   },
 });

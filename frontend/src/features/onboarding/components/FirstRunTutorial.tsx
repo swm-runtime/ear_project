@@ -6,7 +6,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
   useWindowDimensions,
 } from 'react-native';
@@ -16,6 +15,7 @@ import Svg, { Path } from 'react-native-svg';
 import { track } from '@/shared/analytics';
 import { theme } from '@/shared/theme';
 import TabBarIcon from '@/shared/ui/TabBarIcon';
+import { Text } from '@/shared/ui/Typography';
 import { useWalkthroughStore } from '@/shared/ui/walkthrough.store';
 
 import {

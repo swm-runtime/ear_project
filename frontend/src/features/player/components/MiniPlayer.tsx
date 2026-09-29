@@ -8,7 +8,6 @@ import {
   PanResponder,
   Pressable,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 
@@ -22,6 +21,7 @@ import { motion, theme } from '@/shared/theme';
 import GlassSurface from '@/shared/ui/GlassSurface';
 import MarqueeText from '@/shared/ui/MarqueeText';
 import RemoteImage from '@/shared/ui/RemoteImage';
+import { Text } from '@/shared/ui/Typography';
 
 import { useTopicsQuery } from '@/features/interest';
 

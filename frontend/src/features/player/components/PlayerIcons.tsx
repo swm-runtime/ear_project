@@ -1,9 +1,10 @@
 import { useEffect } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import { Animated, StyleSheet, View } from 'react-native';
 import Svg, { Path, Rect } from 'react-native-svg';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion } from '@/shared/theme';
+import { Text } from '@/shared/ui/Typography';
 
 interface IconProps {
   size: number;

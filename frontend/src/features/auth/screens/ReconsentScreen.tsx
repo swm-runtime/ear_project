@@ -1,9 +1,10 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
 import CheckIcon from '@/shared/ui/CheckIcon';
 import ConfirmDialog from '@/shared/ui/ConfirmDialog';
+import { Text } from '@/shared/ui/Typography';
 
 import { AUTH_COPY } from '../auth.copy';
 import ConsentItem from '../components/ConsentItem';

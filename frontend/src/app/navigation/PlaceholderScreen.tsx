@@ -1,7 +1,8 @@
 import { useRoute } from '@react-navigation/native';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import { Text } from '@/shared/ui/Typography';
 
 /** 미구현 화면 임시 표시 — onboarding·library feature 구현 시 교체한다 */
 export default function PlaceholderScreen() {

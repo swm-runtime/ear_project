@@ -3,12 +3,13 @@ import {
   type BottomTabBarProps,
 } from '@react-navigation/bottom-tabs';
 import { useContext, useEffect, useMemo, useRef } from 'react';
-import { Animated, PanResponder, Platform, StyleSheet, Text, View } from 'react-native';
+import { Animated, PanResponder, Platform, StyleSheet, View } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion, theme } from '@/shared/theme';
 import GlassSurface, { GlassGroup, GlassPill } from '@/shared/ui/GlassSurface';
 import TabBarIcon, { type TabBarIconName } from '@/shared/ui/TabBarIcon';
+import { Text, AnimatedText } from '@/shared/ui/Typography';
 
 import { MiniPlayer, miniDropStyle, miniDropProgress, useMiniPlayerInset } from '@/features/player';
 
@@ -380,14 +381,14 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
                 <Text style={styles.label} numberOfLines={1}>
                   {label}
                 </Text>
-                <Animated.Text
+                <AnimatedText
                   style={[styles.label, styles.labelSelected, { opacity: selectedOpacity }]}
                   numberOfLines={1}
                   accessibilityElementsHidden
                   importantForAccessibility="no"
                 >
                   {label}
-                </Animated.Text>
+                </AnimatedText>
               </View>
               </Animated.View>
             </View>

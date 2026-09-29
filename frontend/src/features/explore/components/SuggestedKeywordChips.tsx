@@ -1,6 +1,7 @@
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import { Text } from '@/shared/ui/Typography';
 
 import { topicImageSource } from '@/features/interest';
 

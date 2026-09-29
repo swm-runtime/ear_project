@@ -1,6 +1,7 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import { Text } from '@/shared/ui/Typography';
 
 interface FullScreenErrorProps {
   title: string;

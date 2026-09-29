@@ -1,8 +1,9 @@
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
 import LoadingOverlay from '@/shared/ui/LoadingOverlay';
+import { Text } from '@/shared/ui/Typography';
 
 import { SOCIAL_PROVIDERS } from '../auth.constants';
 import { AUTH_COPY } from '../auth.copy';

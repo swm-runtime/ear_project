@@ -1,9 +1,10 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { LayoutChangeEvent, ScrollView } from 'react-native';
-import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, PanResponder, Pressable, StyleSheet, View } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion, theme } from '@/shared/theme';
+import { Text } from '@/shared/ui/Typography';
 
 import { PLAYER_COPY } from '../player.copy';
 import { formatPlaybackTime } from '../player.format';

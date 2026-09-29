@@ -6,13 +6,13 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion, theme } from '@/shared/theme';
 import RemoteImage from '@/shared/ui/RemoteImage';
+import { Text } from '@/shared/ui/Typography';
 
 import { PLAYER_COPY } from '../player.copy';
 import { formatPlaybackTime } from '../player.format';

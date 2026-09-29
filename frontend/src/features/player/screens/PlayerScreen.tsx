@@ -10,7 +10,6 @@ import {
   Platform,
   Pressable,
   StyleSheet,
-  Text,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -30,6 +29,7 @@ import { motion, theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import MarqueeText from '@/shared/ui/MarqueeText';
 import RemoteImage from '@/shared/ui/RemoteImage';
+import { Text, AnimatedText } from '@/shared/ui/Typography';
 
 import { useTopicsQuery } from '@/features/interest';
 
@@ -1755,7 +1755,7 @@ export default function PlayerScreen() {
             )}
           </Animated.View>
           {/* 미니 제목 — 미니플레이어 실측 자리에 고정, 초반에 사라진다 */}
-          <Animated.Text
+          <AnimatedText
             style={[
               styles.morphTitle,
               styles.morphMiniTitle,
@@ -1770,11 +1770,11 @@ export default function PlayerScreen() {
             numberOfLines={1}
           >
             {session.meta.title ?? ''}
-          </Animated.Text>
+          </AnimatedText>
           {/* 미니 카테고리 — 미니플레이어의 제목 아래 줄(MiniPlayer styles.category)과 같은 자리·글자. 이게 없으면
               착지 순간 뒤의 진짜 미니플레이어에서 카테고리만 툭 나타난다(2026-09-22 PM) */}
           {categoryLabel !== null ? (
-            <Animated.Text
+            <AnimatedText
               style={[
                 styles.morphMiniCategory,
                 {
@@ -1787,7 +1787,7 @@ export default function PlayerScreen() {
               numberOfLines={1}
             >
               {categoryLabel}
-            </Animated.Text>
+            </AnimatedText>
           ) : null}
           {/* 풀 화면 제목 — 최종 자리에 고정된 채 콘텐츠(컨트롤·시크바)와 같은 이동·불투명도로 들어온다.
               마지막 교차(0.94~1)에서 실제 히어로 제목과 같은 좌표라 한 장으로 보인다 */}

@@ -4,7 +4,6 @@ import {
   Pressable,
   RefreshControl,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,6 +13,7 @@ import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
 import { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
 import GlassIconButton from '@/shared/ui/GlassIconButton';
+import { Text } from '@/shared/ui/Typography';
 
 import { useNoticeListScreen } from '../hooks/useNoticeListScreen';
 import { NOTICE_SKELETON_ROW_COUNT } from '../notice.constants';

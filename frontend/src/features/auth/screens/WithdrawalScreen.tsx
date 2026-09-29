@@ -1,12 +1,4 @@
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
@@ -15,6 +7,7 @@ import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
 import { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
 import GlassIconButton from '@/shared/ui/GlassIconButton';
+import { Text, TextInput } from '@/shared/ui/Typography';
 
 import { WITHDRAWAL_REASON_CODES } from '../auth.constants';
 import { AUTH_COPY } from '../auth.copy';

@@ -1,9 +1,10 @@
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
 import { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
 import GlassCloseButton from '@/shared/ui/GlassCloseButton';
 import MagnifierIcon, { SEARCH_ICON_SIZE } from '@/shared/ui/MagnifierIcon';
+import { Text, TextInput } from '@/shared/ui/Typography';
 
 import { EXPLORE_COPY } from '../explore.copy';
 
