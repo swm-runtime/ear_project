@@ -6,7 +6,6 @@ import {
   Pressable,
   RefreshControl,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,6 +23,7 @@ import FloatingHeader, {
 import FullScreenError from '@/shared/ui/FullScreenError';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 import LargeTitleRow from '@/shared/ui/LargeTitleRow';
+import { Text } from '@/shared/ui/Typography';
 
 import {
   DOCK_SCROLL_PROPS,

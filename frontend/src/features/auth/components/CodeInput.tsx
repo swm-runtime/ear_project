@@ -1,8 +1,9 @@
 import { useRef } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
-import type { NativeSyntheticEvent, TextInputKeyPressEventData } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import type { NativeSyntheticEvent, TextInputKeyPressEventData, TextInput as NativeTextInput } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import { TextInput } from '@/shared/ui/Typography';
 
 import { EMAIL_CODE_LENGTH } from '../auth.constants';
 import { AUTH_COPY } from '../auth.copy';
@@ -21,7 +22,7 @@ interface CodeInputProps {
  * 각 칸이 실제 TextInput이라 낭독기가 "인증 코드 N번째 자리"로 칸 단위로 읽는다(7장).
  */
 export default function CodeInput({ value, onChange, editable }: CodeInputProps) {
-  const inputRefs = useRef<(TextInput | null)[]>([]);
+  const inputRefs = useRef<(NativeTextInput | null)[]>([]);
 
   const applyValue = (next: string): void => {
     const digits = next.replace(/\D/g, '').slice(0, EMAIL_CODE_LENGTH);

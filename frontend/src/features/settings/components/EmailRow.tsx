@@ -1,6 +1,7 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import { Text } from '@/shared/ui/Typography';
 
 import type { EmailRowVM, SectionState } from '../hooks/useSettingsScreen';
 import { SETTINGS_COPY } from '../settings.copy';

@@ -1,6 +1,6 @@
 import { useNavigation } from '@react-navigation/native';
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { getAnalyticsDebugLog, type AnalyticsDebugEntry } from '@/shared/analytics';
 import { getJsTrace } from '@/shared/monitoring/js-trace';
@@ -14,6 +14,7 @@ import {
   getPlayerZoomNativeDiagnostics,
 } from '@/shared/navigation/zoom-transition';
 import { theme } from '@/shared/theme';
+import { Text } from '@/shared/ui/Typography';
 
 import SettingsRow from './SettingsRow';
 

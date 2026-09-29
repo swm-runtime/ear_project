@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { Animated, Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion, theme } from '@/shared/theme';
 import GlassSurface, { GlassPill, HAS_LIQUID_GLASS } from '@/shared/ui/GlassSurface';
+import { Text, AnimatedText } from '@/shared/ui/Typography';
 
 export interface SegmentOption<T extends string> {
   value: T;
@@ -188,7 +189,7 @@ export default function SegmentedControl<T extends string>({
             >
               {option.label}
             </Text>
-            <Animated.Text
+            <AnimatedText
               style={[
                 styles.label,
                 (isSystem || isIos26) && styles.labelSystem,
@@ -202,7 +203,7 @@ export default function SegmentedControl<T extends string>({
               importantForAccessibility="no"
             >
               {option.label}
-            </Animated.Text>
+            </AnimatedText>
           </Pressable>
         );
       })}

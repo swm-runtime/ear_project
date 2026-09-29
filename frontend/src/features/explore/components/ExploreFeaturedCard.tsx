@@ -1,8 +1,9 @@
-import { Image, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Image, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
 import MoreIcon from '@/shared/ui/MoreIcon';
 import RemoteImage from '@/shared/ui/RemoteImage';
+import { Text } from '@/shared/ui/Typography';
 
 import { EXPLORE_COPY } from '../explore.copy';
 import type { ExploreItem } from '../explore.types';

@@ -1,10 +1,10 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 
 import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
 import { theme } from '@/shared/theme';
-import { useAndroidBoldFont } from '@/shared/theme/useAndroidBoldFont';
 import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
+import { Text } from '@/shared/ui/Typography';
 
 import { PLAYER_COPY } from '../player.copy';
 
@@ -44,7 +44,6 @@ export default function RemainingPlaysIndicator({
   onExhaustedPress,
   bare = false,
 }: RemainingPlaysIndicatorProps) {
-  const boldFont = useAndroidBoldFont();
   const isExhausted = remaining === 0;
   const ratio = limit > 0 ? Math.max(0, Math.min(1, remaining / limit)) : 0;
   // 채운 길이만 보이게 — 나머지는 빈 간격(dasharray)으로 둔다
@@ -80,9 +79,7 @@ export default function RemainingPlaysIndicator({
         ) : null}
       </Svg>
       <View style={styles.countBox} pointerEvents="none">
-        <Text style={[styles.count, boldFont, isExhausted && styles.countExhausted]}>
-          {remaining}
-        </Text>
+        <Text style={[styles.count, isExhausted && styles.countExhausted]}>{remaining}</Text>
       </View>
     </Frame>
   );

@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import { Animated, StyleSheet, View } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion, theme } from '@/shared/theme';
+import { Text } from '@/shared/ui/Typography';
 
 import { PROFILE_COPY } from '../profile.copy';
 import type { TopicDistribution } from '../profile.types';

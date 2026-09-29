@@ -6,7 +6,6 @@ import {
   Linking,
   Pressable,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { logger } from '@/shared/lib/logger';
 import { STORE_URL } from '@/shared/lib/store-url';
 import { theme } from '@/shared/theme';
+import { Text } from '@/shared/ui/Typography';
 
 import { APP_UPDATE_COPY } from '../app-update.copy';
 

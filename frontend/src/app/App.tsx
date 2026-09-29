@@ -6,7 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { trackScreen } from '@/shared/analytics';
 import { AppErrorBoundary, initSentry, wrapWithSentry } from '@/shared/monitoring';
 import { installJsTraceErrorHook, loadJsTrace, traceJs } from '@/shared/monitoring/js-trace';
-import { useAndroidBoldFont } from '@/shared/theme/useAndroidBoldFont';
+import FontProvider from '@/shared/theme/FontProvider';
 import Toast from '@/shared/ui/Toast';
 
 import { UpdateRecommendDialog } from '@/features/app-update';
@@ -56,24 +56,25 @@ const handleNavigationStateChange = (state: NavigationState | undefined): void =
 };
 
 function App() {
-  useAndroidBoldFont();
   return (
     <AppErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <SafeAreaProvider>
-          <NavigationContainer onStateChange={handleNavigationStateChange}>
-            <RootNavigator />
-          </NavigationContainer>
-          {/* 줌 전환 소스 프록시(iOS 26) — 미니플레이어 자리의 투명 뷰. 액세서리 컨테이너 밖에 둬야 닫힌 뒤 잔여 이미지가 안 남는다 */}
-          <ZoomSourceProxy />
-          {/* 권장 업데이트 안내(splash.md 4.1 · KAN-99) — Modal 이라 어느 스택 위에서든 뜨고, 관문 통과 뒤에만 켜진다 */}
-          <UpdateRecommendDialog />
-          {/* 한도 안내 시트(2026-09-28) — 토스트와 같이 루트에 하나. 재생 게이트·플레이어가 연다 */}
-          <LimitNoticeSheet />
-          <Toast />
-          <StatusBar style="auto" />
-        </SafeAreaProvider>
-      </QueryClientProvider>
+      <FontProvider>
+        <QueryClientProvider client={queryClient}>
+          <SafeAreaProvider>
+            <NavigationContainer onStateChange={handleNavigationStateChange}>
+              <RootNavigator />
+            </NavigationContainer>
+            {/* 줌 전환 소스 프록시(iOS 26) — 미니플레이어 자리의 투명 뷰. 액세서리 컨테이너 밖에 둬야 닫힌 뒤 잔여 이미지가 안 남는다 */}
+            <ZoomSourceProxy />
+            {/* 권장 업데이트 안내(splash.md 4.1 · KAN-99) — Modal 이라 어느 스택 위에서든 뜨고, 관문 통과 뒤에만 켜진다 */}
+            <UpdateRecommendDialog />
+            {/* 한도 안내 시트(2026-09-28) — 토스트와 같이 루트에 하나. 재생 게이트·플레이어가 연다 */}
+            <LimitNoticeSheet />
+            <Toast />
+            <StatusBar style="auto" />
+          </SafeAreaProvider>
+        </QueryClientProvider>
+      </FontProvider>
     </AppErrorBoundary>
   );
 }

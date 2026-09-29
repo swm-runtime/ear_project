@@ -2,7 +2,6 @@ import {
   Image,
   Pressable,
   StyleSheet,
-  Text,
   View,
   type ImageSourcePropType,
   type StyleProp,
@@ -10,6 +9,7 @@ import {
 } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import { Text } from '@/shared/ui/Typography';
 
 /**
  * 주제별 배경 사진 — 순수 표현이라 화면이 소유한다(서버 계약에 이미지 필드가 없다).

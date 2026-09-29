@@ -1,7 +1,8 @@
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
 import FullScreenError from '@/shared/ui/FullScreenError';
+import { Text } from '@/shared/ui/Typography';
 
 import { useFirstDripWaitingScreen } from '../hooks/useFirstDripWaitingScreen';
 import { ONBOARDING_COPY } from '../onboarding.copy';

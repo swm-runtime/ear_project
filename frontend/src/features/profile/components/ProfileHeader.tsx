@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react';
 import { useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
 
 import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
 import { theme } from '@/shared/theme';
 import PersonIcon from '@/shared/ui/PersonIcon';
+import { Text } from '@/shared/ui/Typography';
 
 import { ProviderIcon } from '@/features/auth';
 import type { SocialProvider } from '@/features/auth';

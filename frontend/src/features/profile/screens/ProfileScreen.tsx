@@ -1,4 +1,4 @@
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
@@ -7,6 +7,7 @@ import { theme } from '@/shared/theme';
 import ConfirmDialog from '@/shared/ui/ConfirmDialog';
 import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
 import SettingsIcon from '@/shared/ui/SettingsIcon';
+import { Text } from '@/shared/ui/Typography';
 
 import { DOCK_SCROLL_PROPS, useBottomDockInset } from '@/features/player';
 

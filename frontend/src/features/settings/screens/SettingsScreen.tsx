@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
@@ -15,6 +15,7 @@ import ConfirmDialog from '@/shared/ui/ConfirmDialog';
 import { useFloatingHeaderScroll } from '@/shared/ui/FloatingHeader';
 import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
 import LargeTitleRow from '@/shared/ui/LargeTitleRow';
+import { Text } from '@/shared/ui/Typography';
 
 import { NotificationPrePromptModal } from '@/features/notification';
 

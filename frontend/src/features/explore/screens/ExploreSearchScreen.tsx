@@ -5,9 +5,9 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
- Animated } from 'react-native';
+  Animated,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
@@ -16,6 +16,7 @@ import { useTabScrollToTop } from '@/shared/navigation/useTabScrollToTop';
 import { motion, theme } from '@/shared/theme';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 import LargeTitleRow from '@/shared/ui/LargeTitleRow';
+import { Text } from '@/shared/ui/Typography';
 
 import {
   DOCK_SCROLL_PROPS,

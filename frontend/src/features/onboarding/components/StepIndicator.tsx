@@ -1,6 +1,7 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import { Text } from '@/shared/ui/Typography';
 
 /** 인디케이터에 들어가는 것은 입력 단계뿐 — 항상 3단계다(onboarding.md 4 단계 구성) */
 const TOTAL_STEPS = 3;

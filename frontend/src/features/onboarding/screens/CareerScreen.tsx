@@ -1,16 +1,9 @@
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
+import { Text, TextInput } from '@/shared/ui/Typography';
 
 import { useCareerScreen } from '../hooks/useCareerScreen';
 import { ONBOARDING_COPY } from '../onboarding.copy';

@@ -1,6 +1,7 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import { Text } from '@/shared/ui/Typography';
 
 import type { CareerCardVM, SectionState } from '../hooks/useProfileScreen';
 import { PROFILE_COPY } from '../profile.copy';

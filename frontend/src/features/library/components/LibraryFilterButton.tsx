@@ -1,7 +1,8 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
 import GlassSurface from '@/shared/ui/GlassSurface';
+import { Text } from '@/shared/ui/Typography';
 
 import { LIBRARY_COPY } from '../library.copy';
 import FilterIcon from './FilterIcon';
