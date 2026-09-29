@@ -85,9 +85,9 @@ export default function SettingsScreen() {
         <Animated.ScrollView
           contentContainerStyle={[
             styles.scrollContent,
-            // Android — 떠 있는 바(상태 바 + 52) 밑, 종전과 같은 간격(md)을 두고 시작한다
+            // Android — 버튼 줄 바로 아래 제목을 둔다. 별도 16pt 여백은 iOS보다 간격을 벌려 제거했다.
             ANDROID_LARGE_TITLE && {
-              paddingTop: insets.top + ANDROID_BAR_ROW_HEIGHT + theme.spacing.md,
+              paddingTop: insets.top + ANDROID_BAR_ROW_HEIGHT,
             },
           ]}
           // 투명 시스템 바 밑을 비운다(iOS 26). 그 외 갈래는 RN 기본(never)
