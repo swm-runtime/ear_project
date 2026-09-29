@@ -7,7 +7,8 @@ interface PersonIconProps {
   filled: boolean;
 }
 
-const STROKE_WIDTH = 1.8;
+// 1.8 → 1.5(PM 2026-09-29 16:07 탭 아이콘 굵기 줄임 — TabBarIcon 과 같은 굵기)
+const STROKE_WIDTH = 1.5;
 /** 어깨 — 폭 19pt 돔, 아래 모서리만 둥글다(iOS 26 탭 바 `person` 실측) */
 const SHOULDERS =
   'M12 13.65C17.6 13.65 21.5 16.8 21.5 20.6Q21.5 22 20.1 22H3.9Q2.5 22 2.5 20.6C2.5 16.8 6.4 13.65 12 13.65Z';
