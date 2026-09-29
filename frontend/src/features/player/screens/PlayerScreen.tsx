@@ -7,6 +7,7 @@ import {
   Animated,
   Image,
   PanResponder,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -337,7 +338,8 @@ export default function PlayerScreen() {
   const isMeasured = contentSize.height > 0 && controlsHeight > 0;
   // 모션 레이어의 아트워크가 뜨기 전에 출발하면 첫 프레임이 회색 빈 사각이다 — 로드(또는 짧은 대기) 뒤 출발.
   // 그때까지 화면 전체를 감춰 두면 뒤의 미니플레이어가 그대로 보여 이음새가 없다
-  const [isMorphImageReady, setIsMorphImageReady] = useState(false);
+  // Android 줌은 날아가는 아트워크 레이어가 없다 — 기다릴 그림이 없으니 바로 준비
+  const [isMorphImageReady, setIsMorphImageReady] = useState(ANDROID_ZOOM);
   const [isShellVisible, setIsShellVisible] = useState(USE_NATIVE_PLAYER_ZOOM);
   useEffect(() => {
     if (!isMeasured || isMorphImageReady) return;
@@ -1054,6 +1056,39 @@ export default function PlayerScreen() {
     dimOpacity: openProgress.interpolate({ inputRange: [0, 1], outputRange: [0, 0.35] }),
   };
 
+  /*
+   * **Android 줌 전환**(PM 2026-09-29 00:55 "플레이어 나오는 거 iOS 와 최대한 유사하게", Android 전용). iOS 26 은 시스템 줌
+   * 전환 — 미니플레이어 카드가 그대로 부풀어 풀 화면이 되고, 그 안의 플레이어는 처음부터 완성된 모습이 비율대로 커진다.
+   * 종전 Android 모션(아트워크만 날아오르고 컨트롤은 아래서 올라옴)을 이것으로 바꾼다: 시트(카드 자리 → 풀 화면)가 자라는
+   * 동안 플레이어 전체를 **카드 폭에 맞춘 배율로 축소해 그 안에 잘라 넣고** 1 까지 키운다. 끌어내리기도 같은 값을 되감는다
+   */
+  if (ANDROID_ZOOM) {
+    Object.assign(morph, {
+      sheetHeight: openProgress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [mini.height, windowHeight],
+      }),
+      sheetRadius: openProgress.interpolate({
+        inputRange: [0, 0.85, 1],
+        outputRange: [MINI_CARD_RADIUS, ANDROID_ZOOM_CORNER, 0],
+      }),
+      // 카드 색에서 플레이어 색으로 — 시작 직후 짧게 넘어간다(회색 판이 오래 보이지 않게)
+      sheetColor: openProgress.interpolate({
+        inputRange: [0, 0.15, 1],
+        outputRange: [theme.color.surface, playerColor.background, playerColor.background],
+      }),
+      backdropOpacity: openProgress.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 1, 1] }),
+      // 플레이어는 처음부터 제자리에 완성돼 있고, 카드 내용과 교차하며 드러난다
+      contentOpacity: openProgress.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 1, 1] }),
+      contentTranslateY: 0,
+      heroOpacity: 1,
+    });
+  }
+  const zoomScale = openProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [Math.min(1, mini.width / Math.max(1, windowWidth)), 1],
+  });
+
   if (!session) {
     // 세션 정리 직후(차단 전환·회수 닫기)의 한 프레임 — 아무것도 그리지 않는다
     return <View style={containerStyle} />;
@@ -1164,6 +1199,10 @@ export default function PlayerScreen() {
             height: morph.sheetHeight,
             borderTopLeftRadius: morph.sheetRadius,
             borderTopRightRadius: morph.sheetRadius,
+            // Android 줌은 카드가 통째로 부푼다 — 아래 모서리도 같이 둥글다(위에 얹힌 줌 무대와 같은 모양)
+            ...(ANDROID_ZOOM
+              ? { borderBottomLeftRadius: morph.sheetRadius, borderBottomRightRadius: morph.sheetRadius }
+              : null),
             borderCurve: 'continuous',
             backgroundColor: morph.sheetColor,
           },
@@ -1190,6 +1229,13 @@ export default function PlayerScreen() {
           </Animated.View>
         ) : null}
       </Animated.View>
+      <AndroidZoomStage
+        enabled={ANDROID_ZOOM}
+        frame={{ top: morph.sheetTop, left: morph.sheetLeft, width: morph.sheetWidth, height: morph.sheetHeight }}
+        radius={morph.sheetRadius}
+        scale={zoomScale}
+        stage={{ width: windowWidth, height: windowHeight, paddingTop: insets.top, paddingBottom: insets.bottom }}
+      >
       <Animated.View
         style={[
           styles.content,
@@ -1661,9 +1707,10 @@ export default function PlayerScreen() {
           </Animated.View>
         </View>
       </Animated.View>
+      </AndroidZoomStage>
 
       {/* 모션 레이어 — 열리고 닫히는 동안만. 아트워크가 미니플레이어 자리와 풀 화면 자리 사이를 난다(제목은 제자리 페이드) */}
-      {isMorphing ? (
+      {isMorphing && !ANDROID_ZOOM ? (
         <Animated.View
           style={[StyleSheet.absoluteFill, { opacity: morph.layerOpacity }]}
           pointerEvents="none"
@@ -1890,6 +1937,44 @@ const MORPH_ART_INPUT = [0, MORPH_ART_SHRINK_END, MORPH_ART_ARRIVE, 1];
  * 손을 뗀 속도는 `velocity` 로 따로 넣는다. 실기기에서 조절한다
  */
 const SHEET_SPRING = motion.spring.smooth;
+/** Android 줌 전환(아래 AndroidZoomStage) — iOS 는 종전 갈래 그대로(시스템 줌·JS 모핑) */
+const ANDROID_ZOOM = Platform.OS === 'android';
+/** 줌이 거의 다 커졌을 때의 모서리 — 기기 화면 모서리 느낌으로 둥글다가 마지막에 0 */
+const ANDROID_ZOOM_CORNER = 32;
+
+interface AndroidZoomStageProps {
+  enabled: boolean;
+  /** 자라는 카드의 자리(화면 좌표) — 시트와 같은 값 */
+  frame: Animated.WithAnimatedObject<{ top: number; left: number; width: number; height: number }>;
+  radius: Animated.AnimatedInterpolation<number> | number;
+  /** 플레이어 전체의 배율 — 카드 폭 / 화면 폭 → 1 */
+  scale: Animated.AnimatedInterpolation<number>;
+  /** 플레이어가 원래 그려지는 판(화면 크기 + 안전영역) — 배율을 걸 기준 */
+  stage: { width: number; height: number; paddingTop: number; paddingBottom: number };
+  children: ReactNode;
+}
+
+/**
+ * Android 줌의 무대 — 자라는 카드 자리로 잘라 두고, 그 안에 화면 크기 그대로의 플레이어를 **왼쪽 위 기준으로 축소**해
+ * 넣는다. 배율 1·카드 = 화면이면 종전과 똑같은 배치다(레이아웃 측정값도 같다 — transform 은 레이아웃을 바꾸지 않는다).
+ * 꺼져 있으면 자식을 그대로 둔다
+ */
+function AndroidZoomStage({ enabled, frame, radius, scale, stage, children }: AndroidZoomStageProps) {
+  if (!enabled) return <>{children}</>;
+  return (
+    <Animated.View
+      style={[styles.zoomClip, frame, { borderRadius: radius }]}
+      pointerEvents="box-none"
+    >
+      <Animated.View
+        style={[styles.zoomStage, stage, { transform: [{ scale }] }]}
+        pointerEvents="box-none"
+      >
+        {children}
+      </Animated.View>
+    </Animated.View>
+  );
+}
 /** 정지 시 아트워크 배율 — 애플 뮤직은 약 0.8 까지 줄인다. 그림자 없는 우리 사진은 조금 덜 줄여도 정지가 읽힌다 */
 const PAUSED_ART_SCALE = 0.85;
 /** 바탕 커버의 흐림 — 형태가 남지 않고 색 덩어리만 보일 만큼 */
@@ -1950,6 +2035,17 @@ const styles = StyleSheet.create({
   // 출발 준비 전 — 뒤의 미니플레이어가 그대로 보이도록 화면을 감춘다
   shellHidden: {
     opacity: 0,
+  },
+  // Android 줌 — 자라는 카드 자리(잘림)와 그 안의 화면 크기 판(왼쪽 위 기준 배율)
+  zoomClip: {
+    position: 'absolute',
+    overflow: 'hidden',
+  },
+  zoomStage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    transformOrigin: 'top left',
   },
   sheet: {
     position: 'absolute',

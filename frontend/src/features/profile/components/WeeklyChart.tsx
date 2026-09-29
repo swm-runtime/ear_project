@@ -20,6 +20,8 @@ const ZERO_BAR_HEIGHT = 3;
 /** 요일 막대 위 모서리 반지름 — radius 토큰(sm 8)보다 작은 값이 필요해 따로 둔다 */
 const BAR_RADIUS = 4;
 const DAYS_IN_WEEK = 7;
+/** 요일 원(선택 시 검은 원) 지름 */
+const DAY_BADGE_SIZE = theme.spacing.xl;
 /** 서비스 날짜 경계 04시 — 표시용 오늘 요일을 서버와 같은 날로 맞춘다(toWeekView) */
 const SERVICE_DAY_OFFSET_MS = 4 * 60 * 60 * 1000;
 /**
@@ -126,6 +128,12 @@ interface WeekBodyProps {
   onToggleBar?: (dayIndex: number) => void;
   onChartLayout?: (width: number) => void;
   tooltip?: ReactNode;
+  /**
+   * 평균 점선의 등장 — 오른쪽 축("평균"·"0")과 **같은 값**(axisFade)으로 나타난다(PM 2026-09-29 13:45 "평균선을 애니메이션으로,
+   * 주 이동할 때 평균·분·0 나올 때 같이"). 가운데 주만 준다 — 이웃 주(끌리는 동안의 그림)에는 점선을 그리지 않아, 새 주가
+   * 미끄러져 들어온 뒤 축과 함께 왼쪽부터 그어진다
+   */
+  averageAppear?: Animated.Value;
 }
 
 /** 하루 평균 + 막대 그래프(격자·오른쪽 축·요일) — 빈 주면 빈 상태 */
@@ -136,6 +144,7 @@ function WeekBody({
   onToggleBar,
   onChartLayout,
   tooltip,
+  averageAppear,
 }: WeekBodyProps) {
   const view = toWeekView(week);
   if (view.isEmpty) {
@@ -168,8 +177,18 @@ function WeekBody({
           {GRID_RATIOS.map((ratio) => (
             <View key={ratio} style={[styles.gridLine, { top: ratio * CHART_HEIGHT }]} />
           ))}
-          {view.hasAverageRule ? (
-            <View style={[styles.averageRule, { top: view.averageTop }]} />
+          {view.hasAverageRule && averageAppear ? (
+            <Animated.View
+              style={[
+                styles.averageRule,
+                {
+                  top: view.averageTop,
+                  opacity: averageAppear,
+                  // 왼쪽에서 오른쪽 축("평균" 라벨) 쪽으로 그어진다
+                  transform: [{ scaleX: averageAppear }],
+                },
+              ]}
+            />
           ) : null}
         </View>
         <View style={styles.chartRow}>
@@ -409,7 +428,13 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
   );
   const [chartWidth, setChartWidth] = useState(0);
   const [tooltipSize, setTooltipSize] = useState({ width: 0, height: ANNOTATION_MIN_HEIGHT });
-  const annotationHeight = Math.max(ANNOTATION_MIN_HEIGHT, tooltipSize.height) + theme.spacing.sm;
+  /*
+   * 말풍선 자리의 높이는 **숨은 말풍선(probe)으로 처음부터** 잰다(PM 2026-09-29 14:24 "요일 누르면 공간 확보하느라 그래프가
+   * 살짝 내려온다") — 종전엔 최소값(32)으로 비워 두다 실제 말풍선이 뜬 뒤 잰 높이(≈34~36)로 늘어나 그래프가 밀렸다.
+   * 한 줄 말풍선이라 요일·값과 무관하게 높이가 같다. 실제 말풍선은 폭(가운데 맞춤)만 잰다
+   */
+  const [reserveHeight, setReserveHeight] = useState(ANNOTATION_MIN_HEIGHT);
+  const annotationHeight = Math.max(ANNOTATION_MIN_HEIGHT, reserveHeight) + theme.spacing.sm;
   const selectedCenter = ((selectedIndex ?? 0) + 0.5) * (chartWidth / DAYS_IN_WEEK);
   // 축은 가운데 주가 그래프로 보일 때만 — 조회 중·실패·빈 주에는 비운다
   const axisView =
@@ -479,6 +504,7 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
       selectedIndex={selectedIndex}
       onToggleBar={weekly.toggleBar}
       onChartLayout={setChartWidth}
+      averageAppear={axisFade}
       tooltip={
         selectedIndex !== null ? (
           <View
@@ -495,11 +521,8 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
             ]}
             onLayout={({ nativeEvent: { layout } }) => {
               const width = Math.ceil(layout.width);
-              const height = Math.ceil(layout.height);
               setTooltipSize((previous) =>
-                previous.width === width && previous.height === height
-                  ? previous
-                  : { width, height },
+                previous.width === width ? previous : { ...previous, width },
               );
             }}
           >
@@ -556,6 +579,21 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
           </View>
         )}
         <View style={styles.chartStrip}>
+          {/* 말풍선 높이 재기용 — 보이지 않고 눌리지 않는다(위 reserveHeight) */}
+          <View
+            pointerEvents="none"
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            style={[styles.tooltip, styles.tooltipProbe]}
+            onLayout={({ nativeEvent: { layout } }) => {
+              const height = Math.ceil(layout.height);
+              setReserveHeight((previous) => (previous === height ? previous : height));
+            }}
+          >
+            <Text style={styles.tooltipText} numberOfLines={1}>
+              {PROFILE_COPY.stats.dayBarA11y(0, 0)}
+            </Text>
+          </View>
           <View
             style={styles.pager}
             onLayout={({ nativeEvent }) => setPageWidth(nativeEvent.layout.width)}
@@ -757,6 +795,7 @@ const styles = StyleSheet.create({
   axisLabelAverage: { fontWeight: '600' },
   averageRule: {
     position: 'absolute',
+    transformOrigin: 'left',
     left: 0,
     right: 0,
     borderTopWidth: 1,
@@ -802,24 +841,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.sm,
   },
+  tooltipProbe: { opacity: 0 },
   tooltipText: {
     fontSize: theme.font.size.sm,
     fontWeight: '600',
     color: theme.color.textPrimary,
     fontVariant: ['tabular-nums'],
   },
+  /*
+   * 요일 원 — **크기를 고정**(최소값 아님)하고 반지름을 그 절반으로, 넘치는 건 자른다. Android 에서 선택 원이 사각형으로
+   * 칠해졌다(PM 2026-09-29 13:56 → 반지름 16 으로도 14:10 "안 됨"): 최소 크기 + 안쪽 여백이면 Android 글꼴 여백(includeFontPadding)
+   * 만큼 판이 원보다 커질 수 있고, 연속 곡률(borderCurve)은 iOS 전용이다. 원 지름·반지름·자르기를 모두 고정한다
+   */
   dayBadge: {
     marginTop: theme.spacing.sm,
-    minWidth: theme.spacing.xl,
-    minHeight: theme.spacing.xl,
+    width: DAY_BADGE_SIZE,
+    height: DAY_BADGE_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: theme.spacing.xs,
-    borderRadius: theme.radius.full,
-    borderCurve: 'continuous',
+    borderRadius: DAY_BADGE_SIZE / 2,
+    overflow: 'hidden',
   },
   dayBadgeSelected: { backgroundColor: theme.color.primary },
-  dayName: { fontSize: theme.font.size.xs, color: theme.color.textSecondary },
+  dayName: {
+    fontSize: theme.font.size.xs,
+    color: theme.color.textSecondary,
+    // Android 글꼴 위아래 여백을 빼서 원 가운데에 선다
+    includeFontPadding: false,
+  },
   dayNameToday: { color: theme.color.textPrimary, fontWeight: '700' },
   dayNameSelected: { color: theme.color.onPrimary, fontWeight: '600' },
 });

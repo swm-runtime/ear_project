@@ -23,6 +23,7 @@ import {
   SocialLoginCommand,
   SocialLoginResult,
 } from '../auth.types';
+import { SignupAlertService } from './signup-alert.service';
 import { SocialProviderRegistry } from '../providers/social-provider.registry';
 import { SessionRepository } from '../session.repository';
 import { TokenService } from './token.service';
@@ -38,6 +39,7 @@ export class AuthService {
     private readonly tokenService: TokenService,
     private readonly sessionRepository: SessionRepository,
     private readonly deviceTokenService: DeviceTokenService,
+    private readonly signupAlertService: SignupAlertService,
   ) {}
 
   /**
@@ -141,6 +143,9 @@ export class AuthService {
       provider: payload.provider,
       user_id: user.id,
     });
+    // **계정이 실제로 새로 생겼을 때만** 알린다 — 같은 signup token 재호출(`existing`)은
+    // 가입이 아니다. await 하지 않는다: 알림 지연이 가입 응답을 밀면 안 된다
+    if (!existing) this.signupAlertService.notify(payload.provider, now);
 
     return {
       status: 'authenticated',

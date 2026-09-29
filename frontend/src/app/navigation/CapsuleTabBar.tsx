@@ -3,7 +3,7 @@ import {
   type BottomTabBarProps,
 } from '@react-navigation/bottom-tabs';
 import { useContext, useEffect, useMemo, useRef } from 'react';
-import { Animated, PanResponder, StyleSheet, Text, View } from 'react-native';
+import { Animated, PanResponder, Platform, StyleSheet, Text, View } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion, theme } from '@/shared/theme';
@@ -33,10 +33,23 @@ const CAPSULE_WIDTH = theme.dock.width + CAPSULE_INSET * 2;
  */
 const BOTTOM_INSET_TRIM = 12;
 const BOTTOM_MIN_GAP = 16;
+/**
+ * **Android** 는 안전영역을 깎지 않고 내비게이션 바 **위에** 띄운다(PM 2026-09-29 01:28 "갤럭시 하단 네비게이션 바 고려해서 조금
+ * 올리자"). edge-to-edge(SDK 57 기본)라 insets.bottom 이 곧 내비게이션 바 높이다 — 3버튼 ≈48dp, 제스처 ≈16~24dp(힌트 끄면 ~0).
+ * iOS 식(inset − 12)을 쓰면 3버튼 기기에서 캡슐이 버튼을 12dp 덮었다. 방식 구분 없이 '바 높이 + 8' 이면 둘 다 바로 위에 선다
+ */
+const ANDROID_NAV_BAR_GAP = 8;
 /** 카드와 캡슐이 이 거리 안으로 가까워지면 유리가 합쳐진다 — 제자리 간격(8)보다 작아야 가만히 있을 땐 안 붙는다 */
 const DOCK_MERGE_SPACING = 4;
 /** 카드와 캡슐 사이(mini-player-layout.store·MiniPlayer 의 DOCK_GAP 과 같다) */
 const DOCK_GAP = 8;
+/**
+ * **Android 리퀴드 룩**(PM 2026-09-29 00:55 "하단 footer 리퀴드 최대한 유사하게", Android 전용 — iOS·옛 아이폰은 그대로).
+ * Android 엔 유리 재질이 없어 블러 위에 iOS 26 유리의 특징을 직접 얹는다: 가장자리의 흰 림(빛이 모서리에서 굴절되는
+ * 하이라이트) + 위쪽 안쪽 광택선. 미니플레이어는 iOS 26 액세서리처럼 캡슐이다(MINI_CARD_RADIUS)
+ */
+const IS_ANDROID = Platform.OS === 'android';
+const CARD_RADIUS = IS_ANDROID ? 28 : 22;
 const ICON_SIZE = 24;
 const LABEL_SIZE = 11;
 
@@ -85,7 +98,9 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
   const reportHeight = useContext(BottomTabBarHeightCallbackContext);
   // 앞 층 미니플레이어 카드의 실측 높이(안 보이면 0) — 뒤 층 유리 판이 같은 자리에 선다
   const miniHeight = useMiniPlayerInset();
-  const bottomPadding = Math.max(insets.bottom - BOTTOM_INSET_TRIM, BOTTOM_MIN_GAP);
+  const bottomPadding = IS_ANDROID
+    ? Math.max(insets.bottom + ANDROID_NAV_BAR_GAP, BOTTOM_MIN_GAP)
+    : Math.max(insets.bottom - BOTTOM_INSET_TRIM, BOTTOM_MIN_GAP);
   const indicatorX = useAnimatedValue(state.index * ITEM_WIDTH);
   // 누르는 동안 알약이 살짝 커져 떠오른다(iOS 26 탭 바) — 놓으면 제자리 크기로
   const indicatorScale = useAnimatedValue(1);
@@ -289,12 +304,12 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
         {miniHeight > 0 ? (
           <Animated.View style={[styles.cardGlass, { height: miniHeight }, miniDropStyle(miniDropProgress)]}>
             <GlassSurface style={[StyleSheet.absoluteFill, styles.cardGlassClip]} />
-            <View style={styles.cardGlassBorder} />
+            <View style={[styles.cardGlassBorder, IS_ANDROID && styles.androidRim]} />
           </Animated.View>
         ) : null}
         <View style={[styles.capsuleGlassBox, { top: miniHeight > 0 ? miniHeight + DOCK_GAP : 0 }]}>
           <GlassSurface style={[StyleSheet.absoluteFill, styles.capsuleGlass]} />
-          <View style={styles.capsuleBorder} />
+          <View style={[styles.capsuleBorder, IS_ANDROID && styles.androidRim]} />
         </View>
       </GlassGroup>
       <MiniPlayer placement="dock" />
@@ -398,12 +413,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     width: theme.dock.width,
-    borderRadius: 22,
+    borderRadius: CARD_RADIUS,
     borderCurve: 'continuous',
     boxShadow: '0 4px 20px rgba(0, 0, 0, 0.10)',
   },
   cardGlassClip: {
-    borderRadius: 22,
+    borderRadius: CARD_RADIUS,
     borderCurve: 'continuous',
     overflow: 'hidden',
   },
@@ -413,7 +428,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    borderRadius: 22,
+    borderRadius: CARD_RADIUS,
     borderCurve: 'continuous',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(0, 0, 0, 0.10)',
@@ -447,6 +462,12 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.full,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(0, 0, 0, 0.10)',
+  },
+  // Android 유리 림 — 바깥 흰 테두리(굴절 하이라이트) + 위쪽 안쪽 광택선. 밝은 목록 위 경계는 판의 그림자가 맡는다
+  androidRim: {
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.75)',
+    boxShadow: 'inset 0 1.5px 0 rgba(255, 255, 255, 0.9), inset 0 -1px 0 rgba(0, 0, 0, 0.04)',
   },
   // 선택 알약 — 유리 렌즈(GlassPill). 첫 칸 자리에 두고 translateX 로 옮긴다. 색은 GlassPill 이 정한다
   indicator: {

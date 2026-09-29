@@ -2,6 +2,7 @@ import { BottomTabBarHeightContext } from '@react-navigation/bottom-tabs';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { useContext, useEffect, useMemo, useRef } from 'react';
 import {
+  Platform,
   Animated,
   Dimensions,
   PanResponder,
@@ -44,8 +45,11 @@ import { usePlayerOpenGestureStore } from '../store/player-open-gesture.store';
 
 /** 미니플레이어 재생 버튼 아이콘 — 전체 플레이어보다 작게 */
 const MINI_PLAY_ICON_SIZE = 20;
-/** 카드 모서리 — 캡슐 탭 바(높이 60 알약)와 같은 결로 크게 */
-export const MINI_CARD_RADIUS = 22;
+/**
+ * 카드 모서리 — 캡슐 탭 바(높이 60 알약)와 같은 결로 크게. **Android 는 완전한 캡슐**(높이 54 의 절반 이상 — RN 이 절반으로
+ * 자른다) — iOS 26 미니플레이어(탭 바 액세서리)가 캡슐이다(PM 2026-09-29 00:55 "하단 footer 리퀴드 최대한 유사하게", Android 전용)
+ */
+export const MINI_CARD_RADIUS = Platform.OS === 'android' ? 28 : 22;
 /** 썸네일 한 변·행 위아래 여백 — PlayerScreen 의 대체 치수(MINI_THUMB_SIZE·MINI_ROW_HEIGHT)와 맞아야 한다 */
 export const MINI_THUMB_SIZE = 40;
 const MINI_ROW_PADDING = 6;

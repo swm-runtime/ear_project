@@ -1,4 +1,4 @@
-import { AlertJudge } from './resource-alert.service';
+import { AlertJudge, formatAlertText } from './resource-alert.service';
 
 /** 60초 틱 가정 — 지속 3틱 발보 · 30분 재알림 · 3틱 정상 복귀 해제 */
 describe('AlertJudge', () => {
@@ -63,5 +63,33 @@ describe('AlertJudge', () => {
     expect(judge.update({ cpu: 95, memory: 10 }, 3 * MIN)).toEqual([
       { metric: 'cpu', kind: 'alert', value: 95 },
     ]);
+  });
+});
+
+/** 운영·개발계가 같은 Slack 채널을 쓴다 — 표시가 없으면 개발계 경보를 운영 장애로 오해한다 */
+describe('formatAlertText', () => {
+  const alert = { metric: 'cpu', kind: 'alert', value: 85 } as const;
+
+  it('운영에는 아무 표시도 붙지 않는다', () => {
+    expect(formatAlertText(alert, 'production')).toMatch(/^:rotating_light:/);
+    expect(formatAlertText(alert)).toMatch(/^:rotating_light:/);
+  });
+
+  it('운영이 아니면 환경을 앞에 붙인다', () => {
+    expect(formatAlertText(alert, 'development')).toMatch(/^\[development\] /);
+  });
+
+  it('정상화 알림에도 같은 규칙을 쓴다', () => {
+    const recovered = {
+      metric: 'memory',
+      kind: 'recovered',
+      value: 40,
+    } as const;
+    expect(formatAlertText(recovered, 'development')).toMatch(
+      /^\[development\] /,
+    );
+    expect(formatAlertText(recovered, 'production')).toMatch(
+      /^:white_check_mark:/,
+    );
   });
 });
