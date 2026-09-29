@@ -12,10 +12,12 @@ interface TabBarIconProps {
   size: number;
 }
 
-/** 책 획 굵기 — iOS 스샷 실측 5.5px@3x */
-const BOOK_STROKE = 1.83;
-/** 나침반 테두리 굵기 — 실측 6px@3x */
-const COMPASS_STROKE = 2;
+/** 책 획 굵기 — iOS 실측(1.83)보다 가늘게(PM 2026-09-29 16:07 "아이콘 굵기 줄여") */
+const BOOK_STROKE = 1.5;
+/** 나침반 테두리 굵기 — 실측 2 보다 가늘게(같은 지시) */
+const COMPASS_STROKE = 1.6;
+/** 책 띠 굵기 */
+const BAND_STROKE = 1;
 
 /*
  * 책 네 권(books.vertical 모양) — 28×25 판. 왼쪽 세 권은 바닥과 칸막이를 같이 쓰고(가운데가 가장 짧고 띠 두 줄),
@@ -60,7 +62,7 @@ export default function TabBarIcon({ name, color, focused, size }: TabBarIconPro
                 stroke="#000"
                 strokeWidth={0.9}
               />
-              <Path d={BOOK_BANDS} stroke="#000" strokeWidth={1.2} strokeLinecap="round" />
+              <Path d={BOOK_BANDS} stroke="#000" strokeWidth={BAND_STROKE} strokeLinecap="round" />
             </Mask>
           </Defs>
           <G
@@ -103,7 +105,7 @@ export default function TabBarIcon({ name, color, focused, size }: TabBarIconPro
             transform="rotate(-4 24.05 24.08)"
           />
         </G>
-        <Path d={BOOK_BANDS} stroke={color} strokeWidth={1.2} strokeLinecap="round" />
+        <Path d={BOOK_BANDS} stroke={color} strokeWidth={BAND_STROKE} strokeLinecap="round" />
       </Svg>
     );
   }
