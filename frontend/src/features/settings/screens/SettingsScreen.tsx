@@ -283,6 +283,8 @@ export default function SettingsScreen() {
               blurTarget={blurTargetRef}
               blurMethod="dimezisBlurView"
             />
+            {/* 흰 막 한 겹 더 — 블러 틴트(25 → 약 19%)만으론 살짝 어두웠다(PM 2026-09-29 16:27 "배경 흰색 조금만 높이자") */}
+            <View style={[StyleSheet.absoluteFill, styles.androidBarWhite]} />
             <View style={styles.androidBarEdge} />
           </Animated.View>
           <View style={[styles.appBar, styles.androidAppBar]}>
@@ -468,6 +470,10 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 1,
+  },
+  // 블러 틴트 위 흰 막 — 합쳐 약 30%. 16:05 의 흰 판(≈52%)보다 한참 옅다
+  androidBarWhite: {
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
   },
   // 블러 판 아래 끝 — 판이 끊기는 자리를 선으로 정리한다(iOS 바 그림자 선)
   androidBarEdge: {
