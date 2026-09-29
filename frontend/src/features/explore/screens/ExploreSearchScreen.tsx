@@ -1,4 +1,5 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -7,8 +8,11 @@ import {
   StyleSheet,
   View,
   Animated,
+  BackHandler,
+  Keyboard,
+  Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { useNativeHeaderInset } from '@/shared/navigation/useNativeHeaderInset';
@@ -29,10 +33,14 @@ import ExploreMoreSheet from '../components/ExploreMoreSheet';
 import ExploreTile from '../components/ExploreTile';
 import RecentSearchList from '../components/RecentSearchList';
 import SearchInputRow from '../components/SearchInputRow';
+import SearchToolbar from '../components/SearchToolbar';
 import SuggestedKeywordChips from '../components/SuggestedKeywordChips';
 import { EXPLORE_COPY } from '../explore.copy';
 import { exploreGridKey, toExploreGridData } from '../explore.grid';
-import { useExploreSearchScreen, type ExploreSearchEmbedding } from '../hooks/useExploreSearchScreen';
+import {
+  useExploreSearchScreen,
+  type ExploreSearchEmbedding,
+} from '../hooks/useExploreSearchScreen';
 
 /**
  * 검색 화면(E6·E7, explore.md 4.5 — MVP 포함 격상 2026-08-23).
@@ -42,8 +50,8 @@ import { useExploreSearchScreen, type ExploreSearchEmbedding } from '../hooks/us
  *
  * **iOS 26 시스템 탭 바 갈래의 상단은 애플 뮤직 검색 탭 문법**(09-26 00:29 스샷) — 큰 제목 "검색" + 채움 검색 필드 + [취소].
  * 제목·필드는 목록 밖에 고정한다(결과·로딩으로 목록이 바뀔 때 입력 상자가 내려가면 키보드가 떨어진다).
- * 탐색 제목 줄 밑 검색 필드를 누르면 이 화면이 올라온다 — iOS 26 은 탐색 탭 안 스택(탭 바·액세서리 유지), 그 외는 Main 스택.
- * 검색 탭(탭 바 옆 검색 원, #730)은 뺐다 — 입구가 둘이라(PM 09-26 01:20). 그 외 플랫폼은 종전대로 검색 줄만이다.
+ * iOS 26·Android는 탐색 피드를 유지한 채 제자리 검색으로 덮는다. 그 외 플랫폼은 기존 스택 검색이다.
+ * Android는 큰 제목·검색 캡슐을 이 화면에서 그리고, iOS 26은 부모 시스템 바가 그린다.
  */
 interface ExploreSearchScreenProps {
   /**
@@ -55,6 +63,20 @@ interface ExploreSearchScreenProps {
 
 export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenProps = {}) {
   const screen = useExploreSearchScreen(embedding);
+  const insets = useSafeAreaInsets();
+  const isEmbedded = embedding !== undefined;
+  const androidEmbedded = Platform.OS === 'android' && isEmbedded;
+  const requestClose = embedding?.onRequestClose;
+  useFocusEffect(
+    useCallback(() => {
+      if (!androidEmbedded || !requestClose) return;
+      const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+        requestClose();
+        return true;
+      });
+      return () => subscription.remove();
+    }, [androidEmbedded, requestClose]),
+  );
   const listRef = useTabScrollToTop({ enabled: embedding !== undefined });
   /*
    * 제자리 검색의 등장·퇴장(PM 2026-09-27 23:01 "검색창 누를 때 애니메이션") — 피드 자리에 최근 검색어·결과가 살짝 올라오며
@@ -62,9 +84,15 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
    */
   const appear = useAnimatedValue(embedding ? 0 : 1);
   useEffect(() => {
-    if (!embedding) return;
-    Animated.spring(appear, { toValue: 1, ...motion.spring.snappy, useNativeDriver: true }).start();
-  }, [embedding, appear]);
+    if (!isEmbedded) return;
+    const enter = Animated.spring(appear, {
+      toValue: 1,
+      ...motion.spring.snappy,
+      useNativeDriver: true,
+    });
+    enter.start();
+    return () => enter.stop();
+  }, [isEmbedded, appear]);
   /*
    * 닫힘 — 본문만 흐리고 머리(제목·알약·검색창)를 그대로 두었다가 한 번에 떼면 "급발진"으로 사라졌다(PM 2026-09-27 23:19).
    * 밑의 피드 머리가 같은 자리(제목 "탐색"·링·검색창)라, **덮개 전체를 교차 페이드**하면 머리는 그대로인 채 알약의 닫기 칸만
@@ -80,7 +108,8 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
   });
   useEffect(() => {
     if (!closeRequested) return;
-    Animated.sequence([
+    Keyboard.dismiss();
+    const exit = Animated.sequence([
       Animated.timing(appear, {
         toValue: 0,
         duration: motion.duration.normal,
@@ -93,7 +122,11 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
         easing: motion.easing.easeOut,
         useNativeDriver: true,
       }),
-    ]).start(() => cancelRef.current());
+    ]);
+    exit.start(({ finished }) => {
+      if (finished) cancelRef.current();
+    });
+    return () => exit.stop();
   }, [closeRequested, appear, overlayFade]);
   const bodyMotion = {
     flex: 1,
@@ -254,14 +287,31 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
   };
 
   // 시스템 바 갈래에서는 상태 바만 비운다(스택 화면이라 바는 없다)
-  const Frame = HAS_NATIVE_TAB_BAR ? Animated.View : SafeAreaView;
+  const Frame = HAS_NATIVE_TAB_BAR || androidEmbedded ? Animated.View : SafeAreaView;
   return (
     <Frame
-      style={[styles.container, { paddingTop: nativeBarInset }, embedding ? { opacity: overlayFade } : null]}
+      style={[
+        styles.container,
+        { paddingTop: androidEmbedded ? insets.top : nativeBarInset },
+        embedding ? { opacity: overlayFade } : null,
+      ]}
       edges={['top']}
     >
-      {HAS_NATIVE_TAB_BAR ? (
+      {HAS_NATIVE_TAB_BAR || androidEmbedded ? (
         <>
+          {androidEmbedded && embedding ? (
+            <LargeTitleRow
+              title={EXPLORE_COPY.tabTitle}
+              trailing={
+                <SearchToolbar
+                  remaining={embedding.remaining}
+                  onExhaustedPress={embedding.onExhaustedPress}
+                  onClose={requestClose ?? screen.cancel}
+                  isOpen={!closeRequested}
+                />
+              }
+            />
+          ) : null}
           {/* 제자리 검색이면 제목은 "탐색" 그대로 — 페이지가 바뀌지 않았다는 신호. 오른쪽에 잔여 링 + 닫기 ✕
               (PM 2026-09-27 22:36 "검색할 때도 몇 회 남았는지 뜨게 하고 취소 x 버튼을 그 옆에") — 검색창은 폭을 다 쓴다 */}
           {/* 제자리 검색은 제목 "탐색" + [링 | ✕] 캡슐을 **시스템 바**가 든다(탐색 화면의 useSystemLargeTitle, 2026-09-28) —
@@ -297,7 +347,7 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
 
       {/* 미니플레이어(PL11) — 검색 화면에서도 유지된다(explore.md 4.5-1). iOS 26 갈래는 탭 안 스택이라 탭 바 액세서리가
           그대로 보인다(ExploreStack) — 직접 그리면 둘이 된다(02:07 PM "검색에 미니플레이어는 또 왜 보여"). 그 외는 직접 */}
-      {HAS_NATIVE_TAB_BAR ? null : <MiniPlayer />}
+      {HAS_NATIVE_TAB_BAR || embedding ? null : <MiniPlayer />}
 
       <ExploreMoreSheet
         item={screen.moreSheetItem}
