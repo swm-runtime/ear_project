@@ -200,6 +200,8 @@ export default function SettingsScreen() {
             <SettingsRow label={SETTINGS_COPY.info.notice} onPress={screen.openNotice} />
             <SettingsRow label={SETTINGS_COPY.info.terms} onPress={screen.openTerms} />
             <SettingsRow label={SETTINGS_COPY.info.privacy} onPress={screen.openPrivacyPolicy} />
+            {/* 제3자 저작물 고지 — 랜딩 /licenses 를 연다(CC BY 아이콘 표기, changes/archive/third-party-notice-in-app.md) */}
+            <SettingsRow label={SETTINGS_COPY.info.licenses} onPress={screen.openLicenses} />
             <SettingsRow
               label={SETTINGS_COPY.info.version}
               // 버전 뒤 괄호는 실행 중인 JS 번들 식별자다 — OTA 적용 여부를 눈으로 가른다

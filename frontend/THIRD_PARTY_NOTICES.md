@@ -8,9 +8,9 @@
 |---|---|
 | 저작물 | Solar Icon Set — `library-linear`, `library-bold` |
 | 저작자 | 480 Design (Solar Icons) |
-| 출처 | https://www.figma.com/community/file/1166831539721848736 · Iconify `solar` 세트 |
+| 출처 | Iconify `solar` 세트 — https://icon-sets.iconify.design/solar/ |
 | 라이선스 | Creative Commons Attribution 4.0 International (CC BY 4.0) — https://creativecommons.org/licenses/by/4.0/ |
 | 사용처 | `src/shared/ui/TabBarIcon.tsx` — Android 하단 탭 "라이브러리" 아이콘 |
 | 변경 | `library-linear` 의 획 굵기를 1.5 → 1.25 로 줄였다. `library-bold` 는 원본 그대로 |
 
-앱 안 표기 위치는 `docs/changes/pending/third-party-notice-in-app.md` 에서 정한다.
+사용자에게 보이는 고지는 랜딩 `https://earcast.co.kr/licenses/`(원본 `landing-page/src/content/licenses.ts`)이고, 앱 설정 [오픈소스 라이선스] 행이 연다. 항목을 늘리면 두 곳을 함께 고친다.
