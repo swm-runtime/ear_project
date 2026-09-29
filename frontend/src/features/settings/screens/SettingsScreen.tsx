@@ -1,5 +1,7 @@
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { BlurTargetView, BlurView } from 'expo-blur';
+import { useRef } from 'react';
+import { Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { APP_VERSION, APP_VERSION_LABEL, IS_DEV_API } from '@/shared/lib/app-version';
@@ -10,6 +12,8 @@ import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import ConfirmDialog from '@/shared/ui/ConfirmDialog';
 import { useFloatingHeaderScroll } from '@/shared/ui/FloatingHeader';
+import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
+import LargeTitleRow, { LARGE_TITLE_ROW_HEIGHT } from '@/shared/ui/LargeTitleRow';
 
 import { NotificationPrePromptModal } from '@/features/notification';
 
@@ -41,17 +45,30 @@ export default function SettingsScreen() {
 
   // 조회 값이 필요한 조작(토글·배속) — 기준값이 없으면 비활성이다(S6: 토글 섹션도 에러 영역)
   const hasControls = screen.controls !== null;
-  const { scrollProps } = useFloatingHeaderScroll();
+  const { scrollY, scrollProps } = useFloatingHeaderScroll();
+  // Android: 큰 제목이 절반쯤 밀려 올라가면 바의 작은 제목이 나타난다(iOS 큰 제목 접힘과 같은 구간)
+  const androidSmallTitleOpacity = scrollY.interpolate({
+    inputRange: [LARGE_TITLE_ROW_HEIGHT * 0.5, LARGE_TITLE_ROW_HEIGHT],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
+  // Android 바는 목록 **위에 떠 있다**(밑으로 목록이 지나가며 블러로 비친다) — 상태 바까지 덮으므로 안전영역을 직접 준다
+  const insets = useSafeAreaInsets();
+  // 떠 있는 바의 블러가 흐릴 대상 — 목록을 감싼다(Android)
+  const blurTargetRef = useRef<View>(null);
   // iOS 26: **시스템 큰 제목** — 라이브러리·탐색과 같다(PM 2026-09-28 03:14 "이거야"). 뒤로 버튼이 있어 UIKit 이 큰 제목을
   // 버튼 줄 밑에 두고, 스크롤 접힘·바 밑 블러는 시스템이 한다
   // 접힌 작은 제목 크기는 훅 기본값(전 화면 공통 — 04:09 PM)
   useSystemLargeTitle(SETTINGS_COPY.title, null);
 
   return (
-    <SafeAreaView style={styles.container} edges={USES_SYSTEM_PUSHED_HEADER ? [] : ['top']}>
+    <SafeAreaView
+      style={styles.container}
+      edges={USES_SYSTEM_PUSHED_HEADER || ANDROID_LARGE_TITLE ? [] : ['top']}
+    >
       {/* 앱바 — 뒤로가기 + "설정"(settings-uiux.md 4.1). iOS 26 은 시스템 투명 바(뒤로만) + 콘텐츠 큰 제목
           (PUSHED_SCREEN_HEADER, PM 2026-09-27 01:42 "설정 페이지도 UI 일관되게") */}
-      {USES_SYSTEM_PUSHED_HEADER ? null : (
+      {USES_SYSTEM_PUSHED_HEADER || ANDROID_LARGE_TITLE ? null : (
         <View style={styles.appBar}>
           <Pressable
             style={styles.backButton}
@@ -68,164 +85,237 @@ export default function SettingsScreen() {
         </View>
       )}
 
-      <Animated.ScrollView
-        contentContainerStyle={styles.scrollContent}
-        // 투명 시스템 바 밑을 비운다(iOS 26). 그 외 갈래는 RN 기본(never)
-        contentInsetAdjustmentBehavior={USES_SYSTEM_PUSHED_HEADER ? 'automatic' : 'never'}
-        {...scrollProps}
-      >
-        {/* ── 상단 요약(계정·구독) — 서버 값이 필요한 영역만 로딩·에러가 있다(S6) ── */}
-        {screen.isInitialLoading ? (
-          showSkeleton ? (
-            <SettingsTopSkeleton />
-          ) : null
-        ) : screen.isFullError ? (
-          <View style={styles.summaryErrorCard}>
-            <Text style={styles.summaryErrorText}>{SETTINGS_COPY.summaryError}</Text>
-            <Pressable
-              style={styles.summaryRetry}
-              onPress={screen.retry}
-              disabled={screen.isRetrying}
-              accessibilityRole="button"
-              accessibilityLabel={SETTINGS_COPY.retry}
-              accessibilityState={{ disabled: screen.isRetrying }}
-            >
-              <Text style={styles.summaryRetryLabel}>{SETTINGS_COPY.retry}</Text>
-            </Pressable>
-          </View>
-        ) : (
-          <>
-            <SettingsSection title={SETTINGS_COPY.sections.account}>
-              {screen.emailRow !== null ? (
-                <EmailRow
-                  state={screen.emailRow}
-                  onPress={screen.openEmail}
-                  onRetry={screen.retry}
-                  isRetrying={screen.isRetrying}
-                />
-              ) : null}
-            </SettingsSection>
-
-            {/* 구독 섹션 — 결제 구현 전 MVP 바이너리에서는 그리지 않는다(KAN-66, feature-flags.ts) */}
-            {IS_SUBSCRIPTION_UI_ENABLED ? (
-              <SettingsSection title={SETTINGS_COPY.sections.subscription}>
-                {screen.planRow !== null ? (
-                  <PlanSummaryCard
-                    state={screen.planRow}
-                    onPress={screen.openPlan}
+      <BlurTargetView ref={blurTargetRef} style={styles.blurTarget}>
+        <Animated.ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            // Android — 떠 있는 바(상태 바 + 52) 밑, 종전과 같은 간격(md)을 두고 시작한다
+            ANDROID_LARGE_TITLE && {
+              paddingTop: insets.top + ANDROID_BAR_ROW_HEIGHT + theme.spacing.md,
+            },
+          ]}
+          // 투명 시스템 바 밑을 비운다(iOS 26). 그 외 갈래는 RN 기본(never)
+          contentInsetAdjustmentBehavior={USES_SYSTEM_PUSHED_HEADER ? 'automatic' : 'never'}
+          {...scrollProps}
+        >
+          {ANDROID_LARGE_TITLE ? (
+            <View style={styles.androidLargeTitle}>
+              <LargeTitleRow title={SETTINGS_COPY.title} />
+            </View>
+          ) : null}
+          {/* ── 상단 요약(계정·구독) — 서버 값이 필요한 영역만 로딩·에러가 있다(S6) ── */}
+          {screen.isInitialLoading ? (
+            showSkeleton ? (
+              <SettingsTopSkeleton />
+            ) : null
+          ) : screen.isFullError ? (
+            <View style={styles.summaryErrorCard}>
+              <Text style={styles.summaryErrorText}>{SETTINGS_COPY.summaryError}</Text>
+              <Pressable
+                style={styles.summaryRetry}
+                onPress={screen.retry}
+                disabled={screen.isRetrying}
+                accessibilityRole="button"
+                accessibilityLabel={SETTINGS_COPY.retry}
+                accessibilityState={{ disabled: screen.isRetrying }}
+              >
+                <Text style={styles.summaryRetryLabel}>{SETTINGS_COPY.retry}</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <>
+              <SettingsSection title={SETTINGS_COPY.sections.account}>
+                {screen.emailRow !== null ? (
+                  <EmailRow
+                    state={screen.emailRow}
+                    onPress={screen.openEmail}
                     onRetry={screen.retry}
                     isRetrying={screen.isRetrying}
                   />
                 ) : null}
               </SettingsSection>
+
+              {/* 구독 섹션 — 결제 구현 전 MVP 바이너리에서는 그리지 않는다(KAN-66, feature-flags.ts) */}
+              {IS_SUBSCRIPTION_UI_ENABLED ? (
+                <SettingsSection title={SETTINGS_COPY.sections.subscription}>
+                  {screen.planRow !== null ? (
+                    <PlanSummaryCard
+                      state={screen.planRow}
+                      onPress={screen.openPlan}
+                      onRetry={screen.retry}
+                      isRetrying={screen.isRetrying}
+                    />
+                  ) : null}
+                </SettingsSection>
+              ) : null}
+            </>
+          )}
+
+          {/* ── 아래는 정적 메뉴 — 조회와 무관하게 즉시 노출·동작한다(settings-uiux.md 4.6) ── */}
+
+          <SettingsSection title={SETTINGS_COPY.sections.content}>
+            <SettingsRow
+              label={SETTINGS_COPY.content.interest}
+              value={
+                screen.interestCount === null
+                  ? null
+                  : SETTINGS_COPY.content.interestCount(screen.interestCount)
+              }
+              onPress={screen.openInterests}
+            />
+            <SettingsRow label={SETTINGS_COPY.content.career} onPress={screen.openCareer} />
+            {/* 주제 자동 확장(FR-06)은 P1 미구현이라 항목을 그리지 않는다(settings-api.md 4.1) */}
+          </SettingsSection>
+
+          <SettingsSection title={SETTINGS_COPY.sections.playback}>
+            <SettingsRow
+              label={SETTINGS_COPY.playback.rate}
+              value={
+                screen.controls === null
+                  ? null
+                  : SETTINGS_COPY.playback.rateValue(screen.controls.playbackRate)
+              }
+              onPress={screen.openRateSheet}
+              disabled={!hasControls}
+            />
+            {/* 오프라인 저장 관리는 P1 이연 — 메뉴를 노출하지 않는다(settings.md 4.1) */}
+          </SettingsSection>
+
+          <SettingsSection title={SETTINGS_COPY.sections.notification}>
+            {screen.isNotificationBannerVisible ? (
+              <NotificationBanner onPress={screen.openPrePrompt} />
             ) : null}
-          </>
-        )}
+            <SettingsToggleRow
+              label={SETTINGS_COPY.notification.dripToggle}
+              value={screen.controls?.isDripNotificationEnabled ?? false}
+              onToggle={screen.toggleDripNotification}
+              isDimmed={screen.isDripToggleDimmed}
+              disabled={!hasControls}
+            />
+            <SettingsToggleRow
+              label={SETTINGS_COPY.notification.marketingToggle}
+              value={screen.controls?.isMarketingAgreed ?? false}
+              onToggle={screen.toggleMarketingConsent}
+              disabled={!hasControls}
+            />
+          </SettingsSection>
 
-        {/* ── 아래는 정적 메뉴 — 조회와 무관하게 즉시 노출·동작한다(settings-uiux.md 4.6) ── */}
+          <SettingsSection title={SETTINGS_COPY.sections.info}>
+            <SettingsRow label={SETTINGS_COPY.info.notice} onPress={screen.openNotice} />
+            <SettingsRow label={SETTINGS_COPY.info.terms} onPress={screen.openTerms} />
+            <SettingsRow label={SETTINGS_COPY.info.privacy} onPress={screen.openPrivacyPolicy} />
+            <SettingsRow
+              label={SETTINGS_COPY.info.version}
+              // 버전 뒤 괄호는 실행 중인 JS 번들 식별자다 — OTA 적용 여부를 눈으로 가른다
+              value={APP_VERSION_LABEL}
+              badge={screen.isUpdateAvailable ? SETTINGS_COPY.info.updateBadge : null}
+              rightSlot={
+                screen.isUpdateAvailable ? (
+                  <Pressable
+                    style={styles.updateButton}
+                    onPress={screen.openStore}
+                    accessibilityRole="button"
+                    accessibilityLabel={SETTINGS_COPY.info.update}
+                  >
+                    <Text style={styles.updateLabel}>{SETTINGS_COPY.info.update}</Text>
+                  </Pressable>
+                ) : undefined
+              }
+              a11yLabel={SETTINGS_COPY.info.versionA11y(APP_VERSION, screen.isUpdateAvailable)}
+            />
+          </SettingsSection>
 
-        <SettingsSection title={SETTINGS_COPY.sections.content}>
-          <SettingsRow
-            label={SETTINGS_COPY.content.interest}
-            value={
-              screen.interestCount === null
-                ? null
-                : SETTINGS_COPY.content.interestCount(screen.interestCount)
-            }
-            onPress={screen.openInterests}
-          />
-          <SettingsRow label={SETTINGS_COPY.content.career} onPress={screen.openCareer} />
-          {/* 주제 자동 확장(FR-06)은 P1 미구현이라 항목을 그리지 않는다(settings-api.md 4.1) */}
-        </SettingsSection>
+          <SettingsSection title={SETTINGS_COPY.sections.support}>
+            <SettingsRow label={SETTINGS_COPY.support.contact} onPress={screen.openContact} />
+          </SettingsSection>
 
-        <SettingsSection title={SETTINGS_COPY.sections.playback}>
-          <SettingsRow
-            label={SETTINGS_COPY.playback.rate}
-            value={
-              screen.controls === null
-                ? null
-                : SETTINGS_COPY.playback.rateValue(screen.controls.playbackRate)
-            }
-            onPress={screen.openRateSheet}
-            disabled={!hasControls}
-          />
-          {/* 오프라인 저장 관리는 P1 이연 — 메뉴를 노출하지 않는다(settings.md 4.1) */}
-        </SettingsSection>
-
-        <SettingsSection title={SETTINGS_COPY.sections.notification}>
-          {screen.isNotificationBannerVisible ? (
-            <NotificationBanner onPress={screen.openPrePrompt} />
-          ) : null}
-          <SettingsToggleRow
-            label={SETTINGS_COPY.notification.dripToggle}
-            value={screen.controls?.isDripNotificationEnabled ?? false}
-            onToggle={screen.toggleDripNotification}
-            isDimmed={screen.isDripToggleDimmed}
-            disabled={!hasControls}
-          />
-          <SettingsToggleRow
-            label={SETTINGS_COPY.notification.marketingToggle}
-            value={screen.controls?.isMarketingAgreed ?? false}
-            onToggle={screen.toggleMarketingConsent}
-            disabled={!hasControls}
-          />
-        </SettingsSection>
-
-        <SettingsSection title={SETTINGS_COPY.sections.info}>
-          <SettingsRow label={SETTINGS_COPY.info.notice} onPress={screen.openNotice} />
-          <SettingsRow label={SETTINGS_COPY.info.terms} onPress={screen.openTerms} />
-          <SettingsRow label={SETTINGS_COPY.info.privacy} onPress={screen.openPrivacyPolicy} />
-          <SettingsRow
-            label={SETTINGS_COPY.info.version}
-            // 버전 뒤 괄호는 실행 중인 JS 번들 식별자다 — OTA 적용 여부를 눈으로 가른다
-            value={APP_VERSION_LABEL}
-            badge={screen.isUpdateAvailable ? SETTINGS_COPY.info.updateBadge : null}
-            rightSlot={
-              screen.isUpdateAvailable ? (
-                <Pressable
-                  style={styles.updateButton}
-                  onPress={screen.openStore}
-                  accessibilityRole="button"
-                  accessibilityLabel={SETTINGS_COPY.info.update}
-                >
-                  <Text style={styles.updateLabel}>{SETTINGS_COPY.info.update}</Text>
-                </Pressable>
-              ) : undefined
-            }
-            a11yLabel={SETTINGS_COPY.info.versionA11y(APP_VERSION, screen.isUpdateAvailable)}
-          />
-        </SettingsSection>
-
-        <SettingsSection title={SETTINGS_COPY.sections.support}>
-          <SettingsRow label={SETTINGS_COPY.support.contact} onPress={screen.openContact} />
-        </SettingsSection>
-
-        <SettingsSection title={SETTINGS_COPY.sections.account}>
-          <SettingsRow label={SETTINGS_COPY.account.logout} onPress={screen.openLogoutDialog} />
-          {/* 파괴적 항목 — 로그아웃과 같은 크기의 빨강(PM 2026-09-27 22:45, iOS 설정의 "계정 삭제" 문법).
+          <SettingsSection title={SETTINGS_COPY.sections.account}>
+            <SettingsRow label={SETTINGS_COPY.account.logout} onPress={screen.openLogoutDialog} />
+            {/* 파괴적 항목 — 로그아웃과 같은 크기의 빨강(PM 2026-09-27 22:45, iOS 설정의 "계정 삭제" 문법).
               숨기지 않는다 — 찾을 수 없는 탈퇴는 다크 패턴이다(settings-uiux.md 4.1) */}
-          <SettingsRow
-            label={SETTINGS_COPY.account.withdraw}
-            onPress={screen.openWithdrawal}
-            isDestructive
-          />
-        </SettingsSection>
-
-        {/* 관리자 섹션 — 관리자 계정에만, 리스트 맨 끝(일반 계정에는 행 자체가 없다) */}
-        {screen.isAdmin ? (
-          <SettingsSection title={SETTINGS_COPY.sections.admin}>
-            <SettingsRow label={SETTINGS_COPY.admin.menu} onPress={screen.openAdmin} />
+            <SettingsRow
+              label={SETTINGS_COPY.account.withdraw}
+              onPress={screen.openWithdrawal}
+              isDestructive
+            />
           </SettingsSection>
-        ) : null}
 
-        {/* 개발계 진단은 사용자 메뉴 아래에 별도 묶음으로 둔다. 운영 앱에는 노출하지 않는다. */}
-        {IS_DEV_API ? (
-          <SettingsSection title={SETTINGS_COPY.sections.developer}>
-            <DevPushTokenRow />
-            <DevDiagnosticsRows />
-          </SettingsSection>
-        ) : null}
-      </Animated.ScrollView>
+          {/* 관리자 섹션 — 관리자 계정에만, 리스트 맨 끝(일반 계정에는 행 자체가 없다) */}
+          {screen.isAdmin ? (
+            <SettingsSection title={SETTINGS_COPY.sections.admin}>
+              <SettingsRow label={SETTINGS_COPY.admin.menu} onPress={screen.openAdmin} />
+            </SettingsSection>
+          ) : null}
+
+          {/* 개발계 진단은 사용자 메뉴 아래에 별도 묶음으로 둔다. 운영 앱에는 노출하지 않는다. */}
+          {IS_DEV_API ? (
+            <SettingsSection title={SETTINGS_COPY.sections.developer}>
+              <DevPushTokenRow />
+              <DevDiagnosticsRows />
+            </SettingsSection>
+          ) : null}
+        </Animated.ScrollView>
+      </BlurTargetView>
+
+      {/* Android 떠 있는 바는 목록(BlurTargetView) **뒤에** 그린다 — BlurView 는 붙는 순간 한 번만 대상을 찾는데, 앞에 두면
+          그때 목록의 ref 가 아직 비어 블러가 안 걸렸다(PM 2026-09-29 15:50 스샷 — 글자가 흐려지지 않고 연해지기만). 절대 배치라 위치는 같다 */}
+      {ANDROID_LARGE_TITLE ? (
+        /*
+         * **Android — 애플 문법**(PM 2026-09-29 14:42 "설정을 애플처럼, 제목 위에 원형 버튼에 <", Android 전용): 위 줄엔
+         * 유리 원 안의 ‹ 만, 큰 제목 "설정"은 콘텐츠 첫 줄. 스크롤해 큰 제목이 밀려 올라가면 위 줄 가운데에 작은 제목이
+         * 나타난다(iOS 큰 제목 접힘). Android 네이티브의 같은 자리(Material 3 Large top app bar)는 모양이 다르고
+         * react-native-screens 가 Android 큰 제목을 지원하지 않아 화면이 직접 그린다
+         */
+        <View style={[styles.androidBar, { paddingTop: insets.top }]}>
+          {/* 내리면 나타나는 블러 판 — 작은 제목과 같은 구간에 페이드인(PM 2026-09-29 15:03 "상단바 blur 처리"). 상태 바까지 덮는다 */}
+          <Animated.View
+            style={[StyleSheet.absoluteFill, { opacity: androidSmallTitleOpacity }]}
+            pointerEvents="none"
+          >
+            {/* 프로스트 글라스(서리 유리, PM 2026-09-29 15:17) — 뒤를 세게 뭉개고(100) 흰 막을 두껍게 얹어 형체 없이
+                색만 은은하게 비친다. 하단 독의 유리(GlassSurface: 60 + 72% 회백)보다 한 단 더 뿌옇고 희다 */}
+            <BlurView
+              style={StyleSheet.absoluteFill}
+              tint="light"
+              intensity={FROST_BLUR_INTENSITY}
+              // Android 는 흐릴 대상을 직접 가리켜야 진짜 블러가 걸린다(expo-blur 57 — 없으면 반투명 막만 깔렸다,
+              // PM 2026-09-29 15:31 "형체가 흐트러져 보이는 게 안 되나 보네"). 대상은 밑의 목록(BlurTargetView)
+              blurTarget={blurTargetRef}
+              blurMethod="dimezisBlurView"
+            />
+            <View style={styles.androidBarEdge} />
+          </Animated.View>
+          <View style={[styles.appBar, styles.androidAppBar]}>
+            <GlassCapsule style={styles.androidBackCircle}>
+              <Pressable
+                style={styles.androidBackPressable}
+                onPress={screen.goBack}
+                accessibilityRole="button"
+                accessibilityLabel={SETTINGS_COPY.backA11y}
+                hitSlop={4}
+              >
+                <ChevronIcon
+                  direction="left"
+                  size={ANDROID_BACK_ICON_SIZE}
+                  color={theme.color.textPrimary}
+                />
+              </Pressable>
+            </GlassCapsule>
+            <Animated.Text
+              style={[
+                styles.appBarTitle,
+                styles.androidSmallTitle,
+                { opacity: androidSmallTitleOpacity },
+              ]}
+              numberOfLines={1}
+              importantForAccessibility="no"
+            >
+              {SETTINGS_COPY.title}
+            </Animated.Text>
+            <View style={styles.androidBackSpacer} />
+          </View>
+        </View>
+      ) : null}
 
       {/* ── 시트·다이얼로그 ── */}
 
@@ -318,8 +408,23 @@ export default function SettingsScreen() {
 
 /** 앱바 뒤로 셰브론 — 글자 `‹` 는 폰트마다 굵기·세로 위치가 달라 도형으로 그린다(design.md §5) */
 const BACK_ICON_SIZE = 24;
+/** Android 애플 문법 헤더(원형 ‹ + 콘텐츠 큰 제목) — iOS 26 은 시스템 바, 옛 iOS 는 종전 앱바 */
+const ANDROID_LARGE_TITLE = Platform.OS === 'android' && !USES_SYSTEM_PUSHED_HEADER;
+const ANDROID_BACK_ICON_SIZE = 20;
+/** Android 떠 있는 바의 줄 높이(상태 바 제외) — 44 에서 52 로(PM 2026-09-29 15:10 "상단바 높이 조금만 더") */
+const ANDROID_BAR_ROW_HEIGHT = 52;
+/**
+ * 서리 유리 블러 세기(expo-blur 0~100, Android 는 ÷4 가 반경) — 100 + 흰 55% 는 뒤가 아예 안 보였다(PM 2026-09-29 15:56).
+ * 형체는 흐트러지되 색·덩어리는 비치게 30. 흰 막은 **expo-blur 틴트 하나만** 쓴다 — Android 의 `light` 틴트는 세기 비례로
+ * 흰 막(40 이면 31%)을 스스로 깔아, 우리 막(30%)을 또 얹으니 흰 판이 됐다(16:05 "그냥 흰색, 뒤가 안 보여")
+ */
+const FROST_BLUR_INTENSITY = 30;
 
 const styles = StyleSheet.create({
+  // 블러 대상(목록 감싸개) — 레이아웃은 종전 목록 그대로 화면을 채운다
+  blurTarget: {
+    flex: 1,
+  },
   container: {
     flex: 1,
     backgroundColor: theme.color.background,
@@ -344,6 +449,54 @@ const styles = StyleSheet.create({
   },
   appBarSpacer: {
     minWidth: theme.touchTarget.minWidth,
+  },
+  // Android — iOS 26 뒤로 버튼처럼 유리 원(40) 안의 ‹. 오른쪽은 같은 폭을 비워 작은 제목이 가운데에 선다
+  /*
+   * 원의 왼쪽 끝을 콘텐츠 왼쪽 선(큰 제목·섹션 = md 16)에 맞춘다(PM 2026-09-29 14:54 "왼쪽 공백이 예전 기준") — 종전 앱바는
+   * 44 칸(sm 8 + 칸 안 가운데 ‹)이라 여백이 8+α 였고, 원(40)을 그 자리에 두니 12 에서 시작해 제목 선과 어긋났다.
+   * iOS 26 뒤로 버튼도 16 에서 시작한다
+   */
+  androidAppBar: {
+    height: ANDROID_BAR_ROW_HEIGHT,
+    paddingHorizontal: theme.spacing.md,
+  },
+  // 목록 위에 떠 있는 바 — 목록보다 뒤에 그려지지만 absolute + zIndex 로 위에 선다
+  androidBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1,
+  },
+  // 블러 판 아래 끝 — 판이 끊기는 자리를 선으로 정리한다(iOS 바 그림자 선)
+  androidBarEdge: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: theme.color.border,
+  },
+  // 접힌 작은 제목 — iOS 접힌 바와 같은 20(PM 2026-09-29 15:03 "조금 더 키우자", 종전 16)
+  androidSmallTitle: {
+    fontSize: theme.font.size.lg,
+    fontWeight: '600',
+  },
+  androidBackCircle: {
+    width: HEADER_CONTROL_HEIGHT,
+    height: HEADER_CONTROL_HEIGHT,
+  },
+  androidBackPressable: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  androidBackSpacer: {
+    width: HEADER_CONTROL_HEIGHT,
+  },
+  // 큰 제목 줄 — 섹션 간격(gap)과 겹치지 않게 아래로 살짝 당긴다
+  androidLargeTitle: {
+    marginBottom: -theme.spacing.sm,
   },
   // 큰 제목 줄 — 섹션 간격(gap)과 겹치지 않게 아래 여백은 줄 자체가 갖는다
   scrollContent: {

@@ -1,4 +1,4 @@
-import Svg, { Circle, Path } from 'react-native-svg';
+import Svg, { Circle, Defs, G, Mask, Path, Rect } from 'react-native-svg';
 
 import PersonIcon from './PersonIcon';
 
@@ -12,7 +12,24 @@ interface TabBarIconProps {
   size: number;
 }
 
-const STROKE_WIDTH = 1.8;
+/** 책 획 굵기 — iOS 실측(1.83)보다 가늘게(PM 2026-09-29 16:07 "아이콘 굵기 줄여") */
+const BOOK_STROKE = 1.5;
+/** 나침반 테두리 굵기 — 실측 2 보다 가늘게(같은 지시) */
+const COMPASS_STROKE = 1.6;
+/** 책 띠 굵기 */
+const BAND_STROKE = 1;
+
+/*
+ * 책 네 권(books.vertical 모양) — 28×25 판. 왼쪽 세 권은 바닥과 칸막이를 같이 쓰고(가운데가 가장 짧고 띠 두 줄),
+ * 맨 오른쪽 한 권은 따로 서서 위가 왼쪽으로 4° 기운다
+ */
+const BOOK_A = 'M5.83 24.08H1.92a1 1 0 0 1-1-1V5.25a1 1 0 0 1 1-1h2.91a1 1 0 0 1 1 1Z';
+const BOOK_B = 'M5.83 24.08V7.83h8.34v16.25Z';
+const BOOK_C = 'M14.17 24.08V1.92a1 1 0 0 1 1-1h3.66a1 1 0 0 1 1 1v21.16a1 1 0 0 1-1 1H1.92';
+const BOOK_BANDS = 'M8.3 10.83h3.6M8.3 21.17h3.6';
+/** 나침반 바늘(45° 마름모) + 가운데 구멍 — evenodd 로 구멍이 뚫린다 */
+const NEEDLE = 'M17.8 6.2 14.4 14.4 6.2 17.8 9.6 9.6Z';
+const NEEDLE_HOLE = 'M12 10.8a1.2 1.2 0 1 0 0 2.4a1.2 1.2 0 1 0 0-2.4Z';
 
 /**
  * 하단 탭 아이콘.
@@ -22,34 +39,96 @@ const STROKE_WIDTH = 1.8;
  * 색만 두면 색각 이상·저조도에서 어느 탭에 있는지 읽히지 않는다.
  *
  * 라벨이 항상 함께 있으므로 아이콘은 장식이다 — 낭독기 노출은 탭 자체가 담당한다.
+ *
+ * **모양은 iOS 26 시스템 탭 바 아이콘을 그대로 따른다**(PM 2026-09-29 "아이콘이 다르잖아 — 무조건 찾아"). iOS 실기기
+ * 스샷(3x)의 픽셀을 재서 치수를 옮겼다 — 책 네 권(28×25pt) · 원 + 채운 45° 바늘과 가운데 구멍(23pt) · 사람(머리 + 돔
+ * 어깨). SF Symbols 는 애플 플랫폼 밖에서 쓸 수 없어(라이선스) 벡터를 가져오지 않고 치수만 재서 직접 그렸다.
+ * 이 SVG 는 Android 와 iOS 26 미만의 캡슐 탭 바, 첫 실행 튜토리얼이 쓴다(iOS 26 은 시스템 SF Symbols)
  */
 export default function TabBarIcon({ name, color, focused, size }: TabBarIconProps) {
-  // 채울 때도 같은 색·같은 굵기의 획을 함께 준다. 획은 경로 바깥으로 굵기의 절반만큼
-  // 번져 나가므로, 채우기만 하면 그 번짐이 사라져 **활성일 때 도형이 줄어 보인다.**
-  // 획을 유지해야 두 상태의 바깥 실루엣이 정확히 일치한다
-  const shape = focused
-    ? { fill: color, stroke: color, strokeWidth: STROKE_WIDTH }
-    : { fill: 'none', stroke: color, strokeWidth: STROKE_WIDTH };
-
   if (name === 'library') {
-    // 북마크 — 담아 둔 것들이 쌓이는 곳
+    // 28×25 판을 높이 size 에 맞춘다 — 다른 아이콘(정사각 size)보다 가로가 조금 넓다(iOS 도 그렇다)
+    const width = (size * 28) / 25;
+    if (focused) {
+      // 채운 변형 — 칸막이와 띠를 뚫어 권이 구분되게 한다
+      return (
+        <Svg width={width} height={size} viewBox="0 0 28 25">
+          <Defs>
+            <Mask id="tab-library-cut">
+              <Rect x="0" y="0" width="28" height="25" fill="#fff" />
+              {/* 칸막이 두 줄 + 기운 책 왼쪽 가장자리(세 번째 책과 위에서 맞닿는다) */}
+              <Path
+                d="M5.83 5.2V23.2M14.17 7.83V23.2M20.85 25L19.4 2"
+                stroke="#000"
+                strokeWidth={0.9}
+              />
+              <Path d={BOOK_BANDS} stroke="#000" strokeWidth={BAND_STROKE} strokeLinecap="round" />
+            </Mask>
+          </Defs>
+          <G
+            mask="url(#tab-library-cut)"
+            fill={color}
+            stroke={color}
+            strokeWidth={BOOK_STROKE}
+            strokeLinejoin="round"
+          >
+            <Path d={BOOK_A} />
+            <Path d={BOOK_B} />
+            <Path d={BOOK_C} />
+          </G>
+          <Rect
+            x="22.05"
+            y="3.83"
+            width="4"
+            height="20.25"
+            rx="1"
+            fill={color}
+            stroke={color}
+            strokeWidth={BOOK_STROKE}
+            transform="rotate(-4 24.05 24.08)"
+          />
+        </Svg>
+      );
+    }
     return (
-      <Svg width={size} height={size} viewBox="0 0 24 24">
-        <Path
-          {...shape}
-          strokeLinejoin="round"
-          d="M7 3.6h10A1.6 1.6 0 0 1 18.6 5.2v15.4a.7.7 0 0 1-1.09.58L12 17.5l-5.51 3.68A.7.7 0 0 1 5.4 20.6V5.2A1.6 1.6 0 0 1 7 3.6z"
-        />
+      <Svg width={width} height={size} viewBox="0 0 28 25">
+        <G fill="none" stroke={color} strokeWidth={BOOK_STROKE} strokeLinejoin="round">
+          <Path d={BOOK_A} />
+          <Path d={BOOK_B} />
+          <Path d={BOOK_C} />
+          <Rect
+            x="22.05"
+            y="3.83"
+            width="4"
+            height="20.25"
+            rx="1"
+            transform="rotate(-4 24.05 24.08)"
+          />
+        </G>
+        <Path d={BOOK_BANDS} stroke={color} strokeWidth={BAND_STROKE} strokeLinecap="round" />
       </Svg>
     );
   }
 
   if (name === 'explore') {
-    // 나침반 — 테두리는 늘 선으로 두고 바늘만 채워 두 상태를 가른다
+    if (focused) {
+      // 채운 변형 — 원을 채우고 바늘을 뚫는다(가운데 점은 남긴다)
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24">
+          <Defs>
+            <Mask id="tab-explore-needle">
+              <Rect x="0" y="0" width="24" height="24" fill="#fff" />
+              <Path d={`${NEEDLE} ${NEEDLE_HOLE}`} fill="#000" fillRule="evenodd" />
+            </Mask>
+          </Defs>
+          <Circle cx="12" cy="12" r="11.5" fill={color} mask="url(#tab-explore-needle)" />
+        </Svg>
+      );
+    }
     return (
       <Svg width={size} height={size} viewBox="0 0 24 24">
-        <Circle cx="12" cy="12" r="8.6" fill="none" stroke={color} strokeWidth={STROKE_WIDTH} />
-        <Path {...shape} strokeLinejoin="round" d="M15.6 8.4l-2 5.2-5.2 2 2-5.2z" />
+        <Circle cx="12" cy="12" r="10.5" fill="none" stroke={color} strokeWidth={COMPASS_STROKE} />
+        <Path d={`${NEEDLE} ${NEEDLE_HOLE}`} fill={color} fillRule="evenodd" />
       </Svg>
     );
   }

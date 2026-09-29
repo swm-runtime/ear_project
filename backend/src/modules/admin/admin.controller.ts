@@ -73,6 +73,7 @@ import {
 import { AdminSystemStatsResponseDto } from './dto/admin-system-stats-response.dto';
 import { AdminContentService } from './services/admin-content.service';
 import { AdminSystemStatsService } from './services/admin-system-stats.service';
+import { DailyMetricsScheduler } from './services/daily-metrics.scheduler';
 import { ResourceAlertService } from './services/resource-alert.service';
 import { AdminTopicService } from './services/admin-topic.service';
 
@@ -122,6 +123,7 @@ export class AdminController {
     private readonly adminTopicService: AdminTopicService,
     private readonly resourceAlertService: ResourceAlertService,
     private readonly adminNoticeService: AdminNoticeService,
+    private readonly dailyMetricsScheduler: DailyMetricsScheduler,
   ) {}
 
   /** 자원·DB 부하 스냅샷 — 로그 콘솔 서버 상태 탭 (읽기 전용, 부작용 없음) */
@@ -131,6 +133,24 @@ export class AdminController {
       await this.adminSystemStatsService.snapshot(new Date()),
       this.resourceAlertService.history(),
     );
+  }
+
+  /**
+   * 일일 지표를 **지금** Slack 에 게시한다 — 크론(17:00 KST)과 같은 본문, 어제 하루치.
+   * 202 로 바로 돌려주고 게시는 뒤에서 한다. 지표를 본문에 되돌려주지 않는다 — 출처는
+   * Slack 채널 하나로 둔다(`changes/pending/admin-api-daily-metrics-trigger.md`).
+   */
+  @Post('reports/daily-metrics')
+  @HttpCode(HttpStatus.ACCEPTED)
+  triggerDailyMetrics(): { date: string } {
+    if (!this.dailyMetricsScheduler.configured) {
+      throw new BusinessException({
+        status: HttpStatus.CONFLICT,
+        errorCode: ErrorCode.ADMIN_REPORT_NOT_CONFIGURED,
+        message: 'GA4 자격 또는 Slack 웹훅이 설정되지 않았습니다',
+      });
+    }
+    return { date: this.dailyMetricsScheduler.trigger(new Date()) };
   }
 
   @Get('topics')

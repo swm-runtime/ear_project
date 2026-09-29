@@ -127,6 +127,20 @@ export class EnvironmentVariables {
   SLACK_SIGNUP_WEBHOOK_URL?: string;
 
   /**
+   * 일일 지표 Slack 보고(KAN-107 2단계)의 GA4 자격 — 둘 다 **선택**이고 하나라도 비면
+   * 보고가 꺼진다(로컬·테스트 기본). 속성 ID 는 GA4 관리 화면의 숫자값이고, 서비스 계정
+   * JSON 은 base64 로 둔다(`CLOUDFRONT_PRIVATE_KEY_BASE64` 와 같은 방식). 그 서비스 계정을
+   * GA4 속성에 뷰어로 추가해야 읽힌다.
+   */
+  @IsOptional()
+  @IsString()
+  GA4_PROPERTY_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  GA4_SERVICE_ACCOUNT_BASE64?: string;
+
+  /**
    * Sentry DSN. **비우면 Sentry 가 초기화되지 않는다**(로컬·테스트 기본) — 그래서 선택값이다.
    * 값 자체는 클라이언트에도 박히는 준공개 값이지만, 환경별로 프로젝트가 갈리므로 env 로 둔다.
    * 실제 읽는 곳은 `src/instrument.ts` 다 — Nest 부팅 전에 돌아야 해서 ConfigService 를 못 쓴다.

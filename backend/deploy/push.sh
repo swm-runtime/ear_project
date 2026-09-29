@@ -46,6 +46,14 @@ $SSH "ec2-user@$HOST" "
   aws secretsmanager get-secret-value --region \${AWS_REGION:-ap-northeast-2} \
     --secret-id $SECRET_ID --query SecretString --output text > \"\$SECRET_TMP\"
   cp .env.prod .env.prod.bak          # 갱신이 깨졌을 때 되돌릴 자리 — 한 세대만 유지
+  # **선택 env 키를 .env.prod 에 미리 선언한다.** apply-secrets.py 는 Secrets 에만 있고 .env.prod 에
+  # 없는 키를 만나면 배포를 중단시킨다(조용히 키를 늘리는 쪽이 더 위험하다는 판단 — 그 판단은
+  # 그대로다). 다만 코드가 \"비면 꺼진다\" 로 다루는 **알려진 선택 키**는 서버마다 SSH 로 한 줄씩
+  # 넣어 주는 대신 여기서 빈 값으로 선언해 둔다. 값은 여전히 Secrets 가 채우고, Secrets 에 없으면
+  # 빈 채로 남아 기능이 꺼진다. 목록에 없는 키는 종전처럼 막힌다.
+  for KEY in GA4_PROPERTY_ID GA4_SERVICE_ACCOUNT_BASE64; do
+    grep -q \"^\$KEY=\" .env.prod || printf '%s=\\n' \"\$KEY\" >> .env.prod
+  done
   python3 deploy/apply-secrets.py \"\$SECRET_TMP\" .env.prod
 
   if [ -n \"$API_IMAGE\" ]; then
@@ -55,6 +63,11 @@ $SSH "ec2-user@$HOST" "
     API_IMAGE=\"$API_IMAGE\" docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --no-build api
     # 다음에 API_IMAGE 없이(옛 방식) 배포해도 compose 가 같은 컨테이너를 잡도록 남겨둔다 — 값은 기록용
     echo \"$API_IMAGE\" > .api-image
+    # 옛 이미지 정리 — pull 로 새 태그가 오면 이전 태그는 남아 배포마다 디스크가 는다
+    # (CWAgent 실측 2026-09-15~23: 하루 약 1%p, 09-24 수동 정리로 24%p 회수). `-a` 여야 태그가 남은
+    # 미사용 이미지도 지워지고, 실행 중 컨테이너의 이미지는 절대 대상이 아니다. 24시간 전 것만 —
+    # 방금 pull 한 이미지가 어떤 이유로 아직 안 붙었더라도 지워지지 않게.
+    docker image prune -af --filter \"until=24h\" >/dev/null 2>&1 || true
   else
     docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build api
   fi
