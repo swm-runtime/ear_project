@@ -13,6 +13,7 @@ import { Text, AnimatedText } from '@/shared/ui/Typography';
 
 import {
   MINI_CARD_RADIUS,
+  MINI_CARD_WIDTH,
   MiniPlayer,
   miniDropStyle,
   miniDropProgress,
@@ -510,7 +511,7 @@ const styles = StyleSheet.create({
   cardGlass: {
     position: 'absolute',
     top: 0,
-    width: theme.dock.width,
+    width: MINI_CARD_WIDTH,
     borderRadius: CARD_RADIUS,
     borderCurve: 'continuous',
     boxShadow: '0 4px 20px rgba(0, 0, 0, 0.10)',

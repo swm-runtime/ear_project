@@ -50,19 +50,23 @@ const MINI_PLAY_ICON_SIZE = 20;
  * 자른다) — iOS 26 미니플레이어(탭 바 액세서리)가 캡슐이다(PM 2026-09-29 00:55 "하단 footer 리퀴드 최대한 유사하게", Android 전용)
  */
 /**
- * 썸네일 한 변·행 위아래 여백. **Android 는 더 낮은 카드**(PM 2026-09-30 03:05 "미니플레이어 높이 낮추고 앨범커버 조금
- * 줄이자") — 썸네일 40 → 34, 여백 6 → 5. 행 높이는 재생 버튼 터치 영역 44 가 바닥이라 44 + 진행바 2 = 46 이 최소다
+ * 썸네일 한 변·행 위아래 여백. **Android 는 iOS 26 미니플레이어(탭 바 액세서리)와 같은 치수**(PM 2026-09-30 03:23 — 스샷
+ * 실측 iOS 높이 약 48pt · 폭은 탭 바보다 양옆 3pt 좁음) — 썸네일 36 · 여백 5 → 행 46 + 진행바 2 = 48.
+ * (03:05 에 34 로 줄였다가 iOS 에 맞춰 36)
  */
 const IS_ANDROID_MINI = Platform.OS === 'android';
-export const MINI_THUMB_SIZE = IS_ANDROID_MINI ? 34 : 40;
+export const MINI_THUMB_SIZE = IS_ANDROID_MINI ? 36 : 40;
 const MINI_ROW_PADDING = IS_ANDROID_MINI ? 5 : 6;
 /** 진행바 — 아래 변, 캡슐 모서리에 잘리지 않게 양옆 12 안쪽(PM 2026-09-25) */
 const PROGRESS_HEIGHT = 2;
 /** 카드 전체 높이(진행바 포함) — PlayerScreen 의 열림·닫힘 모션 대체 치수가 이 값을 쓴다 */
 export const MINI_CARD_HEIGHT =
   Math.max(MINI_THUMB_SIZE + MINI_ROW_PADDING * 2, 44) + PROGRESS_HEIGHT;
-/** Android 는 높이의 절반 = 완전한 알약(46 → 23). iOS 26 미만 카드는 종전 22 */
+/** Android 는 높이의 절반 = 완전한 알약(48 → 24). iOS 26 미만 카드는 종전 22 */
 export const MINI_CARD_RADIUS = IS_ANDROID_MINI ? MINI_CARD_HEIGHT / 2 : 22;
+/** 카드 폭 — Android 는 탭 바보다 양옆 3 좁다(iOS 26 액세서리 실측). 독 뒤 판(CapsuleTabBar)도 이 폭을 쓴다 */
+const MINI_CARD_SIDE_INSET = IS_ANDROID_MINI ? 3 : 0;
+export const MINI_CARD_WIDTH = theme.dock.width - MINI_CARD_SIDE_INSET * 2;
 const PROGRESS_INSET = 12;
 /**
  * **Android 불투명 독의 미니플레이어**(PM 2026-09-30 02:48 "A" — 탭 바와 같은 재질). 독 안 카드가 흰 면 + hairline 을
@@ -513,8 +517,8 @@ const styles = StyleSheet.create({
   // 캡슐 탭 바 위에 떠 있는 둥근 카드(2026-09-23 PM) — 좌우 md 여백, 캡슐과 DOCK_GAP 띄움
   container: {
     position: 'absolute',
-    // 캡슐 탭 바와 같은 폭으로 가운데(PM 2026-09-23)
-    width: theme.dock.width,
+    // 캡슐 탭 바와 같은 폭으로 가운데(PM 2026-09-23) — Android 는 양옆 3 좁게(MINI_CARD_WIDTH)
+    width: MINI_CARD_WIDTH,
     alignSelf: 'center',
     borderRadius: MINI_CARD_RADIUS,
     borderCurve: 'continuous',
