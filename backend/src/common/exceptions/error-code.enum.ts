@@ -163,6 +163,8 @@ export enum ErrorCode {
   ADMIN_TOPIC_HAS_NO_CONTENTS = 'ADMIN_TOPIC_HAS_NO_CONTENTS',
   /** 저장소(S3·KVS) 업로드 실패 — 부분 업로드는 정리된다(admin.md 7) */
   ADMIN_STORAGE_FAILED = 'ADMIN_STORAGE_FAILED',
+  /** 일일 지표 수동 게시 — GA4 자격이나 Slack 웹훅이 서버에 없다(KAN-107 2단계) */
+  ADMIN_REPORT_NOT_CONFIGURED = 'ADMIN_REPORT_NOT_CONFIGURED',
 
   // --- 콘텐츠 (공용 — common-error-handling.md 4.1) ---
   /** 담기 등에서 **건별 결과**로도 전달된다 (onboarding-api.md 4.6 `failed[]`) */
