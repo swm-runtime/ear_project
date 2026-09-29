@@ -10,13 +10,14 @@ import {
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useNativeHeaderInset } from '@/shared/navigation/useNativeHeaderInset';
 import { useSystemLargeTitle } from '@/shared/navigation/useSystemLargeTitle';
 import { useTabScrollToTop } from '@/shared/navigation/useTabScrollToTop';
 import { theme } from '@/shared/theme';
 import AndroidBlurTarget from '@/shared/ui/AndroidBlurTarget';
+import AndroidCollapsingBar from '@/shared/ui/AndroidCollapsingBar';
 import FloatingHeader, {
   useFloatingHeaderInset,
   useFloatingHeaderScroll,
@@ -64,11 +65,13 @@ export default function ExploreScreen() {
   // 떠 있는 머리 줄(검색창·칩)의 높이 — 목록이 그만큼 위를 비운다(시스템 바 갈래에서는 0)
   const [headerHeight, setHeaderHeight] = useState(0);
   const floatingInset = useFloatingHeaderInset(headerHeight);
-  const headerInset = HAS_NATIVE_TAB_BAR ? 0 : floatingInset;
+  const insets = useSafeAreaInsets();
+  // Android 는 iOS 식 접힘 바(AndroidCollapsingBar) — 머리 줄이 목록 첫 줄이라 상태 바만 비운다
+  const headerInset = HAS_NATIVE_TAB_BAR ? 0 : ANDROID_IOS_HEADER ? insets.top : floatingInset;
   // 시스템 탭 갈래(바 없음) — 스크롤 뷰가 아닌 상태 화면(스켈레톤·에러)은 상태 바만 비운다
   const nativeBarInset = useNativeHeaderInset();
   // 맨 위에서는 머리 줄 컨트롤이 면, 내리면 유리(PM 2026-09-25)
-  const { solidness, scrollProps } = useFloatingHeaderScroll();
+  const { solidness, scrollY, scrollProps } = useFloatingHeaderScroll();
   // 머리 줄(JS 탭 바 갈래)의 루트 ref — 종전 시스템 edge effect 연결용, 지금은 FloatingHeader 가 요구만 한다
   const headerRef = useRef<View>(null);
   // Android 서리 유리 띠의 블러 대상(AndroidBlurTarget)
@@ -195,7 +198,14 @@ export default function ExploreScreen() {
   ) : null;
   // 시스템 바 갈래에서는 제목 줄·검색 필드·칩이 콘텐츠의 첫 줄이다 — 목록과 같이 스크롤한다.
   // 검색 필드는 유리가 아니라 면(콘텐츠 안) — 누르면 검색 화면(E6), 입력은 거기서(explore.md 4.5-1)
-  const contentChips = HAS_NATIVE_TAB_BAR ? (
+  const contentChips = ANDROID_IOS_HEADER ? (
+    // Android — iOS 와 같이 큰 제목·검색창·칩이 목록 첫 줄(PM 2026-09-29 17:19). 링은 떠 있는 바의 오른쪽에 고정
+    <View>
+      <LargeTitleRow title={EXPLORE_COPY.tabTitle} />
+      <ExploreSearchBarRow onPress={openSearch} trailing={null} variant="fill" />
+      {chips}
+    </View>
+  ) : HAS_NATIVE_TAB_BAR ? (
     <View>
       <ExploreSearchBarRow onPress={openSearch} trailing={null} variant="fill" />
       {chips}
@@ -340,6 +350,7 @@ export default function ExploreScreen() {
     if (screen.showSkeleton) {
       return (
         <View style={{ paddingTop: headerInset + nativeBarInset }}>
+          {ANDROID_IOS_HEADER ? <LargeTitleRow title={EXPLORE_COPY.tabTitle} /> : null}
           <ExploreSkeleton showSectionTitles={!screen.isFiltered} />
         </View>
       );
@@ -428,7 +439,14 @@ export default function ExploreScreen() {
       <AndroidBlurTarget targetRef={blurTargetRef}>{renderBody()}</AndroidBlurTarget>
       {/* 머리 줄은 목록 **뒤에 선언**한다(zIndex 로 위에 뜬다) */}
       {/* 머리 줄은 목록 위에 떠 있다 — 배경 없이 유리 컨트롤만(2026-09-24 PM). 시스템 바 갈래에서는 없다 */}
-      {HAS_NATIVE_TAB_BAR ? null : (
+      {ANDROID_IOS_HEADER ? (
+        <AndroidCollapsingBar
+          title={EXPLORE_COPY.tabTitle}
+          scrollY={scrollY}
+          trailing={remainingRing}
+          blurTarget={blurTargetRef}
+        />
+      ) : HAS_NATIVE_TAB_BAR ? null : (
         <FloatingHeader
           onHeightChange={setHeaderHeight}
           solidness={solidness}
@@ -474,6 +492,9 @@ export default function ExploreScreen() {
     </View>
   );
 }
+
+/** Android — iOS 26 탐색 상단(큰 제목·검색창·칩이 목록 첫 줄 + 접히면 가운데 제목) 흉내. 옛 iOS 는 떠 있는 머리 줄 그대로 */
+const ANDROID_IOS_HEADER = Platform.OS === 'android' && !HAS_NATIVE_TAB_BAR;
 
 const styles = StyleSheet.create({
   // 고정 제목 아래로 목록이 지나가도 글자가 겹치지 않도록 화면 바탕을 채운다.
