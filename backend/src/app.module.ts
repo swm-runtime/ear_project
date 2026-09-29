@@ -5,6 +5,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { ScheduleModule } from '@nestjs/schedule';
 import { SentryModule } from '@sentry/nestjs/setup';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { StartupSummary } from './startup-summary';
 
 import { isSchedulerProcess } from '@/common/cluster.util';
 import { AllExceptionsFilter } from '@/common/filters/all-exceptions.filter';
@@ -94,6 +95,8 @@ import { UserModule } from '@/modules/user/user.module';
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_GUARD, useClass: RateLimitGuard },
     { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },
+    // 기동 요약 한 줄 — 무엇이 켜져 있는지(`startup-summary.ts`)
+    StartupSummary,
   ],
 })
 export class AppModule {}
