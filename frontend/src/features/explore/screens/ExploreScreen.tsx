@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Animated,
   FlatList,
+  Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -21,6 +22,7 @@ import FloatingHeader, {
 } from '@/shared/ui/FloatingHeader';
 import FullScreenError from '@/shared/ui/FullScreenError';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
+import LargeTitleRow from '@/shared/ui/LargeTitleRow';
 
 import {
   DOCK_SCROLL_PROPS,
@@ -163,6 +165,7 @@ export default function ExploreScreen() {
     const Frame = HAS_NATIVE_TAB_BAR ? View : SafeAreaView;
     return (
       <Frame style={[styles.container, { paddingTop: nativeBarInset }]} edges={['top']}>
+        {Platform.OS === 'android' ? <LargeTitleRow title={EXPLORE_COPY.tabTitle} /> : null}
         <FullScreenError
           title={
             screen.isFullErrorNetwork
@@ -427,6 +430,11 @@ export default function ExploreScreen() {
           solidness={solidness}
           containerRef={headerRef}
         >
+          {Platform.OS === 'android' ? (
+            <View style={styles.androidTitle}>
+              <LargeTitleRow title={EXPLORE_COPY.tabTitle} />
+            </View>
+          ) : null}
           <ExploreSearchBarRow onPress={openSearch} trailing={remainingRing} />
 
           {chips}
@@ -460,6 +468,10 @@ export default function ExploreScreen() {
 }
 
 const styles = StyleSheet.create({
+  // 고정 제목 아래로 목록이 지나가도 글자가 겹치지 않도록 화면 바탕을 채운다.
+  androidTitle: {
+    backgroundColor: theme.color.background,
+  },
   container: {
     flex: 1,
     backgroundColor: theme.color.background,
