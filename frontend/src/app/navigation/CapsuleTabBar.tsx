@@ -338,8 +338,17 @@ export default function CapsuleTabBar({
           <Animated.View
             style={[styles.cardGlass, { height: miniHeight }, miniDropStyle(miniDropProgress)]}
           >
-            <GlassSurface style={[StyleSheet.absoluteFill, styles.cardGlassClip]} />
-            <View style={[styles.cardGlassBorder, IS_ANDROID && styles.androidRim]} />
+            {/* 불투명 독(Android) — 뒤 판은 그림자만 낸다. 흰 면·윤곽은 미니플레이어 카드가 직접(solidCard) */}
+            {SOLID_DOCK ? (
+              <View
+                style={[StyleSheet.absoluteFill, styles.cardGlassClip, styles.cardSolidShadowPlate]}
+              />
+            ) : (
+              <>
+                <GlassSurface style={[StyleSheet.absoluteFill, styles.cardGlassClip]} />
+                <View style={[styles.cardGlassBorder, IS_ANDROID && styles.androidRim]} />
+              </>
+            )}
           </Animated.View>
         ) : null}
         {/* 불투명 독(Android)은 판을 앞 층 캡슐 안에 그린다 — 아래 capsuleSolidPlate 주석 */}
@@ -523,6 +532,9 @@ const styles = StyleSheet.create({
   capsuleGlass: {
     borderRadius: theme.radius.full,
     overflow: 'hidden',
+  },
+  cardSolidShadowPlate: {
+    backgroundColor: theme.color.background,
   },
   capsuleSolidPlate: {
     position: 'absolute',
