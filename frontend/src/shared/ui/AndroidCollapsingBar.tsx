@@ -20,7 +20,7 @@ interface AndroidCollapsingBarProps {
   blurTarget: RefObject<View | null>;
 }
 
-/** 설정 상단바(SettingsScreen)와 같은 서리 유리 — 블러 25(Android ÷4 반경) + 흰 12% */
+/** 블러 25(Android ÷4 반경) 위에 미니플레이어와 같은 밝은 틴트 72%를 얹는다. */
 const FROST_BLUR_INTENSITY = 25;
 
 /**
@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   frostWhite: {
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    backgroundColor: theme.color.frostedSurface,
   },
   edge: {
     position: 'absolute',

@@ -94,6 +94,7 @@ HIG 원문: https://developer.apple.com/design/human-interface-guidelines/
 아래 "떠 있는 머리 줄"은 JS 탭 바 갈래(iOS 26 미만·Android)의 규칙이다.
 
 ### 떠 있는 머리 줄 (HIG: Liquid Glass — 콘텐츠 위의 컨트롤 층)
+Android의 스크롤 접힘 상단바(`AndroidCollapsingBar`, 설정·탐색·라이브러리)는 블러 위에 미니플레이어와 같은 **밝은 틴트 72%**(`theme.color.frostedSurface`, `rgba(245,245,247,0.72)`)를 얹는다(2026-09-30 PM "너무 글자가 잘 안 보인다"). 기존 흰 12% 덮개를 강화해 뒤 콘텐츠와 제목의 대비를 확보한다. 틴트는 기존 접힘 진행도에 따라 바 배경과 함께 나타나며, 맨 위의 투명 상태·블러 강도 25·제목·컨트롤·iOS 시스템 바는 유지한다.
 Android 제목과 잔여 횟수 숫자는 `includeFontPadding: false`로 기본 글꼴 여백을 제거한다(2026-09-29). 제목은 34·700을 유지하고 줄 높이 42로 한글 획의 여유를 확보하며, 숫자는 기존 11·700·줄 높이 13을 유지한다. 두 텍스트 모두 세로 중앙 정렬로 알약·링과 맞춘다.
 
 **Android 글꼴 굵기는 iOS 코드의 역할별 값을 따른다**(2026-09-29 PM "iOS 굵기 분석해서 안드로이드에 적용"). `shared/ui/Typography`의 Text·TextInput·AnimatedText를 사용하며, Android만 Pretendard 1.3.9의 실제 400·500·600·700 파일에 연결한다. iOS·웹은 React Native 원본을 그대로 내보낸다. `FontProvider`는 앱 진입 때 로드하고, 로딩 중·실패 시 시스템 글꼴로 계속 표시한다. 중첩 Text의 굵기 상속·조건부 스타일·숫자 폭 설정·입력 ref·네이티브 애니메이션을 유지한다. 명시한 다른 fontFamily·기울임·지원하지 않는 굵기는 덮지 않는다. 서체가 달라 광학적 두께까지 동일하다는 뜻은 아니며, OS 접근성 굵게 설정의 실기기 비교는 별도다.
