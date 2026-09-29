@@ -3,7 +3,7 @@ import {
   type BottomTabBarProps,
 } from '@react-navigation/bottom-tabs';
 import { useContext, useEffect, useMemo, useRef } from 'react';
-import { Animated, PanResponder, Platform, StyleSheet, View } from 'react-native';
+import { Animated, PanResponder, PixelRatio, Platform, StyleSheet, View } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion, theme } from '@/shared/theme';
@@ -69,6 +69,14 @@ const IS_ANDROID = Platform.OS === 'android';
  * 미끄러지기만 한다 — 누를 때 부풀기(1.3×)·끌 때 수축·끝 넘김 고무줄·도착 출렁임을 전부 끈다. iOS(26 미만 캡슐)는 그대로
  */
 const SOLID_DOCK = IS_ANDROID;
+/*
+ * 불투명 알약의 위아래 공백을 **같은 픽셀 수**로 — dp 로 두면 캡슐(60 → 168.75px)과 알약(52 → 146.25px)이 따로 반올림돼
+ * 남는 23px 이 위 11 · 아래 12 로 갈렸다(PM 2026-09-30 04:36 실측). 공백을 먼저 픽셀로 정하고(4dp → 11px), 알약 높이는
+ * "캡슐 픽셀 − 공백 × 2" 로 잡아 dp 로 되돌린다
+ */
+// 값은 dp 지만 둘 다 픽셀 격자에 맞춘 dp 다(roundToNearestPixel)
+const SOLID_PILL_INSET = PixelRatio.roundToNearestPixel(CAPSULE_INSET);
+const SOLID_PILL_HEIGHT = PixelRatio.roundToNearestPixel(CAPSULE_HEIGHT) - SOLID_PILL_INSET * 2;
 /** 불투명 캡슐 위 선택 알약 — 흰 면 위에서 한 단 내려앉은 중립 회색 */
 const SOLID_PILL_COLOR = '#ECECF0';
 // 미니플레이어 카드와 같은 반지름 — 뒤 판(그림자)이 카드 모양을 그대로 따른다
@@ -594,6 +602,8 @@ const styles = StyleSheet.create({
   },
   indicatorSolid: {
     backgroundColor: SOLID_PILL_COLOR,
+    top: SOLID_PILL_INSET,
+    height: SOLID_PILL_HEIGHT,
   },
   item: {
     width: ITEM_WIDTH,
