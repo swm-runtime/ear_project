@@ -364,11 +364,15 @@ export default function LibraryScreen() {
         >
           {Platform.OS === 'android' ? (
             <View style={styles.androidTitle}>
-              <LargeTitleRow title={LIBRARY_COPY.tabTitle} />
+              <LargeTitleRow title={LIBRARY_COPY.tabTitle} trailing={toolbar} />
             </View>
           ) : null}
           {showTabBar ? (
-            <LibrarySearchBarRow query={query} onChangeQuery={setQuery} trailing={toolbar} />
+            <LibrarySearchBarRow
+              query={query}
+              onChangeQuery={setQuery}
+              trailing={Platform.OS === 'android' ? null : toolbar}
+            />
           ) : null}
           {filterSummary}
           {banner}
