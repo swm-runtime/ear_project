@@ -428,7 +428,13 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
   );
   const [chartWidth, setChartWidth] = useState(0);
   const [tooltipSize, setTooltipSize] = useState({ width: 0, height: ANNOTATION_MIN_HEIGHT });
-  const annotationHeight = Math.max(ANNOTATION_MIN_HEIGHT, tooltipSize.height) + theme.spacing.sm;
+  /*
+   * 말풍선 자리의 높이는 **숨은 말풍선(probe)으로 처음부터** 잰다(PM 2026-09-29 14:24 "요일 누르면 공간 확보하느라 그래프가
+   * 살짝 내려온다") — 종전엔 최소값(32)으로 비워 두다 실제 말풍선이 뜬 뒤 잰 높이(≈34~36)로 늘어나 그래프가 밀렸다.
+   * 한 줄 말풍선이라 요일·값과 무관하게 높이가 같다. 실제 말풍선은 폭(가운데 맞춤)만 잰다
+   */
+  const [reserveHeight, setReserveHeight] = useState(ANNOTATION_MIN_HEIGHT);
+  const annotationHeight = Math.max(ANNOTATION_MIN_HEIGHT, reserveHeight) + theme.spacing.sm;
   const selectedCenter = ((selectedIndex ?? 0) + 0.5) * (chartWidth / DAYS_IN_WEEK);
   // 축은 가운데 주가 그래프로 보일 때만 — 조회 중·실패·빈 주에는 비운다
   const axisView =
@@ -515,11 +521,8 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
             ]}
             onLayout={({ nativeEvent: { layout } }) => {
               const width = Math.ceil(layout.width);
-              const height = Math.ceil(layout.height);
               setTooltipSize((previous) =>
-                previous.width === width && previous.height === height
-                  ? previous
-                  : { width, height },
+                previous.width === width ? previous : { ...previous, width },
               );
             }}
           >
@@ -576,6 +579,21 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
           </View>
         )}
         <View style={styles.chartStrip}>
+          {/* 말풍선 높이 재기용 — 보이지 않고 눌리지 않는다(위 reserveHeight) */}
+          <View
+            pointerEvents="none"
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            style={[styles.tooltip, styles.tooltipProbe]}
+            onLayout={({ nativeEvent: { layout } }) => {
+              const height = Math.ceil(layout.height);
+              setReserveHeight((previous) => (previous === height ? previous : height));
+            }}
+          >
+            <Text style={styles.tooltipText} numberOfLines={1}>
+              {PROFILE_COPY.stats.dayBarA11y(0, 0)}
+            </Text>
+          </View>
           <View
             style={styles.pager}
             onLayout={({ nativeEvent }) => setPageWidth(nativeEvent.layout.width)}
@@ -823,6 +841,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.sm,
   },
+  tooltipProbe: { opacity: 0 },
   tooltipText: {
     fontSize: theme.font.size.sm,
     fontWeight: '600',
