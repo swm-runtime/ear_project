@@ -24,6 +24,8 @@ const PERIOD_ORDER = ['week', 'month', 'all'];
 const DIMMED_OPACITY = 0.5;
 /** 한 번에 흘러가는 길이 — 두 단계(빠짐 → 들어옴)가 아니라 한 번이다 */
 const FLOW_MS = 420;
+/** 흐르기 전 새 줄을 화면 밖에 그려 두는 틈 — 썸네일이 뜰 시간 */
+const PREPARE_MS = 160;
 
 /** 오른쪽 칸으로 가면 +1(줄이 왼쪽으로 흐른다), 왼쪽 칸이면 −1 */
 const directionOf = (from: string, to: string): number =>
@@ -86,16 +88,20 @@ export default function PeriodSwap({
     }).start();
   }, [dim, isDimmed]);
 
-  // 그리기 전에 새 줄을 직전 줄 꽁무니에 붙여 두고(0) 한 번에 민다(1)
+  // 그리기 전에 새 줄을 직전 줄 꽁무니(화면 밖)에 붙여 두고(0), **썸네일이 뜰 틈을 준 뒤** 한 번에 민다(1). 새 줄은 이 렌더에
+  // 처음 만들어져 바로 흐르면 사진이 비었다 뜨며 번쩍였다(PM 2026-09-30 06:28) — 화면 밖에서 먼저 그려 둔다
   useLayoutEffect(() => {
-    if (leaving === null) return;
+    if (leaving === null) return undefined;
     flow.setValue(0);
-    Animated.timing(flow, {
-      toValue: 1,
-      duration: FLOW_MS,
-      easing: motion.easing.easeInOut,
-      useNativeDriver: true,
-    }).start(() => setLeaving(null));
+    const timer = setTimeout(() => {
+      Animated.timing(flow, {
+        toValue: 1,
+        duration: FLOW_MS,
+        easing: motion.easing.easeInOut,
+        useNativeDriver: true,
+      }).start(() => setLeaving(null));
+    }, PREPARE_MS);
+    return () => clearTimeout(timer);
   }, [leaving, flow]);
 
   const direction = leaving?.direction ?? 1;

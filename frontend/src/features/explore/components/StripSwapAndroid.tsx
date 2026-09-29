@@ -38,7 +38,14 @@ const directionOf = (from: string, to: string): number =>
 const nextFrame = (): Promise<void> =>
   new Promise((resolve) => requestAnimationFrame(() => resolve()));
 
-type Swap = { oldItems: ExploreItem[]; newItems: ExploreItem[]; direction: number };
+type Slot = 'a' | 'b';
+type Swap = {
+  oldItems: ExploreItem[];
+  newItems: ExploreItem[];
+  direction: number;
+  from: Slot;
+  to: Slot;
+};
 
 /**
  * **Android 인기 캐러셀 구간 전환**(PM 2026-09-30 06:07 "안드로이드도 1031 처럼 가는데 해결 방안을 찾아야지"). iOS(PeriodSwap)처럼
@@ -67,6 +74,9 @@ export default function StripSwapAndroid({
   const itemsRef = useRef(items);
   const [renderedKey, setRenderedKey] = useState(swapKey);
   const [swap, setSwap] = useState<Swap | null>(null);
+  // 지금 목록과 같은 카드를 그린 정적 줄의 칸 — **늘 숨긴 채 떠 있다**(대기). 전환 때 새로 만들지 않고 이 줄을 드러내 흘린다 —
+  // 그 자리에서 새로 만들면 캐시가 있어도 썸네일이 한두 프레임 비었다 떠 번쩍였다(PM 2026-09-30 06:28)
+  const [live, setLive] = useState<Slot>('a');
   const [isFlowing, setIsFlowing] = useState(false);
   /*
    * **조회가 끝나 새 카드가 온 뒤에만** 흐른다(PM 2026-09-30 06:20 "다 움직이고 나서 갑자기 콘텐츠가 바뀐다") — 토글을 누르는 순간
@@ -81,6 +91,8 @@ export default function StripSwapAndroid({
         oldItems: itemsRef.current,
         newItems: items,
         direction: directionOf(renderedKey, swapKey),
+        from: live,
+        to: live === 'a' ? 'b' : 'a',
       });
     }
   }
@@ -108,7 +120,9 @@ export default function StripSwapAndroid({
     const prefetch =
       uris.length > 0 ? Image.prefetch(uris).catch(() => false) : Promise.resolve(true);
     const wait = new Promise((resolve) => setTimeout(resolve, PREFETCH_WAIT_MS));
+    // 새 줄은 전환이 잡힌 렌더에 숨긴 채 먼저 그려진다 — 썸네일이 실제로 뜰 틈을 몇 프레임 더 준다
     void Promise.race([prefetch, wait])
+      .then(nextFrame)
       .then(nextFrame)
       .then(nextFrame)
       .then(() => {
@@ -122,9 +136,11 @@ export default function StripSwapAndroid({
         }).start(() => {
           if (cancelled) return;
           setIsFlowing(false);
-          // 진짜 목록을 드러낸 다음 프레임에 정적 줄을 걷는다(한 프레임도 비지 않게)
+          // 진짜 목록을 드러낸 다음 프레임에 정적 줄을 숨긴다(한 프레임도 비지 않게). 새 줄은 다음 대기 줄이 된다
           void nextFrame().then(() => {
-            if (!cancelled) setSwap(null);
+            if (cancelled) return;
+            setLive(swap.to);
+            setSwap(null);
           });
         });
       });
@@ -140,54 +156,49 @@ export default function StripSwapAndroid({
         {renderCard(item)}
       </View>
     ));
+  /** 칸별로 무엇을 그리나 — 대기 줄은 지금 카드, 전환 중엔 직전(from)·새(to) 카드 */
+  const stripItems = (slot: Slot): ExploreItem[] | null => {
+    if (swap === null) return slot === live ? items : null;
+    if (slot === swap.from) return swap.oldItems;
+    if (slot === swap.to) return swap.newItems;
+    return null;
+  };
+  const stripStyle = (slot: Slot) => {
+    const isVisible = isFlowing || (swap !== null && slot === swap.from);
+    const translateX =
+      swap === null
+        ? 0
+        : flow.interpolate({
+            inputRange: [0, 1],
+            outputRange:
+              slot === swap.from ? [0, -direction * distance] : [direction * distance, 0],
+          });
+    return [
+      styles.strip,
+      styles.stripOverlay,
+      { paddingLeft: leadingInset, opacity: isVisible ? 1 : 0, transform: [{ translateX }] },
+    ];
+  };
 
   return (
     <Animated.View style={{ opacity: dim }}>
       {/* 진짜 목록 — 전환 중엔 밑에서 새 구간으로 미리 그려 두고 숨긴다 */}
       <View style={swap !== null ? styles.hidden : undefined}>{children}</View>
-      {swap !== null ? (
-        <View style={styles.layer} pointerEvents="none">
-          <Animated.View
-            renderToHardwareTextureAndroid={isFlowing}
-            style={[
-              styles.strip,
-              { paddingLeft: leadingInset },
-              {
-                transform: [
-                  {
-                    translateX: flow.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0, -direction * distance],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          >
-            {renderStrip(swap.oldItems)}
-          </Animated.View>
-          <Animated.View
-            renderToHardwareTextureAndroid={isFlowing}
-            style={[
-              styles.strip,
-              styles.stripOverlay,
-              { paddingLeft: leadingInset },
-              {
-                transform: [
-                  {
-                    translateX: flow.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [direction * distance, 0],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          >
-            {renderStrip(swap.newItems)}
-          </Animated.View>
-        </View>
-      ) : null}
+      <View style={styles.layer} pointerEvents="none">
+        {(['a', 'b'] as const).map((slot) => {
+          const list = stripItems(slot);
+          if (list === null) return null;
+          return (
+            <Animated.View
+              key={slot}
+              renderToHardwareTextureAndroid={isFlowing}
+              style={stripStyle(slot)}
+            >
+              {renderStrip(list)}
+            </Animated.View>
+          );
+        })}
+      </View>
     </Animated.View>
   );
 }
