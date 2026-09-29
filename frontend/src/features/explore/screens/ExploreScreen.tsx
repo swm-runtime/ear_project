@@ -100,7 +100,6 @@ export default function ExploreScreen() {
   const openSearch =
     HAS_NATIVE_TAB_BAR || ANDROID_IOS_HEADER ? () => setIsSearching(true) : screen.openSearch;
 
-
   /*
    * 제자리 검색(iOS 26 — PM 2026-09-27 21:03 "검색 화면을 따로 두지 말고 그냥 탐색"): 검색창을 누르면 새 화면으로 가지 않고
    * 이 자리가 "탐색" 제목 + 입력 중인 검색창 + 최근 검색어·추천 키워드(입력하면 결과)로 바뀐다. [취소]면 피드로 돌아온다.
@@ -338,15 +337,21 @@ export default function ExploreScreen() {
         <PeriodSwap
           swapKey={section.period ?? 'static'}
           isDimmed={isPopular && screen.isPopularSwitching}
-          itemExtent={isPopular ? featuredCardWidth(windowWidth) + theme.spacing.md : undefined}
+          // 카드 두 장씩 온전히 흐르기는 iOS 만 — Android 는 목록 밖 카드까지 그리니 심하게 끊기고 깜빡였다(PM 2026-09-30 05:52·06:02).
+          // Android 는 화면 폭만큼 흐른다(#1027)
+          itemExtent={
+            isPopular && POPULAR_WHOLE_CARDS
+              ? featuredCardWidth(windowWidth) + theme.spacing.md
+              : undefined
+          }
           leadingInset={theme.spacing.md}
         >
           <FlatList
             horizontal
             // 인기 캐러셀은 목록 밖으로도 카드를 그린다 — 구간 전환 때 반쯤 보이던 카드가 잘린 채로 떠나지 않게(PeriodSwap).
             // 화면 밖이라 평소엔 보이지 않는다. Android 는 화면 밖 셀을 떼는 최적화도 끈다
-            style={isPopular ? styles.carouselUnclipped : undefined}
-            removeClippedSubviews={isPopular ? false : undefined}
+            style={isPopular && POPULAR_WHOLE_CARDS ? styles.carouselUnclipped : undefined}
+            removeClippedSubviews={isPopular && POPULAR_WHOLE_CARDS ? false : undefined}
             data={section.items}
             keyExtractor={(item) => item.content.id}
             renderItem={({ item }) =>
@@ -544,6 +549,9 @@ export default function ExploreScreen() {
 }
 
 /** Android — iOS 26 탐색 상단(큰 제목·검색창·칩이 목록 첫 줄 + 접히면 가운데 제목) 흉내. 옛 iOS 는 떠 있는 머리 줄 그대로 */
+/** 인기 캐러셀 전환에서 카드 두 장씩 온전히 흐르기(PeriodSwap itemExtent) — iOS 만 */
+const POPULAR_WHOLE_CARDS = Platform.OS === 'ios';
+
 const ANDROID_IOS_HEADER = Platform.OS === 'android' && !HAS_NATIVE_TAB_BAR;
 
 const styles = StyleSheet.create({
