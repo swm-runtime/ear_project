@@ -575,6 +575,11 @@ const styles = StyleSheet.create({
   },
   progressTrackSolid: {
     marginHorizontal: PROGRESS_INSET,
+    /*
+     * 카드 윤곽(solidCard 의 hairline)이 진행바 **밑 한 줄**에 그려져 1px 연회색 틈으로 보였다(PM 2026-09-30 05:20 스샷 —
+     * y 1985~1989 진행바, 1990 윤곽 (227,225,226)). hairline 만큼 내려 윤곽을 덮는다 — 카드 밖은 overflow 로 잘린다
+     */
+    transform: [{ translateY: StyleSheet.hairlineWidth }],
   },
   progressTrack: {
     height: PROGRESS_HEIGHT,
