@@ -66,7 +66,11 @@ const SOLID_DOCK = IS_ANDROID;
 const SOLID_PILL_COLOR = '#ECECF0';
 const CARD_RADIUS = IS_ANDROID ? 28 : 22;
 const ICON_SIZE = 24;
-const LABEL_SIZE = 11;
+/**
+ * 탭 라벨 — 10(iOS 26 시스템 탭 바와 같다). 2026-09-30 실측: iOS 라벨 "라이브러리" 폭 41.3pt · 글자 높이 8.7pt(≈10pt),
+ * Android 11 은 46dp · 9.6dp 로 10% 컸다(PM 02:36 "글씨 크기 줄이는 거"). 캡슐 탭 바 공통(Android · iOS 26 미만)
+ */
+const LABEL_SIZE = 10;
 
 const ICON_NAMES: Record<string, TabBarIconName> = {
   Library: 'library',
