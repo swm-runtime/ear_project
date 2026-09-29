@@ -198,6 +198,8 @@ PL11 ─[본문 탭 · 위로 끌어올리기]─> 전체 플레이어로 확대
 
 ### 4.8 플레이어 축소 · PL11 미니플레이어
 
+- **Android 독의 진행 바**(2026-09-30): 좌우 여백 12dp, 아래 여백 4dp, 두께 2dp. 짧아 보이던 좌우 24dp 여백을 줄이면서 캡슐 모서리에 끝이 잘리지 않도록 안쪽으로 올린다. 카드 크기·재생률 계산·iOS 배치는 유지한다.
+
 > **개정 2026-09-17·18·23** — 축소·확대를 미니플레이어와 **이어지는 모션**으로(`changes/archive/player-controls-redesign.md`), 미니플레이어를 캡슐 탭 바 독으로 옮기고 종료를 **아래로 끌기**로(`changes/archive/mini-player-drop-dismiss.md`). **2026-09-25 — 닫기 자체를 없앴다**(`changes/archive/mini-player-not-dismissable.md`, 아래 PL11).
 
 **축소 — 3가지 조작, 1가지 동작**

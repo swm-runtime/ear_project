@@ -70,12 +70,12 @@ export const MINI_CARD_WIDTH = theme.dock.width - MINI_CARD_SIDE_INSET * 2;
 const PROGRESS_INSET = 12;
 /**
  * **Android 불투명 독의 미니플레이어**(PM 2026-09-30 02:48 "A" — 탭 바와 같은 재질). 독 안 카드가 흰 면 + hairline 을
- * 직접 그린다(유리·림 없음, 그림자는 독 뒤 판). 진행바는 캡슐 모서리(반지름 = 높이 절반)의 곧은 구간 안에만, 아래 변에 붙인다 —
- * 종전 좌우 12 는 둥근 모서리에 끝이 잘려 카드 밖으로 삐진 선처럼 보였다
+ * 직접 그린다(유리·림 없음, 그림자는 독 뒤 판). 진행바는 좌우 12 안쪽으로 넓히고 아래에서 4 올린다.
+ * 맨 아래에서 좌우 여백만 줄이면 둥근 모서리에 끝이 잘리므로, 카드 안으로 함께 올린다.
  */
 const SOLID_DOCK_CARD = IS_ANDROID_MINI;
-/** 진행바는 **카드 맨 아래 변**에 붙인다(PM 2026-09-30 03:05 "플레이어바를 맨 아래로") — 종전 3 띄움 */
-const SOLID_PROGRESS_LIFT = 0;
+/** Android 진행바 — 넓힌 양끝이 캡슐 곡선 안에 들어오는 하단 여백 */
+const SOLID_PROGRESS_LIFT = 4;
 /** 시스템 액세서리(iOS 26) 안 — 컨테이너 높이는 시스템이 주므로 내용은 더 작게, 가운데 정렬(PM 2026-09-24 "아래 공백이 크고 썸네일이 큼") */
 const MINI_ACCESSORY_THUMB_SIZE = 36;
 const MINI_ACCESSORY_ROW_PADDING = 4;
@@ -578,7 +578,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(0, 0, 0, 0.10)',
   },
   progressTrackSolid: {
-    marginHorizontal: MINI_CARD_RADIUS,
+    marginHorizontal: PROGRESS_INSET,
     transform: [{ translateY: -SOLID_PROGRESS_LIFT }],
   },
   progressTrack: {
