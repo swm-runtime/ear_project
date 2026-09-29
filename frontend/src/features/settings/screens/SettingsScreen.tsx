@@ -418,7 +418,8 @@ const ANDROID_BAR_ROW_HEIGHT = 52;
  * 형체는 흐트러지되 색·덩어리는 비치게 30. 흰 막은 **expo-blur 틴트 하나만** 쓴다 — Android 의 `light` 틴트는 세기 비례로
  * 흰 막(40 이면 31%)을 스스로 깔아, 우리 막(30%)을 또 얹으니 흰 판이 됐다(16:05 "그냥 흰색, 뒤가 안 보여")
  */
-const FROST_BLUR_INTENSITY = 30;
+// 30 → 25(PM 2026-09-29 16:15 "살짝만 낮춰, 그럼 완벽")
+const FROST_BLUR_INTENSITY = 25;
 
 const styles = StyleSheet.create({
   // 블러 대상(목록 감싸개) — 레이아웃은 종전 목록 그대로 화면을 채운다
