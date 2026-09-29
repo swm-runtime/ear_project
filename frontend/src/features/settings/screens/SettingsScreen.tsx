@@ -1,5 +1,5 @@
 import { Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { APP_VERSION, APP_VERSION_LABEL, IS_DEV_API } from '@/shared/lib/app-version';
@@ -11,6 +11,7 @@ import ChevronIcon from '@/shared/ui/ChevronIcon';
 import ConfirmDialog from '@/shared/ui/ConfirmDialog';
 import { useFloatingHeaderScroll } from '@/shared/ui/FloatingHeader';
 import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
+import GlassSurface from '@/shared/ui/GlassSurface';
 import LargeTitleRow, { LARGE_TITLE_ROW_HEIGHT } from '@/shared/ui/LargeTitleRow';
 
 import { NotificationPrePromptModal } from '@/features/notification';
@@ -50,13 +51,18 @@ export default function SettingsScreen() {
     outputRange: [0, 1],
     extrapolate: 'clamp',
   });
+  // Android 바는 목록 **위에 떠 있다**(밑으로 목록이 지나가며 블러로 비친다) — 상태 바까지 덮으므로 안전영역을 직접 준다
+  const insets = useSafeAreaInsets();
   // iOS 26: **시스템 큰 제목** — 라이브러리·탐색과 같다(PM 2026-09-28 03:14 "이거야"). 뒤로 버튼이 있어 UIKit 이 큰 제목을
   // 버튼 줄 밑에 두고, 스크롤 접힘·바 밑 블러는 시스템이 한다
   // 접힌 작은 제목 크기는 훅 기본값(전 화면 공통 — 04:09 PM)
   useSystemLargeTitle(SETTINGS_COPY.title, null);
 
   return (
-    <SafeAreaView style={styles.container} edges={USES_SYSTEM_PUSHED_HEADER ? [] : ['top']}>
+    <SafeAreaView
+      style={styles.container}
+      edges={USES_SYSTEM_PUSHED_HEADER || ANDROID_LARGE_TITLE ? [] : ['top']}
+    >
       {/* 앱바 — 뒤로가기 + "설정"(settings-uiux.md 4.1). iOS 26 은 시스템 투명 바(뒤로만) + 콘텐츠 큰 제목
           (PUSHED_SCREEN_HEADER, PM 2026-09-27 01:42 "설정 페이지도 UI 일관되게") */}
       {USES_SYSTEM_PUSHED_HEADER ? null : ANDROID_LARGE_TITLE ? (
@@ -66,26 +72,44 @@ export default function SettingsScreen() {
          * 나타난다(iOS 큰 제목 접힘). Android 네이티브의 같은 자리(Material 3 Large top app bar)는 모양이 다르고
          * react-native-screens 가 Android 큰 제목을 지원하지 않아 화면이 직접 그린다
          */
-        <View style={[styles.appBar, styles.androidAppBar]}>
-          <GlassCapsule style={styles.androidBackCircle}>
-            <Pressable
-              style={styles.androidBackPressable}
-              onPress={screen.goBack}
-              accessibilityRole="button"
-              accessibilityLabel={SETTINGS_COPY.backA11y}
-              hitSlop={4}
-            >
-              <ChevronIcon direction="left" size={ANDROID_BACK_ICON_SIZE} color={theme.color.textPrimary} />
-            </Pressable>
-          </GlassCapsule>
-          <Animated.Text
-            style={[styles.appBarTitle, { opacity: androidSmallTitleOpacity }]}
-            numberOfLines={1}
-            importantForAccessibility="no"
+        <View style={[styles.androidBar, { paddingTop: insets.top }]}>
+          {/* 내리면 나타나는 블러 판 — 작은 제목과 같은 구간에 페이드인(PM 2026-09-29 15:03 "상단바 blur 처리"). 상태 바까지 덮는다 */}
+          <Animated.View
+            style={[StyleSheet.absoluteFill, { opacity: androidSmallTitleOpacity }]}
+            pointerEvents="none"
           >
-            {SETTINGS_COPY.title}
-          </Animated.Text>
-          <View style={styles.androidBackSpacer} />
+            <GlassSurface style={StyleSheet.absoluteFill} />
+            <View style={styles.androidBarEdge} />
+          </Animated.View>
+          <View style={[styles.appBar, styles.androidAppBar]}>
+            <GlassCapsule style={styles.androidBackCircle}>
+              <Pressable
+                style={styles.androidBackPressable}
+                onPress={screen.goBack}
+                accessibilityRole="button"
+                accessibilityLabel={SETTINGS_COPY.backA11y}
+                hitSlop={4}
+              >
+                <ChevronIcon
+                  direction="left"
+                  size={ANDROID_BACK_ICON_SIZE}
+                  color={theme.color.textPrimary}
+                />
+              </Pressable>
+            </GlassCapsule>
+            <Animated.Text
+              style={[
+                styles.appBarTitle,
+                styles.androidSmallTitle,
+                { opacity: androidSmallTitleOpacity },
+              ]}
+              numberOfLines={1}
+              importantForAccessibility="no"
+            >
+              {SETTINGS_COPY.title}
+            </Animated.Text>
+            <View style={styles.androidBackSpacer} />
+          </View>
         </View>
       ) : (
         <View style={styles.appBar}>
@@ -105,7 +129,13 @@ export default function SettingsScreen() {
       )}
 
       <Animated.ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          // Android — 떠 있는 바(상태 바 + 44) 밑, 종전과 같은 간격(md)을 두고 시작한다
+          ANDROID_LARGE_TITLE && {
+            paddingTop: insets.top + theme.touchTarget.minHeight + theme.spacing.md,
+          },
+        ]}
         // 투명 시스템 바 밑을 비운다(iOS 26). 그 외 갈래는 RN 기본(never)
         contentInsetAdjustmentBehavior={USES_SYSTEM_PUSHED_HEADER ? 'automatic' : 'never'}
         {...scrollProps}
@@ -397,6 +427,28 @@ const styles = StyleSheet.create({
    */
   androidAppBar: {
     paddingHorizontal: theme.spacing.md,
+  },
+  // 목록 위에 떠 있는 바 — 목록보다 뒤에 그려지지만 absolute + zIndex 로 위에 선다
+  androidBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1,
+  },
+  // 블러 판 아래 끝 — 판이 끊기는 자리를 선으로 정리한다(iOS 바 그림자 선)
+  androidBarEdge: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: theme.color.border,
+  },
+  // 접힌 작은 제목 — iOS 접힌 바와 같은 20(PM 2026-09-29 15:03 "조금 더 키우자", 종전 16)
+  androidSmallTitle: {
+    fontSize: theme.font.size.lg,
+    fontWeight: '600',
   },
   androidBackCircle: {
     width: HEADER_CONTROL_HEIGHT,
