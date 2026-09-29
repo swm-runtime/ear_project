@@ -1,6 +1,6 @@
 import { BlurView } from 'expo-blur';
 import { createContext, useContext, useMemo, type ReactNode, type RefObject } from 'react';
-import { Animated, Platform, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { Animated, Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
@@ -110,7 +110,7 @@ export const useFloatingHeaderInset = (headerHeight: number): number => {
  * FloatingHeader 에 준다. 맨 위(정지 오프셋: 시스템 탭 바면 −상태 바, 아니면 0)에서 1, 24pt 내리면 0.
  * 당겨서 새로고침(음수 쪽)은 그대로 1. 네이티브 드라이버라 JS 스레드를 타지 않는다
  */
-export const useFloatingHeaderScroll = (listener?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void) => {
+export const useFloatingHeaderScroll = () => {
   const insets = useSafeAreaInsets();
   const restOffset = HAS_NATIVE_TAB_BAR ? -insets.top : 0;
   const scrollY = useAnimatedValue(restOffset);
@@ -118,9 +118,8 @@ export const useFloatingHeaderScroll = (listener?: (event: NativeSyntheticEvent<
     () =>
       Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
         useNativeDriver: true,
-        listener,
       }),
-    [scrollY, listener],
+    [scrollY],
   );
   const solidness = useMemo(
     () =>
