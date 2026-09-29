@@ -118,6 +118,15 @@ export class EnvironmentVariables {
   SLACK_ERROR_WEBHOOK_URL?: string;
 
   /**
+   * 가입 알림 Slack 웹훅(KAN-107 1단계) — **선택.** 비우면 위의
+   * `SLACK_ERROR_WEBHOOK_URL`(기존 알림 채널)을 그대로 쓴다. 채널을 새로 만들지 않으려는
+   * 결정이라(2026-09-29) 평소에는 비워 둔다. 가입 알림만 다른 채널로 빼고 싶을 때만 넣는다.
+   */
+  @IsOptional()
+  @IsString()
+  SLACK_SIGNUP_WEBHOOK_URL?: string;
+
+  /**
    * Sentry DSN. **비우면 Sentry 가 초기화되지 않는다**(로컬·테스트 기본) — 그래서 선택값이다.
    * 값 자체는 클라이언트에도 박히는 준공개 값이지만, 환경별로 프로젝트가 갈리므로 env 로 둔다.
    * 실제 읽는 곳은 `src/instrument.ts` 다 — Nest 부팅 전에 돌아야 해서 ConfigService 를 못 쓴다.
