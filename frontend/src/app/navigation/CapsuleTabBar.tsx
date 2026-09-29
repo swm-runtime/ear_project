@@ -11,7 +11,13 @@ import GlassSurface, { GlassGroup, GlassPill } from '@/shared/ui/GlassSurface';
 import TabBarIcon, { type TabBarIconName } from '@/shared/ui/TabBarIcon';
 import { Text, AnimatedText } from '@/shared/ui/Typography';
 
-import { MiniPlayer, miniDropStyle, miniDropProgress, useMiniPlayerInset } from '@/features/player';
+import {
+  MINI_CARD_RADIUS,
+  MiniPlayer,
+  miniDropStyle,
+  miniDropProgress,
+  useMiniPlayerInset,
+} from '@/features/player';
 
 /** 캡슐 높이 — 아이콘 24 + 라벨 11 + 위아래 숨. iOS 26 탭 바와 같은 눈높이 */
 const CAPSULE_HEIGHT = 60;
@@ -64,7 +70,8 @@ const IS_ANDROID = Platform.OS === 'android';
 const SOLID_DOCK = IS_ANDROID;
 /** 불투명 캡슐 위 선택 알약 — 흰 면 위에서 한 단 내려앉은 중립 회색 */
 const SOLID_PILL_COLOR = '#ECECF0';
-const CARD_RADIUS = IS_ANDROID ? 28 : 22;
+// 미니플레이어 카드와 같은 반지름 — 뒤 판(그림자)이 카드 모양을 그대로 따른다
+const CARD_RADIUS = MINI_CARD_RADIUS;
 const ICON_SIZE = 24;
 /**
  * 탭 라벨 — 10(iOS 26 시스템 탭 바와 같다). 2026-09-30 실측: iOS 라벨 "라이브러리" 폭 41.3pt · 글자 높이 8.7pt(≈10pt),
