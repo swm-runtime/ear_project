@@ -85,14 +85,21 @@ export default function ExploreScreen() {
   // 제자리 검색 닫기 요청 — ✕ 는 시스템 바 캡슐에 있고, 덮개가 퇴장 애니메이션 끝에 onExit 로 isSearching 을 끈다
   const [isClosingSearch, setIsClosingSearch] = useState(false);
   // 탭 재선택과 같은 "맨 위로"를 Android 접힘 바 제목 탭도 부른다
-  const scrollToTopRef = useRef<(() => void) | null>(null);
+  const scrollToTopRef = useRef<((animated?: boolean) => void) | null>(null);
   const listRef = useTabScrollToTop({
     topInset: nativeBarInset,
     enabled: !isSearching,
     controlRef: scrollToTopRef,
   });
-  const openSearch =
-    HAS_NATIVE_TAB_BAR || ANDROID_IOS_HEADER ? () => setIsSearching(true) : screen.openSearch;
+  const openSearch = () => {
+    if (HAS_NATIVE_TAB_BAR || ANDROID_IOS_HEADER) {
+      // 시스템 제목은 아래 피드의 스크롤 위치를 따른다. 검색을 덮기 전에 펼친 위치로 맞춘다.
+      if (HAS_NATIVE_TAB_BAR) scrollToTopRef.current?.(false);
+      setIsSearching(true);
+    } else {
+      screen.openSearch();
+    }
+  };
   /*
    * 인기 섹션의 **카드가 실제로 바뀐** 구간 — section.period 는 누르는 순간 조회 중인 구간으로 먼저 바뀌므로(토글 표시용), 목록을
    * 새로 만드는 key 는 조회가 끝난 뒤의 값으로 둔다. 누르자마자 직전 카드로 목록이 다시 만들어져 깜빡였다(PM 2026-09-30 06:20)
@@ -156,7 +163,7 @@ export default function ExploreScreen() {
   }, [isSearching, isClosingSearch, remainingValue, remainingLimit]);
   // .inline 큰 제목 — 제목과 캡슐이 한 줄(05:43 PM). 접힘·블러는 시스템
   // 왼쪽 검색 버튼은 못 둔다(06:03 — .inline 에 왼쪽 항목이 들어가면 큰 제목이 안 접힘)
-  useSystemLargeTitle(EXPLORE_COPY.tabTitle, barTrailing, { pinnedTitle: isSearching });
+  useSystemLargeTitle(EXPLORE_COPY.tabTitle, barTrailing);
 
   /*
    * 제자리 검색은 피드 **위에 덮는다** — 피드는 밑에 그대로 둬서 닫을 때 다시 그릴 게 없다(23:12 PM "x 누를 때 렉" — 종전엔

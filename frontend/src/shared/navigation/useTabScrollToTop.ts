@@ -20,20 +20,20 @@ export const useTabScrollToTop = ({
 }: {
   topInset?: number;
   enabled?: boolean;
-  controlRef?: MutableRefObject<(() => void) | null>;
+  controlRef?: MutableRefObject<((animated?: boolean) => void) | null>;
 } = {}) => {
   const scrollableRef = useRef<TabScrollable | null>(null);
   const target = useMemo(
     () => ({
       current: {
-        scrollToTop() {
+        scrollToTop(animated = true) {
           const scrollable = scrollableRef.current;
           if (!enabled || !scrollable) return;
           const offset = topInset > 0 ? -topInset : 0;
           if ('scrollToOffset' in scrollable) {
-            scrollable.scrollToOffset({ offset, animated: true });
+            scrollable.scrollToOffset({ offset, animated });
           } else {
-            scrollable.scrollTo({ y: offset, animated: true });
+            scrollable.scrollTo({ y: offset, animated });
           }
         },
       },
@@ -42,7 +42,7 @@ export const useTabScrollToTop = ({
   );
   useScrollToTop(target);
   useEffect(() => {
-    if (controlRef) controlRef.current = () => target.current.scrollToTop();
+    if (controlRef) controlRef.current = (animated) => target.current.scrollToTop(animated);
   }, [controlRef, target]);
 
   return useCallback((node: TabScrollable | Animated.LegacyRef<TabScrollable> | null) => {
