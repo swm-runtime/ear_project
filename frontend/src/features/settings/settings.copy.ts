@@ -91,6 +91,7 @@ export const SETTINGS_COPY = {
     notice: '공지사항',
     terms: '이용약관',
     privacy: '개인정보처리방침',
+    licenses: '오픈소스 라이선스',
     version: '앱 버전',
     updateBadge: '업데이트 있음',
     update: '업데이트',

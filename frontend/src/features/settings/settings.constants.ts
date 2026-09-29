@@ -1,4 +1,3 @@
-
 /**
  * 백엔드 준비 후 실서버로 붙일 때는 EXPO_PUBLIC_SETTINGS_API=real 로 전환한다.
  */
@@ -23,6 +22,9 @@ export const KAKAO_CHANNEL_URL =
 export const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL ?? 'https://earcast.co.kr/terms';
 export const PRIVACY_POLICY_URL =
   process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL ?? 'https://earcast.co.kr/privacy';
+/** 제3자 저작물 고지(CC BY 아이콘 등) — 앱 안 화면 대신 랜딩 페이지를 연다(PM 2026-09-30 01:09) */
+export const LICENSES_URL =
+  process.env.EXPO_PUBLIC_LICENSES_URL ?? 'https://earcast.co.kr/licenses/';
 /**
  * [업데이트] 버튼의 목적지 — **플랫폼마다 스토어가 다르다.**
  *
