@@ -6,6 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { trackScreen } from '@/shared/analytics';
 import { AppErrorBoundary, initSentry, wrapWithSentry } from '@/shared/monitoring';
 import { installJsTraceErrorHook, loadJsTrace, traceJs } from '@/shared/monitoring/js-trace';
+import { useAndroidBoldFont } from '@/shared/theme/useAndroidBoldFont';
 import Toast from '@/shared/ui/Toast';
 
 import { UpdateRecommendDialog } from '@/features/app-update';
@@ -55,6 +56,7 @@ const handleNavigationStateChange = (state: NavigationState | undefined): void =
 };
 
 function App() {
+  useAndroidBoldFont();
   return (
     <AppErrorBoundary>
       <QueryClientProvider client={queryClient}>
