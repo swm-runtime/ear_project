@@ -1,5 +1,5 @@
 import { BlurView } from 'expo-blur';
-import { useEffect, useMemo, useState, type ReactNode, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -39,6 +39,13 @@ const TITLE_SHOW_AT = LARGE_TITLE_ROW_HEIGHT * 0.75;
 const TITLE_HIDE_BELOW = LARGE_TITLE_ROW_HEIGHT * 0.5;
 /** 작은 제목이 올라오는 거리 */
 const TITLE_RISE = 6;
+/**
+ * 제목 탭 뒤 재확인 시점(ms) — 이때도 맨 위가 아니면 한 번 더 올린다. 휙 내린 직후(관성 스크롤 중)에 누르면 Android 는 남은
+ * 관성이 "맨 위로" 이동을 이겨 **될 때도 있고 안 될 때도** 있었다(PM 2026-09-30 05:01)
+ */
+const SCROLL_TOP_RETRY_MS = [350, 700];
+/** 맨 위로 본다 — 정지 오프셋 0 기준 */
+const AT_TOP_SLOP = 2;
 
 /**
  * **Android 의 iOS 식 접힘 바**(PM 2026-09-29 17:19 "탐색 내리면 제목이 가운데 새로 생기고, 검색바·주제 알약은 제자리에서
@@ -79,12 +86,26 @@ export default function AndroidCollapsingBar({
    * 따라가 멈추면 반투명으로 걸려 있었다. 서리 유리 판은 스크롤을 따라간다(collapse)
    */
   const [isTitleShown, setIsTitleShown] = useState(false);
+  const lastOffsetRef = useRef(0);
   useEffect(() => {
     const id = scrollY.addListener(({ value }) => {
+      lastOffsetRef.current = value;
       setIsTitleShown((prev) => (prev ? value > TITLE_HIDE_BELOW : value > TITLE_SHOW_AT));
     });
     return () => scrollY.removeListener(id);
   }, [scrollY]);
+  const retryTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(() => () => retryTimersRef.current.forEach(clearTimeout), []);
+  const handleTitlePress = () => {
+    if (!onTitlePress) return;
+    retryTimersRef.current.forEach(clearTimeout);
+    onTitlePress();
+    retryTimersRef.current = SCROLL_TOP_RETRY_MS.map((ms) =>
+      setTimeout(() => {
+        if (lastOffsetRef.current > AT_TOP_SLOP) onTitlePress();
+      }, ms),
+    );
+  };
   const titleAppear = useAnimatedValue(0);
   useEffect(() => {
     Animated.timing(titleAppear, {
@@ -110,20 +131,23 @@ export default function AndroidCollapsingBar({
         <View style={[StyleSheet.absoluteFill, styles.frostWhite]} />
         <View style={styles.edge} />
       </Animated.View>
+      {/*
+        제목 탭 영역 — **바 전체**(상태 바 밑 서리 영역 포함, iOS 상태 바 탭처럼). 제목 줄만 받으면 바의 위·아래를 누른 탭이
+        빠졌다(PM 2026-09-30 05:01 "될 때도 있고 안 될 때도"). 좌우 컨트롤은 뒤에 그려 그 위에서 제 탭을 받는다
+      */}
+      {onTitlePress ? (
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={handleTitlePress}
+          pointerEvents={isTitleShown ? 'auto' : 'none'}
+          accessibilityRole="button"
+          accessibilityLabel={title}
+          accessibilityHint="맨 위로 이동"
+          accessibilityElementsHidden={!isTitleShown}
+          importantForAccessibility={isTitleShown ? 'yes' : 'no-hide-descendants'}
+        />
+      ) : null}
       <View style={styles.row} pointerEvents="box-none">
-        {/* 제목 탭 영역 — 좌우 컨트롤보다 먼저 그려 그 밑에 깔린다(컨트롤은 제 탭을 그대로 받는다) */}
-        {onTitlePress ? (
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={onTitlePress}
-            pointerEvents={isTitleShown ? 'auto' : 'none'}
-            accessibilityRole="button"
-            accessibilityLabel={title}
-            accessibilityHint="맨 위로 이동"
-            accessibilityElementsHidden={!isTitleShown}
-            importantForAccessibility={isTitleShown ? 'yes' : 'no-hide-descendants'}
-          />
-        ) : null}
         <AnimatedText
           style={[
             styles.title,
