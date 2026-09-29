@@ -53,6 +53,8 @@ const MINI_PLAY_ICON_SIZE = 20;
  * 행 44 + 진행바 2 = 기본 높이 46. 재생 버튼의 최소 터치 높이 44 도 유지한다.
  */
 const IS_ANDROID_MINI = Platform.OS === 'android';
+/** Android도 iOS 시스템 줌처럼 위로 밀면 탭과 같은 열기를 실행한다. */
+const OPEN_ON_SWIPE_START = IS_ANDROID_MINI || USE_NATIVE_PLAYER_ZOOM;
 export const MINI_THUMB_SIZE = IS_ANDROID_MINI ? 36 : 40;
 const MINI_ROW_PADDING = IS_ANDROID_MINI ? 4 : 6;
 /** 진행바 — 아래 변, 캡슐 모서리에 잘리지 않게 양옆 12 안쪽(PM 2026-09-25) */
@@ -262,9 +264,9 @@ export default function MiniPlayer({
       },
       onPanResponderGrant: (_, gesture) => {
         if (gestureModeRef.current !== 'open') return;
-        // 줌 전환 갈래(iOS 26 + 모듈 빌드): 여는 모션은 시스템 것이라 손가락을 따라가지 않는다 — 위로 밀기 시작하면
-        // 곧바로 연다(애플 뮤직도 스와이프 업 = 탭과 같은 확대, 13:48 PM "위로 스와이프하면 커져야")
-        if (USE_NATIVE_PLAYER_ZOOM) {
+        // Android·iOS 시스템 줌은 위로 밀기 시작하면 탭과 같은 열기 모션을 실행한다.
+        // 이후 손가락 이동·놓기·터치 취소로 플레이어 진행도를 바꾸지 않는다.
+        if (OPEN_ON_SWIPE_START) {
           gestureContext.current.expand();
           return;
         }
@@ -275,7 +277,7 @@ export default function MiniPlayer({
       },
       onPanResponderMove: (event, gesture) => {
         if (gestureModeRef.current === 'open') {
-          if (USE_NATIVE_PLAYER_ZOOM) return;
+          if (OPEN_ON_SWIPE_START) return;
           lastMoveAtRef.current = event.nativeEvent.timestamp;
           openGesture().update(openProgressOf(gesture.dy));
           return;
@@ -285,7 +287,7 @@ export default function MiniPlayer({
       },
       onPanResponderRelease: (event, gesture) => {
         if (gestureModeRef.current === 'open') {
-          if (USE_NATIVE_PLAYER_ZOOM) return;
+          if (OPEN_ON_SWIPE_START) return;
           // 튕김은 "움직이던 중에 놓았을 때"만 친다 — 끌어올린 뒤 멈췄다 놓으면 속도 값은 남아 있어도 튕김이 아니다
           const isFlick =
             event.nativeEvent.timestamp - lastMoveAtRef.current <
@@ -315,7 +317,7 @@ export default function MiniPlayer({
       },
       onPanResponderTerminate: () => {
         if (gestureModeRef.current === 'open') {
-          if (USE_NATIVE_PLAYER_ZOOM) return;
+          if (OPEN_ON_SWIPE_START) return;
           // 플레이어는 이미 떠 있다 — 터치를 빼앗기면(모달 전환 등) 닫지 말고 끝까지 연다. 탭한 것과 같은 결과다
           openGesture().release('open');
           return;
