@@ -33,9 +33,10 @@ export default function CareerInfoScreen() {
         <GlassIconButton onPress={screen.handleBackPress} accessibilityLabel={CAREER_COPY.backA11y}>
           <ChevronIcon direction="left" size={BACK_ICON_SIZE} color={theme.color.textPrimary} />
         </GlassIconButton>
-        <Text style={styles.appBarTitle} accessibilityRole="header">
+        <Text style={styles.appBarTitle} accessibilityRole="header" pointerEvents="none">
           {CAREER_COPY.appBarTitle}
         </Text>
+        <View style={styles.appBarFill} />
         {/* [초기화] — 뒤로와 같은 유리 재질의 알약(글자 버튼이라 원이 아니라 캡슐이다) */}
         <GlassCapsule style={styles.resetCapsule}>
           <Pressable
@@ -217,11 +218,16 @@ const styles = StyleSheet.create({
   appBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: theme.spacing.sm,
+    // 좌우 16 — 설정·라이브러리·탐색 상단 버튼과 같은 선(PM 2026-09-30 05:28 "상단 버튼 양쪽 공백이 안 맞는다", 종전 8)
+    paddingHorizontal: theme.spacing.md,
     minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
   },
+  // 제목은 **화면 정가운데** — 오른쪽 [초기화] 캡슐이 왼쪽 뒤로 원(40)보다 넓어 flex 로 두면 가운데에서 왼쪽으로 밀렸다.
+  // 좌우 버튼 사이를 채우는 대신 줄 전체에 겹쳐 놓고, 버튼 탭은 그대로 받게 터치를 통과시킨다
   appBarTitle: {
-    flex: 1,
+    position: 'absolute',
+    left: 0,
+    right: 0,
     textAlign: 'center',
     fontSize: theme.font.size.md,
     fontWeight: '700',
@@ -231,6 +237,7 @@ const styles = StyleSheet.create({
   resetCapsule: {
     height: HEADER_CONTROL_HEIGHT,
   },
+  appBarFill: { flex: 1 },
   resetButton: {
     flex: 1,
     alignItems: 'center',
