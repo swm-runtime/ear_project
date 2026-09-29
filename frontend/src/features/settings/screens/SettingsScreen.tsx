@@ -1,3 +1,4 @@
+import { BlurView } from 'expo-blur';
 import { Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -11,7 +12,6 @@ import ChevronIcon from '@/shared/ui/ChevronIcon';
 import ConfirmDialog from '@/shared/ui/ConfirmDialog';
 import { useFloatingHeaderScroll } from '@/shared/ui/FloatingHeader';
 import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
-import GlassSurface from '@/shared/ui/GlassSurface';
 import LargeTitleRow, { LARGE_TITLE_ROW_HEIGHT } from '@/shared/ui/LargeTitleRow';
 
 import { NotificationPrePromptModal } from '@/features/notification';
@@ -78,7 +78,15 @@ export default function SettingsScreen() {
             style={[StyleSheet.absoluteFill, { opacity: androidSmallTitleOpacity }]}
             pointerEvents="none"
           >
-            <GlassSurface style={StyleSheet.absoluteFill} />
+            {/* 프로스트 글라스(서리 유리, PM 2026-09-29 15:17) — 뒤를 세게 뭉개고(100) 흰 막을 두껍게 얹어 형체 없이
+                색만 은은하게 비친다. 하단 독의 유리(GlassSurface: 60 + 72% 회백)보다 한 단 더 뿌옇고 희다 */}
+            <BlurView
+              style={StyleSheet.absoluteFill}
+              tint="light"
+              intensity={FROST_BLUR_INTENSITY}
+              experimentalBlurMethod="dimezisBlurView"
+            />
+            <View style={[StyleSheet.absoluteFill, styles.androidBarFrost]} />
             <View style={styles.androidBarEdge} />
           </Animated.View>
           <View style={[styles.appBar, styles.androidAppBar]}>
@@ -394,6 +402,8 @@ const ANDROID_LARGE_TITLE = Platform.OS === 'android' && !USES_SYSTEM_PUSHED_HEA
 const ANDROID_BACK_ICON_SIZE = 20;
 /** Android 떠 있는 바의 줄 높이(상태 바 제외) — 44 에서 52 로(PM 2026-09-29 15:10 "상단바 높이 조금만 더") */
 const ANDROID_BAR_ROW_HEIGHT = 52;
+/** 서리 유리 블러 세기(expo-blur 0~100) — 최대. 형체가 남지 않게 */
+const FROST_BLUR_INTENSITY = 100;
 
 const styles = StyleSheet.create({
   container: {
@@ -438,6 +448,10 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 1,
+  },
+  // 서리 막 — 흰 80%. 블러만으론 밑 썸네일 색이 진하게 비쳐 글자가 겹쳐 보인다
+  androidBarFrost: {
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
   },
   // 블러 판 아래 끝 — 판이 끊기는 자리를 선으로 정리한다(iOS 바 그림자 선)
   androidBarEdge: {
