@@ -1,5 +1,7 @@
 import Svg, { Circle, Defs, G, Mask, Path, Rect } from 'react-native-svg';
 
+import { theme } from '@/shared/theme';
+
 import PersonIcon from './PersonIcon';
 
 export type TabBarIconName = 'library' | 'explore' | 'profile';
@@ -65,26 +67,22 @@ export default function TabBarIcon({ name, color, focused, size }: TabBarIconPro
               <Path d={BOOK_BANDS} stroke="#000" strokeWidth={BAND_STROKE} strokeLinecap="round" />
             </Mask>
           </Defs>
-          <G
-            mask="url(#tab-library-cut)"
-            fill={color}
-            stroke={color}
-            strokeWidth={BOOK_STROKE}
-            strokeLinejoin="round"
-          >
-            <Path d={BOOK_A} />
-            <Path d={BOOK_B} />
-            <Path d={BOOK_C} />
+          <G mask="url(#tab-library-cut)" fill={color}>
+            {/*
+              테두리 없이 면만(PM 2026-09-29 16:20 "색칠됐을 때 외곽선 없애") — 선 변형의 바깥선에 맞춘 면이라 두 상태의
+              크기가 같다(선 경로 + 획 절반 = 이 사각형들)
+            */}
+            <Rect x="0.17" y="3.5" width="6.41" height="21.33" rx="1.6" />
+            <Rect x="5.08" y="7.08" width="9.84" height="17.75" rx="0.4" />
+            <Rect x="13.42" y="0.17" width="7.16" height="24.66" rx="1.6" />
           </G>
           <Rect
-            x="22.05"
-            y="3.83"
-            width="4"
-            height="20.25"
-            rx="1"
+            x={22.05 - BOOK_STROKE / 2}
+            y={3.83 - BOOK_STROKE / 2}
+            width={4 + BOOK_STROKE}
+            height={20.25 + BOOK_STROKE}
+            rx="1.6"
             fill={color}
-            stroke={color}
-            strokeWidth={BOOK_STROKE}
             transform="rotate(-4 24.05 24.08)"
           />
         </Svg>
@@ -112,16 +110,12 @@ export default function TabBarIcon({ name, color, focused, size }: TabBarIconPro
 
   if (name === 'explore') {
     if (focused) {
-      // 채운 변형 — 원을 채우고 바늘을 뚫는다(가운데 점은 남긴다)
+      // 채운 변형 — 원을 채우고 바늘은 **흰색**으로 칠한다(가운데 구멍으로 원 색이 비친다). 종전엔 바늘을 뚫어
+      // 뒤 유리 회색이 비쳤다(PM 2026-09-29 16:19 "색칠될 때 침 부분은 흰색으로")
       return (
         <Svg width={size} height={size} viewBox="0 0 24 24">
-          <Defs>
-            <Mask id="tab-explore-needle">
-              <Rect x="0" y="0" width="24" height="24" fill="#fff" />
-              <Path d={`${NEEDLE} ${NEEDLE_HOLE}`} fill="#000" fillRule="evenodd" />
-            </Mask>
-          </Defs>
-          <Circle cx="12" cy="12" r="11.5" fill={color} mask="url(#tab-explore-needle)" />
+          <Circle cx="12" cy="12" r="11.5" fill={color} />
+          <Path d={`${NEEDLE} ${NEEDLE_HOLE}`} fill={theme.color.onPrimary} fillRule="evenodd" />
         </Svg>
       );
     }
