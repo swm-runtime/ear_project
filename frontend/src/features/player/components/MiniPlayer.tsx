@@ -56,6 +56,13 @@ const MINI_ROW_PADDING = 6;
 /** 진행바 — 아래 변, 캡슐 모서리에 잘리지 않게 양옆 12 안쪽(PM 2026-09-25) */
 const PROGRESS_HEIGHT = 2;
 const PROGRESS_INSET = 12;
+/**
+ * **Android 불투명 독의 미니플레이어**(PM 2026-09-30 02:48 "A" — 탭 바와 같은 재질). 독 안 카드가 흰 면 + hairline 을
+ * 직접 그린다(유리·림 없음, 그림자는 독 뒤 판). 진행바는 캡슐 모서리(반지름 28)의 곧은 구간 안에만, 아래 변에서 3 띄운다 —
+ * 종전 좌우 12 는 둥근 모서리에 끝이 잘려 카드 밖으로 삐진 선처럼 보였다
+ */
+const SOLID_DOCK_CARD = Platform.OS === 'android';
+const SOLID_PROGRESS_LIFT = 3;
 /** 시스템 액세서리(iOS 26) 안 — 컨테이너 높이는 시스템이 주므로 내용은 더 작게, 가운데 정렬(PM 2026-09-24 "아래 공백이 크고 썸네일이 큼") */
 const MINI_ACCESSORY_THUMB_SIZE = 36;
 const MINI_ACCESSORY_ROW_PADDING = 4;
@@ -115,7 +122,9 @@ export default function MiniPlayer({
   const isDocked = placement !== 'floating';
   const isAccessory = placement === 'accessory';
   const resumeFallback = isDocked ? resumeStore.fallback : resumeFallbackProp;
-  const onResumePlayPress = isDocked ? (resumeStore.onPlayPress ?? undefined) : onResumePlayPressProp;
+  const onResumePlayPress = isDocked
+    ? (resumeStore.onPlayPress ?? undefined)
+    : onResumePlayPressProp;
   const onResumeExpandPress = isDocked
     ? (resumeStore.onExpandPress ?? undefined)
     : onResumeExpandPressProp;
@@ -279,7 +288,8 @@ export default function MiniPlayer({
         }
         const progress = Math.max(0, Math.min(1, gesture.dy / MINI_DROP_TRAVEL));
         const shouldDismiss =
-          progress > MINI_PLAYER_DISMISS_DISTANCE_RATIO || gesture.vy > MINI_PLAYER_DISMISS_VELOCITY;
+          progress > MINI_PLAYER_DISMISS_DISTANCE_RATIO ||
+          gesture.vy > MINI_PLAYER_DISMISS_VELOCITY;
         if (shouldDismiss) {
           if (gestureContext.current.isAccessory) {
             // 시스템 액세서리 — 제자리로 돌아간 뒤 숨기면(bottomAccessoryHidden) iOS 가 탭 바로 거둬들이는
@@ -409,7 +419,11 @@ export default function MiniPlayer({
       {...swipePanResponder.panHandlers}
     >
       {/* 유리 바탕 — 독에 있으면 CapsuleTabBar 의 GlassGroup 이 뒤 층에서 그린다(캡슐과 물방울 병합). 탭 밖에선 직접 */}
-      {isDocked ? null : (
+      {isDocked ? (
+        SOLID_DOCK_CARD ? (
+          <View style={[StyleSheet.absoluteFill, styles.solidCard]} pointerEvents="none" />
+        ) : null
+      ) : (
         <>
           <GlassSurface style={StyleSheet.absoluteFill} />
           <View style={styles.topLine} pointerEvents="none" />
@@ -467,7 +481,11 @@ export default function MiniPlayer({
       {/* 진행바는 **아래 변**(2026-09-25 PM) — 유리 위 림의 흰 하이라이트 밑에 검정 선을 두면 테두리가 두 겹으로 읽혔다.
           캡슐 모서리에서 잘리지 않게 양옆 12 안쪽, 끝은 둥글게. 카드 밑동이 차오르는 은유(Spotify·YouTube Music) */}
       <View
-        style={[styles.progressTrack, isAccessory && styles.progressTrackAccessory]}
+        style={[
+          styles.progressTrack,
+          isAccessory && styles.progressTrackAccessory,
+          isDocked && SOLID_DOCK_CARD && styles.progressTrackSolid,
+        ]}
         accessibilityRole="progressbar"
         accessibilityLabel={PLAYER_COPY.miniPlayer.progressA11y(totalMin, currentMin)}
       >
@@ -538,6 +556,17 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(0, 0, 0, 0.10)',
+  },
+  // Android 독 카드 — 흰 불투명 면 + 윤곽(탭 바 capsuleSolidPlate 와 같은 재질)
+  solidCard: {
+    borderRadius: MINI_CARD_RADIUS,
+    backgroundColor: theme.color.background,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(0, 0, 0, 0.10)',
+  },
+  progressTrackSolid: {
+    marginHorizontal: MINI_CARD_RADIUS,
+    transform: [{ translateY: -SOLID_PROGRESS_LIFT }],
   },
   progressTrack: {
     height: PROGRESS_HEIGHT,
