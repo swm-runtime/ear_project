@@ -8,26 +8,42 @@ interface PersonIconProps {
 }
 
 const STROKE_WIDTH = 1.8;
+/** 어깨 — 폭 19pt 돔, 아래 모서리만 둥글다(iOS 26 탭 바 `person` 실측) */
+const SHOULDERS =
+  'M12 13.65C17.6 13.65 21.5 16.8 21.5 20.6Q21.5 22 20.1 22H3.9Q2.5 22 2.5 20.6C2.5 16.8 6.4 13.65 12 13.65Z';
 
 /**
  * 사람 심볼. 프로필 탭 아이콘과 닉네임 없는 계정의 아바타가 같은 도형을 쓴다 —
  * 두 곳이 서로 다른 사람 모양을 쓰면 같은 것을 가리키는지 알 수 없다.
  *
- * 채울 때도 같은 굵기의 획을 함께 준다. 획은 경로 바깥으로 굵기의 절반만큼 번져 나가므로
- * 채우기만 하면 그 번짐이 사라져 **채운 쪽이 줄어 보인다.**
+ * 모양은 iOS 26 시스템 탭 바의 사람 아이콘 실측(PM 2026-09-29 — TabBarIcon 주석): 지름 9.7pt 머리 + 폭 19pt 돔 어깨.
+ * 선 변형은 같은 도형을 획 굵기의 절반만큼 안쪽으로 그려 바깥 실루엣이 채운 변형과 같다
  */
 export default function PersonIcon({ size, color, filled }: PersonIconProps) {
-  const shape = filled
-    ? { fill: color, stroke: color, strokeWidth: STROKE_WIDTH }
-    : { fill: 'none', stroke: color, strokeWidth: STROKE_WIDTH };
-
+  if (filled) {
+    return (
+      <Svg width={size} height={size} viewBox="0 0 24 24">
+        <Circle cx="12" cy="6.55" r="4.85" fill={color} />
+        <Path d={SHOULDERS} fill={color} />
+      </Svg>
+    );
+  }
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
-      <Circle cx="12" cy="8.4" r="3.6" {...shape} />
+      <Circle
+        cx="12"
+        cy="6.55"
+        r={4.85 - STROKE_WIDTH / 2}
+        fill="none"
+        stroke={color}
+        strokeWidth={STROKE_WIDTH}
+      />
       <Path
-        {...shape}
-        strokeLinecap="round"
-        d="M12 13.6c-4 0-7.2 2.7-7.2 6 0 .5.4.9.9.9h12.6c.5 0 .9-.4.9-.9 0-3.3-3.2-6-7.2-6z"
+        d="M12 14.55C17.1 14.55 20.6 17.3 20.6 20.6Q20.6 21.1 20.1 21.1H3.9Q3.4 21.1 3.4 20.6C3.4 17.3 6.9 14.55 12 14.55Z"
+        fill="none"
+        stroke={color}
+        strokeWidth={STROKE_WIDTH}
+        strokeLinejoin="round"
       />
     </Svg>
   );
