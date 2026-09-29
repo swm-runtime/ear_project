@@ -414,12 +414,20 @@ export default function CapsuleTabBar({
               <Animated.View style={[styles.itemContent, { transform: [{ scale: contentScale }] }]}>
                 {/* 두 겹 — 선·회색(항상) 위에 면·검정(알약이 겹친 만큼) */}
                 <View style={styles.glyph}>
-                  <TabBarIcon
-                    name={ICON_NAMES[route.name] ?? 'library'}
-                    color={theme.color.textSecondary}
-                    focused={false}
-                    size={ICON_SIZE}
-                  />
+                  {/* Android 는 알약이 겹친 만큼 밑의 선 아이콘을 뺀다 — 면 아이콘이 선을 다 덮지 못해(Solar 라이브러리는 두
+                      변형의 모양이 다르다) 선택된 칸에 회색 테두리가 비쳤다(PM 2026-09-30 02:34 "색칠될 때 테두리 없애"). 아이폰은 그대로 */}
+                  <Animated.View
+                    style={
+                      IS_ANDROID ? { opacity: Animated.subtract(1, selectedOpacity) } : undefined
+                    }
+                  >
+                    <TabBarIcon
+                      name={ICON_NAMES[route.name] ?? 'library'}
+                      color={theme.color.textSecondary}
+                      focused={false}
+                      size={ICON_SIZE}
+                    />
+                  </Animated.View>
                   <Animated.View style={[styles.glyphOverlay, { opacity: selectedOpacity }]}>
                     <TabBarIcon
                       name={ICON_NAMES[route.name] ?? 'library'}
