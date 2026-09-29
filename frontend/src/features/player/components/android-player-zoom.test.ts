@@ -34,7 +34,7 @@ describe('Android 플레이어 네이티브 줌', () => {
     expect(Number.isFinite(read(zoom.contentTransform[0].scaleY))).toBe(true);
   });
 
-  it.each([0, 0.5, 1])('닫기 %s에서 크기를 유지하며 아래로 사라진다', (p) => {
+  it.each([0, 0.5, 1])('닫기 %s에서 크기와 불투명도를 유지하며 화면 아래로 이동한다', (p) => {
     const zoom = createAndroidPlayerZoom(
       new Animated.Value(1),
       { x: 24, y: 700, width: 345, height: 46 },
@@ -46,6 +46,6 @@ describe('Android 플레이어 네이티브 줌', () => {
     expect(read(ty.translateY)).toBeCloseTo(852 * p);
     expect(read(sx.scaleX)).toBe(1);
     expect(read(sy.scaleY)).toBe(1);
-    expect(read(zoom.frame.opacity)).toBeCloseTo(p <= 0.2 ? 1 : (1 - p) / 0.8);
+    expect(zoom.frame.opacity).toBe(1);
   });
 });
