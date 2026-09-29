@@ -19,6 +19,11 @@ interface TabBarIconProps {
 const BOOK_STROKE = 1.5;
 /** 나침반 테두리 굵기 — 실측 2 보다 가늘게(같은 지시) */
 const COMPASS_STROKE = 1.6;
+/**
+ * **Android 탭 아이콘 선 굵기는 셋 다 1.5**(PM 2026-09-30 01:38 "아이폰은 두고 Android 만 1.5 로 통일") — 라이브러리 1.25 ·
+ * 탐색 1.6 · 프로필 1.5 로 제각각이라 라이브러리가 가늘어 보였다. 아이폰(iOS 26 미만) 값은 그대로
+ */
+const ANDROID_TAB_STROKE = 1.5;
 /** 책 띠 굵기 */
 const BAND_STROKE = 1;
 
@@ -32,10 +37,10 @@ const BOOK_C = 'M14.17 24.08V1.92a1 1 0 0 1 1-1h3.66a1 1 0 0 1 1 1v21.16a1 1 0 0
 const BOOK_BANDS = 'M8.3 10.83h3.6M8.3 21.17h3.6';
 /*
  * **Android 라이브러리 아이콘 — Solar `library`**(480 Design, CC BY 4.0 — https://creativecommons.org/licenses/by/4.0/).
- * PM 2026-09-30 00:56 선택. 선 변형은 원본 획 1.5 를 **1.25 로 줄였다**(변경 사항 — CC BY 는 변경 표시를 요구한다),
- * 채운 변형(`library-bold`)은 원본 그대로. 출처는 frontend/THIRD_PARTY_NOTICES.md
+ * PM 2026-09-30 00:56 선택. 선 변형은 원본 획 1.5 그대로(한때 1.25 로 줄였다가 01:38 탭 아이콘 굵기 통일로 되돌림),
+ * 채운 변형(`library-bold`)도 원본 그대로. 출처는 frontend/THIRD_PARTY_NOTICES.md
  */
-const SOLAR_LIBRARY_STROKE = 1.25;
+const SOLAR_LIBRARY_STROKE = ANDROID_TAB_STROKE;
 const SOLAR_LIBRARY_LINES = [
   'M19.5617 7C19.7904 5.69523 18.7863 4.5 17.4617 4.5H6.53788C5.21323 4.5 4.20922 5.69523 4.43784 7',
   'M17.4999 4.5C17.5283 4.24092 17.5425 4.11135 17.5427 4.00435C17.545 2.98072 16.7739 2.12064 15.7561 2.01142C15.6497 2 15.5194 2 15.2588 2H8.74099C8.48035 2 8.35002 2 8.24362 2.01142C7.22584 2.12064 6.45481 2.98072 6.45704 4.00434C6.45727 4.11135 6.47146 4.2409 6.49983 4.5',
@@ -161,7 +166,14 @@ export default function TabBarIcon({ name, color, focused, size }: TabBarIconPro
     }
     return (
       <Svg width={size} height={size} viewBox="0 0 24 24">
-        <Circle cx="12" cy="12" r="10.5" fill="none" stroke={color} strokeWidth={COMPASS_STROKE} />
+        <Circle
+          cx="12"
+          cy="12"
+          r="10.5"
+          fill="none"
+          stroke={color}
+          strokeWidth={Platform.OS === 'android' ? ANDROID_TAB_STROKE : COMPASS_STROKE}
+        />
         <Path d={`${NEEDLE} ${NEEDLE_HOLE}`} fill={color} fillRule="evenodd" />
       </Svg>
     );

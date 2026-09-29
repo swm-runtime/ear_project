@@ -11,6 +11,6 @@
 | 출처 | Iconify `solar` 세트 — https://icon-sets.iconify.design/solar/ |
 | 라이선스 | Creative Commons Attribution 4.0 International (CC BY 4.0) — https://creativecommons.org/licenses/by/4.0/ |
 | 사용처 | `src/shared/ui/TabBarIcon.tsx` — Android 하단 탭 "라이브러리" 아이콘 |
-| 변경 | `library-linear` 의 획 굵기를 1.5 → 1.25 로 줄였다. `library-bold` 는 원본 그대로 |
+| 변경 | 없음 — `library-linear`(획 1.5)·`library-bold` 모두 원본 그대로(2026-09-30 획 1.25 축소를 되돌림) |
 
 사용자에게 보이는 고지는 랜딩 `https://earcast.co.kr/licenses/`(원본 `landing-page/src/content/licenses.ts`)이고, 앱 설정 [오픈소스 라이선스] 행이 연다. 항목을 늘리면 두 곳을 함께 고친다.
