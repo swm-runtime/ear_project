@@ -24,6 +24,20 @@ import {
 /** GA4 는 첫 세션 날짜 기준으로 코호트를 자른다 */
 const COHORT_DIMENSION = 'firstSessionDate';
 
+/**
+ * **운영 스트림만 본다**(`features/analytics.md` 1장 — 개발계 앱은 같은 속성의 별도 스트림이라
+ * 걸러야 테스트 트래픽이 지표에 섞이지 않는다). GA4 스트림 이름이 `ear prod iOS`·`ear prod`
+ * 처럼 접두로 갈리므로(2026-09-29 실측: 그 외는 `ear preview …`) 이름 접두로 거른다 —
+ * 스트림 ID 를 박아 두면 안드로이드 운영 스트림이 생길 때 코드를 또 고쳐야 한다.
+ */
+const PROD_STREAM_PREFIX = 'ear prod';
+const prodStreamFilter = {
+  filter: {
+    fieldName: 'streamName',
+    stringFilter: { matchType: 'BEGINS_WITH', value: PROD_STREAM_PREFIX },
+  },
+};
+
 type Client = {
   runReport(request: object): Promise<[{ rows?: ReportRow[] | null }]>;
 };
@@ -80,6 +94,7 @@ export class Ga4Service {
         property,
         dateRanges: [day],
         metrics: [{ name: 'activeUsers' }, { name: 'newUsers' }],
+        dimensionFilter: prodStreamFilter,
       }),
       client.runReport({
         property,
@@ -87,9 +102,16 @@ export class Ga4Service {
         dimensions: [{ name: 'eventName' }],
         metrics: [{ name: 'eventCount' }],
         dimensionFilter: {
-          filter: {
-            fieldName: 'eventName',
-            stringFilter: { matchType: 'EXACT', value: 'sign_up' },
+          andGroup: {
+            expressions: [
+              {
+                filter: {
+                  fieldName: 'eventName',
+                  stringFilter: { matchType: 'EXACT', value: 'sign_up' },
+                },
+              },
+              prodStreamFilter,
+            ],
           },
         },
       }),
@@ -118,6 +140,7 @@ export class Ga4Service {
           ],
           cohortsRange: { granularity: 'DAILY', startOffset: 0, endOffset: 7 },
         },
+        dimensionFilter: prodStreamFilter,
       }),
     ]);
 

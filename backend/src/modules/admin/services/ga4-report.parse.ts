@@ -48,8 +48,11 @@ export function parseEventCount(
  * 차원은 `[cohort, cohortNthDay]`, 지표는 `[cohortActiveUsers, cohortTotalUsers]` 순서다.
  * `cohortNthDay` 는 `0000`·`0001` 처럼 0 을 채운 문자열로 온다 — 숫자로 바꿔 비교한다.
  *
- * **분모가 0 이면 `null` 이다.** 0% 가 아니다 — 코호트가 비어 있는 것과 아무도 돌아오지
- * 않은 것은 다른 사실이고, 0% 로 적으면 지표를 잘못 읽는다.
+ * **분모는 0일차(`0000`) 행에서 읽는다.** `cohortTotalUsers` 는 코호트 크기라 어느 행이든 같지만,
+ * GA4 는 **값이 0 인 행을 아예 주지 않는다** — 1명 코호트에서 아무도 안 돌아온 날은 `0001` 행이
+ * 없다(2026-09-29 실데이터 확인). N일차 행만 찾으면 그 날이 "모른다"로 가려지는데 진실은 **0%** 다.
+ * 그래서 N일차 행이 없으면 복귀 0명으로 세고, 0일차 행조차 없을 때(코호트 자체가 빈 날)만 `null`
+ * 이다 — 0% 와 "표본 없음"은 다른 사실이다.
  */
 export function parseRetention(
   rows: ReportRow[] | null | undefined,
@@ -57,11 +60,15 @@ export function parseRetention(
 ): Record<string, number | null> {
   const out: Record<string, number | null> = {};
   for (const { name, nthDay } of cohorts) {
-    const row = (rows ?? []).find(
-      (r) => dim(r, 0) === name && num(dim(r, 1)) === nthDay,
-    );
-    const total = row ? met(row, 1) : 0;
-    out[name] = row && total > 0 ? met(row, 0) / total : null;
+    const ofCohort = (rows ?? []).filter((r) => dim(r, 0) === name);
+    const day0 = ofCohort.find((r) => num(dim(r, 1)) === 0);
+    const total = day0 ? met(day0, 1) : 0;
+    if (total <= 0) {
+      out[name] = null;
+      continue;
+    }
+    const dayN = ofCohort.find((r) => num(dim(r, 1)) === nthDay);
+    out[name] = (dayN ? met(dayN, 0) : 0) / total;
   }
   return out;
 }

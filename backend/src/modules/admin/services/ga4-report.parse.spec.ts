@@ -46,15 +46,17 @@ describe('parseEventCount', () => {
 });
 
 describe('parseRetention', () => {
-  // [cohort, cohortNthDay] × [cohortActiveUsers, cohortTotalUsers]
+  // [cohort, cohortNthDay] × [cohortActiveUsers, cohortTotalUsers] — 2026-09-29 실응답 모양
   const rows = [
     row(['d1', '0000'], ['100', '100']),
     row(['d1', '0001'], ['41', '100']),
+    row(['d7', '0000'], ['80', '80']),
     row(['d7', '0007'], ['15', '80']),
-    row(['empty', '0001'], ['0', '0']),
+    row(['churned', '0000'], ['1', '1']), // 1명 코호트, 아무도 안 돌아옴 → GA4 는 0001 행을 주지 않는다
+    row(['churned', '0002'], ['1', '1']),
   ];
 
-  it('해당 코호트의 n일차 행에서 활성/전체를 나눈다', () => {
+  it('해당 코호트의 n일차 활성 / 0일차 총원을 나눈다', () => {
     const r = parseRetention(rows, [
       { name: 'd1', nthDay: 1 },
       { name: 'd7', nthDay: 7 },
@@ -67,13 +69,16 @@ describe('parseRetention', () => {
     expect(parseRetention(rows, [{ name: 'd1', nthDay: 1 }]).d1).not.toBeNull();
   });
 
-  it('분모가 0 이면 null — 0% 와 구분해야 한다', () => {
-    expect(
-      parseRetention(rows, [{ name: 'empty', nthDay: 1 }]).empty,
-    ).toBeNull();
+  it('N일차 행이 없으면 0% 다 — GA4 는 0 인 행을 주지 않는다. "모른다"가 아니다', () => {
+    expect(parseRetention(rows, [{ name: 'churned', nthDay: 1 }]).churned).toBe(
+      0,
+    );
   });
 
-  it('행이 아예 없으면 null', () => {
+  it('0일차 행조차 없으면 null — 코호트 자체가 빈 날이다', () => {
+    expect(
+      parseRetention(rows, [{ name: 'nobody', nthDay: 1 }]).nobody,
+    ).toBeNull();
     expect(parseRetention([], [{ name: 'd1', nthDay: 1 }]).d1).toBeNull();
     expect(parseRetention(null, [{ name: 'd1', nthDay: 1 }]).d1).toBeNull();
   });
