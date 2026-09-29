@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
-import { Animated } from 'react-native';
+import { Animated, Platform } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion } from '@/shared/theme';
@@ -14,8 +14,13 @@ interface PeriodSwapProps {
 
 /** 조회 중 흐림 정도 — 종전 styles.dimmed 와 같은 0.5 */
 const DIMMED_OPACITY = 0.5;
-/** 새 목록이 들어오는 거리 — 오른쪽에서 짧게 */
-const ENTER_SHIFT = 16;
+/**
+ * 새 목록이 들어오는 거리 — 오른쪽에서 짧게. **Android 는 0**(옆으로 밀지 않고 페이드만) — 사진 여러 장이 든 면을
+ * 반투명하게 옮기면 프레임이 끊겨 어색했다(PM 2026-09-30 05:02 "안드로이드는 살짝 어색", 05:03 "둘 다")
+ */
+const ENTER_SHIFT = Platform.OS === 'android' ? 0 : 16;
+/** 들어오는 길이 — Android 는 페이드만이라 짧게 */
+const ENTER_DURATION = Platform.OS === 'android' ? motion.duration.fast : motion.duration.normal;
 
 /**
  * 인기 콘텐츠 구간 전환의 모션(PM 2026-09-30 04:49 "주간/월간/전체 눌러 콘텐츠가 바뀔 때 자연스럽게") — 종전엔 조회 중
@@ -44,7 +49,7 @@ export default function PeriodSwap({ swapKey, isDimmed, children }: PeriodSwapPr
     enter.setValue(0);
     Animated.timing(enter, {
       toValue: 1,
-      duration: motion.duration.normal,
+      duration: ENTER_DURATION,
       easing: motion.easing.easeOut,
       useNativeDriver: true,
     }).start();
