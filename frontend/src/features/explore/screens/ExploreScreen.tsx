@@ -41,6 +41,7 @@ import ExploreRingPill from '../components/ExploreRingPill';
 import ExploreSearchBarRow from '../components/ExploreSearchBarRow';
 import ExploreSkeleton from '../components/ExploreSkeleton';
 import ExploreTile from '../components/ExploreTile';
+import PeriodSwap from '../components/PeriodSwap';
 import PopularPeriodToggle from '../components/PopularPeriodToggle';
 import SearchToolbar from '../components/SearchToolbar';
 import TopicChips from '../components/TopicChips';
@@ -316,9 +317,14 @@ export default function ExploreScreen() {
           </Text>
         )}
 
-        {/* 구간 전환 중에는 직전 목록을 흐리게 유지한다 — 그 섹션만이다(uiux 4.10) */}
-        <View style={isPopular && screen.isPopularSwitching ? styles.dimmed : undefined}>
+        {/* 구간 전환 중에는 직전 목록을 흐리게 유지한다 — 그 섹션만이다(uiux 4.10). 새 구간이 오면 옆에서 밀려 들어온다(PeriodSwap).
+            목록은 구간마다 새로 만든다(key) — 넘기던 가로 위치가 새 구간의 맨 앞으로 돌아간다 */}
+        <PeriodSwap
+          swapKey={section.period ?? 'static'}
+          isDimmed={isPopular && screen.isPopularSwitching}
+        >
           <FlatList
+            key={section.period ?? 'static'}
             horizontal
             data={section.items}
             keyExtractor={(item) => item.content.id}
@@ -344,7 +350,7 @@ export default function ExploreScreen() {
             onEndReached={isPopular ? screen.loadMorePopular : undefined}
             onEndReachedThreshold={0.5}
           />
-        </View>
+        </PeriodSwap>
 
         {renderPopularSectionFooter(section)}
       </View>
@@ -603,9 +609,6 @@ const styles = StyleSheet.create({
   },
   carouselGap: {
     width: theme.spacing.md,
-  },
-  dimmed: {
-    opacity: 0.5,
   },
   emptyContent: {
     flexGrow: 1,
