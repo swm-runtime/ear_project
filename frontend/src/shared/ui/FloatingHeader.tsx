@@ -1,5 +1,6 @@
+import { BlurView } from 'expo-blur';
 import { createContext, useContext, useMemo, type ReactNode, type RefObject } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { Animated, Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
@@ -29,7 +30,16 @@ interface FloatingHeaderProps {
    * iOS 26 이 "바" 로 인식하고 그 밑(상태 바 + 머리 줄)에 점진 블러를 그리게 한다
    */
   containerRef?: RefObject<View | null>;
+  /**
+   * **Android 서리 유리 띠**의 블러 대상(AndroidBlurTarget 로 감싼 목록) — 주면 스크롤을 내릴 때 머리 줄 뒤(상태 바 포함)에
+   * 설정 화면과 같은 서리 유리가 깔린다(PM 2026-09-29 16:59 "설정에 넣은 걸 라이브러리·탐색에도"). solidness 와 반대로
+   * 맨 위에선 투명, 내리면 나타난다
+   */
+  androidFrostTarget?: RefObject<View | null>;
 }
+
+/** Android 서리 유리 — 설정 상단바(SettingsScreen)와 같은 값: 블러 25(Android 는 ÷4 반경) + 흰 12% */
+const FROST_BLUR_INTENSITY = 25;
 
 /**
  * 화면 위에 **떠 있는 머리 줄**(검색창·세그먼트·칩) — 배경 없이 목록 위에 절대 배치돼 콘텐츠가 그 밑으로 흐른다
@@ -43,8 +53,15 @@ export default function FloatingHeader({
   onHeightChange,
   solidness,
   containerRef,
+  androidFrostTarget,
 }: FloatingHeaderProps) {
   const insets = useSafeAreaInsets();
+  const frostOpacity = useMemo(
+    () => (solidness ? Animated.subtract(1, solidness) : null),
+    [solidness],
+  );
+  const showFrost =
+    Platform.OS === 'android' && androidFrostTarget !== undefined && frostOpacity !== null;
   return (
     <HeaderSolidnessContext.Provider value={solidness ?? null}>
       <View
@@ -52,6 +69,22 @@ export default function FloatingHeader({
         style={[styles.header, { paddingTop: insets.top }]}
         pointerEvents="box-none"
       >
+        {showFrost ? (
+          <Animated.View
+            style={[StyleSheet.absoluteFill, { opacity: frostOpacity }]}
+            pointerEvents="none"
+          >
+            <BlurView
+              style={StyleSheet.absoluteFill}
+              tint="light"
+              intensity={FROST_BLUR_INTENSITY}
+              blurTarget={androidFrostTarget}
+              blurMethod="dimezisBlurView"
+            />
+            <View style={[StyleSheet.absoluteFill, styles.frostWhite]} />
+            <View style={styles.frostEdge} />
+          </Animated.View>
+        ) : null}
         <View
           onLayout={(e) => onHeightChange(e.nativeEvent.layout.height)}
           pointerEvents="box-none"
@@ -107,6 +140,19 @@ export const useFloatingHeaderScroll = () => {
 };
 
 const styles = StyleSheet.create({
+  // 블러 틴트(25 → 약 19%) 위 흰 막 — 합쳐 약 30%(설정과 같다)
+  frostWhite: {
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  // 띠 아래 끝 hairline — 판이 끊기는 자리를 정리한다
+  frostEdge: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(60, 60, 67, 0.2)',
+  },
   header: {
     position: 'absolute',
     top: 0,

@@ -14,6 +14,7 @@ import { useNativeHeaderInset } from '@/shared/navigation/useNativeHeaderInset';
 import { useSystemLargeTitle } from '@/shared/navigation/useSystemLargeTitle';
 import { useTabScrollToTop } from '@/shared/navigation/useTabScrollToTop';
 import { theme } from '@/shared/theme';
+import AndroidBlurTarget from '@/shared/ui/AndroidBlurTarget';
 import FloatingHeader, {
   useFloatingHeaderInset,
   useFloatingHeaderScroll,
@@ -96,6 +97,8 @@ export default function LibraryScreen() {
   // 머리 줄(JS 탭 바 갈래)의 루트 ref — 종전 시스템 edge effect 연결용, 지금은 FloatingHeader 가 요구만 한다
   const listRef = useTabScrollToTop({ topInset: nativeBarInset });
   const headerRef = useRef<View>(null);
+  // Android 서리 유리 띠의 블러 대상(AndroidBlurTarget)
+  const blurTargetRef = useRef<View>(null);
 
   /*
    * 검색은 **받아 둔 목록만** 좁힌다 — 서버 조회를 추가하지 않는다.
@@ -156,7 +159,12 @@ export default function LibraryScreen() {
     <View style={styles.contentHeader}>
       {/* 콘텐츠 안 검색 필드 — 유리가 아니라 면(애플 뮤직 검색 탭). 받아 둔 목록을 그 자리에서 좁히는 규칙은 그대로 */}
       {showTabBar ? (
-        <LibrarySearchBarRow query={query} onChangeQuery={setQuery} trailing={null} variant="fill" />
+        <LibrarySearchBarRow
+          query={query}
+          onChangeQuery={setQuery}
+          trailing={null}
+          variant="fill"
+        />
       ) : null}
       {filterSummary}
       {banner}
@@ -278,80 +286,83 @@ export default function LibraryScreen() {
 
   return (
     <View style={styles.container}>
-      {screen.isFullError ? (
-        <View style={[styles.container, { paddingTop: nativeBarInset + headerInset }]}>
-          <FullScreenError
-          title={
-            screen.isFullErrorNetwork
-              ? LIBRARY_COPY.error.networkTitle
-              : LIBRARY_COPY.error.loadFailedTitle
-          }
-          description={LIBRARY_COPY.error.loadFailedDescription}
-          retryLabel={LIBRARY_COPY.error.retry}
-            isRetrying={screen.isRefetching}
-            onRetry={screen.retry}
-          />
-        </View>
-      ) : screen.showSkeleton ? (
-        <View style={{ paddingTop: headerInset + nativeBarInset }}>
-          <LibraryItemSkeleton />
-        </View>
-      ) : screen.isInitialLoading ? (
-        <View style={styles.container} />
-      ) : (
-        <Animated.FlatList
-          ref={listRef}
-          {...DOCK_SCROLL_PROPS}
-          {...scrollProps}
-          data={gridRows}
-          keyExtractor={(row) => row.key}
-          renderItem={({ item: row }) =>
-            row.kind === 'discoveryHeader' ? (
-              // [이어 PICK] 뷰의 탐험 구획 타이틀 — 정규 드립 구획 뒤에 온다(library.md 4.6-1)
-              <Text style={styles.discoverySectionTitle} accessibilityRole="header">
-                {LIBRARY_COPY.discovery.sectionTitle}
-              </Text>
-            ) : (
-              <View style={styles.gridRow}>
-                {row.items.map((item) => (
-                  <LibraryItemTile
-                    key={item.id}
-                    item={item}
-                    onPress={screen.handleItemPress}
-                    onMorePress={screen.openMoreSheet}
-                    // 배지는 전체 목록에서만 — PICK 뷰는 구획이 구분한다(library.md 4.6-1)
-                    showDiscoveryBadge={!screen.isPickView}
-                  />
-                ))}
-                {/* 홀수 마지막 행 — 빈 칸을 채워 남은 타일이 전체 폭으로 늘지 않게 한다 */}
-                {row.items.length === 1 ? <View style={styles.gridSpacer} /> : null}
-              </View>
-            )
-          }
-          ItemSeparatorComponent={({ leadingItem }: { leadingItem: LibraryGridRow }) =>
-            // 구획 타이틀 바로 아래에는 간격을 두지 않는다 — 타이틀 자체가 아래 여백을 가진다
-            leadingItem.kind === 'discoveryHeader' ? null : <View style={styles.separator} />
-          }
-          ListHeaderComponent={contentHeader}
-          ListEmptyComponent={renderEmpty()}
-          ListFooterComponent={renderFooter()}
-          contentContainerStyle={[
-            gridRows.length === 0 ? styles.emptyContent : styles.gridContent,
-            { paddingTop: headerInset, paddingBottom: miniInset },
-          ]}
-          refreshControl={
-            <RefreshControl
-              refreshing={screen.isManualRefreshing}
-              onRefresh={() => void screen.refresh()}
-              tintColor={theme.color.primary}
-              // 스피너가 머리 줄 밑에 숨지 않게
-              progressViewOffset={headerInset}
+      {/* Android — 머리 줄의 서리 유리 띠가 흐릴 대상(목록·상태 화면 전체). 머리 줄은 이 뒤에 선언한다 */}
+      <AndroidBlurTarget targetRef={blurTargetRef}>
+        {screen.isFullError ? (
+          <View style={[styles.container, { paddingTop: nativeBarInset + headerInset }]}>
+            <FullScreenError
+              title={
+                screen.isFullErrorNetwork
+                  ? LIBRARY_COPY.error.networkTitle
+                  : LIBRARY_COPY.error.loadFailedTitle
+              }
+              description={LIBRARY_COPY.error.loadFailedDescription}
+              retryLabel={LIBRARY_COPY.error.retry}
+              isRetrying={screen.isRefetching}
+              onRetry={screen.retry}
             />
-          }
-          onEndReached={screen.loadMore}
-          onEndReachedThreshold={0.4}
-        />
-      )}
+          </View>
+        ) : screen.showSkeleton ? (
+          <View style={{ paddingTop: headerInset + nativeBarInset }}>
+            <LibraryItemSkeleton />
+          </View>
+        ) : screen.isInitialLoading ? (
+          <View style={styles.container} />
+        ) : (
+          <Animated.FlatList
+            ref={listRef}
+            {...DOCK_SCROLL_PROPS}
+            {...scrollProps}
+            data={gridRows}
+            keyExtractor={(row) => row.key}
+            renderItem={({ item: row }) =>
+              row.kind === 'discoveryHeader' ? (
+                // [이어 PICK] 뷰의 탐험 구획 타이틀 — 정규 드립 구획 뒤에 온다(library.md 4.6-1)
+                <Text style={styles.discoverySectionTitle} accessibilityRole="header">
+                  {LIBRARY_COPY.discovery.sectionTitle}
+                </Text>
+              ) : (
+                <View style={styles.gridRow}>
+                  {row.items.map((item) => (
+                    <LibraryItemTile
+                      key={item.id}
+                      item={item}
+                      onPress={screen.handleItemPress}
+                      onMorePress={screen.openMoreSheet}
+                      // 배지는 전체 목록에서만 — PICK 뷰는 구획이 구분한다(library.md 4.6-1)
+                      showDiscoveryBadge={!screen.isPickView}
+                    />
+                  ))}
+                  {/* 홀수 마지막 행 — 빈 칸을 채워 남은 타일이 전체 폭으로 늘지 않게 한다 */}
+                  {row.items.length === 1 ? <View style={styles.gridSpacer} /> : null}
+                </View>
+              )
+            }
+            ItemSeparatorComponent={({ leadingItem }: { leadingItem: LibraryGridRow }) =>
+              // 구획 타이틀 바로 아래에는 간격을 두지 않는다 — 타이틀 자체가 아래 여백을 가진다
+              leadingItem.kind === 'discoveryHeader' ? null : <View style={styles.separator} />
+            }
+            ListHeaderComponent={contentHeader}
+            ListEmptyComponent={renderEmpty()}
+            ListFooterComponent={renderFooter()}
+            contentContainerStyle={[
+              gridRows.length === 0 ? styles.emptyContent : styles.gridContent,
+              { paddingTop: headerInset, paddingBottom: miniInset },
+            ]}
+            refreshControl={
+              <RefreshControl
+                refreshing={screen.isManualRefreshing}
+                onRefresh={() => void screen.refresh()}
+                tintColor={theme.color.primary}
+                // 스피너가 머리 줄 밑에 숨지 않게
+                progressViewOffset={headerInset}
+              />
+            }
+            onEndReached={screen.loadMore}
+            onEndReachedThreshold={0.4}
+          />
+        )}
+      </AndroidBlurTarget>
 
       {/* 머리 줄은 목록 **뒤에 선언**한다(zIndex 로 위에 뜬다) */}
       {/* 머리 줄은 목록 위에 떠 있다 — 배경 없이 유리 컨트롤만(2026-09-24 PM). 브랜드 표시는 두지 않는다(2026-09-02).
@@ -361,6 +372,7 @@ export default function LibraryScreen() {
           onHeightChange={setHeaderHeight}
           solidness={solidness}
           containerRef={headerRef}
+          androidFrostTarget={blurTargetRef}
         >
           {Platform.OS === 'android' ? (
             <View style={styles.androidTitle}>
