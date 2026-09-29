@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -86,13 +86,23 @@ export default function ExploreScreen() {
   const [isClosingSearch, setIsClosingSearch] = useState(false);
   // 탭 재선택과 같은 "맨 위로"를 Android 접힘 바 제목 탭도 부른다
   const scrollToTopRef = useRef<((animated?: boolean) => void) | null>(null);
+  const restoreScrollRef = useRef<((offset: number) => void) | null>(null);
+  const feedOffsetRef = useRef(-nativeBarInset);
+  const searchReturnOffsetRef = useRef<number | null>(null);
+  useEffect(() => {
+    const listener = scrollY.addListener(({ value }) => { feedOffsetRef.current = value; });
+    return () => scrollY.removeListener(listener);
+  }, [scrollY]);
   const listRef = useTabScrollToTop({
     topInset: nativeBarInset,
     enabled: !isSearching,
     controlRef: scrollToTopRef,
+    scrollToOffsetRef: restoreScrollRef,
   });
   const openSearch = () => {
     if (HAS_NATIVE_TAB_BAR || ANDROID_IOS_HEADER) {
+      // 검색 중 스크롤 알림으로 덮어쓰지 않는다. 헤더 아래에서 보던 위치를 저장한다.
+      searchReturnOffsetRef.current = Math.max(0, feedOffsetRef.current + nativeBarInset);
       // 시스템 제목은 아래 피드의 스크롤 위치를 따른다. 검색을 덮기 전에 펼친 위치로 맞춘다.
       if (HAS_NATIVE_TAB_BAR) scrollToTopRef.current?.(false);
       setIsSearching(true);
@@ -180,10 +190,15 @@ export default function ExploreScreen() {
           isClosing: isClosingSearch,
           onRequestClose: () => setIsClosingSearch(true),
           onExit: () => {
+            if (searchReturnOffsetRef.current !== null) {
+              restoreScrollRef.current?.(searchReturnOffsetRef.current - nativeBarInset);
+              searchReturnOffsetRef.current = null;
+            }
             setIsSearching(false);
             setIsClosingSearch(false);
           },
           onOpenTopic: (topicId) => {
+            searchReturnOffsetRef.current = null;
             screen.clearTopicFilter();
             screen.toggleTopic(topicId);
             setIsSearching(false);
