@@ -6,6 +6,7 @@ import { UserModule } from '@/modules/user/user.module';
 
 import { AuthController } from './auth.controller';
 import { AuthService } from './services/auth.service';
+import { SignupAlertService } from './services/signup-alert.service';
 import { AppleClient } from './providers/apple.client';
 import { DevClient } from './providers/dev.client';
 import { GoogleClient } from './providers/google.client';
@@ -23,6 +24,7 @@ import { TokenService } from './services/token.service';
   controllers: [AuthController],
   providers: [
     AuthService,
+    SignupAlertService,
     TokenService,
     SessionRepository,
     SessionPurgeScheduler,
