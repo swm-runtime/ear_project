@@ -46,6 +46,14 @@ $SSH "ec2-user@$HOST" "
   aws secretsmanager get-secret-value --region \${AWS_REGION:-ap-northeast-2} \
     --secret-id $SECRET_ID --query SecretString --output text > \"\$SECRET_TMP\"
   cp .env.prod .env.prod.bak          # 갱신이 깨졌을 때 되돌릴 자리 — 한 세대만 유지
+  # **선택 env 키를 .env.prod 에 미리 선언한다.** apply-secrets.py 는 Secrets 에만 있고 .env.prod 에
+  # 없는 키를 만나면 배포를 중단시킨다(조용히 키를 늘리는 쪽이 더 위험하다는 판단 — 그 판단은
+  # 그대로다). 다만 코드가 \"비면 꺼진다\" 로 다루는 **알려진 선택 키**는 서버마다 SSH 로 한 줄씩
+  # 넣어 주는 대신 여기서 빈 값으로 선언해 둔다. 값은 여전히 Secrets 가 채우고, Secrets 에 없으면
+  # 빈 채로 남아 기능이 꺼진다. 목록에 없는 키는 종전처럼 막힌다.
+  for KEY in GA4_PROPERTY_ID GA4_SERVICE_ACCOUNT_BASE64; do
+    grep -q \"^\$KEY=\" .env.prod || printf '%s=\\n' \"\$KEY\" >> .env.prod
+  done
   python3 deploy/apply-secrets.py \"\$SECRET_TMP\" .env.prod
 
   if [ -n \"$API_IMAGE\" ]; then
