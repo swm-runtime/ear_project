@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -52,6 +52,7 @@ import { exploreGridKey, toExploreGridData } from '../explore.grid';
 import { buildSectionListKey } from '../explore.section-key';
 import type { ExploreSection } from '../explore.types';
 import { useExploreScreen } from '../hooks/useExploreScreen';
+import { useSearchScrollRestoration } from '../hooks/useSearchScrollRestoration';
 
 /**
  * 탐색 탭(E1~E13) — 화면은 뷰만 담당하고 로직은 useExploreScreen이 소유한다.
@@ -74,8 +75,6 @@ export default function ExploreScreen() {
   const headerInset = HAS_NATIVE_TAB_BAR ? 0 : ANDROID_IOS_HEADER ? insets.top : floatingInset;
   // 시스템 탭 갈래(바 없음) — 스크롤 뷰가 아닌 상태 화면(스켈레톤·에러)은 상태 바만 비운다
   const nativeBarInset = useNativeHeaderInset();
-  // 맨 위에서는 머리 줄 컨트롤이 면, 내리면 유리(PM 2026-09-25)
-  const { solidness, scrollY, scrollProps } = useFloatingHeaderScroll();
   // 머리 줄(JS 탭 바 갈래)의 루트 ref — 종전 시스템 edge effect 연결용, 지금은 FloatingHeader 가 요구만 한다
   const headerRef = useRef<View>(null);
   // Android 서리 유리 띠의 블러 대상(AndroidBlurTarget)
@@ -87,12 +86,9 @@ export default function ExploreScreen() {
   // 탭 재선택과 같은 "맨 위로"를 Android 접힘 바 제목 탭도 부른다
   const scrollToTopRef = useRef<((animated?: boolean) => void) | null>(null);
   const restoreScrollRef = useRef<((offset: number) => void) | null>(null);
-  const feedOffsetRef = useRef(-nativeBarInset);
-  const searchReturnOffsetRef = useRef<number | null>(null);
-  useEffect(() => {
-    const listener = scrollY.addListener(({ value }) => { feedOffsetRef.current = value; });
-    return () => scrollY.removeListener(listener);
-  }, [scrollY]);
+  const searchScroll = useSearchScrollRestoration(isSearching, restoreScrollRef);
+  // Animated.Value 초기값 대신 실제 목록 이벤트에서 복귀 좌표를 읽는다.
+  const { solidness, scrollY, scrollProps } = useFloatingHeaderScroll(searchScroll.onScroll);
   const listRef = useTabScrollToTop({
     topInset: nativeBarInset,
     enabled: !isSearching,
@@ -101,8 +97,8 @@ export default function ExploreScreen() {
   });
   const openSearch = () => {
     if (HAS_NATIVE_TAB_BAR || ANDROID_IOS_HEADER) {
-      // 검색 중 스크롤 알림으로 덮어쓰지 않는다. 헤더 아래에서 보던 위치를 저장한다.
-      searchReturnOffsetRef.current = Math.max(0, feedOffsetRef.current + nativeBarInset);
+      // UIKit이 준 실제 음수 좌표도 그대로 저장한다. 헤더 높이를 더하고 빼면 맨 위가 달라진다.
+      searchScroll.save(-nativeBarInset);
       // 시스템 제목은 아래 피드의 스크롤 위치를 따른다. 검색을 덮기 전에 펼친 위치로 맞춘다.
       if (HAS_NATIVE_TAB_BAR) scrollToTopRef.current?.(false);
       setIsSearching(true);
@@ -190,15 +186,11 @@ export default function ExploreScreen() {
           isClosing: isClosingSearch,
           onRequestClose: () => setIsClosingSearch(true),
           onExit: () => {
-            if (searchReturnOffsetRef.current !== null) {
-              restoreScrollRef.current?.(searchReturnOffsetRef.current - nativeBarInset);
-              searchReturnOffsetRef.current = null;
-            }
             setIsSearching(false);
             setIsClosingSearch(false);
           },
           onOpenTopic: (topicId) => {
-            searchReturnOffsetRef.current = null;
+            searchScroll.discard();
             screen.clearTopicFilter();
             screen.toggleTopic(topicId);
             setIsSearching(false);
