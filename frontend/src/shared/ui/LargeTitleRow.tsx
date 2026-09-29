@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import { useAndroidBoldFont } from '@/shared/theme/useAndroidBoldFont';
 
 interface LargeTitleRowProps {
   title: string;
@@ -19,9 +20,10 @@ export const LARGE_TITLE_ROW_HEIGHT = 52;
  * 바에는 제목이 없다가, 이 줄이 바 밑으로 들어가면 작은 제목이 페이드인한다(`useFadingNativeTitle`).
  */
 export default function LargeTitleRow({ title, trailing }: LargeTitleRowProps) {
+  const boldFont = useAndroidBoldFont();
   return (
     <View style={styles.row}>
-      <Text style={styles.title} accessibilityRole="header" numberOfLines={1}>
+      <Text style={[styles.title, boldFont]} accessibilityRole="header" numberOfLines={1}>
         {title}
       </Text>
       {trailing}
