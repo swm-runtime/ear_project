@@ -1,6 +1,6 @@
 import { BlurView } from 'expo-blur';
 import { useEffect, useMemo, useState, type ReactNode, type RefObject } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
@@ -19,6 +19,11 @@ interface AndroidCollapsingBarProps {
   trailing?: ReactNode;
   /** 서리 유리가 흐릴 대상(AndroidBlurTarget 로 감싼 목록) — 이 바는 반드시 그 뒤에 선언한다 */
   blurTarget: RefObject<View | null>;
+  /**
+   * 작은 제목을 누르면 — 목록 맨 위로(PM 2026-09-30 04:53 "상단바 제목 터치하면 최상단으로"). iOS 상태 바 탭과 같은 역할.
+   * 제목이 **보일 때만** 바 줄이 탭을 받는다 — 정지 땐 그 자리에 큰 제목 줄이 앉아 있어 가로채면 안 된다
+   */
+  onTitlePress?: () => void;
 }
 
 /** 블러 25(Android ÷4 반경) 위에 미니플레이어와 같은 밝은 틴트 72%를 얹는다. */
@@ -50,6 +55,7 @@ export default function AndroidCollapsingBar({
   leading,
   trailing,
   blurTarget,
+  onTitlePress,
 }: AndroidCollapsingBarProps) {
   const insets = useSafeAreaInsets();
   /*
@@ -105,6 +111,19 @@ export default function AndroidCollapsingBar({
         <View style={styles.edge} />
       </Animated.View>
       <View style={styles.row} pointerEvents="box-none">
+        {/* 제목 탭 영역 — 좌우 컨트롤보다 먼저 그려 그 밑에 깔린다(컨트롤은 제 탭을 그대로 받는다) */}
+        {onTitlePress ? (
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={onTitlePress}
+            pointerEvents={isTitleShown ? 'auto' : 'none'}
+            accessibilityRole="button"
+            accessibilityLabel={title}
+            accessibilityHint="맨 위로 이동"
+            accessibilityElementsHidden={!isTitleShown}
+            importantForAccessibility={isTitleShown ? 'yes' : 'no-hide-descendants'}
+          />
+        ) : null}
         <AnimatedText
           style={[
             styles.title,

@@ -80,7 +80,13 @@ export default function ExploreScreen() {
   const [isSearching, setIsSearching] = useState(false);
   // 제자리 검색 닫기 요청 — ✕ 는 시스템 바 캡슐에 있고, 덮개가 퇴장 애니메이션 끝에 onExit 로 isSearching 을 끈다
   const [isClosingSearch, setIsClosingSearch] = useState(false);
-  const listRef = useTabScrollToTop({ topInset: nativeBarInset, enabled: !isSearching });
+  // 탭 재선택과 같은 "맨 위로"를 Android 접힘 바 제목 탭도 부른다
+  const scrollToTopRef = useRef<(() => void) | null>(null);
+  const listRef = useTabScrollToTop({
+    topInset: nativeBarInset,
+    enabled: !isSearching,
+    controlRef: scrollToTopRef,
+  });
   const openSearch =
     HAS_NATIVE_TAB_BAR || ANDROID_IOS_HEADER ? () => setIsSearching(true) : screen.openSearch;
 
@@ -467,6 +473,7 @@ export default function ExploreScreen() {
               ) : null
             }
             blurTarget={blurTargetRef}
+            onTitlePress={() => scrollToTopRef.current?.()}
           />
         ) : HAS_NATIVE_TAB_BAR ? null : (
           <FloatingHeader

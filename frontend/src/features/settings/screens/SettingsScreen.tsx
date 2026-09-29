@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Animated, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Animated, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
@@ -52,6 +52,8 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   // 떠 있는 바의 블러가 흐릴 대상 — 목록을 감싼다(Android)
   const blurTargetRef = useRef<View>(null);
+  // Android 접힘 바 제목 탭 → 맨 위로(PM 2026-09-30 04:53 — 라이브러리·탐색과 같은 동작)
+  const scrollRef = useRef<ScrollView>(null);
   // iOS 26: **시스템 큰 제목** — 라이브러리·탐색과 같다(PM 2026-09-28 03:14 "이거야"). 뒤로 버튼이 있어 UIKit 이 큰 제목을
   // 버튼 줄 밑에 두고, 스크롤 접힘·바 밑 블러는 시스템이 한다
   // 접힌 작은 제목 크기는 훅 기본값(전 화면 공통 — 04:09 PM)
@@ -83,6 +85,7 @@ export default function SettingsScreen() {
 
       <AndroidBlurTarget targetRef={blurTargetRef}>
         <Animated.ScrollView
+          ref={scrollRef}
           contentContainerStyle={[
             styles.scrollContent,
             // Android — 버튼 줄 바로 아래 제목을 둔다. 별도 16pt 여백은 iOS보다 간격을 벌려 제거했다.
@@ -267,6 +270,7 @@ export default function SettingsScreen() {
           title={SETTINGS_COPY.title}
           scrollY={scrollY}
           blurTarget={blurTargetRef}
+          onTitlePress={() => scrollRef.current?.scrollTo({ y: 0, animated: true })}
           leading={
             <GlassCapsule style={styles.androidBackCircle}>
               <Pressable
