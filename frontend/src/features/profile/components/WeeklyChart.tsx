@@ -829,19 +829,27 @@ const styles = StyleSheet.create({
     color: theme.color.textPrimary,
     fontVariant: ['tabular-nums'],
   },
+  /*
+   * 요일 원 — **크기를 고정**(최소값 아님)하고 반지름을 그 절반으로, 넘치는 건 자른다. Android 에서 선택 원이 사각형으로
+   * 칠해졌다(PM 2026-09-29 13:56 → 반지름 16 으로도 14:10 "안 됨"): 최소 크기 + 안쪽 여백이면 Android 글꼴 여백(includeFontPadding)
+   * 만큼 판이 원보다 커질 수 있고, 연속 곡률(borderCurve)은 iOS 전용이다. 원 지름·반지름·자르기를 모두 고정한다
+   */
   dayBadge: {
     marginTop: theme.spacing.sm,
-    minWidth: DAY_BADGE_SIZE,
-    minHeight: DAY_BADGE_SIZE,
+    width: DAY_BADGE_SIZE,
+    height: DAY_BADGE_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: theme.spacing.xs,
-    // 반지름은 크기의 절반을 숫자로 준다 — radius.full(999)이 Android 에서 원이 아니라 사각형으로 칠해졌다(PM 2026-09-29 13:56)
     borderRadius: DAY_BADGE_SIZE / 2,
-    borderCurve: 'continuous',
+    overflow: 'hidden',
   },
   dayBadgeSelected: { backgroundColor: theme.color.primary },
-  dayName: { fontSize: theme.font.size.xs, color: theme.color.textSecondary },
+  dayName: {
+    fontSize: theme.font.size.xs,
+    color: theme.color.textSecondary,
+    // Android 글꼴 위아래 여백을 빼서 원 가운데에 선다
+    includeFontPadding: false,
+  },
   dayNameToday: { color: theme.color.textPrimary, fontWeight: '700' },
   dayNameSelected: { color: theme.color.onPrimary, fontWeight: '600' },
 });
