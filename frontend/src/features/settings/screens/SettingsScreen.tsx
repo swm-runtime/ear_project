@@ -131,9 +131,9 @@ export default function SettingsScreen() {
       <Animated.ScrollView
         contentContainerStyle={[
           styles.scrollContent,
-          // Android — 떠 있는 바(상태 바 + 44) 밑, 종전과 같은 간격(md)을 두고 시작한다
+          // Android — 떠 있는 바(상태 바 + 52) 밑, 종전과 같은 간격(md)을 두고 시작한다
           ANDROID_LARGE_TITLE && {
-            paddingTop: insets.top + theme.touchTarget.minHeight + theme.spacing.md,
+            paddingTop: insets.top + ANDROID_BAR_ROW_HEIGHT + theme.spacing.md,
           },
         ]}
         // 투명 시스템 바 밑을 비운다(iOS 26). 그 외 갈래는 RN 기본(never)
@@ -392,6 +392,8 @@ const BACK_ICON_SIZE = 24;
 /** Android 애플 문법 헤더(원형 ‹ + 콘텐츠 큰 제목) — iOS 26 은 시스템 바, 옛 iOS 는 종전 앱바 */
 const ANDROID_LARGE_TITLE = Platform.OS === 'android' && !USES_SYSTEM_PUSHED_HEADER;
 const ANDROID_BACK_ICON_SIZE = 20;
+/** Android 떠 있는 바의 줄 높이(상태 바 제외) — 44 에서 52 로(PM 2026-09-29 15:10 "상단바 높이 조금만 더") */
+const ANDROID_BAR_ROW_HEIGHT = 52;
 
 const styles = StyleSheet.create({
   container: {
@@ -426,6 +428,7 @@ const styles = StyleSheet.create({
    * iOS 26 뒤로 버튼도 16 에서 시작한다
    */
   androidAppBar: {
+    height: ANDROID_BAR_ROW_HEIGHT,
     paddingHorizontal: theme.spacing.md,
   },
   // 목록 위에 떠 있는 바 — 목록보다 뒤에 그려지지만 absolute + zIndex 로 위에 선다
@@ -453,7 +456,6 @@ const styles = StyleSheet.create({
   androidBackCircle: {
     width: HEADER_CONTROL_HEIGHT,
     height: HEADER_CONTROL_HEIGHT,
-    marginVertical: (theme.touchTarget.minHeight - HEADER_CONTROL_HEIGHT) / 2,
   },
   androidBackPressable: {
     flex: 1,
