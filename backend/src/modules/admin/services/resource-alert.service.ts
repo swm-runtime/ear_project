@@ -55,6 +55,27 @@ type MetricState = {
   lastAlertAt: number;
 };
 
+/**
+ * 경보 문구. 운영이 아니면 환경을 앞에 붙인다 — 운영·개발계가 같은 채널을 쓰는데
+ * 표시가 없으면 개발계 경보를 운영 장애로 오해한다. 운영에는 아무 표시도 없다
+ * (대부분의 줄이 운영이라 없는 쪽이 기본이어야 읽힌다).
+ */
+export function formatAlertText(
+  event: AlertEvent,
+  environment?: string,
+): string {
+  const label = event.metric === 'cpu' ? 'CPU' : '메모리';
+  const threshold =
+    event.metric === 'cpu' ? CPU_ALERT_PERCENT : MEM_ALERT_PERCENT;
+  const prefix =
+    environment && environment !== 'production' ? `[${environment}] ` : '';
+  return event.kind === 'recovered'
+    ? `${prefix}:white_check_mark: *API 서버 ${label} 정상화* — 현재 ${event.value.toFixed(0)}%`
+    : `${prefix}:rotating_light: *API 서버 ${label} ${event.value.toFixed(0)}%* — 임계 ${threshold}% ${
+        event.kind === 'realert' ? '초과 지속 중' : '3분 이상 초과'
+      }`;
+}
+
 export type AlertEvent = {
   metric: 'cpu' | 'memory';
   kind: 'alert' | 'realert' | 'recovered';
@@ -134,6 +155,7 @@ export class ResourceAlertService implements OnModuleInit, OnModuleDestroy {
   });
   private timer: NodeJS.Timeout | undefined;
   private readonly webhookUrl: string;
+  private readonly environment: string;
   private readonly samples: ResourceSample[] = [];
 
   constructor(
@@ -142,6 +164,10 @@ export class ResourceAlertService implements OnModuleInit, OnModuleDestroy {
   ) {
     this.webhookUrl =
       configService.get('SLACK_ERROR_WEBHOOK_URL', { infer: true }) ?? '';
+    // 운영·개발계가 같은 채널을 쓴다 — 표시가 없으면 "API 서버 CPU 85%" 를 보고
+    // 운영 장애로 오해한다. `NODE_ENV` 는 양쪽 다 production 이라 쓸 수 없다
+    this.environment =
+      configService.get('SENTRY_ENVIRONMENT', { infer: true }) ?? '';
   }
 
   onModuleInit(): void {
@@ -243,15 +269,7 @@ export class ResourceAlertService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async postToSlack(event: AlertEvent): Promise<void> {
-    const label = event.metric === 'cpu' ? 'CPU' : '메모리';
-    const threshold =
-      event.metric === 'cpu' ? CPU_ALERT_PERCENT : MEM_ALERT_PERCENT;
-    const text =
-      event.kind === 'recovered'
-        ? `:white_check_mark: *API 서버 ${label} 정상화* — 현재 ${event.value.toFixed(0)}%`
-        : `:rotating_light: *API 서버 ${label} ${event.value.toFixed(0)}%* — 임계 ${threshold}% ${
-            event.kind === 'realert' ? '초과 지속 중' : '3분 이상 초과'
-          }`;
+    const text = formatAlertText(event, this.environment);
 
     const res = await fetch(this.webhookUrl, {
       method: 'POST',
