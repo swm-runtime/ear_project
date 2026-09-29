@@ -9,12 +9,6 @@ interface PeriodSwapProps {
   swapKey: string;
   /** 전환 조회 중 — 직전 목록을 흐리게 둔다(uiux 4.10) */
   isDimmed: boolean;
-  /**
-   * 카드 한 칸(카드 폭 + 간격)과 목록 왼쪽 여백 — 주면 **카드 두 장 거리만** 흐르고, 이어 붙는 자리를 카드 경계에 맞춘다.
-   * 없으면 화면 폭만큼 흐른다
-   */
-  itemExtent?: number;
-  leadingInset?: number;
   children: ReactNode;
 }
 
@@ -39,13 +33,7 @@ type Slot = 'a' | 'b';
  * - 조회 중엔 직전 줄을 그 자리에서 흐리게 둔다. 새 구간이 **도착한 순간** 흐른다.
  * - 직전 줄은 같은 뷰를 그대로 붙잡는다(두 칸을 번갈아 쓴다) — 다시 만들지 않아 사진이 비지 않는다. 위치만 움직인다
  */
-export default function PeriodSwap({
-  swapKey,
-  isDimmed,
-  itemExtent,
-  leadingInset = 0,
-  children,
-}: PeriodSwapProps) {
+export default function PeriodSwap({ swapKey, isDimmed, children }: PeriodSwapProps) {
   const { width } = useWindowDimensions();
   const dim = useAnimatedValue(isDimmed ? DIMMED_OPACITY : 1);
   const flow = useAnimatedValue(1);
@@ -94,16 +82,6 @@ export default function PeriodSwap({
   }, [leaving, flow]);
 
   const direction = leaving?.direction ?? 1;
-  /*
-   * **카드가 잘리지 않게**(PM 2026-09-30 05:40 "카드가 잘린 채로 이동") — 정지 화면엔 카드 1장 + 2번째가 반쯤 보인다. 화면 폭만큼
-   * 밀면 2번째 카드가 잘린 모양 그대로 떠났다. 그래서 흐르는 거리를 **카드 두 장(2칸)** 으로 하고, 두 줄이 맞닿는 쪽 줄은
-   * 두 장까지만 보이게 잘라(그 뒤 카드가 다른 줄과 겹치지 않게) 목록 자체의 잘림은 풀어 둔다(overflow visible — ExploreScreen).
-   * 오른쪽 칸이면 [직전 1·2장][새 1·2장 …]이 왼쪽으로, 왼쪽 칸이면 [새 1·2장][직전 1장 …]이 오른쪽으로 흐른다
-   */
-  const distance = itemExtent !== undefined ? itemExtent * 2 : width;
-  const joinClip = itemExtent !== undefined ? { width: leadingInset + itemExtent * 2 } : null;
-  const leavingClip = direction > 0 ? joinClip : null;
-  const enteringClip = direction < 0 ? joinClip : null;
   return (
     <Animated.View style={{ opacity: dim }}>
       {leaving !== null ? (
@@ -111,13 +89,12 @@ export default function PeriodSwap({
           key={leaving.slot}
           style={[
             styles.leaving,
-            leavingClip && [styles.clip, leavingClip],
             {
               transform: [
                 {
                   translateX: flow.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [0, -direction * distance],
+                    outputRange: [0, -direction * width],
                   }),
                 },
               ],
@@ -131,19 +108,16 @@ export default function PeriodSwap({
         key={live}
         style={
           leaving !== null
-            ? [
-                enteringClip && [styles.clip, enteringClip],
-                {
-                  transform: [
-                    {
-                      translateX: flow.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [direction * distance, 0],
-                      }),
-                    },
-                  ],
-                },
-              ]
+            ? {
+                transform: [
+                  {
+                    translateX: flow.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [direction * width, 0],
+                    }),
+                  },
+                ],
+              }
             : undefined
         }
       >
@@ -160,9 +134,5 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-  },
-  // 맞닿는 쪽 줄 — 카드 두 장까지만 보이게 자른다(폭은 호출 값)
-  clip: {
-    overflow: 'hidden',
   },
 });

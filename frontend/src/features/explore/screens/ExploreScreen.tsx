@@ -8,7 +8,6 @@ import {
   RefreshControl,
   StyleSheet,
   View,
-  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -36,7 +35,7 @@ import {
 
 import ExploreSearchScreen from './ExploreSearchScreen';
 import ExploreEmptyState from '../components/ExploreEmptyState';
-import ExploreFeaturedCard, { featuredCardWidth } from '../components/ExploreFeaturedCard';
+import ExploreFeaturedCard from '../components/ExploreFeaturedCard';
 import ExploreMoreSheet from '../components/ExploreMoreSheet';
 import ExploreRingPill from '../components/ExploreRingPill';
 import ExploreSearchBarRow from '../components/ExploreSearchBarRow';
@@ -63,7 +62,6 @@ import { useExploreScreen } from '../hooks/useExploreScreen';
  */
 export default function ExploreScreen() {
   const screen = useExploreScreen();
-  const { width: windowWidth } = useWindowDimensions();
   const miniInset = useBottomDockInset();
   // 떠 있는 머리 줄(검색창·칩)의 높이 — 목록이 그만큼 위를 비운다(시스템 바 갈래에서는 0)
   const [headerHeight, setHeaderHeight] = useState(0);
@@ -331,15 +329,9 @@ export default function ExploreScreen() {
         <PeriodSwap
           swapKey={section.period ?? 'static'}
           isDimmed={isPopular && screen.isPopularSwitching}
-          itemExtent={isPopular ? featuredCardWidth(windowWidth) + theme.spacing.md : undefined}
-          leadingInset={theme.spacing.md}
         >
           <FlatList
             horizontal
-            // 인기 캐러셀은 목록 밖으로도 카드를 그린다 — 구간 전환 때 반쯤 보이던 카드가 잘린 채로 떠나지 않게(PeriodSwap).
-            // 화면 밖이라 평소엔 보이지 않는다. Android 는 화면 밖 셀을 떼는 최적화도 끈다
-            style={isPopular ? styles.carouselUnclipped : undefined}
-            removeClippedSubviews={isPopular ? false : undefined}
             data={section.items}
             keyExtractor={(item) => item.content.id}
             renderItem={({ item }) =>
@@ -621,9 +613,6 @@ const styles = StyleSheet.create({
   // 캐러셀 좌우 여백은 섹션 제목과 같은 선에서 시작한다
   carousel: {
     paddingHorizontal: theme.spacing.md,
-  },
-  carouselUnclipped: {
-    overflow: 'visible',
   },
   carouselGap: {
     width: theme.spacing.md,
