@@ -99,7 +99,9 @@ export default function LibraryScreen() {
   // 맨 위에서는 머리 줄 컨트롤이 면, 내리면 유리(PM 2026-09-25)
   const { solidness, scrollY, scrollProps } = useFloatingHeaderScroll();
   // 머리 줄(JS 탭 바 갈래)의 루트 ref — 종전 시스템 edge effect 연결용, 지금은 FloatingHeader 가 요구만 한다
-  const listRef = useTabScrollToTop({ topInset: nativeBarInset });
+  // 탭 재선택과 같은 "맨 위로"를 Android 접힘 바 제목 탭도 부른다
+  const scrollToTopRef = useRef<(() => void) | null>(null);
+  const listRef = useTabScrollToTop({ topInset: nativeBarInset, controlRef: scrollToTopRef });
   const headerRef = useRef<View>(null);
   // Android 서리 유리 띠의 블러 대상(AndroidBlurTarget)
   const blurTargetRef = useRef<View>(null);
@@ -381,6 +383,7 @@ export default function LibraryScreen() {
           scrollY={scrollY}
           trailing={toolbar}
           blurTarget={blurTargetRef}
+          onTitlePress={() => scrollToTopRef.current?.()}
         />
       ) : HAS_NATIVE_TAB_BAR ? null : (
         <FloatingHeader
