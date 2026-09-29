@@ -283,7 +283,6 @@ export default function SettingsScreen() {
               blurTarget={blurTargetRef}
               blurMethod="dimezisBlurView"
             />
-            <View style={[StyleSheet.absoluteFill, styles.androidBarFrost]} />
             <View style={styles.androidBarEdge} />
           </Animated.View>
           <View style={[styles.appBar, styles.androidAppBar]}>
@@ -416,9 +415,10 @@ const ANDROID_BACK_ICON_SIZE = 20;
 const ANDROID_BAR_ROW_HEIGHT = 52;
 /**
  * 서리 유리 블러 세기(expo-blur 0~100, Android 는 ÷4 가 반경) — 100 + 흰 55% 는 뒤가 아예 안 보였다(PM 2026-09-29 15:56).
- * 형체는 흐트러지되 색·덩어리는 비치게 40
+ * 형체는 흐트러지되 색·덩어리는 비치게 30. 흰 막은 **expo-blur 틴트 하나만** 쓴다 — Android 의 `light` 틴트는 세기 비례로
+ * 흰 막(40 이면 31%)을 스스로 깔아, 우리 막(30%)을 또 얹으니 흰 판이 됐다(16:05 "그냥 흰색, 뒤가 안 보여")
  */
-const FROST_BLUR_INTENSITY = 40;
+const FROST_BLUR_INTENSITY = 30;
 
 const styles = StyleSheet.create({
   // 블러 대상(목록 감싸개) — 레이아웃은 종전 목록 그대로 화면을 채운다
@@ -467,11 +467,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 1,
-  },
-  // 서리 막 — 흰 80%. 블러만으론 밑 썸네일 색이 진하게 비쳐 글자가 겹쳐 보인다
-  androidBarFrost: {
-    // 진짜 블러가 걸리니 막은 얇게 — 80%(15:31)·55%(15:56) 는 흰 판이라 뒤가 안 보였다. 글자 가독성만 받친다
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
   },
   // 블러 판 아래 끝 — 판이 끊기는 자리를 선으로 정리한다(iOS 바 그림자 선)
   androidBarEdge: {
