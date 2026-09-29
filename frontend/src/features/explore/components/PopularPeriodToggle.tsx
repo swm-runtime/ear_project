@@ -18,11 +18,10 @@ const IS_ANDROID = Platform.OS === 'android';
 const SYSTEM_HEIGHT = 32;
 const SYSTEM_SEGMENT_WIDTH = 52;
 /**
- * Android 토글 외곽 높이는 제목의 한글 획 높이에 맞춘 25dp(칸 21 + 안쪽 2×2).
- * 기준은 기존 실기기 측정값 70px ≈ 25dp다. 제목의 fontSize 28 은 눈에 보이는 획 높이와 다르다.
+ * Android 토글 외곽 높이는 32dp(칸 28 + 안쪽 2×2). 제목 행의 중앙 정렬 래퍼 안에 둔다.
  * 누르는 영역은 SegmentedControl 이 위아래 hitSlop 으로 44 를 채운다
  */
-const IOS26_SEGMENT_HEIGHT = 21;
+const IOS26_SEGMENT_HEIGHT = 28;
 const IOS_SEGMENT_WIDTH = SYSTEM_SEGMENT_WIDTH;
 
 interface PopularPeriodToggleProps {
@@ -47,7 +46,7 @@ const OPTIONS = PERIODS.map((value, index) => ({ value, label: LABELS[index] }))
  * "옛날 것 같다"는 평을 받았다. 모듈 없는 옛 iOS 빌드는 종전 캡슐 선택바(`modern`)로 내려간다.
  *
  * Android 는 **iOS 26 시스템 토글 모양의 JS 토글**(`SegmentedControl` `ios26` — 캡슐 트랙 + 떠 있는 흰 캡슐,
- * 외곽 높이 25 · 칸 폭 52). Material 3 Segmented button(#980)·Expressive 네이티브 토글(#981)은 PM 이 "구리다"(2026-09-29 17:10)고 해
+ * 외곽 높이 32 · 칸 폭 52). Material 3 Segmented button(#980)·Expressive 네이티브 토글(#981)은 PM 이 "구리다"(2026-09-29 17:10)고 해
  * 걷었다 — 네이티브 모듈의 Android 쪽은 빌드에 남아 있지만 쓰지 않는다.
  */
 export default function PopularPeriodToggle({
