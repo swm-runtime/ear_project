@@ -256,17 +256,24 @@ export default function CapsuleTabBar({
   };
   const selectTab = (target: number, wasDragged = false) => {
     const { routes, index, navigation: nav } = latestRef.current;
-    snapTo(target);
-    // 끌다 놓은 건 bloom 이 부풀린다 — 탭으로 건너뛸 때만 줄었다 부푸는 펄스
-    if (!wasDragged) contractForJump(Math.abs(target - index));
     // 같은 칸으로 끌어 돌아온 경우는 탭이 아니다. 같은 탭의 재탭은 화면에 전달한다.
-    if (target === index && wasDragged) return;
+    if (target === index && wasDragged) {
+      snapTo(index);
+      return;
+    }
     const pressEvent = nav.emit({
       type: 'tabPress',
       target: routes[target].key,
       canPreventDefault: true,
     });
-    if (target !== index && !pressEvent.defaultPrevented) nav.navigate(routes[target].name);
+    if (pressEvent.defaultPrevented) {
+      snapTo(index);
+      return;
+    }
+    snapTo(target);
+    // 끌다 놓은 건 bloom 이 부풀린다 — 탭으로 건너뛸 때만 줄었다 부푸는 펄스
+    if (!wasDragged) contractForJump(Math.abs(target - index));
+    if (target !== index) nav.navigate(routes[target].name);
   };
   /*
    * 탭·끌기는 **칸 하나하나가** 받는다(2026-09-23). 캡슐(부모)에 두고 칸에서 빼앗거나 처음부터 캡슐이 잡는
@@ -286,12 +293,15 @@ export default function CapsuleTabBar({
             isDraggingRef.current = false;
             liftPill(true);
             indicatorX.stopAnimation();
+            // Android는 길게 눌러도 기다리지 않는다. 손이 닿자마자 화면과 알약을 함께 선택한다.
+            if (SOLID_DOCK) selectTab(itemIndex);
             dragOriginRef.current = pillXRef.current;
           },
           onPanResponderMove: (_, gesture) => {
             if (!isDraggingRef.current) {
               if (Math.abs(gesture.dx) <= DRAG_START_DISTANCE) return;
               isDraggingRef.current = true;
+              indicatorX.stopAnimation();
             }
             const { maxX: limit } = latestRef.current;
             const raw = dragOriginRef.current + gesture.dx;
@@ -314,7 +324,8 @@ export default function CapsuleTabBar({
               : itemIndex;
             isDraggingRef.current = false;
             if (wasDragged) bloom();
-            selectTab(target, wasDragged);
+            // Android의 단순 누르기는 grant에서 끝났다. 같은 탭 재선택(맨 위 이동)도 한 번만 보낸다.
+            if (wasDragged || !SOLID_DOCK) selectTab(target, wasDragged);
           },
           onPanResponderTerminate: () => {
             liftPill(false);
