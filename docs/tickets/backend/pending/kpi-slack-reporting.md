@@ -11,7 +11,7 @@
 | 선행 | **1단계**: 없음 — 시크릿 설정까지 끝났다(2026-09-29). `dev`·`main` 배포만 남았다. **2단계**: 없음 |
 | Jira | [KAN-107](https://runtime364.atlassian.net/browse/KAN-107) (담당: 박준현) |
 | 중요도 | Medium — PM 이 중요도를 따로 정하지 않아 기본값. **Jira 우선순위가 Low 로 되어 있어 불일치** — 기한 09-30 은 Medium(+3일) 환산값이므로 Jira 쪽을 Medium 으로 맞춰야 한다 |
-| 상태 | **진행 중** — 1단계 완료 · 2단계 코드 완료 + **실 GA4 검증·Slack 미리보기 완료 2026-09-29**. 운영 Secrets + 배포만 남음 |
+| 상태 | **진행 중** — 1단계 완료 · 2단계 **4묶음 하이브리드 코드 완료 + 실 GA4 검증·Slack 미리보기 완료 2026-09-29**. 운영 Secrets + 배포만 남음 |
 
 ## 요청 — 2단계로 나눈다
 
@@ -95,30 +95,37 @@ GA4 `sign_up` 이벤트를 받아 Slack 에 게시한다. "하루 한 번"으로
 
 > ⚠️ **키를 새로 넣을 때만 해당.** `deploy/apply-secrets.py` 는 Secrets Manager 에 있는 키가 `.env.prod` 에 **없으면 배포를 중단시킨다**(`tickets/backend/archive/deploy-path-reads-secrets-manager.md`). 서버 파일이 먼저다. 중단 시점이 컨테이너를 건드리기 전이라 돌던 API 는 살아 있다.
 
-### 2단계 구현 (2026-09-29) — GA4 로 간다, 완청률은 뺀다
+### 2단계 구현 (2026-09-29) — GA4 + 서버 하이브리드, 4묶음
 
-PM 결정: **GA4 정보**(활성·신규·가입·리텐션)를 매일 17:00 KST 에 Slack 으로. 완청률은 요구하지 않는다. 문서 소유권(`analytics.md` 1장)과도 정합하다.
+PM 결정: 처음 문구("활성·신규·가입·리텐션" 한 줄)는 너무 단순했다 → **퍼널 순서 4묶음 + 전일 대비**. 완청 건수도 넣는다(완청률은 아니다).
+
+```
+:bar_chart: *2026-09-28 (월) 이어 일간 지표*  ·  운영 스트림
+*사용자*   활성 4 (▲1)  ·  신규 1 (▲1)  ·  세션 5 (평균 1분 56초)  ·  7일 활성 9
+*획득*     가입 1 → 온보딩 완료 1 (100%)  ·  푸시 응답 1  ·  탈퇴 0
+*재생*     시작 4 (3명)  ·  완청 0  ·  중도 이탈 4  ·  드립 재생 1  ·  담기 3
+*리텐션*   D1 — (표본 없음)  ·  D7 33% (3명 중 1)
+_▲▼ 전일 대비 · 가입·완청은 서버 값(04시 경계), 나머지는 GA4 운영 스트림_
+```
+
+**출처를 나눈 이유.** GA4 는 그 이벤트가 실린 빌드(runtime 7 이후)에서만 들어와 스토어 1.0.0 사용자를 놓친다. 정확해야 하는 두 값은 서버가 진실이다 — **가입**은 `POST /auth/sign-up` 을 반드시 거치고(`users.created_at`), **완청**은 서버가 판정한다(`player.md` 4.4 → `library_items.status = completed`, `completed_at`). 둘은 **서비스 날짜(04시) 경계**로 세고 문구에 적는다. **탈퇴는 서버에서 못 센다** — 행을 삭제하므로(`domain.md` 12.3) GA4 `withdrawal` 이벤트로. 나머지 행동·리텐션은 `analytics.md` 1장대로 GA4 소유다.
 
 | 파일 | |
 |---|---|
-| `admin/services/ga4.service.ts` | GA4 Data API 호출. **SDK 지연 로드** — `@google-analytics/data` 는 require 만으로 RSS +40MB, 클라이언트까지 +54MB(실측). 워커 2개가 24시간 108MB 를 내주지 않게 스케줄러 워커가 첫 실행 때만 올린다 |
-| `admin/services/ga4-report.parse.ts` | 응답 행 → 숫자. 순수 함수, 테스트 9건 |
-| `admin/services/daily-metrics.format.ts` | Slack 문구·보고 날짜. 순수 함수, 테스트 6건 |
-| `admin/services/daily-metrics.scheduler.ts` | `@Cron('0 17 * * *', { timeZone: 'Asia/Seoul' })` + 수동 `trigger()`. 테스트 4건 |
-| `admin.controller.ts` | `POST /admin/reports/daily-metrics` — "지금 한 번" 용. 202, 미설정이면 409 `ADMIN_REPORT_NOT_CONFIGURED`. 계약은 `changes/pending/admin-api-daily-metrics-trigger.md` |
-| `env.validation.ts` | `GA4_PROPERTY_ID` · `GA4_SERVICE_ACCOUNT_BASE64`(선택 — 비면 꺼짐) |
+| `admin/services/ga4.service.ts` | GA4 3요청 — 총계(어제·그제·7일을 **한 요청의 날짜 범위 셋**으로 → 전일 대비에 추가 호출 없음) · 이벤트 묶음(`inListFilter`) · 코호트. **운영 스트림 필터**(`streamName BEGINS_WITH "ear prod"`) 셋 다. SDK 지연 로드(+54MB 회피) |
+| `admin/services/daily-metrics-db.service.ts` | 서버 값 — 가입·완청, `toServiceDayRange` 로 04시 경계 |
+| `admin/services/ga4-report.parse.ts` | 응답 → 숫자. 범위는 **이름으로** 찾는다(행 순서 비보장). 리텐션 분모는 0일차 행 |
+| `admin/services/daily-metrics.format.ts` | 4줄 문구 · 요일 · ▲▼ · 표본 없음(—)과 0% 구분 |
+| `admin/services/daily-metrics.scheduler.ts` | `@Cron('0 17 * * *', { timeZone: 'Asia/Seoul' })`, GA4·DB 병렬, `trigger()` |
+| `admin.controller.ts` | `POST /admin/reports/daily-metrics` — 202, 미설정 409 `ADMIN_REPORT_NOT_CONFIGURED` |
+| `deploy/push.sh` | GA4 키 두 줄을 `.env.prod` 에 빈 값으로 선언(SSH 불필요) · **배포 뒤 옛 이미지 정리**(`docker image prune -af --filter until=24h`) |
 
-문구:
-```
-:bar_chart: *2026-09-28 지표*
-• 활성 사용자 1,234명 · 신규 56명 · 가입 7건
-• 리텐션 D1 41.2% · D7 18.7%
-```
+이벤트는 `analytics.md` 3.4 이름 그대로(`onboarding_complete` `push_permission` `withdrawal` `play_start` `play_abandon` `drip_play` `content_save`). `push_permission` 의 `result` 파라미터는 GA4 맞춤 측정기준 미등록(INVALID_ARGUMENT 실측)이라 **응답 건수만** 적는다 — 등록하면 허용/거부로 나눌 수 있다(미결).
 
-- **보고 대상은 어제(KST)** — 오늘은 안 끝났고 GA4 는 당일 처리에 시간이 걸린다. 17시에 "오늘"을 적으면 반쪽 수를 확정값처럼 읽는다
-- **리텐션 분모가 0 이면 `—`** — 0% 와 다른 사실이다
-- 리텐션 정의: D1 = `date-1` 첫 방문자 중 `date` 에 돌아온 비율, D7 = `date-7` 기준. 코호트 차원 `firstSessionDate`. **첫 실행 뒤 GA4 콘솔 리텐션 보고서와 한 번 대조할 것** — 코호트 오프셋은 실데이터 없이 확정 못 한다
-- 실패해도 던지지 않는다(던지면 스케줄러가 멈춰 다음 날도 안 온다). 부하: 하루 1회, 워커 1개, 우리 DB 접근 없음
+- 보고 대상은 **어제(KST)**. 오늘은 안 끝났고 GA4 당일 처리는 늦다
+- 실패해도 던지지 않는다(던지면 스케줄러가 멈춘다). 부하: 하루 1회 · 스케줄러 워커 1개 · GA4 3회 + DB 1회 + Slack 1회
+
+**개발계 가입 알림은 껐다**(PM, 2026-09-29 "이제 의미가 없다"). `ear/dev/api` 의 `SLACK_ERROR_WEBHOOK_URL` 을 원래대로 빈 값으로(버전 `ea20f0df`, 키 수 불변). 다음 dev 배포부터 반영. 정리하면 — **가입 알림: 운영만 · 일일 보고: 운영만.**
 
 ### 자격·검증 (2026-09-29 오후) — 실제 GA4 로 끝까지 확인했다
 
@@ -126,7 +133,7 @@ PM 결정: **GA4 정보**(활성·신규·가입·리텐션)를 매일 17:00 KST
 - **실제 API 로 세 요청 다 확인** — 총계·`sign_up` 이벤트 필터·코호트(+스트림 필터). 최근 7일 활성 20명·신규 9명, 8일치 `sign_up` 4건.
 - **스트림이 셋이다**: `ear prod iOS`(15824238718 · 14일 활성 9) · `ear preview iOS` · `ear preview`(Android). **운영 스트림만 보도록** 세 요청 모두에 `streamName BEGINS_WITH "ear prod"` 필터를 걸었다(`analytics.md` 1장 "대시보드는 운영 스트림만 본다"). 이름 접두라 안드로이드 운영 스트림이 생겨도 코드를 안 고친다.
 - **파서 결함을 실데이터로 잡았다**: GA4 는 값이 0 인 행을 주지 않아 1명 코호트에서 아무도 안 돌아온 날은 N일차 행이 없다 → "모른다(—)"로 가려지던 것을 **0%** 로 고쳤다. 분모는 0일차 행. 빈 코호트만 `—`.
-- **Slack 에 같은 코드로 미리보기를 보냈다**(운영 스트림, 09-28): 활성 1 · 신규 1 · 가입 0 · D1 — · D7 —. 운영 스토어가 아직 1.0.0(GA4 없음)이라 수치가 작다 — 새 빌드가 퍼지면 오른다.
+- **Slack 에 같은 코드로 미리보기를 두 번 보냈다** — 처음 한 줄 형식, 이어서 **4묶음 형식**(운영 스트림, 09-28; 가입·완청은 로컬에 DB 가 없어 0 으로 표시). 운영 스토어가 아직 1.0.0(GA4 없음)이라 수치가 작다 — 새 빌드가 퍼지면 오른다.
 - `.env.prod` 는 SSH 로 넣지 않는다 — **이 PC 에서 AWS 로 가는 22번이 전부 타임아웃**(SG 를 열어도)이라 배포 스크립트(`push.sh`)가 GA4 키 두 줄을 빈 값으로 스스로 선언하게 했다. `apply-secrets.py` 의 "모르는 키는 막는다" 판단은 그대로다.
 
 ### 남은 것 — 운영 Secrets 한 번 + 배포
