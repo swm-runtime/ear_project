@@ -312,7 +312,7 @@ export default function PlayerScreen() {
    */
   // 줌 전환 갈래(iOS 26 + 모듈 빌드)는 열림·닫힘 모션을 시스템이 맡는다 — 화면은 처음부터 다 열린 상태(1)로 그린다
   const openProgress = useAnimatedValue(USE_NATIVE_PLAYER_ZOOM ? 1 : 0);
-  // Android 닫기는 확대의 역재생 대신 화면 크기를 유지한 하강·페이드다.
+  // Android 닫기는 크기와 불투명도를 유지한 채 화면 아래로 완전히 내려간다.
   const dismissProgress = useAnimatedValue(0);
   const isSlideDismissRef = useRef(false);
   const [isMorphing, setIsMorphing] = useState(!USE_NATIVE_PLAYER_ZOOM);

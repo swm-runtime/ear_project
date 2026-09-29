@@ -22,13 +22,8 @@ export function createAndroidPlayerZoom(
       width,
       height,
       transformOrigin: 'top left' as const,
-      opacity: dismissProgress
-        ? dismissProgress.interpolate({
-            inputRange: [0, 0.2, 1],
-            outputRange: [1, 1, 0],
-            extrapolate: 'clamp',
-          })
-        : 1,
+      // 닫을 때 흐려지지 않고 화면 전체가 아래 경계 밖으로 빠져나간다.
+      opacity: 1,
       transform: [
         { translateX: interpolate(source.x, 0) },
         {
