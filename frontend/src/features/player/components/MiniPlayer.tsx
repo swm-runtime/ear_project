@@ -46,23 +46,21 @@ import { usePlayerOpenGestureStore } from '../store/player-open-gesture.store';
 /** 미니플레이어 재생 버튼 아이콘 — 전체 플레이어보다 작게 */
 const MINI_PLAY_ICON_SIZE = 20;
 /**
- * 카드 모서리 — 캡슐 탭 바(높이 60 알약)와 같은 결로 크게. **Android 는 완전한 캡슐**(높이 54 의 절반 이상 — RN 이 절반으로
- * 자른다) — iOS 26 미니플레이어(탭 바 액세서리)가 캡슐이다(PM 2026-09-29 00:55 "하단 footer 리퀴드 최대한 유사하게", Android 전용)
+ * 카드 모서리 — Android 는 높이의 절반을 반지름으로 쓰는 완전한 캡슐이다.
  */
 /**
- * 썸네일 한 변·행 위아래 여백. **Android 는 iOS 26 미니플레이어(탭 바 액세서리)와 같은 치수**(PM 2026-09-30 03:23 — 스샷
- * 실측 iOS 높이 약 48pt · 폭은 탭 바보다 양옆 3pt 좁음) — 썸네일 36 · 여백 5 → 행 46 + 진행바 2 = 48.
- * (03:05 에 34 로 줄였다가 iOS 에 맞춰 36)
+ * Android 는 썸네일 36 을 유지하고 위아래 여백을 4 로 줄인다(2026-09-30 사용자 요청).
+ * 행 44 + 진행바 2 = 기본 높이 46. 재생 버튼의 최소 터치 높이 44 도 유지한다.
  */
 const IS_ANDROID_MINI = Platform.OS === 'android';
 export const MINI_THUMB_SIZE = IS_ANDROID_MINI ? 36 : 40;
-const MINI_ROW_PADDING = IS_ANDROID_MINI ? 5 : 6;
+const MINI_ROW_PADDING = IS_ANDROID_MINI ? 4 : 6;
 /** 진행바 — 아래 변, 캡슐 모서리에 잘리지 않게 양옆 12 안쪽(PM 2026-09-25) */
 const PROGRESS_HEIGHT = 2;
 /** 카드 전체 높이(진행바 포함) — PlayerScreen 의 열림·닫힘 모션 대체 치수가 이 값을 쓴다 */
 export const MINI_CARD_HEIGHT =
   Math.max(MINI_THUMB_SIZE + MINI_ROW_PADDING * 2, 44) + PROGRESS_HEIGHT;
-/** Android 는 높이의 절반 = 완전한 알약(48 → 24). iOS 26 미만 카드는 종전 22 */
+/** Android 는 높이의 절반 = 완전한 알약(46 → 23). iOS 26 미만 카드는 종전 22 */
 export const MINI_CARD_RADIUS = IS_ANDROID_MINI ? MINI_CARD_HEIGHT / 2 : 22;
 /** 카드 폭 — Android 는 탭 바보다 양옆 3 좁다(iOS 26 액세서리 실측). 독 뒤 판(CapsuleTabBar)도 이 폭을 쓴다 */
 const MINI_CARD_SIDE_INSET = IS_ANDROID_MINI ? 3 : 0;
