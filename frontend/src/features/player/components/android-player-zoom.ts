@@ -5,6 +5,7 @@ export function createAndroidPlayerZoom(
   progress: Animated.Value,
   source: { x: number; y: number; width: number; height: number },
   target: { width: number; height: number },
+  dismissProgress?: Animated.Value,
 ) {
   const width = Math.max(1, target.width);
   const height = Math.max(1, target.height);
@@ -12,6 +13,7 @@ export function createAndroidPlayerZoom(
     progress.interpolate({ inputRange: [0, 1], outputRange: [from, to], extrapolate: 'clamp' });
   const scaleX = interpolate(Math.max(1, source.width) / width, 1);
   const scaleY = interpolate(Math.max(1, source.height) / height, 1);
+  const top = interpolate(source.y, 0);
 
   return {
     frame: {
@@ -20,9 +22,27 @@ export function createAndroidPlayerZoom(
       width,
       height,
       transformOrigin: 'top left' as const,
+      opacity: dismissProgress
+        ? dismissProgress.interpolate({
+            inputRange: [0, 0.2, 1],
+            outputRange: [1, 1, 0],
+            extrapolate: 'clamp',
+          })
+        : 1,
       transform: [
         { translateX: interpolate(source.x, 0) },
-        { translateY: interpolate(source.y, 0) },
+        {
+          translateY: dismissProgress
+            ? Animated.add(
+                top,
+                dismissProgress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, height],
+                  extrapolate: 'clamp',
+                }),
+              )
+            : top,
+        },
         { scaleX },
         { scaleY },
       ],
