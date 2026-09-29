@@ -177,12 +177,12 @@ export default function PlayerScreen() {
       setIsScriptSettled(false);
     }
 
-    // 히어로(대본) 스프링 — 순서 전환에서는 목록이 닫힌 뒤에 따로 출발한다
-    const startPanelSpring = () => {
+    // 히어로(대본) 스프링 — 순서 전환에서는 목록이 닫힌 뒤에 따로(더 빠른 SEQUENCE_SPRING 으로) 출발한다
+    const startPanelSpring = (spring: PanelSpring = motion.spring.smooth) => {
       holdArtLayout();
       Animated.spring(panelProgress, {
         toValue: isScriptOpen ? 1 : 0,
-        ...motion.spring.smooth,
+        ...spring,
         overshootClamping: true,
         useNativeDriver: false,
       }).start(({ finished }) => {
@@ -209,7 +209,7 @@ export default function PlayerScreen() {
         holdArtLayout();
         Animated.spring(panelProgress, {
           toValue: 0,
-          ...motion.spring.smooth,
+          ...SEQUENCE_SPRING,
           overshootClamping: true,
           useNativeDriver: false,
         }).start(({ finished }) => {
@@ -218,7 +218,7 @@ export default function PlayerScreen() {
           holdArtLayout();
           Animated.spring(queueProgress, {
             toValue: 1,
-            ...motion.spring.smooth,
+            ...SEQUENCE_SPRING,
             overshootClamping: true,
             useNativeDriver: false,
           }).start(({ finished: queueFinished }) => {
@@ -240,7 +240,7 @@ export default function PlayerScreen() {
         holdArtLayout();
         Animated.spring(queueProgress, {
           toValue: 0,
-          ...motion.spring.smooth,
+          ...SEQUENCE_SPRING,
           overshootClamping: true,
           useNativeDriver: false,
         }).start(({ finished }) => {
@@ -252,7 +252,7 @@ export default function PlayerScreen() {
           panelMotionFrameRef.current = requestAnimationFrame(() => {
             panelMotionFrameRef.current = requestAnimationFrame(() => {
               panelMotionFrameRef.current = null;
-              startPanelSpring();
+              startPanelSpring(SEQUENCE_SPRING);
             });
           });
         });
@@ -2095,6 +2095,24 @@ const MORPH_ART_INPUT = [0, MORPH_ART_SHRINK_END, MORPH_ART_ARRIVE, 1];
 const SHEET_SPRING = motion.spring.smooth;
 /** 재생 목록 ↔ 대본 전환을 순서대로(목록 닫힘 → 대본 열림, 대본 닫힘 → 목록 열림 — setPanel 주석) — Android 만 */
 const SEQUENCE_QUEUE_TO_SCRIPT = Platform.OS === 'android';
+/**
+ * 순서 전환의 두 구간 스프링 — **더 빠르게**(PM 2026-09-30 06:30 "순서대로 가는 시간이 너무 느리다"). smooth 두 번은
+ * 임계 감쇠가 기본 멈춤 기준(변위 0.001)까지 꼬리를 끌어 한 구간 ≈ 0.7초, 합쳐 1.4초가 넘었다 — 뒤 구간이 눈에 안 보이는
+ * 꼬리가 끝나길 기다렸다. snappy(응답 0.3초)에 멈춤 기준을 늘려(변위 0.005 · 속도 0.1) 한 구간 ≈ 0.35초로 줄인다.
+ * 끝의 스냅은 1% 미만이라 보이지 않는다
+ */
+type PanelSpring = {
+  stiffness: number;
+  damping: number;
+  mass: number;
+  restDisplacementThreshold?: number;
+  restSpeedThreshold?: number;
+};
+const SEQUENCE_SPRING: PanelSpring = {
+  ...motion.spring.snappy,
+  restDisplacementThreshold: 0.005,
+  restSpeedThreshold: 0.1,
+};
 /** 재생 목록의 히어로 축소를 transform 으로(hero 주석) — Android 만. iOS 는 종전 레이아웃 그대로 */
 const HERO_QUEUE_BY_TRANSFORM = Platform.OS === 'android';
 /** Android 줌 전환(아래 AndroidZoomStage) — iOS 는 종전 갈래 그대로(시스템 줌·JS 모핑) */
