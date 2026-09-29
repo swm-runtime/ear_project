@@ -22,6 +22,11 @@ interface AndroidCollapsingBarProps {
 
 /** 블러 25(Android ÷4 반경) 위에 미니플레이어와 같은 밝은 틴트 72%를 얹는다. */
 const FROST_BLUR_INTENSITY = 25;
+/**
+ * 상태 바 아이콘(시간·배터리) 높이 어림값 — 기기마다 달라 실측값이 아니다. 아이콘은 상태 바 가운데라 그 밑에
+ * (상태 바 − 이 값) / 2 가 남는다
+ */
+const STATUS_ICON_HEIGHT = 16;
 
 /**
  * **Android 의 iOS 식 접힘 바**(PM 2026-09-29 17:19 "탐색 내리면 제목이 가운데 새로 생기고, 검색바·주제 알약은 제자리에서
@@ -40,6 +45,12 @@ export default function AndroidCollapsingBar({
   blurTarget,
 }: AndroidCollapsingBarProps) {
   const insets = useSafeAreaInsets();
+  /*
+   * 위아래 여백 맞춤(PM 2026-09-30 03:29 "시간·배터리 밑 ↔ 원·알약 위, 원·알약 밑 ↔ 바 아래 선 공백을 같게") — 줄 안에서는
+   * 위아래가 같고(52 − 40 = 6 씩) 위쪽엔 상태 바 아이콘 밑 여분이 더해져 넓었다. 그 여분을 바 아래에 같은 만큼 더한다.
+   * 줄(버튼·큰 제목 자리)의 위치는 그대로 — 탭 화면에서 정지 때 큰 제목과 한 줄로 서는 배치가 안 바뀐다
+   */
+  const bottomBalance = Math.max(0, (insets.top - STATUS_ICON_HEIGHT) / 2);
   const collapse = useMemo(
     () =>
       scrollY.interpolate({
@@ -50,7 +61,10 @@ export default function AndroidCollapsingBar({
     [scrollY],
   );
   return (
-    <View style={[styles.bar, { paddingTop: insets.top }]} pointerEvents="box-none">
+    <View
+      style={[styles.bar, { paddingTop: insets.top, paddingBottom: bottomBalance }]}
+      pointerEvents="box-none"
+    >
       <Animated.View style={[StyleSheet.absoluteFill, { opacity: collapse }]} pointerEvents="none">
         <BlurView
           style={StyleSheet.absoluteFill}
