@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
+  Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -19,6 +20,7 @@ import FloatingHeader, {
 } from '@/shared/ui/FloatingHeader';
 import FullScreenError from '@/shared/ui/FullScreenError';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
+import LargeTitleRow from '@/shared/ui/LargeTitleRow';
 
 import {
   DOCK_SCROLL_PROPS,
@@ -277,7 +279,7 @@ export default function LibraryScreen() {
   return (
     <View style={styles.container}>
       {screen.isFullError ? (
-        <View style={[styles.container, { paddingTop: nativeBarInset }]}>
+        <View style={[styles.container, { paddingTop: nativeBarInset + headerInset }]}>
           <FullScreenError
           title={
             screen.isFullErrorNetwork
@@ -360,6 +362,11 @@ export default function LibraryScreen() {
           solidness={solidness}
           containerRef={headerRef}
         >
+          {Platform.OS === 'android' ? (
+            <View style={styles.androidTitle}>
+              <LargeTitleRow title={LIBRARY_COPY.tabTitle} />
+            </View>
+          ) : null}
           {showTabBar ? (
             <LibrarySearchBarRow query={query} onChangeQuery={setQuery} trailing={toolbar} />
           ) : null}
@@ -407,6 +414,10 @@ export default function LibraryScreen() {
 }
 
 const styles = StyleSheet.create({
+  // 고정 제목 아래로 목록이 지나가도 글자가 겹치지 않도록 화면 바탕을 채운다.
+  androidTitle: {
+    backgroundColor: theme.color.background,
+  },
   container: {
     flex: 1,
     backgroundColor: theme.color.background,
