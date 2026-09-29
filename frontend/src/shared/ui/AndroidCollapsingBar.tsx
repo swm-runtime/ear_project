@@ -87,8 +87,9 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 1,
   },
+  // 흰 막 — 공용 회백(frostedSurface #F5F5F7 72%)보다 희게(PM 2026-09-30 03:19 "흰색 조금 더 강화"). 미니플레이어·독 유리는 그대로
   frostWhite: {
-    backgroundColor: theme.color.frostedSurface,
+    backgroundColor: 'rgba(255, 255, 255, 0.82)',
   },
   edge: {
     position: 'absolute',
