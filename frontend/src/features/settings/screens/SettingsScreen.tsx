@@ -414,8 +414,11 @@ const ANDROID_LARGE_TITLE = Platform.OS === 'android' && !USES_SYSTEM_PUSHED_HEA
 const ANDROID_BACK_ICON_SIZE = 20;
 /** Android 떠 있는 바의 줄 높이(상태 바 제외) — 44 에서 52 로(PM 2026-09-29 15:10 "상단바 높이 조금만 더") */
 const ANDROID_BAR_ROW_HEIGHT = 52;
-/** 서리 유리 블러 세기(expo-blur 0~100) — 최대. 형체가 남지 않게 */
-const FROST_BLUR_INTENSITY = 100;
+/**
+ * 서리 유리 블러 세기(expo-blur 0~100, Android 는 ÷4 가 반경) — 100 + 흰 55% 는 뒤가 아예 안 보였다(PM 2026-09-29 15:56).
+ * 형체는 흐트러지되 색·덩어리는 비치게 40
+ */
+const FROST_BLUR_INTENSITY = 40;
 
 const styles = StyleSheet.create({
   // 블러 대상(목록 감싸개) — 레이아웃은 종전 목록 그대로 화면을 채운다
@@ -467,8 +470,8 @@ const styles = StyleSheet.create({
   },
   // 서리 막 — 흰 80%. 블러만으론 밑 썸네일 색이 진하게 비쳐 글자가 겹쳐 보인다
   androidBarFrost: {
-    // 진짜 블러가 걸리니 막은 얇게 — 80% 는 흰 판이라 형체가 흐트러진 게 안 보였다(15:31)
-    backgroundColor: 'rgba(255, 255, 255, 0.55)',
+    // 진짜 블러가 걸리니 막은 얇게 — 80%(15:31)·55%(15:56) 는 흰 판이라 뒤가 안 보였다. 글자 가독성만 받친다
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
   },
   // 블러 판 아래 끝 — 판이 끊기는 자리를 선으로 정리한다(iOS 바 그림자 선)
   androidBarEdge: {
