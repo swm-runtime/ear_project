@@ -25,7 +25,9 @@ function Header({ searching }: { searching: boolean }) {
   return null;
 }
 
-afterEach(() => jest.restoreAllMocks());
+afterEach(() => {
+  jest.restoreAllMocks();
+});
 
 describe('iOS 검색 제목', () => {
   it('검색 진입·종료 시 네이티브 헤더 종류를 바꾸지 않고 큰 왼쪽 제목을 전환한다', async () => {
