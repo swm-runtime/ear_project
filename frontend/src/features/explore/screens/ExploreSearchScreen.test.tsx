@@ -4,10 +4,14 @@ import { Animated, BackHandler, Keyboard, Platform } from 'react-native';
 
 import { MiniPlayer } from '@/features/player';
 
-import ExploreSearchScreen from './ExploreSearchScreen';
 import SearchInputRow from '../components/SearchInputRow';
 import SearchToolbar from '../components/SearchToolbar';
 import { useExploreSearchScreen } from '../hooks/useExploreSearchScreen';
+
+// Jest의 기본 iOS 해석과 관계없이 Android가 쓰는 공용 화면을 검사한다.
+const ExploreSearchScreen = jest.requireActual<{
+  default: typeof import('./ExploreSearchScreen').default;
+}>('./ExploreSearchScreen.tsx').default;
 
 jest.mock('@react-navigation/native', () => ({
   useFocusEffect: (effect: () => void) =>

@@ -17,41 +17,23 @@ export const useTabScrollToTop = ({
   topInset = 0,
   enabled = true,
   controlRef,
-  scrollToOffsetRef,
 }: {
   topInset?: number;
   enabled?: boolean;
-  controlRef?: MutableRefObject<((animated?: boolean) => void) | null>;
-  /** 검색 덮개를 닫을 때처럼 탭 재선택이 꺼진 동안에도 목록 위치를 복원한다. */
-  scrollToOffsetRef?: MutableRefObject<((offset: number) => void) | null>;
+  controlRef?: MutableRefObject<(() => void) | null>;
 } = {}) => {
   const scrollableRef = useRef<TabScrollable | null>(null);
-  useEffect(() => {
-    if (!scrollToOffsetRef) return;
-    scrollToOffsetRef.current = (offset) => {
-      const scrollable = scrollableRef.current;
-      if (!scrollable) return;
-      if ('scrollToOffset' in scrollable) {
-        scrollable.scrollToOffset({ offset, animated: false });
-      } else {
-        scrollable.scrollTo({ y: offset, animated: false });
-      }
-    };
-    return () => {
-      scrollToOffsetRef.current = null;
-    };
-  }, [scrollToOffsetRef]);
   const target = useMemo(
     () => ({
       current: {
-        scrollToTop(animated = true) {
+        scrollToTop() {
           const scrollable = scrollableRef.current;
           if (!enabled || !scrollable) return;
           const offset = topInset > 0 ? -topInset : 0;
           if ('scrollToOffset' in scrollable) {
-            scrollable.scrollToOffset({ offset, animated });
+            scrollable.scrollToOffset({ offset, animated: true });
           } else {
-            scrollable.scrollTo({ y: offset, animated });
+            scrollable.scrollTo({ y: offset, animated: true });
           }
         },
       },
@@ -60,7 +42,7 @@ export const useTabScrollToTop = ({
   );
   useScrollToTop(target);
   useEffect(() => {
-    if (controlRef) controlRef.current = (animated) => target.current.scrollToTop(animated);
+    if (controlRef) controlRef.current = () => target.current.scrollToTop();
   }, [controlRef, target]);
 
   return useCallback((node: TabScrollable | Animated.LegacyRef<TabScrollable> | null) => {

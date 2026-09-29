@@ -52,7 +52,6 @@ import { exploreGridKey, toExploreGridData } from '../explore.grid';
 import { buildSectionListKey } from '../explore.section-key';
 import type { ExploreSection } from '../explore.types';
 import { useExploreScreen } from '../hooks/useExploreScreen';
-import { useSearchScrollRestoration } from '../hooks/useSearchScrollRestoration';
 
 /**
  * 탐색 탭(E1~E13) — 화면은 뷰만 담당하고 로직은 useExploreScreen이 소유한다.
@@ -84,23 +83,15 @@ export default function ExploreScreen() {
   // 제자리 검색 닫기 요청 — ✕ 는 시스템 바 캡슐에 있고, 덮개가 퇴장 애니메이션 끝에 onExit 로 isSearching 을 끈다
   const [isClosingSearch, setIsClosingSearch] = useState(false);
   // 탭 재선택과 같은 "맨 위로"를 Android 접힘 바 제목 탭도 부른다
-  const scrollToTopRef = useRef<((animated?: boolean) => void) | null>(null);
-  const restoreScrollRef = useRef<((offset: number) => void) | null>(null);
-  const searchScroll = useSearchScrollRestoration(isClosingSearch, restoreScrollRef);
-  // Animated.Value 초기값 대신 실제 목록 이벤트에서 복귀 좌표를 읽는다.
-  const { solidness, scrollY, scrollProps } = useFloatingHeaderScroll(searchScroll.onScroll);
+  const scrollToTopRef = useRef<(() => void) | null>(null);
+  const { solidness, scrollY, scrollProps } = useFloatingHeaderScroll();
   const listRef = useTabScrollToTop({
     topInset: nativeBarInset,
     enabled: !isSearching,
     controlRef: scrollToTopRef,
-    scrollToOffsetRef: restoreScrollRef,
   });
   const openSearch = () => {
     if (HAS_NATIVE_TAB_BAR || ANDROID_IOS_HEADER) {
-      // UIKit이 준 실제 음수 좌표도 그대로 저장한다. 헤더 높이를 더하고 빼면 맨 위가 달라진다.
-      searchScroll.save(-nativeBarInset);
-      // 시스템 제목은 아래 피드의 스크롤 위치를 따른다. 검색을 덮기 전에 펼친 위치로 맞춘다.
-      if (HAS_NATIVE_TAB_BAR) scrollToTopRef.current?.(false);
       setIsSearching(true);
     } else {
       screen.openSearch();
@@ -176,7 +167,7 @@ export default function ExploreScreen() {
    * 피드를 통째로 갈아 끼워 닫힘 애니메이션 끝에 피드 전체를 새로 마운트하느라 끊겼다)
    */
   const searchOverlay = isSearching ? (
-    <View style={[StyleSheet.absoluteFill, { zIndex: 2 }]}>
+    <View style={HAS_NATIVE_TAB_BAR ? StyleSheet.absoluteFill : [StyleSheet.absoluteFill, { zIndex: 2 }]}>
       <ExploreSearchScreen
         embedding={{
           remaining: screen.remainingDisplay
@@ -190,7 +181,6 @@ export default function ExploreScreen() {
             setIsClosingSearch(false);
           },
           onOpenTopic: (topicId) => {
-            searchScroll.discard();
             screen.clearTopicFilter();
             screen.toggleTopic(topicId);
             setIsSearching(false);
@@ -543,6 +533,7 @@ export default function ExploreScreen() {
 
   return (
     <View style={styles.container}>
+      {HAS_NATIVE_TAB_BAR ? renderBody() : (
       <View
         style={styles.container}
         pointerEvents={isSearching ? 'none' : 'auto'}
@@ -592,6 +583,7 @@ export default function ExploreScreen() {
           </FloatingHeader>
         )}
       </View>
+      )}
       {/* 미니플레이어(PL11) — 활성 재생 세션만 그린다. 복원 스냅샷 판정은 라이브러리 소유다 */}
 
       <ExploreMoreSheet
