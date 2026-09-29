@@ -587,6 +587,12 @@ const styles = StyleSheet.create({
     paddingBottom: 0,
     // 줄 간격을 키우지 않는다 — iOS 는 늘린 줄 높이의 여분을 글자 위에만 얹어 글자가 상자 아래로 내려앉고,
     // alignItems:center 로 맞춘 토글이 글자보다 위에 떠 보였다(2026-09-25 23:41 실기기)
+    // Android 는 글꼴 위아래 여백(includeFontPadding)이 붙어 글자 상자 가운데 ≠ 글자 가운데 — 토글과 높이가 어긋났다
+    // (PM 2026-09-30 03:14 "인기 콘텐츠하고 토글 높이 맞춰"). 큰 제목 줄(LargeTitleRow)과 같은 처리
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+    // 글꼴 여백을 뺀 만큼 한글 획이 잘리지 않게 Android 만 줄 높이에 여유(LargeTitleRow 와 같은 +8)
+    lineHeight: Platform.OS === 'android' ? theme.font.size.xl + theme.spacing.sm : undefined,
   },
   // 캐러셀 좌우 여백은 섹션 제목과 같은 선에서 시작한다
   carousel: {
