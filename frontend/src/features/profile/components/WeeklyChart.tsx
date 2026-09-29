@@ -126,6 +126,12 @@ interface WeekBodyProps {
   onToggleBar?: (dayIndex: number) => void;
   onChartLayout?: (width: number) => void;
   tooltip?: ReactNode;
+  /**
+   * 평균 점선의 등장 — 오른쪽 축("평균"·"0")과 **같은 값**(axisFade)으로 나타난다(PM 2026-09-29 13:45 "평균선을 애니메이션으로,
+   * 주 이동할 때 평균·분·0 나올 때 같이"). 가운데 주만 준다 — 이웃 주(끌리는 동안의 그림)에는 점선을 그리지 않아, 새 주가
+   * 미끄러져 들어온 뒤 축과 함께 왼쪽부터 그어진다
+   */
+  averageAppear?: Animated.Value;
 }
 
 /** 하루 평균 + 막대 그래프(격자·오른쪽 축·요일) — 빈 주면 빈 상태 */
@@ -136,6 +142,7 @@ function WeekBody({
   onToggleBar,
   onChartLayout,
   tooltip,
+  averageAppear,
 }: WeekBodyProps) {
   const view = toWeekView(week);
   if (view.isEmpty) {
@@ -168,8 +175,18 @@ function WeekBody({
           {GRID_RATIOS.map((ratio) => (
             <View key={ratio} style={[styles.gridLine, { top: ratio * CHART_HEIGHT }]} />
           ))}
-          {view.hasAverageRule ? (
-            <View style={[styles.averageRule, { top: view.averageTop }]} />
+          {view.hasAverageRule && averageAppear ? (
+            <Animated.View
+              style={[
+                styles.averageRule,
+                {
+                  top: view.averageTop,
+                  opacity: averageAppear,
+                  // 왼쪽에서 오른쪽 축("평균" 라벨) 쪽으로 그어진다
+                  transform: [{ scaleX: averageAppear }],
+                },
+              ]}
+            />
           ) : null}
         </View>
         <View style={styles.chartRow}>
@@ -479,6 +496,7 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
       selectedIndex={selectedIndex}
       onToggleBar={weekly.toggleBar}
       onChartLayout={setChartWidth}
+      averageAppear={axisFade}
       tooltip={
         selectedIndex !== null ? (
           <View
@@ -757,6 +775,7 @@ const styles = StyleSheet.create({
   axisLabelAverage: { fontWeight: '600' },
   averageRule: {
     position: 'absolute',
+    transformOrigin: 'left',
     left: 0,
     right: 0,
     borderTopWidth: 1,
