@@ -17,8 +17,12 @@ const FALLBACK_SEGMENT_HEIGHT = 26;
 const IS_ANDROID = Platform.OS === 'android';
 const SYSTEM_HEIGHT = 32;
 const SYSTEM_SEGMENT_WIDTH = 52;
-/** Android 의 iOS 26 모양 토글 — iOS 시스템 컨트롤과 같은 치수(전체 높이 32 = 칸 28 + 안쪽 2×2, 칸 52) */
-const IOS26_SEGMENT_HEIGHT = 28;
+/**
+ * Android 의 iOS 26 모양 토글 — 칸 52 는 iOS 와 같고, **높이는 26**(칸 22 + 안쪽 2×2). 옆 제목 "인기 콘텐츠"(28pt)의 한글 획
+ * 높이가 실측 70px ≈ 25dp 인데 토글이 90px = 32dp 라 제목이 작아 보였다(PM 2026-09-30 04:29 "토글 줄이기, 안드로이드만").
+ * 누르는 영역은 SegmentedControl 이 위아래 hitSlop 으로 44 를 채운다
+ */
+const IOS26_SEGMENT_HEIGHT = 22;
 const IOS_SEGMENT_WIDTH = SYSTEM_SEGMENT_WIDTH;
 
 interface PopularPeriodToggleProps {
