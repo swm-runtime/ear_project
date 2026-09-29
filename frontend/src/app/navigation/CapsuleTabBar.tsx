@@ -338,17 +338,24 @@ export default function CapsuleTabBar({
             <View style={[styles.cardGlassBorder, IS_ANDROID && styles.androidRim]} />
           </Animated.View>
         ) : null}
-        <View style={[styles.capsuleGlassBox, { top: miniHeight > 0 ? miniHeight + DOCK_GAP : 0 }]}>
-          {SOLID_DOCK ? (
-            <View style={[StyleSheet.absoluteFill, styles.capsuleGlass, styles.capsuleSolid]} />
-          ) : (
+        {/* 불투명 독(Android)은 판을 앞 층 캡슐 안에 그린다 — 아래 capsuleSolidPlate 주석 */}
+        {SOLID_DOCK ? null : (
+          <View
+            style={[styles.capsuleGlassBox, { top: miniHeight > 0 ? miniHeight + DOCK_GAP : 0 }]}
+          >
             <GlassSurface style={[StyleSheet.absoluteFill, styles.capsuleGlass]} />
-          )}
-          <View style={[styles.capsuleBorder, IS_ANDROID && !SOLID_DOCK && styles.androidRim]} />
-        </View>
+            <View style={[styles.capsuleBorder, IS_ANDROID && styles.androidRim]} />
+          </View>
+        )}
       </GlassGroup>
       <MiniPlayer placement="dock" />
       <View style={styles.capsule} accessibilityRole="tablist">
+        {/*
+          불투명 독의 흰 판 — **알약과 같은 상자 안**에 둔다(PM 2026-09-30 01:41 실측: 뒤 층 판이 "미니 높이 + 8" 계산으로
+          따로 서서 앞 층과 0.5dp 어긋나 알약 위 공백 10px · 아래 13px). 같은 상자면 구조적으로 어긋날 수 없다.
+          유리 묶음 합쳐짐이 없는 Android 라 뒤 층에 둘 이유가 없다
+        */}
+        {SOLID_DOCK ? <View style={styles.capsuleSolidPlate} pointerEvents="none" /> : null}
         {SOLID_DOCK ? (
           <Animated.View
             style={[
@@ -505,8 +512,17 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.full,
     overflow: 'hidden',
   },
-  capsuleSolid: {
+  capsuleSolidPlate: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: theme.radius.full,
     backgroundColor: theme.color.background,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(0, 0, 0, 0.10)',
+    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.10)',
   },
   capsuleBorder: {
     position: 'absolute',
