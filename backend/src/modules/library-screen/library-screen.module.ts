@@ -30,5 +30,7 @@ import { LibraryScreenOrchestrator } from './library-screen.orchestrator';
   imports: [LibraryModule, PlaybackModule, ContentModule, DripModule],
   controllers: [LibraryScreenController],
   providers: [LibraryScreenOrchestrator],
+  // 추천 테스트 콘솔(recommend-test)이 테스트 계정의 삭제를 앱과 같은 경로로 부른다
+  exports: [LibraryScreenOrchestrator],
 })
 export class LibraryScreenModule {}

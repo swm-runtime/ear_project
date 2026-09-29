@@ -15,7 +15,18 @@ export interface EarTokens {
   refresh_token: string;
 }
 
-const TOKENS_KEY = "ear_admin_tokens";
+/**
+ * 연결 채널 — 어느 제품 서버에 붙는가(2026-09-29). 기본 `prod`(운영)는 종전 그대로고, `dev`(개발계)는 **추천 테스트**
+ * 전용이다: 행동 버튼이 실제 신호·라이브러리를 쓰므로 운영에 붙이지 않는다. 채널마다 프록시 경로와 토큰 저장 키가
+ * 다르다 — 두 서버의 JWT 는 서로 통하지 않아 한 키에 섞이면 401 재교환이 무한히 돈다.
+ */
+export type EarChannel = "prod" | "dev";
+const CHANNEL = {
+  prod: { proxy: "/api/ear", tokensKey: "ear_admin_tokens", label: "운영" },
+  dev: { proxy: "/api/ear-dev", tokensKey: "ear_dev_admin_tokens", label: "개발계" },
+} as const;
+export const earChannelLabel = (ch: EarChannel) => CHANNEL[ch].label;
+
 const DEVICE_KEY = "ear_pipeline_device_id";
 
 export function deviceId(): string {
@@ -24,15 +35,15 @@ export function deviceId(): string {
   return id;
 }
 
-export function loadTokens(): EarTokens | null {
-  try { const raw = localStorage.getItem(TOKENS_KEY); return raw ? (JSON.parse(raw) as EarTokens) : null; } catch { return null; }
+export function loadTokens(ch: EarChannel = "prod"): EarTokens | null {
+  try { const raw = localStorage.getItem(CHANNEL[ch].tokensKey); return raw ? (JSON.parse(raw) as EarTokens) : null; } catch { return null; }
 }
-export function saveTokens(t: EarTokens): void { localStorage.setItem(TOKENS_KEY, JSON.stringify(t)); }
-export function clearTokens(): void { localStorage.removeItem(TOKENS_KEY); }
+export function saveTokens(t: EarTokens, ch: EarChannel = "prod"): void { localStorage.setItem(CHANNEL[ch].tokensKey, JSON.stringify(t)); }
+export function clearTokens(ch: EarChannel = "prod"): void { localStorage.removeItem(CHANNEL[ch].tokensKey); }
 
 /** access 토큰 페이로드 — 역할 안내용 표시에만 쓴다. 판정은 서버가 한다 */
-export function tokenClaims(): { sub?: string; role?: string } {
-  const t = loadTokens();
+export function tokenClaims(ch: EarChannel = "prod"): { sub?: string; role?: string } {
+  const t = loadTokens(ch);
   if (!t) return {};
   try { return JSON.parse(atob(t.access_token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))); } catch { return {}; }
 }
@@ -46,10 +57,10 @@ export class EarApiError extends Error {
   }
 }
 
-async function rawFetch(path: string, init: RequestInit = {}, token?: string): Promise<Response> {
+async function rawFetch(path: string, init: RequestInit = {}, token?: string, ch: EarChannel = "prod"): Promise<Response> {
   const headers = new Headers(init.headers);
   if (token) headers.set("authorization", `Bearer ${token}`);
-  return fetch(`/api/ear${path}`, { ...init, headers });
+  return fetch(`${CHANNEL[ch].proxy}${path}`, { ...init, headers });
 }
 
 async function toError(res: Response): Promise<EarApiError> {
@@ -64,26 +75,26 @@ async function toError(res: Response): Promise<EarApiError> {
  * 곳에서는 같은 refresh 토큰이 두 번 제출돼 서버의 재사용 탐지(탈취 의심 → 전 세션
  * 무효화 + ERROR 알림)를 울렸다(실서버 실측 — `tickets/ai/archive/ear-token-refresh-race.md`).
  * SSO 교환(`/api/ear/sso`)은 회전 상태가 없어 겹쳐 불러도 안전하고, 이 콘솔은 어차피
- * Supabase 로그인이 전제라 사용자 입력 없이 끝난다. 동시 401은 재교환 1회를 공유한다.
+ * Supabase 로그인이 전제라 사용자 입력 없이 끝난다. 동시 401은 채널별로 재교환 1회를 공유한다.
  */
-let reconnectInFlight: Promise<boolean> | null = null;
-function reconnectEar(): Promise<boolean> {
-  reconnectInFlight ??= connectEar()
+const reconnectInFlight: Partial<Record<EarChannel, Promise<boolean>>> = {};
+function reconnectEar(ch: EarChannel): Promise<boolean> {
+  reconnectInFlight[ch] ??= connectEar(ch)
     .then(() => true)
-    .catch(() => { clearTokens(); return false; })
-    .finally(() => { reconnectInFlight = null; });
-  return reconnectInFlight;
+    .catch(() => { clearTokens(ch); return false; })
+    .finally(() => { delete reconnectInFlight[ch]; });
+  return reconnectInFlight[ch]!;
 }
 
 /** 제품 API 호출 — 401 이면 SSO 재교환 1회 후 재시도, 그래도 실패면 EarAuthError */
-export async function earFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const t = loadTokens();
+export async function earFetch<T>(path: string, init: RequestInit = {}, ch: EarChannel = "prod"): Promise<T> {
+  const t = loadTokens(ch);
   if (!t) throw new EarAuthError();
-  let res = await rawFetch(path, init, t.access_token);
+  let res = await rawFetch(path, init, t.access_token, ch);
   if (res.status === 401) {
-    if (!(await reconnectEar())) throw new EarAuthError();
-    res = await rawFetch(path, init, loadTokens()!.access_token);
-    if (res.status === 401) { clearTokens(); throw new EarAuthError(); }
+    if (!(await reconnectEar(ch))) throw new EarAuthError();
+    res = await rawFetch(path, init, loadTokens(ch)!.access_token, ch);
+    if (res.status === 401) { clearTokens(ch); throw new EarAuthError(); }
   }
   if (res.status === 204) return undefined as T;
   if (!res.ok) throw await toError(res);
@@ -91,19 +102,19 @@ export async function earFetch<T>(path: string, init: RequestInit = {}): Promise
 }
 
 /**
- * Supabase 세션 → 서버 SSO(`/api/ear/sso`) → 제품 토큰. 사용자 입력 없이 연결된다.
- * 같은 이메일의 제품 관리자 계정이 없으면 서버가 403으로 알려준다.
+ * Supabase 세션 → 서버 SSO(`/api/ear/sso` 또는 `/api/ear-dev/sso`) → 제품 토큰. 사용자 입력 없이 연결된다.
+ * 같은 이메일의 제품 관리자 계정이 그 서버에 없으면 서버가 403으로 알려준다.
  */
-export async function connectEar(): Promise<{ role: string; sub: string }> {
-  const res = await fetch("/api/ear/sso", {
+export async function connectEar(ch: EarChannel = "prod"): Promise<{ role: string; sub: string }> {
+  const res = await fetch(`${CHANNEL[ch].proxy}/sso`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ device_id: deviceId() }),
   });
   if (!res.ok) throw await toError(res);
   const b = (await res.json()) as EarTokens;
-  saveTokens({ access_token: b.access_token, refresh_token: b.refresh_token });
-  const claims = tokenClaims();
+  saveTokens({ access_token: b.access_token, refresh_token: b.refresh_token }, ch);
+  const claims = tokenClaims(ch);
   return { role: claims.role ?? "?", sub: claims.sub ?? "?" };
 }
 
@@ -232,5 +243,53 @@ export interface EarDripPreview {
   today_placed: { content_id: string; title: string }[];
 }
 /** 매 호출이 서버에서 새로 계산한다(서버도 no-store). 브라우저 캐시도 끈다 */
-export const getEarDripPreview = (email: string) =>
-  earFetch<EarDripPreview>(`/admin/drip/preview?email=${encodeURIComponent(email)}`, { cache: "no-store" });
+export const getEarDripPreview = (email: string, ch: EarChannel = "prod") =>
+  earFetch<EarDripPreview>(`/admin/drip/preview?email=${encodeURIComponent(email)}`, { cache: "no-store" }, ch);
+
+// ── 추천 테스트 (admin-api 4.17 — 개발계 전용, changes/pending/admin-api-recommend-test.md) ──
+
+export type RecommendTestAction = "play" | "complete" | "save" | "unsave" | "delete" | "replay";
+
+export interface RecommendTestAccount {
+  environment: string;
+  user: {
+    id: string; email: string | null; nickname: string | null; tier: string; onboarding_completed: boolean;
+    job_category: string | null; job_title: string | null; years_of_experience: number | null;
+  };
+  interests: { topic_id: string; name: string | null; source: string }[];
+  library: { item_id: string; content_id: string; title: string | null; source: string; status: string; added_at: string; completed_at: string | null }[];
+}
+export interface RecommendTestActionResult {
+  action: RecommendTestAction; content_id: string; performed_at: string; effects: string[]; preference_rebuilt: boolean;
+}
+/** 앱 탐색 화면의 피드와 같은 본문(explore-api 4.1) */
+export interface EarExploreFeed {
+  sections: {
+    key: string; title: string; topic: { id: string; name: string } | null; period: string | null;
+    items: {
+      content: { id: string; title: string; author_name: string | null; source_name: string; duration_sec: number; topic_ids: string[] };
+      library: { item_id: string; source: string; status: string } | null;
+      is_counted_today: boolean;
+    }[];
+  }[];
+  daily_play_limit: number | null;
+  daily_play_count: number | null;
+  service_date: string;
+}
+
+/** 추천 테스트 호출은 전부 개발계 채널이다 — 운영 채널로 부르면 서버가 409 로 거절한다 */
+const DEV: EarChannel = "dev";
+const json = (body: unknown): RequestInit => ({ headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+export const getRecommendTestAccount = () => earFetch<RecommendTestAccount>("/admin/recommend-test/account", { cache: "no-store" }, DEV);
+export const getRecommendTestFeed = () => earFetch<EarExploreFeed>("/admin/recommend-test/feed", { cache: "no-store" }, DEV);
+export const postRecommendTestAction = (action: RecommendTestAction, content_id: string) =>
+  earFetch<RecommendTestActionResult>("/admin/recommend-test/actions", { method: "POST", ...json({ action, content_id }) }, DEV);
+export const putRecommendTestInterests = (topic_ids: string[]) =>
+  earFetch<void>("/admin/recommend-test/interests", { method: "PUT", ...json({ topic_ids }) }, DEV);
+export const putRecommendTestCareer = (body: { job_category: string | null; job_title: string | null; years_of_experience: string | null }) =>
+  earFetch<void>("/admin/recommend-test/career", { method: "PUT", ...json(body) }, DEV);
+export const resetRecommendTest = () => earFetch<void>("/admin/recommend-test/reset", { method: "POST" }, DEV);
+/** 콘텐츠·주제 목록은 기존 관리자 API 를 개발계 채널로 부른다 */
+export const listEarContentsOn = (ch: EarChannel, status: string, offset: number, limit = 50) =>
+  earFetch<{ items: EarContent[]; total: number }>(`/admin/contents?offset=${offset}&limit=${limit}${status ? `&status=${status}` : ""}`, {}, ch);
+export const listEarTopicsOn = (ch: EarChannel) => earFetch<{ items: EarTopic[] }>("/admin/topics", {}, ch);

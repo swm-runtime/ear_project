@@ -127,6 +127,15 @@ export class EnvironmentVariables {
   SLACK_SIGNUP_WEBHOOK_URL?: string;
 
   /**
+   * 추천 테스트 콘솔(admin 웹 "추천 테스트" 탭)이 대신 행동하는 테스트 계정의 이메일 — **개발계 전용**.
+   * 비우면 콘솔 엔드포인트가 409 로 꺼지고, `SENTRY_ENVIRONMENT=production` 이면 값이 있어도 꺼진다.
+   * 행동 버튼은 실제 신호·라이브러리를 쓰므로 운영 DB 에는 절대 붙이지 않는다(`features/admin.md` 4.7).
+   */
+  @IsOptional()
+  @IsString()
+  RECOMMEND_TEST_EMAIL?: string;
+
+  /**
    * 일일 지표 Slack 보고(KAN-107 2단계)의 GA4 자격 — 둘 다 **선택**이고 하나라도 비면
    * 보고가 꺼진다(로컬·테스트 기본). 속성 ID 는 GA4 관리 화면의 숫자값이고, 서비스 계정
    * JSON 은 base64 로 둔다(`CLOUDFRONT_PRIVATE_KEY_BASE64` 와 같은 방식). 그 서비스 계정을

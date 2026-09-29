@@ -45,6 +45,8 @@ services:
       PIPELINE_WORKER_TOKEN: ${PIPELINE_WORKER_TOKEN:?}
       EAR_API_BASE_URL: ${EAR_API_BASE_URL:-https://api.earcast.co.kr/api/v1} # 발행 프록시(/api/ear) 대상
       EAR_SSO_SECRET: ${EAR_SSO_SECRET:-} # 발행 콘솔 SSO(/api/ear/sso) — 값은 서버 env.prod 에만(커밋 금지). 미설정이면 그 라우트만 500, 배포는 안 깨진다
+      EAR_DEV_API_BASE_URL: ${EAR_DEV_API_BASE_URL:-https://api-dev.earcast.co.kr/api/v1} # 추천 테스트 프록시(/api/ear-dev) 대상 — 개발계
+      EAR_DEV_SSO_SECRET: ${EAR_DEV_SSO_SECRET:-} # 개발계 SSO(/api/ear-dev/sso) — 개발계 서버의 PIPELINE_SSO_SECRET 과 같은 값. 미설정이면 추천 테스트 탭만 연결 실패
       # 대본 임베딩 보완 (metadata-pipeline 4.3): 발행 시 enrichment.json 에 임베딩이 없으면 같은 compose 의 AI 서버에서 받아 합친다. 토큰 = env.ai-server 의 INTERNAL_AUTH_TOKEN
       AI_SERVER_URL: ${AI_SERVER_URL:-http://ai-server:8000}
       AI_SERVER_TOKEN: ${AI_SERVER_TOKEN:-}

@@ -115,6 +115,12 @@ import { PlaybackService } from './services/playback.service';
     PlaybackSignalService,
     ScriptService,
   ],
-  exports: [PlaybackService],
+  exports: [
+    PlaybackService,
+    // 추천 테스트 콘솔(recommend-test) — 재생 시작·위치 저장(완청)·재청취를 앱과 같은 경로로 부른다
+    PlayService,
+    PlaybackProgressService,
+    PlaybackSignalService,
+  ],
 })
 export class PlaybackModule {}

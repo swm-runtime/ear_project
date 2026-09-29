@@ -29,9 +29,13 @@ const LOG_NAV: NavItem[] = [
   { href: "/backend-logs/traffic", label: "요청 통계", icon: Chart },
 ];
 
-/** 추천 검증 콘솔의 메뉴 — 제품 서버의 편성 미리보기(admin-api `GET /admin/drip/preview`)를 그대로 보인다 */
+/**
+ * 추천 검증 콘솔의 메뉴 — 편성 미리보기는 **운영(실배포)** 서버의 계산을 읽기 전용으로 보이고, 추천 테스트는
+ * **개발계** 서버의 테스트 계정에 행동을 실제로 수행한다(2026-09-29). 어느 서버를 건드리는지 라벨에 박아 둔다.
+ */
 const DRIP_NAV: NavItem[] = [
-  { href: "/drip-check", label: "편성 미리보기", icon: Radar, exact: true, note: "읽기 전용" },
+  { href: "/drip-check", label: "편성 미리보기 (실배포)", icon: Radar, exact: true, note: "읽기 전용" },
+  { href: "/drip-check/test", label: "추천 테스트", icon: Pulse, note: "개발계" },
 ];
 
 /** 파이프라인 콘솔 메뉴 — 구분선으로 묶는다 (2026-09-09 박수헌): 현황 / 제작 흐름(스윕·군집화 → 백로그 → 에피소드) / 자산(소스 풀·주제·규칙) / 발행 */
