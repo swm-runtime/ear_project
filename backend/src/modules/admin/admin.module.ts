@@ -22,6 +22,7 @@ import { AdminTopicService } from './services/admin-topic.service';
 import { AdminNoticeService } from './services/admin-notice.service';
 import { TopicExposureService } from './services/topic-exposure.service';
 import { TopicExposureScheduler } from './topic-exposure.scheduler';
+import { DailyMetricsDbService } from './services/daily-metrics-db.service';
 import { DailyMetricsScheduler } from './services/daily-metrics.scheduler';
 import { Ga4Service } from './services/ga4.service';
 
@@ -57,6 +58,7 @@ import { Ga4Service } from './services/ga4.service';
     TopicExposureScheduler,
     ResourceAlertService,
     Ga4Service,
+    DailyMetricsDbService,
     DailyMetricsScheduler,
     AudioProbe,
     ThumbnailImage,

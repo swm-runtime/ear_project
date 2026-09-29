@@ -1,29 +1,76 @@
 /**
- * 일일 지표 Slack 문구 — **순수 함수만 둔다.** GA4 호출은 `ga4.service.ts` 가 하고,
- * 여기서는 받은 숫자를 사람이 읽는 줄로 바꾼다. 그래야 자격 없이도 검증된다.
+ * 일일 지표 Slack 문구 — **순수 함수만 둔다.** GA4·DB 조회는 각 서비스가 하고, 여기서는
+ * 받은 숫자를 사람이 읽는 4줄로 바꾼다. 그래야 자격 없이도 검증된다.
  */
 
 export type DailyMetrics = {
   /** 보고 대상 날짜 (`YYYY-MM-DD`, KST) */
   date: string;
-  activeUsers: number;
-  newUsers: number;
-  signUps: number;
-  /** 코호트 리텐션 — 표본이 없으면 null(0 과 다르다: "아직 모른다") */
-  retention: { d1: number | null; d7: number | null };
+  /** 사용자 — GA4 운영 스트림 */
+  users: {
+    active: number;
+    activePrev: number;
+    new: number;
+    newPrev: number;
+    sessions: number;
+    avgSessionSec: number;
+    active7d: number;
+  };
+  /** 획득 — 가입은 서버(앱 버전 무관), 나머지는 GA4 */
+  acquisition: {
+    signUps: number;
+    onboardingCompletes: number;
+    pushResponses: number;
+    withdrawals: number;
+  };
+  /** 재생 — 완청은 서버 판정, 나머지는 GA4 */
+  playback: {
+    playStarts: number;
+    playStartUsers: number;
+    completes: number;
+    abandons: number;
+    dripPlays: number;
+    saves: number;
+  };
+  /** 코호트 리텐션 — size 가 0 이면 표본이 없다(0% 와 다르다) */
+  retention: {
+    d1: { rate: number | null; size: number };
+    d7: { rate: number | null; size: number };
+  };
 };
 
-const pct = (v: number | null): string =>
-  v === null ? '—' : `${(v * 100).toFixed(1)}%`;
-
-/** `1234` → `1,234` — 천 단위 구분자만. 로케일에 맡기면 서버 TZ·ICU 에 따라 흔들린다 */
+const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'];
 const n = (v: number): string => v.toLocaleString('en-US');
 
+/** 전일 대비 — 방향이 숫자보다 먼저 읽힌다. 같으면 아무것도 붙이지 않는다 */
+export function delta(now: number, prev: number): string {
+  const d = now - prev;
+  if (d === 0) return '';
+  return d > 0 ? ` (▲${n(d)})` : ` (▼${n(-d)})`;
+}
+
+/** `1분 56초` · 60초 미만은 `42초` */
+export function formatDuration(sec: number): string {
+  const s = Math.round(sec);
+  return s < 60 ? `${s}초` : `${Math.floor(s / 60)}분 ${s % 60}초`;
+}
+
+/** 리텐션 한 칸 — 표본이 없으면 `—`, 있으면 `33% (3명 중 1)` */
+export function formatRetention(r: {
+  rate: number | null;
+  size: number;
+}): string {
+  if (r.rate === null || r.size === 0) return '— (표본 없음)';
+  return `${Math.round(r.rate * 100)}% (${n(r.size)}명 중 ${n(Math.round(r.rate * r.size))})`;
+}
+
+/** 전환율 — 분모 0 이면 비율을 적지 않는다 */
+const ratio = (num: number, den: number): string =>
+  den === 0 ? '' : ` (${Math.round((num / den) * 100)}%)`;
+
 /**
- * 하루치 보고 한 덩어리.
- *
- * 리텐션이 `null` 이면 `—` 로 적는다 — **0% 와 구분해야 한다.** 코호트가 비어 있는 것과
- * 아무도 돌아오지 않은 것은 전혀 다른 사실이고, 0% 로 적으면 지표를 잘못 읽는다.
+ * 하루치 보고 — 퍼널 순서(사용자 → 획득 → 재생 → 리텐션)로 4줄.
+ * 운영이 아니면 환경을 앞에 붙인다(가입 알림과 같은 규칙).
  */
 export function formatDailyMetrics(
   m: DailyMetrics,
@@ -31,10 +78,17 @@ export function formatDailyMetrics(
 ): string {
   const prefix =
     environment && environment !== 'production' ? `[${environment}] ` : '';
+  const day = WEEKDAY[new Date(`${m.date}T00:00:00Z`).getUTCDay()];
+  const u = m.users;
+  const a = m.acquisition;
+  const p = m.playback;
   return [
-    `${prefix}:bar_chart: *${m.date} 지표*`,
-    `• 활성 사용자 ${n(m.activeUsers)}명 · 신규 ${n(m.newUsers)}명 · 가입 ${n(m.signUps)}건`,
-    `• 리텐션 D1 ${pct(m.retention.d1)} · D7 ${pct(m.retention.d7)}`,
+    `${prefix}:bar_chart: *${m.date} (${day}) 이어 일간 지표*  ·  운영 스트림`,
+    `*사용자*   활성 ${n(u.active)}${delta(u.active, u.activePrev)}  ·  신규 ${n(u.new)}${delta(u.new, u.newPrev)}  ·  세션 ${n(u.sessions)} (평균 ${formatDuration(u.avgSessionSec)})  ·  7일 활성 ${n(u.active7d)}`,
+    `*획득*     가입 ${n(a.signUps)} → 온보딩 완료 ${n(a.onboardingCompletes)}${ratio(a.onboardingCompletes, a.signUps)}  ·  푸시 응답 ${n(a.pushResponses)}  ·  탈퇴 ${n(a.withdrawals)}`,
+    `*재생*     시작 ${n(p.playStarts)} (${n(p.playStartUsers)}명)  ·  완청 ${n(p.completes)}  ·  중도 이탈 ${n(p.abandons)}  ·  드립 재생 ${n(p.dripPlays)}  ·  담기 ${n(p.saves)}`,
+    `*리텐션*   D1 ${formatRetention(m.retention.d1)}  ·  D7 ${formatRetention(m.retention.d7)}`,
+    `_▲▼ 전일 대비 · 가입·완청은 서버 값(04시 경계), 나머지는 GA4 운영 스트림_`,
   ].join('\n');
 }
 

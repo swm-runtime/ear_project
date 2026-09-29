@@ -1,7 +1,7 @@
 import {
-  parseEventCount,
+  parseEventStats,
+  parseRanges,
   parseRetention,
-  parseTotals,
   ReportRow,
 } from './ga4-report.parse';
 import { shiftDate } from './ga4.service';
@@ -11,37 +11,45 @@ const row = (dims: string[], mets: string[]): ReportRow => ({
   metricValues: mets.map((value) => ({ value })),
 });
 
-describe('parseTotals', () => {
-  it('첫 행에서 활성·신규를 읽는다', () => {
-    expect(parseTotals([row([], ['1234', '56'])])).toEqual({
-      activeUsers: 1234,
-      newUsers: 56,
+describe('parseRanges', () => {
+  // dateRange 차원값 = 요청 때 준 이름. 행 순서는 보장되지 않는다
+  const rows = [
+    row(['w'], ['9', '4', '15', '90.5']),
+    row(['y'], ['1', '1', '1', '6.6']),
+    row(['p'], ['1', '0', '1', '116']),
+  ];
+
+  it('이름으로 찾는다 — 순서와 무관하게', () => {
+    const r = parseRanges(rows, ['y', 'p', 'w']);
+    expect(r.y).toEqual({
+      activeUsers: 1,
+      newUsers: 1,
+      sessions: 1,
+      avgSessionSec: 6.6,
     });
+    expect(r.w.activeUsers).toBe(9);
   });
 
-  it('행이 없으면 0 — GA4 는 값이 없는 날을 빈 응답으로 준다', () => {
-    expect(parseTotals([])).toEqual({ activeUsers: 0, newUsers: 0 });
-    expect(parseTotals(null)).toEqual({ activeUsers: 0, newUsers: 0 });
-  });
-
-  it('숫자가 아닌 값은 0 으로 본다', () => {
-    expect(parseTotals([row([], ['', 'x'])])).toEqual({
+  it('없는 범위는 0 — GA4 는 값이 없는 범위 행을 주지 않는다', () => {
+    expect(parseRanges(rows, ['y', 'zzz']).zzz).toEqual({
       activeUsers: 0,
       newUsers: 0,
+      sessions: 0,
+      avgSessionSec: 0,
     });
+    expect(parseRanges(null, ['y']).y.activeUsers).toBe(0);
   });
 });
 
-describe('parseEventCount', () => {
-  const rows = [row(['sign_up'], ['7']), row(['play_start'], ['99'])];
-
-  it('이름이 맞는 행의 값을 쓴다', () => {
-    expect(parseEventCount(rows, 'sign_up')).toBe(7);
-  });
-
-  it('없는 이벤트는 0', () => {
-    expect(parseEventCount(rows, 'purchase')).toBe(0);
-    expect(parseEventCount([], 'sign_up')).toBe(0);
+describe('parseEventStats', () => {
+  it('이벤트별 건수와 사용자 수를 사전으로', () => {
+    const r = parseEventStats([
+      row(['play_start'], ['4', '3']),
+      row(['sign_up'], ['7', '7']),
+    ]);
+    expect(r.play_start).toEqual({ count: 4, users: 3 });
+    expect(r.sign_up.count).toBe(7);
+    expect(r.nothing).toBeUndefined();
   });
 });
 
@@ -56,31 +64,34 @@ describe('parseRetention', () => {
     row(['churned', '0002'], ['1', '1']),
   ];
 
-  it('해당 코호트의 n일차 활성 / 0일차 총원을 나눈다', () => {
+  it('해당 코호트의 n일차 활성 / 0일차 총원을 나누고 표본 크기를 함께 준다', () => {
     const r = parseRetention(rows, [
       { name: 'd1', nthDay: 1 },
       { name: 'd7', nthDay: 7 },
     ]);
-    expect(r.d1).toBeCloseTo(0.41);
-    expect(r.d7).toBeCloseTo(0.1875);
+    expect(r.d1).toEqual({ rate: 0.41, size: 100 });
+    expect(r.d7.rate).toBeCloseTo(0.1875);
+    expect(r.d7.size).toBe(80);
   });
 
   it('0 을 채운 nthDay 문자열을 숫자로 비교한다', () => {
-    expect(parseRetention(rows, [{ name: 'd1', nthDay: 1 }]).d1).not.toBeNull();
+    expect(
+      parseRetention(rows, [{ name: 'd1', nthDay: 1 }]).d1.rate,
+    ).not.toBeNull();
   });
 
   it('N일차 행이 없으면 0% 다 — GA4 는 0 인 행을 주지 않는다. "모른다"가 아니다', () => {
-    expect(parseRetention(rows, [{ name: 'churned', nthDay: 1 }]).churned).toBe(
-      0,
-    );
+    expect(
+      parseRetention(rows, [{ name: 'churned', nthDay: 1 }]).churned,
+    ).toEqual({ rate: 0, size: 1 });
   });
 
-  it('0일차 행조차 없으면 null — 코호트 자체가 빈 날이다', () => {
+  it('0일차 행조차 없으면 표본 없음(null, size 0) — 코호트 자체가 빈 날이다', () => {
     expect(
       parseRetention(rows, [{ name: 'nobody', nthDay: 1 }]).nobody,
-    ).toBeNull();
-    expect(parseRetention([], [{ name: 'd1', nthDay: 1 }]).d1).toBeNull();
-    expect(parseRetention(null, [{ name: 'd1', nthDay: 1 }]).d1).toBeNull();
+    ).toEqual({ rate: null, size: 0 });
+    expect(parseRetention([], [{ name: 'd1', nthDay: 1 }]).d1.rate).toBeNull();
+    expect(parseRetention(null, [{ name: 'd1', nthDay: 1 }]).d1.size).toBe(0);
   });
 });
 

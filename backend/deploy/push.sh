@@ -63,6 +63,11 @@ $SSH "ec2-user@$HOST" "
     API_IMAGE=\"$API_IMAGE\" docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --no-build api
     # 다음에 API_IMAGE 없이(옛 방식) 배포해도 compose 가 같은 컨테이너를 잡도록 남겨둔다 — 값은 기록용
     echo \"$API_IMAGE\" > .api-image
+    # 옛 이미지 정리 — pull 로 새 태그가 오면 이전 태그는 남아 배포마다 디스크가 는다
+    # (CWAgent 실측 2026-09-15~23: 하루 약 1%p, 09-24 수동 정리로 24%p 회수). `-a` 여야 태그가 남은
+    # 미사용 이미지도 지워지고, 실행 중 컨테이너의 이미지는 절대 대상이 아니다. 24시간 전 것만 —
+    # 방금 pull 한 이미지가 어떤 이유로 아직 안 붙었더라도 지워지지 않게.
+    docker image prune -af --filter \"until=24h\" >/dev/null 2>&1 || true
   else
     docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build api
   fi

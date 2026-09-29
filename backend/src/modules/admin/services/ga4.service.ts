@@ -3,9 +3,9 @@ import { ConfigService } from '@nestjs/config';
 
 import { EnvironmentVariables } from '@/config/env.validation';
 import {
-  parseEventCount,
+  parseEventStats,
+  parseRanges,
   parseRetention,
-  parseTotals,
   ReportRow,
 } from './ga4-report.parse';
 
@@ -38,18 +38,43 @@ const prodStreamFilter = {
   },
 };
 
+/** 보고에 쓰는 이벤트 — `features/analytics.md` 3.4 의 이름 그대로 */
+const REPORT_EVENTS = [
+  'onboarding_complete',
+  'push_permission',
+  'withdrawal',
+  'play_start',
+  'play_abandon',
+  'drip_play',
+  'content_save',
+] as const;
+
 type Client = {
   runReport(request: object): Promise<[{ rows?: ReportRow[] | null }]>;
 };
 
+/** GA4 가 채우는 절반 — 가입·완청은 서버가 낸다(`daily-metrics-db.service.ts`) */
 export type Ga4Daily = {
-  activeUsers: number;
-  newUsers: number;
-  signUps: number;
-  retention: { d1: number | null; d7: number | null };
+  users: {
+    active: number;
+    activePrev: number;
+    new: number;
+    newPrev: number;
+    sessions: number;
+    avgSessionSec: number;
+    active7d: number;
+  };
+  events: Record<
+    (typeof REPORT_EVENTS)[number],
+    { count: number; users: number }
+  >;
+  retention: {
+    d1: { rate: number | null; size: number };
+    d7: { rate: number | null; size: number };
+  };
 };
 
-/** `YYYY-MM-DD` 에 일수를 더한다 — 코호트 기준일 계산용 */
+/** `YYYY-MM-DD` 에 일수를 더한다 — 코호트 기준일·전일 계산용 */
 export function shiftDate(date: string, days: number): string {
   const d = new Date(`${date}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);
@@ -77,37 +102,50 @@ export class Ga4Service {
   }
 
   /**
-   * 하루치 지표. `date` 는 보고 대상 날짜(어제)다.
+   * 하루치 지표. `date` 는 보고 대상 날짜(어제)다. 요청 세 번 — 총계(어제·그제·7일을 한 요청의
+   * 날짜 범위 셋으로), 이벤트 묶음, 코호트.
    *
    * 리텐션의 기준일: D1 은 `date - 1` 에 처음 온 사람이 `date` 에 돌아왔는가, D7 은 `date - 7`
    * 에 처음 온 사람이 `date` 에 돌아왔는가 — 둘 다 **완결된 하루(`date`)를 측정일**로 둔다.
-   * 첫 실행 뒤 GA4 콘솔의 리텐션 보고서와 한 번 대조할 것 — 코호트 오프셋은 실데이터 없이
-   * 확정할 수 없다.
+   * 2026-09-29 실데이터로 코호트 오프셋·행 모양을 확인했다.
    */
   async fetchDaily(date: string): Promise<Ga4Daily> {
     const client = this.getClient();
     const property = `properties/${this.propertyId}`;
-    const day = { startDate: date, endDate: date };
+    const range = (start: string, end: string, name: string) => ({
+      startDate: start,
+      endDate: end,
+      name,
+    });
 
     const [[totals], [events], [cohorts]] = await Promise.all([
       client.runReport({
         property,
-        dateRanges: [day],
-        metrics: [{ name: 'activeUsers' }, { name: 'newUsers' }],
+        dateRanges: [
+          range(date, date, 'y'),
+          range(shiftDate(date, -1), shiftDate(date, -1), 'p'),
+          range(shiftDate(date, -6), date, 'w'),
+        ],
+        metrics: [
+          { name: 'activeUsers' },
+          { name: 'newUsers' },
+          { name: 'sessions' },
+          { name: 'averageSessionDuration' },
+        ],
         dimensionFilter: prodStreamFilter,
       }),
       client.runReport({
         property,
-        dateRanges: [day],
+        dateRanges: [range(date, date, 'y')],
         dimensions: [{ name: 'eventName' }],
-        metrics: [{ name: 'eventCount' }],
+        metrics: [{ name: 'eventCount' }, { name: 'activeUsers' }],
         dimensionFilter: {
           andGroup: {
             expressions: [
               {
                 filter: {
                   fieldName: 'eventName',
-                  stringFilter: { matchType: 'EXACT', value: 'sign_up' },
+                  inListFilter: { values: [...REPORT_EVENTS] },
                 },
               },
               prodStreamFilter,
@@ -124,18 +162,12 @@ export class Ga4Service {
             {
               name: 'd1',
               dimension: COHORT_DIMENSION,
-              dateRange: {
-                startDate: shiftDate(date, -1),
-                endDate: shiftDate(date, -1),
-              },
+              dateRange: range(shiftDate(date, -1), shiftDate(date, -1), 'd1'),
             },
             {
               name: 'd7',
               dimension: COHORT_DIMENSION,
-              dateRange: {
-                startDate: shiftDate(date, -7),
-                endDate: shiftDate(date, -7),
-              },
+              dateRange: range(shiftDate(date, -7), shiftDate(date, -7), 'd7'),
             },
           ],
           cohortsRange: { granularity: 'DAILY', startOffset: 0, endOffset: 7 },
@@ -144,16 +176,27 @@ export class Ga4Service {
       }),
     ]);
 
-    const { activeUsers, newUsers } = parseTotals(totals.rows);
-    const retention = parseRetention(cohorts.rows, [
+    const r = parseRanges(totals.rows, ['y', 'p', 'w']);
+    const stats = parseEventStats(events.rows);
+    const ret = parseRetention(cohorts.rows, [
       { name: 'd1', nthDay: 1 },
       { name: 'd7', nthDay: 7 },
     ]);
+    const evt = Object.fromEntries(
+      REPORT_EVENTS.map((e) => [e, stats[e] ?? { count: 0, users: 0 }]),
+    ) as Ga4Daily['events'];
     return {
-      activeUsers,
-      newUsers,
-      signUps: parseEventCount(events.rows, 'sign_up'),
-      retention: { d1: retention.d1 ?? null, d7: retention.d7 ?? null },
+      users: {
+        active: r.y.activeUsers,
+        activePrev: r.p.activeUsers,
+        new: r.y.newUsers,
+        newPrev: r.p.newUsers,
+        sessions: r.y.sessions,
+        avgSessionSec: r.y.avgSessionSec,
+        active7d: r.w.activeUsers,
+      },
+      events: evt,
+      retention: { d1: ret.d1, d7: ret.d7 },
     };
   }
 

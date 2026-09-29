@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 
 import { EnvironmentVariables } from '@/config/env.validation';
+import { DailyMetricsDbService } from './daily-metrics-db.service';
 import { formatDailyMetrics, reportDate } from './daily-metrics.format';
 import { Ga4Service } from './ga4.service';
 
@@ -12,9 +13,10 @@ const SLACK_TIMEOUT_MS = 5_000;
 /**
  * 일일 지표 Slack 보고 (KAN-107 2단계) — **매일 17:00 KST**, 어제 하루치.
  *
- * `ScheduleModule` 은 스케줄러 프로세스에만 올라가므로(`app.module.ts` · `isSchedulerProcess`)
- * 클러스터에서 한 번만 돈다. GA4 자격이나 웹훅이 비면 조용히 건너뛴다 — 로컬·테스트 기본.
- * 실패해도 던지지 않는다: 던지면 스케줄러가 멈추고 다음 날도 안 온다.
+ * GA4(운영 스트림)와 서버(가입·완청)를 합쳐 4묶음으로 적는다. `ScheduleModule` 은 스케줄러
+ * 프로세스에만 올라가므로(`app.module.ts` · `isSchedulerProcess`) 클러스터에서 한 번만 돈다.
+ * GA4 자격이나 웹훅이 비면 조용히 건너뛴다 — 로컬·테스트·개발계 기본. 실패해도 던지지
+ * 않는다: 던지면 스케줄러가 멈추고 다음 날도 안 온다.
  */
 @Injectable()
 export class DailyMetricsScheduler {
@@ -24,6 +26,7 @@ export class DailyMetricsScheduler {
 
   constructor(
     private readonly ga4: Ga4Service,
+    private readonly db: DailyMetricsDbService,
     configService: ConfigService<EnvironmentVariables, true>,
   ) {
     // 가입 알림과 같은 채널 — 전용 값이 있으면 그것, 없으면 기존 알림 채널
@@ -61,10 +64,34 @@ export class DailyMetricsScheduler {
 
   private async report(date: string): Promise<void> {
     try {
-      const metrics = await this.ga4.fetchDaily(date);
-      await this.post(
-        formatDailyMetrics({ date, ...metrics }, this.environment),
+      // GA4 와 서버를 나란히 부른다 — 서로 기다릴 이유가 없다
+      const [g, s] = await Promise.all([
+        this.ga4.fetchDaily(date),
+        this.db.fetchDaily(date),
+      ]);
+      const text = formatDailyMetrics(
+        {
+          date,
+          users: g.users,
+          acquisition: {
+            signUps: s.signUps,
+            onboardingCompletes: g.events.onboarding_complete.count,
+            pushResponses: g.events.push_permission.count,
+            withdrawals: g.events.withdrawal.count,
+          },
+          playback: {
+            playStarts: g.events.play_start.count,
+            playStartUsers: g.events.play_start.users,
+            completes: s.completes,
+            abandons: g.events.play_abandon.count,
+            dripPlays: g.events.drip_play.count,
+            saves: g.events.content_save.count,
+          },
+          retention: g.retention,
+        },
+        this.environment,
       );
+      await this.post(text);
       this.logger.log('daily metrics posted', { date });
     } catch (error) {
       this.logger.error(
