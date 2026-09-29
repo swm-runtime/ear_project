@@ -157,7 +157,14 @@ export default function PlayerScreen() {
     else screen.closePanel();
     // 스크립트 패널(히어로 위) — 열 때 마운트, 닫힘 애니메이션이 끝나면 내린다. 둘은 동시에 열리지 않는다
     const isScriptOpen = kind === 'script';
-    if (isScriptOpen) setMountedPanel('script');
+    /*
+     * **재생 목록이 열린 채 대본을 열면 순서대로**(Android, PM 2026-09-30 06:09 "재생목록 켠 채로 스크립트 열면 렉") — 목록
+     * 닫힘과 히어로 압축 두 JS 스프링이 동시에 돌고, 빈 자리를 채우는(flex 1) 대본 틀이 모션 전에 붙어 컨트롤을 바닥으로
+     * 밀며 매 프레임 재배치됐다. 목록을 먼저 닫고 → 대본을 붙이고 → 히어로를 접는다. 한 프레임의 일이 절반이 되는 대신
+     * 전환이 한 스프링만큼 길어진다
+     */
+    const isQueueToScript = SEQUENCE_QUEUE_TO_SCRIPT && isScriptOpen && activePanel === 'queue';
+    if (isScriptOpen && !isQueueToScript) setMountedPanel('script');
     // 모션이 시작되면 목록은 다시 "앉지 않은" 상태다 — 닫는 동안에도 앞 몇 줄만 그려 프레임을 아낀다
     setIsQueueSettled(false);
     // 대본이 펼쳐진 채 재생 목록으로 갈 땐 대본을 **즉시** 내린다 — 대본 틀(flex 1)이 컨트롤을 바닥에 밀어 두고 있어,
@@ -170,24 +177,9 @@ export default function PlayerScreen() {
       setIsScriptSettled(false);
     }
 
-    const startMotion = () => {
-      panelMotionFrameRef.current = null;
-      // 모션 동안 0.5초 위치 틱이 화면 전체를 다시 그리지 않게 한다(2026-09-22 PM) — 끝나면 다음 틱이 따라잡는다
-      playbackService.holdPositionUpdates(SCRIPT_TOGGLE_DURATION_MS);
-      // 시트와 같은 smooth 스프링(2026-09-22 PM — 전환 곡선 통일). 길이는 응답 0.45초에 감쇠까지 약 SCRIPT_TOGGLE_DURATION_MS
-      // 두 스프링이 도는 동안 아트워크 실측을 보류한다(위 onHeroArtLayout 주석) — 끊겨도 콜백은 온다
+    // 히어로(대본) 스프링 — 순서 전환에서는 목록이 닫힌 뒤에 따로 출발한다
+    const startPanelSpring = () => {
       holdArtLayout();
-      holdArtLayout();
-      Animated.spring(queueProgress, {
-        toValue: kind === 'queue' ? 1 : 0,
-        ...motion.spring.smooth,
-        overshootClamping: true,
-        useNativeDriver: false,
-      }).start(({ finished }) => {
-        releaseArtLayout();
-        // 앉은 뒤에 나머지 행을 올린다(위 isQueueSettled 주석). 중간에 끊긴 모션은 다음 모션이 정리한다
-        if (finished) setIsQueueSettled(kind === 'queue');
-      });
       Animated.spring(panelProgress, {
         toValue: isScriptOpen ? 1 : 0,
         ...motion.spring.smooth,
@@ -203,6 +195,56 @@ export default function PlayerScreen() {
           setIsScriptSettled(false);
         }
       });
+    };
+    if (isQueueToScript) {
+      const startSequenced = () => {
+        panelMotionFrameRef.current = null;
+        playbackService.holdPositionUpdates(SCRIPT_TOGGLE_DURATION_MS * 2);
+        holdArtLayout();
+        Animated.spring(queueProgress, {
+          toValue: 0,
+          ...motion.spring.smooth,
+          overshootClamping: true,
+          useNativeDriver: false,
+        }).start(({ finished }) => {
+          releaseArtLayout();
+          // 끊겼으면(다른 전환이 이어받음) 대본을 붙이지 않는다 — 다음 setPanel 이 정리한다
+          if (!finished) return;
+          setMountedPanel('script');
+          // 대본 틀이 붙는 렌더가 끝난 뒤에 히어로를 접는다(아래 두 프레임 뒤 출발과 같은 이유)
+          panelMotionFrameRef.current = requestAnimationFrame(() => {
+            panelMotionFrameRef.current = requestAnimationFrame(() => {
+              panelMotionFrameRef.current = null;
+              startPanelSpring();
+            });
+          });
+        });
+      };
+      if (panelMotionFrameRef.current !== null) cancelAnimationFrame(panelMotionFrameRef.current);
+      panelMotionFrameRef.current = requestAnimationFrame(() => {
+        panelMotionFrameRef.current = requestAnimationFrame(startSequenced);
+      });
+      return;
+    }
+
+    const startMotion = () => {
+      panelMotionFrameRef.current = null;
+      // 모션 동안 0.5초 위치 틱이 화면 전체를 다시 그리지 않게 한다(2026-09-22 PM) — 끝나면 다음 틱이 따라잡는다
+      playbackService.holdPositionUpdates(SCRIPT_TOGGLE_DURATION_MS);
+      // 시트와 같은 smooth 스프링(2026-09-22 PM — 전환 곡선 통일). 길이는 응답 0.45초에 감쇠까지 약 SCRIPT_TOGGLE_DURATION_MS
+      // 두 스프링이 도는 동안 아트워크 실측을 보류한다(위 onHeroArtLayout 주석) — 끊겨도 콜백은 온다
+      holdArtLayout();
+      Animated.spring(queueProgress, {
+        toValue: kind === 'queue' ? 1 : 0,
+        ...motion.spring.smooth,
+        overshootClamping: true,
+        useNativeDriver: false,
+      }).start(({ finished }) => {
+        releaseArtLayout();
+        // 앉은 뒤에 나머지 행을 올린다(위 isQueueSettled 주석). 중간에 끊긴 모션은 다음 모션이 정리한다
+        if (finished) setIsQueueSettled(kind === 'queue');
+      });
+      startPanelSpring();
     };
     // 연타 — 앞서 예약한 출발은 버리고 마지막 것만 출발시킨다
     if (panelMotionFrameRef.current !== null) cancelAnimationFrame(panelMotionFrameRef.current);
@@ -2014,6 +2056,8 @@ const MORPH_ART_INPUT = [0, MORPH_ART_SHRINK_END, MORPH_ART_ARRIVE, 1];
  * 손을 뗀 속도는 `velocity` 로 따로 넣는다. 실기기에서 조절한다
  */
 const SHEET_SPRING = motion.spring.smooth;
+/** 재생 목록이 열린 채 대본을 열 때 목록 닫힘 → 대본 열림을 순서대로(setPanel 주석) — Android 만 */
+const SEQUENCE_QUEUE_TO_SCRIPT = Platform.OS === 'android';
 /** 재생 목록의 히어로 축소를 transform 으로(hero 주석) — Android 만. iOS 는 종전 레이아웃 그대로 */
 const HERO_QUEUE_BY_TRANSFORM = Platform.OS === 'android';
 /** Android 줌 전환(아래 AndroidZoomStage) — iOS 는 종전 갈래 그대로(시스템 줌·JS 모핑) */
