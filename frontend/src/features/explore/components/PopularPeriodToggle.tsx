@@ -1,6 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, type NativeSyntheticEvent } from 'react-native';
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type NativeSyntheticEvent,
+} from 'react-native';
 
+import { theme } from '@/shared/theme';
+import CheckIcon from '@/shared/ui/CheckIcon';
 import SegmentedControl from '@/shared/ui/SegmentedControl';
 
 import {
@@ -45,6 +54,9 @@ export default function PopularPeriodToggle({
 }: PopularPeriodToggleProps) {
   if (HAS_SYSTEM_SEGMENTED_CONTROL) {
     return <SystemPeriodToggle selected={selected} onSelect={onSelect} disabled={disabled} />;
+  }
+  if (Platform.OS === 'android') {
+    return <MaterialPeriodToggle selected={selected} onSelect={onSelect} disabled={disabled} />;
   }
   return (
     <SegmentedControl
@@ -108,5 +120,95 @@ const styles = StyleSheet.create({
   system: {
     width: SYSTEM_SEGMENT_WIDTH * PERIODS.length,
     height: SYSTEM_HEIGHT,
+  },
+});
+
+/*
+ * ── Android: Material 3 Segmented button(PM 2026-09-29 16:29 "안드로이드는 자체 native 디자인으로") ──
+ * iOS 가 시스템 UISegmentedControl 을 쓰듯 Android 는 Material 3 의 세그먼트 버튼 문법을 따른다 — 테두리 알약(1dp outline,
+ * 높이 40) 안에 같은 폭의 칸, 칸 사이 1dp 구분선, 선택 칸은 컨테이너 색으로 채우고 라벨 앞에 체크(18dp), 누르면 물결(ripple).
+ * 색은 M3 기준 역할을 이 앱의 무채색으로 옮겼다(secondaryContainer → 중립 회색). 선택 기준은 여전히 `selected`(서버 응답)이고
+ * 전환 중 탭은 무시한다 — 흐리게 그리지 않는다(iOS 와 같은 이유: 전환마다 깜빡인다)
+ */
+const MD_HEIGHT = 40;
+/** 칸 폭 — 체크 18 + 틈 4 + 두 글자(14sp) + 좌우 8. 360dp 폰에서 제목 "인기 콘텐츠" 옆에 한 줄로 서는 폭 */
+const MD_SEGMENT_WIDTH = 68;
+const MD_CHECK_SIZE = 18;
+const MD_OUTLINE = '#79747E';
+const MD_SELECTED_CONTAINER = '#E4E4E9';
+const MD_ON_SURFACE = '#1D1B20';
+const MD_RIPPLE = 'rgba(29, 27, 32, 0.12)';
+
+function MaterialPeriodToggle({ selected, onSelect, disabled }: PopularPeriodToggleProps) {
+  return (
+    <View
+      style={materialStyles.container}
+      accessibilityRole="radiogroup"
+      accessibilityLabel={EXPLORE_COPY.popular.toggleA11y}
+    >
+      {OPTIONS.map((option, index) => {
+        const isSelected = option.value === selected;
+        return (
+          <Pressable
+            key={option.value}
+            style={[
+              materialStyles.segment,
+              index > 0 && materialStyles.segmentDivider,
+              isSelected && materialStyles.segmentSelected,
+            ]}
+            android_ripple={{ color: MD_RIPPLE }}
+            onPress={() => {
+              if (disabled || isSelected) return;
+              onSelect(option.value);
+            }}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: isSelected }}
+            accessibilityLabel={option.label}
+          >
+            {isSelected ? (
+              <CheckIcon size={MD_CHECK_SIZE} color={MD_ON_SURFACE} strokeWidth={2} />
+            ) : null}
+            <Text style={materialStyles.label} numberOfLines={1}>
+              {option.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+const materialStyles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    height: MD_HEIGHT,
+    borderRadius: MD_HEIGHT / 2,
+    borderWidth: 1,
+    borderColor: MD_OUTLINE,
+    // 물결·선택 면이 알약 밖으로 새지 않게
+    overflow: 'hidden',
+  },
+  segment: {
+    width: MD_SEGMENT_WIDTH,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    // M3 기본 틈은 8 — 좁은 제목 줄에 맞춰 4
+    gap: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.sm,
+  },
+  segmentDivider: {
+    borderLeftWidth: 1,
+    borderLeftColor: MD_OUTLINE,
+  },
+  segmentSelected: {
+    backgroundColor: MD_SELECTED_CONTAINER,
+  },
+  // M3 label-large — 14sp · medium · 0.1 자간
+  label: {
+    fontSize: 14,
+    fontWeight: '500',
+    letterSpacing: 0.1,
+    color: MD_ON_SURFACE,
   },
 });
