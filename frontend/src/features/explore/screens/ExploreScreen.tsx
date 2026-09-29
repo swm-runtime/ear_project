@@ -86,7 +86,7 @@ export default function ExploreScreen() {
   // 탭 재선택과 같은 "맨 위로"를 Android 접힘 바 제목 탭도 부른다
   const scrollToTopRef = useRef<((animated?: boolean) => void) | null>(null);
   const restoreScrollRef = useRef<((offset: number) => void) | null>(null);
-  const searchScroll = useSearchScrollRestoration(isSearching, restoreScrollRef);
+  const searchScroll = useSearchScrollRestoration(isClosingSearch, restoreScrollRef);
   // Animated.Value 초기값 대신 실제 목록 이벤트에서 복귀 좌표를 읽는다.
   const { solidness, scrollY, scrollProps } = useFloatingHeaderScroll(searchScroll.onScroll);
   const listRef = useTabScrollToTop({
