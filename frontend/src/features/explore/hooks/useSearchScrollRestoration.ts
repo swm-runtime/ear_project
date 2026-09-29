@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, type MutableRefObject } from 'react';
+import { useCallback, useLayoutEffect, useRef, type MutableRefObject } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 
-/** 검색 덮개가 사라진 뒤, 헤더 높이로 환산하지 않은 실제 피드 좌표로 돌아간다. */
+/** 검색 덮개가 불투명한 동안 실제 피드 좌표를 복원해, 페이드 중 다른 위치가 비치지 않게 한다. */
 export function useSearchScrollRestoration(
-  searching: boolean,
+  closing: boolean,
   restore: MutableRefObject<((offset: number) => void) | null>,
 ) {
   const current = useRef<number | null>(null);
@@ -18,15 +18,13 @@ export function useSearchScrollRestoration(
     saved.current = null;
   }, []);
 
-  useEffect(() => {
-    if (searching || saved.current === null) return;
-    // 덮개 제거·툴바 복귀를 커밋한 뒤 이동한다. 먼저 이동하면 UIKit 레이아웃이 다시 밀 수 있다.
-    const frame = requestAnimationFrame(() => {
-      if (saved.current !== null) restore.current?.(saved.current);
-      saved.current = null;
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [searching, restore]);
+  useLayoutEffect(() => {
+    if (!closing || saved.current === null) return;
+    // 닫기 시작 시 덮개 opacity는 1이다. 본문 퇴장(240ms) 뒤 덮개 페이드가 시작된다.
+    // 덮개를 제거한 뒤 복원하면 임시 맨 위 피드가 먼저 노출되어 한 번 더 화면이 바뀐다.
+    restore.current?.(saved.current);
+    saved.current = null;
+  }, [closing, restore]);
 
   return { onScroll, save, discard };
 }
