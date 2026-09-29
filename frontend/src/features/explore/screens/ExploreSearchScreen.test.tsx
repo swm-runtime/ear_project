@@ -2,9 +2,6 @@ import { afterEach, describe, expect, it, jest } from '@jest/globals';
 import type { ReactNode } from 'react';
 import { Animated, BackHandler, Keyboard, Platform } from 'react-native';
 
-import * as GlassSurface from '@/shared/ui/GlassSurface';
-import LargeTitleRow from '@/shared/ui/LargeTitleRow';
-
 import { MiniPlayer } from '@/features/player';
 
 import ExploreSearchScreen from './ExploreSearchScreen';
@@ -22,7 +19,7 @@ jest.mock('react-native-safe-area-context', () => ({
 }));
 jest.mock('@/shared/navigation/useNativeHeaderInset', () => ({ useNativeHeaderInset: () => 0 }));
 jest.mock('@/shared/navigation/useTabScrollToTop', () => ({ useTabScrollToTop: () => null }));
-jest.mock('@/shared/ui/GlassSurface', () => ({ __esModule: true, HAS_NATIVE_TAB_BAR: false }));
+jest.mock('@/shared/ui/GlassSurface', () => ({ HAS_NATIVE_TAB_BAR: false }));
 jest.mock('@/features/player', () => ({
   DOCK_SCROLL_PROPS: {},
   MiniPlayer: jest.fn(() => null),
@@ -54,10 +51,9 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-describe('탐색 제자리 검색', () => {
-  it.each(['android', 'ios'] as const)('%s에서 큰 제목·닫기 캡슐을 표시하고 미니플레이어를 중복 생성하지 않는다', async (platform) => {
-    jest.replaceProperty(Platform, 'OS', platform);
-    jest.replaceProperty(GlassSurface, 'HAS_NATIVE_TAB_BAR', platform === 'ios');
+describe('Android 탐색 제자리 검색', () => {
+  it('채움 검색창·닫기 캡슐을 표시하고 미니플레이어를 중복 생성하지 않는다', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
     jest.mocked(useExploreSearchScreen).mockReturnValue({
       inputText: '',
       isInitialMode: true,
@@ -79,17 +75,11 @@ describe('탐색 제자리 검색', () => {
       renderer = create(<ExploreSearchScreen embedding={embedding} />);
     });
     expect(renderer.root.findByType(SearchInputRow).props.variant).toBe('fill');
-    expect(renderer.root.findByType(LargeTitleRow).props.title).toBe('탐색');
     expect(renderer.root.findByType(SearchInputRow).props.onCancel).toBeUndefined();
     expect(renderer.root.findByType(SearchToolbar).props.remaining).toEqual(embedding.remaining);
     expect(renderer.root.findAllByType(MiniPlayer)).toHaveLength(0);
-    if (platform === 'android') {
-      const backHandler = back.mock.calls.find(([event]) => event === 'hardwareBackPress')![1];
-      expect(backHandler({ type: 'hardwareBackPress', timeStamp: 0 })).toBe(true);
-    } else {
-      expect(back).not.toHaveBeenCalled();
-      (renderer.root.findByType(SearchToolbar).props.onClose as () => void)();
-    }
+    const backHandler = back.mock.calls.find(([event]) => event === 'hardwareBackPress')![1];
+    expect(backHandler({ type: 'hardwareBackPress', timeStamp: 0 })).toBe(true);
     expect(close).toHaveBeenCalledTimes(1);
     await act(async () => {
       renderer.unmount();

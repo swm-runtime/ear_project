@@ -1,4 +1,3 @@
-import { useNavigation } from '@react-navigation/native';
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -63,7 +62,6 @@ import { useExploreScreen } from '../hooks/useExploreScreen';
  * - 그 외 — 떠 있는 유리 머리 줄(FloatingHeader: 검색창 + 링 + 칩)이 목록 위에 뜬다(2026-09-24).
  */
 export default function ExploreScreen() {
-  const navigation = useNavigation();
   const screen = useExploreScreen();
   const { width: windowWidth } = useWindowDimensions();
   const miniInset = useBottomDockInset();
@@ -85,11 +83,6 @@ export default function ExploreScreen() {
   const [isSearching, setIsSearching] = useState(false);
   // 제자리 검색 닫기 요청 — ✕ 는 시스템 바 캡슐에 있고, 덮개가 퇴장 애니메이션 끝에 onExit 로 isSearching 을 끈다
   const [isClosingSearch, setIsClosingSearch] = useState(false);
-  // 검색 중에는 키보드·스크롤에 접히지 않는 큰 제목을 검색 화면이 직접 표시한다.
-  // 퇴장 애니메이션까지 끝난 뒤 시스템 헤더를 복구한다.
-  useLayoutEffect(() => {
-    if (HAS_NATIVE_TAB_BAR) navigation.setOptions({ headerShown: !isSearching });
-  }, [navigation, isSearching]);
   // 탭 재선택과 같은 "맨 위로"를 Android 접힘 바 제목 탭도 부른다
   const scrollToTopRef = useRef<(() => void) | null>(null);
   const listRef = useTabScrollToTop({

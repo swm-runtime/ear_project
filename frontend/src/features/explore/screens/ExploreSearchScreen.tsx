@@ -66,7 +66,6 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
   const insets = useSafeAreaInsets();
   const isEmbedded = embedding !== undefined;
   const androidEmbedded = Platform.OS === 'android' && isEmbedded;
-  const hasEmbeddedHeader = isEmbedded && (HAS_NATIVE_TAB_BAR || androidEmbedded);
   const requestClose = embedding?.onRequestClose;
   useFocusEffect(
     useCallback(() => {
@@ -293,14 +292,14 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
     <Frame
       style={[
         styles.container,
-        { paddingTop: hasEmbeddedHeader ? insets.top : nativeBarInset },
+        { paddingTop: androidEmbedded ? insets.top : nativeBarInset },
         embedding ? { opacity: overlayFade } : null,
       ]}
       edges={['top']}
     >
       {HAS_NATIVE_TAB_BAR || androidEmbedded ? (
         <>
-          {hasEmbeddedHeader && embedding ? (
+          {androidEmbedded && embedding ? (
             <LargeTitleRow
               title={EXPLORE_COPY.tabTitle}
               trailing={
@@ -315,7 +314,8 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
           ) : null}
           {/* 제자리 검색이면 제목은 "탐색" 그대로 — 페이지가 바뀌지 않았다는 신호. 오른쪽에 잔여 링 + 닫기 ✕
               (PM 2026-09-27 22:36 "검색할 때도 몇 회 남았는지 뜨게 하고 취소 x 버튼을 그 옆에") — 검색창은 폭을 다 쓴다 */}
-          {/* 제자리 검색의 큰 제목·닫기 캡슐은 위 고정 줄에 둔다. 키보드가 떠도 작은 중앙 제목으로 접히지 않는다. */}
+          {/* 제자리 검색은 제목 "탐색" + [링 | ✕] 캡슐을 **시스템 바**가 든다(탐색 화면의 useSystemLargeTitle, 2026-09-28) —
+              여기선 검색창만. 스택 검색 화면(제자리가 아님)만 제목 줄을 그린다 */}
           {embedding ? null : <LargeTitleRow title={EXPLORE_COPY.search.tabTitle} />}
           <SearchInputRow
             value={screen.inputText}
