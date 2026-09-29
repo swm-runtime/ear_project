@@ -33,6 +33,7 @@ import { Text, AnimatedText } from '@/shared/ui/Typography';
 
 import { useTopicsQuery } from '@/features/interest';
 
+import { createAndroidPlayerZoom } from '../components/android-player-zoom';
 import { MINI_CARD_HEIGHT, MINI_CARD_RADIUS, MINI_THUMB_SIZE } from '../components/MiniPlayer';
 import PlayConfirmDialog from '../components/PlayConfirmDialog';
 import {
@@ -361,16 +362,18 @@ export default function PlayerScreen() {
     return velocity;
   };
   const runSheetSpring = (toValue: 0 | 1, onFinished: () => void) => {
+    openProgress.stopAnimation();
     Animated.spring(openProgress, {
       toValue,
       velocity: takeReleaseVelocity(),
-      useNativeDriver: false,
+      useNativeDriver: ANDROID_ZOOM,
       ...SHEET_SPRING,
       overshootClamping: true,
     }).start(({ finished }) => {
       if (finished) onFinished();
     });
   };
+  useEffect(() => () => openProgress.stopAnimation(), [openProgress]);
   // goBack 은 한 번만 — 놓기·중단·구독이 겹쳐 두 번 부르면 닫히는 중인 모달을 또 닫으려다 RNS 가 굳는다
   const isCollapsingRef = useRef(false);
   const dismissPlayer = () => {
@@ -449,6 +452,7 @@ export default function PlayerScreen() {
       // 줌 갈래(시스템 드래그 닫기 꺼짐): 시트는 손가락을 따라가지 않는다 — 놓을 때 임계를 넘으면 goBack(줌 축소), 아니면 그대로
       begin: () => {
         if (USE_NATIVE_PLAYER_ZOOM) return;
+        openProgress.stopAnimation();
         setIsMorphing(true);
       },
       /*
@@ -1084,10 +1088,16 @@ export default function PlayerScreen() {
       heroOpacity: 1,
     });
   }
-  const zoomScale = openProgress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [Math.min(1, mini.width / Math.max(1, windowWidth)), 1],
-  });
+  const androidZoom = useMemo(
+    () =>
+      createAndroidPlayerZoom(
+        openProgress,
+        { x: mini.x, y: mini.y, width: mini.width, height: mini.height },
+        { width: windowWidth, height: windowHeight },
+      ),
+    // 재생 위치만 갱신될 때는 네이티브 이동·확대 그래프를 유지한다.
+    [openProgress, mini.x, mini.y, mini.width, mini.height, windowWidth, windowHeight],
+  );
 
   if (!session) {
     // 세션 정리 직후(차단 전환·회수 닫기)의 한 프레임 — 아무것도 그리지 않는다
@@ -1192,11 +1202,15 @@ export default function PlayerScreen() {
       <Animated.View
         style={[
           styles.sheet,
+          ANDROID_ZOOM
+            ? androidZoom.frame
+            : {
+                top: morph.sheetTop,
+                left: morph.sheetLeft,
+                width: morph.sheetWidth,
+                height: morph.sheetHeight,
+              },
           {
-            top: morph.sheetTop,
-            left: morph.sheetLeft,
-            width: morph.sheetWidth,
-            height: morph.sheetHeight,
             borderTopLeftRadius: morph.sheetRadius,
             borderTopRightRadius: morph.sheetRadius,
             // Android 줌은 카드가 통째로 부푼다 — 아래 모서리도 같이 둥글다(위에 얹힌 줌 무대와 같은 모양)
@@ -1231,9 +1245,8 @@ export default function PlayerScreen() {
       </Animated.View>
       <AndroidZoomStage
         enabled={ANDROID_ZOOM}
-        frame={{ top: morph.sheetTop, left: morph.sheetLeft, width: morph.sheetWidth, height: morph.sheetHeight }}
+        zoom={androidZoom}
         radius={morph.sheetRadius}
-        scale={zoomScale}
         stage={{ width: windowWidth, height: windowHeight, paddingTop: insets.top, paddingBottom: insets.bottom }}
       >
       <Animated.View
@@ -1944,11 +1957,9 @@ const ANDROID_ZOOM_CORNER = 32;
 
 interface AndroidZoomStageProps {
   enabled: boolean;
-  /** 자라는 카드의 자리(화면 좌표) — 시트와 같은 값 */
-  frame: Animated.WithAnimatedObject<{ top: number; left: number; width: number; height: number }>;
+  /** 시트와 같은 네이티브 이동·확대 그래프 */
+  zoom: ReturnType<typeof createAndroidPlayerZoom>;
   radius: Animated.AnimatedInterpolation<number> | number;
-  /** 플레이어 전체의 배율 — 카드 폭 / 화면 폭 → 1 */
-  scale: Animated.AnimatedInterpolation<number>;
   /** 플레이어가 원래 그려지는 판(화면 크기 + 안전영역) — 배율을 걸 기준 */
   stage: { width: number; height: number; paddingTop: number; paddingBottom: number };
   children: ReactNode;
@@ -1959,15 +1970,15 @@ interface AndroidZoomStageProps {
  * 넣는다. 배율 1·카드 = 화면이면 종전과 똑같은 배치다(레이아웃 측정값도 같다 — transform 은 레이아웃을 바꾸지 않는다).
  * 꺼져 있으면 자식을 그대로 둔다
  */
-function AndroidZoomStage({ enabled, frame, radius, scale, stage, children }: AndroidZoomStageProps) {
+function AndroidZoomStage({ enabled, zoom, radius, stage, children }: AndroidZoomStageProps) {
   if (!enabled) return <>{children}</>;
   return (
     <Animated.View
-      style={[styles.zoomClip, frame, { borderRadius: radius }]}
+      style={[styles.zoomClip, zoom.frame, { borderRadius: radius }]}
       pointerEvents="box-none"
     >
       <Animated.View
-        style={[styles.zoomStage, stage, { transform: [{ scale }] }]}
+        style={[styles.zoomStage, stage, { transform: zoom.contentTransform }]}
         pointerEvents="box-none"
       >
         {children}
