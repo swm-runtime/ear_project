@@ -1,9 +1,10 @@
 import { BlurView } from 'expo-blur';
-import { useMemo, type ReactNode, type RefObject } from 'react';
+import { useEffect, useMemo, useState, type ReactNode, type RefObject } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { theme } from '@/shared/theme';
+import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
+import { motion, theme } from '@/shared/theme';
 import { LARGE_TITLE_ROW_HEIGHT } from '@/shared/ui/LargeTitleRow';
 import { AnimatedText } from '@/shared/ui/Typography';
 
@@ -28,6 +29,11 @@ const FROST_BLUR_INTENSITY = 25;
  */
 // 16 → 22: 바 아래 여백을 3 줄인다(PM 2026-09-30 03:38 "조금만 줄이는 게 나을 것 같아")
 const STATUS_ICON_HEIGHT = 22;
+/** 작은 제목이 나타나는 경계 — 큰 제목 줄이 이만큼 밀려 올라가면 켜지고, 되돌아올 땐 SHOW_BELOW 밑에서 꺼진다(깜빡임 방지) */
+const TITLE_SHOW_AT = LARGE_TITLE_ROW_HEIGHT * 0.75;
+const TITLE_HIDE_BELOW = LARGE_TITLE_ROW_HEIGHT * 0.5;
+/** 작은 제목이 올라오는 거리 */
+const TITLE_RISE = 6;
 
 /**
  * **Android 의 iOS 식 접힘 바**(PM 2026-09-29 17:19 "탐색 내리면 제목이 가운데 새로 생기고, 검색바·주제 알약은 제자리에서
@@ -61,6 +67,27 @@ export default function AndroidCollapsingBar({
       }),
     [scrollY],
   );
+  /*
+   * 작은 제목은 **경계를 넘는 순간 짧게** 올라오며 나타난다(PM 2026-09-30 04:34 "상단바 텍스트 뜨는 거 iOS 처럼 애니메이션") —
+   * iOS 는 큰 제목이 바 밑으로 들어가면 작은 제목을 스크롤과 무관한 짧은 페이드로 넣는다. 종전엔 스크롤한 만큼 불투명도만
+   * 따라가 멈추면 반투명으로 걸려 있었다. 서리 유리 판은 스크롤을 따라간다(collapse)
+   */
+  const [isTitleShown, setIsTitleShown] = useState(false);
+  useEffect(() => {
+    const id = scrollY.addListener(({ value }) => {
+      setIsTitleShown((prev) => (prev ? value > TITLE_HIDE_BELOW : value > TITLE_SHOW_AT));
+    });
+    return () => scrollY.removeListener(id);
+  }, [scrollY]);
+  const titleAppear = useAnimatedValue(0);
+  useEffect(() => {
+    Animated.timing(titleAppear, {
+      toValue: isTitleShown ? 1 : 0,
+      duration: motion.duration.normal,
+      easing: motion.easing.easeOut,
+      useNativeDriver: true,
+    }).start();
+  }, [isTitleShown, titleAppear]);
   return (
     <View
       style={[styles.bar, { paddingTop: insets.top, paddingBottom: bottomBalance }]}
@@ -79,7 +106,20 @@ export default function AndroidCollapsingBar({
       </Animated.View>
       <View style={styles.row} pointerEvents="box-none">
         <AnimatedText
-          style={[styles.title, { opacity: collapse }]}
+          style={[
+            styles.title,
+            {
+              opacity: titleAppear,
+              transform: [
+                {
+                  translateY: titleAppear.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [TITLE_RISE, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
           numberOfLines={1}
           importantForAccessibility="no"
           pointerEvents="none"
