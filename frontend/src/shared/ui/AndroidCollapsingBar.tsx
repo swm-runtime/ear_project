@@ -148,9 +148,14 @@ export default function AndroidCollapsingBar({
         />
       ) : null}
       <View style={styles.row} pointerEvents="box-none">
-        <AnimatedText
+        {/*
+          제목은 **터치를 통과시키는 View 로 감싼다** — Android 의 Text 는 pointerEvents 를 따르지 않아 글자 위를 누르면 Text 가
+          터치를 가져갔고, 탭 영역(Pressable)은 부모가 아니라 형제라 받지 못했다. 글자만 누르면 안 올라가던 원인
+          (PM 2026-09-30 05:37 "제목 텍스트 탭하면 안 올라감" — 옆 빈 곳은 됐다)
+        */}
+        <Animated.View
           style={[
-            styles.title,
+            styles.titleBox,
             {
               opacity: titleAppear,
               transform: [
@@ -163,12 +168,12 @@ export default function AndroidCollapsingBar({
               ],
             },
           ]}
-          numberOfLines={1}
-          importantForAccessibility="no"
           pointerEvents="none"
         >
-          {title}
-        </AnimatedText>
+          <AnimatedText style={styles.title} numberOfLines={1} importantForAccessibility="no">
+            {title}
+          </AnimatedText>
+        </Animated.View>
         {leading}
         <View style={styles.spacer} pointerEvents="none" />
         {trailing}
@@ -205,10 +210,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
   },
   spacer: { flex: 1 },
-  title: {
+  // 제목 상자 — 줄 전체 폭에 겹쳐 가운데(터치 통과)
+  titleBox: {
     position: 'absolute',
     left: 0,
     right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  title: {
     textAlign: 'center',
     fontSize: theme.font.size.lg,
     fontWeight: '700',

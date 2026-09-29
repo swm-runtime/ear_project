@@ -33,9 +33,13 @@ export default function CareerInfoScreen() {
         <GlassIconButton onPress={screen.handleBackPress} accessibilityLabel={CAREER_COPY.backA11y}>
           <ChevronIcon direction="left" size={BACK_ICON_SIZE} color={theme.color.textPrimary} />
         </GlassIconButton>
-        <Text style={styles.appBarTitle} accessibilityRole="header" pointerEvents="none">
-          {CAREER_COPY.appBarTitle}
-        </Text>
+        {/* 터치를 통과시키는 View 로 감싼다 — Android 의 Text 는 pointerEvents 를 따르지 않아, 줄 전체에 겹친 제목이 뒤로 원의
+            탭을 가로챌 수 있다(AndroidCollapsingBar 제목과 같은 이유, 2026-09-30) */}
+        <View style={styles.appBarTitleBox} pointerEvents="none">
+          <Text style={styles.appBarTitle} accessibilityRole="header">
+            {CAREER_COPY.appBarTitle}
+          </Text>
+        </View>
         <View style={styles.appBarFill} />
         {/* [초기화] — 뒤로와 같은 유리 재질의 알약(글자 버튼이라 원이 아니라 캡슐이다) */}
         <GlassCapsule style={styles.resetCapsule}>
@@ -224,10 +228,16 @@ const styles = StyleSheet.create({
   },
   // 제목은 **화면 정가운데** — 오른쪽 [초기화] 캡슐이 왼쪽 뒤로 원(40)보다 넓어 flex 로 두면 가운데에서 왼쪽으로 밀렸다.
   // 좌우 버튼 사이를 채우는 대신 줄 전체에 겹쳐 놓고, 버튼 탭은 그대로 받게 터치를 통과시킨다
-  appBarTitle: {
+  appBarTitleBox: {
     position: 'absolute',
     left: 0,
     right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  appBarTitle: {
     textAlign: 'center',
     fontSize: theme.font.size.md,
     fontWeight: '700',
