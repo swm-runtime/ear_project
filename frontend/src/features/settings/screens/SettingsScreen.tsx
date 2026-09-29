@@ -1,4 +1,4 @@
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
@@ -10,6 +10,8 @@ import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import ConfirmDialog from '@/shared/ui/ConfirmDialog';
 import { useFloatingHeaderScroll } from '@/shared/ui/FloatingHeader';
+import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
+import LargeTitleRow, { LARGE_TITLE_ROW_HEIGHT } from '@/shared/ui/LargeTitleRow';
 
 import { NotificationPrePromptModal } from '@/features/notification';
 
@@ -41,7 +43,13 @@ export default function SettingsScreen() {
 
   // 조회 값이 필요한 조작(토글·배속) — 기준값이 없으면 비활성이다(S6: 토글 섹션도 에러 영역)
   const hasControls = screen.controls !== null;
-  const { scrollProps } = useFloatingHeaderScroll();
+  const { scrollY, scrollProps } = useFloatingHeaderScroll();
+  // Android: 큰 제목이 절반쯤 밀려 올라가면 바의 작은 제목이 나타난다(iOS 큰 제목 접힘과 같은 구간)
+  const androidSmallTitleOpacity = scrollY.interpolate({
+    inputRange: [LARGE_TITLE_ROW_HEIGHT * 0.5, LARGE_TITLE_ROW_HEIGHT],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
   // iOS 26: **시스템 큰 제목** — 라이브러리·탐색과 같다(PM 2026-09-28 03:14 "이거야"). 뒤로 버튼이 있어 UIKit 이 큰 제목을
   // 버튼 줄 밑에 두고, 스크롤 접힘·바 밑 블러는 시스템이 한다
   // 접힌 작은 제목 크기는 훅 기본값(전 화면 공통 — 04:09 PM)
@@ -51,7 +59,35 @@ export default function SettingsScreen() {
     <SafeAreaView style={styles.container} edges={USES_SYSTEM_PUSHED_HEADER ? [] : ['top']}>
       {/* 앱바 — 뒤로가기 + "설정"(settings-uiux.md 4.1). iOS 26 은 시스템 투명 바(뒤로만) + 콘텐츠 큰 제목
           (PUSHED_SCREEN_HEADER, PM 2026-09-27 01:42 "설정 페이지도 UI 일관되게") */}
-      {USES_SYSTEM_PUSHED_HEADER ? null : (
+      {USES_SYSTEM_PUSHED_HEADER ? null : ANDROID_LARGE_TITLE ? (
+        /*
+         * **Android — 애플 문법**(PM 2026-09-29 14:42 "설정을 애플처럼, 제목 위에 원형 버튼에 <", Android 전용): 위 줄엔
+         * 유리 원 안의 ‹ 만, 큰 제목 "설정"은 콘텐츠 첫 줄. 스크롤해 큰 제목이 밀려 올라가면 위 줄 가운데에 작은 제목이
+         * 나타난다(iOS 큰 제목 접힘). Android 네이티브의 같은 자리(Material 3 Large top app bar)는 모양이 다르고
+         * react-native-screens 가 Android 큰 제목을 지원하지 않아 화면이 직접 그린다
+         */
+        <View style={styles.appBar}>
+          <GlassCapsule style={styles.androidBackCircle}>
+            <Pressable
+              style={styles.androidBackPressable}
+              onPress={screen.goBack}
+              accessibilityRole="button"
+              accessibilityLabel={SETTINGS_COPY.backA11y}
+              hitSlop={4}
+            >
+              <ChevronIcon direction="left" size={ANDROID_BACK_ICON_SIZE} color={theme.color.textPrimary} />
+            </Pressable>
+          </GlassCapsule>
+          <Animated.Text
+            style={[styles.appBarTitle, { opacity: androidSmallTitleOpacity }]}
+            numberOfLines={1}
+            importantForAccessibility="no"
+          >
+            {SETTINGS_COPY.title}
+          </Animated.Text>
+          <View style={styles.androidBackSpacer} />
+        </View>
+      ) : (
         <View style={styles.appBar}>
           <Pressable
             style={styles.backButton}
@@ -74,6 +110,11 @@ export default function SettingsScreen() {
         contentInsetAdjustmentBehavior={USES_SYSTEM_PUSHED_HEADER ? 'automatic' : 'never'}
         {...scrollProps}
       >
+        {ANDROID_LARGE_TITLE ? (
+          <View style={styles.androidLargeTitle}>
+            <LargeTitleRow title={SETTINGS_COPY.title} />
+          </View>
+        ) : null}
         {/* ── 상단 요약(계정·구독) — 서버 값이 필요한 영역만 로딩·에러가 있다(S6) ── */}
         {screen.isInitialLoading ? (
           showSkeleton ? (
@@ -318,6 +359,9 @@ export default function SettingsScreen() {
 
 /** 앱바 뒤로 셰브론 — 글자 `‹` 는 폰트마다 굵기·세로 위치가 달라 도형으로 그린다(design.md §5) */
 const BACK_ICON_SIZE = 24;
+/** Android 애플 문법 헤더(원형 ‹ + 콘텐츠 큰 제목) — iOS 26 은 시스템 바, 옛 iOS 는 종전 앱바 */
+const ANDROID_LARGE_TITLE = Platform.OS === 'android' && !USES_SYSTEM_PUSHED_HEADER;
+const ANDROID_BACK_ICON_SIZE = 20;
 
 const styles = StyleSheet.create({
   container: {
@@ -344,6 +388,25 @@ const styles = StyleSheet.create({
   },
   appBarSpacer: {
     minWidth: theme.touchTarget.minWidth,
+  },
+  // Android — iOS 26 뒤로 버튼처럼 유리 원(40) 안의 ‹. 오른쪽은 같은 폭을 비워 작은 제목이 가운데에 선다
+  androidBackCircle: {
+    width: HEADER_CONTROL_HEIGHT,
+    height: HEADER_CONTROL_HEIGHT,
+    marginVertical: (theme.touchTarget.minHeight - HEADER_CONTROL_HEIGHT) / 2,
+    marginHorizontal: theme.spacing.xs,
+  },
+  androidBackPressable: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  androidBackSpacer: {
+    width: HEADER_CONTROL_HEIGHT + theme.spacing.xs * 2,
+  },
+  // 큰 제목 줄 — 섹션 간격(gap)과 겹치지 않게 아래로 살짝 당긴다
+  androidLargeTitle: {
+    marginBottom: -theme.spacing.sm,
   },
   // 큰 제목 줄 — 섹션 간격(gap)과 겹치지 않게 아래 여백은 줄 자체가 갖는다
   scrollContent: {
