@@ -196,6 +196,43 @@ export default function PlayerScreen() {
         }
       });
     };
+    /*
+     * 반대 방향도 순서대로(Android, PM 2026-09-30 06:14 "스크립트 켠 채로 재생목록 열면 렉") — 대본 틀은 위에서 즉시 내리고,
+     * 히어로를 먼저 편 뒤(panelProgress → 0) 목록을 올린다. 두 JS 스프링이 겹쳐 히어로 높이(레이아웃)와 목록 모션이 같은
+     * 프레임에 돌던 것을 나눈다
+     */
+    const isScriptToQueue = SEQUENCE_QUEUE_TO_SCRIPT && kind === 'queue' && activePanel === 'script';
+    if (isScriptToQueue) {
+      const startScriptToQueue = () => {
+        panelMotionFrameRef.current = null;
+        playbackService.holdPositionUpdates(SCRIPT_TOGGLE_DURATION_MS * 2);
+        holdArtLayout();
+        Animated.spring(panelProgress, {
+          toValue: 0,
+          ...motion.spring.smooth,
+          overshootClamping: true,
+          useNativeDriver: false,
+        }).start(({ finished }) => {
+          releaseArtLayout();
+          if (!finished) return;
+          holdArtLayout();
+          Animated.spring(queueProgress, {
+            toValue: 1,
+            ...motion.spring.smooth,
+            overshootClamping: true,
+            useNativeDriver: false,
+          }).start(({ finished: queueFinished }) => {
+            releaseArtLayout();
+            if (queueFinished) setIsQueueSettled(true);
+          });
+        });
+      };
+      if (panelMotionFrameRef.current !== null) cancelAnimationFrame(panelMotionFrameRef.current);
+      panelMotionFrameRef.current = requestAnimationFrame(() => {
+        panelMotionFrameRef.current = requestAnimationFrame(startScriptToQueue);
+      });
+      return;
+    }
     if (isQueueToScript) {
       const startSequenced = () => {
         panelMotionFrameRef.current = null;
@@ -2056,7 +2093,7 @@ const MORPH_ART_INPUT = [0, MORPH_ART_SHRINK_END, MORPH_ART_ARRIVE, 1];
  * 손을 뗀 속도는 `velocity` 로 따로 넣는다. 실기기에서 조절한다
  */
 const SHEET_SPRING = motion.spring.smooth;
-/** 재생 목록이 열린 채 대본을 열 때 목록 닫힘 → 대본 열림을 순서대로(setPanel 주석) — Android 만 */
+/** 재생 목록 ↔ 대본 전환을 순서대로(목록 닫힘 → 대본 열림, 대본 닫힘 → 목록 열림 — setPanel 주석) — Android 만 */
 const SEQUENCE_QUEUE_TO_SCRIPT = Platform.OS === 'android';
 /** 재생 목록의 히어로 축소를 transform 으로(hero 주석) — Android 만. iOS 는 종전 레이아웃 그대로 */
 const HERO_QUEUE_BY_TRANSFORM = Platform.OS === 'android';
