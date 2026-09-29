@@ -1,0 +1,207 @@
+import { Image } from 'expo-image';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { Animated, StyleSheet, View } from 'react-native';
+
+import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
+import { motion } from '@/shared/theme';
+
+import type { ExploreItem } from '../explore.types';
+
+interface StripSwapAndroidProps {
+  /** 구간(주간·월간·전체) — 바뀌면 직전 카드 두 장 뒤에 새 카드 두 장이 붙어 함께 흐른다 */
+  swapKey: string;
+  /** 전환 조회 중 — 직전 목록을 흐리게 둔다(uiux 4.10) */
+  isDimmed: boolean;
+  /** 지금 구간의 카드들 — 흐르는 동안 앞 두 장을 가벼운 정적 줄로 그린다 */
+  items: ExploreItem[];
+  /** 정적 줄의 카드 한 장(누를 수 없다 — 흐르는 동안만 보인다) */
+  renderCard: (item: ExploreItem) => ReactNode;
+  /** 카드 한 칸(카드 폭 + 간격) · 목록 왼쪽 여백 · 카드 사이 간격 */
+  itemExtent: number;
+  leadingInset: number;
+  gap: number;
+  /** 진짜 가로 목록 */
+  children: ReactNode;
+}
+
+const PERIOD_ORDER = ['week', 'month', 'all'];
+const DIMMED_OPACITY = 0.5;
+const FLOW_MS = 420;
+/** 새 썸네일을 이만큼만 기다린다 — 못 받아도 흐른다(미리 받기는 편의지 조건이 아니다) */
+const PREFETCH_WAIT_MS = 350;
+/** 정적 줄에 그리는 카드 수 — 정지 화면에 보이는 1장 + 반쯤 보이는 2번째 */
+const STRIP_CARDS = 2;
+
+const directionOf = (from: string, to: string): number =>
+  PERIOD_ORDER.indexOf(to) - PERIOD_ORDER.indexOf(from) < 0 ? -1 : 1;
+
+const nextFrame = (): Promise<void> =>
+  new Promise((resolve) => requestAnimationFrame(() => resolve()));
+
+type Swap = { oldItems: ExploreItem[]; newItems: ExploreItem[]; direction: number };
+
+/**
+ * **Android 인기 캐러셀 구간 전환**(PM 2026-09-30 06:07 "안드로이드도 1031 처럼 가는데 해결 방안을 찾아야지"). iOS(PeriodSwap)처럼
+ * 카드 두 장 거리만 온전한 카드가 이어져 흐르되, Android 에서 끊기고 깜빡이던 원인(05:52)을 비켜 간다:
+ * 1. **흐르는 건 진짜 목록이 아니라 카드 두 장짜리 정적 줄 두 개**(직전·새) — 가로 목록의 잘림·화면 밖 셀·스크롤 뷰가 없다.
+ * 2. 흐르는 동안 두 줄을 **GPU 텍스처로 고정**(renderToHardwareTextureAndroid) — 매 프레임 다시 그리지 않는다.
+ * 3. **출발 전에 준비** — 새 썸네일을 미리 받고(최대 350ms), 새 목록은 밑에 숨겨 먼저 그려 둔 뒤 두 프레임 쉬고 출발한다.
+ *    흐르는 도중에 무거운 일이 없다(종전엔 새 목록 생성·썸네일 로드가 모션과 겹쳐 끊기고 깜빡였다).
+ * 4. 다 흐르면 숨겨 둔 진짜 목록을 드러내고 한 프레임 뒤 정적 줄을 걷는다.
+ * 직전 줄은 맨 앞 두 장으로 그린다 — 옆으로 넘겨 본 뒤 바꾸면 그 자리가 아니라 맨 앞에서 흐른다(알려진 한계)
+ */
+export default function StripSwapAndroid({
+  swapKey,
+  isDimmed,
+  items,
+  renderCard,
+  itemExtent,
+  leadingInset,
+  gap,
+  children,
+}: StripSwapAndroidProps) {
+  const dim = useAnimatedValue(isDimmed ? DIMMED_OPACITY : 1);
+  const flow = useAnimatedValue(0);
+  const distance = itemExtent * STRIP_CARDS;
+
+  const itemsRef = useRef(items);
+  const [renderedKey, setRenderedKey] = useState(swapKey);
+  const [swap, setSwap] = useState<Swap | null>(null);
+  const [isFlowing, setIsFlowing] = useState(false);
+  if (swapKey !== renderedKey) {
+    setRenderedKey(swapKey);
+    if (PERIOD_ORDER.includes(renderedKey) && PERIOD_ORDER.includes(swapKey)) {
+      setSwap({
+        // eslint-disable-next-line react-hooks/refs -- 구간이 바뀐 이 렌더에서 직전 카드를 붙잡는다(효과에선 이미 새 카드다)
+        oldItems: itemsRef.current,
+        newItems: items,
+        direction: directionOf(renderedKey, swapKey),
+      });
+    }
+  }
+  useLayoutEffect(() => {
+    if (swap === null) itemsRef.current = items;
+  });
+
+  useEffect(() => {
+    Animated.timing(dim, {
+      toValue: isDimmed ? DIMMED_OPACITY : 1,
+      duration: motion.duration.fast,
+      easing: motion.easing.easeOut,
+      useNativeDriver: true,
+    }).start();
+  }, [dim, isDimmed]);
+
+  useEffect(() => {
+    if (swap === null) return undefined;
+    let cancelled = false;
+    flow.setValue(0);
+    const uris = swap.newItems
+      .slice(0, STRIP_CARDS)
+      .map((item) => item.content.thumbnailUrl)
+      .filter((uri): uri is string => Boolean(uri));
+    const prefetch =
+      uris.length > 0 ? Image.prefetch(uris).catch(() => false) : Promise.resolve(true);
+    const wait = new Promise((resolve) => setTimeout(resolve, PREFETCH_WAIT_MS));
+    void Promise.race([prefetch, wait])
+      .then(nextFrame)
+      .then(nextFrame)
+      .then(() => {
+        if (cancelled) return;
+        setIsFlowing(true);
+        Animated.timing(flow, {
+          toValue: 1,
+          duration: FLOW_MS,
+          easing: motion.easing.easeInOut,
+          useNativeDriver: true,
+        }).start(() => {
+          if (cancelled) return;
+          setIsFlowing(false);
+          // 진짜 목록을 드러낸 다음 프레임에 정적 줄을 걷는다(한 프레임도 비지 않게)
+          void nextFrame().then(() => {
+            if (!cancelled) setSwap(null);
+          });
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [swap, flow]);
+
+  const direction = swap?.direction ?? 1;
+  const renderStrip = (list: ExploreItem[]) =>
+    list.slice(0, STRIP_CARDS).map((item, index) => (
+      <View key={item.content.id} style={index > 0 ? { marginLeft: gap } : undefined}>
+        {renderCard(item)}
+      </View>
+    ));
+
+  return (
+    <Animated.View style={{ opacity: dim }}>
+      {/* 진짜 목록 — 전환 중엔 밑에서 새 구간으로 미리 그려 두고 숨긴다 */}
+      <View style={swap !== null ? styles.hidden : undefined}>{children}</View>
+      {swap !== null ? (
+        <View style={styles.layer} pointerEvents="none">
+          <Animated.View
+            renderToHardwareTextureAndroid={isFlowing}
+            style={[
+              styles.strip,
+              { paddingLeft: leadingInset },
+              {
+                transform: [
+                  {
+                    translateX: flow.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, -direction * distance],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            {renderStrip(swap.oldItems)}
+          </Animated.View>
+          <Animated.View
+            renderToHardwareTextureAndroid={isFlowing}
+            style={[
+              styles.strip,
+              styles.stripOverlay,
+              { paddingLeft: leadingInset },
+              {
+                transform: [
+                  {
+                    translateX: flow.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [direction * distance, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            {renderStrip(swap.newItems)}
+          </Animated.View>
+        </View>
+      ) : null}
+    </Animated.View>
+  );
+}
+
+const styles = StyleSheet.create({
+  hidden: { opacity: 0 },
+  layer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+  },
+  strip: {
+    flexDirection: 'row',
+    alignSelf: 'flex-start',
+  },
+  stripOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+  },
+});
