@@ -118,9 +118,9 @@ export class EnvironmentVariables {
   SLACK_ERROR_WEBHOOK_URL?: string;
 
   /**
-   * 가입 알림 Slack 웹훅(KAN-107 1단계). **장애 채널과 나눈다** — 위쪽은 사람이 즉시
-   * 반응해야 하는 알림이고 이쪽은 흘려보며 보는 값이라, 섞으면 둘 다 안 보게 된다.
-   * 비우면 알림이 꺼진다(로컬·테스트 기본) — 그래서 선택값이다.
+   * 가입 알림 Slack 웹훅(KAN-107 1단계) — **선택.** 비우면 위의
+   * `SLACK_ERROR_WEBHOOK_URL`(기존 알림 채널)을 그대로 쓴다. 채널을 새로 만들지 않으려는
+   * 결정이라(2026-09-29) 평소에는 비워 둔다. 가입 알림만 다른 채널로 빼고 싶을 때만 넣는다.
    */
   @IsOptional()
   @IsString()

@@ -1,4 +1,4 @@
-import { formatSignupText } from './signup-alert.service';
+import { formatSignupText, resolveWebhookUrl } from './signup-alert.service';
 
 /** 알림 문구 — 채널에 그대로 찍히는 값이라 모양과 **담기지 않는 것**을 함께 고정한다 */
 describe('formatSignupText', () => {
@@ -36,5 +36,28 @@ describe('formatSignupText', () => {
     const text = formatSignupText('kakao', at);
     expect(text).not.toMatch(/@|user_id|[0-9a-f]{8}-[0-9a-f]{4}/i);
     expect(text.split(' · ')).toHaveLength(3);
+  });
+});
+
+/** 웹훅 선택 — 기본은 기존 알림 채널이다(채널을 새로 만들지 않는다) */
+describe('resolveWebhookUrl', () => {
+  it('전용 웹훅이 있으면 그것을 쓴다', () => {
+    expect(resolveWebhookUrl('https://signup', 'https://error')).toBe(
+      'https://signup',
+    );
+  });
+
+  it('전용 웹훅이 없으면 기존 알림 채널로 보낸다 — env 를 안 건드려도 켜진다', () => {
+    expect(resolveWebhookUrl(undefined, 'https://error')).toBe('https://error');
+    expect(resolveWebhookUrl('', 'https://error')).toBe('https://error');
+  });
+
+  it('공백만 있는 값은 없는 것으로 본다 — env 를 지우는 대신 비워 두는 일이 흔하다', () => {
+    expect(resolveWebhookUrl('   ', 'https://error')).toBe('https://error');
+    expect(resolveWebhookUrl('   ', '  ')).toBe('');
+  });
+
+  it('둘 다 없으면 꺼진다', () => {
+    expect(resolveWebhookUrl()).toBe('');
   });
 });

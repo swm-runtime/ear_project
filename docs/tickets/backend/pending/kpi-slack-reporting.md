@@ -8,7 +8,7 @@
 | 발행 날짜 | 2026-09-27 |
 | 시작 날짜 | 2026-09-27 |
 | 기한 | 2026-09-30 (Medium — 3일 안). 1단계 코드는 2026-09-29 반영, env 설정만 남았다 |
-| 선행 | **1단계**: Slack 수신 웹훅 생성 + **운영·개발계 양쪽** env 설정(`SLACK_SIGNUP_WEBHOOK_URL`) — 사람 손, AWS 접근 필요. **2단계**: 없음 |
+| 선행 | **1단계**: 없음 — 기존 알림 채널을 재사용해 배포만으로 켜진다(2026-09-29 단순화). 개발계에 `SLACK_ERROR_WEBHOOK_URL` 이 있는지만 확인. **2단계**: 없음 |
 | Jira | [KAN-107](https://runtime364.atlassian.net/browse/KAN-107) (담당: 박준현) |
 | 중요도 | Medium — PM 이 중요도를 따로 정하지 않아 기본값. **Jira 우선순위가 Low 로 되어 있어 불일치** — 기한 09-30 은 Medium(+3일) 환산값이므로 Jira 쪽을 Medium 으로 맞춰야 한다 |
 | 상태 | **진행 중**(2026-09-29 전환) |
@@ -48,41 +48,28 @@ GA4 `sign_up` 이벤트를 받아 Slack 에 게시한다. "하루 한 번"으로
 - **가입을 방해하지 않는다.** 호출부가 `await` 하지 않고, 실패는 `logger.warn` 으로만 끝난다. Slack 이 죽어도 가입 응답이 밀리지 않는다(타임아웃 3초).
 - **같은 signup token 재호출에는 알리지 않는다.** `signUp()` 은 멱등이라 기존 계정을 찾으면 계정을 만들지 않는다 — 그때는 가입이 아니다.
 - **신원 값을 보내지 않는다**(`convention.md` 8.4). 문구는 `:wave: 가입 · 카카오 · 09-29 14:03` 이고 시각은 서버가 UTC 여도 KST 로 적는다.
-- **장애 채널과 나눈다.** `SLACK_ERROR_WEBHOOK_URL`(자원 경보)과 다른 웹훅을 쓴다 — 즉시 반응해야 하는 알림과 흘려보며 보는 값을 섞으면 둘 다 안 보게 된다.
+- **기존 알림 채널을 그대로 쓴다**(`SLACK_ERROR_WEBHOOK_URL`). 채널을 새로 만들지 않으려는 결정이다(2026-09-29 PM) — 덕분에 **서버 env 를 건드리지 않고 배포만으로 켜진다.** 가입 알림만 따로 빼고 싶어지면 `SLACK_SIGNUP_WEBHOOK_URL` 을 넣으면 되고 **코드는 안 고친다**.
 - **운영·개발계가 섞이지 않는다.** 운영이 아니면 문구 앞에 `[development]` 처럼 환경을 붙인다. 기준은 `SENTRY_ENVIRONMENT` 다 — `NODE_ENV` 는 양쪽 다 `production` 이라 쓸 수 없다(개발계도 배포된 서버라 운영과 같은 코드 경로를 타야 한다).
 
-### 남은 것 — 웹훅 URL 을 **양쪽** 서버 env 에 넣는다
+### 남은 것 — 배포뿐이다
 
-**운영·개발계 둘 다 켠다**(PM 결정 2026-09-29). 개발계 가입은 `[development]` 접두가 붙어 운영과 섞이지 않는다. 같은 채널을 써도 되고, 나누려면 웹훅을 둘 만들면 된다.
+전용 웹훅을 만들지 않고 기존 알림 채널로 보내므로 **env 작업이 없다.** `dev`·`main` 에 배포되면 그 순간부터 가입이 채널에 올라온다.
 
-> ⚠️ **순서를 지켜야 한다. 틀리면 다음 배포가 실패한다.**
-> `deploy/apply-secrets.py` 는 Secrets Manager 에 있는 키가 `.env.prod` 에 **없으면 배포를 중단시킨다**(조용히 키를 늘리는 쪽이 더 위험하다는 판단 — `tickets/backend/archive/deploy-path-reads-secrets-manager.md`). 그래서 **서버 파일이 먼저**다.
-> 다행히 중단 시점이 `.env.prod`·컨테이너를 건드리기 전이라 돌던 API 는 그대로 산다.
+확인할 것 하나: **개발계 서버에 `SLACK_ERROR_WEBHOOK_URL` 이 설정돼 있는지.** 없으면 개발계 가입은 조용하다(운영은 설정돼 있다 — `resource-alert.service.ts` 와 Grafana 연락처가 같은 채널을 쓴다). 확인은 Secrets Manager 에서 **키 이름만** 보면 된다:
 
-1. **Slack 수신 웹훅 생성** — Slack 앱 → Incoming Webhooks → 채널 선택 → URL 복사. (`SLACK_ERROR_WEBHOOK_URL` 과 **다른 웹훅**을 쓴다. 같은 채널이어도 무방하지만 나중에 채널을 가르려면 지금 나눠 두는 편이 낫다)
+```bash
+aws sso login --profile isb --no-browser
+for SID in ear/prod/api ear/dev/api; do
+  echo -n "$SID: "
+  aws secretsmanager get-secret-value --profile isb --region ap-northeast-2 \
+    --secret-id "$SID" --query SecretString --output text \
+    | python3 -c 'import json,sys; k=json.load(sys.stdin); print("SLACK_ERROR_WEBHOOK_URL" in k)'
+done
+```
 
-2. **각 서버의 `.env.prod` 에 키를 먼저 추가** — 운영·개발계 각각:
-   ```bash
-   # 서버에서 (/opt/ear/backend)
-   grep -q '^SLACK_SIGNUP_WEBHOOK_URL=' .env.prod \
-     || printf '\n# 가입 알림 Slack 웹훅 (KAN-107)\nSLACK_SIGNUP_WEBHOOK_URL=\n' >> .env.prod
-   ```
+개발계에 없으면 운영과 같은 값을 넣는다. 그때는 **순서를 지켜야 한다** — 아래 함정 참조.
 
-3. **Secrets Manager 에 같은 키를 추가** — 운영 `ear/prod/api`, 개발계 `ear/dev/api` 둘 다. JSON 묶음이라 기존 값을 보존하며 키만 더한다:
-   ```bash
-   for SID in ear/prod/api ear/dev/api; do
-     aws secretsmanager get-secret-value --secret-id "$SID" --query SecretString --output text \
-       | python3 -c 'import json,sys,os; d=json.load(sys.stdin); d["SLACK_SIGNUP_WEBHOOK_URL"]=os.environ["HOOK"]; print(json.dumps(d))' \
-       | aws secretsmanager put-secret-value --secret-id "$SID" --secret-string file:///dev/stdin
-   done
-   ```
-   (`HOOK` 에 웹훅 URL 을 넣어 둔다. 운영·개발계 웹훅을 다르게 쓰려면 반복문 대신 각각 실행)
-
-4. **재배포** — `dev` 와 `main` 각각. 배포가 `.env.prod` 의 그 줄을 Secrets 값으로 덮는다.
-
-5. **확인** — 각 환경에서 실제로 가입해 보고 채널에 줄이 올라오는지 본다. 개발계 줄에는 `[development]` 가 붙어야 한다.
-
-**웹훅을 넣기 전까지는 조용히 꺼진 상태다** — 코드를 먼저 머지해도 채널이 시끄러워지지 않는다.
+> ⚠️ **키를 새로 넣을 때만 해당.** `deploy/apply-secrets.py` 는 Secrets Manager 에 있는 키가 `.env.prod` 에 **없으면 배포를 중단시킨다**(조용히 키를 늘리는 쪽이 더 위험하다는 판단 — `tickets/backend/archive/deploy-path-reads-secrets-manager.md`). **서버 `.env.prod` 에 줄을 먼저 추가**하고 그다음 Secrets Manager 에 넣는다. 중단 시점이 컨테이너를 건드리기 전이라 돌던 API 는 살아 있다.
 
 ### GA4 는 어떻게 되나
 
@@ -113,4 +100,5 @@ GA4 `sign_up` 이벤트를 받아 Slack 에 게시한다. "하루 한 번"으로
   - **GA4 에는 이벤트 웹훅이 없다** — 전달 경로 결정이 착수 조건이다(미결).
   - 백엔드 Slack webhook 은 이미 있다(`SLACK_ERROR_WEBHOOK_URL` · `resource-alert.service.ts`) — 발송 방식을 그대로 따랐다.
 - 2026-09-29 **1단계 코드 반영.** GA4 경로를 접고 서버 직접 발송으로 바꿨다(위 "구현 방식" 참조 — GA4 에 이벤트 웹훅이 없고, 스토어 게시를 기다려야 하기 때문). 백엔드 테스트 842건 통과·타입체크·lint 통과. **남은 것**: 웹훅 생성 + 운영·개발계 양쪽 env 설정(위 5단계) 후 실제 가입으로 확인.
-- 2026-09-29 **양쪽 환경 모두 켜기로 결정**(PM). 개발계 가입도 `[development]` 접두로 함께 본다. 설정 절차를 적으며 **`apply-secrets.py` 의 함정**을 확인했다 — Secrets Manager 에 키를 먼저 넣고 `.env.prod` 에 없으면 **다음 배포가 중단된다**. 서버 파일이 먼저다.
+- 2026-09-29 **양쪽 환경 모두 켜기로 결정**(PM). 개발계 가입도 `[development]` 접두로 함께 본다.
+- 2026-09-29 **웹훅을 새로 만들지 않기로**(PM). 기존 알림 채널(`SLACK_ERROR_WEBHOOK_URL`)로 폴백하게 고쳤다 — **env 작업이 사라지고 배포만으로 켜진다.** 채널을 가르고 싶어지면 전용 변수만 넣으면 되고 코드는 그대로다. 절차를 적으며 확인한 **`apply-secrets.py` 함정**(Secrets 에만 있고 `.env.prod` 에 없는 키는 배포를 중단시킨다)은 전용 변수를 쓸 때를 위해 남겨 둔다.

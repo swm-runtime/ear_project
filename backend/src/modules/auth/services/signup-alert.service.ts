@@ -13,8 +13,10 @@ import { SocialProvider } from '@/modules/user/user.enum';
  * **신원 값을 보내지 않는다** — 이메일·닉네임·user_id 없이 제공자와 시각만이다
  * (`convention.md` 8.4). 채널에 필요한 것은 "누가"가 아니라 "들어오고 있다"이다.
  *
- * 자원 알림(`resource-alert.service.ts`)과 **채널을 나눈다** — 그쪽은 장애 알림이라
- * 사람이 즉시 반응해야 하고, 이쪽은 흘려보내며 보는 값이다. 섞으면 둘 다 안 보게 된다.
+ * **웹훅은 기존 알림 채널을 그대로 쓴다**(`SLACK_ERROR_WEBHOOK_URL`). 채널을 새로 만들지
+ * 않으려는 결정이다(2026-09-29) — 덕분에 서버 env 를 건드리지 않고 배포만으로 켜진다.
+ * 나중에 가입 알림만 다른 채널로 빼고 싶어지면 `SLACK_SIGNUP_WEBHOOK_URL` 을 넣으면 된다.
+ * **코드는 고치지 않는다.**
  */
 
 /** Slack 응답 대기 상한 — 가입 응답과 무관하게 돌지만, 떠 있는 연결을 오래 두지 않는다 */
@@ -53,6 +55,18 @@ export function formatSignupText(
   return `${prefix}:wave: 가입 · ${label} · ${KST_TIME.format(at)}`;
 }
 
+/**
+ * 쓸 웹훅을 고른다 — 전용 값이 있으면 그것, 없으면 기존 알림 채널.
+ * 순수 함수라 ConfigService 없이 검증한다. 공백만 있는 값은 없는 것으로 본다
+ * (env 를 지우는 대신 비워 두는 일이 흔하다).
+ */
+export function resolveWebhookUrl(
+  signupWebhookUrl?: string,
+  errorWebhookUrl?: string,
+): string {
+  return signupWebhookUrl?.trim() || errorWebhookUrl?.trim() || '';
+}
+
 @Injectable()
 export class SignupAlertService {
   private readonly logger = new Logger(SignupAlertService.name);
@@ -61,8 +75,10 @@ export class SignupAlertService {
   private readonly environment: string;
 
   constructor(configService: ConfigService<EnvironmentVariables, true>) {
-    this.webhookUrl =
-      configService.get('SLACK_SIGNUP_WEBHOOK_URL', { infer: true }) ?? '';
+    this.webhookUrl = resolveWebhookUrl(
+      configService.get('SLACK_SIGNUP_WEBHOOK_URL', { infer: true }),
+      configService.get('SLACK_ERROR_WEBHOOK_URL', { infer: true }),
+    );
     this.environment =
       configService.get('SENTRY_ENVIRONMENT', { infer: true }) ?? '';
   }
