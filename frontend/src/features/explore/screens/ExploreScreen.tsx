@@ -452,7 +452,17 @@ export default function ExploreScreen() {
           <AndroidCollapsingBar
             title={EXPLORE_COPY.tabTitle}
             scrollY={scrollY}
-            trailing={remainingRing}
+            // 라이브러리 알약([링 | 필터])과 같은 캡슐 — 탭을 오가면 필터 칸이 줄었다 자란다(useTabPillMorph).
+            // 맨 링(RemainingPlaysIndicator)이면 모양이 달라 모핑이 안 보였다(PM 2026-09-30 03:10)
+            trailing={
+              screen.remainingDisplay ? (
+                <ExploreRingPill
+                  remaining={screen.remainingDisplay.remaining}
+                  limit={screen.remainingDisplay.limit}
+                  onExhaustedPress={() => screen.openPaywall('explore')}
+                />
+              ) : null
+            }
             blurTarget={blurTargetRef}
           />
         ) : HAS_NATIVE_TAB_BAR ? null : (
