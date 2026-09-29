@@ -66,7 +66,7 @@ export default function SettingsScreen() {
          * 나타난다(iOS 큰 제목 접힘). Android 네이티브의 같은 자리(Material 3 Large top app bar)는 모양이 다르고
          * react-native-screens 가 Android 큰 제목을 지원하지 않아 화면이 직접 그린다
          */
-        <View style={styles.appBar}>
+        <View style={[styles.appBar, styles.androidAppBar]}>
           <GlassCapsule style={styles.androidBackCircle}>
             <Pressable
               style={styles.androidBackPressable}
@@ -390,11 +390,18 @@ const styles = StyleSheet.create({
     minWidth: theme.touchTarget.minWidth,
   },
   // Android — iOS 26 뒤로 버튼처럼 유리 원(40) 안의 ‹. 오른쪽은 같은 폭을 비워 작은 제목이 가운데에 선다
+  /*
+   * 원의 왼쪽 끝을 콘텐츠 왼쪽 선(큰 제목·섹션 = md 16)에 맞춘다(PM 2026-09-29 14:54 "왼쪽 공백이 예전 기준") — 종전 앱바는
+   * 44 칸(sm 8 + 칸 안 가운데 ‹)이라 여백이 8+α 였고, 원(40)을 그 자리에 두니 12 에서 시작해 제목 선과 어긋났다.
+   * iOS 26 뒤로 버튼도 16 에서 시작한다
+   */
+  androidAppBar: {
+    paddingHorizontal: theme.spacing.md,
+  },
   androidBackCircle: {
     width: HEADER_CONTROL_HEIGHT,
     height: HEADER_CONTROL_HEIGHT,
     marginVertical: (theme.touchTarget.minHeight - HEADER_CONTROL_HEIGHT) / 2,
-    marginHorizontal: theme.spacing.xs,
   },
   androidBackPressable: {
     flex: 1,
@@ -402,7 +409,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   androidBackSpacer: {
-    width: HEADER_CONTROL_HEIGHT + theme.spacing.xs * 2,
+    width: HEADER_CONTROL_HEIGHT,
   },
   // 큰 제목 줄 — 섹션 간격(gap)과 겹치지 않게 아래로 살짝 당긴다
   androidLargeTitle: {
