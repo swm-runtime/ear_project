@@ -3,10 +3,14 @@ import { useNavigation, type NavigationProp, type ParamListBase } from '@react-n
 import { createElement, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { Animated } from 'react-native';
 
+import { theme } from '@/shared/theme';
 import GlassSearchButton from '@/shared/ui/GlassSearchButton';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
+import { Text } from '@/shared/ui/Typography';
 
 interface SystemLargeTitleOptions {
+  /** 검색 중에는 헤더를 유지하고 왼쪽 사용자 뷰로 큰 제목을 고정한다. */
+  pinnedTitle?: boolean;
   /** 바가 부모 내비게이터의 것일 때(탐색은 탭 안 스택) */
   onParent?: boolean;
   /** 접힌(스크롤한) 작은 제목의 글자 크기 — 없으면 COLLAPSED_TITLE_SIZE */
@@ -44,7 +48,7 @@ const COLLAPSED_TITLE_SIZE = 20;
 export const useSystemLargeTitle = (
   title: string,
   trailing: ReactNode,
-  { onParent = false, collapsedTitleSize = COLLAPSED_TITLE_SIZE, collapse }: SystemLargeTitleOptions = {},
+  { onParent = false, collapsedTitleSize = COLLAPSED_TITLE_SIZE, collapse, pinnedTitle = false }: SystemLargeTitleOptions = {},
 ): void => {
   const navigation = useNavigation<NavigationProp<ParamListBase>>();
   const hasCollapse = collapse !== undefined;
@@ -64,14 +68,24 @@ export const useSystemLargeTitle = (
     target?.setOptions({
       title,
       // headerTitle 이 옵션에 있으면(PUSHED_SCREEN_HEADER 의 '') title 을 이긴다 — 같이 덮는다(09-28 03:25 설정 제목 빈칸)
-      headerTitle: title,
-      // 큰 제목 모드는 항상 켠다 — 켜져 있어야 scroll edge 블러가 그려진다(04:29 PM). 모드는 .inline 고정 — .always 는 버튼
-      // 줄이 따로 생겨 제목이 캡슐과 한 줄이 아니었다(05:43). 도중에 안 바꾼다(04:49 — 바꾸면 큰 제목이 콘텐츠 위로 펼쳐짐)
-      headerLargeTitleEnabled: true,
+      headerTitle: pinnedTitle ? '' : title,
+      // 피드는 .inline 큰 제목과 시스템 scroll edge 효과를 쓴다. 검색은 왼쪽 고정 제목으로 대체한다.
+      // 검색 중 큰 제목 접힘만 끈다. headerShown/header는 절대 전환하지 않는다(네이티브 탭 제약).
+      headerLargeTitleEnabled: !pinnedTitle,
       headerLargeTitleShadowVisible: true,
       headerTitleStyle: { fontSize: collapsedTitleSize },
       unstable_headerLeftItems: () =>
-        showSearch
+        pinnedTitle
+          ? [{
+              type: 'custom',
+              element: createElement(Text, {
+                accessibilityRole: 'header',
+                numberOfLines: 1,
+                style: { fontSize: theme.font.size.xxl, fontWeight: '700', color: theme.color.textPrimary },
+              }, title),
+              hidesSharedBackground: true,
+            }]
+          : showSearch
           ? [
               {
                 type: 'custom',
@@ -86,7 +100,7 @@ export const useSystemLargeTitle = (
       unstable_headerRightItems: () =>
         trailing ? [{ type: 'custom', element: trailing, hidesSharedBackground: true }] : [],
     } as object);
-  }, [navigation, title, trailing, onParent, collapsedTitleSize, showSearch, searchLabel, hasCollapse]);
+  }, [navigation, title, trailing, onParent, collapsedTitleSize, showSearch, searchLabel, hasCollapse, pinnedTitle]);
 };
 
 /**

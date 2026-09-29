@@ -146,7 +146,7 @@ export default function ExploreScreen() {
   }, [isSearching, isClosingSearch, remainingValue, remainingLimit]);
   // .inline 큰 제목 — 제목과 캡슐이 한 줄(05:43 PM). 접힘·블러는 시스템
   // 왼쪽 검색 버튼은 못 둔다(06:03 — .inline 에 왼쪽 항목이 들어가면 큰 제목이 안 접힘)
-  useSystemLargeTitle(EXPLORE_COPY.tabTitle, barTrailing);
+  useSystemLargeTitle(EXPLORE_COPY.tabTitle, barTrailing, { pinnedTitle: isSearching });
 
   /*
    * 제자리 검색은 피드 **위에 덮는다** — 피드는 밑에 그대로 둬서 닫을 때 다시 그릴 게 없다(23:12 PM "x 누를 때 렉" — 종전엔
