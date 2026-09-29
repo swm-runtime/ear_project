@@ -140,6 +140,9 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     // 글자 상자의 위아래 여백을 없애 링 정중앙에 놓는다
     lineHeight: 13,
+    // Android는 lineHeight만 지정해도 기본 폰트 패딩이 남아 숫자가 아래로 치우칠 수 있다.
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   countExhausted: {
     color: theme.color.danger,
