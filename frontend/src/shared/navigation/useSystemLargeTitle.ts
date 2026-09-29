@@ -81,7 +81,7 @@ export const useSystemLargeTitle = (
               element: createElement(Text, {
                 accessibilityRole: 'header',
                 numberOfLines: 1,
-                style: { fontSize: theme.font.size.xxl, fontWeight: '700', color: theme.color.textPrimary },
+                style: { fontSize: collapsedTitleSize, fontWeight: '700', color: theme.color.textPrimary },
               }, title),
               hidesSharedBackground: true,
             }]

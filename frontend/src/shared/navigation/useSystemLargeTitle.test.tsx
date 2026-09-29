@@ -53,7 +53,10 @@ describe('iOS 검색 제목', () => {
       }[]
     )();
     expect(left[0].element.props.children).toBe('탐색');
-    expect(left[0].element.props.style).toMatchObject({ fontSize: 34, fontWeight: '700' });
+    expect(left[0].element.props.style).toMatchObject({ fontSize: 20, fontWeight: '700' });
+    expect(left[0].element.props.style).toMatchObject(
+      options.headerTitleStyle as Record<string, unknown>,
+    );
     expect(left[0].hidesSharedBackground).toBe(true);
     await act(async () => {
       renderer.update(<Header searching={false} />);
