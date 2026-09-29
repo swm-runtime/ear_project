@@ -515,6 +515,9 @@ export default function ExploreScreen() {
 /** Android — iOS 26 탐색 상단(큰 제목·검색창·칩이 목록 첫 줄 + 접히면 가운데 제목) 흉내. 옛 iOS 는 떠 있는 머리 줄 그대로 */
 const ANDROID_IOS_HEADER = Platform.OS === 'android' && !HAS_NATIVE_TAB_BAR;
 
+/** Android 인기 섹션 제목을 토글과 세로 가운데에 맞추는 보정(dp) — 위 sectionHeaderTitle 주석의 실측값 */
+const ANDROID_POPULAR_TITLE_NUDGE = 2;
+
 const styles = StyleSheet.create({
   // 고정 제목 아래로 목록이 지나가도 글자가 겹치지 않도록 화면 바탕을 채운다.
   androidTitle: {
@@ -587,12 +590,12 @@ const styles = StyleSheet.create({
     paddingBottom: 0,
     // 줄 간격을 키우지 않는다 — iOS 는 늘린 줄 높이의 여분을 글자 위에만 얹어 글자가 상자 아래로 내려앉고,
     // alignItems:center 로 맞춘 토글이 글자보다 위에 떠 보였다(2026-09-25 23:41 실기기)
-    // Android 는 글꼴 위아래 여백(includeFontPadding)이 붙어 글자 상자 가운데 ≠ 글자 가운데 — 토글과 높이가 어긋났다
-    // (PM 2026-09-30 03:14 "인기 콘텐츠하고 토글 높이 맞춰"). 큰 제목 줄(LargeTitleRow)과 같은 처리
-    includeFontPadding: false,
-    textAlignVertical: 'center',
-    // 글꼴 여백을 뺀 만큼 한글 획이 잘리지 않게 Android 만 줄 높이에 여유(LargeTitleRow 와 같은 +8)
-    lineHeight: Platform.OS === 'android' ? theme.font.size.xl + theme.spacing.sm : undefined,
+    /*
+     * Android 는 제목 글자가 토글보다 **6px(2.13dp) 아래**에 앉는다 — Pretendard 한글이 글자 상자 안에서 아래쪽에 놓이는
+     * 글꼴이라 행의 alignItems:center 가 상자는 맞춰도 글자는 못 맞춘다(PM 2026-09-30 03:36 실기기 스샷 실측: 글자 가운데
+     * y 669.5 · 토글 가운데 663.5, 1080px 폭). 글꼴 여백 끄기·줄 높이(#1004)는 위치를 전혀 못 움직여 걷었다. 잰 값만큼 올린다
+     */
+    transform: Platform.OS === 'android' ? [{ translateY: -ANDROID_POPULAR_TITLE_NUDGE }] : undefined,
   },
   // 캐러셀 좌우 여백은 섹션 제목과 같은 선에서 시작한다
   carousel: {
