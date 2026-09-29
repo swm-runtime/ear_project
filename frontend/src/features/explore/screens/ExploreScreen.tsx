@@ -16,6 +16,7 @@ import { useNativeHeaderInset } from '@/shared/navigation/useNativeHeaderInset';
 import { useSystemLargeTitle } from '@/shared/navigation/useSystemLargeTitle';
 import { useTabScrollToTop } from '@/shared/navigation/useTabScrollToTop';
 import { theme } from '@/shared/theme';
+import AndroidBlurTarget from '@/shared/ui/AndroidBlurTarget';
 import FloatingHeader, {
   useFloatingHeaderInset,
   useFloatingHeaderScroll,
@@ -70,6 +71,8 @@ export default function ExploreScreen() {
   const { solidness, scrollProps } = useFloatingHeaderScroll();
   // 머리 줄(JS 탭 바 갈래)의 루트 ref — 종전 시스템 edge effect 연결용, 지금은 FloatingHeader 가 요구만 한다
   const headerRef = useRef<View>(null);
+  // Android 서리 유리 띠의 블러 대상(AndroidBlurTarget)
+  const blurTargetRef = useRef<View>(null);
   // 제자리 검색 모드(iOS 26) — 아래 isSearching 분기
   const [isSearching, setIsSearching] = useState(false);
   // 제자리 검색 닫기 요청 — ✕ 는 시스템 바 캡슐에 있고, 덮개가 퇴장 애니메이션 끝에 onExit 로 isSearching 을 끈다
@@ -421,7 +424,8 @@ export default function ExploreScreen() {
 
   return (
     <View style={styles.container}>
-      {renderBody()}
+      {/* Android — 머리 줄의 서리 유리 띠가 흐릴 대상. 머리 줄은 이 뒤에 선언한다 */}
+      <AndroidBlurTarget targetRef={blurTargetRef}>{renderBody()}</AndroidBlurTarget>
       {/* 머리 줄은 목록 **뒤에 선언**한다(zIndex 로 위에 뜬다) */}
       {/* 머리 줄은 목록 위에 떠 있다 — 배경 없이 유리 컨트롤만(2026-09-24 PM). 시스템 바 갈래에서는 없다 */}
       {HAS_NATIVE_TAB_BAR ? null : (
@@ -429,6 +433,7 @@ export default function ExploreScreen() {
           onHeightChange={setHeaderHeight}
           solidness={solidness}
           containerRef={headerRef}
+          androidFrostTarget={blurTargetRef}
         >
           {Platform.OS === 'android' ? (
             <View style={styles.androidTitle}>
