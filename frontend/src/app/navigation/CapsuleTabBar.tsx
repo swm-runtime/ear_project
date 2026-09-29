@@ -17,14 +17,20 @@ const CAPSULE_HEIGHT = 60;
 /** 캡슐 안쪽 여백 — 선택 알약이 캡슐 테두리에 붙지 않게 */
 const CAPSULE_INSET = 4;
 /** 칸 폭 — 세 칸이 같은 폭이어야 선택 알약이 옮겨갈 때 크기가 안 변한다(PopularPeriodToggle 과 같은 이유) */
-const ITEM_WIDTH = theme.dock.width / 3;
+/**
+ * 캡슐 안쪽(칸 3개)의 폭. **Android 는 캡슐 바깥 폭이 미니플레이어 카드와 같다**(iOS 26 탭 바·액세서리가 같은 폭 —
+ * PM 2026-09-29 15:19). 그 밖(iOS 26 미만)은 칸 3개가 카드 폭이고 캡슐이 inset 만큼 더 넓다(종전)
+ */
+const CAPSULE_CONTENT_WIDTH =
+  Platform.OS === 'android' ? theme.dock.width - CAPSULE_INSET * 2 : theme.dock.width;
+const ITEM_WIDTH = CAPSULE_CONTENT_WIDTH / 3;
 const ITEM_HEIGHT = CAPSULE_HEIGHT - CAPSULE_INSET * 2;
 /**
  * 캡슐 유리의 폭 — 칸 3개(= dock.width) **+ 양옆 inset**. 앞 층 캡슐은 padding 으로 이미 이 폭인데 뒤 층 유리를
  * dock.width 로 그려 끝 칸의 알약이 유리 테두리에 딱 붙었다(PM 2026-09-24 "양쪽 끝에 있을 때 공백이 없어").
  * 위아래와 같은 4pt 가 양옆에도 생긴다. 미니플레이어 카드(dock.width)보다 8 넓다
  */
-const CAPSULE_WIDTH = theme.dock.width + CAPSULE_INSET * 2;
+const CAPSULE_WIDTH = CAPSULE_CONTENT_WIDTH + CAPSULE_INSET * 2;
 /**
  * 캡슐 아래 여백 — **iOS 26 네이티브 탭 바와 같은 자리**(PM 2026-09-24 "애플이 떨어져 있는 만큼"). 애플은 안전영역
  * (홈 인디케이터 34)에서 12 를 뺀 22pt 에, 인디케이터 없는 기기는 16pt 에 둔다(공식 수치 없음 — 실측 재현들이
