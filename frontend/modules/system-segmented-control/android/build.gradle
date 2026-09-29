@@ -1,0 +1,21 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.systemsegmentedcontrol'
+version = '1.0.0'
+
+android {
+  namespace "expo.modules.systemsegmentedcontrol"
+  defaultConfig {
+    versionCode 1
+    versionName "1.0.0"
+  }
+}
+
+dependencies {
+  // Material 3 Expressive 의 Connected button toggle group(Widget.Material3Expressive.MaterialButtonToggleGroup)은 1.13 부터,
+  // 1.14.0 이 2026-09 현재 최신 정식판
+  implementation 'com.google.android.material:material:1.14.0'
+}

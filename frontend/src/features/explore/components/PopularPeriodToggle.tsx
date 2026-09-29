@@ -23,8 +23,13 @@ import type { ExplorePeriod } from '../explore.types';
 /** JS 세그먼트(Android·옛 빌드)의 칸 높이 — 캡슐 전체 32, 안쪽 3 을 빼면 26 */
 const FALLBACK_SEGMENT_HEIGHT = 26;
 /** 시스템 컨트롤 크기 — UISegmentedControl 은 Yoga 에 크기를 알리지 않는다. 높이 32 는 iOS 기본, 칸 52×3 */
-const SYSTEM_HEIGHT = 32;
-const SYSTEM_SEGMENT_WIDTH = 52;
+/**
+ * Android 는 Material 3 Expressive Connected toggle group(같은 모듈) — 작은 버튼 높이 40, 칸은 두 글자 + 좌우 16 + 2dp 틈.
+ * 네이티브 뷰는 Yoga 에 크기를 알리지 않아 여기서 준다
+ */
+const IS_ANDROID = Platform.OS === 'android';
+const SYSTEM_HEIGHT = IS_ANDROID ? 40 : 32;
+const SYSTEM_SEGMENT_WIDTH = IS_ANDROID ? 64 : 52;
 
 interface PopularPeriodToggleProps {
   /** 선택 상태의 근거는 서버 응답의 period다 — 클라이언트 기본값이 없다(uiux 4.10) */
@@ -55,6 +60,7 @@ export default function PopularPeriodToggle({
   if (HAS_SYSTEM_SEGMENTED_CONTROL) {
     return <SystemPeriodToggle selected={selected} onSelect={onSelect} disabled={disabled} />;
   }
+  // 네이티브 모듈이 없는 옛 Android 빌드 — JS 로 그린 M3 세그먼트 버튼으로 내려간다
   if (Platform.OS === 'android') {
     return <MaterialPeriodToggle selected={selected} onSelect={onSelect} disabled={disabled} />;
   }
@@ -124,7 +130,8 @@ const styles = StyleSheet.create({
 });
 
 /*
- * ── Android: Material 3 Segmented button(PM 2026-09-29 16:29 "안드로이드는 자체 native 디자인으로") ──
+ * ── Android 폴백: Material 3 Segmented button(PM 2026-09-29 16:29) — 네이티브 모듈(Expressive Connected toggle group)이
+ * 없는 옛 빌드에서만 쓴다(16:37 "재현하지 말고 그대로 사용해" → 모듈이 기본) ──
  * iOS 가 시스템 UISegmentedControl 을 쓰듯 Android 는 Material 3 의 세그먼트 버튼 문법을 따른다 — 테두리 알약(1dp outline,
  * 높이 40) 안에 같은 폭의 칸, 칸 사이 1dp 구분선, 선택 칸은 컨테이너 색으로 채우고 라벨 앞에 체크(18dp), 누르면 물결(ripple).
  * 색은 M3 기준 역할을 이 앱의 무채색으로 옮겼다(secondaryContainer → 중립 회색). 선택 기준은 여전히 `selected`(서버 응답)이고
