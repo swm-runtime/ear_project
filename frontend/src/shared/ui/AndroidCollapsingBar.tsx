@@ -11,6 +11,8 @@ interface AndroidCollapsingBarProps {
   title: string;
   /** 목록의 contentOffset.y(useFloatingHeaderScroll 의 것) — 정지 오프셋 0 */
   scrollY: Animated.Value;
+  /** 왼쪽 고정 컨트롤(뒤로 원 등) — 푸시 화면(설정)은 이 줄 밑에 큰 제목이 온다 */
+  leading?: ReactNode;
   /** 오른쪽 고정 컨트롤(잔여 링 등) — 큰 제목 줄과 같은 줄 높이에 앉는다 */
   trailing?: ReactNode;
   /** 서리 유리가 흐릴 대상(AndroidBlurTarget 로 감싼 목록) — 이 바는 반드시 그 뒤에 선언한다 */
@@ -26,11 +28,13 @@ const FROST_BLUR_INTENSITY = 25;
  * - 바 줄(상태 바 밑 52 = 큰 제목 줄 높이)은 늘 떠 있고, 오른쪽 컨트롤만 고정으로 둔다.
  * - 큰 제목·검색창·칩은 **목록의 첫 줄**로 같이 스크롤한다. 정지 땐 큰 제목이 이 바 줄 자리에 앉아 한 줄로 보인다.
  * - 큰 제목이 절반쯤 밀려 올라가면 가운데 작은 제목(20, iOS 접힌 제목)과 서리 유리 판 + 아래 선이 함께 나타난다.
- * 목록은 contentContainer paddingTop = 상태 바 높이만 비운다
+ * 탭 화면(라이브러리·탐색)은 목록 paddingTop = 상태 바만(큰 제목이 바 줄 자리), 푸시 화면(설정)은 왼쪽에 뒤로 원을 두고
+ * 큰 제목을 바 줄 밑에 둔다(iOS 뒤로 버튼 있는 큰 제목) — 목록 paddingTop = 상태 바 + 52 + 간격
  */
 export default function AndroidCollapsingBar({
   title,
   scrollY,
+  leading,
   trailing,
   blurTarget,
 }: AndroidCollapsingBarProps) {
@@ -66,6 +70,8 @@ export default function AndroidCollapsingBar({
         >
           {title}
         </Animated.Text>
+        {leading}
+        <View style={styles.spacer} pointerEvents="none" />
         {trailing}
       </View>
     </View>
@@ -96,9 +102,9 @@ const styles = StyleSheet.create({
     height: LARGE_TITLE_ROW_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
     paddingHorizontal: theme.spacing.md,
   },
+  spacer: { flex: 1 },
   title: {
     position: 'absolute',
     left: 0,
