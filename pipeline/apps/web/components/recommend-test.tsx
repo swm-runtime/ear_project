@@ -215,7 +215,12 @@ export function RecommendTest() {
                 <PickColumn title={`새 주제 ${discoveryPicks.length}편 — 관심 밖 우선`} picks={discoveryPicks} diff={diff?.discovery} removedTitles={titlesOf(diff?.discovery.removed, snap)} />
               </div>
             )}
-            {snap.preview && <TopCandidates preview={snap.preview} />}
+            {snap.preview && (
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <TopCandidates kind="regular" title="정규 후보" candidates={snap.preview.regular?.candidates ?? []} />
+                <TopCandidates kind="discovery" title="탐험(새 주제) 후보" candidates={snap.preview.discovery?.candidates ?? []} />
+              </div>
+            )}
           </Panel>
 
           <Panel title="탐색 피드 — 앱 탐색 화면이 받는 순서" right={snap.feed && <span className="text-xs text-ink-soft">섹션 {snap.feed.sections.length}</span>}>
@@ -325,24 +330,47 @@ function PickColumn({ title, picks: list, diff, removedTitles }: { title: string
   );
 }
 
-/** 후보 상위 — 편성분 바로 아래 순위가 어떻게 밀리는지 보려면 상위 몇 편이 더 필요하다 */
-function TopCandidates({ preview }: { preview: EarDripPreview }) {
+/**
+ * 후보 상위 — 편성분 바로 아래 순위가 어떻게 밀리는지 보려면 상위 몇 편이 더 필요하다. 정규는 3축(임베딩·신호·메타),
+ * 탐험은 3항목(저노출·신선도·품질 — 사용자 취향과 무관, drip-scheduling 4.8)을 같이 보인다. 탐험 항목은 서버가
+ * `meta_items` 자리에 실어 준다(exposure_fatigue=저노출, freshness, popularity=품질 — 편성 미리보기 화면과 같은 해석).
+ */
+const TOP_LIMIT = 12;
+function TopCandidates({ kind, title, candidates }: { kind: "regular" | "discovery"; title: string; candidates: EarDripCandidate[] }) {
   const [open, setOpen] = useState(false);
-  const rows = [...(preview.regular?.candidates ?? [])].sort((a, b) => b.score - a.score).slice(0, 12);
-  if (rows.length === 0) return null;
+  const [all, setAll] = useState(false);
+  const sorted = [...candidates].sort((a, b) => b.score - a.score);
+  const rows = all ? sorted : sorted.slice(0, TOP_LIMIT);
+  if (sorted.length === 0) return null;
   return (
-    <div className="mt-3">
-      <button className="text-xs text-ink-soft underline-offset-2 hover:underline" onClick={() => setOpen((v) => !v)}>{open ? "정규 후보 상위 12 접기" : `정규 후보 상위 12 보기 (전체 ${preview.regular?.candidates.length ?? 0})`}</button>
+    <div>
+      <div className="flex items-center gap-3 text-xs text-ink-soft">
+        <button className="underline-offset-2 hover:underline" onClick={() => setOpen((v) => !v)}>{open ? `${title} 접기` : `${title} 상위 ${Math.min(TOP_LIMIT, sorted.length)} 보기 (전체 ${sorted.length})`}</button>
+        {open && sorted.length > TOP_LIMIT && <button className="underline-offset-2 hover:underline" onClick={() => setAll((v) => !v)}>{all ? `상위 ${TOP_LIMIT}만` : "전부 보기"}</button>}
+      </div>
       {open && (
         <ol className="mt-2 divide-y divide-line rounded border border-line text-[12px]">
-          {rows.map((c, i) => (
-            <li key={c.content_id} className="flex items-center gap-2 px-3 py-1.5">
-              <span className="w-5 text-right tabular-nums text-ink-soft">{i + 1}</span>
-              <span className="min-w-0 flex-1 truncate text-ink" title={c.title}>{c.title}</span>
-              {c.pick_order !== null && <Badge tone="approved">편성 {c.pick_order}</Badge>}
-              <span className="tabular-nums text-ink-soft">{c.score.toFixed(3)}</span>
-            </li>
-          ))}
+          <li className="flex items-center gap-2 bg-[#f7f9fb] px-3 py-1 text-[10.5px] uppercase tracking-wide text-ink-soft">
+            <span className="w-5" /><span className="min-w-0 flex-1">제목</span>
+            <span className="w-40 text-right">{kind === "regular" ? "임베딩 · 신호 · 메타" : "저노출 · 신선도 · 품질 · 노출수"}</span>
+            <span className="w-12 text-right">점수</span>
+          </li>
+          {rows.map((c, i) => {
+            const m = c.breakdown.meta_items;
+            const parts = kind === "regular"
+              ? [c.breakdown.embedding, c.breakdown.signal, c.breakdown.meta].map(fmt).join(" · ")
+              : `${[m.exposure_fatigue, m.freshness, m.popularity].map(fmt).join(" · ")} · ${c.exposure_count ?? "–"}`;
+            return (
+              <li key={c.content_id} className="flex items-center gap-2 px-3 py-1.5">
+                <span className="w-5 text-right tabular-nums text-ink-soft">{i + 1}</span>
+                <span className="min-w-0 flex-1 truncate text-ink" title={`${c.title} — ${c.topics.map((t) => t.name ?? "?").join(" · ")}`}>{c.title}</span>
+                {c.pick_order !== null && <Badge tone="approved">편성 {c.pick_order}</Badge>}
+                {kind === "discovery" && c.is_outside_interests && <Badge tone="held">관심 밖</Badge>}
+                <span className="w-40 text-right tabular-nums text-ink-soft">{parts}</span>
+                <span className="w-12 text-right tabular-nums text-ink-soft">{c.score.toFixed(3)}</span>
+              </li>
+            );
+          })}
         </ol>
       )}
     </div>
