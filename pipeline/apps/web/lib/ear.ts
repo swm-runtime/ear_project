@@ -300,6 +300,16 @@ export const listEarContentsOn = (ch: EarChannel, status: string, offset: number
   earFetch<{ items: EarContent[]; total: number }>(`/admin/contents?offset=${offset}&limit=${limit}${status ? `&status=${status}` : ""}`, {}, ch);
 export const listEarTopicsOn = (ch: EarChannel) => earFetch<{ items: EarTopic[] }>("/admin/topics", {}, ch);
 
+/** 알고리즘 버전별 별점 (admin-api 4.19, drip-feedback.md 4.5) — 버전 역순 */
+export interface EarDripFeedbackVersion {
+  algorithm_version: string | null; placements: number; placed_users: number;
+  first_placed_at: string | null; last_placed_at: string | null;
+  ratings: number; rated_users: number; average_stars: number | null;
+  distribution: Record<"1" | "2" | "3" | "4" | "5", number>;
+}
+export const listEarDripFeedbackVersions = (ch: EarChannel = "prod") =>
+  earFetch<{ items: EarDripFeedbackVersion[] }>("/admin/drip-feedback/versions", { cache: "no-store" }, ch);
+
 /**
  * 추천 평가 스냅샷(admin-api 4.18) — 오프라인 평가기(`backend: npm run eval:recommend`)의 입력 파일. 익명이지만 행동
  * 이력이라 브라우저에서 내려받아 저장소 밖(`backend/eval/snapshots/`)에 둔다. 수 MB — 파싱 없이 문자열로 받는다

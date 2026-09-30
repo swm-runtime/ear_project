@@ -65,9 +65,16 @@ export class UserSetting extends BaseEntity {
   })
   sleepTimerLastChoice: string | null;
 
-  /** 주제 자동 확장(FR-06, P1). MVP에서는 값만 저장되고 배치는 돌지 않는다 */
+  /** 주제 자동 확장(FR-06). 행동 기반 자동 확장 판정(`drip-scheduling.md` 4.5-1)이 읽는다 */
   @Column({ name: 'is_auto_expand_enabled', type: 'boolean', default: true })
   isAutoExpandEnabled: boolean;
+
+  /**
+   * 추천 별점 팝업 [이번 주 그만 보기](`drip-feedback.md` 4.3) — 이 **서비스 날짜 라벨**(`YYYY-MM-DD`) 전까지 팝업을
+   * 내지 않는다. 값은 다음 주 월요일이라 "이번 주" 판정도 서비스 주(월 04:00) 경계다. NULL = 억제 없음
+   */
+  @Column({ name: 'drip_feedback_muted_until', type: 'date', nullable: true })
+  dripFeedbackMutedUntil: string | null;
 
   /**
    * 이어 PICK 알림 앱 토글(FR-19, P1).

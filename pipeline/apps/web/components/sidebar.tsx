@@ -36,6 +36,8 @@ const LOG_NAV: NavItem[] = [
 const DRIP_NAV: NavItem[] = [
   { href: "/drip-check", label: "편성 미리보기 (실배포)", icon: Radar, exact: true, note: "읽기 전용" },
   { href: "/drip-check/test", label: "추천 테스트", icon: Pulse, note: "개발계" },
+  // 실사용자가 어제 추천에 매긴 별점을 알고리즘 버전별로 — 배포 후 온라인 평가(drip-feedback.md, KAN-116)
+  { href: "/drip-check/ratings", label: "버전별 별점", icon: Chart, note: "실배포" },
 ];
 
 /** 파이프라인 콘솔 메뉴 — 구분선으로 묶는다 (2026-09-09 박수헌): 현황 / 제작 흐름(스윕·군집화 → 백로그 → 에피소드) / 자산(소스 풀·주제·규칙) / 발행 */

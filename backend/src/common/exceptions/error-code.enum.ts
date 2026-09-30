@@ -168,6 +168,10 @@ export enum ErrorCode {
   /** 추천 테스트 콘솔 — 운영 환경이거나 `RECOMMEND_TEST_EMAIL` 이 없어 꺼져 있다(admin.md 4.7) */
   ADMIN_RECOMMEND_TEST_DISABLED = 'ADMIN_RECOMMEND_TEST_DISABLED',
 
+  // --- 추천 별점 (drip-feedback-api.md 5장) ---
+  /** 별점 대상이 아니다 — 내 편성분(드립·탐험)이 아니거나 접수 기간(7일)이 지났다 */
+  DRIP_FEEDBACK_NOT_RATEABLE = 'DRIP_FEEDBACK_NOT_RATEABLE',
+
   // --- 콘텐츠 (공용 — common-error-handling.md 4.1) ---
   /** 담기 등에서 **건별 결과**로도 전달된다 (onboarding-api.md 4.6 `failed[]`) */
   CONTENT_NOT_FOUND = 'CONTENT_NOT_FOUND',
