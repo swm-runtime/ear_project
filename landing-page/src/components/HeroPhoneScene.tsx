@@ -2,9 +2,10 @@
 
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
+import { PhoneStatusBar } from "./PhoneStatusBar";
 import s from "./Hero.module.css";
 
-type Track = { title: string; meta: string; min: number; cover: string };
+type Track = { title: string; topics: string[]; min: number; cover: string };
 
 /**
  * 장면 순서와 길이(ms). 탐색 화면(정지) → 카드 탭 → 플레이어가 올라옴 → 내려가며 미니플레이어가 남음 → 처음으로.
@@ -25,7 +26,7 @@ const COVER_PX = 420;
  *
  * 아래에 깔린 탐색 화면(Hero.tsx AppPreview)은 서버가 그린 정적 마크업 그대로다. 이 컴포넌트는 그
  * 위에 `position: absolute`로 얹혀 **실제 앱의 흐름**을 짧게 반복한다: 카드를 탭하면 플레이어가
- * 올라오고, 내려가면 하단에 미니플레이어가 남는다(앱 규칙 — 활성 세션이 있을 때만 미니플레이어).
+ * 올라오고, 내려가면 탭 바 위에 미니플레이어가 남는다(앱 규칙 — 활성 세션이 있을 때만 미니플레이어).
  *
  * - 뷰포트 밖에 있으면 멈춘다(IntersectionObserver). 히어로는 첫 화면이라 대부분 보이지만,
  *   스크롤해 내려간 뒤에도 타이머가 돌 이유는 없다.
@@ -78,29 +79,45 @@ export function HeroPhoneScene({ track }: { track: Track }) {
 
   const showPlayer = scene === "player";
   const showMini = scene === "mini";
+  // 제목 아래 카테고리 줄 — 주제 이름 최대 2개를 가운뎃점으로 잇는다(플레이어·미니플레이어 공통 규칙)
+  const category = track.topics.slice(0, 2).join(" · ");
 
   return (
     <div ref={rootRef} className={s.scene}>
       {/* 탭 파문 — 인기 카드 위. 실제 손가락 자리라기보다 "여기를 눌렀다"는 신호다 */}
       <span className={`${s.tapRipple} ${scene === "tap" ? s.tapRippleOn : ""}`} />
 
-      {/* 플레이어 화면 — 실제 앱 PlayerScreen의 구성·치수를 그대로 옮겼다(1em = 앱 1pt).
-          앱바(셰브론 · 타이머 · 더보기) / 아트워크 / 제목 · 카테고리 / 시크바 · 시간 /
+      {/* 플레이어 화면 — 실제 앱 PlayerScreen의 구성·치수를 그대로 옮겼다(--pt = 앱 1pt).
+          전체 화면을 덮는 어두운 시트다: 바탕은 커버를 크게 흐려 깔고 차콜 막을 얹은 것(player.theme.ts).
+          앱바(셰브론 · 수면 타이머 · 더보기) / 아트워크 / 제목 · 카테고리 / 재생바 · 시간 /
           배속 · 10초 뒤로 · 재생 · 10초 앞으로 · 스크립트 / 재생 목록 손잡이 */}
       <div className={`${s.playerScene} ${showPlayer ? s.playerSceneIn : ""}`}>
+        <span className={s.pBackdrop} style={{ backgroundImage: `url(${track.cover})` }} />
+        <span className={s.pScrim} />
+        {/* 플레이어가 떠 있는 동안 상태바 글자는 밝은색이다 */}
+        <PhoneStatusBar tone="light" />
+
         <div className={s.pAppBar}>
-          <svg className={s.pIcon} viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          <span className={s.pBarBtn}>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5.5 9.5 12 16l6.5-6.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
           <span className={s.pAppBarActions}>
-            <svg className={`${s.pIcon} ${s.pIconDisabled}`} viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M14.5 3.5a8.5 8.5 0 1 0 6 14.5 7 7 0 0 1-6-14.5z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-            </svg>
-            <svg className={s.pIcon} viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="5.5" cy="12" r="1.8" fill="currentColor" />
-              <circle cx="12" cy="12" r="1.8" fill="currentColor" />
-              <circle cx="18.5" cy="12" r="1.8" fill="currentColor" />
-            </svg>
+            {/* 수면 타이머 — 초승달 + z z. 꺼져 있으면 선으로만 그린다 */}
+            <span className={s.pBarBtn}>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M16.44 13.94A7.56 7.56 0 1 1 8.22 5.72 5.88 5.88 0 0 0 16.44 13.94z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+                <path d="M14.4 3.2h4.4l-4.4 4.8h4.4M19.7 9.8h2.9l-2.9 3.2h2.9" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
+            <span className={s.pBarBtn}>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="5.5" cy="12" r="1.8" fill="currentColor" />
+                <circle cx="12" cy="12" r="1.8" fill="currentColor" />
+                <circle cx="18.5" cy="12" r="1.8" fill="currentColor" />
+              </svg>
+            </span>
           </span>
         </div>
 
@@ -108,18 +125,19 @@ export function HeroPhoneScene({ track }: { track: Track }) {
           <Image className={s.pArt} src={track.cover} alt="" width={COVER_PX} height={COVER_PX} />
         </div>
 
+        {/* 제목은 한 줄 — 앱에서는 넘치면 흘러가며(마퀴) 끝이 페이드된다 */}
         <div className={s.pMeta}>
           <span className={s.pTitle}>{track.title}</span>
-          <span className={s.pCategory}>커리어</span>
+          <span className={s.pCategory}>{category}</span>
         </div>
 
+        {/* 재생바 — 손잡이(썸)는 끄는 동안에만 나타난다. 평소에는 트랙과 채움뿐이다 */}
         <div className={s.pSeek}>
           <span className={s.pSeekTrack}>
             <span className={s.pSeekFill} />
-            <span className={s.pSeekThumb} />
           </span>
           <span className={s.pTimes}>
-            <span>0:00</span>
+            <span>4:56</span>
             <span>{track.min}:00</span>
           </span>
         </div>
@@ -137,10 +155,10 @@ export function HeroPhoneScene({ track }: { track: Track }) {
           <span className={s.pStep}>
             <SeekGlyph mirrored />
           </span>
-          <span className={s.pScript}>
-            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round">
-              <path d="M6 4.5h7.5a2.5 2.5 0 0 1 2.5 2.5v3a2.5 2.5 0 0 1-2.5 2.5H8.5l-2.5 3v-3H6a2.5 2.5 0 0 1-2.5-2.5V7A2.5 2.5 0 0 1 6 4.5z" />
-              <path d="M16 9h2a2.5 2.5 0 0 1 2.5 2.5v3a2.5 2.5 0 0 1-2.5 2.5h-1.5v3l-3-3H13a1.5 1.5 0 0 1-1.5-1.5v-3" />
+          {/* 스크립트 — 길이가 다른 가로줄 세 개 */}
+          <span className={s.pStep}>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5.5 7h13M5.5 12h9M5.5 17h11" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
           </span>
         </div>
@@ -149,20 +167,28 @@ export function HeroPhoneScene({ track }: { track: Track }) {
           <span className={s.pHandleBar} />
           <span className={s.pHandleLabel}>재생 목록</span>
         </div>
+
+        <span className={`${s.homeIndicator} ${s.homeIndicatorLight}`} />
       </div>
 
-      {/* 미니플레이어 — 실제 앱 MiniPlayer 그대로: 탭바 바로 위 전폭, 표면색 바탕, 상단 2pt 진행선,
-          44pt 썸네일 · 제목 한 줄 · 일시정지 */}
+      {/* 미니플레이어 — 실제 앱 MiniPlayer(accessory 배치) 그대로: iOS 26 탭 바 바로 위에 얹히는 유리 캡슐.
+          36pt 썸네일 · 제목 한 줄 + 카테고리 · 일시정지, 진행바는 아래 변 */}
+      <span className={`${s.miniEdge} ${showMini ? s.miniEdgeIn : ""}`} />
       <div className={`${s.miniScene} ${showMini ? s.miniSceneIn : ""}`}>
-        <span className={s.mTrack}>
-          <span className={s.mFill} />
-        </span>
         <span className={s.mRow}>
           <Image className={s.mCover} src={track.cover} alt="" width={COVER_PX} height={COVER_PX} />
-          <span className={s.mTitle}>{track.title}</span>
-          <svg className={s.mPause} viewBox="0 0 24 24" aria-hidden="true">
-            <path fill="currentColor" d="M7.5 5h3.2v14H7.5zM13.3 5h3.2v14h-3.2z" />
-          </svg>
+          <span className={s.mText}>
+            <span className={s.mTitle}>{track.title}</span>
+            <span className={s.mCategory}>{category}</span>
+          </span>
+          <span className={s.mPause}>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="currentColor" d="M7.5 5h3.2v14H7.5zM13.3 5h3.2v14h-3.2z" />
+            </svg>
+          </span>
+        </span>
+        <span className={s.mTrack}>
+          <span className={s.mFill} />
         </span>
       </div>
     </div>

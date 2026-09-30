@@ -123,17 +123,43 @@
   margin-top: 34px;
 }
 
+/* 받기 버튼 바로 밑의 플랫폼 안내 — 버튼과 한 묶음으로 읽히게 가깝게 붙이고, 알약으로 본문 주석과 구분한다 */
+.platformNote {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  margin-top: 14px;
+  padding: 6px 13px 6px 11px;
+  border-radius: var(--r-pill);
+  background: var(--paper-2);
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+/* "아직"을 뜻하는 빈 점 — 색이 아니라 형태(테두리만)로 준비 중임을 알린다 */
+.platformNote::before {
+  content: "";
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border: 1.5px solid var(--ink-300);
+  border-radius: 50%;
+}
+
 .note {
-  margin-top: 20px;
+  margin-top: 16px;
   color: var(--text-3);
   font-size: 13.5px;
 }
 
 /* ---------- 앱 화면 예시(아이폰) ----------
-   화면 안은 실제 이어 앱의 라이브러리 화면이고, 껍데기는 아이폰이다.
+   화면 안은 실제 이어 앱의 탐색 화면(iOS 26)이고, 껍데기는 아이폰이다.
    치수는 아이폰 15/16 계열의 논리 픽셀(393×852pt)을 기준으로 잡고, 화면 폭에서
-   비율로 환산한다 — 그래야 어느 폭에서 그리든 실제 기기와 같은 비례가 나온다.
-   앱 화면의 글자·간격은 frontend/src/shared/theme의 값에서 왔다. */
+   비율로 환산한다(`--pt`) — 그래야 어느 폭에서 그리든 실제 기기와 같은 비례가 나온다.
+   앱 화면의 글자·간격·색은 frontend/src/shared/theme과 각 화면 컴포넌트의 값 그대로다. */
 
 .previewWrap {
   display: flex;
@@ -203,48 +229,72 @@
   height: 11%;
 }
 
-/* 화면. 앱과 같은 흰 배경이라 토큰은 페이지 기본값을 그대로 쓴다.
-   비율을 고정해 두면 안에 무엇이 들어가든 기기 비례가 흔들리지 않는다 —
+/* 화면. 비율을 고정해 두면 안에 무엇이 들어가든 기기 비례가 흔들리지 않는다 —
    목록은 남는 만큼만 그려지고 나머지는 화면 끝에서 잘린다. */
 .phoneScreen {
+  /* 앱 1pt. 앱 화면 폭이 393pt이므로 화면 폭 / 393 (288px 화면이면 약 0.73px) — 폰이 커져도 비례가 유지된다.
+     아래 치수는 전부 앱의 pt 값을 그대로 적는다. em으로 쓰면 font-size의 em은 부모 글자 크기 기준이라
+     중첩에서 값이 달라진다 — calc(N * var(--pt))로 통일한다 */
+  --pt: calc(var(--screen-w) / 393);
+  /* 앱 토큰(frontend/src/shared/theme). 페이지 토큰과 같은 값이지만 따로 둔다 —
+     페이지 쪽이 뒤집히거나 바뀌어도 화면 안은 앱 색 그대로여야 한다 */
+  --app-bg: #ffffff;
+  --app-surface: #f5f5f7;
+  --app-text: #1a1a1e;
+  --app-text-2: #6e6e76;
+  --app-border: #e3e3e8;
+  /* 떠 있는 유리(탭 바·미니플레이어·링 캡슐) — 리퀴드 글라스를 흐림 + 밝은 덮개 + 가는 윤곽으로 흉내 낸다 */
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-blur: blur(calc(18 * var(--pt))) saturate(1.7);
+  --glass-edge: 0 0 0 0.5px rgba(0, 0, 0, 0.1), inset 0 0 0 0.5px rgba(255, 255, 255, 0.7);
+
   position: relative;
-  display: flex;
-  flex-direction: column;
   width: var(--screen-w);
   aspect-ratio: 393 / 852;
   border-radius: var(--screen-r);
   overflow: hidden;
-  background: var(--paper);
-  color: var(--text);
+  background: var(--app-bg);
+  color: var(--app-text);
+  line-height: 1.2;
 }
 
 /* ---------- 상태바 · 다이내믹 아일랜드 ---------- */
 
+/* 상태바 54pt. 아일랜드가 가운데를 차지하므로 시각과 아이콘이 양옆으로 갈린다 */
 .statusBar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  flex: none;
-  height: 6.2%;
-  padding: 0 7%;
-  font-size: 11px;
-  color: var(--text);
+  height: calc(54 * var(--pt));
+  padding: calc(8 * var(--pt)) calc(30 * var(--pt)) 0 calc(46 * var(--pt));
+  color: var(--app-text);
+}
+
+/* 플레이어(어두운 바탕) 위 */
+.statusBarLight {
+  color: #fff;
 }
 
 .statusTime {
-  font-weight: 700;
+  font-size: calc(17 * var(--pt));
+  font-weight: 600;
   line-height: 1;
   letter-spacing: -0.02em;
 }
 
-/* 실제 아일랜드는 125×36pt다(폭의 32%). 상태바 안에서 세로 가운데를 잡는다. */
+/* 실제 아일랜드는 125×37pt, 위에서 11pt. 어느 화면이 떠 있든 맨 위 층이다 */
 .island {
   position: absolute;
   left: 50%;
-  top: 1.35%;
+  top: calc(11 * var(--pt));
+  z-index: 6;
   transform: translateX(-50%);
-  width: 32%;
-  height: 4.2%;
+  width: calc(125 * var(--pt));
+  height: calc(37 * var(--pt));
   border-radius: var(--r-pill);
   background: #000;
 }
@@ -252,53 +302,101 @@
 .statusIcons {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: calc(6 * var(--pt));
 }
 
 .statusSignal {
-  width: 15px;
-  height: 10px;
+  width: calc(18 * var(--pt));
+  height: calc(12 * var(--pt));
 }
 
 .statusWifi {
-  width: 14px;
-  height: 10px;
+  width: calc(16 * var(--pt));
+  height: calc(12 * var(--pt));
 }
 
 .statusBattery {
-  width: 22px;
-  height: 10px;
+  width: calc(27 * var(--pt));
+  height: calc(12.5 * var(--pt));
 }
 
-/* ---------- 검색 줄 ---------- */
+/* ---------- 큰 제목 줄 ---------- */
+
+/* iOS 26 큰 제목(.inline) — 제목과 오른쪽 캡슐이 같은 줄이다. 상태바(54pt) 밑에서 시작한다 */
+.navBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: calc(52 * var(--pt));
+  margin-top: calc(54 * var(--pt));
+  padding: 0 calc(16 * var(--pt));
+}
+
+/* 큰 제목 34pt bold */
+.navTitle {
+  font-size: calc(34 * var(--pt));
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+/* 잔여 재생 링을 담는 유리 캡슐 — 한 칸 44pt, 높이 40pt(머리 줄 컨트롤 공통 높이) */
+.ringPill {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: calc(44 * var(--pt));
+  height: calc(40 * var(--pt));
+  border-radius: var(--r-pill);
+  background: var(--glass-bg);
+  box-shadow: var(--glass-edge), 0 calc(2 * var(--pt)) calc(10 * var(--pt)) rgba(0, 0, 0, 0.08);
+}
+
+/* 링 지름 28pt, 두께 3pt. 가운데 숫자가 남은 횟수 */
+.ring {
+  display: block;
+  width: calc(28 * var(--pt));
+  height: calc(28 * var(--pt));
+}
+
+.ringCount {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(11 * var(--pt));
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 검색 필드 ---------- */
 
 .searchRow {
+  padding: calc(8 * var(--pt)) calc(16 * var(--pt));
+}
+
+/* 콘텐츠 안의 검색 필드는 유리가 아니라 채운 면이다(높이 40pt, 완전 둥근 캡슐) */
+.searchField {
   display: flex;
   align-items: center;
+  gap: calc(6 * var(--pt));
+  height: calc(40 * var(--pt));
+  padding: 0 calc(16 * var(--pt));
+  border-radius: var(--r-pill);
+  background: var(--app-surface);
+  font-size: calc(14 * var(--pt));
+  line-height: 1;
+  color: var(--app-text-2);
+}
+
+.searchIcon {
   flex: none;
-  gap: 6px;
-  padding: 6px 12px;
-}
-
-.searchBox {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  min-height: 29px;
-  padding: 0 11px;
-  border-radius: 9px;
-  background: var(--paper-2);
-  font-size: 10.5px;
-  line-height: 1;
-  color: var(--text-3);
-}
-
-/* 무제한·값 없음이면 앱에서도 이 자리를 비운다 */
-.remaining {
-  font-size: 9.5px;
-  line-height: 1;
-  color: var(--text-3);
-  white-space: nowrap;
+  width: calc(17 * var(--pt));
+  height: calc(17 * var(--pt));
 }
 
 /* ---------- 주제 칩 ---------- */
@@ -306,117 +404,161 @@
 /* 가로로 넘겨 보는 줄이라 넘치는 칩은 화면 끝에서 잘린다 */
 .chipRow {
   display: flex;
-  flex: none;
-  gap: 6px;
-  padding: 5px 12px;
+  gap: calc(8 * var(--pt));
+  padding: calc(8 * var(--pt)) calc(16 * var(--pt));
   overflow: hidden;
 }
 
+/* 주제 사진을 깐 알약(높이 44pt) — 사진 + 검정 막 + 흰 굵은 라벨. 클리핑은 알약이 한 번만 한다 */
 .chip {
+  position: relative;
   display: flex;
   align-items: center;
+  justify-content: center;
   flex: none;
-  padding: 0 11px;
-  height: 25px;
-  border: 1px solid var(--line);
+  height: calc(44 * var(--pt));
   border-radius: var(--r-pill);
-  background: var(--paper);
-  font-size: 10.5px;
-  line-height: 1;
-  font-weight: 600;
-  color: var(--text);
+  overflow: hidden;
+  background: var(--app-surface);
 }
 
-/* 고른 칩은 테두리색이 아니라 면을 채워 구분한다 */
-.chipSelected {
-  border-color: #000;
-  background: #000;
+.chipPhoto {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* 사진 위 가독성용 막 — 고르지 않은 칩의 기본값(0.34). 고르면 0.62로 짙어진다 */
+.chip::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.34);
+}
+
+/* 좌우 여백은 칩이 아니라 라벨이 갖는다 */
+.chipLabel {
+  position: relative;
+  z-index: 1;
+  padding: 0 calc(16 * var(--pt));
+  font-size: calc(14 * var(--pt));
+  font-weight: 700;
+  line-height: 1;
   color: #fff;
+  white-space: nowrap;
+  text-shadow: 0 calc(1 * var(--pt)) calc(4 * var(--pt)) rgba(0, 0, 0, 0.45);
 }
 
 /* ---------- 섹션 피드 ---------- */
 
-/* 남는 높이를 전부 차지하고, 넘치는 섹션은 잘라 낸다 — 아래로 이어진다는 신호다 */
+/* 목록은 탭 바 밑으로 흘러 들어가고 화면 끝에서 잘린다 — 아래로 이어진다는 신호다 */
 .feed {
-  flex: 1;
-  min-height: 0;
   overflow: hidden;
 }
 
-/* 섹션 구분은 배경색이 아니라 제목 크기와 근접성으로 만든다 — 위 여백을 아래의 세 배로 둔다 */
+/* 섹션 구분은 배경색이 아니라 제목 크기와 근접성으로 만든다 — 제목 위 여백을 아래의 세 배로 둔다 */
 .section {
-  padding-bottom: 12px;
+  padding-bottom: calc(16 * var(--pt));
 }
 
+/* 인기 섹션의 제목 줄 — 위가 주제 칩 줄이라 첫 섹션은 위 여백이 16pt다. 토글의 터치 높이(44pt)가 줄 높이 */
 .sectionHead {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 13px 12px 6px;
+  height: calc(68 * var(--pt));
+  padding: calc(16 * var(--pt)) calc(16 * var(--pt)) calc(8 * var(--pt));
 }
 
+/* 섹션 제목 28pt bold */
 .sectionTitle {
-  display: block;
-  padding: 13px 12px 6px;
-  font-size: 17px;
+  font-size: calc(28 * var(--pt));
   font-weight: 700;
   line-height: 1.25;
-  letter-spacing: -0.04em;
-  color: var(--text);
+  letter-spacing: -0.02em;
+  white-space: nowrap;
 }
 
-/* 제목 줄 안에 들어갈 때는 줄의 여백을 쓰므로 자기 여백을 비운다 */
-.sectionHead .sectionTitle {
-  padding: 0;
+/* 제목만 있는 섹션 — 섹션 사이 위 여백은 24pt */
+.sectionTitleBlock {
+  display: block;
+  padding: calc(24 * var(--pt)) calc(16 * var(--pt)) calc(8 * var(--pt));
 }
 
-/* 집계 구간 토글 — 고른 구간만 흰 알약으로 떠오른다 */
+/* 집계 구간 토글 — iOS 26 시스템 세그먼트(156×32pt). 캡슐 트랙 위에 고른 구간만 흰 캡슐로 떠오른다 */
 .periodToggle {
   display: flex;
   flex: none;
-  gap: 1px;
-  padding: 2px;
+  width: calc(156 * var(--pt));
+  height: calc(32 * var(--pt));
+  padding: calc(2 * var(--pt));
   border-radius: var(--r-pill);
-  background: var(--paper-2);
+  background: rgba(118, 118, 128, 0.12);
 }
 
 .seg {
+  flex: 1;
   display: flex;
   align-items: center;
-  padding: 0 8px;
-  height: 19px;
+  justify-content: center;
   border-radius: var(--r-pill);
-  font-size: 9.5px;
+  font-size: calc(13 * var(--pt));
   line-height: 1;
-  color: var(--text-3);
+  color: var(--app-text);
 }
 
 .segActive {
-  background: var(--paper);
-  font-weight: 700;
-  color: var(--text);
+  background: #fff;
+  font-weight: 600;
+  box-shadow: 0 calc(1 * var(--pt)) calc(4 * var(--pt)) rgba(0, 0, 0, 0.12),
+    0 0 0 0.5px rgba(0, 0, 0, 0.04);
 }
 
 /* 캐러셀 좌우 여백은 섹션 제목과 같은 선에서 시작한다 */
 .carousel {
   display: flex;
-  gap: 12px;
-  padding: 0 12px;
+  gap: calc(16 * var(--pt));
+  padding: 0 calc(16 * var(--pt));
   overflow: hidden;
 }
 
 /* ---------- 인기 섹션의 큰 카드 ---------- */
 
-/* 화면 폭의 78% — 다음 카드가 옆에 걸쳐 보여야 가로로 더 있다는 것이 드러난다 */
+/* 화면 폭의 72%(283pt) — 다음 카드가 옆에 걸쳐 보여야 가로로 더 있다는 것이 드러난다.
+   커버가 카드의 위·양옆 변에 붙고, 아래 제목 줄의 바탕은 같은 커버가 흐리게 이어진 면이다 */
 .featCard {
+  position: relative;
   display: flex;
   flex-direction: column;
   flex: none;
-  gap: 3px;
-  width: 78%;
-  padding: 12px;
-  border-radius: 15px;
-  background: var(--paper-2);
+  width: calc(283 * var(--pt));
+  padding-bottom: calc(16 * var(--pt));
+  border-radius: calc(16 * var(--pt));
+  overflow: hidden;
+  /* 흐린 바탕과 막을 글자 뒤(음수 z-index)에 두되 카드 밖으로 새지 않게 한다 */
+  isolation: isolate;
+  background: var(--app-surface);
+}
+
+/* 흐림의 가장자리가 비치지 않게 살짝 키운다(앱과 같은 1.2배) */
+.featBackdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background-size: cover;
+  background-position: center;
+  transform: scale(1.2);
+  filter: blur(calc(26 * var(--pt)));
+}
+
+/* 밝은 커버가 와도 흰 글자가 읽히게 어두운 막을 한 겹 둔다 */
+.featScrim {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: rgba(23, 23, 26, 0.45);
 }
 
 .featArt {
@@ -424,90 +566,82 @@
   width: 100%;
   height: auto;
   aspect-ratio: 1;
-  margin-bottom: 6px;
-  border-radius: 9px;
+  margin-bottom: calc(12 * var(--pt));
   /* 원본이 정사각이라 잘릴 일은 없지만, 비정사각 썸네일이 와도 액자가 흔들리지 않게 한다 */
   object-fit: cover;
-  background: var(--paper-2);
-}
-
-.featMeta {
-  font-size: 9px;
-  line-height: 1.2;
-  font-weight: 600;
-  color: var(--text-3);
+  background: var(--app-bg);
 }
 
 .featTitle {
-  font-size: 12px;
+  margin: 0 calc(16 * var(--pt));
+  font-size: calc(16 * var(--pt));
   font-weight: 700;
   line-height: 1.35;
-  letter-spacing: -0.03em;
-  color: var(--text);
-  /* 제목이 한 줄이든 두 줄이든 아래 알약 줄의 높이가 같아야 카드끼리 나란히 선다 */
-  min-height: calc(12px * 1.35 * 2);
+  color: #fff;
+  /* 제목이 한 줄이든 두 줄이든 아래 줄의 높이가 같아야 카드끼리 나란히 선다 */
+  min-height: calc(16 * 1.35 * 2 * var(--pt));
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
+/* 주제 해시태그 · 길이 + 더보기. 재생 버튼은 두지 않는다 — 카드 본문 탭이 곧 재생이다 */
 .featFoot {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-top: 3px;
+  gap: calc(12 * var(--pt));
+  height: calc(44 * var(--pt));
+  margin: calc(8 * var(--pt)) calc(16 * var(--pt)) 0;
 }
 
-.playPill {
+.featMeta {
+  flex: 1;
+  min-width: 0;
+  font-size: calc(14 * var(--pt));
+  line-height: 1.2;
+  color: rgba(255, 255, 255, 0.72);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 더보기 — 히트 영역 44pt, 점은 22pt */
+.featMore {
   display: flex;
   align-items: center;
-  gap: 4px;
-  height: 26px;
-  padding: 0 12px;
-  border-radius: var(--r-pill);
-  background: var(--paper);
+  justify-content: center;
+  flex: none;
+  width: calc(44 * var(--pt));
+  height: calc(44 * var(--pt));
+  color: rgba(255, 255, 255, 0.72);
 }
 
-.playGlyph {
-  font-size: 8px;
-  line-height: 1;
-  color: var(--text);
-}
-
-.playLabel {
-  font-size: 10.5px;
-  line-height: 1;
-  font-weight: 700;
-  color: var(--text);
-}
-
-.featMore {
-  padding: 0 4px;
-  font-size: 15px;
-  line-height: 1;
-  color: var(--text-3);
+.featMore svg,
+.tileMore svg {
+  width: calc(22 * var(--pt));
+  height: calc(22 * var(--pt));
 }
 
 /* ---------- 일반 섹션의 사각 타일 ---------- */
 
+/* 정사각 아트워크 한 변 156pt */
 .tile {
   display: flex;
   flex-direction: column;
   flex: none;
-  width: 114px;
+  width: calc(156 * var(--pt));
 }
 
 /* 더보기를 아트워크 위에 얹는다 — 탐색에서 담는 진입점이 더보기 시트뿐이라 뺄 수 없다 */
 .tileArt {
   position: relative;
-  width: 114px;
-  height: 114px;
-  margin-bottom: 6px;
-  border-radius: 9px;
-  /* 더보기 배지를 얹는 액자다. 사진이 모서리 밖으로 넘치지 않게 자른다 */
+  width: calc(156 * var(--pt));
+  height: calc(156 * var(--pt));
+  margin-bottom: calc(8 * var(--pt));
+  border-radius: calc(12 * var(--pt));
   overflow: hidden;
-  background: var(--paper-2);
+  background: var(--app-surface);
 }
 
 .tileImg {
@@ -517,31 +651,27 @@
   object-fit: cover;
 }
 
+/* 원 배지는 없다 — 흰 점 3개에 은은한 그림자만 깔아 밝은 사진에서도 읽히게 한다 */
 .tileMore {
   position: absolute;
-  top: 5px;
-  right: 5px;
+  top: 0;
+  right: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: var(--overlay);
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1;
+  width: calc(44 * var(--pt));
+  height: calc(44 * var(--pt));
   color: #fff;
+  filter: drop-shadow(0 calc(0.8 * var(--pt)) calc(1.2 * var(--pt)) rgba(0, 0, 0, 0.5));
 }
 
 .tileTitle {
-  font-size: 10.5px;
+  font-size: calc(14 * var(--pt));
   font-weight: 700;
   line-height: 1.35;
-  letter-spacing: -0.03em;
-  color: var(--text);
+  color: var(--app-text);
   /* 제목 줄 수가 달라도 타일 높이가 같아야 캐러셀이 들쭉날쭉하지 않다 */
-  min-height: calc(10.5px * 1.35 * 2);
+  min-height: calc(14 * 1.35 * 2 * var(--pt));
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -549,19 +679,48 @@
 }
 
 .tileMeta {
-  margin-top: 3px;
-  font-size: 9px;
+  margin-top: calc(4 * var(--pt));
+  font-size: calc(12 * var(--pt));
   line-height: 1.2;
-  color: var(--text-3);
+  color: var(--app-text-2);
 }
 
-/* ---------- 하단 탭바 · 홈 인디케이터 ---------- */
+/* ---------- 하단 탭 바 · 홈 인디케이터 ---------- */
 
+/* 바닥 가장자리 효과 — iOS 26은 떠 있는 바 밑을 지나는 목록을 가장자리로 갈수록 옅게 만든다(scroll edge effect).
+   시스템이 그리는 것이라 앱 코드에 값이 없다 — 바 위 글자가 읽힐 만큼만 흰 막으로 흉내 낸다 */
+.edgeFade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  height: calc(120 * var(--pt));
+  background: linear-gradient(
+    to top,
+    rgba(255, 255, 255, 0.82) 0%,
+    rgba(255, 255, 255, 0.5) 60%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  pointer-events: none;
+}
+
+/* iOS 26 시스템 탭 바 — 화면 폭에서 양옆 21pt씩 뺀 폭(393pt 화면에서 351pt)의 떠 있는 유리 캡슐.
+   홈 인디케이터 안전영역(34pt)에서 12pt를 뺀 22pt에 뜬다. 목록은 이 밑으로 흐른다 */
 .tabBar {
+  position: absolute;
+  left: calc(21 * var(--pt));
+  right: calc(21 * var(--pt));
+  bottom: calc(22 * var(--pt));
+  z-index: 2;
   display: flex;
-  flex: none;
-  border-top: 1px solid var(--line);
-  padding: 6px 0 4px;
+  height: calc(60 * var(--pt));
+  padding: calc(4 * var(--pt));
+  border-radius: var(--r-pill);
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-edge), 0 calc(8 * var(--pt)) calc(28 * var(--pt)) rgba(0, 0, 0, 0.16);
 }
 
 .tabBarItem {
@@ -569,59 +728,73 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  color: var(--text-3);
+  justify-content: center;
+  gap: calc(3 * var(--pt));
+  border-radius: var(--r-pill);
+  color: var(--app-text);
 }
 
-/* 선택된 탭은 색만이 아니라 아이콘을 면으로 채워 형태부터 다르게 한다 */
+/* 선택된 탭 — 캡슐 안의 알약 하나가 그 칸에 놓인다. 색만이 아니라 알약·아이콘 채움으로도 갈린다 */
 .tabBarItemActive {
+  background: rgba(0, 0, 0, 0.07);
   color: #000;
 }
 
+/* 아이콘 높이 24pt. 라이브러리(책 네 권)만 가로가 조금 넓다 */
 .tabBarItem svg {
-  width: 18px;
-  height: 18px;
+  display: block;
+  width: auto;
+  height: calc(24 * var(--pt));
 }
 
 .tabBarLabel {
-  font-size: 9px;
+  font-size: calc(10 * var(--pt));
   line-height: 1;
   font-weight: 600;
-  letter-spacing: -0.02em;
+  white-space: nowrap;
 }
 
-/* 실제 홈 인디케이터는 139×5pt다(폭의 35%). 탭바 아래 안전영역이 그만큼 남는다. */
+/* 실제 홈 인디케이터는 139×5pt, 바닥에서 8pt */
 .homeIndicator {
-  flex: none;
-  width: 35%;
-  height: 4px;
-  margin: 5px auto 7px;
+  position: absolute;
+  left: 50%;
+  bottom: calc(8 * var(--pt));
+  z-index: 3;
+  transform: translateX(-50%);
+  width: calc(139 * var(--pt));
+  height: calc(5 * var(--pt));
   border-radius: var(--r-pill);
-  background: var(--text);
+  background: #000;
   opacity: 0.85;
 }
 
+.homeIndicatorLight {
+  background: #fff;
+}
+
 /* ---------- 살아 움직이는 장면(HeroPhoneScene) ----------
-   치수는 실제 앱(frontend/src/features/player)의 pt 값을 그대로 쓴다: `--pt`가 앱 1pt다.
-   앱 화면 폭 393pt이므로 --pt = 화면 폭 / 393 (288px 화면이면 약 0.73px). 폰이 커져도 비례가 유지된다.
-   (em으로 쓰면 font-size의 em은 부모 글자 크기 기준이라 중첩에서 값이 폭발한다 — calc(N * var(--pt))로 통일) */
+   치수는 실제 앱(frontend/src/features/player)의 pt 값을 그대로 쓴다.
+   이 상자에는 z-index를 주지 않는다 — 쌓임 맥락을 만들면 안의 조각들이 한 덩어리로 탭 바 위에 올라간다.
+   조각마다 화면(.phoneScreen) 기준으로 층을 정한다: 가장자리 막(1) < 탭 바(2) < 미니플레이어(3) <
+   탭 파문(4) < 플레이어(5) < 아일랜드(6) */
 .scene {
-  --pt: calc(var(--screen-w) / 393);
   position: absolute;
   inset: 0;
   pointer-events: none;
 }
 
-/* 탭 파문 — 첫 인기 카드 아트워크 위쪽 */
+/* 탭 파문 — 첫 인기 카드의 커버 위 */
 .tapRipple {
   position: absolute;
-  left: 30%;
-  top: 41%;
-  width: calc(30 * var(--pt));
-  height: calc(30 * var(--pt));
+  left: 36%;
+  top: 48%;
+  z-index: 4;
+  width: calc(34 * var(--pt));
+  height: calc(34 * var(--pt));
   border-radius: 50%;
-  border: 2px solid rgba(10, 10, 12, 0.55);
-  background: rgba(10, 10, 12, 0.12);
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.28);
+  box-shadow: 0 0 0 1px rgba(10, 10, 12, 0.25);
   opacity: 0;
   transform: scale(0.4);
 }
@@ -636,58 +809,86 @@
   100% { opacity: 0; transform: scale(1.8); }
 }
 
-/* 플레이어 — 상태바 아래부터 덮는 시트. 앱 content 패딩 lg(24) */
+/* 플레이어 — 화면 전체를 덮는 어두운 시트(바탕 #17171A, 포인트 흰색 — player.theme.ts).
+   위아래 안전영역(상태바 54pt · 홈 인디케이터 34pt)을 비우고 content 좌우 여백은 24pt */
 .playerScene {
   position: absolute;
-  inset: calc(54 * var(--pt)) 0 0 0;
+  inset: 0;
+  z-index: 5;
   display: flex;
   flex-direction: column;
-  padding: 0 calc(24 * var(--pt));
-  background: var(--paper);
-  color: #1a1a1e;
+  padding: calc(54 * var(--pt)) calc(24 * var(--pt)) calc(34 * var(--pt));
+  overflow: hidden;
+  isolation: isolate;
+  background: #17171a;
+  color: #fff;
   transform: translateY(100%);
   transition: transform 0.42s cubic-bezier(0.2, 0.8, 0.2, 1);
   will-change: transform;
 }
 
+/* 테두리 2px를 같은 색으로 덧대 둔다 — 기울어진 기기 안에서 합성 레이어가 픽셀에 맞춰지며
+   가장자리로 밑의 탐색 화면이 한 줄 비치는 것을 막는다(화면 밖은 .phoneScreen이 자른다) */
 .playerSceneIn {
   transform: translateY(0);
+  box-shadow: 0 0 0 2px #17171a;
 }
 
-/* 앱바 44pt — 제목 없음. 왼쪽 셰브론, 오른쪽 타이머(비활성)·더보기 */
+/* 바탕 — 커버를 크게 흐려 깔고 어두운 막을 얹는다. 곡의 색이 바탕에 배어 같은 어두움이라도 답답하지 않다 */
+.pBackdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background-size: cover;
+  background-position: center;
+  transform: scale(1.25);
+  filter: blur(calc(44 * var(--pt)));
+}
+
+/* 플레이어 바탕색의 72% */
+.pScrim {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: rgba(23, 23, 26, 0.72);
+}
+
+/* 앱바 — 제목 없음. 위 여백 16pt + 줄 44pt. 왼쪽 셰브론, 오른쪽 수면 타이머·더보기 */
 .pAppBar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  height: calc(44 * var(--pt));
   flex: none;
+  padding-top: calc(16 * var(--pt));
 }
 
 .pAppBarActions {
   display: flex;
   align-items: center;
-  gap: calc(8 * var(--pt));
 }
 
-.pIcon {
+/* 앱바 버튼 — 히트 영역 44pt, 아이콘 24pt */
+.pBarBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(44 * var(--pt));
+  height: calc(44 * var(--pt));
+}
+
+.pBarBtn svg {
   width: calc(24 * var(--pt));
   height: calc(24 * var(--pt));
-  color: #1a1a1e;
 }
 
-.pIconDisabled {
-  color: #e3e3e8;
-}
-
-/* 아트워크 영역 — 남는 높이를 먹고 정사각 아트워크를 가운데 둔다(앱 hero 접힘 상태) */
-/* 위아래 여백을 비대칭으로 — 아트워크·시크바 묶음이 가운데보다 살짝 위에 놓인다(피드백 2026-09-18) */
+/* 아트워크 영역 — 남는 높이를 먹고 정사각 아트워크를 가운데 둔다(폭은 content 안쪽 345pt까지) */
 .pHero {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 0 calc(24 * var(--pt));
+  padding-top: calc(8 * var(--pt));
 }
 
 .pArt {
@@ -699,35 +900,37 @@
   aspect-ratio: 1;
   border-radius: calc(16 * var(--pt));
   object-fit: cover;
-  background: #f5f5f7;
+  background: #26262b;
 }
 
-/* 제목 28pt 700 한 줄(앱은 마퀴) + 카테고리 14pt 600 보조색. 시크바 바로 위에 붙는다 */
+/* 제목 28pt bold 한 줄 + 카테고리 16pt semibold 보조색. 위 여백 24pt, 재생바 바로 위에 붙는다 */
 .pMeta {
   flex: none;
   display: flex;
   flex-direction: column;
   gap: calc(4 * var(--pt));
-  padding-bottom: calc(8 * var(--pt));
+  padding-top: calc(24 * var(--pt));
 }
 
+/* 앱은 넘치는 제목을 흘려 보낸다(마퀴) — 여기서는 끝을 페이드로만 남긴다 */
 .pTitle {
   font-size: calc(28 * var(--pt));
   font-weight: 700;
   line-height: 1.3;
-  letter-spacing: -0.02em;
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
+  -webkit-mask-image: linear-gradient(90deg, #000 86%, transparent);
+  mask-image: linear-gradient(90deg, #000 86%, transparent);
 }
 
 .pCategory {
-  font-size: calc(14 * var(--pt));
+  font-size: calc(16 * var(--pt));
+  line-height: calc(20 * var(--pt));
   font-weight: 600;
-  color: #6e6e76;
+  color: #a0a0a8;
 }
 
-/* 시크바 — 트랙 4pt(border), 채움 primary, 썸 14pt. 히트 영역 44pt. 시간 라벨 12pt */
+/* 재생바 — 히트 영역 44pt 안에 트랙 4pt. 채움은 흰색, 시간 라벨 12pt */
 .pSeek {
   flex: none;
 }
@@ -738,67 +941,45 @@
   height: calc(4 * var(--pt));
   margin: calc(20 * var(--pt)) 0;
   border-radius: calc(2 * var(--pt));
-  background: #e3e3e8;
+  background: #45454c;
+  overflow: hidden;
 }
 
 .pSeekFill {
   position: absolute;
   inset: 0 auto 0 0;
-  width: 0;
+  width: 38%;
   border-radius: calc(2 * var(--pt));
-  background: #000;
+  background: #fff;
 }
 
-.pSeekThumb {
-  position: absolute;
-  top: calc(-5 * var(--pt));
-  left: 0;
-  width: calc(14 * var(--pt));
-  height: calc(14 * var(--pt));
-  margin-left: calc(-7 * var(--pt));
-  border-radius: 50%;
-  background: #000;
-}
-
-/* 재생 중 — 플레이어가 떠 있는 5.6초 동안 0 → 38%까지 찬다 */
+/* 재생 중 — 플레이어가 떠 있는 5.6초 동안 조금 더 찬다(미니플레이어의 38%로 이어진다) */
 .playerSceneIn .pSeekFill {
   animation: heroSeek 5.6s linear both;
 }
 
-.playerSceneIn .pSeekThumb {
-  animation: heroSeekThumb 5.6s linear both;
-}
-
 @keyframes heroSeek {
-  from { width: 0; }
+  from { width: 35%; }
   to { width: 38%; }
-}
-
-@keyframes heroSeekThumb {
-  from { left: 0; }
-  to { left: 38%; }
 }
 
 .pTimes {
   display: flex;
   justify-content: space-between;
-  margin-top: calc(-12 * var(--pt));
   font-size: calc(12 * var(--pt));
+  line-height: 1.2;
   font-variant-numeric: tabular-nums;
-  color: #6e6e76;
+  color: #a0a0a8;
 }
 
-/* 컨트롤 줄 — 배속(44) · 뒤로(44) · 재생(72) · 앞으로(44) · 스크립트(44), 간격 md(16), 위아래 lg(24) */
+/* 컨트롤 줄 — 배속(44) · 뒤로(44) · 재생(64) · 앞으로(44) · 스크립트(44), 간격 16pt, 위아래 24pt(+ 영역 아래 8pt) */
 .pControls {
   flex: none;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: calc(16 * var(--pt));
-  /* 위 여백을 조금 더 — 제목·시크바가 컨트롤에서 살짝 떨어져 올라간다(피드백 2026-09-18) */
-  padding: calc(36 * var(--pt)) 0 calc(24 * var(--pt));
-  /* 손잡이("재생 목록")는 바닥에 두고, 그 위 묶음(아트워크·제목·시크바·컨트롤)만 살짝 올린다(피드백 2026-09-18) */
-  margin-bottom: calc(28 * var(--pt));
+  padding: calc(24 * var(--pt)) 0 calc(32 * var(--pt));
 }
 
 .pRate {
@@ -806,18 +987,19 @@
   text-align: center;
   font-size: calc(14 * var(--pt));
   font-weight: 600;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
-  color: #6e6e76;
+  color: #a0a0a8;
 }
 
-.pStep,
-.pScript {
+/* ±10초 · 스크립트 — 히트 영역 44pt, 아이콘 32pt, 보조색 */
+.pStep {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: calc(44 * var(--pt));
   height: calc(44 * var(--pt));
-  color: #6e6e76;
+  color: #a0a0a8;
 }
 
 .pStep svg {
@@ -825,20 +1007,16 @@
   height: calc(32 * var(--pt));
 }
 
-.pScript svg {
-  width: calc(24 * var(--pt));
-  height: calc(24 * var(--pt));
-}
-
+/* 재생 버튼 — 흰 원 64pt, 아이콘 28pt 검정 */
 .pPlay {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: calc(72 * var(--pt));
-  height: calc(72 * var(--pt));
+  width: calc(64 * var(--pt));
+  height: calc(64 * var(--pt));
   border-radius: 50%;
-  background: #000;
-  color: #fff;
+  background: #fff;
+  color: #000;
 }
 
 .pPlay svg {
@@ -846,7 +1024,7 @@
   height: calc(28 * var(--pt));
 }
 
-/* 재생 목록 손잡이 — 바닥. 알약 36×4 + 라벨 12pt */
+/* 재생 목록 손잡이 — 바닥 52pt. 알약 36×4 + 라벨 12pt */
 .pHandle {
   flex: none;
   display: flex;
@@ -854,88 +1032,154 @@
   align-items: center;
   justify-content: center;
   gap: calc(4 * var(--pt));
-  min-height: calc(44 * var(--pt));
+  height: calc(52 * var(--pt));
   padding-bottom: calc(8 * var(--pt));
 }
 
 .pHandleLabel {
   font-size: calc(12 * var(--pt));
   font-weight: 600;
-  color: #6e6e76;
+  line-height: 1.2;
+  color: #a0a0a8;
 }
 
 .pHandleBar {
   width: calc(36 * var(--pt));
   height: calc(4 * var(--pt));
   border-radius: var(--r-pill);
-  background: #e3e3e8;
+  background: #45454c;
 }
 
-
-/* 미니플레이어 — 탭바 바로 위 전폭. 표면색 바탕 + 위 hairline, 상단 2pt 진행선, 행 높이 62pt */
-.miniScene {
+/* 미니플레이어가 얹히면 바닥 가장자리 효과도 그 위까지 올라온다 — 캡슐 사이 틈(8pt)으로
+   목록의 글자가 잘려 보이지 않게 한다. 미니플레이어와 같이 나타나고 사라진다 */
+.miniEdge {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: calc(75 * var(--pt)); /* 탭바(약 55px ≈ 75pt) 바로 위 */
-  border-top: 1px solid #e3e3e8;
-  background: #f5f5f7;
-  color: #1a1a1e;
+  bottom: 0;
+  z-index: 1;
+  height: calc(190 * var(--pt));
+  background: linear-gradient(
+    to top,
+    rgba(255, 255, 255, 0.94) 0%,
+    rgba(255, 255, 255, 0.94) 48%,
+    rgba(255, 255, 255, 0.8) 72%,
+    rgba(255, 255, 255, 0) 100%
+  );
   opacity: 0;
-  transform: translateY(calc(8 * var(--pt)));
-  transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: opacity 0.3s ease;
+}
+
+.miniEdgeIn {
+  opacity: 1;
+}
+
+/* 미니플레이어 — iOS 26 탭 바의 액세서리 자리: 탭 바(바닥 22 + 높이 60) 위 8pt에 얹히는 유리 캡슐.
+   탭 바보다 양옆 3pt 좁다. 행 = 위아래 4pt + 썸네일 36pt */
+.miniScene {
+  position: absolute;
+  left: calc(24 * var(--pt));
+  right: calc(24 * var(--pt));
+  bottom: calc(90 * var(--pt));
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  height: calc(48 * var(--pt));
+  padding: 0 calc(16 * var(--pt));
+  border-radius: var(--r-pill);
+  overflow: hidden;
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-edge), 0 calc(6 * var(--pt)) calc(22 * var(--pt)) rgba(0, 0, 0, 0.14);
+  color: var(--app-text);
+  opacity: 0;
+  transform: translateY(calc(10 * var(--pt))) scale(0.96);
+  transition: opacity 0.3s ease, transform 0.36s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .miniSceneIn {
   opacity: 1;
-  transform: translateY(0);
-}
-
-.mTrack {
-  display: block;
-  height: calc(2 * var(--pt));
-  background: #e3e3e8;
-}
-
-.mFill {
-  display: block;
-  width: 38%;
-  height: 100%;
-  background: #000;
+  transform: translateY(0) scale(1);
 }
 
 .mRow {
   display: flex;
   align-items: center;
   gap: calc(8 * var(--pt));
-  height: calc(60 * var(--pt));
-  padding: 0 0 0 calc(16 * var(--pt));
+  width: 100%;
 }
 
 .mCover {
   display: block;
-  width: calc(44 * var(--pt));
-  height: calc(44 * var(--pt));
+  flex: none;
+  width: calc(36 * var(--pt));
+  height: calc(36 * var(--pt));
   border-radius: calc(8 * var(--pt));
   object-fit: cover;
-  flex: none;
 }
 
-.mTitle {
+.mText {
   flex: 1 1 auto;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc(2 * var(--pt));
+}
+
+/* 제목 14pt semibold 한 줄 — 앱은 흘려 보내고(마퀴) 여기서는 끝을 페이드로 남긴다 */
+.mTitle {
   font-size: calc(14 * var(--pt));
   font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, #000 84%, transparent);
+  mask-image: linear-gradient(90deg, #000 84%, transparent);
+}
+
+.mCategory {
+  font-size: calc(12 * var(--pt));
+  line-height: 1.2;
+  color: var(--app-text-2);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+/* 일시정지 — 히트 영역 44pt, 아이콘 20pt */
 .mPause {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex: none;
+  width: calc(44 * var(--pt));
+  height: calc(44 * var(--pt));
+}
+
+.mPause svg {
   width: calc(20 * var(--pt));
   height: calc(20 * var(--pt));
-  margin: 0 calc(12 * var(--pt));
+}
+
+/* 진행바는 아래 변 — 캡슐 모서리를 피해 양옆 12pt 안쪽, 끝은 둥글게 */
+.mTrack {
+  position: absolute;
+  left: calc(12 * var(--pt));
+  right: calc(12 * var(--pt));
+  bottom: 0;
+  height: calc(2 * var(--pt));
+  border-radius: calc(1 * var(--pt));
+  background: var(--app-border);
+  overflow: hidden;
+}
+
+.mFill {
+  display: block;
+  width: 38%;
+  height: 100%;
+  border-radius: calc(1 * var(--pt));
+  background: #000;
 }
 
 @media (prefers-reduced-motion: reduce) {

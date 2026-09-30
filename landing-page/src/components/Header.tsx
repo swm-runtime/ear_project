@@ -1,7 +1,8 @@
 import Link from "next/link";
+import { AppleLogo } from "./AppleLogo";
 import { LogoMark } from "./Logo";
 import { navRoutes } from "@/content/routes";
-import { releaseMailto, site } from "@/content/site";
+import { iosStoreUrl, site } from "@/content/site";
 import s from "./Header.module.css";
 
 /**
@@ -28,9 +29,14 @@ export function Header() {
           ))}
         </nav>
 
-        <a href={releaseMailto} className={`btn btnPrimary ${s.cta}`}>
-          <span className={s.ctaFull}>출시 소식 받기</span>
-          <span className={s.ctaShort}>출시 알림</span>
+        <a
+          href={iosStoreUrl}
+          className={`btn btnPrimary ${s.cta}`}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <AppleLogo />
+          앱 다운로드
         </a>
 
         <details className={s.menu}>
