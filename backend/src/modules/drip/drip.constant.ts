@@ -47,7 +47,7 @@ export const FIRST_DRIP_PURGE_INTERVAL_MS = 60 * 60 * 1000;
  * 취향 계산식, 자동 확장 판정, 탐험 선정. 로그·표시·성능 개선처럼 결과가 같은 변경은 올리지 않는다.
  * 올리지 않고 결과를 바꾸면 서로 다른 알고리즘의 별점이 한 버전에 섞여 비교가 무너진다.
  */
-export const DRIP_ALGORITHM_VERSION = '2026-09-30.1';
+export const DRIP_ALGORITHM_VERSION = '2026-09-30.2';
 
 /*
  * ── 편성 스코어링 (`drip-scheduling.md` 4.2 — 3축 하이브리드) ─────────────────────
