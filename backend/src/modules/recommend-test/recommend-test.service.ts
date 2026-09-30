@@ -9,6 +9,7 @@ import { ContentService } from '@/modules/content/services/content.service';
 import { DripBatchOrchestrator } from '@/modules/drip-batch/drip-batch.orchestrator';
 import { DripExcludedContent } from '@/modules/drip/entities/drip-excluded-content.entity';
 import { FirstDripJob } from '@/modules/drip/entities/first-drip-job.entity';
+import { DripFeedback } from '@/modules/drip-feedback/drip-feedback.entity';
 import { UserPreferenceVector } from '@/modules/drip/entities/user-preference-vector.entity';
 import { SaveReason } from '@/modules/explore/explore.enum';
 import { ExploreOrchestrator } from '@/modules/explore/explore.orchestrator';
@@ -207,6 +208,7 @@ export class RecommendTestService {
       await manager.delete(UserPreferenceVector, where);
       await manager.delete(DripExcludedContent, where);
       await manager.delete(FirstDripJob, where);
+      await manager.delete(DripFeedback, where);
       await manager.delete(UserInterest, {
         ...where,
         source: UserInterestSource.AUTO_EXPAND,

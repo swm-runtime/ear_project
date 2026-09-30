@@ -285,6 +285,7 @@ user_settings
   sleep_timer_last_choice     enum          NULL
   is_auto_expand_enabled      boolean       DEFAULT true   (FR-06)
   is_drip_notification_enabled boolean      DEFAULT true   (FR-19)
+  drip_feedback_muted_until   date          NULL           ★추천 별점 팝업 [이번 주 그만 보기] 종료 서비스 날짜 (2026-09-30, KAN-116)
 
 uq_user_settings_user_id (user_id)
 ```
@@ -295,6 +296,7 @@ uq_user_settings_user_id (user_id)
 - 오프라인 저장 관련 설정(`network_policy`)은 **P1 이연**이므로 지금 두지 않는다.
 - **마케팅 수신 동의 토글 컬럼을 두지 않는다.** 그 상태의 소유자는 `consents`다([3.2](#32-consents) — 합의 2026-08-06). 설정 화면의 토글은 표시·철회 경로일 뿐 저장소가 아니다.
 - **방해금지(야간 발송 제한) 설정 컬럼은 없다 — 없음을 유지한다**(합의 2026-08-06 — `notification.md` 4.3, 방해금지 개념 자체 폐기). 드립 도착은 순수 정보성 알림이라 전역·사용자별 야간 제한을 두지 않는다.
+- `drip_feedback_muted_until`은 서비스 날짜 **라벨**이다(다음 주 월요일). 팝업 노출 판정(`drip-feedback.md` 4.1)이 오늘 서비스 날짜와 문자열 비교한다. 설정 화면 응답에는 싣지 않는다 — 사용자가 켜고 끄는 설정이 아니라 팝업의 억제 상태다.
 - `is_drip_notification_enabled`의 **사용자 노출 명칭은 "이어 PICK 알림"이다**(합의 2026-08-06 — `settings.md` 4.1). 화면 이름만 바뀐 것이므로 **컬럼명은 유지한다** — "드립"은 내부 용어라는 결정이지 데이터 의미가 바뀐 것이 아니다.
 - **`sleep_timer_last_choice`의 값 집합은 아직 정하지 않았다.** 수면 타이머가 P1이라(FR-25) 선택지가 확정되지 않았다. 위 표기 `enum`은 논리 타입이며 **물리 컬럼은 `varchar`다**(`convention.md` 4.2 — DB enum 타입을 쓰지 않는다). 값이 없으므로 TypeScript enum도 두지 않고 타입은 `string | null`이다. **값의 소유는 `player.md`이며**, 수면 타이머 구현 시 값을 정하고 타입을 좁힌다 — 그때 `varchar(20)`을 넘는 값이 나오면 길이도 함께 본다. **설정 API는 이 컬럼을 조회·변경 모두 하지 않는다**(`settings-api.md` 8장 — 플레이어 소관).
 ### 3.6 `device_tokens`
@@ -715,6 +717,7 @@ library_items
   completed_at              timestamptz     NULL
   deleted_at                timestamptz     NULL   ★소프트 삭제
   queue_position            int             NULL   ★재생 목록 순서 (2026-09-19, KAN-70) — NULL = 순서 미지정
+  algorithm_version         varchar(40)     NULL   ★이 행을 적립한 추천 알고리즘 버전 (2026-09-30, KAN-116) — drip·discovery 만, 담기·온보딩은 NULL
 
 uq_library_items_user_id_content_id (user_id, content_id)
 idx_library_items_user_id_deleted_at_added_at_id (user_id, deleted_at, added_at DESC, id DESC)
@@ -752,6 +755,8 @@ idx_library_items_content_id (content_id)
 - `source = onboarding`은 유지한다. **무료 티어도 온보딩 초기 적립과 자동 드립을 받는다**(PRD 미확정 3번 결정).
 - **`source = discovery`는 탐험 편성이다**(신설 2026-08-27 — `drip-scheduling.md` 4.8). 정규 드립과 별개로 매일 1편(`plans.daily_discovery_count`) 적립되며, 앱이 "이런 주제는 어떠신가요?" 타이틀로 구분 표시하기 위해 값을 나눈다. **정책상 취급은 드립과 같다** — 출처 필터 [이어 PICK]에 포함되고(`library-api.md` 4.1), 도착 배너에 포함되고, 삭제·중복 방지·영구 제외 규칙도 동일하다.
 - **프로필의 "누적 청취 콘텐츠 수"(완청 고유 콘텐츠 수 — `profile.md` 4.5)의 원천은 이 테이블이다.** `status = completed`인 고유 `content_id` COUNT로 구한다(`deleted_at` 무관 — soft delete라 행이 남는다). 파생값이므로 컬럼·집계 테이블을 만들지 않는다([1.5](#15-파생값을-컬럼으로-두지-않는다)).
+
+- **`algorithm_version`은 사용자 별점을 버전별로 모으는 열쇠다**(`drip-feedback.md` 4.4, 2026-09-30). 편성 배치가 적립할 때 서버 상수 `DRIP_ALGORITHM_VERSION`(`YYYY-MM-DD.n`)을 쓴다. 편성 계산은 이 값을 읽지 않는다. 버전 도입 전 행은 NULL로 두고 소급하지 않는다 — 다른 알고리즘의 결과가 한 버전으로 뭉친다. `idx_library_items_algorithm_version`(부분 인덱스, NOT NULL) — 어드민 버전별 편성 수 집계용.
 
 ### 6.2 `playback_progresses`
 
@@ -886,6 +891,27 @@ idx_source_link_clicks_user_id (user_id)
 - `user_id`는 중복 클릭 분석·탈퇴 파기 경로용이다. 집계는 개인 식별 없이 카운트만 쓴다.
 - 탈퇴 시 **즉시 파기한다**([12.3](#123-회원-탈퇴-처리)) — 확정된 `content_stats` 집계값은 남는다(`play_records`와 같은 논리).
 - **`ai_generated` 소스 항목 탭은 기록하지 않는다** (확정 2026-08-24 — [5.5](#55-content_sources)). 이 테이블은 콘텐츠 단위이며 `source_id` 컬럼을 추가하지 않는다 — 원문 클릭을 적재하는 이유(파트너 정산·리포팅 지표)가 `ai_generated` 소스에는 없다. 소스별 분석 요구가 생기면 P1에서 재검토한다.
+
+### 6.7 `drip_feedbacks` *(신설 2026-09-30 — KAN-116 추천 온라인 평가)*
+
+```
+drip_feedbacks
+  id                        uuid            PK
+  user_id                   uuid            FK → users (ON DELETE CASCADE)
+  content_id                uuid            FK → contents (ON DELETE CASCADE)
+  source                    enum            drip | discovery   편성 경로 (`library_items.source` 복사)
+  algorithm_version         varchar(40)     NULL   편성 시점의 `library_items.algorithm_version` 복사
+  placed_date               date            편성된 서비스 날짜 라벨
+  stars                     smallint        1~5 (CHECK)
+
+uq_drip_feedbacks_user_id_content_id (user_id, content_id)
+idx_drip_feedbacks_algorithm_version_created_at (algorithm_version, created_at DESC)
+```
+
+- 사용자가 편성분에 매긴 별점(`drip-feedback.md`). **추천 입력이 아니다** — `user_signals`(6.4)와 달리 어떤 스코어링도 읽지 않는다. 알고리즘 버전별 평점을 재는 측정값이라 별도 표다(6.4 A-7 원칙: `user_signals`는 스코어링 입력 전용).
+- `algorithm_version`·`source`·`placed_date`를 **복사해 둔다** — `library_items` 행이 소프트 삭제되거나 나중에 값이 바뀌어도 "어느 알고리즘의 편성에 매긴 별점인가"가 변하지 않아야 한다.
+- 같은 콘텐츠의 재전송은 `stars`만 덮어쓴다(upsert).
+- 탈퇴 시 즉시 파기(12.3).
 
 ---
 
@@ -1461,7 +1487,7 @@ idx_archived_subscriptions_archived_at
 | 처리 | 대상 |
 |---|---|
 | **아카이브 후 파기** (5년) | `users` → `archived_users`, `consents` → `archived_consents`, `subscriptions` → `archived_subscriptions` |
-| **즉시 파기** | `library_items`, `playback_progresses`, `play_records`, `user_signals`, `audio_access_logs`, `source_link_clicks`, `user_interests`, `user_settings`, `device_tokens`, `sessions`, `user_preference_vectors`, `drip_excluded_contents`, `purchase_intents`, `notification_logs`, `email_verifications`, `first_drip_jobs`, `idempotency_keys`(해당 사용자 `owner_key`) |
+| **즉시 파기** | `library_items`, `playback_progresses`, `play_records`, `user_signals`, `audio_access_logs`, `source_link_clicks`, `user_interests`, `user_settings`, `device_tokens`, `sessions`, `user_preference_vectors`, `drip_excluded_contents`, `drip_feedbacks`, `purchase_intents`, `notification_logs`, `email_verifications`, `first_drip_jobs`, `idempotency_keys`(해당 사용자 `owner_key`) |
 | **그대로 유지** | `withdrawal_logs`(원래 해시만), `store_notification_logs`(개인 식별자 없음), `content_stats`(집계값) |
 
 **결제 이력이 없는 사용자 — 아카이브 없이 전량 즉시 파기**

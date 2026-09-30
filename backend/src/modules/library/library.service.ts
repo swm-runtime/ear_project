@@ -43,6 +43,8 @@ export class LibraryService {
     source: LibraryItemSource,
     now: Date,
     manager?: EntityManager,
+    /** 드립·탐험 편성분만 — 어떤 알고리즘이 골랐는지(`DRIP_ALGORITHM_VERSION`). 담기·온보딩은 넘기지 않는다 */
+    algorithmVersion: string | null = null,
   ): Promise<string[]> {
     if (contentIds.length === 0) {
       return [];
@@ -55,6 +57,7 @@ export class LibraryService {
         source,
         status: LibraryItemStatus.UNPLAYED,
         addedAt: now,
+        algorithmVersion,
       })),
       manager,
     );
@@ -300,6 +303,44 @@ export class LibraryService {
   }
 
   /** 최근 편성분(드립·탐험) `content_id` — 편성 미리보기 표시용(노출 피로 항목은 2026-09-25 폐기) */
+  /**
+   * 한 구간에 적립된 편성분(드립·탐험)을 콘텐츠와 함께 — 추천 별점 팝업(`drip-feedback.md` 4.1)의 재료.
+   * 삭제분은 뺀다: 사용자가 지운 편은 이미 반응한 것이라 다시 묻지 않는다.
+   */
+  async findPlacedBetween(
+    userId: string,
+    start: Date,
+    end: Date,
+    manager?: EntityManager,
+  ): Promise<LibraryItem[]> {
+    return this.libraryItemRepository.findAllWithContentByUserIdAndSourcesAddedBetween(
+      userId,
+      [LibraryItemSource.DRIP, LibraryItemSource.DISCOVERY],
+      start,
+      end,
+      manager,
+    );
+  }
+
+  /** 편성분 행(삭제분 포함) — 별점을 받을 자격 판정용(`drip-feedback.md` 4.2). 담기·온보딩 행은 돌려주지 않는다 */
+  async findPlacedItems(
+    userId: string,
+    contentIds: string[],
+    manager?: EntityManager,
+  ): Promise<LibraryItem[]> {
+    const items = await this.libraryItemRepository.findAllByUserIdAndContentIds(
+      userId,
+      contentIds,
+      manager,
+    );
+
+    return items.filter(
+      (item) =>
+        item.source === LibraryItemSource.DRIP ||
+        item.source === LibraryItemSource.DISCOVERY,
+    );
+  }
+
   async findRecentDripContentIds(
     userId: string,
     since: Date,

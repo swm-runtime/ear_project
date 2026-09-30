@@ -62,6 +62,7 @@
 | GET | `/admin/system-stats` | 서버 자원·DB 부하 스냅샷 (로그 콘솔 상태 탭) |
 | GET | `/admin/drip/preview` | 편성 미리보기 — 지금 데이터로 배치를 돌리면 갈 정규·탐험 편성분과 점수 분해, 읽기 전용 (4.16) |
 | GET | `/admin/recommend-eval/snapshot` | 추천 평가 스냅샷 내보내기 — 발행 콘텐츠·익명 사용자 행동, 읽기 전용 (4.18) |
+| GET | `/admin/drip-feedback/versions` | 추천 알고리즘 버전별 별점 — 편성 수·평가 수·평균·분포, 버전 역순 (4.19) |
 
 ## 4. 엔드포인트 상세
 
@@ -402,6 +403,20 @@
 
 - **이메일·닉네임·`users.id`를 싣지 않는다.** 키는 가입 순 일련번호라 응답 안에서만 사용자를 구분한다. 그래도 행동 이력이므로 받은 파일은 저장소에 커밋하지 않는다(`backend/eval/` gitignore).
 - 크기: 임베딩(1536차원) 때문에 콘텐츠 200편 기준 수 MB. 자주 부르는 엔드포인트가 아니다.
+
+### 4.19 `GET /admin/drip-feedback/versions` — 알고리즘 버전별 별점 (읽기 전용)
+
+> 추가: 2026-09-30 (KAN-116 — `drip-feedback.md` 4.5). 추천 검증 콘솔이 버전 순으로 보인다.
+
+**Response 200**
+
+```json
+{ "items": [ { "algorithm_version": "2026-09-30.1", "placements": 240, "placed_users": 31, "first_placed_at": "…", "last_placed_at": "…", "ratings": 18, "rated_users": 9, "average_stars": 3.72, "distribution": { "1": 1, "2": 2, "3": 4, "4": 6, "5": 5 } } ] }
+```
+
+- `placements`·`placed_users`는 `library_items`(드립·탐험, 삭제분 포함)에서, 나머지는 `drip_feedbacks`에서 센다. 응답률 = `ratings / placements`는 화면이 계산한다.
+- 버전 문자열(`YYYY-MM-DD.n`) 역순. `algorithm_version: null`(버전 도입 전 편성분)은 맨 뒤.
+- `average_stars`는 평가 0건이면 null. 표본 20건 미만은 화면이 "참고" 표시(`drip-feedback.md` 4.5).
 
 ## 5. 에러 코드 표
 

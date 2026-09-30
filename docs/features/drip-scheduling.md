@@ -203,7 +203,7 @@ taste_embedding = normalize( Σ 최근성가중(신호) × embedding(콘텐츠) 
 
 ### 4.6 적립 실행
 
-1. 선정된 콘텐츠로 `library_items(source = drip, status = unplayed)` 생성
+1. 선정된 콘텐츠로 `library_items(source = drip, status = unplayed)` 생성 — **`algorithm_version`에 서버 상수 `DRIP_ALGORITHM_VERSION`을 남긴다**(2026-09-30 — `drip-feedback.md` 4.4. 편성 결과가 달라질 변경마다 올린다)
 2. `drip_excluded_contents(reason = dripped)` 적재 — 재적립 방지 근거. **`DripSchedule` 테이블은 폐기됐다**(편성 이력은 `library_items.source = drip`으로 확인한다)
 3. 편성 완료 이벤트 → 푸시 발송 대상에 등록 (`notification.md`) — **(FR-19, P1 — 미도입 시 이 단계 생략)**
 4. 적립은 **원자적**으로 처리한다. 2편 중 1편만 적립되는 상태를 만들지 않는다
@@ -272,7 +272,7 @@ scheduled → running → completed
 |---|---|
 | 배치 실행 현황 | 대상 수 / 성공 / 건너뜀 / 실패, 소요 시간 |
 | 고갈 사용자 수 | 자동 확장 발생 건수, AI 생성 요청 건수 |
-| 편성 품질 | 드립 콘텐츠 재생률·완청률 (PRD 10 "추천 콘텐츠 재생률") |
+| 편성 품질 | 드립 콘텐츠 재생률·완청률 (PRD 10 "추천 콘텐츠 재생률") · **알고리즘 버전별 별점**(`drip-feedback.md` 4.5 — admin-api 4.19) |
 | 추천 입력 결손 (신설 2026-08-26) | 임베딩·추천 메타 미부여 콘텐츠 수, 재발행 후 임베딩 미갱신 건수(`content_embeddings.content_version` ≠ `contents.content_version`) — 메타데이터 부여 파이프라인(`ai/metadata-pipeline.md`) 재실행 대상 목록이 된다 |
 
 ## 6. 데이터 모델

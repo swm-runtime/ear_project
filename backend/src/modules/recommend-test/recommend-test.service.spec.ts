@@ -258,7 +258,7 @@ describe('RecommendTestService', () => {
   });
 
   describe('reset', () => {
-    it('사용자 종속 9개 표와 자동 확장으로 붙은 관심 주제를 한 트랜잭션에서 지운다 — 계정·직접 고른 관심 주제는 건드리지 않는다', async () => {
+    it('사용자 종속 10개 표와 자동 확장으로 붙은 관심 주제를 한 트랜잭션에서 지운다 — 계정·직접 고른 관심 주제는 건드리지 않는다', async () => {
       const { service, deps } = build(DEV);
       const del = jest.fn<
         void,
@@ -270,7 +270,7 @@ describe('RecommendTestService', () => {
 
       await service.reset();
 
-      expect(del).toHaveBeenCalledTimes(10);
+      expect(del).toHaveBeenCalledTimes(11);
       const byTable = new Map(del.mock.calls.map((c) => [c[0].name, c[1]]));
       expect(byTable.has('User')).toBe(false);
       // 관심 주제는 자동 확장 출처만 지운다 — 조건 없이 지우면 직접 고른 주제까지 사라진다

@@ -4,6 +4,7 @@ import { DataSource } from 'typeorm';
 import { LibraryItemSource } from '@/modules/library/library.enum';
 import { LibraryService } from '@/modules/library/library.service';
 
+import { DRIP_ALGORITHM_VERSION } from '../drip.constant';
 import { DripExclusionReason } from '../drip.enum';
 import { DripExcludedContentRepository } from '../repositories/drip-excluded-content.repository';
 
@@ -36,12 +37,14 @@ export class DripPlacementService {
     }
 
     await this.dataSource.transaction(async (manager) => {
+      // 어떤 알고리즘이 골랐는지 남긴다 — 사용자 별점을 버전별로 모으는 열쇠(`drip-feedback.md` 4.4)
       await this.libraryService.addItems(
         userId,
         contentIds,
         source,
         now,
         manager,
+        DRIP_ALGORITHM_VERSION,
       );
 
       await this.dripExcludedContentRepository.insertIgnoringConflicts(

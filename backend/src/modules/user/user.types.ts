@@ -106,6 +106,8 @@ export interface UserSettingView {
   defaultPlaybackRate: number;
   isAutoExpandEnabled: boolean;
   isDripNotificationEnabled: boolean;
+  /** 추천 별점 팝업 억제 종료 서비스 날짜(`drip-feedback.md` 4.3). 설정 화면 응답에는 싣지 않는다 */
+  dripFeedbackMutedUntil: string | null;
 }
 
 /** 부분 갱신 명령. **보내지 않은 필드는 건드리지 않는다**(`settings-api.md` 4.2) */
@@ -113,4 +115,5 @@ export interface UpdateUserSettingCommand {
   defaultPlaybackRate?: number;
   isAutoExpandEnabled?: boolean;
   isDripNotificationEnabled?: boolean;
+  dripFeedbackMutedUntil?: string | null;
 }

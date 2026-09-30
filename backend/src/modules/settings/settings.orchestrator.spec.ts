@@ -70,6 +70,7 @@ function buildDefaultSettings() {
     defaultPlaybackRate: PlaybackRate.NORMAL,
     isAutoExpandEnabled: true,
     isDripNotificationEnabled: true,
+    dripFeedbackMutedUntil: null,
   };
 }
 
@@ -402,6 +403,7 @@ describe('SettingsOrchestrator', () => {
         defaultPlaybackRate: PlaybackRate.NORMAL,
         isAutoExpandEnabled: true,
         isDripNotificationEnabled: true,
+        dripFeedbackMutedUntil: null,
       });
     });
   });
@@ -458,6 +460,7 @@ describe('SettingsOrchestrator', () => {
       const updated = {
         ...buildDefaultSettings(),
         isDripNotificationEnabled: false,
+        dripFeedbackMutedUntil: null,
       };
       userSettingService.updateSettings.mockResolvedValue(updated);
 

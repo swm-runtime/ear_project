@@ -56,6 +56,9 @@ export class UserSettingService {
     if (command.isDripNotificationEnabled !== undefined) {
       changes.isDripNotificationEnabled = command.isDripNotificationEnabled;
     }
+    if (command.dripFeedbackMutedUntil !== undefined) {
+      changes.dripFeedbackMutedUntil = command.dripFeedbackMutedUntil;
+    }
 
     const saved = await this.userSettingRepository.upsert(
       userId,
@@ -93,6 +96,7 @@ function toView(setting: UserSetting): UserSettingView {
     defaultPlaybackRate: setting.defaultPlaybackRate,
     isAutoExpandEnabled: setting.isAutoExpandEnabled,
     isDripNotificationEnabled: setting.isDripNotificationEnabled,
+    dripFeedbackMutedUntil: setting.dripFeedbackMutedUntil,
   };
 }
 
@@ -102,5 +106,6 @@ function buildDefaults(): UserSettingView {
     defaultPlaybackRate: PlaybackRate.NORMAL,
     isAutoExpandEnabled: true,
     isDripNotificationEnabled: true,
+    dripFeedbackMutedUntil: null,
   };
 }

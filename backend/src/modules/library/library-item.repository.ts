@@ -1,9 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
+  And,
   EntityManager,
   In,
   IsNull,
+  LessThan,
+  MoreThanOrEqual,
   Not,
   Repository,
   SelectQueryBuilder,
@@ -152,6 +155,25 @@ export class LibraryItemRepository {
    * 제외 행을 만들지 않는다**(`domain.md` 7.1). 그래서 회수→복구를 거친 콘텐츠에서는
    * 이 조건이 유일한 방어선이다.
    */
+  /** 구간에 적립된 편성분 + 콘텐츠(제목·썸네일). 소프트 삭제분은 기본 조회대로 제외된다 */
+  async findAllWithContentByUserIdAndSourcesAddedBetween(
+    userId: string,
+    sources: LibraryItemSource[],
+    start: Date,
+    end: Date,
+    manager?: EntityManager,
+  ): Promise<LibraryItem[]> {
+    return this.scoped(manager).find({
+      where: {
+        userId,
+        source: In(sources),
+        addedAt: And(MoreThanOrEqual(start), LessThan(end)),
+      },
+      relations: { content: true },
+      order: { addedAt: 'ASC', id: 'ASC' },
+    });
+  }
+
   async findAllContentIdsByUserId(
     userId: string,
     manager?: EntityManager,

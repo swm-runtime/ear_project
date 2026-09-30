@@ -39,6 +39,16 @@ export const FIRST_DRIP_JOB_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 /** 완료 작업 파기 배치 주기(ms). 하루 단위 보존이라 시간 단위면 충분하다 */
 export const FIRST_DRIP_PURGE_INTERVAL_MS = 60 * 60 * 1000;
 
+/**
+ * **추천 알고리즘 버전** — 편성분마다 `library_items.algorithm_version`에 남겨 사용자 별점을 버전별로 집계한다
+ * (`drip-feedback.md` 4.4, KAN-116). 형식 `YYYY-MM-DD.n`(문자열 정렬이 시간 순서다).
+ *
+ * **올리는 규칙**: 편성 결과가 달라질 수 있는 변경이면 올린다 — 축·항목 가중치, 후보 필터, 다양성 선정(MMR),
+ * 취향 계산식, 자동 확장 판정, 탐험 선정. 로그·표시·성능 개선처럼 결과가 같은 변경은 올리지 않는다.
+ * 올리지 않고 결과를 바꾸면 서로 다른 알고리즘의 별점이 한 버전에 섞여 비교가 무너진다.
+ */
+export const DRIP_ALGORITHM_VERSION = '2026-09-30.1';
+
 /*
  * ── 편성 스코어링 (`drip-scheduling.md` 4.2 — 3축 하이브리드) ─────────────────────
  *
