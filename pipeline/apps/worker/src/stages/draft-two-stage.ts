@@ -287,8 +287,11 @@ export function v94Violations(turns: ScriptTurn[]): string[] {
   const summaryRe = /(네요|군요|거군요|거네요|말이군요|뜻이군요|들려요|들립니다|들리네요|같아요|같습니다|겠어요|겠네요|셈이네요|얘기네요|말이네요)[.!]?\s*$/;
   const summaryY = bodyY.filter((t) => !/\?/.test(t.text) && summaryRe.test(t.text.trim()));
   if (bodyY.length >= 12 && summaryY.length / bodyY.length > 0.35) {
-    const over = summaryY.length - Math.floor(bodyY.length / 3);
-    v.push(`진행 턴 ${bodyY.length}개 중 ${summaryY.length}개가 물음표 없는 정리형("~네요"·"~군요"·"~로 들려요")으로 끝남 — 셋 중 하나가 상한이다. 이 가운데 ${over}개 이상을 이해가 막힌 자리의 되물음이나 한두 마디 수긍으로 바꾼다 (${ids(summaryY, 10)}) (규칙 3·25)`);
+    // 2026-09-30: 바꿀 턴을 지목한다 — "N개 이상"만 말하면 수정 호출이 모자라게 고쳐 L0 수정 2회를 다 썼다(T260930-001: 9 → 8 → 7개). 한 개 여유를 두고 고르게 뽑는다
+    const over = summaryY.length - Math.floor(bodyY.length / 3) + 1;
+    const step = summaryY.length / over;
+    const picks = Array.from({ length: over }, (_, i) => summaryY[Math.min(summaryY.length - 1, Math.floor(i * step + step / 2))]).filter((t, i, arr) => arr.indexOf(t) === i);
+    v.push(`진행 턴 ${bodyY.length}개 중 ${summaryY.length}개가 물음표 없는 정리형("~네요"·"~군요"·"~로 들려요")으로 끝남 — 셋 중 하나가 상한이다. 다음 ${picks.length}개 턴을 전부 바꾼다: ${ids(picks, 12)}. 자기 처지에서의 느낌·망설임, 한두 마디 수긍, 이해가 막힌 자리의 되물음 가운데 하나로 — 앞 해설을 다시 정리하는 문장으로 바꾸지 않는다 (규칙 3·25)`);
   }
   // 규칙 3: 진행자가 각주를 부르는 질문 — 청취자는 조사 기관·표본·척도·오차·통계 절차를 묻지 않는다
   const footnoteQ = bodyY.filter((t) => /\?/.test(t.text) && /(표본|응답률|척도|오차|조사 기관|조사 방식|조사 방법|대조군|통계적|통계 (절차|처리)|재현(됐|되|이)|인과(관계)?(를|가) (입증|확인|증명)|유의)/.test(t.text));
