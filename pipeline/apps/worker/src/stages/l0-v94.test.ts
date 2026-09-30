@@ -79,3 +79,15 @@ test("L0 v9.5 — 한계 유도 질문 2턴·한계 고지 5턴·소스 행위 �
   const ok = twoStageViolations(wrap("[이음] E1 · 연말 쇼핑을 다룬 한 조사가 소비자가 결정하는 과정을 살폈어요. 사람들은 더 오래 비교했습니다.\n\n[윤아] Y2 · 왜 오래 비교했을까요?\n\n[이음] E2 · 확신이 서지 않았기 때문이에요."), "");
   assert.ok(!has(ok, /유도함|한계 고지|행위의 주어/), ok.join("\n"));
 });
+
+// 2026-09-30 수정 루프 결함 2건 (T260930-001 — 초안 4회): 정리형 L0 가 바꿀 턴을 지목 · L0 실패를 QA 이전 회차로 넘기지 않음
+test("L0 정리형 — 바꿀 턴을 지목하고, 그 턴을 다 바꾸면 통과한다", () => {
+  const mk = (summaries: number) => { const t: string[] = []; for (let i = 1; i <= 21; i++) t.push(`[이음] E${i} · 설명 ${i}이에요.`, i <= summaries ? `[윤아] Y${i + 1} · 그러니까 이렇게 된다는 얘기네요.` : `[윤아] Y${i + 1} · 그러면 ${i}은 왜 그런가요?`); return t.join("\n\n"); };
+  const v = twoStageViolations(wrap(mk(9)), "");
+  const msg = v.find((m) => /물음표 없는 정리형/.test(m)) ?? "";
+  const picks = (msg.match(/전부 바꾼다: ([^.]+)\./)?.[1] ?? "").split(", ").filter(Boolean);
+  assert.equal(picks.length, 3, msg); // 9 - floor(21/3) + 1
+  assert.ok(new Set(picks).size === picks.length && picks.every((p) => /^Y\d+$/.test(p)), msg);
+  const ok = twoStageViolations(wrap(mk(6)), "");
+  assert.ok(!has(ok, /정리형/), ok.join("\n"));
+});
