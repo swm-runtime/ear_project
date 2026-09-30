@@ -23,8 +23,9 @@ const ACTIONS: { action: RecommendTestAction; label: string; hint: string; kind:
   { action: "complete", label: "완청", hint: "재생 시작 후 위치를 끝까지 저장 → complete 신호(강한 긍정)", kind: "ghost" },
   { action: "save", label: "담기", hint: "라이브러리에 담기 → save 신호(긍정)", kind: "ghost" },
   { action: "replay", label: "재청취", hint: "완료 항목에만 replay 신호 — 완료 전이면 앱과 같이 무시", kind: "ghost" },
-  { action: "unsave", label: "해제", hint: "담기 해제 → unsave 신호(부정)·드립 영구 제외", kind: "danger" },
-  { action: "delete", label: "삭제", hint: "라이브러리 삭제 → delete 신호(부정)·드립 영구 제외. 라이브러리에 있어야 한다", kind: "danger" },
+  // 앱 카피는 더보기 시트의 [라이브러리에서 제거](explore-uiux E12) — "해제"는 API 이름(unsave)이라 화면에 쓰지 않는다
+  { action: "unsave", label: "제거", hint: "더보기 시트 [라이브러리에서 제거] → unsave 신호(부정)·드립 영구 제외", kind: "danger" },
+  { action: "delete", label: "삭제", hint: "라이브러리 화면 스와이프 삭제 → delete 신호(부정)·드립 영구 제외. 라이브러리에 있어야 한다(결과는 제거와 같다 — 경로만 다름)", kind: "danger" },
 ];
 const STATUS_LABEL: Record<string, string> = { unplayed: "미청취", in_progress: "듣는 중", completed: "완청" };
 const STATUS_TONE: Record<string, string> = { unplayed: "queued", in_progress: "running", completed: "done" };
