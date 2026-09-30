@@ -88,7 +88,16 @@ export class LibraryService {
       );
     }
 
-    return stored.map((item) => item.contentId);
+    /**
+     * **요청 순서로 돌려준다.** `find`는 ORDER BY 가 없어 행 순서가 실행 계획에 달려 있다 — 인덱스가 하나 늘자
+     * (`idx_library_items_algorithm_version`, 2026-09-30) 온보딩 e2e 의 `saved_content_ids` 순서가 뒤집혔다.
+     * 응답 순서는 사용자가 고른 순서여야 하고, DB 가 우연히 지켜 주던 것을 계약으로 믿으면 안 된다.
+     */
+    const storedIds = new Set(stored.map((item) => item.contentId));
+
+    return [...new Set(contentIds)].filter((contentId) =>
+      storedIds.has(contentId),
+    );
   }
 
   /**
