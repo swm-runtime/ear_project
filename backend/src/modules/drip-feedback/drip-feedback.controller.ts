@@ -13,6 +13,7 @@ import type { AuthenticatedUser } from '@/common/decorators/current-user.decorat
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
 
+import { DismissDripFeedbackRequestDto } from './dto/dismiss-drip-feedback-request.dto';
 import { DripFeedbackPromptResponseDto } from './dto/drip-feedback-prompt-response.dto';
 import { RateDripFeedbackRequestDto } from './dto/rate-drip-feedback-request.dto';
 import { DripFeedbackService } from './drip-feedback.service';
@@ -51,6 +52,19 @@ export class DripFeedbackController {
         stars: rating.stars,
       })),
       now: new Date(),
+    });
+  }
+
+  /** 팝업 닫기(4.1) — 그 편성분은 다시 묻지 않는다. 절대값 저장이라 재전송이 무해하다 */
+  @Post('dismiss')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async dismiss(
+    @CurrentUser() currentUser: AuthenticatedUser,
+    @Body() request: DismissDripFeedbackRequestDto,
+  ): Promise<void> {
+    await this.dripFeedbackService.dismiss({
+      userId: currentUser.id,
+      placedDate: request.placed_date,
     });
   }
 

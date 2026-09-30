@@ -313,6 +313,23 @@ export class LibraryService {
 
   /** 최근 편성분(드립·탐험) `content_id` — 편성 미리보기 표시용(노출 피로 항목은 2026-09-25 폐기) */
   /**
+   * `before` 전에 적립된 **가장 최근 정규 편성분**(드립) — 추천 별점 팝업이 "가장 최근 편성분 한 번만"을 판정하는
+   * 기준(`drip-feedback.md` 4.1). 탐험 편은 묻지 않으므로 보지 않는다. 삭제분은 제외(지운 편은 이미 반응한 것)
+   */
+  async findLatestDripPlacedBefore(
+    userId: string,
+    before: Date,
+    manager?: EntityManager,
+  ): Promise<LibraryItem | null> {
+    return this.libraryItemRepository.findLatestByUserIdAndSourcesAddedBefore(
+      userId,
+      [LibraryItemSource.DRIP],
+      before,
+      manager,
+    );
+  }
+
+  /**
    * 한 구간에 적립된 편성분(드립·탐험)을 콘텐츠와 함께 — 추천 별점 팝업(`drip-feedback.md` 4.1)의 재료.
    * 삭제분은 뺀다: 사용자가 지운 편은 이미 반응한 것이라 다시 묻지 않는다.
    */

@@ -19,10 +19,16 @@ export interface DripFeedbackPromptView {
   show: boolean;
   /** 묻는 편성분(최대 2). `show=false`면 비어 있다 */
   items: DripFeedbackPromptItemView[];
-  /** 어제의 서비스 날짜 라벨 — 팝업 제목("어제 추천") 근거 */
-  placedDate: string;
+  /** 묻는 편성분의 서비스 날짜 라벨 — 닫기(`dismiss`)가 되돌려 보낸다. 물을 편성분이 없으면 null */
+  placedDate: string | null;
   /** [이번 주 그만 보기] 중이면 그 종료 서비스 날짜, 아니면 null */
   mutedUntil: string | null;
+}
+
+export interface DismissDripFeedbackCommand {
+  userId: string;
+  /** 팝업이 받은 `placedDate` — 이 편성분에 대해서는 다시 묻지 않는다 */
+  placedDate: string;
 }
 
 export interface RateDripFeedbackCommand {

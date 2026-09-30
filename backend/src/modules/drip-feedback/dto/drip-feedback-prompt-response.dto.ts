@@ -3,7 +3,7 @@ import { DripFeedbackPromptView } from '../drip-feedback.types';
 /** `GET /users/me/drip-feedback/prompt` (drip-feedback-api.md 4.1) */
 export class DripFeedbackPromptResponseDto {
   readonly show: boolean;
-  readonly placed_date: string;
+  readonly placed_date: string | null;
   readonly muted_until: string | null;
   readonly items: {
     content_id: string;
