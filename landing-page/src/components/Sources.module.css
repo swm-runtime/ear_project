@@ -21,7 +21,9 @@
   top: 0;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  /* safe: 내용이 100vh 보다 크면 가운데 정렬 대신 위에서부터 놓는다 — 가운데 정렬은 위·아래를 같이 잘라
+     띠 윗줄이 헤더 뒤로 들어갔다(고지 문구 추가 뒤 낮은 화면에서, 2026-09-18) */
+  justify-content: safe center;
   box-sizing: border-box;
   height: 100vh;
   /* 헤더(sticky)에 머리가 가리지 않게 — 낮은 화면에서 가운데 정렬만으로는 여유가 모자란다 */
@@ -36,6 +38,20 @@
   font-size: 14px;
 }
 
+/* 핀 모드에서는 세로 치수를 화면 높이에도 맞춘다 — 낮은 화면(720~900px)에서 장면 전체가 100vh 안에 들어가야 한다 */
+.pinned .band {
+  margin-top: clamp(20px, 3.5vh, 56px);
+}
+
+.pinned .funnel,
+.pinned .travelers {
+  height: clamp(100px, min(16vw, 20vh), 220px);
+}
+
+.pinned .tail {
+  height: clamp(32px, 5vh, 88px);
+}
+
 /* ---------- 워드마크 띠 ---------- */
 
 .band {
@@ -43,8 +59,31 @@
   display: grid;
   gap: 14px;
   margin-top: clamp(36px, 4.5vw, 56px);
-  /* 양끝을 흐리게 — 잘린 글자가 아니라 흘러 들어오는 것으로 읽힌다 */
-  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  overflow: hidden;
+}
+
+/* 양끝을 흐리게 — 잘린 글자가 아니라 흘러 들어오는 것으로 읽힌다.
+   mask-image 대신 종이색 그라데이션을 덧씌운다: 마스크 + 움직이는 행 + sticky 조합에서 스크롤 방향을 바꿀 때
+   행 하나가 통째로 안 그려지는 합성 오류가 있었다(2026-09-18). 덧씌우기는 일반 레이어라 그 경로를 타지 않는다 */
+.band::before,
+.band::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 12%;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.band::before {
+  left: 0;
+  background: linear-gradient(90deg, var(--paper), transparent);
+}
+
+.band::after {
+  right: 0;
+  background: linear-gradient(270deg, var(--paper), transparent);
 }
 
 .row {
@@ -55,6 +94,8 @@
   margin: 0;
   list-style: none;
   animation: marquee 150s linear infinite;
+  /* 행을 자기 레이어에 두어 sticky 안에서 스크롤할 때 다시 그리지 않게 한다 */
+  will-change: transform;
 }
 
 .rowB {
@@ -160,6 +201,14 @@
   font-weight: 700;
   letter-spacing: -0.04em;
   line-height: 1.35;
+}
+
+/* 캡션 아래 제휴 아님 고지 — 각주 크기. 캡션과 함께 나타난다 */
+.disclaimer {
+  margin-top: -4px;
+  color: var(--text-3);
+  font-size: 12.5px;
+  letter-spacing: -0.01em;
 }
 
 /* 꼬리 — 캡션 아래에서 섹션 바닥(= TRY 윗선)까지 내려가는 한 줄기 */
@@ -270,7 +319,8 @@
   transform: none;
 }
 
-.pinned .caption {
+.pinned .caption,
+.pinned .disclaimer {
   opacity: calc(clamp(0, (var(--p) - 0.8) / 0.12, 1));
   transform: translateY(calc(8px * (1 - clamp(0, (var(--p) - 0.8) / 0.12, 1))));
 }
@@ -329,7 +379,8 @@
     display: none;
   }
 
-  .band {
-    mask-image: none;
+  .band::before,
+  .band::after {
+    display: none;
   }
 }
