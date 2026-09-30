@@ -229,6 +229,12 @@ export interface EarDripPreview {
   skip_reason: "no_interests" | "unfinished_inventory" | "plan_disabled" | null;
   unfinished_count: number | null; unfinished_limit: number; drip_count: number | null; discovery_count: number | null;
   interests: (EarDripTopicRef & { source: string })[]; removed_topics: EarDripTopicRef[];
+  /** 자동 확장 판정(drip-scheduling 4.5 — admin-api 4.16, 2026-09-30). 미리보기는 저장하지 않으므로 interests 에는 아직 없고, 편성 계산은 반영됐다고 가정한 결과다 */
+  auto_expand: {
+    action: "none" | "add" | "replace" | "expire"; reason: string;
+    add_topic: EarDripTopicRef | null; remove_topic: EarDripTopicRef | null;
+    candidates: (EarDripTopicRef & { completes: number; weight: number })[];
+  } | null;
   preference: {
     is_cold_start: boolean | null; complete_signal_count: number | null; cold_start_threshold: number; signal_count: number | null;
     has_taste_embedding: boolean; duration_pref: { median_sec: number; p25_sec: number; p75_sec: number } | null;
@@ -293,3 +299,14 @@ export const resetRecommendTest = () => earFetch<void>("/admin/recommend-test/re
 export const listEarContentsOn = (ch: EarChannel, status: string, offset: number, limit = 50) =>
   earFetch<{ items: EarContent[]; total: number }>(`/admin/contents?offset=${offset}&limit=${limit}${status ? `&status=${status}` : ""}`, {}, ch);
 export const listEarTopicsOn = (ch: EarChannel) => earFetch<{ items: EarTopic[] }>("/admin/topics", {}, ch);
+
+/**
+ * 추천 평가 스냅샷(admin-api 4.18) — 오프라인 평가기(`backend: npm run eval:recommend`)의 입력 파일. 익명이지만 행동
+ * 이력이라 브라우저에서 내려받아 저장소 밖(`backend/eval/snapshots/`)에 둔다. 수 MB — 파싱 없이 문자열로 받는다
+ */
+export async function downloadEarEvalSnapshot(ch: EarChannel): Promise<{ filename: string; blob: Blob }> {
+  const json = await earFetch<Record<string, unknown>>("/admin/recommend-eval/snapshot", { cache: "no-store" }, ch);
+  const env = typeof json.environment === "string" && json.environment ? json.environment : ch;
+  const exportedAt = typeof json.exported_at === "string" ? json.exported_at.slice(0, 10) : "snapshot";
+  return { filename: `${env}-${exportedAt}.json`, blob: new Blob([JSON.stringify(json)], { type: "application/json" }) };
+}

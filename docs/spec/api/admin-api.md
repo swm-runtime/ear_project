@@ -61,6 +61,7 @@
 | DELETE | `/admin/notices/:noticeId` | 공지 삭제(soft) (4.15) |
 | GET | `/admin/system-stats` | 서버 자원·DB 부하 스냅샷 (로그 콘솔 상태 탭) |
 | GET | `/admin/drip/preview` | 편성 미리보기 — 지금 데이터로 배치를 돌리면 갈 정규·탐험 편성분과 점수 분해, 읽기 전용 (4.16) |
+| GET | `/admin/recommend-eval/snapshot` | 추천 평가 스냅샷 내보내기 — 발행 콘텐츠·익명 사용자 행동, 읽기 전용 (4.18) |
 
 ## 4. 엔드포인트 상세
 
@@ -359,6 +360,7 @@
 | `drip_count` · `discovery_count` | 티어 편수(`plans`) |
 | `interests[]` | `topic_id` `name` `source` — 활성 관심 주제 |
 | `removed_topics[]` | 사용자가 직접 해제한 주제(탐험 제외) |
+| `auto_expand` | 자동 확장 판정(`drip-scheduling.md` 4.5 — 추가 2026-09-30). `action`: `none` \| `add` \| `replace` \| `expire` · `reason`: `no_candidate` \| `slot_free` \| `slot_kept` \| `stronger_candidate` \| `slot_expired` \| `disabled`(사용자 토글 OFF) \| `feature_off`(서버 스위치 OFF) · `add_topic` · `remove_topic`(`{topic_id,name}` \| null) · `candidates[]`(`{topic_id,name,completes,weight}` — 트리거를 넘긴 관심 밖 주제, 강한 순). **미리보기는 저장하지 않으므로 `interests[]`에는 반영돼 있지 않고, 아래 `regular`·`discovery` 계산은 반영됐다고 가정한 결과다.** 관심 주제 0 스킵이면 null |
 | `preference` | `is_cold_start` `complete_signal_count` `cold_start_threshold` `signal_count` `has_taste_embedding` `duration_pref` `topic_weights[]` `author_weights[]` `keyword_weights[]` `format_weights[]`(절대값 상위 15, `{key,name,weight}`) `difficulty_affinity` — **저장하지 않은** 계산값 |
 | `signals[]` | `content_id` `title` `action` `created_at` — 취향 계산 입력(90일·최대 500건). `action`에는 `user_signals` enum 외에 **파생 신호 `ignore`**(`drip-scheduling.md` 4.3 — 7일 미청취 편성분, 저장되지 않음)가 섞인다. 90일·500건 상한은 저장 신호에만 적용된다(명시 2026-09-26) |
 | `weights` | 스코어링 상수: `axes` `signal_items` `meta_items` `meta_items_cold_start` `discovery_items` |
@@ -380,6 +382,26 @@
 | 400 | `VALIDATION_FAILED` | `email` 누락·형식 오류 |
 | 401 / 403 | `UNAUTHORIZED` / `FORBIDDEN` | 2장 공통 규약 |
 | 404 | `NOT_FOUND` | 그 이메일의 사용자 없음 |
+
+### 4.18 `GET /admin/recommend-eval/snapshot` — 추천 평가 스냅샷 (읽기 전용)
+
+> 추가: 2026-09-30 (KAN-108 — `backend/recommendation-evaluation.md` 3.1). 오프라인 평가기(`npm run eval:recommend`)의 입력 파일이다.
+
+발행 콘텐츠(메타·주제·전체 집계·현재 모델 임베딩)와 사용자(관심 주제·신호·라이브러리·영구 제외·자동 확장 토글)를 한 JSON으로 내려준다. **계산도 쓰기도 없다** — 조회만 한다. 응답은 `Cache-Control: no-store`.
+
+**요청**
+
+| 쿼리 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `max_users` | int | | 사용자 상한(기본 300, 최대 1000). 온보딩을 마친 미탈퇴 사용자를 가입 순으로 |
+| `signal_days` | int | | 신호·라이브러리 조회 범위(일, 기본 365) |
+
+**응답 200** — `schema_version`(1) · `exported_at` · `environment` · `embedding_model` · `plans[]`(`tier` `daily_drip_count` `daily_discovery_count`) · `topics[]`(`id` `name` `is_visible`) · `contents[]`(콘텐츠 메타 + `topic_ids[]` `play_count` `complete_count` `embedding`(number[] \| null)) · `users[]`.
+
+`users[]` 항목: **`key`(`u001`… 익명 키)** `tier` `job_category` `years_of_experience` `auto_expand_enabled` · `interests[]`(`topic_id` `source` `is_active` `is_user_removed` `updated_at`) · `signals[]`(`content_id` `action` `created_at`) · `library[]`(`content_id` `source` `status` `added_at` `completed_at` `deleted_at`) · `excluded[]`(`content_id` `created_at`).
+
+- **이메일·닉네임·`users.id`를 싣지 않는다.** 키는 가입 순 일련번호라 응답 안에서만 사용자를 구분한다. 그래도 행동 이력이므로 받은 파일은 저장소에 커밋하지 않는다(`backend/eval/` gitignore).
+- 크기: 임베딩(1536차원) 때문에 콘텐츠 200편 기준 수 MB. 자주 부르는 엔드포인트가 아니다.
 
 ## 5. 에러 코드 표
 
