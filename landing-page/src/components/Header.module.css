@@ -64,10 +64,6 @@
   flex: none;
 }
 
-.ctaFull {
-  display: none;
-}
-
 /* ---------- 좁은 화면: <details> 메뉴 ---------- */
 
 .menu {
@@ -130,14 +126,6 @@
   .cta {
     margin-left: 8px;
     padding: 10px 20px;
-  }
-
-  .ctaFull {
-    display: inline;
-  }
-
-  .ctaShort {
-    display: none;
   }
 
   .menu {

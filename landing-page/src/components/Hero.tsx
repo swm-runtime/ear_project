@@ -1,17 +1,13 @@
 import Image from "next/image";
 import Link from "next/link";
-import { releaseMailto, site, stats } from "@/content/site";
+import { iosStoreUrl, site, stats } from "@/content/site";
+import { AppleLogo } from "./AppleLogo";
 import { CountUp } from "./CountUp";
 import { HeroPhoneScene } from "./HeroPhoneScene";
+import { PhoneStatusBar } from "./PhoneStatusBar";
 import { PhoneTilt } from "./PhoneTilt";
 import { routes } from "@/content/routes";
 import s from "./Hero.module.css";
-
-/* 앱 화면 예시에 쓰는 아이콘 — 실제 앱과 같은 도형이다(frontend/src/shared/ui/TabBarIcon,
-   PersonIcon, features/library/components/FilterIcon, features/player/.../PlayerIcons).
-   선택된 탭을 면(fill)으로, 나머지를 선(stroke)으로 그리는 것도 앱과 같다 — 색만으로
-   현재 탭을 알리지 않기 위한 규칙이라 옮겨 올 때 같이 지킨다. */
-const ICON_STROKE = 1.8;
 
 /* 브랜드 '이어'를 손글씨 획으로 그리는 SVG — 애플 초기 설정 "hello"처럼 획이 순서대로
    그려진다(pathLength=1 + stroke-dashoffset 1→0, 획마다 지속·지연을 달리해 손맛을 낸다).
@@ -42,117 +38,106 @@ function BrandScript() {
   );
 }
 
-function TabIcon({ name, active }: { name: "library" | "explore" | "profile"; active: boolean }) {
-  const shape = {
-    fill: active ? "currentColor" : "none",
-    stroke: "currentColor",
-    strokeWidth: ICON_STROKE,
-  };
-
+/**
+ * 하단 탭 아이콘 — 앱이 iOS 26 시스템 탭 바 아이콘(books.vertical · safari · person)을 재서 직접 그린
+ * 도형 그대로다(frontend/src/shared/ui/TabBarIcon · PersonIcon). 선택된 탭은 면(fill), 나머지는
+ * 선(stroke)으로 그린다 — 색만으로 현재 탭을 알리지 않기 위한 규칙이라 옮겨 올 때 같이 지킨다.
+ * 이 장면은 탐색 탭이라 탐색만 채운 변형이다.
+ */
+function TabIcon({ name }: { name: "library" | "explore" | "profile" }) {
   if (name === "library") {
     return (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path
-          {...shape}
-          strokeLinejoin="round"
-          d="M7 3.6h10A1.6 1.6 0 0 1 18.6 5.2v15.4a.7.7 0 0 1-1.09.58L12 17.5l-5.51 3.68A.7.7 0 0 1 5.4 20.6V5.2A1.6 1.6 0 0 1 7 3.6z"
-        />
+      <svg viewBox="0 0 28 25" aria-hidden="true">
+        <g fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
+          <path d="M5.83 24.08H1.92a1 1 0 0 1-1-1V5.25a1 1 0 0 1 1-1h2.91a1 1 0 0 1 1 1Z" />
+          <path d="M5.83 24.08V7.83h8.34v16.25Z" />
+          <path d="M14.17 24.08V1.92a1 1 0 0 1 1-1h3.66a1 1 0 0 1 1 1v21.16a1 1 0 0 1-1 1H1.92" />
+          <rect x="22.05" y="3.83" width="4" height="20.25" rx="1" transform="rotate(-4 24.05 24.08)" />
+        </g>
+        <path d="M8.3 10.83h3.6M8.3 21.17h3.6" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
       </svg>
     );
   }
 
   if (name === "explore") {
+    // 채운 변형 — 원을 채우고 바늘은 흰색, 가운데 구멍으로 원 색이 비친다
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true">
-        <circle cx="12" cy="12" r="8.6" fill="none" stroke="currentColor" strokeWidth={ICON_STROKE} />
-        <path {...shape} strokeLinejoin="round" d="M15.6 8.4l-2 5.2-5.2 2 2-5.2z" />
+        <circle cx="12" cy="12" r="11.5" fill="currentColor" />
+        <path
+          fill="#fff"
+          fillRule="evenodd"
+          d="M17.8 6.2 14.4 14.4 6.2 17.8 9.6 9.6Z M12 10.8a1.2 1.2 0 1 0 0 2.4a1.2 1.2 0 1 0 0-2.4Z"
+        />
       </svg>
     );
   }
 
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="8.4" r="3.6" {...shape} />
-      <path
-        {...shape}
-        strokeLinecap="round"
-        d="M12 13.6c-4 0-7.2 2.7-7.2 6 0 .5.4.9.9.9h12.6c.5 0 .9-.4.9-.9 0-3.3-3.2-6-7.2-6z"
-      />
+      <g fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
+        <circle cx="12" cy="6.55" r="4.1" />
+        <path d="M12 14.55C17.1 14.55 20.6 17.3 20.6 20.6Q20.6 21.1 20.1 21.1H3.9Q3.4 21.1 3.4 20.6C3.4 17.3 6.9 14.55 12 14.55Z" />
+      </g>
+    </svg>
+  );
+}
+
+/** 더보기 — 가로 둥근 점 3개(앱 shared/ui/MoreIcon과 같은 도형) */
+function MoreDots() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="5.5" cy="12" r="1.8" fill="currentColor" />
+      <circle cx="12" cy="12" r="1.8" fill="currentColor" />
+      <circle cx="18.5" cy="12" r="1.8" fill="currentColor" />
     </svg>
   );
 }
 
 /** 커버 사진 한 변. scripts/preview-art.mjs가 굽는 크기와 같아야 한다 */
 const COVER_PX = 420;
+/** 주제 칩 배경 사진의 크기 — 이것도 scripts/preview-art.mjs와 같아야 한다 */
+const TOPIC_PX = { w: 240, h: 96 };
 
-/* 피드에 그릴 콘텐츠. 제목·출처·저자·길이는 실제 시드 데이터에서 가져왔고,
-   섹션 제목과 순서는 탐색 mock의 것이다(frontend/src/features/explore/api/explore.mock.ts —
-   "지금 인기"가 맨 앞, 그다음 "관심사에 맞는 추천"). */
+/* 주제 칩 — 관심 주제가 앞에 오는 순서는 서버가 정한다. 이름과 사진은 앱의 것 그대로다
+   (frontend/src/features/interest/components/TopicChip.tsx가 주제 이름으로 사진을 찾는다).
+   지금 공개된 주제(GET /public/topics) 가운데서 골랐다 — 앱에 없는 주제를 그리지 않는다. */
+const TOPICS = [
+  { name: "생산성", photo: "/preview/topic-productivity.webp" },
+  { name: "데이터·AI", photo: "/preview/topic-data-ai.webp" },
+  { name: "심리학", photo: "/preview/topic-psychology.webp" },
+  { name: "커뮤니케이션", photo: "/preview/topic-communication.webp" },
+];
+
+/* 피드에 그릴 콘텐츠. 제목·길이는 실제 시드 데이터에서 가져왔고, 섹션 제목과 순서는
+   탐색 mock의 것이다(frontend/src/features/explore/api/explore.mock.ts — "지금 인기"가 맨 앞,
+   그다음 "관심사에 맞는 추천"). 대표 카드는 주제 해시태그(최대 2개) + 길이를, 타일은 길이만 적는다. */
 const POPULAR = [
-  { title: "AI를 도구로 쓰는 사람들의 습관", meta: "이어 오리지널 · 윤태경", min: 13, cover: "/preview/cover-1.webp" },
-  { title: "설득은 논리가 아니라 순서다", meta: "이어 오리지널 · 12분", min: 12, cover: "/preview/cover-2.webp" },
+  { title: "AI를 도구로 쓰는 사람들의 습관", topics: ["데이터·AI", "생산성"], min: 13, cover: "/preview/cover-1.webp" },
+  { title: "설득은 논리가 아니라 순서다", topics: ["커뮤니케이션"], min: 12, cover: "/preview/cover-2.webp" },
 ];
 
 const RECOMMENDED = [
-  { title: "주니어가 3년 차에 가장 많이 하는 착각", meta: "이어 오리지널 · 14분", cover: "/preview/cover-3.webp" },
-  { title: "멀티태스킹은 왜 항상 실패하는가", meta: "이어 오리지널 · 10분", cover: "/preview/cover-4.webp" },
-  { title: "위임이 어려운 진짜 이유", meta: "이어 오리지널 · 11분", cover: "/preview/cover-5.webp" },
+  { title: "주니어가 3년 차에 가장 많이 하는 착각", min: 14, cover: "/preview/cover-3.webp" },
+  { title: "멀티태스킹은 왜 항상 실패하는가", min: 10, cover: "/preview/cover-4.webp" },
+  { title: "위임이 어려운 진짜 이유", min: 11, cover: "/preview/cover-5.webp" },
 ];
 
-/** 아이폰 상태바 오른쪽 3종. 신호·와이파이·배터리 순서와 형태만 흉내 낸다. */
-function StatusIcons() {
-  return (
-    <span className={s.statusIcons} aria-hidden="true">
-      <svg viewBox="0 0 18 12" className={s.statusSignal}>
-        <rect x="0" y="8" width="3" height="4" rx="1" fill="currentColor" />
-        <rect x="5" y="5.5" width="3" height="6.5" rx="1" fill="currentColor" />
-        <rect x="10" y="3" width="3" height="9" rx="1" fill="currentColor" />
-        <rect x="15" y="0.5" width="3" height="11.5" rx="1" fill="currentColor" />
-      </svg>
-      <svg viewBox="0 0 16 12" className={s.statusWifi}>
-        <path
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.7"
-          strokeLinecap="round"
-          d="M1.2 4.1a10 10 0 0 1 13.6 0M3.7 7a6.4 6.4 0 0 1 8.6 0"
-        />
-        <path fill="currentColor" d="M8 11.4a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2z" />
-      </svg>
-      <svg viewBox="0 0 26 12" className={s.statusBattery}>
-        <rect
-          x="0.6"
-          y="0.6"
-          width="22"
-          height="10.8"
-          rx="3"
-          fill="none"
-          stroke="currentColor"
-          strokeOpacity="0.4"
-          strokeWidth="1.2"
-        />
-        <rect x="2.4" y="2.4" width="14" height="7.2" rx="1.8" fill="currentColor" />
-        <path
-          fill="currentColor"
-          fillOpacity="0.4"
-          d="M24.2 4.2c1 .4 1.5 1.1 1.5 1.8s-.5 1.4-1.5 1.8z"
-        />
-      </svg>
-    </span>
-  );
-}
-
 /**
- * 히어로 오른쪽의 앱 화면 예시 — 실제 이어 앱의 **탐색 화면**을 그대로 옮겼다.
+ * 히어로 오른쪽의 앱 화면 예시 — 실제 이어 앱의 **탐색 화면(iOS 26)**을 그대로 옮겼다.
  *
- * 구조·문구·치수의 출처는 `frontend/`다: 검색 줄과 주제 칩·섹션 피드는 features/explore의
- * ExploreScreen·ExploreSearchBarRow·TopicChips·PopularPeriodToggle, 큰 카드와 사각 타일은
- * ExploreFeaturedCard·ExploreTile, 탭바는 app/navigation/MainNavigator다.
- * **앱 화면이 바뀌면 여기도 같이 고쳐야 한다** — 랜딩이 실제와 다른 화면을 보여주면
- * 첫인상부터 약속이 어긋난다(탐색 피드는 2026-09-02에 섹션별 가로 캐러셀로 바뀌었다).
+ * 구조·문구·치수의 출처는 `frontend/`다(2026-09-30 기준으로 다시 그렸다):
+ * - 상단: 시스템 큰 제목 "탐색"과 오른쪽 잔여 재생 링 캡슐이 같은 줄(useSystemLargeTitle · ExploreRingPill),
+ *   그 밑에 채움 검색 필드(ExploreSearchBarRow `fill`)와 사진 알약 주제 칩(TopicChips)
+ * - 피드: 섹션별 가로 캐러셀(ExploreScreen). 인기 섹션만 큰 카드(ExploreFeaturedCard — 커버가 카드 위·양옆에
+ *   붙고 아래는 흐린 커버가 이어진다)와 집계 구간 토글(PopularPeriodToggle), 나머지는 사각 타일(ExploreTile)
+ * - 하단: 떠 있는 유리 캡슐 탭 바(NativeMainTabs — iOS 26 시스템 탭 바). 목록은 그 밑으로 흐른다
  *
- * 미니플레이어는 그리지 않는다 — 탐색은 **활성 재생 세션이 있을 때만** 그것을 띄우고,
- * 여기 담은 장면은 재생 없이 둘러보는 중이다(복원 스냅샷 판정은 라이브러리 소유다).
+ * 치수는 앱의 pt 값을 그대로 쓴다(Hero.module.css의 `--pt`). **앱 화면이 바뀌면 여기도 같이 고쳐야 한다** —
+ * 랜딩이 실제와 다른 화면을 보여주면 첫인상부터 약속이 어긋난다.
+ *
+ * 미니플레이어는 정적 화면에 그리지 않는다 — 활성 재생 세션이 있을 때만 뜨고, 여기 담은 장면은
+ * 재생 없이 둘러보는 중이다. 재생 흐름은 덧씌움 층(HeroPhoneScene)이 보여 준다.
  *
  * 껍데기는 아이폰이다. 화면 비율(393:852)·모서리·다이내믹 아일랜드·홈 인디케이터를
  * 실제 비율로 두어야 "폰에서 이렇게 보인다"가 그대로 읽힌다.
@@ -178,25 +163,57 @@ function AppPreview() {
         <span className={`${s.sideBtn} ${s.btnPower}`} />
 
         <div className={s.phoneScreen}>
-          {/* 상태바 — 다이내믹 아일랜드가 가운데를 차지하므로 시각과 아이콘이 양옆으로 갈린다 */}
-          <div className={s.statusBar}>
-            <span className={s.statusTime}>9:41</span>
-            <span className={s.island} />
-            <StatusIcons />
+          <PhoneStatusBar />
+
+          {/* 큰 제목 줄 — 제목과 잔여 재생 링이 같은 줄이다. 링은 가운데 숫자가 남은 횟수,
+              둘레의 원호가 남은/한도 비율(12시에서 시계 방향). 무제한이면 자리를 비운다 */}
+          <div className={s.navBar}>
+            <span className={s.navTitle}>탐색</span>
+            <span className={s.ringPill}>
+              <svg viewBox="0 0 28 28" className={s.ring}>
+                <circle cx="14" cy="14" r="12.5" fill="none" stroke="#e3e3e8" strokeWidth="3" />
+                <circle
+                  cx="14"
+                  cy="14"
+                  r="12.5"
+                  fill="none"
+                  stroke="#1a1a1e"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  pathLength={1}
+                  strokeDasharray="0.5 1"
+                  transform="rotate(-90 14 14)"
+                />
+              </svg>
+              <span className={s.ringCount}>1</span>
+            </span>
           </div>
 
-          {/* 검색 줄 — 오른쪽에 오늘 남은 재생 횟수가 붙는다(무제한이면 자리를 비운다) */}
+          {/* 검색 필드 — 콘텐츠 안에 놓여 목록과 같이 스크롤한다. 유리가 아니라 채운 면 */}
           <div className={s.searchRow}>
-            <span className={s.searchBox}>콘텐츠 검색</span>
-            <span className={s.remaining}>오늘 재생 1/2 남음</span>
+            <span className={s.searchField}>
+              <svg viewBox="0 0 24 24" className={s.searchIcon}>
+                <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" strokeWidth="2.2" />
+                <path d="M15.4 15.4 20 20" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+              </svg>
+              콘텐츠 검색
+            </span>
           </div>
 
-          {/* 주제 칩 — 고르면 피드가 캐러셀이 아니라 세로 목록으로 바뀐다 */}
+          {/* 주제 칩 — 주제 사진 + 어두운 막 + 흰 라벨. 고르면 막이 짙어지고 피드가 격자 목록으로 바뀐다 */}
           <div className={s.chipRow}>
-            <span className={`${s.chip} ${s.chipSelected}`}>커리어</span>
-            <span className={s.chip}>생산성</span>
-            <span className={s.chip}>IT·테크</span>
-            <span className={s.chip}>인공지능</span>
+            {TOPICS.map((topic) => (
+              <span key={topic.name} className={s.chip}>
+                <Image
+                  className={s.chipPhoto}
+                  src={topic.photo}
+                  alt=""
+                  width={TOPIC_PX.w}
+                  height={TOPIC_PX.h}
+                />
+                <span className={s.chipLabel}>{topic.name}</span>
+              </span>
+            ))}
           </div>
 
           {/* 섹션형 피드. 섹션 구성·순서·제목은 서버 응답 그대로다 */}
@@ -215,6 +232,9 @@ function AppPreview() {
               <div className={s.carousel}>
                 {POPULAR.map((c) => (
                   <span key={c.title} className={s.featCard}>
+                    {/* 카드 전체에 흐린 커버를 깔고 위 정사각형만 선명한 커버가 덮는다 */}
+                    <span className={s.featBackdrop} style={{ backgroundImage: `url(${c.cover})` }} />
+                    <span className={s.featScrim} />
                     <Image
                       className={s.featArt}
                       src={c.cover}
@@ -222,23 +242,23 @@ function AppPreview() {
                       width={COVER_PX}
                       height={COVER_PX}
                     />
-                    <span className={s.featMeta}>{c.meta}</span>
                     <span className={s.featTitle}>{c.title}</span>
                     <span className={s.featFoot}>
-                      <span className={s.playPill}>
-                        <span className={s.playGlyph}>▶</span>
-                        <span className={s.playLabel}>{c.min}분</span>
+                      <span className={s.featMeta}>
+                        {c.topics.slice(0, 2).map((name) => `#${name}`).join(" ")} · {c.min}분
                       </span>
-                      <span className={s.featMore}>⋯</span>
+                      <span className={s.featMore}>
+                        <MoreDots />
+                      </span>
                     </span>
                   </span>
                 ))}
               </div>
             </div>
 
-            {/* 일반 섹션은 사각 타일. 더보기는 아트워크 위에 얹는다 */}
+            {/* 일반 섹션은 사각 타일. 더보기는 아트워크 위에 얹는다. 탭 바 밑으로 흘러 들어간다 */}
             <div className={s.section}>
-              <span className={s.sectionTitle}>관심사에 맞는 추천</span>
+              <span className={`${s.sectionTitle} ${s.sectionTitleBlock}`}>관심사에 맞는 추천</span>
               <div className={s.carousel}>
                 {RECOMMENDED.map((c) => (
                   <span key={c.title} className={s.tile}>
@@ -250,17 +270,22 @@ function AppPreview() {
                         width={COVER_PX}
                         height={COVER_PX}
                       />
-                      <span className={s.tileMore}>⋯</span>
+                      <span className={s.tileMore}>
+                        <MoreDots />
+                      </span>
                     </span>
                     <span className={s.tileTitle}>{c.title}</span>
-                    <span className={s.tileMeta}>{c.meta}</span>
+                    <span className={s.tileMeta}>{c.min}분</span>
                   </span>
                 ))}
               </div>
             </div>
           </div>
 
-          {/* 하단 탭바 — 아이콘과 라벨을 함께 둔다. 지금 보이는 화면은 탐색이다 */}
+          {/* 바 밑을 지나는 목록은 바닥으로 갈수록 옅어진다(iOS 26 scroll edge effect를 흉내 낸 막) */}
+          <span className={s.edgeFade} />
+
+          {/* 하단 탭 바 — 화면 폭을 다 쓰는 띠가 아니라 떠 있는 유리 캡슐이다. 지금 보이는 화면은 탐색 */}
           <div className={s.tabBar}>
             {(
               [
@@ -268,18 +293,15 @@ function AppPreview() {
                 { name: "explore", label: "탐색" },
                 { name: "profile", label: "프로필" },
               ] as const
-            ).map((t) => {
-              const active = t.name === "explore";
-              return (
-                <span
-                  key={t.name}
-                  className={`${s.tabBarItem} ${active ? s.tabBarItemActive : ""}`}
-                >
-                  <TabIcon name={t.name} active={active} />
-                  <span className={s.tabBarLabel}>{t.label}</span>
-                </span>
-              );
-            })}
+            ).map((t) => (
+              <span
+                key={t.name}
+                className={`${s.tabBarItem} ${t.name === "explore" ? s.tabBarItemActive : ""}`}
+              >
+                <TabIcon name={t.name} />
+                <span className={s.tabBarLabel}>{t.label}</span>
+              </span>
+            ))}
           </div>
 
           <span className={s.homeIndicator} />
@@ -287,6 +309,9 @@ function AppPreview() {
           {/* 정적 화면 위에서 앱 흐름(카드 탭 → 플레이어 → 미니플레이어)을 반복하는 덧씌움 층.
               reduced-motion이면 아무것도 그리지 않아 위 정적 화면만 남는다 */}
           <HeroPhoneScene track={POPULAR[0]} />
+
+          {/* 다이내믹 아일랜드 — 어느 화면이 떠 있든 맨 위 층이다 */}
+          <span className={s.island} />
         </div>
       </div>
       </PhoneTilt>
@@ -327,8 +352,9 @@ export function Hero() {
           </p>
 
           <div className={s.actions}>
-            <a href={releaseMailto} className="btn btnPrimary">
-              출시 소식 받기
+            <a href={iosStoreUrl} className="btn btnPrimary" target="_blank" rel="noopener noreferrer">
+              <AppleLogo />
+              App Store에서 다운로드
             </a>
             <Link href={routes.features.path} className="btn btnGhost">
               어떻게 작동하나요
@@ -343,6 +369,9 @@ export function Hero() {
               </svg>
             </Link>
           </div>
+
+          {/* iOS만 먼저 나왔다 — 받기 버튼 바로 밑에서 Android 사용자가 헛걸음하지 않게 알린다 */}
+          <p className={s.platformNote}>Android는 곧 출시 예정이에요</p>
 
           <p className={s.note}>
             카카오·네이버·구글·애플 계정으로 시작해요 · 무료 요금제에도 매일 2편이 도착해요

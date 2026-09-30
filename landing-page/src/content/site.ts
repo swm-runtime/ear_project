@@ -62,7 +62,16 @@ export const site = {
   privacyEmail: "runtime364@gmail.com",
 } as const;
 
-/** 출시 알림 신청. 헤더·히어로·CTA가 모두 같은 동작을 하도록 한 곳에서 만든다. */
+/**
+ * App Store의 이어 앱 페이지 — 헤더·히어로·하단 CTA의 다운로드 버튼이 모두 여기로 간다.
+ *
+ * 앱이 쓰는 주소와 같은 값이다(`frontend/src/shared/lib/store-url.ts`의 `IOS_STORE_URL`,
+ * 앱 ID는 `frontend/eas.json`의 `ascAppId`). 국가 코드를 넣지 않아 방문자의 스토어로 열린다.
+ * Android는 아직 출시 전이라 링크를 두지 않고 "곧 출시 예정"으로만 알린다.
+ */
+export const iosStoreUrl = "https://apps.apple.com/app/id6807708636";
+
+/** 메일로 소식 받기(블로그 새 글 알림). 받는 주소와 제목을 한 곳에서 만든다. */
 export const releaseMailto = `mailto:${site.contactEmail}?subject=${encodeURIComponent(
   "이어 출시 소식 받고 싶어요",
 )}`;
@@ -164,6 +173,8 @@ export const sources = {
   /** 리드 아래 한 줄 — 출처 표기 원칙을 먼저 밝힌다(2026-09-18, 사용자 요청: 자료 활용에 대한 방어 태세) */
   note: "모든 활용 자료는 저작권을 확인한 후 출처를 남기고 있어요.",
   caption: "이런 자료를 담아 매일 팟캐스트를 만들어요.",
+  /** 캡션 아래 작은 한 줄 — 이름 나열이 제휴·보증으로 읽히지 않게(2026-09-18) */
+  disclaimer: "자료 제공처와의 제휴를 뜻하지 않습니다.",
   items: sourceItems,
   featured: featuredSources,
 } as const;

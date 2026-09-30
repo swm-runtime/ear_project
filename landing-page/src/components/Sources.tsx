@@ -212,6 +212,7 @@ export function Sources() {
               <LogoMark className={s.nodeLogo} />
             </span>
             <p className={s.caption}>{sources.caption}</p>
+            <p className={s.disclaimer}>{sources.disclaimer}</p>
           </div>
 
           <span className={s.tail} aria-hidden="true" />
