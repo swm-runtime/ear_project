@@ -362,19 +362,13 @@ export const PERSONAS: Persona[] = [
         likedTopicIds: second.topicIds,
         react: () => 'complete',
         check: (days) => [
-          /**
-           * `drip-scheduling.md` 4.2 ③·완료 조건("2편이 우선 적립된다")의 기대다. 현 코드는 시리즈 연속을
-           * 메타 축 항목 하나(가중치 0.1 — 전체의 약 3.5%)로만 밀어, 콜드스타트 사용자에게는 인기·신선도에
-           * 묻힌다(평가기 첫 실행 2026-09-30에서 발견 — 2편이 19위). 고칠지·명세를 고칠지는 팀 결정이라
-           * 그때까지 soft 로 둔다.
-           */
+          // 4.2-3 시리즈 연속 우선 선정(2026-09-30) — 평가기 첫 실행이 잡은 19위 문제를 고친 뒤 hard 로 올렸다
           ok(
             '시리즈 1편을 완청한 사용자는 첫날 정규 편성에 2편을 받는다',
             days[0].regular.some(
               (pick) => pick.contentId === second.content.id,
             ),
             '첫날 정규 편성에 다음 편이 없다',
-            'soft',
           ),
         ],
       };

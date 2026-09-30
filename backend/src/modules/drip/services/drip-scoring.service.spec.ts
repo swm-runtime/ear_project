@@ -506,6 +506,63 @@ describe('DripScoringService', () => {
   });
 
   describe('selectWithDiversity', () => {
+    it('시리즈 연속 편은 점수가 낮아도 다양성 선정에 앞서 먼저 뽑힌다 — 1편 완청 → 2편 우선 적립(4.2-3)', () => {
+      // given — 인기 편 두 개가 더 높은 점수인데, 2편(연속)은 19위쯤의 점수다
+      const scored = [
+        {
+          ...buildCandidate('pop1', { topicIds: [TOPIC_A] }),
+          score: 0.9,
+          isSeriesContinuation: false,
+          breakdown: EMPTY_BREAKDOWN,
+        },
+        {
+          ...buildCandidate('pop2', { topicIds: [TOPIC_B] }),
+          score: 0.85,
+          isSeriesContinuation: false,
+          breakdown: EMPTY_BREAKDOWN,
+        },
+        {
+          ...buildCandidate('ep2', { topicIds: [TOPIC_A] }),
+          score: 0.5,
+          isSeriesContinuation: true,
+          breakdown: EMPTY_BREAKDOWN,
+        },
+      ];
+
+      // when
+      const picks = service.selectWithDiversity(scored, 2);
+
+      // then — 연속 편이 1순위, 나머지 한 자리는 점수 순
+      expect(picks.map((pick) => pick.content.id)).toEqual(['ep2', 'pop1']);
+    });
+
+    it('시리즈 연속 편이 편수보다 많으면 점수 순으로 편수만큼만 먼저 뽑는다', () => {
+      const scored = [
+        {
+          ...buildCandidate('s-low', { topicIds: [TOPIC_A] }),
+          score: 0.4,
+          isSeriesContinuation: true,
+          breakdown: EMPTY_BREAKDOWN,
+        },
+        {
+          ...buildCandidate('s-high', { topicIds: [TOPIC_A] }),
+          score: 0.6,
+          isSeriesContinuation: true,
+          breakdown: EMPTY_BREAKDOWN,
+        },
+        {
+          ...buildCandidate('pop', { topicIds: [TOPIC_B] }),
+          score: 0.9,
+          isSeriesContinuation: false,
+          breakdown: EMPTY_BREAKDOWN,
+        },
+      ];
+
+      const picks = service.selectWithDiversity(scored, 1);
+
+      expect(picks.map((pick) => pick.content.id)).toEqual(['s-high']);
+    });
+
     it('주제·저자가 달라도 임베딩이 사실상 같은 두 편은 MMR 감점으로 함께 뽑히지 않는다', () => {
       // given — a1·a2는 내용이 같고(코사인 1) b1은 다르다. 이산 규칙으로는 셋 다 통과한다
       const base = { isSeriesContinuation: false, breakdown: EMPTY_BREAKDOWN };
