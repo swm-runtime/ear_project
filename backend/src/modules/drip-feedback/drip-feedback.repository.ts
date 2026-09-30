@@ -110,7 +110,10 @@ export class DripFeedbackRepository {
               coalesce(r.s1, 0) as s1, coalesce(r.s2, 0) as s2, coalesce(r.s3, 0) as s3,
               coalesce(r.s4, 0) as s4, coalesce(r.s5, 0) as s5
          from placed p
-         full outer join rated r on r.algorithm_version is not distinct from p.algorithm_version
+         -- NULL 버전(도입 전)끼리도 붙어야 한다. "is not distinct from" 은 FULL JOIN 조건으로 못 쓴다
+         -- (hash/merge 조인 불가 — e2e 실측 2026-09-30) → 빈 문자열로 맞춰 등호로 붙인다
+         full outer join rated r
+           on coalesce(r.algorithm_version, '') = coalesce(p.algorithm_version, '')
         order by coalesce(p.algorithm_version, r.algorithm_version) desc nulls last`,
     );
 
