@@ -8,9 +8,10 @@
 | 발행 날짜 | 2026-09-29 |
 | 시작 날짜 | 2026-09-29 |
 | 기한 | 2026-10-02 (Medium — 3일 안) |
-| 선행 | 없음(코드). **사람 손 2건**: ① 개발계 앱에서 테스트 계정 가입(`jhp99999998@gmail.com`) — 완료 2026-09-29 ② 개발계 시크릿 `ear/dev/api` 의 `PIPELINE_SSO_SECRET` 채우기 + AI 서버 파이프라인 웹 `env.prod` 에 `EAR_DEV_SSO_SECRET`(같은 값) 추가 후 웹 재배포 — **미완**(아래 처리 기록) |
+| 선행 | 없음(코드). 사람 손 2건(테스트 계정 가입 · 개발계 SSO 비밀/웹 env/관리자 승격) — 전부 완료 2026-09-30 |
 | Jira | [KAN-115](https://runtime364.atlassian.net/browse/KAN-115) (담당: 박준현) |
 | 중요도 | Medium — 배포 전 추천 평가(KAN-108) 의 실험 도구. 마감이 안 맞으면 등급을 내리지 말고 사유를 적는다 |
+| 상태 | **완료** — 2026-09-30 archive (반영 날짜 2026-09-30) |
 | 관련 | `tickets/backend/pending/pre-release-recommendation-evaluation.md`(KAN-108) — 이 콘솔이 그 평가의 수동 실험 면이다 · `changes/pending/admin-api-recommend-test.md`(문서 반영) |
 
 ## 요청
@@ -50,3 +51,12 @@ admin.earcast.co.kr 추천 검증 콘솔에
 1. `ear/dev/api` 시크릿에 `PIPELINE_SSO_SECRET=<openssl rand -hex 32>` 와 `RECOMMEND_TEST_EMAIL=jhp99999998@gmail.com` → 다음 dev 배포에서 `.env.prod` 에 반영
 2. AI 서버 `/opt/ear/pipeline/deploy/env.prod`(파이프라인 웹) 에 `EAR_DEV_SSO_SECRET=<같은 값>` 추가 → 웹 재배포(dev 머지 시 자동)
 3. 개발계 DB 에 팀원 이메일의 `role=admin` 계정이 있어야 SSO 가 통과한다(운영과 별개 DB). 없으면 `UPDATE users SET role='admin' WHERE email='…'`(runbook 3.3)
+
+### 2026-09-30 — 완료 · archive (반영 날짜 2026-09-30)
+
+- PR #984 dev 머지 → 개발계 API·파이프라인 웹 자동 배포 성공
+- 사람 손 선행 완료: `ear/dev/api` 에 `PIPELINE_SSO_SECRET`(신규 생성)·`RECOMMEND_TEST_EMAIL=jhp99999998@gmail.com` → `.env.prod` 반영 확인 · AI 서버 파이프라인 웹 `env.prod` 에 `EAR_DEV_SSO_SECRET` 추가 + `web` 재기동 · 개발계 DB 에 `runtime364@gmail.com` 가입 후 `role=admin` 승격(SSM `send-command` — 개발계 EC2 는 pem 없이 SSM 으로 명령 가능, 2026-09-30 확인)
+- 검증(관리자 토큰으로 개발계 API 직접 호출): SSO 200 · `account` 200(관심 3·라이브러리 6) · `feed` 200(6 섹션) · `drip/preview` 200(정규 2편 선정) · `actions save` 200(이미 담긴 콘텐츠 → "변화 없음", 앱과 같은 판정). 콘솔 `/drip-check/test` 동작 PM 확인 2026-09-30
+- 알아둘 것: 테스트 계정이 light 티어라 오늘 재생 한도 2 — [재생]/[완청]이 그 이상이면 앱과 같이 `PLAY_LIMIT_EXCEEDED`. [초기화]가 재생 기록도 지워 한도가 풀린다
+- 문서 반영은 `changes/pending/admin-api-recommend-test.md`(통합 시). Jira KAN-115 완료 2026-09-30
+
