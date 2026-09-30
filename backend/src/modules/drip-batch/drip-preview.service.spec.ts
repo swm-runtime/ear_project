@@ -98,6 +98,7 @@ function buildPlan(): UserDripPlan {
     },
     difficultyAffinity: null,
     completedEpisodesBySeries: new Map(),
+    autoExpand: null,
     regular: {
       poolSize: 2,
       gatedOut: [],
@@ -191,8 +192,35 @@ describe('DripPreviewService', () => {
       expect.objectContaining({ id: USER_ID }),
       NOW,
       expect.any(Map),
-      { persistPreference: false, stopAtSkip: false },
+      {
+        persistPreference: false,
+        persistAutoExpand: false,
+        stopAtSkip: false,
+      },
     );
+  });
+
+  it('자동 확장 판정을 주제 이름과 함께 싣는다 — 미리보기는 저장하지 않으므로 관심 주제 목록과 따로 보인다', async () => {
+    orchestrator.planForUser.mockResolvedValue({
+      ...buildPlan(),
+      autoExpand: {
+        action: 'add',
+        reason: 'slot_free',
+        addTopicId: TOPIC_B,
+        removeTopicId: null,
+        candidates: [{ topicId: TOPIC_B, completes: 2, weight: 1.8 }],
+      },
+    });
+
+    const view = await service.preview('tester@example.com', NOW);
+
+    expect(view.autoExpand).toMatchObject({
+      action: 'add',
+      reason: 'slot_free',
+      addTopic: { topicId: TOPIC_B },
+      removeTopic: null,
+      candidates: [{ topicId: TOPIC_B, completes: 2, weight: 1.8 }],
+    });
   });
 
   it('최종 편성분에 순서를 붙이고, 주제·신호 콘텐츠에 이름을 붙인다', async () => {

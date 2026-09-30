@@ -136,6 +136,16 @@ export class EnvironmentVariables {
   RECOMMEND_TEST_EMAIL?: string;
 
   /**
+   * 행동 기반 자동 확장(`drip-scheduling.md` 4.5 — 2026-09-30)의 서버 스위치. `true`/`false`.
+   * **비우면 운영(`SENTRY_ENVIRONMENT=production`)에서는 꺼지고 그 밖에서는 켜진다** — 자동 슬롯이 붙은
+   * 사용자의 관심사 화면은 "자동 추가됨" 배지·`N/3` 집계 변경·토글 노출(FE)이 나가야 말이 되므로, 운영은
+   * 앱이 준비된 뒤 명시적으로 켠다. 사용자별 토글(`user_settings.is_auto_expand_enabled`)과는 별개다.
+   */
+  @IsOptional()
+  @IsIn(['true', 'false', ''])
+  AUTO_EXPAND_ENABLED?: string;
+
+  /**
    * 일일 지표 Slack 보고(KAN-107 2단계)의 GA4 자격 — 둘 다 **선택**이고 하나라도 비면
    * 보고가 꺼진다(로컬·테스트 기본). 속성 ID 는 GA4 관리 화면의 숫자값이고, 서비스 계정
    * JSON 은 base64 로 둔다(`CLOUDFRONT_PRIVATE_KEY_BASE64` 와 같은 방식). 그 서비스 계정을

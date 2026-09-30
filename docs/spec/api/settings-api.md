@@ -139,7 +139,7 @@
 **`settings`** — `user_settings` 원값(`domain.md` 3.5).
 
 - `default_playback_rate`: `0.8 | 1.0 | 1.2 | 1.5 | 2.0`
-- `is_auto_expand_enabled`: 주제 자동 확장(FR-06, **P1**). MVP에서는 값만 저장되고 배치는 돌지 않는다(`interest-management.md` 미결). **P1 미구현 상태에서는 화면이 섹션 자체를 숨긴다** — 값은 내려주되 그리지 않는다.
+- `is_auto_expand_enabled`: 주제 자동 확장(FR-06). **행동 기반 자동 확장이 이 값을 읽는다**(2026-09-30 — `drip-scheduling.md` 4.5-1. 운영 서버는 앱의 토글 노출 전까지 스위치로 꺼 둔다). ~~MVP에서는 값만 저장되고 배치는 돌지 않는다(`interest-management.md` 미결).~~ **P1 미구현 상태에서는 화면이 섹션 자체를 숨긴다** — 값은 내려주되 그리지 않는다.
 - `is_drip_notification_enabled`: **이어 PICK 알림** 앱 토글(FR-19, **P1**). 사용자 노출 명칭은 **"이어 PICK 알림"**(PICK 전부 대문자)이다 — "드립"은 내부 용어라 화면에 노출하지 않는다(합의 2026-08-06, `settings.md` 4.1). **컬럼명·필드명은 유지한다**(`domain.md` 3.5 — 화면 이름만 바뀐 것이지 데이터 의미가 바뀐 것이 아니다).
 - 행이 없는 사용자(설정을 한 번도 바꾼 적 없음)는 **기본값으로 채워 내려준다.** 행 생성은 첫 PATCH 때 한다 — 조회가 쓰기를 유발하지 않는다.
 - **마케팅 수신 동의는 이 오브젝트에 없다.** 저장소가 `user_settings`가 아니기 때문이다(아래 `marketing_consent`).

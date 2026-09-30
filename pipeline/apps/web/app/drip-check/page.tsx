@@ -1,6 +1,6 @@
 import { PageHeader } from "@/components/ui";
 import { DripCheck } from "@/components/drip-check";
-import { EarGate, EarSession } from "../publish/ear-connect";
+import { EarGate, EarSession, EarSnapshotDownload } from "../publish/ear-connect";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +19,7 @@ export default function DripCheckPage() {
         title="편성 미리보기 (실배포)"
         breadcrumb={["추천 검증", "편성 미리보기 (실배포)"]}
         desc="운영 서버의 실제 사용자·실제 신호로 계산한다. 폰에서 완청·담기·관심 주제 변경을 한 뒤 [새로고침]을 누르면 지금 신호로 다시 계산한 점수와 편성분이 보인다. 읽기 전용 — 취향 캐시·라이브러리·배치 기록 어느 것도 바꾸지 않는다. 버튼으로 행동을 넣어 보며 실험하려면 [추천 테스트](개발계) 탭."
-        actions={<EarSession />}
+        actions={<><EarSnapshotDownload /><EarSession /></>}
       />
       <EarGate>
         <DripCheck defaultEmail={DEFAULT_PREVIEW_EMAIL} />
