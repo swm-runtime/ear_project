@@ -109,18 +109,19 @@ const TOPICS = [
   { name: "커뮤니케이션", photo: "/preview/topic-communication.webp" },
 ];
 
-/* 피드에 그릴 콘텐츠. 제목·길이는 실제 시드 데이터에서 가져왔고, 섹션 제목과 순서는
-   탐색 mock의 것이다(frontend/src/features/explore/api/explore.mock.ts — "지금 인기"가 맨 앞,
-   그다음 "관심사에 맞는 추천"). 대표 카드는 주제 해시태그(최대 2개) + 길이를, 타일은 길이만 적는다. */
+/* 피드에 그릴 콘텐츠 — **운영에 발행된 실제 콘텐츠**다(2026-09-30 — 종전 시드 제목·picsum 사진 대체).
+   제목·길이·주제는 운영 `contents`의 값 그대로이고, 커버는 그 콘텐츠의 실제 썸네일을 받아 구운 것이다
+   (scripts/preview-art.mjs의 COVERS와 **같은 순서** — 어긋나면 남의 커버가 붙는다).
+   섹션 제목과 순서는 앱 탐색 화면의 것이다. 대표 카드는 주제 해시태그(최대 2개) + 길이를, 타일은 길이만 적는다. */
 const POPULAR = [
-  { title: "AI를 도구로 쓰는 사람들의 습관", topics: ["데이터·AI", "생산성"], min: 13, cover: "/preview/cover-1.webp" },
-  { title: "설득은 논리가 아니라 순서다", topics: ["커뮤니케이션"], min: 12, cover: "/preview/cover-2.webp" },
+  { title: "뱅크런은 원인이 아니라 결과다", topics: ["경제 상식", "경제"], min: 17, cover: "/preview/cover-1.webp" },
+  { title: "일이 잘 안될 때 더 집중하면 안 되는 이유", topics: ["뇌과학·인지", "습관·동기"], min: 14, cover: "/preview/cover-2.webp" },
 ];
 
 const RECOMMENDED = [
-  { title: "주니어가 3년 차에 가장 많이 하는 착각", min: 14, cover: "/preview/cover-3.webp" },
-  { title: "멀티태스킹은 왜 항상 실패하는가", min: 10, cover: "/preview/cover-4.webp" },
-  { title: "위임이 어려운 진짜 이유", min: 11, cover: "/preview/cover-5.webp" },
+  { title: "월급이 끊겨도 흔들리지 않는 구조 — 비상금·필수 계좌·현금흐름의 설계", min: 19, cover: "/preview/cover-3.webp" },
+  { title: "말이 막혀도 생각은 돌아간다 — 언어와 사고는 다른 회로다", min: 17, cover: "/preview/cover-4.webp" },
+  { title: "알고도 몸이 움직이지 않는 이유", min: 17, cover: "/preview/cover-5.webp" },
 ];
 
 /**
