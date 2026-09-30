@@ -71,6 +71,7 @@ function buildDefaultSettings() {
     isAutoExpandEnabled: true,
     isDripNotificationEnabled: true,
     dripFeedbackMutedUntil: null,
+    dripFeedbackLastPromptedDate: null,
   };
 }
 
@@ -404,6 +405,7 @@ describe('SettingsOrchestrator', () => {
         isAutoExpandEnabled: true,
         isDripNotificationEnabled: true,
         dripFeedbackMutedUntil: null,
+        dripFeedbackLastPromptedDate: null,
       });
     });
   });
@@ -461,6 +463,7 @@ describe('SettingsOrchestrator', () => {
         ...buildDefaultSettings(),
         isDripNotificationEnabled: false,
         dripFeedbackMutedUntil: null,
+        dripFeedbackLastPromptedDate: null,
       };
       userSettingService.updateSettings.mockResolvedValue(updated);
 

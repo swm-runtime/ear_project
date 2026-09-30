@@ -27,7 +27,8 @@
 |---|---|---|---|
 | 1 | GET | `/users/me/drip-feedback/prompt` | 팝업 노출 판정 + 묻는 편성분 (4.1) |
 | 2 | POST | `/users/me/drip-feedback` | 별점 저장 (4.2) |
-| 3 | POST | `/users/me/drip-feedback/mute` | 이번 주 그만 보기 (4.3) |
+| 3 | POST | `/users/me/drip-feedback/dismiss` | 팝업 닫기 — 그 편성분은 다시 묻지 않는다 (4.3) |
+| 4 | POST | `/users/me/drip-feedback/mute` | 이번 주 그만 보기 (4.4) |
 
 ## 4. 엔드포인트 상세
 
@@ -51,9 +52,11 @@
 | 필드 | 의미 |
 |---|---|
 | `show` | 팝업을 낼지. **클라이언트는 이 값만 본다** |
-| `placed_date` | 어제의 서비스 날짜 라벨(팝업 제목 근거) |
+| `placed_date` | 묻는 편성분의 서비스 날짜 라벨(보통 어제). **닫을 때 `dismiss`에 그대로 되돌린다.** 물을 편성분이 없으면 null |
 | `muted_until` | 그만 보기 중이면 종료 서비스 날짜, 아니면 null. `show=false`의 사유 표시용 |
-| `items[]` | 어제 정규 편성분 중 미평가분, 최대 2편. `show=false`면 빈 배열. `library_status`(`unplayed` \| `in_progress` \| `completed`)는 보조 표시용이지 판정이 아니다 |
+| `items[]` | 가장 최근 정규 편성분 중 미평가분, 최대 2편 — **한 팝업에 함께**. `show=false`면 빈 배열. `library_status`(`unplayed` \| `in_progress` \| `completed`)는 보조 표시용이지 판정이 아니다 |
+
+- 한 편성분은 **한 번만** 묻는다(`drip-feedback.md` 4.1). 별점을 보냈거나 닫은 뒤 새 편성이 없으면 `show=false`다.
 
 ### 4.2 `POST /users/me/drip-feedback`
 
@@ -76,7 +79,15 @@
 | `DRIP_FEEDBACK_NOT_RATEABLE` | 400 | 내 편성분이 아니거나 편성 뒤 7일이 지난 콘텐츠가 하나라도 있음 — **전부 거부** |
 | `VALIDATION_FAILED` | 400 | 형식 위반(별 범위·건수·uuid) |
 
-### 4.3 `POST /users/me/drip-feedback/mute`
+### 4.3 `POST /users/me/drip-feedback/dismiss`
+
+```json
+{ "placed_date": "2026-09-29" }
+```
+
+4.1 응답의 `placed_date`를 그대로 보낸다. **Response 204.** 그 편성분은 다시 묻지 않는다(절대값 저장 — 재전송 무해, 더 최근 편성분을 이미 물었으면 뒤로 돌리지 않는다). `VALIDATION_FAILED`(400) — `YYYY-MM-DD`가 아님.
+
+### 4.4 `POST /users/me/drip-feedback/mute`
 
 본문 없음. **Response 200** `{ "muted_until": "2026-10-05" }` — 다음 서비스 주 월요일. 그 라벨의 서비스 날짜부터 다시 묻는다.
 
@@ -89,4 +100,5 @@
 ## 6. 클라이언트 처리 메모
 
 - 팝업 표시는 `show`로만 결정한다. 어제·이번 주를 기기 시각으로 계산하지 않는다(CLAUDE.md 공통 원칙).
+- **닫기·[보내기]·[이번 주 그만 보기] 셋 중 하나는 반드시 서버에 알린다** — 닫기는 `dismiss`. 알리지 않으면 다음 진입에 같은 편성분을 또 묻는다.
 - 별점 전송·그만 보기는 오프라인 큐 대상으로 둘 수 있다(`common-error-handling.md` 4.5) — 접수 기간 7일 안이면 늦게 도착해도 저장된다. 기간이 지나면 `DRIP_FEEDBACK_NOT_RATEABLE`이 오며 **큐에서 버린다**(재시도 대상이 아니다).

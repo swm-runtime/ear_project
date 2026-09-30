@@ -18,6 +18,7 @@ import {
 } from './drip-feedback.constant';
 import { DripFeedbackRepository } from './drip-feedback.repository';
 import {
+  DismissDripFeedbackCommand,
   DripFeedbackPromptView,
   DripFeedbackVersionSummary,
   RateDripFeedbackCommand,
@@ -28,8 +29,8 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 /**
  * 추천 온라인 평가(`drip-feedback.md`, KAN-116) — "어제 추천 어떠셨나요?"의 서버 몫.
  *
- * 세 판정 전부 서버가 한다(클라이언트는 표시만): ① 팝업을 낼지(어제 편성분·미평가·그만 보기) ② 별점을 받을
- * 자격(내 편성분인지·접수 기간 안인지) ③ "이번 주"의 경계(서비스 주 — 월 04:00 KST).
+ * 세 판정 전부 서버가 한다(클라이언트는 표시만): ① 팝업을 낼지(가장 최근 편성분·아직 묻지 않음·미평가·그만 보기)
+ * ② 별점을 받을 자격(내 편성분인지·접수 기간 안인지) ③ "이번 주"의 경계(서비스 주 — 월 04:00 KST).
  * 별점은 **추천 입력이 아니다** — 어떤 스코어링도 이 표를 읽지 않는다.
  */
 @Injectable()
@@ -42,19 +43,51 @@ export class DripFeedbackService {
     private readonly userSettingService: UserSettingService,
   ) {}
 
-  /** 4.1 — 어제(직전 서비스 날짜)의 정규 편성분 중 아직 평가하지 않은 것. 그만 보기 중이면 묻지 않는다 */
+  /**
+   * 4.1 — **가장 최근 정규 편성분에 대해 한 번만** 묻는다(개정 2026-09-30).
+   *
+   * 오늘(서비스 날짜) 전에 적립된 마지막 드립 편성분을 찾아, 그 편성분을 아직 묻지 않았을 때만 `show=true`다.
+   * 별점을 보냈거나 팝업을 닫으면 그 편성분 날짜가 `drip_feedback_last_prompted_date`에 남고, 그 뒤 **새 편성이
+   * 없으면 다시 묻지 않는다** — 며칠 만에 열어도 쌓인 날짜마다 묻지 않고 마지막 편성분 하나만 묻는다.
+   * 오늘 아침 편성분은 아직 듣기 전이라 내일 묻는다.
+   */
   async getPrompt(userId: string, now: Date): Promise<DripFeedbackPromptView> {
-    const yesterday = new Date(now.getTime() - MS_PER_DAY);
-    const placedDate = toServiceDate(yesterday);
     const settings = await this.userSettingService.getSettings(userId);
-    const mutedUntil = settings.dripFeedbackMutedUntil;
+    const today = toServiceDate(now);
+    const hidden = (placedDate: string | null, mutedUntil: string | null) => ({
+      show: false,
+      items: [],
+      placedDate,
+      mutedUntil,
+    });
 
     // 라벨 비교 — 서비스 날짜 라벨은 `YYYY-MM-DD`라 문자열 순서가 날짜 순서다
-    if (mutedUntil !== null && toServiceDate(now) < mutedUntil) {
-      return { show: false, items: [], placedDate, mutedUntil };
+    if (
+      settings.dripFeedbackMutedUntil !== null &&
+      today < settings.dripFeedbackMutedUntil
+    ) {
+      return hidden(null, settings.dripFeedbackMutedUntil);
     }
 
-    const { start, end } = toServiceDayRange(yesterday);
+    const latest = await this.libraryService.findLatestDripPlacedBefore(
+      userId,
+      toServiceDayRange(now).start,
+    );
+
+    if (!latest) {
+      return hidden(null, null);
+    }
+
+    const placedDate = toServiceDate(latest.addedAt);
+
+    if (
+      settings.dripFeedbackLastPromptedDate !== null &&
+      placedDate <= settings.dripFeedbackLastPromptedDate
+    ) {
+      return hidden(placedDate, null);
+    }
+
+    const { start, end } = toServiceDayRange(latest.addedAt);
     const placed = (
       await this.libraryService.findPlacedBetween(userId, start, end)
     ).filter((item) => item.source === LibraryItemSource.DRIP);
@@ -74,11 +107,16 @@ export class DripFeedbackService {
         title: item.content.title,
         thumbnailUrl: item.content.thumbnailUrl,
         source: item.source,
-        placedDate: toServiceDate(item.addedAt),
+        placedDate,
         libraryStatus: item.status,
       }));
 
     return { show: items.length > 0, items, placedDate, mutedUntil: null };
+  }
+
+  /** 4.1 — 팝업을 닫음. 그 편성분은 다시 묻지 않는다(새 편성이 생기면 그것을 묻는다) */
+  async dismiss(command: DismissDripFeedbackCommand): Promise<void> {
+    await this.markPrompted(command.userId, command.placedDate);
   }
 
   /**
@@ -128,6 +166,35 @@ export class DripFeedbackService {
       user_id: command.userId,
       count: command.ratings.length,
       stars: command.ratings.map((rating) => rating.stars),
+    });
+
+    // 평가한 편성분 중 가장 최근 날짜까지 "물었다"로 — 같은 편성분을 다시 묻지 않는다
+    const latestPlacedDate = [...placedByContentId.values()]
+      .map((item) => toServiceDate(item.addedAt))
+      .sort()
+      .at(-1);
+
+    if (latestPlacedDate) {
+      await this.markPrompted(command.userId, latestPlacedDate);
+    }
+  }
+
+  /** 뒤로 가지 않는다 — 더 최근 편성분을 이미 물었으면 그대로 둔다 */
+  private async markPrompted(
+    userId: string,
+    placedDate: string,
+  ): Promise<void> {
+    const settings = await this.userSettingService.getSettings(userId);
+
+    if (
+      settings.dripFeedbackLastPromptedDate !== null &&
+      settings.dripFeedbackLastPromptedDate >= placedDate
+    ) {
+      return;
+    }
+
+    await this.userSettingService.updateSettings(userId, {
+      dripFeedbackLastPromptedDate: placedDate,
     });
   }
 

@@ -108,6 +108,8 @@ export interface UserSettingView {
   isDripNotificationEnabled: boolean;
   /** 추천 별점 팝업 억제 종료 서비스 날짜(`drip-feedback.md` 4.3). 설정 화면 응답에는 싣지 않는다 */
   dripFeedbackMutedUntil: string | null;
+  /** 마지막으로 별점을 물은 편성분의 서비스 날짜(`drip-feedback.md` 4.1). 설정 화면 응답에는 싣지 않는다 */
+  dripFeedbackLastPromptedDate: string | null;
 }
 
 /** 부분 갱신 명령. **보내지 않은 필드는 건드리지 않는다**(`settings-api.md` 4.2) */
@@ -116,4 +118,5 @@ export interface UpdateUserSettingCommand {
   isAutoExpandEnabled?: boolean;
   isDripNotificationEnabled?: boolean;
   dripFeedbackMutedUntil?: string | null;
+  dripFeedbackLastPromptedDate?: string | null;
 }

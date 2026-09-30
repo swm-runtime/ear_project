@@ -59,6 +59,10 @@ export class UserSettingService {
     if (command.dripFeedbackMutedUntil !== undefined) {
       changes.dripFeedbackMutedUntil = command.dripFeedbackMutedUntil;
     }
+    if (command.dripFeedbackLastPromptedDate !== undefined) {
+      changes.dripFeedbackLastPromptedDate =
+        command.dripFeedbackLastPromptedDate;
+    }
 
     const saved = await this.userSettingRepository.upsert(
       userId,
@@ -97,6 +101,7 @@ function toView(setting: UserSetting): UserSettingView {
     isAutoExpandEnabled: setting.isAutoExpandEnabled,
     isDripNotificationEnabled: setting.isDripNotificationEnabled,
     dripFeedbackMutedUntil: setting.dripFeedbackMutedUntil,
+    dripFeedbackLastPromptedDate: setting.dripFeedbackLastPromptedDate,
   };
 }
 
@@ -107,5 +112,6 @@ function buildDefaults(): UserSettingView {
     isAutoExpandEnabled: true,
     isDripNotificationEnabled: true,
     dripFeedbackMutedUntil: null,
+    dripFeedbackLastPromptedDate: null,
   };
 }

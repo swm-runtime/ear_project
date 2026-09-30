@@ -77,6 +77,17 @@ export class UserSetting extends BaseEntity {
   dripFeedbackMutedUntil: string | null;
 
   /**
+   * 마지막으로 별점을 물은 편성분의 서비스 날짜(`drip-feedback.md` 4.1 — 개정 2026-09-30). 별점을 보냈거나 팝업을
+   * 닫으면 그 편성분 날짜로 갱신되고, 이보다 **새 편성이 없으면 다시 묻지 않는다**. NULL = 아직 물은 적 없음
+   */
+  @Column({
+    name: 'drip_feedback_last_prompted_date',
+    type: 'date',
+    nullable: true,
+  })
+  dripFeedbackLastPromptedDate: string | null;
+
+  /**
    * 이어 PICK 알림 앱 토글(FR-19, P1).
    *
    * **컬럼명을 바꾸지 않는다.** 사용자 노출 명칭이 "이어 PICK 알림"으로 정해진 것은
