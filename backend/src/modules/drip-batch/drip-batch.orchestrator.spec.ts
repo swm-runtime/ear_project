@@ -8,13 +8,18 @@ import { DripPlacementService } from '@/modules/drip/services/drip-placement.ser
 import { DripScoringService } from '@/modules/drip/services/drip-scoring.service';
 import { PreferenceVectorService } from '@/modules/drip/services/preference-vector.service';
 import { DripBatchRun } from '@/modules/drip/entities/drip-batch-run.entity';
+import { UserInterest } from '@/modules/interest/entities/user-interest.entity';
+import { UserInterestSource } from '@/modules/interest/interest.enum';
+import { TopicService } from '@/modules/interest/services/topic.service';
 import { UserInterestService } from '@/modules/interest/services/user-interest.service';
 import { LibraryItemSource } from '@/modules/library/library.enum';
 import { LibraryService } from '@/modules/library/library.service';
 import { DripArrivalNotificationService } from '@/modules/notification/services/drip-arrival-notification.service';
+import { UserSignalAction } from '@/modules/playback/playback.enum';
 import { PlaybackService } from '@/modules/playback/services/playback.service';
 import { PlanService } from '@/modules/subscription/services/plan.service';
 import { User } from '@/modules/user/entities/user.entity';
+import { UserSettingService } from '@/modules/user/services/user-setting.service';
 import { UserService } from '@/modules/user/services/user.service';
 import { UserTier } from '@/modules/user/user.enum';
 
@@ -27,6 +32,14 @@ const TOPIC_B = 'bbbbbbbb-1111-4111-8111-111111111111';
 
 function buildUser(id: string = USER_ID): User {
   return { id, tier: UserTier.LIGHT } as User;
+}
+
+function buildInterest(
+  topicId: string,
+  source: UserInterestSource = UserInterestSource.ONBOARDING,
+  updatedAt: Date = new Date('2026-08-01T00:00:00.000Z'),
+): UserInterest {
+  return { topicId, source, isActive: true, updatedAt } as UserInterest;
 }
 
 function buildContent(id: string): Content {
@@ -59,6 +72,8 @@ describe('DripBatchOrchestrator', () => {
   let dripExclusionService: jest.Mocked<DripExclusionService>;
   let dripBatchRunService: jest.Mocked<DripBatchRunService>;
   let dripArrivalNotificationService: jest.Mocked<DripArrivalNotificationService>;
+  let topicService: jest.Mocked<TopicService>;
+  let userSettingService: jest.Mocked<UserSettingService>;
   let run: DripBatchRun;
 
   // 정규 후보 2편(주제 A·B) + 탐험 후보 1편(주제 B — 관심 밖)
@@ -76,9 +91,33 @@ describe('DripBatchOrchestrator', () => {
     } as unknown as jest.Mocked<UserService>;
 
     userInterestService = {
-      findActiveTopicIds: jest.fn().mockResolvedValue([TOPIC_A]),
+      findAllActive: jest.fn().mockResolvedValue([buildInterest(TOPIC_A)]),
       findUserRemovedTopicIds: jest.fn().mockResolvedValue([]),
+      applyAutoExpand: jest
+        .fn()
+        .mockImplementation(
+          (
+            _userId: string,
+            change: { addTopicId: string | null; removeTopicId: string | null },
+          ) =>
+            Promise.resolve({
+              addedTopicId: change.addTopicId,
+              removedTopicId: change.removeTopicId,
+            }),
+        ),
     } as unknown as jest.Mocked<UserInterestService>;
+
+    topicService = {
+      findAllByIds: jest
+        .fn()
+        .mockImplementation((ids: string[]) =>
+          Promise.resolve(ids.map((id) => ({ id, isVisible: true }))),
+        ),
+    } as unknown as jest.Mocked<TopicService>;
+
+    userSettingService = {
+      getSettings: jest.fn().mockResolvedValue({ isAutoExpandEnabled: true }),
+    } as unknown as jest.Mocked<UserSettingService>;
 
     planService = {
       getDailyDripCount: jest.fn().mockResolvedValue(2),
@@ -176,6 +215,9 @@ describe('DripBatchOrchestrator', () => {
       dripExclusionService,
       dripBatchRunService,
       dripArrivalNotificationService,
+      topicService,
+      userSettingService,
+      { get: jest.fn().mockReturnValue(undefined) } as never,
     );
   });
 
@@ -189,7 +231,7 @@ describe('DripBatchOrchestrator', () => {
   });
 
   it('관심 주제가 0개인 사용자는 편성 없이 건너뛴다', async () => {
-    userInterestService.findActiveTopicIds.mockResolvedValue([]);
+    userInterestService.findAllActive.mockResolvedValue([]);
 
     await orchestrator.run(NOW);
 
@@ -323,11 +365,208 @@ describe('DripBatchOrchestrator', () => {
     );
   });
 
+  describe('행동 기반 자동 확장 (drip-scheduling 4.5)', () => {
+    const DAY = 24 * 60 * 60 * 1000;
+
+    /** 관심 밖 주제(TOPIC_B)의 서로 다른 콘텐츠 두 편을 최근에 완청한 사용자 */
+    function givenOutsideInterestListener(): void {
+      playbackService.findRecentSignals.mockResolvedValue([
+        {
+          contentId: 'x1',
+          action: UserSignalAction.COMPLETE,
+          createdAt: new Date(NOW.getTime() - DAY),
+        },
+        {
+          contentId: 'x2',
+          action: UserSignalAction.COMPLETE,
+          createdAt: new Date(NOW.getTime() - 3 * DAY),
+        },
+      ]);
+      contentService.findAllByIds.mockResolvedValue([
+        buildContent('x1'),
+        buildContent('x2'),
+      ]);
+      contentService.findTopicViews.mockImplementation((contentIds: string[]) =>
+        Promise.resolve(
+          contentIds.map((contentId) => ({
+            contentId,
+            topicId: contentId === 'r1' ? TOPIC_A : TOPIC_B,
+            name: 'topic',
+          })),
+        ),
+      );
+      const weights = {
+        topicWeights: { [TOPIC_B]: 1.8 },
+        authorWeights: {},
+        keywordWeights: {},
+        formatWeights: {},
+        durationPref: null,
+        tasteEmbedding: null,
+        signalCount: 2,
+      };
+      preferenceVectorService.rebuild.mockResolvedValue(weights);
+      preferenceVectorService.compute.mockReturnValue(weights);
+    }
+
+    it('관심 밖 주제를 2편 완청한 사용자는 배치에서 그 주제가 자동 슬롯으로 붙고, 오늘 정규 후보도 그 주제를 포함해 조회된다', async () => {
+      // given
+      givenOutsideInterestListener();
+
+      // when
+      await orchestrator.run(NOW);
+
+      // then
+      expect(userInterestService.applyAutoExpand).toHaveBeenCalledWith(
+        USER_ID,
+        { addTopicId: TOPIC_B, removeTopicId: null },
+        NOW,
+      );
+      const regularQuery = contentService.findCandidates.mock.calls
+        .map(([query]) => query)
+        .find((query) => query.includeTopicIds);
+      expect(regularQuery?.includeTopicIds).toEqual([TOPIC_A, TOPIC_B]);
+    });
+
+    it('미리보기는 저장하지 않고 판정만 싣되, 편성은 바뀐 관심 주제로 계산한다', async () => {
+      givenOutsideInterestListener();
+
+      const plan = await orchestrator.planForUser(buildUser(), NOW, new Map(), {
+        persistPreference: false,
+        persistAutoExpand: false,
+        stopAtSkip: false,
+      });
+
+      expect(userInterestService.applyAutoExpand).not.toHaveBeenCalled();
+      expect(plan.autoExpand).toMatchObject({
+        action: 'add',
+        reason: 'slot_free',
+        addTopicId: TOPIC_B,
+      });
+      expect(plan.activeTopicIds).toEqual([TOPIC_A, TOPIC_B]);
+    });
+
+    it('자동 확장을 끈 사용자는 넣지도 빼지도 않는다', async () => {
+      givenOutsideInterestListener();
+      userSettingService.getSettings.mockResolvedValue({
+        isAutoExpandEnabled: false,
+      } as never);
+
+      const plan = await orchestrator.planForUser(buildUser(), NOW, new Map(), {
+        persistPreference: true,
+        persistAutoExpand: true,
+        stopAtSkip: false,
+      });
+
+      expect(plan.autoExpand).toMatchObject({
+        action: 'none',
+        reason: 'disabled',
+      });
+      expect(userInterestService.applyAutoExpand).not.toHaveBeenCalled();
+      expect(plan.activeTopicIds).toEqual([TOPIC_A]);
+    });
+
+    it('서버 스위치가 꺼져 있으면(운영 기본) 후보는 싣되 넣지 않는다 — 앱이 준비되기 전에 관심 주제가 바뀌지 않는다', async () => {
+      givenOutsideInterestListener();
+      const production = new DripBatchOrchestrator(
+        userService,
+        userInterestService,
+        planService,
+        contentService,
+        contentStatService,
+        libraryService,
+        playbackService,
+        preferenceVectorService,
+        new DripScoringService(),
+        dripPlacementService,
+        dripExclusionService,
+        dripBatchRunService,
+        dripArrivalNotificationService,
+        topicService,
+        userSettingService,
+        {
+          get: jest.fn((key: string) =>
+            key === 'SENTRY_ENVIRONMENT' ? 'production' : undefined,
+          ),
+        } as never,
+      );
+
+      const plan = await production.planForUser(buildUser(), NOW, new Map(), {
+        persistPreference: true,
+        persistAutoExpand: true,
+        stopAtSkip: false,
+      });
+
+      expect(plan.autoExpand).toMatchObject({
+        action: 'none',
+        reason: 'feature_off',
+      });
+      expect(plan.autoExpand?.candidates).toHaveLength(1);
+      expect(userInterestService.applyAutoExpand).not.toHaveBeenCalled();
+      expect(userSettingService.getSettings).not.toHaveBeenCalled();
+    });
+
+    it('후보 주제가 숨겨져 있으면 넣지 않는다 — 숨김 주제는 관심사 조회에서 걸러져 유령 행이 된다', async () => {
+      givenOutsideInterestListener();
+      topicService.findAllByIds.mockResolvedValue([
+        { id: TOPIC_B, isVisible: false },
+      ] as never);
+
+      const plan = await orchestrator.planForUser(buildUser(), NOW, new Map(), {
+        persistPreference: true,
+        persistAutoExpand: true,
+        stopAtSkip: false,
+      });
+
+      expect(plan.autoExpand?.action).toBe('none');
+      expect(userInterestService.applyAutoExpand).not.toHaveBeenCalled();
+    });
+
+    it('후보도 자동 슬롯도 없는 사용자에게는 주제·설정 조회를 하지 않는다 — 배치의 추가 쿼리가 0이다', async () => {
+      await orchestrator.run(NOW);
+
+      expect(topicService.findAllByIds).not.toHaveBeenCalled();
+      expect(userSettingService.getSettings).not.toHaveBeenCalled();
+      expect(userInterestService.applyAutoExpand).not.toHaveBeenCalled();
+    });
+
+    it('저장 시점에 실제로 반영되지 않은 추가(사용자가 그 사이 직접 해제)는 편성 주제에 넣지 않는다', async () => {
+      givenOutsideInterestListener();
+      userInterestService.applyAutoExpand.mockResolvedValue({
+        addedTopicId: null,
+        removedTopicId: null,
+      });
+
+      const plan = await orchestrator.planForUser(buildUser(), NOW, new Map(), {
+        persistPreference: true,
+        persistAutoExpand: true,
+        stopAtSkip: false,
+      });
+
+      expect(plan.activeTopicIds).toEqual([TOPIC_A]);
+    });
+
+    it('refreshDerivedState — 테스트 콘솔은 취향 캐시 저장과 자동 확장 적용을 배치와 같은 함수로 앞당긴다', async () => {
+      givenOutsideInterestListener();
+
+      const decision = await orchestrator.refreshDerivedState(USER_ID, NOW);
+
+      expect(preferenceVectorService.rebuild).toHaveBeenCalledTimes(1);
+      expect(decision.action).toBe('add');
+      expect(userInterestService.applyAutoExpand).toHaveBeenCalledWith(
+        USER_ID,
+        { addTopicId: TOPIC_B, removeTopicId: null },
+        NOW,
+      );
+      expect(dripPlacementService.placeItems).not.toHaveBeenCalled();
+    });
+  });
+
   describe('planForUser — 편성 미리보기가 쓰는 계산 경로', () => {
     it('저장 없는 계산의 편성분이 실제 배치가 적립한 것과 같다 — 미리보기와 배치는 같은 계산기다', async () => {
       // given — 같은 입력으로 계산만 한다
       const plan = await orchestrator.planForUser(buildUser(), NOW, new Map(), {
         persistPreference: false,
+        persistAutoExpand: false,
         stopAtSkip: true,
       });
 
@@ -351,6 +590,7 @@ describe('DripBatchOrchestrator', () => {
     it('persistPreference가 꺼져 있으면 취향 캐시를 저장하지 않고 적립도 하지 않는다', async () => {
       await orchestrator.planForUser(buildUser(), NOW, new Map(), {
         persistPreference: false,
+        persistAutoExpand: false,
         stopAtSkip: false,
       });
 
@@ -366,6 +606,7 @@ describe('DripBatchOrchestrator', () => {
 
       const plan = await orchestrator.planForUser(buildUser(), NOW, new Map(), {
         persistPreference: false,
+        persistAutoExpand: false,
         stopAtSkip: false,
       });
 
@@ -378,6 +619,7 @@ describe('DripBatchOrchestrator', () => {
     it('후보 전부의 점수와 시리즈 게이트에서 빠진 편을 함께 돌려준다', async () => {
       const plan = await orchestrator.planForUser(buildUser(), NOW, new Map(), {
         persistPreference: false,
+        persistAutoExpand: false,
         stopAtSkip: true,
       });
 
@@ -438,9 +680,9 @@ describe('DripBatchOrchestrator', () => {
 
   it('사용자 편성이 한 번 던지면 잠깐 뒤 한 번 더 시도한다 — 일시 오류는 failed로 남지 않는다', async () => {
     jest.useFakeTimers();
-    userInterestService.findActiveTopicIds
+    userInterestService.findAllActive
       .mockRejectedValueOnce(new Error('connection reset'))
-      .mockResolvedValue([TOPIC_A]);
+      .mockResolvedValue([buildInterest(TOPIC_A)]);
 
     try {
       const pending = orchestrator.run(NOW);
@@ -506,11 +748,10 @@ describe('DripBatchOrchestrator', () => {
       .mockReset()
       .mockResolvedValueOnce([buildUser('failing'), buildUser(USER_ID)])
       .mockResolvedValue([]);
-    userInterestService.findActiveTopicIds.mockImplementation(
-      (userId: string) =>
-        userId === 'failing'
-          ? Promise.reject(new Error('boom'))
-          : Promise.resolve([TOPIC_A]),
+    userInterestService.findAllActive.mockImplementation((userId: string) =>
+      userId === 'failing'
+        ? Promise.reject(new Error('boom'))
+        : Promise.resolve([buildInterest(TOPIC_A)]),
     );
 
     try {

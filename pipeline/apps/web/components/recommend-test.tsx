@@ -136,6 +136,7 @@ export function RecommendTest() {
     return q ? contents.filter((c) => c.title.toLowerCase().includes(q) || (c.author_name ?? "").toLowerCase().includes(q) || c.topics.some((t) => t.name.toLowerCase().includes(q))) : contents;
   }, [contents, query]);
   const interestIds = useMemo(() => (account?.interests ?? []).map((i) => i.topic_id), [account]);
+  const autoTopicIds = useMemo(() => (account?.interests ?? []).filter((i) => i.source === "auto_expand").map((i) => i.topic_id), [account]);
   const regularPicks = picks(snap.preview?.regular?.candidates);
   const discoveryPicks = picks(snap.preview?.discovery?.candidates);
 
@@ -195,7 +196,7 @@ export function RecommendTest() {
           </Panel>
 
           {/* 서버 값이 바뀌면 key 로 다시 마운트해 초안을 버린다 — 효과 안에서 setState 하지 않는다 */}
-          <InterestsEditor key={interestIds.join(",")} topics={topics} selected={interestIds} disabled={!!busy} onSave={saveInterests} />
+          <InterestsEditor key={interestIds.join(",")} topics={topics} selected={interestIds} autoTopicIds={autoTopicIds} disabled={!!busy} onSave={saveInterests} />
           <CareerEditor key={careerKey(account)} account={account} disabled={!!busy} onSave={saveCareer} />
         </div>
 
@@ -215,6 +216,7 @@ export function RecommendTest() {
                 <PickColumn title={`새 주제 ${discoveryPicks.length}편 — 관심 밖 우선`} picks={discoveryPicks} diff={diff?.discovery} removedTitles={titlesOf(diff?.discovery.removed, snap)} />
               </div>
             )}
+            {snap.preview && <AutoExpandLine preview={snap.preview} />}
             {snap.preview && (
               <div className="mt-3 grid gap-3 md:grid-cols-2">
                 <TopCandidates kind="regular" title="정규 후보" candidates={snap.preview.regular?.candidates ?? []} />
@@ -416,22 +418,56 @@ function PreferenceSummary({ preview }: { preview: EarDripPreview }) {
   );
 }
 
-function InterestsEditor({ topics, selected, disabled, onSave }: { topics: EarTopic[]; selected: string[]; disabled: boolean; onSave: (ids: string[]) => Promise<void> }) {
+/**
+ * 자동 확장 판정 한 줄(drip-scheduling 4.5) — 배치가 지금 돌면 관심 주제에 무엇을 넣고 빼는지. 콘솔에서는 행동 직후
+ * 실제로 적용되므로(refreshDerivedState) 다음 새로고침에서 관심 칩에 "자동"이 붙는다
+ */
+function AutoExpandLine({ preview }: { preview: EarDripPreview }) {
+  const a = preview.auto_expand;
+  if (!a) return null;
+  const REASON: Record<string, string> = {
+    no_candidate: "후보 없음 — 관심 밖 주제를 30일 안에 2편 이상 완청하면 후보가 된다",
+    slot_free: "빈 슬롯에 추가",
+    slot_kept: "슬롯 유지 — 후보가 교체 여유(1.2배)를 못 넘음",
+    stronger_candidate: "더 강한 후보로 교체",
+    slot_expired: "30일 무신호로 만료",
+    disabled: "사용자가 자동 확장을 껐음",
+    feature_off: "서버 스위치 꺼짐(운영 기본) — 후보만 보인다",
+  };
+  const tone = a.action === "none" ? "held" : a.action === "expire" ? "failed" : "done";
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2 rounded border border-line bg-[#f7f9fb] px-3 py-2 text-[12px]">
+      <span className="font-semibold text-ink">자동 확장</span>
+      <Badge tone={tone}>{a.action}</Badge>
+      <span className="text-ink-soft">{REASON[a.reason] ?? a.reason}</span>
+      {a.add_topic && <span className="text-emerald-700">+ {a.add_topic.name ?? a.add_topic.topic_id}</span>}
+      {a.remove_topic && <span className="text-rose-700">− {a.remove_topic.name ?? a.remove_topic.topic_id}</span>}
+      {a.candidates.length > 0 && (
+        <span className="basis-full text-[11px] text-ink-soft">
+          후보: {a.candidates.map((c) => `${c.name ?? c.topic_id} (완청 ${c.completes} · 가중치 ${c.weight.toFixed(2)})`).join(" · ")}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function InterestsEditor({ topics, selected, autoTopicIds, disabled, onSave }: { topics: EarTopic[]; selected: string[]; autoTopicIds: string[]; disabled: boolean; onSave: (ids: string[]) => Promise<void> }) {
   const [draft, setDraft] = useState<string[] | null>(null);
   const current = draft ?? selected;
   const dirty = draft !== null && (draft.length !== selected.length || draft.some((id) => !selected.includes(id)));
   const toggle = (id: string) => setDraft((d) => { const base = d ?? selected; return base.includes(id) ? base.filter((x) => x !== id) : [...base, id]; });
   return (
-    <Panel title={`관심 주제 ${current.length}개 — 정규 후보의 범위`} right={<button className={btnCls("primary")} disabled={disabled || !dirty} onClick={() => void onSave(current)}>저장</button>}>
+    <Panel title={`관심 주제 ${current.filter((id) => !autoTopicIds.includes(id)).length}/3 직접${autoTopicIds.length > 0 ? ` + 자동 ${autoTopicIds.length}` : ""} — 정규 후보의 범위`} right={<button className={btnCls("primary")} disabled={disabled || !dirty} onClick={() => void onSave(current)}>저장</button>}>
       {topics.length === 0 ? <p className="text-xs text-ink-soft">주제를 불러오지 못했다</p> : (
         <div className="flex flex-wrap gap-1.5">
           {topics.filter((t) => t.is_visible || current.includes(t.id)).map((t) => {
             const on = current.includes(t.id);
-            return <button key={t.id} type="button" disabled={disabled} onClick={() => toggle(t.id)} className={`rounded-full border px-2.5 py-1 text-xs transition ${on ? "border-brand bg-brand text-white" : "border-line bg-white text-ink hover:bg-[#f7f9fb]"}`} title={`${t.parent_category} · 콘텐츠 ${t.content_count}`}>{t.name}</button>;
+            const auto = autoTopicIds.includes(t.id) && on;
+            return <button key={t.id} type="button" disabled={disabled} onClick={() => toggle(t.id)} className={`rounded-full border px-2.5 py-1 text-xs transition ${on ? (auto ? "border-sky-600 bg-sky-600 text-white" : "border-brand bg-brand text-white") : "border-line bg-white text-ink hover:bg-[#f7f9fb]"}`} title={`${t.parent_category} · 콘텐츠 ${t.content_count}${auto ? " · 자동 확장으로 추가됨 — 빼면 다시 안 들어온다" : ""}`}>{t.name}{auto ? " · 자동" : ""}</button>;
           })}
         </div>
       )}
-      <p className="mt-2 text-[11px] text-ink-soft">저장하면 앱의 관심 주제 관리와 같은 전체 교체가 일어난다. 여기서 뺀 주제는 &quot;사용자가 직접 해제한 주제&quot;로 기록돼 탐험에서도 빠진다.</p>
+      <p className="mt-2 text-[11px] text-ink-soft">저장하면 앱의 관심 주제 관리와 같은 전체 교체가 일어난다. 여기서 뺀 주제는 &quot;사용자가 직접 해제한 주제&quot;로 기록돼 탐험에서도 빠진다. 파란 칩은 자동 확장 슬롯(직접 고른 3개와 따로 센다).</p>
     </Panel>
   );
 }

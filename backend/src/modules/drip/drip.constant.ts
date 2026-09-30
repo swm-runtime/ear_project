@@ -56,6 +56,28 @@ export const COLD_START_COMPLETE_THRESHOLD = 3;
 export const SIGNAL_LOOKBACK_DAYS = 90;
 export const SIGNAL_LOOKBACK_LIMIT = 500;
 
+/*
+ * ── 행동 기반 자동 확장 (`drip-scheduling.md` 4.5 — 개정 2026-09-30) ─────────────────
+ *
+ * 관심 밖 주제를 스스로 찾아 듣는 사용자에게 그 주제를 자동 슬롯(`interest.constant.ts` —
+ * `MAX_AUTO_EXPAND_TOPIC_COUNT`)으로 붙인다. 아래 값은 전부 서버 소유 초기값이며 시범 운영으로 튜닝한다.
+ */
+
+/** 트리거·만료의 관찰 창(일) — 이 기간 안의 완청만 "요즘 듣는다"로 본다 */
+export const AUTO_EXPAND_LOOKBACK_DAYS = 30;
+
+/** 트리거 — 관찰 창 안에 그 주제의 **서로 다른 콘텐츠**를 이만큼 완청해야 한다. 1편은 우연일 수 있다 */
+export const AUTO_EXPAND_MIN_COMPLETES = 2;
+
+/** 만료 — 자동 슬롯 주제에 이 기간(일) 동안 긍정 신호(완청·재청취·담기)가 없으면 슬롯을 비운다 */
+export const AUTO_EXPAND_EXPIRE_DAYS = 30;
+
+/**
+ * 교체 여유 — 새 후보의 주제 가중치가 현재 슬롯의 이 배수를 넘어야 바꾼다. 두 주제의 가중치가 엇비슷할 때
+ * 배치마다 슬롯이 뒤집히면(플래핑) 정규 편성이 하루 걸러 다른 주제로 흔들린다.
+ */
+export const AUTO_EXPAND_REPLACE_MARGIN = 1.2;
+
 /** `drip-scheduling.md` 4.3 — 신호 최근성 반감기(일) */
 export const SIGNAL_RECENCY_HALF_LIFE_DAYS = 14;
 

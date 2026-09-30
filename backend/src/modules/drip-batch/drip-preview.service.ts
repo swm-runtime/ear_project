@@ -71,6 +71,7 @@ export class DripPreviewService {
 
     const plan = await this.orchestrator.planForUser(user, now, new Map(), {
       persistPreference: false,
+      persistAutoExpand: false,
       stopAtSkip: false,
     });
 
@@ -89,6 +90,11 @@ export class DripPreviewService {
       ...removedTopicIds,
       ...interests.map((interest) => interest.topicId),
       ...Object.keys(plan.preference?.topicWeights ?? {}),
+      ...(plan.autoExpand?.candidates.map((candidate) => candidate.topicId) ??
+        []),
+      ...(plan.autoExpand?.removeTopicId
+        ? [plan.autoExpand.removeTopicId]
+        : []),
       ...(plan.regular?.recentDripTopicIds ?? []),
       ...collectCandidateTopicIds(plan),
     ]);
@@ -113,6 +119,24 @@ export class DripPreviewService {
         topicId,
         name: topicNames.get(topicId) ?? null,
       })),
+      autoExpand:
+        plan.autoExpand === null
+          ? null
+          : {
+              action: plan.autoExpand.action,
+              reason: plan.autoExpand.reason,
+              addTopic: toTopicRef(plan.autoExpand.addTopicId, topicNames),
+              removeTopic: toTopicRef(
+                plan.autoExpand.removeTopicId,
+                topicNames,
+              ),
+              candidates: plan.autoExpand.candidates.map((candidate) => ({
+                topicId: candidate.topicId,
+                name: topicNames.get(candidate.topicId) ?? null,
+                completes: candidate.completes,
+                weight: candidate.weight,
+              })),
+            },
       preference: {
         isColdStart: plan.isColdStart,
         completeSignalCount: plan.completeSignalCount,
@@ -239,6 +263,15 @@ function collectCandidateTopicIds(plan: UserDripPlan): string[] {
   ];
 
   return candidates.flatMap((candidate) => candidate.topicIds);
+}
+
+function toTopicRef(
+  topicId: string | null,
+  topicNames: Map<string, string>,
+): { topicId: string; name: string | null } | null {
+  return topicId === null
+    ? null
+    : { topicId, name: topicNames.get(topicId) ?? null };
 }
 
 function toUserView(user: User): DripPreviewView['user'] {

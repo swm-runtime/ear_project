@@ -10,6 +10,7 @@ import { TopicService } from './topic.service';
 import { Topic } from '../entities/topic.entity';
 import { UserInterest } from '../entities/user-interest.entity';
 import {
+  MAX_AUTO_EXPAND_TOPIC_COUNT,
   MAX_SELECTABLE_TOPIC_COUNT,
   MIN_SELECTABLE_TOPIC_COUNT,
 } from '../interest.constant';
@@ -318,10 +319,28 @@ export class UserInterestService {
         visibleTopicIds.has(interest.topicId),
       );
 
-      // "저장 전 활성 개수"는 diff 범위와 같은 기준으로 센다 — 판정 분모와 요청 목록의
-      // 재료가 같아야 "늘었는가"가 성립한다 (interest-management-api.md 4.3)
-      const allowedMax = Math.max(MAX_SELECTABLE_TOPIC_COUNT, editable.length);
-      if (topicIds.length > allowedMax) {
+      /**
+       * 상한은 **직접 고른 주제**에만 건다(개정 2026-09-30 — `interest-management.md` 4.3). 자동 확장
+       * 슬롯(`source = auto_expand`)을 유지한 채 저장하는 것은 개수에 넣지 않는다 — 넣으면 자동 슬롯이
+       * 붙은 사용자가 직접 고를 수 있는 자리가 2개로 줄거나, 반대로 자동 슬롯을 빼고 그 자리를 직접 고른
+       * 주제로 채워 "직접 4개"가 된다. 요청 목록에서 **유지되는 자동 슬롯 주제만** 빼고 센다.
+       *
+       * "저장 전 개수"는 diff 범위와 같은 기준(활성 + 노출 중)으로 센다 — 판정 분모와 요청 목록의
+       * 재료가 같아야 "늘었는가"가 성립한다 (interest-management-api.md 4.3)
+       */
+      const autoExpandTopicIds = new Set(
+        editable
+          .filter(
+            (interest) => interest.source === UserInterestSource.AUTO_EXPAND,
+          )
+          .map((interest) => interest.topicId),
+      );
+      const declaredBefore = editable.length - autoExpandTopicIds.size;
+      const declaredRequested = topicIds.filter(
+        (topicId) => !autoExpandTopicIds.has(topicId),
+      ).length;
+      const allowedMax = Math.max(MAX_SELECTABLE_TOPIC_COUNT, declaredBefore);
+      if (declaredRequested > allowedMax) {
         throw new BusinessException({
           status: HttpStatus.BAD_REQUEST,
           errorCode: ErrorCode.INTEREST_LIMIT_EXCEEDED,
@@ -405,6 +424,105 @@ export class UserInterestService {
         source:
           editableByTopicId.get(topicId)?.source ?? UserInterestSource.MANUAL,
       }));
+    });
+  }
+
+  /**
+   * 자동 확장 판정 결과를 **적용한다**(`drip-scheduling.md` 4.5 — 개정 2026-09-30). 판정은 편성 배치가
+   * 하고(신호를 읽는 쪽), 여기는 `user_interests`의 규칙만 지킨다.
+   *
+   * - 빼는 것은 **`auto_expand` 출처의 활성 행만**이다. 직접 고른 주제는 이 경로로 내려가지 않는다.
+   *   `is_user_removed`는 세우지 않는다 — 사용자가 뺀 것이 아니라 가설이 식은 것이라, 다시 듣기 시작하면
+   *   돌아올 수 있어야 한다.
+   * - 넣는 쪽은 세 가지를 다시 확인한다: 사용자가 직접 해제한 주제가 아닐 것(FR-06), 이미 활성이 아닐 것,
+   *   자동 슬롯에 자리가 있을 것. 판정과 적용 사이에 사용자가 관리 화면에서 저장했을 수 있어서다 —
+   *   같은 사용자 행을 잠가 그 저장과 직렬화한다.
+   *
+   * 실제로 바뀐 것만 돌려준다.
+   */
+  async applyAutoExpand(
+    userId: string,
+    change: { addTopicId: string | null; removeTopicId: string | null },
+    now: Date,
+  ): Promise<{ addedTopicId: string | null; removedTopicId: string | null }> {
+    if (change.addTopicId === null && change.removeTopicId === null) {
+      return { addedTopicId: null, removedTopicId: null };
+    }
+
+    return this.dataSource.transaction(async (manager) => {
+      await this.userService.getByIdForUpdate(userId, manager);
+
+      const existing = await this.userInterestRepository.findAllByUserId(
+        userId,
+        manager,
+      );
+      const changed: UserInterest[] = [];
+      let removedTopicId: string | null = null;
+      let addedTopicId: string | null = null;
+
+      const toRemove = existing.find(
+        (interest) =>
+          interest.topicId === change.removeTopicId &&
+          interest.isActive &&
+          interest.source === UserInterestSource.AUTO_EXPAND,
+      );
+
+      if (toRemove) {
+        toRemove.isActive = false;
+        toRemove.deactivatedAt = now;
+        changed.push(toRemove);
+        removedTopicId = toRemove.topicId;
+      }
+
+      if (change.addTopicId !== null) {
+        const found = existing.find(
+          (interest) => interest.topicId === change.addTopicId,
+        );
+        const activeAutoCount = existing.filter(
+          (interest) =>
+            interest.isActive &&
+            interest.source === UserInterestSource.AUTO_EXPAND,
+        ).length;
+        const hasRoom = activeAutoCount < MAX_AUTO_EXPAND_TOPIC_COUNT;
+
+        if (hasRoom && !found) {
+          changed.push(
+            this.userInterestRepository.create({
+              userId,
+              topicId: change.addTopicId,
+              source: UserInterestSource.AUTO_EXPAND,
+              isActive: true,
+              isUserRemoved: false,
+              deactivatedAt: null,
+            }),
+          );
+          addedTopicId = change.addTopicId;
+        } else if (
+          hasRoom &&
+          found &&
+          !found.isActive &&
+          !found.isUserRemoved
+        ) {
+          found.source = UserInterestSource.AUTO_EXPAND;
+          found.isActive = true;
+          found.deactivatedAt = null;
+          changed.push(found);
+          addedTopicId = change.addTopicId;
+        }
+      }
+
+      if (changed.length > 0) {
+        await this.userInterestRepository.saveAll(changed, manager);
+
+        // 운영 지표 "자동 확장 발생 건수"(drip-scheduling.md 5장)의 원천 — 테이블이 아니라 구조화 로그다
+        this.logger.log('user interest auto expanded', {
+          user_id: userId,
+          added_topic_id: addedTopicId,
+          removed_topic_id: removedTopicId,
+        });
+      }
+
+      return { addedTopicId, removedTopicId };
     });
   }
 

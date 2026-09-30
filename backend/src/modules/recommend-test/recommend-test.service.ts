@@ -13,6 +13,8 @@ import { UserPreferenceVector } from '@/modules/drip/entities/user-preference-ve
 import { SaveReason } from '@/modules/explore/explore.enum';
 import { ExploreOrchestrator } from '@/modules/explore/explore.orchestrator';
 import { ExploreFeedResult } from '@/modules/explore/explore.types';
+import { UserInterest } from '@/modules/interest/entities/user-interest.entity';
+import { UserInterestSource } from '@/modules/interest/interest.enum';
 import { TopicService } from '@/modules/interest/services/topic.service';
 import { UserInterestService } from '@/modules/interest/services/user-interest.service';
 import { LibraryScreenOrchestrator } from '@/modules/library-screen/library-screen.orchestrator';
@@ -52,8 +54,8 @@ const LIBRARY_LIST_LIMIT = 200;
  * **테스트 계정 한 명(`RECOMMEND_TEST_EMAIL`)에 대해 앱이 하는 행동을 대신 수행한다** — 재생·완청·담기·해제·
  * 삭제·재청취·관심 주제·커리어. 각 행동은 **앱의 같은 서비스 메서드**를 부른다. 신호를 여기서 직접 적재하면
  * "이 행동을 하면 추천이 어떻게 바뀌나"라는 질문에 앱과 다른 답을 내게 된다. 행동 직후에는 배치가 하는
- * 취향 캐시 재계산(`DripBatchOrchestrator.refreshPreferenceCache`)을 앞당겨, 같은 캐시를 읽는 탐색 피드가
- * 바로 바뀌게 한다.
+ * 파생 상태 갱신(`DripBatchOrchestrator.refreshDerivedState` — 취향 캐시 재계산 + 자동 확장 슬롯 판정·적용)을
+ * 앞당겨, 같은 캐시를 읽는 탐색 피드와 관심 주제가 바로 바뀌게 한다.
  *
  * **개발계 전용이다.** 행동은 실제 `user_signals`·`library_items`·`play_records`를 쓰므로 운영에서는
  * `SENTRY_ENVIRONMENT=production` 하나로 전부 잠근다 — 이메일이 있어도 열리지 않는다. 결과 표시(편성분·점수)는
@@ -141,8 +143,17 @@ export class RecommendTestService {
     const user = await this.getTestUser();
     const effects = await this.performAction(user, action, contentId, now);
 
-    // 다음 배치가 할 취향 캐시 재계산을 지금 한다 — 탐색 피드가 이 캐시를 읽는다
-    await this.dripBatchOrchestrator.refreshPreferenceCache(user.id, now);
+    // 다음 배치가 할 일을 지금 한다 — 취향 캐시(탐색 피드가 읽는다)와 자동 확장 슬롯(drip-scheduling 4.5)
+    const autoExpand = await this.dripBatchOrchestrator.refreshDerivedState(
+      user.id,
+      now,
+    );
+
+    if (autoExpand.action !== 'none') {
+      effects.push(
+        `자동 확장 ${autoExpand.action} (${autoExpand.reason}) — 관심 주제가 바뀌었다`,
+      );
+    }
 
     this.logger.log('recommend test action', {
       user_id: user.id,
@@ -177,7 +188,8 @@ export class RecommendTestService {
    * 테스트 계정의 소비 이력을 전부 지운다 — 가입 직후(관심 주제·커리어만 있는 상태)로 되돌린다.
    *
    * 지우는 것: 신호·재생 기록(오늘 한도도 함께 풀린다)·위치·오디오 발급 로그·원문 클릭·라이브러리(삭제분 포함)·
-   * 취향 캐시·드립 영구 제외·첫 드립 작업. **관심 주제·커리어·계정은 남긴다** — 그건 버튼으로 바꾸는 입력이다.
+   * 취향 캐시·드립 영구 제외·첫 드립 작업·**자동 확장으로 붙은 관심 주제**(행동에서 파생된 것이라 행동과 함께
+   * 지운다). **직접 고른 관심 주제·커리어·계정은 남긴다** — 그건 버튼으로 바꾸는 입력이다.
    * 탈퇴 경로(`UserWithdrawalService`)는 `users` 행 삭제의 CASCADE 에 맡기지만 여기는 계정을 남겨야 해서
    * 표를 하나씩 지운다. 이 목록은 `domain.md` 6·7장의 `user_id` FK 표와 같아야 한다.
    */
@@ -195,6 +207,10 @@ export class RecommendTestService {
       await manager.delete(UserPreferenceVector, where);
       await manager.delete(DripExcludedContent, where);
       await manager.delete(FirstDripJob, where);
+      await manager.delete(UserInterest, {
+        ...where,
+        source: UserInterestSource.AUTO_EXPAND,
+      });
     });
 
     this.logger.log('recommend test account reset', { user_id: user.id });

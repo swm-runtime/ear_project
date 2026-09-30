@@ -438,6 +438,8 @@ idx_user_interests_user_id_is_active (user_id, is_active)
 ```
 
 - `is_user_removed = true`인 주제는 자동 확장(FR-18) 대상에서 **영구 제외**한다. 사용자가 직접 뺀 주제를 시스템이 다시 넣으면 안 된다.
+- **`source = auto_expand`인 활성 행은 사용자당 최대 1개다**(자동 슬롯 — `drip-scheduling.md` 4.5, 2026-09-30). 직접 고른 주제의 상한(3개 — `onboarding`·`manual`)과 **따로 센다.** DB 제약이 아니라 서비스가 지킨다(판정·적용이 사용자 행 잠금 아래에서 돈다).
+- 자동 슬롯의 **만료·교체**는 `is_active = false` + `deactivated_at`만 세우고 `is_user_removed`는 그대로 둔다 — 사용자가 뺀 것이 아니므로 다시 들어올 수 있다. 자동 슬롯의 "추가된 시각"은 별도 컬럼 없이 `updated_at`(공통 컬럼 — 1.1)을 쓴다: 이 행은 활성화·비활성화 때만 바뀐다.
 
 ### 4.3 `topic_adjacencies` *(P1 — FR-18 자동 확장)*
 
@@ -451,7 +453,7 @@ topic_adjacencies
 uq_topic_adjacencies_topic_id_adjacent_topic_id (topic_id, adjacent_topic_id)
 ```
 
-- FR-18(주제 자동 확장)이 P1이므로 MVP에서는 만들지 않아도 된다. 자동 확장을 켤 때 함께 도입한다.
+- **고갈 기반** 자동 확장(`drip-scheduling.md` 4.5-2)이 P1이므로 MVP에서는 만들지 않아도 된다. 그 확장을 켤 때 함께 도입한다. 행동 기반 확장(4.5-1, 구현 2026-09-30)은 이 테이블을 쓰지 않는다 — 신호(`user_signals`)만 본다.
 
 ---
 
