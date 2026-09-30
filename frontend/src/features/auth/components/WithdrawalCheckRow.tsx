@@ -1,7 +1,8 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
 import CheckIcon from '@/shared/ui/CheckIcon';
+import { Text } from '@/shared/ui/Typography';
 
 interface WithdrawalCheckRowProps {
   label: string;

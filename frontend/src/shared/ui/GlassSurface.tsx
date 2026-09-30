@@ -3,13 +3,15 @@ import { GlassContainer, GlassView, isLiquidGlassAvailable } from 'expo-glass-ef
 import type { ReactNode } from 'react';
 import { Animated, Platform, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
+import { theme } from '@/shared/theme';
+
 interface GlassSurfaceProps {
   style?: StyleProp<ViewStyle>;
   children?: ReactNode;
 }
 
 /** 블러 위에 얹는 밝은 틴트 — 애플 머티리얼처럼 블러만으론 글자가 안 읽혀 반투명 흰 면을 한 겹 더 둔다 */
-const TINT_COLOR = 'rgba(245, 245, 247, 0.72)';
+const TINT_COLOR = theme.color.frostedSurface;
 /** 블러 세기 — 100 이면 뒤가 완전히 뭉개져 유리가 아니라 젖빛 판이 된다 */
 const BLUR_INTENSITY = 60;
 

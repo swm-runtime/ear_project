@@ -1,6 +1,7 @@
-import { Pressable, StyleSheet, Switch, Text } from 'react-native';
+import { Pressable, StyleSheet, Switch } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import { Text } from '@/shared/ui/Typography';
 
 interface SettingsToggleRowProps {
   label: string;

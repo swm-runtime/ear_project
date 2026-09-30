@@ -1,6 +1,7 @@
-import { PixelRatio, StyleSheet, Text, View } from 'react-native';
+import { PixelRatio, StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import { Text } from '@/shared/ui/Typography';
 
 import { PROFILE_COPY } from '../profile.copy';
 import type { StatsSummary } from '../profile.types';

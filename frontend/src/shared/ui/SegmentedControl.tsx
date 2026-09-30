@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { Animated, Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion, theme } from '@/shared/theme';
 import GlassSurface, { GlassPill, HAS_LIQUID_GLASS } from '@/shared/ui/GlassSurface';
+import { Text, AnimatedText } from '@/shared/ui/Typography';
 
 export interface SegmentOption<T extends string> {
   value: T;
@@ -37,8 +38,11 @@ interface SegmentedControlProps<T extends string> {
    * `modern` — **iOS 26 앱들의 캡슐 선택바**(PM 2026-09-25 23:30 "현대식 애플 선택바" — 기본 세그먼트는 옛날 것 같다):
    *   완전 둥근 캡슐 트랙(tertiary fill) + 선택 칸은 **검정 채움 알약에 흰 글자**(메일 카테고리·피트니스 기간 문법).
    *   그림자·유리 없음. 비선택 글자는 회색
+   * `ios26` — **iOS 26 시스템 UISegmentedControl 모양**(PM 2026-09-29 17:10 "안드로이드 토글 iOS 에 있는 거 참고해서") —
+   *   iOS 는 네이티브를 쓰고 이 모양은 Android 가 쓴다. 캡슐 트랙(tertiary fill, 안쪽 2) + 떠 있는 흰 캡슐 선택 칸(그림자) +
+   *   13pt 검정 글자, 선택 글자 semibold. 선택 칸은 미끄러진다
    */
-  appearance?: 'glass' | 'system' | 'modern';
+  appearance?: 'glass' | 'system' | 'modern' | 'ios26';
 }
 
 /**
@@ -74,7 +78,8 @@ export default function SegmentedControl<T extends string>({
 }: SegmentedControlProps<T>) {
   const isSystem = appearance === 'system';
   const isModern = appearance === 'modern';
-  const isPlain = isSystem || isModern;
+  const isIos26 = appearance === 'ios26';
+  const isPlain = isSystem || isModern || isIos26;
   // 보이는 높이가 44 보다 작은 만큼은 hitSlop 으로 채운다(uiux 7)
   const hitSlop = {
     top: Math.max(0, (theme.touchTarget.minHeight - segmentHeight) / 2),
@@ -118,6 +123,7 @@ export default function SegmentedControl<T extends string>({
     styles.indicator,
     isSystem && styles.indicatorSystem,
     isModern && styles.indicatorModern,
+    isIos26 && styles.indicatorIos26,
     { width: effectiveWidth, height: segmentHeight, transform: [{ translateX: indicatorX }] },
   ];
   /** interpolate 의 inputRange 는 단조 증가여야 한다 — 측정 전(0)에는 1로 둔다 */
@@ -130,6 +136,7 @@ export default function SegmentedControl<T extends string>({
         fill && styles.trackFill,
         isSystem && styles.trackSystem,
         isModern && styles.trackModern,
+        isIos26 && styles.trackIos26,
       ]}
       onLayout={handleTrackLayout}
       accessibilityRole="radiogroup"
@@ -173,16 +180,22 @@ export default function SegmentedControl<T extends string>({
             accessibilityLabel={option.label}
             accessibilityState={{ checked: isSelected, disabled }}
           >
-            <Text style={[styles.label, isSystem && styles.labelSystem, isModern && styles.labelModern]}>
-              {option.label}
-            </Text>
-            <Animated.Text
+            <Text
               style={[
                 styles.label,
-                isSystem && styles.labelSystem,
+                (isSystem || isIos26) && styles.labelSystem,
+                isModern && styles.labelModern,
+              ]}
+            >
+              {option.label}
+            </Text>
+            <AnimatedText
+              style={[
+                styles.label,
+                (isSystem || isIos26) && styles.labelSystem,
                 isModern && styles.labelModern,
                 styles.labelSelected,
-                isSystem && styles.labelSelectedSystem,
+                (isSystem || isIos26) && styles.labelSelectedSystem,
                 isModern && styles.labelSelectedModern,
                 { opacity: selectedOpacity },
               ]}
@@ -190,7 +203,7 @@ export default function SegmentedControl<T extends string>({
               importantForAccessibility="no"
             >
               {option.label}
-            </Animated.Text>
+            </AnimatedText>
           </Pressable>
         );
       })}
@@ -252,6 +265,20 @@ const styles = StyleSheet.create({
     left: 3,
     borderRadius: theme.radius.full,
     backgroundColor: theme.color.primary,
+  },
+  // iOS 26 UISegmentedControl — 캡슐 트랙(tertiarySystemFill), 안쪽 2
+  trackIos26: {
+    borderRadius: theme.radius.full,
+    backgroundColor: 'rgba(118, 118, 128, 0.12)',
+    padding: 2,
+  },
+  // 떠 있는 흰 캡슐 — iOS 26 선택 칸의 부드러운 이중 그림자
+  indicatorIos26: {
+    top: 2,
+    left: 2,
+    borderRadius: theme.radius.full,
+    backgroundColor: theme.color.background,
+    boxShadow: '0 3px 8px rgba(0, 0, 0, 0.12), 0 3px 1px rgba(0, 0, 0, 0.04)',
   },
   segment: {
     alignItems: 'center',

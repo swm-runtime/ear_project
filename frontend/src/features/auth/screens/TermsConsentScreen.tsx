@@ -1,10 +1,11 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
 import CheckIcon from '@/shared/ui/CheckIcon';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
+import { Text } from '@/shared/ui/Typography';
 
 import { AUTH_COPY } from '../auth.copy';
 import type { AuthStackParamList } from '../auth.types';

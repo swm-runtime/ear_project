@@ -3,24 +3,29 @@ import {
   ActivityIndicator,
   Animated,
   FlatList,
+  Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
-  Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useNativeHeaderInset } from '@/shared/navigation/useNativeHeaderInset';
 import { useSystemLargeTitle } from '@/shared/navigation/useSystemLargeTitle';
 import { useTabScrollToTop } from '@/shared/navigation/useTabScrollToTop';
 import { theme } from '@/shared/theme';
+import AndroidBlurTarget from '@/shared/ui/AndroidBlurTarget';
+import AndroidCollapsingBar from '@/shared/ui/AndroidCollapsingBar';
 import FloatingHeader, {
   useFloatingHeaderInset,
   useFloatingHeaderScroll,
 } from '@/shared/ui/FloatingHeader';
 import FullScreenError from '@/shared/ui/FullScreenError';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
+import LargeTitleRow from '@/shared/ui/LargeTitleRow';
+import { Text } from '@/shared/ui/Typography';
 
 import {
   DOCK_SCROLL_PROPS,
@@ -31,14 +36,16 @@ import {
 
 import ExploreSearchScreen from './ExploreSearchScreen';
 import ExploreEmptyState from '../components/ExploreEmptyState';
-import ExploreFeaturedCard from '../components/ExploreFeaturedCard';
+import ExploreFeaturedCard, { featuredCardWidth } from '../components/ExploreFeaturedCard';
 import ExploreMoreSheet from '../components/ExploreMoreSheet';
 import ExploreRingPill from '../components/ExploreRingPill';
 import ExploreSearchBarRow from '../components/ExploreSearchBarRow';
 import ExploreSkeleton from '../components/ExploreSkeleton';
 import ExploreTile from '../components/ExploreTile';
+import PeriodSwap from '../components/PeriodSwap';
 import PopularPeriodToggle from '../components/PopularPeriodToggle';
 import SearchToolbar from '../components/SearchToolbar';
+import StripSwapAndroid from '../components/StripSwapAndroid';
 import TopicChips from '../components/TopicChips';
 import { EXPLORE_COPY } from '../explore.copy';
 import { exploreGridKey, toExploreGridData } from '../explore.grid';
@@ -57,23 +64,48 @@ import { useExploreScreen } from '../hooks/useExploreScreen';
  */
 export default function ExploreScreen() {
   const screen = useExploreScreen();
+  const { width: windowWidth } = useWindowDimensions();
   const miniInset = useBottomDockInset();
   // 떠 있는 머리 줄(검색창·칩)의 높이 — 목록이 그만큼 위를 비운다(시스템 바 갈래에서는 0)
   const [headerHeight, setHeaderHeight] = useState(0);
   const floatingInset = useFloatingHeaderInset(headerHeight);
-  const headerInset = HAS_NATIVE_TAB_BAR ? 0 : floatingInset;
+  const insets = useSafeAreaInsets();
+  // Android 는 iOS 식 접힘 바(AndroidCollapsingBar) — 머리 줄이 목록 첫 줄이라 상태 바만 비운다
+  const headerInset = HAS_NATIVE_TAB_BAR ? 0 : ANDROID_IOS_HEADER ? insets.top : floatingInset;
   // 시스템 탭 갈래(바 없음) — 스크롤 뷰가 아닌 상태 화면(스켈레톤·에러)은 상태 바만 비운다
   const nativeBarInset = useNativeHeaderInset();
-  // 맨 위에서는 머리 줄 컨트롤이 면, 내리면 유리(PM 2026-09-25)
-  const { solidness, scrollProps } = useFloatingHeaderScroll();
   // 머리 줄(JS 탭 바 갈래)의 루트 ref — 종전 시스템 edge effect 연결용, 지금은 FloatingHeader 가 요구만 한다
   const headerRef = useRef<View>(null);
-  // 제자리 검색 모드(iOS 26) — 아래 isSearching 분기
+  // Android 서리 유리 띠의 블러 대상(AndroidBlurTarget)
+  const blurTargetRef = useRef<View>(null);
+  // 제자리 검색 모드(iOS 26·Android) — 아래 isSearching 분기
   const [isSearching, setIsSearching] = useState(false);
   // 제자리 검색 닫기 요청 — ✕ 는 시스템 바 캡슐에 있고, 덮개가 퇴장 애니메이션 끝에 onExit 로 isSearching 을 끈다
   const [isClosingSearch, setIsClosingSearch] = useState(false);
-  const listRef = useTabScrollToTop({ topInset: nativeBarInset, enabled: !isSearching });
-  const openSearch = HAS_NATIVE_TAB_BAR ? () => setIsSearching(true) : screen.openSearch;
+  // 탭 재선택과 같은 "맨 위로"를 Android 접힘 바 제목 탭도 부른다
+  const scrollToTopRef = useRef<(() => void) | null>(null);
+  const { solidness, scrollY, scrollProps } = useFloatingHeaderScroll();
+  const listRef = useTabScrollToTop({
+    topInset: nativeBarInset,
+    enabled: !isSearching,
+    controlRef: scrollToTopRef,
+  });
+  const openSearch = () => {
+    if (HAS_NATIVE_TAB_BAR || ANDROID_IOS_HEADER) {
+      setIsSearching(true);
+    } else {
+      screen.openSearch();
+    }
+  };
+  /*
+   * 인기 섹션의 **카드가 실제로 바뀐** 구간 — section.period 는 누르는 순간 조회 중인 구간으로 먼저 바뀌므로(토글 표시용), 목록을
+   * 새로 만드는 key 는 조회가 끝난 뒤의 값으로 둔다. 누르자마자 직전 카드로 목록이 다시 만들어져 깜빡였다(PM 2026-09-30 06:20)
+   */
+  const popularPeriod = screen.sections.find((section) => section.period !== null)?.period ?? null;
+  const [settledPopularPeriod, setSettledPopularPeriod] = useState(popularPeriod);
+  if (!screen.isPopularSwitching && popularPeriod !== settledPopularPeriod) {
+    setSettledPopularPeriod(popularPeriod);
+  }
 
   /*
    * 제자리 검색(iOS 26 — PM 2026-09-27 21:03 "검색 화면을 따로 두지 말고 그냥 탐색"): 검색창을 누르면 새 화면으로 가지 않고
@@ -135,7 +167,7 @@ export default function ExploreScreen() {
    * 피드를 통째로 갈아 끼워 닫힘 애니메이션 끝에 피드 전체를 새로 마운트하느라 끊겼다)
    */
   const searchOverlay = isSearching ? (
-    <View style={StyleSheet.absoluteFill}>
+    <View style={HAS_NATIVE_TAB_BAR ? StyleSheet.absoluteFill : [StyleSheet.absoluteFill, { zIndex: 2 }]}>
       <ExploreSearchScreen
         embedding={{
           remaining: screen.remainingDisplay
@@ -143,6 +175,7 @@ export default function ExploreScreen() {
             : null,
           onExhaustedPress: () => screen.openPaywall('explore'),
           isClosing: isClosingSearch,
+          onRequestClose: () => setIsClosingSearch(true),
           onExit: () => {
             setIsSearching(false);
             setIsClosingSearch(false);
@@ -151,6 +184,7 @@ export default function ExploreScreen() {
             screen.clearTopicFilter();
             screen.toggleTopic(topicId);
             setIsSearching(false);
+            setIsClosingSearch(false);
           },
         }}
       />
@@ -163,6 +197,7 @@ export default function ExploreScreen() {
     const Frame = HAS_NATIVE_TAB_BAR ? View : SafeAreaView;
     return (
       <Frame style={[styles.container, { paddingTop: nativeBarInset }]} edges={['top']}>
+        {Platform.OS === 'android' ? <LargeTitleRow title={EXPLORE_COPY.tabTitle} /> : null}
         <FullScreenError
           title={
             screen.isFullErrorNetwork
@@ -189,7 +224,14 @@ export default function ExploreScreen() {
   ) : null;
   // 시스템 바 갈래에서는 제목 줄·검색 필드·칩이 콘텐츠의 첫 줄이다 — 목록과 같이 스크롤한다.
   // 검색 필드는 유리가 아니라 면(콘텐츠 안) — 누르면 검색 화면(E6), 입력은 거기서(explore.md 4.5-1)
-  const contentChips = HAS_NATIVE_TAB_BAR ? (
+  const contentChips = ANDROID_IOS_HEADER ? (
+    // Android — iOS 와 같이 큰 제목·검색창·칩이 목록 첫 줄(PM 2026-09-29 17:19). 링은 떠 있는 바의 오른쪽에 고정
+    <View>
+      <LargeTitleRow title={EXPLORE_COPY.tabTitle} />
+      <ExploreSearchBarRow onPress={openSearch} trailing={null} variant="fill" />
+      {chips}
+    </View>
+  ) : HAS_NATIVE_TAB_BAR ? (
     <View>
       <ExploreSearchBarRow onPress={openSearch} trailing={null} variant="fill" />
       {chips}
@@ -279,11 +321,14 @@ export default function ExploreScreen() {
             >
               {section.title}
             </Text>
-            <PopularPeriodToggle
-              selected={section.period}
-              onSelect={screen.selectPopularPeriod}
-              disabled={screen.isPopularSwitching}
-            />
+            {/* 세그먼트 내부의 alignSelf:flex-start가 제목 행의 가운데 정렬을 덮지 않게 감싼다. */}
+            <View style={styles.sectionPeriodControl}>
+              <PopularPeriodToggle
+                selected={section.period}
+                onSelect={screen.selectPopularPeriod}
+                disabled={screen.isPopularSwitching}
+              />
+            </View>
           </View>
         ) : (
           <Text
@@ -294,35 +339,104 @@ export default function ExploreScreen() {
           </Text>
         )}
 
-        {/* 구간 전환 중에는 직전 목록을 흐리게 유지한다 — 그 섹션만이다(uiux 4.10) */}
-        <View style={isPopular && screen.isPopularSwitching ? styles.dimmed : undefined}>
-          <FlatList
-            horizontal
-            data={section.items}
-            keyExtractor={(item) => item.content.id}
-            renderItem={({ item }) =>
-              isPopular ? (
-                <ExploreFeaturedCard
-                  item={item}
-                  topicNames={topicNamesOf(item.content.topicIds)}
-                  onPress={screen.handleRowPress}
-                  onMorePress={screen.openMoreSheet}
-                />
-              ) : (
-                <ExploreTile
-                  item={item}
-                  onPress={screen.handleRowPress}
-                  onMorePress={screen.openMoreSheet}
-                />
-              )
+        {/* 구간 전환 중에는 직전 목록을 흐리게 유지한다 — 그 섹션만이다(uiux 4.10). 새 구간이 오면 옆에서 밀려 들어온다(PeriodSwap).
+            새 구간 줄은 PeriodSwap 이 새 칸에 만든다 — 넘기던 가로 위치와 무관하게 맨 앞에서 시작한다 */}
+        {isPopular && Platform.OS === 'android' ? (
+          // Android — 카드 두 장이 정적 줄로 이어져 흐른다(끊김·깜빡임 없이, StripSwapAndroid 주석)
+          <StripSwapAndroid
+            swapKey={section.period ?? 'static'}
+            isDimmed={screen.isPopularSwitching}
+            items={section.items}
+            renderCard={(item) => (
+              <ExploreFeaturedCard
+                item={item}
+                topicNames={topicNamesOf(item.content.topicIds)}
+                onPress={() => {}}
+                onMorePress={() => {}}
+              />
+            )}
+            itemExtent={featuredCardWidth(windowWidth) + theme.spacing.md}
+            leadingInset={theme.spacing.md}
+            gap={theme.spacing.md}
+          >
+            <FlatList
+              // 구간마다 새로 만든다 — 숨긴 채 먼저 그려 두고(흐르기 전) 맨 앞에서 시작한다
+              key={settledPopularPeriod ?? 'static'}
+              horizontal
+              // 인기 캐러셀은 목록 밖으로도 카드를 그린다 — 구간 전환 때 반쯤 보이던 카드가 잘린 채로 떠나지 않게(PeriodSwap).
+              // 화면 밖이라 평소엔 보이지 않는다. Android 는 화면 밖 셀을 떼는 최적화도 끈다
+              style={isPopular && POPULAR_WHOLE_CARDS ? styles.carouselUnclipped : undefined}
+              removeClippedSubviews={isPopular && POPULAR_WHOLE_CARDS ? false : undefined}
+              data={section.items}
+              keyExtractor={(item) => item.content.id}
+              renderItem={({ item }) =>
+                isPopular ? (
+                  <ExploreFeaturedCard
+                    item={item}
+                    topicNames={topicNamesOf(item.content.topicIds)}
+                    onPress={screen.handleRowPress}
+                    onMorePress={screen.openMoreSheet}
+                  />
+                ) : (
+                  <ExploreTile
+                    item={item}
+                    onPress={screen.handleRowPress}
+                    onMorePress={screen.openMoreSheet}
+                  />
+                )
+              }
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.carousel}
+              ItemSeparatorComponent={() => <View style={styles.carouselGap} />}
+              onEndReached={isPopular ? screen.loadMorePopular : undefined}
+              onEndReachedThreshold={0.5}
+            />
+          </StripSwapAndroid>
+        ) : (
+          <PeriodSwap
+            swapKey={section.period ?? 'static'}
+            isDimmed={isPopular && screen.isPopularSwitching}
+            // 카드 두 장씩 온전히 흐르기는 iOS 만 — Android 는 목록 밖 카드까지 그리니 심하게 끊기고 깜빡였다(PM 2026-09-30 05:52·06:02).
+            // Android 는 화면 폭만큼 흐른다(#1027)
+            itemExtent={
+              isPopular && POPULAR_WHOLE_CARDS
+                ? featuredCardWidth(windowWidth) + theme.spacing.md
+                : undefined
             }
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.carousel}
-            ItemSeparatorComponent={() => <View style={styles.carouselGap} />}
-            onEndReached={isPopular ? screen.loadMorePopular : undefined}
-            onEndReachedThreshold={0.5}
-          />
-        </View>
+            leadingInset={theme.spacing.md}
+          >
+            <FlatList
+              horizontal
+              // 인기 캐러셀은 목록 밖으로도 카드를 그린다 — 구간 전환 때 반쯤 보이던 카드가 잘린 채로 떠나지 않게(PeriodSwap).
+              // 화면 밖이라 평소엔 보이지 않는다. Android 는 화면 밖 셀을 떼는 최적화도 끈다
+              style={isPopular && POPULAR_WHOLE_CARDS ? styles.carouselUnclipped : undefined}
+              removeClippedSubviews={isPopular && POPULAR_WHOLE_CARDS ? false : undefined}
+              data={section.items}
+              keyExtractor={(item) => item.content.id}
+              renderItem={({ item }) =>
+                isPopular ? (
+                  <ExploreFeaturedCard
+                    item={item}
+                    topicNames={topicNamesOf(item.content.topicIds)}
+                    onPress={screen.handleRowPress}
+                    onMorePress={screen.openMoreSheet}
+                  />
+                ) : (
+                  <ExploreTile
+                    item={item}
+                    onPress={screen.handleRowPress}
+                    onMorePress={screen.openMoreSheet}
+                  />
+                )
+              }
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.carousel}
+              ItemSeparatorComponent={() => <View style={styles.carouselGap} />}
+              onEndReached={isPopular ? screen.loadMorePopular : undefined}
+              onEndReachedThreshold={0.5}
+            />
+          </PeriodSwap>
+        )}
 
         {renderPopularSectionFooter(section)}
       </View>
@@ -334,6 +448,7 @@ export default function ExploreScreen() {
     if (screen.showSkeleton) {
       return (
         <View style={{ paddingTop: headerInset + nativeBarInset }}>
+          {ANDROID_IOS_HEADER ? <LargeTitleRow title={EXPLORE_COPY.tabTitle} /> : null}
           <ExploreSkeleton showSectionTitles={!screen.isFiltered} />
         </View>
       );
@@ -418,21 +533,57 @@ export default function ExploreScreen() {
 
   return (
     <View style={styles.container}>
-      {renderBody()}
-      {/* 머리 줄은 목록 **뒤에 선언**한다(zIndex 로 위에 뜬다) */}
-      {/* 머리 줄은 목록 위에 떠 있다 — 배경 없이 유리 컨트롤만(2026-09-24 PM). 시스템 바 갈래에서는 없다 */}
-      {HAS_NATIVE_TAB_BAR ? null : (
-        <FloatingHeader
-          onHeightChange={setHeaderHeight}
-          solidness={solidness}
-          containerRef={headerRef}
-        >
-          <ExploreSearchBarRow onPress={openSearch} trailing={remainingRing} />
+      {HAS_NATIVE_TAB_BAR ? renderBody() : (
+      <View
+        style={styles.container}
+        pointerEvents={isSearching ? 'none' : 'auto'}
+        accessibilityElementsHidden={isSearching}
+        importantForAccessibility={isSearching ? 'no-hide-descendants' : 'auto'}
+      >
+        {/* Android — 머리 줄의 서리 유리 띠가 흐릴 대상. 머리 줄은 이 뒤에 선언한다 */}
+        <AndroidBlurTarget targetRef={blurTargetRef}>{renderBody()}</AndroidBlurTarget>
+        {/* 머리 줄은 목록 **뒤에 선언**한다(zIndex 로 위에 뜬다) */}
+        {/* 머리 줄은 목록 위에 떠 있다 — 배경 없이 유리 컨트롤만(2026-09-24 PM). 시스템 바 갈래에서는 없다 */}
+        {ANDROID_IOS_HEADER ? (
+          <AndroidCollapsingBar
+            title={EXPLORE_COPY.tabTitle}
+            scrollY={scrollY}
+            // 라이브러리 알약([링 | 필터])과 같은 캡슐 — 탭을 오가면 필터 칸이 줄었다 자란다(useTabPillMorph).
+            // 맨 링(RemainingPlaysIndicator)이면 모양이 달라 모핑이 안 보였다(PM 2026-09-30 03:10)
+            trailing={
+              screen.remainingDisplay ? (
+                <ExploreRingPill
+                  remaining={screen.remainingDisplay.remaining}
+                  limit={screen.remainingDisplay.limit}
+                  onExhaustedPress={() => screen.openPaywall('explore')}
+                />
+              ) : null
+            }
+            blurTarget={blurTargetRef}
+            onTitlePress={() => scrollToTopRef.current?.()}
+          />
+        ) : HAS_NATIVE_TAB_BAR ? null : (
+          <FloatingHeader
+            onHeightChange={setHeaderHeight}
+            solidness={solidness}
+            containerRef={headerRef}
+            androidFrostTarget={blurTargetRef}
+          >
+            {Platform.OS === 'android' ? (
+              <View style={styles.androidTitle}>
+                <LargeTitleRow title={EXPLORE_COPY.tabTitle} trailing={remainingRing} />
+              </View>
+            ) : null}
+            <ExploreSearchBarRow
+              onPress={openSearch}
+              trailing={Platform.OS === 'android' ? null : remainingRing}
+            />
 
-          {chips}
-        </FloatingHeader>
+            {chips}
+          </FloatingHeader>
+        )}
+      </View>
       )}
-
       {/* 미니플레이어(PL11) — 활성 재생 세션만 그린다. 복원 스냅샷 판정은 라이브러리 소유다 */}
 
       <ExploreMoreSheet
@@ -459,7 +610,17 @@ export default function ExploreScreen() {
   );
 }
 
+/** Android — iOS 26 탐색 상단(큰 제목·검색창·칩이 목록 첫 줄 + 접히면 가운데 제목) 흉내. 옛 iOS 는 떠 있는 머리 줄 그대로 */
+/** 인기 캐러셀 전환에서 카드 두 장씩 온전히 흐르기(PeriodSwap itemExtent) — iOS 만 */
+const POPULAR_WHOLE_CARDS = Platform.OS === 'ios';
+
+const ANDROID_IOS_HEADER = Platform.OS === 'android' && !HAS_NATIVE_TAB_BAR;
+
 const styles = StyleSheet.create({
+  // 고정 제목 아래로 목록이 지나가도 글자가 겹치지 않도록 화면 바탕을 채운다.
+  androidTitle: {
+    backgroundColor: theme.color.background,
+  },
   container: {
     flex: 1,
     backgroundColor: theme.color.background,
@@ -528,15 +689,21 @@ const styles = StyleSheet.create({
     // 줄 간격을 키우지 않는다 — iOS 는 늘린 줄 높이의 여분을 글자 위에만 얹어 글자가 상자 아래로 내려앉고,
     // alignItems:center 로 맞춘 토글이 글자보다 위에 떠 보였다(2026-09-25 23:41 실기기)
   },
+  sectionPeriodControl: {
+    alignSelf: 'center',
+    flexShrink: 0,
+    minHeight: theme.touchTarget.minHeight,
+    justifyContent: 'center',
+  },
   // 캐러셀 좌우 여백은 섹션 제목과 같은 선에서 시작한다
   carousel: {
     paddingHorizontal: theme.spacing.md,
   },
+  carouselUnclipped: {
+    overflow: 'visible',
+  },
   carouselGap: {
     width: theme.spacing.md,
-  },
-  dimmed: {
-    opacity: 0.5,
   },
   emptyContent: {
     flexGrow: 1,

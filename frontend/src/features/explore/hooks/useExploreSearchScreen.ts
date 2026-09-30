@@ -61,6 +61,8 @@ export interface ExploreSearchEmbedding {
    * 가라앉는 퇴장 애니메이션을 돌리고 끝에 onExit 를 부른다
    */
   isClosing?: boolean;
+  /** Android 제자리 검색의 닫기·시스템 뒤로가기에서 퇴장 애니메이션을 요청한다. */
+  onRequestClose?: () => void;
 }
 
 export const useExploreSearchScreen = (embedding?: ExploreSearchEmbedding) => {

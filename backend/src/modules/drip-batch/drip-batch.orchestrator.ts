@@ -564,6 +564,17 @@ export class DripBatchOrchestrator {
   }
 
   /**
+   * 취향 캐시를 **지금** 다시 계산해 저장한다 — 추천 테스트 콘솔 전용(2026-09-29).
+   *
+   * 제품에서는 배치만 캐시를 쓴다(4.3 "실시간 재계산은 하지 않는다"). 테스트 콘솔은 "완청을 누르면
+   * 탐색 피드가 어떻게 바뀌나"를 바로 봐야 하므로, 다음 배치가 할 일을 행동 직후 같은 함수로 앞당긴다.
+   * 계산식은 배치와 하나다 — 여기서 다른 계산을 하면 콘솔이 보는 결과가 제품과 갈라진다.
+   */
+  async refreshPreferenceCache(userId: string, now: Date): Promise<void> {
+    await this.rebuildPreference(userId, now, true);
+  }
+
+  /**
    * 4.3 — 배치 시점에 최신 신호를 읽어 취향 캐시를 재계산한다.
    * `persist`가 꺼져 있으면 같은 계산을 저장 없이 한다(편성 미리보기).
    */

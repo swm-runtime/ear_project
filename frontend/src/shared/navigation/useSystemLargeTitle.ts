@@ -65,8 +65,7 @@ export const useSystemLargeTitle = (
       title,
       // headerTitle 이 옵션에 있으면(PUSHED_SCREEN_HEADER 의 '') title 을 이긴다 — 같이 덮는다(09-28 03:25 설정 제목 빈칸)
       headerTitle: title,
-      // 큰 제목 모드는 항상 켠다 — 켜져 있어야 scroll edge 블러가 그려진다(04:29 PM). 모드는 .inline 고정 — .always 는 버튼
-      // 줄이 따로 생겨 제목이 캡슐과 한 줄이 아니었다(05:43). 도중에 안 바꾼다(04:49 — 바꾸면 큰 제목이 콘텐츠 위로 펼쳐짐)
+      // 검색 중에도 같은 시스템 제목을 유지한다. headerShown/header는 전환하지 않는다.
       headerLargeTitleEnabled: true,
       headerLargeTitleShadowVisible: true,
       headerTitleStyle: { fontSize: collapsedTitleSize },

@@ -3,14 +3,22 @@ import {
   type BottomTabBarProps,
 } from '@react-navigation/bottom-tabs';
 import { useContext, useEffect, useMemo, useRef } from 'react';
-import { Animated, PanResponder, Platform, StyleSheet, Text, View } from 'react-native';
+import { Animated, PanResponder, PixelRatio, Platform, StyleSheet, View } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion, theme } from '@/shared/theme';
 import GlassSurface, { GlassGroup, GlassPill } from '@/shared/ui/GlassSurface';
 import TabBarIcon, { type TabBarIconName } from '@/shared/ui/TabBarIcon';
+import { Text, AnimatedText } from '@/shared/ui/Typography';
 
-import { MiniPlayer, miniDropStyle, miniDropProgress, useMiniPlayerInset } from '@/features/player';
+import {
+  MINI_CARD_RADIUS,
+  MINI_CARD_WIDTH,
+  MiniPlayer,
+  miniDropStyle,
+  miniDropProgress,
+  useMiniPlayerInset,
+} from '@/features/player';
 
 /** 캡슐 높이 — 아이콘 24 + 라벨 11 + 위아래 숨. iOS 26 탭 바와 같은 눈높이 */
 const CAPSULE_HEIGHT = 60;
@@ -55,9 +63,30 @@ const DOCK_GAP = 8;
  * 하이라이트) + 위쪽 안쪽 광택선. 미니플레이어는 iOS 26 액세서리처럼 캡슐이다(MINI_CARD_RADIUS)
  */
 const IS_ANDROID = Platform.OS === 'android';
-const CARD_RADIUS = IS_ANDROID ? 28 : 22;
+/**
+ * **Android 는 불투명 독**(PM 2026-09-30 01:28 "안드로이드에는 리퀴드 특성이 없어서 — 불투명하게, 선택 알약도 불투명하게,
+ * 알약 크기는 안 움직이게"). 캡슐 뒤판은 흰 면(그림자·hairline 은 유지, 유리 림은 뺀다), 선택 알약은 회색 면이 칸 사이를
+ * 미끄러지기만 한다 — 누를 때 부풀기(1.3×)·끌 때 수축·끝 넘김 고무줄·도착 출렁임을 전부 끈다. iOS(26 미만 캡슐)는 그대로
+ */
+const SOLID_DOCK = IS_ANDROID;
+/*
+ * 불투명 알약의 위아래 공백을 **같은 픽셀 수**로 — dp 로 두면 캡슐(60 → 168.75px)과 알약(52 → 146.25px)이 따로 반올림돼
+ * 남는 23px 이 위 11 · 아래 12 로 갈렸다(PM 2026-09-30 04:36 실측). 공백을 먼저 픽셀로 정하고(4dp → 11px), 알약 높이는
+ * "캡슐 픽셀 − 공백 × 2" 로 잡아 dp 로 되돌린다
+ */
+// 값은 dp 지만 둘 다 픽셀 격자에 맞춘 dp 다(roundToNearestPixel)
+const SOLID_PILL_INSET = PixelRatio.roundToNearestPixel(CAPSULE_INSET);
+const SOLID_PILL_HEIGHT = PixelRatio.roundToNearestPixel(CAPSULE_HEIGHT) - SOLID_PILL_INSET * 2;
+/** 불투명 캡슐 위 선택 알약 — 흰 면 위에서 한 단 내려앉은 중립 회색 */
+const SOLID_PILL_COLOR = '#ECECF0';
+// 미니플레이어 카드와 같은 반지름 — 뒤 판(그림자)이 카드 모양을 그대로 따른다
+const CARD_RADIUS = MINI_CARD_RADIUS;
 const ICON_SIZE = 24;
-const LABEL_SIZE = 11;
+/**
+ * 탭 라벨 — 10(iOS 26 시스템 탭 바와 같다). 2026-09-30 실측: iOS 라벨 "라이브러리" 폭 41.3pt · 글자 높이 8.7pt(≈10pt),
+ * Android 11 은 46dp · 9.6dp 로 10% 컸다(PM 02:36 "글씨 크기 줄이는 거"). 캡슐 탭 바 공통(Android · iOS 26 미만)
+ */
+const LABEL_SIZE = 10;
 
 const ICON_NAMES: Record<string, TabBarIconName> = {
   Library: 'library',
@@ -100,7 +129,12 @@ const PILL_STRETCH_MAX = 0.35;
  * 차지하는 높이(안전영역 + 간격 + 캡슐)는 BottomTabBarHeightCallbackContext 로 올린다 — 미니플레이어가 그 위에
  * 서고 목록이 그만큼 바닥 여백을 둔다(useBottomDockInset)
  */
-export default function CapsuleTabBar({ state, descriptors, navigation, insets }: BottomTabBarProps) {
+export default function CapsuleTabBar({
+  state,
+  descriptors,
+  navigation,
+  insets,
+}: BottomTabBarProps) {
   const reportHeight = useContext(BottomTabBarHeightCallbackContext);
   // 앞 층 미니플레이어 카드의 실측 높이(안 보이면 0) — 뒤 층 유리 판이 같은 자리에 선다
   const miniHeight = useMiniPlayerInset();
@@ -112,6 +146,8 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
   const indicatorScale = useAnimatedValue(1);
   // 부풀고 가라앉는 건 jelly — 한 번 넘쳤다 돌아오는 출렁임이 iOS 26 의 "버블"이다(snappy 는 딱 멈춰서 젤리가 아니었다)
   const liftPill = (isLifted: boolean) => {
+    // Android 는 알약 크기가 변하지 않는다(아래 SOLID_DOCK 주석)
+    if (SOLID_DOCK) return;
     Animated.spring(indicatorScale, {
       toValue: isLifted ? PILL_LIFT_SCALE : 1,
       ...motion.spring.jelly,
@@ -124,7 +160,7 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
   const isContractedRef = useRef(false);
   /** 끌기가 시작되면 방울처럼 줄어든다 — 한 번만(매 move 마다 스프링을 새로 걸지 않는다) */
   const contractForDrag = () => {
-    if (isContractedRef.current) return;
+    if (SOLID_DOCK || isContractedRef.current) return;
     isContractedRef.current = true;
     Animated.spring(stretch, {
       toValue: -PILL_DRAG_CONTRACT,
@@ -134,6 +170,7 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
   };
   /** 끝을 넘긴 만큼 고무줄 — 수축을 상쇄하고 넘어서 늘어난다. 0 이면 수축 상태로 되돌린다 */
   const stretchByOverdrag = (overdragPx: number) => {
+    if (SOLID_DOCK) return;
     const byOverdrag = Math.min(overdragPx / ITEM_WIDTH, 1) * PILL_OVERDRAG_STRETCH_PER_ITEM;
     stretch.stopAnimation();
     stretch.setValue(Math.min(-PILL_DRAG_CONTRACT + byOverdrag, PILL_STRETCH_MAX));
@@ -143,11 +180,12 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
   /** 놓으면 부푼다(jelly bloom) — 수축·고무줄 어느 쪽에서든 출렁이며 제자리로 */
   const bloom = () => {
     isContractedRef.current = false;
+    if (SOLID_DOCK) return;
     Animated.spring(stretch, { toValue: 0, ...motion.spring.jelly, useNativeDriver: true }).start();
   };
   /** 탭으로 옮겨갈 때 — 출발하며 줄었다가 도착에서 부푼다 */
   const contractForJump = (cells: number) => {
-    if (cells === 0) return;
+    if (SOLID_DOCK || cells === 0) return;
     Animated.sequence([
       Animated.timing(stretch, {
         toValue: -PILL_JUMP_CONTRACT,
@@ -202,9 +240,13 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
   useEffect(() => {
     if (isDraggingRef.current) return;
     const x = state.index * ITEM_WIDTH;
-     
+
     pillXRef.current = x;
-    Animated.spring(indicatorX, { toValue: x, ...motion.spring.snappy, useNativeDriver: true }).start();
+    Animated.spring(indicatorX, {
+      toValue: x,
+      ...motion.spring.snappy,
+      useNativeDriver: true,
+    }).start();
   }, [indicatorX, state.index]);
 
   // 끌기 — 핸들러는 렌더가 아니라 제스처 시점에 실행되므로 최신 값은 ref 로 든다
@@ -214,7 +256,6 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
   });
   const dragOriginRef = useRef(0);
   const snapTo = (index: number) => {
-     
     pillXRef.current = index * ITEM_WIDTH;
     Animated.spring(indicatorX, {
       toValue: index * ITEM_WIDTH,
@@ -224,17 +265,24 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
   };
   const selectTab = (target: number, wasDragged = false) => {
     const { routes, index, navigation: nav } = latestRef.current;
-    snapTo(target);
-    // 끌다 놓은 건 bloom 이 부풀린다 — 탭으로 건너뛸 때만 줄었다 부푸는 펄스
-    if (!wasDragged) contractForJump(Math.abs(target - index));
     // 같은 칸으로 끌어 돌아온 경우는 탭이 아니다. 같은 탭의 재탭은 화면에 전달한다.
-    if (target === index && wasDragged) return;
+    if (target === index && wasDragged) {
+      snapTo(index);
+      return;
+    }
     const pressEvent = nav.emit({
       type: 'tabPress',
       target: routes[target].key,
       canPreventDefault: true,
     });
-    if (target !== index && !pressEvent.defaultPrevented) nav.navigate(routes[target].name);
+    if (pressEvent.defaultPrevented) {
+      snapTo(index);
+      return;
+    }
+    snapTo(target);
+    // 끌다 놓은 건 bloom 이 부풀린다 — 탭으로 건너뛸 때만 줄었다 부푸는 펄스
+    if (!wasDragged) contractForJump(Math.abs(target - index));
+    if (target !== index) nav.navigate(routes[target].name);
   };
   /*
    * 탭·끌기는 **칸 하나하나가** 받는다(2026-09-23). 캡슐(부모)에 두고 칸에서 빼앗거나 처음부터 캡슐이 잡는
@@ -254,12 +302,15 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
             isDraggingRef.current = false;
             liftPill(true);
             indicatorX.stopAnimation();
+            // Android는 길게 눌러도 기다리지 않는다. 손이 닿자마자 화면과 알약을 함께 선택한다.
+            if (SOLID_DOCK) selectTab(itemIndex);
             dragOriginRef.current = pillXRef.current;
           },
           onPanResponderMove: (_, gesture) => {
             if (!isDraggingRef.current) {
               if (Math.abs(gesture.dx) <= DRAG_START_DISTANCE) return;
               isDraggingRef.current = true;
+              indicatorX.stopAnimation();
             }
             const { maxX: limit } = latestRef.current;
             const raw = dragOriginRef.current + gesture.dx;
@@ -276,11 +327,14 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
             const { maxX: limit } = latestRef.current;
             const wasDragged = isDraggingRef.current;
             const target = wasDragged
-              ? Math.round(Math.max(0, Math.min(limit, dragOriginRef.current + gesture.dx)) / ITEM_WIDTH)
+              ? Math.round(
+                  Math.max(0, Math.min(limit, dragOriginRef.current + gesture.dx)) / ITEM_WIDTH,
+                )
               : itemIndex;
             isDraggingRef.current = false;
             if (wasDragged) bloom();
-            selectTab(target, wasDragged);
+            // Android의 단순 누르기는 grant에서 끝났다. 같은 탭 재선택(맨 위 이동)도 한 번만 보낸다.
+            if (wasDragged || !SOLID_DOCK) selectTab(target, wasDragged);
           },
           onPanResponderTerminate: () => {
             liftPill(false);
@@ -308,25 +362,64 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
       */}
       <GlassGroup spacing={DOCK_MERGE_SPACING} style={styles.glassLayer} pointerEvents="none">
         {miniHeight > 0 ? (
-          <Animated.View style={[styles.cardGlass, { height: miniHeight }, miniDropStyle(miniDropProgress)]}>
-            <GlassSurface style={[StyleSheet.absoluteFill, styles.cardGlassClip]} />
-            <View style={[styles.cardGlassBorder, IS_ANDROID && styles.androidRim]} />
+          <Animated.View
+            style={[styles.cardGlass, { height: miniHeight }, miniDropStyle(miniDropProgress)]}
+          >
+            {/* 불투명 독(Android) — 뒤 판은 그림자만 낸다. 흰 면·윤곽은 미니플레이어 카드가 직접(solidCard) */}
+            {SOLID_DOCK ? (
+              <View
+                style={[StyleSheet.absoluteFill, styles.cardGlassClip, styles.cardSolidShadowPlate]}
+              />
+            ) : (
+              <>
+                <GlassSurface style={[StyleSheet.absoluteFill, styles.cardGlassClip]} />
+                <View style={[styles.cardGlassBorder, IS_ANDROID && styles.androidRim]} />
+              </>
+            )}
           </Animated.View>
         ) : null}
-        <View style={[styles.capsuleGlassBox, { top: miniHeight > 0 ? miniHeight + DOCK_GAP : 0 }]}>
-          <GlassSurface style={[StyleSheet.absoluteFill, styles.capsuleGlass]} />
-          <View style={[styles.capsuleBorder, IS_ANDROID && styles.androidRim]} />
-        </View>
+        {/* 불투명 독(Android)은 판을 앞 층 캡슐 안에 그린다 — 아래 capsuleSolidPlate 주석 */}
+        {SOLID_DOCK ? null : (
+          <View
+            style={[styles.capsuleGlassBox, { top: miniHeight > 0 ? miniHeight + DOCK_GAP : 0 }]}
+          >
+            <GlassSurface style={[StyleSheet.absoluteFill, styles.capsuleGlass]} />
+            <View style={[styles.capsuleBorder, IS_ANDROID && styles.androidRim]} />
+          </View>
+        )}
       </GlassGroup>
       <MiniPlayer placement="dock" />
       <View style={styles.capsule} accessibilityRole="tablist">
-        <GlassPill
-          style={[
-            styles.indicator,
-            { transform: [{ translateX: indicatorX }, { scaleX: pillScaleX }, { scaleY: pillScaleY }] },
-          ]}
-          lens={lensStyle}
-        />
+        {/*
+          불투명 독의 흰 판 — **알약과 같은 상자 안**에 둔다(PM 2026-09-30 01:41 실측: 뒤 층 판이 "미니 높이 + 8" 계산으로
+          따로 서서 앞 층과 0.5dp 어긋나 알약 위 공백 10px · 아래 13px). 같은 상자면 구조적으로 어긋날 수 없다.
+          유리 묶음 합쳐짐이 없는 Android 라 뒤 층에 둘 이유가 없다
+        */}
+        {SOLID_DOCK ? <View style={styles.capsuleSolidPlate} pointerEvents="none" /> : null}
+        {SOLID_DOCK ? (
+          <Animated.View
+            style={[
+              styles.indicator,
+              styles.indicatorSolid,
+              { transform: [{ translateX: indicatorX }] },
+            ]}
+            pointerEvents="none"
+          />
+        ) : (
+          <GlassPill
+            style={[
+              styles.indicator,
+              {
+                transform: [
+                  { translateX: indicatorX },
+                  { scaleX: pillScaleX },
+                  { scaleY: pillScaleY },
+                ],
+              },
+            ]}
+            lens={lensStyle}
+          />
+        )}
         {state.routes.map((route, index) => {
           const { options } = descriptors[route.key];
           const isFocused = state.index === index;
@@ -359,36 +452,44 @@ export default function CapsuleTabBar({ state, descriptors, navigation, insets }
               {...itemPans[index].panHandlers}
             >
               <Animated.View style={[styles.itemContent, { transform: [{ scale: contentScale }] }]}>
-              {/* 두 겹 — 선·회색(항상) 위에 면·검정(알약이 겹친 만큼) */}
-              <View style={styles.glyph}>
-                <TabBarIcon
-                  name={ICON_NAMES[route.name] ?? 'library'}
-                  color={theme.color.textSecondary}
-                  focused={false}
-                  size={ICON_SIZE}
-                />
-                <Animated.View style={[styles.glyphOverlay, { opacity: selectedOpacity }]}>
-                  <TabBarIcon
-                    name={ICON_NAMES[route.name] ?? 'library'}
-                    color={theme.color.primary}
-                    focused
-                    size={ICON_SIZE}
-                  />
-                </Animated.View>
-              </View>
-              <View>
-                <Text style={styles.label} numberOfLines={1}>
-                  {label}
-                </Text>
-                <Animated.Text
-                  style={[styles.label, styles.labelSelected, { opacity: selectedOpacity }]}
-                  numberOfLines={1}
-                  accessibilityElementsHidden
-                  importantForAccessibility="no"
-                >
-                  {label}
-                </Animated.Text>
-              </View>
+                {/* 두 겹 — 선·회색(항상) 위에 면·검정(알약이 겹친 만큼) */}
+                <View style={styles.glyph}>
+                  {/* Android 는 알약이 겹친 만큼 밑의 선 아이콘을 뺀다 — 면 아이콘이 선을 다 덮지 못해(Solar 라이브러리는 두
+                      변형의 모양이 다르다) 선택된 칸에 회색 테두리가 비쳤다(PM 2026-09-30 02:34 "색칠될 때 테두리 없애"). 아이폰은 그대로 */}
+                  <Animated.View
+                    style={
+                      IS_ANDROID ? { opacity: Animated.subtract(1, selectedOpacity) } : undefined
+                    }
+                  >
+                    <TabBarIcon
+                      name={ICON_NAMES[route.name] ?? 'library'}
+                      color={theme.color.textSecondary}
+                      focused={false}
+                      size={ICON_SIZE}
+                    />
+                  </Animated.View>
+                  <Animated.View style={[styles.glyphOverlay, { opacity: selectedOpacity }]}>
+                    <TabBarIcon
+                      name={ICON_NAMES[route.name] ?? 'library'}
+                      color={theme.color.primary}
+                      focused
+                      size={ICON_SIZE}
+                    />
+                  </Animated.View>
+                </View>
+                <View>
+                  <Text style={styles.label} numberOfLines={1}>
+                    {label}
+                  </Text>
+                  <AnimatedText
+                    style={[styles.label, styles.labelSelected, { opacity: selectedOpacity }]}
+                    numberOfLines={1}
+                    accessibilityElementsHidden
+                    importantForAccessibility="no"
+                  >
+                    {label}
+                  </AnimatedText>
+                </View>
               </Animated.View>
             </View>
           );
@@ -418,7 +519,7 @@ const styles = StyleSheet.create({
   cardGlass: {
     position: 'absolute',
     top: 0,
-    width: theme.dock.width,
+    width: MINI_CARD_WIDTH,
     borderRadius: CARD_RADIUS,
     borderCurve: 'continuous',
     boxShadow: '0 4px 20px rgba(0, 0, 0, 0.10)',
@@ -459,6 +560,21 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.full,
     overflow: 'hidden',
   },
+  cardSolidShadowPlate: {
+    backgroundColor: theme.color.background,
+  },
+  capsuleSolidPlate: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: theme.radius.full,
+    backgroundColor: theme.color.background,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(0, 0, 0, 0.10)',
+    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.10)',
+  },
   capsuleBorder: {
     position: 'absolute',
     top: 0,
@@ -483,6 +599,11 @@ const styles = StyleSheet.create({
     width: ITEM_WIDTH,
     height: ITEM_HEIGHT,
     borderRadius: theme.radius.full,
+  },
+  indicatorSolid: {
+    backgroundColor: SOLID_PILL_COLOR,
+    top: SOLID_PILL_INSET,
+    height: SOLID_PILL_HEIGHT,
   },
   item: {
     width: ITEM_WIDTH,

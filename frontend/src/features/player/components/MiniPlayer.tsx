@@ -8,7 +8,6 @@ import {
   PanResponder,
   Pressable,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 
@@ -22,6 +21,7 @@ import { motion, theme } from '@/shared/theme';
 import GlassSurface from '@/shared/ui/GlassSurface';
 import MarqueeText from '@/shared/ui/MarqueeText';
 import RemoteImage from '@/shared/ui/RemoteImage';
+import { Text } from '@/shared/ui/Typography';
 
 import { useTopicsQuery } from '@/features/interest';
 
@@ -46,16 +46,34 @@ import { usePlayerOpenGestureStore } from '../store/player-open-gesture.store';
 /** 미니플레이어 재생 버튼 아이콘 — 전체 플레이어보다 작게 */
 const MINI_PLAY_ICON_SIZE = 20;
 /**
- * 카드 모서리 — 캡슐 탭 바(높이 60 알약)와 같은 결로 크게. **Android 는 완전한 캡슐**(높이 54 의 절반 이상 — RN 이 절반으로
- * 자른다) — iOS 26 미니플레이어(탭 바 액세서리)가 캡슐이다(PM 2026-09-29 00:55 "하단 footer 리퀴드 최대한 유사하게", Android 전용)
+ * 카드 모서리 — Android 는 높이의 절반을 반지름으로 쓰는 완전한 캡슐이다.
  */
-export const MINI_CARD_RADIUS = Platform.OS === 'android' ? 28 : 22;
-/** 썸네일 한 변·행 위아래 여백 — PlayerScreen 의 대체 치수(MINI_THUMB_SIZE·MINI_ROW_HEIGHT)와 맞아야 한다 */
-export const MINI_THUMB_SIZE = 40;
-const MINI_ROW_PADDING = 6;
+/**
+ * Android 는 썸네일 36 을 유지하고 위아래 여백을 4 로 줄인다(2026-09-30 사용자 요청).
+ * 행 44 + 진행바 2 = 기본 높이 46. 재생 버튼의 최소 터치 높이 44 도 유지한다.
+ */
+const IS_ANDROID_MINI = Platform.OS === 'android';
+/** Android도 iOS 시스템 줌처럼 위로 밀면 탭과 같은 열기를 실행한다. */
+const OPEN_ON_SWIPE_START = IS_ANDROID_MINI || USE_NATIVE_PLAYER_ZOOM;
+export const MINI_THUMB_SIZE = IS_ANDROID_MINI ? 36 : 40;
+const MINI_ROW_PADDING = IS_ANDROID_MINI ? 4 : 6;
 /** 진행바 — 아래 변, 캡슐 모서리에 잘리지 않게 양옆 12 안쪽(PM 2026-09-25) */
 const PROGRESS_HEIGHT = 2;
+/** 카드 전체 높이(진행바 포함) — PlayerScreen 의 열림·닫힘 모션 대체 치수가 이 값을 쓴다 */
+export const MINI_CARD_HEIGHT =
+  Math.max(MINI_THUMB_SIZE + MINI_ROW_PADDING * 2, 44) + PROGRESS_HEIGHT;
+/** Android 는 높이의 절반 = 완전한 알약(46 → 23). iOS 26 미만 카드는 종전 22 */
+export const MINI_CARD_RADIUS = IS_ANDROID_MINI ? MINI_CARD_HEIGHT / 2 : 22;
+/** 카드 폭 — Android 는 탭 바보다 양옆 3 좁다(iOS 26 액세서리 실측). 독 뒤 판(CapsuleTabBar)도 이 폭을 쓴다 */
+const MINI_CARD_SIDE_INSET = IS_ANDROID_MINI ? 3 : 0;
+export const MINI_CARD_WIDTH = theme.dock.width - MINI_CARD_SIDE_INSET * 2;
 const PROGRESS_INSET = 12;
+/**
+ * **Android 불투명 독의 미니플레이어**(PM 2026-09-30 02:48 "A" — 탭 바와 같은 재질). 독 안 카드가 흰 면 + hairline 을
+ * 직접 그린다(유리·림 없음, 그림자는 독 뒤 판). 진행바는 좌우 12 안쪽, 카드 맨 아래 변에 붙인다.
+ * 둥근 모서리에서 양끝이 조금 잘리는 것은 허용한다(2026-09-30 사용자 요청).
+ */
+const SOLID_DOCK_CARD = IS_ANDROID_MINI;
 /** 시스템 액세서리(iOS 26) 안 — 컨테이너 높이는 시스템이 주므로 내용은 더 작게, 가운데 정렬(PM 2026-09-24 "아래 공백이 크고 썸네일이 큼") */
 const MINI_ACCESSORY_THUMB_SIZE = 36;
 const MINI_ACCESSORY_ROW_PADDING = 4;
@@ -115,7 +133,9 @@ export default function MiniPlayer({
   const isDocked = placement !== 'floating';
   const isAccessory = placement === 'accessory';
   const resumeFallback = isDocked ? resumeStore.fallback : resumeFallbackProp;
-  const onResumePlayPress = isDocked ? (resumeStore.onPlayPress ?? undefined) : onResumePlayPressProp;
+  const onResumePlayPress = isDocked
+    ? (resumeStore.onPlayPress ?? undefined)
+    : onResumePlayPressProp;
   const onResumeExpandPress = isDocked
     ? (resumeStore.onExpandPress ?? undefined)
     : onResumeExpandPressProp;
@@ -244,9 +264,9 @@ export default function MiniPlayer({
       },
       onPanResponderGrant: (_, gesture) => {
         if (gestureModeRef.current !== 'open') return;
-        // 줌 전환 갈래(iOS 26 + 모듈 빌드): 여는 모션은 시스템 것이라 손가락을 따라가지 않는다 — 위로 밀기 시작하면
-        // 곧바로 연다(애플 뮤직도 스와이프 업 = 탭과 같은 확대, 13:48 PM "위로 스와이프하면 커져야")
-        if (USE_NATIVE_PLAYER_ZOOM) {
+        // Android·iOS 시스템 줌은 위로 밀기 시작하면 탭과 같은 열기 모션을 실행한다.
+        // 이후 손가락 이동·놓기·터치 취소로 플레이어 진행도를 바꾸지 않는다.
+        if (OPEN_ON_SWIPE_START) {
           gestureContext.current.expand();
           return;
         }
@@ -257,7 +277,7 @@ export default function MiniPlayer({
       },
       onPanResponderMove: (event, gesture) => {
         if (gestureModeRef.current === 'open') {
-          if (USE_NATIVE_PLAYER_ZOOM) return;
+          if (OPEN_ON_SWIPE_START) return;
           lastMoveAtRef.current = event.nativeEvent.timestamp;
           openGesture().update(openProgressOf(gesture.dy));
           return;
@@ -267,7 +287,7 @@ export default function MiniPlayer({
       },
       onPanResponderRelease: (event, gesture) => {
         if (gestureModeRef.current === 'open') {
-          if (USE_NATIVE_PLAYER_ZOOM) return;
+          if (OPEN_ON_SWIPE_START) return;
           // 튕김은 "움직이던 중에 놓았을 때"만 친다 — 끌어올린 뒤 멈췄다 놓으면 속도 값은 남아 있어도 튕김이 아니다
           const isFlick =
             event.nativeEvent.timestamp - lastMoveAtRef.current <
@@ -279,7 +299,8 @@ export default function MiniPlayer({
         }
         const progress = Math.max(0, Math.min(1, gesture.dy / MINI_DROP_TRAVEL));
         const shouldDismiss =
-          progress > MINI_PLAYER_DISMISS_DISTANCE_RATIO || gesture.vy > MINI_PLAYER_DISMISS_VELOCITY;
+          progress > MINI_PLAYER_DISMISS_DISTANCE_RATIO ||
+          gesture.vy > MINI_PLAYER_DISMISS_VELOCITY;
         if (shouldDismiss) {
           if (gestureContext.current.isAccessory) {
             // 시스템 액세서리 — 제자리로 돌아간 뒤 숨기면(bottomAccessoryHidden) iOS 가 탭 바로 거둬들이는
@@ -296,7 +317,7 @@ export default function MiniPlayer({
       },
       onPanResponderTerminate: () => {
         if (gestureModeRef.current === 'open') {
-          if (USE_NATIVE_PLAYER_ZOOM) return;
+          if (OPEN_ON_SWIPE_START) return;
           // 플레이어는 이미 떠 있다 — 터치를 빼앗기면(모달 전환 등) 닫지 말고 끝까지 연다. 탭한 것과 같은 결과다
           openGesture().release('open');
           return;
@@ -409,7 +430,11 @@ export default function MiniPlayer({
       {...swipePanResponder.panHandlers}
     >
       {/* 유리 바탕 — 독에 있으면 CapsuleTabBar 의 GlassGroup 이 뒤 층에서 그린다(캡슐과 물방울 병합). 탭 밖에선 직접 */}
-      {isDocked ? null : (
+      {isDocked ? (
+        SOLID_DOCK_CARD ? (
+          <View style={[StyleSheet.absoluteFill, styles.solidCard]} pointerEvents="none" />
+        ) : null
+      ) : (
         <>
           <GlassSurface style={StyleSheet.absoluteFill} />
           <View style={styles.topLine} pointerEvents="none" />
@@ -467,7 +492,11 @@ export default function MiniPlayer({
       {/* 진행바는 **아래 변**(2026-09-25 PM) — 유리 위 림의 흰 하이라이트 밑에 검정 선을 두면 테두리가 두 겹으로 읽혔다.
           캡슐 모서리에서 잘리지 않게 양옆 12 안쪽, 끝은 둥글게. 카드 밑동이 차오르는 은유(Spotify·YouTube Music) */}
       <View
-        style={[styles.progressTrack, isAccessory && styles.progressTrackAccessory]}
+        style={[
+          styles.progressTrack,
+          isAccessory && styles.progressTrackAccessory,
+          isDocked && SOLID_DOCK_CARD && styles.progressTrackSolid,
+        ]}
         accessibilityRole="progressbar"
         accessibilityLabel={PLAYER_COPY.miniPlayer.progressA11y(totalMin, currentMin)}
       >
@@ -486,8 +515,8 @@ const styles = StyleSheet.create({
   // 캡슐 탭 바 위에 떠 있는 둥근 카드(2026-09-23 PM) — 좌우 md 여백, 캡슐과 DOCK_GAP 띄움
   container: {
     position: 'absolute',
-    // 캡슐 탭 바와 같은 폭으로 가운데(PM 2026-09-23)
-    width: theme.dock.width,
+    // 캡슐 탭 바와 같은 폭으로 가운데(PM 2026-09-23) — Android 는 양옆 3 좁게(MINI_CARD_WIDTH)
+    width: MINI_CARD_WIDTH,
     alignSelf: 'center',
     borderRadius: MINI_CARD_RADIUS,
     borderCurve: 'continuous',
@@ -538,6 +567,21 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(0, 0, 0, 0.10)',
+  },
+  // Android 독 카드 — 흰 불투명 면 + 윤곽(탭 바 capsuleSolidPlate 와 같은 재질)
+  solidCard: {
+    borderRadius: MINI_CARD_RADIUS,
+    backgroundColor: theme.color.background,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(0, 0, 0, 0.10)',
+  },
+  progressTrackSolid: {
+    marginHorizontal: PROGRESS_INSET,
+    /*
+     * 카드 윤곽(solidCard 의 hairline)이 진행바 **밑 한 줄**에 그려져 1px 연회색 틈으로 보였다(PM 2026-09-30 05:20 스샷 —
+     * y 1985~1989 진행바, 1990 윤곽 (227,225,226)). hairline 만큼 내려 윤곽을 덮는다 — 카드 밖은 overflow 로 잘린다
+     */
+    transform: [{ translateY: StyleSheet.hairlineWidth }],
   },
   progressTrack: {
     height: PROGRESS_HEIGHT,

@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import { Text } from '@/shared/ui/Typography';
 
 interface LargeTitleRowProps {
   title: string;
@@ -43,5 +44,10 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.xxl,
     fontWeight: '700',
     color: theme.color.textPrimary,
+    // Android 기본 글꼴 여백을 빼고 한글 획이 잘리지 않도록 줄 높이에 여유를 남긴다.
+    // 제목 상자가 아니라 보이는 글자가 오른쪽 40pt 알약과 중앙에 놓이게 한다.
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+    lineHeight: Platform.OS === 'android' ? theme.font.size.xxl + theme.spacing.sm : undefined,
   },
 });

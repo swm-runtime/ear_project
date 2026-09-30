@@ -94,6 +94,24 @@ HIG 원문: https://developer.apple.com/design/human-interface-guidelines/
 아래 "떠 있는 머리 줄"은 JS 탭 바 갈래(iOS 26 미만·Android)의 규칙이다.
 
 ### 떠 있는 머리 줄 (HIG: Liquid Glass — 콘텐츠 위의 컨트롤 층)
+Android 하단 캡슐 탭은 손가락이 닿는 즉시 화면과 선택 알약을 함께 선택한다(2026-09-30 PM "길게 눌러도 선택 알약이 바로"). 손을 뗄 때 단순 탭 이벤트를 중복 발행하지 않아 같은 탭의 맨 위 이동도 한 번만 처리한다. 끌기는 누른 칸을 기준으로 따라가며 놓은 칸을 선택한다. `tabPress`가 취소되면 화면·알약 모두 현재 탭을 유지한다. iOS의 기존 누름 동작은 유지한다.
+Android 설정의 큰 제목은 뒤로 버튼 줄 바로 아래에서 시작한다(2026-09-30 PM). 목록 상단 인셋은 `상태 바 + 버튼 줄 52`이며, 종전의 추가 16pt를 제거해 제목을 16pt 올린다. iOS 시스템 제목은 UIKit 배치를 유지한다. 버튼 크기·히트 영역·제목 아래 섹션 간격은 그대로다.
+Android 탐색 검색도 iOS 26처럼 **제자리 검색**으로 연다(2026-09-30 PM). 큰 제목 "탐색"과 [잔여 링 | 닫기 ✕] 캡슐 아래에 채움 검색 필드를 고정하고 자동 포커스한다. 피드는 마운트된 채 덮어 스크롤·필터를 유지하고, 덮인 피드의 터치·접근성 탐색은 막는다. 닫기와 시스템 뒤로가기는 퇴장 모션 뒤 검색 상태를 버린다(키보드가 열린 상태의 첫 뒤로가기는 OS가 키보드를 닫을 수 있다). 탭 바·미니플레이어는 기존 독 하나만 유지한다. iOS 26 미만·웹의 스택 검색은 유지한다.
+Android의 스크롤 접힘 상단바(`AndroidCollapsingBar`, 설정·탐색·라이브러리)는 블러 위에 미니플레이어와 같은 **밝은 틴트 72%**(`theme.color.frostedSurface`, `rgba(245,245,247,0.72)`)를 얹는다(2026-09-30 PM "너무 글자가 잘 안 보인다"). 기존 흰 12% 덮개를 강화해 뒤 콘텐츠와 제목의 대비를 확보한다. 틴트는 기존 접힘 진행도에 따라 바 배경과 함께 나타나며, 맨 위의 투명 상태·블러 강도 25·제목·컨트롤·iOS 시스템 바는 유지한다.
+Android 제목과 잔여 횟수 숫자는 `includeFontPadding: false`로 기본 글꼴 여백을 제거한다(2026-09-29). 제목은 34·700을 유지하고 줄 높이 42로 한글 획의 여유를 확보하며, 숫자는 기존 11·700·줄 높이 13을 유지한다. 두 텍스트 모두 세로 중앙 정렬로 알약·링과 맞춘다.
+
+**Android 글꼴 굵기는 iOS 코드의 역할별 값을 따른다**(2026-09-29 PM "iOS 굵기 분석해서 안드로이드에 적용"). `shared/ui/Typography`의 Text·TextInput·AnimatedText를 사용하며, Android만 Pretendard 1.3.9의 실제 400·500·600·700 파일에 연결한다. iOS·웹은 React Native 원본을 그대로 내보낸다. `FontProvider`는 앱 진입 때 로드하고, 로딩 중·실패 시 시스템 글꼴로 계속 표시한다. 중첩 Text의 굵기 상속·조건부 스타일·숫자 폭 설정·입력 ref·네이티브 애니메이션을 유지한다. 명시한 다른 fontFamily·기울임·지원하지 않는 굵기는 덮지 않는다. 서체가 달라 광학적 두께까지 동일하다는 뜻은 아니며, OS 접근성 굵게 설정의 실기기 비교는 별도다.
+
+| iOS 코드에서 확인한 역할 | 굵기 | Android 대응 |
+|---|---|---|
+| 본문·설명·검색 입력(굵기 미지정) | 기본 Regular / 400 | Pretendard Regular |
+| 주간 청취 시간 라벨·대기열 순서·세그먼트 비선택 라벨 | 500 | Pretendard Medium |
+| 미니플레이어 제목·일반 버튼·섹션 라벨·세그먼트 선택 라벨 | 600 | Pretendard SemiBold |
+| 큰 제목·콘텐츠 카드 제목·잔여 횟수·강조 수치 | 700 / Bold | Pretendard Bold |
+| 접힌 시스템 상단 제목(20pt) | 네이티브 Bold | AndroidCollapsingBar의 기존 600을 700으로 수정 |
+
+접힌 제목 근거는 `useSystemLargeTitle`의 `headerTitleStyle: { fontSize: 20 }`와 설치된 `react-native-screens/ios/RNSScreenStackHeaderConfig.mm`의 굵기·family 미지정 분기(`boldSystemFontOfSize`)다. UIKit 기본값이라고 추측해 600으로 대응하지 않는다. 세그먼트는 `appearance`별 기존 500/600 규칙을 유지한다.
+Android의 라이브러리·탐색은 검색창 위에 `LargeTitleRow`로 화면 제목을 표시한다(2026-09-29). 제목 오른쪽 같은 줄에 라이브러리의 잔여 횟수·필터 캡슐, 탐색의 잔여 횟수 알약을 놓고 세로 중앙을 맞춘다. 검색창은 다음 줄의 폭을 모두 쓴다. 제목 면은 흰 배경으로 채우고, `FloatingHeader`의 실측 높이에 포함해 목록·로딩·오류 본문이 제목과 겹치지 않게 한다. 빈 화면과 조회 실패에도 화면 이름은 유지한다.
 라이브러리(검색 캡슐 · **잔여 링 + 필터를 묶은 툴바 캡슐**(`LibraryToolbar`, 09-25 PM "유리 조각이 셋" — iOS 26 이 툴바 버튼을 한 캡슐로 묶듯 유리는 줄에 둘만) · 조건 요약 · 배너)·탐색(검색 캡슐 · 잔여 링 유리 원 · 칩)의 머리 줄은 `shared/ui/FloatingHeader` 안에서 **배경 없이 목록 위에 떠 있다**(2026-09-24 PM "배경을 없애버리자"). 목록이 그 밑으로 흐르고 컨트롤은 각자 유리(검색 캡슐·잔여 링·세그먼트 트랙·필터 원). 머리 줄이 상태 바를 채우고 자식 높이를 올리면 목록이 `paddingTop`(`useFloatingHeaderInset`) 으로 비운다 — 시스템 탭 바(iOS 26)에서는 스크롤 뷰가 상태 바를 이미 비우므로 머리 줄 높이만. 새로고침 스피너는 `progressViewOffset` 으로 머리 줄 아래에 띄운다. **스크롤 맨 위에서는 컨트롤이 면(surface), 24pt 내리면 유리**(PM 2026-09-25 결정 — `useFloatingHeaderScroll` → `GlassCapsule` 덮개 불투명도, 네이티브 드라이버. 16:30 에 "그냥 상단 blur"(상태 바 얘기)를 잘못 읽고 걷어냈다가 17:25 "왜 뺐어"로 복구 — **PM 이 정한 것은 PM 말 없이 되돌리지 않는다**). **상태 바 밑 점진 블러는 iOS 26 시스템 scroll edge effect 다**(`UIScrollView.topEdgeEffect = .soft` — 애플 뮤직·설정과 같은 것). **로컬 네이티브 모듈 `modules/scroll-edge-effect`**(runtime 10, 2026-09-25 20:14 "blur 왜 뺐어")가 목록의 UIScrollView 에 직접 건다(`useSystemScrollEdgeEffect(listRef, mounted)` — 목록 마운트 뒤·탭 포커스마다). react-native-screens 의 자동 적용은 스택 화면 마운트 때 `subviews[0]` 을 한 번만 따라가 탭 바 컨트롤러 밑의 늦게 뜨는 목록엔 닿지 않았고, JS 재현(블러 띠 5·14장 → 계단, MaskedView 마스크 → UIVisualEffectView 가 마스크 미지원이라 얼룩)은 전부 폐기했다. 그 밑 iOS·Android 는 없다(애플도 없다). masked-view·linear-gradient 패키지는 이제 `MarqueeText.native`(제목 흐르기의 양끝 페이드 마스크)가 쓴다.
 
 ### 탭 바 — 떠 있는 캡슐 (HIG: Tab bars, iOS 26)

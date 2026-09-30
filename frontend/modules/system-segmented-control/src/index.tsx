@@ -19,14 +19,17 @@ export interface SystemSegmentedControlProps {
 }
 
 /**
- * 이 빌드에 시스템 세그먼트 모듈이 들어 있는가 — iOS 이고 runtime 11 이상(2026-09-26 모듈 추가) 빌드에서만 true.
- * Android·옛 빌드는 false 라 호출부가 JS 세그먼트(`shared/ui/SegmentedControl`)로 내려간다
+ * 이 빌드에 시스템 세그먼트 모듈이 들어 있는가 — iOS 는 runtime 11 이상(UISegmentedControl, 2026-09-26), Android 는
+ * Material 3 Expressive Connected toggle group 이 들어간 빌드(2026-09-29 — runtime 31 재빌드부터)에서 true.
+ * 옛 빌드는 false 라 호출부가 JS 토글로 내려간다 — 그래서 모듈 추가에도 runtime 을 올리지 않았다(새 JS 가 옛 네이티브에서 안 깨진다)
  */
 export const HAS_SYSTEM_SEGMENTED_CONTROL: boolean =
-  Platform.OS === 'ios' && requireOptionalNativeModule('SystemSegmentedControl') != null;
+  (Platform.OS === 'ios' || Platform.OS === 'android') &&
+  requireOptionalNativeModule('SystemSegmentedControl') != null;
 
 /**
- * iOS 기본 `UISegmentedControl`(iOS 26 에서는 시스템 유리 선택바). `HAS_SYSTEM_SEGMENTED_CONTROL` 이 false 인
+ * iOS 기본 `UISegmentedControl`(iOS 26 에서는 시스템 유리 선택바) · Android Material 3 Expressive Connected toggle
+ * group. `HAS_SYSTEM_SEGMENTED_CONTROL` 이 false 인
  * 환경에서 렌더하면 안 된다 — 뷰 매니저가 없어 throw 한다
  */
 export const SystemSegmentedControl = HAS_SYSTEM_SEGMENTED_CONTROL

@@ -1,8 +1,9 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
 import BottomSheet from '@/shared/ui/BottomSheet';
 import RemoteImage from '@/shared/ui/RemoteImage';
+import { Text } from '@/shared/ui/Typography';
 
 import { IS_SHARE_ENABLED, SHARE_COPY } from '@/features/share';
 

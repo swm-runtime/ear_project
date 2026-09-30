@@ -11,6 +11,8 @@ export const theme = {
   color: {
     background: '#FFFFFF',
     surface: '#F5F5F7',
+    /** 블러 위 밝은 덮개 — 미니플레이어와 Android 접힘 바의 글자 대비를 확보한다. */
+    frostedSurface: 'rgba(245, 245, 247, 0.72)',
     textPrimary: '#1A1A1E',
     textSecondary: '#6E6E76',
     border: '#E3E3E8',

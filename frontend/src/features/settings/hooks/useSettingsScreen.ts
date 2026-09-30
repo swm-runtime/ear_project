@@ -12,7 +12,13 @@ import { sessionService } from '@/features/auth';
 import { getOsPermissionStatus, type OsPermissionStatus } from '@/features/notification';
 
 import { settingsKeys, submitMarketingConsent, updateUserSettings } from '../api/settings.api';
-import { KAKAO_CHANNEL_URL, PRIVACY_POLICY_URL, STORE_URL, TERMS_URL } from '../settings.constants';
+import {
+  KAKAO_CHANNEL_URL,
+  PRIVACY_POLICY_URL,
+  LICENSES_URL,
+  STORE_URL,
+  TERMS_URL,
+} from '../settings.constants';
 import { SETTINGS_COPY } from '../settings.copy';
 import { deriveEmailStatus } from '../settings.format';
 import type {
@@ -291,6 +297,11 @@ export const useSettingsScreen = () => {
       logger.warn('[settings] open privacy failed', error),
     );
   };
+  const openLicenses = (): void => {
+    Linking.openURL(LICENSES_URL).catch((error) =>
+      logger.warn('[settings] open licenses failed', error),
+    );
+  };
   const openStore = (): void => {
     Linking.openURL(STORE_URL).catch((error) => logger.warn('[settings] open store failed', error));
   };
@@ -396,6 +407,7 @@ export const useSettingsScreen = () => {
     copyContactLink,
     openTerms,
     openPrivacyPolicy,
+    openLicenses,
     openStore,
 
     /** 관리자 섹션 — 서버 판정 boolean 하나. account 실패 시 노출하지 않는다(안전한 기본값) */

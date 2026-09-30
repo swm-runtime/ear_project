@@ -19,7 +19,8 @@ export type RouteKey =
   | "blog"
   | "privacy"
   | "terms"
-  | "accountDeletion";
+  | "accountDeletion"
+  | "licenses";
 
 /** 바닥글에서 어느 묶음에 놓일지. null이면 바닥글에 넣지 않는다. */
 type FooterGroup = "product" | "resources" | "legal";
@@ -153,6 +154,20 @@ export const routes: Record<RouteKey, RouteMeta> = {
     priority: 0.3,
     changeFrequency: "yearly",
   },
+
+  licenses: {
+    path: "/licenses/",
+    label: "오픈소스 라이선스",
+    title: "오픈소스 라이선스",
+    description:
+      "이어 앱에 쓰인 제3자 저작물(아이콘 등)의 저작자와 라이선스, 변경한 부분을 밝히는 고지 페이지입니다. 앱 설정의 오픈소스 라이선스 항목이 이 페이지를 엽니다.",
+    ogImage: "/og/legal.png",
+    inNav: false,
+    footerGroup: "legal",
+    priority: 0.2,
+    changeFrequency: "yearly",
+  },
+
 };
 
 export const routeList: RouteMeta[] = Object.values(routes);

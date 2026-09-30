@@ -1,8 +1,9 @@
-import { Image, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Image, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
 import MoreIcon from '@/shared/ui/MoreIcon';
 import RemoteImage from '@/shared/ui/RemoteImage';
+import { Text } from '@/shared/ui/Typography';
 
 import { EXPLORE_COPY } from '../explore.copy';
 import type { ExploreItem } from '../explore.types';
@@ -30,6 +31,9 @@ const toMinutes = (durationSec: number): number => Math.max(1, Math.round(durati
  */
 const WIDTH_RATIO = 0.72;
 const MAX_WIDTH = 312;
+/** 대표 카드 폭 — 인기 캐러셀 전환 모션(PeriodSwap)이 카드 두 장 거리를 셀 때도 쓴다 */
+export const featuredCardWidth = (windowWidth: number): number =>
+  Math.min(windowWidth * WIDTH_RATIO, MAX_WIDTH);
 /**
  * 카드 하단(제목·알약 줄)의 바탕은 **앨범아트가 흐리게 이어진 면**이다(PM 2026-09-25 22:01 "blur 처리해서 마치
  * 이어진 것처럼"). 카드 전체에 흐린 커버를 깔고 위 정사각형만 선명한 커버가 덮는다 — 플레이어 배경과 같은 방식
@@ -78,7 +82,7 @@ export default function ExploreFeaturedCard({
   onMorePress,
 }: ExploreFeaturedCardProps) {
   const { width } = useWindowDimensions();
-  const cardWidth = Math.min(width * WIDTH_RATIO, MAX_WIDTH);
+  const cardWidth = featuredCardWidth(width);
   const isCompleted = item.library?.status === 'completed';
   const minutes = toMinutes(item.content.durationSec);
 

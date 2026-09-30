@@ -1,10 +1,11 @@
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
 import ScrollFade from '@/shared/ui/ScrollFade';
+import { Text } from '@/shared/ui/Typography';
 
 import ContentPickCard, { PICK_CARD_THUMBNAIL } from '../components/ContentPickCard';
 import { usePickScreen } from '../hooks/usePickScreen';

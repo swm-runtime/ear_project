@@ -1,10 +1,11 @@
 import { useEffect, useId, useState } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
-import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Animated, Easing, StyleSheet, View } from 'react-native';
 import Svg, { Defs, G, LinearGradient, Mask, Rect, Stop, Text as SvgText } from 'react-native-svg';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { theme } from '@/shared/theme';
+import { Text } from '@/shared/ui/Typography';
 
 import {
   BASELINE_RATIO,

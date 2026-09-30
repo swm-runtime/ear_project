@@ -1,10 +1,11 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
 import GlassIconButton from '@/shared/ui/GlassIconButton';
+import { Text } from '@/shared/ui/Typography';
 
 import { useNoticeDetailScreen } from '../hooks/useNoticeDetailScreen';
 import { NOTICE_BODY_LINE_HEIGHT_RATIO } from '../notice.constants';

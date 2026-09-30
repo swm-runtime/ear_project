@@ -1,6 +1,5 @@
-import { BlurTargetView, BlurView } from 'expo-blur';
 import { useRef } from 'react';
-import { Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
@@ -9,11 +8,14 @@ import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
 import { USES_SYSTEM_PUSHED_HEADER } from '@/shared/navigation/pushed-screen-header';
 import { useSystemLargeTitle } from '@/shared/navigation/useSystemLargeTitle';
 import { theme } from '@/shared/theme';
+import AndroidBlurTarget from '@/shared/ui/AndroidBlurTarget';
+import AndroidCollapsingBar from '@/shared/ui/AndroidCollapsingBar';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import ConfirmDialog from '@/shared/ui/ConfirmDialog';
 import { useFloatingHeaderScroll } from '@/shared/ui/FloatingHeader';
 import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
-import LargeTitleRow, { LARGE_TITLE_ROW_HEIGHT } from '@/shared/ui/LargeTitleRow';
+import LargeTitleRow from '@/shared/ui/LargeTitleRow';
+import { Text } from '@/shared/ui/Typography';
 
 import { NotificationPrePromptModal } from '@/features/notification';
 
@@ -46,16 +48,12 @@ export default function SettingsScreen() {
   // 조회 값이 필요한 조작(토글·배속) — 기준값이 없으면 비활성이다(S6: 토글 섹션도 에러 영역)
   const hasControls = screen.controls !== null;
   const { scrollY, scrollProps } = useFloatingHeaderScroll();
-  // Android: 큰 제목이 절반쯤 밀려 올라가면 바의 작은 제목이 나타난다(iOS 큰 제목 접힘과 같은 구간)
-  const androidSmallTitleOpacity = scrollY.interpolate({
-    inputRange: [LARGE_TITLE_ROW_HEIGHT * 0.5, LARGE_TITLE_ROW_HEIGHT],
-    outputRange: [0, 1],
-    extrapolate: 'clamp',
-  });
   // Android 바는 목록 **위에 떠 있다**(밑으로 목록이 지나가며 블러로 비친다) — 상태 바까지 덮으므로 안전영역을 직접 준다
   const insets = useSafeAreaInsets();
   // 떠 있는 바의 블러가 흐릴 대상 — 목록을 감싼다(Android)
   const blurTargetRef = useRef<View>(null);
+  // Android 접힘 바 제목 탭 → 맨 위로(PM 2026-09-30 04:53 — 라이브러리·탐색과 같은 동작)
+  const scrollRef = useRef<ScrollView>(null);
   // iOS 26: **시스템 큰 제목** — 라이브러리·탐색과 같다(PM 2026-09-28 03:14 "이거야"). 뒤로 버튼이 있어 UIKit 이 큰 제목을
   // 버튼 줄 밑에 두고, 스크롤 접힘·바 밑 블러는 시스템이 한다
   // 접힌 작은 제목 크기는 훅 기본값(전 화면 공통 — 04:09 PM)
@@ -85,13 +83,14 @@ export default function SettingsScreen() {
         </View>
       )}
 
-      <BlurTargetView ref={blurTargetRef} style={styles.blurTarget}>
+      <AndroidBlurTarget targetRef={blurTargetRef}>
         <Animated.ScrollView
+          ref={scrollRef}
           contentContainerStyle={[
             styles.scrollContent,
-            // Android — 떠 있는 바(상태 바 + 52) 밑, 종전과 같은 간격(md)을 두고 시작한다
+            // Android — 버튼 줄 바로 아래 제목을 둔다. 별도 16pt 여백은 iOS보다 간격을 벌려 제거했다.
             ANDROID_LARGE_TITLE && {
-              paddingTop: insets.top + ANDROID_BAR_ROW_HEIGHT + theme.spacing.md,
+              paddingTop: insets.top + ANDROID_BAR_ROW_HEIGHT,
             },
           ]}
           // 투명 시스템 바 밑을 비운다(iOS 26). 그 외 갈래는 RN 기본(never)
@@ -204,6 +203,8 @@ export default function SettingsScreen() {
             <SettingsRow label={SETTINGS_COPY.info.notice} onPress={screen.openNotice} />
             <SettingsRow label={SETTINGS_COPY.info.terms} onPress={screen.openTerms} />
             <SettingsRow label={SETTINGS_COPY.info.privacy} onPress={screen.openPrivacyPolicy} />
+            {/* 제3자 저작물 고지 — 랜딩 /licenses 를 연다(CC BY 아이콘 표기, changes/archive/third-party-notice-in-app.md) */}
+            <SettingsRow label={SETTINGS_COPY.info.licenses} onPress={screen.openLicenses} />
             <SettingsRow
               label={SETTINGS_COPY.info.version}
               // 버전 뒤 괄호는 실행 중인 JS 번들 식별자다 — OTA 적용 여부를 눈으로 가른다
@@ -255,37 +256,22 @@ export default function SettingsScreen() {
             </SettingsSection>
           ) : null}
         </Animated.ScrollView>
-      </BlurTargetView>
+      </AndroidBlurTarget>
 
       {/* Android 떠 있는 바는 목록(BlurTargetView) **뒤에** 그린다 — BlurView 는 붙는 순간 한 번만 대상을 찾는데, 앞에 두면
           그때 목록의 ref 가 아직 비어 블러가 안 걸렸다(PM 2026-09-29 15:50 스샷 — 글자가 흐려지지 않고 연해지기만). 절대 배치라 위치는 같다 */}
       {ANDROID_LARGE_TITLE ? (
         /*
-         * **Android — 애플 문법**(PM 2026-09-29 14:42 "설정을 애플처럼, 제목 위에 원형 버튼에 <", Android 전용): 위 줄엔
-         * 유리 원 안의 ‹ 만, 큰 제목 "설정"은 콘텐츠 첫 줄. 스크롤해 큰 제목이 밀려 올라가면 위 줄 가운데에 작은 제목이
-         * 나타난다(iOS 큰 제목 접힘). Android 네이티브의 같은 자리(Material 3 Large top app bar)는 모양이 다르고
-         * react-native-screens 가 Android 큰 제목을 지원하지 않아 화면이 직접 그린다
+         * **Android — 애플 문법**(PM 2026-09-29 14:42 "설정을 애플처럼, 제목 위에 원형 버튼에 <"): 위 줄엔 유리 원 안의 ‹ 만,
+         * 큰 제목 "설정"은 콘텐츠 첫 줄, 내리면 가운데 작은 제목 + 서리 유리. 라이브러리·탐색과 같은 공용 바(AndroidCollapsingBar,
+         * 23:11 "설정 화면 코드도 통일")
          */
-        <View style={[styles.androidBar, { paddingTop: insets.top }]}>
-          {/* 내리면 나타나는 블러 판 — 작은 제목과 같은 구간에 페이드인(PM 2026-09-29 15:03 "상단바 blur 처리"). 상태 바까지 덮는다 */}
-          <Animated.View
-            style={[StyleSheet.absoluteFill, { opacity: androidSmallTitleOpacity }]}
-            pointerEvents="none"
-          >
-            {/* 프로스트 글라스(서리 유리, PM 2026-09-29 15:17) — 뒤를 세게 뭉개고(100) 흰 막을 두껍게 얹어 형체 없이
-                색만 은은하게 비친다. 하단 독의 유리(GlassSurface: 60 + 72% 회백)보다 한 단 더 뿌옇고 희다 */}
-            <BlurView
-              style={StyleSheet.absoluteFill}
-              tint="light"
-              intensity={FROST_BLUR_INTENSITY}
-              // Android 는 흐릴 대상을 직접 가리켜야 진짜 블러가 걸린다(expo-blur 57 — 없으면 반투명 막만 깔렸다,
-              // PM 2026-09-29 15:31 "형체가 흐트러져 보이는 게 안 되나 보네"). 대상은 밑의 목록(BlurTargetView)
-              blurTarget={blurTargetRef}
-              blurMethod="dimezisBlurView"
-            />
-            <View style={styles.androidBarEdge} />
-          </Animated.View>
-          <View style={[styles.appBar, styles.androidAppBar]}>
+        <AndroidCollapsingBar
+          title={SETTINGS_COPY.title}
+          scrollY={scrollY}
+          blurTarget={blurTargetRef}
+          onTitlePress={() => scrollRef.current?.scrollTo({ y: 0, animated: true })}
+          leading={
             <GlassCapsule style={styles.androidBackCircle}>
               <Pressable
                 style={styles.androidBackPressable}
@@ -301,20 +287,8 @@ export default function SettingsScreen() {
                 />
               </Pressable>
             </GlassCapsule>
-            <Animated.Text
-              style={[
-                styles.appBarTitle,
-                styles.androidSmallTitle,
-                { opacity: androidSmallTitleOpacity },
-              ]}
-              numberOfLines={1}
-              importantForAccessibility="no"
-            >
-              {SETTINGS_COPY.title}
-            </Animated.Text>
-            <View style={styles.androidBackSpacer} />
-          </View>
-        </View>
+          }
+        />
       ) : null}
 
       {/* ── 시트·다이얼로그 ── */}
@@ -413,18 +387,8 @@ const ANDROID_LARGE_TITLE = Platform.OS === 'android' && !USES_SYSTEM_PUSHED_HEA
 const ANDROID_BACK_ICON_SIZE = 20;
 /** Android 떠 있는 바의 줄 높이(상태 바 제외) — 44 에서 52 로(PM 2026-09-29 15:10 "상단바 높이 조금만 더") */
 const ANDROID_BAR_ROW_HEIGHT = 52;
-/**
- * 서리 유리 블러 세기(expo-blur 0~100, Android 는 ÷4 가 반경) — 100 + 흰 55% 는 뒤가 아예 안 보였다(PM 2026-09-29 15:56).
- * 형체는 흐트러지되 색·덩어리는 비치게 30. 흰 막은 **expo-blur 틴트 하나만** 쓴다 — Android 의 `light` 틴트는 세기 비례로
- * 흰 막(40 이면 31%)을 스스로 깔아, 우리 막(30%)을 또 얹으니 흰 판이 됐다(16:05 "그냥 흰색, 뒤가 안 보여")
- */
-const FROST_BLUR_INTENSITY = 30;
 
 const styles = StyleSheet.create({
-  // 블러 대상(목록 감싸개) — 레이아웃은 종전 목록 그대로 화면을 채운다
-  blurTarget: {
-    flex: 1,
-  },
   container: {
     flex: 1,
     backgroundColor: theme.color.background,
@@ -456,32 +420,6 @@ const styles = StyleSheet.create({
    * 44 칸(sm 8 + 칸 안 가운데 ‹)이라 여백이 8+α 였고, 원(40)을 그 자리에 두니 12 에서 시작해 제목 선과 어긋났다.
    * iOS 26 뒤로 버튼도 16 에서 시작한다
    */
-  androidAppBar: {
-    height: ANDROID_BAR_ROW_HEIGHT,
-    paddingHorizontal: theme.spacing.md,
-  },
-  // 목록 위에 떠 있는 바 — 목록보다 뒤에 그려지지만 absolute + zIndex 로 위에 선다
-  androidBar: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 1,
-  },
-  // 블러 판 아래 끝 — 판이 끊기는 자리를 선으로 정리한다(iOS 바 그림자 선)
-  androidBarEdge: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: theme.color.border,
-  },
-  // 접힌 작은 제목 — iOS 접힌 바와 같은 20(PM 2026-09-29 15:03 "조금 더 키우자", 종전 16)
-  androidSmallTitle: {
-    fontSize: theme.font.size.lg,
-    fontWeight: '600',
-  },
   androidBackCircle: {
     width: HEADER_CONTROL_HEIGHT,
     height: HEADER_CONTROL_HEIGHT,
@@ -490,9 +428,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  androidBackSpacer: {
-    width: HEADER_CONTROL_HEIGHT,
   },
   // 큰 제목 줄 — 섹션 간격(gap)과 겹치지 않게 아래로 살짝 당긴다
   androidLargeTitle: {

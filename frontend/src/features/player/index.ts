@@ -7,6 +7,8 @@
 export { default as PlayerScreen } from './screens/PlayerScreen';
 export { default as MiniPlayer } from './components/MiniPlayer';
 export type { MiniPlayerResumeFallback } from './components/MiniPlayer';
+// 독 뒤 판(CapsuleTabBar)이 카드 모양을 따른다
+export { MINI_CARD_RADIUS, MINI_CARD_WIDTH } from './components/MiniPlayer';
 export { useIsMiniPlayerVisible } from './hooks/useIsMiniPlayerVisible';
 export {
   DOCK_SCROLL_PROPS,

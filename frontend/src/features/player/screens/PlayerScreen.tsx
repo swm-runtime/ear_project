@@ -10,7 +10,6 @@ import {
   Platform,
   Pressable,
   StyleSheet,
-  Text,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -30,10 +29,12 @@ import { motion, theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import MarqueeText from '@/shared/ui/MarqueeText';
 import RemoteImage from '@/shared/ui/RemoteImage';
+import { Text, AnimatedText } from '@/shared/ui/Typography';
 
 import { useTopicsQuery } from '@/features/interest';
 
-import { MINI_CARD_RADIUS, MINI_THUMB_SIZE } from '../components/MiniPlayer';
+import { createAndroidPlayerZoom } from '../components/android-player-zoom';
+import { MINI_CARD_HEIGHT, MINI_CARD_RADIUS, MINI_THUMB_SIZE } from '../components/MiniPlayer';
 import PlayConfirmDialog from '../components/PlayConfirmDialog';
 import {
   MoreIcon,
@@ -156,7 +157,14 @@ export default function PlayerScreen() {
     else screen.closePanel();
     // 스크립트 패널(히어로 위) — 열 때 마운트, 닫힘 애니메이션이 끝나면 내린다. 둘은 동시에 열리지 않는다
     const isScriptOpen = kind === 'script';
-    if (isScriptOpen) setMountedPanel('script');
+    /*
+     * **재생 목록이 열린 채 대본을 열면 순서대로**(Android, PM 2026-09-30 06:09 "재생목록 켠 채로 스크립트 열면 렉") — 목록
+     * 닫힘과 히어로 압축 두 JS 스프링이 동시에 돌고, 빈 자리를 채우는(flex 1) 대본 틀이 모션 전에 붙어 컨트롤을 바닥으로
+     * 밀며 매 프레임 재배치됐다. 목록을 먼저 닫고 → 대본을 붙이고 → 히어로를 접는다. 한 프레임의 일이 절반이 되는 대신
+     * 전환이 한 스프링만큼 길어진다
+     */
+    const isQueueToScript = SEQUENCE_QUEUE_TO_SCRIPT && isScriptOpen && activePanel === 'queue';
+    if (isScriptOpen && !isQueueToScript) setMountedPanel('script');
     // 모션이 시작되면 목록은 다시 "앉지 않은" 상태다 — 닫는 동안에도 앞 몇 줄만 그려 프레임을 아낀다
     setIsQueueSettled(false);
     // 대본이 펼쳐진 채 재생 목록으로 갈 땐 대본을 **즉시** 내린다 — 대본 틀(flex 1)이 컨트롤을 바닥에 밀어 두고 있어,
@@ -169,27 +177,12 @@ export default function PlayerScreen() {
       setIsScriptSettled(false);
     }
 
-    const startMotion = () => {
-      panelMotionFrameRef.current = null;
-      // 모션 동안 0.5초 위치 틱이 화면 전체를 다시 그리지 않게 한다(2026-09-22 PM) — 끝나면 다음 틱이 따라잡는다
-      playbackService.holdPositionUpdates(SCRIPT_TOGGLE_DURATION_MS);
-      // 시트와 같은 smooth 스프링(2026-09-22 PM — 전환 곡선 통일). 길이는 응답 0.45초에 감쇠까지 약 SCRIPT_TOGGLE_DURATION_MS
-      // 두 스프링이 도는 동안 아트워크 실측을 보류한다(위 onHeroArtLayout 주석) — 끊겨도 콜백은 온다
+    // 히어로(대본) 스프링 — 순서 전환에서는 목록이 닫힌 뒤에 따로(더 빠른 SEQUENCE_SPRING 으로) 출발한다
+    const startPanelSpring = (spring: PanelSpring = motion.spring.smooth) => {
       holdArtLayout();
-      holdArtLayout();
-      Animated.spring(queueProgress, {
-        toValue: kind === 'queue' ? 1 : 0,
-        ...motion.spring.smooth,
-        overshootClamping: true,
-        useNativeDriver: false,
-      }).start(({ finished }) => {
-        releaseArtLayout();
-        // 앉은 뒤에 나머지 행을 올린다(위 isQueueSettled 주석). 중간에 끊긴 모션은 다음 모션이 정리한다
-        if (finished) setIsQueueSettled(kind === 'queue');
-      });
       Animated.spring(panelProgress, {
         toValue: isScriptOpen ? 1 : 0,
-        ...motion.spring.smooth,
+        ...spring,
         overshootClamping: true,
         useNativeDriver: false,
       }).start(({ finished }) => {
@@ -202,6 +195,93 @@ export default function PlayerScreen() {
           setIsScriptSettled(false);
         }
       });
+    };
+    /*
+     * 반대 방향도 순서대로(Android, PM 2026-09-30 06:14 "스크립트 켠 채로 재생목록 열면 렉") — 대본 틀은 위에서 즉시 내리고,
+     * 히어로를 먼저 편 뒤(panelProgress → 0) 목록을 올린다. 두 JS 스프링이 겹쳐 히어로 높이(레이아웃)와 목록 모션이 같은
+     * 프레임에 돌던 것을 나눈다
+     */
+    const isScriptToQueue = SEQUENCE_QUEUE_TO_SCRIPT && kind === 'queue' && activePanel === 'script';
+    if (isScriptToQueue) {
+      const startScriptToQueue = () => {
+        panelMotionFrameRef.current = null;
+        playbackService.holdPositionUpdates(SCRIPT_TOGGLE_DURATION_MS * 2);
+        holdArtLayout();
+        Animated.spring(panelProgress, {
+          toValue: 0,
+          ...SEQUENCE_SPRING,
+          overshootClamping: true,
+          useNativeDriver: false,
+        }).start(({ finished }) => {
+          releaseArtLayout();
+          if (!finished) return;
+          holdArtLayout();
+          Animated.spring(queueProgress, {
+            toValue: 1,
+            ...SEQUENCE_SPRING,
+            overshootClamping: true,
+            useNativeDriver: false,
+          }).start(({ finished: queueFinished }) => {
+            releaseArtLayout();
+            if (queueFinished) setIsQueueSettled(true);
+          });
+        });
+      };
+      if (panelMotionFrameRef.current !== null) cancelAnimationFrame(panelMotionFrameRef.current);
+      panelMotionFrameRef.current = requestAnimationFrame(() => {
+        panelMotionFrameRef.current = requestAnimationFrame(startScriptToQueue);
+      });
+      return;
+    }
+    if (isQueueToScript) {
+      const startSequenced = () => {
+        panelMotionFrameRef.current = null;
+        playbackService.holdPositionUpdates(SCRIPT_TOGGLE_DURATION_MS * 2);
+        holdArtLayout();
+        Animated.spring(queueProgress, {
+          toValue: 0,
+          ...SEQUENCE_SPRING,
+          overshootClamping: true,
+          useNativeDriver: false,
+        }).start(({ finished }) => {
+          releaseArtLayout();
+          // 끊겼으면(다른 전환이 이어받음) 대본을 붙이지 않는다 — 다음 setPanel 이 정리한다
+          if (!finished) return;
+          setMountedPanel('script');
+          // 대본 틀이 붙는 렌더가 끝난 뒤에 히어로를 접는다(아래 두 프레임 뒤 출발과 같은 이유)
+          panelMotionFrameRef.current = requestAnimationFrame(() => {
+            panelMotionFrameRef.current = requestAnimationFrame(() => {
+              panelMotionFrameRef.current = null;
+              startPanelSpring(SEQUENCE_SPRING);
+            });
+          });
+        });
+      };
+      if (panelMotionFrameRef.current !== null) cancelAnimationFrame(panelMotionFrameRef.current);
+      panelMotionFrameRef.current = requestAnimationFrame(() => {
+        panelMotionFrameRef.current = requestAnimationFrame(startSequenced);
+      });
+      return;
+    }
+
+    const startMotion = () => {
+      panelMotionFrameRef.current = null;
+      // 모션 동안 0.5초 위치 틱이 화면 전체를 다시 그리지 않게 한다(2026-09-22 PM) — 끝나면 다음 틱이 따라잡는다
+      playbackService.holdPositionUpdates(SCRIPT_TOGGLE_DURATION_MS);
+      // 시트와 같은 smooth 스프링(2026-09-22 PM — 전환 곡선 통일). 길이는 응답 0.45초에 감쇠까지 약 SCRIPT_TOGGLE_DURATION_MS
+      // 두 스프링이 도는 동안 아트워크 실측을 보류한다(위 onHeroArtLayout 주석) — 끊겨도 콜백은 온다
+      holdArtLayout();
+      Animated.spring(queueProgress, {
+        toValue: kind === 'queue' ? 1 : 0,
+        ...motion.spring.smooth,
+        overshootClamping: true,
+        useNativeDriver: false,
+      }).start(({ finished }) => {
+        releaseArtLayout();
+        // 앉은 뒤에 나머지 행을 올린다(위 isQueueSettled 주석). 중간에 끊긴 모션은 다음 모션이 정리한다
+        if (finished) setIsQueueSettled(kind === 'queue');
+      });
+      startPanelSpring();
     };
     // 연타 — 앞서 예약한 출발은 버리고 마지막 것만 출발시킨다
     if (panelMotionFrameRef.current !== null) cancelAnimationFrame(panelMotionFrameRef.current);
@@ -311,6 +391,9 @@ export default function PlayerScreen() {
    */
   // 줌 전환 갈래(iOS 26 + 모듈 빌드)는 열림·닫힘 모션을 시스템이 맡는다 — 화면은 처음부터 다 열린 상태(1)로 그린다
   const openProgress = useAnimatedValue(USE_NATIVE_PLAYER_ZOOM ? 1 : 0);
+  // Android 닫기는 크기와 불투명도를 유지한 채 화면 아래로 완전히 내려간다.
+  const dismissProgress = useAnimatedValue(0);
+  const isSlideDismissRef = useRef(false);
   const [isMorphing, setIsMorphing] = useState(!USE_NATIVE_PLAYER_ZOOM);
   /*
    * 아트워크 **재생/정지 배율**(애플 뮤직 Now Playing, 2026-09-25 PM "애플처럼 전환"). 정지하면 아트워크가 작아지고
@@ -361,10 +444,25 @@ export default function PlayerScreen() {
     return velocity;
   };
   const runSheetSpring = (toValue: 0 | 1, onFinished: () => void) => {
+    openProgress.stopAnimation();
     Animated.spring(openProgress, {
       toValue,
       velocity: takeReleaseVelocity(),
-      useNativeDriver: false,
+      useNativeDriver: ANDROID_ZOOM,
+      ...SHEET_SPRING,
+      overshootClamping: true,
+    }).start(({ finished }) => {
+      if (finished) onFinished();
+    });
+  };
+  useEffect(() => () => openProgress.stopAnimation(), [openProgress]);
+  useEffect(() => () => dismissProgress.stopAnimation(), [dismissProgress]);
+  const runDismissSpring = (toValue: 0 | 1, onFinished: () => void) => {
+    dismissProgress.stopAnimation();
+    Animated.spring(dismissProgress, {
+      toValue,
+      velocity: takeReleaseVelocity(),
+      useNativeDriver: true,
       ...SHEET_SPRING,
       overshootClamping: true,
     }).start(({ finished }) => {
@@ -391,11 +489,27 @@ export default function PlayerScreen() {
       });
       return;
     }
+    if (ANDROID_ZOOM) {
+      if (isCollapsingRef.current) return;
+      isCollapsingRef.current = true;
+      isSlideDismissRef.current = true;
+      setIsMorphing(true);
+      runDismissSpring(1, () => screen.collapse());
+      return;
+    }
     setIsMorphing(true);
     runSheetSpring(0, () => screen.collapse());
   };
   // 드래그가 임계에 못 미쳐 놓았을 때 — 끌어내린 만큼에서 되돌아온다
   const restorePlayer = () => {
+    if (ANDROID_ZOOM && isSlideDismissRef.current) {
+      if (isCollapsingRef.current) return;
+      runDismissSpring(0, () => {
+        isSlideDismissRef.current = false;
+        setIsMorphing(false);
+      });
+      return;
+    }
     dragProgressRef.current = 1;
     runSheetSpring(1, () => setIsMorphing(false));
   };
@@ -415,6 +529,7 @@ export default function PlayerScreen() {
     drag: (_dy: number, _vy: number) => {},
     follow: (_progress: number) => {},
     dismiss: () => {},
+    cancelOpen: () => {},
     restore: () => {},
   });
   useEffect(() => {
@@ -432,7 +547,7 @@ export default function PlayerScreen() {
         if (openGesture.phase === 'cancel') {
           openGesture.reset();
           dragProgressRef.current = 0;
-          dismissPlayer();
+          runSheetSpring(0, () => screen.collapse());
           return;
         }
         if (openGesture.phase === 'dragging') {
@@ -449,6 +564,14 @@ export default function PlayerScreen() {
       // 줌 갈래(시스템 드래그 닫기 꺼짐): 시트는 손가락을 따라가지 않는다 — 놓을 때 임계를 넘으면 goBack(줌 축소), 아니면 그대로
       begin: () => {
         if (USE_NATIVE_PLAYER_ZOOM) return;
+        if (ANDROID_ZOOM) {
+          if (isCollapsingRef.current) return;
+          dismissProgress.stopAnimation();
+          isSlideDismissRef.current = true;
+          setIsMorphing(true);
+          return;
+        }
+        openProgress.stopAnimation();
         setIsMorphing(true);
       },
       /*
@@ -457,6 +580,12 @@ export default function PlayerScreen() {
        */
       drag: (dy: number, vy: number) => {
         if (USE_NATIVE_PLAYER_ZOOM) return;
+        if (ANDROID_ZOOM) {
+          if (isCollapsingRef.current) return;
+          dismissProgress.setValue(Math.max(0, Math.min(1, dy / Math.max(1, windowHeight))));
+          releaseVelocityRef.current = (vy * 1000) / Math.max(1, windowHeight);
+          return;
+        }
         const progress = Math.max(0, Math.min(1, 1 - Math.max(0, dy) / dragTravel));
         dragProgressRef.current = progress;
         // vy 는 px/ms(아래 +) → 진행값/초(닫힘 −)
@@ -469,6 +598,8 @@ export default function PlayerScreen() {
         openProgress.setValue(progress);
       },
       dismiss: dismissPlayer,
+      // 미니플레이어에서 끌어올리다 취소하면 아직 열리지 않았으므로 출발 카드로 되돌린다.
+      cancelOpen: () => runSheetSpring(0, () => screen.collapse()),
       restore: () => {
         if (USE_NATIVE_PLAYER_ZOOM) return;
         restorePlayer();
@@ -502,7 +633,7 @@ export default function PlayerScreen() {
       const released = state.phase;
       state.reset();
       if (released === 'open') gestureContext.current.restore();
-      else gestureContext.current.dismiss();
+      else gestureContext.current.cancelOpen();
     });
     return () => {
       unsubscribe();
@@ -679,12 +810,17 @@ export default function PlayerScreen() {
   };
   const collapsedArtTop =
     theme.spacing.sm + (artAreaHeight - theme.spacing.sm - artSizeCollapsed) / 2;
+  /*
+   * 재생 목록이 열릴 때 히어로가 줄어드는 몫. **Android 는 이 몫을 레이아웃이 아니라 transform 으로** 준다(PM 2026-09-30 05:58
+   * "재생목록 끌고 올라가고 내릴 때 굉장히 렉") — 히어로는 흐름 안이라 높이를 매 프레임 바꾸면 그 밑의 재생바·컨트롤·배너가
+   * 전부 매 프레임 다시 배치된다. 이 모션은 JS 드라이버라 Android(Fabric)는 프레임마다 트리 갱신 + 레이아웃이 돌았다.
+   * 레이아웃 높이는 대본 몫(heroBase.height — 대본 패널이 flex 로 빈 자리를 채우므로 레이아웃이어야 한다)만 두고,
+   * 줄어든 만큼 컨트롤 영역을 translateY 로 끌어올린다(controlArea 의 onLayout 높이는 transform 과 무관 — 시트 위치 계산 그대로)
+   */
+  const heroQueueDelta = queueShift(artAreaHeight + HERO_META_BLOCK_HEIGHT, queueHeroHeight);
   const hero = {
     ...heroBase,
-    height: Animated.add(
-      heroBase.height,
-      queueShift(artAreaHeight + HERO_META_BLOCK_HEIGHT, queueHeroHeight),
-    ),
+    height: HERO_QUEUE_BY_TRANSFORM ? heroBase.height : Animated.add(heroBase.height, heroQueueDelta),
     artLeft: Animated.add(heroBase.artLeft, queueShift((innerWidth - artSizeCollapsed) / 2, 0)),
     metaTop: Animated.add(
       heroBase.metaTop,
@@ -1084,10 +1220,17 @@ export default function PlayerScreen() {
       heroOpacity: 1,
     });
   }
-  const zoomScale = openProgress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [Math.min(1, mini.width / Math.max(1, windowWidth)), 1],
-  });
+  const androidZoom = useMemo(
+    () =>
+      createAndroidPlayerZoom(
+        openProgress,
+        { x: mini.x, y: mini.y, width: mini.width, height: mini.height },
+        { width: windowWidth, height: windowHeight },
+        dismissProgress,
+      ),
+    // 재생 위치만 갱신될 때는 네이티브 이동·확대 그래프를 유지한다.
+    [openProgress, dismissProgress, mini.x, mini.y, mini.width, mini.height, windowWidth, windowHeight],
+  );
 
   if (!session) {
     // 세션 정리 직후(차단 전환·회수 닫기)의 한 프레임 — 아무것도 그리지 않는다
@@ -1186,17 +1329,25 @@ export default function PlayerScreen() {
       <StatusBar style="light" />
       {/* 뒤 화면 딤 + 미니플레이어 자리에서 자라나는 시트 — 0일 때는 카드 그 자체, 1일 때 풀 화면 */}
       <Animated.View
-        style={[StyleSheet.absoluteFill, styles.dim, { opacity: morph.dimOpacity }]}
+        style={[StyleSheet.absoluteFill, styles.dim, {
+          opacity: ANDROID_ZOOM
+            ? Animated.multiply(morph.dimOpacity, Animated.subtract(1, dismissProgress))
+            : morph.dimOpacity,
+        }]}
         pointerEvents="none"
       />
       <Animated.View
         style={[
           styles.sheet,
+          ANDROID_ZOOM
+            ? androidZoom.frame
+            : {
+                top: morph.sheetTop,
+                left: morph.sheetLeft,
+                width: morph.sheetWidth,
+                height: morph.sheetHeight,
+              },
           {
-            top: morph.sheetTop,
-            left: morph.sheetLeft,
-            width: morph.sheetWidth,
-            height: morph.sheetHeight,
             borderTopLeftRadius: morph.sheetRadius,
             borderTopRightRadius: morph.sheetRadius,
             // Android 줌은 카드가 통째로 부푼다 — 아래 모서리도 같이 둥글다(위에 얹힌 줌 무대와 같은 모양)
@@ -1231,9 +1382,8 @@ export default function PlayerScreen() {
       </Animated.View>
       <AndroidZoomStage
         enabled={ANDROID_ZOOM}
-        frame={{ top: morph.sheetTop, left: morph.sheetLeft, width: morph.sheetWidth, height: morph.sheetHeight }}
+        zoom={androidZoom}
         radius={morph.sheetRadius}
-        scale={zoomScale}
         stage={{ width: windowWidth, height: windowHeight, paddingTop: insets.top, paddingBottom: insets.bottom }}
       >
       <Animated.View
@@ -1495,7 +1645,13 @@ export default function PlayerScreen() {
           </Animated.View>
         ) : null}
 
-        <View style={styles.controlArea} onLayout={onControlsLayout}>
+        <Animated.View
+          style={[
+            styles.controlArea,
+            HERO_QUEUE_BY_TRANSFORM && { transform: [{ translateY: heroQueueDelta }] },
+          ]}
+          onLayout={onControlsLayout}
+        >
           <View>
             <Animated.View
               style={{ opacity: queueInverse }}
@@ -1632,7 +1788,7 @@ export default function PlayerScreen() {
           <Animated.View style={{ transform: [{ translateY: belowControlRowShift }] }}>
             {renderBannerArea()}
           </Animated.View>
-        </View>
+        </Animated.View>
 
         {/* 손잡이 자리 — 시트가 닫혀 있을 때 손잡이가 덮는 높이만큼 비워 컨트롤 위치를 고정한다 */}
         <View style={{ height: handleHeight }} />
@@ -1755,7 +1911,7 @@ export default function PlayerScreen() {
             )}
           </Animated.View>
           {/* 미니 제목 — 미니플레이어 실측 자리에 고정, 초반에 사라진다 */}
-          <Animated.Text
+          <AnimatedText
             style={[
               styles.morphTitle,
               styles.morphMiniTitle,
@@ -1770,11 +1926,11 @@ export default function PlayerScreen() {
             numberOfLines={1}
           >
             {session.meta.title ?? ''}
-          </Animated.Text>
+          </AnimatedText>
           {/* 미니 카테고리 — 미니플레이어의 제목 아래 줄(MiniPlayer styles.category)과 같은 자리·글자. 이게 없으면
               착지 순간 뒤의 진짜 미니플레이어에서 카테고리만 툭 나타난다(2026-09-22 PM) */}
           {categoryLabel !== null ? (
-            <Animated.Text
+            <AnimatedText
               style={[
                 styles.morphMiniCategory,
                 {
@@ -1787,7 +1943,7 @@ export default function PlayerScreen() {
               numberOfLines={1}
             >
               {categoryLabel}
-            </Animated.Text>
+            </AnimatedText>
           ) : null}
           {/* 풀 화면 제목 — 최종 자리에 고정된 채 콘텐츠(컨트롤·시크바)와 같은 이동·불투명도로 들어온다.
               마지막 교차(0.94~1)에서 실제 히어로 제목과 같은 좌표라 한 장으로 보인다 */}
@@ -1937,6 +2093,28 @@ const MORPH_ART_INPUT = [0, MORPH_ART_SHRINK_END, MORPH_ART_ARRIVE, 1];
  * 손을 뗀 속도는 `velocity` 로 따로 넣는다. 실기기에서 조절한다
  */
 const SHEET_SPRING = motion.spring.smooth;
+/** 재생 목록 ↔ 대본 전환을 순서대로(목록 닫힘 → 대본 열림, 대본 닫힘 → 목록 열림 — setPanel 주석) — Android 만 */
+const SEQUENCE_QUEUE_TO_SCRIPT = Platform.OS === 'android';
+/**
+ * 순서 전환의 두 구간 스프링 — **더 빠르게**(PM 2026-09-30 06:30 "순서대로 가는 시간이 너무 느리다"). smooth 두 번은
+ * 임계 감쇠가 기본 멈춤 기준(변위 0.001)까지 꼬리를 끌어 한 구간 ≈ 0.7초, 합쳐 1.4초가 넘었다 — 뒤 구간이 눈에 안 보이는
+ * 꼬리가 끝나길 기다렸다. snappy(응답 0.3초)에 멈춤 기준을 늘려(변위 0.005 · 속도 0.1) 한 구간 ≈ 0.35초로 줄인다.
+ * 끝의 스냅은 1% 미만이라 보이지 않는다
+ */
+type PanelSpring = {
+  stiffness: number;
+  damping: number;
+  mass: number;
+  restDisplacementThreshold?: number;
+  restSpeedThreshold?: number;
+};
+const SEQUENCE_SPRING: PanelSpring = {
+  ...motion.spring.snappy,
+  restDisplacementThreshold: 0.005,
+  restSpeedThreshold: 0.1,
+};
+/** 재생 목록의 히어로 축소를 transform 으로(hero 주석) — Android 만. iOS 는 종전 레이아웃 그대로 */
+const HERO_QUEUE_BY_TRANSFORM = Platform.OS === 'android';
 /** Android 줌 전환(아래 AndroidZoomStage) — iOS 는 종전 갈래 그대로(시스템 줌·JS 모핑) */
 const ANDROID_ZOOM = Platform.OS === 'android';
 /** 줌이 거의 다 커졌을 때의 모서리 — 기기 화면 모서리 느낌으로 둥글다가 마지막에 0 */
@@ -1944,11 +2122,9 @@ const ANDROID_ZOOM_CORNER = 32;
 
 interface AndroidZoomStageProps {
   enabled: boolean;
-  /** 자라는 카드의 자리(화면 좌표) — 시트와 같은 값 */
-  frame: Animated.WithAnimatedObject<{ top: number; left: number; width: number; height: number }>;
+  /** 시트와 같은 네이티브 이동·확대 그래프 */
+  zoom: ReturnType<typeof createAndroidPlayerZoom>;
   radius: Animated.AnimatedInterpolation<number> | number;
-  /** 플레이어 전체의 배율 — 카드 폭 / 화면 폭 → 1 */
-  scale: Animated.AnimatedInterpolation<number>;
   /** 플레이어가 원래 그려지는 판(화면 크기 + 안전영역) — 배율을 걸 기준 */
   stage: { width: number; height: number; paddingTop: number; paddingBottom: number };
   children: ReactNode;
@@ -1959,15 +2135,15 @@ interface AndroidZoomStageProps {
  * 넣는다. 배율 1·카드 = 화면이면 종전과 똑같은 배치다(레이아웃 측정값도 같다 — transform 은 레이아웃을 바꾸지 않는다).
  * 꺼져 있으면 자식을 그대로 둔다
  */
-function AndroidZoomStage({ enabled, frame, radius, scale, stage, children }: AndroidZoomStageProps) {
+function AndroidZoomStage({ enabled, zoom, radius, stage, children }: AndroidZoomStageProps) {
   if (!enabled) return <>{children}</>;
   return (
     <Animated.View
-      style={[styles.zoomClip, frame, { borderRadius: radius }]}
+      style={[styles.zoomClip, zoom.frame, { borderRadius: radius }]}
       pointerEvents="box-none"
     >
       <Animated.View
-        style={[styles.zoomStage, stage, { transform: [{ scale }] }]}
+        style={[styles.zoomStage, stage, { transform: zoom.contentTransform }]}
         pointerEvents="box-none"
       >
         {children}
@@ -1981,10 +2157,10 @@ const PAUSED_ART_SCALE = 0.85;
 const BACKDROP_BLUR_RADIUS = 60;
 /** 흐린 커버 위 어두운 막 — 플레이어 바탕색(#17171A)의 72% */
 const BACKDROP_SCRIM_COLOR = 'rgba(23, 23, 26, 0.72)';
-/** 미니플레이어 카드의 내부 치수(MiniPlayer.tsx 스타일과 같아야 한다) — 진행바 2 · 썸네일 40(import) · 버튼 44 · 행 54 */
+/** 미니플레이어 카드의 내부 치수(MiniPlayer.tsx 스타일과 같아야 한다) — 진행바 2 · 썸네일(import) · 버튼 44 · 카드 높이(import) */
 const MINI_PROGRESS_HEIGHT = 2;
 const MINI_BUTTON_WIDTH = 44;
-const MINI_ROW_HEIGHT = 54;
+const MINI_ROW_HEIGHT = MINI_CARD_HEIGHT;
 /** 미니플레이어 제목(14pt) 한 줄 높이 */
 const MINI_TITLE_LINE_HEIGHT = 20;
 /** 미니플레이어 제목과 카테고리 줄 사이(MiniPlayer styles.textColumn gap 과 같아야 한다) */
