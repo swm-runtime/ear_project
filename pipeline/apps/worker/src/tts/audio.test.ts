@@ -20,3 +20,24 @@ test("조용한 구간 — 창 최저값 + 12dB 아래로 가장 긴 연속 구�
   assert.deepEqual(longestQuietRun(two, 0.02, 0.12), { start: 0.22, end: 0.38 }); // 제한 없으면 뒤 것(8칸)
   assert.deepEqual(longestQuietRun(two, 0.02, 0.12, { maxStartSec: 0.1 }), { start: 0.02, end: 0.16 });
 });
+
+// 끝 꼬리 (2026-10-01): 마지막 낱말 직후의 첫 쉼을 찾는다 — 가장 긴 쉼이 아니라 첫 쉼, 짧은 정지(폐쇄음)는 건너뛴다
+test("firstQuietRun — 0.15초 미만 정지는 건너뛰고 첫 긴 쉼을 고른다", async () => {
+  const { firstQuietRun } = await import("./audio.js");
+  // 20ms 프레임: 말(-22) 10 · 짧은 정지(-70) 3 · 말 10 · 첫 쉼(-72) 20 · 덧말(-20) 10 · 긴 쉼(-75) 40
+  const db = [...Array(10).fill(-22), ...Array(3).fill(-70), ...Array(10).fill(-22), ...Array(20).fill(-72), ...Array(10).fill(-20), ...Array(40).fill(-75)];
+  const q = firstQuietRun(db, 0.02, 0.15);
+  assert.ok(q && Math.abs(q.start - 0.46) < 1e-9 && Math.abs(q.end - 0.86) < 1e-9, JSON.stringify(q));
+  assert.equal(firstQuietRun(Array(20).fill(-20), 0.02, 0.15), null);
+});
+
+test("fadeOutPcm — 끝 n 샘플을 선형으로 0 까지 줄이고 앞은 그대로 둔다", async () => {
+  const { fadeOutPcm } = await import("./audio.js");
+  const buf = Buffer.alloc(2 * 100); for (let i = 0; i < 100; i++) buf.writeInt16LE(10000, i * 2);
+  const out = fadeOutPcm(buf, 10 / 44100);
+  assert.equal(out.readInt16LE(0), 10000);
+  assert.equal(out.readInt16LE(89 * 2), 10000);
+  assert.equal(out.readInt16LE(99 * 2), 0);
+  assert.ok(out.readInt16LE(94 * 2) > 0 && out.readInt16LE(94 * 2) < 10000);
+  assert.equal(buf.readInt16LE(99 * 2), 10000); // 원본은 건드리지 않는다
+});
