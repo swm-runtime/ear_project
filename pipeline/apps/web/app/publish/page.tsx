@@ -2,9 +2,10 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { EarContent, listEarContents, listEarJobCategories, restoreEarContent, withdrawEarContent } from "@/lib/ear";
-import { enrichStates, latestPublishEvents, logPublishEvent, requestEnrich, requestScriptAlign, scriptAlignStates, type PublishAction } from "../actions";
+import { enrichStates, latestPublishEvents, logPublishEvent, republishPlans, requestEnrich, requestScriptAlign, scriptAlignStates, type PublishAction, type RepublishPlan } from "../actions";
 import { EnrichCell, isStale, type EnrichState } from "./enrich-cell";
 import { ScriptCell, type ScriptState } from "./script-cell";
+import { StaleNote, StaleRepublishButton } from "./stale-republish";
 import { Badge, LinkBtn, PageHeader, Panel, Toolbar, btnCls } from "@/components/ui";
 import { fmtTime } from "@/lib/format";
 import { EarGate, EarSession, earErrMsg } from "./ear-connect";
@@ -34,6 +35,7 @@ function ContentList() {
   const [staleOnly, setStaleOnly] = useState(false); // KAN-54: 구형·없음만 보기 — 서버에 필터가 없어 전 페이지를 받아 거른다
   const [enrich, setEnrich] = useState<Record<string, EnrichState>>({});
   const [scripts, setScripts] = useState<Record<string, ScriptState>>({}); // KAN-72 소급: 자막 정렬 작업 상태
+  const [plans, setPlans] = useState<Record<string, RepublishPlan>>({}); // 발행본 구형 판정 (구형 전체 재발행)
   const [jobCats, setJobCats] = useState<string[]>([]);
 
   const load = useCallback(async (st = status, off = offset, stale = staleOnly) => {
@@ -43,6 +45,7 @@ function ContentList() {
       setErr(null); setData(shown); setLatest(ev);
       setEnrich(await enrichStates(shown.items.map((c) => c.id)).catch(() => ({})));
       setScripts(await scriptAlignStates(shown.items.map((c) => c.id)).catch(() => ({})));
+      setPlans(await republishPlans(shown.items.map((c) => c.id)).catch(() => ({})));
     } catch (e) { setErr(earErrMsg(e)); }
   }, [status, offset, staleOnly]);
   useEffect(() => { listEarJobCategories().then((r) => setJobCats(r.items.map((x) => x.name))).catch(() => setJobCats([])); }, []);
@@ -72,7 +75,7 @@ function ContentList() {
           <option value="expired">expired</option>
         </select>
         <Link href="/publish/topics" className={btnCls()}>제품 주제 관리</Link>
-        <label className="flex items-center gap-1 text-xs text-ink-soft"><input type="checkbox" checked={staleOnly} onChange={(e) => { setStaleOnly(e.target.checked); setOffset(0); }} />구형·없음 메타만</label>
+        <label className="flex items-center gap-1 text-xs text-ink-soft"><input type="checkbox" checked={staleOnly} onChange={(e) => { setStaleOnly(e.target.checked); setOffset(0); }} />구형·없음 추천 메타만</label>
         {staleOnly && data && data.items.length > 0 && (
           <button className={btnCls()} disabled={busy} title="목록의 콘텐츠 전부에 메타 재부여 작업을 넣는다 (반영은 각 행의 [반영])" onClick={() => {
             if (!confirm(`${data.items.length}건의 추천 메타를 다시 뽑을까요? 워커가 순서대로 판정합니다 (편당 $0.1~0.3).`)) return;
@@ -86,6 +89,7 @@ function ContentList() {
             void act(async () => { const r = await requestScriptAlign(targets); alert(`요청 ${r.queued}건 · 진행 중 ${r.skipped}건 · 에피소드 없음 ${r.noEpisode}건`); });
           }}>자막 없는 것 전부 뽑기</button>
         )}
+        <StaleRepublishButton disabled={busy} onDone={() => void load()} />
         <button className={btnCls()} onClick={() => void load()}>새로고침</button>
         {data && <span className="text-xs text-ink-soft">총 {data.total}건</span>}
       </Toolbar>
@@ -112,7 +116,7 @@ function ContentList() {
                 </td>
                 <td className="px-4 py-2.5 text-ink-soft">{c.topics.map((t) => t.name).join(", ")}</td>
                 <td className="px-4 py-2.5 tabular-nums text-ink-soft">{Math.floor(c.duration_sec / 60)}:{String(c.duration_sec % 60).padStart(2, "0")}</td>
-                <td className="px-4 py-2.5 text-ink-soft"><LatestCell c={c} ev={latest[c.id]} /></td>
+                <td className="px-4 py-2.5 text-ink-soft"><LatestCell c={c} ev={latest[c.id]} /><StaleNote c={c} p={plans[c.id]} /></td>
                 <td className="px-4 py-2.5"><EnrichCell c={c} st={enrich[c.id]} jobCategories={jobCats} onChange={() => void load()} /></td>
                 <td className="px-4 py-2.5"><ScriptCell c={c} st={scripts[c.id]} onChange={() => void load()} /></td>
                 <td className="px-4 py-2.5"><Badge tone={c.status === "published" ? "done" : "failed"}>{c.status}</Badge></td>
