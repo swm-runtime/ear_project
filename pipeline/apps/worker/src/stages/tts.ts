@@ -138,7 +138,7 @@ export async function runTts(job: Job) {
    * 마지막 음절 뒤 약 20ms 만에 끊긴다(T260929-003 실측: −24dB 에서 30ms 만에 0). 상대 화자의 짧은 덧말을 붙여 생성하고 그 앞 쉼에서 자른다 — 마지막 낱말이
    * 뒤에 말이 있는 상태로 자연히 감쇠한다. 덧말은 버린다(약 8자 과금). 쉼을 못 찾아도 다시 생성하지 않는다: 덧말 첫 글자 정렬 시각 앞에서 자르고 길게 페이드한다
    */
-  const tailGuardOn = wantSpeed && !sampleTurns;
+  const tailGuardOn = cfg.ttsTailGuard && wantSpeed && !sampleTurns; // 2026-10-01 회귀로 기본 꺼짐 (config.ts ttsTailGuard)
   const TAIL_GUARD = "네, 감사합니다.";
   let tailNote = "";
   const synthChunk = async (n: number, withCtx: boolean, guardOnly = false): Promise<Synth> => {
