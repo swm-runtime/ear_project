@@ -26,6 +26,23 @@ import { chunkSegments, contextExcerpt, DEFAULT_GAP_SEC, joinChunkSegments, vali
 /** 화자 → ElevenLabs 보이스 ID (config). script.ts 에 두지 않는 이유: 파서·분할은 설정(env) 없이 테스트한다 */
 const voiceOf = (speaker: Speaker): string => (speaker === "윤아" ? cfg.ttsVoiceYuna : cfg.ttsVoiceEum);
 
+/**
+ * 징글 파일 확보 (2026-10-01 박수헌): S3 assets/audio/ 의 인트로·아웃트로를 WORK_ROOT 로 받는다. 키가 비었거나 객체가 없으면 그 쪽은 없이 간다 —
+ * 징글 하나 없다고 TTS 가 실패하지 않는다(로그만). 레포에는 mp3 가 없다(.dockerignore·rsync 제외) — 자산의 진실은 S3 다.
+ */
+async function loadJingles(): Promise<{ introFile?: string; outroFile?: string }> {
+  const out: { introFile?: string; outroFile?: string } = {};
+  const want = [["introFile", cfg.ttsIntroKey], ["outroFile", cfg.ttsOutroKey]] as const;
+  if (!want.some(([, k]) => k)) return out;
+  try { await pullPrefix("assets/audio/"); } catch (e: any) { log(`  tts: 징글 받기 실패 — 없이 조립 (${String(e?.message ?? e).slice(0, 120)})`); return out; }
+  for (const [field, key] of want) {
+    if (!key) continue;
+    const local = path.join(cfg.workRoot, key);
+    try { await fs.access(local); out[field] = local; } catch { log(`  tts: 징글 없음 ${key} — 없이 조립`); }
+  }
+  return out;
+}
+
 export async function runTts(job: Job) {
   resetUsage(); // 이 작업의 ElevenLabs 요청·차감 크레딧 계측 시작 (재시도·폴백·정렬 포함)
   const episodeId = String(job.payload.episode_id ?? "");
@@ -193,16 +210,19 @@ export async function runTts(job: Job) {
   const distOut = path.join(audioDir, sampleTurns ? "sample.mp3" : "dist.mp3");
   const gaps = ctxBoundaries.map((ok) => (ok ? 0 : DEFAULT_GAP_SEC)); // 문맥 겹침 경계는 무음 없음, 폴백 경계는 기본 쉼 — 자막 오프셋과 같은 값을 쓴다
   // 폴백 경계의 배포본 시각 (KAN-87 완료 조건 3 — 끊김 의심 지점을 실행 기록에 표시). 요청마다 실측 길이가 있을 때만(원속 폴백 없음)
-  const mmss = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+  const mmss = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`; // 폴백 경계 위치 — 인트로가 붙으면 그만큼 뒤로 밀린다(아래 jingleNote 에 인트로 길이를 적는다)
   const fallbackAt = chunkSegs.length === chunks.length ? ctxBoundaries.map((ok, k) => (ok ? null : mmss(2 + chunkSegs.slice(0, k + 1).reduce((a, c) => a + c.durSec, 0) + gaps.slice(0, k).reduce((a: number, g) => a + g, 0)))).filter((x): x is string => !!x) : [];
-  const durationSec = await assemble({ segments, gapSec: gaps, workDir: audioDir, masterOut, distOut }); // 앞뒤 무음 2초는 assemble 기본값
+  // 징글 (2026-10-01): 샘플에는 붙이지 않는다. S3 에 없으면 없이 조립
+  const jingle = sampleTurns ? {} : await loadJingles();
+  const asm = await assemble({ segments, gapSec: gaps, workDir: audioDir, masterOut, distOut, introFile: jingle.introFile, outroFile: jingle.outroFile, outroPadSec: cfg.ttsOutroPadSec }); // 앞뒤 무음 2초는 assemble 기본값
+  const durationSec = asm.durationSec;
   if (sampleTurns) await fs.rm(masterOut, { force: true }); // 샘플은 mp3 만 남긴다
 
   // 대본 세그먼트 → episodes/<id>/script-segments.json (spec/06 7장, admin-api 4.6 script_file). 샘플은 만들지 않는다
   const segFile = path.join(cfg.workRoot, rel, "script-segments.json");
   let segCount = 0;
   if (!sampleTurns) {
-    const joined = segFail ? [] : joinChunkSegments(chunkSegs, 2, gaps); // assemble 과 같은 앞 무음 2초·경계별 이음새 쉼
+    const joined = segFail ? [] : joinChunkSegments(chunkSegs, asm.introSec + 2, gaps); // assemble 과 같은 인트로 길이 + 앞 무음 2초·경계별 이음새 쉼
     segFail ??= validateSegments(joined);
     if (segFail) { await fs.rm(segFile, { force: true }); log(`  tts ${episodeId}: 자막 세그먼트 없음 — ${segFail}`); }
     else { await fs.writeFile(segFile, JSON.stringify(joined, null, 1), "utf-8"); segCount = joined.length; }
@@ -223,7 +243,8 @@ export async function runTts(job: Job) {
   const u = usage();
   const metered = u.credits > 0;
   const ttsCost = metered ? (u.credits / 1000) * cfg.ttsUsdPer1kCredits : cfg.ttsUsdPer1kChars != null ? ((totalChars + ctxChars) / 1000) * cfg.ttsUsdPer1kChars : undefined;
-  const usageNote = ` · 실제 차감 ${metered ? `${u.credits.toLocaleString()}크레딧` : "미계측"} (${u.requests}요청${u.unmetered ? `, 헤더 없음 ${u.unmetered}` : ""})`;
+  const jingleNote = jingle.introFile || jingle.outroFile ? ` · 징글 ${jingle.introFile ? `인트로 ${asm.introSec}초` : "인트로 없음"} / ${jingle.outroFile ? `아웃트로(앞 패딩 ${asm.outroPadSec}초)` : "아웃트로 없음"}` : "";
+  const usageNote = `${jingleNote} · 실제 차감 ${metered ? `${u.credits.toLocaleString()}크레딧` : "미계측"} (${u.requests}요청${u.unmetered ? `, 헤더 없음 ${u.unmetered}` : ""})`;
   await insertRun({ backlog_id: backlogId, phase: "tts", result: result + usageNote, prompt_version: "tts-v1 (worker)", artifacts, executed_by: executedBy, model: cfg.ttsModel, cost_usd: ttsCost, tokens: { characters: totalChars, context_characters: ctxChars, chunks: chunks.length, duration_sec: Math.round(durationSec), credits: metered ? u.credits : null, requests: u.requests, unmetered: u.unmetered }, worker_rev: workerRev() });
   // 샘플은 발행 경로가 아니다 — 연쇄를 잇지 않는다
   const next = sampleTurns ? null : await advanceChain(job);

@@ -30,7 +30,7 @@ interface Backend {
   put(key: string, body: Buffer, contentType: string): Promise<void>;
 }
 
-const ALLOWED_PREFIX = /^(episodes|sweeps|datasets)\//;
+const ALLOWED_PREFIX = /^(episodes|sweeps|datasets|assets)\//; // assets/: 채널 공통 자산 (인트로·아웃트로 징글, 2026-10-01)
 /** 버킷 정책·IAM 정책과 같은 범위만 (setup-pipeline-bucket.sh) — 밖의 키는 코드 버그다 */
 export function assertKey(key: string): string {
   if (!ALLOWED_PREFIX.test(key) || key.includes("//") || key.split("/").includes("..") || key.length > 1024) throw new Error(`허용되지 않는 저장소 키: ${key}`);
