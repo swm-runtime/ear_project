@@ -284,7 +284,8 @@ export function v94Violations(turns: ScriptTurn[]): string[] {
   const bodyY = Y.filter((t) => t.section !== "인트로" && t.section !== "마무리");
   const ids = (xs: { id: string | null }[], n = 8) => xs.slice(0, n).map((t) => t.id ?? "?").join(", ");
   // 규칙 3: 물음표 없는 정리형 진행 턴 비율 — 어휘만 바꾼 요약이 진행자의 절반이면 청취자 대리가 아니라 자막기다
-  const summaryRe = /(네요|군요|거군요|거네요|말이군요|뜻이군요|들려요|들립니다|들리네요|같아요|같습니다|겠어요|겠네요|셈이네요|얘기네요|말이네요)[.!]?\s*$/;
+  // 2026-10-01 수정: 느낌·추측 어미(같아요·같습니다·겠어요·겠네요)는 정리형이 아니다 — 그 어미가 포함돼 있어 "느낌으로 바꾸라"는 지시를 따라도 다시 걸렸다(T261001-001·002: 10/28·10/24 가 수정 2회 뒤에도 그대로, 검토 대기 2편)
+  const summaryRe = /(네요|군요|거군요|거네요|말이군요|뜻이군요|들려요|들립니다|들리네요|셈이네요|얘기네요|말이네요|거죠|는 거죠)[.!]?\s*$/;
   const summaryY = bodyY.filter((t) => !/\?/.test(t.text) && summaryRe.test(t.text.trim()));
   if (bodyY.length >= 12 && summaryY.length / bodyY.length > 0.35) {
     // 2026-09-30: 바꿀 턴을 지목한다 — "N개 이상"만 말하면 수정 호출이 모자라게 고쳐 L0 수정 2회를 다 썼다(T260930-001: 9 → 8 → 7개). 한 개 여유를 두고 고르게 뽑는다

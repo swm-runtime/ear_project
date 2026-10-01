@@ -207,7 +207,12 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
   // full-v8.1: "사용 소스 ≤ 구간 + 1" 상한 폐지 — 소스를 소화하려고 구간이 생기는 것이 축 이탈의 원인이었다. 대신 구간마다 축의 하위 질문(`질문:`) 이 있어야 한다
   if (q.heads && q.qs < q.heads) await fail(`구성안 구간 ${q.heads}개 중 \`질문:\` 줄이 ${q.qs}개 — 재설계 뒤에도 누락. 구간마다 축의 하위 질문을 적는다 (full-v8.1)`);
   const attribution = deriveAttribution(o.claims);
-  if (!/^축:/m.test(o.outline_md) || !/^구간 #1/m.test(o.outline_md)) await fail(`outline_md 형식 위반 — '축:' 또는 '구간 #1' 줄이 없음 (정규화 후). 앞부분: ${o.outline_md.replace(/\s+/g, " ").slice(0, 160)}`);
+  if (!/^축:/m.test(o.outline_md) || !/^구간 #1/m.test(o.outline_md)) {
+    // 2026-10-01 (T261001-003/C100): 설계가 "유효 소스 2건뿐 — 구성안 보류"를 outline 자리에 적었다. 소스 부족은 접근 실패와 같은 경로(자동 반려)로 보낸다 — onDraftFailed 가 이 메시지 꼴을 본다
+    const used = (o.sources_used ?? []).length;
+    if (used < 3 || /보류/.test(o.outline_md.slice(0, 200))) await fail(`소스 본문 ${used}건 — 3건 하한 미달 (설계 판단: ${(o.notes || o.outline_md).replace(/\s+/g, " ").slice(0, 200)})`);
+    await fail(`outline_md 형식 위반 — '축:' 또는 '구간 #1' 줄이 없음 (정규화 후). 앞부분: ${o.outline_md.replace(/\s+/g, " ").slice(0, 160)}`);
+  }
   if (o.estimated_minutes && o.estimated_minutes < 13) await fail(`재료 부족 — 설계 예상 분량 ${o.estimated_minutes}분 < 하한 13분. ${o.notes.slice(0, 200)}`);
 
   const lines: string[] = ["> 내부 증적 — 재배포 금지", "", `# 소스 발췌 — ${episodeId}`, "", `> 설계 단발 실행: 발췌는 코드가 가져온 원문 문단을 모델이 골라 그대로 옮긴 것 (${chosen.size}항목). 요지만 모델 작성.`, ...(priorNotes.length ? [`> 이미 다른 편이 쓴 문단은 제외했다: ${priorNotes.join(" · ")}`] : []), ""];

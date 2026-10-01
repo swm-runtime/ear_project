@@ -13,6 +13,13 @@ test("L0 v9.4 — 깨끗한 대본은 새 검사에 걸리지 않는다", () => 
   assert.equal(v.length, 0, v.join("\n"));
 });
 
+test("L0 정리형 — 느낌·추측 어미(같아요·겠어요)는 정리형으로 세지 않는다 (2026-10-01)", () => {
+  const turns: string[] = [];
+  for (let i = 1; i <= 12; i++) turns.push(`[이음] E${i} · 설명 ${i}이에요.`, i <= 8 ? `[윤아] Y${i + 1} · 저라면 그 자리에서 망설였을 것 같아요.` : `[윤아] Y${i + 1} · 왜 그런가요?`);
+  const v = twoStageViolations(wrap(turns.join("\n\n")), "");
+  assert.ok(!has(v, /정리형/), v.join("\n"));
+});
+
 test("L0 v9.4 — 정리형 진행 턴이 셋 중 하나를 넘으면 잡는다 (본문 진행 턴 12개 이상일 때만)", () => {
   const turns: string[] = [];
   for (let i = 1; i <= 12; i++) turns.push(`[이음] E${i} · 설명 ${i}이에요.`, i <= 6 ? `[윤아] Y${i + 1} · 그러니까 이렇게 된다는 얘기네요.` : `[윤아] Y${i + 1} · 그러면 ${i}은 왜 그런가요?`);
