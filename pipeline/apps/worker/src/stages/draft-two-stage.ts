@@ -345,6 +345,14 @@ export function v94Violations(turns: ScriptTurn[]): string[] {
   const srcActRe = /(?<!한 )(?<!어떤 )(글|조사|연구|해설|자료|모의실험|분석|보고서|검토)(이|가|은|는) [^.!?]{0,45}(살폈|살핍니|다뤘|다룹니|다뤄요|풀어냈|나눠 봤|권합니다|권해요|예측합니다|연결합니다|정리했)/;
   const srcAct = E.filter((t) => srcActRe.test(t.text));
   if (srcAct.length) v.push(`해설 턴 ${srcAct.length}개가 글·조사·연구를 행위의 주어로 세움 (${ids(srcAct)}) — 소개는 처음 듣는 사람에게 "그런 글·조사·연구가 하나 있다"고 알리는 한 문장이고, 그 뒤는 주어 없이 내용을 말한다. 실험 하나의 결과는 사례 하나로 소개한다 (규칙 20)`);
+  // ── v9.7 (2026-10-01, v9.5 판정 3편) ──
+  // 규칙 4: 내용 없는 한 마디 진행 턴("네.") — 사람: "차라리 없는 게 나을 정도의 무의미한 턴"
+  const emptyY = bodyY.filter((t) => !/\?/.test(t.text) && t.text.replace(/[\s.,!…"'“”‘’]/g, "").length <= 4);
+  if (emptyY.length) v.push(`진행 턴 ${emptyY.length}개가 내용 없는 한 마디 수긍 (${ids(emptyY)}) — 앞 해설의 어느 지점을 받았는지 드러나는 한 문장으로 바꾸거나, 턴을 지우고 해설을 잇는다 (규칙 4)`);
+  // 규칙 20: 한 턴 안에서 발언자를 갈아타는 중계("한 분석가는 … 다른 경제학자는 …") — 직접 수정이 "~해석하는 전문가들도 있어요"로 묶었다
+  const speakerRe = /(한|어떤|다른|또 다른|어느) (?:[가-힣]{1,8} )?(분석가|경제학자|교수|연구자|전문가|기자|평론가|학자|참가자|관계자|당국자|관계자|투자자|애널리스트|의원|관리자)(는|은|이|가) /g;
+  const relay = E.filter((t) => (t.text.match(speakerRe)?.length ?? 0) >= 2);
+  if (relay.length) v.push(`해설 턴 ${relay.length}개가 한 턴 안에서 발언자를 갈아타며 옮김 (${ids(relay)}) — 같은 방향의 의견은 한 문장으로 묶어 해설자의 말로 한다. 발언자별 전언을 차례로 잇지 않는다 (규칙 20)`);
   return v;
 }
 
@@ -399,6 +407,22 @@ export function attributionViolations(scriptMd: string, turns: { id: string | nu
   const known = new Set<string>();
   for (const list of names.values()) for (const n of list) if (n.length >= 3) known.add(n);
   for (const n of known) { const c = countIn(eText, n); if (c >= 3) v.push(`"${n}" 이 해설 턴에서 ${c}회 — 이름은 소개 때 한 번, 이후는 지시어("이 사람"·"연구팀")로 잇는다 (규칙 21)`); }
+  // v9.7 (2026-10-01): 낯선 인명의 첫 등장 문장에 역할이 없다 — T260930-002 "서평자가 누구인지도 밝혀지지 않았는데 이름을 써버림". 저자 이름(소스 머리 byline)과 라틴 두 토큰 이름을 본다.
+  // 역할 낱말이 같은 문장이나 바로 앞 문장에 있으면 소개로 친다. 매체·기관명(발행처)은 대상이 아니다
+  {
+    const roleRe = /(교수|학자|작가|기자|연구자|연구원|저자|서평자|서평|언론인|박사|대표|장관|의원|전문가|평론가|철학자|소설가|시인|감독|사업가|창업자|대통령|총리|장군|사학자|경제학자|심리학자|과학자|의사|변호사|판사|목사|신부|승려|화가|음악가|편집자|편집장|칼럼니스트|분석가|관리자|CEO|회장|사장|이사|교사|강사|활동가|정치인|외교관|관료|지도자|지휘관|왕|황제|여왕|왕비|장수|승상|재상|세자)/;
+    const persons = new Set<string>();
+    for (const m of sourcesMd.matchAll(/^## S\d+\.[^\n]*\n- URL:[^\n]*· 저자 ([^\n·]+)/gm)) for (const n of m[1].split(/,\s*/).map((x) => x.trim())) if (n.length >= 3 && !/^(staff|editor|editorial|admin|team)/i.test(n)) persons.add(n);
+    for (const m of eText.matchAll(/(?<![A-Za-z])([A-Z][A-Za-z.'-]+ [A-Z][A-Za-z.'-]+)(?![A-Za-z])/g)) persons.add(m[1]);
+    const noRole: string[] = [];
+    for (const n of persons) {
+      const t = turns.find((x) => x.id?.startsWith("E") && x.text.includes(n)); if (!t) continue;
+      const sents = t.text.split(/(?<=[.?!])\s+/); const i = sents.findIndex((x) => x.includes(n)); if (i < 0) continue;
+      const window = (i > 0 ? sents[i - 1] + " " : "") + sents[i];
+      if (!roleRe.test(window)) noRole.push(`${n}@${t.id}`);
+    }
+    if (noRole.length) v.push(`이름 ${noRole.length}개가 첫 등장 문장에 역할 소개 없이 불림 (${noRole.slice(0, 5).join(", ")}) — 낯선 이름은 처음 부르는 문장에서 무엇을 하는 사람인지 밝힌다. 이름 자체가 정보가 아니면 익명("한 역사학자는")으로 (규칙 21)`);
+  }
   // 소스 목록에 없는 이름 (규칙 21 — 001 "Knowable Magazine"): 라틴 문자 고유명(두 단어 이상)과 "X 라는 매체/곳/기관"이 sources.md·claims·발음 맵에 없으면 지어낸 것
   // 라틴 문자 이름의 대조 코퍼스는 sources.md(원문 발췌·발행처·저자)뿐 — claims.md 는 QA 기록에, pronunciations.json 은 모델이 새 표기마다 발음을 넣어서
   // 지어낸 이름("Knowable Magazine")이 둘 다에 남아 있었다. 한글 토큰("LG경영연구원 이라는")만 발음 맵의 한글 표기까지 허용한다
@@ -416,7 +440,8 @@ export function attributionViolations(scriptMd: string, turns: { id: string | nu
   // 되돌림 표지 (규칙 22): 앞 블록의 소스를 다시 식별하지 않는다 — 축 소스도 내용으로만 되짚는다
   const backRe = /(로 돌아가(면|서|볼게요|볼까요)|아까 그 |앞에서 말한 그 |아까 말한 그 )/;
   const back = turns.filter((t) => backRe.test(t.text)).map((t) => t.id ?? "?");
-  if (back.length) v.push(`되돌림 표지("~로 돌아가면"·"아까 그") ${back.length}턴 (${back.slice(0, 5).join(", ")}) — 앞 블록의 소스를 다시 식별하지 않는다. 축 소스도 내용으로만 되짚는다 (규칙 22)`);
+  // v9.7 (2026-10-01 박수헌): 축 소스이거나 편에서 한 번뿐인 재사용이면 표지 하나는 허용 — 003 직접 수정이 "앞서 나온 삼성의 경우"로 표지를 더했다. 둘부터 잡는다
+  if (back.length >= 2) v.push(`되돌림 표지("~로 돌아가면"·"아까 그") ${back.length}턴 (${back.slice(0, 5).join(", ")}) — 앞 구간의 사례를 다시 쓰는 것은 축 소스이거나 편에서 한 번뿐일 때이고, 표지도 그 한 번뿐이다. 나머지는 내용으로만 되짚는다 (규칙 22)`);
   // 블록 첫 해설 턴이 앞 블록의 지시어로 시작 (규칙 22 — 004 "그 교수"가 #4·#5 에서 다른 사람)
   {
     let sec = 0; let seen = new Set<number>(); const bad: string[] = [];
