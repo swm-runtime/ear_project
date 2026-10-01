@@ -4,7 +4,7 @@ import path from "node:path";
 import { cfg, executedBy } from "../config.js";
 import { getBacklog, getEpisode, insertRun, pool, setJobProgress, upsertEpisode, type Job } from "../db.js";
 import { loadTtsDict, workerRev } from "../assets.js";
-import { listPrefix, localPathOf, pullPrefix, pushPrefix, s3Key } from "../storage.js";
+import { listPrefix, localPathOf, pullPrefix, pushPrefix, s3Key, storage } from "../storage.js";
 import { advanceChain } from "../chain.js";
 import { ApiLimit, log } from "../util.js";
 import { parseScriptForTts, chunkTurns, describeCuts, type ScriptTurn, type Speaker } from "../tts/script.js";
@@ -30,16 +30,20 @@ const voiceOf = (speaker: Speaker): string => (speaker === "윤아" ? cfg.ttsVoi
  * 징글 파일 확보 (2026-10-01 박수헌): S3 assets/audio/ 의 인트로·아웃트로를 WORK_ROOT 로 받는다. 키가 비었거나 객체가 없으면 그 쪽은 없이 간다 —
  * 징글 하나 없다고 TTS 가 실패하지 않는다(로그만). 레포에는 mp3 가 없다(.dockerignore·rsync 제외) — 자산의 진실은 S3 다.
  */
-async function loadJingles(): Promise<{ introFile?: string; outroFile?: string }> {
-  const out: { introFile?: string; outroFile?: string } = {};
+async function loadJingles(): Promise<{ introFile?: string; outroFile?: string; missing?: string }> {
+  const out: { introFile?: string; outroFile?: string; missing?: string } = {};
   const want = [["introFile", cfg.ttsIntroKey], ["outroFile", cfg.ttsOutroKey]] as const;
-  if (!want.some(([, k]) => k)) return out;
-  try { await pullPrefix("assets/audio/"); } catch (e: any) { log(`  tts: 징글 받기 실패 — 없이 조립 (${String(e?.message ?? e).slice(0, 120)})`); return out; }
+  const miss: string[] = [];
   for (const [field, key] of want) {
     if (!key) continue;
-    const local = path.join(cfg.workRoot, key);
-    try { await fs.access(local); out[field] = local; } catch { log(`  tts: 징글 없음 ${key} — 없이 조립`); }
+    try {
+      const local = path.join(cfg.workRoot, key);
+      await fs.mkdir(path.dirname(local), { recursive: true });
+      await fs.writeFile(local, await storage().get(key));
+      out[field] = local;
+    } catch (e: any) { miss.push(`${key} (${String(e?.name ?? e?.message ?? e).slice(0, 40)})`); log(`  tts: 징글 받기 실패 ${key} — 없이 조립 (${String(e?.message ?? e).slice(0, 120)})`); }
   }
+  if (miss.length) out.missing = miss.join(", ");
   return out;
 }
 
@@ -243,7 +247,7 @@ export async function runTts(job: Job) {
   const u = usage();
   const metered = u.credits > 0;
   const ttsCost = metered ? (u.credits / 1000) * cfg.ttsUsdPer1kCredits : cfg.ttsUsdPer1kChars != null ? ((totalChars + ctxChars) / 1000) * cfg.ttsUsdPer1kChars : undefined;
-  const jingleNote = jingle.introFile || jingle.outroFile ? ` · 징글 ${jingle.introFile ? `인트로 ${asm.introSec}초` : "인트로 없음"} / ${jingle.outroFile ? "아웃트로" : "아웃트로 없음"} (파일 앞뒤 무음 1초, 본편에 바로 붙임)` : "";
+  const jingleNote = (jingle.introFile || jingle.outroFile ? ` · 징글 ${jingle.introFile ? `인트로 ${asm.introSec}초` : "인트로 없음"} / ${jingle.outroFile ? "아웃트로" : "아웃트로 없음"} (파일 앞뒤 무음 1초, 본편에 바로 붙임)` : "") + ((jingle as { missing?: string }).missing ? ` · ⚠️ 징글 받기 실패: ${(jingle as { missing?: string }).missing}` : "");
   const usageNote = `${jingleNote} · 실제 차감 ${metered ? `${u.credits.toLocaleString()}크레딧` : "미계측"} (${u.requests}요청${u.unmetered ? `, 헤더 없음 ${u.unmetered}` : ""})`;
   await insertRun({ backlog_id: backlogId, phase: "tts", result: result + usageNote, prompt_version: "tts-v1 (worker)", artifacts, executed_by: executedBy, model: cfg.ttsModel, cost_usd: ttsCost, tokens: { characters: totalChars, context_characters: ctxChars, chunks: chunks.length, duration_sec: Math.round(durationSec), credits: metered ? u.credits : null, requests: u.requests, unmetered: u.unmetered }, worker_rev: workerRev() });
   // 샘플은 발행 경로가 아니다 — 연쇄를 잇지 않는다

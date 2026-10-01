@@ -6,7 +6,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
  * 자격증명은 SDK 기본 체인: EC2 인스턴스 역할 `ear-ai-ec2`, 로컬 개발은 임대 보유자의 SSO 프로필(`AWS_PROFILE`). 액세스 키를 env 에 두지 않는다.
  * 키 범위는 버킷 정책·IAM 정책과 같은 episodes/·sweeps/·datasets/ 뿐 — 밖의 키는 거부한다.
  */
-const ALLOWED = /^(episodes|sweeps|datasets|assets)\//; // assets/: 채널 공통 자산 (인트로·아웃트로 징글, 2026-10-01)
+const ALLOWED = /^(episodes|sweeps|datasets)\//;
 
 export function s3Configured(): boolean { return !!process.env.PIPELINE_BUCKET; }
 const bucket = () => { const b = process.env.PIPELINE_BUCKET; if (!b) throw new Error("PIPELINE_BUCKET 미설정"); return b; };
