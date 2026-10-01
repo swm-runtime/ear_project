@@ -117,7 +117,7 @@ idx_idempotency_keys_expires_at
 | `user` | `users`, `consents`, `withdrawal_logs`, `user_settings`, `device_tokens`, `email_verifications` |
 | `auth` | `sessions` |
 | `interest` | `topics`, `user_interests`, `topic_adjacencies` |
-| `content` | `contents`, `content_topics`, `content_scripts`, `content_stats`, `content_sources`, `content_embeddings` |
+| `content` | `contents`, `content_topics`, `content_scripts`, `content_stats`, `content_sources`, `content_embeddings`, `search_query_logs` |
 | `library` | `library_items` |
 | `playback` | `playback_progresses`, `play_records`, `user_signals`, `audio_access_logs`, `source_link_clicks` |
 | `drip` | `drip_excluded_contents`, `user_preference_vectors`, `drip_batch_runs`, `first_drip_jobs` |
@@ -700,6 +700,33 @@ uq_content_embeddings_content_id (content_id)
 - **모델을 교체하면 전량 재생성한다.** 서로 다른 모델의 벡터는 비교 불가하므로 `model`이 섞인 상태로 스코어링하지 않는다 — 배치는 스코어링 전에 `model` 단일성을 확인한다.
 - **행이 없는 콘텐츠도 발행 상태일 수 있다** (추천 메타 4종과 동일 — NULL 허용 원칙). 스코어링에서 임베딩 축을 중립 처리한다(`drip-scheduling.md` 4.2).
 - [1.5](#15-파생값을-컬럼으로-두지-않는다) 위반이 아닌 이유는 추천 메타 4종과 같다 — SQL로 구할 수 없는 값이다. `user_preference_vectors`([7.2](#72-user_preference_vectors))와 같은 층의 파생 캐시다.
+
+
+### 5.7 `search_query_logs` *(신설 2026-10-01 — 검색 미스율 측정)*
+
+키워드 검색의 **타이핑 묶음 하나 = 1행**이다(`explore.md` 4.5-5). 매칭 방식(`pg_trgm` 부분 일치)을 재검토할 근거 — "어떤 질의가 0건으로 끝나는가" — 를 만드는 표다. 적재 경로는 `content` 모듈의 `SearchQueryLogService` 하나이고, 탐색 Orchestrator가 결과를 조립한 뒤 부른다.
+
+```
+search_query_logs
+  id                        bigserial       PK
+  user_id                   uuid            FK → users (CASCADE)
+  query                     varchar(100)    정규화된 질의(NFC·소문자·트림) — 조회가 본 그 문자열
+  result_count              smallint        첫 페이지에 실린 건수(0 ~ 페이지 크기). CHECK >= 0
+  has_next                  boolean         첫 페이지 뒤에 더 있었는가
+  topic_filter_count        smallint        함께 걸린 주제 필터 수. CHECK >= 0
+
+idx_search_query_logs_user_id_created_at (user_id, created_at)
+idx_search_query_logs_created_at (created_at)   — 보존 배치 범위 삭제용
+```
+
+- **총 건수가 아니라 첫 페이지 건수다.** 총수를 세면 검색마다 COUNT 쿼리가 하나 더 붙는데, 미스율에 필요한 것은 0건 여부뿐이다. 페이지 크기만큼 찼을 때 "딱 그만큼"과 "더 있음"은 `has_next`가 가른다.
+- **커서 페이지는 기록하지 않는다** — 같은 질의의 이어 읽기라 새 검색이 아니다.
+- **디바운스 자동 검색의 중간 입력은 적재 시점에 접는다**("커" → "커리" → "커리어"). 서버는 키보드 제출과 자동 검색을 구분할 수 없으므로(`explore-api.md` 4.5 — 같은 엔드포인트) **같은 사용자의 직전 행이 10초 안이고 두 질의가 같은 타이핑으로 보이면 — 한쪽이 다른 쪽의 접두사이거나 한 글자 차이면 — 새 행을 만들지 않고 그 행을 마지막 질의로 덮어쓴다**(지우고 다시 친 "커리어" → "커", 오타를 고친 "커리오" → "커리어"도 같은 묶음). 남는 것은 사용자가 치다가 멈춘 질의다 — 중간 입력을 다 세면 미스율이 "커"(거의 항상 결과 있음)와 "커리ㅇ"(거의 항상 0건)에 끌려간다. `created_at`은 묶음의 시작, `updated_at`은 마지막 요청 시각이다. 10초 넘게 멈췄다 이어 치면 다른 검색으로 본다. `user_id`는 그 판정과 탈퇴 파기 경로용이고, 집계는 개인 식별 없이 질의·건수만 쓴다.
+- **구조화 로그([13.4](#134-구조화-로그로-대체-b-8))로 보내지 않는 이유**: CloudWatch 보관이 7일이라(`backend-monitoring.md`) 몇 주 단위의 미스율을 셀 수 없다. 재검토 결정은 그 기간의 누적을 봐야 한다.
+- 적재 실패는 검색 응답에 영향을 주지 않는다 — 서비스가 경고 로그 한 줄로 삼킨다(질의 본문은 경고에 남기지 않는다).
+- 읽는 곳은 관리자 요약 하나다(`admin-api.md` 4.21 — 로그 콘솔 "검색 로그" 탭). 앱은 이 표를 읽지 않는다.
+- 보존은 `created_at` **90일**([12.1](#121-운영-중-삭제-정책)). 탈퇴 시 **즉시 파기**([12.3](#123-회원-탈퇴-처리)) — `user_id` FK의 `ON DELETE CASCADE`가 집행한다.
+- `SearchHistory`(최근 검색어)는 여전히 테이블이 아니다([13.1](#131-클라이언트-로컬-전용)) — 이 표는 사용자에게 되돌려 주는 이력이 아니라 운영 분석 원천이고, 앱은 이 표를 읽지 않는다.
 
 ---
 
@@ -1423,12 +1450,13 @@ idx_archived_subscriptions_archived_at
 | `source_link_clicks` | **hard** — `created_at` 180일 후 배치 삭제 | `content_stats` 재집계 입력이라 `user_signals`와 같은 창을 쓴다 (확정 2026-09-10) |
 | `audio_access_logs` | **hard** — `created_at` 90일 후 배치 삭제 | 이상 탐지·감사용이며 그 판단은 최근 구간으로 한다. 재생 중 5분마다 갱신 발급이 쌓여 **성장이 가장 빠른 테이블**이다 (확정 2026-09-10) |
 | `notification_logs` | **hard** — `created_at` 90일 후 배치 삭제 | 목적이 중복 발송 방지라 그 판정 창을 넘기면 쓰이지 않는다 (확정 2026-09-10) |
+| `search_query_logs` | **hard** — `created_at` 90일 후 배치 삭제 | 검색 미스율 분석은 최근 몇 주를 보면 되고, 질의 본문을 오래 들고 있을 이유가 없다 (신설 2026-10-01 — [5.7](#57-search_query_logs-신설-2026-10-01--검색-미스율-측정)) |
 | `audit_logs` | **삭제하지 않는다** | 관리자 행위의 증적이다. 파트너 계약 분쟁은 몇 년 뒤에도 제기될 수 있고, 그때 되짚을 수 있어야 한다 (확정 2026-09-10) |
 | `notices` | **soft** (`deleted_at`) — **삭제 30일 뒤 hard delete 대상**(배치 미구현) | 관리자 실수 삭제를 되짚을 창. 사용자 데이터가 아니라 법적 보존 근거는 없다 (확정 2026-09-17) |
 | `play_records` | **보류** — 기간을 정하지 않는다 | 프로필 통계가 **전 기간 청취 시간 합계**를 이 테이블에서 읽는다([6.3](#63-play_records)). 지금 지우면 사용자가 보던 숫자가 줄어든다. 비식별 누적 집계로 옮긴 뒤 정한다 (보류 2026-09-10) |
 | 나머지 | hard | |
 
-**구현 상태(2026-09-26 기준) — 위 배치는 구현됐다.** `RetentionModule`(`user_signals`·`source_link_clicks`·`audio_access_logs`·`notification_logs`, 04:30 KST) · `SessionPurgeScheduler`(`sessions`, 매시간) · `EmailVerificationPurgeScheduler` · `IdempotencyPurgeScheduler` · `FirstDripPurgeScheduler`(`first_drip_jobs` — 종착 상태 3종을 `updated_at` 기준으로 지운다). **`notices`의 삭제 30일 뒤 hard delete만 미구현**이다. ~~2026-09-10 기준 `idempotency_keys`만 돌았다.~~ 기간을 먼저 정의한 것은 **문서에 없는 삭제를 코드가 임의로 하지 않기 위해서**다. ~~`user_signals`·`audio_access_logs`에는 단독 인덱스가 없어 삭제 쿼리가 풀스캔이 된다~~ → 마이그레이션 `1787000000000-AddRetentionCreatedAtIndexes`로 `created_at` 인덱스를 추가해 해소했다.
+**구현 상태(2026-09-26 기준) — 위 배치는 구현됐다.** `RetentionModule`(`user_signals`·`source_link_clicks`·`audio_access_logs`·`notification_logs`·`search_query_logs`, 04:30 KST) · `SessionPurgeScheduler`(`sessions`, 매시간) · `EmailVerificationPurgeScheduler` · `IdempotencyPurgeScheduler` · `FirstDripPurgeScheduler`(`first_drip_jobs` — 종착 상태 3종을 `updated_at` 기준으로 지운다). **`notices`의 삭제 30일 뒤 hard delete만 미구현**이다. ~~2026-09-10 기준 `idempotency_keys`만 돌았다.~~ 기간을 먼저 정의한 것은 **문서에 없는 삭제를 코드가 임의로 하지 않기 위해서**다. ~~`user_signals`·`audio_access_logs`에는 단독 인덱스가 없어 삭제 쿼리가 풀스캔이 된다~~ → 마이그레이션 `1787000000000-AddRetentionCreatedAtIndexes`로 `created_at` 인덱스를 추가해 해소했다.
 
 ### 12.2 법적 근거
 
@@ -1490,7 +1518,7 @@ idx_archived_subscriptions_archived_at
 | 처리 | 대상 |
 |---|---|
 | **아카이브 후 파기** (5년) | `users` → `archived_users`, `consents` → `archived_consents`, `subscriptions` → `archived_subscriptions` |
-| **즉시 파기** | `library_items`, `playback_progresses`, `play_records`, `user_signals`, `audio_access_logs`, `source_link_clicks`, `user_interests`, `user_settings`, `device_tokens`, `sessions`, `user_preference_vectors`, `drip_excluded_contents`, `drip_feedbacks`, `purchase_intents`, `notification_logs`, `email_verifications`, `first_drip_jobs`, `idempotency_keys`(해당 사용자 `owner_key`) |
+| **즉시 파기** | `library_items`, `playback_progresses`, `play_records`, `user_signals`, `audio_access_logs`, `source_link_clicks`, `search_query_logs`, `user_interests`, `user_settings`, `device_tokens`, `sessions`, `user_preference_vectors`, `drip_excluded_contents`, `drip_feedbacks`, `purchase_intents`, `notification_logs`, `email_verifications`, `first_drip_jobs`, `idempotency_keys`(해당 사용자 `owner_key`) |
 | **그대로 유지** | `withdrawal_logs`(원래 해시만), `store_notification_logs`(개인 식별자 없음), `content_stats`(집계값) |
 
 **결제 이력이 없는 사용자 — 아카이브 없이 전량 즉시 파기**

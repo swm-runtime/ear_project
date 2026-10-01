@@ -60,6 +60,21 @@ export async function findPauseCut(file: string, from: number, to: number, maxSt
   return q ? from + (q.start + q.end) / 2 : null;
 }
 
+/** 파일 앞머리 무음 길이(초) — 징글(인트로)의 앞 여백을 재서 아웃트로 앞 패딩으로 쓴다 (2026-10-01 박수헌: "아웃트로 앞에 패딩이 인트로만큼"). 무음이 0초에서 시작하지 않으면 0 */
+export async function probeLeadingSilenceSec(file: string, thresholdDb = -45, minSec = 0.05): Promise<number> {
+  const { stderr } = await run("ffmpeg", ["-hide_banner", "-i", file, "-af", `silencedetect=n=${thresholdDb}dB:d=${minSec}`, "-f", "null", "-"]);
+  const start = stderr.match(/silence_start: ([\d.]+)/)?.[1];
+  const end = stderr.match(/silence_end: ([\d.]+)/)?.[1];
+  if (start == null || end == null || Number(start) > 0.05) return 0;
+  return Math.round(Number(end) * 1000) / 1000;
+}
+
+/** 외부 오디오 파일(mp3/wav 등) → 표준 wav (44.1kHz mono s16le) */
+export async function fileToWav(src: string, outFile: string): Promise<string> {
+  await ffmpeg(["-i", src, "-ar", "44100", "-ac", "1", "-c:a", "pcm_s16le", outFile]);
+  return outFile;
+}
+
 export async function probeDurationSec(file: string): Promise<number> {
   const { stdout } = await run("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", file]);
   return Number(stdout.trim()) || 0;
@@ -115,22 +130,35 @@ export interface AssembleInput {
   gapSec?: number | number[]; // 세그먼트(분할 요청) 사이 무음 — 배열이면 경계별. 문맥 겹침 경계(spec/06 7장 ④)는 0(양쪽 반쪽 쉼이 오디오에 이미 있다), 폴백 경계는 DEFAULT_GAP_SEC
   leadSec?: number;      // 시작 무음 (기본 2초 — 2026-09-07 박수헌: 재생 시작 직후 첫 음절이 잘리지 않게)
   tailSec?: number;      // 끝 무음 (기본 2초 — 다음 콘텐츠·종료 전 여백)
+  /** 징글 (2026-10-01 박수헌): 인트로는 맨 앞(그 뒤에 leadSec 무음), 아웃트로는 맨 뒤(tailSec 무음 뒤 outroPadSec 무음을 더 두고). 파일은 S3 assets/audio/ 에서 받은 로컬 경로 */
+  introFile?: string | null;
+  outroFile?: string | null;
+  outroPadSec?: number;  // 아웃트로 앞 추가 무음 — 기본은 인트로의 앞 무음 길이(probeLeadingSilenceSec)
   workDir: string;       // 임시 파일 디렉토리 (episodes/{id}/audio/)
   masterOut: string;     // master.wav 경로
   distOut: string;       // dist.mp3 경로
 }
 
-/** 전체 조립: 디코드 → 연결 → loudnorm 마스터 → mp3 배포본. 반환: 재생 길이(초) */
-export async function assemble(i: AssembleInput): Promise<number> {
+/** 전체 조립: [인트로] → 앞 무음 → 디코드·연결 → 뒤 무음 → [패딩 + 아웃트로] → loudnorm 마스터 → mp3 배포본. 반환: 재생 길이(초)와 인트로 길이(초 — 자막 시각의 앞 오프셋) */
+export async function assemble(i: AssembleInput): Promise<{ durationSec: number; introSec: number; outroPadSec: number }> {
   const tmp = path.join(i.workDir, ".tmp");
   await fs.mkdir(tmp, { recursive: true });
-  const parts: string[] = [await silenceWav(i.leadSec ?? 2, path.join(tmp, "lead.wav"))];
+  const parts: string[] = [];
+  let introSec = 0;
+  if (i.introFile) { const w = await fileToWav(i.introFile, path.join(tmp, "intro.wav")); introSec = await probeDurationSec(w); parts.push(w); }
+  parts.push(await silenceWav(i.leadSec ?? 2, path.join(tmp, "lead.wav")));
   const gapAt = (n: number) => (Array.isArray(i.gapSec) ? i.gapSec[n - 1] ?? 0 : i.gapSec ?? DEFAULT_GAP_SEC);
   for (let n = 0; n < i.segments.length; n++) {
     if (n > 0 && gapAt(n) > 0) parts.push(await silenceWav(gapAt(n), path.join(tmp, `gap-${n}.wav`)));
     parts.push(await toWav(i.segments[n], path.join(tmp, `part-${n}.wav`), tmp, n));
   }
   parts.push(await silenceWav(i.tailSec ?? 2, path.join(tmp, "tail.wav")));
+  let outroPadSec = 0;
+  if (i.outroFile) {
+    outroPadSec = i.outroPadSec ?? (i.introFile ? await probeLeadingSilenceSec(i.introFile) : 0);
+    if (outroPadSec > 0) parts.push(await silenceWav(outroPadSec, path.join(tmp, "outro-pad.wav")));
+    parts.push(await fileToWav(i.outroFile, path.join(tmp, "outro.wav")));
+  }
   const listFile = path.join(tmp, "concat.txt");
   await fs.writeFile(listFile, parts.map((p) => `file '${p.replace(/'/g, "'\\''")}'`).join("\n"));
   const joined = path.join(tmp, "joined.wav");
@@ -140,7 +168,7 @@ export async function assemble(i: AssembleInput): Promise<number> {
   await ffmpeg(["-i", i.masterOut, "-c:a", "libmp3lame", "-b:a", "192k", i.distOut]); // 128k → 192k (2026-09-22 박수헌): 재인코딩 열화 최소화, 편당 약 17MB → 26MB
   const dur = await probeDurationSec(i.distOut);
   await fs.rm(tmp, { recursive: true, force: true });
-  return dur;
+  return { durationSec: dur, introSec: Math.round(introSec * 1000) / 1000, outroPadSec };
 }
 
 /** mp3 버퍼를 파일로 저장 (개별 세그먼트 보관용) */

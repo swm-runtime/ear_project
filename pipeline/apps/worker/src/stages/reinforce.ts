@@ -76,7 +76,7 @@ export async function runReinforce(job: Job, ex: Executor) {
   for (const s of found) if (added.includes(s.url)) push({ url: s.url, title: s.title, summary: s.summary, publisher: s.publisher, domain: hostOf(s.url), published: s.published });
   for (const s of recent) push({ url: s.url, title: s.title, summary: s.summary, publisher: s.publisher, domain: s.domain, published: s.published });
   const judgePrompt = buildClusterPromptV2({ midTopics: mids, majorTopic: major, nextIdNumber: Number(cand.id.replace(/\D/g, "")) || 0, sources: meta, existingTitles: (await existingBacklogTitles()).filter((t) => !t.startsWith(`${cand.id} `)), specBacklogExcerpt: excerpt,
-    reinforce: { id: cand.id, title: cand.title, axis: cand.axis ?? "", axis_type: cand.axis_type ?? "", gaps, currentM } });
+    reinforce: { id: cand.id, title: cand.title, axis: cand.axis ?? "", axis_type: cand.axis_type ?? "", gaps, currentM }, reinforceMidTopic: cand.mid_topic });
   const r2 = await ex.run<JudgeOut>({ prompt: judgePrompt, schema: CLUSTER_SCHEMA_V2, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 20 * 60_000, model: cfg.clusterModel, maxThinkingTokens: cfg.thinkingDesign,
     onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: `보강 2/2 — 재판정 (${cand.id})`, detail: pr.turns > 0 ? "역할표 재구성 중" : pr.detail }).catch(() => {}) });
   const c = r2.output.candidates?.[0];

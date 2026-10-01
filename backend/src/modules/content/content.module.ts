@@ -9,15 +9,19 @@ import { ContentSource } from './entities/content-source.entity';
 import { ContentStat } from './entities/content-stat.entity';
 import { ContentTopic } from './entities/content-topic.entity';
 import { Content } from './entities/content.entity';
+import { SearchQueryLog } from './entities/search-query-log.entity';
 import { ContentRepository } from './repositories/content.repository';
 import { ContentEmbeddingRepository } from './repositories/content-embedding.repository';
 import { ContentScriptRepository } from './repositories/content-script.repository';
 import { ContentSourceRepository } from './repositories/content-source.repository';
 import { ContentStatRepository } from './repositories/content-stat.repository';
 import { ContentTopicRepository } from './repositories/content-topic.repository';
+import { SearchQueryLogRepository } from './repositories/search-query-log.repository';
 import { ContentExpiryScheduler } from './content-expiry.scheduler';
+import { SearchQueryLogAdminController } from './search-query-log-admin.controller';
 import { ContentService } from './services/content.service';
 import { ContentStatService } from './services/content-stat.service';
+import { SearchQueryLogService } from './services/search-query-log.service';
 
 @Module({
   imports: [
@@ -28,10 +32,12 @@ import { ContentStatService } from './services/content-stat.service';
       ContentSource,
       ContentEmbedding,
       ContentScript,
+      SearchQueryLog,
     ]),
     // 라이선스 만료 배치가 라이브러리 잔존분을 함께 지운다(partner-control.md 4.4)
     LibraryModule,
   ],
+  controllers: [SearchQueryLogAdminController],
   providers: [
     ContentRepository,
     ContentTopicRepository,
@@ -39,10 +45,12 @@ import { ContentStatService } from './services/content-stat.service';
     ContentSourceRepository,
     ContentEmbeddingRepository,
     ContentScriptRepository,
+    SearchQueryLogRepository,
     ContentService,
     ContentStatService,
+    SearchQueryLogService,
     ContentExpiryScheduler,
   ],
-  exports: [ContentService, ContentStatService],
+  exports: [ContentService, ContentStatService, SearchQueryLogService],
 })
 export class ContentModule {}

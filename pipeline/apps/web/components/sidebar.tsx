@@ -27,6 +27,8 @@ const LOG_NAV: NavItem[] = [
   { href: "/backend-logs", label: "실시간 로그", icon: List, exact: true },
   { href: "/backend-logs/errors", label: "에러 모아보기", icon: Alert },
   { href: "/backend-logs/traffic", label: "요청 통계", icon: Chart },
+  // 검색 질의 로그 요약 — 다른 탭과 달리 CloudWatch 가 아니라 제품 API 의 DB 를 읽는다(admin-api 4.21)
+  { href: "/backend-logs/search", label: "검색 로그", icon: Search, note: "실배포" },
 ];
 
 /**
@@ -156,6 +158,7 @@ function Tag({ className }: I) { return <svg className={className} viewBox="0 0 
 function Book({ className }: I) { return <svg className={className} viewBox="0 0 20 20" fill="currentColor"><path d="M4 3h5a2 2 0 012 2v12a1.5 1.5 0 00-1.5-1.5H4V3zm12 0h-5a2 2 0 00-2 2v12a1.5 1.5 0 011.5-1.5H16V3zM5.5 6h3v1.2h-3V6zm0 3h3v1.2h-3V9zm6-3h3v1.2h-3V6zm0 3h3v1.2h-3V9z" /></svg>; }
 function Ship({ className }: I) { return <svg className={className} viewBox="0 0 20 20" fill="currentColor"><path d="M10 2l1 1v2h4l1 6-6 2-6-2 1-6h4V3l1-1zm-7 12l2 2h10l2-2 1 2-2 3H4l-2-3 1-2z" /></svg>; }
 function Alert({ className }: I) { return <svg className={className} viewBox="0 0 20 20" fill="currentColor"><path d="M10 2l9 16H1L10 2zm-1 6v5h2V8H9zm0 6.5v2h2v-2H9z" /></svg>; }
+function Search({ className }: I) { return <svg className={className} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="8.5" cy="8.5" r="5" /><path d="M12.5 12.5 17 17" /></svg>; }
 function Pulse({ className }: I) { return <svg className={className} viewBox="0 0 20 20" fill="currentColor"><path d="M2 11h3l2-6 4 10 2-4h5v-2h-3.8l-3.2 6.4L7.2 4.6 4.6 9H2v2z" /></svg>; }
 function Chart({ className }: I) { return <svg className={className} viewBox="0 0 20 20" fill="currentColor"><path d="M3 17h14v-2H3v2zm1-4h3V7H4v6zm5 0h3V4H9v9zm5 0h3v-4h-3v4z" /></svg>; }
 function Gear({ className }: I) { return <svg className={className} viewBox="0 0 20 20" fill="currentColor"><path d="M10 6.5A3.5 3.5 0 1010 13.5 3.5 3.5 0 0010 6.5zm7 3.5l1.8 1.4-1.7 2.9-2.2-.7a6.7 6.7 0 01-1.5.9l-.4 2.3H8.9l-.4-2.3a6.7 6.7 0 01-1.5-.9l-2.2.7-1.7-2.9L4.9 10 3.1 8.6l1.7-2.9 2.2.7c.5-.4 1-.7 1.5-.9L8.9 3h3.1l.4 2.3c.5.2 1 .5 1.5.9l2.2-.7 1.7 2.9L17 10z" /></svg>; }

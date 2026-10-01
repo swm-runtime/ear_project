@@ -57,7 +57,7 @@ create table if not exists backlog (
   claimed_by  text,                            -- 동시 작업 충돌 방지
   claimed_at  timestamptz,
   axis        text,                            -- 군집화 v2(0016): 축 한 문장 (대립·역설·재정의). v1 후보는 null
-  axis_type   text check (axis_type in ('대립','역설','재정의')),
+  axis_type   text check (axis_type in ('대립','역설','재정의','사건')), -- 0027: 사건형 — 역사 중분류 전용 (사건 + 해석의 쟁점)
   gaps        text[] not null default '{}',    -- 비어 있는 소스 역할 (탐색 보강의 입력). sources[].role 이 역할표
   cluster_version text,                        -- v1 / v2
   reinforced_at timestamptz,                   -- 0019: 보강 스윕 실행 시각 (후보당 1회)

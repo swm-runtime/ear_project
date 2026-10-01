@@ -21,6 +21,9 @@ export const AUDIO_ACCESS_LOG_RETENTION_DAYS = 90;
 /** `domain.md` 12.1 — 목적이 중복 발송 방지라 그 판정 창을 넘기면 쓰이지 않는다 */
 export const NOTIFICATION_LOG_RETENTION_DAYS = 90;
 
+/** `domain.md` 12.1 — 검색 미스율 분석은 최근 몇 주를 보면 되고, 질의 본문을 오래 들고 있을 이유가 없다 */
+export const SEARCH_QUERY_LOG_RETENTION_DAYS = 90;
+
 /**
  * 삭제 대상 테이블 이름. **문자열 유니온으로 고정한다** — 이 값이 SQL 문에 식별자로 박히므로
  * 호출부가 임의의 이름을 넘길 수 없어야 한다(`RetentionRepository`).
@@ -29,7 +32,8 @@ export type RetentionTable =
   | 'user_signals'
   | 'source_link_clicks'
   | 'audio_access_logs'
-  | 'notification_logs';
+  | 'notification_logs'
+  | 'search_query_logs';
 
 export interface RetentionPolicy {
   table: RetentionTable;
@@ -50,6 +54,10 @@ export const RETENTION_POLICIES: readonly RetentionPolicy[] = [
   {
     table: 'notification_logs',
     retentionDays: NOTIFICATION_LOG_RETENTION_DAYS,
+  },
+  {
+    table: 'search_query_logs',
+    retentionDays: SEARCH_QUERY_LOG_RETENTION_DAYS,
   },
 ];
 

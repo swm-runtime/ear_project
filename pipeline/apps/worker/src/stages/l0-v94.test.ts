@@ -13,6 +13,13 @@ test("L0 v9.4 — 깨끗한 대본은 새 검사에 걸리지 않는다", () => 
   assert.equal(v.length, 0, v.join("\n"));
 });
 
+test("L0 정리형 — 느낌·추측 어미(같아요·겠어요)는 정리형으로 세지 않는다 (2026-10-01)", () => {
+  const turns: string[] = [];
+  for (let i = 1; i <= 12; i++) turns.push(`[이음] E${i} · 설명 ${i}이에요.`, i <= 8 ? `[윤아] Y${i + 1} · 저라면 그 자리에서 망설였을 것 같아요.` : `[윤아] Y${i + 1} · 왜 그런가요?`);
+  const v = twoStageViolations(wrap(turns.join("\n\n")), "");
+  assert.ok(!has(v, /정리형/), v.join("\n"));
+});
+
 test("L0 v9.4 — 정리형 진행 턴이 셋 중 하나를 넘으면 잡는다 (본문 진행 턴 12개 이상일 때만)", () => {
   const turns: string[] = [];
   for (let i = 1; i <= 12; i++) turns.push(`[이음] E${i} · 설명 ${i}이에요.`, i <= 6 ? `[윤아] Y${i + 1} · 그러니까 이렇게 된다는 얘기네요.` : `[윤아] Y${i + 1} · 그러면 ${i}은 왜 그런가요?`);
@@ -90,4 +97,27 @@ test("L0 정리형 — 바꿀 턴을 지목하고, 그 턴을 다 바꾸면 통�
   assert.ok(new Set(picks).size === picks.length && picks.every((p) => /^Y\d+$/.test(p)), msg);
   const ok = twoStageViolations(wrap(mk(6)), "");
   assert.ok(!has(ok, /정리형/), ok.join("\n"));
+});
+
+// v9.7 (2026-10-01): 내용 없는 진행 턴 · 한 턴 안 발언자 갈아타기 · 낯선 이름의 첫 등장 역할 · 되돌림 표지 1턴 허용
+test("L0 v9.7 — 빈 진행 턴·발언자 중계를 잡고, 되돌림 표지 한 턴은 허용한다", () => {
+  const body = "[이음] E1 · 한 반도체 분석가는 수요가 늘었다고 설명했습니다. 다른 경제학자는 기대가 원인이라고 해석했고요.\n\n[윤아] Y2 · 네.\n\n[이음] E2 · 아까 그 조사로 돌아가면 결과는 같았어요.\n\n[윤아] Y3 · 왜 그런가요?\n\n[이음] E3 · 기대가 먼저 올라갔기 때문이에요.";
+  const v = twoStageViolations(wrap(body), "");
+  assert.ok(has(v, /내용 없는 한 마디 수긍 \(Y2\)/), v.join("\n"));
+  assert.ok(has(v, /발언자를 갈아타며 옮김 \(E1\)/), v.join("\n"));
+  assert.ok(!has(v, /되돌림 표지/), v.join("\n"));
+  const att = { claimsMd: "| ID | 주장 | 발췌 ID | 유형 | 구간 | 저명 | 의견 | 귀속 |\n|---|---|---|---|---|---|---|---|\n| C01 | 주장 | S1-01 | 수치 | 1 | false | false | 없음 |\n", sourcesMd: '## S1. Aeon — "t"\n[S1-01] x' };
+  const one = twoStageViolations(wrap(body), "", att);
+  assert.ok(!has(one, /되돌림 표지/), one.join("\n"));
+  const two = twoStageViolations(wrap(body + "\n\n[윤아] Y4 · 네, 그렇군요. 그러면요?\n\n[이음] E4 · 아까 말한 그 사례도 같습니다."), "", att);
+  assert.ok(has(two, /되돌림 표지.*2턴/), two.join("\n"));
+});
+
+test("L0 v9.7 — 저자 이름의 첫 등장 문장에 역할이 없으면 잡는다", () => {
+  const sources = '## S1. Aeon — "title"\n- URL: https://aeon.co/x · 발행 2026-01-01 · 저자 Steven Lukes\n[S1-01] text';
+  const claims = "| ID | 주장 | 발췌 ID | 유형 | 구간 | 저명 | 의견 | 귀속 |\n|---|---|---|---|---|---|---|---|\n| C01 | 주장 | S1-01 | 수치 | 1 | false | false | 없음 |\n";
+  const bad = twoStageViolations(wrap("[이음] E1 · Steven Lukes는 보편 관점이 늦게 생겼다고 봅니다.\n\n[윤아] Y2 · 왜 그런가요?\n\n[이음] E2 · 이유는 이렇습니다."), "", { claimsMd: claims, sourcesMd: sources });
+  assert.ok(has(bad, /역할 소개 없이 불림 \(Steven Lukes@E1\)/), bad.join("\n"));
+  const ok = twoStageViolations(wrap("[이음] E1 · 이 책을 쓴 사회학자 Steven Lukes는 보편 관점이 늦게 생겼다고 봅니다.\n\n[윤아] Y2 · 왜 그런가요?\n\n[이음] E2 · 이유는 이렇습니다."), "", { claimsMd: claims, sourcesMd: sources });
+  assert.ok(!has(ok, /역할 소개 없이/), ok.join("\n"));
 });

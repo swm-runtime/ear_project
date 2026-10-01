@@ -9,7 +9,7 @@ import { prepareAssets, workerRev } from "../assets.js";
 import { putFile, s3Key } from "../storage.js";
 
 interface ClusterV2Out {
-  candidates: { id: string; mid_topic: string; title: string; axis_type: "대립" | "역설" | "재정의"; axis: string; axis_note: string; verdict: "성립" | "보강 필요"; gaps: string[]; sources: { m: string; roles: string[]; why: string }[]; target_fit: string; landing: string; dedup_note: string }[];
+  candidates: { id: string; mid_topic: string; title: string; axis_type: "대립" | "역설" | "재정의" | "사건"; axis: string; axis_note: string; verdict: "성립" | "보강 필요"; gaps: string[]; sources: { m: string; roles: string[]; why: string }[]; target_fit: string; landing: string; dedup_note: string }[];
   axis_pool?: string[]; // 2026-09-12 이후 요구하지 않는다(안전장치) — 옛 결과 호환용
   dropped_notes?: string[];
 }
