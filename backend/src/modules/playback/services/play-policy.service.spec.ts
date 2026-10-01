@@ -5,7 +5,7 @@ import { UserService } from '@/modules/user/services/user.service';
 import { UserTier } from '@/modules/user/user.enum';
 
 import { PlaybackService } from './playback.service';
-import { PlayPolicyService } from './play-policy.service';
+import { PLAY_LIMIT_MESSAGE, PlayPolicyService } from './play-policy.service';
 
 const NOW = new Date('2026-08-05T09:00:00.000Z');
 const USER_ID = '11111111-1111-4111-8111-111111111111';
@@ -83,6 +83,7 @@ describe('PlayPolicyService', () => {
 
       // then
       expect(error.errorCode).toBe(ErrorCode.PLAY_LIMIT_EXCEEDED);
+      expect(error.message).toBe(PLAY_LIMIT_MESSAGE);
     });
 
     it('최상위 티어가 한도를 소진하면 페이월이 아니라 한도 안내로 막는다', async () => {
@@ -100,6 +101,7 @@ describe('PlayPolicyService', () => {
 
       // then
       expect(error.errorCode).toBe(ErrorCode.PLAY_LIMIT_REACHED);
+      expect(error.message).toBe(PLAY_LIMIT_MESSAGE);
     });
 
     it('재청취 창 안이면 한도를 소진했어도 차감 없이 허용한다', async () => {
