@@ -42,6 +42,53 @@ export function longestQuietRun(db: number[], hopSec: number, minSec: number, op
 }
 
 /**
+ * 창 앞에서부터 처음 나오는 조용한 구간(minSec 이상) — 끝 꼬리용 (2026-10-01). 문턱은 longestQuietRun 과 같다(창 바닥 + marginDb, 상한 capDb).
+ * 끝 꼬리는 뒤에 버릴 덧말(가드)만 있으므로 "가장 긴" 구간이 아니라 마지막 낱말 직후의 첫 쉼이 필요하다. 문장 끝 "다." 뒤 턴 사이 쉼은 0.5초 이상이고
+ * 낱말 안의 폐쇄음 정지는 0.1초 미만이라 minSec 0.15초면 섞이지 않는다. 순수 함수 — 테스트용으로 분리.
+ */
+export function firstQuietRun(db: number[], hopSec: number, minSec: number, opts: { marginDb?: number; capDb?: number } = {}): { start: number; end: number } | null {
+  const { marginDb = 12, capDb = -35 } = opts;
+  const real = db.filter((x) => x > -100);
+  if (!real.length) return null;
+  const th = Math.min(Math.min(...real) + marginDb, capDb);
+  for (let i = 0; i < db.length; ) {
+    if (db[i] > th) { i++; continue; }
+    let j = i; while (j < db.length && db[j] <= th) j++;
+    if ((j - i) * hopSec >= minSec) return { start: i * hopSec, end: j * hopSec };
+    i = j;
+  }
+  return null;
+}
+
+/**
+ * 끝 꼬리 절단점 (2026-10-01 박수헌 "마지막 말이 끝나자마자 뚝 끊긴다"): ElevenLabs 출력은 요청의 마지막 음절 뒤 약 20ms 만에 −20dB 에서 0 으로 끊긴다(spec/06 7장).
+ * 마지막 요청 끝에 버릴 덧말(가드)을 붙여 생성하면 마지막 낱말이 자연스럽게 감쇠하고 쉼이 생긴다 — [마지막 턴 마지막 글자 시작 −0.2초, 가드 첫 글자 시작 +1.5초]
+ * 창에서 첫 쉼을 찾아, 쉼 시작 뒤 keepSec 만큼(감쇠 끝과 바닥 일부)만 남기고 자른다. 없으면 null.
+ */
+export async function findTailCut(file: string, from: number, to: number, minSec = 0.15, keepSec = 0.1): Promise<number | null> {
+  if (!(to > from)) return null;
+  const { stdout } = await run("ffmpeg", ["-v", "error", "-ss", Math.max(0, from).toFixed(3), "-to", to.toFixed(3), "-i", file, "-f", "s16le", "-ac", "1", "-ar", "44100", "-"], { encoding: "buffer", maxBuffer: 1 << 26 });
+  const buf = stdout as unknown as Buffer;
+  const win = 882;
+  const db: number[] = [];
+  for (let i = 0; i + win <= buf.length / 2; i += win) { let acc = 0; for (let k = 0; k < win; k++) { const v = buf.readInt16LE((i + k) * 2) / 32768; acc += v * v; } db.push(10 * Math.log10(acc / win + 1e-12)); }
+  const q = firstQuietRun(db, 0.02, minSec);
+  return q ? Math.max(0, from) + q.start + Math.min(keepSec, (q.end - q.start) / 2) : null;
+}
+
+/** s16le mono PCM 끝에 선형 페이드아웃 — 절단점의 딸깍임·뚝 끊김을 지운다. 새 버퍼를 돌려준다 */
+export function fadeOutPcm(buf: Buffer, sec: number, rate = 44100): Buffer {
+  const out = Buffer.from(buf);
+  const total = Math.floor(out.length / 2);
+  const n = Math.min(total, Math.round(sec * rate));
+  for (let k = 0; k < n; k++) {
+    const idx = total - n + k;
+    out.writeInt16LE(Math.round(out.readInt16LE(idx * 2) * (1 - (k + 1) / n)), idx * 2);
+  }
+  return out;
+}
+
+/**
  * [from, to] 창 안에서 가장 긴 조용한 구간의 한가운데 시각 — 문맥 겹침 절단점 (2026-09-22 KAN-87).
  * 정렬 타임스탬프는 쉼을 글자 길이에 흡수하는데 그 위치가 일정하지 않아(앞 턴 마침표·뒤 턴 첫 글자·그 뒤 글자들) 경계 글자만으로 잡은 창은
  * 0.16초처럼 좁아 실패했다(샘플 실측). 창은 [앞 턴 마지막 글자 시작 −0.2초, 뒤 턴 첫 글자 시작 +1.5초]로 넓게 잡고, 조용한 구간 중
