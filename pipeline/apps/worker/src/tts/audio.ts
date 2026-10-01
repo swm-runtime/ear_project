@@ -143,36 +143,34 @@ export interface AssembleInput {
   gapSec?: number | number[]; // 세그먼트(분할 요청) 사이 무음 — 배열이면 경계별. 문맥 겹침 경계(spec/06 7장 ④)는 0(양쪽 반쪽 쉼이 오디오에 이미 있다), 폴백 경계는 DEFAULT_GAP_SEC
   leadSec?: number;      // 시작 무음 (기본 2초 — 2026-09-07 박수헌: 재생 시작 직후 첫 음절이 잘리지 않게)
   tailSec?: number;      // 끝 무음 (기본 2초 — 다음 콘텐츠·종료 전 여백)
-  /** 징글 (2026-10-01 박수헌): 인트로는 맨 앞(그 뒤에 leadSec 무음), 아웃트로는 맨 뒤(tailSec 무음 뒤 outroPadSec 무음을 더 두고). 파일은 S3 assets/audio/ 에서 받은 로컬 경로 */
+  /** 징글 (2026-10-01 박수헌 확정): 징글 파일 자체가 앞뒤 무음 1초를 갖도록 정규화돼 있고(.work/upload-jingle.mts), 본편 앞뒤에 **바로** 붙인다 —
+   *  [1초][인트로][1초][본편][1초][아웃트로][1초]. 그래서 징글이 붙는 쪽은 leadSec/tailSec 무음을 넣지 않는다(징글이 없는 쪽만 기본 2초). 파일은 S3 assets/audio/ 에서 받은 로컬 경로 */
   introFile?: string | null;
   outroFile?: string | null;
-  outroPadSec?: number;  // 아웃트로 앞 추가 무음 — 기본은 인트로 징글의 여백(끝 무음, 없으면 앞 무음)에서 아웃트로 자체의 앞 무음을 뺀 길이. 인트로 소리 끝→본편, 본편→아웃트로 소리 시작의 간격이 같아진다
+  outroPadSec?: number;  // 아웃트로 앞 추가 무음 — 기본 0 (파일에 이미 1초가 있다). 필요하면 TTS_OUTRO_PAD_SEC 로
   workDir: string;       // 임시 파일 디렉토리 (episodes/{id}/audio/)
   masterOut: string;     // master.wav 경로
   distOut: string;       // dist.mp3 경로
 }
 
-/** 전체 조립: [인트로] → 앞 무음 → 디코드·연결 → 뒤 무음 → [패딩 + 아웃트로] → loudnorm 마스터 → mp3 배포본. 반환: 재생 길이(초)와 인트로 길이(초 — 자막 시각의 앞 오프셋) */
-export async function assemble(i: AssembleInput): Promise<{ durationSec: number; introSec: number; outroPadSec: number }> {
+/** 전체 조립: [인트로 | 앞 무음 2초] → 디코드·연결 → [아웃트로 | 뒤 무음 2초] → loudnorm 마스터 → mp3 배포본. 반환: 재생 길이(초)와 본편 시작 오프셋(초 — 자막 시각의 앞 오프셋) */
+export async function assemble(i: AssembleInput): Promise<{ durationSec: number; introSec: number; leadSec: number; outroPadSec: number }> {
   const tmp = path.join(i.workDir, ".tmp");
   await fs.mkdir(tmp, { recursive: true });
   const parts: string[] = [];
   let introSec = 0;
   if (i.introFile) { const w = await fileToWav(i.introFile, path.join(tmp, "intro.wav")); introSec = await probeDurationSec(w); parts.push(w); }
-  parts.push(await silenceWav(i.leadSec ?? 2, path.join(tmp, "lead.wav")));
+  const leadSec = i.leadSec ?? (i.introFile ? 0 : 2); // 인트로가 있으면 그 파일의 끝 1초가 여백이다
+  if (leadSec > 0) parts.push(await silenceWav(leadSec, path.join(tmp, "lead.wav")));
   const gapAt = (n: number) => (Array.isArray(i.gapSec) ? i.gapSec[n - 1] ?? 0 : i.gapSec ?? DEFAULT_GAP_SEC);
   for (let n = 0; n < i.segments.length; n++) {
     if (n > 0 && gapAt(n) > 0) parts.push(await silenceWav(gapAt(n), path.join(tmp, `gap-${n}.wav`)));
     parts.push(await toWav(i.segments[n], path.join(tmp, `part-${n}.wav`), tmp, n));
   }
-  parts.push(await silenceWav(i.tailSec ?? 2, path.join(tmp, "tail.wav")));
-  let outroPadSec = 0;
+  const tailSec = i.tailSec ?? (i.outroFile ? 0 : 2); // 아웃트로가 있으면 그 파일의 앞 1초가 여백이다
+  if (tailSec > 0) parts.push(await silenceWav(tailSec, path.join(tmp, "tail.wav")));
+  const outroPadSec = i.outroFile ? i.outroPadSec ?? 0 : 0;
   if (i.outroFile) {
-    if (i.outroPadSec != null) outroPadSec = i.outroPadSec;
-    else if (i.introFile) {
-      const introPad = (await probeTrailingSilenceSec(i.introFile)) || (await probeLeadingSilenceSec(i.introFile));
-      outroPadSec = Math.max(0, Math.round((introPad - (await probeLeadingSilenceSec(i.outroFile))) * 1000) / 1000);
-    }
     if (outroPadSec > 0) parts.push(await silenceWav(outroPadSec, path.join(tmp, "outro-pad.wav")));
     parts.push(await fileToWav(i.outroFile, path.join(tmp, "outro.wav")));
   }
@@ -185,7 +183,7 @@ export async function assemble(i: AssembleInput): Promise<{ durationSec: number;
   await ffmpeg(["-i", i.masterOut, "-c:a", "libmp3lame", "-b:a", "192k", i.distOut]); // 128k → 192k (2026-09-22 박수헌): 재인코딩 열화 최소화, 편당 약 17MB → 26MB
   const dur = await probeDurationSec(i.distOut);
   await fs.rm(tmp, { recursive: true, force: true });
-  return { durationSec: dur, introSec: Math.round(introSec * 1000) / 1000, outroPadSec };
+  return { durationSec: dur, introSec: Math.round(introSec * 1000) / 1000, leadSec, outroPadSec };
 }
 
 /** mp3 버퍼를 파일로 저장 (개별 세그먼트 보관용) */
