@@ -2,6 +2,7 @@ import {
   AUDIO_ACCESS_LOG_RETENTION_DAYS,
   NOTIFICATION_LOG_RETENTION_DAYS,
   RETENTION_POLICIES,
+  SEARCH_QUERY_LOG_RETENTION_DAYS,
   RETENTION_PURGE_BATCH_SIZE,
   RETENTION_PURGE_MAX_BATCHES,
   RetentionPolicy,
@@ -133,11 +134,13 @@ describe('RetentionService', () => {
         source_link_clicks: 180,
         audio_access_logs: 90,
         notification_logs: 90,
+        search_query_logs: 90,
       });
       expect(USER_SIGNAL_RETENTION_DAYS).toBe(180);
       expect(SOURCE_LINK_CLICK_RETENTION_DAYS).toBe(180);
       expect(AUDIO_ACCESS_LOG_RETENTION_DAYS).toBe(90);
       expect(NOTIFICATION_LOG_RETENTION_DAYS).toBe(90);
+      expect(SEARCH_QUERY_LOG_RETENTION_DAYS).toBe(90);
     });
 
     it('삭제하지 않기로 한 테이블은 표에 없다', () => {
