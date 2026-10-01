@@ -10,6 +10,7 @@ import {
 import { ContentTopicView } from '@/modules/content/content.types';
 import { Content } from '@/modules/content/entities/content.entity';
 import { ContentService } from '@/modules/content/services/content.service';
+import { SearchQueryLogService } from '@/modules/content/services/search-query-log.service';
 import { COLD_START_COMPLETE_THRESHOLD } from '@/modules/drip/drip.constant';
 import { DripExclusionReason } from '@/modules/drip/drip.enum';
 import {
@@ -87,6 +88,7 @@ export class ExploreOrchestrator {
     private readonly preferenceVectorService: PreferenceVectorService,
     private readonly dripScoringService: DripScoringService,
     private readonly dataSource: DataSource,
+    private readonly searchQueryLogService: SearchQueryLogService,
   ) {}
 
   /**
@@ -367,6 +369,18 @@ export class ExploreOrchestrator {
       limit: query.limit,
       now,
     });
+
+    // 첫 페이지만 남긴다 — 커서 페이지는 같은 질의의 이어 읽기라 새 검색이 아니다(domain.md 5.7).
+    // 적재 실패는 서비스 안에서 삼켜지므로 검색 응답에는 영향이 없다
+    if (query.cursor === null) {
+      await this.searchQueryLogService.record({
+        userId,
+        normalizedQuery,
+        resultCount: page.items.length,
+        hasNext: page.hasNext,
+        topicFilterCount: query.topicIds.length,
+      });
+    }
 
     if (page.items.length === 0) {
       return {

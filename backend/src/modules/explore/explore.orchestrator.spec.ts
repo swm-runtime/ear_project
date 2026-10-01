@@ -6,6 +6,7 @@ import { ContentStatus, StatsPeriodType } from '@/modules/content/content.enum';
 import { RankedPopularContent } from '@/modules/content/content.types';
 import { Content } from '@/modules/content/entities/content.entity';
 import { ContentService } from '@/modules/content/services/content.service';
+import { SearchQueryLogService } from '@/modules/content/services/search-query-log.service';
 import { DripExclusionReason } from '@/modules/drip/drip.enum';
 import { UserPreferenceWeights } from '@/modules/drip/drip.types';
 import { DripExclusionService } from '@/modules/drip/services/drip-exclusion.service';
@@ -29,6 +30,7 @@ import {
   decodePopularCursor,
   decodeSearchCursor,
   encodePopularCursor,
+  encodeSearchCursor,
 } from './explore.cursor';
 import { ExploreSectionKey, SaveReason } from './explore.enum';
 import { ExploreOrchestrator } from './explore.orchestrator';
@@ -119,6 +121,7 @@ describe('ExploreOrchestrator', () => {
   let topicService: jest.Mocked<TopicService>;
   let dripExclusionService: jest.Mocked<DripExclusionService>;
   let preferenceVectorService: jest.Mocked<PreferenceVectorService>;
+  let searchQueryLogService: jest.Mocked<SearchQueryLogService>;
 
   beforeEach(() => {
     contentService = {
@@ -182,6 +185,10 @@ describe('ExploreOrchestrator', () => {
       ),
     } as unknown as DataSource;
 
+    searchQueryLogService = {
+      record: jest.fn().mockResolvedValue(undefined),
+    } as unknown as jest.Mocked<SearchQueryLogService>;
+
     orchestrator = new ExploreOrchestrator(
       contentService,
       libraryService,
@@ -193,6 +200,7 @@ describe('ExploreOrchestrator', () => {
       // 순수 판정 서비스라 모킹하지 않는다 — 랭킹 규칙 자체가 검증 대상이다
       new DripScoringService(),
       dataSource,
+      searchQueryLogService,
     );
   });
 
@@ -916,6 +924,79 @@ describe('ExploreOrchestrator', () => {
       // then
       expect(error.errorCode).toBe(ErrorCode.VALIDATION_FAILED);
       expect(contentService.findSearchPage).not.toHaveBeenCalled();
+    });
+
+    it('첫 페이지 검색은 정규화된 질의와 첫 페이지 건수를 로그로 남긴다', async () => {
+      // given
+      contentService.findSearchPage.mockResolvedValue({
+        items: [SEARCH_ROW],
+        hasNext: true,
+      });
+
+      // when
+      await orchestrator.search(
+        USER_ID,
+        { query: ' 커리어 ', topicIds: [TOPIC_ID], cursor: null, limit: 1 },
+        NOW,
+      );
+
+      // then
+      expect(searchQueryLogService.record).toHaveBeenCalledWith({
+        userId: USER_ID,
+        normalizedQuery: '커리어',
+        resultCount: 1,
+        hasNext: true,
+        topicFilterCount: 1,
+      });
+    });
+
+    it('0건으로 끝난 검색도 로그에 남는다 — 미스율의 분자다', async () => {
+      // given
+      contentService.findSearchPage.mockResolvedValue({
+        items: [],
+        hasNext: false,
+      });
+
+      // when
+      await orchestrator.search(
+        USER_ID,
+        { query: '없는말', topicIds: [], cursor: null, limit: 20 },
+        NOW,
+      );
+
+      // then
+      expect(searchQueryLogService.record).toHaveBeenCalledWith(
+        expect.objectContaining({ normalizedQuery: '없는말', resultCount: 0 }),
+      );
+    });
+
+    it('커서 페이지는 로그를 남기지 않는다 — 같은 질의의 이어 읽기다', async () => {
+      // given
+      contentService.findSearchPage.mockResolvedValue({
+        items: [SEARCH_ROW],
+        hasNext: false,
+      });
+      const cursor = encodeSearchCursor(
+        {
+          score: 8,
+          titleSimilarity: 0.5,
+          playCount: 3,
+          publishedAt: NOW,
+          id: CONTENT_ID,
+        },
+        '커리어',
+        [],
+      );
+
+      // when
+      await orchestrator.search(
+        USER_ID,
+        { query: '커리어', topicIds: [], cursor, limit: 20 },
+        NOW,
+      );
+
+      // then
+      expect(searchQueryLogService.record).not.toHaveBeenCalled();
     });
 
     it('결과가 있으면 fallback 없이 행을 돌려준다', async () => {
