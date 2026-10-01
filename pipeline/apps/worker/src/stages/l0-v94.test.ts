@@ -121,3 +121,11 @@ test("L0 v9.7 — 저자 이름의 첫 등장 문장에 역할이 없으면 잡�
   const ok = twoStageViolations(wrap("[이음] E1 · 이 책을 쓴 사회학자 Steven Lukes는 보편 관점이 늦게 생겼다고 봅니다.\n\n[윤아] Y2 · 왜 그런가요?\n\n[이음] E2 · 이유는 이렇습니다."), "", { claimsMd: claims, sourcesMd: sources });
   assert.ok(!has(ok, /역할 소개 없이/), ok.join("\n"));
 });
+
+// 2026-10-01: 통계 용어 L0 오탐 — "조절했어요"는 일상어 (T261001-005 E9·E11 로 검토 대기)
+test("L0 통계 용어 — 일상어 '조절했다'는 잡지 않고, 걸린 낱말을 메시지에 적는다", () => {
+  const ok = twoStageViolations(wrap("[이음] E1 · 자신의 가치를 언제 얼마나 드러낼지 조절했어요. 표현 방식을 조절했을 때 다시 찾아왔습니다.\n\n[윤아] Y2 · 왜 그런가요?\n\n[이음] E2 · 이유는 이렇습니다."), "");
+  assert.ok(!has(ok, /통계 용어/), ok.join("\n"));
+  const bad = twoStageViolations(wrap("[이음] E1 · 성별의 조절 효과는 유의하지 않았어요.\n\n[윤아] Y2 · 왜 그런가요?\n\n[이음] E2 · 이유는 이렇습니다."), "");
+  assert.ok(has(bad, /통계 용어.*E1 "(조절 효과|유의하)"/), bad.join("\n"));
+});
