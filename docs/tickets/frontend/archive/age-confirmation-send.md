@@ -6,7 +6,7 @@
 | 요청 파트 | 프론트엔드 |
 | 발행 날짜 | 2026-09-06 |
 | 발견 시점 | `tickets/backend/archive/age-confirmation-consent` 반영(PR #142 머지) — 서버 준비 완료, 전송만 남음 |
-| 근거 문서 | `domain.md` 3.2 · `changes/pending/auth-consents-age-confirmation.md` |
+| 근거 문서 | `domain.md` 3.2 · `changes/archive/auth-consents-age-confirmation.md` |
 | 심각도 | **중** — 전송 전까지는 서버에 연령 확인 이력이 계속 비어 있다. **서버가 필수 동의로 판정하므로, 미전송 상태로 서버가 배포되면 신규 가입이 `CONSENT_REQUIRED`(400)로 전부 막힌다 — 서버 배포 전에 반영돼야 한다** |
 | 상태 | **완료** (반영 2026-09-06 · 실기기 확인 2026-09-07) |
 
@@ -82,7 +82,7 @@
 
 **FE가 지금 만들면 문서에 없는 화면을 지어내는 것이 된다**(공통 원칙 — 문서와 충돌하는 구현을
 만들지 않는다). 그래서 코드를 건드리지 않고 **문서 요청을 발행했다**:
-`changes/pending/auth-reconsent-screen-missing.md`.
+`changes/archive/auth-reconsent-screen-missing.md`.
 
 그 문서가 정해야 하는 것 — ① 화면 ID·카피(A4 재사용 여부) ② **필수 동의 거절 시 동작**(가장
 중요한 미결) ③ 표시 시점(`splash.md` 관문과의 순서) ④ `version: null`인 연령 확인의 표현.

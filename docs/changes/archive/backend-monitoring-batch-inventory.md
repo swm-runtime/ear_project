@@ -49,3 +49,9 @@
 
 - Given `features/backend-monitoring.md` / When "무엇이 돌고 있는가" 절을 읽는다 / Then 배치 8개의 시각·이름·실패 시 동작과 외부 연동 5묶음의 켜는 env 가 표로 있다
 - Given 같은 절 / When 배포 뒤 확인법을 찾는다 / Then 기동 로그 `features …` 한 줄을 보라고 적혀 있다
+
+## 처리 기록
+
+- 반영 날짜: 2026-10-01
+- `features/backend-monitoring.md` 3-2 신설("무엇이 돌고 있는가" — 배치 표 · 외부 연동 표 · 기동 로그 규칙 · 판단). 장 번호를 밀지 않으려고 3장의 하위 절로 넣었다.
+- 코드 기준으로 고쳐 적은 것: 크론 등록명(`content-license-expiry` · `empty-topic-sweep` · `daily-drip-batch` · `push-receipt-check` — 기동 로그 `crons=[…]` 에 찍히는 이름), 드립 편성 시각 05:00, `@Interval` 주기 작업 5종(기동 로그에 안 나옴) 추가, 소셜 로그인·오디오 env 는 "있으면 켜짐"이 아니라 필수(없으면 기동 실패)임을 구분.

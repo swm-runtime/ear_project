@@ -233,7 +233,7 @@
 3. 값 보정 — `position_sec` · `max_reached_sec`이 `duration_sec`을 초과하면 `duration_sec`으로 보정해 저장한다(경계·배속 타이밍 오차는 정상이다). 음수·필드 누락은 `VALIDATION_FAILED`(400)
 4. `playback_progresses` upsert — user × content 당 1행(`domain.md` 6.2). 여러 기기 충돌은 **행 단위 last-write-wins**이며 서버가 `max_reached_sec`을 단조 증가로 보정하지 않는다(`domain.md` 6.2 — 충돌 규칙은 스키마 소유자가 정했다)
 5. `listened_sec` 적산 — 그 (user, content)의 **가장 최근 `play_records` 행**에 `listened_sec_delta`를 더한다. 재생 시작(4.2)마다 그 서비스 날짜의 행이 upsert되므로, 최근 행이 곧 **재생 시작 시점의 서비스 날짜** 행이다(`player.md` 4.4-1 — 04시 경계를 넘겨도 시작일 행에 누적). 행이 없으면(비정상 순서) 위치만 저장하고 delta는 반영하지 않는다
-6. **완청 판정** — 보정 후 `max_reached_sec`이 `duration_sec`의 90% 이상에 **처음** 도달했고 `library_items` 행이 `completed`가 아니면, 같은 트랜잭션에서 `status = 'completed'` + `completed_at` 기록 + `user_signals(action = 'complete')` 적재(`player.md` 4.4). 기준값 90%는 `player.md` · `library.md`가 소유하며 여기서 바꾸지 않는다
+6. **완청 판정** — 보정 후 `max_reached_sec`이 `duration_sec`의 90% 이상에 **처음** 도달했고 `library_items` 행이 `completed`가 아니면, 같은 트랜잭션에서 `status = 'completed'` + `completed_at` 기록 + `user_signals(action = 'complete')` 적재(`player.md` 4.4). **완청 전이는 조건부 UPDATE(`status <> 'completed'`인 행만)라, 같은 구간의 저장이 동시에 두 번 와도 전이와 완청 신호는 한 번뿐이다**(확인 2026-09-26 — 종전에는 읽고 나서 쓰는 사이에 신호가 두 번 쌓일 수 있었다). 기준값 90%는 `player.md` · `library.md`가 소유하며 여기서 바꾸지 않는다
 
 - **이미 `completed`면 전이도 신호 적재도 반복하지 않는다.** `completed_at`은 최초 값을 유지하고(`library.md` 7), 완료 후 되감아 들어도 상태는 내려가지 않는다. `replay` 후의 위치 저장도 같은 규칙이다 — `position_sec`은 갱신되지만 `status`는 `completed` 그대로다.
 - **판정은 재생 종료를 기다리지 않는다.** 서버는 **매 저장마다** 판정하므로 90% 도달 후 늦어도 다음 저장(주기 5초) 안에 `completed`가 응답에 실린다(확정 2026-08-10 — "도달 순간 즉시 판정"의 HTTP 표현). 클라이언트는 이 응답으로만 완료 UI(PL3)로 전환한다 — **클라이언트는 판정하지 않는다.**

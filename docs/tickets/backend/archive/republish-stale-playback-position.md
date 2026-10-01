@@ -102,6 +102,6 @@
 
 ### 남긴 것
 
-- 문서 현행화는 `changes/pending/player-republish-progress-discard-owner.md`로 발행
+- 문서 현행화는 `changes/archive/player-republish-progress-discard-owner.md`로 발행
   (`player.md` 7 · `player-api.md` 4.1 · `admin-api.md` 4.10 — 폐기 주체 서버로).
 - FE의 죽은 분기·주석 정리는 연관 티켓(`tickets/frontend/pending/republish-version-gate-not-implemented.md`) 몫 그대로.

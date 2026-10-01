@@ -59,7 +59,7 @@ A4 약관 동의 화면에 **"만 18세 이상입니다 (필수)"** 행을 추�
   다음 로그인의 `pending_consents`로 연령 확인을 한 번 요구받는다(정식 출시 전이라 수용).
 - DTO `ArrayMaxSize` 3 → 4 (`sign-up` · `users/me/consents`).
 - 문서: `domain.md` 3.2·11.4 갱신, `auth-api.md` 수정 요청은
-  `changes/pending/auth-consents-age-confirmation.md`로 발행.
+  `changes/archive/auth-consents-age-confirmation.md`로 발행.
 - **프론트 전달 사항**: enum 값은 `age_confirmation`, `version: null`, `is_agreed: true`로
   `POST /auth/sign-up` `consents` 배열에 넣어 보내면 된다. `social-login` 응답
   `required_consents`에도 이 값이 내려오므로 정적 행(`ageRow`) 대신 서버 목록 매핑도 가능하다.

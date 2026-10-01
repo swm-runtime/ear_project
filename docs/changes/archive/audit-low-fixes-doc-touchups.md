@@ -21,3 +21,9 @@
 ## 완료 조건
 - Given admin-api 4.6 / When 읽는다 / Then "조용히 버린다" 서술이 없다
 - Given domain.md 5.4 / When 읽는다 / Then 빠진 달 기준이 재생 기록 있는 달로 적혀 있다
+
+## 처리 기록
+
+- 반영 날짜: 2026-10-01
+- `spec/api/admin-api.md` 4.6("조용히 버린다" 문장 삭제) · `backend/domain.md` 5.4(빠진 달 기준)·7.4·12.1(`first_drip_jobs` 구현 상태) · `spec/api/library-api.md` 4.5(완청 조건부 UPDATE)·4.8(재담기) · `features/library.md` 4.5(재담기 한 줄) · `backend/architecture.md` 7.6(Sentry 릴리스 값의 원천 — 코드 순서대로 `SENTRY_RELEASE` → `npm_package_version` → 이미지 `package.json`)
+- `spec/api/player-api.md` 4.3 처리 6번(완청 전이가 조건부 UPDATE라 동시 저장에서도 완청 신호는 1회 — 확인 2026-09-26)

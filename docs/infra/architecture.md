@@ -58,13 +58,13 @@ t4g.small(arm64)은 프리티어 12개월 750h/월 — 첫 해 컴퓨트 0원. �
 > **개정 2026-08-31**: 원래 `/play/<contentId>` + KVS 재작성이었으나, 운영 계정(조직 SCP
 > `p-5soyo0ar`)이 KVS 데이터 플레인을 전면 거부해 **무작위 저장소 키를 직접 서명**하는
 > 방식으로 물렸다. 제목 비유출은 무작위 키가, 회수 차단은 5분 만료가 담당한다.
-> 상세: `docs/changes/pending/audio-url-drops-play-rewrite.md`. 아래 원 설계 서술은 기록용.
+> 상세: `docs/changes/archive/audio-url-drops-play-rewrite.md`. 아래 원 설계 서술은 기록용.
 
 #### (기록) 원 설계 — KeyValueStore 재작성
 
 - **서명 URL(만료 5분)**: 재생 허가 판정(한도·회수·구독)은 API 서버가 하고, CloudFront는 서명만 검증한다. 판정은 서버 소유라는 원칙(팀 공통)과 일치.
 - **`/play/<contentId>` 재작성**: CDN URL에 S3 키가 실리면 `audio_path` 비노출(R3)이 깨진다. viewer-request CloudFront Function이 KVS에서 `contentId → 키`를 찾아 재작성한다. S3 키는 업로드 시 무작위 hex 32자 — URL·DB 어디에도 제목이 없다.
-- **검증 순서 (실측 2026-08-30)**: 서명 검증은 Function 재작성 **전** URI 기준이다. 서명 정책 Resource를 `/play/*`로 좁혀도 통과함을 확인 — 현재 코드는 배포 전체 `/*`이고, 좁히기는 선택 과제로 남김(`changes/pending/admin-web-console.md`).
+- **검증 순서 (실측 2026-08-30)**: 서명 검증은 Function 재작성 **전** URI 기준이다. 서명 정책 Resource를 `/play/*`로 좁혀도 통과함을 확인 — 현재 코드는 배포 전체 `/*`이고, 좁히기는 선택 과제로 남김(`changes/archive/admin-web-console.md`).
 - **KVS 전파 지연**: 쓰기 후 엣지 반영까지 수 초~10초. 발행 직후 `/play`가 잠깐 404일 수 있다(실측).
 - **HLS를 쓰지 않는다**: 단일 파일 + Range 요청으로 "듣는 만큼만 전송"은 이미 성립. HLS는 세그먼트마다 URL이라 signed cookie가 필요한데 네이티브 재생기의 쿠키 전달이 보장되지 않는다.
 

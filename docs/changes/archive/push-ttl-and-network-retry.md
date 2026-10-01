@@ -22,3 +22,8 @@
 ## 완료 조건
 - Given 4.3 표 / When 읽는다 / Then TTL 규칙과 재시도 대상·비대상이 적혀 있다
 - Given 05:00 KST 정각 발송 / When 메시지를 본다 / Then `ttl`이 86,400초다
+
+## 처리 기록
+
+- 반영 날짜: 2026-10-01
+- `features/notification.md` 4.3 발송 규칙 표에 "보관 시한" · "발송 요청 재시도" 두 행 추가, 7장에 "발송 요청 실패(네트워크)" 항목 추가. 코드(`notification.constant.ts` · `push-ttl.util.ts` · `expo-push.client.ts`)와 일치 확인.

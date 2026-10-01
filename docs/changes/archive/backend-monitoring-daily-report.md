@@ -34,3 +34,9 @@
 - Given `features/backend-monitoring.md` / When "일일 지표 보고" 절을 읽는다 / Then 4묶음 각 항목의 출처(GA4 이벤트명 또는 서버 컬럼)와 리텐션 D1/D7 정의가 적혀 있다
 - Given 같은 절 / When 경계를 찾는다 / Then GA4 00시·서버 04시 차이가 적혀 있다
 - Given `features/analytics.md` 1장 / When 경계를 읽는다 / Then 가입·완청 두 건수는 서버 값이라는 예외가 적혀 있다
+
+## 처리 기록
+
+- 반영 날짜: 2026-10-01
+- `features/backend-monitoring.md` 3-3 신설("일일 지표 보고" — 시각·채널·출처·4묶음 정의·리텐션·경계·실패 동작). 코드에서 확인해 덧붙인 것: 수동 발송 미설정 시 409 `ADMIN_REPORT_NOT_CONFIGURED`, 7일 활성의 창, 전환율 분모 0 처리, 운영 외 환경의 `[환경명]` 접두.
+- `features/analytics.md` 1장에 경계 한 줄 추가(가입·완청만 서버 값).

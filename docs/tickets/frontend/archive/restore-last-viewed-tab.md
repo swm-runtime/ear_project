@@ -6,7 +6,7 @@
 | 요청 파트 | 프론트엔드 |
 | 발행 날짜 | 2026-09-15 |
 | 발견 시점 | 사용자 요청 — 탐색 탭을 보다 앱을 껐다 켜도 항상 라이브러리로 떨어진다 |
-| 근거 문서 | `features/splash.md` 4장 · `changes/pending/splash-restore-last-tab.md` |
+| 근거 문서 | `features/splash.md` 4장 · `changes/archive/splash-restore-last-tab.md` |
 | 심각도 | 하 — 편의 개선. 지금 동작이 틀린 것은 아니다 |
 | 상태 | 대기 — 코드 선반영, **실기기 확인 남음** |
 | Jira | [KAN-60](https://runtime364.atlassian.net/browse/KAN-60) |
@@ -76,7 +76,7 @@
 
 ## 남은 것
 
-문서 반영 요청은 `changes/pending/splash-restore-last-tab.md`에 있다 — `splash.md` 4장에
+문서 반영 요청은 `changes/archive/splash-restore-last-tab.md`에 있다 — `splash.md` 4장에
 4-1 단계를 넣어야 한다. 통합 시 함께 반영한다.
 
 ## 처리 기록 (2026-09-19 티켓 정리)

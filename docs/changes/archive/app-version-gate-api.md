@@ -54,3 +54,10 @@
 ## 완료 조건
 - Given settings-api.md 4.6 / When 읽는다 / Then 위 200·426 계약과 fail-open 규칙이 있다
 - Given 에러 코드 표 / When 읽는다 / Then `APP_UPDATE_REQUIRED` 426 행이 있다
+
+## 처리 기록
+
+- 반영 날짜: 2026-10-01
+- `spec/api/settings-api.md` — 1장 경계 표(강제 업데이트 행) · 2장 인증 헤더 예외 · 3장 목록 6번 · **4.6 신설** · 5장 에러 코드 표 한 행 · 7장 보안 규칙(인증 없음·`app_version` 예외).
+- `features/common-error-handling.md` — 4.1 "버전 미달" 행에 코드명 · 9.1 표에 `APP_UPDATE_REQUIRED` 행과 설명 · 9.11 설정 코드 문장 갱신. `features/splash.md` — 2장 · 4장 1단계 · 6장 · 7장에 엔드포인트 이름(요청서의 "7장 platform 필수 문장"은 실제로 6장에 있다).
+- `backend/architecture.md` 9.6: 레이트 리밋 표에 `GET /app/version`(인증 없는 공개 라우트, 전역 기본 한도) 행 추가 — 같은 통합에서 반영.

@@ -24,3 +24,9 @@
 
 - Given `admin-api.md` 3장 / When 목록을 본다 / Then `POST /admin/reports/daily-metrics` 가 있다
 - Given 4장 상세 / When 읽는다 / Then 인증·202 응답·미설정 시 409 가 적혀 있다
+
+## 처리 기록
+
+- 반영 날짜: 2026-10-01
+- `spec/api/admin-api.md` — 3장 목록에 `POST /admin/reports/daily-metrics` 행, 4.20 상세 신설(인증·202 `{ date }`·비동기 게시·409 `ADMIN_REPORT_NOT_CONFIGURED`), 5장 에러 표에 `ADMIN_REPORT_NOT_CONFIGURED` 행
+- 상세 절 번호는 4.20이다(4.17은 추천 테스트, 4.18·4.19는 이미 사용 중). 웹훅은 코드 기준으로 `SLACK_SIGNUP_WEBHOOK_URL` → 없으면 `SLACK_ERROR_WEBHOOK_URL`로 적었다

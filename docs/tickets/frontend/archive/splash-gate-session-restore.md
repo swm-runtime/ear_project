@@ -6,7 +6,7 @@
 | 요청 파트 | 백엔드 (서버 구현 완료 통지 — 2026-09-08) |
 | 발행 날짜 | 2026-09-08 |
 | 발견 시점 | `tickets/backend/pending/session-restore-endpoint.md` 서버 구현 완료 — 막고 있던 계약이 생겨 FE 몫을 발행한다 |
-| 근거 문서 | `features/splash.md` 4(실행 관문) · `changes/pending/auth-api-get-users-me.md`(계약 확정 형상) · `features/auth.md` 7(재동의·A20) |
+| 근거 문서 | `features/splash.md` 4(실행 관문) · `changes/archive/auth-api-get-users-me.md`(계약 확정 형상) · `features/auth.md` 7(재동의·A20) |
 | 심각도 | **높음** — 앱을 껐다 켤 때마다 로그인 화면으로 간다. 서버는 준비됐고 이 티켓만 남았다 |
 | 상태 | **완료** (2026-09-08 실기기 확인) |
 | 연관 | `tickets/backend/pending/session-restore-endpoint.md` (서버 몫 — 계약 문서 반영 대기) |

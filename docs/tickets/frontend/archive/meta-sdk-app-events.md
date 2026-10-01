@@ -65,6 +65,6 @@
 
 ## 처리 기록
 
-- 2026-09-24 21:40 (효헌이): 구현 — `react-native-fbsdk-next` 13.4 + app.json 플러그인(App ID·Client Token·표시 이름·스킴, IDFA 끔, 자동 이벤트 켬, ATT 설명문 없음). `shared/analytics/meta.ts` 가 `track()` 안에서 세 이벤트만 Meta 로 전달, `first_play` 는 계정 해시별 기기 로컬 1회. 개발계 변형은 `app.config.js` 에서 네이티브 자동 이벤트·자동 초기화까지 끔. runtimeVersion 8. 유닛 6건(`meta.test.ts`), 전체 152 통과. 문서 요청 `changes/pending/analytics-meta-sdk.md`.
+- 2026-09-24 21:40 (효헌이): 구현 — `react-native-fbsdk-next` 13.4 + app.json 플러그인(App ID·Client Token·표시 이름·스킴, IDFA 끔, 자동 이벤트 켬, ATT 설명문 없음). `shared/analytics/meta.ts` 가 `track()` 안에서 세 이벤트만 Meta 로 전달, `first_play` 는 계정 해시별 기기 로컬 1회. 개발계 변형은 `app.config.js` 에서 네이티브 자동 이벤트·자동 초기화까지 끔. runtimeVersion 8. 유닛 6건(`meta.test.ts`), 전체 152 통과. 문서 요청 `changes/archive/analytics-meta-sdk.md`.
 - 남은 것: 운영 iOS 빌드(rt 8) TestFlight → 완료 조건 1~3·5 를 Meta 이벤트 관리자 "테스트 이벤트" 로 확인 · Android 는 출시 빌드 · 사람 손 4(ASC 개인정보 라벨·처리방침) · 광고 관리자에서 `first_play` 최적화 목표 선택 가능한지(조건 6).
 - **2026-09-24 23:41 완료(반영 날짜)** — 박수헌이 Meta 이벤트 관리자에서 완료 조건 확인(PM 전달). 운영 빌드 iOS 1.1.0 (13)(rt 8) · Android vc 14. Jira KAN-94 완료 전이. 남은 사람 손: ASC 개인정보 라벨·처리방침 Meta 반영 → 운영 (13) 심사 제출, Play 운영 aab 업로드.

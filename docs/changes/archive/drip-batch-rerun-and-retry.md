@@ -38,3 +38,10 @@
 - Given 4.6-5 / When 읽는다 / Then 사용자 단위 멱등의 근거가 `already_placed`이고 유니크 서술이 없다
 - Given 7장 / When 읽는다 / Then 사용자 1회 재시도·페이지 조회 재시도·재시작 시 재개가 적혀 있다
 - Given admin-api 4.16 / When `skip_reason` 값을 본다 / Then `already_placed`가 있다
+
+## 처리 기록
+
+- 반영 날짜: 2026-10-01
+- `features/drip-scheduling.md` — 2장 재시도 행, 4.1 "스킵 사유" 표(종전에 표가 없어 4사유 전체를 판정 순서대로 신설), 4.6-5 근거 정정, 5장 사용자 단위 `skipped` 사유, 7장(사용자 1회 재시도·페이지 조회 재시도·재시작 시 재개·중복 실행), 8장 완료 조건 2건
+- `spec/api/admin-api.md` 4.16 `skip_reason`에 `already_placed` · `backend/domain.md` 7.3(`finished_at` NULL 의미·카운트는 마지막 패스 기준·사용자 단위 중복 근거 정정·`skipped` 사유)
+- 코드 대조로 달리 적은 것: 요청서의 "`already_placed`는 재실행·재시도에서만 나온다"는 정확하지 않다 — 온보딩 첫 드립도 `source = drip`이라 04:00~05:00 사이에 첫 드립을 받은 사용자는 그날 05:00 배치에서 이 사유로 건너뛴다. 4.1 표에 그렇게 적었다

@@ -12,7 +12,7 @@
 | Jira | [KAN-115](https://runtime364.atlassian.net/browse/KAN-115) (담당: 박준현) |
 | 중요도 | Medium — 배포 전 추천 평가(KAN-108) 의 실험 도구. 마감이 안 맞으면 등급을 내리지 말고 사유를 적는다 |
 | 상태 | **완료** — 2026-09-30 archive (반영 날짜 2026-09-30) |
-| 관련 | `tickets/backend/pending/pre-release-recommendation-evaluation.md`(KAN-108) — 이 콘솔이 그 평가의 수동 실험 면이다 · `changes/pending/admin-api-recommend-test.md`(문서 반영) |
+| 관련 | `tickets/backend/pending/pre-release-recommendation-evaluation.md`(KAN-108) — 이 콘솔이 그 평가의 수동 실험 면이다 · `changes/archive/admin-api-recommend-test.md`(문서 반영) |
 
 ## 요청
 
@@ -58,5 +58,5 @@ admin.earcast.co.kr 추천 검증 콘솔에
 - 사람 손 선행 완료: `ear/dev/api` 에 `PIPELINE_SSO_SECRET`(신규 생성)·`RECOMMEND_TEST_EMAIL=jhp99999998@gmail.com` → `.env.prod` 반영 확인 · AI 서버 파이프라인 웹 `env.prod` 에 `EAR_DEV_SSO_SECRET` 추가 + `web` 재기동 · 개발계 DB 에 `runtime364@gmail.com` 가입 후 `role=admin` 승격(SSM `send-command` — 개발계 EC2 는 pem 없이 SSM 으로 명령 가능, 2026-09-30 확인)
 - 검증(관리자 토큰으로 개발계 API 직접 호출): SSO 200 · `account` 200(관심 3·라이브러리 6) · `feed` 200(6 섹션) · `drip/preview` 200(정규 2편 선정) · `actions save` 200(이미 담긴 콘텐츠 → "변화 없음", 앱과 같은 판정). 콘솔 `/drip-check/test` 동작 PM 확인 2026-09-30
 - 테스트 계정 티어를 개발계에서 **light → pro 로 올렸다**(2026-09-30, PM 요청 "내 계정에서만 한도 없이 테스트"). 개발계 `plans` 는 light·pro 의 편성 편수가 같고(드립 2·탐험 1) `daily_play_limit` 만 2 vs 무제한이라 추천 결과는 그대로다. 코드에서 한도를 건너뛰게 하지 않은 이유: "앱과 같은 경로" 원칙. 한도 동작 자체를 보려면 계정을 light 로 되돌리면 된다
-- 문서 반영은 `changes/pending/admin-api-recommend-test.md`(통합 시). Jira KAN-115 완료 2026-09-30
+- 문서 반영은 `changes/archive/admin-api-recommend-test.md`(통합 시). Jira KAN-115 완료 2026-09-30
 

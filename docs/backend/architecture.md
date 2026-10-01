@@ -380,6 +380,7 @@ class BusinessException extends HttpException {
 - **초기화는 `src/instrument.ts`이고 진입점(`main.ts`·`cluster.ts`)의 첫 줄에서 import한다.** Nest 부팅 전에 돌아야 해서 ConfigService를 쓰지 않고 `process.env`를 직접 읽는다. 이 import의 위치를 바꾸면 조용히 계측이 빠진다.
 - **성능 추적은 기본 꺼짐이다 — `SENTRY_TRACES_SAMPLE_RATE`를 비운다.** `0`을 SDK에 넘기면 "끔"이 아니라 "켜되 표본 0"이라 express·nest·pg 계측이 전부 등록되고, t4g.small에서 API CPU를 50~80% 더 쓴다(2026-09-23 개발계 실측 — 온보딩 분당 600명에서 45~55% → 70~93%). `common/sentry-options.ts`가 0·빈값이면 키를 빼고 넘긴다. 무료 할당량도 앱 크래시에 쓴다. 느린 엔드포인트를 볼 일이 있으면 **개발계에서만** 잠깐 올린다 — 운영은 켜지 않는다.
 - 릴리스는 `ear-api@<package.json version>`이다 — 버전의 기준이 앱이므로(CLAUDE.md) Sentry의 릴리스도 앱 버전을 따른다.
+  - **버전 값의 원천**(2026-09-26 — 백엔드 감사): `SENTRY_RELEASE` env(빌드 파이프라인이 박는 경로, 있으면 우선) → 없으면 `npm_package_version` → 그것도 없으면 **이미지에 함께 복사된 `package.json`의 `version`** 을 읽는다. 컨테이너는 `node dist/cluster`로 직접 뜨므로 `npm_package_version`이 없다 — 종전에는 이 값만 봐서 운영 릴리스가 늘 `unknown`이었다. 어느 경로든 값 앞에 `ear-api@`가 붙는다.
 
 ### 7.7 재시도·타임아웃 (서버 → 외부)
 
@@ -532,6 +533,7 @@ PRD FR-33 / 비기능 "저작권·파트너 계약 준수"에 직접 대응한�
 | `/users/me/email-verifications` (발송) | 사용자 | **분당 5회** | 앱 레벨 상한(주소당 5회·계정당 시간당 20회)의 앞단 방어 |
 | `/contents/:id/audio-urls` (서명 URL 발급) | 사용자 | **분당 30회** | 정상 재생은 5분마다 1회 갱신. 대량 다운로드 패턴 차단(9.4) — 이상 탐지 배치 전까지의 1차 방어 |
 | `/health` | — | 제외 | 헬스체크·모니터링 |
+| `GET /app/version` | IP (**인증 없는 공개 라우트**) | 전역 기본 한도(분당 300회) | 실행 관문이 로그인 전에 부른다(`settings-api.md` 4.6, 2026-09-26). 응답은 env 두 값의 비교뿐이라 DB를 읽지 않는다 |
 | `POST /auth/pipeline-login` | — | 전역 기본 한도만(라우트별 한도 없음) | HS256 비밀 32바이트·유효 2분이라 온라인 추측 불가. 일관성 위해 인증 한도 적용은 하 등급 코드 항목(2026-09-26) |
 | 결제 검증 | 멱등키 필수, 중복 요청은 첫 결과 반환 | | |
 

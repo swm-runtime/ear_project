@@ -28,3 +28,9 @@ PM 2026-09-27 23:37 "주로 듣는 주제 쪽 UI 개선" → 23:42 "ㄱㄱ". 도
 ## 완료 조건
 
 - Given 문서 반영 후 profile-uiux.md 4.6, When 주제 분포를 읽으면, Then 가로 막대 + 순위 목록 + 1위 헤드라인 구성과 카피가 적혀 있다
+
+## 처리 기록
+
+- 반영 날짜: 2026-10-01
+- `spec/uiux/profile-uiux.md` 4.6 "주제 분포"(원형 그래프 + 범례 → 1위 헤드라인 + 누적 막대 + 주제별 줄, 영역 제목 "주로 듣는 주제" 폐기) · 5장 컴포넌트 표 · 6장 카피("가장 많이 들은 주제") · 7장(대체 텍스트는 그대로, 막대는 장식) · 9·10장 개정 주석.
+- `features/profile.md` 4.1 구성도 · 4.7(표현을 가로 막대 + 순위 목록으로) · 8장 완료 조건, `wireframe/profile.html` P8(도넛 → 가로 막대 + 순위 목록) · 주석 19. 같은 4.6 절을 고치는 `profile-weekly-topics-merge.md` · `profile-weekly-swipe-pager.md` · `profile-weekly-sub-minute-and-average-line.md`와 함께 최종 상태로 한 번에 반영했다.

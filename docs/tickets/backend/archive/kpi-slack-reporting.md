@@ -142,7 +142,7 @@ _▲▼ 전일 대비 · 가입·완청은 서버 값(04시 경계), 나머지�
 
 1. **`ear/prod/api` 에 `GA4_PROPERTY_ID`·`GA4_SERVICE_ACCOUNT_BASE64` 추가** — 반드시 **새 `push.sh` 가 main 에 들어가는 그 릴리스 직전**에. 그 전에 다른 운영 배포가 나가면 옛 `push.sh` 가 `.env.prod` 에 없는 키를 만나 배포가 중단된다(돌던 API 는 산다).
 2. #957 → dev 머지 → `dev → main` 릴리스 → 배포. 새 `push.sh` 가 두 줄을 선언하고 Secrets 가 값을 채운다.
-3. `POST /admin/reports/daily-metrics` 로 한 번 쏴서 확인 → **17:00 자동 발송 1회 확인**(2026-09-29 16:14 기준 46분 뒤 첫 회) → archive. 문서 반영은 `changes/pending/backend-monitoring-daily-report.md` 로 통합 때.
+3. `POST /admin/reports/daily-metrics` 로 한 번 쏴서 확인 → **17:00 자동 발송 1회 확인**(2026-09-29 16:14 기준 46분 뒤 첫 회) → archive. 문서 반영은 `changes/archive/backend-monitoring-daily-report.md` 로 통합 때.
 
 ### GA4 는 어떻게 되나
 
@@ -162,7 +162,7 @@ _▲▼ 전일 대비 · 가입·완청은 서버 값(04시 경계), 나머지�
 **2단계**
 
 - Given 운영 보고 채널 / When 17:00 KST 가 되면 / Then 어제치 4묶음(사용자·획득·재생·리텐션)이 게시된다 — 완청률은 PM 결정(2026-09-29)으로 범위에서 뺐고 완청 **건수**를 재생 줄에 둔다
-- Given 지표 정의 / When `features/backend-monitoring.md` 를 보면 / Then 각 항목의 출처(GA4 이벤트명 또는 서버 컬럼)와 D1/D7 정의가 적혀 있다 — 요청은 `changes/pending/backend-monitoring-daily-report.md`
+- Given 지표 정의 / When `features/backend-monitoring.md` 를 보면 / Then 각 항목의 출처(GA4 이벤트명 또는 서버 컬럼)와 D1/D7 정의가 적혀 있다 — 요청은 `changes/archive/backend-monitoring-daily-report.md`
 
 ## 처리 기록
 
@@ -182,6 +182,6 @@ _▲▼ 전일 대비 · 가입·완청은 서버 값(04시 경계), 나머지�
 ### 2026-09-30 — 완료 · archive (반영 날짜 2026-09-30)
 
 - 1단계: 운영 가입 알림 실측 확인(2026-09-29). 개발계 알림은 PM 결정으로 껐다(`SLACK_ERROR_WEBHOOK_URL` 비움)
-- 2단계: 운영 첫 자동 발송 확인 — 2026-09-29 17:00:01 `ga4 client loaded` → 17:00:04 `daily metrics posted`(운영 로그), Slack 채널에 4묶음 메시지 도착(PM 확인 2026-09-30). 문서 정의는 `changes/pending/backend-monitoring-daily-report.md`·`admin-api-daily-metrics-trigger.md` 로 요청됨(통합 시 반영)
+- 2단계: 운영 첫 자동 발송 확인 — 2026-09-29 17:00:01 `ga4 client loaded` → 17:00:04 `daily metrics posted`(운영 로그), Slack 채널에 4묶음 메시지 도착(PM 확인 2026-09-30). 문서 정의는 `changes/archive/backend-monitoring-daily-report.md`·`admin-api-daily-metrics-trigger.md` 로 요청됨(통합 시 반영)
 - 반영 PR: #971(운영 배포 v1.1.0+4) · #973 · #978. Jira KAN-107 완료 2026-09-30
 

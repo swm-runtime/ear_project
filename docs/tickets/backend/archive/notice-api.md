@@ -8,13 +8,13 @@
 | 발행 날짜 | 2026-09-17 |
 | Jira | [KAN-67](https://runtime364.atlassian.net/browse/KAN-67) |
 | 발견 시점 | PM 결정 — 공지사항 인앱 화면을 만든다(2026-09-17). 2026-08-06 합의로 인앱 화면은 확정됐으나 목록 API 는 미결로 남아 있었다(`settings-api.md` 9장) |
-| 근거 문서 | **`changes/pending/notice-screen-spec.md`**(화면·계약·스키마 전체 — 이 티켓은 그 문서의 BE 몫이다) · `features/settings.md` 4.1 · `backend/domain.md` 1.1(공통 컬럼)·13.3(점검 공지와 별개) |
+| 근거 문서 | **`changes/archive/notice-screen-spec.md`**(화면·계약·스키마 전체 — 이 티켓은 그 문서의 BE 몫이다) · `features/settings.md` 4.1 · `backend/domain.md` 1.1(공통 컬럼)·13.3(점검 공지와 별개) |
 | 심각도 | 중 — FE 화면은 mock 으로 먼저 나가고, 실서버에서는 이 API 가 있어야 열린다 |
 | 우선순위 | Medium(3일 안) |
 
 ## 요청 내용
 
-`changes/pending/notice-screen-spec.md` C·D 절 그대로다. 요약:
+`changes/archive/notice-screen-spec.md` C·D 절 그대로다. 요약:
 
 1. **테이블 `notices`** — `id, title varchar(100), body text, is_pinned bool default false, published_at timestamptz null, created_at, updated_at, deleted_at`. 인덱스 `(is_pinned DESC, published_at DESC) WHERE deleted_at IS NULL`. `published_at` NULL = 초안, 미래 = 예약 발행.
 2. **`GET /notices?cursor&limit`**(인증 필요) — `published_at <= now()` 이고 삭제 안 된 것만. 정렬 `is_pinned DESC, published_at DESC, id DESC`. 응답 `{ items: [{ id, title, is_pinned, published_at }], next_cursor }`. `body` 는 싣지 않는다. `limit` 기본 20·최대 50.
@@ -46,7 +46,7 @@
 | 반영 날짜 | 2026-09-17 |
 | 코드 | 신규 `notice` 모듈(`Notice` 엔티티 · `NoticeRepository` · `NoticeService` · `NoticeController` · `notice.cursor.ts`) · admin `AdminNoticeService` + 컨트롤러 4개 라우트 · 마이그레이션 `1787500000000-AddNotices` · 에러 코드 `NOTICE_NOT_FOUND` · `NOTICE_CURSOR_INVALID` |
 | 요청 대비 결정 | ① 커서 오류는 400 `NOTICE_CURSOR_INVALID`(신설 — 라이브러리·탐색과 같은 계약) ② 관리자 목록은 `created_at DESC, id DESC`, **본문 포함**, 커서를 사용자 목록과 섞으면 거절 ③ `created_at`은 밀리초로 잘라 정렬·비교(DB 마이크로초 vs 커서 밀리초 경계 누락 방지) ④ 공백만 있는 제목·본문 거부 ⑤ 쓰기는 `audit_logs`(`notice.create/update/delete`)와 한 트랜잭션 — 본문 원문 대신 길이만 기록 ⑥ `is_pinned`는 선택(기본 false) |
-| 문서 | `changes/pending/notice-screen-spec.md` C·D·관리자 부분 반영(처리 기록 참고). FE 소유 A·B·E는 남음 |
+| 문서 | `changes/archive/notice-screen-spec.md` C·D·관리자 부분 반영(처리 기록 참고). FE 소유 A·B·E는 남음 |
 | 범위 밖 | 관리자 콘솔 화면(후속), 삭제 30일 뒤 hard delete 배치(정책만 `domain.md` 12.1) |
 | 검증 반영 | 교차 검토에서 **관리자 입력이 500이 되는 경로 4가지**를 막았다 — PATCH `null`(NOT NULL 컬럼) · `IsISO8601`이 통과시키는 비표준 형식(`2026-W38-4`)·오프셋 없는 시각 · 2000년 이전 발행 시각(목록 커서가 거절해 앱 페이징이 멈춤) · 조합 이모지 제목(검증기 1자 vs DB 2자). 빈 PATCH 400, uuid 아닌 id 404, 수정·삭제 행 잠금 |
 | FE 영향 | 응답 필드명은 티켓 그대로다 — 변경 없음 |

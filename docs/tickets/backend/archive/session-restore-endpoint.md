@@ -80,7 +80,7 @@ FE 가 로그인 시 사용자 객체를 기기에 캐시해 두고 복원하는
 한 번의 왕복) 응답. 401은 가드 기본 동작(재시도 유도 없음). 로컬 실서버 부팅 실측:
 200 형상·`onboarding_completed`·필수 동의 3종 pending·무토큰 401 전부 확인.
 
-**남은 것**: `auth-api.md` 계약 등재(`changes/pending/auth-api-get-users-me.md` 발행 — 완료
+**남은 것**: `auth-api.md` 계약 등재(`changes/archive/auth-api-get-users-me.md` 발행 — 완료
 조건 5가 문서 반영 시 닫힌다) → 이후 FE의 SplashGate 구현(이 티켓 범위 밖).
 
 ## 처리 기록 (반영 날짜: 2026-09-08 — 완료 조건 5개 전부 충족)
