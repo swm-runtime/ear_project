@@ -117,6 +117,9 @@ export const cfg = {
   ttsOutroKey: process.env.TTS_OUTRO_KEY ?? "datasets/channel-audio/outro.wav",
   ttsOutroPadSec: process.env.TTS_OUTRO_PAD_SEC ? Number(process.env.TTS_OUTRO_PAD_SEC) : undefined,
   // 화자별 배속 (spec/06 6장) — 다중화자 1콜은 속도 설정이 없어 타임스탬프 정렬 후 ffmpeg atempo 로 후처리한다. 1 이면 원속.
+  /** 요청 이음새 문맥 겹침 (spec/06 7장, KAN-87). 2026-10-01 박수헌 지시로 기본 꺼짐 — 최근 60편 242경계 중 21%만 성공했고, 실패하면 요청을 문맥 없이
+   *  다시 생성해(302요청 중 152요청) TTS 비용의 약 3분의 1을 썼다. 절단점 탐색을 고친 뒤 TTS_CONTEXT_OVERLAP=1 로 다시 켠다. 작업 payload context_overlap 로 편 단위 강제 가능(디버그) */
+  ttsContextOverlap: process.env.TTS_CONTEXT_OVERLAP === "1",
   ttsSpeedYuna: process.env.TTS_SPEED_YUNA ? Number(process.env.TTS_SPEED_YUNA) : 1.1, // 2026-09-07 박수헌: 윤아 보이스가 느려 1.2 → 2026-09-12 1.1 로 완화
   ttsSpeedEum: process.env.TTS_SPEED_EUM ? Number(process.env.TTS_SPEED_EUM) : 1,
   /** TTS 비용 환산용 1천 자당 USD — 응답 헤더로 실제 크레딧을 못 받았을 때의 추정값. 2026-10-01 실측: 659,868자 ↔ 236,950크레딧(약 0.36크레딧/자) × Pro 추가 크레딧 $0.17/1,000 ≈ $0.061/1천 자.
