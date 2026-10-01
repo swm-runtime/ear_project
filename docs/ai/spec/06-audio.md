@@ -12,7 +12,7 @@
 
 ## 2. 보이스 — 채널 아이덴티티
 
-- **보이스 확정 (2026-09-02 박수헌 — 구 미결 #8)**: 윤아 = **Annie** (`Lb7qkOn5hF8p7qfCDH8q`, ko·female·professional) · 이음 = **Yohan Koo** (`4JJwo477JUAx3HV0T7n7`, ko·male·professional). 코드 기본값은 `apps/worker/src/config.ts` — env(`TTS_VOICE_*`)로 덮을 수 있으나 보이스 변경은 리브랜딩급 결정이다.
+- **보이스 확정 (2026-09-02 박수헌 — 구 미결 #8)**: 윤아 = **Annie** (`Lb7qkOn5hF8p7qfCDH8q`, ko·female·professional) · 이음 = **Mr. K - Korean Creator Voice** (`sQ3a15DhENXU8pKTHlcc`, ko·male — 2026-10-01 박수헌 교체. 이전 Yohan Koo `4JJwo477JUAx3HV0T7n7`, 그 전 발행분은 재합성하지 않는다). 코드 기본값은 `apps/worker/src/config.ts` — env(`TTS_VOICE_*`)로 덮을 수 있으나 보이스 변경은 리브랜딩급 결정이다.
   보이스 변경은 리브랜딩급 결정이다 — 에피소드마다 바뀌지 않는다.
 - 선정 기준: **한국어 네이티브 보이스** (외래어를 자연스러운 한국식 발음으로 읽는 것이 필수) ·
   두 화자의 톤 대비 확보 · 전문 보이스 클론(PVC)은 v3 미최적화로 회피.
