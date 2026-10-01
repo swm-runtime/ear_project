@@ -941,13 +941,16 @@ describe('ExploreOrchestrator', () => {
       );
 
       // then
-      expect(searchQueryLogService.record).toHaveBeenCalledWith({
-        userId: USER_ID,
-        normalizedQuery: '커리어',
-        resultCount: 1,
-        hasNext: true,
-        topicFilterCount: 1,
-      });
+      expect(searchQueryLogService.record).toHaveBeenCalledWith(
+        {
+          userId: USER_ID,
+          normalizedQuery: '커리어',
+          resultCount: 1,
+          hasNext: true,
+          topicFilterCount: 1,
+        },
+        NOW,
+      );
     });
 
     it('0건으로 끝난 검색도 로그에 남는다 — 미스율의 분자다', async () => {
@@ -967,6 +970,7 @@ describe('ExploreOrchestrator', () => {
       // then
       expect(searchQueryLogService.record).toHaveBeenCalledWith(
         expect.objectContaining({ normalizedQuery: '없는말', resultCount: 0 }),
+        NOW,
       );
     });
 

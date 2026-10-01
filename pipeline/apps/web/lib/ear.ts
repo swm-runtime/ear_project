@@ -320,3 +320,15 @@ export async function downloadEarEvalSnapshot(ch: EarChannel): Promise<{ filenam
   const exportedAt = typeof json.exported_at === "string" ? json.exported_at.slice(0, 10) : "snapshot";
   return { filename: `${env}-${exportedAt}.json`, blob: new Blob([JSON.stringify(json)], { type: "application/json" }) };
 }
+
+/** 검색 질의 로그 요약 (admin-api 4.21, domain.md 5.7) — 한 행은 타이핑 묶음 하나다 */
+export interface EarSearchQueryRank { query: string; searches: number; misses: number; last_searched_at: string }
+export interface EarSearchQueryLogSummary {
+  days: number; since: string;
+  totals: { searches: number; misses: number; miss_rate: number | null; users: number; short_queries: number; filtered_searches: number };
+  daily: { date: string; searches: number; misses: number }[];
+  missed: EarSearchQueryRank[];
+  top: EarSearchQueryRank[];
+}
+export const getEarSearchQueryLogSummary = (ch: EarChannel, days: number) =>
+  earFetch<EarSearchQueryLogSummary>(`/admin/search-query-logs/summary?days=${days}`, { cache: "no-store" }, ch);

@@ -18,6 +18,7 @@ import { ContentStatRepository } from './repositories/content-stat.repository';
 import { ContentTopicRepository } from './repositories/content-topic.repository';
 import { SearchQueryLogRepository } from './repositories/search-query-log.repository';
 import { ContentExpiryScheduler } from './content-expiry.scheduler';
+import { SearchQueryLogAdminController } from './search-query-log-admin.controller';
 import { ContentService } from './services/content.service';
 import { ContentStatService } from './services/content-stat.service';
 import { SearchQueryLogService } from './services/search-query-log.service';
@@ -36,6 +37,7 @@ import { SearchQueryLogService } from './services/search-query-log.service';
     // 라이선스 만료 배치가 라이브러리 잔존분을 함께 지운다(partner-control.md 4.4)
     LibraryModule,
   ],
+  controllers: [SearchQueryLogAdminController],
   providers: [
     ContentRepository,
     ContentTopicRepository,

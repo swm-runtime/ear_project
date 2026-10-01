@@ -371,15 +371,18 @@ export class ExploreOrchestrator {
     });
 
     // 첫 페이지만 남긴다 — 커서 페이지는 같은 질의의 이어 읽기라 새 검색이 아니다(domain.md 5.7).
-    // 적재 실패는 서비스 안에서 삼켜지므로 검색 응답에는 영향이 없다
+    // 디바운스 중간 입력은 서비스가 직전 행에 덮어쓰고, 적재 실패도 거기서 삼켜져 응답에는 영향이 없다
     if (query.cursor === null) {
-      await this.searchQueryLogService.record({
-        userId,
-        normalizedQuery,
-        resultCount: page.items.length,
-        hasNext: page.hasNext,
-        topicFilterCount: query.topicIds.length,
-      });
+      await this.searchQueryLogService.record(
+        {
+          userId,
+          normalizedQuery,
+          resultCount: page.items.length,
+          hasNext: page.hasNext,
+          topicFilterCount: query.topicIds.length,
+        },
+        now,
+      );
     }
 
     if (page.items.length === 0) {

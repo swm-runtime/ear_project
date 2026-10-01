@@ -44,3 +44,14 @@ export const MAX_TARGET_AUDIENCES = 8;
  * 다음 `since`로 써서 이어 받는다.
  */
 export const WITHDRAWN_SYNC_MAX_LIMIT = 200;
+
+/**
+ * 검색 질의 로그의 **타이핑 묶음 창**(domain.md 5.7). 같은 사용자의 직전 행이 이 안에 있고 두 질의가
+ * 접두사 관계("커리" ↔ "커리어")면 새 행을 만들지 않고 직전 행을 덮어쓴다. 디바운스 300ms 로 한 단어를
+ * 치는 데 몇 초면 충분하고, 이보다 길게 멈췄다 이어 치면 다른 검색으로 본다
+ */
+export const SEARCH_QUERY_LOG_MERGE_WINDOW_MS = 10_000;
+
+/** 어드민 요약(`admin-api.md` 4.21)의 집계 창 — 기본·상한. 보존이 90일이라 그 이상은 어차피 없다 */
+export const SEARCH_QUERY_LOG_SUMMARY_DEFAULT_DAYS = 14;
+export const SEARCH_QUERY_LOG_SUMMARY_MAX_DAYS = 90;
