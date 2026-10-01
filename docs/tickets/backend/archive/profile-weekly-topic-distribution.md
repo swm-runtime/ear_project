@@ -8,7 +8,7 @@
 | 발행 날짜 | 2026-09-28 |
 | 시작 날짜 | 2026-09-28 |
 | 기한 | 2026-10-02 (Low — 이번 주 안) |
-| 선행 | 없음 — FE 는 필드가 없으면 전체 기간으로 떨어지게 선반영했다(PR `feat(fe)/weekly-topics-by-week`). 문서 반영은 `changes/pending/profile-weekly-topics-merge.md` |
+| 선행 | 없음 — FE 는 필드가 없으면 전체 기간으로 떨어지게 선반영했다(PR `feat(fe)/weekly-topics-by-week`). 문서 반영은 `changes/archive/profile-weekly-topics-merge.md` |
 | Jira | [KAN-113](https://runtime364.atlassian.net/browse/KAN-113) |
 | 중요도 | Low — 없어도 화면은 전체 기간으로 동작한다 |
 
@@ -40,7 +40,7 @@
 - 그 주 기록이 없으면 `topics: []`, `others_ratio: 0`.
 - **요일별 분포도 함께**(추가 2026-09-28 04:26 PM — 막대를 탭하면 그날의 주제 분포) — `daily_topic_distribution`: 월~일 **7개 고정 배열**, 각 원소는 `topic_distribution` 과 같은 모양이고 집계 기간은 그 서비스 날짜(04:00~다음 날 04:00, `daily_listened_sec` 와 같은 경계). 기록 없는 요일·오지 않은 요일은 `{ "topics": [], "others_ratio": 0 }` 으로 자리를 유지한다(생략 없음).
 - 4.1 최상위 `topic_distribution`(전체 기간)은 FE 가 주별로 옮긴 뒤 폐기 예정 — 이번 티켓에서는 **남겨 둔다**(구버전 앱 호환).
-- FE 는 이웃 주를 미리 받는다(`changes/pending/profile-weekly-swipe-pager.md`) — 4.2 호출이 프로필 진입마다 1~2회 늘어난다. 주 단위 집계 쿼리 비용을 확인해 달라.
+- FE 는 이웃 주를 미리 받는다(`changes/archive/profile-weekly-swipe-pager.md`) — 4.2 호출이 프로필 진입마다 1~2회 늘어난다. 주 단위 집계 쿼리 비용을 확인해 달라.
 
 ## 완료 조건
 

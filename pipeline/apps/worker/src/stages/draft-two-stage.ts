@@ -287,8 +287,11 @@ export function v94Violations(turns: ScriptTurn[]): string[] {
   const summaryRe = /(네요|군요|거군요|거네요|말이군요|뜻이군요|들려요|들립니다|들리네요|같아요|같습니다|겠어요|겠네요|셈이네요|얘기네요|말이네요)[.!]?\s*$/;
   const summaryY = bodyY.filter((t) => !/\?/.test(t.text) && summaryRe.test(t.text.trim()));
   if (bodyY.length >= 12 && summaryY.length / bodyY.length > 0.35) {
-    const over = summaryY.length - Math.floor(bodyY.length / 3);
-    v.push(`진행 턴 ${bodyY.length}개 중 ${summaryY.length}개가 물음표 없는 정리형("~네요"·"~군요"·"~로 들려요")으로 끝남 — 셋 중 하나가 상한이다. 이 가운데 ${over}개 이상을 이해가 막힌 자리의 되물음이나 한두 마디 수긍으로 바꾼다 (${ids(summaryY, 10)}) (규칙 3·25)`);
+    // 2026-09-30: 바꿀 턴을 지목한다 — "N개 이상"만 말하면 수정 호출이 모자라게 고쳐 L0 수정 2회를 다 썼다(T260930-001: 9 → 8 → 7개). 한 개 여유를 두고 고르게 뽑는다
+    const over = summaryY.length - Math.floor(bodyY.length / 3) + 1;
+    const step = summaryY.length / over;
+    const picks = Array.from({ length: over }, (_, i) => summaryY[Math.min(summaryY.length - 1, Math.floor(i * step + step / 2))]).filter((t, i, arr) => arr.indexOf(t) === i);
+    v.push(`진행 턴 ${bodyY.length}개 중 ${summaryY.length}개가 물음표 없는 정리형("~네요"·"~군요"·"~로 들려요")으로 끝남 — 셋 중 하나가 상한이다. 다음 ${picks.length}개 턴을 전부 바꾼다: ${ids(picks, 12)}. 자기 처지에서의 느낌·망설임, 한두 마디 수긍, 이해가 막힌 자리의 되물음 가운데 하나로 — 앞 해설을 다시 정리하는 문장으로 바꾸지 않는다 (규칙 3·25)`);
   }
   // 규칙 3: 진행자가 각주를 부르는 질문 — 청취자는 조사 기관·표본·척도·오차·통계 절차를 묻지 않는다
   const footnoteQ = bodyY.filter((t) => /\?/.test(t.text) && /(표본|응답률|척도|오차|조사 기관|조사 방식|조사 방법|대조군|통계적|통계 (절차|처리)|재현(됐|되|이)|인과(관계)?(를|가) (입증|확인|증명)|유의)/.test(t.text));
@@ -322,6 +325,26 @@ export function v94Violations(turns: ScriptTurn[]): string[] {
     if (/이해(하게|할 수 있게) (됩니다|돼요|되는 겁니다|될 것입니다)\.?$|이해할 수 있습니다\.?$/.test(lastS)) bad.push('"~을 이해하게 됩니다"로 끝남');
     if (bad.length) v.push(`마무리 정리 턴 ${closingE.id} 의 마지막 문장이 ${bad.join("·")} — 축 문장을 그대로 말하고 끝낸다. 접속사 서두와 고정 어미를 뺀다 (규칙 13-1·22)`);
   }
+  // ── v9.5 (2026-09-30, v9.4 판정 3편): 정리형을 막자 진행 턴이 질문 생성기가 됐고(질문 비율 48% → 63·88·61%), 한계 고지가 든 해설 턴이 늘었다(1.8 → 0·5·7) ──
+  // 규칙 3: 본문 진행 턴의 질문은 절반~3분의 2. 넘치면 반응(느낌·망설임·짧은 수긍)으로 바꿀 턴을 지목한다
+  const questionY = bodyY.filter((t) => /\?/.test(t.text));
+  if (bodyY.length >= 12 && questionY.length / bodyY.length > 0.7) {
+    const over = questionY.length - Math.floor((bodyY.length * 2) / 3);
+    const picks = questionY.filter((_, i) => i % 3 === 1).slice(0, Math.max(over, 1));
+    v.push(`진행 턴 ${bodyY.length}개 중 ${questionY.length}개가 질문 — 질문은 절반에서 3분의 2다. 이 가운데 ${over}개 이상을 자기 처지에서의 느낌·망설임·짧은 수긍으로 바꾼다(요약으로 바꾸지 않는다). 바꿀 턴: ${ids(picks, 10)} (규칙 3)`);
+  }
+  // 규칙 3: 진행자가 한계·단서를 유도하는 질문 — 해설이 매 구간을 한계 고지로 닫게 만든다
+  const leadRe = /(단정|일반화|확정|입증)[^?]{0,25}\?|그대로 (넓|적용|옮)[^?]{0,20}\?|(없겠죠|어렵겠죠|아니겠죠|문제겠죠|지나치겠네요|조심해야겠[죠네])\??/;
+  const leadY = bodyY.filter((t) => leadRe.test(t.text));
+  if (leadY.length >= 2) v.push(`진행 턴 ${leadY.length}개가 결과의 한계·단서를 유도함 (${ids(leadY)}) — 범위와 한계는 해설자가 필요한 자리에서 먼저 말한다. 진행자는 그 자리의 내용에서 막히는 것을 묻거나 자기 느낌으로 받는다 (규칙 3)`);
+  // 규칙 29: 한계 고지가 든 해설 턴 — 편 전체 네 번 이하
+  const limitRe = /(단정할 수(는)? 없|확정(하지|할 수) (않|없)|말할 수(는)? 없|넓히기 어렵|옮길 수(는)? 없|읽어서는 안|입증(했다고|하지는|하지) |배제할 수 없|일반화|까지만 (갈|말할)|설명하지는 않|뜻은 아니|보장하(는 건|지는) (아|않)|더 지켜봐야)/;
+  const limitE = E.filter((t) => t.section !== "마무리" && limitRe.test(t.text));
+  if (limitE.length >= 5) v.push(`해설 턴 ${limitE.length}개에 한계 고지 (${ids(limitE, 10)}) — 한계는 구간에 한 번, 편 전체 네 번 이하다. 같은 구간의 한계는 한 문장으로 합치고, 구간의 마지막 문장은 그 구간이 답한 내용으로 둔다. claims 의 양태("~일 수 있다")는 그대로 둔다 (규칙 29)`);
+  // 규칙 20: 이미 아는 것처럼 소스를 행위의 주어로 세운 소개("조사는 …살폈어요", "모의실험이 이 질문을 나눠 봤습니다") — 직접 수정 4건이 "한 조사가"·"~이 하나 있어요"·"글이 있는데"로 바꿨다. "한 ~"·"어떤 ~"으로 처음 소개하는 문장은 통과
+  const srcActRe = /(?<!한 )(?<!어떤 )(글|조사|연구|해설|자료|모의실험|분석|보고서|검토)(이|가|은|는) [^.!?]{0,45}(살폈|살핍니|다뤘|다룹니|다뤄요|풀어냈|나눠 봤|권합니다|권해요|예측합니다|연결합니다|정리했)/;
+  const srcAct = E.filter((t) => srcActRe.test(t.text));
+  if (srcAct.length) v.push(`해설 턴 ${srcAct.length}개가 글·조사·연구를 행위의 주어로 세움 (${ids(srcAct)}) — 소개는 처음 듣는 사람에게 "그런 글·조사·연구가 하나 있다"고 알리는 한 문장이고, 그 뒤는 주어 없이 내용을 말한다. 실험 하나의 결과는 사례 하나로 소개한다 (규칙 20)`);
   return v;
 }
 

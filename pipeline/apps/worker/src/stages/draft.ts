@@ -186,10 +186,22 @@ export async function runDraft(job: Job, ex: Executor) {
   }
   await insertRun({ backlog_id: backlogId, phase: "draft", attempt, result: summary, prompt_version: `${promptVersion} (worker)`, artifacts, executed_by: executedBy, model, cost_usd: costUsd, tokens, worker_rev: workerRev() });
   // 회차 2+: 이전 QA 실패와 작성 측 수정 내역(바뀐 자리만)을 QA 에 넘긴다 — 해소 확인 + 바뀌지 않은 문장의 판정 안정성 (spec/05 5장, 2026-09-08)
-  const carry = attempt > 1 ? { prior_failures: (job.payload.qa_failures ?? []) as unknown[], fixes: (out as RevisionOut).fixes ?? [] } : {};
+  const carry = qaCarry(attempt, (job.payload.qa_failures ?? []) as { item?: string }[], (out as RevisionOut).fixes ?? []);
   const qaRound = Number(job.payload.qa_round ?? 0) + 1; // QA 회차 = 실제 QA 실행 횟수 (L0 수정은 세지 않는다)
   const qaJobId = await enqueue({ type: "qa", requires_ai: true, payload: { episode_id: episodeId, backlog_id: backlogId, attempt, qa_round: qaRound, ...carry }, parent_job_id: job.id, attempt });
   return { episode_id: episodeId, attempt, summary, model, next: { qa_job_id: qaJobId }, output: out };
+}
+
+/**
+ * QA 에 넘길 "이전 회차" — QA 가 낸 실패만 넘긴다 (2026-09-30).
+ * L0 형식 위반은 워커가 코드로 다시 검사하므로 QA 의 몫이 아니다. 넘기면 QA 가 그것을 자기 이전 실패로 읽고 다시 판정한다 —
+ * T260930-001: L0 "정리형 진행 턴 셋 중 하나 상한"을 QA 가 항목 6 실패로 재판정하며 상한을 3개로 오독, QA 회차 하나를 소모했다.
+ * L0 수정만 거친 대본은 QA 가 처음 보는 대본이므로 이전 회차 절 자체를 만들지 않는다(fixes 도 넘기지 않는다).
+ */
+export function qaCarry(attempt: number, failures: { item?: string }[], fixes: unknown[]): { prior_failures?: unknown[]; fixes?: unknown[] } {
+  if (attempt <= 1) return {};
+  const fromQa = failures.filter((f) => !String(f?.item ?? "").startsWith("L0 "));
+  return fromQa.length ? { prior_failures: fromQa, fixes } : {};
 }
 
 /** 수정 재생성의 사유 표기 — 대본 회차(attempt)와 QA 회차(qa_round)는 다른 숫자다 (#291). "attempt 4" 만 보이면 QA 한도 3회를 넘은 것처럼 읽힌다 (T260910-013) */

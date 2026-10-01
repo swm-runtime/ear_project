@@ -25,7 +25,7 @@
 | 커리어 정보 편집 | `career.md` · `career-api.md` (작성됨 2026-08-10) | **메뉴 목적지(커리어 정보 화면)만 안다.** 커리어 요약도 이 응답에 없다 — 요약 표시는 프로필 카드 소관(`profile-api.md` 4.1)이고 설정 메뉴는 진입 행만 둔다 |
 | 구독 변경·해지·복원 | `subscription.md` (API 명세 미작성) | 구독 요약 표시용 값만 조회(결제 유예 상태 포함 — 4.1) |
 | OS 알림 권한 상태 동기화 | `onboarding-api.md` 4.9 (`PUT /users/me/devices/:device_id`) | 참조만 한다. 포그라운드 복귀·사전 안내 완료 시 같은 엔드포인트를 호출한다 |
-| 강제 업데이트 판정 | `splash.md` | 설정의 버전 항목은 **안내 표시**일 뿐, 차단 판정이 아니다 |
+| 강제 업데이트 판정 | `splash.md` | 설정의 버전 항목은 **안내 표시**일 뿐, 차단 판정이 아니다. 단 **스플래시 버전 관문의 HTTP 계약(`GET /app/version`)은 이 문서 4.6에 둔다**(2026-09-26) — 설정 조회(4.1)와 같은 배포 설정·같은 입력·같은 `version` 형태를 쓰기 때문이다. 판정 규칙의 소유는 그대로 `splash.md`다 |
 | 오프라인 저장 관리 | `offline-download.md` (P1 이연) | 엔드포인트를 정의하지 않는다. 메뉴 자체가 미노출이다 |
 | 공지사항 | 인앱 화면(합의 2026-08-06 — 화면 명세 추후 작성) | **목록 API는 화면 명세 확정 후 정의한다**(9장 미결). 이 문서는 메뉴 항목만 안다 |
 | 이용약관·개인정보처리방침 본문 | 인앱 브라우저(URL은 배포 설정) | 엔드포인트를 정의하지 않는다 |
@@ -39,7 +39,7 @@
 | 항목 | 값 |
 |---|---|
 | Base URL | `/api/v1` |
-| 인증 헤더 | `Authorization: Bearer <access_token>` — **모든 엔드포인트 인증 필요** |
+| 인증 헤더 | `Authorization: Bearer <access_token>` — **`GET /app/version`(4.6)을 뺀 모든 엔드포인트 인증 필요.** 4.6은 스플래시가 로그인 전에 부르므로 인증이 없다 |
 | 요청·응답 필드 | **snake_case** |
 | 시각 | **ISO 8601 UTC 문자열** |
 | 추적 | 모든 응답에 `X-Trace-Id` |
@@ -56,6 +56,7 @@
 | 3 | POST | `/users/me/consents/marketing` | 마케팅 수신 동의·철회 — `consents` 행 추가 | 필요 | |
 | 4 | GET | `/notices` | 공지사항 목록 — 발행된 공지만, 고정 먼저·최신순, 커서 (4.4) | 필요 | |
 | 5 | GET | `/notices/:notice_id` | 공지사항 상세 — 본문 포함 (4.5) | 필요 | |
+| 6 | GET | `/app/version` | 스플래시 버전 관문 — 최소 지원 버전 미만이면 426 (4.6) | **없음** | |
 
 **설계 메모**
 
@@ -139,7 +140,7 @@
 **`settings`** — `user_settings` 원값(`domain.md` 3.5).
 
 - `default_playback_rate`: `0.8 | 1.0 | 1.2 | 1.5 | 2.0`
-- `is_auto_expand_enabled`: 주제 자동 확장(FR-06, **P1**). MVP에서는 값만 저장되고 배치는 돌지 않는다(`interest-management.md` 미결). **P1 미구현 상태에서는 화면이 섹션 자체를 숨긴다** — 값은 내려주되 그리지 않는다.
+- `is_auto_expand_enabled`: 주제 자동 확장(FR-06). **행동 기반 자동 확장이 이 값을 읽는다**(2026-09-30 — `drip-scheduling.md` 4.5-1. 운영 서버는 앱의 토글 노출 전까지 스위치로 꺼 둔다). ~~MVP에서는 값만 저장되고 배치는 돌지 않는다(`interest-management.md` 미결).~~ **P1 미구현 상태에서는 화면이 섹션 자체를 숨긴다** — 값은 내려주되 그리지 않는다.
 - `is_drip_notification_enabled`: **이어 PICK 알림** 앱 토글(FR-19, **P1**). 사용자 노출 명칭은 **"이어 PICK 알림"**(PICK 전부 대문자)이다 — "드립"은 내부 용어라 화면에 노출하지 않는다(합의 2026-08-06, `settings.md` 4.1). **컬럼명·필드명은 유지한다**(`domain.md` 3.5 — 화면 이름만 바뀐 것이지 데이터 의미가 바뀐 것이 아니다).
 - 행이 없는 사용자(설정을 한 번도 바꾼 적 없음)는 **기본값으로 채워 내려준다.** 행 생성은 첫 PATCH 때 한다 — 조회가 쓰기를 유발하지 않는다.
 - **마케팅 수신 동의는 이 오브젝트에 없다.** 저장소가 `user_settings`가 아니기 때문이다(아래 `marketing_consent`).
@@ -285,17 +286,77 @@
 - 본문은 줄바꿈을 보존한 **일반 텍스트**다(마크다운·링크 해석 없음).
 - **초안·예약·삭제·없음(uuid 형식이 아닌 id 포함)은 모두 404 `NOTICE_NOT_FOUND`** — 발행 전 글의 존재를 드러내지 않는다. 앱은 "삭제된 공지예요" 안내 후 목록으로 돌아간다.
 
+### 4.6 `GET /app/version` — 스플래시 버전 관문
+
+스플래시의 강제 업데이트 관문이다(신설 2026-09-26 — `splash.md` 4장 1단계 · FR-35, `changes/archive/app-version-gate-api.md`). 콜드 스타트와 30분 이상 백그라운드 뒤 복귀 시 부른다(`splash.md` 2장).
+
+- **인증 없음.** 스플래시가 로그인 전에 부른다. 레이트 리밋은 전역 기본 한도다.
+- **판정은 서버가 한다.** 클라이언트는 버전을 비교하지 않는다.
+
+**Request** — 쿼리 파라미터
+
+| 필드 | 타입 | 필수 | 비고 |
+|---|---|---|---|
+| app_version | string (semver) | 필수 | 4.1과 같은 검증 |
+| platform | enum `ios` / `android` | 필수 | 4.1과 같은 값 집합·같은 이유로 필수 |
+
+- 형식이 틀리면 400 `VALIDATION_FAILED`.
+
+**Response 200** — `app_version >= min_supported_version`
+
+```json
+{
+  "latest_version": "1.1.0",
+  "min_supported_version": "1.0.0",
+  "update_available": false
+}
+```
+
+- 4.1의 `version` 블록과 **같은 형태**다 — 스플래시와 설정이 같은 배포 설정을 읽는다.
+- `update_available = app_version < latest_version`. `true`면 권장 업데이트 안내(닫기 가능 — `splash.md` 4장 1단계)를 띄운다.
+
+**Response 426 `APP_UPDATE_REQUIRED`** — `app_version < min_supported_version`
+
+```json
+{
+  "error_code": "APP_UPDATE_REQUIRED",
+  "message": "새 버전으로 업데이트해 주세요",
+  "retryable": false,
+  "retry_after_sec": null,
+  "details": { "min_supported_version": "1.0.0", "latest_version": "1.1.0" },
+  "trace_id": "…"
+}
+```
+
+- 클라이언트 동작: **강제 업데이트 화면**(닫기 불가, 스토어 이동만 — `splash.md` 4장 1단계). 이후 로직(세션 복원 포함)을 진행하지 않는다.
+
+**fail-open**
+
+- **요청 실패(네트워크·5xx·타임아웃)에 앱을 막지 않는다**(`splash.md` 7장, `features/README.md` 결정 39). 클라이언트는 마지막으로 성공한 판정을 캐시해 두었다가 실패 시 그것으로 판정하고, 캐시도 없으면 통과시킨다. 400 `VALIDATION_FAILED`도 판정 불가로 보고 막지 않는다 — 잘못된 형식 하나로 전원을 막지 않는다.
+- 관문 요청은 **자동 재시도하지 않고 타임아웃을 짧게(3초) 둔다** — 실패해도 통과이므로 기다릴 가치가 없고, 스플래시 로고 모션 안에 끝나야 한다.
+- **서버 쪽도 fail-open이다.** 최소 지원 버전 설정값이 semver 형식이 아니면 차단하지 않는다 — 잘못된 배포 설정 하나로 전원을 막는 쪽이 안내 하나 빠지는 쪽보다 훨씬 나쁘다.
+
+**원천** — 배포 설정 env `MIN_SUPPORTED_APP_VERSION_IOS/ANDROID` · `LATEST_APP_VERSION_IOS/ANDROID`(`domain.md` 13.3 — 테이블이 아니다). 요청한 `platform`의 값으로 판정한다. 운영 2026-09-26 현재 min 1.0.0 · latest 1.1.0. 값을 바꾸는 절차와 순서는 `infra/runbook.md`.
+
+**에러**
+
+| 코드 | HTTP | 상황 |
+|---|---|---|
+| `VALIDATION_FAILED` | 400 | `app_version`이 semver가 아님 / `platform` 누락·허용값 외 |
+| `APP_UPDATE_REQUIRED` | 426 | `app_version < min_supported_version` |
+
 ---
 
 ## 5. 에러 코드 표
 
-**설정 값·동의에는 고유 에러 코드가 없고, 공지사항(4.4·4.5)만 둘 있다.** 아래는 `common-error-handling.md` 9장 중앙 표의 공용 코드(9.1) 중 이 화면이 실제로 분기하는 것만 옮긴 것이며, 어긋나면 9장이 기준이다.
+**설정 값·동의에는 고유 에러 코드가 없고, 공지사항(4.4·4.5)에 둘, 버전 관문(4.6)에 하나 있다.** 아래는 `common-error-handling.md` 9장 중앙 표 중 이 문서의 엔드포인트가 실제로 분기하는 것만 옮긴 것이며, 어긋나면 9장이 기준이다.
 
 | error_code | HTTP | retryable | 클라이언트 동작 |
 |---|---|---|---|
 | `VALIDATION_FAILED` | 400 | false | 토글 원복 + 일반 오류 토스트. 사용자에게 코드 노출하지 않음 |
 | `NOTICE_CURSOR_INVALID` | 400 | false | 4.4 — 커서를 버리고 첫 페이지부터 조용히 재조회 |
 | `NOTICE_NOT_FOUND` | 404 | false | 4.5 — "삭제된 공지예요" 안내 후 목록으로 돌아가 목록 재조회 |
+| `APP_UPDATE_REQUIRED` | 426 | false | 4.6 — 강제 업데이트 화면(`splash.md`). `details.min_supported_version`·`latest_version` 동봉 |
 
 - 401·429·5xx는 `common-error-handling.md` 4.1~4.2를 따른다. PATCH·POST의 5xx는 **자동 재시도하지 않고** 원복 + 토스트다(사용자 액션 실패는 즉시 알린다 — 4.3).
 
@@ -342,7 +403,8 @@
 ## 7. 보안·검증 규칙
 
 - **토큰의 `user_id`로만 조회·변경한다.** 경로에 `userId`를 받지 않는다(`architecture.md` 9.2).
-- `app_version`은 표시 판정에만 쓴다. **티어·기능 접근 분기에 쓰지 않는다.**
+- `app_version`은 표시 판정에만 쓴다. **티어·기능 접근 분기에 쓰지 않는다.** 유일한 예외는 4.6의 강제 업데이트 관문이다 — 최소 지원 버전 미만을 막는 것이 그 엔드포인트의 목적이다.
+- **`GET /app/version`(4.6)은 인증이 없다.** 사용자 데이터를 읽지 않고, 응답에 실리는 것은 배포 설정의 버전 값뿐이다. 남용 방지는 전역 레이트 리밋이 맡는다.
 - `is_admin`은 **표시 판단 값이다.** 관리자 API의 접근 통제는 서버가 요청마다 `users.role`로 다시 판정한다 — 클라이언트가 보낸 값·화면 상태를 신뢰하지 않는다.
 - 배속 허용값을 서버가 검증한다 — 클라이언트를 우회해 임의 배속을 저장할 수 없다.
 - 전역 `ValidationPipe`(`whitelist: true`, `forbidNonWhitelisted: true`) — DTO에 없는 필드는 잘라낸다.

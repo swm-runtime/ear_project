@@ -92,6 +92,18 @@ export class LibraryItem extends BaseEntity {
   @Column({ name: 'added_at', type: 'timestamptz' })
   addedAt: Date;
 
+  /**
+   * 이 행을 적립한 추천 알고리즘 버전(`DRIP_ALGORITHM_VERSION`) — 드립·탐험 편성분에만 있고 담기·온보딩은 NULL
+   * (domain.md 6.1, KAN-116). 사용자 별점(`drip_feedbacks`)을 버전별로 모으는 열쇠다. 편성 계산에는 쓰지 않는다.
+   */
+  @Column({
+    name: 'algorithm_version',
+    type: 'varchar',
+    length: 40,
+    nullable: true,
+  })
+  algorithmVersion: string | null;
+
   @Column({ name: 'last_played_at', type: 'timestamptz', nullable: true })
   lastPlayedAt: Date | null;
 

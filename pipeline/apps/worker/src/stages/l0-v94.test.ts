@@ -47,3 +47,47 @@ test("L0 v9.4 — 클로징 다짐형과 정리 턴 고정 어미", () => {
   const ok = twoStageViolations(wrap(clean), "");
   assert.ok(!has(ok, /다짐형|마지막 문장이/), ok.join("\n"));
 });
+
+// v9.5 (2026-09-30): v9.4 판정 3편 — 질문 비율 상한·한계 유도 질문·한계 고지 밀도·소스 행위 주어
+test("L0 v9.5 — 진행 턴 질문 비율이 70%를 넘으면 반응으로 바꿀 턴을 지목한다", () => {
+  const turns: string[] = [];
+  for (let i = 1; i <= 12; i++) turns.push(`[이음] E${i} · 설명 ${i}이에요.`, i <= 11 ? `[윤아] Y${i + 1} · 그러면 ${i}은 왜 그런가요?` : `[윤아] Y${i + 1} · 저라면 망설였을 것 같아요.`);
+  const v = twoStageViolations(wrap(turns.join("\n\n")), "");
+  assert.ok(has(v, /진행 턴 12개 중 11개가 질문.*바꿀 턴: Y/), v.join("\n"));
+  const balanced: string[] = [];
+  for (let i = 1; i <= 12; i++) balanced.push(`[이음] E${i} · 설명 ${i}이에요.`, i % 3 === 0 ? `[윤아] Y${i + 1} · 저라면 망설였을 것 같아요.` : `[윤아] Y${i + 1} · 그러면 ${i}은 왜 그런가요?`);
+  const ok = twoStageViolations(wrap(balanced.join("\n\n")), "");
+  assert.ok(!has(ok, /개가 질문/), ok.join("\n"));
+});
+
+test("L0 v9.5 — 한계 유도 질문 2턴·한계 고지 5턴·소스 행위 주어", () => {
+  const body = [
+    "[이음] E1 · 이 조사는 소비자가 결정하는 과정을 살폈어요. 이 결과만으로 단정할 수는 없습니다.",
+    "[윤아] Y2 · 그 결과를 모든 경우에 그대로 넓혀도 되나요?",
+    "[이음] E2 · 모든 가격 결정을 설명하지는 않습니다.",
+    "[윤아] Y3 · 그것만으로 원인을 단정할 수는 없겠죠?",
+    "[이음] E3 · 다른 문화에 그대로 넓히기 어렵습니다.",
+    "[윤아] Y4 · 네.",
+    "[이음] E4 · 인과 순서를 확정하지 않습니다.",
+    "[윤아] Y5 · 네.",
+    "[이음] E5 · 다른 가능성도 배제할 수 없어요.",
+  ].join("\n\n");
+  const v = twoStageViolations(wrap(body), "");
+  assert.ok(has(v, /한계·단서를 유도함 \(Y2, Y3\)/), v.join("\n"));
+  assert.ok(has(v, /해설 턴 5개에 한계 고지 \(E1, E2, E3, E4, E5\)/), v.join("\n"));
+  assert.ok(has(v, /행위의 주어로 세움 \(E1\)/), v.join("\n"));
+  const ok = twoStageViolations(wrap("[이음] E1 · 연말 쇼핑을 다룬 한 조사가 소비자가 결정하는 과정을 살폈어요. 사람들은 더 오래 비교했습니다.\n\n[윤아] Y2 · 왜 오래 비교했을까요?\n\n[이음] E2 · 확신이 서지 않았기 때문이에요."), "");
+  assert.ok(!has(ok, /유도함|한계 고지|행위의 주어/), ok.join("\n"));
+});
+
+// 2026-09-30 수정 루프 결함 2건 (T260930-001 — 초안 4회): 정리형 L0 가 바꿀 턴을 지목 · L0 실패를 QA 이전 회차로 넘기지 않음
+test("L0 정리형 — 바꿀 턴을 지목하고, 그 턴을 다 바꾸면 통과한다", () => {
+  const mk = (summaries: number) => { const t: string[] = []; for (let i = 1; i <= 21; i++) t.push(`[이음] E${i} · 설명 ${i}이에요.`, i <= summaries ? `[윤아] Y${i + 1} · 그러니까 이렇게 된다는 얘기네요.` : `[윤아] Y${i + 1} · 그러면 ${i}은 왜 그런가요?`); return t.join("\n\n"); };
+  const v = twoStageViolations(wrap(mk(9)), "");
+  const msg = v.find((m) => /물음표 없는 정리형/.test(m)) ?? "";
+  const picks = (msg.match(/전부 바꾼다: ([^.]+)\./)?.[1] ?? "").split(", ").filter(Boolean);
+  assert.equal(picks.length, 3, msg); // 9 - floor(21/3) + 1
+  assert.ok(new Set(picks).size === picks.length && picks.every((p) => /^Y\d+$/.test(p)), msg);
+  const ok = twoStageViolations(wrap(mk(6)), "");
+  assert.ok(!has(ok, /정리형/), ok.join("\n"));
+});

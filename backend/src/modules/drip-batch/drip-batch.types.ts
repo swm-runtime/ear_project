@@ -1,5 +1,10 @@
 import { Content } from '@/modules/content/entities/content.entity';
 import {
+  AutoExpandAction,
+  AutoExpandDecision,
+  AutoExpandReason,
+} from '@/modules/drip/auto-expand.policy';
+import {
   DiscoveryExclusionReason,
   DiscoveryRanking,
   DurationPref,
@@ -66,6 +71,11 @@ export interface UserDripPlan {
   preference: UserPreferenceWeights | null;
   difficultyAffinity: Record<string, number> | null;
   completedEpisodesBySeries: Map<string, number>;
+  /**
+   * 자동 확장 판정(4.5). 관심 0 스킵이면 null. `activeTopicIds`는 **이 판정이 반영된 뒤**의 집합이다 —
+   * 배치는 저장한 결과를, 미리보기는 저장했다고 가정한 결과를 쓴다.
+   */
+  autoExpand: AutoExpandDecision | null;
   regular: RegularPlan | null;
   discovery: DiscoveryPlan | null;
   /** 탐험 계산이 던진 경우 — 정규 편성은 영향받지 않는다(4.8) */
@@ -78,6 +88,11 @@ export interface PlanOptions {
    * 미리보기가 캐시를 덮어쓰면 "지금 데이터로 계산하면"이 아니라 탐색 피드까지 바꾸는 쓰기가 된다.
    */
   persistPreference: boolean;
+  /**
+   * 자동 확장 판정(4.5)을 `user_interests`에 저장할지. 배치는 저장하고, 미리보기는 판정만 하고 그 결과를
+   * 가정한 채 편성을 계산한다 — 취향 캐시와 같은 이유다.
+   */
+  persistAutoExpand: boolean;
   /**
    * 스킵 사유가 나오면 거기서 멈출지. 배치는 멈추고(적립 규칙), 미리보기는 사유를 적은 채 끝까지 계산해
    * "스킵이 아니었다면 무엇이 갔을지"도 보인다.
@@ -151,6 +166,17 @@ export interface DripPreviewView {
   discoveryCount: number | null;
   interests: (DripPreviewTopicRef & { source: string })[];
   removedTopics: DripPreviewTopicRef[];
+  /**
+   * 자동 확장 판정(4.5) — 배치가 지금 돌면 관심 주제에 무엇을 넣고 뺄지. 미리보기는 저장하지 않으므로
+   * `interests`에는 아직 반영돼 있지 않고, 아래 편성 계산은 **반영됐다고 가정한** 결과다. 관심 0 스킵이면 null
+   */
+  autoExpand: {
+    action: AutoExpandAction;
+    reason: AutoExpandReason;
+    addTopic: DripPreviewTopicRef | null;
+    removeTopic: DripPreviewTopicRef | null;
+    candidates: (DripPreviewTopicRef & { completes: number; weight: number })[];
+  } | null;
   preference: {
     isColdStart: boolean | null;
     completeSignalCount: number | null;

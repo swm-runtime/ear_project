@@ -1,4 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+
+import { EnvironmentVariables } from '@/config/env.validation';
 
 import { toServiceDate } from '@/common/utils/service-date.util';
 import { ContentService } from '@/modules/content/services/content.service';
@@ -16,6 +19,10 @@ import {
   SIGNAL_LOOKBACK_LIMIT,
   UNFINISHED_INVENTORY_LIMIT,
 } from '@/modules/drip/drip.constant';
+import {
+  AutoExpandDecision,
+  decideAutoExpand,
+} from '@/modules/drip/auto-expand.policy';
 import { PreferenceSignalAction } from '@/modules/drip/drip.enum';
 import {
   PreferenceSignalInput,
@@ -29,6 +36,9 @@ import { DripExclusionService } from '@/modules/drip/services/drip-exclusion.ser
 import { DripPlacementService } from '@/modules/drip/services/drip-placement.service';
 import { DripScoringService } from '@/modules/drip/services/drip-scoring.service';
 import { PreferenceVectorService } from '@/modules/drip/services/preference-vector.service';
+import { UserInterest } from '@/modules/interest/entities/user-interest.entity';
+import { UserInterestSource } from '@/modules/interest/interest.enum';
+import { TopicService } from '@/modules/interest/services/topic.service';
 import { UserInterestService } from '@/modules/interest/services/user-interest.service';
 import { LibraryItemSource } from '@/modules/library/library.enum';
 import { LibraryService } from '@/modules/library/library.service';
@@ -41,6 +51,7 @@ import { UserSignalAction } from '@/modules/playback/playback.enum';
 import { PlaybackService } from '@/modules/playback/services/playback.service';
 import { PlanService } from '@/modules/subscription/services/plan.service';
 import { User } from '@/modules/user/entities/user.entity';
+import { UserSettingService } from '@/modules/user/services/user-setting.service';
 import { UserService } from '@/modules/user/services/user.service';
 import { UserTier } from '@/modules/user/user.enum';
 
@@ -102,6 +113,8 @@ export type PlanCountCache = Map<UserTier, PlanCounts>;
 @Injectable()
 export class DripBatchOrchestrator {
   private readonly logger = new Logger(DripBatchOrchestrator.name);
+  /** 자동 확장 서버 스위치 — 명시값이 없으면 운영에서만 꺼진다(`env.validation.ts` 주석) */
+  private readonly autoExpandEnabled: boolean;
 
   constructor(
     private readonly userService: UserService,
@@ -117,7 +130,17 @@ export class DripBatchOrchestrator {
     private readonly dripExclusionService: DripExclusionService,
     private readonly dripBatchRunService: DripBatchRunService,
     private readonly dripArrivalNotificationService: DripArrivalNotificationService,
-  ) {}
+    private readonly topicService: TopicService,
+    private readonly userSettingService: UserSettingService,
+    configService: ConfigService<EnvironmentVariables, true>,
+  ) {
+    const explicit = configService.get('AUTO_EXPAND_ENABLED', { infer: true });
+    this.autoExpandEnabled =
+      explicit === 'true' ||
+      (explicit !== 'false' &&
+        configService.get('SENTRY_ENVIRONMENT', { infer: true }) !==
+          'production');
+  }
 
   /**
    * 배치 1회 실행. **같은 서비스 날짜에 두 번 적립되지 않는다** —
@@ -322,6 +345,7 @@ export class DripBatchOrchestrator {
   ): Promise<UserScheduleResult> {
     const plan = await this.planForUser(user, now, planCounts, {
       persistPreference: true,
+      persistAutoExpand: true,
       stopAtSkip: true,
     });
 
@@ -417,15 +441,17 @@ export class DripBatchOrchestrator {
       preference: null,
       difficultyAffinity: null,
       completedEpisodesBySeries: new Map(),
+      autoExpand: null,
       regular: null,
       discovery: null,
       discoveryError: null,
     };
 
     // 관심사 0은 방어적 처리 — 정상 경로에서는 도달 불가(`drip-scheduling.md` 4.1)
-    plan.activeTopicIds = await this.userInterestService.findActiveTopicIds(
+    const activeInterests = await this.userInterestService.findAllActive(
       user.id,
     );
+    plan.activeTopicIds = activeInterests.map((interest) => interest.topicId);
 
     if (plan.activeTopicIds.length === 0) {
       plan.skipReason = 'no_interests';
@@ -450,6 +476,26 @@ export class DripBatchOrchestrator {
     plan.preference = preferenceResult.preference;
     plan.difficultyAffinity = preferenceResult.difficultyAffinity;
     plan.isColdStart = preferenceResult.isColdStart;
+
+    /**
+     * 행동 기반 자동 확장(4.5 — 개정 2026-09-30). 취향 캐시와 **같은 자리**에서 같은 신호로 판정한다 —
+     * 적립 스킵(재고·이미 편성)보다 앞이라 스킵 사용자도 슬롯이 갱신되고, 후보 조회보다 앞이라 오늘 편성이
+     * 바뀐 관심 주제로 계산된다. 미리보기는 저장하지 않되 **바뀐 것으로 가정하고** 계산한다 — 그래야
+     * "지금 배치를 돌리면 무엇이 가는가"가 실제 배치와 같은 답이다.
+     */
+    plan.autoExpand = await this.resolveAutoExpand(
+      user.id,
+      activeInterests,
+      preferenceResult,
+      now,
+    );
+    plan.activeTopicIds = await this.applyAutoExpand(
+      user.id,
+      plan.activeTopicIds,
+      plan.autoExpand,
+      now,
+      options.persistAutoExpand,
+    );
 
     /**
      * 오늘 이미 편성된 사용자는 건너뛴다(4.6-5 `already_placed`) — 중단된 배치의 재실행이나 사용자 단위
@@ -564,14 +610,146 @@ export class DripBatchOrchestrator {
   }
 
   /**
-   * 취향 캐시를 **지금** 다시 계산해 저장한다 — 추천 테스트 콘솔 전용(2026-09-29).
+   * 신호에서 파생되는 상태(취향 캐시·자동 확장 슬롯)를 **지금** 다시 계산해 저장한다 — 추천 테스트 콘솔 전용
+   * (2026-09-29, 자동 확장 포함 2026-09-30).
    *
-   * 제품에서는 배치만 캐시를 쓴다(4.3 "실시간 재계산은 하지 않는다"). 테스트 콘솔은 "완청을 누르면
-   * 탐색 피드가 어떻게 바뀌나"를 바로 봐야 하므로, 다음 배치가 할 일을 행동 직후 같은 함수로 앞당긴다.
+   * 제품에서는 배치만 이 둘을 쓴다(4.3 "실시간 재계산은 하지 않는다"). 테스트 콘솔은 "완청을 누르면 탐색 피드와
+   * 편성이 어떻게 바뀌나"를 바로 봐야 하므로, 다음 배치가 할 일을 행동 직후 같은 함수로 앞당긴다.
    * 계산식은 배치와 하나다 — 여기서 다른 계산을 하면 콘솔이 보는 결과가 제품과 갈라진다.
    */
-  async refreshPreferenceCache(userId: string, now: Date): Promise<void> {
-    await this.rebuildPreference(userId, now, true);
+  async refreshDerivedState(
+    userId: string,
+    now: Date,
+  ): Promise<AutoExpandDecision> {
+    const activeInterests =
+      await this.userInterestService.findAllActive(userId);
+    const preferenceResult = await this.rebuildPreference(userId, now, true);
+    const decision = await this.resolveAutoExpand(
+      userId,
+      activeInterests,
+      preferenceResult,
+      now,
+    );
+    await this.applyAutoExpand(
+      userId,
+      activeInterests.map((interest) => interest.topicId),
+      decision,
+      now,
+      true,
+    );
+
+    return decision;
+  }
+
+  /**
+   * 자동 확장 판정(4.5). 순수 판정(`decideAutoExpand`)에 **조회가 필요한 두 조건**을 얹는다 — 후보 주제가
+   * 지금 고를 수 있는 주제인가(숨김 주제는 `findAllActive`가 걸러 버려 넣어도 유령 행이 된다), 그리고
+   * 사용자가 자동 확장을 켜 두었는가(FR-06). 둘 다 **움직일 일이 있을 때만** 조회한다 — 대부분의 사용자는
+   * 후보도 슬롯도 없어 추가 쿼리가 0이다.
+   */
+  private async resolveAutoExpand(
+    userId: string,
+    activeInterests: UserInterest[],
+    preferenceResult: {
+      signals: PreferenceSignalInput[];
+      topicIdsByContentId: Map<string, string[]>;
+      preference: UserPreferenceWeights;
+    },
+    now: Date,
+  ): Promise<AutoExpandDecision> {
+    const input = {
+      now,
+      signals: preferenceResult.signals,
+      topicIdsByContentId: preferenceResult.topicIdsByContentId,
+      topicWeights: preferenceResult.preference.topicWeights,
+      activeInterests: activeInterests.map((interest) => ({
+        topicId: interest.topicId,
+        isAutoExpand: interest.source === UserInterestSource.AUTO_EXPAND,
+        activatedAt: interest.updatedAt,
+      })),
+      userRemovedTopicIds:
+        await this.userInterestService.findUserRemovedTopicIds(userId),
+    };
+    let decision = decideAutoExpand(input);
+
+    if (decision.candidates.length > 0) {
+      const candidateIds = decision.candidates.map(
+        (candidate) => candidate.topicId,
+      );
+      const topics = await this.topicService.findAllByIds(candidateIds);
+      const selectable = new Set(
+        topics.filter((topic) => topic.isVisible).map((topic) => topic.id),
+      );
+      const unavailableTopicIds = candidateIds.filter(
+        (topicId) => !selectable.has(topicId),
+      );
+
+      if (unavailableTopicIds.length > 0) {
+        decision = decideAutoExpand({ ...input, unavailableTopicIds });
+      }
+    }
+
+    if (decision.action === 'none') {
+      return decision;
+    }
+
+    const off = (reason: 'feature_off' | 'disabled'): AutoExpandDecision => ({
+      ...decision,
+      action: 'none',
+      reason,
+      addTopicId: null,
+      removeTopicId: null,
+    });
+
+    // 서버 스위치가 꺼져 있으면 판정 재료(후보)만 싣고 움직이지 않는다 — 콘솔에서 "켜면 무엇이 붙는가"는 보인다
+    if (!this.autoExpandEnabled) {
+      return off('feature_off');
+    }
+
+    const settings = await this.userSettingService.getSettings(userId);
+
+    // 끈 사용자는 넣지도 빼지도 않는다 — 이미 자동 추가된 주제는 그대로 남는다(`interest-management.md` 4.3)
+    return settings.isAutoExpandEnabled ? decision : off('disabled');
+  }
+
+  /**
+   * 판정을 관심 주제 목록에 반영해 **편성이 쓸 주제 집합**을 돌려준다. `persist`면 저장하고 실제로 바뀐 것만
+   * 반영하고(판정과 저장 사이에 사용자가 관리 화면에서 저장했을 수 있다), 아니면 바뀐 것으로 가정만 한다.
+   */
+  private async applyAutoExpand(
+    userId: string,
+    activeTopicIds: string[],
+    decision: AutoExpandDecision,
+    now: Date,
+    persist: boolean,
+  ): Promise<string[]> {
+    if (decision.action === 'none') {
+      return activeTopicIds;
+    }
+
+    const applied = persist
+      ? await this.userInterestService.applyAutoExpand(
+          userId,
+          {
+            addTopicId: decision.addTopicId,
+            removeTopicId: decision.removeTopicId,
+          },
+          now,
+        )
+      : {
+          addedTopicId: decision.addTopicId,
+          removedTopicId: decision.removeTopicId,
+        };
+
+    const next = activeTopicIds.filter(
+      (topicId) => topicId !== applied.removedTopicId,
+    );
+
+    if (applied.addedTopicId !== null && !next.includes(applied.addedTopicId)) {
+      next.push(applied.addedTopicId);
+    }
+
+    return next;
   }
 
   /**
@@ -662,6 +840,7 @@ export class DripBatchOrchestrator {
     return {
       signals: preferenceSignals,
       contentsById,
+      topicIdsByContentId,
       completeSignalCount,
       preference,
       difficultyAffinity: buildDifficultyAffinity(

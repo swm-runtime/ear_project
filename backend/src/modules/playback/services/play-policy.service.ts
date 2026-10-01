@@ -28,6 +28,9 @@ import { PlaybackService } from './playback.service';
  * `paywall.md` 4.1~4.4가 정하고, 티어명을 코드에 하드코딩하지 않는다 — 한도는
  * `plans.daily_play_limit`에서 읽는다.
  */
+/** 한도 소진 안내 — 확정 문구(`paywall.md` 4.1 · 5장). 앱의 한도 안내 시트 제목과 같다 */
+export const PLAY_LIMIT_MESSAGE = '오늘 청취 한도를 모두 사용했어요';
+
 @Injectable()
 export class PlayPolicyService {
   private readonly logger = new Logger(PlayPolicyService.name);
@@ -122,16 +125,15 @@ export class PlayPolicyService {
       play_limit: dailyPlayLimit,
     });
 
-    throw errorCode === ErrorCode.PLAY_LIMIT_REACHED
-      ? new BusinessForbiddenException({
-          errorCode,
-          message: '오늘 청취 한도를 모두 사용했어요',
-          logLevel: 'info',
-        })
-      : new BusinessForbiddenException({
-          errorCode,
-          message: '오늘 들을 수 있는 콘텐츠를 모두 들었어요',
-          logLevel: 'info',
-        });
+    /**
+     * **문구는 두 코드가 같다**(2026-10-01). 코드는 화면 분기(페이월 vs 안내)를 가르고, 문구는 한도 안내
+     * 시트의 제목으로 그대로 쓰인다(`paywall.md` 4.5) — 종전에는 `PLAY_LIMIT_EXCEEDED`만 옛 문구라
+     * 재생 시도로 막힌 무료 사용자에게 확정 문구가 아닌 제목이 떴다.
+     */
+    throw new BusinessForbiddenException({
+      errorCode,
+      message: PLAY_LIMIT_MESSAGE,
+      logLevel: 'info',
+    });
   }
 }

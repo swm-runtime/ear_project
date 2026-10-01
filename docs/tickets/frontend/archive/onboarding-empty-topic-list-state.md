@@ -64,7 +64,7 @@ toRows(topics).map((row, rowIndex) => ( ... ))
 | 반영 날짜 | 2026-09-09 (요청 1·3) · 2026-09-09 (요청 2) |
 | 반영 브랜치 | `fix(fe)/onboarding-empty-topic-list`(요청 1·3, PR #257) · `fix(fe)/interest-empty-topic-list`(요청 2) |
 | Jira | KAN-41 |
-| 문서 수정 요청 | `changes/pending/onboarding-empty-topic-list.md` |
+| 문서 수정 요청 | `changes/archive/onboarding-empty-topic-list.md` |
 
 ### 요청 1 — 빈 목록을 O6으로 그린다 · 반영
 
@@ -192,7 +192,7 @@ API로 내보냈다. 온보딩은 `@/features/interest`에서 가져다 쓴다.
 
 ### 문서
 
-`changes/pending/onboarding-empty-topic-list.md`에 4·5항을 덧붙였다 — `features/interest-management.md` 7에
+`changes/archive/onboarding-empty-topic-list.md`에 4·5항을 덧붙였다 — `features/interest-management.md` 7에
 **규칙 자체를 신설**(지금 이 규칙을 가진 문서가 없다)하고, `interest-management-uiux.md` 9장의
 미결 항목을 삭제하며 4.7에 0건 변형·확정 카피를 넣는다. 온보딩 건과 같은 결정이라 파일을 나누지
 않고 합쳤다.
@@ -225,7 +225,7 @@ API로 내보냈다. 온보딩은 `@/features/interest`에서 가져다 쓴다.
 
 ### 남은 문서 반영
 
-확정 카피는 uiux 소유이므로 `changes/pending/onboarding-empty-topic-list.md`에 반영 요청이
+확정 카피는 uiux 소유이므로 `changes/archive/onboarding-empty-topic-list.md`에 반영 요청이
 남아 있다 — `onboarding-uiux.md`(8장 금지 사항·4.2·2·3장 흐름도) · `onboarding-api.md` 4.2·9 ·
 `interest-management-uiux.md` 9장(미결 해소) · `features/interest-management.md`(빈 목록 처리
 규칙 신설). **통합 시 함께 반영한다.**

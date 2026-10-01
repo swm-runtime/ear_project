@@ -45,6 +45,72 @@ CloudWatch(EC2 지표·`/ear/api`·`/ear/caddy` 로그)·Sentry·합성 헬스�
 - **같은 값이 다르게 보일 때의 기준**: 요청 p50/p95 는 콘솔(로그 파싱)이 현재 기준이다. 백엔드가 `/metrics` 를 내보내는 2단계(KAN-98) 이후에는 Grafana 히스토그램이 기준이 되고 그때 이 절을 고친다.
 - Grafana 알림(헬스체크 실패·TLS·CPU 70%·메모리 80%)은 Slack 에러 채널로 간다. 백엔드 `resource-alert` 의 CPU·메모리 Slack 경보와 임계가 겹치므로 몇 주 비교 뒤 하나로 정리한다(9장 미결).
 
+### 3-2. 무엇이 돌고 있는가 — 배치·외부 연동 목록 (신설 2026-09-29)
+
+배치와 외부 연동이 늘면서 문제가 된 것은 개수가 아니라 **한눈에 볼 곳이 없는 것**이었다(2026-09-29 — "웹훅이 비어 있나, GA4 키가 들어갔나"를 Secrets 를 뒤져 확인하는 데 반나절). 장애 때 "지금 뭐가 켜져 있지"에 답하는 데 걸리는 시간이 곧 복구 시간이므로 목록을 여기 둔다.
+
+**배치** — 전부 API 프로세스 안에서 돈다. 클러스터(워커 여러 개)에서는 **스케줄러 워커 1개에서만** 돈다(`isSchedulerProcess` — `ScheduleModule` 이 그 프로세스에만 올라간다). 이름은 코드의 크론 등록명이고 기동 로그의 `crons=[…]` 에 그대로 찍힌다.
+
+| 시각(KST) | 이름 | 무엇 | 실패하면 |
+|---|---|---|---|
+| 04:00 | `content-stat-aggregation` | 콘텐츠 통계(`content_stats`) 재집계 | 로그, 다음 날 재시도(재집계라 안전) |
+| 04:10 | `content-license-expiry` | 라이선스 만료 콘텐츠를 `expired` 로 전환 + 라이브러리 잔존분 정리 | 로그, 다음 날 재시도 — 그 사이는 재생·발급 게이트의 만료 검사가 막는다 |
+| 04:15 | `empty-topic-sweep` | 주제 노출 갱신 — 노출 가능 콘텐츠가 0건인 노출 주제를 숨긴다 | 로그, 다음 날 재시도 |
+| 04:30 | `retention-purge` | 보존 기한 지난 데이터 삭제(`domain.md` 12.1) | 로그 — 테이블 하나가 실패해도 나머지는 계속 지운다 |
+| 05:00 | `daily-drip-batch` | 드립 편성(`drip-scheduling.md`) | 로그 · `drip_batch_runs` 기록. 도중에 프로세스가 죽으면 재기동 시 이어받는다 |
+| 10분마다 | `push-receipt-check` | 푸시 영수증(receipt) 회수 | 로그 — 실패분은 다음 주기에 다시 묻는다 |
+| 17:00 | `daily-metrics` | 일일 지표 Slack 보고(GA4 + 서버 — 3-3) | 로그, 던지지 않음 |
+| 60초마다 | 자원 경보(`setInterval` — 크론 아님) | CPU·메모리 표본 + Slack 경보(5장) | 로그. 표본은 모든 워커가 쌓고 **경보 발송만** 스케줄러 워커가 한다 |
+
+- 04시대의 순서(집계 → 만료 → 주제 숨김 → 삭제 → 05:00 편성)는 서비스 날짜 경계(04:00) 뒤에 전날분을 확정하고 편성이 그 결과를 읽게 하려는 것이다.
+- **크론이 아닌 주기 작업**(`@Interval`)도 같은 스케줄러 워커에서 돈다 — 첫 드립 재시도 큐 `first-drip-retry`(30초마다)와 정리 4종 `first-drip-purge` · `session-purge` · `idempotency-purge` · `email-verification-purge`(1시간마다). 실패는 로그 한 줄이고 다음 주기가 다시 시도한다. **이들은 기동 로그의 `crons=[…]` 에 나오지 않는다**(크론 등록분만 찍는다).
+- 어느 배치도 예외를 밖으로 던지지 않는다 — 던지면 스케줄러가 멈추기 때문이다. 실패는 로그 한 줄로 끝나고, ERROR 로 남은 것은 Slack ERROR 감시(5장 `log-watch`)가 받는다.
+
+**외부 연동**
+
+| 연동 | 켜는 env | 꺼지면 |
+|---|---|---|
+| 소셜 로그인 카카오·구글·애플 | `KAKAO_APP_ID` · `GOOGLE_WEB_CLIENT_ID` · `APPLE_CLIENT_ID` · `APPLE_SERVICES_ID` — **필수** | 값이 없으면 env 검증에서 **기동이 실패한다**(조용히 꺼지지 않는다). 값이 틀리면 해당 제공자 로그인 불가 |
+| 오디오 CDN | `AUDIO_DELIVERY=cloudfront` + `CLOUDFRONT_KEY_PAIR_ID` · `CLOUDFRONT_PRIVATE_KEY_BASE64` · `AUDIO_BUCKET` · `AWS_REGION` (`AUDIO_URL_BASE_URL` · `AUDIO_URL_SIGNING_KEY` 는 항상 필수) | `cloudfront` 모드에서 값이 빠지면 기동 실패. 값이 틀리면 재생 URL 발급 불가 |
+| Sentry | `SENTRY_DSN` (+`SENTRY_ENVIRONMENT`) | 크래시 수집 안 됨 — 조용히 꺼짐 |
+| Slack 경보·가입 알림 | `SLACK_ERROR_WEBHOOK_URL` (가입 알림·일일 보고는 `SLACK_SIGNUP_WEBHOOK_URL` 우선) | 조용히 꺼짐 |
+| GA4 일일 보고 | `GA4_PROPERTY_ID` + `GA4_SERVICE_ACCOUNT_BASE64` (+ 위 웹훅) | 조용히 꺼짐 |
+
+- **조용히 꺼지는 것은 아래 셋(Sentry·Slack·GA4)이다** — "env 가 있으면 켜짐"이라 빠져도 서버는 정상 기동한다. 그래서 기동 요약이 이 셋의 켜짐/꺼짐을 찍는다. 위 둘(소셜 로그인·오디오)은 빠지면 서버가 뜨지 않으므로 기동했다는 사실이 곧 확인이다.
+- 푸시(Expo — `PUSH_DELIVERY=expo`)와 메일(SES — `MAIL_DELIVERY=ses`)은 발송 방식 값으로 켠다. 기본값은 로그만 남기는 쪽이고, 기동 요약에는 나오지 않는다.
+
+**규칙**: 켜짐/꺼짐의 **런타임 진실은 기동 로그의 `features …` 한 줄**이다(백엔드 `startup-summary.ts`). 문서 표는 "무엇이 있는가", 로그는 "지금 이 서버에 무엇이 켜졌는가"다. 배포 뒤 확인은 그 줄로 한다:
+
+```
+[Startup] features env=production scheduler=yes sentry=on resource-alert=on signup-alert=on daily-metrics=on crons=[content-license-expiry,content-stat-aggregation,daily-drip-batch,daily-metrics,empty-topic-sweep,push-receipt-check,retention-purge]
+```
+
+- 값은 찍지 않는다 — 있는지 없는지만 찍는다. `env` 는 `SENTRY_ENVIRONMENT` 값이다.
+- **프로세스마다 한 줄씩 나온다.** 스케줄러가 아닌 워커는 `scheduler=no … daily-metrics=off crons=[]` 로 찍힌다 — 고장이 아니다. `scheduler=yes` 인 줄이 정확히 하나 있는지를 본다.
+- `resource-alert` 는 `SLACK_ERROR_WEBHOOK_URL`, `signup-alert` 는 두 웹훅 중 하나, `daily-metrics` 는 스케줄러 워커 + 웹훅 + GA4 두 값이 모두 있을 때 `on` 이다.
+
+**판단**: 배치·연동 개수는 이 규모 제품에서 정상이다. 관리 가능 여부를 가르는 것은 개수가 아니라 **격리**(실패가 로그 한 줄로 끝나는가 — 이미 그렇다)와 **가시성**(이 절)이다. 트래픽이 늘면 다음 단계는 스케줄러를 별도 프로세스로 떼는 것이다 — 배치의 메모리·CPU 가 요청 응답과 한 프로세스에 있기 때문이다(2026-09-29 GA4 SDK +54MB 를 지연 로드로 피한 것이 첫 징후).
+
+### 3-3. 일일 지표 보고 (신설 2026-09-29 — KAN-107 2단계)
+
+제품 지표를 매일 한 번 Slack 에 올린다. 숫자의 정의와 출처는 이 절이 기준이다 — 채널의 숫자를 다음에 읽는 사람이 무엇인지 알 수 있어야 한다. 구현은 백엔드 `daily-metrics.scheduler.ts`(크론·게시) · `ga4.service.ts`(GA4 Data API) · `daily-metrics-db.service.ts`(서버 값) · `daily-metrics.format.ts`(문구).
+
+| 항목 | 규칙 |
+|---|---|
+| 시각·대상 | 매일 **17:00 KST**, **어제** 하루치(오늘은 안 끝났고 GA4 당일 처리는 늦다). 수동 발송 `POST /admin/reports/daily-metrics` — 크론과 같은 본문을 지금 게시한다(202 로 바로 응답, 미설정이면 409 `ADMIN_REPORT_NOT_CONFIGURED`) |
+| 채널 | 가입 알림과 같은 웹훅(`SLACK_SIGNUP_WEBHOOK_URL` → 없으면 `SLACK_ERROR_WEBHOOK_URL`). **운영만 켠다** — GA4 자격을 운영에만 넣는다. 자격이나 웹훅이 비면 조용히 건너뛴다. 운영이 아닌 환경에서 켜면 문구 앞에 `[환경명]` 이 붙는다 |
+| 출처 | **GA4 운영 스트림**(`streamName` 이 `ear prod` 로 시작) + **서버**. 개발계 스트림은 걸러 테스트 트래픽이 섞이지 않는다 |
+| 사용자 | 활성·신규·세션·평균 세션 길이·7일 활성 — GA4 `activeUsers` `newUsers` `sessions` `averageSessionDuration`. 7일 활성은 보고일을 포함한 최근 7일 창의 `activeUsers`. 활성·신규의 ▲▼ 는 전일 대비 |
+| 획득 | **가입 = 서버** `users.created_at`(서비스 날짜 04시 경계) · 온보딩 완료 = GA4 `onboarding_complete` · 전환율 = 온보딩 완료 ÷ 가입(가입 0이면 적지 않는다) · 푸시 응답 = GA4 `push_permission` 건수(`result` 는 맞춤 측정기준 미등록이라 허용/거부 미분리) · **탈퇴 = GA4** `withdrawal`(서버는 행을 삭제해 흔적이 없다 — `domain.md` 12.3) |
+| 재생 | 시작(건·사용자) `play_start` · **완청 = 서버** `library_items.status = completed` 의 `completed_at`(서비스 날짜) · 중도 이탈 `play_abandon` · 드립 재생 `drip_play` · 담기 `content_save` |
+| 리텐션 | GA4 코호트(`firstSessionDate`). **D1** = `date-1` 에 처음 온 사용자 중 `date` 에 활성인 비율, **D7** = `date-7` 기준(`date` = 보고 대상일 — 둘 다 완결된 하루를 측정일로 둔다). 표본(코호트 크기)을 함께 적고, **코호트가 비면 `—`(표본 없음), 아무도 안 돌아오면 0%** — 다른 사실이다 |
+| 경계 | GA4 는 KST 달력일(00시), 서버 값은 서비스 날짜(04시). 4시간 어긋남을 문구 각주로 밝힌다 |
+| 실패 | 던지지 않고 로그만 남긴다 — 던지면 스케줄러가 멈춰 다음 날도 오지 않는다. 그 회차 보고는 오지 않으며, 필요하면 같은 날 수동 발송으로 다시 올린다 |
+
+- 문구는 퍼널 순서 4묶음(사용자 → 획득 → 재생 → 리텐션)이다. 이벤트 이름은 `analytics.md` 3.4 를 그대로 쓴다.
+- **가입·완청 두 건수만 서버 값인 이유**: GA4 이벤트는 그 이벤트가 실린 빌드(runtime 7 이후)에서만 들어와 스토어 1.0.0 사용자를 놓친다. 가입은 반드시 서버를 거치고 완청은 서버가 판정하므로 앱 버전과 무관하게 정확하다(`analytics.md` 1장).
+- GA4 SDK 는 **실행 시점에 지연 로드한다** — require 만으로 메모리가 54MB 늘어(2026-09-29 실측) 하루 한 번 도는 일에 모든 워커가 상시 내줄 비용이 아니다. 스케줄러 워커가 첫 실행 뒤에만 들고 있는다.
+
 ## 4. 구성 — 콘솔 5탭
 
 | 탭 | 경로 | 내용 |

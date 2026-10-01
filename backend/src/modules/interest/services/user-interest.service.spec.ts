@@ -523,6 +523,81 @@ describe('UserInterestService', () => {
       });
     });
 
+    it('자동 확장 슬롯을 유지한 채 직접 고른 3개를 저장하면 통과한다 — 자동 슬롯은 상한(3)에 세지 않는다', async () => {
+      // given — 직접 3개 + 자동 1개 보유
+      repository.findAllByUserId.mockResolvedValue([
+        buildInterest({ id: 'r1', topicId: TOPIC_A }),
+        buildInterest({ id: 'r2', topicId: TOPIC_B }),
+        buildInterest({ id: 'r3', topicId: TOPIC_C }),
+        buildInterest({
+          id: 'r4',
+          topicId: TOPIC_D,
+          source: UserInterestSource.AUTO_EXPAND,
+        }),
+      ]);
+
+      // when — 직접 고른 것 하나를 다른 주제로 바꾸고 자동 슬롯은 그대로 둔다
+      const result = await service.replaceManagedSelection(
+        USER_ID,
+        [TOPIC_A, TOPIC_B, TOPIC_E, TOPIC_D],
+        NOW,
+      );
+
+      // then
+      expect(result).toHaveLength(4);
+      expect(result).toContainEqual({
+        topicId: TOPIC_D,
+        source: UserInterestSource.AUTO_EXPAND,
+      });
+    });
+
+    it('자동 확장 슬롯을 빼고 그 자리를 직접 고른 주제로 채워 4개를 만드는 저장은 거부한다', async () => {
+      // given — 직접 3개 + 자동 1개 보유
+      repository.findAllByUserId.mockResolvedValue([
+        buildInterest({ id: 'r1', topicId: TOPIC_A }),
+        buildInterest({ id: 'r2', topicId: TOPIC_B }),
+        buildInterest({ id: 'r3', topicId: TOPIC_C }),
+        buildInterest({
+          id: 'r4',
+          topicId: TOPIC_D,
+          source: UserInterestSource.AUTO_EXPAND,
+        }),
+      ]);
+
+      // when · then — 자동 슬롯(D)을 빼고 E를 직접 추가 → 직접 고른 것이 4개
+      await expectErrorCode(
+        () =>
+          service.replaceManagedSelection(
+            USER_ID,
+            [TOPIC_A, TOPIC_B, TOPIC_C, TOPIC_E],
+            NOW,
+          ),
+        ErrorCode.INTEREST_LIMIT_EXCEEDED,
+      );
+      expect(repository.saveAll).not.toHaveBeenCalled();
+    });
+
+    it('자동 확장 슬롯을 직접 해제하면 재추가 금지 표시가 선다', async () => {
+      repository.findAllByUserId.mockResolvedValue([
+        buildInterest({ id: 'r1', topicId: TOPIC_A }),
+        buildInterest({
+          id: 'r4',
+          topicId: TOPIC_D,
+          source: UserInterestSource.AUTO_EXPAND,
+        }),
+      ]);
+
+      await service.replaceManagedSelection(USER_ID, [TOPIC_A], NOW);
+
+      const rows = repository.saveAll.mock.calls[0][0];
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        topicId: TOPIC_D,
+        isActive: false,
+        isUserRemoved: true,
+      });
+    });
+
     it('숨겨진 주제의 활성 관심사는 요청 목록에 없어도 해제하지 않는다', async () => {
       // given — TOPIC_B가 숨겨져 화면이 목록에 담을 수 없는 상태
       repository.findAllByUserId.mockResolvedValue([
@@ -608,6 +683,142 @@ describe('UserInterestService', () => {
         isActive: true,
         isUserRemoved: false,
       });
+    });
+  });
+  describe('applyAutoExpand', () => {
+    it('새 주제를 auto_expand 출처의 활성 행으로 넣는다', async () => {
+      repository.findAllByUserId.mockResolvedValue([
+        buildInterest({ id: 'r1', topicId: TOPIC_A }),
+      ]);
+
+      const applied = await service.applyAutoExpand(
+        USER_ID,
+        { addTopicId: TOPIC_D, removeTopicId: null },
+        NOW,
+      );
+
+      expect(applied).toEqual({ addedTopicId: TOPIC_D, removedTopicId: null });
+      const rows = repository.saveAll.mock.calls[0][0];
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        topicId: TOPIC_D,
+        source: UserInterestSource.AUTO_EXPAND,
+        isActive: true,
+        isUserRemoved: false,
+      });
+    });
+
+    it('사용자가 직접 해제한 주제는 넣지 않는다 — 판정과 저장 사이의 해제도 막는다', async () => {
+      repository.findAllByUserId.mockResolvedValue([
+        buildInterest({
+          id: 'r4',
+          topicId: TOPIC_D,
+          isActive: false,
+          isUserRemoved: true,
+        }),
+      ]);
+
+      const applied = await service.applyAutoExpand(
+        USER_ID,
+        { addTopicId: TOPIC_D, removeTopicId: null },
+        NOW,
+      );
+
+      expect(applied).toEqual({ addedTopicId: null, removedTopicId: null });
+      expect(repository.saveAll).not.toHaveBeenCalled();
+    });
+
+    it('만료로 내려갔던 자동 슬롯 주제는 새 행 없이 되살린다', async () => {
+      repository.findAllByUserId.mockResolvedValue([
+        buildInterest({
+          id: 'r4',
+          topicId: TOPIC_D,
+          source: UserInterestSource.AUTO_EXPAND,
+          isActive: false,
+          deactivatedAt: NOW,
+        }),
+      ]);
+
+      const applied = await service.applyAutoExpand(
+        USER_ID,
+        { addTopicId: TOPIC_D, removeTopicId: null },
+        NOW,
+      );
+
+      expect(applied.addedTopicId).toBe(TOPIC_D);
+      expect(repository.create).not.toHaveBeenCalled();
+      expect(repository.saveAll.mock.calls[0][0][0]).toMatchObject({
+        id: 'r4',
+        isActive: true,
+        deactivatedAt: null,
+      });
+    });
+
+    it('슬롯이 이미 찼으면 넣지 않는다 — 교체는 빼는 것과 함께 와야 한다', async () => {
+      repository.findAllByUserId.mockResolvedValue([
+        buildInterest({
+          id: 'r4',
+          topicId: TOPIC_D,
+          source: UserInterestSource.AUTO_EXPAND,
+        }),
+      ]);
+
+      const applied = await service.applyAutoExpand(
+        USER_ID,
+        { addTopicId: TOPIC_E, removeTopicId: null },
+        NOW,
+      );
+
+      expect(applied).toEqual({ addedTopicId: null, removedTopicId: null });
+    });
+
+    it('교체 — 자동 슬롯을 내리고 새 주제를 넣는다. 내린 행에는 재추가 금지 표시를 세우지 않는다', async () => {
+      repository.findAllByUserId.mockResolvedValue([
+        buildInterest({ id: 'r1', topicId: TOPIC_A }),
+        buildInterest({
+          id: 'r4',
+          topicId: TOPIC_D,
+          source: UserInterestSource.AUTO_EXPAND,
+        }),
+      ]);
+
+      const applied = await service.applyAutoExpand(
+        USER_ID,
+        { addTopicId: TOPIC_E, removeTopicId: TOPIC_D },
+        NOW,
+      );
+
+      expect(applied).toEqual({
+        addedTopicId: TOPIC_E,
+        removedTopicId: TOPIC_D,
+      });
+      const rows = repository.saveAll.mock.calls[0][0];
+      expect(rows).toHaveLength(2);
+      expect(rows[0]).toMatchObject({
+        topicId: TOPIC_D,
+        isActive: false,
+        isUserRemoved: false,
+        deactivatedAt: NOW,
+      });
+      expect(rows[1]).toMatchObject({
+        topicId: TOPIC_E,
+        source: UserInterestSource.AUTO_EXPAND,
+      });
+    });
+
+    it('직접 고른 주제는 이 경로로 내려가지 않는다', async () => {
+      repository.findAllByUserId.mockResolvedValue([
+        buildInterest({ id: 'r1', topicId: TOPIC_A }),
+      ]);
+
+      const applied = await service.applyAutoExpand(
+        USER_ID,
+        { addTopicId: null, removeTopicId: TOPIC_A },
+        NOW,
+      );
+
+      expect(applied.removedTopicId).toBeNull();
+      expect(repository.saveAll).not.toHaveBeenCalled();
     });
   });
 });

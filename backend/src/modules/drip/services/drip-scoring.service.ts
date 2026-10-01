@@ -226,6 +226,23 @@ export class DripScoringService {
     const picks: ScoredCandidate[] = [];
     const remaining = [...scored];
 
+    /**
+     * **시리즈 연속 편이 먼저다**(`drip-scheduling.md` 4.2-3 — 개정 2026-09-30). 1편을 완청한 사용자에게 2편은
+     * "우선 적립"이 명세인데, 점수 항목(가중치 0.1)만으로는 콜드스타트에서 인기·신선도에 묻혀 19위로 밀렸다
+     * (배포 전 평가기 첫 실행에서 발견). 점수 순으로 편수 안에서 먼저 뽑고, 나머지 자리를 다양성 선정으로 채운다.
+     */
+    const continuations = remaining
+      .filter((candidate) => candidate.isSeriesContinuation)
+      .sort(
+        (a, b) => b.score - a.score || a.content.id.localeCompare(b.content.id),
+      )
+      .slice(0, count);
+
+    for (const candidate of continuations) {
+      remaining.splice(remaining.indexOf(candidate), 1);
+      picks.push(candidate);
+    }
+
     while (picks.length < count && remaining.length > 0) {
       const ranked = remaining
         .map((candidate) => ({
@@ -259,9 +276,11 @@ export class DripScoringService {
       return candidate.score;
     }
 
+    // 시리즈 연속 편은 다양성의 예외다(4.2-3) — 감점을 받지도, 다른 편에 감점을 주지도 않는다.
+    // 먼저 뽑힌 연속 편과 내용이 비슷하다고 정규 편이 밀리면 "2편 우선"이 나머지 편성을 흔든다
     return mmrAdjustedScore(
       candidate,
-      picks.flatMap((pick) =>
+      comparablePicks(picks).flatMap((pick) =>
         pick.embedding === null ? [] : [pick.embedding],
       ),
     );
@@ -275,8 +294,9 @@ export class DripScoringService {
     if (candidate.isSeriesContinuation) {
       return false;
     }
+    const comparable = comparablePicks(picks);
 
-    return picks.some((pick) => {
+    return comparable.some((pick) => {
       if (candidate.embedding !== null && pick.embedding !== null) {
         return false;
       }
@@ -863,4 +883,9 @@ function cosineSimilarity(a: number[], b: number[]): number {
   }
 
   return dot / Math.sqrt(normA * normB);
+}
+
+/** 다양성 비교 대상 — 시리즈 연속 편은 예외라 뺀다(4.2-3) */
+function comparablePicks(picks: ScoredCandidate[]): ScoredCandidate[] {
+  return picks.filter((pick) => !pick.isSeriesContinuation);
 }

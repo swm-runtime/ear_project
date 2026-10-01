@@ -77,6 +77,14 @@ export class DripPreviewResponseDto {
   readonly discovery_count: number | null;
   readonly interests: (TopicRefDto & { source: string })[];
   readonly removed_topics: TopicRefDto[];
+  /** 자동 확장 판정(4.5) — 미리보기는 저장하지 않는다. 편성 계산은 이 판정이 반영됐다고 가정한 결과다 */
+  readonly auto_expand: {
+    action: string;
+    reason: string;
+    add_topic: TopicRefDto | null;
+    remove_topic: TopicRefDto | null;
+    candidates: (TopicRefDto & { completes: number; weight: number })[];
+  } | null;
   readonly preference: {
     is_cold_start: boolean | null;
     complete_signal_count: number | null;
@@ -147,6 +155,24 @@ export class DripPreviewResponseDto {
         source: interest.source,
       })),
       removed_topics: view.removedTopics.map(toTopicRef),
+      auto_expand:
+        view.autoExpand === null
+          ? null
+          : {
+              action: view.autoExpand.action,
+              reason: view.autoExpand.reason,
+              add_topic: view.autoExpand.addTopic
+                ? toTopicRef(view.autoExpand.addTopic)
+                : null,
+              remove_topic: view.autoExpand.removeTopic
+                ? toTopicRef(view.autoExpand.removeTopic)
+                : null,
+              candidates: view.autoExpand.candidates.map((candidate) => ({
+                ...toTopicRef(candidate),
+                completes: candidate.completes,
+                weight: candidate.weight,
+              })),
+            },
       preference: {
         is_cold_start: view.preference.isColdStart,
         complete_signal_count: view.preference.completeSignalCount,

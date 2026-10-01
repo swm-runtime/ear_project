@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { EarAuthError, type EarChannel, clearTokens, connectEar, earChannelLabel, loadTokens, tokenClaims } from "@/lib/ear";
+import { EarAuthError, type EarChannel, clearTokens, connectEar, downloadEarEvalSnapshot, earChannelLabel, loadTokens, tokenClaims } from "@/lib/ear";
 import { Panel } from "@/components/ui";
 
 /**
@@ -67,6 +67,40 @@ export function EarSession({ onChange, channel = "prod" }: { onChange?: () => vo
       제품 계정 연결됨({earChannelLabel(channel)}) · {claims.role}
       <button className="rounded border border-line px-2 py-1 hover:bg-[#f7f9fb]"
         onClick={() => { clearTokens(channel); force((n) => n + 1); onChange?.(); }}>해제</button>
+    </span>
+  );
+}
+
+/**
+ * [평가 스냅샷 내려받기] — `GET /admin/recommend-eval/snapshot`을 파일로 저장한다(docs/backend/recommendation-evaluation.md 3.1).
+ * 운영 탭에서 받은 것이 평가 기준선이다. 받은 파일은 저장소에 커밋하지 않는다.
+ */
+export function EarSnapshotDownload({ channel = "prod" }: { channel?: EarChannel }) {
+  const [state, setState] = useState<"idle" | "busy" | "error">("idle");
+  const [err, setErr] = useState<string | null>(null);
+  const run = async () => {
+    setState("busy");
+    setErr(null);
+    try {
+      const { filename, blob } = await downloadEarEvalSnapshot(channel);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      setState("idle");
+    } catch (e) {
+      setErr(earErrMsg(e));
+      setState("error");
+    }
+  };
+  return (
+    <span className="flex items-center gap-2 text-xs">
+      <button className="rounded border border-line px-2 py-1 text-ink hover:bg-[#f7f9fb] disabled:opacity-45" disabled={state === "busy"} onClick={() => void run()} title="오프라인 추천 평가기의 입력 파일(익명). backend/eval/snapshots/ 에 두고 npm run eval:recommend -- --snapshot <파일>">
+        {state === "busy" ? "스냅샷 만드는 중…" : `평가 스냅샷 내려받기 (${earChannelLabel(channel)})`}
+      </button>
+      {state === "error" && <span className="text-rose-700">{err}</span>}
     </span>
   );
 }

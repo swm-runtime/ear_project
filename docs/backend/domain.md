@@ -285,6 +285,8 @@ user_settings
   sleep_timer_last_choice     enum          NULL
   is_auto_expand_enabled      boolean       DEFAULT true   (FR-06)
   is_drip_notification_enabled boolean      DEFAULT true   (FR-19)
+  drip_feedback_muted_until   date          NULL           ★추천 별점 팝업 [이번 주 그만 보기] 종료 서비스 날짜 (2026-09-30, KAN-116)
+  drip_feedback_last_prompted_date date     NULL           ★마지막으로 별점을 물은 편성분의 서비스 날짜 — 이보다 새 편성이 없으면 다시 묻지 않는다 (2026-09-30)
 
 uq_user_settings_user_id (user_id)
 ```
@@ -295,6 +297,8 @@ uq_user_settings_user_id (user_id)
 - 오프라인 저장 관련 설정(`network_policy`)은 **P1 이연**이므로 지금 두지 않는다.
 - **마케팅 수신 동의 토글 컬럼을 두지 않는다.** 그 상태의 소유자는 `consents`다([3.2](#32-consents) — 합의 2026-08-06). 설정 화면의 토글은 표시·철회 경로일 뿐 저장소가 아니다.
 - **방해금지(야간 발송 제한) 설정 컬럼은 없다 — 없음을 유지한다**(합의 2026-08-06 — `notification.md` 4.3, 방해금지 개념 자체 폐기). 드립 도착은 순수 정보성 알림이라 전역·사용자별 야간 제한을 두지 않는다.
+- `drip_feedback_last_prompted_date`는 별점을 보내거나 팝업을 닫을 때 그 편성분 날짜로 갱신되고 뒤로 가지 않는다(`drip-feedback.md` 4.1). 팝업은 편성분 단위로 한 번만 묻는다.
+- `drip_feedback_muted_until`은 서비스 날짜 **라벨**이다(다음 주 월요일). 팝업 노출 판정(`drip-feedback.md` 4.1)이 오늘 서비스 날짜와 문자열 비교한다. 설정 화면 응답에는 싣지 않는다 — 사용자가 켜고 끄는 설정이 아니라 팝업의 억제 상태다.
 - `is_drip_notification_enabled`의 **사용자 노출 명칭은 "이어 PICK 알림"이다**(합의 2026-08-06 — `settings.md` 4.1). 화면 이름만 바뀐 것이므로 **컬럼명은 유지한다** — "드립"은 내부 용어라는 결정이지 데이터 의미가 바뀐 것이 아니다.
 - **`sleep_timer_last_choice`의 값 집합은 아직 정하지 않았다.** 수면 타이머가 P1이라(FR-25) 선택지가 확정되지 않았다. 위 표기 `enum`은 논리 타입이며 **물리 컬럼은 `varchar`다**(`convention.md` 4.2 — DB enum 타입을 쓰지 않는다). 값이 없으므로 TypeScript enum도 두지 않고 타입은 `string | null`이다. **값의 소유는 `player.md`이며**, 수면 타이머 구현 시 값을 정하고 타입을 좁힌다 — 그때 `varchar(20)`을 넘는 값이 나오면 길이도 함께 본다. **설정 API는 이 컬럼을 조회·변경 모두 하지 않는다**(`settings-api.md` 8장 — 플레이어 소관).
 ### 3.6 `device_tokens`
@@ -438,6 +442,8 @@ idx_user_interests_user_id_is_active (user_id, is_active)
 ```
 
 - `is_user_removed = true`인 주제는 자동 확장(FR-18) 대상에서 **영구 제외**한다. 사용자가 직접 뺀 주제를 시스템이 다시 넣으면 안 된다.
+- **`source = auto_expand`인 활성 행은 사용자당 최대 1개다**(자동 슬롯 — `drip-scheduling.md` 4.5, 2026-09-30). 직접 고른 주제의 상한(3개 — `onboarding`·`manual`)과 **따로 센다.** DB 제약이 아니라 서비스가 지킨다(판정·적용이 사용자 행 잠금 아래에서 돈다).
+- 자동 슬롯의 **만료·교체**는 `is_active = false` + `deactivated_at`만 세우고 `is_user_removed`는 그대로 둔다 — 사용자가 뺀 것이 아니므로 다시 들어올 수 있다. 자동 슬롯의 "추가된 시각"은 별도 컬럼 없이 `updated_at`(공통 컬럼 — 1.1)을 쓴다: 이 행은 활성화·비활성화 때만 바뀐다.
 
 ### 4.3 `topic_adjacencies` *(P1 — FR-18 자동 확장)*
 
@@ -451,7 +457,7 @@ topic_adjacencies
 uq_topic_adjacencies_topic_id_adjacent_topic_id (topic_id, adjacent_topic_id)
 ```
 
-- FR-18(주제 자동 확장)이 P1이므로 MVP에서는 만들지 않아도 된다. 자동 확장을 켤 때 함께 도입한다.
+- **고갈 기반** 자동 확장(`drip-scheduling.md` 4.5-2)이 P1이므로 MVP에서는 만들지 않아도 된다. 그 확장을 켤 때 함께 도입한다. 행동 기반 확장(4.5-1, 구현 2026-09-30)은 이 테이블을 쓰지 않는다 — 신호(`user_signals`)만 본다.
 
 ---
 
@@ -585,7 +591,7 @@ uq_content_scripts_content_id (content_id)
 - FR-25(스크립트 열람). 소유 모듈은 `content`로 확정한다 (C-1). **실서버 구현 2026-09-19**(KAN-71 — `tickets/backend/archive/script-api.md`).
 - 세그먼트 단위 조회·검색 요구가 아직 없으므로 `jsonb` 한 컬럼으로 둔다. 키는 jsonb 내부라 snake_case 그대로다(`duration_pref`와 같은 규칙).
 - **`speaker`는 화자 표시명**("윤아"·"이음" — 대본이 2인 대화체, `ai/PIPELINE.md`)이며 1인 낭독·파트너 콘텐츠는 `null`. 시각은 초(소수 허용), **최종 배포본 기준**. `start_sec` 오름차순·겹침 없음은 적재 시 검증한다(admin-api.md 4.6 `script_file`).
-- 콘텐츠당 1행. 재발행으로 오디오가 바뀌면 시각도 바뀌므로 부분 갱신 없이 통째로 교체한다.
+- 콘텐츠당 1행. 재발행으로 오디오가 바뀌면 시각도 바뀌므로 부분 갱신 없이 통째로 교체한다. **오디오가 바뀌는데 유효한 대본이 함께 오지 않으면 행을 삭제한다**(행 없음 = 자막 없음 — 2026-09-26, `admin-api.md` 4.10 "대본 삭제"). 옛 세그먼트를 남기면 새 오디오와 시각이 어긋난 자막이 내려간다.
 - **접근 통제는 오디오와 같다**(architecture.md 9.4) — 조회(`player-api.md` 4.7)는 재생 발급과 같은 판정을 거친다.
 
 ### 5.4 `content_stats`
@@ -628,7 +634,7 @@ idx_content_stats_period_type_period_start_play_count (period_type, period_start
 
 - **재생 계열(`play_count`·`total_listen_sec`)도 함께 합산한다.** 재생만 원천에서 가져오면 분자와 분모의 출처가 갈려, 배치가 한 달 넘게 멈춰 그 달 행이 비었을 때 같은 왜곡이 다시 난다. 둘 다 월별 합이면 그 달이 통째로 빠져 값은 줄지만 **비율은 유지된다**.
 - **호출 순서**: `month`(진행 중)를 재집계한 뒤에 `all`을 합산한다. 그래야 이번 달이 합에 든다.
-- **빠진 달 감지**: 합산 시 콘텐츠의 `month` 행 수가 발행월부터 이번 달까지의 기대 달 수보다 적으면 경고 로그를 남긴다. 배치가 한 달 넘게 멈추면 그 달 행이 영영 생기지 않아(재집계는 직전·진행 중 두 달만 다룬다) **영구 오차가 된다** — 종전에는 매일 원천에서 다시 세어 저절로 메워지던 것이다. 원천이 살아 있는 180일 안이면 그 달을 재집계해 복구할 수 있다.
+- **빠진 달 감지**: 합산 시 **재생 기록(`play_records`)이 있는 달인데 `month` 행이 없는 달**을 결손으로 보고 경고 로그를 남긴다. **재생이 0인 조용한 달은 결손이 아니다**(정정 2026-09-26 — 종전 구현은 `month` 행 수를 발행월부터 이번 달까지의 달 수와 비교해 조용한 달마다 경고했고, 카탈로그가 오래될수록 경고가 상수가 됐다). 배치가 한 달 넘게 멈추면 그 달 행이 영영 생기지 않아(재집계는 직전·진행 중 두 달만 다룬다) **영구 오차가 된다** — 종전에는 매일 원천에서 다시 세어 저절로 메워지던 것이다. 원천이 살아 있는 180일 안이면 그 달을 재집계해 복구할 수 있다.
 
 **갱신 주기** (B-6 결정)
 
@@ -713,6 +719,7 @@ library_items
   completed_at              timestamptz     NULL
   deleted_at                timestamptz     NULL   ★소프트 삭제
   queue_position            int             NULL   ★재생 목록 순서 (2026-09-19, KAN-70) — NULL = 순서 미지정
+  algorithm_version         varchar(40)     NULL   ★이 행을 적립한 추천 알고리즘 버전 (2026-09-30, KAN-116) — drip·discovery 만, 담기·온보딩은 NULL
 
 uq_library_items_user_id_content_id (user_id, content_id)
 idx_library_items_user_id_deleted_at_added_at_id (user_id, deleted_at, added_at DESC, id DESC)
@@ -750,6 +757,8 @@ idx_library_items_content_id (content_id)
 - `source = onboarding`은 유지한다. **무료 티어도 온보딩 초기 적립과 자동 드립을 받는다**(PRD 미확정 3번 결정).
 - **`source = discovery`는 탐험 편성이다**(신설 2026-08-27 — `drip-scheduling.md` 4.8). 정규 드립과 별개로 매일 1편(`plans.daily_discovery_count`) 적립되며, 앱이 "이런 주제는 어떠신가요?" 타이틀로 구분 표시하기 위해 값을 나눈다. **정책상 취급은 드립과 같다** — 출처 필터 [이어 PICK]에 포함되고(`library-api.md` 4.1), 도착 배너에 포함되고, 삭제·중복 방지·영구 제외 규칙도 동일하다.
 - **프로필의 "누적 청취 콘텐츠 수"(완청 고유 콘텐츠 수 — `profile.md` 4.5)의 원천은 이 테이블이다.** `status = completed`인 고유 `content_id` COUNT로 구한다(`deleted_at` 무관 — soft delete라 행이 남는다). 파생값이므로 컬럼·집계 테이블을 만들지 않는다([1.5](#15-파생값을-컬럼으로-두지-않는다)).
+
+- **`algorithm_version`은 사용자 별점을 버전별로 모으는 열쇠다**(`drip-feedback.md` 4.4, 2026-09-30). 편성 배치가 적립할 때 서버 상수 `DRIP_ALGORITHM_VERSION`(`YYYY-MM-DD.n`)을 쓴다. 편성 계산은 이 값을 읽지 않는다. 버전 도입 전 행은 NULL로 두고 소급하지 않는다 — 다른 알고리즘의 결과가 한 버전으로 뭉친다. `idx_library_items_algorithm_version`(부분 인덱스, NOT NULL) — 어드민 버전별 편성 수 집계용.
 
 ### 6.2 `playback_progresses`
 
@@ -885,6 +894,27 @@ idx_source_link_clicks_user_id (user_id)
 - 탈퇴 시 **즉시 파기한다**([12.3](#123-회원-탈퇴-처리)) — 확정된 `content_stats` 집계값은 남는다(`play_records`와 같은 논리).
 - **`ai_generated` 소스 항목 탭은 기록하지 않는다** (확정 2026-08-24 — [5.5](#55-content_sources)). 이 테이블은 콘텐츠 단위이며 `source_id` 컬럼을 추가하지 않는다 — 원문 클릭을 적재하는 이유(파트너 정산·리포팅 지표)가 `ai_generated` 소스에는 없다. 소스별 분석 요구가 생기면 P1에서 재검토한다.
 
+### 6.7 `drip_feedbacks` *(신설 2026-09-30 — KAN-116 추천 온라인 평가)*
+
+```
+drip_feedbacks
+  id                        uuid            PK
+  user_id                   uuid            FK → users (ON DELETE CASCADE)
+  content_id                uuid            FK → contents (ON DELETE CASCADE)
+  source                    enum            drip | discovery   편성 경로 (`library_items.source` 복사)
+  algorithm_version         varchar(40)     NULL   편성 시점의 `library_items.algorithm_version` 복사
+  placed_date               date            편성된 서비스 날짜 라벨
+  stars                     smallint        1~5 (CHECK)
+
+uq_drip_feedbacks_user_id_content_id (user_id, content_id)
+idx_drip_feedbacks_algorithm_version_created_at (algorithm_version, created_at DESC)
+```
+
+- 사용자가 편성분에 매긴 별점(`drip-feedback.md`). **추천 입력이 아니다** — `user_signals`(6.4)와 달리 어떤 스코어링도 읽지 않는다. 알고리즘 버전별 평점을 재는 측정값이라 별도 표다(6.4 A-7 원칙: `user_signals`는 스코어링 입력 전용).
+- `algorithm_version`·`source`·`placed_date`를 **복사해 둔다** — `library_items` 행이 소프트 삭제되거나 나중에 값이 바뀌어도 "어느 알고리즘의 편성에 매긴 별점인가"가 변하지 않아야 한다.
+- 같은 콘텐츠의 재전송은 `stars`만 덮어쓴다(upsert).
+- 탈퇴 시 즉시 파기(12.3).
+
 ---
 
 ## 7. 편성(드립)
@@ -970,9 +1000,10 @@ drip_batch_runs
 uq_drip_batch_runs_run_date (run_date)
 ```
 
-- `uq_drip_batch_runs_run_date`가 **배치 중복 실행을 막는다** (A-5). 사용자 단위 중복은 `library_items` 유니크가 막는다.
+- `uq_drip_batch_runs_run_date`가 **배치 중복 실행을 막는다** (A-5). 사용자 단위 중복은 편성 배치의 **`already_placed` 스킵**(오늘 서비스 날짜에 편성분이 있으면 건너뜀 — `drip-scheduling.md` 4.6-5)이 막는다(정정 2026-09-26 — 종전 "`library_items` 유니크가 막는다"는 틀렸다. 유니크는 같은 콘텐츠의 중복만 막는다).
+- **`finished_at` NULL은 "진행 중 또는 중단됨"이다**(명시 2026-09-26). 루프가 끝까지 돌았을 때만 닫는다 — 프로세스가 죽었거나 사용자 페이지 조회가 끝내 실패한 실행은 NULL로 남고, **다음 재시작 때 재개되어 닫힌다**(`drip-scheduling.md` 7장). **카운트는 마지막 패스 기준이다** — 재개 패스가 덮어쓰며, 먼저 받은 사용자는 그 패스에서 `skipped`로 집계된다.
 - 운영 콘솔 조회용으로 DB에 유지한다 (B-8).
-- **네 카운트의 합이 `target_count`다.** `success`(1편 이상 적립) · `skipped`(관심 주제 0 · 미청취 재고 ≥ 5 · 플랜 0으로 애초에 편성하지 않음 — `drip-scheduling.md` 4.1) · `exhausted`(편성 대상이었으나 **후보 고갈**로 0편 — 4.6-3 "대체 없음") · `failed`(예외).
+- **네 카운트의 합이 `target_count`다.** `success`(1편 이상 적립) · `skipped`(관심 주제 0 · 오늘 이미 편성(`already_placed`) · 미청취 재고 ≥ 5 · 플랜 0으로 애초에 편성하지 않음 — `drip-scheduling.md` 4.1) · `exhausted`(편성 대상이었으나 **후보 고갈**로 0편 — 4.6-3 "대체 없음") · `failed`(예외).
   - `exhausted_count`는 **콘텐츠 수급 신호**다(`drip-scheduling.md` 4.7 운영 지표 "고갈 사용자 수"). 2026-09-11 실서버에서 대상 13명 중 10명이 고갈이었는데 `skipped`·`failed`가 0이라 표만 보면 원인을 알 수 없었다 — 로그에만 남던 값을 컬럼으로 올렸다.
 
 ### 7.4 `first_drip_jobs`
@@ -1011,7 +1042,7 @@ idx_first_drip_jobs_status_last_attempted_at (status, last_attempted_at)
 - **`no_candidates`를 실패로 뭉뚱그리지 않는다.** 재시도해도 결과가 바뀌지 않는 종료 상태이므로(`onboarding.md` 7), 실패로 취급하면 서버가 헛된 재시도를 하고 사용자는 상한까지 기다린다.
 - **사용자당 1행이다**(`uq_first_drip_jobs_user_id`). 온보딩은 계정 생애에 한 번뿐이고, 유니크가 완료 요청 재시도로 인한 **중복 편성 트리거를 막는 최종 방어선**이다.
 - `attempt_count`는 **서버 내부 재시도 횟수**다. 클라이언트가 보내는 값이 아니며, 사용자 화면에도 노출하지 않는다(`onboarding.md` 4).
-- 보존: 온보딩 완료 후 목적이 끝나므로 **종착 상태(`completed`·`no_candidates`·`failed`) 전부 상태 전이 시각 기준 30일 후 배치 삭제**한다(정정 2026-09-26 — 코드는 아직 `completed_at`만 봄, 하 등급 항목). ~~`completed_at` 기준 30일 후 배치 삭제~~ 운영 지표(0건 담기 비율·편성 실패율)는 그 전에 구조화 로그로 빠져나간다(B-8).
+- 보존: 온보딩 완료 후 목적이 끝나므로 **종착 상태(`completed`·`no_candidates`·`failed`) 전부 상태 전이 시각(`updated_at`) 기준 30일 후 배치 삭제**한다(정정 2026-09-26 — 코드도 같은 날 정렬됐다). ~~`completed_at` 기준 30일 후 배치 삭제~~ 운영 지표(0건 담기 비율·편성 실패율)는 그 전에 구조화 로그로 빠져나간다(B-8).
 
 ---
 
@@ -1096,7 +1127,7 @@ idx_subscriptions_user_id_status (user_id, status)
 
 ### 8.3 `purchase_intents`
 
-> **구현 상태(2026-09-26)** — 이 테이블은 아직 만들지 않았다(마이그레이션·엔티티 없음). 구독 영수증 검증(KAN-40)과 함께 생긴다. 12.3 즉시 파기 목록의 이 항목은 테이블이 생길 때 코드에 붙는다.
+> **구현 상태(2026-09-26)** — 테이블·엔티티는 만들었다(`1787800000000-AddPurchaseIntentsAndStoreNotificationLogs`). **읽고 쓰는 코드는 아직 없다** — 구독 영수증 검증(KAN-40)이 저장소·서비스를 붙인다. `purchase_intents.user_id`는 ON DELETE CASCADE라 12.3 즉시 파기는 DB 제약이 수행한다.
 
 ```
 purchase_intents
@@ -1113,7 +1144,7 @@ idx_purchase_intents_user_id_created_at (user_id, created_at DESC)
 
 ### 8.4 `store_notification_logs`
 
-> **구현 상태(2026-09-26)** — 이 테이블은 아직 만들지 않았다(마이그레이션·엔티티 없음). 구독 영수증 검증(KAN-40)과 함께 생긴다. 12.3 즉시 파기 목록의 이 항목은 테이블이 생길 때 코드에 붙는다.
+> **구현 상태(2026-09-26)** — 테이블·엔티티는 만들었다(`1787800000000-AddPurchaseIntentsAndStoreNotificationLogs`). **읽고 쓰는 코드는 아직 없다** — 구독 영수증 검증(KAN-40)이 저장소·서비스를 붙인다. `store_notification_logs`는 개인 식별자가 없어 탈퇴 시 그대로 둔다(12.3).
 
 ```
 store_notification_logs
@@ -1386,7 +1417,7 @@ idx_archived_subscriptions_archived_at
 | `device_tokens` | **soft** (`invalidated_at`) | 발송 실패 원인 추적 |
 | `user_interests` | **soft** (`is_active`, `deactivated_at`) | 재활성화 가능 |
 | `email_verifications` | **hard** — 만료 24시간 후 배치 삭제 | 인증 목적 종료 후 보관 근거 없음 ([3.7](#37-email_verifications)) |
-| `first_drip_jobs` | **hard** — 종착 상태(`completed`·`no_candidates`·`failed`) 전부 상태 전이 시각 기준 30일 후 배치 삭제(정정 2026-09-26 — 코드는 아직 `completed_at`만 봄, 하 등급 항목) | 온보딩 1회성 작업 기록. 지표는 구조화 로그로 빠진다 ([7.4](#74-first_drip_jobs)) |
+| `first_drip_jobs` | **hard** — 종착 상태(`completed`·`no_candidates`·`failed`) 전부 상태 전이 시각 기준 30일 후 배치 삭제(정정 2026-09-26) | 온보딩 1회성 작업 기록. 지표는 구조화 로그로 빠진다 ([7.4](#74-first_drip_jobs)) |
 | `idempotency_keys` | **hard** — `expires_at`(24시간) 경과 후 배치 삭제 | 응답 본문에 개인정보가 섞일 수 있어 재시도 창을 넘겨 보관할 근거가 없다 ([1.4](#14-idempotency_keys)) |
 | `user_signals` | **hard** — `created_at` 180일 후 배치 삭제 | 스코어링이 읽는 창은 최근 90일이다. **그 두 배를 두는 이유는 `content_stats` 재집계** — 지나간 구간을 다시 셀 때 원천이 남아 있어야 한다 (확정 2026-09-10). **`all` 구간은 이 보존과 무관하다** — 원천이 아니라 `month` 행의 합이라 지워져도 값이 줄지 않는다 (5.4, 개정 2026-09-22) |
 | `source_link_clicks` | **hard** — `created_at` 180일 후 배치 삭제 | `content_stats` 재집계 입력이라 `user_signals`와 같은 창을 쓴다 (확정 2026-09-10) |
@@ -1397,7 +1428,7 @@ idx_archived_subscriptions_archived_at
 | `play_records` | **보류** — 기간을 정하지 않는다 | 프로필 통계가 **전 기간 청취 시간 합계**를 이 테이블에서 읽는다([6.3](#63-play_records)). 지금 지우면 사용자가 보던 숫자가 줄어든다. 비식별 누적 집계로 옮긴 뒤 정한다 (보류 2026-09-10) |
 | 나머지 | hard | |
 
-**구현 상태(2026-09-26 기준) — 위 배치는 구현됐다.** `RetentionModule`(`user_signals`·`source_link_clicks`·`audio_access_logs`·`notification_logs`, 04:30 KST) · `SessionPurgeScheduler`(`sessions`, 매시간) · `EmailVerificationPurgeScheduler` · `IdempotencyPurgeScheduler` · `FirstDripPurgeScheduler`(`first_drip_jobs` — 단 `completed_at` 기준이라 `no_candidates`·`failed` 행은 안 지워진다, 하 등급 코드 항목). **`notices`의 삭제 30일 뒤 hard delete만 미구현**이다. ~~2026-09-10 기준 `idempotency_keys`만 돌았다.~~ 기간을 먼저 정의한 것은 **문서에 없는 삭제를 코드가 임의로 하지 않기 위해서**다. ~~`user_signals`·`audio_access_logs`에는 단독 인덱스가 없어 삭제 쿼리가 풀스캔이 된다~~ → 마이그레이션 `1787000000000-AddRetentionCreatedAtIndexes`로 `created_at` 인덱스를 추가해 해소했다.
+**구현 상태(2026-09-26 기준) — 위 배치는 구현됐다.** `RetentionModule`(`user_signals`·`source_link_clicks`·`audio_access_logs`·`notification_logs`, 04:30 KST) · `SessionPurgeScheduler`(`sessions`, 매시간) · `EmailVerificationPurgeScheduler` · `IdempotencyPurgeScheduler` · `FirstDripPurgeScheduler`(`first_drip_jobs` — 종착 상태 3종을 `updated_at` 기준으로 지운다). **`notices`의 삭제 30일 뒤 hard delete만 미구현**이다. ~~2026-09-10 기준 `idempotency_keys`만 돌았다.~~ 기간을 먼저 정의한 것은 **문서에 없는 삭제를 코드가 임의로 하지 않기 위해서**다. ~~`user_signals`·`audio_access_logs`에는 단독 인덱스가 없어 삭제 쿼리가 풀스캔이 된다~~ → 마이그레이션 `1787000000000-AddRetentionCreatedAtIndexes`로 `created_at` 인덱스를 추가해 해소했다.
 
 ### 12.2 법적 근거
 
@@ -1459,7 +1490,7 @@ idx_archived_subscriptions_archived_at
 | 처리 | 대상 |
 |---|---|
 | **아카이브 후 파기** (5년) | `users` → `archived_users`, `consents` → `archived_consents`, `subscriptions` → `archived_subscriptions` |
-| **즉시 파기** | `library_items`, `playback_progresses`, `play_records`, `user_signals`, `audio_access_logs`, `source_link_clicks`, `user_interests`, `user_settings`, `device_tokens`, `sessions`, `user_preference_vectors`, `drip_excluded_contents`, `purchase_intents`, `notification_logs`, `email_verifications`, `first_drip_jobs`, `idempotency_keys`(해당 사용자 `owner_key`) |
+| **즉시 파기** | `library_items`, `playback_progresses`, `play_records`, `user_signals`, `audio_access_logs`, `source_link_clicks`, `user_interests`, `user_settings`, `device_tokens`, `sessions`, `user_preference_vectors`, `drip_excluded_contents`, `drip_feedbacks`, `purchase_intents`, `notification_logs`, `email_verifications`, `first_drip_jobs`, `idempotency_keys`(해당 사용자 `owner_key`) |
 | **그대로 유지** | `withdrawal_logs`(원래 해시만), `store_notification_logs`(개인 식별자 없음), `content_stats`(집계값) |
 
 **결제 이력이 없는 사용자 — 아카이브 없이 전량 즉시 파기**

@@ -70,6 +70,8 @@ function buildDefaultSettings() {
     defaultPlaybackRate: PlaybackRate.NORMAL,
     isAutoExpandEnabled: true,
     isDripNotificationEnabled: true,
+    dripFeedbackMutedUntil: null,
+    dripFeedbackLastPromptedDate: null,
   };
 }
 
@@ -402,6 +404,8 @@ describe('SettingsOrchestrator', () => {
         defaultPlaybackRate: PlaybackRate.NORMAL,
         isAutoExpandEnabled: true,
         isDripNotificationEnabled: true,
+        dripFeedbackMutedUntil: null,
+        dripFeedbackLastPromptedDate: null,
       });
     });
   });
@@ -458,6 +462,8 @@ describe('SettingsOrchestrator', () => {
       const updated = {
         ...buildDefaultSettings(),
         isDripNotificationEnabled: false,
+        dripFeedbackMutedUntil: null,
+        dripFeedbackLastPromptedDate: null,
       };
       userSettingService.updateSettings.mockResolvedValue(updated);
 

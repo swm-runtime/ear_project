@@ -59,6 +59,7 @@ retrospective/ 주간 회고와 다음 주 계획 (YYYY-Wn.md). 회의 중에는
 | 정책 근거("왜 이렇게 동작?") | `prd/ear_root_prd.md`(FR·결정 포인트) → `features/README.md`(확정된 결정 사항 목록) |
 | 재생 한도·페이월 판정 | `features/paywall.md` (판정 소유자. 다른 화면 문서는 여는 지점만 소유) |
 | 드립(자동 편성) 동작 | `features/drip-scheduling.md` |
+| 추천 로직 변경 → 배포 전 평가 | `backend/recommendation-evaluation.md` 7장 체크리스트 → `npm run eval:recommend` |
 | 콘텐츠 제작(대본·QA) | `ai/PIPELINE.md`(종합 명세·불변 원칙·미결) → `ai/spec/<단계>.md`(단계별 규칙) → `ai/skills/`(프롬프트 자산) → `features/admin.md` 3.1·4.2-1(업로드·검수). `features/content-pipeline.md`는 개편 이전 P1 설계로 통합 시 개정 대상 |
 | 새 기능 명세 작성 | `prd/next_doing.md`의 8항목 템플릿 |
 
@@ -92,6 +93,7 @@ retrospective/ 주간 회고와 다음 주 계획 (YYYY-Wn.md). 회의 중에는
 - `domain.md` **스키마의 유일한 기준** (테이블·컬럼·enum·보존 정책)
 - `architecture.md` 서버 계층·에러 계약(7장)·보안(9장) · `convention.md` 서버 코드 규칙 + **Git 컨벤션(6장, 전 파트 공통 기준)**
 - `domain-conflicts.md` 스키마 통합 히스토리(domain.md에 흡수 후 삭제 예정) — 평소 참조하지 않음
+- `recommendation-evaluation.md` **추천 로직 변경 PR의 배포 전 평가**(불변식·페르소나·백테스트, 통과 기준, 체크리스트 — KAN-108, 2026-09-30)
 
 **`frontend/`** — `architecture.md`(계층·feature 의존·전역 서비스·내비게이션·상태·에러·보안·성능) · `convention.md`(네이밍·파일 구조·수정 범위 경계·컴포넌트·상태·API·Git·테스트·lint·로깅) · `design.md`(**애플 HIG 기준 디자인 원칙** — 색·모서리·재질·모션 곡선·컴포넌트 규칙. 화면을 만들거나 고칠 때 먼저 본다, 2026-09-23)
 

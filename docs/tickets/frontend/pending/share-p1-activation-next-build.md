@@ -61,7 +61,7 @@ export const IS_SHARE_ENABLED = process.env.EXPO_PUBLIC_SHARE_ENABLED === 'true'
 
 - **요청 1(카피 확정)·2(아이콘 확정) 완료** — 현행 구현 그대로 확정: 텍스트 = SH3 세 줄,
   낭독 라벨 `공유`, 아이콘 = 공통 `ShareIcon` 하나. 코드 TODO 주석 제거, 문서 반영 요청은
-  `changes/pending/share-p1-copy-decisions.md` 발행.
+  `changes/archive/share-p1-copy-decisions.md` 발행.
 - **요청 3(플래그)·4(스토어 링크) 보류** — 앱이 아직 스토어 미출시라 미설치 수신자 폴백이
   갈 곳이 없다(요청 4의 선행 미충족). 켜는 방식은 **기본값 켜기(원 설계)**로 결정만 기록 —
   스토어 등록·`StoreRedirect` 확정 후 `share.constants.ts` 기본값을 켠다.
@@ -119,7 +119,7 @@ iOS 값의 출처는 `frontend/eas.json`의 `submit.production.ios.ascAppId = 68
 
 **공유 텍스트 형식 결정이 대체됐다.** 위 진행 기록의 "텍스트 = SH3 세 줄(제목/저자·출처/링크)"은
 2026-09-09 공유 회의 결정으로 **제목 / 링크 두 줄**이 됐다(티켓
-`archive/share-message-final-copy.md`, 문서 반영 요청 `changes/pending/share-message-drops-byline.md`).
+`archive/share-message-final-copy.md`, 문서 반영 요청 `changes/archive/share-message-drops-byline.md`).
 이 티켓의 요청 1은 그대로 닫힌 상태이며, 확정값만 바뀐 것이다.
 
 **pending 유지 사유는 그대로다** — Play 게시 하나뿐이다. 2026-09-10 재확인 시점에도 미게시라

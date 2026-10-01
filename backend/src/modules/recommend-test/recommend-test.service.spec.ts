@@ -28,7 +28,7 @@ type Deps = {
     getFeed: jest.Mock;
   };
   libraryScreenOrchestrator: { deleteItem: jest.Mock; completeItem: jest.Mock };
-  dripBatchOrchestrator: { refreshPreferenceCache: jest.Mock };
+  dripBatchOrchestrator: { refreshDerivedState: jest.Mock };
   dataSource: { transaction: jest.Mock };
 };
 
@@ -69,7 +69,9 @@ function build(env: Record<string, string | undefined>) {
       completeItem: jest.fn().mockResolvedValue(undefined),
     },
     dripBatchOrchestrator: {
-      refreshPreferenceCache: jest.fn().mockResolvedValue(undefined),
+      refreshDerivedState: jest
+        .fn()
+        .mockResolvedValue({ action: 'none', reason: 'no_candidate' }),
     },
     dataSource: {
       transaction: jest.fn(async (fn: (m: unknown) => Promise<void>) =>
@@ -161,7 +163,7 @@ describe('RecommendTestService', () => {
         now: NOW,
       });
       expect(
-        deps.dripBatchOrchestrator.refreshPreferenceCache,
+        deps.dripBatchOrchestrator.refreshDerivedState,
       ).toHaveBeenCalledWith(USER_ID, NOW);
       expect(result.preferenceRebuilt).toBe(true);
       expect(result.effects).toHaveLength(2);
@@ -231,7 +233,7 @@ describe('RecommendTestService', () => {
       ).rejects.toMatchObject({ errorCode: ErrorCode.NOT_FOUND });
       expect(deps.libraryScreenOrchestrator.deleteItem).not.toHaveBeenCalled();
       expect(
-        deps.dripBatchOrchestrator.refreshPreferenceCache,
+        deps.dripBatchOrchestrator.refreshDerivedState,
       ).not.toHaveBeenCalled();
     });
 
@@ -256,22 +258,31 @@ describe('RecommendTestService', () => {
   });
 
   describe('reset', () => {
-    it('사용자 종속 9개 표를 한 트랜잭션에서 지운다 — 계정·관심 주제는 건드리지 않는다', async () => {
+    it('사용자 종속 10개 표와 자동 확장으로 붙은 관심 주제를 한 트랜잭션에서 지운다 — 계정·직접 고른 관심 주제는 건드리지 않는다', async () => {
       const { service, deps } = build(DEV);
-      const del = jest.fn<void, [{ name: string }, { userId: string }]>();
+      const del = jest.fn<
+        void,
+        [{ name: string }, { userId: string; source?: string }]
+      >();
       deps.dataSource.transaction.mockImplementation(
         async (fn: (m: unknown) => Promise<void>) => fn({ delete: del }),
       );
 
       await service.reset();
 
-      expect(del).toHaveBeenCalledTimes(9);
-      for (const call of del.mock.calls) {
-        expect(call[1]).toEqual({ userId: USER_ID });
+      expect(del).toHaveBeenCalledTimes(11);
+      const byTable = new Map(del.mock.calls.map((c) => [c[0].name, c[1]]));
+      expect(byTable.has('User')).toBe(false);
+      // 관심 주제는 자동 확장 출처만 지운다 — 조건 없이 지우면 직접 고른 주제까지 사라진다
+      expect(byTable.get('UserInterest')).toEqual({
+        userId: USER_ID,
+        source: 'auto_expand',
+      });
+      for (const [table, where] of byTable) {
+        if (table !== 'UserInterest') {
+          expect(where).toEqual({ userId: USER_ID });
+        }
       }
-      const tables = del.mock.calls.map((c) => c[0].name);
-      expect(tables).not.toContain('User');
-      expect(tables).not.toContain('UserInterest');
     });
   });
 });

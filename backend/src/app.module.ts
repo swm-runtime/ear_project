@@ -23,6 +23,8 @@ import { ContentDetailModule } from '@/modules/content-detail/content-detail.mod
 import { NoticeModule } from '@/modules/notice/notice.module';
 import { DripBatchModule } from '@/modules/drip-batch/drip-batch.module';
 import { RecommendTestModule } from '@/modules/recommend-test/recommend-test.module';
+import { RecommendEvalModule } from '@/modules/recommend-eval/recommend-eval.module';
+import { DripFeedbackModule } from '@/modules/drip-feedback/drip-feedback.module';
 import { ExploreModule } from '@/modules/explore/explore.module';
 import { HealthModule } from '@/modules/health/health.module';
 import { LibraryScreenModule } from '@/modules/library-screen/library-screen.module';
@@ -85,6 +87,10 @@ import { UserModule } from '@/modules/user/user.module';
     DripBatchModule,
     // 추천 테스트 콘솔 — 개발계 전용, 운영은 env 로 잠긴다(admin.md 4.7)
     RecommendTestModule,
+    // 추천 평가 스냅샷 내보내기 — 읽기 전용(backend/recommendation-evaluation.md)
+    RecommendEvalModule,
+    // 추천 온라인 평가 — 어제 추천 별점(drip-feedback.md, KAN-116)
+    DripFeedbackModule,
     ContentDetailModule,
     NoticeModule,
     ProfileModule,

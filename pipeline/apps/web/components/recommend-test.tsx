@@ -23,8 +23,9 @@ const ACTIONS: { action: RecommendTestAction; label: string; hint: string; kind:
   { action: "complete", label: "완청", hint: "재생 시작 후 위치를 끝까지 저장 → complete 신호(강한 긍정)", kind: "ghost" },
   { action: "save", label: "담기", hint: "라이브러리에 담기 → save 신호(긍정)", kind: "ghost" },
   { action: "replay", label: "재청취", hint: "완료 항목에만 replay 신호 — 완료 전이면 앱과 같이 무시", kind: "ghost" },
-  { action: "unsave", label: "해제", hint: "담기 해제 → unsave 신호(부정)·드립 영구 제외", kind: "danger" },
-  { action: "delete", label: "삭제", hint: "라이브러리 삭제 → delete 신호(부정)·드립 영구 제외. 라이브러리에 있어야 한다", kind: "danger" },
+  // 앱 카피는 더보기 시트의 [라이브러리에서 제거](explore-uiux E12) — "해제"는 API 이름(unsave)이라 화면에 쓰지 않는다
+  { action: "unsave", label: "제거", hint: "더보기 시트 [라이브러리에서 제거] → unsave 신호(부정)·드립 영구 제외", kind: "danger" },
+  { action: "delete", label: "삭제", hint: "라이브러리 화면 스와이프 삭제 → delete 신호(부정)·드립 영구 제외. 라이브러리에 있어야 한다(결과는 제거와 같다 — 경로만 다름)", kind: "danger" },
 ];
 const STATUS_LABEL: Record<string, string> = { unplayed: "미청취", in_progress: "듣는 중", completed: "완청" };
 const STATUS_TONE: Record<string, string> = { unplayed: "queued", in_progress: "running", completed: "done" };
@@ -135,6 +136,7 @@ export function RecommendTest() {
     return q ? contents.filter((c) => c.title.toLowerCase().includes(q) || (c.author_name ?? "").toLowerCase().includes(q) || c.topics.some((t) => t.name.toLowerCase().includes(q))) : contents;
   }, [contents, query]);
   const interestIds = useMemo(() => (account?.interests ?? []).map((i) => i.topic_id), [account]);
+  const autoTopicIds = useMemo(() => (account?.interests ?? []).filter((i) => i.source === "auto_expand").map((i) => i.topic_id), [account]);
   const regularPicks = picks(snap.preview?.regular?.candidates);
   const discoveryPicks = picks(snap.preview?.discovery?.candidates);
 
@@ -194,7 +196,7 @@ export function RecommendTest() {
           </Panel>
 
           {/* 서버 값이 바뀌면 key 로 다시 마운트해 초안을 버린다 — 효과 안에서 setState 하지 않는다 */}
-          <InterestsEditor key={interestIds.join(",")} topics={topics} selected={interestIds} disabled={!!busy} onSave={saveInterests} />
+          <InterestsEditor key={interestIds.join(",")} topics={topics} selected={interestIds} autoTopicIds={autoTopicIds} disabled={!!busy} onSave={saveInterests} />
           <CareerEditor key={careerKey(account)} account={account} disabled={!!busy} onSave={saveCareer} />
         </div>
 
@@ -214,7 +216,13 @@ export function RecommendTest() {
                 <PickColumn title={`새 주제 ${discoveryPicks.length}편 — 관심 밖 우선`} picks={discoveryPicks} diff={diff?.discovery} removedTitles={titlesOf(diff?.discovery.removed, snap)} />
               </div>
             )}
-            {snap.preview && <TopCandidates preview={snap.preview} />}
+            {snap.preview && <AutoExpandLine preview={snap.preview} />}
+            {snap.preview && (
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <TopCandidates kind="regular" title="정규 후보" candidates={snap.preview.regular?.candidates ?? []} />
+                <TopCandidates kind="discovery" title="탐험(새 주제) 후보" candidates={snap.preview.discovery?.candidates ?? []} />
+              </div>
+            )}
           </Panel>
 
           <Panel title="탐색 피드 — 앱 탐색 화면이 받는 순서" right={snap.feed && <span className="text-xs text-ink-soft">섹션 {snap.feed.sections.length}</span>}>
@@ -324,24 +332,47 @@ function PickColumn({ title, picks: list, diff, removedTitles }: { title: string
   );
 }
 
-/** 후보 상위 — 편성분 바로 아래 순위가 어떻게 밀리는지 보려면 상위 몇 편이 더 필요하다 */
-function TopCandidates({ preview }: { preview: EarDripPreview }) {
+/**
+ * 후보 상위 — 편성분 바로 아래 순위가 어떻게 밀리는지 보려면 상위 몇 편이 더 필요하다. 정규는 3축(임베딩·신호·메타),
+ * 탐험은 3항목(저노출·신선도·품질 — 사용자 취향과 무관, drip-scheduling 4.8)을 같이 보인다. 탐험 항목은 서버가
+ * `meta_items` 자리에 실어 준다(exposure_fatigue=저노출, freshness, popularity=품질 — 편성 미리보기 화면과 같은 해석).
+ */
+const TOP_LIMIT = 12;
+function TopCandidates({ kind, title, candidates }: { kind: "regular" | "discovery"; title: string; candidates: EarDripCandidate[] }) {
   const [open, setOpen] = useState(false);
-  const rows = [...(preview.regular?.candidates ?? [])].sort((a, b) => b.score - a.score).slice(0, 12);
-  if (rows.length === 0) return null;
+  const [all, setAll] = useState(false);
+  const sorted = [...candidates].sort((a, b) => b.score - a.score);
+  const rows = all ? sorted : sorted.slice(0, TOP_LIMIT);
+  if (sorted.length === 0) return null;
   return (
-    <div className="mt-3">
-      <button className="text-xs text-ink-soft underline-offset-2 hover:underline" onClick={() => setOpen((v) => !v)}>{open ? "정규 후보 상위 12 접기" : `정규 후보 상위 12 보기 (전체 ${preview.regular?.candidates.length ?? 0})`}</button>
+    <div>
+      <div className="flex items-center gap-3 text-xs text-ink-soft">
+        <button className="underline-offset-2 hover:underline" onClick={() => setOpen((v) => !v)}>{open ? `${title} 접기` : `${title} 상위 ${Math.min(TOP_LIMIT, sorted.length)} 보기 (전체 ${sorted.length})`}</button>
+        {open && sorted.length > TOP_LIMIT && <button className="underline-offset-2 hover:underline" onClick={() => setAll((v) => !v)}>{all ? `상위 ${TOP_LIMIT}만` : "전부 보기"}</button>}
+      </div>
       {open && (
         <ol className="mt-2 divide-y divide-line rounded border border-line text-[12px]">
-          {rows.map((c, i) => (
-            <li key={c.content_id} className="flex items-center gap-2 px-3 py-1.5">
-              <span className="w-5 text-right tabular-nums text-ink-soft">{i + 1}</span>
-              <span className="min-w-0 flex-1 truncate text-ink" title={c.title}>{c.title}</span>
-              {c.pick_order !== null && <Badge tone="approved">편성 {c.pick_order}</Badge>}
-              <span className="tabular-nums text-ink-soft">{c.score.toFixed(3)}</span>
-            </li>
-          ))}
+          <li className="flex items-center gap-2 bg-[#f7f9fb] px-3 py-1 text-[10.5px] uppercase tracking-wide text-ink-soft">
+            <span className="w-5" /><span className="min-w-0 flex-1">제목</span>
+            <span className="w-40 text-right">{kind === "regular" ? "임베딩 · 신호 · 메타" : "저노출 · 신선도 · 품질 · 노출수"}</span>
+            <span className="w-12 text-right">점수</span>
+          </li>
+          {rows.map((c, i) => {
+            const m = c.breakdown.meta_items;
+            const parts = kind === "regular"
+              ? [c.breakdown.embedding, c.breakdown.signal, c.breakdown.meta].map(fmt).join(" · ")
+              : `${[m.exposure_fatigue, m.freshness, m.popularity].map(fmt).join(" · ")} · ${c.exposure_count ?? "–"}`;
+            return (
+              <li key={c.content_id} className="flex items-center gap-2 px-3 py-1.5">
+                <span className="w-5 text-right tabular-nums text-ink-soft">{i + 1}</span>
+                <span className="min-w-0 flex-1 truncate text-ink" title={`${c.title} — ${c.topics.map((t) => t.name ?? "?").join(" · ")}`}>{c.title}</span>
+                {c.pick_order !== null && <Badge tone="approved">편성 {c.pick_order}</Badge>}
+                {kind === "discovery" && c.is_outside_interests && <Badge tone="held">관심 밖</Badge>}
+                <span className="w-40 text-right tabular-nums text-ink-soft">{parts}</span>
+                <span className="w-12 text-right tabular-nums text-ink-soft">{c.score.toFixed(3)}</span>
+              </li>
+            );
+          })}
         </ol>
       )}
     </div>
@@ -387,22 +418,56 @@ function PreferenceSummary({ preview }: { preview: EarDripPreview }) {
   );
 }
 
-function InterestsEditor({ topics, selected, disabled, onSave }: { topics: EarTopic[]; selected: string[]; disabled: boolean; onSave: (ids: string[]) => Promise<void> }) {
+/**
+ * 자동 확장 판정 한 줄(drip-scheduling 4.5) — 배치가 지금 돌면 관심 주제에 무엇을 넣고 빼는지. 콘솔에서는 행동 직후
+ * 실제로 적용되므로(refreshDerivedState) 다음 새로고침에서 관심 칩에 "자동"이 붙는다
+ */
+function AutoExpandLine({ preview }: { preview: EarDripPreview }) {
+  const a = preview.auto_expand;
+  if (!a) return null;
+  const REASON: Record<string, string> = {
+    no_candidate: "후보 없음 — 관심 밖 주제를 30일 안에 2편 이상 완청하면 후보가 된다",
+    slot_free: "빈 슬롯에 추가",
+    slot_kept: "슬롯 유지 — 후보가 교체 여유(1.2배)를 못 넘음",
+    stronger_candidate: "더 강한 후보로 교체",
+    slot_expired: "30일 무신호로 만료",
+    disabled: "사용자가 자동 확장을 껐음",
+    feature_off: "서버 스위치 꺼짐(운영 기본) — 후보만 보인다",
+  };
+  const tone = a.action === "none" ? "held" : a.action === "expire" ? "failed" : "done";
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2 rounded border border-line bg-[#f7f9fb] px-3 py-2 text-[12px]">
+      <span className="font-semibold text-ink">자동 확장</span>
+      <Badge tone={tone}>{a.action}</Badge>
+      <span className="text-ink-soft">{REASON[a.reason] ?? a.reason}</span>
+      {a.add_topic && <span className="text-emerald-700">+ {a.add_topic.name ?? a.add_topic.topic_id}</span>}
+      {a.remove_topic && <span className="text-rose-700">− {a.remove_topic.name ?? a.remove_topic.topic_id}</span>}
+      {a.candidates.length > 0 && (
+        <span className="basis-full text-[11px] text-ink-soft">
+          후보: {a.candidates.map((c) => `${c.name ?? c.topic_id} (완청 ${c.completes} · 가중치 ${c.weight.toFixed(2)})`).join(" · ")}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function InterestsEditor({ topics, selected, autoTopicIds, disabled, onSave }: { topics: EarTopic[]; selected: string[]; autoTopicIds: string[]; disabled: boolean; onSave: (ids: string[]) => Promise<void> }) {
   const [draft, setDraft] = useState<string[] | null>(null);
   const current = draft ?? selected;
   const dirty = draft !== null && (draft.length !== selected.length || draft.some((id) => !selected.includes(id)));
   const toggle = (id: string) => setDraft((d) => { const base = d ?? selected; return base.includes(id) ? base.filter((x) => x !== id) : [...base, id]; });
   return (
-    <Panel title={`관심 주제 ${current.length}개 — 정규 후보의 범위`} right={<button className={btnCls("primary")} disabled={disabled || !dirty} onClick={() => void onSave(current)}>저장</button>}>
+    <Panel title={`관심 주제 ${current.filter((id) => !autoTopicIds.includes(id)).length}/3 직접${autoTopicIds.length > 0 ? ` + 자동 ${autoTopicIds.length}` : ""} — 정규 후보의 범위`} right={<button className={btnCls("primary")} disabled={disabled || !dirty} onClick={() => void onSave(current)}>저장</button>}>
       {topics.length === 0 ? <p className="text-xs text-ink-soft">주제를 불러오지 못했다</p> : (
         <div className="flex flex-wrap gap-1.5">
           {topics.filter((t) => t.is_visible || current.includes(t.id)).map((t) => {
             const on = current.includes(t.id);
-            return <button key={t.id} type="button" disabled={disabled} onClick={() => toggle(t.id)} className={`rounded-full border px-2.5 py-1 text-xs transition ${on ? "border-brand bg-brand text-white" : "border-line bg-white text-ink hover:bg-[#f7f9fb]"}`} title={`${t.parent_category} · 콘텐츠 ${t.content_count}`}>{t.name}</button>;
+            const auto = autoTopicIds.includes(t.id) && on;
+            return <button key={t.id} type="button" disabled={disabled} onClick={() => toggle(t.id)} className={`rounded-full border px-2.5 py-1 text-xs transition ${on ? (auto ? "border-sky-600 bg-sky-600 text-white" : "border-brand bg-brand text-white") : "border-line bg-white text-ink hover:bg-[#f7f9fb]"}`} title={`${t.parent_category} · 콘텐츠 ${t.content_count}${auto ? " · 자동 확장으로 추가됨 — 빼면 다시 안 들어온다" : ""}`}>{t.name}{auto ? " · 자동" : ""}</button>;
           })}
         </div>
       )}
-      <p className="mt-2 text-[11px] text-ink-soft">저장하면 앱의 관심 주제 관리와 같은 전체 교체가 일어난다. 여기서 뺀 주제는 &quot;사용자가 직접 해제한 주제&quot;로 기록돼 탐험에서도 빠진다.</p>
+      <p className="mt-2 text-[11px] text-ink-soft">저장하면 앱의 관심 주제 관리와 같은 전체 교체가 일어난다. 여기서 뺀 주제는 &quot;사용자가 직접 해제한 주제&quot;로 기록돼 탐험에서도 빠진다. 파란 칩은 자동 확장 슬롯(직접 고른 3개와 따로 센다).</p>
     </Panel>
   );
 }

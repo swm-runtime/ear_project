@@ -59,3 +59,6 @@ storage/
 
 # 관리자 콘솔 런타임 설정 — 서버에서만 채운다
 deploy/admin/config.js
+
+# 추천 평가 스냅샷·리포트 — 사용자 행동 이력이 들어 있어 커밋하지 않는다 (docs/backend/recommendation-evaluation.md)
+/eval/

@@ -11,14 +11,14 @@
 | 선행 | 티켓 선행 없음. BE API는 PR #769로 dev 머지 완료. **운영 반영은 다음 `dev → main` 릴리즈** — 그 전에는 개발계(api-dev)에서만 붙여 볼 수 있다. **티켓이 아닌 선행**: runtime 13 스토어 빌드(담당 이주호 / 상태 미확인) — 이 빌드에 실려야 그 뒤 버전부터 관문이 먹는다. OTA로는 닿지 않는다 |
 | Jira | [KAN-99](https://runtime364.atlassian.net/browse/KAN-99) (담당: 이주호) |
 | 발견 시점 | 2026-09-26 백엔드 전수 감사(중6) — `splash.md` 4.1·`common-error-handling.md` 2장이 정한 "서버가 판정해 강제 업데이트 코드 반환"이 서버·앱 어디에도 없었다. 이전 티켓 처리 기록에 "따로 다룬다"고만 있고 티켓이 없었다 |
-| 근거 문서 | `features/splash.md` 4.1(처리 1단계)·2장(30분 복귀 재수행)·7장(fail-open) · `features/common-error-handling.md` 2장 · `features/README.md` 결정 39 · `changes/pending/app-version-gate-api.md`(서버 계약 원문) |
+| 근거 문서 | `features/splash.md` 4.1(처리 1단계)·2장(30분 복귀 재수행)·7장(fail-open) · `features/common-error-handling.md` 2장 · `features/README.md` 결정 39 · `changes/archive/app-version-gate-api.md`(서버 계약 원문) |
 | 중요도 | **Medium** — 옛 앱을 끊어야 할 때 쓰는 유일한 수단. 다음 스토어 빌드를 놓치면 그다음 빌드까지 밀린다 |
 
 ## 배경
 
 옛 앱 버전을 강제로 올리게 할 방법이 지금은 없다. 서버 API 호환을 깨야 하는 날이 오면 옛 앱이 깨진 채 도는 것을 막을 수 없다. 서버 쪽은 2026-09-26에 준비했고, 이 티켓은 앱 쪽이다.
 
-## 서버 계약 (원문 `changes/pending/app-version-gate-api.md`)
+## 서버 계약 (원문 `changes/archive/app-version-gate-api.md`)
 
 `GET /app/version?app_version=<semver>&platform=ios|android` — **인증 없음**, 전역 레이트 리밋만
 

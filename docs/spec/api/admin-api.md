@@ -6,7 +6,7 @@
 > 스키마: [`docs/backend/domain.md`](../../backend/domain.md) 4.1 · 5.1 · 5.5
 > 연관: [`features/partner-control.md`](../../features/partner-control.md) 4.4(라이선스 만료 거부)
 
-작성: 2026-09-03 (구현 계약 등재 — `changes/archive/admin-web-console.md`) · 2026-09-07 4.10 재발행 등재·구현(`tickets/backend/archive/content-republish-audio.md`) · 2026-09-18 4.16 편성 미리보기 등재
+작성: 2026-09-03 (구현 계약 등재 — `changes/archive/admin-web-console.md`) · 2026-09-07 4.10 재발행 등재·구현(`tickets/backend/archive/content-republish-audio.md`) · 2026-09-18 4.16 편성 미리보기 등재 · 2026-10-01 4.17 추천 테스트(구현 2026-09-29) · 4.20 일일 지표 수동 트리거(구현 2026-09-29) 등재
 
 ## 1. 범위
 
@@ -18,6 +18,7 @@
 - 콘텐츠 **회수·복구** (FR-32, `admin.md` 4.4)
 - 콘텐츠 **재발행** — 오디오·메타 교체, `content_version` 증가 (`admin.md` 4.3)
 - **편성 미리보기** — 추천 검증 콘솔용 읽기 전용 계산 (`drip-scheduling.md` 4장·5장 "편성 품질", 2026-09-18)
+- **추천 테스트** — 테스트 계정 한 명에 행동을 대신 수행하는 **개발계 전용·쓰기 있는** 경로 (`admin.md` 4.7, 2026-09-29)
 - **대본(자막) 적재** — 업로드·재발행의 `script_file` 파트 → `content_scripts` (FR-25, KAN-71, 2026-09-19)
 
 **이 문서는 동작 규칙을 새로 정하지 않는다.** 규칙이 충돌하면 `admin.md`가 기준이며, 스키마는 `domain.md`가 유일한 기준이다.
@@ -61,6 +62,15 @@
 | DELETE | `/admin/notices/:noticeId` | 공지 삭제(soft) (4.15) |
 | GET | `/admin/system-stats` | 서버 자원·DB 부하 스냅샷 (로그 콘솔 상태 탭) |
 | GET | `/admin/drip/preview` | 편성 미리보기 — 지금 데이터로 배치를 돌리면 갈 정규·탐험 편성분과 점수 분해, 읽기 전용 (4.16) |
+| GET | `/admin/recommend-test/account` | 추천 테스트 계정 상태 — 환경·계정·관심 주제·라이브러리. **개발계 전용** (4.17) |
+| GET | `/admin/recommend-test/feed` | 추천 테스트 계정의 탐색 피드 — `explore-api.md` 4.1과 같은 본문 (4.17) |
+| POST | `/admin/recommend-test/actions` | 추천 테스트 계정에 행동 수행 — `play` `complete` `save` `unsave` `delete` `replay`. **쓰기 있음** (4.17) |
+| PUT | `/admin/recommend-test/interests` | 추천 테스트 계정의 관심 주제 전체 교체 (4.17) |
+| PUT | `/admin/recommend-test/career` | 추천 테스트 계정의 커리어 교체 (4.17) |
+| POST | `/admin/recommend-test/reset` | 추천 테스트 계정의 소비 이력 전부 삭제 (4.17) |
+| GET | `/admin/recommend-eval/snapshot` | 추천 평가 스냅샷 내보내기 — 발행 콘텐츠·익명 사용자 행동, 읽기 전용 (4.18) |
+| GET | `/admin/drip-feedback/versions` | 추천 알고리즘 버전별 별점 — 편성 수·평가 수·평균·분포, 버전 역순 (4.19) |
+| POST | `/admin/reports/daily-metrics` | 일일 지표 보고를 **지금** Slack에 게시 — 크론(매일 17:00 KST)과 같은 본문, 어제 하루치 (4.20) |
 
 ## 4. 엔드포인트 상세
 
@@ -153,7 +163,7 @@
 }
 ```
 
-- **origin별 필수 분기는 `admin.md` 3.1 그대로다.** 이 문서가 분기를 새로 정하지 않는다. **`partner`면 `sources`를 넣지 않는다 — 넣으면 400 `VALIDATION_FAILED`(`details.field = "sources"`)**, 4.10과 같은 규칙(명시 2026-09-26). 2026-09-26 현재 업로드 구현은 값을 조용히 버린다 — 하 등급 코드 항목으로 정렬 예정.
+- **origin별 필수 분기는 `admin.md` 3.1 그대로다.** 이 문서가 분기를 새로 정하지 않는다. **`partner`면 `sources`를 넣지 않는다 — 넣으면 400 `VALIDATION_FAILED`(`details.field = "sources"`)**, 4.10과 같은 규칙(명시 2026-09-26 — 업로드 구현도 같은 날 400으로 정렬됐다).
 - `sources[]`의 **입력 순서가 곧 표시 순서**다(`content_sources.position` — `domain.md` 5.5).
 - `duration_sec`은 받지 않는다. **서버가 오디오에서 추출한다**(`admin.md` 3.1).
 - `review_confirmed`는 **저장 컬럼이 없다.** 미체크 업로드를 막는 게 목적이고 증적은 `audit_logs`가 담당한다(`domain.md` 5.1, 확정 2026-08-06).
@@ -254,7 +264,7 @@
 | `thumbnail` | jpg / png / webp, ≤5MB — 4.6 과 같이 서버가 WebP 768px 로 다시 쓴다 | 선택 |
 | `payload` | JSON 문자열 — 4.6 `payload`의 부분집합(`title` `description` `source_name` `topic_ids` `sources`). 넘긴 키만 바꾼다 | 선택 |
 | `enrichment_file` | `enrichment.json` — 규격·검증·응답 필드는 4.6과 같다 | 선택 (등재 2026-09-08) |
-| `script_file` | 대본 세그먼트 JSON — 규격·검증·응답 필드는 4.6과 같다. **통째로 교체**된다(콘텐츠당 1행) | 선택 (등재 2026-09-19) |
+| `script_file` | 대본 세그먼트 JSON — 규격·검증·응답 필드는 4.6과 같다. **통째로 교체**된다(콘텐츠당 1행). **오디오를 바꾸는 재발행에서 이 파트가 없거나 검증에서 거부되면 기존 대본을 삭제한다**(2026-09-26 — 아래 "대본 삭제") | 선택 (등재 2026-09-19) |
 
 - **오디오를 교체하면 `duration_sec`을 다시 추출**한다(4.6과 동일 — 클라이언트 값을 받지 않는다). 이전 파일은 새 파일 저장·트랜잭션 성공 후 지운다.
 - **`content_version`은 파트가 무엇이든 1 증가**한다. 메타만 바뀌어도 올린다 — 클라이언트의 재발행 판정(`player-api.md` 4.1·4.2)이 버전 하나로 동작해야 한다. **예외는 `enrichment_file`·`script_file`만 보내는 전송이다**(2026-09-08 · 2026-09-19): 추천 메타·대본만 반영하고 **버전을 올리지 않으며** 아래 재생 위치 폐기도 일어나지 않는다 — 오디오가 그대로면 대본 시각도 그대로다. 대본 단독의 감사 로그는 `content.script`다 — 오디오가 그대로인데 버전이 오르면 전 사용자의 재생 위치가 헛되이 폐기된다. 기존 발행분 소급 부여가 이 경로를 쓰고, 감사 로그는 `content.enrich`로 남는다(`republish`와 구분).
@@ -277,6 +287,11 @@
 초가 다른 내용을 가리키게 되는 재발행에서 낡은 위치가 내려가는 것을 막는다.
 라이브러리(`library_items`)·재생 기록(`play_records`)은 유지된다. **폐기 주체는 서버다** —
 앱은 위치를 로컬에 보관하지 않으므로 클라이언트 측 폐기 동작은 없다(`player.md` 7).
+
+**대본 삭제** (2026-09-26 — 백엔드 전수 감사): **오디오를 바꾸는 재발행에서 `script_file`이 없거나 검증에서 거부되면 기존 대본(`content_scripts` 행)을 같은 트랜잭션에서 삭제한다.** 응답의 `has_script`가 `false`로 내려가고 감사 로그 `republish`의 `after.script_dropped = true`가 남는다. 옛 세그먼트의 시각은 새 오디오와 어긋나므로 **틀린 자막보다 없는 편이 낫다**(`domain.md` 5.3). 종전에는 대본이 오면 교체하고 안 오면 그대로 두어, 파이프라인의 기본 재발행 경로(오디오+썸네일)에서 옛 세그먼트가 새 오디오와 어긋난 채 플레이어에 내려갔다.
+
+- **오디오를 바꾸지 않는 재발행(메타만·파일만)은 대본을 건드리지 않는다.**
+- **다시 채우는 절차**: 오디오 재발행 뒤 자막은 발행 목록의 **[자막 뽑기]**(워커가 새 오디오와 대본을 강제 정렬) → **[반영]**(`script_file` 단독 PATCH — 버전 무변경)으로 다시 채운다. 재발행 요청에 유효한 `script_file`을 함께 실어도 된다 — 그때는 삭제 없이 교체된다.
 
 ### 4.11 `DELETE /admin/contents/:contentId/storage` — 저장소 파일 회수
 
@@ -354,11 +369,12 @@
 |---|---|
 | `computed_at` · `service_date` | 계산 시각(ISO), 서비스 날짜(04시 경계) |
 | `user` | `id` `email` `nickname` `tier` `job_category` `years_of_experience` `onboarding_completed` |
-| `skip_reason` | `no_interests` \| `unfinished_inventory` \| `plan_disabled` \| null — 배치라면 스킵될 사유. 미리보기는 사유를 적은 채 끝까지 계산한다 |
+| `skip_reason` | `no_interests` \| `already_placed` \| `unfinished_inventory` \| `plan_disabled` \| null — 배치라면 스킵될 사유. 미리보기는 사유를 적은 채 끝까지 계산한다. **`already_placed`**(추가 2026-09-26 — `drip-scheduling.md` 4.6-5)는 오늘 서비스 날짜에 이미 편성분(`library_items.source in drip,discovery`)이 있다는 뜻이다. **삭제분도 센다** — 오늘 받았다가 지운 사용자도 이 사유가 난다(아래 `today_placed[]`도 삭제분을 포함한다). 사유가 여럿 겹치면 배치가 판정하는 순서(이 표기 순서)에서 먼저 난 것 하나만 싣는다 |
 | `unfinished_count` · `unfinished_limit` | 미청취 재고와 스킵 기준(5) |
 | `drip_count` · `discovery_count` | 티어 편수(`plans`) |
 | `interests[]` | `topic_id` `name` `source` — 활성 관심 주제 |
 | `removed_topics[]` | 사용자가 직접 해제한 주제(탐험 제외) |
+| `auto_expand` | 자동 확장 판정(`drip-scheduling.md` 4.5 — 추가 2026-09-30). `action`: `none` \| `add` \| `replace` \| `expire` · `reason`: `no_candidate` \| `slot_free` \| `slot_kept` \| `stronger_candidate` \| `slot_expired` \| `disabled`(사용자 토글 OFF) \| `feature_off`(서버 스위치 OFF) · `add_topic` · `remove_topic`(`{topic_id,name}` \| null) · `candidates[]`(`{topic_id,name,completes,weight}` — 트리거를 넘긴 관심 밖 주제, 강한 순). **미리보기는 저장하지 않으므로 `interests[]`에는 반영돼 있지 않고, 아래 `regular`·`discovery` 계산은 반영됐다고 가정한 결과다.** 관심 주제 0 스킵이면 null |
 | `preference` | `is_cold_start` `complete_signal_count` `cold_start_threshold` `signal_count` `has_taste_embedding` `duration_pref` `topic_weights[]` `author_weights[]` `keyword_weights[]` `format_weights[]`(절대값 상위 15, `{key,name,weight}`) `difficulty_affinity` — **저장하지 않은** 계산값 |
 | `signals[]` | `content_id` `title` `action` `created_at` — 취향 계산 입력(90일·최대 500건). `action`에는 `user_signals` enum 외에 **파생 신호 `ignore`**(`drip-scheduling.md` 4.3 — 7일 미청취 편성분, 저장되지 않음)가 섞인다. 90일·500건 상한은 저장 신호에만 적용된다(명시 2026-09-26) |
 | `weights` | 스코어링 상수: `axes` `signal_items` `meta_items` `meta_items_cold_start` `discovery_items` |
@@ -366,7 +382,7 @@
 | | **`candidates[].breakdown.meta_items.exposure_fatigue`는 정규 편에서 항상 `null`이다**(2026-09-25 — 노출 피로 항목 폐기, `drip-scheduling.md` 4.2 ③). 탐험 편은 종전대로 저노출 가점 값. **`recent_drip_topics[]`는 정보 표시**일 뿐 스코어링 입력이 아니다. 응답 형태는 어드민 웹 호환을 위해 그대로 둔다 |
 | `discovery` | `pool_size` `quality_floor` `typical_complete_rate` `excluded[]`(`user_removed_topic` \| `below_quality_floor`) `candidates[]` — null이면 탐험 편수 0 |
 | `discovery_error` | 탐험 계산이 던졌으면 메시지, 아니면 null(정규는 영향 없음 — 4.8) |
-| `today_placed[]` | 오늘 서비스 날짜에 실제 배치가 적립한 편(`library_items.source in drip,discovery`) |
+| `today_placed[]` | 오늘 서비스 날짜에 실제 배치가 적립한 편(`library_items.source in drip,discovery`, 삭제분 포함) |
 
 `candidates[]` 항목: 콘텐츠 메타(`content_id` `title` `author_name` `source_name` `duration_sec` `published_at` `difficulty` `format`
 `is_evergreen` `series_id` `episode_no` `topics[]`) + 스코어링 입력(`play_count` `complete_count` `has_embedding`) + `score` `is_series_continuation`
@@ -380,6 +396,115 @@
 | 400 | `VALIDATION_FAILED` | `email` 누락·형식 오류 |
 | 401 / 403 | `UNAUTHORIZED` / `FORBIDDEN` | 2장 공통 규약 |
 | 404 | `NOT_FOUND` | 그 이메일의 사용자 없음 |
+
+### 4.17 `/admin/recommend-test/*` — 추천 테스트 (개발계 전용 · 쓰기 있음)
+
+> 추가: 2026-09-29 (admin 콘솔 "추천 검증 > 추천 테스트" 탭 — `tickets/backend/archive/recommend-test-console.md`). 근거: `admin.md` 4.7.
+
+추천에 영향을 주는 행동을 **테스트 계정 한 명**에 대신 수행하고, 직후 편성 미리보기(4.16)와 탐색 피드의 변화를 본다. 4.16과 달리 **쓰기가 있다** — 행동이 실제 `user_signals`·`library_items`·`play_records`·`content_stats`를 쓴다.
+
+- **대상 계정은 서버 env `RECOMMEND_TEST_EMAIL` 하나로 고정이다. 요청이 사용자를 고르지 않는다** — 이메일을 받으면 관리자가 임의 사용자의 라이브러리를 조작하는 도구가 된다.
+- **운영에서는 꺼진다.** `SENTRY_ENVIRONMENT=production`이면 이메일이 설정돼 있어도 여섯 경로 전부 409 `ADMIN_RECOMMEND_TEST_DISABLED`다.
+- 인증은 다른 `/admin/*`와 같다(2장). 조회 응답(`account`·`feed`)은 `Cache-Control: no-store`.
+- **추천 결과(편성분·점수·신호·취향)는 새 엔드포인트가 아니라 4.16 `GET /admin/drip/preview?email=<테스트 계정>`을 개발계에 그대로 부른다.** 이 절의 경로는 행동·계정 상태·피드·초기화만 소유한다.
+
+| 메서드 | 경로 | 요청 | 응답 |
+|---|---|---|---|
+| GET | `/admin/recommend-test/account` | 없음 | 200 — 테스트 계정 상태(아래) |
+| GET | `/admin/recommend-test/feed` | 없음 | 200 — 테스트 계정의 탐색 피드. `explore-api.md` 4.1과 같은 본문 |
+| POST | `/admin/recommend-test/actions` | `{ action, content_id }` | 200 — `{ action, content_id, performed_at, effects[], preference_rebuilt }` |
+| PUT | `/admin/recommend-test/interests` | `{ topic_ids[] }` — `interest-management-api`의 전체 교체와 같은 본문 | 204 |
+| PUT | `/admin/recommend-test/career` | `{ job_category, job_title, years_of_experience }` — `career-api`와 같은 본문 | 204 |
+| POST | `/admin/recommend-test/reset` | 없음 | 204 — 소비 이력 전부 삭제 |
+
+**`GET /admin/recommend-test/account` 응답 200**
+
+| 필드 | 설명 |
+|---|---|
+| `environment` | 서버의 `SENTRY_ENVIRONMENT` — 콘솔이 "개발계" 배지를 그리는 근거 |
+| `user` | `id` `email` `nickname` `tier` `onboarding_completed` `job_category` `job_title` `years_of_experience` |
+| `interests[]` | `topic_id` `name` `source` — 활성 관심 주제 |
+| `library[]` | `item_id` `content_id` `title` `source` `status` `added_at` `completed_at` — 담은 최신순, 삭제분 제외(앱 라이브러리가 보는 것과 같다) |
+
+**`POST /admin/recommend-test/actions`**
+
+```jsonc
+{ "action": "play" | "complete" | "save" | "unsave" | "delete" | "replay", "content_id": "uuid" }
+// 200
+{ "action": "complete", "content_id": "...", "performed_at": "2026-09-29T02:10:00.000Z",
+  "effects": ["재생 시작 (play 신호 · 드립 영구 제외 · 오늘 한도 1 차감)", "끝까지 들음 → 완청 (complete 신호)"],
+  "preference_rebuilt": true }
+```
+
+- 각 행동은 **앱이 부르는 것과 같은 서비스 경로**를 탄다(`admin.md` 4.7). 신호를 직접 적재하는 지름길이 없다.
+  - `play` — 라이브러리에 없으면 탐색 재생과 같이 `auto_play` 자동 적립 후 재생 시작. **오늘 재생 한도가 차감된다**(테스트 계정 티어 기준).
+  - `complete` — `play` 후 위치를 길이 끝까지 저장 → 완청 판정(90%) → `complete` 신호. 길이 0 콘텐츠는 수동 완료 경로(`library-api.md` 4.5)라 `complete` 신호가 없다.
+  - `save` / `unsave` — 탐색 담기·담기 해제. `delete` — 라이브러리 삭제(대상이 라이브러리에 없으면 404).
+  - `replay` — 완료 상태가 아니면 앱과 같이 무시된다(신호 없음, 200).
+- `effects[]`는 실제로 일어난 부수 효과를 사람이 읽는 문장으로 적은 것이다 — 콘솔이 행동 로그에 그대로 적는다. 기계 판독용 계약이 아니다.
+- **행동 직후 신호 파생 상태를 다시 계산해 저장한다**(`preference_rebuilt: true`) — 취향 캐시와 자동 확장 슬롯(`drip-scheduling.md` 4.3 예외 · 4.5-1). 자동 확장이 일어나면 `effects[]`에 `자동 확장 add (slot_free) — …` 같은 줄이 실린다. 그래서 직후의 `feed`·4.16 재조회가 바뀐 결과를 보인다.
+
+**`POST /admin/recommend-test/reset`** — 신호·재생 기록(오늘 한도도 함께 풀린다)·재생 위치·오디오 발급 로그·원문 클릭·라이브러리(삭제분 포함)·취향 캐시·드립 영구 제외·첫 드립 작업·편성 별점(`drip_feedbacks`)·**자동 확장으로 붙은 관심 주제**(`source = auto_expand`)를 지운다. **직접 고른 관심 주제·커리어·계정은 남긴다.**
+
+**오류**
+
+| 상태 | `error_code` | 조건 |
+|---|---|---|
+| 400 | `VALIDATION_FAILED` | `action`이 6값 밖 · `content_id`가 uuid가 아님 · `interests`/`career` 본문 형식 오류 |
+| 401 / 403 | `UNAUTHORIZED` / `FORBIDDEN` | 2장 공통 규약 |
+| 404 | `NOT_FOUND` | 테스트 계정이 이 서버에 가입돼 있지 않음 / `delete` 대상이 테스트 계정의 라이브러리에 없음 |
+| 409 | `ADMIN_RECOMMEND_TEST_DISABLED` | 운영 환경이거나 `RECOMMEND_TEST_EMAIL` 미설정 |
+| — | 행동 자체의 에러 | `PLAY_LIMIT_EXCEEDED` `CONTENT_WITHDRAWN` 등 **앱과 같은 코드가 그대로** 나온다. `interests`·`career`도 각 화면 api의 에러를 그대로 낸다 |
+
+### 4.18 `GET /admin/recommend-eval/snapshot` — 추천 평가 스냅샷 (읽기 전용)
+
+> 추가: 2026-09-30 (KAN-108 — `backend/recommendation-evaluation.md` 3.1). 오프라인 평가기(`npm run eval:recommend`)의 입력 파일이다.
+
+발행 콘텐츠(메타·주제·전체 집계·현재 모델 임베딩)와 사용자(관심 주제·신호·라이브러리·영구 제외·자동 확장 토글)를 한 JSON으로 내려준다. **계산도 쓰기도 없다** — 조회만 한다. 응답은 `Cache-Control: no-store`.
+
+**요청**
+
+| 쿼리 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `max_users` | int | | 사용자 상한(기본 300, 최대 1000). 온보딩을 마친 미탈퇴 사용자를 가입 순으로 |
+| `signal_days` | int | | 신호·라이브러리 조회 범위(일, 기본 365) |
+
+**응답 200** — `schema_version`(1) · `exported_at` · `environment` · `embedding_model` · `plans[]`(`tier` `daily_drip_count` `daily_discovery_count`) · `topics[]`(`id` `name` `is_visible`) · `contents[]`(콘텐츠 메타 + `topic_ids[]` `play_count` `complete_count` `embedding`(number[] \| null)) · `users[]`.
+
+`users[]` 항목: **`key`(`u001`… 익명 키)** `tier` `job_category` `years_of_experience` `auto_expand_enabled` · `interests[]`(`topic_id` `source` `is_active` `is_user_removed` `updated_at`) · `signals[]`(`content_id` `action` `created_at`) · `library[]`(`content_id` `source` `status` `added_at` `completed_at` `deleted_at`) · `excluded[]`(`content_id` `created_at`).
+
+- **이메일·닉네임·`users.id`를 싣지 않는다.** 키는 가입 순 일련번호라 응답 안에서만 사용자를 구분한다. 그래도 행동 이력이므로 받은 파일은 저장소에 커밋하지 않는다(`backend/eval/` gitignore).
+- 크기: 임베딩(1536차원) 때문에 콘텐츠 200편 기준 수 MB. 자주 부르는 엔드포인트가 아니다.
+
+### 4.19 `GET /admin/drip-feedback/versions` — 알고리즘 버전별 별점 (읽기 전용)
+
+> 추가: 2026-09-30 (KAN-116 — `drip-feedback.md` 4.5). 추천 검증 콘솔이 버전 순으로 보인다.
+
+**Response 200**
+
+```json
+{ "items": [ { "algorithm_version": "2026-09-30.1", "placements": 240, "placed_users": 31, "first_placed_at": "…", "last_placed_at": "…", "ratings": 18, "rated_users": 9, "average_stars": 3.72, "distribution": { "1": 1, "2": 2, "3": 4, "4": 6, "5": 5 } } ] }
+```
+
+- `placements`·`placed_users`는 `library_items`(드립·탐험, 삭제분 포함)에서, 나머지는 `drip_feedbacks`에서 센다. 응답률 = `ratings / placements`는 화면이 계산한다.
+- 버전 문자열(`YYYY-MM-DD.n`) 역순. `algorithm_version: null`(버전 도입 전 편성분)은 맨 뒤.
+- `average_stars`는 평가 0건이면 null. 표본 20건 미만은 화면이 "참고" 표시(`drip-feedback.md` 4.5).
+
+### 4.20 `POST /admin/reports/daily-metrics` — 일일 지표 보고 수동 트리거
+
+> 추가: 2026-09-29 (KAN-107 2단계 — `tickets/backend/archive/kpi-slack-reporting.md`). 일일 지표 보고(매일 17:00 KST 크론)를 "지금 한 번 보내 달라"는 요청에 크론 밖에서 부르는 길이다.
+
+일일 지표(GA4 활성·신규 사용자, 가입, 재생·완청, 리텐션 D1/D7)를 **지금** Slack에 게시한다. **크론과 같은 본문이며 어제 하루치**(KST 기준)다. 본문 없다.
+
+```jsonc
+// 202
+{ "date": "2026-09-28" }   // 보고 대상 날짜 (YYYY-MM-DD, KST 어제)
+```
+
+- 인증은 다른 `/admin/*`와 같다(2장).
+- **게시는 비동기다.** 202로 바로 돌려주고 GA4 조회·Slack 게시는 뒤에서 한다. 실패는 크론과 같이 **서버 로그(`daily metrics failed`)로만** 남는다 — 응답으로 알 수 없다.
+- **본문에 지표를 되돌려주지 않는다** — 출처는 Slack 채널 하나로 둔다.
+- 409 `ADMIN_REPORT_NOT_CONFIGURED` — GA4 자격(`GA4_PROPERTY_ID`·`GA4_SERVICE_ACCOUNT_BASE64`)이나 Slack 웹훅(`SLACK_SIGNUP_WEBHOOK_URL`, 없으면 `SLACK_ERROR_WEBHOOK_URL`)이 서버에 없다. 크론은 같은 조건에서 조용히 건너뛴다(로컬·테스트·개발계 기본).
 
 ## 5. 에러 코드 표
 
@@ -397,6 +522,9 @@
 | `ADMIN_STORAGE_FAILED` | 502 | **true** | 4.6·4.10 — 저장소 실패 |
 | `NOTICE_CURSOR_INVALID` | 400 | false | 4.12 — 커서 형식 오류, 사용자 목록 커서를 넣음 |
 | `NOTICE_NOT_FOUND` | 404 | false | 4.14·4.15 — 없거나 삭제된 공지 |
+| `NOT_FOUND` | 404 | false | 4.16 — 그 이메일의 사용자 없음 / 4.17 — 테스트 계정이 이 서버에 가입돼 있지 않음 · `delete` 대상이 라이브러리에 없음 |
+| `ADMIN_RECOMMEND_TEST_DISABLED` | 409 | false | 4.17 — 운영 환경(`SENTRY_ENVIRONMENT=production`)이거나 `RECOMMEND_TEST_EMAIL` 미설정 |
+| `ADMIN_REPORT_NOT_CONFIGURED` | 409 | false | 4.20 — GA4 자격 또는 Slack 웹훅 미설정 |
 
 전체 목록·클라이언트 동작은 `common-error-handling.md` 9.10이 기준이다.
 

@@ -39,6 +39,16 @@ export const FIRST_DRIP_JOB_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 /** 완료 작업 파기 배치 주기(ms). 하루 단위 보존이라 시간 단위면 충분하다 */
 export const FIRST_DRIP_PURGE_INTERVAL_MS = 60 * 60 * 1000;
 
+/**
+ * **추천 알고리즘 버전** — 편성분마다 `library_items.algorithm_version`에 남겨 사용자 별점을 버전별로 집계한다
+ * (`drip-feedback.md` 4.4, KAN-116). 형식 `YYYY-MM-DD.n`(문자열 정렬이 시간 순서다).
+ *
+ * **올리는 규칙**: 편성 결과가 달라질 수 있는 변경이면 올린다 — 축·항목 가중치, 후보 필터, 다양성 선정(MMR),
+ * 취향 계산식, 자동 확장 판정, 탐험 선정. 로그·표시·성능 개선처럼 결과가 같은 변경은 올리지 않는다.
+ * 올리지 않고 결과를 바꾸면 서로 다른 알고리즘의 별점이 한 버전에 섞여 비교가 무너진다.
+ */
+export const DRIP_ALGORITHM_VERSION = '2026-09-30.2';
+
 /*
  * ── 편성 스코어링 (`drip-scheduling.md` 4.2 — 3축 하이브리드) ─────────────────────
  *
@@ -55,6 +65,28 @@ export const COLD_START_COMPLETE_THRESHOLD = 3;
 /** 신호 집계 조회 범위 — 최근성 가중이 사실상 0이 되는 꼬리는 읽지 않는다 */
 export const SIGNAL_LOOKBACK_DAYS = 90;
 export const SIGNAL_LOOKBACK_LIMIT = 500;
+
+/*
+ * ── 행동 기반 자동 확장 (`drip-scheduling.md` 4.5 — 개정 2026-09-30) ─────────────────
+ *
+ * 관심 밖 주제를 스스로 찾아 듣는 사용자에게 그 주제를 자동 슬롯(`interest.constant.ts` —
+ * `MAX_AUTO_EXPAND_TOPIC_COUNT`)으로 붙인다. 아래 값은 전부 서버 소유 초기값이며 시범 운영으로 튜닝한다.
+ */
+
+/** 트리거·만료의 관찰 창(일) — 이 기간 안의 완청만 "요즘 듣는다"로 본다 */
+export const AUTO_EXPAND_LOOKBACK_DAYS = 30;
+
+/** 트리거 — 관찰 창 안에 그 주제의 **서로 다른 콘텐츠**를 이만큼 완청해야 한다. 1편은 우연일 수 있다 */
+export const AUTO_EXPAND_MIN_COMPLETES = 2;
+
+/** 만료 — 자동 슬롯 주제에 이 기간(일) 동안 긍정 신호(완청·재청취·담기)가 없으면 슬롯을 비운다 */
+export const AUTO_EXPAND_EXPIRE_DAYS = 30;
+
+/**
+ * 교체 여유 — 새 후보의 주제 가중치가 현재 슬롯의 이 배수를 넘어야 바꾼다. 두 주제의 가중치가 엇비슷할 때
+ * 배치마다 슬롯이 뒤집히면(플래핑) 정규 편성이 하루 걸러 다른 주제로 흔들린다.
+ */
+export const AUTO_EXPAND_REPLACE_MARGIN = 1.2;
 
 /** `drip-scheduling.md` 4.3 — 신호 최근성 반감기(일) */
 export const SIGNAL_RECENCY_HALF_LIFE_DAYS = 14;
