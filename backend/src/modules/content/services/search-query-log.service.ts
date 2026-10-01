@@ -24,9 +24,10 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  *
  * **한 행은 타이핑 묶음 하나다.** 디바운스 자동 검색은 "커" → "커리" → "커리어"를 전부 보내는데,
  * 그걸 전부 행으로 두면 미스율이 중간 입력에 끌려간다("커"는 거의 항상 0건이 아니고 "커리ㅇ"은
- * 거의 항상 0건이다). 같은 사용자의 직전 행이 묶음 창 안에 있고 두 질의가 접두사 관계면 그 행을
- * 마지막 질의로 덮어쓴다 — 남는 것은 사용자가 실제로 보고 멈춘 질의다. 지우고 다시 치는 경우
- * ("커리어" → "커")도 접두사 관계라 같은 묶음이다.
+ * 거의 항상 0건이다). 같은 사용자의 직전 행이 묶음 창 안에 있고 두 질의가 **같은 타이핑으로 보이면**
+ * 그 행을 마지막 질의로 덮어쓴다 — 남는 것은 사용자가 마지막으로 보고 멈춘 질의다(`isSameTyping`).
+ * 접두사 관계("커리" → "커리어", 지운 "커리어" → "커")와 한 글자 고침("커리오" → "커리어",
+ * "면저" → "면접")이 같은 묶음이고, "면접" → "커리어"처럼 다른 말이면 새 행이다.
  *
  * **실패해도 검색을 깨뜨리지 않는다.** 로그는 분석 재료이지 응답의 일부가 아니라서, 적재 오류는 경고
  * 한 줄로 끝내고 호출부에는 아무것도 던지지 않는다. 호출부(탐색 Orchestrator)는 결과를 조립한 뒤
@@ -56,7 +57,7 @@ export class SearchQueryLogService {
         latest &&
         now.getTime() - latest.updatedAt.getTime() <=
           SEARCH_QUERY_LOG_MERGE_WINDOW_MS &&
-        isPrefixRelated(latest.query, entry.normalizedQuery)
+        isSameTyping(latest.query, entry.normalizedQuery)
       ) {
         await this.searchQueryLogRepository.overwrite(latest.id, draft);
         return;
@@ -88,7 +89,49 @@ export class SearchQueryLogService {
   }
 }
 
-/** "커리" ↔ "커리어"처럼 한쪽이 다른 쪽의 접두사면 같은 타이핑 묶음이다. 같은 질의의 재검색도 포함 */
-export function isPrefixRelated(previous: string, next: string): boolean {
-  return next.startsWith(previous) || previous.startsWith(next);
+/**
+ * 두 질의가 **같은 타이핑의 앞뒤 모습**인가 — 한쪽이 다른 쪽의 접두사이거나("커리" ↔ "커리어", 같은 질의의
+ * 재검색 포함), 편집 거리가 1 이하다("커리오" → "커리어" 오타 고침, "커리ㅇ" → "커리어" 조합 중). 편집 거리를
+ * 1로 묶는 이유: 2 이상이면 "면접" ↔ "면담"처럼 다른 말이 섞이기 시작한다
+ */
+export function isSameTyping(previous: string, next: string): boolean {
+  if (next.startsWith(previous) || previous.startsWith(next)) {
+    return true;
+  }
+
+  return editDistanceAtMostOne(previous, next);
+}
+
+/** 레벤슈타인 거리 ≤ 1 — 한 글자 바꿈·끼움·뺌. 코드포인트 단위라 NFC 정규화된 한글은 음절 하나가 한 글자다 */
+function editDistanceAtMostOne(a: string, b: string): boolean {
+  const left = Array.from(a);
+  const right = Array.from(b);
+  if (Math.abs(left.length - right.length) > 1) {
+    return false;
+  }
+
+  let i = 0;
+  let j = 0;
+  let edits = 0;
+  while (i < left.length && j < right.length) {
+    if (left[i] === right[j]) {
+      i += 1;
+      j += 1;
+      continue;
+    }
+    edits += 1;
+    if (edits > 1) {
+      return false;
+    }
+    if (left.length > right.length) {
+      i += 1; // 뺌
+    } else if (left.length < right.length) {
+      j += 1; // 끼움
+    } else {
+      i += 1; // 바꿈
+      j += 1;
+    }
+  }
+
+  return edits + (left.length - i) + (right.length - j) <= 1;
 }

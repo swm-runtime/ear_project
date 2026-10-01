@@ -1,7 +1,7 @@
 import { SearchQueryLogRepository } from '../repositories/search-query-log.repository';
 import { SearchQueryLog } from '../entities/search-query-log.entity';
 import {
-  isPrefixRelated,
+  isSameTyping,
   SearchQueryLogService,
 } from './search-query-log.service';
 
@@ -107,7 +107,7 @@ describe('SearchQueryLogService', () => {
       expect(repository.overwrite).not.toHaveBeenCalled();
     });
 
-    it('창 안이라도 접두사 관계가 아니면 새 검색이다', async () => {
+    it('창 안이라도 다른 말이면 새 검색이다', async () => {
       // given — "면접" 직후 "커리어"
       repository.findLatestByUserId.mockResolvedValue(
         latestRow('면접', new Date(NOW.getTime() - 2_000)),
@@ -183,14 +183,20 @@ describe('SearchQueryLogService', () => {
     });
   });
 
-  describe('isPrefixRelated', () => {
+  describe('isSameTyping', () => {
     it.each([
-      ['커리', '커리어', true],
-      ['커리어', '커', true],
-      ['커리어', '커리어', true],
-      ['면접', '커리어', false],
-    ])('%s → %s = %s', (previous, next, expected) => {
-      expect(isPrefixRelated(previous, next)).toBe(expected);
+      ['커리', '커리어', true, '이어 침'],
+      ['커리어', '커', true, '지움'],
+      ['커리어', '커리어', true, '재검색'],
+      ['커리오', '커리어', true, '한 글자 고침'],
+      ['커리ㅇ', '커리어', true, '조합 중'],
+      ['면저', '면접', true, '2자 오타 고침'],
+      ['면접', '커리어', false, '다른 말'],
+      ['면접', '면담', true, '한 글자 차이는 묶인다 — 거리 1의 한계'],
+      ['커리어', '커뮤니케이션', false, '첫 글자만 같은 다른 말'],
+      ['자기계발', '자기개발서', false, '거리 2'],
+    ])('%s → %s = %s (%s)', (previous, next, expected) => {
+      expect(isSameTyping(previous, next)).toBe(expected);
     });
   });
 });
