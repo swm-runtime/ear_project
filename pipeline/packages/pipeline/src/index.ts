@@ -665,7 +665,7 @@ ${sources}
 \`\`\`
 
 설계 규칙:
-- 축은 반드시 대립("A인데 B"), 역설("A하려다 B가 된다"), 재정의("A는 사실 B다") 중 하나. "X란 무엇인가"형은 축이 아니다. 사건이 아니라 개념이 이끈다 (규칙 13-1).
+- 축은 반드시 대립("A인데 B"), 역설("A하려다 B가 된다"), 재정의("A는 사실 B다") 중 하나. "X란 무엇인가"형은 축이 아니다. 사건이 아니라 개념이 이끈다 (규칙 13-1). ${history ? "**이 후보는 역사 모드다 — 0장의 사건형을 따른다.**" : ""}
 - **소스 순회 금지**: 구간 순서가 소스의 서술 순서·발행 순서를 따라가면 실패다. 구간은 축의 논리 단계로 나눈다. **소스는 한 구간에만 배정한다**(축 소스 하나만 도입·착지 두 구간) — 앞 구간의 소스를 뒤 구간에서 되부르는 재료 배치가 없어야 한다. 실측(2026-09-15): 소스를 여러 구간에 흩뿌린 구성안이 매 구간의 재식별("그 하버드 교수는")과 귀속 과밀을 만들었다.
 - **구간은 축의 하위 질문이다** (full-v8.1, 2026-09-19): 축 한 문장을 청취자가 순서대로 묻게 될 질문 3~5개로 펴고, 구간마다 그 질문 하나를 \`질문:\` 줄에 적는다. 하위 질문에 붙지 않는 소스는 **제외한다**(역할표 "역할 없는 소스"에 사유). 인접 주제로 번지는 구간("리뷰는 출처로 읽는다"에서 "설문 가짜 응답자"·"AI 사진 판별"로)은 축 이탈이다 — 사람 판정 3.6 저점 사유 "#3부터 축에서 벗어나 통계의 함정 주제처럼 보임"(T260918-003). 착지 구간의 질문은 축 질문 그 자체다. 설계 직후 워커가 축 심사(별도 호출)로 구간마다 이 질문이 축에 답하는지 확인하고, 아니면 그 구간을 뺀 재설계를 요구한다.
 - 착지 구간을 반드시 지정하고, 그 구간의 재료가 실제로 축을 증명하는지 스스로 확인한다.
@@ -690,7 +690,7 @@ export const DESIGN_SCHEMA = {
   required: ["axis", "axis_type", "landing_section", "sections", "excerpts", "claims", "estimated_minutes", "split_proposal", "sources_used", "sources_excluded", "gaps", "self_check", "notes"],
   properties: {
     axis: { type: "string" },
-    axis_type: { type: "string", enum: ["대립", "역설", "재정의"] },
+    axis_type: { type: "string", enum: ["대립", "역설", "재정의", "사건"] },
     landing_section: { type: "integer" },
     sections: { type: "array", items: { type: "object", additionalProperties: false, required: ["n", "title", "sources", "ratio"], properties: { n: { type: "integer" }, title: { type: "string" }, sources: { type: "array", items: { type: "string" } }, ratio: { type: "integer" } } } },
     excerpts: { type: "integer", description: "sources.md 발췌 항목 수" },
@@ -815,7 +815,7 @@ ${WRITE_FACT_RULES}
 - 해설: **${explainer}** / 진행: **${host}** — 역할 고정, 페르소나는 spec/04 3장.
 - 제목은 구성안의 축에 맞게 새로 지어도 된다 (클릭베이트 금지).
 ${templateBlock({ templates: i.templates, majorTopic: i.majorTopic, signoffSeed: i.signoffSeed } as DraftInput)}
-- 도입 (규칙 13): 주제 선언 뒤 첫 해설 턴 사이에 청취자가 "대화에 앉는" 두세 턴. 주제를 다시 발견하는 척 금지. 이 에피소드의 진입 방식: **${i.introStyle.label}** — ${i.introStyle.hint}
+- 도입 (규칙 13): 주제 선언 뒤 첫 해설 턴 사이에 청취자가 "대화에 앉는" 두세 턴. 주제를 다시 발견하는 척 금지. 이 에피소드의 진입 방식: **${i.introStyle.label}** — ${i.introStyle.hint}${isHistoryTopic(i.candidate.mid_topic) ? "\n" + HISTORY_WRITE_RULE : ""}
 - **이 에피소드의 목표: 약 ${i.estimatedMinutes ?? 15}분 = 공백·기호 제외 약 ${Math.round((i.estimatedMinutes ?? 15) * 350)}자 (±15%)** — 구성안의 "예상 분량"이다 (350자/분). 하한 13분(약 4,000자)은 필수이고 상한을 규칙으로 두지는 않지만, **예상 분량은 설계가 재료 총량으로 이미 정한 크기다** — 그보다 크게 쓰는 것은 재료가 많아서가 아니라 풀어 쓰기가 길어진 것이다.
 
 ## 이 에피소드의 재료
@@ -995,6 +995,7 @@ export interface DesignInlineInput {
 }
 
 export function buildDesignPromptInlineParts(i: DesignInlineInput): PromptParts {
+  const history = isHistoryTopic(i.candidate.mid_topic);
   const explainer = explainerFor(i.candidate.mid_topic);
   const host = explainer === "윤아" ? "이음" : "윤아";
   const fence = (s: string) => "````\n" + s.trim() + "\n````";
@@ -1069,7 +1070,7 @@ ${fence(explainer === "이음" ? i.goldFullEum : i.goldFullYuna)}` : `### 1.3 �
 비율 합계: 도입 5~10 / 본문 75~85 / 마무리 10~15
 \`\`\`
 설계 규칙:
-- 축은 반드시 대립("A인데 B"), 역설("A하려다 B가 된다"), 재정의("A는 사실 B다") 중 하나. "X란 무엇인가"형은 축이 아니다. 사건이 아니라 개념이 이끈다 (규칙 13-1).
+- 축은 반드시 대립("A인데 B"), 역설("A하려다 B가 된다"), 재정의("A는 사실 B다") 중 하나. "X란 무엇인가"형은 축이 아니다. 사건이 아니라 개념이 이끈다 (규칙 13-1). ${history ? "**이 후보는 역사 모드다 — 0장의 사건형을 따른다.**" : ""}
 - **소스 순회 금지**: 구간 순서가 소스의 서술 순서·발행 순서를 따라가면 실패다. 구간은 축의 논리 단계로 나눈다. **소스는 한 구간에만 배정한다**(축 소스 하나만 도입·착지 두 구간) — 앞 구간의 소스를 뒤 구간에서 되부르는 재료 배치가 없어야 한다. 실측(2026-09-15): 소스를 여러 구간에 흩뿌린 구성안이 매 구간의 재식별("그 하버드 교수는")과 귀속 과밀을 만들었다.
 - **구간은 축의 하위 질문이다** (full-v8.1, 2026-09-19): 축 한 문장을 청취자가 순서대로 묻게 될 질문 3~5개로 펴고, 구간마다 그 질문 하나를 \`질문:\` 줄에 적는다. 하위 질문에 붙지 않는 소스는 **제외한다**(역할표 "역할 없는 소스"에 사유). 인접 주제로 번지는 구간("리뷰는 출처로 읽는다"에서 "설문 가짜 응답자"·"AI 사진 판별"로)은 축 이탈이다 — 사람 판정 3.6 저점 사유 "#3부터 축에서 벗어나 통계의 함정 주제처럼 보임"(T260918-003). 착지 구간의 질문은 축 질문 그 자체다. 설계 직후 워커가 축 심사(별도 호출)로 구간마다 이 질문이 축에 답하는지 확인하고, 아니면 그 구간을 뺀 재설계를 요구한다.
 - 착지 구간을 반드시 지정하고, 그 구간의 재료가 실제로 축을 증명하는지 스스로 확인한다.
@@ -1081,7 +1082,7 @@ ${fence(explainer === "이음" ? i.goldFullEum : i.goldFullYuna)}` : `### 1.3 �
 ### d) pronunciations — 대본에 등장할 모든 비한글 표기(영문 용어·인명·기관·매체) → 한글 발음. 없으면 빈 배열.
 
 ## 3. 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. 완료 보고 전에 다른 텍스트를 출력하지 않는다.`;
-  const user = `## 에피소드 정보 (백로그 ${i.candidate.id}, 게이트1 승인 완료)
+  const user = `${history ? HISTORY_DESIGN_RULE + "\n\n" : ""}## 에피소드 정보 (백로그 ${i.candidate.id}, 게이트1 승인 완료)
 - 에피소드 ID: ${i.episodeId} · 제목(가): "${i.candidate.title}" · 중분류: ${i.candidate.mid_topic}
 - outline_md 첫 줄은 정확히 "# 구성안 — ${i.episodeId}" 로 쓴다.
 - 해설: **${explainer}** / 진행: **${host}** — 역할 고정
@@ -1106,7 +1107,7 @@ export const DESIGN_INLINE_SCHEMA = {
   required: ["axis", "axis_type", "landing_section", "axis_source", "sections", "excerpt_ids", "gists", "claims", "outline_md", "pronunciations", "estimated_minutes", "split_proposal", "sources_used", "sources_excluded", "gaps", "notes"],
   properties: {
     axis: { type: "string" },
-    axis_type: { type: "string", enum: ["대립", "역설", "재정의"] },
+    axis_type: { type: "string", enum: ["대립", "역설", "재정의", "사건"] },
     landing_section: { type: "integer" },
     axis_source: { type: "string", description: "도입과 착지를 잇는 축 소스 하나 — 소스 번호만 \"S3\" 형식으로 적는다 (URL·제목 금지). 없으면 빈 문자열. 이 소스만 두 구간에 걸칠 수 있다" },
     sections: { type: "array", items: { type: "object", additionalProperties: false, required: ["n", "title", "sources", "ratio"], properties: { n: { type: "integer" }, title: { type: "string" }, sources: strArr, ratio: { type: "integer" } } } },
@@ -1211,6 +1212,39 @@ export const REVISION_INLINE_SCHEMA = {
 export type SourceRole = "근거 앵커" | "사례" | "반론·한계" | "수치·조사" | "역사·맥락";
 export const SOURCE_ROLES: SourceRole[] = ["근거 앵커", "사례", "반론·한계", "수치·조사", "역사·맥락"];
 
+// ── 역사 모드 (2026-10-01 박수헌): 역사 중분류는 "역사적 사실과 그 해석"이 내용이다 — 사건은 개념의 사례가 아니라 축이다.
+// 9/26 이후 역사 편 5개가 전부 개념 에세이(재판은 사실 확정 절차인가 → 뉘른베르크는 사례)로 나왔다. 축 유형 "사건"은 역사 후보에만 허용하고,
+// 소스 역할은 이름을 유지한 채 뜻만 바꾼다(스키마 변경 없음). 한능검은 제외(준비 전). 한국사·세계사는 같은 틀.
+export const HISTORY_MID_TOPIC = "역사";
+export const isHistoryTopic = (midTopic: string | null | undefined): boolean => midTopic === HISTORY_MID_TOPIC;
+export const AXIS_TYPES = ["대립", "역설", "재정의", "사건"] as const;
+export const ROLE_INTENT_HISTORY: Record<string, string> = {
+  "근거 앵커": "사건의 전말을 서술하는 개설·사료 요약 (역사 백과·개설서·연구기관 해설)",
+  사례: "사료 속 구체 장면·인물·기록 (편지·일기·재판 기록·당시 보도)",
+  "반론·한계": "같은 사건에 대한 엇갈리는 해석·논쟁 (있으면 좋고, 없어도 성립)",
+  "수치·조사": "당시 기록의 수치 (인구·피해·비용·표결)",
+  "역사·맥락": "사건의 배경과 전후 사정 (원인이 된 조건, 이후에 미친 영향)",
+};
+export function roleIntentFor(midTopic: string | null | undefined): Record<string, string> { return isHistoryTopic(midTopic) ? ROLE_INTENT_HISTORY : ROLE_INTENT; }
+/** 군집화·설계 프롬프트에 넣는 역사 모드 지시 (GPT 판 원칙: 단문·기능 서술·예시 문장 없음) */
+export const HISTORY_CLUSTER_RULE = `### 역사 모드 (중분류 역사 후보에만)
+- 역사 후보의 축은 **사건형**이다. 축 문장 = 한 사건 + 그 사건을 둘러싼 해석의 쟁점. 사건의 전말이 본문이고 해석이 결론이다. 대립·역설·재정의 꼴로 바꾸지 않는다. axis_type 은 "사건".
+- 역사 후보의 역할 뜻: 근거 앵커 = 사건의 전말을 서술하는 개설·사료 요약 · 사례 = 사료 속 구체 장면·인물·기록 · 반론·한계 = 엇갈리는 해석(없어도 성립) · 수치·조사 = 당시 기록의 수치 · 역사·맥락 = 배경과 전후 사정.
+- 사건을 다른 주제의 근거로 쓰는 소스(개념 에세이)는 역사 후보의 앵커가 아니다. 사건을 서술하는 소스가 앵커다.
+- 역사 외 중분류에서 사건형은 축이 아니다.`;
+export const HISTORY_DESIGN_RULE = `## 0. 역사 모드 — 이 후보는 중분류가 역사다
+- 축은 사건형이다(axis_type "사건"). 축 문장은 사건과 해석의 쟁점을 함께 담는다. 대립·역설·재정의로 바꾸지 않는다.
+- 구간은 사건의 순서다: 배경 → 전개(시간순 2~3구간) → 결과·여파 → 해석(착지). 구간의 \`질문:\` 은 그 시점에서 청취자가 묻게 되는 것이다(왜 그랬나, 그래서 어떻게 됐나).
+- 연도·인명·지명·당시 수치는 내용이다. claims 에 그대로 넣는다. 각주 금지는 표본 수·조사 연도·서지 관계에만 적용한다.
+- 해석 소스는 opinion=true 로 표시한다. 해석이 둘 이상 엇갈리면 착지 구간에 나란히 둔다. 해석이 하나뿐이어도 구성안을 만든다.
+- 사례 재료는 사료 속 장면이다. 청취자 일상 사례 왕복 규칙은 적용하지 않는다.
+- 역할 뜻: 근거 앵커 = 사건의 전말을 서술하는 개설·사료 요약 · 사례 = 사료 속 구체 장면·인물·기록 · 반론·한계 = 엇갈리는 해석 · 수치·조사 = 당시 기록의 수치 · 역사·맥락 = 배경과 전후 사정.`;
+export const HISTORY_WRITE_RULE = `- **역사 모드** (중분류 역사): 이 편은 사건의 전말과 해석이 내용이다. 규칙 13-1 의 "사건은 사례"는 이 편에 적용하지 않는다 — 사건이 축이다.
+  · 본문은 구성안의 순서(배경 → 전개 → 결과 → 해석)대로 해설자가 무슨 일이 언제 누구에게 어떻게 일어났는지 이야기로 들려준다. 연도·인명·지명·당시 수치는 내용이므로 쓴다(표본 수·조사 연도 금지는 그대로).
+  · 진행자는 청취자 자리에서 묻는다 — 왜 그랬는지, 그래서 어떻게 됐는지, 그 사람은 어떻게 됐는지. 진행자는 해석을 먼저 말하지 않는다.
+  · 해석은 역사학자·책의 것으로 블록에서 한 번 소개한다. 해석이 둘 이상이면 나란히 둔다. 해설자의 판단과 소스의 해석을 가른다.
+  · 도입은 위 도입 형태 지시 대신 사건 속 한 장면(시간·장소·인물)으로 연다. 마무리 정리는 전말을 한 줄씩 잇고 해석으로 닫는다.`;
+
 export interface ClusterV2Input {
   midTopics: string[];
   majorTopic?: string | null;
@@ -1223,10 +1257,13 @@ export interface ClusterV2Input {
   reinforce?: { id: string; title: string; axis: string; axis_type: string; gaps: string[]; currentM: string[] };
   /** 주제 기획 판정 (모드 B-②, 2026-09-26): 사람이 준 주제 하나로 후보 하나를 만든다 — 주제는 고정, 축은 소스에서 세운다. candidates 는 정확히 1개 */
   seed?: { id: string; topic: string; hint: string | null; midTopic: string };
+  /** 보강 재판정 후보의 중분류 (역사 모드 판별, 2026-10-01) */
+  reinforceMidTopic?: string | null;
 }
 
 export function buildClusterPromptV2(i: ClusterV2Input): string {
   const cur = new Set(i.reinforce?.currentM ?? []);
+  const history = i.midTopics.includes(HISTORY_MID_TOPIC) || isHistoryTopic(i.seed?.midTopic) || isHistoryTopic(i.reinforceMidTopic);
   const list = i.sources.map((s) => `[M${s.n}] ${s.publisher || s.domain} · ${s.published ?? "날짜 미상"}${s.used ? " · (이미 사용된 소스)" : ""}${cur.has(`M${s.n}`) ? " · (현재 후보 소스)" : ""}\n   ${s.title}\n   ${(s.summary ?? "").replace(/\s+/g, " ").slice(0, 240)}`).join("\n");
   const reinforce = i.reinforce ? `
 ## 0. 보강 재판정 — 후보 하나만
@@ -1261,12 +1298,12 @@ ${i.specBacklogExcerpt.trim()}
    - 대립형: "A인데 B" (예: 배제는 악의가 아니라 소속되고 싶은 마음에서 나온다)
    - 역설형: "A하려다 B가 된다" (예: 생각을 밀어낼수록 그 생각이 남는다)
    - 재정의형: "A는 사실 B다" (예: 집중력은 의지가 아니라 리듬이다)
-   "X란 무엇인가", "X의 모든 것", 하나의 사건·발표·출시를 축으로 삼는 것은 축이 아니다 (이어는 소식을 전하는 서비스가 아니다 — 사건성 소스는 사례 재료로만).
+   "X란 무엇인가", "X의 모든 것", 하나의 사건·발표·출시를 축으로 삼는 것은 축이 아니다 (이어는 소식을 전하는 서비스가 아니다 — 사건성 소스는 사례 재료로만). ${history ? "**예외: 역사 중분류 후보는 아래 역사 모드의 사건형으로 세운다.**" : ""}
 2. **축마다 소스에 역할을 배정한다.** 역할은 다섯 가지 — 근거 앵커(축의 핵심 주장을 받치는 소스, 1~2건) · 사례(청취자 일상 또는 구체 일화) · 반론·한계 · 수치·조사 · 역사·맥락. 한 소스가 두 역할을 겸할 수 있다(roles 에 둘 다). 역할이 없는 소스는 넣지 않는다. 소스 수는 5~7건.
 3. **다양성 기준**: 발행처 3곳 이상 · 한 발행처가 절반을 넘지 않음 · 역할 최소 3종(근거 앵커 + 사례 + 나머지 하나). "이미 사용된 소스"는 후보당 1건까지만. (워커가 코드로 다시 계산한다 — 맞추려고 소스를 억지로 끼우지 않는다.)
 4. **판정**: 기준을 전부 만족하면 \`성립\`, 축은 좋은데 역할이 비면 \`보강 필요\`로 내고 비어 있는 역할을 gaps 에 적는다(다음 단계인 탐색 보강의 입력). 기준 미달을 억지로 채우지 않는다. 기존 후보 제목과 축이 겹치면 내지 않는다.
 
-### 후보 항목 (완료 보고 JSON 의 candidates[])
+${history ? HISTORY_CLUSTER_RULE + "\n\n" : ""}### 후보 항목 (완료 보고 JSON 의 candidates[])
 - title(제목안, 클릭베이트 금지) · mid_topic · axis_type · axis(한 문장) · axis_note(왜 청취자에게 긴장인가, 두 줄) · verdict(성립|보강 필요) · gaps
 - sources[]: { m: "M12", roles: ["근거 앵커"], why: "이 역할인 이유 한 줄" } — **M-ID 는 아래 목록에 있는 것만** (없는 ID 는 버려진다)
 - target_fit(타깃 정합 한 줄) · landing(축이 어느 재료에서 증명될 것 같은가 한 줄) · dedup_note(기존 후보 제목과 겹치지 않는 이유 한 줄)
@@ -1278,7 +1315,7 @@ ${i.specBacklogExcerpt.trim()}
 ${list}
 
 ## 5. 자기 점검 (출력 전에)
-- 모든 후보의 축이 세 꼴 중 하나인가. "X란 무엇인가"형이 없는가.
+- 모든 후보의 축이 세 꼴 중 하나인가. "X란 무엇인가"형이 없는가.${history ? " 역사 후보는 사건형(axis_type \"사건\")인가, 역사 외 후보에 사건형이 없는가." : ""}
 - 성립 후보가 다양성 기준 세 가지를 전부 만족하는가 (발행처 수·최다 비율·역할 수를 직접 센다).
 - 역할표의 M-ID 가 목록에 실제로 있는가. 근거 앵커가 1건 이상인가.
 
@@ -1313,7 +1350,7 @@ export function buildReinforceSearchPrompt(i: ReinforceSearchInput): string {
 - ${c.id} "${c.title}" · 중분류 ${c.mid_topic}
 - 축(${c.axis_type ?? "-"}): ${c.axis ?? "(없음)"}
 - 이미 있는 소스: ${c.sources.map((s) => `${s.publisher} "${s.title}"`).join(" / ") || "(없음)"}
-- **채워야 할 역할**: ${roles.map((r) => `${r} — ${ROLE_INTENT[r] ?? ""}`).join("\n  · ")}${diversify ? `\n- **이번 보강의 목표**: ${diversify}. 같은 발행처(계열 저널 포함)의 결과는 넣지 않는다.` : ""}
+- **채워야 할 역할**: ${roles.map((r) => `${r} — ${roleIntentFor(c.mid_topic)[r] ?? ""}`).join("\n  · ")}${isHistoryTopic(c.mid_topic) ? "\n- **역사 모드**: 사건의 전말을 서술하는 소스(역사 백과·개설·사료 요약·연구기관 해설)를 찾는다. 사건을 다른 주제의 근거로 쓰는 에세이는 앵커가 아니다. 오래된 글도 된다." : ""}${diversify ? `\n- **이번 보강의 목표**: ${diversify}. 같은 발행처(계열 저널 포함)의 결과는 넣지 않는다.` : ""}
 
 ## 검색 규칙
 - 검색은 최대 ${i.maxSearches}회. 역할마다 검색 의도가 다르다(위 설명). 한국어·영어 둘 다 쓴다 — 대본은 한국어지만 근거는 영어 소스가 많다.
@@ -1336,7 +1373,7 @@ export function buildTopicSeedSearchPrompt(i: TopicSeedSearchInput): string {
 
 ## 무엇을 모으는가 — 역할표
 에피소드 후보는 소스 5~7건에 다음 역할이 배정되어야 성립한다. 각 역할을 채울 소스를 찾는다.
-  · ${SOURCE_ROLES.map((r) => `${r} — ${ROLE_INTENT[r] ?? ""}`).join("\n  · ")}
+  · ${SOURCE_ROLES.map((r) => `${r} — ${roleIntentFor(i.midTopic)[r] ?? ""}`).join("\n  · ")}${isHistoryTopic(i.midTopic) ? "\n역사 모드: 축은 사건형(사건 + 해석의 쟁점)이다. 사건의 전말을 서술하는 소스(역사 백과·개설·사료 요약·연구기관 해설)가 앵커이고, 오래된 글도 된다." : ""}
 성립 기준(워커가 코드로 다시 센다): 소스 3건 이상 · 발행처 3곳 이상 · 한 발행처가 절반을 넘지 않음 · 근거 앵커 1건 이상 · 역할 3종 이상.
 
 ## 검색 규칙
@@ -1344,7 +1381,7 @@ export function buildTopicSeedSearchPrompt(i: TopicSeedSearchInput): string {
 - **사이트를 풀에 가두지 않는다.** 주제에 맞는 소스라면 어느 발행처든 좋다. 다만 우선순위는 있다: 공공기관·연구기관·대학·학회·오픈액세스 저널·기업 공식 블로그 > 전문 매거진·비영리 매체 > 상업 언론. 아래 소스 풀 사이트는 접근이 확인된 곳이니 검색어에 \`site:\` 로 섞어 쓰면 좋다(의무 아님):
   ${i.poolHosts.slice(0, 40).join(", ")}
 - **접근이 막힌 곳은 제외** — 워커가 본문을 가져와야 한다: 논문 저장소·유료 DB(researchgate, ssrn, academia.edu, semanticscholar, sciencedirect 유료 페이지, springer/wiley 유료, jstor 본문), 로그인·구독 벽 뒤의 기사, PDF 만 있는 링크, SNS·위키·커뮤니티·상품 페이지·보도자료 단신은 넣지 않는다.
-- 뉴스 속보 하나를 소스로 삼지 않는다 — 이어는 소식이 아니라 축(대립·역설·재정의)을 다룬다. 사건성 글은 사례 재료로만.
+- 뉴스 속보 하나를 소스로 삼지 않는다 — 이어는 소식이 아니라 축(대립·역설·재정의, 역사는 사건형)을 다룬다. 사건성 글은 사례 재료로만.
 - 2년 넘게 지난 글은 역사·맥락 역할일 때만.
 - 한 소스가 두 역할을 겸할 수 있다. 주제와 어긋나는데 키워드만 겹치는 글은 넣지 않는다 — 빈 손이 억지 소스보다 낫다.
 
@@ -1511,7 +1548,7 @@ export const CLUSTER_SCHEMA_V2 = {
         required: ["id", "mid_topic", "title", "axis_type", "axis", "axis_note", "verdict", "gaps", "sources", "target_fit", "landing", "dedup_note"],
         properties: {
           id: { type: "string" }, mid_topic: { type: "string" }, title: { type: "string" },
-          axis_type: { type: "string", enum: ["대립", "역설", "재정의"] }, axis: { type: "string" }, axis_note: { type: "string" },
+          axis_type: { type: "string", enum: ["대립", "역설", "재정의", "사건"] }, axis: { type: "string" }, axis_note: { type: "string" },
           verdict: { type: "string", enum: ["성립", "보강 필요"] },
           gaps: { type: "array", items: { type: "string", enum: ["근거 앵커", "사례", "반론·한계", "수치·조사", "역사·맥락"] } },
           sources: { type: "array", minItems: 3, items: { type: "object", additionalProperties: false, required: ["m", "roles", "why"], properties: { m: { type: "string" }, roles: { type: "array", minItems: 1, items: { type: "string", enum: ["근거 앵커", "사례", "반론·한계", "수치·조사", "역사·맥락"] } }, why: { type: "string" } } } },
@@ -1524,7 +1561,7 @@ export const CLUSTER_SCHEMA_V2 = {
 
 
 // ── 축 심사 (full-v8.1, 2026-09-19): 설계 직후 구성안의 구간이 축의 하위 질문에 답하는지 별도 단발 호출로 본다. 소스·대본 없이 구성안만 입력 — 값싼 모델(sonnet) 로 충분
-export interface AxisCheckInput { outlineMd: string }
+export interface AxisCheckInput { outlineMd: string; midTopic?: string | null }
 export const AXIS_CHECK_SCHEMA = {
   type: "object", additionalProperties: false, required: ["axis", "sections", "verdict", "note"],
   properties: {
@@ -1544,7 +1581,8 @@ export function buildAxisCheckPromptParts(i: AxisCheckInput): PromptParts {
 - **인접 주제로 번진 구간은 false 다** — 같은 상위 개념(예: "신호를 출처로 읽는다")을 공유해도 축의 대상(예: "리뷰")을 벗어나면 축 이탈이다. 사람 판정은 이런 편을 "#3부터 축에서 벗어나 다른 주제처럼 보임"이라고 깎았다.
 - 사례·반론 구간은 축의 대상 안에서의 사례·반론일 때만 true 다.
 - 착지 구간의 질문은 축 질문 자체여야 한다.
-- 보수적으로 판정한다: 애매하면 true 가 아니라 why 에 애매함을 적고 false 로 둔다. 다만 구간이 셋뿐인 구성안은 셋 다 축에 붙어 있으면 pass 다.
+- 보수적으로 판정한다: 애매하면 true 가 아니라 why 에 애매함을 적고 false 로 둔다. 다만 구간이 셋뿐인 구성안은 셋 다 축에 붙어 있으면 pass 다.${isHistoryTopic(i.midTopic) ? `
+- **역사 모드** (이 구성안의 중분류는 역사): 축은 사건형(한 사건 + 해석의 쟁점)이다. 구간은 그 사건의 배경 → 전개 → 결과 → 해석 순서여야 하고, 각 구간이 **그 사건**의 전말이나 해석을 다루면 true 다. 다른 사건이나 일반 개념으로 번진 구간은 false 다. 사건이 축이라는 이유로 fail 하지 않는다.` : ""}
 출력은 요청된 JSON 스키마만.`;
   const user = `## 구성안\n\n\`\`\`\n${i.outlineMd.trim()}\n\`\`\`\n\n구간마다 판정하고 verdict 를 낸다.`;
   return { system, user };

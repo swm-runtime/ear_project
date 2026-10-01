@@ -131,7 +131,7 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
   let extraCost = 0; // 재설계 앞 실행의 비용 (full-v8.3)
   if (cfg.axisCheck) {
     const check = async (outlineMd: string) => {
-      const ap2 = buildAxisCheckPromptParts({ outlineMd });
+      const ap2 = buildAxisCheckPromptParts({ outlineMd, midTopic: cand.mid_topic });
       const rc = await ex.run<{ axis: string; sections: { n: number; question: string; answers_axis: boolean; why: string }[]; verdict: "pass" | "fail"; note: string }>({
         prompt: ap2.user, systemPrompt: ap2.system, schema: AXIS_CHECK_SCHEMA, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 5 * 60_000, model: cfg.axisCheckModel, effort: "low",
         onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: "설계 1/2 — 축 심사 (단발)", detail: "구간이 축의 하위 질문인지 대조 중" }).catch(() => {}),
