@@ -110,7 +110,7 @@ export const cfg = {
   aiServerToken: process.env.AI_SERVER_TOKEN || "",
   ttsModel: process.env.TTS_MODEL || "eleven_v3",
   ttsVoiceYuna: process.env.TTS_VOICE_YUNA || "Lb7qkOn5hF8p7qfCDH8q",
-  ttsVoiceEum: process.env.TTS_VOICE_EUM || "4JJwo477JUAx3HV0T7n7", // 2026-10-01 박수헌: 이음 보이스를 "Mr. K - Korean Creator Voice" 로 교체 — ID 확정 전까지 Yohan Koo, 확정되면 기본값 교체
+  ttsVoiceEum: process.env.TTS_VOICE_EUM || "sQ3a15DhENXU8pKTHlcc", // 2026-10-01 박수헌: 이음 보이스 교체 — Mr. K - Korean Creator Voice (이전 Yohan Koo 4JJwo477JUAx3HV0T7n7)
   /** 징글 (2026-10-01 박수헌): S3 assets/audio/intro.mp3 · outro.mp3 를 조립 앞뒤에 붙인다. 키를 비우면 끄고, 객체가 없으면 없이 조립한다(실패 아님). 아웃트로 앞 패딩은 기본 인트로의 앞 무음 길이 */
   ttsIntroKey: process.env.TTS_INTRO_KEY ?? "assets/audio/intro.mp3",
   ttsOutroKey: process.env.TTS_OUTRO_KEY ?? "assets/audio/outro.mp3",
