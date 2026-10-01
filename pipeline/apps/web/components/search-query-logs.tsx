@@ -65,19 +65,16 @@ function SummaryView({ channel, days }: { channel: EarChannel; days: number }) {
   const small = (t?.searches ?? 0) > 0 && (t?.searches ?? 0) < SMALL_SAMPLE;
   const missRate = t?.miss_rate ?? null;
   const missTone = missRate == null ? "text-ink" : missRate >= 0.3 ? "text-rose-700" : missRate >= 0.15 ? "text-amber-700" : "text-ink";
-  const abandonRate = t?.abandon_rate ?? null;
-  const abandonTone = abandonRate == null ? "text-ink" : abandonRate >= 0.6 ? "text-rose-700" : abandonRate >= 0.4 ? "text-amber-700" : "text-ink";
   const maxDaily = Math.max(1, ...(data?.daily ?? []).map((d) => d.searches));
 
   return (
     <div className="space-y-3">
       {err && <p className="text-[13px] text-rose-700">{err}</p>}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <Stat label="검색" value={t ? t.searches.toLocaleString() : "…"} sub={t ? `사용자 ${t.users.toLocaleString()}명 · 타이핑 묶음 단위` : undefined} />
         <Stat label="미스율" value={t ? pct(missRate) : "…"} sub={t ? (small ? `0건 ${t.misses} — 표본 ${t.searches}건, 참고만` : `0건 ${t.misses.toLocaleString()} ÷ 검색`) : undefined} tone={missTone} />
-        <Stat label="무반응" value={t ? pct(abandonRate) : "…"} sub={t ? `결과 있었는데 안 누름 ${t.abandoned.toLocaleString()} ÷ 결과 있던 검색` : undefined} tone={abandonTone} />
-        <Stat label="반응" value={t ? t.clicked.toLocaleString() : "…"} sub="10분 안에 결과를 재생·담음" />
+        <Stat label="반응" value={t ? t.clicked.toLocaleString() : "…"} sub="10분 안에 결과를 재생·담은 검색 수" />
         <Stat label="2자 질의" value={t ? pct(ratio(t.short_queries, t.searches)) : "…"} sub="트라이그램 인덱스를 못 타는 길이" />
         <Stat label="주제 필터 동반" value={t ? pct(ratio(t.filtered_searches, t.searches)) : "…"} sub="0건이 필터 탓인지 가를 때" />
       </div>
@@ -93,7 +90,7 @@ function SummaryView({ channel, days }: { channel: EarChannel; days: number }) {
               const ch = d.searches > 0 ? Math.round((d.clicked / d.searches) * h) : 0;
               return (
                 <div key={d.date} className="flex min-w-[18px] flex-1 flex-col items-center justify-end gap-1" title={`${d.date} · 검색 ${d.searches} · 0건 ${d.misses} · 반응 ${d.clicked}`}>
-                  {/* 막대 전체가 검색. 아래부터 빨강(0건) → 초록(반응), 남는 회색-브랜드색이 무반응 */}
+                  {/* 막대 전체가 검색. 아래부터 빨강(0건) → 초록(반응). 나머지는 반응이 안 잡힌 검색 — 이유는 알 수 없어 따로 이름 붙이지 않는다 */}
                   <div className="relative w-full rounded-t bg-brand/40" style={{ height: h }}>
                     <div className="absolute inset-x-0 bottom-0 bg-emerald-500" style={{ height: ch, bottom: mh }} />
                     <div className="absolute inset-x-0 bottom-0 bg-rose-400" style={{ height: mh }} />
@@ -136,7 +133,7 @@ function SummaryView({ channel, days }: { channel: EarChannel; days: number }) {
       </div>
 
       <p className="text-xs text-ink-soft">
-        한 행은 사용자가 치다가 멈춘 질의 하나다 — 디바운스 자동 검색의 중간 입력(‘커’ → ‘커리’ → ‘커리어’)과 한 글자 고침은 서버가 10초 창 안에서 마지막 것으로 접는다. <b>반응</b>은 그 뒤 10분 안에 결과 중 하나를 재생하거나 담은 검색이다 — 앱이 탭을 보내는 게 아니라 서버가 재생·담기 기록에서 역산하므로, 재생 한도에 막혔거나 상세만 본 경우는 무반응으로 센다. 0건 질의가 콘텐츠가 없는 주제면 제작 쪽 수요이고, 결과가 있는데 무반응이 많은 질의는 랭킹이 틀렸거나 매칭이 엉뚱한 것(explore.md 4.5-5)이다. 보존 90일.
+        한 행은 사용자가 치다가 멈춘 질의 하나다 — 디바운스 자동 검색의 중간 입력(‘커’ → ‘커리’ → ‘커리어’)과 한 글자 고침은 서버가 10초 창 안에서 마지막 것으로 접는다. <b>반응</b>은 그 뒤 10분 안에 결과 중 하나를 재생하거나 담은 검색이다 — 앱이 탭을 보내는 게 아니라 서버가 재생·담기 기록에서 역산한다. 반응이 안 잡힌 검색은 재생 한도에 막힌 건지 보고 나간 건지 알 수 없어서 비율로 만들지 않는다 — 질의별로 ‘눌린 적이 있나’만 본다. 0건 질의가 콘텐츠가 없는 주제면 제작 쪽 수요이고, 결과가 있는데 반응이 한 번도 없는 질의는 매칭이 엉뚱한지(explore.md 4.5-5) 볼 후보다. 보존 90일.
       </p>
     </div>
   );

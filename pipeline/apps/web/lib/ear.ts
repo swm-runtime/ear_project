@@ -325,7 +325,7 @@ export async function downloadEarEvalSnapshot(ch: EarChannel): Promise<{ filenam
 export interface EarSearchQueryRank { query: string; searches: number; misses: number; clicked: number; last_searched_at: string }
 export interface EarSearchQueryLogSummary {
   days: number; since: string;
-  totals: { searches: number; misses: number; miss_rate: number | null; clicked: number; abandoned: number; abandon_rate: number | null; users: number; short_queries: number; filtered_searches: number };
+  totals: { searches: number; misses: number; miss_rate: number | null; clicked: number; users: number; short_queries: number; filtered_searches: number };
   daily: { date: string; searches: number; misses: number; clicked: number }[];
   missed: EarSearchQueryRank[];
   top: EarSearchQueryRank[];

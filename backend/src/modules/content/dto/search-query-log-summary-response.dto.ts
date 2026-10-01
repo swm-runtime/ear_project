@@ -17,12 +17,11 @@ export class SearchQueryLogSummaryResponseDto {
     misses: number;
     /** `misses / searches`. 검색 0건이면 null */
     miss_rate: number | null;
-    /** 결과에 반응한 검색(10분 안 재생·담기) */
+    /**
+     * 결과에 반응한 검색(10분 안 재생·담기). **비율로 만들지 않는다** — 반응 없음은 재생 한도에 막힌 건지
+     * 보고 나간 건지 알 수 없어, 질의별로 "눌린 적 있나"만 본다
+     */
     clicked: number;
-    /** 결과가 있었는데 반응이 없던 검색 = `searches - misses - clicked` */
-    abandoned: number;
-    /** `abandoned / (searches - misses)`. 결과 있던 검색이 0건이면 null */
-    abandon_rate: number | null;
     users: number;
     short_queries: number;
     filtered_searches: number;
@@ -49,8 +48,6 @@ export class SearchQueryLogSummaryResponseDto {
     });
 
     const { searches, misses, clicked } = summary.totals;
-    const withResults = searches - misses;
-    const abandoned = withResults - clicked;
 
     return {
       days,
@@ -60,8 +57,6 @@ export class SearchQueryLogSummaryResponseDto {
         misses,
         miss_rate: searches > 0 ? misses / searches : null,
         clicked,
-        abandoned,
-        abandon_rate: withResults > 0 ? abandoned / withResults : null,
         users: summary.totals.users,
         short_queries: summary.totals.shortQueries,
         filtered_searches: summary.totals.filteredSearches,

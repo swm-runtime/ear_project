@@ -30,8 +30,6 @@ interface SummaryBody {
     misses: number;
     miss_rate: number | null;
     clicked: number;
-    abandoned: number;
-    abandon_rate: number | null;
     users: number;
     short_queries: number;
     filtered_searches: number;
@@ -169,9 +167,6 @@ describe('검색 질의 로그 E2E', () => {
     expect(body.totals.searches).toBeGreaterThanOrEqual(2);
     expect(body.totals.clicked).toBeGreaterThanOrEqual(1);
     expect(body.totals.misses).toBeGreaterThanOrEqual(1);
-    expect(
-      body.totals.searches - body.totals.misses - body.totals.clicked,
-    ).toBe(body.totals.abandoned);
     expect(body.daily.length).toBeGreaterThan(0);
 
     // then — 창 밖 값은 거절
