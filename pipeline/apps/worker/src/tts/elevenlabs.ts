@@ -16,6 +16,23 @@ let fmtIdx = 0;
 export interface DialogueInput { text: string; voice_id: string }
 export interface SynthResult { data: Buffer; format: AudioFormat }
 
+/**
+ * 사용량 계측 (2026-10-01 박수헌: "편당 실제 차감량을 측정 가능하게"): ElevenLabs 는 응답 헤더 `character-cost` 에 그 요청의 실제 차감 크레딧을 돌려준다.
+ * 글자 수로 추정하던 값(659,868자 ↔ 실제 236,950크레딧, 약 0.36크레딧/자)과 다르고 재시도·폴백·정렬 호출까지 전부 과금되므로, 요청마다 헤더를 합산해 run 에 기록한다.
+ * 워커는 TTS 작업을 한 번에 하나만 돌리므로 모듈 단위 카운터로 충분하다 — tts 단계가 시작할 때 resetUsage(), 끝날 때 usage() 로 읽는다.
+ */
+export interface UsageMeter { requests: number; credits: number; unmetered: number }
+let meter: UsageMeter = { requests: 0, credits: 0, unmetered: 0 };
+export function resetUsage(): void { meter = { requests: 0, credits: 0, unmetered: 0 }; }
+export function usage(): UsageMeter { return { ...meter }; }
+/** 응답 하나를 계측한다 — 헤더가 없거나 숫자가 아니면 unmetered 로 센다(실패 응답도 요청 수에는 든다) */
+export function tally(headers: { get(name: string): string | null }): void {
+  meter.requests++;
+  const h = headers.get("character-cost");
+  const n = h == null ? NaN : Number(h);
+  if (Number.isFinite(n) && n >= 0) meter.credits += n; else meter.unmetered++;
+}
+
 function key(): string {
   if (!cfg.elevenLabsKey) throw new Error("ELEVENLABS_API_KEY 가 없습니다 (서버 deploy/env.prod → compose 가 워커에 주입)");
   return cfg.elevenLabsKey;
@@ -25,12 +42,14 @@ async function call(path: string, body: unknown, timeoutMs = 8 * 60_000): Promis
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    return await fetch(`${BASE}${path}`, {
+    const res = await fetch(`${BASE}${path}`, {
       method: "POST",
       headers: { "xi-api-key": key(), "content-type": "application/json" },
       body: JSON.stringify(body),
       signal: ctrl.signal,
     });
+    tally(res.headers);
+    return res;
   } finally { clearTimeout(t); }
 }
 
@@ -145,6 +164,7 @@ export async function forcedAlignment(audio: Buffer, text: string, timeoutMs = 1
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const res = await fetch(`${BASE}/forced-alignment`, { method: "POST", headers: { "xi-api-key": key() }, body: form, signal: ctrl.signal });
+    tally(res.headers);
     const body = await res.text();
     if (!res.ok) { throwIfLimit(res.status, body, true); throw new Error(`ElevenLabs forced-alignment 실패: HTTP ${res.status} ${body.slice(0, 300)}`); }
     const data = JSON.parse(body);
