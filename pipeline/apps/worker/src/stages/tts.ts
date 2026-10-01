@@ -9,7 +9,7 @@ import { advanceChain } from "../chain.js";
 import { ApiLimit, log } from "../util.js";
 import { parseScriptForTts, chunkTurns, describeCuts, type ScriptTurn, type Speaker } from "../tts/script.js";
 import { normalizeForTts, residualIssues } from "../tts/normalize.js";
-import { synthDialogue, synthDialogueWithTimestamps, locateTurnSpans } from "../tts/elevenlabs.js";
+import { synthDialogue, synthDialogueWithTimestamps, locateTurnSpans, resetUsage, usage } from "../tts/elevenlabs.js";
 import { assemble, findPauseCut, retimePieces, writeBuf, type Segment } from "../tts/audio.js";
 import { chunkSegments, contextExcerpt, DEFAULT_GAP_SEC, joinChunkSegments, validateSegments, type ScriptSegment } from "../tts/segments.js";
 
@@ -27,6 +27,7 @@ import { chunkSegments, contextExcerpt, DEFAULT_GAP_SEC, joinChunkSegments, vali
 const voiceOf = (speaker: Speaker): string => (speaker === "윤아" ? cfg.ttsVoiceYuna : cfg.ttsVoiceEum);
 
 export async function runTts(job: Job) {
+  resetUsage(); // 이 작업의 ElevenLabs 요청·차감 크레딧 계측 시작 (재시도·폴백·정렬 포함)
   const episodeId = String(job.payload.episode_id ?? "");
   const backlogId = String(job.payload.backlog_id ?? "");
   const sampleTurns = Number(job.payload.sample_turns ?? 0);
@@ -218,9 +219,12 @@ export async function runTts(job: Job) {
   }
   const artifacts = sampleTurns ? [s3Key(`${rel}/audio/sample.mp3`)] : [s3Key(`${rel}/audio/master.wav`), s3Key(`${rel}/audio/dist.mp3`), ...(segCount ? [s3Key(`${rel}/script-segments.json`)] : [])];
   const result = `${sampleTurns ? `TTS 샘플 ${turns.length}턴` : "TTS 완료"} — eleven_v3 다중화자 1콜 · 분할 ${chunks.length}요청(경계 ${cutSummary} · 세그먼트 포맷 ${fmt}) · ${totalChars}자 → ${min}분 ${sec}초 (앞뒤 무음 2초 포함) ${useCtx ? ` · 문맥 겹침 ${ctxOk}/${ctxBoundaries.length}경계(+${ctxChars}자)` : ""}${ctxOk < ctxBoundaries.length ? ` · 폴백 경계 무음 ${DEFAULT_GAP_SEC}초${fallbackAt.length ? ` @${fallbackAt.join("·")}` : ""}${ctxFails.length ? ` (사유: ${ctxFails.join(" / ").slice(0, 300)})` : ""}` : ""}${wantSpeed ? ` · 배속 윤아 ${cfg.ttsSpeedYuna}× 이음 ${cfg.ttsSpeedEum}×${speedFallbacks ? ` (원속 폴백 ${speedFallbacks}요청 — 청취 확인)` : ""}` : ""}${parsed.coldOpen ? " · 구 [콜드오픈] 구역 무시(폐지)" : ""}${sampleTurns ? "" : segCount ? ` · 자막 세그먼트 ${segCount}건(배포본 시각)` : ` · 자막 세그먼트 없음(${segFail})`} · 사전 ${dictVersion}${Object.keys(epMap).length ? `+발음 맵 ${Object.keys(epMap).length}건` : ""} · 보이스 윤아=${cfg.ttsVoiceYuna.slice(0, 6)}… 이음=${cfg.ttsVoiceEum.slice(0, 6)}… · 사람 청취 확인 대기 (spec/06 8장)`;
-  // 계측: TTS 의 "토큰"은 글자수(ElevenLabs 과금 단위). 비용은 요율(cfg.ttsUsdPer1kChars)이 설정됐을 때만 환산(참고값), 아니면 비운다
-  const ttsCost = cfg.ttsUsdPer1kChars != null ? ((totalChars + ctxChars) / 1000) * cfg.ttsUsdPer1kChars : undefined; // 문맥 글자도 과금
-  await insertRun({ backlog_id: backlogId, phase: "tts", result, prompt_version: "tts-v1 (worker)", artifacts, executed_by: executedBy, model: cfg.ttsModel, cost_usd: ttsCost, tokens: { characters: totalChars, context_characters: ctxChars, chunks: chunks.length, duration_sec: Math.round(durationSec) }, worker_rev: workerRev() });
+  // 계측 (2026-10-01): 실제 차감 크레딧은 응답 헤더 character-cost 의 합(재시도·폴백·정렬 호출 포함). 헤더가 있으면 그 값으로 비용을 환산하고, 없으면 글자 수 추정(참고값)
+  const u = usage();
+  const metered = u.credits > 0;
+  const ttsCost = metered ? (u.credits / 1000) * cfg.ttsUsdPer1kCredits : cfg.ttsUsdPer1kChars != null ? ((totalChars + ctxChars) / 1000) * cfg.ttsUsdPer1kChars : undefined;
+  const usageNote = ` · 실제 차감 ${metered ? `${u.credits.toLocaleString()}크레딧` : "미계측"} (${u.requests}요청${u.unmetered ? `, 헤더 없음 ${u.unmetered}` : ""})`;
+  await insertRun({ backlog_id: backlogId, phase: "tts", result: result + usageNote, prompt_version: "tts-v1 (worker)", artifacts, executed_by: executedBy, model: cfg.ttsModel, cost_usd: ttsCost, tokens: { characters: totalChars, context_characters: ctxChars, chunks: chunks.length, duration_sec: Math.round(durationSec), credits: metered ? u.credits : null, requests: u.requests, unmetered: u.unmetered }, worker_rev: workerRev() });
   // 샘플은 발행 경로가 아니다 — 연쇄를 잇지 않는다
   const next = sampleTurns ? null : await advanceChain(job);
   return { episode_id: episodeId, sample: !!sampleTurns, duration_sec: Math.round(durationSec), chunks: chunks.length, chars: totalChars, format: fmt, artifacts, script_segments: segCount, script_segments_skipped: segFail, next: next?.type ?? null };
