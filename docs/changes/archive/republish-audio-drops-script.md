@@ -23,3 +23,9 @@
 ## 완료 조건
 - Given admin-api 4.10 / When `script_file` 행을 읽는다 / Then 오디오 교체 + 대본 없음 → 삭제 규칙과 [자막 뽑기] → [반영] 절차가 적혀 있다
 - Given 오디오만 재발행 / When 응답 / Then `has_script: false`
+
+## 처리 기록
+
+- 반영 날짜: 2026-10-01
+- `spec/api/admin-api.md` 4.10 — `script_file` 행에 삭제 규칙, "대본 삭제" 문단 신설(`has_script: false` · 감사 로그 `after.script_dropped` · [자막 뽑기] → [반영] 절차)
+- `backend/domain.md` 5.3 — "함께 오지 않으면 행 삭제(행 없음 = 자막 없음)" · `features/admin.md` **4.3** 재발행 절에 같은 규칙 한 줄(요청서는 4.2로 적었으나 재발행 절은 4.3이다)

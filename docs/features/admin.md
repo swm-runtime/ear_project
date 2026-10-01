@@ -132,6 +132,7 @@ MVP는 자동 콘텐츠 파이프라인을 운영하지 않는다(PRD 4.2). 대�
 - `content_id`가 유지되므로 `library_items` · `playback_progresses` · `content_stats` 참조가 끊기지 않는다.
 - 클라이언트는 `content_version`이 달라지면 저장된 재생 위치와 오프라인 파일을 폐기한다(`player.md` 7).
 - **오디오 길이가 바뀌면 재생 위치가 콘텐츠 길이를 넘을 수 있다.** 이 경우 클라이언트가 위치를 0으로 리셋한다.
+- **오디오를 바꾸면서 유효한 대본(`script_file`)을 함께 보내지 않으면 기존 대본을 지운다**(2026-09-26 — 백엔드 전수 감사). 옛 세그먼트의 시각은 새 오디오와 어긋난다 — 틀린 자막보다 없는 편이 낫다(`domain.md` 5.3). 오디오를 바꾸지 않는 재발행(메타만·파일만)은 대본을 건드리지 않는다. 자막은 발행 목록의 [자막 뽑기] → [반영]으로 다시 채운다(`admin-api.md` 4.10 "대본 삭제").
 
 ### 4.4 회수 (FR-32)
 
@@ -181,6 +182,24 @@ MVP는 자동 콘텐츠 파이프라인을 운영하지 않는다(PRD 4.2). 대�
 | 검수 반려·재제작 건수 | **운영 로그 수동 집계** — PRD 10장 제작 품질 지표 |
 
 - 드립 자동 확장(FR-18, P1)이 후보를 못 찾은 경우도 여기에 표시한다. MVP에는 자동 생성 파이프라인이 없으므로 **팀이 직접 해당 주제 콘텐츠를 제작한다**(`drip-scheduling.md` 4.5).
+
+### 4.7 추천 테스트 (개발계 전용)
+
+추천에 영향을 주는 행동(재생·완청·담기·해제·삭제·재청취·관심 주제·커리어)을 **테스트 계정 한 명**에 대신 수행하고, 직후 편성 미리보기(2+1)와 탐색 피드의 변화를 본다(신설 2026-09-29 — `tickets/backend/archive/recommend-test-console.md`). 계약은 `admin-api.md` 4.17.
+
+편성 미리보기(`admin-api.md` 4.16)는 읽기 전용이라 "이 행동을 하면 추천이 어떻게 바뀌나"를 실험할 수 없었다. 폰으로 행동을 넣고 새로고침하는 방식은 한 번에 몇 분씩 걸리고 운영 계정의 신호를 오염시킨다.
+
+- **대상 계정은 서버 env `RECOMMEND_TEST_EMAIL` 하나로 고정한다. 요청이 사용자를 고르지 않는다** — 이메일을 받으면 관리자가 임의 사용자의 라이브러리를 조작하는 도구가 된다.
+- **운영에서는 꺼진다.** `SENTRY_ENVIRONMENT=production`이면 이메일이 있어도 409(`ADMIN_RECOMMEND_TEST_DISABLED`)다. 행동이 실제 `user_signals`·`library_items`·`play_records`·`content_stats`를 쓰기 때문이다 — 편성 미리보기가 운영에 붙을 수 있었던 이유(읽기 전용)가 여기는 성립하지 않는다.
+- **각 행동은 앱이 부르는 것과 같은 서비스 경로를 탄다**(`PlayService.startPlay` · `PlaybackProgressService.saveProgress` · `ExploreOrchestrator.saveContent/unsaveContent` · `LibraryScreenOrchestrator.deleteItem` · `PlaybackSignalService.recordReplay` · `UserInterestService.replaceManagedSelection` · `UserCareerService.replaceCareer`). **신호를 직접 적재하는 지름길을 두지 않는다** — 두면 "이 행동을 하면 추천이 어떻게 바뀌나"에 앱과 다른 답을 낸다.
+  - `play` — 라이브러리에 없으면 탐색 재생과 같이 `auto_play` 자동 적립 후 재생 시작. **오늘 한도가 차감된다**(테스트 계정 티어 기준). 한도에 막히면 그 에러가 그대로 보인다.
+  - `complete` — `play` 후 위치를 길이 끝까지 저장 → 완청 판정(90%) → `complete` 신호. 길이 0 콘텐츠는 수동 완료 경로(`library-api.md` 4.5).
+  - `replay` — 완료 상태가 아니면 앱과 같이 무시(신호 없음).
+- **행동 직후 신호 파생 상태를 다시 계산해 저장한다**(`DripBatchOrchestrator.refreshDerivedState` — 배치와 같은 함수. 2026-09-30 개명·확장).
+  - ① **취향 캐시** — 탐색 피드가 이 캐시를 읽으므로, 이것 없이는 피드가 다음 배치까지 안 바뀐다. "취향 캐시는 배치만 갱신한다"(`drip-scheduling.md` 4.3)의 명시적 예외다.
+  - ② **자동 확장 슬롯**(`drip-scheduling.md` 4.5-1) — 관심 밖 주제를 2편 완청하면 그 자리에서 관심 주제가 붙는다. 응답 `effects[]`에 `자동 확장 add (slot_free)` 같은 줄이 실린다.
+- **초기화**: 신호·재생 기록·위치·오디오 발급 로그·원문 클릭·라이브러리(삭제분 포함)·취향 캐시·드립 영구 제외·첫 드립 작업·편성 별점(`drip_feedbacks`)·**자동 확장으로 붙은 관심 주제**(`source = auto_expand` — 행동에서 파생된 것이라 행동과 함께 지운다, 추가 2026-09-30)를 지운다. **직접 고른 관심 주제·커리어·계정은 남긴다**(버튼으로 바꾸는 입력이다). `content_stats` 집계는 다음 집계에서 원천(`play_records`)을 다시 읽어 맞춰진다.
+- **콘솔**: 파이프라인 웹 `/drip-check/test`. 편성 미리보기 탭은 **"편성 미리보기 (실배포)"** 로 라벨을 바꿔 운영 서버를 본다는 것을 드러낸다. 웹 서버는 개발계 채널(`EAR_DEV_API_BASE_URL` · `EAR_DEV_SSO_SECRET`, 프록시 `/api/ear-dev/*`)을 따로 갖는다 — 두 서버의 JWT·SSO 비밀은 다르다.
 
 ## 5. 화면 상태
 

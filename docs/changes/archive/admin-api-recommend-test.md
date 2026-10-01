@@ -48,3 +48,10 @@
 - Given `admin-api.md` 3장 / When 목록을 본다 / Then `/admin/recommend-test/*` 6 개가 있고 4.17 에 요청·응답·에러가 있다
 - Given `admin-api.md` 5장 / When 에러 표를 본다 / Then `ADMIN_RECOMMEND_TEST_DISABLED` 409 가 있다
 - Given `drip-scheduling.md` 4.3 / When "실시간 재계산" 문장을 본다 / Then 추천 테스트 콘솔 예외가 명시돼 있다
+
+## 처리 기록
+
+- 반영 날짜: 2026-10-01
+- `features/admin.md` 4.7 "추천 테스트 (개발계 전용)" 신설 · `features/drip-scheduling.md` 4.3 "실시간 재계산" 문장에 예외(2026-09-29) 명시
+- `spec/api/admin-api.md` — 1장 범위, 3장 목록(`/admin/recommend-test/*` 6개), 4.17 상세(요청·응답·오류), 5장 에러 표(`ADMIN_RECOMMEND_TEST_DISABLED` 409 · `NOT_FOUND` 404)
+- 코드 대조로 더한 것: 초기화가 지우는 대상에 편성 별점(`drip_feedbacks`)이 있다(요청서에는 없고 `RecommendTestService.reset`에는 있다 — KAN-116이 뒤에 들어왔다)

@@ -61,7 +61,7 @@ Apple 반려 메시지:
 - 요청 3 한도 소진: 낭독 "오늘 재생 0회 남음"(구독 안내 문구 제거). `openPaywall` 은 종전대로 자리 토스트만 — `player.copy.ts` · `RemainingPlaysIndicator.tsx`. 종전 문구는 `a11yLabelExhaustedWithPaywall` 로 남겨 플래그 켜면 돌아온다.
 - 추가: 탈퇴 사유 선택지 `price`("구독 가격이 부담됐어요")도 플래그 꺼짐이면 뺀다 — 리뷰어가 탈퇴 화면까지 열면 보이는 구독 언급이라 같이 숨겼다(`WithdrawalScreen.tsx`). 활성 구독 안내·"결제·구독 이력" 보존 항목은 결제 없는 MVP 에서 도달 불가라 그대로.
 - 요청 4 확인: 외부 결제 안내를 넣지 않았다. 문구는 기존 한도 안내 토스트뿐이다.
-- 문서 영향은 `changes/pending/subscription-ui-hidden-mvp.md` 로 발행(settings-uiux 4.1 · profile-uiux 4.1·7 · library-uiux 7 · paywall 4.5 · auth-uiux 4.5).
+- 문서 영향은 `changes/archive/subscription-ui-hidden-mvp.md` 로 발행(settings-uiux 4.1 · profile-uiux 4.1·7 · library-uiux 7 · paywall 4.5 · auth-uiux 4.5).
 - **남은 것(요청 6·7)**: 새 네이티브 빌드(스플래시 로고 영상의 expo-video 추가와 같은 빌드, runtimeVersion `2`) → TestFlight → 재제출 + App Review 메시지 답장. 빌드 제출 후 이 티켓을 archive 로 옮기고 KAN-66 을 완료로 전이한다.
 
 ## 처리 기록 (2026-09-19 티켓 정리)

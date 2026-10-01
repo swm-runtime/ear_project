@@ -165,7 +165,7 @@ this.ctx.tracking = createTrackingState(issue.progress?.maxReachedSec ?? 0);
 
 ### 함께 갱신할 문서
 
-`changes/pending/player-republish-progress-discard-owner.md`가 같은 내용의 문서 개정을 요청하고
+`changes/archive/player-republish-progress-discard-owner.md`가 같은 내용의 문서 개정을 요청하고
 있다(`player.md` 7 · `player-api.md` 4.1의 "클라이언트가 보관값과 비교해 폐기한다" → 서버 소유).
 그 문서가 반영되면 이 티켓의 근거 문서도 정합해진다.
 

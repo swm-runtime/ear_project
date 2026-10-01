@@ -90,7 +90,7 @@ https://earcast.co.kr/contents/content-7
 | 이 티켓에 최종 문자열이 확정값으로 적혀 있다 | **충족** — "결정된 것"에 A안과 예시 |
 | 공유 시트 텍스트에 `author_name`·`source_name`이 없고 확정 형식과 줄 단위로 일치 | **충족** — 타입에서 제거해 애초에 실릴 수 없다. 단위 테스트로 검증 |
 | 저자 유무로 줄 수가 달라지지 않는다 | **충족** — 저자를 입력으로 받지 않으므로 분기 자체가 없다 |
-| `changes/pending/`에 `share-uiux.md` 6장·`share.md` 4.1 개정 요청이 올라가 있다 | **충족** — `changes/pending/share-message-drops-byline.md` |
+| `changes/pending/`에 `share-uiux.md` 6장·`share.md` 4.1 개정 요청이 올라가 있다 | **충족** — `changes/archive/share-message-drops-byline.md` |
 
 네 조건 모두 충족되어 `archive/`로 옮긴다. 다음 스토어 빌드에 포함되면 실기기에서 한 번 더
 눈으로 확인한다(빌드 타임 문자열이라 OTA로는 안 바뀐다 — 요청 4).
