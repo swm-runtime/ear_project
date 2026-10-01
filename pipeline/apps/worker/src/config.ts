@@ -120,6 +120,9 @@ export const cfg = {
   /** 요청 이음새 문맥 겹침 (spec/06 7장, KAN-87). 2026-10-01 박수헌 지시로 기본 꺼짐 — 최근 60편 242경계 중 21%만 성공했고, 실패하면 요청을 문맥 없이
    *  다시 생성해(302요청 중 152요청) TTS 비용의 약 3분의 1을 썼다. 절단점 탐색을 고친 뒤 TTS_CONTEXT_OVERLAP=1 로 다시 켠다. 작업 payload context_overlap 로 편 단위 강제 가능(디버그) */
   ttsContextOverlap: process.env.TTS_CONTEXT_OVERLAP === "1",
+  /** 끝 꼬리 가드 (#1081). 2026-10-01 회귀로 기본 꺼짐 — 절단 창을 dialogue 정렬 시각으로 잡는데, 그 시각이 한 요청 안에서 뒤로 갈수록 실제 오디오보다
+   *  최대 10초 앞선다(T260929-003 디버그 실측). 폴백 절단이 마지막 인사 약 13초를 잘랐다. 오디오 끝 기준 절단으로 고친 뒤 TTS_TAIL_GUARD=1 로 켠다 */
+  ttsTailGuard: process.env.TTS_TAIL_GUARD === "1",
   ttsSpeedYuna: process.env.TTS_SPEED_YUNA ? Number(process.env.TTS_SPEED_YUNA) : 1.1, // 2026-09-07 박수헌: 윤아 보이스가 느려 1.2 → 2026-09-12 1.1 로 완화
   ttsSpeedEum: process.env.TTS_SPEED_EUM ? Number(process.env.TTS_SPEED_EUM) : 1,
   /** TTS 비용 환산용 1천 자당 USD — 응답 헤더로 실제 크레딧을 못 받았을 때의 추정값. 2026-10-01 실측: 659,868자 ↔ 236,950크레딧(약 0.36크레딧/자) × Pro 추가 크레딧 $0.17/1,000 ≈ $0.061/1천 자.
