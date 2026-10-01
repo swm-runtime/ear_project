@@ -222,7 +222,7 @@ export async function runTts(job: Job) {
   const segFile = path.join(cfg.workRoot, rel, "script-segments.json");
   let segCount = 0;
   if (!sampleTurns) {
-    const joined = segFail ? [] : joinChunkSegments(chunkSegs, asm.introSec + 2, gaps); // assemble 과 같은 인트로 길이 + 앞 무음 2초·경계별 이음새 쉼
+    const joined = segFail ? [] : joinChunkSegments(chunkSegs, asm.introSec + asm.leadSec, gaps); // assemble 과 같은 본편 시작 오프셋(인트로 길이 + 앞 무음)·경계별 이음새 쉼
     segFail ??= validateSegments(joined);
     if (segFail) { await fs.rm(segFile, { force: true }); log(`  tts ${episodeId}: 자막 세그먼트 없음 — ${segFail}`); }
     else { await fs.writeFile(segFile, JSON.stringify(joined, null, 1), "utf-8"); segCount = joined.length; }
@@ -238,12 +238,12 @@ export async function runTts(job: Job) {
     await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: ep.prompt_version, audio_master_key: s3Key(`${rel}/audio/master.wav`), audio_dist_key: s3Key(`${rel}/audio/dist.mp3`) });
   }
   const artifacts = sampleTurns ? [s3Key(`${rel}/audio/sample.mp3`)] : [s3Key(`${rel}/audio/master.wav`), s3Key(`${rel}/audio/dist.mp3`), ...(segCount ? [s3Key(`${rel}/script-segments.json`)] : [])];
-  const result = `${sampleTurns ? `TTS 샘플 ${turns.length}턴` : "TTS 완료"} — eleven_v3 다중화자 1콜 · 분할 ${chunks.length}요청(경계 ${cutSummary} · 세그먼트 포맷 ${fmt}) · ${totalChars}자 → ${min}분 ${sec}초 (앞뒤 무음 2초 포함) ${useCtx ? ` · 문맥 겹침 ${ctxOk}/${ctxBoundaries.length}경계(+${ctxChars}자)` : ""}${ctxOk < ctxBoundaries.length ? ` · 폴백 경계 무음 ${DEFAULT_GAP_SEC}초${fallbackAt.length ? ` @${fallbackAt.join("·")}` : ""}${ctxFails.length ? ` (사유: ${ctxFails.join(" / ").slice(0, 300)})` : ""}` : ""}${wantSpeed ? ` · 배속 윤아 ${cfg.ttsSpeedYuna}× 이음 ${cfg.ttsSpeedEum}×${speedFallbacks ? ` (원속 폴백 ${speedFallbacks}요청 — 청취 확인)` : ""}` : ""}${parsed.coldOpen ? " · 구 [콜드오픈] 구역 무시(폐지)" : ""}${sampleTurns ? "" : segCount ? ` · 자막 세그먼트 ${segCount}건(배포본 시각)` : ` · 자막 세그먼트 없음(${segFail})`} · 사전 ${dictVersion}${Object.keys(epMap).length ? `+발음 맵 ${Object.keys(epMap).length}건` : ""} · 보이스 윤아=${cfg.ttsVoiceYuna.slice(0, 6)}… 이음=${cfg.ttsVoiceEum.slice(0, 6)}… · 사람 청취 확인 대기 (spec/06 8장)`;
+  const result = `${sampleTurns ? `TTS 샘플 ${turns.length}턴` : "TTS 완료"} — eleven_v3 다중화자 1콜 · 분할 ${chunks.length}요청(경계 ${cutSummary} · 세그먼트 포맷 ${fmt}) · ${totalChars}자 → ${min}분 ${sec}초 (${jingle.introFile || jingle.outroFile ? "징글 포함" : "앞뒤 무음 2초 포함"}) ${useCtx ? ` · 문맥 겹침 ${ctxOk}/${ctxBoundaries.length}경계(+${ctxChars}자)` : ""}${ctxOk < ctxBoundaries.length ? ` · 폴백 경계 무음 ${DEFAULT_GAP_SEC}초${fallbackAt.length ? ` @${fallbackAt.join("·")}` : ""}${ctxFails.length ? ` (사유: ${ctxFails.join(" / ").slice(0, 300)})` : ""}` : ""}${wantSpeed ? ` · 배속 윤아 ${cfg.ttsSpeedYuna}× 이음 ${cfg.ttsSpeedEum}×${speedFallbacks ? ` (원속 폴백 ${speedFallbacks}요청 — 청취 확인)` : ""}` : ""}${parsed.coldOpen ? " · 구 [콜드오픈] 구역 무시(폐지)" : ""}${sampleTurns ? "" : segCount ? ` · 자막 세그먼트 ${segCount}건(배포본 시각)` : ` · 자막 세그먼트 없음(${segFail})`} · 사전 ${dictVersion}${Object.keys(epMap).length ? `+발음 맵 ${Object.keys(epMap).length}건` : ""} · 보이스 윤아=${cfg.ttsVoiceYuna.slice(0, 6)}… 이음=${cfg.ttsVoiceEum.slice(0, 6)}… · 사람 청취 확인 대기 (spec/06 8장)`;
   // 계측 (2026-10-01): 실제 차감 크레딧은 응답 헤더 character-cost 의 합(재시도·폴백·정렬 호출 포함). 헤더가 있으면 그 값으로 비용을 환산하고, 없으면 글자 수 추정(참고값)
   const u = usage();
   const metered = u.credits > 0;
   const ttsCost = metered ? (u.credits / 1000) * cfg.ttsUsdPer1kCredits : cfg.ttsUsdPer1kChars != null ? ((totalChars + ctxChars) / 1000) * cfg.ttsUsdPer1kChars : undefined;
-  const jingleNote = jingle.introFile || jingle.outroFile ? ` · 징글 ${jingle.introFile ? `인트로 ${asm.introSec}초` : "인트로 없음"} / ${jingle.outroFile ? `아웃트로(앞 패딩 ${asm.outroPadSec}초)` : "아웃트로 없음"}` : "";
+  const jingleNote = jingle.introFile || jingle.outroFile ? ` · 징글 ${jingle.introFile ? `인트로 ${asm.introSec}초` : "인트로 없음"} / ${jingle.outroFile ? "아웃트로" : "아웃트로 없음"} (파일 앞뒤 무음 1초, 본편에 바로 붙임)` : "";
   const usageNote = `${jingleNote} · 실제 차감 ${metered ? `${u.credits.toLocaleString()}크레딧` : "미계측"} (${u.requests}요청${u.unmetered ? `, 헤더 없음 ${u.unmetered}` : ""})`;
   await insertRun({ backlog_id: backlogId, phase: "tts", result: result + usageNote, prompt_version: "tts-v1 (worker)", artifacts, executed_by: executedBy, model: cfg.ttsModel, cost_usd: ttsCost, tokens: { characters: totalChars, context_characters: ctxChars, chunks: chunks.length, duration_sec: Math.round(durationSec), credits: metered ? u.credits : null, requests: u.requests, unmetered: u.unmetered }, worker_rev: workerRev() });
   // 샘플은 발행 경로가 아니다 — 연쇄를 잇지 않는다
