@@ -69,6 +69,19 @@ export async function probeLeadingSilenceSec(file: string, thresholdDb = -45, mi
   return Math.round(Number(end) * 1000) / 1000;
 }
 
+/** 파일 끝 무음 길이(초) — 인트로 징글은 소리 뒤에 여백이 들어 있다(실파일: 4초 중 끝 1.05초). 아웃트로 앞 패딩을 이 길이로 맞춘다. 끝까지 이어지는 무음이 없으면 0 */
+export async function probeTrailingSilenceSec(file: string, thresholdDb = -45, minSec = 0.05): Promise<number> {
+  const dur = await probeDurationSec(file);
+  const { stderr } = await run("ffmpeg", ["-hide_banner", "-i", file, "-af", `silencedetect=n=${thresholdDb}dB:d=${minSec}`, "-f", "null", "-"]);
+  const starts = [...stderr.matchAll(/silence_start: ([\d.]+)/g)].map((m) => Number(m[1]));
+  const ends = [...stderr.matchAll(/silence_end: ([\d.]+)/g)].map((m) => Number(m[1]));
+  if (!starts.length) return 0;
+  const lastStart = starts[starts.length - 1];
+  const lastEnd = ends.length >= starts.length ? ends[ends.length - 1] : dur; // 파일 끝까지 무음이면 silence_end 가 안 찍히기도 한다
+  if (dur - lastEnd > 0.05) return 0;
+  return Math.round((dur - lastStart) * 1000) / 1000;
+}
+
 /** 외부 오디오 파일(mp3/wav 등) → 표준 wav (44.1kHz mono s16le) */
 export async function fileToWav(src: string, outFile: string): Promise<string> {
   await ffmpeg(["-i", src, "-ar", "44100", "-ac", "1", "-c:a", "pcm_s16le", outFile]);
@@ -133,7 +146,7 @@ export interface AssembleInput {
   /** 징글 (2026-10-01 박수헌): 인트로는 맨 앞(그 뒤에 leadSec 무음), 아웃트로는 맨 뒤(tailSec 무음 뒤 outroPadSec 무음을 더 두고). 파일은 S3 assets/audio/ 에서 받은 로컬 경로 */
   introFile?: string | null;
   outroFile?: string | null;
-  outroPadSec?: number;  // 아웃트로 앞 추가 무음 — 기본은 인트로의 앞 무음 길이(probeLeadingSilenceSec)
+  outroPadSec?: number;  // 아웃트로 앞 추가 무음 — 기본은 인트로 징글의 여백(끝 무음, 없으면 앞 무음)에서 아웃트로 자체의 앞 무음을 뺀 길이. 인트로 소리 끝→본편, 본편→아웃트로 소리 시작의 간격이 같아진다
   workDir: string;       // 임시 파일 디렉토리 (episodes/{id}/audio/)
   masterOut: string;     // master.wav 경로
   distOut: string;       // dist.mp3 경로
@@ -155,7 +168,11 @@ export async function assemble(i: AssembleInput): Promise<{ durationSec: number;
   parts.push(await silenceWav(i.tailSec ?? 2, path.join(tmp, "tail.wav")));
   let outroPadSec = 0;
   if (i.outroFile) {
-    outroPadSec = i.outroPadSec ?? (i.introFile ? await probeLeadingSilenceSec(i.introFile) : 0);
+    if (i.outroPadSec != null) outroPadSec = i.outroPadSec;
+    else if (i.introFile) {
+      const introPad = (await probeTrailingSilenceSec(i.introFile)) || (await probeLeadingSilenceSec(i.introFile));
+      outroPadSec = Math.max(0, Math.round((introPad - (await probeLeadingSilenceSec(i.outroFile))) * 1000) / 1000);
+    }
     if (outroPadSec > 0) parts.push(await silenceWav(outroPadSec, path.join(tmp, "outro-pad.wav")));
     parts.push(await fileToWav(i.outroFile, path.join(tmp, "outro.wav")));
   }
