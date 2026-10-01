@@ -13,7 +13,7 @@ import { AnchorButton } from "./anchor-button";
 import { OneLinerEditor } from "./one-liner-editor";
 import { DeleteButton } from "./delete-button";
 import { listObjects, presignGet } from "@/lib/storage";
-import { ScriptEditor } from "./script-editor";
+import { ReQaHeaderButton, ScriptEditor } from "./script-editor";
 import { PronEditor } from "./pron-editor";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { JobProgress } from "@/components/job-progress";
@@ -73,6 +73,7 @@ export default async function EpisodePage({ params, searchParams }: { params: Pr
           {ep.regression && <Badge tone="held">{ep.regression_kind === "planted" ? "회귀 세트 · 심은 오류본 (정답은 설명란)" : ep.regression_kind === "anchor_low" ? "회귀 세트 · 저품질 앵커" : "회귀 세트"}</Badge>}
           <span className="text-xs text-ink-soft">{bl?.mid_topic} · {ep.prompt_version}</span>
           {/* 상단은 [발행 준비] 하나다 — 개별 재실행은 각 산출물 탭에 있다(KAN-50 1번) */}
+          {bl?.status === "review_required" && !!ep.script_key && !activeJobs.some((j) => j.type === "qa" || j.type === "draft") && <ReQaHeaderButton episodeId={ep.id} backlogId={ep.backlog_id} />}
           <PublishPrepButton episodeId={ep.id} backlogId={ep.backlog_id} enabled={["qa_passed", "packaged", "published"].includes(bl?.status ?? "")} pending={prepPending} />
           {["packaged", "published"].includes(bl?.status ?? "") && <LinkBtn kind="primary" href={`/publish/upload?episode=${ep.id}`}>제품 발행</LinkBtn>}
           <DeleteButton episodeId={ep.id} backlogId={ep.backlog_id} disabled={!!ep.regression || bl?.status === "published" || activeJobs.some((j) => j.status !== "queued")}
