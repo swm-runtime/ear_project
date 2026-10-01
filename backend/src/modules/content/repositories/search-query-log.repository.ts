@@ -11,12 +11,18 @@ import {
 
 export type SearchQueryLogDraft = Pick<
   SearchQueryLog,
-  'userId' | 'query' | 'resultCount' | 'hasNext' | 'topicFilterCount'
+  | 'userId'
+  | 'query'
+  | 'resultCount'
+  | 'hasNext'
+  | 'topicFilterCount'
+  | 'resultContentIds'
 >;
 
 interface TotalsRow {
   searches: number;
   misses: number;
+  clicked: number;
   users: number;
   short_queries: number;
   filtered_searches: number;
@@ -26,17 +32,21 @@ interface DailyRow {
   date: string;
   searches: number;
   misses: number;
+  clicked: number;
 }
 
 interface RankRow {
   query: string;
   searches: number;
   misses: number;
+  clicked: number;
   last_searched_at: Date;
 }
 
 /** 어드민 요약의 질의 순위 길이 — 화면 한 표에 보이는 만큼 */
 const RANK_LIMIT = 50;
+/** 결과 반응으로 인정하는 창 — 마지막 질의 뒤 이 안의 재생·담기(domain.md 5.7). SQL interval 리터럴 */
+const CLICK_WINDOW = '10 minutes';
 
 @Injectable()
 export class SearchQueryLogRepository {
@@ -81,8 +91,11 @@ export class SearchQueryLogRepository {
    * 어드민 요약(`admin-api.md` 4.21) — `since` 이후 행의 합계·일별 추이·질의 순위.
    *
    * Raw SQL이다(architecture.md 3.4 — Repository 안에서만, 결과를 타입으로 정의해 반환).
-   * 네 질의를 따로 날린다 — 한 문장으로 묶으면 읽기 어렵고, 전부 `created_at` 인덱스 범위 스캔이라
-   * 비용은 행 수에 비례할 뿐이다(90일 보존이라 상한이 있다).
+   * 네 질의가 같은 임시 뷰(`scoped`)를 공유한다 — 창 안의 행에 **반응 여부**(`clicked`)를 붙인 것이다.
+   * 반응 = 그 행의 마지막 요청(`updated_at`) 뒤 `CLICK_WINDOW` 안에 같은 사용자가 첫 페이지 결과
+   * (`result_content_ids`) 중 하나를 재생(`play_records`)했거나 담았다(`library_items.source = save`,
+   * 삭제분 포함 — 담은 사실이 반응이다). 앱이 탭을 보내지 않아도 서버가 이미 받는 행동에서 역산한다.
+   * 전부 `created_at` 인덱스 범위 스캔 + 결과 id 배열 대조라 비용은 창 안 행 수에 비례한다(보존 90일).
    *
    * 일별 날짜는 **KST 달력일**이다(04시 서비스 날짜 경계를 적용하지 않는다 — 운영자가 "어제 검색"으로
    * 읽는 단위이고, 재생 한도·드립과 달리 정책 판정이 아니다).
@@ -92,37 +105,60 @@ export class SearchQueryLogRepository {
     manager?: EntityManager,
   ): Promise<SearchQueryLogSummary> {
     const query = this.scoped(manager).manager;
+    const scoped = `
+      select l.*,
+             (exists (
+                select 1 from play_records p
+                 where p.user_id = l.user_id
+                   and p.content_id = any (l.result_content_ids)
+                   and p.played_at >= l.updated_at
+                   and p.played_at < l.updated_at + interval '${CLICK_WINDOW}'
+              ) or exists (
+                select 1 from library_items i
+                 where i.user_id = l.user_id
+                   and i.content_id = any (l.result_content_ids)
+                   and i.source = 'save'
+                   and i.added_at >= l.updated_at
+                   and i.added_at < l.updated_at + interval '${CLICK_WINDOW}'
+              )) as clicked
+        from search_query_logs l
+       where l.created_at >= $1`;
 
     const [totals] = await query.query<TotalsRow[]>(
-      `select count(*)::int as searches,
+      `with scoped as (${scoped})
+       select count(*)::int as searches,
               count(*) filter (where result_count = 0)::int as misses,
+              count(*) filter (where clicked)::int as clicked,
               count(distinct user_id)::int as users,
               count(*) filter (where char_length(query) < 3)::int as short_queries,
               count(*) filter (where topic_filter_count > 0)::int as filtered_searches
-         from search_query_logs
-        where created_at >= $1`,
+         from scoped`,
       [since],
     );
 
     const daily = await query.query<DailyRow[]>(
-      `select to_char((created_at at time zone 'Asia/Seoul')::date, 'YYYY-MM-DD') as date,
+      `with scoped as (${scoped})
+       select to_char((created_at at time zone 'Asia/Seoul')::date, 'YYYY-MM-DD') as date,
               count(*)::int as searches,
-              count(*) filter (where result_count = 0)::int as misses
-         from search_query_logs
-        where created_at >= $1
+              count(*) filter (where result_count = 0)::int as misses,
+              count(*) filter (where clicked)::int as clicked
+         from scoped
         group by 1
         order by 1`,
       [since],
     );
 
-    const missed = await query.query<RankRow[]>(
-      `select query,
+    const rank = `select query,
               count(*)::int as searches,
               count(*) filter (where result_count = 0)::int as misses,
+              count(*) filter (where clicked)::int as clicked,
               max(updated_at) as last_searched_at
-         from search_query_logs
-        where created_at >= $1
-        group by query
+         from scoped
+        group by query`;
+
+    const missed = await query.query<RankRow[]>(
+      `with scoped as (${scoped})
+       ${rank}
        having count(*) filter (where result_count = 0) > 0
         order by misses desc, searches desc, last_searched_at desc
         limit $2`,
@@ -130,13 +166,8 @@ export class SearchQueryLogRepository {
     );
 
     const top = await query.query<RankRow[]>(
-      `select query,
-              count(*)::int as searches,
-              count(*) filter (where result_count = 0)::int as misses,
-              max(updated_at) as last_searched_at
-         from search_query_logs
-        where created_at >= $1
-        group by query
+      `with scoped as (${scoped})
+       ${rank}
         order by searches desc, last_searched_at desc
         limit $2`,
       [since, RANK_LIMIT],
@@ -146,12 +177,14 @@ export class SearchQueryLogRepository {
       query: row.query,
       searches: row.searches,
       misses: row.misses,
+      clicked: row.clicked,
       lastSearchedAt: row.last_searched_at,
     });
     const toDaily = (row: DailyRow): SearchQueryDailyCount => ({
       date: row.date,
       searches: row.searches,
       misses: row.misses,
+      clicked: row.clicked,
     });
 
     return {
@@ -159,6 +192,7 @@ export class SearchQueryLogRepository {
       totals: {
         searches: totals?.searches ?? 0,
         misses: totals?.misses ?? 0,
+        clicked: totals?.clicked ?? 0,
         users: totals?.users ?? 0,
         shortQueries: totals?.short_queries ?? 0,
         filteredSearches: totals?.filtered_searches ?? 0,

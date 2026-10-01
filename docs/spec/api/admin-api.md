@@ -519,15 +519,16 @@
 {
   "days": 14,
   "since": "2026-09-17T09:00:10.000Z",
-  "totals": { "searches": 120, "misses": 30, "miss_rate": 0.25, "users": 18, "short_queries": 12, "filtered_searches": 5 },
-  "daily": [ { "date": "2026-09-30", "searches": 14, "misses": 3 } ],
-  "missed": [ { "query": "면접", "searches": 6, "misses": 6, "last_searched_at": "…" } ],
-  "top": [ { "query": "커리어", "searches": 20, "misses": 0, "last_searched_at": "…" } ]
+  "totals": { "searches": 120, "misses": 30, "miss_rate": 0.25, "clicked": 54, "abandoned": 36, "abandon_rate": 0.4, "users": 18, "short_queries": 12, "filtered_searches": 5 },
+  "daily": [ { "date": "2026-09-30", "searches": 14, "misses": 3, "clicked": 6 } ],
+  "missed": [ { "query": "면접", "searches": 6, "misses": 6, "clicked": 0, "last_searched_at": "…" } ],
+  "top": [ { "query": "커리어", "searches": 20, "misses": 0, "clicked": 12, "last_searched_at": "…" } ]
 }
 ```
 
 - 한 건은 `search_query_logs` 한 행 = **타이핑 묶음 하나**다(`domain.md` 5.7 — 디바운스 중간 입력은 서버가 접는다). `misses`는 그중 첫 페이지 0건.
 - `miss_rate` = `misses / searches`. 검색 0건이면 `null`. 표본이 작을 때의 "참고" 표시는 화면 몫이다.
+- `clicked`는 **반응한 검색** — 마지막 질의 뒤 10분 안에 결과 중 하나를 재생·담은 것(서버가 역산, `domain.md` 5.7). `abandoned` = `searches - misses - clicked`(결과가 있었는데 무반응), `abandon_rate` = `abandoned / (searches - misses)`(결과 있던 검색이 0이면 `null`).
 - `short_queries`는 2자 질의 수(트라이그램 인덱스를 못 타는 길이 — `explore.md` 4.5-5), `filtered_searches`는 주제 필터가 걸린 검색 수.
 - `daily.date`는 **KST 달력일**이다(04시 서비스 날짜 경계를 쓰지 않는다 — 정책 판정이 아니라 운영자가 읽는 단위). 검색이 없던 날은 빠진다.
 - `missed`는 0건이 한 번이라도 있던 질의를 0건 수 내림차순으로, `top`은 검색 수 내림차순으로 각 최대 50개. `last_searched_at`은 그 질의의 마지막 요청 시각(`updated_at`).

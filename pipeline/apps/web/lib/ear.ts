@@ -322,11 +322,11 @@ export async function downloadEarEvalSnapshot(ch: EarChannel): Promise<{ filenam
 }
 
 /** 검색 질의 로그 요약 (admin-api 4.21, domain.md 5.7) — 한 행은 타이핑 묶음 하나다 */
-export interface EarSearchQueryRank { query: string; searches: number; misses: number; last_searched_at: string }
+export interface EarSearchQueryRank { query: string; searches: number; misses: number; clicked: number; last_searched_at: string }
 export interface EarSearchQueryLogSummary {
   days: number; since: string;
-  totals: { searches: number; misses: number; miss_rate: number | null; users: number; short_queries: number; filtered_searches: number };
-  daily: { date: string; searches: number; misses: number }[];
+  totals: { searches: number; misses: number; miss_rate: number | null; clicked: number; abandoned: number; abandon_rate: number | null; users: number; short_queries: number; filtered_searches: number };
+  daily: { date: string; searches: number; misses: number; clicked: number }[];
   missed: EarSearchQueryRank[];
   top: EarSearchQueryRank[];
 }

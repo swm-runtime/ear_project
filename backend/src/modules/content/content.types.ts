@@ -265,6 +265,8 @@ export interface SearchQueryRank {
   searches: number;
   /** 그중 0건으로 끝난 수 */
   misses: number;
+  /** 그중 결과에 반응한 수 — 10분 안에 결과 중 하나를 재생·담기 */
+  clicked: number;
   lastSearchedAt: Date;
 }
 
@@ -273,6 +275,7 @@ export interface SearchQueryDailyCount {
   date: string;
   searches: number;
   misses: number;
+  clicked: number;
 }
 
 /** `GET /admin/search-query-logs/summary` (admin-api.md 4.21) */
@@ -282,6 +285,8 @@ export interface SearchQueryLogSummary {
   totals: {
     searches: number;
     misses: number;
+    /** 결과에 반응한 검색 수 */
+    clicked: number;
     users: number;
     /** 2자 질의 — 트라이그램 인덱스를 못 타는 길이(explore.md 4.5-5) */
     shortQueries: number;

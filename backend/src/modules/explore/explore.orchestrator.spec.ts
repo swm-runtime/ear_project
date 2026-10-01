@@ -948,6 +948,7 @@ describe('ExploreOrchestrator', () => {
           resultCount: 1,
           hasNext: true,
           topicFilterCount: 1,
+          resultContentIds: [CONTENT_ID],
         },
         NOW,
       );

@@ -65,16 +65,19 @@ function SummaryView({ channel, days }: { channel: EarChannel; days: number }) {
   const small = (t?.searches ?? 0) > 0 && (t?.searches ?? 0) < SMALL_SAMPLE;
   const missRate = t?.miss_rate ?? null;
   const missTone = missRate == null ? "text-ink" : missRate >= 0.3 ? "text-rose-700" : missRate >= 0.15 ? "text-amber-700" : "text-ink";
+  const abandonRate = t?.abandon_rate ?? null;
+  const abandonTone = abandonRate == null ? "text-ink" : abandonRate >= 0.6 ? "text-rose-700" : abandonRate >= 0.4 ? "text-amber-700" : "text-ink";
   const maxDaily = Math.max(1, ...(data?.daily ?? []).map((d) => d.searches));
 
   return (
     <div className="space-y-3">
       {err && <p className="text-[13px] text-rose-700">{err}</p>}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <Stat label="검색" value={t ? t.searches.toLocaleString() : "…"} sub={t ? `사용자 ${t.users.toLocaleString()}명 · 타이핑 묶음 단위` : undefined} />
-        <Stat label="0건" value={t ? t.misses.toLocaleString() : "…"} sub="결과가 하나도 없던 검색" />
-        <Stat label="미스율" value={t ? pct(missRate) : "…"} sub={small ? `표본 ${t?.searches}건 — 참고만` : "0건 ÷ 검색"} tone={missTone} />
+        <Stat label="미스율" value={t ? pct(missRate) : "…"} sub={t ? (small ? `0건 ${t.misses} — 표본 ${t.searches}건, 참고만` : `0건 ${t.misses.toLocaleString()} ÷ 검색`) : undefined} tone={missTone} />
+        <Stat label="무반응" value={t ? pct(abandonRate) : "…"} sub={t ? `결과 있었는데 안 누름 ${t.abandoned.toLocaleString()} ÷ 결과 있던 검색` : undefined} tone={abandonTone} />
+        <Stat label="반응" value={t ? t.clicked.toLocaleString() : "…"} sub="10분 안에 결과를 재생·담음" />
         <Stat label="2자 질의" value={t ? pct(ratio(t.short_queries, t.searches)) : "…"} sub="트라이그램 인덱스를 못 타는 길이" />
         <Stat label="주제 필터 동반" value={t ? pct(ratio(t.filtered_searches, t.searches)) : "…"} sub="0건이 필터 탓인지 가를 때" />
       </div>
@@ -87,11 +90,13 @@ function SummaryView({ channel, days }: { channel: EarChannel; days: number }) {
             {(data?.daily ?? []).map((d) => {
               const h = Math.max(2, Math.round((d.searches / maxDaily) * 80));
               const mh = d.searches > 0 ? Math.round((d.misses / d.searches) * h) : 0;
+              const ch = d.searches > 0 ? Math.round((d.clicked / d.searches) * h) : 0;
               return (
-                <div key={d.date} className="flex min-w-[18px] flex-1 flex-col items-center justify-end gap-1" title={`${d.date} · 검색 ${d.searches} · 0건 ${d.misses}`}>
-                  <div className="relative w-full rounded-t bg-brand/70" style={{ height: h }}>
-                    {/* 0건 몫은 아래에서 빨강으로 채운다 — 막대 전체가 검색, 빨강이 그중 0건 */}
-                    <div className="absolute inset-x-0 bottom-0 rounded-t bg-rose-400" style={{ height: mh }} />
+                <div key={d.date} className="flex min-w-[18px] flex-1 flex-col items-center justify-end gap-1" title={`${d.date} · 검색 ${d.searches} · 0건 ${d.misses} · 반응 ${d.clicked}`}>
+                  {/* 막대 전체가 검색. 아래부터 빨강(0건) → 초록(반응), 남는 회색-브랜드색이 무반응 */}
+                  <div className="relative w-full rounded-t bg-brand/40" style={{ height: h }}>
+                    <div className="absolute inset-x-0 bottom-0 bg-emerald-500" style={{ height: ch, bottom: mh }} />
+                    <div className="absolute inset-x-0 bottom-0 bg-rose-400" style={{ height: mh }} />
                   </div>
                   <span className="text-[10px] tabular-nums text-ink-soft">{d.date.slice(5)}</span>
                 </div>
@@ -103,24 +108,26 @@ function SummaryView({ channel, days }: { channel: EarChannel; days: number }) {
 
       <div className="grid gap-3 lg:grid-cols-2">
         <Panel title={`0건으로 끝난 질의 ${data?.missed.length ?? 0}개`} flush>
-          <Table head={["질의", "검색", "0건", "마지막"]} empty={data === null ? "불러오는 중…" : "0건으로 끝난 검색이 없다"}>
+          <Table head={["질의", "검색", "0건", "반응", "마지막"]} empty={data === null ? "불러오는 중…" : "0건으로 끝난 검색이 없다"}>
             {(data?.missed ?? []).map((r) => (
               <Tr key={r.query}>
                 <Td className="font-medium">{r.query}</Td>
                 <Td className="tabular-nums">{r.searches}</Td>
                 <Td className="tabular-nums text-rose-700">{r.misses}</Td>
+                <Td className={`tabular-nums ${r.clicked > 0 ? "text-emerald-700" : "text-ink-soft"}`}>{r.clicked}</Td>
                 <Td className="whitespace-nowrap text-ink-soft">{fmtTime(r.last_searched_at)}</Td>
               </Tr>
             ))}
           </Table>
         </Panel>
         <Panel title={`많이 찾은 질의 ${data?.top.length ?? 0}개`} flush>
-          <Table head={["질의", "검색", "0건", "마지막"]} empty={data === null ? "불러오는 중…" : "검색이 없다"}>
+          <Table head={["질의", "검색", "0건", "반응", "마지막"]} empty={data === null ? "불러오는 중…" : "검색이 없다"}>
             {(data?.top ?? []).map((r) => (
               <Tr key={r.query}>
                 <Td className="font-medium">{r.query}</Td>
                 <Td className="tabular-nums">{r.searches}</Td>
                 <Td className={`tabular-nums ${r.misses > 0 ? "text-rose-700" : "text-ink-soft"}`}>{r.misses}</Td>
+                <Td className={`tabular-nums ${r.clicked > 0 ? "text-emerald-700" : "text-ink-soft"}`}>{r.clicked}</Td>
                 <Td className="whitespace-nowrap text-ink-soft">{fmtTime(r.last_searched_at)}</Td>
               </Tr>
             ))}
@@ -129,7 +136,7 @@ function SummaryView({ channel, days }: { channel: EarChannel; days: number }) {
       </div>
 
       <p className="text-xs text-ink-soft">
-        한 행은 사용자가 치다가 멈춘 질의 하나다 — 디바운스 자동 검색의 중간 입력(‘커’ → ‘커리’ → ‘커리어’)은 서버가 10초 창 안에서 마지막 것으로 접는다. 0건 질의가 콘텐츠가 없는 주제면 제작 쪽 수요이고, 있는데 못 찾은 것이면 매칭 방식(explore.md 4.5-5)을 손볼 근거다. 보존 90일.
+        한 행은 사용자가 치다가 멈춘 질의 하나다 — 디바운스 자동 검색의 중간 입력(‘커’ → ‘커리’ → ‘커리어’)과 한 글자 고침은 서버가 10초 창 안에서 마지막 것으로 접는다. <b>반응</b>은 그 뒤 10분 안에 결과 중 하나를 재생하거나 담은 검색이다 — 앱이 탭을 보내는 게 아니라 서버가 재생·담기 기록에서 역산하므로, 재생 한도에 막혔거나 상세만 본 경우는 무반응으로 센다. 0건 질의가 콘텐츠가 없는 주제면 제작 쪽 수요이고, 결과가 있는데 무반응이 많은 질의는 랭킹이 틀렸거나 매칭이 엉뚱한 것(explore.md 4.5-5)이다. 보존 90일.
       </p>
     </div>
   );
