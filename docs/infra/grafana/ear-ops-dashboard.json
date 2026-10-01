@@ -253,7 +253,7 @@
             }
           },
           "color": {
-            "mode": "palette-classic"
+            "mode": "palette-classic-by-name"
           },
           "unit": "s",
           "thresholds": {
@@ -342,7 +342,7 @@
             }
           },
           "color": {
-            "mode": "palette-classic"
+            "mode": "palette-classic-by-name"
           },
           "unit": "percent",
           "thresholds": {
@@ -428,7 +428,7 @@
             }
           },
           "color": {
-            "mode": "palette-classic"
+            "mode": "palette-classic-by-name"
           },
           "unit": "percent",
           "thresholds": {
@@ -511,7 +511,7 @@
             "showPoints": "never"
           },
           "color": {
-            "mode": "palette-classic"
+            "mode": "palette-classic-by-name"
           },
           "unit": "percent"
         },
@@ -583,7 +583,7 @@
             }
           },
           "color": {
-            "mode": "palette-classic"
+            "mode": "palette-classic-by-name"
           },
           "unit": "percent",
           "thresholds": {
@@ -661,7 +661,7 @@
             "drawStyle": "bars"
           },
           "color": {
-            "mode": "palette-classic"
+            "mode": "palette-classic-by-name"
           }
         },
         "overrides": []
@@ -728,7 +728,68 @@
             "mode": "palette-classic"
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/(^|\\D)2\\d\\d(\\D|$)/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/(^|\\D)3\\d\\d(\\D|$)/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/(^|\\D)4\\d\\d(\\D|$)/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/(^|\\D)5\\d\\d(\\D|$)/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "legend": {
@@ -739,7 +800,7 @@
           "mode": "multi"
         }
       },
-      "description": "Caddy 접근 로그에서 status 파싱. 5xx 가 늘면 api 쪽, 4xx 급증은 클라이언트·봇. 파싱이 비면 Caddy 로그 형식이 바뀐 것 — Explore 에서 @message 한 줄 확인."
+      "description": "Caddy 접근 로그에서 status 파싱. 5xx 가 늘면 api 쪽, 4xx 급증은 클라이언트·봇. 파싱이 비면 Caddy 로그 형식이 바뀐 것 — Explore 에서 @message 한 줄 확인. 색은 상태코드 대역으로 고정한다 — 2xx 초록 · 3xx 파랑 · 4xx 주황 · 5xx 빨강. 기본 팔레트는 시리즈 순서로 색을 매겨, 구간에 새 상태코드가 끼면 색이 전부 밀린다."
     },
     {
       "id": 10,
