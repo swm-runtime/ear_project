@@ -326,7 +326,7 @@ class BusinessException extends HttpException {
 ```json
 {
   "error_code": "PLAY_LIMIT_EXCEEDED",
-  "message": "오늘 들을 수 있는 콘텐츠를 모두 들었어요",
+  "message": "오늘 청취 한도를 모두 사용했어요",
   "retryable": false,
   "retry_after_sec": null,
   "trace_id": "01H8X...."
