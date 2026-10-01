@@ -257,3 +257,40 @@ export interface AdminContentPageQuery {
   offset: number;
   limit: number;
 }
+
+/** 검색 질의 로그 요약의 질의 한 줄 (admin-api.md 4.21) */
+export interface SearchQueryRank {
+  query: string;
+  /** 타이핑 묶음 수 — 행 수다(domain.md 5.7) */
+  searches: number;
+  /** 그중 0건으로 끝난 수 */
+  misses: number;
+  lastSearchedAt: Date;
+}
+
+/** 검색 질의 로그 요약의 하루 — KST 달력일 */
+export interface SearchQueryDailyCount {
+  date: string;
+  searches: number;
+  misses: number;
+}
+
+/** `GET /admin/search-query-logs/summary` (admin-api.md 4.21) */
+export interface SearchQueryLogSummary {
+  /** 집계 창의 시작 — 이 시각 이후 행만 셌다 */
+  since: Date;
+  totals: {
+    searches: number;
+    misses: number;
+    users: number;
+    /** 2자 질의 — 트라이그램 인덱스를 못 타는 길이(explore.md 4.5-5) */
+    shortQueries: number;
+    /** 주제 필터가 걸린 검색 */
+    filteredSearches: number;
+  };
+  daily: SearchQueryDailyCount[];
+  /** 0건이 한 번이라도 있던 질의, 0건 수 내림차순 */
+  missed: SearchQueryRank[];
+  /** 검색 수 내림차순 */
+  top: SearchQueryRank[];
+}

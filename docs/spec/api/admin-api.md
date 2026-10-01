@@ -70,6 +70,7 @@
 | POST | `/admin/recommend-test/reset` | 추천 테스트 계정의 소비 이력 전부 삭제 (4.17) |
 | GET | `/admin/recommend-eval/snapshot` | 추천 평가 스냅샷 내보내기 — 발행 콘텐츠·익명 사용자 행동, 읽기 전용 (4.18) |
 | GET | `/admin/drip-feedback/versions` | 추천 알고리즘 버전별 별점 — 편성 수·평가 수·평균·분포, 버전 역순 (4.19) |
+| GET | `/admin/search-query-logs/summary` | 검색 질의 로그 요약 — 미스율·일별 추이·0건 질의·상위 질의, 읽기 전용 (4.21) |
 | POST | `/admin/reports/daily-metrics` | 일일 지표 보고를 **지금** Slack에 게시 — 크론(매일 17:00 KST)과 같은 본문, 어제 하루치 (4.20) |
 
 ## 4. 엔드포인트 상세
@@ -505,6 +506,32 @@
 - **게시는 비동기다.** 202로 바로 돌려주고 GA4 조회·Slack 게시는 뒤에서 한다. 실패는 크론과 같이 **서버 로그(`daily metrics failed`)로만** 남는다 — 응답으로 알 수 없다.
 - **본문에 지표를 되돌려주지 않는다** — 출처는 Slack 채널 하나로 둔다.
 - 409 `ADMIN_REPORT_NOT_CONFIGURED` — GA4 자격(`GA4_PROPERTY_ID`·`GA4_SERVICE_ACCOUNT_BASE64`)이나 Slack 웹훅(`SLACK_SIGNUP_WEBHOOK_URL`, 없으면 `SLACK_ERROR_WEBHOOK_URL`)이 서버에 없다. 크론은 같은 조건에서 조용히 건너뛴다(로컬·테스트·개발계 기본).
+
+### 4.21 `GET /admin/search-query-logs/summary` — 검색 질의 로그 요약 (읽기 전용)
+
+> 추가: 2026-10-01 (`domain.md` 5.7 · `explore.md` 4.5-5). 로그 콘솔 "검색 로그" 탭(`backend-monitoring.md` 4장)이 읽는다 — 매칭 방식(`pg_trgm` 부분 일치)을 재검토할지 판단하는 근거.
+
+**Query** — `days` (선택, 정수 1~90, 기본 14): 집계 창. `now - days` 이후의 행만 센다.
+
+**Response 200**
+
+```json
+{
+  "days": 14,
+  "since": "2026-09-17T09:00:10.000Z",
+  "totals": { "searches": 120, "misses": 30, "miss_rate": 0.25, "users": 18, "short_queries": 12, "filtered_searches": 5 },
+  "daily": [ { "date": "2026-09-30", "searches": 14, "misses": 3 } ],
+  "missed": [ { "query": "면접", "searches": 6, "misses": 6, "last_searched_at": "…" } ],
+  "top": [ { "query": "커리어", "searches": 20, "misses": 0, "last_searched_at": "…" } ]
+}
+```
+
+- 한 건은 `search_query_logs` 한 행 = **타이핑 묶음 하나**다(`domain.md` 5.7 — 디바운스 중간 입력은 서버가 접는다). `misses`는 그중 첫 페이지 0건.
+- `miss_rate` = `misses / searches`. 검색 0건이면 `null`. 표본이 작을 때의 "참고" 표시는 화면 몫이다.
+- `short_queries`는 2자 질의 수(트라이그램 인덱스를 못 타는 길이 — `explore.md` 4.5-5), `filtered_searches`는 주제 필터가 걸린 검색 수.
+- `daily.date`는 **KST 달력일**이다(04시 서비스 날짜 경계를 쓰지 않는다 — 정책 판정이 아니라 운영자가 읽는 단위). 검색이 없던 날은 빠진다.
+- `missed`는 0건이 한 번이라도 있던 질의를 0건 수 내림차순으로, `top`은 검색 수 내림차순으로 각 최대 50개. `last_searched_at`은 그 질의의 마지막 요청 시각(`updated_at`).
+- 인증은 다른 `/admin/*`와 같다(2장). 400 `VALIDATION_FAILED` — `days` 범위 밖.
 
 ## 5. 에러 코드 표
 
