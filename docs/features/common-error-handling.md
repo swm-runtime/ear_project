@@ -310,11 +310,33 @@ NetworkState  { reachable, connection_type }                        // 클라이
 
 - 신설 2026-09-17(KAN-67).
 
+### 9.10-2 추천 별점 (`drip-feedback-api.md` 5장)
+
+| error_code | HTTP | retryable | 클라이언트 동작 |
+|---|---|---|---|
+| `DRIP_FEEDBACK_NOT_RATEABLE` | 400 | false | 조용히 폐기(오프라인 큐에서 버린다). 내 편성분이 아니거나 접수 기간(7일)이 지난 별점이다 — 사용자에게 노출하지 않는다 |
+
+- 신설 2026-09-30(KAN-116). enum에는 그때 들어갔고 이 표 등재가 빠져 있었다(등재 2026-10-02).
+
+### 9.10-3 구독 · 결제 (`subscription-api.md` 5장)
+
+| error_code | HTTP | retryable | 클라이언트 동작 |
+|---|---|---|---|
+| `EMAIL_REQUIRED_FOR_PURCHASE` | 409 | false | 이메일 등록·인증 화면으로 보내고 완료 후 결제 흐름 복귀 |
+| `SUBSCRIPTION_PLAN_UNAVAILABLE` | 400 | false | "지금은 이 요금제를 구독할 수 없어요" + 요금제 목록 재조회 |
+| `SUBSCRIPTION_STORE_MISMATCH` | 409 | false | "다른 스토어에서 구독 중이에요. 구독한 기기에서 변경해주세요" |
+| `SUBSCRIPTION_RECEIPT_INVALID` | 400 | false | "구독을 확인할 수 없어요". 스토어 거래를 끝내지 않는다. 문의 경로 안내 |
+| `SUBSCRIPTION_OWNED_BY_ANOTHER_ACCOUNT` | 409 | false | "이미 다른 계정에서 사용 중인 구독이에요" |
+| `SUBSCRIPTION_STORE_UNAVAILABLE` | 503 | **true** | "잠시 후 자동으로 반영됩니다". 스토어 거래를 끝내지 않고 재시도 |
+
+- 신설 2026-10-02(KAN-106 · KAN-40). **enum 반영은 구현 PR에서 한다** — 그때까지 이 여섯 코드는 표에만 있다(`architecture.md` 7.5의 순서와 달리 계약을 먼저 확정했다. `interest-management` 때와 같은 방식).
+- `SUBSCRIPTION_STORE_UNAVAILABLE`은 9.11의 "retryable은 5xx·429·외부 연동 실패뿐" 규칙의 외부 연동 실패다.
+
 ### 9.11 이 표를 읽는 규칙
 
 - **`retryable: true`는 5xx·429·외부 연동 실패뿐이다.** 나머지는 전부 형식·상태·권한 문제라 같은 요청을 다시 보내도 결과가 같다. 자동 재시도 대상은 4.2가 정한다.
 - **설정(`settings-api.md`)의 설정 값·동의에는 고유 코드가 없다.** `VALIDATION_FAILED`만 쓰며 9.1을 따른다. 같은 문서의 공지사항 코드는 9.10-1, 버전 관문의 `APP_UPDATE_REQUIRED`는 9.1에 있다.
-- **api 문서가 아직 없는 화면**(구독·알림 등)의 코드는 그 문서를 작성할 때 여기에 함께 등재한다. 플레이어는 작성됐고 **신규 코드가 없다**(`player-api.md` — 전 분기가 기존 코드로 표현됨).
+- **api 문서가 아직 없는 화면**(알림 등)의 코드는 그 문서를 작성할 때 여기에 함께 등재한다. 구독은 작성됐다(`subscription-api.md`, 2026-10-02 — 9.10-3). 플레이어는 작성됐고 **신규 코드가 없다**(`player-api.md` — 전 분기가 기존 코드로 표현됨).
 - **관리자 코드(9.10)는 웹 콘솔 전용이다.** 앱 클라이언트는 이 코드를 받을 일이 없으므로 앱의 분기 로직에 넣지 않는다.
 - **9장 표의 코드는 `error-code.enum.ts`와 1:1로 일치한다**(기계 대조 2026-09-08 — 어느 한쪽에만 있는 코드가 없다). 개수를 적지 않는 이유는 코드가 늘 때마다 이 문장이 낡기 때문이다 — 새로 세었다면 **대조 날짜를 함께** 적는다. 코드를 추가하는 순서는 `architecture.md` 7.5(enum → 9장 표 → 해당 api 문서 5장)를 따른다.
 

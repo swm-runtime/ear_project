@@ -1,0 +1,487 @@
+# 구독 · 인앱 결제 API 명세서
+
+> 기준 문서: [`docs/features/subscription.md`](../../features/subscription.md)
+> 관련 규칙: [`docs/features/paywall.md`](../../features/paywall.md) 4.5(페이월 → 결제 → 복귀) · [`docs/features/auth.md`](../../features/auth.md) 4.4(결제 전 이메일 인증)·4.3(탈퇴·재가입 복원)
+> 규약: [`docs/backend/convention.md`](../../backend/convention.md) 5장 · [`docs/backend/architecture.md`](../../backend/architecture.md) 7·9장
+> 오류·재시도: [`docs/features/common-error-handling.md`](../../features/common-error-handling.md)
+> 스키마: [`docs/backend/domain.md`](../../backend/domain.md) 1.3 · 3.1 · 8.1~8.4 · 11.5
+
+작성: 2026-10-02 (KAN-106 · KAN-40)
+
+## 1. 범위
+
+`subscription.md`가 정의한 동작을 HTTP 계약으로 옮긴 문서다. 이 문서가 소유하는 것은 다섯 가지다.
+
+- **요금제 목록** — 3티어 비교 카드의 재료. 스토어 상품 ID와 `entitlements`를 함께 내려준다
+- **현재 구독 상태** — 앱 실행·포그라운드 복귀 시의 동기화 대상(`subscription.md` 4.3)
+- **결제 의도 생성** — 결제 시트를 열기 전의 서버 관문(이메일 인증·요금제 유효성). 스토어 거래를 계정에 묶는 토큰을 발급한다
+- **영수증 제출·검증 / 구매 복원** — 스토어가 서명한 거래를 서버가 검증해 티어를 반영한다
+- **스토어 서버 알림(S2S) 수신** — 갱신·해지·환불·유예를 반영하는 **진실의 원천**
+
+**다루지 않는 것**
+
+| 대상 | 소유 문서 | 이 문서에서 하는 일 |
+|---|---|---|
+| 재생 한도 판정·차감·페이월을 여는 시점 | `paywall.md` · `library-api.md` | `entitlements`를 내려줄 뿐 판정하지 않는다 |
+| 프로필·설정의 구독 요약(`plan`) | `profile-api.md` 4.1 · `settings-api.md` 4.1 | **같은 조립 함수**를 쓴다(4.2). 두 화면의 계약은 그대로다 |
+| 이메일 등록·인증 | `auth-api.md` 4.8~4.11 | 미인증이면 결제 의도 생성을 거부한다(4.3) |
+| 구독 **해지** | 스토어 구독 관리 화면(`subscription.md` 4.5) | **엔드포인트가 없다.** 앱은 스토어로 딥링크하고, 결과는 S2S로 들어온다 |
+| 탈퇴 시 구독 안내·아카이브 | `auth-api.md` 4.6~4.7 | 재가입 복원 규칙만 소유한다(4.5) |
+| 가격 표기 | 스토어 SDK(현지 통화) | `price_krw`는 참고값이다 — 화면은 SDK가 준 현지 가격을 그린다 |
+
+**플랫폼 범위** — 계약은 iOS(App Store)·Android(Google Play)를 함께 정한다. **서버 구현은 iOS가 먼저다**(2026-10-02) — Play는 서비스 계정·RTDN 구성이 준비되면 같은 계약으로 붙인다. 그때까지 `platform = android` 요청은 `SUBSCRIPTION_PLAN_UNAVAILABLE`로 거부된다(상품 ID가 비어 있어서다 — 4.3).
+
+---
+
+## 2. 공통 규약
+
+| 항목 | 값 |
+|---|---|
+| Base URL | `/api/v1` |
+| 인증 헤더 | `Authorization: Bearer <access_token>` — 3장 표의 1~5번. **6·7번(웹훅)은 사용자 인증이 없다** — 스토어 서명으로 검증한다(7장) |
+| 요청·응답 필드 | **snake_case** |
+| 시각 | **ISO 8601 UTC 문자열** |
+| 추적 | 모든 응답에 `X-Trace-Id` |
+| 멱등키 | **`Idempotency-Key` 헤더를 쓰지 않는다.** 영수증 제출·복원은 스토어 거래 ID(`original_transaction_id`)가 자연 키라 같은 거래의 재전송이 같은 상태로 수렴한다. 결제 의도는 중복 생성돼도 무해하다(3장 설계 메모) |
+
+**`entitlements` — 기능 분기의 유일한 근거** (`subscription.md` 4.1)
+
+```json
+{ "daily_play_limit": 5, "daily_drip_count": 2, "drip_enabled": true, "ads_enabled": false }
+```
+
+| 필드 | 타입 | 의미 |
+|---|---|---|
+| `daily_play_limit` | int \| null | `plans.daily_play_limit`. **`null` = 무제한** |
+| `daily_drip_count` | int | 하루 정규 편성 편수 |
+| `drip_enabled` | boolean | |
+| `ads_enabled` | boolean | |
+
+- `plans`에서 **매번 조립**한다. 저장하는 컬럼이 아니다. 클라이언트는 티어명으로 분기하지 않고 이 객체로 분기한다(CLAUDE.md 공통 원칙).
+
+**구독 요약 `plan`** — `profile-api.md` 4.1의 `plan`과 **같은 모양·같은 조립 함수**다(`status` 4분기 `free` / `subscribed` / `cancel_scheduled` / `grace`, `tier`, `plan_name`, `daily_play_limit`, `renews_at`, `expires_at`, `has_payment_issue`). 이 문서는 그 정의를 다시 적지 않는다.
+
+---
+
+## 3. 엔드포인트 목록
+
+| # | 메서드 | 경로 | 설명 | 인증 |
+|---|---|---|---|---|
+| 1 | GET | `/plans` | 요금제 목록 — 3티어 + 플랫폼 상품 ID + `entitlements` (4.1) | 필요 |
+| 2 | GET | `/users/me/subscription` | 현재 구독 상태 + `entitlements` — 실행·포그라운드 복귀 시 동기화 (4.2) | 필요 |
+| 3 | POST | `/users/me/subscription/purchase-intents` | 결제 의도 생성 — 이메일 인증·요금제 관문, 계정 결속 토큰 발급 (4.3) | 필요 |
+| 4 | POST | `/users/me/subscription/purchases` | 영수증 제출·검증 → 티어 반영 (4.4) | 필요 |
+| 5 | POST | `/users/me/subscription/restore` | 구매 복원 (4.5) | 필요 |
+| 6 | POST | `/webhooks/app-store` | App Store Server Notifications V2 수신 (4.6) | **스토어 서명** |
+| 7 | POST | `/webhooks/play-store` | Google Play RTDN(Pub/Sub push) 수신 (4.7) | **스토어 서명** |
+
+**설계 메모**
+
+- **경로는 `/users/me/subscription`이다.** `subscription.md` 4.3은 `GET /subscription`이라고 적었으나, 사용자 종속 자원은 전부 `/users/me/*` 아래에 둔다는 다른 계약들(`settings`·`interests`·`drip-feedback`)과 맞춘다(기능 문서 4.3을 함께 고쳤다).
+- **구매와 복원을 한 엔드포인트로 합치지 않는다.** 서버가 하는 검증은 같지만 **결과 없음의 뜻이 다르다** — 구매 제출에서 유효한 거래가 없으면 오류(위조·만료된 영수증)이고, 복원에서 없으면 정상 응답("복원할 구독이 없어요")이다. 한 엔드포인트가 두 뜻을 가지면 화면이 요청 맥락을 기억해 갈라야 한다.
+- **결제 의도는 멱등키가 아니라 "계정 결속 토큰"이다.** `domain.md` 8.3은 "결제 버튼 연타 방지 멱등키"라고 적었지만, 연타로 인한 이중 결제는 스토어 결제 시트가 스스로 막는다. 의도 행의 실질적 쓸모는 ① 결제 전 서버 관문(이메일 인증 — FR-39) ② **스토어 거래를 이 계정에 묶는 것**이다 — 의도 `id`(UUID)를 iOS `appAccountToken` / Android `obfuscatedAccountId`로 결제에 실어 보내면 스토어가 서명한 거래 안에 그 값이 들어온다. 남의 영수증을 주워 제출하는 것을 서명 수준에서 막는다(7장).
+- **해지 엔드포인트가 없다.** 스토어 구독은 앱이 해지할 수 없다(`subscription.md` 4.5).
+- **웹훅은 `/webhooks/*`에 따로 둔다.** 사용자 인증이 없고 호출자가 스토어라 레이트리밋·가드 구성이 다르다.
+
+---
+
+## 4. 엔드포인트 상세
+
+### 4.1 `GET /plans`
+
+페이월 시트·구독 관리 화면이 3티어 비교 카드를 그릴 때 호출한다. 응답을 받은 뒤 클라이언트는 `store_product_id`로 **스토어 SDK에서 현지 가격을 조회해 병합**한다(`subscription.md` 4.2-1).
+
+**Request** — `?platform=ios|android` (필수)
+
+**Response 200**
+
+```json
+{
+  "plans": [
+    {
+      "plan_id": "uuid-light", "tier": "light", "name": "라이트", "description": "무료로 하루 2편까지 들을 수 있어요",
+      "price_krw": 0, "store_product_id": null,
+      "entitlements": { "daily_play_limit": 2, "daily_drip_count": 2, "drip_enabled": true, "ads_enabled": true },
+      "action": "none"
+    },
+    {
+      "plan_id": "uuid-daily", "tier": "daily", "name": "데일리", "description": "…",
+      "price_krw": 4900, "store_product_id": "com.runtime.ear.subscription.daily.monthly",
+      "entitlements": { "daily_play_limit": 5, "daily_drip_count": 2, "drip_enabled": true, "ads_enabled": false },
+      "action": "purchase"
+    },
+    {
+      "plan_id": "uuid-pro", "tier": "pro", "name": "프로", "description": "…",
+      "price_krw": 9900, "store_product_id": "com.runtime.ear.subscription.pro.monthly",
+      "entitlements": { "daily_play_limit": null, "daily_drip_count": 2, "drip_enabled": true, "ads_enabled": false },
+      "action": "purchase"
+    }
+  ],
+  "is_email_verified": false
+}
+```
+
+| 필드 | 의미 |
+|---|---|
+| `plans[]` | `is_active = true`인 요금제, `display_order` 오름차순(낮은 티어 → 높은 티어). **무료(`light`)도 포함한다** — 비교 카드에 필요하다 |
+| `store_product_id` | 요청 `platform`의 상품 ID(`plans.store_product_id_ios` / `_android`). 무료 티어·그 플랫폼에 상품이 없는 요금제는 `null` |
+| `price_krw` | **참고값.** 화면에는 스토어 SDK가 반환한 현지 가격을 그린다(`subscription.md` 7). SDK 조회가 실패했을 때의 폴백으로도 쓰지 않는다 — "요금제를 불러올 수 없어요"다(5장) |
+| `action` | 이 사용자가 그 요금제에 대해 할 수 있는 일 — **서버가 판정한다**. 아래 표 |
+| `is_email_verified` | `email IS NOT NULL AND is_email_verified = true`. `false`면 [구독하기] 탭 시 이메일 등록·인증 화면을 먼저 연다(FR-39) — 4.3이 다시 판정한다 |
+
+**`action`** — 클라이언트는 티어 순서를 스스로 비교하지 않는다.
+
+| 값 | 조건 | 버튼 |
+|---|---|---|
+| `purchase` | 유효한 구독이 없고 유료 요금제 | [구독하기] |
+| `current` | 현재 구독 중인 요금제 | "이용 중" 표시 |
+| `upgrade` | 현재보다 높은 티어 | [업그레이드] — 즉시 적용(스토어 비례 정산) |
+| `downgrade` | 현재보다 낮은 **유료** 티어 | [변경] — "다음 결제일부터 적용돼요" 안내 |
+| `none` | 무료 티어, 또는 그 플랫폼에 상품이 없는 요금제 | 버튼 없음. 유료 → 무료는 해지다(스토어 이동) |
+
+- **다른 스토어에서 결제한 구독자**(예: Android에서 구독하고 iOS로 접속): 유료 요금제 전부 `none`이다. 한 계정에 두 스토어 구독을 겹치지 않는다. 화면은 4.2의 `store`로 "Google Play에서 구독 중이에요"를 안내한다.
+- 비활성(`is_active = false`) 요금제는 목록에서 빠진다. 그 요금제의 기존 구독자는 만료까지 유지되며(`subscription.md` 7), 이때 응답에 `current`인 항목이 없을 수 있다 — 현재 구독 표시는 4.2가 한다.
+
+**에러** — `VALIDATION_FAILED`(400): `platform` 누락·오값.
+
+---
+
+### 4.2 `GET /users/me/subscription`
+
+**앱 실행 시·포그라운드 복귀 시** 호출한다(`subscription.md` 4.3). 결제 직후에는 4.4의 응답이 같은 본문을 주므로 다시 부르지 않는다. `Cache-Control: no-store`.
+
+**Response 200**
+
+```json
+{
+  "plan": {
+    "status": "subscribed", "tier": "pro", "plan_name": "프로", "daily_play_limit": null,
+    "renews_at": "2026-11-02T03:00:00Z", "expires_at": null, "has_payment_issue": false
+  },
+  "entitlements": { "daily_play_limit": null, "daily_drip_count": 2, "drip_enabled": true, "ads_enabled": false },
+  "store": "app_store",
+  "pending_plan": null
+}
+```
+
+| 필드 | 의미 |
+|---|---|
+| `plan` | 구독 요약 — `profile-api.md` 4.1과 같은 모양(2장). 무료면 `status: "free"`, `tier: "light"` |
+| `entitlements` | **현재 유효한** 티어의 권한(2장). 해지 예약·유예 중에는 유료 티어의 값이다 |
+| `store` | `app_store` \| `play_store` \| `null`(무료). [구독 해지]·[결제 수단 확인]을 어느 스토어로 보낼지의 근거 |
+| `pending_plan` | **다운그레이드 예약**이 있으면 `{ "tier", "plan_name", "effective_at" }`, 없으면 `null`. `effective_at`은 현재 결제 주기 만료 시각이다(`subscription.md` 4.4 — "언제부터 적용되는지" 표시) |
+
+- **`users.tier` 캐시가 아니라 `subscriptions`를 기준으로 조립한다**(`domain.md` 8.2). 프로필·설정과 같은 규칙이다.
+- **만료 보정** — 알림 유실 대비(`subscription.md` 7). 조회 시점에 비종결 행(`active`·`grace`·`cancelled`)의 `expires_at`이 **1시간 넘게 지나 있으면** 서버가 스토어에 그 구독의 현재 상태를 조회해 반영한 뒤 응답한다. 스토어 조회가 실패하면 **저장된 상태 그대로 응답한다** — 추측으로 강등하지 않는다(유예·갱신 지연을 만료로 오판하면 결제한 사용자가 막힌다). 같은 보정을 하루 1회 배치도 돌린다.
+  - 조회가 상태를 바꾸는 유일한 경우다. 그 밖에는 조회가 쓰기를 유발하지 않는다.
+- 이 응답의 `entitlements`와 라이브러리·탐색 응답의 `daily_play_limit`(`library-api.md` 2장)은 **같은 `plans` 행에서 온다.**
+
+**에러** — 없음(401·5xx는 공통 규칙).
+
+---
+
+### 4.3 `POST /users/me/subscription/purchase-intents`
+
+[구독하기]·[업그레이드]·[변경] 탭 → **스토어 결제 시트를 열기 직전**에 호출한다.
+
+**Request**
+
+```json
+{ "plan_id": "uuid-pro", "platform": "ios", "entry_point": "paywall" }
+```
+
+| 필드 | 타입 | 필수 | 비고 |
+|---|---|---|---|
+| `plan_id` | uuid | 필수 | 4.1의 `plan_id` |
+| `platform` | `ios` \| `android` | 필수 | |
+| `entry_point` | `paywall` \| `settings` \| `onboarding` | 선택 | 전환 분석용. **판정에 쓰지 않는다** |
+
+**Response 201**
+
+```json
+{ "intent_id": "8f0c…-uuid", "store_product_id": "com.runtime.ear.subscription.pro.monthly", "account_token": "8f0c…-uuid" }
+```
+
+| 필드 | 의미 |
+|---|---|
+| `intent_id` | `purchase_intents.id`. 4.4에 되돌려 보낸다 |
+| `store_product_id` | 결제 시트에 넘길 상품 ID |
+| `account_token` | **결제에 반드시 실어 보낸다** — iOS StoreKit 2 `appAccountToken`(UUID), Android Billing `setObfuscatedAccountId`. 값은 `intent_id`와 같다. 스토어가 서명한 거래에 이 값이 담겨 돌아오고, 서버는 그것으로 거래의 주인을 확인한다(7장) |
+
+**판정 순서**
+
+1. **이메일 인증**(FR-39) — `email IS NOT NULL AND is_email_verified = true`가 아니면 `EMAIL_REQUIRED_FOR_PURCHASE`. 결제만 되고 이메일이 없는 상태를 만들지 않는다(`auth-api.md` 6장)
+2. **요금제** — 존재하고 `is_active = true`이며 유료이고 요청 `platform`의 상품 ID가 있어야 한다. 아니면 `SUBSCRIPTION_PLAN_UNAVAILABLE`
+3. **다른 스토어 구독 중** — 유효한 구독의 `store`가 요청 플랫폼과 다르면 `SUBSCRIPTION_STORE_MISMATCH`(두 스토어에 이중 결제 방지)
+4. 통과 → `purchase_intents(status = created)` 행 생성
+
+- 같은 요금제로 여러 번 호출해도 된다 — 매번 새 행이다. 결제 시트를 닫고 다시 여는 흐름을 막지 않는다. `created`로 남은 행은 30일 뒤 정리한다.
+- **현재와 같은 요금제**(`action = current`)에 대한 요청도 2번에서 거부하지 않는다 — 만료 뒤 재구독(같은 상품 재구매)이 같은 경로이기 때문이다. 이미 유효한 구독이면 스토어가 "이미 구독 중"으로 막는다.
+
+**에러**
+
+| 코드 | HTTP | 조건 |
+|---|---|---|
+| `EMAIL_REQUIRED_FOR_PURCHASE` | 409 | 인증된 이메일 없음 |
+| `SUBSCRIPTION_PLAN_UNAVAILABLE` | 400 | 없는·비활성·무료 요금제, 또는 그 플랫폼 상품 ID 없음 |
+| `SUBSCRIPTION_STORE_MISMATCH` | 409 | 다른 스토어에서 구독 중 |
+
+---
+
+### 4.4 `POST /users/me/subscription/purchases`
+
+스토어 결제가 성공한 직후, 그리고 **앱 실행 시 미완료(unfinished/pending) 거래가 남아 있을 때** 호출한다. 서버 검증이 성공(200)한 뒤에만 클라이언트가 거래를 `finish`(iOS) / 종료한다 — Android의 `acknowledge`는 **서버가 한다**(7장).
+
+**Request — iOS**
+
+```json
+{ "platform": "ios", "intent_id": "8f0c…-uuid", "signed_transaction": "eyJhbGciOiJFUzI1NiIsIng1YyI6Wy4uLl19…" }
+```
+
+**Request — Android**
+
+```json
+{ "platform": "android", "intent_id": "8f0c…-uuid", "purchase_token": "kjhgf…", "product_id": "com.runtime.ear.subscription.pro.monthly" }
+```
+
+| 필드 | 필수 | 비고 |
+|---|---|---|
+| `platform` | 필수 | |
+| `intent_id` | 선택 | 4.3의 값. 앱 재실행 뒤 미완료 거래를 제출할 때는 모를 수 있다 — 그래도 서버는 서명된 거래 안의 계정 토큰으로 주인을 확인한다 |
+| `signed_transaction` | iOS 필수 | StoreKit 2 `Transaction`의 JWS 표현(`jwsRepresentation`). **StoreKit 1 영수증(base64)은 받지 않는다** |
+| `purchase_token` · `product_id` | Android 필수 | Billing Library의 `Purchase.purchaseToken` · 상품 ID |
+
+**Response 200** — 4.2와 **같은 본문**. 클라이언트는 이 값으로 화면을 확정한다(다시 조회하지 않는다).
+
+**서버 처리**
+
+1. **서명 검증** — iOS: JWS의 인증서 체인을 Apple 루트까지 검증하고 `bundleId`·환경을 확인한다. Android: Google Play Developer API(`purchases.subscriptionsv2.get`)로 토큰을 조회한다. **클라이언트가 보낸 평문 필드(상품 ID 등)는 신뢰하지 않는다** — 서명된 거래·스토어 응답의 값만 쓴다
+2. **상품 → 요금제** — 거래의 상품 ID를 `plans.store_product_id_*`에서 찾는다. 없으면 `SUBSCRIPTION_RECEIPT_INVALID`
+3. **주인 확인**(7장) — 거래에 계정 토큰이 있고 그것이 **다른 살아 있는 사용자**의 `purchase_intents.id`면 `SUBSCRIPTION_OWNED_BY_ANOTHER_ACCOUNT`. 그 거래의 `original_transaction_id`가 이미 다른 계정의 `subscriptions`에 있어도 같다
+4. **유효성** — 이미 만료·환불된 거래면 `SUBSCRIPTION_RECEIPT_INVALID`(구매 제출인데 유효한 구독이 아니다)
+5. **반영** — `original_transaction_id` 기준 upsert로 `subscriptions`를 만들거나 갱신하고, **같은 트랜잭션에서 `users.tier`를 갱신한다.** 의도 행이 있으면 `verified`로 바꾼다
+6. Android: 미확인 구매면 서버가 `acknowledge`한다(3일 안에 확인하지 않으면 Google이 자동 환불한다)
+
+- **같은 거래의 재전송은 같은 결과다**(멱등). 업그레이드처럼 같은 `original_transaction_id`에 새 거래가 오면 그 행을 갱신한다.
+- **업그레이드는 즉시 반영된다.** 다운그레이드는 스토어가 "다음 갱신부터"로 예약하므로, 제출된 거래의 티어는 그대로이고 `pending_plan`이 채워진다(S2S 알림으로도 들어온다 — 4.6).
+- 5번이 실패(DB)하면 5xx다 — 클라이언트는 거래를 끝내지 않고 재시도한다. **결제는 됐는데 티어가 안 붙은 채 거래가 닫히는 일이 없어야 한다**(`subscription.md` 7).
+
+**에러**
+
+| 코드 | HTTP | retryable | 조건 |
+|---|---|---|---|
+| `SUBSCRIPTION_RECEIPT_INVALID` | 400 | false | 서명 불일치·번들 불일치·허용하지 않는 환경·모르는 상품·만료/환불된 거래 |
+| `SUBSCRIPTION_OWNED_BY_ANOTHER_ACCOUNT` | 409 | false | 다른 계정에 연결된 스토어 구독 |
+| `SUBSCRIPTION_STORE_UNAVAILABLE` | 503 | **true** | 스토어 API 조회 실패(주로 Android — iOS는 서명만으로 검증이 끝난다). 거래를 끝내지 않고 재시도 |
+
+---
+
+### 4.5 `POST /users/me/subscription/restore`
+
+설정 > 구독 관리 > [구매 복원], 페이월의 복원 링크. 클라이언트가 스토어 SDK에서 **현재 유효한 구독 거래**를 모아 보낸다(iOS `Transaction.currentEntitlements`, Android `queryPurchasesAsync`).
+
+**Request**
+
+```json
+{ "platform": "ios", "signed_transactions": ["eyJ…", "eyJ…"] }
+```
+```json
+{ "platform": "android", "purchases": [ { "purchase_token": "kjhgf…", "product_id": "com.runtime.ear.subscription.pro.monthly" } ] }
+```
+
+- 배열은 **0~10건**. 스토어에 유효한 구독이 없으면 빈 배열을 보낸다(요청 자체는 한다 — 서버가 "없음"을 답한다).
+
+**Response 200**
+
+```json
+{ "restored": true, "subscription": { "plan": { … }, "entitlements": { … }, "store": "app_store", "pending_plan": null } }
+```
+
+| 필드 | 의미 |
+|---|---|
+| `restored` | 이 요청으로 유효한 구독이 이 계정에 연결돼 있으면 `true`(이미 연결돼 있던 경우 포함). 유효한 구독이 하나도 없으면 `false` — 화면은 "복원할 구독이 없어요" |
+| `subscription` | 4.2와 같은 본문(복원 후 상태) |
+
+**서버 처리** — 각 거래에 4.4의 1~3번 검증을 하고, **유효한(만료·환불되지 않은) 것만** 반영한다. 여러 개면 가장 높은 티어·가장 늦은 만료가 현재 구독이 된다.
+
+- **만료·환불된 거래는 오류가 아니라 무시한다** — 복원은 "지금 살아 있는 것을 찾아 달라"는 요청이다.
+- **다른 계정에 연결된 구독이 하나라도 있으면 요청 전체가 `SUBSCRIPTION_OWNED_BY_ANOTHER_ACCOUNT`다.** 기존 연결을 해제하지 않는다(구독 공유 어뷰징 방지 — `subscription.md` 4.6).
+- **탈퇴 후 재가입 복원이 이 경로다**(`subscription.md` 7 · `auth.md` 7). 이전 계정이 파기돼 `subscriptions`에서 그 `original_transaction_id`가 풀려 있으므로 연결된다. 근거는 앱 계정이 아니라 **스토어가 서명한 거래**다 — 그 거래를 제출할 수 있는 것은 그 스토어 계정의 주인뿐이다. 그래서 **클라이언트가 적어 보낸 거래 ID만으로는 복원하지 않는다**(7장).
+
+**에러**
+
+| 코드 | HTTP | retryable | 조건 |
+|---|---|---|---|
+| `SUBSCRIPTION_RECEIPT_INVALID` | 400 | false | 서명 불일치·번들 불일치 등 **위조로 보이는** 거래가 섞임(만료·환불은 해당 없음) |
+| `SUBSCRIPTION_OWNED_BY_ANOTHER_ACCOUNT` | 409 | false | 다른 계정에 연결된 구독 |
+| `SUBSCRIPTION_STORE_UNAVAILABLE` | 503 | true | 스토어 API 조회 실패 |
+
+---
+
+### 4.6 `POST /webhooks/app-store` — App Store Server Notifications V2
+
+Apple이 호출한다. 본문은 `{ "signedPayload": "<JWS>" }`. App Store Connect에 **프로덕션·샌드박스 URL을 각각** 등록한다(같은 경로, 서버가 페이로드의 환경으로 가른다 — 7장).
+
+**응답**
+
+| 상황 | 응답 |
+|---|---|
+| 서명 검증 성공 + 처리 성공(또는 **이미 처리한 알림**) | `200` 빈 본문 |
+| 서명 검증 실패·형식 오류 | `400` — Apple은 재시도하지만 결과는 같다. 로그에 남긴다 |
+| 처리 중 일시 실패(DB 등) | `5xx` — **Apple이 재시도한다**(최대 5회, 간격이 늘어난다). 그래서 성공하기 전에는 200을 주지 않는다 |
+
+**처리**
+
+1. `signedPayload` 서명 검증 → `notificationUUID`로 `store_notification_logs`에 적재. **유니크 충돌이면 이미 받은 알림이므로 200으로 끝낸다**(`domain.md` 8.4)
+2. 페이로드의 `signedTransactionInfo` · `signedRenewalInfo`(각각 JWS)를 검증해 구독 상태를 환산한다
+3. `original_transaction_id`로 `subscriptions` 행을 찾아 반영하고 `users.tier`를 갱신한다. **행이 없으면**(영수증 제출보다 알림이 먼저 도착) 거래의 계정 토큰으로 사용자를 찾아 행을 만든다. 토큰도 없으면 `processed_at`을 비워 둔 채 200으로 받고, 이후 영수증 제출·복원이 연결한다
+4. 처리 완료 시 `processed_at` 기록
+
+**알림 유형 → `subscriptions.status`** (`domain.md` 8.2의 의미로 환산한다 — 스토어 용어를 그대로 옮기지 않는다)
+
+| `notificationType` (`subtype`) | 반영 |
+|---|---|
+| `SUBSCRIBED` (`INITIAL_BUY` · `RESUBSCRIBE`) | `active`, 만료일 설정 |
+| `DID_RENEW` (· `BILLING_RECOVERY`) | `active`, 만료일 연장 |
+| `DID_CHANGE_RENEWAL_STATUS` (`AUTO_RENEW_DISABLED`) | **`cancelled`**(해지 예약 — 만료일까지 유효), `is_auto_renew = false` |
+| `DID_CHANGE_RENEWAL_STATUS` (`AUTO_RENEW_ENABLED`) | `active`, `is_auto_renew = true` |
+| `DID_CHANGE_RENEWAL_PREF` (`UPGRADE`) | 티어 즉시 변경, `pending_tier` 비움 |
+| `DID_CHANGE_RENEWAL_PREF` (`DOWNGRADE`) | 티어 유지, **`pending_tier`** = 다음 갱신 티어 |
+| `DID_CHANGE_RENEWAL_PREF` (subtype 없음) | 예약 취소 — `pending_tier` 비움 |
+| `DID_FAIL_TO_RENEW` (`GRACE_PERIOD`) | **`grace`** — 혜택 유지, `has_payment_issue` |
+| `DID_FAIL_TO_RENEW` (subtype 없음 — 유예 기간 없음) | `expired` → `users.tier = light`. 재청구가 성공하면 `DID_RENEW`로 돌아온다 |
+| `GRACE_PERIOD_EXPIRED` · `EXPIRED` (전 subtype) | `expired` → `users.tier = light` |
+| `REFUND` · `REVOKE` | **`refunded`** → **즉시** `users.tier = light`(`subscription.md` 4.7) |
+| `REFUND_REVERSED` | 만료 전이면 `active` 복구 |
+| `RENEWAL_EXTENDED` | 만료일만 갱신 |
+| 그 밖(`TEST` · `PRICE_INCREASE` · `CONSUMPTION_REQUEST` · `ONE_TIME_CHARGE` 등) | 적재만 하고 상태를 바꾸지 않는다 |
+
+- 만료·환불로 `users.tier`가 내려갈 때 라이브러리·드립은 건드리지 않는다(`subscription.md` 4.5).
+- **알림 순서가 뒤바뀔 수 있다.** 반영 전에 페이로드의 `signedDate`가 그 행에 마지막으로 반영한 알림보다 과거면 상태를 덮지 않는다(적재는 한다).
+
+---
+
+### 4.7 `POST /webhooks/play-store` — Google Play Real-time Developer Notifications
+
+Google Cloud Pub/Sub **push 구독**이 호출한다. 본문은 Pub/Sub 메시지 봉투(`message.data`가 base64 JSON)다.
+
+- 검증: Pub/Sub push의 OIDC 토큰(`Authorization: Bearer`)을 Google 공개키로 검증하고 `aud`·서비스 계정 이메일을 대조한다(7장)
+- 중복: `message.messageId`를 `notification_id`로 `store_notification_logs`에 적재(유니크)
+- **알림은 신호일 뿐이다.** 본문에는 `purchaseToken`과 유형 번호만 있으므로, 서버가 `purchases.subscriptionsv2.get`으로 **현재 상태를 조회해** 반영한다. 조회 실패는 5xx로 답해 Pub/Sub가 재전송하게 한다
+- 응답: 4.6과 같다(성공·중복 200, 일시 실패 5xx)
+
+**`subscriptionState` → `subscriptions.status`**
+
+| Play 상태 | 반영 |
+|---|---|
+| `SUBSCRIPTION_STATE_ACTIVE` | `active` (자동 갱신이 꺼져 있으면 `cancelled`) |
+| `SUBSCRIPTION_STATE_CANCELED` | **`cancelled`** — Play의 "canceled"는 해지 예약이다(만료 전 유효). 만료일이 지났으면 `expired` |
+| `SUBSCRIPTION_STATE_IN_GRACE_PERIOD` | `grace` |
+| `SUBSCRIPTION_STATE_ON_HOLD` · `PAUSED` · `EXPIRED` | `expired` → `users.tier = light` |
+| 환불·철회(`SUBSCRIPTION_REVOKED` 알림) | `refunded` → 즉시 `light` |
+
+- Play에는 `original_transaction_id`가 없다. **그 구독의 최초 `purchaseToken`을 `original_transaction_id`로 쓴다.** 업·다운그레이드·재구독으로 새 토큰이 발급되면 응답의 `linkedPurchaseToken`으로 기존 행을 찾아 같은 행을 갱신한다.
+- **서버 구현은 iOS 뒤다**(1장). 이 절의 계약은 그때 그대로 쓴다.
+
+---
+
+## 5. 에러 코드 표
+
+**아래 코드는 이 문서가 신설했고 `common-error-handling.md` 9.10-3에 등재했다.** enum 반영은 백엔드 구현 PR에서 한다(`architecture.md` 7.5).
+
+| error_code | HTTP | retryable | 클라이언트 동작 |
+|---|---|---|---|
+| `EMAIL_REQUIRED_FOR_PURCHASE` | 409 | false | 이메일 등록·인증 화면(`auth.md` 4.4)으로 보내고, 인증 완료 후 결제 흐름으로 복귀. 정상 클라이언트는 4.1의 `is_email_verified`로 먼저 거르므로 드물다 |
+| `SUBSCRIPTION_PLAN_UNAVAILABLE` | 400 | false | "지금은 이 요금제를 구독할 수 없어요" + 요금제 목록(4.1) 재조회 |
+| `SUBSCRIPTION_STORE_MISMATCH` | 409 | false | "다른 스토어에서 구독 중이에요. 구독한 기기에서 변경해주세요" |
+| `SUBSCRIPTION_RECEIPT_INVALID` | 400 | false | "구독을 확인할 수 없어요". 거래를 `finish`하지 않는다 — 재시도해도 결과가 같으므로 자동 재시도 대상은 아니다. 문의 경로 안내 |
+| `SUBSCRIPTION_OWNED_BY_ANOTHER_ACCOUNT` | 409 | false | "이미 다른 계정에서 사용 중인 구독이에요"(`subscription.md` 4.6) |
+| `SUBSCRIPTION_STORE_UNAVAILABLE` | 503 | **true** | "구독을 확인하고 있어요… 잠시 후 자동으로 반영됩니다". **거래를 끝내지 않고** 재시도 큐에 넣는다(다음 실행의 미완료 거래 처리도 같은 경로) |
+
+- 401·429·5xx는 `common-error-handling.md` 4.1~4.2의 공통 규칙을 따른다.
+- **결제 취소**(사용자가 시트를 닫음)는 서버 호출이 없다 — 에러 문구도 없다(`subscription.md` 5장).
+
+---
+
+## 6. 흐름
+
+**구매**
+
+```
+페이월 시트 / 구독 관리
+   ↓ GET /plans?platform=ios            → plans[](store_product_id · action) + is_email_verified
+   ↓ 스토어 SDK로 현지 가격 조회 → 병합 표시
+[구독하기] 탭
+   ├─ is_email_verified == false → 이메일 등록·인증(auth 4.4) → 복귀
+   ↓ POST …/purchase-intents            → intent_id · account_token
+   ↓ 스토어 결제 시트(appAccountToken = account_token)
+   ├─ 취소 → 원래 화면(문구 없음)
+   ↓ 결제 성공 — 거래는 아직 finish 하지 않는다
+   ↓ POST …/purchases { signed_transaction }
+   ├─ 200 → finish → 화면 갱신(응답 본문) → 페이월이면 blocked_content_id 자동 재생(paywall 4.5)
+   ├─ 503 SUBSCRIPTION_STORE_UNAVAILABLE / 네트워크 → "반영 중" + 재시도(거래 유지)
+   └─ 400·409 → 문구 표시(거래 유지 — 문의)
+```
+
+**앱 실행 · 포그라운드 복귀**
+
+```
+① 스토어 SDK의 미완료 거래가 있으면 → POST …/purchases (intent_id 없이) → 200이면 finish
+② GET /users/me/subscription → plan · entitlements 갱신(서버가 필요하면 만료 보정)
+```
+
+**복원**
+
+```
+[구매 복원] → SDK에서 현재 유효 거래 수집 → POST …/restore
+   ├─ restored: true  → 토스트 "구독이 복원되었어요" + 화면 갱신
+   ├─ restored: false → "복원할 구독이 없어요"
+   └─ 409 SUBSCRIPTION_OWNED_BY_ANOTHER_ACCOUNT → "이미 다른 계정에서 사용 중인 구독이에요"
+```
+
+**갱신 · 해지 · 환불 · 유예** — 전부 서버 대 서버다. 앱은 다음 실행·복귀의 4.2에서 결과를 본다.
+
+```
+스토어 ──(S2S)──▶ POST /webhooks/app-store | /webhooks/play-store
+                   → store_notification_logs(중복 차단) → subscriptions.status 환산 → users.tier
+```
+
+---
+
+## 7. 보안·검증 규칙
+
+- **클라이언트가 보낸 값으로 티어를 바꾸지 않는다.** 티어를 바꾸는 근거는 ① 스토어가 서명한 거래(JWS)·스토어 API 응답 ② 스토어 서버 알림 둘뿐이다. 요청 본문의 평문 필드(`product_id`, `intent_id`)는 조회 열쇠·교차 확인용이다.
+- **`users.tier`를 쓰는 곳은 `SubscriptionService` 한 곳이다**(`domain.md` 3.1). 영수증 제출·복원·웹훅·만료 보정이 전부 같은 반영 함수를 거친다.
+- **거래의 주인 확인** — 결제에 실은 `account_token`(= `purchase_intents.id`)이 서명된 거래 안에 들어온다. 그 의도가 다른 사용자의 것이면 거부한다. 토큰이 없거나(복원·프로모션 코드·스토어 밖 구매) 의도 행이 이미 없으면(탈퇴로 파기) `original_transaction_id`의 유일성으로만 판정한다 — 살아 있는 다른 계정에 있으면 거부, 없으면 연결.
+- **거래 ID만으로 복원하지 않는다.** `archived_subscriptions`의 `original_transaction_id`는 보존 기록이지 권한이 아니다(`domain.md` 11.5). 재가입 복원은 **그 스토어 계정이 지금 제출한 서명된 거래**가 있을 때만 성립한다.
+- **환경 분리** — iOS 거래·알림의 `environment`(`Production` / `Sandbox`)를 본다. 개발계 서버는 `Sandbox`만, 운영 서버는 `Production`을 받는다. **운영 서버가 `Sandbox`를 받을지는 설정값이다**(App Store 심사는 운영 빌드로 샌드박스 결제를 한다 — 심사 기간에만 켠다). 허용하지 않는 환경은 `SUBSCRIPTION_RECEIPT_INVALID`다.
+- **웹훅 검증** — App Store: `signedPayload`의 인증서 체인을 Apple 루트 인증서까지 검증하고 `bundleId`·`appAppleId`를 대조한다. Play: Pub/Sub OIDC 토큰의 서명·`aud`·발신 서비스 계정을 검증한다. 검증 전에는 본문을 믿지 않는다. 웹훅 경로는 사용자 레이트리밋 대상이 아니다.
+- **Android `acknowledge`는 서버가 한다** — 검증·반영이 끝난 뒤에. 클라이언트가 먼저 확인하면 서버 반영이 실패했을 때 "결제됐는데 티어 없음"이 된다.
+- **로그에 영수증·토큰 원문을 남기지 않는다**(`convention.md` 8.4). `original_transaction_id`·알림 UUID·유형만 남긴다. `subscriptions.latest_receipt`에는 마지막 서명 거래(JWS) 또는 구매 토큰을 저장한다(재조회 열쇠).
+- **스토어 자격증명**(App Store Server API 키 `.p8`·Issuer ID·Key ID, Play 서비스 계정)은 Secrets Manager에 두고 env로 주입한다. 비어 있으면 그 플랫폼의 검증·보정이 꺼지고 관련 요청은 `SUBSCRIPTION_STORE_UNAVAILABLE`이 아니라 **`SUBSCRIPTION_PLAN_UNAVAILABLE`** 로 의도 생성 단계에서 막힌다(결제부터 시키고 검증을 못 하는 상태를 만들지 않는다).
+
+---
+
+## 8. 데이터 모델
+
+> 스키마는 [`docs/backend/domain.md`](../../backend/domain.md)가 유일한 기준이다.
+
+| 사용하는 것 | domain.md |
+|---|---|
+| `plans` — 요금제·`entitlements`의 원천, 플랫폼별 상품 ID | 8.1 |
+| `subscriptions` — 티어의 진실의 원천. **`pending_tier` 추가**(다운그레이드 예약 — 이 문서와 함께 개정) | 8.2 |
+| `purchase_intents` — 결제 전 관문 + 계정 결속 토큰(`id`) | 8.3 |
+| `store_notification_logs` — S2S 알림 중복 차단·재처리 근거 | 8.4 |
+| `users.tier` — 비정규화 캐시(갱신 경로 한 곳) · `users.email` · `is_email_verified` | 3.1 |
+| `archived_subscriptions` — 보존 기록(권한 아님) | 11.5 |
+
+---
+
+## 9. 미결 사항
+
+- **데일리·프로의 재생 한도·가격** — `plans` 행의 값(4.1 예시의 `5`·`4900`·`9900`은 자리 표시다). 값이 정해지면 행만 넣는다(`subscription.md` 미결)
+- **무료 체험·소개 가격** — 도입하면 4.1에 체험 자격(`is_trial_eligible`) 필드와 알림 환산(`OFFER_REDEEMED`)이 추가된다
+- **스토어 상품 ID 확정값** — App Store Connect에 등록한 실제 ID를 `plans.store_product_id_ios`에 넣는다
+- **운영 서버의 샌드박스 수용 스위치 운용** — 심사 제출 때 켜고 통과 뒤 끄는 절차를 `infra/runbook.md`에 적는다
+- **Play 구현 시점** — 서비스 계정·Pub/Sub 구성 후(4.7)
+- **가족 공유·프로모션 코드** — 스토어가 유효 구독으로 돌려주면 그대로 인정한다(`subscription.md` 7). 별도 계약 없음

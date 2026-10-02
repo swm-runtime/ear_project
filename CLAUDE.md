@@ -83,7 +83,7 @@ retrospective/ 주간 회고와 다음 주 계획 (YYYY-Wn.md). 회의 중에는
 - 실행체·운영 DB 스키마는 파트 `pipeline/`(`pipeline/README.md` · `ai/spec/10-webapp.md`) — `docs/ai/`가 워커의 ASSET_ROOT다. `ai-server/`와 같은 EC2("AI 서버")에 올린다(spec/10 2장 정렬)
 - 제작 실행 산출물(대본 초안·QA 리포트)은 커밋하지 않는다
 
-**`spec/api/`** — HTTP 계약. 요청·응답·에러 코드의 확정본. 화면 9종 전부 작성됨 — `auth` · `onboarding` · `library` · `explore` · `player` · `profile` · `settings` · `interest-management` · `career` (각 `<화면>-api.md`). 운영 도구인 `admin-api.md`도 있다(2026-09-03 등재 — 사용자 화면이 아니라 관리자 웹 콘솔 계약이다).
+**`spec/api/`** — HTTP 계약. 요청·응답·에러 코드의 확정본. 화면 9종 전부 작성됨 — `auth` · `onboarding` · `library` · `explore` · `player` · `profile` · `settings` · `interest-management` · `career` (각 `<화면>-api.md`). 운영 도구인 `admin-api.md`도 있다(2026-09-03 등재 — 사용자 화면이 아니라 관리자 웹 콘솔 계약이다). 화면에 묶이지 않는 기능 계약: `subscription-api.md`(구독·인앱 결제·스토어 서버 알림, 2026-10-02) · `drip-feedback-api.md`(추천 별점, 2026-09-30).
 
 **`spec/uiux/`** — 화면 ID·상태·확정 카피·접근성. 사용자 노출 문구는 이 문서와 1:1 대조. 화면 9종 전부 작성됨(각 `<화면>-uiux.md`) — 화면 ID는 `auth` A1–A19 · `library` L · `onboarding` O · `explore` E · `player` PL · `profile` P · `settings` S · `interest-management` IM · `career` CR 계열.
 

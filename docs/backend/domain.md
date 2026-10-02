@@ -1127,6 +1127,7 @@ subscriptions
   started_at                timestamptz
   expires_at                timestamptz
   cancelled_at              timestamptz     NULL
+  pending_tier              enum            NULL   ★다운그레이드 예약 — 다음 갱신 때 바뀔 티어 (2026-10-02, `subscription-api.md` 4.2)
 
 uq_subscriptions_original_transaction_id (original_transaction_id)
 idx_subscriptions_user_id_status (user_id, status)
@@ -1136,6 +1137,9 @@ idx_subscriptions_user_id_status (user_id, status)
 - **무료 사용자는 행이 없다.** 행이 없으면 `light`로 간주한다.
 - 실제 갱신 근거는 **스토어 서버 알림(S2S)**이다(`subscription.md` 4.3). 클라이언트가 보낸 값으로 티어를 바꾸지 않는다.
 - `uq_subscriptions_original_transaction_id`가 하나의 스토어 구독이 여러 계정에 연결되는 것을 막는다.
+- **Play에는 `original_transaction_id`가 없다 — 그 구독의 최초 구매 토큰을 이 컬럼에 쓴다.** 업·다운그레이드로 새 토큰이 발급되면 스토어 응답의 `linkedPurchaseToken`으로 기존 행을 찾아 같은 행을 갱신한다(`subscription-api.md` 4.7).
+- `latest_receipt`에는 마지막으로 반영한 **서명된 거래(iOS JWS) 또는 구매 토큰(Android)** 을 둔다 — 만료 보정 때 스토어에 다시 묻는 열쇠다. 로그에는 남기지 않는다.
+- **`pending_tier`** 는 다운그레이드 예약이다(2026-10-02). 스토어는 다운그레이드를 "현재 주기가 끝나면"으로 예약하므로 그동안 `tier`는 그대로이고, 다음에 바뀔 티어만 여기 든다. 갱신·업그레이드·예약 취소 때 비운다. 화면의 "N월 N일부터 데일리" 표시 근거다.
 
 **`status` 값의 의미** (확정 2026-08-08 — 프로필 구현 중 `cancelled`의 뜻이 정의된 곳이 없어 확정했다)
 
@@ -1168,6 +1172,8 @@ idx_purchase_intents_user_id_created_at (user_id, created_at DESC)
 ```
 
 - 결제 버튼 연타로 인한 중복 결제 요청을 막는 멱등키다(`paywall.md` 7).
+- **`id`가 곧 계정 결속 토큰이다**(2026-10-02, `subscription-api.md` 4.3). 결제 시트에 iOS `appAccountToken` / Android `obfuscatedAccountId`로 실어 보내면 스토어가 서명한 거래 안에 담겨 돌아온다 — 서버는 그 값으로 "이 거래를 시작한 계정"을 확인해 남의 영수증 제출을 막는다. 그래서 `id`는 UUID여야 한다(Apple 요구).
+- `created`로 남은 행(결제 시트를 닫음)은 30일 뒤 정리한다. `verified`는 영수증 검증이 그 의도와 맞물렸다는 기록이다.
 
 ### 8.4 `store_notification_logs`
 
