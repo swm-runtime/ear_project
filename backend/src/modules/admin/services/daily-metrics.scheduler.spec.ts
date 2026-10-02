@@ -40,7 +40,10 @@ const sample: Ga4Daily = {
 };
 
 describe('DailyMetricsScheduler', () => {
-  afterEach(() => jest.restoreAllMocks());
+  afterEach(() => {
+    jest.restoreAllMocks();
+    jest.useRealTimers();
+  });
 
   it('GA4 자격이 없으면 configured 가 아니고 run 은 아무것도 보내지 않는다', async () => {
     const scheduler = new DailyMetricsScheduler(
@@ -77,8 +80,9 @@ describe('DailyMetricsScheduler', () => {
       }),
     );
 
-    expect(scheduler.trigger(NOW)).toBe('2026-09-28');
-    await new Promise((r) => setImmediate(r));
+    // 크론이 17:00 KST 에 돈다 — 보고 대상은 어제(09-28)
+    jest.useFakeTimers({ now: NOW, doNotFake: ['nextTick', 'setImmediate'] });
+    await scheduler.run();
 
     expect(ga4.fetchDaily).toHaveBeenCalledWith('2026-09-28');
     const body = JSON.parse(
