@@ -264,13 +264,27 @@ describe('RecommendTestService', () => {
         void,
         [{ name: string }, { userId: string; source?: string }]
       >();
+      const update = jest.fn<
+        void,
+        [{ name: string }, { userId: string }, Record<string, unknown>]
+      >();
       deps.dataSource.transaction.mockImplementation(
-        async (fn: (m: unknown) => Promise<void>) => fn({ delete: del }),
+        async (fn: (m: unknown) => Promise<void>) =>
+          fn({ delete: del, update }),
       );
 
       await service.reset();
 
       expect(del).toHaveBeenCalledTimes(11);
+      // 별점 팝업 상태만 비운다 — 설정 행을 지우면 재생 속도 같은 다른 설정까지 사라진다
+      expect(update).toHaveBeenCalledTimes(1);
+      const [entity, where, changes] = update.mock.calls[0];
+      expect(entity.name).toBe('UserSetting');
+      expect(where).toEqual({ userId: USER_ID });
+      expect(changes).toEqual({
+        dripFeedbackMutedUntil: null,
+        dripFeedbackLastPromptedDate: null,
+      });
       const byTable = new Map(del.mock.calls.map((c) => [c[0].name, c[1]]));
       expect(byTable.has('User')).toBe(false);
       // 관심 주제는 자동 확장 출처만 지운다 — 조건 없이 지우면 직접 고른 주제까지 사라진다

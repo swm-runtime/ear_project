@@ -50,6 +50,10 @@ export class DripFeedbackService {
    * 별점을 보냈거나 팝업을 닫으면 그 편성분 날짜가 `drip_feedback_last_prompted_date`에 남고, 그 뒤 **새 편성이
    * 없으면 다시 묻지 않는다** — 며칠 만에 열어도 쌓인 날짜마다 묻지 않고 마지막 편성분 하나만 묻는다.
    * 오늘 아침 편성분은 아직 듣기 전이라 내일 묻는다.
+   *
+   * 묻지 않는 편성분이 둘 있다(2026-10-02). **온보딩 직후의 첫 드립** — 알고리즘 버전이 없는 편성분이라
+   * 조회 단계에서 빠진다(방금 들어온 사용자에게 받을 평가가 없다). **접수 기간(7일)을 지난 편성분** — 물어도
+   * `rate`가 거부하고 앱은 그 거부를 조용히 버려, 오래 쉬다 돌아온 사용자가 진입할 때마다 같은 팝업을 봤다.
    */
   async getPrompt(userId: string, now: Date): Promise<DripFeedbackPromptView> {
     const settings = await this.userSettingService.getSettings(userId);
@@ -87,10 +91,19 @@ export class DripFeedbackService {
       return hidden(placedDate, null);
     }
 
+    // 받을 수 없는 별점은 묻지 않는다 — `rate`와 같은 기준이다
+    if (latest.addedAt.getTime() < rateableSince(now)) {
+      return hidden(placedDate, null);
+    }
+
     const { start, end } = toServiceDayRange(latest.addedAt);
     const placed = (
       await this.libraryService.findPlacedBetween(userId, start, end)
-    ).filter((item) => item.source === LibraryItemSource.DRIP);
+    ).filter(
+      (item) =>
+        item.source === LibraryItemSource.DRIP &&
+        item.algorithmVersion !== null,
+    );
     const rated = new Set(
       (
         await this.dripFeedbackRepository.findAllByUserIdAndContentIds(
@@ -132,13 +145,12 @@ export class DripFeedbackService {
     const placedByContentId = new Map(
       placed.map((item) => [item.contentId, item]),
     );
-    const rateableSince =
-      command.now.getTime() - DRIP_FEEDBACK_RATEABLE_DAYS * MS_PER_DAY;
+    const since = rateableSince(command.now);
 
     for (const contentId of contentIds) {
       const item = placedByContentId.get(contentId);
 
-      if (!item || item.addedAt.getTime() < rateableSince) {
+      if (!item || item.addedAt.getTime() < since) {
         throw new BusinessException({
           status: HttpStatus.BAD_REQUEST,
           errorCode: ErrorCode.DRIP_FEEDBACK_NOT_RATEABLE,
@@ -212,4 +224,9 @@ export class DripFeedbackService {
   async summarizeVersions(): Promise<DripFeedbackVersionSummary[]> {
     return this.dripFeedbackRepository.summarizeByVersion();
   }
+}
+
+/** 접수 기간의 시작 — 이보다 먼저 적립된 편성분은 별점을 받지도, 묻지도 않는다(`drip-feedback.md` 4.1-3 · 4.2) */
+function rateableSince(now: Date): number {
+  return now.getTime() - DRIP_FEEDBACK_RATEABLE_DAYS * MS_PER_DAY;
 }
