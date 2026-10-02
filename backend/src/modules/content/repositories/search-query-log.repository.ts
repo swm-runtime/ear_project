@@ -47,7 +47,7 @@ interface RankRow {
 
 /** 어드민 요약의 질의 순위 길이 — 화면 한 표에 보이는 만큼 */
 const RANK_LIMIT = 50;
-/** 결과 반응으로 인정하는 창 — 마지막 질의 뒤 이 안의 재생·담기(domain.md 5.7). SQL interval 리터럴 */
+/** 결과 반응으로 인정하는 창 — 묶음 시작부터 마지막 질의 뒤 이만큼까지의 재생·담기(domain.md 5.7). SQL interval 리터럴 */
 const CLICK_WINDOW = '10 minutes';
 
 @Injectable()
@@ -94,9 +94,11 @@ export class SearchQueryLogRepository {
    *
    * Raw SQL이다(architecture.md 3.4 — Repository 안에서만, 결과를 타입으로 정의해 반환).
    * 네 질의가 같은 임시 뷰(`scoped`)를 공유한다 — 창 안의 행에 **반응 여부**(`clicked`)를 붙인 것이다.
-   * 반응 = 그 행의 마지막 요청(`updated_at`) 뒤 `CLICK_WINDOW` 안에 같은 사용자가 첫 페이지 결과
-   * (`result_content_ids`) 중 하나를 재생(`play_records`)했거나 담았다(`library_items.source = save`,
-   * 삭제분 포함 — 담은 사실이 반응이다). 앱이 탭을 보내지 않아도 서버가 이미 받는 행동에서 역산한다.
+   * 반응 = 그 행의 묶음 시작(`created_at`)부터 마지막 요청(`updated_at`) 뒤 `CLICK_WINDOW`까지 같은
+   * 사용자가 첫 페이지 결과(`result_content_ids`) 중 하나를 재생(`play_records`)했거나 담았다
+   * (`library_items.source = save`, 삭제분 포함 — 담은 사실이 반응이다). 하한이 `created_at`인 이유:
+   * 결과를 누르고 돌아와 이어 치면 같은 행이 덮여 `updated_at`이 그 재생보다 뒤로 간다.
+   * 앱이 탭을 보내지 않아도 서버가 이미 받는 행동에서 역산한다.
    * 전부 `created_at` 인덱스 범위 스캔 + 결과 id 배열 대조라 비용은 창 안 행 수에 비례한다(보존 90일).
    *
    * 질의 순위의 `last_result_count`·`last_has_next`는 **그 질의의 가장 최근 검색**이 돌려준 값이다 —
@@ -117,14 +119,14 @@ export class SearchQueryLogRepository {
                 select 1 from play_records p
                  where p.user_id = l.user_id
                    and p.content_id = any (l.result_content_ids)
-                   and p.played_at >= l.updated_at
+                   and p.played_at >= l.created_at
                    and p.played_at < l.updated_at + interval '${CLICK_WINDOW}'
               ) or exists (
                 select 1 from library_items i
                  where i.user_id = l.user_id
                    and i.content_id = any (l.result_content_ids)
                    and i.source = 'save'
-                   and i.added_at >= l.updated_at
+                   and i.added_at >= l.created_at
                    and i.added_at < l.updated_at + interval '${CLICK_WINDOW}'
               )) as clicked
         from search_query_logs l
