@@ -15,7 +15,7 @@ import type { AnalyticsEventName, AnalyticsEvents } from './analytics.events';
  *
  * - 호출 경로는 `track()` 하나다(analytics.md 2장 단일 진입점) — 화면·훅이 이 파일을 직접 부르지 않는다.
  * - **개발계 앱·웹·mock 은 끈다**(`IS_META_STUBBED`) — 테스트 이벤트가 광고 최적화 학습에 섞이면 안 된다.
- * - IDFA 는 수집하지 않는다(`advertiserIDCollectionEnabled: false`, app.json 플러그인) → ATT 팝업 없음(analytics.md 4장).
+ * - iOS IDFA 는 수집하지 않는다. Android만 JS 초기화 시 광고 ID 수집을 켠다(analytics.md 4장).
  *   iOS 성과는 Meta 집계 측정(AEM)·SKAdNetwork 로 들어오고 SDK 가 알아서 한다.
  * - 앱 실행(activate) 이벤트는 SDK 가 자동으로 기록한다(`autoLogAppEventsEnabled: true`).
  */
@@ -33,8 +33,8 @@ const getSdk = (): FbsdkModule | null => {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports -- 지연 로드(위 주석)
     const module = require('react-native-fbsdk-next') as FbsdkModule;
-    // 네이티브 설정(app.json 플러그인)과 같은 값을 JS 에서도 못박는다 — 플러그인 기본값이 바뀌어도 IDFA 를 켜지 않게
-    module.Settings.setAdvertiserIDCollectionEnabled(false);
+    // 네이티브 기본값은 false로 유지한다. 운영 Android만 켜고 iOS IDFA는 계속 끈다.
+    module.Settings.setAdvertiserIDCollectionEnabled(Platform.OS === 'android');
     module.Settings.setAutoLogAppEventsEnabled(true);
     module.Settings.initializeSDK();
     fbsdk = module;

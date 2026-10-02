@@ -124,6 +124,7 @@
 - 앱 실행(activate)은 SDK 가 자동 기록한다(`autoLogAppEventsEnabled`).
 - **개발계 앱·웹·mock 은 Meta 전송이 없다** — JS(`IS_META_STUBBED`)와 네이티브(개발계 변형은 플러그인 `autoLogAppEventsEnabled`·`isAutoInitEnabled` false) 둘 다.
 - IDFA 미수집(`advertiserIDCollectionEnabled: false`), ATT 설명문 없음 — 4장 그대로. iOS 성과 측정은 AEM·SKAdNetwork 로 한다.
+- Android 광고 ID(AAID/GAID)는 운영 SDK의 JS 초기화에서만 수집을 켠다(2026-10-02). 네이티브 기본값은 false를 유지한다. 운영 빌드 1.1.0(16)의 최종 AAB에서 AD_ID 권한과 설정 변경 모듈을 확인했으므로 해당 빌드는 OTA 적용 가능하다. **운영 적용 선행: Play Console 광고 ID·데이터 보안 신고는 사용자 확인 완료. 개인정보처리방침은 2026-10-02 공지, 2026-11-01 적용 예정으로 준비하며 실제 게시를 확인해야 한다. 이 변경은 적용일 이전에 운영 OTA로 배포하지 않는다(자동 활성화 예약 없음).** 개발계·웹·mock은 계속 SDK 호출을 건너뛴다.
 - 네이티브 모듈이라 runtimeVersion 7 → **8**(`frontend/architecture.md` 2.1).
 
 ## 4. 처리 로직
