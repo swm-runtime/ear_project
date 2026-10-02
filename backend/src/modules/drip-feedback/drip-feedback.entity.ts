@@ -1,9 +1,11 @@
 import {
   Column,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
+  Unique,
 } from 'typeorm';
 
 import { BaseEntity } from '@/database/base.entity';
@@ -19,6 +21,13 @@ import { User } from '@/modules/user/entities/user.entity';
  * 콘텐츠의 재전송은 덮어쓴다.
  */
 @Entity('drip_feedbacks')
+// upsert 의 충돌 대상이다(`DripFeedbackRepository.upsert`) — 선언이 빠져 있으면 `migration:generate`가 DROP 을 만든다
+@Unique('uq_drip_feedbacks_user_id_content_id', ['userId', 'contentId'])
+// `created_at DESC` 방향은 TypeORM `@Index`가 표현하지 못해 마이그레이션 SQL이 정확한 정의를 갖는다
+@Index('idx_drip_feedbacks_algorithm_version_created_at', [
+  'algorithmVersion',
+  'createdAt',
+])
 export class DripFeedback extends BaseEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;

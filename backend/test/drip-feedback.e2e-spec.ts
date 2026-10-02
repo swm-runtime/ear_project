@@ -239,6 +239,56 @@ describe('추천 별점 E2E', () => {
     expect(prompt.placed_date).toBe(toServiceDate(placedAt(1)));
   }, 60_000);
 
+  it('온보딩 직후의 첫 드립(알고리즘 버전 없음)만 받은 사용자는 묻지 않는다', async () => {
+    const { userId, auth } = await createUser('firstdrip');
+    await place(userId, [contentIds[0], contentIds[1]], placedAt(1), null);
+
+    const prompt = (
+      await get('/users/me/drip-feedback/prompt', auth).expect(HttpStatus.OK)
+    ).body as PromptBody;
+
+    expect(prompt).toEqual({
+      show: false,
+      placed_date: null,
+      muted_until: null,
+      items: [],
+    });
+  }, 60_000);
+
+  it('접수 기간(7일)을 지난 편성분은 묻지 않는다', async () => {
+    const { userId, auth } = await createUser('stale');
+    await place(userId, [contentIds[0]], placedAt(9), 'e2e-v1');
+
+    const prompt = (
+      await get('/users/me/drip-feedback/prompt', auth).expect(HttpStatus.OK)
+    ).body as PromptBody;
+
+    expect(prompt.show).toBe(false);
+    expect(prompt.items).toEqual([]);
+  }, 60_000);
+
+  it('같은 콘텐츠가 두 번 든 별점과 달력에 없는 닫기 날짜는 400 으로 거절한다', async () => {
+    const { userId, auth } = await createUser('invalid');
+    await place(userId, [contentIds[0]], placedAt(1), 'e2e-v1');
+
+    const duplicated = await post('/users/me/drip-feedback', auth, {
+      ratings: [
+        { content_id: contentIds[0], stars: 5 },
+        { content_id: contentIds[0], stars: 1 },
+      ],
+    }).expect(HttpStatus.BAD_REQUEST);
+    expect(duplicated.body).toMatchObject({
+      error_code: ErrorCode.VALIDATION_FAILED,
+    });
+
+    const badDate = await post('/users/me/drip-feedback/dismiss', auth, {
+      placed_date: '2026-13-45',
+    }).expect(HttpStatus.BAD_REQUEST);
+    expect(badDate.body).toMatchObject({
+      error_code: ErrorCode.VALIDATION_FAILED,
+    });
+  }, 60_000);
+
   it('편성분이 없는 사용자는 묻지 않는다', async () => {
     const { auth } = await createUser('none');
 
@@ -319,7 +369,8 @@ describe('추천 별점 E2E', () => {
     userId: string,
     ids: string[],
     addedAt: Date,
-    algorithmVersion: string,
+    // null = 온보딩 직후의 첫 드립(버전을 찍지 않는 경로)
+    algorithmVersion: string | null,
   ): Promise<void> {
     const repository = dataSource.getRepository(LibraryItem);
     await repository.save(

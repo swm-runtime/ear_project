@@ -35,6 +35,7 @@ import { PlayEntryPoint } from '@/modules/playback/playback.enum';
 import { PlayService } from '@/modules/playback/services/play.service';
 import { PlaybackProgressService } from '@/modules/playback/services/playback-progress.service';
 import { PlaybackSignalService } from '@/modules/playback/services/playback-signal.service';
+import { UserSetting } from '@/modules/user/entities/user-setting.entity';
 import { User } from '@/modules/user/entities/user.entity';
 import { UserCareerService } from '@/modules/user/services/user-career.service';
 import { UserService } from '@/modules/user/services/user.service';
@@ -189,8 +190,8 @@ export class RecommendTestService {
    * 테스트 계정의 소비 이력을 전부 지운다 — 가입 직후(관심 주제·커리어만 있는 상태)로 되돌린다.
    *
    * 지우는 것: 신호·재생 기록(오늘 한도도 함께 풀린다)·위치·오디오 발급 로그·원문 클릭·라이브러리(삭제분 포함)·
-   * 취향 캐시·드립 영구 제외·첫 드립 작업·**자동 확장으로 붙은 관심 주제**(행동에서 파생된 것이라 행동과 함께
-   * 지운다). **직접 고른 관심 주제·커리어·계정은 남긴다** — 그건 버튼으로 바꾸는 입력이다.
+   * 취향 캐시·드립 영구 제외·첫 드립 작업·별점과 **별점 팝업 상태**(`user_settings`의 두 컬럼만 비운다)·
+   * **자동 확장으로 붙은 관심 주제**(행동에서 파생된 것이라 행동과 함께 지운다). **직접 고른 관심 주제·커리어·계정은 남긴다** — 그건 버튼으로 바꾸는 입력이다.
    * 탈퇴 경로(`UserWithdrawalService`)는 `users` 행 삭제의 CASCADE 에 맡기지만 여기는 계정을 남겨야 해서
    * 표를 하나씩 지운다. 이 목록은 `domain.md` 6·7장의 `user_id` FK 표와 같아야 한다.
    */
@@ -212,6 +213,12 @@ export class RecommendTestService {
       await manager.delete(UserInterest, {
         ...where,
         source: UserInterestSource.AUTO_EXPAND,
+      });
+      // 별점(`drip_feedbacks`)을 지웠으면 팝업 상태도 처음으로 — 남겨 두면 초기화 뒤에도 "이미 물었다"·
+      // "이번 주 그만 보기"가 살아 있어 별점 팝업을 다시 시험할 수 없다. 재생 속도 같은 설정은 건드리지 않는다
+      await manager.update(UserSetting, where, {
+        dripFeedbackMutedUntil: null,
+        dripFeedbackLastPromptedDate: null,
       });
     });
 

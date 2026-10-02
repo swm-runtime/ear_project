@@ -750,7 +750,7 @@ library_items
   completed_at              timestamptz     NULL
   deleted_at                timestamptz     NULL   ★소프트 삭제
   queue_position            int             NULL   ★재생 목록 순서 (2026-09-19, KAN-70) — NULL = 순서 미지정
-  algorithm_version         varchar(40)     NULL   ★이 행을 적립한 추천 알고리즘 버전 (2026-09-30, KAN-116) — drip·discovery 만, 담기·온보딩은 NULL
+  algorithm_version         varchar(40)     NULL   ★이 행을 적립한 추천 알고리즘 버전 (2026-09-30, KAN-116) — 편성 배치가 적립한 drip·discovery 만. 담기·온보딩·**첫 드립**은 NULL
 
 uq_library_items_user_id_content_id (user_id, content_id)
 idx_library_items_user_id_deleted_at_added_at_id (user_id, deleted_at, added_at DESC, id DESC)
@@ -789,7 +789,7 @@ idx_library_items_content_id (content_id)
 - **`source = discovery`는 탐험 편성이다**(신설 2026-08-27 — `drip-scheduling.md` 4.8). 정규 드립과 별개로 매일 1편(`plans.daily_discovery_count`) 적립되며, 앱이 "이런 주제는 어떠신가요?" 타이틀로 구분 표시하기 위해 값을 나눈다. **정책상 취급은 드립과 같다** — 출처 필터 [이어 PICK]에 포함되고(`library-api.md` 4.1), 도착 배너에 포함되고, 삭제·중복 방지·영구 제외 규칙도 동일하다.
 - **프로필의 "누적 청취 콘텐츠 수"(완청 고유 콘텐츠 수 — `profile.md` 4.5)의 원천은 이 테이블이다.** `status = completed`인 고유 `content_id` COUNT로 구한다(`deleted_at` 무관 — soft delete라 행이 남는다). 파생값이므로 컬럼·집계 테이블을 만들지 않는다([1.5](#15-파생값을-컬럼으로-두지-않는다)).
 
-- **`algorithm_version`은 사용자 별점을 버전별로 모으는 열쇠다**(`drip-feedback.md` 4.4, 2026-09-30). 편성 배치가 적립할 때 서버 상수 `DRIP_ALGORITHM_VERSION`(`YYYY-MM-DD.n`)을 쓴다. 편성 계산은 이 값을 읽지 않는다. 버전 도입 전 행은 NULL로 두고 소급하지 않는다 — 다른 알고리즘의 결과가 한 버전으로 뭉친다. `idx_library_items_algorithm_version`(부분 인덱스, NOT NULL) — 어드민 버전별 편성 수 집계용.
+- **`algorithm_version`은 사용자 별점을 버전별로 모으는 열쇠다**(`drip-feedback.md` 4.4, 2026-09-30). 편성 배치가 적립할 때 서버 상수 `DRIP_ALGORITHM_VERSION`(`YYYY-MM-DD.n`)을 쓴다. 편성 계산은 이 값을 읽지 않는다. 온보딩 직후의 첫 드립은 배치가 아닌 별도 경로(신호 없이 고름)라 찍지 않으며, 별점 팝업도 버전이 있는 편성분만 묻는다(`drip-feedback.md` 4.1-2, 2026-10-02). 버전 도입 전 행은 NULL로 두고 소급하지 않는다 — 다른 알고리즘의 결과가 한 버전으로 뭉친다. `idx_library_items_algorithm_version`(부분 인덱스, NOT NULL) — 어드민 버전별 편성 수 집계용.
 
 ### 6.2 `playback_progresses`
 

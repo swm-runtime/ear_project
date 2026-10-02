@@ -186,6 +186,45 @@ describe('DripFeedbackService', () => {
       );
     });
 
+    it('접수 기간(7일)을 지난 편성분은 묻지 않는다 — 받을 수 없는 별점을 묻지 않는다', async () => {
+      // given — 오래 쉬다 돌아왔다. 마지막 편성분이 8일 전이다
+      libraryService.findLatestDripPlacedBefore.mockResolvedValue(
+        item(C1, {
+          addedAt: new Date(NOW.getTime() - 8 * 24 * 60 * 60 * 1000),
+        }),
+      );
+
+      const view = await service.getPrompt(USER_ID, NOW);
+
+      expect(view.show).toBe(false);
+      expect(view.items).toEqual([]);
+      expect(libraryService.findPlacedBetween).not.toHaveBeenCalled();
+    });
+
+    it('접수 기간 안의 편성분은 며칠 전 것이어도 묻는다 — 6일 전', async () => {
+      libraryService.findLatestDripPlacedBefore.mockResolvedValue(
+        item(C1, {
+          addedAt: new Date(NOW.getTime() - 6 * 24 * 60 * 60 * 1000),
+        }),
+      );
+
+      const view = await service.getPrompt(USER_ID, NOW);
+
+      expect(view.show).toBe(true);
+    });
+
+    it('알고리즘 버전이 없는 편(온보딩 직후의 첫 드립)은 묻지 않는다', async () => {
+      // given — 같은 날 구간에 첫 드립(버전 없음)과 배치 편성분이 함께 있다
+      libraryService.findPlacedBetween.mockResolvedValue([
+        item(C1, { algorithmVersion: null }),
+        item(C2),
+      ]);
+
+      const view = await service.getPrompt(USER_ID, NOW);
+
+      expect(view.items.map((i) => i.contentId)).toEqual([C2]);
+    });
+
     it('탐험 편은 묻지 않는다 — 정규 드립만', async () => {
       libraryService.findPlacedBetween.mockResolvedValue([
         item(C1, { source: LibraryItemSource.DISCOVERY }),
