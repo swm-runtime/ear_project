@@ -15,6 +15,10 @@
     {
       "source": "/contents/:id/",
       "destination": "/contents/"
+    },
+    {
+      "source": "/google5f4450f5b72351d0.html",
+      "destination": "/google5f4450f5b72351d0/"
     }
   ],
   "headers": [
