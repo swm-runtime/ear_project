@@ -465,6 +465,20 @@ export class EvalWorld {
             .interests.filter((interest) => interest.isUserRemoved)
             .map((interest) => interest.topicId),
         ),
+      // `UserInterestService.findAutoExpandState` — 활성 자동 슬롯은 주제 노출 여부를 보지 않는다
+      findAutoExpandState: (key: string) =>
+        Promise.resolve({
+          userRemovedTopicIds: this.user(key)
+            .interests.filter((interest) => interest.isUserRemoved)
+            .map((interest) => interest.topicId),
+          activeAutoExpandTopicIds: this.user(key)
+            .interests.filter(
+              (interest) =>
+                interest.isActive &&
+                interest.source === (UserInterestSource.AUTO_EXPAND as string),
+            )
+            .map((interest) => interest.topicId),
+        }),
       // `UserInterestService.applyAutoExpand`와 같은 규칙
       applyAutoExpand: (
         key: string,

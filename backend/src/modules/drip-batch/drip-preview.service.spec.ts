@@ -146,6 +146,10 @@ describe('DripPreviewService', () => {
         .fn()
         .mockResolvedValue([{ topicId: TOPIC_A, source: 'onboarding' }]),
       findUserRemovedTopicIds: jest.fn().mockResolvedValue([]),
+      findAutoExpandState: jest.fn().mockResolvedValue({
+        userRemovedTopicIds: [],
+        activeAutoExpandTopicIds: [],
+      }),
     } as unknown as jest.Mocked<UserInterestService>;
 
     const topicService = {

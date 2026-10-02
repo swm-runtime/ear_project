@@ -227,6 +227,44 @@ describe('UserInterestService', () => {
     });
   });
 
+  describe('findAutoExpandState', () => {
+    it('직접 해제한 주제와 활성 자동 슬롯 주제를 한 번의 조회로 돌려준다 — 자동 슬롯은 주제 노출 여부를 보지 않는다', async () => {
+      // given — 직접 해제한 주제, 직접 고른 활성 주제, 활성 자동 슬롯, 만료돼 내려간 자동 슬롯
+      repository.findAllByUserId.mockResolvedValue([
+        buildInterest({
+          id: 'row-1',
+          topicId: TOPIC_A,
+          isActive: false,
+          isUserRemoved: true,
+        }),
+        buildInterest({ id: 'row-2', topicId: TOPIC_B }),
+        buildInterest({
+          id: 'row-3',
+          topicId: TOPIC_C,
+          source: UserInterestSource.AUTO_EXPAND,
+        }),
+        buildInterest({
+          id: 'row-4',
+          topicId: TOPIC_D,
+          source: UserInterestSource.AUTO_EXPAND,
+          isActive: false,
+        }),
+      ]);
+
+      // when
+      const state = await service.findAutoExpandState(USER_ID);
+
+      // then
+      expect(state).toEqual({
+        userRemovedTopicIds: [TOPIC_A],
+        activeAutoExpandTopicIds: [TOPIC_C],
+      });
+      expect(repository.findAllByUserId).toHaveBeenCalledTimes(1);
+      // 노출 여부는 여기서 보지 않는다 — 숨김 슬롯을 가려내는 것은 호출자다
+      expect(topicService.findAllByIds).not.toHaveBeenCalled();
+    });
+  });
+
   describe('findAllActive', () => {
     it('숨겨진 주제의 활성 관심사는 모든 소비처에서 걸러진다', async () => {
       // given — 팀 결정 2026-08-11: 숨김 주제는 보유 여부와 무관하게 제거된다

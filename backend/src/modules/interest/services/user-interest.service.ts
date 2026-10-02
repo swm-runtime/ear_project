@@ -148,6 +148,40 @@ export class UserInterestService {
       .map((interest) => interest.topicId);
   }
 
+  /**
+   * 자동 확장 판정(`drip-scheduling.md` 4.5)이 `findAllActive` 밖에서 알아야 하는 두 가지를 **한 번의 조회로**
+   * 돌려준다 — 사용자가 직접 해제한 주제(다시 넣지 않는다)와, 주제 노출 여부와 무관한 활성 자동 슬롯 주제.
+   *
+   * 뒤쪽이 필요한 이유: `findAllActive`는 숨김 주제를 걸러 내므로 숨김 주제가 차지한 자동 슬롯은 거기에
+   * 나오지 않는다. 그런데 슬롯 자리는 여전히 차지하고 있어(`applyAutoExpand`의 자리 판정은 노출 여부를 보지
+   * 않는다) 판정이 이 목록을 모르면 "빈 슬롯"으로 보고 넣으려다 적용에서 막힌다.
+   */
+  async findAutoExpandState(
+    userId: string,
+    manager?: EntityManager,
+  ): Promise<{
+    userRemovedTopicIds: string[];
+    activeAutoExpandTopicIds: string[];
+  }> {
+    const interests = await this.userInterestRepository.findAllByUserId(
+      userId,
+      manager,
+    );
+
+    return {
+      userRemovedTopicIds: interests
+        .filter((interest) => interest.isUserRemoved)
+        .map((interest) => interest.topicId),
+      activeAutoExpandTopicIds: interests
+        .filter(
+          (interest) =>
+            interest.isActive &&
+            interest.source === UserInterestSource.AUTO_EXPAND,
+        )
+        .map((interest) => interest.topicId),
+    };
+  }
+
   async hasActiveInterest(
     userId: string,
     manager?: EntityManager,
