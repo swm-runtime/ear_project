@@ -10,7 +10,8 @@ import { SubscriptionStore } from '../subscription.enum';
  * `(store, notification_id)` 유니크가 **같은 알림의 중복 처리를 막는다** — 스토어는 같은 알림을
  * 여러 번 보낼 수 있다. 개인 식별자가 없어 탈퇴 시 그대로 유지한다(domain.md 12.3).
  *
- * 이 행을 쓰는 코드는 S2S 수신 경로(KAN-40)와 함께 들어온다.
+ * `payload`에는 **검증을 마친 뒤 풀어낸 값**을 둔다 — 서명 원문(JWS)은 넣지 않는다. 재처리할 때 다시 검증할
+ * 필요가 없고, 원문에는 다른 용도로 쓸 수 있는 서명이 들어 있다.
  */
 @Entity('store_notification_logs')
 @Unique('uq_store_notification_logs_store_notification_id', [

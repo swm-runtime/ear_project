@@ -4,6 +4,17 @@ export enum SubscriptionStore {
   PLAY_STORE = 'play_store',
 }
 
+/**
+ * domain.md 8.2 — 그 구독이 실결제인가 스토어의 시험 결제인가.
+ *
+ * 운영 서버도 샌드박스 거래를 받는다(App Store 심사·TestFlight는 운영 빌드로 샌드박스 결제를 한다 —
+ * `subscription-api.md` 7장). 구분을 남기지 않으면 시험 결제가 매출·구독자 수에 섞인다.
+ */
+export enum SubscriptionEnvironment {
+  PRODUCTION = 'production',
+  SANDBOX = 'sandbox',
+}
+
 export enum SubscriptionStatus {
   ACTIVE = 'active',
   GRACE = 'grace',

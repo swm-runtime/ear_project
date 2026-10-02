@@ -172,6 +172,20 @@ export enum ErrorCode {
   /** 별점 대상이 아니다 — 내 편성분(드립·탐험)이 아니거나 접수 기간(7일)이 지났다 */
   DRIP_FEEDBACK_NOT_RATEABLE = 'DRIP_FEEDBACK_NOT_RATEABLE',
 
+  // --- 구독 · 인앱 결제 (subscription-api.md 5장) ---
+  /** 인증된 이메일 없이 결제를 시작했다 — 결제만 되고 연락처가 없는 상태를 만들지 않는다(FR-39) */
+  EMAIL_REQUIRED_FOR_PURCHASE = 'EMAIL_REQUIRED_FOR_PURCHASE',
+  /** 없는·비활성·무료 요금제이거나 그 플랫폼의 상품·검증 구성이 없다 */
+  SUBSCRIPTION_PLAN_UNAVAILABLE = 'SUBSCRIPTION_PLAN_UNAVAILABLE',
+  /** 다른 스토어에서 구독 중이다 — 두 스토어 이중 결제 방지 */
+  SUBSCRIPTION_STORE_MISMATCH = 'SUBSCRIPTION_STORE_MISMATCH',
+  /** 서명·번들·환경 불일치, 모르는 상품, 만료·환불된 거래 */
+  SUBSCRIPTION_RECEIPT_INVALID = 'SUBSCRIPTION_RECEIPT_INVALID',
+  /** 그 스토어 구독이 다른 계정에 연결돼 있다 */
+  SUBSCRIPTION_OWNED_BY_ANOTHER_ACCOUNT = 'SUBSCRIPTION_OWNED_BY_ANOTHER_ACCOUNT',
+  /** 스토어 검증·조회의 일시 실패 — 거래를 끝내지 않고 재시도한다(retryable) */
+  SUBSCRIPTION_STORE_UNAVAILABLE = 'SUBSCRIPTION_STORE_UNAVAILABLE',
+
   // --- 콘텐츠 (공용 — common-error-handling.md 4.1) ---
   /** 담기 등에서 **건별 결과**로도 전달된다 (onboarding-api.md 4.6 `failed[]`) */
   CONTENT_NOT_FOUND = 'CONTENT_NOT_FOUND',

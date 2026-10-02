@@ -32,6 +32,7 @@
     "thumbnails:reprocess": "node -r ts-node/register/transpile-only -r tsconfig-paths/register src/scripts/reprocess-thumbnails.ts"
   },
   "dependencies": {
+    "@apple/app-store-server-library": "3.1.0",
     "@aws-sdk/client-s3": "^3.1121.0",
     "@aws-sdk/client-sesv2": "^3.1121.0",
     "@aws-sdk/cloudfront-signer": "^3.1116.0",
@@ -65,6 +66,7 @@
     "@nestjs/testing": "^11.0.1",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
+    "@types/jsrsasign": "10.5.15",
     "@types/multer": "^2.2.0",
     "@types/node": "^24.0.0",
     "@types/supertest": "^7.0.0",
@@ -73,6 +75,7 @@
     "eslint-plugin-prettier": "^5.2.2",
     "globals": "^17.0.0",
     "jest": "^30.0.0",
+    "jsrsasign": "11.1.5",
     "prettier": "^3.4.2",
     "source-map-support": "^0.5.21",
     "supertest": "^7.0.0",

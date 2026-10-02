@@ -1106,11 +1106,12 @@ uq_plans_tier (tier)
 | tier | price_krw | daily_play_limit | daily_drip_count | daily_discovery_count | is_drip_enabled |
 |---|---|---|---|---|---|
 | `light` (무료) | 0 | **2** | **2** | **1** | true |
-| `daily` | 미정 | 미정 | **2** | **1** | true |
-| `pro` | 미정 | `NULL`(무제한) | **2** | **1** | true |
+| `daily` | **3900** | **5** | **2** | **1** | true |
+| `pro` | **9900** | `NULL`(무제한) | **2** | **1** | true |
+
+- **유료 티어 값이 확정됐다**(2026-10-02): 데일리 월 3,900원·하루 5편, 프로 월 9,900원·무제한. 둘 다 광고가 없다(`is_ads_enabled = false`). 행은 마이그레이션 `1788300100000-SeedPaidPlans`가 넣는다 — `store_product_id_ios`는 `com.runtime.ear.subscription.{daily,pro}.monthly`, `store_product_id_android`는 Play 구현 전이라 비어 있다. `name`·`description`은 표시 문구라 DB에서 고친다(마이그레이션이 기존 값을 덮지 않는다).
 
 - **`daily_drip_count`는 전 티어 2편으로 확정됐다**(PRD 1.3·FR-14). 티어가 가르는 것은 드립 편수가 아니라 재생 한도(`daily_play_limit`)다. 미정으로 남은 것은 `price_krw`와 유료 티어의 `daily_play_limit`뿐이다.
-  - **그래도 `daily`·`pro` 행은 아직 만들 수 없다.** 편수는 확정됐지만 나머지 두 값이 비어 있어 행을 완성할 수 없다 — subscription 모듈에서 함께 넣는다.
 - `daily_drip_count`는 어느 명세에도 없던 컬럼이다. `drip-scheduling.md`가 "서버 설정값"이라고만 해서 소유처가 없었으므로 `plans`에 둔다 — **배포 없이 조정할 정책값이기 때문이다**(시범 운영 중 2편 → 3편 같은 조정). 전 티어 값이 같아진 뒤에도 코드 상수로 옮기지 않는 이유가 이것이다.
 - `daily_discovery_count`(신설 2026-08-27)도 같은 근거로 여기 둔다 — 탐험 편성(`drip-scheduling.md` 4.8)의 편수이며 전 티어 1편. 콘텐츠 풀·완청률 추이를 보고 배포 없이 조정한다(0으로 내리면 탐험 편성이 꺼진다).
 - `offline_download_enabled`는 **두지 않는다.** 오프라인 저장이 P1 이연이라 지금 컬럼을 만들면 의미 없는 값이 채워진다.
@@ -1132,6 +1133,8 @@ subscriptions
   expires_at                timestamptz
   cancelled_at              timestamptz     NULL
   pending_tier              enum            NULL   ★다운그레이드 예약 — 다음 갱신 때 바뀔 티어 (2026-10-02, `subscription-api.md` 4.2)
+  environment               enum            production | sandbox   DEFAULT production   ★실결제와 스토어 시험 결제의 구분 (2026-10-02)
+  last_notified_at          timestamptz     NULL   ★마지막으로 반영한 스토어 알림의 서명 시각 — 알림 순서 판정 (2026-10-02)
 
 uq_subscriptions_original_transaction_id (original_transaction_id)
 idx_subscriptions_user_id_status (user_id, status)
@@ -1143,6 +1146,8 @@ idx_subscriptions_user_id_status (user_id, status)
 - `uq_subscriptions_original_transaction_id`가 하나의 스토어 구독이 여러 계정에 연결되는 것을 막는다.
 - **Play에는 `original_transaction_id`가 없다 — 그 구독의 최초 구매 토큰을 이 컬럼에 쓴다.** 업·다운그레이드로 새 토큰이 발급되면 스토어 응답의 `linkedPurchaseToken`으로 기존 행을 찾아 같은 행을 갱신한다(`subscription-api.md` 4.7).
 - `latest_receipt`에는 마지막으로 반영한 **서명된 거래(iOS JWS) 또는 구매 토큰(Android)** 을 둔다 — 만료 보정 때 스토어에 다시 묻는 열쇠다. 로그에는 남기지 않는다.
+- **`environment`** 는 그 구독이 실결제인지 스토어의 시험 결제인지다(2026-10-02). **운영 서버도 샌드박스 거래를 받는다** — App Store 심사와 TestFlight는 운영 빌드로 샌드박스 결제를 한다(`subscription-api.md` 7장). 구분을 남기지 않으면 시험 결제가 매출·구독자 수에 섞인다. 권한 판정에는 쓰지 않는다 — 샌드박스 구독도 유효하면 유료 티어다(그래야 심사·시험이 된다). 집계가 `environment = 'production'`으로 거른다.
+- **`last_notified_at`** 은 스토어 서버 알림의 순서 뒤바뀜을 막는다(2026-10-02, `subscription-api.md` 4.6). 알림은 보낸 순서대로 도착한다는 보장이 없어, 이 시각보다 먼저 서명된 알림은 상태를 덮지 않는다. 만료 보정(스토어에 직접 조회)도 이 값을 조회 시각으로 갱신한다. **환불·만료로 종결된 구독을, 종결 이전에 시작된 거래로 되살릴 수 없게 하는 기준 시각이기도 하다** — 환불받은 사용자가 환불 전에 받아 둔 서명 거래를 다시 제출해도 반영하지 않는다.
 - **`pending_tier`** 는 다운그레이드 예약이다(2026-10-02). 스토어는 다운그레이드를 "현재 주기가 끝나면"으로 예약하므로 그동안 `tier`는 그대로이고, 다음에 바뀔 티어만 여기 든다. 갱신·업그레이드·예약 취소 때 비운다. 화면의 "N월 N일부터 데일리" 표시 근거다.
 
 **`status` 값의 의미** (확정 2026-08-08 — 프로필 구현 중 `cancelled`의 뜻이 정의된 곳이 없어 확정했다)
@@ -1162,7 +1167,7 @@ idx_subscriptions_user_id_status (user_id, status)
 
 ### 8.3 `purchase_intents`
 
-> **구현 상태(2026-09-26)** — 테이블·엔티티는 만들었다(`1787800000000-AddPurchaseIntentsAndStoreNotificationLogs`). **읽고 쓰는 코드는 아직 없다** — 구독 영수증 검증(KAN-40)이 저장소·서비스를 붙인다. `purchase_intents.user_id`는 ON DELETE CASCADE라 12.3 즉시 파기는 DB 제약이 수행한다.
+> **구현 상태(2026-10-02)** — 결제 의도 생성(`subscription-api.md` 4.3)과 영수증 검증·서버 알림이 이 표를 쓴다(`PurchaseIntentService`). `purchase_intents.user_id`는 ON DELETE CASCADE라 12.3 즉시 파기는 DB 제약이 수행한다. `created`로 남은 행의 30일 정리는 `subscription-reconcile` 배치(04:45)가 한다.
 
 ```
 purchase_intents
@@ -1181,7 +1186,7 @@ idx_purchase_intents_user_id_created_at (user_id, created_at DESC)
 
 ### 8.4 `store_notification_logs`
 
-> **구현 상태(2026-09-26)** — 테이블·엔티티는 만들었다(`1787800000000-AddPurchaseIntentsAndStoreNotificationLogs`). **읽고 쓰는 코드는 아직 없다** — 구독 영수증 검증(KAN-40)이 저장소·서비스를 붙인다. `store_notification_logs`는 개인 식별자가 없어 탈퇴 시 그대로 둔다(12.3).
+> **구현 상태(2026-10-02)** — App Store 서버 알림 수신(`subscription-api.md` 4.6)이 이 표를 쓴다(`StoreNotificationLogService`). Play 알림은 구현 전이다. `store_notification_logs`는 탈퇴 시 그대로 둔다(12.3).
 
 ```
 store_notification_logs
@@ -1197,6 +1202,8 @@ uq_store_notification_logs_store_notification_id (store, notification_id)
 
 - 결제 재처리의 근거이므로 DB 테이블로 유지한다 (B-8).
 - 유니크 제약이 **같은 알림의 중복 처리를 막는다.** 스토어는 같은 알림을 여러 번 보낼 수 있다.
+- **`processed_at`이 "중복"의 기준이다**(2026-10-02). 적재는 처리보다 먼저, 처리 트랜잭션 밖에서 한다 — 처리가 실패해 롤백돼도 받았다는 기록은 남는다. 그래서 같은 `notification_id`가 다시 왔을 때 `processed_at`이 있으면 끝난 알림의 재전송이라 그대로 200이고, 없으면 받기만 하고 처리에 실패했던 것이라 다시 처리한다. 어느 계정의 구독인지 알 수 없던 알림(구독 행도 계정 토큰도 없음)도 `processed_at`이 비어 있다 — 이후 영수증 제출·복원이 그 구독을 연결한다.
+- **`payload`에는 검증을 마친 뒤 풀어낸 값만 둔다** — 알림 유형, 서명 시각, 환경, 거래(스토어 구독 ID·상품·기간·환불 시각·계정 토큰 유무), 갱신 설정. 계정 토큰 값은 싣지 않는다 — 결제 의도의 `id`라 살아 있는 계정을 가리키는데, 이 표는 탈퇴 뒤에도 남는다(12.3). **서명 원문(JWS)은 넣지 않는다.** `type`은 App Store의 `notificationType`에 `subtype`이 있으면 `:`로 이은 값이다(`DID_CHANGE_RENEWAL_STATUS:AUTO_RENEW_DISABLED`).
 
 ---
 
@@ -1648,7 +1655,7 @@ idx_archived_subscriptions_archived_at
 
 | # | 항목 | 내용 |
 |---|---|---|
-| 1 | **유료 티어 값** | `plans.daily_play_limit` · `price_krw`의 `daily`/`pro` 값이 미정. 1~2주 시범 운영 후 확정. **`daily_drip_count`는 전 티어 2편으로 확정됐다**(PRD 1.3·FR-14) — 미정 대상에서 제외한다. **컬럼은 이미 있으므로 값만 채우면 되고 마이그레이션은 필요 없다.** |
+| 1 | ~~유료 티어 값~~ | **해소 (2026-10-02)** — 데일리 3,900원·하루 5편, 프로 9,900원·무제한으로 확정하고 행을 넣었다([8.1](#81-plans), `1788300100000-SeedPaidPlans`). |
 | 2 | **결제 이력 없는 사용자의 `consents` 파기 — 법무 확인** | [12.3](#123-회원-탈퇴-처리)에서 `archived_consents`도 함께 파기하기로 했다. 동의 획득의 입증 책임은 사업자에게 있으므로, 탈퇴자가 나중에 동의 사실을 다투면 반박 근거가 남지 않는다. **입증 책임과 제21조 제1항 중 어느 쪽이 우선하는지 확인이 필요하다.** 보존이 필요하다는 판단이 나오면 `archived_consents`만 예외로 남긴다 — 스키마 변경은 없고 12.3의 분기만 바뀐다. |
 | 3 | ~~계정 단위 발송 상한(백스톱)~~ | **해소 (2026-08-10)** — **최근 1시간 20회 / 최근 24시간 50회**를 얹는 것으로 확정(`auth.md` 4.5). 저장소는 **같은 테이블 집계**(컬럼 추가 없음 — 슬라이딩 총량 제한이라 `send_seq` 방식의 창 초기화 문제가 없다). 클라이언트 비노출 → [3.7](#37-email_verifications) 반영 완료. |
 | 4 | **`users.years_of_experience` 타입 불일치** | [3.1](#31-users)은 `int`인데 `onboarding.md` 3장의 입력은 **구간 enum**(1년 미만 / 1–3년 / 4–6년 / 7년 이상)이다. 현재는 구간 하한값(0·2·4·7)으로 저장하는 것으로 읽히는데, **매핑이 문서 어디에도 없어 구간을 조정하면 기존 값의 의미가 조용히 바뀐다.** 구간 enum으로 바꾸거나, `int`를 유지하되 매핑을 이 문서에 못박아야 한다. |

@@ -184,6 +184,33 @@ export class UserService {
   }
 
   /**
+   * `users.tier` 캐시를 맞춘다(domain.md 3.1). **티어의 진실의 원천은 `subscriptions`다** — 이 값은
+   * 재생 한도 판정이 매 요청 조인 없이 읽으려는 사본이다.
+   *
+   * **부르는 곳은 결제 반영 한 곳이다**(`BillingSyncService.syncUserTier`). 다른 경로가 이 값을 쓰기
+   * 시작하면 캐시가 `subscriptions`와 어긋나도 어디서 틀어졌는지 찾을 수 없다. 반드시 구독 행을 고친
+   * 그 트랜잭션 안에서 부른다 — 따로 쓰면 "결제는 반영됐는데 한도는 무료"인 순간이 생긴다.
+   *
+   * 같은 값이면 쓰지 않는다. 바뀌었는지를 돌려준다.
+   */
+  async updateTier(
+    userId: string,
+    tier: UserTier,
+    manager: EntityManager,
+  ): Promise<boolean> {
+    const user = await this.getByIdForUpdate(userId, manager);
+
+    if (user.tier === tier) {
+      return false;
+    }
+
+    user.tier = tier;
+    await this.userRepository.save(user, manager);
+
+    return true;
+  }
+
+  /**
    * 로그인마다 제공자 프로필 사진 URL을 최신값으로 맞춘다 (auth.md 4.1).
    * 제공자 CDN 주소는 사용자가 사진을 바꾸면 죽으므로 저장값을 오래 믿지 않는다.
    * 같은 값이면 쓰지 않는다 — 로그인마다 `users` 행을 갱신할 이유가 없다.

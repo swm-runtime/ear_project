@@ -19,6 +19,7 @@ import { EnvironmentVariables, validateEnv } from '@/config/env.validation';
 import { DatabaseModule } from '@/database/database.module';
 import { AdminModule } from '@/modules/admin/admin.module';
 import { AuthModule } from '@/modules/auth/auth.module';
+import { BillingModule } from '@/modules/billing/billing.module';
 import { ContentDetailModule } from '@/modules/content-detail/content-detail.module';
 import { NoticeModule } from '@/modules/notice/notice.module';
 import { DripBatchModule } from '@/modules/drip-batch/drip-batch.module';
@@ -91,6 +92,8 @@ import { UserModule } from '@/modules/user/user.module';
     RecommendEvalModule,
     // 추천 온라인 평가 — 어제 추천 별점(drip-feedback.md, KAN-116)
     DripFeedbackModule,
+    // 구독·인앱 결제(subscription-api.md — KAN-106). 요금제·구독 조회, 결제 의도, 영수증 검증, 스토어 서버 알림
+    BillingModule,
     ContentDetailModule,
     NoticeModule,
     ProfileModule,
