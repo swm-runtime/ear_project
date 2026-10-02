@@ -6,7 +6,7 @@
 > 스키마: [`docs/backend/domain.md`](../../backend/domain.md) 4.1 · 5.1 · 5.5
 > 연관: [`features/partner-control.md`](../../features/partner-control.md) 4.4(라이선스 만료 거부)
 
-작성: 2026-09-03 (구현 계약 등재 — `changes/archive/admin-web-console.md`) · 2026-09-07 4.10 재발행 등재·구현(`tickets/backend/archive/content-republish-audio.md`) · 2026-09-18 4.16 편성 미리보기 등재 · 2026-10-01 4.17 추천 테스트(구현 2026-09-29) · 4.20 일일 지표 수동 트리거(구현 2026-09-29) 등재
+작성: 2026-09-03 (구현 계약 등재 — `changes/archive/admin-web-console.md`) · 2026-09-07 4.10 재발행 등재·구현(`tickets/backend/archive/content-republish-audio.md`) · 2026-09-18 4.16 편성 미리보기 등재 · 2026-10-01 4.17 추천 테스트(구현 2026-09-29) · 4.20 일일 지표 수동 트리거(구현 2026-09-29) 등재 · 2026-10-02 4.20 삭제
 
 ## 1. 범위
 
@@ -71,7 +71,6 @@
 | GET | `/admin/recommend-eval/snapshot` | 추천 평가 스냅샷 내보내기 — 발행 콘텐츠·익명 사용자 행동, 읽기 전용 (4.18) |
 | GET | `/admin/drip-feedback/versions` | 추천 알고리즘 버전별 별점 — 편성 수·평가 수·평균·분포, 버전 역순 (4.19) |
 | GET | `/admin/search-query-logs/summary` | 검색 질의 로그 요약 — 미스율·일별 추이·0건 질의·상위 질의, 읽기 전용 (4.21) |
-| POST | `/admin/reports/daily-metrics` | 일일 지표 보고를 **지금** Slack에 게시 — 크론(매일 17:00 KST)과 같은 본문, 어제 하루치 (4.20) |
 
 ## 4. 엔드포인트 상세
 
@@ -491,21 +490,9 @@
 - 버전 문자열(`YYYY-MM-DD.n`) 역순. `algorithm_version: null`(버전 도입 전 편성분)은 맨 뒤.
 - `average_stars`는 평가 0건이면 null. 표본 20건 미만은 화면이 "참고" 표시(`drip-feedback.md` 4.5).
 
-### 4.20 `POST /admin/reports/daily-metrics` — 일일 지표 보고 수동 트리거
+### 4.20 ~~`POST /admin/reports/daily-metrics` — 일일 지표 보고 수동 트리거~~ (삭제 2026-10-02)
 
-> 추가: 2026-09-29 (KAN-107 2단계 — `tickets/backend/archive/kpi-slack-reporting.md`). 일일 지표 보고(매일 17:00 KST 크론)를 "지금 한 번 보내 달라"는 요청에 크론 밖에서 부르는 길이다.
-
-일일 지표(GA4 활성·신규 사용자, 가입, 재생·완청, 리텐션 D1/D7)를 **지금** Slack에 게시한다. **크론과 같은 본문이며 어제 하루치**(KST 기준)다. 본문 없다.
-
-```jsonc
-// 202
-{ "date": "2026-09-28" }   // 보고 대상 날짜 (YYYY-MM-DD, KST 어제)
-```
-
-- 인증은 다른 `/admin/*`와 같다(2장).
-- **게시는 비동기다.** 202로 바로 돌려주고 GA4 조회·Slack 게시는 뒤에서 한다. 실패는 크론과 같이 **서버 로그(`daily metrics failed`)로만** 남는다 — 응답으로 알 수 없다.
-- **본문에 지표를 되돌려주지 않는다** — 출처는 Slack 채널 하나로 둔다.
-- 409 `ADMIN_REPORT_NOT_CONFIGURED` — GA4 자격(`GA4_PROPERTY_ID`·`GA4_SERVICE_ACCOUNT_BASE64`)이나 Slack 웹훅(`SLACK_SIGNUP_WEBHOOK_URL`, 없으면 `SLACK_ERROR_WEBHOOK_URL`)이 서버에 없다. 크론은 같은 조건에서 조용히 건너뛴다(로컬·테스트·개발계 기본).
+> 삭제: 2026-10-02. 추가는 2026-09-29(KAN-107 2단계)였다. 일일 지표 보고는 **크론(매일 17:00 KST)으로만** 나간다(`backend-monitoring.md` 3-3). 수동 발송은 쓸 일이 드문 데 비해 값이 비쌌다 — 요청을 받은 워커가 GA4 SDK를 올려(+54MB) 재기동까지 들고 있었고, 누를 때마다 같은 보고가 채널에 중복 게시됐다. 번호는 뒤 절(4.21)의 참조를 지키려고 비워 둔다. 에러 코드 `ADMIN_REPORT_NOT_CONFIGURED`도 함께 없앴다.
 
 ### 4.21 `GET /admin/search-query-logs/summary` — 검색 질의 로그 요약 (읽기 전용)
 
@@ -553,7 +540,6 @@
 | `NOTICE_NOT_FOUND` | 404 | false | 4.14·4.15 — 없거나 삭제된 공지 |
 | `NOT_FOUND` | 404 | false | 4.16 — 그 이메일의 사용자 없음 / 4.17 — 테스트 계정이 이 서버에 가입돼 있지 않음 · `delete` 대상이 라이브러리에 없음 |
 | `ADMIN_RECOMMEND_TEST_DISABLED` | 409 | false | 4.17 — 운영 환경(`SENTRY_ENVIRONMENT=production`)이거나 `RECOMMEND_TEST_EMAIL` 미설정 |
-| `ADMIN_REPORT_NOT_CONFIGURED` | 409 | false | 4.20 — GA4 자격 또는 Slack 웹훅 미설정 |
 
 전체 목록·클라이언트 동작은 `common-error-handling.md` 9.10이 기준이다.
 
