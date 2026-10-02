@@ -209,6 +209,71 @@ describe('decideAutoExpand', () => {
     });
   });
 
+  it('숨김 주제가 차지한 슬롯은 비우고, 후보가 있으면 같은 판정에서 채운다', () => {
+    // 숨김 슬롯은 노출 중 관심사(`activeInterests`)에 없다 — 호출자가 따로 넘긴다
+    const decision = decideAutoExpand({
+      ...base,
+      signals: [complete('r1', 1), complete('r2', 2)],
+      topicWeights: { [RELATION]: 1.8 },
+      activeInterests: [declared(IT)],
+      hiddenSlotTopicIds: [BRAIN],
+    });
+
+    expect(decision).toMatchObject({
+      action: 'replace',
+      reason: 'slot_hidden',
+      addTopicId: RELATION,
+      removeTopicId: BRAIN,
+    });
+  });
+
+  it('숨김 슬롯을 대신할 후보가 없으면 슬롯만 비운다 — 자동 주제 없이 간다', () => {
+    const decision = decideAutoExpand({
+      ...base,
+      signals: [complete('r1', 1)],
+      topicWeights: { [RELATION]: 0.9 },
+      activeInterests: [declared(IT)],
+      hiddenSlotTopicIds: [BRAIN],
+    });
+
+    expect(decision).toMatchObject({
+      action: 'expire',
+      reason: 'slot_hidden',
+      addTopicId: null,
+      removeTopicId: BRAIN,
+    });
+  });
+
+  it('숨김 슬롯 주제를 요즘 듣고 있어도 그 자리에 다시 넣지 않는다', () => {
+    const decision = decideAutoExpand({
+      ...base,
+      signals: [complete('b1', 1), complete('b2', 2)],
+      topicWeights: { [BRAIN]: 1.8 },
+      activeInterests: [declared(IT)],
+      hiddenSlotTopicIds: [BRAIN],
+    });
+
+    expect(decision).toMatchObject({
+      action: 'expire',
+      reason: 'slot_hidden',
+      addTopicId: null,
+      removeTopicId: BRAIN,
+    });
+    expect(decision.candidates).toEqual([]);
+  });
+
+  it('숨김 슬롯이 없으면 종전 판정 그대로다 — 빈 목록은 아무것도 바꾸지 않는다', () => {
+    const decision = decideAutoExpand({
+      ...base,
+      signals: [complete('b1', 1), complete('b2', 3)],
+      topicWeights: { [BRAIN]: 1.8 },
+      activeInterests: [declared(IT)],
+      hiddenSlotTopicIds: [],
+    });
+
+    expect(decision).toMatchObject({ action: 'add', reason: 'slot_free' });
+  });
+
   it('후보가 여럿이면 주제 가중치가 가장 큰 것을 고른다', () => {
     const decision = decideAutoExpand({
       ...base,

@@ -163,14 +163,26 @@ export enum ErrorCode {
   ADMIN_TOPIC_HAS_NO_CONTENTS = 'ADMIN_TOPIC_HAS_NO_CONTENTS',
   /** 저장소(S3·KVS) 업로드 실패 — 부분 업로드는 정리된다(admin.md 7) */
   ADMIN_STORAGE_FAILED = 'ADMIN_STORAGE_FAILED',
-  /** 일일 지표 수동 게시 — GA4 자격이나 Slack 웹훅이 서버에 없다(KAN-107 2단계) */
-  ADMIN_REPORT_NOT_CONFIGURED = 'ADMIN_REPORT_NOT_CONFIGURED',
   /** 추천 테스트 콘솔 — 운영 환경이거나 `RECOMMEND_TEST_EMAIL` 이 없어 꺼져 있다(admin.md 4.7) */
   ADMIN_RECOMMEND_TEST_DISABLED = 'ADMIN_RECOMMEND_TEST_DISABLED',
 
   // --- 추천 별점 (drip-feedback-api.md 5장) ---
   /** 별점 대상이 아니다 — 내 편성분(드립·탐험)이 아니거나 접수 기간(7일)이 지났다 */
   DRIP_FEEDBACK_NOT_RATEABLE = 'DRIP_FEEDBACK_NOT_RATEABLE',
+
+  // --- 구독 · 인앱 결제 (subscription-api.md 5장) ---
+  /** 인증된 이메일 없이 결제를 시작했다 — 결제만 되고 연락처가 없는 상태를 만들지 않는다(FR-39) */
+  EMAIL_REQUIRED_FOR_PURCHASE = 'EMAIL_REQUIRED_FOR_PURCHASE',
+  /** 없는·비활성·무료 요금제이거나 그 플랫폼의 상품·검증 구성이 없다 */
+  SUBSCRIPTION_PLAN_UNAVAILABLE = 'SUBSCRIPTION_PLAN_UNAVAILABLE',
+  /** 다른 스토어에서 구독 중이다 — 두 스토어 이중 결제 방지 */
+  SUBSCRIPTION_STORE_MISMATCH = 'SUBSCRIPTION_STORE_MISMATCH',
+  /** 서명·번들·환경 불일치, 모르는 상품, 만료·환불된 거래 */
+  SUBSCRIPTION_RECEIPT_INVALID = 'SUBSCRIPTION_RECEIPT_INVALID',
+  /** 그 스토어 구독이 다른 계정에 연결돼 있다 */
+  SUBSCRIPTION_OWNED_BY_ANOTHER_ACCOUNT = 'SUBSCRIPTION_OWNED_BY_ANOTHER_ACCOUNT',
+  /** 스토어 검증·조회의 일시 실패 — 거래를 끝내지 않고 재시도한다(retryable) */
+  SUBSCRIPTION_STORE_UNAVAILABLE = 'SUBSCRIPTION_STORE_UNAVAILABLE',
 
   // --- 콘텐츠 (공용 — common-error-handling.md 4.1) ---
   /** 담기 등에서 **건별 결과**로도 전달된다 (onboarding-api.md 4.6 `failed[]`) */

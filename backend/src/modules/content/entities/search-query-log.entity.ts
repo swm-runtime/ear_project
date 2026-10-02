@@ -11,7 +11,7 @@ import { BaseEntity } from '@/database/base.entity';
 import { User } from '@/modules/user/entities/user.entity';
 
 /**
- * domain.md 5.7 — 키워드 검색 **첫 페이지 요청 1회 = 1행**이다(`explore.md` 4.5-5).
+ * domain.md 5.7 — 키워드 검색의 **타이핑 묶음 하나 = 1행**이다(`explore.md` 4.5-5).
  *
  * 매칭 방식(`pg_trgm` 부분 일치)의 재검토 근거를 만들기 위한 표다 — "어떤 질의가 0건으로
  * 끝나는가"를 세는 것이 목적이고, 그 밖의 분석(형태소·오타·동의어 도입 여부)도 전부 이
@@ -22,10 +22,10 @@ import { User } from '@/modules/user/entities/user.entity';
  * 짝이 맞고, 같은 뜻의 입력이 한 행으로 묶인다. 커서 페이지는 기록하지 않는다(같은 질의의
  * 반복일 뿐 새 검색이 아니다).
  *
- * 디바운스 자동 검색의 중간 입력("커"·"커리"·"커리어")도 전부 행이 된다 — 서버는 제출과
- * 자동 검색을 구분할 수 없다. 분석할 때 같은 사용자의 연속 행에서 앞 질의가 뒤 질의의
- * 접두사이면 뒤 것만 세는 식으로 접는다. `user_id`는 그 접기와 탈퇴 파기 경로용이고, 집계는
- * 개인 식별 없이 질의·건수만 쓴다.
+ * 디바운스 자동 검색의 중간 입력("커"·"커리"·"커리어")은 **적재 시점에 접는다** — 서버는 제출과
+ * 자동 검색을 구분할 수 없어, 같은 사용자의 직전 행과 자모 단위 접두사 관계면 그 행을 덮어쓴다
+ * (`SearchQueryLogService`). 오타를 고친 질의는 묶지 않는다 — 오타 0건이 남아야 오타 허용 도입을
+ * 판단할 수 있다. `user_id`는 그 접기와 탈퇴 파기 경로용이고, 집계는 개인 식별 없이 질의·건수만 쓴다.
  */
 @Entity('search_query_logs')
 @Index('idx_search_query_logs_user_id_created_at', ['userId', 'createdAt'])

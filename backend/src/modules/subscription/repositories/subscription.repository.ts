@@ -1,9 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, In, Repository } from 'typeorm';
+import { EntityManager, In, LessThan, Repository } from 'typeorm';
 
 import { Subscription } from '../entities/subscription.entity';
-import { LIVE_SUBSCRIPTION_STATUSES } from '../subscription.enum';
+import {
+  LIVE_SUBSCRIPTION_STATUSES,
+  NON_TERMINAL_SUBSCRIPTION_STATUSES,
+} from '../subscription.enum';
+
+/** 새 구독 행을 만들 때 채우는 값 — `id`·타임스탬프는 DB가 채운다 */
+export type SubscriptionDraft = Omit<
+  Subscription,
+  'id' | 'user' | 'createdAt' | 'updatedAt'
+>;
 
 /**
  * architecture.md 8.2 — 트랜잭션 컨텍스트는 마지막 인자로 명시적으로 전달받는다.
@@ -45,16 +54,77 @@ export class SubscriptionRepository {
     return this.scoped(manager).findBy({ userId });
   }
 
+  /** 스토어 구독의 자연 키로 찾는다 — 한 스토어 구독은 한 행이다(`uq_subscriptions_original_transaction_id`) */
+  async findByOriginalTransactionId(
+    originalTransactionId: string,
+    manager?: EntityManager,
+  ): Promise<Subscription | null> {
+    return this.scoped(manager).findOneBy({ originalTransactionId });
+  }
+
   /**
-   * 화면에 표시할 **현재 구독 한 건** — 만료가 가장 늦은 행이다.
-   *
-   * `status`로 먼저 거르지 않는 이유는 `free` 판정이 "살아 있는 행이 없음"이기 때문이다
-   * (`profile-api.md` 4.1 — 행 자체가 없거나 `expired` · `refunded`뿐이면 무료). 여기서
-   * `active`만 걸러 오면 호출부가 "행이 없다"와 "만료된 행만 있다"를 구분할 수 없다.
-   *
-   * 정렬 키가 `expires_at`인 이유: 플랜을 갈아탄 사용자는 행이 여럿이고, 그중 지금 효력이
-   * 있는 것은 가장 늦게 끝나는 행이다. 동률이면 나중에 시작한 것을 앞에 둔다.
+   * 반영 전에 행을 잠근다. 영수증 제출과 스토어 알림이 같은 구독을 동시에 건드릴 수 있어서다 —
+   * 잠그지 않으면 늦게 커밋한 쪽이 먼저 읽은 옛 값으로 덮는다.
    */
+  async findByOriginalTransactionIdForUpdate(
+    originalTransactionId: string,
+    manager: EntityManager,
+  ): Promise<Subscription | null> {
+    return manager.getRepository(Subscription).findOne({
+      where: { originalTransactionId },
+      // `FOR NO KEY UPDATE` — 직렬화 목적은 지키면서 FK 자식 삽입의 KEY SHARE와 충돌하지 않는다
+      // (`UserRepository.findByIdForUpdate`와 같은 모드)
+      lock: { mode: 'for_no_key_update' },
+    });
+  }
+
+  /**
+   * 행이 없을 때만 만든다. 동시에 도착한 두 요청 중 하나가 먼저 만들었으면 유니크 충돌을 삼키고
+   * `false`를 돌려준다 — 호출부가 다시 잠가 읽어 그 행에 반영한다.
+   */
+  async insertIfAbsent(
+    draft: SubscriptionDraft,
+    manager: EntityManager,
+  ): Promise<boolean> {
+    const result = await manager
+      .getRepository(Subscription)
+      .createQueryBuilder()
+      .insert()
+      .values(draft)
+      .orIgnore()
+      .returning('id')
+      .execute();
+
+    // 충돌로 건너뛴 행은 RETURNING에 실리지 않는다 — 돌아온 행이 있으면 이번에 만든 것이다
+    return (result.raw as unknown[]).length > 0;
+  }
+
+  async save(
+    subscription: Subscription,
+    manager?: EntityManager,
+  ): Promise<Subscription> {
+    return this.scoped(manager).save(subscription);
+  }
+
+  /**
+   * 만료 보정 대상 — 비종결 상태인데 만료 시각이 `before`보다 과거인 행(`subscription-api.md` 4.2).
+   * 스토어 알림이 유실되지 않았다면 생기지 않는 행이라 건수는 작다.
+   */
+  async findOverdue(
+    before: Date,
+    limit: number,
+    manager?: EntityManager,
+  ): Promise<Subscription[]> {
+    return this.scoped(manager).find({
+      where: {
+        status: In([...NON_TERMINAL_SUBSCRIPTION_STATUSES]),
+        expiresAt: LessThan(before),
+      },
+      order: { expiresAt: 'ASC' },
+      take: limit,
+    });
+  }
+
   async deleteByUserId(userId: string, manager?: EntityManager): Promise<void> {
     await this.scoped(manager).delete({ userId });
   }

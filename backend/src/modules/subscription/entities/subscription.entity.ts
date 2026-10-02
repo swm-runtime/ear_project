@@ -12,7 +12,11 @@ import { BaseEntity } from '@/database/base.entity';
 import { User } from '@/modules/user/entities/user.entity';
 import { UserTier } from '@/modules/user/user.enum';
 
-import { SubscriptionStatus, SubscriptionStore } from '../subscription.enum';
+import {
+  SubscriptionEnvironment,
+  SubscriptionStatus,
+  SubscriptionStore,
+} from '../subscription.enum';
 
 /**
  * domain.md 8.2 — 티어의 진실의 원천. `users.tier`는 이 테이블을 반영한 캐시다.
@@ -61,4 +65,26 @@ export class Subscription extends BaseEntity {
 
   @Column({ name: 'cancelled_at', type: 'timestamptz', nullable: true })
   cancelledAt: Date | null;
+
+  /**
+   * 다운그레이드 예약 — 다음 갱신 때 바뀔 티어. 스토어는 다운그레이드를 "현재 주기가 끝나면"으로
+   * 예약하므로 그동안 `tier`는 그대로다. 갱신·업그레이드·예약 취소 때 비운다.
+   */
+  @Column({ name: 'pending_tier', type: 'varchar', length: 20, nullable: true })
+  pendingTier: UserTier | null;
+
+  @Column({
+    name: 'environment',
+    type: 'varchar',
+    length: 20,
+    default: SubscriptionEnvironment.PRODUCTION,
+  })
+  environment: SubscriptionEnvironment;
+
+  /**
+   * 마지막으로 반영한 스토어 서버 알림의 서명 시각. 알림은 순서가 뒤바뀌어 올 수 있다 —
+   * 이보다 과거에 서명된 알림은 상태를 덮지 않는다(`subscription-api.md` 4.6).
+   */
+  @Column({ name: 'last_notified_at', type: 'timestamptz', nullable: true })
+  lastNotifiedAt: Date | null;
 }

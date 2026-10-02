@@ -9,9 +9,9 @@ const GA4_OK = config({
   GA4_PROPERTY_ID: '123',
   GA4_SERVICE_ACCOUNT_BASE64: 'e30=',
 });
-const db = (signUps = 0, completes = 0) =>
+const db = (signUps = 0) =>
   ({
-    fetchDaily: jest.fn().mockResolvedValue({ signUps, completes }),
+    fetchDaily: jest.fn().mockResolvedValue({ signUps }),
   }) as unknown as DailyMetricsDbService;
 
 const ev = (count = 0, users = 0) => ({ count, users });
@@ -26,10 +26,12 @@ const sample: Ga4Daily = {
     active7d: 30,
   },
   events: {
+    sign_up: ev(3),
     onboarding_complete: ev(1),
     push_permission: ev(1),
     withdrawal: ev(0),
     play_start: ev(4, 3),
+    play_complete: ev(5),
     play_abandon: ev(2),
     drip_play: ev(1),
     content_save: ev(2),
@@ -38,7 +40,10 @@ const sample: Ga4Daily = {
 };
 
 describe('DailyMetricsScheduler', () => {
-  afterEach(() => jest.restoreAllMocks());
+  afterEach(() => {
+    jest.restoreAllMocks();
+    jest.useRealTimers();
+  });
 
   it('GA4 자격이 없으면 configured 가 아니고 run 은 아무것도 보내지 않는다', async () => {
     const scheduler = new DailyMetricsScheduler(
@@ -59,7 +64,7 @@ describe('DailyMetricsScheduler', () => {
     ).toBe(false);
   });
 
-  it('GA4 와 서버 값을 합쳐 보낸다 — 가입·완청은 서버, 나머지는 GA4', async () => {
+  it('GA4 값으로 보낸다 — 가입·완청도 GA4 이고, 서버 가입 건수는 다를 때만 괄호로 붙는다', async () => {
     const ga4 = new Ga4Service(GA4_OK);
     jest.spyOn(ga4, 'fetchDaily').mockResolvedValue(sample);
     const fetchSpy = jest
@@ -67,22 +72,24 @@ describe('DailyMetricsScheduler', () => {
       .mockResolvedValue({ ok: true } as Response);
     const scheduler = new DailyMetricsScheduler(
       ga4,
-      db(3, 5),
+      // 서버 가입 2 — GA4 `sign_up` 3 과 다르다
+      db(2),
       config({
         SLACK_ERROR_WEBHOOK_URL: 'https://hook',
         SENTRY_ENVIRONMENT: 'development',
       }),
     );
 
-    expect(scheduler.trigger(NOW)).toBe('2026-09-28');
-    await new Promise((r) => setImmediate(r));
+    // 크론이 17:00 KST 에 돈다 — 보고 대상은 어제(09-28)
+    jest.useFakeTimers({ now: NOW, doNotFake: ['nextTick', 'setImmediate'] });
+    await scheduler.run();
 
     expect(ga4.fetchDaily).toHaveBeenCalledWith('2026-09-28');
     const body = JSON.parse(
       (fetchSpy.mock.calls[0][1] as RequestInit).body as string,
     ) as { text: string };
     expect(body.text).toMatch(/^\[development\] /);
-    expect(body.text).toContain('가입 3 → 온보딩 완료 1 (33%)');
+    expect(body.text).toContain('가입 3 (서버 2) → 온보딩 완료 1 (33%)');
     expect(body.text).toContain('완청 5');
     expect(body.text).toContain('시작 4 (3명)');
     expect(body.text).toContain('활성 10 (▲2)');

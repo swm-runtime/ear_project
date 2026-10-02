@@ -296,7 +296,6 @@ NetworkState  { reachable, connection_type }                        // 클라이
 | `ADMIN_TOPIC_HAS_NO_CONTENTS` | 409 | false | 노출 가능 콘텐츠가 0건인 주제의 노출 켜기 (`admin.md` 4.5, 2026-09-17). 서버 문구를 표시하고 주제 목록을 재조회한다 — 콘텐츠를 먼저 발행해야 하므로 재시도해도 같다 |
 | `ADMIN_STORAGE_FAILED` | 502 | **true** | 저장소 실패. 4.2의 자동 재시도 대상이다 |
 | `ADMIN_RECOMMEND_TEST_DISABLED` | 409 | false | 추천 테스트 API를 운영에서 호출(`admin-api.md` 4.17 — 개발계 전용, 2026-09-29). 콘솔은 탭을 숨기므로 정상 UI에서는 도달하지 않는다 |
-| `ADMIN_REPORT_NOT_CONFIGURED` | 409 | false | 일간 지표 수동 발송을 눌렀는데 Slack 웹훅이 없다(`admin-api.md` 4.20, 2026-09-29). 서버 env 설정 문제라 재시도해도 같다 |
 
 - 신설(2026-08-30 — 관리자 웹 콘솔 도입). **발행 요청서는 "6장"으로 적었으나 에러 코드 표는 9장이다** — 6장은 `ApiError`의 필드 규격만 정한다(9장 머리말). 여기 등재한다.
 - 이 코드들은 **운영자만 본다.** 일반 사용자 화면에는 도달하지 않으므로 9.1의 일반 안내 문구를 재사용하지 않고 콘솔이 필드별 인라인으로 표시한다(`admin.md` 5장).

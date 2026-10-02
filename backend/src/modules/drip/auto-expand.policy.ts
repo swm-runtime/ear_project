@@ -38,6 +38,11 @@ export interface AutoExpandInput {
   userRemovedTopicIds: string[];
   /** 고를 수 없는 주제(숨김·삭제) — 호출자가 후보를 본 뒤 채워 다시 부른다 */
   unavailableTopicIds?: string[];
+  /**
+   * 숨김 주제가 차지한 자동 슬롯 — 활성 `auto_expand` 행인데 주제가 숨겨져 `activeInterests`(노출 중만)에는
+   * 없는 것. 슬롯 자리는 차지하고 있으므로 비워야 새 후보가 들어간다(4.5-1 "숨김")
+   */
+  hiddenSlotTopicIds?: string[];
   slotLimit?: number;
 }
 
@@ -61,6 +66,8 @@ export type AutoExpandReason =
   | 'stronger_candidate'
   /** 슬롯 주제에 만료 기간 동안 긍정 신호가 없었다 */
   | 'slot_expired'
+  /** 슬롯 주제가 숨김 처리됐다 — 비우고, 후보가 있으면 같은 판정에서 채운다 */
+  | 'slot_hidden'
   /** 사용자가 자동 확장을 껐다 — 호출자가 덮어쓴다 */
   | 'disabled'
   /** 서버 스위치(`AUTO_EXPAND_ENABLED`)가 꺼져 있다 — 호출자가 덮어쓴다 */
@@ -90,9 +97,12 @@ export function decideAutoExpand(input: AutoExpandInput): AutoExpandDecision {
   const activeTopicIds = new Set(
     input.activeInterests.map((interest) => interest.topicId),
   );
+  const hiddenSlotTopicIds = [...(input.hiddenSlotTopicIds ?? [])].sort();
   const blocked = new Set([
     ...input.userRemovedTopicIds,
     ...(input.unavailableTopicIds ?? []),
+    // 숨김 슬롯 주제를 그 자리에 다시 넣지 않는다
+    ...hiddenSlotTopicIds,
   ]);
   const lookbackStart =
     input.now.getTime() - AUTO_EXPAND_LOOKBACK_DAYS * MS_PER_DAY;
@@ -164,6 +174,19 @@ export function decideAutoExpand(input: AutoExpandInput): AutoExpandDecision {
     removeTopicId,
     candidates,
   });
+
+  // 숨김 슬롯도 자리를 차지한다 — 빼지 않고 세면 "빈 슬롯"으로 보여 넣으려다 적용에서 막힌다
+  const occupied = slots.length + hiddenSlotTopicIds.length;
+
+  // 0) 숨김 — 슬롯 주제가 숨겨졌으면 비운다. 후보가 있으면 같은 판정에서 채운다. 한 번에 하나
+  if (hiddenSlotTopicIds.length > 0) {
+    const hidden = hiddenSlotTopicIds[0];
+    const hasRoom = occupied - 1 < slotLimit;
+
+    return best && hasRoom
+      ? decision('replace', 'slot_hidden', best.topicId, hidden)
+      : decision('expire', 'slot_hidden', null, hidden);
+  }
 
   // 1) 만료 — 추가된 지 만료 기간이 지났고 그 사이 긍정 신호가 없는 슬롯. 가장 오래된 것부터 하나
   const expired = slots

@@ -145,26 +145,28 @@ export class LibraryItemRepository {
   }
 
   /**
-   * 드립 후보 필터의 첫 줄 — `library_items`에 행이 존재하면 제외한다.
+   * 가장 최근 편성분 하나 — `before` 전에 적립된 것 중. **소프트 삭제분을 포함한다** — "가장 최근 편성분이
+   * 언제였는가"는 지웠는지와 무관하다. 빼면 최근 편성분을 전부 지운 사용자에게서 그 전 편성분이 "가장 최근"으로
+   * 잡혀, 묻지 않아야 할 옛 편성분을 묻게 된다(`drip-feedback.md` 7장).
    *
-   * **`deleted_at` 여부를 보지 않는다**(`domain.md` 7 · `drip-scheduling.md` 4.2).
-   * `@DeleteDateColumn` 때문에 기본 조회는 소프트 삭제분을 빼므로 `withDeleted`가 필요하다 —
-   * 빠뜨리면 **한 번 들어왔다 지워진 콘텐츠가 다시 드립 후보가 된다.**
-   *
-   * 사용자가 직접 지운 경우는 `drip_excluded_contents`가 따로 막지만, **파트너 회수는
-   * 제외 행을 만들지 않는다**(`domain.md` 7.1). 그래서 회수→복구를 거친 콘텐츠에서는
-   * 이 조건이 유일한 방어선이다.
+   * **알고리즘 버전이 찍힌 행만 본다** — 온보딩 직후의 첫 드립은 버전이 없고(배치가 아닌 별도 경로) 별점을
+   * 묻지 않는다(`drip-feedback.md` 4.1-2). 버전 없는 행을 건너뛰어야 첫 드립만 받은 신규 사용자가 "편성분 없음"이 된다
    */
-  /** 가장 최근 편성분 하나 — `before` 전에 적립된 것 중. 소프트 삭제분은 제외 */
-  async findLatestByUserIdAndSourcesAddedBefore(
+  async findLatestVersionedByUserIdAndSourcesAddedBefore(
     userId: string,
     sources: LibraryItemSource[],
     before: Date,
     manager?: EntityManager,
   ): Promise<LibraryItem | null> {
     return this.scoped(manager).findOne({
-      where: { userId, source: In(sources), addedAt: LessThan(before) },
+      where: {
+        userId,
+        source: In(sources),
+        addedAt: LessThan(before),
+        algorithmVersion: Not(IsNull()),
+      },
       order: { addedAt: 'DESC', id: 'DESC' },
+      withDeleted: true,
     });
   }
 
@@ -187,6 +189,17 @@ export class LibraryItemRepository {
     });
   }
 
+  /**
+   * 드립 후보 필터의 첫 줄 — `library_items`에 행이 존재하면 제외한다.
+   *
+   * **`deleted_at` 여부를 보지 않는다**(`domain.md` 7 · `drip-scheduling.md` 4.2).
+   * `@DeleteDateColumn` 때문에 기본 조회는 소프트 삭제분을 빼므로 `withDeleted`가 필요하다 —
+   * 빠뜨리면 **한 번 들어왔다 지워진 콘텐츠가 다시 드립 후보가 된다.**
+   *
+   * 사용자가 직접 지운 경우는 `drip_excluded_contents`가 따로 막지만, **파트너 회수는
+   * 제외 행을 만들지 않는다**(`domain.md` 7.1). 그래서 회수→복구를 거친 콘텐츠에서는
+   * 이 조건이 유일한 방어선이다.
+   */
   async findAllContentIdsByUserId(
     userId: string,
     manager?: EntityManager,

@@ -146,6 +146,45 @@ export class EnvironmentVariables {
   AUTO_EXPAND_ENABLED?: string;
 
   /**
+   * App Store 인앱 결제 검증(`subscription-api.md` 7장 — KAN-106). **전부 선택이고, `APP_STORE_BUNDLE_ID`나
+   * `APP_STORE_ENVIRONMENTS`가 비면 iOS 결제가 꺼진다**(결제 의도 생성이 `SUBSCRIPTION_PLAN_UNAVAILABLE`로
+   * 막힌다 — 결제부터 시키고 검증을 못 하는 상태를 만들지 않는다).
+   *
+   * - `APP_STORE_BUNDLE_ID`: 서명된 거래의 `bundleId`와 대조할 앱 번들 ID
+   * - `APP_STORE_APP_APPLE_ID`: 앱의 Apple ID(숫자). `Production` 거래·알림 검증에 필요하다
+   * - `APP_STORE_ENVIRONMENTS`: 이 서버가 받는 거래 환경. 개발계는 `Sandbox`, 운영은 `Production`,
+   *   심사·TestFlight 결제까지 받으려면 `Production,Sandbox`(샌드박스 결제는 `subscriptions.environment`로 구분된다)
+   */
+  @IsOptional()
+  @IsString()
+  APP_STORE_BUNDLE_ID?: string;
+
+  @IsOptional()
+  @Matches(/^(\d+)?$/)
+  APP_STORE_APP_APPLE_ID?: string;
+
+  @IsOptional()
+  @Matches(/^((Production|Sandbox)(,(Production|Sandbox))?)?$/)
+  APP_STORE_ENVIRONMENTS?: string;
+
+  /**
+   * App Store Server API 키 — **만료 보정**(스토어에 구독의 현재 상태를 묻는 것)에만 쓴다. 영수증·알림 검증은
+   * 서명만으로 끝나 이 키가 없어도 된다. 셋 중 하나라도 비면 보정이 꺼지고 저장된 상태 그대로 응답한다.
+   * 개인키(.p8)는 base64로 둔다(`CLOUDFRONT_PRIVATE_KEY_BASE64`와 같은 방식).
+   */
+  @IsOptional()
+  @IsString()
+  APP_STORE_ISSUER_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  APP_STORE_KEY_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  APP_STORE_PRIVATE_KEY_BASE64?: string;
+
+  /**
    * 일일 지표 Slack 보고(KAN-107 2단계)의 GA4 자격 — 둘 다 **선택**이고 하나라도 비면
    * 보고가 꺼진다(로컬·테스트 기본). 속성 ID 는 GA4 관리 화면의 숫자값이고, 서비스 계정
    * JSON 은 base64 로 둔다(`CLOUDFRONT_PRIVATE_KEY_BASE64` 와 같은 방식). 그 서비스 계정을

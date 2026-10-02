@@ -722,10 +722,12 @@ idx_search_query_logs_created_at (created_at)   — 보존 배치 범위 삭제�
 
 - **총 건수가 아니라 첫 페이지 건수다.** 총수를 세면 검색마다 COUNT 쿼리가 하나 더 붙는데, 미스율에 필요한 것은 0건 여부뿐이다. 페이지 크기만큼 찼을 때 "딱 그만큼"과 "더 있음"은 `has_next`가 가른다.
 - **커서 페이지는 기록하지 않는다** — 같은 질의의 이어 읽기라 새 검색이 아니다.
-- **디바운스 자동 검색의 중간 입력은 적재 시점에 접는다**("커" → "커리" → "커리어"). 서버는 키보드 제출과 자동 검색을 구분할 수 없으므로(`explore-api.md` 4.5 — 같은 엔드포인트) **같은 사용자의 직전 행이 10초 안이고 두 질의가 같은 타이핑으로 보이면 — 한쪽이 다른 쪽의 접두사이거나 한 글자 차이면 — 새 행을 만들지 않고 그 행을 마지막 질의로 덮어쓴다**(지우고 다시 친 "커리어" → "커", 오타를 고친 "커리오" → "커리어"도 같은 묶음). 남는 것은 사용자가 치다가 멈춘 질의다 — 중간 입력을 다 세면 미스율이 "커"(거의 항상 결과 있음)와 "커리ㅇ"(거의 항상 0건)에 끌려간다. `created_at`은 묶음의 시작, `updated_at`은 마지막 요청 시각이다. 10초 넘게 멈췄다 이어 치면 다른 검색으로 본다. `user_id`는 그 판정과 탈퇴 파기 경로용이고, 집계는 개인 식별 없이 질의·건수만 쓴다.
+- **디바운스 자동 검색의 중간 입력은 적재 시점에 접는다**("커" → "커리" → "커리어"). 서버는 키보드 제출과 자동 검색을 구분할 수 없으므로(`explore-api.md` 4.5 — 같은 엔드포인트) **같은 사용자의 직전 행이 10초 안이고 두 질의가 같은 타이핑으로 보이면 — 자모 단위로 풀었을 때 한쪽이 다른 쪽의 접두사이면 — 새 행을 만들지 않고 그 행을 마지막 질의로 덮어쓴다**(이어 친 "커리" → "커리어", 조합 중인 "커리ㅇ"·"커링" → "커리어", 지우고 다시 친 "커리어" → "커"). 남는 것은 사용자가 치다가 멈춘 질의다 — 중간 입력을 다 세면 미스율이 "커"(거의 항상 결과 있음)와 "커리ㅇ"(거의 항상 0건)에 끌려간다. `created_at`은 묶음의 시작, `updated_at`은 마지막 요청 시각이다. 10초 넘게 멈췄다 이어 치면 다른 검색으로 본다. `user_id`는 그 판정과 탈퇴 파기 경로용이고, 집계는 개인 식별 없이 질의·건수만 쓴다.
+  - **오타를 고친 질의는 묶지 않는다**(개정 2026-10-02). "커리오" → "커리어"는 새 행이고 "커리오"는 0건으로 남는다. 종전 규칙("한 글자 차이면 덮어쓴다")은 폐기했다 — 2자 질의는 한 글자만 같아도 다른 말이 한 행으로 합쳐졌고("면접" → "면담"), 오타 0건이 고친 질의에 덮여 사라져 **오타 허용을 도입할지 판단할 근거가 이 표에 남지 않았다.** 자모 접두사는 조합 중간 모습만 정확히 가려낸다 — 음절 단위로는 접두사가 아닌 "커링" → "커리어"(받침이 다음 글자의 초성으로 넘어감)도 자모로 풀면 접두사다. 겹모음(ㅘ = ㅗ+ㅏ)·겹받침(ㄺ = ㄹ+ㄱ)은 치는 순서대로 풀어 본다.
+- **같은 질의의 재조회는 새 검색이 아니다**(신설 2026-10-02). 직전 행과 질의·주제 필터 수가 같고 그 행의 마지막 요청(`updated_at`)에서 **10분** 안이면 **아무것도 쓰지 않는다** — 행을 만들지도, `updated_at`을 밀지도 않는다. 앱은 재생이 시작되거나 포그라운드로 돌아오면 탐색 쿼리를 통째로 다시 불러, 같은 검색의 첫 페이지 요청이 한 번 더 온다. 그것을 기록하면 10초 안에서는 행을 덮어써 `updated_at`이 방금의 재생보다 뒤로 가 반응이 사라지고, 10초 밖에서는 반응 없는 중복 행이 생겨 검색 수가 부풀고 미스율이 흐려진다. 대가로 10분 안에 같은 말을 다시 검색한 것은 세지 않는다.
 - **구조화 로그([13.4](#134-구조화-로그로-대체-b-8))로 보내지 않는 이유**: CloudWatch 보관이 7일이라(`backend-monitoring.md`) 몇 주 단위의 미스율을 셀 수 없다. 재검토 결정은 그 기간의 누적을 봐야 한다.
 - 적재 실패는 검색 응답에 영향을 주지 않는다 — 서비스가 경고 로그 한 줄로 삼킨다(질의 본문은 경고에 남기지 않는다).
-- **결과 반응은 앱이 보내지 않고 서버가 역산한다**(신설 2026-10-01). 그 행의 마지막 질의(`updated_at`) 뒤 **10분** 안에 같은 사용자가 `result_content_ids` 중 하나를 재생(`play_records.played_at`)했거나 담았으면(`library_items.source = save`의 `added_at`, 삭제분 포함) "반응한 검색"이다. 탭 이벤트를 앱에 추가하면 스토어 배포를 기다려야 하고 옛 버전 사용자는 빠지는데, 재생·담기는 어느 버전이든 서버를 거친다. 한계: 재생 한도에 막힌 탭, 상세 정보만 본 탭은 반응으로 안 잡힌다 — 그 둘을 세고 싶어지면 그때 앱 이벤트를 붙인다. 판정은 집계 시점(관리자 요약)에만 하고 컬럼으로 두지 않는다([1.5](#15-파생값을-컬럼으로-두지-않는다)).
+- **결과 반응은 앱이 보내지 않고 서버가 역산한다**(신설 2026-10-01). 그 행의 묶음 시작(`created_at`)부터 마지막 질의(`updated_at`) 뒤 **10분**까지 같은 사용자가 `result_content_ids` 중 하나를 재생(`play_records.played_at`)했거나 담았으면(`library_items.source = save`의 `added_at`, 삭제분 포함) "반응한 검색"이다. 하한이 `updated_at`이 아니라 `created_at`인 이유(개정 2026-10-02): 결과를 누르고 돌아와 10초 안에 이어 치면 같은 행이 덮여 `updated_at`이 그 재생보다 뒤로 간다. 탭 이벤트를 앱에 추가하면 스토어 배포를 기다려야 하고 옛 버전 사용자는 빠지는데, 재생·담기는 어느 버전이든 서버를 거친다. 한계: 재생 한도에 막힌 탭, 상세 정보만 본 탭은 반응으로 안 잡힌다 — 그 둘을 세고 싶어지면 그때 앱 이벤트를 붙인다. **같은 서비스 날짜에 이미 재생한 콘텐츠**(`play_records`는 하루 1행이라 `played_at`이 새로 남지 않는다)와 **이미 라이브러리에 있던 콘텐츠의 담기**(새 행이 없다)도 반응으로 안 잡힌다. 판정은 집계 시점(관리자 요약)에만 하고 컬럼으로 두지 않는다([1.5](#15-파생값을-컬럼으로-두지-않는다)).
 - 읽는 곳은 관리자 요약 하나다(`admin-api.md` 4.21 — 로그 콘솔 "검색 로그" 탭). 앱은 이 표를 읽지 않는다.
 - 보존은 `created_at` **90일**([12.1](#121-운영-중-삭제-정책)). 탈퇴 시 **즉시 파기**([12.3](#123-회원-탈퇴-처리)) — `user_id` FK의 `ON DELETE CASCADE`가 집행한다.
 - `SearchHistory`(최근 검색어)는 여전히 테이블이 아니다([13.1](#131-클라이언트-로컬-전용)) — 이 표는 사용자에게 되돌려 주는 이력이 아니라 운영 분석 원천이고, 앱은 이 표를 읽지 않는다.
@@ -748,7 +750,7 @@ library_items
   completed_at              timestamptz     NULL
   deleted_at                timestamptz     NULL   ★소프트 삭제
   queue_position            int             NULL   ★재생 목록 순서 (2026-09-19, KAN-70) — NULL = 순서 미지정
-  algorithm_version         varchar(40)     NULL   ★이 행을 적립한 추천 알고리즘 버전 (2026-09-30, KAN-116) — drip·discovery 만, 담기·온보딩은 NULL
+  algorithm_version         varchar(40)     NULL   ★이 행을 적립한 추천 알고리즘 버전 (2026-09-30, KAN-116) — 편성 배치가 적립한 drip·discovery 만. 담기·온보딩·**첫 드립**은 NULL
 
 uq_library_items_user_id_content_id (user_id, content_id)
 idx_library_items_user_id_deleted_at_added_at_id (user_id, deleted_at, added_at DESC, id DESC)
@@ -787,7 +789,7 @@ idx_library_items_content_id (content_id)
 - **`source = discovery`는 탐험 편성이다**(신설 2026-08-27 — `drip-scheduling.md` 4.8). 정규 드립과 별개로 매일 1편(`plans.daily_discovery_count`) 적립되며, 앱이 "이런 주제는 어떠신가요?" 타이틀로 구분 표시하기 위해 값을 나눈다. **정책상 취급은 드립과 같다** — 출처 필터 [이어 PICK]에 포함되고(`library-api.md` 4.1), 도착 배너에 포함되고, 삭제·중복 방지·영구 제외 규칙도 동일하다.
 - **프로필의 "누적 청취 콘텐츠 수"(완청 고유 콘텐츠 수 — `profile.md` 4.5)의 원천은 이 테이블이다.** `status = completed`인 고유 `content_id` COUNT로 구한다(`deleted_at` 무관 — soft delete라 행이 남는다). 파생값이므로 컬럼·집계 테이블을 만들지 않는다([1.5](#15-파생값을-컬럼으로-두지-않는다)).
 
-- **`algorithm_version`은 사용자 별점을 버전별로 모으는 열쇠다**(`drip-feedback.md` 4.4, 2026-09-30). 편성 배치가 적립할 때 서버 상수 `DRIP_ALGORITHM_VERSION`(`YYYY-MM-DD.n`)을 쓴다. 편성 계산은 이 값을 읽지 않는다. 버전 도입 전 행은 NULL로 두고 소급하지 않는다 — 다른 알고리즘의 결과가 한 버전으로 뭉친다. `idx_library_items_algorithm_version`(부분 인덱스, NOT NULL) — 어드민 버전별 편성 수 집계용.
+- **`algorithm_version`은 사용자 별점을 버전별로 모으는 열쇠다**(`drip-feedback.md` 4.4, 2026-09-30). 편성 배치가 적립할 때 서버 상수 `DRIP_ALGORITHM_VERSION`(`YYYY-MM-DD.n`)을 쓴다. 편성 계산은 이 값을 읽지 않는다. 온보딩 직후의 첫 드립은 배치가 아닌 별도 경로(신호 없이 고름)라 찍지 않으며, 별점 팝업도 버전이 있는 편성분만 묻는다(`drip-feedback.md` 4.1-2, 2026-10-02). 버전 도입 전 행은 NULL로 두고 소급하지 않는다 — 다른 알고리즘의 결과가 한 버전으로 뭉친다. `idx_library_items_algorithm_version`(부분 인덱스, NOT NULL) — 어드민 버전별 편성 수 집계용.
 
 ### 6.2 `playback_progresses`
 
@@ -1104,11 +1106,12 @@ uq_plans_tier (tier)
 | tier | price_krw | daily_play_limit | daily_drip_count | daily_discovery_count | is_drip_enabled |
 |---|---|---|---|---|---|
 | `light` (무료) | 0 | **2** | **2** | **1** | true |
-| `daily` | 미정 | 미정 | **2** | **1** | true |
-| `pro` | 미정 | `NULL`(무제한) | **2** | **1** | true |
+| `daily` | **3900** | **5** | **2** | **1** | true |
+| `pro` | **9900** | `NULL`(무제한) | **2** | **1** | true |
+
+- **유료 티어 값이 확정됐다**(2026-10-02): 데일리 월 3,900원·하루 5편, 프로 월 9,900원·무제한. 둘 다 광고가 없다(`is_ads_enabled = false`). 행은 마이그레이션 `1788300100000-SeedPaidPlans`가 넣는다 — `store_product_id_ios`는 `com.runtime.ear.subscription.{daily,pro}.monthly`, `store_product_id_android`는 Play 구현 전이라 비어 있다. `name`·`description`은 표시 문구라 DB에서 고친다(마이그레이션이 기존 값을 덮지 않는다). 두 행은 `is_active = true`(판매 중)로 시작한다 — 시드 이전에 넣어 둔 행이 꺼져 있던 환경은 `1788300200000-ActivatePaidPlans`가 맞춘다.
 
 - **`daily_drip_count`는 전 티어 2편으로 확정됐다**(PRD 1.3·FR-14). 티어가 가르는 것은 드립 편수가 아니라 재생 한도(`daily_play_limit`)다. 미정으로 남은 것은 `price_krw`와 유료 티어의 `daily_play_limit`뿐이다.
-  - **그래도 `daily`·`pro` 행은 아직 만들 수 없다.** 편수는 확정됐지만 나머지 두 값이 비어 있어 행을 완성할 수 없다 — subscription 모듈에서 함께 넣는다.
 - `daily_drip_count`는 어느 명세에도 없던 컬럼이다. `drip-scheduling.md`가 "서버 설정값"이라고만 해서 소유처가 없었으므로 `plans`에 둔다 — **배포 없이 조정할 정책값이기 때문이다**(시범 운영 중 2편 → 3편 같은 조정). 전 티어 값이 같아진 뒤에도 코드 상수로 옮기지 않는 이유가 이것이다.
 - `daily_discovery_count`(신설 2026-08-27)도 같은 근거로 여기 둔다 — 탐험 편성(`drip-scheduling.md` 4.8)의 편수이며 전 티어 1편. 콘텐츠 풀·완청률 추이를 보고 배포 없이 조정한다(0으로 내리면 탐험 편성이 꺼진다).
 - `offline_download_enabled`는 **두지 않는다.** 오프라인 저장이 P1 이연이라 지금 컬럼을 만들면 의미 없는 값이 채워진다.
@@ -1130,6 +1133,8 @@ subscriptions
   expires_at                timestamptz
   cancelled_at              timestamptz     NULL
   pending_tier              enum            NULL   ★다운그레이드 예약 — 다음 갱신 때 바뀔 티어 (2026-10-02, `subscription-api.md` 4.2)
+  environment               enum            production | sandbox   DEFAULT production   ★실결제와 스토어 시험 결제의 구분 (2026-10-02)
+  last_notified_at          timestamptz     NULL   ★마지막으로 반영한 스토어 알림의 서명 시각 — 알림 순서 판정 (2026-10-02)
 
 uq_subscriptions_original_transaction_id (original_transaction_id)
 idx_subscriptions_user_id_status (user_id, status)
@@ -1141,6 +1146,8 @@ idx_subscriptions_user_id_status (user_id, status)
 - `uq_subscriptions_original_transaction_id`가 하나의 스토어 구독이 여러 계정에 연결되는 것을 막는다.
 - **Play에는 `original_transaction_id`가 없다 — 그 구독의 최초 구매 토큰을 이 컬럼에 쓴다.** 업·다운그레이드로 새 토큰이 발급되면 스토어 응답의 `linkedPurchaseToken`으로 기존 행을 찾아 같은 행을 갱신한다(`subscription-api.md` 4.7).
 - `latest_receipt`에는 마지막으로 반영한 **서명된 거래(iOS JWS) 또는 구매 토큰(Android)** 을 둔다 — 만료 보정 때 스토어에 다시 묻는 열쇠다. 로그에는 남기지 않는다.
+- **`environment`** 는 그 구독이 실결제인지 스토어의 시험 결제인지다(2026-10-02). **운영 서버도 샌드박스 거래를 받는다** — App Store 심사와 TestFlight는 운영 빌드로 샌드박스 결제를 한다(`subscription-api.md` 7장). 구분을 남기지 않으면 시험 결제가 매출·구독자 수에 섞인다. 권한 판정에는 쓰지 않는다 — 샌드박스 구독도 유효하면 유료 티어다(그래야 심사·시험이 된다). 집계가 `environment = 'production'`으로 거른다.
+- **`last_notified_at`** 은 스토어 서버 알림의 순서 뒤바뀜을 막는다(2026-10-02, `subscription-api.md` 4.6). 알림은 보낸 순서대로 도착한다는 보장이 없어, 이 시각보다 먼저 서명된 알림은 상태를 덮지 않는다. 만료 보정(스토어에 직접 조회)도 이 값을 조회 시각으로 갱신한다. **환불·만료로 종결된 구독을, 종결 이전에 시작된 거래로 되살릴 수 없게 하는 기준 시각이기도 하다** — 환불받은 사용자가 환불 전에 받아 둔 서명 거래를 다시 제출해도 반영하지 않는다.
 - **`pending_tier`** 는 다운그레이드 예약이다(2026-10-02). 스토어는 다운그레이드를 "현재 주기가 끝나면"으로 예약하므로 그동안 `tier`는 그대로이고, 다음에 바뀔 티어만 여기 든다. 갱신·업그레이드·예약 취소 때 비운다. 화면의 "N월 N일부터 데일리" 표시 근거다.
 
 **`status` 값의 의미** (확정 2026-08-08 — 프로필 구현 중 `cancelled`의 뜻이 정의된 곳이 없어 확정했다)
@@ -1160,7 +1167,7 @@ idx_subscriptions_user_id_status (user_id, status)
 
 ### 8.3 `purchase_intents`
 
-> **구현 상태(2026-09-26)** — 테이블·엔티티는 만들었다(`1787800000000-AddPurchaseIntentsAndStoreNotificationLogs`). **읽고 쓰는 코드는 아직 없다** — 구독 영수증 검증(KAN-40)이 저장소·서비스를 붙인다. `purchase_intents.user_id`는 ON DELETE CASCADE라 12.3 즉시 파기는 DB 제약이 수행한다.
+> **구현 상태(2026-10-02)** — 결제 의도 생성(`subscription-api.md` 4.3)과 영수증 검증·서버 알림이 이 표를 쓴다(`PurchaseIntentService`). `purchase_intents.user_id`는 ON DELETE CASCADE라 12.3 즉시 파기는 DB 제약이 수행한다. `created`로 남은 행의 30일 정리는 `subscription-reconcile` 배치(04:45)가 한다.
 
 ```
 purchase_intents
@@ -1179,7 +1186,7 @@ idx_purchase_intents_user_id_created_at (user_id, created_at DESC)
 
 ### 8.4 `store_notification_logs`
 
-> **구현 상태(2026-09-26)** — 테이블·엔티티는 만들었다(`1787800000000-AddPurchaseIntentsAndStoreNotificationLogs`). **읽고 쓰는 코드는 아직 없다** — 구독 영수증 검증(KAN-40)이 저장소·서비스를 붙인다. `store_notification_logs`는 개인 식별자가 없어 탈퇴 시 그대로 둔다(12.3).
+> **구현 상태(2026-10-02)** — App Store 서버 알림 수신(`subscription-api.md` 4.6)이 이 표를 쓴다(`StoreNotificationLogService`). Play 알림은 구현 전이다. `store_notification_logs`는 탈퇴 시 그대로 둔다(12.3).
 
 ```
 store_notification_logs
@@ -1195,6 +1202,8 @@ uq_store_notification_logs_store_notification_id (store, notification_id)
 
 - 결제 재처리의 근거이므로 DB 테이블로 유지한다 (B-8).
 - 유니크 제약이 **같은 알림의 중복 처리를 막는다.** 스토어는 같은 알림을 여러 번 보낼 수 있다.
+- **`processed_at`이 "중복"의 기준이다**(2026-10-02). 적재는 처리보다 먼저, 처리 트랜잭션 밖에서 한다 — 처리가 실패해 롤백돼도 받았다는 기록은 남는다. 그래서 같은 `notification_id`가 다시 왔을 때 `processed_at`이 있으면 끝난 알림의 재전송이라 그대로 200이고, 없으면 받기만 하고 처리에 실패했던 것이라 다시 처리한다. 어느 계정의 구독인지 알 수 없던 알림(구독 행도 계정 토큰도 없음)도 `processed_at`이 비어 있다 — 이후 영수증 제출·복원이 그 구독을 연결한다.
+- **`payload`에는 검증을 마친 뒤 풀어낸 값만 둔다** — 알림 유형, 서명 시각, 환경, 거래(스토어 구독 ID·상품·기간·환불 시각·계정 토큰 유무), 갱신 설정. 계정 토큰 값은 싣지 않는다 — 결제 의도의 `id`라 살아 있는 계정을 가리키는데, 이 표는 탈퇴 뒤에도 남는다(12.3). **서명 원문(JWS)은 넣지 않는다.** `type`은 App Store의 `notificationType`에 `subtype`이 있으면 `:`로 이은 값이다(`DID_CHANGE_RENEWAL_STATUS:AUTO_RENEW_DISABLED`).
 
 ---
 
@@ -1646,7 +1655,7 @@ idx_archived_subscriptions_archived_at
 
 | # | 항목 | 내용 |
 |---|---|---|
-| 1 | **유료 티어 값** | `plans.daily_play_limit` · `price_krw`의 `daily`/`pro` 값이 미정. 1~2주 시범 운영 후 확정. **`daily_drip_count`는 전 티어 2편으로 확정됐다**(PRD 1.3·FR-14) — 미정 대상에서 제외한다. **컬럼은 이미 있으므로 값만 채우면 되고 마이그레이션은 필요 없다.** |
+| 1 | ~~유료 티어 값~~ | **해소 (2026-10-02)** — 데일리 3,900원·하루 5편, 프로 9,900원·무제한으로 확정하고 행을 넣었다([8.1](#81-plans), `1788300100000-SeedPaidPlans`). |
 | 2 | **결제 이력 없는 사용자의 `consents` 파기 — 법무 확인** | [12.3](#123-회원-탈퇴-처리)에서 `archived_consents`도 함께 파기하기로 했다. 동의 획득의 입증 책임은 사업자에게 있으므로, 탈퇴자가 나중에 동의 사실을 다투면 반박 근거가 남지 않는다. **입증 책임과 제21조 제1항 중 어느 쪽이 우선하는지 확인이 필요하다.** 보존이 필요하다는 판단이 나오면 `archived_consents`만 예외로 남긴다 — 스키마 변경은 없고 12.3의 분기만 바뀐다. |
 | 3 | ~~계정 단위 발송 상한(백스톱)~~ | **해소 (2026-08-10)** — **최근 1시간 20회 / 최근 24시간 50회**를 얹는 것으로 확정(`auth.md` 4.5). 저장소는 **같은 테이블 집계**(컬럼 추가 없음 — 슬라이딩 총량 제한이라 `send_seq` 방식의 창 초기화 문제가 없다). 클라이언트 비노출 → [3.7](#37-email_verifications) 반영 완료. |
 | 4 | **`users.years_of_experience` 타입 불일치** | [3.1](#31-users)은 `int`인데 `onboarding.md` 3장의 입력은 **구간 enum**(1년 미만 / 1–3년 / 4–6년 / 7년 이상)이다. 현재는 구간 하한값(0·2·4·7)으로 저장하는 것으로 읽히는데, **매핑이 문서 어디에도 없어 구간을 조정하면 기존 값의 의미가 조용히 바뀐다.** 구간 enum으로 바꾸거나, `int`를 유지하되 매핑을 이 문서에 못박아야 한다. |
