@@ -9,6 +9,9 @@ export const metadata: Metadata = {
   title: "개인정보 처리방침 개정 안내 (2026년 11월 1일)",
   description: "Android 광고 ID 수집 및 Meta 광고 성과 측정 관련 개정 안내. 공지일 2026년 10월 2일, 적용 예정일 2026년 11월 1일.",
   alternates: { canonical: "/privacy/2026-11-01" },
+  // 본문 대부분이 현행 방침(`/privacy/`)과 같다 — 둘 다 색인되면 검색엔진이 어느 쪽을 대표로 볼지 흔들린다.
+  // 이용자는 현행 방침 상단의 개정 안내 링크로 들어오므로 검색 노출이 필요하지 않다. 링크는 따라가게 둔다
+  robots: { index: false, follow: true },
 };
 
 export default function PrivacyAmendmentPage() {

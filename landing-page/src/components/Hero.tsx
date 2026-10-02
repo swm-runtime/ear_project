@@ -1,7 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
-import { iosStoreUrl, site, stats } from "@/content/site";
+import { androidStoreUrl, iosStoreUrl, site, stats } from "@/content/site";
 import { AppleLogo } from "./AppleLogo";
+import { GooglePlayLogo } from "./GooglePlayLogo";
 import { CountUp } from "./CountUp";
 import { HeroPhoneScene } from "./HeroPhoneScene";
 import { PhoneStatusBar } from "./PhoneStatusBar";
@@ -355,7 +356,11 @@ export function Hero() {
           <div className={s.actions}>
             <a href={iosStoreUrl} className="btn btnPrimary" target="_blank" rel="noopener noreferrer">
               <AppleLogo />
-              App Store에서 다운로드
+              App Store
+            </a>
+            <a href={androidStoreUrl} className="btn btnPrimary" target="_blank" rel="noopener noreferrer">
+              <GooglePlayLogo />
+              Google Play
             </a>
             <Link href={routes.features.path} className="btn btnGhost">
               어떻게 작동하나요
@@ -370,9 +375,6 @@ export function Hero() {
               </svg>
             </Link>
           </div>
-
-          {/* iOS만 먼저 나왔다 — 받기 버튼 바로 밑에서 Android 사용자가 헛걸음하지 않게 알린다 */}
-          <p className={s.platformNote}>Android는 곧 출시 예정이에요</p>
 
           <p className={s.note}>
             카카오·네이버·구글·애플 계정으로 시작해요 · 무료 요금제에도 매일 2편이 도착해요

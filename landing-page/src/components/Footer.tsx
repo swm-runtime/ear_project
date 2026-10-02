@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { LogoMark } from "./Logo";
 import { footerGroups } from "@/content/routes";
-import { site } from "@/content/site";
+import { androidStoreUrl, iosStoreUrl, site } from "@/content/site";
 import s from "./Footer.module.css";
 
 export function Footer() {
@@ -39,7 +39,15 @@ export function Footer() {
         <p>
           © {year} {site.name}. All rights reserved.
         </p>
-        <p className={s.pre}>정식 출시를 준비하고 있어요.</p>
+        <p className={s.stores}>
+          <a href={iosStoreUrl} target="_blank" rel="noopener noreferrer">
+            App Store
+          </a>
+          <span aria-hidden="true"> · </span>
+          <a href={androidStoreUrl} target="_blank" rel="noopener noreferrer">
+            Google Play
+          </a>
+        </p>
       </div>
     </footer>
   );

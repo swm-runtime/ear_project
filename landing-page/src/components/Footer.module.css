@@ -88,9 +88,14 @@
   color: var(--text-3);
 }
 
-/* 바닥글 맨 아래 줄에서 한 단계 더 물러나는 접두 문구 */
-.pre {
-  color: var(--ink-300);
+/* 바닥글 맨 아래 줄의 스토어 링크 — 저작권 줄과 같은 크기, 링크라는 것만 밑줄로 알린다 */
+.stores a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.stores a:hover {
+  color: var(--text);
 }
 
 @media (min-width: 640px) {
