@@ -1109,7 +1109,7 @@ uq_plans_tier (tier)
 | `daily` | **3900** | **5** | **2** | **1** | true |
 | `pro` | **9900** | `NULL`(무제한) | **2** | **1** | true |
 
-- **유료 티어 값이 확정됐다**(2026-10-02): 데일리 월 3,900원·하루 5편, 프로 월 9,900원·무제한. 둘 다 광고가 없다(`is_ads_enabled = false`). 행은 마이그레이션 `1788300100000-SeedPaidPlans`가 넣는다 — `store_product_id_ios`는 `com.runtime.ear.subscription.{daily,pro}.monthly`, `store_product_id_android`는 Play 구현 전이라 비어 있다. `name`·`description`은 표시 문구라 DB에서 고친다(마이그레이션이 기존 값을 덮지 않는다).
+- **유료 티어 값이 확정됐다**(2026-10-02): 데일리 월 3,900원·하루 5편, 프로 월 9,900원·무제한. 둘 다 광고가 없다(`is_ads_enabled = false`). 행은 마이그레이션 `1788300100000-SeedPaidPlans`가 넣는다 — `store_product_id_ios`는 `com.runtime.ear.subscription.{daily,pro}.monthly`, `store_product_id_android`는 Play 구현 전이라 비어 있다. `name`·`description`은 표시 문구라 DB에서 고친다(마이그레이션이 기존 값을 덮지 않는다). 두 행은 `is_active = true`(판매 중)로 시작한다 — 시드 이전에 넣어 둔 행이 꺼져 있던 환경은 `1788300200000-ActivatePaidPlans`가 맞춘다.
 
 - **`daily_drip_count`는 전 티어 2편으로 확정됐다**(PRD 1.3·FR-14). 티어가 가르는 것은 드립 편수가 아니라 재생 한도(`daily_play_limit`)다. 미정으로 남은 것은 `price_krw`와 유료 티어의 `daily_play_limit`뿐이다.
 - `daily_drip_count`는 어느 명세에도 없던 컬럼이다. `drip-scheduling.md`가 "서버 설정값"이라고만 해서 소유처가 없었으므로 `plans`에 둔다 — **배포 없이 조정할 정책값이기 때문이다**(시범 운영 중 2편 → 3편 같은 조정). 전 티어 값이 같아진 뒤에도 코드 상수로 옮기지 않는 이유가 이것이다.
