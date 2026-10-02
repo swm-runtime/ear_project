@@ -1,3 +1,4 @@
+import { PrivacyAmendmentNotice } from "@/components/PrivacyAmendmentNotice";
 import type { Metadata } from "next";
 import { JsonLd } from "@/components/JsonLd";
 import { LegalDocument } from "@/components/LegalDocument";
@@ -25,6 +26,7 @@ export default function PrivacyPage() {
         lede="보존이 아니라 파기가 원칙입니다. 어떤 정보를 왜 받고, 언제까지 두었다가 어떻게 지우는지를 그대로 적었습니다."
       />
 
+      <PrivacyAmendmentNotice />
       <LegalDocument blocks={privacyBlocks} />
 
       <NextLinks items={[routes.terms, routes.faq, routes.pricing]} />
