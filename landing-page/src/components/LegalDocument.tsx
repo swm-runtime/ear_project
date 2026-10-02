@@ -9,22 +9,26 @@ import s from "./LegalDocument.module.css";
  * 두 문서는 구조가 같으므로 본문 블록만 갈아 끼운다. 상단의 시행일·버전과
  * 출시 준비 중이라는 안내는 두 문서에 반드시 함께 나가야 하므로 여기서 붙인다.
  */
-export function LegalDocument({ blocks }: { blocks: Block[] }) {
+export function LegalDocument({ blocks, meta = legalMeta, notice = legalNotice }: {
+  blocks: Block[];
+  meta?: { effectiveDate: string; version: string };
+  notice?: string;
+}) {
   const toc = tableOfContents(blocks);
 
   return (
     <div className="section">
       <div className="container">
-        <p className={s.notice}>{legalNotice}</p>
+        <p className={s.notice}>{notice}</p>
 
         <dl className={s.meta}>
           <div>
             <dt>시행일</dt>
-            <dd>{legalMeta.effectiveDate}</dd>
+            <dd>{meta.effectiveDate}</dd>
           </div>
           <div>
             <dt>버전</dt>
-            <dd>{legalMeta.version}</dd>
+            <dd>{meta.version}</dd>
           </div>
         </dl>
 

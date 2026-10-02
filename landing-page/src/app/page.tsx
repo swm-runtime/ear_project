@@ -1,3 +1,4 @@
+import { PrivacyAmendmentNotice } from "@/components/PrivacyAmendmentNotice";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Faq } from "@/components/Faq";
@@ -30,6 +31,7 @@ export default function Page() {
   return (
     <>
       <Hero />
+      <PrivacyAmendmentNotice />
       {/* 강점부터 — 팟캐스트로는 못 듣던 자료(멘토 피드백 2026-09-18). 선이 TRY로 이어진다 */}
       <Sources />
       {/* 설명보다 소리가 먼저다 — Why 섹션 앞에서 샘플 한 편을 바로 들려준다 */}
