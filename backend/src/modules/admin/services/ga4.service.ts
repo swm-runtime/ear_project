@@ -40,10 +40,12 @@ const prodStreamFilter = {
 
 /** 보고에 쓰는 이벤트 — `features/analytics.md` 3.4 의 이름 그대로 */
 const REPORT_EVENTS = [
+  'sign_up',
   'onboarding_complete',
   'push_permission',
   'withdrawal',
   'play_start',
+  'play_complete',
   'play_abandon',
   'drip_play',
   'content_save',
@@ -53,7 +55,7 @@ type Client = {
   runReport(request: object): Promise<[{ rows?: ReportRow[] | null }]>;
 };
 
-/** GA4 가 채우는 절반 — 가입·완청은 서버가 낸다(`daily-metrics-db.service.ts`) */
+/** GA4 가 채우는 값 — 보고의 전부다. 서버는 가입 대조 하나만 낸다(`daily-metrics-db.service.ts`) */
 export type Ga4Daily = {
   users: {
     active: number;

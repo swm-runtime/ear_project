@@ -155,7 +155,11 @@ export class LibraryItemRepository {
    * 제외 행을 만들지 않는다**(`domain.md` 7.1). 그래서 회수→복구를 거친 콘텐츠에서는
    * 이 조건이 유일한 방어선이다.
    */
-  /** 가장 최근 편성분 하나 — `before` 전에 적립된 것 중. 소프트 삭제분은 제외 */
+  /**
+   * 가장 최근 편성분 하나 — `before` 전에 적립된 것 중. **소프트 삭제분을 포함한다** — "가장 최근 편성분이
+   * 언제였는가"는 지웠는지와 무관하다. 빼면 최근 편성분을 전부 지운 사용자에게서 그 전 편성분이 "가장 최근"으로
+   * 잡혀, 묻지 않아야 할 옛 편성분을 묻게 된다(`drip-feedback.md` 7장)
+   */
   async findLatestByUserIdAndSourcesAddedBefore(
     userId: string,
     sources: LibraryItemSource[],
@@ -165,6 +169,7 @@ export class LibraryItemRepository {
     return this.scoped(manager).findOne({
       where: { userId, source: In(sources), addedAt: LessThan(before) },
       order: { addedAt: 'DESC', id: 'DESC' },
+      withDeleted: true,
     });
   }
 

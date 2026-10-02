@@ -221,6 +221,24 @@ describe('추천 별점 E2E', () => {
     );
   }, 60_000);
 
+  it('가장 최근 편성분을 전부 지웠으면 그 전 편성분으로 거슬러 올라가 묻지 않는다', async () => {
+    const { userId, auth } = await createUser('deleted');
+    // 3일 전 편성분은 아직 묻지 않았고, 어제 편성분은 받자마자 지웠다
+    await place(userId, [contentIds[0]], placedAt(3), 'e2e-v1');
+    await place(userId, [contentIds[1]], placedAt(1), 'e2e-v1');
+    await dataSource
+      .getRepository(LibraryItem)
+      .softDelete({ userId, contentId: contentIds[1] });
+
+    const prompt = (
+      await get('/users/me/drip-feedback/prompt', auth).expect(HttpStatus.OK)
+    ).body as PromptBody;
+
+    expect(prompt.show).toBe(false);
+    expect(prompt.items).toEqual([]);
+    expect(prompt.placed_date).toBe(toServiceDate(placedAt(1)));
+  }, 60_000);
+
   it('편성분이 없는 사용자는 묻지 않는다', async () => {
     const { auth } = await createUser('none');
 

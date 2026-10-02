@@ -16,14 +16,15 @@ export type DailyMetrics = {
     avgSessionSec: number;
     active7d: number;
   };
-  /** 획득 — 가입은 서버(앱 버전 무관), 나머지는 GA4 */
+  /** 획득 — 전부 GA4. `serverSignUps` 만 서버 대조 값이다(GA4 `sign_up` 과 다를 때 괄호로 적는다) */
   acquisition: {
     signUps: number;
+    serverSignUps: number;
     onboardingCompletes: number;
     pushResponses: number;
     withdrawals: number;
   };
-  /** 재생 — 완청은 서버 판정, 나머지는 GA4 */
+  /** 재생 — 전부 GA4. 완청은 `play_complete`(끝에 닿은 횟수)라 서버의 90% 판정과 다른 값이다 */
   playback: {
     playStarts: number;
     playStartUsers: number;
@@ -69,6 +70,14 @@ const ratio = (num: number, den: number): string =>
   den === 0 ? '' : ` (${Math.round((num / den) * 100)}%)`;
 
 /**
+ * 가입 한 칸 — GA4 값을 적고, 서버 건수와 **다를 때만** 괄호로 함께 적는다(`가입 11 (서버 10)`).
+ * GA4 `sign_up` 은 재로그인을 또 셀 수 있어, 어긋남이 보여야 숫자를 믿을 수 있다. 같으면 한 숫자만
+ */
+export function formatSignUps(ga4: number, server: number): string {
+  return ga4 === server ? n(ga4) : `${n(ga4)} (서버 ${n(server)})`;
+}
+
+/**
  * 하루치 보고 — 퍼널 순서(사용자 → 획득 → 재생 → 리텐션)로 4줄.
  * 운영이 아니면 환경을 앞에 붙인다(가입 알림과 같은 규칙).
  */
@@ -85,10 +94,10 @@ export function formatDailyMetrics(
   return [
     `${prefix}:bar_chart: *${m.date} (${day}) 이어 일간 지표*  ·  운영 스트림`,
     `*사용자*   활성 ${n(u.active)}${delta(u.active, u.activePrev)}  ·  신규 ${n(u.new)}${delta(u.new, u.newPrev)}  ·  세션 ${n(u.sessions)} (평균 ${formatDuration(u.avgSessionSec)})  ·  7일 활성 ${n(u.active7d)}`,
-    `*획득*     가입 ${n(a.signUps)} → 온보딩 완료 ${n(a.onboardingCompletes)}${ratio(a.onboardingCompletes, a.signUps)}  ·  푸시 응답 ${n(a.pushResponses)}  ·  탈퇴 ${n(a.withdrawals)}`,
+    `*획득*     가입 ${formatSignUps(a.signUps, a.serverSignUps)} → 온보딩 완료 ${n(a.onboardingCompletes)}${ratio(a.onboardingCompletes, a.signUps)}  ·  푸시 응답 ${n(a.pushResponses)}  ·  탈퇴 ${n(a.withdrawals)}`,
     `*재생*     시작 ${n(p.playStarts)} (${n(p.playStartUsers)}명)  ·  완청 ${n(p.completes)}  ·  중도 이탈 ${n(p.abandons)}  ·  드립 재생 ${n(p.dripPlays)}  ·  담기 ${n(p.saves)}`,
     `*리텐션*   D1 ${formatRetention(m.retention.d1)}  ·  D7 ${formatRetention(m.retention.d7)}`,
-    `_▲▼ 전일 대비 · 가입·완청은 서버 값(04시 경계), 나머지는 GA4 운영 스트림_`,
+    `_▲▼ 전일 대비 · 전부 GA4 운영 스트림(00시 경계) · 가입의 괄호는 서버 값(04시 경계)_`,
   ].join('\n');
 }
 

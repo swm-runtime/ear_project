@@ -20,6 +20,7 @@ const base: DailyMetrics = {
   },
   acquisition: {
     signUps: 7,
+    serverSignUps: 7,
     onboardingCompletes: 5,
     pushResponses: 4,
     withdrawals: 1,
@@ -60,9 +61,32 @@ describe('formatDailyMetrics', () => {
     expect(formatDailyMetrics(base)).toContain('가입 7 → 온보딩 완료 5 (71%)');
     const none = {
       ...base,
-      acquisition: { ...base.acquisition, signUps: 0, onboardingCompletes: 0 },
+      acquisition: {
+        ...base.acquisition,
+        signUps: 0,
+        serverSignUps: 0,
+        onboardingCompletes: 0,
+      },
     };
     expect(formatDailyMetrics(none)).toContain('가입 0 → 온보딩 완료 0  ·');
+  });
+
+  it('가입은 GA4 값이고, 서버 건수와 다를 때만 괄호로 함께 적는다 — 전환율 분모는 GA4 다', () => {
+    const drift = {
+      ...base,
+      acquisition: { ...base.acquisition, signUps: 10, serverSignUps: 7 },
+    };
+    expect(formatDailyMetrics(drift)).toContain(
+      '가입 10 (서버 7) → 온보딩 완료 5 (50%)',
+    );
+    // 같으면 한 숫자만
+    expect(formatDailyMetrics(base)).not.toContain('(서버');
+  });
+
+  it('각주에 출처와 경계를 적는다 — 전부 GA4, 괄호만 서버', () => {
+    expect(formatDailyMetrics(base)).toContain(
+      '전부 GA4 운영 스트림(00시 경계) · 가입의 괄호는 서버 값(04시 경계)',
+    );
   });
 
   it('완청 건수를 재생 줄에 넣는다', () => {

@@ -125,6 +125,93 @@ describe('SearchQueryLogService', () => {
       expect(repository.overwrite).not.toHaveBeenCalled();
     });
 
+    it('조합 중간 모습은 받침이 다음 글자로 넘어가도 같은 묶음이다 — 자모 단위 접두사', async () => {
+      // given — "커리어"를 치는 중간의 "커링"(0건)
+      repository.findLatestByUserId.mockResolvedValue(
+        latestRow('커링', new Date(NOW.getTime() - 1_000)),
+      );
+
+      // when
+      await service.record(ENTRY, NOW);
+
+      // then
+      expect(repository.overwrite).toHaveBeenCalledWith(
+        '7',
+        expect.objectContaining({ query: '커리어' }),
+      );
+      expect(repository.insert).not.toHaveBeenCalled();
+    });
+
+    it('오타를 고친 질의는 묶지 않는다 — 오타 0건이 행으로 남는다', async () => {
+      // given — "커리오"(0건) 직후 "커리어"
+      repository.findLatestByUserId.mockResolvedValue(
+        latestRow('커리오', new Date(NOW.getTime() - 2_000)),
+      );
+
+      // when
+      await service.record(ENTRY, NOW);
+
+      // then
+      expect(repository.insert).toHaveBeenCalled();
+      expect(repository.overwrite).not.toHaveBeenCalled();
+    });
+
+    it('같은 질의의 재조회는 쓰지 않는다 — 묶음 창 안이어도 행 시각을 밀지 않는다', async () => {
+      // given — 5초 전 같은 질의(앱이 재생 직후 탐색 쿼리를 다시 불렀다)
+      repository.findLatestByUserId.mockResolvedValue(
+        latestRow('커리어', new Date(NOW.getTime() - 5_000)),
+      );
+
+      // when
+      await service.record(ENTRY, NOW);
+
+      // then
+      expect(repository.overwrite).not.toHaveBeenCalled();
+      expect(repository.insert).not.toHaveBeenCalled();
+    });
+
+    it('같은 질의의 재조회는 묶음 창을 넘겨도 재조회 창(10분) 안이면 중복 행을 만들지 않는다', async () => {
+      // given — 9분 전 같은 질의(포그라운드 복귀)
+      repository.findLatestByUserId.mockResolvedValue(
+        latestRow('커리어', new Date(NOW.getTime() - 9 * 60_000)),
+      );
+
+      // when
+      await service.record(ENTRY, NOW);
+
+      // then
+      expect(repository.overwrite).not.toHaveBeenCalled();
+      expect(repository.insert).not.toHaveBeenCalled();
+    });
+
+    it('재조회 창을 넘긴 같은 질의는 새 검색이다', async () => {
+      // given — 11분 전
+      repository.findLatestByUserId.mockResolvedValue(
+        latestRow('커리어', new Date(NOW.getTime() - 11 * 60_000)),
+      );
+
+      // when
+      await service.record(ENTRY, NOW);
+
+      // then
+      expect(repository.insert).toHaveBeenCalled();
+    });
+
+    it('질의가 같아도 주제 필터 수가 달라졌으면 재조회가 아니다 — 결과가 다른 검색이다', async () => {
+      // given — 30초 전 같은 질의, 필터 없음 → 이번엔 필터 1개
+      repository.findLatestByUserId.mockResolvedValue(
+        latestRow('커리어', new Date(NOW.getTime() - 30_000)),
+      );
+
+      // when
+      await service.record({ ...ENTRY, topicFilterCount: 1 }, NOW);
+
+      // then
+      expect(repository.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ query: '커리어', topicFilterCount: 1 }),
+      );
+    });
+
     it('적재가 실패해도 던지지 않는다 — 로그는 검색 응답의 일부가 아니다', async () => {
       // given
       repository.insert.mockRejectedValue(new Error('connection reset'));
@@ -193,14 +280,20 @@ describe('SearchQueryLogService', () => {
     it.each([
       ['커리', '커리어', true, '이어 침'],
       ['커리어', '커', true, '지움'],
-      ['커리어', '커리어', true, '재검색'],
-      ['커리오', '커리어', true, '한 글자 고침'],
-      ['커리ㅇ', '커리어', true, '조합 중'],
-      ['면저', '면접', true, '2자 오타 고침'],
+      ['커리어', '커리어', true, '같은 질의'],
+      ['커리ㅇ', '커리어', true, '조합 중 — 홀자모'],
+      ['커링', '커리어', true, '조합 중 — 받침이 다음 초성으로 넘어감'],
+      ['면저', '면접', true, '조합 중 — 받침을 치기 전'],
+      ['고', '과', true, '겹모음은 치는 순서대로 푼다'],
+      ['달', '닭', true, '겹받침은 치는 순서대로 푼다'],
+      ['닭', '달가', true, '겹받침의 뒤 자음이 다음 초성으로 넘어감'],
+      ['career', 'careers', true, '한글이 아닌 글자는 그대로 비교'],
+      ['커리오', '커리어', false, '오타 고침 — 오타 0건이 남아야 한다'],
       ['면접', '커리어', false, '다른 말'],
-      ['면접', '면담', true, '한 글자 차이는 묶인다 — 거리 1의 한계'],
+      ['면접', '면담', false, '한 글자만 같은 다른 말'],
+      ['이직', '이력', false, '한 글자만 같은 다른 말'],
       ['커리어', '커뮤니케이션', false, '첫 글자만 같은 다른 말'],
-      ['자기계발', '자기개발서', false, '거리 2'],
+      ['자기계발', '자기개발서', false, '다른 말'],
     ])('%s → %s = %s (%s)', (previous, next, expected) => {
       expect(isSameTyping(previous, next)).toBe(expected);
     });

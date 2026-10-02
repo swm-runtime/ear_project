@@ -166,6 +166,26 @@ describe('DripFeedbackService', () => {
       expect(view.items).toEqual([]);
     });
 
+    it('가장 최근 편성분을 전부 지웠으면 묻지 않는다 — 그 전 편성분으로 거슬러 올라가지 않는다', async () => {
+      // 최근 편성분(어제)은 지운 행으로 잡히고, 그 날짜 구간에 남은 편은 없다
+      libraryService.findLatestDripPlacedBefore.mockResolvedValue(
+        item(C1, { deletedAt: new Date('2026-09-29T01:00:00.000Z') }),
+      );
+      libraryService.findPlacedBetween.mockResolvedValue([]);
+
+      const view = await service.getPrompt(USER_ID, NOW);
+
+      expect(view).toEqual({
+        show: false,
+        items: [],
+        placedDate: '2026-09-29',
+        mutedUntil: null,
+      });
+      expect(libraryService.findLatestDripPlacedBefore).toHaveBeenCalledTimes(
+        1,
+      );
+    });
+
     it('탐험 편은 묻지 않는다 — 정규 드립만', async () => {
       libraryService.findPlacedBetween.mockResolvedValue([
         item(C1, { source: LibraryItemSource.DISCOVERY }),

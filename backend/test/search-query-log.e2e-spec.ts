@@ -191,6 +191,55 @@ describe('검색 질의 로그 E2E', () => {
       .expect(HttpStatus.BAD_REQUEST);
   });
 
+  it('결과를 재생한 뒤 앱이 같은 검색을 다시 불러도 행이 늘지 않고 반응이 지워지지 않는다', async () => {
+    const { userId, auth, providerToken } = await createUser('refetch');
+    const logs = dataSource.getRepository(SearchQueryLog);
+    const query = `${TOKEN} 커리어 전환`;
+
+    // given — 검색하고 결과 중 하나를 재생했다
+    await search(auth, query).expect(HttpStatus.OK);
+    const [row] = await logs.find({ where: { userId } });
+    expect(row.resultContentIds.length).toBeGreaterThan(0);
+
+    const playRecords = dataSource.getRepository(PlayRecord);
+    const playedAt = new Date(row.updatedAt.getTime() + 30_000);
+    await playRecords.save(
+      playRecords.create({
+        userId,
+        contentId: row.resultContentIds[0],
+        playDate: toServiceDate(playedAt),
+        playedAt,
+        isCounted: true,
+        listenedSec: 0,
+      }),
+    );
+
+    // when — 재생 직후 앱이 탐색 쿼리를 무효화해 같은 검색 첫 페이지가 다시 온다
+    await search(auth, query).expect(HttpStatus.OK);
+
+    // then — 새 행도, 덮어쓰기도 없다(행 시각이 재생 뒤로 밀리지 않는다)
+    const rows = await logs.find({ where: { userId } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].updatedAt.getTime()).toBe(row.updatedAt.getTime());
+
+    // then — 요약에서 검색 1회·반응 1회로 남는다
+    await dataSource.query(`UPDATE users SET role = 'admin' WHERE id = $1`, [
+      userId,
+    ]);
+    const adminAuth = await reLogin(providerToken);
+    const summary = await request(app.getHttpServer())
+      .get(path('/admin/search-query-logs/summary'))
+      .query({ days: 1 })
+      .set('Authorization', adminAuth)
+      .expect(HttpStatus.OK);
+    const hit = (summary.body as SummaryBody).top.find(
+      (rank) => rank.query === query,
+    );
+    expect(hit).toEqual(
+      expect.objectContaining({ searches: 1, misses: 0, clicked: 1 }),
+    );
+  });
+
   function search(auth: string, query: string) {
     return request(app.getHttpServer())
       .get(path('/explore/search'))
