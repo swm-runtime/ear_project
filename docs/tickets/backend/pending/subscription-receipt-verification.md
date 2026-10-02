@@ -72,10 +72,9 @@
 
 ## 처리 기록
 
-- 2026-09-09 발행.
-- **2026-09-26 선행 반영(코드만으로 가능한 부분)** — 결제 준비물 없이도 할 수 있는 두 건을 먼저 넣었다.
-  - **요청 2 완료**: `purchase_intents` · `store_notification_logs` 테이블·엔티티(`1787800000000-AddPurchaseIntentsAndStoreNotificationLogs`). `user_id` FK ON DELETE CASCADE. 읽고 쓰는 코드는 아직 없다.
-  - **추기 완료**: 현재 구독 선택을 비종결 상태(`active`/`grace`/`cancelled`) 우선, 없을 때 최근 행 폴백으로 고쳤다(`SubscriptionService.findCurrent` → `selectCurrentSubscription`, 단위 테스트 6건).
-  - 문서 갱신은 `changes/archive/subscription-prework-tables-created.md`.
-- **남은 것은 "값 입력"이 아니라 구현이다.** 영수증 제출·복원·S2S 수신 엔드포인트, 스토어 검증 클라이언트, `users.tier` 갱신 경로, 재가입 복원, 탈퇴 계정 구독 탈취 방어(요청 1·3·4·5·6)는 전부 미구현이다. 착수 순서는 요청 1(계약 문서) → 스토어 자격증명 확보 → 나머지. 요청 4는 `SubscriptionModule`이 `UserModule`을 역참조하게 되어 모듈 순환을 어떻게 풀지(티어 갱신 메서드를 어느 쪽에 두는지) 그때 정한다.
-- Jira는 **검토 중**으로 옮겼다(2026-09-26) — 선행 반영분 리뷰용. 본 구현은 스토어 준비물이 갖춰진 뒤 다시 "해야 할 일"로 되돌린다.
+### 2026-10-02 — 계약 문서 작성(요청 1번). 구현 착수
+
+- `docs/spec/api/subscription-api.md` 신설 — 요금제 목록·구독 상태·결제 의도·영수증 제출·복원·App Store/Play 웹훅, 에러 코드 6종, 알림 유형 → `status` 환산표, 보안 규칙. 함께 고친 문서: `subscription.md`(경로·토큰·만료 보정·`action`·미결), `domain.md` 8.2(`pending_tier`·Play 토큰 규칙)·8.3(의도 id = 계정 결속 토큰), `common-error-handling.md` 9.10-3
+- 계약에서 정한 것: ① 의도 `id`를 iOS `appAccountToken`/Android `obfuscatedAccountId`로 결제에 실어 거래의 주인을 서명 수준에서 확인(요청 6번의 방어) ② iOS는 StoreKit 2 서명 거래(JWS)만 받는다 — 서명만으로 검증이 끝나 Apple API 장애와 무관 ③ 구매와 복원은 엔드포인트를 나눈다 ④ 만료 보정(알림 유실 대비) ⑤ 서버 구현은 iOS 먼저, Play는 자격증명 준비 후
+- 스토어 준비 상태(2026-10-02): App Store Connect 구독 그룹·상품 2개(프로·데일리) 생성됨. **미정**: 실제 제품 ID 문자열, 데일리·프로의 재생 한도·가격, IAP 키(.p8·Key ID·Issuer ID) — Apple 계정 명의 정리(계정 이전 가능성) 뒤 발급. 키 없이도 구현·테스트 가능하게 검증기를 인터페이스 뒤에 둔다
+- KAN-106(구글·iOS 인앱 결제 연동)과 같은 작업이다 — 이 티켓이 기술 원본, KAN-106은 PM 요청 티켓

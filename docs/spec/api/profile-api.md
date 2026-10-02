@@ -23,7 +23,7 @@
 | 이메일 등록·인증·변경 | `auth-api.md` 4.8~4.11 | 현재 값(`email` · `is_email_verified`) **표시용 조회만** |
 | 관심 주제 편집 | `interest-management.md` · `interest-management-api.md` (작성됨 2026-08-10) | 주제 요약 표시용 조회만. 저장 규칙(최소 1개·최대 3개, 확인 팝업)에 관여하지 않는다 |
 | 커리어 편집 | `career.md` · `career-api.md` (작성됨 2026-08-10 — `GET`/`PUT /users/me/career`) | 커리어 요약(직군·직무·연차) **표시용 조회만.** 저장은 커리어 정보 화면이 한다 |
-| 구독 변경·해지·복원·영수증 검증 | `subscription.md` (API 명세 미작성) | 현재 플랜 **표시용 조회만.** 프로필에 해지 버튼이 없다(`profile.md` 4.2) |
+| 구독 변경·해지·복원·영수증 검증 | `subscription.md` · `subscription-api.md`(작성 2026-10-02) | 현재 플랜 **표시용 조회만.** 프로필에 해지 버튼이 없다(`profile.md` 4.2) |
 | 완청 판정·청취 시간 적재 | `player.md` · `library-api.md` | 통계는 이미 적재된 원천(`play_records` · `library_items`)의 **집계 결과만** 내려준다. 완청 판정 값·`listened_sec` 적재 규칙을 재정의하지 않는다 |
 
 ---
