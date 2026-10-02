@@ -67,3 +67,9 @@
 ## 처리 기록
 
 - 2026-09-20 발행.
+
+### 2026-10-02 — 구현·실제 업로드 확인
+
+- 요청 1~5의 코드·설정은 최신 dev에 이미 반영돼 있다. `submit.preview-store.android`에 `track: internal` 및 서비스 계정 파일 경로가 있고, workflow의 기본값은 aab이며 aab만 `eas submit --path`로 제출한다. 키 파일은 EXIT trap으로 삭제한다. 운영 제출 설정은 변경하지 않았다.
+- [2026-09-29 dev-app-build 실행](https://github.com/swm-runtime/ear_project/actions/runs/36538747449): AAB 빌드와 Play 내부 테스트 업로드 단계 모두 성공. 제출 로그에 `Submitted your app to Google Play Store!`가 있으며 [EAS 제출](https://expo.dev/accounts/runtime364/projects/ear/submissions/040d16ff-4d9a-4082-ab98-81bc6022ebf7)까지 확인했다.
+- 남은 완료 조건은 Play에서 설치한 `dev.runtime.ear`의 구글·카카오 로그인 확인이다. 이 세션은 Android 실기기에 접근하지 못하므로 성공을 추정하지 않고 pending을 유지한다. 자동화 코드를 중복 수정하거나 새 빌드를 발행하지 않았다.

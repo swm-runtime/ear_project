@@ -3,7 +3,10 @@ import Link from "next/link";
 import { OpenInApp } from "./OpenInApp";
 import { StoreRedirect } from "./StoreRedirect";
 import s from "./page.module.css";
+import { AppleLogo } from "@/components/AppleLogo";
+import { GooglePlayLogo } from "@/components/GooglePlayLogo";
 import { Sentences } from "@/components/Sentences";
+import { androidStoreUrl, iosStoreUrl } from "@/content/site";
 
 /**
  * 공유 링크 수신 페이지.
@@ -40,12 +43,22 @@ export default function ContentsRedirectPage() {
           <Sentences text="공유받은 콘텐츠는 이어 앱에서 들을 수 있어요. 앱을 설치한 뒤 링크를 다시 열면 해당 콘텐츠로 바로 이동해요." />
         </p>
 
-        {/* 스토어 등록 전까지의 임시 안내 — URL 확정 시 StoreRedirect가 자동 이동을 맡고,
-            이 자리는 스토어 버튼으로 바뀐다(tickets/backend/pending/share-universal-links-hosting.md) */}
-        {/* 앱이 있으면 여기서 넘어간다. 없으면 아무 일도 일어나지 않고 아래 안내가 남는다 */}
+        {/* 앱이 있으면 여기서 넘어간다. 없으면 아무 일도 일어나지 않고 아래 스토어 버튼이 남는다 */}
         <OpenInApp />
 
-        <p className={s.note}>앱은 현재 출시를 준비하고 있어요.</p>
+        {/* 앱이 없는 방문자용. 자동 이동(StoreRedirect)은 켜지 않았다 — 카톡 인앱 브라우저로 온 방문자는
+            앱이 있어도 여기 도착하므로, 자동으로 스토어에 보내면 [앱에서 열기]를 누를 틈이 없다 */}
+        <p className={s.note}>아직 앱이 없다면 스토어에서 받을 수 있어요.</p>
+        <div className={s.actions} style={{ marginTop: 12 }}>
+          <a href={iosStoreUrl} className="btn" target="_blank" rel="noopener noreferrer">
+            <AppleLogo />
+            App Store
+          </a>
+          <a href={androidStoreUrl} className="btn" target="_blank" rel="noopener noreferrer">
+            <GooglePlayLogo />
+            Google Play
+          </a>
+        </div>
 
         <Link href="/" className="btn" style={{ marginTop: 24 }}>
           이어 알아보기

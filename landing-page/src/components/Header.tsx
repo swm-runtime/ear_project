@@ -1,14 +1,15 @@
 import Link from "next/link";
-import { AppleLogo } from "./AppleLogo";
+import { HeaderStoreLink } from "./HeaderStoreLink";
 import { LogoMark } from "./Logo";
 import { navRoutes } from "@/content/routes";
-import { iosStoreUrl, site } from "@/content/site";
+import { site } from "@/content/site";
 import s from "./Header.module.css";
 
 /**
  * 상단 고정 헤더. 모든 페이지가 루트 레이아웃을 통해 공유한다.
  *
- * 자바스크립트를 쓰지 않는다. 좁은 화면의 메뉴는 native <details>로 열고 닫으며,
+ * 메뉴는 자바스크립트를 쓰지 않는다(다운로드 버튼만 기기에 맞는 스토어를 고르느라 클라이언트 컴포넌트다 —
+ * `HeaderStoreLink`). 좁은 화면의 메뉴는 native <details>로 열고 닫으며,
  * 그 안의 링크만 next/link 대신 평범한 <a>를 쓴다 — 클라이언트 전환으로 이동하면
  * 열린 <details>가 그대로 남아 다음 화면 위에 메뉴가 덮이기 때문이다.
  */
@@ -29,15 +30,7 @@ export function Header() {
           ))}
         </nav>
 
-        <a
-          href={iosStoreUrl}
-          className={`btn btnPrimary ${s.cta}`}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <AppleLogo />
-          앱 다운로드
-        </a>
+        <HeaderStoreLink />
 
         <details className={s.menu}>
           <summary className={s.menuBtn} aria-label="메뉴 열기">

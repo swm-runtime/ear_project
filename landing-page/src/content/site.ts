@@ -67,13 +67,19 @@ export const site = {
  *
  * 앱이 쓰는 주소와 같은 값이다(`frontend/src/shared/lib/store-url.ts`의 `IOS_STORE_URL`,
  * 앱 ID는 `frontend/eas.json`의 `ascAppId`). 국가 코드를 넣지 않아 방문자의 스토어로 열린다.
- * Android는 아직 출시 전이라 링크를 두지 않고 "곧 출시 예정"으로만 알린다.
  */
 export const iosStoreUrl = "https://apps.apple.com/app/id6807708636";
 
+/**
+ * Google Play의 이어 앱 페이지(2026-10-02 — Android 출시 반영). 패키지명은 `frontend/app.json`의
+ * `android.package`다. 언어·국가 파라미터를 넣지 않아 방문자의 스토어 설정으로 열린다.
+ */
+export const androidStoreUrl =
+  "https://play.google.com/store/apps/details?id=com.runtime.ear";
+
 /** 메일로 소식 받기(블로그 새 글 알림). 받는 주소와 제목을 한 곳에서 만든다. */
-export const releaseMailto = `mailto:${site.contactEmail}?subject=${encodeURIComponent(
-  "이어 출시 소식 받고 싶어요",
+export const blogNewsMailto = `mailto:${site.contactEmail}?subject=${encodeURIComponent(
+  "이어 블로그 새 글 소식 받고 싶어요",
 )}`;
 
 /** 히어로 아래 숫자 띠. 서비스의 규격을 세 값으로 압축한다. */
@@ -148,7 +154,7 @@ export const blogEmpty = {
 
 /**
  * Topics 섹션의 주제 고르기 — 앱 온보딩 1단계와 같은 규칙(최대 3개, 3개 채우면 미선택 칩 비활성 + 탭 시 토스트,
- * `onboarding.md` 3장). 랜딩에서는 저장하지 않는다 — 고르는 감각을 먼저 겪게 하고 출시 알림 메일로 잇는다.
+ * `onboarding.md` 3장). 랜딩에서는 저장하지 않는다 — 고르는 감각을 먼저 겪게 하고 앱 다운로드로 잇는다.
  */
 export const topicPicker = {
   max: 3,
@@ -157,7 +163,7 @@ export const topicPicker = {
   emptyHint: "주제를 눌러 보세요.",
   summaryTitle: "이 주제로 시작하면",
   summaryBody: "매일 아침 선택한 주제에 맞는 콘텐츠 2편이 라이브러리에 도착해요.",
-  cta: "이 주제로 출시 소식 받기",
+  cta: "앱에서 시작하기",
   reset: "다시 고르기",
 } as const;
 
@@ -299,13 +305,13 @@ export const plans = [
   {
     id: "daily",
     name: "데일리",
-    price: "준비 중",
-    priceNote: "시범 운영 후 확정",
+    price: "월 3,900원",
+    priceNote: "앱 결제 준비 중",
     summary: "매일 출퇴근길에 꾸준히 듣고 싶은 분께 적합해요",
     featured: true,
     items: [
       { text: "매일 팟캐스트 2편", ok: true },
-      { text: "재생 한도 확대", ok: true },
+      { text: "하루 5편까지 재생", ok: true },
       { text: "탐색·담기 무제한", ok: true },
       { text: "광고 없음", ok: true },
     ],
@@ -313,13 +319,13 @@ export const plans = [
   {
     id: "pro",
     name: "프로",
-    price: "준비 중",
-    priceNote: "시범 운영 후 확정",
+    price: "월 9,900원",
+    priceNote: "앱 결제 준비 중",
     summary: "하루에도 여러 편을 넉넉히 듣고 싶은 분께 적합해요",
     featured: false,
     items: [
       { text: "매일 팟캐스트 2편", ok: true },
-      { text: "가장 넓은 재생 한도", ok: true },
+      { text: "재생 편수 제한 없음", ok: true },
       { text: "탐색·담기 무제한", ok: true },
       { text: "광고 없음", ok: true },
     ],
@@ -340,9 +346,10 @@ export const planComparison = {
   different: [
     {
       label: "하루 재생 편수",
-      value: "라이트 2편 · 데일리와 프로는 시범 운영 후 확정",
+      value: "라이트 2편 · 데일리 5편 · 프로 제한 없음",
     },
     { label: "광고", value: "라이트만 포함" },
+    { label: "가격", value: "라이트 무료 · 데일리 월 3,900원 · 프로 월 9,900원" },
   ],
 } as const;
 
@@ -396,13 +403,13 @@ export const faqs: {
   },
   {
     category: "서비스",
-    q: "언제 출시되나요?",
-    a: "정식 출시를 준비하고 있어요. 소규모 시범 운영을 먼저 거친 뒤 App Store와 Google Play에 차례로 올릴 예정이에요. 메일을 남겨 주시면 출시하는 날 알려 드릴게요.",
+    q: "어디서 받을 수 있나요?",
+    a: "App Store와 Google Play에서 받을 수 있어요. 스토어에서 '이어'를 검색하거나, 이 페이지의 다운로드 버튼을 누르면 바로 이동해요.",
   },
   {
     category: "서비스",
     q: "어떤 기기에서 쓸 수 있나요?",
-    a: "iOS와 Android 앱으로 제공할 예정이에요. 웹에서 듣는 기능은 아직 계획에 없어요.",
+    a: "아이폰과 Android 휴대폰에서 쓸 수 있어요. 웹에서 듣는 기능은 아직 계획에 없어요.",
   },
   {
     category: "콘텐츠",
@@ -434,7 +441,7 @@ export const faqs: {
   {
     category: "콘텐츠",
     q: "오프라인에서도 들을 수 있나요?",
-    a: "출시 때는 지원하지 않아요. 저장해 두고 인터넷 없이 듣는 기능은 이후에 추가할 예정이에요.",
+    a: "아직 지원하지 않아요. 저장해 두고 인터넷 없이 듣는 기능은 이후에 추가할 예정이에요.",
   },
   {
     category: "요금·결제",
@@ -451,7 +458,7 @@ export const faqs: {
   {
     category: "요금·결제",
     q: "유료 요금제는 얼마인가요?",
-    a: "아직 정하지 않았어요. 시범 운영에서 실제로 얼마나 듣는지 확인한 뒤 가격과 재생 한도를 함께 정할 계획이에요. 정해지면 요금제 페이지에서 바로 알려 드릴게요.",
+    a: "데일리는 월 3,900원에 하루 5편까지, 프로는 월 9,900원에 편수 제한 없이 들을 수 있어요. 앱 안에서 결제하는 기능은 준비 중이라, 열리기 전까지는 무료 요금제(라이트)로 이용할 수 있어요.",
   },
   {
     category: "요금·결제",

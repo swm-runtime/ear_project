@@ -47,6 +47,13 @@ export type RouteMeta = {
   /** 사이트맵 우선순위. 홈 1.0을 기준으로 상대값을 준다. */
   priority: number;
   changeFrequency: "daily" | "weekly" | "monthly" | "yearly";
+  /**
+   * 그 페이지의 **내용**이 마지막으로 바뀐 날(YYYY-MM-DD). 사이트맵의 `lastmod`가 된다.
+   *
+   * 손으로 적는다 — 빌드 시각을 넣으면 매일 도는 재빌드(`landing-daily-rebuild`)가 내용이 그대로인데도
+   * 날짜를 바꿔, 크롤러가 이 값을 믿지 않게 된다. 그 페이지의 문구·수치를 고칠 때 함께 갱신한다.
+   */
+  lastModified: string;
 };
 
 export const routes: Record<RouteKey, RouteMeta> = {
@@ -61,6 +68,7 @@ export const routes: Record<RouteKey, RouteMeta> = {
     footerGroup: null,
     priority: 1,
     changeFrequency: "weekly",
+    lastModified: "2026-10-02",
   },
 
   features: {
@@ -74,6 +82,7 @@ export const routes: Record<RouteKey, RouteMeta> = {
     footerGroup: "product",
     priority: 0.9,
     changeFrequency: "monthly",
+    lastModified: "2026-10-02",
   },
 
   pricing: {
@@ -81,12 +90,13 @@ export const routes: Record<RouteKey, RouteMeta> = {
     label: "요금제",
     title: "요금제 — 무료로도 매일 2편, 유료는 더 많이 들을 수 있어요",
     description:
-      "라이트(무료)·데일리·프로 세 가지 요금제. 매일 도착하는 콘텐츠는 무료 요금제도 똑같이 2편이고, 요금제에 따라 하루에 들을 수 있는 양이 달라져요.",
+      "라이트(무료)·데일리(월 3,900원)·프로(월 9,900원) 세 가지 요금제. 매일 도착하는 콘텐츠는 무료 요금제도 똑같이 2편이고, 요금제에 따라 하루에 들을 수 있는 편수가 달라져요.",
     ogImage: "/og/pricing.png",
     inNav: true,
     footerGroup: "product",
     priority: 0.9,
     changeFrequency: "monthly",
+    lastModified: "2026-10-02",
   },
 
   blog: {
@@ -100,6 +110,7 @@ export const routes: Record<RouteKey, RouteMeta> = {
     footerGroup: "resources",
     priority: 0.8,
     changeFrequency: "weekly",
+    lastModified: "2026-10-02",
   },
 
   faq: {
@@ -114,6 +125,7 @@ export const routes: Record<RouteKey, RouteMeta> = {
     footerGroup: "resources",
     priority: 0.8,
     changeFrequency: "monthly",
+    lastModified: "2026-10-02",
   },
 
   privacy: {
@@ -127,6 +139,7 @@ export const routes: Record<RouteKey, RouteMeta> = {
     footerGroup: "legal",
     priority: 0.3,
     changeFrequency: "yearly",
+    lastModified: "2026-10-02",
   },
 
   accountDeletion: {
@@ -140,6 +153,7 @@ export const routes: Record<RouteKey, RouteMeta> = {
     footerGroup: "legal",
     priority: 0.3,
     changeFrequency: "yearly",
+    lastModified: "2026-09-06",
   },
 
   terms: {
@@ -153,6 +167,7 @@ export const routes: Record<RouteKey, RouteMeta> = {
     footerGroup: "legal",
     priority: 0.3,
     changeFrequency: "yearly",
+    lastModified: "2026-09-25",
   },
 
   licenses: {
@@ -166,6 +181,7 @@ export const routes: Record<RouteKey, RouteMeta> = {
     footerGroup: "legal",
     priority: 0.2,
     changeFrequency: "yearly",
+    lastModified: "2026-09-30",
   },
 
 };

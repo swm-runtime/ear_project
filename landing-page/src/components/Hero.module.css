@@ -123,32 +123,6 @@
   margin-top: 34px;
 }
 
-/* 받기 버튼 바로 밑의 플랫폼 안내 — 버튼과 한 묶음으로 읽히게 가깝게 붙이고, 알약으로 본문 주석과 구분한다 */
-.platformNote {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: fit-content;
-  margin-top: 14px;
-  padding: 6px 13px 6px 11px;
-  border-radius: var(--r-pill);
-  background: var(--paper-2);
-  color: var(--text-2);
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.4;
-}
-
-/* "아직"을 뜻하는 빈 점 — 색이 아니라 형태(테두리만)로 준비 중임을 알린다 */
-.platformNote::before {
-  content: "";
-  flex: none;
-  width: 7px;
-  height: 7px;
-  border: 1.5px solid var(--ink-300);
-  border-radius: 50%;
-}
-
 .note {
   margin-top: 16px;
   color: var(--text-3);
