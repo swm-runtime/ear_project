@@ -11,6 +11,7 @@ import { aiPaused, pauseForLimit, serverClaimOff, ttsPaused } from "./ai-pause.j
 import { onDraftFailed } from "./stages/draft.js";
 import { autoApprove } from "./automation.js";
 import { maybeSendDigest } from "./digest.js";
+import { evictEpisodeAudio } from "./disk.js";
 
 /**
  * ear 파이프라인 워커 (spec/10).
@@ -121,6 +122,7 @@ async function main() {
         clearInterval(hb);
         setJobAbort(null);
         current = null;
+        await evictEpisodeAudio(job.payload).catch((e) => log(`오디오 캐시 정리 실패 (계속 진행): ${e?.message ?? e}`)); // disk.ts — 디스크 20GB, S3 가 원본
       }
       if (once) break;
     } catch (e: any) {
