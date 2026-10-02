@@ -11,6 +11,7 @@ import { traceIdMiddleware } from '@/common/middlewares/trace-id.middleware';
 import { AppStoreGateway } from '@/modules/billing/app-store/app-store.gateway';
 import {
   FakeAppStoreGateway,
+  NOTIFICATION_RECEIPT_MARKER,
   PRODUCT_DAILY,
   PRODUCT_PRO,
   signTransaction,
@@ -422,8 +423,11 @@ describe('구독·인앱 결제 E2E', () => {
     expect(logs).toHaveLength(1);
     expect(logs[0].type).toBe('DID_CHANGE_RENEWAL_STATUS:AUTO_RENEW_DISABLED');
     expect(logs[0].processed_at).not.toBeNull();
-    // 서명 원문은 적재하지 않는다 — 풀어낸 값만
-    expect(JSON.stringify(logs[0].payload)).not.toContain('signed');
+    // 서명 원문은 적재하지 않는다 — 풀어낸 값만(가짜 검증기는 알림 속 거래의 원문을 이 표식으로 채운다)
+    expect(JSON.stringify(logs[0].payload)).not.toContain(
+      NOTIFICATION_RECEIPT_MARKER,
+    );
+    expect(JSON.stringify(logs[0].payload)).not.toContain('receipt');
     expect(logs[0].payload).toMatchObject({
       transaction: { original_transaction_id: otx },
     });

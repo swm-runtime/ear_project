@@ -39,6 +39,9 @@ import {
  * 전부 진짜 코드가 한다. `PlanService`·`SubscriptionService`의 조회 규칙(현재 구독 선택, 권한 조립)은
  * 진짜 함수를 그대로 부른다 — 여기서 다시 구현하면 테스트가 구현을 검증하지 못한다.
  */
+/** 가짜 검증기가 알림 속 거래의 "서명 원문" 자리에 넣는 표식 — 원문이 어디에 저장됐는지 추적할 때 쓴다 */
+export const NOTIFICATION_RECEIPT_MARKER = 'fake-jws-from-notification';
+
 export const PRODUCT_DAILY = 'com.runtime.ear.subscription.daily.monthly';
 export const PRODUCT_PRO = 'com.runtime.ear.subscription.pro.monthly';
 
@@ -151,7 +154,7 @@ export class FakeAppStoreGateway extends AppStoreGateway {
       signedAt: new Date(parsed.signedAt),
       environment: SubscriptionEnvironment.SANDBOX,
       transaction: parsed.transaction
-        ? buildTransaction(parsed.transaction, 'signed-by-notification')
+        ? buildTransaction(parsed.transaction, NOTIFICATION_RECEIPT_MARKER)
         : null,
       renewal: parsed.renewal
         ? {
