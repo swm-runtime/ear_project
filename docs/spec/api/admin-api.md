@@ -519,15 +519,17 @@
 {
   "days": 14,
   "since": "2026-09-17T09:00:10.000Z",
-  "totals": { "searches": 120, "misses": 30, "miss_rate": 0.25, "users": 18, "short_queries": 12, "filtered_searches": 5 },
-  "daily": [ { "date": "2026-09-30", "searches": 14, "misses": 3 } ],
-  "missed": [ { "query": "면접", "searches": 6, "misses": 6, "last_searched_at": "…" } ],
-  "top": [ { "query": "커리어", "searches": 20, "misses": 0, "last_searched_at": "…" } ]
+  "totals": { "searches": 120, "misses": 30, "miss_rate": 0.25, "clicked": 54, "users": 18, "short_queries": 12, "filtered_searches": 5 },
+  "daily": [ { "date": "2026-09-30", "searches": 14, "misses": 3, "clicked": 6 } ],
+  "missed": [ { "query": "면접", "searches": 6, "misses": 6, "clicked": 0, "result_count": 0, "has_more": false, "last_searched_at": "…" } ],
+  "top": [ { "query": "커리어", "searches": 20, "misses": 0, "clicked": 12, "result_count": 20, "has_more": true, "last_searched_at": "…" } ]
 }
 ```
 
 - 한 건은 `search_query_logs` 한 행 = **타이핑 묶음 하나**다(`domain.md` 5.7 — 디바운스 중간 입력은 서버가 접는다). `misses`는 그중 첫 페이지 0건.
 - `miss_rate` = `misses / searches`. 검색 0건이면 `null`. 표본이 작을 때의 "참고" 표시는 화면 몫이다.
+- `clicked`는 **반응한 검색** — 마지막 질의 뒤 10분 안에 결과 중 하나를 재생·담은 것(서버가 역산, `domain.md` 5.7). **무반응 비율은 내리지 않는다** — 반응이 없는 이유(재생 한도에 막힘 / 보고 나감)를 알 수 없어 비율로 읽으면 오판한다. 질의별 `clicked`로 "눌린 적 있나"만 본다.
+- `result_count`·`has_more`는 **그 질의의 가장 최근 검색**이 돌려준 콘텐츠 수와 다음 페이지 유무다(추가 2026-10-02). **첫 페이지 건수라 페이지 크기(20)에서 멈춘다** — 총 건수는 검색마다 COUNT 쿼리가 하나 더 붙어 세지 않는다(`domain.md` 5.7). `has_more`가 true면 화면은 "20건 이상"으로 읽는다. 여러 번 검색된 질의도 평균을 내지 않는다 — 콘텐츠가 늘면 값이 달라지고, 보려는 것은 "지금 치면 몇 건 나오는가"다.
 - `short_queries`는 2자 질의 수(트라이그램 인덱스를 못 타는 길이 — `explore.md` 4.5-5), `filtered_searches`는 주제 필터가 걸린 검색 수.
 - `daily.date`는 **KST 달력일**이다(04시 서비스 날짜 경계를 쓰지 않는다 — 정책 판정이 아니라 운영자가 읽는 단위). 검색이 없던 날은 빠진다.
 - `missed`는 0건이 한 번이라도 있던 질의를 0건 수 내림차순으로, `top`은 검색 수 내림차순으로 각 최대 50개. `last_searched_at`은 그 질의의 마지막 요청 시각(`updated_at`).

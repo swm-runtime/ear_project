@@ -190,8 +190,9 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
     if (last?.id?.startsWith("Y") && /(^|[.!?…]\s*)다음(에|\s[가-힣]{1,6}(에|에서|부터|엔))\s/.test(last.text.replace(/\s+/g, " "))) v.push(`마지막 턴 ${last.id} 의 문장이 "다음(에) ~" 틀로 시작 — 클로징은 조건 없이 바로 말한다("회의에서 침묵이 흐르거든", "매일 아침 점수가 낮게 떠도") (규칙 22)`);
   }
   // 통계 용어 (규칙 24, full-v6 2026-09-09): 논문 결과 문장의 직역 — 판정 3편 공통 사유 "너무 어려움". 말로 옮기게 재생성
-  const statRe = /(유의하|유의미|유의했|유의한|상호작용\s?효과|매개\s?(효과|분석|변인)|매개했|매개하|정적\s?(관계|상관)|부적\s?(관계|상관)|변인|효과\s?크기|표본\s?크기|회귀\s?계수|조절\s?효과|조절하지 않|조절했|통제\s?조건|통제\s?집단)/; // "상호작용" 단독은 일상어라 제외
-  const stat = p.turns.filter((t) => t.id?.startsWith("E") && statRe.test(t.text)).map((t) => t.id);
+  // 2026-10-01 수정: "조절했"·"조절하지 않" 단독은 일상어다 — "드러낼지 조절했어요"가 통계 용어로 잡혀 수정 2회 뒤에도 남았다(T261001-005 검토 대기). 통계 뜻은 "조절 효과/변인/변수"로만 잡고, 걸린 낱말을 메시지에 적어 수정 호출이 무엇을 고칠지 알게 한다
+  const statRe = /(유의하|유의미|유의했|유의한|상호작용\s?효과|매개\s?(효과|분석|변인)|매개했|매개하|정적\s?(관계|상관)|부적\s?(관계|상관)|변인|효과\s?크기|표본\s?크기|회귀\s?계수|조절\s?(효과|변인|변수)|통제\s?조건|통제\s?집단)/; // "상호작용" 단독은 일상어라 제외
+  const stat = p.turns.filter((t) => t.id?.startsWith("E") && statRe.test(t.text)).map((t) => `${t.id} "${t.text.match(statRe)?.[0]}"`);
   if (stat.length) v.push(`해설 턴 ${stat.length}개에 통계 용어(유의·매개·정적/부적 관계·변인·효과 크기) (${stat.slice(0, 8).join(", ")}) — 말로 옮긴다: "같이 움직였다", "~할수록 ~했다", "A 가 B 를 거쳐 C 로" (규칙 24)`);
   // 뜸 부재 (규칙 7, 판정 3편 A7 전부 동의 "수정 필요"): 해설 턴이 말줄임표 없이 열 턴 넘게 이어지면 낭독
   const eTurns = p.turns.filter((t) => t.id?.startsWith("E"));
@@ -267,6 +268,7 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
   if (midDot.length) v.push(`턴 ${midDot.length}개의 발화 안에 가운뎃점(·) 나열 (${midDot.slice(0, 6).join(", ")}) — 귀로는 낱말이 붙어 들린다. 쉼표로 나누거나 둘로 줄인다 (규칙 14)`);
   // ── v9.4 (2026-09-29, 자동화 29편 실측 — 규칙은 있었는데 안 지켜진 정형 문제. 임계는 29편 분포에서 상위 절반이 걸리게 잡았다, .work/verdicts/v93) ──
   v.push(...v94Violations(p.turns));
+  v.push(...v98Violations(scriptMd, p.turns));
   // full-v7 (2026-09-15): 귀속 표현 턴 비율 검사는 폐지 — 32~36% 인 편에서도 소스 순회(재식별 15건)가 있었다. 구조 검사로 대체
   v.push(...attributionViolations(scriptMd, p.turns, opts));
   return v;
@@ -292,7 +294,7 @@ export function v94Violations(turns: ScriptTurn[]): string[] {
     const over = summaryY.length - Math.floor(bodyY.length / 3) + 1;
     const step = summaryY.length / over;
     const picks = Array.from({ length: over }, (_, i) => summaryY[Math.min(summaryY.length - 1, Math.floor(i * step + step / 2))]).filter((t, i, arr) => arr.indexOf(t) === i);
-    v.push(`진행 턴 ${bodyY.length}개 중 ${summaryY.length}개가 물음표 없는 정리형("~네요"·"~군요"·"~로 들려요")으로 끝남 — 셋 중 하나가 상한이다. 다음 ${picks.length}개 턴을 전부 바꾼다: ${ids(picks, 12)}. 자기 처지에서의 느낌·망설임, 한두 마디 수긍, 이해가 막힌 자리의 되물음 가운데 하나로 — 앞 해설을 다시 정리하는 문장으로 바꾸지 않는다 (규칙 3·25)`);
+    v.push(`진행 턴 ${bodyY.length}개 중 ${summaryY.length}개가 물음표 없는 정리형("~네요"·"~군요"·"~로 들려요")으로 끝남 — 셋 중 하나가 상한이다. 다음 ${picks.length}개 턴을 전부 바꾼다: ${ids(picks, 12)}. 자기 처지에서의 느낌, 한두 마디 수긍, 이해가 막힌 자리의 되물음 가운데 하나로 — 앞 해설을 다시 정리하는 문장으로 바꾸지 않는다 (규칙 3·25)`);
   }
   // 규칙 3: 진행자가 각주를 부르는 질문 — 청취자는 조사 기관·표본·척도·오차·통계 절차를 묻지 않는다
   const footnoteQ = bodyY.filter((t) => /\?/.test(t.text) && /(표본|응답률|척도|오차|조사 기관|조사 방식|조사 방법|대조군|통계적|통계 (절차|처리)|재현(됐|되|이)|인과(관계)?(를|가) (입증|확인|증명)|유의)/.test(t.text));
@@ -327,12 +329,12 @@ export function v94Violations(turns: ScriptTurn[]): string[] {
     if (bad.length) v.push(`마무리 정리 턴 ${closingE.id} 의 마지막 문장이 ${bad.join("·")} — 축 문장을 그대로 말하고 끝낸다. 접속사 서두와 고정 어미를 뺀다 (규칙 13-1·22)`);
   }
   // ── v9.5 (2026-09-30, v9.4 판정 3편): 정리형을 막자 진행 턴이 질문 생성기가 됐고(질문 비율 48% → 63·88·61%), 한계 고지가 든 해설 턴이 늘었다(1.8 → 0·5·7) ──
-  // 규칙 3: 본문 진행 턴의 질문은 절반~3분의 2. 넘치면 반응(느낌·망설임·짧은 수긍)으로 바꿀 턴을 지목한다
+  // 규칙 3: 본문 진행 턴의 질문은 절반~3분의 2. 넘치면 반응(느낌·짧은 수긍)으로 바꿀 턴을 지목한다
   const questionY = bodyY.filter((t) => /\?/.test(t.text));
   if (bodyY.length >= 12 && questionY.length / bodyY.length > 0.7) {
     const over = questionY.length - Math.floor((bodyY.length * 2) / 3);
     const picks = questionY.filter((_, i) => i % 3 === 1).slice(0, Math.max(over, 1));
-    v.push(`진행 턴 ${bodyY.length}개 중 ${questionY.length}개가 질문 — 질문은 절반에서 3분의 2다. 이 가운데 ${over}개 이상을 자기 처지에서의 느낌·망설임·짧은 수긍으로 바꾼다(요약으로 바꾸지 않는다). 바꿀 턴: ${ids(picks, 10)} (규칙 3)`);
+    v.push(`진행 턴 ${bodyY.length}개 중 ${questionY.length}개가 질문 — 질문은 절반에서 3분의 2다. 이 가운데 ${over}개 이상을 자기 처지에서의 느낌이나 짧은 수긍으로 바꾼다(요약으로 바꾸지 않는다). 바꿀 턴: ${ids(picks, 10)} (규칙 3)`);
   }
   // 규칙 3: 진행자가 한계·단서를 유도하는 질문 — 해설이 매 구간을 한계 고지로 닫게 만든다
   const leadRe = /(단정|일반화|확정|입증)[^?]{0,25}\?|그대로 (넓|적용|옮)[^?]{0,20}\?|(없겠죠|어렵겠죠|아니겠죠|문제겠죠|지나치겠네요|조심해야겠[죠네])\??/;
@@ -351,9 +353,65 @@ export function v94Violations(turns: ScriptTurn[]): string[] {
   const emptyY = bodyY.filter((t) => !/\?/.test(t.text) && t.text.replace(/[\s.,!…"'“”‘’]/g, "").length <= 4);
   if (emptyY.length) v.push(`진행 턴 ${emptyY.length}개가 내용 없는 한 마디 수긍 (${ids(emptyY)}) — 앞 해설의 어느 지점을 받았는지 드러나는 한 문장으로 바꾸거나, 턴을 지우고 해설을 잇는다 (규칙 4)`);
   // 규칙 20: 한 턴 안에서 발언자를 갈아타는 중계("한 분석가는 … 다른 경제학자는 …") — 직접 수정이 "~해석하는 전문가들도 있어요"로 묶었다
-  const speakerRe = /(한|어떤|다른|또 다른|어느) (?:[가-힣]{1,8} )?(분석가|경제학자|교수|연구자|전문가|기자|평론가|학자|참가자|관계자|당국자|관계자|투자자|애널리스트|의원|관리자)(는|은|이|가) /g;
+  // 2026-10-01 범위 축소: 전언 동사(설명·해석·분석·평가·지적·진단·전망)로 옮긴 발언만 센다 — 엇갈리는 두 사람의 태도("한 참가자는 …걱정했습니다. 다른 참가자는 …우려했고요")는 대비 자체가 내용이고, 사람이 직접 수정에서 그대로 뒀다(T260930-002 E11)
+  const speakerRe = /(한|어떤|다른|또 다른|어느) (?:[가-힣]{1,8} )?(분석가|경제학자|교수|연구자|전문가|기자|평론가|학자|관계자|당국자|투자자|애널리스트|의원|관리자)(는|은|이|가) [^.!?]{0,80}(설명|해석|분석|평가|지적|진단|전망)(했|합니다|해요|하고|했고)/g;
   const relay = E.filter((t) => (t.text.match(speakerRe)?.length ?? 0) >= 2);
   if (relay.length) v.push(`해설 턴 ${relay.length}개가 한 턴 안에서 발언자를 갈아타며 옮김 (${ids(relay)}) — 같은 방향의 의견은 한 문장으로 묶어 해설자의 말로 한다. 발언자별 전언을 차례로 잇지 않는다 (규칙 20)`);
+  return v;
+}
+
+/**
+ * v9.8 정형 검사 (2026-10-02, v9.7 판정 3편 T261001-004·005·006) — 규칙(16·20·25)은 있었는데 안 지켜졌거나 측정으로 드러난 틀.
+ * - 소스 중계 연쇄: 004 #3 에서 "~라는 제안이 있습니다"·"견해도 제시돼요"가 다섯 턴 연달아(플래그 2건 동의 + 직접 수정 3건). 사람은 고친 뒤에도 블록에 두 턴("견해도 제시돼요"·"의견도 있습니다")을 남겼다 —
+ *   블록당 두 턴까지 두고 세 번째부터 지목한다. 최근 35편에서 걸리는 편은 004 뿐
+ * - 긴 해설 문장: 사람 "한 문장에 너무 많은 내용". 골드 해설 문장 평균 6.7~9.6어절 · GPT 11~12. 20어절↑(상위 약 5%)만 지목하고, 고치는 법은 구조로(결론 먼저) — 길이 목표치는 두지 않는다(사람: "억지로 통제하면 글 솜씨가 떨어지지 않을까")
+ * - 질문 말끝 쏠림·조건절 질문: 진행 질문 36개 중 35개가 질문 한 문장뿐, 말끝이 "~나요·~가요"로 몰림(골드는 "~요·~죠"). 사람 "진행이 단조롭다"
+ */
+export function v98Violations(scriptMd: string, turns: ScriptTurn[]): string[] {
+  const v: string[] = [];
+  const ids = (xs: { id: string | null }[], n = 8) => xs.slice(0, n).map((t) => t.id ?? "?").join(", ");
+  const blockOf = new Map<string, string>();
+  let block = "";
+  for (const line of scriptMd.split("\n")) {
+    const h = line.match(/^###\s*(#\d+)/); if (h) { block = h[1]; continue; }
+    if (/^##\s*\[/.test(line)) { block = ""; continue; }
+    const m = line.match(/^\[[^\]]+\]\s*([EY]\d+)\s*·/); if (m && block) blockOf.set(m[1], block);
+  }
+  const E = turns.filter((t) => t.id?.startsWith("E"));
+  const bodyY = turns.filter((t) => t.id?.startsWith("Y") && t.section !== "인트로" && t.section !== "마무리");
+  // 규칙 20: 다른 사람의 제안·견해를 "있다·나온다·제시된다·소개된다"로 옮기는 턴 — 블록당 두 턴까지
+  const relayRe = /(제안|견해|주장|의견|권고|조언|지적|해석|평가|목소리)(들)?(이|도|은|가)?\s?(있(어요|습니다|죠|고|다는|는데요)|나와요|나옵니다|나오고|나왔(어요|습니다)|제시(돼요|됩니다|되고|됐)|소개(돼요|됩니다|되고|됐))/;
+  const perBlock = new Map<string, number>(); const relayExtra: ScriptTurn[] = [];
+  for (const t of E) { const b = blockOf.get(t.id ?? ""); if (!b || !relayRe.test(t.text)) continue; const n = (perBlock.get(b) ?? 0) + 1; perBlock.set(b, n); if (n > 2) relayExtra.push(t); }
+  if (relayExtra.length) v.push(`해설 턴 ${relayExtra.length}개가 같은 블록에서 세 번째 이상으로 다른 사람의 제안·견해를 "있다·나온다·제시된다"로 옮김 (${ids(relayExtra)}) — 블록에 두 번까지다. 이 턴들은 옮기는 말을 빼고 그 내용을 해설자의 말로 바로 한다 (규칙 20)`);
+  // 규칙 21·23: 글 안에서 다른 사람의 주장을 다시 소개하는 중첩 소개("또 다른 글에는 작가 ○○의 주장이 소개됩니다")
+  const nestedRe = /(글|기사|자료|보고서|칼럼|책)(에는|에서는|에|에서)\s?[^.!?]{0,40}(주장|의견|견해|말|연구|사례)(이|가|도|을)?\s?(소개|인용)(돼|됩|되|했)/;
+  const nested = E.filter((t) => nestedRe.test(t.text));
+  if (nested.length) v.push(`해설 턴 ${nested.length}개가 글 안에서 다른 사람의 주장을 다시 소개함 (${ids(nested)}) — 글과 그 안의 인물을 둘 다 부르지 않는다. 그 주장을 해설자의 말로 바로 한다 (규칙 21·23)`);
+  // 규칙 16: 20어절 이상 해설 문장 — 조건을 앞에 쌓고 결론을 끝에 둔 문장. 결론 먼저, 조건·이유는 다음 문장으로
+  const words = (s: string) => s.replace(/\.{3}|…/g, " ").split(/\s+/).filter(Boolean).length;
+  // 두 개까지는 둔다(골드도 20어절↑ 문장이 있다) — 셋 이상이면 전부 지목한다(최대 12). 최근 35편: 편당 1~14개, 중앙 7
+  const longS = E.flatMap((t) => t.text.split(/(?<=[.?!])\s+/).filter((s) => words(s) >= 20).map((s) => ({ id: t.id, n: words(s) })));
+  if (longS.length >= 3) v.push(`해설 문장 ${longS.length}개가 20어절 이상 (${longS.slice(0, 12).map((x) => `${x.id} ${x.n}어절`).join(", ")}) — 한 문장에 판단 하나다. 결론을 먼저 말하고 조건과 이유는 다음 문장으로 나눈다. 연결어로 잇고 내용과 헤지는 지우지 않는다 (규칙 16)`);
+  // 규칙 25: 질문 말끝 쏠림 — 같은 말끝 갈래가 질문의 5분의 2 이하. 갈래로 묶어 센다 — "~나요"를 막으면 "~까요"로 몰리는 것도 잡는다
+  const qY = bodyY.filter((t) => /\?\s*$/.test(t.text.trim()));
+  const endClass = (t: string) => { const x = t.trim().replace(/\?\s*$/, ""); return /(나요|가요)$/.test(x) ? "~나요·~가요" : /까요$/.test(x) ? "~까요" : /죠$/.test(x) ? "~죠" : /(다고|라고|냐고)요$/.test(x) ? "~다고요" : /요$/.test(x) ? "~요" : "기타"; };
+  const byEnd = new Map<string, ScriptTurn[]>(); for (const t of qY) { const k = endClass(t.text); byEnd.set(k, [...(byEnd.get(k) ?? []), t]); }
+  const [topEnd, sameEnd] = [...byEnd.entries()].sort((a, b) => b[1].length - a[1].length)[0] ?? ["", []];
+  // 2026-10-02 수정(T261002-001): 상한을 내림으로 잡고 "말끝을 바꾼다"만 말하자, 상한 근처의 두 갈래(~나요·~가요 7 · ~까요 6) 사이에서 같은 턴(Y17)을
+  // 오가며 수정 2회를 헛돌았다. 상한은 올림으로, 메시지에 상한에 닿은 갈래를 모두 적어 그 밖의 말끝으로 바꾸게 한다
+  const capEnd = Math.ceil(qY.length * 0.4);
+  if (qY.length >= 6 && sameEnd.length > capEnd) {
+    const over = sameEnd.length - capEnd; const step = sameEnd.length / over;
+    const picks = Array.from({ length: over }, (_, i) => sameEnd[Math.min(sameEnd.length - 1, Math.floor(i * step + step / 2))]).filter((t, i, a) => a.indexOf(t) === i);
+    // 피할 갈래: 지목한 턴이 모두 그 갈래로 가면 넘치는 갈래
+    const full = [...byEnd.entries()].filter(([k, ts]) => k !== "기타" && ts.length + picks.length > capEnd).map(([k, ts]) => `${k} ${ts.length}개`).join(" · ");
+    v.push(`진행 질문 ${qY.length}개 중 ${sameEnd.length}개가 같은 말끝(${topEnd})으로 끝남 — 같은 말끝은 질문의 5분의 2 이하다. 다음 ${picks.length}개 턴의 묻는 말끝을 바꾼다: ${ids(picks, 10)}. 이미 많은 갈래(${full})가 아닌 말끝으로 바꾼다 (규칙 25)`);
+  }
+  // 규칙 25: 조건절로 시작해 묻는 질문("~다면, ~?") — 편에 세 번 이하
+  const condRe = /(다면|라면|이라면|한다면|된다면|으면|하면|되면|려면|으려면)\s?,[^?]*\?\s*$/;
+  const condY = qY.filter((t) => condRe.test(t.text.trim()));
+  if (condY.length > 3) v.push(`진행 질문 ${condY.length}개가 조건절로 시작해 물음 (${ids(condY, 10)}) — 편에 세 번 이하다. 이 가운데 ${condY.length - 3}개 이상을 조건 없이 직접 묻거나, 앞 해설에서 받은 한 문장 뒤에 묻는다 (규칙 25)`);
   return v;
 }
 

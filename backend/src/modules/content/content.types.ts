@@ -265,6 +265,12 @@ export interface SearchQueryRank {
   searches: number;
   /** 그중 0건으로 끝난 수 */
   misses: number;
+  /** 그중 결과에 반응한 수 — 10분 안에 결과 중 하나를 재생·담기 */
+  clicked: number;
+  /** 가장 최근 검색이 첫 페이지에 돌려준 콘텐츠 수(0 ~ 페이지 크기). 총 건수가 아니다(domain.md 5.7) */
+  lastResultCount: number;
+  /** 가장 최근 검색에서 첫 페이지 뒤에 더 있었는가 — true면 화면은 "N건 이상"으로 읽는다 */
+  lastHasNext: boolean;
   lastSearchedAt: Date;
 }
 
@@ -273,6 +279,7 @@ export interface SearchQueryDailyCount {
   date: string;
   searches: number;
   misses: number;
+  clicked: number;
 }
 
 /** `GET /admin/search-query-logs/summary` (admin-api.md 4.21) */
@@ -282,6 +289,8 @@ export interface SearchQueryLogSummary {
   totals: {
     searches: number;
     misses: number;
+    /** 결과에 반응한 검색 수 */
+    clicked: number;
     users: number;
     /** 2자 질의 — 트라이그램 인덱스를 못 타는 길이(explore.md 4.5-5) */
     shortQueries: number;

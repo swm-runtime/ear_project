@@ -12,6 +12,9 @@ import { btnCls } from "@/components/ui";
  *
  * **발행 이후에 다시 만들어진 것만 보낸다**(KAN-50 5-1). 바뀌지 않은 파일까지 올리면 내용이 같은데도
  * `content_version` 이 오르고, 앱에서는 그것이 "새 버전"으로 읽혀 저장 위치가 초기화된다.
+ *
+ * **오디오를 바꿀 때는 자막(script-segments.json)을 함께 보낸다** (2026-10-01). 오디오 교체 재발행에 `script_file` 이 없으면 제품이 기존 자막을
+ * 지운다(admin-api 4.10 "대본 삭제") — 새 오디오의 TTS 가 만든 자막을 같이 실어야 자막이 유지된다. TTS 가 자막을 못 만든 편은 자막 없이 나간다.
  */
 export function RepublishButton({ episodeId, backlogId, contentId, version, publishedAt, lastTtsAt, lastThumbAt, audioNewer, thumbnailNewer, pending }: {
   episodeId: string; backlogId: string; contentId: string; version: number | null; publishedAt: string | null;
@@ -26,7 +29,7 @@ export function RepublishButton({ episodeId, backlogId, contentId, version, publ
   async function run() {
     if (parts.length === 0) return;
     const what = parts.join("·");
-    if (!confirm(`${episodeId} 의 발행본 ${what}을(를) 교체합니다 (제품 콘텐츠 ${contentId.slice(0, 8)}…, v${version ?? "?"} → v${(version ?? 0) + 1}).\n확인을 마쳤나요? 앱 사용자의 저장 위치는 초기화되고 라이브러리는 유지됩니다.`)) return;
+    if (!confirm(`${episodeId} 의 발행본 ${what}${audioNewer ? "(자막 포함)" : ""}을(를) 교체합니다 (제품 콘텐츠 ${contentId.slice(0, 8)}…, v${version ?? "?"} → v${(version ?? 0) + 1}).\n확인을 마쳤나요? 앱 사용자의 저장 위치는 초기화되고 라이브러리는 유지됩니다.`)) return;
     setBusy(true); setMsg(null);
     try {
       // 바뀐 것만 받아 보낸다 — 안 바뀐 파일까지 올리면 같은 내용으로 버전만 오른다
@@ -37,14 +40,18 @@ export function RepublishButton({ episodeId, backlogId, contentId, version, publ
       };
       const audio = audioNewer ? await fetchPart("audio", `${episodeId}.mp3`, "audio/mpeg", "발행 오디오(dist.mp3)") : undefined;
       const thumbnail = thumbnailNewer ? await fetchPart("thumbnail", `${episodeId}.png`, "image/png", "썸네일(thumbnail.png)") : undefined;
-      const content = await republishEarContent(contentId, { audio, thumbnail });
+      // 자막은 새 오디오의 TTS 산출물 — 없으면(정렬 실패 편) 싣지 않는다. 그때 제품은 기존 자막을 지운다(틀린 자막보다 없는 편)
+      const scriptRes = audio ? await fetch(`/api/publish/${episodeId}?script=1`) : null;
+      const script = scriptRes?.ok ? new File([await scriptRes.text()], "script-segments.json", { type: "application/json" }) : undefined;
+      const content = await republishEarContent(contentId, { audio, thumbnail, script });
+      const scriptNote = !audio ? "" : content.script_applied ? " · 자막 교체" : ` · ⚠️ 자막 없음(${script ? content.script_rejected_reason ?? "거부" : "TTS 자막 파일 없음"})`;
       await markPublished(backlogId, content.id, content.content_version, undefined, {
         action: "republish",
-        parts: [audioNewer && "audio", thumbnailNewer && "thumbnail"].filter(Boolean) as string[],
+        parts: [audioNewer && "audio", thumbnailNewer && "thumbnail", content.script_applied && "script"].filter(Boolean) as string[],
         episodeId,
-        note: `발행 이후 다시 만든 ${what} 교체`,
+        note: `발행 이후 다시 만든 ${what} 교체${scriptNote}`,
       });
-      setMsg(`재발행 완료 — v${content.content_version}`);
+      setMsg(`재발행 완료 — v${content.content_version}${scriptNote}`);
     } catch (e) {
       // 백엔드 미구현(404) 은 사용자에게 그대로 알린다 — 티켓 tickets/backend/pending/content-republish-audio.md
       const notReady = e instanceof EarApiError && e.status === 404;

@@ -380,6 +380,7 @@ export class ExploreOrchestrator {
           resultCount: page.items.length,
           hasNext: page.hasNext,
           topicFilterCount: query.topicIds.length,
+          resultContentIds: page.items.map((ranked) => ranked.content.id),
         },
         now,
       );

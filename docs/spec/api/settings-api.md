@@ -23,7 +23,7 @@
 | 회원 탈퇴 | `auth-api.md` 4.6~4.7 | 참조만 한다 |
 | 관심 주제 일괄 편집 | `interest-management.md` · `interest-management-api.md` (작성됨 2026-08-10) | 요약 표시용 값만 조회. **자동 확장 토글만 이 문서의 PATCH가 저장한다**(일괄 편집 대상이 아님 — `interest-management.md` 3장) |
 | 커리어 정보 편집 | `career.md` · `career-api.md` (작성됨 2026-08-10) | **메뉴 목적지(커리어 정보 화면)만 안다.** 커리어 요약도 이 응답에 없다 — 요약 표시는 프로필 카드 소관(`profile-api.md` 4.1)이고 설정 메뉴는 진입 행만 둔다 |
-| 구독 변경·해지·복원 | `subscription.md` (API 명세 미작성) | 구독 요약 표시용 값만 조회(결제 유예 상태 포함 — 4.1) |
+| 구독 변경·해지·복원 | `subscription.md` · `subscription-api.md`(작성 2026-10-02) | 구독 요약 표시용 값만 조회(결제 유예 상태 포함 — 4.1) |
 | OS 알림 권한 상태 동기화 | `onboarding-api.md` 4.9 (`PUT /users/me/devices/:device_id`) | 참조만 한다. 포그라운드 복귀·사전 안내 완료 시 같은 엔드포인트를 호출한다 |
 | 강제 업데이트 판정 | `splash.md` | 설정의 버전 항목은 **안내 표시**일 뿐, 차단 판정이 아니다. 단 **스플래시 버전 관문의 HTTP 계약(`GET /app/version`)은 이 문서 4.6에 둔다**(2026-09-26) — 설정 조회(4.1)와 같은 배포 설정·같은 입력·같은 `version` 형태를 쓰기 때문이다. 판정 규칙의 소유는 그대로 `splash.md`다 |
 | 오프라인 저장 관리 | `offline-download.md` (P1 이연) | 엔드포인트를 정의하지 않는다. 메뉴 자체가 미노출이다 |

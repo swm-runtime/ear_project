@@ -1,4 +1,5 @@
 "use client";
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { editScriptTurn, requestReQa } from "../../actions";
 import type { Turn } from "@/lib/artifacts";
@@ -82,6 +83,12 @@ export function TurnEditor({ episodeId, turn, initial, onClose, onSaved }: { epi
       </div>
     </div>
   );
+}
+
+/** 검토 대기(review_required) 편의 헤더 버튼 (2026-10-01): 대본을 고치지 않아도 재QA 를 걸 수 있다 — L0 오탐으로 검토 대기에 빠진 편은 고칠 문장이 없는데, 재QA 버튼은 수정 뒤에만 나왔다 */
+export function ReQaHeaderButton({ episodeId, backlogId }: { episodeId: string; backlogId: string }) {
+  const router = useRouter();
+  return <ReQaButton episodeId={episodeId} backlogId={backlogId} onDone={() => router.refresh()} />;
 }
 
 export function ReQaButton({ episodeId, backlogId, onDone }: { episodeId: string; backlogId: string; onDone: () => void }) {

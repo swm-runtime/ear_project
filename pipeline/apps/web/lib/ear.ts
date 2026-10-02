@@ -9,6 +9,7 @@
  * 모든 호출은 같은 오리진의 프록시(`/api/ear/*`)를 거친다 — 제품 서버 CORS 개조 없이
  * 동작하고, 프록시가 Supabase 로그인(팀원)만 통과시켜 이중 방어가 된다.
  */
+import { normalizeSearchQueryLogSummary, type RawSearchQueryLogSummary } from "./search-query-log-normalize";
 
 export interface EarTokens {
   access_token: string;
@@ -322,13 +323,15 @@ export async function downloadEarEvalSnapshot(ch: EarChannel): Promise<{ filenam
 }
 
 /** 검색 질의 로그 요약 (admin-api 4.21, domain.md 5.7) — 한 행은 타이핑 묶음 하나다 */
-export interface EarSearchQueryRank { query: string; searches: number; misses: number; last_searched_at: string }
+/** `clicked`·`result_count`는 그 필드를 모르는 옛 서버 응답에서는 null이다 — 화면은 "-"로 적는다 */
+export interface EarSearchQueryRank { query: string; searches: number; misses: number; clicked: number | null; result_count: number | null; has_more: boolean; last_searched_at: string }
 export interface EarSearchQueryLogSummary {
   days: number; since: string;
-  totals: { searches: number; misses: number; miss_rate: number | null; users: number; short_queries: number; filtered_searches: number };
-  daily: { date: string; searches: number; misses: number }[];
+  totals: { searches: number; misses: number; miss_rate: number | null; clicked: number | null; users: number; short_queries: number; filtered_searches: number };
+  daily: { date: string; searches: number; misses: number; clicked: number }[];
   missed: EarSearchQueryRank[];
   top: EarSearchQueryRank[];
 }
-export const getEarSearchQueryLogSummary = (ch: EarChannel, days: number) =>
-  earFetch<EarSearchQueryLogSummary>(`/admin/search-query-logs/summary?days=${days}`, { cache: "no-store" }, ch);
+/** 옛 서버 응답(필드 없음)도 화면이 읽을 수 있게 채운다 — 규칙은 `search-query-log-normalize.ts` */
+export const getEarSearchQueryLogSummary = async (ch: EarChannel, days: number): Promise<EarSearchQueryLogSummary> =>
+  normalizeSearchQueryLogSummary(await earFetch<RawSearchQueryLogSummary>(`/admin/search-query-logs/summary?days=${days}`, { cache: "no-store" }, ch));

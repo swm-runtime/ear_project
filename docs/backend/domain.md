@@ -714,6 +714,7 @@ search_query_logs
   result_count              smallint        첫 페이지에 실린 건수(0 ~ 페이지 크기). CHECK >= 0
   has_next                  boolean         첫 페이지 뒤에 더 있었는가
   topic_filter_count        smallint        함께 걸린 주제 필터 수. CHECK >= 0
+  result_content_ids        uuid[]          첫 페이지 결과의 콘텐츠 id(순서대로). DEFAULT '{}' — 결과 반응 추정의 열쇠 (신설 2026-10-01)
 
 idx_search_query_logs_user_id_created_at (user_id, created_at)
 idx_search_query_logs_created_at (created_at)   — 보존 배치 범위 삭제용
@@ -724,6 +725,7 @@ idx_search_query_logs_created_at (created_at)   — 보존 배치 범위 삭제�
 - **디바운스 자동 검색의 중간 입력은 적재 시점에 접는다**("커" → "커리" → "커리어"). 서버는 키보드 제출과 자동 검색을 구분할 수 없으므로(`explore-api.md` 4.5 — 같은 엔드포인트) **같은 사용자의 직전 행이 10초 안이고 두 질의가 같은 타이핑으로 보이면 — 한쪽이 다른 쪽의 접두사이거나 한 글자 차이면 — 새 행을 만들지 않고 그 행을 마지막 질의로 덮어쓴다**(지우고 다시 친 "커리어" → "커", 오타를 고친 "커리오" → "커리어"도 같은 묶음). 남는 것은 사용자가 치다가 멈춘 질의다 — 중간 입력을 다 세면 미스율이 "커"(거의 항상 결과 있음)와 "커리ㅇ"(거의 항상 0건)에 끌려간다. `created_at`은 묶음의 시작, `updated_at`은 마지막 요청 시각이다. 10초 넘게 멈췄다 이어 치면 다른 검색으로 본다. `user_id`는 그 판정과 탈퇴 파기 경로용이고, 집계는 개인 식별 없이 질의·건수만 쓴다.
 - **구조화 로그([13.4](#134-구조화-로그로-대체-b-8))로 보내지 않는 이유**: CloudWatch 보관이 7일이라(`backend-monitoring.md`) 몇 주 단위의 미스율을 셀 수 없다. 재검토 결정은 그 기간의 누적을 봐야 한다.
 - 적재 실패는 검색 응답에 영향을 주지 않는다 — 서비스가 경고 로그 한 줄로 삼킨다(질의 본문은 경고에 남기지 않는다).
+- **결과 반응은 앱이 보내지 않고 서버가 역산한다**(신설 2026-10-01). 그 행의 마지막 질의(`updated_at`) 뒤 **10분** 안에 같은 사용자가 `result_content_ids` 중 하나를 재생(`play_records.played_at`)했거나 담았으면(`library_items.source = save`의 `added_at`, 삭제분 포함) "반응한 검색"이다. 탭 이벤트를 앱에 추가하면 스토어 배포를 기다려야 하고 옛 버전 사용자는 빠지는데, 재생·담기는 어느 버전이든 서버를 거친다. 한계: 재생 한도에 막힌 탭, 상세 정보만 본 탭은 반응으로 안 잡힌다 — 그 둘을 세고 싶어지면 그때 앱 이벤트를 붙인다. 판정은 집계 시점(관리자 요약)에만 하고 컬럼으로 두지 않는다([1.5](#15-파생값을-컬럼으로-두지-않는다)).
 - 읽는 곳은 관리자 요약 하나다(`admin-api.md` 4.21 — 로그 콘솔 "검색 로그" 탭). 앱은 이 표를 읽지 않는다.
 - 보존은 `created_at` **90일**([12.1](#121-운영-중-삭제-정책)). 탈퇴 시 **즉시 파기**([12.3](#123-회원-탈퇴-처리)) — `user_id` FK의 `ON DELETE CASCADE`가 집행한다.
 - `SearchHistory`(최근 검색어)는 여전히 테이블이 아니다([13.1](#131-클라이언트-로컬-전용)) — 이 표는 사용자에게 되돌려 주는 이력이 아니라 운영 분석 원천이고, 앱은 이 표를 읽지 않는다.
@@ -1127,6 +1129,7 @@ subscriptions
   started_at                timestamptz
   expires_at                timestamptz
   cancelled_at              timestamptz     NULL
+  pending_tier              enum            NULL   ★다운그레이드 예약 — 다음 갱신 때 바뀔 티어 (2026-10-02, `subscription-api.md` 4.2)
 
 uq_subscriptions_original_transaction_id (original_transaction_id)
 idx_subscriptions_user_id_status (user_id, status)
@@ -1136,6 +1139,9 @@ idx_subscriptions_user_id_status (user_id, status)
 - **무료 사용자는 행이 없다.** 행이 없으면 `light`로 간주한다.
 - 실제 갱신 근거는 **스토어 서버 알림(S2S)**이다(`subscription.md` 4.3). 클라이언트가 보낸 값으로 티어를 바꾸지 않는다.
 - `uq_subscriptions_original_transaction_id`가 하나의 스토어 구독이 여러 계정에 연결되는 것을 막는다.
+- **Play에는 `original_transaction_id`가 없다 — 그 구독의 최초 구매 토큰을 이 컬럼에 쓴다.** 업·다운그레이드로 새 토큰이 발급되면 스토어 응답의 `linkedPurchaseToken`으로 기존 행을 찾아 같은 행을 갱신한다(`subscription-api.md` 4.7).
+- `latest_receipt`에는 마지막으로 반영한 **서명된 거래(iOS JWS) 또는 구매 토큰(Android)** 을 둔다 — 만료 보정 때 스토어에 다시 묻는 열쇠다. 로그에는 남기지 않는다.
+- **`pending_tier`** 는 다운그레이드 예약이다(2026-10-02). 스토어는 다운그레이드를 "현재 주기가 끝나면"으로 예약하므로 그동안 `tier`는 그대로이고, 다음에 바뀔 티어만 여기 든다. 갱신·업그레이드·예약 취소 때 비운다. 화면의 "N월 N일부터 데일리" 표시 근거다.
 
 **`status` 값의 의미** (확정 2026-08-08 — 프로필 구현 중 `cancelled`의 뜻이 정의된 곳이 없어 확정했다)
 
@@ -1168,6 +1174,8 @@ idx_purchase_intents_user_id_created_at (user_id, created_at DESC)
 ```
 
 - 결제 버튼 연타로 인한 중복 결제 요청을 막는 멱등키다(`paywall.md` 7).
+- **`id`가 곧 계정 결속 토큰이다**(2026-10-02, `subscription-api.md` 4.3). 결제 시트에 iOS `appAccountToken` / Android `obfuscatedAccountId`로 실어 보내면 스토어가 서명한 거래 안에 담겨 돌아온다 — 서버는 그 값으로 "이 거래를 시작한 계정"을 확인해 남의 영수증 제출을 막는다. 그래서 `id`는 UUID여야 한다(Apple 요구).
+- `created`로 남은 행(결제 시트를 닫음)은 30일 뒤 정리한다. `verified`는 영수증 검증이 그 의도와 맞물렸다는 기록이다.
 
 ### 8.4 `store_notification_logs`
 

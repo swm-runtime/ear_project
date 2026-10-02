@@ -110,12 +110,21 @@ export const cfg = {
   aiServerToken: process.env.AI_SERVER_TOKEN || "",
   ttsModel: process.env.TTS_MODEL || "eleven_v3",
   ttsVoiceYuna: process.env.TTS_VOICE_YUNA || "Lb7qkOn5hF8p7qfCDH8q",
-  ttsVoiceEum: process.env.TTS_VOICE_EUM || "4JJwo477JUAx3HV0T7n7", // 2026-10-01 박수헌: 이음 보이스를 "Mr. K - Korean Creator Voice" 로 교체 — ID 확정 전까지 Yohan Koo, 확정되면 기본값 교체
-  /** 징글 (2026-10-01 박수헌): S3 assets/audio/intro.mp3 · outro.mp3 를 조립 앞뒤에 붙인다. 키를 비우면 끄고, 객체가 없으면 없이 조립한다(실패 아님). 아웃트로 앞 패딩은 기본 인트로의 앞 무음 길이 */
-  ttsIntroKey: process.env.TTS_INTRO_KEY ?? "assets/audio/intro.mp3",
-  ttsOutroKey: process.env.TTS_OUTRO_KEY ?? "assets/audio/outro.mp3",
+  ttsVoiceEum: process.env.TTS_VOICE_EUM || "sQ3a15DhENXU8pKTHlcc", // 2026-10-01 박수헌: 이음 보이스 교체 — Mr. K - Korean Creator Voice (이전 Yohan Koo 4JJwo477JUAx3HV0T7n7)
+  /** 징글 (2026-10-01 박수헌): S3 datasets/channel-audio/intro.wav · outro.wav 를 조립 앞뒤에 붙인다. 키를 비우면 끄고, 객체가 없으면 없이 조립한다(실패 아님). 징글 파일은 앞뒤 무음 1초로 정규화해 올리고 본편에 바로 붙인다(추가 무음 없음) */
+  // 키는 datasets/ 아래에 둔다 — 서버 인스턴스 역할(ear-pipeline-bucket-rw)이 episodes/·sweeps/·datasets/ 만 허용해 assets/ 는 받기가 거부됐다(T260929-003 첫 적용 실패, 2026-10-01)
+  ttsIntroKey: process.env.TTS_INTRO_KEY ?? "datasets/channel-audio/intro.wav", // 받은 원본이 wav(48kHz 스테레오) — 손실 변환 없이 앞뒤 무음만 1초로 맞춰 올린다
+  ttsOutroKey: process.env.TTS_OUTRO_KEY ?? "datasets/channel-audio/outro.wav",
   ttsOutroPadSec: process.env.TTS_OUTRO_PAD_SEC ? Number(process.env.TTS_OUTRO_PAD_SEC) : undefined,
+  /** TTS 시작 전 WORK_ROOT 디스크 여유 하한(GB) — 모자라면 합성 전에 큐로 되돌린다(disk.ts, 2026-10-02 ENOSPC). 한 편 조립에 약 0.5GB */
+  ttsMinFreeGb: Number(process.env.TTS_MIN_FREE_GB ?? 1.5),
   // 화자별 배속 (spec/06 6장) — 다중화자 1콜은 속도 설정이 없어 타임스탬프 정렬 후 ffmpeg atempo 로 후처리한다. 1 이면 원속.
+  /** 요청 이음새 문맥 겹침 (spec/06 7장, KAN-87). 기본 켜짐 — 2026-10-01 dialogue 정렬 탓에 21%만 성공해 껐다가(#1082), 강제 정렬 절단(#1084)으로
+   *  T260929-003 4/4경계 성공·사람 청취 확인 후 다시 켰다(박수헌). TTS_CONTEXT_OVERLAP=0 이면 끈다. 작업 payload context_overlap 로 편 단위 강제 가능 */
+  ttsContextOverlap: process.env.TTS_CONTEXT_OVERLAP !== "0",
+  /** 끝 꼬리 가드 (spec/06 7장). 기본 켜짐 — 첫 판(#1081)이 dialogue 정렬로 마지막 턴을 잘라 껐다가(#1083), 강제 정렬 창(#1084)으로 고쳐
+   *  T260929-003 자연 감쇠·사람 청취 확인 후 다시 켰다(박수헌). TTS_TAIL_GUARD=0 이면 끈다. 작업 payload tail_guard 로 편 단위 강제 가능 */
+  ttsTailGuard: process.env.TTS_TAIL_GUARD !== "0",
   ttsSpeedYuna: process.env.TTS_SPEED_YUNA ? Number(process.env.TTS_SPEED_YUNA) : 1.1, // 2026-09-07 박수헌: 윤아 보이스가 느려 1.2 → 2026-09-12 1.1 로 완화
   ttsSpeedEum: process.env.TTS_SPEED_EUM ? Number(process.env.TTS_SPEED_EUM) : 1,
   /** TTS 비용 환산용 1천 자당 USD — 응답 헤더로 실제 크레딧을 못 받았을 때의 추정값. 2026-10-01 실측: 659,868자 ↔ 236,950크레딧(약 0.36크레딧/자) × Pro 추가 크레딧 $0.17/1,000 ≈ $0.061/1천 자.

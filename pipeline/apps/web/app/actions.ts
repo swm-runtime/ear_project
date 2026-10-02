@@ -259,6 +259,38 @@ export async function scriptAlignStates(contentIds: string[]): Promise<Record<st
   for (const cid of contentIds) if (out[cid].episode_id && ready.has(out[cid].episode_id!)) out[cid].ready = true;
   return out;
 }
+/**
+ * 발행본 구형 판정 (2026-10-02 박수헌 "구형 전체 재발행") — 에피소드 화면 [재발행]과 같은 규칙을 콘텐츠 단위로 낸다.
+ * 발행(published_at) 이후 TTS·썸네일이 다시 만들어졌으면 그 파트가 구형이다(샘플 TTS·건너뛴 썸네일은 새로 만든 것이 아니다).
+ * 발행 준비 작업(tts·thumbnail·package)이 대기·진행 중이면 busy — 반쯤 만든 상태를 보내지 않는다. 에피소드 연결이 없는 콘텐츠(수동 업로드)는 빠진다.
+ */
+export type RepublishPlan = { backlogId: string; episodeId: string; audio: boolean; thumbnail: boolean; busy: boolean };
+export async function republishPlans(contentIds: string[]): Promise<Record<string, RepublishPlan>> {
+  if (!contentIds.length) return {};
+  const sb = await supabaseServer();
+  const { data: bls, error } = await sb.from("backlog").select("id,published_content_ref,published_at").in("published_content_ref", contentIds);
+  if (error) throw new Error(error.message);
+  const bids = (bls ?? []).map((b) => b.id as string);
+  if (!bids.length) return {};
+  const [{ data: eps }, { data: runs }, { data: jobs }] = await Promise.all([
+    sb.from("episodes").select("id,backlog_id,created_at").in("backlog_id", bids).order("created_at", { ascending: false }),
+    sb.from("runs").select("backlog_id,phase,executed_at,result").in("backlog_id", bids).in("phase", ["tts", "thumbnail"]),
+    sb.from("jobs").select("payload").in("type", ["tts", "thumbnail", "package"]).in("status", ["queued", "claimed", "running"]),
+  ]);
+  const episodeOf = new Map<string, string>();
+  for (const e of eps ?? []) if (!episodeOf.has(e.backlog_id)) episodeOf.set(e.backlog_id, e.id);
+  const busy = new Set((jobs ?? []).map((j) => String((j.payload as { backlog_id?: string } | null)?.backlog_id ?? "")));
+  const lastAt = (bid: string, phase: string, skip: RegExp) =>
+    (runs ?? []).filter((r) => r.backlog_id === bid && r.phase === phase && !skip.test(r.result ?? "")).map((r) => r.executed_at as string).sort().at(-1) ?? null;
+  const out: Record<string, RepublishPlan> = {};
+  for (const b of bls ?? []) {
+    const episodeId = episodeOf.get(b.id);
+    if (!episodeId || !b.published_at) continue;
+    const tts = lastAt(b.id, "tts", /샘플/), thumb = lastAt(b.id, "thumbnail", /건너뜀/);
+    out[String(b.published_content_ref)] = { backlogId: b.id, episodeId, audio: !!(tts && tts > b.published_at), thumbnail: !!(thumb && thumb > b.published_at), busy: busy.has(b.id) };
+  }
+  return out;
+}
 /** 자막 세그먼트 본문 — 브라우저가 File 로 감싸 script_file 로 PATCH 한다 */
 export async function readScriptSegments(episodeId: string): Promise<string | null> {
   if (!/^[A-Za-z0-9-]{1,64}$/.test(episodeId)) throw new Error("잘못된 episode_id");
