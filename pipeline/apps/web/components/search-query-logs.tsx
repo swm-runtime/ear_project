@@ -42,8 +42,8 @@ export function SearchQueryLogs() {
 const pct = (n: number | null) => (n == null ? "-" : `${(n * 100).toFixed(1)}%`);
 const ratio = (part: number, whole: number) => (whole > 0 ? part / whole : null);
 /** 나온 콘텐츠 수 — 서버가 첫 페이지 건수만 남기므로(총수를 세지 않는다) 다음 페이지가 있으면 "20건+" */
-const found = (r: { result_count: number; has_more: boolean }) => `${r.result_count}건${r.has_more ? "+" : ""}`;
-const times = (n: number) => (n > 0 ? `${n}회` : "-");
+const found = (r: { result_count: number | null; has_more: boolean }) => (r.result_count == null ? "-" : `${r.result_count}건${r.has_more ? "+" : ""}`);
+const times = (n: number | null) => (n != null && n > 0 ? `${n}회` : "-");
 
 function SummaryView({ channel, days }: { channel: EarChannel; days: number }) {
   const [data, setData] = useState<EarSearchQueryLogSummary | null>(null);
@@ -77,7 +77,7 @@ function SummaryView({ channel, days }: { channel: EarChannel; days: number }) {
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <Stat label="검색" value={t ? t.searches.toLocaleString() : "…"} sub={t ? `사용자 ${t.users.toLocaleString()}명 · 타이핑 묶음 단위` : undefined} />
         <Stat label="결과 없음 비율" value={t ? pct(missRate) : "…"} sub={t ? (small ? `결과 없음 ${t.misses}회 — 표본 ${t.searches}회, 참고만` : `결과 없음 ${t.misses.toLocaleString()}회 ÷ 검색`) : undefined} tone={missTone} />
-        <Stat label="콘텐츠 클릭" value={t ? `${t.clicked.toLocaleString()}회` : "…"} sub="검색 뒤 10분 안에 결과를 재생·담은 검색" />
+        <Stat label="콘텐츠 클릭" value={t ? (t.clicked == null ? "-" : `${t.clicked.toLocaleString()}회`) : "…"} sub={t && t.clicked == null ? "이 서버는 아직 집계하지 않는다 — 배포 대기" : "검색 뒤 10분 안에 결과를 재생·담은 검색"} />
         <Stat label="2자 질의" value={t ? pct(ratio(t.short_queries, t.searches)) : "…"} sub="트라이그램 인덱스를 못 타는 길이" />
         <Stat label="주제 필터 동반" value={t ? pct(ratio(t.filtered_searches, t.searches)) : "…"} sub="결과 없음이 필터 탓인지 가를 때" />
       </div>
@@ -115,7 +115,7 @@ function SummaryView({ channel, days }: { channel: EarChannel; days: number }) {
                 <Td className="tabular-nums">{r.searches}회</Td>
                 <Td className="tabular-nums text-rose-700">{times(r.misses)}</Td>
                 <Td className={`tabular-nums ${r.result_count === 0 ? "text-rose-700" : ""}`}>{found(r)}</Td>
-                <Td className={`tabular-nums ${r.clicked > 0 ? "text-emerald-700" : "text-ink-soft"}`}>{times(r.clicked)}</Td>
+                <Td className={`tabular-nums ${(r.clicked ?? 0) > 0 ? "text-emerald-700" : "text-ink-soft"}`}>{times(r.clicked)}</Td>
                 <Td className="whitespace-nowrap text-ink-soft">{fmtTime(r.last_searched_at)}</Td>
               </Tr>
             ))}
@@ -129,7 +129,7 @@ function SummaryView({ channel, days }: { channel: EarChannel; days: number }) {
                 <Td className="tabular-nums">{r.searches}회</Td>
                 <Td className={`tabular-nums ${r.result_count === 0 ? "text-rose-700" : ""}`}>{found(r)}</Td>
                 <Td className={`tabular-nums ${r.misses > 0 ? "text-rose-700" : "text-ink-soft"}`}>{times(r.misses)}</Td>
-                <Td className={`tabular-nums ${r.clicked > 0 ? "text-emerald-700" : "text-ink-soft"}`}>{times(r.clicked)}</Td>
+                <Td className={`tabular-nums ${(r.clicked ?? 0) > 0 ? "text-emerald-700" : "text-ink-soft"}`}>{times(r.clicked)}</Td>
                 <Td className="whitespace-nowrap text-ink-soft">{fmtTime(r.last_searched_at)}</Td>
               </Tr>
             ))}
