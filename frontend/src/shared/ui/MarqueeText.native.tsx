@@ -74,9 +74,15 @@ export default function MarqueeText({
           duration: (distance / speed) * 1000,
           easing: Easing.linear,
           useNativeDriver: true,
+          isInteraction: false,
         }),
         // 반복본이 원문 자리에 왔을 때 0으로 되감으면 이음새가 보이지 않는다
-        Animated.timing(translateX, { toValue: 0, duration: 0, useNativeDriver: true }),
+        Animated.timing(translateX, {
+          toValue: 0,
+          duration: 0,
+          useNativeDriver: true,
+          isInteraction: false,
+        }),
       ]),
     );
     loop.start();

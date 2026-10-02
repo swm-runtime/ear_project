@@ -203,6 +203,7 @@ function IosMarqueeRow({
           duration: (remain / speed) * 1000,
           easing: Easing.linear,
           useNativeDriver: true,
+          isInteraction: false,
         }),
         Animated.loop(
           Animated.timing(progress, {
@@ -210,6 +211,7 @@ function IosMarqueeRow({
             duration: (copyWidth / speed) * 1000,
             easing: Easing.linear,
             useNativeDriver: true,
+            isInteraction: false,
           }),
           { resetBeforeIteration: true },
         ),
