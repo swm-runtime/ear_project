@@ -1,4 +1,4 @@
-import { blogEmpty, releaseMailto } from "@/content/site";
+import { blogEmpty, blogNewsMailto } from "@/content/site";
 import s from "./BlogEmpty.module.css";
 import { Sentences } from "./Sentences";
 
@@ -20,7 +20,7 @@ export function BlogEmpty() {
       </div>
 
       <div className={s.actions}>
-        <a href={releaseMailto} className="btn btnPrimary">
+        <a href={blogNewsMailto} className="btn btnPrimary">
           {blogEmpty.ctaLabel}
         </a>
         <p className={s.note}>

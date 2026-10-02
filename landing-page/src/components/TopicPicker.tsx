@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { TopicGroup } from "@/content/public-topics";
-import { site, topicPicker } from "@/content/site";
+import { topicPicker } from "@/content/site";
+import { storeUrlFor, useStorePlatform } from "@/lib/store-platform";
 import s from "./Topics.module.css";
 
 const TOAST_MS = 2200;
@@ -12,7 +13,7 @@ const TOAST_MS = 2200;
  *
  * - 최대 3개. **3개를 채우면 나머지 칩은 흐려지고**, 눌러도 선택되지 않고 토스트만 뜬다
  *   (앱은 비활성 + 토스트 — 여기서도 버튼을 `disabled`로 막지 않는다. 막으면 눌러 볼 수 없어 왜 안 되는지 모른다).
- * - 서버에 저장하지 않는다. 고른 주제는 출시 알림 메일 본문에 실려 간다 — 랜딩에서 유일하게 "이어지는" 곳이다.
+ * - 서버에 저장하지 않는다. 고른 뒤에는 앱 다운로드로 잇는다 — 앱 온보딩의 첫 화면이 같은 주제 고르기다.
  * - 칩은 `button` + `aria-pressed`. 개수는 `aria-live`로 읊어 준다.
  */
 export function TopicPicker({ groups }: { groups: TopicGroup[] }) {
@@ -40,9 +41,8 @@ export function TopicPicker({ groups }: { groups: TopicGroup[] }) {
     setSelected([...selected, name]);
   };
 
-  const mailto = `mailto:${site.contactEmail}?subject=${encodeURIComponent("이어 출시 소식 받고 싶어요")}&body=${encodeURIComponent(
-    `관심 주제: ${selected.join(", ")}`,
-  )}`;
+  // 휴대폰이면 그 기기의 스토어로, 데스크톱이면 두 스토어 버튼이 있는 하단 CTA로 보낸다
+  const storeUrl = storeUrlFor(useStorePlatform());
 
   return (
     <div className={s.picker}>
@@ -79,7 +79,7 @@ export function TopicPicker({ groups }: { groups: TopicGroup[] }) {
         ))}
       </div>
 
-      {/* 고른 주제 요약 — 1개 이상 고르면 나타난다. 앱의 다음 단계(담기) 대신 출시 알림으로 잇는다 */}
+      {/* 고른 주제 요약 — 1개 이상 고르면 나타난다. 앱의 다음 단계(담기) 대신 앱 다운로드로 잇는다 */}
       <div className={`${s.summary} ${selected.length > 0 ? s.summaryOn : ""}`} aria-hidden={selected.length === 0}>
         <div className={s.summaryText}>
           <p className={s.summaryTitle}>{topicPicker.summaryTitle}</p>
@@ -93,7 +93,12 @@ export function TopicPicker({ groups }: { groups: TopicGroup[] }) {
           </ul>
         </div>
         <div className={s.summaryActions}>
-          <a href={mailto} className="btn btnPrimary" tabIndex={selected.length > 0 ? 0 : -1}>
+          <a
+            href={storeUrl ?? "#cta"}
+            className="btn btnPrimary"
+            tabIndex={selected.length > 0 ? 0 : -1}
+            {...(storeUrl ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+          >
             {topicPicker.cta}
           </a>
           <button

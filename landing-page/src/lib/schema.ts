@@ -14,7 +14,14 @@
 import { allPosts, type Post } from "@/content/blog";
 import { blocksToText } from "@/content/prose";
 import { routes, postPath } from "@/content/routes";
-import { faqs, plans, site, SITE_URL } from "@/content/site";
+import {
+  androidStoreUrl,
+  faqs,
+  iosStoreUrl,
+  plans,
+  site,
+  SITE_URL,
+} from "@/content/site";
 
 type Node = Record<string, unknown>;
 
@@ -38,7 +45,9 @@ export function siteGraph(): Node {
     name: site.name,
     alternateName: site.nameEn,
     url: abs("/"),
-    logo: abs("/icon.svg"),
+    // `/icon.svg`는 없는 주소였다(404 — 2026-10-02 발견). 실제로 서빙되는 앱 아이콘(`app/icon.png`)을 가리킨다
+    logo: abs("/icon.png"),
+    sameAs: [iosStoreUrl, androidStoreUrl],
     description: site.shortDescription,
     email: site.contactEmail,
   };
@@ -60,11 +69,13 @@ export function siteGraph(): Node {
     applicationCategory: "EducationApplication",
     applicationSubCategory: "팟캐스트",
     operatingSystem: "iOS, Android",
+    // 두 스토어의 앱 페이지 — 검색 결과에서 설치 경로로 쓰인다
+    installUrl: [iosStoreUrl, androidStoreUrl],
     description: routes.home.description,
     inLanguage: "ko-KR",
     publisher: { "@id": ORG_ID },
-    // 무료 요금제(라이트)만 확정값이다. 유료 요금제 가격은 정해지지 않았으므로
-    // 여기에 적지 않는다 — 없는 가격을 구조화 데이터에 넣으면 그대로 오보가 된다.
+    // 무료 요금제(라이트)만 적는다. 유료 요금제는 가격이 정해졌지만 앱 안의 결제가 아직 열리지 않았다 —
+    // 살 수 없는 상품을 Offer로 내보내면 검색 결과에 "구매 가능"으로 읽힌다. 결제가 열리면 추가한다.
     offers: {
       "@type": "Offer",
       name: plans[0].name,

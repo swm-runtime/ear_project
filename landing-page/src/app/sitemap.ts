@@ -18,6 +18,7 @@ export const dynamic = "force-static";
 export default function sitemap(): MetadataRoute.Sitemap {
   const pages: MetadataRoute.Sitemap = routeList.map((r) => ({
     url: `${SITE_URL}${r.path}`,
+    lastModified: r.lastModified,
     changeFrequency: r.changeFrequency,
     priority: r.priority,
   }));
