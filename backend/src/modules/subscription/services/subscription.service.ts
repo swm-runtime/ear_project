@@ -4,7 +4,10 @@ import { EntityManager } from 'typeorm';
 import { UserTier } from '@/modules/user/user.enum';
 
 import { Subscription } from '../entities/subscription.entity';
-import { SubscriptionRepository } from '../repositories/subscription.repository';
+import {
+  SubscriptionDraft,
+  SubscriptionRepository,
+} from '../repositories/subscription.repository';
 import {
   NON_TERMINAL_SUBSCRIPTION_STATUSES,
   PlanStatus,
@@ -134,6 +137,68 @@ export class SubscriptionService {
       manager,
     );
     return selectCurrentSubscription(rows);
+  }
+
+  /** 스토어 구독의 자연 키로 찾는다(잠그지 않는다 — 주인 확인 등 읽기용) */
+  async findByOriginalTransactionId(
+    originalTransactionId: string,
+    manager?: EntityManager,
+  ): Promise<Subscription | null> {
+    return this.subscriptionRepository.findByOriginalTransactionId(
+      originalTransactionId,
+      manager,
+    );
+  }
+
+  /**
+   * 스토어 구독 한 건을 **잠가서** 가져온다 — 반영 직전에 부른다. 영수증 제출과 스토어 알림이 같은 구독을
+   * 동시에 고치면 늦게 커밋한 쪽이 옛 값으로 덮기 때문이다.
+   */
+  async lockByOriginalTransactionId(
+    originalTransactionId: string,
+    manager: EntityManager,
+  ): Promise<Subscription | null> {
+    return this.subscriptionRepository.findByOriginalTransactionIdForUpdate(
+      originalTransactionId,
+      manager,
+    );
+  }
+
+  /**
+   * 행이 없으면 만들고, **어느 쪽이든 잠근 행을 돌려준다.** 동시에 도착한 요청이 먼저 만들었으면
+   * 유니크 충돌을 삼키고 그 행을 잠가 읽는다 — 호출부는 "만들었는가"만 구분하면 된다.
+   */
+  async createOrLock(
+    draft: SubscriptionDraft,
+    manager: EntityManager,
+  ): Promise<{ subscription: Subscription; created: boolean }> {
+    const created = await this.subscriptionRepository.insertIfAbsent(
+      draft,
+      manager,
+    );
+    const subscription =
+      await this.subscriptionRepository.findByOriginalTransactionIdForUpdate(
+        draft.originalTransactionId,
+        manager,
+      );
+
+    if (!subscription) {
+      throw new Error('subscription row disappeared after insert');
+    }
+
+    return { subscription, created };
+  }
+
+  async save(
+    subscription: Subscription,
+    manager?: EntityManager,
+  ): Promise<Subscription> {
+    return this.subscriptionRepository.save(subscription, manager);
+  }
+
+  /** 만료 보정 대상(`subscription-api.md` 4.2) — 만료가 `before`보다 과거인 비종결 행 */
+  async findOverdue(before: Date, limit: number): Promise<Subscription[]> {
+    return this.subscriptionRepository.findOverdue(before, limit);
   }
 
   /** 탈퇴 아카이브 이관용 조회 (domain.md 12.3) */

@@ -15,13 +15,14 @@ import { PurchaseIntentStatus } from '../subscription.enum';
 import { Plan } from './plan.entity';
 
 /**
- * domain.md 8.3 — 결제 멱등키. 결제 버튼 연타로 인한 중복 결제 요청을 막는다(`paywall.md` 7).
+ * domain.md 8.3 — 결제 전 서버 관문의 기록이자 **계정 결속 토큰**이다.
  *
- * `id`가 곧 멱등키다 — 클라이언트는 결제 시트를 열기 전에 이 행을 만들고, 영수증 제출 시
- * 같은 `id`를 함께 보낸다(`subscription.md` 4.2 2단계). 결제 결과 자체는 `subscriptions`에
- * 남으므로 탈퇴 시 아카이브하지 않고 `users` FK CASCADE로 즉시 파기된다(domain.md 12.3).
+ * 클라이언트는 결제 시트를 열기 전에 이 행을 만들고(`subscription-api.md` 4.3), 그 `id`를 결제에 실어 보낸다
+ * (iOS `appAccountToken` · Android `obfuscatedAccountId`). 스토어가 서명한 거래 안에 그 값이 담겨 돌아와
+ * "이 거래를 시작한 계정"을 서명 수준에서 확인한다. 그래서 `id`는 UUID여야 한다(Apple 요구).
  *
- * 이 행을 쓰는 코드는 영수증 검증(KAN-40)과 함께 들어온다 — 테이블은 문서가 정한 대로 먼저 둔다.
+ * 결제 결과 자체는 `subscriptions`에 남으므로 탈퇴 시 아카이브하지 않고 `users` FK CASCADE로 즉시 파기된다
+ * (domain.md 12.3).
  */
 @Entity('purchase_intents')
 @Index('idx_purchase_intents_user_id_created_at', ['userId', 'createdAt'])

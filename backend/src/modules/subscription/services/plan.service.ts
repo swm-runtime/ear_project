@@ -5,7 +5,8 @@ import { UserTier } from '@/modules/user/user.enum';
 
 import { Plan } from '../entities/plan.entity';
 import { PlanRepository } from '../repositories/plan.repository';
-import { PlayLimitPolicy } from '../subscription.types';
+import { SubscriptionStore } from '../subscription.enum';
+import { Entitlements, PlayLimitPolicy } from '../subscription.types';
 
 /**
  * `plans`는 subscription 모듈 소유다(domain.md 2장).
@@ -23,6 +24,45 @@ export class PlanService {
     manager?: EntityManager,
   ): Promise<Plan | null> {
     return this.planRepository.findByTier(tier, manager);
+  }
+
+  async findById(id: string, manager?: EntityManager): Promise<Plan | null> {
+    return this.planRepository.findById(id, manager);
+  }
+
+  /** 판매 중인 요금제 — `display_order` 오름차순(낮은 티어 → 높은 티어) */
+  async findAllActive(manager?: EntityManager): Promise<Plan[]> {
+    return this.planRepository.findAllActive(manager);
+  }
+
+  /** 스토어 상품 ID → 요금제. 판매를 멈춘 요금제도 찾는다(기존 구독자의 갱신) */
+  async findByStoreProductId(
+    store: SubscriptionStore,
+    productId: string,
+    manager?: EntityManager,
+  ): Promise<Plan | null> {
+    return store === SubscriptionStore.APP_STORE
+      ? this.planRepository.findByIosProductId(productId, manager)
+      : this.planRepository.findByAndroidProductId(productId, manager);
+  }
+
+  /**
+   * 그 티어의 권한(`subscription-api.md` 2장). 재생 한도 판정(`getPlayLimitPolicy`)과 **같은 행**에서
+   * 읽고 같은 폴백을 쓴다 — 화면이 본 한도와 서버가 판정하는 한도가 어긋나지 않는다.
+   */
+  async getEntitlements(
+    tier: UserTier,
+    manager?: EntityManager,
+  ): Promise<Entitlements> {
+    const plan =
+      (await this.findByTier(tier, manager)) ??
+      (await this.findByTier(UserTier.LIGHT, manager));
+
+    if (!plan) {
+      throw new Error('plans 테이블에 요금제 행이 없어 권한을 조립할 수 없다');
+    }
+
+    return toEntitlements(plan);
   }
 
   /**
@@ -137,4 +177,13 @@ export class PlanService {
 
     return lightPlan?.dailyDiscoveryCount ?? 0;
   }
+}
+
+export function toEntitlements(plan: Plan): Entitlements {
+  return {
+    dailyPlayLimit: plan.dailyPlayLimit,
+    dailyDripCount: plan.isDripEnabled ? plan.dailyDripCount : 0,
+    dripEnabled: plan.isDripEnabled,
+    adsEnabled: plan.isAdsEnabled,
+  };
 }

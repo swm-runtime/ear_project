@@ -106,7 +106,7 @@
     },
     {
       "plan_id": "uuid-daily", "tier": "daily", "name": "데일리", "description": "…",
-      "price_krw": 4900, "store_product_id": "com.runtime.ear.subscription.daily.monthly",
+      "price_krw": 3900, "store_product_id": "com.runtime.ear.subscription.daily.monthly",
       "entitlements": { "daily_play_limit": 5, "daily_drip_count": 2, "drip_enabled": true, "ads_enabled": false },
       "action": "purchase"
     },
@@ -332,7 +332,7 @@ Apple이 호출한다. 본문은 `{ "signedPayload": "<JWS>" }`. App Store Conne
 
 **처리**
 
-1. `signedPayload` 서명 검증 → `notificationUUID`로 `store_notification_logs`에 적재. **유니크 충돌이면 이미 받은 알림이므로 200으로 끝낸다**(`domain.md` 8.4)
+1. `signedPayload` 서명 검증 → `notificationUUID`로 `store_notification_logs`에 적재(처리 트랜잭션 밖 — 처리가 실패해도 받았다는 기록은 남는다). **유니크 충돌이고 그 행의 `processed_at`이 있으면 이미 처리한 알림이므로 200으로 끝낸다.** `processed_at`이 비어 있으면 받기만 하고 처리에 실패했던 알림이라 다시 처리한다(`domain.md` 8.4)
 2. 페이로드의 `signedTransactionInfo` · `signedRenewalInfo`(각각 JWS)를 검증해 구독 상태를 환산한다
 3. `original_transaction_id`로 `subscriptions` 행을 찾아 반영하고 `users.tier`를 갱신한다. **행이 없으면**(영수증 제출보다 알림이 먼저 도착) 거래의 계정 토큰으로 사용자를 찾아 행을 만든다. 토큰도 없으면 `processed_at`을 비워 둔 채 200으로 받고, 이후 영수증 제출·복원이 연결한다
 4. 처리 완료 시 `processed_at` 기록
@@ -451,14 +451,19 @@ Google Cloud Pub/Sub **push 구독**이 호출한다. 본문은 Pub/Sub 메시�
 ## 7. 보안·검증 규칙
 
 - **클라이언트가 보낸 값으로 티어를 바꾸지 않는다.** 티어를 바꾸는 근거는 ① 스토어가 서명한 거래(JWS)·스토어 API 응답 ② 스토어 서버 알림 둘뿐이다. 요청 본문의 평문 필드(`product_id`, `intent_id`)는 조회 열쇠·교차 확인용이다.
-- **`users.tier`를 쓰는 곳은 `SubscriptionService` 한 곳이다**(`domain.md` 3.1). 영수증 제출·복원·웹훅·만료 보정이 전부 같은 반영 함수를 거친다.
+- **`users.tier`를 쓰는 경로는 한 곳이다**(`domain.md` 3.1 — `BillingSyncService.syncUserTier`). 영수증 제출·복원·웹훅·만료 보정이 전부 같은 반영 함수를 거치고, 구독 행과 `users.tier`를 **한 트랜잭션에서** 고친다. `subscription` 모듈이 아니라 그 위의 `billing` 모듈에 있다 — `user` 모듈이 `subscription`을 의존해(탈퇴 시 결제 이력 판정) 반대 방향으로는 의존할 수 없어서다.
 - **거래의 주인 확인** — 결제에 실은 `account_token`(= `purchase_intents.id`)이 서명된 거래 안에 들어온다. 그 의도가 다른 사용자의 것이면 거부한다. 토큰이 없거나(복원·프로모션 코드·스토어 밖 구매) 의도 행이 이미 없으면(탈퇴로 파기) `original_transaction_id`의 유일성으로만 판정한다 — 살아 있는 다른 계정에 있으면 거부, 없으면 연결.
 - **거래 ID만으로 복원하지 않는다.** `archived_subscriptions`의 `original_transaction_id`는 보존 기록이지 권한이 아니다(`domain.md` 11.5). 재가입 복원은 **그 스토어 계정이 지금 제출한 서명된 거래**가 있을 때만 성립한다.
-- **환경 분리** — iOS 거래·알림의 `environment`(`Production` / `Sandbox`)를 본다. 개발계 서버는 `Sandbox`만, 운영 서버는 `Production`을 받는다. **운영 서버가 `Sandbox`를 받을지는 설정값이다**(App Store 심사는 운영 빌드로 샌드박스 결제를 한다 — 심사 기간에만 켠다). 허용하지 않는 환경은 `SUBSCRIPTION_RECEIPT_INVALID`다.
+- **환경 분리** — iOS 거래·알림의 `environment`(`Production` / `Sandbox`)를 본다. **서버가 받는 환경은 설정값이다**(`APP_STORE_ENVIRONMENTS`): 개발계 서버는 `Sandbox`, 운영 서버는 `Production`, 심사·TestFlight 결제까지 받으려면 `Production,Sandbox`다(App Store 심사와 TestFlight는 운영 빌드로 샌드박스 결제를 한다). 받지 않는 환경은 서명이 맞아도 `SUBSCRIPTION_RECEIPT_INVALID`다. **운영이 샌드박스를 함께 받을 때 시험 결제는 `subscriptions.environment = sandbox`로 구분된다**(`domain.md` 8.2) — 권한은 똑같이 주되(그래야 심사·시험이 된다) 매출·구독자 집계에서 뺀다.
 - **웹훅 검증** — App Store: `signedPayload`의 인증서 체인을 Apple 루트 인증서까지 검증하고 `bundleId`·`appAppleId`를 대조한다. Play: Pub/Sub OIDC 토큰의 서명·`aud`·발신 서비스 계정을 검증한다. 검증 전에는 본문을 믿지 않는다. 웹훅 경로는 사용자 레이트리밋 대상이 아니다.
 - **Android `acknowledge`는 서버가 한다** — 검증·반영이 끝난 뒤에. 클라이언트가 먼저 확인하면 서버 반영이 실패했을 때 "결제됐는데 티어 없음"이 된다.
 - **로그에 영수증·토큰 원문을 남기지 않는다**(`convention.md` 8.4). `original_transaction_id`·알림 UUID·유형만 남긴다. `subscriptions.latest_receipt`에는 마지막 서명 거래(JWS) 또는 구매 토큰을 저장한다(재조회 열쇠).
-- **스토어 자격증명**(App Store Server API 키 `.p8`·Issuer ID·Key ID, Play 서비스 계정)은 Secrets Manager에 두고 env로 주입한다. 비어 있으면 그 플랫폼의 검증·보정이 꺼지고 관련 요청은 `SUBSCRIPTION_STORE_UNAVAILABLE`이 아니라 **`SUBSCRIPTION_PLAN_UNAVAILABLE`** 로 의도 생성 단계에서 막힌다(결제부터 시키고 검증을 못 하는 상태를 만들지 않는다).
+- **스토어 구성과 자격증명**은 Secrets Manager에 두고 env로 주입한다.
+  - **검증 구성** — `APP_STORE_BUNDLE_ID`(번들 ID) · `APP_STORE_ENVIRONMENTS`(받는 환경) · `APP_STORE_APP_APPLE_ID`(앱의 Apple ID — `Production`을 받을 때 필수). **영수증·알림 검증은 서명만으로 끝나 API 키가 필요 없다.** 이 구성이 비어 있으면 iOS 결제가 꺼지고, 관련 요청은 `SUBSCRIPTION_STORE_UNAVAILABLE`이 아니라 **`SUBSCRIPTION_PLAN_UNAVAILABLE`** 로 의도 생성 단계에서 막힌다(결제부터 시키고 검증을 못 하는 상태를 만들지 않는다). 4.1의 `action`도 전부 `none`이 된다.
+  - **App Store Server API 키** — `APP_STORE_ISSUER_ID` · `APP_STORE_KEY_ID` · `APP_STORE_PRIVATE_KEY_BASE64`(.p8). **만료 보정(4.2)에만 쓴다.** 비어 있으면 보정이 꺼지고 저장된 상태 그대로 응답한다 — 그동안 알림이 유실된 구독은 유료로 남는다(경고 로그).
+  - Play 서비스 계정은 Play 구현 때 정한다.
+- **환불·만료 뒤의 재제출을 막는다** — 환불(`refunded`)·만료(`expired`)로 종결된 구독에, 그 통지 **이전에 시작된** 거래를 다시 내면 `SUBSCRIPTION_RECEIPT_INVALID`다(복원에서는 무시). 기기에 받아 둔 서명 거래에는 환불 표시가 없어 그 자체로는 유효해 보이기 때문이다. 종결 뒤에 새로 시작된 거래(재구독)만 되살린다(`domain.md` 8.2 `last_notified_at`).
+- **지난 결제 주기에 대한 환불·만료 알림은 지금 주기를 건드리지 않는다** — 알림의 거래가 저장된 만료일보다 앞선 주기의 것이면 반영하지 않는다(지난달 결제분만 환불된 경우).
 
 ---
 
@@ -479,9 +484,9 @@ Google Cloud Pub/Sub **push 구독**이 호출한다. 본문은 Pub/Sub 메시�
 
 ## 9. 미결 사항
 
-- **데일리·프로의 재생 한도·가격** — `plans` 행의 값(4.1 예시의 `5`·`4900`·`9900`은 자리 표시다). 값이 정해지면 행만 넣는다(`subscription.md` 미결)
+- ~~데일리·프로의 재생 한도·가격~~ — **해소(2026-10-02)**: 데일리 3,900원·하루 5편, 프로 9,900원·무제한(`domain.md` 8.1)
 - **무료 체험·소개 가격** — 도입하면 4.1에 체험 자격(`is_trial_eligible`) 필드와 알림 환산(`OFFER_REDEEMED`)이 추가된다
-- **스토어 상품 ID 확정값** — App Store Connect에 등록한 실제 ID를 `plans.store_product_id_ios`에 넣는다
-- **운영 서버의 샌드박스 수용 스위치 운용** — 심사 제출 때 켜고 통과 뒤 끄는 절차를 `infra/runbook.md`에 적는다
+- ~~스토어 상품 ID 확정값~~ — **해소(2026-10-02)**: iOS `com.runtime.ear.subscription.daily.monthly` · `com.runtime.ear.subscription.pro.monthly`(구독 그룹 등급: 프로 1 · 데일리 2). Android는 Play 구현 때
+- **운영 서버의 샌드박스 수용 운용** — `APP_STORE_ENVIRONMENTS`에 `Sandbox`를 언제 넣고 빼는지(심사·내부 시험 기간), 그리고 서버 알림 URL(프로덕션·샌드박스)을 App Store Connect에 등록하는 절차를 `infra/runbook.md`에 적는다
 - **Play 구현 시점** — 서비스 계정·Pub/Sub 구성 후(4.7)
 - **가족 공유·프로모션 코드** — 스토어가 유효 구독으로 돌려주면 그대로 인정한다(`subscription.md` 7). 별도 계약 없음
