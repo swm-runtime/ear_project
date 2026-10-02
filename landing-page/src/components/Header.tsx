@@ -30,7 +30,7 @@ export function Header() {
           ))}
         </nav>
 
-        <HeaderStoreLink className={`btn btnPrimary ${s.cta}`} />
+        <HeaderStoreLink />
 
         <details className={s.menu}>
           <summary className={s.menuBtn} aria-label="메뉴 열기">
