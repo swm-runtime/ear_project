@@ -17,6 +17,7 @@ describe('SearchQueryLogService', () => {
     resultCount: 3,
     hasNext: false,
     topicFilterCount: 0,
+    resultContentIds: ['c1', 'c2', 'c3'],
   };
 
   const latestRow = (query: string, updatedAt: Date): SearchQueryLog =>
@@ -27,9 +28,10 @@ describe('SearchQueryLogService', () => {
       resultCount: 0,
       hasNext: false,
       topicFilterCount: 0,
+      resultContentIds: [],
       createdAt: updatedAt,
       updatedAt,
-    }) as SearchQueryLog;
+    }) as unknown as SearchQueryLog;
 
   beforeEach(() => {
     repository = {
@@ -54,6 +56,7 @@ describe('SearchQueryLogService', () => {
         resultCount: 3,
         hasNext: false,
         topicFilterCount: 0,
+        resultContentIds: ['c1', 'c2', 'c3'],
       });
       expect(repository.overwrite).not.toHaveBeenCalled();
     });
@@ -73,6 +76,7 @@ describe('SearchQueryLogService', () => {
         resultCount: 3,
         hasNext: false,
         topicFilterCount: 0,
+        resultContentIds: ['c1', 'c2', 'c3'],
       });
       expect(repository.insert).not.toHaveBeenCalled();
     });
@@ -139,6 +143,7 @@ describe('SearchQueryLogService', () => {
         totals: {
           searches: 0,
           misses: 0,
+          clicked: 0,
           users: 0,
           shortQueries: 0,
           filteredSearches: 0,
@@ -164,6 +169,7 @@ describe('SearchQueryLogService', () => {
         totals: {
           searches: 0,
           misses: 0,
+          clicked: 0,
           users: 0,
           shortQueries: 0,
           filteredSearches: 0,

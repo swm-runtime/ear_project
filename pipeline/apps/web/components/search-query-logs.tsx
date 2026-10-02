@@ -41,6 +41,9 @@ export function SearchQueryLogs() {
 
 const pct = (n: number | null) => (n == null ? "-" : `${(n * 100).toFixed(1)}%`);
 const ratio = (part: number, whole: number) => (whole > 0 ? part / whole : null);
+/** 나온 콘텐츠 수 — 서버가 첫 페이지 건수만 남기므로(총수를 세지 않는다) 다음 페이지가 있으면 "20건+" */
+const found = (r: { result_count: number; has_more: boolean }) => `${r.result_count}건${r.has_more ? "+" : ""}`;
+const times = (n: number) => (n > 0 ? `${n}회` : "-");
 
 function SummaryView({ channel, days }: { channel: EarChannel; days: number }) {
   const [data, setData] = useState<EarSearchQueryLogSummary | null>(null);
@@ -73,10 +76,10 @@ function SummaryView({ channel, days }: { channel: EarChannel; days: number }) {
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <Stat label="검색" value={t ? t.searches.toLocaleString() : "…"} sub={t ? `사용자 ${t.users.toLocaleString()}명 · 타이핑 묶음 단위` : undefined} />
-        <Stat label="0건" value={t ? t.misses.toLocaleString() : "…"} sub="결과가 하나도 없던 검색" />
-        <Stat label="미스율" value={t ? pct(missRate) : "…"} sub={small ? `표본 ${t?.searches}건 — 참고만` : "0건 ÷ 검색"} tone={missTone} />
+        <Stat label="결과 없음 비율" value={t ? pct(missRate) : "…"} sub={t ? (small ? `결과 없음 ${t.misses}회 — 표본 ${t.searches}회, 참고만` : `결과 없음 ${t.misses.toLocaleString()}회 ÷ 검색`) : undefined} tone={missTone} />
+        <Stat label="콘텐츠 클릭" value={t ? `${t.clicked.toLocaleString()}회` : "…"} sub="검색 뒤 10분 안에 결과를 재생·담은 검색" />
         <Stat label="2자 질의" value={t ? pct(ratio(t.short_queries, t.searches)) : "…"} sub="트라이그램 인덱스를 못 타는 길이" />
-        <Stat label="주제 필터 동반" value={t ? pct(ratio(t.filtered_searches, t.searches)) : "…"} sub="0건이 필터 탓인지 가를 때" />
+        <Stat label="주제 필터 동반" value={t ? pct(ratio(t.filtered_searches, t.searches)) : "…"} sub="결과 없음이 필터 탓인지 가를 때" />
       </div>
 
       <Panel title={`일별 추이 — ${data ? `${data.since.slice(0, 10)} 이후` : "…"}`} right={<button className={btnCls("ghost")} disabled={loading} onClick={() => void load()}>{loading ? "불러오는 중…" : "새로고침"}</button>}>
@@ -87,11 +90,13 @@ function SummaryView({ channel, days }: { channel: EarChannel; days: number }) {
             {(data?.daily ?? []).map((d) => {
               const h = Math.max(2, Math.round((d.searches / maxDaily) * 80));
               const mh = d.searches > 0 ? Math.round((d.misses / d.searches) * h) : 0;
+              const ch = d.searches > 0 ? Math.round((d.clicked / d.searches) * h) : 0;
               return (
-                <div key={d.date} className="flex min-w-[18px] flex-1 flex-col items-center justify-end gap-1" title={`${d.date} · 검색 ${d.searches} · 0건 ${d.misses}`}>
-                  <div className="relative w-full rounded-t bg-brand/70" style={{ height: h }}>
-                    {/* 0건 몫은 아래에서 빨강으로 채운다 — 막대 전체가 검색, 빨강이 그중 0건 */}
-                    <div className="absolute inset-x-0 bottom-0 rounded-t bg-rose-400" style={{ height: mh }} />
+                <div key={d.date} className="flex min-w-[18px] flex-1 flex-col items-center justify-end gap-1" title={`${d.date} · 검색 ${d.searches}회 · 결과 없음 ${d.misses}회 · 콘텐츠 클릭 ${d.clicked}회`}>
+                  {/* 막대 전체가 검색. 아래부터 빨강(결과 없음) → 초록(콘텐츠 클릭). 나머지는 반응이 안 잡힌 검색 — 이유는 알 수 없어 따로 이름 붙이지 않는다 */}
+                  <div className="relative w-full rounded-t bg-brand/40" style={{ height: h }}>
+                    <div className="absolute inset-x-0 bottom-0 bg-emerald-500" style={{ height: ch, bottom: mh }} />
+                    <div className="absolute inset-x-0 bottom-0 bg-rose-400" style={{ height: mh }} />
                   </div>
                   <span className="text-[10px] tabular-nums text-ink-soft">{d.date.slice(5)}</span>
                 </div>
@@ -102,25 +107,29 @@ function SummaryView({ channel, days }: { channel: EarChannel; days: number }) {
       </Panel>
 
       <div className="grid gap-3 lg:grid-cols-2">
-        <Panel title={`0건으로 끝난 질의 ${data?.missed.length ?? 0}개`} flush>
-          <Table head={["질의", "검색", "0건", "마지막"]} empty={data === null ? "불러오는 중…" : "0건으로 끝난 검색이 없다"}>
+        <Panel title={`결과가 없던 검색어 ${data?.missed.length ?? 0}개`} flush>
+          <Table head={["검색어", "검색 횟수", "결과 없음", "나온 콘텐츠(최근)", "콘텐츠 클릭", "마지막"]} empty={data === null ? "불러오는 중…" : "결과가 없던 검색이 없다"}>
             {(data?.missed ?? []).map((r) => (
               <Tr key={r.query}>
                 <Td className="font-medium">{r.query}</Td>
-                <Td className="tabular-nums">{r.searches}</Td>
-                <Td className="tabular-nums text-rose-700">{r.misses}</Td>
+                <Td className="tabular-nums">{r.searches}회</Td>
+                <Td className="tabular-nums text-rose-700">{times(r.misses)}</Td>
+                <Td className={`tabular-nums ${r.result_count === 0 ? "text-rose-700" : ""}`}>{found(r)}</Td>
+                <Td className={`tabular-nums ${r.clicked > 0 ? "text-emerald-700" : "text-ink-soft"}`}>{times(r.clicked)}</Td>
                 <Td className="whitespace-nowrap text-ink-soft">{fmtTime(r.last_searched_at)}</Td>
               </Tr>
             ))}
           </Table>
         </Panel>
-        <Panel title={`많이 찾은 질의 ${data?.top.length ?? 0}개`} flush>
-          <Table head={["질의", "검색", "0건", "마지막"]} empty={data === null ? "불러오는 중…" : "검색이 없다"}>
+        <Panel title={`많이 찾은 검색어 ${data?.top.length ?? 0}개`} flush>
+          <Table head={["검색어", "검색 횟수", "나온 콘텐츠(최근)", "결과 없음", "콘텐츠 클릭", "마지막"]} empty={data === null ? "불러오는 중…" : "검색이 없다"}>
             {(data?.top ?? []).map((r) => (
               <Tr key={r.query}>
                 <Td className="font-medium">{r.query}</Td>
-                <Td className="tabular-nums">{r.searches}</Td>
-                <Td className={`tabular-nums ${r.misses > 0 ? "text-rose-700" : "text-ink-soft"}`}>{r.misses}</Td>
+                <Td className="tabular-nums">{r.searches}회</Td>
+                <Td className={`tabular-nums ${r.result_count === 0 ? "text-rose-700" : ""}`}>{found(r)}</Td>
+                <Td className={`tabular-nums ${r.misses > 0 ? "text-rose-700" : "text-ink-soft"}`}>{times(r.misses)}</Td>
+                <Td className={`tabular-nums ${r.clicked > 0 ? "text-emerald-700" : "text-ink-soft"}`}>{times(r.clicked)}</Td>
                 <Td className="whitespace-nowrap text-ink-soft">{fmtTime(r.last_searched_at)}</Td>
               </Tr>
             ))}
@@ -129,7 +138,7 @@ function SummaryView({ channel, days }: { channel: EarChannel; days: number }) {
       </div>
 
       <p className="text-xs text-ink-soft">
-        한 행은 사용자가 치다가 멈춘 질의 하나다 — 디바운스 자동 검색의 중간 입력(‘커’ → ‘커리’ → ‘커리어’)은 서버가 10초 창 안에서 마지막 것으로 접는다. 0건 질의가 콘텐츠가 없는 주제면 제작 쪽 수요이고, 있는데 못 찾은 것이면 매칭 방식(explore.md 4.5-5)을 손볼 근거다. 보존 90일.
+        한 행은 사용자가 치다가 멈춘 질의 하나다 — 디바운스 자동 검색의 중간 입력(‘커’ → ‘커리’ → ‘커리어’)과 한 글자 고침은 서버가 10초 창 안에서 마지막 것으로 접는다. <b>나온 콘텐츠</b>는 그 검색어를 가장 최근에 쳤을 때 나온 수다 — 서버가 첫 페이지(20건)까지만 세므로 그보다 많으면 ‘20건+’로 적는다. <b>결과 없음</b>은 그 검색어가 콘텐츠 0건으로 끝난 횟수다. <b>콘텐츠 클릭</b>은 검색 뒤 10분 안에 결과 중 하나를 재생하거나 담은 횟수다 — 앱이 탭을 보내는 게 아니라 서버가 재생·담기 기록에서 역산한다(재생 한도에 막힌 탭·상세만 본 탭은 안 잡힌다). 그래서 클릭이 없는 검색을 비율로 만들지 않고, 검색어별로 ‘눌린 적이 있나’만 본다. 결과 없는 검색어가 콘텐츠가 없는 주제면 제작 쪽 수요이고, 콘텐츠가 나왔는데 클릭이 한 번도 없는 검색어는 매칭이 엉뚱한지(explore.md 4.5-5) 볼 후보다. 보존 90일.
       </p>
     </div>
   );
