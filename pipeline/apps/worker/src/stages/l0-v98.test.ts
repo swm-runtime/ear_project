@@ -34,11 +34,22 @@ test("L0 v9.8 질문 말끝 — 한 갈래가 질문의 5분의 2를 넘으면 �
   const turns: string[] = [];
   for (let i = 1; i <= 10; i++) turns.push(`[이음] E${i} · 설명 ${i}이에요.`, `[윤아] Y${i + 1} · ${i <= 7 ? `그건 왜 그렇게 되나요?` : `그럼 어떻게 해요?`}`);
   const v = run(script([turns.join("\n\n")]));
-  assert.ok(has(v, /진행 질문 10개 중 7개가 같은 말끝\(~나요·~가요\).*다음 3개 턴/), v.join("\n"));
+  assert.ok(has(v, /진행 질문 10개 중 7개가 같은 말끝\(~나요·~가요\).*다음 3개 턴.*이미 많은 갈래\(~나요·~가요 7개 · ~요 3개\)/), v.join("\n"));
   const kka: string[] = [];
   for (let i = 1; i <= 10; i++) kka.push(`[이음] E${i} · 설명 ${i}이에요.`, `[윤아] Y${i + 1} · ${i <= 6 ? `그건 어디서 생길까요?` : i <= 8 ? `왜 그렇게 되나요?` : `그럼 어떻게 해요?`}`);
   const vk = run(script([kka.join("\n\n")]));
   assert.ok(has(vk, /같은 말끝\(~까요\)/), vk.join("\n"));
+});
+
+test("L0 v9.8 질문 말끝 — 상한은 올림이고, 상한에 닿은 다른 갈래도 피하라고 적는다 (T261002-001 Y17 왕복)", () => {
+  const turns: string[] = [];
+  for (let i = 1; i <= 16; i++) turns.push(`[이음] E${i} · 설명 ${i}이에요.`, `[윤아] Y${i + 1} · ${i <= 7 ? "그건 왜 그렇게 되나요?" : i <= 13 ? "그건 어디서 생길까요?" : "그럼 어떻게 해요?"}`);
+  const v = run(script([turns.join("\n\n")]));
+  assert.ok(!has(v, /같은 말끝/), v.join("\n")); // 16개의 40% 올림 = 7 — 7개는 통과
+  const more: string[] = [];
+  for (let i = 1; i <= 16; i++) more.push(`[이음] E${i} · 설명 ${i}이에요.`, `[윤아] Y${i + 1} · ${i <= 8 ? "그건 왜 그렇게 되나요?" : i <= 14 ? "그건 어디서 생길까요?" : "그럼 어떻게 해요?"}`);
+  const vm = run(script([more.join("\n\n")]));
+  assert.ok(has(vm, /다음 1개 턴.*이미 많은 갈래\(~나요·~가요 8개\)/), vm.join("\n")); // ~까요 6 + 1 = 7 은 상한 안 — 한 턴이 그리로 가도 다시 걸리지 않는다
 });
 
 test("L0 v9.8 조건절 질문 — 편에 넷 이상이면 잡고 셋까지는 둔다", () => {

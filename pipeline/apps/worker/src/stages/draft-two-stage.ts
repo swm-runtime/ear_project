@@ -398,11 +398,15 @@ export function v98Violations(scriptMd: string, turns: ScriptTurn[]): string[] {
   const endClass = (t: string) => { const x = t.trim().replace(/\?\s*$/, ""); return /(나요|가요)$/.test(x) ? "~나요·~가요" : /까요$/.test(x) ? "~까요" : /죠$/.test(x) ? "~죠" : /(다고|라고|냐고)요$/.test(x) ? "~다고요" : /요$/.test(x) ? "~요" : "기타"; };
   const byEnd = new Map<string, ScriptTurn[]>(); for (const t of qY) { const k = endClass(t.text); byEnd.set(k, [...(byEnd.get(k) ?? []), t]); }
   const [topEnd, sameEnd] = [...byEnd.entries()].sort((a, b) => b[1].length - a[1].length)[0] ?? ["", []];
-  const capEnd = Math.floor(qY.length * 0.4);
+  // 2026-10-02 수정(T261002-001): 상한을 내림으로 잡고 "말끝을 바꾼다"만 말하자, 상한 근처의 두 갈래(~나요·~가요 7 · ~까요 6) 사이에서 같은 턴(Y17)을
+  // 오가며 수정 2회를 헛돌았다. 상한은 올림으로, 메시지에 상한에 닿은 갈래를 모두 적어 그 밖의 말끝으로 바꾸게 한다
+  const capEnd = Math.ceil(qY.length * 0.4);
   if (qY.length >= 6 && sameEnd.length > capEnd) {
     const over = sameEnd.length - capEnd; const step = sameEnd.length / over;
     const picks = Array.from({ length: over }, (_, i) => sameEnd[Math.min(sameEnd.length - 1, Math.floor(i * step + step / 2))]).filter((t, i, a) => a.indexOf(t) === i);
-    v.push(`진행 질문 ${qY.length}개 중 ${sameEnd.length}개가 같은 말끝(${topEnd})으로 끝남 — 같은 말끝은 질문의 5분의 2 이하다. 다음 ${picks.length}개 턴의 묻는 말끝을 바꾼다: ${ids(picks, 10)} (규칙 25)`);
+    // 피할 갈래: 지목한 턴이 모두 그 갈래로 가면 넘치는 갈래
+    const full = [...byEnd.entries()].filter(([k, ts]) => k !== "기타" && ts.length + picks.length > capEnd).map(([k, ts]) => `${k} ${ts.length}개`).join(" · ");
+    v.push(`진행 질문 ${qY.length}개 중 ${sameEnd.length}개가 같은 말끝(${topEnd})으로 끝남 — 같은 말끝은 질문의 5분의 2 이하다. 다음 ${picks.length}개 턴의 묻는 말끝을 바꾼다: ${ids(picks, 10)}. 이미 많은 갈래(${full})가 아닌 말끝으로 바꾼다 (규칙 25)`);
   }
   // 규칙 25: 조건절로 시작해 묻는 질문("~다면, ~?") — 편에 세 번 이하
   const condRe = /(다면|라면|이라면|한다면|된다면|으면|하면|되면|려면|으려면)\s?,[^?]*\?\s*$/;
