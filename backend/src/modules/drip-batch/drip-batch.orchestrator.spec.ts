@@ -29,6 +29,7 @@ const NOW = new Date('2026-08-27T05:00:00.000Z');
 const USER_ID = '11111111-1111-4111-8111-111111111111';
 const TOPIC_A = 'aaaaaaaa-1111-4111-8111-111111111111';
 const TOPIC_B = 'bbbbbbbb-1111-4111-8111-111111111111';
+const TOPIC_HIDDEN = 'dddddddd-1111-4111-8111-111111111111';
 
 function buildUser(id: string = USER_ID): User {
   return { id, tier: UserTier.LIGHT } as User;
@@ -93,6 +94,10 @@ describe('DripBatchOrchestrator', () => {
     userInterestService = {
       findAllActive: jest.fn().mockResolvedValue([buildInterest(TOPIC_A)]),
       findUserRemovedTopicIds: jest.fn().mockResolvedValue([]),
+      findAutoExpandState: jest.fn().mockResolvedValue({
+        userRemovedTopicIds: [],
+        activeAutoExpandTopicIds: [],
+      }),
       applyAutoExpand: jest
         .fn()
         .mockImplementation(
@@ -519,6 +524,65 @@ describe('DripBatchOrchestrator', () => {
 
       expect(plan.autoExpand?.action).toBe('none');
       expect(userInterestService.applyAutoExpand).not.toHaveBeenCalled();
+    });
+
+    it('숨김 주제가 차지한 자동 슬롯은 비우고, 후보가 있으면 같은 배치에서 그 자리를 채운다', async () => {
+      // given — 활성 자동 슬롯이 있는데 `findAllActive`(노출 중만)에는 없다 = 주제가 숨겨졌다
+      givenOutsideInterestListener();
+      userInterestService.findAutoExpandState.mockResolvedValue({
+        userRemovedTopicIds: [],
+        activeAutoExpandTopicIds: [TOPIC_HIDDEN],
+      });
+
+      // when
+      const plan = await orchestrator.planForUser(buildUser(), NOW, new Map(), {
+        persistPreference: true,
+        persistAutoExpand: true,
+        stopAtSkip: false,
+      });
+
+      // then
+      expect(plan.autoExpand).toMatchObject({
+        action: 'replace',
+        reason: 'slot_hidden',
+        addTopicId: TOPIC_B,
+        removeTopicId: TOPIC_HIDDEN,
+      });
+      expect(userInterestService.applyAutoExpand).toHaveBeenCalledWith(
+        USER_ID,
+        { addTopicId: TOPIC_B, removeTopicId: TOPIC_HIDDEN },
+        NOW,
+      );
+      expect(plan.activeTopicIds).toEqual([TOPIC_A, TOPIC_B]);
+    });
+
+    it('숨김 슬롯을 대신할 후보가 없으면 슬롯만 비운다 — 자동 주제 없이 편성한다', async () => {
+      // given — 관심 밖 완청이 없는 사용자
+      userInterestService.findAutoExpandState.mockResolvedValue({
+        userRemovedTopicIds: [],
+        activeAutoExpandTopicIds: [TOPIC_HIDDEN],
+      });
+
+      // when
+      const plan = await orchestrator.planForUser(buildUser(), NOW, new Map(), {
+        persistPreference: true,
+        persistAutoExpand: true,
+        stopAtSkip: false,
+      });
+
+      // then
+      expect(plan.autoExpand).toMatchObject({
+        action: 'expire',
+        reason: 'slot_hidden',
+        addTopicId: null,
+        removeTopicId: TOPIC_HIDDEN,
+      });
+      expect(userInterestService.applyAutoExpand).toHaveBeenCalledWith(
+        USER_ID,
+        { addTopicId: null, removeTopicId: TOPIC_HIDDEN },
+        NOW,
+      );
+      expect(plan.activeTopicIds).toEqual([TOPIC_A]);
     });
 
     it('후보도 자동 슬롯도 없는 사용자에게는 주제·설정 조회를 하지 않는다 — 배치의 추가 쿼리가 0이다', async () => {

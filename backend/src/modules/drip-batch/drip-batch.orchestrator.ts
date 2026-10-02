@@ -644,8 +644,11 @@ export class DripBatchOrchestrator {
   /**
    * 자동 확장 판정(4.5). 순수 판정(`decideAutoExpand`)에 **조회가 필요한 두 조건**을 얹는다 — 후보 주제가
    * 지금 고를 수 있는 주제인가(숨김 주제는 `findAllActive`가 걸러 버려 넣어도 유령 행이 된다), 그리고
-   * 사용자가 자동 확장을 켜 두었는가(FR-06). 둘 다 **움직일 일이 있을 때만** 조회한다 — 대부분의 사용자는
-   * 후보도 슬롯도 없어 추가 쿼리가 0이다.
+   * 사용자가 자동 확장을 켜 두었는가(FR-06). 둘 다 **움직일 일이 있을 때만** 조회한다. 그 밖에 사용자마다
+   * 드는 조회는 `user_interests` 한 번(직접 해제한 주제 + 숨김 주제가 차지한 자동 슬롯)이다.
+   *
+   * **숨김 주제가 차지한 자동 슬롯은 여기서 비운다**(4.5-1 "숨김") — 숨긴 순간이 아니라 배치에서 하는 이유는
+   * 비용이다: 배치는 어차피 사용자마다 취향을 다시 계산하므로 추가 조회 없이 얹힌다.
    */
   private async resolveAutoExpand(
     userId: string,
@@ -657,6 +660,12 @@ export class DripBatchOrchestrator {
     },
     now: Date,
   ): Promise<AutoExpandDecision> {
+    const { userRemovedTopicIds, activeAutoExpandTopicIds } =
+      await this.userInterestService.findAutoExpandState(userId);
+    // `activeInterests`는 노출 중인 주제만이다 — 거기 없는 활성 자동 슬롯은 숨김 주제가 차지한 것이다
+    const visibleTopicIds = new Set(
+      activeInterests.map((interest) => interest.topicId),
+    );
     const input = {
       now,
       signals: preferenceResult.signals,
@@ -667,8 +676,10 @@ export class DripBatchOrchestrator {
         isAutoExpand: interest.source === UserInterestSource.AUTO_EXPAND,
         activatedAt: interest.updatedAt,
       })),
-      userRemovedTopicIds:
-        await this.userInterestService.findUserRemovedTopicIds(userId),
+      userRemovedTopicIds,
+      hiddenSlotTopicIds: activeAutoExpandTopicIds.filter(
+        (topicId) => !visibleTopicIds.has(topicId),
+      ),
     };
     let decision = decideAutoExpand(input);
 
