@@ -6,7 +6,8 @@ import { getBacklog, getEpisode, insertRun, pool, setJobProgress, upsertEpisode,
 import { loadTtsDict, workerRev } from "../assets.js";
 import { listPrefix, localPathOf, pullPrefix, pushPrefix, s3Key, storage } from "../storage.js";
 import { advanceChain } from "../chain.js";
-import { ApiLimit, log } from "../util.js";
+import { ApiLimit, log, RetryLater } from "../util.js";
+import { freeGb } from "../disk.js";
 import { parseScriptForTts, chunkTurns, describeCuts, type ScriptTurn, type Speaker } from "../tts/script.js";
 import { normalizeForTts, residualIssues } from "../tts/normalize.js";
 import { synthDialogue, synthDialogueWithTimestamps, forcedAlignment, locateTurnSpans, resetUsage, usage, type TimestampedSynth, type TurnSpan } from "../tts/elevenlabs.js";
@@ -75,6 +76,9 @@ export async function runTts(job: Job) {
     return { episode_id: episodeId, skipped: true, next: skipNext?.type ?? null };
   }
 
+  // 디스크 여유 확인 (2026-10-02): 합성은 과금이고 조립·쓰기는 그 뒤라, 디스크가 모자라면 크레딧만 쓰고 실패한다 — 합성 전에 큐로 되돌린다
+  const free = await freeGb().catch(() => Infinity);
+  if (free < cfg.ttsMinFreeGb) throw new RetryLater(`디스크 여유 ${free.toFixed(2)}GB < ${cfg.ttsMinFreeGb}GB — 합성하지 않고 큐로 되돌림 (서버 디스크 정리 필요)`, 10 * 60_000);
   const audioDir = path.join(cfg.workRoot, rel, "audio");
   await fs.mkdir(audioDir, { recursive: true });
   await pullPrefix(`${rel}/`);

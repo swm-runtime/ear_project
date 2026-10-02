@@ -45,5 +45,9 @@ $SSH "ec2-user@$HOST" "
   # 옛 빌드 이미지 정리 (2026-09-22): 머지마다 새 이미지를 만들고 이전 것을 남겨 20GB 디스크가 이미지 143개(12GB)로 찼다 — 배포 실패(no space left).
   # dangling(태그 없는 이전 빌드)만 지운다. 실행 중인 컨테이너의 이미지는 남는다. 실패해도 배포는 성립한다.
   docker image prune -f >/dev/null 2>&1 || echo '⚠ 이미지 정리 실패 (배포는 성립)'
+  # 빌드 캐시 정리 (2026-10-02): image prune 은 빌드 캐시를 지우지 않아 머지마다 약 120MB 씩 쌓였다(디스크 95% → 99%, 이어 워커 ENOSPC).
+  # 3일 넘은 캐시만 지운다 — 최근 캐시는 남겨 npm ci 레이어 재사용(배포 시간)을 지킨다.
+  docker builder prune -f --filter until=72h >/dev/null 2>&1 || echo '⚠ 빌드 캐시 정리 실패 (배포는 성립)'
   df -h / | tail -1
+  USE=\$(df --output=pcent / | tail -1 | tr -dc 0-9); [ \"\$USE\" -lt 90 ] || echo \"⚠ 디스크 \${USE}% — 워커 TTS 가 멈출 수 있다 (deploy/disk-cleanup.sh 로 정리)\"
 "

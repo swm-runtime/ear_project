@@ -116,6 +116,8 @@ export const cfg = {
   ttsIntroKey: process.env.TTS_INTRO_KEY ?? "datasets/channel-audio/intro.wav", // 받은 원본이 wav(48kHz 스테레오) — 손실 변환 없이 앞뒤 무음만 1초로 맞춰 올린다
   ttsOutroKey: process.env.TTS_OUTRO_KEY ?? "datasets/channel-audio/outro.wav",
   ttsOutroPadSec: process.env.TTS_OUTRO_PAD_SEC ? Number(process.env.TTS_OUTRO_PAD_SEC) : undefined,
+  /** TTS 시작 전 WORK_ROOT 디스크 여유 하한(GB) — 모자라면 합성 전에 큐로 되돌린다(disk.ts, 2026-10-02 ENOSPC). 한 편 조립에 약 0.5GB */
+  ttsMinFreeGb: Number(process.env.TTS_MIN_FREE_GB ?? 1.5),
   // 화자별 배속 (spec/06 6장) — 다중화자 1콜은 속도 설정이 없어 타임스탬프 정렬 후 ffmpeg atempo 로 후처리한다. 1 이면 원속.
   /** 요청 이음새 문맥 겹침 (spec/06 7장, KAN-87). 기본 켜짐 — 2026-10-01 dialogue 정렬 탓에 21%만 성공해 껐다가(#1082), 강제 정렬 절단(#1084)으로
    *  T260929-003 4/4경계 성공·사람 청취 확인 후 다시 켰다(박수헌). TTS_CONTEXT_OVERLAP=0 이면 끈다. 작업 payload context_overlap 로 편 단위 강제 가능 */
