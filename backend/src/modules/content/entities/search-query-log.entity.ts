@@ -63,4 +63,17 @@ export class SearchQueryLog extends BaseEntity {
   /** 함께 걸린 주제 필터 수. 0이면 필터 없는 검색 — 0건의 원인이 질의인지 필터인지 가른다 */
   @Column({ name: 'topic_filter_count', type: 'smallint' })
   topicFilterCount: number;
+
+  /**
+   * 첫 페이지 결과의 콘텐츠 id(순서대로, 최대 페이지 크기). **결과 반응을 추정하는 열쇠**다 — 그 뒤 10분 안에
+   * 같은 사용자가 이 중 하나를 재생하거나 담았으면 "반응한 검색"으로 센다(`SearchQueryLogRepository.summarize`).
+   * 앱이 탭 이벤트를 따로 보내지 않아도 되게, 서버가 이미 받는 재생·담기에서 역산한다
+   */
+  @Column({
+    name: 'result_content_ids',
+    type: 'uuid',
+    array: true,
+    default: '{}',
+  })
+  resultContentIds: string[];
 }

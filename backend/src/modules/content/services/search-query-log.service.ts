@@ -15,6 +15,8 @@ export interface SearchQueryLogEntry {
   resultCount: number;
   hasNext: boolean;
   topicFilterCount: number;
+  /** 첫 페이지 결과의 콘텐츠 id — 결과 반응 추정의 열쇠(domain.md 5.7) */
+  resultContentIds: string[];
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -51,6 +53,7 @@ export class SearchQueryLogService {
         resultCount: entry.resultCount,
         hasNext: entry.hasNext,
         topicFilterCount: entry.topicFilterCount,
+        resultContentIds: entry.resultContentIds,
       };
 
       if (
