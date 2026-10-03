@@ -111,7 +111,7 @@ export class BillingOrchestrator {
   async getSubscription(userId: string, now: Date): Promise<SubscriptionView> {
     await this.subscriptionReconcileService.reconcileUser(userId, now);
 
-    return this.buildView(userId);
+    return this.buildView(userId, now);
   }
 
   /** 4.3 — 결제 시트를 열기 직전의 서버 관문. 통과하면 계정 결속 토큰(의도 `id`)을 발급한다 */
@@ -223,7 +223,7 @@ export class BillingOrchestrator {
       });
     });
 
-    return this.buildView(userId);
+    return this.buildView(userId, now);
   }
 
   /**
@@ -300,14 +300,21 @@ export class BillingOrchestrator {
 
     return {
       restored: restoredCount > 0,
-      subscription: await this.buildView(userId),
+      subscription: await this.buildView(userId, now),
     };
   }
 
   /** 4.2의 본문 — 영수증 제출·복원도 같은 것을 돌려준다(클라이언트가 다시 조회하지 않는다) */
-  private async buildView(userId: string): Promise<SubscriptionView> {
+  private async buildView(
+    userId: string,
+    now: Date,
+  ): Promise<SubscriptionView> {
+    const user = await this.userService.getById(userId);
     const [plan, current] = await Promise.all([
-      this.subscriptionService.buildPlanView(userId),
+      this.subscriptionService.buildPlanView(userId, {
+        trialEndsAt: user.trialEndsAt,
+        now,
+      }),
       this.findLiveSubscription(userId),
     ]);
     const [entitlements, pendingPlan] = await Promise.all([
@@ -319,7 +326,8 @@ export class BillingOrchestrator {
 
     return {
       plan,
-      entitlements,
+      // 한도는 플랜 요약과 같은 값을 싣는다 — 가입 체험 중인 구독자는 요금제 한도보다 넉넉하다(subscription.md 4.8)
+      entitlements: { ...entitlements, dailyPlayLimit: plan.dailyPlayLimit },
       store: current?.store ?? null,
       pendingPlan:
         current === null || current.pendingTier === null

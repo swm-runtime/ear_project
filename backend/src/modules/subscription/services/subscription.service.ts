@@ -1,6 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 
+import {
+  isSignupTrialActive,
+  toSignupTrialLastFreeDate,
+} from '@/common/utils/signup-trial.util';
 import { UserTier } from '@/modules/user/user.enum';
 
 import { Subscription } from '../entities/subscription.entity';
@@ -13,8 +17,8 @@ import {
   PlanStatus,
   SubscriptionStatus,
 } from '../subscription.enum';
-import { PlanView } from '../subscription.types';
-import { PlanService } from './plan.service';
+import { PlanView, TrialContext, TrialView } from '../subscription.types';
+import { moreGenerousLimit, PlanService } from './plan.service';
 
 /**
  * `subscriptions`는 subscription 모듈 소유다(domain.md 2장).
@@ -62,6 +66,7 @@ export class SubscriptionService {
    */
   async buildPlanView(
     userId: string,
+    trialContext: TrialContext,
     manager?: EntityManager,
   ): Promise<PlanView> {
     const subscription = await this.findCurrent(userId, manager);
@@ -69,16 +74,46 @@ export class SubscriptionService {
     this.warnIfContradictoryCancellation(userId, subscription);
 
     const status = toPlanStatus(subscription);
-    const tier =
+    const baseTier =
       status === PlanStatus.FREE ? UserTier.LIGHT : subscription!.tier;
-    const plan = await this.planService.findByTier(tier, manager);
+    const basePlan = await this.planService.findByTier(baseTier, manager);
+    const baseLimit = basePlan?.dailyPlayLimit ?? null;
+
+    /**
+     * 가입 체험(`subscription.md` 4.8). **`status`는 건드리지 않는다** — 4분기는 구독 상태이고 체험은 그 위에
+     * 얹히는 기간 한정 값이라, 값을 늘리면 옛 앱이 모르는 분기를 받는다. 무료 사용자만 `tier`·`planName`이
+     * 체험 요금제로 바뀌고, 구독자는 구독 표시를 유지한 채 한도만 더 넉넉한 쪽이 된다.
+     */
+    const { trialEndsAt, now } = trialContext;
+    const activeTrialEndsAt = isSignupTrialActive(trialEndsAt, now)
+      ? trialEndsAt
+      : null;
+    const trialPlan = activeTrialEndsAt
+      ? await this.planService.findByTier(UserTier.TRIAL, manager)
+      : null;
+    // 체험 요금제 행이 없으면 체험을 그리지 않는다 — 한도 판정도 그때는 원래 한도로 내려간다(`PlanService`)
+    const trial: TrialView | null =
+      activeTrialEndsAt && trialPlan
+        ? {
+            endsAt: activeTrialEndsAt,
+            lastFreeDate: toSignupTrialLastFreeDate(activeTrialEndsAt),
+            dailyPlayLimitAfter: baseLimit,
+          }
+        : null;
+    const showsTrialPlan = trial !== null && status === PlanStatus.FREE;
+    const tier = showsTrialPlan ? UserTier.TRIAL : baseTier;
+    const plan = showsTrialPlan ? trialPlan : basePlan;
 
     return {
       status,
       tier,
       // 요금제 행이 없으면 티어값을 그대로 보여준다 — 카드가 빈 채로 나가는 것보다 낫다
       planName: plan?.name ?? tier,
-      dailyPlayLimit: plan?.dailyPlayLimit ?? null,
+      dailyPlayLimit:
+        trial !== null && trialPlan
+          ? moreGenerousLimit(baseLimit, trialPlan.dailyPlayLimit)
+          : baseLimit,
+      trial,
       renewsAt:
         status === PlanStatus.SUBSCRIBED ? subscription!.expiresAt : null,
       expiresAt:

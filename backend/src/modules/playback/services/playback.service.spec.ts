@@ -1,5 +1,6 @@
 import { PlanService } from '@/modules/subscription/services/plan.service';
 import { UserTier } from '@/modules/user/user.enum';
+import { User } from '@/modules/user/entities/user.entity';
 import { UserService } from '@/modules/user/services/user.service';
 
 import { PlaybackProgressRepository } from '../repositories/playback-progress.repository';
@@ -43,13 +44,15 @@ describe('PlaybackService', () => {
     } as unknown as jest.Mocked<UserSignalRepository>;
 
     userService = {
-      getById: jest
-        .fn()
-        .mockResolvedValue({ id: USER_ID, tier: UserTier.LIGHT }),
+      getById: jest.fn().mockResolvedValue({
+        id: USER_ID,
+        tier: UserTier.LIGHT,
+        trialEndsAt: null,
+      }),
     } as unknown as jest.Mocked<UserService>;
 
     planService = {
-      getPlayLimitPolicy: jest
+      getEffectivePlayLimitPolicy: jest
         .fn()
         .mockResolvedValue({ dailyPlayLimit: 2, isTopTier: false }),
     } as unknown as jest.Mocked<PlanService>;
@@ -150,8 +153,9 @@ describe('PlaybackService', () => {
       const quota = await service.buildQuotaForUser(USER_ID, AFTER_BOUNDARY);
 
       // then
-      expect(planService.getPlayLimitPolicy).toHaveBeenCalledWith(
+      expect(planService.getEffectivePlayLimitPolicy).toHaveBeenCalledWith(
         UserTier.LIGHT,
+        false,
         undefined,
       );
       expect(quota).toEqual({
@@ -163,7 +167,7 @@ describe('PlaybackService', () => {
 
     it('무제한 티어면 카운트도 null로 내린다', async () => {
       // given
-      planService.getPlayLimitPolicy.mockResolvedValue({
+      planService.getEffectivePlayLimitPolicy.mockResolvedValue({
         dailyPlayLimit: null,
         isTopTier: true,
       });
@@ -172,6 +176,31 @@ describe('PlaybackService', () => {
       const quota = await service.buildQuotaForUser(USER_ID, AFTER_BOUNDARY);
 
       // then
+      expect(quota.dailyPlayLimit).toBeNull();
+      expect(quota.dailyPlayCount).toBeNull();
+    });
+
+    it('가입 체험 중이면 체험 여부를 실어 묻는다 — 재생 판정과 같은 조립이다', async () => {
+      // given — 잔여 표시와 재생 판정이 다른 한도를 보면 "남았다는데 막힌다"가 된다(subscription.md 4.8)
+      userService.getById.mockResolvedValue({
+        id: USER_ID,
+        tier: UserTier.LIGHT,
+        trialEndsAt: new Date(AFTER_BOUNDARY.getTime() + 60 * 60 * 1000),
+      } as User);
+      planService.getEffectivePlayLimitPolicy.mockResolvedValue({
+        dailyPlayLimit: null,
+        isTopTier: false,
+      });
+
+      // when
+      const quota = await service.buildQuotaForUser(USER_ID, AFTER_BOUNDARY);
+
+      // then — 무제한이라 화면이 잔여 표시를 그리지 않는다
+      expect(planService.getEffectivePlayLimitPolicy).toHaveBeenCalledWith(
+        UserTier.LIGHT,
+        true,
+        undefined,
+      );
       expect(quota.dailyPlayLimit).toBeNull();
       expect(quota.dailyPlayCount).toBeNull();
     });

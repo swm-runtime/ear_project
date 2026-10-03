@@ -65,6 +65,14 @@ export class User extends BaseEntity {
   })
   tier: UserTier;
 
+  /**
+   * 가입 체험이 끝나는 시각(배타 경계, 04:00 KST에 맞춰져 있다 — `signup-trial.util.ts`).
+   * **가입할 때 한 번 쓰고 다시 쓰지 않는다.** `NULL`은 체험을 받지 않은 계정이다(스위치가 꺼져 있을 때
+   * 가입했거나 기능 도입 전 가입). 스위치를 꺼도 이미 받은 값은 지우지 않는다 — 가입 때 안내한 날짜가 약속이다.
+   */
+  @Column({ name: 'trial_ends_at', type: 'timestamptz', nullable: true })
+  trialEndsAt: Date | null;
+
   @Column({
     name: 'status',
     type: 'varchar',

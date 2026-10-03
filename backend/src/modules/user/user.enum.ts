@@ -12,11 +12,19 @@ export enum UserRole {
   ADMIN = 'admin',
 }
 
-/** domain.md 1.3 — `users.tier` · `plans.tier` · `subscriptions.tier`가 같은 값 집합을 쓴다 */
+/**
+ * domain.md 1.3 — `users.tier` · `plans.tier` · `subscriptions.tier`가 같은 값 집합을 쓴다.
+ *
+ * **`trial`은 저장되는 티어가 아니다**(가입 체험 — `subscription.md` 4.8). `plans`에 정책 행이 있고
+ * 응답의 `tier`에 나갈 뿐, `users.tier` · `subscriptions.tier`에는 쓰지 않는다. `users.tier`는 결제가
+ * 구독 상태로 덮어쓰는 캐시라(domain.md 3.1) 거기에 두면 구독 동기화 한 번에 지워진다 — 체험은
+ * `users.trial_ends_at`이 들고, 판정 시점에 이 값으로 환산한다(`resolveEffectiveTier`).
+ */
 export enum UserTier {
   LIGHT = 'light',
   DAILY = 'daily',
   PRO = 'pro',
+  TRIAL = 'trial',
 }
 
 export enum UserStatus {

@@ -117,6 +117,38 @@ export class PlanService {
   }
 
   /**
+   * 가입 체험(`subscription.md` 4.8)을 얹은 재생 한도 정책 — **재생 판정과 잔여 표시가 이 하나를 쓴다.**
+   *
+   * 체험 중이면 `trial` 요금제 행의 한도와 사용자 티어의 한도 중 **더 넉넉한 쪽**이다. 체험 기간에 한도가
+   * 있는 요금제(데일리)를 구독한 사용자가 돈을 내고 오히려 덜 듣게 되면 안 된다. `isTopTier`는 사용자
+   * 티어의 값을 그대로 둔다 — 화면 분기(페이월 vs 안내)는 구독 상태가 정한다.
+   *
+   * `trial` 행이 없으면 `getPlayLimitPolicy`의 폴백(라이트 한도 + error 로그)이 그대로 적용된다 —
+   * 모를 때는 더 엄격한 쪽이다.
+   */
+  async getEffectivePlayLimitPolicy(
+    tier: UserTier,
+    isTrialActive: boolean,
+    manager?: EntityManager,
+  ): Promise<PlayLimitPolicy> {
+    const base = await this.getPlayLimitPolicy(tier, manager);
+
+    if (!isTrialActive) {
+      return base;
+    }
+
+    const trial = await this.getPlayLimitPolicy(UserTier.TRIAL, manager);
+
+    return {
+      dailyPlayLimit: moreGenerousLimit(
+        base.dailyPlayLimit,
+        trial.dailyPlayLimit,
+      ),
+      isTopTier: base.isTopTier,
+    };
+  }
+
+  /**
    * 일일 자동 적립 편수. 첫 드립 편성도 이 값을 상한으로 쓴다.
    *
    * **드립 편수는 티어와 무관하게 하루 2편으로 고정한다**(팀 확정).
@@ -186,4 +218,16 @@ export function toEntitlements(plan: Plan): Entitlements {
     dripEnabled: plan.isDripEnabled,
     adsEnabled: plan.isAdsEnabled,
   };
+}
+
+/** 두 한도 중 더 넉넉한 쪽 — `null`은 무제한이라 항상 이긴다 */
+export function moreGenerousLimit(
+  a: number | null,
+  b: number | null,
+): number | null {
+  if (a === null || b === null) {
+    return null;
+  }
+
+  return Math.max(a, b);
 }

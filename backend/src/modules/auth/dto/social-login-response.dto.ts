@@ -29,20 +29,23 @@ export class SocialLoginResponseDto {
   readonly signup_token_expires_at?: string;
   readonly required_consents?: ConsentRequirementDto[];
 
-  static from(result: SocialLoginResult): SocialLoginResponseDto {
+  static from(result: SocialLoginResult, now: Date): SocialLoginResponseDto {
     return result.status === 'authenticated'
-      ? SocialLoginResponseDto.authenticated(result)
+      ? SocialLoginResponseDto.authenticated(result, now)
       : SocialLoginResponseDto.consentRequired(result);
   }
 
-  static authenticated(result: AuthenticatedResult): SocialLoginResponseDto {
+  static authenticated(
+    result: AuthenticatedResult,
+    now: Date,
+  ): SocialLoginResponseDto {
     return {
       status: 'authenticated',
       access_token: result.tokens.accessToken,
       refresh_token: result.tokens.refreshToken,
       access_token_expires_at: result.tokens.accessTokenExpiresAt.toISOString(),
       pending_consents: result.pendingConsents.map(toConsentRequirementDto),
-      user: AuthUserDto.from(result.user),
+      user: AuthUserDto.from(result.user, now),
     };
   }
 

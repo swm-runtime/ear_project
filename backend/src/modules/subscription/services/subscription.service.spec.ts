@@ -14,6 +14,11 @@ import {
 
 const USER_ID = '11111111-1111-4111-8111-111111111111';
 const EXPIRES_AT = new Date('2026-09-01T00:00:00.000Z');
+const NOW = new Date('2026-08-10T03:00:00.000Z');
+/** 체험을 받지 않은 사용자 — 기존 판정이 그대로여야 한다 */
+const NO_TRIAL = { trialEndsAt: null, now: NOW };
+/** 8월 15일 04:00 KST에 끝나는 체험(마지막 날 8월 14일) */
+const TRIAL_ENDS_AT = new Date('2026-08-14T19:00:00.000Z');
 
 function buildSubscription(
   overrides: Partial<Subscription> = {},
@@ -67,7 +72,7 @@ describe('SubscriptionService', () => {
       );
 
       // when
-      const plan = await service.buildPlanView(USER_ID);
+      const plan = await service.buildPlanView(USER_ID, NO_TRIAL);
 
       // then — "하루 N편"의 N은 하드코딩이 아니라 plans 값이다
       expect(plan).toEqual({
@@ -78,6 +83,7 @@ describe('SubscriptionService', () => {
         renewsAt: null,
         expiresAt: null,
         hasPaymentIssue: false,
+        trial: null,
       });
     });
 
@@ -88,7 +94,7 @@ describe('SubscriptionService', () => {
       ]);
 
       // when
-      const plan = await service.buildPlanView(USER_ID);
+      const plan = await service.buildPlanView(USER_ID, NO_TRIAL);
 
       // then
       expect(plan.status).toBe(PlanStatus.FREE);
@@ -102,7 +108,7 @@ describe('SubscriptionService', () => {
       ]);
 
       // when
-      const plan = await service.buildPlanView(USER_ID);
+      const plan = await service.buildPlanView(USER_ID, NO_TRIAL);
 
       // then
       expect(plan.status).toBe(PlanStatus.FREE);
@@ -115,7 +121,7 @@ describe('SubscriptionService', () => {
       ]);
 
       // when
-      const plan = await service.buildPlanView(USER_ID);
+      const plan = await service.buildPlanView(USER_ID, NO_TRIAL);
 
       // then — renews_at과 expires_at은 같은 컬럼이지만 의미가 달라 필드를 나눈다
       expect(plan).toMatchObject({
@@ -134,7 +140,7 @@ describe('SubscriptionService', () => {
       ]);
 
       // when
-      const plan = await service.buildPlanView(USER_ID);
+      const plan = await service.buildPlanView(USER_ID, NO_TRIAL);
 
       // then
       expect(plan).toMatchObject({
@@ -155,7 +161,7 @@ describe('SubscriptionService', () => {
       ]);
 
       // when
-      const plan = await service.buildPlanView(USER_ID);
+      const plan = await service.buildPlanView(USER_ID, NO_TRIAL);
 
       // then
       expect(plan).toMatchObject({
@@ -178,7 +184,7 @@ describe('SubscriptionService', () => {
       ]);
 
       // when
-      const plan = await service.buildPlanView(USER_ID);
+      const plan = await service.buildPlanView(USER_ID, NO_TRIAL);
 
       // then — 만료 전이라 혜택은 살아 있으므로 조회를 막지 않는다
       expect(plan.status).toBe(PlanStatus.SUBSCRIBED);
@@ -197,7 +203,7 @@ describe('SubscriptionService', () => {
       ]);
 
       // when
-      const plan = await service.buildPlanView(USER_ID);
+      const plan = await service.buildPlanView(USER_ID, NO_TRIAL);
 
       // then
       expect(plan).toMatchObject({
@@ -215,11 +221,115 @@ describe('SubscriptionService', () => {
       planService.findByTier.mockResolvedValue(null);
 
       // when
-      const plan = await service.buildPlanView(USER_ID);
+      const plan = await service.buildPlanView(USER_ID, NO_TRIAL);
 
       // then
       expect(plan.planName).toBe(UserTier.PRO);
       expect(plan.dailyPlayLimit).toBeNull();
+    });
+  });
+  describe('buildPlanView — 가입 체험(subscription.md 4.8)', () => {
+    const lightPlan = buildPlan({
+      tier: UserTier.LIGHT,
+      name: '라이트',
+      dailyPlayLimit: 2,
+    });
+    const dailyPlan = buildPlan({
+      tier: UserTier.DAILY,
+      name: '데일리',
+      dailyPlayLimit: 5,
+    });
+    const trialPlan = buildPlan({
+      tier: UserTier.TRIAL,
+      name: '무료 체험',
+      dailyPlayLimit: null,
+    });
+    const plansByTier = (tier: UserTier): Promise<Plan | null> =>
+      Promise.resolve(
+        { light: lightPlan, daily: dailyPlan, trial: trialPlan, pro: null }[
+          tier
+        ],
+      );
+
+    beforeEach(() => {
+      planService.findByTier.mockImplementation(plansByTier);
+    });
+
+    it('무료 사용자가 체험 중이면 trial 요금제로 그리고 종료일·이후 한도를 싣는다', async () => {
+      // when
+      const plan = await service.buildPlanView(USER_ID, {
+        trialEndsAt: TRIAL_ENDS_AT,
+        now: NOW,
+      });
+
+      // then — status는 구독 상태(4분기)라 free 그대로다. 옛 앱은 "무료 이용 중"으로 그린다
+      expect(plan).toMatchObject({
+        status: PlanStatus.FREE,
+        tier: UserTier.TRIAL,
+        planName: '무료 체험',
+        dailyPlayLimit: null,
+        trial: {
+          endsAt: TRIAL_ENDS_AT,
+          lastFreeDate: '2026-08-14',
+          dailyPlayLimitAfter: 2,
+        },
+      });
+    });
+
+    it('체험이 끝난 시각부터는 원래 무료 요금제로 돌아간다', async () => {
+      const plan = await service.buildPlanView(USER_ID, {
+        trialEndsAt: TRIAL_ENDS_AT,
+        now: TRIAL_ENDS_AT,
+      });
+
+      expect(plan).toMatchObject({
+        status: PlanStatus.FREE,
+        tier: UserTier.LIGHT,
+        dailyPlayLimit: 2,
+        trial: null,
+      });
+    });
+
+    it('체험 중 한도가 있는 요금제를 구독하면 표시는 구독을 따르고 한도는 더 넉넉한 쪽이다', async () => {
+      // given — 데일리(하루 5편) 구독자인데 체험 기간이 남았다
+      subscriptionRepository.findAllByUserId.mockResolvedValue([
+        buildSubscription({ tier: UserTier.DAILY }),
+      ]);
+
+      // when
+      const plan = await service.buildPlanView(USER_ID, {
+        trialEndsAt: TRIAL_ENDS_AT,
+        now: NOW,
+      });
+
+      // then — 돈을 내고 덜 듣게 되면 안 된다. 체험이 끝나면 5편으로 돌아간다고 알려 준다
+      expect(plan).toMatchObject({
+        status: PlanStatus.SUBSCRIBED,
+        tier: UserTier.DAILY,
+        planName: '데일리',
+        dailyPlayLimit: null,
+        trial: { lastFreeDate: '2026-08-14', dailyPlayLimitAfter: 5 },
+      });
+    });
+
+    it('trial 요금제 행이 없으면 체험을 그리지 않는다 — 한도 판정도 그때는 원래 한도다', async () => {
+      // given
+      planService.findByTier.mockImplementation((tier) =>
+        tier === UserTier.TRIAL ? Promise.resolve(null) : plansByTier(tier),
+      );
+
+      // when
+      const plan = await service.buildPlanView(USER_ID, {
+        trialEndsAt: TRIAL_ENDS_AT,
+        now: NOW,
+      });
+
+      // then
+      expect(plan).toMatchObject({
+        tier: UserTier.LIGHT,
+        dailyPlayLimit: 2,
+        trial: null,
+      });
     });
   });
 });

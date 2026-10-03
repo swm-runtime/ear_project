@@ -1,4 +1,5 @@
 import { PlanStatus } from '@/modules/subscription/subscription.enum';
+import { TrialDto } from '@/modules/subscription/dto/trial.dto';
 import { SocialProvider, UserTier } from '@/modules/user/user.enum';
 import { YearsOfExperienceRange } from '@/modules/user/user.enum';
 
@@ -35,6 +36,8 @@ class ProfilePlanDto {
   /** 해지 예약·유예일 때의 이용 종료일 */
   readonly expires_at: string | null;
   readonly has_payment_issue: boolean;
+  /** 가입 체험 중일 때만 값이 있다 — 종료일·이후 한도(`subscription.md` 4.8). 아니면 `null` */
+  readonly trial: TrialDto | null;
 }
 
 class ProfileTopicDto {
@@ -102,6 +105,7 @@ export class GetProfileResponseDto {
             renews_at: result.plan.renewsAt?.toISOString() ?? null,
             expires_at: result.plan.expiresAt?.toISOString() ?? null,
             has_payment_issue: result.plan.hasPaymentIssue,
+            trial: TrialDto.from(result.plan.trial),
           }
         : null,
       interest_summary: result.interestSummary
