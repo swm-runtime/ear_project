@@ -137,7 +137,7 @@ describe('구독·인앱 결제 E2E', () => {
     );
     // 탈퇴 테스트가 남긴 아카이브(결제 이력은 법정 보존이라 사용자 삭제로 지워지지 않는다)
     await dataSource.query(
-      `DELETE FROM archived_subscriptions WHERE original_transaction_id LIKE $1`,
+      `DELETE FROM archive.archived_subscriptions WHERE original_transaction_id LIKE $1`,
       [`${RUN}%`],
     );
     await app.close();
@@ -811,7 +811,7 @@ describe('구독·인앱 결제 E2E', () => {
       // then — 900자 토큰이 잘리지 않고 아카이브됐고, 원 구독 행은 파기됐다
       expect(
         await dataSource.query(
-          `SELECT count(*)::int AS archived FROM archived_subscriptions WHERE original_transaction_id = $1`,
+          `SELECT count(*)::int AS archived FROM archive.archived_subscriptions WHERE original_transaction_id = $1`,
           [firstToken],
         ),
       ).toEqual([{ archived: 1 }]);
