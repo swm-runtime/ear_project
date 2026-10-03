@@ -380,10 +380,12 @@ export function v98Violations(scriptMd: string, turns: ScriptTurn[]): string[] {
   const E = turns.filter((t) => t.id?.startsWith("E"));
   const bodyY = turns.filter((t) => t.id?.startsWith("Y") && t.section !== "인트로" && t.section !== "마무리");
   // 규칙 20: 다른 사람의 제안·견해를 "있다·나온다·제시된다·소개된다"로 옮기는 턴 — 블록당 두 턴까지
-  const relayRe = /(제안|견해|주장|의견|권고|조언|지적|해석|평가|목소리)(들)?(이|도|은|가)?\s?(있(어요|습니다|죠|고|다는|는데요)|나와요|나옵니다|나오고|나왔(어요|습니다)|제시(돼요|됩니다|되고|됐)|소개(돼요|됩니다|되고|됐))/;
+  // v9.8.1 (2026-10-03, T261002-003 직접 수정 5건 + A9 동의 2건): 문장 끝 전언 동사("~하라고 권합니다"·"~를 제안합니다"·"~라고 설명합니다"·"~로 제시돼요")도 같은 중계다.
+  // 사람은 소스를 실제로 소개해야 하는 자리가 있다며 001 을 부분동의했다 — 같은 상한(블록당 두 턴)에 함께 센다
+  const relayRe = /(제안|견해|주장|의견|권고|조언|지적|해석|평가|목소리)(들)?(이|도|은|가)?\s?(있(어요|습니다|죠|고|다는|는데요)|나와요|나옵니다|나오고|나왔(어요|습니다)|제시(돼요|됩니다|되고|됐)|소개(돼요|됩니다|되고|됐))|(권(합니다|해요|했어요|했습니다|하고요)|제안(합니다|해요|했어요|했습니다)|설명(합니다|해요|했어요|했습니다)|제시(돼요|됩니다|됐어요|됐습니다)|조언(합니다|해요|했어요)|강조(합니다|해요|했어요))[.!]?(\s|$)/;
   const perBlock = new Map<string, number>(); const relayExtra: ScriptTurn[] = [];
   for (const t of E) { const b = blockOf.get(t.id ?? ""); if (!b || !relayRe.test(t.text)) continue; const n = (perBlock.get(b) ?? 0) + 1; perBlock.set(b, n); if (n > 2) relayExtra.push(t); }
-  if (relayExtra.length) v.push(`해설 턴 ${relayExtra.length}개가 같은 블록에서 세 번째 이상으로 다른 사람의 제안·견해를 "있다·나온다·제시된다"로 옮김 (${ids(relayExtra)}) — 블록에 두 번까지다. 이 턴들은 옮기는 말을 빼고 그 내용을 해설자의 말로 바로 한다 (규칙 20)`);
+  if (relayExtra.length) v.push(`해설 턴 ${relayExtra.length}개가 같은 블록에서 세 번째 이상으로 다른 사람의 제안·견해·권고를 옮김("있다·나온다·제시된다"·"권합니다·제안합니다·설명합니다") (${ids(relayExtra)}) — 블록에 두 번까지다. 이 턴들은 옮기는 말을 빼고 그 내용을 해설자의 말로 바로 한다 (규칙 20)`);
   // 규칙 21·23: 글 안에서 다른 사람의 주장을 다시 소개하는 중첩 소개("또 다른 글에는 작가 ○○의 주장이 소개됩니다")
   const nestedRe = /(글|기사|자료|보고서|칼럼|책)(에는|에서는|에|에서)\s?[^.!?]{0,40}(주장|의견|견해|말|연구|사례)(이|가|도|을)?\s?(소개|인용)(돼|됩|되|했)/;
   const nested = E.filter((t) => nestedRe.test(t.text));
@@ -395,7 +397,7 @@ export function v98Violations(scriptMd: string, turns: ScriptTurn[]): string[] {
   if (longS.length >= 3) v.push(`해설 문장 ${longS.length}개가 20어절 이상 (${longS.slice(0, 12).map((x) => `${x.id} ${x.n}어절`).join(", ")}) — 한 문장에 판단 하나다. 결론을 먼저 말하고 조건과 이유는 다음 문장으로 나눈다. 연결어로 잇고 내용과 헤지는 지우지 않는다 (규칙 16)`);
   // 규칙 25: 질문 말끝 쏠림 — 같은 말끝 갈래가 질문의 5분의 2 이하. 갈래로 묶어 센다 — "~나요"를 막으면 "~까요"로 몰리는 것도 잡는다
   const qY = bodyY.filter((t) => /\?\s*$/.test(t.text.trim()));
-  const endClass = (t: string) => { const x = t.trim().replace(/\?\s*$/, ""); return /(나요|가요)$/.test(x) ? "~나요·~가요" : /까요$/.test(x) ? "~까요" : /죠$/.test(x) ? "~죠" : /(다고|라고|냐고)요$/.test(x) ? "~다고요" : /요$/.test(x) ? "~요" : "기타"; };
+  const endClass = (t: string) => { const x = t.trim().replace(/\?\s*$/, ""); return /(나요|가요)$/.test(x) ? "~나요·~가요" : /까요$/.test(x) ? "~까요" : /죠$/.test(x) ? "~죠" : /(다고|라고|냐고)요$/.test(x) ? "~다고요" : /요$/.test(x) ? "~요" : /니까$/.test(x) ? "~니까" : "기타"; };
   const byEnd = new Map<string, ScriptTurn[]>(); for (const t of qY) { const k = endClass(t.text); byEnd.set(k, [...(byEnd.get(k) ?? []), t]); }
   const [topEnd, sameEnd] = [...byEnd.entries()].sort((a, b) => b[1].length - a[1].length)[0] ?? ["", []];
   // 2026-10-02 수정(T261002-001): 상한을 내림으로 잡고 "말끝을 바꾼다"만 말하자, 상한 근처의 두 갈래(~나요·~가요 7 · ~까요 6) 사이에서 같은 턴(Y17)을
@@ -408,6 +410,10 @@ export function v98Violations(scriptMd: string, turns: ScriptTurn[]): string[] {
     const full = [...byEnd.entries()].filter(([k, ts]) => k !== "기타" && ts.length + picks.length > capEnd).map(([k, ts]) => `${k} ${ts.length}개`).join(" · ");
     v.push(`진행 질문 ${qY.length}개 중 ${sameEnd.length}개가 같은 말끝(${topEnd})으로 끝남 — 같은 말끝은 질문의 5분의 2 이하다. 다음 ${picks.length}개 턴의 묻는 말끝을 바꾼다: ${ids(picks, 10)}. 이미 많은 갈래(${full})가 아닌 말끝으로 바꾼다 (규칙 25)`);
   }
+  // 규칙 19·28 (v9.8.1, 2026-10-03): 진행자의 격식체 질문("~습니까?"·"~합니까?") — 말끝 쏠림 L0 가 "~나요"를 밀어내자 이리로 옮겨 갔다(T261002-001 Y3·Y13,
+  // 002 Y9·Y16 — D1 동의 2건, 002 Y9 직접 수정 "있지 않습니까?" → "있지 않을까요?"). 진행자와 해설자는 같은 대화체다 — 전부 지목
+  const formalY = qY.filter((t) => /니까\?\s*$/.test(t.text.trim()));
+  if (formalY.length) v.push(`진행 질문 ${formalY.length}개가 격식체("~습니까?"·"~합니까?")로 끝남 (${ids(formalY, 10)}) — 진행자는 해설자와 같은 대화체로 묻는다. 이 턴들의 말끝을 대화체로 바꾼다. 이미 많은 말끝 갈래로 몰지 않는다 (규칙 19·28)`);
   // 규칙 25: 조건절로 시작해 묻는 질문("~다면, ~?") — 편에 세 번 이하
   const condRe = /(다면|라면|이라면|한다면|된다면|으면|하면|되면|려면|으려면)\s?,[^?]*\?\s*$/;
   const condY = qY.filter((t) => condRe.test(t.text.trim()));
