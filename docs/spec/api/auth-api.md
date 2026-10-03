@@ -192,6 +192,8 @@
 - `signup_token`은 검증된 제공자 신원을 담은 **단기 토큰**이다. 클라이언트가 `provider_user_id`를 들고 다니게 하지 않는다.
 - **동의 화면에 보여줄 현행 버전을 서버가 내려준다.** 클라이언트에 버전을 하드코딩하지 않는다.
 
+**`user.tier`** — `light` \| `daily` \| `pro` \| `trial`. **`trial`은 가입 체험 중인 무료 계정**이다(`subscription.md` 4.8, 2026-10-03 — `/auth/sign-up` 응답과 `GET /users/me`도 같다). 표시용이며 판정에 쓰지 않는다 — 언제까지인지·이후 한도는 `plan.trial`(`profile-api.md` 4.1)이 준다.
+
 **`pending_consents`** — 기존 계정이라도 약관이 개정됐으면 재동의가 필요한 항목이 담긴다. 판정은 **서버가 `consents`의 최신 버전과 현행 버전을 비교해서** 한다. 클라이언트가 보낸 버전을 신뢰하지 않는다(`auth.md` 7). 재동의는 `/users/me/consents`로 처리한다.
 
 **이메일 처리** — 제공자가 이메일을 주면 **주소와 인증 여부를 함께 판정해** `users.email` · `users.is_email_verified`에 저장한다(`auth.md` 4.1).

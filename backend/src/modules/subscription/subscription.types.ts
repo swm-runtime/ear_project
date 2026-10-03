@@ -40,6 +40,28 @@ export interface PlanView {
   /** 해지 예약·유예일 때의 이용 종료일. 그 외에는 `null` */
   expiresAt: Date | null;
   hasPaymentIssue: boolean;
+  /** 가입 체험 중일 때만 값이 있다(`subscription.md` 4.8). 체험이 없거나 끝났으면 `null` */
+  trial: TrialView | null;
+}
+
+/**
+ * 가입 체험 안내에 필요한 값 — 가입 직후 팝업과 플랜 카드가 쓴다(`subscription.md` 4.8).
+ * **날짜 계산을 클라이언트에 넘기지 않는다** — 04시 경계가 걸려 있어 서버가 라벨까지 만든다.
+ */
+export interface TrialView {
+  /** 체험이 끝나는 시각(배타 경계 — 그 시각부터 한도를 센다) */
+  endsAt: Date;
+  /** 체험으로 들을 수 있는 마지막 서비스 날짜(`YYYY-MM-DD`). 안내 문구의 "N월 N일까지" */
+  lastFreeDate: string;
+  /** 체험이 끝난 뒤 적용될 하루 재생 한도. `null`은 무제한(무제한 요금제 구독 중) */
+  dailyPlayLimitAfter: number | null;
+}
+
+/** `buildPlanView`가 사용자 쪽에서 받아야 하는 값 — subscription 모듈은 `users`를 모른다 */
+export interface TrialContext {
+  /** `users.trial_ends_at` */
+  trialEndsAt: Date | null | undefined;
+  now: Date;
 }
 
 /**

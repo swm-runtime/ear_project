@@ -85,7 +85,8 @@
     "daily_play_limit": null,
     "renews_at": "2026-09-01T00:00:00Z",
     "expires_at": null,
-    "has_payment_issue": false
+    "has_payment_issue": false,
+    "trial": null
   },
   "interest_summary": {
     "count": 3,
@@ -171,6 +172,36 @@
 - `renews_at`과 `expires_at`은 **같은 `subscriptions.expires_at`에서 온 값이지만 의미가 달라 필드를 나눈다.** 자동 갱신이면 그 시각이 다음 결제일이고, 해지 예약이면 이용 종료일이다. 한 필드로 내려주면 화면이 `status`를 보고 라벨을 갈아 끼워야 한다.
 - `status = free`일 때 `tier = "light"` · `plan_name` · `daily_play_limit`(무료 한도)을 채워 내려준다. **"하루 N편"의 N은 `plans.daily_play_limit` 서버 값이다 — 2를 하드코딩하지 않는다**(`profile.md` 4.2 · `paywall.md` 5장과 같은 규칙).
 - `daily_play_limit`는 무료 카드의 문구 조립용이다. `null`은 무제한 티어(문구에 한도를 적지 않는다).
+
+**`plan.trial` — 가입 체험**(`subscription.md` 4.8, 2026-10-03). 체험 중이 아니면 `null`이다.
+
+```json
+"plan": {
+  "status": "free",
+  "tier": "trial",
+  "plan_name": "무료 체험",
+  "daily_play_limit": null,
+  "renews_at": null,
+  "expires_at": null,
+  "has_payment_issue": false,
+  "trial": {
+    "ends_at": "2026-10-09T19:00:00.000Z",
+    "last_free_date": "2026-10-09",
+    "daily_play_limit_after": 2
+  }
+}
+```
+
+| 필드 | 설명 |
+|---|---|
+| `trial.ends_at` | 체험이 끝나는 시각(UTC). 항상 04:00 KST 경계다 |
+| `trial.last_free_date` | 무제한으로 들을 수 있는 **마지막 서비스 날짜**(`YYYY-MM-DD`). "10월 9일까지"를 클라이언트가 `ends_at`에서 계산하지 않게 서버가 준다(04시 경계 판정은 서버 몫) |
+| `trial.daily_play_limit_after` | 체험이 끝난 뒤의 하루 한도. `null` = 무제한(체험 중인 프로 구독자) |
+
+- **`status`는 체험과 무관하다** — 4분기 그대로다. 체험 중인 무료 계정은 `status = "free"`에 `tier = "trial"` · `plan_name`(체험 행의 이름) · `daily_play_limit`(체험 한도)이 실린다.
+- **구독자가 체험 중이면** `tier`·`plan_name`은 구독 티어 그대로이고, `daily_play_limit`만 둘 중 넉넉한 쪽이다. `trial`은 채워져 내려간다.
+- `tier = "trial"`은 **표시용**이다. 클라이언트는 이 값으로 기능을 분기하지 않고, 체험 여부는 `trial !== null`로 본다(티어명 하드코딩 금지 — CLAUDE.md 공통 원칙).
+- 체험 종료 시각을 읽으려면 사용자 행이 필요하다 — 그 조회가 실패하면 `plan`은 `null`이고 `failed_sections`에 `"plan"`이 담긴다.
 
 **`interest_summary`**
 

@@ -3,7 +3,9 @@ import { EntityManager } from 'typeorm';
 
 import { BusinessForbiddenException } from '@/common/exceptions/business-forbidden.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
+import { isSignupTrialActive } from '@/common/utils/signup-trial.util';
 import { PlanService } from '@/modules/subscription/services/plan.service';
+import { resolveEffectiveTier } from '@/modules/user/policies/effective-tier.policy';
 import { UserService } from '@/modules/user/services/user.service';
 
 import { PlayPermission } from '../playback.types';
@@ -67,8 +69,10 @@ export class PlayPolicyService {
     const user = manager
       ? await this.userService.getByIdForUpdate(userId, manager)
       : await this.userService.getById(userId);
-    const policy = await this.planService.getPlayLimitPolicy(
+    // 가입 체험 중이면 체험 한도(무제한)가 얹힌다 — 잔여 표시(`buildQuotaForUser`)와 같은 조립이다
+    const policy = await this.planService.getEffectivePlayLimitPolicy(
       user.tier,
+      isSignupTrialActive(user.trialEndsAt, now),
       manager,
     );
     const { dailyPlayLimit } = policy;
@@ -120,7 +124,7 @@ export class PlayPolicyService {
       user_id: userId,
       content_id: contentId,
       error_code: errorCode,
-      tier: user.tier,
+      tier: resolveEffectiveTier(user, now),
       play_count: dailyPlayCount,
       play_limit: dailyPlayLimit,
     });

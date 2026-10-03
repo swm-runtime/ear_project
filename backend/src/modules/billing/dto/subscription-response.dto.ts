@@ -2,6 +2,7 @@ import {
   PlanStatus,
   SubscriptionStore,
 } from '@/modules/subscription/subscription.enum';
+import { TrialDto } from '@/modules/subscription/dto/trial.dto';
 import { UserTier } from '@/modules/user/user.enum';
 
 import { SubscriptionView } from '../billing.types';
@@ -16,6 +17,8 @@ class SubscriptionPlanDto {
   readonly renews_at: string | null;
   readonly expires_at: string | null;
   readonly has_payment_issue: boolean;
+  /** 가입 체험 중일 때만 값이 있다 — 종료일·이후 한도(`subscription.md` 4.8). 아니면 `null` */
+  readonly trial: TrialDto | null;
 }
 
 class PendingPlanDto {
@@ -42,6 +45,7 @@ export class SubscriptionResponseDto {
         renews_at: view.plan.renewsAt?.toISOString() ?? null,
         expires_at: view.plan.expiresAt?.toISOString() ?? null,
         has_payment_issue: view.plan.hasPaymentIssue,
+        trial: TrialDto.from(view.plan.trial),
       },
       entitlements: EntitlementsDto.from(view.entitlements),
       store: view.store,

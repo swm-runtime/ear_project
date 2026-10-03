@@ -1,6 +1,7 @@
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { PlanService } from '@/modules/subscription/services/plan.service';
+import { User } from '@/modules/user/entities/user.entity';
 import { UserService } from '@/modules/user/services/user.service';
 import { UserTier } from '@/modules/user/user.enum';
 
@@ -42,13 +43,15 @@ describe('PlayPolicyService', () => {
     } as unknown as jest.Mocked<PlaybackService>;
 
     userService = {
-      getById: jest
-        .fn()
-        .mockResolvedValue({ id: USER_ID, tier: UserTier.LIGHT }),
+      getById: jest.fn().mockResolvedValue({
+        id: USER_ID,
+        tier: UserTier.LIGHT,
+        trialEndsAt: null,
+      }),
     } as unknown as jest.Mocked<UserService>;
 
     planService = {
-      getPlayLimitPolicy: jest
+      getEffectivePlayLimitPolicy: jest
         .fn()
         .mockResolvedValue({ dailyPlayLimit: FREE_LIMIT, isTopTier: false }),
     } as unknown as jest.Mocked<PlanService>;
@@ -88,7 +91,7 @@ describe('PlayPolicyService', () => {
 
     it('최상위 티어가 한도를 소진하면 페이월이 아니라 한도 안내로 막는다', async () => {
       // given — 더 올라갈 티어가 없어 팔 것이 없다 (paywall.md 4.1)
-      planService.getPlayLimitPolicy.mockResolvedValue({
+      planService.getEffectivePlayLimitPolicy.mockResolvedValue({
         dailyPlayLimit: 5,
         isTopTier: true,
       });
@@ -120,7 +123,7 @@ describe('PlayPolicyService', () => {
 
     it('무제한 티어는 카운트를 세지 않고 허용한다', async () => {
       // given
-      planService.getPlayLimitPolicy.mockResolvedValue({
+      planService.getEffectivePlayLimitPolicy.mockResolvedValue({
         dailyPlayLimit: null,
         isTopTier: true,
       });
@@ -141,7 +144,7 @@ describe('PlayPolicyService', () => {
     it('무제한 티어의 재생도 재청취 창의 기산점이 된다', async () => {
       // given — 유료 티어도 15일 재청취 권리를 똑같이 지급한다(결정 2026-08-11).
       //          강등 후에도 최근 들은 콘텐츠를 차감 없이 이어 들을 수 있다
-      planService.getPlayLimitPolicy.mockResolvedValue({
+      planService.getEffectivePlayLimitPolicy.mockResolvedValue({
         dailyPlayLimit: null,
         isTopTier: true,
       });
@@ -152,6 +155,70 @@ describe('PlayPolicyService', () => {
       // then — 차감(counted 응답)과 기산점(is_counted 행)이 갈라지는 지점이다
       expect(permission.deductsQuota).toBe(false);
       expect(permission.opensReplayWindow).toBe(true);
+    });
+  });
+
+  describe('assertPlayable — 가입 체험(subscription.md 4.8)', () => {
+    // NOW 기준으로 아직 끝나지 않은 체험 / 이미 끝난 체험
+    const activeTrial = new Date(NOW.getTime() + 60 * 60 * 1000);
+    const expiredTrial = new Date(NOW.getTime() - 1);
+
+    it('체험 중인 사용자는 체험 여부를 실어 한도 정책을 묻는다', async () => {
+      // given
+      userService.getById.mockResolvedValue({
+        id: USER_ID,
+        tier: UserTier.LIGHT,
+        trialEndsAt: activeTrial,
+      } as User);
+      planService.getEffectivePlayLimitPolicy.mockResolvedValue({
+        dailyPlayLimit: null,
+        isTopTier: false,
+      });
+
+      // when
+      const permission = await service.assertPlayable(USER_ID, CONTENT_ID, NOW);
+
+      // then — 무제한이라 카운트를 세지 않고, 재생은 재청취 창의 기산점이 된다
+      expect(planService.getEffectivePlayLimitPolicy).toHaveBeenCalledWith(
+        UserTier.LIGHT,
+        true,
+        undefined,
+      );
+      expect(permission).toEqual({
+        deductsQuota: false,
+        opensReplayWindow: true,
+        dailyPlayLimit: null,
+      });
+      expect(playbackService.countPlays).not.toHaveBeenCalled();
+    });
+
+    it('체험이 끝났으면 체험 없이 판정한다', async () => {
+      // given
+      userService.getById.mockResolvedValue({
+        id: USER_ID,
+        tier: UserTier.LIGHT,
+        trialEndsAt: expiredTrial,
+      } as User);
+
+      // when
+      await service.assertPlayable(USER_ID, CONTENT_ID, NOW);
+
+      // then
+      expect(planService.getEffectivePlayLimitPolicy).toHaveBeenCalledWith(
+        UserTier.LIGHT,
+        false,
+        undefined,
+      );
+    });
+
+    it('체험을 받지 않은 사용자는 종전과 같다', async () => {
+      await service.assertPlayable(USER_ID, CONTENT_ID, NOW);
+
+      expect(planService.getEffectivePlayLimitPolicy).toHaveBeenCalledWith(
+        UserTier.LIGHT,
+        false,
+        undefined,
+      );
     });
   });
 });

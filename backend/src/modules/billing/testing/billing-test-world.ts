@@ -5,6 +5,7 @@ import { PurchaseIntent } from '@/modules/subscription/entities/purchase-intent.
 import { Subscription } from '@/modules/subscription/entities/subscription.entity';
 import { SubscriptionDraft } from '@/modules/subscription/repositories/subscription.repository';
 import { PlanService } from '@/modules/subscription/services/plan.service';
+import { TrialContext } from '@/modules/subscription/subscription.types';
 import { PurchaseIntentService } from '@/modules/subscription/services/purchase-intent.service';
 import { StoreNotificationLogService } from '@/modules/subscription/services/store-notification-log.service';
 import { StoreNotificationLog } from '@/modules/subscription/entities/store-notification-log.entity';
@@ -350,7 +351,7 @@ export class BillingTestWorld {
           (row) => row.expiresAt.getTime() < before.getTime(),
         ),
       ),
-    buildPlanView: (userId: string) =>
+    buildPlanView: (userId: string, trialContext: TrialContext) =>
       SubscriptionService.prototype.buildPlanView.call(
         Object.assign(Object.create(SubscriptionService.prototype), {
           subscriptionRepository: {
@@ -363,6 +364,7 @@ export class BillingTestWorld {
           logger: { warn: () => undefined },
         }) as SubscriptionService,
         userId,
+        trialContext,
       ),
   } as unknown as SubscriptionService;
 

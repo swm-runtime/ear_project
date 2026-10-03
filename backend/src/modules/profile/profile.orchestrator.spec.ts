@@ -47,6 +47,7 @@ function buildPlanView(): PlanView {
     renewsAt: null,
     expiresAt: null,
     hasPaymentIssue: false,
+    trial: null,
   };
 }
 
@@ -114,6 +115,7 @@ describe('ProfileOrchestrator', () => {
         renewsAt: new Date('2026-09-01T00:00:00.000Z'),
         expiresAt: null,
         hasPaymentIssue: false,
+        trial: null,
       };
       subscriptionService.buildPlanView.mockResolvedValue(planView);
 
@@ -122,7 +124,25 @@ describe('ProfileOrchestrator', () => {
 
       // then
       expect(result.plan).toEqual(planView);
-      expect(subscriptionService.buildPlanView).toHaveBeenCalledWith(USER_ID);
+      expect(subscriptionService.buildPlanView).toHaveBeenCalledWith(
+        USER_ID,
+        expect.objectContaining({ now: NOW }),
+      );
+    });
+
+    it('가입 체험 종료 시각을 사용자 행에서 읽어 플랜 조립에 넘긴다', async () => {
+      // given — subscription 모듈은 users를 모른다. 체험 여부는 호출부가 넘긴다(subscription.md 4.8)
+      const trialEndsAt = new Date('2026-08-14T19:00:00.000Z');
+      userService.getById.mockResolvedValue(buildUser({ trialEndsAt }));
+
+      // when
+      await orchestrator.getSummary(USER_ID, NOW);
+
+      // then
+      expect(subscriptionService.buildPlanView).toHaveBeenCalledWith(USER_ID, {
+        trialEndsAt,
+        now: NOW,
+      });
     });
   });
 

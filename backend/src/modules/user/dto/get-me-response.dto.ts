@@ -1,4 +1,5 @@
 import { User } from '../entities/user.entity';
+import { resolveEffectiveTier } from '../policies/effective-tier.policy';
 import {
   ConsentType,
   OnboardingStep,
@@ -43,7 +44,11 @@ export class GetMeResponseDto {
   readonly user: MeUserDto;
   readonly pending_consents: MePendingConsentDto[];
 
-  static from(user: User, pendingConsents: PendingConsent[]): GetMeResponseDto {
+  static from(
+    user: User,
+    pendingConsents: PendingConsent[],
+    now: Date,
+  ): GetMeResponseDto {
     return {
       user: {
         id: user.id,
@@ -52,7 +57,8 @@ export class GetMeResponseDto {
         email: user.email,
         is_email_verified: user.isEmailVerified,
         provider: user.provider,
-        tier: user.tier,
+        // 로그인 응답과 같은 유효 티어 — 가입 체험 중인 무료 사용자는 `trial`(subscription.md 4.8)
+        tier: resolveEffectiveTier(user, now),
         role: user.role,
         onboarding_completed: user.onboardingCompleted,
         onboarding_step: user.onboardingStep,
