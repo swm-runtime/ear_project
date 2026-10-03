@@ -37,7 +37,7 @@ export class SubmitPurchaseRequestDto {
   @MaxLength(MAX_SIGNED_PAYLOAD_LENGTH)
   readonly signed_transaction?: string;
 
-  /** Android 필수 — Play 구현 전까지는 받아도 `SUBSCRIPTION_PLAN_UNAVAILABLE`이다(1장) */
+  /** Android 필수 — Billing Library의 `Purchase.purchaseToken`. 서버가 이 값으로 Google에 현재 상태를 묻는다 */
   @ValidateIf(
     (request: SubmitPurchaseRequestDto) =>
       request.platform === DevicePlatform.ANDROID,

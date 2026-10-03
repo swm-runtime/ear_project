@@ -27,6 +27,13 @@ import { UserService } from '@/modules/user/services/user.service';
 import { DevicePlatform, UserTier } from '@/modules/user/user.enum';
 
 import {
+  PlayNotification,
+  PlayPurchase,
+  PlayPushEnvelope,
+  PlayStoreError,
+  PlayStoreGateway,
+} from '../play-store/play-store.gateway';
+import {
   AppStoreGateway,
   AppStoreNotification,
   AppStoreSubscriptionStatus,
@@ -45,6 +52,11 @@ export const NOTIFICATION_RECEIPT_MARKER = 'fake-jws-from-notification';
 
 export const PRODUCT_DAILY = 'com.runtime.ear.subscription.daily.monthly';
 export const PRODUCT_PRO = 'com.runtime.ear.subscription.pro.monthly';
+/** Play 상품 ID — 실제 값은 Play Console에서 상품을 만들 때 정한다. 테스트용 값이다 */
+export const PLAY_PRODUCT_DAILY = 'ear_daily_monthly';
+export const PLAY_PRODUCT_PRO = 'ear_pro_monthly';
+/** 가짜 Pub/Sub push가 통과시키는 OIDC 토큰 */
+export const FAKE_PLAY_PUSH_TOKEN = 'play-push';
 
 export function buildPlans(): Plan[] {
   const base = {
@@ -102,6 +114,116 @@ export function signTransaction(
   },
 ): string {
   return JSON.stringify(overrides);
+}
+
+/**
+ * 가짜 Google Play. 구매 토큰 → "Google이 답할 현재 상태"를 맵에 넣어 두면 그대로 돌려준다 — 테스트가 맵의 값을
+ * 바꾸는 것이 곧 "스토어에서 상태가 바뀌었다"이다.
+ */
+export class FakePlayStoreGateway extends PlayStoreGateway {
+  enabled = false;
+  readonly purchases = new Map<string, PlayPurchase>();
+  /** 확인(acknowledge)된 구매 토큰 — 부른 순서대로 */
+  readonly acknowledged: string[] = [];
+  fetchError: PlayStoreError | null = null;
+  acknowledgeError: PlayStoreError | null = null;
+
+  /** 구매 하나를 "Google에 존재하는 것"으로 등록한다 */
+  put(
+    overrides: Partial<PlayPurchase> & { purchaseToken: string },
+  ): PlayPurchase {
+    const purchase: PlayPurchase = {
+      linkedPurchaseToken: null,
+      productId: PLAY_PRODUCT_PRO,
+      state: 'active',
+      startedAt: new Date('2026-10-01T00:00:00Z'),
+      expiresAt: new Date('2026-11-01T00:00:00Z'),
+      isAutoRenew: true,
+      pendingProductId: null,
+      accountToken: null,
+      environment: SubscriptionEnvironment.SANDBOX,
+      needsAcknowledge: true,
+      ...overrides,
+    };
+
+    this.purchases.set(purchase.purchaseToken, purchase);
+
+    return purchase;
+  }
+
+  isEnabled(): boolean {
+    return this.enabled;
+  }
+
+  fetchPurchase(purchaseToken: string): Promise<PlayPurchase | null> {
+    if (this.fetchError) {
+      return Promise.reject(this.fetchError);
+    }
+
+    const purchase = this.purchases.get(purchaseToken);
+
+    // 복사본을 준다 — 진짜 Google도 호출마다 새 응답이다
+    return Promise.resolve(purchase ? { ...purchase } : null);
+  }
+
+  acknowledge(_productId: string, purchaseToken: string): Promise<void> {
+    if (this.acknowledgeError) {
+      return Promise.reject(this.acknowledgeError);
+    }
+
+    this.acknowledged.push(purchaseToken);
+    const purchase = this.purchases.get(purchaseToken);
+
+    if (purchase) {
+      purchase.needsAcknowledge = false;
+    }
+
+    return Promise.resolve();
+  }
+
+  /**
+   * 가짜 검증 — `Authorization: Bearer play-push`만 통과시키고, 본문(`message.data`)은 base64 JSON으로 적은
+   * `PlayNotification`을 그대로 푼다.
+   */
+  verifyNotification(
+    authorization: string | undefined,
+    envelope: PlayPushEnvelope,
+  ): Promise<PlayNotification> {
+    if (!this.enabled) {
+      return Promise.reject(new PlayStoreError('invalid', 'not_configured'));
+    }
+
+    if (authorization !== `Bearer ${FAKE_PLAY_PUSH_TOKEN}`) {
+      return Promise.reject(
+        new PlayStoreError('invalid', 'push_token_invalid'),
+      );
+    }
+
+    const parsed = JSON.parse(
+      Buffer.from(envelope.message.data, 'base64').toString('utf8'),
+    ) as Partial<PlayNotification> & { eventAt?: string };
+
+    return Promise.resolve({
+      id: envelope.message.messageId,
+      kind: parsed.kind ?? 'subscription',
+      type: parsed.type ?? null,
+      purchaseToken: parsed.purchaseToken ?? null,
+      eventAt: new Date(parsed.eventAt ?? Date.now()),
+    });
+  }
+}
+
+/** 가짜 Pub/Sub push 본문 — 진짜와 같은 봉투 모양(`message.data`가 base64)이다 */
+export function playPushBody(
+  messageId: string,
+  notification: Partial<PlayNotification>,
+): PlayPushEnvelope {
+  return {
+    message: {
+      messageId,
+      data: Buffer.from(JSON.stringify(notification)).toString('base64'),
+    },
+  };
 }
 
 export class FakeAppStoreGateway extends AppStoreGateway {
@@ -210,6 +332,17 @@ export class BillingTestWorld {
   readonly intents: PurchaseIntent[] = [];
   readonly users = new Map<string, User>();
   readonly gateway = new FakeAppStoreGateway();
+  readonly playGateway = new FakePlayStoreGateway();
+
+  /**
+   * Android 결제를 켠다 — 요금제에 Play 상품 ID를 넣고 가짜 Google을 연다. 기본은 꺼져 있다
+   * (운영의 현재 상태와 같다: Play 상품을 아직 만들지 않았다).
+   */
+  enablePlay(): void {
+    this.playGateway.enabled = true;
+    this.plans[1].storeProductIdAndroid = PLAY_PRODUCT_DAILY;
+    this.plans[2].storeProductIdAndroid = PLAY_PRODUCT_PRO;
+  }
   /** 트랜잭션이 몇 번 열렸는가 — "한 트랜잭션에서 반영"을 확인할 때 쓴다 */
   transactionCount = 0;
 
@@ -308,9 +441,14 @@ export class BillingTestWorld {
           .filter((plan) => plan.isActive)
           .sort((a, b) => a.displayOrder - b.displayOrder),
       ),
-    findByStoreProductId: (_store: SubscriptionStore, productId: string) =>
+    findByStoreProductId: (store: SubscriptionStore, productId: string) =>
       Promise.resolve(
-        this.plans.find((plan) => plan.storeProductIdIos === productId) ?? null,
+        this.plans.find(
+          (plan) =>
+            (store === SubscriptionStore.APP_STORE
+              ? plan.storeProductIdIos
+              : plan.storeProductIdAndroid) === productId,
+        ) ?? null,
       ),
     getEntitlements: (tier: UserTier) =>
       PlanService.prototype.getEntitlements.call(this.planService, tier),
@@ -325,6 +463,12 @@ export class BillingTestWorld {
       ),
     findByOriginalTransactionId: (originalTransactionId: string) =>
       Promise.resolve(this.findSubscription(originalTransactionId)),
+    findByLatestReceipt: (store: SubscriptionStore, latestReceipt: string) =>
+      Promise.resolve(
+        this.subscriptions.find(
+          (row) => row.store === store && row.latestReceipt === latestReceipt,
+        ) ?? null,
+      ),
     lockByOriginalTransactionId: (originalTransactionId: string) =>
       Promise.resolve(this.findSubscription(originalTransactionId)),
     createOrLock: (draft: SubscriptionDraft) => {

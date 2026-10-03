@@ -1151,7 +1151,7 @@ idx_subscriptions_user_id_status (user_id, status)
 - **무료 사용자는 행이 없다.** 행이 없으면 `light`로 간주한다.
 - 실제 갱신 근거는 **스토어 서버 알림(S2S)**이다(`subscription.md` 4.3). 클라이언트가 보낸 값으로 티어를 바꾸지 않는다.
 - `uq_subscriptions_original_transaction_id`가 하나의 스토어 구독이 여러 계정에 연결되는 것을 막는다.
-- **Play에는 `original_transaction_id`가 없다 — 그 구독의 최초 구매 토큰을 이 컬럼에 쓴다.** 업·다운그레이드로 새 토큰이 발급되면 스토어 응답의 `linkedPurchaseToken`으로 기존 행을 찾아 같은 행을 갱신한다(`subscription-api.md` 4.7).
+- **Play에는 `original_transaction_id`가 없다 — 그 구독의 최초 구매 토큰을 이 컬럼에 쓴다.** 업·다운그레이드로 새 토큰이 발급되면 스토어 응답의 `linkedPurchaseToken`으로 기존 행을 찾아 같은 행을 갱신한다 — 이전 토큰은 최초 토큰(`original_transaction_id`)일 수도, 중간에 바뀐 토큰(`latest_receipt`)일 수도 있어 둘 다로 찾는다(`subscription-api.md` 4.7). **Play 구매 토큰은 수백 자라 컬럼 길이는 2048이다**(2026-10-03 — 종전 255. App Store ID는 십수 자리 숫자라 문제가 없었다). 탈퇴 시 이 값을 옮겨 담는 `archived_subscriptions.original_transaction_id`([11.5](#115-archived_subscriptions))도 같은 길이다 — 한쪽만 넓으면 Play 구독자의 탈퇴가 아카이브에서 실패한다.
 - `latest_receipt`에는 마지막으로 반영한 **서명된 거래(iOS JWS) 또는 구매 토큰(Android)** 을 둔다 — 만료 보정 때 스토어에 다시 묻는 열쇠다. 로그에는 남기지 않는다.
 - **`environment`** 는 그 구독이 실결제인지 스토어의 시험 결제인지다(2026-10-02). **운영 서버도 샌드박스 거래를 받는다** — App Store 심사와 TestFlight는 운영 빌드로 샌드박스 결제를 한다(`subscription-api.md` 7장). 구분을 남기지 않으면 시험 결제가 매출·구독자 수에 섞인다. 권한 판정에는 쓰지 않는다 — 샌드박스 구독도 유효하면 유료 티어다(그래야 심사·시험이 된다). 집계가 `environment = 'production'`으로 거른다.
 - **`last_notified_at`** 은 스토어 서버 알림의 순서 뒤바뀜을 막는다(2026-10-02, `subscription-api.md` 4.6). 알림은 보낸 순서대로 도착한다는 보장이 없어, 이 시각보다 먼저 서명된 알림은 상태를 덮지 않는다. 만료 보정(스토어에 직접 조회)도 이 값을 조회 시각으로 갱신한다. **환불·만료로 종결된 구독을, 종결 이전에 시작된 거래로 되살릴 수 없게 하는 기준 시각이기도 하다** — 환불받은 사용자가 환불 전에 받아 둔 서명 거래를 다시 제출해도 반영하지 않는다.
@@ -1193,7 +1193,7 @@ idx_purchase_intents_user_id_created_at (user_id, created_at DESC)
 
 ### 8.4 `store_notification_logs`
 
-> **구현 상태(2026-10-02)** — App Store 서버 알림 수신(`subscription-api.md` 4.6)이 이 표를 쓴다(`StoreNotificationLogService`). Play 알림은 구현 전이다. `store_notification_logs`는 탈퇴 시 그대로 둔다(12.3).
+> **구현 상태(2026-10-03)** — App Store 서버 알림(`subscription-api.md` 4.6)과 Google Play 실시간 알림(4.7)이 이 표를 쓴다(`StoreNotificationLogService`). `store_notification_logs`는 탈퇴 시 그대로 둔다(12.3).
 
 ```
 store_notification_logs
@@ -1210,7 +1210,7 @@ uq_store_notification_logs_store_notification_id (store, notification_id)
 - 결제 재처리의 근거이므로 DB 테이블로 유지한다 (B-8).
 - 유니크 제약이 **같은 알림의 중복 처리를 막는다.** 스토어는 같은 알림을 여러 번 보낼 수 있다.
 - **`processed_at`이 "중복"의 기준이다**(2026-10-02). 적재는 처리보다 먼저, 처리 트랜잭션 밖에서 한다 — 처리가 실패해 롤백돼도 받았다는 기록은 남는다. 그래서 같은 `notification_id`가 다시 왔을 때 `processed_at`이 있으면 끝난 알림의 재전송이라 그대로 200이고, 없으면 받기만 하고 처리에 실패했던 것이라 다시 처리한다. 어느 계정의 구독인지 알 수 없던 알림(구독 행도 계정 토큰도 없음)도 `processed_at`이 비어 있다 — 이후 영수증 제출·복원이 그 구독을 연결한다.
-- **`payload`에는 검증을 마친 뒤 풀어낸 값만 둔다** — 알림 유형, 서명 시각, 환경, 거래(스토어 구독 ID·상품·기간·환불 시각·계정 토큰 유무), 갱신 설정. 계정 토큰 값은 싣지 않는다 — 결제 의도의 `id`라 살아 있는 계정을 가리키는데, 이 표는 탈퇴 뒤에도 남는다(12.3). **서명 원문(JWS)은 넣지 않는다.** `type`은 App Store의 `notificationType`에 `subtype`이 있으면 `:`로 이은 값이다(`DID_CHANGE_RENEWAL_STATUS:AUTO_RENEW_DISABLED`).
+- **`payload`에는 검증을 마친 뒤 풀어낸 값만 둔다** — 알림 유형, 서명 시각, 환경, 거래(스토어 구독 ID·상품·기간·환불 시각·계정 토큰 유무), 갱신 설정. 계정 토큰 값은 싣지 않는다 — 결제 의도의 `id`라 살아 있는 계정을 가리키는데, 이 표는 탈퇴 뒤에도 남는다(12.3). **서명 원문(JWS)은 넣지 않는다.** `type`은 App Store의 `notificationType`에 `subtype`이 있으면 `:`로 이은 값이다(`DID_CHANGE_RENEWAL_STATUS:AUTO_RENEW_DISABLED`). **Play 알림**(2026-10-03)은 `notification_id`가 Pub/Sub `messageId`, `type`이 `SUBSCRIPTION:<유형 번호>` · `VOIDED_PURCHASE` · `TEST` · `OTHER`이고, `payload`에는 종류·유형·발생 시각과 **구매 토큰의 SHA-256**만 둔다 — 토큰 원문은 그것만으로 Google에 그 구매를 조회할 수 있는 열쇠라 넣지 않는다. Play 알림의 `processed_at`은 구매 확인(acknowledge)까지 끝난 뒤에 찍힌다.
 
 ---
 

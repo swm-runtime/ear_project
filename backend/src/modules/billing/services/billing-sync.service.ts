@@ -17,7 +17,10 @@ import {
 import { PlanService } from '@/modules/subscription/services/plan.service';
 import { PurchaseIntentService } from '@/modules/subscription/services/purchase-intent.service';
 import { SubscriptionService } from '@/modules/subscription/services/subscription.service';
-import { NON_TERMINAL_SUBSCRIPTION_STATUSES } from '@/modules/subscription/subscription.enum';
+import {
+  NON_TERMINAL_SUBSCRIPTION_STATUSES,
+  SubscriptionStore,
+} from '@/modules/subscription/subscription.enum';
 import {
   StoreTransaction,
   SubscriptionState,
@@ -174,11 +177,28 @@ export class BillingSyncService {
     return outcome;
   }
 
-  /** 만료 보정 — 스토어에 직접 물어 얻은 현재 상태로 맞춘다(`subscription-api.md` 4.2) */
+  /** 만료 보정 — 스토어에 직접 물어 얻은 현재 상태로 맞춘다(`subscription-api.md` 4.2). 행이 있어야 한다 */
   async applyStoreStatus(
     subscription: Subscription,
     input: Omit<StoreStatusInput, 'tier' | 'renewalTier'>,
     manager: EntityManager,
+  ): Promise<SyncOutcome> {
+    return this.applyStoreSnapshot(subscription.userId, input, manager, {
+      createIfMissing: false,
+    });
+  }
+
+  /**
+   * 스토어가 답한 "지금 상태"를 그 사용자의 구독으로 반영한다. **Play의 모든 경로**(영수증 제출·복원·알림·보정)가
+   * 이것을 쓴다 — Play는 알림이 신호일 뿐이라 매번 현재 상태를 조회해 그대로 반영한다(4.7).
+   *
+   * `createIfMissing`이 켜져 있으면 행이 없을 때 조회 결과로 만든다(첫 구매). 주인 확인은 호출부가 먼저 한다.
+   */
+  async applyStoreSnapshot(
+    userId: string,
+    input: Omit<StoreStatusInput, 'tier' | 'renewalTier'>,
+    manager: EntityManager,
+    options: { createIfMissing: boolean },
   ): Promise<SyncOutcome> {
     const { transaction, renewal } = input;
     const tier = await this.findTier(
@@ -191,16 +211,70 @@ export class BillingSyncService {
         ? await this.findTier(transaction, renewal.autoRenewProductId, manager)
         : null;
 
-    return this.applyDecision(
-      subscription.userId,
+    const outcome = await this.applyDecision(
+      userId,
       transaction,
       manager,
       (stored) =>
-        stored === null
+        stored === null && !options.createIfMissing
           ? { kind: 'ignore', reason: 'terminated' }
           : resolveFromStoreStatus(stored, { ...input, tier, renewalTier }),
       input.checkedAt,
     );
+
+    if (options.createIfMissing && transaction.accountToken !== null) {
+      await this.markIntentVerified(userId, transaction.accountToken, manager);
+    }
+
+    return outcome;
+  }
+
+  /**
+   * Play 구매 토큰이 **어느 구독 행의 것인지** 정한다 — 그 행의 `original_transaction_id`를 돌려준다.
+   *
+   * Play에는 App Store의 `originalTransactionId`가 없어 그 구독의 최초 구매 토큰을 자연 키로 쓴다. 그런데
+   * 업·다운그레이드·재구독마다 새 토큰이 나오므로, 새 토큰을 그대로 키로 쓰면 같은 구독이 새 행이 된다
+   * (한 사용자에게 살아 있는 구독이 둘이 된다). 그래서 순서대로 찾는다.
+   *
+   * 1. 이 토큰이 이미 어느 행의 키이거나 마지막 영수증이면 그 행
+   * 2. Google이 알려 준 이전 토큰(`linkedPurchaseToken`)이 어느 행의 키이거나 마지막 영수증이면 그 행
+   * 3. 어디에도 없으면 새 구독이다 — 이 토큰이 키가 된다
+   */
+  async resolvePlayOriginalId(
+    purchaseToken: string,
+    linkedPurchaseToken: string | null,
+    manager?: EntityManager,
+  ): Promise<string> {
+    for (const token of [purchaseToken, linkedPurchaseToken]) {
+      if (token === null) {
+        continue;
+      }
+
+      const row =
+        (await this.subscriptionService.findByOriginalTransactionId(
+          token,
+          manager,
+        )) ??
+        (await this.subscriptionService.findByLatestReceipt(
+          SubscriptionStore.PLAY_STORE,
+          token,
+          manager,
+        ));
+
+      if (row !== null) {
+        return row.originalTransactionId;
+      }
+    }
+
+    return purchaseToken;
+  }
+
+  /** 계정 토큰(= 결제 의도 `id`)의 주인 — 알림처럼 "누구의 구독인지" 모르는 경로가 쓴다 */
+  async findAccountTokenOwner(
+    accountToken: string | null,
+    manager?: EntityManager,
+  ): Promise<string | null> {
+    return this.findOwnerByToken(accountToken, manager);
   }
 
   /** 그 스토어 구독이 연결된 사용자 — 없으면 `null` */
@@ -337,7 +411,7 @@ export class BillingSyncService {
   /** 계정 토큰(= 결제 의도 `id`)의 주인. 토큰이 없거나 의도 행이 없으면(탈퇴로 파기) `null` */
   private async findOwnerByToken(
     accountToken: string | null,
-    manager: EntityManager,
+    manager?: EntityManager,
   ): Promise<string | null> {
     // 스토어 밖에서 온 값이다 — uuid 컬럼에 그대로 넣으면 형식 오류로 쿼리가 실패한다
     if (accountToken === null || !UUID_PATTERN.test(accountToken)) {

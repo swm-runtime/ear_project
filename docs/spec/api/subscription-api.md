@@ -29,7 +29,7 @@
 | 탈퇴 시 구독 안내·아카이브 | `auth-api.md` 4.6~4.7 | 재가입 복원 규칙만 소유한다(4.5) |
 | 가격 표기 | 스토어 SDK(현지 통화) | `price_krw`는 참고값이다 — 화면은 SDK가 준 현지 가격을 그린다 |
 
-**플랫폼 범위** — 계약은 iOS(App Store)·Android(Google Play)를 함께 정한다. **서버 구현은 iOS가 먼저다**(2026-10-02) — Play는 서비스 계정·RTDN 구성이 준비되면 같은 계약으로 붙인다. 그때까지 `platform = android` 요청은 `SUBSCRIPTION_PLAN_UNAVAILABLE`로 거부된다(상품 ID가 비어 있어서다 — 4.3).
+**플랫폼 범위** — 계약은 iOS(App Store)·Android(Google Play)를 함께 정하고, **서버는 둘 다 구현돼 있다**(iOS 2026-10-02, Android 2026-10-03). 다만 스토어별로 **검증 구성과 상품 ID가 있어야 켜진다**(7장) — 없는 플랫폼의 요청은 `SUBSCRIPTION_PLAN_UNAVAILABLE`로 거부된다(4.3). Android는 Play Console에 구독 상품을 만들고 `plans.store_product_id_android`를 채우기 전까지 꺼져 있다.
 
 ---
 
@@ -263,7 +263,9 @@
 3. **주인 확인**(7장) — 거래에 계정 토큰이 있고 그것이 **다른 살아 있는 사용자**의 `purchase_intents.id`면 `SUBSCRIPTION_OWNED_BY_ANOTHER_ACCOUNT`. 그 거래의 `original_transaction_id`가 이미 다른 계정의 `subscriptions`에 있어도 같다
 4. **유효성** — 이미 만료·환불된 거래면 `SUBSCRIPTION_RECEIPT_INVALID`(구매 제출인데 유효한 구독이 아니다)
 5. **반영** — `original_transaction_id` 기준 upsert로 `subscriptions`를 만들거나 갱신하고, **같은 트랜잭션에서 `users.tier`를 갱신한다.** 의도 행이 있으면 `verified`로 바꾼다
-6. Android: 미확인 구매면 서버가 `acknowledge`한다(3일 안에 확인하지 않으면 Google이 자동 환불한다)
+6. Android: 미확인 구매면 서버가 `acknowledge`한다(3일 안에 확인하지 않으면 Google이 자동 환불한다). **순서는 반영(커밋) → 확인이다.** 확인이 실패하면 구독은 이미 반영된 채로 `SUBSCRIPTION_STORE_UNAVAILABLE`(503)을 답한다 — 클라이언트가 거래를 끝내지 않고 다시 제출하면 그때 확인을 마친다(반영은 멱등이라 두 번 해도 같다)
+
+**Android의 검증은 iOS와 다르다** — 구매 토큰은 서명된 사실이 아니라 열쇠다. 서버가 그 토큰으로 Google에 **현재 상태를 조회해** 그대로 반영한다(4.7). 그래서 유효성도 Google의 상태로 판정한다: `ACTIVE`·`IN_GRACE_PERIOD`·만료 전 `CANCELED`만 받고, 결제 대기(`PENDING`)·보류(`ON_HOLD`)·만료는 `SUBSCRIPTION_RECEIPT_INVALID`다(복원에서는 무시). Google이 그 토큰을 모르면(400·404·410) 위조로 본다.
 
 - **같은 거래의 재전송은 같은 결과다**(멱등). 업그레이드처럼 같은 `original_transaction_id`에 새 거래가 오면 그 행을 갱신한다.
 - **업그레이드는 즉시 반영된다.** 다운그레이드는 스토어가 "다음 갱신부터"로 예약하므로, 제출된 거래의 티어는 그대로이고 `pending_plan`이 채워진다(S2S 알림으로도 들어온다 — 4.6).
@@ -368,10 +370,13 @@ Apple이 호출한다. 본문은 `{ "signedPayload": "<JWS>" }`. App Store Conne
 
 Google Cloud Pub/Sub **push 구독**이 호출한다. 본문은 Pub/Sub 메시지 봉투(`message.data`가 base64 JSON)다.
 
-- 검증: Pub/Sub push의 OIDC 토큰(`Authorization: Bearer`)을 Google 공개키로 검증하고 `aud`·서비스 계정 이메일을 대조한다(7장)
-- 중복: `message.messageId`를 `notification_id`로 `store_notification_logs`에 적재(유니크)
-- **알림은 신호일 뿐이다.** 본문에는 `purchaseToken`과 유형 번호만 있으므로, 서버가 `purchases.subscriptionsv2.get`으로 **현재 상태를 조회해** 반영한다. 조회 실패는 5xx로 답해 Pub/Sub가 재전송하게 한다
-- 응답: 4.6과 같다(성공·중복 200, 일시 실패 5xx)
+- **검증** — Pub/Sub push의 OIDC 토큰(`Authorization: Bearer`)을 Google 공개키로 검증하고(서명·만료·`aud`), 발급자가 Google이고 `email`이 구성된 발신 서비스 계정이며 `email_verified`인지 본다. 본문의 `packageName`도 우리 앱과 대조한다(7장). 검증값이 구성되지 않은 서버는 어떤 알림도 받지 않는다(400)
+- **본문 형식** — `message.data`(base64)와 `message.messageId`(또는 `message_id`)만 읽는다. Pub/Sub은 같은 값을 두 표기로 함께 보내고 `attributes`·`deliveryAttempt` 등을 더 싣는데, 이 엔드포인트는 모르는 필드를 거부하지 않는다. 두 값이 없으면 `VALIDATION_FAILED`(400)
+- **중복** — `messageId`를 `notification_id`로 `store_notification_logs`에 적재(유니크). `processed_at`이 있으면 200으로 끝내고, 비어 있으면 다시 처리한다(4.6과 같은 규칙)
+- **알림은 신호일 뿐이다.** 본문에는 `purchaseToken`과 유형 번호만 있으므로, 서버가 `purchases.subscriptionsv2.get`으로 **현재 상태를 조회해** 반영한다. 그래서 알림의 순서가 뒤바뀌어도 결과가 같다(마지막에 조회한 상태가 맞는 상태다). 조회 실패는 5xx로 답해 Pub/Sub가 재전송하게 한다
+- **처리 완료 표시는 구매 확인(acknowledge)까지 끝난 뒤에 한다.** 반영만 하고 완료로 표시하면, 확인이 실패했을 때 재전송된 알림이 "이미 처리함"으로 걸러져 그 구매를 다시 확인할 기회가 없다
+- **주인을 모르는 구매**(구독 행도 계정 토큰도 없음)는 반영도 확인도 하지 않고 `processed_at`을 비워 둔다 — 이후 영수증 제출·복원이 연결한다. 주인 없는 구매를 확인하면 "결제됐는데 아무 계정에도 없음"이 굳는다
+- 응답: 4.6과 같다(성공·중복 200, 검증 실패 400, 일시 실패 5xx)
 
 **`subscriptionState` → `subscriptions.status`**
 
@@ -379,12 +384,21 @@ Google Cloud Pub/Sub **push 구독**이 호출한다. 본문은 Pub/Sub 메시�
 |---|---|
 | `SUBSCRIPTION_STATE_ACTIVE` | `active` (자동 갱신이 꺼져 있으면 `cancelled`) |
 | `SUBSCRIPTION_STATE_CANCELED` | **`cancelled`** — Play의 "canceled"는 해지 예약이다(만료 전 유효). 만료일이 지났으면 `expired` |
-| `SUBSCRIPTION_STATE_IN_GRACE_PERIOD` | `grace` |
-| `SUBSCRIPTION_STATE_ON_HOLD` · `PAUSED` · `EXPIRED` | `expired` → `users.tier = light` |
-| 환불·철회(`SUBSCRIPTION_REVOKED` 알림) | `refunded` → 즉시 `light` |
+| `SUBSCRIPTION_STATE_IN_GRACE_PERIOD` | `grace` — 종료일은 Google이 준 만료 시각(유예 종료) |
+| `SUBSCRIPTION_STATE_ON_HOLD` · `PAUSED` · `EXPIRED` · `PENDING_PURCHASE_CANCELED` | `expired` → `users.tier = light` |
+| `SUBSCRIPTION_STATE_PENDING` | 반영하지 않는다 — 결제 대기라 아직 구독이 아니다 |
+| 철회 알림(`subscriptionNotification.notificationType = 12`) · 구독 환불 통지(`voidedPurchaseNotification`, `productType = 1`) | `refunded` → 즉시 `light`. **구독 상태만으로는 만료와 구분되지 않아** 알림이 알려 줄 때만 환불로 본다 |
+| 다운그레이드 예약(`lineItems[].deferredItemReplacement`) | 티어 유지, `pending_tier` = 다음 갱신 티어 |
+| `testNotification` · 그 밖 | 적재만 하고 상태를 바꾸지 않는다 |
 
-- Play에는 `original_transaction_id`가 없다. **그 구독의 최초 `purchaseToken`을 `original_transaction_id`로 쓴다.** 업·다운그레이드·재구독으로 새 토큰이 발급되면 응답의 `linkedPurchaseToken`으로 기존 행을 찾아 같은 행을 갱신한다.
-- **서버 구현은 iOS 뒤다**(1장). 이 절의 계약은 그때 그대로 쓴다.
+**구독 행의 키** — Play에는 `original_transaction_id`가 없다. **그 구독의 최초 `purchaseToken`을 `original_transaction_id`로 쓰고**, 마지막으로 반영한 토큰을 `latest_receipt`에 둔다. 업·다운그레이드·재구독으로 새 토큰이 발급되면 다음 순서로 기존 행을 찾아 같은 행을 갱신한다(행이 늘지 않는다).
+
+1. 그 토큰이 이미 어느 행의 `original_transaction_id`이거나 `latest_receipt`이면 그 행
+2. 응답의 `linkedPurchaseToken`(이전 토큰)이 어느 행의 `original_transaction_id`이거나 `latest_receipt`이면 그 행 — 이전 토큰은 최초 토큰이 아니라 중간에 한 번 바뀐 토큰일 수 있어 둘 다로 찾는다
+3. 어디에도 없으면 새 구독 — 그 토큰이 키가 된다
+
+- **환경** — 응답에 `testPurchase`가 있으면(라이선스 테스터) `environment = sandbox`, 없으면 `production`이다. Play는 서비스 계정 하나로 둘 다 조회되므로 서버가 받는 환경을 따로 설정하지 않는다
+- **만료 보정**(4.2)은 그 행의 `latest_receipt`로 같은 조회를 한다
 
 ---
 
@@ -464,7 +478,9 @@ Google Cloud Pub/Sub **push 구독**이 호출한다. 본문은 Pub/Sub 메시�
 - **스토어 구성과 자격증명**은 Secrets Manager에 두고 env로 주입한다.
   - **검증 구성** — `APP_STORE_BUNDLE_ID`(번들 ID) · `APP_STORE_ENVIRONMENTS`(받는 환경) · `APP_STORE_APP_APPLE_ID`(앱의 Apple ID — `Production`을 받을 때 필수). **영수증·알림 검증은 서명만으로 끝나 API 키가 필요 없다.** 이 구성이 비어 있으면 iOS 결제가 꺼지고, 관련 요청은 `SUBSCRIPTION_STORE_UNAVAILABLE`이 아니라 **`SUBSCRIPTION_PLAN_UNAVAILABLE`** 로 의도 생성 단계에서 막힌다(결제부터 시키고 검증을 못 하는 상태를 만들지 않는다). 4.1의 `action`도 전부 `none`이 된다.
   - **App Store Server API 키** — `APP_STORE_ISSUER_ID` · `APP_STORE_KEY_ID` · `APP_STORE_PRIVATE_KEY_BASE64`(.p8). **만료 보정(4.2)에만 쓴다.** 비어 있으면 보정이 꺼지고 저장된 상태 그대로 응답한다 — 그동안 알림이 유실된 구독은 유료로 남는다(경고 로그).
-  - Play 서비스 계정은 Play 구현 때 정한다.
+  - **Play 검증 구성**(2026-10-03) — `GOOGLE_PLAY_PACKAGE_NAME`(앱 패키지명) · `GOOGLE_PLAY_SERVICE_ACCOUNT_BASE64`(Play Developer API를 부르는 서비스 계정의 JSON 키. Play Console에서 그 계정에 "주문 및 구독 관리" 권한 필요). 둘 중 하나라도 비면 Android 결제가 꺼진다
+  - **Play 알림 검증값** — `GOOGLE_PLAY_PUBSUB_AUDIENCE`(push 구독에 설정한 대상) · `GOOGLE_PLAY_PUBSUB_SERVICE_ACCOUNT`(push가 쓰는 서비스 계정 이메일). 비면 알림만 꺼진다(구매 검증·복원·보정은 동작한다)
+  - **우리 자격증명이 거부된 것은 사용자 잘못이 아니다** — 서비스 계정이 틀리면 Google의 토큰 발급 주소가 400으로 답하는데, 이를 "모르는 구매 토큰"과 같이 다루지 않고 `SUBSCRIPTION_STORE_UNAVAILABLE`(재시도)로 답하며 error 로그를 남긴다
 - **환불·만료 뒤의 재제출을 막는다** — 환불(`refunded`)·만료(`expired`)로 종결된 구독에, 그 통지 **이전에 시작된** 거래를 다시 내면 `SUBSCRIPTION_RECEIPT_INVALID`다(복원에서는 무시). 기기에 받아 둔 서명 거래에는 환불 표시가 없어 그 자체로는 유효해 보이기 때문이다. 종결 뒤에 새로 시작된 거래(재구독)만 되살린다(`domain.md` 8.2 `last_notified_at`).
 - **지난 결제 주기에 대한 환불·만료 알림은 지금 주기를 건드리지 않는다** — 알림의 거래가 저장된 만료일보다 앞선 주기의 것이면 반영하지 않는다(지난달 결제분만 환불된 경우).
 
@@ -491,5 +507,5 @@ Google Cloud Pub/Sub **push 구독**이 호출한다. 본문은 Pub/Sub 메시�
 - **무료 체험·소개 가격** — 도입하면 4.1에 체험 자격(`is_trial_eligible`) 필드와 알림 환산(`OFFER_REDEEMED`)이 추가된다
 - ~~스토어 상품 ID 확정값~~ — **해소(2026-10-02)**: iOS `com.runtime.ear.subscription.daily.monthly` · `com.runtime.ear.subscription.pro.monthly`(구독 그룹 등급: 프로 1 · 데일리 2). Android는 Play 구현 때
 - **운영 서버의 샌드박스 수용 운용** — `APP_STORE_ENVIRONMENTS`에 `Sandbox`를 언제 넣고 빼는지(심사·내부 시험 기간), 그리고 서버 알림 URL(프로덕션·샌드박스)을 App Store Connect에 등록하는 절차를 `infra/runbook.md`에 적는다
-- **Play 구현 시점** — 서비스 계정·Pub/Sub 구성 후(4.7)
+- ~~Play 구현 시점~~ — **서버 구현 완료(2026-10-03)**. 남은 것은 사람 손 작업이다: ① Play Console 구독 상품 생성 → `plans.store_product_id_android` 채우기 ② 서비스 계정 + Play Console 권한 ③ Pub/Sub 주제·push 구독(대상 URL `…/webhooks/play-store`, OIDC 인증) + Play Console의 실시간 알림 연결 ④ 서버 설정값 4개. **실제 Google 응답으로는 아직 확인하지 못했다** — 상품과 서비스 계정이 있어야 가능하다
 - **가족 공유·프로모션 코드** — 스토어가 유효 구독으로 돌려주면 그대로 인정한다(`subscription.md` 7). 별도 계약 없음

@@ -94,3 +94,20 @@
   4. **만료 보정 키** — In-App Purchase 키(.p8 · Key ID · Issuer ID). 없으면 알림이 유실된 구독이 유료로 남는다(경고 로그만). Apple 계정 명의자(박수헌)가 발급
   5. **Play** — 서비스 계정·RTDN 구성 후 같은 계약으로
 
+### 2026-10-03 — 서버 구현(Android · Google Play). **보류 사유: 실제 Google 응답으로 확인 전**
+
+- **구현 범위** — `subscription-api.md` 3장의 7번(`POST /webhooks/play-store`)과 4·5번의 Android 분기, 만료 보정의 Play 분기. 이로써 계약의 서버 쪽은 전부 구현됐다
+- **구조** — App Store와 흐름이 달라 `PlayPurchaseService`를 따로 뒀다. Play의 구매 토큰은 서명된 사실이 아니라 열쇠라, **영수증 제출·복원·알림·보정 네 경로가 전부 "Google에 현재 상태를 묻고 그대로 반영"** 한다. 상태 환산(`resolveFromStoreStatus`)·주인 확인·`users.tier` 반영은 iOS와 같은 `BillingSyncService`를 쓴다
+- **Google 통신** — `PlayStoreGateway` 뒤에 둔다. 구현은 `google-auth-library`(이미 GA4가 쓰던 것)의 서비스 계정 클라이언트로 REST를 직접 부른다(`googleapis` 전체를 들이지 않는다). 알림은 Pub/Sub push의 OIDC 토큰을 검증한다
+- **구매 확인(acknowledge)** — 반영(커밋) 뒤에 한다. 실패하면 재시도 가능한 503으로 답하고, 알림 경로는 확인까지 끝나야 처리 완료로 표시한다(3일 안에 확인하지 않으면 Google이 환불)
+- **스키마** — `subscriptions.original_transaction_id`와 `archived_subscriptions.original_transaction_id`를 255 → 2048로 넓혔다(Play 구매 토큰은 수백 자). 마이그레이션 `1788500000000`
+- **실제 라이브러리로 확인한 것** — 틀린 서비스 계정으로 실제 호출을 해 보니 Google의 토큰 발급 주소가 **400**으로 답했다. 처음 구현은 이를 "모르는 구매 토큰"으로 오인했다(사용자에게 영구 오류로 답함) → 응답한 주소를 보고 자격증명 실패(재시도)로 분류하도록 고쳤다
+- **테스트** — 상태 환산 11 · Google 게이트웨이 47(응답 해석·오류 분류·push 검증) · 흐름 42(제출·복원·알림·보정, 가짜 Google) · 정책 5 · E2E 1(실제 DB — 900자 토큰 저장, 토큰 교체, 알림, 탈퇴 아카이브)
+- **확인하지 못한 것** — 실제 Google 응답(진짜 구매 토큰·진짜 Pub/Sub push)으로는 한 번도 돌리지 못했다. 응답 필드는 Google 문서의 모양을 따랐다. 상품과 서비스 계정이 생기면 라이선스 테스터 구매로 확인해야 한다
+- **켜려면(사람 손)**
+  1. Play Console — 결제 프로필, 결제 라이브러리가 든 빌드 업로드, 구독 상품 2개 생성
+  2. `plans.store_product_id_android`에 상품 ID 넣기(마이그레이션 또는 SQL)
+  3. Google Cloud 서비스 계정 생성 → Play Console "사용자 및 권한"에서 주문·구독 관리 권한 부여 → JSON 키
+  4. Pub/Sub 주제 생성 → `google-play-developer-notifications@system.gserviceaccount.com`에 게시자 권한 → push 구독(대상 `https://api.earcast.co.kr/api/v1/webhooks/play-store`, OIDC 인증 켜기) → Play Console "수익 창출 설정"에 주제 이름 등록
+  5. Secrets에 `GOOGLE_PLAY_PACKAGE_NAME` · `GOOGLE_PLAY_SERVICE_ACCOUNT_BASE64` · `GOOGLE_PLAY_PUBSUB_AUDIENCE` · `GOOGLE_PLAY_PUBSUB_SERVICE_ACCOUNT`
+

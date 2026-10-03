@@ -56,15 +56,20 @@ export interface PurchaseIntentResult {
 export interface SubmitPurchaseCommand {
   userId: string;
   platform: DevicePlatform;
-  /** 서명된 거래(iOS JWS). Android는 아직 받지 않는다 */
+  /** iOS — 서명된 거래(JWS) */
   signedTransaction: string | null;
+  /** Android — 구매 토큰. 서버가 이 값으로 Google에 현재 상태를 묻는다 */
+  purchaseToken: string | null;
   now: Date;
 }
 
 export interface RestorePurchasesCommand {
   userId: string;
   platform: DevicePlatform;
+  /** iOS — 현재 유효한 서명된 거래들 */
   signedTransactions: string[];
+  /** Android — 현재 보유한 구매의 토큰들 */
+  purchaseTokens: string[];
   now: Date;
 }
 

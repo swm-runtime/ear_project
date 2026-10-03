@@ -14,9 +14,7 @@ import { DevicePlatform, UserTier } from '@/modules/user/user.enum';
 import { AppStoreVerificationError } from './app-store/app-store.gateway';
 import { PlanAction } from './billing.enum';
 import { BillingOrchestrator } from './billing.orchestrator';
-import { AppStoreWebhookService } from './services/app-store-webhook.service';
-import { BillingSyncService } from './services/billing-sync.service';
-import { SubscriptionReconcileService } from './services/subscription-reconcile.service';
+import { assembleBilling } from './testing/billing-test-harness';
 import {
   BillingTestWorld,
   PRODUCT_DAILY,
@@ -41,35 +39,12 @@ const NEXT_PERIOD = {
 };
 
 function setup() {
-  const world = new BillingTestWorld();
-  const sync = new BillingSyncService(
-    world.subscriptionService,
-    world.planService,
-    world.purchaseIntentService,
-    world.userService,
-  );
-  const reconcile = new SubscriptionReconcileService(
-    world.subscriptionService,
-    sync,
-    world.gateway,
-    world.dataSource,
-  );
-  const orchestrator = new BillingOrchestrator(
-    world.planService,
-    world.subscriptionService,
-    world.purchaseIntentService,
-    world.userService,
-    sync,
+  const {
+    world,
+    orchestrator,
     reconcile,
-    world.gateway,
-    world.dataSource,
-  );
-  const webhook = new AppStoreWebhookService(
-    world.gateway,
-    world.storeNotificationLogService,
-    sync,
-    world.dataSource,
-  );
+    appStoreWebhook: webhook,
+  } = assembleBilling();
 
   world.addUser(USER);
   world.addUser(OTHER);
@@ -79,6 +54,7 @@ function setup() {
       userId,
       platform: DevicePlatform.IOS,
       signedTransaction,
+      purchaseToken: null,
       now,
     });
 
@@ -422,6 +398,7 @@ describe('BillingOrchestrator — 영수증 제출(4.4)', () => {
         userId: USER,
         platform: DevicePlatform.ANDROID,
         signedTransaction: null,
+        purchaseToken: 'any-token',
         now: NOW,
       }),
       ErrorCode.SUBSCRIPTION_PLAN_UNAVAILABLE,
@@ -521,6 +498,7 @@ describe('BillingOrchestrator — 구매 복원(4.5)', () => {
       userId,
       platform: DevicePlatform.IOS,
       signedTransactions,
+      purchaseTokens: [],
       now: NOW,
     });
 
