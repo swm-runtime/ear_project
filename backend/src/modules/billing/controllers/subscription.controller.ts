@@ -77,6 +77,7 @@ export class SubscriptionController {
         userId: currentUser.id,
         platform: request.platform,
         signedTransaction: request.signed_transaction ?? null,
+        purchaseToken: request.purchase_token ?? null,
         now: new Date(),
       }),
     );
@@ -95,6 +96,9 @@ export class SubscriptionController {
         userId: currentUser.id,
         platform: request.platform,
         signedTransactions: request.signed_transactions ?? [],
+        purchaseTokens: (request.purchases ?? []).map(
+          (purchase) => purchase.purchase_token,
+        ),
         now: new Date(),
       }),
     );

@@ -408,11 +408,16 @@ export interface StoreStatusInput {
 }
 
 /**
- * 만료 보정(`subscription-api.md` 4.2) — 알림이 유실됐을 때 스토어의 현재 상태로 맞춘다.
- * 알림과 달리 "무슨 일이 있었나"가 아니라 "지금 어떤가"가 들어오므로 순서 판정이 없다.
+ * **스토어가 답한 "지금 상태"**를 반영한다. "무슨 일이 있었나"(알림)가 아니라 "지금 어떤가"가 들어오므로
+ * 순서 판정이 없다 — 마지막에 물은 답이 맞는 답이다.
+ *
+ * 두 곳이 쓴다.
+ * - App Store 만료 보정(`subscription-api.md` 4.2) — 알림이 유실됐을 때. 행이 항상 있다
+ * - **Google Play의 모든 경로**(영수증 제출·복원·알림·보정 — 4.7). Play의 알림은 신호일 뿐이라 매번 현재 상태를
+ *   조회해 반영한다. 행이 없을 수 있어(첫 구매) `existing`이 `null`이면 조회 결과로 새 상태를 만든다
  */
 export function resolveFromStoreStatus(
-  existing: StoredSubscriptionState,
+  existing: StoredSubscriptionState | null,
   input: StoreStatusInput,
 ): StoreStateDecision {
   const { status, transaction, renewal, tier, renewalTier, checkedAt } = input;
@@ -420,6 +425,9 @@ export function resolveFromStoreStatus(
   if (tier === null) {
     return { kind: 'ignore', reason: 'unknown_product' };
   }
+
+  const base: SubscriptionState =
+    existing ?? freshState(tier, transaction, renewal, checkedAt);
 
   const pendingTier =
     renewalTier !== null && renewalTier !== tier ? renewalTier : null;
@@ -430,14 +438,14 @@ export function resolveFromStoreStatus(
         ...freshState(tier, transaction, renewal, checkedAt),
         cancelledAt:
           renewal?.isAutoRenew === false
-            ? (existing.cancelledAt ?? checkedAt)
+            ? (existing?.cancelledAt ?? checkedAt)
             : null,
         pendingTier,
       });
 
     case 'grace':
       return decide(existing, {
-        ...existing,
+        ...base,
         tier,
         status: SubscriptionStatus.GRACE,
         expiresAt: renewal?.gracePeriodExpiresAt ?? transaction.expiresAt,
@@ -446,7 +454,7 @@ export function resolveFromStoreStatus(
     case 'billing_retry':
     case 'expired':
       return decide(existing, {
-        ...existing,
+        ...base,
         status: SubscriptionStatus.EXPIRED,
         isAutoRenew: false,
         pendingTier: null,
@@ -454,7 +462,7 @@ export function resolveFromStoreStatus(
 
     case 'revoked':
       return decide(existing, {
-        ...existing,
+        ...base,
         status: SubscriptionStatus.REFUNDED,
         isAutoRenew: false,
         pendingTier: null,

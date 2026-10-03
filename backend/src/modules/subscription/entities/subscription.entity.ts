@@ -45,7 +45,12 @@ export class Subscription extends BaseEntity {
   @Column({ name: 'store', type: 'varchar', length: 20 })
   store: SubscriptionStore;
 
-  @Column({ name: 'original_transaction_id', type: 'varchar', length: 255 })
+  /**
+   * 스토어 구독의 자연 키. App Store는 `originalTransactionId`(숫자열), **Play는 그 구독의 최초 구매 토큰**이다
+   * (`subscription-api.md` 4.7). Play 토큰은 App Store ID보다 훨씬 길어 길이를 넉넉히 둔다 — 넘치면 결제는
+   * 됐는데 저장이 실패한다.
+   */
+  @Column({ name: 'original_transaction_id', type: 'varchar', length: 2048 })
   originalTransactionId: string;
 
   @Column({ name: 'latest_receipt', type: 'text' })

@@ -38,7 +38,8 @@ export class ArchivedSubscription extends BaseEntity {
   userHashVersion: number;
 
   /** 재가입 시 구독 복원 판정 근거 */
-  @Column({ name: 'original_transaction_id', type: 'varchar', length: 255 })
+  // `subscriptions.original_transaction_id`와 같은 길이 — Play 구매 토큰은 길다. 좁으면 탈퇴 아카이브가 실패한다
+  @Column({ name: 'original_transaction_id', type: 'varchar', length: 2048 })
   originalTransactionId: string;
 
   @Column({ name: 'store', type: 'varchar', length: 20 })

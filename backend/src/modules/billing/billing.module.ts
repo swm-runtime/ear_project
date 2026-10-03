@@ -7,10 +7,15 @@ import { AppStoreGateway } from './app-store/app-store.gateway';
 import { AppleAppStoreGateway } from './app-store/apple-app-store.gateway';
 import { BillingOrchestrator } from './billing.orchestrator';
 import { AppStoreWebhookController } from './controllers/app-store-webhook.controller';
+import { PlayStoreWebhookController } from './controllers/play-store-webhook.controller';
 import { PlanController } from './controllers/plan.controller';
 import { SubscriptionController } from './controllers/subscription.controller';
 import { AppStoreWebhookService } from './services/app-store-webhook.service';
 import { BillingSyncService } from './services/billing-sync.service';
+import { PlayPurchaseService } from './services/play-purchase.service';
+import { PlayStoreWebhookService } from './services/play-store-webhook.service';
+import { GooglePlayStoreGateway } from './play-store/google-play-store.gateway';
+import { PlayStoreGateway } from './play-store/play-store.gateway';
 import { SubscriptionReconcileScheduler } from './services/subscription-reconcile.scheduler';
 import { SubscriptionReconcileService } from './services/subscription-reconcile.service';
 
@@ -30,6 +35,7 @@ import { SubscriptionReconcileService } from './services/subscription-reconcile.
     PlanController,
     SubscriptionController,
     AppStoreWebhookController,
+    PlayStoreWebhookController,
   ],
   providers: [
     BillingOrchestrator,
@@ -38,6 +44,9 @@ import { SubscriptionReconcileService } from './services/subscription-reconcile.
     SubscriptionReconcileScheduler,
     AppStoreWebhookService,
     { provide: AppStoreGateway, useClass: AppleAppStoreGateway },
+    PlayPurchaseService,
+    PlayStoreWebhookService,
+    { provide: PlayStoreGateway, useClass: GooglePlayStoreGateway },
   ],
 })
 export class BillingModule {}

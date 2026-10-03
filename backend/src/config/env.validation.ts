@@ -207,6 +207,33 @@ export class EnvironmentVariables {
   APP_STORE_PRIVATE_KEY_BASE64?: string;
 
   /**
+   * Google Play 인앱 결제 검증(`subscription-api.md` 4.7 · 7장). **전부 선택이고, 패키지명이나 서비스 계정이
+   * 비면 Android 결제가 꺼진다**(결제 의도 생성이 `SUBSCRIPTION_PLAN_UNAVAILABLE`로 막힌다).
+   *
+   * - `GOOGLE_PLAY_PACKAGE_NAME`: 앱 패키지명. 알림의 `packageName`과 대조한다
+   * - `GOOGLE_PLAY_SERVICE_ACCOUNT_BASE64`: Play Developer API를 부르는 서비스 계정의 JSON 키(base64).
+   *   Play Console에서 그 계정에 "주문 및 구독 관리" 권한을 줘야 한다
+   * - `GOOGLE_PLAY_PUBSUB_AUDIENCE` · `GOOGLE_PLAY_PUBSUB_SERVICE_ACCOUNT`: 실시간 알림(RTDN)을 실어 오는
+   *   Pub/Sub push의 OIDC 검증값 — push 구독에 설정한 대상(audience)과 발신 서비스 계정 이메일.
+   *   둘 중 하나라도 비면 알림을 받지 않는다(구매 검증·복원은 동작한다)
+   */
+  @IsOptional()
+  @IsString()
+  GOOGLE_PLAY_PACKAGE_NAME?: string;
+
+  @IsOptional()
+  @IsString()
+  GOOGLE_PLAY_SERVICE_ACCOUNT_BASE64?: string;
+
+  @IsOptional()
+  @IsString()
+  GOOGLE_PLAY_PUBSUB_AUDIENCE?: string;
+
+  @IsOptional()
+  @IsString()
+  GOOGLE_PLAY_PUBSUB_SERVICE_ACCOUNT?: string;
+
+  /**
    * 일일 지표 Slack 보고(KAN-107 2단계)의 GA4 자격 — 둘 다 **선택**이고 하나라도 비면
    * 보고가 꺼진다(로컬·테스트 기본). 속성 ID 는 GA4 관리 화면의 숫자값이고, 서비스 계정
    * JSON 은 base64 로 둔다(`CLOUDFRONT_PRIVATE_KEY_BASE64` 와 같은 방식). 그 서비스 계정을

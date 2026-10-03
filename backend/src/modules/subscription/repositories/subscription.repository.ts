@@ -63,6 +63,22 @@ export class SubscriptionRepository {
   }
 
   /**
+   * 마지막으로 반영한 영수증(`latest_receipt`)으로 찾는다 — **Play 전용**이다.
+   *
+   * Play는 업·다운그레이드·재구독 때 새 구매 토큰을 발급하고, 그 응답이 "이전 토큰"(`linkedPurchaseToken`)을
+   * 알려 준다. 이전 토큰은 그 구독의 최초 토큰(`original_transaction_id`)일 수도, 중간에 한 번 바뀐 토큰
+   * (`latest_receipt`)일 수도 있어 둘 다로 찾는다(`subscription-api.md` 4.7). 인덱스가 없지만 구독 행은
+   * 유료 사용자 수만큼이고, 토큰이 바뀌는 순간에만 부른다.
+   */
+  async findByLatestReceipt(
+    store: Subscription['store'],
+    latestReceipt: string,
+    manager?: EntityManager,
+  ): Promise<Subscription | null> {
+    return this.scoped(manager).findOneBy({ store, latestReceipt });
+  }
+
+  /**
    * 반영 전에 행을 잠근다. 영수증 제출과 스토어 알림이 같은 구독을 동시에 건드릴 수 있어서다 —
    * 잠그지 않으면 늦게 커밋한 쪽이 먼저 읽은 옛 값으로 덮는다.
    */

@@ -9,8 +9,14 @@ import { AppModule } from '@/app.module';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { traceIdMiddleware } from '@/common/middlewares/trace-id.middleware';
 import { AppStoreGateway } from '@/modules/billing/app-store/app-store.gateway';
+import { PlayStoreGateway } from '@/modules/billing/play-store/play-store.gateway';
 import {
+  FAKE_PLAY_PUSH_TOKEN,
   FakeAppStoreGateway,
+  FakePlayStoreGateway,
+  PLAY_PRODUCT_DAILY,
+  PLAY_PRODUCT_PRO,
+  playPushBody,
   NOTIFICATION_RECEIPT_MARKER,
   PRODUCT_DAILY,
   PRODUCT_PRO,
@@ -86,6 +92,8 @@ describe('구독·인앱 결제 E2E', () => {
   let app: INestApplication<App>;
   let dataSource: DataSource;
   const userIds: string[] = [];
+  /** 가짜 Google Play — 기본은 꺼져 있다(운영의 현재 상태). Play 테스트만 켠다 */
+  const play = new FakePlayStoreGateway();
   /** 이 실행의 스토어 구독·알림 ID 접두사 — 다른 실행·다른 테스트와 겹치지 않게 한다 */
   const RUN = `e2e-sub-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
   const now = Date.now();
@@ -98,6 +106,8 @@ describe('구독·인앱 결제 E2E', () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(AppStoreGateway)
       .useValue(new FakeAppStoreGateway())
+      .overrideProvider(PlayStoreGateway)
+      .useValue(play)
       .compile();
     app = moduleRef.createNestApplication();
     app.use(traceIdMiddleware);
@@ -124,6 +134,11 @@ describe('구독·인앱 결제 E2E', () => {
     );
     await dataSource.query(
       `DELETE FROM idempotency_keys WHERE idempotency_key LIKE 'e2e-sub-%'`,
+    );
+    // 탈퇴 테스트가 남긴 아카이브(결제 이력은 법정 보존이라 사용자 삭제로 지워지지 않는다)
+    await dataSource.query(
+      `DELETE FROM archived_subscriptions WHERE original_transaction_id LIKE $1`,
+      [`${RUN}%`],
     );
     await app.close();
   }, 60_000);
@@ -621,6 +636,197 @@ describe('구독·인앱 결제 E2E', () => {
     );
   }, 60_000);
 
+  it('Google Play — 구매 제출·토큰 교체·알림이 한 구독 행에 반영되고, 탈퇴가 긴 토큰을 아카이브한다', async () => {
+    const { auth, userId } = await createUser('play');
+    await setEmail(userId, true);
+
+    // given — Play 상품이 등록되고 서버 검증이 켜진 상태(운영에는 아직 상품이 없어 꺼져 있다)
+    const previous = await dataSource.query<
+      { tier: string; store_product_id_android: string | null }[]
+    >(
+      `SELECT tier, store_product_id_android FROM plans WHERE tier IN ('daily', 'pro')`,
+    );
+    await dataSource.query(
+      `UPDATE plans SET store_product_id_android = CASE tier WHEN 'daily' THEN $1 ELSE $2 END WHERE tier IN ('daily', 'pro')`,
+      [PLAY_PRODUCT_DAILY, PLAY_PRODUCT_PRO],
+    );
+    play.enabled = true;
+
+    try {
+      // Android 요금제 목록에 상품 ID 와 구독하기가 나온다
+      const android = (
+        await get('/plans', auth)
+          .query({ platform: 'android' })
+          .expect(HttpStatus.OK)
+      ).body as PlansBody;
+      expect(
+        android.plans.map((plan) => [plan.store_product_id, plan.action]),
+      ).toEqual([
+        [null, 'none'],
+        [PLAY_PRODUCT_DAILY, 'purchase'],
+        [PLAY_PRODUCT_PRO, 'purchase'],
+      ]);
+
+      const daily = android.plans.find((plan) => plan.tier === 'daily')!;
+      const intent = (
+        await post('/users/me/subscription/purchase-intents', auth, {
+          plan_id: daily.plan_id,
+          platform: 'android',
+        }).expect(HttpStatus.CREATED)
+      ).body as IntentBody;
+      expect(intent.store_product_id).toBe(PLAY_PRODUCT_DAILY);
+
+      // Play 구매 토큰은 길다 — 255자를 넘는 값이 키로 저장돼야 한다
+      const firstToken = `${RUN}-play-`.padEnd(900, 'a');
+      const purchase = play.put({
+        purchaseToken: firstToken,
+        productId: PLAY_PRODUCT_DAILY,
+        accountToken: intent.account_token,
+        startedAt: thisPeriod.purchasedAt,
+        expiresAt: thisPeriod.expiresAt,
+      });
+
+      // when — 영수증 제출
+      const purchased = (
+        await post('/users/me/subscription/purchases', auth, {
+          platform: 'android',
+          intent_id: intent.intent_id,
+          purchase_token: firstToken,
+          product_id: PLAY_PRODUCT_DAILY,
+        }).expect(HttpStatus.OK)
+      ).body as SubscriptionBody;
+
+      // then — 구독·티어가 반영되고, 그 뒤에 구매가 확인됐다
+      expect(purchased).toMatchObject({
+        plan: { status: 'subscribed', tier: 'daily', daily_play_limit: 5 },
+        store: 'play_store',
+      });
+      expect(await userTier(userId)).toBe('daily');
+      expect(play.acknowledged).toEqual([firstToken]);
+      expect(await subscriptionRows(firstToken)).toEqual([
+        expect.objectContaining({
+          user_id: userId,
+          tier: 'daily',
+          status: 'active',
+          store: 'play_store',
+          environment: 'sandbox',
+        }),
+      ]);
+
+      // when — 업그레이드: 새 토큰이 발급되고 Google 이 이전 토큰을 알려 준다
+      const secondToken = `${RUN}-play2-`.padEnd(900, 'b');
+      play.put({
+        purchaseToken: secondToken,
+        linkedPurchaseToken: firstToken,
+        productId: PLAY_PRODUCT_PRO,
+        startedAt: new Date(now),
+        expiresAt: new Date(now + 30 * DAY),
+      });
+      await post('/users/me/subscription/purchases', auth, {
+        platform: 'android',
+        purchase_token: secondToken,
+        product_id: PLAY_PRODUCT_PRO,
+      }).expect(HttpStatus.OK);
+
+      // then — 같은 행이 갱신된다(행이 늘지 않고, 키는 최초 토큰 그대로)
+      expect(
+        await dataSource.query(
+          `SELECT original_transaction_id = $2 AS same_key, latest_receipt = $3 AS latest, tier
+             FROM subscriptions WHERE user_id = $1`,
+          [userId, firstToken, secondToken],
+        ),
+      ).toEqual([{ same_key: true, latest: true, tier: 'pro' }]);
+      expect(await userTier(userId)).toBe('pro');
+      expect(purchase.needsAcknowledge).toBe(false);
+
+      // when — 사용자가 Play 에서 해지 → 알림(Pub/Sub push, snake_case 필드와 부가 필드가 섞여 온다)
+      play.purchases.get(secondToken)!.state = 'canceled';
+      const body = playPushBody(`${RUN}-pm1`, {
+        kind: 'subscription',
+        type: 3,
+        purchaseToken: secondToken,
+      });
+      const pushBody = {
+        message: {
+          data: body.message.data,
+          messageId: `${RUN}-pm1`,
+          message_id: `${RUN}-pm1`,
+          publishTime: new Date(now).toISOString(),
+          publish_time: new Date(now).toISOString(),
+          attributes: { source: 'e2e' },
+        },
+        subscription: 'projects/ear/subscriptions/rtdn-push',
+        deliveryAttempt: 1,
+      };
+      await playWebhook(pushBody).expect(HttpStatus.OK);
+
+      // then — 해지 예약으로 보이고 티어는 유지된다
+      expect((await getSubscription(auth)).plan).toMatchObject({
+        status: 'cancel_scheduled',
+        tier: 'pro',
+      });
+      // 재전송은 한 번만 처리된다
+      await playWebhook(pushBody).expect(HttpStatus.OK);
+      const logs = await dataSource.query<
+        { type: string; processed_at: Date | null; payload: object }[]
+      >(
+        `SELECT type, processed_at, payload FROM store_notification_logs WHERE store = 'play_store' AND notification_id = $1`,
+        [`${RUN}-pm1`],
+      );
+      expect(logs).toHaveLength(1);
+      expect(logs[0].type).toBe('SUBSCRIPTION:3');
+      expect(logs[0].processed_at).not.toBeNull();
+      // 구매 토큰 원문은 적재하지 않는다
+      expect(JSON.stringify(logs[0].payload)).not.toContain(secondToken);
+
+      // 보낸 쪽을 확인할 수 없으면 400, 봉투 모양이 아니면 검증 오류
+      await request(app.getHttpServer())
+        .post(path('/webhooks/play-store'))
+        .set('Authorization', 'Bearer forged')
+        .send(pushBody)
+        .expect(HttpStatus.BAD_REQUEST);
+      await playWebhook({ message: {} }).expect(HttpStatus.BAD_REQUEST);
+
+      // when — 철회(환불) 알림
+      await playWebhook(
+        playPushBody(`${RUN}-pm2`, {
+          kind: 'subscription',
+          type: 12,
+          purchaseToken: secondToken,
+        }),
+      ).expect(HttpStatus.OK);
+
+      // then — 즉시 무료
+      expect(await userTier(userId)).toBe('light');
+      expect((await getSubscription(auth)).plan.status).toBe('free');
+
+      // when — 탈퇴: 결제 이력이 있어 구독이 아카이브로 옮겨진다(긴 토큰이 그대로 들어가야 한다)
+      await request(app.getHttpServer())
+        .post(path('/users/me/withdraw'))
+        .set('Authorization', auth)
+        .set('Idempotency-Key', `e2e-sub-withdraw-${RUN}`)
+        .send({ confirm: true, agreed_subscription_expiry: true })
+        .expect(HttpStatus.NO_CONTENT);
+
+      // then — 900자 토큰이 잘리지 않고 아카이브됐고, 원 구독 행은 파기됐다
+      expect(
+        await dataSource.query(
+          `SELECT count(*)::int AS archived FROM archived_subscriptions WHERE original_transaction_id = $1`,
+          [firstToken],
+        ),
+      ).toEqual([{ archived: 1 }]);
+      expect(await subscriptionRows(firstToken)).toHaveLength(0);
+    } finally {
+      play.enabled = false;
+      for (const row of previous) {
+        await dataSource.query(
+          `UPDATE plans SET store_product_id_android = $2 WHERE tier = $1`,
+          [row.tier, row.store_product_id_android],
+        );
+      }
+    }
+  }, 60_000);
+
   it('인증 없이는 구독 API를 부를 수 없다 — 웹훅만 예외다', async () => {
     await request(app.getHttpServer())
       .get(path('/plans'))
@@ -648,6 +854,13 @@ describe('구독·인앱 결제 E2E', () => {
     request(app.getHttpServer())
       .post(path('/webhooks/app-store'))
       .send({ signedPayload: JSON.stringify(notification) });
+
+  /** Pub/Sub push 가 보내는 모양 — 사용자 인증 대신 OIDC 토큰이 `Authorization` 에 온다 */
+  const playWebhook = (body: object) =>
+    request(app.getHttpServer())
+      .post(path('/webhooks/play-store'))
+      .set('Authorization', `Bearer ${FAKE_PLAY_PUSH_TOKEN}`)
+      .send(body);
 
   async function expectError(
     call: request.Test,

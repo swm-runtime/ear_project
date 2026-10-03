@@ -12,6 +12,7 @@ import {
 import { AppStoreGateway } from '../app-store/app-store.gateway';
 import { RECONCILE_BATCH_SIZE } from '../billing.constant';
 import { BillingSyncService } from './billing-sync.service';
+import { PlayPurchaseService } from './play-purchase.service';
 
 /**
  * 만료 보정(`subscription-api.md` 4.2 · `subscription.md` 7) — **스토어 알림이 유실됐을 때의 안전망**이다.
@@ -30,6 +31,7 @@ export class SubscriptionReconcileService {
     private readonly subscriptionService: SubscriptionService,
     private readonly billingSyncService: BillingSyncService,
     private readonly appStoreGateway: AppStoreGateway,
+    private readonly playPurchaseService: PlayPurchaseService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -66,11 +68,11 @@ export class SubscriptionReconcileService {
     subscription: Subscription,
     now: Date,
   ): Promise<boolean> {
-    // Play는 아직 구현 전이다(`subscription-api.md` 1장) — 그 행은 건드리지 않는다
-    if (
-      subscription.store !== SubscriptionStore.APP_STORE ||
-      !this.appStoreGateway.canFetchStatus(subscription.environment)
-    ) {
+    if (subscription.store === SubscriptionStore.PLAY_STORE) {
+      return this.reconcilePlay(subscription, now);
+    }
+
+    if (!this.appStoreGateway.canFetchStatus(subscription.environment)) {
       this.logger.warn('overdue subscription left as is: store not queryable', {
         subscription_id: subscription.id,
         store: subscription.store,
@@ -113,6 +115,55 @@ export class SubscriptionReconcileService {
       this.logger.log('overdue subscription reconciled', {
         subscription_id: subscription.id,
         store_status: status.status,
+        outcome: outcome.kind,
+      });
+
+      return outcome.kind === 'applied';
+    } catch (error) {
+      this.logger.warn('overdue subscription reconcile failed', {
+        subscription_id: subscription.id,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+
+      return false;
+    }
+  }
+
+  /**
+   * Play 구독의 보정 — 마지막 구매 토큰으로 Google에 현재 상태를 묻는다. Play는 서비스 계정 하나로 실결제·시험
+   * 구매를 다 조회하므로 환경을 가리지 않는다.
+   */
+  private async reconcilePlay(
+    subscription: Subscription,
+    now: Date,
+  ): Promise<boolean> {
+    if (!this.playPurchaseService.isEnabled()) {
+      this.logger.warn('overdue subscription left as is: store not queryable', {
+        subscription_id: subscription.id,
+        store: subscription.store,
+        environment: subscription.environment,
+      });
+
+      return false;
+    }
+
+    try {
+      const outcome = await this.playPurchaseService.reconcile(
+        subscription,
+        now,
+      );
+
+      if (outcome === null) {
+        this.logger.warn('overdue subscription unknown to the store', {
+          subscription_id: subscription.id,
+        });
+
+        return false;
+      }
+
+      this.logger.log('overdue subscription reconciled', {
+        subscription_id: subscription.id,
+        store: subscription.store,
         outcome: outcome.kind,
       });
 

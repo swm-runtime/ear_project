@@ -185,6 +185,19 @@ export class SubscriptionService {
     );
   }
 
+  /** 마지막으로 반영한 영수증(Play 구매 토큰)으로 찾는다 — 토큰이 바뀐 구독을 기존 행에 잇는 데 쓴다 */
+  async findByLatestReceipt(
+    store: Subscription['store'],
+    latestReceipt: string,
+    manager?: EntityManager,
+  ): Promise<Subscription | null> {
+    return this.subscriptionRepository.findByLatestReceipt(
+      store,
+      latestReceipt,
+      manager,
+    );
+  }
+
   /**
    * 스토어 구독 한 건을 **잠가서** 가져온다 — 반영 직전에 부른다. 영수증 제출과 스토어 알림이 같은 구독을
    * 동시에 고치면 늦게 커밋한 쪽이 옛 값으로 덮기 때문이다.
