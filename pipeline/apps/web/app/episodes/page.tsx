@@ -12,7 +12,7 @@ import { fmtTime } from "@/lib/format";
 export default async function EpisodesPage() {
   const sb = await supabaseServer();
   const [{ data: eps }, { data: bl }, { data: jobs }] = await Promise.all([
-    sb.from("episodes").select("id,backlog_id,prompt_version,script_key,qa_report_key,critic_report_key,audio_dist_key,critic_verdicts,human_edits,created_at,regression,regression_kind").order("id", { ascending: false }),
+    sb.from("episodes").select("id,backlog_id,prompt_version,script_key,qa_report_key,critic_report_key,audio_dist_key,critic_verdicts,human_edits,created_at,regression,regression_kind").order("created_at", { ascending: false }).order("id", { ascending: false }), // 최신순 — 번호 글자순이면 접두어(T·X·S)마다 덩어리져 S 시리즈가 늘 맨 아래로 간다 (2026-10-03)
     sb.from("backlog").select("id,title,mid_topic,status,published_content_ref"),
     sb.from("jobs").select("type,status,attempt,error,result,created_at,payload").in("type", ["draft", "qa", "critic", "tts", "package"]).order("created_at", { ascending: false }),
   ]);
