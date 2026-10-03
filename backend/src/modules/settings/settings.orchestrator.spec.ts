@@ -62,6 +62,7 @@ function buildPlanView(): PlanView {
     renewsAt: null,
     expiresAt: null,
     hasPaymentIssue: false,
+    trial: null,
   };
 }
 
@@ -147,6 +148,7 @@ describe('SettingsOrchestrator', () => {
         USER_ID,
         '1.4.0',
         DevicePlatform.IOS,
+        NOW,
       );
 
       // then
@@ -165,6 +167,7 @@ describe('SettingsOrchestrator', () => {
         USER_ID,
         '1.4.0',
         DevicePlatform.IOS,
+        NOW,
       );
 
       // then — null은 "등록되지 않음"이며 실패가 아니다
@@ -181,6 +184,7 @@ describe('SettingsOrchestrator', () => {
         USER_ID,
         '1.4.0',
         DevicePlatform.IOS,
+        NOW,
       );
 
       // then — role enum을 그대로 내려 클라이언트가 해석하게 하지 않는다
@@ -198,6 +202,7 @@ describe('SettingsOrchestrator', () => {
         USER_ID,
         '1.4.0',
         DevicePlatform.IOS,
+        NOW,
       );
 
       // then
@@ -223,6 +228,7 @@ describe('SettingsOrchestrator', () => {
         USER_ID,
         '1.4.0',
         DevicePlatform.IOS,
+        NOW,
       );
 
       // then
@@ -238,6 +244,7 @@ describe('SettingsOrchestrator', () => {
         USER_ID,
         '1.4.0',
         DevicePlatform.IOS,
+        NOW,
       );
 
       // then
@@ -323,6 +330,7 @@ describe('SettingsOrchestrator', () => {
         USER_ID,
         '1.3.0',
         DevicePlatform.IOS,
+        NOW,
       );
 
       // then — 비교를 서버가 한다
@@ -339,6 +347,7 @@ describe('SettingsOrchestrator', () => {
         USER_ID,
         LATEST_VERSION_IOS,
         DevicePlatform.IOS,
+        NOW,
       );
 
       // then
@@ -351,6 +360,7 @@ describe('SettingsOrchestrator', () => {
         USER_ID,
         '1.0.0',
         DevicePlatform.IOS,
+        NOW,
       );
 
       // then
@@ -364,6 +374,7 @@ describe('SettingsOrchestrator', () => {
         USER_ID,
         '1.3.0',
         DevicePlatform.ANDROID,
+        NOW,
       );
 
       // then — 두 값 모두 android 것이다. 최소 지원만 ios에서 오면 화면이 두 값을 나란히 읽을 수 없다
@@ -377,8 +388,8 @@ describe('SettingsOrchestrator', () => {
     it('같은 앱 버전이라도 플랫폼에 따라 업데이트 안내가 갈린다', async () => {
       // given — android만 1.5.0이 배포됐고 ios는 심사 대기다. 두 사용자 모두 1.4.0을 쓴다
       const [ios, android] = await Promise.all([
-        orchestrator.getSummary(USER_ID, '1.4.0', DevicePlatform.IOS),
-        orchestrator.getSummary(USER_ID, '1.4.0', DevicePlatform.ANDROID),
+        orchestrator.getSummary(USER_ID, '1.4.0', DevicePlatform.IOS, NOW),
+        orchestrator.getSummary(USER_ID, '1.4.0', DevicePlatform.ANDROID, NOW),
       ]);
 
       // then — ios는 받을 것이 없으므로 배지를 띄우지 않는다. 단일 값 판정이 틀리는 지점이다
@@ -397,6 +408,7 @@ describe('SettingsOrchestrator', () => {
         USER_ID,
         '1.4.0',
         DevicePlatform.IOS,
+        NOW,
       );
 
       // then
@@ -420,6 +432,7 @@ describe('SettingsOrchestrator', () => {
         USER_ID,
         '1.4.0',
         DevicePlatform.IOS,
+        NOW,
       );
 
       // then — 서버 값이 필요 없는 메뉴는 계속 동작해야 한다
@@ -429,8 +442,10 @@ describe('SettingsOrchestrator', () => {
       expect(result.settings).not.toBeNull();
     });
 
-    it('계정 조회만 실패하면 관리자 메뉴가 노출되지 않는다', async () => {
-      // given — 안전한 기본값은 false다(settings-api.md 4.1)
+    it('사용자 행 조회가 실패하면 관리자 메뉴가 노출되지 않는다', async () => {
+      // given — 안전한 기본값은 false다(settings-api.md 4.1).
+      // 플랜 카드도 사용자 행(가입 체험 종료 시각)을 읽으므로 함께 실패한다 — 체험 여부를 모른 채
+      // "무료 · 하루 N편"으로 그리는 것보다 [다시 시도]가 정직하다(subscription.md 4.8)
       userService.getById.mockRejectedValue(new Error('db down'));
 
       // when
@@ -438,11 +453,15 @@ describe('SettingsOrchestrator', () => {
         USER_ID,
         '1.4.0',
         DevicePlatform.IOS,
+        NOW,
       );
 
       // then
       expect(result.account).toBeNull();
-      expect(result.failedSections).toEqual([SettingsSection.ACCOUNT]);
+      expect(result.plan).toBeNull();
+      expect(result.failedSections).toEqual(
+        expect.arrayContaining([SettingsSection.ACCOUNT, SettingsSection.PLAN]),
+      );
     });
 
     it('설정값 조회가 실패하면 응답 전체가 실패한다', async () => {
@@ -451,7 +470,7 @@ describe('SettingsOrchestrator', () => {
 
       // when / then
       await expect(
-        orchestrator.getSummary(USER_ID, '1.4.0', DevicePlatform.IOS),
+        orchestrator.getSummary(USER_ID, '1.4.0', DevicePlatform.IOS, NOW),
       ).rejects.toThrow();
     });
   });

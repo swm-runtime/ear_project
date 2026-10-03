@@ -75,6 +75,7 @@ export class UserController {
     return GetMeResponseDto.from(
       user,
       await this.consentService.findPendingConsents(user.id),
+      new Date(),
     );
   }
 

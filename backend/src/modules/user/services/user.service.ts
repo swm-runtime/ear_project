@@ -1,13 +1,16 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { DataSource, EntityManager } from 'typeorm';
 
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { BusinessNotFoundException } from '@/common/exceptions/business-not-found.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { isUniqueViolation } from '@/common/utils/unique-violation.util';
+import { EnvironmentVariables } from '@/config/env.validation';
 
 import { ConsentService } from './consent.service';
 import { User } from '../entities/user.entity';
+import { resolveSignupTrialEndsAtFor } from '../policies/signup-trial.policy';
 import {
   REQUIRED_CONSENT_TYPES,
   CURRENT_CONSENT_VERSIONS,
@@ -30,6 +33,7 @@ export class UserService {
     private readonly userRepository: UserRepository,
     private readonly consentService: ConsentService,
     private readonly dataSource: DataSource,
+    private readonly configService: ConfigService<EnvironmentVariables, true>,
   ) {}
 
   async findByProvider(
@@ -149,12 +153,22 @@ export class UserService {
         profileImageUrl: command.profileImageUrl,
         role: UserRole.USER,
         tier: UserTier.LIGHT,
+        // 가입 체험(subscription.md 4.8) — 스위치가 켜져 있을 때만. `tier`는 건드리지 않는다(결제가 쓰는 캐시)
+        trialEndsAt: resolveSignupTrialEndsAtFor(this.configService, now),
         status: UserStatus.ACTIVE,
         onboardingCompleted: false,
         onboardingStep: OnboardingStep.TOPIC,
       });
 
       const saved = await this.userRepository.save(user, manager);
+
+      if (saved.trialEndsAt !== null) {
+        this.logger.log('signup trial granted', {
+          user_id: saved.id,
+          trial_ends_at: saved.trialEndsAt.toISOString(),
+        });
+      }
+
       await this.consentService.recordConsents(
         saved.id,
         command.consents,

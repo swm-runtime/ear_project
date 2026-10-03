@@ -35,7 +35,13 @@ import {
   SubmitPurchaseCommand,
   SubscriptionView,
 } from './billing.types';
+import {
+  planUnavailable,
+  receiptInvalid,
+  storeUnavailable,
+} from './billing.exception';
 import { BillingSyncService } from './services/billing-sync.service';
+import { PlayPurchaseService } from './services/play-purchase.service';
 import { SubscriptionReconcileService } from './services/subscription-reconcile.service';
 
 const STORE_BY_PLATFORM: Readonly<Record<DevicePlatform, SubscriptionStore>> = {
@@ -61,6 +67,7 @@ export class BillingOrchestrator {
     private readonly billingSyncService: BillingSyncService,
     private readonly subscriptionReconcileService: SubscriptionReconcileService,
     private readonly appStoreGateway: AppStoreGateway,
+    private readonly playPurchaseService: PlayPurchaseService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -111,7 +118,7 @@ export class BillingOrchestrator {
   async getSubscription(userId: string, now: Date): Promise<SubscriptionView> {
     await this.subscriptionReconcileService.reconcileUser(userId, now);
 
-    return this.buildView(userId);
+    return this.buildView(userId, now);
   }
 
   /** 4.3 — 결제 시트를 열기 직전의 서버 관문. 통과하면 계정 결속 토큰(의도 `id`)을 발급한다 */
@@ -183,6 +190,18 @@ export class BillingOrchestrator {
     command: SubmitPurchaseCommand,
   ): Promise<SubscriptionView> {
     const { userId, now } = command;
+
+    // Android — 구매 토큰은 서명된 사실이 아니라 열쇠다. Google에 현재 상태를 물어 반영한다(4.7)
+    if (command.platform === DevicePlatform.ANDROID) {
+      if (!this.isStoreEnabled(command.platform) || !command.purchaseToken) {
+        throw planUnavailable();
+      }
+
+      await this.playPurchaseService.submit(userId, command.purchaseToken, now);
+
+      return this.buildView(userId, now);
+    }
+
     const transaction = await this.verify(
       command.platform,
       command.signedTransaction,
@@ -223,7 +242,7 @@ export class BillingOrchestrator {
       });
     });
 
-    return this.buildView(userId);
+    return this.buildView(userId, now);
   }
 
   /**
@@ -234,6 +253,29 @@ export class BillingOrchestrator {
     command: RestorePurchasesCommand,
   ): Promise<RestoreResult> {
     const { userId, now } = command;
+
+    if (command.platform === DevicePlatform.ANDROID) {
+      if (!this.isStoreEnabled(command.platform)) {
+        throw planUnavailable();
+      }
+
+      const restored = await this.playPurchaseService.restore(
+        userId,
+        command.purchaseTokens,
+        now,
+      );
+
+      this.logger.log('purchases restored', {
+        user_id: userId,
+        submitted: command.purchaseTokens.length,
+        restored,
+      });
+
+      return {
+        restored: restored > 0,
+        subscription: await this.buildView(userId, now),
+      };
+    }
 
     // 서명 검증은 트랜잭션 밖에서 — Apple 확인(네트워크)을 기다리는 동안 행을 잠그지 않는다
     const verified: { transaction: StoreTransaction; plan: Plan }[] = [];
@@ -300,14 +342,21 @@ export class BillingOrchestrator {
 
     return {
       restored: restoredCount > 0,
-      subscription: await this.buildView(userId),
+      subscription: await this.buildView(userId, now),
     };
   }
 
   /** 4.2의 본문 — 영수증 제출·복원도 같은 것을 돌려준다(클라이언트가 다시 조회하지 않는다) */
-  private async buildView(userId: string): Promise<SubscriptionView> {
+  private async buildView(
+    userId: string,
+    now: Date,
+  ): Promise<SubscriptionView> {
+    const user = await this.userService.getById(userId);
     const [plan, current] = await Promise.all([
-      this.subscriptionService.buildPlanView(userId),
+      this.subscriptionService.buildPlanView(userId, {
+        trialEndsAt: user.trialEndsAt,
+        now,
+      }),
       this.findLiveSubscription(userId),
     ]);
     const [entitlements, pendingPlan] = await Promise.all([
@@ -319,7 +368,8 @@ export class BillingOrchestrator {
 
     return {
       plan,
-      entitlements,
+      // 한도는 플랜 요약과 같은 값을 싣는다 — 가입 체험 중인 구독자는 요금제 한도보다 넉넉하다(subscription.md 4.8)
+      entitlements: { ...entitlements, dailyPlayLimit: plan.dailyPlayLimit },
       store: current?.store ?? null,
       pendingPlan:
         current === null || current.pendingTier === null
@@ -344,9 +394,11 @@ export class BillingOrchestrator {
       : null;
   }
 
-  /** 그 플랫폼의 결제를 서버가 검증할 수 있는가. Play는 구현 전이라 항상 꺼져 있다(1장) */
+  /** 그 플랫폼의 결제를 서버가 검증할 수 있는가 — 스토어별 검증 구성이 있어야 한다(7장) */
   private isStoreEnabled(platform: DevicePlatform): boolean {
-    return platform === DevicePlatform.IOS && this.appStoreGateway.isEnabled();
+    return platform === DevicePlatform.IOS
+      ? this.appStoreGateway.isEnabled()
+      : this.playPurchaseService.isEnabled();
   }
 
   private async verify(
@@ -377,12 +429,7 @@ export class BillingOrchestrator {
   private receiptInvalid(reason: string): BusinessException {
     this.logger.warn('store receipt rejected', { reason });
 
-    return new BusinessException({
-      status: HttpStatus.BAD_REQUEST,
-      errorCode: ErrorCode.SUBSCRIPTION_RECEIPT_INVALID,
-      message: '구독을 확인할 수 없어요',
-      logLevel: 'info',
-    });
+    return receiptInvalid();
   }
 
   /** 거래의 상품이 어느 요금제인지 — **클라이언트가 보낸 상품 ID가 아니라 서명된 거래의 값**으로 찾는다 */
@@ -445,22 +492,4 @@ export function resolvePlanAction(input: {
   return plan.displayOrder > currentPlan.displayOrder
     ? PlanAction.UPGRADE
     : PlanAction.DOWNGRADE;
-}
-
-function planUnavailable(): BusinessException {
-  return new BusinessException({
-    status: HttpStatus.BAD_REQUEST,
-    errorCode: ErrorCode.SUBSCRIPTION_PLAN_UNAVAILABLE,
-    message: '지금은 이 요금제를 구독할 수 없어요',
-    logLevel: 'info',
-  });
-}
-
-function storeUnavailable(): BusinessException {
-  return new BusinessException({
-    status: HttpStatus.SERVICE_UNAVAILABLE,
-    errorCode: ErrorCode.SUBSCRIPTION_STORE_UNAVAILABLE,
-    message: '구독을 확인하고 있어요. 잠시 후 자동으로 반영됩니다',
-    retryable: true,
-  });
 }

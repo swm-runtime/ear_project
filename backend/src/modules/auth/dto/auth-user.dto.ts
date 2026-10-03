@@ -1,4 +1,5 @@
 import { User } from '@/modules/user/entities/user.entity';
+import { resolveEffectiveTier } from '@/modules/user/policies/effective-tier.policy';
 import {
   OnboardingStep,
   SocialProvider,
@@ -20,12 +21,17 @@ export class AuthUserDto {
   /** `users` 컬럼 값이며 제공자 응답을 중계한 값이 아니다 (auth-api.md 4.1) */
   readonly is_email_verified: boolean;
   readonly provider: SocialProvider;
+  /**
+   * 유효 티어 — 저장된 `users.tier`가 아니다. 무료 사용자가 가입 체험 중이면 `trial`이다
+   * (`subscription.md` 4.8). 체험의 종료일·이후 한도는 플랜 요약(`plan.trial`)이 싣는다
+   */
   readonly tier: UserTier;
   readonly role: UserRole;
   readonly onboarding_completed: boolean;
   readonly onboarding_step: OnboardingStep;
 
-  static from(user: User): AuthUserDto {
+  /** `now`는 가입 체험 판정용 — `tier`는 그 시각의 유효 티어다(`resolveEffectiveTier`) */
+  static from(user: User, now: Date): AuthUserDto {
     return {
       id: user.id,
       nickname: user.nickname,
@@ -33,7 +39,7 @@ export class AuthUserDto {
       email: user.email,
       is_email_verified: user.isEmailVerified,
       provider: user.provider,
-      tier: user.tier,
+      tier: resolveEffectiveTier(user, now),
       role: user.role,
       onboarding_completed: user.onboardingCompleted,
       onboarding_step: user.onboardingStep,

@@ -5,6 +5,7 @@ import {
   shiftServiceDate,
   toServiceDate,
 } from '@/common/utils/service-date.util';
+import { isSignupTrialActive } from '@/common/utils/signup-trial.util';
 import { PlanService } from '@/modules/subscription/services/plan.service';
 import { UserService } from '@/modules/user/services/user.service';
 
@@ -429,8 +430,10 @@ export class PlaybackService {
     manager?: EntityManager,
   ): Promise<DailyPlayQuota> {
     const user = await this.userService.getById(userId, manager);
-    const policy = await this.planService.getPlayLimitPolicy(
+    // 재생 판정(`PlayPolicyService`)과 같은 조립 — 체험 중이면 무제한이라 잔여 표시가 뜨지 않는다
+    const policy = await this.planService.getEffectivePlayLimitPolicy(
       user.tier,
+      isSignupTrialActive(user.trialEndsAt, now),
       manager,
     );
 

@@ -101,7 +101,8 @@
     "daily_play_limit": 5,
     "renews_at": "2026-09-01T00:00:00Z",
     "expires_at": null,
-    "has_payment_issue": false
+    "has_payment_issue": false,
+    "trial": null
   },
   "interest_summary": {
     "count": 3,
@@ -133,6 +134,7 @@
 
 **`plan`** — `profile-api.md` 4.1의 `plan`과 **같은 모양, 같은 조립 함수**를 쓴다. 두 화면이 다른 로직으로 조립하면 프로필과 설정의 구독 표시가 어긋난다.
 
+- **가입 체험 중이면 `plan.trial`이 채워진다**(`profile-api.md` 4.1 "`plan.trial`" — 같은 필드, 2026-10-03). 아니면 `null`.
 - **결제 실패 유예(`status = "grace"`)의 표시를 이 요약이 담당한다.** `has_payment_issue = true`면 구독 섹션에 경고색 + "결제에 문제가 있어요"를 그린다(`settings.md` 5장 — `profile.md` 4.2 · `subscription.md` 4.7과 동일).
 
 **`interest_summary`** — `profile-api.md` 4.1과 동일한 모양·동일한 규칙(count ≥ 1, `top_topics`는 서버 응답 순서 앞 3개). 콘텐츠 섹션의 "관심 주제 관리" 항목에 요약을 붙일 때 쓴다.
@@ -157,7 +159,7 @@
 - `update_available`은 요청의 `app_version < latest_version` 판정 결과다. **비교를 서버가 한다** — 클라이언트마다 semver 비교를 재작성하면 판정이 갈라진다. `true`면 앱 버전 항목에 배지 + [업데이트]를 노출한다.
 - **강제 업데이트(`app_version < min_supported_version`) 판정은 스플래시 소관이다**(`splash.md`). 설정까지 들어온 세션은 이미 그 관문을 통과했으므로 여기서는 안내만 한다.
 
-**`failed_sections`** — `profile-api.md` 4.1과 같은 방식. `account`·`plan`·`interest_summary` 조회가 실패하면 해당 키를 담고 그 필드를 `null`로 내려준다. **`settings`·`marketing_consent`·`version`이 실패하면 응답 전체가 실패한다** — 토글 기준값이 없으면 낙관적 UI를 시작할 수 없다.
+**`failed_sections`** — `profile-api.md` 4.1과 같은 방식. `account`·`plan`·`interest_summary` 조회가 실패하면 해당 키를 담고 그 필드를 `null`로 내려준다. **`settings`·`marketing_consent`·`version`이 실패하면 응답 전체가 실패한다** — 토글 기준값이 없으면 낙관적 UI를 시작할 수 없다. **사용자 행 조회가 실패하면 `account`와 `plan`이 함께 실패한다**(2026-10-03) — 플랜 카드가 체험 종료 시각(`users.trial_ends_at`)을 읽으므로, 체험 여부를 모른 채 "무료 · 하루 N편"으로 그리지 않는다.
 
 ---
 

@@ -612,6 +612,95 @@ describe('resolveFromStoreStatus — 만료 보정', () => {
     expect(state.status).toBe(SubscriptionStatus.REFUNDED);
   });
 
+  describe('행이 없을 때(Play의 첫 구매 — 모든 경로가 현재 상태 조회다)', () => {
+    it('활성이면 조회 결과로 새 구독 상태를 만든다', () => {
+      expect(
+        applied(
+          resolveFromStoreStatus(null, {
+            status: 'active',
+            transaction: transaction(),
+            renewal: renewal(),
+            tier: UserTier.DAILY,
+            renewalTier: UserTier.DAILY,
+            checkedAt: NOW,
+          }),
+        ),
+      ).toEqual({
+        tier: UserTier.DAILY,
+        status: SubscriptionStatus.ACTIVE,
+        isAutoRenew: true,
+        expiresAt: PERIOD_END,
+        cancelledAt: null,
+        pendingTier: null,
+      });
+    });
+
+    it('해지 예약된 채로 처음 보면 해지 예약으로 만든다', () => {
+      expect(
+        applied(
+          resolveFromStoreStatus(null, {
+            status: 'active',
+            transaction: transaction(),
+            renewal: renewal({ isAutoRenew: false }),
+            tier: UserTier.PRO,
+            renewalTier: null,
+            checkedAt: NOW,
+          }),
+        ),
+      ).toMatchObject({
+        status: SubscriptionStatus.CANCELLED,
+        isAutoRenew: false,
+        cancelledAt: NOW,
+      });
+    });
+
+    it('다음 갱신 상품이 다르면 변경 예약을 함께 만든다', () => {
+      expect(
+        applied(
+          resolveFromStoreStatus(null, {
+            status: 'active',
+            transaction: transaction(),
+            renewal: renewal({ autoRenewProductId: 'daily.monthly' }),
+            tier: UserTier.PRO,
+            renewalTier: UserTier.DAILY,
+            checkedAt: NOW,
+          }),
+        ).pendingTier,
+      ).toBe(UserTier.DAILY);
+    });
+
+    it('이미 끝난 구독을 처음 보면 종결 상태로 만든다(결제 이력은 남긴다)', () => {
+      expect(
+        applied(
+          resolveFromStoreStatus(null, {
+            status: 'revoked',
+            transaction: transaction({ revokedAt: NOW }),
+            renewal: null,
+            tier: UserTier.PRO,
+            renewalTier: null,
+            checkedAt: NOW,
+          }),
+        ),
+      ).toMatchObject({
+        status: SubscriptionStatus.REFUNDED,
+        isAutoRenew: false,
+      });
+    });
+
+    it('상품을 모르면 만들지 않는다', () => {
+      expect(
+        resolveFromStoreStatus(null, {
+          status: 'active',
+          transaction: transaction(),
+          renewal: renewal(),
+          tier: null,
+          renewalTier: null,
+          checkedAt: NOW,
+        }),
+      ).toEqual({ kind: 'ignore', reason: 'unknown_product' });
+    });
+  });
+
   it('스토어가 유예라 답하면 유예로 두고 종료일을 유예 종료일로 맞춘다', () => {
     const graceEnd = new Date('2026-10-17T00:00:00.000Z');
     const state = applied(

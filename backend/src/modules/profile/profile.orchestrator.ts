@@ -75,11 +75,13 @@ export class ProfileOrchestrator {
     const failedSections: ProfileSection[] = [];
 
     const [plan, interestSummary, stats] = await Promise.all([
-      this.subscriptionService.buildPlanView(userId).catch((error: unknown) => {
-        this.logSectionFailure(ProfileSection.PLAN, userId, error);
-        failedSections.push(ProfileSection.PLAN);
-        return null;
-      }),
+      this.subscriptionService
+        .buildPlanView(userId, { trialEndsAt: user.trialEndsAt, now })
+        .catch((error: unknown) => {
+          this.logSectionFailure(ProfileSection.PLAN, userId, error);
+          failedSections.push(ProfileSection.PLAN);
+          return null;
+        }),
       this.userInterestService
         .buildSummary(userId, TOP_TOPIC_LIMIT)
         .catch((error: unknown) => {

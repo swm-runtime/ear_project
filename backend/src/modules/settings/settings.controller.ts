@@ -51,6 +51,7 @@ export class SettingsController {
         currentUser.id,
         query.app_version,
         query.platform,
+        new Date(),
       ),
     );
   }

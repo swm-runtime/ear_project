@@ -49,7 +49,7 @@ export class RestorePurchasesRequestDto {
   @MaxLength(MAX_SIGNED_PAYLOAD_LENGTH, { each: true })
   readonly signed_transactions?: string[];
 
-  /** Android — `queryPurchasesAsync`의 구매들. Play 구현 전까지는 `SUBSCRIPTION_PLAN_UNAVAILABLE`이다 */
+  /** Android — `queryPurchasesAsync`의 구매들. `product_id`는 참고값이고 서버는 Google이 답한 상품만 믿는다 */
   @ValidateIf(
     (request: RestorePurchasesRequestDto) =>
       request.platform === DevicePlatform.ANDROID,

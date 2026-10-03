@@ -22,11 +22,13 @@ const FIXTURE_USER = {
   onboardingStep: OnboardingStep.DONE,
 } as User;
 
+const NOW = new Date('2026-10-05T03:00:00.000Z');
+
 describe('GetMeResponseDto', () => {
   it('user 객체가 로그인 응답(4.1)의 user와 필드 구성이 같다 — 갈리면 관문 판정이 갈린다', () => {
     // given / when
-    const loginUser = AuthUserDto.from(FIXTURE_USER);
-    const meUser = GetMeResponseDto.from(FIXTURE_USER, []).user;
+    const loginUser = AuthUserDto.from(FIXTURE_USER, NOW);
+    const meUser = GetMeResponseDto.from(FIXTURE_USER, [], NOW).user;
 
     // then — 필드 집합과 값 모두 일치해야 한다(session-restore-endpoint.md 요청 1)
     expect(Object.keys(meUser).sort()).toEqual(Object.keys(loginUser).sort());
@@ -35,17 +37,43 @@ describe('GetMeResponseDto', () => {
 
   it('pending_consents를 4.1과 같은 모양으로 함께 내려준다', () => {
     // given / when
-    const response = GetMeResponseDto.from(FIXTURE_USER, [
-      {
-        consentType: ConsentType.AGE_CONFIRMATION,
-        version: null,
-        isRequired: true,
-      },
-    ]);
+    const response = GetMeResponseDto.from(
+      FIXTURE_USER,
+      [
+        {
+          consentType: ConsentType.AGE_CONFIRMATION,
+          version: null,
+          isRequired: true,
+        },
+      ],
+      NOW,
+    );
 
     // then
     expect(response.pending_consents).toEqual([
       { consent_type: 'age_confirmation', version: null, is_required: true },
     ]);
+  });
+
+  it('무료 사용자가 가입 체험 중이면 tier를 trial로 내려준다 — 저장된 값(light)이 아니라 유효 티어다', () => {
+    // given — 체험이 10월 10일 04:00 KST에 끝난다(subscription.md 4.8)
+    const trialUser = {
+      ...FIXTURE_USER,
+      tier: UserTier.LIGHT,
+      trialEndsAt: new Date('2026-10-09T19:00:00.000Z'),
+    } as User;
+
+    // when
+    const during = GetMeResponseDto.from(trialUser, [], NOW).user;
+    const after = GetMeResponseDto.from(
+      trialUser,
+      [],
+      new Date('2026-10-09T19:00:00.000Z'),
+    ).user;
+
+    // then
+    expect(during.tier).toBe(UserTier.TRIAL);
+    expect(after.tier).toBe(UserTier.LIGHT);
+    expect(AuthUserDto.from(trialUser, NOW).tier).toBe(UserTier.TRIAL);
   });
 });

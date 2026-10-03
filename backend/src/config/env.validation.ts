@@ -146,6 +146,28 @@ export class EnvironmentVariables {
   AUTO_EXPAND_ENABLED?: string;
 
   /**
+   * 가입 체험(`subscription.md` 4.8)의 서버 스위치. `true`일 때만 **새로 가입하는 계정**에 체험을 준다.
+   * 비우거나 `false`면 주지 않는다(환경과 무관하게 명시적으로 켜야 한다).
+   *
+   * **끈다고 이미 받은 체험이 사라지지 않는다** — 체험은 가입 때 `users.trial_ends_at`에 적히고, 가입 때
+   * 안내한 종료 날짜가 약속이기 때문이다. 스위치는 "지금 가입하는 사람에게 줄 것인가"만 정한다.
+   */
+  @IsOptional()
+  @IsIn(['true', 'false', ''])
+  SIGNUP_TRIAL_ENABLED?: string;
+
+  /**
+   * 가입 체험 일수(1~30). 비우면 7. 가입한 서비스 날짜를 1일째로 센다(`signup-trial.util.ts`).
+   * **문자열로 받는다** — 배포 스크립트가 선택 키를 빈 값으로 선언해 두는데(`deploy/push.sh`), 숫자 변환을
+   * 걸면 빈 값이 0이 되어 기동이 실패한다. 이미 부여한 체험의 종료 시각은 바뀌지 않는다.
+   */
+  @IsOptional()
+  @Matches(/^$|^([1-9]|[12]\d|30)$/, {
+    message: 'SIGNUP_TRIAL_DAYS must be an integer between 1 and 30',
+  })
+  SIGNUP_TRIAL_DAYS?: string;
+
+  /**
    * App Store 인앱 결제 검증(`subscription-api.md` 7장 — KAN-106). **전부 선택이고, `APP_STORE_BUNDLE_ID`나
    * `APP_STORE_ENVIRONMENTS`가 비면 iOS 결제가 꺼진다**(결제 의도 생성이 `SUBSCRIPTION_PLAN_UNAVAILABLE`로
    * 막힌다 — 결제부터 시키고 검증을 못 하는 상태를 만들지 않는다).
@@ -183,6 +205,33 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   APP_STORE_PRIVATE_KEY_BASE64?: string;
+
+  /**
+   * Google Play 인앱 결제 검증(`subscription-api.md` 4.7 · 7장). **전부 선택이고, 패키지명이나 서비스 계정이
+   * 비면 Android 결제가 꺼진다**(결제 의도 생성이 `SUBSCRIPTION_PLAN_UNAVAILABLE`로 막힌다).
+   *
+   * - `GOOGLE_PLAY_PACKAGE_NAME`: 앱 패키지명. 알림의 `packageName`과 대조한다
+   * - `GOOGLE_PLAY_SERVICE_ACCOUNT_BASE64`: Play Developer API를 부르는 서비스 계정의 JSON 키(base64).
+   *   Play Console에서 그 계정에 "주문 및 구독 관리" 권한을 줘야 한다
+   * - `GOOGLE_PLAY_PUBSUB_AUDIENCE` · `GOOGLE_PLAY_PUBSUB_SERVICE_ACCOUNT`: 실시간 알림(RTDN)을 실어 오는
+   *   Pub/Sub push의 OIDC 검증값 — push 구독에 설정한 대상(audience)과 발신 서비스 계정 이메일.
+   *   둘 중 하나라도 비면 알림을 받지 않는다(구매 검증·복원은 동작한다)
+   */
+  @IsOptional()
+  @IsString()
+  GOOGLE_PLAY_PACKAGE_NAME?: string;
+
+  @IsOptional()
+  @IsString()
+  GOOGLE_PLAY_SERVICE_ACCOUNT_BASE64?: string;
+
+  @IsOptional()
+  @IsString()
+  GOOGLE_PLAY_PUBSUB_AUDIENCE?: string;
+
+  @IsOptional()
+  @IsString()
+  GOOGLE_PLAY_PUBSUB_SERVICE_ACCOUNT?: string;
 
   /**
    * 일일 지표 Slack 보고(KAN-107 2단계)의 GA4 자격 — 둘 다 **선택**이고 하나라도 비면

@@ -178,6 +178,31 @@ describe('validateEnv', () => {
     expect(validate).not.toThrow();
   });
 
+  it('SIGNUP_TRIAL_ENABLED 는 true·false·빈 값만 받는다 — 오타로 체험이 조용히 꺼지거나 켜지지 않게', () => {
+    expect(() =>
+      validateEnv({ ...validEnv, SIGNUP_TRIAL_ENABLED: 'yes' }),
+    ).toThrow(/SIGNUP_TRIAL_ENABLED/);
+    for (const value of ['true', 'false', '']) {
+      expect(() =>
+        validateEnv({ ...validEnv, SIGNUP_TRIAL_ENABLED: value }),
+      ).not.toThrow();
+    }
+    expect(() => validateEnv(validEnv)).not.toThrow();
+  });
+
+  it('SIGNUP_TRIAL_DAYS 는 1~30 정수이고 비워도 된다 — 배포 스크립트가 빈 값으로 선언해 둔다', () => {
+    for (const value of ['0', '31', '7.5', 'week', '-1']) {
+      expect(() =>
+        validateEnv({ ...validEnv, SIGNUP_TRIAL_DAYS: value }),
+      ).toThrow(/SIGNUP_TRIAL_DAYS/);
+    }
+    for (const value of ['', '1', '7', '14', '30']) {
+      expect(() =>
+        validateEnv({ ...validEnv, SIGNUP_TRIAL_DAYS: value }),
+      ).not.toThrow();
+    }
+  });
+
   it('CLUSTER_WORKERS 가 auto 또는 1~8 이 아니면 기동을 실패시킨다 — 오타로 조용히 1워커가 되지 않게', () => {
     expect(() => validateEnv({ ...validEnv, CLUSTER_WORKERS: 'two' })).toThrow(
       /CLUSTER_WORKERS/,

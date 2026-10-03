@@ -1,4 +1,5 @@
 import { PlanStatus } from '@/modules/subscription/subscription.enum';
+import { TrialDto } from '@/modules/subscription/dto/trial.dto';
 import { UserTier } from '@/modules/user/user.enum';
 
 import { SettingsSection } from '../settings.enum';
@@ -24,6 +25,8 @@ class SettingsPlanDto {
   readonly expires_at: string | null;
   /** `true`면 구독 섹션에 경고색 + "결제에 문제가 있어요" */
   readonly has_payment_issue: boolean;
+  /** 가입 체험 중일 때만 값이 있다 — 종료일·이후 한도(`subscription.md` 4.8). 아니면 `null` */
+  readonly trial: TrialDto | null;
 }
 
 class SettingsTopicDto {
@@ -90,6 +93,7 @@ export class GetSettingsResponseDto {
             renews_at: result.plan.renewsAt?.toISOString() ?? null,
             expires_at: result.plan.expiresAt?.toISOString() ?? null,
             has_payment_issue: result.plan.hasPaymentIssue,
+            trial: TrialDto.from(result.plan.trial),
           }
         : null,
       interest_summary: result.interestSummary

@@ -53,6 +53,7 @@ export class AuthController {
   async socialLogin(
     @Body() request: SocialLoginRequestDto,
   ): Promise<SocialLoginResponseDto> {
+    const now = new Date();
     const result = await this.authService.socialLogin(
       {
         provider: request.provider,
@@ -60,10 +61,10 @@ export class AuthController {
         deviceId: request.device_id,
         nonce: request.nonce,
       },
-      new Date(),
+      now,
     );
 
-    return SocialLoginResponseDto.from(result);
+    return SocialLoginResponseDto.from(result, now);
   }
 
   /** 파이프라인 웹 SSO — 서버 간 어서션으로 관리자 세션 발급 (changes/pending/pipeline-sso-login.md) */
@@ -95,6 +96,7 @@ export class AuthController {
   @Post('sign-up')
   @Throttle(AUTH_THROTTLE)
   async signUp(@Body() request: SignUpRequestDto): Promise<SignUpResponseDto> {
+    const now = new Date();
     const result = await this.authService.signUp(
       {
         signupToken: request.signup_token,
@@ -105,10 +107,10 @@ export class AuthController {
           isAgreed: consent.is_agreed,
         })),
       },
-      new Date(),
+      now,
     );
 
-    return SignUpResponseDto.from(result);
+    return SignUpResponseDto.from(result, now);
   }
 
   @Post('token/refresh')

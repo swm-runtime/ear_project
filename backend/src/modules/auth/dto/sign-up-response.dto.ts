@@ -14,14 +14,14 @@ export class SignUpResponseDto {
   readonly pending_consents: ConsentRequirementDto[];
   readonly user: AuthUserDto;
 
-  static from(result: AuthenticatedResult): SignUpResponseDto {
+  static from(result: AuthenticatedResult, now: Date): SignUpResponseDto {
     return {
       status: 'authenticated',
       access_token: result.tokens.accessToken,
       refresh_token: result.tokens.refreshToken,
       access_token_expires_at: result.tokens.accessTokenExpiresAt.toISOString(),
       pending_consents: result.pendingConsents.map(toConsentRequirementDto),
-      user: AuthUserDto.from(result.user),
+      user: AuthUserDto.from(result.user, now),
     };
   }
 }

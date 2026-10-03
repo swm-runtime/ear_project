@@ -62,7 +62,9 @@
 | `light` | **무료 티어** | `subscriptions` 행 **없음** |
 | `daily` | 유료 | 있음 |
 | `pro` | 유료 | 있음 |
+| `trial` | **가입 체험**(2026-10-03) — 저장하지 않는 값 | 없음 |
 
+- **`trial`은 `users.tier` · `subscriptions.tier`에 들어가지 않는다.** 응답의 `tier`와 `plans` 행의 키로만 쓴다. `users.tier`는 결제가 쓰는 캐시(8.2)라 체험을 여기에 쓰면 구독 동기화가 덮어쓴다 — 체험 여부는 `users.trial_ends_at`(3.1)으로 판정한다(`subscription.md` 4.8).
 - `users.tier` · `plans.tier` · `subscriptions.tier`는 **같은 enum 값 집합**을 쓴다.
 - `subscriptions`에는 실제로 `light` 행이 생기지 않는다(무료는 구독이 아니다). enum을 공유하는 이유는 세 곳의 값이 어긋나는 것을 막기 위해서다.
 - `plans`에는 `light` 행이 **존재한다**. 무료 정책(하루 재생 2편, 드립 2편)을 데이터로 표현하기 위해서다.
@@ -171,6 +173,7 @@ users
   profile_image_url         varchar(2048)   NULL 허용 — 제공자 프로필 사진 URL. 파일이 아니라 제공자 CDN 주소만 보관하며 로그인마다 제공자 값으로 덮어쓴다(auth.md 4.1). 애플은 항상 NULL (도입 2026-09-16 — profile.md 미결 확정)
   role                      enum            user | admin          DEFAULT 'user'
   tier                      enum            light | daily | pro   DEFAULT 'light'   ★캐시
+  trial_ends_at             timestamptz     NULL   가입 체험이 끝나는 시각. 가입 시 한 번만 쓴다. NULL = 체험을 받지 않은 계정 (도입 2026-10-03 — `subscription.md` 4.8)
   status                    enum            active | withdrawn    DEFAULT 'active'   ※ 아래 주석
   onboarding_completed      boolean         DEFAULT false
   onboarding_step           enum            topic | career | pick | done   DEFAULT 'topic'
@@ -186,6 +189,7 @@ idx_users_status
 
 - **`tier`는 비정규화 캐시다** (A-3). 진실의 원천은 `subscriptions`이며, 갱신 경로는 `SubscriptionService` **한 곳으로만** 제한한다. 다른 모듈이 직접 `UPDATE`하지 않는다.
 - `entitlements_cache`는 두지 않는다. 캐시가 두 겹이면 반드시 어긋난다. 권한은 `plans`에서 매번 조립한다.
+- **`trial_ends_at`은 가입 체험의 유일한 저장값이다**(마이그레이션 `1788400000000-AddSignupTrial`). 가입 트랜잭션에서 한 번 쓰고 이후 고치지 않는다 — 스위치(`SIGNUP_TRIAL_ENABLED`)를 꺼도 이미 쓴 값은 그대로 유효하다. 값은 가입한 서비스 날짜의 시작 + N일이라 **항상 04:00 KST 경계**다. `tier`는 체험과 무관하게 `light`로 남는다.
 - `daily_play_count` · `count_reset_at`은 **없다** (A-2). `play_records` 집계로만 판정한다.
 - 커리어 3개 필드는 전부 선택 입력이므로 `users`에 병합한다 (C-2). 별도 `user_careers` 테이블을 만들지 않는다.
 - **`nickname`은 NULL을 허용한다.** 제공자가 닉네임을 주지 않는 경우가 있고, 값은 **온보딩의 닉네임 입력 단계에서 채운다.** 기본 문자열을 넣어 두면 "아직 정하지 않았다"와 "사용자가 그 값으로 정했다"가 구분되지 않는다. 온보딩 완료(`onboarding_completed = true`) 시점에는 값이 있어야 하며, 그 보장은 온보딩 처리에서 한다. *(온보딩 단계 enum에 닉네임 단계를 어떻게 넣을지는 화면 확정 후 갱신한다)*
@@ -1084,7 +1088,7 @@ idx_first_drip_jobs_status_last_attempted_at (status, last_attempted_at)
 ```
 plans
   id                        uuid            PK
-  tier                      enum            light | daily | pro
+  tier                      enum            light | daily | pro | trial
   name                      varchar
   description               text
   daily_play_limit          int             NULL = 무제한
@@ -1108,6 +1112,9 @@ uq_plans_tier (tier)
 | `light` (무료) | 0 | **2** | **2** | **1** | true |
 | `daily` | **3900** | **5** | **2** | **1** | true |
 | `pro` | **9900** | `NULL`(무제한) | **2** | **1** | true |
+| `trial` (가입 체험) | 0 | `NULL`(무제한) | **2** | **1** | true |
+
+- **`trial` 행은 판매 요금제가 아니라 체험 기간의 한도·이름을 담는 정책 행이다**(2026-10-03, `1788400000000-AddSignupTrial`). `is_active = false` · `display_order = 0`이라 요금제 목록(`GET /plans`)·페이월에 나오지 않고 최상위 티어 판정에도 끼지 않는다. 이름은 "무료 체험", 광고는 무료 티어와 같다(`is_ads_enabled = true`). 체험 중 한도를 바꾸려면 이 행의 `daily_play_limit`만 고친다. 행이 없으면 체험은 적용되지 않는다(무료 한도로 판정).
 
 - **유료 티어 값이 확정됐다**(2026-10-02): 데일리 월 3,900원·하루 5편, 프로 월 9,900원·무제한. 둘 다 광고가 없다(`is_ads_enabled = false`). 행은 마이그레이션 `1788300100000-SeedPaidPlans`가 넣는다 — `store_product_id_ios`는 `com.runtime.ear.subscription.{daily,pro}.monthly`, `store_product_id_android`는 Play 구현 전이라 비어 있다. `name`·`description`은 표시 문구라 DB에서 고친다(마이그레이션이 기존 값을 덮지 않는다). 두 행은 `is_active = true`(판매 중)로 시작한다 — 시드 이전에 넣어 둔 행이 꺼져 있던 환경은 `1788300200000-ActivatePaidPlans`가 맞춘다.
 
@@ -1144,7 +1151,7 @@ idx_subscriptions_user_id_status (user_id, status)
 - **무료 사용자는 행이 없다.** 행이 없으면 `light`로 간주한다.
 - 실제 갱신 근거는 **스토어 서버 알림(S2S)**이다(`subscription.md` 4.3). 클라이언트가 보낸 값으로 티어를 바꾸지 않는다.
 - `uq_subscriptions_original_transaction_id`가 하나의 스토어 구독이 여러 계정에 연결되는 것을 막는다.
-- **Play에는 `original_transaction_id`가 없다 — 그 구독의 최초 구매 토큰을 이 컬럼에 쓴다.** 업·다운그레이드로 새 토큰이 발급되면 스토어 응답의 `linkedPurchaseToken`으로 기존 행을 찾아 같은 행을 갱신한다(`subscription-api.md` 4.7).
+- **Play에는 `original_transaction_id`가 없다 — 그 구독의 최초 구매 토큰을 이 컬럼에 쓴다.** 업·다운그레이드로 새 토큰이 발급되면 스토어 응답의 `linkedPurchaseToken`으로 기존 행을 찾아 같은 행을 갱신한다 — 이전 토큰은 최초 토큰(`original_transaction_id`)일 수도, 중간에 바뀐 토큰(`latest_receipt`)일 수도 있어 둘 다로 찾는다(`subscription-api.md` 4.7). **Play 구매 토큰은 수백 자라 컬럼 길이는 2048이다**(2026-10-03 — 종전 255. App Store ID는 십수 자리 숫자라 문제가 없었다). 탈퇴 시 이 값을 옮겨 담는 `archived_subscriptions.original_transaction_id`([11.5](#115-archived_subscriptions))도 같은 길이다 — 한쪽만 넓으면 Play 구독자의 탈퇴가 아카이브에서 실패한다.
 - `latest_receipt`에는 마지막으로 반영한 **서명된 거래(iOS JWS) 또는 구매 토큰(Android)** 을 둔다 — 만료 보정 때 스토어에 다시 묻는 열쇠다. 로그에는 남기지 않는다.
 - **`environment`** 는 그 구독이 실결제인지 스토어의 시험 결제인지다(2026-10-02). **운영 서버도 샌드박스 거래를 받는다** — App Store 심사와 TestFlight는 운영 빌드로 샌드박스 결제를 한다(`subscription-api.md` 7장). 구분을 남기지 않으면 시험 결제가 매출·구독자 수에 섞인다. 권한 판정에는 쓰지 않는다 — 샌드박스 구독도 유효하면 유료 티어다(그래야 심사·시험이 된다). 집계가 `environment = 'production'`으로 거른다.
 - **`last_notified_at`** 은 스토어 서버 알림의 순서 뒤바뀜을 막는다(2026-10-02, `subscription-api.md` 4.6). 알림은 보낸 순서대로 도착한다는 보장이 없어, 이 시각보다 먼저 서명된 알림은 상태를 덮지 않는다. 만료 보정(스토어에 직접 조회)도 이 값을 조회 시각으로 갱신한다. **환불·만료로 종결된 구독을, 종결 이전에 시작된 거래로 되살릴 수 없게 하는 기준 시각이기도 하다** — 환불받은 사용자가 환불 전에 받아 둔 서명 거래를 다시 제출해도 반영하지 않는다.
@@ -1186,7 +1193,7 @@ idx_purchase_intents_user_id_created_at (user_id, created_at DESC)
 
 ### 8.4 `store_notification_logs`
 
-> **구현 상태(2026-10-02)** — App Store 서버 알림 수신(`subscription-api.md` 4.6)이 이 표를 쓴다(`StoreNotificationLogService`). Play 알림은 구현 전이다. `store_notification_logs`는 탈퇴 시 그대로 둔다(12.3).
+> **구현 상태(2026-10-03)** — App Store 서버 알림(`subscription-api.md` 4.6)과 Google Play 실시간 알림(4.7)이 이 표를 쓴다(`StoreNotificationLogService`). `store_notification_logs`는 탈퇴 시 그대로 둔다(12.3).
 
 ```
 store_notification_logs
@@ -1203,7 +1210,7 @@ uq_store_notification_logs_store_notification_id (store, notification_id)
 - 결제 재처리의 근거이므로 DB 테이블로 유지한다 (B-8).
 - 유니크 제약이 **같은 알림의 중복 처리를 막는다.** 스토어는 같은 알림을 여러 번 보낼 수 있다.
 - **`processed_at`이 "중복"의 기준이다**(2026-10-02). 적재는 처리보다 먼저, 처리 트랜잭션 밖에서 한다 — 처리가 실패해 롤백돼도 받았다는 기록은 남는다. 그래서 같은 `notification_id`가 다시 왔을 때 `processed_at`이 있으면 끝난 알림의 재전송이라 그대로 200이고, 없으면 받기만 하고 처리에 실패했던 것이라 다시 처리한다. 어느 계정의 구독인지 알 수 없던 알림(구독 행도 계정 토큰도 없음)도 `processed_at`이 비어 있다 — 이후 영수증 제출·복원이 그 구독을 연결한다.
-- **`payload`에는 검증을 마친 뒤 풀어낸 값만 둔다** — 알림 유형, 서명 시각, 환경, 거래(스토어 구독 ID·상품·기간·환불 시각·계정 토큰 유무), 갱신 설정. 계정 토큰 값은 싣지 않는다 — 결제 의도의 `id`라 살아 있는 계정을 가리키는데, 이 표는 탈퇴 뒤에도 남는다(12.3). **서명 원문(JWS)은 넣지 않는다.** `type`은 App Store의 `notificationType`에 `subtype`이 있으면 `:`로 이은 값이다(`DID_CHANGE_RENEWAL_STATUS:AUTO_RENEW_DISABLED`).
+- **`payload`에는 검증을 마친 뒤 풀어낸 값만 둔다** — 알림 유형, 서명 시각, 환경, 거래(스토어 구독 ID·상품·기간·환불 시각·계정 토큰 유무), 갱신 설정. 계정 토큰 값은 싣지 않는다 — 결제 의도의 `id`라 살아 있는 계정을 가리키는데, 이 표는 탈퇴 뒤에도 남는다(12.3). **서명 원문(JWS)은 넣지 않는다.** `type`은 App Store의 `notificationType`에 `subtype`이 있으면 `:`로 이은 값이다(`DID_CHANGE_RENEWAL_STATUS:AUTO_RENEW_DISABLED`). **Play 알림**(2026-10-03)은 `notification_id`가 Pub/Sub `messageId`, `type`이 `SUBSCRIPTION:<유형 번호>` · `VOIDED_PURCHASE` · `TEST` · `OTHER`이고, `payload`에는 종류·유형·발생 시각과 **구매 토큰의 SHA-256**만 둔다 — 토큰 원문은 그것만으로 Google에 그 구매를 조회할 수 있는 열쇠라 넣지 않는다. Play 알림의 `processed_at`은 구매 확인(acknowledge)까지 끝난 뒤에 찍힌다.
 
 ---
 

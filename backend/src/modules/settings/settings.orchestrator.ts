@@ -7,6 +7,7 @@ import { isVersionLowerThan } from '@/common/utils/semver.util';
 import { EnvironmentVariables } from '@/config/env.validation';
 import { UserInterestService } from '@/modules/interest/services/user-interest.service';
 import { SubscriptionService } from '@/modules/subscription/services/subscription.service';
+import { PlanView } from '@/modules/subscription/subscription.types';
 import { ConsentService } from '@/modules/user/services/consent.service';
 import { UserService } from '@/modules/user/services/user.service';
 import { UserSettingService } from '@/modules/user/services/user-setting.service';
@@ -66,6 +67,7 @@ export class SettingsOrchestrator {
     userId: string,
     appVersion: string,
     platform: DevicePlatform,
+    now: Date,
   ): Promise<SettingsSummaryResult> {
     const failedSections: SettingsSection[] = [];
 
@@ -78,13 +80,11 @@ export class SettingsOrchestrator {
           failedSections.push(SettingsSection.ACCOUNT);
           return null;
         }),
-        this.subscriptionService
-          .buildPlanView(userId)
-          .catch((error: unknown) => {
-            this.logSectionFailure(SettingsSection.PLAN, userId, error);
-            failedSections.push(SettingsSection.PLAN);
-            return null;
-          }),
+        this.buildPlan(userId, now).catch((error: unknown) => {
+          this.logSectionFailure(SettingsSection.PLAN, userId, error);
+          failedSections.push(SettingsSection.PLAN);
+          return null;
+        }),
         this.userInterestService
           .buildSummary(userId, TOP_TOPIC_LIMIT)
           .catch((error: unknown) => {
@@ -155,6 +155,19 @@ export class SettingsOrchestrator {
   }
 
   // --- 섹션별 조립 ---
+
+  /**
+   * 플랜 카드 — 프로필과 같은 조립 함수다. 가입 체험 여부는 `users.trial_ends_at`으로 정해지므로
+   * 사용자 행을 읽어 넘긴다(`subscription` 모듈은 `users`를 모른다).
+   */
+  private async buildPlan(userId: string, now: Date): Promise<PlanView> {
+    const user = await this.userService.getById(userId);
+
+    return this.subscriptionService.buildPlanView(userId, {
+      trialEndsAt: user.trialEndsAt,
+      now,
+    });
+  }
 
   private async buildAccount(userId: string): Promise<SettingsAccountView> {
     const user = await this.userService.getById(userId);

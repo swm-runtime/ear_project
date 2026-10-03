@@ -1,7 +1,9 @@
+import { ConfigService } from '@nestjs/config';
 import { DataSource, EntityManager } from 'typeorm';
 
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
+import { EnvironmentVariables } from '@/config/env.validation';
 
 import { ConsentService } from './consent.service';
 import { User } from '../entities/user.entity';
@@ -11,6 +13,17 @@ import { ConsentType, SocialProvider } from '../user.enum';
 import { ConsentInput, CreateUserCommand } from '../user.types';
 
 const NOW = new Date('2026-09-06T09:00:00.000Z');
+
+/** 가입 체험 스위치(`SIGNUP_TRIAL_*`)만 읽는 ConfigService 대역 — 기본은 꺼짐 */
+function buildConfigService(
+  env: Partial<
+    Record<'SIGNUP_TRIAL_ENABLED' | 'SIGNUP_TRIAL_DAYS', string>
+  > = {},
+): ConfigService<EnvironmentVariables, true> {
+  return {
+    get: (key: 'SIGNUP_TRIAL_ENABLED' | 'SIGNUP_TRIAL_DAYS') => env[key],
+  } as unknown as ConfigService<EnvironmentVariables, true>;
+}
 
 /** 필수 3종 + 마케팅 거부 — 정상 가입 입력 (auth-api.md 4.2) */
 function buildConsents(): ConsentInput[] {
@@ -42,6 +55,7 @@ describe('UserService.createUser — 필수 동의 판정', () => {
   let service: UserService;
   let userRepository: jest.Mocked<UserRepository>;
   let consentService: jest.Mocked<ConsentService>;
+  let dataSource: DataSource;
 
   beforeEach(() => {
     userRepository = {
@@ -51,13 +65,18 @@ describe('UserService.createUser — 필수 동의 판정', () => {
     consentService = {
       recordConsents: jest.fn(() => Promise.resolve([])),
     } as unknown as jest.Mocked<ConsentService>;
-    const dataSource = {
+    dataSource = {
       transaction: jest.fn((run: (manager: EntityManager) => unknown) =>
         run({} as EntityManager),
       ),
     } as unknown as DataSource;
 
-    service = new UserService(userRepository, consentService, dataSource);
+    service = new UserService(
+      userRepository,
+      consentService,
+      dataSource,
+      buildConfigService(),
+    );
   });
 
   it('필수 3종(약관·개인정보·연령 확인)이 모두 동의되면 계정과 동의 이력을 만든다', async () => {
@@ -119,5 +138,63 @@ describe('UserService.createUser — 필수 동의 판정', () => {
     await expect(
       service.createUser(buildCommand(buildConsents()), NOW),
     ).resolves.toBeDefined();
+  });
+
+  describe('가입 체험(subscription.md 4.8)', () => {
+    const createWith = async (
+      env: Partial<
+        Record<'SIGNUP_TRIAL_ENABLED' | 'SIGNUP_TRIAL_DAYS', string>
+      >,
+    ): Promise<User> =>
+      new UserService(
+        userRepository,
+        consentService,
+        dataSource,
+        buildConfigService(env),
+      ).createUser(buildCommand(buildConsents()), NOW);
+
+    it('스위치가 켜져 있으면 가입한 서비스 날짜부터 7일째가 끝나는 04:00 KST까지 체험을 준다', async () => {
+      // given — NOW는 9월 6일 18:00 KST
+      // when
+      const user = await createWith({ SIGNUP_TRIAL_ENABLED: 'true' });
+
+      // then — 9월 6일~12일이 체험, 9월 13일 04:00 KST에 끝난다
+      expect(user.trialEndsAt?.toISOString()).toBe('2026-09-12T19:00:00.000Z');
+    });
+
+    it('체험은 trial_ends_at에만 적고 tier는 light 그대로 둔다 — tier는 결제가 쓰는 캐시다', async () => {
+      const user = await createWith({ SIGNUP_TRIAL_ENABLED: 'true' });
+
+      expect(user.tier).toBe('light');
+    });
+
+    it('스위치가 꺼져 있으면 체험을 주지 않는다', async () => {
+      const off = await createWith({ SIGNUP_TRIAL_ENABLED: 'false' });
+      const unset = await createWith({});
+      const blank = await createWith({ SIGNUP_TRIAL_ENABLED: '' });
+
+      expect(off.trialEndsAt).toBeNull();
+      expect(unset.trialEndsAt).toBeNull();
+      expect(blank.trialEndsAt).toBeNull();
+    });
+
+    it('일수를 지정하면 그만큼 준다', async () => {
+      const user = await createWith({
+        SIGNUP_TRIAL_ENABLED: 'true',
+        SIGNUP_TRIAL_DAYS: '3',
+      });
+
+      // 9월 6일~8일, 9월 9일 04:00 KST 종료
+      expect(user.trialEndsAt?.toISOString()).toBe('2026-09-08T19:00:00.000Z');
+    });
+
+    it('일수가 비어 있으면 7일이다 — 배포 스크립트가 선택 키를 빈 값으로 선언해 둔다', async () => {
+      const user = await createWith({
+        SIGNUP_TRIAL_ENABLED: 'true',
+        SIGNUP_TRIAL_DAYS: '',
+      });
+
+      expect(user.trialEndsAt?.toISOString()).toBe('2026-09-12T19:00:00.000Z');
+    });
   });
 });
