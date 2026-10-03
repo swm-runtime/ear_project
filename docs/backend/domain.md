@@ -62,7 +62,9 @@
 | `light` | **무료 티어** | `subscriptions` 행 **없음** |
 | `daily` | 유료 | 있음 |
 | `pro` | 유료 | 있음 |
+| `trial` | **가입 체험**(2026-10-03) — 저장하지 않는 값 | 없음 |
 
+- **`trial`은 `users.tier` · `subscriptions.tier`에 들어가지 않는다.** 응답의 `tier`와 `plans` 행의 키로만 쓴다. `users.tier`는 결제가 쓰는 캐시(8.2)라 체험을 여기에 쓰면 구독 동기화가 덮어쓴다 — 체험 여부는 `users.trial_ends_at`(3.1)으로 판정한다(`subscription.md` 4.8).
 - `users.tier` · `plans.tier` · `subscriptions.tier`는 **같은 enum 값 집합**을 쓴다.
 - `subscriptions`에는 실제로 `light` 행이 생기지 않는다(무료는 구독이 아니다). enum을 공유하는 이유는 세 곳의 값이 어긋나는 것을 막기 위해서다.
 - `plans`에는 `light` 행이 **존재한다**. 무료 정책(하루 재생 2편, 드립 2편)을 데이터로 표현하기 위해서다.
@@ -171,6 +173,7 @@ users
   profile_image_url         varchar(2048)   NULL 허용 — 제공자 프로필 사진 URL. 파일이 아니라 제공자 CDN 주소만 보관하며 로그인마다 제공자 값으로 덮어쓴다(auth.md 4.1). 애플은 항상 NULL (도입 2026-09-16 — profile.md 미결 확정)
   role                      enum            user | admin          DEFAULT 'user'
   tier                      enum            light | daily | pro   DEFAULT 'light'   ★캐시
+  trial_ends_at             timestamptz     NULL   가입 체험이 끝나는 시각. 가입 시 한 번만 쓴다. NULL = 체험을 받지 않은 계정 (도입 2026-10-03 — `subscription.md` 4.8)
   status                    enum            active | withdrawn    DEFAULT 'active'   ※ 아래 주석
   onboarding_completed      boolean         DEFAULT false
   onboarding_step           enum            topic | career | pick | done   DEFAULT 'topic'
@@ -186,6 +189,7 @@ idx_users_status
 
 - **`tier`는 비정규화 캐시다** (A-3). 진실의 원천은 `subscriptions`이며, 갱신 경로는 `SubscriptionService` **한 곳으로만** 제한한다. 다른 모듈이 직접 `UPDATE`하지 않는다.
 - `entitlements_cache`는 두지 않는다. 캐시가 두 겹이면 반드시 어긋난다. 권한은 `plans`에서 매번 조립한다.
+- **`trial_ends_at`은 가입 체험의 유일한 저장값이다**(마이그레이션 `1788400000000-AddSignupTrial`). 가입 트랜잭션에서 한 번 쓰고 이후 고치지 않는다 — 스위치(`SIGNUP_TRIAL_ENABLED`)를 꺼도 이미 쓴 값은 그대로 유효하다. 값은 가입한 서비스 날짜의 시작 + N일이라 **항상 04:00 KST 경계**다. `tier`는 체험과 무관하게 `light`로 남는다.
 - `daily_play_count` · `count_reset_at`은 **없다** (A-2). `play_records` 집계로만 판정한다.
 - 커리어 3개 필드는 전부 선택 입력이므로 `users`에 병합한다 (C-2). 별도 `user_careers` 테이블을 만들지 않는다.
 - **`nickname`은 NULL을 허용한다.** 제공자가 닉네임을 주지 않는 경우가 있고, 값은 **온보딩의 닉네임 입력 단계에서 채운다.** 기본 문자열을 넣어 두면 "아직 정하지 않았다"와 "사용자가 그 값으로 정했다"가 구분되지 않는다. 온보딩 완료(`onboarding_completed = true`) 시점에는 값이 있어야 하며, 그 보장은 온보딩 처리에서 한다. *(온보딩 단계 enum에 닉네임 단계를 어떻게 넣을지는 화면 확정 후 갱신한다)*
@@ -1084,7 +1088,7 @@ idx_first_drip_jobs_status_last_attempted_at (status, last_attempted_at)
 ```
 plans
   id                        uuid            PK
-  tier                      enum            light | daily | pro
+  tier                      enum            light | daily | pro | trial
   name                      varchar
   description               text
   daily_play_limit          int             NULL = 무제한
@@ -1108,6 +1112,9 @@ uq_plans_tier (tier)
 | `light` (무료) | 0 | **2** | **2** | **1** | true |
 | `daily` | **3900** | **5** | **2** | **1** | true |
 | `pro` | **9900** | `NULL`(무제한) | **2** | **1** | true |
+| `trial` (가입 체험) | 0 | `NULL`(무제한) | **2** | **1** | true |
+
+- **`trial` 행은 판매 요금제가 아니라 체험 기간의 한도·이름을 담는 정책 행이다**(2026-10-03, `1788400000000-AddSignupTrial`). `is_active = false` · `display_order = 0`이라 요금제 목록(`GET /plans`)·페이월에 나오지 않고 최상위 티어 판정에도 끼지 않는다. 이름은 "무료 체험", 광고는 무료 티어와 같다(`is_ads_enabled = true`). 체험 중 한도를 바꾸려면 이 행의 `daily_play_limit`만 고친다. 행이 없으면 체험은 적용되지 않는다(무료 한도로 판정).
 
 - **유료 티어 값이 확정됐다**(2026-10-02): 데일리 월 3,900원·하루 5편, 프로 월 9,900원·무제한. 둘 다 광고가 없다(`is_ads_enabled = false`). 행은 마이그레이션 `1788300100000-SeedPaidPlans`가 넣는다 — `store_product_id_ios`는 `com.runtime.ear.subscription.{daily,pro}.monthly`, `store_product_id_android`는 Play 구현 전이라 비어 있다. `name`·`description`은 표시 문구라 DB에서 고친다(마이그레이션이 기존 값을 덮지 않는다). 두 행은 `is_active = true`(판매 중)로 시작한다 — 시드 이전에 넣어 둔 행이 꺼져 있던 환경은 `1788300200000-ActivatePaidPlans`가 맞춘다.
 

@@ -59,7 +59,9 @@
 
 - `plans`에서 **매번 조립**한다. 저장하는 컬럼이 아니다. 클라이언트는 티어명으로 분기하지 않고 이 객체로 분기한다(CLAUDE.md 공통 원칙).
 
-**구독 요약 `plan`** — `profile-api.md` 4.1의 `plan`과 **같은 모양·같은 조립 함수**다(`status` 4분기 `free` / `subscribed` / `cancel_scheduled` / `grace`, `tier`, `plan_name`, `daily_play_limit`, `renews_at`, `expires_at`, `has_payment_issue`). 이 문서는 그 정의를 다시 적지 않는다.
+**구독 요약 `plan`** — `profile-api.md` 4.1의 `plan`과 **같은 모양·같은 조립 함수**다(`status` 4분기 `free` / `subscribed` / `cancel_scheduled` / `grace`, `tier`, `plan_name`, `daily_play_limit`, `renews_at`, `expires_at`, `has_payment_issue`, `trial`). 이 문서는 그 정의를 다시 적지 않는다.
+
+**가입 체험**(`subscription.md` 4.8, 2026-10-03) — 체험 중이면 `plan.trial`이 채워지고(`profile-api.md` 4.1), **`entitlements.daily_play_limit`도 체험 한도가 반영된 값**이다(구독 티어 한도와 체험 한도 중 넉넉한 쪽). 나머지 `entitlements` 필드는 저장된 티어를 따른다. `GET /plans`에는 체험 행이 나오지 않는다(판매 요금제가 아니다).
 
 ---
 
@@ -156,7 +158,8 @@
 {
   "plan": {
     "status": "subscribed", "tier": "pro", "plan_name": "프로", "daily_play_limit": null,
-    "renews_at": "2026-11-02T03:00:00Z", "expires_at": null, "has_payment_issue": false
+    "renews_at": "2026-11-02T03:00:00Z", "expires_at": null, "has_payment_issue": false,
+    "trial": null
   },
   "entitlements": { "daily_play_limit": null, "daily_drip_count": 2, "drip_enabled": true, "ads_enabled": false },
   "store": "app_store",
@@ -166,7 +169,7 @@
 
 | 필드 | 의미 |
 |---|---|
-| `plan` | 구독 요약 — `profile-api.md` 4.1과 같은 모양(2장). 무료면 `status: "free"`, `tier: "light"` |
+| `plan` | 구독 요약 — `profile-api.md` 4.1과 같은 모양(2장). 무료면 `status: "free"`, `tier: "light"`. 가입 체험 중인 무료 계정은 `tier: "trial"` + `trial` 객체(2장) |
 | `entitlements` | **현재 유효한** 티어의 권한(2장). 해지 예약·유예 중에는 유료 티어의 값이다 |
 | `store` | `app_store` \| `play_store` \| `null`(무료). [구독 해지]·[결제 수단 확인]을 어느 스토어로 보낼지의 근거 |
 | `pending_plan` | **다운그레이드 예약**이 있으면 `{ "tier", "plan_name", "effective_at" }`, 없으면 `null`. `effective_at`은 현재 결제 주기 만료 시각이다(`subscription.md` 4.4 — "언제부터 적용되는지" 표시) |
