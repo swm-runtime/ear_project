@@ -153,7 +153,7 @@ export async function saveCriticVerdicts(episodeId: string, verdicts: unknown) {
 /** 발행 대기 목록 — 패키지(packaged)·오디오(dist.mp3) 둘 다 끝났고 아직 발행 안 된 에피소드. audio_dist_key 가 있고 backlog 상태가 packaged 인 것. 발행 업로드 화면의 선택 목록. */
 export async function listPublishableEpisodes(): Promise<{ id: string; title: string; mid_topic: string; created_at: string }[]> {
   const sb = await supabaseServer();
-  const { data: eps, error } = await sb.from("episodes").select("id,backlog_id,audio_dist_key,created_at").not("audio_dist_key", "is", null).order("id", { ascending: false });
+  const { data: eps, error } = await sb.from("episodes").select("id,backlog_id,audio_dist_key,created_at").not("audio_dist_key", "is", null).order("created_at", { ascending: false }).order("id", { ascending: false }); // 최신순 — 접두어(T·X·S)와 무관하게
   if (error) throw new Error(error.message);
   const ids = [...new Set((eps ?? []).map((e) => e.backlog_id))];
   if (ids.length === 0) return [];
