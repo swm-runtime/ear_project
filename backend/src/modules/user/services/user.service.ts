@@ -10,7 +10,10 @@ import { EnvironmentVariables } from '@/config/env.validation';
 
 import { ConsentService } from './consent.service';
 import { User } from '../entities/user.entity';
-import { resolveSignupTrialEndsAtFor } from '../policies/signup-trial.policy';
+import {
+  resolveExistingUserTrialEndsAtFor,
+  resolveSignupTrialEndsAtFor,
+} from '../policies/signup-trial.policy';
 import {
   REQUIRED_CONSENT_TYPES,
   CURRENT_CONSENT_VERSIONS,
@@ -166,6 +169,7 @@ export class UserService {
         this.logger.log('signup trial granted', {
           user_id: saved.id,
           trial_ends_at: saved.trialEndsAt.toISOString(),
+          source: 'signup',
         });
       }
 
@@ -240,6 +244,53 @@ export class UserService {
     user.profileImageUrl = profileImageUrl;
 
     return this.userRepository.save(user);
+  }
+
+  /**
+   * 체험이 생기기 전에 가입한 계정에 체험을 한 번 준다(`subscription.md` 4.8 "기존 가입자").
+   * **앱이 세션을 여는 두 지점**(세션 복원 `GET /users/me` · 기존 계정 로그인)에서 부른다 — 대상이 아니면
+   * 아무것도 쓰지 않고 받은 사용자를 그대로 돌려준다(체험을 이미 받은 계정은 DB에 가지 않는다).
+   *
+   * **실패해도 던지지 않는다.** 이 메서드는 앱 시작 경로에 있다 — 프로모션 지급이 실패했다고 로그인·세션
+   * 복원이 막히면 안 된다. 적지 못한 계정은 다음에 앱을 열 때 다시 시도된다.
+   */
+  async grantExistingUserTrial(user: User, now: Date): Promise<User> {
+    const trialEndsAt = resolveExistingUserTrialEndsAtFor(
+      this.configService,
+      user,
+      now,
+    );
+
+    if (trialEndsAt === null) {
+      return user;
+    }
+
+    try {
+      const granted = await this.userRepository.setTrialEndsAtIfAbsent(
+        user.id,
+        trialEndsAt,
+      );
+
+      if (!granted) {
+        // 동시에 도착한 다른 요청이 먼저 적었다 — 그쪽이 적은 값이 약속이다
+        return (await this.userRepository.findById(user.id)) ?? user;
+      }
+
+      user.trialEndsAt = trialEndsAt;
+      this.logger.log('signup trial granted', {
+        user_id: user.id,
+        trial_ends_at: trialEndsAt.toISOString(),
+        source: 'existing_user',
+      });
+    } catch (error) {
+      this.logger.error(
+        'failed to grant signup trial to existing user',
+        error instanceof Error ? error.stack : String(error),
+        { user_id: user.id },
+      );
+    }
+
+    return user;
   }
 
   async deleteById(userId: string, manager?: EntityManager): Promise<void> {

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
+import { EntityManager, IsNull, Repository } from 'typeorm';
 
 import { User } from '../entities/user.entity';
 import { SocialProvider, UserRole } from '../user.enum';
@@ -112,6 +112,25 @@ export class UserRepository {
     }
 
     return builder.getMany();
+  }
+
+  /**
+   * 체험을 받은 적 없는 계정에만 종료 시각을 적는다 — 적었으면 `true`.
+   *
+   * **조건을 UPDATE에 싣는다.** 읽고 나서 쓰면 앱 시작 요청 둘이 동시에 들어왔을 때 둘 다 "비어 있다"를
+   * 보고 서로 다른 종료 시각을 적을 수 있다. 조건부 UPDATE는 먼저 도착한 쪽만 적는다.
+   * `save`를 쓰지 않는 이유도 같다 — 엔티티 전체를 덮어써 그 사이 바뀐 다른 컬럼(티어 캐시)을 되돌린다.
+   */
+  async setTrialEndsAtIfAbsent(
+    userId: string,
+    trialEndsAt: Date,
+  ): Promise<boolean> {
+    const result = await this.repository.update(
+      { id: userId, trialEndsAt: IsNull() },
+      { trialEndsAt },
+    );
+
+    return result.affected === 1;
   }
 
   async save(user: User, manager?: EntityManager): Promise<User> {
