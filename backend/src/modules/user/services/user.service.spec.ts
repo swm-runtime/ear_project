@@ -14,14 +14,21 @@ import { ConsentInput, CreateUserCommand } from '../user.types';
 
 const NOW = new Date('2026-09-06T09:00:00.000Z');
 
+type TrialEnv = Partial<
+  Record<
+    | 'SIGNUP_TRIAL_ENABLED'
+    | 'SIGNUP_TRIAL_DAYS'
+    | 'SIGNUP_TRIAL_EXISTING_USERS_BEFORE',
+    string
+  >
+>;
+
 /** 가입 체험 스위치(`SIGNUP_TRIAL_*`)만 읽는 ConfigService 대역 — 기본은 꺼짐 */
 function buildConfigService(
-  env: Partial<
-    Record<'SIGNUP_TRIAL_ENABLED' | 'SIGNUP_TRIAL_DAYS', string>
-  > = {},
+  env: TrialEnv = {},
 ): ConfigService<EnvironmentVariables, true> {
   return {
-    get: (key: 'SIGNUP_TRIAL_ENABLED' | 'SIGNUP_TRIAL_DAYS') => env[key],
+    get: (key: keyof TrialEnv) => env[key],
   } as unknown as ConfigService<EnvironmentVariables, true>;
 }
 
@@ -196,5 +203,120 @@ describe('UserService.createUser — 필수 동의 판정', () => {
 
       expect(user.trialEndsAt?.toISOString()).toBe('2026-09-12T19:00:00.000Z');
     });
+  });
+});
+
+describe('UserService.grantExistingUserTrial — 체험 도입 전 가입자(subscription.md 4.8)', () => {
+  const ON: TrialEnv = {
+    SIGNUP_TRIAL_ENABLED: 'true',
+    SIGNUP_TRIAL_EXISTING_USERS_BEFORE: '2026-09-07',
+  };
+  // NOW(9월 6일 18:00 KST)에 앱을 열면 9월 6~12일이 체험, 13일 04:00 KST 종료
+  const EXPECTED_ENDS_AT = new Date('2026-09-12T19:00:00.000Z');
+
+  let userRepository: jest.Mocked<UserRepository>;
+
+  const buildService = (env: TrialEnv): UserService =>
+    new UserService(
+      userRepository,
+      {} as ConsentService,
+      {} as DataSource,
+      buildConfigService(env),
+    );
+
+  const buildExistingUser = (overrides: Partial<User> = {}): User =>
+    ({
+      id: 'user-1',
+      tier: 'light',
+      trialEndsAt: null,
+      createdAt: new Date('2026-08-20T03:00:00.000Z'),
+      ...overrides,
+    }) as User;
+
+  beforeEach(() => {
+    userRepository = {
+      setTrialEndsAtIfAbsent: jest.fn().mockResolvedValue(true),
+      findById: jest.fn(),
+    } as unknown as jest.Mocked<UserRepository>;
+  });
+
+  it('대상 계정이 앱을 열면 그날부터의 체험 종료 시각을 적고 돌려준다', async () => {
+    // when
+    const user = await buildService(ON).grantExistingUserTrial(
+      buildExistingUser(),
+      NOW,
+    );
+
+    // then
+    expect(userRepository.setTrialEndsAtIfAbsent).toHaveBeenCalledWith(
+      'user-1',
+      EXPECTED_ENDS_AT,
+    );
+    expect(user.trialEndsAt).toEqual(EXPECTED_ENDS_AT);
+    expect(user.tier).toBe('light');
+  });
+
+  it('이미 체험을 받은 계정은 DB에 가지 않고 그대로 돌려준다 — 앱을 열 때마다 지나는 경로다', async () => {
+    // given
+    const granted = buildExistingUser({
+      trialEndsAt: new Date('2026-09-01T19:00:00.000Z'),
+    });
+
+    // when
+    const user = await buildService(ON).grantExistingUserTrial(granted, NOW);
+
+    // then
+    expect(userRepository.setTrialEndsAtIfAbsent).not.toHaveBeenCalled();
+    expect(user).toBe(granted);
+  });
+
+  it('스위치나 경계 날짜가 없으면 아무것도 쓰지 않는다', async () => {
+    for (const env of [
+      {},
+      { SIGNUP_TRIAL_ENABLED: 'true' },
+      { SIGNUP_TRIAL_EXISTING_USERS_BEFORE: '2026-09-07' },
+    ] satisfies TrialEnv[]) {
+      const user = await buildService(env).grantExistingUserTrial(
+        buildExistingUser(),
+        NOW,
+      );
+
+      expect(user.trialEndsAt).toBeNull();
+    }
+    expect(userRepository.setTrialEndsAtIfAbsent).not.toHaveBeenCalled();
+  });
+
+  it('동시에 도착한 다른 요청이 먼저 적었으면 그쪽이 적은 값을 돌려준다', async () => {
+    // given — 조건부 UPDATE가 아무 행도 바꾸지 못했다
+    const winner = buildExistingUser({
+      trialEndsAt: new Date('2026-09-12T19:00:00.000Z'),
+    });
+    userRepository.setTrialEndsAtIfAbsent.mockResolvedValue(false);
+    userRepository.findById.mockResolvedValue(winner);
+
+    // when
+    const user = await buildService(ON).grantExistingUserTrial(
+      buildExistingUser(),
+      NOW,
+    );
+
+    // then
+    expect(user).toBe(winner);
+  });
+
+  it('적는 데 실패해도 던지지 않는다 — 프로모션 지급이 앱 시작을 막지 않는다', async () => {
+    // given
+    userRepository.setTrialEndsAtIfAbsent.mockRejectedValue(
+      new Error('db down'),
+    );
+
+    // when
+    const user = await buildService(ON).grantExistingUserTrial(
+      buildExistingUser(),
+      NOW,
+    );
+
+    // then — 체험 없이 그대로 진행하고, 다음에 앱을 열 때 다시 시도된다
+    expect(user.trialEndsAt).toBeNull();
   });
 });
