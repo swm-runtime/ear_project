@@ -173,7 +173,7 @@ users
   profile_image_url         varchar(2048)   NULL 허용 — 제공자 프로필 사진 URL. 파일이 아니라 제공자 CDN 주소만 보관하며 로그인마다 제공자 값으로 덮어쓴다(auth.md 4.1). 애플은 항상 NULL (도입 2026-09-16 — profile.md 미결 확정)
   role                      enum            user | admin          DEFAULT 'user'
   tier                      enum            light | daily | pro   DEFAULT 'light'   ★캐시
-  trial_ends_at             timestamptz     NULL   가입 체험이 끝나는 시각. 가입 시 한 번만 쓴다. NULL = 체험을 받지 않은 계정 (도입 2026-10-03 — `subscription.md` 4.8)
+  trial_ends_at             timestamptz     NULL   가입 체험이 끝나는 시각. 한 번만 쓴다(가입 시, 또는 도입 전 가입자가 처음 앱을 열 때). NULL = 체험을 받지 않은 계정 (도입 2026-10-03 — `subscription.md` 4.8)
   status                    enum            active | withdrawn    DEFAULT 'active'   ※ 아래 주석
   onboarding_completed      boolean         DEFAULT false
   onboarding_step           enum            topic | career | pick | done   DEFAULT 'topic'
@@ -189,7 +189,7 @@ idx_users_status
 
 - **`tier`는 비정규화 캐시다** (A-3). 진실의 원천은 `subscriptions`이며, 갱신 경로는 `SubscriptionService` **한 곳으로만** 제한한다. 다른 모듈이 직접 `UPDATE`하지 않는다.
 - `entitlements_cache`는 두지 않는다. 캐시가 두 겹이면 반드시 어긋난다. 권한은 `plans`에서 매번 조립한다.
-- **`trial_ends_at`은 가입 체험의 유일한 저장값이다**(마이그레이션 `1788400000000-AddSignupTrial`). 가입 트랜잭션에서 한 번 쓰고 이후 고치지 않는다 — 스위치(`SIGNUP_TRIAL_ENABLED`)를 꺼도 이미 쓴 값은 그대로 유효하다. 값은 가입한 서비스 날짜의 시작 + N일이라 **항상 04:00 KST 경계**다. `tier`는 체험과 무관하게 `light`로 남는다.
+- **`trial_ends_at`은 가입 체험의 유일한 저장값이다**(마이그레이션 `1788400000000-AddSignupTrial`). **한 번만 쓰고 이후 고치지 않는다** — 가입 트랜잭션에서, 또는 체험 도입 전에 가입한 계정이 스위치가 켜진 뒤 처음 앱을 열 때(개정 2026-10-05 — `subscription.md` 4.8 "기존 가입자"). 뒤쪽은 **비어 있을 때만 쓰는 조건부 UPDATE**라 동시에 두 요청이 와도 한 값만 남는다. 스위치(`SIGNUP_TRIAL_ENABLED`)를 꺼도 이미 쓴 값은 그대로 유효하다. 값은 기산일(가입일 또는 앱을 연 날)의 서비스 날짜 시작 + N일이라 **항상 04:00 KST 경계**다. `tier`는 체험과 무관하게 `light`로 남는다.
 - `daily_play_count` · `count_reset_at`은 **없다** (A-2). `play_records` 집계로만 판정한다.
 - 커리어 3개 필드는 전부 선택 입력이므로 `users`에 병합한다 (C-2). 별도 `user_careers` 테이블을 만들지 않는다.
 - **`nickname`은 NULL을 허용한다.** 제공자가 닉네임을 주지 않는 경우가 있고, 값은 **온보딩의 닉네임 입력 단계에서 채운다.** 기본 문자열을 넣어 두면 "아직 정하지 않았다"와 "사용자가 그 값으로 정했다"가 구분되지 않는다. 온보딩 완료(`onboarding_completed = true`) 시점에는 값이 있어야 하며, 그 보장은 온보딩 처리에서 한다. *(온보딩 단계 enum에 닉네임 단계를 어떻게 넣을지는 화면 확정 후 갱신한다)*

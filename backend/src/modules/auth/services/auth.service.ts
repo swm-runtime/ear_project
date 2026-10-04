@@ -90,10 +90,13 @@ export class AuthService {
     }
 
     // 프로필 사진은 제공자 값이 진실이다 — 로그인마다 최신 URL로 맞춘다 (auth.md 4.1)
-    const user = await this.userService.syncProfileImageUrl(
+    const synced = await this.userService.syncProfileImageUrl(
       existing,
       profile.profileImageUrl,
     );
+    // 로그아웃·재설치 뒤 돌아온 기존 가입자 — 로그인 응답의 `user.tier`에 체험이 바로 실리게 여기서 준다
+    // (세션 복원 `GET /users/me`와 같은 지급. subscription.md 4.8)
+    const user = await this.userService.grantExistingUserTrial(synced, now);
 
     const tokens = await this.issueSession(user, command.deviceId, now);
     this.logger.log('social login succeeded', {
