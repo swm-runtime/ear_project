@@ -9,11 +9,11 @@
 | 발행 날짜 | 2026-10-05 |
 | 시작 날짜 | 2026-10-05 |
 | 기한 | 2026-10-08 (Medium — 3일 안) |
-| 선행 | 티켓 없음. **백엔드 PR `feat(be)/signup-trial-existing-users`의 dev 머지**(티켓 아님 — 상태: PR 작성됨, 머지 대기). 머지돼야 개발계에서 기존 계정에 `plan.trial`이 내려온다 |
+| 선행 | 티켓 없음. **백엔드 PR `feat(be)/signup-trial-existing-users`의 dev 머지**(티켓 아님 — 상태: #1124 dev 머지 완료 2026-10-05). 머지돼야 개발계에서 기존 계정에 `plan.trial`이 내려온다 |
 | Jira | [KAN-121](https://runtime364.atlassian.net/browse/KAN-121) |
 | 근거 문서 | `changes/archive/signup-trial-existing-users(be).md`(기존 가입자 규칙) · `features/subscription.md` 4.8 · `tickets/frontend/archive/signup-trial-notice.md`(KAN-119 — 팝업 원 티켓) |
 | 중요도 | Medium — 이 티켓이 반영된 앱이 나가야 운영 스위치를 켤 수 있다. 먼저 켜면 기존 가입자는 안내 없이 7일이 시작된다 |
-| 상태 | 대기 |
+| 상태 | 완료 (반영 2026-10-05, PR #1126) |
 
 ## 배경
 
@@ -48,3 +48,21 @@ KAN-119로 만든 팝업(P11)은 **온보딩을 막 끝낸 진입에서만** 열
 - Given 스위치가 켜진 환경에서 새로 가입 / When 온보딩을 마친다 / Then 종전처럼 팝업이 한 번 뜬다(순서 유지)
 - Given `plan.trial`이 `null`인 계정 / When 앱을 연다 / Then 팝업이 뜨지 않는다
 - Given `profile-uiux.md` 4.11 / When 읽는다 / Then 기존 가입자에게 뜨는 조건과 확정 문구가 적혀 있다
+
+## 처리 기록
+
+- 2026-10-05 발행(박준현). Jira KAN-121(이주호, Medium, 기한 10-08). 선행인 백엔드 PR #1124(`feat(be)/signup-trial-existing-users`)는 2026-10-05 01:22 KST dev 머지 — 이 PR이 그 뒤 dev를 합쳐 티켓을 옮겼다.
+- **반영 날짜: 2026-10-05** — PR #1126(`feat(fe)/signup-trial-notice-existing-users` → dev).
+  - **여는 조건**: `useSignupTrialNotice`에서 `justCompletedOnboarding` 조건을 걷어냈다. 이제 **`plan.trial !== null` + 이 계정 id가 기기 기록(`SIGNUP_TRIAL_NOTICE_SEEN`)과 다르다** 하나다. 저장 키·값(계정 id)은 KAN-119 그대로라 그때 본 계정은 다시 뜨지 않는다. `user.tier`로 가르지 않는다.
+  - **조회**: 안 본 계정만 Main 진입마다 프로필 요약을 한 번 받는다(본 계정은 서버도 부르지 않는다). 쿼리에 `gcTime: 0` — Main을 떠나면(로그아웃·계정 전환) 버려 다른 계정에 앞 계정 날짜가 뜨지 않는다. 실패하면 띄우지 않고 기록도 하지 않는다.
+  - **순서(FE 결정)**: 신규 가입은 튜토리얼 → 알림 사전 안내 → P11 그대로. 기존 가입자는 앱 시작에 먼저 뜰 수 있는 것 — **권장 업데이트 안내 · 푸시 재생 확인 팝업 · 한도 안내 시트** — 이 모두 없을 때 400ms 뒤 연다. 신호 묶기는 `app/navigation/launch-dialog-gate.ts`(app 층 — profile은 `isReady`만 받는다).
+  - **문구(FE 결정 — 한 벌)**: 본문 첫 문장 "가입을 환영하는 선물이에요" → **"작은 선물을 준비했어요"**. 제목 "N월 N일까지 무제한으로 들을 수 있어요"·`daily_play_limit_after === null` 분기("이후에도 지금처럼 제한 없이 들을 수 있어요.")는 그대로. 진입별로 가르지 않은 이유: 한 문장으로 둘 다 자연스럽고, 가르면 팝업이 어느 진입에서 열렸는지 알아야 한다.
+  - **재설치·새 기기(FE 결정)**: 막지 않는다 — 기기 기록이 없으면 체험 기간 안에 한 번 더 뜬다(같은 날짜를 다시 알릴 뿐). 기기는 마지막으로 본 계정 하나만 기억한다.
+  - 문서: `profile-uiux.md` 2장·4.11·6장, `onboarding-uiux.md` 4.6, `frontend/architecture.md` 4.4 profile 행. `features/subscription.md` 4.8 "안내"의 "앱은 아직 가입 직후에만 띄운다" 문장은 `changes/pending/signup-trial-notice-existing-users(fe).md`로 요청.
+- **완료 조건 확인**
+  - 기존 계정이 앱을 열면 날짜·이후 한도 팝업 1회: 판정 테스트(`signup-trial-notice.service.test.ts` "체험 도입 전 가입자" — 저장소가 빈 계정 + trial 있음 → 띄움) + 순서 테스트(`launch-dialog-gate.test.ts` — 앞 팝업이 없으면 열림) + 카피 테스트(`profile.copy.test.ts`). 훅에서 온보딩 직후 조건이 빠진 것은 코드 확인. **스위치·경계 날짜를 켠 개발계 실기기 확인은 사람 손으로 남는다.**
+  - 닫은 계정은 다시 안 뜸: 판정 테스트(같은 계정 id면 안 띄움 · KAN-119 때 기록된 id 왕복) — 닫기(확인·딤·뒤로가기)가 계정 id를 기록하는 경로는 KAN-119 그대로.
+  - 새 가입 순서 유지: `launch-dialog-gate.test.ts`(튜토리얼·알림 안내가 남아 있으면 기다림) + MainNavigator가 두 신호를 그대로 넘긴다(코드 확인). 튜토리얼·알림 안내 신호는 Main 마운트 전에 세워진다(`CompleteScreen`·`useCompleteScreen`).
+  - `plan.trial = null`이면 안 뜸: 판정 테스트(trial null → 안 띄움, 기록도 안 함).
+  - `profile-uiux.md` 4.11에 기존 가입자 조건·확정 문구: 기재(위 문서 목록).
+  - 검사: `tsc --noEmit` · `eslint src` · `jest`(36 suites / 230 tests) 통과, PR 체크 통과.
