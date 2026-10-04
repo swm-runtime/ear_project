@@ -32,7 +32,7 @@ npm run build    # out/ 에 정적 파일 생성 (prebuild가 og:image를 먼저
 | 경로 | 내용 |
 |---|---|
 | `/contents/<id>/` | 앱 공유 링크 수신 — 앱 열기 버튼과 스토어 버튼(`src/app/contents/`) |
-| `/app/` | **앱 받기 링크** — 휴대폰이면 기기에 맞는 스토어로 바로 이동(아이폰 → App Store, 안드로이드 → Google Play), PC 는 두 스토어 버튼. 인스타그램 프로필처럼 링크를 하나만 걸 수 있는 곳에 쓴다(2026-10-04). `?src=ig_bio` 처럼 출처를 붙이면 Google Play 는 UTM 으로 넘겨 Play Console 획득 보고서에 잡히고, App Store 는 제공자 토큰(`AppStoreRedirect.tsx`의 `APP_STORE_PROVIDER_TOKEN`)을 채운 뒤부터 캠페인 링크로 넘어간다. 출처 값은 소문자·숫자·`_`·`-` 40자까지 |
+| `/app/` | **앱 받기 링크** — 휴대폰이면 기기에 맞는 스토어로 바로 이동(아이폰 → App Store, 안드로이드 → Google Play), PC 는 두 스토어 버튼. 인스타그램 프로필처럼 링크를 하나만 걸 수 있는 곳에 쓴다(2026-10-04). `?src=ig_bio` 처럼 출처를 붙이면 Google Play 는 UTM 으로 넘겨 Play Console 획득 보고서에 잡히고, App Store 는 제공자 토큰(`AppStoreRedirect.tsx`의 `APP_STORE_PROVIDER_TOKEN`, 2026-10-04 등록)으로 캠페인 링크(`pt`·`ct`)로 넘겨 App Store Connect 앱 분석 → 획득 → 캠페인에 잡힌다(앱 개발자와 데이터 공유에 동의한 사용자만). 출처 값은 소문자·숫자·`_`·`-` 40자까지 |
 
 두 주소 모두 `noindex`이고 `routes.ts`에 넣지 않는다 — 내비·사이트맵에 나올 페이지가 아니다.
 
