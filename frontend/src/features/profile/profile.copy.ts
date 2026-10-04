@@ -98,15 +98,16 @@ export const PROFILE_COPY = {
   },
 
   /**
-   * P11 가입 체험 안내 팝업 — 가입(온보딩)을 마친 직후 한 번(profile-uiux.md 4.11).
+   * P11 가입 체험 안내 팝업 — 체험을 받은 계정에 한 번(profile-uiux.md 4.11). 신규 가입자(온보딩 직후)와
+   * 체험 도입 전 가입자(앱 시작)가 **같은 문구**를 본다 — 몇 달 전 가입한 사람에게 "가입을 환영"은 맞지 않아(KAN-121) 가입을 말하지 않는다.
    * 이후 한도 N은 서버 daily_play_limit_after — 2를 하드코딩하지 않는다. null이면 체험 뒤에도 무제한
    */
   signupTrialNotice: {
     title: (lastFreeDate: string) => `${dateOnlyMonthDay(lastFreeDate)}까지 무제한으로 들을 수 있어요`,
     body: (dailyPlayLimitAfter: number | null) =>
       dailyPlayLimitAfter === null
-        ? '가입을 환영하는 선물이에요. 이후에도 지금처럼 제한 없이 들을 수 있어요.'
-        : `가입을 환영하는 선물이에요. 이후에는 하루 ${dailyPlayLimitAfter}편씩 들을 수 있어요.`,
+        ? '작은 선물을 준비했어요. 이후에도 지금처럼 제한 없이 들을 수 있어요.'
+        : `작은 선물을 준비했어요. 이후에는 하루 ${dailyPlayLimitAfter}편씩 들을 수 있어요.`,
     confirm: '확인',
   },
 
