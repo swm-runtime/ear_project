@@ -11,7 +11,7 @@
 | 기한 | 2026-10-08 (Medium — 3일 안) |
 | 선행 | 티켓 없음. **백엔드 PR `feat(be)/signup-trial-existing-users`의 dev 머지**(티켓 아님 — 상태: PR 작성됨, 머지 대기). 머지돼야 개발계에서 기존 계정에 `plan.trial`이 내려온다 |
 | Jira | [KAN-121](https://runtime364.atlassian.net/browse/KAN-121) |
-| 근거 문서 | `changes/pending/signup-trial-existing-users(be).md`(기존 가입자 규칙) · `features/subscription.md` 4.8 · `tickets/frontend/archive/signup-trial-notice.md`(KAN-119 — 팝업 원 티켓) |
+| 근거 문서 | `changes/archive/signup-trial-existing-users(be).md`(기존 가입자 규칙) · `features/subscription.md` 4.8 · `tickets/frontend/archive/signup-trial-notice.md`(KAN-119 — 팝업 원 티켓) |
 | 중요도 | Medium — 이 티켓이 반영된 앱이 나가야 운영 스위치를 켤 수 있다. 먼저 켜면 기존 가입자는 안내 없이 7일이 시작된다 |
 | 상태 | 대기 |
 

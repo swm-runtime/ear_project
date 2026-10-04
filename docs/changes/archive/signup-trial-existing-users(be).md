@@ -54,3 +54,12 @@
 - Given 경계 날짜가 비어 있거나 스위치가 꺼져 있다 / When 기존 가입자가 앱을 연다 / Then 지급되지 않는다
 - Given 경계 날짜 이후에 가입한 계정 / When 앱을 연다 / Then 이 경로로는 지급되지 않는다
 - Given 위 문서들 / When 읽는다 / Then 기존 가입자 규칙과 env 키가 코드와 같다
+
+## 처리 기록
+
+- 반영 날짜: 2026-10-05 (코드와 같은 PR — #1124 `feat(be)/signup-trial-existing-users`)
+- `features/subscription.md` 4.8 — "대상" 개정 · "기존 가입자" 항목 신설 · "안내" 개정(앱은 아직 가입 직후에만 띄운다는 현재 상태와 KAN-121 연결을 함께 적음)
+- `backend/domain.md` 3.1 — `trial_ends_at` 컬럼 설명·주석(쓰는 시점 두 곳, 조건부 UPDATE)
+- `spec/api/auth-api.md` 4.13 — `GET /users/me`가 쓰기를 일으키는 예외와 실패 시 동작
+- `features/README.md` 결정 #55 · `infra/runbook.md` 4장 스위치 설명(`SIGNUP_TRIAL_EXISTING_USERS_BEFORE`, 켜는 순서)
+- 반영하지 않은 것: `spec/uiux/profile-uiux.md` 4.11의 "온보딩을 막 끝낸 진입에서만" — FE 소유 문서라 KAN-121에서 FE가 고친다
