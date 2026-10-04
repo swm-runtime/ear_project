@@ -27,6 +27,15 @@ npm run build    # out/ 에 정적 파일 생성 (prebuild가 og:image를 먼저
 | `/faq/` | 주제별 전체 FAQ. FAQPage 구조화 데이터는 **이 페이지만** 내보낸다 |
 | `/privacy/`, `/terms/` | 개인정보 처리방침·이용약관 |
 
+### 사이트맵 밖의 주소
+
+| 경로 | 내용 |
+|---|---|
+| `/contents/<id>/` | 앱 공유 링크 수신 — 앱 열기 버튼과 스토어 버튼(`src/app/contents/`) |
+| `/app/` | **앱 받기 링크** — 휴대폰이면 기기에 맞는 스토어로 바로 이동(아이폰 → App Store, 안드로이드 → Google Play), PC 는 두 스토어 버튼. 인스타그램 프로필처럼 링크를 하나만 걸 수 있는 곳에 쓴다(2026-10-04). `?src=ig_bio` 처럼 출처를 붙이면 Google Play 는 UTM 으로 넘겨 Play Console 획득 보고서에 잡히고, App Store 는 제공자 토큰(`AppStoreRedirect.tsx`의 `APP_STORE_PROVIDER_TOKEN`)을 채운 뒤부터 캠페인 링크로 넘어간다. 출처 값은 소문자·숫자·`_`·`-` 40자까지 |
+
+두 주소 모두 `noindex`이고 `routes.ts`에 넣지 않는다 — 내비·사이트맵에 나올 페이지가 아니다.
+
 **중복 콘텐츠를 만들지 않는 것이 규칙이다.** 홈에도 기능·요금제·FAQ가 나오지만 전부 짧은 판본이고, 전용 페이지는 문장 자체가 다르다(`features[].body` vs `features[].detail`). 같은 문단을 두 주소에 그대로 실으면 어느 쪽을 대표로 볼지 흔들린다.
 
 페이지를 추가할 때는 **`src/content/routes.ts`에만 넣으면 된다.** 내비게이션·바닥글·사이트맵·breadcrumb이 전부 거기서 나온다.
