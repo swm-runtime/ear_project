@@ -17,10 +17,10 @@ import { androidStoreUrl, iosStoreUrl } from "@/content/site";
  * - Google Play: `referrer`에 UTM(`utm_source=<src>`)을 실어 Play Console 획득 보고서에서 출처별로 본다.
  * - App Store: 캠페인 링크(`pt`=제공자 토큰, `ct`=<src>)여야 App Store Connect 앱 분석에 잡힌다.
  *   제공자 토큰은 App Store Connect → 앱 분석 → 획득 → 캠페인 → "캠페인 링크 생성"에서 확인한다.
- *   **비어 있는 동안에는 출처 없이 일반 링크로 보낸다**(값을 지어내지 않는다).
+ *   토큰은 계정(팀) 단위 값이라 모든 캠페인에서 같고, 공개 링크에 그대로 실리는 값이다(2026-10-04 등록).
  * 허용하지 않는 문자가 섞인 출처는 버린다 — 스토어 주소에 그대로 이어 붙이는 값이라서다.
  */
-const APP_STORE_PROVIDER_TOKEN: string | null = null;
+const APP_STORE_PROVIDER_TOKEN: string | null = "129359203";
 
 const SOURCE_PATTERN = /^[a-z0-9_-]{1,40}$/;
 
