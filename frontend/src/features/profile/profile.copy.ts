@@ -3,6 +3,8 @@
  * 내부 용어("티어"·"라이트"·"완청"·"서비스 날짜" 등)를 노출하지 않는다 — 플랜은 plan_name 표시명만 쓴다.
  * 숫자·상태 판정은 profile.format.ts가 하고 여기는 문장 조립만 한다.
  */
+import { toDateOnlyMonthDay } from '@/shared/lib/date-only';
+
 import type { SocialProvider } from '@/features/auth';
 
 import {
@@ -30,6 +32,12 @@ const PROVIDER_NAMES: Record<SocialProvider, string> = {
 
 const monthDay = (iso: string): string => {
   const { month, day } = toMonthDayParts(iso);
+  return `${month}월 ${day}일`;
+};
+
+/** 서버가 판정한 날짜(YYYY-MM-DD) 그대로 "N월 N일" — 시간대를 거치지 않는다(가입 체험 last_free_date) */
+const dateOnlyMonthDay = (date: string): string => {
+  const { month, day } = toDateOnlyMonthDay(date);
   return `${month}월 ${day}일`;
 };
 
@@ -82,6 +90,24 @@ export const PROFILE_COPY = {
     cancelScheduled: (iso: string) => `${monthDay(iso)}까지 이용 가능`,
     /** 결제 문제 — 경고색을 쓰는 유일한 플랜 상태 */
     paymentIssue: '결제에 문제가 있어요',
+    /**
+     * 가입 체험 중인 무료 계정(profile-uiux.md 4.2 — 2026-10-05, KAN-119). 날짜는 서버 last_free_date —
+     * ends_at에서 계산하지 않는다(04시 경계는 서버 몫). 설정 구독 요약도 같은 문자열이다(settings-uiux.md 6장)
+     */
+    trial: (lastFreeDate: string) => `무료 체험 중 · ${dateOnlyMonthDay(lastFreeDate)}까지 무제한`,
+  },
+
+  /**
+   * P11 가입 체험 안내 팝업 — 가입(온보딩)을 마친 직후 한 번(profile-uiux.md 4.11).
+   * 이후 한도 N은 서버 daily_play_limit_after — 2를 하드코딩하지 않는다. null이면 체험 뒤에도 무제한
+   */
+  signupTrialNotice: {
+    title: (lastFreeDate: string) => `${dateOnlyMonthDay(lastFreeDate)}까지 무제한으로 들을 수 있어요`,
+    body: (dailyPlayLimitAfter: number | null) =>
+      dailyPlayLimitAfter === null
+        ? '가입을 환영하는 선물이에요. 이후에도 지금처럼 제한 없이 들을 수 있어요.'
+        : `가입을 환영하는 선물이에요. 이후에는 하루 ${dailyPlayLimitAfter}편씩 들을 수 있어요.`,
+    confirm: '확인',
   },
 
   email: {

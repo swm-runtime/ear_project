@@ -32,6 +32,11 @@ export interface SettingsPlan {
   renewsAt: string | null;
   expiresAt: string | null;
   hasPaymentIssue: boolean;
+  /**
+   * 가입 체험의 마지막 무제한 날(YYYY-MM-DD) — `plan.trial.last_free_date`. null이면 체험 중이 아니다.
+   * 요약 카드는 날짜만 그린다(이후 한도는 프로필·가입 직후 팝업 몫 — profile-uiux.md 4.2·4.11)
+   */
+  trialLastFreeDate: string | null;
 }
 
 export interface SettingsTopic {

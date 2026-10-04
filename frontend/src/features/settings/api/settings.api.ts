@@ -64,6 +64,8 @@ const toSettingsSummary = (dto: SettingsSummaryResponseDto): SettingsSummary => 
           renewsAt: dto.plan.renews_at,
           expiresAt: dto.plan.expires_at,
           hasPaymentIssue: dto.plan.has_payment_issue,
+          // 필드가 없으면(운영 반영 전 서버) 체험 아님으로 읽는다
+          trialLastFreeDate: dto.plan.trial?.last_free_date ?? null,
         },
   interestSummary:
     dto.interest_summary === null
