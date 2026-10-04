@@ -37,11 +37,15 @@ export interface ConfirmDialogProps {
    * 의도 없는 탭으로 닫히면 어느 쪽을 고른 것인지 알 수 없다(career-uiux.md 4.6). 뒤로가기는 언제나 `onCloseRequest`
    */
   dismissOnBackdrop?: boolean;
-  /** 왼쪽 보조 액션([닫기]·[취소]) */
-  secondaryAction: DialogAction;
+  /**
+   * 왼쪽 보조 액션([닫기]·[취소]). **알리기만 하는 팝업은 생략한다** — 그때는 주 액션 하나가 버튼 줄을 채운다
+   * (HIG Alerts: 정보 전달 알림은 버튼 하나. 가입 체험 안내 P11 — profile-uiux.md 4.11). 고를 것이 없는데 [취소]를
+   * 세우면 "무엇을 취소하나"로 읽힌다
+   */
+  secondaryAction?: DialogAction;
   /** 오른쪽 주 액션 — 주 액션은 오른쪽에 둔다(settings-uiux.md 5장 규칙과 같다) */
   primaryAction: DialogAction;
-  /** 딤 탭·뒤로가기는 보조 액션과 같게 취급한다 */
+  /** 딤 탭·뒤로가기는 보조 액션과 같게 취급한다(보조 액션이 없으면 주 액션과 같게) */
   onCloseRequest: () => void;
 }
 
@@ -67,7 +71,7 @@ export default function ConfirmDialog({
 }: ConfirmDialogProps) {
   const isDestructive = primaryAction.isDestructive ?? false;
   const secondaryDisabled =
-    (secondaryAction.disabled ?? false) || (secondaryAction.isBusy ?? false);
+    (secondaryAction?.disabled ?? false) || (secondaryAction?.isBusy ?? false);
   const primaryDisabled = (primaryAction.disabled ?? false) || (primaryAction.isBusy ?? false);
   const centered = icon !== undefined;
   return (
@@ -92,24 +96,26 @@ export default function ConfirmDialog({
             ) : null}
             {children}
             <View style={styles.actions}>
-              <Pressable
-                style={[
-                  styles.button,
-                  styles.secondaryButton,
-                  secondaryDisabled && styles.buttonDisabled,
-                ]}
-                onPress={secondaryAction.onPress}
-                disabled={secondaryDisabled}
-                accessibilityRole="button"
-                accessibilityLabel={secondaryAction.label}
-                accessibilityState={{ disabled: secondaryDisabled }}
-              >
-                {secondaryAction.isBusy ? (
-                  <ActivityIndicator color={theme.color.textPrimary} />
-                ) : (
-                  <Text style={styles.secondaryLabel}>{secondaryAction.label}</Text>
-                )}
-              </Pressable>
+              {secondaryAction === undefined ? null : (
+                <Pressable
+                  style={[
+                    styles.button,
+                    styles.secondaryButton,
+                    secondaryDisabled && styles.buttonDisabled,
+                  ]}
+                  onPress={secondaryAction.onPress}
+                  disabled={secondaryDisabled}
+                  accessibilityRole="button"
+                  accessibilityLabel={secondaryAction.label}
+                  accessibilityState={{ disabled: secondaryDisabled }}
+                >
+                  {secondaryAction.isBusy ? (
+                    <ActivityIndicator color={theme.color.textPrimary} />
+                  ) : (
+                    <Text style={styles.secondaryLabel}>{secondaryAction.label}</Text>
+                  )}
+                </Pressable>
+              )}
               <Pressable
                 style={[
                   styles.button,

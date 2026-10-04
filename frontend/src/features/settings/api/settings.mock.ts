@@ -5,6 +5,7 @@
  * 시나리오 전환(EXPO_PUBLIC_SETTINGS_MOCK_SCENARIO):
  * - (기본)               구독 중·인증 이메일 — S1
  * - free                 무료 플랜(daily_play_limit 3 — 2가 아닌 값으로 하드코딩을 탐지한다) — S2 구독 요약
+ * - trial                가입 체험 중인 무료 계정(plan.trial — 이후 한도 3으로 하드코딩을 탐지한다) — S2 구독 요약
  * - email-unregistered   email null — S2 계정 섹션
  * - email-unverified     주소 있음 + 미인증 배지 — S3
  * - cancel-scheduled     해지 예약(중립 톤)
@@ -113,6 +114,22 @@ const planForScenario = (): SettingsPlanDto => {
         renews_at: null,
         expires_at: null,
         has_payment_issue: false,
+      };
+    case 'trial':
+      // profile-api.md 4.1 "plan.trial" 예시 그대로 — 체험 중이면 tier는 "trial"이지만 화면은 trial 값으로만 가른다
+      return {
+        status: 'free',
+        tier: 'trial',
+        plan_name: '무료 체험',
+        daily_play_limit: null,
+        renews_at: null,
+        expires_at: null,
+        has_payment_issue: false,
+        trial: {
+          ends_at: '2026-10-09T19:00:00.000Z',
+          last_free_date: '2026-10-09',
+          daily_play_limit_after: 3,
+        },
       };
     case 'cancel-scheduled':
       return {

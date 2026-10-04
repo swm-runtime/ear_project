@@ -13,7 +13,7 @@
 | Jira | [KAN-119](https://runtime364.atlassian.net/browse/KAN-119) |
 | 근거 문서 | `features/subscription.md` 4.8(가입 체험 규칙) · `spec/api/profile-api.md` 4.1 "`plan.trial`" · `spec/api/auth-api.md`(`user.tier`) |
 | 중요도 | Medium — 서버는 스위치만 켜면 지급을 시작한다. 안내 화면 없이 켜면 사용자가 체험 중인지·언제 끝나는지 알 수 없다 |
-| 상태 | 대기 |
+| 상태 | 완료 — 2026-10-05 반영(PR #1123) |
 
 ## 배경
 
@@ -72,3 +72,21 @@
 - Given 체험 중인 계정 / When 프로필에 들어간다 / Then 체험 중임과 종료 날짜를 알 수 있다
 - Given `plan.trial`이 `null`인 계정(스위치 꺼짐·체험 종료) / When 가입하거나 프로필에 들어간다 / Then 팝업이 뜨지 않고 프로필은 종전과 같다
 - Given `spec/uiux/` / When 읽는다 / Then 팝업·프로필의 확정 카피가 적혀 있다
+
+## 처리 기록
+
+- 2026-10-03 발행. Jira KAN-119(이주호, Medium, 기한 10-06). 선행인 백엔드 PR #1113(`feat(be)/signup-trial`)은 dev 머지 완료 상태에서 착수.
+- **2026-10-05 반영 완료** — PR #1123(`feat(fe)/signup-trial-notice` → dev).
+  - **팝업(P11)**: `features/profile/components/SignupTrialNotice`(공용 `ConfirmDialog` 의 버튼 하나짜리 변형 — `secondaryAction` 선택화, `design.md` §5). MainNavigator 가 그리고, **온보딩을 막 끝낸 진입에서만** 튜토리얼 → 알림 사전 안내 → 체험 안내 순서로 400ms 뒤 연다. `plan.trial` 은 프로필 요약(`GET /users/me/profile`)에서 받는다.
+  - **"한 번"**: 닫으면(확인·딤·뒤로가기) 계정 id 를 `secureStorage` `SIGNUP_TRIAL_NOTICE_SEEN` 에 적는다 — 재생 확인 팝업 억제(`PLAY_CONFIRM_SUPPRESSED_DATE`)와 같은 저장 방식. 같은 기기에서 다른 계정이 새로 가입하면 그 계정에는 뜬다.
+  - **재로그인·재설치 결정(FE)**: **띄우지 않는다.** 여는 계기가 "온보딩을 막 끝낸 진입"뿐이라서다 — 이 팝업은 가입 환영이고, 체험 중임과 날짜는 프로필 플랜 줄이 늘 보여준다.
+  - **프로필·설정**: 체험 중인 무료 계정은 "무료 체험 중 · N월 N일까지 무제한". 설정 구독 요약도 같은 문자열(settings-uiux.md 6장 "프로필과 완전히 같은 문자열"). 날짜는 `last_free_date` 문자열을 시간대 없이 나눠 적는다(`shared/lib/date-only` — 두 화면 공용). **구독자가 체험 중이면 플랜 줄은 구독 문구 그대로**(FE 결정).
+  - DTO 의 `trial` 은 선택 필드로 받는다 — 운영 서버가 아직 안 보내도 null 로 읽혀 화면은 종전과 같다.
+  - 카피 확정: `profile-uiux.md` 4.2·4.11·6·7장, 순서는 `onboarding-uiux.md` 4.6, 설정은 `settings-uiux.md` 4.1·6장.
+- **완료 조건 확인**
+  - 팝업 1회(날짜·이후 한도 포함): 카피 테스트(`profile.copy.test.ts` — 날짜 "10월 9일", 한도 3·null 분기) + 판정 테스트(`signup-trial-notice.service.test.ts` — trial 있음·미확인이면 띄움). **실기기(스위치 켠 개발계)에서 새 가입 확인은 사람 손으로 남는다.**
+  - 닫은 계정은 다시 안 뜸: 판정 테스트(같은 계정 id 면 안 띄움) + 기기 기록 왕복 테스트(기록 → 다음 실행 읽기). 재실행 시 `justCompletedOnboarding` 도 false 라 계기 자체가 없다.
+  - 프로필에서 체험 중·종료 날짜: `PROFILE_COPY.plan.trial` 테스트 + `useProfileScreen`/`ProfileHeader` 의 `trialLastFreeDate` 분기(코드 확인, tsc).
+  - `plan.trial = null` 이면 팝업 없음·프로필 종전: 판정 테스트(trial null → 안 띄움) + 변환 테스트(`profile.api.test.ts` — null·필드 없음·plan 부분 실패 → null) → 플랜 줄은 `PROFILE_COPY.plan.free` 그대로.
+  - `spec/uiux/` 확정 카피: `profile-uiux.md` 4.11·6장에 기재.
+  - 검사: `tsc --noEmit` · `eslint src` · `jest`(35 suites / 220 tests) 통과.

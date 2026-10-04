@@ -20,7 +20,10 @@ interface PlanSummaryCardProps {
 const valueText = (vm: PlanRowVM): string => {
   switch (vm.kind) {
     case 'free':
-      return SETTINGS_COPY.plan.free(vm.dailyPlayLimit);
+      // 체험 여부는 서버의 plan.trial로만 본다 — tier === 'trial' 분기 금지(settings-api.md 4.1)
+      return vm.trialLastFreeDate === null
+        ? SETTINGS_COPY.plan.free(vm.dailyPlayLimit)
+        : SETTINGS_COPY.plan.trial(vm.trialLastFreeDate);
     case 'subscribed':
       return vm.renewsAt === null
         ? vm.planName

@@ -40,6 +40,17 @@ export interface ProfilePlan {
   /** cancel_scheduled일 때 이용 종료일 */
   expiresAt: string | null;
   hasPaymentIssue: boolean;
+  /** 가입 체험(subscription.md 4.8). null이면 체험 중이 아니다 — 체험 여부는 tier가 아니라 이 값으로 본다 */
+  trial: PlanTrial | null;
+}
+
+/** 가입 체험 — 서버가 판정한 날짜·한도를 그대로 싣는다(04시 경계 판정은 서버 몫) */
+export interface PlanTrial {
+  endsAt: string;
+  /** "N월 N일까지"의 날짜(YYYY-MM-DD). 무제한으로 들을 수 있는 마지막 날이다 */
+  lastFreeDate: string;
+  /** 체험 뒤 하루 N편의 N — 2를 하드코딩하지 않는다. null = 체험 뒤에도 무제한 */
+  dailyPlayLimitAfter: number | null;
 }
 
 export interface ProfileTopic {

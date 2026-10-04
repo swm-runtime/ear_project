@@ -10,3 +10,5 @@
  */
 export { default as ProfileScreen } from './screens/ProfileScreen';
 export { profileKeys } from './api/profile.api';
+/** P11 가입 체험 안내 팝업 — 온보딩 직후 착지에서 MainNavigator 가 그린다(profile-uiux.md 4.11) */
+export { default as SignupTrialNotice } from './components/SignupTrialNotice';
