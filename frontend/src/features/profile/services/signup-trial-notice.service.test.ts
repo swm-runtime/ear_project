@@ -70,6 +70,35 @@ describe('signup-trial-notice.service', () => {
     });
   });
 
+  describe('체험 도입 전 가입자(KAN-121)', () => {
+    it('앱을 열어 서버가 체험을 줬고 이 기기에서 본 적이 없으면 온보딩 직후가 아니어도 띄운다', async () => {
+      // given — 저장소가 비어 있다(KAN-119 때는 온보딩 직후에만 떠서 기존 가입자는 본 적이 없다)
+      const seenUserId = await readSignupTrialNoticeSeenUserId();
+      // when
+      const shouldShow = shouldShowSignupTrialNotice({ trial: TRIAL, userId: 'old', seenUserId });
+      // then
+      expect(shouldShow).toBe(true);
+    });
+
+    it('KAN-119 때 가입 직후 팝업을 이미 본 계정은 앱을 다시 열어도 띄우지 않는다 — 같은 키에 id가 남아 있다', async () => {
+      // given
+      await markSignupTrialNoticeSeen('u1');
+      // when
+      const seenUserId = await readSignupTrialNoticeSeenUserId();
+      // then
+      expect(shouldShowSignupTrialNotice({ trial: TRIAL, userId: 'u1', seenUserId })).toBe(false);
+    });
+
+    it('체험 조회가 실패해 값이 없으면 띄우지 않고 "봤다"로도 적지 않는다 — 다음 실행에서 다시 판정된다', async () => {
+      // given — 조회 실패는 훅에서 trial 이 null 로 남는다
+      // when
+      const shouldShow = shouldShowSignupTrialNotice({ trial: null, userId: 'old', seenUserId: null });
+      // then
+      expect(shouldShow).toBe(false);
+      expect(mockMemory.has(STORAGE_KEYS.SIGNUP_TRIAL_NOTICE_SEEN)).toBe(false);
+    });
+  });
+
   describe('기기 로컬 기록', () => {
     it('닫으면 계정 id를 기록하고, 다음 실행에서 그 값을 읽는다', async () => {
       // given

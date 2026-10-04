@@ -8,6 +8,7 @@ import { USE_NATIVE_PLAYER_ZOOM } from '@/shared/navigation/zoom-transition';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 import { useWalkthroughStore } from '@/shared/ui/walkthrough.store';
 
+import { useAppUpdateStore } from '@/features/app-update';
 import { EmailVerificationScreen, useSessionStore, WithdrawalScreen } from '@/features/auth';
 import { CareerInfoScreen } from '@/features/career';
 import { ContentDetailScreen } from '@/features/content-detail';
@@ -23,12 +24,13 @@ import {
   useNotificationStore,
 } from '@/features/notification';
 import { FirstRunTutorial } from '@/features/onboarding';
-import { PlayConfirmDialog, PlayerScreen } from '@/features/player';
+import { PlayConfirmDialog, PlayerScreen, useLimitNoticeStore } from '@/features/player';
 import { ProfileScreen, SignupTrialNotice } from '@/features/profile';
 import { SettingsScreen } from '@/features/settings';
 
 import CapsuleTabBar from './CapsuleTabBar';
 import { rememberTab, takePrimedTab, type RestorableTab } from './last-tab';
+import { isSignupTrialNoticeReady } from './launch-dialog-gate';
 import NativeMainTabs from './NativeMainTabs';
 import PlaceholderScreen from './PlaceholderScreen';
 import type { MainStackParamList, MainTabParamList } from './types';
@@ -105,6 +107,16 @@ export default function MainNavigator() {
   const isPrePromptVisible = usePrePromptGate();
   // 탭된 알림의 목적지로 보낸다 — Main 이 떴다는 것이 관문 통과다(notification.md 4.4)
   const pushGate = usePushLinkGate();
+  // 가입 체험 안내(P11)보다 먼저 뜨는 것들 — 하나라도 떠 있으면 P11 은 기다린다(launch-dialog-gate)
+  const isUpdateRecommendVisible = useAppUpdateStore((s) => s.isRecommendVisible);
+  const isLimitNoticeVisible = useLimitNoticeStore((s) => s.isVisible);
+  const isSignupTrialReady = isSignupTrialNoticeReady({
+    isWalkthroughPending,
+    isPrePromptPending,
+    isUpdateRecommendVisible,
+    isPushPlayConfirmVisible: pushGate.confirmState !== null,
+    isLimitNoticeVisible,
+  });
 
   return (
     <>
@@ -192,11 +204,11 @@ export default function MainNavigator() {
       />
 
       {/*
-        가입 체험 안내(P11 — profile-uiux.md 4.11, KAN-119). 튜토리얼 → 알림 사전 안내 → 이 팝업 순서다:
+        가입 체험 안내(P11 — profile-uiux.md 4.11, KAN-119 · KAN-121). 신규 가입은 튜토리얼 → 알림 사전 안내 → 이 팝업 순서다:
         알림 안내는 "매일 아침 도착한다"를 튜토리얼이 막 말한 직후가 가장 설득력 있어(onboarding-uiux.md 4.6) 그 사이에 끼우지 않는다.
-        두 신호가 다 내려가야 열린다 — 모달 둘이 겹치지 않게
+        기존 가입자는 앱 시작에 뜬다 — 권장 업데이트 안내·푸시 재생 확인·한도 안내가 떠 있으면 그 뒤다. 모달 둘이 겹치지 않게
       */}
-      <SignupTrialNotice isReady={!isWalkthroughPending && !isPrePromptPending} />
+      <SignupTrialNotice isReady={isSignupTrialReady} />
 
       {/* 푸시 딥링크 재생의 확인 팝업 — 딥링크도 팝업 규칙의 예외가 아니다(paywall.md 4.2) */}
       <PlayConfirmDialog
