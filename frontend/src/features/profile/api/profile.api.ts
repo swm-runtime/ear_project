@@ -3,8 +3,14 @@ import { queryOptions } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/api-client';
 
 import { IS_PROFILE_API_MOCKED } from '../profile.constants';
-import type { ProfileSummary, TopicDistribution, WeeklyListening } from '../profile.types';
 import type {
+  PlanTrial,
+  ProfileSummary,
+  TopicDistribution,
+  WeeklyListening,
+} from '../profile.types';
+import type {
+  ProfilePlanTrialDto,
   ProfileSummaryResponseDto,
   TopicDistributionDto,
   WeeklyListeningDto,
@@ -20,6 +26,8 @@ export const profileKeys = {
   weeklyAll: () => [...profileKeys.all, 'weekly'] as const,
   /** 주별로 키가 갈린다 — "한 번 받은 주는 재조회하지 않는다"의 캐시 단위(profile-api.md 4.2) */
   weekly: (weekStart: string) => [...profileKeys.weeklyAll(), weekStart] as const,
+  /** 가입 체험 안내 팝업(P11)용 체험 값 — 요약 캐시(gcTime 0)와 키를 가른다. summary() 무효화에 딸려 다시 받지 않는다 */
+  signupTrial: () => [...profileKeys.all, 'signup-trial'] as const,
 };
 
 /* ── 변환 — snake_case ↔ camelCase 변환은 이 모듈 안에서만 일어난다 ── */
@@ -46,6 +54,16 @@ const toWeeklyListening = (dto: WeeklyListeningDto): WeeklyListening => ({
     : {}),
 });
 
+/** 필드가 없으면(운영 반영 전 서버) 체험 아님으로 읽는다 */
+export const toPlanTrial = (dto: ProfilePlanTrialDto | null | undefined): PlanTrial | null =>
+  dto == null
+    ? null
+    : {
+        endsAt: dto.ends_at,
+        lastFreeDate: dto.last_free_date,
+        dailyPlayLimitAfter: dto.daily_play_limit_after,
+      };
+
 const toProfileSummary = (dto: ProfileSummaryResponseDto): ProfileSummary => ({
   user: {
     nickname: dto.user.nickname,
@@ -65,6 +83,7 @@ const toProfileSummary = (dto: ProfileSummaryResponseDto): ProfileSummary => ({
           renewsAt: dto.plan.renews_at,
           expiresAt: dto.plan.expires_at,
           hasPaymentIssue: dto.plan.has_payment_issue,
+          trial: toPlanTrial(dto.plan.trial),
         },
   interestSummary:
     dto.interest_summary === null
@@ -104,6 +123,14 @@ export const fetchProfileSummary = async (): Promise<ProfileSummary> => {
     : (await apiClient.get<ProfileSummaryResponseDto>('/users/me/profile')).data;
   return toProfileSummary(data);
 };
+
+/**
+ * 가입 체험 값만(profile-api.md 4.1 "`plan.trial`") — P11 가입 체험 안내 팝업이 쓴다.
+ * 가입 응답에는 날짜가 없어 세 조회(프로필·설정·구독) 중 하나에서 받는다 — 요약 계약을 그대로 재사용한다.
+ * 플랜 섹션이 부분 실패(plan null)면 체험 아님으로 읽는다 — 팝업은 안 뜨고, 프로필 플랜 줄이 대신 알린다
+ */
+export const fetchSignupTrial = async (): Promise<PlanTrial | null> =>
+  (await fetchProfileSummary()).plan?.trial ?? null;
 
 /**
  * 이전 주차 주간 그래프(profile-api.md 4.2) — [◀ 이전 주] 탐색 시점에만 호출한다.

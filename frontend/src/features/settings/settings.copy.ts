@@ -4,12 +4,20 @@
  * 두 화면이 같은 값을 다른 말로 표시하면 어느 쪽이 맞는지 사용자가 판단하게 된다).
  * 내부 용어("드립"·"티어"·"유예"·"grace")를 노출하지 않는다.
  */
+import { toDateOnlyMonthDay } from '@/shared/lib/date-only';
+
 import { NOTIFICATION_COPY } from '@/features/notification';
 
 import { toMonthDayParts } from './settings.format';
 
 const monthDay = (iso: string): string => {
   const { month, day } = toMonthDayParts(iso);
+  return `${month}월 ${day}일`;
+};
+
+/** 서버가 판정한 날짜(YYYY-MM-DD) 그대로 "N월 N일" — 시간대를 거치지 않는다(가입 체험 last_free_date) */
+const dateOnlyMonthDay = (date: string): string => {
+  const { month, day } = toDateOnlyMonthDay(date);
   return `${month}월 ${day}일`;
 };
 
@@ -59,6 +67,8 @@ export const SETTINGS_COPY = {
     cancelScheduled: (iso: string) => `${monthDay(iso)}까지 이용 가능`,
     /** 결제 문제 — 경고색을 쓰는 유일한 플랜 상태(profile.md 4.2·subscription.md 4.7과 동일) */
     paymentIssue: '결제에 문제가 있어요',
+    /** 가입 체험 중인 무료 계정 — 프로필 플랜 줄과 같은 문자열(settings-uiux.md 6장 · profile-uiux.md 4.2) */
+    trial: (lastFreeDate: string) => `무료 체험 중 · ${dateOnlyMonthDay(lastFreeDate)}까지 무제한`,
     a11y: '구독 관리 열기',
   },
 

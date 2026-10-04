@@ -72,6 +72,7 @@ describe('AuthService', () => {
       getById: jest.fn(() => Promise.resolve(buildUser())),
       createUser: jest.fn(() => Promise.resolve(buildUser())),
       syncProfileImageUrl: jest.fn((user: User) => Promise.resolve(user)),
+      grantExistingUserTrial: jest.fn((user: User) => Promise.resolve(user)),
     } as unknown as jest.Mocked<UserService>;
 
     consentService = {
@@ -181,6 +182,34 @@ describe('AuthService', () => {
         user,
         'https://k.kakaocdn.net/dn/profile.jpg',
       );
+    });
+
+    it('기존 계정 로그인은 체험 도입 전 가입자 지급을 거친 사용자를 돌려준다', async () => {
+      // given — 로그인 응답의 user.tier에 체험이 바로 실려야 한다(subscription.md 4.8)
+      const user = buildUser();
+      const granted = {
+        ...user,
+        trialEndsAt: new Date('2026-10-18T19:00:00.000Z'),
+      } as User;
+      userService.findByProvider.mockResolvedValue(user);
+      userService.grantExistingUserTrial.mockResolvedValue(granted);
+
+      // when
+      const result = await service.socialLogin(
+        {
+          provider: SocialProvider.KAKAO,
+          providerToken: 'token',
+          deviceId: 'device-1',
+        },
+        NOW,
+      );
+
+      // then
+      expect(userService.grantExistingUserTrial).toHaveBeenCalledWith(
+        user,
+        NOW,
+      );
+      expect(result).toMatchObject({ status: 'authenticated', user: granted });
     });
 
     it('가입 시 signup token에 실린 프로필 사진 URL로 계정을 만든다', async () => {

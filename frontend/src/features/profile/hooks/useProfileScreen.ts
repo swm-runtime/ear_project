@@ -28,7 +28,11 @@ export type SectionState<T> = { kind: 'data'; data: T } | { kind: 'error' };
  * 클라이언트가 expires_at과 기기 시각으로 재판정하지 않는다.
  */
 export type PlanCardVM =
-  | { kind: 'free'; dailyPlayLimit: number | null }
+  /**
+   * trialLastFreeDate — 가입 체험 중이면 마지막 무제한 날(YYYY-MM-DD), 아니면 null(subscription.md 4.8).
+   * **무료 상태에만 싣는다** — 구독자가 체험 중이어도 줄은 구독 문구 그대로다(profile-uiux.md 4.2)
+   */
+  | { kind: 'free'; dailyPlayLimit: number | null; trialLastFreeDate: string | null }
   | { kind: 'subscribed'; planName: string; renewsAt: string | null }
   | { kind: 'cancelScheduled'; planName: string; expiresAt: string | null }
   | { kind: 'grace'; planName: string };
@@ -54,7 +58,11 @@ export interface StatsVM {
 const toPlanCardVM = (plan: ProfilePlan): PlanCardVM => {
   switch (plan.status) {
     case 'free':
-      return { kind: 'free', dailyPlayLimit: plan.dailyPlayLimit };
+      return {
+        kind: 'free',
+        dailyPlayLimit: plan.dailyPlayLimit,
+        trialLastFreeDate: plan.trial?.lastFreeDate ?? null,
+      };
     case 'subscribed':
       return { kind: 'subscribed', planName: plan.planName, renewsAt: plan.renewsAt };
     case 'cancel_scheduled':

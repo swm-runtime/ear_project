@@ -49,4 +49,10 @@ export const STORAGE_KEYS = {
    * 앱 버전이 다르면 무시한다(옛 버전의 판정을 새 버전에 쓰지 않는다). 로그아웃과 무관 — 계정이 아니라 빌드의 값
    */
   APP_UPDATE_LAST_VERDICT: 'app_update.last_verdict',
+  /**
+   * 가입 체험 안내 팝업(profile-uiux.md 4.11 P11)을 이미 본 계정의 id — 마지막 한 계정만 둔다.
+   * 서버에는 팝업을 봤는지 기록하는 값이 없다(subscription.md 4.8 — 재생 확인 팝업 억제와 같은 기기 로컬 상태).
+   * 계정 id 로 비교하므로 같은 기기에서 다른 계정이 새로 가입하면 그 계정에는 다시 뜬다. 로그아웃 때 지우지 않는다
+   */
+  SIGNUP_TRIAL_NOTICE_SEEN: 'profile.signup_trial_notice_seen',
 } as const;

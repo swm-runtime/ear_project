@@ -168,6 +168,21 @@ export class EnvironmentVariables {
   SIGNUP_TRIAL_DAYS?: string;
 
   /**
+   * **체험 도입 전에 가입한 계정에게 한 번 주는 체험의 경계**(`subscription.md` 4.8 "기존 가입자").
+   * 이 서비스 날짜(`YYYY-MM-DD`, 04:00 KST 경계)보다 **먼저** 가입했고 체험을 받은 적 없는 계정은, 가입 체험
+   * 스위치가 켜져 있는 동안 **앱을 여는 날** 체험을 받는다. 비우면 기존 가입자에게는 주지 않는다.
+   *
+   * **스위치를 켜는 날의 다음 날짜를 넣는다.** 켠 뒤에 가입하는 계정은 가입 때 받으므로 경계가 늦는 것은
+   * 해가 없고, 이르면 그 사이에 가입한 계정이 어느 쪽에서도 못 받는다. 날짜를 경계로 두는 이유는 스위치를
+   * 껐다 켜는 사이의 가입자까지 쓸려 들어가지 않게 하려는 것이다 — 도입 시점의 한 번이지 상시 규칙이 아니다.
+   */
+  @IsOptional()
+  @Matches(/^$|^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/, {
+    message: 'SIGNUP_TRIAL_EXISTING_USERS_BEFORE must be a date (YYYY-MM-DD)',
+  })
+  SIGNUP_TRIAL_EXISTING_USERS_BEFORE?: string;
+
+  /**
    * App Store 인앱 결제 검증(`subscription-api.md` 7장 — KAN-106). **전부 선택이고, `APP_STORE_BUNDLE_ID`나
    * `APP_STORE_ENVIRONMENTS`가 비면 iOS 결제가 꺼진다**(결제 의도 생성이 `SUBSCRIPTION_PLAN_UNAVAILABLE`로
    * 막힌다 — 결제부터 시키고 검증을 못 하는 상태를 만들지 않는다).

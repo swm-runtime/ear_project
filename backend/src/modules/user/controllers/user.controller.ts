@@ -70,12 +70,18 @@ export class UserController {
   async getMe(
     @CurrentUser() currentUser: AuthenticatedUser,
   ): Promise<GetMeResponseDto> {
-    const user = await this.userService.getById(currentUser.id);
+    const now = new Date();
+    // 앱을 열 때마다 지나는 지점이다 — 체험 도입 전에 가입한 계정은 여기서 한 번 체험을 받는다
+    // (subscription.md 4.8). 조회가 쓰기를 일으키는 예외이고, 받은 뒤로는 쓰지 않는다
+    const user = await this.userService.grantExistingUserTrial(
+      await this.userService.getById(currentUser.id),
+      now,
+    );
 
     return GetMeResponseDto.from(
       user,
       await this.consentService.findPendingConsents(user.id),
-      new Date(),
+      now,
     );
   }
 

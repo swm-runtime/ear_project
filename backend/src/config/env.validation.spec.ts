@@ -203,6 +203,25 @@ describe('validateEnv', () => {
     }
   });
 
+  it('SIGNUP_TRIAL_EXISTING_USERS_BEFORE 는 YYYY-MM-DD 날짜이고 비워도 된다 — 잘못된 값으로 조용히 아무도 못 받지 않게', () => {
+    for (const value of ['2026-10-1', '20261011', 'true', '2026-13-01']) {
+      expect(() =>
+        validateEnv({
+          ...validEnv,
+          SIGNUP_TRIAL_EXISTING_USERS_BEFORE: value,
+        }),
+      ).toThrow(/SIGNUP_TRIAL_EXISTING_USERS_BEFORE/);
+    }
+    for (const value of ['', '2026-10-11']) {
+      expect(() =>
+        validateEnv({
+          ...validEnv,
+          SIGNUP_TRIAL_EXISTING_USERS_BEFORE: value,
+        }),
+      ).not.toThrow();
+    }
+  });
+
   it('CLUSTER_WORKERS 가 auto 또는 1~8 이 아니면 기동을 실패시킨다 — 오타로 조용히 1워커가 되지 않게', () => {
     expect(() => validateEnv({ ...validEnv, CLUSTER_WORKERS: 'two' })).toThrow(
       /CLUSTER_WORKERS/,

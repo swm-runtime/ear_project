@@ -77,7 +77,10 @@ const AVATAR_ICON_SIZE = 36;
 const planText = (vm: PlanCardVM): string => {
   switch (vm.kind) {
     case 'free':
-      return PROFILE_COPY.plan.free(vm.dailyPlayLimit);
+      // 체험 여부는 서버의 plan.trial로만 본다 — tier === 'trial' 분기 금지(profile-api.md 4.1)
+      return vm.trialLastFreeDate === null
+        ? PROFILE_COPY.plan.free(vm.dailyPlayLimit)
+        : PROFILE_COPY.plan.trial(vm.trialLastFreeDate);
     case 'subscribed':
       return vm.renewsAt === null
         ? vm.planName

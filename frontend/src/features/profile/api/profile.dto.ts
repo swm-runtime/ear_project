@@ -27,6 +27,20 @@ export interface ProfilePlanDto {
   renews_at: string | null;
   expires_at: string | null;
   has_payment_issue: boolean;
+  /**
+   * 가입 체험(profile-api.md 4.1 "`plan.trial`", 2026-10-03). 체험 중이 아니면 null.
+   * 선택 필드로 둔다 — 필드를 아직 안 보내는 서버(운영 반영 전)에서는 없을 수 있고, 그때는 null로 읽는다
+   */
+  trial?: ProfilePlanTrialDto | null;
+}
+
+export interface ProfilePlanTrialDto {
+  /** 종료 시각(UTC, 04:00 KST 경계) — 표시에 쓰지 않는다. 날짜는 last_free_date */
+  ends_at: string;
+  /** 무제한으로 들을 수 있는 마지막 서비스 날짜(YYYY-MM-DD) — ends_at에서 계산하지 않는다 */
+  last_free_date: string;
+  /** 체험 뒤 하루 한도. null = 무제한(체험 중인 프로 구독자) */
+  daily_play_limit_after: number | null;
 }
 
 export interface ProfileTopicDto {
