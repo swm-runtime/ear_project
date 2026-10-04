@@ -28,7 +28,7 @@ export default async function BacklogPage({ searchParams }: { searchParams: Prom
   };
   const sb = await supabaseServer();
   const [{ data: rows }, { data: eps }, { data: rjobs }] = await Promise.all([
-    sb.from("backlog").select("id,mid_topic,title,target_fit,angle,sources,status,dedup_note,approved_by,approved_at,axis,axis_type,gaps,cluster_version,reinforced_at,reinforce_note").order("id", { ascending: false }),
+    sb.from("backlog").select("id,mid_topic,title,target_fit,angle,sources,status,dedup_note,approved_by,approved_at,axis,axis_type,gaps,cluster_version,reinforced_at,reinforce_note,created_at").order("created_at", { ascending: false }),
     sb.from("episodes").select("id,backlog_id,regression_kind"),
     sb.from("jobs").select("payload").eq("type", "sweep").in("status", ["queued", "claimed", "running"]).eq("payload->>mode", "B"), // 보강 스윕 진행 중 (0019)
   ]);
@@ -36,8 +36,9 @@ export default async function BacklogPage({ searchParams }: { searchParams: Prom
   const epOf = new Map((eps ?? []).map((e) => [e.backlog_id, e.id]));
   // 회귀 세트 실험용(심은 오류본·저품질 앵커)의 백로그 행은 게이트 1 대상이 아니다 — 비평 워커가 요구하는 제목·중분류 자리일 뿐. 여기서는 숨기고 에피소드 목록의 회귀 배지로만 본다 (2026-09-07)
   const experimental = new Set((eps ?? []).filter((e) => e.regression_kind === "planted" || e.regression_kind === "anchor_low").map((e) => e.backlog_id));
-  const idNum = (id: string) => Number(id.replace(/\D/g, "")) || 0; // DB 의 order("id") 는 문자열 정렬이라 C100 이 C99 앞이 아니라 뒤로 간다 — 숫자로 내림차순 (2026-09-10)
-  const filtered = (rows ?? []).filter((r) => !experimental.has(r.id)).filter((r) => !q || `${r.id} ${r.title} ${r.mid_topic} ${r.angle ?? ""}`.toLowerCase().includes(q.toLowerCase())).sort((a, b) => idNum(b.id) - idNum(a.id));
+  // 최신순 (2026-10-03) — 종전 ID 숫자 내림차순(문자열 정렬이면 C100 이 C99 뒤로 가서 2026-09-10 도입)은 C 아닌 ID(시리즈 CS-01·실험 X001)를 숫자만 떼어 맨 아래로 보냈다. 생성 시각이 같으면 ID 숫자로
+  const idNum = (id: string) => Number(id.replace(/\D/g, "")) || 0;
+  const filtered = (rows ?? []).filter((r) => !experimental.has(r.id)).filter((r) => !q || `${r.id} ${r.title} ${r.mid_topic} ${r.angle ?? ""}`.toLowerCase().includes(q.toLowerCase())).sort((a, b) => b.created_at.localeCompare(a.created_at) || idNum(b.id) - idNum(a.id));
 
   return (
     <div>
