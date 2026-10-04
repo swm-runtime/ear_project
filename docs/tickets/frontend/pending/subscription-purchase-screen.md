@@ -80,7 +80,7 @@
 
 - **페이월의 자리는 지금의 한도 안내 시트다**(`paywall.md` 4.5). 플래그가 켜지면 그 시트 아래에 요금제 비교·결제 버튼을 얹는다. 결제 성공 후에는 시트를 닫고 막혔던 콘텐츠(`blocked_content_id`)를 자동 재생한다
 - **다운그레이드는 즉시 바뀌지 않는다.** 스토어가 다음 결제일로 예약하고, 4번의 `pending_plan`(`tier` · `plan_name` · `effective_at`)이 채워진다 — "N월 N일부터 데일리" 같은 안내의 근거다. 업그레이드는 즉시 반영된다
-- **가입 체험과 겹칠 수 있다.** 체험 중인 계정은 `plan.trial`이 채워져 있고 `daily_play_limit`이 `null`이다(`tickets/frontend/pending/signup-trial-notice.md` — KAN-119). 체험 중에도 구독할 수 있고, 그때 `tier`·`plan_name`은 구독 티어가 된다
+- **가입 체험과 겹칠 수 있다.** 체험 중인 계정은 `plan.trial`이 채워져 있고 `daily_play_limit`이 `null`이다(`tickets/frontend/archive/signup-trial-notice.md` — KAN-119). 체험 중에도 구독할 수 있고, 그때 `tier`·`plan_name`은 구독 티어가 된다
 - **스토어 정책상 필수 표기** — 자동 갱신 조건, 갱신 시점, 해지 방법, 가격·기간, 약관·개인정보처리방침 링크(`subscription.md` 5장). 빠지면 심사에서 반려된다
 - **운영 계정 하나가 수동으로 프로다.** 구독 행 없이 `users.tier = pro`로 올려 둔 테스트 계정이 있다. 그 계정으로 샌드박스 결제를 하면 이후 티어가 구독 상태를 따라가 만료 시 무료로 내려간다 — 결제 테스트는 다른 계정으로 한다
 
