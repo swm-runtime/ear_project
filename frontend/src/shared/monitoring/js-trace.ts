@@ -1,5 +1,6 @@
 import { IS_DEV_API } from '@/shared/lib/app-version';
 import { secureStorage } from '@/shared/storage/secure-storage';
+import { STORAGE_KEYS } from '@/shared/storage/storage-keys';
 
 /**
  * **개발계 JS 트레이스** — 화면 전환·플레이어 여닫기·JS 예외를 저장소에 남긴다(2026-09-27 02:21). 플레이어를 여러 번
@@ -7,7 +8,7 @@ import { secureStorage } from '@/shared/storage/secure-storage';
  * 내려간 모양이라 JS 쪽 마지막 발자국이 필요하다. 굳으면 앱을 죽여야 하므로 매 기록마다 저장하고, 다음 실행 때
  * 이전 실행분을 `[prev]` 로 앞에 붙여 설정 > 스택 라우트 줄에 보여 준다. 운영 앱에서는 기록·저장·오류 훅을 모두 끈다.
  */
-const STORAGE_KEY = 'diag.js_trace';
+const STORAGE_KEY = STORAGE_KEYS.DIAG_JS_TRACE;
 const MAX_ENTRIES = 40;
 
 let entries: string[] = [];

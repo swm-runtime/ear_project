@@ -27,6 +27,7 @@ import { FirstRunTutorial } from '@/features/onboarding';
 import { PlayConfirmDialog, PlayerScreen, useLimitNoticeStore } from '@/features/player';
 import { ProfileScreen, SignupTrialNotice } from '@/features/profile';
 import { SettingsScreen } from '@/features/settings';
+import { useShareLinkLanding } from '@/features/share';
 
 import CapsuleTabBar from './CapsuleTabBar';
 import { rememberTab, takePrimedTab, type RestorableTab } from './last-tab';
@@ -107,6 +108,8 @@ export default function MainNavigator() {
   const isPrePromptVisible = usePrePromptGate();
   // 탭된 알림의 목적지로 보낸다 — Main 이 떴다는 것이 관문 통과다(notification.md 4.4)
   const pushGate = usePushLinkGate();
+  // 관문을 통과한 공유 링크 목적지를 상세로 보낸다 — 복원한 탭 위에 얹힌다(share.md 4.3 · splash.md 4 5단계)
+  useShareLinkLanding();
   // 가입 체험 안내(P11)보다 먼저 뜨는 것들 — 하나라도 떠 있으면 P11 은 기다린다(launch-dialog-gate)
   const isUpdateRecommendVisible = useAppUpdateStore((s) => s.isRecommendVisible);
   const isLimitNoticeVisible = useLimitNoticeStore((s) => s.isVisible);

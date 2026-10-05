@@ -15,6 +15,7 @@ import AuthNavigator from './AuthNavigator';
 import { primeTabToRestore } from './last-tab';
 import MainNavigator from './MainNavigator';
 import OnboardingNavigator from './OnboardingNavigator';
+import { selectRootRoute, toShareLinkGate } from './root-route';
 import type { RootStackParamList } from './types';
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
@@ -36,9 +37,6 @@ export default function RootNavigator() {
    * 사용자를 온보딩으로 들여보내면 관심사·커리어를 다 받은 뒤에야 동의를 묻게 된다.
    */
   const hasPendingConsents = useSessionStore((s) => s.pendingConsents.length > 0);
-
-  // 공유 링크 수신(share.md 4.3, P1) — 관문 통과 사용자만 상세로, 아니면 목적지 폐기
-  useShareLinkGate();
 
   /**
    * 최소 노출(4-6) — 판정이 순식간에 끝나도 로고 모션이 끝날 때까지 스플래시를 유지한다. mock 이나
@@ -71,26 +69,36 @@ export default function RootNavigator() {
     void primeTabToRestore().finally(() => setIsTabPrimed(true));
   }, []);
 
-  // 판정 전이거나·로고 모션 전이거나·마지막 탭을 아직 못 읽었으면 스플래시를 유지한다
-  const isGatePending =
-    versionGate === 'pending' || status === 'restoring' || !isMotionDone || !isTabPrimed;
+  // 관문 순서·판정은 root-route 한 곳에 있다 — 공유 링크 게이트가 같은 판정을 본다
+  const route = selectRootRoute({
+    versionGate,
+    sessionStatus: status,
+    hasPendingConsents,
+    isOnboardingCompleted,
+    isMotionDone,
+    isTabPrimed,
+  });
+
+  // 공유 링크 수신(share.md 4.3, P1) — 판정 중에 온 링크는 판정이 끝날 때 한 번 평가한다.
+  // 관문 통과(Main)면 Main 안의 useShareLinkLanding 이 상세로 보내고, 아니면 목적지를 버린다
+  useShareLinkGate(toShareLinkGate(route));
 
   return (
     <RootStack.Navigator screenOptions={{ headerShown: false }}>
-      {versionGate === 'required' ? (
+      {route === 'ForceUpdate' ? (
         // 닫기 불가 — 스택에 이 화면뿐이라 나갈 곳이 없다. 30분 복귀 재검사에서 걸려도 여기로 온다(splash.md 2장)
         <RootStack.Screen
           name="ForceUpdate"
           component={ForceUpdateScreen}
           options={{ gestureEnabled: false }}
         />
-      ) : isGatePending ? (
+      ) : route === 'Splash' ? (
         <RootStack.Screen name="Splash" component={SplashScreen} />
-      ) : status !== 'authenticated' ? (
+      ) : route === 'Auth' ? (
         <RootStack.Screen name="Auth" component={AuthNavigator} />
-      ) : hasPendingConsents ? (
+      ) : route === 'Reconsent' ? (
         <RootStack.Screen name="Reconsent" component={ReconsentScreen} />
-      ) : isOnboardingCompleted ? (
+      ) : route === 'Main' ? (
         <RootStack.Screen name="Main" component={MainNavigator} />
       ) : (
         <RootStack.Screen name="Onboarding" component={OnboardingNavigator} />

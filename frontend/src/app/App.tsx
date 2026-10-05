@@ -6,6 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { trackScreen } from '@/shared/analytics';
 import { AppErrorBoundary, initSentry, wrapWithSentry } from '@/shared/monitoring';
 import { installJsTraceErrorHook, loadJsTrace, traceJs } from '@/shared/monitoring/js-trace';
+import { startKeychainMigration } from '@/shared/storage/keychain-migration';
 import FontProvider from '@/shared/theme/FontProvider';
 import Toast from '@/shared/ui/Toast';
 
@@ -19,6 +20,9 @@ import { queryClient } from './query-client';
 
 // 부트스트랩보다 먼저 — 부트스트랩 안에서 나는 오류도 잡아야 한다
 initSentry();
+// 저장소를 읽는 어떤 코드보다 먼저 — 키체인 항목을 잠금 화면에서도 읽히는 접근성으로 옮긴다(iOS, architecture.md 7.2).
+// 도는 동안 secureStorage 호출은 끝나길 기다린다
+startKeychainMigration();
 // 개발계 JS 트레이스(2026-09-27 — 플레이어 여닫기 벽돌 조사) — 이전 실행분을 옮기고 전역 오류 훅을 건다
 void loadJsTrace();
 installJsTraceErrorHook();

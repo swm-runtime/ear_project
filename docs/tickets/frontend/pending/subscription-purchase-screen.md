@@ -9,7 +9,7 @@
 | 발행 날짜 | 2026-10-04 |
 | 시작 날짜 | 2026-10-04 |
 | 기한 | 2026-10-07 (Medium — 3일 안). **범위가 커서 1단계(iOS)만으로도 3일을 넘길 수 있다** — 넘기면 중요도를 내리지 않고 사유를 처리 기록에 적는다(CLAUDE.md "중요도") |
-| 선행 | **1단계(iOS): 없음** — 서버 운영 배포·설정·App Store 알림 연결이 끝났다(2026-10-02, `v1.1.0+9`). **2단계(Android): 티켓이 아닌 선행** — ① Play Console 구독 상품 2개 생성(담당: 박준현 / 상태: 미완 — 이 티켓 2단계의 "결제 라이브러리가 든 빌드 업로드"가 먼저 있어야 상품 메뉴가 열린다) ② 그 상품 ID를 서버 DB에 등록(담당: 박준현 / 상태: 상품 ID 확정 대기) |
+| 선행 | **1단계(iOS): 없음** — 서버 운영 배포·설정·App Store 알림 연결이 끝났다(2026-10-02, `v1.1.0+9`). **2단계(Android): KAN-130**(`tickets/backend/pending/android-play-subscription-products.md` — 2026-10-05 티켓화, 아래 ①②를 담는다) — ① Play Console 구독 상품 2개 생성(담당: 박준현 / 상태: 미완 — 이 티켓 2단계의 "결제 라이브러리가 든 빌드 업로드"가 먼저 있어야 상품 메뉴가 열린다) ② 그 상품 ID를 서버 DB에 등록(담당: 박준현 / 상태: 상품 ID 확정 대기) |
 | Jira | [KAN-120](https://runtime364.atlassian.net/browse/KAN-120) |
 | 관련 | 백엔드 `tickets/backend/pending/subscription-receipt-verification.md`([KAN-40](https://runtime364.atlassian.net/browse/KAN-40)) · `google-ios-in-app-payment.md`([KAN-106](https://runtime364.atlassian.net/browse/KAN-106)) — 서버 쪽은 이 티켓의 선행이 아니라 **함께 닫히는 짝**이다(실제 결제로 확인해야 서버 티켓도 archive된다) |
 | 근거 문서 | `spec/api/subscription-api.md`(계약 전체 — **이 문서가 기준**) · `features/subscription.md` 4.2~4.7·5장 · `features/paywall.md` 4.5 · `features/common-error-handling.md` 9.10-3 |

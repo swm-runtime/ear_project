@@ -9,5 +9,8 @@ export { shareContent } from './share.service';
 export type { ShareContentInput } from './share.service';
 /** 더보기 시트 경유 공유 전용 — iOS의 Modal dismiss ↔ 시스템 시트 present 경합을 우회한다 */
 export { useDeferredSheetShare } from './hooks/useDeferredSheetShare';
+/** 링크 수신(RootNavigator — 관문 상태와 함께) · 착지(MainNavigator — 관문 통과 목적지를 상세로) */
 export { useShareLinkGate } from './hooks/useShareLinkGate';
+export { useShareLinkLanding } from './hooks/useShareLinkLanding';
+export type { ShareLinkGate } from './store/share-link.store';
 export { default as ShareIcon } from './components/ShareIcon';

@@ -3,7 +3,7 @@
 | 항목 | 값 |
 |---|---|
 | 발행 날짜 | 2026-09-04 |
-| 발행자 | FE (tickets/frontend/pending/share-p1-activation-next-build.md 요청 1·2 처리) |
+| 발행자 | FE (tickets/frontend/archive/share-p1-activation-next-build.md 요청 1·2 처리) |
 | 대상 문서 | `spec/uiux/share-uiux.md` 6장(카피) · 9장(아이콘 미결) |
 | 관련 코드 | `frontend/src/features/share/share.copy.ts` · `share.service.ts`(TODO 주석 제거됨) |
 

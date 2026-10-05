@@ -213,7 +213,7 @@ auth / onboarding / library / explore / content-detail / player / paywall
 
 각 feature는 자기 화면·상태·API 호출의 **소유자**다. 다른 feature가 그 동작을 쓰려면 feature의 공개 API(`index.ts`)를 통한다.
 
-`share`는 전용 화면이 없는 횡단 feature다(`share.md`) — 네 진입점(library·explore·player·content-detail)이 공개 API로 공유를 실행하고, 링크 수신 게이트(`useShareLinkGate`)는 app(RootNavigator)이 배치한다.
+`share`는 전용 화면이 없는 횡단 feature다(`share.md`) — 네 진입점(library·explore·player·content-detail)이 공개 API로 공유를 실행하고, 링크 수신 게이트(`useShareLinkGate`)는 app(RootNavigator)이, 착지(`useShareLinkLanding` — 관문을 통과한 목적지를 상세로 보낸다)는 Main(MainNavigator)이 배치한다.
 
 ### 4.2 디렉터리 구조
 
@@ -276,7 +276,7 @@ feature가 늘어나면 아래 표를 갱신한다. 표에 없는 의존이 코�
 | settings | auth, subscription, notification, interest | 각 도메인 진입점 허브. 요약 invalidate 배선은 profile 행과 동일(`registerInterestSavedListener`) |
 | onboarding | interest, library, notification, auth, career | 주제 목록 조회(`useTopicsQuery` — 같은 계약·같은 캐시 `interestKeys.topics()`) · `TopicChip` 공용 · 저장 시 interest mock 원본 갱신 / 커리어 단계 저장 시 career mock 원본 갱신(`seedCareerMockFromOnboarding`). 직군 목록 공용(`useJobCategoriesQuery` · `careerKeys.jobCategories()`) 완료 — 2026-08-26, 티켓 `onboarding-job-categories-server-list` / 첫 담기 / 알림 권한 / 종료 시 세션 상태 갱신(라이브러리 진입 전환) |
 | notification | player | 푸시 딥링크 → 재생 게이트 |
-| share | auth | 링크 수신 게이트의 관문 판정(`useSessionStore` — 온보딩 완료 사용자만 상세로 이동, `share.md` 4.3). 순환 없음 — share는 네 진입점 feature를 import하지 않는다 |
+| share | (없음) | 링크 수신 게이트는 관문을 직접 판정하지 않는다 — RootNavigator 가 루트 분기(`app/navigation/root-route.ts`)에서 뽑은 관문 상태(`pending`·`open`·`closed`)를 넘긴다(2026-10-05, 종전엔 `useSessionStore` 스냅샷을 읽어 auth 에 의존했다). 순환 없음 — share는 네 진입점 feature를 import하지 않는다 |
 | splash | auth, onboarding | 진입 분기 판정 |
 | app-update | (없음) | 스플래시 버전 관문(`splash.md` 4.1 처리 1단계 — `GET /app/version`, KAN-99 2026-09-26). 판정은 서버, 결과(`useAppUpdateStore.gate`)로 RootNavigator 가 강제 업데이트 화면을 그린다. 30분 복귀 재검사는 `startAppVersionRecheck`(bootstrap). 설정의 배지와 무관 |
 | notice | (없음) | 조회 전용 화면(공지 목록·상세 — `settings.md` 4.5). **settings는 notice를 import하지 않는다** — 라우트 이름(`Notice`·`NoticeDetail`)으로 이동만 하고 화면 등록은 `app/navigation`이 한다(content-detail과 같은 방식) |
@@ -327,6 +327,7 @@ startPlayback(contentId, origin)
 - 토큰은 **SecureStore에만** 저장한다. MMKV·AsyncStorage·전역 변수 금지.
 - **토큰 갱신은 단일 인플라이트로 묶는다.** 동시 다발 401에서 갱신 요청은 1개만 나가고 나머지는 결과를 공유한다(`common-error-handling.md` 7).
 - 401 → 갱신 → 원 요청 자동 1회 재시도. 갱신 실패 시 즉시 로컬 세션 정리 → 시작 화면(재갱신 루프 금지).
+- **iOS 기기 잠금으로 키체인이 막힌 실패는 갱신 실패가 아니다**(2026-10-05 — `tickets/frontend/archive/ios-keychain-locked-logout.md`). 잠금 화면 재생 중 갱신이 refresh token·기기 id 를 못 읽으면 서버를 부르지 않고 판정을 미룬다(`TokenProvider.refreshTokens()` → `deferred`) — 세션을 지우지 않고 원 요청만 실패하며, 자동 재시도는 없다(다음 401 이 다시 갱신한다). 서버가 새 토큰을 줬는데 저장이 잠금에 막히면 메모리 토큰으로 계속 쓰고 **전경이 되면 저장한다** — 서버는 갱신마다 refresh token 을 회전하고 옛 토큰을 폐기하므로, 옛 토큰이 남은 채 끝나면 다음 실행의 갱신이 재사용 탐지로 그 사용자의 전 세션을 폐기한다. 잠금 판정은 `shared/storage/keychain-error.ts` 한 곳(`errSecInteractionNotAllowed`).
 - 로그아웃은 서버 호출 실패와 무관하게 로컬 토큰·캐시 삭제를 우선한다(`auth-api.md` 4.4).
 - ApiClient에는 `TokenProvider` 인터페이스로 주입된다(→ 4.3).
 
@@ -415,6 +416,7 @@ RootStack
 
 1. SplashGate 판정을 먼저 통과한다.
 2. 온보딩 미완료 시 처리는 **출처별로 다르다** — 푸시 딥링크는 보류했다가 완료 후 이동하고(`notification.md` 4.4), **공유 링크는 목적지를 폐기하고 복원하지 않는다**(디퍼드 딥링크 금지 — `share.md` 4.3이 소유). 개정 2026-08-26, `changes/archive/frontend-architecture-share-feature(fe).md`.
+   - **공유 링크는 관문 판정 중에 도착하면 기다렸다가 판정이 끝나는 순간 한 번 평가한다**(2026-10-05 — KAN-34 콜드 스타트 수정). 콜드 스타트의 `getInitialURL()`과 스플래시 도중의 `url` 이벤트는 세션 복원 전에 오므로, 그 자리에서 평가하면 로그인 사용자도 미로그인으로 읽혀 버려졌다. 관문 상태는 RootNavigator 와 같은 판정(`app/navigation/root-route.ts`의 `selectRootRoute`)에서 뽑는다 — 스플래시면 대기, Main 이면 통과, 그 밖(시작 화면·재동의·온보딩·강제 업데이트)이면 폐기. 통과한 목적지는 **Main 안**(`useShareLinkLanding`)에서 상세로 보내므로 `Main` 라우트가 생긴 뒤에만 이동하고, 복원한 탭 위에 얹힌다. 판정은 한 번뿐이라 이후 로그인·온보딩 완료로 되살아나지 않는다.
 3. 콘텐츠 딥링크는 재생 시작 게이트(5.2)를 거친다 — 차단 시 페이월.
 4. 대상이 회수·삭제됐으면 라이브러리로 폴백 + 토스트.
 
@@ -455,6 +457,9 @@ RootStack
 | **MMKV** | Key-Value 플래그·소형 캐시 | 최근 검색어(10건), `blocked_content_id`, 알림 재고 팝업 소진 플래그, 가입 체험 안내 팝업을 본 계정 id(`profile-uiux.md` 4.11 — 지금은 재생 확인 팝업 억제와 같이 `secureStorage`에 둔다, MMKV 도입 시 함께 이관), 온보딩 주제 임시 저장, 버전 캐시, 마지막 목록 1페이지 캐시 |
 
 - 토큰이 SecureStore 밖으로 나가면 리뷰에서 반려한다.
+- **iOS 키체인 접근성은 `AFTER_FIRST_UNLOCK`이다**(2026-10-05, `shared/storage/secure-storage.ts`의 `SECURE_STORE_OPTIONS` — 읽기·쓰기·지우기 모두 같은 값). 기본값 `WHEN_UNLOCKED`는 기기가 잠기면 읽기·쓰기가 전부 실패해, 잠금 화면 재생 중 토큰 갱신이 막혀 로그아웃됐다. 재부팅 뒤 한 번도 잠금을 풀지 않은 상태에서만 막힌다. `THIS_DEVICE_ONLY`는 쓰지 않는다(기기 이전·백업 복원 동작은 종전과 같다). Android는 이 옵션을 무시한다.
+  - **기존 항목은 한 번 이관한다**(`shared/storage/keychain-migration.ts`). 네이티브 `set`은 있는 항목에 값만 갱신하고 접근성은 바꾸지 않아서, 키마다 읽기 → `<키>.migrating` 사본 쓰기 → 지우기 → 다시 쓰기 → 사본 지우기를 한다. 앱 시작 때(`App.tsx` 최상단) **전경일 때만** 돌고, 백그라운드로 떠 있으면 처음 전경이 될 때 돈다. 도는 동안 `secureStorage` 호출은 끝나길 기다린다(지운 틈에 세션 복원이 "토큰 없음"을 읽지 않게). 한 키가 실패하면 그 키는 사본에 남고 완료 표시(`KEYCHAIN_ACCESSIBILITY_VERSION`)를 남기지 않아 다음 실행이 사본으로 되살리며 다시 돈다. 대상은 `STORAGE_KEYS` 전부라 **키를 추가하면 저절로 포함된다** — 키를 `STORAGE_KEYS` 밖에 두지 않는다.
+  - 잠금 화면 경로에서 저장소를 읽는 비필수 기능(재생 확인 억제·회수 동기화 커서·Meta 첫 재생·JS 트레이스 등)은 읽기·쓰기 실패를 삼키고 기본값으로 동작한다 — 던져서 재생을 막지 않는다. 기기 id 는 한 번 읽은 뒤 메모리에 둔다(`shared/lib/device-id.ts`).
 - 캐시는 "없으면 새로 받으면 되는 것"만 MMKV에 둔다. 유실되면 안 되는 것(큐·영수증)은 SQLite다.
 
 ### 7.3 낙관적 UI · 롤백

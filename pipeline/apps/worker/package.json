@@ -7,6 +7,8 @@
     "start": "tsx src/index.ts",
     "assets": "tsx src/cli/assets.ts",
     "storage": "tsx src/cli/storage.ts",
+    "jingle": "tsx src/cli/jingle.ts",
+    "tts:reassemble": "tsx src/cli/reassemble.ts",
     "rev": "tsx src/cli/rev.ts",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test src/**/*.test.ts"
