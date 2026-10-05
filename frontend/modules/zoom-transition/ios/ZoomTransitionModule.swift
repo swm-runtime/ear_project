@@ -56,31 +56,20 @@ public class ZoomTransitionRegistry: NSObject {
     return NSNumber(value: interactiveDismissBlocked)
   }
 
-  /// RNS 패치가 남기는 진단 기록(최근 8건) — 설정 > 스택 라우트 줄에서 읽는다(2026-09-26 21:57: 드래그 닫기 뒤
-  /// 탭 전환 때 플레이어가 번쩍이는데 JS 는 깨끗했다 → 패치가 실제로 돌았는지 기기에서 확인)
-  private static let diagnosticsKey = "ear.zoomTransition.diagnostics"
-  /// 앱을 죽여도 남게 UserDefaults 에 둔다(2026-09-27 01:59 "플레이어가 또 뜨면서 벽돌" — 굳으면 재실행해야 읽을 수 있다).
-  /// 이전 실행분은 "[prev]" 로 앞에 붙여 한 번 보여 주고 이번 실행의 기록으로 덮는다
-  private static var diagnostics: [String] = {
-    let previous = UserDefaults.standard.stringArray(forKey: diagnosticsKey) ?? []
-    UserDefaults.standard.removeObject(forKey: diagnosticsKey)
-    return previous.isEmpty ? [] : ["[prev] " + previous.joined(separator: " > "), "[now]"]
-  }()
-
-  @objc public static func noteDiagnostic(_ note: String) {
-    diagnostics.append(note)
-    if diagnostics.count > 24 { diagnostics.removeFirst(diagnostics.count - 24) }
-    UserDefaults.standard.set(diagnostics, forKey: diagnosticsKey)
-  }
-
-  static func diagnosticsText() -> String {
-    return diagnostics.isEmpty ? "none" : diagnostics.joined(separator: " > ")
+  /// 줌 번쩍임 추적(2026-09-26~27) 때 RNS 패치 진단을 UserDefaults 에 남기던 키. 진단 코드는 걷어냈고(KAN-103, 2026-10-06),
+  /// 이미 설치된 앱에 남은 기록만 지운다 — 없는 키를 지우는 것은 아무 일도 하지 않으므로 매 실행 불러도 된다
+  static func removeStaleDiagnostics() {
+    UserDefaults.standard.removeObject(forKey: "ear.zoomTransition.diagnostics")
   }
 }
 
 public class ZoomTransitionModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ZoomTransition")
+
+    OnCreate {
+      ZoomTransitionRegistry.removeStaleDiagnostics()
+    }
 
     // testID(accessibilityIdentifier)로 **지금 보이는** 뷰를 찾아 등록한다 — 미니플레이어는 시스템 탭 바가 두 배치(regular·inline)를
     // 다 렌더하고 하나만 보이므로 창에 붙어 있고 숨겨지지 않은 것을 고른다. JS 가 ref 를 들고 있지 않아도 된다.
@@ -104,10 +93,6 @@ public class ZoomTransitionModule: Module {
       ZoomTransitionRegistry.setInteractiveDismissBlocked(blocked)
     }
 
-    Function("getDiagnostics") { () -> String in
-      return ZoomTransitionRegistry.diagnosticsText()
-    }
-
     // 줌으로 띄운 모달을 **UIKit 이 먼저** 닫는다(2026-09-27 02:57 실험으로 확정: JS 가 먼저 pop 하면 react-native-screens 가
     // dismiss 전에 화면 뷰를 스냅샷으로 갈아끼우고, 줌 dismiss 는 그 스냅샷 위에서 끝나지 못해 앱이 굳는다). 닫힘이 끝나면
     // RNS 가 viewDidDisappear 에서 JS 에 onDismissed 를 보내 라우트가 pop 되고, 그때 뷰는 이미 창 밖이라 스냅샷을 안 만든다.
@@ -116,7 +101,6 @@ public class ZoomTransitionModule: Module {
     // 프록시 소스로도 닫힌 뒤 탭 전환 잔상이 남아, 줌 dismiss 자체가 남기는 이미지인지 가른다
     AsyncFunction("dismissPresentedScreen") { (mode: String) -> String in
       guard let top = Self.topPresentedViewController(), top.presentingViewController != nil else { return "none" }
-      ZoomTransitionRegistry.noteDiagnostic("native-dismiss:\(mode)")
       if mode == "slide", #available(iOS 18.0, *) { top.preferredTransition = nil }
       // 닫기 **전에** 이 VC 를 감싼 UIKit 래퍼들을 적어 둔다 — 닫히고 나면 `top.view` 가 계층에서 빠져 위로 못 올라간다
       let containers = Self.presentationContainers(of: top)
@@ -130,7 +114,6 @@ public class ZoomTransitionModule: Module {
         // UIKit 이 한 턴 뒤에 놓는 경우가 있어 다음 런루프에 한 번 더 본다(이미 정리됐으면 window 가 nil 이라 건너뛴다)
         DispatchQueue.main.async { Self.discardLeftoverContainers(containers) }
         ZoomTransitionRegistry.markZoomOver()
-        ZoomTransitionRegistry.noteDiagnostic("native-dismiss:done")
       }
       return "dismissed"
     }.runOnQueue(.main)
@@ -171,7 +154,6 @@ public class ZoomTransitionModule: Module {
       if let root = window.rootViewController?.viewIfLoaded, root.isDescendant(of: container) { continue }
       container.isHidden = true
       container.removeFromSuperview()
-      ZoomTransitionRegistry.noteDiagnostic("cleaned:\(String(describing: type(of: container)))")
     }
   }
 

@@ -42,6 +42,12 @@ import type {
   PlayStartResult,
 } from '../player.types';
 import {
+  clearStreamUrl,
+  createStreamUri,
+  hasAudioStreamResolver,
+  setStreamUrl,
+} from './audio-stream';
+import {
   commitListenedDelta,
   createTrackingState,
   markSeek,
@@ -74,6 +80,7 @@ type PlaybackStatusSnapshot = Pick<
   | 'isBuffering'
   | 'isLoaded'
   | 'playbackRate'
+  | 'error'
 >;
 
 export interface PlaybackCallbacks {
@@ -192,6 +199,18 @@ class PlaybackService {
    * SEEK_SETTLE_TIMEOUT_MS 동안은 목표에서 먼 위치 틱을 화면에 올리지 않는다. 트래킹·판정은 보류하지 않는다
    */
   private pendingSeek: { targetSec: number; until: number } | null = null;
+  /**
+   * 지금 플레이어에 준 고정 스트림 주소(`ear-audio://…` — audio-stream.ts). null 이면 서명 URL 을 직접 준
+   * 플레이어다(패치 없는 옛 빌드·표 갱신 실패) — 그 플레이어의 URL 갱신은 종전대로 `replace` 다
+   */
+  private streamUri: string | null = null;
+  /** 고정 스트림 주소의 일련번호 — 플레이어·재발행 교체마다 새 주소를 쓴다 */
+  private streamSequence = 0;
+  /**
+   * 재생 중 네이티브 오류(만료 URL 403 · 오래 끊긴 네트워크)로 멈춘 상태. 이 동안의 URL 갱신은 표만 바꾸지 않고
+   * 음원을 다시 세운다(오류 난 아이템은 되살아나지 않는다). `wasPlaying` 은 [다시 시도] 뒤 이어 재생할지다
+   */
+  private streamError: { wasPlaying: boolean } | null = null;
 
   /* ── 시작 ── */
 
@@ -360,7 +379,7 @@ class PlaybackService {
     generation: number,
   ): void {
     const player = createAudioPlayer(
-      { uri: url },
+      { uri: this.bindStreamSource(this.ctx?.contentId ?? '', url) },
       { updateInterval: PLAYBACK_STATUS_UPDATE_INTERVAL_MS },
     );
     this.player = player;
@@ -378,6 +397,22 @@ class PlaybackService {
     }, PLAYBACK_STATUS_UPDATE_INTERVAL_MS);
   }
 
+  /**
+   * 플레이어에 줄 주소(KAN-124). 패치된 빌드면 고정 스트림 주소를 새로 만들고 서명 URL 은 네이티브 표에만 넣는다 —
+   * 이후 갱신은 표만 바꾸고 음원을 갈아 끼우지 않는다. 옛 빌드(runtime 31)·표 갱신 실패면 서명 URL 을 그대로 준다
+   */
+  private bindStreamSource(contentId: string, url: string): string {
+    const previous = this.streamUri;
+    this.streamUri = null;
+    if (hasAudioStreamResolver()) {
+      this.streamSequence += 1;
+      const streamUri = createStreamUri(contentId, this.streamSequence);
+      if (setStreamUrl(streamUri, url)) this.streamUri = streamUri;
+    }
+    if (previous !== null && previous !== this.streamUri) clearStreamUrl(previous);
+    return this.streamUri ?? url;
+  }
+
   /** 상태 이벤트의 폴링 대역 — didJustFinish는 이벤트 몫이고 끝 도달은 위치 비교가 잡는다 */
   private pollPlayerStatus(): void {
     const player = this.player;
@@ -390,12 +425,19 @@ class PlaybackService {
       isBuffering: player.isBuffering,
       isLoaded: player.isLoaded,
       playbackRate: player.playbackRate,
+      error: null,
     });
   }
 
   private async handleStatus(status: PlaybackStatusSnapshot): Promise<void> {
     const ctx = this.ctx;
     if (!ctx) return;
+
+    // 네이티브 재생 오류 — 상태 이벤트로만 온다(폴링 대역에는 없다)
+    if (status.error) {
+      this.handlePlayerError(status.error);
+      return;
+    }
 
     // 최초 로드 완료 — 저장 위치로 이동 후 재생. 그 전에는 컨트롤이 비활성이다(uiux 4.3)
     if (this.pendingSetup && status.isLoaded) {
@@ -465,6 +507,29 @@ class PlaybackService {
     if (reachedEnd && status.isLoaded) {
       this.handlePlaybackEnded();
     }
+  }
+
+  /**
+   * 네이티브가 올린 재생 오류. 고정 스트림이면 네이티브가 만료 URL(403)·끊긴 네트워크를 이미 재시도한 뒤다
+   * (KAN-124 — architecture.md 5.1). 준비 전이면 로드 실패(PL8), 재생 중이면 일시정지 + "재생할 수 없어요"
+   * 배너와 [다시 시도](uiux 4.9 — URL 갱신 실패와 같은 자리). 자동 재개하지 않는다(PL10 과 같은 수렴 규칙)
+   */
+  private handlePlayerError(message: string): void {
+    const ctx = this.ctx;
+    const session = store.getState().session;
+    if (!ctx || !session) return;
+    // 서명 URL 은 로그에도 남기지 않는다(player-uiux.md — FR-33)
+    logger.warn('[player] playback error', message.replace(/https?:\/\/\S+/g, '<url>'));
+    if (this.pendingSetup) {
+      this.pendingSetup = null;
+      store.getState().patchSession({ state: 'load_failed', isPlaying: false, isBuffering: false });
+      return;
+    }
+    if (session.state !== 'ready' || ctx.isEnded || this.streamError) return;
+    this.streamError = { wasPlaying: session.isPlaying };
+    this.player?.pause();
+    store.getState().patchSession({ isPlaying: false, isBuffering: false, banner: 'refresh_failed' });
+    this.flushProgress('error');
   }
 
   /** `play_progress` 는 이번 세션에 실제로 지나간 구간만 — 시작 위치 이하의 마크를 "이미 보낸 것"으로 둔다 */
@@ -573,6 +638,11 @@ class PlaybackService {
   togglePlayPause(): void {
     const session = store.getState().session;
     if (!session || session.state !== 'ready') return;
+    if (this.streamError && !session.isPlaying) {
+      // 오류 난 아이템은 play 로 되살아나지 않는다 — 음원을 다시 세우고 이어 재생한다
+      void this.refreshAudioUrl(true);
+      return;
+    }
     if (session.isPlaying) {
       this.pause();
     } else {
@@ -806,7 +876,16 @@ class PlaybackService {
     this.refreshTimer = setTimeout(() => void this.refreshAudioUrl(), delayMs);
   }
 
-  private async refreshAudioUrl(): Promise<void> {
+  /**
+   * 서명 URL 갱신(만료 AUDIO_URL_REFRESH_LEAD_SEC 전 — 4분 주기).
+   * - **고정 스트림 플레이어(패치된 빌드)**: 네이티브 표의 URL 만 바꾼다. 음원·버퍼·위치·배속이 그대로라
+   *   갱신 순간에 끊김·인트로 튐이 없다(KAN-124). 다음 바이트 요청부터 새 URL 로 나간다.
+   * - **재발행·옛 빌드(runtime 31)·재생 오류 복구**: 종전대로 음원을 교체한다(`replaceSource`).
+   *
+   * `resumeAfterRecovery` — 재생 오류 상태에서 사용자가 [다시 시도]·▶로 부른 복구면 교체 뒤 재생한다.
+   * 주기 갱신이 오류 상태를 복구할 때는 멈춘 채 둔다(사용자가 ▶를 눌러야 이어진다)
+   */
+  private async refreshAudioUrl(resumeAfterRecovery = false): Promise<void> {
     const ctx = this.ctx;
     if (!ctx || ctx.isRefreshingUrl || !this.player) return;
     ctx.isRefreshingUrl = true;
@@ -834,11 +913,18 @@ class PlaybackService {
         ctx.tracking = createTrackingState(0);
         store.getState().patchSession({ positionSec: 0 });
       }
-      // 재생기 소스 교체 — 갱신 성공 시 화면 변화가 없어야 한다(uiux 4.9)
-      this.player.replace({ uri: issue.audio.url });
-      await this.player.seekTo(positionSec);
-      ctx.tracking = markSeek(ctx.tracking, positionSec);
-      if (wasPlaying) this.player.play();
+      // 갱신 성공 시 화면 변화가 없어야 한다(uiux 4.9)
+      const streamUri = this.streamUri;
+      const isStreamUpdated =
+        !isRepublished &&
+        this.streamError === null &&
+        streamUri !== null &&
+        setStreamUrl(streamUri, issue.audio.url);
+      if (!isStreamUpdated && this.player) {
+        const shouldResume = this.streamError !== null ? resumeAfterRecovery : wasPlaying;
+        this.streamError = null;
+        await this.replaceSource(ctx, this.player, issue.audio.url, positionSec, shouldResume);
+      }
       if (store.getState().session?.banner === 'refresh_failed') {
         store.getState().patchSession({ banner: null });
       }
@@ -859,6 +945,25 @@ class PlaybackService {
   }
 
   /**
+   * 음원 교체 — 재발행·옛 빌드의 주기 갱신·재생 오류 복구에서만 쓴다. 교체하면 버퍼가 버려지고 플레이어가 잠깐
+   * 0초부터 소리를 낼 수 있어(KAN-124 원인) 일반 갱신에서는 부르지 않는다. 교체된 아이템에 배속을 다시 건다 —
+   * iOS 는 새 아이템에 배속 알고리즘이 따라오지 않는다
+   */
+  private async replaceSource(
+    ctx: SessionContext,
+    player: AudioPlayer,
+    url: string,
+    positionSec: number,
+    shouldResume: boolean,
+  ): Promise<void> {
+    player.replace({ uri: this.bindStreamSource(ctx.contentId, url) });
+    player.setPlaybackRate(store.getState().rate, 'high');
+    await player.seekTo(positionSec);
+    ctx.tracking = markSeek(ctx.tracking, positionSec);
+    if (shouldResume) player.play();
+  }
+
+  /**
    * 회수 목록 동기화의 반영(player-api.md 4.6) — 재생 중이던 콘텐츠가 목록에 있으면 멈춘다.
    * 주 채널은 위치 저장(4.3) 응답이고 이쪽은 보완이라, 대개 이미 `withdrawn`이라 할 일이 없다.
    */
@@ -872,7 +977,7 @@ class PlaybackService {
 
   /** 배너 [다시 시도] — 갱신 실패의 수동 재시도. 인플라이트 중 연타는 가드가 무시한다 */
   retryUrlRefresh(): void {
-    void this.refreshAudioUrl();
+    void this.refreshAudioUrl(this.streamError?.wasPlaying ?? false);
   }
 
   /* ── 원문 보기(FR-12) ── */
@@ -977,6 +1082,11 @@ class PlaybackService {
     this.statusSubscription?.remove();
     this.statusSubscription = null;
     this.pendingSetup = null;
+    this.streamError = null;
+    if (this.streamUri !== null) {
+      clearStreamUrl(this.streamUri);
+      this.streamUri = null;
+    }
     if (this.player) {
       try {
         this.player.clearLockScreenControls();
