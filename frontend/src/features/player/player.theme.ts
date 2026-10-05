@@ -25,5 +25,10 @@ export const playerColor = {
   primary: '#FFFFFF',
   onPrimary: '#000000',
   danger: theme.color.danger,
+  /**
+   * 스켈레톤 블록의 면 — 반투명 흰색. 플레이어 바탕은 차콜이거나 흐린 커버라 색이 매번 다르다 —
+   * 불투명 회색(surface)은 밝은 커버 위에서 묻히고 어두운 커버 위에서 덩어리져 보인다(design.md §5 스켈레톤)
+   */
+  skeleton: 'rgba(255, 255, 255, 0.14)',
   overlay: 'rgba(0, 0, 0, 0.6)',
 } as const;

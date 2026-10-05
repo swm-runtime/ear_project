@@ -7,6 +7,7 @@ import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
 import { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
 import GlassIconButton from '@/shared/ui/GlassIconButton';
+import { SkeletonBlock, SkeletonGroup } from '@/shared/ui/Skeleton';
 import { Text, TextInput } from '@/shared/ui/Typography';
 
 import { WITHDRAWAL_REASON_CODES } from '../auth.constants';
@@ -87,10 +88,11 @@ export default function WithdrawalScreen() {
           <ScrollView contentContainerStyle={styles.body}>
             {preview === null ? (
               screen.showSkeleton ? (
-                <>
-                  <View style={styles.skeletonCard} />
-                  <View style={styles.skeletonCard} />
-                </>
+                // body 의 세로 간격을 그대로 이어받는다 — 낭독·반짝임은 영역 하나로
+                <SkeletonGroup style={styles.skeletonArea}>
+                  <SkeletonBlock style={styles.skeletonCard} />
+                  <SkeletonBlock style={styles.skeletonCard} />
+                </SkeletonGroup>
               ) : null
             ) : (
               <>
@@ -387,11 +389,12 @@ const styles = StyleSheet.create({
     color: theme.color.textPrimary,
     textAlignVertical: 'top',
   },
+  skeletonArea: {
+    gap: theme.spacing.md,
+  },
   skeletonCard: {
     height: 120,
     borderRadius: theme.radius.lg,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
   },
   dock: {
     gap: theme.spacing.sm,

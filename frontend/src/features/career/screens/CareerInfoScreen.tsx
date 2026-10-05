@@ -6,6 +6,7 @@ import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
 import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
 import GlassIconButton from '@/shared/ui/GlassIconButton';
+import { SkeletonBlock, SkeletonGroup } from '@/shared/ui/Skeleton';
 import { Text, TextInput } from '@/shared/ui/Typography';
 
 import { JOB_TITLE_MAX_LENGTH } from '../career.constants';
@@ -73,12 +74,13 @@ export default function CareerInfoScreen() {
           <ScrollView contentContainerStyle={styles.form}>
             {screen.isLoading ? (
               screen.showSkeleton ? (
-                <>
-                  <View style={styles.skeletonNotice} />
-                  <View style={styles.skeletonField} />
-                  <View style={styles.skeletonField} />
-                  <View style={styles.skeletonField} />
-                </>
+                // form 의 세로 간격을 그대로 이어받는다 — 낭독·반짝임은 영역 하나로
+                <SkeletonGroup style={styles.skeletonArea}>
+                  <SkeletonBlock style={styles.skeletonNotice} />
+                  <SkeletonBlock style={styles.skeletonField} />
+                  <SkeletonBlock style={styles.skeletonField} />
+                  <SkeletonBlock style={styles.skeletonField} />
+                </SkeletonGroup>
               ) : null
             ) : (
               <>
@@ -316,18 +318,17 @@ const styles = StyleSheet.create({
   chipLabelSelected: {
     color: theme.color.onPrimary,
   },
+  skeletonArea: {
+    gap: theme.spacing.sm,
+  },
   skeletonNotice: {
     width: 180,
     height: theme.font.size.sm * 1.4,
     borderRadius: theme.radius.sm,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
   },
   skeletonField: {
     height: theme.touchTarget.minHeight,
     borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
     marginTop: theme.spacing.md,
   },
   dock: {

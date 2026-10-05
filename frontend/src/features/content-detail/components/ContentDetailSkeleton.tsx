@@ -1,6 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import { SkeletonBlock, SkeletonGroup, SkeletonLine } from '@/shared/ui/Skeleton';
 
 /**
  * CD3 로딩 스켈레톤 — 헤더(썸네일·제목 2줄)·메타 자리만 그린다(content-detail-uiux.md 4.7).
@@ -9,24 +10,20 @@ import { theme } from '@/shared/theme';
  */
 export default function ContentDetailSkeleton() {
   return (
-    <View
-      style={styles.root}
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-    >
+    <SkeletonGroup style={styles.root}>
       <View style={styles.header}>
-        <View style={styles.thumbnail} />
+        <SkeletonBlock width={72} height={72} radius="md" />
         <View style={styles.headerText}>
-          <View style={styles.lineWide} />
-          <View style={styles.lineNarrow} />
+          <SkeletonLine height={theme.font.size.md} />
+          <SkeletonLine height={theme.font.size.md} width="60%" />
         </View>
       </View>
       <View style={styles.metaBlock}>
-        <View style={styles.metaLine} />
-        <View style={styles.metaLine} />
-        <View style={styles.metaLine} />
+        <SkeletonLine height={theme.font.size.sm} width="70%" />
+        <SkeletonLine height={theme.font.size.sm} width="70%" />
+        <SkeletonLine height={theme.font.size.sm} width="70%" />
       </View>
-    </View>
+    </SkeletonGroup>
   );
 }
 
@@ -42,41 +39,13 @@ const styles = StyleSheet.create({
     gap: theme.spacing.md,
     alignItems: 'flex-start',
   },
-  thumbnail: {
-    width: 72,
-    height: 72,
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
-  },
   headerText: {
     flex: 1,
     gap: theme.spacing.sm,
     paddingTop: theme.spacing.xs,
   },
-  lineWide: {
-    height: theme.font.size.md,
-    borderRadius: theme.radius.sm,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
-    alignSelf: 'stretch',
-  },
-  lineNarrow: {
-    height: theme.font.size.md,
-    width: '60%',
-    borderRadius: theme.radius.sm,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
-  },
   metaBlock: {
     marginTop: theme.spacing.xl,
     gap: theme.spacing.md,
-  },
-  metaLine: {
-    height: theme.font.size.sm,
-    borderRadius: theme.radius.sm,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
-    width: '70%',
   },
 });

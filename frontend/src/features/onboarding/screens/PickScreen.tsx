@@ -5,6 +5,7 @@ import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
 import ScrollFade from '@/shared/ui/ScrollFade';
+import { SkeletonBlock, SkeletonGroup } from '@/shared/ui/Skeleton';
 import { Text } from '@/shared/ui/Typography';
 
 import ContentPickCard, { PICK_CARD_THUMBNAIL } from '../components/ContentPickCard';
@@ -86,12 +87,12 @@ export default function PickScreen() {
             {isLoading ? (
               showSkeleton ? (
                 // O12 — 섹션 제목도 스켈레톤으로 둔다. 표본 충분 여부는 응답이 와야 안다(onboarding-uiux.md 4.4)
-                <View style={styles.skeletonArea}>
-                  <View style={styles.skeletonSectionTitle} />
+                <SkeletonGroup style={styles.skeletonArea}>
+                  <SkeletonBlock style={styles.skeletonSectionTitle} />
                   {Array.from({ length: SKELETON_CARD_COUNT }, (_, index) => (
-                    <View key={index} style={styles.skeletonCard} />
+                    <SkeletonBlock key={index} style={styles.skeletonCard} />
                   ))}
-                </View>
+                </SkeletonGroup>
               ) : null
             ) : (
               sections.map((section) => (
@@ -221,16 +222,12 @@ const styles = StyleSheet.create({
     width: 140,
     height: theme.font.size.md,
     borderRadius: theme.radius.sm,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
     marginBottom: theme.spacing.sm,
   },
   // 실제 카드와 같은 높이·모서리여야 로딩이 끝날 때 목록이 튀지 않는다
   skeletonCard: {
     height: PICK_CARD_THUMBNAIL + theme.spacing.md * 2,
     borderRadius: theme.radius.lg,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
   },
   section: {
     gap: theme.spacing.sm,

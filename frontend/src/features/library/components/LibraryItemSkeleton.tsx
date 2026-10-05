@@ -1,23 +1,24 @@
 import { StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import { SkeletonBlock, SkeletonGroup, SkeletonLine } from '@/shared/ui/Skeleton';
 
 /** L11 최초 로딩 — 스켈레톤 타일 3행(6장). 0.3초 미만이면 부모가 표시하지 않는다(uiux 4.9) */
 export default function LibraryItemSkeleton() {
   return (
-    <View style={styles.grid} accessibilityLabel="불러오는 중">
+    <SkeletonGroup style={styles.grid}>
       {Array.from({ length: 3 }, (_, rowIndex) => (
         <View key={rowIndex} style={styles.row}>
           {Array.from({ length: 2 }, (_, index) => (
             <View key={index} style={styles.tile}>
-              <View style={styles.artwork} />
-              <View style={styles.lineWide} />
-              <View style={styles.lineNarrow} />
+              <SkeletonBlock radius="lg" style={styles.artwork} />
+              <SkeletonLine height={14} />
+              <SkeletonLine height={12} width="40%" />
             </View>
           ))}
         </View>
       ))}
-    </View>
+    </SkeletonGroup>
   );
 }
 
@@ -39,23 +40,6 @@ const styles = StyleSheet.create({
   artwork: {
     width: '100%',
     aspectRatio: 1,
-    borderRadius: theme.radius.lg,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
     marginBottom: theme.spacing.xs,
-  },
-  lineWide: {
-    height: 14,
-    borderRadius: theme.radius.sm,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
-    alignSelf: 'stretch',
-  },
-  lineNarrow: {
-    height: 12,
-    width: '40%',
-    borderRadius: theme.radius.sm,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
   },
 });

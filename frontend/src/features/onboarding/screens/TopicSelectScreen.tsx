@@ -4,16 +4,18 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
+import { SkeletonGroup } from '@/shared/ui/Skeleton';
 import { Text } from '@/shared/ui/Typography';
 
 import { topicImageSource } from '@/features/interest';
 
 import TopicMarqueeRow from '../components/TopicMarqueeRow';
+import { TOPIC_PILL_WIDTH, TopicPillRowsSkeleton } from '../components/TopicSelectSkeleton';
 import { useTopicSelectScreen } from '../hooks/useTopicSelectScreen';
 import { ONBOARDING_COPY } from '../onboarding.copy';
-import { MAX_MARQUEE_ROWS, toTopicRows } from '../services/topic-rows';
+import { toTopicRows } from '../services/topic-rows';
 
-const PILL_WIDTH = 156;
+const PILL_WIDTH = TOPIC_PILL_WIDTH;
 /** 기본 흐름 속도(px/초)와 줄별 배율 — 같은 박자로 움직이면 기계적으로 보인다 */
 const BASE_SPEED = 18;
 const SPEED_SCALES = [1, 0.9, 1.05, 1.1] as const;
@@ -116,31 +118,31 @@ export default function TopicSelectScreen() {
         <>
           {/* 캐러셀을 헤더와 하단 버튼 사이 세로 중앙에 앉힌다 */}
           <View style={styles.centerSpacer} />
-          <View style={styles.marqueeArea}>
-            {isLoading
-              ? showSkeleton
-                ? Array.from({ length: MAX_MARQUEE_ROWS }, (_, rowIndex) => (
-                    <View key={rowIndex} style={styles.skeletonRow}>
-                      <View style={styles.skeletonChip} />
-                      <View style={styles.skeletonChip} />
-                      <View style={styles.skeletonChip} />
-                    </View>
-                  ))
-                : null
-              : toTopicRows(topics).map((row, rowIndex) => (
-                  <TopicMarqueeRow
-                    key={row[0].topicId}
-                    topics={row}
-                    // 홀수 줄(1·3번째)은 왼쪽으로, 짝수 줄(2·4번째)은 오른쪽으로 흐른다
-                    direction={rowIndex % 2 === 0 ? 1 : -1}
-                    phase={PHASES[rowIndex % PHASES.length]}
-                    speed={BASE_SPEED * SPEED_SCALES[rowIndex % SPEED_SCALES.length]}
-                    pillWidth={PILL_WIDTH}
-                    dimmedHint={ONBOARDING_COPY.topic.limitToast(maxSelectable)}
-                    onToggle={toggleTopic}
-                  />
-                ))}
-          </View>
+          {isLoading ? (
+            showSkeleton ? (
+              <SkeletonGroup style={styles.marqueeArea}>
+                <TopicPillRowsSkeleton />
+              </SkeletonGroup>
+            ) : (
+              <View style={styles.marqueeArea} />
+            )
+          ) : (
+            <View style={styles.marqueeArea}>
+              {toTopicRows(topics).map((row, rowIndex) => (
+                <TopicMarqueeRow
+                  key={row[0].topicId}
+                  topics={row}
+                  // 홀수 줄(1·3번째)은 왼쪽으로, 짝수 줄(2·4번째)은 오른쪽으로 흐른다
+                  direction={rowIndex % 2 === 0 ? 1 : -1}
+                  phase={PHASES[rowIndex % PHASES.length]}
+                  speed={BASE_SPEED * SPEED_SCALES[rowIndex % SPEED_SCALES.length]}
+                  pillWidth={PILL_WIDTH}
+                  dimmedHint={ONBOARDING_COPY.topic.limitToast(maxSelectable)}
+                  onToggle={toggleTopic}
+                />
+              ))}
+            </View>
+          )}
           <View style={styles.centerSpacer} />
         </>
       )}
@@ -274,18 +276,6 @@ const styles = StyleSheet.create({
     marginHorizontal: -theme.spacing.lg,
     // 세로 간격은 가로(알약 사이 8)보다 살짝 넓게
     gap: theme.spacing.sm + theme.spacing.xs,
-  },
-  skeletonRow: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.lg,
-  },
-  skeletonChip: {
-    width: PILL_WIDTH,
-    height: theme.touchTarget.minHeight + theme.spacing.sm,
-    borderRadius: theme.radius.full,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
   },
   dock: {
     gap: theme.spacing.sm,

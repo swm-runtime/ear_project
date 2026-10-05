@@ -13,6 +13,7 @@ import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
 import { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
 import GlassIconButton from '@/shared/ui/GlassIconButton';
+import { SkeletonBlock, SkeletonGroup } from '@/shared/ui/Skeleton';
 import { Text } from '@/shared/ui/Typography';
 
 import { useNoticeListScreen } from '../hooks/useNoticeListScreen';
@@ -54,14 +55,14 @@ function NoticeRow({ notice, onPress }: NoticeRowProps) {
 /** 첫 로딩 스켈레톤 행 3개 — 0.3초 미만이면 부모가 표시하지 않는다(S8) */
 function NoticeRowSkeleton() {
   return (
-    <View accessibilityLabel={NOTICE_COPY.loadingA11y}>
+    <SkeletonGroup accessibilityLabel={NOTICE_COPY.loadingA11y}>
       {Array.from({ length: NOTICE_SKELETON_ROW_COUNT }, (_, index) => (
         <View key={index} style={styles.skeletonRow}>
-          <View style={styles.skeletonTitle} />
-          <View style={styles.skeletonDate} />
+          <SkeletonBlock style={styles.skeletonTitle} />
+          <SkeletonBlock style={styles.skeletonDate} />
         </View>
       ))}
-    </View>
+    </SkeletonGroup>
   );
 }
 
@@ -223,15 +224,11 @@ const styles = StyleSheet.create({
     height: 16,
     width: '80%',
     borderRadius: theme.radius.sm,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
   },
   skeletonDate: {
     height: 12,
     width: '30%',
     borderRadius: theme.radius.sm,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
   },
   emptyContent: {
     flexGrow: 1,
