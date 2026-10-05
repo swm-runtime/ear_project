@@ -44,10 +44,10 @@ ElevenLabs Pro 결제로 TTS 원본을 **무손실(PCM → WAV)**로 받을 수 
 3. **업로드 경로 본문 한도** — Caddy(`deploy/caddy`) · 파이프라인 웹 `/api/ear` 프록시(Next.js 본문 한도) · multipart 타임아웃이 200MB 이상을 통과하는지.
 4. **재생 시작 지연** — WAV 첫 바이트·버퍼링 시간을 LTE 기준으로 실측해 처리 기록에 남긴다.
 
-## 짝 티켓 (발행 필요)
+## 짝 티켓
 
-- **AI(파이프라인)** — 무손실 마스터(PCM 요청 — 지금 화자별 배속 경로는 `synthDialogueWithTimestamps`가 mp3 를 강제한다 `elevenlabs.ts`)에서 3종 렌더·업로드 패키지 확장
-- **FE** — 음질 선택 UI(설정/플레이어), 허용 안 된 음질 표시(잠금·업셀), 재생 URL 요청에 음질 전달
+- **AI(파이프라인) — KAN-142**(`tickets/ai/pending/lossless-master-three-renditions.md`, 박수헌) — 무손실 마스터(PCM 요청 — 지금 화자별 배속 경로는 `synthDialogueWithTimestamps`가 mp3 를 강제한다 `elevenlabs.ts`)에서 3종 렌더·업로드 패키지 확장
+- **FE — KAN-143**(`tickets/frontend/pending/audio-quality-selection-ui.md`, 이주호 — 이 티켓에 blocked) — 음질 선택 UI(설정/플레이어), 허용 안 된 음질 표시(잠금·업셀), 재생 URL 요청에 음질 전달
 
 ## 완료 조건
 
