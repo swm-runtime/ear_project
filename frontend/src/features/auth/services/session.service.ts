@@ -1,7 +1,9 @@
 import { track } from '@/shared/analytics';
-import type { TokenProvider } from '@/shared/api/api-client';
+import type { TokenProvider, TokenRefreshResult } from '@/shared/api/api-client';
+import { runWhenAppActive } from '@/shared/lib/app-active';
 import { getDeviceId } from '@/shared/lib/device-id';
 import { logger } from '@/shared/lib/logger';
+import { isKeychainLockedError } from '@/shared/storage/keychain-error';
 import { secureStorage } from '@/shared/storage/secure-storage';
 import { STORAGE_KEYS } from '@/shared/storage/storage-keys';
 
@@ -14,11 +16,17 @@ import { useSessionStore } from '../store/session.store';
  * - 토큰은 SecureStore에만 저장한다. 전역 변수·MMKV 금지.
  * - 토큰 갱신은 단일 인플라이트로 묶는다 — 동시 401에서 갱신 요청은 1개만 나간다.
  * - ApiClient에는 TokenProvider 인터페이스로 주입된다(app/bootstrap).
+ * - **iOS 기기 잠금으로 키체인이 막힌 실패는 세션 만료가 아니다**(architecture.md 5.3·7.2, 2026-10-05). 잠금 화면에서
+ *   재생하는 동안 토큰 갱신이 키체인을 못 읽으면 판정을 미루고(`deferred`), 새 토큰을 못 쓰면 메모리 토큰으로 계속
+ *   쓰다가 전경이 되면 저장한다.
  */
 class SessionService implements TokenProvider {
   private accessToken: string | null = null;
   private refreshToken: string | null = null;
-  private refreshPromise: Promise<boolean> | null = null;
+  private refreshPromise: Promise<TokenRefreshResult> | null = null;
+  /** 잠금 때문에 저장하지 못한 토큰이 메모리에만 있다 — 전경이 되면 저장한다 */
+  private hasPendingPersist = false;
+  private cancelPendingPersist: (() => void) | null = null;
 
   /**
    * 앱 시작 시 1회 — 저장된 토큰으로 세션을 되살린다(`splash.md` 4의 2·3단계 판정 입력).
@@ -32,8 +40,30 @@ class SessionService implements TokenProvider {
    * 재시도를 유도하면 갱신 루프가 된다(architecture.md 5.3 · auth-api.md 4.3).
    */
   async restoreSession(): Promise<void> {
-    const refreshToken =
-      this.refreshToken ?? (await secureStorage.get(STORAGE_KEYS.REFRESH_TOKEN));
+    await this.restore(true);
+  }
+
+  /**
+   * 잠긴 채로 실행됐으면(백그라운드 실행 — 키체인을 못 읽는다) 전경이 될 때 **한 번** 다시 읽는다. 그동안은 `restoring`
+   * 그대로라 스플래시에 머문다. 다시 읽어도 못 읽으면 미로그인으로 시작하되 **저장된 토큰은 지우지 않는다** —
+   * 읽지 못한 것이지 없는 것이 아니다. 다음 실행에서 다시 복원된다.
+   */
+  private async restore(canWaitForUnlock: boolean): Promise<void> {
+    let refreshToken: string | null;
+    try {
+      refreshToken = this.refreshToken ?? (await secureStorage.get(STORAGE_KEYS.REFRESH_TOKEN));
+    } catch (error) {
+      if (canWaitForUnlock && isKeychainLockedError(error)) {
+        logger.debug('[session] keychain locked at restore, waiting for foreground');
+        runWhenAppActive(() => {
+          void this.restore(false);
+        });
+        return;
+      }
+      logger.warn('[session] stored token unreadable, starting signed out', error);
+      useSessionStore.getState().clearSession();
+      return;
+    }
     if (!refreshToken) {
       useSessionStore.getState().clearSession();
       return;
@@ -77,6 +107,10 @@ class SessionService implements TokenProvider {
   async clearSession(): Promise<void> {
     this.accessToken = null;
     this.refreshToken = null;
+    // 저장을 기다리던 토큰이 정리 뒤에 되살아나면 안 된다
+    this.hasPendingPersist = false;
+    this.cancelPendingPersist?.();
+    this.cancelPendingPersist = null;
     await Promise.all([
       secureStorage.remove(STORAGE_KEYS.ACCESS_TOKEN),
       secureStorage.remove(STORAGE_KEYS.REFRESH_TOKEN),
@@ -97,11 +131,17 @@ class SessionService implements TokenProvider {
 
   async getAccessToken(): Promise<string | null> {
     if (this.accessToken) return this.accessToken;
-    this.accessToken = await secureStorage.get(STORAGE_KEYS.ACCESS_TOKEN);
+    try {
+      this.accessToken = await secureStorage.get(STORAGE_KEYS.ACCESS_TOKEN);
+    } catch (error) {
+      if (!isKeychainLockedError(error)) throw error;
+      // 잠겨서 못 읽었다 — 토큰 없이 보내 401 → 갱신 경로(메모리의 refresh token)가 판정하게 둔다
+      return null;
+    }
     return this.accessToken;
   }
 
-  refreshTokens(): Promise<boolean> {
+  refreshTokens(): Promise<TokenRefreshResult> {
     if (!this.refreshPromise) {
       this.refreshPromise = this.doRefresh().finally(() => {
         this.refreshPromise = null;
@@ -117,27 +157,79 @@ class SessionService implements TokenProvider {
     });
   }
 
-  private async doRefresh(): Promise<boolean> {
-    const refreshToken = this.refreshToken ?? (await secureStorage.get(STORAGE_KEYS.REFRESH_TOKEN));
-    if (!refreshToken) return false;
+  /**
+   * 갱신 1회. 키체인 읽기(refresh token·기기 id)가 **기기 잠금**에 걸리면 서버를 부르지 않고 `deferred` 를 준다 —
+   * 세션을 지우지 않고 원 요청만 실패한다. 서버를 부르기 전이라 refresh token 이 회전되지 않으므로 다음 401 이
+   * 같은 토큰으로 다시 시도할 수 있다. 자동 재시도는 하지 않는다(재갱신 루프 금지 — architecture.md 5.3).
+   */
+  private async doRefresh(): Promise<TokenRefreshResult> {
+    let refreshToken: string | null;
+    let deviceId: string;
+    try {
+      refreshToken = this.refreshToken ?? (await secureStorage.get(STORAGE_KEYS.REFRESH_TOKEN));
+      if (!refreshToken) return 'expired';
+      deviceId = await getDeviceId();
+    } catch (error) {
+      if (isKeychainLockedError(error)) {
+        logger.debug('[session] keychain locked, token refresh deferred');
+        return 'deferred';
+      }
+      return 'expired';
+    }
 
     try {
-      const deviceId = await getDeviceId();
       const tokens = await refreshSession({ refreshToken, deviceId });
       await this.saveTokens(tokens);
-      return true;
+      return 'refreshed';
     } catch {
-      return false;
+      return 'expired';
     }
   }
 
+  /**
+   * 메모리에 먼저 올리고 키체인에 쓴다. 쓰기가 **기기 잠금**에 걸리면 던지지 않고 메모리 토큰으로 계속 쓰다가 전경이
+   * 되면 다시 쓴다. 서버는 갱신마다 refresh token 을 회전하고 옛 토큰을 폐기한다 — 옛 토큰이 키체인에 남은 채 앱이
+   * 끝나면 다음 실행의 갱신이 재사용 탐지에 걸려 **이 사용자의 모든 세션이 폐기된다**(backend `auth.service.ts` refresh).
+   */
   private async saveTokens(tokens: AuthTokens): Promise<void> {
     this.accessToken = tokens.accessToken;
     this.refreshToken = tokens.refreshToken;
+    try {
+      await this.persistTokens(tokens.accessToken, tokens.refreshToken);
+    } catch (error) {
+      if (!isKeychainLockedError(error)) throw error;
+      logger.debug('[session] keychain locked, token persist deferred to foreground');
+      this.schedulePersist();
+    }
+  }
+
+  private async persistTokens(accessToken: string, refreshToken: string): Promise<void> {
     await Promise.all([
-      secureStorage.set(STORAGE_KEYS.ACCESS_TOKEN, tokens.accessToken),
-      secureStorage.set(STORAGE_KEYS.REFRESH_TOKEN, tokens.refreshToken),
+      secureStorage.set(STORAGE_KEYS.ACCESS_TOKEN, accessToken),
+      secureStorage.set(STORAGE_KEYS.REFRESH_TOKEN, refreshToken),
     ]);
+  }
+
+  private schedulePersist(): void {
+    if (this.hasPendingPersist) return;
+    this.hasPendingPersist = true;
+    this.cancelPendingPersist = runWhenAppActive(() => {
+      void this.flushPendingPersist();
+    });
+  }
+
+  /** 전경이 된 시점의 메모리 토큰을 쓴다. 전경에서도 실패하면 다시 예약하지 않는다(다음 갱신의 저장이 덮는다) */
+  private async flushPendingPersist(): Promise<void> {
+    if (!this.hasPendingPersist) return;
+    this.hasPendingPersist = false;
+    this.cancelPendingPersist = null;
+    const { accessToken, refreshToken } = this;
+    if (!accessToken || !refreshToken) return;
+    try {
+      await this.persistTokens(accessToken, refreshToken);
+    } catch (error) {
+      logger.warn('[session] deferred token persist failed', error);
+    }
   }
 }
 

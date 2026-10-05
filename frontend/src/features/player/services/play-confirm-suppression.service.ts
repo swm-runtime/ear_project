@@ -1,3 +1,4 @@
+import { logger } from '@/shared/lib/logger';
 import { secureStorage } from '@/shared/storage/secure-storage';
 import { STORAGE_KEYS } from '@/shared/storage/storage-keys';
 
@@ -12,12 +13,22 @@ import { usePlayLimitStore } from '../store/play-limit.store';
 
 /** 앱 시작(라이브러리 진입) 시 저장된 억제 날짜를 store로 올린다 */
 export const hydrateSuppressedServiceDate = async (): Promise<void> => {
-  const stored = await secureStorage.get(STORAGE_KEYS.PLAY_CONFIRM_SUPPRESSED_DATE);
-  usePlayLimitStore.getState().setSuppressedServiceDate(stored);
+  try {
+    const stored = await secureStorage.get(STORAGE_KEYS.PLAY_CONFIRM_SUPPRESSED_DATE);
+    usePlayLimitStore.getState().setSuppressedServiceDate(stored);
+  } catch (error) {
+    // 못 읽으면 억제 없음으로 둔다 — 팝업이 한 번 더 뜰 뿐이다(기기 잠금 등 — architecture.md 7.2)
+    logger.debug('[player] play confirm suppression read failed', error);
+  }
 };
 
 /** 억제 등록 — 유효 기간은 서버가 내려준 오늘의 서비스 날짜까지다(04:00 KST 경계) */
 export const suppressPlayConfirmForToday = async (serviceDate: string): Promise<void> => {
   usePlayLimitStore.getState().setSuppressedServiceDate(serviceDate);
-  await secureStorage.set(STORAGE_KEYS.PLAY_CONFIRM_SUPPRESSED_DATE, serviceDate);
+  try {
+    await secureStorage.set(STORAGE_KEYS.PLAY_CONFIRM_SUPPRESSED_DATE, serviceDate);
+  } catch (error) {
+    // 이번 실행은 store 값으로 억제된다. 다음 실행에서 팝업이 한 번 더 뜰 수 있다
+    logger.debug('[player] play confirm suppression write failed', error);
+  }
 };
