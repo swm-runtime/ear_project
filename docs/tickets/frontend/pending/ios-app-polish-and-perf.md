@@ -32,7 +32,7 @@ iOS 앱의 자잘한 버그를 모아 없애고 최적화한다 — 플레이어
 - 검증: TypeScript 및 변경 파일 ESLint 통과. JS 트레이스 환경 경계·기존 오류 핸들러 보존 테스트 4개, 주제 줄 분배·반복 벌 수 테스트 10개 통과. 마퀴 변경 근거: [React Native Animated.loop](https://reactnative.dev/docs/animated#loop).
 - 남은 완료 조건: iOS 실기기에서 플레이어 여닫기·탭 전환·스크롤 반복 확인. 네이티브 RNS 진단 훅과 `ZoomTransitionRegistry`의 UserDefaults 기록 정리는 네이티브 빌드·실기기 검증이 필요해 이번 JS 수정에 포함하지 않았다. 이 검증 전에는 pending을 유지한다.
 
-### 2026-10-06 — 줌 전환 진단 코드 정리 (PR #__PR__)
+### 2026-10-06 — 줌 전환 진단 코드 정리 ([#1144](https://github.com/swm-runtime/ear_project/pull/1144))
 
 - **RNS 패치**(`frontend/patches/react-native-screens+4.26.2.patch`) — 줌 번쩍임 추적(2026-09-26~27, runtime 15·16·20·23)에서 넣은 진단 훅을 걷어냈다.
   - `RNSScreen.h`의 `+ earNoteZoomDiagnostic:` 선언(이 파일 헌크가 통째로 빠졌다)과 `RNSScreen.mm`의 구현(`ZoomTransitionRegistry noteDiagnostic:` 를 performSelector 로 부르던 것).
