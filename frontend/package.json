@@ -75,5 +75,12 @@
       "^@/(.*)$": "<rootDir>/src/$1"
     }
   },
-  "private": true
+  "private": true,
+  "expo": {
+    "autolinking": {
+      "buildFromSource": [
+        "expo-audio"
+      ]
+    }
+  }
 }
