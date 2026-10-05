@@ -1,17 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Animated,
-  PanResponder,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
+import { Animated, PanResponder, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
+import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { motion, theme } from '@/shared/theme';
 import RemoteImage from '@/shared/ui/RemoteImage';
+import { SkeletonBlock, SkeletonGroup, SkeletonLine } from '@/shared/ui/Skeleton';
 import { Text } from '@/shared/ui/Typography';
 
 import { PLAYER_COPY } from '../player.copy';
@@ -59,6 +53,31 @@ const AUTO_SCROLL_EDGE = 56;
 const AUTO_SCROLL_MAX_SPEED = 14;
 const speedOf = (depth: number): number =>
   Math.max(2, Math.min(AUTO_SCROLL_MAX_SPEED, (depth / AUTO_SCROLL_EDGE) * AUTO_SCROLL_MAX_SPEED));
+
+/** 로딩 스켈레톤 행 수 — 패널을 연 첫 화면을 채울 만큼 */
+const SKELETON_ROW_COUNT = 5;
+
+/**
+ * 대기열 로딩 스켈레톤 — 실제 행과 같은 높이·여백(썸네일 48 + 제목 줄 + 보조 줄). 손잡이 자리는 비워 둔다.
+ * 면 색은 플레이어 토큰(`playerColor.skeleton`)이다 — 바탕이 어둡고 커버 색이 비친다.
+ */
+function QueueSkeleton() {
+  return (
+    <SkeletonGroup style={styles.rows} color={playerColor.skeleton}>
+      {Array.from({ length: SKELETON_ROW_COUNT }, (_, index) => (
+        <View key={index} style={styles.rowWrap}>
+          <View style={styles.row}>
+            <SkeletonBlock width={THUMBNAIL_SIZE} height={THUMBNAIL_SIZE} radius="sm" />
+            <View style={styles.skeletonMeta}>
+              <SkeletonLine width="72%" height={theme.font.size.md} />
+              <SkeletonLine width="36%" height={theme.font.size.xs} />
+            </View>
+          </View>
+        </View>
+      ))}
+    </SkeletonGroup>
+  );
+}
 
 const toMinutes = (durationSec: number | null): number =>
   durationSec === null ? 0 : Math.max(1, Math.round(durationSec / 60));
@@ -183,7 +202,11 @@ function QueueRow({
         accessibilityState={{ selected: isCurrent }}
       >
         {item.thumbnailUrl ? (
-          <RemoteImage uri={item.thumbnailUrl} recyclingKey={item.contentId} style={styles.thumbnail} />
+          <RemoteImage
+            uri={item.thumbnailUrl}
+            recyclingKey={item.contentId}
+            style={styles.thumbnail}
+          />
         ) : (
           <View style={styles.thumbnail} />
         )}
@@ -246,6 +269,8 @@ export default function PlayerQueuePanel({
   categoryOf,
   showHeader = true,
 }: PlayerQueuePanelProps) {
+  // 0.3초 안에 오면 빈 패널만 잠깐 보인다 — 스켈레톤이 번쩍이지 않게(common-error-handling.md 5)
+  const showSkeleton = useDelayedVisible(isLoading);
   const swipeRightRef = useRef(onSwipeRight);
   useEffect(() => {
     swipeRightRef.current = onSwipeRight;
@@ -416,9 +441,11 @@ export default function PlayerQueuePanel({
     return (
       <View style={styles.panel} {...swipeRightResponder.panHandlers}>
         {header}
-        <View style={styles.placeholder}>
-          <ActivityIndicator color={playerColor.textSecondary} />
-        </View>
+        {showSkeleton ? (
+          <View style={styles.listContent}>
+            <QueueSkeleton />
+          </View>
+        ) : null}
       </View>
     );
   }
@@ -570,6 +597,11 @@ const styles = StyleSheet.create({
   rowMeta: {
     flex: 1,
     gap: 2,
+  },
+  // 글자 줄의 줄 높이만큼 — 막대는 글자 크기라 실제 두 줄(제목·보조)과 높이를 맞추려면 간격이 더 필요하다
+  skeletonMeta: {
+    flex: 1,
+    gap: theme.spacing.sm,
   },
   rowTitle: {
     fontSize: theme.font.size.md,

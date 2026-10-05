@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, jest } from '@jest/globals';
 import type { ReactNode } from 'react';
-import { Animated, BackHandler, Keyboard, Platform } from 'react-native';
+import { ActivityIndicator, Animated, BackHandler, Keyboard, Platform } from 'react-native';
 
 import { MiniPlayer } from '@/features/player';
 
+import ExploreSkeleton from '../components/ExploreSkeleton';
 import SearchInputRow from '../components/SearchInputRow';
 import SearchToolbar from '../components/SearchToolbar';
 import { useExploreSearchScreen } from '../hooks/useExploreSearchScreen';
@@ -130,6 +131,45 @@ describe('Android 탐색 제자리 검색', () => {
     expect(cancel).not.toHaveBeenCalled();
     completion?.({ finished: true });
     expect(cancel).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
+  it('첫 검색 결과를 0.3초 넘게 기다리면 스피너 대신 결과 격자 스켈레톤을 그린다', async () => {
+    // given
+    jest.replaceProperty(Platform, 'OS', 'android');
+    jest.mocked(useExploreSearchScreen).mockReturnValue({
+      inputText: '경제',
+      isInitialMode: false,
+      isFirstSearchLoading: true,
+      showFirstSearchSkeleton: true,
+      results: [],
+      recentSearches: [],
+      suggestedTopics: [],
+      playConfirm: null,
+    } as unknown as ReturnType<typeof useExploreSearchScreen>);
+
+    // when
+    let renderer!: Renderer;
+    await act(async () => {
+      renderer = create(
+        <ExploreSearchScreen
+          embedding={{
+            remaining: null,
+            onExhaustedPress: jest.fn(),
+            onExit: jest.fn(),
+            onOpenTopic: jest.fn(),
+          }}
+        />,
+      );
+    });
+
+    // then
+    expect({
+      skeletons: renderer.root.findAllByType(ExploreSkeleton).length,
+      spinners: renderer.root.findAllByType(ActivityIndicator).length,
+    }).toEqual({ skeletons: 1, spinners: 0 });
     await act(async () => {
       renderer.unmount();
     });

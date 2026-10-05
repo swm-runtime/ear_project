@@ -7,7 +7,8 @@ import {
   StyleSheet,
   Text,
   View,
- Animated } from 'react-native';
+  Animated,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
@@ -25,13 +26,17 @@ import {
 } from '@/features/player';
 
 import ExploreMoreSheet from '../components/ExploreMoreSheet';
+import ExploreSkeleton from '../components/ExploreSkeleton';
 import ExploreTile from '../components/ExploreTile';
 import RecentSearchList from '../components/RecentSearchList';
 import SearchInputRow from '../components/SearchInputRow';
 import SuggestedKeywordChips from '../components/SuggestedKeywordChips';
 import { EXPLORE_COPY } from '../explore.copy';
 import { exploreGridKey, toExploreGridData } from '../explore.grid';
-import { useExploreSearchScreen, type ExploreSearchEmbedding } from '../hooks/useExploreSearchScreen';
+import {
+  useExploreSearchScreen,
+  type ExploreSearchEmbedding,
+} from '../hooks/useExploreSearchScreen';
 
 /**
  * 검색 화면(E6·E7, explore.md 4.5 — MVP 포함 격상 2026-08-23).
@@ -153,9 +158,15 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
       );
     }
 
-    // 첫 검색 로딩 — 직전 결과가 없으면 인라인 스피너 하나다(스켈레톤을 쓰지 않는다, uiux 4.6)
+    // 첫 검색 로딩 — 직전 결과가 없으면 결과 격자 모양의 스켈레톤이다(uiux 4.6). 0.3초 전에는 빈 자리
     if (screen.isFirstSearchLoading) {
-      return <ActivityIndicator style={styles.centerLoading} color={theme.color.primary} />;
+      return screen.showFirstSearchSkeleton ? (
+        <View style={styles.skeletonArea}>
+          <ExploreSkeleton showSectionTitles={false} />
+        </View>
+      ) : (
+        <View style={styles.skeletonArea} />
+      );
     }
 
     // E7 검색 결과 없음 — 검색어 되비춤 + 관련 주제 칩 + 인기 콘텐츠(같은 응답의 fallback)
@@ -256,7 +267,11 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
   const Frame = HAS_NATIVE_TAB_BAR ? Animated.View : SafeAreaView;
   return (
     <Frame
-      style={[styles.container, { paddingTop: nativeBarInset }, embedding ? { opacity: overlayFade } : null]}
+      style={[
+        styles.container,
+        { paddingTop: nativeBarInset },
+        embedding ? { opacity: overlayFade } : null,
+      ]}
       edges={['top']}
     >
       {HAS_NATIVE_TAB_BAR ? (
@@ -335,8 +350,9 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.xs,
     color: theme.color.textSecondary,
   },
-  centerLoading: {
-    marginTop: theme.spacing.xl,
+  // 첫 검색 스켈레톤 자리 — 결과 목록이 그려질 영역을 그대로 채운다(넘치는 행은 스켈레톤이 잘라낸다)
+  skeletonArea: {
+    flex: 1,
   },
   resultContainer: {
     flex: 1,

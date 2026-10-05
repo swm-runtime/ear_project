@@ -3,6 +3,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
+import { SkeletonBlock, SkeletonGroup } from '@/shared/ui/Skeleton';
 import { Text, TextInput } from '@/shared/ui/Typography';
 
 import { useCareerScreen } from '../hooks/useCareerScreen';
@@ -10,6 +11,8 @@ import { ONBOARDING_COPY } from '../onboarding.copy';
 import type { YearsOfExperience } from '../onboarding.types';
 
 const YEARS_OPTIONS: YearsOfExperience[] = ['0-1', '2-3', '4-6', '7+'];
+/** 직군 칩 스켈레톤 — 서로 다른 폭의 알약 몇 개. 실제 직군 이름 길이처럼 들쭉날쭉해야 칩으로 읽힌다 */
+const JOB_CATEGORY_SKELETON_WIDTHS = [72, 96, 64, 88, 104, 76] as const;
 
 /**
  * O4 커리어 정보(2/3). 전부 선택 항목 — 미입력 필드에 에러 표시를 하지 않고
@@ -27,6 +30,7 @@ export default function CareerScreen() {
     yearsOfExperience,
     jobCategoryOptions,
     isJobCategoriesLoading,
+    showJobCategoriesSkeleton,
     isJobCategoriesError,
     retryJobCategories,
     setJobCategory,
@@ -44,12 +48,23 @@ export default function CareerScreen() {
   // 선택 칩 재탭(해제)이 담당한다. 실패해도 진행은 막히지 않는다 — 칩 영역만 에러를 그린다
   const renderJobCategoryField = () => {
     if (isJobCategoriesLoading) {
-      return <ActivityIndicator style={styles.chipRowLoading} color={theme.color.primary} />;
+      // 0.3초 전에는 칩 한 줄 높이만 비워 둔다 — 로드되는 순간 아래 필드가 밀리지 않게
+      return showJobCategoriesSkeleton ? (
+        <SkeletonGroup style={styles.chipRow}>
+          {JOB_CATEGORY_SKELETON_WIDTHS.map((width, index) => (
+            <SkeletonBlock key={index} width={width} radius="full" style={styles.chipSkeleton} />
+          ))}
+        </SkeletonGroup>
+      ) : (
+        <View style={styles.chipRowLoading} />
+      );
     }
     if (isJobCategoriesError) {
       return (
         <View style={styles.chipRowError}>
-          <Text style={styles.chipRowErrorText}>{ONBOARDING_COPY.career.jobCategoryLoadFailed}</Text>
+          <Text style={styles.chipRowErrorText}>
+            {ONBOARDING_COPY.career.jobCategoryLoadFailed}
+          </Text>
           <Pressable
             onPress={retryJobCategories}
             accessibilityRole="button"
@@ -249,9 +264,12 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
   },
   chipRowLoading: {
-    alignSelf: 'flex-start',
     // 칩과 같은 높이여야 로드되는 순간 아래 필드가 밀리지 않는다
     minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
+  },
+  // 칩(optionChip)과 같은 높이
+  chipSkeleton: {
+    height: theme.touchTarget.minHeight + theme.spacing.sm,
   },
   chipRowError: {
     flexDirection: 'row',

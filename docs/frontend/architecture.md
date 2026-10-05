@@ -512,7 +512,7 @@ RootStack
 | 삭제 취소 | `Snackbar` (5초, [실행 취소]) |
 | 백그라운드 실패 | 없음 — 무음 |
 | 오프라인 | `OfflineBanner` (상단 고정, 복귀 시 자동 소멸) |
-| 로딩 | `Skeleton`(목록) / `Spinner`(액션) — **0.3초 미만이면 표시하지 않는다** |
+| 로딩 | `Skeleton`(내용 영역 — `shared/ui/Skeleton`, 규칙은 `design.md` §5 스켈레톤) / `Spinner`(액션·하단 추가 로딩) — **0.3초 미만이면 표시하지 않는다**(`useDelayedVisible`) |
 | 점검·강제 업데이트 | 전용 전체 화면 (닫기 불가 규칙 포함) |
 
 ### 8.4 크래시·에러 수집

@@ -4,6 +4,7 @@ import { Animated, PanResponder, Pressable, StyleSheet, View } from 'react-nativ
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion, theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
+import { SkeletonBlock, SkeletonGroup } from '@/shared/ui/Skeleton';
 import { Text } from '@/shared/ui/Typography';
 
 import type { WeeklyNavigation } from '../hooks/useWeeklyNavigation';
@@ -467,14 +468,11 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
     ),
   );
 
+  // 카드가 surface 면이라 블록은 한 단 진한 border 색이다 — surface 위 surface 는 보이지 않는다
   const skeleton = (
-    <View
-      style={styles.stateBox}
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-    >
-      <View style={styles.skeletonChart} />
-    </View>
+    <SkeletonGroup style={styles.stateBox} color={theme.color.border}>
+      <SkeletonBlock style={styles.skeletonChart} />
+    </SkeletonGroup>
   );
   // 이웃 칸 — 있는 쪽만. 아직 받는 중이면 스켈레톤, 갈 수 없는 쪽은 비운다(끌어도 고무줄이라 거의 안 보인다)
   const renderNeighbor = (week: WeeklyListening | null, exists: boolean) =>
@@ -563,9 +561,9 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
           </View>
         </View>
         {shownAverageSec === null ? (
-          <View style={styles.summary}>
-            <View style={styles.skeletonValue} />
-          </View>
+          <SkeletonGroup style={styles.summary} color={theme.color.border}>
+            <SkeletonBlock style={styles.skeletonValue} />
+          </SkeletonGroup>
         ) : (
           <View
             style={styles.summary}
@@ -745,16 +743,12 @@ const styles = StyleSheet.create({
     height: theme.font.size.xxl,
     alignSelf: 'flex-start',
     borderRadius: theme.radius.sm,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.border,
   },
   skeletonChart: {
     alignSelf: 'stretch',
     height: CHART_HEIGHT,
     marginTop: theme.spacing.lg,
     borderRadius: theme.radius.sm,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.border,
   },
   chartArea: { flex: 1 },
   // 격자는 칸 끝에서 끝까지 — 옆 주 칸의 선과 이어진다

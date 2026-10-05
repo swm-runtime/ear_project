@@ -2,6 +2,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
 import { theme } from '@/shared/theme';
+import { SkeletonBlock, SkeletonGroup, SkeletonLine } from '@/shared/ui/Skeleton';
 
 /**
  * 최초 조회 스켈레톤 — 상단 계정·구독 카드와 관심 주제 요약 자리만(settings-uiux.md 4.6).
@@ -9,22 +10,27 @@ import { theme } from '@/shared/theme';
  */
 export default function SettingsTopSkeleton() {
   return (
-    <View
-      style={styles.root}
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-    >
+    <SkeletonGroup style={styles.root}>
       <View style={styles.section}>
-        <View style={styles.label} />
-        <View style={styles.card} />
+        <SkeletonLine
+          width={theme.spacing.xl * 2}
+          height={theme.font.size.xs}
+          style={styles.label}
+        />
+        {/* 계정 행의 최소 터치 높이 + 위아래 여백에 맞춰 조회 뒤의 위치 이동을 줄인다 */}
+        <SkeletonBlock height={theme.touchTarget.minHeight + theme.spacing.md * 2} radius="xl" />
       </View>
       {IS_SUBSCRIPTION_UI_ENABLED ? (
         <View style={styles.section}>
-          <View style={styles.label} />
-          <View style={styles.card} />
+          <SkeletonLine
+            width={theme.spacing.xl * 2}
+            height={theme.font.size.xs}
+            style={styles.label}
+          />
+          <SkeletonBlock height={theme.touchTarget.minHeight + theme.spacing.md * 2} radius="xl" />
         </View>
       ) : null}
-    </View>
+    </SkeletonGroup>
   );
 }
 
@@ -38,18 +44,6 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
   },
   label: {
-    width: theme.spacing.xl * 2,
-    height: theme.font.size.xs,
     marginLeft: theme.spacing.md,
-    borderRadius: theme.radius.sm,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
-  },
-  card: {
-    // 계정 행의 최소 터치 높이 + 위아래 여백에 맞춰 조회 뒤의 위치 이동을 줄인다.
-    height: theme.touchTarget.minHeight + theme.spacing.md * 2,
-    borderRadius: theme.radius.xl,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
   },
 });

@@ -6,6 +6,7 @@ import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
 import { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
 import GlassIconButton from '@/shared/ui/GlassIconButton';
+import { SkeletonBlock, SkeletonGroup } from '@/shared/ui/Skeleton';
 import { Text } from '@/shared/ui/Typography';
 
 import InterestDialog from '../components/InterestDialog';
@@ -67,7 +68,9 @@ export default function InterestManagementScreen() {
             {screen.isLoading ? (
               // 개수 표기 자리도 스켈레톤에 포함한다(uiux 4.7)
               screen.showSkeleton ? (
-                <View style={styles.skeletonCount} />
+                <SkeletonGroup>
+                  <SkeletonBlock style={styles.skeletonCount} />
+                </SkeletonGroup>
               ) : null
             ) : (
               <View
@@ -99,23 +102,27 @@ export default function InterestManagementScreen() {
           </View>
 
           <ScrollView contentContainerStyle={styles.chipArea}>
-            {screen.isLoading
-              ? screen.showSkeleton
-                ? Array.from({ length: SKELETON_CHIP_COUNT }, (_, index) => (
-                    <View key={index} style={styles.skeletonChip} />
-                  ))
-                : null
-              : // 선택 개수로 칩을 비활성 처리하지 않는다(변경 2026-08-11) — 상한은 저장 게이트가 안내한다
-                screen.topics.map((topic) => (
-                  <TopicChip
-                    key={topic.topicId}
-                    topicId={topic.topicId}
-                    label={topic.name}
-                    isSelected={topic.isSelected}
-                    isDimmed={false}
-                    onPress={() => screen.toggleTopic(topic.topicId)}
-                  />
-                ))}
+            {screen.isLoading ? (
+              screen.showSkeleton ? (
+                <SkeletonGroup style={styles.skeletonChipArea}>
+                  {Array.from({ length: SKELETON_CHIP_COUNT }, (_, index) => (
+                    <SkeletonBlock key={index} style={styles.skeletonChip} />
+                  ))}
+                </SkeletonGroup>
+              ) : null
+            ) : (
+              // 선택 개수로 칩을 비활성 처리하지 않는다(변경 2026-08-11) — 상한은 저장 게이트가 안내한다
+              screen.topics.map((topic) => (
+                <TopicChip
+                  key={topic.topicId}
+                  topicId={topic.topicId}
+                  label={topic.name}
+                  isSelected={topic.isSelected}
+                  isDimmed={false}
+                  onPress={() => screen.toggleTopic(topic.topicId)}
+                />
+              ))
+            )}
           </ScrollView>
 
           {/* 하단 고정 독 — 칩이 늘어 스크롤이 생겨도 [저장]이 묻히지 않는다(uiux 4.1) */}
@@ -279,8 +286,13 @@ const styles = StyleSheet.create({
     width: 96,
     height: theme.font.size.sm * 1.4,
     borderRadius: theme.radius.sm,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
+  },
+  // 칩 스켈레톤 묶음 — chipArea 의 줄바꿈 격자를 그대로 이어받는다(낭독·반짝임을 영역 하나로)
+  skeletonChipArea: {
+    width: '100%',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.sm,
   },
   skeletonChip: {
     // 실제 칩과 같은 격자 규칙
@@ -288,8 +300,6 @@ const styles = StyleSheet.create({
     flexBasis: '40%',
     height: theme.touchTarget.minHeight + theme.spacing.md,
     borderRadius: theme.radius.full,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
   },
   dock: {
     gap: theme.spacing.sm,

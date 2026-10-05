@@ -7,6 +7,7 @@ import { AccessibilityInfo, Linking } from 'react-native';
 import { track } from '@/shared/analytics';
 import { isApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
+import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { generateId } from '@/shared/lib/generate-id';
 import { logger } from '@/shared/lib/logger';
 import { toTab } from '@/shared/navigation/to-tab';
@@ -69,7 +70,9 @@ export const useExploreSearchScreen = (embedding?: ExploreSearchEmbedding) => {
   const navigation = useNavigation();
   /** iOS 26 갈래의 탐색 탭 안 스택 — 원본은 app/navigation/types.ts 의 ExploreStackParamList(feature 는 app 을 import 하지 않는다) */
   const exploreStackNavigation =
-    useNavigation<NativeStackNavigationProp<{ ExploreHome: { applyTopicId?: string } | undefined }>>();
+    useNavigation<
+      NativeStackNavigationProp<{ ExploreHome: { applyTopicId?: string } | undefined }>
+    >();
   const queryClient = useQueryClient();
   const showToast = useToastStore((s) => s.show);
 
@@ -183,9 +186,11 @@ export const useExploreSearchScreen = (embedding?: ExploreSearchEmbedding) => {
   const isInitialMode = activeQuery === null;
   /** 입력이 있는데 실행할 수 없는 질의다(1자·특수문자만) — 초기 화면을 유지한 채 안내만 얹는다(7장) */
   const showEmptyPrompt = inputText.trim().length > 0 && !isSearchableQuery(inputText);
-  /** 직전 결과조차 없는 첫 검색 로딩 — 인라인 스피너 하나다(스켈레톤을 쓰지 않는다, uiux 4.6) */
+  /** 직전 결과조차 없는 첫 검색 로딩 — 결과 격자 모양의 스켈레톤(uiux 4.6, KAN-140) */
   const isFirstSearchLoading =
     !isInitialMode && searchQuery.data === undefined && searchQuery.isFetching;
+  /** 첫 검색 스켈레톤 — 0.3초 이상 걸릴 때만(common-error-handling.md 5) */
+  const showFirstSearchSkeleton = useDelayedVisible(isFirstSearchLoading);
   const isNoResult =
     !isInitialMode && searchQuery.data !== undefined && !searchQuery.isPlaceholderData
       ? results.length === 0 && fallback !== null
@@ -479,6 +484,7 @@ export const useExploreSearchScreen = (embedding?: ExploreSearchEmbedding) => {
     // 결과(E6 변형)·빈 결과(E7)
     results,
     isFirstSearchLoading,
+    showFirstSearchSkeleton,
     isShowingStaleResults,
     isNoResult,
     relatedTopics: fallback?.relatedTopics ?? [],

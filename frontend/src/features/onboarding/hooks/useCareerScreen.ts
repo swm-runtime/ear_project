@@ -5,6 +5,7 @@ import { BackHandler } from 'react-native';
 
 import { track } from '@/shared/analytics';
 import { isApiError } from '@/shared/api/api-error';
+import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { useToastStore } from '@/shared/ui/toast.store';
 
 import { useJobCategoriesQuery } from '@/features/career';
@@ -16,8 +17,7 @@ import { onboardingCompletionService } from '../services/onboarding-completion.s
 type PendingAction = 'next' | 'skip' | null;
 
 export const useCareerScreen = () => {
-  const navigation =
-    useNavigation<NativeStackNavigationProp<OnboardingStackParamList, 'Career'>>();
+  const navigation = useNavigation<NativeStackNavigationProp<OnboardingStackParamList, 'Career'>>();
   const showToast = useToastStore((s) => s.show);
   const saveCareerMutation = useSaveCareerMutation();
   // 직군 선택지는 서버 목록이다 — 커리어 정보 화면과 같은 계약·같은 캐시(career-api.md 4.3,
@@ -83,6 +83,8 @@ export const useCareerScreen = () => {
     yearsOfExperience,
     jobCategoryOptions: (jobCategoriesQuery.data ?? []).map((category) => category.name),
     isJobCategoriesLoading: jobCategoriesQuery.isPending,
+    /** 직군 칩 줄의 스켈레톤 — 0.3초 이상 걸릴 때만(common-error-handling.md 5) */
+    showJobCategoriesSkeleton: useDelayedVisible(jobCategoriesQuery.isPending),
     // 전부 선택 입력이라 목록 실패가 [건너뛰기]·[다음]을 막지 않는다 — 칩 영역만 에러를 그린다
     isJobCategoriesError: jobCategoriesQuery.isError,
     retryJobCategories: () => void jobCategoriesQuery.refetch(),

@@ -5,6 +5,7 @@ import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
 import GlassIconButton from '@/shared/ui/GlassIconButton';
+import { SkeletonBlock, SkeletonGroup } from '@/shared/ui/Skeleton';
 import { Text } from '@/shared/ui/Typography';
 
 import { useNoticeDetailScreen } from '../hooks/useNoticeDetailScreen';
@@ -18,9 +19,9 @@ const BODY_SKELETON_LINE_COUNT = 4;
 /** 본문 자리 스켈레톤 — 제목·날짜는 목록 값으로 즉시 그리고 본문만 기다린다(S9) */
 function NoticeBodySkeleton() {
   return (
-    <View style={styles.bodySkeleton} accessibilityLabel={NOTICE_COPY.loadingA11y}>
+    <SkeletonGroup style={styles.bodySkeleton} accessibilityLabel={NOTICE_COPY.loadingA11y}>
       {Array.from({ length: BODY_SKELETON_LINE_COUNT }, (_, index) => (
-        <View
+        <SkeletonBlock
           key={index}
           style={[
             styles.bodySkeletonLine,
@@ -28,7 +29,7 @@ function NoticeBodySkeleton() {
           ]}
         />
       ))}
-    </View>
+    </SkeletonGroup>
   );
 }
 
@@ -72,10 +73,13 @@ export default function NoticeDetailScreen() {
             </>
           ) : screen.showBodySkeleton ? (
             // 목록을 거치지 않은 진입 — 헤더 요약이 없으면 제목·날짜 자리도 스켈레톤이다
-            <View style={styles.headerSkeleton} accessibilityLabel={NOTICE_COPY.loadingA11y}>
-              <View style={styles.headerSkeletonTitle} />
-              <View style={styles.headerSkeletonDate} />
-            </View>
+            <SkeletonGroup
+              style={styles.headerSkeleton}
+              accessibilityLabel={NOTICE_COPY.loadingA11y}
+            >
+              <SkeletonBlock style={styles.headerSkeletonTitle} />
+              <SkeletonBlock style={styles.headerSkeletonDate} />
+            </SkeletonGroup>
           ) : null}
 
           <View style={styles.divider} />
@@ -152,15 +156,11 @@ const styles = StyleSheet.create({
     height: 28,
     width: '85%',
     borderRadius: theme.radius.sm,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
   },
   headerSkeletonDate: {
     height: 14,
     width: '30%',
     borderRadius: theme.radius.sm,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
   },
   bodySkeleton: {
     gap: theme.spacing.sm,
@@ -168,8 +168,6 @@ const styles = StyleSheet.create({
   bodySkeletonLine: {
     height: 16,
     borderRadius: theme.radius.sm,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
     alignSelf: 'stretch',
   },
   bodySkeletonLineShort: {
