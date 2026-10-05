@@ -12,7 +12,7 @@
 | Jira | [KAN-123](https://runtime364.atlassian.net/browse/KAN-123) |
 | 근거 문서 | `frontend/architecture.md` 5.3(SessionService — 재갱신 루프 금지) · 7.2(영속 계층) · `features/common-error-handling.md` 7(401 갱신) · backend `modules/auth/services/auth.service.ts` `refresh()`(회전·재사용 탐지) |
 | 중요도 | High — 잠금 화면에서 30분 넘게 들으면 듣는 도중 로그아웃된다. 이 앱의 핵심 사용 장면이다 |
-| 상태 | 완료 (반영 2026-10-05, PR #PR_NUMBER) |
+| 상태 | 완료 (반영 2026-10-05, PR #1129) |
 
 ## 배경
 
@@ -57,7 +57,7 @@ FunctionCallException: Calling the 'getValueWithKeyAsync' function has failed (E
 ## 처리 기록
 
 - 2026-10-05 발행(이주호). Jira KAN-123(이주호, High, 기한 10-05). 이슈와 수정이 같은 PR에 실려 바로 archive에 둔다.
-- **반영 날짜: 2026-10-05** — PR #PR_NUMBER(`fix(fe)/ios-keychain-after-first-unlock` → dev).
+- **반영 날짜: 2026-10-05** — PR #1129(`fix(fe)/ios-keychain-after-first-unlock` → dev).
   - **옵션**: `secure-storage.ts` `SECURE_STORE_OPTIONS = { keychainAccessible: AFTER_FIRST_UNLOCK }` — get·set·delete 모두. `THIS_DEVICE_ONLY`는 쓰지 않았다(기기 이전·백업 복원 동작을 종전과 같게).
   - **이관**: `keychain-migration.ts`. 키마다 읽기 → `<키>.migrating` 사본 쓰기 → 지우기 → 다시 쓰기(실패 시 1회 재시도) → 사본 지우기. 사본을 먼저 쓰므로 지우고 다시 쓰는 사이에 앱이 죽어도 다음 실행이 사본으로 되살린다. 사본 쓰기가 실패하면 원본을 지우지 않는다. 한 키가 실패해도 나머지는 계속하고, 하나라도 실패하면 완료 표시(`STORAGE_KEYS.KEYCHAIN_ACCESSIBILITY_VERSION` = `'1'`)를 남기지 않는다. 대상은 `STORAGE_KEYS` 전부(완료 표시 제외) — JS 트레이스의 리터럴 키 `diag.js_trace`를 `STORAGE_KEYS.DIAG_JS_TRACE`로 옮겨 포함시켰다. `App.tsx` 최상단에서 시작하고, 전경이 아니면 처음 `active`가 될 때 돈다(`shared/lib/app-active.ts`). 도는 동안 `secureStorage`의 모든 호출은 관문(`holdSecureStorageWhile`)에서 기다린다 — 지운 틈에 세션 복원이 "토큰 없음"을 읽고 로그아웃하지 않게.
   - **기기 id**: `device-id.ts` 메모리 캐시 + 진행 중 조회 공유(동시 호출이 id를 둘 만들지 않는다). 실패는 기억하지 않는다. 재생의 서명 URL 요청(`player.api.ts`)도 이 값을 쓰므로 잠금 화면의 4분 주기 요청이 키체인에 닿지 않는다.
