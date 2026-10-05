@@ -68,7 +68,7 @@
 
 ## 딸린 정정
 
-`tickets/frontend/pending/share-p1-activation-next-build.md`의 처리 기록에 "텍스트 = SH3 세 줄로
+`tickets/frontend/archive/share-p1-activation-next-build.md`의 처리 기록에 "텍스트 = SH3 세 줄로
 확정"이 남아 있다. **이 개정이 그 결정을 대체한다** — 해당 티켓에도 정정 한 줄을 적어 뒀다.
 
 ## 처리 기록 (반영 날짜: 2026-09-11)

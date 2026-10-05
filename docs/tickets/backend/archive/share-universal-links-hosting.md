@@ -115,6 +115,6 @@
 ### archive 후에도 살아 있는 운영 항목 2개 (이 티켓을 되살리지 않는다)
 
 1. **스토어 URL 확정 시 `StoreRedirect` 상수 교체** — 심사 통과 후. P1 공유 활성화 건
-   (`tickets/frontend/pending/share-p1-activation-next-build.md`)과 시점이 겹친다.
+   (`tickets/frontend/archive/share-p1-activation-next-build.md`)과 시점이 겹친다.
 2. **앱 서명 키 전환 진행 시 `assetlinks.json`에 새 키 SHA-256 추가** — Play Console 앱 서명
    페이지에서 새 JSON을 복사해 갱신한다. 빠뜨리면 App Links 검증이 끊긴다.
