@@ -1,0 +1,565 @@
+diff --git a/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioModule.kt b/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioModule.kt
+index 992239b..b3952de 100644
+--- a/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioModule.kt
++++ b/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioModule.kt
+@@ -283,6 +283,15 @@ class AudioModule : Module() {
+       AudioPreloadManager.getPreloadedSources()
+     }
+ 
++    // [ear patch] KAN-124 — ear-audio://<key> 스트림이 다음 바이트 요청부터 쓸 서명 URL (EarAudioStream.kt)
++    Function("setStreamUrl") { streamUri: String, url: String ->
++      EarAudioStream.setUrl(streamUri, url)
++    }
++
++    Function("clearStreamUrl") { streamUri: String ->
++      EarAudioStream.clearUrl(streamUri)
++    }
++
+     OnActivityEntersBackground {
+       if (!shouldPlayInBackground) {
+         releaseAudioFocus()
+@@ -874,6 +883,8 @@ class AudioModule : Module() {
+     } else {
+       when (uri.scheme) {
+         "http", "https" -> httpDataSourceFactory(source.headers)
++        // [ear patch] KAN-124 — 고정 주소를 요청마다 최신 서명 URL 로 바꿔 HTTP 로 받는다
++        EarAudioStream.SCHEME -> EarAudioStream.factory(httpDataSourceFactory(source.headers))
+         else -> DefaultDataSource.Factory(context)
+       }
+     }
+diff --git a/node_modules/expo-audio/android/src/main/java/expo/modules/audio/EarAudioStream.kt b/node_modules/expo-audio/android/src/main/java/expo/modules/audio/EarAudioStream.kt
+new file mode 100644
+index 0000000..d2dfa6f
+--- /dev/null
++++ b/node_modules/expo-audio/android/src/main/java/expo/modules/audio/EarAudioStream.kt
+@@ -0,0 +1,53 @@
++package expo.modules.audio
++
++import android.net.Uri
++import androidx.core.net.toUri
++import androidx.media3.datasource.DataSource
++import androidx.media3.datasource.DataSpec
++import androidx.media3.datasource.ResolvingDataSource
++import java.io.IOException
++import java.util.concurrent.ConcurrentHashMap
++
++/**
++ * [ear patch] KAN-124 — 서명 URL 갱신을 음원 교체 없이 반영한다.
++ *
++ * 플레이어에는 재생 내내 바뀌지 않는 `ear-audio://<key>` 주소를 준다. 데이터 소스가 바이트 요청을 열 때마다
++ * (최초 열기 · 탐색 · 오류 뒤 재시도) [resolveDataSpec] 이 그 주소를 JS 가 마지막으로 넘긴 서명 URL 로 바꾼다.
++ * 그래서 4분마다 URL 이 갱신돼도 미디어 소스를 갈아 끼우지 않는다 — 버퍼·위치·배속이 그대로다.
++ *
++ * URL 공급이 끊기면(갱신 실패) 표의 마지막 URL 로 계속 요청한다. 그 URL 이 만료돼 403 이 나면 ExoPlayer 의
++ * 기본 재시도(매번 다시 resolve 하므로 그 사이 들어온 새 URL 을 집는다)를 거친 뒤 재생 오류로 올라간다.
++ */
++@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
++object EarAudioStream : ResolvingDataSource.Resolver {
++  const val SCHEME = "ear-audio"
++
++  private val urls = ConcurrentHashMap<String, String>()
++
++  private fun keyOf(uri: Uri): String? {
++    if (uri.scheme != SCHEME) {
++      return null
++    }
++    return uri.host?.lowercase()?.takeIf { it.isNotEmpty() }
++  }
++
++  fun setUrl(streamUri: String, url: String) {
++    val key = keyOf(streamUri.toUri()) ?: return
++    urls[key] = url
++  }
++
++  fun clearUrl(streamUri: String) {
++    val key = keyOf(streamUri.toUri()) ?: return
++    urls.remove(key)
++  }
++
++  fun factory(upstream: DataSource.Factory): DataSource.Factory =
++    ResolvingDataSource.Factory(upstream, this)
++
++  @Throws(IOException::class)
++  override fun resolveDataSpec(dataSpec: DataSpec): DataSpec {
++    val key = keyOf(dataSpec.uri) ?: return dataSpec
++    val url = urls[key] ?: throw IOException("ear-audio: no signed url registered for $key")
++    return dataSpec.withUri(url.toUri())
++  }
++}
+diff --git a/node_modules/expo-audio/ios/AudioModule.swift b/node_modules/expo-audio/ios/AudioModule.swift
+index d265606..77d5d7f 100644
+--- a/node_modules/expo-audio/ios/AudioModule.swift
++++ b/node_modules/expo-audio/ios/AudioModule.swift
+@@ -89,6 +89,15 @@ public class AudioModule: Module {
+       self.registry.preloadedPlayerKeys()
+     }
+ 
++    // [ear patch] KAN-124 — ear-audio://<key> 스트림이 다음 바이트 요청부터 쓸 서명 URL (EarAudioStream.swift)
++    Function("setStreamUrl") { (streamUri: String, url: String) in
++      EarAudioStream.setUrl(url, forStreamUri: streamUri)
++    }
++
++    Function("clearStreamUrl") { (streamUri: String) in
++      EarAudioStream.clearUrl(forStreamUri: streamUri)
++    }
++
+     OnDestroy {
+       registry.removeAllPreloadedPlayers()
+       registry.removeAll()
+diff --git a/node_modules/expo-audio/ios/AudioUtils.swift b/node_modules/expo-audio/ios/AudioUtils.swift
+index 79c7c0b..6cfe5d2 100644
+--- a/node_modules/expo-audio/ios/AudioUtils.swift
++++ b/node_modules/expo-audio/ios/AudioUtils.swift
+@@ -90,6 +90,8 @@ struct AudioUtils {
+     }
+ 
+     let asset = AVURLAsset(url: finalUrl, options: options)
++    // [ear patch] KAN-124 — ear-audio:// 는 리소스 로더가 최신 서명 URL 로 채운다 (EarAudioStream.swift)
++    EarAudioStream.attachLoaderIfNeeded(to: asset, headers: source.headers)
+     return AVPlayerItem(asset: asset, automaticallyLoadedAssetKeys: [.tracks, .duration])
+   }
+ 
+diff --git a/node_modules/expo-audio/ios/EarAudioStream.swift b/node_modules/expo-audio/ios/EarAudioStream.swift
+new file mode 100644
+index 0000000..bb1ba1e
+--- /dev/null
++++ b/node_modules/expo-audio/ios/EarAudioStream.swift
+@@ -0,0 +1,438 @@
++import AVFoundation
++import Foundation
++import UniformTypeIdentifiers
++
++// [ear patch] KAN-124 — 서명 URL 갱신을 음원 교체 없이 반영한다.
++//
++// 플레이어에는 재생 내내 바뀌지 않는 `ear-audio://<key>` 주소를 준다. AVFoundation 은 이 스킴을 직접 못 읽으므로
++// AVURLAsset 의 리소스 로더(AVAssetResourceLoaderDelegate)에 로딩 요청을 넘기고, 로더가 각 요청을
++// JS 가 마지막으로 넘긴 서명 URL 의 HTTP Range 요청으로 채운다. 4분마다 URL 이 갱신돼도 AVPlayerItem 을
++// 갈아 끼우지 않으므로 버퍼·위치·배속 알고리즘(audioTimePitchAlgorithm)이 그대로다.
++//
++// 오류 규칙:
++// - URL 공급이 끊기면(갱신 실패) 표의 마지막 URL 로 계속 요청한다.
++// - 403 은 잠시 기다리며 새 URL 을 다시 집어 재시도하고(갱신이 진행 중일 수 있다), 끝내 403 이면 로딩 요청을
++//   오류로 끝낸다 → AVPlayerItem 실패 → expo-audio 상태 이벤트의 `error` 로 JS 에 올라간다.
++// - 일시적 네트워크 오류·5xx 는 받은 데까지(currentOffset)부터 이어 받도록 재시도한다 — HTTP 직결일 때처럼
++//   끊김 동안 버퍼링으로 머문다.
++//
++// 모든 로더·URLSession 콜백은 `EarAudioStream.queue`(직렬)에서 돈다 — 요청 상태에 잠금이 필요 없다.
++// URL 표만 JS 스레드에서 쓰이므로 잠금으로 지킨다.
++
++enum EarAudioStream {
++  static let scheme = "ear-audio"
++
++  static let queue = DispatchQueue(label: "expo.modules.audio.ear-audio-stream")
++
++  private static let lock = NSLock()
++  private static var urls: [String: URL] = [:]
++  private static let loaderAssociationKey = UnsafeMutableRawPointer.allocate(byteCount: 1, alignment: 1)
++
++  static func key(of url: URL) -> String? {
++    guard url.scheme?.lowercased() == scheme, let host = url.host, !host.isEmpty else {
++      return nil
++    }
++    return host.lowercased()
++  }
++
++  static func setUrl(_ urlString: String, forStreamUri streamUri: String) {
++    guard let streamUrl = URL(string: streamUri),
++      let key = key(of: streamUrl),
++      let url = URL(string: urlString) else {
++      return
++    }
++    lock.lock()
++    urls[key] = url
++    lock.unlock()
++  }
++
++  static func clearUrl(forStreamUri streamUri: String) {
++    guard let streamUrl = URL(string: streamUri), let key = key(of: streamUrl) else {
++      return
++    }
++    lock.lock()
++    urls.removeValue(forKey: key)
++    lock.unlock()
++  }
++
++  static func currentUrl(forKey key: String) -> URL? {
++    lock.lock()
++    defer { lock.unlock() }
++    return urls[key]
++  }
++
++  /// `ear-audio://` 자산이면 리소스 로더를 붙인다. 다른 스킴이면 아무것도 하지 않는다.
++  static func attachLoaderIfNeeded(to asset: AVURLAsset, headers: [String: String]?) {
++    guard let key = key(of: asset.url) else {
++      return
++    }
++    let loader = EarAudioResourceLoader(key: key, headers: headers)
++    asset.resourceLoader.setDelegate(loader, queue: queue)
++    // resourceLoader.delegate 는 weak 다 — 로더를 자산과 같은 수명으로 붙들어 둔다
++    objc_setAssociatedObject(asset, loaderAssociationKey, loader, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
++  }
++
++  static func contentType(mimeType: String?, url: URL?) -> String {
++    if let mime = mimeType?.lowercased(), !mime.isEmpty,
++      mime != "application/octet-stream", mime != "binary/octet-stream" {
++      switch mime {
++      case "audio/mpeg", "audio/mp3", "audio/mpeg3", "audio/x-mpeg-3":
++        return UTType.mp3.identifier
++      case "audio/mp4", "audio/m4a", "audio/x-m4a", "audio/aac", "audio/x-aac":
++        return UTType.mpeg4Audio.identifier
++      case "audio/wav", "audio/x-wav", "audio/wave", "audio/vnd.wave":
++        return UTType.wav.identifier
++      default:
++        if let type = UTType(mimeType: mime), type.conforms(to: .audiovisualContent) {
++          return type.identifier
++        }
++      }
++    }
++    if let ext = url?.pathExtension, !ext.isEmpty, let type = UTType(filenameExtension: ext) {
++      return type.identifier
++    }
++    return UTType.mp3.identifier
++  }
++
++  static func error(_ code: Int, _ message: String) -> NSError {
++    return NSError(domain: "EarAudioStream", code: code, userInfo: [NSLocalizedDescriptionKey: message])
++  }
++}
++
++/// 자산 하나의 로딩 요청들을 받는다. 요청마다 `EarAudioFetch` 하나를 만든다.
++final class EarAudioResourceLoader: NSObject, AVAssetResourceLoaderDelegate {
++  private let key: String
++  private let headers: [String: String]?
++  private var fetches: [ObjectIdentifier: EarAudioFetch] = [:]
++
++  init(key: String, headers: [String: String]?) {
++    self.key = key
++    self.headers = headers
++    super.init()
++  }
++
++  func resourceLoader(
++    _ resourceLoader: AVAssetResourceLoader,
++    shouldWaitForLoadingOfRequestedResource loadingRequest: AVAssetResourceLoadingRequest
++  ) -> Bool {
++    let id = ObjectIdentifier(loadingRequest)
++    let fetch = EarAudioFetch(key: key, headers: headers, loadingRequest: loadingRequest) { [weak self] in
++      self?.fetches.removeValue(forKey: id)
++    }
++    fetches[id] = fetch
++    fetch.start()
++    return true
++  }
++
++  func resourceLoader(
++    _ resourceLoader: AVAssetResourceLoader,
++    didCancel loadingRequest: AVAssetResourceLoadingRequest
++  ) {
++    fetches.removeValue(forKey: ObjectIdentifier(loadingRequest))?.cancel()
++  }
++}
++
++/// 로딩 요청 하나를 최신 서명 URL 의 Range 요청으로 채운다. 실패하면 받은 데까지부터 다시 요청한다.
++final class EarAudioFetch {
++  private static let maxForbiddenRetries = 10
++  private static let forbiddenRetryDelay: TimeInterval = 2
++  private static let maxTransientRetries = 30
++  private static let maxTransientRetryDelay: TimeInterval = 10
++
++  private let key: String
++  private let headers: [String: String]?
++  private let loadingRequest: AVAssetResourceLoadingRequest
++  private let onDone: () -> Void
++
++  private var task: URLSessionDataTask?
++  private var requestedUrl: URL?
++  private var rangeStart: Int64 = 0
++  private var bytesToSkip: Int64 = 0
++  private var forbiddenRetries = 0
++  private var transientRetries = 0
++  private var didFillContentInformation = false
++  private var didHandleResponse = false
++  private var isFinished = false
++
++  init(
++    key: String,
++    headers: [String: String]?,
++    loadingRequest: AVAssetResourceLoadingRequest,
++    onDone: @escaping () -> Void
++  ) {
++    self.key = key
++    self.headers = headers
++    self.loadingRequest = loadingRequest
++    self.onDone = onDone
++  }
++
++  func start() {
++    guard !isFinished else {
++      return
++    }
++    guard let url = EarAudioStream.currentUrl(forKey: key) else {
++      finish(error: EarAudioStream.error(-1, "ear-audio: no signed url registered for \(key)"))
++      return
++    }
++
++    let offset: Int64
++    var length: Int64?
++    if let dataRequest = loadingRequest.dataRequest {
++      offset = dataRequest.currentOffset
++      if !dataRequest.requestsAllDataToEndOfResource {
++        let end = dataRequest.requestedOffset + Int64(dataRequest.requestedLength)
++        let remaining = end - offset
++        if remaining <= 0 {
++          finish(error: nil)
++          return
++        }
++        length = remaining
++      }
++    } else {
++      // 콘텐츠 정보만 묻는 요청 — 길이·형식만 알면 된다
++      offset = 0
++      length = 2
++    }
++
++    var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
++    headers?.forEach { name, value in
++      request.setValue(value, forHTTPHeaderField: name)
++    }
++    if let length {
++      request.setValue("bytes=\(offset)-\(offset + length - 1)", forHTTPHeaderField: "Range")
++    } else {
++      request.setValue("bytes=\(offset)-", forHTTPHeaderField: "Range")
++    }
++
++    requestedUrl = url
++    rangeStart = offset
++    bytesToSkip = 0
++    didHandleResponse = false
++    task = EarAudioSession.shared.start(request, for: self)
++  }
++
++  func cancel() {
++    isFinished = true
++    task?.cancel()
++    task = nil
++  }
++
++  /// 응답 헤더 판정 — false 면 이 시도를 접는다(오류 마무리 또는 재시도 예약을 이미 했다).
++  /// URLSession 응답 위임(completionHandler 시그니처가 SDK 마다 다르다) 대신 첫 데이터·완료 시점에 task.response 로 본다
++  private func handle(response: URLResponse?) -> Bool {
++    didHandleResponse = true
++    guard let http = response as? HTTPURLResponse else {
++      finish(error: EarAudioStream.error(-2, "ear-audio: non-HTTP response"))
++      return false
++    }
++
++    let status = http.statusCode
++    guard (200..<300).contains(status) else {
++      handleFailure(status: status)
++      return false
++    }
++
++    // Range 를 무시하고 200 으로 처음부터 주면 요청 위치까지 건너뛴다
++    bytesToSkip = status == 200 ? rangeStart : 0
++
++    if !didFillContentInformation, let info = loadingRequest.contentInformationRequest {
++      didFillContentInformation = true
++      info.contentType = EarAudioStream.contentType(mimeType: http.mimeType, url: requestedUrl)
++      if let total = totalLength(of: http) {
++        info.contentLength = total
++      }
++      let acceptRanges = (http.value(forHTTPHeaderField: "Accept-Ranges") ?? "").lowercased()
++      info.isByteRangeAccessSupported = status == 206 || acceptRanges.contains("bytes")
++    }
++
++    if loadingRequest.dataRequest == nil {
++      finishAndStopTask()
++      return false
++    }
++    return true
++  }
++
++  func didReceive(data: Data, from dataTask: URLSessionTask) {
++    guard !isFinished, dataTask === task else {
++      return
++    }
++    if !didHandleResponse && !handle(response: dataTask.response) {
++      return
++    }
++    guard let dataRequest = loadingRequest.dataRequest else {
++      return
++    }
++    var chunk = data
++    if bytesToSkip > 0 {
++      let drop = min(Int64(chunk.count), bytesToSkip)
++      bytesToSkip -= drop
++      chunk = Data(chunk.dropFirst(Int(drop)))
++    }
++    if chunk.isEmpty {
++      return
++    }
++    if !dataRequest.requestsAllDataToEndOfResource {
++      let end = dataRequest.requestedOffset + Int64(dataRequest.requestedLength)
++      let remaining = end - dataRequest.currentOffset
++      if remaining <= 0 {
++        finishAndStopTask()
++        return
++      }
++      if Int64(chunk.count) > remaining {
++        chunk = Data(chunk.prefix(Int(remaining)))
++      }
++    }
++    dataRequest.respond(with: chunk)
++    // 성공적으로 받는 중이면 재시도 예산을 되돌린다 — 긴 재생 중 드문드문 나는 오류가 쌓여 끊기지 않게
++    transientRetries = 0
++  }
++
++  func didComplete(task completedTask: URLSessionTask, error: Error?) {
++    // 접은 시도의 늦은 완료 — 그 사이 시작한 새 시도를 건드리지 않는다
++    guard !isFinished, completedTask === task else {
++      return
++    }
++    guard let error else {
++      // 본문 없는 응답(예: 빈 403)은 데이터 콜백 없이 여기로 온다
++      if !didHandleResponse && !handle(response: completedTask.response) {
++        return
++      }
++      task = nil
++      finish(error: nil)
++      return
++    }
++    task = nil
++    let nsError = error as NSError
++    if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
++      // 우리가 접은 시도(재시도 예약됨) — 마무리하지 않는다
++      return
++    }
++    if isTransient(nsError) {
++      scheduleTransientRetry(or: error)
++      return
++    }
++    finish(error: error)
++  }
++
++  private func handleFailure(status: Int) {
++    task?.cancel()
++    task = nil
++    switch status {
++    case 401, 403:
++      // 서명 만료 — 갱신이 진행 중일 수 있으니 잠시 기다리며 표의 최신 URL 로 다시 시도한다
++      if forbiddenRetries < Self.maxForbiddenRetries {
++        forbiddenRetries += 1
++        let changed = EarAudioStream.currentUrl(forKey: key) != requestedUrl
++        retry(after: changed ? 0 : Self.forbiddenRetryDelay)
++        return
++      }
++      finish(error: EarAudioStream.error(status, "ear-audio: HTTP \(status)"))
++    case 408, 429, 500...599:
++      scheduleTransientRetry(or: EarAudioStream.error(status, "ear-audio: HTTP \(status)"))
++    default:
++      finish(error: EarAudioStream.error(status, "ear-audio: HTTP \(status)"))
++    }
++  }
++
++  private func isTransient(_ error: NSError) -> Bool {
++    guard error.domain == NSURLErrorDomain else {
++      return false
++    }
++    switch error.code {
++    case NSURLErrorTimedOut,
++      NSURLErrorNetworkConnectionLost,
++      NSURLErrorNotConnectedToInternet,
++      NSURLErrorCannotConnectToHost,
++      NSURLErrorCannotFindHost,
++      NSURLErrorDNSLookupFailed,
++      NSURLErrorInternationalRoamingOff,
++      NSURLErrorDataNotAllowed,
++      NSURLErrorSecureConnectionFailed:
++      return true
++    default:
++      return false
++    }
++  }
++
++  private func scheduleTransientRetry(or error: Error) {
++    guard transientRetries < Self.maxTransientRetries else {
++      finish(error: error)
++      return
++    }
++    transientRetries += 1
++    retry(after: min(Double(transientRetries), Self.maxTransientRetryDelay))
++  }
++
++  private func retry(after delay: TimeInterval) {
++    EarAudioStream.queue.asyncAfter(deadline: .now() + delay) { [weak self] in
++      self?.start()
++    }
++  }
++
++  private func finishAndStopTask() {
++    let current = task
++    task = nil
++    finish(error: nil)
++    current?.cancel()
++  }
++
++  private func finish(error: Error?) {
++    guard !isFinished else {
++      return
++    }
++    isFinished = true
++    if let error {
++      loadingRequest.finishLoading(with: error)
++    } else {
++      loadingRequest.finishLoading()
++    }
++    onDone()
++  }
++
++  private func totalLength(of response: HTTPURLResponse) -> Int64? {
++    if let contentRange = response.value(forHTTPHeaderField: "Content-Range"),
++      let slash = contentRange.lastIndex(of: "/") {
++      let total = contentRange[contentRange.index(after: slash)...].trimmingCharacters(in: .whitespaces)
++      if let value = Int64(total) {
++        return value
++      }
++    }
++    if response.statusCode == 200, response.expectedContentLength > 0 {
++      return response.expectedContentLength
++    }
++    return nil
++  }
++}
++
++/// 모든 스트림이 함께 쓰는 URLSession. 위임 객체를 하나로 두어 세션↔로더 순환 참조를 만들지 않는다.
++final class EarAudioSession: NSObject, URLSessionDataDelegate {
++  static let shared = EarAudioSession()
++
++  private var fetches: [Int: EarAudioFetch] = [:]
++
++  private lazy var session: URLSession = {
++    let configuration = URLSessionConfiguration.default
++    configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
++    configuration.urlCache = nil
++    let delegateQueue = OperationQueue()
++    delegateQueue.maxConcurrentOperationCount = 1
++    delegateQueue.underlyingQueue = EarAudioStream.queue
++    return URLSession(configuration: configuration, delegate: self, delegateQueue: delegateQueue)
++  }()
++
++  /// `EarAudioStream.queue` 에서만 부른다
++  func start(_ request: URLRequest, for fetch: EarAudioFetch) -> URLSessionDataTask {
++    let task = session.dataTask(with: request)
++    fetches[task.taskIdentifier] = fetch
++    task.resume()
++    return task
++  }
++
++  func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
++    fetches[dataTask.taskIdentifier]?.didReceive(data: data, from: dataTask)
++  }
++
++  func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
++    fetches.removeValue(forKey: task.taskIdentifier)?.didComplete(task: task, error: error)
++  }
++}
