@@ -64,7 +64,7 @@
 
 ## 처리 기록
 
-### 2026-10-06 — 코드 반영, 묶음 빌드 대기 (PR #__PR__)
+### 2026-10-06 — 코드 반영, 묶음 빌드 대기 (PR #1145)
 
 - **방식: expo-audio 패치(`frontend/patches/expo-audio+57.0.3.patch`)를 골랐다 — 로컬 모듈이 아니다.**
   - 리소스 로더(iOS)·`ResolvingDataSource`(Android)는 expo-audio 가 **안에서 만드는** `AVURLAsset`·데이터 소스 팩토리에 붙어야 한다. 어느 쪽을 골라도 expo-audio 안에 갈고리가 필요하다. 로컬 모듈로 빼면 갈고리에 더해 expo-audio → 로컬 모듈의 빌드 의존(podspec·gradle)까지 패치해야 해서 업그레이드 때 손볼 곳이 오히려 는다.
