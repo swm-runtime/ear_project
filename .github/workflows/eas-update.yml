@@ -91,6 +91,9 @@ jobs:
           APP_VARIANT: ${{ steps.channel.outputs.app_variant }}
           # 크래시 리포트 DSN(KAN-92) — 번들의 expoConfig.extra 로 실린다. 시크릿 미설정이면 빈 값 → 앱은 수집을 끈다
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          # 구독 UI(KAN-120) — 빌드 프로필 env 와 같은 값이어야 한다. runtime 32 바이너리(expo-iap 포함)만 이 OTA 를 받고,
+          # 앱은 네이티브 모듈 유무도 다시 확인한다. Android 결제는 EXPO_PUBLIC_SUBSCRIPTION_ANDROID 로 따로 켠다(KAN-130 뒤)
+          EXPO_PUBLIC_SUBSCRIPTION_UI: 'on'
           # 커밋 메시지를 셸에 직접 보간하지 않는다 — 따옴표·개행이 섞여도 안전하게 env 로 받는다
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
