@@ -20,7 +20,7 @@ const SHARE_LINK_BASE = 'https://earcast.co.kr/contents/';
  *
  * **커스텀 스킴을 받는 이유** — 카카오톡은 링크를 인앱 브라우저로 여는데, 인앱 브라우저는
  * OS 링크 검증을 타지 않아 앱이 설치돼 있어도 넘어오지 않는다. 랜딩 안내 페이지의
- * [앱에서 열기]가 이 스킴으로 앱을 띄운다(`tickets/frontend/pending/share-link-in-app-browser-escape.md`).
+ * [앱에서 열기]가 이 스킴으로 앱을 띄운다(`tickets/frontend/archive/share-link-in-app-browser-escape.md`).
  * 공유의 주 경로가 카톡이라 이 경로가 없으면 실제 도달률이 낮다.
  *
  * **보안 관점의 변화는 없다.** 링크에 실리는 값은 `content_id` 하나이고, 수신자의 조회

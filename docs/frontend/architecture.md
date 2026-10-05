@@ -213,7 +213,7 @@ auth / onboarding / library / explore / content-detail / player / paywall
 
 각 feature는 자기 화면·상태·API 호출의 **소유자**다. 다른 feature가 그 동작을 쓰려면 feature의 공개 API(`index.ts`)를 통한다.
 
-`share`는 전용 화면이 없는 횡단 feature다(`share.md`) — 네 진입점(library·explore·player·content-detail)이 공개 API로 공유를 실행하고, 링크 수신 게이트(`useShareLinkGate`)는 app(RootNavigator)이 배치한다.
+`share`는 전용 화면이 없는 횡단 feature다(`share.md`) — 네 진입점(library·explore·player·content-detail)이 공개 API로 공유를 실행하고, 링크 수신 게이트(`useShareLinkGate`)는 app(RootNavigator)이, 착지(`useShareLinkLanding` — 관문을 통과한 목적지를 상세로 보낸다)는 Main(MainNavigator)이 배치한다.
 
 ### 4.2 디렉터리 구조
 
@@ -276,7 +276,7 @@ feature가 늘어나면 아래 표를 갱신한다. 표에 없는 의존이 코�
 | settings | auth, subscription, notification, interest | 각 도메인 진입점 허브. 요약 invalidate 배선은 profile 행과 동일(`registerInterestSavedListener`) |
 | onboarding | interest, library, notification, auth, career | 주제 목록 조회(`useTopicsQuery` — 같은 계약·같은 캐시 `interestKeys.topics()`) · `TopicChip` 공용 · 저장 시 interest mock 원본 갱신 / 커리어 단계 저장 시 career mock 원본 갱신(`seedCareerMockFromOnboarding`). 직군 목록 공용(`useJobCategoriesQuery` · `careerKeys.jobCategories()`) 완료 — 2026-08-26, 티켓 `onboarding-job-categories-server-list` / 첫 담기 / 알림 권한 / 종료 시 세션 상태 갱신(라이브러리 진입 전환) |
 | notification | player | 푸시 딥링크 → 재생 게이트 |
-| share | auth | 링크 수신 게이트의 관문 판정(`useSessionStore` — 온보딩 완료 사용자만 상세로 이동, `share.md` 4.3). 순환 없음 — share는 네 진입점 feature를 import하지 않는다 |
+| share | (없음) | 링크 수신 게이트는 관문을 직접 판정하지 않는다 — RootNavigator 가 루트 분기(`app/navigation/root-route.ts`)에서 뽑은 관문 상태(`pending`·`open`·`closed`)를 넘긴다(2026-10-05, 종전엔 `useSessionStore` 스냅샷을 읽어 auth 에 의존했다). 순환 없음 — share는 네 진입점 feature를 import하지 않는다 |
 | splash | auth, onboarding | 진입 분기 판정 |
 | app-update | (없음) | 스플래시 버전 관문(`splash.md` 4.1 처리 1단계 — `GET /app/version`, KAN-99 2026-09-26). 판정은 서버, 결과(`useAppUpdateStore.gate`)로 RootNavigator 가 강제 업데이트 화면을 그린다. 30분 복귀 재검사는 `startAppVersionRecheck`(bootstrap). 설정의 배지와 무관 |
 | notice | (없음) | 조회 전용 화면(공지 목록·상세 — `settings.md` 4.5). **settings는 notice를 import하지 않는다** — 라우트 이름(`Notice`·`NoticeDetail`)으로 이동만 하고 화면 등록은 `app/navigation`이 한다(content-detail과 같은 방식) |
@@ -416,6 +416,7 @@ RootStack
 
 1. SplashGate 판정을 먼저 통과한다.
 2. 온보딩 미완료 시 처리는 **출처별로 다르다** — 푸시 딥링크는 보류했다가 완료 후 이동하고(`notification.md` 4.4), **공유 링크는 목적지를 폐기하고 복원하지 않는다**(디퍼드 딥링크 금지 — `share.md` 4.3이 소유). 개정 2026-08-26, `changes/archive/frontend-architecture-share-feature(fe).md`.
+   - **공유 링크는 관문 판정 중에 도착하면 기다렸다가 판정이 끝나는 순간 한 번 평가한다**(2026-10-05 — KAN-34 콜드 스타트 수정). 콜드 스타트의 `getInitialURL()`과 스플래시 도중의 `url` 이벤트는 세션 복원 전에 오므로, 그 자리에서 평가하면 로그인 사용자도 미로그인으로 읽혀 버려졌다. 관문 상태는 RootNavigator 와 같은 판정(`app/navigation/root-route.ts`의 `selectRootRoute`)에서 뽑는다 — 스플래시면 대기, Main 이면 통과, 그 밖(시작 화면·재동의·온보딩·강제 업데이트)이면 폐기. 통과한 목적지는 **Main 안**(`useShareLinkLanding`)에서 상세로 보내므로 `Main` 라우트가 생긴 뒤에만 이동하고, 복원한 탭 위에 얹힌다. 판정은 한 번뿐이라 이후 로그인·온보딩 완료로 되살아나지 않는다.
 3. 콘텐츠 딥링크는 재생 시작 게이트(5.2)를 거친다 — 차단 시 페이월.
 4. 대상이 회수·삭제됐으면 라이브러리로 폴백 + 토스트.
 
