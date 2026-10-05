@@ -33,10 +33,18 @@ const BASE_URL =
  * shared는 도메인을 모른다 — 토큰 동작은 이 인터페이스로만 접근하고,
  * 구현(auth의 SessionService)은 app/bootstrap에서 주입된다(architecture.md 4.3).
  */
+/**
+ * 토큰 갱신 결과. 단일 인플라이트 보장은 구현체 책임이다.
+ * - `refreshed` — 새 토큰을 받았다. 원 요청을 1회 재시도한다
+ * - `expired` — 세션이 끝났다. 로컬 세션을 정리한다
+ * - `deferred` — **지금은 판정할 수 없다**(iOS 기기 잠금으로 키체인을 못 읽음 — architecture.md 5.3·7.2).
+ *   세션을 지우지 않고 원 요청만 실패시킨다. 잠금이 풀린 뒤의 다음 401 이 다시 갱신한다 — 자동 재시도는 없다
+ */
+export type TokenRefreshResult = 'refreshed' | 'expired' | 'deferred';
+
 export interface TokenProvider {
   getAccessToken(): Promise<string | null>;
-  /** 갱신 성공 여부를 반환한다. 단일 인플라이트 보장은 구현체 책임이다. */
-  refreshTokens(): Promise<boolean>;
+  refreshTokens(): Promise<TokenRefreshResult>;
   /** 갱신 실패 시 호출 — 로컬 세션 정리 후 시작 화면 이동은 구현체 몫이다. */
   onSessionExpired(): void;
 }
@@ -155,11 +163,11 @@ apiClient.interceptors.response.use(undefined, async (error: AxiosError<ErrorRes
     !config.isAuthRetry &&
     tokenProvider
   ) {
-    const refreshed = await tokenProvider.refreshTokens();
-    if (refreshed) {
+    const result = await tokenProvider.refreshTokens();
+    if (result === 'refreshed') {
       return apiClient.request({ ...config, isAuthRetry: true });
     }
-    tokenProvider.onSessionExpired();
+    if (result === 'expired') tokenProvider.onSessionExpired();
     throw apiError;
   }
 

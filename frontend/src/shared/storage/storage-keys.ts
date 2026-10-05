@@ -55,4 +55,11 @@ export const STORAGE_KEYS = {
    * 계정 id 로 비교하므로 같은 기기에서 다른 계정이 새로 가입하면 그 계정에는 다시 뜬다. 로그아웃 때 지우지 않는다
    */
   SIGNUP_TRIAL_NOTICE_SEEN: 'profile.signup_trial_notice_seen',
+  /** 개발계 JS 트레이스(`shared/monitoring/js-trace.ts`) — 운영 앱은 쓰지 않는다 */
+  DIAG_JS_TRACE: 'diag.js_trace',
+  /**
+   * 키체인 접근성 이관을 마친 판(`keychain-migration.ts` · architecture.md 7.2). 이 값이 현재 판과 같으면 이관하지
+   * 않는다. **이관 대상이 아니다** — 처음부터 새 접근성으로 쓰인다. 로그아웃과 무관하다(기기의 값)
+   */
+  KEYCHAIN_ACCESSIBILITY_VERSION: 'storage.keychain_accessibility_version',
 } as const;

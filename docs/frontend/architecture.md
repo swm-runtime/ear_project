@@ -327,6 +327,7 @@ startPlayback(contentId, origin)
 - 토큰은 **SecureStore에만** 저장한다. MMKV·AsyncStorage·전역 변수 금지.
 - **토큰 갱신은 단일 인플라이트로 묶는다.** 동시 다발 401에서 갱신 요청은 1개만 나가고 나머지는 결과를 공유한다(`common-error-handling.md` 7).
 - 401 → 갱신 → 원 요청 자동 1회 재시도. 갱신 실패 시 즉시 로컬 세션 정리 → 시작 화면(재갱신 루프 금지).
+- **iOS 기기 잠금으로 키체인이 막힌 실패는 갱신 실패가 아니다**(2026-10-05 — `tickets/frontend/archive/ios-keychain-locked-logout.md`). 잠금 화면 재생 중 갱신이 refresh token·기기 id 를 못 읽으면 서버를 부르지 않고 판정을 미룬다(`TokenProvider.refreshTokens()` → `deferred`) — 세션을 지우지 않고 원 요청만 실패하며, 자동 재시도는 없다(다음 401 이 다시 갱신한다). 서버가 새 토큰을 줬는데 저장이 잠금에 막히면 메모리 토큰으로 계속 쓰고 **전경이 되면 저장한다** — 서버는 갱신마다 refresh token 을 회전하고 옛 토큰을 폐기하므로, 옛 토큰이 남은 채 끝나면 다음 실행의 갱신이 재사용 탐지로 그 사용자의 전 세션을 폐기한다. 잠금 판정은 `shared/storage/keychain-error.ts` 한 곳(`errSecInteractionNotAllowed`).
 - 로그아웃은 서버 호출 실패와 무관하게 로컬 토큰·캐시 삭제를 우선한다(`auth-api.md` 4.4).
 - ApiClient에는 `TokenProvider` 인터페이스로 주입된다(→ 4.3).
 
@@ -455,6 +456,9 @@ RootStack
 | **MMKV** | Key-Value 플래그·소형 캐시 | 최근 검색어(10건), `blocked_content_id`, 알림 재고 팝업 소진 플래그, 가입 체험 안내 팝업을 본 계정 id(`profile-uiux.md` 4.11 — 지금은 재생 확인 팝업 억제와 같이 `secureStorage`에 둔다, MMKV 도입 시 함께 이관), 온보딩 주제 임시 저장, 버전 캐시, 마지막 목록 1페이지 캐시 |
 
 - 토큰이 SecureStore 밖으로 나가면 리뷰에서 반려한다.
+- **iOS 키체인 접근성은 `AFTER_FIRST_UNLOCK`이다**(2026-10-05, `shared/storage/secure-storage.ts`의 `SECURE_STORE_OPTIONS` — 읽기·쓰기·지우기 모두 같은 값). 기본값 `WHEN_UNLOCKED`는 기기가 잠기면 읽기·쓰기가 전부 실패해, 잠금 화면 재생 중 토큰 갱신이 막혀 로그아웃됐다. 재부팅 뒤 한 번도 잠금을 풀지 않은 상태에서만 막힌다. `THIS_DEVICE_ONLY`는 쓰지 않는다(기기 이전·백업 복원 동작은 종전과 같다). Android는 이 옵션을 무시한다.
+  - **기존 항목은 한 번 이관한다**(`shared/storage/keychain-migration.ts`). 네이티브 `set`은 있는 항목에 값만 갱신하고 접근성은 바꾸지 않아서, 키마다 읽기 → `<키>.migrating` 사본 쓰기 → 지우기 → 다시 쓰기 → 사본 지우기를 한다. 앱 시작 때(`App.tsx` 최상단) **전경일 때만** 돌고, 백그라운드로 떠 있으면 처음 전경이 될 때 돈다. 도는 동안 `secureStorage` 호출은 끝나길 기다린다(지운 틈에 세션 복원이 "토큰 없음"을 읽지 않게). 한 키가 실패하면 그 키는 사본에 남고 완료 표시(`KEYCHAIN_ACCESSIBILITY_VERSION`)를 남기지 않아 다음 실행이 사본으로 되살리며 다시 돈다. 대상은 `STORAGE_KEYS` 전부라 **키를 추가하면 저절로 포함된다** — 키를 `STORAGE_KEYS` 밖에 두지 않는다.
+  - 잠금 화면 경로에서 저장소를 읽는 비필수 기능(재생 확인 억제·회수 동기화 커서·Meta 첫 재생·JS 트레이스 등)은 읽기·쓰기 실패를 삼키고 기본값으로 동작한다 — 던져서 재생을 막지 않는다. 기기 id 는 한 번 읽은 뒤 메모리에 둔다(`shared/lib/device-id.ts`).
 - 캐시는 "없으면 새로 받으면 되는 것"만 MMKV에 둔다. 유실되면 안 되는 것(큐·영수증)은 SQLite다.
 
 ### 7.3 낙관적 UI · 롤백
