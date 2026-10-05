@@ -4,9 +4,12 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 /**
- * 오디오 조립 (spec/06 7장) — ffmpeg 로: 앞 무음(2초) → 세그먼트 디코드·연결(문맥 겹침 경계는 그대로, 폴백 경계는 자연 쉼 길이의 무음) → 뒤 무음(2초) → 라우드니스 정규화(-16 LUFS)
- * → 마스터 wav + 배포본 mp3 192kbps (2026-09-22: ElevenLabs 원본이 mp3 128k 라 배포본을 128k 로 다시 인코딩하면 손실을 두 번 거친다 —
+ * 오디오 조립 (spec/06 7장) — ffmpeg 로: 본편[앞 무음 → 세그먼트 디코드·연결(문맥 겹침 경계는 그대로, 폴백 경계는 자연 쉼 길이의 무음) → 뒤 무음]
+ * → 본편만 라우드니스 정규화(2패스 linear, -16 LUFS) → 스테레오(목소리는 양쪽 같게) → [인트로 | 본편 | 아웃트로] 연결
+ * → 마스터 wav(스테레오) + 배포본 mp3 192kbps (2026-09-22: ElevenLabs 원본이 mp3 128k 라 배포본을 128k 로 다시 인코딩하면 손실을 두 번 거친다 —
  *   192k 는 그 두 번째 열화를 거의 없앤다. 원본이 pcm 이 되면(Pro 플랜) 다시 정한다). 재처리는 항상 마스터에서.
+ * 징글은 업로드 때 한 번 음량·포맷을 맞춰 두고(cli/jingle.ts) 조립 때는 손대지 않는다 — 2026-10-05 KAN-122: 모노 합치기가 넓은 스테레오 징글의
+ * 사이드 성분을 지웠고, 전체 1패스 loudnorm 이 조용한 징글을 +7~12dB 끌어올려 리미터·동적 게인으로 눌렀다.
  * ffmpeg 는 워커 이미지(deploy/Dockerfile)에 포함 — 로컬 실행 시엔 brew install ffmpeg.
  */
 const run = promisify(execFile);
@@ -129,10 +132,79 @@ export async function probeTrailingSilenceSec(file: string, thresholdDb = -45, m
   return Math.round((dur - lastStart) * 1000) / 1000;
 }
 
-/** 외부 오디오 파일(mp3/wav 등) → 표준 wav (44.1kHz mono s16le) */
-export async function fileToWav(src: string, outFile: string): Promise<string> {
-  await ffmpeg(["-i", src, "-ar", "44100", "-ac", "1", "-c:a", "pcm_s16le", outFile]);
+/** 외부 오디오 파일(mp3/wav 등) → 표준 wav (44.1kHz s16le, 채널 수 지정 — 징글은 2). 포맷만 바꾸고 음량은 건드리지 않는다 */
+export async function fileToWav(src: string, outFile: string, channels: 1 | 2 = 1): Promise<string> {
+  await ffmpeg(["-i", src, "-ar", "44100", "-ac", String(channels), "-c:a", "pcm_s16le", outFile]);
   return outFile;
+}
+
+/** EBU R128 측정 (ebur128 필터 — 통합 라우드니스 LUFS · 트루 피크 dBTP). loudnorm 1패스 측정은 수 초짜리 짧은 파일(징글)에서 1~1.5dB 어긋나 짧은 파일은 이걸 쓴다 */
+export async function measureEbur128(file: string): Promise<{ i: number; tp: number }> {
+  const { stderr } = await run("ffmpeg", ["-hide_banner", "-nostats", "-i", file, "-af", "ebur128=peak=true", "-f", "null", "-"], { maxBuffer: 1 << 26 });
+  const summary = stderr.slice(stderr.lastIndexOf("Summary:"));
+  return { i: Number(summary.match(/I:\s+(-?[\d.]+|-inf) LUFS/)?.[1]), tp: Number(summary.match(/Peak:\s+(-?[\d.]+|-inf) dBFS/)?.[1]) };
+}
+
+/**
+ * 짧은 파일(징글)의 음량 맞춤: ebur128 로 재고 고정 게인 한 번(volume) — 선형이다. 목표까지 올리면 트루 피크가 tp 를 넘는 경우 피크 여유만큼만 올린다.
+ * 출력은 44.1kHz s16, 채널 수 지정(징글은 2 — 원래 스테레오 그대로).
+ */
+export async function levelToTarget(src: string, outFile: string, o: { targetI: number; tp?: number; channels: 1 | 2 }): Promise<{ targetI: number; requestedI: number; gainDb: number; measuredI: number; measuredTp: number; outputI: number; outputTp: number }> {
+  const tp = o.tp ?? -1.5;
+  const m = await measureEbur128(src);
+  if (!Number.isFinite(m.i) || !Number.isFinite(m.tp)) throw new Error(`음량을 못 쟀다(무음?): ${src}`);
+  const gainDb = Math.round(Math.min(o.targetI - m.i, tp - 0.1 - m.tp) * 100) / 100;
+  await ffmpeg(["-i", src, "-af", `volume=${gainDb}dB`, "-ar", "44100", "-ac", String(o.channels), "-c:a", "pcm_s16le", outFile]);
+  const out = await measureEbur128(outFile);
+  return { targetI: Math.round((m.i + gainDb) * 100) / 100, requestedI: o.targetI, gainDb, measuredI: m.i, measuredTp: m.tp, outputI: out.i, outputTp: out.tp };
+}
+
+/** 모노 wav → 스테레오 wav (두 채널에 같은 신호, 감쇠 없음) */
+async function monoToStereo(src: string, outFile: string): Promise<string> {
+  await ffmpeg(["-i", src, "-af", "pan=stereo|c0=c0|c1=c0", "-ar", "44100", "-c:a", "pcm_s16le", outFile]);
+  return outFile;
+}
+
+/** loudnorm print_format=json 의 마지막 JSON 블록을 읽는다 (ffmpeg 는 stderr 에 찍는다) */
+async function loudnormJson(args: string[]): Promise<Record<string, string>> {
+  let stderr = "";
+  try { stderr = (await run("ffmpeg", ["-hide_banner", "-nostats", ...args], { maxBuffer: 1 << 24 })).stderr; }
+  catch (e: any) {
+    if (e.code === "ENOENT") throw new Error("ffmpeg 가 없습니다 — 서버 이미지에는 포함, 로컬은 brew install ffmpeg");
+    throw new Error(`ffmpeg 실패: ${(e.stderr || e.message || "").slice(0, 500)}`);
+  }
+  const a = stderr.lastIndexOf("{"), b = stderr.lastIndexOf("}");
+  if (a < 0 || b < a) throw new Error(`loudnorm 측정값을 못 읽었다: ${stderr.slice(-300)}`);
+  return JSON.parse(stderr.slice(a, b + 1)) as Record<string, string>;
+}
+
+export interface LoudnessResult {
+  type: string;          // "linear" | "dynamic"(선형이 성립하지 않아 ffmpeg 가 바꾼 경우 — 경고 대상) | "skipped"(무음에 가까워 측정 불가)
+  targetI: number;       // 실제로 쓴 목표 (피크 여유가 없으면 요청 목표보다 낮춘다)
+  requestedI: number;
+  measuredI: number; measuredTp: number; measuredLra: number;
+  outputI: number; outputTp: number;
+}
+
+/**
+ * 2패스 라우드니스 정규화 (2026-10-05 KAN-122): 1패스로 재고, 2패스에 측정값을 넘겨 linear=true — 파일 전체에 고정 게인 한 번.
+ * 1패스(동적) loudnorm 은 읽으면서 게인을 계속 바꿔 말소리가 출렁이고 쉼 뒤 바닥이 들뜬다. 고정 게인으로 목표에 닿으면 최대 피크가 TP 를 넘는 경우엔
+ * ffmpeg 가 몰래 동적 모드로 바꾸므로, 그때는 목표를 피크 여유만큼 낮춰 선형을 지킨다(결과에 남긴다 — 리미터로 누르지 않는다).
+ */
+export async function normalizeLinear(src: string, outFile: string, o: { targetI: number; tp?: number; lra?: number; channels: 1 | 2 }): Promise<LoudnessResult> {
+  const tp = o.tp ?? -1.5;
+  const p1 = await loudnormJson(["-i", src, "-af", `loudnorm=I=${o.targetI}:TP=${tp}:LRA=${o.lra ?? 11}:print_format=json`, "-f", "null", "-"]);
+  const mi = Number(p1.input_i), mtp = Number(p1.input_tp), mlra = Number(p1.input_lra), mth = Number(p1.input_thresh);
+  if (![mi, mtp, mlra, mth].every(Number.isFinite) || mi <= -69) {
+    await ffmpeg(["-i", src, "-ar", "44100", "-ac", String(o.channels), "-c:a", "pcm_s16le", outFile]);
+    return { type: "skipped", targetI: o.targetI, requestedI: o.targetI, measuredI: mi, measuredTp: mtp, measuredLra: mlra, outputI: mi, outputTp: mtp };
+  }
+  const headroom = tp - 0.1 - mtp; // 고정 게인으로 올릴 수 있는 최대치
+  const targetI = Math.round(Math.min(o.targetI, mi + headroom) * 100) / 100;
+  const lra = Math.min(20, Math.max(o.lra ?? 11, Math.ceil(mlra) + 1)); // 측정 LRA 보다 작은 목표는 선형을 막는다
+  const f = `loudnorm=I=${targetI}:TP=${tp}:LRA=${lra}:linear=true:measured_I=${mi}:measured_TP=${mtp}:measured_LRA=${mlra}:measured_thresh=${mth}:offset=${Number(p1.target_offset) || 0}:print_format=json`;
+  const p2 = await loudnormJson(["-y", "-i", src, "-af", f, "-ar", "44100", "-ac", String(o.channels), "-c:a", "pcm_s16le", outFile]);
+  return { type: p2.normalization_type ?? "?", targetI, requestedI: o.targetI, measuredI: mi, measuredTp: mtp, measuredLra: mlra, outputI: Number(p2.output_i), outputTp: Number(p2.output_tp) };
 }
 
 export async function probeDurationSec(file: string): Promise<number> {
@@ -159,8 +231,15 @@ async function toWav(seg: Segment, outFile: string, tmpDir: string, n: number): 
   return outFile;
 }
 
-async function silenceWav(sec: number, outFile: string): Promise<string> {
-  await ffmpeg(["-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono", "-t", String(sec), "-c:a", "pcm_s16le", outFile]);
+async function silenceWav(sec: number, outFile: string, channels: 1 | 2 = 1): Promise<string> {
+  await ffmpeg(["-f", "lavfi", "-i", `anullsrc=r=44100:cl=${channels === 2 ? "stereo" : "mono"}`, "-t", String(sec), "-c:a", "pcm_s16le", outFile]);
+  return outFile;
+}
+
+async function concatWavs(parts: string[], outFile: string, tmp: string, name: string): Promise<string> {
+  const listFile = path.join(tmp, `${name}.txt`);
+  await fs.writeFile(listFile, parts.map((p) => `file '${p.replace(/'/g, "'\\''")}'`).join("\n"));
+  await ffmpeg(["-f", "concat", "-safe", "0", "-i", listFile, "-c:a", "pcm_s16le", outFile]);
   return outFile;
 }
 
@@ -190,8 +269,9 @@ export interface AssembleInput {
   gapSec?: number | number[]; // 세그먼트(분할 요청) 사이 무음 — 배열이면 경계별. 문맥 겹침 경계(spec/06 7장 ④)는 0(양쪽 반쪽 쉼이 오디오에 이미 있다), 폴백 경계는 DEFAULT_GAP_SEC
   leadSec?: number;      // 시작 무음 (기본 2초 — 2026-09-07 박수헌: 재생 시작 직후 첫 음절이 잘리지 않게)
   tailSec?: number;      // 끝 무음 (기본 2초 — 다음 콘텐츠·종료 전 여백)
-  /** 징글 (2026-10-01 박수헌 확정): 징글 파일 자체가 앞뒤 무음 1초를 갖도록 정규화돼 있고(.work/upload-jingle.mts), 본편 앞뒤에 **바로** 붙인다 —
-   *  [1초][인트로][1초][본편][1초][아웃트로][1초]. 그래서 징글이 붙는 쪽은 leadSec/tailSec 무음을 넣지 않는다(징글이 없는 쪽만 기본 2초). 파일은 S3 assets/audio/ 에서 받은 로컬 경로 */
+  /** 징글 (2026-10-01 박수헌 확정): 징글 파일 자체가 앞뒤 무음 1초를 갖도록 정규화돼 있고(cli/jingle.ts), 본편 앞뒤에 **바로** 붙인다 —
+   *  [1초][인트로][1초][본편][1초][아웃트로][1초]. 그래서 징글이 붙는 쪽은 leadSec/tailSec 무음을 넣지 않는다(징글이 없는 쪽만 기본 2초). 파일은 S3 datasets/channel-audio/ 에서 받은 로컬 경로.
+   *  음량은 업로드 때 맞춰 두었으므로 조립은 포맷(44.1kHz 스테레오)만 바꾸고 원래 스테레오 그대로 붙인다 (2026-10-05 KAN-122) */
   introFile?: string | null;
   outroFile?: string | null;
   outroPadSec?: number;  // 아웃트로 앞 추가 무음 — 기본 0 (파일에 이미 1초가 있다). 필요하면 TTS_OUTRO_PAD_SEC 로
@@ -200,37 +280,52 @@ export interface AssembleInput {
   distOut: string;       // dist.mp3 경로
 }
 
-/** 전체 조립: [인트로 | 앞 무음 2초] → 디코드·연결 → [아웃트로 | 뒤 무음 2초] → loudnorm 마스터 → mp3 배포본. 반환: 재생 길이(초)와 본편 시작 오프셋(초 — 자막 시각의 앞 오프셋) */
-export async function assemble(i: AssembleInput): Promise<{ durationSec: number; introSec: number; leadSec: number; outroPadSec: number }> {
+/** 본편 라우드니스 목표 (spec/06 7장) — 징글은 여기에 넣지 않는다. 모노로 잰 값이다: 양쪽 같은 스테레오로 바꾸면 BS.1770 측정이 +3dB 라
+ *  배포본(스테레오)에서는 -13 LUFS 로 잰다. 이전 모노 배포본도 플레이어가 양쪽으로 내보내 같은 크기로 들렸다 — 청취 음량은 바뀌지 않는다 (2026-10-05) */
+export const VOICE_TARGET_LUFS = -16;
+export const VOICE_TARGET_TP = -1.5;
+/** 배포본(스테레오)에서 본편의 라우드니스 = 모노 목표 + 3 */
+export const VOICE_STEREO_LUFS = VOICE_TARGET_LUFS + 3;
+/** 징글 목표 (스테레오로 잰 값) — 본편보다 2LU 작게 (KAN-122 "본편보다 크지 않게") */
+export const JINGLE_TARGET_LUFS = VOICE_STEREO_LUFS - 2;
+
+/**
+ * 전체 조립: 본편[앞 무음(징글 없을 때 2초) → 디코드·연결 → 뒤 무음(징글 없을 때 2초)] → 본편만 2패스 linear 정규화 → 스테레오
+ * → [인트로 | 본편 | 아웃트로] 연결 = 마스터 wav → mp3 배포본. 반환: 재생 길이(초)·본편 시작 오프셋(초 — 자막 시각의 앞 오프셋)·정규화 결과
+ */
+export async function assemble(i: AssembleInput): Promise<{ durationSec: number; introSec: number; leadSec: number; outroPadSec: number; loudness: LoudnessResult }> {
   const tmp = path.join(i.workDir, ".tmp");
   await fs.mkdir(tmp, { recursive: true });
-  const parts: string[] = [];
-  let introSec = 0;
-  if (i.introFile) { const w = await fileToWav(i.introFile, path.join(tmp, "intro.wav")); introSec = await probeDurationSec(w); parts.push(w); }
+  // 1) 본편 (모노 — ElevenLabs 출력은 모노다)
+  const voice: string[] = [];
   const leadSec = i.leadSec ?? (i.introFile ? 0 : 2); // 인트로가 있으면 그 파일의 끝 1초가 여백이다
-  if (leadSec > 0) parts.push(await silenceWav(leadSec, path.join(tmp, "lead.wav")));
+  if (leadSec > 0) voice.push(await silenceWav(leadSec, path.join(tmp, "lead.wav")));
   const gapAt = (n: number) => (Array.isArray(i.gapSec) ? i.gapSec[n - 1] ?? 0 : i.gapSec ?? DEFAULT_GAP_SEC);
   for (let n = 0; n < i.segments.length; n++) {
-    if (n > 0 && gapAt(n) > 0) parts.push(await silenceWav(gapAt(n), path.join(tmp, `gap-${n}.wav`)));
-    parts.push(await toWav(i.segments[n], path.join(tmp, `part-${n}.wav`), tmp, n));
+    if (n > 0 && gapAt(n) > 0) voice.push(await silenceWav(gapAt(n), path.join(tmp, `gap-${n}.wav`)));
+    voice.push(await toWav(i.segments[n], path.join(tmp, `part-${n}.wav`), tmp, n));
   }
   const tailSec = i.tailSec ?? (i.outroFile ? 0 : 2); // 아웃트로가 있으면 그 파일의 앞 1초가 여백이다
-  if (tailSec > 0) parts.push(await silenceWav(tailSec, path.join(tmp, "tail.wav")));
+  if (tailSec > 0) voice.push(await silenceWav(tailSec, path.join(tmp, "tail.wav")));
+  const voiceRaw = await concatWavs(voice, path.join(tmp, "voice.wav"), tmp, "voice");
+  // 2) 본편만 정규화 (앞뒤 무음은 게이트에 걸려 측정에 들어가지 않는다) → 스테레오
+  const loudness = await normalizeLinear(voiceRaw, path.join(tmp, "voice.norm.wav"), { targetI: VOICE_TARGET_LUFS, tp: VOICE_TARGET_TP, channels: 1 });
+  const voiceSt = await monoToStereo(path.join(tmp, "voice.norm.wav"), path.join(tmp, "voice.st.wav"));
+  // 3) 징글은 포맷만 맞춰 그대로 (스테레오 유지, 음량 처리 없음)
+  const parts: string[] = [];
+  let introSec = 0;
+  if (i.introFile) { const w = await fileToWav(i.introFile, path.join(tmp, "intro.wav"), 2); introSec = await probeDurationSec(w); parts.push(w); }
+  parts.push(voiceSt);
   const outroPadSec = i.outroFile ? i.outroPadSec ?? 0 : 0;
   if (i.outroFile) {
-    if (outroPadSec > 0) parts.push(await silenceWav(outroPadSec, path.join(tmp, "outro-pad.wav")));
-    parts.push(await fileToWav(i.outroFile, path.join(tmp, "outro.wav")));
+    if (outroPadSec > 0) parts.push(await silenceWav(outroPadSec, path.join(tmp, "outro-pad.wav"), 2));
+    parts.push(await fileToWav(i.outroFile, path.join(tmp, "outro.wav"), 2));
   }
-  const listFile = path.join(tmp, "concat.txt");
-  await fs.writeFile(listFile, parts.map((p) => `file '${p.replace(/'/g, "'\\''")}'`).join("\n"));
-  const joined = path.join(tmp, "joined.wav");
-  await ffmpeg(["-f", "concat", "-safe", "0", "-i", listFile, "-c:a", "pcm_s16le", joined]);
-  // 라우드니스 정규화 → 마스터 (기준 -16 LUFS / TP -1.5 — 파일럿 기준값, spec/06 7장)
-  await ffmpeg(["-i", joined, "-af", "loudnorm=I=-16:TP=-1.5:LRA=11", "-ar", "44100", "-ac", "1", "-c:a", "pcm_s16le", i.masterOut]);
-  await ffmpeg(["-i", i.masterOut, "-c:a", "libmp3lame", "-b:a", "192k", i.distOut]); // 128k → 192k (2026-09-22 박수헌): 재인코딩 열화 최소화, 편당 약 17MB → 26MB
+  await concatWavs(parts, i.masterOut, tmp, "master");
+  await ffmpeg(["-i", i.masterOut, "-c:a", "libmp3lame", "-b:a", "192k", i.distOut]); // 128k → 192k (2026-09-22 박수헌). 스테레오는 joint stereo 라 목소리(양쪽 같음)는 비트를 거의 더 쓰지 않는다
   const dur = await probeDurationSec(i.distOut);
   await fs.rm(tmp, { recursive: true, force: true });
-  return { durationSec: dur, introSec: Math.round(introSec * 1000) / 1000, leadSec, outroPadSec };
+  return { durationSec: dur, introSec: Math.round(introSec * 1000) / 1000, leadSec, outroPadSec, loudness };
 }
 
 /** mp3 버퍼를 파일로 저장 (개별 세그먼트 보관용) */
