@@ -101,11 +101,16 @@ export const usePlayerScreen = () => {
   const blockedState = isActiveSession && session.state === 'blocked' ? session.blocked : null;
   useEffect(() => {
     if (!blockedState) return;
+    // 결제 뒤 다시 틀 콘텐츠 — 세션을 내리기 전에 잡아 둔다(paywall.md 4.5-5)
+    const blockedContentId = usePlaybackStore.getState().session?.contentId ?? contentId;
     playbackService.clearSession();
     navigation.goBack();
     if (blockedState.kind === 'paywall') {
       // 세션이 어디서 왔든 사용자가 본 것은 플레이어 화면이다
-      playGate.openPaywall('player', blockedState.message ?? undefined);
+      playGate.openPaywall('player', blockedState.message ?? undefined, {
+        contentId: blockedContentId,
+        isCountedToday: false,
+      });
     } else {
       useLimitNoticeStore.getState().show(blockedState.message ?? PLAYER_COPY.paidLimitReachedToast);
     }

@@ -2,6 +2,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useState } from 'react';
 
+import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
 import { PUSHED_SCREEN_HEADER } from '@/shared/navigation/pushed-screen-header';
 import { selectTab } from '@/shared/navigation/tab-selection.store';
 import { USE_NATIVE_PLAYER_ZOOM } from '@/shared/navigation/zoom-transition';
@@ -28,6 +29,7 @@ import { PlayConfirmDialog, PlayerScreen, useLimitNoticeStore } from '@/features
 import { ProfileScreen, SignupTrialNotice } from '@/features/profile';
 import { SettingsScreen } from '@/features/settings';
 import { useShareLinkLanding } from '@/features/share';
+import { SubscriptionScreen } from '@/features/subscription';
 
 import CapsuleTabBar from './CapsuleTabBar';
 import { rememberTab, takePrimedTab, type RestorableTab } from './last-tab';
@@ -163,11 +165,17 @@ export default function MainNavigator() {
         />
         {/* TODO: 프로필·설정 목적지 — 각 화면 구현 시 컴포넌트만 교체한다(라우트 이름 유지).
           플레이스홀더 동안은 기본 push + 헤더를 둔다: 화면 안에 돌아갈 수단이 있어야 한다 */}
-        <MainStack.Screen
-          name="Subscription"
-          component={PlaceholderScreen}
-          options={{ headerShown: true, headerTitle: '', headerBackTitle: '프로필' }}
-        />
+        {/* 구독 관리(KAN-120) — 앱바(뒤로 + "구독 관리")를 화면이 직접 그린다(subscription-uiux.md SB1).
+          구독 UI 가 꺼진 바이너리(플래그·결제 모듈·플랫폼)에서는 진입점이 없다 — 라우트만 placeholder 로 남긴다 */}
+        {IS_SUBSCRIPTION_UI_ENABLED ? (
+          <MainStack.Screen name="Subscription" component={SubscriptionScreen} />
+        ) : (
+          <MainStack.Screen
+            name="Subscription"
+            component={PlaceholderScreen}
+            options={{ headerShown: true, headerTitle: '', headerBackTitle: '프로필' }}
+          />
+        )}
         {/* 이메일 인증 — 앱바(뒤로 + 타이틀)를 화면이 직접 그린다(auth-uiux.md 4.7~4.10).
           설정·프로필 두 경로가 같은 화면이다(auth.md 4.5 — 발송 제한이 경로에 합산 적용) */}
         <MainStack.Screen name="EmailVerification" component={EmailVerificationScreen} />
