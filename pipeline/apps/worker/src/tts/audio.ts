@@ -224,7 +224,7 @@ export async function segmentToWav(seg: Segment, outFile: string, tmpDir: string
 }
 
 async function toWav(seg: Segment, outFile: string, tmpDir: string, n: number): Promise<string> {
-  const src = path.join(tmpDir, `seg-${n}.${seg.format === "pcm_44100" ? "pcm" : "mp3"}`); // mp3 는 비트레이트 무관 동일 디코드
+  const src = path.join(tmpDir, `seg-${n}.${seg.format === "pcm_44100" ? "pcm" : seg.format.startsWith("wav") ? "wav" : "mp3"}`); // mp3 는 비트레이트 무관 동일 디코드 · wav 는 헤더로 읽는다
   await fs.writeFile(src, seg.data);
   const inputArgs = seg.format === "pcm_44100" ? ["-f", "s16le", "-ar", "44100", "-ac", "1", "-i", src] : ["-i", src];
   await ffmpeg([...inputArgs, "-ar", "44100", "-ac", "1", "-c:a", "pcm_s16le", outFile]);

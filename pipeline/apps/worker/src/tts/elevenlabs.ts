@@ -4,14 +4,19 @@ import { ApiLimit, log, sleep } from "../util.js";
 /**
  * ElevenLabs 클라이언트 (spec/06) — 다중화자 1콜(Text to Dialogue, eleven_v3) 확정 (2026-09-02 박수헌).
  * 요청당 권장 총 2,000자 · 분할은 턴 경계(chunkTurns) · seed 고정으로 재현성을 시도한다.
- * 출력 포맷은 사다리로 시도한다: pcm(Pro+) → mp3 192k(Pro+, 2026-09-22 요금 페이지 기준) → mp3 128k(전 티어). 현재 플랜은 128k 까지 — 마스터 wav 도 이를 디코드한 것이라 무손실이 아니다.
- * 구독 제한을 만나면 한 단계 내려가 이후 요청도 고정한다 — 한 에피소드 안에서 포맷을 섞지 않는다.
+ * 출력 포맷은 사다리로 시도한다: 무손실 44.1kHz(Pro+) → mp3 192k → mp3 128k(전 티어). 2026-10-06 Pro 전환(KAN-142) — 그 전 원본은 mp3 128k 였다.
+ * 구독 제한을 만나면 한 단계 내려가 그 작업이 끝날 때까지 고정한다 — 한 에피소드 안에서 포맷을 섞지 않는다. 다음 작업은 resetFormat() 으로 맨 위부터 다시 시도한다.
  */
 const BASE = "https://api.elevenlabs.io/v1";
 
+/** 일반 합성 사다리 — 응답이 오디오 바이트 그대로라 무손실은 헤더 없는 pcm 으로 받는다 */
 export const FORMATS = ["pcm_44100", "mp3_44100_192", "mp3_44100_128"] as const;
-export type AudioFormat = (typeof FORMATS)[number];
+/** 타임스탬프 합성 사다리 — 응답이 base64 JSON 이고 파일로 써서 ffprobe·강제 정렬에 바로 넘기므로 무손실은 헤더 있는 wav 로 받는다. 같은 칸 = 같은 티어 */
+export const TS_FORMATS = ["wav_44100", "mp3_44100_192", "mp3_44100_128"] as const;
+export type AudioFormat = (typeof FORMATS)[number] | (typeof TS_FORMATS)[number];
 let fmtIdx = 0;
+/** TTS 작업 시작 시 호출 — 앞 작업의 강등을 끌고 오지 않는다(플랜을 올리면 워커 재시작 없이 다음 작업부터 반영) */
+export function resetFormat(): void { fmtIdx = 0; }
 
 export interface DialogueInput { text: string; voice_id: string }
 export interface SynthResult { data: Buffer; format: AudioFormat }
@@ -93,12 +98,11 @@ export interface TimestampedSynth { audio: Buffer; format: AudioFormat; chars: s
 
 /**
  * 단일 화자 합성 + 문자 타임스탬프. 콜드오픈 발췌 절단용이었으나 콜드오픈 폐지(2026-09-07)로 **현재 사용처 없음** —
- * 부분 재합성·구간 절단이 다시 필요할 때를 위해 남겨 둔다.
- * 타임스탬프 응답은 base64 라 포맷은 mp3 계열만 쓴다 (pcm 자리는 192k 로 대체).
+ * 부분 재합성·구간 절단이 다시 필요할 때를 위해 남겨 둔다. 포맷은 TS_FORMATS 사다리.
  */
 export async function synthTurnWithTimestamps(voiceId: string, text: string, seed: number): Promise<TimestampedSynth> {
   for (let retry = 0; ; ) {
-    const format = FORMATS[Math.max(fmtIdx, 1)];
+    const format = TS_FORMATS[fmtIdx];
     const res = await call(`/text-to-speech/${voiceId}/with-timestamps?output_format=${format}`, { model_id: cfg.ttsModel, text, seed });
     if (res.ok) {
       const d = (await res.json()) as { audio_base64: string; alignment?: { characters: string[]; character_start_times_seconds: number[]; character_end_times_seconds: number[] } };
@@ -108,9 +112,9 @@ export async function synthTurnWithTimestamps(voiceId: string, text: string, see
     }
     const body = (await res.text()).slice(0, 400);
     throwIfLimit(res.status, body, false); // 크레딧 소진은 재시도해도 같다 — 바로 멈춤
-    if (isTierError(res.status, body) && fmtIdx < FORMATS.length - 1) {
-      fmtIdx = Math.max(fmtIdx, 1) + 1;
-      log(`  tts: ${format} 티어 제한(HTTP ${res.status}) — ${FORMATS[Math.max(fmtIdx, 1)]} 로 강등`);
+    if (isTierError(res.status, body) && fmtIdx < TS_FORMATS.length - 1) {
+      fmtIdx++;
+      log(`  tts: ${format} 티어 제한(HTTP ${res.status}) — ${TS_FORMATS[fmtIdx]} 로 강등`);
       continue;
     }
     if ((res.status === 429 || res.status >= 500) && retry < 4) { retry++; await sleep(Math.min(60_000, 5_000 * 2 ** retry)); continue; }
@@ -121,11 +125,11 @@ export async function synthTurnWithTimestamps(voiceId: string, text: string, see
 
 /**
  * 다중화자 합성 1요청 + 문자 타임스탬프 (`/text-to-dialogue/with-timestamps`) — 화자별 배속(spec/06 6장)의 턴 경계 재료.
- * 응답이 base64 JSON 이라 포맷은 mp3 계열만 쓴다. 티어 강등·재시도 규칙은 synthDialogue 와 같다.
+ * 포맷은 TS_FORMATS 사다리(무손실은 wav_44100 — 2026-10-06 KAN-142, 그 전엔 mp3 만 받았다). 티어 강등·재시도 규칙은 synthDialogue 와 같다.
  */
 export async function synthDialogueWithTimestamps(inputs: DialogueInput[], seed: number, opts: { onRetry?: (msg: string) => void } = {}): Promise<TimestampedSynth> {
   for (let retry = 0; ; ) {
-    const format = FORMATS[Math.max(fmtIdx, 1)];
+    const format = TS_FORMATS[fmtIdx];
     const res = await call(`/text-to-dialogue/with-timestamps?output_format=${format}`, { model_id: cfg.ttsModel, inputs, seed, settings: { stability: 0.5 } });
     if (res.ok) {
       const d = (await res.json()) as { audio_base64: string; alignment?: { characters: string[]; character_start_times_seconds: number[]; character_end_times_seconds: number[] } };
@@ -135,9 +139,9 @@ export async function synthDialogueWithTimestamps(inputs: DialogueInput[], seed:
     }
     const body = (await res.text()).slice(0, 400);
     throwIfLimit(res.status, body, false); // 크레딧 소진은 재시도해도 같다 — 바로 멈춤
-    if (isTierError(res.status, body) && fmtIdx < FORMATS.length - 1) {
-      fmtIdx = Math.max(fmtIdx, 1) + 1;
-      log(`  tts: ${format} 티어 제한(HTTP ${res.status}) — ${FORMATS[Math.max(fmtIdx, 1)]} 로 강등`);
+    if (isTierError(res.status, body) && fmtIdx < TS_FORMATS.length - 1) {
+      fmtIdx++;
+      log(`  tts: ${format} 티어 제한(HTTP ${res.status}) — ${TS_FORMATS[fmtIdx]} 로 강등`);
       continue;
     }
     if ((res.status === 429 || res.status >= 500) && retry < 4) {
@@ -152,13 +156,19 @@ export async function synthDialogueWithTimestamps(inputs: DialogueInput[], seed:
   }
 }
 
+/** 강제 정렬 업로드의 형식 표시 — 무손실 원본(wav_44100)은 RIFF 헤더로 알아본다. 그 밖(합성 mp3·배포본 dist.mp3)은 mp3 */
+export function alignmentUpload(audio: Buffer): { type: string; name: string } {
+  return audio.subarray(0, 4).toString("latin1") === "RIFF" ? { type: "audio/wav", name: "audio.wav" } : { type: "audio/mpeg", name: "dist.mp3" };
+}
+
 /**
  * 강제 정렬 (2026-09-20, KAN-72 소급 — spec/06 7장): 완성된 오디오와 그 대본 텍스트를 주면 글자·단어 단위 시각을 돌려준다.
  * `POST /v1/forced-alignment` multipart(file, text) — 시각은 그 오디오 기준이라 배속·무음 계산이 필요 없다. 1GB 이하.
  */
 export async function forcedAlignment(audio: Buffer, text: string, timeoutMs = 10 * 60_000): Promise<{ characters: { text: string; start: number; end: number }[]; words: { text: string; start: number; end: number; loss: number }[]; loss: number }> {
   const form = new FormData();
-  form.append("file", new Blob([new Uint8Array(audio)], { type: "audio/mpeg" }), "dist.mp3");
+  const up = alignmentUpload(audio);
+  form.append("file", new Blob([new Uint8Array(audio)], { type: up.type }), up.name);
   form.append("text", text);
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
