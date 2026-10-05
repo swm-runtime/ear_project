@@ -113,7 +113,7 @@ export const cfg = {
   ttsVoiceEum: process.env.TTS_VOICE_EUM || "sQ3a15DhENXU8pKTHlcc", // 2026-10-01 박수헌: 이음 보이스 교체 — Mr. K - Korean Creator Voice (이전 Yohan Koo 4JJwo477JUAx3HV0T7n7)
   /** 징글 (2026-10-01 박수헌): S3 datasets/channel-audio/intro.wav · outro.wav 를 조립 앞뒤에 붙인다. 키를 비우면 끄고, 객체가 없으면 없이 조립한다(실패 아님). 징글 파일은 앞뒤 무음 1초로 정규화해 올리고 본편에 바로 붙인다(추가 무음 없음) */
   // 키는 datasets/ 아래에 둔다 — 서버 인스턴스 역할(ear-pipeline-bucket-rw)이 episodes/·sweeps/·datasets/ 만 허용해 assets/ 는 받기가 거부됐다(T260929-003 첫 적용 실패, 2026-10-01)
-  ttsIntroKey: process.env.TTS_INTRO_KEY ?? "datasets/channel-audio/intro.wav", // 받은 원본이 wav(48kHz 스테레오) — 손실 변환 없이 앞뒤 무음만 1초로 맞춰 올린다
+  ttsIntroKey: process.env.TTS_INTRO_KEY ?? "datasets/channel-audio/intro.wav", // 원본 wav(48kHz 스테레오)를 cli/jingle.ts 가 다듬어(앞뒤 무음 1초·페이드) 음량을 맞추고 44.1kHz 스테레오로 올린다 — 조립은 손대지 않는다
   ttsOutroKey: process.env.TTS_OUTRO_KEY ?? "datasets/channel-audio/outro.wav",
   ttsOutroPadSec: process.env.TTS_OUTRO_PAD_SEC ? Number(process.env.TTS_OUTRO_PAD_SEC) : undefined,
   /** TTS 시작 전 WORK_ROOT 디스크 여유 하한(GB) — 모자라면 합성 전에 큐로 되돌린다(disk.ts, 2026-10-02 ENOSPC). 한 편 조립에 약 0.5GB */

@@ -20,7 +20,7 @@ import { chunkSegments, contextExcerpt, DEFAULT_GAP_SEC, joinChunkSegments, vali
  * 사람이 웹에서 명시적으로 요청할 때만 (자동 연쇄 없음). 흐름:
  *   대본 파싱 → 플레이스홀더 검사(잔존 시 중단) → 음차·숫자 정규화 → 잔존 영문 검사(중단) →
  *   턴 경계 분할(요청당 ~1,800자) → 합성(seed 고정) → [화자별 배속: 요청 오디오를 강제 정렬해 턴 경계를 잡아 atempo] →
- *   조립(앞뒤 2초 무음)·정규화 → master.wav + dist.mp3 → S3 audio/
+ *   조립[징글 | 본편(2패스 linear 정규화) | 징글](스테레오)·징글 없는 쪽은 2초 무음 → master.wav + dist.mp3 → S3 audio/
  *   + 대본 세그먼트 script-segments.json (앱 자막, KAN-72 — 강제 정렬 시각을 배포본 시각으로 옮긴 것. 정렬을 못 잡은 편은 싣지 않는다)
  * 시각은 전부 요청마다 받은 강제 정렬에서 온다 (2026-10-01). dialogue 응답의 글자 시각은 요청 뒤로 갈수록 실제 오디오보다 최대 10초 앞서(T260929-003 실측)
  * 문맥 겹침 절단·배속 조각·자막·끝 꼬리가 어긋났다 — 그 시각은 디버그 기록에만 남긴다.
@@ -314,8 +314,11 @@ export async function runTts(job: Job) {
   const u = usage();
   const metered = u.credits > 0;
   const ttsCost = metered ? (u.credits / 1000) * cfg.ttsUsdPer1kCredits : cfg.ttsUsdPer1kChars != null ? ((totalChars + ctxChars) / 1000) * cfg.ttsUsdPer1kChars : undefined;
-  const jingleNote = (jingle.introFile || jingle.outroFile ? ` · 징글 ${jingle.introFile ? `인트로 ${asm.introSec}초` : "인트로 없음"} / ${jingle.outroFile ? "아웃트로" : "아웃트로 없음"} (파일 앞뒤 무음 1초, 본편에 바로 붙임)` : "") + ((jingle as { missing?: string }).missing ? ` · ⚠️ 징글 받기 실패: ${(jingle as { missing?: string }).missing}` : "");
-  const usageNote = `${tailNote ? ` · ${tailNote}` : tailGuardOn ? " · ⚠️ 끝 꼬리 가드 미적용(원속 폴백)" : ""}${jingleNote} · 실제 차감 ${metered ? `${u.credits.toLocaleString()}크레딧` : "미계측"} (${u.requests}요청${u.unmetered ? `, 헤더 없음 ${u.unmetered}` : ""}${alignCalls ? ` · 그중 강제 정렬 ${alignCredits.toLocaleString()}크레딧` : ""})`;
+  const jingleNote = (jingle.introFile || jingle.outroFile ? ` · 징글 ${jingle.introFile ? `인트로 ${asm.introSec}초` : "인트로 없음"} / ${jingle.outroFile ? "아웃트로" : "아웃트로 없음"} (파일 앞뒤 무음 1초, 본편에 바로 붙임 · 스테레오 그대로)` : "") + ((jingle as { missing?: string }).missing ? ` · ⚠️ 징글 받기 실패: ${(jingle as { missing?: string }).missing}` : "");
+  // 정규화 기록 (KAN-122): 본편만 2패스 linear. 피크 여유가 없어 목표를 낮췄거나 선형이 성립하지 않았으면 표시한다
+  const ln = asm.loudness;
+  const normNote = ` · 정규화 본편만 2패스 ${ln.type === "linear" ? "linear" : `⚠️ ${ln.type}`} ${ln.targetI} LUFS${ln.targetI < ln.requestedI ? `(피크 여유로 ${ln.requestedI}에서 낮춤)` : ""} — 측정 ${ln.measuredI}·TP ${ln.measuredTp} → 출력 ${ln.outputI}·TP ${ln.outputTp} · 스테레오`;
+  const usageNote = `${tailNote ? ` · ${tailNote}` : tailGuardOn ? " · ⚠️ 끝 꼬리 가드 미적용(원속 폴백)" : ""}${jingleNote}${normNote} · 실제 차감 ${metered ? `${u.credits.toLocaleString()}크레딧` : "미계측"} (${u.requests}요청${u.unmetered ? `, 헤더 없음 ${u.unmetered}` : ""}${alignCalls ? ` · 그중 강제 정렬 ${alignCredits.toLocaleString()}크레딧` : ""})`;
   await insertRun({ backlog_id: backlogId, phase: "tts", result: result + usageNote, prompt_version: "tts-v1 (worker)", artifacts, executed_by: executedBy, model: cfg.ttsModel, cost_usd: ttsCost, tokens: { characters: totalChars, context_characters: ctxChars, chunks: chunks.length, duration_sec: Math.round(durationSec), credits: metered ? u.credits : null, requests: u.requests, unmetered: u.unmetered, align_calls: alignCalls, align_fails: alignFails, align_credits: alignCredits }, worker_rev: workerRev() });
   // 샘플은 발행 경로가 아니다 — 연쇄를 잇지 않는다
   const next = sampleTurns ? null : await advanceChain(job);
