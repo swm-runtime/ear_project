@@ -14,7 +14,7 @@
 | 관련 | 백엔드 `tickets/backend/pending/subscription-receipt-verification.md`([KAN-40](https://runtime364.atlassian.net/browse/KAN-40)) · `google-ios-in-app-payment.md`([KAN-106](https://runtime364.atlassian.net/browse/KAN-106)) — 서버 쪽은 이 티켓의 선행이 아니라 **함께 닫히는 짝**이다(실제 결제로 확인해야 서버 티켓도 archive된다) |
 | 근거 문서 | `spec/api/subscription-api.md`(계약 전체 — **이 문서가 기준**) · `features/subscription.md` 4.2~4.7·5장 · `features/paywall.md` 4.5 · `features/common-error-handling.md` 9.10-3 |
 | 중요도 | Medium — 서버는 운영에서 결제를 받을 준비가 됐지만 앱에 화면이 없어 아무도 결제할 수 없다 |
-| 상태 | 대기 |
+| 상태 | 1단계 코드 반영 — 묶음 빌드 대기 (PR #1146, 2026-10-06) |
 
 ## 배경
 
@@ -122,3 +122,47 @@
 - Given Android 결제 / When 결제가 끝난다 / Then 앱은 구매를 확인(acknowledge)하지 않는다 — 서버가 한다
 - Given iOS에서 구독 중인 계정 / When Android에서 요금제 화면을 연다 / Then 현재 요금제만 "이용 중"으로 보이고 나머지는 버튼이 없으며, 결제를 시도하면 "다른 스토어에서 구독 중이에요"가 나온다
 - Given Android 구독자 / When [구매 복원]·요금제 변경·해지를 한다 / Then 1단계의 같은 조건과 같은 결과다
+
+## 처리 기록
+
+### 2026-10-06 — 1단계 코드 반영(PR [#1146](https://github.com/swm-runtime/ear_project/pull/1146)), 묶음 빌드 대기
+
+**빌드를 내지 않았고 `runtimeVersion` 은 31 그대로다.** 결제 라이브러리는 네이티브 추가라 원래 올려야 하지만, KAN-118(머지)·KAN-124·KAN-103 과 한 번에 싣는 **묶음 네이티브 빌드에서 32 로 올린다**(`app.json` `_runtimeVersionNote` 에 적었다). 실기기·샌드박스 확인이 남아 `pending/` 에 둔다.
+
+**라이브러리 — `expo-iap` 5.8**(OpenIAP, hyochan)
+
+- Expo Modules 기반이라 config plugin(`"expo-iap"`)으로 붙는다 — Expo SDK 57 · New Architecture 그대로. `npx expo prebuild --platform android` 로 플러그인 적용을 확인했다(생성 디렉터리는 지웠다). **iOS prebuild·빌드는 Windows 라 확인하지 못했다** — 묶음 빌드(EAS) 때 처음 확인된다.
+- iOS 는 **StoreKit 2** — 거래의 `purchaseToken` 이 서명 거래(JWS, `jwsRepresentation`)라 그대로 `signed_transaction` 으로 보낸다. 미완료 거래는 `getPendingTransactionsIOS`(Transaction.unfinished), 복원은 `syncIOS`(AppStore.sync) → `getAvailablePurchases`(currentEntitlements).
+- Android 는 Play Billing 8 — 라이브러리 매니페스트가 `com.android.vending.BILLING` 을 싣는다. **묶음 빌드를 Play 내부 테스트에 올리면 Play Console 구독 상품 메뉴가 열린다**(KAN-130 ①의 선행).
+- `react-native-iap` 는 같은 OpenIAP 의 Nitro 판이라 `react-native-nitro-modules` 를 하나 더 실어야 해 고르지 않았다(API 는 같다).
+
+**노출 가드 — 세 겹**(`frontend/src/shared/lib/feature-flags.ts` `IS_SUBSCRIPTION_UI_ENABLED`)
+
+1. 빌드 플래그 `EXPO_PUBLIC_SUBSCRIPTION_UI=on` — **지금 `eas.json` 어느 프로필·`eas-update.yml` 어디에도 없다 = 꺼짐**
+2. 결제 네이티브 모듈 `ExpoIap` 런타임 검사(`requireOptionalNativeModule`) — 플래그가 켜진 번들이 OTA 로 runtime 31 바이너리(모듈 없음)에 닿아도 꺼진다. "구독 버튼만 보이고 결제는 안 되는 상태"(2.1(b))가 생기지 않는다
+3. 플랫폼 — Android 는 `EXPO_PUBLIC_SUBSCRIPTION_ANDROID=on` 전까지 꺼짐(Play 상품 미등록)
+
+꺼진 바이너리에서는 결제 모듈을 한 번도 부르지 않는다(스토어 연결·미완료 거래 조회 모두 생략). 테스트 `PaywallPlansSection.test.tsx` 가 "플래그 켜짐 + 모듈 없음 → 렌더 없음"을 고정한다.
+
+**구현 요점**
+
+- 결제 서비스 `features/subscription/services/purchase.service.ts` — 이 티켓 "반드시 지켜야 하는 것" 1~6 을 그대로: account_token 실어 결제 / **서버 200 뒤에만 iOS finish** / Android acknowledge 안 함 / 시작·포그라운드 복귀 때 미완료 거래를 intent_id 없이 제출 / JWS / 이메일 관문. 503·네트워크는 거래를 유지한 채 5초→15초→30초→1분→5분 반복 재시도(폐기 없음). **영수증을 기기에 저장하지 않는다** — 스토어의 미완료 거래가 곧 큐다(`architecture.md` 5.4 정정은 changes 요청 C)
+- 화면 — 설정 > 구독 관리(신설, `SubscriptionScreen`) · 페이월 = 한도 안내 시트 위에 요금제 비교(`PaywallPlansSection`). 결제 확정 → 시트 닫힘 → 막혔던 콘텐츠를 **재생 게이트가 다시 요청**(서버 재판정). 이메일 미인증 → 인증 화면 → 인증 성공 시 같은 요금제로 결제 복귀(페이월은 시트를 다시 연다)
+- 확정 화면·카피: `docs/spec/uiux/subscription-uiux.md`(SB1–SB3 · PW1) 신설. `features/paywall.md` 4.5(가드 세 겹) · `features/subscription.md` 5장("만료됨" 안내 — 계약상 그릴 수 없음) · `frontend/architecture.md` · 루트 CLAUDE.md 정정은 `docs/changes/pending/subscription-purchase-screen-kan120(fe).md`
+- 기한(10-07) 안에 1단계 코드는 들어갔고, 완료 조건 확인은 묶음 빌드 일정에 달려 있다
+
+**묶음 빌드 때 할 일(사람 손 포함)**
+
+- `frontend/eas.json` `preview`·`production` env + `.github/workflows/eas-update.yml` "OTA 발행" env 에 `EXPO_PUBLIC_SUBSCRIPTION_UI=on` — **두 곳 같은 값**(다르면 OTA 번들만 꺼진다)
+- `app.json` `runtimeVersion` 31 → 32
+- App Store Connect: 구독 상품 2개(`com.runtime.ear.subscription.daily.monthly` · `.pro.monthly`)를 그 앱 버전과 함께 심사 제출 · 샌드박스 테스터 계정 준비
+- Play: 묶음 빌드 aab 를 내부 테스트 트랙에 업로드 → KAN-130(상품 2개 생성 + 서버 상품 ID 등록)
+
+**남은 것**
+
+- [ ] TestFlight(샌드박스)로 1단계 완료 조건 전부 — 구독·페이월 자동 재생·이메일 관문·취소·앱 종료 뒤 회복·503·복원·다운그레이드 날짜·해지 예약 표시·필수 표기. 시각을 박준현에게 알려 서버 로그와 대조. **수동 프로 계정 말고 다른 계정**으로
+  - 샌드박스 메모: TestFlight 결제는 자동 샌드박스(과금 없음)지만 갱신이 하루 주기라 느리다. 갱신·만료를 빨리 보려면 App Store Connect **샌드박스 테스터 계정**(기기 설정 > App Store > 샌드박스 계정)으로 결제한다 — 월간 구독이 몇 분 주기로 갱신된다(정확한 주기는 Apple 문서로 확인). Ask to Buy(승인 대기)도 샌드박스 테스터 설정으로 재현한다
+  - 운영 서버가 `APP_STORE_ENVIRONMENTS` 에 `Sandbox` 를 받는지 먼저 확인(`subscription-api.md` 7장)
+- [ ] 묶음 빌드 Android aab 를 Play 내부 테스트에 업로드 → Play Console 상품 메뉴 열림 확인(2단계 첫 완료 조건, KAN-130 선행)
+- [ ] 2단계(Android) — KAN-130 뒤 `EXPO_PUBLIC_SUBSCRIPTION_ANDROID=on`. 코드 경로(obfuscatedAccountId · purchase_token 제출 · acknowledge 안 함 · 복원)는 들어가 있다. **확인 필요**: 구독 오퍼 토큰 지정(지금은 `subscriptionOffers` 를 비워 라이브러리 기본 선택에 맡김)과 업·다운그레이드의 교체 모드(`purchaseToken` + replacement params)를 실제 상품으로 확인
+- [ ] 결제 중 앱이 죽은 뒤의 **막혔던 콘텐츠 자동 재생**은 하지 않는다(구독 반영은 된다) — `architecture.md` 6.5 의 `blocked_content_id` 로컬 영속은 범위 밖으로 남겼다

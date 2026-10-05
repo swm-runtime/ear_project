@@ -15,6 +15,7 @@ import { LimitNoticeSheet, ZoomSourceProxy } from '@/features/player';
 
 import { bootstrapApp } from './bootstrap';
 import { focusedRouteName } from './navigation/focused-route';
+import { navigationRef } from './navigation/navigation-ref';
 import RootNavigator from './navigation/RootNavigator';
 import { queryClient } from './query-client';
 
@@ -65,14 +66,15 @@ function App() {
       <FontProvider>
         <QueryClientProvider client={queryClient}>
           <SafeAreaProvider>
-            <NavigationContainer onStateChange={handleNavigationStateChange}>
+            <NavigationContainer ref={navigationRef} onStateChange={handleNavigationStateChange}>
               <RootNavigator />
             </NavigationContainer>
             {/* 줌 전환 소스 프록시(iOS 26) — 미니플레이어 자리의 투명 뷰. 액세서리 컨테이너 밖에 둬야 닫힌 뒤 잔여 이미지가 안 남는다 */}
             <ZoomSourceProxy />
             {/* 권장 업데이트 안내(splash.md 4.1 · KAN-99) — Modal 이라 어느 스택 위에서든 뜨고, 관문 통과 뒤에만 켜진다 */}
             <UpdateRecommendDialog />
-            {/* 한도 안내 시트(2026-09-28) — 토스트와 같이 루트에 하나. 재생 게이트·플레이어가 연다 */}
+            {/* 한도 안내 시트(2026-09-28) — 토스트와 같이 루트에 하나. 재생 게이트·플레이어가 연다.
+              구독 UI 가 켜진 바이너리에서는 이 시트가 페이월이다(요금제 비교·결제 — KAN-120) */}
             <LimitNoticeSheet />
             <Toast />
             <StatusBar style="auto" />

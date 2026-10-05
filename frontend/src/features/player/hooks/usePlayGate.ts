@@ -71,16 +71,20 @@ interface ConfirmState {
 export const usePlayGate = (options?: PlayGateOptions) => {
   const navigation = useNavigation();
   const showLimitNotice = useLimitNoticeStore((s) => s.show);
+  const showPaywall = useLimitNoticeStore((s) => s.showPaywall);
   const playLimit = usePlayLimitStore((s) => s.playLimit);
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const queryClient = useQueryClient();
 
-  /* TODO(paywall feature): 페이월 바텀시트(paywall.md 4.5)로 교체한다 */
-  const openPaywall = (entry: PlayEntryPoint, message?: string) => {
-    // MVP 는 안내 토스트지만 노출 자체가 퍼널의 끝점이다 — 바텀시트로 바뀌어도 같은 이벤트(analytics.md 3.4)
+  /**
+   * 페이월 — 한도 안내 시트가 그 자리다(paywall.md 4.5). 구독 UI 가 켜진 바이너리면 시트 밑에 요금제 비교·결제가 얹힌다.
+   * `blocked` 를 주면 결제가 확정된 뒤 **게이트가** 그 콘텐츠를 다시 요청한다(architecture.md 5.2·6.5 — 결제 쪽은 player 를
+   * 모른다). 재요청도 같은 게이트라 서버가 다시 판정한다
+   */
+  const openPaywall = (entry: PlayEntryPoint, message?: string, blocked?: PlayGateTarget) => {
+    // 노출 자체가 퍼널의 끝점이다 — 바텀시트로 바뀌어도 같은 이벤트(analytics.md 3.4)
     track('paywall_view', { entry });
-    // 토스트 대신 한도 안내 시트(2026-09-28 00:11) — 구독 UI 가 켜지면 이 시트가 페이월 자리다
-    showLimitNotice(message);
+    showPaywall(message, blocked ? () => requestPlay(blocked, entry) : null);
   };
 
   const openPlayer = (contentId: string) => {
@@ -177,7 +181,8 @@ export const usePlayGate = (options?: PlayGateOptions) => {
         onNotFound: target.onNotFound,
         // 플레이어 화면이 하던 차단 처리(usePlayerScreen)를 여기서 대신한다 — 같은 문구·같은 분기다
         onIssueBlocked: (blocked) => {
-          if (blocked.kind === 'paywall') openPaywall(entryPoint, blocked.message ?? undefined);
+          if (blocked.kind === 'paywall')
+            openPaywall(entryPoint, blocked.message ?? undefined, target);
           else showLimitNotice(blocked.message ?? PLAYER_COPY.paidLimitReachedToast);
         },
         onIssued: ({ isReusedSession }) => {

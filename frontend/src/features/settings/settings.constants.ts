@@ -19,9 +19,8 @@ export const IS_SETTINGS_API_MOCKED = __DEV__ && process.env.EXPO_PUBLIC_SETTING
  */
 export const KAKAO_CHANNEL_URL =
   process.env.EXPO_PUBLIC_KAKAO_CHANNEL_URL ?? 'https://pf.kakao.com/_MdkJX/chat';
-export const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL ?? 'https://earcast.co.kr/terms';
-export const PRIVACY_POLICY_URL =
-  process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL ?? 'https://earcast.co.kr/privacy';
+// 값은 `shared/lib/legal-urls.ts` — 구독 화면·페이월의 필수 표기 링크와 같은 목적지라 shared 로 옮겼다(KAN-120)
+export { PRIVACY_POLICY_URL, TERMS_URL } from '@/shared/lib/legal-urls';
 /** 제3자 저작물 고지(CC BY 아이콘 등) — 앱 안 화면 대신 랜딩 페이지를 연다(PM 2026-09-30 01:09) */
 export const LICENSES_URL =
   process.env.EXPO_PUBLIC_LICENSES_URL ?? 'https://earcast.co.kr/licenses/';
