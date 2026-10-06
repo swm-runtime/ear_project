@@ -101,19 +101,19 @@
 {
   "plans": [
     {
-      "plan_id": "uuid-light", "tier": "light", "name": "라이트", "description": "무료로 하루 2편까지 들을 수 있어요",
+      "plan_id": "uuid-light", "tier": "light", "name": "Light", "description": "하루 2편까지 들을 수 있어요",
       "price_krw": 0, "store_product_id": null,
       "entitlements": { "daily_play_limit": 2, "daily_drip_count": 2, "drip_enabled": true, "ads_enabled": true },
-      "action": "none"
+      "action": "current"
     },
     {
-      "plan_id": "uuid-daily", "tier": "daily", "name": "데일리", "description": "…",
+      "plan_id": "uuid-daily", "tier": "daily", "name": "Daily", "description": "하루 5편까지 들을 수 있어요",
       "price_krw": 3900, "store_product_id": "com.runtime.ear.subscription.daily.monthly",
       "entitlements": { "daily_play_limit": 5, "daily_drip_count": 2, "drip_enabled": true, "ads_enabled": false },
       "action": "purchase"
     },
     {
-      "plan_id": "uuid-pro", "tier": "pro", "name": "프로", "description": "…",
+      "plan_id": "uuid-pro", "tier": "pro", "name": "Pro", "description": "제한 없이 마음껏 들을 수 있어요",
       "price_krw": 9900, "store_product_id": "com.runtime.ear.subscription.pro.monthly",
       "entitlements": { "daily_play_limit": null, "daily_drip_count": 2, "drip_enabled": true, "ads_enabled": false },
       "action": "purchase"
@@ -136,12 +136,13 @@
 | 값 | 조건 | 버튼 |
 |---|---|---|
 | `purchase` | 유효한 구독이 없고 유료 요금제 | [구독하기] |
-| `current` | 현재 구독 중인 요금제 | "이용 중" 표시 |
+| `current` | 현재 구독 중인 요금제, 또는 **유효한 구독이 없는 사용자의 무료 요금제**(2026-10-06 — KAN-147. 가입 체험 중이어도 같다 — 체험은 4.2 `plan.trial`이 따로 알린다) | "이용 중" 표시 |
 | `upgrade` | 현재보다 높은 티어 | [업그레이드] — 즉시 적용(스토어 비례 정산) |
 | `downgrade` | 현재보다 낮은 **유료** 티어 | [변경] — "다음 결제일부터 적용돼요" 안내 |
-| `none` | 무료 티어, 또는 그 플랫폼에 상품이 없는 요금제 | 버튼 없음. 유료 → 무료는 해지다(스토어 이동) |
+| `none` | **유료 구독자에게** 무료 티어(유료 → 무료는 해지다 — 스토어 이동), 또는 그 플랫폼에 상품이 없는 유료 요금제 | 버튼 없음 |
 
 - **다른 스토어에서 결제한 구독자**(예: Android에서 구독하고 iOS로 접속): 유료 요금제 전부 `none`이다. 한 계정에 두 스토어 구독을 겹치지 않는다. 화면은 4.2의 `store`로 "Google Play에서 구독 중이에요"를 안내한다.
+- **표시 문구는 DB 값이다**(`plans.name`·`description` — `domain.md` 8.1). 2026-10-06 PM 결정으로 `Light` / `Daily` / `Pro`, 설명은 "하루 2편까지 들을 수 있어요" / "하루 5편까지 들을 수 있어요" / "제한 없이 마음껏 들을 수 있어요"(마이그레이션 `RenamePlanDisplayNames`). 화면은 이 값을 그대로 그린다 — 앱에 티어명을 두지 않는다.
 - 비활성(`is_active = false`) 요금제는 목록에서 빠진다. 그 요금제의 기존 구독자는 만료까지 유지되며(`subscription.md` 7), 이때 응답에 `current`인 항목이 없을 수 있다 — 현재 구독 표시는 4.2가 한다.
 
 **에러** — `VALIDATION_FAILED`(400): `platform` 누락·오값.

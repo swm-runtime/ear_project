@@ -162,7 +162,8 @@ describe('구독·인앱 결제 E2E', () => {
         plan.action,
       ]),
     ).toEqual([
-      ['light', 0, null, 2, true, 'none'],
+      // 구독이 없으면 무료 요금제가 "이용 중"이다(KAN-147)
+      ['light', 0, null, 2, true, 'current'],
       ['daily', 3900, PRODUCT_DAILY, 5, false, 'purchase'],
       ['pro', 9900, PRODUCT_PRO, null, false, 'purchase'],
     ]);
@@ -173,7 +174,11 @@ describe('구독·인앱 결제 E2E', () => {
         .query({ platform: 'android' })
         .expect(HttpStatus.OK)
     ).body as PlansBody;
-    expect(android.plans.every((plan) => plan.action === 'none')).toBe(true);
+    expect(
+      android.plans
+        .filter((plan) => plan.price_krw > 0)
+        .every((plan) => plan.action === 'none'),
+    ).toBe(true);
 
     // platform 누락·오값
     await expectError(
@@ -462,7 +467,7 @@ describe('구독·인앱 결제 E2E', () => {
     expect(pending.plan.tier).toBe('pro');
     expect(pending.pending_plan).toEqual({
       tier: 'daily',
-      plan_name: '데일리',
+      plan_name: 'Daily',
       effective_at: thisPeriod.expiresAt.toISOString(),
     });
 

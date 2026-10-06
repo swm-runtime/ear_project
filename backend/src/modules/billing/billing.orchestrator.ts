@@ -600,6 +600,9 @@ function hasVerifiedEmail(user: {
 
 /**
  * `action` 판정(`subscription-api.md` 4.1). 티어의 높낮이는 `display_order`로 본다 — 티어명을 비교하지 않는다.
+ *
+ * **무료 요금제는 유효한 구독이 없는 사용자에게 `current`다**(2026-10-06, KAN-147) — 요금제 화면이 "현재 구독"
+ * 섹션 없이 목록의 `current`로 "이용 중"을 그린다. 유료 구독자에게 무료는 종전처럼 `none`(유료 → 무료는 해지).
  */
 export function resolvePlanAction(input: {
   plan: Plan;
@@ -613,6 +616,11 @@ export function resolvePlanAction(input: {
 
   // "이용 중"은 살 수 있는지와 무관하다 — 판매를 멈췄거나 다른 스토어여도 지금 쓰는 요금제다
   if (current !== null && current.tier === plan.tier) {
+    return PlanAction.CURRENT;
+  }
+
+  // 구독이 없으면 지금 쓰는 요금제는 무료다 — 무료 행이 "이용 중"이 된다(가입 체험 중이어도 같다. 체험은 4.2 `plan.trial`)
+  if (plan.priceKrw <= 0 && current === null) {
     return PlanAction.CURRENT;
   }
 
