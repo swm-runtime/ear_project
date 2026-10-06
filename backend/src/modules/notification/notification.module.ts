@@ -7,6 +7,7 @@ import {
   NodeEnv,
   PushDelivery,
 } from '@/config/env.validation';
+import { AlertModule } from '@/modules/alert/alert.module';
 import { UserModule } from '@/modules/user/user.module';
 
 import { NotificationLog } from './entities/notification-log.entity';
@@ -17,6 +18,7 @@ import { PushReceiptScheduler } from './push-receipt.scheduler';
 import { NotificationLogRepository } from './repositories/notification-log.repository';
 import { DripArrivalNotificationService } from './services/drip-arrival-notification.service';
 import { PushReceiptService } from './services/push-receipt.service';
+import { UninstallAlertService } from './services/uninstall-alert.service';
 
 /**
  * domain.md 2장 — `notification_logs` 소유. 의존은 `user` 하나다(기기 토큰·알림 토글).
@@ -25,12 +27,17 @@ import { PushReceiptService } from './services/push-receipt.service';
  * 발송 수단은 `PUSH_DELIVERY`가 고른다 — 기본 `log`는 보내지 않는다.
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([NotificationLog]), UserModule],
+  imports: [
+    TypeOrmModule.forFeature([NotificationLog]),
+    UserModule,
+    AlertModule,
+  ],
   providers: [
     NotificationLogRepository,
     DripArrivalNotificationService,
     PushReceiptService,
     PushReceiptScheduler,
+    UninstallAlertService,
     {
       provide: PushClient,
       inject: [ConfigService],
