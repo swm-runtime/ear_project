@@ -3,7 +3,7 @@
  * [콜드오픈] 구역은 2026-09-07 폐지됐다 — 구 대본 호환으로 분리만 해 두고(turns 에 섞이지 않게) 합성 단계는 버린다.
  */
 export type Speaker = "윤아" | "이음";
-export interface ScriptTurn { speaker: Speaker; id: string | null; text: string; section: string; blockStart?: boolean } // blockStart: 헤더(구역·단락) 바로 다음 턴 — 분할 요청 경계 후보(chunkTurns)
+export interface ScriptTurn { speaker: Speaker; id: string | null; text: string; section: string; blockStart?: boolean; topic?: string } // blockStart: 헤더(구역·단락) 바로 다음 턴 — 분할 요청 경계 후보(chunkTurns) · topic: 속한 단락 제목(`### #1 제목`의 "제목", 구간 표시 KAN-137)
 export interface ParsedScript {
   meta: string;
   coldOpen: { speaker: Speaker; text: string; sourceTurn: string | null } | null;
@@ -26,7 +26,8 @@ export function parseScriptForTts(md: string): ParsedScript {
   const lines = md.split("\n");
   const meta = lines.find((l) => l.trim() && !l.trim().startsWith("#")) ?? "";
   let blockStart = false; // 직전에 헤더(`## [구역]`·`### #n 단락`)가 있었는가 — 다음 턴에 표시하고 지운다
-  const push = (t: Omit<ScriptTurn, "blockStart">) => { turns.push(blockStart ? { ...t, blockStart: true } : t); blockStart = false; };
+  let topic: string | undefined; // 현재 단락 제목 — 구역이 바뀌면 지운다
+  const push = (t: Omit<ScriptTurn, "blockStart" | "topic">) => { turns.push({ ...t, ...(blockStart ? { blockStart: true } : {}), ...(topic ? { topic } : {}) }); blockStart = false; };
 
   for (const raw of lines) {
     const line = raw.trim();
@@ -34,11 +35,16 @@ export function parseScriptForTts(md: string): ParsedScript {
     const sec = line.match(SECTION_RE);
     if (sec) {
       section = sec[1].trim();
+      topic = undefined;
       if (section === "콜드오픈") coldOpenSource = sec[2].match(/본편\s*(E\d+)/)?.[1] ?? null;
       blockStart = true;
       continue;
     }
-    if (/^#{2,}\s/.test(line)) { blockStart = true; continue; } // `### #1 제목` 같은 단락 헤더 — 구역은 바뀌지 않지만 화제가 바뀐다
+    if (/^#{2,}\s/.test(line)) { // `### #1 제목` 같은 단락 헤더 — 구역은 바뀌지 않지만 화제가 바뀐다
+      topic = line.replace(/^#{2,}\s*/, "").replace(/^#\d+\s*/, "").trim() || undefined;
+      blockStart = true;
+      continue;
+    }
     let m = line.match(TURN_A);
     if (m) {
       if (section === "콜드오픈") coldOpen = { speaker: m[1] as Speaker, text: m[3].trim(), sourceTurn: coldOpenSource };

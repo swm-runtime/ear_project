@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase-server";
 import { loadArtifact, replaceTurn, writeArtifact } from "@/lib/artifacts";
 import { deletePrefix, getBytes, getText, putBytes, putText } from "@/lib/storage";
+import { readScriptFileBody } from "@/lib/script-file";
 import { majorOrder } from "@/lib/taxonomy";
 import { ensureEmbedding } from "@/lib/embedding";
 
@@ -291,10 +292,10 @@ export async function republishPlans(contentIds: string[]): Promise<Record<strin
   }
   return out;
 }
-/** 자막 세그먼트 본문 — 브라우저가 File 로 감싸 script_file 로 PATCH 한다 */
+/** 자막 파일 본문 — 브라우저가 File 로 감싸 script_file 로 PATCH 한다 (구간 제목 포함 여부는 lib/script-file.ts) */
 export async function readScriptSegments(episodeId: string): Promise<string | null> {
   if (!/^[A-Za-z0-9-]{1,64}$/.test(episodeId)) throw new Error("잘못된 episode_id");
-  return getText(`episodes/${episodeId}/script-segments.json`);
+  return readScriptFileBody(episodeId);
 }
 /** 산출물 본문 — 브라우저가 File 로 감싸 PATCH 한다 (S3 는 서버가 중계) */
 export async function readEnrichment(contentId: string): Promise<{ text: string; note: string } | null> {
