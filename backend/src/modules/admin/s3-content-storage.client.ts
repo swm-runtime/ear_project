@@ -9,8 +9,8 @@ import { EnvironmentVariables } from '@/config/env.validation';
 
 import { StoredObject, UploadedFileInput } from './admin.types';
 import {
-  AUDIO_CONTENT_TYPES,
   AUDIO_KEY_PREFIX,
+  STORED_AUDIO_CONTENT_TYPES,
   THUMBNAIL_CONTENT_TYPES,
   THUMBNAIL_KEY_PREFIX,
 } from './admin.constant';
@@ -46,7 +46,7 @@ export class S3ContentStorageClient extends ContentStorageClient {
 
   async putAudio(file: UploadedFileInput, extension: string): Promise<string> {
     const key = this.buildKey(AUDIO_KEY_PREFIX, extension);
-    await this.putStream(key, file, AUDIO_CONTENT_TYPES[extension]);
+    await this.putStream(key, file, STORED_AUDIO_CONTENT_TYPES[extension]);
 
     return key;
   }

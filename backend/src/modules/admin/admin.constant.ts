@@ -43,6 +43,17 @@ export const LOSSLESS_AUDIO_CONTENT_TYPES: Readonly<Record<string, string>> = {
   flac: 'audio/flac',
 };
 
+/**
+ * 저장소에 올릴 때 붙이는 Content-Type — **음질 3종의 확장자 전부**다. 저장 계층은 음질을 모르고 확장자만
+ * 받으므로 세 표를 합쳐 둔다. 압축 음질 표만 보던 때는 무손실 확장자(`flac`)가 없어 무손실 파일이 Content-Type 없이 저장됐다
+ * (2026-10-06). 음질별 "받을 수 있는 형식" 판정은 위의 세 표가 그대로 한다.
+ */
+export const STORED_AUDIO_CONTENT_TYPES: Readonly<Record<string, string>> = {
+  ...AUDIO_CONTENT_TYPES,
+  ...AAC_AUDIO_CONTENT_TYPES,
+  ...LOSSLESS_AUDIO_CONTENT_TYPES,
+};
+
 export const THUMBNAIL_CONTENT_TYPES: Readonly<Record<string, string>> = {
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',

@@ -11,6 +11,8 @@ import { EnvironmentVariables } from '@/config/env.validation';
  *
  * **신원 값을 보내지 않는다** — 이메일·닉네임·user_id 는 문구에 넣지 않는다(`convention.md` 8.4 · CLAUDE.md 공통 원칙).
  * 채널에 필요한 것은 "누가"가 아니라 "들어오고 나가고 있다"이다. 문구는 각 알림 서비스의 순수 함수가 만든다.
+ * 문구에 **바깥에서 온 글**을 넣는 쪽은 `escapeSlackText` 를 거친다 — 여기서 일괄로 바꾸지 않는 이유는
+ * 문구의 인용 기호(`> `)까지 바뀌기 때문이다.
  *
  * **웹훅은 기존 알림 채널을 그대로 쓴다**(`SLACK_ERROR_WEBHOOK_URL`). 채널을 새로 만들지 않으려는 결정이다
  * (2026-09-29) — 덕분에 서버 env 를 건드리지 않고 배포만으로 켜진다. 알림만 다른 채널로 빼고 싶어지면
@@ -43,6 +45,23 @@ export function withEnvironmentPrefix(
   const prefix =
     environment && environment !== 'production' ? `[${environment}] ` : '';
   return `${prefix}${text}`;
+}
+
+/**
+ * **바깥에서 온 글**(스토어 리뷰 본문·탈퇴 사유 등)을 문구에 넣기 전에 Slack 제어 문자를 무력화한다.
+ *
+ * Slack 은 `text` 안의 `<…>` 를 명령으로 읽는다 — `<!channel>`·`<!here>` 는 채널 전체 호출, `<@U…>` 는 멘션,
+ * `<https://주소|보이는 글자>` 는 위장 링크다. 리뷰는 스토어에 글을 쓸 수 있는 누구나 보낼 수 있어서, 그대로
+ * 실으면 장애 알림 채널을 아무나 호출할 수 있다. Slack 이 정한 세 문자(`&` `<` `>`)만 엔티티로 바꾼다.
+ *
+ * **자른 뒤에 부른다** — 먼저 바꾸고 자르면 `&amp;` 가 중간에서 끊긴다. 우리가 만든 문구(이모지 코드·인용
+ * 기호 `> `)에는 쓰지 않는다 — 인용 기호까지 바뀐다.
+ */
+export function escapeSlackText(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 @Injectable()
