@@ -83,7 +83,8 @@ describe('SubscriptionLegalNotice — 맨 아래 링크 줄(KAN-146)', () => {
 
     // then
     const dots = renderer.root.findAll(
-      (node) => node.type === RNText && node.props.children === SUBSCRIPTION_COPY.legal.separator,
+      (node) => node.type === RNText && (node.props.children === SUBSCRIPTION_COPY.legal.separator ||
+          node.props.children === SUBSCRIPTION_COPY.legal.bullet),
     );
     expect(dots.length).toBeGreaterThan(0);
     for (const dot of dots) {
