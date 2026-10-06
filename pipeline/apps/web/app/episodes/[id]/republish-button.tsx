@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { republishEarContent, EarApiError } from "@/lib/ear";
-import { fetchDistAudio, fetchLosslessAudio } from "@/lib/publish-files";
+import { fetchDistAudio, fetchLosslessAudio, LOSSLESS_DROP_WARNING, losslessWouldDrop } from "@/lib/publish-files";
 import { markPublished } from "../../actions";
 import { earErrMsg } from "../../publish/ear-connect";
 import { btnCls } from "@/components/ui";
@@ -30,7 +30,8 @@ export function RepublishButton({ episodeId, backlogId, contentId, version, publ
   async function run() {
     if (parts.length === 0) return;
     const what = parts.join("·");
-    if (!confirm(`${episodeId} 의 발행본 ${what}${audioNewer ? "(자막 포함)" : ""}을(를) 교체합니다 (제품 콘텐츠 ${contentId.slice(0, 8)}…, v${version ?? "?"} → v${(version ?? 0) + 1}).\n확인을 마쳤나요? 앱 사용자의 저장 위치는 초기화되고 라이브러리는 유지됩니다.`)) return;
+    const dropWarn = audioNewer && (await losslessWouldDrop(episodeId)); // KAN-145 — 오디오를 바꾸는 재발행만 음질 행이 바뀐다
+    if (!confirm(`${episodeId} 의 발행본 ${what}${audioNewer ? "(자막 포함)" : ""}을(를) 교체합니다 (제품 콘텐츠 ${contentId.slice(0, 8)}…, v${version ?? "?"} → v${(version ?? 0) + 1}).\n확인을 마쳤나요? 앱 사용자의 저장 위치는 초기화되고 라이브러리는 유지됩니다.${dropWarn ? `\n\n⚠️ ${LOSSLESS_DROP_WARNING}` : ""}`)) return;
     setBusy(true); setMsg(null);
     try {
       // 바뀐 것만 받아 보낸다 — 안 바뀐 파일까지 올리면 같은 내용으로 버전만 오른다

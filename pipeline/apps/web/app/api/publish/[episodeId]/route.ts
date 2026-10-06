@@ -32,6 +32,11 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ episodeId: 
     });
   }
 
+  // 재발행 확인창의 무손실 경고 판정용 (KAN-145) — 업로드 패키지(upload-meta.json)가 없어도 답한다. 스위치가 꺼져 있으면 S3 를 보지 않는다
+  if (req.nextUrl.searchParams.get("audioinfo")) {
+    return NextResponse.json({ lossless_enabled: SEND_LOSSLESS_AUDIO, has_lossless: SEND_LOSSLESS_AUDIO ? await hasLosslessAudio(episodeId) : null });
+  }
+
   if (req.nextUrl.searchParams.get("lossless")) {
     if (!SEND_LOSSLESS_AUDIO) return NextResponse.json({ message: "무손실 전송 꺼짐 — 백엔드가 flac 을 받게 되면 켠다 (lib/audio-file.ts)" }, { status: 404 });
     const bytes = await getBytes(`${base}/audio/${LOSSLESS_FILE.file}`);
