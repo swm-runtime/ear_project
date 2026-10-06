@@ -18,6 +18,7 @@ import { USER_HASH_VERSION } from '../user.constant';
 import { UserService } from './user.service';
 import { WithdrawUserCommand } from '../user.types';
 import { WithdrawalLogRepository } from '../repositories/withdrawal-log.repository';
+import { WithdrawalAlertService } from './withdrawal-alert.service';
 
 /** 아카이브 보존 기간 — 전자상거래법 시행령 제6조 (domain.md 11장) */
 export const ARCHIVE_RETENTION_YEARS = 5;
@@ -54,6 +55,7 @@ export class UserWithdrawalService {
     private readonly withdrawalLogRepository: WithdrawalLogRepository,
     private readonly configService: ConfigService<EnvironmentVariables, true>,
     private readonly dataSource: DataSource,
+    private readonly withdrawalAlertService: WithdrawalAlertService,
   ) {}
 
   /** auth-api.md 4.6 — 안내 문구 분기는 서버가 판정한다. 클라이언트가 로컬 상태로 추측하지 않는다 */
@@ -90,7 +92,8 @@ export class UserWithdrawalService {
       });
     }
 
-    await this.dataSource.transaction(async (manager) => {
+    // 알림 문구에 쓸 값 — 트랜잭션이 끝나면 사용자 행이 없으므로 안에서 읽어 돌려준다
+    const alertInput = await this.dataSource.transaction(async (manager) => {
       /**
        * **사용자 행을 잠그고 시작한다.** 아래는 결제 이력을 읽어 아카이브 여부를 정하고
        * 파기까지 가는 흐름인데, READ COMMITTED에서는 그 판정 뒤에 커밋된 구독이 스냅샷에
@@ -124,9 +127,24 @@ export class UserWithdrawalService {
 
       await this.purge(user.id, manager);
       await this.recordWithdrawalLog(user.id, command, now, manager);
+
+      return {
+        signedUpAt: user.createdAt,
+        hadPaymentHistory: hasPaymentHistory,
+      };
     });
 
     this.logger.log('user withdrawn', { user_id: command.userId });
+
+    // 커밋된 뒤에만 알린다 — 롤백된 탈퇴를 채널에 알리면 안 된다. await 하지 않는다(탈퇴 응답을 늦추지 않는다)
+    this.withdrawalAlertService.notify(
+      {
+        reasonCode: command.reasonCode,
+        reasonText: command.reasonText,
+        ...alertInput,
+      },
+      now,
+    );
   }
 
   /** domain.md 12.3 — 결제 이력이 있는 사용자만 아카이브한다 */
