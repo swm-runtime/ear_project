@@ -3,9 +3,13 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { MAX_SCRIPT_FILE_BYTES } from './admin.constant';
+import { MAX_SCRIPT_FILE_BYTES, MAX_SCRIPT_SECTIONS } from './admin.constant';
 import { UploadedFileInput } from './admin.types';
-import { parseScriptFile } from './script-file';
+import {
+  ScriptParseResult,
+  parseScriptFile,
+  rejectSectionsPastDuration,
+} from './script-file';
 
 const tempDir = mkdtempSync(join(tmpdir(), 'ear-script-spec-'));
 afterAll(() => rmSync(tempDir, { recursive: true, force: true }));
@@ -38,13 +42,15 @@ describe('parseScriptFile — 대본 세그먼트 파일 검증(admin-api.md 4.6
     );
 
     expect(result.rejectedReason).toBeNull();
-    expect(result.data).toHaveLength(4);
-    expect(result.data?.[3]).toEqual({
+    expect(result.data?.segments).toHaveLength(4);
+    expect(result.data?.segments[3]).toEqual({
       start_sec: 40,
       end_sec: 50,
       speaker: null,
       text: '화자 없는 턴',
     });
+    // 배열 형식 = 구간 없음(KAN-144)
+    expect(result.data?.sections).toEqual([]);
   });
 
   it('start_sec 오름차순이 아니면 거부한다', async () => {
@@ -95,9 +101,11 @@ describe('parseScriptFile — 대본 세그먼트 파일 검증(admin-api.md 4.6
       ).rejectedReason,
     ).toContain('모르는 키');
     expect(
-      (await parseScriptFile(buildScriptFile({ segments: VALID })))
-        .rejectedReason,
-    ).toContain('배열');
+      (await parseScriptFile(buildScriptFile({ turns: VALID }))).rejectedReason,
+    ).toContain('모르는 키');
+    expect(
+      (await parseScriptFile(buildScriptFile('"문자열"'))).rejectedReason,
+    ).toContain('최상위');
     expect(
       (await parseScriptFile(buildScriptFile([]))).rejectedReason,
     ).toContain('하나도');
@@ -108,5 +116,118 @@ describe('parseScriptFile — 대본 세그먼트 파일 검증(admin-api.md 4.6
       (await parseScriptFile(buildScriptFile(VALID, MAX_SCRIPT_FILE_BYTES + 1)))
         .rejectedReason,
     ).toContain('너무 커요');
+  });
+});
+
+const SECTIONS = [
+  { start_sec: 0, title: '인트로' },
+  { start_sec: 12.4, title: '도입' },
+  { start_sec: 27.95, title: '깬 직후의 멍함은 잠이 모자란 신호가 아니다' },
+];
+
+describe('parseScriptFile — 객체 형식과 구간 제목(admin-api.md 4.6 `sections`, KAN-144)', () => {
+  it('{ segments, sections } 객체 형식은 세그먼트와 구간을 함께 받아들인다', async () => {
+    const result = await parseScriptFile(
+      buildScriptFile({ segments: VALID, sections: SECTIONS }),
+    );
+
+    expect(result.rejectedReason).toBeNull();
+    expect(result.data?.segments).toHaveLength(3);
+    expect(result.data?.sections).toEqual(SECTIONS);
+  });
+
+  it('sections 를 생략한 객체 형식은 배열 형식과 같다 — 구간 없음', async () => {
+    const result = await parseScriptFile(buildScriptFile({ segments: VALID }));
+
+    expect(result.rejectedReason).toBeNull();
+    expect(result.data?.sections).toEqual([]);
+  });
+
+  it('구간이 어긋나면 세그먼트가 멀쩡해도 파일을 통째로 거부한다 — 같은 값·역순·빈 제목·긴 제목·모르는 키', async () => {
+    const cases: [unknown, string][] = [
+      [[SECTIONS[0], { start_sec: 0, title: '같은 시각' }], '엄격한 오름차순'],
+      [[SECTIONS[1], SECTIONS[0]], '엄격한 오름차순'],
+      [[{ start_sec: 0, title: '  ' }], 'title이 비어'],
+      [[{ start_sec: 0, title: '가'.repeat(61) }], '너무 길어요'],
+      [[{ start_sec: 0, title: '인트로', summary: '요약' }], '모르는 키'],
+      [[{ start_sec: -1, title: '인트로' }], 'start_sec'],
+      ['구간', 'sections가 구간 배열'],
+    ];
+
+    for (const [sections, reason] of cases) {
+      const result = await parseScriptFile(
+        buildScriptFile({ segments: VALID, sections }),
+      );
+
+      expect(result.data).toBeNull();
+      expect(result.rejectedReason).toContain(reason);
+    }
+  });
+
+  it('구간 상한을 넘으면 거부하고, 빈 구간 배열은 받아들인다', async () => {
+    const tooMany = Array.from({ length: MAX_SCRIPT_SECTIONS + 1 }, (_, i) => ({
+      start_sec: i,
+      title: `구간 ${i}`,
+    }));
+
+    expect(
+      (
+        await parseScriptFile(
+          buildScriptFile({ segments: VALID, sections: tooMany }),
+        )
+      ).rejectedReason,
+    ).toContain('너무 많아요');
+    expect(
+      (
+        await parseScriptFile(
+          buildScriptFile({ segments: VALID, sections: [] }),
+        )
+      ).data?.sections,
+    ).toEqual([]);
+  });
+
+  it('최상위에 모르는 키가 있거나 segments 가 배열이 아니면 거부한다', async () => {
+    expect(
+      (
+        await parseScriptFile(
+          buildScriptFile({ segments: VALID, sections: SECTIONS, meta: {} }),
+        )
+      ).rejectedReason,
+    ).toContain('최상위에 모르는 키');
+    expect(
+      (await parseScriptFile(buildScriptFile({ segments: 'x', sections: [] })))
+        .rejectedReason,
+    ).toContain('segments가 세그먼트 배열');
+  });
+});
+
+describe('rejectSectionsPastDuration — 마지막 구간은 오디오 길이 안에서 시작해야 한다', () => {
+  const accepted: ScriptParseResult = {
+    data: { segments: VALID, sections: SECTIONS },
+    rejectedReason: null,
+  };
+
+  it('마지막 구간이 길이 안이면 그대로, 길이 이상이면 거부로 바꾼다', () => {
+    expect(rejectSectionsPastDuration(accepted, 40)).toBe(accepted);
+
+    const rejected = rejectSectionsPastDuration(accepted, 27.95);
+    expect(rejected.data).toBeNull();
+    expect(rejected.rejectedReason).toContain('오디오 길이');
+  });
+
+  it('구간이 없거나 이미 거부된 결과는 건드리지 않는다', () => {
+    const noSections: ScriptParseResult = {
+      data: { segments: VALID, sections: [] },
+      rejectedReason: null,
+    };
+    const alreadyRejected: ScriptParseResult = {
+      data: null,
+      rejectedReason: '깨짐',
+    };
+
+    expect(rejectSectionsPastDuration(noSections, 1)).toBe(noSections);
+    expect(rejectSectionsPastDuration(alreadyRejected, 1)).toBe(
+      alreadyRejected,
+    );
   });
 });

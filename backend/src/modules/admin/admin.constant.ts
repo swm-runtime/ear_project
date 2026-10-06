@@ -19,6 +19,12 @@ export const MAX_SCRIPT_FILE_BYTES = 2 * 1024 * 1024;
 export const MAX_SCRIPT_SEGMENTS = 2000;
 export const MAX_SCRIPT_TEXT_LENGTH = 2000;
 export const MAX_SCRIPT_SPEAKER_LENGTH = 50;
+/**
+ * 구간 제목(`sections`, KAN-144) 상한. 대본 구간 4~8개 + 인트로·도입·마무리 = 한 편에 7~11개(90편 실측 중앙값 5개).
+ * 30은 그 세 배다 — 넘으면 구간이 아니라 세그먼트를 보낸 것이다. 제목은 미니 플레이어 한 줄에 들어가야 한다
+ */
+export const MAX_SCRIPT_SECTIONS = 30;
+export const MAX_SCRIPT_SECTION_TITLE_LENGTH = 60;
 
 /** admin.md 3.1 — 압축 음질(`compressed`) mp3 / m4a */
 export const AUDIO_CONTENT_TYPES: Readonly<Record<string, string>> = {

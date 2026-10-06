@@ -55,7 +55,9 @@ describe('AudioUrlService — 음질(KAN-141)', () => {
         audioPath: 'audio/c.mp3',
       }),
       findTopicViews: jest.fn().mockResolvedValue([]),
-      findScriptContentIds: jest.fn().mockResolvedValue(new Set()),
+      findScriptSummary: jest
+        .fn()
+        .mockResolvedValue({ hasScript: false, sections: [] }),
       findAudioRenditions: jest.fn().mockResolvedValue(renditions),
     } as unknown as jest.Mocked<ContentService>;
     userService = {
@@ -97,6 +99,30 @@ describe('AudioUrlService — 음질(KAN-141)', () => {
       { hashIp: jest.fn().mockReturnValue(null) } as unknown as AudioUrlSigner,
       issuer,
     );
+  });
+
+  it('대본이 있으면 has_script 와 구간 제목을 함께 내려준다 — 세그먼트 본문은 읽지 않는다(KAN-144)', async () => {
+    const sections = [
+      { start_sec: 0, title: '인트로' },
+      { start_sec: 74.8, title: '깬 직후의 멍함' },
+    ];
+    contentService.findScriptSummary.mockResolvedValue({
+      hasScript: true,
+      sections,
+    });
+
+    const result = await issue();
+
+    expect(contentService.findScriptSummary).toHaveBeenCalledWith(CONTENT_ID);
+    expect(result.hasScript).toBe(true);
+    expect(result.sections).toEqual(sections);
+  });
+
+  it('대본이 없으면 has_script 는 false, 구간은 빈 배열이다', async () => {
+    const result = await issue();
+
+    expect(result.hasScript).toBe(false);
+    expect(result.sections).toEqual([]);
   });
 
   it('요청이 없으면 설정의 선택값으로 판정한다', async () => {

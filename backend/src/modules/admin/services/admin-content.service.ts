@@ -28,7 +28,11 @@ import {
   UploadedFileInput,
 } from '../admin.types';
 import { EnrichmentParseResult, parseEnrichmentFile } from '../enrichment-file';
-import { ScriptParseResult, parseScriptFile } from '../script-file';
+import {
+  ScriptParseResult,
+  parseScriptFile,
+  rejectSectionsPastDuration,
+} from '../script-file';
 import { NormalizedThumbnail, ThumbnailImage } from '../thumbnail-image';
 import {
   AAC_AUDIO_CONTENT_TYPES,
@@ -111,9 +115,7 @@ export class AdminContentService {
       ? await parseEnrichmentFile(command.enrichment)
       : null;
     // 대본도 같은 규칙 — 거부는 파일에 한하고 발행은 진행한다(대본은 발행 요건이 아니다, KAN-71)
-    const script = command.script
-      ? await parseScriptFile(command.script)
-      : null;
+    let script = command.script ? await parseScriptFile(command.script) : null;
     // 음질 3종의 형식·크기·길이 일치를 한 번에 본다(admin-api.md 4.6). `audio`(압축)는 필수
     const renditionFiles = this.resolveRenditionFiles(command);
     // 입력 형식·크기 판정만 한다 — 저장 확장자는 언제나 webp 라 돌려받은 값은 쓰지 않는다
@@ -136,6 +138,10 @@ export class AdminContentService {
 
     const probed = await this.probeRenditions(renditionFiles);
     const durationSec = probed[0].metadata.durationSec;
+    // 구간 제목은 오디오 길이 안에서 시작해야 한다(admin-api.md 4.6 `sections`) — 길이를 알아야 볼 수 있다
+    if (script) {
+      script = rejectSectionsPastDuration(script, durationSec);
+    }
 
     // 입력 형식 검증(확장자·크기)은 위에서 끝났다. 저장 규격(WebP 768px)으로 다시 쓰는 것은 여기다
     const thumbnail = await this.normalizeThumbnail(command.thumbnail);
@@ -282,9 +288,7 @@ export class AdminContentService {
     const enrichment = command.enrichment
       ? await parseEnrichmentFile(command.enrichment)
       : null;
-    const script = command.script
-      ? await parseScriptFile(command.script)
-      : null;
+    let script = command.script ? await parseScriptFile(command.script) : null;
 
     /**
      * 추천 메타 파일 **단독**이면 버전을 올리지 않는다 — 오디오·메타가 그대로인데 버전이
@@ -342,6 +346,13 @@ export class AdminContentService {
       ? await this.probeRenditions(renditionFiles)
       : null;
     const durationSec = probed ? probed[0].metadata.durationSec : null;
+    // 오디오가 그대로면 구간도 지금 길이 안에 있어야 한다
+    if (script) {
+      script = rejectSectionsPastDuration(
+        script,
+        durationSec ?? target.durationSec,
+      );
+    }
 
     const thumbnail =
       command.thumbnail && thumbnailExtension
@@ -583,6 +594,11 @@ export class AdminContentService {
         );
       }
 
+      // 오디오가 그대로인 경로라 길이도 그대로다 — 구간은 그 길이 안에 있어야 한다
+      if (script) {
+        script = rejectSectionsPastDuration(script, current.durationSec);
+      }
+
       if (script?.data) {
         await this.contentService.saveScript(current.id, script.data, manager);
 
@@ -594,7 +610,8 @@ export class AdminContentService {
             after: {
               content_version: current.contentVersion,
               script_applied: true,
-              segment_count: script.data.length,
+              segment_count: script.data.segments.length,
+              section_count: script.data.sections.length,
             },
           },
           manager,
@@ -633,7 +650,8 @@ export class AdminContentService {
     if (script.data) {
       this.logger.log('script file applied', {
         content_id: contentId,
-        segment_count: script.data.length,
+        segment_count: script.data.segments.length,
+        section_count: script.data.sections.length,
       });
     } else {
       this.logger.warn('script file rejected', {

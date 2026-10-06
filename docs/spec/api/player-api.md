@@ -117,6 +117,12 @@
     "topics": [{ "id": "uuid", "name": "커리어" }]
   },
   "has_script": true,
+  "sections": [
+    { "start_sec": 0, "title": "인트로" },
+    { "start_sec": 31.2, "title": "도입" },
+    { "start_sec": 74.8, "title": "깬 직후의 멍함은 잠이 모자란 신호가 아니다" },
+    { "start_sec": 1052.3, "title": "마무리" }
+  ],
   "library_item": { "id": "uuid", "status": "in_progress" },
   "progress": { "position_sec": 552, "max_reached_sec": 552 },
   "audio": {
@@ -137,6 +143,7 @@
 | `content.content_version` | 현재 발행본의 버전. **재발행 후 낡은 위치는 서버가 이미 폐기했으므로**(`admin-api.md` 4.10 — 개정 2026-09-07) 진입 시점에 클라이언트가 비교·폐기할 것은 없다. 이 값의 용도는 4.3 위치 저장의 버전 가드 입력(응답의 버전을 저장 요청에 되돌려 보낸다)과 **재생 중 재발행 감지**다 — 갱신 호출로 받은 버전이 세션과 다르면 세션 위치를 폐기한다(`player.md` 7) |
 | `content.topics` | 플레이어 카테고리 줄(`player-controls-redesign.md` 계약 요청 1, 등재 2026-09-19). **진입 경로와 무관하게 이 값이 원천이다** — 목록 응답에서 `topic_ids`를 끼워 넣던 우회(#478)를 걷어낸다. `topics.display_order` 순 |
 | `has_script` | 대본 세그먼트 적재 여부(KAN-71). **화면이 대본 버튼을 그릴지 조회(4.7) 전에 이 값으로 정한다** — 없으면 플레이어를 열 때마다 대본을 미리 받아야 한다. `false`면 버튼을 그리지 않고 4.7을 부르지 않는다 |
+| `sections` | **구간 제목** `[{ start_sec, title }]`(2026-10-06, KAN-144 — `domain.md` 5.3). 미니 플레이어 위 "지금 듣는 구간"(KAN-127)의 원천. **현재 구간은 `start_sec ≤ 재생 위치`인 마지막 항목**이고, **빈 배열이면 영역을 숨긴다**(구간이 없는 대본·대본 없음·기존 발행분). `start_sec` 엄격한 오름차순이 보장된다. 4.7이 아니라 발급에 싣는 이유: 4.7은 대본 패널을 **처음 열 때만** 부르고(`player.md` 4.6) 응답이 수십 KB인데, 미니 플레이어는 재생 시작부터 구간이 필요하다. 구간은 10개 안팎·1KB 미만이다. 접근 통제는 발급과 같다(판정을 통과한 응답에 실린다) — 새 엔드포인트·에러 코드는 없다 |
 | `library_item` | 라이브러리에 없는 콘텐츠면 **`null`**. `id`는 더보기의 삭제(`library-api.md` 4.6) 호출에, `status`는 완료 화면(PL3) 판단에 쓴다 |
 | `progress` | `playback_progresses` 행이 없으면 **`null`** — 0부터 재생한다. `start_position_sec` 입력(`player.md` 3장)이 있으면 그것이 우선한다 |
 | `audio.url` | 단기 서명 URL. **재생기에 전달하는 용도 외로 보관·기록하지 않는다**(7장) |
@@ -458,7 +465,7 @@ POST /contents/:content_id/audio-urls (재호출)
 | `source_link_clicks` — 원문 유입 클릭. `content_stats.source_link_click_count`의 유일한 원천 | 6.6 |
 | `contents` — `audio_path`(비노출) · `duration_sec` · `content_version` · `status` · 출처 고지 필드 | 5.1 |
 | `library_items` — 완청 전이(`status` · `completed_at`)의 대상 | 6.1 |
-| `content_scripts` — 대본 세그먼트(4.7) · 발급 응답의 `has_script`(4.1) | 5.3 |
+| `content_scripts` — 대본 세그먼트(4.7) · 발급 응답의 `has_script`·`sections`(4.1) | 5.3 |
 | `user_settings` — 배속(`settings-api.md` 4.2 소관) · `sleep_timer_last_choice`(P1, 플레이어 소관) | 3.5 |
 | `idempotency_keys` — `replay`의 중복 흡수 | 1.4 |
 

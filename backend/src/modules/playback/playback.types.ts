@@ -1,6 +1,7 @@
 /** convention.md 3.2 — 모듈 밖으로 공개되는 타입만 둔다 */
 
 import { AudioQuality } from '@/modules/content/content.enum';
+import { ScriptSection } from '@/modules/content/content.types';
 
 import type { AudioQualityFallbackReason } from './audio-quality.policy';
 import { PlayEntryPoint, UserSignalAction } from './playback.enum';
@@ -91,6 +92,11 @@ export interface AudioUrlResult {
    * 없으면 플레이어를 열 때마다 대본을 미리 받아야 버튼 노출을 정할 수 있다.
    */
   hasScript: boolean;
+  /**
+   * 구간 제목(`player-api.md` 4.1, KAN-144) — 미니 플레이어가 재생 시작부터 "지금 듣는 구간"을 그린다.
+   * 대본 조회(4.7)는 패널을 처음 열 때만 부르므로 여기에 싣는다. 10개 안팎·1KB 미만. 없으면 빈 배열
+   */
+  sections: ScriptSection[];
   /** 라이브러리에 없는 콘텐츠면 `null` — 발급이 담기를 유발하지 않는다 */
   libraryItem: { id: string; status: string } | null;
   /** 행이 없으면 `null` — 0으로 채우지 않는다. 0부터 재생한다는 뜻이다 */
