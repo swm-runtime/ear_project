@@ -2,7 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 
 import { DeviceToken } from '../entities/device-token.entity';
-import { DeviceTokenRepository } from '../repositories/device-token.repository';
+import {
+  DeviceTokenRepository,
+  InvalidatedDeviceToken,
+} from '../repositories/device-token.repository';
 import { RegisterDeviceCommand } from '../user.types';
 
 /**
@@ -101,6 +104,16 @@ export class DeviceTokenService {
     now: Date,
     manager?: EntityManager,
   ): Promise<number> {
+    return (await this.invalidateDeliveredTokensDetailed(targets, now, manager))
+      .length;
+  }
+
+  /** 같은 일을 하되 무효화한 행(사용자·플랫폼)을 돌려준다 — 앱 삭제 추정 알림이 이어서 쓴다 */
+  async invalidateDeliveredTokensDetailed(
+    targets: { id: string; token: string }[],
+    now: Date,
+    manager?: EntityManager,
+  ): Promise<InvalidatedDeviceToken[]> {
     const unique = [
       ...new Map(
         targets.map((target) => [`${target.id}:${target.token}`, target]),
@@ -108,7 +121,7 @@ export class DeviceTokenService {
     ];
 
     if (unique.length === 0) {
-      return 0;
+      return [];
     }
 
     return this.deviceTokenRepository.invalidateByIdAndToken(
@@ -116,6 +129,14 @@ export class DeviceTokenService {
       now,
       manager,
     );
+  }
+
+  /** 사용자별 활성 기기 수(토큰 있음·무효화 안 됨) */
+  async countActiveByUserIds(
+    userIds: string[],
+    manager?: EntityManager,
+  ): Promise<Map<string, number>> {
+    return this.deviceTokenRepository.countActiveByUserIds(userIds, manager);
   }
 
   /**

@@ -29,6 +29,7 @@ import {
 import { NotificationLogRepository } from '../repositories/notification-log.repository';
 import { PushClient } from '../push/push.client';
 import { PushReceiptService } from './push-receipt.service';
+import { UninstallAlertService } from './uninstall-alert.service';
 
 interface OutgoingMessage {
   userId: string;
@@ -67,6 +68,7 @@ export class DripArrivalNotificationService {
     private readonly userSettingService: UserSettingService,
     private readonly pushClient: PushClient,
     private readonly pushReceiptService: PushReceiptService,
+    private readonly uninstallAlertService: UninstallAlertService,
   ) {}
 
   async notify(
@@ -169,11 +171,14 @@ export class DripArrivalNotificationService {
     await this.notificationLogRepository.insertAll(logs);
 
     try {
-      summary.invalidatedDeviceCount =
-        await this.deviceTokenService.invalidateDeliveredTokens(
+      const invalidatedRows =
+        await this.deviceTokenService.invalidateDeliveredTokensDetailed(
           invalidTokens,
           now,
         );
+      summary.invalidatedDeviceCount = invalidatedRows.length;
+      // ticket 단계에서 드러난 삭제 — 마지막 활성 토큰이면 앱 삭제 추정(iOS 만 Slack)
+      await this.uninstallAlertService.notifyIfLastToken(invalidatedRows, now);
     } catch (error) {
       this.logger.warn('push token invalidation failed', {
         device_count: invalidTokens.length,
