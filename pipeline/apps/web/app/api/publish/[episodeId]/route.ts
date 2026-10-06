@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { currentUser } from "@/lib/supabase-server";
 import { getBytes, getText } from "@/lib/storage";
 import { ensureEmbedding } from "@/lib/embedding";
+import { readScriptFileBody, readScriptSections, SEND_SCRIPT_SECTIONS } from "@/lib/script-file";
 
 /**
  * 발행 프리필 데이터 — 패키지 산출물을 브라우저에 내준다 (Supabase 로그인 필수).
@@ -9,7 +10,7 @@ import { ensureEmbedding } from "@/lib/embedding";
  * - GET /api/publish/<episodeId>?audio=1      → dist.mp3 바이트 (제품 업로드 폼이 File 로 감싼다)
  * - GET /api/publish/<episodeId>?thumbnail=1  → thumbnail.png 바이트 (같은 방식)
  * - GET /api/publish/<episodeId>?enrichment=1 → enrichment.json (추천 메타 — 업로드 화면의 [추천 메타 뽑기]가 건 enrich 작업이 만든다(2026-09-23 개정), 발행 때 enrichment_file 로 첨부)
- * - GET /api/publish/<episodeId>?script=1     → script-segments.json (자막 세그먼트, TTS 단계가 만든다 — 발행 때 script_file 로 첨부, KAN-72)
+ * - GET /api/publish/<episodeId>?script=1     → script_file 본문 (자막 세그먼트, TTS 단계가 만든다 — 발행 때 script_file 로 첨부, KAN-72. 구간 제목 포함 여부는 lib/script-file.ts, KAN-137)
  * 서버가 중계하는 이유: 파이프라인 S3 에 브라우저 CORS 를 열지 않기 위해서다.
  */
 export async function GET(req: NextRequest, ctx: { params: Promise<{ episodeId: string }> }) {
@@ -45,7 +46,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ episodeId: 
   }
 
   if (req.nextUrl.searchParams.get("script")) {
-    const text = await getText(`${base}/script-segments.json`);
+    const text = await readScriptFileBody(episodeId);
     if (!text) return NextResponse.json({ message: "script-segments.json 없음 — TTS 이후에 (턴 경계를 못 잡은 편은 만들지 않는다)" }, { status: 404 });
     return new NextResponse(text, { headers: { "content-type": "application/json", "content-disposition": `attachment; filename="script-segments.json"` } });
   }
@@ -60,7 +61,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ episodeId: 
   ]);
   let scriptSegments: number | null = null;
   try { scriptSegments = script ? (JSON.parse(script) as unknown[]).length : null; } catch { scriptSegments = null; }
+  const scriptSections = scriptSegments !== null ? (await readScriptSections(episodeId)).length : 0; // 구간 제목 수 (KAN-137) — 업로드 화면 안내용
   let enrichmentVersion: number | null = null;
   try { enrichmentVersion = enrichment ? Number((JSON.parse(enrichment) as { schema_version?: number }).schema_version ?? 1) : null; } catch { enrichmentVersion = null; }
-  return NextResponse.json({ meta: JSON.parse(metaText), has_audio: audio !== null, has_thumbnail: thumbnail !== null, has_enrichment: enrichment !== null, enrichment_version: enrichmentVersion, has_script: scriptSegments !== null, script_segments: scriptSegments });
+  return NextResponse.json({ meta: JSON.parse(metaText), has_audio: audio !== null, has_thumbnail: thumbnail !== null, has_enrichment: enrichment !== null, enrichment_version: enrichmentVersion, has_script: scriptSegments !== null, script_segments: scriptSegments, script_sections: scriptSections, script_sections_sent: SEND_SCRIPT_SECTIONS });
 }

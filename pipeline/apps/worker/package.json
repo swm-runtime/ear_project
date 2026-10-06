@@ -9,6 +9,7 @@
     "storage": "tsx src/cli/storage.ts",
     "jingle": "tsx src/cli/jingle.ts",
     "tts:reassemble": "tsx src/cli/reassemble.ts",
+    "tts:sections": "tsx src/cli/sections.ts",
     "rev": "tsx src/cli/rev.ts",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test src/**/*.test.ts"
