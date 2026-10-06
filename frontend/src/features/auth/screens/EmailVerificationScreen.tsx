@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
+import { SkeletonBlock, SkeletonGroup } from '@/shared/ui/Skeleton';
 import { Text, TextInput } from '@/shared/ui/Typography';
 
 import { AUTH_COPY } from '../auth.copy';
@@ -43,10 +44,10 @@ export default function EmailVerificationScreen() {
           onRetry={screen.retryLoad}
         />
       ) : screen.showSkeleton ? (
-        <View style={styles.body}>
-          <View style={styles.skeletonLine} />
-          <View style={styles.skeletonField} />
-        </View>
+        <SkeletonGroup style={styles.body}>
+          <SkeletonBlock style={styles.skeletonLine} />
+          <SkeletonBlock style={styles.skeletonField} />
+        </SkeletonGroup>
       ) : screen.step === 'input' ? (
         /* ── A10 이메일 입력 — 설정·프로필 경로는 진입 사유 문구가 없다(auth-uiux.md 4.7) ── */
         <>
@@ -291,15 +292,11 @@ const styles = StyleSheet.create({
     width: 180,
     height: theme.font.size.sm * 1.4,
     borderRadius: theme.radius.sm,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
     marginTop: theme.spacing.md,
   },
   skeletonField: {
     height: theme.touchTarget.minHeight,
     borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
     marginTop: theme.spacing.md,
   },
 });

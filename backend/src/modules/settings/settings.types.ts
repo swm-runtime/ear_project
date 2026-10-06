@@ -1,3 +1,4 @@
+import { AudioQuality } from '@/modules/content/content.enum';
 import { InterestSummaryView } from '@/modules/interest/interest.types';
 import { PlanView } from '@/modules/subscription/subscription.types';
 import { UserSettingView } from '@/modules/user/user.types';
@@ -54,9 +55,16 @@ export interface SettingsSummaryResult {
   plan: PlanView | null;
   interestSummary: InterestSummaryView | null;
   settings: UserSettingView;
+  /** 음질 선택지와 이 사용자의 티어가 허용하는지(`settings-api.md` 4.1 — KAN-141). 오름차순 전부 */
+  audioQualities: AudioQualityOptionView[];
   marketingConsent: MarketingConsentView;
   version: AppVersionView;
   failedSections: SettingsSection[];
+}
+
+export interface AudioQualityOptionView {
+  quality: AudioQuality;
+  allowed: boolean;
 }
 
 /** 설정 값 변경 명령. **보내지 않은 필드는 건드리지 않는다**(`settings-api.md` 4.2) */
@@ -64,4 +72,5 @@ export interface UpdateSettingsCommand {
   defaultPlaybackRate?: number;
   isAutoExpandEnabled?: boolean;
   isDripNotificationEnabled?: boolean;
+  preferredAudioQuality?: AudioQuality;
 }

@@ -38,7 +38,11 @@ export interface UploadContentCommand {
   topicIds: string[];
   sources: SourceInput[];
   reviewConfirmed: boolean;
+  /** 압축 음질(`compressed`) — 필수 */
   audio: UploadedFileInput;
+  /** 고음질(`aac`) · 무손실(`lossless`) — 선택(admin-api.md 4.6, KAN-141). 길이가 `audio`와 ±1초 안이어야 한다 */
+  audioAac: UploadedFileInput | null;
+  audioLossless: UploadedFileInput | null;
   thumbnail: UploadedFileInput;
   /** 추천 메타 파일(enrichment.json) — 선택. 검증 실패는 파일만 거부한다(admin.md 3.1) */
   enrichment: UploadedFileInput | null;
@@ -59,6 +63,9 @@ export interface RepublishContentCommand {
   topicIds?: string[];
   sources?: SourceInput[];
   audio: UploadedFileInput | null;
+  /** `audio`와 함께만 받는다 — 오디오를 바꾸는 재발행은 3종을 한 세트로 본다(admin-api.md 4.10) */
+  audioAac: UploadedFileInput | null;
+  audioLossless: UploadedFileInput | null;
   thumbnail: UploadedFileInput | null;
   /**
    * 추천 메타 파일 — 파트로 인정되므로 **단독 전송을 허용**한다. 단독이면 버전을 올리지

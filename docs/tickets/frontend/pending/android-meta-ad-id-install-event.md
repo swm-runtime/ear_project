@@ -9,11 +9,11 @@
 | Jira | [KAN-118](https://runtime364.atlassian.net/browse/KAN-118) |
 | 시작 날짜 | 2026-10-02 |
 | 기한 | 2026-10-05 (Medium +3일 — 코드·빌드 준비까지. **운영 공개는 2026-11-01 이후**) |
-| 선행 | `android-meta-ad-id-ota-rollback.md`(KAN-117) — 운영에서 먼저 끈 뒤 이 변경을 얹는다. 사람 손: 처리방침 개정본 11/1 게시(#1105 로 공지 완료, 게시 확인 대기) |
+| 선행 | 없음 (KAN-117 은 PM 결정으로 진행하지 않음, 2026-10-05 — 운영 JS 의 Android `true` 를 끄지 않는다). 사람 손: 처리방침 개정본 11/1 게시(#1105 로 공지 완료, 게시 확인 대기) |
 | 발견 시점 | Android 메타 앱 설치 캠페인 연결(2026-10-02) — #1104 가 JS 만 바꿔서는 설치 이벤트에 광고 ID 가 실리지 않는 것을 확인 |
 | 근거 문서 | `docs/features/analytics.md` 3.5 · `docs/frontend/architecture.md` 2.1(runtimeVersion) · `react-native-fbsdk-next` 13.4.3 플러그인(`withFacebookAndroid` — `com.facebook.sdk.AdvertiserIDCollectionEnabled` meta-data 를 씀) · Facebook Android SDK 18.3(`facebook-core` 매니페스트가 `com.google.android.gms.permission.AD_ID` 를 선언) |
 | 심각도 | 중 (Medium) — 3일 안에 준비. 없으면 Android 광고의 설치 귀속·최적화가 약한 채로 돈다 |
-| 상태 | 대기 |
+| 상태 | 코드 반영 — 묶음 빌드 대기 (PR #1142, 2026-10-06) |
 
 ## 문제 — JS 설정만으로는 설치 이벤트에 광고 ID 가 실리지 않는다
 
@@ -50,7 +50,7 @@
    새 설치 기기는 저장값이 없어 이 값으로 첫 실행 이벤트가 나간다. 기존 사용자는 예전 JS 가 저장한 값이 우선하지만, 그들은 이미 설치를 마쳐 설치 귀속과 상관이 없다(요청 2 의 JS 설정이 다음 초기화부터 덮는다).
 
    **순서가 중요하다.** Expo 는 plugins 목록 뒤쪽 플러그인의 매니페스트 수정을 먼저 실행한다. 그래서 fbsdk 플러그인 **뒤에** 두면 fbsdk 가 같은 meta-data 를 `false`로 다시 써서 `false`가 남고, **앞에** 둬야 `true`가 남는다(2026-10-04 prebuild 실측 — 발행 당시 "뒤에"로 잘못 적었던 것을 정정). 결과는 prebuild 매니페스트로 확인한다(완료 조건 1).
-2. **JS 도 같은 값을 가리킨다** — 선행 티켓에서 되돌린 `meta.ts`를 이 빌드에서 Android `true`로 다시 켠다. 네이티브와 JS 가 다른 값을 가리키면 어느 쪽이 이겼는지 매번 따져야 한다.
+2. **JS 도 같은 값을 가리킨다** — `meta.ts`는 #1104 로 이미 Android `true`다(KAN-117 롤백을 하지 않아 그대로 둔다). 네이티브와 JS 가 다른 값을 가리키면 어느 쪽이 이겼는지 매번 따져야 한다.
 3. **`runtimeVersion` 31 → 32** — 네이티브 변경이라 올린다(`architecture.md` 2.1, `_runtimeVersionNote`에 사유 기록). 올린 뒤의 OTA 는 32 빌드에만 간다 — **iOS 도 같은 값을 쓰므로 iOS 운영 빌드도 32 로 함께 내야** iOS 사용자가 이후 OTA 를 계속 받는다. 머지 시점과 두 스토어 출시 계획을 같이 잡는다.
    참고(2026-10-04): 매니페스트 meta-data 값 하나라 새 JS 가 옛 빌드에서도 깨지지 않는다. 2026-09-29 Android 재빌드 때 31 을 유지한 선례(`app.json` `_runtimeVersionNote`)처럼 **31 유지도 가능하다** — 올리면 iOS 도 32 빌드를 내야 OTA 가 이어진다. 어느 쪽으로 할지는 담당이 판단한다.
 
@@ -80,3 +80,18 @@
 - Given 같은 prebuild 의 iOS / When `Info.plist`를 본다 / Then `FacebookAdvertiserIDCollectionEnabled`가 `false`이고 `NSUserTrackingUsageDescription`이 없다(ATT 팝업 없음)
 - Given 11/1 이후 공개된 Android 빌드를 새로 설치하고 기기 광고 ID 를 이벤트 관리자 테스트 이벤트에 등록한다 / When 앱을 처음 연다 / Then 테스트 이벤트에 첫 실행 이벤트(`fb_mobile_activate_app` 또는 `fb_mobile_first_app_launch`)가 보인다
 - Given Play Console / When 이 빌드의 프로덕션 출시 기록을 본다 / Then 공개일이 2026-11-01 이후다
+
+## 처리 기록
+
+### 2026-10-06 — 코드 반영, 묶음 빌드 대기 (PR #1142)
+
+- **반영한 것**: `frontend/plugins/with-android-meta-advertiser-id.js` 추가, `app.json` plugins 에서 `react-native-fbsdk-next` **앞에** 등록(요청 1). fbsdk 옵션 `advertiserIDCollectionEnabled: false` 는 그대로. `meta.ts`는 이미 Android `true` — 동작은 그대로 두고 "네이티브 기본값은 false 유지" 주석만 정정(요청 2). `analytics.md` 3.5 정정은 `changes/pending/analytics-android-ad-id-native-default(fe).md`(요청 5).
+- **prebuild 확인(Windows 로컬, EAS 아님)**: `npx expo prebuild --platform android --no-install --clean` → `AndroidManifest.xml` 의 `com.facebook.sdk.AdvertiserIDCollectionEnabled` = **`true`**. 개발계 변형(`APP_VARIANT=dev`)도 `true` — 개발계는 `AutoInitEnabled`·`AutoLogAppEventsEnabled` false 와 JS 스텁이라 전송은 없다. iOS 는 Windows 에서 prebuild 가 안 돼 `npx expo config --type introspect` 로 봤다 → `FacebookAdvertiserIDCollectionEnabled` = **`false`**, `NSUserTrackingUsageDescription` **없음**. 생성된 `android/`·`ios/` 는 지웠다(gitignore, CNG).
+- **`runtimeVersion` 은 31 유지(요청 3)**: 매니페스트 meta-data 값 하나라 새 JS 가 옛 빌드에서 깨지지 않는다(2026-09-29 선례와 같음). 다음 스토어 빌드는 이 변경과 KAN-124(갭리스 오디오)·KAN-120(결제)·KAN-103(정리)을 함께 싣는 **묶음 네이티브 빌드**이고, 32 로 올리는 것은 그 빌드에서 한다(PM 결정 2026-10-05·06, `_runtimeVersionNote` 기록). 이 PR 에서 EAS 빌드는 돌리지 않았다.
+- **운영 공개 시점(요청 4)은 정하지 않았다** — "11/1 이후" 여부는 묶음 빌드 제출 때 PM 이 정한다. 그때 사람 손 1(Play Console 관리형 게시)의 필요 여부도 함께 정한다.
+- **검사**: `npx tsc --noEmit` · `npx eslint src` · `npx jest`(43 suites / 269 tests) 통과.
+- **남은 완료 조건(묶음 빌드 필요)** — 그래서 `pending/` 에 둔다:
+  - 완료 조건 1 후반: 빌드된 AAB 의 병합 매니페스트에 `com.google.android.gms.permission.AD_ID` 가 있다(prebuild 매니페스트의 `true` 는 확인 완료. 조건 문구의 "runtimeVersion 32" 는 묶음 빌드 기준).
+  - 완료 조건 2: 묶음 빌드의 실제 `Info.plist` 로 iOS false·ATT 설명문 없음을 다시 본다(이번엔 introspect 로만 확인).
+  - 완료 조건 3: 공개된 Android 빌드를 새로 설치해 이벤트 관리자 테스트 이벤트로 첫 실행 이벤트 확인.
+  - 완료 조건 4: 프로덕션 공개일 — PM 결정에 따른다.

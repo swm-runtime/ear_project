@@ -7,7 +7,11 @@ import { DataSource, EntityManager } from 'typeorm';
 
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
-import { ContentOrigin, ContentStatus } from '@/modules/content/content.enum';
+import {
+  AudioQuality,
+  ContentOrigin,
+  ContentStatus,
+} from '@/modules/content/content.enum';
 import { ContentService } from '@/modules/content/services/content.service';
 import { Topic } from '@/modules/interest/entities/topic.entity';
 import { TopicService } from '@/modules/interest/services/topic.service';
@@ -94,6 +98,8 @@ function buildRepublishCommand(
     actorUserId: ACTOR_ID,
     contentId: CONTENT_ID,
     audio: buildFile('ep.mp3'),
+    audioAac: null,
+    audioLossless: null,
     thumbnail: null,
     enrichment: null,
     script: null,
@@ -121,6 +127,8 @@ function buildCommand(
     sources: [{ title: '블로그 A', author: null, url: null }],
     reviewConfirmed: true,
     audio: buildFile('ep.mp3'),
+    audioAac: null,
+    audioLossless: null,
     thumbnail: buildFile('thumb.png'),
     enrichment: null,
     script: null,
@@ -156,6 +164,8 @@ describe('AdminContentService', () => {
         id: CONTENT_ID,
         status: ContentStatus.PUBLISHED,
       }),
+      replaceAudioRenditions: jest.fn().mockResolvedValue(undefined),
+      findAudioRenditions: jest.fn().mockResolvedValue([]),
       getById: jest.fn().mockResolvedValue({
         id: CONTENT_ID,
         status: ContentStatus.PUBLISHED,
@@ -231,6 +241,13 @@ describe('AdminContentService', () => {
 
     audioProbe = {
       readDurationSec: jest.fn().mockResolvedValue(600),
+      readMetadata: jest.fn().mockResolvedValue({
+        durationSec: 600,
+        codec: 'mp3',
+        bitrateKbps: 192,
+        channels: 1,
+        sampleRateHz: 44100,
+      }),
     };
     thumbnailImage = {
       normalize: jest.fn().mockImplementation((file: UploadedFileInput) =>
@@ -260,6 +277,133 @@ describe('AdminContentService', () => {
       audioProbe,
       thumbnailImage,
     );
+  });
+
+  describe('upload — 음질 3종(admin-api.md 4.6, KAN-141)', () => {
+    it('압축만 올리면 compressed 행 하나를 contents.audio_path 와 같은 경로로 적는다', async () => {
+      await service.upload(buildCommand(), NOW);
+
+      expect(contentService.replaceAudioRenditions).toHaveBeenCalledWith(
+        CONTENT_ID,
+        [
+          expect.objectContaining({
+            quality: AudioQuality.COMPRESSED,
+            path: 'audio/abc.mp3',
+            codec: 'mp3',
+            bitrateKbps: 192,
+            byteSize: '1024',
+            durationSec: 600,
+          }),
+        ],
+        manager,
+      );
+    });
+
+    it('고음질·무손실을 함께 올리면 세 파일을 저장하고 행 셋을 적는다 — 압축이 audio_path 의 원천이다', async () => {
+      // given
+      storage.putAudio
+        .mockResolvedValueOnce('audio/c.mp3')
+        .mockResolvedValueOnce('audio/a.m4a')
+        .mockResolvedValueOnce('audio/l.wav');
+      const command = buildCommand({
+        audioAac: buildFile('ep.m4a', 4096),
+        audioLossless: buildFile('ep.wav', 8192),
+      });
+
+      // when
+      await service.upload(command, NOW);
+
+      // then
+      expect(storage.putAudio).toHaveBeenCalledTimes(3);
+      expect(contentService.publish).toHaveBeenCalledWith(
+        expect.objectContaining({ audioPath: 'audio/c.mp3' }),
+        NOW,
+        manager,
+      );
+      const [, rows] = contentService.replaceAudioRenditions.mock.calls[0];
+      expect(rows.map((row) => [row.quality, row.path])).toEqual([
+        [AudioQuality.COMPRESSED, 'audio/c.mp3'],
+        [AudioQuality.AAC, 'audio/a.m4a'],
+        [AudioQuality.LOSSLESS, 'audio/l.wav'],
+      ]);
+    });
+
+    it('무손실 파일의 길이가 압축과 1초 넘게 다르면 400 — 다른 마스터에서 만든 파일이다', async () => {
+      // given
+      audioProbe.readMetadata
+        .mockResolvedValueOnce({
+          durationSec: 600,
+          codec: 'mp3',
+          bitrateKbps: 192,
+          channels: 1,
+          sampleRateHz: 44100,
+        })
+        .mockResolvedValueOnce({
+          durationSec: 605,
+          codec: 'pcm',
+          bitrateKbps: null,
+          channels: 2,
+          sampleRateHz: 44100,
+        });
+      const command = buildCommand({ audioLossless: buildFile('ep.wav') });
+
+      // when
+      const uploading = service.upload(command, NOW);
+
+      // then
+      await expect(uploading).rejects.toMatchObject({
+        errorCode: ErrorCode.VALIDATION_FAILED,
+        details: { field: 'audio_lossless' },
+      });
+      expect(storage.putAudio).not.toHaveBeenCalled();
+    });
+
+    it('무손실 파트는 wav 만 받는다', async () => {
+      const uploading = service.upload(
+        buildCommand({ audioLossless: buildFile('ep.flac') }),
+        NOW,
+      );
+
+      await expect(uploading).rejects.toMatchObject({
+        errorCode: ErrorCode.VALIDATION_FAILED,
+        details: { field: 'audio_lossless' },
+      });
+    });
+  });
+
+  describe('republish — 음질 3종(admin-api.md 4.10)', () => {
+    it('압축 없이 고음질만 보내면 400 — 오디오 교체는 3종을 한 세트로 본다', async () => {
+      const republishing = service.republish(
+        buildRepublishCommand({ audio: null, audioAac: buildFile('ep.m4a') }),
+      );
+
+      await expect(republishing).rejects.toMatchObject({
+        errorCode: ErrorCode.VALIDATION_FAILED,
+        details: { field: 'audio' },
+      });
+      expect(storage.putAudio).not.toHaveBeenCalled();
+    });
+
+    it('오디오를 바꾸면 옛 음질 파일을 전부 지우고 행을 통째로 바꾼다', async () => {
+      // given — 옛 발행본은 압축·무손실 둘
+      contentService.findAudioRenditions.mockResolvedValue([
+        { quality: AudioQuality.COMPRESSED, path: 'audio/old.mp3' },
+        { quality: AudioQuality.LOSSLESS, path: 'audio/old.wav' },
+      ] as never);
+
+      // when — 새 발행본은 압축만
+      await service.republish(buildRepublishCommand());
+
+      // then
+      expect(contentService.replaceAudioRenditions).toHaveBeenCalledWith(
+        CONTENT_ID,
+        [expect.objectContaining({ quality: AudioQuality.COMPRESSED })],
+        manager,
+      );
+      expect(storage.remove).toHaveBeenCalledWith(
+        expect.arrayContaining(['audio/old.mp3', 'audio/old.wav']),
+      );
+    });
   });
 
   describe('upload', () => {
@@ -343,7 +487,7 @@ describe('AdminContentService', () => {
       // then
       expect(contentService.saveScript).toHaveBeenCalledWith(
         CONTENT_ID,
-        VALID_SCRIPT,
+        { segments: VALID_SCRIPT, sections: [] },
         manager,
       );
       expect(result.script).toEqual({ applied: true, rejectedReason: null });
@@ -374,6 +518,52 @@ describe('AdminContentService', () => {
       expect(result.script?.applied).toBe(false);
       expect(result.script?.rejectedReason).toContain('겹쳐요');
       expect(result.hasScript).toBe(false);
+    });
+
+    it('객체 형식 대본의 구간 제목은 세그먼트와 같은 행으로 저장된다(KAN-144)', async () => {
+      // given — 오디오 길이 600초(probe 모킹) 안에서 시작하는 구간
+      const sections = [
+        { start_sec: 0, title: '인트로' },
+        { start_sec: 31.2, title: '도입' },
+        { start_sec: 599, title: '마무리' },
+      ];
+      const command = buildCommand({
+        script: buildScriptFile({ segments: VALID_SCRIPT, sections }),
+      });
+
+      // when
+      const result = await service.upload(command, NOW);
+
+      // then
+      expect(contentService.saveScript).toHaveBeenCalledWith(
+        CONTENT_ID,
+        { segments: VALID_SCRIPT, sections },
+        manager,
+      );
+      expect(result.script).toEqual({ applied: true, rejectedReason: null });
+    });
+
+    it('마지막 구간이 오디오 길이 뒤에서 시작하면 파일을 통째로 거부한다 — 길이는 파일에서 뽑은 값이다', async () => {
+      // given — probe 가 600초를 돌려주는데 구간은 600초에 시작
+      const command = buildCommand({
+        script: buildScriptFile({
+          segments: VALID_SCRIPT,
+          sections: [
+            { start_sec: 0, title: '인트로' },
+            { start_sec: 600, title: '마무리' },
+          ],
+        }),
+      });
+
+      // when
+      const result = await service.upload(command, NOW);
+
+      // then — 세그먼트까지 함께 거부되고 업로드는 진행된다
+      expect(contentService.publish).toHaveBeenCalled();
+      expect(contentService.saveScript).not.toHaveBeenCalled();
+      expect(result.hasScript).toBe(false);
+      expect(result.script?.applied).toBe(false);
+      expect(result.script?.rejectedReason).toContain('오디오 길이');
     });
 
     it('검수 완료 확인이 없으면 업로드를 거부한다', async () => {
@@ -493,7 +683,7 @@ describe('AdminContentService', () => {
 
     it('오디오 길이를 읽을 수 없으면 거부한다', async () => {
       // given
-      audioProbe.readDurationSec.mockResolvedValue(null);
+      audioProbe.readMetadata.mockResolvedValue(null);
 
       // when
       const act = service.upload(buildCommand(), NOW);
@@ -787,13 +977,17 @@ describe('AdminContentService', () => {
       ).not.toHaveBeenCalled();
       expect(contentService.saveScript).toHaveBeenCalledWith(
         CONTENT_ID,
-        VALID_SCRIPT,
+        { segments: VALID_SCRIPT, sections: [] },
         manager,
       );
       expect(auditLogService.record).toHaveBeenCalledWith(
         expect.objectContaining({
           action: 'content.script',
-          after: containing({ script_applied: true, segment_count: 2 }),
+          after: containing({
+            script_applied: true,
+            segment_count: 2,
+            section_count: 0,
+          }),
         }),
         manager,
       );
@@ -813,7 +1007,7 @@ describe('AdminContentService', () => {
       expect(contentService.republish).toHaveBeenCalled();
       expect(contentService.saveScript).toHaveBeenCalledWith(
         CONTENT_ID,
-        VALID_SCRIPT,
+        { segments: VALID_SCRIPT, sections: [] },
         manager,
       );
       expect(auditLogService.record).toHaveBeenCalledWith(
@@ -1051,7 +1245,7 @@ describe('AdminContentService', () => {
 
     it('오디오 길이를 읽을 수 없으면 파일을 올리지 않고 거부한다', async () => {
       // given
-      audioProbe.readDurationSec.mockResolvedValue(null);
+      audioProbe.readMetadata.mockResolvedValue(null);
 
       // when
       const act = service.republish(buildRepublishCommand());

@@ -1,3 +1,7 @@
+import { AudioQuality } from '@/modules/content/content.enum';
+import type { ScriptSection } from '@/modules/content/content.types';
+
+import type { AudioQualityFallbackReason } from '../audio-quality.policy';
 import { AudioUrlResult } from '../playback.types';
 
 class AudioContentDto {
@@ -33,6 +37,14 @@ class AudioDto {
   readonly expires_at: string;
   /** **갱신 스케줄링용.** 응답 수신 시점 기준 남은 초 — 기기 시계와 무관하게 셀 수 있다 */
   readonly expires_in_sec: number;
+  /** 실제로 내준 음질(player.md 4.9 — KAN-141). 갱신 호출의 `quality`에 되돌려 보낸다 */
+  readonly quality: AudioQuality;
+  /** 판정에 들어간 음질 — 요청값, 없으면 설정 선택값, 그것도 없으면 compressed */
+  readonly requested_quality: AudioQuality;
+  /** `quality`가 낮아진 이유. `not_allowed`면 잠금·구독 안내, `not_available`이면 안내 없음 */
+  readonly fallback_reason: AudioQualityFallbackReason | null;
+  /** 이 콘텐츠가 가진 음질(오름차순) — 플레이어 선택지에서 없는 음질은 비활성 */
+  readonly available_qualities: AudioQuality[];
 }
 
 /**
@@ -45,6 +57,11 @@ export class IssueAudioUrlResponseDto {
   readonly content: AudioContentDto;
   /** 대본 존재 여부 — 화면이 대본 버튼을 그릴지 조회 전에 정한다(`player-api.md` 4.7) */
   readonly has_script: boolean;
+  /**
+   * 구간 제목 `[{ start_sec, title }]`(KAN-144) — 현재 구간은 `start_sec ≤ 재생 위치`인 마지막 항목,
+   * 빈 배열이면 영역을 숨긴다. jsonb 그대로 나가는 형상이라 변환 경계를 두지 않는다(`ScriptSegment`와 같은 규칙)
+   */
+  readonly sections: ScriptSection[];
   /** 라이브러리에 없는 콘텐츠면 `null` */
   readonly library_item: AudioLibraryItemDto | null;
   /** 행이 없으면 `null` — 0부터 재생한다 */
@@ -65,6 +82,7 @@ export class IssueAudioUrlResponseDto {
         topics: result.content.topics,
       },
       has_script: result.hasScript,
+      sections: result.sections,
       library_item: result.libraryItem
         ? { id: result.libraryItem.id, status: result.libraryItem.status }
         : null,
@@ -78,6 +96,10 @@ export class IssueAudioUrlResponseDto {
         url: result.audio.url,
         expires_at: result.audio.expiresAt.toISOString(),
         expires_in_sec: result.audio.expiresInSec,
+        quality: result.audio.quality,
+        requested_quality: result.audio.requestedQuality,
+        fallback_reason: result.audio.fallbackReason,
+        available_qualities: result.audio.availableQualities,
       },
     };
   }

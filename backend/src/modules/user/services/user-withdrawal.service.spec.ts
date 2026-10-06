@@ -14,6 +14,7 @@ import { User } from '../entities/user.entity';
 import { UserService } from './user.service';
 import { UserWithdrawalService } from './user-withdrawal.service';
 import { WithdrawalLogRepository } from '../repositories/withdrawal-log.repository';
+import { WithdrawalAlertService } from './withdrawal-alert.service';
 import { WithdrawalReason } from '../user.enum';
 import { WithdrawUserCommand } from '../user.types';
 
@@ -41,6 +42,7 @@ describe('UserWithdrawalService', () => {
   let idempotencyService: jest.Mocked<IdempotencyService>;
   let archiveRepository: jest.Mocked<ArchiveRepository>;
   let withdrawalLogRepository: jest.Mocked<WithdrawalLogRepository>;
+  let withdrawalAlertService: jest.Mocked<WithdrawalAlertService>;
 
   /**
    * **타입을 명시한다.** 없으면 `reasonCode`가 `string`으로 넓어져 `WithdrawUserCommand`에
@@ -98,6 +100,10 @@ describe('UserWithdrawalService', () => {
       save: jest.fn(),
     } as unknown as jest.Mocked<WithdrawalLogRepository>;
 
+    withdrawalAlertService = {
+      notify: jest.fn(),
+    } as unknown as jest.Mocked<WithdrawalAlertService>;
+
     const configService = {
       get: jest.fn(() => 'test-pepper'),
     } as unknown as ConfigService<EnvironmentVariables, true>;
@@ -118,10 +124,41 @@ describe('UserWithdrawalService', () => {
       withdrawalLogRepository,
       configService,
       dataSource,
+      withdrawalAlertService,
     );
   });
 
   describe('withdraw', () => {
+    it('탈퇴가 끝나면 사유·가입 시각·결제 이력을 실어 팀 알림을 보낸다 — 행이 지워지기 전에 읽은 값이다', async () => {
+      // given
+      subscriptionService.hasPaymentHistory.mockResolvedValue(true);
+
+      // when
+      await service.withdraw(
+        { ...command, reasonText: '잘 안 듣게 됐어요' },
+        NOW,
+      );
+
+      // then
+      expect(withdrawalAlertService.notify).toHaveBeenCalledWith(
+        {
+          reasonCode: WithdrawalReason.LOW_USAGE,
+          reasonText: '잘 안 듣게 됐어요',
+          signedUpAt: new Date('2026-01-01T00:00:00.000Z'),
+          hadPaymentHistory: true,
+        },
+        NOW,
+      );
+    });
+
+    it('탈퇴가 거부되면 알림을 보내지 않는다 — 롤백된 탈퇴를 채널에 알리면 안 된다', async () => {
+      await expect(
+        service.withdraw({ ...command, confirm: false }, NOW),
+      ).rejects.toBeDefined();
+
+      expect(withdrawalAlertService.notify).not.toHaveBeenCalled();
+    });
+
     it('안내 확인을 체크하지 않으면 탈퇴를 거부한다', async () => {
       // given
       const notConfirmed = { ...command, confirm: false };

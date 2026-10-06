@@ -44,3 +44,28 @@ export enum StatsPeriodType {
 
 /** `period_type = all`의 `period_start` 고정값. NULL로 두면 유니크가 중복을 막지 못한다 */
 export const ALL_TIME_PERIOD_START = '1970-01-01';
+
+/**
+ * 음질(domain.md 1.3-1 — KAN-141, 2026-10-06). 순서가 있다: compressed < aac < lossless.
+ * `content_audio_renditions.quality` · `plans.max_audio_quality` · `user_settings.preferred_audio_quality`가 같은 값을 쓴다.
+ * 허용 판정은 이 순서로 비교하고 **티어명으로 하지 않는다**(player.md 4.9).
+ */
+export enum AudioQuality {
+  /** 압축(mp3) — 기본값, 전 티어 */
+  COMPRESSED = 'compressed',
+  /** 고음질 압축(m4a AAC) — 전 티어 */
+  AAC = 'aac',
+  /** 무손실(wav) — Pro */
+  LOSSLESS = 'lossless',
+}
+
+/** 낮은 것부터 높은 것 순 — 판정·응답의 `available_qualities`·설정의 선택지 모두 이 순서다 */
+export const AUDIO_QUALITY_ORDER: readonly AudioQuality[] = [
+  AudioQuality.COMPRESSED,
+  AudioQuality.AAC,
+  AudioQuality.LOSSLESS,
+];
+
+export function audioQualityRank(quality: AudioQuality): number {
+  return AUDIO_QUALITY_ORDER.indexOf(quality);
+}

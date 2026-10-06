@@ -2,7 +2,10 @@
  * admin.md 미결 "업로드 대상 파일 규격" — 상한은 아직 확정되지 않았다. 여기 값은 서버 보호용
  * 임시 상한이며, 규격이 확정되면 이 상수만 바꾼다.
  */
-export const MAX_AUDIO_FILE_BYTES = 200 * 1024 * 1024;
+// 2026-10-06 KAN-141: 200MB → 320MB. 무손실 스테레오 WAV 20분이 약 212MB다(admin-api.md 4.6). 음질별 파일 하나하나에 적용된다
+export const MAX_AUDIO_FILE_BYTES = 320 * 1024 * 1024;
+/** 음질 3종의 길이 허용 오차 — 같은 마스터에서 렌더한 파일이라 반올림 차이만 난다(domain.md 5.8) */
+export const AUDIO_DURATION_TOLERANCE_SEC = 1;
 export const MAX_THUMBNAIL_FILE_BYTES = 5 * 1024 * 1024;
 
 /** enrichment.json — 벡터 1536개 float라도 수십 KB다. 1MB면 넉넉한 보호 상한 */
@@ -16,11 +19,27 @@ export const MAX_SCRIPT_FILE_BYTES = 2 * 1024 * 1024;
 export const MAX_SCRIPT_SEGMENTS = 2000;
 export const MAX_SCRIPT_TEXT_LENGTH = 2000;
 export const MAX_SCRIPT_SPEAKER_LENGTH = 50;
+/**
+ * 구간 제목(`sections`, KAN-144) 상한. 대본 구간 4~8개 + 인트로·도입·마무리 = 한 편에 7~11개(90편 실측 중앙값 5개).
+ * 30은 그 세 배다 — 넘으면 구간이 아니라 세그먼트를 보낸 것이다. 제목은 미니 플레이어 한 줄에 들어가야 한다
+ */
+export const MAX_SCRIPT_SECTIONS = 30;
+export const MAX_SCRIPT_SECTION_TITLE_LENGTH = 60;
 
-/** admin.md 3.1 — mp3 / m4a */
+/** admin.md 3.1 — 압축 음질(`compressed`) mp3 / m4a */
 export const AUDIO_CONTENT_TYPES: Readonly<Record<string, string>> = {
   mp3: 'audio/mpeg',
   m4a: 'audio/mp4',
+};
+
+/** 고음질(`aac`) — m4a AAC (admin-api.md 4.6, KAN-141) */
+export const AAC_AUDIO_CONTENT_TYPES: Readonly<Record<string, string>> = {
+  m4a: 'audio/mp4',
+};
+
+/** 무손실(`lossless`) — wav PCM (admin-api.md 4.6, KAN-141) */
+export const LOSSLESS_AUDIO_CONTENT_TYPES: Readonly<Record<string, string>> = {
+  wav: 'audio/wav',
 };
 
 export const THUMBNAIL_CONTENT_TYPES: Readonly<Record<string, string>> = {

@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+
+import { AudioQuality } from '@/modules/content/content.enum';
 import { EntityManager } from 'typeorm';
 
 import { UserSetting } from '../entities/user-setting.entity';
@@ -63,6 +65,9 @@ export class UserSettingService {
       changes.dripFeedbackLastPromptedDate =
         command.dripFeedbackLastPromptedDate;
     }
+    if (command.preferredAudioQuality !== undefined) {
+      changes.preferredAudioQuality = command.preferredAudioQuality;
+    }
 
     const saved = await this.userSettingRepository.upsert(
       userId,
@@ -102,6 +107,7 @@ function toView(setting: UserSetting): UserSettingView {
     isDripNotificationEnabled: setting.isDripNotificationEnabled,
     dripFeedbackMutedUntil: setting.dripFeedbackMutedUntil,
     dripFeedbackLastPromptedDate: setting.dripFeedbackLastPromptedDate,
+    preferredAudioQuality: setting.preferredAudioQuality,
   };
 }
 
@@ -113,5 +119,6 @@ function buildDefaults(): UserSettingView {
     isDripNotificationEnabled: true,
     dripFeedbackMutedUntil: null,
     dripFeedbackLastPromptedDate: null,
+    preferredAudioQuality: AudioQuality.COMPRESSED,
   };
 }

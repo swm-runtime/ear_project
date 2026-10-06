@@ -8,6 +8,8 @@ import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { ExternalServiceException } from '@/common/exceptions/external-service.exception';
 import { ContentOrigin, ContentStatus } from '@/modules/content/content.enum';
 import { Content } from '@/modules/content/entities/content.entity';
+import { AudioQuality } from '@/modules/content/content.enum';
+import { AudioRenditionInput } from '@/modules/content/content.types';
 import { ContentService } from '@/modules/content/services/content.service';
 import { LibraryService } from '@/modules/library/library.service';
 import { PlaybackService } from '@/modules/playback/services/playback.service';
@@ -26,10 +28,17 @@ import {
   UploadedFileInput,
 } from '../admin.types';
 import { EnrichmentParseResult, parseEnrichmentFile } from '../enrichment-file';
-import { ScriptParseResult, parseScriptFile } from '../script-file';
+import {
+  ScriptParseResult,
+  parseScriptFile,
+  rejectSectionsPastDuration,
+} from '../script-file';
 import { NormalizedThumbnail, ThumbnailImage } from '../thumbnail-image';
 import {
+  AAC_AUDIO_CONTENT_TYPES,
   AUDIO_CONTENT_TYPES,
+  AUDIO_DURATION_TOLERANCE_SEC,
+  LOSSLESS_AUDIO_CONTENT_TYPES,
   AUDIT_ACTION_CONTENT_ENRICH,
   AUDIT_ACTION_CONTENT_PURGE_STORAGE,
   AUDIT_ACTION_CONTENT_REPUBLISH,
@@ -41,7 +50,7 @@ import {
   MAX_THUMBNAIL_FILE_BYTES,
   THUMBNAIL_CONTENT_TYPES,
 } from '../admin.constant';
-import { AudioProbe } from '../audio-probe';
+import { AudioMetadata, AudioProbe } from '../audio-probe';
 import { ContentStorageClient } from '../content-storage.client';
 import { TopicExposureService } from './topic-exposure.service';
 
@@ -60,6 +69,25 @@ import { TopicExposureService } from './topic-exposure.service';
  * 저장소를 트랜잭션 **밖에서 먼저** 올리는 이유: 업로드는 수십 초가 걸릴 수 있어 그동안
  * DB 트랜잭션을 잡고 있을 이유가 없고, 실패 시 정리해야 할 것이 파일이지 행이 아니다.
  */
+interface RenditionFile {
+  quality: AudioQuality;
+  file: UploadedFileInput;
+  extension: string;
+}
+
+interface ProbedRendition extends RenditionFile {
+  metadata: AudioMetadata;
+}
+
+/** 음질 → 요청 파트 이름(admin-api.md 4.6) — 오류 `details.field`에 쓴다 */
+function fieldOf(quality: AudioQuality): string {
+  return quality === AudioQuality.COMPRESSED
+    ? 'audio'
+    : quality === AudioQuality.AAC
+      ? 'audio_aac'
+      : 'audio_lossless';
+}
+
 @Injectable()
 export class AdminContentService {
   private readonly logger = new Logger(AdminContentService.name);
@@ -87,15 +115,9 @@ export class AdminContentService {
       ? await parseEnrichmentFile(command.enrichment)
       : null;
     // 대본도 같은 규칙 — 거부는 파일에 한하고 발행은 진행한다(대본은 발행 요건이 아니다, KAN-71)
-    const script = command.script
-      ? await parseScriptFile(command.script)
-      : null;
-    const audioExtension = this.resolveExtension(
-      command.audio,
-      AUDIO_CONTENT_TYPES,
-      MAX_AUDIO_FILE_BYTES,
-      'audio',
-    );
+    let script = command.script ? await parseScriptFile(command.script) : null;
+    // 음질 3종의 형식·크기·길이 일치를 한 번에 본다(admin-api.md 4.6). `audio`(압축)는 필수
+    const renditionFiles = this.resolveRenditionFiles(command);
     // 입력 형식·크기 판정만 한다 — 저장 확장자는 언제나 webp 라 돌려받은 값은 쓰지 않는다
     this.resolveExtension(
       command.thumbnail,
@@ -114,25 +136,21 @@ export class AdminContentService {
       });
     }
 
-    const durationSec = await this.audioProbe.readDurationSec(command.audio);
-    if (durationSec === null) {
-      throw new BusinessException({
-        status: HttpStatus.BAD_REQUEST,
-        errorCode: ErrorCode.ADMIN_AUDIO_UNREADABLE,
-        message: '오디오 길이를 읽을 수 없어요. 파일을 확인해 주세요',
-        details: { field: 'audio' },
-      });
+    const probed = await this.probeRenditions(renditionFiles);
+    const durationSec = probed[0].metadata.durationSec;
+    // 구간 제목은 오디오 길이 안에서 시작해야 한다(admin-api.md 4.6 `sections`) — 길이를 알아야 볼 수 있다
+    if (script) {
+      script = rejectSectionsPastDuration(script, durationSec);
     }
 
     // 입력 형식 검증(확장자·크기)은 위에서 끝났다. 저장 규격(WebP 768px)으로 다시 쓰는 것은 여기다
     const thumbnail = await this.normalizeThumbnail(command.thumbnail);
 
     const uploadedKeys: string[] = [];
-    let audioPath: string;
+    let renditions: AudioRenditionInput[];
     let thumbnailUrl: string;
     try {
-      audioPath = await this.storage.putAudio(command.audio, audioExtension);
-      uploadedKeys.push(audioPath);
+      renditions = await this.uploadRenditions(probed, uploadedKeys);
       const stored = await this.storage.putThumbnail(
         thumbnail.file,
         thumbnail.extension,
@@ -169,7 +187,8 @@ export class AdminContentService {
             seriesId: command.seriesId,
             episodeNo: command.episodeNo,
             totalEpisodes: command.totalEpisodes,
-            audioPath,
+            // 압축 음질의 경로 — 5.8의 compressed 행과 같은 값(domain.md 5.1-1)
+            audioPath: renditions[0].path,
             durationSec,
             thumbnailUrl,
             topicIds: [...new Set(command.topicIds)],
@@ -179,6 +198,12 @@ export class AdminContentService {
                 : [],
           },
           now,
+          manager,
+        );
+
+        await this.contentService.replaceAudioRenditions(
+          published.id,
+          renditions,
           manager,
         );
 
@@ -263,9 +288,7 @@ export class AdminContentService {
     const enrichment = command.enrichment
       ? await parseEnrichmentFile(command.enrichment)
       : null;
-    const script = command.script
-      ? await parseScriptFile(command.script)
-      : null;
+    let script = command.script ? await parseScriptFile(command.script) : null;
 
     /**
      * 추천 메타 파일 **단독**이면 버전을 올리지 않는다 — 오디오·메타가 그대로인데 버전이
@@ -278,13 +301,19 @@ export class AdminContentService {
       return this.applyFilesOnly(command, enrichment, script);
     }
 
-    const audioExtension = command.audio
-      ? this.resolveExtension(
-          command.audio,
-          AUDIO_CONTENT_TYPES,
-          MAX_AUDIO_FILE_BYTES,
-          'audio',
-        )
+    // 오디오를 바꾸는 재발행은 3종을 한 세트로 본다 — `audio` 없이 다른 음질만 오면 400(admin-api.md 4.10)
+    if (!command.audio && (command.audioAac || command.audioLossless)) {
+      throw this.validationFailed(
+        'audio',
+        '고음질·무손실 파일은 압축 음질(audio)과 함께 올려야 해요',
+      );
+    }
+    const renditionFiles = command.audio
+      ? this.resolveRenditionFiles({
+          audio: command.audio,
+          audioAac: command.audioAac,
+          audioLossless: command.audioLossless,
+        })
       : null;
     const thumbnailExtension = command.thumbnail
       ? this.resolveExtension(
@@ -312,18 +341,17 @@ export class AdminContentService {
       }
     }
 
-    let durationSec: number | null = null;
-    if (command.audio) {
-      // 4.10 — 길이는 클라이언트 값을 받지 않는다. 새 파일에서 다시 뽑는다(4.6과 동일)
-      durationSec = await this.audioProbe.readDurationSec(command.audio);
-      if (durationSec === null) {
-        throw new BusinessException({
-          status: HttpStatus.BAD_REQUEST,
-          errorCode: ErrorCode.ADMIN_AUDIO_UNREADABLE,
-          message: '오디오 길이를 읽을 수 없어요. 파일을 확인해 주세요',
-          details: { field: 'audio' },
-        });
-      }
+    // 4.10 — 길이는 클라이언트 값을 받지 않는다. 새 파일에서 다시 뽑는다(4.6과 동일)
+    const probed = renditionFiles
+      ? await this.probeRenditions(renditionFiles)
+      : null;
+    const durationSec = probed ? probed[0].metadata.durationSec : null;
+    // 오디오가 그대로면 구간도 지금 길이 안에 있어야 한다
+    if (script) {
+      script = rejectSectionsPastDuration(
+        script,
+        durationSec ?? target.durationSec,
+      );
     }
 
     const thumbnail =
@@ -332,12 +360,11 @@ export class AdminContentService {
         : null;
 
     const uploadedKeys: string[] = [];
-    let audioPath: string | undefined;
+    let renditions: AudioRenditionInput[] | undefined;
     let thumbnailUrl: string | undefined;
     try {
-      if (command.audio && audioExtension) {
-        audioPath = await this.storage.putAudio(command.audio, audioExtension);
-        uploadedKeys.push(audioPath);
+      if (probed) {
+        renditions = await this.uploadRenditions(probed, uploadedKeys);
       }
       if (thumbnail) {
         const stored = await this.storage.putThumbnail(
@@ -386,8 +413,15 @@ export class AdminContentService {
               )
             ).map((view) => view.topicId)
           : [];
-        if (audioPath) {
-          replacedKeys.push(current.audioPath);
+        if (renditions) {
+          // 옛 음질 파일 전부 — compressed 행의 경로는 contents.audio_path 와 같다(domain.md 5.1-1)
+          const previous = await this.contentService.findAudioRenditions(
+            current.id,
+            manager,
+          );
+          replacedKeys.push(
+            ...new Set([current.audioPath, ...previous.map((r) => r.path)]),
+          );
         }
         if (thumbnailUrl) {
           // `contents`에는 공개 URL만 있고 키가 없다(domain.md 5.1) — URL을 만든 쪽이 되짚는다
@@ -405,7 +439,7 @@ export class AdminContentService {
             title: command.title,
             description: command.description,
             sourceName: command.sourceName,
-            audioPath,
+            audioPath: renditions?.[0].path,
             durationSec: durationSec ?? undefined,
             thumbnailUrl,
             topicIds: command.topicIds
@@ -415,6 +449,14 @@ export class AdminContentService {
           },
           manager,
         );
+
+        if (renditions) {
+          await this.contentService.replaceAudioRenditions(
+            republished.id,
+            renditions,
+            manager,
+          );
+        }
 
         if (enrichment?.data) {
           // 새 버전으로 저장된다 — republish가 방금 올린 content_version을 그대로 쓴다
@@ -435,7 +477,7 @@ export class AdminContentService {
             script.data,
             manager,
           );
-        } else if (audioPath) {
+        } else if (renditions) {
           /**
            * 오디오가 바뀌었는데 유효한 대본이 함께 오지 않았다(안 보냈거나 검증에서 거부됨).
            * 옛 세그먼트는 새 오디오의 시각과 어긋나므로 지운다 — 틀린 자막보다 없는 편이 낫다
@@ -552,6 +594,11 @@ export class AdminContentService {
         );
       }
 
+      // 오디오가 그대로인 경로라 길이도 그대로다 — 구간은 그 길이 안에 있어야 한다
+      if (script) {
+        script = rejectSectionsPastDuration(script, current.durationSec);
+      }
+
       if (script?.data) {
         await this.contentService.saveScript(current.id, script.data, manager);
 
@@ -563,7 +610,8 @@ export class AdminContentService {
             after: {
               content_version: current.contentVersion,
               script_applied: true,
-              segment_count: script.data.length,
+              segment_count: script.data.segments.length,
+              section_count: script.data.sections.length,
             },
           },
           manager,
@@ -602,7 +650,8 @@ export class AdminContentService {
     if (script.data) {
       this.logger.log('script file applied', {
         content_id: contentId,
-        segment_count: script.data.length,
+        segment_count: script.data.segments.length,
+        section_count: script.data.sections.length,
       });
     } else {
       this.logger.warn('script file rejected', {
@@ -844,9 +893,13 @@ export class AdminContentService {
       });
     }
 
+    const renditions = await this.contentService.findAudioRenditions(contentId);
     const storageKeys = [
-      target.audioPath,
-      this.storage.resolveKey(target.thumbnailUrl),
+      ...new Set([
+        target.audioPath,
+        ...renditions.map((rendition) => rendition.path),
+        this.storage.resolveKey(target.thumbnailUrl),
+      ]),
     ].filter((key): key is string => key !== null);
 
     await this.dataSource.transaction(async (manager) => {
@@ -1027,6 +1080,116 @@ export class AdminContentService {
         'AI 생성 콘텐츠는 참고 소스가 1개 이상 필요해요',
       );
     }
+  }
+
+  /**
+   * 음질 3종의 입력 파일 — 형식·크기 판정(admin-api.md 4.6). 순서는 `AUDIO_QUALITY_ORDER`와 같고 첫 항목은 언제나
+   * 압축 음질이다 — 호출부가 `[0]`을 `contents.audio_path`·`duration_sec`의 원천으로 쓴다.
+   */
+  private resolveRenditionFiles(input: {
+    audio: UploadedFileInput;
+    audioAac: UploadedFileInput | null;
+    audioLossless: UploadedFileInput | null;
+  }): RenditionFile[] {
+    const files: RenditionFile[] = [
+      {
+        quality: AudioQuality.COMPRESSED,
+        file: input.audio,
+        extension: this.resolveExtension(
+          input.audio,
+          AUDIO_CONTENT_TYPES,
+          MAX_AUDIO_FILE_BYTES,
+          'audio',
+        ),
+      },
+    ];
+    if (input.audioAac) {
+      files.push({
+        quality: AudioQuality.AAC,
+        file: input.audioAac,
+        extension: this.resolveExtension(
+          input.audioAac,
+          AAC_AUDIO_CONTENT_TYPES,
+          MAX_AUDIO_FILE_BYTES,
+          'audio_aac',
+        ),
+      });
+    }
+    if (input.audioLossless) {
+      files.push({
+        quality: AudioQuality.LOSSLESS,
+        file: input.audioLossless,
+        extension: this.resolveExtension(
+          input.audioLossless,
+          LOSSLESS_AUDIO_CONTENT_TYPES,
+          MAX_AUDIO_FILE_BYTES,
+          'audio_lossless',
+        ),
+      });
+    }
+    return files;
+  }
+
+  /**
+   * 메타를 읽고 길이를 대조한다. 못 읽으면 400(기존 `ADMIN_AUDIO_UNREADABLE`), 압축 음질과 ±1초 넘게 다르면
+   * 다른 마스터에서 만든 파일이다 — 자막 시각·재생 위치가 어긋나므로 400 필드 오류(domain.md 5.8)
+   */
+  private async probeRenditions(
+    files: RenditionFile[],
+  ): Promise<ProbedRendition[]> {
+    const probed: ProbedRendition[] = [];
+    for (const rendition of files) {
+      const metadata = await this.audioProbe.readMetadata(rendition.file);
+      if (!metadata) {
+        throw new BusinessException({
+          status: HttpStatus.BAD_REQUEST,
+          errorCode: ErrorCode.ADMIN_AUDIO_UNREADABLE,
+          message: '오디오 길이를 읽을 수 없어요. 파일을 확인해 주세요',
+          details: { field: fieldOf(rendition.quality) },
+        });
+      }
+      probed.push({ ...rendition, metadata });
+    }
+
+    const base = probed[0].metadata.durationSec;
+    for (const rendition of probed.slice(1)) {
+      if (
+        Math.abs(rendition.metadata.durationSec - base) >
+        AUDIO_DURATION_TOLERANCE_SEC
+      ) {
+        throw this.validationFailed(
+          fieldOf(rendition.quality),
+          `압축 음질과 길이가 달라요 (${rendition.metadata.durationSec}초 ↔ ${base}초)`,
+        );
+      }
+    }
+    return probed;
+  }
+
+  /** 음질별 파일을 저장소에 올린다. 올린 키는 호출부의 `uploadedKeys`에 쌓여 실패 시 함께 지워진다 */
+  private async uploadRenditions(
+    probed: ProbedRendition[],
+    uploadedKeys: string[],
+  ): Promise<AudioRenditionInput[]> {
+    const renditions: AudioRenditionInput[] = [];
+    for (const rendition of probed) {
+      const path = await this.storage.putAudio(
+        rendition.file,
+        rendition.extension,
+      );
+      uploadedKeys.push(path);
+      renditions.push({
+        quality: rendition.quality,
+        path,
+        codec: rendition.metadata.codec,
+        bitrateKbps: rendition.metadata.bitrateKbps,
+        channels: rendition.metadata.channels,
+        sampleRateHz: rendition.metadata.sampleRateHz,
+        byteSize: String(rendition.file.size),
+        durationSec: rendition.metadata.durationSec,
+      });
+    }
+    return renditions;
   }
 
   private resolveExtension(

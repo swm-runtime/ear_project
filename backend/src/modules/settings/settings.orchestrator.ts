@@ -6,10 +6,16 @@ import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { isVersionLowerThan } from '@/common/utils/semver.util';
 import { EnvironmentVariables } from '@/config/env.validation';
 import { UserInterestService } from '@/modules/interest/services/user-interest.service';
+import {
+  AUDIO_QUALITY_ORDER,
+  audioQualityRank,
+} from '@/modules/content/content.enum';
+import { PlanService } from '@/modules/subscription/services/plan.service';
 import { SubscriptionService } from '@/modules/subscription/services/subscription.service';
 import { PlanView } from '@/modules/subscription/subscription.types';
 import { ConsentService } from '@/modules/user/services/consent.service';
 import { UserService } from '@/modules/user/services/user.service';
+import { UserTier } from '@/modules/user/user.enum';
 import { UserSettingService } from '@/modules/user/services/user-setting.service';
 import { CURRENT_CONSENT_VERSIONS } from '@/modules/user/user.constant';
 import {
@@ -28,6 +34,7 @@ import {
   MarketingConsentView,
   SettingsAccountView,
   SettingsSummaryResult,
+  AudioQualityOptionView,
   UpdateSettingsCommand,
 } from './settings.types';
 
@@ -51,6 +58,7 @@ export class SettingsOrchestrator {
     private readonly consentService: ConsentService,
     private readonly subscriptionService: SubscriptionService,
     private readonly userInterestService: UserInterestService,
+    private readonly planService: PlanService,
     private readonly configService: ConfigService<EnvironmentVariables, true>,
   ) {}
 
@@ -71,38 +79,46 @@ export class SettingsOrchestrator {
   ): Promise<SettingsSummaryResult> {
     const failedSections: SettingsSection[] = [];
 
-    const [settings, marketingConsent, account, plan, interestSummary] =
-      await Promise.all([
-        this.userSettingService.getSettings(userId),
-        this.buildMarketingConsent(userId),
-        this.buildAccount(userId).catch((error: unknown) => {
-          this.logSectionFailure(SettingsSection.ACCOUNT, userId, error);
-          failedSections.push(SettingsSection.ACCOUNT);
+    const [
+      settings,
+      marketingConsent,
+      account,
+      plan,
+      interestSummary,
+      audioQualities,
+    ] = await Promise.all([
+      this.userSettingService.getSettings(userId),
+      this.buildMarketingConsent(userId),
+      this.buildAccount(userId).catch((error: unknown) => {
+        this.logSectionFailure(SettingsSection.ACCOUNT, userId, error);
+        failedSections.push(SettingsSection.ACCOUNT);
+        return null;
+      }),
+      this.buildPlan(userId, now).catch((error: unknown) => {
+        this.logSectionFailure(SettingsSection.PLAN, userId, error);
+        failedSections.push(SettingsSection.PLAN);
+        return null;
+      }),
+      this.userInterestService
+        .buildSummary(userId, TOP_TOPIC_LIMIT)
+        .catch((error: unknown) => {
+          this.logSectionFailure(
+            SettingsSection.INTEREST_SUMMARY,
+            userId,
+            error,
+          );
+          failedSections.push(SettingsSection.INTEREST_SUMMARY);
           return null;
         }),
-        this.buildPlan(userId, now).catch((error: unknown) => {
-          this.logSectionFailure(SettingsSection.PLAN, userId, error);
-          failedSections.push(SettingsSection.PLAN);
-          return null;
-        }),
-        this.userInterestService
-          .buildSummary(userId, TOP_TOPIC_LIMIT)
-          .catch((error: unknown) => {
-            this.logSectionFailure(
-              SettingsSection.INTEREST_SUMMARY,
-              userId,
-              error,
-            );
-            failedSections.push(SettingsSection.INTEREST_SUMMARY);
-            return null;
-          }),
-      ]);
+      this.buildAudioQualities(userId),
+    ]);
 
     return {
       account,
       plan,
       interestSummary,
       settings,
+      audioQualities,
       marketingConsent,
       version: this.buildVersion(appVersion, platform),
       failedSections,
@@ -116,6 +132,26 @@ export class SettingsOrchestrator {
    * 수 없고, 권한 없는 기기에는 발송 판정이 어차피 보내지 않는다(`notification.md` 4.2).
    * ON 시도를 막는 것은 클라이언트의 안내 게이트다(3장 설계 메모).
    */
+  /**
+   * 음질 선택지(`player.md` 4.9). 허용은 저장 티어의 `plans.max_audio_quality`로 판정한다 — 가입 체험은 음질을
+   * 바꾸지 않는다. 선택지는 토글 기준값이라 비울 수 없다(`settings`와 같은 묶음) — 사용자 행을 못 읽으면
+   * **무료 기준으로 잠근다**(가장 보수적인 쪽). 그 경우 플랜 카드도 함께 실패로 표시되므로 재시도 뒤 바로잡힌다.
+   */
+  private async buildAudioQualities(
+    userId: string,
+  ): Promise<AudioQualityOptionView[]> {
+    const tier = await this.userService
+      .getById(userId)
+      .then((user) => user.tier)
+      .catch(() => UserTier.LIGHT);
+    const max = await this.planService.getMaxAudioQuality(tier);
+
+    return AUDIO_QUALITY_ORDER.map((quality) => ({
+      quality,
+      allowed: audioQualityRank(quality) <= audioQualityRank(max),
+    }));
+  }
+
   async updateSettings(
     userId: string,
     command: UpdateSettingsCommand,

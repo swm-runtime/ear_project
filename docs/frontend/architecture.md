@@ -298,9 +298,24 @@ expo-audio를 감싸는 유일한 재생 제어 지점이다. 화면·미니플�
   - `max_reached_sec` — 최대 연속 도달 위치. 완청(90%) 판정 근거. 시크 점프는 도달로 치지 않는다
   - `listened_sec` — 재생기가 실제로 소리를 낸 시간. 배속 무관 경과 시간, 시크 구간 제외. 재생 종료 이벤트마다 가산 전송(파트너 정산 근거)
 - 소비 신호(`play`/`complete`/`skip`/`replay`) 발행. `seek`·`rate_change`는 신호로 기록하지 않는다
-- 서명 URL 만료 전 **백그라운드 선제 갱신**(재생이 끊기기 전에)
+- 서명 URL 만료 전 **백그라운드 선제 갱신**(재생이 끊기기 전에). **갱신은 음원을 갈아 끼우지 않고 네이티브 요청 단계에서 반영된다** — 아래 "서명 URL 갱신 — 고정 스트림 주소"
 - 네트워크 단절 시 버퍼 소진까지 재생 유지 → 소진 시 일시정지 + 안내
 - (P1) 수면 타이머 — 만료 시 페이드아웃 후 일시정지, 완청 시점과 겹치면 완청 처리 우선
+
+**서명 URL 갱신 — 고정 스트림 주소**(KAN-124, 2026-10-06)
+
+서명 URL 수명은 300초이고 만료 60초 전(`AUDIO_URL_REFRESH_LEAD_SEC`)에 새 URL을 받는다 — 4분 주기다. 종전에는 받은 URL로 `player.replace` → `seekTo` → `play`를 해서 버퍼가 버려지고 플레이어가 잠깐 0초부터 소리를 내 4분마다 끊김·인트로 튐이 들렸다(iOS는 배속 알고리즘도 새 아이템에 안 따라왔다).
+
+- **플레이어에는 재생 내내 바뀌지 않는 `ear-audio://<콘텐츠 id>-<일련번호>` 주소를 준다.** 서명 URL은 네이티브의 "고정 주소 → 최신 서명 URL" 표에만 넣는다(`services/audio-stream.ts` — `ExpoAudio.setStreamUrl`·`clearStreamUrl`).
+- **네이티브가 바이트 요청을 낼 때마다 표의 최신 URL로 바꿔 보낸다.** expo-audio 패치(`frontend/patches/expo-audio+57.0.3.patch`)가 담당한다.
+  - **Android 는 `package.json`의 `expo.autolinking.buildFromSource: ["expo-audio"]`가 있어야 패치가 실린다.** SDK 57 의 expo 모듈은 미리 컴파일된 AAR(`node_modules/expo-audio/local-maven-repo`)을 쓰므로, 이 설정이 없으면 소스 패치가 빌드에서 무시되고 JS 만 `setStreamUrl`을 찾지 못해 폴백한다(겉보기엔 안 깨져서 놓치기 쉽다). iOS 도 미리 컴파일 모듈(`EXPO_USE_PRECOMPILED_MODULES=1`)을 켤 때 같은 설정이 소스 빌드를 강제한다.
+  - iOS: `ear-audio` 스킴의 `AVURLAsset`에 `AVAssetResourceLoaderDelegate`를 붙여 각 로딩 요청(콘텐츠 정보 — 길이·형식·바이트 범위 지원 / 데이터)을 최신 URL의 HTTP Range 요청으로 채운다(`ios/EarAudioStream.swift`).
+  - Android: 같은 스킴의 데이터 소스 팩토리를 media3 `ResolvingDataSource`로 감싸 `resolveDataSpec`에서 URI를 최신 URL로 바꾼다(`EarAudioStream.kt`).
+- **주기 갱신은 표만 바꾼다** — `replace`·`seekTo`·`play`를 부르지 않는다. 다음 Range 요청부터 새 URL로 나간다.
+- **음원 교체(`replace`)는 세 경우뿐이다**: 재발행(`contentVersion` 변경 — 위치 0, `player-api.md` 4.3), 패치 없는 빌드의 폴백, 재생 오류 복구. 교체할 때는 새 고정 주소를 쓰고 배속을 다시 건다.
+- **옛 빌드 폴백** — 패치는 네이티브 변경이라 runtime 31 이하 빌드에는 없다. 그 빌드도 이 JS를 OTA로 받으므로 `ExpoAudio.setStreamUrl` **함수 유무로 판별**하고, 없으면 종전대로 서명 URL을 직접 주고 갱신 때 `replace`한다.
+- **오류** — URL 공급이 끊기면(갱신 실패) 네이티브는 표의 마지막 URL로 계속 요청한다. 만료로 403이 나면 잠시 새 URL을 기다리며 재시도하고(iOS 약 20초 · Android ExoPlayer 기본 재시도 — 매 시도마다 다시 resolve), 끝내 실패하면 재생 오류로 올린다. 서비스는 상태 이벤트의 `error`를 받아 준비 전이면 로드 실패(PL8), 재생 중이면 일시정지 + "재생할 수 없어요" 배너와 [다시 시도](`player-uiux.md` 4.9)로 둔다. [다시 시도]·▶가 새 URL로 음원을 다시 세운다(오류 난 아이템은 되살아나지 않는다). 자동 재개하지 않는다.
+- 이 패치는 expo-audio 버전에 묶여 있다 — **expo-audio를 올리면 `patch-package`가 설치 단계에서 실패하므로 패치를 다시 만든다.** 기존 파일의 변경은 갈고리 몇 줄(`AudioUtils.createAVPlayerItem` · `AudioModule`의 함수 2개 · Android `createMediaItem`)이고 로직은 새 파일(`EarAudioStream.*`)에 있어 다시 만들기 쉽다.
 
 **미니플레이어 복원** — 앱 실행 시 완청하지 않은 `last_played_at` 최신 1건을 **일시정지 상태로만** 복원한다. 자동 재생 절대 금지, 재생 위치 0이면 미니플레이어를 띄우지 않는다(`library.md` 4.2). 라이브러리 삭제·콘텐츠 회수 시 미니플레이어를 내린다.
 
@@ -512,7 +527,7 @@ RootStack
 | 삭제 취소 | `Snackbar` (5초, [실행 취소]) |
 | 백그라운드 실패 | 없음 — 무음 |
 | 오프라인 | `OfflineBanner` (상단 고정, 복귀 시 자동 소멸) |
-| 로딩 | `Skeleton`(목록) / `Spinner`(액션) — **0.3초 미만이면 표시하지 않는다** |
+| 로딩 | `Skeleton`(내용 영역 — `shared/ui/Skeleton`, 규칙은 `design.md` §5 스켈레톤) / `Spinner`(액션·하단 추가 로딩) — **0.3초 미만이면 표시하지 않는다**(`useDelayedVisible`) |
 | 점검·강제 업데이트 | 전용 전체 화면 (닫기 불가 규칙 포함) |
 
 ### 8.4 크래시·에러 수집

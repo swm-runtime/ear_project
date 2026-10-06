@@ -111,7 +111,13 @@
   "settings": {
     "default_playback_rate": 1.2,
     "is_auto_expand_enabled": true,
-    "is_drip_notification_enabled": true
+    "is_drip_notification_enabled": true,
+    "preferred_audio_quality": "aac",
+    "audio_qualities": [
+      { "quality": "compressed", "allowed": true },
+      { "quality": "aac", "allowed": true },
+      { "quality": "lossless", "allowed": false }
+    ]
   },
   "marketing_consent": {
     "is_agreed": true,
@@ -142,6 +148,8 @@
 **`settings`** — `user_settings` 원값(`domain.md` 3.5).
 
 - `default_playback_rate`: `0.8 | 1.0 | 1.2 | 1.5 | 2.0`
+- `preferred_audio_quality`: 사용자가 고른 음질(`player.md` 4.9, 2026-10-06 — KAN-141). 기본 `compressed`
+- `audio_qualities`: 음질 선택지 — 오름차순 전부와 **이 사용자의 티어가 허용하는지**(`plans.max_audio_quality`, 가입 체험 무관). `allowed = false`는 잠금으로 그리고 구독 안내로 잇는다. 선택값이 허용 밖일 수 있다(구독 만료) — 그때도 값은 그대로 두고 재생은 서버가 깎아 내준다(`player-api.md` 4.1 `fallback_reason`)
 - `is_auto_expand_enabled`: 주제 자동 확장(FR-06). **행동 기반 자동 확장이 이 값을 읽는다**(2026-09-30 — `drip-scheduling.md` 4.5-1. 운영 서버는 앱의 토글 노출 전까지 스위치로 꺼 둔다). ~~MVP에서는 값만 저장되고 배치는 돌지 않는다(`interest-management.md` 미결).~~ **P1 미구현 상태에서는 화면이 섹션 자체를 숨긴다** — 값은 내려주되 그리지 않는다.
 - `is_drip_notification_enabled`: **이어 PICK 알림** 앱 토글(FR-19, **P1**). 사용자 노출 명칭은 **"이어 PICK 알림"**(PICK 전부 대문자)이다 — "드립"은 내부 용어라 화면에 노출하지 않는다(합의 2026-08-06, `settings.md` 4.1). **컬럼명·필드명은 유지한다**(`domain.md` 3.5 — 화면 이름만 바뀐 것이지 데이터 의미가 바뀐 것이 아니다).
 - 행이 없는 사용자(설정을 한 번도 바꾼 적 없음)는 **기본값으로 채워 내려준다.** 행 생성은 첫 PATCH 때 한다 — 조회가 쓰기를 유발하지 않는다.
@@ -178,6 +186,7 @@
 | default_playback_rate | float | 선택 | `0.8 / 1.0 / 1.2 / 1.5 / 2.0` 외의 값은 400 |
 | is_auto_expand_enabled | boolean | 선택 | |
 | is_drip_notification_enabled | boolean | 선택 | |
+| preferred_audio_quality | `compressed` \| `aac` \| `lossless` | 선택 | 그 밖의 값은 400. **허용 밖 음질도 저장한다**(잠금 해제 뒤 그대로 쓰이도록) — 재생은 서버가 깎는다 |
 | client_seq | int | 필수 | 사용자별 설정 조작의 단조 증가 순번. 서버는 응답에 그대로 되돌린다 |
 
 - 세 설정 필드 중 **최소 하나**는 있어야 한다. 전부 없으면 400.

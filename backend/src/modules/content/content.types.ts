@@ -8,6 +8,7 @@ import {
   ContentOrigin,
   ContentStatus,
   StatsPeriodType,
+  AudioQuality,
 } from './content.enum';
 import { Content } from './entities/content.entity';
 
@@ -84,6 +85,23 @@ export interface ScriptSegment {
   /** 화자 표시명("윤아"·"이음"). 1인 낭독·파트너 콘텐츠는 null */
   speaker: string | null;
   text: string;
+}
+
+/**
+ * 구간 제목(`player-api.md` 4.1 `sections`, KAN-144) — 대본의 `### #n 제목` 구간 그대로. 시작 시각은
+ * 세그먼트와 같은 배포본 기준이라 자막과 운명이 같다(같은 행, 같은 교체·삭제). 끝 시각은 없다 —
+ * 다음 구간의 시작이 곧 끝이고, 현재 구간은 `start_sec ≤ 재생 위치`인 마지막 항목이다.
+ */
+export interface ScriptSection {
+  start_sec: number;
+  title: string;
+}
+
+/** `content_scripts` 한 행의 내용 — `script_file`이 담는 것(admin-api.md 4.6) */
+export interface ScriptDocument {
+  segments: ScriptSegment[];
+  /** 구간이 없는 대본(배열 형식 파일·파트너 콘텐츠)은 빈 배열 */
+  sections: ScriptSection[];
 }
 
 /** 콘텐츠에 붙은 주제 — 클라이언트가 주제 배지를 그리는 데 쓴다 */
@@ -302,4 +320,19 @@ export interface SearchQueryLogSummary {
   missed: SearchQueryRank[];
   /** 검색 수 내림차순 */
   top: SearchQueryRank[];
+}
+
+/**
+ * 음질별 오디오 한 벌의 입력(domain.md 5.8 — KAN-141). 메타는 admin 쪽 `audio-probe`가 파일에서 읽은 값이다.
+ * `byteSize`는 bigint 컬럼이라 문자열이다.
+ */
+export interface AudioRenditionInput {
+  quality: AudioQuality;
+  path: string;
+  codec: string;
+  bitrateKbps: number | null;
+  channels: number | null;
+  sampleRateHz: number | null;
+  byteSize: string | null;
+  durationSec: number;
 }

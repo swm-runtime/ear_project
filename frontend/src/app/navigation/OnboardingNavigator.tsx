@@ -1,6 +1,6 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useEffect } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { theme } from '@/shared/theme';
@@ -14,6 +14,7 @@ import {
   ONBOARDING_COPY,
   PickScreen,
   TopicSelectScreen,
+  TopicSelectSkeleton,
   useOnboardingStateQuery,
   useOnboardingStore,
   type OnboardingStackParamList,
@@ -38,7 +39,7 @@ const RESUME_ROUTES: Record<OnboardingStep, keyof OnboardingStackParamList> = {
 export default function OnboardingNavigator() {
   const stateQuery = useOnboardingStateQuery();
   const setSelectedTopicIds = useOnboardingStore((s) => s.setSelectedTopicIds);
-  const showSpinner = useDelayedVisible(stateQuery.isPending);
+  const showSkeleton = useDelayedVisible(stateQuery.isPending);
 
   const state = stateQuery.data;
 
@@ -66,12 +67,9 @@ export default function OnboardingNavigator() {
     );
   }
 
+  // 재개 지점을 받기 전 — 첫 단계(주제 선택) 모양의 스켈레톤. 0.3초 안에 오면 빈 바탕만 잠깐 보인다
   if (!state || state.onboardingCompleted) {
-    return (
-      <View style={styles.loading}>
-        {showSpinner ? <ActivityIndicator size="large" color={theme.color.primary} /> : null}
-      </View>
-    );
+    return showSkeleton ? <TopicSelectSkeleton /> : <View style={styles.loading} />;
   }
 
   return (
@@ -101,7 +99,5 @@ const styles = StyleSheet.create({
   loading: {
     flex: 1,
     backgroundColor: theme.color.background,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });

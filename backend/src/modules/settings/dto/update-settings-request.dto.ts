@@ -1,3 +1,4 @@
+import { AudioQuality } from '@/modules/content/content.enum';
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
@@ -39,6 +40,11 @@ export class UpdateSettingsRequestDto {
   @IsOptional()
   @IsBoolean()
   readonly is_drip_notification_enabled?: boolean;
+
+  /** 음질 선택(player.md 4.9 — KAN-141). 허용 밖 음질도 저장한다 — 잠금 해제 뒤 그대로 쓰이도록. 재생은 서버가 깎는다 */
+  @IsOptional()
+  @IsEnum(AudioQuality)
+  readonly preferred_audio_quality?: AudioQuality;
 
   /**
    * 사용자별 설정 조작의 단조 증가 순번(`settings.md` 7장 — 마지막 상태가 최종).

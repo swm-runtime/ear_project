@@ -69,6 +69,17 @@
 - `subscriptions`에는 실제로 `light` 행이 생기지 않는다(무료는 구독이 아니다). enum을 공유하는 이유는 세 곳의 값이 어긋나는 것을 막기 위해서다.
 - `plans`에는 `light` 행이 **존재한다**. 무료 정책(하루 재생 2편, 드립 2편)을 데이터로 표현하기 위해서다.
 
+### 1.3-1 음질 (2026-10-06 — KAN-141)
+
+| 값 | 의미 | 형식(파이프라인 렌더 — `ai/spec/06-audio.md`) |
+|---|---|---|
+| `compressed` | 압축 — 기본값. 전 티어 | mp3 (지금 배포본 형식) |
+| `aac` | 고음질 압축. 전 티어 | m4a AAC |
+| `lossless` | 무손실. **Pro 전용** | wav PCM 16bit 44.1kHz |
+
+- 순서가 있다: `compressed < aac < lossless`. `plans.max_audio_quality`(8.1)는 "이 티어가 들을 수 있는 가장 높은 음질"이고, 허용 여부는 이 순서로 비교한다. **티어명으로 판정하지 않는다.**
+- `content_audio_renditions.quality`(5.8) · `plans.max_audio_quality`(8.1) · `user_settings.preferred_audio_quality`(3.5)가 같은 enum을 쓴다.
+
 ### 1.4 멱등 요청 저장 — `idempotency_keys`
 
 중복 실행 부작용이 있는 POST는 `Idempotency-Key` 헤더를 필수로 받고, **같은 키의 재요청에는 저장된 첫 응답을 그대로 반환한다**(`architecture.md` 8.4, `convention.md` 5.5). 클라이언트가 오프라인 큐·자동 재시도로 같은 요청을 두 번 보내도(`common-error-handling.md` 4.2) 계정이 두 개 생기거나 탈퇴가 두 번 실행되지 않게 하는 최종 방어다.
@@ -291,6 +302,7 @@ user_settings
   is_drip_notification_enabled boolean      DEFAULT true   (FR-19)
   drip_feedback_muted_until   date          NULL           ★추천 별점 팝업 [이번 주 그만 보기] 종료 서비스 날짜 (2026-09-30, KAN-116)
   drip_feedback_last_prompted_date date     NULL           ★마지막으로 별점을 물은 편성분의 서비스 날짜 — 이보다 새 편성이 없으면 다시 묻지 않는다 (2026-09-30)
+  preferred_audio_quality     enum          DEFAULT 'compressed'   ★1.3-1 — 사용자가 고른 음질 (2026-10-06, KAN-141). 서버에 두는 이유: 기기 간 같은 선택을 보장하고, 발급 때 서버가 바로 읽는다
 
 uq_user_settings_user_id (user_id)
 ```
@@ -484,7 +496,7 @@ contents
   series_id                 uuid            NULL   ← Episode 흡수 (B-5)
   episode_no                int             NULL
   total_episodes            int             NULL
-  audio_path                varchar         ★URL이 아니라 저장 경로 (B-5)
+  audio_path                varchar         ★URL이 아니라 저장 경로 (B-5). **압축 음질(`compressed`) 파일의 경로**이며 5.8 `content_audio_renditions`의 같은 음질 행과 항상 같다(2026-10-06, KAN-141)
   duration_sec              int
   thumbnail_url             varchar
   difficulty                enum            NULL 허용 — beginner | intermediate | advanced ★추천 메타 (신설 2026-08-26)
@@ -565,6 +577,11 @@ chk_contents_partner_disclosure
 - 업로드 검증이 체크 누락을 거부하므로(`admin.md` 4.2) 발행된 모든 행에서 **항상 참인 값**이 된다. "행이 존재한다 = 검수를 확인했다"라 컬럼이 정보를 더하지 않는다 — 집계로 구할 수 있는 값을 컬럼으로 두지 않는 것과 같은 이유다([1.5](#15-파생값을-컬럼으로-두지-않는다)).
 - 이행 기록(누가·언제 확인했는가)은 **업로드 감사 로그가 담당한다.** 모든 관리자 행위는 `audit_logs`에 남고(`admin.md` 4.1), 업로드 기록의 `actor` · `created_at` · `after`(검수 확인 입력값 포함)가 그대로 이행 증적이다. PRD 9.1의 이행률 검증도 이 로그로 산출한다.
 
+### 5.1-1 오디오 3종과 `audio_path` (2026-10-06 — KAN-141)
+
+- 콘텐츠 하나에 **음질별 오디오 파일을 최대 3개** 둔다(5.8). `audio_path`는 그중 **압축 음질**의 경로를 복제한 값이다 — 목록·재생 경로의 기존 코드와 "압축은 반드시 있다"는 불변식을 위해 남긴다. 두 값이 어긋나면 안 되므로 **발행·재발행이 한 트랜잭션에서 둘 다 쓴다.**
+- 재발행(`content_version` 증가)으로 오디오가 바뀌면 **3종이 함께 바뀐다** — 안 보낸 음질의 행은 지운다. 버전이 다른 음질이 섞이면 대본 시각·재생 위치가 어긋난다.
+
 ### 5.2 `content_topics`
 
 ```
@@ -587,6 +604,7 @@ content_scripts
   id                        uuid            PK
   content_id                uuid            FK → contents (ON DELETE CASCADE)
   segments                  jsonb           [{ start_sec, end_sec, speaker, text }]   ★speaker 추가 (2026-09-19, KAN-71)
+  sections                  jsonb           [{ start_sec, title }]   기본 '[]'   ★구간 제목 (2026-10-06, KAN-144)
   created_at · updated_at   timestamptz
 
 uq_content_scripts_content_id (content_id)
@@ -597,6 +615,7 @@ uq_content_scripts_content_id (content_id)
 - **`speaker`는 화자 표시명**("윤아"·"이음" — 대본이 2인 대화체, `ai/PIPELINE.md`)이며 1인 낭독·파트너 콘텐츠는 `null`. 시각은 초(소수 허용), **최종 배포본 기준**. `start_sec` 오름차순·겹침 없음은 적재 시 검증한다(admin-api.md 4.6 `script_file`).
 - 콘텐츠당 1행. 재발행으로 오디오가 바뀌면 시각도 바뀌므로 부분 갱신 없이 통째로 교체한다. **오디오가 바뀌는데 유효한 대본이 함께 오지 않으면 행을 삭제한다**(행 없음 = 자막 없음 — 2026-09-26, `admin-api.md` 4.10 "대본 삭제"). 옛 세그먼트를 남기면 새 오디오와 시각이 어긋난 자막이 내려간다.
 - **접근 통제는 오디오와 같다**(architecture.md 9.4) — 조회(`player-api.md` 4.7)는 재생 발급과 같은 판정을 거친다.
+- **`sections`는 구간 제목**(2026-10-06, KAN-144 — `tickets/backend/archive/content-script-sections.md`). 대본의 `### #n 제목` 구간 그대로이고 앞뒤에 인트로·도입·마무리가 붙어 한 편에 7~11개(0~30개로 제한). `start_sec`은 세그먼트와 같은 배포본 기준이라 **자막과 운명이 같다** — 같은 파일(`script_file` 객체 형식)로 같은 트랜잭션에서 통째로 교체되고, 행이 지워지면 함께 사라진다. 그래서 별도 테이블이 아니라 같은 행이다. 끝 시각은 없다 — 다음 구간의 시작이 끝이고, 현재 구간은 `start_sec ≤ 재생 위치`인 마지막 항목(`player-api.md` 4.1). `start_sec` **엄격한** 오름차순(같은 값 금지)·마지막 구간 < 오디오 길이·`title` ≤60자는 적재 시 검증한다(admin-api.md 4.6). 배열 형식 파일로 적재된 행·기존 행은 `[]`(구간 없음)이다 — 지금 나가 있는 오디오와 맞는 구간 시각은 소급해 만들 수 없어 재발행에서 함께 실린다.
 
 ### 5.4 `content_stats`
 
@@ -737,6 +756,29 @@ idx_search_query_logs_created_at (created_at)   — 보존 배치 범위 삭제�
 - `SearchHistory`(최근 검색어)는 여전히 테이블이 아니다([13.1](#131-클라이언트-로컬-전용)) — 이 표는 사용자에게 되돌려 주는 이력이 아니라 운영 분석 원천이고, 앱은 이 표를 읽지 않는다.
 
 ---
+
+### 5.8 `content_audio_renditions` *(신설 2026-10-06 — KAN-141 음질 3단계)*
+
+```
+content_audio_renditions
+  id                        uuid            PK
+  content_id                uuid            FK → contents ON DELETE CASCADE
+  quality                   enum            compressed | aac | lossless   ★1.6
+  path                      varchar(512)    저장 경로 — `contents.audio_path`와 같은 규칙(비노출, 서명 URL 경로에만 실린다)
+  codec                     varchar(16)     mp3 | aac | pcm_s16le   (표시·진단용)
+  bitrate_kbps              int             NULL = 무손실이거나 모름
+  channels                  smallint        NULL = 모름 (1 모노 · 2 스테레오)
+  sample_rate_hz            int             NULL = 모름
+  byte_size                 bigint          NULL = 모름. 앱이 "약 140MB" 표시에 쓴다
+  duration_sec              int             압축 음질과 ±1초 안이어야 한다(업로드 검증)
+
+uq_content_audio_renditions_content_id_quality (content_id, quality)
+```
+
+- **왜 별도 테이블인가.** `contents`에 `audio_path_aac` · `audio_path_lossless` 컬럼을 늘리면 음질을 더할 때마다 스키마가 바뀌고, 코덱·크기 같은 부속값이 컬럼 3벌로 복제된다. 음질은 행이다.
+- **`compressed` 행은 항상 있다**(발행의 필수 파트). `aac` · `lossless`는 있을 때만 있다 — 2026-10-06 기준 발행분 40편은 `compressed`만 있고, 마이그레이션이 `contents.audio_path`에서 그 행을 만든다(코덱 `mp3`, 나머지 부속값 NULL).
+- 메타(코덱·비트레이트·채널·샘플레이트·크기)는 **업로드 때 서버가 파일에서 읽어 채운다**(`audio-probe`). 수동 입력을 받지 않는다 — `duration_sec`과 같은 이유다(불일치하면 판정이 깨진다).
+- 재생 URL 발급은 이 표에서 **허용·보유 음질 가운데 가장 높은 것**을 고른다(`player.md` 4.9). 어떤 응답에도 `path`는 실리지 않는다.
 
 ## 6. 라이브러리 · 재생
 
@@ -1101,6 +1143,7 @@ plans
   store_product_id_android  varchar         NULL (light)
   display_order             int
   is_active                 boolean         DEFAULT true
+  max_audio_quality         enum            DEFAULT 'aac'   ★1.3-1 — 이 티어가 들을 수 있는 가장 높은 음질 (2026-10-06, KAN-141)
 
 uq_plans_tier (tier)
 ```
@@ -1113,6 +1156,8 @@ uq_plans_tier (tier)
 | `daily` | **3900** | **5** | **2** | **1** | true |
 | `pro` | **9900** | `NULL`(무제한) | **2** | **1** | true |
 | `trial` (가입 체험) | 0 | `NULL`(무제한) | **2** | **1** | true |
+
+**음질**(`max_audio_quality`, 2026-10-06 — KAN-141): `light` · `daily` · `trial` = **`aac`**, `pro` = **`lossless`**. 가입 체험은 재생 한도만 풀고 음질은 무료와 같다 — 체험 끝에 "무손실이 사라졌다"는 경험을 만들지 않는다. 값을 바꾸면 다음 발급부터 바로 적용된다(배포 없음).
 
 - **`trial` 행은 판매 요금제가 아니라 체험 기간의 한도·이름을 담는 정책 행이다**(2026-10-03, `1788400000000-AddSignupTrial`). `is_active = false` · `display_order = 0`이라 요금제 목록(`GET /plans`)·페이월에 나오지 않고 최상위 티어 판정에도 끼지 않는다. 이름은 "무료 체험", 광고는 무료 티어와 같다(`is_ads_enabled = true`). 체험 중 한도를 바꾸려면 이 행의 `daily_play_limit`만 고친다. 행이 없으면 체험은 적용되지 않는다(무료 한도로 판정).
 
@@ -1329,6 +1374,25 @@ idx_audit_logs_target_created_at (target, created_at DESC)
 - 파트너 통제·결제 관련 변경의 감사 근거다. DB 필수 (B-8).
 
 ---
+
+### 10.4 `store_reviews` — 스토어 리뷰 알림 기록 (KAN-133, 2026-10-06)
+
+App Store·Google Play 리뷰를 15분마다 조회해 Slack에 올릴 때 "이미 알린 리뷰인가, 그 뒤 수정됐는가"를 가리는 기록. **본문·제목·리뷰어 닉네임은 저장하지 않는다**(중복 감지에 불필요하고, 닉네임은 어디에도 옮기지 않는다 — CLAUDE.md 공통 원칙).
+
+```
+store_reviews
+  id                        uuid            PK
+  store                     varchar(20)     app_store | play_store (TS enum ReviewStore — 결제 enum과 분리, 모듈 경계)
+  review_id                 varchar(128)    스토어가 매긴 식별자(App Store UUID꼴 · Play `gp:…`)
+  rating                    smallint        마지막으로 본 별점 1~5
+  last_modified_at          timestamptz     스토어의 작성·수정 시각. 조회값이 더 크면 "수정됨"으로 재알림
+  notified_at               timestamptz     NULL = 첫 실행 기준선(표가 비어 있을 때 쌓인 리뷰를 쏟지 않고 기록만 한다)
+
+uq_store_reviews_store_review_id (store, review_id)
+```
+
+- 보존: 무기한(행당 수십 바이트, 재알림 방지가 목적이라 리뷰가 스토어에서 지워져도 남긴다). 사용자 테이블과 FK 없음 — 12.3 탈퇴 처리와 무관.
+- 마이그레이션 `1788600000000-AddStoreReviews`.
 
 ## 11. 보존 아카이브
 

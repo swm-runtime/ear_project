@@ -61,6 +61,7 @@ CloudWatch(EC2 지표·`/ear/api`·`/ear/caddy` 로그)·Sentry·합성 헬스�
 | 05:00 | `daily-drip-batch` | 드립 편성(`drip-scheduling.md`) | 로그 · `drip_batch_runs` 기록. 도중에 프로세스가 죽으면 재기동 시 이어받는다 |
 | 10분마다 | `push-receipt-check` | 푸시 영수증(receipt) 회수 | 로그 — 실패분은 다음 주기에 다시 묻는다 |
 | 17:00 | `daily-metrics` | 일일 지표 Slack 보고(GA4 + 서버 — 3-3) | 로그, 던지지 않음 |
+| 15분마다 | `store-review-poll` | App Store·Google Play 새 리뷰·수정 리뷰를 Slack 한 메시지로(KAN-133 VoC — `store_reviews`에 알린 것을 기록). 리뷰어 닉네임은 어디에도 싣지 않는다 | 로그, 다음 주기 재시도 — 보냈을 때만 기록하므로 웹훅이 죽은 주기의 리뷰는 다음 주기에 다시 고른다. **Play 는 최근 1주일치만 돌아와** 7일 넘게 멈추면 그 사이 리뷰는 복구되지 않는다 |
 | 60초마다 | 자원 경보(`setInterval` — 크론 아님) | CPU·메모리 표본 + Slack 경보(5장) | 로그. 표본은 모든 워커가 쌓고 **경보 발송만** 스케줄러 워커가 한다 |
 
 - 04시대의 순서(집계 → 만료 → 주제 숨김 → 삭제 → 구독 보정 → 05:00 편성)는 서비스 날짜 경계(04:00) 뒤에 전날분을 확정하고 편성이 그 결과를 읽게 하려는 것이다.
@@ -74,7 +75,9 @@ CloudWatch(EC2 지표·`/ear/api`·`/ear/caddy` 로그)·Sentry·합성 헬스�
 | 소셜 로그인 카카오·구글·애플 | `KAKAO_APP_ID` · `GOOGLE_WEB_CLIENT_ID` · `APPLE_CLIENT_ID` · `APPLE_SERVICES_ID` — **필수** | 값이 없으면 env 검증에서 **기동이 실패한다**(조용히 꺼지지 않는다). 값이 틀리면 해당 제공자 로그인 불가 |
 | 오디오 CDN | `AUDIO_DELIVERY=cloudfront` + `CLOUDFRONT_KEY_PAIR_ID` · `CLOUDFRONT_PRIVATE_KEY_BASE64` · `AUDIO_BUCKET` · `AWS_REGION` (`AUDIO_URL_BASE_URL` · `AUDIO_URL_SIGNING_KEY` 는 항상 필수) | `cloudfront` 모드에서 값이 빠지면 기동 실패. 값이 틀리면 재생 URL 발급 불가 |
 | Sentry | `SENTRY_DSN` (+`SENTRY_ENVIRONMENT`) | 크래시 수집 안 됨 — 조용히 꺼짐 |
-| Slack 경보·가입 알림 | `SLACK_ERROR_WEBHOOK_URL` (가입 알림·일일 보고는 `SLACK_SIGNUP_WEBHOOK_URL` 우선) | 조용히 꺼짐 |
+| Slack 경보·가입 알림·**탈퇴 알림**(2026-10-06 — 사유 코드·직접 입력 사유·가입 N일차·결제 이력 여부, 신원 값 없음)·**스토어 리뷰** | `SLACK_ERROR_WEBHOOK_URL` (가입·탈퇴 알림·리뷰·일일 보고는 `SLACK_SIGNUP_WEBHOOK_URL` 우선) — 전송은 `modules/alert` 의 `SlackAlertService` 한 곳 | 조용히 꺼짐 |
+| App Store Connect API(리뷰 조회 — KAN-133) | `APP_STORE_CONNECT_ISSUER_ID` · `APP_STORE_CONNECT_KEY_ID` · `APP_STORE_CONNECT_PRIVATE_KEY_BASE64`(**팀 키** — 결제용 In-App Purchase 키와 다르다) + `APP_STORE_APP_APPLE_ID` | 그 스토어만 조용히 꺼짐 |
+| Google Play Developer API(리뷰 조회 — KAN-133) | 결제용 `GOOGLE_PLAY_PACKAGE_NAME` · `GOOGLE_PLAY_SERVICE_ACCOUNT_BASE64` 재사용(Play Console 에서 서비스 계정에 리뷰 권한 추가) | 그 스토어만 조용히 꺼짐 |
 | GA4 일일 보고 | `GA4_PROPERTY_ID` + `GA4_SERVICE_ACCOUNT_BASE64` (+ 위 웹훅) | 조용히 꺼짐 |
 
 - **조용히 꺼지는 것은 아래 셋(Sentry·Slack·GA4)이다** — "env 가 있으면 켜짐"이라 빠져도 서버는 정상 기동한다. 그래서 기동 요약이 이 셋의 켜짐/꺼짐을 찍는다. 위 둘(소셜 로그인·오디오)은 빠지면 서버가 뜨지 않으므로 기동했다는 사실이 곧 확인이다.

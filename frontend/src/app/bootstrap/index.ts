@@ -28,13 +28,26 @@ import {
   startWithdrawnSync,
   stopPlaybackForSignOut,
   syncWithdrawnContents,
+  useLimitNoticeStore,
 } from '@/features/player';
 import { profileKeys } from '@/features/profile';
 import { settingsKeys } from '@/features/settings';
-
+import {
+  markEmailVerifiedForPurchase,
+  registerEmailVerificationOpener,
+  registerSubscriptionChangedListener,
+  resumeSubscriptionSync,
+  startSubscriptionSync,
+  stopSubscriptionSync,
+  subscriptionKeys,
+} from '@/features/subscription';
 
 import { forgetTab } from '../navigation/last-tab';
+import { navigationRef } from '../navigation/navigation-ref';
 import { queryClient } from '../query-client';
+
+/** 이메일 인증 화면이 닫히는 전환을 기다렸다가 페이월 시트를 다시 연다 — 내려가는 화면 위에 모달을 띄우지 않는다 */
+const EMAIL_RETURN_REOPEN_DELAY_MS = 600;
 
 /** 재생 목록 패널이 한 번에 받는 개수 — `GET /users/me/library-items`의 서버 상한(library-api.md 4.1) */
 const QUEUE_PAGE_LIMIT = 50;
@@ -68,6 +81,31 @@ export const bootstrapApp = (): void => {
   registerEmailVerifiedListener(() => {
     void queryClient.invalidateQueries({ queryKey: profileKeys.summary() });
     void queryClient.invalidateQueries({ queryKey: settingsKeys.summary() });
+    // 요금제 목록의 is_email_verified 가 바뀌었다 — 결제 흐름 복귀가 이 값을 기다린다(KAN-120)
+    void queryClient.invalidateQueries({ queryKey: subscriptionKeys.plansAll() });
+    // 페이월에서 "이메일 인증 먼저"로 떠났다면 인증 화면이 닫힌 뒤 같은 시트(막힌 콘텐츠 포함)를 다시 연다 —
+    // 시트 안의 결제 흐름이 같은 요금제로 이어진다(paywall.md 4.5-3). 인증 화면이 내려가는 중에 모달을 띄우지 않게 기다린다
+    if (markEmailVerifiedForPurchase()) {
+      setTimeout(() => useLimitNoticeStore.getState().reopen(), EMAIL_RETURN_REOPEN_DELAY_MS);
+    }
+  });
+
+  /*
+   * 구독 결제(KAN-120) — 서버가 구독을 확정하면(결제·복원·미완료 거래 회복) 화면은 응답 본문으로 확정하고,
+   * 한도·플랜을 들고 있는 다른 feature 의 요약을 다시 받는다. subscription 이 그 키들을 알지 않도록 여기서 배선한다.
+   */
+  registerSubscriptionChangedListener((subscription) => {
+    queryClient.setQueryData(subscriptionKeys.me(), subscription);
+    void queryClient.invalidateQueries({ queryKey: subscriptionKeys.plansAll() });
+    void queryClient.invalidateQueries({ queryKey: profileKeys.summary() });
+    void queryClient.invalidateQueries({ queryKey: settingsKeys.summary() });
+    // 잔여 재생 표시(daily_play_limit)는 목록 응답이 들고 온다(library-api.md 2)
+    void queryClient.invalidateQueries({ queryKey: libraryKeys.all });
+  });
+  // 페이월 시트는 내비게이터 밖이라 루트 ref 로 이메일 인증 화면을 연다
+  registerEmailVerificationOpener(() => {
+    if (!navigationRef.isReady()) return;
+    navigationRef.navigate('Main', { screen: 'EmailVerification' });
   });
 
   registerPlayerLibraryBridge({
@@ -133,6 +171,17 @@ export const bootstrapApp = (): void => {
   startDeviceSync(isSignedIn);
 
   /*
+   * 구독 동기화(subscription.md 4.3 · KAN-120) — 포그라운드 복귀마다 미완료 거래 제출 + 구독 상태 재조회.
+   * 구독 UI 가 꺼진 바이너리(플래그·결제 모듈·플랫폼)에서는 아무것도 하지 않는다 — 결제 모듈을 부르지 않는다.
+   */
+  startSubscriptionSync({
+    isSignedIn,
+    onForeground: () => {
+      void queryClient.invalidateQueries({ queryKey: subscriptionKeys.me() });
+    },
+  });
+
+  /*
    * 푸시 수신·탭(notification.md 4.4·4.5). 포그라운드 도착이면 라이브러리 목록을 조용히
    * 갱신한다 — notification이 library의 쿼리 키를 알지 않도록 여기서 배선한다.
    */
@@ -161,6 +210,8 @@ export const bootstrapApp = (): void => {
       }
       // 서버는 로그아웃 때 이 기기의 토큰을 지운다 — 다시 로그인했으면 다시 올려야 알림이 온다
       syncDeviceNow();
+      // 스토어 연결·미완료 거래 제출(결제 직후 앱이 죽은 경우의 회복 — KAN-120). 구독 UI 가 꺼진 바이너리면 무동작
+      resumeSubscriptionSync();
       // 크래시 리포트에 사용자 id 만 붙인다 — 이메일·닉네임은 보내지 않는다(KAN-92)
       setSentryUser(state.user?.id ?? null);
       // GA4 user_id 는 서버 id 의 해시 — 원본 id 는 앱 밖으로 나가지 않는다(KAN-90)
@@ -178,6 +229,8 @@ export const bootstrapApp = (): void => {
       // 앞 사용자가 탭한 알림의 목적지·배너를 다음 사용자에게 넘기지 않는다
       clearPushState();
       resetDeviceSync();
+      // 반영이 미뤄진 거래의 재시도를 멈춘다 — 다음 계정의 세션으로 앞 사용자의 거래를 제출하지 않는다
+      stopSubscriptionSync();
       // 다음 사용자가 앞 사용자의 탭에서 시작하면 안 된다(splash.md 4장 4-1)
       forgetTab();
       setSentryUser(null);

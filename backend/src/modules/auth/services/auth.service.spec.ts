@@ -7,6 +7,8 @@ import { SocialProvider } from '@/modules/user/user.enum';
 import { UserService } from '@/modules/user/services/user.service';
 
 import { AuthService } from './auth.service';
+import { SlackAlertService } from '@/modules/alert/slack-alert.service';
+
 import { SignupAlertService } from './signup-alert.service';
 import { SocialProviderClient } from '../providers/social-provider.client';
 import { SocialProviderRegistry } from '../providers/social-provider.registry';
@@ -106,9 +108,9 @@ describe('AuthService', () => {
     );
 
     // 웹훅이 없으면 꺼진 상태 — spec 에서는 호출만 세고 실제로 나가지 않는다
-    signupAlertService = new SignupAlertService({
-      get: jest.fn(() => undefined),
-    } as never);
+    signupAlertService = new SignupAlertService(
+      new SlackAlertService({ get: jest.fn(() => undefined) } as never),
+    );
     jest.spyOn(signupAlertService, 'notify');
 
     service = new AuthService(

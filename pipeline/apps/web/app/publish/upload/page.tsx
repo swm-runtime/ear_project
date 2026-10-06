@@ -46,6 +46,7 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
   const [hasAudio, setHasAudio] = useState(false);
   const [hasThumb, setHasThumb] = useState(false);
   const [scriptSegs, setScriptSegs] = useState<number | null>(null); // episodes/<id>/script-segments.json 의 세그먼트 수 — 없으면 null (자막 없이 발행, 앱은 버튼을 숨긴다)
+  const [scriptSecs, setScriptSecs] = useState<{ count: number; sent: boolean }>({ count: 0, sent: false }); // 구간 제목 수·전송 여부 (KAN-137 — 전송은 KAN-144 배포 뒤)
   const [enrichVer, setEnrichVer] = useState<number | null>(null); // episodes/<id>/enrichment.json 의 schema_version — 없으면 null (발행 후 목록에서 소급 가능)
   const [enrichJob, setEnrichJob] = useState<{ status: string; error: string | null } | null>(null); // [추천 메타 뽑기] 진행 상태 — 패키지는 더 이상 자동으로 걸지 않는다 (2026-09-23, spec/07 2장)
   const [enrichMsg, setEnrichMsg] = useState<string | null>(null);
@@ -79,8 +80,8 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
         if (episodeId) {
           const res = await fetch(`/api/publish/${episodeId}`);
           if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message ?? `HTTP ${res.status}`);
-          const body = (await res.json()) as { meta: UploadMeta; has_audio: boolean; has_thumbnail: boolean; has_enrichment?: boolean; enrichment_version?: number | null; has_script?: boolean; script_segments?: number | null };
-          setMeta(body.meta); setHasAudio(body.has_audio); setHasThumb(body.has_thumbnail); setEnrichVer(body.has_enrichment ? body.enrichment_version ?? 1 : null); setScriptSegs(body.has_script ? body.script_segments ?? 0 : null);
+          const body = (await res.json()) as { meta: UploadMeta; has_audio: boolean; has_thumbnail: boolean; has_enrichment?: boolean; enrichment_version?: number | null; has_script?: boolean; script_segments?: number | null; script_sections?: number; script_sections_sent?: boolean };
+          setMeta(body.meta); setHasAudio(body.has_audio); setHasThumb(body.has_thumbnail); setEnrichVer(body.has_enrichment ? body.enrichment_version ?? 1 : null); setScriptSegs(body.has_script ? body.script_segments ?? 0 : null); setScriptSecs({ count: body.script_sections ?? 0, sent: !!body.script_sections_sent });
           // 제품 주제 = 파이프라인 중분류 1:1 (2026-09-06 체계 통일) — 이름이 같은 제품 주제를 기본 선택한다. 없으면 손으로 고른다
           const same = items.find((t) => t.name === body.meta.mid_topic);
           if (same) setTopicIds([same.id]);
@@ -260,7 +261,7 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
                     {enrichMsg && <span className="text-ink-soft">{enrichMsg}</span>}
                   </div>)}
               {episodeId && (scriptSegs != null
-                ? <p className="mt-1 text-[11px] text-emerald-700">자막 세그먼트 {scriptSegs}건 첨부됨 (script-segments.json — 발행 때 같이 보내요)</p>
+                ? <p className="mt-1 text-[11px] text-emerald-700">자막 세그먼트 {scriptSegs}건 첨부됨 (script-segments.json — 발행 때 같이 보내요){scriptSecs.count > 0 && (scriptSecs.sent ? ` · 구간 제목 ${scriptSecs.count}개 함께` : ` · 구간 제목 ${scriptSecs.count}개는 서버 준비(KAN-144) 전이라 보내지 않아요`)}</p>
                 : <p className="mt-1 text-[11px] text-ink-soft">자막 세그먼트 없음 — TTS 가 턴 경계를 못 잡았거나 KAN-72 이전 음원. 발행은 되고 앱은 대본 버튼을 숨겨요.</p>)}
             </label>
           </div>

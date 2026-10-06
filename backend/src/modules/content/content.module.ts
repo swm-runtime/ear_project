@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { LibraryModule } from '@/modules/library/library.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { ContentAudioRendition } from './entities/content-audio-rendition.entity';
 import { ContentEmbedding } from './entities/content-embedding.entity';
 import { ContentScript } from './entities/content-script.entity';
 import { ContentSource } from './entities/content-source.entity';
@@ -11,6 +12,7 @@ import { ContentTopic } from './entities/content-topic.entity';
 import { Content } from './entities/content.entity';
 import { SearchQueryLog } from './entities/search-query-log.entity';
 import { ContentRepository } from './repositories/content.repository';
+import { ContentAudioRenditionRepository } from './repositories/content-audio-rendition.repository';
 import { ContentEmbeddingRepository } from './repositories/content-embedding.repository';
 import { ContentScriptRepository } from './repositories/content-script.repository';
 import { ContentSourceRepository } from './repositories/content-source.repository';
@@ -31,6 +33,7 @@ import { SearchQueryLogService } from './services/search-query-log.service';
       ContentStat,
       ContentSource,
       ContentEmbedding,
+      ContentAudioRendition,
       ContentScript,
       SearchQueryLog,
     ]),
@@ -44,6 +47,7 @@ import { SearchQueryLogService } from './services/search-query-log.service';
     ContentStatRepository,
     ContentSourceRepository,
     ContentEmbeddingRepository,
+    ContentAudioRenditionRepository,
     ContentScriptRepository,
     SearchQueryLogRepository,
     ContentService,

@@ -1,18 +1,5 @@
-diff --git a/node_modules/react-native-screens/ios/RNSScreen.h b/node_modules/react-native-screens/ios/RNSScreen.h
-index b1f482c..925a5a8 100644
---- a/node_modules/react-native-screens/ios/RNSScreen.h
-+++ b/node_modules/react-native-screens/ios/RNSScreen.h
-@@ -50,6 +50,8 @@ NS_ASSUME_NONNULL_BEGIN
- - (void)calculateAndNotifyHeaderHeightChangeIsModal:(BOOL)isModal;
- - (void)notifyFinishTransitioning;
- - (RNSScreenView *)screenView;
-+// [ear patch] diagnostics hook (see RNSScreen.mm)
-++ (void)earNoteZoomDiagnostic:(NSString *)note;
- - (void)setViewToSnapshot;
- - (CGFloat)calculateHeaderHeightIsModal:(BOOL)isModal;
- - (BOOL)isRemovedFromParent;
 diff --git a/node_modules/react-native-screens/ios/RNSScreen.mm b/node_modules/react-native-screens/ios/RNSScreen.mm
-index 9b66012..67ca1ca 100644
+index 9b66012..642139b 100644
 --- a/node_modules/react-native-screens/ios/RNSScreen.mm
 +++ b/node_modules/react-native-screens/ios/RNSScreen.mm
 @@ -1417,6 +1417,12 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
@@ -28,14 +15,14 @@ index 9b66012..67ca1ca 100644
  }
  
  #pragma mark - Common
-@@ -1461,9 +1467,68 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
+@@ -1461,9 +1467,53 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
    }
  }
  
 +// [ear patch] settle a system-driven modal dismissal exactly once: drop the zoom transition hook so UIKit lets go of
 +// this controller (a dismissed zoom modal re-appeared for a frame when the source view - the tab bar accessory - was
 +// re-laid out on a tab switch, 2026-09-26), clean the stack's modal bookkeeping and notify JS.
-+- (void)earSettleInteractiveDismissFrom:(NSString *)origin
++- (void)earSettleInteractiveDismiss
 +{
 +  if (_notifiedInteractiveDismiss) {
 +    return;
@@ -51,20 +38,7 @@ index 9b66012..67ca1ca 100644
 +  if ([container isKindOfClass:[RNSScreenStackView class]]) {
 +    [(RNSScreenStackView *)container modalWasDismissedNatively:self];
 +  }
-+  [RNSScreen earNoteZoomDiagnostic:[NSString stringWithFormat:@"settled:%@", origin]];
 +  [self.screenView notifyDismissedWithCount:1];
-+}
-+
-+// [ear patch] diagnostics go to the app's ZoomTransitionRegistry (local Expo module) when present
-++ (void)earNoteZoomDiagnostic:(NSString *)note
-+{
-+  Class registry = NSClassFromString(@"ZoomTransitionRegistry");
-+  if (registry != nil && [registry respondsToSelector:@selector(noteDiagnostic:)]) {
-+#pragma clang diagnostic push
-+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-+    [registry performSelector:@selector(noteDiagnostic:) withObject:note];
-+#pragma clang diagnostic pop
-+  }
 +}
 +
  - (void)viewWillDisappear:(BOOL)animated
@@ -76,7 +50,6 @@ index 9b66012..67ca1ca 100644
 +  // (2026-09-26 — player flashed after switching tabs). Settle it the moment the interactive dismissal completes.
 +  _dismissingInteractively = self.isBeingDismissed && self.transitionCoordinator != nil &&
 +      self.transitionCoordinator.isInteractive && self.presentingViewController != nil;
-+  [RNSScreen earNoteZoomDiagnostic:_dismissingInteractively ? @"willDisappear:interactive" : @"willDisappear:other"];
 +  if (_dismissingInteractively) {
 +    __weak RNSScreen *weakSelf = self;
 +    [self.transitionCoordinator
@@ -88,16 +61,15 @@ index 9b66012..67ca1ca 100644
 +                          }
 +                          if (context.isCancelled) {
 +                            strongSelf->_dismissingInteractively = NO;
-+                            [RNSScreen earNoteZoomDiagnostic:@"coordinator:cancelled"];
 +                            return;
 +                          }
-+                          [strongSelf earSettleInteractiveDismissFrom:@"coordinator"];
++                          [strongSelf earSettleInteractiveDismiss];
 +                        }];
 +  }
    // self.navigationController might be null when we are dismissing a modal
    if (!self.transitionCoordinator.isInteractive && self.navigationController != nil) {
      // user might have long pressed ios 14 back button item,
-@@ -1501,6 +1566,25 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
+@@ -1501,6 +1551,25 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
  - (void)viewDidAppear:(BOOL)animated
  {
    [super viewDidAppear:animated];
@@ -123,7 +95,7 @@ index 9b66012..67ca1ca 100644
    if (!_isSwiping || _shouldNotify) {
      // we are going forward or dismissing without swipe
      // or successfully swiped back
-@@ -1517,7 +1601,26 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
+@@ -1517,7 +1586,26 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
  - (void)viewDidDisappear:(BOOL)animated
  {
    [super viewDidDisappear:animated];
@@ -138,7 +110,7 @@ index 9b66012..67ca1ca 100644
 +    dispatch_async(dispatch_get_main_queue(), ^{
 +      RNSScreen *strongSelf = weakSelf;
 +      if (strongSelf != nil && strongSelf.parentViewController == nil && strongSelf.presentingViewController == nil) {
-+        [strongSelf earSettleInteractiveDismissFrom:@"didDisappear:deferred"];
++        [strongSelf earSettleInteractiveDismiss];
 +      }
 +    });
 +  }
@@ -151,7 +123,7 @@ index 9b66012..67ca1ca 100644
      if (self.screenView.preventNativeDismiss) {
        // if we want to prevent the native dismiss, we do not send dismissal event,
        // but instead call `updateContainer`, which restores the JS navigation stack
-@@ -1558,6 +1661,49 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
+@@ -1558,6 +1646,49 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
    if (isDisplayedWithinUINavController || isTabScreen || self.screenView.isPresentedAsNativeModal) {
      [self.screenView updateBounds];
    }
@@ -201,7 +173,7 @@ index 9b66012..67ca1ca 100644
  }
  
  - (BOOL)isModalWithHeader
-@@ -1994,6 +2140,17 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
+@@ -1994,6 +2125,15 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
  - (void)setViewToSnapshot
  {
    UIView *superView = self.view.superview;
@@ -210,8 +182,6 @@ index 9b66012..67ca1ca 100644
 +  // snapshot to that container that nothing ever removes — it flashed on the next tab switch (2026-09-27). Nothing is
 +  // animating any more, so just detach the view.
 +  BOOL isDetachedFromPresentation = self.parentViewController == nil && self.presentingViewController == nil;
-+  [RNSScreen earNoteZoomDiagnostic:[NSString stringWithFormat:@"snapshot:window=%d detached=%d",
-+                                                              self.view.window != nil, isDetachedFromPresentation]];
 +  if (isDetachedFromPresentation) {
 +    [self.view removeFromSuperview];
 +    return;
@@ -219,7 +189,7 @@ index 9b66012..67ca1ca 100644
    // if we dismissed the view natively, it will already be detached from view hierarchy
    if (self.view.window != nil) {
      auto afterUpdates = self.screenView.snapshotAfterUpdates;
-@@ -2002,6 +2159,22 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
+@@ -2002,6 +2142,20 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
      [self.view removeFromSuperview];
      self.view = snapshot;
      [superView addSubview:snapshot];
@@ -229,13 +199,11 @@ index 9b66012..67ca1ca 100644
 +    // before settled). Remove it ourselves when that transition completes.
 +    id<UIViewControllerTransitionCoordinator> coordinator = self.transitionCoordinator;
 +    if (self.isBeingDismissed && coordinator != nil) {
-+      [RNSScreen earNoteZoomDiagnostic:@"snapshot:scheduled-removal"];
 +      __weak UIView *weakSnapshot = snapshot;
 +      [coordinator animateAlongsideTransition:nil
 +                                   completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
 +                                     if (!context.isCancelled) {
 +                                       [weakSnapshot removeFromSuperview];
-+                                       [RNSScreen earNoteZoomDiagnostic:@"snapshot:removed"];
 +                                     }
 +                                   }];
 +    }
@@ -260,7 +228,7 @@ index 9ae11c3..c2b6539 100644
  - (void)updateScreenTransition:(double)progress;
  - (void)finishScreenTransition:(BOOL)canceled;
 diff --git a/node_modules/react-native-screens/ios/RNSScreenStack.mm b/node_modules/react-native-screens/ios/RNSScreenStack.mm
-index 192f5d2..dac564f 100644
+index 192f5d2..f83e7c5 100644
 --- a/node_modules/react-native-screens/ios/RNSScreenStack.mm
 +++ b/node_modules/react-native-screens/ios/RNSScreenStack.mm
 @@ -373,6 +373,13 @@ RNS_IGNORE_SUPER_CALL_END
@@ -277,24 +245,7 @@ index 192f5d2..dac564f 100644
    // prevent re-entry
    if (_updatingModals) {
      _scheduleModalsUpdate = YES;
-@@ -394,6 +401,16 @@ RNS_IGNORE_SUPER_CALL_END
- 
-   _updatingModals = YES;
- 
-+  // [ear patch] diagnostics — what the stack sees when modals get reconciled (a dismissed zoom modal re-appeared
-+  // for a frame on a tab switch, 2026-09-26). Read from the app via ZoomTransitionRegistry.noteDiagnostic.
-+  {
-+    UIViewController *pvc = _controller.presentedViewController;
-+    [RNSScreen earNoteZoomDiagnostic:[NSString stringWithFormat:@"modals:n=%lu pm=%lu pvc=%@",
-+                                                                (unsigned long)controllers.count,
-+                                                                (unsigned long)_presentedModals.count,
-+                                                                pvc == nil ? @"nil" : NSStringFromClass([pvc class])]];
-+  }
-+
-   // We need to find bottom-most view controller that should stay on the stack
-   // for the duration of transition.
- 
-@@ -481,6 +498,63 @@ RNS_IGNORE_SUPER_CALL_END
+@@ -481,6 +488,58 @@ RNS_IGNORE_SUPER_CALL_END
          return;
        }
  
@@ -333,7 +284,7 @@ index 192f5d2..dac564f 100644
 +                sourceViewProvider:^UIView *_Nullable(UIZoomTransitionSourceViewProviderContext *_Nonnull context) {
 +                  // [ear patch] once the app says the zoom is over (modal dismissed), hand UIKit no source view —
 +                  // a dismissed player re-appeared for a frame on the next tab switch while the source (the tab bar
-+                  // accessory) was re-laid out (2026-09-27). Calls are logged to see whether UIKit asks after dismissal.
++                  // accessory) was re-laid out (2026-09-27).
 +                  Class providerRegistry = NSClassFromString(@"ZoomTransitionRegistry");
 +                  BOOL over = NO;
 +                  if (providerRegistry != nil && [providerRegistry respondsToSelector:@selector(isZoomOver)]) {
@@ -342,9 +293,6 @@ index 192f5d2..dac564f 100644
 +                    over = [[providerRegistry performSelector:@selector(isZoomOver)] boolValue];
 +#pragma clang diagnostic pop
 +                  }
-+                  [RNSScreen earNoteZoomDiagnostic:[NSString stringWithFormat:@"provider:%@ over=%d",
-+                                                                              weakZoomSource == nil ? @"nil" : @"view",
-+                                                                              over]];
 +                  return over ? nil : weakZoomSource;
 +                }];
 +            }
@@ -353,22 +301,10 @@ index 192f5d2..dac564f 100644
 +      }
 +#endif
 +
-+      [RNSScreen earNoteZoomDiagnostic:[NSString stringWithFormat:@"present:%@ anim=%d",
-+                                                                  NSStringFromClass([next class]), shouldAnimate]];
        [previous presentViewController:next
                               animated:shouldAnimate
                             completion:^{
-@@ -525,6 +599,9 @@ RNS_IGNORE_SUPER_CALL_END
-         // See: https://github.com/software-mansion/react-native-screens/issues/2048
-         // For now, to mitigate the issue, we also decide to trigger its dismissal before
-         // starting the presentation chain down below in finish() callback.
-+        [RNSScreen earNoteZoomDiagnostic:[NSString stringWithFormat:@"dismiss:%@ beingDismissed=%d",
-+                                                                    NSStringFromClass([firstModalToBeDismissed class]),
-+                                                                    firstModalToBeDismissed.isBeingDismissed]];
-         if (!firstModalToBeDismissed.isBeingDismissed) {
-           // If the modal is owned we let it control whether the dismissal is animated or not. For foreign controllers
-           // we just assume animation.
-@@ -1001,6 +1078,39 @@ RNS_IGNORE_SUPER_CALL_END
+@@ -1001,6 +1060,36 @@ RNS_IGNORE_SUPER_CALL_END
    [self updateContainer];
  }
  
@@ -387,9 +323,6 @@ index 192f5d2..dac564f 100644
 +    }
 +  }
 +  if (alive.count != _presentedModals.count) {
-+    [RNSScreen earNoteZoomDiagnostic:[NSString stringWithFormat:@"stale-modals:%lu->%lu",
-+                                                                (unsigned long)_presentedModals.count,
-+                                                                (unsigned long)alive.count]];
 +    [_presentedModals setArray:alive];
 +    [RNSScreenWindowTraits updateWindowTraits];
 +  }

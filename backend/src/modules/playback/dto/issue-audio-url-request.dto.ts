@@ -1,4 +1,6 @@
-import { IsString, MaxLength } from 'class-validator';
+import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+
+import { AudioQuality } from '@/modules/content/content.enum';
 
 /**
  * `player-api.md` 4.1 — 발급 요청.
@@ -13,4 +15,12 @@ export class IssueAudioUrlRequestDto {
   @IsString()
   @MaxLength(200)
   readonly device_id: string;
+
+  /**
+   * 원하는 음질(player.md 4.9 — KAN-141). 비우면 설정의 선택값. **재생 중 갱신 호출은 처음 응답의 `audio.quality`를
+   * 그대로 실어 보낸다** — 중간에 파일이 바뀌면 위치가 어긋난다. 허용 밖·미보유여도 400이 아니라 깎아서 내준다.
+   */
+  @IsOptional()
+  @IsEnum(AudioQuality)
+  readonly quality?: AudioQuality;
 }

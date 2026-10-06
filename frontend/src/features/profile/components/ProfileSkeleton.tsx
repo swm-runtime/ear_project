@@ -1,6 +1,9 @@
 import { StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import { SkeletonBlock, SkeletonCircle, SkeletonGroup, SkeletonLine } from '@/shared/ui/Skeleton';
+
+const AVATAR_SIZE = 64;
 
 /**
  * P6 최초 조회 스켈레톤(profile-uiux.md 4.9) — 헤더(사진·닉네임·이메일·플랜 자리) + 카드 2장 +
@@ -12,30 +15,26 @@ import { theme } from '@/shared/theme';
  */
 export default function ProfileSkeleton() {
   return (
-    <View
-      style={styles.root}
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-    >
+    <SkeletonGroup style={styles.root}>
       <View style={styles.header}>
-        <View style={styles.avatar} />
+        <SkeletonCircle size={AVATAR_SIZE} />
         <View style={styles.names}>
-          <View style={styles.nickname} />
-          <View style={styles.email} />
+          <SkeletonLine width={120} height={theme.font.size.lg} />
+          <SkeletonLine width={168} height={theme.font.size.sm} />
         </View>
       </View>
-      <View style={styles.planLine} />
+      <SkeletonLine width={180} height={theme.font.size.sm} style={styles.planLine} />
       {/* 관심 주제 · 커리어 카드 2장 */}
       {[0, 1].map((cardIndex) => (
-        <View key={cardIndex} style={styles.card} />
+        <SkeletonBlock key={cardIndex} height={72} radius="md" />
       ))}
       <View style={styles.tilesRow}>
         {[0, 1, 2].map((tileIndex) => (
-          <View key={tileIndex} style={styles.tile} />
+          <SkeletonBlock key={tileIndex} height={84} radius="md" style={styles.tile} />
         ))}
       </View>
-      <View style={styles.chart} />
-    </View>
+      <SkeletonBlock height={150} radius="md" />
+    </SkeletonGroup>
   );
 }
 
@@ -52,44 +51,12 @@ const styles = StyleSheet.create({
     gap: theme.spacing.md,
     paddingVertical: theme.spacing.lg,
   },
-  avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
-  },
   names: {
     flex: 1,
     gap: theme.spacing.xs,
   },
-  nickname: {
-    width: 120,
-    height: theme.font.size.lg,
-    borderRadius: theme.radius.sm,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
-  },
-  email: {
-    width: 168,
-    height: theme.font.size.sm,
-    borderRadius: theme.radius.sm,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
-  },
   planLine: {
-    width: 180,
-    height: theme.font.size.sm,
-    borderRadius: theme.radius.sm,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
-    marginLeft: 64 + theme.spacing.md,
-  },
-  card: {
-    height: 72,
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
+    marginLeft: AVATAR_SIZE + theme.spacing.md,
   },
   tilesRow: {
     flexDirection: 'row',
@@ -97,15 +64,5 @@ const styles = StyleSheet.create({
   },
   tile: {
     flex: 1,
-    height: 84,
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
-  },
-  chart: {
-    height: 150,
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
   },
 });

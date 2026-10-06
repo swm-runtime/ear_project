@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { ActivityIndicator, Image, Pressable, StyleSheet, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
 
+import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { theme } from '@/shared/theme';
 import BottomSheet from '@/shared/ui/BottomSheet';
+import { SkeletonBlock, SkeletonGroup } from '@/shared/ui/Skeleton';
 import { Text } from '@/shared/ui/Typography';
 
 import { topicImageSource } from '@/features/interest';
@@ -13,6 +15,8 @@ import type { LibraryFilter, LibrarySourceFilter, LibraryTopic } from '../librar
 const SOURCE_OPTIONS: LibrarySourceFilter[] = ['drip', 'save'];
 /** 상태 — 종전 세그먼트 탭(전체·미청취·완료)이 시트의 라디오로 들어왔다(2026-09-25 PM) */
 const STATUS_OPTIONS: LibraryFilter[] = ['all', 'unplayed', 'completed'];
+/** 주제 칩 스켈레톤 — 주제 이름 길이처럼 폭이 다른 사진 알약 자리 */
+const TOPIC_CHIP_SKELETON_WIDTHS = [96, 120, 84, 132, 104] as const;
 
 interface TopicFilterSheetProps {
   visible: boolean;
@@ -48,6 +52,8 @@ export default function TopicFilterSheet({
   const [sourceDraft, setSourceDraft] = useState<LibrarySourceFilter | null>(appliedSourceFilter);
   // 상태는 단일 선택(라디오) — '전체'가 해제 상태다
   const [statusDraft, setStatusDraft] = useState<LibraryFilter>(appliedStatus);
+  // 0.3초 안에 오면 칩 줄 높이만 비워 둔다(common-error-handling.md 5)
+  const showTopicSkeleton = useDelayedVisible(isLoading);
 
   const toggle = (topicId: string) => {
     setSelectedIds((prev) =>
@@ -112,7 +118,20 @@ export default function TopicFilterSheet({
         <Text style={styles.helper}>{LIBRARY_COPY.topicFilter.helper}</Text>
 
         {isLoading ? (
-          <ActivityIndicator style={styles.loading} color={theme.color.primary} />
+          showTopicSkeleton ? (
+            <SkeletonGroup style={styles.chipWrap}>
+              {TOPIC_CHIP_SKELETON_WIDTHS.map((width, index) => (
+                <SkeletonBlock
+                  key={index}
+                  width={width}
+                  radius="xl"
+                  style={styles.topicChipSkeleton}
+                />
+              ))}
+            </SkeletonGroup>
+          ) : (
+            <View style={styles.loading} />
+          )
         ) : (
           <View style={styles.chipWrap}>
             {topics.map((topic) => {
@@ -216,8 +235,14 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.sm,
     color: theme.color.textSecondary,
   },
+  // 스켈레톤이 뜨기 전 자리 — 칩 한 줄(chipWrap 여백 + 칩 높이)만큼 비워 시트 높이가 덜 튀게 한다
   loading: {
-    marginVertical: theme.spacing.lg,
+    marginVertical: theme.spacing.md,
+    minHeight: theme.touchTarget.minHeight,
+  },
+  // 주제 칩(topicChip)과 같은 높이·모서리
+  topicChipSkeleton: {
+    height: theme.touchTarget.minHeight,
   },
   chipWrap: {
     flexDirection: 'row',

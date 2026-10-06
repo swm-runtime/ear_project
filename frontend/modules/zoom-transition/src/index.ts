@@ -4,7 +4,6 @@ interface ZoomTransitionNative {
   arm(testId: string): Promise<string>;
   disarm(): void;
   setInteractiveDismissBlocked?(blocked: boolean): void;
-  getDiagnostics?(): string;
   dismissPresentedScreen?(mode: 'zoom' | 'slide'): Promise<string>;
 }
 
@@ -52,7 +51,3 @@ export const dismissPresentedScreenNatively = async (
     return `error:${error instanceof Error ? error.message : String(error)}`;
   }
 };
-
-/** RNS 패치가 남긴 네이티브 진단(최근 8건) — 옛 네이티브엔 없다 */
-export const getZoomTransitionDiagnostics = (): string =>
-  native?.getDiagnostics?.() ?? 'no-native-diagnostics';

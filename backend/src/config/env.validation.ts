@@ -222,6 +222,23 @@ export class EnvironmentVariables {
   APP_STORE_PRIVATE_KEY_BASE64?: string;
 
   /**
+   * App Store Connect API **팀 키**(KAN-133 스토어 리뷰 → Slack). 결제용 `APP_STORE_ISSUER_ID/KEY_ID/PRIVATE_KEY_BASE64`
+   * (In-App Purchase 키)와 종류가 달라 따로 둔다. 셋 다 있고 `APP_STORE_APP_APPLE_ID`가 있을 때만 App Store 리뷰
+   * 폴링이 켜진다. 개인키(.p8)는 base64.
+   */
+  @IsOptional()
+  @IsString()
+  APP_STORE_CONNECT_ISSUER_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  APP_STORE_CONNECT_KEY_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  APP_STORE_CONNECT_PRIVATE_KEY_BASE64?: string;
+
+  /**
    * Google Play 인앱 결제 검증(`subscription-api.md` 4.7 · 7장). **전부 선택이고, 패키지명이나 서비스 계정이
    * 비면 Android 결제가 꺼진다**(결제 의도 생성이 `SUBSCRIPTION_PLAN_UNAVAILABLE`로 막힌다).
    *

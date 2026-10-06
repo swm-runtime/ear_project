@@ -1,3 +1,4 @@
+import { AudioQuality } from '@/modules/content/content.enum';
 import {
   ConsentType,
   DevicePlatform,
@@ -110,6 +111,8 @@ export interface UserSettingView {
   dripFeedbackMutedUntil: string | null;
   /** 마지막으로 별점을 물은 편성분의 서비스 날짜(`drip-feedback.md` 4.1). 설정 화면 응답에는 싣지 않는다 */
   dripFeedbackLastPromptedDate: string | null;
+  /** 사용자가 고른 음질(`player.md` 4.9 — KAN-141). 허용 밖 값도 그대로 둔다 — 재생은 서버가 깎는다 */
+  preferredAudioQuality: AudioQuality;
 }
 
 /** 부분 갱신 명령. **보내지 않은 필드는 건드리지 않는다**(`settings-api.md` 4.2) */
@@ -119,4 +122,5 @@ export interface UpdateUserSettingCommand {
   isDripNotificationEnabled?: boolean;
   dripFeedbackMutedUntil?: string | null;
   dripFeedbackLastPromptedDate?: string | null;
+  preferredAudioQuality?: AudioQuality;
 }
