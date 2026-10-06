@@ -13,7 +13,7 @@
 | 선행 | 없음 |
 | 근거 문서 | `features/settings.md` 4.1(문의하기 — 카카오톡 채널) · CLAUDE.md(사용자 개인정보 공유 금지, 2026-10-04) |
 | 중요도 | Low — PM 발행(2026-10-05). 중요도 미지정이라 이번 주 마감으로 잡았다 — 바꾸려면 Jira·이 표를 함께 고친다 |
-| 상태 | 구현 완료 · **운영 자격증명 등록 대기**(App Store Connect 팀 키 · Play Console 리뷰 권한) |
+| 상태 | **완료** (2026-10-06 — 운영에서 새 리뷰 1건이 Slack에 도착) |
 
 ## 무엇을 한다
 
@@ -56,3 +56,15 @@
 1. App Store Connect → 사용자 및 액세스 → 통합 → **팀 키** 발급(Customer Support 이상) → Secrets에 `APP_STORE_CONNECT_*` 3개
 2. Play Console → 사용자 및 권한 → 결제용 서비스 계정에 **"리뷰 보기 및 답글"** 추가
 3. 재배포 → 15분 뒤 기동 로그 `store reviews baseline recorded without notifying` 확인 → 그 뒤 새 리뷰가 Slack에 오는지 확인(완료 조건 2의 실측). **실제 스토어 응답으로는 아직 돌려 보지 못했다** — 응답 필드명은 공식 문서 기준.
+
+### 2026-10-06 — 운영 반영과 실측 (반영 날짜: 2026-10-06, 릴리스 #1152 `v1.2.0`)
+
+1. **App Store Connect 팀 키**: "사용자 지원"(Customer Support) 권한으로 새 키 발급(키 ID `96Z5PH64C7` — EAS Submit 키와 분리). 운영 Secrets `ear/prod/api`에 `APP_STORE_CONNECT_ISSUER_ID` · `APP_STORE_CONNECT_KEY_ID` · `APP_STORE_CONNECT_PRIVATE_KEY_BASE64` 등록(박준현 직접 실행).
+2. **Play 권한**: **추가하지 않았다.** Play Console의 "리뷰에 답하기" 설명에 "이 권한이 없는 사용자도 평점과 리뷰를 볼 수 있다"고 적혀 있어 기본 "앱 정보 보기(읽기 전용)"로 조회가 된다 — 운영 키로 `reviews.list`를 직접 호출해 200을 확인했다. 위 "남은 것" 2번은 불필요한 항목이었다.
+3. **운영 배포**(15:28 KST, `v1.2.0`) → 기동 로그 `voc-review=on` → 15:43 `store reviews baseline recorded without notifying`(`recorded_count: 2` — App Store 기존 리뷰 2건, Play 0건).
+4. **실측** — 리뷰 폴링 15:58·16:13·…·17:03 정상(실패 없음). 박준현이 두 스토어에 글 리뷰를 남겼으나 한동안 API에 나타나지 않았다:
+   - **Play**: 개발자(테스터) 계정으로 남긴 리뷰는 **비공개 피드백**으로 처리돼 공개 리뷰 API에 오지 않는다. 일반 계정으로 다시 남긴 리뷰가 17:07에 API에 나타났고, **17:18 폴링에서 `store reviews notified` 1건 → Slack 도착 확인**(완료 조건 2 실측).
+   - **App Store**: 검수 대기로 17:18 시점에도 API에는 기존 2건(최신 10/2)만 보인다. 게시되면 다음 폴링이 알린다 — 코드 경로는 Play 건으로 같은 것이 검증됐다.
+5. 운용 메모: Play API는 **프로덕션 트랙 설치자의 글 있는 리뷰**만, App Store API는 **게시된 글 리뷰**만 돌려준다 — 별점만 매긴 것은 둘 다 안 온다. 리뷰 테스트는 일반 계정으로 한다.
+
+**완료 조건 대조**: ① 수집원 조사·범위 확정 ✅(10-06 조사) ② 스토어 리뷰가 Slack에 한 메시지로 ✅(17:18 실측) ③ 신원 값 없음 ✅(리뷰어 닉네임 미수집·미전송). → **archive**.

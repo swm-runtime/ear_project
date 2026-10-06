@@ -766,7 +766,7 @@ content_audio_renditions
   content_id                uuid            FK → contents ON DELETE CASCADE
   quality                   enum            compressed | aac | lossless   ★1.6
   path                      varchar(512)    저장 경로 — `contents.audio_path`와 같은 규칙(비노출, 서명 URL 경로에만 실린다)
-  codec                     varchar(16)     mp3 | aac | pcm_s16le   (표시·진단용)
+  codec                     varchar(16)     mp3 | aac | flac   (표시·진단용 — 파일에서 읽는다. m4a 는 aac. 2026-10-06 FLAC 확정으로 pcm 은 더는 들어오지 않는다)
   bitrate_kbps              int             NULL = 무손실이거나 모름
   channels                  smallint        NULL = 모름 (1 모노 · 2 스테레오)
   sample_rate_hz            int             NULL = 모름
