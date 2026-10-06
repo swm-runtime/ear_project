@@ -137,12 +137,12 @@ const styles = StyleSheet.create({
   hero: {
     alignItems: 'center',
     gap: theme.spacing.sm,
-    marginTop: theme.spacing.xs,
+    marginTop: 0,
     marginBottom: theme.spacing.sm,
   },
   logo: {
     width: LOGO_SIZE,
-    height: LOGO_SIZE,
+    height: Math.round((LOGO_SIZE * 365) / 452),
   },
   title: {
     fontSize: theme.font.size.xl,

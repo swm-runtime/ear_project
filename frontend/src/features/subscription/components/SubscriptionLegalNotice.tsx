@@ -8,7 +8,7 @@ import { Text } from '@/shared/ui/Typography';
 import { SUBSCRIPTION_COPY } from '../subscription.copy';
 
 /** 안내 항목 글머리 칸의 폭 — 글자 크기(xs 12)의 "·" 하나 + 숨 */
-const BULLET_COLUMN_WIDTH = 10;
+const BULLET_COLUMN_WIDTH = 12;
 
 const openUrl = (url: string): void => {
   Linking.openURL(url).catch((error) => logger.warn('[subscription] failed to open link', error));
@@ -52,6 +52,9 @@ export default function SubscriptionLegalNotice({
   return (
     <View style={styles.container}>
       <View style={styles.items}>
+        <Text style={styles.heading} accessibilityRole="header">
+          {SUBSCRIPTION_COPY.legal.heading}
+        </Text>
         {lines.map((line) => (
           // 글머리 "·"는 고정 폭 칸, 글은 남은 폭 — 줄이 바뀌어도 둘째 줄이 점 밑이 아니라 글 시작에 맞는다(내어쓰기)
           <View key={line} style={styles.item}>
@@ -60,7 +63,7 @@ export default function SubscriptionLegalNotice({
               accessibilityElementsHidden
               importantForAccessibility="no"
             >
-              {SUBSCRIPTION_COPY.legal.separator}
+              {SUBSCRIPTION_COPY.legal.bullet}
             </Text>
             <Text style={[styles.line, styles.itemText]}>{line}</Text>
           </View>
@@ -101,9 +104,15 @@ export default function SubscriptionLegalNotice({
 }
 
 const styles = StyleSheet.create({
+  heading: {
+    fontSize: theme.font.size.xs,
+    fontWeight: '600',
+    color: theme.color.textSecondary,
+    marginBottom: 2,
+  },
   // 카드와 필수 안내문 사이 24pt(KAN-146 PM 미리보기 확정)
   container: {
-    marginTop: theme.spacing.lg,
+    marginTop: theme.spacing.sm,
     gap: theme.spacing.xs,
   },
   items: {
@@ -137,7 +146,7 @@ const styles = StyleSheet.create({
   linkLabel: {
     fontSize: theme.font.size.xs,
     fontWeight: '600',
-    color: theme.color.textPrimary,
+    color: theme.color.textSecondary,
     textDecorationLine: 'underline',
   },
   separator: {
