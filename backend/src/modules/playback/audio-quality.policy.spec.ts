@@ -1,4 +1,8 @@
-import { AudioQuality } from '@/modules/content/content.enum';
+import {
+  AudioQuality,
+  OFFERED_AUDIO_QUALITIES,
+  defaultAudioQualityFor,
+} from '@/modules/content/content.enum';
 
 import {
   resolveAudioQuality,
@@ -97,5 +101,26 @@ describe('sortAudioQualities', () => {
         AudioQuality.COMPRESSED,
       ]),
     ).toEqual([AudioQuality.COMPRESSED, AudioQuality.LOSSLESS]);
+  });
+});
+
+describe('defaultAudioQualityFor — 고른 적 없는 사용자의 기본 음질(player.md 4.9, 2026-10-06)', () => {
+  it('티어가 허용하는 가장 높은 선택지다 — aac 는 선택지가 아니라 compressed 로 내려간다', () => {
+    expect(defaultAudioQualityFor(AudioQuality.COMPRESSED)).toBe(
+      AudioQuality.COMPRESSED,
+    );
+    expect(defaultAudioQualityFor(AudioQuality.AAC)).toBe(
+      AudioQuality.COMPRESSED,
+    );
+    expect(defaultAudioQualityFor(AudioQuality.LOSSLESS)).toBe(
+      AudioQuality.LOSSLESS,
+    );
+  });
+
+  it('선택지 목록에는 aac 가 없다 — 파일이 없는 음질을 고르게 하지 않는다', () => {
+    expect(OFFERED_AUDIO_QUALITIES).toEqual([
+      AudioQuality.COMPRESSED,
+      AudioQuality.LOSSLESS,
+    ]);
   });
 });

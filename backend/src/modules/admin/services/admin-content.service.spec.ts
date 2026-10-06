@@ -304,10 +304,10 @@ describe('AdminContentService', () => {
       storage.putAudio
         .mockResolvedValueOnce('audio/c.mp3')
         .mockResolvedValueOnce('audio/a.m4a')
-        .mockResolvedValueOnce('audio/l.wav');
+        .mockResolvedValueOnce('audio/l.flac');
       const command = buildCommand({
         audioAac: buildFile('ep.m4a', 4096),
-        audioLossless: buildFile('ep.wav', 8192),
+        audioLossless: buildFile('ep.flac', 8192),
       });
 
       // when
@@ -324,7 +324,7 @@ describe('AdminContentService', () => {
       expect(rows.map((row) => [row.quality, row.path])).toEqual([
         [AudioQuality.COMPRESSED, 'audio/c.mp3'],
         [AudioQuality.AAC, 'audio/a.m4a'],
-        [AudioQuality.LOSSLESS, 'audio/l.wav'],
+        [AudioQuality.LOSSLESS, 'audio/l.flac'],
       ]);
     });
 
@@ -340,12 +340,12 @@ describe('AdminContentService', () => {
         })
         .mockResolvedValueOnce({
           durationSec: 605,
-          codec: 'pcm',
+          codec: 'flac',
           bitrateKbps: null,
           channels: 2,
           sampleRateHz: 44100,
         });
-      const command = buildCommand({ audioLossless: buildFile('ep.wav') });
+      const command = buildCommand({ audioLossless: buildFile('ep.flac') });
 
       // when
       const uploading = service.upload(command, NOW);
@@ -358,9 +358,9 @@ describe('AdminContentService', () => {
       expect(storage.putAudio).not.toHaveBeenCalled();
     });
 
-    it('무손실 파트는 wav 만 받는다', async () => {
+    it('무손실 파트는 flac 만 받는다 — wav 는 같은 음질에 네 배 크기라 받지 않는다(2026-10-06)', async () => {
       const uploading = service.upload(
-        buildCommand({ audioLossless: buildFile('ep.flac') }),
+        buildCommand({ audioLossless: buildFile('ep.wav') }),
         NOW,
       );
 

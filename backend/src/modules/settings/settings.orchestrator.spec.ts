@@ -75,7 +75,7 @@ function buildDefaultSettings() {
     isDripNotificationEnabled: true,
     dripFeedbackMutedUntil: null,
     dripFeedbackLastPromptedDate: null,
-    preferredAudioQuality: AudioQuality.COMPRESSED,
+    preferredAudioQuality: null,
   };
 }
 
@@ -145,7 +145,7 @@ describe('SettingsOrchestrator', () => {
   });
 
   describe('getSummary — 음질 선택지(settings-api.md 4.1, KAN-141)', () => {
-    it('오름차순 전부를 내려주고 티어의 허용 최대까지만 allowed 다', async () => {
+    it('렌더되는 선택지(compressed · lossless)만 내려주고 티어의 허용 최대까지만 allowed 다 — aac 는 파일이 없어 숨긴다', async () => {
       // given — 허용 최대 aac
       const result = await orchestrator.getSummary(
         USER_ID,
@@ -156,12 +156,44 @@ describe('SettingsOrchestrator', () => {
 
       expect(result.audioQualities).toEqual([
         { quality: AudioQuality.COMPRESSED, allowed: true },
-        { quality: AudioQuality.AAC, allowed: true },
         { quality: AudioQuality.LOSSLESS, allowed: false },
       ]);
-      expect(result.settings.preferredAudioQuality).toBe(
-        AudioQuality.COMPRESSED,
+    });
+
+    it('고른 적 없으면 응답의 음질은 티어가 허용하는 가장 높은 선택지다 — 허용 최대 aac 는 compressed, lossless 는 lossless', async () => {
+      const free = await orchestrator.getSummary(
+        USER_ID,
+        '1.1.0',
+        DevicePlatform.IOS,
+        NOW,
       );
+      expect(free.settings.preferredAudioQuality).toBeNull();
+      expect(free.effectiveAudioQuality).toBe(AudioQuality.COMPRESSED);
+
+      planService.getMaxAudioQuality.mockResolvedValue(AudioQuality.LOSSLESS);
+      const pro = await orchestrator.getSummary(
+        USER_ID,
+        '1.1.0',
+        DevicePlatform.IOS,
+        NOW,
+      );
+      expect(pro.effectiveAudioQuality).toBe(AudioQuality.LOSSLESS);
+    });
+
+    it('직접 고른 값은 허용 밖이어도 그대로 응답한다 — 재생은 서버가 깎는다', async () => {
+      userSettingService.getSettings.mockResolvedValue({
+        ...buildDefaultSettings(),
+        preferredAudioQuality: AudioQuality.LOSSLESS,
+      });
+
+      const result = await orchestrator.getSummary(
+        USER_ID,
+        '1.1.0',
+        DevicePlatform.IOS,
+        NOW,
+      );
+
+      expect(result.effectiveAudioQuality).toBe(AudioQuality.LOSSLESS);
     });
 
     it('사용자 행을 못 읽으면 무료 기준으로 잠근다 — 선택지는 비울 수 없다', async () => {
@@ -175,7 +207,7 @@ describe('SettingsOrchestrator', () => {
       );
 
       expect(planService.getMaxAudioQuality).toHaveBeenCalledWith('light');
-      expect(result.audioQualities).toHaveLength(3);
+      expect(result.audioQualities).toHaveLength(2);
     });
   });
 
@@ -462,7 +494,7 @@ describe('SettingsOrchestrator', () => {
         isDripNotificationEnabled: true,
         dripFeedbackMutedUntil: null,
         dripFeedbackLastPromptedDate: null,
-        preferredAudioQuality: AudioQuality.COMPRESSED,
+        preferredAudioQuality: null,
       });
     });
   });
@@ -528,7 +560,7 @@ describe('SettingsOrchestrator', () => {
         isDripNotificationEnabled: false,
         dripFeedbackMutedUntil: null,
         dripFeedbackLastPromptedDate: null,
-        preferredAudioQuality: AudioQuality.COMPRESSED,
+        preferredAudioQuality: null,
       };
       userSettingService.updateSettings.mockResolvedValue(updated);
 
@@ -541,7 +573,25 @@ describe('SettingsOrchestrator', () => {
       expect(userSettingService.updateSettings).toHaveBeenCalledWith(USER_ID, {
         isDripNotificationEnabled: false,
       });
-      expect(result).toEqual(updated);
+      expect(result.settings).toEqual(updated);
+      // 고른 적 없음 → 응답 음질은 티어 허용 최고 선택지(허용 최대 aac → compressed)
+      expect(result.effectiveAudioQuality).toBe(AudioQuality.COMPRESSED);
+    });
+
+    it('null 을 보내면 고른 적 없음으로 되돌리고, 응답 음질은 다시 티어 기준이다', async () => {
+      userSettingService.updateSettings.mockResolvedValue(
+        buildDefaultSettings(),
+      );
+      planService.getMaxAudioQuality.mockResolvedValue(AudioQuality.LOSSLESS);
+
+      const result = await orchestrator.updateSettings(USER_ID, {
+        preferredAudioQuality: null,
+      });
+
+      expect(userSettingService.updateSettings).toHaveBeenCalledWith(USER_ID, {
+        preferredAudioQuality: null,
+      });
+      expect(result.effectiveAudioQuality).toBe(AudioQuality.LOSSLESS);
     });
   });
 

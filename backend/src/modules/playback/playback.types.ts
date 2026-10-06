@@ -108,7 +108,7 @@ export interface AudioUrlResult {
 export interface IssuedAudio extends SignedAudioUrl {
   /** 실제로 내준 음질 — 갱신 호출의 `quality`에 되돌려 보낸다 */
   quality: AudioQuality;
-  /** 판정에 들어간 음질(요청 → 설정 → compressed) */
+  /** 판정에 들어간 음질(요청 → 설정 → 티어 허용 최고 선택지) */
   requestedQuality: AudioQuality;
   /** 깎인 이유. null = 요청대로 */
   fallbackReason: AudioQualityFallbackReason | null;

@@ -46,9 +46,12 @@ class SettingsValuesDto {
   readonly is_auto_expand_enabled: boolean;
   /** 사용자 노출 명칭은 "이어 PICK 알림"이다. **필드명은 유지한다**(domain.md 3.5) */
   readonly is_drip_notification_enabled: boolean;
-  /** 사용자가 고른 음질(player.md 4.9 — KAN-141). 허용 밖일 수 있다(구독 만료) — 값은 그대로, 재생은 서버가 깎는다 */
+  /**
+   * 적용 중인 음질(player.md 4.9 — KAN-141). 고른 값, 고른 적 없으면 티어가 허용하는 가장 높은 선택지(2026-10-06).
+   * 허용 밖일 수 있다(구독 만료 뒤 남은 선택) — 값은 그대로, 재생은 서버가 깎는다
+   */
   readonly preferred_audio_quality: AudioQuality;
-  /** 음질 선택지 오름차순 전부 + 이 티어의 허용 여부. `allowed = false`는 잠금으로 그린다 */
+  /** 음질 선택지(렌더되는 것만 — compressed · lossless) 오름차순 + 이 티어의 허용 여부. `allowed = false`는 잠금으로 그린다 */
   readonly audio_qualities: AudioQualityOptionDto[];
 }
 
@@ -119,7 +122,7 @@ export class GetSettingsResponseDto {
         default_playback_rate: result.settings.defaultPlaybackRate,
         is_auto_expand_enabled: result.settings.isAutoExpandEnabled,
         is_drip_notification_enabled: result.settings.isDripNotificationEnabled,
-        preferred_audio_quality: result.settings.preferredAudioQuality,
+        preferred_audio_quality: result.effectiveAudioQuality,
         audio_qualities: result.audioQualities,
       },
       marketing_consent: {

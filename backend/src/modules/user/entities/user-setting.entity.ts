@@ -88,14 +88,17 @@ export class UserSetting extends BaseEntity {
   })
   dripFeedbackLastPromptedDate: string | null;
 
-  /** 사용자가 고른 음질(domain.md 3.5 — KAN-141). 허용 밖 값도 저장한다 — 재생은 서버가 깎는다(player.md 4.9) */
+  /**
+   * 사용자가 고른 음질(domain.md 3.5 — KAN-141). **`null` = 고른 적 없음** → 티어가 허용하는 가장 높은 선택지로 판정한다
+   * (`defaultAudioQualityFor`, 2026-10-06). 허용 밖 값도 저장한다 — 재생은 서버가 깎는다(player.md 4.9)
+   */
   @Column({
     name: 'preferred_audio_quality',
     type: 'varchar',
     length: 20,
-    default: AudioQuality.COMPRESSED,
+    nullable: true,
   })
-  preferredAudioQuality: AudioQuality;
+  preferredAudioQuality: AudioQuality | null;
 
   /**
    * 이어 PICK 알림 앱 토글(FR-19, P1).

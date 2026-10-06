@@ -28,7 +28,7 @@ describe('AudioUrlService — 음질(KAN-141)', () => {
 
   const renditions = [
     { quality: AudioQuality.COMPRESSED, path: 'audio/c.mp3' },
-    { quality: AudioQuality.LOSSLESS, path: 'audio/l.wav' },
+    { quality: AudioQuality.LOSSLESS, path: 'audio/l.flac' },
   ];
 
   const issue = (quality?: AudioQuality) =>
@@ -141,6 +141,31 @@ describe('AudioUrlService — 음질(KAN-141)', () => {
     );
   });
 
+  it('고른 적 없으면(설정 null) 티어가 허용하는 가장 높은 선택지로 판정한다 — 허용 최대 aac 는 compressed, lossless 는 lossless', async () => {
+    userSettingService.getSettings.mockResolvedValue({
+      preferredAudioQuality: null,
+    } as never);
+
+    const free = await issue();
+    expect(free.audio).toMatchObject({
+      quality: AudioQuality.COMPRESSED,
+      requestedQuality: AudioQuality.COMPRESSED,
+      fallbackReason: null,
+    });
+
+    planService.getMaxAudioQuality.mockResolvedValue(AudioQuality.LOSSLESS);
+    const pro = await issue();
+    expect(pro.audio).toMatchObject({
+      quality: AudioQuality.LOSSLESS,
+      requestedQuality: AudioQuality.LOSSLESS,
+      fallbackReason: null,
+    });
+    expect(issuer.sign).toHaveBeenLastCalledWith(
+      expect.objectContaining({ audioPath: 'audio/l.flac' }),
+      NOW,
+    );
+  });
+
   it('요청 음질이 있으면 설정을 읽지 않고 그것으로 판정한다 — 갱신 호출이 처음 음질을 되돌려 보낸다', async () => {
     planService.getMaxAudioQuality.mockResolvedValue(AudioQuality.LOSSLESS);
 
@@ -149,7 +174,7 @@ describe('AudioUrlService — 음질(KAN-141)', () => {
     expect(userSettingService.getSettings).not.toHaveBeenCalled();
     expect(result.audio.quality).toBe(AudioQuality.LOSSLESS);
     expect(issuer.sign).toHaveBeenCalledWith(
-      expect.objectContaining({ audioPath: 'audio/l.wav' }),
+      expect.objectContaining({ audioPath: 'audio/l.flac' }),
       NOW,
     );
   });
