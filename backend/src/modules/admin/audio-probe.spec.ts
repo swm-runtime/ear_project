@@ -1,3 +1,8 @@
+// `music-metadata`는 ESM 전용이라 jest(CJS)가 실제 모듈을 읽지 못한다 — 여기서는 순수 함수만 보므로 가상 mock 으로 막는다
+jest.mock('music-metadata', () => ({ parseFile: jest.fn() }), {
+  virtual: true,
+});
+
 import { normalizeCodec } from './audio-probe';
 
 describe('normalizeCodec — music-metadata 코덱 표기를 짧은 이름으로', () => {
