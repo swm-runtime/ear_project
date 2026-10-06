@@ -5,6 +5,7 @@ import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
 import { theme } from '@/shared/theme';
 import PersonIcon from '@/shared/ui/PersonIcon';
+import { pillButton } from '@/shared/ui/pill-button.styles';
 import { Text } from '@/shared/ui/Typography';
 
 import { ProviderIcon } from '@/features/auth';
@@ -54,7 +55,8 @@ const EMAIL_HIT_SLOP = (theme.touchTarget.minHeight - 22) / 2;
  * 아이콘을 직접 띄우면서 이 줄의 세로 가운데에 맞추는데, 잴 헤더가 없어 값이 필요하다.
  * 헤더가 있으면 아이콘은 닉네임 줄 안에 들어가므로 이 값과 무관하다.
  */
-export const PROFILE_IDENTITY_ROW_HEIGHT = VERTICAL_PADDING + Math.max(AVATAR_SIZE, NAMES_MIN_HEIGHT);
+export const PROFILE_IDENTITY_ROW_HEIGHT =
+  VERTICAL_PADDING + Math.max(AVATAR_SIZE, NAMES_MIN_HEIGHT);
 const PROVIDER_BADGE_SIZE = 24;
 const PROVIDER_ICON_SIZE = 13;
 /** 닉네임이 없을 때 아바타를 채우는 사람 아이콘 */
@@ -233,7 +235,7 @@ export default function ProfileHeader({
             {planText(plan.data)}
           </Text>
           {plan.data.kind === 'free' ? (
-            <View style={styles.planCta}>
+            <View style={[pillButton.base, pillButton.primary, styles.planCta]}>
               <Text style={styles.planCtaText}>{PROFILE_COPY.plan.freeAction}</Text>
             </View>
           ) : null}
@@ -275,9 +277,8 @@ const styles = StyleSheet.create({
   planDanger: {
     color: theme.color.danger,
   },
+  // 크기만 — 모양·색은 공용 알약(pillButton)
   planCta: {
-    borderRadius: theme.radius.full,
-    backgroundColor: theme.color.primary,
     paddingHorizontal: theme.spacing.sm + theme.spacing.xs,
     paddingVertical: theme.spacing.xs,
   },

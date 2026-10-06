@@ -1,6 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import { pillButton } from '@/shared/ui/pill-button.styles';
 import { Text } from '@/shared/ui/Typography';
 
 import type { CareerCardVM, SectionState } from '../hooks/useProfileScreen';
@@ -45,7 +46,7 @@ export default function CareerCard({ state, onPress, onRetry, isRetrying }: Care
         vm.isEmpty ? (
           <View style={styles.emptyRow}>
             <Text style={styles.prompt}>{PROFILE_COPY.career.emptyPrompt}</Text>
-            <View style={styles.emptyAction}>
+            <View style={[pillButton.base, pillButton.primary, styles.emptyAction]}>
               <Text style={styles.emptyActionText}>{PROFILE_COPY.career.emptyAction}</Text>
             </View>
           </View>
@@ -74,11 +75,8 @@ const styles = StyleSheet.create({
     color: theme.color.textSecondary,
     flexShrink: 1,
   },
-  // 버튼은 md + 연속 곡률(design.md §2) — 09-26 전엔 sm 8 의 작은 사각이라 같은 화면의 구독 칩·시트 버튼과 모양이 달랐다
+  // 버튼 모양 칩 — 공용 알약(pillButton, design.md §2). 09-26 전엔 sm 8 의 작은 사각이었고, 10-06 md 12 에서 알약으로
   emptyAction: {
-    backgroundColor: theme.color.primary,
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.xs,
   },

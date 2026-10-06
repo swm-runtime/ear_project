@@ -52,7 +52,7 @@ export type MainStackParamList = {
   ExploreSearch: undefined;
   /** 설정(settings.md) — 진입점은 프로필 우상단 아이콘뿐이다 */
   Settings: undefined;
-  /** 구독 관리(subscription.md · KAN-120) — 설정 플랜 카드·프로필 [구독 알아보기]의 목적지 */
+  /** 요금제 관리(subscription.md · KAN-120) — 설정 "요금제 관리" 카드·프로필 [구독 알아보기]의 목적지 */
   Subscription: undefined;
   /**
    * 이메일 인증(A 계열, auth.md 4.4~4.5) — [등록]·[인증하기]·[변경]·프로필 헤더의 공통 목적지.

@@ -1,6 +1,6 @@
 /**
  * subscription feature 공개 API(convention.md 2.2) — 여기서 export하지 않은 것은 내부 구현이다.
- * 구독 결제(KAN-120)·구독 관리 화면·페이월의 요금제 비교를 소유한다(architecture.md 4.1 · 5.6).
+ * 구독 결제(KAN-120)·요금제 관리 화면·페이월의 요금제 비교를 소유한다(architecture.md 4.1 · 5.6).
  * **구독 UI 가 꺼진 바이너리(플래그·결제 모듈·플랫폼 — shared/lib/feature-flags.ts)에서는 화면도 결제 모듈 호출도 없다.**
  */
 export { default as SubscriptionScreen } from './screens/SubscriptionScreen';

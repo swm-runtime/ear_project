@@ -109,7 +109,8 @@ const planForScenario = (): SettingsPlanDto => {
       return {
         status: 'free',
         tier: 'light',
-        plan_name: '무료',
+        // 서버 plans.name 그대로(KAN-147 — Light·Daily·Pro)
+        plan_name: 'Light',
         daily_play_limit: 3,
         renews_at: null,
         expires_at: null,

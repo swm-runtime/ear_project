@@ -1,6 +1,7 @@
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import { pillButton } from '@/shared/ui/pill-button.styles';
 import { Text } from '@/shared/ui/Typography';
 
 interface FullScreenErrorProps {
@@ -25,7 +26,7 @@ export default function FullScreenError({
       <Text style={styles.title}>{title}</Text>
       {description !== undefined ? <Text style={styles.description}>{description}</Text> : null}
       <Pressable
-        style={styles.retry}
+        style={[pillButton.base, pillButton.primary, styles.retry]}
         disabled={isRetrying}
         onPress={onRetry}
         accessibilityRole="button"
@@ -35,7 +36,7 @@ export default function FullScreenError({
         {isRetrying ? (
           <ActivityIndicator color={theme.color.onPrimary} />
         ) : (
-          <Text style={styles.retryLabel}>{retryLabel}</Text>
+          <Text style={pillButton.primaryLabel}>{retryLabel}</Text>
         )}
       </Pressable>
     </View>
@@ -62,20 +63,11 @@ const styles = StyleSheet.create({
     color: theme.color.textSecondary,
     textAlign: 'center',
   },
+  // 크기만 — 모양·색은 공용 알약(pillButton)
   retry: {
     marginTop: theme.spacing.md,
     minHeight: theme.touchTarget.minHeight,
     minWidth: 120,
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
     paddingHorizontal: theme.spacing.lg,
-  },
-  retryLabel: {
-    fontSize: theme.font.size.md,
-    fontWeight: '600',
-    color: theme.color.onPrimary,
   },
 });

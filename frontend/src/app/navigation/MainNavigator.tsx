@@ -165,7 +165,7 @@ export default function MainNavigator() {
         />
         {/* TODO: 프로필·설정 목적지 — 각 화면 구현 시 컴포넌트만 교체한다(라우트 이름 유지).
           플레이스홀더 동안은 기본 push + 헤더를 둔다: 화면 안에 돌아갈 수단이 있어야 한다 */}
-        {/* 구독 관리(KAN-120) — 앱바(뒤로 + "구독 관리")를 화면이 직접 그린다(subscription-uiux.md SB1).
+        {/* 요금제 관리(KAN-120·KAN-146) — 앱바(뒤로 버튼만)와 본문 큰 제목을 화면이 직접 그린다(subscription-uiux.md SB1).
           구독 UI 가 꺼진 바이너리(플래그·결제 모듈·플랫폼)에서는 진입점이 없다 — 라우트만 placeholder 로 남긴다 */}
         {IS_SUBSCRIPTION_UI_ENABLED ? (
           <MainStack.Screen name="Subscription" component={SubscriptionScreen} />

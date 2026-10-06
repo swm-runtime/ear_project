@@ -57,9 +57,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: theme.spacing.md,
   },
+  // 어두운 스낵바 면(textPrimary) 위 — primary(#000)는 거의 안 보였다(KAN-146). 플레이어 스낵바처럼 onPrimary
   undoLabel: {
     fontSize: theme.font.size.sm,
     fontWeight: '700',
-    color: theme.color.primary,
+    color: theme.color.onPrimary,
   },
 });

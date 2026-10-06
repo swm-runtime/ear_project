@@ -18,7 +18,7 @@ const STORE_OF_PLATFORM: Record<'ios' | 'android', SubscriptionStore> = {
 };
 
 /**
- * 구독 관리 화면(SB 계열 — subscription-uiux.md)의 로직 소유자. 화면은 뷰만 담당한다.
+ * 요금제 관리 화면(SB 계열 — subscription-uiux.md)의 로직 소유자. 화면은 뷰만 담당한다.
  * 상태는 서버의 GET /users/me/subscription 이 정하고(만료·해지 판정 없음), 버튼은 요금제 목록의 action 이 정한다.
  */
 export const useSubscriptionScreen = () => {
@@ -55,7 +55,6 @@ export const useSubscriptionScreen = () => {
       : null;
 
   return {
-    isInitialLoading: meQuery.isPending,
     isStatusError: meQuery.isError,
     retryStatus: () => void meQuery.refetch(),
     isStatusRetrying: meQuery.isFetching,

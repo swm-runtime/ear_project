@@ -6,6 +6,7 @@ import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
 import { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
 import GlassIconButton from '@/shared/ui/GlassIconButton';
+import { pillButton } from '@/shared/ui/pill-button.styles';
 import { SkeletonBlock, SkeletonGroup } from '@/shared/ui/Skeleton';
 import { Text } from '@/shared/ui/Typography';
 
@@ -144,7 +145,7 @@ export default function InterestManagementScreen() {
             {screen.saveErrorMessage !== null ? (
               /* IM8 — 같은 저장의 반복이라 확인 팝업 없이 다시 보낸다(uiux 4.7) */
               <Pressable
-                style={styles.save}
+                style={[pillButton.base, pillButton.primary, styles.save]}
                 disabled={screen.isSaving}
                 onPress={screen.retrySave}
                 accessibilityRole="button"
@@ -159,7 +160,12 @@ export default function InterestManagementScreen() {
               </Pressable>
             ) : (
               <Pressable
-                style={[styles.save, !screen.canSave && styles.saveDisabled]}
+                style={[
+                  pillButton.base,
+                  pillButton.primary,
+                  styles.save,
+                  !screen.canSave && styles.saveDisabled,
+                ]}
                 disabled={!screen.canSave}
                 onPress={screen.handleSavePress}
                 accessibilityRole="button"
@@ -316,13 +322,9 @@ const styles = StyleSheet.create({
     color: theme.color.danger,
     textAlign: 'center',
   },
+  // 크기만 — 모양·색은 공용 알약(pillButton)
   save: {
     minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   saveDisabled: {
     backgroundColor: theme.color.border,
