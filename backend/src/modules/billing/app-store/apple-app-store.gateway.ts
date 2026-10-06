@@ -149,11 +149,7 @@ export class AppleAppStoreGateway extends AppStoreGateway {
     signedPayload: string,
   ): Promise<AppStoreNotification> {
     const environment = this.resolveEnvironment(
-      peekEnvironment(
-        signedPayload,
-        (payload) =>
-          (payload.data as { environment?: unknown } | undefined)?.environment,
-      ),
+      peekEnvironment(signedPayload, pickNotificationEnvironment),
     );
     const verifier = this.verifier(environment);
     const payload = await this.runVerification(() =>
@@ -393,6 +389,47 @@ function peekEnvironment(
   } catch {
     throw new AppStoreVerificationError('invalid', 'malformed');
   }
+}
+
+/**
+ * 알림 봉투에서 환경을 읽는다. **환경은 `data`에만 있는 것이 아니다** — 알림은 `data` · `summary` ·
+ * `externalPurchaseToken` · `appData` 중 하나만 싣고(Apple `responseBodyV2DecodedPayload`), 구독 일괄 연장 요약
+ * (`RENEWAL_EXTENSION`/`SUMMARY`)이나 동의 철회(`RESCIND_CONSENT`)에는 `data`가 없다. `data`만 보면 그런 알림을
+ * "받지 않는 환경"으로 400 처리해 Apple이 며칠간 재전송한다(2026-10-06). 읽는 순서·규칙은 Apple 라이브러리의
+ * `verifyAndDecodeNotification`과 같다 — 여기서 고른 환경을 그 검증이 다시 대조한다.
+ */
+export function pickNotificationEnvironment(
+  payload: Record<string, unknown>,
+): unknown {
+  const part = (key: string): Record<string, unknown> | undefined => {
+    const value = payload[key];
+
+    return typeof value === 'object' && value !== null
+      ? (value as Record<string, unknown>)
+      : undefined;
+  };
+  const data = part('data');
+  const summary = part('summary');
+  const externalPurchaseToken = part('externalPurchaseToken');
+
+  if (data) {
+    return data.environment;
+  }
+
+  if (summary) {
+    return summary.environment;
+  }
+
+  if (externalPurchaseToken) {
+    // 이 본문에는 환경 필드가 없다 — 식별자의 접두사로 가른다(Apple 라이브러리와 같은 규칙)
+    const id = externalPurchaseToken.externalPurchaseId;
+
+    return typeof id === 'string' && id.startsWith('SANDBOX')
+      ? 'Sandbox'
+      : 'Production';
+  }
+
+  return part('appData')?.environment;
 }
 
 function toStoreTransaction(

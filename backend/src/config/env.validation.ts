@@ -201,12 +201,14 @@ export class EnvironmentVariables {
   APP_STORE_APP_APPLE_ID?: string;
 
   @IsOptional()
-  @Matches(/^((Production|Sandbox)(,(Production|Sandbox))?)?$/)
+  // 쉼표 앞뒤 공백을 허용한다 — `Production, Sandbox`로 적었다고 서버가 기동에 실패하지 않게(읽는 쪽이 다듬는다)
+  @Matches(/^\s*((Production|Sandbox)(\s*,\s*(Production|Sandbox))?)?\s*$/)
   APP_STORE_ENVIRONMENTS?: string;
 
   /**
-   * App Store Server API 키 — **만료 보정**(스토어에 구독의 현재 상태를 묻는 것)에만 쓴다. 영수증·알림 검증은
-   * 서명만으로 끝나 이 키가 없어도 된다. 셋 중 하나라도 비면 보정이 꺼지고 저장된 상태 그대로 응답한다.
+   * App Store Server API 키 — 스토어에 구독의 현재 상태를 묻는 두 곳(**만료 보정**, **처음 연결하는 구독의
+   * 상태 확인** — `subscription-api.md` 4.2·4.4)에 쓴다. 영수증·알림 검증은 서명만으로 끝나 이 키가 없어도 된다.
+   * 셋 중 하나라도 비면 둘 다 꺼진다.
    * 개인키(.p8)는 base64로 둔다(`CLOUDFRONT_PRIVATE_KEY_BASE64`와 같은 방식).
    */
   @IsOptional()
