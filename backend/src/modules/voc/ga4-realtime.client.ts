@@ -38,7 +38,7 @@ const DATA_API_BASE = 'https://analyticsdata.googleapis.com/v1beta';
  * GA4 **실시간** 보고 조회(앱 삭제 알림 — `features/backend-monitoring.md` 3-4).
  *
  * 일일 보고(`admin/ga4.service.ts`)의 gRPC SDK 를 쓰지 않고 **REST 를 직접 부른다** — 그 SDK 는 올리는 것만으로
- * 54MB 를 들고, 5분마다 도는 일이 그걸 상주시킬 이유가 없다. 인증은 결제가 쓰는 `google-auth-library` JWT 로
+ * 54MB 를 들고, 15분마다 도는 일이 그걸 상주시킬 이유가 없다. 인증은 결제가 쓰는 `google-auth-library` JWT 로
  * 같은 서비스 계정(`GA4_SERVICE_ACCOUNT_BASE64`)에서 analytics.readonly 토큰을 받는다. 모듈은 처음 쓸 때 로드한다.
  *
  * 실시간 보고는 **최근 30분**만 보이고(`minutesAgo` 0~29) 분 단위로 "도착 시각"을 준다. 호출부는 그 분 단위로

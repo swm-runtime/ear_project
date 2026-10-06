@@ -32,11 +32,11 @@ export const REVIEW_BODY_MAX_LENGTH = 500;
 export const STORE_API_TIMEOUT_MS = 15_000;
 
 /**
- * 앱 삭제 알림(GA4 `app_remove` — `features/backend-monitoring.md` 3-4) 폴링 주기 — 5분.
- * GA4 실시간 보고는 최근 30분만 보이므로 주기는 그보다 넉넉히 짧아야 한다. Data API 실시간 한도(속성당 하루
- * 20만 토큰)에 비해 하루 288회는 미미하다.
+ * 앱 삭제 알림(GA4 `app_remove` — `features/backend-monitoring.md` 3-4) 폴링 주기 — 15분(스토어 리뷰와 같다).
+ * GA4 실시간 보고는 최근 30분만 보이므로 주기는 그보다 짧아야 한다 — 15분이면 한 주기를 통째로 놓쳐도
+ * 다음 주기 창 안에 든다. 삭제는 분 단위로 반응할 일이 아니다(2026-10-06 — 5분에서 늦췄다).
  */
-export const APP_REMOVE_POLL_INTERVAL_MS = 5 * 60 * 1000;
+export const APP_REMOVE_POLL_INTERVAL_MS = 15 * 60 * 1000;
 
 /** 실시간 보고가 돌려주는 가장 오래된 분 — 표준 속성은 29 */
 export const GA4_REALTIME_MAX_MINUTES_AGO = 29;

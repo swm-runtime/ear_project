@@ -62,7 +62,7 @@ CloudWatch(EC2 지표·`/ear/api`·`/ear/caddy` 로그)·Sentry·합성 헬스�
 | 10분마다 | `push-receipt-check` | 푸시 영수증(receipt) 회수 | 로그 — 실패분은 다음 주기에 다시 묻는다 |
 | 17:00 | `daily-metrics` | 일일 지표 Slack 보고(GA4 + 서버 — 3-3) | 로그, 던지지 않음 |
 | 15분마다 | `store-review-poll` | App Store·Google Play 새 리뷰·수정 리뷰를 Slack 한 메시지로(KAN-133 VoC — `store_reviews`에 알린 것을 기록). 리뷰어 닉네임은 어디에도 싣지 않는다 | 로그, 다음 주기 재시도 — 보냈을 때만 기록하므로 웹훅이 죽은 주기의 리뷰는 다음 주기에 다시 고른다. **Play 는 최근 1주일치만 돌아와** 7일 넘게 멈추면 그 사이 리뷰는 복구되지 않는다 |
-| 5분마다 | `app-remove-poll` | GA4 실시간 `app_remove`(Firebase 가 Android 에서 자동 수집하는 앱 삭제)를 읽어 새로 도착한 건수를 Slack 한 줄로(3-4). 운영 스트림만, 신원 값 없음 | 로그, 다음 주기 — "마지막으로 집계한 분"이 그대로라 30분 창 안이면 다시 본다. 재배포 뒤 첫 주기는 창을 전부 집계해 한 번 중복될 수 있다 |
+| 15분마다 | `app-remove-poll` | GA4 실시간 `app_remove`(Firebase 가 Android 에서 자동 수집하는 앱 삭제)를 읽어 새로 도착한 건수를 Slack 한 줄로(3-4). 운영 스트림만, 신원 값 없음 | 로그, 다음 주기 — "마지막으로 집계한 분"이 그대로라 30분 창 안이면 다시 본다. 재배포 뒤 첫 주기는 창을 전부 집계해 한 번 중복될 수 있다 |
 | 60초마다 | 자원 경보(`setInterval` — 크론 아님) | CPU·메모리 표본 + Slack 경보(5장) | 로그. 표본은 모든 워커가 쌓고 **경보 발송만** 스케줄러 워커가 한다 |
 
 - 04시대의 순서(집계 → 만료 → 주제 숨김 → 삭제 → 구독 보정 → 05:00 편성)는 서비스 날짜 경계(04:00) 뒤에 전날분을 확정하고 편성이 그 결과를 읽게 하려는 것이다.
@@ -125,7 +125,7 @@ CloudWatch(EC2 지표·`/ear/api`·`/ear/caddy` 로그)·Sentry·합성 헬스�
 | 항목 | 규칙 |
 |---|---|
 | 출처 | **GA4 `app_remove`** — Firebase 가 **Android 에서 자동 수집**하는 삭제 이벤트(Play 서비스가 올린다. 우리가 심은 이벤트가 아니다). **iOS 는 없다** — Apple 이 삭제를 알려 주지 않는다. iOS 의 유일한 신호는 푸시 토큰 무효화(`device_tokens.invalidated_at` — `push-receipt-check`)다 |
-| 주기·창 | **5분마다** GA4 Data API **실시간 보고**(REST `runRealtimeReport`)로 최근 30분을 분 단위(`minutesAgo` × `platform`)로 읽는다. 일일 보고의 gRPC SDK 는 쓰지 않는다 — 54MB 를 상주시킬 일이 아니다. 인증은 같은 서비스 계정(`GA4_SERVICE_ACCOUNT_BASE64`)의 JWT |
+| 주기·창 | **15분마다** GA4 Data API **실시간 보고**(REST `runRealtimeReport`)로 최근 30분을 분 단위(`minutesAgo` × `platform`)로 읽는다. 일일 보고의 gRPC SDK 는 쓰지 않는다 — 54MB 를 상주시킬 일이 아니다. 인증은 같은 서비스 계정(`GA4_SERVICE_ACCOUNT_BASE64`)의 JWT |
 | 중복 방지 | 실시간 보고는 매번 30분을 통째로 주므로 **"마지막으로 집계한 분"**(epoch 분)을 메모리에 들고 그보다 새 분만 더한다. 막 도착한 분(3분 안)은 아직 채워지는 중일 수 있어 다음 주기로 미룬다. 재배포 뒤 첫 주기는 보이는 창을 전부 집계한다 — 직전 프로세스가 알린 분이 섞여 **한 번 중복될 수 있다**(놓치는 것보다 낫다) |
 | 문구 | `:wastebasket: 앱 삭제 N건 · Android · HH:mm~HH:mm KST (GA4 app_remove)` — 시각은 GA4 **도착** 분이다(삭제 시각이 아니다. Play 서비스가 올리기까지 늦을 수 있다). 플랫폼이 둘 이상이면 `Android 2 · iOS 1`. **누가 지웠는지는 싣지 않는다** — 실시간 보고에 사용자 식별자가 없고, 있어도 Slack 에는 신원 값을 쓰지 않는다 |
 | 켜짐 | GA4 자격(`GA4_PROPERTY_ID` · `GA4_SERVICE_ACCOUNT_BASE64`) + 웹훅이 있을 때, 스케줄러 프로세스에서만. 기동 로그 `app-remove-alert=on` |
