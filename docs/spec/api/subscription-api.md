@@ -175,7 +175,9 @@
 | `pending_plan` | **다운그레이드 예약**이 있으면 `{ "tier", "plan_name", "effective_at" }`, 없으면 `null`. `effective_at`은 현재 결제 주기 만료 시각이다(`subscription.md` 4.4 — "언제부터 적용되는지" 표시) |
 
 - **`users.tier` 캐시가 아니라 `subscriptions`를 기준으로 조립한다**(`domain.md` 8.2). 프로필·설정과 같은 규칙이다.
-- **만료 보정** — 알림 유실 대비(`subscription.md` 7). 조회 시점에 비종결 행(`active`·`grace`·`cancelled`)의 `expires_at`이 **1시간 넘게 지나 있으면** 서버가 스토어에 그 구독의 현재 상태를 조회해 반영한 뒤 응답한다. 스토어 조회가 실패하면 **저장된 상태 그대로 응답한다** — 추측으로 강등하지 않는다(유예·갱신 지연을 만료로 오판하면 결제한 사용자가 막힌다). 같은 보정을 하루 1회 배치도 돌린다.
+- **만료 보정** — 알림 유실 대비(`subscription.md` 7). 조회 시점에 비종결 행(`active`·`grace`·`cancelled`)의 `expires_at`이 **1시간 넘게 지나 있으면** 서버가 스토어에 그 구독의 현재 상태를 조회해 반영한 뒤 응답한다. 스토어 조회가 실패하면 **저장된 상태 그대로 응답한다** — 섣불리 추측으로 강등하지 않는다(유예·갱신 지연을 만료로 오판하면 결제한 사용자가 막힌다). 같은 보정을 하루 1회 배치도 돌린다.
+  - **상한 — 7일**(2026-10-06). 스토어에 **확인할 수 없는 채로**(조회 키 미구성 · 스토어가 그 구독을 모름 · 조회 실패 지속 · 상품을 모름) `expires_at`이 **7일 넘게** 지난 비종결 행은 `expired`로 내리고 `users.tier`를 맞춘다. 상한이 없으면 그런 행은 영영 유료로 남고, 매 배치의 앞자리를 차지해 다른 행의 보정을 민다. 7일은 App Store가 실패한 알림을 다시 보내는 기간(1·12·24·48·72시간 뒤, 합 약 6.5일)을 넘긴 값이다 — 그 뒤에는 늦은 갱신 알림이 올 가능성이 없다. 유예 기간은 이미 `expires_at`에 들어 있다(4.6).
+  - 상한으로 내릴 때 **`last_notified_at`은 건드리지 않는다** — 스토어가 말한 사실이 아니라 서버의 추정이라, 뒤늦게 온 갱신 알림·거래(영수증 제출·복원)가 그대로 되살린다. 내릴 때마다 경고 로그를 남긴다(잦으면 조회 구성이 빠진 것이다).
   - 조회가 상태를 바꾸는 유일한 경우다. 그 밖에는 조회가 쓰기를 유발하지 않는다.
 - 이 응답의 `entitlements`와 라이브러리·탐색 응답의 `daily_play_limit`(`library-api.md` 2장)은 **같은 `plans` 행에서 온다.**
 
@@ -260,8 +262,8 @@
 
 1. **서명 검증** — iOS: JWS의 인증서 체인을 Apple 루트까지 검증하고 `bundleId`·환경을 확인한다. Android: Google Play Developer API(`purchases.subscriptionsv2.get`)로 토큰을 조회한다. **클라이언트가 보낸 평문 필드(상품 ID 등)는 신뢰하지 않는다** — 서명된 거래·스토어 응답의 값만 쓴다
 2. **상품 → 요금제** — 거래의 상품 ID를 `plans.store_product_id_*`에서 찾는다. 없으면 `SUBSCRIPTION_RECEIPT_INVALID`
-3. **주인 확인**(7장) — 거래에 계정 토큰이 있고 그것이 **다른 살아 있는 사용자**의 `purchase_intents.id`면 `SUBSCRIPTION_OWNED_BY_ANOTHER_ACCOUNT`. 그 거래의 `original_transaction_id`가 이미 다른 계정의 `subscriptions`에 있어도 같다
-4. **유효성** — 이미 만료·환불된 거래면 `SUBSCRIPTION_RECEIPT_INVALID`(구매 제출인데 유효한 구독이 아니다)
+3. **주인 확인**(7장) — 거래에 계정 토큰이 있고 그것이 **다른 살아 있는 사용자**의 `purchase_intents.id`면 `SUBSCRIPTION_OWNED_BY_ANOTHER_ACCOUNT`. 그 거래의 `original_transaction_id`가 이미 다른 계정의 `subscriptions`에 있어도 같다. **예외**(2026-10-06): 그 행이 이미 끝난 구독(`expired`·`refunded`)이고 거래의 계정 토큰이 **요청자의** 결제 의도면 통과시키고, 반영할 때 행을 요청자에게 넘긴다(7장 "끝난 구독의 재결제")
+4. **유효성** — 이미 만료·환불된 거래면 `SUBSCRIPTION_RECEIPT_INVALID`(구매 제출인데 유효한 구독이 아니다). **iOS — 처음 연결하는 구독은 Apple에 지금 상태를 묻는다**(2026-10-06): 그 `original_transaction_id`의 행이 없거나 끝난 행뿐이면 App Store Server API로 현재 상태를 조회해, 만료·결제 재시도·환불이면 `SUBSCRIPTION_RECEIPT_INVALID`(복원에서는 무시), 유효·유예면 **조회한 상태로** 반영한다(자동 갱신 여부·유예·변경 예약까지 맞는다). 서명된 거래는 "그때 그런 결제가 있었다"일 뿐이고, 행이 없던 동안의 환불·해지 알림은 반영할 곳이 없어 사라지기 때문이다(탈퇴 → 재가입, 영수증 제출 전에 온 알림). 조회할 수 없거나(API 키 미구성) 실패하거나 Apple이 모르면 **결제를 막지 않고** 종전대로 거래만으로 판정한다(경고 로그). Apple의 답에 실린 최신 거래가 제출된 거래보다 옛것일 때도 같다 — 그 답은 방금 한 결제를 아직 모른다
 5. **반영** — `original_transaction_id` 기준 upsert로 `subscriptions`를 만들거나 갱신하고, **같은 트랜잭션에서 `users.tier`를 갱신한다.** 의도 행이 있으면 `verified`로 바꾼다
 6. Android: 미확인 구매면 서버가 `acknowledge`한다(3일 안에 확인하지 않으면 Google이 자동 환불한다). **순서는 반영(커밋) → 확인이다.** 확인이 실패하면 구독은 이미 반영된 채로 `SUBSCRIPTION_STORE_UNAVAILABLE`(503)을 답한다 — 클라이언트가 거래를 끝내지 않고 다시 제출하면 그때 확인을 마친다(반영은 멱등이라 두 번 해도 같다)
 
@@ -355,7 +357,7 @@ Apple이 호출한다. 본문은 `{ "signedPayload": "<JWS>" }`. App Store Conne
 | `DID_CHANGE_RENEWAL_PREF` (subtype 없음) | 예약 취소 — `pending_tier` 비움 |
 | `DID_FAIL_TO_RENEW` (`GRACE_PERIOD`) | **`grace`** — 혜택 유지, `has_payment_issue` |
 | `DID_FAIL_TO_RENEW` (subtype 없음 — 유예 기간 없음) | `expired` → `users.tier = light`. 재청구가 성공하면 `DID_RENEW`로 돌아온다 |
-| `GRACE_PERIOD_EXPIRED` · `EXPIRED` (전 subtype) | `expired` → `users.tier = light` |
+| `GRACE_PERIOD_EXPIRED` · `EXPIRED` (전 subtype) | `expired` → `users.tier = light`. **유예 중인 구독은 거래의 만료일을 저장된 종료일과 비교하지 않고 반영한다**(7장 — 유예 중에는 종료일이 유예 종료일로 밀려 있다) |
 | `REFUND` · `REVOKE` | **`refunded`** → **즉시** `users.tier = light`(`subscription.md` 4.7) |
 | `REFUND_REVERSED` | 만료 전이면 `active` 복구 |
 | `RENEWAL_EXTENDED` | 만료일만 갱신 |
@@ -387,9 +389,11 @@ Google Cloud Pub/Sub **push 구독**이 호출한다. 본문은 Pub/Sub 메시�
 | `SUBSCRIPTION_STATE_IN_GRACE_PERIOD` | `grace` — 종료일은 Google이 준 만료 시각(유예 종료) |
 | `SUBSCRIPTION_STATE_ON_HOLD` · `PAUSED` · `EXPIRED` · `PENDING_PURCHASE_CANCELED` | `expired` → `users.tier = light` |
 | `SUBSCRIPTION_STATE_PENDING` | 반영하지 않는다 — 결제 대기라 아직 구독이 아니다 |
-| 철회 알림(`subscriptionNotification.notificationType = 12`) · 구독 환불 통지(`voidedPurchaseNotification`, `productType = 1`) | `refunded` → 즉시 `light`. **구독 상태만으로는 만료와 구분되지 않아** 알림이 알려 줄 때만 환불로 본다 |
+| 철회 알림(`subscriptionNotification.notificationType = 12`) · 구독 환불 통지(`voidedPurchaseNotification`, `productType = 1`) | `refunded` → 즉시 `light`. **구독 상태만으로는 만료와 구분되지 않아** 알림이 알려 줄 때만 환불로 본다. **환불로 내린 구독은 같은 구매 토큰·같은 결제 주기로는 되살리지 않는다**(2026-10-06) — 아래 "환불의 고정" |
 | 다운그레이드 예약(`lineItems[].deferredItemReplacement`) | 티어 유지, `pending_tier` = 다음 갱신 티어 |
 | `testNotification` · 그 밖 | 적재만 하고 상태를 바꾸지 않는다 |
+
+**환불의 고정**(2026-10-06) — "마지막에 조회한 상태가 맞는 상태다"의 유일한 예외다. Google의 구독 상태에는 환불이 보이지 않아, `refunded`로 내린 뒤에도 그 토큰을 조회하면 `ACTIVE`나 `EXPIRED`로 답할 수 있다. 그대로 반영하면 뒤따르는 다른 알림·복원·재제출이 환불을 지운다. 그래서 `refunded`인 행에 **같은 구매 토큰**(`latest_receipt`)의 조회 결과가 오면 반영하지 않는다 — 영수증 제출은 `SUBSCRIPTION_RECEIPT_INVALID`, 복원은 무시(확인도 하지 않는다). 되살아나는 것은 **돈이 다시 들어왔을 때**뿐이다: ① 새 구매 토큰(재구독·요금제 변경) ② 같은 토큰이지만 `ACTIVE`이고 만료 시각이 환불 당시보다 뒤로 갔다(그 뒤에 갱신 결제가 됐다 — 유예로 만료 시각만 밀린 것은 해당하지 않는다). App Store에는 이 규칙이 없다 — 상태 조회가 환불을 직접 답한다.
 
 **구독 행의 키** — Play에는 `original_transaction_id`가 없다. **그 구독의 최초 `purchaseToken`을 `original_transaction_id`로 쓰고**, 마지막으로 반영한 토큰을 `latest_receipt`에 둔다. 업·다운그레이드·재구독으로 새 토큰이 발급되면 다음 순서로 기존 행을 찾아 같은 행을 갱신한다(행이 늘지 않는다).
 
@@ -470,6 +474,7 @@ Google Cloud Pub/Sub **push 구독**이 호출한다. 본문은 Pub/Sub 메시�
 - **클라이언트가 보낸 값으로 티어를 바꾸지 않는다.** 티어를 바꾸는 근거는 ① 스토어가 서명한 거래(JWS)·스토어 API 응답 ② 스토어 서버 알림 둘뿐이다. 요청 본문의 평문 필드(`product_id`, `intent_id`)는 조회 열쇠·교차 확인용이다.
 - **`users.tier`를 쓰는 경로는 한 곳이다**(`domain.md` 3.1 — `BillingSyncService.syncUserTier`). 영수증 제출·복원·웹훅·만료 보정이 전부 같은 반영 함수를 거치고, 구독 행과 `users.tier`를 **한 트랜잭션에서** 고친다. `subscription` 모듈이 아니라 그 위의 `billing` 모듈에 있다 — `user` 모듈이 `subscription`을 의존해(탈퇴 시 결제 이력 판정) 반대 방향으로는 의존할 수 없어서다.
 - **거래의 주인 확인** — 결제에 실은 `account_token`(= `purchase_intents.id`)이 서명된 거래 안에 들어온다. 그 의도가 다른 사용자의 것이면 거부한다. 토큰이 없거나(복원·프로모션 코드·스토어 밖 구매) 의도 행이 이미 없으면(탈퇴로 파기) `original_transaction_id`의 유일성으로만 판정한다 — 살아 있는 다른 계정에 있으면 거부, 없으면 연결.
+  - **끝난 구독의 재결제는 결제한 계정의 것이다**(2026-10-06). 다른 계정의 행이 이미 끝난 구독(`expired`·`refunded`)이고, 지금 온 거래의 계정 토큰이 **요청자의** 결제 의도이며, 그 반영이 구독을 되살리는 것이면 → 행의 `user_id`를 요청자로 바꾼다(영수증 제출·복원·서버 알림 모두 같은 규칙). App Store는 같은 Apple 계정이 같은 구독 그룹을 다시 결제하면 예전 `originalTransactionId`를 이어 쓸 수 있어, 이 예외가 없으면 방금 결제한 계정이 409를 받고 결제하지 않은 예전 계정이 유료가 된다. **살아 있는 구독**(`active`·`grace`·`cancelled`)은 종전대로 거부한다. 토큰이 없거나 예전 계정의 의도면 넘기지 않는다 — 그 결제는 예전 계정이 시작한 것이다.
 - **거래 ID만으로 복원하지 않는다.** `archived_subscriptions`의 `original_transaction_id`는 보존 기록이지 권한이 아니다(`domain.md` 11.5). 재가입 복원은 **그 스토어 계정이 지금 제출한 서명된 거래**가 있을 때만 성립한다.
 - **환경 분리** — iOS 거래·알림의 `environment`(`Production` / `Sandbox`)를 본다. **서버가 받는 환경은 설정값이다**(`APP_STORE_ENVIRONMENTS`): 개발계 서버는 `Sandbox`, 운영 서버는 `Production`, 심사·TestFlight 결제까지 받으려면 `Production,Sandbox`다(App Store 심사와 TestFlight는 운영 빌드로 샌드박스 결제를 한다). 받지 않는 환경은 서명이 맞아도 `SUBSCRIPTION_RECEIPT_INVALID`다. **운영이 샌드박스를 함께 받을 때 시험 결제는 `subscriptions.environment = sandbox`로 구분된다**(`domain.md` 8.2) — 권한은 똑같이 주되(그래야 심사·시험이 된다) 매출·구독자 집계에서 뺀다.
 - **웹훅 검증** — App Store: `signedPayload`의 인증서 체인을 Apple 루트 인증서까지 검증하고 `bundleId`·`appAppleId`를 대조한다. Play: Pub/Sub OIDC 토큰의 서명·`aud`·발신 서비스 계정을 검증한다. 검증 전에는 본문을 믿지 않는다. 웹훅 경로는 사용자 레이트리밋 대상이 아니다.
@@ -477,12 +482,12 @@ Google Cloud Pub/Sub **push 구독**이 호출한다. 본문은 Pub/Sub 메시�
 - **로그에 영수증·토큰 원문을 남기지 않는다**(`convention.md` 8.4). `original_transaction_id`·알림 UUID·유형만 남긴다. `subscriptions.latest_receipt`에는 마지막 서명 거래(JWS) 또는 구매 토큰을 저장한다(재조회 열쇠).
 - **스토어 구성과 자격증명**은 Secrets Manager에 두고 env로 주입한다.
   - **검증 구성** — `APP_STORE_BUNDLE_ID`(번들 ID) · `APP_STORE_ENVIRONMENTS`(받는 환경) · `APP_STORE_APP_APPLE_ID`(앱의 Apple ID — `Production`을 받을 때 필수). **영수증·알림 검증은 서명만으로 끝나 API 키가 필요 없다.** 이 구성이 비어 있으면 iOS 결제가 꺼지고, 관련 요청은 `SUBSCRIPTION_STORE_UNAVAILABLE`이 아니라 **`SUBSCRIPTION_PLAN_UNAVAILABLE`** 로 의도 생성 단계에서 막힌다(결제부터 시키고 검증을 못 하는 상태를 만들지 않는다). 4.1의 `action`도 전부 `none`이 된다.
-  - **App Store Server API 키** — `APP_STORE_ISSUER_ID` · `APP_STORE_KEY_ID` · `APP_STORE_PRIVATE_KEY_BASE64`(.p8). **만료 보정(4.2)에만 쓴다.** 비어 있으면 보정이 꺼지고 저장된 상태 그대로 응답한다 — 그동안 알림이 유실된 구독은 유료로 남는다(경고 로그).
+  - **App Store Server API 키** — `APP_STORE_ISSUER_ID` · `APP_STORE_KEY_ID` · `APP_STORE_PRIVATE_KEY_BASE64`(.p8). **만료 보정(4.2)과 처음 연결하는 구독의 상태 확인(4.4-4)에 쓴다.** 비어 있으면 둘 다 꺼진다 — 알림이 유실된 구독은 상한(만료일 + 7일)까지 유료로 남고(경고 로그), 처음 연결하는 거래는 서명과 만료일만으로 판정한다(환불 → 탈퇴 → 재가입 뒤의 옛 거래를 걸러내지 못한다). **운영에는 반드시 넣는다.**
   - **Play 검증 구성**(2026-10-03) — `GOOGLE_PLAY_PACKAGE_NAME`(앱 패키지명) · `GOOGLE_PLAY_SERVICE_ACCOUNT_BASE64`(Play Developer API를 부르는 서비스 계정의 JSON 키. Play Console에서 그 계정에 "주문 및 구독 관리" 권한 필요). 둘 중 하나라도 비면 Android 결제가 꺼진다
   - **Play 알림 검증값** — `GOOGLE_PLAY_PUBSUB_AUDIENCE`(push 구독에 설정한 대상) · `GOOGLE_PLAY_PUBSUB_SERVICE_ACCOUNT`(push가 쓰는 서비스 계정 이메일). 비면 알림만 꺼진다(구매 검증·복원·보정은 동작한다)
   - **우리 자격증명이 거부된 것은 사용자 잘못이 아니다** — 서비스 계정이 틀리면 Google의 토큰 발급 주소가 400으로 답하는데, 이를 "모르는 구매 토큰"과 같이 다루지 않고 `SUBSCRIPTION_STORE_UNAVAILABLE`(재시도)로 답하며 error 로그를 남긴다
 - **환불·만료 뒤의 재제출을 막는다** — 환불(`refunded`)·만료(`expired`)로 종결된 구독에, 그 통지 **이전에 시작된** 거래를 다시 내면 `SUBSCRIPTION_RECEIPT_INVALID`다(복원에서는 무시). 기기에 받아 둔 서명 거래에는 환불 표시가 없어 그 자체로는 유효해 보이기 때문이다. 종결 뒤에 새로 시작된 거래(재구독)만 되살린다(`domain.md` 8.2 `last_notified_at`).
-- **지난 결제 주기에 대한 환불·만료 알림은 지금 주기를 건드리지 않는다** — 알림의 거래가 저장된 만료일보다 앞선 주기의 것이면 반영하지 않는다(지난달 결제분만 환불된 경우).
+- **지난 결제 주기에 대한 환불·만료 알림은 지금 주기를 건드리지 않는다** — 알림의 거래가 저장된 만료일보다 앞선 주기의 것이면 반영하지 않는다(지난달 결제분만 환불된 경우). **유예(`grace`) 중에는 이 비교를 하지 않는다**(2026-10-06) — 유예에 들어갈 때 `expires_at`을 유예 종료일로 밀어 두는데 Apple의 거래 만료일은 거래마다 고정이라(유예 종료일은 갱신 정보에 따로 온다), 그 구독의 어떤 알림이든 거래 만료일이 더 이르다. 비교하면 유예 종료·만료·환불 알림이 전부 버려져 유예가 끝나도 유료로 남는다. 순서가 뒤바뀐 옛 알림은 서명 시각(`last_notified_at`)으로 거른다.
 
 ---
 

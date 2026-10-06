@@ -68,6 +68,11 @@ export class PlayPurchaseService {
 
       const outcome = await this.applyFor(userId, snapshot, now, manager);
 
+      // 환불로 끝난 구매를 같은 토큰으로 다시 낸 것 — Google이 유효라 답해도 되살리지 않는다(4.7)
+      if (outcome.kind === 'ignored' && outcome.reason === 'terminated') {
+        throw this.invalid('refunded_token');
+      }
+
       await this.billingSyncService.syncUserTier(userId, manager);
 
       this.logger.log('play purchase applied', {
@@ -130,7 +135,13 @@ export class PlayPurchaseService {
           continue;
         }
 
-        await this.applyFor(userId, snapshot, now, manager);
+        const outcome = await this.applyFor(userId, snapshot, now, manager);
+
+        // 환불로 끝난 구매(같은 토큰)는 연결된 것이 아니다 — 세지도 확인하지도 않는다(4.7)
+        if (outcome.kind === 'ignored') {
+          continue;
+        }
+
         applied.push(purchase);
       }
 

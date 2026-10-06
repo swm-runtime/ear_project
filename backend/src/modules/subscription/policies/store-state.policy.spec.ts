@@ -720,3 +720,198 @@ describe('resolveFromStoreStatus — 만료 보정', () => {
     });
   });
 });
+
+describe('resolveFromAppStoreNotification — 유예 중인 구독(2026-10-06)', () => {
+  // 유예에 들어갈 때 종료일을 유예 종료일로 밀어 둔다 — 그 뒤의 알림은 거래의 만료일(원래 주기의 끝)이 그보다 이르다
+  const GRACE_END = new Date('2026-11-17T00:00:00.000Z');
+  const ENTERED_GRACE_AT = new Date('2026-11-01T00:10:00.000Z');
+  const AFTER_GRACE = new Date('2026-11-17T00:05:00.000Z');
+  const inGrace = stored({
+    status: SubscriptionStatus.GRACE,
+    expiresAt: GRACE_END,
+    lastNotifiedAt: ENTERED_GRACE_AT,
+  });
+
+  it.each(['GRACE_PERIOD_EXPIRED', 'EXPIRED'])(
+    '%s — 거래의 만료일이 유예 종료일보다 일러도 만료로 내린다',
+    (type) => {
+      const state = applied(
+        resolveFromAppStoreNotification(
+          inGrace,
+          notification({
+            type,
+            signedAt: AFTER_GRACE,
+            transaction: transaction({ expiresAt: PERIOD_END }),
+          }),
+          AFTER_GRACE,
+        ),
+      );
+
+      expect(state).toMatchObject({
+        status: SubscriptionStatus.EXPIRED,
+        isAutoRenew: false,
+      });
+    },
+  );
+
+  it.each(['REFUND', 'REVOKE'])('%s — 유예 중에도 환불로 내린다', (type) => {
+    const at = new Date('2026-11-05T00:00:00.000Z');
+    const state = applied(
+      resolveFromAppStoreNotification(
+        inGrace,
+        notification({
+          type,
+          signedAt: at,
+          transaction: transaction({ expiresAt: PERIOD_END, revokedAt: at }),
+        }),
+        at,
+      ),
+    );
+
+    expect(state.status).toBe(SubscriptionStatus.REFUNDED);
+  });
+
+  it('DID_RENEW(재청구 성공) — 새 만료일이 유예 종료일보다 일러도 유효로 돌아온다', () => {
+    const recoveredAt = new Date('2026-11-03T00:00:00.000Z');
+    const weeklyEnd = new Date('2026-11-08T00:00:00.000Z');
+    const state = applied(
+      resolveFromAppStoreNotification(
+        inGrace,
+        notification({
+          type: 'DID_RENEW',
+          subtype: 'BILLING_RECOVERY',
+          signedAt: recoveredAt,
+          transaction: transaction({
+            purchasedAt: recoveredAt,
+            expiresAt: weeklyEnd,
+          }),
+        }),
+        recoveredAt,
+      ),
+    );
+
+    expect(state).toMatchObject({
+      status: SubscriptionStatus.ACTIVE,
+      expiresAt: weeklyEnd,
+    });
+  });
+
+  it('유예에 들어가기 전에 서명된 옛 알림은 여전히 무시한다(서명 시각 순서)', () => {
+    expect(
+      resolveFromAppStoreNotification(
+        inGrace,
+        notification({
+          type: 'EXPIRED',
+          signedAt: new Date('2026-10-31T00:00:00.000Z'),
+          transaction: transaction({ expiresAt: PERIOD_START }),
+        }),
+        AFTER_GRACE,
+      ),
+    ).toEqual({ kind: 'ignore', reason: 'out_of_order' });
+  });
+
+  it('유예가 아닌 구독은 종전대로 — 지난 주기 결제분의 환불은 지금 주기를 건드리지 않는다', () => {
+    expect(
+      resolveFromAppStoreNotification(
+        stored({ expiresAt: NEXT_PERIOD_END }),
+        notification({
+          type: 'REFUND',
+          transaction: transaction({ expiresAt: PERIOD_END, revokedAt: NOW }),
+        }),
+        NOW,
+      ),
+    ).toEqual({ kind: 'ignore', reason: 'older_transaction' });
+  });
+});
+
+describe('resolveFromStoreStatus — 환불로 끝난 Play 구독(4.7, 2026-10-06)', () => {
+  const playTransaction = (overrides: Partial<StoreTransaction> = {}) =>
+    transaction({
+      store: SubscriptionStore.PLAY_STORE,
+      receipt: 'token-1',
+      ...overrides,
+    });
+  const refunded = stored({
+    status: SubscriptionStatus.REFUNDED,
+    isAutoRenew: false,
+    latestReceipt: 'token-1',
+  });
+  const input = (
+    status: Parameters<typeof resolveFromStoreStatus>[1]['status'],
+    tx: StoreTransaction,
+  ) => ({
+    status,
+    transaction: tx,
+    renewal: renewal(),
+    tier: UserTier.PRO,
+    renewalTier: UserTier.PRO,
+    checkedAt: NOW,
+  });
+
+  it.each(['active', 'grace', 'billing_retry', 'expired'] as const)(
+    '같은 구매 토큰·같은 주기에 Google이 %s라 답해도 환불을 덮지 않는다',
+    (status) => {
+      expect(
+        resolveFromStoreStatus(refunded, input(status, playTransaction())),
+      ).toEqual({ kind: 'ignore', reason: 'terminated' });
+    },
+  );
+
+  it('유예로 만료일만 밀린 것은 결제가 아니다 — 되살리지 않는다', () => {
+    expect(
+      resolveFromStoreStatus(
+        refunded,
+        input('grace', playTransaction({ expiresAt: NEXT_PERIOD_END })),
+      ),
+    ).toEqual({ kind: 'ignore', reason: 'terminated' });
+  });
+
+  it('같은 토큰이라도 만료일이 뒤로 간 유효 상태면(그 뒤에 갱신 결제가 됐다) 되살린다', () => {
+    expect(
+      applied(
+        resolveFromStoreStatus(
+          refunded,
+          input('active', playTransaction({ expiresAt: NEXT_PERIOD_END })),
+        ),
+      ),
+    ).toMatchObject({
+      status: SubscriptionStatus.ACTIVE,
+      expiresAt: NEXT_PERIOD_END,
+    });
+  });
+
+  it('새 구매 토큰(재구독·요금제 변경)이면 되살린다', () => {
+    expect(
+      applied(
+        resolveFromStoreStatus(
+          refunded,
+          input('active', playTransaction({ receipt: 'token-2' })),
+        ),
+      ).status,
+    ).toBe(SubscriptionStatus.ACTIVE);
+  });
+
+  it('환불 통지의 재전송은 같은 상태다', () => {
+    expect(
+      resolveFromStoreStatus(
+        refunded,
+        input('revoked', playTransaction({ revokedAt: NOW })),
+      ),
+    ).toEqual({ kind: 'unchanged' });
+  });
+
+  it('App Store 구독에는 적용하지 않는다 — 상태 조회가 환불을 직접 답한다', () => {
+    expect(
+      applied(
+        resolveFromStoreStatus(
+          stored({
+            status: SubscriptionStatus.REFUNDED,
+            isAutoRenew: false,
+            latestReceipt: 'signed',
+          }),
+          input('active', transaction()),
+        ),
+      ).status,
+    ).toBe(SubscriptionStatus.ACTIVE);
+  });
+});

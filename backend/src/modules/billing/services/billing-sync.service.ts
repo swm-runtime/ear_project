@@ -10,6 +10,7 @@ import {
   StoreStateIgnoreReason,
   StoreStatusInput,
   StoredSubscriptionState,
+  isTerminalStatus,
   resolveFromAppStoreNotification,
   resolveFromStoreStatus,
   resolveFromTransaction,
@@ -19,6 +20,7 @@ import { PurchaseIntentService } from '@/modules/subscription/services/purchase-
 import { SubscriptionService } from '@/modules/subscription/services/subscription.service';
 import {
   NON_TERMINAL_SUBSCRIPTION_STATUSES,
+  SubscriptionStatus,
   SubscriptionStore,
 } from '@/modules/subscription/subscription.enum';
 import {
@@ -67,6 +69,11 @@ export class BillingSyncService {
    * 구독 행이 다른 사용자의 것이거나, 결제에 실어 보낸 계정 토큰이 다른 사용자의 결제 의도다.
    *
    * 탈퇴한 계정은 구독·의도 행이 파기돼 있어 걸리지 않는다 — 재가입 복원이 이 경로로 성립한다.
+   *
+   * **예외 — 끝난 구독의 재결제(2026-10-06).** 행이 다른 계정의 것이어도 그 구독이 이미 끝났고(`expired`·
+   * `refunded`) 이 거래가 **요청자의 결제 의도로 결제된 것**이면 통과시킨다 — 반영할 때 행을 요청자에게 넘긴다
+   * (`applyDecision`). App Store는 같은 Apple 계정이 같은 구독 그룹을 다시 결제하면 예전 `originalTransactionId`를
+   * 이어 쓸 수 있어, 막으면 방금 결제한 계정이 409를 받고 예전 계정이 유료가 된다.
    */
   async assertOwnedBy(
     userId: string,
@@ -82,8 +89,14 @@ export class BillingSyncService {
       manager,
     );
 
+    const isOwnedByAnother = existing !== null && existing.userId !== userId;
+    const canTakeOver =
+      isOwnedByAnother &&
+      isTerminalStatus(existing.status) &&
+      tokenOwnerId === userId;
+
     if (
-      (existing !== null && existing.userId !== userId) ||
+      (isOwnedByAnother && !canTakeOver) ||
       (tokenOwnerId !== null && tokenOwnerId !== userId)
     ) {
       throw new BusinessException({
@@ -139,9 +152,18 @@ export class BillingSyncService {
       transaction.originalTransactionId,
       manager,
     );
+    const tokenOwnerId = await this.findOwnerByToken(
+      transaction.accountToken,
+      manager,
+    );
+    // 끝난 구독을 다른 계정이 자기 결제 의도로 다시 결제했다면 그 계정의 구독이다(`assertOwnedBy`의 예외와 같은
+    // 규칙) — 행 주인에게 그대로 반영하면 결제하지 않은 예전 계정이 유료가 된다
     const userId =
-      existing?.userId ??
-      (await this.findOwnerByToken(transaction.accountToken, manager));
+      existing !== null &&
+      isTerminalStatus(existing.status) &&
+      tokenOwnerId !== null
+        ? tokenOwnerId
+        : (existing?.userId ?? tokenOwnerId);
 
     if (userId === null) {
       return { kind: 'unlinked' };
@@ -170,11 +192,51 @@ export class BillingSyncService {
       input.signedAt,
     );
 
-    if (existing === null && transaction.accountToken !== null) {
+    if (
+      transaction.accountToken !== null &&
+      (existing === null || existing.userId !== userId)
+    ) {
       await this.markIntentVerified(userId, transaction.accountToken, manager);
     }
 
     return outcome;
+  }
+
+  /**
+   * 만료 보정의 상한(`subscription-api.md` 4.2) — **스토어에 확인할 수 없는 채로** 만료일이 `before`보다 앞선
+   * 비종결 구독을 만료로 내린다. 내렸으면 `true`.
+   *
+   * 알림 순서 기준 시각(`last_notified_at`)은 건드리지 않는다 — 스토어가 말한 사실이 아니라 우리의 추정이라,
+   * 뒤늦게 도착한 갱신 알림·거래가 그대로 되살릴 수 있어야 한다.
+   */
+  async expireUnverifiable(
+    originalTransactionId: string,
+    before: Date,
+    manager: EntityManager,
+  ): Promise<boolean> {
+    const subscription =
+      await this.subscriptionService.lockByOriginalTransactionId(
+        originalTransactionId,
+        manager,
+      );
+
+    // 조회와 잠금 사이에 알림이 먼저 정리했을 수 있다 — 잠근 뒤 다시 본다
+    if (
+      subscription === null ||
+      isTerminalStatus(subscription.status) ||
+      subscription.expiresAt.getTime() >= before.getTime()
+    ) {
+      return false;
+    }
+
+    subscription.status = SubscriptionStatus.EXPIRED;
+    subscription.isAutoRenew = false;
+    subscription.pendingTier = null;
+
+    await this.subscriptionService.save(subscription, manager);
+    await this.syncUserTier(subscription.userId, manager);
+
+    return true;
   }
 
   /** 만료 보정 — 스토어에 직접 물어 얻은 현재 상태로 맞춘다(`subscription-api.md` 4.2). 행이 있어야 한다 */
@@ -362,19 +424,43 @@ export class BillingSyncService {
       subscription = result.subscription;
     }
 
+    /** 끝난 구독을 넘겨받는 중이면 그 전 주인(`assertOwnedBy`의 예외) */
+    let previousOwnerId: string | null = null;
+
     if (subscription.userId !== userId) {
-      // 잠그는 사이에 다른 계정이 먼저 연결했다 — 주인 확인을 통과한 뒤의 경합이다
-      throw new BusinessException({
-        status: HttpStatus.CONFLICT,
-        errorCode: ErrorCode.SUBSCRIPTION_OWNED_BY_ANOTHER_ACCOUNT,
-        message: '이미 다른 계정에서 사용 중인 구독이에요',
-      });
+      const canTakeOver =
+        isTerminalStatus(subscription.status) &&
+        (await this.findOwnerByToken(transaction.accountToken, manager)) ===
+          userId;
+
+      if (!canTakeOver) {
+        // 잠그는 사이에 다른 계정이 먼저 연결했다 — 주인 확인을 통과한 뒤의 경합이다
+        throw new BusinessException({
+          status: HttpStatus.CONFLICT,
+          errorCode: ErrorCode.SUBSCRIPTION_OWNED_BY_ANOTHER_ACCOUNT,
+          message: '이미 다른 계정에서 사용 중인 구독이에요',
+        });
+      }
+
+      previousOwnerId = subscription.userId;
     }
 
     const decision = resolve(toStoredState(subscription));
 
     if (decision.kind === 'ignore') {
       return toOutcome(decision);
+    }
+
+    if (previousOwnerId !== null) {
+      // 넘겨받는 것은 구독이 **되살아날 때뿐**이다 — 끝난 채로 남는 반영이면 남의 행을 건드리지 않는다
+      if (
+        decision.kind !== 'apply' ||
+        isTerminalStatus(decision.state.status)
+      ) {
+        return { kind: 'ignored', reason: 'terminated' };
+      }
+
+      subscription.userId = userId;
     }
 
     if (decision.kind === 'apply') {
@@ -389,6 +475,17 @@ export class BillingSyncService {
 
     if (decision.kind === 'apply' || notifiedAt !== null) {
       await this.subscriptionService.save(subscription, manager);
+    }
+
+    if (previousOwnerId !== null) {
+      // 끝난 구독이었으니 전 주인의 티어는 이미 이 행과 무관하다 — 캐시가 어긋나 있었을 경우만 맞춘다
+      await this.syncUserTier(previousOwnerId, manager);
+
+      this.logger.log('terminated subscription taken over by repurchase', {
+        subscription_id: subscription.id,
+        user_id: userId,
+        previous_user_id: previousOwnerId,
+      });
     }
 
     return toOutcome(decision);
@@ -446,6 +543,7 @@ function toStoredState(subscription: Subscription): StoredSubscriptionState {
     cancelledAt: subscription.cancelledAt,
     pendingTier: subscription.pendingTier,
     lastNotifiedAt: subscription.lastNotifiedAt,
+    latestReceipt: subscription.latestReceipt,
   };
 }
 

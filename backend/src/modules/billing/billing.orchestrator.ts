@@ -1,5 +1,5 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
-import { DataSource } from 'typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
@@ -18,10 +18,11 @@ import {
 } from '@/modules/subscription/subscription.enum';
 import { StoreTransaction } from '@/modules/subscription/subscription.types';
 import { UserService } from '@/modules/user/services/user.service';
-import { DevicePlatform } from '@/modules/user/user.enum';
+import { DevicePlatform, UserTier } from '@/modules/user/user.enum';
 
 import {
   AppStoreGateway,
+  AppStoreSubscriptionStatus,
   AppStoreVerificationError,
 } from './app-store/app-store.gateway';
 import { PlanAction } from './billing.enum';
@@ -40,7 +41,10 @@ import {
   receiptInvalid,
   storeUnavailable,
 } from './billing.exception';
-import { BillingSyncService } from './services/billing-sync.service';
+import {
+  BillingSyncService,
+  SyncOutcome,
+} from './services/billing-sync.service';
 import { PlayPurchaseService } from './services/play-purchase.service';
 import { SubscriptionReconcileService } from './services/subscription-reconcile.service';
 
@@ -213,20 +217,26 @@ export class BillingOrchestrator {
       throw this.receiptInvalid('not_valid_now');
     }
 
+    // 처음 연결하는 구독은 Apple에 지금 상태를 묻는다 — 서명이 진짜여도 그 뒤에 환불됐을 수 있다
+    const storeStatus = await this.fetchStatusForLinking(transaction);
+
+    if (storeStatus !== null && !isEntitledStatus(storeStatus)) {
+      throw this.receiptInvalid(`store_status:${storeStatus.status}`);
+    }
+
     await this.dataSource.transaction(async (manager) => {
       await this.billingSyncService.assertOwnedBy(userId, transaction, manager);
 
-      const outcome = await this.billingSyncService.applyTransaction(
-        userId,
-        transaction,
-        plan.tier,
+      const outcome = await this.applyLinked(
+        { userId, transaction, tier: plan.tier, storeStatus, now },
         manager,
       );
 
-      // 환불·만료 통지 뒤에 그 전의 거래를 다시 낸 것 — 권한을 되살리지 않는다
+      // 권한을 되살리지 않는 반영(환불·만료 통지 뒤에 그 전의 거래를 다시 낸 것 등) — 구매 제출로서는 오류다.
+      // 더 새 주기가 이미 저장돼 있던 것(`older_transaction`)만 권한이 살아 있으니 성공이다
       if (
         outcome.kind === 'ignored' &&
-        outcome.reason === 'replayed_after_termination'
+        outcome.reason !== 'older_transaction'
       ) {
         throw this.receiptInvalid(outcome.reason);
       }
@@ -277,18 +287,28 @@ export class BillingOrchestrator {
       };
     }
 
-    // 서명 검증은 트랜잭션 밖에서 — Apple 확인(네트워크)을 기다리는 동안 행을 잠그지 않는다
-    const verified: { transaction: StoreTransaction; plan: Plan }[] = [];
+    // 서명 검증·상태 조회는 트랜잭션 밖에서 — Apple 확인(네트워크)을 기다리는 동안 행을 잠그지 않는다
+    const verified: {
+      transaction: StoreTransaction;
+      plan: Plan;
+      storeStatus: AppStoreSubscriptionStatus | null;
+    }[] = [];
 
     for (const signedTransaction of command.signedTransactions) {
       const transaction = await this.verify(
         command.platform,
         signedTransaction,
       );
+      const plan = await this.findPlanOrInvalid(transaction);
 
       verified.push({
         transaction,
-        plan: await this.findPlanOrInvalid(transaction),
+        plan,
+        // 지금 유효해 보이는 거래만 묻는다 — 만료·환불이 거래에 이미 적혀 있으면 물을 것이 없다
+        storeStatus:
+          classifyTransaction(transaction, now) === 'valid'
+            ? await this.fetchStatusForLinking(transaction)
+            : null,
       });
     }
 
@@ -302,7 +322,7 @@ export class BillingOrchestrator {
     const restoredCount = await this.dataSource.transaction(async (manager) => {
       let linked = 0;
 
-      for (const { transaction, plan } of verified) {
+      for (const { transaction, plan, storeStatus } of verified) {
         await this.billingSyncService.assertOwnedBy(
           userId,
           transaction,
@@ -313,10 +333,13 @@ export class BillingOrchestrator {
           continue;
         }
 
-        const outcome = await this.billingSyncService.applyTransaction(
-          userId,
-          transaction,
-          plan.tier,
+        // Apple이 그 구독은 이미 끝났다고 답했다(환불·만료) — 복원할 것이 아니다
+        if (storeStatus !== null && !isEntitledStatus(storeStatus)) {
+          continue;
+        }
+
+        const outcome = await this.applyLinked(
+          { userId, transaction, tier: plan.tier, storeStatus, now },
           manager,
         );
 
@@ -344,6 +367,108 @@ export class BillingOrchestrator {
       restored: restoredCount > 0,
       subscription: await this.buildView(userId, now),
     };
+  }
+
+  /**
+   * **처음 연결하는 구독**(행이 없거나 끝난 행뿐)이면 Apple에 그 구독의 지금 상태를 묻는다(4.4-5 — 2026-10-06).
+   *
+   * 서명된 거래는 "그때 그런 결제가 있었다"는 사실이지 "지금도 유효하다"가 아니다. 연결돼 있는 동안에는 환불·
+   * 해지가 서버 알림으로 들어오지만, **행이 없던 동안의 알림은 반영할 곳이 없어 사라진다**(탈퇴 → 재가입,
+   * 영수증 제출 전에 도착한 알림). 그래서 환불된 거래의 옛 서명을 다시 내면 만료일까지 유료가 되고, 해지 예약도
+   * 빠진 채 연결된다.
+   *
+   * 물을 수 없거나(API 키 미구성) 조회가 실패하거나 Apple이 모르면 `null` — 종전대로 거래만으로 판정한다.
+   * 조회 장애가 정상 결제를 막아서는 안 된다.
+   *
+   * **Apple의 답이 제출된 거래보다 옛것이어도 `null`이다.** 답에 실린 최신 거래의 만료일이 손에 든 서명 거래보다
+   * 이르면, 그 답은 이 거래(방금 한 재구독·갱신)를 아직 모른다 — 그런 답으로 방금 결제한 사용자를 거절하지 않는다.
+   */
+  private async fetchStatusForLinking(
+    transaction: StoreTransaction,
+  ): Promise<AppStoreSubscriptionStatus | null> {
+    const existing = await this.subscriptionService.findByOriginalTransactionId(
+      transaction.originalTransactionId,
+    );
+
+    if (
+      existing !== null &&
+      NON_TERMINAL_SUBSCRIPTION_STATUSES.includes(existing.status)
+    ) {
+      return null;
+    }
+
+    if (!this.appStoreGateway.canFetchStatus(transaction.environment)) {
+      return null;
+    }
+
+    let status: AppStoreSubscriptionStatus | null;
+
+    try {
+      status = await this.appStoreGateway.fetchStatus(
+        transaction.originalTransactionId,
+        transaction.environment,
+      );
+    } catch (error) {
+      // 보조 확인이다 — 어떤 실패든 결제를 막지 않는다
+      this.logger.warn('store status check skipped on linking', {
+        original_transaction_id: transaction.originalTransactionId,
+        environment: transaction.environment,
+        reason:
+          error instanceof AppStoreVerificationError
+            ? error.reason
+            : error instanceof Error
+              ? error.message
+              : String(error),
+      });
+
+      return null;
+    }
+
+    if (
+      status !== null &&
+      status.transaction.expiresAt.getTime() < transaction.expiresAt.getTime()
+    ) {
+      this.logger.warn('store status older than submitted transaction', {
+        original_transaction_id: transaction.originalTransactionId,
+        environment: transaction.environment,
+        store_status: status.status,
+      });
+
+      return null;
+    }
+
+    return status;
+  }
+
+  /**
+   * 검증을 마친 거래를 그 사용자의 구독으로 반영한다. Apple에 물어 얻은 상태가 있으면 **그 상태로** 반영한다 —
+   * 자동 갱신 여부·유예·변경 예약까지 맞는다(거래에는 그 정보가 없다).
+   */
+  private applyLinked(
+    input: {
+      userId: string;
+      transaction: StoreTransaction;
+      tier: UserTier;
+      storeStatus: AppStoreSubscriptionStatus | null;
+      now: Date;
+    },
+    manager: EntityManager,
+  ): Promise<SyncOutcome> {
+    const { userId, transaction, tier, storeStatus, now } = input;
+
+    return storeStatus === null
+      ? this.billingSyncService.applyTransaction(
+          userId,
+          transaction,
+          tier,
+          manager,
+        )
+      : this.billingSyncService.applyStoreSnapshot(
+          userId,
+          { ...storeStatus, checkedAt: now },
+          manager,
+          { createIfMissing: true },
+        );
   }
 
   /** 4.2의 본문 — 영수증 제출·복원도 같은 것을 돌려준다(클라이언트가 다시 조회하지 않는다) */
@@ -447,6 +572,11 @@ export class BillingOrchestrator {
 
     return plan;
   }
+}
+
+/** Apple이 답한 상태가 지금 권한을 주는가(유효·유예) */
+function isEntitledStatus(status: AppStoreSubscriptionStatus): boolean {
+  return status.status === 'active' || status.status === 'grace';
 }
 
 function productIdOf(plan: Plan, platform: DevicePlatform): string | null {
