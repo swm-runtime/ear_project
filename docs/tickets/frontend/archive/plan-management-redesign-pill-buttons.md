@@ -105,7 +105,7 @@
 **검증** — `npx tsc --noEmit` · `npx eslint src` · `npx jest`(350 통과). 새 테스트: `PlanList.test.tsx`(이용 중 회색·[이용 중]·검정 알약 [구독하기]·기능 줄/광고 없음·`current` 없으면 [이용 중]·구독 정보 없음) · `CurrentSubscriptionDetail.test.tsx`(구독자 다음 결제일 + 누를 수 있는 [구독 해지]·해지 예약·다른 스토어·무료) · `SubscriptionLegalNotice.test.tsx`(링크 줄 순서·[구매 복원] 동작·`·` 낭독 제외·진행 중 비활성) · `ConfirmDialog.test.tsx`(주·보조·파괴 알약) · `settings.copy.test.ts`. JS 만 — 네이티브·runtimeVersion 변경 없음(OTA), EAS 빌드 없음
 
 **완료 조건 중 확인 못 한 것**
-- **무료 사용자 [이용 중]** — 서버가 light 를 `current` 로 줄 때만 보인다(KAN-147). 오늘 서버(light `none`)에서는 [이용 중] 없이 Light 카드가 일반 카드로 그려지고 레이아웃은 그대로다(테스트로 확인). KAN-147 반영 후 실기기에서 다시 본다
+- **무료 사용자 [이용 중]** — 서버가 light 를 `current` 로 줄 때만 보인다. KAN-147 이 이 PR 직전 `dev` 에 머지됐다(#1176 — 이름 Light·Daily·Pro 마이그레이션 + 무료 `current`, 이 PR 에 병합해 `subscription-api.md` 와 맞춤). 운영 서버가 아직 light `none` 이면 [이용 중] 없이 Light 카드가 일반 카드로 그려지고 레이아웃은 그대로다(테스트로 확인). 개발계·운영 서버 배포 후 실기기에서 다시 본다
 - **유료 구독자 카드 상태**는 유닛 테스트로만 확인 — 실제 구독 계정(구독 중·해지 예약·결제 문제·다른 스토어)으로 실기기 확인 필요
 
 **남은 사람 손**
