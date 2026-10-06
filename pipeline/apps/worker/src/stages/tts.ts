@@ -21,7 +21,7 @@ import { buildSections } from "../tts/sections.js";
  * 사람이 웹에서 명시적으로 요청할 때만 (자동 연쇄 없음). 흐름:
  *   대본 파싱 → 플레이스홀더 검사(잔존 시 중단) → 음차·숫자 정규화 → 잔존 영문 검사(중단) →
  *   턴 경계 분할(요청당 ~1,800자) → 합성(seed 고정) → [화자별 배속: 요청 오디오를 강제 정렬해 턴 경계를 잡아 atempo] →
- *   조립[징글 | 본편(2패스 linear 정규화) | 징글](스테레오)·징글 없는 쪽은 2초 무음 → master.wav + dist.mp3 → S3 audio/
+ *   조립[징글 | 본편(2패스 linear 정규화) | 징글](스테레오)·징글 없는 쪽은 2초 무음 → master.wav + dist.m4a(AAC 192k) + lossless.flac → S3 audio/
  *   + 대본 세그먼트 script-segments.json (앱 자막, KAN-72 — 강제 정렬 시각을 배포본 시각으로 옮긴 것. 정렬을 못 잡은 편은 싣지 않는다)
  * 시각은 전부 요청마다 받은 강제 정렬에서 온다 (2026-10-01). dialogue 응답의 글자 시각은 요청 뒤로 갈수록 실제 오디오보다 최대 10초 앞서(T260929-003 실측)
  * 문맥 겹침 절단·배속 조각·자막·끝 꼬리가 어긋났다 — 그 시각은 디버그 기록에만 남긴다.
@@ -285,14 +285,15 @@ export async function runTts(job: Job) {
 
   await progress("조립·정규화 (ffmpeg)");
   const masterOut = path.join(audioDir, sampleTurns ? "sample-master.wav" : "master.wav");
-  const distOut = path.join(audioDir, sampleTurns ? "sample.mp3" : "dist.mp3");
+  const distOut = path.join(audioDir, sampleTurns ? "sample.mp3" : "dist.m4a"); // 2026-10-06 배포본 AAC 192k m4a(Light·Daily) + 무손실 FLAC(Pro) — KAN-141·142. 샘플은 청취 확인용이라 mp3 그대로
+  const losslessOut = sampleTurns ? undefined : path.join(audioDir, "lossless.flac");
   const gaps = ctxBoundaries.map((ok) => (ok ? 0 : DEFAULT_GAP_SEC)); // 문맥 겹침 경계는 무음 없음, 폴백 경계는 기본 쉼 — 자막 오프셋과 같은 값을 쓴다
   // 폴백 경계의 배포본 시각 (KAN-87 완료 조건 3 — 끊김 의심 지점을 실행 기록에 표시). 요청마다 실측 길이가 있을 때만(원속 폴백 없음)
   const mmss = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`; // 폴백 경계 위치 — 인트로가 붙으면 그만큼 뒤로 밀린다(아래 jingleNote 에 인트로 길이를 적는다)
   const fallbackAt = chunkSegs.length === chunks.length ? ctxBoundaries.map((ok, k) => (ok ? null : mmss(2 + chunkSegs.slice(0, k + 1).reduce((a, c) => a + c.durSec, 0) + gaps.slice(0, k).reduce((a: number, g) => a + g, 0)))).filter((x): x is string => !!x) : [];
   // 징글 (2026-10-01): 샘플에는 붙이지 않는다. S3 에 없으면 없이 조립
   const jingle = sampleTurns ? {} : await loadJingles();
-  const asm = await assemble({ segments, gapSec: gaps, workDir: audioDir, masterOut, distOut, introFile: jingle.introFile, outroFile: jingle.outroFile, outroPadSec: cfg.ttsOutroPadSec }); // 앞뒤 무음 2초는 assemble 기본값
+  const asm = await assemble({ segments, gapSec: gaps, workDir: audioDir, masterOut, distOut, losslessOut, introFile: jingle.introFile, outroFile: jingle.outroFile, outroPadSec: cfg.ttsOutroPadSec }); // 앞뒤 무음 2초는 assemble 기본값
   const durationSec = asm.durationSec;
   if (sampleTurns) await fs.rm(masterOut, { force: true }); // 샘플은 mp3 만 남긴다
 
@@ -323,10 +324,10 @@ export async function runTts(job: Job) {
   const min = Math.floor(durationSec / 60), sec = Math.round(durationSec % 60);
 
   if (!sampleTurns) {
-    await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: ep.prompt_version, audio_master_key: s3Key(`${rel}/audio/master.wav`), audio_dist_key: s3Key(`${rel}/audio/dist.mp3`) });
+    await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: ep.prompt_version, audio_master_key: s3Key(`${rel}/audio/master.wav`), audio_dist_key: s3Key(`${rel}/audio/dist.m4a`) });
   }
-  const artifacts = sampleTurns ? [s3Key(`${rel}/audio/sample.mp3`)] : [s3Key(`${rel}/audio/master.wav`), s3Key(`${rel}/audio/dist.mp3`), ...(segCount ? [s3Key(`${rel}/script-segments.json`)] : []), ...(secCount ? [s3Key(`${rel}/script-sections.json`)] : [])];
-  const result = `${sampleTurns ? `TTS 샘플 ${turns.length}턴` : "TTS 완료"} — eleven_v3 다중화자 1콜 · 분할 ${chunks.length}요청(경계 ${cutSummary} · 세그먼트 포맷 ${fmt} · ElevenLabs 원본 ${srcFmt}) · ${totalChars}자 → ${min}분 ${sec}초 (${jingle.introFile || jingle.outroFile ? "징글 포함" : "앞뒤 무음 2초 포함"}) ${useCtx ? ` · 문맥 겹침 ${ctxOk}/${ctxBoundaries.length}경계(+${ctxChars}자)` : chunks.length > 1 && wantSpeed ? " · 문맥 겹침 꺼짐(경계 무음 0.9초)" : ""}${ctxOk < ctxBoundaries.length ? ` · 폴백 경계 무음 ${DEFAULT_GAP_SEC}초${fallbackAt.length ? ` @${fallbackAt.join("·")}` : ""}${ctxFails.length ? ` (사유: ${ctxFails.join(" / ").slice(0, 300)})` : ""}` : ""}${wantSpeed ? ` · 배속 윤아 ${cfg.ttsSpeedYuna}× 이음 ${cfg.ttsSpeedEum}×${speedFallbacks ? ` (원속 폴백 ${speedFallbacks}요청 — 청취 확인)` : ""} · 강제 정렬 ${alignCalls - alignFails}/${alignCalls}요청` : ""}${parsed.coldOpen ? " · 구 [콜드오픈] 구역 무시(폐지)" : ""}${sampleTurns ? "" : segCount ? ` · 자막 세그먼트 ${segCount}건(배포본 시각)` : ` · 자막 세그먼트 없음(${segFail})`}${secNote} · 사전 ${dictVersion}${Object.keys(epMap).length ? `+발음 맵 ${Object.keys(epMap).length}건` : ""} · 보이스 윤아=${cfg.ttsVoiceYuna.slice(0, 6)}… 이음=${cfg.ttsVoiceEum.slice(0, 6)}… · 사람 청취 확인 대기 (spec/06 8장)`;
+  const artifacts = sampleTurns ? [s3Key(`${rel}/audio/sample.mp3`)] : [s3Key(`${rel}/audio/master.wav`), s3Key(`${rel}/audio/dist.m4a`), s3Key(`${rel}/audio/lossless.flac`), ...(segCount ? [s3Key(`${rel}/script-segments.json`)] : []), ...(secCount ? [s3Key(`${rel}/script-sections.json`)] : [])];
+  const result = `${sampleTurns ? `TTS 샘플 ${turns.length}턴` : "TTS 완료"} — eleven_v3 다중화자 1콜 · 분할 ${chunks.length}요청(경계 ${cutSummary} · 세그먼트 포맷 ${fmt} · ElevenLabs 원본 ${srcFmt}${sampleTurns ? "" : " · 배포본 AAC 192k m4a + FLAC"}) · ${totalChars}자 → ${min}분 ${sec}초 (${jingle.introFile || jingle.outroFile ? "징글 포함" : "앞뒤 무음 2초 포함"}) ${useCtx ? ` · 문맥 겹침 ${ctxOk}/${ctxBoundaries.length}경계(+${ctxChars}자)` : chunks.length > 1 && wantSpeed ? " · 문맥 겹침 꺼짐(경계 무음 0.9초)" : ""}${ctxOk < ctxBoundaries.length ? ` · 폴백 경계 무음 ${DEFAULT_GAP_SEC}초${fallbackAt.length ? ` @${fallbackAt.join("·")}` : ""}${ctxFails.length ? ` (사유: ${ctxFails.join(" / ").slice(0, 300)})` : ""}` : ""}${wantSpeed ? ` · 배속 윤아 ${cfg.ttsSpeedYuna}× 이음 ${cfg.ttsSpeedEum}×${speedFallbacks ? ` (원속 폴백 ${speedFallbacks}요청 — 청취 확인)` : ""} · 강제 정렬 ${alignCalls - alignFails}/${alignCalls}요청` : ""}${parsed.coldOpen ? " · 구 [콜드오픈] 구역 무시(폐지)" : ""}${sampleTurns ? "" : segCount ? ` · 자막 세그먼트 ${segCount}건(배포본 시각)` : ` · 자막 세그먼트 없음(${segFail})`}${secNote} · 사전 ${dictVersion}${Object.keys(epMap).length ? `+발음 맵 ${Object.keys(epMap).length}건` : ""} · 보이스 윤아=${cfg.ttsVoiceYuna.slice(0, 6)}… 이음=${cfg.ttsVoiceEum.slice(0, 6)}… · 사람 청취 확인 대기 (spec/06 8장)`;
   // 계측 (2026-10-01): 실제 차감 크레딧은 응답 헤더 character-cost 의 합(재시도·폴백·정렬 호출 포함). 헤더가 있으면 그 값으로 비용을 환산하고, 없으면 글자 수 추정(참고값)
   const u = usage();
   const metered = u.credits > 0;

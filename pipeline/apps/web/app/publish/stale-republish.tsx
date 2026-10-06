@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { EarContent, listEarContents, republishEarContent } from "@/lib/ear";
+import { fetchDistAudio, fetchLosslessAudio, LOSSLESS_DROP_WARNING, losslessWouldDrop } from "@/lib/publish-files";
 import { enrichStates, markPublished, readEnrichment, republishPlans, type RepublishPlan } from "../actions";
 import { isStale } from "./enrich-cell";
 import { btnCls } from "@/components/ui";
@@ -42,6 +43,9 @@ export function StaleRepublishButton({ disabled, onDone }: { disabled: boolean; 
         `· 자막만 ${n((t) => t.scriptOnly)}편 · 추천 메타 ${n((t) => t.meta)}편 — 버전 그대로`,
       ];
       if (skipped.length) lines.push(`· 발행 준비 진행 중이라 이번에 빼는 편 ${skipped.length}편 — 끝난 뒤 다시 누르세요`);
+      // KAN-145 — 오디오를 바꾸는 편 중 무손실 파일이 없는 편: 압축만 나가 서버 무손실이 있었다면 지워진다
+      const drops = (await Promise.all(targets.filter((t) => t.audio && t.p?.episodeId).map(async (t) => ((await losslessWouldDrop(t.p!.episodeId)) ? t.p!.episodeId : null)))).filter((x): x is string => !!x);
+      if (drops.length) lines.push(`· ⚠️ ${drops.length}편은 ${LOSSLESS_DROP_WARNING} (${drops.slice(0, 5).join(", ")}${drops.length > 5 ? " 외" : ""})`);
       lines.push("", "오디오를 바꾸는 편은 청취 확인을 마쳤나요?");
       if (!confirm(lines.join("\n"))) { setMsg(null); return; }
 
@@ -81,13 +85,15 @@ async function refreshOne(t: Target): Promise<{ sent: string[]; noScript: boolea
     if (!res.ok) { if (optional) return undefined; throw new Error(`${name} 을(를) 읽지 못함 — 에피소드 파일 확인`); }
     return new File([await res.blob()], name, { type });
   };
-  const audio = t.audio ? await fetchFile("audio", `${ep}.mp3`, "audio/mpeg") : undefined;
+  const audio = t.audio && ep ? (await fetchDistAudio(ep)) ?? undefined : undefined;
+  if (t.audio && !audio) throw new Error(`${ep} 발행 오디오(dist.m4a·dist.mp3)를 읽지 못함 — 에피소드 파일 확인`);
+  const lossless = audio && ep ? (await fetchLosslessAudio(ep)) ?? undefined : undefined; // 무손실(Pro) — 서버 스위치가 꺼져 있으면 없음
   const thumbnail = t.thumbnail ? await fetchFile("thumbnail", `${ep}.png`, "image/png") : undefined;
   const script = ep && (t.audio || t.scriptOnly) ? await fetchFile("script", "script-segments.json", "application/json", true) : undefined;
   let enrichment: File | undefined;
   if (t.meta) { const got = await readEnrichment(t.c.id); if (got) enrichment = new File([got.text], "enrichment.json", { type: "application/json" }); }
   if (!audio && !thumbnail && !script && !enrichment) return { sent: [], noScript: false };
-  const r = await republishEarContent(t.c.id, { audio, thumbnail, script, enrichment });
+  const r = await republishEarContent(t.c.id, { audio, lossless, thumbnail, script, enrichment });
   const sent = [audio && "오디오", thumbnail && "썸네일", r.script_applied && "자막", r.enrichment_applied && "메타"].filter(Boolean) as string[];
   if ((audio || thumbnail) && t.p) {
     await markPublished(t.p.backlogId, r.id, r.content_version, undefined, {

@@ -120,7 +120,7 @@ const USER_BASE = (): ProfileUserDto => ({
 const PLAN_SUBSCRIBED: ProfilePlanDto = {
   status: 'subscribed',
   tier: 'pro',
-  plan_name: '프로',
+  plan_name: 'Pro',
   daily_play_limit: null,
   renews_at: '2026-09-01T00:00:00Z',
   expires_at: null,

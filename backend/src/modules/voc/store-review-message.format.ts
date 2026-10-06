@@ -1,3 +1,5 @@
+import { escapeSlackText } from '@/modules/alert/slack-alert.service';
+
 import { REVIEW_BODY_MAX_LENGTH } from './voc.constant';
 import { ReviewStore } from './voc.enum';
 import { StoreReviewItem } from './voc.types';
@@ -44,9 +46,14 @@ export function truncateBody(
     : body;
 }
 
-/** 인용 블록 — 줄마다 `> `를 붙여 Slack이 한 덩어리로 보이게 한다 */
+/**
+ * 인용 블록 — 줄마다 `> `를 붙여 Slack이 한 덩어리로 보이게 한다.
+ *
+ * **리뷰어가 쓴 글이라 Slack 제어 문자를 무력화한다**(`escapeSlackText`). 리뷰에 `<!channel>`을 쓰면 채널 전체가
+ * 호출되고 `<주소|글자>`는 위장 링크가 된다 — 스토어 리뷰는 누구나 쓸 수 있다. 인용 기호를 붙이기 **전에** 바꾼다.
+ */
 function quote(text: string): string {
-  return text
+  return escapeSlackText(text)
     .split(/\r?\n/)
     .map((line) => `> ${line}`)
     .join('\n');
@@ -66,8 +73,11 @@ export function formatReviewNotice(notice: ReviewNotice): string {
   const headline = [
     `:star: ${review.rating}/5`,
     STORE_LABEL[review.store],
-    review.appVersion ? `v${review.appVersion}` : null,
-    review.territoryOrLanguage,
+    // 스토어가 준 값이지만 우리가 만든 문자열이 아니다 — 같이 무력화한다
+    review.appVersion ? `v${escapeSlackText(review.appVersion)}` : null,
+    review.territoryOrLanguage
+      ? escapeSlackText(review.territoryOrLanguage)
+      : null,
     formatDate(review.lastModifiedAt),
   ]
     .filter((segment): segment is string => segment !== null)

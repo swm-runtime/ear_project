@@ -71,14 +71,15 @@
 
 ### 1.3-1 음질 (2026-10-06 — KAN-141)
 
-| 값 | 의미 | 형식(파이프라인 렌더 — `ai/spec/06-audio.md`) |
+| 값 | 의미 | 형식(파이프라인 렌더 — `ai/spec/06-audio.md`, 확정 2026-10-06) |
 |---|---|---|
-| `compressed` | 압축 — 기본값. 전 티어 | mp3 (지금 배포본 형식) |
-| `aac` | 고음질 압축. 전 티어 | m4a AAC |
-| `lossless` | 무손실. **Pro 전용** | wav PCM 16bit 44.1kHz |
+| `compressed` | 압축. 전 티어 | **m4a AAC 192k**(faststart). 2026-10-06 이전 배포본은 mp3 |
+| `aac` | 고음질 압축 — **값만 예약, 렌더하지 않는다** | 없음. 압축이 이미 AAC 192k 라 같은 파일을 두 칸에 두지 않는다. 설정 선택지에서도 숨긴다(`settings-api.md` 4.1) |
+| `lossless` | 무손실. **Pro 전용** | **FLAC** 16bit/44.1kHz 스테레오(18분 편 약 44MB — WAV 의 22%). WAV 는 받지 않는다 |
 
-- 순서가 있다: `compressed < aac < lossless`. `plans.max_audio_quality`(8.1)는 "이 티어가 들을 수 있는 가장 높은 음질"이고, 허용 여부는 이 순서로 비교한다. **티어명으로 판정하지 않는다.**
+- 순서가 있다: `compressed < aac < lossless`. `plans.max_audio_quality`(8.1)는 "이 티어가 들을 수 있는 가장 높은 음질"이고, 허용 여부는 이 순서로 비교한다. **티어명으로 판정하지 않는다.** Light·Daily 의 상한 `aac`는 실제로는 compressed(AAC 192k)를 뜻한다 — `aac` 파일이 없으므로 "허용·보유 중 최고" 규칙으로 compressed 가 나간다.
 - `content_audio_renditions.quality`(5.8) · `plans.max_audio_quality`(8.1) · `user_settings.preferred_audio_quality`(3.5)가 같은 enum을 쓴다.
+- **사용자에게 내놓는 선택지는 `compressed`·`lossless` 둘**이다(`OFFERED_AUDIO_QUALITIES`). 고른 적 없는 사용자의 기본 음질은 **티어가 허용하는 가장 높은 선택지**(Pro → lossless, 그 외 → compressed — `defaultAudioQualityFor`).
 
 ### 1.4 멱등 요청 저장 — `idempotency_keys`
 
@@ -302,7 +303,7 @@ user_settings
   is_drip_notification_enabled boolean      DEFAULT true   (FR-19)
   drip_feedback_muted_until   date          NULL           ★추천 별점 팝업 [이번 주 그만 보기] 종료 서비스 날짜 (2026-09-30, KAN-116)
   drip_feedback_last_prompted_date date     NULL           ★마지막으로 별점을 물은 편성분의 서비스 날짜 — 이보다 새 편성이 없으면 다시 묻지 않는다 (2026-09-30)
-  preferred_audio_quality     enum          DEFAULT 'compressed'   ★1.3-1 — 사용자가 고른 음질 (2026-10-06, KAN-141). 서버에 두는 이유: 기기 간 같은 선택을 보장하고, 발급 때 서버가 바로 읽는다
+  preferred_audio_quality     enum          NULL           ★1.3-1 — 사용자가 고른 음질 (2026-10-06, KAN-141). **NULL = 고른 적 없음** → 티어가 허용하는 가장 높은 선택지로 판정(Pro 는 lossless). 종전 DEFAULT 'compressed' 는 "직접 압축을 고름"과 구분되지 않아 같은 날 NULL 로 바꿨다. 서버에 두는 이유: 기기 간 같은 선택을 보장하고, 발급 때 서버가 바로 읽는다
 
 uq_user_settings_user_id (user_id)
 ```
@@ -1197,7 +1198,9 @@ idx_subscriptions_user_id_status (user_id, status)
 - 실제 갱신 근거는 **스토어 서버 알림(S2S)**이다(`subscription.md` 4.3). 클라이언트가 보낸 값으로 티어를 바꾸지 않는다.
 - `uq_subscriptions_original_transaction_id`가 하나의 스토어 구독이 여러 계정에 연결되는 것을 막는다.
 - **Play에는 `original_transaction_id`가 없다 — 그 구독의 최초 구매 토큰을 이 컬럼에 쓴다.** 업·다운그레이드로 새 토큰이 발급되면 스토어 응답의 `linkedPurchaseToken`으로 기존 행을 찾아 같은 행을 갱신한다 — 이전 토큰은 최초 토큰(`original_transaction_id`)일 수도, 중간에 바뀐 토큰(`latest_receipt`)일 수도 있어 둘 다로 찾는다(`subscription-api.md` 4.7). **Play 구매 토큰은 수백 자라 컬럼 길이는 2048이다**(2026-10-03 — 종전 255. App Store ID는 십수 자리 숫자라 문제가 없었다). 탈퇴 시 이 값을 옮겨 담는 `archived_subscriptions.original_transaction_id`([11.5](#115-archived_subscriptions))도 같은 길이다 — 한쪽만 넓으면 Play 구독자의 탈퇴가 아카이브에서 실패한다.
-- `latest_receipt`에는 마지막으로 반영한 **서명된 거래(iOS JWS) 또는 구매 토큰(Android)** 을 둔다 — 만료 보정 때 스토어에 다시 묻는 열쇠다. 로그에는 남기지 않는다.
+- `latest_receipt`에는 마지막으로 반영한 **서명된 거래(iOS JWS) 또는 구매 토큰(Android)** 을 둔다 — 만료 보정 때 스토어에 다시 묻는 열쇠다. 로그에는 남기지 않는다. **Play에서는 환불의 고정에도 쓴다**(2026-10-06) — `refunded`인 행은 이 값과 같은 구매 토큰의 조회 결과로 되살리지 않는다(`subscription-api.md` 4.7).
+- **`user_id`는 한 경우에만 바뀐다**(2026-10-06) — 이미 끝난 구독(`expired`·`refunded`)을 **다른 계정이 자기 결제 의도로 다시 결제**해 그 반영이 구독을 되살릴 때, 행을 결제한 계정으로 넘긴다(`subscription-api.md` 7장). 살아 있는 구독의 주인은 바뀌지 않는다.
+- **`status = expired`가 스토어의 답이 아닐 수 있다**(2026-10-06) — 만료 보정이 스토어에 확인하지 못한 채 `expires_at`이 7일을 넘기면 서버가 만료로 내린다(`subscription-api.md` 4.2). 이때는 `last_notified_at`을 갱신하지 않아, 뒤늦게 온 갱신 알림·거래가 되살릴 수 있다.
 - **`environment`** 는 그 구독이 실결제인지 스토어의 시험 결제인지다(2026-10-02). **운영 서버도 샌드박스 거래를 받는다** — App Store 심사와 TestFlight는 운영 빌드로 샌드박스 결제를 한다(`subscription-api.md` 7장). 구분을 남기지 않으면 시험 결제가 매출·구독자 수에 섞인다. 권한 판정에는 쓰지 않는다 — 샌드박스 구독도 유효하면 유료 티어다(그래야 심사·시험이 된다). 집계가 `environment = 'production'`으로 거른다.
 - **`last_notified_at`** 은 스토어 서버 알림의 순서 뒤바뀜을 막는다(2026-10-02, `subscription-api.md` 4.6). 알림은 보낸 순서대로 도착한다는 보장이 없어, 이 시각보다 먼저 서명된 알림은 상태를 덮지 않는다. 만료 보정(스토어에 직접 조회)도 이 값을 조회 시각으로 갱신한다. **환불·만료로 종결된 구독을, 종결 이전에 시작된 거래로 되살릴 수 없게 하는 기준 시각이기도 하다** — 환불받은 사용자가 환불 전에 받아 둔 서명 거래를 다시 제출해도 반영하지 않는다.
 - **`pending_tier`** 는 다운그레이드 예약이다(2026-10-02). 스토어는 다운그레이드를 "현재 주기가 끝나면"으로 예약하므로 그동안 `tier`는 그대로이고, 다음에 바뀔 티어만 여기 든다. 갱신·업그레이드·예약 취소 때 비운다. 화면의 "N월 N일부터 데일리" 표시 근거다.
@@ -1386,13 +1389,14 @@ store_reviews
   review_id                 varchar(128)    스토어가 매긴 식별자(App Store UUID꼴 · Play `gp:…`)
   rating                    smallint        마지막으로 본 별점 1~5
   last_modified_at          timestamptz     스토어의 작성·수정 시각. 조회값이 더 크면 "수정됨"으로 재알림
-  notified_at               timestamptz     NULL = 첫 실행 기준선(표가 비어 있을 때 쌓인 리뷰를 쏟지 않고 기록만 한다)
+  notified_at               timestamptz     NULL = 기준선(그 스토어를 처음 기록할 때 이미 쌓여 있던 리뷰 — 쏟지 않고 기록만 한다)
 
 uq_store_reviews_store_review_id (store, review_id)
 ```
 
 - 보존: 무기한(행당 수십 바이트, 재알림 방지가 목적이라 리뷰가 스토어에서 지워져도 남긴다). 사용자 테이블과 FK 없음 — 12.3 탈퇴 처리와 무관.
 - 마이그레이션 `1788600000000-AddStoreReviews`.
+- **기준선은 스토어별로, 리뷰의 시각으로 가른다**(개정 2026-10-06). 어느 스토어의 행이 하나도 없을 때가 그 스토어의 첫 기록이다 — 그때 가져온 리뷰 중 **최근 24시간 안에 작성·수정된 것은 새 리뷰로 알리고**, 그보다 오래된 것만 기준선(`notified_at` NULL)으로 적는다. 종전 규칙("표 전체가 비어 있으면 가져온 것을 전부 기준선으로")은 폐기했다: ① 켠 시점에 리뷰가 0건이면 표가 빈 채 남아 **처음 달린 리뷰가 기준선으로 삼켜졌고**(신규 앱의 첫 리뷰를 놓친다), ② 한 스토어를 나중에 켜거나 첫 주기에 한 스토어 조회만 실패하면 표가 이미 차 있어 그 스토어에 쌓여 있던 리뷰가 전부 "새 리뷰"로 한꺼번에 나갔다. 24시간은 폴링이 그만큼 멈추지 않는 한 새 리뷰를 놓치지 않는 여유다(15분 주기).
 
 ## 11. 보존 아카이브
 

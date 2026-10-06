@@ -51,3 +51,11 @@ ElevenLabs **Pro 결제**로 TTS 원본을 무손실(PCM)로 받을 수 있다. 
   - 7 일부: `ai/spec/06-audio.md` 7장에 원본 포맷 규칙과 완료 조건 한 줄 추가
   - 검증: 워커 테스트 66건 통과(사다리·강등·리셋·정렬 업로드 형식 3건 신규), 합성 wav 로 길이·쉼 절단·배속·세그먼트 변환 확인. **실합성 확인은 배포 후 샘플 1편** — run 결과의 원본 포맷과 16kHz 위 대역
   - 남은 것: 3 마스터 무손실 실측 · 4 3종 렌더 · 5 패키지·발행 · 6 기존 발행분 재렌더 — 배포 포맷 결정(팀 회의)과 KAN-141 대기
+- **2026-10-06 음질 확정 반영 — 3·4·7번 구현, pending 유지**
+  - 확정(박수헌, 팀 회의): **Light·Daily = AAC 192k, Pro = FLAC**, 사용자가 고를 수 있다. 기본은 등급이 허용하는 최고 음질 — 백엔드에 KAN-141 코멘트로 요청(flac 허용·문서·`aac` 칸 미사용·기본값, 2026-10-06). **3종이 아니라 2종**: compressed 칸 = AAC 192k m4a, lossless 칸 = FLAC, aac 칸 비움(같은 AAC 를 두 칸에 둘 이유가 없고 Light·Daily 는 "허용·보유 중 최고"로 AAC 를 받는다)
+  - 실측: 무손실 원본이어도 **16kHz 위는 ElevenLabs 출력에서 이미 비어 있다**(15.6kHz 수직 차단 — 파이프라인은 백색 잡음 대조로 22kHz 까지 보존 확인). 위 완료 조건 2의 "16kHz 위 대역이 원본만큼 살아 있다"는 원본에도 없어 그대로 성립한다. 원본을 무손실로 바꾼 이득은 mp3 128k 압축 잡음 제거(목소리 잔차 −40.9 → −47.0dB, mp3 192 배포 기준). FLAC 은 WAV 의 22%(18분 51초 43.8MB)
+  - 3 마스터: 56편(발행 40 + CS 16) 무손실 원본으로 재합성 완료(run 결과 `ElevenLabs 원본 wav_44100`)
+  - 4 렌더: `encodeRenditions` — 마스터에서 `dist.m4a`(AAC 192k, faststart) + `lossless.flac` 를 한 번씩. TTS 단계가 기본으로 만들고, 재합성 56편은 `npm run tts:encode` 로(TTS 없음)
+  - 5 발행: `audio` = dist.m4a(없으면 구 mp3), `audio_lossless` = lossless.flac — `SEND_LOSSLESS_AUDIO` 꺼 둠(백엔드 flac 허용 운영 배포 뒤 켠다)
+  - 7 문서: `ai/spec/06-audio.md` 7장(배포본 규격·완료 조건) · `07-publish.md`(오디오 파트) · `08-infra.md`
+  - 남은 것: `tts:encode --apply`(56편) · 백엔드 flac 허용 배포 → `SEND_LOSSLESS_AUDIO` 켜기 · 6 기존 발행분 재발행(사람 — 재생 위치 초기화)

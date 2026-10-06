@@ -1,9 +1,12 @@
+import { AudioQuality } from '@/modules/content/content.enum';
 import { UserSettingView } from '@/modules/user/user.types';
 
 class SettingsValuesDto {
   readonly default_playback_rate: number;
   readonly is_auto_expand_enabled: boolean;
   readonly is_drip_notification_enabled: boolean;
+  /** 적용 중인 음질 — 4.1 과 같은 의미(고른 적 없으면 티어 허용 최고 선택지) */
+  readonly preferred_audio_quality: AudioQuality;
 }
 
 /**
@@ -18,6 +21,7 @@ export class UpdateSettingsResponseDto {
 
   static from(
     view: UserSettingView,
+    effectiveAudioQuality: AudioQuality,
     clientSeq: number,
   ): UpdateSettingsResponseDto {
     return {
@@ -25,6 +29,7 @@ export class UpdateSettingsResponseDto {
         default_playback_rate: view.defaultPlaybackRate,
         is_auto_expand_enabled: view.isAutoExpandEnabled,
         is_drip_notification_enabled: view.isDripNotificationEnabled,
+        preferred_audio_quality: effectiveAudioQuality,
       },
       client_seq: clientSeq,
     };

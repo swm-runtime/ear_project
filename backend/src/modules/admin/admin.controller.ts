@@ -1,4 +1,3 @@
-import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 
 import {
@@ -19,7 +18,10 @@ import {
 } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 
-import { UploadCleanupInterceptor } from './upload-cleanup.interceptor';
+import {
+  removeUploadedFiles,
+  UploadCleanupInterceptor,
+} from './upload-cleanup.interceptor';
 import { diskStorage } from 'multer';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
@@ -88,7 +90,7 @@ interface UploadFiles {
 /**
  * 업로드 파일은 **디스크 임시 파일**로 받는다(multer 기본은 메모리). 오디오 200MB를 램에
  * 통째로 올리면 길이 추출·S3 전송이 동시에 보유해 요청당 수백 MB가 되고, 단일 EC2(4GB)에서
- * 동시 2건이면 자원 알림이 울린다. 임시 파일은 핸들러의 `discardUploads`(성공·서비스 실패)와
+ * 동시 2건이면 자원 알림이 울린다. 임시 파일은 핸들러의 `finally`(성공·서비스 실패)와
  * `UploadCleanupInterceptor`(파이프 실패)가 어느 경로든 지운다(2026-09-26).
  *
  * `fileSize`는 필드별로 줄 수 없어(multer 한계) 최대값(오디오)으로 두고, 필드별 상한은
@@ -353,7 +355,9 @@ export class AdminController {
     try {
       return await this.handleUpload(currentUser, form, files);
     } finally {
-      await discardUploads(files);
+      // 받은 파일 **전부**를 지운다 — 필드를 나열하던 때 음질 3종의 두 필드가 빠져 성공한 발행마다
+      // 최대 400MB가 남았다(2026-10-06). 파이프 실패 경로(`UploadCleanupInterceptor`)와 같은 함수다
+      await removeUploadedFiles(files);
     }
   }
 
@@ -438,7 +442,9 @@ export class AdminController {
     try {
       return await this.handleRepublish(currentUser, contentId, form, files);
     } finally {
-      await discardUploads(files);
+      // 받은 파일 **전부**를 지운다 — 필드를 나열하던 때 음질 3종의 두 필드가 빠져 성공한 발행마다
+      // 최대 400MB가 남았다(2026-10-06). 파이프 실패 경로(`UploadCleanupInterceptor`)와 같은 함수다
+      await removeUploadedFiles(files);
     }
   }
 
@@ -548,19 +554,4 @@ function toFileInput(file: Express.Multer.File): UploadedFileInput {
     mimeType: file.mimetype,
     size: file.size,
   };
-}
-
-/** 임시 파일 정리 — 성공·실패 어느 경로든 `/tmp`에 남기지 않는다. 없는 파일은 무시한다 */
-async function discardUploads(files: UploadFiles | undefined): Promise<void> {
-  const uploaded: Express.Multer.File[] = [
-    ...(files?.audio ?? []),
-    ...(files?.thumbnail ?? []),
-    ...(files?.enrichment_file ?? []),
-    ...(files?.script_file ?? []),
-  ];
-  const paths = uploaded
-    .map((file) => file.path)
-    .filter((path): path is string => typeof path === 'string');
-
-  await Promise.all(paths.map((path) => rm(path, { force: true })));
 }

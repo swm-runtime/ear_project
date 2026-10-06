@@ -7,6 +7,7 @@ import { SubscriptionEnvironment } from '@/modules/subscription/subscription.enu
 import {
   GoogleHttpError,
   GooglePlayStoreGateway,
+  classifyIdTokenError,
   toGoogleHttpError,
   GoogleRequest,
   OidcClaims,
@@ -466,6 +467,49 @@ describe('GooglePlayStoreGateway', () => {
         'invalid',
         'push_token_invalid',
       );
+    });
+
+    it('토큰 검증 실패 로그에 토큰 전문·본문을 남기지 않는다 — 라이브러리 메시지 대신 사유 코드만 남긴다', async () => {
+      const token = 'eyJhbGciOiJSUzI1NiJ9.eyJlbWFpbCI6ImEifQ.c2lnbmF0dXJl';
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      warn.mockClear();
+      // google-auth-library 는 오류 메시지 끝에 토큰을 붙인다
+      const { gateway } = buildGateway(FULL_ENV, {
+        claims: new Error(`Invalid token signature: ${token}`),
+      });
+
+      await expectRejected(
+        gateway.verifyNotification(
+          `Bearer ${token}`,
+          pushEnvelope(subscriptionNotification),
+        ),
+        'invalid',
+        'push_token_invalid',
+      );
+
+      expect(warn).toHaveBeenCalledWith('play push token rejected', {
+        reason: 'bad_signature',
+        error_name: 'Error',
+      });
+      expect(JSON.stringify(warn.mock.calls)).not.toContain(token);
+    });
+
+    it.each([
+      ['Wrong number of segments in token: a.b', 'malformed'],
+      ['Token used too late, 1 > 0: {"email":"a@b.c"}', 'expired'],
+      [
+        'Wrong recipient, payload audience != requiredAudience',
+        'wrong_audience',
+      ],
+      ['처음 보는 메시지 eyJ.eyJ.sig', 'other'],
+    ])('검증 오류 "%s" 의 사유 코드는 %s 다', (message, kind) => {
+      expect(classifyIdTokenError(new Error(message))).toBe(kind);
+    });
+
+    it('오류 객체가 아니어도 사유 코드는 other 다 — 값을 그대로 남기지 않는다', () => {
+      expect(classifyIdTokenError('eyJ.eyJ.sig')).toBe('other');
     });
 
     it.each([

@@ -85,6 +85,35 @@ describe('formatReviewNotice', () => {
     ).toMatch(/ \(수정됨 5→2\)$/);
   });
 
+  it('리뷰어가 쓴 글의 Slack 제어 문자를 무력화한다 — 채널 호출·위장 링크가 되지 않는다', () => {
+    // given — 스토어 리뷰는 누구나 쓸 수 있다
+    const text = formatReviewNotice({
+      review: {
+        ...APP_STORE_REVIEW,
+        title: '<!channel> 긴급',
+        body: '<https://evil.example|공지 보기> & <@U123>\n둘째 줄 <!here>',
+        territoryOrLanguage: '<!everyone>',
+      },
+      previousRating: null,
+    });
+
+    // then — `<`·`>`·`&`가 엔티티로 바뀌어 글자 그대로 보인다
+    expect(text).not.toMatch(/<[!@h]/);
+    expect(text).toContain('> &lt;!channel&gt; 긴급');
+    expect(text).toContain(
+      '> &lt;https://evil.example|공지 보기&gt; &amp; &lt;@U123&gt;',
+    );
+    expect(text).toContain('> 둘째 줄 &lt;!here&gt;');
+    expect(text).toContain('&lt;!everyone&gt;');
+    // 우리가 붙인 인용 기호는 그대로다
+    expect(
+      text
+        .split('\n')
+        .slice(1)
+        .every((line) => line.startsWith('> ')),
+    ).toBe(true);
+  });
+
   it('본문이 비어 있으면 인용 줄이 없다', () => {
     // when
     const text = formatReviewNotice({

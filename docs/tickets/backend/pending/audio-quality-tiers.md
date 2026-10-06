@@ -1,4 +1,4 @@
-# [BE] 음질 3단계(압축·AAC·WAV) 배포 — 콘텐츠별 오디오 3종 저장·티어별 허용 판정·업로드/인프라 확장
+# [BE] 음질 3단계(압축·AAC·WAV → 압축·FLAC 확정) 배포 — 콘텐츠별 오디오 저장·티어별 허용 판정·업로드/인프라 확장
 
 | 항목 | 값 |
 |---|---|
@@ -13,7 +13,7 @@
 | 선행 | 없음(티켓). 동작 규칙 문서화(`features/` — 음질 단계·티어별 허용·기본값·미허용 처리)는 이 티켓 착수 때 함께 정한다 |
 | 근거 문서 | `features/subscription.md`(티어 정책) · `features/player.md` · `ai/spec/06-audio.md` 7장("Pro 이상 pcm 이면 배포 포맷(wav·AAC)을 다시 정한다") · `tickets/ai/pending/jingle-mono-loudnorm-degradation.md`(KAN-122 — 배포본 스테레오화) |
 | 중요도 | Low — PM 발행(2026-10-06). 중요도 미지정이라 이번 주 마감으로 잡았다 — 바꾸려면 Jira·이 표를 함께 고친다. 범위가 커서 이번 주에 스키마·계약 확정까지 가고 구현이 넘어가면 사유를 처리 기록에 적는다 |
-| 상태 | 백엔드 구현 완료(2026-10-06) · 인프라 항목 일부 남음(아래) |
+| 상태 | 백엔드 구현 완료(2026-10-06) · 같은 날 AI 파트 확정(FLAC·기본 음질) 반영 · 인프라 항목 일부 남음(아래) |
 
 ## 배경
 
@@ -51,12 +51,14 @@ ElevenLabs Pro 결제로 TTS 원본을 **무손실(PCM → WAV)**로 받을 수 
 
 ## 완료 조건
 
+> 2026-10-06 개정 — AI 파트 확정(Light·Daily = AAC 192k, Pro = FLAC)에 맞춰 WAV·3종 표현을 FLAC·2종으로 고쳤다. 판정 규칙은 그대로다(처리 기록 "AI 파트 확정 반영").
+
 - Given `domain.md`·`spec/api/` / When 읽는다 / Then 오디오 3종 스키마, 티어별 허용 음질(`plans`), 미허용 요청 동작, 응답 필드가 적혀 있다
-- Given Light·Daily 계정 / When WAV 재생 URL 을 요청한다 / Then 서버가 계약대로 대체하거나 거절하고, 압축·AAC 는 정상 발급된다
-- Given Pro 계정 / When 세 음질을 각각 요청한다 / Then 각 음질의 서명 URL 이 발급되고 재생된다
-- Given Pro 구독 만료로 Daily 가 된 계정 / When 다음 재생 URL 을 요청한다 / Then WAV 가 더는 발급되지 않는다
-- Given 관리자 업로드 / When 스테레오 WAV(약 212MB)를 포함한 3종을 올린다 / Then 업로드·저장·길이 검증이 통과한다(Caddy·프록시 포함 종단)
-- Given 인프라 / When 처리 기록을 본다 / Then S3·CloudFront 월 비용 추정과 갱신한 Budgets 임계값, WAV 재생 시작 지연 실측이 있다
+- Given Light·Daily 계정 / When 무손실(FLAC) 재생 URL 을 요청한다 / Then 서버가 계약대로 압축으로 대체하고(`not_allowed`), 압축은 정상 발급된다
+- Given Pro 계정 / When 압축·무손실을 각각 요청한다 / Then 각 음질의 서명 URL 이 발급되고 재생된다. 고른 적 없으면 무손실이 기본이다
+- Given Pro 구독 만료로 Daily 가 된 계정 / When 다음 재생 URL 을 요청한다 / Then 무손실(FLAC)이 더는 발급되지 않는다
+- Given 관리자 업로드 / When 압축(m4a AAC 192k) + 무손실(FLAC, 20분 약 45MB)을 올린다 / Then 업로드·저장·길이 검증이 통과한다(Caddy·파이프라인 웹 프록시 포함 종단 — 실파일은 KAN-142 산출물). wav 는 400 으로 거부된다
+- Given 인프라 / When 처리 기록을 본다 / Then S3·CloudFront 월 비용 추정과 갱신한 Budgets 임계값, FLAC 재생 시작 지연 LTE 실측이 있다
 
 ## 처리 기록
 
@@ -86,3 +88,26 @@ ElevenLabs Pro 결제로 TTS 원본을 **무손실(PCM → WAV)**로 받을 수 
 - **메모리**: 업로드는 디스크 임시 파일 → S3 스트림 업로드라 파일 크기와 무관하게 약 20MB. 임시 디스크는 파일 크기만큼(운영 여유 16GB).
 - **S3·CloudFront 비용 추정**(2026-10-06): 발행분 40편 × 3종 ≈ 40 × 280MB = 11GB 저장(월 약 $0.3). 전송은 Pro 비율에 좌우 — 완청 1회 WAV 약 150MB(13분)로, 무료 구간 1TB를 다 쓰는 데 WAV 완청 약 7,000회. 현재 하루 청취 20편 수준에서는 전원이 WAV를 들어도 월 90GB라 무료 구간 안이다. **Budgets 임계값 조정은 AWS 콘솔 작업으로 남음**(현재 임계는 inventory.md).
 - **남은 것**: WAV 재생 시작 지연 LTE 실측(실기기·KAN-143 뒤) · 스테레오 WAV 212MB 종단 업로드(실파일, KAN-142 산출물로) · Budgets 임계 재설정.
+
+### 2026-10-06 — AI 파트 확정 반영(Jira 댓글 "[AI → BE] 음질 확정 반영 요청", PR `fix(be)/audio-quality-flac-default`)
+
+박수헌의 결정: **Light·Daily = AAC 192k, Pro = FLAC(무손실)**. 파이프라인은 무손실 마스터에서 `audio`(m4a AAC 192k)와 `audio_lossless`(FLAC)만 렌더하고 `audio_aac`는 올리지 않는다. 요청 4건을 이렇게 반영했다.
+
+| 요청 | 반영 | 판단 |
+|---|---|---|
+| 1. `lossless`에 flac 추가, wav 유지 여부 | `LOSSLESS_AUDIO_CONTENT_TYPES = { flac: 'audio/flac' }` — **wav 제거**. `MAX_AUDIO_FILE_BYTES` **320MB → 200MB 복귀** | 한 포맷만 받아야 운영이 단순하고, WAV 는 같은 음질에 네 배 크기라 받을 이유가 없다. 20분 스테레오 FLAC ≈45MB 라 200MB 로 넉넉하다. 프록시 본문 한도 걱정(아래 인프라 항목)도 함께 사라진다 |
+| 2. 문서 | `domain.md` 1.3-1(형식 열: compressed = m4a AAC 192k · aac = 렌더 안 함 · lossless = FLAC) · 3.5 · `admin-api.md` 4.6 · `settings-api.md` 4.1·4.2 · `player-api.md` 4.1 · `player.md` 4.9 · `subscription.md` 4.1 | — |
+| 3. FE 선택지 두 가지 | 설정 응답 `audio_qualities`가 **렌더되는 음질만**(`compressed` · `lossless`) 내려준다 — `OFFERED_AUDIO_QUALITIES`. `aac`는 enum 값으로 남기되(판정·저장값 호환) 선택지에서 숨긴다 | FE 가 "aac 숨기기"를 하드코딩하지 않게 서버가 목록을 좁힌다 |
+| 4. 기본 음질 = 허용 최고, "고른 적 없음" 구분 | `user_settings.preferred_audio_quality`를 **NULL 허용**으로 바꾸고(마이그레이션 `MakePreferredAudioQualityNullable` — 기존 행 전부 NULL. 앱에 선택 UI 가 없어 고른 값이 있을 수 없다) NULL = 고른 적 없음. 발급·설정 응답은 `preferredAudioQuality ?? defaultAudioQualityFor(maxAllowed)` — **허용하는 가장 높은 선택지**(Pro → lossless, 허용 최대 `aac`인 티어 → compressed. `aac`는 선택지가 아니라 늘 `not_available`로 깎일 요청을 기본으로 만들지 않는다). 설정 PATCH 에 `null`을 보내면 자동으로 되돌린다. 응답 `preferred_audio_quality`는 늘 구체 값(적용 중인 음질)이고 PATCH 응답에도 실린다 | 컬럼을 하나 더 두는 대신 NULL 로 구분 — "고른 적 없음"은 값이 없는 상태다 |
+
+**확인** — 단위: `admin-content.service.spec`(flac 수신·wav 거부), `settings.orchestrator.spec`(선택지 2개, 고른 적 없음 → 티어별 기본, null 되돌리기), `audio-url.service.spec`(설정 null → Pro 는 lossless 발급), `audio-quality.policy.spec`(`defaultAudioQualityFor`). 43 스위트 374건 통과.
+
+**인프라 항목 갱신** — WAV 가 빠져 "212MB 종단 업로드"·"320MB 프록시 한도" 확인은 **불필요**해졌다. 남은 것은 ① FLAC 포함 3종(실제로는 2종) 종단 업로드 확인(KAN-142 산출물로) ② FLAC 재생 시작 지연 LTE 실측(KAN-143 뒤) ③ Budgets 임계 — FLAC 은 WAV 의 22%라 지금 규모에서는 더 급하지 않다.
+
+**다른 파트** — KAN-142(박수헌): flac 허용이 **운영에 배포된 뒤** FLAC 전송을 켠다(댓글의 일정 그대로). KAN-143(이주호): 선택지는 설정 응답의 두 개 그대로 그린다, `preferred_audio_quality`는 늘 구체 값, "자동으로 되돌리기"가 필요하면 PATCH `null`.
+
+### 2026-10-06 — Budgets 임계값: 검토 후 **유지**(박준현 결정)
+
+- 완료 조건의 "갱신한 Budgets 임계값"은 WAV(전송량 4~8배) 전제에서 적은 것이다. FLAC 확정으로 전송량이 WAV 의 22%가 됐고, 지금 규모(하루 재생 약 20편 → 월 약 600회 × FLAC 완청 44MB ≈ **26GB**)는 CloudFront 무료 구간 1TB 의 3%다. 돈이 움직이지 않는 구간에 GB 예산을 하나 더 두는 것은 일을 위한 일이라 **`ear-monthly-10usd`($10) 그대로 둔다**(`infra/inventory.md`).
+- **다시 보는 조건**: 하루 재생이 200편(지금의 10배)을 넘거나 Pro 비율이 실측되는 시점. 그때 CloudFront `DataTransfer-Out-Bytes` 사용량 예산(월 1000GB, 실적 70%·예측 100% 알림)을 추가한다.
+- 이로써 완료 조건의 인프라 항목 중 **비용 추정·Budgets 는 닫혔고**, 남은 것은 ① FLAC 종단 업로드(KAN-142 산출물) ② FLAC 재생 시작 지연 LTE 실측(KAN-143 뒤) 둘이다. 둘 다 다른 파트 산출물 뒤에만 가능해 **티켓은 pending 유지**, 기한(10/9)을 넘기는 사유는 이것이다.

@@ -16,7 +16,7 @@ const FREE_SUBSCRIPTION: MySubscriptionResponseDto = {
   plan: {
     status: 'free',
     tier: 'light',
-    plan_name: '라이트',
+    plan_name: 'Light',
     // 한도를 2가 아닌 값으로 둔다 — 화면이 "하루 2편"을 하드코딩하면 여기서 드러난다(paywall.md 5장)
     daily_play_limit: 3,
     renews_at: null,
@@ -37,7 +37,7 @@ export const mockFetchPlans = async (platform: 'ios' | 'android'): Promise<Plans
       {
         plan_id: 'mock-light',
         tier: 'light',
-        name: '라이트',
+        name: 'Light',
         description: '무료로 하루 3편까지 들을 수 있어요',
         price_krw: 0,
         store_product_id: null,
@@ -47,7 +47,7 @@ export const mockFetchPlans = async (platform: 'ios' | 'android'): Promise<Plans
       {
         plan_id: 'mock-daily',
         tier: 'daily',
-        name: '데일리',
+        name: 'Daily',
         description: '하루 5편, 광고 없이',
         price_krw: 3900,
         store_product_id: productId('daily'),
@@ -62,7 +62,7 @@ export const mockFetchPlans = async (platform: 'ios' | 'android'): Promise<Plans
       {
         plan_id: 'mock-pro',
         tier: 'pro',
-        name: '프로',
+        name: 'Pro',
         description: '제한 없이, 광고 없이',
         price_krw: 9900,
         store_product_id: productId('pro'),

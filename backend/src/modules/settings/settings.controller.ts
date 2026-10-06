@@ -79,8 +79,14 @@ export class SettingsController {
       });
     }
 
+    const updated = await this.settingsOrchestrator.updateSettings(
+      currentUser.id,
+      command,
+    );
+
     return UpdateSettingsResponseDto.from(
-      await this.settingsOrchestrator.updateSettings(currentUser.id, command),
+      updated.settings,
+      updated.effectiveAudioQuality,
       request.client_seq,
     );
   }

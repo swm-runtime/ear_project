@@ -55,7 +55,12 @@ export interface SettingsSummaryResult {
   plan: PlanView | null;
   interestSummary: InterestSummaryView | null;
   settings: UserSettingView;
-  /** 음질 선택지와 이 사용자의 티어가 허용하는지(`settings-api.md` 4.1 — KAN-141). 오름차순 전부 */
+  /**
+   * 응답의 `preferred_audio_quality` — 고른 값, 고른 적 없으면 티어가 허용하는 가장 높은 선택지(2026-10-06).
+   * `settings.preferredAudioQuality`(원값, null 가능)와 구분한다
+   */
+  effectiveAudioQuality: AudioQuality;
+  /** 음질 선택지(렌더되는 것만 — `aac` 제외)와 이 사용자의 티어가 허용하는지(`settings-api.md` 4.1 — KAN-141). 오름차순 */
   audioQualities: AudioQualityOptionView[];
   marketingConsent: MarketingConsentView;
   version: AppVersionView;
@@ -72,5 +77,6 @@ export interface UpdateSettingsCommand {
   defaultPlaybackRate?: number;
   isAutoExpandEnabled?: boolean;
   isDripNotificationEnabled?: boolean;
-  preferredAudioQuality?: AudioQuality;
+  /** `null` = 고른 적 없음으로 되돌림(자동 — 티어 허용 최고) */
+  preferredAudioQuality?: AudioQuality | null;
 }

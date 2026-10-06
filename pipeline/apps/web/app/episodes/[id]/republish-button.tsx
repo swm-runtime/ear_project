@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { republishEarContent, EarApiError } from "@/lib/ear";
+import { fetchDistAudio, fetchLosslessAudio, LOSSLESS_DROP_WARNING, losslessWouldDrop } from "@/lib/publish-files";
 import { markPublished } from "../../actions";
 import { earErrMsg } from "../../publish/ear-connect";
 import { btnCls } from "@/components/ui";
@@ -29,7 +30,8 @@ export function RepublishButton({ episodeId, backlogId, contentId, version, publ
   async function run() {
     if (parts.length === 0) return;
     const what = parts.join("·");
-    if (!confirm(`${episodeId} 의 발행본 ${what}${audioNewer ? "(자막 포함)" : ""}을(를) 교체합니다 (제품 콘텐츠 ${contentId.slice(0, 8)}…, v${version ?? "?"} → v${(version ?? 0) + 1}).\n확인을 마쳤나요? 앱 사용자의 저장 위치는 초기화되고 라이브러리는 유지됩니다.`)) return;
+    const dropWarn = audioNewer && (await losslessWouldDrop(episodeId)); // KAN-145 — 오디오를 바꾸는 재발행만 음질 행이 바뀐다
+    if (!confirm(`${episodeId} 의 발행본 ${what}${audioNewer ? "(자막 포함)" : ""}을(를) 교체합니다 (제품 콘텐츠 ${contentId.slice(0, 8)}…, v${version ?? "?"} → v${(version ?? 0) + 1}).\n확인을 마쳤나요? 앱 사용자의 저장 위치는 초기화되고 라이브러리는 유지됩니다.${dropWarn ? `\n\n⚠️ ${LOSSLESS_DROP_WARNING}` : ""}`)) return;
     setBusy(true); setMsg(null);
     try {
       // 바뀐 것만 받아 보낸다 — 안 바뀐 파일까지 올리면 같은 내용으로 버전만 오른다
@@ -38,12 +40,14 @@ export function RepublishButton({ episodeId, backlogId, contentId, version, publ
         if (!res.ok) throw new Error(`${label}을(를) 읽지 못했어요 — 해당 탭에서 파일이 있는지 확인`);
         return new File([await res.blob()], name, { type });
       };
-      const audio = audioNewer ? await fetchPart("audio", `${episodeId}.mp3`, "audio/mpeg", "발행 오디오(dist.mp3)") : undefined;
+      const audio = audioNewer ? (await fetchDistAudio(episodeId)) ?? undefined : undefined;
+      if (audioNewer && !audio) throw new Error("발행 오디오(dist.m4a·dist.mp3)를 읽지 못했어요 — 음원 탭에서 파일이 있는지 확인");
+      const lossless = audio ? (await fetchLosslessAudio(episodeId)) ?? undefined : undefined; // 무손실(Pro) — 서버 스위치가 꺼져 있으면 없음
       const thumbnail = thumbnailNewer ? await fetchPart("thumbnail", `${episodeId}.png`, "image/png", "썸네일(thumbnail.png)") : undefined;
       // 자막은 새 오디오의 TTS 산출물 — 없으면(정렬 실패 편) 싣지 않는다. 그때 제품은 기존 자막을 지운다(틀린 자막보다 없는 편)
       const scriptRes = audio ? await fetch(`/api/publish/${episodeId}?script=1`) : null;
       const script = scriptRes?.ok ? new File([await scriptRes.text()], "script-segments.json", { type: "application/json" }) : undefined;
-      const content = await republishEarContent(contentId, { audio, thumbnail, script });
+      const content = await republishEarContent(contentId, { audio, lossless, thumbnail, script });
       const scriptNote = !audio ? "" : content.script_applied ? " · 자막 교체" : ` · ⚠️ 자막 없음(${script ? content.script_rejected_reason ?? "거부" : "TTS 자막 파일 없음"})`;
       await markPublished(backlogId, content.id, content.content_version, undefined, {
         action: "republish",

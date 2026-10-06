@@ -2,8 +2,9 @@
  * admin.md 미결 "업로드 대상 파일 규격" — 상한은 아직 확정되지 않았다. 여기 값은 서버 보호용
  * 임시 상한이며, 규격이 확정되면 이 상수만 바꾼다.
  */
-// 2026-10-06 KAN-141: 200MB → 320MB. 무손실 스테레오 WAV 20분이 약 212MB다(admin-api.md 4.6). 음질별 파일 하나하나에 적용된다
-export const MAX_AUDIO_FILE_BYTES = 320 * 1024 * 1024;
+// 음질별 파일 하나하나에 적용된다(admin-api.md 4.6). 2026-10-06 KAN-141 에서 WAV 를 위해 320MB 로 올렸다가
+// 무손실을 FLAC 으로 확정하며(20분 스테레오 약 45MB) 200MB 로 되돌렸다 — 업로드 경로의 본문 한도도 이 값에 맞춘다
+export const MAX_AUDIO_FILE_BYTES = 200 * 1024 * 1024;
 /** 음질 3종의 길이 허용 오차 — 같은 마스터에서 렌더한 파일이라 반올림 차이만 난다(domain.md 5.8) */
 export const AUDIO_DURATION_TOLERANCE_SEC = 1;
 export const MAX_THUMBNAIL_FILE_BYTES = 5 * 1024 * 1024;
@@ -32,14 +33,25 @@ export const AUDIO_CONTENT_TYPES: Readonly<Record<string, string>> = {
   m4a: 'audio/mp4',
 };
 
-/** 고음질(`aac`) — m4a AAC (admin-api.md 4.6, KAN-141) */
+/** 고음질(`aac`) — m4a AAC (admin-api.md 4.6, KAN-141). 파이프라인은 이 파트를 올리지 않는다(압축이 이미 AAC 192k) — 계약만 남겨 둔다 */
 export const AAC_AUDIO_CONTENT_TYPES: Readonly<Record<string, string>> = {
   m4a: 'audio/mp4',
 };
 
-/** 무손실(`lossless`) — wav PCM (admin-api.md 4.6, KAN-141) */
+/** 무손실(`lossless`) — FLAC (admin-api.md 4.6, 2026-10-06 확정). WAV 는 받지 않는다 — 같은 음질에 네 배 크기다 */
 export const LOSSLESS_AUDIO_CONTENT_TYPES: Readonly<Record<string, string>> = {
-  wav: 'audio/wav',
+  flac: 'audio/flac',
+};
+
+/**
+ * 저장소에 올릴 때 붙이는 Content-Type — **음질 3종의 확장자 전부**다. 저장 계층은 음질을 모르고 확장자만
+ * 받으므로 세 표를 합쳐 둔다. 압축 음질 표만 보던 때는 무손실 확장자(`flac`)가 없어 무손실 파일이 Content-Type 없이 저장됐다
+ * (2026-10-06). 음질별 "받을 수 있는 형식" 판정은 위의 세 표가 그대로 한다.
+ */
+export const STORED_AUDIO_CONTENT_TYPES: Readonly<Record<string, string>> = {
+  ...AUDIO_CONTENT_TYPES,
+  ...AAC_AUDIO_CONTENT_TYPES,
+  ...LOSSLESS_AUDIO_CONTENT_TYPES,
 };
 
 export const THUMBNAIL_CONTENT_TYPES: Readonly<Record<string, string>> = {

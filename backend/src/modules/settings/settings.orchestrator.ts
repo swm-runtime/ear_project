@@ -7,8 +7,10 @@ import { isVersionLowerThan } from '@/common/utils/semver.util';
 import { EnvironmentVariables } from '@/config/env.validation';
 import { UserInterestService } from '@/modules/interest/services/user-interest.service';
 import {
-  AUDIO_QUALITY_ORDER,
+  AudioQuality,
+  OFFERED_AUDIO_QUALITIES,
   audioQualityRank,
+  defaultAudioQualityFor,
 } from '@/modules/content/content.enum';
 import { PlanService } from '@/modules/subscription/services/plan.service';
 import { SubscriptionService } from '@/modules/subscription/services/subscription.service';
@@ -118,7 +120,10 @@ export class SettingsOrchestrator {
       plan,
       interestSummary,
       settings,
-      audioQualities,
+      effectiveAudioQuality:
+        settings.preferredAudioQuality ??
+        defaultAudioQualityFor(audioQualities.maxAllowed),
+      audioQualities: audioQualities.options,
       marketingConsent,
       version: this.buildVersion(appVersion, platform),
       failedSections,
@@ -137,26 +142,50 @@ export class SettingsOrchestrator {
    * 바꾸지 않는다. 선택지는 토글 기준값이라 비울 수 없다(`settings`와 같은 묶음) — 사용자 행을 못 읽으면
    * **무료 기준으로 잠근다**(가장 보수적인 쪽). 그 경우 플랜 카드도 함께 실패로 표시되므로 재시도 뒤 바로잡힌다.
    */
-  private async buildAudioQualities(
-    userId: string,
-  ): Promise<AudioQualityOptionView[]> {
+  /**
+   * 선택지는 **렌더되는 음질만**(`OFFERED_AUDIO_QUALITIES` — `aac`는 파일이 없어 내놓지 않는다, 2026-10-06). 허용은
+   * `plans.max_audio_quality`와의 순서 비교다. 사용자 행을 못 읽으면 무료 기준으로 잠근다 — 선택지는 비울 수 없다.
+   */
+  private async buildAudioQualities(userId: string): Promise<{
+    options: AudioQualityOptionView[];
+    maxAllowed: AudioQuality;
+  }> {
     const tier = await this.userService
       .getById(userId)
       .then((user) => user.tier)
       .catch(() => UserTier.LIGHT);
-    const max = await this.planService.getMaxAudioQuality(tier);
+    const maxAllowed = await this.planService.getMaxAudioQuality(tier);
 
-    return AUDIO_QUALITY_ORDER.map((quality) => ({
-      quality,
-      allowed: audioQualityRank(quality) <= audioQualityRank(max),
-    }));
+    return {
+      maxAllowed,
+      options: OFFERED_AUDIO_QUALITIES.map((quality) => ({
+        quality,
+        allowed: audioQualityRank(quality) <= audioQualityRank(maxAllowed),
+      })),
+    };
   }
 
+  /** 갱신 후 설정 전체 + 응답용 음질(고른 적 없으면 티어 허용 최고 선택지)을 함께 돌려준다 */
   async updateSettings(
     userId: string,
     command: UpdateSettingsCommand,
-  ): Promise<UserSettingView> {
-    return this.userSettingService.updateSettings(userId, command);
+  ): Promise<{
+    settings: UserSettingView;
+    effectiveAudioQuality: AudioQuality;
+  }> {
+    const settings = await this.userSettingService.updateSettings(
+      userId,
+      command,
+    );
+
+    return {
+      settings,
+      effectiveAudioQuality:
+        settings.preferredAudioQuality ??
+        defaultAudioQualityFor(
+          (await this.buildAudioQualities(userId)).maxAllowed,
+        ),
+    };
   }
 
   /**
