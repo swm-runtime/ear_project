@@ -26,6 +26,30 @@ describe('validateEnv', () => {
     AUDIO_STORAGE_ROOT: './storage/audio',
   };
 
+  it.each([
+    'Production',
+    'Production,Sandbox',
+    'Production, Sandbox',
+    ' Sandbox , Production ',
+    '',
+  ])(
+    'APP_STORE_ENVIRONMENTS="%s" 는 받는다 — 쉼표 앞뒤 공백으로 기동이 실패하지 않는다',
+    (value) => {
+      expect(() =>
+        validateEnv({ ...validEnv, APP_STORE_ENVIRONMENTS: value }),
+      ).not.toThrow();
+    },
+  );
+
+  it.each(['Xcode', 'Production;Sandbox', 'Production,Sandbox,Production'])(
+    'APP_STORE_ENVIRONMENTS="%s" 는 거부한다',
+    (value) => {
+      expect(() =>
+        validateEnv({ ...validEnv, APP_STORE_ENVIRONMENTS: value }),
+      ).toThrow();
+    },
+  );
+
   it('필수 환경 변수가 모두 있으면 숫자 타입으로 변환된 설정을 반환한다', () => {
     // given
     const config = { ...validEnv };

@@ -362,6 +362,7 @@ Apple이 호출한다. 본문은 `{ "signedPayload": "<JWS>" }`. App Store Conne
 | `REFUND_REVERSED` | 만료 전이면 `active` 복구 |
 | `RENEWAL_EXTENDED` | 만료일만 갱신 |
 | 그 밖(`TEST` · `PRICE_INCREASE` · `CONSUMPTION_REQUEST` · `ONE_TIME_CHARGE` 등) | 적재만 하고 상태를 바꾸지 않는다 |
+| 거래 본문(`data`)이 없는 알림 — `RENEWAL_EXTENSION`(`SUMMARY`) · `RESCIND_CONSENT` · `EXTERNAL_PURCHASE_TOKEN` | 적재만 하고 200으로 끝낸다(2026-10-06). 이 알림들은 환경을 `data`가 아니라 `summary` · `appData`에 싣고, 외부 구매 토큰은 식별자 접두사(`SANDBOX`)로 가린다 — **환경을 `data`에서만 읽으면 "받지 않는 환경"으로 400이 되어 Apple이 며칠간 재전송한다** |
 
 - 만료·환불로 `users.tier`가 내려갈 때 라이브러리·드립은 건드리지 않는다(`subscription.md` 4.5).
 - **알림 순서가 뒤바뀔 수 있다.** 반영 전에 페이로드의 `signedDate`가 그 행에 마지막으로 반영한 알림보다 과거면 상태를 덮지 않는다(적재는 한다).

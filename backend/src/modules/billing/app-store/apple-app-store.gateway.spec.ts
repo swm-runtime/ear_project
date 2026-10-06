@@ -408,6 +408,71 @@ describe('AppleAppStoreGateway', () => {
       });
     });
 
+    it.each([
+      [
+        '구독 일괄 연장 요약(summary)',
+        {
+          notificationType: 'RENEWAL_EXTENSION',
+          subtype: 'SUMMARY',
+          summary: { bundleId: BUNDLE_ID, environment: 'Sandbox' },
+        },
+      ],
+      [
+        '동의 철회(appData)',
+        {
+          notificationType: 'RESCIND_CONSENT',
+          subtype: undefined,
+          appData: { bundleId: BUNDLE_ID, environment: 'Sandbox' },
+        },
+      ],
+      [
+        '외부 구매 토큰(externalPurchaseToken — 환경 필드가 없어 식별자 접두사로 가른다)',
+        {
+          notificationType: 'EXTERNAL_PURCHASE_TOKEN',
+          subtype: 'UNREPORTED',
+          externalPurchaseToken: {
+            bundleId: BUNDLE_ID,
+            externalPurchaseId: 'SANDBOX_11111111-2222-4333-8444-555555555555',
+          },
+        },
+      ],
+    ])(
+      'data 가 없는 알림 — %s 도 환경을 그 본문에서 읽어 받는다(400으로 돌려보내면 Apple이 며칠간 재전송한다)',
+      async (_label, body) => {
+        const envelope = notificationPayload({}, body);
+        delete envelope.data;
+
+        const notification = await gateway.verifyNotification(
+          sign(chain, envelope),
+        );
+
+        expect(notification).toMatchObject({
+          type: body.notificationType,
+          environment: SubscriptionEnvironment.SANDBOX,
+          transaction: null,
+          renewal: null,
+        });
+      },
+    );
+
+    it('data 가 없는 알림도 받지 않는 환경이면 거절한다', async () => {
+      const envelope = notificationPayload(
+        {},
+        {
+          notificationType: 'RENEWAL_EXTENSION',
+          subtype: 'SUMMARY',
+          summary: { bundleId: BUNDLE_ID, environment: 'Production' },
+        },
+      );
+      delete envelope.data;
+
+      await expectRejected(
+        gateway.verifyNotification(sign(chain, envelope)),
+        'invalid',
+        'environment_not_allowed',
+      );
+    });
+
     it('봉투의 서명이 맞아도 안쪽 거래가 다른 루트로 서명됐으면 받지 않는다', async () => {
       await expectRejected(
         gateway.verifyNotification(
