@@ -34,7 +34,8 @@ test("타임스탬프 합성 — wav 를 먼저 요청하고, 티어 제한이�
   assert.equal(c.format, "wav_44100");
 });
 
-test("강제 정렬 업로드 형식 — RIFF 헤더면 wav, 아니면 mp3", () => {
+test("강제 정렬 업로드 형식 — RIFF 헤더면 wav, ftyp 면 m4a, 아니면 mp3", () => {
   assert.deepEqual(alignmentUpload(Buffer.from("RIFF\0\0\0\0WAVEfmt ", "latin1")), { type: "audio/wav", name: "audio.wav" });
   assert.deepEqual(alignmentUpload(Buffer.from("ID3\x04\0\0", "latin1")), { type: "audio/mpeg", name: "dist.mp3" });
+  assert.deepEqual(alignmentUpload(Buffer.from("\0\0\0\x20ftypM4A \0\0", "latin1")), { type: "audio/mp4", name: "dist.m4a" });
 });

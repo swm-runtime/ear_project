@@ -121,7 +121,7 @@ async function fileMd5(p: string): Promise<string | null> {
 
 export function contentTypeOf(name: string): string {
   const ext = path.extname(name).toLowerCase();
-  return ({ ".md": "text/markdown; charset=utf-8", ".txt": "text/plain; charset=utf-8", ".json": "application/json", ".wav": "audio/wav", ".mp3": "audio/mpeg", ".jsonl": "application/x-ndjson" } as Record<string, string>)[ext] ?? "application/octet-stream";
+  return ({ ".md": "text/markdown; charset=utf-8", ".txt": "text/plain; charset=utf-8", ".json": "application/json", ".wav": "audio/wav", ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".flac": "audio/flac", ".jsonl": "application/x-ndjson" } as Record<string, string>)[ext] ?? "application/octet-stream";
 }
 
 /** 디렉토리의 파일을 상대 경로("/" 구분)로 — 점으로 시작하는 파일·디렉토리(.DS_Store 등)는 제외 */

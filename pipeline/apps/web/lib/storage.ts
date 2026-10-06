@@ -27,7 +27,7 @@ export function assertPrefix(prefix: unknown): string { return check(prefix, "pr
 
 export function contentTypeOf(key: string): string {
   const ext = key.slice(key.lastIndexOf(".")).toLowerCase();
-  return ({ ".md": "text/markdown; charset=utf-8", ".txt": "text/plain; charset=utf-8", ".json": "application/json", ".wav": "audio/wav", ".mp3": "audio/mpeg", ".jsonl": "application/x-ndjson" } as Record<string, string>)[ext] ?? "application/octet-stream";
+  return ({ ".md": "text/markdown; charset=utf-8", ".txt": "text/plain; charset=utf-8", ".json": "application/json", ".wav": "audio/wav", ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".flac": "audio/flac", ".jsonl": "application/x-ndjson" } as Record<string, string>)[ext] ?? "application/octet-stream";
 }
 
 /** 텍스트 객체 읽기 — 없으면 null, 그 외 오류는 던진다 */

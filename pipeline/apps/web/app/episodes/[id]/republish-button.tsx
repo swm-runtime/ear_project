@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { republishEarContent, EarApiError } from "@/lib/ear";
+import { fetchDistAudio, fetchLosslessAudio } from "@/lib/publish-files";
 import { markPublished } from "../../actions";
 import { earErrMsg } from "../../publish/ear-connect";
 import { btnCls } from "@/components/ui";
@@ -38,12 +39,14 @@ export function RepublishButton({ episodeId, backlogId, contentId, version, publ
         if (!res.ok) throw new Error(`${label}을(를) 읽지 못했어요 — 해당 탭에서 파일이 있는지 확인`);
         return new File([await res.blob()], name, { type });
       };
-      const audio = audioNewer ? await fetchPart("audio", `${episodeId}.mp3`, "audio/mpeg", "발행 오디오(dist.mp3)") : undefined;
+      const audio = audioNewer ? (await fetchDistAudio(episodeId)) ?? undefined : undefined;
+      if (audioNewer && !audio) throw new Error("발행 오디오(dist.m4a·dist.mp3)를 읽지 못했어요 — 음원 탭에서 파일이 있는지 확인");
+      const lossless = audio ? (await fetchLosslessAudio(episodeId)) ?? undefined : undefined; // 무손실(Pro) — 서버 스위치가 꺼져 있으면 없음
       const thumbnail = thumbnailNewer ? await fetchPart("thumbnail", `${episodeId}.png`, "image/png", "썸네일(thumbnail.png)") : undefined;
       // 자막은 새 오디오의 TTS 산출물 — 없으면(정렬 실패 편) 싣지 않는다. 그때 제품은 기존 자막을 지운다(틀린 자막보다 없는 편)
       const scriptRes = audio ? await fetch(`/api/publish/${episodeId}?script=1`) : null;
       const script = scriptRes?.ok ? new File([await scriptRes.text()], "script-segments.json", { type: "application/json" }) : undefined;
-      const content = await republishEarContent(contentId, { audio, thumbnail, script });
+      const content = await republishEarContent(contentId, { audio, lossless, thumbnail, script });
       const scriptNote = !audio ? "" : content.script_applied ? " · 자막 교체" : ` · ⚠️ 자막 없음(${script ? content.script_rejected_reason ?? "거부" : "TTS 자막 파일 없음"})`;
       await markPublished(backlogId, content.id, content.content_version, undefined, {
         action: "republish",

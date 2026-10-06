@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { EarContent, listEarContents, republishEarContent } from "@/lib/ear";
+import { fetchDistAudio, fetchLosslessAudio } from "@/lib/publish-files";
 import { enrichStates, markPublished, readEnrichment, republishPlans, type RepublishPlan } from "../actions";
 import { isStale } from "./enrich-cell";
 import { btnCls } from "@/components/ui";
@@ -81,13 +82,15 @@ async function refreshOne(t: Target): Promise<{ sent: string[]; noScript: boolea
     if (!res.ok) { if (optional) return undefined; throw new Error(`${name} 을(를) 읽지 못함 — 에피소드 파일 확인`); }
     return new File([await res.blob()], name, { type });
   };
-  const audio = t.audio ? await fetchFile("audio", `${ep}.mp3`, "audio/mpeg") : undefined;
+  const audio = t.audio && ep ? (await fetchDistAudio(ep)) ?? undefined : undefined;
+  if (t.audio && !audio) throw new Error(`${ep} 발행 오디오(dist.m4a·dist.mp3)를 읽지 못함 — 에피소드 파일 확인`);
+  const lossless = audio && ep ? (await fetchLosslessAudio(ep)) ?? undefined : undefined; // 무손실(Pro) — 서버 스위치가 꺼져 있으면 없음
   const thumbnail = t.thumbnail ? await fetchFile("thumbnail", `${ep}.png`, "image/png") : undefined;
   const script = ep && (t.audio || t.scriptOnly) ? await fetchFile("script", "script-segments.json", "application/json", true) : undefined;
   let enrichment: File | undefined;
   if (t.meta) { const got = await readEnrichment(t.c.id); if (got) enrichment = new File([got.text], "enrichment.json", { type: "application/json" }); }
   if (!audio && !thumbnail && !script && !enrichment) return { sent: [], noScript: false };
-  const r = await republishEarContent(t.c.id, { audio, thumbnail, script, enrichment });
+  const r = await republishEarContent(t.c.id, { audio, lossless, thumbnail, script, enrichment });
   const sent = [audio && "오디오", thumbnail && "썸네일", r.script_applied && "자막", r.enrichment_applied && "메타"].filter(Boolean) as string[];
   if ((audio || thumbnail) && t.p) {
     await markPublished(t.p.backlogId, r.id, r.content_version, undefined, {
