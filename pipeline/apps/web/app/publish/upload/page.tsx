@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { markPublished, listPublishableEpisodes, requestEpisodeEnrich, episodeEnrichState } from "../../actions";
 import { EarTopic, listEarTopics, uploadEarContent } from "@/lib/ear";
+import { fetchDistAudio, fetchLosslessAudio } from "@/lib/publish-files";
 import { Badge, PageHeader, Panel, btnCls } from "@/components/ui";
 import { EarGate, EarSession, earErrMsg } from "../ear-connect";
 
@@ -16,7 +17,7 @@ interface UploadMeta {
 
 /**
  * 제품 업로드 (admin.md 4.2 — 업로드 = 즉시 발행).
- * `?episode=<id>` 로 들어오면 패키지 산출물(upload-meta.json·dist.mp3)을 프리필한다 —
+ * `?episode=<id>` 로 들어오면 패키지 산출물(upload-meta.json·배포본 dist.m4a/mp3·무손실 lossless.flac)을 프리필한다 —
  * 게이트 2(spec/07 3장)의 제목·설명 확정과 검수 체크가 이 화면에서 함께 이뤄진다.
  */
 export default function UploadPage() {
@@ -46,7 +47,8 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
   const [hasAudio, setHasAudio] = useState(false);
   const [hasThumb, setHasThumb] = useState(false);
   const [scriptSegs, setScriptSegs] = useState<number | null>(null); // episodes/<id>/script-segments.json 의 세그먼트 수 — 없으면 null (자막 없이 발행, 앱은 버튼을 숨긴다)
-  const [scriptSecs, setScriptSecs] = useState<{ count: number; sent: boolean }>({ count: 0, sent: false }); // 구간 제목 수·전송 여부 (KAN-137 — 전송은 KAN-144 배포 뒤)
+  const [scriptSecs, setScriptSecs] = useState<{ count: number; sent: boolean }>({ count: 0, sent: false });
+  const [audioInfo, setAudioInfo] = useState<{ ext: string | null; lossless: boolean; losslessSent: boolean }>({ ext: null, lossless: false, losslessSent: false }); // 배포본 형식·무손실(Pro) 보유·전송 여부 (KAN-141·142) // 구간 제목 수·전송 여부 (KAN-137 — 전송은 KAN-144 배포 뒤)
   const [enrichVer, setEnrichVer] = useState<number | null>(null); // episodes/<id>/enrichment.json 의 schema_version — 없으면 null (발행 후 목록에서 소급 가능)
   const [enrichJob, setEnrichJob] = useState<{ status: string; error: string | null } | null>(null); // [추천 메타 뽑기] 진행 상태 — 패키지는 더 이상 자동으로 걸지 않는다 (2026-09-23, spec/07 2장)
   const [enrichMsg, setEnrichMsg] = useState<string | null>(null);
@@ -80,8 +82,8 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
         if (episodeId) {
           const res = await fetch(`/api/publish/${episodeId}`);
           if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message ?? `HTTP ${res.status}`);
-          const body = (await res.json()) as { meta: UploadMeta; has_audio: boolean; has_thumbnail: boolean; has_enrichment?: boolean; enrichment_version?: number | null; has_script?: boolean; script_segments?: number | null; script_sections?: number; script_sections_sent?: boolean };
-          setMeta(body.meta); setHasAudio(body.has_audio); setHasThumb(body.has_thumbnail); setEnrichVer(body.has_enrichment ? body.enrichment_version ?? 1 : null); setScriptSegs(body.has_script ? body.script_segments ?? 0 : null); setScriptSecs({ count: body.script_sections ?? 0, sent: !!body.script_sections_sent });
+          const body = (await res.json()) as { meta: UploadMeta; has_audio: boolean; has_thumbnail: boolean; has_enrichment?: boolean; enrichment_version?: number | null; has_script?: boolean; script_segments?: number | null; script_sections?: number; script_sections_sent?: boolean; audio_ext?: string | null; has_lossless?: boolean; lossless_sent?: boolean };
+          setMeta(body.meta); setHasAudio(body.has_audio); setHasThumb(body.has_thumbnail); setEnrichVer(body.has_enrichment ? body.enrichment_version ?? 1 : null); setScriptSegs(body.has_script ? body.script_segments ?? 0 : null); setScriptSecs({ count: body.script_sections ?? 0, sent: !!body.script_sections_sent }); setAudioInfo({ ext: body.audio_ext ?? null, lossless: !!body.has_lossless, losslessSent: !!body.lossless_sent });
           // 제품 주제 = 파이프라인 중분류 1:1 (2026-09-06 체계 통일) — 이름이 같은 제품 주제를 기본 선택한다. 없으면 손으로 고른다
           const same = items.find((t) => t.name === body.meta.mid_topic);
           if (same) setTopicIds([same.id]);
@@ -130,10 +132,11 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
     try {
       let audio = audioFile;
       if (!audio && episodeId) {
-        const res = await fetch(`/api/publish/${episodeId}?audio=1`);
-        if (!res.ok) throw new Error("발행 오디오(dist.mp3)를 읽지 못했어요");
-        audio = new File([await res.blob()], `${episodeId}.mp3`, { type: "audio/mpeg" });
+        audio = await fetchDistAudio(episodeId);
+        if (!audio) throw new Error("발행 오디오(dist.m4a·dist.mp3)를 읽지 못했어요");
       }
+      // 무손실(Pro, KAN-141·142) — 에피소드 발행본을 쓸 때만. 서버 스위치(lib/audio-file.ts)가 꺼져 있거나 파일이 없으면 압축만 보낸다
+      const lossless = !audioFile && episodeId ? await fetchLosslessAudio(episodeId) : null;
       // 썸네일도 오디오와 같은 경로로 가져온다 — 파일을 골랐으면 그쪽이 이긴다(교체용)
       let thumb = thumbFile;
       if (!thumb && episodeId) {
@@ -160,7 +163,7 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
           title: s.title.trim(), ...(s.author.trim() ? { author: s.author.trim() } : {}), ...(s.url.trim() ? { url: s.url.trim() } : {}),
         })),
         review_confirmed: true,
-      }, audio!, thumb!, enrichment, script);
+      }, audio!, thumb!, enrichment, script, lossless);
       await markPublished(meta?.backlog_id ?? null, content.id, content.content_version, content.published_at, { action: "publish", parts: ["audio", "thumbnail", "title", "description", "source_name", "topic_ids", ...(enrichment ? ["enrichment"] : []), ...(script ? ["script"] : [])], episodeId: episodeId ?? undefined }).catch(() => undefined); // 파이프라인에 content_id·버전·이력 기록 — 실패해도 발행은 성립 (spec/07 5장)
       setMsg({ kind: "ok", text: `발행되었습니다 — ${content.id}${enrichment ? (content.enrichment_applied ? ` · 추천 메타 v${content.enrichment_schema_version ?? "?"} 반영${embeddingNote ? ` (${embeddingNote})` : ""}` : ` · 추천 메타 거부: ${content.enrichment_rejected_reason ?? "사유 없음"}`) : " · 추천 메타 없음(목록에서 소급 가능)"}${script ? (content.script_applied ? " · 자막 반영" : ` · 자막 거부: ${content.script_rejected_reason ?? "사유 없음"}`) : " · 자막 없음"}` });
       setTimeout(() => router.push("/publish"), 900);
@@ -202,7 +205,7 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
                 ))}
               </div>
             )}
-            <p className="mt-2 text-[11px] text-ink-soft">고르면 그 에피소드의 dist.mp3·메타가 자동으로 채워져요. 목록에 없으면 아래에서 파일을 직접 올리면 됩니다.</p>
+            <p className="mt-2 text-[11px] text-ink-soft">고르면 그 에피소드의 배포본(dist.m4a)·메타가 자동으로 채워져요. 목록에 없으면 아래에서 파일을 직접 올리면 됩니다.</p>
           </Panel>
         )}
         <Panel title="발행 메타">
@@ -239,10 +242,10 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
         <Panel title="파일">
           <div className="grid gap-3 text-[13px] sm:grid-cols-2">
             <label className="block">
-              <span className="mb-1 block text-xs font-semibold text-ink-soft">오디오 (mp3/m4a) {episodeId && hasAudio ? "— 패키지 dist.mp3 사용" : "*"}</span>
+              <span className="mb-1 block text-xs font-semibold text-ink-soft">오디오 (mp3/m4a) {episodeId && hasAudio ? `— 패키지 dist.${audioInfo.ext ?? "m4a"} 사용` : "*"}</span>
               <input type="file" accept=".mp3,.m4a,audio/mpeg,audio/mp4" onChange={(e) => setAudioFile(e.target.files?.[0] ?? null)} />
-              {episodeId && hasAudio && !audioFile && <p className="mt-1 text-[11px] text-ink-soft">비워두면 에피소드의 발행본(dist.mp3)을 그대로 올려요.</p>}
-              {episodeId && !hasAudio && <p className="mt-1 text-[11px] text-amber-700">이 에피소드에 dist.mp3 가 없어요 — TTS 먼저, 또는 파일 직접 선택.</p>}
+              {episodeId && hasAudio && !audioFile && <p className="mt-1 text-[11px] text-ink-soft">비워두면 에피소드의 발행본(dist.{audioInfo.ext ?? "m4a"})을 그대로 올려요.{audioInfo.lossless ? (audioInfo.losslessSent ? " 무손실(lossless.flac — Pro)도 함께 보내요." : " 무손실(lossless.flac)은 서버 준비(flac 허용) 전이라 보내지 않아요.") : ""}</p>}
+              {episodeId && !hasAudio && <p className="mt-1 text-[11px] text-amber-700">이 에피소드에 배포본(dist.m4a·dist.mp3)이 없어요 — TTS 먼저, 또는 파일 직접 선택.</p>}
             </label>
             <label className="block">
               <span className="mb-1 block text-xs font-semibold text-ink-soft">썸네일 (jpg/png/webp, ≤5MB) {episodeId && hasThumb ? "— 에피소드 thumbnail.png 사용" : "*"}</span>

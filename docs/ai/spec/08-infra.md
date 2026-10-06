@@ -43,7 +43,7 @@
 | spec/03·04·05 등 명세 문서 | git (`docs/ai/`) | 본문이 사실상 고정. 워커는 체크아웃에서 읽고 `runs`에 커밋 SHA를 남긴다. spec 안에서 자주 바뀌는 표·참조는 자산으로 승격(spec/09 4.1) |
 | `episodes/{id}/` 대본·claims·발췌·QA/비평 리포트·`upload-meta.json`·`audio/` | 파이프라인 S3 | `script.md`를 DB에 두지 않는 이유: 편당 100~150KB·리포트 회차 추기로 연 100MB+ → "Supabase 비용 0" 원칙 위반, TTS·패키지·업로드가 파일을 소비, `claude -p`가 읽으려면 어차피 파일로 내려놓아야 함 |
 | `sweeps/` 스윕 원본 · `datasets/` 학습 데이터 export(5장) | 파이프라인 S3 | 조회는 `sources` 테이블이 담당 |
-| 발행 `dist.mp3`·썸네일 | 제품 S3 | 게이트 2 후 관리자 업로드로만 |
+| 발행 배포본(`dist.m4a`·`lossless.flac`)·썸네일 | 제품 S3 | 게이트 2 후 관리자 업로드로만 |
 
 ## 2. 저장 계층 — S3 (파이프라인 전용 버킷 `earcast-pipeline-prod` 생성 완료 2026-09-01 · 동기화·이관 도구는 spec/10 3.3)
 
@@ -54,7 +54,7 @@ s3://<버킷>/
   episodes/{에피소드 번호}/
     script.md · claims.md · sources.md(발췌) · qa-report.md · upload-meta.json · feedback.md
     script-segments.json(자막 세그먼트 — 배포본 시각, spec/06 7장 · 정렬을 못 잡은 편은 없음)
-    audio/ master.wav · dist.mp3   (배속 정렬 timestamps 는 저장하지 않는다 — 세그먼트로만 남는다, 2026-09-19)
+    audio/ master.wav · dist.m4a · lossless.flac (구 dist.mp3)   (배속 정렬 timestamps 는 저장하지 않는다 — 세그먼트로만 남는다, 2026-09-19)
   sweeps/{날짜}.json          ← 스윕 원본 아카이브
   datasets/{export 날짜}/      ← 파인튜닝 데이터셋 export (5장 · 미결 #21)
 ```

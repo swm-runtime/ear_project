@@ -179,20 +179,22 @@ export interface UploadPayload {
 }
 
 /** 재발행 — 같은 content_id 에 오디오(·메타) 교체, content_version +1 (admin-api 4.10 — 백엔드 구현 대기: 404 면 아직 없는 것) */
-export function republishEarContent(contentId: string, parts: { audio?: File; thumbnail?: File; enrichment?: File; script?: File; payload?: Partial<Pick<UploadPayload, "title" | "description" | "source_name" | "topic_ids" | "sources">> }): Promise<EarContent> {
+export function republishEarContent(contentId: string, parts: { audio?: File; lossless?: File; thumbnail?: File; enrichment?: File; script?: File; payload?: Partial<Pick<UploadPayload, "title" | "description" | "source_name" | "topic_ids" | "sources">> }): Promise<EarContent> {
   const fd = new FormData();
   if (parts.payload) fd.append("payload", JSON.stringify(parts.payload));
   if (parts.audio) fd.append("audio", parts.audio);
+  if (parts.lossless) fd.append("audio_lossless", parts.lossless); // 무손실(Pro, KAN-141) — 오디오 교체는 음질 세트라 안 보내면 그 음질 행이 지워진다
   if (parts.thumbnail) fd.append("thumbnail", parts.thumbnail);
   if (parts.enrichment) fd.append("enrichment_file", parts.enrichment); // 단독 전송이면 content_version 무변경·재생 위치 보존 (4.10)
   if (parts.script) fd.append("script_file", parts.script); // 자막 세그먼트 — 단독 전송이면 역시 버전 무변경 (4.10, 기존 발행분 소급 경로)
   return earFetch<EarContent>(`/admin/contents/${contentId}`, { method: "PATCH", body: fd });
 }
 
-export function uploadEarContent(payload: UploadPayload, audio: File, thumbnail: File, enrichment?: File | null, script?: File | null): Promise<EarContent> {
+export function uploadEarContent(payload: UploadPayload, audio: File, thumbnail: File, enrichment?: File | null, script?: File | null, lossless?: File | null): Promise<EarContent> {
   const fd = new FormData();
   fd.append("payload", JSON.stringify(payload));
   fd.append("audio", audio);
+  if (lossless) fd.append("audio_lossless", lossless); // 무손실(Pro, KAN-141·142) — lib/audio-file.ts 스위치
   fd.append("thumbnail", thumbnail);
   if (enrichment) fd.append("enrichment_file", enrichment); // 추천 메타(metadata-pipeline 4.4) — 있으면 첫 발행부터 v2
   if (script) fd.append("script_file", script); // 자막 세그먼트(admin-api 4.6 script_file, KAN-72) — TTS 단계 산출물

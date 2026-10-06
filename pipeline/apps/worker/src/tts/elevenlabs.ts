@@ -156,9 +156,11 @@ export async function synthDialogueWithTimestamps(inputs: DialogueInput[], seed:
   }
 }
 
-/** 강제 정렬 업로드의 형식 표시 — 무손실 원본(wav_44100)은 RIFF 헤더로 알아본다. 그 밖(합성 mp3·배포본 dist.mp3)은 mp3 */
+/** 강제 정렬 업로드의 형식 표시 — 헤더로 알아본다: RIFF = 무손실 원본(wav_44100) · ftyp = 배포본 dist.m4a(2026-10-06~) · 그 밖(합성 mp3·구 배포본 dist.mp3)은 mp3 */
 export function alignmentUpload(audio: Buffer): { type: string; name: string } {
-  return audio.subarray(0, 4).toString("latin1") === "RIFF" ? { type: "audio/wav", name: "audio.wav" } : { type: "audio/mpeg", name: "dist.mp3" };
+  if (audio.subarray(0, 4).toString("latin1") === "RIFF") return { type: "audio/wav", name: "audio.wav" };
+  if (audio.subarray(4, 8).toString("latin1") === "ftyp") return { type: "audio/mp4", name: "dist.m4a" };
+  return { type: "audio/mpeg", name: "dist.mp3" };
 }
 
 /**

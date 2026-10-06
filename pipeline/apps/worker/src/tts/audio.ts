@@ -277,7 +277,23 @@ export interface AssembleInput {
   outroPadSec?: number;  // 아웃트로 앞 추가 무음 — 기본 0 (파일에 이미 1초가 있다). 필요하면 TTS_OUTRO_PAD_SEC 로
   workDir: string;       // 임시 파일 디렉토리 (episodes/{id}/audio/)
   masterOut: string;     // master.wav 경로
-  distOut: string;       // dist.mp3 경로
+  distOut: string;       // 압축 배포본 — 확장자로 인코더를 고른다(encodeRenditions): dist.m4a(AAC 192k, 2026-10-06~) · .mp3(구 형식·샘플)
+  losslessOut?: string;  // 무손실 배포본 lossless.flac (Pro, KAN-141·142) — 없으면 만들지 않는다
+}
+
+/**
+ * 마스터 → 배포본 (2026-10-06 음질 확정, KAN-141·142): 마스터에서 **한 번씩만** 인코딩한다 — 압축본을 다시 압축하지 않는다.
+ * - `.m4a` = AAC-LC 192k, `+faststart`(moov 를 앞에 — 앞부분만 받아도 재생이 시작된다. 빼면 moov 가 끝에 가서 첫 재생이 늦다)
+ * - `.mp3` = LAME 192k (구 배포 형식 — 샘플·재조립 도구)
+ * - `.flac` = 무손실(압축 레벨 8, 디코드하면 마스터와 샘플까지 같다)
+ * 조립(assemble)과 TTS 없는 재인코딩(cli/encode.ts)이 같이 쓴다.
+ */
+export async function encodeRenditions(masterFile: string, out: { distOut: string; losslessOut?: string }): Promise<void> {
+  const ext = path.extname(out.distOut).toLowerCase();
+  const codec = ext === ".m4a" ? ["-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart"] : ext === ".mp3" ? ["-c:a", "libmp3lame", "-b:a", "192k"] : null;
+  if (!codec) throw new Error(`배포본 확장자를 모름: ${out.distOut} (.m4a·.mp3)`);
+  await ffmpeg(["-i", masterFile, ...codec, out.distOut]);
+  if (out.losslessOut) await ffmpeg(["-i", masterFile, "-c:a", "flac", "-compression_level", "8", out.losslessOut]);
 }
 
 /** 본편 라우드니스 목표 (spec/06 7장) — 징글은 여기에 넣지 않는다. 모노로 잰 값이다: 양쪽 같은 스테레오로 바꾸면 BS.1770 측정이 +3dB 라
@@ -322,7 +338,7 @@ export async function assemble(i: AssembleInput): Promise<{ durationSec: number;
     parts.push(await fileToWav(i.outroFile, path.join(tmp, "outro.wav"), 2));
   }
   await concatWavs(parts, i.masterOut, tmp, "master");
-  await ffmpeg(["-i", i.masterOut, "-c:a", "libmp3lame", "-b:a", "192k", i.distOut]); // 128k → 192k (2026-09-22 박수헌). 스테레오는 joint stereo 라 목소리(양쪽 같음)는 비트를 거의 더 쓰지 않는다
+  await encodeRenditions(i.masterOut, { distOut: i.distOut, losslessOut: i.losslessOut }); // 2026-10-06 AAC 192k m4a + FLAC (종전 mp3 192k — 2026-09-22 128k→192k)
   const dur = await probeDurationSec(i.distOut);
   await fs.rm(tmp, { recursive: true, force: true });
   return { durationSec: dur, introSec: Math.round(introSec * 1000) / 1000, leadSec, outroPadSec, loudness };
