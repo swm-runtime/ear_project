@@ -5,9 +5,9 @@ import { getText } from "@/lib/storage";
  *
  * - 지금: 자막 세그먼트 배열(`script-segments.json`) 그대로.
  * - 구간 제목(KAN-137)을 켜면: `{ segments, sections }` 객체 — 서버 계약은 KAN-144(`content_scripts.sections`).
- *   **KAN-144 가 운영에 배포되기 전에는 켜지 않는다** — 객체를 받지 못하는 서버는 파일을 통째로 거부하고, 그러면 자막까지 빠진다.
+ *   2026-10-06 켬 — KAN-144(백엔드 #1150)가 운영 v1.2.0 으로 배포된 뒤. 객체를 받지 못하는 서버(그 이전 판)는 파일을 통째로 거부해 자막까지 빠진다.
  */
-export const SEND_SCRIPT_SECTIONS = false;
+export const SEND_SCRIPT_SECTIONS = true;
 
 interface Section { start_sec: number; title: string }
 
