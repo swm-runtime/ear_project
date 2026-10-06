@@ -1,9 +1,8 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
 import { theme } from '@/shared/theme';
 import { useToastStore } from '@/shared/ui/toast.store';
-import { Text } from '@/shared/ui/Typography';
 
 import PlanList from './PlanList';
 import PurchaseNotice from './PurchaseNotice';
@@ -24,7 +23,8 @@ export interface PaywallPlansSectionProps {
 
 /**
  * 페이월의 요금제 비교·결제 버튼 — 한도 안내 시트 밑에 얹는다(paywall.md 4.5 "구독 UI 플래그가 켜지면 이 시트가
- * 페이월의 자리다"). 구성: 3티어 비교 / 티어별 버튼 / 복원 링크 / 약관·해지 안내(paywall.md 5장 "바텀시트 구성").
+ * 페이월의 자리다"). 구성: 3티어 비교 / 티어별 버튼 / 약관·해지 안내 + 맨 아래 "이용약관 · 개인정보처리방침 · 구매 복원"
+ * 한 줄(paywall.md 5장 "바텀시트 구성" · KAN-146 — 요금제 관리 화면과 같은 줄).
  * **구독 UI 가 꺼진 바이너리에서는 아무것도 그리지 않는다** — 플래그·결제 모듈·플랫폼 세 겹(feature-flags.ts).
  */
 export default function PaywallPlansSection(props: PaywallPlansSectionProps) {
@@ -67,18 +67,12 @@ function PaywallPlansSectionContent({
         isVerificationDelayed={flow.isVerificationDelayed}
         isVerifying={flow.phase === 'verifying'}
       />
-      {/* 복원 링크 — 스토어 심사 요건(subscription.md 4.6) */}
-      <Pressable
-        style={styles.restore}
-        onPress={() => void flow.restore()}
-        disabled={flow.isBusy}
-        accessibilityRole="button"
-        accessibilityLabel={SUBSCRIPTION_COPY.restore}
-        accessibilityState={{ disabled: flow.isBusy, busy: flow.phase === 'restoring' }}
-      >
-        <Text style={styles.restoreLabel}>{SUBSCRIPTION_COPY.restore}</Text>
-      </Pressable>
-      <SubscriptionLegalNotice />
+      {/* 복원 링크는 약관 줄 안 — 스토어 심사 요건(subscription.md 4.6) */}
+      <SubscriptionLegalNotice
+        onRestore={() => void flow.restore()}
+        isRestoreDisabled={flow.isBusy}
+        isRestoring={flow.phase === 'restoring'}
+      />
     </View>
   );
 }
@@ -88,17 +82,5 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     gap: theme.spacing.sm,
     marginTop: theme.spacing.md,
-  },
-  restore: {
-    alignSelf: 'center',
-    minHeight: theme.touchTarget.minHeight,
-    justifyContent: 'center',
-    paddingHorizontal: theme.spacing.md,
-  },
-  restoreLabel: {
-    fontSize: theme.font.size.sm,
-    fontWeight: '600',
-    color: theme.color.textPrimary,
-    textDecorationLine: 'underline',
   },
 });

@@ -1,6 +1,8 @@
+import type { ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import { pillButton } from '@/shared/ui/pill-button.styles';
 import { SkeletonBlock, SkeletonGroup } from '@/shared/ui/Skeleton';
 import { Text } from '@/shared/ui/Typography';
 
@@ -19,13 +21,6 @@ const ACTION_LABEL: Record<Exclude<PlanAction, 'none' | 'current'>, string> = {
   downgrade: SUBSCRIPTION_COPY.plans.downgrade,
 };
 
-const featureLine = (plan: Plan): string =>
-  [
-    SUBSCRIPTION_COPY.plans.playLimit(plan.entitlements.dailyPlayLimit),
-    SUBSCRIPTION_COPY.plans.dripCount(plan.entitlements.dailyDripCount),
-    SUBSCRIPTION_COPY.plans.ads(plan.entitlements.adsEnabled),
-  ].join(' · ');
-
 const priceText = (card: PlanCardVM): string | null => {
   if (card.priceLabel === null) return null;
   return card.plan.storeProductId === null
@@ -38,12 +33,13 @@ interface PlanCardProps {
   disabled: boolean;
   isPurchasing: boolean;
   onPurchase: (plan: Plan) => void;
+  /** 이용 중 카드에만 — 현재 구독 정보·스토어 버튼(CurrentSubscriptionDetail) */
+  currentDetail?: ReactNode;
 }
 
-function PlanCard({ card, disabled, isPurchasing, onPurchase }: PlanCardProps) {
+function PlanCard({ card, disabled, isPurchasing, onPurchase, currentDetail }: PlanCardProps) {
   const { plan } = card;
   const price = priceText(card);
-  const features = featureLine(plan);
   const isCurrent = plan.action === 'current';
   const actionLabel =
     plan.action === 'purchase' || plan.action === 'upgrade' || plan.action === 'downgrade'
@@ -51,29 +47,48 @@ function PlanCard({ card, disabled, isPurchasing, onPurchase }: PlanCardProps) {
       : null;
 
   return (
-    <View
-      style={[styles.card, isCurrent ? styles.cardCurrent : null]}
-      accessible={plan.action === 'none' || isCurrent}
-      accessibilityLabel={SUBSCRIPTION_COPY.plans.cardA11y(plan.name, price ?? '', features)}
-    >
-      <View style={styles.cardHeader}>
-        <Text style={styles.planName}>{plan.name}</Text>
-        {price !== null ? <Text style={styles.price}>{price}</Text> : null}
+    <View style={styles.card}>
+      {/* 요약(이름·가격·설명·이용 중)은 한 문장으로 읽는다 — 버튼·구독 정보는 따로 포커스를 받는다 */}
+      <View
+        style={styles.summary}
+        accessible
+        accessibilityLabel={SUBSCRIPTION_COPY.plans.cardA11y(
+          plan.name,
+          price ?? '',
+          plan.description,
+          isCurrent,
+        )}
+      >
+        <View style={styles.cardHeader}>
+          <Text style={[styles.planName, isCurrent ? styles.textMuted : null]}>{plan.name}</Text>
+          {price !== null ? (
+            <Text style={[styles.price, isCurrent ? styles.textMuted : null]}>{price}</Text>
+          ) : null}
+        </View>
+        {plan.description ? (
+          <Text style={[styles.description, isCurrent ? styles.descriptionMuted : null]}>
+            {plan.description}
+          </Text>
+        ) : null}
+        {isCurrent ? (
+          // "이용 중"은 버튼이 아니라 상태 표시다 — 버튼 자리의 회색 알약. 색만이 아니라 글자로 밝힌다(누를 수 없다)
+          <View style={[pillButton.base, styles.button, styles.currentPill]}>
+            <Text style={[pillButton.secondaryLabel, styles.currentPillLabel]}>
+              {SUBSCRIPTION_COPY.plans.current}
+            </Text>
+          </View>
+        ) : null}
       </View>
-      {plan.description ? <Text style={styles.description}>{plan.description}</Text> : null}
-      <Text style={styles.features}>{features}</Text>
 
       {isCurrent ? (
-        // "이용 중"은 버튼이 아니라 상태 표시다 — 색만이 아니라 글자로 밝힌다
-        <View style={styles.currentBadge}>
-          <Text style={styles.currentBadgeLabel}>{SUBSCRIPTION_COPY.plans.current}</Text>
-        </View>
+        currentDetail
       ) : actionLabel === null ? null : (
         <>
           <Pressable
             style={({ pressed }) => [
+              pillButton.base,
+              plan.action === 'downgrade' ? styles.buttonSecondary : pillButton.primary,
               styles.button,
-              plan.action === 'downgrade' ? styles.buttonSecondary : null,
               pressed ? styles.buttonPressed : null,
               disabled ? styles.buttonDisabled : null,
             ]}
@@ -91,10 +106,9 @@ function PlanCard({ card, disabled, isPurchasing, onPurchase }: PlanCardProps) {
               />
             ) : (
               <Text
-                style={[
-                  styles.buttonLabel,
-                  plan.action === 'downgrade' ? styles.buttonLabelSecondary : null,
-                ]}
+                style={
+                  plan.action === 'downgrade' ? pillButton.secondaryLabel : pillButton.primaryLabel
+                }
               >
                 {actionLabel}
               </Text>
@@ -118,11 +132,17 @@ interface PlanListProps {
   onPurchase: (plan: Plan) => void;
   onRetry: () => void;
   isRetrying: boolean;
+  /**
+   * 이용 중(`action = current`) 카드 안에 넣을 현재 구독 정보(요금제 관리 화면만 — 페이월은 넘기지 않는다).
+   * 서버가 `current` 카드를 주지 않으면 그려지지 않는다 — 그때는 화면이 목록 밑에 따로 그린다
+   */
+  currentDetail?: ReactNode;
 }
 
 /**
- * 요금제 비교 카드(SB2 · 페이월) — 가격·일 청취 편수·이어 PICK 편수·광고(paywall.md 5장 "바텀시트 구성").
- * 가격은 스토어 현지 가격만 그린다. 조회 실패면 카드 대신 "요금제를 불러올 수 없어요" + [다시 시도].
+ * 요금제 비교 카드(SB2 · 페이월) — 이름 · 가격 · 설명 한 줄 · 버튼(KAN-146 — 기능 줄 제거). 이름·설명은 서버 값 그대로다
+ * (티어명 하드코딩 금지). 이용 중 카드는 회색 + [이용 중] 회색 알약. 가격은 스토어 현지 가격만 그린다.
+ * 조회 실패면 카드 대신 "요금제를 불러올 수 없어요" + [다시 시도].
  */
 export default function PlanList({
   state,
@@ -131,6 +151,7 @@ export default function PlanList({
   onPurchase,
   onRetry,
   isRetrying,
+  currentDetail,
 }: PlanListProps) {
   if (state.kind === 'loading') {
     return (
@@ -170,6 +191,7 @@ export default function PlanList({
           disabled={isBusy}
           isPurchasing={purchasingPlanId === card.plan.planId}
           onPurchase={onPurchase}
+          currentDetail={currentDetail}
         />
       ))}
     </View>
@@ -187,14 +209,12 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
   },
-  // 이용 중 — 테두리로 구분하고 "이용 중" 글자를 함께 둔다(색만으로 구분하지 않는다)
-  cardCurrent: {
-    borderWidth: 1.5,
-    borderColor: theme.color.primary,
+  summary: {
+    gap: theme.spacing.xs,
   },
   cardHeader: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
     justifyContent: 'space-between',
     gap: theme.spacing.sm,
   },
@@ -214,18 +234,17 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.sm,
     color: theme.color.textSecondary,
   },
-  features: {
-    fontSize: theme.font.size.xs,
-    color: theme.color.textSecondary,
+  // 이용 중 카드 — 강조 테두리 없이 글자를 회색 단계로 내린다(KAN-146 PM 2026-10-06). 상태는 [이용 중] 글자가 말한다
+  textMuted: {
+    color: theme.color.textMuted,
   },
+  descriptionMuted: {
+    color: theme.color.textMutedSecondary,
+  },
+  // 크기만 — 모양·색은 공용 알약(pillButton)
   button: {
     marginTop: theme.spacing.sm,
     minHeight: theme.touchTarget.minHeight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.primary,
   },
   // 변경(다운그레이드) — 보조 버튼. 주 버튼(검정)과 위계를 가른다
   buttonSecondary: {
@@ -239,31 +258,17 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.5,
   },
-  buttonLabel: {
-    fontSize: theme.font.size.md,
-    fontWeight: '600',
-    color: theme.color.onPrimary,
+  // [이용 중] — 버튼 자리의 회색 알약(체크 없음, 누를 수 없음)
+  currentPill: {
+    backgroundColor: theme.color.fillMuted,
   },
-  buttonLabelSecondary: {
-    color: theme.color.textPrimary,
+  currentPillLabel: {
+    color: theme.color.textMuted,
   },
   hint: {
     fontSize: theme.font.size.xs,
     color: theme.color.textSecondary,
     textAlign: 'center',
-  },
-  currentBadge: {
-    alignSelf: 'flex-start',
-    marginTop: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: 2,
-    borderRadius: theme.radius.full,
-    backgroundColor: theme.color.primary,
-  },
-  currentBadgeLabel: {
-    fontSize: theme.font.size.xs,
-    fontWeight: '700',
-    color: theme.color.onPrimary,
   },
   errorBox: {
     alignItems: 'center',
