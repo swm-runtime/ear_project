@@ -1,4 +1,5 @@
 import { AudioQuality } from '@/modules/content/content.enum';
+import type { ScriptSection } from '@/modules/content/content.types';
 
 import type { AudioQualityFallbackReason } from '../audio-quality.policy';
 import { AudioUrlResult } from '../playback.types';
@@ -56,6 +57,11 @@ export class IssueAudioUrlResponseDto {
   readonly content: AudioContentDto;
   /** 대본 존재 여부 — 화면이 대본 버튼을 그릴지 조회 전에 정한다(`player-api.md` 4.7) */
   readonly has_script: boolean;
+  /**
+   * 구간 제목 `[{ start_sec, title }]`(KAN-144) — 현재 구간은 `start_sec ≤ 재생 위치`인 마지막 항목,
+   * 빈 배열이면 영역을 숨긴다. jsonb 그대로 나가는 형상이라 변환 경계를 두지 않는다(`ScriptSegment`와 같은 규칙)
+   */
+  readonly sections: ScriptSection[];
   /** 라이브러리에 없는 콘텐츠면 `null` */
   readonly library_item: AudioLibraryItemDto | null;
   /** 행이 없으면 `null` — 0부터 재생한다 */
@@ -76,6 +82,7 @@ export class IssueAudioUrlResponseDto {
         topics: result.content.topics,
       },
       has_script: result.hasScript,
+      sections: result.sections,
       library_item: result.libraryItem
         ? { id: result.libraryItem.id, status: result.libraryItem.status }
         : null,

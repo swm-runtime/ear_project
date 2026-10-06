@@ -30,6 +30,8 @@ import {
   PopularPageQuery,
   PublishContentCommand,
   RepublishContentCommand,
+  ScriptDocument,
+  ScriptSection,
   ScriptSegment,
   SearchPage,
   SearchPageQuery,
@@ -112,7 +114,23 @@ export class ContentService {
     return script?.segments ?? [];
   }
 
-  /** 발급 응답의 `has_script`·관리자 목록용 — 스크립트가 있는 콘텐츠 id 집합. 본문은 읽지 않는다 */
+  /**
+   * 발급 응답용(`player-api.md` 4.1 — KAN-144) — 대본 유무와 구간 제목. 세그먼트 본문은 읽지 않는다(4.7의 몫).
+   * 구간은 10개 안팎·1KB 미만이라 발급에 실어도 가볍다. 행이 없으면 `hasScript: false`·빈 배열
+   */
+  async findScriptSummary(
+    contentId: string,
+    manager?: EntityManager,
+  ): Promise<{ hasScript: boolean; sections: ScriptSection[] }> {
+    const sections = await this.contentScriptRepository.findSectionsByContentId(
+      contentId,
+      manager,
+    );
+
+    return { hasScript: sections !== null, sections: sections ?? [] };
+  }
+
+  /** 관리자 목록용 — 스크립트가 있는 콘텐츠 id 집합. 본문은 읽지 않는다 */
   async findScriptContentIds(
     contentIds: string[],
     manager?: EntityManager,
@@ -131,10 +149,10 @@ export class ContentService {
    */
   async saveScript(
     contentId: string,
-    segments: ScriptSegment[],
+    script: ScriptDocument,
     manager: EntityManager,
   ): Promise<void> {
-    await this.contentScriptRepository.upsert(contentId, segments, manager);
+    await this.contentScriptRepository.upsert(contentId, script, manager);
   }
 
   /**

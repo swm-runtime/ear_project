@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, In, Repository } from 'typeorm';
 
-import { ScriptSegment } from '../content.types';
+import { ScriptDocument, ScriptSection } from '../content.types';
 import { ContentScript } from '../entities/content-script.entity';
 
 @Injectable()
@@ -40,14 +40,30 @@ export class ContentScriptRepository {
     return rows.map((row) => row.contentId);
   }
 
+  /**
+   * 발급 응답용(`player-api.md` 4.1 `has_script`·`sections`) — 구간만 읽는다. 세그먼트 본문(수십 KB)은
+   * 4.7이 따로 내준다. 행이 없으면 `null`(= 대본 없음)
+   */
+  async findSectionsByContentId(
+    contentId: string,
+    manager?: EntityManager,
+  ): Promise<ScriptSection[] | null> {
+    const row = await this.scoped(manager).findOne({
+      select: { id: true, sections: true },
+      where: { contentId },
+    });
+
+    return row?.sections ?? null;
+  }
+
   /** 콘텐츠당 1행 — 있으면 통째로 바꾼다(재발행의 스크립트 교체). `(content_id)` 유니크가 중복을 막는다 */
   async upsert(
     contentId: string,
-    segments: ScriptSegment[],
+    script: ScriptDocument,
     manager?: EntityManager,
   ): Promise<void> {
     await this.scoped(manager).upsert(
-      { contentId, segments },
+      { contentId, segments: script.segments, sections: script.sections },
       { conflictPaths: ['contentId'] },
     );
   }

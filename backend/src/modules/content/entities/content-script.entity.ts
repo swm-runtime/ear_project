@@ -9,7 +9,7 @@ import {
 
 import { BaseEntity } from '@/database/base.entity';
 
-import { ScriptSegment } from '../content.types';
+import { ScriptSection, ScriptSegment } from '../content.types';
 import { Content } from './content.entity';
 
 /**
@@ -39,4 +39,11 @@ export class ContentScript extends BaseEntity {
   /** `start_sec` 오름차순, 겹치지 않는다 — 적재 시 검증한다(admin `script-file.ts`) */
   @Column({ name: 'segments', type: 'jsonb' })
   segments: ScriptSegment[];
+
+  /**
+   * 구간 제목(KAN-144) — `start_sec` 엄격한 오름차순, 0~30개. 세그먼트와 같은 파일에서 같은 트랜잭션으로
+   * 통째로 교체된다. 배열 형식 파일(구간 없음)·기존 행은 빈 배열이다
+   */
+  @Column({ name: 'sections', type: 'jsonb', default: () => "'[]'::jsonb" })
+  sections: ScriptSection[];
 }

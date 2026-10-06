@@ -487,7 +487,7 @@ describe('AdminContentService', () => {
       // then
       expect(contentService.saveScript).toHaveBeenCalledWith(
         CONTENT_ID,
-        VALID_SCRIPT,
+        { segments: VALID_SCRIPT, sections: [] },
         manager,
       );
       expect(result.script).toEqual({ applied: true, rejectedReason: null });
@@ -518,6 +518,52 @@ describe('AdminContentService', () => {
       expect(result.script?.applied).toBe(false);
       expect(result.script?.rejectedReason).toContain('겹쳐요');
       expect(result.hasScript).toBe(false);
+    });
+
+    it('객체 형식 대본의 구간 제목은 세그먼트와 같은 행으로 저장된다(KAN-144)', async () => {
+      // given — 오디오 길이 600초(probe 모킹) 안에서 시작하는 구간
+      const sections = [
+        { start_sec: 0, title: '인트로' },
+        { start_sec: 31.2, title: '도입' },
+        { start_sec: 599, title: '마무리' },
+      ];
+      const command = buildCommand({
+        script: buildScriptFile({ segments: VALID_SCRIPT, sections }),
+      });
+
+      // when
+      const result = await service.upload(command, NOW);
+
+      // then
+      expect(contentService.saveScript).toHaveBeenCalledWith(
+        CONTENT_ID,
+        { segments: VALID_SCRIPT, sections },
+        manager,
+      );
+      expect(result.script).toEqual({ applied: true, rejectedReason: null });
+    });
+
+    it('마지막 구간이 오디오 길이 뒤에서 시작하면 파일을 통째로 거부한다 — 길이는 파일에서 뽑은 값이다', async () => {
+      // given — probe 가 600초를 돌려주는데 구간은 600초에 시작
+      const command = buildCommand({
+        script: buildScriptFile({
+          segments: VALID_SCRIPT,
+          sections: [
+            { start_sec: 0, title: '인트로' },
+            { start_sec: 600, title: '마무리' },
+          ],
+        }),
+      });
+
+      // when
+      const result = await service.upload(command, NOW);
+
+      // then — 세그먼트까지 함께 거부되고 업로드는 진행된다
+      expect(contentService.publish).toHaveBeenCalled();
+      expect(contentService.saveScript).not.toHaveBeenCalled();
+      expect(result.hasScript).toBe(false);
+      expect(result.script?.applied).toBe(false);
+      expect(result.script?.rejectedReason).toContain('오디오 길이');
     });
 
     it('검수 완료 확인이 없으면 업로드를 거부한다', async () => {
@@ -931,13 +977,17 @@ describe('AdminContentService', () => {
       ).not.toHaveBeenCalled();
       expect(contentService.saveScript).toHaveBeenCalledWith(
         CONTENT_ID,
-        VALID_SCRIPT,
+        { segments: VALID_SCRIPT, sections: [] },
         manager,
       );
       expect(auditLogService.record).toHaveBeenCalledWith(
         expect.objectContaining({
           action: 'content.script',
-          after: containing({ script_applied: true, segment_count: 2 }),
+          after: containing({
+            script_applied: true,
+            segment_count: 2,
+            section_count: 0,
+          }),
         }),
         manager,
       );
@@ -957,7 +1007,7 @@ describe('AdminContentService', () => {
       expect(contentService.republish).toHaveBeenCalled();
       expect(contentService.saveScript).toHaveBeenCalledWith(
         CONTENT_ID,
-        VALID_SCRIPT,
+        { segments: VALID_SCRIPT, sections: [] },
         manager,
       );
       expect(auditLogService.record).toHaveBeenCalledWith(

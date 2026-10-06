@@ -72,25 +72,19 @@ export class AudioUrlService {
       command.now,
     );
 
-    const [
-      libraryItem,
-      progress,
-      topicViews,
-      scriptContentIds,
-      renditions,
-      decision,
-    ] = await Promise.all([
-      this.libraryService.findItemByContentId(
-        command.userId,
-        command.contentId,
-      ),
-      this.playbackService.findProgress(command.userId, command.contentId),
-      this.contentService.findTopicViews([command.contentId]),
-      // 본문은 읽지 않는다 — 대본은 4.7이 같은 판정을 거쳐 따로 내준다
-      this.contentService.findScriptContentIds([command.contentId]),
-      this.contentService.findAudioRenditions(command.contentId),
-      this.decideQuality(command),
-    ]);
+    const [libraryItem, progress, topicViews, script, renditions, decision] =
+      await Promise.all([
+        this.libraryService.findItemByContentId(
+          command.userId,
+          command.contentId,
+        ),
+        this.playbackService.findProgress(command.userId, command.contentId),
+        this.contentService.findTopicViews([command.contentId]),
+        // 세그먼트 본문은 읽지 않는다 — 대본은 4.7이 같은 판정을 거쳐 따로 내준다. 구간 제목만 싣는다(KAN-144)
+        this.contentService.findScriptSummary(command.contentId),
+        this.contentService.findAudioRenditions(command.contentId),
+        this.decideQuality(command),
+      ]);
 
     // 3. 음질 판정(player.md 4.9) — 요청 → 티어 허용 최대 → 콘텐츠가 가진 것. 거절하지 않는다
     const available = sortAudioQualities(renditions.map((r) => r.quality));
@@ -146,7 +140,8 @@ export class AudioUrlService {
           name: view.name,
         })),
       },
-      hasScript: scriptContentIds.has(command.contentId),
+      hasScript: script.hasScript,
+      sections: script.sections,
       libraryItem: libraryItem
         ? { id: libraryItem.id, status: libraryItem.status }
         : null,
