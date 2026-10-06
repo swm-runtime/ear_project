@@ -203,8 +203,11 @@ export class GooglePlayStoreGateway extends PlayStoreGateway {
     } catch (error) {
       // 서명·만료·대상 불일치. Google 공개키를 받아오지 못한 경우도 여기로 온다 — 구분할 수 없어 거절로 답한다
       // (Pub/Sub이 재전송하므로 일시 장애였다면 다음 시도에서 통과한다)
+      // 오류 메시지를 그대로 남기지 않는다 — Google 라이브러리의 메시지에는 토큰 전문이나 토큰 본문(JSON)이
+      // 붙어 있다(`Invalid token signature: <JWT>` 등, `convention.md` 8.4)
       this.logger.warn('play push token rejected', {
-        reason: error instanceof Error ? error.message : String(error),
+        reason: classifyIdTokenError(error),
+        error_name: error instanceof Error ? error.name : null,
       });
       throw new PlayStoreError('invalid', 'push_token_invalid');
     }
@@ -334,6 +337,36 @@ function parseServiceAccount(base64: string): ServiceAccountKey | null {
     // 값이 깨졌으면 꺼진 것으로 본다 — 결제 의도 단계에서 막히고, 기동 요약이 꺼짐을 보여 준다
     return null;
   }
+}
+
+/**
+ * ID 토큰 검증 실패의 갈래 — **로그에 남겨도 되는 값만** 돌려준다. `google-auth-library`의 오류 메시지는
+ * 앞머리가 사유이고 뒤에 토큰 전문·토큰 본문을 붙이므로, 아는 앞머리만 사유 코드로 바꾸고 나머지는 `other`다
+ * (메시지를 잘라 쓰지 않는다 — 형식이 바뀌면 토큰이 새어 나간다).
+ */
+const ID_TOKEN_ERROR_KINDS: readonly (readonly [string, string])[] = [
+  ['Wrong number of segments', 'malformed'],
+  ["Can't parse token", 'malformed'],
+  ['No issue time', 'malformed'],
+  ['No expiration time', 'malformed'],
+  ['iat field', 'malformed'],
+  ['exp field', 'malformed'],
+  ['No pem found', 'unknown_key'],
+  ['Invalid token signature', 'bad_signature'],
+  ['Token used too early', 'not_yet_valid'],
+  ['Token used too late', 'expired'],
+  ['Expiration time too far', 'expiry_too_far'],
+  ['Invalid issuer', 'wrong_issuer'],
+  ['Wrong recipient', 'wrong_audience'],
+];
+
+export function classifyIdTokenError(error: unknown): string {
+  const message = error instanceof Error ? error.message : '';
+
+  return (
+    ID_TOKEN_ERROR_KINDS.find(([prefix]) => message.startsWith(prefix))?.[1] ??
+    'other'
+  );
 }
 
 function statusOf(error: unknown): number | null {
