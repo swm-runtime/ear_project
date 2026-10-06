@@ -1330,6 +1330,25 @@ idx_audit_logs_target_created_at (target, created_at DESC)
 
 ---
 
+### 10.4 `store_reviews` — 스토어 리뷰 알림 기록 (KAN-133, 2026-10-06)
+
+App Store·Google Play 리뷰를 15분마다 조회해 Slack에 올릴 때 "이미 알린 리뷰인가, 그 뒤 수정됐는가"를 가리는 기록. **본문·제목·리뷰어 닉네임은 저장하지 않는다**(중복 감지에 불필요하고, 닉네임은 어디에도 옮기지 않는다 — CLAUDE.md 공통 원칙).
+
+```
+store_reviews
+  id                        uuid            PK
+  store                     varchar(20)     app_store | play_store (TS enum ReviewStore — 결제 enum과 분리, 모듈 경계)
+  review_id                 varchar(128)    스토어가 매긴 식별자(App Store UUID꼴 · Play `gp:…`)
+  rating                    smallint        마지막으로 본 별점 1~5
+  last_modified_at          timestamptz     스토어의 작성·수정 시각. 조회값이 더 크면 "수정됨"으로 재알림
+  notified_at               timestamptz     NULL = 첫 실행 기준선(표가 비어 있을 때 쌓인 리뷰를 쏟지 않고 기록만 한다)
+
+uq_store_reviews_store_review_id (store, review_id)
+```
+
+- 보존: 무기한(행당 수십 바이트, 재알림 방지가 목적이라 리뷰가 스토어에서 지워져도 남긴다). 사용자 테이블과 FK 없음 — 12.3 탈퇴 처리와 무관.
+- 마이그레이션 `1788600000000-AddStoreReviews`.
+
 ## 11. 보존 아카이브
 
 > 탈퇴 후에도 법령에 따라 보존해야 하는 데이터를 담는다. **개인정보보호법 제21조 제3항**이 "파기하지 아니하고 보존하여야 하는 경우에는 해당 개인정보를 **다른 개인정보와 분리하여서 저장·관리**하여야 한다"고 규정하므로, 운영 테이블과 **별도 DB 스키마(`archive`)** 에 둔다.

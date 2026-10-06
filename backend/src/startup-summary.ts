@@ -28,6 +28,8 @@ export type FeatureInputs = {
   resourceAlert: boolean;
   signupAlert: boolean;
   dailyMetrics: boolean;
+  /** 스토어 리뷰 폴링(KAN-133) — 켜진 스토어가 하나라도 있고 웹훅이 있을 때 */
+  vocReview: boolean;
   /** 이 프로세스에 등록된 크론 이름 — 스케줄러 프로세스가 아니면 빈 배열 */
   crons: string[];
 };
@@ -41,6 +43,7 @@ export function summarizeFeatures(f: FeatureInputs): string {
     `features env=${f.environment || '-'} scheduler=${f.scheduler ? 'yes' : 'no'} ` +
     `sentry=${onOff(f.sentry)} resource-alert=${onOff(f.resourceAlert)} ` +
     `signup-alert=${onOff(f.signupAlert)} daily-metrics=${onOff(f.dailyMetrics)} ` +
+    `voc-review=${onOff(f.vocReview)} ` +
     `crons=${crons}`
   );
 }
@@ -76,6 +79,15 @@ export class StartupSummary implements OnApplicationBootstrap {
           anyHook &&
           has('GA4_PROPERTY_ID') &&
           has('GA4_SERVICE_ACCOUNT_BASE64'),
+        vocReview:
+          isSchedulerProcess() &&
+          anyHook &&
+          ((has('APP_STORE_CONNECT_ISSUER_ID') &&
+            has('APP_STORE_CONNECT_KEY_ID') &&
+            has('APP_STORE_CONNECT_PRIVATE_KEY_BASE64') &&
+            has('APP_STORE_APP_APPLE_ID')) ||
+            (has('GOOGLE_PLAY_PACKAGE_NAME') &&
+              has('GOOGLE_PLAY_SERVICE_ACCOUNT_BASE64'))),
         crons,
       }),
     );

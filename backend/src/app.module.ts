@@ -34,6 +34,7 @@ import { PartnerModule } from '@/modules/partner/partner.module';
 import { PlaybackModule } from '@/modules/playback/playback.module';
 import { ProfileModule } from '@/modules/profile/profile.module';
 import { RetentionModule } from '@/modules/retention/retention.module';
+import { VocModule } from '@/modules/voc/voc.module';
 import { SettingsModule } from '@/modules/settings/settings.module';
 import { UserModule } from '@/modules/user/user.module';
 
@@ -102,6 +103,8 @@ import { UserModule } from '@/modules/user/user.module';
     AdminModule,
     // domain.md 12.1의 보존 기간 배치. 어떤 모듈도 이 모듈을 의존하지 않는다
     RetentionModule,
+    // 스토어 리뷰 → Slack(KAN-133 VoC). 15분 폴링, 자격증명·웹훅이 있을 때만 켜진다. 어떤 모듈도 의존하지 않는다
+    VocModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
