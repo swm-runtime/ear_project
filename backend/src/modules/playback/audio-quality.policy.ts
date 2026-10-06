@@ -19,7 +19,7 @@ export type AudioQualityFallbackReason = 'not_allowed' | 'not_available';
 export interface AudioQualityDecision {
   /** 실제로 내줄 음질 */
   quality: AudioQuality;
-  /** 판정에 들어간 음질(요청 → 설정 → compressed) */
+  /** 판정에 들어간 음질(요청 → 설정 → 티어 허용 최고 선택지) */
   requestedQuality: AudioQuality;
   fallbackReason: AudioQualityFallbackReason | null;
 }

@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 
-import { AudioQuality } from '@/modules/content/content.enum';
 import { EntityManager } from 'typeorm';
 
 import { UserSetting } from '../entities/user-setting.entity';
@@ -119,6 +118,6 @@ function buildDefaults(): UserSettingView {
     isDripNotificationEnabled: true,
     dripFeedbackMutedUntil: null,
     dripFeedbackLastPromptedDate: null,
-    preferredAudioQuality: AudioQuality.COMPRESSED,
+    preferredAudioQuality: null,
   };
 }

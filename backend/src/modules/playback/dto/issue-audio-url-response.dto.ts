@@ -39,7 +39,7 @@ class AudioDto {
   readonly expires_in_sec: number;
   /** 실제로 내준 음질(player.md 4.9 — KAN-141). 갱신 호출의 `quality`에 되돌려 보낸다 */
   readonly quality: AudioQuality;
-  /** 판정에 들어간 음질 — 요청값, 없으면 설정 선택값, 그것도 없으면 compressed */
+  /** 판정에 들어간 음질 — 요청값, 없으면 설정 선택값, 고른 적 없으면 티어가 허용하는 가장 높은 선택지 */
   readonly requested_quality: AudioQuality;
   /** `quality`가 낮아진 이유. `not_allowed`면 잠금·구독 안내, `not_available`이면 안내 없음 */
   readonly fallback_reason: AudioQualityFallbackReason | null;

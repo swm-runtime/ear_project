@@ -139,9 +139,9 @@
 
 | 파트 | 규격 | 필수 |
 |---|---|---|
-| `audio` | **압축 음질**(`compressed`) — mp3 / m4a, **≤320MB** | 필수 |
-| `audio_aac` | **고음질**(`aac`) — m4a, ≤320MB. 길이가 `audio`와 ±1초 안이어야 한다 | 선택 (2026-10-06 — KAN-141) |
-| `audio_lossless` | **무손실**(`lossless`) — wav, ≤320MB(20분 스테레오 약 212MB). 길이 조건 같음 | 선택 (2026-10-06 — KAN-141) |
+| `audio` | **압축 음질**(`compressed`) — mp3 / m4a(파이프라인 렌더는 m4a AAC 192k), **≤200MB** | 필수 |
+| `audio_aac` | **고음질**(`aac`) — m4a, ≤200MB. 길이가 `audio`와 ±1초 안이어야 한다. **파이프라인은 올리지 않는다**(압축이 이미 AAC 192k — `domain.md` 1.3-1). 계약만 남겨 둔다 | 선택 (2026-10-06 — KAN-141) |
+| `audio_lossless` | **무손실**(`lossless`) — **flac**(`audio/flac`), ≤200MB(20분 스테레오 약 45MB). 길이 조건 같음. wav 는 받지 않는다(같은 음질에 네 배 크기 — 2026-10-06 확정. 320MB 상향도 되돌렸다) | 선택 (2026-10-06 — KAN-141) |
 | `thumbnail` | jpg / png / webp, **≤5MB** — **서버가 긴 변 768px WebP 로 다시 써서 저장한다**(개정 2026-09-19, 아래). `thumbnail_url` 은 항상 `.webp` 로 끝난다 | 필수 |
 | `payload` | JSON **문자열** | 필수 |
 | `enrichment_file` | `enrichment.json`(`ai/metadata-pipeline.md` 4.4), **≤1MB** | 선택 (등재 2026-09-08 — 구현 완료) |

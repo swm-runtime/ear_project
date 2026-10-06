@@ -1,6 +1,9 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
-import { AudioQuality } from '@/modules/content/content.enum';
+import {
+  AudioQuality,
+  defaultAudioQualityFor,
+} from '@/modules/content/content.enum';
 import { ContentService } from '@/modules/content/services/content.service';
 import { LibraryService } from '@/modules/library/library.service';
 import { PlanService } from '@/modules/subscription/services/plan.service';
@@ -164,9 +167,15 @@ export class AudioUrlService {
         : null,
     ]);
 
+    const maxAllowed = await this.planService.getMaxAudioQuality(user.tier);
+
+    // 요청 → 설정의 선택값 → (고른 적 없으면) 티어가 허용하는 가장 높은 선택지(player.md 4.9, 2026-10-06)
     return {
-      requested: command.quality ?? settings!.preferredAudioQuality,
-      maxAllowed: await this.planService.getMaxAudioQuality(user.tier),
+      requested:
+        command.quality ??
+        settings!.preferredAudioQuality ??
+        defaultAudioQualityFor(maxAllowed),
+      maxAllowed,
     };
   }
 }

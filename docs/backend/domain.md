@@ -71,14 +71,15 @@
 
 ### 1.3-1 음질 (2026-10-06 — KAN-141)
 
-| 값 | 의미 | 형식(파이프라인 렌더 — `ai/spec/06-audio.md`) |
+| 값 | 의미 | 형식(파이프라인 렌더 — `ai/spec/06-audio.md`, 확정 2026-10-06) |
 |---|---|---|
-| `compressed` | 압축 — 기본값. 전 티어 | mp3 (지금 배포본 형식) |
-| `aac` | 고음질 압축. 전 티어 | m4a AAC |
-| `lossless` | 무손실. **Pro 전용** | wav PCM 16bit 44.1kHz |
+| `compressed` | 압축. 전 티어 | **m4a AAC 192k**(faststart). 2026-10-06 이전 배포본은 mp3 |
+| `aac` | 고음질 압축 — **값만 예약, 렌더하지 않는다** | 없음. 압축이 이미 AAC 192k 라 같은 파일을 두 칸에 두지 않는다. 설정 선택지에서도 숨긴다(`settings-api.md` 4.1) |
+| `lossless` | 무손실. **Pro 전용** | **FLAC** 16bit/44.1kHz 스테레오(18분 편 약 44MB — WAV 의 22%). WAV 는 받지 않는다 |
 
-- 순서가 있다: `compressed < aac < lossless`. `plans.max_audio_quality`(8.1)는 "이 티어가 들을 수 있는 가장 높은 음질"이고, 허용 여부는 이 순서로 비교한다. **티어명으로 판정하지 않는다.**
+- 순서가 있다: `compressed < aac < lossless`. `plans.max_audio_quality`(8.1)는 "이 티어가 들을 수 있는 가장 높은 음질"이고, 허용 여부는 이 순서로 비교한다. **티어명으로 판정하지 않는다.** Light·Daily 의 상한 `aac`는 실제로는 compressed(AAC 192k)를 뜻한다 — `aac` 파일이 없으므로 "허용·보유 중 최고" 규칙으로 compressed 가 나간다.
 - `content_audio_renditions.quality`(5.8) · `plans.max_audio_quality`(8.1) · `user_settings.preferred_audio_quality`(3.5)가 같은 enum을 쓴다.
+- **사용자에게 내놓는 선택지는 `compressed`·`lossless` 둘**이다(`OFFERED_AUDIO_QUALITIES`). 고른 적 없는 사용자의 기본 음질은 **티어가 허용하는 가장 높은 선택지**(Pro → lossless, 그 외 → compressed — `defaultAudioQualityFor`).
 
 ### 1.4 멱등 요청 저장 — `idempotency_keys`
 
@@ -302,7 +303,7 @@ user_settings
   is_drip_notification_enabled boolean      DEFAULT true   (FR-19)
   drip_feedback_muted_until   date          NULL           ★추천 별점 팝업 [이번 주 그만 보기] 종료 서비스 날짜 (2026-09-30, KAN-116)
   drip_feedback_last_prompted_date date     NULL           ★마지막으로 별점을 물은 편성분의 서비스 날짜 — 이보다 새 편성이 없으면 다시 묻지 않는다 (2026-09-30)
-  preferred_audio_quality     enum          DEFAULT 'compressed'   ★1.3-1 — 사용자가 고른 음질 (2026-10-06, KAN-141). 서버에 두는 이유: 기기 간 같은 선택을 보장하고, 발급 때 서버가 바로 읽는다
+  preferred_audio_quality     enum          NULL           ★1.3-1 — 사용자가 고른 음질 (2026-10-06, KAN-141). **NULL = 고른 적 없음** → 티어가 허용하는 가장 높은 선택지로 판정(Pro 는 lossless). 종전 DEFAULT 'compressed' 는 "직접 압축을 고름"과 구분되지 않아 같은 날 NULL 로 바꿨다. 서버에 두는 이유: 기기 간 같은 선택을 보장하고, 발급 때 서버가 바로 읽는다
 
 uq_user_settings_user_id (user_id)
 ```

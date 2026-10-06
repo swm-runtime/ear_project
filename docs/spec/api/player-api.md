@@ -93,7 +93,7 @@
 **Request**
 
 ```json
-{ "device_id": "<기기 식별자>", "quality": "aac" }
+{ "device_id": "<기기 식별자>", "quality": "lossless" }
 ```
 
 | 필드 | 타입 | 필수 | 비고 |
@@ -129,10 +129,10 @@
     "url": "https://.../signed...",
     "expires_at": "2026-08-10T00:25:00Z",
     "expires_in_sec": 300,
-    "quality": "aac",
+    "quality": "compressed",
     "requested_quality": "lossless",
     "fallback_reason": "not_allowed",
-    "available_qualities": ["compressed", "aac", "lossless"]
+    "available_qualities": ["compressed", "lossless"]
   }
 }
 ```
@@ -150,7 +150,7 @@
 | `audio.expires_at` | 만료 시각(디버깅·로그 대조용) |
 | `audio.expires_in_sec` | **갱신 스케줄링용.** 응답 수신 시점 기준 남은 초 |
 | `audio.quality` | **실제로 내준 음질**(2026-10-06). 갱신 호출의 `quality`에 되돌려 보낸다 |
-| `audio.requested_quality` | 판정에 들어간 음질 — 요청값, 없으면 설정 선택값, 그것도 없으면 `compressed` |
+| `audio.requested_quality` | 판정에 들어간 음질 — 요청값, 없으면 설정 선택값, **고른 적 없으면 티어가 허용하는 가장 높은 선택지**(Pro → `lossless`, 그 외 → `compressed` — 2026-10-06 확정, `player.md` 4.9) |
 | `audio.fallback_reason` | `quality`가 `requested_quality`보다 낮아진 이유. `null`(그대로) · `not_allowed`(티어가 허용하지 않음 → 화면은 잠금·구독 안내) · `not_available`(콘텐츠에 그 음질 파일이 없음 → 안내 없음). 둘 다면 `not_allowed` |
 | `audio.available_qualities` | 이 콘텐츠가 가진 음질 목록(오름차순). 플레이어 안의 음질 선택지에서 **없는 음질은 비활성**으로 그린다 |
 
