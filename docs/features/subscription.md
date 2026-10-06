@@ -162,8 +162,8 @@ entitlements {                      // 응답 DTO — 저장하는 컬럼이 아
 | `subscriptions` — **티어의 진실의 원천**. 행이 없으면 `light`(무료) | 8.2 |
 | `purchase_intents` — 결제 멱등키 | 8.3 |
 | `store_notification_logs` — S2S 알림 재처리 근거 | 8.4 |
-| `users.tier` — 비정규화 캐시. 갱신 경로는 `SubscriptionService` 한 곳 | 3.1 |
-| `archived_subscriptions` — 탈퇴 후 5년 보존, 재가입 복원 근거 | 11.5 |
+| `users.tier` — 비정규화 캐시. 갱신 경로는 `BillingSyncService.syncUserTier` 한 곳(`subscription-api.md` 7장) | 3.1 |
+| `archived_subscriptions` — 탈퇴 후 5년 보존(결제 기록). 재가입 복원의 근거가 아니다 — 복원은 지금 제출한 서명된 거래로만 한다(4.6) | 11.5 |
 
 - `User.entitlements_cache` 컬럼은 **두지 않는다.** 권한은 `plans`에서 매번 조립해 응답 DTO로 내려준다.
 

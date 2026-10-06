@@ -30,7 +30,11 @@ export class ContentAudioRendition extends BaseEntity {
   contentId: string;
 
   @ManyToOne(() => Content, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'content_id' })
+  @JoinColumn({
+    name: 'content_id',
+    // 마이그레이션(`AddAudioQualityTiers`)이 만든 이름 — 선언이 없으면 `migration:generate`가 FK를 다시 만들려 한다
+    foreignKeyConstraintName: 'fk_content_audio_renditions_content_id',
+  })
   content: Content;
 
   @Column({ name: 'quality', type: 'varchar', length: 20 })
