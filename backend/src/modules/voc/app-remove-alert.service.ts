@@ -32,7 +32,7 @@ export interface AppRemoveBatch {
 /**
  * 앱 삭제 Slack 알림(`features/backend-monitoring.md` 3-4, 2026-10-06).
  *
- * Firebase 가 Android 에서 자동 수집하는 `app_remove`를 GA4 실시간 보고로 5분마다 읽어, 새로 도착한 건수가 있으면
+ * Firebase 가 Android 에서 자동 수집하는 `app_remove`를 GA4 실시간 보고로 15분마다 읽어, 새로 도착한 건수가 있으면
  * Slack 한 줄로 알린다. 탈퇴 버튼을 누르지 않고 앱만 지우는 "준탈퇴"를 그날 안에 보기 위해서다. **누가** 지웠는지는
  * 싣지 않는다 — 실시간 보고에 사용자 식별자가 없고, 있어도 Slack 에는 신원 값을 쓰지 않는다(CLAUDE.md).
  *
