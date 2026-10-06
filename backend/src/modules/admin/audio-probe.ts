@@ -47,11 +47,17 @@ export class AudioProbe {
   }
 }
 
-/** music-metadata의 코덱 표기("MPEG 1 Layer 3" · "AAC" · "PCM")를 짧은 이름으로 — 표시·진단용이라 모르면 원값 */
+/**
+ * music-metadata의 코덱 표기("MPEG 1 Layer 3" · "MPEG-4/AAC" · "FLAC" · "PCM")를 짧은 이름으로 — 표시·진단용이라 모르면 원값.
+ *
+ * **aac 를 mpeg 보다 먼저 본다** — m4a 는 코덱이 "MPEG-4/AAC", 컨테이너가 "M4A/mp42/isom" 으로 와서 mpeg 를 먼저 보면
+ * mp3 로 잘못 분류된다(2026-10-06 운영 40편 실측 — KAN-141 댓글). flac 도 따로 식별한다(무손실 확정 포맷).
+ */
 export function normalizeCodec(codec?: string, container?: string): string {
   const value = `${codec ?? ''} ${container ?? ''}`.toLowerCase();
-  if (value.includes('mpeg') || value.includes('mp3')) return 'mp3';
   if (value.includes('aac')) return 'aac';
+  if (value.includes('flac')) return 'flac';
+  if (value.includes('mpeg') || value.includes('mp3')) return 'mp3';
   if (value.includes('pcm') || value.includes('wav')) return 'pcm';
   return (codec ?? container ?? 'unknown').toLowerCase();
 }
