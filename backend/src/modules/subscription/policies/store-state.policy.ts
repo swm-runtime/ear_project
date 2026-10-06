@@ -1,6 +1,6 @@
 import { UserTier } from '@/modules/user/user.enum';
 
-import { SubscriptionStatus } from '../subscription.enum';
+import { SubscriptionStatus, SubscriptionStore } from '../subscription.enum';
 import {
   StoreRenewalInfo,
   StoreTransaction,
@@ -67,6 +67,11 @@ export type StoreStateIgnoreReason =
 /** 기존 상태 + 마지막 알림 시각. 행이 없으면 `null` */
 export type StoredSubscriptionState = SubscriptionState & {
   lastNotifiedAt: Date | null;
+  /**
+   * 그 행에 마지막으로 반영한 영수증(`subscriptions.latest_receipt` — Play는 구매 토큰). 환불로 끝난 Play 구독을
+   * **같은 구매 토큰**으로 되살리지 않는 판정에만 쓴다(`resolveFromStoreStatus`). 모르면 비운다
+   */
+  latestReceipt?: string | null;
 };
 
 function freshState(
@@ -216,9 +221,23 @@ export function resolveFromAppStoreNotification(
   const base: SubscriptionState =
     existing ?? freshState(tier, transaction, renewal, signedAt);
   const isLive = existing !== null && !isTerminalStatus(existing.status);
-  /** 저장된 것보다 앞선 주기의 거래에 대한 알림인가(지난 달 결제분의 환불 등) */
+  /**
+   * 저장된 것보다 앞선 주기의 거래에 대한 알림인가(지난 달 결제분의 환불 등).
+   *
+   * **유예(`grace`) 중에는 이 비교를 하지 않는다.** 유예에 들어갈 때 `expires_at`을 유예 종료일로 밀어 두므로
+   * (아래 `DID_FAIL_TO_RENEW`), 그 구독에 대한 알림은 무엇이든 거래의 만료일(원래 주기의 끝)이 그보다 이르다 —
+   * 비교하면 유예 종료(`GRACE_PERIOD_EXPIRED`)·만료·환불이 전부 "앞선 주기"로 버려져, 유예가 끝나도 유료로
+   * 남는다(2026-10-06). 순서가 뒤바뀐 옛 알림은 위의 서명 시각 판정이 이미 걸렀다.
+   *
+   * 근거: Apple의 `expiresDate`는 거래마다 고정된 값이고 유예 종료일은 갱신 정보의 `gracePeriodExpiresDate`로
+   * 따로 온다. 대가로, 유예 중에 온 "지난 주기 결제분 환불"을 지금 주기와 구분하지 못해 환불로 내린다 —
+   * 유예는 이미 결제가 끊긴 상태라 권한을 거두는 쪽이 안전하고, 재청구가 성공하면 `DID_RENEW`가 되살린다.
+   */
+  const isInGrace = existing?.status === SubscriptionStatus.GRACE;
   const isOlderPeriod =
-    isLive && transaction.expiresAt.getTime() < existing.expiresAt.getTime();
+    isLive &&
+    !isInGrace &&
+    transaction.expiresAt.getTime() < existing.expiresAt.getTime();
   /** 다음 갱신 상품이 지금과 다르면 변경 예약이다 */
   const pendingTier =
     renewalTier !== null && renewalTier !== tier ? renewalTier : null;
@@ -424,6 +443,30 @@ export function resolveFromStoreStatus(
 
   if (tier === null) {
     return { kind: 'ignore', reason: 'unknown_product' };
+  }
+
+  /**
+   * **환불로 끝난 Play 구독은 같은 구매 토큰·같은 결제 주기로는 되살리지 않는다**(`subscription-api.md` 4.7 —
+   * 2026-10-06). Google의 구독 상태에는 환불이 보이지 않는다 — 환불 통지(`voidedPurchaseNotification`)를 받아
+   * `refunded`로 내린 뒤에도 그 토큰을 조회하면 `active`나 `expired`로 답할 수 있다. "마지막에 물은 답이 맞다"를
+   * 그대로 따르면 뒤따르는 다른 알림·복원·재제출이 환불을 지운다(`refunded` → `active`).
+   *
+   * 되살아나는 것은 **돈이 다시 들어왔을 때**뿐이다: 새 구매 토큰(재구독·요금제 변경)이거나, 같은 토큰이라도
+   * 만료일이 환불 당시보다 뒤로 간 `active`(그 뒤에 갱신 결제가 됐다). 유예로 만료일만 밀린 것은 결제가 아니다.
+   * App Store는 상태 조회가 환불을 `revoked`로 직접 답하므로 이 규칙이 필요 없다.
+   */
+  if (
+    existing !== null &&
+    existing.status === SubscriptionStatus.REFUNDED &&
+    status !== 'revoked' &&
+    transaction.store === SubscriptionStore.PLAY_STORE &&
+    existing.latestReceipt === transaction.receipt &&
+    !(
+      status === 'active' &&
+      transaction.expiresAt.getTime() > existing.expiresAt.getTime()
+    )
+  ) {
+    return { kind: 'ignore', reason: 'terminated' };
   }
 
   const base: SubscriptionState =

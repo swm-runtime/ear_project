@@ -752,3 +752,78 @@ describe('Play — 만료 보정(4.2)', () => {
     expect(world.users.get(OTHER)!.tier).toBe(UserTier.PRO);
   });
 });
+
+describe('Play — 환불로 끝난 구독은 같은 구매로 되살아나지 않는다(4.7 — 2026-10-06)', () => {
+  /** 구독 중에 환불 통지를 받은 상태. Google은 그 토큰을 여전히 활성이라 답한다 */
+  async function setupRefunded() {
+    const context = setup();
+    const { world, play, submit, notify } = context;
+
+    const purchase = play.put({ purchaseToken: 'token-1' });
+    await submit('token-1');
+    await notify('msg-voided', {
+      kind: 'voided',
+      type: null,
+      purchaseToken: 'token-1',
+    });
+    expect(world.subscriptions[0].status).toBe(SubscriptionStatus.REFUNDED);
+    expect(world.users.get(USER)!.tier).toBe(UserTier.LIGHT);
+
+    return { ...context, purchase };
+  }
+
+  it('뒤따라 온 다른 알림이 환불을 덮지 않는다', async () => {
+    const { world, notify } = await setupRefunded();
+
+    await notify('msg-after', { type: 4, purchaseToken: 'token-1' });
+
+    expect(world.subscriptions[0].status).toBe(SubscriptionStatus.REFUNDED);
+    expect(world.users.get(USER)!.tier).toBe(UserTier.LIGHT);
+  });
+
+  it('환불된 구매 토큰을 다시 제출하면 받지 않는다', async () => {
+    const { world, submit } = await setupRefunded();
+
+    await expectBusinessError(
+      submit('token-1'),
+      ErrorCode.SUBSCRIPTION_RECEIPT_INVALID,
+      HttpStatus.BAD_REQUEST,
+    );
+    expect(world.subscriptions[0].status).toBe(SubscriptionStatus.REFUNDED);
+    expect(world.users.get(USER)!.tier).toBe(UserTier.LIGHT);
+  });
+
+  it('복원도 환불된 구매를 연결하지 않는다', async () => {
+    const { world, restore } = await setupRefunded();
+
+    const result = await restore(['token-1']);
+
+    expect(result.restored).toBe(false);
+    expect(world.subscriptions[0].status).toBe(SubscriptionStatus.REFUNDED);
+    expect(world.users.get(USER)!.tier).toBe(UserTier.LIGHT);
+  });
+
+  it('그 뒤에 갱신 결제가 되면(만료일이 뒤로 간다) 되살아난다', async () => {
+    const { world, purchase, notify } = await setupRefunded();
+
+    purchase.expiresAt = NEXT_EXPIRES_AT;
+    await notify('msg-renewed', { type: 2, purchaseToken: 'token-1' });
+
+    expect(world.subscriptions[0]).toMatchObject({
+      status: SubscriptionStatus.ACTIVE,
+      expiresAt: NEXT_EXPIRES_AT,
+    });
+    expect(world.users.get(USER)!.tier).toBe(UserTier.PRO);
+  });
+
+  it('새 구매 토큰으로 다시 구독하면 되살아난다', async () => {
+    const { world, play, submit } = await setupRefunded();
+
+    play.put({ purchaseToken: 'token-2', linkedPurchaseToken: 'token-1' });
+    await submit('token-2');
+
+    expect(world.subscriptions).toHaveLength(1);
+    expect(world.subscriptions[0].status).toBe(SubscriptionStatus.ACTIVE);
+    expect(world.users.get(USER)!.tier).toBe(UserTier.PRO);
+  });
+});

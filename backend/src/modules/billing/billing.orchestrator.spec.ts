@@ -874,3 +874,485 @@ describe('SubscriptionReconcileService — 만료 보정(4.2)', () => {
     expect(world.users.get(OTHER)!.tier).toBe(UserTier.PRO);
   });
 });
+
+describe('유예 중인 구독의 종료(4.6 — 2026-10-06)', () => {
+  const GRACE_END = new Date('2026-11-17T00:00:00Z');
+
+  async function enterGrace() {
+    const context = setup();
+
+    await context.purchase(signTransaction(THIS_PERIOD));
+    await context.notify(
+      {
+        id: 'n-grace',
+        type: 'DID_FAIL_TO_RENEW',
+        subtype: 'GRACE_PERIOD',
+        transaction: THIS_PERIOD,
+        renewal: { gracePeriodExpiresAt: GRACE_END },
+      },
+      new Date('2026-11-01T00:10:00Z'),
+    );
+    expect(context.world.subscriptions[0]).toMatchObject({
+      status: SubscriptionStatus.GRACE,
+      expiresAt: GRACE_END,
+    });
+
+    return context;
+  }
+
+  it('유예 종료 알림이 오면 무료로 내려간다 — 거래의 만료일은 유예 종료일보다 이르다', async () => {
+    const { world, notify } = await enterGrace();
+
+    await notify(
+      {
+        id: 'n-grace-end',
+        type: 'GRACE_PERIOD_EXPIRED',
+        transaction: THIS_PERIOD,
+      },
+      new Date('2026-11-17T00:05:00Z'),
+    );
+
+    expect(world.subscriptions[0].status).toBe(SubscriptionStatus.EXPIRED);
+    expect(world.users.get(USER)!.tier).toBe(UserTier.LIGHT);
+  });
+
+  it('유예 중 환불 알림이 오면 즉시 무효다', async () => {
+    const { world, notify } = await enterGrace();
+    const at = new Date('2026-11-05T00:00:00Z');
+
+    await notify(
+      {
+        id: 'n-refund',
+        type: 'REFUND',
+        transaction: { ...THIS_PERIOD, revokedAt: at },
+      },
+      at,
+    );
+
+    expect(world.subscriptions[0].status).toBe(SubscriptionStatus.REFUNDED);
+    expect(world.users.get(USER)!.tier).toBe(UserTier.LIGHT);
+  });
+
+  it('유예 중 재청구가 성공하면 유효로 돌아온다', async () => {
+    const { world, notify } = await enterGrace();
+
+    await notify(
+      {
+        id: 'n-recovered',
+        type: 'DID_RENEW',
+        subtype: 'BILLING_RECOVERY',
+        transaction: NEXT_PERIOD,
+      },
+      new Date('2026-11-03T00:00:00Z'),
+    );
+
+    expect(world.subscriptions[0]).toMatchObject({
+      status: SubscriptionStatus.ACTIVE,
+      expiresAt: NEXT_PERIOD.expiresAt,
+    });
+    expect(world.users.get(USER)!.tier).toBe(UserTier.PRO);
+  });
+});
+
+describe('끝난 구독의 재결제 — 다른 계정이 넘겨받는다(7장 주인 확인 — 2026-10-06)', () => {
+  const AFTER_EXPIRY = new Date('2026-11-05T00:00:00Z');
+  const REPURCHASE = {
+    purchasedAt: new Date('2026-11-05T00:00:00Z'),
+    expiresAt: new Date('2026-12-05T00:00:00Z'),
+    accountToken: INTENT_A,
+  };
+
+  /** OTHER가 구독했다가 만료된 뒤, 같은 스토어 계정으로 USER가 결제를 시작한 상태 */
+  async function setupExpiredOwnedByOther() {
+    const context = setup();
+    const { world, purchase, notify } = context;
+
+    world.addIntent(OTHER, INTENT_B);
+    await purchase(
+      signTransaction({ ...THIS_PERIOD, accountToken: INTENT_B }),
+      OTHER,
+    );
+    await notify(
+      {
+        id: 'n-expired',
+        type: 'EXPIRED',
+        transaction: { ...THIS_PERIOD, accountToken: INTENT_B },
+      },
+      new Date('2026-11-01T00:05:00Z'),
+    );
+    expect(world.users.get(OTHER)!.tier).toBe(UserTier.LIGHT);
+
+    world.addIntent(USER, INTENT_A);
+
+    return context;
+  }
+
+  it('영수증 제출 — 자기 결제 의도로 결제한 거래면 받아들이고 구독 행을 넘겨받는다', async () => {
+    const { world, purchase } = await setupExpiredOwnedByOther();
+
+    await purchase(signTransaction(REPURCHASE), USER, AFTER_EXPIRY);
+
+    expect(world.subscriptions).toEqual([
+      expect.objectContaining({
+        userId: USER,
+        status: SubscriptionStatus.ACTIVE,
+        expiresAt: REPURCHASE.expiresAt,
+      }),
+    ]);
+    expect(world.users.get(USER)!.tier).toBe(UserTier.PRO);
+    expect(world.users.get(OTHER)!.tier).toBe(UserTier.LIGHT);
+  });
+
+  it('알림이 먼저 와도 결제한 계정이 유료가 된다 — 예전 계정이 아니다', async () => {
+    const { world, purchase, notify } = await setupExpiredOwnedByOther();
+
+    await notify(
+      { id: 'n-resubscribed', type: 'SUBSCRIBED', transaction: REPURCHASE },
+      AFTER_EXPIRY,
+    );
+
+    expect(world.subscriptions[0].userId).toBe(USER);
+    expect(world.users.get(USER)!.tier).toBe(UserTier.PRO);
+    expect(world.users.get(OTHER)!.tier).toBe(UserTier.LIGHT);
+
+    // 뒤이은 영수증 제출도 성공한다(409가 아니다)
+    await purchase(signTransaction(REPURCHASE), USER, AFTER_EXPIRY);
+    expect(world.subscriptions).toHaveLength(1);
+  });
+
+  it.each([
+    ['결제 의도 없이 결제된 거래', null],
+    ['예전 계정의 결제 의도로 결제된 거래', INTENT_B],
+  ])('%s면 끝난 구독이어도 넘겨받지 못한다', async (_label, accountToken) => {
+    const { world, purchase } = await setupExpiredOwnedByOther();
+
+    await expectBusinessError(
+      purchase(
+        signTransaction({ ...REPURCHASE, accountToken }),
+        USER,
+        AFTER_EXPIRY,
+      ),
+      ErrorCode.SUBSCRIPTION_OWNED_BY_ANOTHER_ACCOUNT,
+      HttpStatus.CONFLICT,
+    );
+    expect(world.subscriptions[0].userId).toBe(OTHER);
+    expect(world.users.get(USER)!.tier).toBe(UserTier.LIGHT);
+  });
+
+  it('예전 계정의 것으로 다시 결제된 알림은 예전 계정에 반영한다', async () => {
+    const { world, notify } = await setupExpiredOwnedByOther();
+
+    await notify(
+      {
+        id: 'n-resubscribed',
+        type: 'SUBSCRIBED',
+        transaction: { ...REPURCHASE, accountToken: INTENT_B },
+      },
+      AFTER_EXPIRY,
+    );
+
+    expect(world.subscriptions[0].userId).toBe(OTHER);
+    expect(world.users.get(OTHER)!.tier).toBe(UserTier.PRO);
+  });
+});
+
+describe('처음 연결하는 구독은 Apple에 지금 상태를 묻는다(4.4-5 — 2026-10-06)', () => {
+  const restore = (
+    orchestrator: BillingOrchestrator,
+    signedTransactions: string[],
+  ) =>
+    orchestrator.restorePurchases({
+      userId: USER,
+      platform: DevicePlatform.IOS,
+      signedTransactions,
+      purchaseTokens: [],
+      now: NOW,
+    });
+
+  const REVOKED = {
+    status: 'revoked' as const,
+    transaction: buildTransaction({ ...THIS_PERIOD, revokedAt: NOW }),
+    renewal: null,
+  };
+
+  it('환불 → 탈퇴 → 재가입 뒤 환불 전 서명 거래를 내면 받지 않는다(구독 행이 없어도 Apple이 환불이라 답한다)', async () => {
+    const { world, purchase, notify } = setup();
+
+    await purchase(signTransaction(THIS_PERIOD), OTHER);
+    await notify({
+      id: 'n-refund',
+      type: 'REFUND',
+      transaction: { ...THIS_PERIOD, revokedAt: NOW },
+    });
+    world.withdraw(OTHER);
+    expect(world.subscriptions).toHaveLength(0);
+    world.gateway.statuses.set('otx-1', REVOKED);
+
+    await expectBusinessError(
+      purchase(signTransaction(THIS_PERIOD), USER),
+      ErrorCode.SUBSCRIPTION_RECEIPT_INVALID,
+      HttpStatus.BAD_REQUEST,
+    );
+    expect(world.subscriptions).toHaveLength(0);
+    expect(world.users.get(USER)!.tier).toBe(UserTier.LIGHT);
+  });
+
+  it.each(['expired', 'billing_retry'] as const)(
+    'Apple이 %s라 답한 구독의 거래도 받지 않는다',
+    async (status) => {
+      const { world, purchase } = setup();
+
+      world.gateway.statuses.set('otx-1', {
+        status,
+        transaction: buildTransaction(THIS_PERIOD),
+        renewal: null,
+      });
+
+      await expectBusinessError(
+        purchase(signTransaction(THIS_PERIOD)),
+        ErrorCode.SUBSCRIPTION_RECEIPT_INVALID,
+        HttpStatus.BAD_REQUEST,
+      );
+      expect(world.subscriptions).toHaveLength(0);
+    },
+  );
+
+  it('Apple이 유효라 답하면 그 상태로 연결한다 — 연결 전에 한 해지 예약이 빠지지 않는다', async () => {
+    const { world, orchestrator, purchase } = setup();
+
+    world.gateway.statuses.set('otx-1', {
+      status: 'active',
+      transaction: buildTransaction(THIS_PERIOD),
+      renewal: {
+        isAutoRenew: false,
+        autoRenewProductId: PRODUCT_PRO,
+        gracePeriodExpiresAt: null,
+      },
+    });
+
+    await purchase(signTransaction(THIS_PERIOD));
+
+    expect(world.subscriptions[0]).toMatchObject({
+      userId: USER,
+      status: SubscriptionStatus.CANCELLED,
+      isAutoRenew: false,
+      expiresAt: THIS_PERIOD.expiresAt,
+    });
+    expect(world.users.get(USER)!.tier).toBe(UserTier.PRO);
+    expect((await orchestrator.getSubscription(USER, NOW)).plan.status).toBe(
+      PlanStatus.CANCEL_SCHEDULED,
+    );
+  });
+
+  it.each([
+    [
+      'Apple에 물을 수 없으면(키 미구성)',
+      (world: BillingTestWorld) => {
+        world.gateway.statusQueryable = false;
+      },
+    ],
+    [
+      '상태 조회가 실패하면',
+      (world: BillingTestWorld) => {
+        world.gateway.fetchStatusError = new AppStoreVerificationError(
+          'unavailable',
+          'fake',
+        );
+      },
+    ],
+    ['Apple이 그 구독을 모르면', () => undefined],
+  ])('%s 결제를 막지 않고 거래만으로 연결한다', async (_label, arrange) => {
+    const { world, purchase } = setup();
+
+    arrange(world);
+    await purchase(signTransaction(THIS_PERIOD));
+
+    expect(world.subscriptions[0].status).toBe(SubscriptionStatus.ACTIVE);
+    expect(world.users.get(USER)!.tier).toBe(UserTier.PRO);
+  });
+
+  it('Apple의 답이 제출된 거래보다 옛것이면(방금 한 재구독을 아직 모른다) 그 답으로 거절하지 않는다', async () => {
+    const { world, purchase } = setup();
+
+    // Apple은 지난 주기에서 만료됐다고 답하는데, 손에 든 것은 그 뒤에 결제된 다음 주기의 서명 거래다
+    world.gateway.statuses.set('otx-1', {
+      status: 'expired',
+      transaction: buildTransaction(THIS_PERIOD),
+      renewal: null,
+    });
+
+    await purchase(
+      signTransaction(NEXT_PERIOD),
+      USER,
+      new Date('2026-11-01T00:01:00Z'),
+    );
+
+    expect(world.subscriptions[0]).toMatchObject({
+      status: SubscriptionStatus.ACTIVE,
+      expiresAt: NEXT_PERIOD.expiresAt,
+    });
+    expect(world.users.get(USER)!.tier).toBe(UserTier.PRO);
+  });
+
+  it('상태 조회가 예상 밖의 오류로 죽어도 결제를 막지 않는다', async () => {
+    const { world, purchase } = setup();
+
+    jest
+      .spyOn(world.gateway, 'fetchStatus')
+      .mockRejectedValue(new Error('socket hang up'));
+
+    await purchase(signTransaction(THIS_PERIOD));
+
+    expect(world.subscriptions[0].status).toBe(SubscriptionStatus.ACTIVE);
+    expect(world.users.get(USER)!.tier).toBe(UserTier.PRO);
+  });
+
+  it('이미 연결된 살아 있는 구독은 다시 묻지 않는다 — 환불·해지는 알림으로 들어온다', async () => {
+    const { world, purchase } = setup();
+
+    await purchase(signTransaction(THIS_PERIOD));
+    world.gateway.statuses.set('otx-1', REVOKED);
+
+    await purchase(signTransaction(THIS_PERIOD));
+
+    expect(world.subscriptions[0].status).toBe(SubscriptionStatus.ACTIVE);
+  });
+
+  it('복원 — Apple이 끝났다고 답한 구독은 오류가 아니라 복원하지 않는다', async () => {
+    const { world, orchestrator } = setup();
+
+    world.gateway.statuses.set('otx-1', REVOKED);
+
+    const result = await restore(orchestrator, [signTransaction(THIS_PERIOD)]);
+
+    expect(result.restored).toBe(false);
+    expect(world.subscriptions).toHaveLength(0);
+    expect(world.users.get(USER)!.tier).toBe(UserTier.LIGHT);
+  });
+
+  it('복원 — Apple이 유예라 답하면 유예로 연결한다', async () => {
+    const { world, orchestrator } = setup();
+    const graceEnd = new Date('2026-11-17T00:00:00Z');
+
+    world.gateway.statuses.set('otx-1', {
+      status: 'grace',
+      transaction: buildTransaction(THIS_PERIOD),
+      renewal: {
+        isAutoRenew: true,
+        autoRenewProductId: PRODUCT_PRO,
+        gracePeriodExpiresAt: graceEnd,
+      },
+    });
+
+    const result = await restore(orchestrator, [signTransaction(THIS_PERIOD)]);
+
+    expect(result.restored).toBe(true);
+    expect(world.subscriptions[0]).toMatchObject({
+      status: SubscriptionStatus.GRACE,
+      expiresAt: graceEnd,
+    });
+  });
+});
+
+describe('만료 보정의 상한 — 확인할 수 없는 구독(4.2 — 2026-10-06)', () => {
+  const WITHIN_LIMIT = new Date('2026-11-07T23:00:00Z');
+  const PAST_LIMIT = new Date('2026-11-08T01:00:00Z');
+
+  const UNVERIFIABLE: [string, (world: BillingTestWorld) => void][] = [
+    [
+      '스토어에 물을 수 없는(키 미구성)',
+      (world) => {
+        world.gateway.statusQueryable = false;
+      },
+    ],
+    [
+      '스토어 조회가 계속 실패하는',
+      (world) => {
+        world.gateway.fetchStatusError = new AppStoreVerificationError(
+          'unavailable',
+          'fake',
+        );
+      },
+    ],
+    ['스토어가 모르는', () => undefined],
+  ];
+
+  it.each(UNVERIFIABLE)(
+    '%s 구독도 만료일이 7일을 넘기면 만료로 내린다',
+    async (_label, arrange) => {
+      const { world, orchestrator, purchase } = setup();
+
+      await purchase(signTransaction(THIS_PERIOD));
+      arrange(world);
+
+      const view = await orchestrator.getSubscription(USER, PAST_LIMIT);
+
+      expect(view.plan.status).toBe(PlanStatus.FREE);
+      expect(world.subscriptions[0]).toMatchObject({
+        status: SubscriptionStatus.EXPIRED,
+        isAutoRenew: false,
+        // 스토어가 말한 사실이 아니다 — 알림 순서 기준 시각을 건드리지 않는다
+        lastNotifiedAt: null,
+      });
+      expect(world.users.get(USER)!.tier).toBe(UserTier.LIGHT);
+    },
+  );
+
+  it('7일 안에는 종전대로 그대로 둔다', async () => {
+    const { world, orchestrator, purchase } = setup();
+
+    await purchase(signTransaction(THIS_PERIOD));
+    world.gateway.statusQueryable = false;
+
+    await orchestrator.getSubscription(USER, WITHIN_LIMIT);
+
+    expect(world.subscriptions[0].status).toBe(SubscriptionStatus.ACTIVE);
+    expect(world.users.get(USER)!.tier).toBe(UserTier.PRO);
+  });
+
+  it('배치도 같은 상한을 적용하고 내린 건수에 센다', async () => {
+    const { world, reconcile, purchase } = setup();
+
+    await purchase(signTransaction(THIS_PERIOD));
+    world.gateway.statusQueryable = false;
+
+    expect(await reconcile.reconcileOverdue(WITHIN_LIMIT)).toBe(0);
+    expect(await reconcile.reconcileOverdue(PAST_LIMIT)).toBe(1);
+    expect(world.users.get(USER)!.tier).toBe(UserTier.LIGHT);
+    // 내려간 행은 보정 대상에서 빠진다 — 배치의 앞자리를 계속 차지하지 않는다
+    expect(await reconcile.reconcileOverdue(PAST_LIMIT)).toBe(0);
+  });
+
+  it('상한으로 내린 뒤 늦게 도착한 갱신 거래는 구독을 되살린다', async () => {
+    const { world, orchestrator, purchase } = setup();
+
+    await purchase(signTransaction(THIS_PERIOD));
+    world.gateway.statusQueryable = false;
+    await orchestrator.getSubscription(USER, PAST_LIMIT);
+    expect(world.users.get(USER)!.tier).toBe(UserTier.LIGHT);
+
+    await purchase(signTransaction(NEXT_PERIOD), USER, PAST_LIMIT);
+
+    expect(world.subscriptions[0]).toMatchObject({
+      status: SubscriptionStatus.ACTIVE,
+      expiresAt: NEXT_PERIOD.expiresAt,
+    });
+    expect(world.users.get(USER)!.tier).toBe(UserTier.PRO);
+  });
+
+  it('상한으로 내린 뒤 늦게 도착한 갱신 알림도 구독을 되살린다', async () => {
+    const { world, orchestrator, purchase, notify } = setup();
+
+    await purchase(signTransaction(THIS_PERIOD));
+    world.gateway.statusQueryable = false;
+    await orchestrator.getSubscription(USER, PAST_LIMIT);
+
+    await notify(
+      { id: 'n-late-renew', type: 'DID_RENEW', transaction: NEXT_PERIOD },
+      PAST_LIMIT,
+    );
+
+    expect(world.subscriptions[0].status).toBe(SubscriptionStatus.ACTIVE);
+    expect(world.users.get(USER)!.tier).toBe(UserTier.PRO);
+  });
+});
