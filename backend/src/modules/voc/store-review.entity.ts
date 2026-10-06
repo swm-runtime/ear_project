@@ -33,8 +33,8 @@ export class StoreReview extends BaseEntity {
   lastModifiedAt: Date;
 
   /**
-   * Slack에 올린 시각. **null은 "알리지 않고 기록만 했다"**다 — 첫 실행(표가 비어 있을 때)에 쌓여 있던
-   * 리뷰를 채널에 쏟지 않으려고 기록만 하고 넘어간 행이 여기 해당한다(`StoreReviewPollService`).
+   * Slack에 올린 시각. **null은 "알리지 않고 기록만 했다"**다 — 그 스토어를 처음 기록할 때 이미 쌓여 있던
+   * (24시간보다 오래된) 리뷰를 채널에 쏟지 않으려고 기록만 하고 넘어간 행이 여기 해당한다(`StoreReviewPollService`).
    */
   @Column({ name: 'notified_at', type: 'timestamptz', nullable: true })
   notifiedAt: Date | null;

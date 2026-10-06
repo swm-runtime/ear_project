@@ -1,4 +1,5 @@
 import {
+  escapeSlackText,
   resolveWebhookUrl,
   withEnvironmentPrefix,
 } from './slack-alert.service';
@@ -39,5 +40,23 @@ describe('withEnvironmentPrefix', () => {
     );
     expect(withEnvironmentPrefix(':wave: 가입', '')).toBe(':wave: 가입');
     expect(withEnvironmentPrefix(':wave: 가입')).toBe(':wave: 가입');
+  });
+});
+
+describe('escapeSlackText', () => {
+  it('Slack 이 명령으로 읽는 세 문자를 엔티티로 바꾼다', () => {
+    expect(escapeSlackText('<!channel> a & b > c')).toBe(
+      '&lt;!channel&gt; a &amp; b &gt; c',
+    );
+  });
+
+  it('이미 엔티티처럼 보이는 글도 한 번 더 바꾼다 — 바깥에서 온 글은 전부 글자 그대로 보여야 한다', () => {
+    expect(escapeSlackText('&lt;!here&gt;')).toBe('&amp;lt;!here&amp;gt;');
+  });
+
+  it('그 밖의 글자는 건드리지 않는다', () => {
+    expect(escapeSlackText('재생이 끊겨요 😀 *굵게* _기울임_')).toBe(
+      '재생이 끊겨요 😀 *굵게* _기울임_',
+    );
   });
 });

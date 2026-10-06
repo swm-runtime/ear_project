@@ -49,6 +49,33 @@ describe('formatWithdrawalText', () => {
     );
   });
 
+  it('직접 입력 사유의 Slack 제어 문자를 무력화한다 — 탈퇴 사유로 채널을 호출할 수 없다', () => {
+    const text = formatWithdrawalText(
+      {
+        ...base,
+        reasonText: '<!channel> 확인 <https://evil.example|여기> & 끝',
+      },
+      at,
+    );
+
+    expect(text).not.toMatch(/<[!h]/);
+    expect(text).toContain(
+      '\n> &lt;!channel&gt; 확인 &lt;https://evil.example|여기&gt; &amp; 끝',
+    );
+  });
+
+  it('긴 사유를 자를 때 이모지를 반으로 가르지 않고, 자른 뒤에 무력화한다', () => {
+    // given — 상한 직전까지 채우고 경계에 이모지와 `<`를 둔다
+    const reasonText = `${'가'.repeat(REASON_TEXT_MAX_LENGTH - 2)}😀<끝`;
+
+    const quoted = formatWithdrawalText({ ...base, reasonText }, at).split(
+      '\n> ',
+    )[1];
+
+    // then — 200자(코드포인트)에서 잘리고 이모지가 온전하며, 엔티티가 중간에 끊기지 않는다
+    expect(quoted).toBe(`${'가'.repeat(REASON_TEXT_MAX_LENGTH - 2)}😀&lt;…`);
+  });
+
   it('사유를 고르지 않았으면 그렇다고 적는다 — 조용히 비는 것보다 낫다', () => {
     expect(formatWithdrawalText({ ...base, reasonCode: null }, at)).toContain(
       '사유 미선택',

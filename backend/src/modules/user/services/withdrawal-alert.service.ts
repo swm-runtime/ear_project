@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 
-import { SlackAlertService } from '@/modules/alert/slack-alert.service';
+import {
+  escapeSlackText,
+  SlackAlertService,
+} from '@/modules/alert/slack-alert.service';
 
 import { WithdrawalReason } from '../user.enum';
 
@@ -61,7 +64,7 @@ export function formatWithdrawalText(
   const reason =
     input.reasonCode === null
       ? '사유 미선택'
-      : (REASON_LABEL[input.reasonCode] ?? input.reasonCode);
+      : (REASON_LABEL[input.reasonCode] ?? escapeSlackText(input.reasonCode));
   const dayIndex =
     Math.floor((at.getTime() - input.signedUpAt.getTime()) / DAY_MS) + 1;
   const parts = [
@@ -77,12 +80,15 @@ export function formatWithdrawalText(
 
   // 줄바꿈은 공백으로 — 인용 블록이 여러 줄로 갈라지지 않게
   const flat = detail.replace(/\s+/g, ' ');
+  // 글자(코드포인트) 단위로 자른다 — 코드 단위로 자르면 이모지가 반으로 갈려 깨진 글자가 남는다
+  const chars = [...flat];
   const clipped =
-    flat.length > REASON_TEXT_MAX_LENGTH
-      ? `${flat.slice(0, REASON_TEXT_MAX_LENGTH)}…`
+    chars.length > REASON_TEXT_MAX_LENGTH
+      ? `${chars.slice(0, REASON_TEXT_MAX_LENGTH).join('')}…`
       : flat;
 
-  return `${parts.join(' · ')}\n> ${clipped}`;
+  // 사용자가 쓴 글이다 — `<!channel>` 같은 Slack 명령으로 읽히지 않게 무력화한다. 자른 뒤에 바꾼다
+  return `${parts.join(' · ')}\n> ${escapeSlackText(clipped)}`;
 }
 
 @Injectable()

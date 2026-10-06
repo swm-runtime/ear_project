@@ -23,8 +23,10 @@ class FakeStoreReviewRepository {
     this.rows.set(`${row.store}:${row.reviewId}`, row);
   }
 
-  countAll(): Promise<number> {
-    return Promise.resolve(this.rows.size);
+  hasAnyByStore(store: ReviewStore): Promise<boolean> {
+    return Promise.resolve(
+      [...this.rows.values()].some((row) => row.store === store),
+    );
   }
 
   findAllByStoreAndReviewIds(
@@ -144,7 +146,7 @@ describe('StoreReviewPollService', () => {
       expect(world.notify).not.toHaveBeenCalled();
     });
 
-    it('첫 실행(표가 비어 있음)은 알리지 않고 기준선만 기록한다', async () => {
+    it('스토어를 처음 기록할 때 쌓여 있던(24시간보다 오래된) 리뷰는 알리지 않고 기준선만 기록한다', async () => {
       // given
       const world = buildWorld({
         appStore: [review({ reviewId: 'a' }), review({ reviewId: 'b' })],
@@ -155,7 +157,10 @@ describe('StoreReviewPollService', () => {
       const result = await world.service.poll(NOW);
 
       // then
-      expect(result.isFirstRun).toBe(true);
+      expect(result.baselineStores).toEqual([
+        ReviewStore.APP_STORE,
+        ReviewStore.PLAY_STORE,
+      ]);
       expect(result.notifiedCount).toBe(0);
       expect(world.notify).not.toHaveBeenCalled();
       expect(world.repository.rows.size).toBe(3);
@@ -164,6 +169,115 @@ describe('StoreReviewPollService', () => {
           (row) => row.notifiedAt === null,
         ),
       ).toBe(true);
+    });
+
+    it('리뷰가 0건이던 스토어에 처음 달린 리뷰는 알린다 — 기준선으로 삼키지 않는다', async () => {
+      // given — 켠 뒤 첫 주기에는 리뷰가 없었다(표가 빈 채 남는다)
+      const world = buildWorld({ appStore: [] });
+      await world.service.poll(NOW);
+      expect(world.repository.rows.size).toBe(0);
+
+      // when — 다음 주기에 첫 리뷰가 보인다(10분 전에 작성)
+      const later = new Date(NOW.getTime() + 15 * 60 * 1000);
+      world.appStore.fetchRecentReviews.mockResolvedValue([
+        review({
+          reviewId: 'first',
+          body: '첫 리뷰',
+          lastModifiedAt: new Date(later.getTime() - 10 * 60 * 1000),
+        }),
+      ]);
+      const result = await world.service.poll(later);
+
+      // then
+      expect(result.notifiedCount).toBe(1);
+      const [, text] = world.notify.mock.calls[0] as [string, string];
+      expect(text).toContain('첫 리뷰');
+      expect(
+        world.repository.rows.get(`${ReviewStore.APP_STORE}:first`)?.notifiedAt,
+      ).toEqual(later);
+    });
+
+    it('스토어를 처음 기록할 때도 최근 24시간 안의 리뷰는 알리고, 더 오래된 것만 기준선으로 적는다', async () => {
+      // given
+      const world = buildWorld({
+        appStore: [
+          review({
+            reviewId: 'recent',
+            body: '어제 저녁 리뷰',
+            lastModifiedAt: new Date(NOW.getTime() - 3 * 60 * 60 * 1000),
+          }),
+          review({
+            reviewId: 'old',
+            lastModifiedAt: new Date(NOW.getTime() - 25 * 60 * 60 * 1000),
+          }),
+        ],
+      });
+
+      // when
+      const result = await world.service.poll(NOW);
+
+      // then
+      expect(result.baselineStores).toEqual([ReviewStore.APP_STORE]);
+      expect(result.notifiedCount).toBe(1);
+      const [, text] = world.notify.mock.calls[0] as [string, string];
+      expect(text).toContain('어제 저녁 리뷰');
+      expect(
+        world.repository.rows.get(`${ReviewStore.APP_STORE}:old`)?.notifiedAt,
+      ).toBeNull();
+      expect(
+        world.repository.rows.get(`${ReviewStore.APP_STORE}:recent`)
+          ?.notifiedAt,
+      ).toEqual(NOW);
+    });
+
+    it('나중에 켠 스토어의 쌓여 있던 리뷰는 쏟지 않는다 — 다른 스토어에 기록이 있어도 스토어별로 판정한다', async () => {
+      // given — App Store 는 이미 돌고 있고, Play 를 오늘 켰다
+      const world = buildWorld({
+        appStore: [review({ reviewId: 'known' })],
+        play: [
+          review({ reviewId: 'gp:old-1', store: ReviewStore.PLAY_STORE }),
+          review({ reviewId: 'gp:old-2', store: ReviewStore.PLAY_STORE }),
+        ],
+      });
+      world.repository.seed({
+        store: ReviewStore.APP_STORE,
+        reviewId: 'known',
+        rating: 4,
+        lastModifiedAt: new Date('2026-10-05T00:00:00Z'),
+        notifiedAt: NOW,
+      });
+
+      // when
+      const result = await world.service.poll(NOW);
+
+      // then
+      expect(result.baselineStores).toEqual([ReviewStore.PLAY_STORE]);
+      expect(world.notify).not.toHaveBeenCalled();
+      expect(
+        world.repository.rows.get(`${ReviewStore.PLAY_STORE}:gp:old-1`)
+          ?.notifiedAt,
+      ).toBeNull();
+    });
+
+    it('첫 주기에 한 스토어 조회가 실패했어도, 복구된 주기에 그 스토어의 옛 리뷰를 쏟지 않는다', async () => {
+      // given — 첫 주기: App Store 만 성공해 기준선이 적혔다
+      const world = buildWorld({
+        appStore: [review({ reviewId: 'a' })],
+        play: new StoreReviewFetchError(ReviewStore.PLAY_STORE, 503),
+      });
+      await world.service.poll(NOW);
+
+      // when — 다음 주기에 Play 가 복구됐다
+      world.play.fetchRecentReviews.mockResolvedValue([
+        review({ reviewId: 'gp:old', store: ReviewStore.PLAY_STORE }),
+      ]);
+      const result = await world.service.poll(
+        new Date(NOW.getTime() + 15 * 60 * 1000),
+      );
+
+      // then
+      expect(result.baselineStores).toEqual([ReviewStore.PLAY_STORE]);
+      expect(world.notify).not.toHaveBeenCalled();
     });
 
     it('기준선 이후 새 리뷰만 한 메시지로 알리고 notified_at을 적는다', async () => {
@@ -189,12 +303,20 @@ describe('StoreReviewPollService', () => {
         lastModifiedAt: new Date('2026-10-05T00:00:00Z'),
         notifiedAt: null,
       });
+      // Play 도 이미 기록이 있는 스토어다 — 처음 기록하는 스토어의 옛 리뷰는 기준선으로 빠진다
+      world.repository.seed({
+        store: ReviewStore.PLAY_STORE,
+        reviewId: 'gp:baseline',
+        rating: 3,
+        lastModifiedAt: new Date('2026-10-01T00:00:00Z'),
+        notifiedAt: null,
+      });
 
       // when
       const result = await world.service.poll(NOW);
 
       // then
-      expect(result.isFirstRun).toBe(false);
+      expect(result.baselineStores).toEqual([]);
       expect(result.notifiedCount).toBe(2);
       expect(world.notify).toHaveBeenCalledTimes(1);
       const [kind, text] = world.notify.mock.calls[0] as [string, string];
@@ -283,6 +405,14 @@ describe('StoreReviewPollService', () => {
         rating: 4,
         lastModifiedAt: new Date('2026-10-05T00:00:00Z'),
         notifiedAt: NOW,
+      });
+      // Play 도 이미 기록이 있는 스토어다 — 처음 기록하는 스토어의 옛 리뷰는 기준선으로 빠진다
+      world.repository.seed({
+        store: ReviewStore.PLAY_STORE,
+        reviewId: 'gp:baseline',
+        rating: 3,
+        lastModifiedAt: new Date('2026-10-01T00:00:00Z'),
+        notifiedAt: null,
       });
 
       // when

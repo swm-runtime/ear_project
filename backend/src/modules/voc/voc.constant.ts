@@ -6,6 +6,13 @@
  */
 export const STORE_REVIEW_POLL_INTERVAL_MS = 15 * 60 * 1000;
 
+/**
+ * 스토어를 **처음 기록할 때** 새 리뷰로 볼 범위(domain.md 10.4). 그 스토어의 행이 하나도 없으면 가져온 리뷰 중
+ * 이 시간 안에 작성·수정된 것만 알리고, 더 오래된 것은 기준선으로 적기만 한다 — 쌓여 있던 리뷰를 채널에 쏟지
+ * 않으면서, 리뷰가 0건이던 스토어의 첫 리뷰는 놓치지 않는다. 폴링(15분)이 이만큼 멈추지 않는 한 새 리뷰는 안에 든다
+ */
+export const STORE_REVIEW_BASELINE_FRESH_MS = 24 * 60 * 60 * 1000;
+
 /** App Store Connect `customerReviews` 한 번에 받는 건수 — 날짜 필터가 없어 최신순 정렬 뒤 이만큼만 본다 */
 export const APP_STORE_REVIEW_PAGE_SIZE = 50;
 

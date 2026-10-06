@@ -2,7 +2,10 @@ import { CallHandler, ExecutionContext } from '@nestjs/common';
 import { rm } from 'node:fs/promises';
 import { lastValueFrom, of, throwError } from 'rxjs';
 
-import { UploadCleanupInterceptor } from './upload-cleanup.interceptor';
+import {
+  removeUploadedFiles,
+  UploadCleanupInterceptor,
+} from './upload-cleanup.interceptor';
 
 jest.mock('node:fs/promises', () => ({
   rm: jest.fn().mockResolvedValue(undefined),
@@ -65,6 +68,45 @@ describe('UploadCleanupInterceptor — 파이프·핸들러가 던져도 임시 
     await expect(
       lastValueFrom(interceptor.intercept(buildContext(undefined), next)),
     ).rejects.toThrow('boom');
+    expect(rmMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('removeUploadedFiles — 핸들러의 finally 도 이 함수로 지운다', () => {
+  const rmMock = rm as jest.MockedFunction<typeof rm>;
+
+  beforeEach(() => {
+    rmMock.mockClear();
+  });
+
+  it('업로드 필드를 가리지 않고 받은 파일 전부를 지운다 — 음질 3종의 고음질·무손실 파일 포함', async () => {
+    // given — 3종 발행 한 건이 `/tmp`에 남기는 파일 전부(admin-api.md 4.6)
+    const files = {
+      audio: [{ path: '/tmp/a.mp3' }],
+      audio_aac: [{ path: '/tmp/a.m4a' }],
+      audio_lossless: [{ path: '/tmp/a.flac' }],
+      thumbnail: [{ path: '/tmp/t.png' }],
+      enrichment_file: [{ path: '/tmp/e.json' }],
+      script_file: [{ path: '/tmp/s.json' }],
+    };
+
+    // when
+    await removeUploadedFiles(files);
+
+    // then
+    expect(rmMock.mock.calls.map(([path]) => path).sort()).toEqual([
+      '/tmp/a.flac',
+      '/tmp/a.m4a',
+      '/tmp/a.mp3',
+      '/tmp/e.json',
+      '/tmp/s.json',
+      '/tmp/t.png',
+    ]);
+  });
+
+  it('파일이 없으면 아무것도 하지 않는다', async () => {
+    await removeUploadedFiles(undefined);
+
     expect(rmMock).not.toHaveBeenCalled();
   });
 });

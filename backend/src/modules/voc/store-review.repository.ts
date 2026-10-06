@@ -18,9 +18,9 @@ export class StoreReviewRepository {
     private readonly repository: Repository<StoreReview>,
   ) {}
 
-  /** 표가 비어 있는가 — 첫 실행 판정에 쓴다(`StoreReviewPollService`) */
-  async countAll(): Promise<number> {
-    return this.repository.count();
+  /** 그 스토어를 기록한 적이 있는가 — 스토어별 첫 기록(기준선) 판정에 쓴다(`StoreReviewPollService`) */
+  async hasAnyByStore(store: ReviewStore): Promise<boolean> {
+    return (await this.repository.countBy({ store })) > 0;
   }
 
   async findAllByStoreAndReviewIds(
