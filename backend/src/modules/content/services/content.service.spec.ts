@@ -5,6 +5,7 @@ import { ContentStatus } from '../content.enum';
 import { Content } from '../entities/content.entity';
 import { ContentRepository } from '../repositories/content.repository';
 import { ContentEmbeddingRepository } from '../repositories/content-embedding.repository';
+import { ContentAudioRenditionRepository } from '../repositories/content-audio-rendition.repository';
 import { ContentScriptRepository } from '../repositories/content-script.repository';
 import { ContentSourceRepository } from '../repositories/content-source.repository';
 import { ContentTopicRepository } from '../repositories/content-topic.repository';
@@ -39,6 +40,7 @@ describe('ContentService', () => {
       {} as ContentSourceRepository,
       {} as ContentEmbeddingRepository,
       {} as ContentScriptRepository,
+      {} as ContentAudioRenditionRepository,
     );
   });
 

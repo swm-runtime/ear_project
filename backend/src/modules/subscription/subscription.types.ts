@@ -1,4 +1,5 @@
 import { UserTier } from '@/modules/user/user.enum';
+import { AudioQuality } from '@/modules/content/content.enum';
 
 import {
   PlanStatus,
@@ -74,6 +75,8 @@ export interface Entitlements {
   dailyDripCount: number;
   dripEnabled: boolean;
   adsEnabled: boolean;
+  /** 이 티어가 들을 수 있는 가장 높은 음질(`player.md` 4.9 — KAN-141) */
+  maxAudioQuality: AudioQuality;
 }
 
 /**

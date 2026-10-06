@@ -1,5 +1,8 @@
 /** convention.md 3.2 — 모듈 밖으로 공개되는 타입만 둔다 */
 
+import { AudioQuality } from '@/modules/content/content.enum';
+
+import type { AudioQualityFallbackReason } from './audio-quality.policy';
 import { PlayEntryPoint, UserSignalAction } from './playback.enum';
 
 /**
@@ -59,6 +62,8 @@ export interface IssueAudioUrlCommand {
   deviceId: string;
   ip: string | null;
   now: Date;
+  /** 원하는 음질 — 없으면 설정의 선택값(player.md 4.9) */
+  quality?: AudioQuality;
 }
 
 /**
@@ -90,7 +95,19 @@ export interface AudioUrlResult {
   libraryItem: { id: string; status: string } | null;
   /** 행이 없으면 `null` — 0으로 채우지 않는다. 0부터 재생한다는 뜻이다 */
   progress: ProgressView | null;
-  audio: SignedAudioUrl;
+  audio: IssuedAudio;
+}
+
+/** 서명 URL + 음질 판정 결과(`player-api.md` 4.1 `audio` — KAN-141) */
+export interface IssuedAudio extends SignedAudioUrl {
+  /** 실제로 내준 음질 — 갱신 호출의 `quality`에 되돌려 보낸다 */
+  quality: AudioQuality;
+  /** 판정에 들어간 음질(요청 → 설정 → compressed) */
+  requestedQuality: AudioQuality;
+  /** 깎인 이유. null = 요청대로 */
+  fallbackReason: AudioQualityFallbackReason | null;
+  /** 이 콘텐츠가 가진 음질(오름차순) */
+  availableQualities: AudioQuality[];
 }
 
 /** 위치 저장 요청(`player-api.md` 4.3) */

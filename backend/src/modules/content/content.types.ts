@@ -8,6 +8,7 @@ import {
   ContentOrigin,
   ContentStatus,
   StatsPeriodType,
+  AudioQuality,
 } from './content.enum';
 import { Content } from './entities/content.entity';
 
@@ -302,4 +303,19 @@ export interface SearchQueryLogSummary {
   missed: SearchQueryRank[];
   /** 검색 수 내림차순 */
   top: SearchQueryRank[];
+}
+
+/**
+ * 음질별 오디오 한 벌의 입력(domain.md 5.8 — KAN-141). 메타는 admin 쪽 `audio-probe`가 파일에서 읽은 값이다.
+ * `byteSize`는 bigint 컬럼이라 문자열이다.
+ */
+export interface AudioRenditionInput {
+  quality: AudioQuality;
+  path: string;
+  codec: string;
+  bitrateKbps: number | null;
+  channels: number | null;
+  sampleRateHz: number | null;
+  byteSize: string | null;
+  durationSec: number;
 }

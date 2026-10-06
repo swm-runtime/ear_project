@@ -33,12 +33,15 @@ import {
   ScriptSegment,
   SearchPage,
   SearchPageQuery,
+  AudioRenditionInput,
 } from '../content.types';
 import { EMBEDDING_MODEL_ID } from '../content.constant';
 import { ContentSource } from '../entities/content-source.entity';
 import { Content } from '../entities/content.entity';
 import { ContentRepository } from '../repositories/content.repository';
 import { ContentEmbeddingRepository } from '../repositories/content-embedding.repository';
+import { ContentAudioRendition } from '../entities/content-audio-rendition.entity';
+import { ContentAudioRenditionRepository } from '../repositories/content-audio-rendition.repository';
 import { ContentScriptRepository } from '../repositories/content-script.repository';
 import { ContentSourceRepository } from '../repositories/content-source.repository';
 import { ContentTopicRepository } from '../repositories/content-topic.repository';
@@ -63,7 +66,35 @@ export class ContentService {
     private readonly contentSourceRepository: ContentSourceRepository,
     private readonly contentEmbeddingRepository: ContentEmbeddingRepository,
     private readonly contentScriptRepository: ContentScriptRepository,
+    private readonly contentAudioRenditionRepository: ContentAudioRenditionRepository,
   ) {}
+
+  /** 음질별 오디오(domain.md 5.8). 발급(playback)이 허용·보유 음질을 고르는 재료 — `path`는 응답에 싣지 않는다 */
+  async findAudioRenditions(
+    contentId: string,
+    manager?: EntityManager,
+  ): Promise<ContentAudioRendition[]> {
+    return this.contentAudioRenditionRepository.findByContentId(
+      contentId,
+      manager,
+    );
+  }
+
+  /**
+   * 음질 행을 통째로 바꾼다(admin-api.md 4.6·4.10). 발행·재발행이 `contents.audio_path`와 **같은 트랜잭션**에서 부른다 —
+   * 두 값이 어긋나면 안 된다(domain.md 5.1-1). 재발행은 3종을 한 세트로 보므로 안 보낸 음질은 사라진다.
+   */
+  async replaceAudioRenditions(
+    contentId: string,
+    renditions: AudioRenditionInput[],
+    manager: EntityManager,
+  ): Promise<void> {
+    await this.contentAudioRenditionRepository.replaceAll(
+      contentId,
+      renditions.map((rendition) => ({ contentId, ...rendition })),
+      manager,
+    );
+  }
 
   /**
    * 대본 세그먼트(`player-api.md` 4.7). **없으면 빈 배열** — 스크립트가 없는 콘텐츠는 정상 상태라 404가 아니다.

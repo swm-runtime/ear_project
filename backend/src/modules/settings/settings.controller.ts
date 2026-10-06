@@ -127,6 +127,9 @@ function toUpdateCommand(
   if (request.is_drip_notification_enabled !== undefined) {
     command.isDripNotificationEnabled = request.is_drip_notification_enabled;
   }
+  if (request.preferred_audio_quality !== undefined) {
+    command.preferredAudioQuality = request.preferred_audio_quality;
+  }
 
   return command;
 }

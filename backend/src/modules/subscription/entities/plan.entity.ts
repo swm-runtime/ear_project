@@ -1,6 +1,7 @@
 import { Column, Entity, PrimaryGeneratedColumn, Unique } from 'typeorm';
 
 import { BaseEntity } from '@/database/base.entity';
+import { AudioQuality } from '@/modules/content/content.enum';
 import { UserTier } from '@/modules/user/user.enum';
 
 /**
@@ -75,4 +76,13 @@ export class Plan extends BaseEntity {
 
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
+
+  /** 이 티어가 들을 수 있는 가장 높은 음질(domain.md 8.1 — KAN-141). 판정은 순서 비교, 티어명 아님 */
+  @Column({
+    name: 'max_audio_quality',
+    type: 'varchar',
+    length: 20,
+    default: AudioQuality.AAC,
+  })
+  maxAudioQuality: AudioQuality;
 }
