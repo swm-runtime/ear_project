@@ -1,4 +1,4 @@
-# [BE] 음질 3단계(압축·AAC·WAV) 배포 — 콘텐츠별 오디오 3종 저장·티어별 허용 판정·업로드/인프라 확장
+# [BE] 음질 3단계(압축·AAC·WAV → 압축·FLAC 확정) 배포 — 콘텐츠별 오디오 저장·티어별 허용 판정·업로드/인프라 확장
 
 | 항목 | 값 |
 |---|---|
@@ -51,12 +51,14 @@ ElevenLabs Pro 결제로 TTS 원본을 **무손실(PCM → WAV)**로 받을 수 
 
 ## 완료 조건
 
+> 2026-10-06 개정 — AI 파트 확정(Light·Daily = AAC 192k, Pro = FLAC)에 맞춰 WAV·3종 표현을 FLAC·2종으로 고쳤다. 판정 규칙은 그대로다(처리 기록 "AI 파트 확정 반영").
+
 - Given `domain.md`·`spec/api/` / When 읽는다 / Then 오디오 3종 스키마, 티어별 허용 음질(`plans`), 미허용 요청 동작, 응답 필드가 적혀 있다
-- Given Light·Daily 계정 / When WAV 재생 URL 을 요청한다 / Then 서버가 계약대로 대체하거나 거절하고, 압축·AAC 는 정상 발급된다
-- Given Pro 계정 / When 세 음질을 각각 요청한다 / Then 각 음질의 서명 URL 이 발급되고 재생된다
-- Given Pro 구독 만료로 Daily 가 된 계정 / When 다음 재생 URL 을 요청한다 / Then WAV 가 더는 발급되지 않는다
-- Given 관리자 업로드 / When 스테레오 WAV(약 212MB)를 포함한 3종을 올린다 / Then 업로드·저장·길이 검증이 통과한다(Caddy·프록시 포함 종단)
-- Given 인프라 / When 처리 기록을 본다 / Then S3·CloudFront 월 비용 추정과 갱신한 Budgets 임계값, WAV 재생 시작 지연 실측이 있다
+- Given Light·Daily 계정 / When 무손실(FLAC) 재생 URL 을 요청한다 / Then 서버가 계약대로 압축으로 대체하고(`not_allowed`), 압축은 정상 발급된다
+- Given Pro 계정 / When 압축·무손실을 각각 요청한다 / Then 각 음질의 서명 URL 이 발급되고 재생된다. 고른 적 없으면 무손실이 기본이다
+- Given Pro 구독 만료로 Daily 가 된 계정 / When 다음 재생 URL 을 요청한다 / Then 무손실(FLAC)이 더는 발급되지 않는다
+- Given 관리자 업로드 / When 압축(m4a AAC 192k) + 무손실(FLAC, 20분 약 45MB)을 올린다 / Then 업로드·저장·길이 검증이 통과한다(Caddy·파이프라인 웹 프록시 포함 종단 — 실파일은 KAN-142 산출물). wav 는 400 으로 거부된다
+- Given 인프라 / When 처리 기록을 본다 / Then S3·CloudFront 월 비용 추정과 갱신한 Budgets 임계값, FLAC 재생 시작 지연 LTE 실측이 있다
 
 ## 처리 기록
 
