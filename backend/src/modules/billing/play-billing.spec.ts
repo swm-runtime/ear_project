@@ -117,7 +117,7 @@ describe('Play — 요금제·결제 의도', () => {
         plan.action,
       ]),
     ).toEqual([
-      [UserTier.LIGHT, null, PlanAction.NONE],
+      [UserTier.LIGHT, null, PlanAction.CURRENT],
       [UserTier.DAILY, PLAY_PRODUCT_DAILY, PlanAction.PURCHASE],
       [UserTier.PRO, PLAY_PRODUCT_PRO, PlanAction.PURCHASE],
     ]);
