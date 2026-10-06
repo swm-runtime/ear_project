@@ -15,6 +15,7 @@ import {
   PlayStoreGateway,
 } from '../play-store/play-store.gateway';
 import { PlayPurchaseService } from './play-purchase.service';
+import { BillingAlertService } from './billing-alert.service';
 
 /**
  * Google Play 실시간 개발자 알림(RTDN) 수신(`subscription-api.md` 4.7). Google Cloud Pub/Sub의 push 구독이
@@ -34,6 +35,7 @@ export class PlayStoreWebhookService {
     private readonly playStoreGateway: PlayStoreGateway,
     private readonly playPurchaseService: PlayPurchaseService,
     private readonly storeNotificationLogService: StoreNotificationLogService,
+    private readonly billingAlertService: BillingAlertService,
   ) {}
 
   async handle(
@@ -104,6 +106,11 @@ export class PlayStoreWebhookService {
         kind: error.kind,
         reason: error.reason,
       });
+      this.billingAlertService.notificationRejected(
+        SubscriptionStore.PLAY_STORE,
+        error.kind,
+        error.reason,
+      );
 
       throw error.kind === 'unavailable'
         ? storeUnavailable()

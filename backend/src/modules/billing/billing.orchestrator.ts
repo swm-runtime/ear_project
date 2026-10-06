@@ -47,6 +47,7 @@ import {
 } from './services/billing-sync.service';
 import { PlayPurchaseService } from './services/play-purchase.service';
 import { SubscriptionReconcileService } from './services/subscription-reconcile.service';
+import { BillingAlertService } from './services/billing-alert.service';
 
 const STORE_BY_PLATFORM: Readonly<Record<DevicePlatform, SubscriptionStore>> = {
   [DevicePlatform.IOS]: SubscriptionStore.APP_STORE,
@@ -73,6 +74,7 @@ export class BillingOrchestrator {
     private readonly appStoreGateway: AppStoreGateway,
     private readonly playPurchaseService: PlayPurchaseService,
     private readonly dataSource: DataSource,
+    private readonly billingAlertService: BillingAlertService,
   ) {}
 
   /** 4.1 — 요금제 목록 + 그 사용자가 각 요금제에 할 수 있는 일 */
@@ -553,6 +555,10 @@ export class BillingOrchestrator {
    */
   private receiptInvalid(reason: string): BusinessException {
     this.logger.warn('store receipt rejected', { reason });
+    this.billingAlertService.receiptRejected(
+      SubscriptionStore.APP_STORE,
+      reason,
+    );
 
     return receiptInvalid();
   }

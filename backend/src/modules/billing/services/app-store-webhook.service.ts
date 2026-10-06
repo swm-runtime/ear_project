@@ -12,6 +12,7 @@ import {
   AppStoreVerificationError,
 } from '../app-store/app-store.gateway';
 import { BillingSyncService } from './billing-sync.service';
+import { BillingAlertService } from './billing-alert.service';
 
 /**
  * App Store Server Notifications V2 수신(`subscription-api.md` 4.6) — 갱신·해지·환불·유예의 **진실의 원천**.
@@ -30,6 +31,7 @@ export class AppStoreWebhookService {
     private readonly storeNotificationLogService: StoreNotificationLogService,
     private readonly billingSyncService: BillingSyncService,
     private readonly dataSource: DataSource,
+    private readonly billingAlertService: BillingAlertService,
   ) {}
 
   async handle(signedPayload: string, now: Date): Promise<void> {
@@ -101,6 +103,11 @@ export class AppStoreWebhookService {
         kind: error.kind,
         reason: error.reason,
       });
+      this.billingAlertService.notificationRejected(
+        SubscriptionStore.APP_STORE,
+        error.kind,
+        error.reason,
+      );
 
       throw error.kind === 'unavailable'
         ? new BusinessException({

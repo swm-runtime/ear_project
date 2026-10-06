@@ -18,6 +18,7 @@ import {
   PlayStoreGateway,
 } from '../play-store/play-store.gateway';
 import { BillingSyncService, SyncOutcome } from './billing-sync.service';
+import { BillingAlertService } from './billing-alert.service';
 
 /** `subscriptionNotification.notificationType` — 12가 철회(환불)다. 구독 상태만으로는 만료와 구분되지 않는다 */
 const NOTIFICATION_TYPE_REVOKED = 12;
@@ -42,6 +43,7 @@ export class PlayPurchaseService {
     private readonly planService: PlanService,
     private readonly billingSyncService: BillingSyncService,
     private readonly dataSource: DataSource,
+    private readonly billingAlertService: BillingAlertService,
   ) {}
 
   isEnabled(): boolean {
@@ -358,6 +360,10 @@ export class PlayPurchaseService {
   /** 사유는 응답에 싣지 않고 로그에만 남긴다. 구매 토큰은 남기지 않는다(`convention.md` 8.4) */
   private invalid(reason: string) {
     this.logger.warn('play purchase rejected', { reason });
+    this.billingAlertService.receiptRejected(
+      SubscriptionStore.PLAY_STORE,
+      reason,
+    );
 
     return receiptInvalid();
   }
