@@ -13,7 +13,7 @@
 | 선행 | 없음(티켓). 동작 규칙 문서화(`features/` — 음질 단계·티어별 허용·기본값·미허용 처리)는 이 티켓 착수 때 함께 정한다 |
 | 근거 문서 | `features/subscription.md`(티어 정책) · `features/player.md` · `ai/spec/06-audio.md` 7장("Pro 이상 pcm 이면 배포 포맷(wav·AAC)을 다시 정한다") · `tickets/ai/pending/jingle-mono-loudnorm-degradation.md`(KAN-122 — 배포본 스테레오화) |
 | 중요도 | Low — PM 발행(2026-10-06). 중요도 미지정이라 이번 주 마감으로 잡았다 — 바꾸려면 Jira·이 표를 함께 고친다. 범위가 커서 이번 주에 스키마·계약 확정까지 가고 구현이 넘어가면 사유를 처리 기록에 적는다 |
-| 상태 | 대기 |
+| 상태 | 백엔드 구현 완료(2026-10-06) · 인프라 항목 일부 남음(아래) |
 
 ## 배경
 
@@ -57,3 +57,32 @@ ElevenLabs Pro 결제로 TTS 원본을 **무손실(PCM → WAV)**로 받을 수 
 - Given Pro 구독 만료로 Daily 가 된 계정 / When 다음 재생 URL 을 요청한다 / Then WAV 가 더는 발급되지 않는다
 - Given 관리자 업로드 / When 스테레오 WAV(약 212MB)를 포함한 3종을 올린다 / Then 업로드·저장·길이 검증이 통과한다(Caddy·프록시 포함 종단)
 - Given 인프라 / When 처리 기록을 본다 / Then S3·CloudFront 월 비용 추정과 갱신한 Budgets 임계값, WAV 재생 시작 지연 실측이 있다
+
+## 처리 기록
+
+### 2026-10-06 — 결정(착수 때 확정하기로 한 것들)
+
+| 항목 | 결정 | 근거 |
+|---|---|---|
+| 스키마 | 별도 테이블 `content_audio_renditions`(콘텐츠 × 음질 행). `contents.audio_path`는 압축 음질 경로를 복제해 유지 | 음질이 늘 때 컬럼이 아니라 행이 는다. 기존 코드·"압축은 반드시 있다" 불변식 유지(`domain.md` 5.1-1 · 5.8) |
+| 허용 음질 | `plans.max_audio_quality` — light·daily·**trial** = aac, pro = lossless | 티어명 하드코딩 금지. 가입 체험은 재생 한도만 풀고 음질은 무료와 같다(`domain.md` 8.1) |
+| 미허용 요청 | **거절하지 않고 깎는다** — 허용 최대 → 보유 최고. 응답에 `quality`·`requested_quality`·`fallback_reason`(`not_allowed`/`not_available`)·`available_qualities` | 음질 때문에 재생이 멈추지 않는다. 잠금·구독 안내는 `not_allowed`로 FE가 그린다(`player.md` 4.9) |
+| 선택값 저장 | **서버** `user_settings.preferred_audio_quality`(기본 compressed). PATCH `/users/me/settings`로 바꾸고 허용 밖 값도 저장 | 기기 간 일관성, 구독 뒤 그대로 적용. 재생은 서버가 깎으므로 저장은 자유 |
+| 선택지 노출 | 설정 응답 `settings.audio_qualities[{quality, allowed}]` + `preferred_audio_quality`. `entitlements.max_audio_quality` | `settings-api.md` 4.1 · `subscription-api.md` 2장 |
+| 업로드 | 파트 `audio`(압축, 필수) · `audio_aac`(m4a) · `audio_lossless`(wav), 파일당 ≤320MB, 길이 ±1초 대조, 메타(코덱·비트레이트·채널·샘플레이트·크기)는 서버가 파일에서 읽어 기록 | `admin-api.md` 4.6·4.10. 재발행은 3종을 한 세트로 — `audio` 없이 다른 음질만 오면 400 |
+| 기존 발행분 | 마이그레이션이 `compressed` 행을 백필(코덱은 확장자로, 나머지 NULL). AAC·WAV 요청은 `not_available`로 압축 재생 | 재렌더는 KAN-142 |
+| 재생 중 갱신 | 갱신 호출이 처음 응답의 `quality`를 되돌려 보낸다 — 중간에 음질이 바뀌지 않는다 | 파일이 바뀌면 위치가 어긋난다 |
+
+### 2026-10-06 — 백엔드 구현
+
+- 마이그레이션 `1788700000000-AddAudioQualityTiers`(테이블 + 백필 + `plans`·`user_settings` 컬럼). 로컬 적용·되돌리기 확인.
+- 판정 `playback/audio-quality.policy.ts`(순수 함수) · 발급 `AudioUrlService`(설정 선택값 → 저장 티어 허용 최대 → 보유 음질) · 설정 PATCH/GET · 관리자 업로드 3종(검증·업로드·행 교체·재발행 시 옛 파일 전부 삭제·회수 정리에 포함).
+- 검증: 단위 전체 1,337건 통과. 로컬 API 실측 — 무료 계정이 무손실을 고르면 `not_allowed`로 압축 발급 · pro 계정은 파일이 없으면 `not_available`, 있으면 무손실 URL 발급 · 설정에 잘못된 값은 400.
+- **로컬 모드(`AUDIO_DELIVERY=local`, 개발용)**는 음질과 무관하게 `contents.audio_path`(압축)를 스트리밍한다 — 운영(CloudFront)에는 해당 없음.
+
+### 인프라 항목 — 확인한 것 / 남은 것
+
+- **업로드 경로 본문 한도**: Caddy는 기본값에 요청 본문 상한이 없다(`request_body max_size` 미설정) — 320MB 통과. multer `fileSize`를 320MB로 올렸다. **파이프라인 웹 `/api/ear` 프록시(Next.js)의 본문 한도는 AI 파트 확인 필요**(KAN-142에서 3종을 보내게 될 경로).
+- **메모리**: 업로드는 디스크 임시 파일 → S3 스트림 업로드라 파일 크기와 무관하게 약 20MB. 임시 디스크는 파일 크기만큼(운영 여유 16GB).
+- **S3·CloudFront 비용 추정**(2026-10-06): 발행분 40편 × 3종 ≈ 40 × 280MB = 11GB 저장(월 약 $0.3). 전송은 Pro 비율에 좌우 — 완청 1회 WAV 약 150MB(13분)로, 무료 구간 1TB를 다 쓰는 데 WAV 완청 약 7,000회. 현재 하루 청취 20편 수준에서는 전원이 WAV를 들어도 월 90GB라 무료 구간 안이다. **Budgets 임계값 조정은 AWS 콘솔 작업으로 남음**(현재 임계는 inventory.md).
+- **남은 것**: WAV 재생 시작 지연 LTE 실측(실기기·KAN-143 뒤) · 스테레오 WAV 212MB 종단 업로드(실파일, KAN-142 산출물로) · Budgets 임계 재설정.

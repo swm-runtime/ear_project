@@ -108,6 +108,7 @@ export class PlayController {
         deviceId: request.device_id,
         ip,
         now: new Date(),
+        quality: request.quality,
       }),
     );
   }

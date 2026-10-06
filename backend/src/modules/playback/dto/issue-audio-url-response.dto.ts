@@ -1,3 +1,6 @@
+import { AudioQuality } from '@/modules/content/content.enum';
+
+import type { AudioQualityFallbackReason } from '../audio-quality.policy';
 import { AudioUrlResult } from '../playback.types';
 
 class AudioContentDto {
@@ -33,6 +36,14 @@ class AudioDto {
   readonly expires_at: string;
   /** **갱신 스케줄링용.** 응답 수신 시점 기준 남은 초 — 기기 시계와 무관하게 셀 수 있다 */
   readonly expires_in_sec: number;
+  /** 실제로 내준 음질(player.md 4.9 — KAN-141). 갱신 호출의 `quality`에 되돌려 보낸다 */
+  readonly quality: AudioQuality;
+  /** 판정에 들어간 음질 — 요청값, 없으면 설정 선택값, 그것도 없으면 compressed */
+  readonly requested_quality: AudioQuality;
+  /** `quality`가 낮아진 이유. `not_allowed`면 잠금·구독 안내, `not_available`이면 안내 없음 */
+  readonly fallback_reason: AudioQualityFallbackReason | null;
+  /** 이 콘텐츠가 가진 음질(오름차순) — 플레이어 선택지에서 없는 음질은 비활성 */
+  readonly available_qualities: AudioQuality[];
 }
 
 /**
@@ -78,6 +89,10 @@ export class IssueAudioUrlResponseDto {
         url: result.audio.url,
         expires_at: result.audio.expiresAt.toISOString(),
         expires_in_sec: result.audio.expiresInSec,
+        quality: result.audio.quality,
+        requested_quality: result.audio.requestedQuality,
+        fallback_reason: result.audio.fallbackReason,
+        available_qualities: result.audio.availableQualities,
       },
     };
   }

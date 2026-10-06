@@ -3,6 +3,8 @@ import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { ConfigService } from '@nestjs/config';
 
 import { UserInterestService } from '@/modules/interest/services/user-interest.service';
+import { AudioQuality } from '@/modules/content/content.enum';
+import { PlanService } from '@/modules/subscription/services/plan.service';
 import { SubscriptionService } from '@/modules/subscription/services/subscription.service';
 import { PlanStatus } from '@/modules/subscription/subscription.enum';
 import { PlanView } from '@/modules/subscription/subscription.types';
@@ -73,6 +75,7 @@ function buildDefaultSettings() {
     isDripNotificationEnabled: true,
     dripFeedbackMutedUntil: null,
     dripFeedbackLastPromptedDate: null,
+    preferredAudioQuality: AudioQuality.COMPRESSED,
   };
 }
 
@@ -104,6 +107,7 @@ describe('SettingsOrchestrator', () => {
   let userInterestService: jest.Mocked<
     Pick<UserInterestService, 'buildSummary'>
   >;
+  let planService: { getMaxAudioQuality: jest.Mock };
 
   beforeEach(() => {
     userService = { getById: jest.fn().mockResolvedValue(buildUser()) };
@@ -121,6 +125,9 @@ describe('SettingsOrchestrator', () => {
     userInterestService = {
       buildSummary: jest.fn().mockResolvedValue({ count: 0, topTopics: [] }),
     };
+    planService = {
+      getMaxAudioQuality: jest.fn().mockResolvedValue(AudioQuality.AAC),
+    };
 
     const configService = {
       get: jest.fn((key: string) => APP_VERSIONS[key]),
@@ -132,8 +139,44 @@ describe('SettingsOrchestrator', () => {
       consentService as unknown as ConsentService,
       subscriptionService as unknown as SubscriptionService,
       userInterestService as unknown as UserInterestService,
+      planService as unknown as PlanService,
       configService as unknown as ConfigService<never, true>,
     );
+  });
+
+  describe('getSummary — 음질 선택지(settings-api.md 4.1, KAN-141)', () => {
+    it('오름차순 전부를 내려주고 티어의 허용 최대까지만 allowed 다', async () => {
+      // given — 허용 최대 aac
+      const result = await orchestrator.getSummary(
+        USER_ID,
+        '1.1.0',
+        DevicePlatform.IOS,
+        NOW,
+      );
+
+      expect(result.audioQualities).toEqual([
+        { quality: AudioQuality.COMPRESSED, allowed: true },
+        { quality: AudioQuality.AAC, allowed: true },
+        { quality: AudioQuality.LOSSLESS, allowed: false },
+      ]);
+      expect(result.settings.preferredAudioQuality).toBe(
+        AudioQuality.COMPRESSED,
+      );
+    });
+
+    it('사용자 행을 못 읽으면 무료 기준으로 잠근다 — 선택지는 비울 수 없다', async () => {
+      userService.getById.mockRejectedValue(new Error('db down'));
+
+      const result = await orchestrator.getSummary(
+        USER_ID,
+        '1.1.0',
+        DevicePlatform.IOS,
+        NOW,
+      );
+
+      expect(planService.getMaxAudioQuality).toHaveBeenCalledWith('light');
+      expect(result.audioQualities).toHaveLength(3);
+    });
   });
 
   describe('getSummary — 계정', () => {
@@ -314,6 +357,7 @@ describe('SettingsOrchestrator', () => {
         consentService as unknown as ConsentService,
         subscriptionService as unknown as SubscriptionService,
         userInterestService as unknown as UserInterestService,
+        planService as unknown as PlanService,
         brokenConfig as unknown as ConfigService<never, true>,
       );
 
@@ -418,6 +462,7 @@ describe('SettingsOrchestrator', () => {
         isDripNotificationEnabled: true,
         dripFeedbackMutedUntil: null,
         dripFeedbackLastPromptedDate: null,
+        preferredAudioQuality: AudioQuality.COMPRESSED,
       });
     });
   });
@@ -483,6 +528,7 @@ describe('SettingsOrchestrator', () => {
         isDripNotificationEnabled: false,
         dripFeedbackMutedUntil: null,
         dripFeedbackLastPromptedDate: null,
+        preferredAudioQuality: AudioQuality.COMPRESSED,
       };
       userSettingService.updateSettings.mockResolvedValue(updated);
 

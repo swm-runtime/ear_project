@@ -8,6 +8,7 @@ import {
 } from 'typeorm';
 
 import { BaseEntity } from '@/database/base.entity';
+import { AudioQuality } from '@/modules/content/content.enum';
 
 import { PlaybackRate } from '../user.enum';
 import { User } from './user.entity';
@@ -86,6 +87,15 @@ export class UserSetting extends BaseEntity {
     nullable: true,
   })
   dripFeedbackLastPromptedDate: string | null;
+
+  /** 사용자가 고른 음질(domain.md 3.5 — KAN-141). 허용 밖 값도 저장한다 — 재생은 서버가 깎는다(player.md 4.9) */
+  @Column({
+    name: 'preferred_audio_quality',
+    type: 'varchar',
+    length: 20,
+    default: AudioQuality.COMPRESSED,
+  })
+  preferredAudioQuality: AudioQuality;
 
   /**
    * 이어 PICK 알림 앱 토글(FR-19, P1).

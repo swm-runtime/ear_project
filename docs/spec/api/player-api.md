@@ -93,12 +93,13 @@
 **Request**
 
 ```json
-{ "device_id": "<기기 식별자>" }
+{ "device_id": "<기기 식별자>", "quality": "aac" }
 ```
 
 | 필드 | 타입 | 필수 | 비고 |
 |---|---|---|---|
 | device_id | string | 필수 | `audio_access_logs.device_id` 기록용(`domain.md` 6.5). 전달 방식은 인증 계열과 동일하다(`auth-api.md` — 본문 필드) |
+| quality | `compressed` \| `aac` \| `lossless` | 선택 | **원하는 음질**(`player.md` 4.9, 2026-10-06 — KAN-141). 비우면 설정의 선택값(`settings-api.md` 4.1 `preferred_audio_quality`). **재생 중 갱신 호출은 처음 응답의 `audio.quality`를 그대로 실어 보낸다** — 중간에 파일이 바뀌면 위치가 어긋난다 |
 
 **Response 201**
 
@@ -121,7 +122,11 @@
   "audio": {
     "url": "https://.../signed...",
     "expires_at": "2026-08-10T00:25:00Z",
-    "expires_in_sec": 300
+    "expires_in_sec": 300,
+    "quality": "aac",
+    "requested_quality": "lossless",
+    "fallback_reason": "not_allowed",
+    "available_qualities": ["compressed", "aac", "lossless"]
   }
 }
 ```
@@ -137,6 +142,10 @@
 | `audio.url` | 단기 서명 URL. **재생기에 전달하는 용도 외로 보관·기록하지 않는다**(7장) |
 | `audio.expires_at` | 만료 시각(디버깅·로그 대조용) |
 | `audio.expires_in_sec` | **갱신 스케줄링용.** 응답 수신 시점 기준 남은 초 |
+| `audio.quality` | **실제로 내준 음질**(2026-10-06). 갱신 호출의 `quality`에 되돌려 보낸다 |
+| `audio.requested_quality` | 판정에 들어간 음질 — 요청값, 없으면 설정 선택값, 그것도 없으면 `compressed` |
+| `audio.fallback_reason` | `quality`가 `requested_quality`보다 낮아진 이유. `null`(그대로) · `not_allowed`(티어가 허용하지 않음 → 화면은 잠금·구독 안내) · `not_available`(콘텐츠에 그 음질 파일이 없음 → 안내 없음). 둘 다면 `not_allowed` |
+| `audio.available_qualities` | 이 콘텐츠가 가진 음질 목록(오름차순). 플레이어 안의 음질 선택지에서 **없는 음질은 비활성**으로 그린다 |
 
 - **`expires_in_sec`을 함께 내려주는 이유** — 갱신 타이밍을 `expires_at`과 기기 시계로 계산하면 기기 시각 오차·조작만큼 갱신이 빗나간다. 상대값이면 시계와 무관하게 수신 시점부터 세면 된다. 만료 **판정**은 어차피 스토리지가 서명으로 한다 — 클라이언트 값은 둘 다 스케줄링 힌트다.
 - **오디오 메타에 원본 경로가 없다.** `contents.audio_path`는 응답에 절대 실리지 않는다(`domain.md` 5.1 — URL은 컬럼이 아니라 응답 DTO 필드).
@@ -146,7 +155,8 @@
 
 1. 콘텐츠 조회 → 없으면 `CONTENT_NOT_FOUND`(404), `status != 'published'`면 `CONTENT_WITHDRAWN`(403)
 2. **`paywall.md` 4.1 판정** — `BLOCKED` / `LIMIT_REACHED`면 403으로 종료. **차감은 하지 않는다**(차감은 재생 시작 시점 — 4.2)
-3. 단기 서명 URL 생성 — 만료는 수 분 단위(`architecture.md` 9.4). 값 자체는 서버 설정이며 계약은 `expires_in_sec`으로 값에 독립적이다
+3. **음질 판정**(`player.md` 4.9) — `요청 → min(요청, plans.max_audio_quality) → 그 이하에서 콘텐츠가 가진 가장 높은 음질`. 거절하지 않는다
+4. 단기 서명 URL 생성 — 만료는 수 분 단위(`architecture.md` 9.4). 값 자체는 서버 설정이며 계약은 `expires_in_sec`으로 값에 독립적이다
 4. `audio_access_logs` 적재 — `user_id` · `device_id` · `issued_at` · `expires_at` · `ip_hash`. **URL 원문은 저장하지 않는다**(`domain.md` 6.5 — DB에 남기면 그것이 곧 유출 경로다). 적재는 **서버 몫**이며 클라이언트가 관여할 필드가 없다
 
 - **재생 중 갱신도 이 처리 그대로다.** 갱신 시점에 콘텐츠가 회수됐으면 403이 나고, 클라이언트는 일시정지 후 "제공이 종료된 콘텐츠예요"(PL9)로 전환한다. **이미 발급된 URL은 만료 시각까지 유효하다** — 이것이 회수 반영 지연의 상한이다(`architecture.md` 9.4).

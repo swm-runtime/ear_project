@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 
 import { UserTier } from '@/modules/user/user.enum';
+import { AudioQuality } from '@/modules/content/content.enum';
 
 import { Plan } from '../entities/plan.entity';
 import { PlanRepository } from '../repositories/plan.repository';
@@ -63,6 +64,17 @@ export class PlanService {
     }
 
     return toEntitlements(plan);
+  }
+
+  /**
+   * 이 티어가 들을 수 있는 가장 높은 음질(`player.md` 4.9). `getEntitlements`와 같은 행·같은 폴백이다 —
+   * 설정 화면의 잠금 표시와 발급 판정이 어긋나지 않는다. 가입 체험은 음질을 바꾸지 않으므로 저장 티어로 본다.
+   */
+  async getMaxAudioQuality(
+    tier: UserTier,
+    manager?: EntityManager,
+  ): Promise<AudioQuality> {
+    return (await this.getEntitlements(tier, manager)).maxAudioQuality;
   }
 
   /**
@@ -217,6 +229,7 @@ export function toEntitlements(plan: Plan): Entitlements {
     dailyDripCount: plan.isDripEnabled ? plan.dailyDripCount : 0,
     dripEnabled: plan.isDripEnabled,
     adsEnabled: plan.isAdsEnabled,
+    maxAudioQuality: plan.maxAudioQuality,
   };
 }
 

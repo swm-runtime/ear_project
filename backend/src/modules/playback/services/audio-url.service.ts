@@ -1,13 +1,25 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
+import { AudioQuality } from '@/modules/content/content.enum';
 import { ContentService } from '@/modules/content/services/content.service';
 import { LibraryService } from '@/modules/library/library.service';
+import { PlanService } from '@/modules/subscription/services/plan.service';
+import { UserService } from '@/modules/user/services/user.service';
+import { UserSettingService } from '@/modules/user/services/user-setting.service';
 
 import { AUDIO_URL_ISSUER } from '../audio-url-issuer';
 import type { AudioUrlIssuer } from '../audio-url-issuer';
+import {
+  resolveAudioQuality,
+  sortAudioQualities,
+} from '../audio-quality.policy';
 import { AudioUrlSigner } from '../audio-url.signer';
 import { AudioAccessLogRepository } from '../repositories/audio-access-log.repository';
-import { AudioUrlResult, IssueAudioUrlCommand } from '../playback.types';
+import {
+  AudioUrlResult,
+  IssueAudioUrlCommand,
+  IssuedAudio,
+} from '../playback.types';
 import { PlaybackService } from './playback.service';
 import { PlayPolicyService } from './play-policy.service';
 
@@ -34,6 +46,9 @@ export class AudioUrlService {
     private readonly playbackService: PlaybackService,
     private readonly contentService: ContentService,
     private readonly libraryService: LibraryService,
+    private readonly userService: UserService,
+    private readonly userSettingService: UserSettingService,
+    private readonly planService: PlanService,
     private readonly audioAccessLogRepository: AudioAccessLogRepository,
     /** ip 해시 전용. URL 발급은 `audioUrlIssuer`가 한다 */
     private readonly audioUrlSigner: AudioUrlSigner,
@@ -57,29 +72,46 @@ export class AudioUrlService {
       command.now,
     );
 
-    const [libraryItem, progress, topicViews, scriptContentIds] =
-      await Promise.all([
-        this.libraryService.findItemByContentId(
-          command.userId,
-          command.contentId,
-        ),
-        this.playbackService.findProgress(command.userId, command.contentId),
-        this.contentService.findTopicViews([command.contentId]),
-        // 본문은 읽지 않는다 — 대본은 4.7이 같은 판정을 거쳐 따로 내준다
-        this.contentService.findScriptContentIds([command.contentId]),
-      ]);
+    const [
+      libraryItem,
+      progress,
+      topicViews,
+      scriptContentIds,
+      renditions,
+      decision,
+    ] = await Promise.all([
+      this.libraryService.findItemByContentId(
+        command.userId,
+        command.contentId,
+      ),
+      this.playbackService.findProgress(command.userId, command.contentId),
+      this.contentService.findTopicViews([command.contentId]),
+      // 본문은 읽지 않는다 — 대본은 4.7이 같은 판정을 거쳐 따로 내준다
+      this.contentService.findScriptContentIds([command.contentId]),
+      this.contentService.findAudioRenditions(command.contentId),
+      this.decideQuality(command),
+    ]);
 
-    // 3. 만료는 수 분 단위. 값은 서버 설정이고 계약은 `expires_in_sec`으로 값에 독립적이다
-    const audio = this.audioUrlIssuer.sign(
-      {
-        contentId: command.contentId,
-        userId: command.userId,
-        audioPath: content.audioPath,
-      },
+    // 3. 음질 판정(player.md 4.9) — 요청 → 티어 허용 최대 → 콘텐츠가 가진 것. 거절하지 않는다
+    const available = sortAudioQualities(renditions.map((r) => r.quality));
+    const quality = resolveAudioQuality({ ...decision, available });
+    // compressed 행은 항상 있지만(domain.md 5.8), 없더라도 contents.audio_path 로 재생은 된다
+    const audioPath =
+      renditions.find((r) => r.quality === quality.quality)?.path ??
+      content.audioPath;
+
+    // 4. 만료는 수 분 단위. 값은 서버 설정이고 계약은 `expires_in_sec`으로 값에 독립적이다
+    const signed = this.audioUrlIssuer.sign(
+      { contentId: command.contentId, userId: command.userId, audioPath },
       command.now,
     );
+    const audio: IssuedAudio = {
+      ...signed,
+      ...quality,
+      availableQualities: available,
+    };
 
-    // 4. **발급 사실만** 남긴다. URL 원문은 저장하지 않는다(domain.md 6.5)
+    // 5. **발급 사실만** 남긴다. URL 원문은 저장하지 않는다(domain.md 6.5)
     await this.audioAccessLogRepository.insert({
       contentId: command.contentId,
       userId: command.userId,
@@ -94,6 +126,8 @@ export class AudioUrlService {
       user_id: command.userId,
       content_id: command.contentId,
       expires_at: audio.expiresAt.toISOString(),
+      quality: audio.quality,
+      fallback_reason: audio.fallbackReason,
     });
 
     return {
@@ -118,6 +152,26 @@ export class AudioUrlService {
         : null,
       progress,
       audio,
+    };
+  }
+
+  /**
+   * 판정 입력 — 요청 음질(없으면 설정의 선택값)과 저장 티어의 허용 최대(`plans.max_audio_quality`).
+   * 가입 체험은 음질을 바꾸지 않으므로 저장 티어로 본다(`domain.md` 8.1).
+   */
+  private async decideQuality(
+    command: IssueAudioUrlCommand,
+  ): Promise<{ requested: AudioQuality; maxAllowed: AudioQuality }> {
+    const [user, settings] = await Promise.all([
+      this.userService.getById(command.userId),
+      command.quality === undefined
+        ? this.userSettingService.getSettings(command.userId)
+        : null,
+    ]);
+
+    return {
+      requested: command.quality ?? settings!.preferredAudioQuality,
+      maxAllowed: await this.planService.getMaxAudioQuality(user.tier),
     };
   }
 }

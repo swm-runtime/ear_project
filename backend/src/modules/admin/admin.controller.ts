@@ -78,6 +78,8 @@ import { AdminTopicService } from './services/admin-topic.service';
 
 interface UploadFiles {
   audio?: Express.Multer.File[];
+  audio_aac?: Express.Multer.File[];
+  audio_lossless?: Express.Multer.File[];
   thumbnail?: Express.Multer.File[];
   enrichment_file?: Express.Multer.File[];
   script_file?: Express.Multer.File[];
@@ -94,16 +96,20 @@ interface UploadFiles {
  */
 const UPLOAD_FILE_FIELDS = [
   { name: 'audio', maxCount: 1 },
+  { name: 'audio_aac', maxCount: 1 },
+  { name: 'audio_lossless', maxCount: 1 },
   { name: 'thumbnail', maxCount: 1 },
   { name: 'enrichment_file', maxCount: 1 },
   { name: 'script_file', maxCount: 1 },
 ];
 const UPLOAD_MULTER_OPTIONS = {
   storage: diskStorage({ destination: tmpdir() }),
-  limits: { fileSize: MAX_AUDIO_FILE_BYTES, files: 4 },
+  limits: { fileSize: MAX_AUDIO_FILE_BYTES, files: 6 },
 };
 const FILE_FIELD_MAX_BYTES: Record<string, number> = {
   audio: MAX_AUDIO_FILE_BYTES,
+  audio_aac: MAX_AUDIO_FILE_BYTES,
+  audio_lossless: MAX_AUDIO_FILE_BYTES,
   thumbnail: MAX_THUMBNAIL_FILE_BYTES,
   enrichment_file: MAX_ENRICHMENT_FILE_BYTES,
   script_file: MAX_SCRIPT_FILE_BYTES,
@@ -392,6 +398,10 @@ export class AdminController {
         })),
         reviewConfirmed: payload.review_confirmed,
         audio: toFileInput(audio),
+        audioAac: files.audio_aac?.[0] ? toFileInput(files.audio_aac[0]) : null,
+        audioLossless: files.audio_lossless?.[0]
+          ? toFileInput(files.audio_lossless[0])
+          : null,
         thumbnail: toFileInput(thumbnail),
         enrichment: files.enrichment_file?.[0]
           ? toFileInput(files.enrichment_file[0])
@@ -459,6 +469,10 @@ export class AdminController {
         url: source.url ?? null,
       })),
       audio: audio ? toFileInput(audio) : null,
+      audioAac: files.audio_aac?.[0] ? toFileInput(files.audio_aac[0]) : null,
+      audioLossless: files.audio_lossless?.[0]
+        ? toFileInput(files.audio_lossless[0])
+        : null,
       thumbnail: thumbnail ? toFileInput(thumbnail) : null,
       enrichment: files.enrichment_file?.[0]
         ? toFileInput(files.enrichment_file[0])
