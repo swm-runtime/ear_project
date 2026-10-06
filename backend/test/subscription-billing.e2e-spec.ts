@@ -667,7 +667,7 @@ describe('구독·인앱 결제 E2E', () => {
       expect(
         android.plans.map((plan) => [plan.store_product_id, plan.action]),
       ).toEqual([
-        [null, 'none'],
+        [null, 'current'],
         [PLAY_PRODUCT_DAILY, 'purchase'],
         [PLAY_PRODUCT_PRO, 'purchase'],
       ]);
