@@ -20,7 +20,7 @@ import { StoreReviewRepository } from './store-review.repository';
  * 의존하지 않는다** — 리뷰 조회는 결제와 무관하고, 클라이언트는 여기 작게 따로 있다. App Store는 결제 키가 아니라
  * App Store Connect **팀 키**(`APP_STORE_CONNECT_*`)가 따로 필요하다. 어떤 모듈도 이 모듈을 의존하지 않는다.
  *
- * **앱 삭제 알림**(2026-10-06)도 여기다 — GA4 실시간 `app_remove`를 5분마다 읽어 Slack 에 올린다. 일일 보고의 GA4
+ * **앱 삭제 알림**(2026-10-06)도 여기다 — GA4 실시간 `app_remove`를 15분마다 읽어 Slack 에 올린다. 일일 보고의 GA4
  * 자격(`GA4_*`)을 재사용하되 `AdminModule`을 의존하지 않는다(REST 클라이언트가 여기 작게 따로 있다).
  */
 @Module({
