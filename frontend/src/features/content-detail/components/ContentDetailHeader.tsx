@@ -1,6 +1,7 @@
 import { ActivityIndicator, Image, Pressable, StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import { pillButton } from '@/shared/ui/pill-button.styles';
 import RemoteImage from '@/shared/ui/RemoteImage';
 import { Text } from '@/shared/ui/Typography';
 
@@ -64,16 +65,16 @@ export default function ContentDetailHeader({
       {/* 동적 텍스트 200%에서 두 버튼이 폭을 다투면 세로 쌓기를 허용한다(uiux 7장) */}
       <View style={styles.buttonRow}>
         <Pressable
-          style={styles.playButton}
+          style={[pillButton.base, pillButton.primary, styles.playButton]}
           onPress={onPlayPress}
           accessibilityRole="button"
           accessibilityLabel={CONTENT_DETAIL_COPY.actions.play}
         >
-          <Text style={styles.playLabel}>{CONTENT_DETAIL_COPY.actions.play}</Text>
+          <Text style={pillButton.primaryLabel}>{CONTENT_DETAIL_COPY.actions.play}</Text>
         </Pressable>
         {isSaved ? (
           <Pressable
-            style={[styles.secondaryButton, styles.deleteButton]}
+            style={[pillButton.base, pillButton.destructiveSecondary, styles.secondaryButton]}
             disabled={isActionPending}
             onPress={onDeletePress}
             accessibilityRole="button"
@@ -84,14 +85,14 @@ export default function ContentDetailHeader({
               <ActivityIndicator size="small" color={theme.color.danger} />
             ) : (
               // 라이브러리에서 빼는 조작은 세 화면 모두 위험색이다(library-uiux.md 4.7)
-              <Text style={[styles.secondaryLabel, styles.deleteLabel]}>
+              <Text style={pillButton.destructiveSecondaryLabel}>
                 {CONTENT_DETAIL_COPY.actions.delete}
               </Text>
             )}
           </Pressable>
         ) : (
           <Pressable
-            style={styles.secondaryButton}
+            style={[pillButton.base, pillButton.secondary, styles.secondaryButton]}
             disabled={isActionPending}
             onPress={onSavePress}
             accessibilityRole="button"
@@ -101,7 +102,7 @@ export default function ContentDetailHeader({
             {isActionPending ? (
               <ActivityIndicator size="small" color={theme.color.textPrimary} />
             ) : (
-              <Text style={styles.secondaryLabel}>{CONTENT_DETAIL_COPY.actions.save}</Text>
+              <Text style={pillButton.secondaryLabel}>{CONTENT_DETAIL_COPY.actions.save}</Text>
             )}
           </Pressable>
         )}
@@ -189,45 +190,16 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: theme.spacing.sm,
   },
+  // 크기만 — 모양·색은 공용 알약(pillButton)
   playButton: {
     flexGrow: 1.4,
     flexBasis: 140,
     minHeight: theme.touchTarget.minHeight,
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  playLabel: {
-    fontSize: theme.font.size.md,
-    fontWeight: '600',
-    color: theme.color.onPrimary,
-  },
+  // 보조 동작은 테두리 없이 연한 면(design.md §5 — 다이얼로그·시트와 같은 규칙, 2026-09-27 PM). 크기만 여기서
   secondaryButton: {
     flexGrow: 1,
     flexBasis: 100,
     minHeight: theme.touchTarget.minHeight,
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    // 보조 동작은 테두리 없이 연한 면(design.md §5 — 다이얼로그·시트와 같은 규칙, 2026-09-27 PM)
-    backgroundColor: theme.color.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  secondaryLabel: {
-    fontSize: theme.font.size.md,
-    fontWeight: '600',
-    color: theme.color.textPrimary,
-  },
-  /*
-   * 삭제 변형 — **연한 빨간 면 + 빨간 글자**(iOS 의 보조 파괴 버튼 `.bordered` + red tint). 채운 빨강은 쓰지
-   * 않는다 — 검정 [재생]보다 더 튀어 주·보조가 뒤바뀐다(library-uiux.md 4.7 은 위험색만 요구한다)
-   */
-  deleteButton: {
-    backgroundColor: theme.color.dangerSurface,
-  },
-  deleteLabel: {
-    color: theme.color.danger,
   },
 });

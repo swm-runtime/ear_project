@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
+import { pillButton } from '@/shared/ui/pill-button.styles';
 import { SkeletonBlock, SkeletonGroup } from '@/shared/ui/Skeleton';
 import { Text, TextInput } from '@/shared/ui/Typography';
 
@@ -84,7 +85,12 @@ export default function EmailVerificationScreen() {
 
           <View style={styles.dock}>
             <Pressable
-              style={[styles.primaryButton, !screen.canSend && styles.primaryButtonDisabled]}
+              style={[
+                pillButton.base,
+                pillButton.primary,
+                styles.primaryButton,
+                !screen.canSend && styles.primaryButtonDisabled,
+              ]}
               onPress={screen.submitEmail}
               disabled={!screen.canSend}
               accessibilityRole="button"
@@ -137,7 +143,12 @@ export default function EmailVerificationScreen() {
 
           {/* [재전송] 주 액션 — 비활성 이유를 색이 아니라 텍스트로 밝힌다(auth-uiux.md 7장) */}
           <Pressable
-            style={[styles.primaryButton, !screen.canResend && styles.primaryButtonDisabled]}
+            style={[
+              pillButton.base,
+              pillButton.primary,
+              styles.primaryButton,
+              !screen.canResend && styles.primaryButtonDisabled,
+            ]}
             onPress={screen.resend}
             disabled={!screen.canResend}
             accessibilityRole="button"
@@ -260,13 +271,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
     paddingBottom: theme.spacing.md,
   },
+  // 크기만 — 모양·색은 공용 알약(pillButton)
   primaryButton: {
     minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
     marginTop: theme.spacing.sm,
   },
   primaryButtonDisabled: {

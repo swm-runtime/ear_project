@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { logger } from '@/shared/lib/logger';
 import { STORE_URL } from '@/shared/lib/store-url';
 import { theme } from '@/shared/theme';
+import { pillButton } from '@/shared/ui/pill-button.styles';
 import { Text } from '@/shared/ui/Typography';
 
 import { APP_UPDATE_COPY } from '../app-update.copy';
@@ -35,7 +36,9 @@ export default function ForceUpdateScreen() {
   }, []);
 
   const openStore = (): void => {
-    Linking.openURL(STORE_URL).catch((error) => logger.warn('[app-update] open store failed', error));
+    Linking.openURL(STORE_URL).catch((error) =>
+      logger.warn('[app-update] open store failed', error),
+    );
   };
 
   return (
@@ -48,7 +51,12 @@ export default function ForceUpdateScreen() {
         <Text style={styles.description}>{APP_UPDATE_COPY.force.body}</Text>
       </View>
       <Pressable
-        style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
+        style={({ pressed }) => [
+          pillButton.base,
+          pillButton.primary,
+          styles.button,
+          pressed && styles.buttonPressed,
+        ]}
         onPress={openStore}
         accessibilityRole="button"
         accessibilityLabel={APP_UPDATE_COPY.force.action}
@@ -88,14 +96,9 @@ const styles = StyleSheet.create({
     color: theme.color.textSecondary,
     textAlign: 'center',
   },
-  // 기본 동작 버튼 — 검정 채움 · md + 연속 곡률(design.md §5)
+  // 기본 동작 버튼 — 검정 채움 알약(design.md §2·§5). 크기만 — 모양·색은 공용 알약(pillButton)
   button: {
     minHeight: 56,
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   buttonPressed: {
     opacity: 0.7,

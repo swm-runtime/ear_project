@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import { pillButton } from '@/shared/ui/pill-button.styles';
 import { Text } from '@/shared/ui/Typography';
 
 interface ExploreEmptyStateProps {
@@ -19,7 +20,7 @@ export default function ExploreEmptyState({
     <View style={styles.container}>
       <Text style={styles.title}>{title}</Text>
       <Pressable
-        style={styles.action}
+        style={[pillButton.base, styles.action]}
         onPress={onActionPress}
         accessibilityRole="button"
         accessibilityLabel={actionLabel}
@@ -44,12 +45,10 @@ const styles = StyleSheet.create({
     color: theme.color.textPrimary,
     textAlign: 'center',
   },
+  // 테두리 알약 — 모양은 공용 알약(pillButton.base), 테두리만 여기서
   action: {
     minHeight: theme.touchTarget.minHeight,
-    justifyContent: 'center',
     paddingHorizontal: theme.spacing.lg,
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
     borderWidth: 1,
     borderColor: theme.color.primary,
   },

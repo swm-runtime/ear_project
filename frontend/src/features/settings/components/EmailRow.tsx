@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import { pillButton } from '@/shared/ui/pill-button.styles';
 import { Text } from '@/shared/ui/Typography';
 
 import type { EmailRowVM, SectionState } from '../hooks/useSettingsScreen';
@@ -43,7 +44,7 @@ export default function EmailRow({ state, onPress, onRetry, isRetrying }: EmailR
         <View style={styles.right}>
           <Text style={styles.errorText}>{SETTINGS_COPY.summaryError}</Text>
           <Pressable
-            style={({ pressed }) => [styles.action, pressed && styles.pressed]}
+            style={({ pressed }) => [pillButton.base, styles.action, pressed && styles.pressed]}
             onPress={onRetry}
             disabled={isRetrying}
             accessibilityRole="button"
@@ -94,7 +95,7 @@ export default function EmailRow({ state, onPress, onRetry, isRetrying }: EmailR
         {actionLabels(vm).map((label) => (
           <Pressable
             key={label}
-            style={({ pressed }) => [styles.action, pressed && styles.pressed]}
+            style={({ pressed }) => [pillButton.base, styles.action, pressed && styles.pressed]}
             onPress={onPress}
             accessibilityRole="button"
             accessibilityLabel={label}
@@ -176,14 +177,11 @@ const styles = StyleSheet.create({
     color: theme.color.textSecondary,
     flexShrink: 1,
   },
+  // 흰 알약(회색 면 위) — 모양은 공용 알약(pillButton.base), 면 색·크기만 여기서
   action: {
     minHeight: theme.touchTarget.minHeight,
     minWidth: theme.touchTarget.minWidth,
-    justifyContent: 'center',
-    alignItems: 'center',
     paddingHorizontal: theme.spacing.md,
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
     backgroundColor: theme.color.background,
   },
   actionLabel: {

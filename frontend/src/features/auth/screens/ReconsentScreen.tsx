@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/shared/theme';
 import CheckIcon from '@/shared/ui/CheckIcon';
 import ConfirmDialog from '@/shared/ui/ConfirmDialog';
+import { pillButton } from '@/shared/ui/pill-button.styles';
 import { Text } from '@/shared/ui/Typography';
 
 import { AUTH_COPY } from '../auth.copy';
@@ -79,7 +80,12 @@ export default function ReconsentScreen() {
       </View>
 
       <Pressable
-        style={[styles.submit, !canSubmit && styles.submitDisabled]}
+        style={[
+          pillButton.base,
+          pillButton.primary,
+          styles.submit,
+          !canSubmit && styles.submitDisabled,
+        ]}
         disabled={!canSubmit || isSubmitting}
         onPress={handleSubmit}
         accessibilityRole="button"
@@ -180,13 +186,9 @@ const styles = StyleSheet.create({
     backgroundColor: theme.color.border,
     marginVertical: theme.spacing.sm,
   },
+  // 크기만 — 모양·색은 공용 알약(pillButton)
   submit: {
     minHeight: 56,
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   submitDisabled: {
     backgroundColor: theme.color.border,

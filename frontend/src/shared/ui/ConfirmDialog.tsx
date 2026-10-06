@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import { pillButton } from '@/shared/ui/pill-button.styles';
 import { Text } from '@/shared/ui/Typography';
 
 export interface DialogAction {
@@ -56,7 +57,8 @@ export interface ConfirmDialogProps {
  * 그쪽엔 닿지 않았다(PM 09-27 03:02 "4,5,6 디자인을 1,2,3 에 맞춰"). 셋은 이제 이 컴포넌트의 얇은 껍데기다 —
  * 제목 생략·본문 슬롯·딤 탭 차단·버튼 비활성 등 각자 갖고 있던 차이는 prop 으로 흡수했다.
  *
- * 모양: xl 24 연속 곡률, 버튼 md 12 연속 곡률, 기본 동작 검정 채움 · 보조 동작 surface(테두리 없음). 주 액션은 오른쪽.
+ * 모양: xl 24 연속 곡률, 버튼은 공용 알약(`pill-button.styles` — design.md §2), 기본 동작 검정 채움 · 보조 동작
+ * surface(테두리 없음). 주 액션은 오른쪽.
  */
 export default function ConfirmDialog({
   isVisible,
@@ -99,8 +101,9 @@ export default function ConfirmDialog({
               {secondaryAction === undefined ? null : (
                 <Pressable
                   style={[
+                    pillButton.base,
+                    pillButton.secondary,
                     styles.button,
-                    styles.secondaryButton,
                     secondaryDisabled && styles.buttonDisabled,
                   ]}
                   onPress={secondaryAction.onPress}
@@ -112,15 +115,15 @@ export default function ConfirmDialog({
                   {secondaryAction.isBusy ? (
                     <ActivityIndicator color={theme.color.textPrimary} />
                   ) : (
-                    <Text style={styles.secondaryLabel}>{secondaryAction.label}</Text>
+                    <Text style={pillButton.secondaryLabel}>{secondaryAction.label}</Text>
                   )}
                 </Pressable>
               )}
               <Pressable
                 style={[
+                  pillButton.base,
+                  isDestructive ? pillButton.destructive : pillButton.primary,
                   styles.button,
-                  styles.primaryButton,
-                  isDestructive && styles.primaryDestructive,
                   primaryDisabled && styles.buttonDisabled,
                 ]}
                 onPress={primaryAction.onPress}
@@ -132,7 +135,11 @@ export default function ConfirmDialog({
                 {primaryAction.isBusy ? (
                   <ActivityIndicator color={theme.color.onPrimary} />
                 ) : (
-                  <Text style={styles.primaryLabel}>{primaryAction.label}</Text>
+                  <Text
+                    style={isDestructive ? pillButton.destructiveLabel : pillButton.primaryLabel}
+                  >
+                    {primaryAction.label}
+                  </Text>
                 )}
               </Pressable>
             </View>
@@ -185,37 +192,13 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
     marginTop: theme.spacing.md,
   },
+  // 크기만 — 모양·역할 색은 공용 알약(pillButton). 보조 동작은 테두리 없는 연한 면(design.md §5, 2026-09-22 PM
+  // "검정 버튼 옆에서 선으로 그린 상자는 낡아 보인다"), 파괴적 확인은 채운 빨강(위 isDestructive 주석)
   button: {
     flex: 1,
     minHeight: theme.touchTarget.minHeight,
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  // 보조 동작은 테두리 없이 연한 면(design.md §5 — PlayConfirmDialog 의 [취소]와 같은 규칙, 2026-09-22 PM
-  // "검정 버튼 옆에서 선으로 그린 상자는 낡아 보인다"). 09-26 프로필 정비에서 맞췄다
-  secondaryButton: {
-    backgroundColor: theme.color.surface,
-  },
-  secondaryLabel: {
-    fontSize: theme.font.size.md,
-    fontWeight: '600',
-    color: theme.color.textPrimary,
-  },
-  primaryButton: {
-    backgroundColor: theme.color.primary,
-  },
-  /** 파괴적 확인 — 채운 빨강(위 isDestructive 주석). 글자는 흰색 그대로다 */
-  primaryDestructive: {
-    backgroundColor: theme.color.danger,
   },
   buttonDisabled: {
     opacity: 0.5,
-  },
-  primaryLabel: {
-    fontSize: theme.font.size.md,
-    fontWeight: '600',
-    color: theme.color.onPrimary,
   },
 });

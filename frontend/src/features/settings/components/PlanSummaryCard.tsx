@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
 import ChevronIcon, { chevronTrailingGutter } from '@/shared/ui/ChevronIcon';
+import { pillButton } from '@/shared/ui/pill-button.styles';
 import { Text } from '@/shared/ui/Typography';
 
 import type { PlanRowVM, SectionState } from '../hooks/useSettingsScreen';
@@ -38,7 +39,7 @@ const valueText = (vm: PlanRowVM): string => {
 };
 
 /**
- * 구독 섹션의 요약 카드 → 구독 관리(settings.md 4.1).
+ * "요금제 관리" 섹션의 요약 카드 → 요금제 관리 화면(settings.md 4.1).
  * 해지 예약은 중립 톤, 경고색은 결제 문제(유예)에만 쓴다(settings-uiux.md 4.1).
  */
 export default function PlanSummaryCard({
@@ -76,7 +77,7 @@ export default function PlanSummaryCard({
       <Text style={[styles.value, vm.kind === 'grace' && styles.valueDanger]}>{valueText(vm)}</Text>
       {vm.kind === 'free' ? (
         // 진입 유도 칩 — 카드 탭과 같은 목적지의 시각 강조일 뿐이다(settings.md 5장 무료 변형)
-        <View style={styles.freeAction}>
+        <View style={[pillButton.base, pillButton.primary, styles.freeAction]}>
           <Text style={styles.freeActionText}>{SETTINGS_COPY.plan.freeAction}</Text>
         </View>
       ) : (
@@ -136,10 +137,8 @@ const styles = StyleSheet.create({
   valueDanger: {
     color: theme.color.danger,
   },
+  // 버튼 모양 칩 — 공용 알약(pillButton). 여백만 여기서
   freeAction: {
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.primary,
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.xs,
   },

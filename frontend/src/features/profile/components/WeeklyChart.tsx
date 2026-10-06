@@ -4,6 +4,7 @@ import { Animated, PanResponder, Pressable, StyleSheet, View } from 'react-nativ
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion, theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
+import { pillButton } from '@/shared/ui/pill-button.styles';
 import { SkeletonBlock, SkeletonGroup } from '@/shared/ui/Skeleton';
 import { Text } from '@/shared/ui/Typography';
 
@@ -486,7 +487,7 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
     <View style={styles.stateBox}>
       <Text style={styles.stateText}>{PROFILE_COPY.cardError}</Text>
       <Pressable
-        style={({ pressed }) => [styles.retryButton, pressed && styles.pressed]}
+        style={({ pressed }) => [pillButton.base, styles.retryButton, pressed && styles.pressed]}
         onPress={weekly.retrySwitch}
         accessibilityRole="button"
         accessibilityLabel={PROFILE_COPY.retry}
@@ -727,14 +728,11 @@ const styles = StyleSheet.create({
     color: theme.color.textSecondary,
     textAlign: 'center',
   },
+  // 흰 알약(회색 면 위) — 모양은 공용 알약(pillButton.base), 면 색·크기만 여기서
   retryButton: {
     minHeight: theme.touchTarget.minHeight,
     minWidth: theme.touchTarget.minWidth,
-    alignItems: 'center',
-    justifyContent: 'center',
     paddingHorizontal: theme.spacing.md,
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
     backgroundColor: theme.color.background,
   },
   retryText: { fontSize: theme.font.size.sm, fontWeight: '600', color: theme.color.primary },
