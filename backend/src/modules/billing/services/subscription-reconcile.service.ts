@@ -16,6 +16,7 @@ import { AppStoreGateway } from '../app-store/app-store.gateway';
 import { RECONCILE_BATCH_SIZE } from '../billing.constant';
 import { BillingSyncService, SyncOutcome } from './billing-sync.service';
 import { PlayPurchaseService } from './play-purchase.service';
+import { BillingAlertService } from './billing-alert.service';
 
 /** 한 건의 보정 결과 — `unverifiable`은 스토어의 답을 얻지 못했거나 그 답을 반영할 수 없었다는 뜻이다 */
 type ReconcileResult = 'applied' | 'settled' | 'unverifiable';
@@ -41,6 +42,7 @@ export class SubscriptionReconcileService {
     private readonly appStoreGateway: AppStoreGateway,
     private readonly playPurchaseService: PlayPurchaseService,
     private readonly dataSource: DataSource,
+    private readonly billingAlertService: BillingAlertService,
   ) {}
 
   /** 조회 경로용 — 그 사용자의 현재 구독이 보정 대상이면 맞춘다. 실패해도 던지지 않는다 */
@@ -190,6 +192,10 @@ export class SubscriptionReconcileService {
         reason: error instanceof Error ? error.message : String(error),
       });
 
+      this.billingAlertService.reconcileFailed(
+        `${subscription.store} 구독 1건 — ${error instanceof Error ? error.message : String(error)}`,
+      );
+
       return 'unverifiable';
     }
   }
@@ -238,6 +244,10 @@ export class SubscriptionReconcileService {
         subscription_id: subscription.id,
         reason: error instanceof Error ? error.message : String(error),
       });
+
+      this.billingAlertService.reconcileFailed(
+        `${subscription.store} 구독 1건 — ${error instanceof Error ? error.message : String(error)}`,
+      );
 
       return 'unverifiable';
     }

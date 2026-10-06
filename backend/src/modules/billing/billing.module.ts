@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { AlertModule } from '@/modules/alert/alert.module';
 import { SubscriptionModule } from '@/modules/subscription/subscription.module';
 import { UserModule } from '@/modules/user/user.module';
 
@@ -11,6 +12,7 @@ import { PlayStoreWebhookController } from './controllers/play-store-webhook.con
 import { PlanController } from './controllers/plan.controller';
 import { SubscriptionController } from './controllers/subscription.controller';
 import { AppStoreWebhookService } from './services/app-store-webhook.service';
+import { BillingAlertService } from './services/billing-alert.service';
 import { BillingSyncService } from './services/billing-sync.service';
 import { PlayPurchaseService } from './services/play-purchase.service';
 import { PlayStoreWebhookService } from './services/play-store-webhook.service';
@@ -30,7 +32,7 @@ import { SubscriptionReconcileService } from './services/subscription-reconcile.
  * 둘 위에 선 이 모듈이 그 반영을 맡는다(architecture.md 4.3).
  */
 @Module({
-  imports: [SubscriptionModule, UserModule],
+  imports: [SubscriptionModule, UserModule, AlertModule],
   controllers: [
     PlanController,
     SubscriptionController,
@@ -38,6 +40,7 @@ import { SubscriptionReconcileService } from './services/subscription-reconcile.
     PlayStoreWebhookController,
   ],
   providers: [
+    BillingAlertService,
     BillingOrchestrator,
     BillingSyncService,
     SubscriptionReconcileService,

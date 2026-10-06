@@ -76,7 +76,7 @@ CloudWatch(EC2 지표·`/ear/api`·`/ear/caddy` 로그)·Sentry·합성 헬스�
 | 소셜 로그인 카카오·구글·애플 | `KAKAO_APP_ID` · `GOOGLE_WEB_CLIENT_ID` · `APPLE_CLIENT_ID` · `APPLE_SERVICES_ID` — **필수** | 값이 없으면 env 검증에서 **기동이 실패한다**(조용히 꺼지지 않는다). 값이 틀리면 해당 제공자 로그인 불가 |
 | 오디오 CDN | `AUDIO_DELIVERY=cloudfront` + `CLOUDFRONT_KEY_PAIR_ID` · `CLOUDFRONT_PRIVATE_KEY_BASE64` · `AUDIO_BUCKET` · `AWS_REGION` (`AUDIO_URL_BASE_URL` · `AUDIO_URL_SIGNING_KEY` 는 항상 필수) | `cloudfront` 모드에서 값이 빠지면 기동 실패. 값이 틀리면 재생 URL 발급 불가 |
 | Sentry | `SENTRY_DSN` (+`SENTRY_ENVIRONMENT`) | 크래시 수집 안 됨 — 조용히 꺼짐 |
-| Slack 경보·가입 알림·**탈퇴 알림**(2026-10-06 — 사유 코드·직접 입력 사유·가입 N일차·결제 이력 여부, 신원 값 없음)·**스토어 리뷰**·**앱 삭제**(3-4 GA4 · 3-5 iOS 추정) | `SLACK_ERROR_WEBHOOK_URL` (가입·탈퇴 알림·리뷰·일일 보고는 `SLACK_SIGNUP_WEBHOOK_URL` 우선) — 전송은 `modules/alert` 의 `SlackAlertService` 한 곳 | 조용히 꺼짐 |
+| Slack 경보·가입 알림·**탈퇴 알림**(2026-10-06 — 사유 코드·직접 입력 사유·가입 N일차·결제 이력 여부, 신원 값 없음)·**스토어 리뷰**·**앱 삭제**(3-4 GA4 · 3-5 iOS 추정)·**결제 실패**(3-6) | `SLACK_ERROR_WEBHOOK_URL` (가입·탈퇴 알림·리뷰·일일 보고는 `SLACK_SIGNUP_WEBHOOK_URL` 우선) — 전송은 `modules/alert` 의 `SlackAlertService` 한 곳 | 조용히 꺼짐 |
 | App Store Connect API(리뷰 조회 — KAN-133) | `APP_STORE_CONNECT_ISSUER_ID` · `APP_STORE_CONNECT_KEY_ID` · `APP_STORE_CONNECT_PRIVATE_KEY_BASE64`(**팀 키** — 결제용 In-App Purchase 키와 다르다) + `APP_STORE_APP_APPLE_ID` | 그 스토어만 조용히 꺼짐 |
 | Google Play Developer API(리뷰 조회 — KAN-133) | 결제용 `GOOGLE_PLAY_PACKAGE_NAME` · `GOOGLE_PLAY_SERVICE_ACCOUNT_BASE64` 재사용(Play Console 에서 서비스 계정에 리뷰 권한 추가) | 그 스토어만 조용히 꺼짐 |
 | GA4 일일 보고 · **앱 삭제 알림**(3-4, 2026-10-06) | `GA4_PROPERTY_ID` + `GA4_SERVICE_ACCOUNT_BASE64` (+ 위 웹훅) — 같은 자격을 두 기능이 쓴다 | 조용히 꺼짐 |
@@ -143,6 +143,20 @@ Apple 은 삭제 이벤트를 주지 않는다(3-4 는 Android 만). iOS 의 유
 | 문구 | `:iphone: 앱 삭제 추정 N건 · iOS · 푸시 토큰 무효화(활성 기기 0) · MM. DD. HH:mm` — 가입·탈퇴 알림과 같은 채널. **Android 는 Slack 에 올리지 않는다**(3-4 GA4 `app_remove`가 삭제를 정확히 세고 있어 같은 삭제가 두 번 울린다) — 로그(`uninstall estimated from invalidated push tokens`)에만 플랫폼별 건수를 남긴다. 사용자 식별자는 싣지 않는다 |
 | 구현 | `notification/services/uninstall-alert.service.ts` — `DeviceTokenService.invalidateDeliveredTokensDetailed`(무효화한 행의 사용자·플랫폼, RETURNING) → `countActiveByUserIds` → Slack. 던지지 않는다 — 알림 실패가 발송·정리 흐름을 깨지 않는다 |
 | 추가 설정 | 없음 — 기존 웹훅이 있으면 켜진다 |
+
+### 3-6. 결제·스토어 알림 실패 Slack (신설 2026-10-06 — KAN-132)
+
+결제 경로의 실패는 전부 `warn` 로그라 ERROR 감시(`log-watch`)에 걸리지 않았다. 셋은 사람이 봐야 해서 `billing/services/billing-alert.service.ts`가 Slack 으로 올린다(가입·탈퇴 알림과 같은 채널).
+
+| 알림 | 언제 | 문구 |
+|---|---|---|
+| 결제 검증 거부 | 구매 제출·복원의 영수증(JWS)·구매 토큰이 거부됨(`SUBSCRIPTION_RECEIPT_INVALID`) — 사용자가 돈을 냈는데 권한을 못 받았을 수 있다. 설정 오류(번들 ID·키)면 전원이 막힌다 | `:credit_card: 결제 검증 거부 · App Store · <사유>` |
+| 스토어 알림 거부 | App Store S2S·Play RTDN 의 서명·OIDC 검증 실패 — 환불·갱신이 반영되지 않는다 | `:warning: 스토어 알림 거부 · Google Play · <kind>: <사유>` |
+| 구독 보정 실패 | 04:45 `subscription-reconcile`이 작업 중단됐거나 구독 1건을 스토어에 묻지 못함 | `:hourglass: 구독 보정 실패 · <내용>` |
+
+- **종류·스토어별 10분 창에 한 번만** 보낸다 — 위조 시도나 잘못된 클라이언트가 같은 거부를 수십 번 만들 수 있다. 창 안의 나머지는 건수만 로그(`billing alert suppressed within window`)로 남기고, 창이 지나 다음 알림이 나갈 때 "직전 10분 N건 더 있었음"을 덧붙인다.
+- 사유는 내부 코드 문자열이다. 사용자·거래·토큰 식별자는 싣지 않는다. 받으면 할 일은 `infra/runbook.md` 4-1 알림 표.
+- 추가 설정 없음 — 기존 웹훅이 있으면 켜진다.
 
 ## 4. 구성 — 콘솔 6탭
 

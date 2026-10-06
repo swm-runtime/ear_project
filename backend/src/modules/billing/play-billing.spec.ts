@@ -224,7 +224,7 @@ describe('Play — 영수증 제출(4.4)', () => {
   ])(
     '%s 는 받지 않고 아무것도 쓰지 않으며 확인하지도 않는다',
     async (_label, purchase) => {
-      const { world, play, submit } = setup();
+      const { world, play, submit, slackTexts } = setup();
 
       if (purchase !== null) {
         play.put({ purchaseToken: 'token-1', ...purchase });
@@ -238,6 +238,11 @@ describe('Play — 영수증 제출(4.4)', () => {
 
       expect(error.retryable).toBe(false);
       expect(world.subscriptions).toHaveLength(0);
+      // 거부는 사람이 봐야 한다 — Slack 한 줄(runbook 4-1). 토큰·사용자 식별자는 싣지 않는다
+      expect(slackTexts).toEqual([
+        expect.stringContaining('결제 검증 거부 · Google Play'),
+      ]);
+      expect(slackTexts[0]).not.toContain('token-1');
       expect(world.users.get(USER)!.tier).toBe(UserTier.LIGHT);
       expect(play.acknowledged).toHaveLength(0);
     },
