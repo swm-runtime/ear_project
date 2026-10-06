@@ -59,3 +59,5 @@ ElevenLabs **Pro 결제**로 TTS 원본을 무손실(PCM)로 받을 수 있다. 
   - 5 발행: `audio` = dist.m4a(없으면 구 mp3), `audio_lossless` = lossless.flac — `SEND_LOSSLESS_AUDIO` 꺼 둠(백엔드 flac 허용 운영 배포 뒤 켠다)
   - 7 문서: `ai/spec/06-audio.md` 7장(배포본 규격·완료 조건) · `07-publish.md`(오디오 파트) · `08-infra.md`
   - 남은 것: `tts:encode --apply`(56편) · 백엔드 flac 허용 배포 → `SEND_LOSSLESS_AUDIO` 켜기 · 6 기존 발행분 재발행(사람 — 재생 위치 초기화)
+- **2026-10-06 후속** — #1155 머지·배포. `tts:encode --apply`: 56편(발행 40 + CS 16) 완료·실패 0 — `dist.m4a`·`lossless.flac` 업로드, `audio_dist_key` 교체, 패키지 재실행 56건 완료. 백엔드 #1154(lossless = flac 만)가 운영 v1.2.0+2 로 배포돼 `SEND_LOSSLESS_AUDIO` 를 켰다 — 다음 발행·재발행부터 압축(m4a)과 무손실(flac)이 함께 실린다
+  - 남은 것: 6 기존 발행분 재발행(사람 — 재생 위치 초기화). 첫 재발행에서 서버에 압축·무손실이 모두 새 버전으로 있는지 확인하고 이 티켓과 KAN-145 를 archive 로 옮긴다

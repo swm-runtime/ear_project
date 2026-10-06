@@ -40,3 +40,4 @@
 
 - 2026-10-06 발행(마크다운 + Jira KAN-145). 검증 당시에는 파이프라인이 압축 음원만 보내 "재발행마다 무손실이 지워진다"가 문제였으나, 같은 날 파이프라인이 무손실을 함께 보내도록 바뀌어(`feat(pipeline): render aac and flac renditions`) 범위를 남은 경우(확인창 경고)로 줄였다. 서버 쪽은 계약대로 동작해 고칠 것이 없다 — 같은 검증에서 나온 서버의 임시 파일 누수는 백엔드가 고쳤다(PR #1157).
 - 2026-10-06 구현(브랜치 `feat(ai)/kan-145-lossless-warning`) — `/api/publish/<id>?audioinfo=1`(무손실 전송 켜짐 여부 + `lossless.flac` 유무, 업로드 패키지 없어도 답함) · `lib/publish-files.ts` `wouldDropLossless`·`losslessWouldDrop` · 개별 재발행 확인창에 ⚠️ 한 줄 · 구형 일괄 재발행 확인창에 "N편은 …"(오디오를 바꾸는 편만). 판정 단위 테스트 `lib/publish-files.test.ts`. `ai/spec/07-publish.md` 오디오 파트에 규칙. **pending 유지** — 완료 조건 1·2는 무손실 전송 스위치(`SEND_LOSSLESS_AUDIO`)가 켜져야 화면에서 확인된다(백엔드 flac 허용 운영 배포 뒤 — KAN-142·141). 스위치를 켜는 PR 에서 확인하고 archive 로 옮긴다
+- 2026-10-06 무손실 전송 스위치를 켰다(백엔드 #1154 운영 v1.2.0+2 배포 뒤). 재인코딩한 56편은 모두 `lossless.flac`이 있어 경고 대상이 아니다. 완료 조건 1·2는 첫 재발행(사람)에서 확인하고 archive 로 옮긴다

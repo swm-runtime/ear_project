@@ -4,11 +4,11 @@ import { getBytes } from "@/lib/storage";
  * 발행 오디오 파일 (2026-10-06 음질 확정, KAN-141·142) — 서버(라우트) 전용.
  *
  * - 압축(`audio`): `dist.m4a`(AAC 192k — Light·Daily, 2026-10-06~)가 있으면 그것, 없으면 구 형식 `dist.mp3`.
- * - 무손실(`audio_lossless`): `lossless.flac`(Pro). **백엔드가 flac 을 받기 전(KAN-141 코멘트 2026-10-06 요청)에는 켜지 않는다** —
- *   wav 만 받는 서버에 flac 을 보내면 업로드가 거부된다. 켜도 파일이 없는 편(구 음원)은 압축만 보낸다.
+ * - 무손실(`audio_lossless`): `lossless.flac`(Pro). 2026-10-06 켬 — 백엔드가 lossless 를 flac 만 받도록 바꾼 #1154 가 운영 v1.2.0+2 로 배포된 뒤.
+ *   그 이전 서버(wav 만)에 flac 을 보내면 업로드가 거부된다. 파일이 없는 편(구 음원)은 압축만 보낸다 — 재발행 확인창이 경고한다(KAN-145).
  * 백엔드는 오디오를 바꾸는 재발행을 음질 세트로 본다 — 안 보낸 음질의 행은 지운다(admin-api 4.10).
  */
-export const SEND_LOSSLESS_AUDIO = false;
+export const SEND_LOSSLESS_AUDIO = true;
 
 export const DIST_FILES = [
   { file: "dist.m4a", ext: "m4a", type: "audio/mp4" },
