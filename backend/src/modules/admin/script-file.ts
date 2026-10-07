@@ -1,14 +1,17 @@
 import { readFile } from 'node:fs/promises';
 
 import {
+  SCRIPT_SECTION_KINDS,
   ScriptDocument,
   ScriptSection,
+  ScriptSectionKind,
   ScriptSegment,
 } from '@/modules/content/content.types';
 
 import {
   MAX_SCRIPT_FILE_BYTES,
   MAX_SCRIPT_SECTIONS,
+  MAX_SCRIPT_SECTION_SUMMARY_LENGTH,
   MAX_SCRIPT_SECTION_TITLE_LENGTH,
   MAX_SCRIPT_SEGMENTS,
   MAX_SCRIPT_SPEAKER_LENGTH,
@@ -24,7 +27,7 @@ export type ScriptParseResult =
 const OVERLAP_TOLERANCE_SEC = 0.05;
 
 const KNOWN_SEGMENT_KEYS = new Set(['start_sec', 'end_sec', 'speaker', 'text']);
-const KNOWN_SECTION_KEYS = new Set(['start_sec', 'title']);
+const KNOWN_SECTION_KEYS = new Set(['start_sec', 'title', 'kind', 'summary']);
 const KNOWN_DOCUMENT_KEYS = new Set(['segments', 'sections']);
 
 /**
@@ -247,7 +250,7 @@ function parseSection(entry: unknown, index: number): ScriptSection | string {
     }
   }
 
-  const { start_sec: startSec, title } = entry;
+  const { start_sec: startSec, title, kind, summary } = entry;
 
   if (!isFiniteNonNegative(startSec)) {
     return `${label}의 start_sec은 0 이상의 숫자여야 해요`;
@@ -261,7 +264,35 @@ function parseSection(entry: unknown, index: number): ScriptSection | string {
     return `${label}의 title이 너무 길어요 (최대 ${MAX_SCRIPT_SECTION_TITLE_LENGTH}자)`;
   }
 
-  return { start_sec: startSec, title };
+  // kind·summary 는 선택(KAN-151) — 생략은 종전 파일 그대로 통과. 있으면 값 집합·길이를 본다
+  if (kind !== undefined && !isSectionKind(kind)) {
+    return `${label}의 kind는 ${SCRIPT_SECTION_KINDS.join(' | ')} 중 하나여야 해요`;
+  }
+
+  if (summary !== undefined) {
+    if (typeof summary !== 'string' || summary.trim().length === 0) {
+      return `${label}의 summary가 비어 있어요`;
+    }
+
+    if (summary.length > MAX_SCRIPT_SECTION_SUMMARY_LENGTH) {
+      return `${label}의 summary가 너무 길어요 (최대 ${MAX_SCRIPT_SECTION_SUMMARY_LENGTH}자)`;
+    }
+  }
+
+  // 없는 키는 아예 두지 않는다 — jsonb·응답에 `kind: undefined`가 섞이지 않게
+  return {
+    start_sec: startSec,
+    title,
+    ...(kind !== undefined && { kind }),
+    ...(summary !== undefined && { summary }),
+  };
+}
+
+function isSectionKind(value: unknown): value is ScriptSectionKind {
+  return (
+    typeof value === 'string' &&
+    (SCRIPT_SECTION_KINDS as readonly string[]).includes(value)
+  );
 }
 
 function isFiniteNonNegative(value: unknown): value is number {

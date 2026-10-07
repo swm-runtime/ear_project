@@ -607,7 +607,7 @@ content_scripts
   id                        uuid            PK
   content_id                uuid            FK → contents (ON DELETE CASCADE)
   segments                  jsonb           [{ start_sec, end_sec, speaker, text }]   ★speaker 추가 (2026-09-19, KAN-71)
-  sections                  jsonb           [{ start_sec, title }]   기본 '[]'   ★구간 제목 (2026-10-06, KAN-144)
+  sections                  jsonb           [{ start_sec, title, kind?, summary? }]   기본 '[]'   ★구간 제목 (2026-10-06, KAN-144) · kind(intro|lead|body|outro)·summary(≤40자) 선택 (2026-10-07, KAN-151)
   created_at · updated_at   timestamptz
 
 uq_content_scripts_content_id (content_id)
@@ -618,7 +618,7 @@ uq_content_scripts_content_id (content_id)
 - **`speaker`는 화자 표시명**("윤아"·"이음" — 대본이 2인 대화체, `ai/PIPELINE.md`)이며 1인 낭독·파트너 콘텐츠는 `null`. 시각은 초(소수 허용), **최종 배포본 기준**. `start_sec` 오름차순·겹침 없음은 적재 시 검증한다(admin-api.md 4.6 `script_file`).
 - 콘텐츠당 1행. 재발행으로 오디오가 바뀌면 시각도 바뀌므로 부분 갱신 없이 통째로 교체한다. **오디오가 바뀌는데 유효한 대본이 함께 오지 않으면 행을 삭제한다**(행 없음 = 자막 없음 — 2026-09-26, `admin-api.md` 4.10 "대본 삭제"). 옛 세그먼트를 남기면 새 오디오와 시각이 어긋난 자막이 내려간다.
 - **접근 통제는 오디오와 같다**(architecture.md 9.4) — 조회(`player-api.md` 4.7)는 재생 발급과 같은 판정을 거친다.
-- **`sections`는 구간 제목**(2026-10-06, KAN-144 — `tickets/backend/archive/content-script-sections.md`). 대본의 `### #n 제목` 구간 그대로이고 앞뒤에 인트로·도입·마무리가 붙어 한 편에 7~11개(0~30개로 제한). `start_sec`은 세그먼트와 같은 배포본 기준이라 **자막과 운명이 같다** — 같은 파일(`script_file` 객체 형식)로 같은 트랜잭션에서 통째로 교체되고, 행이 지워지면 함께 사라진다. 그래서 별도 테이블이 아니라 같은 행이다. 끝 시각은 없다 — 다음 구간의 시작이 끝이고, 현재 구간은 `start_sec ≤ 재생 위치`인 마지막 항목(`player-api.md` 4.1). `start_sec` **엄격한** 오름차순(같은 값 금지)·마지막 구간 < 오디오 길이·`title` ≤60자는 적재 시 검증한다(admin-api.md 4.6). 배열 형식 파일로 적재된 행·기존 행은 `[]`(구간 없음)이다 — 지금 나가 있는 오디오와 맞는 구간 시각은 소급해 만들 수 없어 재발행에서 함께 실린다.
+- **`sections`는 구간 제목**(2026-10-06, KAN-144 — `tickets/backend/archive/content-script-sections.md`). 대본의 `### #n 제목` 구간 그대로이고 앞뒤에 인트로·도입·마무리가 붙어 한 편에 7~11개(0~30개로 제한). `start_sec`은 세그먼트와 같은 배포본 기준이라 **자막과 운명이 같다** — 같은 파일(`script_file` 객체 형식)로 같은 트랜잭션에서 통째로 교체되고, 행이 지워지면 함께 사라진다. 그래서 별도 테이블이 아니라 같은 행이다. 끝 시각은 없다 — 다음 구간의 시작이 끝이고, 현재 구간은 `start_sec ≤ 재생 위치`인 마지막 항목(`player-api.md` 4.1). `start_sec` **엄격한** 오름차순(같은 값 금지)·마지막 구간 < 오디오 길이·`title` ≤60자는 적재 시 검증한다(admin-api.md 4.6). **`kind`·`summary`는 선택 키**(2026-10-07, KAN-151): `kind`는 구역(`intro` 인트로 · `lead` 도입 · `body` 본문 단락 · `outro` 마무리 — 플레이어 카드의 "개요 · 본론 · 결론" 라벨 근거), `summary`는 카드 아래 한 줄(≤40자). 없으면 항목에 키가 없다 — 종전 발행분은 그대로이고, 소급은 파이프라인 재발행(KAN-152)이 한다. 배열 형식 파일로 적재된 행·기존 행은 `[]`(구간 없음)이다 — 지금 나가 있는 오디오와 맞는 구간 시각은 소급해 만들 수 없어 재발행에서 함께 실린다.
 
 ### 5.4 `content_stats`
 
