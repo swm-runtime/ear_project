@@ -1,11 +1,19 @@
+import { nativeApplicationVersion } from 'expo-application';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as Updates from 'expo-updates';
+
+import appConfig from '../../../app.json';
 
 /**
  * 앱 버전 문자열 — 기기 동기화(onboarding-api.md 4.9)·설정 조회(settings-api.md 4.1)가 함께 쓴다.
  * 업데이트 여부 판정은 서버가 한다(settings-api.md 4.1) — 이 값으로 비교하지 않는다.
- * TODO: expo-constants 도입 후 app.json version과 연결한다.
+ * 설치된 바이너리 버전을 쓴다. OTA가 올라가도 구버전 바이너리를 최신 버전으로 보고하지 않는다.
+ * Expo Go·웹에서는 네이티브 앱 버전 대신 프로젝트 설정을 쓴다.
  */
-export const APP_VERSION = '1.1.0';
+export const APP_VERSION =
+  (Constants.executionEnvironment !== ExecutionEnvironment.StoreClient
+    ? nativeApplicationVersion
+    : null) ?? appConfig.expo.version;
 
 /**
  * **지금 실행 중인 JS 번들의 식별자** — 화면 표시 전용이다.
@@ -48,5 +56,5 @@ export const resolveBundleLabel = (): string => {
  */
 export const IS_DEV_API = (process.env.EXPO_PUBLIC_API_BASE_URL ?? '').includes('://api-dev.');
 
-/** 설정 화면의 버전 행에 붙는 값 — `1.1.0 (01a0a3c9)` 꼴, 개발계면 `1.1.0 (01a0a3c9) · 개발계` */
+/** 설정 화면의 버전 행에 붙는 값 — `1.2.0 (01a0a3c9)` 꼴, 개발계면 `1.2.0 (01a0a3c9) · 개발계` */
 export const APP_VERSION_LABEL = `${APP_VERSION} (${resolveBundleLabel()})${IS_DEV_API ? ' · 개발계' : ''}`;
