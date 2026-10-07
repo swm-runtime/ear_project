@@ -1884,11 +1884,9 @@ export default function PlayerScreen() {
             {/* 목록 위에서 시작한 세로 끌기는 축소 제스처가 가로채지 않는다(위 `isTouchOnScrollAreaRef`) */}
             <View style={styles.queuePanelWrap} {...scrollAreaTouchHandlers}>
               {/*
-              **아직 조회하지 않았으면 안을 그리지 않는다.** 재생 목록은 패널을 열었을 때만 조회하는데(useQueueQuery
-              `enabled`), 조회를 안 한 쿼리는 react-query 에서 `isPending` 이 계속 true 다 — 그걸 로딩으로 넘겨 주니
-              플레이어를 열면 닫힌 패널의 보이는 틈에서 **스피너가 영원히 돌았다**(PM 2026-09-27 19:02 "무한로딩",
-              열면 조회가 시작돼 사라졌다). 스피너도 빈 상태도 둘 다 거짓이라 아무것도 그리지 않는 것이 맞다.
-              한 번 받아 둔 뒤에는 닫혀 있어도 그대로 둔다 — 다시 열 때 목록이 이미 있다
+              닫혀 있고 아직 받은 목록이 없으면 패널 내용을 그리지 않는다.
+              열린 뒤에는 시트 모션 때문에 요청을 미루는 구간도 로딩이다 — 조회 전을 빈 목록으로 표시하면 안 된다.
+              한 번 받아 둔 뒤에는 닫혀 있어도 그대로 둔다 — 다시 열 때 목록이 이미 있다.
             */}
               {isQueueOpen || queueQuery.data !== undefined ? (
                 <PlayerQueuePanel
@@ -1896,10 +1894,9 @@ export default function PlayerScreen() {
                   items={
                     isQueueSettled ? queueItems : queueItems.slice(0, QUEUE_MOTION_PREVIEW_COUNT)
                   }
-                  // 실제로 요청이 떠 있을 때만 스피너다(`isPending` 은 조회를 안 한 상태도 true).
-                  // **받아 둔 목록이 있으면 새로 받는 동안에도 목록을 그대로 둔다**(PM 2026-09-28 00:05 "중간중간 깜빡") —
-                  // 열 때마다 다시 받으므로(staleTime 0) 패널이 목록 → 스피너 → 목록으로 번쩍였다. 다시 받기 실패도 같다
-                  isLoading={queueQuery.isFetching && queueQuery.data === undefined}
+                  // 첫 응답 전에는 모션 중의 요청 대기도 로딩으로 본다.
+                  // 캐시가 있으면 재조회 중에도 목록을 유지하고, 성공한 빈 응답만 빈 상태를 그린다.
+                  isLoading={queueQuery.isPending}
                   isError={queueQuery.isError && queueQuery.data === undefined}
                   currentContentId={session.contentId}
                   showHeader={false}
