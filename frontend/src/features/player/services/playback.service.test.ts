@@ -100,7 +100,12 @@ jest.mock('../api/player.api', () => ({
 jest.mock('@/shared/analytics', () => ({ track: () => undefined }));
 
 jest.mock('@/shared/lib/logger', () => ({
-  logger: { debug: () => undefined, info: () => undefined, warn: () => undefined, error: () => undefined },
+  logger: {
+    debug: () => undefined,
+    info: () => undefined,
+    warn: () => undefined,
+    error: () => undefined,
+  },
 }));
 
 jest.mock('./player-library.bridge', () => ({ getPlayerLibraryBridge: () => null }));

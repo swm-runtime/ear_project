@@ -71,6 +71,8 @@ export interface PlayerSection {
   title: string;
   /** 구역. 서버가 안 실었거나 모르는 값이면 null — 구역 라벨 없이 "지금 듣는 구간"으로 그린다 */
   kind: PlayerSectionKind | null;
+  /** 구간 요약 한 문장(두 줄 분량). 서버가 안 실었으면 null — 단락 제목·구역 원래 이름으로 대신한다 */
+  summary: string | null;
 }
 
 /** POST /contents/:content_id/audio-urls 응답(player-api.md 4.1)의 도메인 모델 */

@@ -117,7 +117,8 @@ export const usePlayGate = (options?: PlayGateOptions) => {
    */
   const remainingIfDeducting = (isCountedToday: boolean): number | null => {
     const { playLimit: limit, suppressedServiceDate: suppressed } = usePlayLimitStore.getState();
-    if (limit === null || limit.dailyPlayLimit === null || limit.dailyPlayCount === null) return null;
+    if (limit === null || limit.dailyPlayLimit === null || limit.dailyPlayCount === null)
+      return null;
     if (isCountedToday || suppressed === limit.serviceDate) return null;
     const remaining = Math.max(0, limit.dailyPlayLimit - limit.dailyPlayCount);
     return remaining > 0 ? remaining : null;
@@ -126,7 +127,12 @@ export const usePlayGate = (options?: PlayGateOptions) => {
   /** 서버가 준 잔여가 0 이고 이 편이 오늘 아직 차감 전인가 — 여는 순서를 정하는 힌트일 뿐 차단 판정은 아니다 */
   const isExhaustedHint = (isCountedToday: boolean): boolean => {
     const { playLimit: limit } = usePlayLimitStore.getState();
-    if (isCountedToday || limit === null || limit.dailyPlayLimit === null || limit.dailyPlayCount === null) {
+    if (
+      isCountedToday ||
+      limit === null ||
+      limit.dailyPlayLimit === null ||
+      limit.dailyPlayCount === null
+    ) {
       return false;
     }
     return limit.dailyPlayLimit - limit.dailyPlayCount <= 0;

@@ -16,15 +16,17 @@ export const currentSectionOf = (
   return current;
 };
 
-/** 카드에 그릴 두 줄 — 위 작은 라벨(없으면 null)과 아래 큰 제목 */
+/** 카드에 그릴 두 단 — 위 큰 구역 이름과 아래 작은 요약(최대 두 줄) */
 export interface SectionDisplay {
-  label: string | null;
-  title: string;
+  heading: string;
+  detail: string;
 }
 
 /**
- * 구간 → 카드 표시(PM 2026-10-07). 본문 단락은 라벨 "본론" + 단락 제목, 인트로·도입·마무리는 구역 이름이 곧 제목이라
- * 라벨 없이 "개요"·"결론" 한 줄. 서버가 구역(`kind`)을 안 실었으면 종전처럼 "지금 듣는 구간" + 제목
+ * 구간 → 카드 표시(PM 2026-10-07). 위 큰 줄은 구역 이름 — 인트로·도입 "개요", 본문 단락 "본론", 마무리 "결론" —,
+ * 아래 작은 줄은 **구간 요약**(`summary`, 두 줄 분량 — 서버·파이프라인 KAN-151·152)이다. 요약이 없으면 서버 제목으로
+ * 대신한다 — 본문은 단락 제목, 인트로·도입·마무리는 원래 이름("도입" 등)이라 아래 칸이 비지 않는다.
+ * 서버가 구역(`kind`)을 안 실었으면 위 "지금 듣는 구간"
  */
 export const sectionDisplayOf = (
   section: PlayerSection,
@@ -32,10 +34,7 @@ export const sectionDisplayOf = (
     currentSectionLabel: string;
     sectionKindLabel: Record<PlayerSectionKind, string>;
   },
-): SectionDisplay => {
-  if (section.kind === null) return { label: copy.currentSectionLabel, title: section.title };
-  if (section.kind === 'body') {
-    return { label: copy.sectionKindLabel.body, title: section.title };
-  }
-  return { label: null, title: copy.sectionKindLabel[section.kind] };
-};
+): SectionDisplay => ({
+  heading: section.kind === null ? copy.currentSectionLabel : copy.sectionKindLabel[section.kind],
+  detail: section.summary ?? section.title,
+});
