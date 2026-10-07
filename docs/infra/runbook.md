@@ -208,7 +208,7 @@ ssh -i … ec2-user@<IP> 'cd /opt/ear/backend \
 
 | 지표 | 출처 | 정의 |
 |---|---|---|
-| 가입 | 운영 DB `users.created_at` | 주간 합 + 일별. 관리자·테스트 계정 제외(`role = 'admin' OR tier = 'pro'`인 수동 계정) |
+| 가입 | 운영 DB `users.created_at` | 주간 합 + 일별. **테스트 계정 제외** — ① 확실(관리자 권한 · 수동 pro · 팀 소유 이메일 · 이메일/닉네임에 test·테스트·example) ② 정황(2026-09-29 이전 가입 + 같은 기기에 다른 계정 로그인 — 출시 전 팀·지인 테스트). 2026-10-07 분석: 189 중 7 + 11 = 18 제외. 규칙은 `weekly-metrics.sql`의 `test_users`가 원본이다 |
 | 누적 가입자 | 운영 DB `users` | 주 마지막 날 기준 행 수(같은 제외) |
 | 활성 | 운영 DB `audio_access_logs` | 주간 **재생 URL 을 1회 이상 발급받은** distinct `user_id`(= 들으려 한 사람). GA4 활성과 정의가 달라 둘 다 적는다 |
 | 재생 | 운영 DB `play_records` | 주간 재생 시작 건수 · 완청(서버 90% 판정) 건수 |
