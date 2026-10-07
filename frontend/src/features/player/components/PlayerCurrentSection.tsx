@@ -20,9 +20,12 @@ import { useScrubPositionStore } from '../store/scrub-position.store';
 const SLIDE_OUT_MS = 100;
 const FADE_IN_MS = 160;
 const SLIDE_DISTANCE = 8;
-/** 애플 글자 단계 — 위 구역 이름은 Headline(17 굵게), 아래 단락 제목은 Footnote(13) */
-const HEADING_FONT_SIZE = 17;
-const HEADING_LINE_HEIGHT = 22;
+/**
+ * 애플 글자 단계 — 위 구역 이름은 Callout(16 굵게), 아래 요약은 Footnote(13). 종전 Headline 17 에서 한 단계 줄였다
+ * (PM 2026-10-07 "본론 글자 조금만 줄이자")
+ */
+const HEADING_FONT_SIZE = 16;
+const HEADING_LINE_HEIGHT = 21;
 const DETAIL_FONT_SIZE = 13;
 const DETAIL_LINE_HEIGHT = 18;
 /** 제목 한 줄 + 요약 한 줄 = 두 줄(PM 2026-10-07 — "두 줄이 아니라 한 줄, 제목 + 요약이라 두 줄") */
