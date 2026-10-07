@@ -14,7 +14,7 @@
 | 관련 | `subscription-purchase-screen.md`([KAN-120](https://runtime364.atlassian.net/browse/KAN-120)) · 백엔드 `tickets/backend/archive/android-play-subscription-products.md`([KAN-130](https://runtime364.atlassian.net/browse/KAN-130) — 서버 쪽 "살아 있는 Play 구독은 하나" 가드) |
 | 근거 문서 | `features/subscription.md` 4.4 · `spec/api/subscription-api.md` 4.4(한 계정에 살아 있는 Play 구독은 하나)·5장(`SUBSCRIPTION_ALREADY_SUBSCRIBED`) |
 | 중요도 | Medium |
-| 상태 | 대기 |
+| 상태 | 코드 반영(2026-10-08) — 개발계 Android 실기기 확인 대기 |
 
 ## 현상 (2026-10-08 00:39 KST, 개발계 Android rt 32)
 
@@ -58,3 +58,9 @@ Android는 Pro·Daily가 **독립된 정기 결제**라 Google은 둘 다 살 �
 ## 처리 기록
 
 - 2026-10-08 발행(마크다운 + Jira). 재현: 개발계 Android rt 32, 00:39 KST, 백엔드가 서버 로그로 확인.
+- 2026-10-08 코드 반영(PR `fix(fe)/android-plan-change-replace`).
+  - 교체 입력: 설치된 **expo-iap 5.8.2 는 정수 `replacementMode` 가 아니라** `purchaseToken` + `subscriptionProductReplacementParams { oldProductId, replacementMode: 'charge-prorated-price' | 'deferred' }`(Play Billing 8.1 상품 단위 교체)다. 이 티켓의 "5.8 은 정수" 설명은 틀렸다 — 설치본 타입(`node_modules/expo-iap/src/types.ts`)과 네이티브 파서(`ExpoIapHelper.kt`)로 확인했다.
+  - 지금 구독 찾기: `getAvailablePurchases()` 중 확인(acknowledge)된 구매, 결제 대상과 다른 상품. 서버가 거부한 두 번째 구독(미확인)은 고르지 않는다. 없으면 시트를 열지 않고 `replaceSourceMissing` 안내.
+  - 409 `SUBSCRIPTION_ALREADY_SUBSCRIBED` → 전용 문구(`subscription-uiux.md` 4.x 에러 표).
+  - 다운그레이드 결과(`pending_plan` 토스트·이용 중 카드 "N월 N일부터 …")는 종전 코드 그대로.
+  - **남은 것**: 개발계 Android(라이선스 테스터)로 완료 조건 1·2 확인. 확인되면 archive 로 옮기고 Jira 완료.
