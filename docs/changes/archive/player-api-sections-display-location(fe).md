@@ -19,3 +19,7 @@ PM 결정(2026-10-07): 구간 제목은 미니플레이어에 두지 않고 전�
 ## 완료 조건
 
 - Given `player-api.md` 4.1 `sections` 행 / When 읽는다 / Then 표시 위치가 전체 플레이어 시크바 위로 적혀 있고 미니 플레이어 언급이 없다
+
+## 처리 기록 (반영 날짜: 2026-10-07 — PR `feat(be)/section-kind-summary`, KAN-151 과 함께)
+
+`player-api.md` 4.1 `sections` 행을 "전체 플레이어 시크바 위 '지금 듣는 구간' 카드(KAN-127 — `player.md` 4.6-1)"로 고쳤고 미니 플레이어 언급을 뺐다. 같은 행에 `kind`·`summary`(KAN-151)도 함께 적었다.
