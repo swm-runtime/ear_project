@@ -394,10 +394,17 @@ export default function PlayerScreen() {
   const insets = useSafeAreaInsets();
   // 아래 여백 — 재생 목록 손잡이가 홈 인디케이터·제스처 핸들 바로 위에 붙도록 안전영역을 다 쓰지 않는다(PM 2026-10-07
   // "재생목록 팁이 맨 아래에"). Android 버튼 바는 덮을 수 없어 그대로, 인디케이터 없는 기기(안전영역 0)도 그대로
-  const bottomPadding =
-    Platform.OS === 'android' && androidNavigationModeOf(insets.bottom) === 'buttons'
-      ? insets.bottom
-      : Math.min(insets.bottom, PLAYER_BOTTOM_CLEARANCE);
+  const isAndroidButtonBar =
+    Platform.OS === 'android' && androidNavigationModeOf(insets.bottom) === 'buttons';
+  const bottomPadding = isAndroidButtonBar
+    ? insets.bottom
+    : Math.min(insets.bottom, PLAYER_BOTTOM_CLEARANCE);
+  /*
+   * 컨트롤 줄 위아래 여백 — Android 버튼 바는 바닥 48dp 를 덮을 수 없어 커버가 화면 폭보다 31dp 작았다(PM 2026-10-07
+   * 실기기). 그 기기만 줄 여백 24 → 16, 컨트롤 영역 아래 8 → 0 으로 줄여 24dp 를 커버에 준다. iOS·제스처 바는 그대로
+   */
+  const controlRowPadding = isAndroidButtonBar ? theme.spacing.md : theme.spacing.lg;
+  const controlRowPaddingFold = controlRowPadding - theme.spacing.sm;
   const containerStyle = [
     styles.container,
     { paddingTop: insets.top, paddingBottom: bottomPadding },
@@ -855,7 +862,7 @@ export default function PlayerScreen() {
     appBarHeight +
       queueHeroHeight +
       controlsHeight -
-      CONTROL_ROW_PADDING_FOLD * 2 -
+      controlRowPaddingFold * 2 -
       currentSectionHeight,
   );
   const queueInverse = Animated.subtract(1, queueProgress);
@@ -867,11 +874,11 @@ export default function PlayerScreen() {
    */
   const controlRowShift = queueProgress.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, -CONTROL_ROW_PADDING_FOLD - currentSectionHeight],
+    outputRange: [0, -controlRowPaddingFold - currentSectionHeight],
   });
   const belowControlRowShift = queueProgress.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, -CONTROL_ROW_PADDING_FOLD * 2 - currentSectionHeight],
+    outputRange: [0, -controlRowPaddingFold * 2 - currentSectionHeight],
   });
   // 구간 박스가 걷힌 만큼 — 재생바가 히어로 바로 밑(아트워크 아래 변 = 시크바 트랙, queueArtHeight)으로 붙는다
   const sectionFoldShift = queueProgress.interpolate({
@@ -1678,6 +1685,7 @@ export default function PlayerScreen() {
         <Animated.View
           style={[
             styles.controlArea,
+            isAndroidButtonBar && styles.controlAreaTight,
             HERO_QUEUE_BY_TRANSFORM && { transform: [{ translateY: heroQueueDelta }] },
           ]}
           onLayout={onControlsLayout}
@@ -1729,7 +1737,10 @@ export default function PlayerScreen() {
           </Animated.View>
 
           <Animated.View
-            style={[styles.controlRow, { transform: [{ translateY: controlRowShift }] }]}
+            style={[
+              styles.controlRow,
+              { paddingVertical: controlRowPadding, transform: [{ translateY: controlRowShift }] },
+            ]}
           >
             {/* 배속은 컨트롤 줄 맨 왼쪽에 텍스트로만 둔다(2026-09-16 — 칩 배경 제거, 보조 줄에서 이동).
                 오른쪽에 같은 폭의 빈 자리를 두어 재생 버튼이 화면 가운데를 지키게 한다 */}
@@ -2104,8 +2115,6 @@ const SCRIPT_TOGGLE_DURATION_MS = 450;
  * 마운트 비용은 작다. 모션이 끝나면 전체로 바뀐다
  */
 const QUEUE_MOTION_PREVIEW_COUNT = 8;
-/** 재생 목록이 열리면 컨트롤 줄 위아래 여백이 lg → sm 으로 접힌다 — 한쪽 몫 */
-const CONTROL_ROW_PADDING_FOLD = theme.spacing.lg - theme.spacing.sm;
 /**
  * 재생 목록을 끌어올렸을 때의 히어로 높이 — 앨범 사진이 화면 가로를 꽉 채우고 앱바·제목·시크바까지 그 위에
  * 얹힌다(2026-09-17 PM, 유튜브 뮤직). 사진 전체 높이 = 앱바 + 이 값 + 시크바
@@ -2464,14 +2473,18 @@ const styles = StyleSheet.create({
   controlArea: {
     paddingBottom: theme.spacing.sm,
   },
+  // Android 버튼 바 — 아래 여백을 커버에 준다(위 controlRowPadding 주석)
+  controlAreaTight: {
+    paddingBottom: 0,
+  },
   controlRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     // 배속이 줄에 들어오면서 xl(32)은 양끝이 너무 벌어졌다 — md(16)로 줄임(2026-09-16)
     gap: theme.spacing.md,
-    // 레이아웃 여백은 고정 — 재생 목록이 열릴 때 접히는 몫은 transform(controlRowShift)
-    paddingVertical: theme.spacing.lg,
+    // 위아래 여백(controlRowPadding)은 렌더에서 준다 — 고정이고, 재생 목록이 열릴 때 접히는 몫은 transform(controlRowShift).
+    // 열리면 sm 까지 접힌다(controlRowPaddingFold = 여백 − sm, 한쪽 몫)
   },
   stepButton: {
     minWidth: theme.touchTarget.minWidth,
