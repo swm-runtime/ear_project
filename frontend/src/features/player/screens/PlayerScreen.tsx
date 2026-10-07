@@ -1757,12 +1757,14 @@ export default function PlayerScreen() {
             >
               {screen.showBufferingIndicator ? (
                 // 로딩 표시는 재생 버튼 자리에만, 2초 초과 시만(uiux 4.3)
-                <ActivityIndicator color={playerColor.textPrimary} />
+                <ActivityIndicator color={playerColor.textSecondary} />
               ) : (
+                // 색은 옆 ±10초·배속·스크립트와 같은 회색(비활성도 같은 규칙) — 원이 빠진 뒤 혼자 흰색이라 튀었다
+                // (PM 2026-10-07). 주 동작은 크기로 구분한다
                 <PlayPauseSymbol
                   kind={!isEnded && session.isPlaying ? 'pause' : 'play'}
                   size={PLAY_ICON_SIZE}
-                  color={playerColor.textPrimary}
+                  color={isControlDisabled ? playerColor.border : playerColor.textSecondary}
                 />
               )}
             </Pressable>
@@ -2239,7 +2241,11 @@ const PLAYER_BOTTOM_CLEARANCE = 14;
  * 재생·일시정지 기호 — 원 없이 기호만(애플 뮤직·팟캐스트 재생 화면, PM 2026-10-07). 원이 빠지며 무게가 줄어 44 → 66 으로
  * 키웠다(PM 같은 날 — 삼각형 실제 높이 약 34pt, ±10초 아이콘의 1.5배쯤이라 주 동작으로 읽힌다)
  */
-const PLAY_ICON_SIZE = 66;
+/**
+ * iOS 는 SF Symbols 라 크기 값이 **글자 크기**다 — 같은 값이면 기호가 Android 둥근 SVG(24 격자 안 삼각형)보다 크게
+ * 그려져 iOS 만 줄였다(PM 2026-10-07 "애플에서 조금만 줄이자")
+ */
+const PLAY_ICON_SIZE = Platform.OS === 'ios' ? 56 : 66;
 /** ±10초 아이콘 — 숫자 "10"이 아이콘 안에 박혀 있다(SeekBackIcon·SeekForwardIcon). player.constants의 이동 값과 같아야 한다 */
 const SEEK_ICON_SIZE = 32;
 
