@@ -119,11 +119,18 @@ export default function SeekBar({
     onImage && styles.trackOnImage,
     { height: trackHeight, borderRadius: trackRadius },
   ];
+  // 채움은 모서리를 따로 두지 않는다 — 바(부모)가 잘라 바깥 끝만 둥글고, 채움의 앞 끝은 직각이다
   const fillStyle = [
     styles.fill,
-    { borderRadius: trackRadius },
     disabled && (onImage ? styles.fillDisabledOnImage : styles.fillDisabled),
   ];
+  /** 조각의 모서리 — 바 전체의 양 끝만 둥글고 구간끼리 맞닿는 쪽은 직각이다(PM 2026-10-07) */
+  const segmentCorners = (index: number, count: number) => ({
+    borderTopLeftRadius: index === 0 ? trackRadius : 0,
+    borderBottomLeftRadius: index === 0 ? trackRadius : 0,
+    borderTopRightRadius: index === count - 1 ? trackRadius : 0,
+    borderBottomRightRadius: index === count - 1 ? trackRadius : 0,
+  });
 
   return (
     <View>
@@ -164,7 +171,14 @@ export default function SeekBar({
             // 구간마다 조각 하나 — 조각 사이 틈이 구간 경계다(애플 팟캐스트). 지난 조각은 꽉, 지금 조각은 비율만큼 찬다
             <View style={styles.chapterRow}>
               {segments.map((segment, index) => (
-                <Animated.View key={index} style={[trackStyle, { flex: segment.share }]}>
+                <Animated.View
+                  key={index}
+                  style={[
+                    trackStyle,
+                    segmentCorners(index, segments.length),
+                    { flex: segment.share },
+                  ]}
+                >
                   <Animated.View style={[fillStyle, { width: `${segment.fill * 100}%` }]} />
                 </Animated.View>
               ))}
