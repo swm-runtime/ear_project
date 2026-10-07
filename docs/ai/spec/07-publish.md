@@ -41,14 +41,20 @@ TTS 다음에 돌며 정사각형 1024×1024 PNG 한 장을 만든다. 종전에
 |---|---|
 | 모델 | `gpt-image-2` (확정 2026-09-10 — mini 와 비교 후. **화풍 일관성**이 기준이라 3배 비싼 쪽을 골랐다) |
 | 규격 | 1:1 · 1024×1024 · PNG · **full-bleed**(둥근 모서리는 앱이 표시할 때 깎는다) |
-| 프롬프트 | `prompt_assets` `skills/thumbnail/prompt.md` — 슬롯 4개(제목·중분류·한 줄 요약·띠 색)를 워커가 채운다 |
-| 스타일 앵커 | `settings.thumbnail.anchor`(콘솔 썸네일 탭에서 지정) → 없으면 env `THUMBNAIL_ANCHOR_KEY`. 참조 지시는 자산 `skills/thumbnail/anchor.md` |
-| 산출물 | `episodes/{id}/thumbnail.png` → `episodes.thumbnail_key` |
+| 프롬프트 | `prompt_assets` `skills/thumbnail/prompt.md` — **thumb-v4 부터(2026-10-07, KAN-138) 칸 5개**(제목·분야·띠 색·장면·빛). v3 이하는 칸 4개(제목·중분류·한 줄 요약·띠 색) — 워커는 활성 판에 `{장면}` 칸이 있는지로 경로를 고른다 |
+| 장면 (v4) | 자산 `skills/thumbnail/scene.md` 규칙으로 텍스트 모델(`THUMBNAIL_SCENE_MODEL`, 기본 gpt-5.6-terra · OpenAI 실행기)이 대본·제목·분야·[최근 장면]을 읽고 장면 한 문장과 시간·빛을 쓴다. [최근 장면] = 최근 썸네일 10편의 `thumbnail-scene.json` |
+| 화풍 (v4) | **무광 점토 3D** (확정 2026-10-07 — 플랫·구아슈·시네마틱·아이소메트릭·정물·컨셉·고흐풍 시안과 비교, `pipeline/.work/thumb-test/`) |
+| 코너 삼각형 (v4) | **모델이 그리지 않는다** — 코드가 얹는다(`thumbnail-compose.ts`): 오른쪽 위 직각삼각형, 두 변 = 한 변의 30%, 대분류 색, 흰 경계선 없음, 빗변 바깥 검은 그림자 S2(28px@1024, 20% → 0 제곱 감쇠). 원본 대비 ΔE(빗변 바깥 40px 띠 중앙값)를 기록하고 20 미만이면 결과에 [다시 만들기] 권장 경고 |
+| 스타일 앵커 (v3 이하) | `settings.thumbnail.anchor`(콘솔 썸네일 탭에서 지정) → 없으면 env `THUMBNAIL_ANCHOR_KEY`. 참조 지시는 자산 `skills/thumbnail/anchor.md`. **v4 는 쓰지 않는다** — 소재까지 베껴 목록이 한 톤이 됐다 |
+| 산출물 | `episodes/{id}/thumbnail.png` → `episodes.thumbnail_key`. v4 는 `thumbnail-raw.png`(삼각형 얹기 전 — 코너 마감을 바꾸면 다시 그리지 않고 합성만) · `thumbnail-scene.json`(장면·ΔE) 도 남긴다 |
 | 계측 | `runs` phase `thumbnail` — 모델·비용·소요 시간 |
 
 - **자동 재시도를 하지 않는다.** 실패는 작업 실패로 올려 화면에 사유를 보인다 — 조용히 반복하면 비용만 늘고 사람은 모른다.
 - **이미지 API 에는 seed 가 없다.** 같은 프롬프트도 매번 화풍이 달라지므로 앵커 이미지 참조가 화풍을 묶는 유일한 수단이다.
-- 한 줄 요약(`episodes.one_liner`)이 프롬프트의 `{핵심 개념}`이다. 없으면 설계 축, 그것도 없으면 후보 요약으로 대체한다.
+- (v3 이하) 한 줄 요약(`episodes.one_liner`)이 프롬프트의 `{핵심 개념}`이다. 없으면 설계 축, 그것도 없으면 후보 요약으로 대체한다.
+- **v4 로 바꾼 이유** (2026-10-07, KAN-138): 오브젝트 하나를 은유로 그리게 하자 추상어가 표준 아이콘으로 모여, 발행 40편에서 토글 3·깔때기 2·옆얼굴 5처럼 소재가 겹쳤다. 장면은 장소·사물·행동의 조합이라 편수가 늘어도 덜 겹치고, 분야가 그림에서 보인다.
+- **v4 로의 전환·되돌리기는 자산만으로 한다** — 코드는 활성 `prompt.md` 에 `{장면}` 칸이 있을 때만 장면 경로를 탄다. 올릴 때는 썸네일 자산만 골라 `npm run assets:import -- --force --only skills/thumbnail/prompt.md`(전체 `--force` 는 DB 에서 고친 다른 자산을 git 사본으로 되돌린다), 장면 규칙은 `--only skills/thumbnail/scene.md`(처음이면 `--force` 없이). 되돌릴 때는 콘솔 `/assets` 에서 thumb-v3 을 다시 활성화한다.
+- 이미 발행된 편의 교체는 썸네일만 재발행해도 `content_version` 이 오르고 청취자 재생 위치가 지워지므로(`admin-api.md` 4.10) 따로 정한다 — KAN-138 처리 기록.
 
 ## 2. 패키지 (AI)
 
