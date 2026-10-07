@@ -28,6 +28,14 @@ export interface SentryIssueNotice {
   release: string | null;
   /** Sentry 이슈 주소 — `sentry.io` 도메인일 때만 링크로 싣는다 */
   url: string | null;
+  /** 어디서 — `culprit`(예: `PlayerScreen in render`), 없으면 스택 맨 위 in-app 프레임 */
+  location: string | null;
+  /** 기기·OS·앱 버전 — `contexts.os/device/app` 와 태그에서. 앱 크래시를 재현할 최소 정보 */
+  device: string | null;
+  /** 울린 알림 규칙 이름(Integration Platform `triggered_rule` / 레거시 `triggering_rules[0]`) */
+  rule: string | null;
+  /** 스택 맨 위 in-app 프레임 최대 3줄(`file:line in fn`) — Sentry 알림이 보여 주던 것. 없으면 빈 배열 */
+  frames: string[];
 }
 
 const TITLE_MAX_LENGTH = 200;
@@ -65,6 +73,65 @@ function projectSlugFromUrl(url: string | null): string | null {
   return match ? match[1] : null;
 }
 
+const MAX_FRAMES = 3;
+const FRAME_MAX_LENGTH = 120;
+
+/**
+ * 스택에서 in-app 프레임을 **위(최근)에서부터** 최대 3개 — Sentry 는 프레임을 오래된 것부터 담으므로 뒤집는다.
+ * in-app 이 하나도 없으면 전체에서 고른다(네이티브 크래시는 in_app 표시가 없을 수 있다). 경로는 긴 절대 경로가
+ * 섞이므로 마지막 두 조각만 남긴다. 사용자 입력은 섞이지 않는 필드지만 그래도 escape 는 호출부가 한다.
+ */
+function topFrames(event: Record<string, unknown> | null): string[] {
+  const values = asRecord(event?.exception)?.values;
+  const first = Array.isArray(values) ? asRecord(values[0]) : null;
+  const rawFrames = asRecord(first?.stacktrace)?.frames;
+  if (!Array.isArray(rawFrames)) return [];
+
+  const frames = rawFrames.map(asRecord).filter((f) => f !== null);
+  const inApp = frames.filter((f) => f.in_app === true);
+  const picked = (inApp.length > 0 ? inApp : frames)
+    .slice(-MAX_FRAMES)
+    .reverse();
+
+  return picked.map((f) => {
+    const file =
+      asString(f.filename) ?? asString(f.abs_path) ?? asString(f.module) ?? '?';
+    const shortFile = file.split('/').slice(-2).join('/');
+    const line = typeof f.lineno === 'number' ? `:${f.lineno}` : '';
+    const fn = asString(f.function);
+    const text = `${shortFile}${line}${fn ? ` in ${fn}` : ''}`;
+    return [...text].length > FRAME_MAX_LENGTH
+      ? `${[...text].slice(0, FRAME_MAX_LENGTH).join('')}…`
+      : text;
+  });
+}
+
+/** `contexts.os`·`contexts.device`·`contexts.app` + 태그에서 "iOS 18.6 · iPhone15,2 · 앱 1.1.0" 같은 한 줄 */
+function deviceSummary(event: Record<string, unknown> | null): string | null {
+  const contexts = asRecord(event?.contexts);
+  const os = asRecord(contexts?.os);
+  const device = asRecord(contexts?.device);
+  const app = asRecord(contexts?.app);
+
+  const osText =
+    [asString(os?.name) ?? tagValue(event, 'os.name'), asString(os?.version)]
+      .filter((v): v is string => v !== null)
+      .join(' ') || null;
+  const deviceText =
+    asString(device?.model) ??
+    asString(device?.family) ??
+    tagValue(event, 'device.family');
+  const appVersion =
+    asString(app?.app_version) ?? tagValue(event, 'app.version');
+  const parts = [
+    osText,
+    deviceText,
+    appVersion ? `앱 ${appVersion}` : null,
+  ].filter((v): v is string => v !== null);
+
+  return parts.length > 0 ? parts.join(' · ') : null;
+}
+
 /** 본문에서 알림에 필요한 것만 꺼낸다. 제목이 될 값이 하나도 없으면 `null` */
 export function parseSentryWebhook(body: unknown): SentryIssueNotice | null {
   const root = asRecord(body);
@@ -84,6 +151,8 @@ export function parseSentryWebhook(body: unknown): SentryIssueNotice | null {
 
   const issueUrl =
     asString(event?.web_url) ?? asString(root.url) ?? asString(event?.url);
+  const frames = topFrames(event);
+  const triggeringRules = root.triggering_rules;
 
   return {
     project:
@@ -101,6 +170,17 @@ export function parseSentryWebhook(body: unknown): SentryIssueNotice | null {
     environment: asString(event?.environment) ?? tagValue(event, 'environment'),
     release: asString(event?.release) ?? tagValue(event, 'release'),
     url: issueUrl && SENTRY_URL_PATTERN.test(issueUrl) ? issueUrl : null,
+    location:
+      asString(event?.culprit) ??
+      asString(root.culprit) ??
+      asString(event?.location) ??
+      frames[0] ??
+      null,
+    device: deviceSummary(event),
+    rule:
+      asString(data?.triggered_rule) ??
+      (Array.isArray(triggeringRules) ? asString(triggeringRules[0]) : null),
+    frames,
   };
 }
 
@@ -119,19 +199,33 @@ const LEVEL_EMOJI: Readonly<Record<string, string>> = {
 };
 
 /**
- * 한 줄 + 링크 한 줄. 제목·프로젝트·환경·릴리스는 **Sentry 가 보낸 글**이라 `escapeSlackText` 를 거친다 —
- * 예외 메시지에는 사용자가 입력한 문자열이 섞일 수 있다(`<!channel>` 같은 것).
+ * 머리 한 줄(프로젝트·레벨·env·release) + 제목 + 위치·기기·규칙 + 스택 3줄 + 링크 — Sentry 자체 Slack 알림이
+ * 보여 주던 만큼(2026-10-07 운영 실측 뒤 보강). 모든 문자열은 **Sentry 가 보낸 글**이라 `escapeSlackText` 를
+ * 거친다 — 예외 메시지에는 사용자가 입력한 문자열이 섞일 수 있다(`<!channel>` 같은 것). 사용자 식별값은
+ * 애초에 꺼내지 않았다(`parseSentryWebhook`).
  */
 export function formatSentryIssueText(notice: SentryIssueNotice): string {
   const emoji = LEVEL_EMOJI[notice.level] ?? ':information_source:';
-  const parts = [
+  const head = [
     `${emoji} Sentry 이슈 · *${escapeSlackText(notice.project)}* · ${escapeSlackText(notice.level)}`,
-    escapeSlackText(truncateTitle(notice.title)),
   ];
   if (notice.environment)
-    parts.push(`env ${escapeSlackText(notice.environment)}`);
-  if (notice.release) parts.push(`release ${escapeSlackText(notice.release)}`);
+    head.push(`env ${escapeSlackText(notice.environment)}`);
+  if (notice.release) head.push(`release ${escapeSlackText(notice.release)}`);
 
-  const line = parts.join(' · ');
-  return notice.url ? `${line}\n<${notice.url}|Sentry에서 열기>` : line;
+  const lines = [
+    head.join(' · '),
+    `*${escapeSlackText(truncateTitle(notice.title))}*`,
+  ];
+  if (notice.location) lines.push(`위치: ${escapeSlackText(notice.location)}`);
+  if (notice.device) lines.push(`기기: ${escapeSlackText(notice.device)}`);
+  if (notice.rule) lines.push(`규칙: ${escapeSlackText(notice.rule)}`);
+  if (notice.frames.length > 0) {
+    lines.push(
+      '```' + notice.frames.map((f) => escapeSlackText(f)).join('\n') + '```',
+    );
+  }
+  if (notice.url) lines.push(`<${notice.url}|Sentry에서 열기>`);
+
+  return lines.join('\n');
 }
