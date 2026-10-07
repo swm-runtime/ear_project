@@ -63,7 +63,7 @@
         "EXPO_PUBLIC_SETTINGS_API": "real",
         "EXPO_PUBLIC_INTEREST_API": "real",
         "EXPO_PUBLIC_NOTIFICATION_API": "real",
-        "EXPO_PUBLIC_SUBSCRIPTION_UI": "on"
+        "EXPO_PUBLIC_SUBSCRIPTION_UI": "off"
       },
       "distribution": "store",
       "android": {
