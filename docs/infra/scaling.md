@@ -251,7 +251,7 @@ DB 선점이나 멱등한 문장으로 이미 보호돼 있어 **데이터가 �
 
 **걱정할 상황은 아니다.** `free` 의 "used"(= CloudWatch `mem_used_percent`) 가 아니라 **MemAvailable 738MB(40%)** 가 실제 여유이고, 메모리 압박(PSI full)은 23일 누적 62초로 없다. 다만 **운영에는 스왑이 없어서** 여유가 바닥나면 완충 없이 OOM killer 로 간다 — 클러스터 워커를 더 띄우거나(워커당 약 125MB) 트래픽이 크게 늘 때 이 숫자를 본다.
 
-**되돌리는 방법은 dockerd 재시작뿐이다** — 약 300MB 가 돌아와 개발계 수준(≈110MB)이 된다. `docker builder prune` 은 디스크만 지우고 이 메모리 LRU 는 비우지 않는다. 재시작의 대가: `LiveRestoreEnabled=false` 라 **api·caddy·postgres 세 컨테이너가 모두 내려갔다 올라온다**(수십 초, postgres 재기동). 트래픽 낮은 시간에, 04시 서비스 날짜 경계는 피해서, 재시작 뒤 `docker ps` 3개 healthy 를 확인한다.
+**되돌리는 방법은 dockerd 재시작뿐이다** — 약 300MB 가 돌아와 개발계 수준(≈110MB)이 된다. `docker builder prune` 은 디스크만 지우고 이 메모리 LRU 는 비우지 않는다. 재시작의 대가: `LiveRestoreEnabled=false` 라 **api·caddy·postgres 세 컨테이너가 모두 내려갔다 올라온다**(수십 초, postgres 재기동). 트래픽 낮은 시간에, 05시 서비스 날짜 경계(개정 2026-10-07 — 2026-10-12 05:00 KST 적용, KAN-149 — 그 전은 04시)는 피해서, 재시작 뒤 `docker ps` 3개 healthy 를 확인한다.
 
 **실행 완료 — 2026-09-23 16:45 KST**(팀원 상황 확인 뒤). 실측:
 

@@ -8,15 +8,15 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * 부여(user)·한도 판정(playback)·플랜 카드(subscription)가 같은 값을 읽는데, 세 모듈은 서로를 의존할 수
  * 없어(architecture.md 4.3) 규칙을 공용 유틸로 뺐다 — 각자 `now < ends_at`을 적으면 경계가 갈라진다.
  *
- * **체험은 서비스 날짜 단위다.** 재생 한도가 서비스 날짜(04:00 KST 경계)로 세어지므로, 체험이 한낮에 끝나면
- * 아침에 무제한으로 듣던 사용자가 오후에 "오늘 한도 초과"로 막힌다. 그래서 종료 시각을 04:00 경계에 맞춘다.
+ * **체험은 서비스 날짜 단위다.** 재생 한도가 서비스 날짜(05:00 KST 경계 — 2026-10-12 전환, 그 전은 04:00: `service-date.util.ts`)로 세어지므로, 체험이 한낮에 끝나면
+ * 아침에 무제한으로 듣던 사용자가 오후에 "오늘 한도 초과"로 막힌다. 그래서 종료 시각을 05:00 경계에 맞춘다.
  */
 
 /**
  * 가입 시각 → 체험 종료 시각(**배타 경계**).
  *
- * 가입한 서비스 날짜를 1일째로 세어 `days`일째의 서비스 날짜가 끝나는 04:00 KST다.
- * 10월 3일 15:00 가입·7일이면 10월 3일~9일이 체험이고 10월 10일 04:00에 끝난다.
+ * 가입한 서비스 날짜를 1일째로 세어 `days`일째의 서비스 날짜가 끝나는 05:00 KST다.
+ * 10월 3일 15:00 가입·7일이면 10월 3일~9일이 체험이고 10월 10일 05:00에 끝난다.
  */
 export function resolveSignupTrialEndsAt(signedUpAt: Date, days: number): Date {
   const { start } = toServiceDayRange(signedUpAt);
@@ -44,8 +44,8 @@ export function isSignupTrialActive(
 /**
  * 체험으로 들을 수 있는 **마지막 서비스 날짜**(`YYYY-MM-DD`) — 안내 문구의 "N월 N일까지"가 이 값이다.
  *
- * 종료 시각은 그다음 날 04:00이라, 종료 시각을 그대로 날짜로 바꾸면 하루 뒤가 찍힌다. 클라이언트가
- * 04시 보정을 하지 않도록 서버가 라벨로 내려준다(CLAUDE.md 공통 원칙 — 서비스 날짜 판정은 서버).
+ * 종료 시각은 그다음 날 05:00이라, 종료 시각을 그대로 날짜로 바꾸면 하루 뒤가 찍힌다. 클라이언트가
+ * 05시 보정을 하지 않도록 서버가 라벨로 내려준다(CLAUDE.md 공통 원칙 — 서비스 날짜 판정은 서버).
  */
 export function toSignupTrialLastFreeDate(trialEndsAt: Date): string {
   return toServiceDate(new Date(trialEndsAt.getTime() - 1));

@@ -171,7 +171,7 @@ export class ProfileOrchestrator {
       summary: {
         completedContentCount,
         totalListenedSec,
-        // 04시 경계 판정이라 서버가 계산한 서비스 날짜를 기준으로 센다(`profile.md` 4.5)
+        // 05시 경계 판정이라 서버가 계산한 서비스 날짜를 기준으로 센다(`profile.md` 4.5)
         streakDays: calculateStreakDays(playDates, toServiceDate(now)),
       },
       weekly,

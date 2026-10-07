@@ -385,7 +385,7 @@
 
 | 필드 | 설명 |
 |---|---|
-| `computed_at` · `service_date` | 계산 시각(ISO), 서비스 날짜(04시 경계) |
+| `computed_at` · `service_date` | 계산 시각(ISO), 서비스 날짜(05시 경계 — 개정 2026-10-07 — 2026-10-12 05:00 KST 적용, KAN-149) |
 | `user` | `id` `email` `nickname` `tier` `job_category` `years_of_experience` `onboarding_completed` |
 | `skip_reason` | `no_interests` \| `already_placed` \| `unfinished_inventory` \| `plan_disabled` \| null — 배치라면 스킵될 사유. 미리보기는 사유를 적은 채 끝까지 계산한다. **`already_placed`**(추가 2026-09-26 — `drip-scheduling.md` 4.6-5)는 오늘 서비스 날짜에 이미 편성분(`library_items.source in drip,discovery`)이 있다는 뜻이다. **삭제분도 센다** — 오늘 받았다가 지운 사용자도 이 사유가 난다(아래 `today_placed[]`도 삭제분을 포함한다). 사유가 여럿 겹치면 배치가 판정하는 순서(이 표기 순서)에서 먼저 난 것 하나만 싣는다 |
 | `unfinished_count` · `unfinished_limit` | 미청취 재고와 스킵 기준(5) |
@@ -536,7 +536,7 @@
 - `clicked`는 **반응한 검색** — 타이핑 묶음의 시작부터 마지막 질의 뒤 10분까지 결과 중 하나를 재생·담은 것(서버가 역산, `domain.md` 5.7). **무반응 비율은 내리지 않는다** — 반응이 없는 이유(재생 한도에 막힘 / 보고 나감)를 알 수 없어 비율로 읽으면 오판한다. 질의별 `clicked`로 "눌린 적 있나"만 본다.
 - `result_count`·`has_more`는 **그 질의의 가장 최근 검색**이 돌려준 콘텐츠 수와 다음 페이지 유무다(추가 2026-10-02). **첫 페이지 건수라 페이지 크기(20)에서 멈춘다** — 총 건수는 검색마다 COUNT 쿼리가 하나 더 붙어 세지 않는다(`domain.md` 5.7). `has_more`가 true면 화면은 "20건 이상"으로 읽는다. 여러 번 검색된 질의도 평균을 내지 않는다 — 콘텐츠가 늘면 값이 달라지고, 보려는 것은 "지금 치면 몇 건 나오는가"다.
 - `short_queries`는 2자 질의 수(트라이그램 인덱스를 못 타는 길이 — `explore.md` 4.5-5), `filtered_searches`는 주제 필터가 걸린 검색 수.
-- `daily.date`는 **KST 달력일**이다(04시 서비스 날짜 경계를 쓰지 않는다 — 정책 판정이 아니라 운영자가 읽는 단위). 검색이 없던 날은 빠진다.
+- `daily.date`는 **KST 달력일**이다(05시 서비스 날짜 경계를 쓰지 않는다 — 정책 판정이 아니라 운영자가 읽는 단위). 검색이 없던 날은 빠진다.
 - `missed`는 0건이 한 번이라도 있던 질의를 0건 수 내림차순으로, `top`은 검색 수 내림차순으로 각 최대 50개. `last_searched_at`은 그 질의의 마지막 요청 시각(`updated_at`).
 - 인증은 다른 `/admin/*`와 같다(2장). 400 `VALIDATION_FAILED` — `days` 범위 밖.
 

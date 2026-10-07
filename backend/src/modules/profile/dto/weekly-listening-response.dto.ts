@@ -32,7 +32,7 @@ export class TopicDistributionDto {
  * 그래프 렌더가 두 벌이 된다.
  */
 export class WeeklyListeningResponseDto {
-  /** 그 주 월요일 라벨. 주 경계는 **월요일 04:00**(`domain.md` 1.2) */
+  /** 그 주 월요일 라벨. 주 경계는 **월요일 05:00**(`domain.md` 1.2) */
   readonly week_start: string;
   /** 월~일 **7개 고정 배열**(초). 기록 없는 요일도 0으로 자리를 지킨다 */
   readonly daily_listened_sec: number[];

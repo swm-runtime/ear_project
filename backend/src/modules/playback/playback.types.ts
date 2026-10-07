@@ -39,7 +39,7 @@ export interface DailyPlayQuota {
    * 무제한 티어에 0을 내려주면 화면이 카운터를 그릴 근거가 생긴다(library-api.md 2장).
    */
   dailyPlayCount: number | null;
-  /** 04시 경계로 계산한 오늘의 서비스 날짜 (`YYYY-MM-DD`) */
+  /** 05시 경계로 계산한 오늘의 서비스 날짜 (`YYYY-MM-DD`) */
   serviceDate: string;
 }
 
@@ -209,6 +209,6 @@ export interface ContentListenedSecView {
 
 /** 콘텐츠 × 서비스 날짜별 청취 시간 — 주간 카드의 주·요일별 주제 분포 원천(`profile.md` 4.7) */
 export interface ContentDailyListenedSecView extends ContentListenedSecView {
-  /** `YYYY-MM-DD` 서비스 날짜(04시 경계, domain.md 1.2) */
+  /** `YYYY-MM-DD` 서비스 날짜(05시 경계, domain.md 1.2) */
   playDate: string;
 }

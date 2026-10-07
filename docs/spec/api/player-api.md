@@ -192,7 +192,7 @@
 - **재청취도 이 호출을 거친다.** 완료 상태의 ▶(위치 0 재생)든 창 안의 이어듣기든 같은 경로다. 재청취 창(15일) 안이면 서버가 차감 없이 허용하고, 그 재생의 `play_records` 행은 `is_counted = false`로 적재된다(`domain.md` 6.3 — `listened_sec` 적산을 위해 행은 필요하다). 창 밖이면 새 차감이며 판정은 전부 서버 몫이다(`paywall.md` 4.3-1).
 - **응답 사용**: `progress`로 시작 위치를 확정하고, `daily_play_limit` / `daily_play_count` / `service_date`로 잔여 표시를 갱신한다(신선도 규칙은 `paywall.md` 5장).
 - **완료 상태에서 ▶로 시작한 재생이면 `replay` 신호(4.4)를 함께 보낸다.**
-- **04시 경계를 넘겨 듣는 중에는 추가 호출이 없다.** 이미 시작된 재생은 중단하지 않으며(`paywall.md` 7), `listened_sec`은 재생 시작 시점의 서비스 날짜 행에 계속 누적된다(4.3).
+- **05시 경계(개정 2026-10-07 — 2026-10-12 05:00 KST 적용, KAN-149)를 넘겨 듣는 중에는 추가 호출이 없다.** 이미 시작된 재생은 중단하지 않으며(`paywall.md` 7), `listened_sec`은 재생 시작 시점의 서비스 날짜 행에 계속 누적된다(4.3).
 - 오프라인 큐에서는 소비 신호로 취급되어 **발생 시각 순서대로** 전송된다(`common-error-handling.md` 4.5). 같은 세션의 위치 저장보다 먼저 도착해야 `listened_sec` 적산 대상 행이 존재한다(4.3 서버 처리 5).
 
 ---
@@ -249,7 +249,7 @@
 2. **`content_version`이 현재와 다르면 저장하지 않고** 현재 상태를 200으로 반환한다. 재발행 전 버전에서 계산된 위치가 새 오디오에 씌워지는 것을 막는다 — 특히 길이가 짧아진 재발행에서 낡은 `max_reached_sec`이 90%를 넘겨 **가짜 완청**을 만드는 것을 막는 안전장치다
 3. 값 보정 — `position_sec` · `max_reached_sec`이 `duration_sec`을 초과하면 `duration_sec`으로 보정해 저장한다(경계·배속 타이밍 오차는 정상이다). 음수·필드 누락은 `VALIDATION_FAILED`(400)
 4. `playback_progresses` upsert — user × content 당 1행(`domain.md` 6.2). 여러 기기 충돌은 **행 단위 last-write-wins**이며 서버가 `max_reached_sec`을 단조 증가로 보정하지 않는다(`domain.md` 6.2 — 충돌 규칙은 스키마 소유자가 정했다)
-5. `listened_sec` 적산 — 그 (user, content)의 **가장 최근 `play_records` 행**에 `listened_sec_delta`를 더한다. 재생 시작(4.2)마다 그 서비스 날짜의 행이 upsert되므로, 최근 행이 곧 **재생 시작 시점의 서비스 날짜** 행이다(`player.md` 4.4-1 — 04시 경계를 넘겨도 시작일 행에 누적). 행이 없으면(비정상 순서) 위치만 저장하고 delta는 반영하지 않는다
+5. `listened_sec` 적산 — 그 (user, content)의 **가장 최근 `play_records` 행**에 `listened_sec_delta`를 더한다. 재생 시작(4.2)마다 그 서비스 날짜의 행이 upsert되므로, 최근 행이 곧 **재생 시작 시점의 서비스 날짜** 행이다(`player.md` 4.4-1 — 05시 경계를 넘겨도 시작일 행에 누적). 행이 없으면(비정상 순서) 위치만 저장하고 delta는 반영하지 않는다
 6. **완청 판정** — 보정 후 `max_reached_sec`이 `duration_sec`의 90% 이상에 **처음** 도달했고 `library_items` 행이 `completed`가 아니면, 같은 트랜잭션에서 `status = 'completed'` + `completed_at` 기록 + `user_signals(action = 'complete')` 적재(`player.md` 4.4). **완청 전이는 조건부 UPDATE(`status <> 'completed'`인 행만)라, 같은 구간의 저장이 동시에 두 번 와도 전이와 완청 신호는 한 번뿐이다**(확인 2026-09-26 — 종전에는 읽고 나서 쓰는 사이에 신호가 두 번 쌓일 수 있었다). 기준값 90%는 `player.md` · `library.md`가 소유하며 여기서 바꾸지 않는다
 
 - **이미 `completed`면 전이도 신호 적재도 반복하지 않는다.** `completed_at`은 최초 값을 유지하고(`library.md` 7), 완료 후 되감아 들어도 상태는 내려가지 않는다. `replay` 후의 위치 저장도 같은 규칙이다 — `position_sec`은 갱신되지만 `status`는 `completed` 그대로다.

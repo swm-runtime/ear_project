@@ -124,7 +124,7 @@ export class ContentStatAggregationService {
   }
 }
 
-/** 그 달의 1일 라벨 — 04시 경계를 거친 서비스 날짜 기준이다(domain.md 1.2) */
+/** 그 달의 1일 라벨 — 05시 경계를 거친 서비스 날짜 기준이다(domain.md 1.2) */
 function toMonthStart(date: Date): string {
   return `${toServiceDate(date).slice(0, 7)}-01`;
 }

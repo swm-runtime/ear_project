@@ -43,7 +43,7 @@
 | 인증 헤더 | `Authorization: Bearer <access_token>` — 이 문서의 **모든 엔드포인트가 인증 필요** |
 | 요청·응답 필드 | **snake_case** |
 | 시각 | **ISO 8601 UTC 문자열** |
-| 서비스 날짜 | `YYYY-MM-DD` — 04:00 KST 경계 날짜 라벨(`domain.md` 1.2) |
+| 서비스 날짜 | `YYYY-MM-DD` — 05:00 KST 경계 날짜 라벨(`domain.md` 1.2 — 개정 2026-10-07 — 2026-10-12 05:00 KST 적용, KAN-149) |
 | 페이지네이션 | **커서 기반**. `{ items, next_cursor, has_next }` (`convention.md` 5.3) |
 | 추적 | 모든 응답에 `X-Trace-Id` |
 | 멱등키 | **없다.** 담기·해제는 경로가 대상을 특정하고 결과가 수렴한다(3장 설계 메모) |
