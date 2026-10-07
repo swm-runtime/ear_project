@@ -13,7 +13,7 @@
 | 선행 | 코드 작업은 없음. **운영 전환 시각**은 이용약관 개정(`tickets/frontend/pending/terms-amendment-service-day-0500.md` — KAN-148)에서 정해진다(상태: PM 결정 대기). 문서 반영은 `changes/pending/service-day-boundary-0500.md` |
 | 근거 문서 | PM·팀 합의(2026-10-07 — "하루가 채워지는 시각은 새벽 5시") · `domain.md` 1.2 · `paywall.md` 4.4·9.1 · `drip-scheduling.md` 2 · `backend-monitoring.md` 3-2 · 이용약관 정의 7조 |
 | 중요도 | Low — 코드는 이번 주 안(전환 전까지는 04:00 그대로 동작) |
-| 상태 | 대기 |
+| 상태 | **코드 반영 완료(2026-10-07) — 운영 전환 대기**(전환 시각은 KAN-148에서 PM 결정) |
 
 ## 배경
 
@@ -61,3 +61,33 @@ PR 을 한 달 묵히면 충돌이 난다. 권장: **전환 시각을 환경 변
 - Given 체험 종료가 전환 뒤인 계정 / When 경계 직전까지 무제한으로 들었다 / Then 05:00 이후 한도에 체험 중 편수가 잡히지 않는다
 - Given `grep -rn "04:00\|04시\|4 hours" backend/src` / When 결과를 본다 / Then 서비스 날짜 경계를 뜻하는 줄이 남아 있지 않다(백업 크론 등 무관한 것 제외)
 - Given `backend/domain.md` 1.2 / When 읽는다 / Then 경계가 05:00 KST이고 전환일·`trial_ends_at` 처리가 적혀 있다
+
+
+## 처리 기록
+
+### 2026-10-07 — 코드 반영(전환 시각은 env, 머지만으로는 04:00 그대로) — 박준현
+
+**전환 방식(3장 결정)**: 권장안대로 **env `SERVICE_DAY_BOUNDARY_05_FROM`(ISO 시각)**. 그 시각 전의 시각은 04:00 경계, 그 시각부터 05:00 경계. 비어 있으면 04:00이라 **이 PR이 머지돼도 운영 동작은 바뀌지 않는다.**
+
+- `common/utils/service-date.util.ts` — `serviceDayStartHour(at)`·`serviceDateStart(label)`·`serviceDayBoundarySwitchAt()` 신설. `toServiceDate`·`toServiceDayRange`·주/월 함수가 전부 이것을 탄다. `toServiceDayRange.end`는 `start+24h`가 아니라 다음 라벨의 시작이다(전환일 25시간). env는 호출 때 읽고 원문이 같으면 캐시한다 — 이 유틸은 ConfigModule보다 먼저 import되는 순수 모듈이라 로드 시점에 읽으면 `.env`가 아직 없다.
+- **전환 시각 검증**(`env.validation.ts`): ISO 시각이어야 하고(날짜만은 거부 — UTC 자정으로 조용히 해석된다), **KST 04:00~04:59는 거부**. 그 구간에서는 옛 규칙이 "오늘", 새 규칙이 "어제"라 날짜가 거꾸로 간다. 05:00 정각이면 전환일 하루가 04:00~다음 날 05:00의 25시간이 되고 겹침·빈틈이 없다(티켓의 "D-1이 한 시간 길어진다"는 정확히는 **D가 길어진다** — 전환 전 시각은 옛 규칙이라 D 04:00에 D가 시작한다).
+- `content-stat-aggregation.repository.ts` — SQL의 `INTERVAL '4 hours'` 역함수를 **없앴다**. 경계 환산은 애플리케이션(`serviceDateStart`)이 하고 `$5`·`$6` timestamptz 파라미터로 넘긴다. SQL에서는 전환 전후를 가를 수 없어서다. 인덱스 범위 조회는 그대로.
+- `daily-metrics-db.service.ts` — 라벨 → 시각 변환을 `T04:00`에서 **`T12:00`(정오)**로. 04시·05시 어느 경계에서도 그날 안이라 경계 상수를 또 적지 않는다.
+- **통계 집계 스케줄러** — 등록 둘: `content-stat-aggregation` 04:00(경계 04:00일 때만 실행) · `content-stat-aggregation-0530` 05:30(경계 05:00일 때만). 그 시각의 경계를 보고 한쪽만 돌아 **전환일 배포 없이 env만으로 넘어간다.** 05:30인 이유 — 05:00 정각은 전날 마지막 재생이 아직 안 들어와 있을 수 있고 드립 편성과 DB 부하가 겹친다.
+- `signup-trial.util.ts`는 유틸을 타므로 코드 변경 없음(전환 뒤 가입자는 05:00 종료 — 테스트 추가).
+- 기동 로그에 `service-day=04:00` 또는 `05:00@<ISO>`가 찍힌다(`startup-summary.ts`). `.env.example`·`deploy/push.sh` 키 목록·`domain.md` 1.2·`backend-monitoring.md` 3-2·`runbook.md` 4장(전환 절차) 반영.
+- 테스트: 유틸 7건(비어 있음·전환 전후·전환일 25시간·주/월 경계·파싱 실패) · env 검증 1건(거부/허용 값) · 체험 1건 · 기동 요약 2건.
+
+**하지 않은 것(전환일에 한다)**
+- `trial_ends_at` +1시간 이동 — 마이그레이션이 아니라 **전환일 04:00~05:00 사이의 일회성 SQL**(runbook 4장). TypeORM 마이그레이션은 배포 시점에 돌아 전환일보다 먼저 실행되고, 전환 시각 뒤에 끝나는 행만 옮겨야 하기 때문. 저장값 불변 원칙의 예외로 `domain.md` 1.2에 적었다.
+- 문서의 "04시 → 05시" 일괄 교체 — `changes/pending/service-day-boundary-0500.md`대로 전환과 같은 날.
+
+**확인한 것**
+- 만료 04:10·주제 숨김 04:15·보존 삭제 04:30·구독 보정 04:45는 서비스 날짜를 계산하지 않는다(코드 grep) — 유지.
+- 운영 크론 `sync-content-export.sh`(04:10)는 콘텐츠 복제라 통계와 무관 — 유지.
+- `already_placed` 예외 창(경계~배치)은 전환 뒤 없어진다. 05:00 직후 온보딩한 사용자는 배치 대상에 없었으므로(배치는 기존 사용자) 하루 편수가 두 배가 되는 경로는 없다 — 확인만, 코드 변경 없음.
+
+**남은 일**
+- [ ] KAN-148에서 전환 시각 확정 → runbook 4장 ①~④ 실행(env 투입 → 전환일 04~05시 trial SQL → 다음 날 로그 확인 → 문서 교체)
+- [ ] 앱 문구(KAN-150) OTA를 같은 시각에
+- [ ] 전환 뒤 첫 월요일 주간 집계·첫 1일 월간 집계가 05:30 집계로 정상 확정됐는지 확인 → 그 뒤 `archive/`

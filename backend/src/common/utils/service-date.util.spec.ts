@@ -1,4 +1,6 @@
 import {
+  serviceDateStart,
+  serviceDayStartHour,
   toPreviousFinalMonthStart,
   toPreviousFinalWeekStart,
   toServiceDate,
@@ -168,6 +170,114 @@ describe('serviceDateUtil', () => {
 
       // then
       expect(periodStart).toBe('2026-04-01');
+    });
+  });
+
+  describe('05:00 전환 (SERVICE_DAY_BOUNDARY_05_FROM — KAN-149)', () => {
+    const key = 'SERVICE_DAY_BOUNDARY_05_FROM';
+    const original = process.env[key];
+    // 전환 = 2026-10-14 05:00 KST = 2026-10-13 20:00 UTC
+    const switchAt = '2026-10-14T05:00:00+09:00';
+
+    afterEach(() => {
+      if (original === undefined) delete process.env[key];
+      else process.env[key] = original;
+    });
+
+    it('env 가 비어 있으면 04:00 경계 그대로다 — 머지만으로 운영이 바뀌지 않는다', () => {
+      delete process.env[key];
+
+      expect(serviceDayStartHour(new Date('2099-01-01T00:00:00.000Z'))).toBe(4);
+      // 2026-10-20 04:30 KST → 10-20
+      expect(toServiceDate(new Date('2026-10-19T19:30:00.000Z'))).toBe(
+        '2026-10-20',
+      );
+    });
+
+    it('전환 뒤 04:59 는 전날, 05:00 부터 오늘이다', () => {
+      process.env[key] = switchAt;
+
+      // 2026-10-20 04:59 KST = 10-19 19:59 UTC → 10-19
+      expect(toServiceDate(new Date('2026-10-19T19:59:00.000Z'))).toBe(
+        '2026-10-19',
+      );
+      // 2026-10-20 05:00 KST = 10-19 20:00 UTC → 10-20
+      expect(toServiceDate(new Date('2026-10-19T20:00:00.000Z'))).toBe(
+        '2026-10-20',
+      );
+      expect(serviceDayStartHour(new Date('2026-10-19T20:00:00.000Z'))).toBe(5);
+    });
+
+    it('전환 전 시각은 04:00 경계로 계산한다 — 과거 play_date·재집계가 그대로 맞는다', () => {
+      process.env[key] = switchAt;
+
+      // 2026-10-01 04:30 KST = 09-30 19:30 UTC → 10-01 (옛 규칙)
+      expect(toServiceDate(new Date('2026-09-30T19:30:00.000Z'))).toBe(
+        '2026-10-01',
+      );
+      expect(serviceDayStartHour(new Date('2026-09-30T19:30:00.000Z'))).toBe(4);
+    });
+
+    it('전환일 하루는 04:00 에 시작해 다음 날 05:00 에 끝난다 — 25시간, 겹침·빈틈 없음', () => {
+      process.env[key] = switchAt;
+
+      // 전환일 D = 2026-10-14. 04:00 KST(옛 규칙) ~ 10-15 05:00 KST(새 규칙)
+      expect(serviceDateStart('2026-10-14').toISOString()).toBe(
+        '2026-10-13T19:00:00.000Z',
+      );
+      expect(serviceDateStart('2026-10-15').toISOString()).toBe(
+        '2026-10-14T20:00:00.000Z',
+      );
+
+      const range = toServiceDayRange(new Date('2026-10-14T03:00:00.000Z')); // D 12:00 KST
+      expect(range.start.toISOString()).toBe('2026-10-13T19:00:00.000Z');
+      expect(range.end.toISOString()).toBe('2026-10-14T20:00:00.000Z');
+
+      // D 04:30 KST(전환 전 시각) → D, D+1 04:30 KST(전환 뒤) → 아직 D
+      expect(toServiceDate(new Date('2026-10-13T19:30:00.000Z'))).toBe(
+        '2026-10-14',
+      );
+      expect(toServiceDate(new Date('2026-10-14T19:30:00.000Z'))).toBe(
+        '2026-10-14',
+      );
+    });
+
+    it('전환 전 라벨의 시작은 04:00, 전환 뒤 라벨은 05:00 이다', () => {
+      process.env[key] = switchAt;
+
+      expect(serviceDateStart('2026-10-13').toISOString()).toBe(
+        '2026-10-12T19:00:00.000Z',
+      );
+      expect(serviceDateStart('2026-10-20').toISOString()).toBe(
+        '2026-10-19T20:00:00.000Z',
+      );
+    });
+
+    it('전환 뒤 주·월 경계도 05:00 을 따른다', () => {
+      process.env[key] = switchAt;
+
+      // 2026-10-19(월) 04:30 KST = 10-18 19:30 UTC → 아직 지난주(10-12 시작)이므로 직전 확정 주는 10-05
+      expect(
+        toPreviousFinalWeekStart(new Date('2026-10-18T19:30:00.000Z')),
+      ).toBe('2026-10-05');
+      // 2026-10-19(월) 05:00 KST → 이번 주 10-19, 직전 확정 주 10-12
+      expect(
+        toPreviousFinalWeekStart(new Date('2026-10-18T20:00:00.000Z')),
+      ).toBe('2026-10-12');
+      // 2026-11-01 04:30 KST → 아직 10월 → 직전 확정 월 9월
+      expect(
+        toPreviousFinalMonthStart(new Date('2026-10-31T19:30:00.000Z')),
+      ).toBe('2026-09-01');
+      // 2026-11-01 05:00 KST → 11월 → 직전 확정 월 10월
+      expect(
+        toPreviousFinalMonthStart(new Date('2026-10-31T20:00:00.000Z')),
+      ).toBe('2026-10-01');
+    });
+
+    it('파싱이 안 되는 값은 전환 없음으로 본다(기동 검증이 먼저 막는다)', () => {
+      process.env[key] = 'not-a-date';
+
+      expect(serviceDayStartHour(new Date('2099-01-01T00:00:00.000Z'))).toBe(4);
     });
   });
 });

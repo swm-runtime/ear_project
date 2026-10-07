@@ -1,7 +1,7 @@
 import { DailyMetricsDbService } from './daily-metrics-db.service';
 
 describe('DailyMetricsDbService', () => {
-  it('서비스 날짜(04시 경계) 하루 범위로 가입을 센다', async () => {
+  it('서비스 날짜(04시 경계 — 전환 전) 하루 범위로 가입을 센다', async () => {
     const query = jest.fn().mockResolvedValue([{ sign_ups: 3 }]);
     const svc = new DailyMetricsDbService({ query } as never);
 
