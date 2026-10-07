@@ -18,9 +18,10 @@ const HEADING_FONT_SIZE = 17;
 const HEADING_LINE_HEIGHT = 22;
 const DETAIL_FONT_SIZE = 13;
 const DETAIL_LINE_HEIGHT = 18;
-const DETAIL_MAX_LINES = 2;
+/** 제목 한 줄 + 요약 한 줄 = 두 줄(PM 2026-10-07 — "두 줄이 아니라 한 줄, 제목 + 요약이라 두 줄") */
+const DETAIL_MAX_LINES = 1;
 const HEADING_DETAIL_GAP = 2;
-/** 구역 이름 한 줄 + 단락 제목 두 줄 — 카드 안쪽 높이는 늘 이 값이고, 구역 이름은 늘 맨 위에 선다 */
+/** 구역 이름 한 줄 + 요약 한 줄 — 카드 안쪽 높이는 늘 이 값이다 */
 const CONTENT_HEIGHT =
   HEADING_LINE_HEIGHT + HEADING_DETAIL_GAP + DETAIL_LINE_HEIGHT * DETAIL_MAX_LINES;
 
@@ -34,8 +35,8 @@ interface PlayerCurrentSectionProps {
 
 /**
  * 시크바 바로 위 구간 카드(KAN-127 — player.md 4.6-1). 위 큰 줄은 구역 이름("개요"·"본론"·"결론"), 아래는 구간 요약
- * 두 줄(요약이 없으면 서버 제목). 서버가 구역을 안 실었으면 위 "지금 듣는 구간"(`sectionDisplayOf`).
- * **카드 안쪽 높이는 늘 큰 줄 하나 + 작은 줄 둘이고 큰 줄은 늘 맨 위다** — 구간이 바뀌어도 카드 높이·구역 이름 자리가 같아야
+ * 한 줄(요약이 없으면 서버 제목, 넘치면 말줄임). 서버가 구역을 안 실었으면 위 "지금 듣는 구간"(`sectionDisplayOf`).
+ * **카드 안쪽 높이는 늘 큰 줄 하나 + 작은 줄 하나다** — 구간이 바뀌어도 카드 높이·구역 이름 자리가 같아야
  * 시크바·재생 버튼이 움직이지 않는다(player-uiux.md 7장). 바뀌면 내용 전체를 교차 페이드(동작 줄이기면 즉시).
  * 구간이 없는 콘텐츠는 카드 자체를 그리지 않는다. 미니플레이어에는 두지 않는다(PM 2026-10-07)
  */

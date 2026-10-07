@@ -23,7 +23,7 @@
 
 1. **적재 검증**(`admin-api.md` 4.6·4.10) — `sections[]` 항목에 선택 키 둘:
    - `kind`: `intro` | `lead` | `body` | `outro`. 그 밖의 값은 거부
-   - `summary`(추가 2026-10-07 PM "무조건 두 줄로"): 비어 있지 않은 문자열 **≤ 60자**(파이프라인은 25~44자로 만든다 — 상한은 여유). 앱 카드 아래 두 줄에 그린다
+   - `summary`(추가 2026-10-07 — PM "제목 + 요약 두 줄"): 비어 있지 않은 문자열 **≤ 40자**(파이프라인은 공백 포함 20자 이내로 만든다 — 상한은 여유). 앱 카드 아래 한 줄에 그린다(넘치면 말줄임)
    - 둘 다 생략 허용(종전 파일 그대로 통과 — 이미 발행된 편·파트너 콘텐츠)
 2. **저장**(`domain.md` 5.3) — `content_scripts.sections` jsonb 항목에 `kind` 그대로. 스키마 변경 없음(jsonb), 문서의 형식 표기만 `[{ start_sec, title, kind? }]`
 3. **재생 발급 응답**(`player-api.md` 4.1) — `sections[].kind`·`summary` 그대로 내려준다. 없으면 키 생략. 앱은 이미 받을 준비가 돼 있다(PR — `feat(fe)/section-kind-label`): 모르는 값·생략은 "지금 듣는 구간" + 제목으로 그린다
@@ -32,7 +32,7 @@
 ## 완료 조건
 
 - Given `kind: "body"`·`summary`가 실린 대본 파일 / When 발행·대본 PATCH 한다 / Then 적재되고 `content_scripts.sections`에 둘 다 남는다
-- Given `summary`가 61자 / When 적재한다 / Then 대본이 거부된다
+- Given `summary`가 41자 / When 적재한다 / Then 대본이 거부된다
 - Given `kind: "chapter"`(모르는 값) / When 적재한다 / Then 대본이 거부된다(`script_rejected_reason`)
 - Given `kind`가 없는 종전 파일 / When 적재한다 / Then 종전처럼 통과한다
 - Given `kind`·`summary`가 있는 콘텐츠 / When 재생 발급 / Then 응답 `sections[].kind`·`summary`가 내려간다
