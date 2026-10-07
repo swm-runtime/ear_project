@@ -62,7 +62,9 @@ export type StoreStateIgnoreReason =
   /** 상품이 어느 요금제인지 모른다 */
   | 'unknown_product'
   /** 상태를 바꾸지 않는 알림 유형(TEST·PRICE_INCREASE 등) */
-  | 'unhandled_type';
+  | 'unhandled_type'
+  /** 같은 스토어에 살아 있는 구독이 따로 있는 사용자의, 그 행에 이어지지 않는 두 번째 구독(Play — 4.4) */
+  | 'duplicate_subscription';
 
 /** 기존 상태 + 마지막 알림 시각. 행이 없으면 `null` */
 export type StoredSubscriptionState = SubscriptionState & {

@@ -758,6 +758,86 @@ describe('Play — 만료 보정(4.2)', () => {
   });
 });
 
+describe('Play — 한 계정에 살아 있는 구독은 하나(4.4 — 2026-10-07, KAN-130)', () => {
+  it('구독 중인 계정이 교체 없이 다른 정기 결제를 사면 409로 거부하고 확인하지 않는다 — Google이 3일 뒤 자동 환불한다', async () => {
+    const { world, play, submit, slackTexts } = setup();
+
+    play.put({ purchaseToken: 'token-pro', productId: PLAY_PRODUCT_PRO });
+    await submit('token-pro');
+    play.put({ purchaseToken: 'token-daily', productId: PLAY_PRODUCT_DAILY });
+
+    await expectBusinessError(
+      submit('token-daily'),
+      ErrorCode.SUBSCRIPTION_ALREADY_SUBSCRIBED,
+      HttpStatus.CONFLICT,
+    );
+
+    expect(world.subscriptions).toHaveLength(1);
+    expect(world.subscriptions[0].tier).toBe(UserTier.PRO);
+    expect(play.acknowledged).toEqual(['token-pro']);
+    expect(slackTexts.some((text) => text.includes('두 번째 구독 거부'))).toBe(
+      true,
+    );
+  });
+
+  it('그 구매의 알림이 와도 행을 만들지 않고 확인하지 않는다 — 처리 완료로는 둔다', async () => {
+    const { world, play, submit, notify } = setup();
+
+    play.put({ purchaseToken: 'token-pro', productId: PLAY_PRODUCT_PRO });
+    await submit('token-pro');
+    world.addIntent(USER, INTENT_A);
+    play.put({
+      purchaseToken: 'token-daily',
+      productId: PLAY_PRODUCT_DAILY,
+      accountToken: INTENT_A,
+    });
+
+    await notify('msg-dup', { type: 4, purchaseToken: 'token-daily' });
+
+    expect(world.subscriptions).toHaveLength(1);
+    expect(play.acknowledged).toEqual(['token-pro']);
+    expect(world.notificationLogs.at(-1)!.processedAt).not.toBeNull();
+    expect(world.users.get(USER)!.tier).toBe(UserTier.PRO);
+  });
+
+  it('교체로 산 구매(linkedPurchaseToken)는 같은 행을 바꾼다 — 걸리지 않는다', async () => {
+    const { world, play, submit } = setup();
+
+    play.put({ purchaseToken: 'token-pro', productId: PLAY_PRODUCT_PRO });
+    await submit('token-pro');
+    play.put({
+      purchaseToken: 'token-daily',
+      productId: PLAY_PRODUCT_DAILY,
+      linkedPurchaseToken: 'token-pro',
+    });
+
+    await submit('token-daily');
+
+    expect(world.subscriptions).toHaveLength(1);
+    expect(world.subscriptions[0].tier).toBe(UserTier.DAILY);
+    expect(play.acknowledged).toEqual(['token-pro', 'token-daily']);
+  });
+
+  it('끝난 구독이 있을 때의 새 구매는 두 번째 구독이 아니다', async () => {
+    const { world, play, submit, notify } = setup();
+
+    const first = play.put({
+      purchaseToken: 'token-pro',
+      productId: PLAY_PRODUCT_PRO,
+    });
+    await submit('token-pro');
+    first.state = 'expired';
+    await notify('msg-expired', { type: 13, purchaseToken: 'token-pro' });
+    expect(world.users.get(USER)!.tier).toBe(UserTier.LIGHT);
+
+    play.put({ purchaseToken: 'token-daily', productId: PLAY_PRODUCT_DAILY });
+    await submit('token-daily');
+
+    expect(world.subscriptions).toHaveLength(2);
+    expect(world.users.get(USER)!.tier).toBe(UserTier.DAILY);
+  });
+});
+
 describe('Play — 환불로 끝난 구독은 같은 구매로 되살아나지 않는다(4.7 — 2026-10-06)', () => {
   /** 구독 중에 환불 통지를 받은 상태. Google은 그 토큰을 여전히 활성이라 답한다 */
   async function setupRefunded() {

@@ -5,7 +5,11 @@ import { Subscription } from '@/modules/subscription/entities/subscription.entit
 import { PlanService } from '@/modules/subscription/services/plan.service';
 import { SubscriptionStore } from '@/modules/subscription/subscription.enum';
 
-import { receiptInvalid, storeUnavailable } from '../billing.exception';
+import {
+  alreadySubscribed,
+  receiptInvalid,
+  storeUnavailable,
+} from '../billing.exception';
 import {
   PlaySnapshot,
   isEntitled,
@@ -66,6 +70,12 @@ export class PlayPurchaseService {
       // 결제 대기·만료·보류 — 구매 제출인데 지금 유효한 구독이 아니다
       if (!isEntitled(snapshot.status)) {
         throw this.invalid(`not_entitled:${snapshot.status}`);
+      }
+
+      // 같은 스토어에 살아 있는 구독이 따로 있는데 그 행에 이어지지 않는 구매 — 두 번째 구독이다(4.4). 거부하고
+      // 확인하지 않는다(아래 `acknowledgeIfNeeded`에 닿지 않는다) — 확인되지 않은 구매는 Google이 3일 안에 자동 환불한다
+      if (await this.isDuplicateSubscription(userId, snapshot, manager)) {
+        throw alreadySubscribed();
       }
 
       const outcome = await this.applyFor(userId, snapshot, now, manager);
@@ -180,6 +190,8 @@ export class PlayPurchaseService {
       notification.kind === 'voided' ||
       notification.type === NOTIFICATION_TYPE_REVOKED;
     let ownerId: string | null = null;
+    // 두 번째 구독은 확인하지 않는다 — 확인되지 않은 구매는 Google이 3일 안에 자동 환불한다(4.4)
+    let acknowledge = true;
 
     const outcome = await this.dataSource.transaction(
       async (manager): Promise<SyncOutcome> => {
@@ -205,6 +217,12 @@ export class PlayPurchaseService {
           return { kind: 'unlinked' };
         }
 
+        // 두 번째 구독의 알림(4.7) — 반영도 확인도 하지 않는다. 주인이 있으니 처리 완료로는 둔다(재전송돼도 같다)
+        if (await this.isDuplicateSubscription(ownerId, snapshot, manager)) {
+          acknowledge = false;
+          return { kind: 'ignored', reason: 'duplicate_subscription' };
+        }
+
         const result = await this.billingSyncService.applyStoreSnapshot(
           ownerId,
           { ...snapshot, status: snapshot.status, checkedAt: now },
@@ -219,7 +237,7 @@ export class PlayPurchaseService {
     );
 
     // 주인을 찾아 반영한 구매만 확인한다 — 주인 없는 구매를 확인하면 "결제됐는데 아무 계정에도 없음"이 굳는다
-    if (ownerId !== null) {
+    if (ownerId !== null && acknowledge) {
       await this.acknowledgeIfNeeded(purchase);
     }
 
@@ -283,6 +301,37 @@ export class PlayPurchaseService {
       manager,
       { createIfMissing: true },
     );
+  }
+
+  /**
+   * 그 사용자에게 같은 스토어의 살아 있는 구독 행이 따로 있는가(`subscription-api.md` 4.4). 교체로 산 구매는
+   * `resolvePlayOriginalId`가 기존 행의 키를 돌려주므로 여기 걸리지 않는다. 걸리면 Slack 결제 알림에 올린다
+   */
+  private async isDuplicateSubscription(
+    userId: string,
+    snapshot: PlaySnapshot,
+    manager: EntityManager,
+  ): Promise<boolean> {
+    const other = await this.billingSyncService.findOtherLiveSubscription(
+      userId,
+      SubscriptionStore.PLAY_STORE,
+      snapshot.transaction.originalTransactionId,
+      manager,
+    );
+
+    if (other === null) {
+      return false;
+    }
+
+    this.logger.warn('duplicate play subscription rejected', {
+      user_id: userId,
+      existing_subscription_id: other.id,
+    });
+    this.billingAlertService.duplicateSubscriptionRejected(
+      SubscriptionStore.PLAY_STORE,
+    );
+
+    return true;
   }
 
   /** 구매가 어느 구독 행의 것인지 정하고(토큰 사슬) 우리 의미로 환산한다 */
