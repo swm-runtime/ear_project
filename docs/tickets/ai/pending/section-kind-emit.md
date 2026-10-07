@@ -13,7 +13,7 @@
 | 선행 | `tickets/backend/pending/section-kind-field.md`(KAN-151) — 서버 검증이 지금 **모르는 키를 거부**한다. 서버가 `kind`를 받기 전에 실어 보내면 대본 적재가 거부된다. 생성·소급 준비는 먼저 해도 된다 |
 | 근거 문서 | PM 결정(2026-10-07) · `player.md` 4.6-1 · KAN-137(`tickets/ai/archive/section-summary-generation.md`) |
 | 중요도 | Low — PM 발행(2026-10-07). 중요도 미지정이라 이번 주 마감으로 잡았다 |
-| 상태 | 진행 중 — 1·1-1·4번 구현(2026-10-07), 2번 스위치 꺼 둠(KAN-151 운영 배포 대기), 3번 소급 준비 |
+| 상태 | 진행 중 — 1·1-1·2·4번 반영(2026-10-07), 3번 소급 파일 완료·발행분 일괄 반영 대기 |
 
 ## 배경
 
@@ -42,3 +42,5 @@
   - 2 전송: `apps/web/lib/section-details.ts` `SEND_SECTION_DETAILS = false` — KAN-151 이 dev 에만 있고 운영(main)에 없다(운영 서버는 모르는 키를 거부). 켜면 kind·summary 를 싣고 서버가 거부할 값만 뺀다
   - 4 문서: `ai/spec/06-audio.md` 7장 · `07-publish.md`
   - 남은 것: 3 소급(`tts:sections --apply` — 배포 뒤 자산이 활성화되면) → KAN-151 운영 배포 확인 → 스위치 켜기 → 발행분에 대본 단독 PATCH 로 일괄 전송(버전·재생 위치 그대로). 완료 조건 3·4 는 그 뒤에 확인한다
+- **2026-10-07 후속** — summary-v2(#1215: 진행 서술 "~를 살폈다·마친다" 금지 + 코드 검사, 결론 없는 마무리는 본문 핵심으로) 활성화 뒤 `tts:sections --apply` 다시: 88편 660구간 전부 요약, 진행 서술 0, $1.17. KAN-151 이 운영 v1.2.0+4 로 배포돼(19:01) **`SEND_SECTION_DETAILS` 켬**, 발행 목록에 **[구간 일괄 반영]** 추가(script_file 단독 — 버전·재생 위치 그대로, 발행 이후 오디오를 다시 만든 편은 뺀다)
+  - 남은 것: [구간 일괄 반영]으로 발행 40편 반영(관리자 로그인 — 사람이 누른다) → 운영 DB `content_scripts.sections` 의 kind·summary 와 재생 발급 응답 확인(완료 조건 3·4) → archive + Jira 완료

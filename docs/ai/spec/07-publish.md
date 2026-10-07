@@ -130,9 +130,10 @@ TTS 다음에 돌며 정사각형 1024×1024 PNG 한 장을 만든다. 종전에
   하나로 본문을 만든다. 구간 제목(spec/06 7장 `script-sections.json`)이 있으면 `{ segments, sections }` 객체로, 없으면 세그먼트 배열 그대로 보낸다
   (`SEND_SCRIPT_SECTIONS` — 서버가 객체를 받는 KAN-144 가 운영 v1.2.0 으로 배포된 2026-10-06 켬. 그 이전 서버는 객체를 통째로 거부해 자막까지 빠진다).
   구간이 자막 끝보다 늦게 시작하면(다른 렌더의 구간) 구간 없이 보낸다. 업로드 화면은 구간 수와 전송 여부를 자막 안내 줄에 보여 준다.
-  **구간의 `kind`·`summary`**(2026-10-07, KAN-152): `apps/web/lib/section-details.ts` `SEND_SECTION_DETAILS` — **꺼 둠**. 서버가 두 키를 받는 KAN-151 이
-  운영(main)에 나간 뒤 켠다(운영 서버는 모르는 키를 거부해 파일이 통째로 빠진다). 꺼져 있으면 `{ start_sec, title }`만, 켜도 서버가 거부할 값(모르는 kind·
-  빈 요약·40자 초과)은 그 키만 뺀다. 기존 발행분 소급 = `tts:sections --apply`로 파일을 다시 만든 뒤 대본 단독 PATCH(버전·재생 위치 그대로)로 보낸다.
+  **구간의 `kind`·`summary`**(2026-10-07, KAN-152): `apps/web/lib/section-details.ts` `SEND_SECTION_DETAILS` — **2026-10-07 켬**(서버가 두 키를 받는
+  KAN-151 이 운영 v1.2.0+4 로 배포된 뒤 — 그 이전 서버는 모르는 키를 거부해 파일이 통째로 빠졌다). 끄면 `{ start_sec, title }`만, 켜도 서버가 거부할 값(모르는 kind·
+  빈 요약·40자 초과)은 그 키만 뺀다. 기존 발행분 소급 = `tts:sections --apply`로 파일을 다시 만든 뒤 발행 목록의 **[구간 일괄 반영]**(`app/publish/sections-apply.tsx`)
+  — 대본 단독 PATCH 라 버전·재생 위치 그대로. 발행 이후 오디오를 다시 만든 편·발행 준비 중·에피소드 연결 없음·요약 없음은 뺀다(자막 시각이 다른 렌더면 어긋난다).
   **[자막 반영](대본 단독 PATCH)은 앱에 나가 있는 오디오와 파이프라인 자막이 같은 렌더일 때만** 쓴다 — 재합성 뒤 재발행 전이면 시각이 어긋난다.
 - **오디오 파트** (2026-10-06 음질 확정, KAN-141·142): 신규 발행·에피소드 재발행·구형 일괄 재발행이 같은 규칙으로 오디오를 싣는다(`apps/web/lib/audio-file.ts`·`publish-files.ts`).
   `audio` = `dist.m4a`(없으면 구 `dist.mp3` — 형식은 응답 Content-Type), `audio_lossless` = `lossless.flac`. **무손실은 `SEND_LOSSLESS_AUDIO`가 켜졌을 때만** 보낸다 —
