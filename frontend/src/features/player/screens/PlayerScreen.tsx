@@ -90,6 +90,12 @@ export default function PlayerScreen() {
    * (player-api.md 4.7). 받아 보니 빈 배열이면 "없음"이다 — 버튼을 숨기고 열려 있던 패널도 접힌다.
    */
   const hasScript = session?.hasScript ?? false;
+  // 재생 바를 구간별로 나눌 경계(애플 팟캐스트 챕터 바) — 구간이 바뀔 때만 새 배열이다
+  const sections = session?.sections;
+  const chapterStartsSec = useMemo(
+    () => (sections ?? []).map((section) => section.startSec),
+    [sections],
+  );
   // 대본 펼침이 끝났는가 — 문단은 그 뒤에 그린다(펼침과 문단 마운트가 같은 프레임에 겹치면 끊긴다)
   const [isScriptSettled, setIsScriptSettled] = useState(false);
   /**
@@ -1672,6 +1678,7 @@ export default function PlayerScreen() {
                 disabled={isControlDisabled}
                 onSeekTo={screen.seekTo}
                 onTrackCenter={setSeekTrackCenter}
+                chapterStartsSec={chapterStartsSec}
               />
             </Animated.View>
             <Animated.View
@@ -1684,6 +1691,7 @@ export default function PlayerScreen() {
                 disabled={isControlDisabled}
                 onSeekTo={screen.seekTo}
                 tone="onImage"
+                chapterStartsSec={chapterStartsSec}
               />
             </Animated.View>
           </View>

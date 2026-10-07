@@ -38,3 +38,33 @@ export const sectionDisplayOf = (
   heading: section.kind === null ? copy.currentSectionLabel : copy.sectionKindLabel[section.kind],
   detail: section.summary ?? section.title,
 });
+
+/** 재생 바의 한 조각 — 전체 길이 중 몫(0~1)과 그 조각이 채워진 정도(0~1) */
+export interface ChapterSegment {
+  share: number;
+  fill: number;
+}
+
+/**
+ * 구간 시작 시각으로 재생 바를 조각낸다(애플 팟캐스트 챕터 바, PM 2026-10-07). 0초와 길이 밖의 경계는 버린다 —
+ * 경계가 하나도 없으면 빈 배열이라 화면은 종전처럼 한 줄 바를 그린다
+ */
+export const chapterSegmentsOf = (
+  startsSec: readonly number[],
+  durationSec: number,
+  positionSec: number,
+): ChapterSegment[] => {
+  if (durationSec <= 0) return [];
+  const boundaries = startsSec
+    .filter((start) => start > 0 && start < durationSec)
+    .filter((start, index, all) => index === 0 || start > all[index - 1]);
+  if (boundaries.length === 0) return [];
+  const edges = [0, ...boundaries, durationSec];
+  return edges.slice(0, -1).map((start, index) => {
+    const length = edges[index + 1] - start;
+    return {
+      share: length / durationSec,
+      fill: Math.min(1, Math.max(0, (positionSec - start) / length)),
+    };
+  });
+};

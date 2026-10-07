@@ -8,6 +8,7 @@ import { Text } from '@/shared/ui/Typography';
 import { SEEK_STEP_SEC } from '../player.constants';
 import { PLAYER_COPY } from '../player.copy';
 import { formatPlaybackTime, formatPlaybackTimeA11y } from '../player.format';
+import { chapterSegmentsOf } from '../player.section';
 import { playerColor } from '../player.theme';
 
 interface SeekBarProps {
@@ -20,11 +21,15 @@ interface SeekBarProps {
   tone?: 'default' | 'onImage';
   /** 트랙 선의 세로 중심(이 컴포넌트 기준 y) — 재생 목록이 열리면 앨범 커버 하한을 여기에 맞춰 썸이 밑변에 걸친다 */
   onTrackCenter?: (center: number) => void;
+  /** 구간 시작 시각(초) — 있으면 바를 구간별 조각으로 나눈다(애플 팟캐스트 챕터 바). 경계가 없으면 한 줄 바 */
+  chapterStartsSec?: readonly number[];
 }
 
 /**
  * 시크바 + 시간 라벨(PL1). 드래그 중에는 위치 라벨만 갱신하고 손을 뗀 시점에 seek한다
  * (player-uiux.md 4.2 — 드래그마다 오디오를 끊으면 위치를 고르는 동안 소리가 튄다).
+ * **애플 뮤직 재생 바 문법**(PM 2026-10-07): 손잡이(썸)가 없다. 평소엔 얇은 바, 손가락을 대면 바가 굵어지고(스프링)
+ * 시간 숫자가 밝아지며, 놓으면 다시 얇아진다. 바 높이가 변해도 세로 중심은 그대로라 `onTrackCenter`가 흔들리지 않는다.
  * 완청 기준선(90%) 등 판정 지점 표식은 그리지 않는다(8장 금지 사항).
  */
 export default function SeekBar({
@@ -34,6 +39,7 @@ export default function SeekBar({
   onSeekTo,
   tone = 'default',
   onTrackCenter,
+  chapterStartsSec = NO_CHAPTERS,
 }: SeekBarProps) {
   const onImage = tone === 'onImage';
   const [trackWidth, setTrackWidth] = useState(0);
@@ -84,27 +90,40 @@ export default function SeekBar({
 
   const displaySec = dragPositionSec ?? positionSec;
   const isDragging = dragPositionSec !== null;
-  // 썸은 잡고 있는 동안만 — 평소엔 채움과 트랙의 경계가 위치를 말해 주고, 사진 밑변에 걸친 썸만 튀어 보였다
-  // (2026-09-18 PM, 애플 뮤직 방식). 손가락 밑에서 어디를 끌고 있는지는 썸이 커지며 보여 준다
-  const thumbProgress = useAnimatedValue(0);
+  // 잡으면 바가 굵어진다(애플 뮤직) — 높이는 레이아웃 값이라 JS 구동. 짧은 전환이라 부담이 없다
+  const grow = useAnimatedValue(0);
   useEffect(() => {
-    // 나타날 땐 스프링으로 커지고(튀지 않는 애플 곡선), 사라질 땐 짧게 흐려진다 — 손을 뗀 뒤 튀는 건 어색하다
     const animation = isDragging
-      ? Animated.spring(thumbProgress, {
-          toValue: 1,
-          ...motion.spring.snappy,
-          useNativeDriver: true,
-        })
-      : Animated.timing(thumbProgress, {
+      ? Animated.spring(grow, { toValue: 1, ...motion.spring.snappy, useNativeDriver: false })
+      : Animated.timing(grow, {
           toValue: 0,
-          duration: THUMB_HIDE_MS,
+          duration: TRACK_SHRINK_MS,
           easing: motion.easing.easeOut,
-          useNativeDriver: true,
+          useNativeDriver: false,
         });
     animation.start();
     return () => animation.stop();
-  }, [isDragging, thumbProgress]);
+  }, [isDragging, grow]);
+  const trackHeight = grow.interpolate({
+    inputRange: [0, 1],
+    outputRange: [TRACK_HEIGHT_IDLE, TRACK_HEIGHT_ACTIVE],
+  });
+  const trackRadius = grow.interpolate({
+    inputRange: [0, 1],
+    outputRange: [TRACK_HEIGHT_IDLE / 2, TRACK_HEIGHT_ACTIVE / 2],
+  });
   const ratio = durationSec > 0 ? Math.min(1, Math.max(0, displaySec / durationSec)) : 0;
+  const segments = chapterSegmentsOf(chapterStartsSec, durationSec, displaySec);
+  const trackStyle = [
+    styles.track,
+    onImage && styles.trackOnImage,
+    { height: trackHeight, borderRadius: trackRadius },
+  ];
+  const fillStyle = [
+    styles.fill,
+    { borderRadius: trackRadius },
+    disabled && (onImage ? styles.fillDisabledOnImage : styles.fillDisabled),
+  ];
 
   return (
     <View>
@@ -133,54 +152,51 @@ export default function SeekBar({
           onSeekTo(Math.max(0, positionSec + delta));
         }}
       >
+        {/* 가장 굵을 때 높이의 틀 — 바는 그 가운데서 자라므로 세로 중심(onTrackCenter)이 고정이다 */}
         <View
-          style={[styles.track, onImage && styles.trackOnImage]}
+          style={styles.trackSlot}
           // touchArea 가 첫 자식이라 touchArea 기준 y == 컴포넌트 기준 y
           onLayout={(event) =>
             onTrackCenter?.(event.nativeEvent.layout.y + event.nativeEvent.layout.height / 2)
           }
         >
-          <View style={[styles.fill, { width: `${ratio * 100}%` }]} />
-          {/* 전체 폭으로 흘리면 0%·100%에서 손잡이 절반이 화면 밖으로 나간다 —
-              측정한 폭 안으로 가둬 항상 온전히 보이게 한다 */}
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.thumb,
-              {
-                opacity: thumbProgress,
-                transform: [
-                  {
-                    scale: thumbProgress.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.3, 1],
-                    }),
-                  },
-                ],
-                left:
-                  trackWidth > 0
-                    ? Math.min(
-                        Math.max(ratio * trackWidth, THUMB_SIZE / 2),
-                        trackWidth - THUMB_SIZE / 2,
-                      )
-                    : 0,
-              },
-              disabled && (onImage ? styles.thumbDisabledOnImage : styles.thumbDisabled),
-            ]}
-          />
+          {segments.length > 0 ? (
+            // 구간마다 조각 하나 — 조각 사이 틈이 구간 경계다(애플 팟캐스트). 지난 조각은 꽉, 지금 조각은 비율만큼 찬다
+            <View style={styles.chapterRow}>
+              {segments.map((segment, index) => (
+                <Animated.View key={index} style={[trackStyle, { flex: segment.share }]}>
+                  <Animated.View style={[fillStyle, { width: `${segment.fill * 100}%` }]} />
+                </Animated.View>
+              ))}
+            </View>
+          ) : (
+            <Animated.View style={trackStyle}>
+              <Animated.View style={[fillStyle, { width: `${ratio * 100}%` }]} />
+            </Animated.View>
+          )}
         </View>
       </View>
       <View style={styles.timeRow} importantForAccessibility="no-hide-descendants">
-        <Text style={styles.timeLabel}>{formatPlaybackTime(displaySec)}</Text>
-        <Text style={styles.timeLabel}>{formatPlaybackTime(durationSec)}</Text>
+        {/* 잡고 있는 동안 시간 숫자가 밝아진다 — 지금 고르는 위치를 읽게(애플 뮤직) */}
+        <Text style={[styles.timeLabel, isDragging && styles.timeLabelActive]}>
+          {formatPlaybackTime(displaySec)}
+        </Text>
+        <Text style={[styles.timeLabel, isDragging && styles.timeLabelActive]}>
+          {formatPlaybackTime(durationSec)}
+        </Text>
       </View>
     </View>
   );
 }
 
-const THUMB_SIZE = 14;
-/** 손을 뗀 뒤 썸이 사라지는 시간 */
-const THUMB_HIDE_MS = 140;
+/** 평소 바 두께 · 잡았을 때 두께(애플 뮤직 재생 바 — 잡으면 두 배로 굵어진다) */
+const TRACK_HEIGHT_IDLE = 6;
+const TRACK_HEIGHT_ACTIVE = 12;
+/** 손을 뗀 뒤 바가 얇아지는 시간 */
+const TRACK_SHRINK_MS = 160;
+/** 구간 조각 사이 틈 */
+const CHAPTER_GAP = 3;
+const NO_CHAPTERS: readonly number[] = [];
 /*
  * 사진 위(재생 목록 열림) 트랙 — 선이 사진 밑변에 걸쳐 위 절반은 사진, 아래 절반은 플레이어의 검정 바탕이다.
  * 반투명 흰색은 두 바탕 모두에서 같은 "어두운 위의 옅은 선"으로 읽힌다(밝은 바탕이던 때는 아래 절반에서
@@ -194,26 +210,24 @@ const styles = StyleSheet.create({
     minHeight: theme.touchTarget.minHeight,
     justifyContent: 'center',
   },
+  trackSlot: {
+    height: TRACK_HEIGHT_ACTIVE,
+    justifyContent: 'center',
+  },
+  chapterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: CHAPTER_GAP,
+  },
   track: {
-    height: 4,
-    borderRadius: 2,
+    overflow: 'hidden',
     backgroundColor: playerColor.border,
   },
   fill: {
     height: '100%',
-    borderRadius: 2,
     backgroundColor: playerColor.primary,
   },
-  thumb: {
-    position: 'absolute',
-    top: -(THUMB_SIZE - 4) / 2,
-    marginLeft: -THUMB_SIZE / 2,
-    width: THUMB_SIZE,
-    height: THUMB_SIZE,
-    borderRadius: THUMB_SIZE / 2,
-    backgroundColor: playerColor.primary,
-  },
-  thumbDisabled: {
+  fillDisabled: {
     backgroundColor: playerColor.border,
   },
   timeRow: {
@@ -225,11 +239,14 @@ const styles = StyleSheet.create({
     color: playerColor.textSecondary,
     fontVariant: ['tabular-nums'],
   },
+  timeLabelActive: {
+    color: playerColor.textPrimary,
+  },
   // 사진 위 — 색의 근거는 위 ON_IMAGE_* 상수 주석
   trackOnImage: {
     backgroundColor: ON_IMAGE_TRACK_COLOR,
   },
-  thumbDisabledOnImage: {
+  fillDisabledOnImage: {
     backgroundColor: ON_IMAGE_TRACK_COLOR,
   },
 });

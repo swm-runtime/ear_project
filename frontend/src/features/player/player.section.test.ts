@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import { PLAYER_COPY } from './player.copy';
-import { currentSectionOf, sectionDisplayOf } from './player.section';
+import { chapterSegmentsOf, currentSectionOf, sectionDisplayOf } from './player.section';
 
 const SECTIONS = [
   { startSec: 0, title: '인트로', kind: 'intro' as const, summary: null },
@@ -65,5 +65,28 @@ describe('sectionDisplayOf — 구역 이름 + 요약(PM 2026-10-07)', () => {
     expect(
       sectionDisplayOf({ startSec: 0, title: '본문', kind: null, summary: null }, copy),
     ).toEqual({ heading: '지금 듣는 구간', detail: '본문' });
+  });
+});
+
+describe('chapterSegmentsOf — 구간별 재생 바(애플 팟캐스트 챕터)', () => {
+  it('구간 시작으로 바를 나누고, 지난 조각은 꽉, 지금 조각은 비율만큼 채운다', () => {
+    expect(chapterSegmentsOf([0, 20, 60], 100, 40)).toEqual([
+      { share: 0.2, fill: 1 },
+      { share: 0.4, fill: 0.5 },
+      { share: 0.4, fill: 0 },
+    ]);
+  });
+
+  it('경계가 없으면(구간 하나·없음·길이 미상) 빈 배열 — 한 줄 바를 그린다', () => {
+    expect(chapterSegmentsOf([0], 100, 10)).toEqual([]);
+    expect(chapterSegmentsOf([], 100, 10)).toEqual([]);
+    expect(chapterSegmentsOf([0, 20], 0, 10)).toEqual([]);
+  });
+
+  it('길이 밖·중복 경계는 버린다', () => {
+    expect(chapterSegmentsOf([0, 50, 50, 120], 100, 0)).toEqual([
+      { share: 0.5, fill: 0 },
+      { share: 0.5, fill: 0 },
+    ]);
   });
 });
