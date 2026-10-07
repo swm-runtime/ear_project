@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { SentryWebhookController } from './sentry-webhook.controller';
+import { SentryIssueClient } from './sentry-issue.client';
 import { SentryWebhookService } from './sentry-webhook.service';
 import { SlackAlertService } from './slack-alert.service';
 
@@ -10,7 +11,7 @@ import { SlackAlertService } from './slack-alert.service';
  */
 @Module({
   controllers: [SentryWebhookController],
-  providers: [SlackAlertService, SentryWebhookService],
+  providers: [SlackAlertService, SentryWebhookService, SentryIssueClient],
   exports: [SlackAlertService],
 })
 export class AlertModule {}

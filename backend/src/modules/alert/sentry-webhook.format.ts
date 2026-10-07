@@ -36,6 +36,18 @@ export interface SentryIssueNotice {
   rule: string | null;
   /** 스택 맨 위 in-app 프레임 최대 3줄(`file:line in fn`) — Sentry 알림이 보여 주던 것. 없으면 빈 배열 */
   frames: string[];
+  /** Issue API 조회 키(Integration Platform `event.issue_id` / 레거시 루트 `id`). 없으면 이슈 정보를 못 붙인다 */
+  issueId: string | null;
+}
+
+/** Issue API 에서 받아 붙이는 이슈 단위 값 — `sentry-issue.client.ts`가 만든다 */
+export interface SentryIssueExtra {
+  shortId: string | null;
+  state: string | null;
+  firstSeen: Date | null;
+  lastSeen: Date | null;
+  count: number | null;
+  userCount: number | null;
 }
 
 const TITLE_MAX_LENGTH = 200;
@@ -181,7 +193,48 @@ export function parseSentryWebhook(body: unknown): SentryIssueNotice | null {
       asString(data?.triggered_rule) ??
       (Array.isArray(triggeringRules) ? asString(triggeringRules[0]) : null),
     frames,
+    issueId:
+      asString(event?.issue_id) ??
+      (typeof event?.issue_id === 'number' ? String(event.issue_id) : null) ??
+      asString(root.id),
   };
+}
+
+const STATE_LABEL: Readonly<Record<string, string>> = {
+  new: 'New',
+  regressed: 'Regressed',
+  ongoing: 'Ongoing',
+  escalating: 'Escalating',
+  unresolved: 'Unresolved',
+  resolved: 'Resolved',
+  ignored: 'Ignored',
+};
+
+/** "1분 전" · "3시간 전" · "2일 전" — Sentry 알림의 First Seen 표기와 같은 감각 */
+export function relativeTime(at: Date, now: Date): string {
+  const sec = Math.max(0, Math.round((now.getTime() - at.getTime()) / 1000));
+  if (sec < 60) return '방금';
+  const min = Math.round(sec / 60);
+  if (min < 60) return `${min}분 전`;
+  const hour = Math.round(min / 60);
+  if (hour < 24) return `${hour}시간 전`;
+  return `${Math.round(hour / 24)}일 전`;
+}
+
+/** `State: New · First Seen: 1분 전 · 3건 · 사용자 2명 · EAR-API-1A` — 있는 값만 */
+export function formatIssueExtraLine(
+  extra: SentryIssueExtra,
+  now: Date,
+): string | null {
+  const parts: string[] = [];
+  if (extra.state)
+    parts.push(`State: ${STATE_LABEL[extra.state] ?? extra.state}`);
+  if (extra.firstSeen)
+    parts.push(`First Seen: ${relativeTime(extra.firstSeen, now)}`);
+  if (extra.count !== null) parts.push(`${extra.count}건`);
+  if (extra.userCount !== null) parts.push(`사용자 ${extra.userCount}명`);
+  if (extra.shortId) parts.push(extra.shortId);
+  return parts.length > 0 ? escapeSlackText(parts.join(' · ')) : null;
 }
 
 /** 제목을 상한에서 자른다 — 넘치면 말줄임표 */
@@ -204,7 +257,11 @@ const LEVEL_EMOJI: Readonly<Record<string, string>> = {
  * 거친다 — 예외 메시지에는 사용자가 입력한 문자열이 섞일 수 있다(`<!channel>` 같은 것). 사용자 식별값은
  * 애초에 꺼내지 않았다(`parseSentryWebhook`).
  */
-export function formatSentryIssueText(notice: SentryIssueNotice): string {
+export function formatSentryIssueText(
+  notice: SentryIssueNotice,
+  extra: SentryIssueExtra | null = null,
+  now: Date = new Date(),
+): string {
   const emoji = LEVEL_EMOJI[notice.level] ?? ':information_source:';
   const head = [
     `${emoji} Sentry 이슈 · *${escapeSlackText(notice.project)}* · ${escapeSlackText(notice.level)}`,
@@ -220,6 +277,8 @@ export function formatSentryIssueText(notice: SentryIssueNotice): string {
   if (notice.location) lines.push(`위치: ${escapeSlackText(notice.location)}`);
   if (notice.device) lines.push(`기기: ${escapeSlackText(notice.device)}`);
   if (notice.rule) lines.push(`규칙: ${escapeSlackText(notice.rule)}`);
+  const extraLine = extra ? formatIssueExtraLine(extra, now) : null;
+  if (extraLine) lines.push(extraLine);
   if (notice.frames.length > 0) {
     lines.push(
       '```' + notice.frames.map((f) => escapeSlackText(f)).join('\n') + '```',

@@ -1,4 +1,5 @@
 import {
+  formatIssueExtraLine,
   formatSentryIssueText,
   parseSentryWebhook,
 } from './sentry-webhook.format';
@@ -44,6 +45,7 @@ describe('parseSentryWebhook', () => {
       device: 'iOS',
       rule: 'Send a notification for high priority issues',
       frames: [],
+      issueId: '6253',
     });
     expect(JSON.stringify(notice)).not.toContain('example.com');
   });
@@ -242,6 +244,7 @@ describe('formatSentryIssueText', () => {
       device: null,
       rule: null,
       frames: [],
+      issueId: null,
     });
 
     expect(text).toBe(
@@ -262,10 +265,77 @@ describe('formatSentryIssueText', () => {
       device: null,
       rule: null,
       frames: [],
+      issueId: null,
     });
 
     expect(text).toContain(`${'x'.repeat(200)}…`);
     expect(text).not.toContain('x'.repeat(201));
     expect(text.startsWith(':warning:')).toBe(true);
+  });
+});
+
+describe('formatIssueExtraLine — Issue API 값으로 State · First Seen · 건수 줄', () => {
+  const now = new Date('2026-10-07T09:00:00Z');
+
+  it('있는 값만 · 로 잇고, 시각은 상대 표기', () => {
+    expect(
+      formatIssueExtraLine(
+        {
+          shortId: 'EAR-API-1A',
+          state: 'new',
+          firstSeen: new Date('2026-10-07T08:58:50Z'),
+          lastSeen: now,
+          count: 3,
+          userCount: 2,
+        },
+        now,
+      ),
+    ).toBe('State: New · First Seen: 1분 전 · 3건 · 사용자 2명 · EAR-API-1A');
+    expect(
+      formatIssueExtraLine(
+        {
+          shortId: null,
+          state: 'regressed',
+          firstSeen: new Date('2026-10-05T09:00:00Z'),
+          lastSeen: null,
+          count: null,
+          userCount: null,
+        },
+        now,
+      ),
+    ).toBe('State: Regressed · First Seen: 2일 전');
+    expect(
+      formatIssueExtraLine(
+        {
+          shortId: null,
+          state: null,
+          firstSeen: null,
+          lastSeen: null,
+          count: null,
+          userCount: null,
+        },
+        now,
+      ),
+    ).toBeNull();
+  });
+
+  it('formatSentryIssueText 는 extra 가 있으면 규칙 줄 다음에 끼운다', () => {
+    const text = formatSentryIssueText(
+      parseSentryWebhook(LEGACY_PAYLOAD)!,
+      {
+        shortId: 'EAR-APP-2',
+        state: 'new',
+        firstSeen: new Date('2026-10-07T08:30:00Z'),
+        lastSeen: null,
+        count: 1,
+        userCount: 1,
+      },
+      now,
+    );
+    const lines = text.split('\n');
+    expect(lines[4]).toBe('규칙: Send a notification for high priority issues');
+    expect(lines[5]).toBe(
+      'State: New · First Seen: 30분 전 · 1건 · 사용자 1명 · EAR-APP-2',
+    );
   });
 });
