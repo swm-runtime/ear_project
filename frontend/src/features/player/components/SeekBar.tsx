@@ -99,6 +99,11 @@ export default function SeekBar({
     return PanResponder.create({
       onStartShouldSetPanResponder: () => !stateRef.current.disabled,
       onMoveShouldSetPanResponder: () => !stateRef.current.disabled,
+      // 한번 잡으면 끝까지 놓지 않는다 — 끄는 손가락이 조금만 아래로 가도 플레이어 끌어내리기(collapsePanResponder)가
+      // 넘겨 달라고 요청해, 넘겨주면 바가 중간에 손가락을 안 따라왔다(PM 2026-10-07 실기기)
+      onPanResponderTerminationRequest: () => false,
+      // 바깥의 네이티브 제스처(스크롤·시스템 닫기)도 끄는 동안은 막는다
+      onShouldBlockNativeResponder: () => true,
       onPanResponderGrant: (event) => {
         grantXRef.current = event.nativeEvent.locationX;
         const next = positionFromX(grantXRef.current);
