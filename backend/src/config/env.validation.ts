@@ -179,6 +179,14 @@ export class EnvironmentVariables {
   SENTRY_WEBHOOK_SECRET?: string;
 
   /**
+   * 같은 Internal Integration 의 **API 토큰**(2026-10-07, 권한 Issue & Event: Read) — 중계 문구에 State · First Seen ·
+   * 건수를 붙이려고 `GET /api/0/issues/{id}/` 를 한 번 부른다. 비우면 조회 없이 이벤트 정보만으로 보낸다
+   */
+  @IsOptional()
+  @IsString()
+  SENTRY_API_TOKEN?: string;
+
+  /**
    * 추천 테스트 콘솔(admin 웹 "추천 테스트" 탭)이 대신 행동하는 테스트 계정의 이메일 — **개발계 전용**.
    * 비우면 콘솔 엔드포인트가 409 로 꺼지고, `SENTRY_ENVIRONMENT=production` 이면 값이 있어도 꺼진다.
    * 행동 버튼은 실제 신호·라이브러리를 쓰므로 운영 DB 에는 절대 붙이지 않는다(`features/admin.md` 4.7).

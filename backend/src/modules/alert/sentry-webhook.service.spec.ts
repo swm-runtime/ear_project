@@ -1,5 +1,6 @@
 import { createHmac } from 'node:crypto';
 
+import { SentryIssueClient } from './sentry-issue.client';
 import { SentryWebhookService } from './sentry-webhook.service';
 import { SlackAlertService } from './slack-alert.service';
 
@@ -22,7 +23,15 @@ function build(
           : undefined,
     ),
   } as never;
-  return { service: new SentryWebhookService(config, slack), notify };
+  const issueClient = {
+    enabled: false,
+    fetch: jest.fn().mockResolvedValue(null),
+  } as unknown as SentryIssueClient;
+  return {
+    service: new SentryWebhookService(config, slack, issueClient),
+    notify,
+    issueClient,
+  };
 }
 
 const SECRET = 'client-secret-0123456789abcdef';
@@ -102,16 +111,53 @@ describe('SentryWebhookService', () => {
     });
   });
 
-  it('본문을 문구로 바꿔 Slack 에 넘긴다 — kind 는 sentry-issue', () => {
+  it('본문을 문구로 바꿔 Slack 에 넘긴다 — kind 는 sentry-issue', async () => {
     const { service, notify } = build(TOKEN);
 
     service.relay({ project_slug: 'ear-api', level: 'error', message: 'boom' });
+    await new Promise((resolve) => setImmediate(resolve));
 
     expect(notify).toHaveBeenCalledTimes(1);
     const [kind, text] = notify.mock.calls[0] as [string, string];
     expect(kind).toBe('sentry-issue');
     expect(text).toContain('*ear-api*');
     expect(text).toContain('boom');
+  });
+
+  it('issue id 가 있으면 Issue API 를 물어 State · First Seen 줄을 붙이고, 조회가 null 이면 그 줄 없이 보낸다', async () => {
+    const { service, notify, issueClient } = build(TOKEN);
+    (issueClient.fetch as jest.Mock).mockResolvedValueOnce({
+      shortId: 'EAR-API-7',
+      state: 'new',
+      firstSeen: new Date(Date.now() - 90_000),
+      lastSeen: null,
+      count: 2,
+      userCount: null,
+    });
+
+    service.relay({
+      id: '77',
+      project_slug: 'ear-api',
+      level: 'error',
+      message: 'boom',
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(issueClient.fetch).toHaveBeenCalledWith('77');
+    expect((notify.mock.calls[0] as [string, string])[1]).toContain(
+      'State: New · First Seen: 2분 전 · 2건 · EAR-API-7',
+    );
+
+    service.relay({
+      id: '78',
+      project_slug: 'ear-api',
+      level: 'error',
+      message: 'again',
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    expect((notify.mock.calls[1] as [string, string])[1]).not.toContain(
+      'State:',
+    );
   });
 
   it('제목이 없는 본문(테스트 이벤트 등)은 조용히 버린다 — 던지지 않는다', () => {
