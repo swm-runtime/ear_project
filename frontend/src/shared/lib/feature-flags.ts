@@ -51,7 +51,7 @@ export const hasNativeIapModule = (): boolean =>
  * 페이월의 요금제 비교를 전부 **비노출**한다. 삭제가 아니다.
  *
  * 켜는 곳: 결제 라이브러리가 든 묶음 빌드(runtimeVersion 32)의 `eas.json` 프로필 env 와
- * `.github/workflows/eas-update.yml` 의 OTA env 에 **같은 값**(`EXPO_PUBLIC_SUBSCRIPTION_UI=on`)을 둔다.
+ * `.github/workflows/eas-update.yml` 의 OTA env 에 **같은 값**을 둔다 — preview(개발계) `on`, production(운영) `off`(2026-10-07 PM — 스토어 상품·서버 결제 키·유료 앱 계약 전).
  * 켜더라도 결제 네이티브 모듈이 없는 바이너리에서는 꺼진 채로 남는다(위 resolveSubscriptionUiEnabled).
  */
 export const IS_SUBSCRIPTION_UI_ENABLED = resolveSubscriptionUiEnabled({
