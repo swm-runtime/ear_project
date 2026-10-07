@@ -13,7 +13,7 @@
 | 선행 | 없음 |
 | 근거 문서 | `backend/domain.md` 8.1(`plans` — "name·description 은 표시 문구라 DB 에서 고친다") · `spec/api/subscription-api.md` `action` 표 · 짝 FE 티켓 KAN-146(`tickets/frontend/pending/plan-management-redesign-pill-buttons.md`) |
 | 중요도 | Medium — 1.2.0 묶음 빌드(결제 화면 첫 공개) 전에 맞춘다 |
-| 상태 | **반영 완료 — 운영 배포 대기**(2026-10-06, PR `feat(be)/plan-display-names-free-current`) |
+| 상태 | **완료**(2026-10-07) |
 
 ## 1. 표시 문구 — DB `plans` (개발계·운영)
 
@@ -53,4 +53,8 @@ UPDATE plans SET name='Pro',   description='제한 없이 마음껏 들을 수 �
 2. **`action`** — `resolvePlanAction`에 "무료 요금제이고 유효한 구독이 없으면 `current`" 분기를 추가했다. 유료 구독자에게 무료는 종전처럼 `none`, 다른 스토어 구독자 규칙도 그대로. 가입 체험 중인 사용자도 구독이 없으므로 무료가 `current`다(체험 여부는 4.2 `plan.trial`이 따로 알린다). `subscription-api.md` `action` 표·응답 예시·표시 문구 설명 갱신.
 3. **확인** — 단위 205건(billing) 통과, e2e `subscription-billing.e2e-spec` 기대값을 `light → current`로 갱신(CI). 운영 반영은 다음 릴리스 — 들어가면 **지금 깔린 앱의 프로필·설정 플랜 이름이 바로 영어로 바뀐다**(앱은 서버 값을 그린다). KAN-146(FE)은 이 계약으로 "이용 중"을 그리면 된다.
 
-**완료 조건**: ① DB 문구 — 마이그레이션으로 개발계는 머지 시, 운영은 다음 릴리스에 적용 ② `action` — 반영 ③ 문서 — 반영. 운영 적용을 확인하면 archive.
+**완료 조건**: ① DB 문구 — 마이그레이션으로 개발계는 머지 시 적용, 운영은 다음 릴리스에서 같은 마이그레이션이 자동 적용 ② `action` — 반영 ③ 문서 — 반영.
+
+### 2026-10-07 — 완료 처리 (반영 날짜 2026-10-07)
+
+짝 티켓 KAN-146(FE)이 완료됐고 서버 몫은 dev 머지로 끝났다(박준현 결정 2026-10-07). 운영 반영은 코드 작업이 아니라 다음 `dev → main` 릴리스의 마이그레이션 자동 적용이므로 여기서 닫는다 — 릴리스 뒤 운영 `plans` 이름이 Light·Daily·Pro인지는 릴리스 체크(`runbook.md` 4장)에서 본다.
