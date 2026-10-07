@@ -84,6 +84,7 @@ export const PLAYER_COPY = {
     /** 구역 라벨(PM 2026-10-07) — 인트로·도입은 개요, 본문 단락은 본론, 마무리는 결론 */
     sectionKindLabel: { intro: '개요', lead: '개요', body: '본론', outro: '결론' },
     currentSectionA11y: (title: string) => `지금 듣는 구간, ${title}`,
+    currentSectionLoadingA11y: '지금 듣는 구간 불러오는 중',
   },
 
   /** PL6 스크립트 시트 — 현재 구간 하이라이트·문단 탭 seek(player-uiux.md 4.6). P1이라 지금은 dev mock만 채운다 */
