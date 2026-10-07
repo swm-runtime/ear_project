@@ -33,6 +33,8 @@ export type FeatureInputs = {
   vocReview: boolean;
   /** 앱 삭제 알림(GA4 app_remove) — GA4 자격과 웹훅이 있을 때 */
   appRemoveAlert: boolean;
+  /** Sentry → Slack 릴레이(`webhooks/sentry`) — 토큰과 웹훅이 있을 때 */
+  sentryRelay: boolean;
   /** 이 프로세스에 등록된 크론 이름 — 스케줄러 프로세스가 아니면 빈 배열 */
   crons: string[];
   /** 서비스 날짜 경계 — `04:00`, 또는 전환이 잡혀 있으면 `05:00@<ISO>`(KAN-149). 값이 아니라 설정 상태다 */
@@ -55,6 +57,7 @@ export function summarizeFeatures(f: FeatureInputs): string {
     `sentry=${onOff(f.sentry)} resource-alert=${onOff(f.resourceAlert)} ` +
     `signup-alert=${onOff(f.signupAlert)} daily-metrics=${onOff(f.dailyMetrics)} ` +
     `voc-review=${onOff(f.vocReview)} app-remove-alert=${onOff(f.appRemoveAlert)} ` +
+    `sentry-relay=${onOff(f.sentryRelay)} ` +
     `service-day=${f.serviceDayBoundary} crons=${crons}`
   );
 }
@@ -104,6 +107,7 @@ export class StartupSummary implements OnApplicationBootstrap {
           anyHook &&
           has('GA4_PROPERTY_ID') &&
           has('GA4_SERVICE_ACCOUNT_BASE64'),
+        sentryRelay: anyHook && has('SENTRY_WEBHOOK_TOKEN'),
         crons,
         serviceDayBoundary: describeServiceDayBoundary(),
       }),
