@@ -813,7 +813,7 @@ export default function PlayerScreen() {
     }),
     metaTop: panelProgress.interpolate({
       inputRange: [0, 1],
-      outputRange: [artAreaHeight + theme.spacing.lg, HERO_COMPACT_META_TOP],
+      outputRange: [artAreaHeight + HERO_META_GAP, HERO_COMPACT_META_TOP],
     }),
     metaLeft: panelProgress.interpolate({
       inputRange: [0, 1],
@@ -845,7 +845,7 @@ export default function PlayerScreen() {
     artLeft: Animated.add(heroBase.artLeft, queueShift((innerWidth - artSizeCollapsed) / 2, 0)),
     metaTop: Animated.add(
       heroBase.metaTop,
-      queueShift(artAreaHeight + theme.spacing.lg, queueMetaTop),
+      queueShift(artAreaHeight + HERO_META_GAP, queueMetaTop),
     ),
   };
   // 시트의 위쪽 끝 — 닫힘: 손잡이만 남는다 / 열림: 압축된 플레이어(앱바 + 히어로 + 컨트롤) 바로 아래
@@ -1080,7 +1080,7 @@ export default function PlayerScreen() {
     ? insets.top + appBarHeight + HERO_COMPACT_META_TOP
     : isQueueOpen
       ? insets.top + appBarHeight + queueMetaTop
-      : insets.top + appBarHeight + artAreaHeight + theme.spacing.lg;
+      : insets.top + appBarHeight + artAreaHeight + HERO_META_GAP;
   const fullTitleWidth = isHeroCompact
     ? innerWidth - COMPACT_ARTWORK_SIZE - theme.spacing.md
     : innerWidth;
@@ -1100,7 +1100,7 @@ export default function PlayerScreen() {
     ? HERO_COMPACT_META_TOP
     : isQueueOpen
       ? queueMetaTop
-      : artAreaHeight + theme.spacing.lg;
+      : artAreaHeight + HERO_META_GAP;
   const metaLeft = isHeroCompact ? COMPACT_ARTWORK_SIZE + theme.spacing.md : 0;
   const fullTitle =
     heroBox && measuredTitleLayer
@@ -2237,8 +2237,13 @@ const APP_BAR_HEIGHT = 44;
  * (2026-09-19 PM — 재생 목록 열림 상태와 같은 간격으로): 바로 아래 시크바 터치 영역(44pt)의 위쪽 절반(≈20px)이
  * 이미 재생바까지의 여백이라, 여기에 8을 더 두면 카테고리와 재생바 사이가 벌어진다. 줄어든 만큼 아트워크가 커진다
  */
+/**
+ * 커버 아래 ↔ 제목 — 24 에서 16 으로 줄여 그만큼 커버가 커진다(PM 2026-10-07 "앨범 커버 공간이 부족"). 제목 블록 위치
+ * (metaTop)·모션 레이어의 제목 자리가 모두 이 값을 쓴다
+ */
+const HERO_META_GAP = theme.spacing.md;
 const HERO_META_BLOCK_HEIGHT =
-  theme.spacing.lg + QUEUE_TITLE_LINE_HEIGHT + theme.spacing.xs + PLAYER_CATEGORY_LINE_HEIGHT;
+  HERO_META_GAP + QUEUE_TITLE_LINE_HEIGHT + theme.spacing.xs + PLAYER_CATEGORY_LINE_HEIGHT;
 /** 펼침 상태의 한 줄 헤더 높이 — 위 8 + 썸네일 56 + 아래 8 */
 const HERO_COMPACT_HEIGHT = 72;
 /** 펼침 상태에서 제목 블록(26 + 2 + 20 ≈ 48)을 썸네일 세로 가운데에 맞추는 위치 */

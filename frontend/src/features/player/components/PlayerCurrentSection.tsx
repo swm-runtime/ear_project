@@ -193,7 +193,8 @@ const styles = StyleSheet.create({
     // 위 — 제목·카테고리는 컨트롤 영역 첫 줄에 바짝 붙게 배치된다(재생 바 터치 영역 위 절반이 여백이던 자리).
     // 카드가 그 자리에 들어오면 카테고리 밑이 0 이 된다(PM 2026-10-07 1.2.0 실기기) — 카드가 직접 여백을 갖는다
     marginTop: theme.spacing.md,
-    marginBottom: theme.spacing.sm,
+    // 아래 여백은 두지 않는다 — 재생 바 터치 영역(44) 위쪽 16 이 곧 카드 ↔ 바 간격이라, 카테고리 ↔ 카드(16)와 같아진다.
+    // 종전 8 을 더해 24 였다(PM 2026-10-07 — 그만큼 커버가 커진다)
     paddingHorizontal: theme.spacing.md,
     paddingTop: CARD_PADDING_TOP,
     paddingBottom: CARD_PADDING_BOTTOM,
