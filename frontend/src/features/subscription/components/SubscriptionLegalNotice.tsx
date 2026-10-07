@@ -65,7 +65,10 @@ export default function SubscriptionLegalNotice({
             >
               {SUBSCRIPTION_COPY.legal.bullet}
             </Text>
-            <Text style={[styles.line, styles.itemText]}>{line}</Text>
+            {/* 한글을 단어 단위로 끊는다(iOS) — 글자 단위면 "갱신돼/요."처럼 한 글자가 다음 줄로 떨어진다 */}
+            <Text style={[styles.line, styles.itemText]} lineBreakStrategyIOS="hangul-word">
+              {line}
+            </Text>
           </View>
         ))}
       </View>

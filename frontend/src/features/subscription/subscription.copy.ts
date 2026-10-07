@@ -8,6 +8,14 @@ const monthDay = (iso: string): string => {
   return `${date.getMonth() + 1}월 ${date.getDate()}일`;
 };
 
+/** "로"/"으로" — 한글 마지막 글자에 받침이 있고 ㄹ 받침이 아니면 "으로". 영문·숫자는 "로"(Light·Daily·Pro 모두 "로") */
+const toParticle = (word: string): '로' | '으로' => {
+  const code = word.charCodeAt(word.length - 1) - 0xac00;
+  if (code < 0 || code > 11171) return '로';
+  const batchim = code % 28;
+  return batchim === 0 || batchim === 8 ? '로' : '으로';
+};
+
 export const SUBSCRIPTION_COPY = {
   /** 화면 제목 — 설정의 진입 항목 이름과 같다(KAN-146, settings.copy sections.subscription) */
   title: '요금제 관리',
@@ -52,6 +60,17 @@ export const SUBSCRIPTION_COPY = {
     downgrade: '변경',
     current: '이용 중',
     downgradeHint: '다음 결제일부터 적용돼요',
+    /**
+     * 카드 아래 버튼 하나 — 고른 요금제 이름을 붙인다("Daily 구독하기" · "Pro 업그레이드" · "Daily로 변경"). 이름은 서버 값이라
+     * 조사는 마지막 글자로 고른다(받침 있으면 "으로", 없거나 ㄹ 받침·영문이면 "로")
+     */
+    cta: (name: string, action: 'purchase' | 'upgrade' | 'downgrade') => {
+      if (action === 'purchase') return `${name} 구독하기`;
+      if (action === 'upgrade') return `${name} 업그레이드`;
+      return `${name}${toParticle(name)} 변경`;
+    },
+    /** 고를 수 있는 카드 묶음 — 스크린리더가 "요금제, 라디오 그룹"으로 읽는다 */
+    groupA11y: '요금제',
     /** 카드 요약을 한 문장으로 — 이용 중이면 끝에 "이용 중"(색만으로 구분하지 않는다) */
     cardA11y: (name: string, price: string, description: string, isCurrent: boolean) =>
       [name, price, description, isCurrent ? '이용 중' : '']
