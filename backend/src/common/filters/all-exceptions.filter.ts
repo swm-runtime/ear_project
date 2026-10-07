@@ -55,6 +55,7 @@ const STATUS_MESSAGES: Record<number, string> = {
 };
 
 /** HttpException이 돌려주는 status는 number이므로 비교 대상도 number로 고정한다 */
+const PAYLOAD_TOO_LARGE_STATUS: number = HttpStatus.PAYLOAD_TOO_LARGE;
 const SERVER_ERROR_STATUS: number = HttpStatus.INTERNAL_SERVER_ERROR;
 const TOO_MANY_REQUESTS_STATUS: number = HttpStatus.TOO_MANY_REQUESTS;
 
@@ -115,6 +116,29 @@ export class AllExceptionsFilter implements ExceptionFilter {
           trace_id: traceId,
           // 클라이언트 계약이 요구하는 추가 필드만 실린다 (BusinessException.details 주석 참고)
           ...exception.details,
+        },
+      };
+    }
+
+    // body-parser 가 파싱 단계에서 던지는 오류(`entity.too.large` 413 · `entity.parse.failed` 400 등)는
+    // HttpException 이 아니라 `status` 를 가진 일반 Error 다 — 500 으로 뭉개 ERROR 알림을 울리지 않고
+    // 그 상태로 답한다(2026-10-07 운영 실측: Sentry 웹훅 본문이 한도를 넘겨 500 INTERNAL_ERROR 로 찍혔다)
+    const bodyParserStatus = bodyParserErrorStatus(exception);
+    if (bodyParserStatus !== null) {
+      return {
+        status: bodyParserStatus,
+        logLevel: 'warn',
+        body: {
+          error_code:
+            STATUS_ERROR_CODES[bodyParserStatus] ?? ErrorCode.VALIDATION_FAILED,
+          message:
+            bodyParserStatus === PAYLOAD_TOO_LARGE_STATUS
+              ? '요청이 너무 커요'
+              : (STATUS_MESSAGES[bodyParserStatus] ??
+                '요청을 처리할 수 없어요'),
+          retryable: false,
+          retry_after_sec: null,
+          trace_id: traceId,
         },
       };
     }
@@ -205,4 +229,20 @@ export class AllExceptionsFilter implements ExceptionFilter {
       Sentry.captureException(exception);
     });
   }
+}
+
+/**
+ * body-parser(raw-body) 오류 판별 — `type` 이 `entity.*` 이고 4xx `status` 를 가진 Error. 그 밖의 Error 는 null.
+ * 파서가 Nest 파이프라인 밖(미들웨어)에서 던져 HttpException 으로 감싸이지 않는다.
+ */
+function bodyParserErrorStatus(exception: unknown): number | null {
+  if (!(exception instanceof Error)) return null;
+  const { type, status } = exception as Error & {
+    type?: unknown;
+    status?: unknown;
+  };
+  if (typeof type !== 'string' || !type.startsWith('entity.')) return null;
+  return typeof status === 'number' && status >= 400 && status < 500
+    ? status
+    : null;
 }
