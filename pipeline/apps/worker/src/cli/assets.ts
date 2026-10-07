@@ -1,6 +1,6 @@
 /**
  * 규칙 자산 CLI (spec/10 3.2) — git 사본과 DB 사이의 명시적 이동. 방향은 한쪽: 웹 → DB → git(export).
- *   npm run assets:import            docs/ai/skills 의 11개를 DB 에 시딩 (active 가 없는 키만. 있으면 건너뜀 — --force 로 git 사본을 새 버전으로 강제, --only <key> 로 한 자산만)
+ *   npm run assets:import            docs/ai/skills 의 12개를 DB 에 시딩 (active 가 없는 키만. 있으면 건너뜀 — --force 로 git 사본을 새 버전으로 강제, --only <key> 로 한 자산만)
  *   npm run assets:export            active 를 docs/ai/skills 로 덤프 + skills/CHANGELOG-assets.md 생성 (PR 에서 규칙 diff 가 보이게)
  *   npm run assets:status            active 버전 목록
  */
@@ -9,10 +9,10 @@ import path from "node:path";
 import os from "node:os";
 import { cfg } from "../config.js";
 import { pool } from "../db.js";
-import { DB_ASSET_KEYS, OPTIONAL_ASSET_KEYS, THUMBNAIL_ANCHOR_PROMPT_KEY, THUMBNAIL_PROMPT_KEY, THUMBNAIL_SCENE_PROMPT_KEY, TTS_DICT_KEY, versionOf, workerRev } from "../assets.js";
+import { DB_ASSET_KEYS, OPTIONAL_ASSET_KEYS, THUMBNAIL_ANCHOR_PROMPT_KEY, THUMBNAIL_PROMPT_KEY, THUMBNAIL_SCENE_PROMPT_KEY, SECTION_SUMMARY_PROMPT_KEY, TTS_DICT_KEY, versionOf, workerRev } from "../assets.js";
 
 /** 시딩·상태 대상 = 번들 7개 + TTS 음차 사전 (spec/10 3.2 의 8개) */
-const ALL_ASSET_KEYS = [...DB_ASSET_KEYS, ...OPTIONAL_ASSET_KEYS, TTS_DICT_KEY, THUMBNAIL_PROMPT_KEY, THUMBNAIL_ANCHOR_PROMPT_KEY, THUMBNAIL_SCENE_PROMPT_KEY]; // 프로파일 키는 git 사본이 없으면 건너뛴다
+const ALL_ASSET_KEYS = [...DB_ASSET_KEYS, ...OPTIONAL_ASSET_KEYS, TTS_DICT_KEY, THUMBNAIL_PROMPT_KEY, THUMBNAIL_ANCHOR_PROMPT_KEY, THUMBNAIL_SCENE_PROMPT_KEY, SECTION_SUMMARY_PROMPT_KEY]; // 프로파일 키는 git 사본이 없으면 건너뛴다
 
 /** only: 이 키만 다룬다 (2026-10-07) — --force 는 git 사본과 다른 모든 키를 git 쪽으로 덮어써 활성화하므로, DB 에서 고친 대본 지침까지 옛 사본으로 되돌릴 수 있다. 한 자산만 올릴 때는 --only 를 붙인다 */
 async function cmdImport(force: boolean, only?: string) {

@@ -15,6 +15,7 @@ import { assemble, fadeOutPcm, findPauseCut, findTailCut, probeDurationSec, reti
 import { alignmentGap, gapMid, pieceBounds } from "../tts/bounds.js";
 import { chunkSegments, contextExcerpt, DEFAULT_GAP_SEC, joinChunkSegments, validateSegments, type ScriptSegment } from "../tts/segments.js";
 import { buildSections } from "../tts/sections.js";
+import { attachSummaries } from "../tts/section-summary.js";
 
 /**
  * TTS 단계 (spec/06) — 다중화자 1콜(Text to Dialogue, eleven_v3) 확정 (2026-09-02).
@@ -311,9 +312,12 @@ export async function runTts(job: Job) {
     else { await fs.writeFile(segFile, JSON.stringify(joined, null, 1), "utf-8"); segCount = joined.length; }
     const built = segCount ? buildSections(parsed.turns, joined) : { sections: [], reason: "자막 세그먼트 없음" };
     secCount = built.sections.length;
+    // 구역(kind)은 buildSections 가, 요약(summary)은 텍스트 모델이 붙인다 (KAN-152) — 요약 실패는 구간 실패가 아니다
+    if (secCount) await progress(`구간 요약 ${secCount}개`);
+    const sum = await attachSummaries(path.join(cfg.workRoot, rel), cand.title, built.sections, (built as { texts?: string[] }).texts);
     // 못 만들면 지우지 않고 [] 로 덮는다 — pushPrefix 는 S3 객체를 지우지 않아 앞 렌더의 구간(옛 시각)이 남는다
-    await fs.writeFile(secFile, JSON.stringify(built.sections, null, 1), "utf-8");
-    secNote = secCount ? ` · 구간 ${secCount}개${built.missingTurns ? ` (자막에서 빠진 턴 ${built.missingTurns.join("·")} — 다음 턴 시각으로)` : ""}` : ` · 구간 없음(${built.reason})`;
+    await fs.writeFile(secFile, JSON.stringify(sum.sections, null, 1), "utf-8");
+    secNote = secCount ? ` · 구간 ${secCount}개${built.missingTurns ? ` (자막에서 빠진 턴 ${built.missingTurns.join("·")} — 다음 턴 시각으로)` : ""}${sum.note}` : ` · 구간 없음(${built.reason})`;
   }
 
   await progress("S3 업로드");

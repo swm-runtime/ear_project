@@ -1,7 +1,11 @@
+import fs from "node:fs/promises";
+import path from "node:path";
+import { cfg } from "../config.js";
 import { pool } from "../db.js";
 import { putFile, storage } from "../storage.js";
 import { parseScriptForTts } from "../tts/script.js";
 import { buildSections } from "../tts/sections.js";
+import { attachSummaries, SUMMARY_CACHE_FILE } from "../tts/section-summary.js";
 import type { ScriptSegment } from "../tts/segments.js";
 
 /**
@@ -13,6 +17,7 @@ import type { ScriptSegment } from "../tts/segments.js";
  */
 const args = process.argv.slice(2);
 const apply = args.includes("--apply");
+const noSummary = args.includes("--no-summary"); // 구역(kind)만 — 요약 호출 없이
 const opt = (k: string) => args.find((a) => a.startsWith(`--${k}=`))?.split("=")[1] ?? (args.includes(`--${k}`) ? args[args.indexOf(`--${k}`) + 1] : undefined);
 const onlyIds = opt("ids")?.split(",").map((s) => s.trim()).filter(Boolean);
 
@@ -21,7 +26,7 @@ const rows = (await pool.query<{ id: string; script_key: string | null }>(
   onlyIds ? [onlyIds] : [],
 )).rows;
 
-let made = 0, empty = 0, skipped = 0;
+let made = 0, empty = 0, skipped = 0, cost = 0;
 for (const r of rows) {
   const rel = `episodes/${r.id}`;
   const segText = await storage().get(`${rel}/script-segments.json`).then((b) => b.toString("utf8")).catch(() => null);
@@ -29,8 +34,19 @@ for (const r of rows) {
   const md = (await storage().get(r.script_key.replace(/^(s3|local):/, ""))).toString("utf8");
   const built = buildSections(parseScriptForTts(md).turns, JSON.parse(segText) as ScriptSegment[]);
   if (built.sections.length) made++; else empty++;
-  console.log(`${r.id} ${built.sections.length ? `구간 ${built.sections.length}개${built.missingTurns ? ` [자막에서 빠진 턴 ${built.missingTurns.join("·")}]` : ""} — ${built.sections.map((s) => `${s.start_sec.toFixed(1)} ${s.title}`).join(" | ").slice(0, 160)}` : `구간 없음(${built.reason})`}`);
-  if (apply) await putFile(`${rel}/script-sections.json`, JSON.stringify(built.sections, null, 1));
+  // 구역·요약 (KAN-152) — 요약 캐시는 S3 에서 받아 쓰고 다시 올린다(다음 합성이 같은 대사면 다시 부르지 않게). --no-summary 면 구역만
+  let sections = built.sections, sumNote = "";
+  if (built.sections.length && !noSummary) {
+    const dir = path.join(cfg.workRoot, rel); await fs.mkdir(dir, { recursive: true });
+    const cached = await storage().get(`${rel}/${SUMMARY_CACHE_FILE}`).catch(() => null);
+    if (cached) await fs.writeFile(path.join(dir, SUMMARY_CACHE_FILE), cached); else await fs.rm(path.join(dir, SUMMARY_CACHE_FILE), { force: true });
+    const title = (await pool.query<{ title: string }>("select b.title from public.episodes e join public.backlog b on b.id = e.backlog_id where e.id = $1", [r.id])).rows[0]?.title ?? r.id;
+    const sum = await attachSummaries(dir, title, built.sections, built.texts);
+    sections = sum.sections; sumNote = sum.note; cost += sum.costUsd;
+    if (apply && sections.some((s) => s.summary)) await putFile(`${rel}/${SUMMARY_CACHE_FILE}`, await fs.readFile(path.join(dir, SUMMARY_CACHE_FILE), "utf8"));
+  }
+  console.log(`${r.id} ${sections.length ? `구간 ${sections.length}개${built.missingTurns ? ` [자막에서 빠진 턴 ${built.missingTurns.join("·")}]` : ""}${sumNote}\n   ${sections.map((s) => `${s.start_sec.toFixed(1)} ${s.kind ?? "?"} ${s.summary ?? `(${s.title})`}`).join(" | ").slice(0, 240)}` : `구간 없음(${built.reason})`}`);
+  if (apply) await putFile(`${rel}/script-sections.json`, JSON.stringify(sections, null, 1));
 }
-console.log(`\n대상 ${rows.length}편 · 구간 ${made}편 · 구간 없음 ${empty}편 · 자막 없어 건너뜀 ${skipped}편${apply ? " · S3 반영" : " · 점검만(--apply 로 올린다)"}`);
+console.log(`\n대상 ${rows.length}편 · 구간 ${made}편 · 구간 없음 ${empty}편 · 자막 없어 건너뜀 ${skipped}편 · 요약 비용 $${cost.toFixed(3)}${apply ? " · S3 반영" : " · 점검만(--apply 로 올린다)"}`);
 await pool.end();
