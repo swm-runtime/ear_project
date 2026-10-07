@@ -92,6 +92,55 @@ describe('parseSentryWebhook', () => {
   });
 });
 
+describe('parseSentryWebhook — Internal Integration(Integration Platform) 모양', () => {
+  const PLATFORM_PAYLOAD = {
+    action: 'triggered',
+    actor: { id: 'sentry', name: 'Sentry', type: 'application' },
+    data: {
+      event: {
+        event_id: 'e1',
+        title: 'Error: audio url expired',
+        culprit: 'issueAudioUrl',
+        environment: 'production',
+        level: 'warning',
+        platform: 'node',
+        project: 4512133,
+        release: 'ear-api@1.2.0',
+        tags: [['server_name', 'ear-prod-api-1']],
+        url: 'https://sentry.io/api/0/projects/runtime-gw/ear-api/events/e1/',
+        web_url:
+          'https://sentry.io/organizations/runtime-gw/issues/999/events/e1/',
+        issue_url:
+          'https://sentry.io/api/0/organizations/runtime-gw/issues/999/',
+        user: { id: 'no', ip_address: '1.2.3.4' },
+      },
+      triggered_rule: 'Send a notification for high priority issues',
+    },
+    installation: { uuid: 'abc' },
+  };
+
+  it('data.event 에서 꺼내고, 프로젝트 슬러그는 event.url 경로에서, 링크는 web_url 로', () => {
+    expect(parseSentryWebhook(PLATFORM_PAYLOAD)).toEqual({
+      project: 'ear-api',
+      level: 'warning',
+      title: 'Error: audio url expired',
+      environment: 'production',
+      release: 'ear-api@1.2.0',
+      url: 'https://sentry.io/organizations/runtime-gw/issues/999/events/e1/',
+    });
+  });
+
+  it('통합 설치 웹훅(installation)은 제목이 없어 null — 조용히 버려진다', () => {
+    expect(
+      parseSentryWebhook({
+        action: 'created',
+        data: { installation: { uuid: 'abc', status: 'pending' } },
+        installation: { uuid: 'abc' },
+      }),
+    ).toBeNull();
+  });
+});
+
 describe('formatSentryIssueText', () => {
   it('한 줄 + 링크 줄 — 프로젝트는 굵게, 레벨 이모지, 환경·릴리스', () => {
     const text = formatSentryIssueText(parseSentryWebhook(LEGACY_PAYLOAD)!);
