@@ -5,20 +5,38 @@
 --   cd /opt/ear/backend && docker compose -f docker-compose.prod.yml --env-file .env.prod \
 --     exec -T postgres psql -U ear -d ear -At -v week_start=2026-09-29 -f - < deploy/weekly-metrics.sql
 --
--- 테스트 계정 제외 규칙은 runbook 4-1 과 같다: role = 'admin' 또는 수동 pro(tier = 'pro' 인데 subscriptions 행이 없음).
+-- 테스트 계정 제외 규칙(runbook 4-1, 2026-10-07 분석으로 확정) — 두 묶음을 뺀다:
+--   ① 확실: role = 'admin' · 수동 pro(tier = 'pro' 인데 subscriptions 행 없음) · 팀 소유 이메일 · 이메일/닉네임에 test·테스트·example
+--   ② 정황: 출시 마케팅 전(2026-09-29 이전) 가입이면서 같은 기기(sessions.device_id)에 다른 계정도 로그인한 계정
+--      — 출시 전 팀·지인이 여러 계정으로 돌려 본 흔적. 출시 후의 기기 공유는 실사용(가족 기기)으로 두고 빼지 않는다.
+-- 식별 값(이메일·닉네임)은 조건에만 쓰고 출력하지 않는다.
 
 
 with bounds as (
   select (:'week_start'::date)::timestamp at time zone 'Asia/Seoul' as start_at,
          (:'week_start'::date + 7)::timestamp at time zone 'Asia/Seoul' as end_at
 ),
+shared_devices as (
+  select device_id from sessions group by device_id having count(distinct user_id) >= 2
+),
+test_users as (
+  select u.id
+    from users u
+   where u.role = 'admin'
+      or (u.tier = 'pro' and not exists (select 1 from subscriptions s where s.user_id = u.id))
+      or u.email in ('runtime364@gmail.com', 'githubbruny@gmail.com')
+      or u.email ilike '%test%' or u.nickname ilike '%test%' or u.nickname ilike '%테스트%' or u.email ilike '%example.%'
+      or ((u.created_at at time zone 'Asia/Seoul')::date < date '2026-09-29'
+          and exists (select 1 from sessions s join shared_devices d on d.device_id = s.device_id where s.user_id = u.id))
+),
 real_users as (
   select u.id, u.created_at
     from users u
-   where u.role <> 'admin'
-     and not (u.tier = 'pro' and not exists (select 1 from subscriptions s where s.user_id = u.id))
+   where not exists (select 1 from test_users t where t.id = u.id)
 )
 select '기간', :'week_start' || ' ~ ' || (:'week_start'::date + 6)::text
+union all
+select '테스트 계정 제외(전체 누적)', count(*)::text from test_users
 union all
 select '가입(주간)', count(*)::text from real_users, bounds where created_at >= start_at and created_at < end_at
 union all
