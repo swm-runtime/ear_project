@@ -6,6 +6,7 @@ import { useContext, useEffect, useMemo, useRef } from 'react';
 import { Animated, PanResponder, PixelRatio, Platform, StyleSheet, View } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
+import { androidNavigationModeOf } from '@/shared/lib/android-navigation';
 import { motion, theme } from '@/shared/theme';
 import GlassSurface, { GlassGroup, GlassPill } from '@/shared/ui/GlassSurface';
 import TabBarIcon, { type TabBarIconName } from '@/shared/ui/TabBarIcon';
@@ -50,9 +51,13 @@ const BOTTOM_MIN_GAP = 16;
 /**
  * **Android** 는 안전영역을 깎지 않고 내비게이션 바 **위에** 띄운다(PM 2026-09-29 01:28 "갤럭시 하단 네비게이션 바 고려해서 조금
  * 올리자"). edge-to-edge(SDK 57 기본)라 insets.bottom 이 곧 내비게이션 바 높이다 — 3버튼 ≈48dp, 제스처 ≈16~24dp(힌트 끄면 ~0).
- * iOS 식(inset − 12)을 쓰면 3버튼 기기에서 캡슐이 버튼을 12dp 덮었다. 방식 구분 없이 '바 높이 + 8' 이면 둘 다 바로 위에 선다
+ * iOS 식(inset − 12)을 쓰면 3버튼 기기에서 캡슐이 버튼을 12dp 덮었다. **버튼 바**는 '바 높이 + 8' 로 바로 위에 선다.
+ * **제스처 바**는 iOS 처럼 핸들 바로 위(바닥에서 약 24dp)로 내린다(PM 2026-10-07 — 버튼 바 기준으로 맞춰 둬서 제스처 기기에선
+ * 떠 보였다). 방식 판정은 `androidNavigationModeOf`
  */
 const ANDROID_NAV_BAR_GAP = 8;
+/** 제스처 바 기기에서 캡슐 아래 — iOS 의 22pt 와 같은 감각, 핸들(바닥 ~14dp 위까지) 바로 위 */
+const ANDROID_GESTURE_DOCK_BOTTOM = 24;
 /** 카드와 캡슐이 이 거리 안으로 가까워지면 유리가 합쳐진다 — 제자리 간격(8)보다 작아야 가만히 있을 땐 안 붙는다 */
 const DOCK_MERGE_SPACING = 4;
 /** 카드와 캡슐 사이(mini-player-layout.store·MiniPlayer 의 DOCK_GAP 과 같다) */
@@ -138,9 +143,11 @@ export default function CapsuleTabBar({
   const reportHeight = useContext(BottomTabBarHeightCallbackContext);
   // 앞 층 미니플레이어 카드의 실측 높이(안 보이면 0) — 뒤 층 유리 판이 같은 자리에 선다
   const miniHeight = useMiniPlayerInset();
-  const bottomPadding = IS_ANDROID
-    ? Math.max(insets.bottom + ANDROID_NAV_BAR_GAP, BOTTOM_MIN_GAP)
-    : Math.max(insets.bottom - BOTTOM_INSET_TRIM, BOTTOM_MIN_GAP);
+  const bottomPadding = !IS_ANDROID
+    ? Math.max(insets.bottom - BOTTOM_INSET_TRIM, BOTTOM_MIN_GAP)
+    : androidNavigationModeOf(insets.bottom) === 'buttons'
+      ? insets.bottom + ANDROID_NAV_BAR_GAP
+      : Math.max(insets.bottom, ANDROID_GESTURE_DOCK_BOTTOM);
   const indicatorX = useAnimatedValue(state.index * ITEM_WIDTH);
   // 누르는 동안 알약이 살짝 커져 떠오른다(iOS 26 탭 바) — 놓으면 제자리 크기로
   const indicatorScale = useAnimatedValue(1);
