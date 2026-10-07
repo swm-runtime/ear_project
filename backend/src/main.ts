@@ -38,7 +38,16 @@ export async function bootstrap(): Promise<void> {
    * 1mb 로 받는다. Nest 의 기본 파서보다 먼저 등록돼 여기서 파싱되면 기본 파서는 건너뛴다. 다른 경로의
    * 한도는 그대로다(`modules/alert/sentry-webhook.controller.ts`).
    */
-  app.use('/api/v1/webhooks/sentry', json({ limit: '1mb' }));
+  app.use(
+    '/api/v1/webhooks/sentry',
+    json({
+      limit: '1mb',
+      // 서명 검증은 **받은 그대로의 본문**으로 해야 한다 — 파싱 뒤 다시 JSON 으로 만들면 키 순서·공백이 달라진다
+      verify: (req, _res, buf) => {
+        (req as { rawBody?: Buffer }).rawBody = buf;
+      },
+    }),
+  );
 
   // architecture.md 9.5 — 보안 헤더 전역 적용, CORS 허용 오리진 명시(`*` 금지)
   app.use(helmet());

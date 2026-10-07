@@ -169,6 +169,16 @@ export class EnvironmentVariables {
   SENTRY_WEBHOOK_TOKEN?: string;
 
   /**
+   * Sentry Internal Integration 의 **Client Secret**(2026-10-07) — Sentry 가 웹훅마다 보내는 `Sentry-Hook-Signature`
+   * (본문의 HMAC-SHA256)를 이것으로 검증한다. 있으면 토큰 없는 주소 `POST /webhooks/sentry` 가 열린다.
+   * 경로 토큰 방식(`SENTRY_WEBHOOK_TOKEN`)은 비밀이 요청 로그에 남으므로 이쪽을 권한다 — 둘 다 있으면 어느 하나가
+   * 맞으면 받는다(주소 교체 기간). 둘 다 비면 중계가 꺼진다
+   */
+  @IsOptional()
+  @IsString()
+  SENTRY_WEBHOOK_SECRET?: string;
+
+  /**
    * 추천 테스트 콘솔(admin 웹 "추천 테스트" 탭)이 대신 행동하는 테스트 계정의 이메일 — **개발계 전용**.
    * 비우면 콘솔 엔드포인트가 409 로 꺼지고, `SENTRY_ENVIRONMENT=production` 이면 값이 있어도 꺼진다.
    * 행동 버튼은 실제 신호·라이브러리를 쓰므로 운영 DB 에는 절대 붙이지 않는다(`features/admin.md` 4.7).

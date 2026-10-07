@@ -99,6 +99,11 @@ export interface StoreTransaction {
   accountToken: string | null;
   /** `latest_receipt`에 둘 원문(iOS JWS · Android 구매 토큰). 로그에 남기지 않는다 */
   receipt: string;
+  /**
+   * 이 결제 주기의 주문 ID(Play `latestOrderId` — 갱신마다 바뀐다). `latest_order_id`에 둔다 — 환불 고정의 결제
+   * 주기 식별자(`subscription-api.md` 4.7). App Store 거래에는 없다(거래 ID가 그 역할을 한다)
+   */
+  orderId?: string | null;
 }
 
 /** 스토어가 알려 준 "다음 갱신" 정보 */

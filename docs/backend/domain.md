@@ -1190,6 +1190,7 @@ subscriptions
   pending_tier              enum            NULL   ★다운그레이드 예약 — 다음 갱신 때 바뀔 티어 (2026-10-02, `subscription-api.md` 4.2)
   environment               enum            production | sandbox   DEFAULT production   ★실결제와 스토어 시험 결제의 구분 (2026-10-02)
   last_notified_at          timestamptz     NULL   ★마지막으로 반영한 스토어 알림의 서명 시각 — 알림 순서 판정 (2026-10-02)
+  latest_order_id           text            NULL   ★마지막으로 반영한 Play 주문 ID(`latestOrderId`) — 환불 고정의 결제 주기 식별 (2026-10-07). App Store는 NULL
 
 uq_subscriptions_original_transaction_id (original_transaction_id)
 idx_subscriptions_user_id_status (user_id, status)
@@ -1202,6 +1203,7 @@ idx_subscriptions_user_id_status (user_id, status)
 - **Play에는 `original_transaction_id`가 없다 — 그 구독의 최초 구매 토큰을 이 컬럼에 쓴다.** 업·다운그레이드로 새 토큰이 발급되면 스토어 응답의 `linkedPurchaseToken`으로 기존 행을 찾아 같은 행을 갱신한다 — 이전 토큰은 최초 토큰(`original_transaction_id`)일 수도, 중간에 바뀐 토큰(`latest_receipt`)일 수도 있어 둘 다로 찾는다(`subscription-api.md` 4.7). **Play 구매 토큰은 수백 자라 컬럼 길이는 2048이다**(2026-10-03 — 종전 255. App Store ID는 십수 자리 숫자라 문제가 없었다). 탈퇴 시 이 값을 옮겨 담는 `archived_subscriptions.original_transaction_id`([11.5](#115-archived_subscriptions))도 같은 길이다 — 한쪽만 넓으면 Play 구독자의 탈퇴가 아카이브에서 실패한다.
 - `latest_receipt`에는 마지막으로 반영한 **서명된 거래(iOS JWS) 또는 구매 토큰(Android)** 을 둔다 — 만료 보정 때 스토어에 다시 묻는 열쇠다. 로그에는 남기지 않는다. **Play에서는 환불의 고정에도 쓴다**(2026-10-06) — `refunded`인 행은 이 값과 같은 구매 토큰의 조회 결과로 되살리지 않는다(`subscription-api.md` 4.7).
 - **`user_id`는 한 경우에만 바뀐다**(2026-10-06) — 이미 끝난 구독(`expired`·`refunded`)을 **다른 계정이 자기 결제 의도로 다시 결제**해 그 반영이 구독을 되살릴 때, 행을 결제한 계정으로 넘긴다(`subscription-api.md` 7장). 살아 있는 구독의 주인은 바뀌지 않는다.
+- **`latest_order_id`** 는 Play의 결제 주기 식별자다(2026-10-07, `subscription-api.md` 4.7 "환불의 고정"). Google은 갱신마다 새 주문 ID를 발급하므로, 환불로 끝난 행과 **같은 구매 토큰·같은 주문 ID**의 조회 결과는 되살리지 않고, 주문 ID가 바뀌었으면(그 뒤에 결제가 됐다) 되살린다. 종전의 만료 시각 비교는 유예로 밀린 만료 시각 때문에 유예 길이가 결제 주기와 비슷하면 정당한 재결제를 막았다. App Store는 거래 ID가 그 역할을 해 비워 둔다.
 - **`status = expired`가 스토어의 답이 아닐 수 있다**(2026-10-06) — 만료 보정이 스토어에 확인하지 못한 채 `expires_at`이 7일을 넘기면 서버가 만료로 내린다(`subscription-api.md` 4.2). 이때는 `last_notified_at`을 갱신하지 않아, 뒤늦게 온 갱신 알림·거래가 되살릴 수 있다.
 - **`environment`** 는 그 구독이 실결제인지 스토어의 시험 결제인지다(2026-10-02). **운영 서버도 샌드박스 거래를 받는다** — App Store 심사와 TestFlight는 운영 빌드로 샌드박스 결제를 한다(`subscription-api.md` 7장). 구분을 남기지 않으면 시험 결제가 매출·구독자 수에 섞인다. 권한 판정에는 쓰지 않는다 — 샌드박스 구독도 유효하면 유료 티어다(그래야 심사·시험이 된다). 집계가 `environment = 'production'`으로 거른다.
 - **`last_notified_at`** 은 스토어 서버 알림의 순서 뒤바뀜을 막는다(2026-10-02, `subscription-api.md` 4.6). 알림은 보낸 순서대로 도착한다는 보장이 없어, 이 시각보다 먼저 서명된 알림은 상태를 덮지 않는다. 만료 보정(스토어에 직접 조회)도 이 값을 조회 시각으로 갱신한다. **환불·만료로 종결된 구독을, 종결 이전에 시작된 거래로 되살릴 수 없게 하는 기준 시각이기도 하다** — 환불받은 사용자가 환불 전에 받아 둔 서명 거래를 다시 제출해도 반영하지 않는다.

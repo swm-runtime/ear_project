@@ -46,6 +46,8 @@ export function toPlaySnapshot(
     accountToken: purchase.accountToken,
     // Play의 "영수증"은 구매 토큰이다 — 만료 보정 때 이 값으로 Google에 다시 묻는다
     receipt: purchase.purchaseToken,
+    // 결제 주기 식별자 — 환불 고정(4.7)이 "같은 주문인가"를 본다
+    orderId: purchase.orderId,
   };
 
   // 해지 예약(canceled)은 자동 갱신이 꺼진 유효 구독이다 — Google이 `autoRenewEnabled`를 주지만 상태로도 확정한다

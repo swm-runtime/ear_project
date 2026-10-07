@@ -107,7 +107,9 @@ export class StartupSummary implements OnApplicationBootstrap {
           anyHook &&
           has('GA4_PROPERTY_ID') &&
           has('GA4_SERVICE_ACCOUNT_BASE64'),
-        sentryRelay: anyHook && has('SENTRY_WEBHOOK_TOKEN'),
+        sentryRelay:
+          anyHook &&
+          (has('SENTRY_WEBHOOK_TOKEN') || has('SENTRY_WEBHOOK_SECRET')),
         crons,
         serviceDayBoundary: describeServiceDayBoundary(),
       }),
