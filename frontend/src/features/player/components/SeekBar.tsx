@@ -87,7 +87,8 @@ export default function SeekBar({
     const positionFromX = (x: number): number => {
       const { trackWidth: width, durationSec: duration } = stateRef.current;
       if (width <= 0 || duration <= 0) return 0;
-      const ratio = Math.min(1, Math.max(0, x / width));
+      // 잡는 동안 바는 양옆으로 ACTIVE_WIDEN 씩 넓어진다 — 손가락이 가리키는 바 위의 자리로 환산한다
+      const ratio = Math.min(1, Math.max(0, (x + ACTIVE_WIDEN) / (width + ACTIVE_WIDEN * 2)));
       return ratio * duration;
     };
 
@@ -147,6 +148,10 @@ export default function SeekBar({
   // 잡으면 시간 숫자가 바에서 조금 떨어지며 커진다(애플 뮤직) — 바가 굵어지는 것과 같은 값으로 함께 움직인다
   const timeShift = grow.interpolate({ inputRange: [0, 1], outputRange: [0, TIME_ACTIVE_SHIFT] });
   const timeScale = grow.interpolate({ inputRange: [0, 1], outputRange: [1, TIME_ACTIVE_SCALE] });
+  // 잡으면 바가 좌우로도 넓어지고 시간 숫자가 바 끝을 따라 바깥으로 벌어진다(애플 뮤직)
+  const widen = grow.interpolate({ inputRange: [0, 1], outputRange: [0, -ACTIVE_WIDEN] });
+  const timeLeftShift = grow.interpolate({ inputRange: [0, 1], outputRange: [0, -ACTIVE_WIDEN] });
+  const timeRightShift = grow.interpolate({ inputRange: [0, 1], outputRange: [0, ACTIVE_WIDEN] });
   const trackRadius = grow.interpolate({
     inputRange: [0, 1],
     outputRange: [TRACK_HEIGHT_IDLE / 2, TRACK_HEIGHT_ACTIVE / 2],
@@ -218,8 +223,11 @@ export default function SeekBar({
         }}
       >
         {/* 가장 굵을 때 높이의 틀 — 바는 그 가운데서 자라므로 세로 중심(onTrackCenter)이 고정이다 */}
-        <View
-          style={styles.trackSlot}
+        <Animated.View
+          style={[styles.trackSlot, { marginHorizontal: widen }]}
+          // 바·조각은 터치를 받지 않는다 — 터치 영역 밖으로 넓어진 바가 손가락 아래에 오면 위치(locationX)가
+          // 바 조각 기준으로 재어져 틀어진다. 늘 터치 영역 기준으로 잰다
+          pointerEvents="none"
           // touchArea 가 첫 자식이라 touchArea 기준 y == 컴포넌트 기준 y
           onLayout={(event) =>
             onTrackCenter?.(event.nativeEvent.layout.y + event.nativeEvent.layout.height / 2)
@@ -246,7 +254,7 @@ export default function SeekBar({
               <Animated.View style={[fillStyle, { width: `${ratio * 100}%` }]} />
             </Animated.View>
           )}
-        </View>
+        </Animated.View>
       </View>
       <Animated.View
         style={[styles.timeRow, { transform: [{ translateY: timeShift }] }]}
@@ -255,14 +263,20 @@ export default function SeekBar({
         {/* 잡고 있는 동안 시간 숫자가 밝아지고 커진다 — 지금 고르는 위치를 읽게(애플 뮤직). 각자 바깥 끝을 기준으로
             커져야 양 끝 정렬이 흔들리지 않는다 */}
         <Animated.View
-          style={{ transformOrigin: 'left center', transform: [{ scale: timeScale }] }}
+          style={{
+            transformOrigin: 'left center',
+            transform: [{ translateX: timeLeftShift }, { scale: timeScale }],
+          }}
         >
           <Text style={[styles.timeLabel, isDragging && styles.timeLabelActive]}>
             {formatPlaybackTime(displaySec)}
           </Text>
         </Animated.View>
         <Animated.View
-          style={{ transformOrigin: 'right center', transform: [{ scale: timeScale }] }}
+          style={{
+            transformOrigin: 'right center',
+            transform: [{ translateX: timeRightShift }, { scale: timeScale }],
+          }}
         >
           <Text style={[styles.timeLabel, isDragging && styles.timeLabelActive]}>
             {formatPlaybackTime(durationSec)}
@@ -283,6 +297,8 @@ const TIME_GAP = 6;
 /** 잡았을 때 시간 숫자가 더 내려가는 거리 · 커지는 배율 */
 const TIME_ACTIVE_SHIFT = 4;
 const TIME_ACTIVE_SCALE = 1.15;
+/** 잡았을 때 바가 양옆으로 넓어지는 폭(한쪽) — 시간 숫자도 같은 만큼 바깥으로 */
+const ACTIVE_WIDEN = 8;
 /** 구간 조각 사이 틈 — 잡았을 때만 벌어진다 */
 const CHAPTER_GAP = 3;
 /** 닫힌 조각끼리 겹치는 폭 — 이음선 감춤 */
