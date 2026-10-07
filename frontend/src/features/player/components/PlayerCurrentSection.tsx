@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { Animated, Platform, StyleSheet, View } from 'react-native';
 
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { useReduceMotion } from '@/shared/hooks/useReduceMotion';
@@ -34,6 +34,16 @@ const CONTENT_HEIGHT =
 
 /** 표시 내용 + 몇 번째 구간인가(밀려나는 방향을 정한다) */
 type ShownSection = SectionDisplay & { index: number };
+
+/**
+ * 카드 안쪽 위아래 여백. **iOS 는 글자 묶음이 줄 칸 안에서 아래로 2.7pt 앉는다** — 실기기 실측(2026-10-07, 3px/pt):
+ * 위 14.3pt · 아래 9.0pt. 카드 높이는 그대로 두고 그 차이의 절반만큼 위 여백을 덜고 아래에 더한다(눈으로 보이는 위아래가
+ * 각각 약 11.7pt). Android(Pretendard)는 따로 실측 전이라 같은 값이다(memory: Android 한글 세로 정렬은 실측 후 보정)
+ */
+const CARD_PADDING = theme.spacing.sm + 2;
+const IOS_GLYPH_SHIFT = 2.67;
+const CARD_PADDING_TOP = Platform.OS === 'ios' ? CARD_PADDING - IOS_GLYPH_SHIFT : CARD_PADDING;
+const CARD_PADDING_BOTTOM = Platform.OS === 'ios' ? CARD_PADDING + IOS_GLYPH_SHIFT : CARD_PADDING;
 
 const sameDisplay = (a: ShownSection | null, b: ShownSection | null) =>
   a?.index === b?.index && a?.heading === b?.heading && a?.detail === b?.detail;
@@ -182,7 +192,8 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.md,
     marginBottom: theme.spacing.sm,
     paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm + 2,
+    paddingTop: CARD_PADDING_TOP,
+    paddingBottom: CARD_PADDING_BOTTOM,
     borderRadius: theme.radius.md,
     borderCurve: 'continuous',
     // 반투명 흰 채움 — 바탕과 상관없이 같은 회색으로 읽힌다(playerColor.fill)
