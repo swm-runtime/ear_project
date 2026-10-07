@@ -103,14 +103,18 @@ export const cfg = {
   awsRegion: process.env.AWS_REGION || "ap-northeast-2",
   webUrl,
   workerToken: process.env.PIPELINE_WORKER_TOKEN || "",
-  /** TTS (spec/06) — 보이스는 채널 아이덴티티: 확정·고정 (2026-09-02 박수헌 — 윤아=Annie, 이음=Yohan Koo). 변경은 리브랜딩급 결정 */
+  /** TTS (spec/06) — 보이스는 채널 아이덴티티: 확정·고정 (2026-09-02 박수헌 확정, 2026-10-08 v4 교체와 함께 두 보이스 변경). 변경은 리브랜딩급 결정 */
   elevenLabsKey: process.env.ELEVENLABS_API_KEY || "",
   /** AI 서버(ai-server) — 대본 임베딩(metadata-pipeline 4.3). 서버 compose 는 http://ai-server:8000, 토큰은 AI 서버의 INTERNAL_AUTH_TOKEN 과 같은 값. 비우면 임베딩 없이 메타만 낸다(발행 시 웹이 채운다) */
   aiServerUrl: process.env.AI_SERVER_URL || "",
   aiServerToken: process.env.AI_SERVER_TOKEN || "",
-  ttsModel: process.env.TTS_MODEL || "eleven_v3",
-  ttsVoiceYuna: process.env.TTS_VOICE_YUNA || "Lb7qkOn5hF8p7qfCDH8q",
-  ttsVoiceEum: process.env.TTS_VOICE_EUM || "sQ3a15DhENXU8pKTHlcc", // 2026-10-01 박수헌: 이음 보이스 교체 — Mr. K - Korean Creator Voice (이전 Yohan Koo 4JJwo477JUAx3HV0T7n7)
+  /** 2026-10-08 박수헌: eleven_v3 → eleven_v4 교체 (보이스·설정 함께 — spec/06 2·3장). v4 는 Text to Dialogue 로만 쓴다(Text to Speech 경로 없음) */
+  ttsModel: process.env.TTS_MODEL || "eleven_v4",
+  /** Text to Dialogue `settings` (0~1) — stability 낮을수록 감정 폭이 넓다, similarity 높을수록 보이스에 가깝다. 2026-10-08 박수헌: 0 / 1 (이전 stability 0.5 · similarity 기본 0.75) */
+  ttsStability: process.env.TTS_STABILITY ? Number(process.env.TTS_STABILITY) : 0,
+  ttsSimilarity: process.env.TTS_SIMILARITY ? Number(process.env.TTS_SIMILARITY) : 1,
+  ttsVoiceYuna: process.env.TTS_VOICE_YUNA || "uyVNoMrnUku1dZyVEXwD", // 2026-10-08 박수헌: v4 교체와 함께 (이전 Annie Lb7qkOn5hF8p7qfCDH8q)
+  ttsVoiceEum: process.env.TTS_VOICE_EUM || "CxErO97xpQgQXYmapDKX", // 2026-10-08 박수헌: v4 교체와 함께 (이전 Mr. K sQ3a15DhENXU8pKTHlcc ← 2026-10-01 Yohan Koo 4JJwo477JUAx3HV0T7n7)
   /** 징글 (2026-10-01 박수헌): S3 datasets/channel-audio/intro.wav · outro.wav 를 조립 앞뒤에 붙인다. 키를 비우면 끄고, 객체가 없으면 없이 조립한다(실패 아님). 징글 파일은 앞뒤 무음 1초로 정규화해 올리고 본편에 바로 붙인다(추가 무음 없음) */
   // 키는 datasets/ 아래에 둔다 — 서버 인스턴스 역할(ear-pipeline-bucket-rw)이 episodes/·sweeps/·datasets/ 만 허용해 assets/ 는 받기가 거부됐다(T260929-003 첫 적용 실패, 2026-10-01)
   ttsIntroKey: process.env.TTS_INTRO_KEY ?? "datasets/channel-audio/intro.wav", // 원본 wav(48kHz 스테레오)를 cli/jingle.ts 가 다듬어(앞뒤 무음 1초·페이드) 음량을 맞추고 44.1kHz 스테레오로 올린다 — 조립은 손대지 않는다
