@@ -22,11 +22,17 @@ const RADIO_GAP = 10;
 /** 선택 테두리 — 고르지 않은 카드·이용 중 카드에도 투명으로 깔아 안쪽 시작점이 선택에 따라 움직이지 않게 한다 */
 const SELECTED_BORDER_WIDTH = 2;
 
-type PurchaseAction = Exclude<PlanAction, 'none' | 'current'>;
+type SelectableAction = Exclude<PlanAction, 'none' | 'current'>;
 
-/** 고를 수 있는 카드 — action 은 서버 판정이다. 클라이언트가 티어 순서를 비교하지 않는다(subscription-api.md 4.1) */
-const isPurchaseAction = (action: PlanAction): action is PurchaseAction =>
-  action === 'purchase' || action === 'upgrade' || action === 'downgrade';
+/**
+ * 고를 수 있는 카드 — action 은 서버 판정이다. 클라이언트가 티어 순서를 비교하지 않는다(subscription-api.md 4.1).
+ * `cancel`(유료 구독자의 무료 요금제)은 해지 경로를 받은 화면(요금제 관리)에서만 고를 수 있다 — 페이월에서는 고를 수 없다
+ */
+const isSelectableAction = (action: PlanAction, canCancel: boolean): action is SelectableAction =>
+  action === 'purchase' ||
+  action === 'upgrade' ||
+  action === 'downgrade' ||
+  (action === 'cancel' && canCancel);
 
 const priceText = (card: PlanCardVM): string | null => {
   if (card.priceLabel === null) return null;
@@ -122,34 +128,57 @@ interface PlanCardsProps {
   isBusy: boolean;
   purchasingPlanId: string | null;
   onPurchase: (plan: Plan) => void;
+  onCancel?: () => void;
+  cancelHint?: string | null;
   currentDetail?: ReactNode;
 }
 
-function PlanCards({ cards, isBusy, purchasingPlanId, onPurchase, currentDetail }: PlanCardsProps) {
+function PlanCards({
+  cards,
+  isBusy,
+  purchasingPlanId,
+  onPurchase,
+  onCancel,
+  cancelHint = null,
+  currentDetail,
+}: PlanCardsProps) {
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
-  const purchasable = cards.filter((card) => isPurchaseAction(card.plan.action));
-  // 기본은 고를 수 있는 첫 카드(서버 순서) — 티어명으로 고르지 않는다. 고른 카드가 목록에서 빠지면(결제 후 이용 중으로
-  // 바뀜 등) 다시 첫 카드로 돌아간다
+  const canCancel = onCancel !== undefined;
+  const selectable = cards.filter((card) => isSelectableAction(card.plan.action, canCancel));
+  // 기본은 고를 수 있는 첫 유료 카드(서버 순서) — 해지(무료로 바꾸기)는 사용자가 직접 골라야만 선택된다. 티어명으로 고르지
+  // 않는다. 고른 카드가 목록에서 빠지면(결제 후 이용 중으로 바뀜 등) 다시 기본으로 돌아간다
   const selected =
-    purchasable.find((card) => card.plan.planId === selectedPlanId) ?? purchasable[0] ?? null;
+    selectable.find((card) => card.plan.planId === selectedPlanId) ??
+    selectable.find((card) => card.plan.action !== 'cancel') ??
+    selectable[0] ??
+    null;
   const selectedAction =
-    selected !== null && isPurchaseAction(selected.plan.action) ? selected.plan.action : null;
-  const isDowngrade = selectedAction === 'downgrade';
+    selected !== null && isSelectableAction(selected.plan.action, canCancel)
+      ? selected.plan.action
+      : null;
+  // 변경(다운그레이드)·해지는 보조 버튼 — 주 버튼(검정)은 구독·업그레이드
+  const isSecondary = selectedAction === 'downgrade' || selectedAction === 'cancel';
+  const hint =
+    selectedAction === 'downgrade'
+      ? SUBSCRIPTION_COPY.plans.downgradeHint
+      : selectedAction === 'cancel'
+        ? cancelHint
+        : null;
   const isPurchasing = selected !== null && purchasingPlanId === selected.plan.planId;
 
   return (
     <View style={styles.list}>
       <View
         style={styles.list}
-        accessibilityRole={purchasable.length > 0 ? 'radiogroup' : undefined}
-        accessibilityLabel={purchasable.length > 0 ? SUBSCRIPTION_COPY.plans.groupA11y : undefined}
+        accessibilityRole={selectable.length > 0 ? 'radiogroup' : undefined}
+        accessibilityLabel={selectable.length > 0 ? SUBSCRIPTION_COPY.plans.groupA11y : undefined}
       >
         {cards.map((card) => (
           <PlanCard
             key={card.plan.planId}
             card={card}
             onSelect={
-              isPurchaseAction(card.plan.action)
+              isSelectableAction(card.plan.action, canCancel)
                 ? () => setSelectedPlanId(card.plan.planId)
                 : undefined
             }
@@ -165,12 +194,13 @@ function PlanCards({ cards, isBusy, purchasingPlanId, onPurchase, currentDetail 
           <Pressable
             style={({ pressed }) => [
               pillButton.base,
-              isDowngrade ? styles.buttonSecondary : pillButton.primary,
+              isSecondary ? styles.buttonSecondary : pillButton.primary,
               styles.button,
               pressed ? styles.buttonPressed : null,
               isBusy ? styles.buttonDisabled : null,
             ]}
-            onPress={() => onPurchase(selected.plan)}
+            // 해지는 스토어 구독 관리로 보낸다(해지 API 없음 — subscription.md 4.5). 나머지는 결제 흐름
+            onPress={() => (selectedAction === 'cancel' ? onCancel?.() : onPurchase(selected.plan))}
             disabled={isBusy}
             accessibilityRole="button"
             accessibilityLabel={SUBSCRIPTION_COPY.plans.cta(selected.plan.name, selectedAction)}
@@ -178,17 +208,15 @@ function PlanCards({ cards, isBusy, purchasingPlanId, onPurchase, currentDetail 
           >
             {isPurchasing ? (
               <ActivityIndicator
-                color={isDowngrade ? theme.color.textPrimary : theme.color.onPrimary}
+                color={isSecondary ? theme.color.textPrimary : theme.color.onPrimary}
               />
             ) : (
-              <Text style={isDowngrade ? pillButton.secondaryLabel : pillButton.primaryLabel}>
+              <Text style={isSecondary ? pillButton.secondaryLabel : pillButton.primaryLabel}>
                 {SUBSCRIPTION_COPY.plans.cta(selected.plan.name, selectedAction)}
               </Text>
             )}
           </Pressable>
-          {isDowngrade ? (
-            <Text style={styles.hint}>{SUBSCRIPTION_COPY.plans.downgradeHint}</Text>
-          ) : null}
+          {hint !== null ? <Text style={styles.hint}>{hint}</Text> : null}
         </>
       ) : null}
     </View>
@@ -202,6 +230,13 @@ interface PlanListProps {
   /** 결제 시트를 연 요금제 — 그 요금제를 고른 상태면 버튼에 스피너를 둔다 */
   purchasingPlanId: string | null;
   onPurchase: (plan: Plan) => void;
+  /**
+   * 해지 경로(요금제 관리 화면만) — 서버가 `cancel` 을 준 카드(유료 구독자의 무료 요금제)를 고를 수 있게 하고, 버튼
+   * "{이름}로 변경"이 이걸 부른다. 페이월은 넘기지 않는다 — 그때 `cancel` 카드는 `none` 처럼 고를 수 없다
+   */
+  onCancel?: () => void;
+  /** `cancel` 카드를 골랐을 때 버튼 밑 안내("지금 요금제는 N월 N일까지…") — 날짜를 모르면 null */
+  cancelHint?: string | null;
   onRetry: () => void;
   isRetrying: boolean;
   /**
@@ -222,6 +257,8 @@ export default function PlanList({
   isBusy,
   purchasingPlanId,
   onPurchase,
+  onCancel,
+  cancelHint,
   onRetry,
   isRetrying,
   currentDetail,
@@ -261,6 +298,8 @@ export default function PlanList({
       isBusy={isBusy}
       purchasingPlanId={purchasingPlanId}
       onPurchase={onPurchase}
+      onCancel={onCancel}
+      cancelHint={cancelHint}
       currentDetail={currentDetail}
     />
   );
@@ -363,7 +402,7 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.sm,
     minHeight: theme.touchTarget.minHeight,
   },
-  // 변경(다운그레이드) — 보조 버튼. 주 버튼(검정)과 위계를 가른다
+  // 변경(다운그레이드·무료로 바꾸기) — 보조 버튼. 주 버튼(검정)과 위계를 가른다
   buttonSecondary: {
     backgroundColor: theme.color.background,
     borderWidth: StyleSheet.hairlineWidth,

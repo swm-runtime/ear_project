@@ -20,6 +20,11 @@ export interface CurrentSubscriptionDetailProps {
    * subscription-api.md 4.1). 카드의 이름 줄이 없으니 플랜명을 제목으로 두고 면을 깐다
    */
   standalone?: boolean;
+  /**
+   * [구독 해지]를 그리지 않는다 — 요금제 목록에 고를 수 있는 무료 요금제(`cancel`)가 있으면 해지는 "그 요금제로 변경"이
+   * 맡는다(PM 2026-10-08). 구독 다시 시작·결제 수단 확인은 요금제 바꾸기가 아니라서 그대로 둔다
+   */
+  hideCancel?: boolean;
 }
 
 /**
@@ -36,6 +41,7 @@ export default function CurrentSubscriptionDetail({
   isRetrying,
   onOpenStore,
   standalone = false,
+  hideCancel = false,
 }: CurrentSubscriptionDetailProps) {
   if (status === null) {
     if (!isError) return null;
@@ -105,7 +111,9 @@ export default function CurrentSubscriptionDetail({
       {status.otherStore !== null ? (
         <Text style={styles.body}>{SUBSCRIPTION_COPY.status.otherStore(status.otherStore)}</Text>
       ) : status.kind === 'subscribed' ? (
-        storeButton(SUBSCRIPTION_COPY.manage.cancel)
+        hideCancel ? null : (
+          storeButton(SUBSCRIPTION_COPY.manage.cancel)
+        )
       ) : status.kind === 'cancelScheduled' ? (
         storeButton(SUBSCRIPTION_COPY.manage.resume)
       ) : (
