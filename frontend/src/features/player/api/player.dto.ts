@@ -57,7 +57,7 @@ export interface AudioUrlsResponseDto {
     title: string;
     /** 구역(KAN-127 후속 — 서버·파이프라인이 실으면). 없거나 모르는 값이면 구역 라벨 없이 그린다 */
     kind?: string;
-    /** 구간 요약 한 문장(두 줄 분량 — KAN-151·152). 없으면 단락 제목·구역 원래 이름으로 대신한다 */
+    /** 구간 요약 한 줄(20자 이내 — KAN-151·152). 없으면 단락 제목·구역 원래 이름으로 대신한다 */
     summary?: string;
   }[];
   library_item: { id: string; status: PlayedLibraryItemStatus } | null;
