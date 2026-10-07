@@ -52,40 +52,40 @@ export default function PlayerSleepTimerSheet({
       dimColor={playerColor.overlay}
     >
       <View accessible={false}>
-        <View style={styles.handle} />
-        <View accessibilityViewIsModal accessibilityRole="radiogroup">
-          <Text style={styles.title} accessibilityRole="header">
-            {PLAYER_COPY.sleepTimerSheet.title}
-          </Text>
-          {OPTIONS.map((option) => {
-            // "해제" 줄에는 체크를 두지 않는다 — 꺼져 있다는 것은 다른 줄에 체크가 없는 것으로 읽힌다
-            const isSelected =
-              option.choice !== null && isSameSleepTimerChoice(option.choice, currentChoice);
-            return (
-              <Pressable
-                key={option.key}
-                style={({ pressed }) => [styles.option, pressed && styles.optionPressed]}
-                onPress={() => onSelect(option.choice)}
-                accessibilityRole="radio"
-                accessibilityLabel={option.label}
-                accessibilityState={{ checked: isSelected }}
-              >
-                <Text style={[styles.optionLabel, isSelected && styles.optionLabelSelected]}>
-                  {option.label}
-                </Text>
-                {isSelected ? (
-                  <Text
-                    style={styles.check}
-                    accessibilityElementsHidden
-                    importantForAccessibility="no"
-                  >
-                    ✓
+          <View style={styles.handle} />
+          <View accessibilityViewIsModal accessibilityRole="radiogroup">
+            <Text style={styles.title} accessibilityRole="header">
+              {PLAYER_COPY.sleepTimerSheet.title}
+            </Text>
+            {OPTIONS.map((option) => {
+              // "해제" 줄에는 체크를 두지 않는다 — 꺼져 있다는 것은 다른 줄에 체크가 없는 것으로 읽힌다
+              const isSelected =
+                option.choice !== null && isSameSleepTimerChoice(option.choice, currentChoice);
+              return (
+                <Pressable
+                  key={option.key}
+                  style={({ pressed }) => [styles.option, pressed && styles.optionPressed]}
+                  onPress={() => onSelect(option.choice)}
+                  accessibilityRole="radio"
+                  accessibilityLabel={option.label}
+                  accessibilityState={{ checked: isSelected }}
+                >
+                  <Text style={[styles.optionLabel, isSelected && styles.optionLabelSelected]}>
+                    {option.label}
                   </Text>
-                ) : null}
-              </Pressable>
-            );
-          })}
-        </View>
+                  {isSelected ? (
+                    <Text
+                      style={styles.check}
+                      accessibilityElementsHidden
+                      importantForAccessibility="no"
+                    >
+                      ✓
+                    </Text>
+                  ) : null}
+                </Pressable>
+              );
+            })}
+          </View>
       </View>
     </BottomSheet>
   );

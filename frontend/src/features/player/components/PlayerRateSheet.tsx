@@ -36,38 +36,38 @@ export default function PlayerRateSheet({
       dimColor={playerColor.overlay}
     >
       <View accessible={false}>
-        <View style={styles.handle} />
-        <View accessibilityViewIsModal accessibilityRole="radiogroup">
-          <Text style={styles.title} accessibilityRole="header">
-            {PLAYER_COPY.rateSheet.title}
-          </Text>
-          {RATE_OPTIONS.map((rate) => {
-            const isSelected = rate === currentRate;
-            return (
-              <Pressable
-                key={rate}
-                style={({ pressed }) => [styles.option, pressed && styles.optionPressed]}
-                onPress={() => onSelect(rate)}
-                accessibilityRole="radio"
-                accessibilityLabel={PLAYER_COPY.rateSheet.optionA11y(rate)}
-                accessibilityState={{ checked: isSelected }}
-              >
-                <Text style={[styles.optionLabel, isSelected && styles.optionLabelSelected]}>
-                  {PLAYER_COPY.rateSheet.optionLabel(rate)}
-                </Text>
-                {isSelected ? (
-                  <Text
-                    style={styles.check}
-                    accessibilityElementsHidden
-                    importantForAccessibility="no"
-                  >
-                    ✓
+          <View style={styles.handle} />
+          <View accessibilityViewIsModal accessibilityRole="radiogroup">
+            <Text style={styles.title} accessibilityRole="header">
+              {PLAYER_COPY.rateSheet.title}
+            </Text>
+            {RATE_OPTIONS.map((rate) => {
+              const isSelected = rate === currentRate;
+              return (
+                <Pressable
+                  key={rate}
+                  style={({ pressed }) => [styles.option, pressed && styles.optionPressed]}
+                  onPress={() => onSelect(rate)}
+                  accessibilityRole="radio"
+                  accessibilityLabel={PLAYER_COPY.rateSheet.optionA11y(rate)}
+                  accessibilityState={{ checked: isSelected }}
+                >
+                  <Text style={[styles.optionLabel, isSelected && styles.optionLabelSelected]}>
+                    {PLAYER_COPY.rateSheet.optionLabel(rate)}
                   </Text>
-                ) : null}
-              </Pressable>
-            );
-          })}
-        </View>
+                  {isSelected ? (
+                    <Text
+                      style={styles.check}
+                      accessibilityElementsHidden
+                      importantForAccessibility="no"
+                    >
+                      ✓
+                    </Text>
+                  ) : null}
+                </Pressable>
+              );
+            })}
+          </View>
       </View>
     </BottomSheet>
   );
