@@ -2,13 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, PanResponder, StyleSheet, View } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
+import { tickHaptic } from '@/shared/lib/haptics';
 import { motion, theme } from '@/shared/theme';
 import { Text } from '@/shared/ui/Typography';
 
 import { SEEK_STEP_SEC } from '../player.constants';
 import { PLAYER_COPY } from '../player.copy';
 import { formatPlaybackTime, formatPlaybackTimeA11y } from '../player.format';
-import { chapterSegmentsOf } from '../player.section';
+import { chapterIndexOf, chapterSegmentsOf } from '../player.section';
 import { playerColor } from '../player.theme';
 
 interface SeekBarProps {
@@ -60,11 +61,11 @@ export default function SeekBar({
   );
 
   // PanResponder 콜백은 생성 시점의 값을 캡처한다 — 최신 값은 ref로 읽고, 갱신은 렌더 밖에서 한다
-  const stateRef = useRef({ trackWidth, durationSec, disabled });
+  const stateRef = useRef({ trackWidth, durationSec, disabled, chapterStartsSec });
   const onSeekToRef = useRef(onSeekTo);
   const onScrubRef = useRef(onScrub);
   useEffect(() => {
-    stateRef.current = { trackWidth, durationSec, disabled };
+    stateRef.current = { trackWidth, durationSec, disabled, chapterStartsSec };
     onSeekToRef.current = onSeekTo;
     onScrubRef.current = onScrub;
   });
@@ -73,6 +74,8 @@ export default function SeekBar({
     const dragRef = { current: null as number | null };
     /** 누른 지점(터치 영역 기준 x) — 그 뒤 위치는 이 값 + 이동량(dx)으로 잰다 */
     const grantXRef = { current: 0 };
+    /** 끄는 위치의 구간 번호 — 바뀌면 경계를 넘은 것이라 약하게 진동한다(애플 팟캐스트, PM 2026-10-07) */
+    const chapterRef = { current: 0 };
     const openChapters = () => {
       if (chapterTimerRef.current !== null) clearTimeout(chapterTimerRef.current);
       chapterTimerRef.current = null;
@@ -108,6 +111,7 @@ export default function SeekBar({
         grantXRef.current = event.nativeEvent.locationX;
         const next = positionFromX(grantXRef.current);
         dragRef.current = next;
+        chapterRef.current = chapterIndexOf(stateRef.current.chapterStartsSec, next);
         setDragPositionSec(next);
         onScrubRef.current?.(next);
         openChapters();
@@ -116,6 +120,11 @@ export default function SeekBar({
       // 않고 손가락 아래 다른 뷰 기준으로 와서, 왼쪽 끝까지 밀어도 0 으로 가지 않았다(PM 2026-10-07). 이동량은 정확하다
       onPanResponderMove: (_event, gesture) => {
         const next = positionFromX(grantXRef.current + gesture.dx);
+        const chapter = chapterIndexOf(stateRef.current.chapterStartsSec, next);
+        if (chapter !== chapterRef.current) {
+          chapterRef.current = chapter;
+          tickHaptic();
+        }
         dragRef.current = next;
         setDragPositionSec(next);
         onScrubRef.current?.(next);
