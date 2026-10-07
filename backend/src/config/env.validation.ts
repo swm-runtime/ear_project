@@ -12,11 +12,38 @@ import {
   MaxLength,
   Min,
   MinLength,
+  Validate,
   ValidateIf,
   validateSync,
+  ValidatorConstraint,
+  type ValidatorConstraintInterface,
 } from 'class-validator';
 
 import { SEMVER_PATTERN } from '@/common/utils/semver.util';
+
+/**
+ * `SERVICE_DAY_BOUNDARY_05_FROM` — 비어 있거나, 파싱되는 시각이면서 **KST 시(hour)가 4가 아니어야** 한다.
+ * (`service-date.util.ts` 머리말 — 04:00~04:59 전환은 날짜가 거꾸로 간다.)
+ */
+@ValidatorConstraint({ name: 'serviceDayBoundarySwitch', async: false })
+export class ServiceDayBoundarySwitchConstraint implements ValidatorConstraintInterface {
+  validate(value: unknown): boolean {
+    if (value === undefined || value === null) return true;
+    if (typeof value !== 'string') return false;
+    const trimmed = value.trim();
+    if (trimmed === '') return true;
+    // 날짜만 적은 값은 거부한다 — `new Date('2026-10-14')`는 UTC 자정(KST 09:00)으로 조용히 해석된다
+    if (!/T\d{2}:\d{2}/.test(trimmed)) return false;
+    const parsed = new Date(trimmed);
+    if (Number.isNaN(parsed.getTime())) return false;
+    const kstHour = (parsed.getUTCHours() + 9) % 24;
+    return kstHour !== 4;
+  }
+
+  defaultMessage(): string {
+    return 'SERVICE_DAY_BOUNDARY_05_FROM must be an ISO 8601 datetime whose KST hour is not 04 (05:00 KST recommended)';
+  }
+}
 
 /**
  * 푸시 발송 구현(`notification.md` 4.3 — Expo Push, 결정 2026-09-17).
@@ -181,6 +208,19 @@ export class EnvironmentVariables {
     message: 'SIGNUP_TRIAL_EXISTING_USERS_BEFORE must be a date (YYYY-MM-DD)',
   })
   SIGNUP_TRIAL_EXISTING_USERS_BEFORE?: string;
+
+  /**
+   * 서비스 날짜 경계를 04:00 → 05:00 KST 로 옮기는 **시각**(ISO 8601, 예 `2026-10-14T05:00:00+09:00` —
+   * `domain.md` 1.2, KAN-149). 이 시각 전은 04:00 경계, 이 시각부터 05:00 경계로 계산한다. 비우면 04:00 그대로다.
+   *
+   * **KST 05:00 정각을 권장**하고, **KST 04:00~04:59 는 거부한다** — 그 구간에서는 옛 규칙이 "오늘", 새 규칙이
+   * "어제"라 서비스 날짜가 거꾸로 간다(한도 리셋이 두 번 보이고 통계 구간이 겹친다). 전환 시각은 약관 개정
+   * (KAN-148)에서 PM 이 정한다. 전환 전에 쓴 `users.trial_ends_at`(04:00 값)은 전환일에 +1시간 옮긴다
+   * (`infra/runbook.md` 4장).
+   */
+  @IsOptional()
+  @Validate(ServiceDayBoundarySwitchConstraint)
+  SERVICE_DAY_BOUNDARY_05_FROM?: string;
 
   /**
    * App Store 인앱 결제 검증(`subscription-api.md` 7장 — KAN-106). **전부 선택이고, `APP_STORE_BUNDLE_ID`나

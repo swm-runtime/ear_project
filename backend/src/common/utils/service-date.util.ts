@@ -5,13 +5,82 @@
  * **경계 계산은 이 파일에만 두고 전 모듈이 이것만 호출한다.**
  *
  * 애플리케이션은 시각을 UTC로 다루고 표시·경계 판정만 KST로 한다.
+ *
+ * ## 05:00 전환 (KAN-149, 2026-10-07)
+ *
+ * 팀 합의로 경계를 **05:00 KST로 옮긴다.** 전환 시각은 코드에 박지 않고 env
+ * `SERVICE_DAY_BOUNDARY_05_FROM`(ISO 8601 시각)으로 받는다 — 약관 공지 기간을 PM 이 정하기 때문이다.
+ * **그 시각 전의 시각은 04:00 경계, 그 시각부터는 05:00 경계**로 계산한다. 비어 있으면 04:00 그대로다.
+ *
+ * 시각 기준으로 가르므로 과거 `play_records.play_date`·통계 재집계도 그대로 맞는다. 전환 시각은
+ * **KST 05:00 정각을 권장**한다 — 그러면 전환일 하루가 한 시간 길어질 뿐(04:00~다음 날 05:00) 겹침·빈틈이
+ * 없다. KST 04:00~04:59 사이의 시각은 금지한다(그 구간에서는 옛 규칙이 오늘, 새 규칙이 어제라 날짜가 거꾸로 간다
+ * — `env.validation.ts`가 막는다).
  */
 
 const KST_OFFSET_MINUTES = 9 * 60;
-const SERVICE_DAY_START_HOUR = 4;
+const LEGACY_SERVICE_DAY_START_HOUR = 4;
+const SERVICE_DAY_START_HOUR_FROM_SWITCH = 5;
 const MINUTE_MS = 60 * 1000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
 const DAYS_IN_WEEK = 7;
+
+export const SERVICE_DAY_BOUNDARY_SWITCH_ENV = 'SERVICE_DAY_BOUNDARY_05_FROM';
+
+/** env 원문 → 파싱 결과를 한 번만 계산한다. 원문이 바뀌면(테스트) 다시 읽는다 */
+let cachedSwitchRaw: string | undefined;
+let cachedSwitchAt: Date | null = null;
+
+/**
+ * 05:00 경계로 넘어가는 시각. env 가 비어 있거나 파싱이 안 되면 `null`(= 계속 04:00).
+ *
+ * `process.env`를 호출 때마다 보는 이유 — 이 유틸은 ConfigModule 보다 먼저 import 되는 순수 모듈이라
+ * 모듈 로드 시점에 읽으면 `.env`가 아직 올라오기 전일 수 있다. 값 검증은 `env.validation.ts`가 한다.
+ */
+export function serviceDayBoundarySwitchAt(): Date | null {
+  const raw = process.env[SERVICE_DAY_BOUNDARY_SWITCH_ENV];
+  if (raw === cachedSwitchRaw) return cachedSwitchAt;
+
+  cachedSwitchRaw = raw;
+  const trimmed = raw?.trim() ?? '';
+  if (trimmed === '') {
+    cachedSwitchAt = null;
+  } else {
+    const parsed = new Date(trimmed);
+    cachedSwitchAt = Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  return cachedSwitchAt;
+}
+
+/** 주어진 **시각**에 적용되는 하루 시작 시(KST). 전환 시각 전이면 4, 그때부터 5 */
+export function serviceDayStartHour(date: Date): number {
+  const switchAt = serviceDayBoundarySwitchAt();
+  return switchAt !== null && date.getTime() >= switchAt.getTime()
+    ? SERVICE_DAY_START_HOUR_FROM_SWITCH
+    : LEGACY_SERVICE_DAY_START_HOUR;
+}
+
+/**
+ * 서비스 날짜 **라벨**이 시작되는 순간(UTC `Date`).
+ *
+ * 그 날짜의 04:00 KST 가 전환 시각보다 앞이면 04:00, 아니면 05:00 이다 — 전환일(D 05:00 전환)은
+ * 04:00 에 시작해 다음 날 05:00 에 끝나 25시간이 된다. `toServiceDayRange`와 집계 SQL 의 경계 환산이
+ * 전부 이 함수를 쓴다.
+ */
+export function serviceDateStart(serviceDate: string): Date {
+  const kstMidnightUtc =
+    parseDateLabel(serviceDate).getTime() - KST_OFFSET_MINUTES * MINUTE_MS;
+  const legacyStart = new Date(
+    kstMidnightUtc + LEGACY_SERVICE_DAY_START_HOUR * 60 * MINUTE_MS,
+  );
+  const switchAt = serviceDayBoundarySwitchAt();
+  if (switchAt === null || legacyStart.getTime() < switchAt.getTime()) {
+    return legacyStart;
+  }
+  return new Date(
+    kstMidnightUtc + SERVICE_DAY_START_HOUR_FROM_SWITCH * 60 * MINUTE_MS,
+  );
+}
 
 /** 주어진 시각의 KST 벽시계 값을 UTC 필드로 옮긴 Date. 계산 전용이며 저장하지 않는다 */
 function toKstWallClock(date: Date): Date {
@@ -26,30 +95,33 @@ function formatDate(year: number, month: number, day: number): string {
 
 /**
  * 서비스 날짜를 UTC 필드에 담은 Date. **계산 전용이며 저장하지 않는다** —
- * 04시를 뺀 KST 벽시계이므로 이 값의 `getUTC*`가 곧 서비스 날짜의 연·월·일이다.
+ * 하루 시작 시(04시, 전환 뒤 05시)를 뺀 KST 벽시계이므로 이 값의 `getUTC*`가 곧 서비스 날짜의 연·월·일이다.
  */
 function toServiceDay(date: Date): Date {
   return new Date(
-    toKstWallClock(date).getTime() - SERVICE_DAY_START_HOUR * 60 * MINUTE_MS,
+    toKstWallClock(date).getTime() - serviceDayStartHour(date) * 60 * MINUTE_MS,
   );
 }
 
 /**
- * 주어진 시각이 속한 **서비스 날짜의 시각 범위** `[start, end)` — 04:00 KST부터 다음 날 04:00 KST 전까지.
+ * 주어진 시각이 속한 **서비스 날짜의 시각 범위** `[start, end)` — 04:00 KST부터 다음 날 04:00 KST 전까지
+ * (전환 뒤에는 05:00. 전환일은 04:00~다음 날 05:00).
  *
  * 날짜 라벨이 아니라 `timestamptz` 컬럼을 하루 단위로 잘라야 하는 판정에 쓴다(예: 알림 하루 1건 —
  * `notification.md` 4.3). 라벨로 바꿔 비교하면 SQL이 행마다 KST 변환을 해야 해 인덱스를 못 탄다.
+ *
+ * `end`는 `start + 24h`가 아니라 **다음 라벨의 시작**이다 — 전환일 하루는 25시간이다.
  */
 export function toServiceDayRange(date: Date): { start: Date; end: Date } {
-  const start = new Date(
-    parseDateLabel(toServiceDate(date)).getTime() +
-      (SERVICE_DAY_START_HOUR * 60 - KST_OFFSET_MINUTES) * MINUTE_MS,
-  );
+  const label = toServiceDate(date);
 
-  return { start, end: new Date(start.getTime() + DAY_MS) };
+  return {
+    start: serviceDateStart(label),
+    end: serviceDateStart(shiftServiceDate(label, 1)),
+  };
 }
 
-/** 04시 경계를 적용한 서비스 날짜 (`YYYY-MM-DD`) */
+/** 하루 경계(04시, 전환 뒤 05시)를 적용한 서비스 날짜 (`YYYY-MM-DD`) */
 export function toServiceDate(date: Date): string {
   const serviceDay = toServiceDay(date);
 

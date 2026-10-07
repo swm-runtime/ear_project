@@ -39,6 +39,24 @@ describe('signup-trial.util', () => {
       expect(endsAt.toISOString()).toBe('2026-10-10T19:00:00.000Z');
     });
 
+    it('경계가 05:00 으로 전환된 뒤 가입하면 종료도 05:00 경계다(KAN-149)', () => {
+      const key = 'SERVICE_DAY_BOUNDARY_05_FROM';
+      const original = process.env[key];
+      process.env[key] = '2026-10-14T05:00:00+09:00';
+      try {
+        // 10월 20일 15:00 KST 가입 → 10월 20~26일 체험, 10월 27일 05:00 KST 종료
+        const endsAt = resolveSignupTrialEndsAt(
+          new Date('2026-10-20T06:00:00.000Z'),
+          7,
+        );
+        expect(endsAt.toISOString()).toBe('2026-10-26T20:00:00.000Z');
+        expect(toSignupTrialLastFreeDate(endsAt)).toBe('2026-10-26');
+      } finally {
+        if (original === undefined) delete process.env[key];
+        else process.env[key] = original;
+      }
+    });
+
     it('일수를 바꾸면 그만큼의 서비스 날짜를 준다', () => {
       const signedUpAt = new Date('2026-10-03T06:00:00.000Z');
 

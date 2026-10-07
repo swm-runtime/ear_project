@@ -53,7 +53,7 @@ CloudWatch(EC2 지표·`/ear/api`·`/ear/caddy` 로그)·Sentry·합성 헬스�
 
 | 시각(KST) | 이름 | 무엇 | 실패하면 |
 |---|---|---|---|
-| 04:00 | `content-stat-aggregation` | 콘텐츠 통계(`content_stats`) 재집계 | 로그, 다음 날 재시도(재집계라 안전) |
+| 04:00 / 05:30 | `content-stat-aggregation` / `content-stat-aggregation-0530` | 콘텐츠 통계(`content_stats`) 재집계. **둘 다 등록되지만 그 시각의 서비스 날짜 경계에 맞는 쪽만 돈다**(KAN-149, 2026-10-07 — 경계 04:00이면 04:00 등록, `SERVICE_DAY_BOUNDARY_05_FROM` 전환 뒤에는 05:30 등록. 다른 쪽은 debug 로그 한 줄로 건너뛴다) | 로그, 다음 날 재시도(재집계라 안전) |
 | 04:10 | `content-license-expiry` | 라이선스 만료 콘텐츠를 `expired` 로 전환 + 라이브러리 잔존분 정리 | 로그, 다음 날 재시도 — 그 사이는 재생·발급 게이트의 만료 검사가 막는다 |
 | 04:15 | `empty-topic-sweep` | 주제 노출 갱신 — 노출 가능 콘텐츠가 0건인 노출 주제를 숨긴다 | 로그, 다음 날 재시도 |
 | 04:30 | `retention-purge` | 보존 기한 지난 데이터 삭제(`domain.md` 12.1) | 로그 — 테이블 하나가 실패해도 나머지는 계속 지운다 |
@@ -65,7 +65,7 @@ CloudWatch(EC2 지표·`/ear/api`·`/ear/caddy` 로그)·Sentry·합성 헬스�
 | 15분마다 | `app-remove-poll` | GA4 실시간 `app_remove`(Firebase 가 Android 에서 자동 수집하는 앱 삭제)를 읽어 새로 도착한 건수를 Slack 한 줄로(3-4). 운영 스트림만, 신원 값 없음 | 로그, 다음 주기 — "마지막으로 집계한 분"이 그대로라 30분 창 안이면 다시 본다. 재배포 뒤 첫 주기는 창을 전부 집계해 한 번 중복될 수 있다 |
 | 60초마다 | 자원 경보(`setInterval` — 크론 아님) | CPU·메모리 표본 + Slack 경보(5장) | 로그. 표본은 모든 워커가 쌓고 **경보 발송만** 스케줄러 워커가 한다 |
 
-- 04시대의 순서(집계 → 만료 → 주제 숨김 → 삭제 → 구독 보정 → 05:00 편성)는 서비스 날짜 경계(04:00) 뒤에 전날분을 확정하고 편성이 그 결과를 읽게 하려는 것이다.
+- 04시대의 순서(집계 → 만료 → 주제 숨김 → 삭제 → 구독 보정 → 05:00 편성)는 서비스 날짜 경계(04:00) 뒤에 전날분을 확정하고 편성이 그 결과를 읽게 하려는 것이다. **경계가 05:00으로 전환되면**(KAN-149) 집계만 05:30으로 넘어가고 나머지는 그대로다 — 만료·주제 숨김·삭제·구독 보정은 서비스 날짜를 계산하지 않고, 드립은 누적값만 읽어 하루 늦은 집계를 감수한다(PM 확정 2026-10-07).
 - **크론이 아닌 주기 작업**(`@Interval`)도 같은 스케줄러 워커에서 돈다 — 첫 드립 재시도 큐 `first-drip-retry`(30초마다)와 정리 4종 `first-drip-purge` · `session-purge` · `idempotency-purge` · `email-verification-purge`(1시간마다). 실패는 로그 한 줄이고 다음 주기가 다시 시도한다. **이들은 기동 로그의 `crons=[…]` 에 나오지 않는다**(크론 등록분만 찍는다).
 - 어느 배치도 예외를 밖으로 던지지 않는다 — 던지면 스케줄러가 멈추기 때문이다. 실패는 로그 한 줄로 끝나고, ERROR 로 남은 것은 Slack ERROR 감시(5장 `log-watch`)가 받는다.
 
@@ -87,10 +87,11 @@ CloudWatch(EC2 지표·`/ear/api`·`/ear/caddy` 로그)·Sentry·합성 헬스�
 **규칙**: 켜짐/꺼짐의 **런타임 진실은 기동 로그의 `features …` 한 줄**이다(백엔드 `startup-summary.ts`). 문서 표는 "무엇이 있는가", 로그는 "지금 이 서버에 무엇이 켜졌는가"다. 배포 뒤 확인은 그 줄로 한다:
 
 ```
-[Startup] features env=production scheduler=yes sentry=on resource-alert=on signup-alert=on daily-metrics=on crons=[content-license-expiry,content-stat-aggregation,daily-drip-batch,daily-metrics,empty-topic-sweep,push-receipt-check,retention-purge]
+[Startup] features env=production scheduler=yes sentry=on resource-alert=on signup-alert=on daily-metrics=on voc-review=on app-remove-alert=on service-day=04:00 crons=[content-license-expiry,content-stat-aggregation,content-stat-aggregation-0530,daily-drip-batch,daily-metrics,empty-topic-sweep,push-receipt-check,retention-purge]
 ```
 
 - 값은 찍지 않는다 — 있는지 없는지만 찍는다. `env` 는 `SENTRY_ENVIRONMENT` 값이다.
+- `service-day=` 는 서비스 날짜 경계 설정 상태다(KAN-149) — `04:00` 이거나, 전환 시각이 들어가 있으면 `05:00@<ISO 시각>`. 전환일 전에 넣어 두면 이 값이 먼저 바뀌고 경계는 그 시각에 바뀐다.
 - **프로세스마다 한 줄씩 나온다.** 스케줄러가 아닌 워커는 `scheduler=no … daily-metrics=off crons=[]` 로 찍힌다 — 고장이 아니다. `scheduler=yes` 인 줄이 정확히 하나 있는지를 본다.
 - `resource-alert` 는 `SLACK_ERROR_WEBHOOK_URL`, `signup-alert` 는 두 웹훅 중 하나, `daily-metrics` 는 스케줄러 워커 + 웹훅 + GA4 두 값이 모두 있을 때 `on` 이다.
 

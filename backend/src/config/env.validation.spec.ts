@@ -246,6 +246,30 @@ describe('validateEnv', () => {
     }
   });
 
+  it('SERVICE_DAY_BOUNDARY_05_FROM 은 ISO 시각이고 KST 04시대는 거부한다 — 그 구간 전환은 날짜가 거꾸로 간다(KAN-149)', () => {
+    for (const value of [
+      'not-a-date',
+      '2026-10-14', // 날짜만 — UTC 자정 = KST 09:00 이라 통과할 것 같지만 시각을 요구한다
+      '2026-10-14T04:00:00+09:00',
+      '2026-10-14T04:59:59+09:00',
+      '2026-10-13T19:30:00Z', // = KST 04:30
+    ]) {
+      expect(() =>
+        validateEnv({ ...validEnv, SERVICE_DAY_BOUNDARY_05_FROM: value }),
+      ).toThrow(/SERVICE_DAY_BOUNDARY_05_FROM/);
+    }
+    for (const value of [
+      '',
+      '2026-10-14T05:00:00+09:00',
+      '2026-10-13T20:00:00.000Z', // = KST 05:00
+      '2026-10-14T03:59:00+09:00',
+    ]) {
+      expect(() =>
+        validateEnv({ ...validEnv, SERVICE_DAY_BOUNDARY_05_FROM: value }),
+      ).not.toThrow();
+    }
+  });
+
   it('CLUSTER_WORKERS 가 auto 또는 1~8 이 아니면 기동을 실패시킨다 — 오타로 조용히 1워커가 되지 않게', () => {
     expect(() => validateEnv({ ...validEnv, CLUSTER_WORKERS: 'two' })).toThrow(
       /CLUSTER_WORKERS/,
