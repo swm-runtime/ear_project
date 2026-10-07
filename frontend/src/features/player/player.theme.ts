@@ -17,6 +17,11 @@ export const playerColor = {
   background: '#17171A',
   /** 카드·현재 문단·시트처럼 바탕에서 한 단 올라온 면 */
   surface: '#26262B',
+  /**
+   * 반투명 채움 — 바탕 색과 상관없이 같은 밝은 회색으로 읽힌다(iOS secondarySystemFill 의 어두운 화면 값과 같은 방식).
+   * 구간 카드가 쓴다(PM 2026-10-07 "회색으로"). 15% 넘게 밝히면 카드가 재생 바보다 먼저 보여 위계가 뒤집힌다
+   */
+  fill: 'rgba(255, 255, 255, 0.10)',
   textPrimary: '#FFFFFF',
   textSecondary: '#A0A0A8',
   /** 트랙·비활성 아이콘·구분 — 검정 위에서 보이되 튀지 않는 회색 */
