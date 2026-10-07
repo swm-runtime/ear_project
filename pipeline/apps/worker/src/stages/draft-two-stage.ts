@@ -279,6 +279,25 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
  * 임계값 근거(29편): 정리형 진행 턴 평균 29%(최대 56%) · "아니라" 편당 12.5회 · 사전 문형 2.2회 · "잠깐" 26편 · "○○님이라면" 28편 · 클로징 다짐형 24편 · "결국"/"이해하게 됩니다" 각 6·12편.
  * 지목한 턴을 메시지에 적는다 — 수정 호출은 최소 수정 원칙이라 턴을 지목해야 고친다(v8.3 뜸 교훈).
  */
+/**
+ * 비율 규칙 (2026-10-07 박수헌) — 편 전체에서 차지하는 비율로 판정하는 L0 3종. 지목한 턴만 고쳐서는 잘 풀리지 않아(고친 턴이 같은 갈래로 가거나 다른 턴이 늘어남)
+ * L0 수정 한도를 다 쓴 뒤 이것만 남으면 실패시키지 않고 QA 로 넘긴다. 메시지와 판별이 같은 문구를 쓰도록 상수로 둔다 — 문구를 바꾸면 판별도 함께 바뀐다
+ * "편 전체 N회 이하" 같은 횟수 상한(대조 문장·한계 고지·조건절 질문)은 비율이 아니다 — 한도 뒤에 남으면 실패
+ */
+export const RATIO_RULE_MARKS = ["셋 중 하나가 상한이다", "질문은 절반에서 3분의 2다", "같은 말끝은 질문의 5분의 2 이하다"] as const;
+export const isRatioViolation = (v: string): boolean => RATIO_RULE_MARKS.some((m) => v.includes(m));
+
+/** L0 수정 한도 (2026-10-07: 2 → 3) — QA 회차(qa.ts MAX_ATTEMPTS = QA 실행 3회, 실패 뒤 수정 2회)와 따로 센다 */
+export const L0_FIX_MAX = 3;
+export type L0Next = { action: "fix" } | { action: "fail"; hard: string[] } | { action: "pass"; residual: string[] };
+/** L0 위반이 있을 때 다음 동작 — 한도 전이면 수정, 한도 뒤에는 비율 위반만 남았으면 QA 로 넘기고(pass) 그 밖의 위반이 남았으면 실패(fail). 위반이 없으면 null */
+export function l0Next(violations: string[], l0Fixes: number): L0Next | null {
+  if (!violations.length) return null;
+  if (l0Fixes < L0_FIX_MAX) return { action: "fix" };
+  const hard = violations.filter((v) => !isRatioViolation(v));
+  return hard.length ? { action: "fail", hard } : { action: "pass", residual: violations };
+}
+
 export function v94Violations(turns: ScriptTurn[]): string[] {
   const v: string[] = [];
   const E = turns.filter((t) => t.id?.startsWith("E"));
@@ -294,7 +313,7 @@ export function v94Violations(turns: ScriptTurn[]): string[] {
     const over = summaryY.length - Math.floor(bodyY.length / 3) + 1;
     const step = summaryY.length / over;
     const picks = Array.from({ length: over }, (_, i) => summaryY[Math.min(summaryY.length - 1, Math.floor(i * step + step / 2))]).filter((t, i, arr) => arr.indexOf(t) === i);
-    v.push(`진행 턴 ${bodyY.length}개 중 ${summaryY.length}개가 물음표 없는 정리형("~네요"·"~군요"·"~로 들려요")으로 끝남 — 셋 중 하나가 상한이다. 다음 ${picks.length}개 턴을 전부 바꾼다: ${ids(picks, 12)}. 자기 처지에서의 느낌, 한두 마디 수긍, 이해가 막힌 자리의 되물음 가운데 하나로 — 앞 해설을 다시 정리하는 문장으로 바꾸지 않는다 (규칙 3·25)`);
+    v.push(`진행 턴 ${bodyY.length}개 중 ${summaryY.length}개가 물음표 없는 정리형("~네요"·"~군요"·"~로 들려요")으로 끝남 — ${RATIO_RULE_MARKS[0]}. 다음 ${picks.length}개 턴을 전부 바꾼다: ${ids(picks, 12)}. 자기 처지에서의 느낌, 한두 마디 수긍, 이해가 막힌 자리의 되물음 가운데 하나로 — 앞 해설을 다시 정리하는 문장으로 바꾸지 않는다 (규칙 3·25)`);
   }
   // 규칙 3: 진행자가 각주를 부르는 질문 — 청취자는 조사 기관·표본·척도·오차·통계 절차를 묻지 않는다
   const footnoteQ = bodyY.filter((t) => /\?/.test(t.text) && /(표본|응답률|척도|오차|조사 기관|조사 방식|조사 방법|대조군|통계적|통계 (절차|처리)|재현(됐|되|이)|인과(관계)?(를|가) (입증|확인|증명)|유의)/.test(t.text));
@@ -334,7 +353,7 @@ export function v94Violations(turns: ScriptTurn[]): string[] {
   if (bodyY.length >= 12 && questionY.length / bodyY.length > 0.7) {
     const over = questionY.length - Math.floor((bodyY.length * 2) / 3);
     const picks = questionY.filter((_, i) => i % 3 === 1).slice(0, Math.max(over, 1));
-    v.push(`진행 턴 ${bodyY.length}개 중 ${questionY.length}개가 질문 — 질문은 절반에서 3분의 2다. 이 가운데 ${over}개 이상을 자기 처지에서의 느낌이나 짧은 수긍으로 바꾼다(요약으로 바꾸지 않는다). 바꿀 턴: ${ids(picks, 10)} (규칙 3)`);
+    v.push(`진행 턴 ${bodyY.length}개 중 ${questionY.length}개가 질문 — ${RATIO_RULE_MARKS[1]}. 이 가운데 ${over}개 이상을 자기 처지에서의 느낌이나 짧은 수긍으로 바꾼다(요약으로 바꾸지 않는다). 바꿀 턴: ${ids(picks, 10)} (규칙 3)`);
   }
   // 규칙 3: 진행자가 한계·단서를 유도하는 질문 — 해설이 매 구간을 한계 고지로 닫게 만든다
   const leadRe = /(단정|일반화|확정|입증)[^?]{0,25}\?|그대로 (넓|적용|옮)[^?]{0,20}\?|(없겠죠|어렵겠죠|아니겠죠|문제겠죠|지나치겠네요|조심해야겠[죠네])\??/;
@@ -408,7 +427,7 @@ export function v98Violations(scriptMd: string, turns: ScriptTurn[]): string[] {
     const picks = Array.from({ length: over }, (_, i) => sameEnd[Math.min(sameEnd.length - 1, Math.floor(i * step + step / 2))]).filter((t, i, a) => a.indexOf(t) === i);
     // 피할 갈래: 지목한 턴이 모두 그 갈래로 가면 넘치는 갈래
     const full = [...byEnd.entries()].filter(([k, ts]) => k !== "기타" && ts.length + picks.length > capEnd).map(([k, ts]) => `${k} ${ts.length}개`).join(" · ");
-    v.push(`진행 질문 ${qY.length}개 중 ${sameEnd.length}개가 같은 말끝(${topEnd})으로 끝남 — 같은 말끝은 질문의 5분의 2 이하다. 다음 ${picks.length}개 턴의 묻는 말끝을 바꾼다: ${ids(picks, 10)}. 이미 많은 갈래(${full})가 아닌 말끝으로 바꾼다 (규칙 25)`);
+    v.push(`진행 질문 ${qY.length}개 중 ${sameEnd.length}개가 같은 말끝(${topEnd})으로 끝남 — ${RATIO_RULE_MARKS[2]}. 다음 ${picks.length}개 턴의 묻는 말끝을 바꾼다: ${ids(picks, 10)}. 이미 많은 갈래(${full})가 아닌 말끝으로 바꾼다 (규칙 25)`);
   }
   // 규칙 19·28 (v9.8.1, 2026-10-03): 진행자의 격식체 질문("~습니까?"·"~합니까?") — 말끝 쏠림 L0 가 "~나요"를 밀어내자 이리로 옮겨 갔다(T261002-001 Y3·Y13,
   // 002 Y9·Y16 — D1 동의 2건, 002 Y9 직접 수정 "있지 않습니까?" → "있지 않을까요?"). 진행자와 해설자는 같은 대화체다 — 전부 지목

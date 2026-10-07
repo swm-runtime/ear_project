@@ -15,7 +15,7 @@ export interface RevisionInlineOut { fixes: { turn: string; before: string; afte
 
 /**
  * script-notes.md 의 턴별 claims 표를 수정 결과로 갱신한다 (2026-09-15, T260915-007): 수정이 턴에서 claim 문장을 지워도 표가 그대로면
- * L0 "구간 밖 사용"이 같은 턴을 계속 잡아 L0 수정 한도(2회)에서 실패한다. 표 행 `| E4 | C01, C20 |` 를 모델이 보고한 남은 claims 로 바꾸고, 지운 턴은 행을 없앤다
+ * L0 "구간 밖 사용"이 같은 턴을 계속 잡아 L0 수정 한도(당시 2회, 2026-10-07 3회)에서 실패한다. 표 행 `| E4 | C01, C20 |` 를 모델이 보고한 남은 claims 로 바꾸고, 지운 턴은 행을 없앤다
  */
 export function updateNotesClaims(notesMd: string, fixes: { turn: string; after: string; claims?: string[] }[]): string {
   const lines = notesMd.split("\n");
