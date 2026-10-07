@@ -1,7 +1,7 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, AppState, Linking } from 'react-native';
+import { AccessibilityInfo, Alert, AppState, Linking, Platform } from 'react-native';
 
 import { track } from '@/shared/analytics';
 import { copyToClipboard } from '@/shared/lib/clipboard';
@@ -401,7 +401,22 @@ export const useSettingsScreen = () => {
     selectPlaybackRate,
 
     isLogoutDialogVisible,
-    openLogoutDialog: () => setIsLogoutDialogVisible(true),
+    // iOS 는 시스템 알림창(UIAlertController — PM 2026-10-07 "애플처럼"). 파괴적 버튼은 OS 가 빨간 글자로 그린다.
+    // Android 는 Alert 가 파괴적 표시를 못 해 종전 확인 팝업(SettingsDialog) 그대로
+    openLogoutDialog: () => {
+      if (Platform.OS !== 'ios') {
+        setIsLogoutDialogVisible(true);
+        return;
+      }
+      Alert.alert(SETTINGS_COPY.account.logoutConfirmTitle, undefined, [
+        { text: SETTINGS_COPY.account.logoutCancel, style: 'cancel' },
+        {
+          text: SETTINGS_COPY.account.logoutConfirm,
+          style: 'destructive',
+          onPress: confirmLogout,
+        },
+      ]);
+    },
     closeLogoutDialog: () => {
       if (isLoggingOut) return; // 처리 중에는 팝업을 닫지 않는다(settings-uiux.md 4.4)
       setIsLogoutDialogVisible(false);
