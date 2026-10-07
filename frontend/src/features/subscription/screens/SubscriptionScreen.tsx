@@ -130,6 +130,8 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: theme.spacing.md,
+    // 좌우는 32 — 카드·버튼·유의사항이 한 세로선에 서고, SE(375)에서도 카드 311pt(KAN-146 PM 미리보기 확정 2026-10-07)
+    paddingHorizontal: theme.spacing.xl,
     paddingBottom: theme.spacing.xxl,
     gap: theme.spacing.sm,
   },

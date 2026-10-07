@@ -79,21 +79,48 @@ const PAID_PURCHASE = makeCard(
   '₩3,900',
 );
 
-const renderList = (cards: PlanCardVM[], currentDetail?: ReactNode) =>
+const PAID_UPGRADE = makeCard(
+  {
+    tier: 'pro',
+    name: '무제한',
+    description: '제한 없이 마음껏 들을 수 있어요',
+    storeProductId: 'pro.monthly',
+    action: 'purchase',
+  },
+  '₩9,900',
+);
+
+const renderList = (cards: PlanCardVM[], currentDetail?: ReactNode, onPurchase = jest.fn()) =>
   render(
     <PlanList
       state={{ kind: 'ready', cards, isEmailVerified: true }}
       isBusy={false}
       purchasingPlanId={null}
-      onPurchase={jest.fn()}
+      onPurchase={onPurchase}
       onRetry={jest.fn()}
       isRetrying={false}
       currentDetail={currentDetail}
     />,
   );
 
+/** 누를 수 있는 노드(합성 컴포넌트) — accessibilityRole 로 찾는다 */
+const byRole = (renderer: Renderer, role: string) =>
+  renderer.root.findAll(
+    (node) => typeof node.type !== 'string' && node.props.accessibilityRole === role,
+  );
+
+const radioOf = (renderer: Renderer, name: string) =>
+  byRole(renderer, 'radio').filter((node) =>
+    String(node.props.accessibilityLabel).startsWith(name),
+  )[0];
+
+const ctaOf = (renderer: Renderer, label: string) =>
+  renderer.root.findAll(
+    (node) => typeof node.type !== 'string' && node.props.accessibilityLabel === label,
+  );
+
 describe('PlanList — 요금제 카드(KAN-146)', () => {
-  it('이용 중 카드는 이름·가격·설명을 회색 단계로 내리고 [이용 중] 회색 알약을 둔다', () => {
+  it('이용 중 카드는 회색 단계로 내리고 이름 옆 [이용 중] 배지를 둔다 — 라디오도 버튼도 아니다', () => {
     // given · when
     const renderer = renderList([FREE_CURRENT, PAID_PURCHASE]);
 
@@ -105,27 +132,32 @@ describe('PlanList — 요금제 카드(KAN-146)', () => {
     const currentLabel = textNodes(renderer, SUBSCRIPTION_COPY.plans.current);
     expect(currentLabel).toHaveLength(1);
     expect(flat(currentLabel[0].props.style).color).toBe(theme.color.textMuted);
-    // [이용 중]은 누를 수 있는 버튼이 아니다
-    const pressables = renderer.root.findAll(
-      (node) => node.props.accessibilityRole === 'button' && typeof node.type !== 'string',
-    );
+    expect(radioOf(renderer, '가벼운')).toBeUndefined();
     expect(
-      pressables.some((node) => String(node.props.accessibilityLabel).includes('이용 중')),
+      byRole(renderer, 'button').some((node) =>
+        String(node.props.accessibilityLabel).includes('이용 중'),
+      ),
     ).toBe(false);
     act(() => renderer.unmount());
   });
 
-  it('구독할 수 있는 카드는 검정 알약 [구독하기]이고, 기능 줄·광고 표기가 없다', () => {
+  it('고를 수 있는 첫 카드가 기본 선택이고, 목록 아래 검정 알약 하나가 "<이름> 구독하기"다', () => {
     // given · when
-    const renderer = renderList([FREE_CURRENT, PAID_PURCHASE]);
+    const renderer = renderList([FREE_CURRENT, PAID_PURCHASE, PAID_UPGRADE]);
 
     // then
-    const buttons = renderer.root.findAll(
-      (node) => typeof node.type !== 'string' && node.props.accessibilityLabel === '매일 구독하기',
+    expect(radioOf(renderer, '매일').props.accessibilityState).toMatchObject({ selected: true });
+    expect(radioOf(renderer, '무제한').props.accessibilityState).toMatchObject({
+      selected: false,
+    });
+    // 버튼은 하나 — 합성 컴포넌트가 겹쳐 노드는 여럿일 수 있어 이름으로 센다
+    expect(new Set(byRole(renderer, 'button').map((node) => node.props.accessibilityLabel))).toEqual(
+      new Set(['매일 구독하기']),
     );
-    expect(buttons.length).toBeGreaterThan(0);
+    const cta = ctaOf(renderer, '매일 구독하기');
+    expect(cta.length).toBeGreaterThan(0);
     const style = flat(
-      (buttons[0].props.style as (state: { pressed: boolean }) => unknown)({ pressed: false }),
+      (cta[0].props.style as (state: { pressed: boolean }) => unknown)({ pressed: false }),
     );
     expect(style.borderRadius).toBe(theme.radius.full);
     expect(style.borderCurve).toBe('continuous');
@@ -134,6 +166,57 @@ describe('PlanList — 요금제 카드(KAN-146)', () => {
     expect(texts.some((text) => text.includes('광고'))).toBe(false);
     expect(texts.some((text) => text.includes('이어 PICK'))).toBe(false);
     act(() => renderer.unmount());
+  });
+
+  it('다른 카드를 누르면 고르기만 하고, 버튼을 눌러야 그 요금제로 결제를 연다', () => {
+    // given
+    const onPurchase = jest.fn();
+    const renderer = renderList([FREE_CURRENT, PAID_PURCHASE, PAID_UPGRADE], undefined, onPurchase);
+
+    // when
+    act(() => {
+      (radioOf(renderer, '무제한').props.onPress as () => void)();
+    });
+
+    // then
+    expect(onPurchase).not.toHaveBeenCalled();
+    expect(radioOf(renderer, '무제한').props.accessibilityState).toMatchObject({ selected: true });
+    const cta = ctaOf(renderer, '무제한 구독하기');
+    expect(cta.length).toBeGreaterThan(0);
+    act(() => {
+      (cta[0].props.onPress as () => void)();
+    });
+    expect(onPurchase).toHaveBeenCalledWith(PAID_UPGRADE.plan);
+    act(() => renderer.unmount());
+  });
+
+  it('변경(다운그레이드)을 고르면 보조 버튼 "<이름>(으)로 변경"과 적용 시점 안내를 둔다', () => {
+    // given — 받침 있는 이름은 "으로"
+    const downgrade = makeCard(
+      { tier: 'light', name: '가벼운', storeProductId: 'light.monthly', action: 'downgrade' },
+      '₩1,900',
+    );
+    const current = makeCard({ tier: 'pro', name: '무제한', action: 'current' }, '₩9,900');
+
+    // when
+    const renderer = renderList([downgrade, current]);
+
+    // then
+    const cta = ctaOf(renderer, '가벼운으로 변경');
+    expect(cta.length).toBeGreaterThan(0);
+    const style = flat(
+      (cta[0].props.style as (state: { pressed: boolean }) => unknown)({ pressed: false }),
+    );
+    expect(style.backgroundColor).toBe(theme.color.background);
+    expect(textNodes(renderer, SUBSCRIPTION_COPY.plans.downgradeHint)).toHaveLength(1);
+    act(() => renderer.unmount());
+  });
+
+  it('조사는 이름 마지막 글자로 고른다 — 받침 없음·ㄹ 받침·영문은 "로"', () => {
+    expect(SUBSCRIPTION_COPY.plans.cta('Daily', 'downgrade')).toBe('Daily로 변경');
+    expect(SUBSCRIPTION_COPY.plans.cta('매일', 'downgrade')).toBe('매일로 변경');
+    expect(SUBSCRIPTION_COPY.plans.cta('베이직', 'downgrade')).toBe('베이직으로 변경');
+    expect(SUBSCRIPTION_COPY.plans.cta('Pro', 'upgrade')).toBe('Pro 업그레이드');
   });
 
   it('현재 구독 정보는 이용 중 카드 안에 그린다', () => {
@@ -165,11 +248,28 @@ describe('PlanList — 요금제 카드(KAN-146)', () => {
 
     // then
     expect(textNodes(renderer, SUBSCRIPTION_COPY.plans.current)).toHaveLength(0);
+    expect(radioOf(renderer, '가벼운')).toBeUndefined();
     expect(
       renderer.root.findAll(
         (node) => typeof node.type === 'string' && node.props.testID === 'current-detail',
       ),
     ).toHaveLength(0);
+    act(() => renderer.unmount());
+  });
+
+  it('고를 수 있는 카드가 없으면(다른 스토어 구독 등) 버튼을 그리지 않는다', () => {
+    // given
+    const otherStore = makeCard(
+      { tier: 'daily', name: '매일', storeProductId: 'daily.monthly', action: 'none' },
+      '₩3,900',
+    );
+
+    // when
+    const renderer = renderList([otherStore]);
+
+    // then
+    expect(byRole(renderer, 'button')).toHaveLength(0);
+    expect(byRole(renderer, 'radio')).toHaveLength(0);
     act(() => renderer.unmount());
   });
 });
