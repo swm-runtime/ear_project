@@ -208,6 +208,8 @@ const TRACK_HEIGHT_IDLE = 6;
 const TRACK_HEIGHT_ACTIVE = 12;
 /** 손을 뗀 뒤 바가 얇아지는 시간 */
 const TRACK_SHRINK_MS = 160;
+/** 바(가장 굵을 때 기준)와 시간 숫자 사이 */
+const TIME_GAP = 6;
 /** 구간 조각 사이 틈 */
 const CHAPTER_GAP = 3;
 const NO_CHAPTERS: readonly number[] = [];
@@ -244,9 +246,12 @@ const styles = StyleSheet.create({
   fillDisabled: {
     backgroundColor: playerColor.border,
   },
+  // 시간 숫자는 히트 영역(44) 아래 여백 안으로 끌어올려 바 바로 밑에 붙인다(PM 2026-10-07 "공백이 너무 많다") —
+  // 바 아래 16 → TIME_GAP. 숫자는 누를 수 없어 히트 영역과 겹쳐도 된다
   timeRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    marginTop: -((theme.touchTarget.minHeight - TRACK_HEIGHT_ACTIVE) / 2 - TIME_GAP),
   },
   timeLabel: {
     fontSize: theme.font.size.xs,
