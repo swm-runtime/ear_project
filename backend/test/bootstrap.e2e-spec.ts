@@ -85,8 +85,9 @@ describe('부팅 스모크 — main.ts 의 configureApp 으로 조립한 앱', (
       .post('/api/v1/webhooks/sentry/t')
       .send(big)
       .expect(HttpStatus.CREATED);
-    expect(sentry.body.keys).toBe(1);
-    expect(sentry.body.rawBodyBytes).toBeGreaterThan(1_500_000);
+    const taken = sentry.body as { keys: number; rawBodyBytes: number };
+    expect(taken.keys).toBe(1);
+    expect(taken.rawBodyBytes).toBeGreaterThan(1_500_000);
 
     const other = await request(app.getHttpServer())
       .post('/api/v1/t/echo')
