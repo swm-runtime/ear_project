@@ -36,7 +36,7 @@ const SCENARIO = process.env.EXPO_PUBLIC_LIBRARY_MOCK_SCENARIO ?? 'default';
 const RESPONSE_DELAY_MS = 600;
 /** 발급은 "탭 후 2초 내 재생 시작"(PRD 7)의 경로다 — 목록 조회보다 짧은 지연을 준다 */
 const ISSUE_DELAY_MS = 300;
-/** 서비스 날짜는 서버가 04:00 KST 경계로 계산해 내려주는 값이다 — mock은 고정 라벨을 쓴다 */
+/** 서비스 날짜는 서버가 05:00 KST 경계로 계산해 내려주는 값이다 — mock은 고정 라벨을 쓴다 */
 const SERVICE_DATE = '2026-08-07';
 
 /** 파트너 회수 시뮬레이션 — 목록에는 남아 있지만 재생하면 CONTENT_WITHDRAWN이 난다(L13) */

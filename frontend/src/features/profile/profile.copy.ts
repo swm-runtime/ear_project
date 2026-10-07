@@ -92,7 +92,7 @@ export const PROFILE_COPY = {
     paymentIssue: '결제에 문제가 있어요',
     /**
      * 가입 체험 중인 무료 계정(profile-uiux.md 4.2 — 2026-10-05, KAN-119). 날짜는 서버 last_free_date —
-     * ends_at에서 계산하지 않는다(04시 경계는 서버 몫). 설정 구독 요약도 같은 문자열이다(settings-uiux.md 6장)
+     * ends_at에서 계산하지 않는다(05시 경계는 서버 몫). 설정 구독 요약도 같은 문자열이다(settings-uiux.md 6장)
      */
     trial: (lastFreeDate: string) => `무료 체험 중 · ${dateOnlyMonthDay(lastFreeDate)}까지 무제한`,
   },

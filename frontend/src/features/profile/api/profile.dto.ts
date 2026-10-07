@@ -35,7 +35,7 @@ export interface ProfilePlanDto {
 }
 
 export interface ProfilePlanTrialDto {
-  /** 종료 시각(UTC, 04:00 KST 경계) — 표시에 쓰지 않는다. 날짜는 last_free_date */
+  /** 종료 시각(UTC, 05:00 KST 경계) — 표시에 쓰지 않는다. 날짜는 last_free_date */
   ends_at: string;
   /** 무제한으로 들을 수 있는 마지막 서비스 날짜(YYYY-MM-DD) — ends_at에서 계산하지 않는다 */
   last_free_date: string;

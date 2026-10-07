@@ -22,7 +22,7 @@ export const hydrateSuppressedServiceDate = async (): Promise<void> => {
   }
 };
 
-/** 억제 등록 — 유효 기간은 서버가 내려준 오늘의 서비스 날짜까지다(04:00 KST 경계) */
+/** 억제 등록 — 유효 기간은 서버가 내려준 오늘의 서비스 날짜까지다(05:00 KST 경계) */
 export const suppressPlayConfirmForToday = async (serviceDate: string): Promise<void> => {
   usePlayLimitStore.getState().setSuppressedServiceDate(serviceDate);
   try {

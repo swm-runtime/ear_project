@@ -10,7 +10,7 @@
 | 발행 날짜 | 2026-10-07 |
 | 시작 날짜 | 2026-10-07 |
 | 기한 | 2026-10-10 (Medium — 3일 안) |
-| 선행 | 없음. 이 티켓이 정한 전환 시각(2026-10-12 05:00 KST)이 `tickets/backend/pending/service-day-boundary-0500.md`(KAN-149)의 운영 환경 변수와 `tickets/frontend/pending/service-day-0500-copy.md`(KAN-150)의 OTA 시점이 된다 |
+| 선행 | 없음. 이 티켓이 정한 전환 시각(2026-10-12 05:00 KST)이 `tickets/backend/pending/service-day-boundary-0500.md`(KAN-149)의 운영 환경 변수와 `tickets/frontend/archive/service-day-0500-copy.md`(KAN-150)의 OTA 시점이 된다 |
 | 근거 문서 | 팀 합의(2026-10-07 — 서비스 날짜 경계 05:00) · 약관 3조(변경 공지 7일 · 불리한 변경 30일 + 개별 통지) · 4조(재동의는 서버가 동의 버전 비교) |
 | 중요도 | Medium — 전환 시각이 정해져야 서버·앱이 날짜를 잡는다 |
 | 상태 | 완료 — 반영 2026-10-07 |
