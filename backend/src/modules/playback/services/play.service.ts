@@ -18,7 +18,7 @@ import { PlayPolicyService } from './play-policy.service';
  * 한도가 경로별로 새는 구멍이 된다(`paywall.md` 4.2).
  *
  * 판정 규칙 자체는 이 코드가 소유하지 않는다 — `ALLOW` / `BLOCKED` / `LIMIT_REACHED`의
- * 기준과 차감 단위, 04시 경계는 전부 `paywall.md` 4.1~4.4가 정한다.
+ * 기준과 차감 단위, 05시 경계는 전부 `paywall.md` 4.1~4.4가 정한다.
  *
  * Orchestrator가 아니라 Service인 이유: 자기 Entity(`play_records` · `user_signals`)를
  * 쓰는 단일 트랜잭션 유스케이스다(architecture.md 3.3 — Orchestrator는 자기 Repository를

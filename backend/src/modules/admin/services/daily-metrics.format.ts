@@ -3,6 +3,8 @@
  * 받은 숫자를 사람이 읽는 4줄로 바꾼다. 그래야 자격 없이도 검증된다.
  */
 
+import { serviceDayStartHour } from '@/common/utils/service-date.util';
+
 export type DailyMetrics = {
   /** 보고 대상 날짜 (`YYYY-MM-DD`, KST) */
   date: string;
@@ -97,7 +99,8 @@ export function formatDailyMetrics(
     `*획득*     가입 ${formatSignUps(a.signUps, a.serverSignUps)} → 온보딩 완료 ${n(a.onboardingCompletes)}${ratio(a.onboardingCompletes, a.signUps)}  ·  푸시 응답 ${n(a.pushResponses)}  ·  탈퇴 ${n(a.withdrawals)}`,
     `*재생*     시작 ${n(p.playStarts)} (${n(p.playStartUsers)}명)  ·  완청 ${n(p.completes)}  ·  중도 이탈 ${n(p.abandons)}  ·  드립 재생 ${n(p.dripPlays)}  ·  담기 ${n(p.saves)}`,
     `*리텐션*   D1 ${formatRetention(m.retention.d1)}  ·  D7 ${formatRetention(m.retention.d7)}`,
-    `_▲▼ 전일 대비 · 전부 GA4 운영 스트림(00시 경계) · 가입의 괄호는 서버 값(04시 경계)_`,
+    // 서버 값의 하루 경계는 보고 날짜(정오)에 적용되는 경계로 적는다 — 05:00 전환(KAN-149) 전후를 가른다
+    `_▲▼ 전일 대비 · 전부 GA4 운영 스트림(00시 경계) · 가입의 괄호는 서버 값(${String(serviceDayStartHour(new Date(`${m.date}T12:00:00+09:00`))).padStart(2, '0')}시 경계)_`,
   ].join('\n');
 }
 

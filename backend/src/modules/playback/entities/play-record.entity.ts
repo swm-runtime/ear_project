@@ -16,7 +16,7 @@ import { User } from '@/modules/user/entities/user.entity';
  * domain.md 6.3 — **페이월 카운트의 유일한 근거다**(A-2).
  *
  * `daily_play_count`는 컬럼이 아니라 이 테이블의 집계다(domain.md 1.5).
- * `users.daily_play_count` · `count_reset_at`은 폐기된 개체이며, 04시 리셋 배치도 돌리지
+ * `users.daily_play_count` · `count_reset_at`은 폐기된 개체이며, 05시 리셋 배치도 돌리지
  * 않는다 — 판정 시점에 서비스 날짜로 세는 방식이라 배치 지연·시간대 이슈가 판정에
  * 영향을 주지 않는다(`paywall.md` 4.4).
  *
@@ -58,7 +58,7 @@ export class PlayRecord extends BaseEntity {
   content: Content;
 
   /**
-   * **04시 기준 서비스 날짜**(domain.md 1.2). 자정 경계가 아니다.
+   * **05시 기준 서비스 날짜**(domain.md 1.2). 자정 경계가 아니다.
    * 시각이 아니라 `date`인 이유는 이 값이 판정·집계의 축이기 때문이다.
    */
   @Column({ name: 'play_date', type: 'date' })

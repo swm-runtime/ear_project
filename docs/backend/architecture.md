@@ -208,7 +208,7 @@ src/
 
 - **남의 테이블을 지우면서 소유 모듈을 의존하지 않는다.** 대상이 네 모듈에 흩어져 있어 소유 모듈마다 배치를 두면 같은 규칙의 구현이 네 벌이 되고, `notification_logs`는 **소유 모듈 자체가 없다**(`domain.md` 9.1과 스키마에는 있지만 아직 쓰는 기능 코드가 없다). 보존 기간의 소유자는 기능이 아니라 12.1이라는 하나의 정책 표이므로, 정책이 한 곳이면 집행도 한 곳이어야 한다.
 - **Repository가 raw SQL을 쓴다**(3.4의 허용 범위). 배치 크기를 끊는 `DELETE ... LIMIT`을 TypeORM 쿼리 빌더로 표현할 수 없다 — 첫 실행이 몇 달치를 한 번에 지우면 테이블이 잠긴다. 테이블 이름은 컴파일 타임 문자열 유니온이라 사용자 입력이 식별자 자리에 닿지 않는다.
-- **트리거는 04:30 KST**다. 집계(`ContentStatAggregationScheduler` 04:00)와 만료(`ContentExpiryScheduler` 04:10) **뒤**, 드립 편성(05:00) **앞**에 둔다. `content_stats` 재집계가 `user_signals` · `source_link_clicks`를 원천으로 읽으므로 **집계보다 먼저 지우면 그날 집계가 원천을 잃는다.**
+- **트리거는 04:30 KST**다. 만료(`ContentExpiryScheduler` 04:10) **뒤**, 드립 편성(05:00) **앞**에 둔다. 서비스 날짜를 계산하지 않으므로 경계 05:00 전환(개정 2026-10-07 — 2026-10-12 05:00 KST 적용, KAN-149)과 무관하게 시각을 유지한다. 집계(`ContentStatAggregationScheduler`)는 경계 04:00 동안 04:00(이 배치 앞), 전환 뒤 05:30(이 배치 뒤)에 돈다 — 재집계가 `user_signals` · `source_link_clicks`를 원천으로 읽지만 삭제 대상은 보존 기간(12.1)이 지난 행뿐이라 전날분 집계가 원천을 잃지는 않는다.
 - **`audit_logs`는 대상이 아니고**(12.1 — 삭제하지 않는다) `play_records`는 보류다(프로필이 전 기간 합계를 읽는다). 어떤 모듈도 이 모듈을 의존하지 않는다.
 
 **Onboarding은 Entity를 갖지 않는다.** 온보딩은 화면 흐름이라 자기 데이터가 없고 `users` · `user_interests` · `contents` · `library_items` · `first_drip_jobs`를 횡단한다. 4.1의 "모듈은 Entity 기준으로 나눈다"의 예외이며, Repository 없이 **Orchestrator가 각 소유 모듈의 Service를 조합한다**(→ 3.3). 도메인 규칙 판정(주제 개수 상한, 발행 상태, 완료 여부)은 전부 소유 모듈의 Service에 있고 Orchestrator는 순서·조합만 담당한다.

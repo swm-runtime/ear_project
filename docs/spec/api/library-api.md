@@ -40,7 +40,7 @@
 | 인증 헤더 | `Authorization: Bearer <access_token>` — 이 문서의 **모든 엔드포인트가 인증 필요** |
 | 요청·응답 필드 | **snake_case** |
 | 시각 | **ISO 8601 UTC 문자열** (epoch 정수 금지) |
-| 서비스 날짜 | `YYYY-MM-DD` — 04:00 KST 경계로 계산한 **날짜 라벨**(`domain.md` 1.2) |
+| 서비스 날짜 | `YYYY-MM-DD` — 05:00 KST 경계로 계산한 **날짜 라벨**(`domain.md` 1.2 — 개정 2026-10-07 — 2026-10-12 05:00 KST 적용, KAN-149) |
 | 페이지네이션 | **커서 기반**. `{ items, next_cursor, has_next }` (`convention.md` 5.3) |
 | 추적 | 모든 응답에 `X-Trace-Id` |
 | 멱등키 | **이 문서에는 `Idempotency-Key`가 필요한 엔드포인트가 없다**(3장 설계 메모) |
@@ -62,8 +62,8 @@
 
 **`service_date`를 시각이 아니라 날짜 문자열로 내려주는 이유**
 
-- **`service_date`는 UTC 타임스탬프가 아니다.** 04:00 KST 경계로 잘라 만든 날짜 라벨이며, `play_records.play_date`에 저장되는 값과 같은 값이다(`domain.md` 1.2 · 6.3).
-  - UTC 시각으로 환산해 내려주면 클라이언트가 자기 시간대로 되돌리면서 경계가 한 번 더 이동하고, 03:59와 04:01이 같은 날로 뭉개진다.
+- **`service_date`는 UTC 타임스탬프가 아니다.** 05:00 KST 경계로 잘라 만든 날짜 라벨이며, `play_records.play_date`에 저장되는 값과 같은 값이다(`domain.md` 1.2 · 6.3).
+  - UTC 시각으로 환산해 내려주면 클라이언트가 자기 시간대로 되돌리면서 경계가 한 번 더 이동하고, 04:59와 05:01이 같은 날로 뭉개진다.
 - 클라이언트는 이 값을 **확인 팝업 억제의 유효 기간 판정에만** 쓴다(`library.md` 4.3). 저장한 억제 날짜와 다르면 억제가 풀린 것으로 본다.
 
 **잔여 재생 표시값 — 세 필드 규약**
@@ -337,7 +337,7 @@
 
 재생 시작. **한도 판정과 카운트 적재가 여기서 일어난다.**
 
-> **판정 규칙은 이 문서가 소유하지 않는다.** `ALLOW` / `BLOCKED` / `LIMIT_REACHED`의 기준, 차감 단위, 04시 경계는 전부 `paywall.md` 4.1~4.4가 정한다. 이 절은 그 결과를 어떤 상태 코드와 필드로 표현하는지만 정의한다.
+> **판정 규칙은 이 문서가 소유하지 않는다.** `ALLOW` / `BLOCKED` / `LIMIT_REACHED`의 기준, 차감 단위, 05시 경계는 전부 `paywall.md` 4.1~4.4가 정한다. 이 절은 그 결과를 어떤 상태 코드와 필드로 표현하는지만 정의한다.
 
 **Request**
 
@@ -621,7 +621,7 @@ POST /users/me/library-items/:id/complete
 | `content_topics` — 주제 필터(4.1)와 주제 목록(4.2)의 조인 대상 | 5.2 |
 | `drip_excluded_contents` — 삭제·재생 시 적재 | 7.1 |
 | `plans` — `daily_play_limit`(null = 무제한) | 8.1 |
-| 서비스 날짜 경계(04:00 KST) | 1.2 |
+| 서비스 날짜 경계(05:00 KST) | 1.2 |
 | 파생값을 컬럼으로 두지 않는다 | 1.4 |
 
 - **잔여 재생 횟수를 저장하는 컬럼을 만들지 않는다.** `daily_play_count`는 판정 시점의 `play_records` 집계이며(`domain.md` 1.4 · 6.3), `users.daily_play_count` · `count_reset_at`은 **폐기된 개체다**(`domain.md` 14장). 이 API는 계산한 값을 응답에 실어 보낼 뿐이다.

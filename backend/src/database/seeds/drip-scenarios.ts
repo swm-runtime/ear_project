@@ -30,7 +30,7 @@ const RUN_AT = (() => {
   d.setUTCHours(20, 0, 0, 0); // 05:00 KST
   return d;
 })();
-/** 배치 기록의 키 — 서버와 같은 규칙(04시 경계, KST)으로 환산해야 같은 행을 본다 */
+/** 배치 기록의 키 — 서버와 같은 규칙(05시 경계, KST — domain.md 1.2)으로 환산해야 같은 행을 본다 */
 const RUN_DATE = toServiceDate(RUN_AT);
 
 interface Row {

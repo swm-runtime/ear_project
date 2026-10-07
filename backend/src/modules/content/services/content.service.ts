@@ -306,7 +306,7 @@ export class ContentService {
    * 탐색 인기 콘텐츠 한 페이지(`explore.md` 4.1-1). 피드의 인기 섹션과 구간 토글이 함께 쓴다.
    *
    * **구간을 `period_start`로 환산하는 것은 이 Service의 몫이다.** 어느 구간이 "직전 확정"인지는
-   * `content_stats`를 읽는 규칙이라(domain.md 5.4) 화면이 알아야 할 값이 아니고, 04시 경계
+   * `content_stats`를 읽는 규칙이라(domain.md 5.4) 화면이 알아야 할 값이 아니고, 05시 경계
    * 계산은 `service-date.util` 한 곳에만 둔다(domain.md 1.2).
    *
    * Repository가 한 건 더 읽어 오므로 **여기서 잘라내고 다음 페이지 여부를 판정한다.**
@@ -345,7 +345,7 @@ export class ContentService {
    * 키워드 검색 한 페이지(`explore.md` 4.5-5 — pg_trgm 부분 일치 + 필드 가중 랭킹).
    *
    * **동점 해소의 인기 구간(직전 확정 월 — domain.md 5.4)을 `period_start`로 환산하는 것은
-   * 이 Service의 몫이다** — 인기 목록(`findPopularPage`)과 같은 이유로, 04시 경계 계산은
+   * 이 Service의 몫이다** — 인기 목록(`findPopularPage`)과 같은 이유로, 05시 경계 계산은
    * `service-date.util` 한 곳에만 둔다(domain.md 1.2).
    *
    * Repository가 한 건 더 읽어 오므로 **여기서 잘라내고 다음 페이지 여부를 판정한다.**
@@ -720,7 +720,7 @@ export class ContentService {
  * 집계 구간 → `content_stats.period_start` (domain.md 5.4).
  *
  * **`all`은 경계 계산이 아니라 고정값이다** — `period_start`를 NULL로 두면 유니크가 중복을
- * 막지 못하므로 `1970-01-01`로 못박혀 있다. 주간·월간만 04시 경계 계산을 거친다.
+ * 막지 못하므로 `1970-01-01`로 못박혀 있다. 주간·월간만 05시 경계 계산을 거친다.
  */
 function toPeriodStart(periodType: StatsPeriodType, now: Date): string {
   switch (periodType) {

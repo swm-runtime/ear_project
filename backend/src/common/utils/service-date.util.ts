@@ -135,9 +135,9 @@ export function toServiceDate(date: Date): string {
 /**
  * **직전 확정 주**의 시작일 = 지난주 월요일 (`YYYY-MM-DD`).
  *
- * 주 경계는 **월요일 04:00 ~ 다음 월요일 03:59**이므로(domain.md 1.2) 요일 판정도
- * 서비스 날짜 기준이다 — 월요일 03시의 조회는 아직 지난주 안에 있고, 그때 "직전 확정 주"는
- * 2주 전 월요일이다. 자정 경계로 세면 이 4시간 동안만 다른 주가 인기 섹션에 실린다.
+ * 주 경계는 **월요일 05:00 ~ 다음 월요일 04:59**이므로(domain.md 1.2) 요일 판정도
+ * 서비스 날짜 기준이다 — 월요일 04시의 조회는 아직 지난주 안에 있고, 그때 "직전 확정 주"는
+ * 2주 전 월요일이다. 자정 경계로 세면 이 5시간 동안만 다른 주가 인기 섹션에 실린다.
  *
  * 진행 중인 주를 쓰지 않는 이유는 주초에 표본이 부족해 랭킹이 무너지기 때문이다
  * (domain.md 5.4 — 직전 확정 구간의 값으로 순위를 보여준다).
@@ -160,7 +160,7 @@ export function toPreviousFinalWeekStart(date: Date): string {
 /**
  * **진행 중인 주**의 시작일 = 이번 주 월요일 (`YYYY-MM-DD`).
  *
- * `toPreviousFinalWeekStart`와 같은 경계(월요일 04:00)를 쓰되 한 주를 빼지 않는다 —
+ * `toPreviousFinalWeekStart`와 같은 경계(월요일 05:00)를 쓰되 한 주를 빼지 않는다 —
  * 프로필의 주간 그래프는 확정 집계가 아니라 **진행 중인 주를 기본으로 보여주기** 때문이다
  * (`profile.md` 4.6). 순위용 집계와 사용자 축 통계가 같은 경계를 공유해야
  * 두 화면의 "이번 주"가 어긋나지 않는다.
@@ -200,8 +200,8 @@ export function isWeekStartLabel(label: string): boolean {
  * 서비스 날짜 라벨을 일 단위로 이동한다. `days`가 음수면 과거로 간다.
  *
  * 재청취 창(`paywall.md` 4.3-1)처럼 **날짜 라벨끼리 범위를 비교해야 하는** 판정에 쓴다.
- * 시각에서 15일을 빼고 다시 서비스 날짜로 환산하면 04시 경계를 두 번 적용하게 되어
- * 03:00~04:00 사이에 하루가 밀린다 — 라벨을 얻은 뒤 라벨 위에서 옮긴다.
+ * 시각에서 15일을 빼고 다시 서비스 날짜로 환산하면 05시 경계를 두 번 적용하게 되어
+ * 04:00~05:00 사이에 하루가 밀린다 — 라벨을 얻은 뒤 라벨 위에서 옮긴다.
  */
 export function shiftServiceDate(serviceDate: string, days: number): string {
   const shifted = new Date(
@@ -231,7 +231,7 @@ export function shiftWeekStart(weekStart: string, weeks: number): string {
 /**
  * 주 시작 라벨이 덮는 **월~일 7개 서비스 날짜**를 순서대로 돌려준다.
  *
- * `play_records.play_date`가 이미 04시 경계로 계산된 서비스 날짜이므로(domain.md 1.2),
+ * `play_records.play_date`가 이미 05시 경계로 계산된 서비스 날짜이므로(domain.md 1.2),
  * 주간 집계는 이 7개 라벨과 직접 대조하면 된다 — 시각 범위로 다시 자르지 않는다.
  */
 export function toWeekDates(weekStart: string): string[] {
@@ -254,9 +254,9 @@ export function toWeekDates(weekStart: string): string[] {
  * (domain.md 5.4, `features/README.md` 결정 20번).
  *
  * **`toServiceDay`를 거친다**(주간 함수와 같은 이유 — domain.md 1.2). 자정으로 세면
- * 매달 1일 00~04시 동안만 한 달이 앞서 넘어가, 아직 04시 배치가 쓰지 않은
+ * 매달 1일 00~05시 동안만 한 달이 앞서 넘어가, 아직 경계 뒤 집계 배치가 쓰지 않은
  * `period_start`를 조회하게 된다. 월간은 탐색 인기 섹션의 **기본 구간**이라
- * 그 4시간 동안 목록이 조용히 빈다.
+ * 그 5시간 동안 목록이 조용히 빈다.
  */
 export function toPreviousFinalMonthStart(date: Date): string {
   const serviceDay = toServiceDay(date);

@@ -72,7 +72,7 @@ export class UserSetting extends BaseEntity {
 
   /**
    * 추천 별점 팝업 [이번 주 그만 보기](`drip-feedback.md` 4.3) — 이 **서비스 날짜 라벨**(`YYYY-MM-DD`) 전까지 팝업을
-   * 내지 않는다. 값은 다음 주 월요일이라 "이번 주" 판정도 서비스 주(월 04:00) 경계다. NULL = 억제 없음
+   * 내지 않는다. 값은 다음 주 월요일이라 "이번 주" 판정도 서비스 주(월 05:00) 경계다. NULL = 억제 없음
    */
   @Column({ name: 'drip_feedback_muted_until', type: 'date', nullable: true })
   dripFeedbackMutedUntil: string | null;
