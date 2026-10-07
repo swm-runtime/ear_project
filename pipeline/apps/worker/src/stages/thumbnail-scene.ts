@@ -1,5 +1,5 @@
 import { pool } from "../db.js";
-import { getFile } from "../storage.js";
+import { storage } from "../storage.js";
 
 /**
  * 썸네일 장면 쓰기 (KAN-138 thumb-v4, 2026-10-07).
@@ -38,7 +38,8 @@ export async function recentScenes(excludeEpisodeId: string, limit = RECENT_SCEN
     const key = (row.artifacts ?? []).find((a) => a.endsWith(`/${SCENE_FILE}`));
     if (!key || key.includes(`/${excludeEpisodeId}/`) || seen.has(key)) continue;
     seen.add(key);
-    const text = await getFile(key.replace(/^s3:/, "")).catch(() => null);
+    // S3 에서 직접 — getFile 은 로컬 캐시를 먼저 읽어, 다른 워커가 다시 만든 편의 옛 장면을 볼 수 있다
+    const text = await storage().get(key.replace(/^s3:/, "")).then((b) => b.toString("utf8")).catch(() => null);
     try { const s = JSON.parse(text ?? "") as ThumbnailScene; if (s?.scene) out.push(s); } catch { /* 깨진 파일 */ }
     if (out.length >= limit) break;
   }

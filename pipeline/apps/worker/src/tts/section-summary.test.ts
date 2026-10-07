@@ -18,6 +18,11 @@ test("summaryProblem — 20자(코드 포인트) 이내 한 줄만 통과", () =
   assert.equal(summaryProblem("한 줄\n두 줄"), "줄바꿈");
 });
 
+test("summaryProblem — 진행 서술(~를 다룬다·살폈다·마친다)은 내용이 아니다 (summary-v2)", () => {
+  for (const bad of ["트랜잭션과 복구를 마친다", "요구사항과 프로젝트 관리를 살폈다", "격리 수준과 교착상태를 다룬다", "소프트웨어 설계 이야기", "핵심 개념을 정리했다."]) assert.match(summaryProblem(bad) ?? "", /진행 서술/, bad);
+  for (const ok of ["로그와 백업으로 장애를 복구한다", "피곤은 어긋난 조건의 신호다", "왜 자도 피곤할까?", "격리 수준이 이상 현상을 막는다"]) assert.equal(summaryProblem(ok), null, ok);
+});
+
 test("summaryCacheKey — 같은 대사면 같은 키, 자산 판·대사가 바뀌면 다른 키", () => {
   const item = { kind: "body" as const, title: "깬 직후의 멍함", text: "[이음] 첫 문장이에요." };
   assert.equal(summaryCacheKey("summary-v1", item), summaryCacheKey("summary-v1", { ...item }));
@@ -35,8 +40,8 @@ test("buildSummaryPrompt — 구간마다 번호·kind·제목·대사, 다시 �
   assert.match(again, /\[다시 쓸 구간\]\n- 구간 1: "너무 긴 요약" — 23자/);
 });
 
-test("자산 — 구간 요약 규칙은 summary-v1 으로 읽힌다", async () => {
+test("자산 — 구간 요약 규칙은 summary-v2 로 읽힌다", async () => {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const text = await fs.readFile(path.join(here, "../../../../../docs/ai", SECTION_SUMMARY_PROMPT_KEY), "utf8");
-  assert.equal(versionOf(SECTION_SUMMARY_PROMPT_KEY, text), "summary-v1");
+  assert.equal(versionOf(SECTION_SUMMARY_PROMPT_KEY, text), "summary-v2");
 });
