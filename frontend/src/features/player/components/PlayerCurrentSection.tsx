@@ -185,7 +185,8 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.sm + 2,
     borderRadius: theme.radius.md,
     borderCurve: 'continuous',
-    backgroundColor: playerColor.surface,
+    // 반투명 흰 채움 — 바탕과 상관없이 같은 회색으로 읽힌다(playerColor.fill)
+    backgroundColor: playerColor.fill,
     // 밀려나는 글자가 카드 밖으로 비치지 않게
     overflow: 'hidden',
   },
