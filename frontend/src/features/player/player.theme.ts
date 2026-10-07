@@ -24,6 +24,8 @@ export const playerColor = {
   fill: 'rgba(255, 255, 255, 0.10)',
   textPrimary: '#FFFFFF',
   textSecondary: '#A0A0A8',
+  /** 배속·대본 같은 보조 컨트롤 — 흰색 80%, 선택 상태는 primary */
+  controlSecondary: 'rgba(255, 255, 255, 0.8)',
   /** 트랙·비활성 아이콘·구분 — 검정 위에서 보이되 튀지 않는 회색 */
   border: '#45454C',
   /** 포인트 — 재생 버튼·채움·현재 표시 */

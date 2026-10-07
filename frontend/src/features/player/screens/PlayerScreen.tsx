@@ -1742,7 +1742,7 @@ export default function PlayerScreen() {
               <SeekBackIcon
                 spinKey={seekSpin.back}
                 size={SEEK_ICON_SIZE}
-                color={isControlDisabled ? playerColor.border : playerColor.textSecondary}
+                color={isControlDisabled ? playerColor.border : playerColor.primary}
               />
             </Pressable>
 
@@ -1757,14 +1757,13 @@ export default function PlayerScreen() {
             >
               {screen.showBufferingIndicator ? (
                 // 로딩 표시는 재생 버튼 자리에만, 2초 초과 시만(uiux 4.3)
-                <ActivityIndicator color={playerColor.textSecondary} />
+                <ActivityIndicator color={playerColor.primary} />
               ) : (
-                // 색은 옆 ±10초·배속·스크립트와 같은 회색(비활성도 같은 규칙) — 원이 빠진 뒤 혼자 흰색이라 튀었다
-                // (PM 2026-10-07). 주 동작은 크기로 구분한다
+                // 재생·±10초는 선명한 흰색, 배속·대본은 보조 흰색으로 위계를 둔다.
                 <PlayPauseSymbol
                   kind={!isEnded && session.isPlaying ? 'pause' : 'play'}
                   size={PLAY_ICON_SIZE}
-                  color={isControlDisabled ? playerColor.border : playerColor.textSecondary}
+                  color={isControlDisabled ? playerColor.border : playerColor.primary}
                 />
               )}
             </Pressable>
@@ -1782,7 +1781,7 @@ export default function PlayerScreen() {
               <SeekForwardIcon
                 spinKey={seekSpin.forward}
                 size={SEEK_ICON_SIZE}
-                color={isControlDisabled ? playerColor.border : playerColor.textSecondary}
+                color={isControlDisabled ? playerColor.border : playerColor.primary}
               />
             </Pressable>
 
@@ -1808,7 +1807,7 @@ export default function PlayerScreen() {
                       ? playerColor.border
                       : activePanel === 'script'
                         ? playerColor.primary
-                        : playerColor.textSecondary
+                        : playerColor.controlSecondary
                   }
                 />
               </Pressable>
@@ -2483,7 +2482,7 @@ const styles = StyleSheet.create({
   rateLabel: {
     fontSize: theme.font.size.sm,
     fontWeight: '600',
-    color: playerColor.textSecondary,
+    color: playerColor.controlSecondary,
     fontVariant: ['tabular-nums'],
   },
   // 스크립트 손잡이 — 화면 바닥에 붙는다. 바(pill) + 라벨이 "위로 끌어올릴 수 있다"를 말한다
