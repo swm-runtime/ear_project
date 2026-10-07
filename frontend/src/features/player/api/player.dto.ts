@@ -52,7 +52,12 @@ export interface AudioUrlsResponseDto {
   /** 대본 세그먼트 적재 여부(4.1, KAN-71). 옛 서버 응답에는 없다 — 없으면 false 로 본다 */
   has_script?: boolean;
   /** 구간 제목(4.1, KAN-144). `start_sec` 엄격한 오름차순. 옛 서버 응답에는 없다 — 없으면 빈 배열로 본다 */
-  sections?: { start_sec: number; title: string }[];
+  sections?: {
+    start_sec: number;
+    title: string;
+    /** 구역(KAN-127 후속 — 서버·파이프라인이 실으면). 없거나 모르는 값이면 구역 라벨 없이 그린다 */
+    kind?: string;
+  }[];
   library_item: { id: string; status: PlayedLibraryItemStatus } | null;
   progress: PlaybackProgressDto | null;
   audio: {

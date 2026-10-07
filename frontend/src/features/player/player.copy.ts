@@ -81,6 +81,8 @@ export const PLAYER_COPY = {
     seekBarA11yValue: (position: string, duration: string) => `${duration} 중 ${position}`,
     /** 시크바 위 지금 듣는 구간 카드(KAN-127) — 위 작은 라벨 + 아래 구간 제목 최대 2줄(PM 2026-10-07) */
     currentSectionLabel: '지금 듣는 구간',
+    /** 구역 라벨(PM 2026-10-07) — 인트로·도입은 개요, 본문 단락은 본론, 마무리는 결론 */
+    sectionKindLabel: { intro: '개요', lead: '개요', body: '본론', outro: '결론' },
     currentSectionA11y: (title: string) => `지금 듣는 구간, ${title}`,
   },
 

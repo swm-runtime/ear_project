@@ -185,12 +185,12 @@ export const getMockSourceUrl = (contentId: string): string | null =>
 
 /** 발급 응답의 구간 제목 대역(KAN-127) — 실서버는 대본 단락 제목이다(player-api.md 4.1) */
 const MOCK_SECTIONS = [
-  { start_sec: 0, title: '인트로' },
-  { start_sec: 20, title: '도입' },
-  { start_sec: 75, title: '회의가 길어지는 진짜 이유' },
-  { start_sec: 190, title: '결정권자를 먼저 정하면 달라지는 것' },
-  { start_sec: 330, title: '15분 안에 끝내는 안건 정리법' },
-  { start_sec: 480, title: '마무리' },
+  { start_sec: 0, title: '인트로', kind: 'intro' },
+  { start_sec: 20, title: '도입', kind: 'lead' },
+  { start_sec: 75, title: '회의가 길어지는 진짜 이유', kind: 'body' },
+  { start_sec: 190, title: '결정권자를 먼저 정하면 달라지는 것', kind: 'body' },
+  { start_sec: 330, title: '15분 안에 끝내는 안건 정리법', kind: 'body' },
+  { start_sec: 480, title: '마무리', kind: 'outro' },
 ];
 
 /** POST /contents/:id/audio-urls의 대역 — 판정은 하되 차감하지 않는다(player-api.md 4.1) */

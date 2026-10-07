@@ -7,6 +7,7 @@ import type {
   ScriptSegment,
   PlaybackProgress,
   PlayEntryPoint,
+  PlayerSectionKind,
   PlayLimitSnapshot,
   PlayStartResult,
   ProgressSaveResult,
@@ -57,6 +58,12 @@ const toPlayStartResult = (dto: PlayStartResponseDto): PlayStartResult => ({
   playLimit: toPlayLimitSnapshot(dto),
 });
 
+const SECTION_KINDS: readonly PlayerSectionKind[] = ['intro', 'lead', 'body', 'outro'];
+
+/** 구역 값 — 아는 값만 받는다. 옛 서버(필드 없음)·새 값은 null 로 두고 화면이 구역 라벨 없이 그린다 */
+const toSectionKind = (value: string | undefined): PlayerSectionKind | null =>
+  SECTION_KINDS.find((kind) => kind === value) ?? null;
+
 const toAudioIssueResult = (dto: AudioUrlsResponseDto): AudioIssueResult => ({
   content: {
     id: dto.content.id,
@@ -73,6 +80,7 @@ const toAudioIssueResult = (dto: AudioUrlsResponseDto): AudioIssueResult => ({
   sections: (dto.sections ?? []).map((section) => ({
     startSec: section.start_sec,
     title: section.title,
+    kind: toSectionKind(section.kind),
   })),
   libraryItem: dto.library_item
     ? { id: dto.library_item.id, status: dto.library_item.status }
