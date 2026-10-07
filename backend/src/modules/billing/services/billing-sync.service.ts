@@ -157,12 +157,13 @@ export class BillingSyncService {
       manager,
     );
     // 끝난 구독을 다른 계정이 자기 결제 의도로 다시 결제했다면 그 계정의 구독이다(`assertOwnedBy`의 예외와 같은
-    // 규칙) — 행 주인에게 그대로 반영하면 결제하지 않은 예전 계정이 유료가 된다
+    // 규칙) — 행 주인에게 그대로 반영하면 결제하지 않은 예전 계정이 유료가 된다. 토큰은 있는데 의도가 없으면
+    // (탈퇴로 파기) 끝난 행의 주인에게도 반영하지 않는다 — 결제한 계정은 떠났고 예전 주인은 결제하지 않았다(7장)
     const userId =
-      existing !== null &&
-      isTerminalStatus(existing.status) &&
-      tokenOwnerId !== null
-        ? tokenOwnerId
+      existing !== null && isTerminalStatus(existing.status)
+        ? transaction.accountToken !== null
+          ? tokenOwnerId
+          : existing.userId
         : (existing?.userId ?? tokenOwnerId);
 
     if (userId === null) {

@@ -320,6 +320,11 @@ export function resolveFromAppStoreNotification(
         return { kind: 'ignore', reason: 'terminated' };
       }
 
+      // 지난 주기의 결제 실패 알림이 늦게 왔다 — 이미 갱신된 지금 주기를 건드리지 않는다(7장, 2026-10-07)
+      if (isOlderPeriod) {
+        return { kind: 'ignore', reason: 'older_transaction' };
+      }
+
       if (subtype === 'GRACE_PERIOD') {
         return decide(existing, {
           ...base,
