@@ -92,10 +92,28 @@ export class AudioUrlService {
     // 3. 음질 판정(player.md 4.9) — 요청 → 티어 허용 최대 → 콘텐츠가 가진 것. 거절하지 않는다
     const available = sortAudioQualities(renditions.map((r) => r.quality));
     const quality = resolveAudioQuality({ ...decision, available });
-    // compressed 행은 항상 있지만(domain.md 5.8), 없더라도 contents.audio_path 로 재생은 된다
+    /**
+     * 경로의 원천: **compressed 는 `contents.audio_path`**, 그 밖의 음질은 그 음질 행. compressed 행의 경로는
+     * `contents.audio_path` 와 같아야 하지만(domain.md 5.8) 어긋난 적이 있다 — 2026-10-07 개발계에서 콘텐츠 동기화에
+     * 이 표가 빠져 행이 옛 mp3 를 가리켰고, 그 키는 운영 재발행으로 지워져 재생이 전부 실패했다. 재발행이 항상
+     * `contents.audio_path` 를 먼저 바꾸므로 압축은 그 값을 믿는다. 어긋남은 로그로 남겨 동기화·적재 결함을 드러낸다
+     */
+    const rendition = renditions.find((r) => r.quality === quality.quality);
     const audioPath =
-      renditions.find((r) => r.quality === quality.quality)?.path ??
-      content.audioPath;
+      quality.quality === AudioQuality.COMPRESSED
+        ? content.audioPath
+        : (rendition?.path ?? content.audioPath);
+    if (
+      quality.quality === AudioQuality.COMPRESSED &&
+      rendition &&
+      rendition.path !== content.audioPath
+    ) {
+      this.logger.warn('compressed rendition path differs from audio_path', {
+        content_id: command.contentId,
+        rendition_path: rendition.path,
+        audio_path: content.audioPath,
+      });
+    }
 
     // 4. 만료는 수 분 단위. 값은 서버 설정이고 계약은 `expires_in_sec`으로 값에 독립적이다
     const signed = this.audioUrlIssuer.sign(
