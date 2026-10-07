@@ -71,6 +71,8 @@ export default function SeekBar({
 
   const panResponder = useMemo(() => {
     const dragRef = { current: null as number | null };
+    /** 누른 지점(터치 영역 기준 x) — 그 뒤 위치는 이 값 + 이동량(dx)으로 잰다 */
+    const grantXRef = { current: 0 };
     const openChapters = () => {
       if (chapterTimerRef.current !== null) clearTimeout(chapterTimerRef.current);
       chapterTimerRef.current = null;
@@ -87,8 +89,9 @@ export default function SeekBar({
     const positionFromX = (x: number): number => {
       const { trackWidth: width, durationSec: duration } = stateRef.current;
       if (width <= 0 || duration <= 0) return 0;
-      // 잡는 동안 바는 양옆으로 ACTIVE_WIDEN 씩 넓어진다 — 손가락이 가리키는 바 위의 자리로 환산한다
-      const ratio = Math.min(1, Math.max(0, (x + ACTIVE_WIDEN) / (width + ACTIVE_WIDEN * 2)));
+      // 터치 영역 양 끝이 곧 0 과 끝이다 — 넓어진 바(양옆 ACTIVE_WIDEN) 기준으로 환산하면 왼쪽 끝이 0 보다
+      // 조금 앞(10분짜리면 약 13초)에서 멈췄다(PM 2026-10-07 Android). 손가락이 영역 밖으로 나가면 끝에 붙는다
+      const ratio = Math.min(1, Math.max(0, x / width));
       return ratio * duration;
     };
 
@@ -97,14 +100,17 @@ export default function SeekBar({
       onStartShouldSetPanResponder: () => !stateRef.current.disabled,
       onMoveShouldSetPanResponder: () => !stateRef.current.disabled,
       onPanResponderGrant: (event) => {
-        const next = positionFromX(event.nativeEvent.locationX);
+        grantXRef.current = event.nativeEvent.locationX;
+        const next = positionFromX(grantXRef.current);
         dragRef.current = next;
         setDragPositionSec(next);
         onScrubRef.current?.(next);
         openChapters();
       },
-      onPanResponderMove: (event) => {
-        const next = positionFromX(event.nativeEvent.locationX);
+      // 움직이는 동안은 locationX 를 쓰지 않는다 — Android 는 손가락이 이 뷰 밖으로 나가면 locationX 가 음수가 되지
+      // 않고 손가락 아래 다른 뷰 기준으로 와서, 왼쪽 끝까지 밀어도 0 으로 가지 않았다(PM 2026-10-07). 이동량은 정확하다
+      onPanResponderMove: (_event, gesture) => {
+        const next = positionFromX(grantXRef.current + gesture.dx);
         dragRef.current = next;
         setDragPositionSec(next);
         onScrubRef.current?.(next);
