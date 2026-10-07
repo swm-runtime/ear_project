@@ -445,6 +445,31 @@ export function v98Violations(scriptMd: string, turns: ScriptTurn[]): string[] {
  * 구조를 검사하고, 없으면(구 형식 산출물) 진행 턴 검사만 한다. 이름 검출은 sources.md 머리의 발행처·저자 원문 표기와 발음 맵의 한글 표기로 잰다 —
  * 못 잡는 이름이 있을 수는 있어도 잡힌 것은 확실하다(보수적).
  */
+/**
+ * 낯선 인명의 첫 등장 문장에 역할 소개가 없는 이름 — `이름@턴` 목록 (v9.7, 2026-10-01 — T260930-002 "서평자가 누구인지도 밝혀지지 않았는데 이름을 써버림").
+ * 저자 이름(소스 머리 byline)과 라틴 두 토큰 이름을 본다. 역할 낱말이 같은 문장이나 바로 앞 문장에 있으면 소개로 친다. 매체·기관명(발행처)은 대상이 아니다.
+ * 2026-10-07: 목록에 없던 직함("암호 해독가 Alan Turing"·"인쇄 기술자 Johannes Gutenberg")을 오탐해 두 편이 L0 수정 한도에서 멈췄다(T261007-002·003)
+ * — 이름 바로 앞 낱말이 직함 꼴(3자 이상, ~가·~자·~인·~사·~원·~관)이면 소개로 친다. 2자("그가"·"제가")는 대명사일 수 있어 목록으로만 본다
+ */
+const ROLE_RE = /(교수|학자|작가|기자|연구자|연구원|저자|서평자|서평|언론인|박사|대표|장관|의원|전문가|평론가|철학자|소설가|시인|감독|사업가|창업자|대통령|총리|장군|사학자|경제학자|심리학자|과학자|의사|변호사|판사|목사|신부|승려|화가|음악가|편집자|편집장|칼럼니스트|분석가|관리자|CEO|회장|사장|이사|교사|강사|활동가|정치인|외교관|관료|지도자|지휘관|왕|황제|여왕|왕비|장수|승상|재상|세자|기술자|해독가|발명가|엔지니어|개발자|설계자|건축가|탐험가|기업가|투자자|발행인|출판인|장인|선교사|수도사|선수|코치|사상가|이론가|번역가|역사가|비평가|디자이너|프로그래머)/;
+const TITLE_SUFFIX_RE = /(가|자|인|사|원|관)$/;
+export function unintroducedNames(turns: { id: string | null; text: string }[], sourcesMd: string): string[] {
+  const eText = turns.filter((t) => t.id?.startsWith("E")).map((t) => t.text).join("\n");
+  const persons = new Set<string>();
+  for (const m of sourcesMd.matchAll(/^## S\d+\.[^\n]*\n- URL:[^\n]*· 저자 ([^\n·]+)/gm)) for (const n of m[1].split(/,\s*/).map((x) => x.trim())) if (n.length >= 3 && !/^(staff|editor|editorial|admin|team)/i.test(n)) persons.add(n);
+  for (const m of eText.matchAll(/(?<![A-Za-z])([A-Z][A-Za-z.'-]+ [A-Z][A-Za-z.'-]+)(?![A-Za-z])/g)) persons.add(m[1]);
+  const noRole: string[] = [];
+  for (const n of persons) {
+    const t = turns.find((x) => x.id?.startsWith("E") && x.text.includes(n)); if (!t) continue;
+    const sents = t.text.split(/(?<=[.?!])\s+/); const i = sents.findIndex((x) => x.includes(n)); if (i < 0) continue;
+    const window = (i > 0 ? sents[i - 1] + " " : "") + sents[i];
+    const prevWord = sents[i].slice(0, sents[i].indexOf(n)).match(/([가-힣]+)\s*$/)?.[1] ?? "";
+    const titled = prevWord.length >= 3 && TITLE_SUFFIX_RE.test(prevWord);
+    if (!ROLE_RE.test(window) && !titled) noRole.push(`${n}@${t.id}`);
+  }
+  return noRole;
+}
+
 export function attributionViolations(scriptMd: string, turns: { id: string | null; text: string }[], opts: L0AttributionInput): string[] {
   const v: string[] = [];
   const yTurns = turns.filter((t) => t.id?.startsWith("Y"));
@@ -491,20 +516,9 @@ export function attributionViolations(scriptMd: string, turns: { id: string | nu
   const known = new Set<string>();
   for (const list of names.values()) for (const n of list) if (n.length >= 3) known.add(n);
   for (const n of known) { const c = countIn(eText, n); if (c >= 3) v.push(`"${n}" 이 해설 턴에서 ${c}회 — 이름은 소개 때 한 번, 이후는 지시어("이 사람"·"연구팀")로 잇는다 (규칙 21)`); }
-  // v9.7 (2026-10-01): 낯선 인명의 첫 등장 문장에 역할이 없다 — T260930-002 "서평자가 누구인지도 밝혀지지 않았는데 이름을 써버림". 저자 이름(소스 머리 byline)과 라틴 두 토큰 이름을 본다.
-  // 역할 낱말이 같은 문장이나 바로 앞 문장에 있으면 소개로 친다. 매체·기관명(발행처)은 대상이 아니다
+  // v9.7 (2026-10-01): 낯선 인명의 첫 등장 문장에 역할이 없다 — 판정은 unintroducedNames (아래, 테스트 대상)
   {
-    const roleRe = /(교수|학자|작가|기자|연구자|연구원|저자|서평자|서평|언론인|박사|대표|장관|의원|전문가|평론가|철학자|소설가|시인|감독|사업가|창업자|대통령|총리|장군|사학자|경제학자|심리학자|과학자|의사|변호사|판사|목사|신부|승려|화가|음악가|편집자|편집장|칼럼니스트|분석가|관리자|CEO|회장|사장|이사|교사|강사|활동가|정치인|외교관|관료|지도자|지휘관|왕|황제|여왕|왕비|장수|승상|재상|세자)/;
-    const persons = new Set<string>();
-    for (const m of sourcesMd.matchAll(/^## S\d+\.[^\n]*\n- URL:[^\n]*· 저자 ([^\n·]+)/gm)) for (const n of m[1].split(/,\s*/).map((x) => x.trim())) if (n.length >= 3 && !/^(staff|editor|editorial|admin|team)/i.test(n)) persons.add(n);
-    for (const m of eText.matchAll(/(?<![A-Za-z])([A-Z][A-Za-z.'-]+ [A-Z][A-Za-z.'-]+)(?![A-Za-z])/g)) persons.add(m[1]);
-    const noRole: string[] = [];
-    for (const n of persons) {
-      const t = turns.find((x) => x.id?.startsWith("E") && x.text.includes(n)); if (!t) continue;
-      const sents = t.text.split(/(?<=[.?!])\s+/); const i = sents.findIndex((x) => x.includes(n)); if (i < 0) continue;
-      const window = (i > 0 ? sents[i - 1] + " " : "") + sents[i];
-      if (!roleRe.test(window)) noRole.push(`${n}@${t.id}`);
-    }
+    const noRole = unintroducedNames(turns, sourcesMd);
     if (noRole.length) v.push(`이름 ${noRole.length}개가 첫 등장 문장에 역할 소개 없이 불림 (${noRole.slice(0, 5).join(", ")}) — 낯선 이름은 처음 부르는 문장에서 무엇을 하는 사람인지 밝힌다. 이름 자체가 정보가 아니면 익명("한 역사학자는")으로 (규칙 21)`);
   }
   // 소스 목록에 없는 이름 (규칙 21 — 001 "Knowable Magazine"): 라틴 문자 고유명(두 단어 이상)과 "X 라는 매체/곳/기관"이 sources.md·claims·발음 맵에 없으면 지어낸 것
