@@ -13,7 +13,7 @@
 | 발견 시점 | Android 메타 앱 설치 캠페인 연결(2026-10-02) — #1104 가 JS 만 바꿔서는 설치 이벤트에 광고 ID 가 실리지 않는 것을 확인 |
 | 근거 문서 | `docs/features/analytics.md` 3.5 · `docs/frontend/architecture.md` 2.1(runtimeVersion) · `react-native-fbsdk-next` 13.4.3 플러그인(`withFacebookAndroid` — `com.facebook.sdk.AdvertiserIDCollectionEnabled` meta-data 를 씀) · Facebook Android SDK 18.3(`facebook-core` 매니페스트가 `com.google.android.gms.permission.AD_ID` 를 선언) |
 | 심각도 | 중 (Medium) — 3일 안에 준비. 없으면 Android 광고의 설치 귀속·최적화가 약한 채로 돈다 |
-| 상태 | 코드 반영 — 묶음 빌드 대기 (PR #1142, 2026-10-06) |
+| 상태 | **완료** (2026-10-07) — 공개 후 확인(완료 조건 3·4)은 KAN-156 으로 분리 |
 
 ## 문제 — JS 설정만으로는 설치 이벤트에 광고 ID 가 실리지 않는다
 
@@ -102,3 +102,8 @@
 - **iOS** — EAS `fbb599f4`(preview-store, `dev.runtime.ear` 1.2.0 (43)) IPA 의 `Payload/preview.app/Info.plist`: `FacebookAdvertiserIDCollectionEnabled` = **`false`**, `NSUserTrackingUsageDescription` **없음**.
 - **남은 것**: 위는 개발계 변형이다. 완료 조건 1·2 의 문구는 운영 프로필이라, **운영 rt 32 빌드가 나오면 같은 방법으로 한 번 더 본다**(플러그인이 변형과 무관하게 같은 값을 쓰므로 결과는 같을 것으로 보나 확인 전이다). 완료 조건 3·4 는 11/1 이후 공개 빌드가 필요하다.
 - 확인 방법(재현용): Android `gh run download <run> -n ear-preview-aab` → `java -jar bundletool.jar dump manifest --bundle <aab>` / iOS `npx eas-cli build:list --platform ios --json` 의 `artifacts.buildUrl` IPA → `zipfile` + `plistlib` 로 `Payload/*.app/Info.plist`.
+
+### 2026-10-07 — 닫음 (반영 날짜 2026-10-07)
+
+- **PM 결정(23:11)**: "개발계에서 됐으면 운영계에도 되겠지" — 완료 조건 1·2 는 개발계 rt 32 빌드 확인(위)으로 갈음한다. 운영 rt 32 빌드에서의 재확인은 하지 않는다.
+- 완료 조건 3·4(11/1 이후 공개일 · 새 설치 첫 실행 이벤트)는 공개 이후에만 볼 수 있어 **`tickets/frontend/pending/android-ad-id-post-launch-check.md`([KAN-156](https://runtime364.atlassian.net/browse/KAN-156), Lowest)** 로 옮겼다.
