@@ -309,7 +309,7 @@ describe('구독·인앱 결제 E2E', () => {
     // 조회·요금제 목록도 같은 상태를 본다
     expect(await getSubscription(auth)).toEqual(purchased);
     expect((await listPlans(auth)).map((plan) => plan.action)).toEqual([
-      'none',
+      'cancel',
       'downgrade',
       'current',
     ]);

@@ -13,7 +13,7 @@
 | 선행 | 없음 |
 | 근거 문서 | `spec/uiux/subscription-uiux.md` 4.1·4.2 · `features/subscription.md` 4.5 |
 | 중요도 | Low — PM 발행(2026-10-08). 중요도 미지정이라 이번 주 마감으로 잡았다. 앱은 `cancel` 이 없으면 종전대로 동작해 막히는 일은 없다 |
-| 상태 | 대기 |
+| 상태 | 완료 (2026-10-08) |
 
 ## 왜
 
@@ -48,3 +48,4 @@ PM 2026-10-08: 요금제 관리 화면에서 다른 요금제로 갈 때는 "카
 ## 처리 기록
 
 - 2026-10-08 발행(마크다운 + Jira KAN-159). 앱·문서는 `feat(fe)/cancel-via-free-plan` PR 에서 먼저 반영.
+- 2026-10-08 반영(`feat(be)/plan-action-cancel`). `PlanAction.CANCEL` 추가, `resolvePlanAction`이 유료 구독자의 무료 요금제를 자동 갱신이 켜져 있으면 `cancel`, 해지 예약(`is_auto_renew = false`)·다른 스토어면 `none`으로 판정한다. 단위 테스트(데일리·프로 구독자의 무료 = `cancel`, 해지 예약 → `none` → 다시 켜면 `cancel`, 다른 스토어 → 전부 `none`)와 e2e 기대값 갱신. 해지 API는 만들지 않았다. **반영 날짜: 2026-10-08.**
