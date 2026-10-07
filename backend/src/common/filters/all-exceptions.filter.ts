@@ -55,6 +55,7 @@ const STATUS_MESSAGES: Record<number, string> = {
 };
 
 /** HttpException이 돌려주는 status는 number이므로 비교 대상도 number로 고정한다 */
+const PAYLOAD_TOO_LARGE_STATUS: number = HttpStatus.PAYLOAD_TOO_LARGE;
 const SERVER_ERROR_STATUS: number = HttpStatus.INTERNAL_SERVER_ERROR;
 const TOO_MANY_REQUESTS_STATUS: number = HttpStatus.TOO_MANY_REQUESTS;
 
@@ -131,7 +132,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
           error_code:
             STATUS_ERROR_CODES[bodyParserStatus] ?? ErrorCode.VALIDATION_FAILED,
           message:
-            bodyParserStatus === HttpStatus.PAYLOAD_TOO_LARGE
+            bodyParserStatus === PAYLOAD_TOO_LARGE_STATUS
               ? '요청이 너무 커요'
               : (STATUS_MESSAGES[bodyParserStatus] ??
                 '요청을 처리할 수 없어요'),
