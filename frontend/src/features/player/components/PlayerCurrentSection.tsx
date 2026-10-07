@@ -177,6 +177,9 @@ export default function PlayerCurrentSection({
 const styles = StyleSheet.create({
   // 한 단 올라온 면 — 버튼이 아니라 면이라 둥근 사각(design.md §2), 연속 곡률
   card: {
+    // 위 — 제목·카테고리는 컨트롤 영역 첫 줄에 바짝 붙게 배치된다(재생 바 터치 영역 위 절반이 여백이던 자리).
+    // 카드가 그 자리에 들어오면 카테고리 밑이 0 이 된다(PM 2026-10-07 1.2.0 실기기) — 카드가 직접 여백을 갖는다
+    marginTop: theme.spacing.md,
     marginBottom: theme.spacing.sm,
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm + 2,
