@@ -327,6 +327,12 @@ export default function PlayerScreen() {
   const [seekSpin, setSeekSpin] = useState({ back: 0, forward: 0 });
   /** 시크바 트랙 선의 아래 변(시크바 블록 기준) — 재생 목록이 열리면 앨범 커버 하한을 정확히 여기에 맞춘다(PM 2026-09-17) */
   const [seekTrackCenter, setSeekTrackCenter] = useState(0);
+  /**
+   * "지금 듣는 구간" 박스(KAN-127)의 높이 — 재생 목록이 열리면 박스는 걷히고(투명) **그 자리만큼 아래(재생바·컨트롤·배너)를
+   * 끌어올린다**(PM 2026-10-07 19:58 "요약박스가 사라지면서 재생 컴포넌트가 올라와야 하는데 공백으로 남는다"). 레이아웃은 그대로
+   * 두고 transform 으로만 올린다 — 컨트롤 영역 높이를 매 프레임 바꾸면 화면 전체가 다시 그려진다(위 controlRowShift 주석)
+   */
+  const [currentSectionHeight, setCurrentSectionHeight] = useState(0);
   // 앱바·손잡이도 실측한다 — 상수로 두면 몇 px 어긋나 접힘 상태의 히어로가 넘치고 컨트롤이 패널을 열 때마다 튄다
   const [appBarHeight, setAppBarHeight] = useState(APP_BAR_HEIGHT);
   const [handleHeight, setHandleHeight] = useState(SCRIPT_HANDLE_HEIGHT);
@@ -846,7 +852,11 @@ export default function PlayerScreen() {
   const queueClosedTop = Math.max(0, contentSize.height - handleHeight);
   const queueOpenTop = Math.min(
     queueClosedTop,
-    appBarHeight + queueHeroHeight + controlsHeight - CONTROL_ROW_PADDING_FOLD * 2,
+    appBarHeight +
+      queueHeroHeight +
+      controlsHeight -
+      CONTROL_ROW_PADDING_FOLD * 2 -
+      currentSectionHeight,
   );
   const queueInverse = Animated.subtract(1, queueProgress);
   /*
@@ -857,11 +867,16 @@ export default function PlayerScreen() {
    */
   const controlRowShift = queueProgress.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, -CONTROL_ROW_PADDING_FOLD],
+    outputRange: [0, -CONTROL_ROW_PADDING_FOLD - currentSectionHeight],
   });
   const belowControlRowShift = queueProgress.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, -CONTROL_ROW_PADDING_FOLD * 2],
+    outputRange: [0, -CONTROL_ROW_PADDING_FOLD * 2 - currentSectionHeight],
+  });
+  // 구간 박스가 걷힌 만큼 — 재생바가 히어로 바로 밑(아트워크 아래 변 = 시크바 트랙, queueArtHeight)으로 붙는다
+  const sectionFoldShift = queueProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -currentSectionHeight],
   });
   /*
    * 아트워크의 content 좌표 — 히어로 원점(실측) + 히어로 안 좌표. 재생 목록이 열리면 (0,0)에서 화면 폭 ×
@@ -1673,6 +1688,7 @@ export default function PlayerScreen() {
             pointerEvents="none"
             accessibilityElementsHidden={isQueueOpen}
             importantForAccessibility={isQueueOpen ? 'no-hide-descendants' : 'auto'}
+            onLayout={(event) => setCurrentSectionHeight(event.nativeEvent.layout.height)}
           >
             <PlayerCurrentSection
               sections={session.sections}
@@ -1681,7 +1697,7 @@ export default function PlayerScreen() {
               isLoading={session.meta.contentVersion === null && session.blocked === null}
             />
           </Animated.View>
-          <View>
+          <Animated.View style={{ transform: [{ translateY: sectionFoldShift }] }}>
             <Animated.View
               style={{ opacity: queueInverse }}
               pointerEvents={isQueueOpen ? 'none' : 'auto'}
@@ -1710,7 +1726,7 @@ export default function PlayerScreen() {
                 onScrub={setScrubSec}
               />
             </Animated.View>
-          </View>
+          </Animated.View>
 
           <Animated.View
             style={[styles.controlRow, { transform: [{ translateY: controlRowShift }] }]}
