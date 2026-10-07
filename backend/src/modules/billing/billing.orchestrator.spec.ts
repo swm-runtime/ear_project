@@ -44,6 +44,7 @@ function setup() {
     orchestrator,
     reconcile,
     appStoreWebhook: webhook,
+    slackTexts,
   } = assembleBilling();
 
   world.addUser(USER);
@@ -74,7 +75,7 @@ function setup() {
     now = NOW,
   ) => webhook.handle(JSON.stringify({ signedAt: now, ...payload }), now);
 
-  return { world, orchestrator, reconcile, purchase, notify };
+  return { world, orchestrator, reconcile, purchase, notify, slackTexts };
 }
 
 async function expectBusinessError(
@@ -1061,6 +1062,25 @@ describe('끝난 구독의 재결제 — 다른 계정이 넘겨받는다(7장 �
     );
   });
 
+  it('결제한 계정이 탈퇴해 의도가 없는 알림은 예전 주인에게 반영하지 않고 주인 모름으로 둔다(2026-10-07)', async () => {
+    const { world, notify } = await setupExpiredOwnedByOther();
+
+    world.withdraw(USER); // INTENT_A 가 파기된다
+
+    await notify(
+      { id: 'n-resubscribed', type: 'SUBSCRIBED', transaction: REPURCHASE },
+      AFTER_EXPIRY,
+    );
+
+    expect(world.subscriptions[0]).toMatchObject({
+      userId: OTHER,
+      status: SubscriptionStatus.EXPIRED,
+    });
+    expect(world.users.get(OTHER)!.tier).toBe(UserTier.LIGHT);
+    // 처리 완료로 표시하지 않는다 — 재가입 뒤 영수증 제출·복원이 연결한다
+    expect(world.notificationLogs.at(-1)!.processedAt).toBeNull();
+  });
+
   it('예전 계정의 것으로 다시 결제된 알림은 예전 계정에 반영한다', async () => {
     const { world, notify } = await setupExpiredOwnedByOther();
 
@@ -1359,6 +1379,20 @@ describe('만료 보정의 상한 — 확인할 수 없는 구독(4.2 — 2026-1
 
     expect(world.subscriptions[0].status).toBe(SubscriptionStatus.ACTIVE);
     expect(world.users.get(USER)!.tier).toBe(UserTier.PRO);
+  });
+
+  it('상한으로 내리면 Slack 결제 알림 채널에 한 줄 올린다 — 잦으면 조회 구성 문제다', async () => {
+    const { world, orchestrator, purchase, slackTexts } = setup();
+
+    await purchase(signTransaction(THIS_PERIOD));
+    world.gateway.statusQueryable = false;
+
+    await orchestrator.getSubscription(USER, PAST_LIMIT);
+
+    expect(slackTexts.some((text) => text.includes('구독 강제 만료'))).toBe(
+      true,
+    );
+    expect(slackTexts.join('\n')).not.toContain(USER);
   });
 
   it('배치도 같은 상한을 적용하고 내린 건수에 센다', async () => {

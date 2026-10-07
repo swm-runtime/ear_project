@@ -375,6 +375,20 @@ describe('resolveFromAppStoreNotification — 서버 알림 → 상태', () => {
     });
   });
 
+  it('DID_FAIL_TO_RENEW — 지난 주기의 결제 실패 알림이 늦게 오면 이미 갱신된 지금 주기를 건드리지 않는다(2026-10-07)', () => {
+    expect(
+      resolveFromAppStoreNotification(
+        stored({ expiresAt: NEXT_PERIOD_END }),
+        notification({
+          type: 'DID_FAIL_TO_RENEW',
+          subtype: null,
+          transaction: transaction({ expiresAt: PERIOD_END }),
+        }),
+        NOW,
+      ),
+    ).toEqual({ kind: 'ignore', reason: 'older_transaction' });
+  });
+
   it('DID_FAIL_TO_RENEW(유예 없음) — 만료로 내린다', () => {
     const state = applied(
       resolveFromAppStoreNotification(
