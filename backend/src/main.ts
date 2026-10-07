@@ -5,7 +5,7 @@ import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
-import { json } from 'express';
+import { json, urlencoded } from 'express';
 import helmet from 'helmet';
 
 import { traceIdMiddleware } from '@/common/middlewares/trace-id.middleware';
@@ -15,7 +15,10 @@ import { EnvironmentVariables } from '@/config/env.validation';
 import { AppModule } from './app.module';
 
 export async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    // 본문 파서는 아래에서 직접 등록한다(주석 참고)
+    bodyParser: false,
+  });
   const configService =
     app.get<ConfigService<EnvironmentVariables, true>>(ConfigService);
 
@@ -34,22 +37,30 @@ export async function bootstrap(): Promise<void> {
   }
 
   /**
-   * Sentry 레거시 웹훅 본문은 이벤트(스택·컨텍스트·브레드크럼)째 와서 기본 한도(100kb)를 넘긴다 — 운영 실측
-   * 2026-10-07 17:50 KST, 기본 한도에서 `PayloadTooLargeError`. Sentry 가 이벤트 하나에 허용하는 크기가 1MB 라
-   * 웹훅 본문(이벤트 + 이슈·프로젝트 껍데기)은 그보다 조금 클 수 있다 → 이 경로만 **2mb** 로 받는다. Nest 의 기본
-   * 파서보다 먼저 등록돼 여기서 파싱되면 기본 파서는 건너뛴다. 다른 경로의 한도는 그대로다
-   * (`modules/alert/sentry-webhook.controller.ts`).
+   * 본문 파서는 **직접 등록한다**(`bodyParser: false`, 2026-10-07 운영 장애 — `v1.2.0+3`).
+   *
+   * Sentry 웹훅 경로에만 `express.json()`을 따로 걸었더니, Nest 가 앱 어딘가에 `jsonParser` 라는 이름의 미들웨어가
+   * 있으면 **자기 전역 파서 등록을 건너뛰는** 바람에(`ExpressAdapter.isMiddlewareApplied` — 경로 한정이어도 이름만
+   * 본다) 다른 모든 경로의 본문이 비어 들어와 로그인·토큰 갱신이 전부 400 이었다(18:30~19:00 KST). e2e 는 `main.ts`
+   * 를 거치지 않아 잡지 못했다.
+   *
+   * 그래서 Nest 의 자동 등록에 기대지 않고 둘을 **이 순서로** 명시한다:
+   * 1. Sentry 웹훅 경로 — 본문이 이벤트(스택·컨텍스트)째 와서 기본 한도(100kb)를 넘긴다 → **2mb**. 서명 검증은 받은
+   *    그대로의 본문으로 해야 하므로 `rawBody` 를 보관한다(`modules/alert/sentry-webhook.controller.ts`). 여기서
+   *    파싱되면 아래 전역 파서는 `req.body` 가 이미 있어 건너뛴다.
+   * 2. 그 밖의 모든 경로 — Nest 기본과 같은 json(100kb)·urlencoded.
    */
   app.use(
     '/api/v1/webhooks/sentry',
     json({
       limit: '2mb',
-      // 서명 검증은 **받은 그대로의 본문**으로 해야 한다 — 파싱 뒤 다시 JSON 으로 만들면 키 순서·공백이 달라진다
       verify: (req, _res, buf) => {
         (req as { rawBody?: Buffer }).rawBody = buf;
       },
     }),
   );
+  app.use(json());
+  app.use(urlencoded({ extended: true }));
 
   // architecture.md 9.5 — 보안 헤더 전역 적용, CORS 허용 오리진 명시(`*` 금지)
   app.use(helmet());
