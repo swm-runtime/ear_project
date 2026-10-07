@@ -123,7 +123,7 @@ describe('BillingOrchestrator — 요금제 목록(4.1)', () => {
     expect(catalog.isEmailVerified).toBe(true);
   });
 
-  it('데일리 구독자에게 프로는 업그레이드, 프로 구독자에게 데일리는 변경(다운그레이드)이다', async () => {
+  it('데일리 구독자에게 프로는 업그레이드, 프로 구독자에게 데일리는 변경(다운그레이드)이고 무료는 해지(cancel)다', async () => {
     const { orchestrator, purchase } = setup();
 
     await purchase(
@@ -131,7 +131,7 @@ describe('BillingOrchestrator — 요금제 목록(4.1)', () => {
     );
     const asDaily = await orchestrator.listPlans(USER, DevicePlatform.IOS);
     expect(asDaily.plans.map((plan) => plan.action)).toEqual([
-      PlanAction.NONE,
+      PlanAction.CANCEL,
       PlanAction.CURRENT,
       PlanAction.UPGRADE,
     ]);
@@ -146,10 +146,42 @@ describe('BillingOrchestrator — 요금제 목록(4.1)', () => {
     );
     const asPro = await orchestrator.listPlans(USER, DevicePlatform.IOS);
     expect(asPro.plans.map((plan) => plan.action)).toEqual([
+      PlanAction.CANCEL,
+      PlanAction.DOWNGRADE,
+      PlanAction.CURRENT,
+    ]);
+  });
+
+  it('해지 예약 중이면 무료 요금제는 버튼이 없다(none) — 되돌리기는 [구독 다시 시작]이 맡는다(KAN-159)', async () => {
+    const { orchestrator, purchase, notify } = setup();
+
+    await purchase(signTransaction(THIS_PERIOD));
+    await notify({
+      id: 'n-cancel',
+      type: 'DID_CHANGE_RENEWAL_STATUS',
+      subtype: 'AUTO_RENEW_DISABLED',
+      transaction: THIS_PERIOD,
+      renewal: { isAutoRenew: false },
+    });
+
+    const catalog = await orchestrator.listPlans(USER, DevicePlatform.IOS);
+    expect(catalog.plans.map((plan) => plan.action)).toEqual([
       PlanAction.NONE,
       PlanAction.DOWNGRADE,
       PlanAction.CURRENT,
     ]);
+
+    // 다시 켜면 무료는 다시 해지 경로다
+    await notify({
+      id: 'n-resume',
+      type: 'DID_CHANGE_RENEWAL_STATUS',
+      subtype: 'AUTO_RENEW_ENABLED',
+      transaction: THIS_PERIOD,
+      renewal: { isAutoRenew: true },
+    });
+    expect(
+      (await orchestrator.listPlans(USER, DevicePlatform.IOS)).plans[0].action,
+    ).toBe(PlanAction.CANCEL);
   });
 
   it('그 플랫폼에서 살 수 없으면(Android·검증 미구성) 유료 요금제는 버튼이 없다 — 무료는 여전히 이용 중', async () => {
@@ -173,7 +205,7 @@ describe('BillingOrchestrator — 요금제 목록(4.1)', () => {
     ).toBe(true);
   });
 
-  it('다른 스토어에서 구독 중이면 이용 중 표시만 있고 나머지 유료 요금제는 버튼이 없다', async () => {
+  it('다른 스토어에서 구독 중이면 이용 중 표시만 있고 무료·유료 모두 버튼이 없다 — 이 기기에서는 해지도 못 한다', async () => {
     const { world, orchestrator, purchase } = setup();
 
     await purchase(

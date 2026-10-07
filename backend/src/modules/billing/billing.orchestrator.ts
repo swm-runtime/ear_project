@@ -616,13 +616,17 @@ function hasVerifiedEmail(user: {
  * `action` 판정(`subscription-api.md` 4.1). 티어의 높낮이는 `display_order`로 본다 — 티어명을 비교하지 않는다.
  *
  * **무료 요금제는 유효한 구독이 없는 사용자에게 `current`다**(2026-10-06, KAN-147) — 요금제 화면이 "현재 구독"
- * 섹션 없이 목록의 `current`로 "이용 중"을 그린다. 유료 구독자에게 무료는 종전처럼 `none`(유료 → 무료는 해지).
+ * 섹션 없이 목록의 `current`로 "이용 중"을 그린다.
+ *
+ * **유료 구독자에게 무료는 해지다**(2026-10-08, KAN-159) — 자동 갱신이 켜져 있으면 `cancel`(고를 수 있다 →
+ * 스토어 구독 관리로 이동), 이미 해지 예약이면 `none`(되돌리기는 [구독 다시 시작]이 맡는다). "구독 중이니 무료는
+ * 해지"를 앱이 스스로 판정하지 않도록 서버가 값으로 준다.
  */
 export function resolvePlanAction(input: {
   plan: Plan;
   /** 그 플랫폼에서 지금 살 수 있는가(상품 ID가 있고 서버가 검증할 수 있다) */
   hasProduct: boolean;
-  current: Pick<Subscription, 'tier'> | null;
+  current: Pick<Subscription, 'tier' | 'isAutoRenew'> | null;
   currentPlan: Pick<Plan, 'displayOrder'> | null;
   isOtherStore: boolean;
 }): PlanAction {
@@ -638,8 +642,15 @@ export function resolvePlanAction(input: {
     return PlanAction.CURRENT;
   }
 
-  // 무료로 가는 것은 구매가 아니라 해지다(스토어로 이동). 다른 스토어 구독자는 여기서 바꿀 수 없다
-  if (plan.priceKrw <= 0 || !hasProduct || isOtherStore) {
+  // 무료로 가는 것은 구매가 아니라 해지다(스토어로 이동). 다른 스토어 구독자는 여기서 바꿀 수 없고,
+  // 이미 해지 예약이면 더 할 일이 없다
+  if (plan.priceKrw <= 0) {
+    return !isOtherStore && current !== null && current.isAutoRenew
+      ? PlanAction.CANCEL
+      : PlanAction.NONE;
+  }
+
+  if (!hasProduct || isOtherStore) {
     return PlanAction.NONE;
   }
 
