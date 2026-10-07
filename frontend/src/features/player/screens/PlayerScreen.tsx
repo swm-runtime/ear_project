@@ -2206,8 +2206,11 @@ const HERO_COMPACT_META_TOP = 12;
 const HERO_MIN_ARTWORK = 120;
 /** 바닥 손잡이 높이(터치 타깃 44 + 아래 여백 8) */
 const SCRIPT_HANDLE_HEIGHT = 52;
-/** 재생·일시정지 기호 — 원 없이 기호만(애플 뮤직·팟캐스트 재생 화면, PM 2026-10-07). 누르는 자리는 버튼 64 그대로 */
-const PLAY_ICON_SIZE = 44;
+/**
+ * 재생·일시정지 기호 — 원 없이 기호만(애플 뮤직·팟캐스트 재생 화면, PM 2026-10-07). 원이 빠지며 무게가 줄어 44 → 66 으로
+ * 키웠다(PM 같은 날 — 삼각형 실제 높이 약 34pt, ±10초 아이콘의 1.5배쯤이라 주 동작으로 읽힌다)
+ */
+const PLAY_ICON_SIZE = 66;
 /** ±10초 아이콘 — 숫자 "10"이 아이콘 안에 박혀 있다(SeekBackIcon·SeekForwardIcon). player.constants의 이동 값과 같아야 한다 */
 const SEEK_ICON_SIZE = 32;
 
@@ -2428,10 +2431,10 @@ const styles = StyleSheet.create({
     color: playerColor.border,
   },
   // 원 없이 기호만(PM 2026-10-07 — 애플 기본 play.fill·pause.fill, 애플 뮤직·팟캐스트와 같은 문법). 종전 흰 원 64(2026-09-18)는
-  // 뺐다. 누르는 자리는 64×64 그대로 — 화면을 보지 않고 누르는 손끝 위치가 바뀌지 않는다(uiux 7장)
+  // 뺐다. 기호를 66 으로 키우며 누르는 자리도 64 → 72 — 가운데 기준이라 손끝 위치는 그대로다(uiux 7장)
   playButton: {
-    width: 64,
-    height: 64,
+    width: 72,
+    height: 72,
     alignItems: 'center',
     justifyContent: 'center',
   },
