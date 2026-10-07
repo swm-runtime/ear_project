@@ -39,8 +39,6 @@ import PlayConfirmDialog from '../components/PlayConfirmDialog';
 import PlayerCurrentSection from '../components/PlayerCurrentSection';
 import {
   MoreIcon,
-  PauseIcon,
-  PlayIcon,
   ScriptIcon,
   SeekBackIcon,
   SeekForwardIcon,
@@ -52,6 +50,7 @@ import PlayerRateSheet from '../components/PlayerRateSheet';
 import PlayerScriptPanel from '../components/PlayerScriptPanel';
 import PlayerScriptStatus from '../components/PlayerScriptStatus';
 import PlayerSleepTimerSheet from '../components/PlayerSleepTimerSheet';
+import PlayPauseSymbol from '../components/PlayPauseSymbol';
 import SeekBar from '../components/SeekBar';
 import { usePlayerScreen } from '../hooks/usePlayerScreen';
 import type { PlayerPanelKind } from '../hooks/usePlayerScreen';
@@ -1734,12 +1733,13 @@ export default function PlayerScreen() {
             >
               {screen.showBufferingIndicator ? (
                 // 로딩 표시는 재생 버튼 자리에만, 2초 초과 시만(uiux 4.3)
-                <ActivityIndicator color={playerColor.onPrimary} />
+                <ActivityIndicator color={playerColor.textPrimary} />
               ) : (
-                (() => {
-                  const Icon = !isEnded && session.isPlaying ? PauseIcon : PlayIcon;
-                  return <Icon size={PLAY_ICON_SIZE} color={playerColor.onPrimary} />;
-                })()
+                <PlayPauseSymbol
+                  kind={!isEnded && session.isPlaying ? 'pause' : 'play'}
+                  size={PLAY_ICON_SIZE}
+                  color={playerColor.textPrimary}
+                />
               )}
             </Pressable>
 
@@ -1914,11 +1914,11 @@ export default function PlayerScreen() {
               { left: miniButtonLeft, top: miniButtonTop, opacity: morph.miniButtonOpacity },
             ]}
           >
-            {session.isPlaying ? (
-              <PauseIcon size={MINI_PLAY_ICON_SIZE} color={theme.color.textPrimary} />
-            ) : (
-              <PlayIcon size={MINI_PLAY_ICON_SIZE} color={theme.color.textPrimary} />
-            )}
+            <PlayPauseSymbol
+              kind={session.isPlaying ? 'pause' : 'play'}
+              size={MINI_PLAY_ICON_SIZE}
+              color={theme.color.textPrimary}
+            />
           </Animated.View>
           {/* 미니 제목 — 미니플레이어 실측 자리에 고정, 초반에 사라진다 */}
           <AnimatedText
@@ -2206,7 +2206,8 @@ const HERO_COMPACT_META_TOP = 12;
 const HERO_MIN_ARTWORK = 120;
 /** 바닥 손잡이 높이(터치 타깃 44 + 아래 여백 8) */
 const SCRIPT_HANDLE_HEIGHT = 52;
-const PLAY_ICON_SIZE = 28;
+/** 재생·일시정지 기호 — 원 없이 기호만(애플 뮤직·팟캐스트 재생 화면, PM 2026-10-07). 누르는 자리는 버튼 64 그대로 */
+const PLAY_ICON_SIZE = 44;
 /** ±10초 아이콘 — 숫자 "10"이 아이콘 안에 박혀 있다(SeekBackIcon·SeekForwardIcon). player.constants의 이동 값과 같아야 한다 */
 const SEEK_ICON_SIZE = 32;
 
@@ -2426,16 +2427,13 @@ const styles = StyleSheet.create({
   glyphDisabled: {
     color: playerColor.border,
   },
-  // 64 — 어두운 테마에서 순백 72 원은 화면에서 가장 밝고 큰 덩어리라 아트워크보다 먼저 보였다(2026-09-18 PM).
-  // 아이콘(28)은 그대로 둔다: 원 대비 39% → 44% 로 올라 저절로 또렷해진다
+  // 원 없이 기호만(PM 2026-10-07 — 애플 기본 play.fill·pause.fill, 애플 뮤직·팟캐스트와 같은 문법). 종전 흰 원 64(2026-09-18)는
+  // 뺐다. 누르는 자리는 64×64 그대로 — 화면을 보지 않고 누르는 손끝 위치가 바뀌지 않는다(uiux 7장)
   playButton: {
     width: 64,
     height: 64,
-    borderRadius: 32,
-    borderCurve: 'continuous',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: playerColor.primary,
   },
   // 배속 — 칩 배경 없이 텍스트만. 폭은 고정해 왼쪽 버튼과 오른쪽 빈 자리가 같은 폭을 갖게 한다
   rateButton: {
