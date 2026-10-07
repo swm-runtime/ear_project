@@ -14,11 +14,10 @@ import type { PlayerSection } from '../player.types';
 import { useScrubPositionStore } from '../store/scrub-position.store';
 
 /**
- * 구간이 바뀔 때 — 옛 내용이 빠지며 위(앞으로 갈 때)·아래(뒤로 갈 때)로 밀려나고, 새 내용이 반대편에서 들어온다
- * (PM 2026-10-07 "구간 바뀔 때나 바 잡고 끌 때 애니메이션"). 끄는 동안 연달아 바뀌어도 따라가도록 짧게
+ * 구간이 바뀔 때 — 새 내용이 아래(앞 구간으로 갈 때)·위(뒤로 갈 때)에서 미끄러져 들어온다(PM 2026-10-07 "구간 바뀔 때나
+ * 바 잡고 끌 때 애니메이션"). 끄는 동안 연달아 바뀌어도 따라가도록 짧게
  */
-const SLIDE_OUT_MS = 100;
-const FADE_IN_MS = 160;
+const FADE_IN_MS = 180;
 const SLIDE_DISTANCE = 8;
 /**
  * 애플 글자 단계 — 위 구역 이름은 Callout(16 굵게), 아래 요약은 Footnote(13). 종전 Headline 17 에서 한 단계 줄였다
@@ -48,8 +47,47 @@ const IOS_GLYPH_SHIFT = 2.67;
 const CARD_PADDING_TOP = Platform.OS === 'ios' ? CARD_PADDING - IOS_GLYPH_SHIFT : CARD_PADDING;
 const CARD_PADDING_BOTTOM = Platform.OS === 'ios' ? CARD_PADDING + IOS_GLYPH_SHIFT : CARD_PADDING;
 
-const sameDisplay = (a: ShownSection | null, b: ShownSection | null) =>
-  a?.index === b?.index && a?.heading === b?.heading && a?.detail === b?.detail;
+interface SectionContentProps {
+  shown: ShownSection;
+  /** 들어오는 방향 — 1 이면 아래에서 위로(앞 구간으로), -1 이면 위에서 아래로, 0 이면 움직이지 않고 바로 */
+  direction: 1 | -1 | 0;
+}
+
+/**
+ * 한 구간의 내용 — **구간이 바뀌면 새로 만들어진다**(부모가 key 로 갈아 끼운다). 들어오는 애니메이션은 이 인스턴스의 값만
+ * 움직이고 다른 구간과 값을 나누지 않는다. 종전에는 값 하나를 "빠짐 → 교체 → 들어옴"으로 이어 쓰다가, 중간에 끊기면
+ * 반투명·어긋난 채 남았다(PM 2026-10-07 실기기 — 예전 편을 열면 흐린 상자. 이어 듣기 위치가 0 으로 튀었다 돌아오는 순간)
+ */
+function SectionContent({ shown, direction }: SectionContentProps) {
+  const opacity = useMemo(() => new Animated.Value(direction === 0 ? 1 : 0), [direction]);
+  const translateY = useMemo(() => new Animated.Value(direction * SLIDE_DISTANCE), [direction]);
+  useEffect(() => {
+    if (direction === 0) return undefined;
+    const enter = Animated.parallel([
+      Animated.timing(opacity, { toValue: 1, duration: FADE_IN_MS, useNativeDriver: true }),
+      Animated.spring(translateY, { toValue: 0, ...motion.spring.snappy, useNativeDriver: true }),
+    ]);
+    enter.start();
+    return () => enter.stop();
+  }, [direction, opacity, translateY]);
+
+  return (
+    <Animated.View style={[styles.content, { opacity, transform: [{ translateY }] }]}>
+      <Text style={styles.heading} numberOfLines={1}>
+        {shown.heading}
+      </Text>
+      {/* 한글을 단어 단위로 끊는다(iOS) — 글자 단위면 "원칙 / 과"처럼 단어 중간에서 줄이 바뀐다 */}
+      <Text
+        style={styles.detail}
+        numberOfLines={DETAIL_MAX_LINES}
+        ellipsizeMode="tail"
+        lineBreakStrategyIOS="hangul-word"
+      >
+        {shown.detail}
+      </Text>
+    </Animated.View>
+  );
+}
 
 interface PlayerCurrentSectionProps {
   sections: readonly PlayerSection[];
@@ -81,8 +119,8 @@ export default function PlayerCurrentSection({
   const computed = section === null ? null : sectionDisplayOf(section, PLAYER_COPY.screen);
   const displayHeading = computed?.heading ?? null;
   const displayDetail = computed?.detail ?? null;
-  // 재생 위치는 수시로 바뀌지만 표시 내용은 구간이 바뀔 때만 바뀐다 — 같은 내용이면 같은 객체를 써서 효과가 다시 돌지 않게 한다
-  const display = useMemo<ShownSection | null>(
+  // 재생 위치는 수시로 바뀌지만 표시 내용은 구간이 바뀔 때만 바뀐다 — 같은 내용이면 같은 객체를 쓴다
+  const shown = useMemo<ShownSection | null>(
     () =>
       displayHeading === null || displayDetail === null
         ? null
@@ -90,56 +128,28 @@ export default function PlayerCurrentSection({
     [displayHeading, displayDetail, sectionIndex],
   );
   const reduceMotion = useReduceMotion();
-  const [shown, setShown] = useState(display);
-  const opacity = useMemo(() => new Animated.Value(1), []);
-  const translateY = useMemo(() => new Animated.Value(0), []);
 
-  // 내용이 바뀌면 옛 내용을 밀어내고 새 내용을 들인다 — 교체(setState)는 애니메이션 완료 콜백에서만 일어난다
-  useEffect(() => {
-    if (sameDisplay(display, shown)) {
-      // 밀려나던 중에 원래 구간으로 돌아오면(끌다가 0.1초 안에 놓음 등) 앞 효과가 애니메이션을 멈춘 채 끝난다 —
-      // 내용은 그대로라 다시 그리지 않아 글자가 투명하게 남았다(PM 2026-10-07 "재생 목록 켜고 바를 움직였다 끄면 빈 상자").
-      // 같은 내용이어도 제자리·불투명으로 되돌린다
-      const restore = Animated.parallel([
-        Animated.timing(opacity, { toValue: 1, duration: FADE_IN_MS, useNativeDriver: true }),
-        Animated.spring(translateY, { toValue: 0, ...motion.spring.snappy, useNativeDriver: true }),
-      ]);
-      restore.start();
-      return () => restore.stop();
-    }
-    if (reduceMotion !== false || shown === null || display === null) {
-      opacity.setValue(1);
-      translateY.setValue(0);
-      const frame = requestAnimationFrame(() => setShown(display));
-      return () => cancelAnimationFrame(frame);
-    }
-    // 앞 구간으로 가면 위로 밀려나고 아래에서 들어온다(목록을 내리는 방향), 뒤로 가면 반대
-    const direction = display.index >= shown.index ? 1 : -1;
-    const slideOut = Animated.parallel([
-      Animated.timing(opacity, {
-        toValue: 0,
-        duration: SLIDE_OUT_MS,
-        easing: motion.easing.easeOut,
-        useNativeDriver: true,
-      }),
-      Animated.timing(translateY, {
-        toValue: -direction * SLIDE_DISTANCE,
-        duration: SLIDE_OUT_MS,
-        easing: motion.easing.easeOut,
-        useNativeDriver: true,
-      }),
-    ]);
-    slideOut.start(({ finished }) => {
-      if (!finished) return;
-      setShown(display);
-      translateY.setValue(direction * SLIDE_DISTANCE);
-      Animated.parallel([
-        Animated.timing(opacity, { toValue: 1, duration: FADE_IN_MS, useNativeDriver: true }),
-        Animated.spring(translateY, { toValue: 0, ...motion.spring.snappy, useNativeDriver: true }),
-      ]).start();
+  // 들어오는 방향 — 직전에 보인 구간과 비교한다(React 의 "이전 렌더 값 기억" 패턴: 렌더 중 상태 갱신). 첫 표시·동작
+  // 줄이기는 움직이지 않는다
+  const contentKey = shown === null ? null : `${shown.index}|${shown.heading}|${shown.detail}`;
+  const [entry, setEntry] = useState<{ key: string | null; index: number; direction: 1 | -1 | 0 }>({
+    key: contentKey,
+    index: shown?.index ?? -1,
+    direction: 0,
+  });
+  if (contentKey !== entry.key) {
+    setEntry({
+      key: contentKey,
+      index: shown?.index ?? -1,
+      direction:
+        entry.key === null || shown === null || reduceMotion !== false
+          ? 0
+          : shown.index >= entry.index
+            ? 1
+            : -1,
     });
-    return () => slideOut.stop();
-  }, [display, shown, reduceMotion, opacity, translateY]);
+  }
+  const direction = entry.direction;
 
   // 짧은 대기에는 빈 카드만 — 스켈레톤이 번쩍 지나가지 않게 조금 늦게 그린다(PlayerScriptStatus 와 같다)
   const showSkeleton = useDelayedVisible(isLoading && shown === null);
@@ -179,20 +189,7 @@ export default function PlayerCurrentSection({
           : `${shown.heading}, ${shown.detail}`,
       )}
     >
-      <Animated.View style={[styles.content, { opacity, transform: [{ translateY }] }]}>
-        <Text style={styles.heading} numberOfLines={1}>
-          {shown.heading}
-        </Text>
-        {/* 한글을 단어 단위로 끊는다(iOS) — 글자 단위면 "원칙 / 과"처럼 단어 중간에서 줄이 바뀐다 */}
-        <Text
-          style={styles.detail}
-          numberOfLines={DETAIL_MAX_LINES}
-          ellipsizeMode="tail"
-          lineBreakStrategyIOS="hangul-word"
-        >
-          {shown.detail}
-        </Text>
-      </Animated.View>
+      <SectionContent key={contentKey ?? undefined} shown={shown} direction={direction} />
     </View>
   );
 }
