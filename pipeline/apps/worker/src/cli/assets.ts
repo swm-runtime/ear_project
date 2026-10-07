@@ -1,6 +1,6 @@
 /**
  * 규칙 자산 CLI (spec/10 3.2) — git 사본과 DB 사이의 명시적 이동. 방향은 한쪽: 웹 → DB → git(export).
- *   npm run assets:import            docs/ai/skills 의 10개를 DB 에 시딩 (active 가 없는 키만. 있으면 건너뜀 — --force 로 git 사본을 새 버전으로 강제)
+ *   npm run assets:import            docs/ai/skills 의 12개를 DB 에 시딩 (active 가 없는 키만. 있으면 건너뜀 — --force 로 git 사본을 새 버전으로 강제, --only <key> 로 한 자산만)
  *   npm run assets:export            active 를 docs/ai/skills 로 덤프 + skills/CHANGELOG-assets.md 생성 (PR 에서 규칙 diff 가 보이게)
  *   npm run assets:status            active 버전 목록
  */
@@ -9,14 +9,17 @@ import path from "node:path";
 import os from "node:os";
 import { cfg } from "../config.js";
 import { pool } from "../db.js";
-import { DB_ASSET_KEYS, OPTIONAL_ASSET_KEYS, THUMBNAIL_ANCHOR_PROMPT_KEY, THUMBNAIL_PROMPT_KEY, TTS_DICT_KEY, versionOf, workerRev } from "../assets.js";
+import { DB_ASSET_KEYS, OPTIONAL_ASSET_KEYS, THUMBNAIL_ANCHOR_PROMPT_KEY, THUMBNAIL_PROMPT_KEY, THUMBNAIL_SCENE_PROMPT_KEY, SECTION_SUMMARY_PROMPT_KEY, TTS_DICT_KEY, versionOf, workerRev } from "../assets.js";
 
 /** 시딩·상태 대상 = 번들 7개 + TTS 음차 사전 (spec/10 3.2 의 8개) */
-const ALL_ASSET_KEYS = [...DB_ASSET_KEYS, ...OPTIONAL_ASSET_KEYS, TTS_DICT_KEY, THUMBNAIL_PROMPT_KEY, THUMBNAIL_ANCHOR_PROMPT_KEY]; // 프로파일 키는 git 사본이 없으면 건너뛴다
+const ALL_ASSET_KEYS = [...DB_ASSET_KEYS, ...OPTIONAL_ASSET_KEYS, TTS_DICT_KEY, THUMBNAIL_PROMPT_KEY, THUMBNAIL_ANCHOR_PROMPT_KEY, THUMBNAIL_SCENE_PROMPT_KEY, SECTION_SUMMARY_PROMPT_KEY]; // 프로파일 키는 git 사본이 없으면 건너뛴다
 
-async function cmdImport(force: boolean) {
+/** only: 이 키만 다룬다 (2026-10-07) — --force 는 git 사본과 다른 모든 키를 git 쪽으로 덮어써 활성화하므로, DB 에서 고친 대본 지침까지 옛 사본으로 되돌릴 수 있다. 한 자산만 올릴 때는 --only 를 붙인다 */
+async function cmdImport(force: boolean, only?: string) {
   const by = `seed:${os.userInfo().username}@${os.hostname()}`;
+  if (only && !ALL_ASSET_KEYS.includes(only as (typeof ALL_ASSET_KEYS)[number])) throw new Error(`--only ${only}: 모르는 자산 키 — ${ALL_ASSET_KEYS.join(", ")}`);
   for (const key of ALL_ASSET_KEYS) {
+    if (only && key !== only) continue;
     const content = await fs.readFile(path.join(cfg.assetSourceRoot, key), "utf8").catch((e) => { if (OPTIONAL_ASSET_KEYS.includes(key)) return null; throw e; });
     if (content == null) { console.log(`- ${key}  (git 사본 없음 — 프로파일 키, 건너뜀)`); continue; }
     const version = versionOf(key, content);
@@ -86,9 +89,9 @@ async function cmdStatus() {
 const [cmd, ...rest] = process.argv.slice(2);
 (async () => {
   try {
-    if (cmd === "import") await cmdImport(rest.includes("--force"));
+    if (cmd === "import") { const i = rest.indexOf("--only"); await cmdImport(rest.includes("--force"), i >= 0 ? rest[i + 1] : undefined); }
     else if (cmd === "export") await cmdExport();
     else if (cmd === "status") await cmdStatus();
-    else { console.error("usage: assets <import [--force] | export | status>"); process.exitCode = 2; }
+    else { console.error("usage: assets <import [--force] [--only <key>] | export | status>"); process.exitCode = 2; }
   } finally { await pool.end(); }
 })();

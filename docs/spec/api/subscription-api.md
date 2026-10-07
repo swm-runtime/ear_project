@@ -101,19 +101,19 @@
 {
   "plans": [
     {
-      "plan_id": "uuid-light", "tier": "light", "name": "라이트", "description": "무료로 하루 2편까지 들을 수 있어요",
+      "plan_id": "uuid-light", "tier": "light", "name": "Light", "description": "하루 2편까지 들을 수 있어요",
       "price_krw": 0, "store_product_id": null,
       "entitlements": { "daily_play_limit": 2, "daily_drip_count": 2, "drip_enabled": true, "ads_enabled": true },
-      "action": "none"
+      "action": "current"
     },
     {
-      "plan_id": "uuid-daily", "tier": "daily", "name": "데일리", "description": "…",
+      "plan_id": "uuid-daily", "tier": "daily", "name": "Daily", "description": "하루 5편까지 들을 수 있어요",
       "price_krw": 3900, "store_product_id": "com.runtime.ear.subscription.daily.monthly",
       "entitlements": { "daily_play_limit": 5, "daily_drip_count": 2, "drip_enabled": true, "ads_enabled": false },
       "action": "purchase"
     },
     {
-      "plan_id": "uuid-pro", "tier": "pro", "name": "프로", "description": "…",
+      "plan_id": "uuid-pro", "tier": "pro", "name": "Pro", "description": "제한 없이 마음껏 들을 수 있어요",
       "price_krw": 9900, "store_product_id": "com.runtime.ear.subscription.pro.monthly",
       "entitlements": { "daily_play_limit": null, "daily_drip_count": 2, "drip_enabled": true, "ads_enabled": false },
       "action": "purchase"
@@ -136,12 +136,13 @@
 | 값 | 조건 | 버튼 |
 |---|---|---|
 | `purchase` | 유효한 구독이 없고 유료 요금제 | [구독하기] |
-| `current` | 현재 구독 중인 요금제 | "이용 중" 표시 |
+| `current` | 현재 구독 중인 요금제, 또는 **유효한 구독이 없는 사용자의 무료 요금제**(2026-10-06 — KAN-147. 가입 체험 중이어도 같다 — 체험은 4.2 `plan.trial`이 따로 알린다) | "이용 중" 표시 |
 | `upgrade` | 현재보다 높은 티어 | [업그레이드] — 즉시 적용(스토어 비례 정산) |
 | `downgrade` | 현재보다 낮은 **유료** 티어 | [변경] — "다음 결제일부터 적용돼요" 안내 |
-| `none` | 무료 티어, 또는 그 플랫폼에 상품이 없는 요금제 | 버튼 없음. 유료 → 무료는 해지다(스토어 이동) |
+| `none` | **유료 구독자에게** 무료 티어(유료 → 무료는 해지다 — 스토어 이동), 또는 그 플랫폼에 상품이 없는 유료 요금제 | 버튼 없음 |
 
 - **다른 스토어에서 결제한 구독자**(예: Android에서 구독하고 iOS로 접속): 유료 요금제 전부 `none`이다. 한 계정에 두 스토어 구독을 겹치지 않는다. 화면은 4.2의 `store`로 "Google Play에서 구독 중이에요"를 안내한다.
+- **표시 문구는 DB 값이다**(`plans.name`·`description` — `domain.md` 8.1). 2026-10-06 PM 결정으로 `Light` / `Daily` / `Pro`, 설명은 "하루 2편까지 들을 수 있어요" / "하루 5편까지 들을 수 있어요" / "제한 없이 마음껏 들을 수 있어요"(마이그레이션 `RenamePlanDisplayNames`). 화면은 이 값을 그대로 그린다 — 앱에 티어명을 두지 않는다.
 - 비활성(`is_active = false`) 요금제는 목록에서 빠진다. 그 요금제의 기존 구독자는 만료까지 유지되며(`subscription.md` 7), 이때 응답에 `current`인 항목이 없을 수 있다 — 현재 구독 표시는 4.2가 한다.
 
 **에러** — `VALIDATION_FAILED`(400): `platform` 누락·오값.
@@ -362,6 +363,7 @@ Apple이 호출한다. 본문은 `{ "signedPayload": "<JWS>" }`. App Store Conne
 | `REFUND_REVERSED` | 만료 전이면 `active` 복구 |
 | `RENEWAL_EXTENDED` | 만료일만 갱신 |
 | 그 밖(`TEST` · `PRICE_INCREASE` · `CONSUMPTION_REQUEST` · `ONE_TIME_CHARGE` 등) | 적재만 하고 상태를 바꾸지 않는다 |
+| 거래 본문(`data`)이 없는 알림 — `RENEWAL_EXTENSION`(`SUMMARY`) · `RESCIND_CONSENT` · `EXTERNAL_PURCHASE_TOKEN` | 적재만 하고 200으로 끝낸다(2026-10-06). 이 알림들은 환경을 `data`가 아니라 `summary` · `appData`에 싣고, 외부 구매 토큰은 식별자 접두사(`SANDBOX`)로 가린다 — **환경을 `data`에서만 읽으면 "받지 않는 환경"으로 400이 되어 Apple이 며칠간 재전송한다** |
 
 - 만료·환불로 `users.tier`가 내려갈 때 라이브러리·드립은 건드리지 않는다(`subscription.md` 4.5).
 - **알림 순서가 뒤바뀔 수 있다.** 반영 전에 페이로드의 `signedDate`가 그 행에 마지막으로 반영한 알림보다 과거면 상태를 덮지 않는다(적재는 한다).
@@ -393,7 +395,7 @@ Google Cloud Pub/Sub **push 구독**이 호출한다. 본문은 Pub/Sub 메시�
 | 다운그레이드 예약(`lineItems[].deferredItemReplacement`) | 티어 유지, `pending_tier` = 다음 갱신 티어 |
 | `testNotification` · 그 밖 | 적재만 하고 상태를 바꾸지 않는다 |
 
-**환불의 고정**(2026-10-06) — "마지막에 조회한 상태가 맞는 상태다"의 유일한 예외다. Google의 구독 상태에는 환불이 보이지 않아, `refunded`로 내린 뒤에도 그 토큰을 조회하면 `ACTIVE`나 `EXPIRED`로 답할 수 있다. 그대로 반영하면 뒤따르는 다른 알림·복원·재제출이 환불을 지운다. 그래서 `refunded`인 행에 **같은 구매 토큰**(`latest_receipt`)의 조회 결과가 오면 반영하지 않는다 — 영수증 제출은 `SUBSCRIPTION_RECEIPT_INVALID`, 복원은 무시(확인도 하지 않는다). 되살아나는 것은 **돈이 다시 들어왔을 때**뿐이다: ① 새 구매 토큰(재구독·요금제 변경) ② 같은 토큰이지만 `ACTIVE`이고 만료 시각이 환불 당시보다 뒤로 갔다(그 뒤에 갱신 결제가 됐다 — 유예로 만료 시각만 밀린 것은 해당하지 않는다). App Store에는 이 규칙이 없다 — 상태 조회가 환불을 직접 답한다.
+**환불의 고정**(2026-10-06, 개정 2026-10-07) — "마지막에 조회한 상태가 맞는 상태다"의 유일한 예외다. Google의 구독 상태에는 환불이 보이지 않아, `refunded`로 내린 뒤에도 그 토큰을 조회하면 `ACTIVE`나 `EXPIRED`로 답할 수 있다. 그대로 반영하면 뒤따르는 다른 알림·복원·재제출이 환불을 지운다. 그래서 `refunded`인 행에 **같은 구매 토큰**(`latest_receipt`)·**같은 주문 ID**(`latest_order_id` = Google `latestOrderId`)의 조회 결과가 오면 반영하지 않는다 — 영수증 제출은 `SUBSCRIPTION_RECEIPT_INVALID`, 복원은 무시(확인도 하지 않는다). 되살아나는 것은 **돈이 다시 들어왔을 때**뿐이다: ① 새 구매 토큰(재구독·요금제 변경) ② 같은 토큰이지만 주문 ID가 바뀌었다(Google은 갱신·재청구 성공마다 새 주문 ID를 발급한다). 주문 ID를 모르는 행(개정 전 기록)은 종전 규칙 — `ACTIVE`이고 만료 시각이 환불 당시보다 뒤로 간 경우 — 로 판정한다. 종전 규칙만으로는 유예 중 환불 뒤 재청구가 성공해도 새 만료 시각이 유예 종료일(환불 당시 저장값)을 넘지 못해 되살아나지 않는 경우가 있었다(유예 길이 ≈ 결제 주기). App Store에는 이 규칙이 없다 — 상태 조회가 환불을 직접 답한다.
 
 **구독 행의 키** — Play에는 `original_transaction_id`가 없다. **그 구독의 최초 `purchaseToken`을 `original_transaction_id`로 쓰고**, 마지막으로 반영한 토큰을 `latest_receipt`에 둔다. 업·다운그레이드·재구독으로 새 토큰이 발급되면 다음 순서로 기존 행을 찾아 같은 행을 갱신한다(행이 늘지 않는다).
 

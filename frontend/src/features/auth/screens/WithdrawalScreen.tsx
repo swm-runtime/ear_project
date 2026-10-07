@@ -7,6 +7,7 @@ import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
 import { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
 import GlassIconButton from '@/shared/ui/GlassIconButton';
+import { pillButton } from '@/shared/ui/pill-button.styles';
 import { SkeletonBlock, SkeletonGroup } from '@/shared/ui/Skeleton';
 import { Text, TextInput } from '@/shared/ui/Typography';
 
@@ -24,7 +25,7 @@ const COPY = AUTH_COPY.withdrawal;
  * 섹션을, 없으면 "모든 데이터가 즉시 삭제됩니다"를 그린다. 보존 섹션을 회색 처리하거나
  * "해당 없음"으로 남기지 않는다: **섹션 자체를 그리지 않는다.**
  * 스토어 해지 안내는 **텍스트만**이며 이동 버튼·딥링크를 두지 않는다(탈퇴 도중 외부 앱으로
- * 이탈하면 돌아오지 못한다 — 해지 진입점은 설정 > 구독 관리에 이미 있다).
+ * 이탈하면 돌아오지 못한다 — 해지 진입점은 설정 > 요금제 관리에 이미 있다).
  */
 export default function WithdrawalScreen() {
   const screen = useWithdrawalScreen();
@@ -209,7 +210,12 @@ export default function WithdrawalScreen() {
               </Text>
             ) : null}
             <Pressable
-              style={[styles.submit, !screen.canSubmit && styles.submitDisabled]}
+              style={[
+                pillButton.base,
+                pillButton.destructive,
+                styles.submit,
+                !screen.canSubmit && styles.submitDisabled,
+              ]}
               disabled={!screen.canSubmit}
               onPress={screen.handleSubmitPress}
               accessibilityRole="button"
@@ -407,13 +413,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   /** 파괴적 액션 — 경고색(auth-uiux.md 4.5) */
+  // 크기만 — 모양·색은 공용 알약(pillButton.destructive — 채운 빨강)
   submit: {
     minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.danger,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   submitDisabled: {
     backgroundColor: theme.color.border,

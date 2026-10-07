@@ -1,110 +1,39 @@
 import { useNavigation } from '@react-navigation/native';
 import { useEffect } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Image, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
 import GlassIconButton from '@/shared/ui/GlassIconButton';
 import LoadingOverlay from '@/shared/ui/LoadingOverlay';
-import { SkeletonBlock, SkeletonGroup } from '@/shared/ui/Skeleton';
 import { Text } from '@/shared/ui/Typography';
 
+import CurrentSubscriptionDetail from '../components/CurrentSubscriptionDetail';
 import PlanList from '../components/PlanList';
 import PurchaseNotice from '../components/PurchaseNotice';
 import SubscriptionLegalNotice from '../components/SubscriptionLegalNotice';
-import type { SubscriptionStatusVM } from '../hooks/subscription-status';
 import { useSubscriptionScreen } from '../hooks/useSubscriptionScreen';
 import { SUBSCRIPTION_COPY } from '../subscription.copy';
 
 const BACK_ICON_SIZE = 20;
-
-interface StatusCardProps {
-  status: SubscriptionStatusVM;
-  onOpenStore: () => void;
-}
-
-/** SB1 현재 구독 — 상태별 문구는 프로필·설정 플랜 줄과 같은 사실(settings-uiux.md 4.1) */
-function StatusCard({ status, onOpenStore }: StatusCardProps) {
-  if (status.kind === 'free') {
-    return (
-      <View style={styles.statusCard}>
-        <Text style={styles.statusTitle}>{SUBSCRIPTION_COPY.status.free}</Text>
-        <Text style={styles.statusBody}>
-          {SUBSCRIPTION_COPY.status.freeLimit(status.dailyPlayLimit)}
-        </Text>
-      </View>
-    );
-  }
-
-  const storeButton = (label: string) => (
-    <Pressable
-      style={({ pressed }) => [styles.storeButton, pressed ? styles.pressed : null]}
-      onPress={onOpenStore}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-    >
-      <Text style={styles.storeButtonLabel}>{label}</Text>
-    </Pressable>
-  );
-
-  return (
-    <View style={styles.statusCard}>
-      <Text style={styles.statusTitle}>{status.planName}</Text>
-      {status.kind === 'subscribed' ? (
-        <>
-          {status.renewsAt !== null ? (
-            <Text style={styles.statusBody}>
-              {SUBSCRIPTION_COPY.status.renewsAt(status.renewsAt)}
-            </Text>
-          ) : null}
-          {status.pendingPlan !== null ? (
-            <Text style={styles.statusBody}>
-              {SUBSCRIPTION_COPY.status.pendingPlan(
-                status.pendingPlan.effectiveAt,
-                status.pendingPlan.planName,
-              )}
-            </Text>
-          ) : null}
-        </>
-      ) : null}
-      {status.kind === 'cancelScheduled' && status.expiresAt !== null ? (
-        <Text style={styles.statusBody}>
-          {SUBSCRIPTION_COPY.status.cancelScheduled(status.expiresAt)}
-        </Text>
-      ) : null}
-      {status.kind === 'grace' ? (
-        // 결제 문제 — 경고색을 쓰는 유일한 상태. 색만이 아니라 제목 글자로도 밝힌다
-        <View style={styles.warningBanner} accessibilityRole="alert">
-          <Text style={styles.warningTitle}>{SUBSCRIPTION_COPY.status.paymentIssueTitle}</Text>
-          <Text style={styles.warningBody}>{SUBSCRIPTION_COPY.status.paymentIssueBody}</Text>
-        </View>
-      ) : null}
-      {status.otherStore !== null ? (
-        <Text style={styles.statusBody}>
-          {SUBSCRIPTION_COPY.status.otherStore(status.otherStore)}
-        </Text>
-      ) : status.kind === 'subscribed' ? (
-        storeButton(SUBSCRIPTION_COPY.manage.cancel)
-      ) : status.kind === 'cancelScheduled' ? (
-        storeButton(SUBSCRIPTION_COPY.manage.resume)
-      ) : (
-        storeButton(SUBSCRIPTION_COPY.manage.checkPayment)
-      )}
-    </View>
-  );
-}
+/**
+ * 제목 위 이어 로고(투명 배경 — KAN-146). 지금 파일은 assets/logo.png(흰 바탕 검정 선)에서 밝기를 투명도로 뽑아
+ * 만든 임시본이다 — NAS 의 공식 투명 PNG(이어_로고_투명_512.png)가 들어오면 같은 이름으로 바꿔 끼운다
+ */
+const LOGO = require('../../../../assets/logo-transparent.png');
+const LOGO_SIZE = 88;
 
 /**
- * 구독 관리 화면(SB1~SB3 — subscription-uiux.md). 진입점은 설정 구독 카드·프로필 [구독 알아보기].
+ * 요금제 관리 화면(SB1~SB3 — subscription-uiux.md). 진입점은 설정 "요금제 관리" 카드·프로필 [구독 알아보기].
+ * 골격(KAN-146): 뒤로 버튼만 있는 앱바 → 로고 · "요금제 관리" → 요금제 카드(이용 중 카드 안에 현재 구독 정보) →
+ * 결과 안내 → 필수 표기 + "이용약관 · 개인정보처리방침 · 구매 복원".
  * 화면은 뷰만 담당하고 로직은 useSubscriptionScreen 이 소유한다.
  */
 export default function SubscriptionScreen() {
   const screen = useSubscriptionScreen();
   const navigation = useNavigation();
-  const showSkeleton = useDelayedVisible(screen.isInitialLoading);
   const { flow } = screen;
 
   // 결제 진행 중 이탈 차단 — 뒤로가기·스와이프(subscription.md 5장). 동기화 대상: 진행 상태
@@ -114,72 +43,68 @@ export default function SubscriptionScreen() {
     return navigation.addListener('beforeRemove', (event) => event.preventDefault());
   }, [flow.isBusy, navigation]);
 
+  const catalogState = screen.catalog.state;
+  /** 서버가 `current` 카드를 줬는가 — 줬으면 구독 정보가 그 카드 안에, 아니면 목록 밑에 홀로 선다(subscription-api.md 4.1) */
+  const hasCurrentCard =
+    catalogState.kind === 'ready' &&
+    catalogState.cards.some((card) => card.plan.action === 'current');
+  const renderDetail = (standalone: boolean) => (
+    <CurrentSubscriptionDetail
+      status={screen.status}
+      isError={screen.isStatusError}
+      onRetry={screen.retryStatus}
+      isRetrying={screen.isStatusRetrying}
+      onOpenStore={screen.openStoreManagement}
+      standalone={standalone}
+    />
+  );
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      {/* 앱바에는 뒤로 버튼만 — 화면 이름은 본문 첫 줄의 큰 제목이 말한다 */}
       <View style={styles.appBar}>
         <GlassIconButton onPress={screen.goBack} accessibilityLabel={SUBSCRIPTION_COPY.backA11y}>
           <ChevronIcon direction="left" size={BACK_ICON_SIZE} color={theme.color.textPrimary} />
         </GlassIconButton>
-        <Text style={styles.appBarTitle} accessibilityRole="header">
-          {SUBSCRIPTION_COPY.title}
-        </Text>
         <View style={styles.appBarSpacer} />
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.sectionTitle} accessibilityRole="header">
-          {SUBSCRIPTION_COPY.status.sectionTitle}
-        </Text>
-        {screen.status !== null ? (
-          <StatusCard status={screen.status} onOpenStore={screen.openStoreManagement} />
-        ) : screen.isStatusError ? (
-          <View style={styles.statusCard}>
-            <Text style={styles.statusBody}>{SUBSCRIPTION_COPY.status.loadError}</Text>
-            <Pressable
-              style={styles.inlineRetry}
-              onPress={screen.retryStatus}
-              disabled={screen.isStatusRetrying}
-              accessibilityRole="button"
-              accessibilityLabel={SUBSCRIPTION_COPY.error.retry}
-            >
-              <Text style={styles.inlineRetryLabel}>{SUBSCRIPTION_COPY.error.retry}</Text>
-            </Pressable>
-          </View>
-        ) : showSkeleton ? (
-          <SkeletonGroup accessibilityLabel={SUBSCRIPTION_COPY.loadingA11y}>
-            <SkeletonBlock height={72} radius="lg" />
-          </SkeletonGroup>
-        ) : null}
+        <View style={styles.hero}>
+          <Image
+            source={LOGO}
+            style={styles.logo}
+            resizeMode="contain"
+            accessibilityElementsHidden
+            importantForAccessibility="no"
+          />
+          <Text style={styles.title} accessibilityRole="header">
+            {SUBSCRIPTION_COPY.title}
+          </Text>
+        </View>
 
-        <Text style={styles.sectionTitle} accessibilityRole="header">
-          {SUBSCRIPTION_COPY.plans.sectionTitle}
-        </Text>
         <PlanList
-          state={screen.catalog.state}
+          state={catalogState}
           isBusy={flow.isBusy}
           purchasingPlanId={flow.purchasingPlanId}
           onPurchase={(plan) => void flow.purchase(plan)}
           onRetry={screen.catalog.retry}
           isRetrying={screen.catalog.isRetrying}
+          currentDetail={renderDetail(false)}
         />
+        {/* 이용 중 카드가 없을 때(비활성 요금제·다른 스토어 구독·요금제 조회 실패) — 해지 경로가 사라지지 않게 목록 밑에 */}
+        {catalogState.kind !== 'loading' && !hasCurrentCard ? renderDetail(true) : null}
         <PurchaseNotice
           notice={flow.notice}
           isVerificationDelayed={flow.isVerificationDelayed}
           isVerifying={flow.phase === 'verifying'}
         />
 
-        <Pressable
-          style={styles.restore}
-          onPress={() => void flow.restore()}
-          disabled={flow.isBusy}
-          accessibilityRole="button"
-          accessibilityLabel={SUBSCRIPTION_COPY.restore}
-          accessibilityState={{ disabled: flow.isBusy, busy: flow.phase === 'restoring' }}
-        >
-          <Text style={styles.restoreLabel}>{SUBSCRIPTION_COPY.restore}</Text>
-        </Pressable>
-
-        <SubscriptionLegalNotice />
+        <SubscriptionLegalNotice
+          onRestore={() => void flow.restore()}
+          isRestoreDisabled={flow.isBusy}
+          isRestoring={flow.phase === 'restoring'}
+        />
       </ScrollView>
 
       {/* 결제·복원 진행 중 — 전체 로딩(subscription.md 5장). 검증 중 문구는 위 안내가 읽힌다 */}
@@ -196,102 +121,35 @@ const styles = StyleSheet.create({
   appBar: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: theme.spacing.md,
     minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
-  },
-  appBarTitle: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: theme.font.size.md,
-    fontWeight: '700',
-    color: theme.color.textPrimary,
   },
   appBarSpacer: {
     minWidth: HEADER_CONTROL_HEIGHT,
   },
   content: {
     padding: theme.spacing.md,
+    // 좌우는 32 — 카드·버튼·유의사항이 한 세로선에 서고, SE(375)에서도 카드 311pt(KAN-146 PM 미리보기 확정 2026-10-07)
+    paddingHorizontal: theme.spacing.xl,
     paddingBottom: theme.spacing.xxl,
     gap: theme.spacing.sm,
   },
-  sectionTitle: {
-    marginTop: theme.spacing.sm,
-    fontSize: theme.font.size.sm,
-    fontWeight: '600',
-    color: theme.color.textSecondary,
-  },
-  statusCard: {
-    padding: theme.spacing.md,
-    gap: theme.spacing.xs,
-    borderRadius: theme.radius.lg,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
-  },
-  statusTitle: {
-    fontSize: theme.font.size.lg,
-    fontWeight: '700',
-    color: theme.color.textPrimary,
-  },
-  statusBody: {
-    fontSize: theme.font.size.sm,
-    color: theme.color.textSecondary,
-  },
-  warningBanner: {
-    marginTop: theme.spacing.xs,
-    padding: theme.spacing.sm,
-    gap: 2,
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.warningSurface,
-  },
-  warningTitle: {
-    fontSize: theme.font.size.sm,
-    fontWeight: '700',
-    color: theme.color.warning,
-  },
-  warningBody: {
-    fontSize: theme.font.size.xs,
-    color: theme.color.warning,
-  },
-  storeButton: {
-    marginTop: theme.spacing.sm,
-    minHeight: theme.touchTarget.minHeight,
+  // 로고 88 → 8 → 제목 28 굵게, 가운데(KAN-146 PM 미리보기 확정)
+  hero: {
     alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.background,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.color.border,
+    gap: theme.spacing.sm,
+    marginTop: 0,
+    marginBottom: theme.spacing.sm,
   },
-  storeButtonLabel: {
-    fontSize: theme.font.size.md,
-    fontWeight: '600',
+  logo: {
+    width: LOGO_SIZE,
+    height: Math.round((LOGO_SIZE * 365) / 452),
+  },
+  title: {
+    fontSize: theme.font.size.xl,
+    fontWeight: '700',
     color: theme.color.textPrimary,
-  },
-  pressed: {
-    opacity: 0.8,
-  },
-  inlineRetry: {
-    alignSelf: 'flex-start',
-    minHeight: theme.touchTarget.minHeight,
-    justifyContent: 'center',
-  },
-  inlineRetryLabel: {
-    fontSize: theme.font.size.sm,
-    fontWeight: '600',
-    color: theme.color.primary,
-  },
-  restore: {
-    alignSelf: 'center',
-    minHeight: theme.touchTarget.minHeight,
-    justifyContent: 'center',
-    paddingHorizontal: theme.spacing.md,
-  },
-  restoreLabel: {
-    fontSize: theme.font.size.sm,
-    fontWeight: '600',
-    color: theme.color.textPrimary,
-    textDecorationLine: 'underline',
+    textAlign: 'center',
   },
 });

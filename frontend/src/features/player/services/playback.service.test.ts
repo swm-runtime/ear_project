@@ -120,6 +120,7 @@ const issueOf = (url: string, contentVersion = 1): AudioIssueResult => ({
   } as AudioIssueResult['content'],
   topicIds: null,
   hasScript: false,
+  sections: [],
   libraryItem: null,
   progress: null,
   audio: { url, expiresAt: '2026-10-06T00:05:00Z', expiresInSec: 300 },

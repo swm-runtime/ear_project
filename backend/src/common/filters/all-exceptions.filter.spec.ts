@@ -89,6 +89,27 @@ describe('AllExceptionsFilter — Sentry 보고 경계', () => {
     expect(Sentry.captureException).not.toHaveBeenCalled();
   });
 
+  it('body-parser 오류(entity.too.large)는 413 으로 답하고 warn 만 남긴다 — 500 ERROR 로 뭉개지 않는다', () => {
+    const { host: h, response } = host();
+    const error = Object.assign(new Error('request entity too large'), {
+      type: 'entity.too.large',
+      status: 413,
+    });
+
+    filter.catch(error, h);
+
+    expect(response.status).toHaveBeenCalledWith(413);
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error_code: 'VALIDATION_FAILED',
+        retryable: false,
+      }),
+    );
+    expect(filter['logger'].error).not.toHaveBeenCalled();
+    expect(filter['logger'].warn).toHaveBeenCalled();
+    expect(Sentry.captureException).not.toHaveBeenCalled();
+  });
+
   it('프레임워크 4xx(404 등)도 보내지 않는다', () => {
     filter.catch(new HttpException('nope', HttpStatus.NOT_FOUND), host().host);
 

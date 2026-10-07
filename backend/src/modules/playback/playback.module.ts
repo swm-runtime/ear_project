@@ -81,7 +81,7 @@ import { PlaybackService } from './services/playback.service';
   providers: [
     ContentStatAggregationRepository,
     ContentStatAggregationService,
-    // 편성 배치(05:00)의 인기도 축이 이 값을 읽는다 — 그보다 먼저 04:00에 돈다
+    // 경계 04:00 동안은 편성 배치(05:00) 전 04:00, 05:00 전환 뒤에는 05:30 에 돈다(KAN-149)
     ContentStatAggregationScheduler,
     PlaybackProgressRepository,
     PlayRecordRepository,

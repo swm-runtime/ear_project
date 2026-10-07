@@ -13,7 +13,7 @@
 | 선행 | 없음(티켓). 발행(3종 업로드)은 KAN-141(서버 3종 저장·업로드 확장)이 받을 수 있어야 한다 — 렌더까지는 먼저 해도 된다 |
 | 근거 문서 | `tickets/backend/pending/audio-quality-tiers.md`(KAN-141) · `tickets/ai/pending/jingle-mono-loudnorm-degradation.md`(KAN-122) · `ai/spec/06-audio.md` 7장 |
 | 중요도 | Low — PM 발행(2026-10-06). 중요도 미지정이라 이번 주 마감으로 잡았다 — 바꾸려면 Jira·이 표를 함께 고친다 |
-| 상태 | 대기 |
+| 상태 | **완료** (2026-10-06) — 1~7번 반영(3종이 아니라 확정안 2종: AAC m4a·FLAC). 음질별 재생 확인은 KAN-143(FE)으로 이관 |
 
 ## 배경
 
@@ -59,3 +59,10 @@ ElevenLabs **Pro 결제**로 TTS 원본을 무손실(PCM)로 받을 수 있다. 
   - 5 발행: `audio` = dist.m4a(없으면 구 mp3), `audio_lossless` = lossless.flac — `SEND_LOSSLESS_AUDIO` 꺼 둠(백엔드 flac 허용 운영 배포 뒤 켠다)
   - 7 문서: `ai/spec/06-audio.md` 7장(배포본 규격·완료 조건) · `07-publish.md`(오디오 파트) · `08-infra.md`
   - 남은 것: `tts:encode --apply`(56편) · 백엔드 flac 허용 배포 → `SEND_LOSSLESS_AUDIO` 켜기 · 6 기존 발행분 재발행(사람 — 재생 위치 초기화)
+- **2026-10-06 후속** — #1155 머지·배포. `tts:encode --apply`: 56편(발행 40 + CS 16) 완료·실패 0 — `dist.m4a`·`lossless.flac` 업로드, `audio_dist_key` 교체, 패키지 재실행 56건 완료. 백엔드 #1154(lossless = flac 만)가 운영 v1.2.0+2 로 배포돼 `SEND_LOSSLESS_AUDIO` 를 켰다 — 다음 발행·재발행부터 압축(m4a)과 무손실(flac)이 함께 실린다
+  - 남은 것: 6 기존 발행분 재발행(사람 — 재생 위치 초기화). 첫 재발행에서 서버에 압축·무손실이 모두 새 버전으로 있는지 확인하고 이 티켓과 KAN-145 를 archive 로 옮긴다
+- **2026-10-06 완료 — 반영 날짜 2026-10-06** (`pending/` → `archive/`, Jira KAN-142 완료)
+  - 6 기존 발행분: 사람이 [구형 전체 재발행]으로 40편을 재발행했다(17:10~17:25 — 무손실 전송 배포 17:08 뒤). 오디오·자막(구간 포함) 교체. 회수된 5편(C22·C39·C35·X002·X003)은 대상이 아니다(옛 mp3 그대로)
+  - 운영 DB 확인(`content_audio_renditions`, 서비스 중 40편): compressed 40(`.m4a`, 192kbps·44.1kHz·스테레오, 평균 25.7MB) · lossless 40(flac, 평균 39.6MB) · aac 0 · 두 음질 길이 차 1초 초과 0 · `contents.audio_path` = compressed 행 40/40 · content_version v3~v8
+  - 완료 조건 대조: ① 원본 포맷 — run 결과 `ElevenLabs 원본 wav_44100`(56편, 강등 없음) ② 마스터 무손실·16kHz 위 — 원본에도 없는 대역이라 그대로(위 기록) ③ 패키지 — 확정안 2종(AAC m4a·FLAC), `tts:encode`가 길이·moov 위치를 확인 ④ 서버 저장 — 위 운영 확인. **음질별 재생은 KAN-143(FE 음질 선택 UI)으로 이관**(박수헌: "재생 확인은 KAN-143으로 넘겨") — KAN-143 코멘트(2026-10-06)에 확정안과 확인 항목을 적었다 ⑤ spec — `ai/spec/06-audio.md` 7장
+  - 서버 기록 이상(재생 영향 없음, 백엔드 소관·미전달): 압축 행 `codec`이 `mp3`로 적힌다 — 백엔드 `audio-probe.ts`의 `normalizeCodec`가 "MPEG-4/AAC"의 `mpeg`를 먼저 잡는다. S3 Content-Type 은 확장자로 정하고 `codec`은 응답에 실리지 않는다

@@ -14,7 +14,7 @@ export interface PlayLimitSnapshot {
   dailyPlayLimit: number | null;
   /** 서버가 play_records를 집계한 파생값. 무제한이면 null */
   dailyPlayCount: number | null;
-  /** 04:00 KST 경계의 날짜 라벨. 팝업 억제 유효 기간 판정에만 쓴다(library.md 4.3) */
+  /** 05:00 KST 경계의 날짜 라벨. 팝업 억제 유효 기간 판정에만 쓴다(library.md 4.3) */
   serviceDate: string;
 }
 
@@ -62,6 +62,19 @@ export interface PlayerContentMeta {
   contentVersion: number;
 }
 
+/** 구간이 속한 대본 구역 — `## [인트로]` `## [도입]` `## [본문]` `## [마무리]`(ai/spec/04-script.md) */
+export type PlayerSectionKind = 'intro' | 'lead' | 'body' | 'outro';
+
+/** 구간 — 대본의 단락 단위(인트로 · 도입 · 본문 단락 제목 · 마무리). 현재 구간은 `startSec ≤ 재생 위치`인 마지막 항목 */
+export interface PlayerSection {
+  startSec: number;
+  title: string;
+  /** 구역. 서버가 안 실었거나 모르는 값이면 null — 구역 라벨 없이 "지금 듣는 구간"으로 그린다 */
+  kind: PlayerSectionKind | null;
+  /** 구간 요약 한 줄(20자 이내). 서버가 안 실었으면 null — 단락 제목·구역 원래 이름으로 대신한다 */
+  summary: string | null;
+}
+
 /** POST /contents/:content_id/audio-urls 응답(player-api.md 4.1)의 도메인 모델 */
 export interface AudioIssueResult {
   content: PlayerContentMeta;
@@ -69,6 +82,8 @@ export interface AudioIssueResult {
   topicIds: string[] | null;
   /** 대본이 적재돼 있는가 — 대본 버튼 노출의 근거다. 조회(4.7)는 패널을 처음 열 때 한다 */
   hasScript: boolean;
+  /** 구간 제목(player-api.md 4.1). 없으면 빈 배열 — "지금 듣는 구간" 줄을 그리지 않는다 */
+  sections: PlayerSection[];
   /** 라이브러리에 없는 콘텐츠면 null. id는 더보기 삭제, status는 완료 화면 판단에 쓴다 */
   libraryItem: { id: string; status: PlayedLibraryItemStatus } | null;
   progress: PlaybackProgress | null;
@@ -153,6 +168,8 @@ export interface PlaybackSession {
   libraryItem: { id: string; status: PlayedLibraryItemStatus } | null;
   /** 발급 응답의 `has_script`(player-api.md 4.1). 발급 전에는 false — 버튼을 그리지 않는다 */
   hasScript: boolean;
+  /** 발급 응답의 구간 제목(player-api.md 4.1, KAN-127). 발급 전·구간 없는 콘텐츠는 빈 배열 */
+  sections: PlayerSection[];
   isPlaying: boolean;
   isBuffering: boolean;
   positionSec: number;

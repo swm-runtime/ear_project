@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import { pillButton } from '@/shared/ui/pill-button.styles';
 import { Text } from '@/shared/ui/Typography';
 
 interface LibraryEmptyStateProps {
@@ -23,12 +24,12 @@ export default function LibraryEmptyState({
       {description !== undefined ? <Text style={styles.description}>{description}</Text> : null}
       {actionLabel !== undefined && onActionPress !== undefined ? (
         <Pressable
-          style={styles.action}
+          style={[pillButton.base, pillButton.primary, styles.action]}
           onPress={onActionPress}
           accessibilityRole="button"
           accessibilityLabel={actionLabel}
         >
-          <Text style={styles.actionLabel}>{actionLabel}</Text>
+          <Text style={pillButton.primaryLabel}>{actionLabel}</Text>
         </Pressable>
       ) : null}
     </View>
@@ -55,20 +56,11 @@ const styles = StyleSheet.create({
     color: theme.color.textSecondary,
     textAlign: 'center',
   },
+  // 크기만 — 모양·색은 공용 알약(pillButton)
   action: {
     marginTop: theme.spacing.md,
     minHeight: theme.touchTarget.minHeight,
     minWidth: 140,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.primary,
     paddingHorizontal: theme.spacing.lg,
-  },
-  actionLabel: {
-    fontSize: theme.font.size.md,
-    fontWeight: '600',
-    color: theme.color.onPrimary,
   },
 });

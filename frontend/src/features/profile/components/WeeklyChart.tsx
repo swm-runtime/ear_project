@@ -4,6 +4,7 @@ import { Animated, PanResponder, Pressable, StyleSheet, View } from 'react-nativ
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion, theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
+import { pillButton } from '@/shared/ui/pill-button.styles';
 import { SkeletonBlock, SkeletonGroup } from '@/shared/ui/Skeleton';
 import { Text } from '@/shared/ui/Typography';
 
@@ -24,8 +25,11 @@ const BAR_RADIUS = 4;
 const DAYS_IN_WEEK = 7;
 /** 요일 원(선택 시 검은 원) 지름 */
 const DAY_BADGE_SIZE = theme.spacing.xl;
-/** 서비스 날짜 경계 04시 — 표시용 오늘 요일을 서버와 같은 날로 맞춘다(toWeekView) */
-const SERVICE_DAY_OFFSET_MS = 4 * 60 * 60 * 1000;
+/**
+ * 서비스 날짜 경계 05시 — 표시용 오늘 요일을 서버와 같은 날로 맞춘다(toWeekView). 2026-10-12 05:00 에 04시 → 05시로
+ * 바뀐다(KAN-149·150). 이 번들은 1.2.0 빌드부터 닿아 그 전환 뒤에 쓰인다 — 판정이 아니라 오늘 강조·평균의 표시용이다
+ */
+const SERVICE_DAY_OFFSET_MS = 5 * 60 * 60 * 1000;
 /**
  * 막대 위 말풍선 자리의 **최소** 높이 — 실제 높이는 실측값이 이긴다(`annotationHeight`). 말풍선은 14pt 글자 +
  * 위아래 8 여백이라 34 안팎이므로 44 는 10 넘게 과하게 비웠고, 아무 막대도 고르지 않은 기본 상태에서는 그 자리가
@@ -91,9 +95,9 @@ function ArrowButton({
 const toWeekView = (week: WeeklyListening) => {
   /*
    * 오늘 요일 — 표시(오늘 강조 · 평균의 지난 날 수)에만 쓴다. 주 경계·이동은 서버 토큰으로 판정한다.
-   * **서비스 날짜는 04시에 넘어간다**(features/paywall.md) — 기기 자정 기준이면 0~4시에 오늘이 하루 앞서, 서버는 아직 지난주를
+   * **서비스 날짜는 05시에 넘어간다**(features/paywall.md) — 기기 자정 기준이면 0~5시에 오늘이 하루 앞서, 서버는 아직 지난주를
    * 주는데 월요일로 읽어 평균을 1일로 나눴다(PM 2026-09-28 03:43 스샷: 주 합계가 그대로 하루 평균 · 평균선이 막대 위).
-   * 그래서 기기 시각에서 4시간을 빼 요일을 잡고, 기록이 있는 마지막 요일까지는 반드시 지난 날로 센다(데이터 하한)
+   * 그래서 기기 시각에서 5시간을 빼 요일을 잡고, 기록이 있는 마지막 요일까지는 반드시 지난 날로 센다(데이터 하한)
    */
   const serviceNow = new Date(Date.now() - SERVICE_DAY_OFFSET_MS);
   const todayIndex = week.nextWeekStart === null ? (serviceNow.getDay() + 6) % 7 : null;
@@ -486,7 +490,7 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
     <View style={styles.stateBox}>
       <Text style={styles.stateText}>{PROFILE_COPY.cardError}</Text>
       <Pressable
-        style={({ pressed }) => [styles.retryButton, pressed && styles.pressed]}
+        style={({ pressed }) => [pillButton.base, styles.retryButton, pressed && styles.pressed]}
         onPress={weekly.retrySwitch}
         accessibilityRole="button"
         accessibilityLabel={PROFILE_COPY.retry}
@@ -727,14 +731,11 @@ const styles = StyleSheet.create({
     color: theme.color.textSecondary,
     textAlign: 'center',
   },
+  // 흰 알약(회색 면 위) — 모양은 공용 알약(pillButton.base), 면 색·크기만 여기서
   retryButton: {
     minHeight: theme.touchTarget.minHeight,
     minWidth: theme.touchTarget.minWidth,
-    alignItems: 'center',
-    justifyContent: 'center',
     paddingHorizontal: theme.spacing.md,
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
     backgroundColor: theme.color.background,
   },
   retryText: { fontSize: theme.font.size.sm, fontWeight: '600', color: theme.color.primary },

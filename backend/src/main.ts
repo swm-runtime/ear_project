@@ -5,6 +5,7 @@ import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import { json } from 'express';
 import helmet from 'helmet';
 
 import { traceIdMiddleware } from '@/common/middlewares/trace-id.middleware';
@@ -31,6 +32,24 @@ export async function bootstrap(): Promise<void> {
   if (trustProxyHops > 0) {
     app.set('trust proxy', trustProxyHops);
   }
+
+  /**
+   * Sentry 레거시 웹훅 본문은 이벤트(스택·컨텍스트·브레드크럼)째 와서 기본 한도(100kb)를 넘긴다 — 운영 실측
+   * 2026-10-07 17:50 KST, 기본 한도에서 `PayloadTooLargeError`. Sentry 가 이벤트 하나에 허용하는 크기가 1MB 라
+   * 웹훅 본문(이벤트 + 이슈·프로젝트 껍데기)은 그보다 조금 클 수 있다 → 이 경로만 **2mb** 로 받는다. Nest 의 기본
+   * 파서보다 먼저 등록돼 여기서 파싱되면 기본 파서는 건너뛴다. 다른 경로의 한도는 그대로다
+   * (`modules/alert/sentry-webhook.controller.ts`).
+   */
+  app.use(
+    '/api/v1/webhooks/sentry',
+    json({
+      limit: '2mb',
+      // 서명 검증은 **받은 그대로의 본문**으로 해야 한다 — 파싱 뒤 다시 JSON 으로 만들면 키 순서·공백이 달라진다
+      verify: (req, _res, buf) => {
+        (req as { rawBody?: Buffer }).rawBody = buf;
+      },
+    }),
+  );
 
   // architecture.md 9.5 — 보안 헤더 전역 적용, CORS 허용 오리진 명시(`*` 금지)
   app.use(helmet());

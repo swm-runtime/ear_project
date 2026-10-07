@@ -26,6 +26,30 @@ describe('validateEnv', () => {
     AUDIO_STORAGE_ROOT: './storage/audio',
   };
 
+  it.each([
+    'Production',
+    'Production,Sandbox',
+    'Production, Sandbox',
+    ' Sandbox , Production ',
+    '',
+  ])(
+    'APP_STORE_ENVIRONMENTS="%s" 는 받는다 — 쉼표 앞뒤 공백으로 기동이 실패하지 않는다',
+    (value) => {
+      expect(() =>
+        validateEnv({ ...validEnv, APP_STORE_ENVIRONMENTS: value }),
+      ).not.toThrow();
+    },
+  );
+
+  it.each(['Xcode', 'Production;Sandbox', 'Production,Sandbox,Production'])(
+    'APP_STORE_ENVIRONMENTS="%s" 는 거부한다',
+    (value) => {
+      expect(() =>
+        validateEnv({ ...validEnv, APP_STORE_ENVIRONMENTS: value }),
+      ).toThrow();
+    },
+  );
+
   it('필수 환경 변수가 모두 있으면 숫자 타입으로 변환된 설정을 반환한다', () => {
     // given
     const config = { ...validEnv };
@@ -218,6 +242,47 @@ describe('validateEnv', () => {
           ...validEnv,
           SIGNUP_TRIAL_EXISTING_USERS_BEFORE: value,
         }),
+      ).not.toThrow();
+    }
+  });
+
+  it('SENTRY_WEBHOOK_TOKEN 은 비우거나 URL 경로에 안전한 16자 이상 — 짧은 토큰은 기동을 실패시킨다', () => {
+    for (const value of [
+      'short',
+      'has space in it xxxx',
+      'slash/inside/xxxxxxxxxxxx',
+    ]) {
+      expect(() =>
+        validateEnv({ ...validEnv, SENTRY_WEBHOOK_TOKEN: value }),
+      ).toThrow(/SENTRY_WEBHOOK_TOKEN/);
+    }
+    for (const value of ['', 'abcdefghijklmnop', 'A-Z_09'.repeat(4)]) {
+      expect(() =>
+        validateEnv({ ...validEnv, SENTRY_WEBHOOK_TOKEN: value }),
+      ).not.toThrow();
+    }
+  });
+
+  it('SERVICE_DAY_BOUNDARY_05_FROM 은 ISO 시각이고 KST 04시대는 거부한다 — 그 구간 전환은 날짜가 거꾸로 간다(KAN-149)', () => {
+    for (const value of [
+      'not-a-date',
+      '2026-10-14', // 날짜만 — UTC 자정 = KST 09:00 이라 통과할 것 같지만 시각을 요구한다
+      '2026-10-14T04:00:00+09:00',
+      '2026-10-14T04:59:59+09:00',
+      '2026-10-13T19:30:00Z', // = KST 04:30
+    ]) {
+      expect(() =>
+        validateEnv({ ...validEnv, SERVICE_DAY_BOUNDARY_05_FROM: value }),
+      ).toThrow(/SERVICE_DAY_BOUNDARY_05_FROM/);
+    }
+    for (const value of [
+      '',
+      '2026-10-14T05:00:00+09:00',
+      '2026-10-13T20:00:00.000Z', // = KST 05:00
+      '2026-10-14T03:59:00+09:00',
+    ]) {
+      expect(() =>
+        validateEnv({ ...validEnv, SERVICE_DAY_BOUNDARY_05_FROM: value }),
       ).not.toThrow();
     }
   });

@@ -36,7 +36,7 @@ const SCENARIO = process.env.EXPO_PUBLIC_LIBRARY_MOCK_SCENARIO ?? 'default';
 const RESPONSE_DELAY_MS = 600;
 /** 발급은 "탭 후 2초 내 재생 시작"(PRD 7)의 경로다 — 목록 조회보다 짧은 지연을 준다 */
 const ISSUE_DELAY_MS = 300;
-/** 서비스 날짜는 서버가 04:00 KST 경계로 계산해 내려주는 값이다 — mock은 고정 라벨을 쓴다 */
+/** 서비스 날짜는 서버가 05:00 KST 경계로 계산해 내려주는 값이다 — mock은 고정 라벨을 쓴다 */
 const SERVICE_DATE = '2026-08-07';
 
 /** 파트너 회수 시뮬레이션 — 목록에는 남아 있지만 재생하면 CONTENT_WITHDRAWN이 난다(L13) */
@@ -183,6 +183,26 @@ export const isMockAiGeneratedContent = (contentId: string): boolean => {
 export const getMockSourceUrl = (contentId: string): string | null =>
   isMockAiGeneratedContent(contentId) ? null : `https://example.com/original/${contentId}`;
 
+/** 발급 응답의 구간 제목 대역(KAN-127) — 실서버는 대본 단락 제목이다(player-api.md 4.1) */
+const MOCK_SECTIONS = [
+  {
+    start_sec: 0,
+    title: '인트로',
+    kind: 'intro',
+    summary: '회의는 왜 늘 길어질까',
+  },
+  { start_sec: 20, title: '도입', kind: 'lead' },
+  {
+    start_sec: 75,
+    title: '회의가 길어지는 진짜 이유',
+    kind: 'body',
+    summary: '결정권자가 불분명하면 길어진다',
+  },
+  { start_sec: 190, title: '결정권자를 먼저 정하면 달라지는 것', kind: 'body' },
+  { start_sec: 330, title: '15분 안에 끝내는 안건 정리법', kind: 'body' },
+  { start_sec: 480, title: '마무리', kind: 'outro' },
+];
+
 /** POST /contents/:id/audio-urls의 대역 — 판정은 하되 차감하지 않는다(player-api.md 4.1) */
 export const mockIssueAudioUrls = async (contentId: string): Promise<AudioUrlsResponseDto> => {
   await delay(ISSUE_DELAY_MS);
@@ -195,6 +215,8 @@ export const mockIssueAudioUrls = async (contentId: string): Promise<AudioUrlsRe
     content: { ...content, source_url: getMockSourceUrl(contentId) },
     // 대본이 있는 mock 콘텐츠만 버튼이 뜬다 — getMockScript 와 같은 규칙이다
     has_script: !isMockAiGeneratedContent(contentId),
+    // 구간도 대본이 있는 콘텐츠만 — 실서버 구성(인트로 · 도입 · 단락 제목 · 마무리)을 흉내 낸다
+    sections: isMockAiGeneratedContent(contentId) ? [] : MOCK_SECTIONS,
     library_item: snapshot?.library_item ?? null,
     progress: snapshot?.progress ?? null,
     audio: {

@@ -15,6 +15,7 @@ import ConfirmDialog from '@/shared/ui/ConfirmDialog';
 import { useFloatingHeaderScroll } from '@/shared/ui/FloatingHeader';
 import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
 import LargeTitleRow from '@/shared/ui/LargeTitleRow';
+import { pillButton } from '@/shared/ui/pill-button.styles';
 import { Text } from '@/shared/ui/Typography';
 
 import { NotificationPrePromptModal } from '@/features/notification';
@@ -111,7 +112,7 @@ export default function SettingsScreen() {
             <View style={styles.summaryErrorCard}>
               <Text style={styles.summaryErrorText}>{SETTINGS_COPY.summaryError}</Text>
               <Pressable
-                style={styles.summaryRetry}
+                style={[pillButton.base, styles.summaryRetry]}
                 onPress={screen.retry}
                 disabled={screen.isRetrying}
                 accessibilityRole="button"
@@ -213,7 +214,7 @@ export default function SettingsScreen() {
               rightSlot={
                 screen.isUpdateAvailable ? (
                   <Pressable
-                    style={styles.updateButton}
+                    style={[pillButton.base, styles.updateButton]}
                     onPress={screen.openStore}
                     accessibilityRole="button"
                     accessibilityLabel={SETTINGS_COPY.info.update}
@@ -455,30 +456,24 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.sm,
     color: theme.color.textSecondary,
   },
+  // 흰 알약(회색 면 위) — 모양은 공용 알약(pillButton.base), 면 색·크기만 여기서
   summaryRetry: {
     minHeight: theme.touchTarget.minHeight,
     minWidth: theme.touchTarget.minWidth,
-    alignItems: 'center',
-    justifyContent: 'center',
     paddingHorizontal: theme.spacing.md,
     backgroundColor: theme.color.background,
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
   },
   summaryRetryLabel: {
     fontSize: theme.font.size.sm,
     fontWeight: '600',
     color: theme.color.primary,
   },
+  // 흰 알약 — 모양은 공용 알약(pillButton.base)
   updateButton: {
     minHeight: theme.touchTarget.minHeight,
     minWidth: theme.touchTarget.minWidth,
-    justifyContent: 'center',
-    alignItems: 'center',
     paddingHorizontal: theme.spacing.md,
     backgroundColor: theme.color.background,
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
   },
   updateLabel: {
     fontSize: theme.font.size.sm,

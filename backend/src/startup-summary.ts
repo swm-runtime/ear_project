@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { SchedulerRegistry } from '@nestjs/schedule';
 
 import { isSchedulerProcess } from '@/common/cluster.util';
+import { serviceDayBoundarySwitchAt } from '@/common/utils/service-date.util';
 import { EnvironmentVariables } from '@/config/env.validation';
 
 /**
@@ -32,11 +33,21 @@ export type FeatureInputs = {
   vocReview: boolean;
   /** 앱 삭제 알림(GA4 app_remove) — GA4 자격과 웹훅이 있을 때 */
   appRemoveAlert: boolean;
+  /** Sentry → Slack 릴레이(`webhooks/sentry`) — 토큰과 웹훅이 있을 때 */
+  sentryRelay: boolean;
   /** 이 프로세스에 등록된 크론 이름 — 스케줄러 프로세스가 아니면 빈 배열 */
   crons: string[];
+  /** 서비스 날짜 경계 — `04:00`, 또는 전환이 잡혀 있으면 `05:00@<ISO>`(KAN-149). 값이 아니라 설정 상태다 */
+  serviceDayBoundary: string;
 };
 
 const onOff = (v: boolean): string => (v ? 'on' : 'off');
+
+/** 경계 설정 상태 한 토막 — 전환 시각이 있으면 ISO 로 같이 적는다(비밀값이 아니다) */
+export function describeServiceDayBoundary(): string {
+  const switchAt = serviceDayBoundarySwitchAt();
+  return switchAt ? `05:00@${switchAt.toISOString()}` : '04:00';
+}
 
 /** 순수 함수 — 문구를 테스트로 고정한다 */
 export function summarizeFeatures(f: FeatureInputs): string {
@@ -46,7 +57,8 @@ export function summarizeFeatures(f: FeatureInputs): string {
     `sentry=${onOff(f.sentry)} resource-alert=${onOff(f.resourceAlert)} ` +
     `signup-alert=${onOff(f.signupAlert)} daily-metrics=${onOff(f.dailyMetrics)} ` +
     `voc-review=${onOff(f.vocReview)} app-remove-alert=${onOff(f.appRemoveAlert)} ` +
-    `crons=${crons}`
+    `sentry-relay=${onOff(f.sentryRelay)} ` +
+    `service-day=${f.serviceDayBoundary} crons=${crons}`
   );
 }
 
@@ -95,7 +107,11 @@ export class StartupSummary implements OnApplicationBootstrap {
           anyHook &&
           has('GA4_PROPERTY_ID') &&
           has('GA4_SERVICE_ACCOUNT_BASE64'),
+        sentryRelay:
+          anyHook &&
+          (has('SENTRY_WEBHOOK_TOKEN') || has('SENTRY_WEBHOOK_SECRET')),
         crons,
+        serviceDayBoundary: describeServiceDayBoundary(),
       }),
     );
   }

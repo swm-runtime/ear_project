@@ -4,6 +4,7 @@ import { DeviceTokenService } from '@/modules/user/services/device-token.service
 
 import { PushClient } from '../push/push.client';
 import { PushReceiptService } from './push-receipt.service';
+import { UninstallAlertService } from './uninstall-alert.service';
 
 const SENT_AT = new Date('2026-09-16T20:00:00.000Z');
 const minutesAfter = (minutes: number): Date =>
@@ -13,6 +14,7 @@ describe('PushReceiptService', () => {
   let service: PushReceiptService;
   let pushClient: jest.Mocked<PushClient>;
   let deviceTokenService: jest.Mocked<DeviceTokenService>;
+  let uninstallAlertService: jest.Mocked<UninstallAlertService>;
 
   beforeEach(() => {
     pushClient = {
@@ -21,14 +23,26 @@ describe('PushReceiptService', () => {
     };
 
     deviceTokenService = {
-      invalidateDeliveredTokens: jest
+      invalidateDeliveredTokensDetailed: jest
         .fn()
-        .mockImplementation((targets: unknown[]) =>
-          Promise.resolve(targets.length),
+        .mockImplementation((targets: { id: string }[]) =>
+          Promise.resolve(
+            targets.map((target) => ({
+              userId: `user-${target.id}`,
+              platform: 'ios',
+            })),
+          ),
         ),
     } as unknown as jest.Mocked<DeviceTokenService>;
+    uninstallAlertService = {
+      notifyIfLastToken: jest.fn().mockResolvedValue({}),
+    } as unknown as jest.Mocked<UninstallAlertService>;
 
-    service = new PushReceiptService(pushClient, deviceTokenService);
+    service = new PushReceiptService(
+      pushClient,
+      deviceTokenService,
+      uninstallAlertService,
+    );
     service.track(
       [
         { ticketId: 'ticket-a', deviceTokenId: 'device-a', token: 'token-a' },
@@ -67,7 +81,9 @@ describe('PushReceiptService', () => {
       'ticket-b',
     ]);
     // 보낸 토큰을 함께 넘긴다 — 그사이 새 토큰으로 재등록된 행은 끄지 않는다
-    expect(deviceTokenService.invalidateDeliveredTokens).toHaveBeenCalledWith(
+    expect(
+      deviceTokenService.invalidateDeliveredTokensDetailed,
+    ).toHaveBeenCalledWith(
       [{ id: 'device-a', token: 'token-a' }],
       minutesAfter(15),
     );

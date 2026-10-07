@@ -3,6 +3,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, In, IsNull, Not, Repository } from 'typeorm';
 
 import { DeviceToken } from '../entities/device-token.entity';
+import { DevicePlatform } from '../user.enum';
+
+/** 무효화된 행 한 건 — 토큰 값은 싣지 않는다(쓸 곳이 없다) */
+export interface InvalidatedDeviceToken {
+  userId: string;
+  platform: DevicePlatform;
+}
 
 @Injectable()
 export class DeviceTokenRepository {
@@ -101,12 +108,16 @@ export class DeviceTokenRepository {
    * **행 id 와 보낸 토큰이 둘 다 맞을 때만** 무효화한다. receipt 는 발송 15분 뒤에 오는데, 그사이 앱을
    * 다시 깔아 같은 `device_id` 행에 새 토큰이 upsert 됐을 수 있다 — id 만 보면 새 토큰을 끈다.
    */
+  /**
+   * 실제로 무효화한 행의 사용자·플랫폼을 돌려준다(RETURNING) — 앱 삭제 추정 알림(`notification`
+   * `UninstallAlertService`)이 "이 사용자의 마지막 활성 토큰이었나"를 이어서 본다
+   */
   async invalidateByIdAndToken(
     targets: { id: string; token: string }[],
     now: Date,
     manager?: EntityManager,
-  ): Promise<number> {
-    let affected = 0;
+  ): Promise<InvalidatedDeviceToken[]> {
+    const invalidated: InvalidatedDeviceToken[] = [];
 
     for (const target of targets) {
       const result = await this.scoped(manager)
@@ -116,11 +127,40 @@ export class DeviceTokenRepository {
         .where('id = :id', { id: target.id })
         .andWhere('token = :token', { token: target.token })
         .andWhere('invalidated_at IS NULL')
+        .returning(['user_id', 'platform'])
         .execute();
-      affected += result.affected ?? 0;
+
+      for (const row of (result.raw ?? []) as {
+        user_id: string;
+        platform: DevicePlatform;
+      }[]) {
+        invalidated.push({ userId: row.user_id, platform: row.platform });
+      }
     }
 
-    return affected;
+    return invalidated;
+  }
+
+  /** 사용자별 **활성**(토큰 있음·무효화 안 됨) 기기 수 — 목록에 없는 사용자는 0이다 */
+  async countActiveByUserIds(
+    userIds: string[],
+    manager?: EntityManager,
+  ): Promise<Map<string, number>> {
+    if (userIds.length === 0) {
+      return new Map();
+    }
+
+    const rows = await this.scoped(manager)
+      .createQueryBuilder('device_token')
+      .select('device_token.user_id', 'user_id')
+      .addSelect('COUNT(*)', 'count')
+      .where('device_token.user_id IN (:...userIds)', { userIds })
+      .andWhere('device_token.token IS NOT NULL')
+      .andWhere('device_token.invalidated_at IS NULL')
+      .groupBy('device_token.user_id')
+      .getRawMany<{ user_id: string; count: string }>();
+
+    return new Map(rows.map((row) => [row.user_id, Number(row.count)]));
   }
 
   async invalidateByUserIdAndDeviceId(

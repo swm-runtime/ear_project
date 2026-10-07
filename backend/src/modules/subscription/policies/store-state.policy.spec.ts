@@ -891,6 +891,56 @@ describe('resolveFromStoreStatus — 환불로 끝난 Play 구독(4.7, 2026-10-0
     ).toBe(SubscriptionStatus.ACTIVE);
   });
 
+  describe('주문 ID를 아는 행(2026-10-07) — 결제 주기는 주문 ID로 가른다', () => {
+    const refundedWithOrder = stored({
+      ...refunded,
+      latestOrderId: 'GPA.1111-0',
+      // 유예 중 환불 — 만료일은 유예 종료일로 밀려 있다
+      expiresAt: NEXT_PERIOD_END,
+    });
+
+    it('같은 주문의 active 는 만료일이 어떻든 되살리지 않는다', () => {
+      expect(
+        resolveFromStoreStatus(
+          refundedWithOrder,
+          input(
+            'active',
+            playTransaction({
+              orderId: 'GPA.1111-0',
+              expiresAt: new Date('2026-12-15T00:00:00.000Z'),
+            }),
+          ),
+        ),
+      ).toEqual({ kind: 'ignore', reason: 'terminated' });
+    });
+
+    it('주문 ID가 바뀌면(재청구 성공·갱신) 새 만료일이 저장값보다 뒤가 아니어도 되살린다 — 유예 길이 ≈ 결제 주기', () => {
+      expect(
+        applied(
+          resolveFromStoreStatus(
+            refundedWithOrder,
+            input(
+              'active',
+              playTransaction({
+                orderId: 'GPA.1111-0..1',
+                expiresAt: NEXT_PERIOD_END,
+              }),
+            ),
+          ),
+        ).status,
+      ).toBe(SubscriptionStatus.ACTIVE);
+    });
+
+    it('조회 결과에 주문 ID가 없으면 종전 규칙(만료일 비교)으로 돌아간다', () => {
+      expect(
+        resolveFromStoreStatus(
+          refundedWithOrder,
+          input('active', playTransaction({ orderId: null })),
+        ),
+      ).toEqual({ kind: 'ignore', reason: 'terminated' });
+    });
+  });
+
   it('환불 통지의 재전송은 같은 상태다', () => {
     expect(
       resolveFromStoreStatus(

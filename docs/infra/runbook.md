@@ -141,6 +141,8 @@ aws cloudfront-keyvaluestore delete-key --kvs-arn $KVS_ARN --key <contentId> --i
 - **버전**(2026-09-17 개정): 기준은 **앱 버전**(`frontend/app.json` `expo.version`)이다. 백엔드만 배포할 때는 버전을 올리지 않는다 — 태그가 `v1.0.0` → `v1.0.0+2` → `v1.0.0+3`으로 배포 순번만 는다. 앱이 스토어 버전을 올리면 같은 PR에서 `backend/package.json`도 맞추고, 그 뒤 첫 배포가 `v1.1.0`이 된다. 두 값이 다르면 `dev → main` PR의 "원본 브랜치 확인 (dev)" 체크가 실패한다. 규칙 원본은 `docs/backend/convention.md` 6.3.
 - **앱 업데이트 안내·강제 업데이트 스위치**(2026-09-26, KAN-99): 서버 `.env.prod`의 `LATEST_APP_VERSION_IOS/ANDROID`(권장 안내 기준)·`MIN_SUPPORTED_APP_VERSION_IOS/ANDROID`(이 미만은 강제 업데이트) 두 값이 스위치다. 앱은 켤 때마다 `GET /app/version`으로 서버에 묻는다. 코드 배포 없이 값을 바꾸고 `API_IMAGE=$(cat .api-image)`로 api를 재생성하면(10초) 다음 실행부터 적용된다. **순서**: 새 버전이 스토어에 실제로 올라온 뒤 `LATEST`를 올리고, 옛 버전을 끊어야 할 때만 `MIN_SUPPORTED`를 올린다 — 먼저 올리면 사용자가 스토어에 갔는데 받을 게 없다. 플랫폼별로 따로 올릴 수 있다(심사 시차). 되돌리기도 같은 방법.
 - **가입 체험 스위치**(2026-10-03): 서버 `.env.prod`의 `SIGNUP_TRIAL_ENABLED`(`true`일 때만 새 가입자에게 지급 — 비어 있거나 `false`면 꺼짐)·`SIGNUP_TRIAL_DAYS`(1~30, 비우면 7). 코드 배포 없이 값을 바꾸고 `API_IMAGE=$(cat .api-image)`로 api를 재생성하면 그 뒤 가입부터 적용된다. **끄면 새 지급만 멈춘다** — 이미 받은 계정은 `users.trial_ends_at`까지 무제한이 유지된다(거두려면 그 컬럼을 직접 고쳐야 하고, 사용자에게 약속한 날짜라 하지 않는다). 지급 확인: api 로그 `signup trial granted` 또는 `SELECT count(*) FROM users WHERE trial_ends_at > now()`. 지급 로그의 `source`가 `signup`(가입 시) / `existing_user`(기존 가입자)를 가른다. **기존 가입자 지급**(2026-10-05): `SIGNUP_TRIAL_EXISTING_USERS_BEFORE`(`YYYY-MM-DD`)를 넣으면 그 서비스 날짜보다 먼저 가입했고 체험을 받은 적 없는 계정이 **앱을 여는 날**부터 같은 기간을 받는다(비우면 안 준다, `SIGNUP_TRIAL_ENABLED`가 꺼지면 같이 멈춘다). **값은 스위치를 켜는 날의 다음 날짜** — 늦는 것은 해가 없고(켠 뒤 가입자는 가입 때 받는다) 이르면 그 사이 가입자가 어느 쪽에서도 못 받는다. **기존 가입자용 팝업이 들어간 앱(KAN-121)이 나간 뒤에 넣는다** — 먼저 넣으면 안내 없이 7일이 시작된다. 규칙은 `features/subscription.md` 4.8.
+- **Sentry → Slack 릴레이**(2026-10-07): Sentry Business 체험 종료로 2026-10-14 부터 Sentry 의 Slack 공식 연동이 멈춘다(무료 플랜). 대신 플랜 제한이 없는 **레거시 WebHooks** 를 서버가 받아 Slack 으로 흘린다(`backend-monitoring.md` 3-2). 켜는 법(2026-10-07 개정 — 서명 검증): ① Internal Integration 을 만든 뒤 그 **Client Secret** 을 서버 `.env.prod` `SENTRY_WEBHOOK_SECRET=<값>`(SM `ear/prod/api` 에도 같은 키)에 넣고 Webhook URL 은 토큰 없이 `https://api.earcast.co.kr/api/v1/webhooks/sentry` 로 둔다. 종전 방식(`SENTRY_WEBHOOK_TOKEN=<openssl rand -hex 24>` + URL 경로 `/webhooks/sentry/<토큰>`)도 계속 받지만, 경로의 토큰은 요청 로그·Caddy 로그에 남아(서버 로그에서는 가린다) 서명 쪽으로 옮기는 것을 권한다 — 둘 다 있으면 어느 하나가 맞으면 받는다 → `API_IMAGE=$(cat .api-image)` 로 api 재생성 → 기동 로그 `sentry-relay=on`. ② Sentry **Settings → Developer Settings → Custom Integrations → Create New Integration → Internal Integration**(조직에 하나 — 두 프로젝트가 함께 쓴다): 이름 `slack-relay`, **Webhook URL** `https://api.earcast.co.kr/api/v1/webhooks/sentry/<토큰>`, **Alert Rule Action 켬**, Permissions 는 Issue & Event **Read**, Webhooks 체크박스(issue·error 등)는 **전부 끔**(켜면 해결·배정까지 다 온다) → Save. (레거시 WebHooks 플러그인은 2026-10-07 실측에서 새 알림 빌더에 액션으로 뜨지 않아 쓰지 않는다 — 서버는 두 모양 다 받는다.) ③ **Alerts → Alert Rules** 의 "high priority issues" 규칙(프로젝트별 2개)에 액션 **"Send a notification via slack-relay"** 추가 → Save(통합만 만들고 규칙에 안 넣으면 아무것도 안 온다). ④ 종전 **"Notify #ops-alerts via Slack" 규칙 2개 삭제**(중복·14일 뒤 어차피 멈춤). ⑤ 규칙 화면 "Send Test Notification" 으로 #ops-alerts 도착 확인(테스트 알림은 `data.event.title` 이 들어 있어 그대로 온다. 통합을 만들 때 오는 `installation` 웹훅은 제목이 없어 조용히 버려진다 — 정상). **개발계에는 Slack 웹훅 env 가 없어**(알림 끔 결정) 개발계 URL 로는 Caddy 로그의 204 까지만 확인되고 Slack 도착은 운영에서 본다. 토큰은 저장소·Jira·문서에 적지 않는다. 바꿀 때는 env 와 Sentry 양쪽을 같이 바꾼다.
+- **서비스 날짜 경계 05:00 전환**(2026-10-07, KAN-149 — 코드는 들어가 있고 **운영 전환은 PM 결정(KAN-148 약관) 뒤**): 전환 시각이 정해지면 ① 서버 `.env.prod`에 `SERVICE_DAY_BOUNDARY_05_FROM=<전환일>T05:00:00+09:00`을 넣고 `API_IMAGE=$(cat .api-image)`로 api를 재생성한다(기동 로그 `service-day=05:00@…` 확인. 값은 미리 넣어 둬도 되고 경계는 그 시각에 바뀐다. KST 04시대 값은 기동이 거부한다). ② **전환일 04:00~05:00 사이에**(그 전이면 그 사이 가입자 값이 빠지고, 뒤면 한 시간 동안 체험자가 한도에 잡힌다) 이미 쓴 체험 종료 시각을 한 시간 옮긴다 — `UPDATE users SET trial_ends_at = trial_ends_at + interval '1 hour' WHERE trial_ends_at >= '<전환일>T05:00:00+09:00' AND trial_ends_at IS NOT NULL;` (`domain.md` 1.2 예외. 먼저 `SELECT count(*)`로 대상 수를 보고, 실행 결과 건수가 같은지 확인한다). ③ 다음 날 아침 통계 집계가 `content-stat-aggregation-0530`으로 돌았는지, 드립이 05:00에 나갔는지 로그로 본다. ④ 문서의 "04시"를 "05시"로 고친다(`docs/changes/pending/service-day-boundary-0500.md`). 앱 문구(KAN-150) OTA도 같은 시각에 맞춘다.
 - **롤백**: 이전 커밋 SHA 이미지를 그대로 다시 띄운다 — PC에서 `API_IMAGE=639177726357.dkr.ecr.ap-northeast-2.amazonaws.com/ear/api:<이전 SHA> bash backend/deploy/push.sh`(운영 pem·SG 22 개방 필요). 이미지 목록: `aws ecr describe-images --repository-name ear/api --query 'sort_by(imageDetails,&imagePushedAt)[-10:].[imagePushedAt,imageTags[0]]' --output table`. 마이그레이션이 포함된 배포는 스키마가 앞서 있을 수 있어 롤백 전에 5.3 덤프 유무를 확인한다. **2026-09-17 이전 커밋으로 롤백하면 크론 스크립트 실행 권한이 다시 사라진다**(그 커밋의 git 모드가 644라 배포가 덮어쓴다) — 롤백 뒤 서버에서 `chmod +x /opt/ear/backend/deploy/*.sh`를 다시 하거나, 그 이후 커밋으로만 롤백한다. 크론 알람은 약 25시간 뒤에야 울린다.
 - **env만 바꾸고 api 컨테이너를 재생성할 때는 반드시 `API_IMAGE`를 준다**(2026-09-23 개발계에서 실제 발생). `docker-compose.prod.yml`의 이미지가 `${API_IMAGE:-ear-prod-api}`라, `.env.prod`만 고치고 `docker compose … up -d --no-build api`를 치면 **서버에 남아 있는 옛 로컬 빌드 이미지 `ear-prod-api`로 조용히 바뀐다**(개발계는 2026-09-15 빌드 — `dist/cluster`·Sentry 없음). 에러가 나지 않아 알아채기 어렵다. 올바른 명령: `cd /opt/ear/backend && API_IMAGE=$(cat .api-image) docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --no-build api` — `.api-image`는 push.sh가 마지막 배포 이미지를 적어 둔 파일이다. 재생성 뒤 `docker inspect -f '{{.Config.Image}}' ear-prod-api-1`가 ECR 태그인지 확인한다. 운영은 2026-09-23 image prune으로 옛 로컬 이미지가 없어 이 함정이 사라졌다(대신 `API_IMAGE` 없이 치면 빌드로 빠진다 — 그것도 안 된다).
 - 아래 4.1은 CI·push.sh가 모두 막혔을 때의 최후 수단이다.
@@ -159,26 +161,62 @@ ssh -i … ec2-user@<IP> 'cd /opt/ear/backend \
 - **함정 2**: `git archive HEAD`는 미커밋 파일을 빼먹는다 — 위처럼 `ls-files -co` 사용
 - 마이그레이션은 기동 시 자동, 실패하면 api가 안 뜬다(의도). 상태: `docker compose … ps`, 로그: `… logs api --tail 50`
 
-### 4-1. 감시 체계 한눈에 (2026-09-26 기준)
+### 4-1. 운영 모니터링 체계 — 누가 · 언제 · 무엇을 보는가 (개정 2026-10-06, KAN-132)
 
-**먼저 Grafana 대시보드 "ear 운영"을 연다**(`https://zealouswasp1316.grafana.net`, [`inventory.md`](inventory.md) Grafana Cloud 행). 아래 원천이 한 화면에 모여 있다 — 헬스체크·EC2 4지표·API 에러 로그·caddy 상태코드·Sentry·크론 하트비트·CloudWatch 알람 주석. 어드민 웹 "백엔드 로그" 콘솔은 실시간 로그·에러 본문을 볼 때 그대로 쓴다(둘을 병행한다 — KAN-97 결정).
+**먼저 Grafana 대시보드 "ear 운영"을 연다**(`https://zealouswasp1316.grafana.net`, [`inventory.md`](inventory.md) Grafana Cloud 행). 헬스체크·EC2 4지표·API 에러 로그·caddy 상태코드·Sentry 가 한 화면에 모여 있다. 아래 표는 **울리는 것**(알림)과 **들여다보는 것**(점검)을 나눠 적는다 — 알림은 사람이 보지 않아도 오고, 점검은 주기가 왔을 때 사람이 연다.
 
-| 무엇이 죽으면 | 무엇이 알려주나 | 경로 |
+**담당**: 전부 **박준현**(백엔드·인프라). 부재 시 Slack 알림 채널은 팀 전원이 보고, SNS 메일은 4명에게 간다([`inventory.md`](inventory.md) SNS 행). 수신 채널은 **Slack 알림 채널 하나**(가입·탈퇴·리뷰·삭제·일일 보고와 같은 채널 — 2026-10-06 채널 분리는 하지 않기로 함)와 **SNS 메일**(CloudWatch 알람) 둘이다.
+
+#### 알림 — 임계값을 넘으면 사람을 부른다
+
+| 대상 | 원천 | 임계값 · 조건 | 채널 | 지연 | 받으면 |
+|---|---|---|---|---|---|
+| 인스턴스 다운 | CloudWatch `ear-prod-ec2-status-check` | 상태 검사 실패 **3분 연속** | SNS 메일 | ~3분 | 5.1 |
+| API 응답 불가 | Grafana 합성 체크 `ear-api-health`(서울·도쿄, 3분) | 5분 창 **2/2 실패**(200 + `"status":"ok"` 아님) | Slack | 최대 6분 | 5.1 |
+| 인증서 갱신 실패 | Grafana 합성 체크 TLS | 만료 **14일 미만** | Slack | — | 5.1(Caddy 로그) |
+| API 5xx·예외 | AI 서버 워커 `log-watch`(백엔드 `ERROR`/`FATAL` 로그) | ERROR 1건 이상 | Slack | ≤5분 | Sentry 이슈·`/ear/api` 로그 |
+| **감시자 자신** | CloudWatch `ear-prod-cron-log-watch-missing` | 워커 생존 신호 **30분** 없음 | SNS 메일 | 30분 | AI 서버 워커 재기동 |
+| CPU · 메모리 | 백엔드 `ResourceAlertService`(60초 틱) + Grafana Alerting(같은 임계, 5분 지속) | **CPU 70% · 메모리 80%**, 백엔드는 3틱(≈3분) 연속 | Slack | 3~5분 | 콘솔 서버 상태 → 원인 프로세스 → 필요시 5.4 |
+| 디스크 | CloudWatch `ear-prod-disk-high` | **80%** 초과 | SNS 메일 | 5분 | `docker system prune -f`, 6장 |
+| 백업·콘텐츠 내보내기·EBS 스냅샷 미실행 | CloudWatch `ear-prod-cron-*-missing` | 성공 지표 **25시간** 없음 | SNS 메일 | ≤25h | 크론 로그(`/var/log/ear-*.log`) |
+| 서버 크래시(처리되지 않은 예외) | Sentry `ear-api` | 고우선 신규 이슈 | **Slack**(백엔드 릴레이 `webhooks/sentry` — 2026-10-07, Sentry 무료 플랜 전환으로 공식 Slack 연동 종료) + Sentry 메일(+Grafana 패널) | 즉시 | 이슈 → 수정 PR |
+| 앱 크래시 | Sentry 앱 프로젝트(FE 소관) | 고우선 신규 이슈 | **Slack**(같은 릴레이) + Sentry 메일 | 즉시 | FE 담당 |
+| 결제 검증 거부 | 백엔드 `BillingAlertService` — 영수증·구매 토큰 검증 실패(App Store·Play) | 1건 이상(종류별 10분 묶음) | Slack | 즉시 | 사유 코드 확인 — 위조 시도면 무시, 설정(번들 ID·키)이면 Secrets 점검 |
+| 스토어 알림(S2S·RTDN) 거부 | 백엔드 `BillingAlertService` — 서명·OIDC 검증 실패 | 1건 이상(종류별 10분 묶음) | Slack | 즉시 | 키·주소·Pub/Sub 설정 점검(`subscription-api.md` 7장) |
+| 구독 보정 실패 | 백엔드 `BillingAlertService` — 04:45 `subscription-reconcile` 작업 실패 또는 구독별 보정 실패 | 1건 이상 | Slack | 다음 날 04:45 | 스토어 API 키 만료 여부 → 수동 보정 |
+| 파이프라인 워커 실패 | AI 서버 워커 자체 Slack 알림(AI 파트 소관 — `pipeline/`) | 작업 실패 | Slack | 즉시 | AI 담당 |
+| 비용 | Budgets `ear-monthly-10usd` | **$10** 실적 80% · 예측 100% | 메일 | 일 1회 | 조직 계정이라 참고용 — 전송량이면 CloudFront 사용량 확인 |
+
+사용자 신호(가입·탈퇴·스토어 리뷰·앱 삭제)와 일일 지표 보고도 같은 Slack 채널로 온다 — 알림이 아니라 **정보**다([`backend-monitoring.md`](../features/backend-monitoring.md) 3-2~3-5). 임계값이 없고 받으면 할 일도 없다.
+
+**겹침은 의도다**: CPU·메모리는 백엔드 자체 경보와 Grafana Alerting 둘 다 울린다(KAN-97 5번 — 몇 주 겹쳐 보고 하나로 정리). API 다운은 Grafana 합성 체크가 주, EC2 상태 검사가 뒤를 받는다. 백엔드 프로세스 안에서 도는 경보(자원·결제·배치)는 그 프로세스가 죽으면 같이 멈춘다 — 그 경우를 합성 체크·EC2 상태 검사·워커 생존 알람이 받는다. **감시가 감시를 덮는 구조**를 이 표로 확인한다.
+
+#### 점검 — 주기가 오면 사람이 연다
+
+| 주기 | 무엇을 | 어디서 | 기준 |
+|---|---|---|---|
+| **매일** 17:00 Slack 보고 받을 때 | 일일 지표(활성·신규·가입 대조·재생·리텐션) | Slack 일일 보고([`backend-monitoring.md`](../features/backend-monitoring.md) 3-3) | 가입 GA4 ↔ 서버 대조 차이 **10% 이내**, 활성 사용자 전일 대비 **-30% 이하**면 원인 확인(배포·장애 여부) |
+| **매일** 아침 | 어젯밤 04~05시 배치 7개 결과 | `/ear/api` 로그 `[Startup]`·배치 완료 로그, Slack ERROR 없음 | 드립 편성 `daily-drip-batch` 완료 로그 1건, ERROR 0건 |
+| **매주** 월요일 | 6장 정기 점검 체크리스트 + **주간 지표 정리**(아래) | 6장 · 운영 DB 집계 | 전부 체크, 지표는 회고 문서에 |
+| **매주** 회고 | 주간 지표 표를 `retrospective/YYYY-Wn.md`에 붙인다 | 아래 "주간 지표" | 빠진 주가 없다 |
+| **매월** 1일 | Budgets·CloudFront 전송량·S3 저장량 | AWS 콘솔 Billing · CloudFront 보고서 | CloudFront 월 전송량 **700GB**(무료 1TB의 70%) 넘으면 사용량 예산 추가(KAN-141 처리 기록) |
+| **분기** | Grafana IAM 키 회전 · App Store Connect 키 유효 · Play 서비스 계정 권한 | `inventory.md` IAM 행 · App Store Connect · Play Console | 회전 날짜를 inventory 행에 |
+
+#### 주간 지표 — 회고에 붙이는 표
+
+매주 월요일, **지난주 월~일(KST)** 기준으로 아래 표를 만들어 그 주 `retrospective/YYYY-Wn.md`의 "지난 주 지표" 절에 붙인다. 숫자의 출처를 바꾸지 않는다 — 주마다 같은 쿼리여야 비교가 된다. **운영 DB 조회는 집계만**(이름·이메일을 세션·문서에 꺼내지 않는다 — CLAUDE.md 2026-10-04).
+
+| 지표 | 출처 | 정의 |
 |---|---|---|
-| 인스턴스 | CloudWatch `ear-prod-ec2-status-check` | SNS `ear-prod-alerts` |
-| API 응답 불가 | **Grafana 합성 체크 `ear-api-health`**(서울·도쿄 3분, 5분 창 2/2 실패) | **Slack**(최대 6분) |
-| 인증서 갱신 실패 | Grafana 합성 체크 TLS(만료 14일 미만) | Slack |
-| (예비) API 응답 불가 | UptimeRobot `ear api health` — **알림 끔**, 화면 확인용 | 없음 |
-| API 가 500 을 뿜음 | 워커의 백엔드 ERROR 감시(5분 주기) | Slack |
-| **그 감시자(AI 서버 워커)** | `ear-prod-cron-log-watch-missing` — 생존 신호 30분 없음 | SNS |
-| 백업·콘텐츠 내보내기·스냅샷 미실행 | `ear-prod-cron-*-missing` | SNS |
-| 디스크 80% 초과 | `ear-prod-disk-high` | SNS |
-| CPU·메모리 임계 | 백엔드 `ResourceAlertService` | Slack |
+| 가입 | 운영 DB `users.created_at` | 주간 합 + 일별. **테스트 계정 제외** — ① 확실(관리자 권한 · 수동 pro · 팀 소유 이메일 · 이메일/닉네임에 test·테스트·example) ② 정황(2026-09-29 이전 가입 + 같은 기기에 다른 계정 로그인 — 출시 전 팀·지인 테스트). 2026-10-07 분석: 189 중 7 + 11 = 18 제외. 규칙은 `weekly-metrics.sql`의 `test_users`가 원본이다 |
+| 누적 가입자 | 운영 DB `users` | 주 마지막 날 기준 행 수(같은 제외) |
+| 활성 | 운영 DB `audio_access_logs` | 주간 **재생 URL 을 1회 이상 발급받은** distinct `user_id`(= 들으려 한 사람). GA4 활성과 정의가 달라 둘 다 적는다 |
+| 재생 | 운영 DB `play_records` | 주간 재생 시작 건수 · 완청(서버 90% 판정) 건수 |
+| 이탈 | 운영 DB `withdrawal_*`/탈퇴 알림 수 + Slack 앱 삭제 알림 합 | 탈퇴 N · 앱 삭제 N(Android 실측 + iOS 추정) |
+| 구독 | 운영 DB `subscriptions` | 활성 구독 수 · 신규 · 해지 예약 · 환불 |
+| 서비스 | 위 알림 표 | ERROR 알림 건수 · 합성 체크 가동률(Grafana 7d) · 배포 횟수(main 태그) |
 
-**CPU·메모리 알림은 백엔드 프로세스 안에서 돈다** — 그 프로세스가 죽으면 같이 멈춘다. 그 경우는
-Grafana 합성 체크와 EC2 상태 검사가 받는다. Grafana Cloud 자체가 죽으면 UptimeRobot 화면(알림 없음)과 SNS 알람이 남는다. 감시가 감시를 덮는 구조를 이 표로 확인한다.
-
-CPU 70%·메모리 80% 는 Grafana Alerting 에도 같은 임계(5분 지속)로 걸려 있다(KAN-97 5번). 백엔드 자체 경보와 몇 주 겹쳐 보고 하나로 정리한다 — 그때까지 같은 사건에 Slack 알림이 두 번 올 수 있다.
+쿼리는 `backend/deploy/weekly-metrics.sql`로 두고 서버에서 `docker compose … exec -T postgres psql -U ear -d ear -v week_start=YYYY-MM-DD -f -` 로 돈다(파일을 stdin 으로 넘긴다) — 손으로 다시 쓰지 않는다. 결과는 집계 숫자만이다.
 
 ## 5. 장애·복구
 

@@ -95,7 +95,23 @@ export interface ScriptSegment {
 export interface ScriptSection {
   start_sec: number;
   title: string;
+  /**
+   * 구역(KAN-151, 2026-10-07) — 플레이어 구간 카드의 "개요 · 본론 · 결론" 라벨 근거. 없으면 키 자체가 없다(종전 파일).
+   * 앱은 없거나 모르는 값이면 종전 표시로 돌아간다
+   */
+  kind?: ScriptSectionKind;
+  /** 카드 아래 한 줄 요약(KAN-151). 비어 있지 않은 ≤40자. 없으면 키 자체가 없다 — 앱은 title 로 대신한다 */
+  summary?: string;
 }
+
+/** 구간의 구역 — 파이프라인 대본 구조(인트로 · 도입 · 본문 단락들 · 마무리)를 그대로 옮긴 네 값 */
+export type ScriptSectionKind = 'intro' | 'lead' | 'body' | 'outro';
+export const SCRIPT_SECTION_KINDS: readonly ScriptSectionKind[] = [
+  'intro',
+  'lead',
+  'body',
+  'outro',
+];
 
 /** `content_scripts` 한 행의 내용 — `script_file`이 담는 것(admin-api.md 4.6) */
 export interface ScriptDocument {

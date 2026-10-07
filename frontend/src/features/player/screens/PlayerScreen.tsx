@@ -36,10 +36,9 @@ import { useTopicsQuery } from '@/features/interest';
 import { createAndroidPlayerZoom } from '../components/android-player-zoom';
 import { MINI_CARD_HEIGHT, MINI_CARD_RADIUS, MINI_THUMB_SIZE } from '../components/MiniPlayer';
 import PlayConfirmDialog from '../components/PlayConfirmDialog';
+import PlayerCurrentSection from '../components/PlayerCurrentSection';
 import {
   MoreIcon,
-  PauseIcon,
-  PlayIcon,
   ScriptIcon,
   SeekBackIcon,
   SeekForwardIcon,
@@ -51,6 +50,7 @@ import PlayerRateSheet from '../components/PlayerRateSheet';
 import PlayerScriptPanel from '../components/PlayerScriptPanel';
 import PlayerScriptStatus from '../components/PlayerScriptStatus';
 import PlayerSleepTimerSheet from '../components/PlayerSleepTimerSheet';
+import PlayPauseSymbol from '../components/PlayPauseSymbol';
 import SeekBar from '../components/SeekBar';
 import { usePlayerScreen } from '../hooks/usePlayerScreen';
 import type { PlayerPanelKind } from '../hooks/usePlayerScreen';
@@ -74,6 +74,7 @@ import {
 import { sleepTimerService } from '../services/sleep-timer.service';
 import { useMiniPlayerLayoutStore } from '../store/mini-player-layout.store';
 import { usePlayerOpenGestureStore } from '../store/player-open-gesture.store';
+import { useScrubPositionStore } from '../store/scrub-position.store';
 import { useSleepTimerStore } from '../store/sleep-timer.store';
 
 /**
@@ -90,6 +91,13 @@ export default function PlayerScreen() {
    * (player-api.md 4.7). 받아 보니 빈 배열이면 "없음"이다 — 버튼을 숨기고 열려 있던 패널도 접힌다.
    */
   const hasScript = session?.hasScript ?? false;
+  // 재생 바를 구간별로 나눌 경계(애플 팟캐스트 챕터 바) — 구간이 바뀔 때만 새 배열이다
+  const sections = session?.sections;
+  const setScrubSec = useScrubPositionStore((state) => state.setScrubSec);
+  const chapterStartsSec = useMemo(
+    () => (sections ?? []).map((section) => section.startSec),
+    [sections],
+  );
   // 대본 펼침이 끝났는가 — 문단은 그 뒤에 그린다(펼침과 문단 마운트가 같은 프레임에 겹치면 끊긴다)
   const [isScriptSettled, setIsScriptSettled] = useState(false);
   /**
@@ -1652,6 +1660,20 @@ export default function PlayerScreen() {
           ]}
           onLayout={onControlsLayout}
         >
+          {/* 지금 듣는 구간 — 시크바 바로 위 한 줄(KAN-127, PM 2026-10-07). 재생 목록이 열리면 사진 위라 걷는다 */}
+          <Animated.View
+            style={{ opacity: queueInverse }}
+            pointerEvents="none"
+            accessibilityElementsHidden={isQueueOpen}
+            importantForAccessibility={isQueueOpen ? 'no-hide-descendants' : 'auto'}
+          >
+            <PlayerCurrentSection
+              sections={session.sections}
+              positionSec={session.positionSec}
+              // 발급 응답 전(콘텐츠 버전 미상)이고 막히지 않았으면 아직 구간을 모른다 — 카드 자리를 먼저 잡는다
+              isLoading={session.meta.contentVersion === null && session.blocked === null}
+            />
+          </Animated.View>
           <View>
             <Animated.View
               style={{ opacity: queueInverse }}
@@ -1663,6 +1685,8 @@ export default function PlayerScreen() {
                 disabled={isControlDisabled}
                 onSeekTo={screen.seekTo}
                 onTrackCenter={setSeekTrackCenter}
+                chapterStartsSec={chapterStartsSec}
+                onScrub={setScrubSec}
               />
             </Animated.View>
             <Animated.View
@@ -1675,6 +1699,8 @@ export default function PlayerScreen() {
                 disabled={isControlDisabled}
                 onSeekTo={screen.seekTo}
                 tone="onImage"
+                chapterStartsSec={chapterStartsSec}
+                onScrub={setScrubSec}
               />
             </Animated.View>
           </View>
@@ -1724,12 +1750,13 @@ export default function PlayerScreen() {
             >
               {screen.showBufferingIndicator ? (
                 // 로딩 표시는 재생 버튼 자리에만, 2초 초과 시만(uiux 4.3)
-                <ActivityIndicator color={playerColor.onPrimary} />
+                <ActivityIndicator color={playerColor.textPrimary} />
               ) : (
-                (() => {
-                  const Icon = !isEnded && session.isPlaying ? PauseIcon : PlayIcon;
-                  return <Icon size={PLAY_ICON_SIZE} color={playerColor.onPrimary} />;
-                })()
+                <PlayPauseSymbol
+                  kind={!isEnded && session.isPlaying ? 'pause' : 'play'}
+                  size={PLAY_ICON_SIZE}
+                  color={playerColor.textPrimary}
+                />
               )}
             </Pressable>
 
@@ -1904,11 +1931,11 @@ export default function PlayerScreen() {
               { left: miniButtonLeft, top: miniButtonTop, opacity: morph.miniButtonOpacity },
             ]}
           >
-            {session.isPlaying ? (
-              <PauseIcon size={MINI_PLAY_ICON_SIZE} color={theme.color.textPrimary} />
-            ) : (
-              <PlayIcon size={MINI_PLAY_ICON_SIZE} color={theme.color.textPrimary} />
-            )}
+            <PlayPauseSymbol
+              kind={session.isPlaying ? 'pause' : 'play'}
+              size={MINI_PLAY_ICON_SIZE}
+              color={theme.color.textPrimary}
+            />
           </Animated.View>
           {/* 미니 제목 — 미니플레이어 실측 자리에 고정, 초반에 사라진다 */}
           <AnimatedText
@@ -2196,7 +2223,11 @@ const HERO_COMPACT_META_TOP = 12;
 const HERO_MIN_ARTWORK = 120;
 /** 바닥 손잡이 높이(터치 타깃 44 + 아래 여백 8) */
 const SCRIPT_HANDLE_HEIGHT = 52;
-const PLAY_ICON_SIZE = 28;
+/**
+ * 재생·일시정지 기호 — 원 없이 기호만(애플 뮤직·팟캐스트 재생 화면, PM 2026-10-07). 원이 빠지며 무게가 줄어 44 → 66 으로
+ * 키웠다(PM 같은 날 — 삼각형 실제 높이 약 34pt, ±10초 아이콘의 1.5배쯤이라 주 동작으로 읽힌다)
+ */
+const PLAY_ICON_SIZE = 66;
 /** ±10초 아이콘 — 숫자 "10"이 아이콘 안에 박혀 있다(SeekBackIcon·SeekForwardIcon). player.constants의 이동 값과 같아야 한다 */
 const SEEK_ICON_SIZE = 32;
 
@@ -2416,16 +2447,13 @@ const styles = StyleSheet.create({
   glyphDisabled: {
     color: playerColor.border,
   },
-  // 64 — 어두운 테마에서 순백 72 원은 화면에서 가장 밝고 큰 덩어리라 아트워크보다 먼저 보였다(2026-09-18 PM).
-  // 아이콘(28)은 그대로 둔다: 원 대비 39% → 44% 로 올라 저절로 또렷해진다
+  // 원 없이 기호만(PM 2026-10-07 — 애플 기본 play.fill·pause.fill, 애플 뮤직·팟캐스트와 같은 문법). 종전 흰 원 64(2026-09-18)는
+  // 뺐다. 기호를 66 으로 키우며 누르는 자리도 64 → 72 — 가운데 기준이라 손끝 위치는 그대로다(uiux 7장)
   playButton: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    borderCurve: 'continuous',
+    width: 72,
+    height: 72,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: playerColor.primary,
   },
   // 배속 — 칩 배경 없이 텍스트만. 폭은 고정해 왼쪽 버튼과 오른쪽 빈 자리가 같은 폭을 갖게 한다
   rateButton: {

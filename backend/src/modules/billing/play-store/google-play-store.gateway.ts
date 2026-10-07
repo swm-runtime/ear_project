@@ -52,6 +52,7 @@ interface SubscriptionPurchaseV2 {
   subscriptionState?: string;
   linkedPurchaseToken?: string;
   acknowledgementState?: string;
+  latestOrderId?: string;
   externalAccountIdentifiers?: { obfuscatedExternalAccountId?: string };
   lineItems?: {
     productId?: string;
@@ -441,6 +442,7 @@ function toPlayPurchase(
         : SubscriptionEnvironment.PRODUCTION,
     needsAcknowledge:
       body.acknowledgementState === 'ACKNOWLEDGEMENT_STATE_PENDING',
+    orderId: body.latestOrderId ?? null,
   };
 }
 

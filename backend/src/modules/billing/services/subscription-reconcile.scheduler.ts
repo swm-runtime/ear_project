@@ -4,6 +4,7 @@ import { Cron } from '@nestjs/schedule';
 import { PurchaseIntentService } from '@/modules/subscription/services/purchase-intent.service';
 
 import { SubscriptionReconcileService } from './subscription-reconcile.service';
+import { BillingAlertService } from './billing-alert.service';
 
 /**
  * 구독의 하루 1회 정리(`subscription-api.md` 4.2 · 4.3).
@@ -23,6 +24,7 @@ export class SubscriptionReconcileScheduler {
   constructor(
     private readonly subscriptionReconcileService: SubscriptionReconcileService,
     private readonly purchaseIntentService: PurchaseIntentService,
+    private readonly billingAlertService: BillingAlertService,
   ) {}
 
   @Cron('0 45 4 * * *', {
@@ -48,6 +50,9 @@ export class SubscriptionReconcileScheduler {
       this.logger.error(
         'subscription daily maintenance failed',
         error instanceof Error ? error.stack : String(error),
+      );
+      this.billingAlertService.reconcileFailed(
+        `04:45 작업 중단 — ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }

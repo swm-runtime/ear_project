@@ -26,6 +26,8 @@ export const MAX_SCRIPT_SPEAKER_LENGTH = 50;
  */
 export const MAX_SCRIPT_SECTIONS = 30;
 export const MAX_SCRIPT_SECTION_TITLE_LENGTH = 60;
+/** 구간 요약 한 줄(KAN-151, PM 2026-10-07 "제목 + 요약 한 줄"). 파이프라인은 공백 포함 20자 이내로 만든다 — 상한은 여유 */
+export const MAX_SCRIPT_SECTION_SUMMARY_LENGTH = 40;
 
 /** admin.md 3.1 — 압축 음질(`compressed`) mp3 / m4a */
 export const AUDIO_CONTENT_TYPES: Readonly<Record<string, string>> = {

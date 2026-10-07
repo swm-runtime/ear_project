@@ -55,6 +55,8 @@
 
 **서로 다른 경계를 쓰면 페이월 카운트와 통계가 영구히 어긋난다.** 경계 계산 함수는 한 곳에만 두고 전 모듈이 그것만 호출한다.
 
+**05:00 전환(팀 합의 2026-10-07, KAN-149 — 코드 반영 2026-10-07, 운영 전환 시각은 미정):** 경계를 **05:00 KST**로 옮긴다(새 에피소드 도착 05:00과 한도 리셋을 한 시각으로). 전환 시각은 코드가 아니라 서버 env `SERVICE_DAY_BOUNDARY_05_FROM`(ISO 시각, **KST 05:00 정각 권장 · 04:00~04:59 거부**)이고, **그 시각 전의 시각은 04:00 경계, 그 시각부터는 05:00 경계**로 계산한다 — 시각 기준이라 과거 `play_date`·재집계가 그대로 맞고, 전환일 하루만 04:00~다음 날 05:00의 25시간이 된다(겹침·빈틈 없음). 비어 있으면 04:00 그대로다. 전환 시각은 이용약관 개정(KAN-148)에서 PM이 정하고, 그때 이 절의 "04시"를 "05시"로 고친다(`changes/pending/service-day-boundary-0500.md`). **`trial_ends_at` 예외**: 3.1의 "한 번 쓰고 고치지 않는다"에 대한 유일한 예외로, 전환 시각 이후에 끝나는 행(04:00 값)을 전환일에 **+1시간** 일괄 이동한다 — 그대로 두면 체험이 04:00에 끝나고 서비스 날짜는 05:00까지 이어져 그 한 시간에 체험 중 들은 편수가 한도에 잡힌다(`paywall.md` 4.1). 절차는 `infra/runbook.md` 4장.
+
 ### 1.3 티어
 
 | 값 | 의미 | 구독 행 |
@@ -605,7 +607,7 @@ content_scripts
   id                        uuid            PK
   content_id                uuid            FK → contents (ON DELETE CASCADE)
   segments                  jsonb           [{ start_sec, end_sec, speaker, text }]   ★speaker 추가 (2026-09-19, KAN-71)
-  sections                  jsonb           [{ start_sec, title }]   기본 '[]'   ★구간 제목 (2026-10-06, KAN-144)
+  sections                  jsonb           [{ start_sec, title, kind?, summary? }]   기본 '[]'   ★구간 제목 (2026-10-06, KAN-144) · kind(intro|lead|body|outro)·summary(≤40자) 선택 (2026-10-07, KAN-151)
   created_at · updated_at   timestamptz
 
 uq_content_scripts_content_id (content_id)
@@ -616,7 +618,7 @@ uq_content_scripts_content_id (content_id)
 - **`speaker`는 화자 표시명**("윤아"·"이음" — 대본이 2인 대화체, `ai/PIPELINE.md`)이며 1인 낭독·파트너 콘텐츠는 `null`. 시각은 초(소수 허용), **최종 배포본 기준**. `start_sec` 오름차순·겹침 없음은 적재 시 검증한다(admin-api.md 4.6 `script_file`).
 - 콘텐츠당 1행. 재발행으로 오디오가 바뀌면 시각도 바뀌므로 부분 갱신 없이 통째로 교체한다. **오디오가 바뀌는데 유효한 대본이 함께 오지 않으면 행을 삭제한다**(행 없음 = 자막 없음 — 2026-09-26, `admin-api.md` 4.10 "대본 삭제"). 옛 세그먼트를 남기면 새 오디오와 시각이 어긋난 자막이 내려간다.
 - **접근 통제는 오디오와 같다**(architecture.md 9.4) — 조회(`player-api.md` 4.7)는 재생 발급과 같은 판정을 거친다.
-- **`sections`는 구간 제목**(2026-10-06, KAN-144 — `tickets/backend/archive/content-script-sections.md`). 대본의 `### #n 제목` 구간 그대로이고 앞뒤에 인트로·도입·마무리가 붙어 한 편에 7~11개(0~30개로 제한). `start_sec`은 세그먼트와 같은 배포본 기준이라 **자막과 운명이 같다** — 같은 파일(`script_file` 객체 형식)로 같은 트랜잭션에서 통째로 교체되고, 행이 지워지면 함께 사라진다. 그래서 별도 테이블이 아니라 같은 행이다. 끝 시각은 없다 — 다음 구간의 시작이 끝이고, 현재 구간은 `start_sec ≤ 재생 위치`인 마지막 항목(`player-api.md` 4.1). `start_sec` **엄격한** 오름차순(같은 값 금지)·마지막 구간 < 오디오 길이·`title` ≤60자는 적재 시 검증한다(admin-api.md 4.6). 배열 형식 파일로 적재된 행·기존 행은 `[]`(구간 없음)이다 — 지금 나가 있는 오디오와 맞는 구간 시각은 소급해 만들 수 없어 재발행에서 함께 실린다.
+- **`sections`는 구간 제목**(2026-10-06, KAN-144 — `tickets/backend/archive/content-script-sections.md`). 대본의 `### #n 제목` 구간 그대로이고 앞뒤에 인트로·도입·마무리가 붙어 한 편에 7~11개(0~30개로 제한). `start_sec`은 세그먼트와 같은 배포본 기준이라 **자막과 운명이 같다** — 같은 파일(`script_file` 객체 형식)로 같은 트랜잭션에서 통째로 교체되고, 행이 지워지면 함께 사라진다. 그래서 별도 테이블이 아니라 같은 행이다. 끝 시각은 없다 — 다음 구간의 시작이 끝이고, 현재 구간은 `start_sec ≤ 재생 위치`인 마지막 항목(`player-api.md` 4.1). `start_sec` **엄격한** 오름차순(같은 값 금지)·마지막 구간 < 오디오 길이·`title` ≤60자는 적재 시 검증한다(admin-api.md 4.6). **`kind`·`summary`는 선택 키**(2026-10-07, KAN-151): `kind`는 구역(`intro` 인트로 · `lead` 도입 · `body` 본문 단락 · `outro` 마무리 — 플레이어 카드의 "개요 · 본론 · 결론" 라벨 근거), `summary`는 카드 아래 한 줄(≤40자). 없으면 항목에 키가 없다 — 종전 발행분은 그대로이고, 소급은 파이프라인 재발행(KAN-152)이 한다. 배열 형식 파일로 적재된 행·기존 행은 `[]`(구간 없음)이다 — 지금 나가 있는 오디오와 맞는 구간 시각은 소급해 만들 수 없어 재발행에서 함께 실린다.
 
 ### 5.4 `content_stats`
 
@@ -766,7 +768,7 @@ content_audio_renditions
   content_id                uuid            FK → contents ON DELETE CASCADE
   quality                   enum            compressed | aac | lossless   ★1.6
   path                      varchar(512)    저장 경로 — `contents.audio_path`와 같은 규칙(비노출, 서명 URL 경로에만 실린다)
-  codec                     varchar(16)     mp3 | aac | pcm_s16le   (표시·진단용)
+  codec                     varchar(16)     mp3 | aac | flac   (표시·진단용 — 파일에서 읽는다. m4a 는 aac. 2026-10-06 FLAC 확정으로 pcm 은 더는 들어오지 않는다)
   bitrate_kbps              int             NULL = 무손실이거나 모름
   channels                  smallint        NULL = 모름 (1 모노 · 2 스테레오)
   sample_rate_hz            int             NULL = 모름
@@ -1188,6 +1190,7 @@ subscriptions
   pending_tier              enum            NULL   ★다운그레이드 예약 — 다음 갱신 때 바뀔 티어 (2026-10-02, `subscription-api.md` 4.2)
   environment               enum            production | sandbox   DEFAULT production   ★실결제와 스토어 시험 결제의 구분 (2026-10-02)
   last_notified_at          timestamptz     NULL   ★마지막으로 반영한 스토어 알림의 서명 시각 — 알림 순서 판정 (2026-10-02)
+  latest_order_id           text            NULL   ★마지막으로 반영한 Play 주문 ID(`latestOrderId`) — 환불 고정의 결제 주기 식별 (2026-10-07). App Store는 NULL
 
 uq_subscriptions_original_transaction_id (original_transaction_id)
 idx_subscriptions_user_id_status (user_id, status)
@@ -1200,6 +1203,7 @@ idx_subscriptions_user_id_status (user_id, status)
 - **Play에는 `original_transaction_id`가 없다 — 그 구독의 최초 구매 토큰을 이 컬럼에 쓴다.** 업·다운그레이드로 새 토큰이 발급되면 스토어 응답의 `linkedPurchaseToken`으로 기존 행을 찾아 같은 행을 갱신한다 — 이전 토큰은 최초 토큰(`original_transaction_id`)일 수도, 중간에 바뀐 토큰(`latest_receipt`)일 수도 있어 둘 다로 찾는다(`subscription-api.md` 4.7). **Play 구매 토큰은 수백 자라 컬럼 길이는 2048이다**(2026-10-03 — 종전 255. App Store ID는 십수 자리 숫자라 문제가 없었다). 탈퇴 시 이 값을 옮겨 담는 `archived_subscriptions.original_transaction_id`([11.5](#115-archived_subscriptions))도 같은 길이다 — 한쪽만 넓으면 Play 구독자의 탈퇴가 아카이브에서 실패한다.
 - `latest_receipt`에는 마지막으로 반영한 **서명된 거래(iOS JWS) 또는 구매 토큰(Android)** 을 둔다 — 만료 보정 때 스토어에 다시 묻는 열쇠다. 로그에는 남기지 않는다. **Play에서는 환불의 고정에도 쓴다**(2026-10-06) — `refunded`인 행은 이 값과 같은 구매 토큰의 조회 결과로 되살리지 않는다(`subscription-api.md` 4.7).
 - **`user_id`는 한 경우에만 바뀐다**(2026-10-06) — 이미 끝난 구독(`expired`·`refunded`)을 **다른 계정이 자기 결제 의도로 다시 결제**해 그 반영이 구독을 되살릴 때, 행을 결제한 계정으로 넘긴다(`subscription-api.md` 7장). 살아 있는 구독의 주인은 바뀌지 않는다.
+- **`latest_order_id`** 는 Play의 결제 주기 식별자다(2026-10-07, `subscription-api.md` 4.7 "환불의 고정"). Google은 갱신마다 새 주문 ID를 발급하므로, 환불로 끝난 행과 **같은 구매 토큰·같은 주문 ID**의 조회 결과는 되살리지 않고, 주문 ID가 바뀌었으면(그 뒤에 결제가 됐다) 되살린다. 종전의 만료 시각 비교는 유예로 밀린 만료 시각 때문에 유예 길이가 결제 주기와 비슷하면 정당한 재결제를 막았다. App Store는 거래 ID가 그 역할을 해 비워 둔다.
 - **`status = expired`가 스토어의 답이 아닐 수 있다**(2026-10-06) — 만료 보정이 스토어에 확인하지 못한 채 `expires_at`이 7일을 넘기면 서버가 만료로 내린다(`subscription-api.md` 4.2). 이때는 `last_notified_at`을 갱신하지 않아, 뒤늦게 온 갱신 알림·거래가 되살릴 수 있다.
 - **`environment`** 는 그 구독이 실결제인지 스토어의 시험 결제인지다(2026-10-02). **운영 서버도 샌드박스 거래를 받는다** — App Store 심사와 TestFlight는 운영 빌드로 샌드박스 결제를 한다(`subscription-api.md` 7장). 구분을 남기지 않으면 시험 결제가 매출·구독자 수에 섞인다. 권한 판정에는 쓰지 않는다 — 샌드박스 구독도 유효하면 유료 티어다(그래야 심사·시험이 된다). 집계가 `environment = 'production'`으로 거른다.
 - **`last_notified_at`** 은 스토어 서버 알림의 순서 뒤바뀜을 막는다(2026-10-02, `subscription-api.md` 4.6). 알림은 보낸 순서대로 도착한다는 보장이 없어, 이 시각보다 먼저 서명된 알림은 상태를 덮지 않는다. 만료 보정(스토어에 직접 조회)도 이 값을 조회 시각으로 갱신한다. **환불·만료로 종결된 구독을, 종결 이전에 시작된 거래로 되살릴 수 없게 하는 기준 시각이기도 하다** — 환불받은 사용자가 환불 전에 받아 둔 서명 거래를 다시 제출해도 반영하지 않는다.

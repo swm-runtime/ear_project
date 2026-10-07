@@ -1,6 +1,7 @@
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import { pillButton } from '@/shared/ui/pill-button.styles';
 import { Text } from '@/shared/ui/Typography';
 
 import { PLAYER_COPY } from '../player.copy';
@@ -44,7 +45,7 @@ export default function PlayConfirmDialog({
           <Text style={styles.body}>{PLAYER_COPY.playConfirm.body}</Text>
           <View style={styles.buttonRow}>
             <Pressable
-              style={styles.cancelButton}
+              style={[pillButton.base, pillButton.secondary, styles.button]}
               onPress={onCancel}
               accessibilityRole="button"
               accessibilityLabel={PLAYER_COPY.playConfirm.cancel}
@@ -52,12 +53,12 @@ export default function PlayConfirmDialog({
               <Text style={styles.cancelLabel}>{PLAYER_COPY.playConfirm.cancel}</Text>
             </Pressable>
             <Pressable
-              style={styles.playButton}
+              style={[pillButton.base, pillButton.primary, styles.button]}
               onPress={onConfirm}
               accessibilityRole="button"
               accessibilityLabel={PLAYER_COPY.playConfirm.play}
             >
-              <Text style={styles.playLabel}>{PLAYER_COPY.playConfirm.play}</Text>
+              <Text style={pillButton.primaryLabel}>{PLAYER_COPY.playConfirm.play}</Text>
             </Pressable>
           </View>
         </View>
@@ -103,33 +104,15 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
     marginTop: theme.spacing.md,
   },
-  // 취소는 테두리 없이 연한 면으로(2026-09-22 PM) — 검정 [재생하기] 옆에서 선으로 그린 상자는 낡아 보였다
-  cancelButton: {
+  // 크기만 — 모양·색은 공용 알약(pillButton). 취소는 테두리 없이 연한 면으로(2026-09-22 PM) — 검정 [재생하기] 옆에서
+  // 선으로 그린 상자는 낡아 보였다
+  button: {
     flex: 1,
     minHeight: theme.touchTarget.minHeight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
   },
   cancelLabel: {
     fontSize: theme.font.size.md,
     color: theme.color.textPrimary,
-  },
-  playButton: {
-    flex: 1,
-    minHeight: theme.touchTarget.minHeight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.primary,
-  },
-  playLabel: {
-    fontSize: theme.font.size.md,
-    fontWeight: '600',
-    color: theme.color.onPrimary,
   },
   // 제목 줄의 작은 글자 — 히트 44pt 는 hitSlop 으로 채운다
   suppressButton: {

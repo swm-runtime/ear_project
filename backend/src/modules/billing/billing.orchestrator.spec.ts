@@ -104,13 +104,13 @@ beforeAll(() => {
 });
 
 describe('BillingOrchestrator — 요금제 목록(4.1)', () => {
-  it('구독이 없으면 무료는 버튼이 없고 유료는 구독하기다', async () => {
+  it('구독이 없으면 무료는 "이용 중"이고 유료는 구독하기다(KAN-147)', async () => {
     const { orchestrator } = setup();
 
     const catalog = await orchestrator.listPlans(USER, DevicePlatform.IOS);
 
     expect(catalog.plans.map((plan) => [plan.tier, plan.action])).toEqual([
-      [UserTier.LIGHT, PlanAction.NONE],
+      [UserTier.LIGHT, PlanAction.CURRENT],
       [UserTier.DAILY, PlanAction.PURCHASE],
       [UserTier.PRO, PlanAction.PURCHASE],
     ]);
@@ -151,22 +151,25 @@ describe('BillingOrchestrator — 요금제 목록(4.1)', () => {
     ]);
   });
 
-  it('그 플랫폼에서 살 수 없으면(Android·검증 미구성) 유료 요금제도 버튼이 없다', async () => {
+  it('그 플랫폼에서 살 수 없으면(Android·검증 미구성) 유료 요금제는 버튼이 없다 — 무료는 여전히 이용 중', async () => {
     const { world, orchestrator } = setup();
+    const paid = (plans: { priceKrw: number; action: PlanAction }[]) =>
+      plans.filter((plan) => plan.priceKrw > 0);
 
     const android = await orchestrator.listPlans(USER, DevicePlatform.ANDROID);
-    expect(android.plans.every((plan) => plan.action === PlanAction.NONE)).toBe(
-      true,
-    );
+    expect(
+      paid(android.plans).every((plan) => plan.action === PlanAction.NONE),
+    ).toBe(true);
+    expect(android.plans[0].action).toBe(PlanAction.CURRENT);
     expect(android.plans.every((plan) => plan.storeProductId === null)).toBe(
       true,
     );
 
     world.gateway.enabled = false;
     const ios = await orchestrator.listPlans(USER, DevicePlatform.IOS);
-    expect(ios.plans.every((plan) => plan.action === PlanAction.NONE)).toBe(
-      true,
-    );
+    expect(
+      paid(ios.plans).every((plan) => plan.action === PlanAction.NONE),
+    ).toBe(true);
   });
 
   it('다른 스토어에서 구독 중이면 이용 중 표시만 있고 나머지 유료 요금제는 버튼이 없다', async () => {
@@ -654,7 +657,7 @@ describe('AppStoreWebhookService — 스토어 서버 알림(4.6)', () => {
     expect((await orchestrator.getSubscription(USER, NOW)).pendingPlan).toEqual(
       {
         tier: UserTier.DAILY,
-        planName: '데일리',
+        planName: 'Daily',
         effectiveAt: THIS_PERIOD.expiresAt,
       },
     );

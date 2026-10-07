@@ -53,19 +53,19 @@ CloudWatch(EC2 지표·`/ear/api`·`/ear/caddy` 로그)·Sentry·합성 헬스�
 
 | 시각(KST) | 이름 | 무엇 | 실패하면 |
 |---|---|---|---|
-| 04:00 | `content-stat-aggregation` | 콘텐츠 통계(`content_stats`) 재집계 | 로그, 다음 날 재시도(재집계라 안전) |
+| 04:00 / 05:30 | `content-stat-aggregation` / `content-stat-aggregation-0530` | 콘텐츠 통계(`content_stats`) 재집계. **둘 다 등록되지만 그 시각의 서비스 날짜 경계에 맞는 쪽만 돈다**(KAN-149, 2026-10-07 — 경계 04:00이면 04:00 등록, `SERVICE_DAY_BOUNDARY_05_FROM` 전환 뒤에는 05:30 등록. 다른 쪽은 debug 로그 한 줄로 건너뛴다) | 로그, 다음 날 재시도(재집계라 안전) |
 | 04:10 | `content-license-expiry` | 라이선스 만료 콘텐츠를 `expired` 로 전환 + 라이브러리 잔존분 정리 | 로그, 다음 날 재시도 — 그 사이는 재생·발급 게이트의 만료 검사가 막는다 |
 | 04:15 | `empty-topic-sweep` | 주제 노출 갱신 — 노출 가능 콘텐츠가 0건인 노출 주제를 숨긴다 | 로그, 다음 날 재시도 |
 | 04:30 | `retention-purge` | 보존 기한 지난 데이터 삭제(`domain.md` 12.1) | 로그 — 테이블 하나가 실패해도 나머지는 계속 지운다 |
 | 04:45 | `subscription-reconcile` | 구독 만료 보정(만료일이 지났는데 유효로 남은 구독을 스토어 상태로 맞춘다 — `subscription-api.md` 4.2) + 버려진 결제 의도 정리(30일, `domain.md` 8.3) (신설 2026-10-02) | 로그, 다음 날 재시도 — 스토어에 물을 수 없으면 저장된 상태를 그대로 둔다(추측으로 강등하지 않는다) |
 | 05:00 | `daily-drip-batch` | 드립 편성(`drip-scheduling.md`) | 로그 · `drip_batch_runs` 기록. 도중에 프로세스가 죽으면 재기동 시 이어받는다 |
-| 10분마다 | `push-receipt-check` | 푸시 영수증(receipt) 회수 | 로그 — 실패분은 다음 주기에 다시 묻는다 |
+| 10분마다 | `push-receipt-check` | 푸시 영수증(receipt) 회수 → 무효 토큰 정리. **마지막 활성 토큰이 죽은 iOS 사용자는 앱 삭제 추정으로 Slack**(3-5, 2026-10-06) | 로그 — 실패분은 다음 주기에 다시 묻는다 |
 | 17:00 | `daily-metrics` | 일일 지표 Slack 보고(GA4 + 서버 — 3-3) | 로그, 던지지 않음 |
 | 15분마다 | `store-review-poll` | App Store·Google Play 새 리뷰·수정 리뷰를 Slack 한 메시지로(KAN-133 VoC — `store_reviews`에 알린 것을 기록). 리뷰어 닉네임은 어디에도 싣지 않는다 | 로그, 다음 주기 재시도 — 보냈을 때만 기록하므로 웹훅이 죽은 주기의 리뷰는 다음 주기에 다시 고른다. **Play 는 최근 1주일치만 돌아와** 7일 넘게 멈추면 그 사이 리뷰는 복구되지 않는다 |
 | 15분마다 | `app-remove-poll` | GA4 실시간 `app_remove`(Firebase 가 Android 에서 자동 수집하는 앱 삭제)를 읽어 새로 도착한 건수를 Slack 한 줄로(3-4). 운영 스트림만, 신원 값 없음 | 로그, 다음 주기 — "마지막으로 집계한 분"이 그대로라 30분 창 안이면 다시 본다. 재배포 뒤 첫 주기는 창을 전부 집계해 한 번 중복될 수 있다 |
 | 60초마다 | 자원 경보(`setInterval` — 크론 아님) | CPU·메모리 표본 + Slack 경보(5장) | 로그. 표본은 모든 워커가 쌓고 **경보 발송만** 스케줄러 워커가 한다 |
 
-- 04시대의 순서(집계 → 만료 → 주제 숨김 → 삭제 → 구독 보정 → 05:00 편성)는 서비스 날짜 경계(04:00) 뒤에 전날분을 확정하고 편성이 그 결과를 읽게 하려는 것이다.
+- 04시대의 순서(집계 → 만료 → 주제 숨김 → 삭제 → 구독 보정 → 05:00 편성)는 서비스 날짜 경계(04:00) 뒤에 전날분을 확정하고 편성이 그 결과를 읽게 하려는 것이다. **경계가 05:00으로 전환되면**(KAN-149) 집계만 05:30으로 넘어가고 나머지는 그대로다 — 만료·주제 숨김·삭제·구독 보정은 서비스 날짜를 계산하지 않고, 드립은 누적값만 읽어 하루 늦은 집계를 감수한다(PM 확정 2026-10-07).
 - **크론이 아닌 주기 작업**(`@Interval`)도 같은 스케줄러 워커에서 돈다 — 첫 드립 재시도 큐 `first-drip-retry`(30초마다)와 정리 4종 `first-drip-purge` · `session-purge` · `idempotency-purge` · `email-verification-purge`(1시간마다). 실패는 로그 한 줄이고 다음 주기가 다시 시도한다. **이들은 기동 로그의 `crons=[…]` 에 나오지 않는다**(크론 등록분만 찍는다).
 - 어느 배치도 예외를 밖으로 던지지 않는다 — 던지면 스케줄러가 멈추기 때문이다. 실패는 로그 한 줄로 끝나고, ERROR 로 남은 것은 Slack ERROR 감시(5장 `log-watch`)가 받는다.
 
@@ -76,7 +76,8 @@ CloudWatch(EC2 지표·`/ear/api`·`/ear/caddy` 로그)·Sentry·합성 헬스�
 | 소셜 로그인 카카오·구글·애플 | `KAKAO_APP_ID` · `GOOGLE_WEB_CLIENT_ID` · `APPLE_CLIENT_ID` · `APPLE_SERVICES_ID` — **필수** | 값이 없으면 env 검증에서 **기동이 실패한다**(조용히 꺼지지 않는다). 값이 틀리면 해당 제공자 로그인 불가 |
 | 오디오 CDN | `AUDIO_DELIVERY=cloudfront` + `CLOUDFRONT_KEY_PAIR_ID` · `CLOUDFRONT_PRIVATE_KEY_BASE64` · `AUDIO_BUCKET` · `AWS_REGION` (`AUDIO_URL_BASE_URL` · `AUDIO_URL_SIGNING_KEY` 는 항상 필수) | `cloudfront` 모드에서 값이 빠지면 기동 실패. 값이 틀리면 재생 URL 발급 불가 |
 | Sentry | `SENTRY_DSN` (+`SENTRY_ENVIRONMENT`) | 크래시 수집 안 됨 — 조용히 꺼짐 |
-| Slack 경보·가입 알림·**탈퇴 알림**(2026-10-06 — 사유 코드·직접 입력 사유·가입 N일차·결제 이력 여부, 신원 값 없음)·**스토어 리뷰** | `SLACK_ERROR_WEBHOOK_URL` (가입·탈퇴 알림·리뷰·일일 보고는 `SLACK_SIGNUP_WEBHOOK_URL` 우선) — 전송은 `modules/alert` 의 `SlackAlertService` 한 곳 | 조용히 꺼짐 |
+| **Sentry → Slack 릴레이**(2026-10-07 — Sentry 무료 플랜은 Slack 공식 연동이 없어, 플랜 제한 없는 **Internal Integration 웹훅**(Alert Rule Action)을 `POST /webhooks/sentry/:token` 으로 받아 `SlackAlertService` 로 흘린다. 앱(ear-app)·서버(ear-api) 프로젝트가 같은 주소를 쓴다. 문구는 프로젝트·레벨·제목(200자)·환경·릴리스·이슈 링크뿐, 사용자 필드는 꺼내지 않는다) | `SENTRY_WEBHOOK_SECRET`(Internal Integration 의 **Client Secret** — Sentry 가 보내는 `Sentry-Hook-Signature`(본문의 HMAC-SHA256)를 이것으로 검증한다, 2026-10-07) 또는 `SENTRY_WEBHOOK_TOKEN`(16자 이상, URL 경로 토큰 — 종전 방식. 경로의 비밀은 요청 로그에 남으므로 로그에서는 `[redacted]`로 가린다) + Slack 웹훅 | 둘 다 비우면 엔드포인트가 전부 404 — Sentry 이슈는 메일로만 온다. 둘 다 있으면 서명 또는 토큰 중 하나가 맞으면 받는다(주소 교체 기간). 기동 요약 `sentry-relay=` |
+| Slack 경보·가입 알림·**탈퇴 알림**(2026-10-06 — 사유 코드·직접 입력 사유·가입 N일차·결제 이력 여부, 신원 값 없음)·**스토어 리뷰**·**앱 삭제**(3-4 GA4 · 3-5 iOS 추정)·**결제 실패**(3-6) | `SLACK_ERROR_WEBHOOK_URL` (가입·탈퇴 알림·리뷰·일일 보고는 `SLACK_SIGNUP_WEBHOOK_URL` 우선) — 전송은 `modules/alert` 의 `SlackAlertService` 한 곳 | 조용히 꺼짐 |
 | App Store Connect API(리뷰 조회 — KAN-133) | `APP_STORE_CONNECT_ISSUER_ID` · `APP_STORE_CONNECT_KEY_ID` · `APP_STORE_CONNECT_PRIVATE_KEY_BASE64`(**팀 키** — 결제용 In-App Purchase 키와 다르다) + `APP_STORE_APP_APPLE_ID` | 그 스토어만 조용히 꺼짐 |
 | Google Play Developer API(리뷰 조회 — KAN-133) | 결제용 `GOOGLE_PLAY_PACKAGE_NAME` · `GOOGLE_PLAY_SERVICE_ACCOUNT_BASE64` 재사용(Play Console 에서 서비스 계정에 리뷰 권한 추가) | 그 스토어만 조용히 꺼짐 |
 | GA4 일일 보고 · **앱 삭제 알림**(3-4, 2026-10-06) | `GA4_PROPERTY_ID` + `GA4_SERVICE_ACCOUNT_BASE64` (+ 위 웹훅) — 같은 자격을 두 기능이 쓴다 | 조용히 꺼짐 |
@@ -87,10 +88,11 @@ CloudWatch(EC2 지표·`/ear/api`·`/ear/caddy` 로그)·Sentry·합성 헬스�
 **규칙**: 켜짐/꺼짐의 **런타임 진실은 기동 로그의 `features …` 한 줄**이다(백엔드 `startup-summary.ts`). 문서 표는 "무엇이 있는가", 로그는 "지금 이 서버에 무엇이 켜졌는가"다. 배포 뒤 확인은 그 줄로 한다:
 
 ```
-[Startup] features env=production scheduler=yes sentry=on resource-alert=on signup-alert=on daily-metrics=on crons=[content-license-expiry,content-stat-aggregation,daily-drip-batch,daily-metrics,empty-topic-sweep,push-receipt-check,retention-purge]
+[Startup] features env=production scheduler=yes sentry=on resource-alert=on signup-alert=on daily-metrics=on voc-review=on app-remove-alert=on service-day=04:00 crons=[content-license-expiry,content-stat-aggregation,content-stat-aggregation-0530,daily-drip-batch,daily-metrics,empty-topic-sweep,push-receipt-check,retention-purge]
 ```
 
 - 값은 찍지 않는다 — 있는지 없는지만 찍는다. `env` 는 `SENTRY_ENVIRONMENT` 값이다.
+- `service-day=` 는 서비스 날짜 경계 설정 상태다(KAN-149) — `04:00` 이거나, 전환 시각이 들어가 있으면 `05:00@<ISO 시각>`. 전환일 전에 넣어 두면 이 값이 먼저 바뀌고 경계는 그 시각에 바뀐다.
 - **프로세스마다 한 줄씩 나온다.** 스케줄러가 아닌 워커는 `scheduler=no … daily-metrics=off crons=[]` 로 찍힌다 — 고장이 아니다. `scheduler=yes` 인 줄이 정확히 하나 있는지를 본다.
 - `resource-alert` 는 `SLACK_ERROR_WEBHOOK_URL`, `signup-alert` 는 두 웹훅 중 하나, `daily-metrics` 는 스케줄러 워커 + 웹훅 + GA4 두 값이 모두 있을 때 `on` 이다.
 
@@ -130,6 +132,33 @@ CloudWatch(EC2 지표·`/ear/api`·`/ear/caddy` 로그)·Sentry·합성 헬스�
 | 문구 | `:wastebasket: 앱 삭제 N건 · Android · HH:mm~HH:mm KST (GA4 app_remove)` — 시각은 GA4 **도착** 분이다(삭제 시각이 아니다. Play 서비스가 올리기까지 늦을 수 있다). 플랫폼이 둘 이상이면 `Android 2 · iOS 1`. **누가 지웠는지는 싣지 않는다** — 실시간 보고에 사용자 식별자가 없고, 있어도 Slack 에는 신원 값을 쓰지 않는다 |
 | 켜짐 | GA4 자격(`GA4_PROPERTY_ID` · `GA4_SERVICE_ACCOUNT_BASE64`) + 웹훅이 있을 때, 스케줄러 프로세스에서만. 기동 로그 `app-remove-alert=on` |
 | 한계 | Play 서비스가 없는 기기·오프라인으로 지운 기기는 빠지거나 늦는다. 기기 기준이라 한 사람이 두 기기에서 지우면 2건이다. "누가"가 필요하면 GA4 탐색 분석에서 `app_remove` × `user_id`(앱이 로그인 시 해시를 설정한다 — `analytics.md`) 로 본다 |
+
+### 3-5. iOS 앱 삭제 추정 알림 (신설 2026-10-06)
+
+Apple 은 삭제 이벤트를 주지 않는다(3-4 는 Android 만). iOS 의 유일한 신호는 **푸시 토큰 무효화**다 — 앱을 지우면 APNs 가 그 토큰을 거부하고, 드립 알림 발송의 ticket(즉시) 또는 receipt(10분 뒤 회수)에 `DeviceNotRegistered`로 돌아와 `device_tokens.invalidated_at`이 찍힌다.
+
+| 항목 | 규칙 |
+|---|---|
+| 판정 | 토큰을 무효화한 직후, **그 사용자의 활성 기기(토큰 있음·무효화 안 됨)가 0이 되면** 앱 삭제로 **추정**한다. 다른 기기가 살아 있으면 기기 하나만 지운 것이라 알리지 않는다. 사용자당 한 번(같은 주기에 토큰 둘이 죽어도 1) |
+| 왜 추정인가 | 기기 변경·초기화도 같은 신호다 — 새 기기로 다시 들어오면 토큰이 다시 등록된다. **알림 권한을 끈 사용자는 토큰이 없어 잡히지 않는다.** 전원을 잡으려면 권한 없이도 받는 무음 푸시가 필요한데, 그건 FE 가 권한 없이 토큰을 얻는지에 달렸다(미결) |
+| 시점 | 드립 알림을 보내는 05:00 직후(ticket 단계)와 그 뒤 10분 주기 영수증 회수에서 — 즉 **삭제 다음 날 아침**에 안다. 삭제 즉시가 아니다 |
+| 문구 | `:iphone: 앱 삭제 추정 N건 · iOS · 푸시 토큰 무효화(활성 기기 0) · MM. DD. HH:mm` — 가입·탈퇴 알림과 같은 채널. **Android 는 Slack 에 올리지 않는다**(3-4 GA4 `app_remove`가 삭제를 정확히 세고 있어 같은 삭제가 두 번 울린다) — 로그(`uninstall estimated from invalidated push tokens`)에만 플랫폼별 건수를 남긴다. 사용자 식별자는 싣지 않는다 |
+| 구현 | `notification/services/uninstall-alert.service.ts` — `DeviceTokenService.invalidateDeliveredTokensDetailed`(무효화한 행의 사용자·플랫폼, RETURNING) → `countActiveByUserIds` → Slack. 던지지 않는다 — 알림 실패가 발송·정리 흐름을 깨지 않는다 |
+| 추가 설정 | 없음 — 기존 웹훅이 있으면 켜진다 |
+
+### 3-6. 결제·스토어 알림 실패 Slack (신설 2026-10-06 — KAN-132)
+
+결제 경로의 실패는 전부 `warn` 로그라 ERROR 감시(`log-watch`)에 걸리지 않았다. 셋은 사람이 봐야 해서 `billing/services/billing-alert.service.ts`가 Slack 으로 올린다(가입·탈퇴 알림과 같은 채널).
+
+| 알림 | 언제 | 문구 |
+|---|---|---|
+| 결제 검증 거부 | 구매 제출·복원의 영수증(JWS)·구매 토큰이 거부됨(`SUBSCRIPTION_RECEIPT_INVALID`) — 사용자가 돈을 냈는데 권한을 못 받았을 수 있다. 설정 오류(번들 ID·키)면 전원이 막힌다 | `:credit_card: 결제 검증 거부 · App Store · <사유>` |
+| 스토어 알림 거부 | App Store S2S·Play RTDN 의 서명·OIDC 검증 실패 — 환불·갱신이 반영되지 않는다 | `:warning: 스토어 알림 거부 · Google Play · <kind>: <사유>` |
+| 구독 보정 실패 | 04:45 `subscription-reconcile`이 작업 중단됐거나 구독 1건을 스토어에 묻지 못함 | `:hourglass: 구독 보정 실패 · <내용>` |
+
+- **종류·스토어별 10분 창에 한 번만** 보낸다 — 위조 시도나 잘못된 클라이언트가 같은 거부를 수십 번 만들 수 있다. 창 안의 나머지는 건수만 로그(`billing alert suppressed within window`)로 남기고, 창이 지나 다음 알림이 나갈 때 "직전 10분 N건 더 있었음"을 덧붙인다.
+- 사유는 내부 코드 문자열이다. 사용자·거래·토큰 식별자는 싣지 않는다. 받으면 할 일은 `infra/runbook.md` 4-1 알림 표.
+- 추가 설정 없음 — 기존 웹훅이 있으면 켜진다.
 
 ## 4. 구성 — 콘솔 6탭
 

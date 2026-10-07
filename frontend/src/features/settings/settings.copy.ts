@@ -28,7 +28,8 @@ export const SETTINGS_COPY = {
   /** 섹션 제목(settings-uiux.md 4.1 골격) */
   sections: {
     account: '계정',
-    subscription: '구독',
+    /** 요금제 관리 화면의 진입점 — 화면 제목과 같은 이름(KAN-146) */
+    subscription: '요금제 관리',
     content: '콘텐츠',
     playback: '재생',
     notification: '알림',
@@ -69,7 +70,7 @@ export const SETTINGS_COPY = {
     paymentIssue: '결제에 문제가 있어요',
     /** 가입 체험 중인 무료 계정 — 프로필 플랜 줄과 같은 문자열(settings-uiux.md 6장 · profile-uiux.md 4.2) */
     trial: (lastFreeDate: string) => `무료 체험 중 · ${dateOnlyMonthDay(lastFreeDate)}까지 무제한`,
-    a11y: '구독 관리 열기',
+    a11y: '요금제 관리 열기',
   },
 
   content: {

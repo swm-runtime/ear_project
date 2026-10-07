@@ -4,6 +4,7 @@ import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { theme } from '@/shared/theme';
 import BottomSheet from '@/shared/ui/BottomSheet';
+import { pillButton } from '@/shared/ui/pill-button.styles';
 import { SkeletonBlock, SkeletonGroup } from '@/shared/ui/Skeleton';
 import { Text } from '@/shared/ui/Typography';
 
@@ -164,7 +165,7 @@ export default function TopicFilterSheet({
 
         <View style={styles.buttonRow}>
           <Pressable
-            style={styles.resetButton}
+            style={[pillButton.base, pillButton.secondary, styles.resetButton]}
             // [초기화]는 선택만 비우고 시트를 닫지 않는다(library-uiux.md 4.5)
             onPress={() => {
               setSelectedIds([]);
@@ -174,10 +175,10 @@ export default function TopicFilterSheet({
             accessibilityRole="button"
             accessibilityLabel={LIBRARY_COPY.topicFilter.reset}
           >
-            <Text style={styles.resetLabel}>{LIBRARY_COPY.topicFilter.reset}</Text>
+            <Text style={pillButton.secondaryLabel}>{LIBRARY_COPY.topicFilter.reset}</Text>
           </Pressable>
           <Pressable
-            style={styles.applyButton}
+            style={[pillButton.base, pillButton.primary, styles.applyButton]}
             onPress={() =>
               onApply(
                 topics.filter((t) => selectedIds.includes(t.id)),
@@ -188,7 +189,7 @@ export default function TopicFilterSheet({
             accessibilityRole="button"
             accessibilityLabel={LIBRARY_COPY.topicFilter.apply}
           >
-            <Text style={styles.applyLabel}>{LIBRARY_COPY.topicFilter.apply}</Text>
+            <Text style={pillButton.primaryLabel}>{LIBRARY_COPY.topicFilter.apply}</Text>
           </Pressable>
         </View>
       </View>
@@ -321,34 +322,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: theme.spacing.sm,
   },
+  // 크기만 — 모양·색은 공용 알약(pillButton). 보조 동작은 테두리 없이 연한 면(design.md §5 — ConfirmDialog·재생 확인
+  // 팝업과 같은 규칙, 2026-09-27 PM "초기화·적용 버튼이 다른 모달들과 살짝 다르다")
   resetButton: {
     minHeight: theme.touchTarget.minHeight,
-    alignItems: 'center',
-    justifyContent: 'center',
     paddingHorizontal: theme.spacing.lg,
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    // 보조 동작은 테두리 없이 연한 면(design.md §5 — ConfirmDialog·재생 확인 팝업과 같은 규칙, 2026-09-27 PM
-    // "초기화·적용 버튼이 다른 모달들과 살짝 다르다"). 선으로 그린 상자는 검정 버튼 옆에서 낡아 보인다
-    backgroundColor: theme.color.surface,
-  },
-  resetLabel: {
-    fontSize: theme.font.size.md,
-    fontWeight: '600',
-    color: theme.color.textPrimary,
   },
   applyButton: {
     flex: 1,
     minHeight: theme.touchTarget.minHeight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.primary,
-  },
-  applyLabel: {
-    fontSize: theme.font.size.md,
-    fontWeight: '600',
-    color: theme.color.onPrimary,
   },
 });

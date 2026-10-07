@@ -1,6 +1,8 @@
+import { useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import { pillButton } from '@/shared/ui/pill-button.styles';
 import { SkeletonBlock, SkeletonGroup } from '@/shared/ui/Skeleton';
 import { Text } from '@/shared/ui/Typography';
 
@@ -12,19 +14,19 @@ import type { Plan, PlanAction } from '../subscription.types';
 const SKELETON_CARD_COUNT = 3;
 const SKELETON_CARD_HEIGHT = 112;
 
-/** 버튼 문구 — action 은 서버 판정이다. 클라이언트가 티어 순서를 비교하지 않는다(subscription-api.md 4.1) */
-const ACTION_LABEL: Record<Exclude<PlanAction, 'none' | 'current'>, string> = {
-  purchase: SUBSCRIPTION_COPY.plans.purchase,
-  upgrade: SUBSCRIPTION_COPY.plans.upgrade,
-  downgrade: SUBSCRIPTION_COPY.plans.downgrade,
-};
+/** 라디오 원 — iOS 선택 목록 크기. 안 점은 선택일 때만 */
+const RADIO_SIZE = 22;
+const RADIO_DOT_SIZE = 10;
+/** 라디오 칸과 이름 사이. 고를 수 없는 카드도 라디오 칸만큼 비워 이름·설명 시작점을 세 카드에서 맞춘다 */
+const RADIO_GAP = 10;
+/** 선택 테두리 — 고르지 않은 카드·이용 중 카드에도 투명으로 깔아 안쪽 시작점이 선택에 따라 움직이지 않게 한다 */
+const SELECTED_BORDER_WIDTH = 2;
 
-const featureLine = (plan: Plan): string =>
-  [
-    SUBSCRIPTION_COPY.plans.playLimit(plan.entitlements.dailyPlayLimit),
-    SUBSCRIPTION_COPY.plans.dripCount(plan.entitlements.dailyDripCount),
-    SUBSCRIPTION_COPY.plans.ads(plan.entitlements.adsEnabled),
-  ].join(' · ');
+type PurchaseAction = Exclude<PlanAction, 'none' | 'current'>;
+
+/** 고를 수 있는 카드 — action 은 서버 판정이다. 클라이언트가 티어 순서를 비교하지 않는다(subscription-api.md 4.1) */
+const isPurchaseAction = (action: PlanAction): action is PurchaseAction =>
+  action === 'purchase' || action === 'upgrade' || action === 'downgrade';
 
 const priceText = (card: PlanCardVM): string | null => {
   if (card.priceLabel === null) return null;
@@ -35,76 +37,160 @@ const priceText = (card: PlanCardVM): string | null => {
 
 interface PlanCardProps {
   card: PlanCardVM;
+  /** 고를 수 있는 카드에만 — 없으면 라디오 없이 칸만 비운다(이용 중 · 서버가 none 을 준 카드) */
+  onSelect?: () => void;
+  isSelected: boolean;
   disabled: boolean;
-  isPurchasing: boolean;
-  onPurchase: (plan: Plan) => void;
+  /** 이용 중 카드에만 — 현재 구독 정보·스토어 버튼(CurrentSubscriptionDetail) */
+  currentDetail?: ReactNode;
 }
 
-function PlanCard({ card, disabled, isPurchasing, onPurchase }: PlanCardProps) {
+function PlanCard({ card, onSelect, isSelected, disabled, currentDetail }: PlanCardProps) {
   const { plan } = card;
   const price = priceText(card);
-  const features = featureLine(plan);
   const isCurrent = plan.action === 'current';
-  const actionLabel =
-    plan.action === 'purchase' || plan.action === 'upgrade' || plan.action === 'downgrade'
-      ? ACTION_LABEL[plan.action]
-      : null;
+  const isSelectable = onSelect !== undefined;
+  const a11yLabel = SUBSCRIPTION_COPY.plans.cardA11y(
+    plan.name,
+    price ?? '',
+    plan.description,
+    isCurrent,
+  );
+
+  const summary = (
+    <>
+      <View style={styles.cardHeader}>
+        <View style={styles.radioSlot}>
+          {isSelectable ? (
+            <View style={[styles.radio, isSelected ? styles.radioSelected : null]}>
+              {isSelected ? <View style={styles.radioDot} /> : null}
+            </View>
+          ) : null}
+        </View>
+        <View style={styles.nameGroup}>
+          <Text style={[styles.planName, isCurrent ? styles.textMuted : null]}>{plan.name}</Text>
+          {isCurrent ? (
+            // "이용 중"은 버튼이 아니라 상태 표시다 — 이름 옆 작은 배지. 색만이 아니라 글자로 밝힌다
+            <View style={styles.currentBadge}>
+              <Text style={styles.currentBadgeLabel}>{SUBSCRIPTION_COPY.plans.current}</Text>
+            </View>
+          ) : null}
+        </View>
+        {price !== null ? (
+          <Text style={[styles.price, isCurrent ? styles.textMuted : null]}>{price}</Text>
+        ) : null}
+      </View>
+      {plan.description ? (
+        <Text
+          style={[styles.description, styles.indent, isCurrent ? styles.descriptionMuted : null]}
+        >
+          {plan.description}
+        </Text>
+      ) : null}
+    </>
+  );
+
+  if (isSelectable) {
+    // 카드 전체가 라디오 하나 — 누르면 고르기만 하고, 결제는 목록 아래 버튼이 한다
+    return (
+      <Pressable
+        style={[styles.card, isSelected ? styles.cardSelected : null]}
+        onPress={onSelect}
+        disabled={disabled}
+        accessibilityRole="radio"
+        accessibilityLabel={a11yLabel}
+        accessibilityState={{ selected: isSelected, disabled }}
+      >
+        {summary}
+      </Pressable>
+    );
+  }
 
   return (
-    <View
-      style={[styles.card, isCurrent ? styles.cardCurrent : null]}
-      accessible={plan.action === 'none' || isCurrent}
-      accessibilityLabel={SUBSCRIPTION_COPY.plans.cardA11y(plan.name, price ?? '', features)}
-    >
-      <View style={styles.cardHeader}>
-        <Text style={styles.planName}>{plan.name}</Text>
-        {price !== null ? <Text style={styles.price}>{price}</Text> : null}
+    <View style={styles.card}>
+      {/* 요약(이름·가격·설명·이용 중)은 한 문장으로 읽는다 — 구독 정보의 버튼은 따로 포커스를 받는다 */}
+      <View style={styles.summary} accessible accessibilityLabel={a11yLabel}>
+        {summary}
       </View>
-      {plan.description ? <Text style={styles.description}>{plan.description}</Text> : null}
-      <Text style={styles.features}>{features}</Text>
+      {isCurrent && currentDetail ? <View style={styles.indent}>{currentDetail}</View> : null}
+    </View>
+  );
+}
 
-      {isCurrent ? (
-        // "이용 중"은 버튼이 아니라 상태 표시다 — 색만이 아니라 글자로 밝힌다
-        <View style={styles.currentBadge}>
-          <Text style={styles.currentBadgeLabel}>{SUBSCRIPTION_COPY.plans.current}</Text>
-        </View>
-      ) : actionLabel === null ? null : (
+interface PlanCardsProps {
+  cards: PlanCardVM[];
+  isBusy: boolean;
+  purchasingPlanId: string | null;
+  onPurchase: (plan: Plan) => void;
+  currentDetail?: ReactNode;
+}
+
+function PlanCards({ cards, isBusy, purchasingPlanId, onPurchase, currentDetail }: PlanCardsProps) {
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const purchasable = cards.filter((card) => isPurchaseAction(card.plan.action));
+  // 기본은 고를 수 있는 첫 카드(서버 순서) — 티어명으로 고르지 않는다. 고른 카드가 목록에서 빠지면(결제 후 이용 중으로
+  // 바뀜 등) 다시 첫 카드로 돌아간다
+  const selected =
+    purchasable.find((card) => card.plan.planId === selectedPlanId) ?? purchasable[0] ?? null;
+  const selectedAction =
+    selected !== null && isPurchaseAction(selected.plan.action) ? selected.plan.action : null;
+  const isDowngrade = selectedAction === 'downgrade';
+  const isPurchasing = selected !== null && purchasingPlanId === selected.plan.planId;
+
+  return (
+    <View style={styles.list}>
+      <View
+        style={styles.list}
+        accessibilityRole={purchasable.length > 0 ? 'radiogroup' : undefined}
+        accessibilityLabel={purchasable.length > 0 ? SUBSCRIPTION_COPY.plans.groupA11y : undefined}
+      >
+        {cards.map((card) => (
+          <PlanCard
+            key={card.plan.planId}
+            card={card}
+            onSelect={
+              isPurchaseAction(card.plan.action)
+                ? () => setSelectedPlanId(card.plan.planId)
+                : undefined
+            }
+            isSelected={selected !== null && card.plan.planId === selected.plan.planId}
+            disabled={isBusy}
+            currentDetail={currentDetail}
+          />
+        ))}
+      </View>
+
+      {selected !== null && selectedAction !== null ? (
         <>
           <Pressable
             style={({ pressed }) => [
+              pillButton.base,
+              isDowngrade ? styles.buttonSecondary : pillButton.primary,
               styles.button,
-              plan.action === 'downgrade' ? styles.buttonSecondary : null,
               pressed ? styles.buttonPressed : null,
-              disabled ? styles.buttonDisabled : null,
+              isBusy ? styles.buttonDisabled : null,
             ]}
-            onPress={() => onPurchase(plan)}
-            disabled={disabled}
+            onPress={() => onPurchase(selected.plan)}
+            disabled={isBusy}
             accessibilityRole="button"
-            accessibilityLabel={`${plan.name} ${actionLabel}`}
-            accessibilityState={{ disabled, busy: isPurchasing }}
+            accessibilityLabel={SUBSCRIPTION_COPY.plans.cta(selected.plan.name, selectedAction)}
+            accessibilityState={{ disabled: isBusy, busy: isPurchasing }}
           >
             {isPurchasing ? (
               <ActivityIndicator
-                color={
-                  plan.action === 'downgrade' ? theme.color.textPrimary : theme.color.onPrimary
-                }
+                color={isDowngrade ? theme.color.textPrimary : theme.color.onPrimary}
               />
             ) : (
-              <Text
-                style={[
-                  styles.buttonLabel,
-                  plan.action === 'downgrade' ? styles.buttonLabelSecondary : null,
-                ]}
-              >
-                {actionLabel}
+              <Text style={isDowngrade ? pillButton.secondaryLabel : pillButton.primaryLabel}>
+                {SUBSCRIPTION_COPY.plans.cta(selected.plan.name, selectedAction)}
               </Text>
             )}
           </Pressable>
-          {plan.action === 'downgrade' ? (
+          {isDowngrade ? (
             <Text style={styles.hint}>{SUBSCRIPTION_COPY.plans.downgradeHint}</Text>
           ) : null}
         </>
-      )}
+      ) : null}
     </View>
   );
 }
@@ -113,16 +199,23 @@ interface PlanListProps {
   state: PlanCatalogState;
   /** 결제·복원 진행 중 — 전체 버튼 비활성(paywall.md 5장) */
   isBusy: boolean;
-  /** 결제 시트를 연 요금제 — 그 버튼에만 스피너를 둔다 */
+  /** 결제 시트를 연 요금제 — 그 요금제를 고른 상태면 버튼에 스피너를 둔다 */
   purchasingPlanId: string | null;
   onPurchase: (plan: Plan) => void;
   onRetry: () => void;
   isRetrying: boolean;
+  /**
+   * 이용 중(`action = current`) 카드 안에 넣을 현재 구독 정보(요금제 관리 화면만 — 페이월은 넘기지 않는다).
+   * 서버가 `current` 카드를 주지 않으면 그려지지 않는다 — 그때는 화면이 목록 밑에 따로 그린다
+   */
+  currentDetail?: ReactNode;
 }
 
 /**
- * 요금제 비교 카드(SB2 · 페이월) — 가격·일 청취 편수·이어 PICK 편수·광고(paywall.md 5장 "바텀시트 구성").
- * 가격은 스토어 현지 가격만 그린다. 조회 실패면 카드 대신 "요금제를 불러올 수 없어요" + [다시 시도].
+ * 요금제 비교 카드(SB2 · 페이월) — 고를 수 있는 카드는 라디오(카드 전체를 눌러 고른다), 결제는 목록 아래 버튼 하나
+ * "<이름> 구독하기"(KAN-146 PM 미리보기 확정 2026-10-07). 이름·설명은 서버 값 그대로다(티어명 하드코딩 금지).
+ * 이용 중 카드는 회색 + 이름 옆 [이용 중] 배지, 라디오 칸은 비워 둔다. 가격은 스토어 현지 가격만 그린다.
+ * 조회 실패면 카드 대신 "요금제를 불러올 수 없어요" + [다시 시도].
  */
 export default function PlanList({
   state,
@@ -131,6 +224,7 @@ export default function PlanList({
   onPurchase,
   onRetry,
   isRetrying,
+  currentDetail,
 }: PlanListProps) {
   if (state.kind === 'loading') {
     return (
@@ -162,17 +256,13 @@ export default function PlanList({
   }
 
   return (
-    <View style={styles.list}>
-      {state.cards.map((card) => (
-        <PlanCard
-          key={card.plan.planId}
-          card={card}
-          disabled={isBusy}
-          isPurchasing={purchasingPlanId === card.plan.planId}
-          onPurchase={onPurchase}
-        />
-      ))}
-    </View>
+    <PlanCards
+      cards={state.cards}
+      isBusy={isBusy}
+      purchasingPlanId={purchasingPlanId}
+      onPurchase={onPurchase}
+      currentDetail={currentDetail}
+    />
   );
 }
 
@@ -181,22 +271,56 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
   },
   card: {
-    padding: theme.spacing.md,
+    padding: theme.spacing.md - SELECTED_BORDER_WIDTH,
     gap: theme.spacing.xs,
     borderRadius: theme.radius.lg,
     borderCurve: 'continuous',
+    borderWidth: SELECTED_BORDER_WIDTH,
+    borderColor: 'transparent',
     backgroundColor: theme.color.surface,
   },
-  // 이용 중 — 테두리로 구분하고 "이용 중" 글자를 함께 둔다(색만으로 구분하지 않는다)
-  cardCurrent: {
-    borderWidth: 1.5,
+  cardSelected: {
     borderColor: theme.color.primary,
+  },
+  summary: {
+    gap: theme.spacing.xs,
   },
   cardHeader: {
     flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: RADIO_GAP,
+  },
+  radioSlot: {
+    width: RADIO_SIZE,
+    height: RADIO_SIZE,
+  },
+  radio: {
+    width: RADIO_SIZE,
+    height: RADIO_SIZE,
+    borderRadius: RADIO_SIZE / 2,
+    borderWidth: 2,
+    borderColor: theme.color.textMutedSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioSelected: {
+    borderColor: theme.color.primary,
+  },
+  radioDot: {
+    width: RADIO_DOT_SIZE,
+    height: RADIO_DOT_SIZE,
+    borderRadius: RADIO_DOT_SIZE / 2,
+    backgroundColor: theme.color.primary,
+  },
+  nameGroup: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: theme.spacing.sm,
+  },
+  // 설명·구독 정보는 이름 밑에서 시작한다 — 라디오 칸 + 간격만큼 들인다
+  indent: {
+    marginLeft: RADIO_SIZE + RADIO_GAP,
   },
   planName: {
     flexShrink: 1,
@@ -214,18 +338,30 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.sm,
     color: theme.color.textSecondary,
   },
-  features: {
-    fontSize: theme.font.size.xs,
-    color: theme.color.textSecondary,
+  // 이용 중 카드 — 강조 테두리 없이 글자를 회색 단계로 내린다(KAN-146 PM 2026-10-06). 상태는 [이용 중] 글자가 말한다
+  textMuted: {
+    color: theme.color.textMuted,
   },
+  descriptionMuted: {
+    color: theme.color.textMutedSecondary,
+  },
+  // [이용 중] — 이름 옆 회색 배지(누를 수 없음). 버튼과 헷갈리지 않게 작게 둔다(KAN-146 PM 2026-10-07)
+  currentBadge: {
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 3,
+    borderRadius: theme.radius.full,
+    borderCurve: 'continuous',
+    backgroundColor: theme.color.fillMuted,
+  },
+  currentBadgeLabel: {
+    fontSize: theme.font.size.xs,
+    fontWeight: '600',
+    color: theme.color.textMuted,
+  },
+  // 크기만 — 모양·색은 공용 알약(pillButton)
   button: {
     marginTop: theme.spacing.sm,
     minHeight: theme.touchTarget.minHeight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.primary,
   },
   // 변경(다운그레이드) — 보조 버튼. 주 버튼(검정)과 위계를 가른다
   buttonSecondary: {
@@ -239,31 +375,10 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.5,
   },
-  buttonLabel: {
-    fontSize: theme.font.size.md,
-    fontWeight: '600',
-    color: theme.color.onPrimary,
-  },
-  buttonLabelSecondary: {
-    color: theme.color.textPrimary,
-  },
   hint: {
     fontSize: theme.font.size.xs,
     color: theme.color.textSecondary,
     textAlign: 'center',
-  },
-  currentBadge: {
-    alignSelf: 'flex-start',
-    marginTop: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: 2,
-    borderRadius: theme.radius.full,
-    backgroundColor: theme.color.primary,
-  },
-  currentBadgeLabel: {
-    fontSize: theme.font.size.xs,
-    fontWeight: '700',
-    color: theme.color.onPrimary,
   },
   errorBox: {
     alignItems: 'center',

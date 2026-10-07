@@ -15,6 +15,14 @@ export const theme = {
     frostedSurface: 'rgba(245, 245, 247, 0.72)',
     textPrimary: '#1A1A1E',
     textSecondary: '#6E6E76',
+    /**
+     * 비활성·이미 가진 것의 회색 단계 — iOS systemGray / systemGray2 / systemGray5(KAN-146 PM 확정 2026-10-06).
+     * 요금제 관리의 **이용 중 카드**가 쓴다: 이름·가격 `textMuted`, 설명 `textMutedSecondary`, [이용 중] 알약 면 `fillMuted`.
+     * 색만으로 상태를 말하지 않는다 — "이용 중" 글자를 함께 둔다(design.md §1)
+     */
+    textMuted: '#8E8E93',
+    textMutedSecondary: '#AEAEB2',
+    fillMuted: '#E5E5EA',
     border: '#E3E3E8',
     primary: '#000000',
     danger: '#E5484D',

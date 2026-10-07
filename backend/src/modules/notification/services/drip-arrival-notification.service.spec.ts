@@ -15,6 +15,7 @@ import { PushClient } from '../push/push.client';
 import { NotificationLogRepository } from '../repositories/notification-log.repository';
 import { DripArrivalNotificationService } from './drip-arrival-notification.service';
 import { PushReceiptService } from './push-receipt.service';
+import { UninstallAlertService } from './uninstall-alert.service';
 
 // 2026-09-17 05:00 KST
 const NOW = new Date('2026-09-16T20:00:00.000Z');
@@ -50,6 +51,7 @@ describe('DripArrivalNotificationService', () => {
   let userSettingService: jest.Mocked<UserSettingService>;
   let pushClient: jest.Mocked<PushClient>;
   let pushReceiptService: jest.Mocked<PushReceiptService>;
+  let uninstallAlertService: jest.Mocked<UninstallAlertService>;
 
   const insertedLogs = (): Partial<NotificationLog>[] =>
     notificationLogRepository.insertAll.mock.calls[0][0];
@@ -66,10 +68,15 @@ describe('DripArrivalNotificationService', () => {
       findDeliverableByUserIds: jest
         .fn()
         .mockResolvedValue([buildDevice('device-a', TOKEN_A)]),
-      invalidateDeliveredTokens: jest
+      invalidateDeliveredTokensDetailed: jest
         .fn()
-        .mockImplementation((targets: unknown[]) =>
-          Promise.resolve(targets.length),
+        .mockImplementation((targets: { id: string }[]) =>
+          Promise.resolve(
+            targets.map((target) => ({
+              userId: `user-${target.id}`,
+              platform: 'ios',
+            })),
+          ),
         ),
     } as unknown as jest.Mocked<DeviceTokenService>;
 
@@ -95,12 +102,17 @@ describe('DripArrivalNotificationService', () => {
       track: jest.fn(),
     } as unknown as jest.Mocked<PushReceiptService>;
 
+    uninstallAlertService = {
+      notifyIfLastToken: jest.fn().mockResolvedValue({}),
+    } as unknown as jest.Mocked<UninstallAlertService>;
+
     service = new DripArrivalNotificationService(
       notificationLogRepository,
       deviceTokenService,
       userSettingService,
       pushClient,
       pushReceiptService,
+      uninstallAlertService,
     );
   });
 
@@ -274,10 +286,9 @@ describe('DripArrivalNotificationService', () => {
     const summary = await service.notify([buildArrival()], NOW);
 
     // then
-    expect(deviceTokenService.invalidateDeliveredTokens).toHaveBeenCalledWith(
-      [{ id: 'device-a', token: TOKEN_A }],
-      NOW,
-    );
+    expect(
+      deviceTokenService.invalidateDeliveredTokensDetailed,
+    ).toHaveBeenCalledWith([{ id: 'device-a', token: TOKEN_A }], NOW);
     expect(insertedLogs()[0]).toMatchObject({
       status: NotificationStatus.FAILED,
       sentAt: null,
@@ -306,10 +317,9 @@ describe('DripArrivalNotificationService', () => {
     expect(insertedLogs()[0]).toMatchObject({
       status: NotificationStatus.SENT,
     });
-    expect(deviceTokenService.invalidateDeliveredTokens).toHaveBeenCalledWith(
-      [],
-      NOW,
-    );
+    expect(
+      deviceTokenService.invalidateDeliveredTokensDetailed,
+    ).toHaveBeenCalledWith([], NOW);
   });
 
   it('발송 요청 자체가 실패하면 failed 로 기록하고 던지지 않는다', async () => {
@@ -356,7 +366,7 @@ describe('DripArrivalNotificationService', () => {
     pushClient.send.mockResolvedValue([
       { status: 'error', error: 'DeviceNotRegistered', message: 'gone' },
     ]);
-    deviceTokenService.invalidateDeliveredTokens.mockRejectedValue(
+    deviceTokenService.invalidateDeliveredTokensDetailed.mockRejectedValue(
       new Error('db blip'),
     );
 
@@ -418,10 +428,9 @@ describe('DripArrivalNotificationService', () => {
         }),
       );
       // 토큰은 무효화하지 않는다 — 기기가 아니라 자격 증명의 문제다
-      expect(deviceTokenService.invalidateDeliveredTokens).toHaveBeenCalledWith(
-        [],
-        NOW,
-      );
+      expect(
+        deviceTokenService.invalidateDeliveredTokensDetailed,
+      ).toHaveBeenCalledWith([], NOW);
     } finally {
       errorSpy.mockRestore();
     }

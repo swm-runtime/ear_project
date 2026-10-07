@@ -44,7 +44,7 @@ export interface ProfilePlan {
   trial: PlanTrial | null;
 }
 
-/** 가입 체험 — 서버가 판정한 날짜·한도를 그대로 싣는다(04시 경계 판정은 서버 몫) */
+/** 가입 체험 — 서버가 판정한 날짜·한도를 그대로 싣는다(05시 경계 판정은 서버 몫) */
 export interface PlanTrial {
   endsAt: string;
   /** "N월 N일까지"의 날짜(YYYY-MM-DD). 무제한으로 들을 수 있는 마지막 날이다 */
@@ -82,7 +82,7 @@ export interface StatsSummary {
 
 /** 4.1의 weekly_listening과 4.2 응답이 같은 모양이라 타입 하나다(profile-api.md 4.2) */
 export interface WeeklyListening {
-  /** 그 주 월요일의 YYYY-MM-DD 라벨 — 주 경계(월 04:00 KST) 판정은 서버 몫 */
+  /** 그 주 월요일의 YYYY-MM-DD 라벨 — 주 경계(월 05:00 KST) 판정은 서버 몫 */
   weekStart: string;
   /** 월~일 7개 고정 배열(초). 기록 없는 요일·아직 오지 않은 요일도 0으로 자리 유지 */
   dailyListenedSec: number[];

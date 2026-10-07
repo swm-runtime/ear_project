@@ -12,11 +12,38 @@ import {
   MaxLength,
   Min,
   MinLength,
+  Validate,
   ValidateIf,
   validateSync,
+  ValidatorConstraint,
+  type ValidatorConstraintInterface,
 } from 'class-validator';
 
 import { SEMVER_PATTERN } from '@/common/utils/semver.util';
+
+/**
+ * `SERVICE_DAY_BOUNDARY_05_FROM` — 비어 있거나, 파싱되는 시각이면서 **KST 시(hour)가 4가 아니어야** 한다.
+ * (`service-date.util.ts` 머리말 — 04:00~04:59 전환은 날짜가 거꾸로 간다.)
+ */
+@ValidatorConstraint({ name: 'serviceDayBoundarySwitch', async: false })
+export class ServiceDayBoundarySwitchConstraint implements ValidatorConstraintInterface {
+  validate(value: unknown): boolean {
+    if (value === undefined || value === null) return true;
+    if (typeof value !== 'string') return false;
+    const trimmed = value.trim();
+    if (trimmed === '') return true;
+    // 날짜만 적은 값은 거부한다 — `new Date('2026-10-14')`는 UTC 자정(KST 09:00)으로 조용히 해석된다
+    if (!/T\d{2}:\d{2}/.test(trimmed)) return false;
+    const parsed = new Date(trimmed);
+    if (Number.isNaN(parsed.getTime())) return false;
+    const kstHour = (parsed.getUTCHours() + 9) % 24;
+    return kstHour !== 4;
+  }
+
+  defaultMessage(): string {
+    return 'SERVICE_DAY_BOUNDARY_05_FROM must be an ISO 8601 datetime whose KST hour is not 04 (05:00 KST recommended)';
+  }
+}
 
 /**
  * 푸시 발송 구현(`notification.md` 4.3 — Expo Push, 결정 2026-09-17).
@@ -127,6 +154,31 @@ export class EnvironmentVariables {
   SLACK_SIGNUP_WEBHOOK_URL?: string;
 
   /**
+   * Sentry 레거시 웹훅 → Slack 릴레이의 주소 토큰(`modules/alert/sentry-webhook.*`, 2026-10-07) — **선택.**
+   * 비우면 `POST /webhooks/sentry/:token` 이 전부 404 로 꺼진다. 넣으면 Sentry Internal Integration(Alert Rule Action)의
+   * Webhook URL 에 `https://<api>/api/v1/webhooks/sentry/<이 값>` 을 등록한다. 서명 헤더가 없는 연동이라 토큰이 유일한
+   * 인증이다 — 16자 이상, URL 에 그대로 들어가므로 영숫자·`-`·`_` 만.
+   */
+  @ValidateIf((env: EnvironmentVariables) =>
+    Boolean(env.SENTRY_WEBHOOK_TOKEN?.trim()),
+  )
+  @Matches(/^[A-Za-z0-9_-]{16,128}$/, {
+    message:
+      'SENTRY_WEBHOOK_TOKEN must be 16-128 chars of [A-Za-z0-9_-] (URL path safe)',
+  })
+  SENTRY_WEBHOOK_TOKEN?: string;
+
+  /**
+   * Sentry Internal Integration 의 **Client Secret**(2026-10-07) — Sentry 가 웹훅마다 보내는 `Sentry-Hook-Signature`
+   * (본문의 HMAC-SHA256)를 이것으로 검증한다. 있으면 토큰 없는 주소 `POST /webhooks/sentry` 가 열린다.
+   * 경로 토큰 방식(`SENTRY_WEBHOOK_TOKEN`)은 비밀이 요청 로그에 남으므로 이쪽을 권한다 — 둘 다 있으면 어느 하나가
+   * 맞으면 받는다(주소 교체 기간). 둘 다 비면 중계가 꺼진다
+   */
+  @IsOptional()
+  @IsString()
+  SENTRY_WEBHOOK_SECRET?: string;
+
+  /**
    * 추천 테스트 콘솔(admin 웹 "추천 테스트" 탭)이 대신 행동하는 테스트 계정의 이메일 — **개발계 전용**.
    * 비우면 콘솔 엔드포인트가 409 로 꺼지고, `SENTRY_ENVIRONMENT=production` 이면 값이 있어도 꺼진다.
    * 행동 버튼은 실제 신호·라이브러리를 쓰므로 운영 DB 에는 절대 붙이지 않는다(`features/admin.md` 4.7).
@@ -183,6 +235,19 @@ export class EnvironmentVariables {
   SIGNUP_TRIAL_EXISTING_USERS_BEFORE?: string;
 
   /**
+   * 서비스 날짜 경계를 04:00 → 05:00 KST 로 옮기는 **시각**(ISO 8601, 예 `2026-10-14T05:00:00+09:00` —
+   * `domain.md` 1.2, KAN-149). 이 시각 전은 04:00 경계, 이 시각부터 05:00 경계로 계산한다. 비우면 04:00 그대로다.
+   *
+   * **KST 05:00 정각을 권장**하고, **KST 04:00~04:59 는 거부한다** — 그 구간에서는 옛 규칙이 "오늘", 새 규칙이
+   * "어제"라 서비스 날짜가 거꾸로 간다(한도 리셋이 두 번 보이고 통계 구간이 겹친다). 전환 시각은 약관 개정
+   * (KAN-148)에서 PM 이 정한다. 전환 전에 쓴 `users.trial_ends_at`(04:00 값)은 전환일에 +1시간 옮긴다
+   * (`infra/runbook.md` 4장).
+   */
+  @IsOptional()
+  @Validate(ServiceDayBoundarySwitchConstraint)
+  SERVICE_DAY_BOUNDARY_05_FROM?: string;
+
+  /**
    * App Store 인앱 결제 검증(`subscription-api.md` 7장 — KAN-106). **전부 선택이고, `APP_STORE_BUNDLE_ID`나
    * `APP_STORE_ENVIRONMENTS`가 비면 iOS 결제가 꺼진다**(결제 의도 생성이 `SUBSCRIPTION_PLAN_UNAVAILABLE`로
    * 막힌다 — 결제부터 시키고 검증을 못 하는 상태를 만들지 않는다).
@@ -201,12 +266,14 @@ export class EnvironmentVariables {
   APP_STORE_APP_APPLE_ID?: string;
 
   @IsOptional()
-  @Matches(/^((Production|Sandbox)(,(Production|Sandbox))?)?$/)
+  // 쉼표 앞뒤 공백을 허용한다 — `Production, Sandbox`로 적었다고 서버가 기동에 실패하지 않게(읽는 쪽이 다듬는다)
+  @Matches(/^\s*((Production|Sandbox)(\s*,\s*(Production|Sandbox))?)?\s*$/)
   APP_STORE_ENVIRONMENTS?: string;
 
   /**
-   * App Store Server API 키 — **만료 보정**(스토어에 구독의 현재 상태를 묻는 것)에만 쓴다. 영수증·알림 검증은
-   * 서명만으로 끝나 이 키가 없어도 된다. 셋 중 하나라도 비면 보정이 꺼지고 저장된 상태 그대로 응답한다.
+   * App Store Server API 키 — 스토어에 구독의 현재 상태를 묻는 두 곳(**만료 보정**, **처음 연결하는 구독의
+   * 상태 확인** — `subscription-api.md` 4.2·4.4)에 쓴다. 영수증·알림 검증은 서명만으로 끝나 이 키가 없어도 된다.
+   * 셋 중 하나라도 비면 둘 다 꺼진다.
    * 개인키(.p8)는 base64로 둔다(`CLOUDFRONT_PRIVATE_KEY_BASE64`와 같은 방식).
    */
   @IsOptional()

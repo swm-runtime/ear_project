@@ -92,7 +92,7 @@ export const PROFILE_COPY = {
     paymentIssue: '결제에 문제가 있어요',
     /**
      * 가입 체험 중인 무료 계정(profile-uiux.md 4.2 — 2026-10-05, KAN-119). 날짜는 서버 last_free_date —
-     * ends_at에서 계산하지 않는다(04시 경계는 서버 몫). 설정 구독 요약도 같은 문자열이다(settings-uiux.md 6장)
+     * ends_at에서 계산하지 않는다(05시 경계는 서버 몫). 설정 구독 요약도 같은 문자열이다(settings-uiux.md 6장)
      */
     trial: (lastFreeDate: string) => `무료 체험 중 · ${dateOnlyMonthDay(lastFreeDate)}까지 무제한`,
   },
@@ -103,7 +103,8 @@ export const PROFILE_COPY = {
    * 이후 한도 N은 서버 daily_play_limit_after — 2를 하드코딩하지 않는다. null이면 체험 뒤에도 무제한
    */
   signupTrialNotice: {
-    title: (lastFreeDate: string) => `${dateOnlyMonthDay(lastFreeDate)}까지 무제한으로 들을 수 있어요`,
+    title: (lastFreeDate: string) =>
+      `${dateOnlyMonthDay(lastFreeDate)}까지 무제한으로 들을 수 있어요`,
     body: (dailyPlayLimitAfter: number | null) =>
       dailyPlayLimitAfter === null
         ? '작은 선물을 준비했어요. 이후에도 지금처럼 제한 없이 들을 수 있어요.'
@@ -243,7 +244,7 @@ export const PROFILE_COPY = {
   cardA11y: (label: string, value: string, destination: string) =>
     `${label}, ${value}, ${destination}`,
   destinations: {
-    plan: '구독 관리 열기',
+    plan: '요금제 관리 열기',
     /* TODO(카피 미확정): 이메일 인증 화면 이름 확정 시 맞춘다 */
     email: '이메일 인증 열기',
     interest: '관심사 관리 열기',

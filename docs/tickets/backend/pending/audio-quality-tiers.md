@@ -111,3 +111,9 @@ ElevenLabs Pro 결제로 TTS 원본을 **무손실(PCM → WAV)**로 받을 수 
 - 완료 조건의 "갱신한 Budgets 임계값"은 WAV(전송량 4~8배) 전제에서 적은 것이다. FLAC 확정으로 전송량이 WAV 의 22%가 됐고, 지금 규모(하루 재생 약 20편 → 월 약 600회 × FLAC 완청 44MB ≈ **26GB**)는 CloudFront 무료 구간 1TB 의 3%다. 돈이 움직이지 않는 구간에 GB 예산을 하나 더 두는 것은 일을 위한 일이라 **`ear-monthly-10usd`($10) 그대로 둔다**(`infra/inventory.md`).
 - **다시 보는 조건**: 하루 재생이 200편(지금의 10배)을 넘거나 Pro 비율이 실측되는 시점. 그때 CloudFront `DataTransfer-Out-Bytes` 사용량 예산(월 1000GB, 실적 70%·예측 100% 알림)을 추가한다.
 - 이로써 완료 조건의 인프라 항목 중 **비용 추정·Budgets 는 닫혔고**, 남은 것은 ① FLAC 종단 업로드(KAN-142 산출물) ② FLAC 재생 시작 지연 LTE 실측(KAN-143 뒤) 둘이다. 둘 다 다른 파트 산출물 뒤에만 가능해 **티켓은 pending 유지**, 기한(10/9)을 넘기는 사유는 이것이다.
+
+### 2026-10-06 — 종단 업로드 확인(완료 조건) · 코덱 표기 보정 (박수헌 댓글 반영, PR `fix(be)/audio-probe-aac-codec`)
+
+- **완료 조건 "관리자 업로드 — 압축(m4a AAC 192k) + 무손실(FLAC) 종단" 충족** — 박수헌이 17:10~17:25 파이프라인 콘솔 [구형 전체 재발행]으로 서비스 중 40편을 재발행했다(파이프라인 웹 프록시 → Caddy → 운영 API). 운영 `content_audio_renditions`: compressed 40(.m4a, 192~193kbps · 44.1kHz · 2ch, 평균 25.7MB) · lossless 40(flac, 284~313kbps, 평균 39.6MB) · aac 0. 두 음질 길이 차 1초 초과 0건, `contents.audio_path` = compressed 행 40/40. "wav 는 400"은 파이프라인이 wav 를 보내지 않아 운영에서는 확인하지 않았다 — 단위 테스트로 고정돼 있다.
+- **코덱 표기 오류 보정**: 위 40편의 compressed 행 `codec`이 `mp3`로 적혔다. 원인은 `audio-probe.ts` `normalizeCodec`가 mpeg 를 aac 보다 먼저 봐서 m4a 의 "MPEG-4/AAC"를 mp3 로 분류한 것. aac(·flac)를 먼저 보게 고치고, 마이그레이션 `FixM4aRenditionCodec`으로 `codec = 'mp3' AND path LIKE '%.m4a'` 행을 `aac`로 바로잡았다. 재생에는 영향 없음(S3 Content-Type 은 확장자, codec 은 응답에 안 실림). `domain.md` 5.8 codec 값 설명을 `mp3 | aac | flac`으로 갱신.
+- **남은 완료 조건**: FLAC 재생 시작 지연 LTE 실측(KAN-143 앱 UI 뒤) **하나**.

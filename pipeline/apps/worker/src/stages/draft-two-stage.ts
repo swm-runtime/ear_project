@@ -279,6 +279,25 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
  * 임계값 근거(29편): 정리형 진행 턴 평균 29%(최대 56%) · "아니라" 편당 12.5회 · 사전 문형 2.2회 · "잠깐" 26편 · "○○님이라면" 28편 · 클로징 다짐형 24편 · "결국"/"이해하게 됩니다" 각 6·12편.
  * 지목한 턴을 메시지에 적는다 — 수정 호출은 최소 수정 원칙이라 턴을 지목해야 고친다(v8.3 뜸 교훈).
  */
+/**
+ * 비율 규칙 (2026-10-07 박수헌) — 편 전체에서 차지하는 비율로 판정하는 L0 3종. 지목한 턴만 고쳐서는 잘 풀리지 않아(고친 턴이 같은 갈래로 가거나 다른 턴이 늘어남)
+ * L0 수정 한도를 다 쓴 뒤 이것만 남으면 실패시키지 않고 QA 로 넘긴다. 메시지와 판별이 같은 문구를 쓰도록 상수로 둔다 — 문구를 바꾸면 판별도 함께 바뀐다
+ * "편 전체 N회 이하" 같은 횟수 상한(대조 문장·한계 고지·조건절 질문)은 비율이 아니다 — 한도 뒤에 남으면 실패
+ */
+export const RATIO_RULE_MARKS = ["셋 중 하나가 상한이다", "질문은 절반에서 3분의 2다", "같은 말끝은 질문의 5분의 2 이하다"] as const;
+export const isRatioViolation = (v: string): boolean => RATIO_RULE_MARKS.some((m) => v.includes(m));
+
+/** L0 수정 한도 (2026-10-07: 2 → 3) — QA 회차(qa.ts MAX_ATTEMPTS = QA 실행 3회, 실패 뒤 수정 2회)와 따로 센다 */
+export const L0_FIX_MAX = 3;
+export type L0Next = { action: "fix" } | { action: "fail"; hard: string[] } | { action: "pass"; residual: string[] };
+/** L0 위반이 있을 때 다음 동작 — 한도 전이면 수정, 한도 뒤에는 비율 위반만 남았으면 QA 로 넘기고(pass) 그 밖의 위반이 남았으면 실패(fail). 위반이 없으면 null */
+export function l0Next(violations: string[], l0Fixes: number): L0Next | null {
+  if (!violations.length) return null;
+  if (l0Fixes < L0_FIX_MAX) return { action: "fix" };
+  const hard = violations.filter((v) => !isRatioViolation(v));
+  return hard.length ? { action: "fail", hard } : { action: "pass", residual: violations };
+}
+
 export function v94Violations(turns: ScriptTurn[]): string[] {
   const v: string[] = [];
   const E = turns.filter((t) => t.id?.startsWith("E"));
@@ -294,7 +313,7 @@ export function v94Violations(turns: ScriptTurn[]): string[] {
     const over = summaryY.length - Math.floor(bodyY.length / 3) + 1;
     const step = summaryY.length / over;
     const picks = Array.from({ length: over }, (_, i) => summaryY[Math.min(summaryY.length - 1, Math.floor(i * step + step / 2))]).filter((t, i, arr) => arr.indexOf(t) === i);
-    v.push(`진행 턴 ${bodyY.length}개 중 ${summaryY.length}개가 물음표 없는 정리형("~네요"·"~군요"·"~로 들려요")으로 끝남 — 셋 중 하나가 상한이다. 다음 ${picks.length}개 턴을 전부 바꾼다: ${ids(picks, 12)}. 자기 처지에서의 느낌, 한두 마디 수긍, 이해가 막힌 자리의 되물음 가운데 하나로 — 앞 해설을 다시 정리하는 문장으로 바꾸지 않는다 (규칙 3·25)`);
+    v.push(`진행 턴 ${bodyY.length}개 중 ${summaryY.length}개가 물음표 없는 정리형("~네요"·"~군요"·"~로 들려요")으로 끝남 — ${RATIO_RULE_MARKS[0]}. 다음 ${picks.length}개 턴을 전부 바꾼다: ${ids(picks, 12)}. 자기 처지에서의 느낌, 한두 마디 수긍, 이해가 막힌 자리의 되물음 가운데 하나로 — 앞 해설을 다시 정리하는 문장으로 바꾸지 않는다 (규칙 3·25)`);
   }
   // 규칙 3: 진행자가 각주를 부르는 질문 — 청취자는 조사 기관·표본·척도·오차·통계 절차를 묻지 않는다
   const footnoteQ = bodyY.filter((t) => /\?/.test(t.text) && /(표본|응답률|척도|오차|조사 기관|조사 방식|조사 방법|대조군|통계적|통계 (절차|처리)|재현(됐|되|이)|인과(관계)?(를|가) (입증|확인|증명)|유의)/.test(t.text));
@@ -334,7 +353,7 @@ export function v94Violations(turns: ScriptTurn[]): string[] {
   if (bodyY.length >= 12 && questionY.length / bodyY.length > 0.7) {
     const over = questionY.length - Math.floor((bodyY.length * 2) / 3);
     const picks = questionY.filter((_, i) => i % 3 === 1).slice(0, Math.max(over, 1));
-    v.push(`진행 턴 ${bodyY.length}개 중 ${questionY.length}개가 질문 — 질문은 절반에서 3분의 2다. 이 가운데 ${over}개 이상을 자기 처지에서의 느낌이나 짧은 수긍으로 바꾼다(요약으로 바꾸지 않는다). 바꿀 턴: ${ids(picks, 10)} (규칙 3)`);
+    v.push(`진행 턴 ${bodyY.length}개 중 ${questionY.length}개가 질문 — ${RATIO_RULE_MARKS[1]}. 이 가운데 ${over}개 이상을 자기 처지에서의 느낌이나 짧은 수긍으로 바꾼다(요약으로 바꾸지 않는다). 바꿀 턴: ${ids(picks, 10)} (규칙 3)`);
   }
   // 규칙 3: 진행자가 한계·단서를 유도하는 질문 — 해설이 매 구간을 한계 고지로 닫게 만든다
   const leadRe = /(단정|일반화|확정|입증)[^?]{0,25}\?|그대로 (넓|적용|옮)[^?]{0,20}\?|(없겠죠|어렵겠죠|아니겠죠|문제겠죠|지나치겠네요|조심해야겠[죠네])\??/;
@@ -408,7 +427,7 @@ export function v98Violations(scriptMd: string, turns: ScriptTurn[]): string[] {
     const picks = Array.from({ length: over }, (_, i) => sameEnd[Math.min(sameEnd.length - 1, Math.floor(i * step + step / 2))]).filter((t, i, a) => a.indexOf(t) === i);
     // 피할 갈래: 지목한 턴이 모두 그 갈래로 가면 넘치는 갈래
     const full = [...byEnd.entries()].filter(([k, ts]) => k !== "기타" && ts.length + picks.length > capEnd).map(([k, ts]) => `${k} ${ts.length}개`).join(" · ");
-    v.push(`진행 질문 ${qY.length}개 중 ${sameEnd.length}개가 같은 말끝(${topEnd})으로 끝남 — 같은 말끝은 질문의 5분의 2 이하다. 다음 ${picks.length}개 턴의 묻는 말끝을 바꾼다: ${ids(picks, 10)}. 이미 많은 갈래(${full})가 아닌 말끝으로 바꾼다 (규칙 25)`);
+    v.push(`진행 질문 ${qY.length}개 중 ${sameEnd.length}개가 같은 말끝(${topEnd})으로 끝남 — ${RATIO_RULE_MARKS[2]}. 다음 ${picks.length}개 턴의 묻는 말끝을 바꾼다: ${ids(picks, 10)}. 이미 많은 갈래(${full})가 아닌 말끝으로 바꾼다 (규칙 25)`);
   }
   // 규칙 19·28 (v9.8.1, 2026-10-03): 진행자의 격식체 질문("~습니까?"·"~합니까?") — 말끝 쏠림 L0 가 "~나요"를 밀어내자 이리로 옮겨 갔다(T261002-001 Y3·Y13,
   // 002 Y9·Y16 — D1 동의 2건, 002 Y9 직접 수정 "있지 않습니까?" → "있지 않을까요?"). 진행자와 해설자는 같은 대화체다 — 전부 지목
@@ -426,6 +445,31 @@ export function v98Violations(scriptMd: string, turns: ScriptTurn[]): string[] {
  * 구조를 검사하고, 없으면(구 형식 산출물) 진행 턴 검사만 한다. 이름 검출은 sources.md 머리의 발행처·저자 원문 표기와 발음 맵의 한글 표기로 잰다 —
  * 못 잡는 이름이 있을 수는 있어도 잡힌 것은 확실하다(보수적).
  */
+/**
+ * 낯선 인명의 첫 등장 문장에 역할 소개가 없는 이름 — `이름@턴` 목록 (v9.7, 2026-10-01 — T260930-002 "서평자가 누구인지도 밝혀지지 않았는데 이름을 써버림").
+ * 저자 이름(소스 머리 byline)과 라틴 두 토큰 이름을 본다. 역할 낱말이 같은 문장이나 바로 앞 문장에 있으면 소개로 친다. 매체·기관명(발행처)은 대상이 아니다.
+ * 2026-10-07: 목록에 없던 직함("암호 해독가 Alan Turing"·"인쇄 기술자 Johannes Gutenberg")을 오탐해 두 편이 L0 수정 한도에서 멈췄다(T261007-002·003)
+ * — 이름 바로 앞 낱말이 직함 꼴(3자 이상, ~가·~자·~인·~사·~원·~관)이면 소개로 친다. 2자("그가"·"제가")는 대명사일 수 있어 목록으로만 본다
+ */
+const ROLE_RE = /(교수|학자|작가|기자|연구자|연구원|저자|서평자|서평|언론인|박사|대표|장관|의원|전문가|평론가|철학자|소설가|시인|감독|사업가|창업자|대통령|총리|장군|사학자|경제학자|심리학자|과학자|의사|변호사|판사|목사|신부|승려|화가|음악가|편집자|편집장|칼럼니스트|분석가|관리자|CEO|회장|사장|이사|교사|강사|활동가|정치인|외교관|관료|지도자|지휘관|왕|황제|여왕|왕비|장수|승상|재상|세자|기술자|해독가|발명가|엔지니어|개발자|설계자|건축가|탐험가|기업가|투자자|발행인|출판인|장인|선교사|수도사|선수|코치|사상가|이론가|번역가|역사가|비평가|디자이너|프로그래머)/;
+const TITLE_SUFFIX_RE = /(가|자|인|사|원|관)$/;
+export function unintroducedNames(turns: { id: string | null; text: string }[], sourcesMd: string): string[] {
+  const eText = turns.filter((t) => t.id?.startsWith("E")).map((t) => t.text).join("\n");
+  const persons = new Set<string>();
+  for (const m of sourcesMd.matchAll(/^## S\d+\.[^\n]*\n- URL:[^\n]*· 저자 ([^\n·]+)/gm)) for (const n of m[1].split(/,\s*/).map((x) => x.trim())) if (n.length >= 3 && !/^(staff|editor|editorial|admin|team)/i.test(n)) persons.add(n);
+  for (const m of eText.matchAll(/(?<![A-Za-z])([A-Z][A-Za-z.'-]+ [A-Z][A-Za-z.'-]+)(?![A-Za-z])/g)) persons.add(m[1]);
+  const noRole: string[] = [];
+  for (const n of persons) {
+    const t = turns.find((x) => x.id?.startsWith("E") && x.text.includes(n)); if (!t) continue;
+    const sents = t.text.split(/(?<=[.?!])\s+/); const i = sents.findIndex((x) => x.includes(n)); if (i < 0) continue;
+    const window = (i > 0 ? sents[i - 1] + " " : "") + sents[i];
+    const prevWord = sents[i].slice(0, sents[i].indexOf(n)).match(/([가-힣]+)\s*$/)?.[1] ?? "";
+    const titled = prevWord.length >= 3 && TITLE_SUFFIX_RE.test(prevWord);
+    if (!ROLE_RE.test(window) && !titled) noRole.push(`${n}@${t.id}`);
+  }
+  return noRole;
+}
+
 export function attributionViolations(scriptMd: string, turns: { id: string | null; text: string }[], opts: L0AttributionInput): string[] {
   const v: string[] = [];
   const yTurns = turns.filter((t) => t.id?.startsWith("Y"));
@@ -472,20 +516,9 @@ export function attributionViolations(scriptMd: string, turns: { id: string | nu
   const known = new Set<string>();
   for (const list of names.values()) for (const n of list) if (n.length >= 3) known.add(n);
   for (const n of known) { const c = countIn(eText, n); if (c >= 3) v.push(`"${n}" 이 해설 턴에서 ${c}회 — 이름은 소개 때 한 번, 이후는 지시어("이 사람"·"연구팀")로 잇는다 (규칙 21)`); }
-  // v9.7 (2026-10-01): 낯선 인명의 첫 등장 문장에 역할이 없다 — T260930-002 "서평자가 누구인지도 밝혀지지 않았는데 이름을 써버림". 저자 이름(소스 머리 byline)과 라틴 두 토큰 이름을 본다.
-  // 역할 낱말이 같은 문장이나 바로 앞 문장에 있으면 소개로 친다. 매체·기관명(발행처)은 대상이 아니다
+  // v9.7 (2026-10-01): 낯선 인명의 첫 등장 문장에 역할이 없다 — 판정은 unintroducedNames (아래, 테스트 대상)
   {
-    const roleRe = /(교수|학자|작가|기자|연구자|연구원|저자|서평자|서평|언론인|박사|대표|장관|의원|전문가|평론가|철학자|소설가|시인|감독|사업가|창업자|대통령|총리|장군|사학자|경제학자|심리학자|과학자|의사|변호사|판사|목사|신부|승려|화가|음악가|편집자|편집장|칼럼니스트|분석가|관리자|CEO|회장|사장|이사|교사|강사|활동가|정치인|외교관|관료|지도자|지휘관|왕|황제|여왕|왕비|장수|승상|재상|세자)/;
-    const persons = new Set<string>();
-    for (const m of sourcesMd.matchAll(/^## S\d+\.[^\n]*\n- URL:[^\n]*· 저자 ([^\n·]+)/gm)) for (const n of m[1].split(/,\s*/).map((x) => x.trim())) if (n.length >= 3 && !/^(staff|editor|editorial|admin|team)/i.test(n)) persons.add(n);
-    for (const m of eText.matchAll(/(?<![A-Za-z])([A-Z][A-Za-z.'-]+ [A-Z][A-Za-z.'-]+)(?![A-Za-z])/g)) persons.add(m[1]);
-    const noRole: string[] = [];
-    for (const n of persons) {
-      const t = turns.find((x) => x.id?.startsWith("E") && x.text.includes(n)); if (!t) continue;
-      const sents = t.text.split(/(?<=[.?!])\s+/); const i = sents.findIndex((x) => x.includes(n)); if (i < 0) continue;
-      const window = (i > 0 ? sents[i - 1] + " " : "") + sents[i];
-      if (!roleRe.test(window)) noRole.push(`${n}@${t.id}`);
-    }
+    const noRole = unintroducedNames(turns, sourcesMd);
     if (noRole.length) v.push(`이름 ${noRole.length}개가 첫 등장 문장에 역할 소개 없이 불림 (${noRole.slice(0, 5).join(", ")}) — 낯선 이름은 처음 부르는 문장에서 무엇을 하는 사람인지 밝힌다. 이름 자체가 정보가 아니면 익명("한 역사학자는")으로 (규칙 21)`);
   }
   // 소스 목록에 없는 이름 (규칙 21 — 001 "Knowable Magazine"): 라틴 문자 고유명(두 단어 이상)과 "X 라는 매체/곳/기관"이 sources.md·claims·발음 맵에 없으면 지어낸 것

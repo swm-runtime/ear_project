@@ -5,6 +5,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
 import { theme } from '@/shared/theme';
 import BottomSheet from '@/shared/ui/BottomSheet';
+import { pillButton } from '@/shared/ui/pill-button.styles';
 import { Text } from '@/shared/ui/Typography';
 
 import { PaywallPlansSection, useIsPurchaseInProgress } from '@/features/subscription';
@@ -97,7 +98,11 @@ export default function LimitNoticeSheet() {
         <PaywallPlansSection onEntitled={handleEntitled} onDelayed={hide} onEmailGate={suspend} />
       ) : null}
       <Pressable
-        style={[styles.button, showPlans ? styles.buttonSecondary : null]}
+        style={[
+          pillButton.base,
+          showPlans ? pillButton.secondary : pillButton.primary,
+          styles.button,
+        ]}
         onPress={requestClose}
         disabled={isPurchasing}
         accessibilityRole="button"
@@ -106,7 +111,7 @@ export default function LimitNoticeSheet() {
         }
         accessibilityState={{ disabled: isPurchasing }}
       >
-        <Text style={[styles.buttonLabel, showPlans ? styles.buttonLabelSecondary : null]}>
+        <Text style={showPlans ? pillButton.secondaryLabel : pillButton.primaryLabel}>
           {showPlans ? PLAYER_COPY.limitNotice.close : PLAYER_COPY.limitNotice.confirm}
         </Text>
       </Pressable>
@@ -182,26 +187,10 @@ const styles = StyleSheet.create({
     color: theme.color.textSecondary,
     textAlign: 'center',
   },
+  // 크기만 — 모양·색은 공용 알약(pillButton). 페이월의 [닫기]는 결제 버튼(검정)이 주 동작이라 보조 면으로 내린다
   button: {
     alignSelf: 'stretch',
     marginTop: theme.spacing.md,
     minHeight: theme.touchTarget.minHeight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.primary,
-  },
-  // 페이월의 [닫기] — 결제 버튼(검정)이 주 동작이라 보조 면으로 내린다
-  buttonSecondary: {
-    backgroundColor: theme.color.surface,
-  },
-  buttonLabel: {
-    fontSize: theme.font.size.md,
-    fontWeight: '600',
-    color: theme.color.onPrimary,
-  },
-  buttonLabelSecondary: {
-    color: theme.color.textPrimary,
   },
 });

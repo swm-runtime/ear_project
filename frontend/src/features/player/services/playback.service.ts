@@ -164,6 +164,7 @@ const initialSession = (request: StartPlaybackRequest): PlaybackSession => ({
   },
   libraryItem: null,
   hasScript: false,
+  sections: [],
   isPlaying: false,
   isBuffering: false,
   positionSec: 0,
@@ -318,6 +319,7 @@ class PlaybackService {
         },
         libraryItem: issue.libraryItem,
         hasScript: issue.hasScript,
+        sections: issue.sections,
         durationSec: issue.content.durationSec,
         positionSec: startPositionSec,
       });

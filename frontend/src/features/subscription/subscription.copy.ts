@@ -8,21 +8,26 @@ const monthDay = (iso: string): string => {
   return `${date.getMonth() + 1}월 ${date.getDate()}일`;
 };
 
+/** "로"/"으로" — 한글 마지막 글자에 받침이 있고 ㄹ 받침이 아니면 "으로". 영문·숫자는 "로"(Light·Daily·Pro 모두 "로") */
+const toParticle = (word: string): '로' | '으로' => {
+  const code = word.charCodeAt(word.length - 1) - 0xac00;
+  if (code < 0 || code > 11171) return '로';
+  const batchim = code % 28;
+  return batchim === 0 || batchim === 8 ? '로' : '으로';
+};
+
 export const SUBSCRIPTION_COPY = {
-  title: '구독 관리',
+  /** 화면 제목 — 설정의 진입 항목 이름과 같다(KAN-146, settings.copy sections.subscription) */
+  title: '요금제 관리',
   backA11y: '뒤로 가기',
   loadingA11y: '요금제를 불러오는 중',
 
-  /** SB1 현재 구독 카드 — 프로필·설정 플랜 줄과 같은 사실을 같은 톤으로(settings-uiux.md 4.1) */
+  /**
+   * SB1 현재 구독 정보 — 이용 중 카드 안에 들어간다(KAN-146). 프로필·설정 플랜 줄과 같은 사실을 같은 톤으로
+   * (settings-uiux.md 4.1). 무료 이용자는 이용 중 카드의 설명(서버 description)이 한도를 말하므로 따로 적지 않는다
+   */
   status: {
-    sectionTitle: '현재 구독',
     loadError: '구독 정보를 불러올 수 없어요',
-    free: '무료 이용 중',
-    /** N은 서버 daily_play_limit — 하드코딩하지 않는다(paywall.md 5장) */
-    freeLimit: (dailyPlayLimit: number | null) =>
-      dailyPlayLimit === null
-        ? '제한 없이 들을 수 있어요'
-        : `하루 ${dailyPlayLimit}편까지 들을 수 있어요`,
     renewsAt: (iso: string) => `다음 결제일 ${monthDay(iso)}`,
     /** 해지 예약 — 중립 톤. 사용자가 스스로 내린 결정이지 장애가 아니다 */
     cancelScheduled: (iso: string) => `${monthDay(iso)}까지 이용 가능해요`,
@@ -46,40 +51,59 @@ export const SUBSCRIPTION_COPY = {
     checkPayment: '결제 수단 확인',
   },
 
-  /** SB2 요금제 카드 */
+  /** SB2 요금제 카드 — 이름·설명은 서버 plans.name/description 그대로다(여기서 티어명을 만들지 않는다) */
   plans: {
-    sectionTitle: '요금제',
     freePrice: '무료',
     perMonth: (displayPrice: string) => `${displayPrice}/월`,
-    playLimit: (dailyPlayLimit: number | null) =>
-      dailyPlayLimit === null ? '무제한 듣기' : `하루 ${dailyPlayLimit}편 듣기`,
-    /** 하루 정규 편성 편수 — 사용자에게는 "이어 PICK"이다(settings.copy 의 알림 이름과 같은 말) */
-    dripCount: (count: number) => `이어 PICK 하루 ${count}편`,
-    ads: (adsEnabled: boolean) => (adsEnabled ? '광고 포함' : '광고 없음'),
     purchase: '구독하기',
     upgrade: '업그레이드',
     downgrade: '변경',
     current: '이용 중',
     downgradeHint: '다음 결제일부터 적용돼요',
-    cardA11y: (name: string, price: string, features: string) => `${name}, ${price}, ${features}`,
+    /**
+     * 카드 아래 버튼 하나 — 고른 요금제 이름을 붙인다("Daily 구독하기" · "Pro 업그레이드" · "Daily로 변경"). 이름은 서버 값이라
+     * 조사는 마지막 글자로 고른다(받침 있으면 "으로", 없거나 ㄹ 받침·영문이면 "로")
+     */
+    cta: (name: string, action: 'purchase' | 'upgrade' | 'downgrade') => {
+      if (action === 'purchase') return `${name} 구독하기`;
+      if (action === 'upgrade') return `${name} 업그레이드`;
+      return `${name}${toParticle(name)} 변경`;
+    },
+    /** 고를 수 있는 카드 묶음 — 스크린리더가 "요금제, 라디오 그룹"으로 읽는다 */
+    groupA11y: '요금제',
+    /** 카드 요약을 한 문장으로 — 이용 중이면 끝에 "이용 중"(색만으로 구분하지 않는다) */
+    cardA11y: (name: string, price: string, description: string, isCurrent: boolean) =>
+      [name, price, description, isCurrent ? '이용 중' : '']
+        .filter((part) => part !== '')
+        .join(', '),
   },
 
+  /** 구매 복원 — 맨 아래 약관 링크 줄의 세 번째 링크(KAN-146. 스토어 심사 3.1.1 — 항상 닿아야 한다) */
   restore: '구매 복원',
 
   /** 스토어 정책상 필수 표기(subscription.md 5장) — 자동 갱신 조건·갱신 시점·해지 방법·가격·기간·약관 링크 */
   legal: {
+    /**
+     * 자동 갱신 고지 — App Store 3.1.2(구매 확인 시 청구·자동 갱신·24시간 규칙·해지 방법) · 전자상거래법 자동갱신 고지.
+     * 가격·기간은 카드에 있다. PM 확정 2026-10-06(KAN-146) — 결제 주체 표기는 "App Store 결제"·"Google Play 결제".
+     * 한 줄씩 "·" 글머리 항목으로 그린다(SubscriptionLegalNotice)
+     */
     ios: [
-      '구독은 1개월 단위이며, 결제는 구매 확인 시 Apple 계정으로 청구돼요.',
-      '현재 기간이 끝나기 최소 24시간 전에 해지하지 않으면 같은 가격·기간으로 자동 갱신되고, 갱신 요금은 기간 종료 전 24시간 이내에 청구돼요.',
-      '해지는 [구독 해지] 또는 기기의 설정 > Apple 계정 > 구독에서 할 수 있어요. 해지해도 남은 기간이 끝날 때까지 이용할 수 있어요.',
+      '결제는 구매 확인 시 App Store 결제로 청구되며, 매월 자동 갱신돼요.',
+      '기간 종료 24시간 전까지 해지하지 않으면 종료 전 24시간 안에 같은 금액이 다시 청구돼요.',
+      '해지는 기기의 설정 › Apple 계정 › 구독에서 할 수 있어요.',
     ],
     android: [
-      '구독은 1개월 단위이며, 결제는 구매 확인 시 Google Play 계정으로 청구돼요.',
-      '해지하지 않으면 같은 가격·기간으로 매달 자동 갱신돼요.',
-      '해지는 [구독 해지] 또는 Google Play 스토어 > 결제 및 정기 결제에서 할 수 있어요. 해지해도 남은 기간이 끝날 때까지 이용할 수 있어요.',
+      '결제는 구매 확인 시 Google Play 결제로 청구되며, 매월 자동 갱신돼요.',
+      '다음 결제일 전까지 해지하지 않으면 같은 금액이 다시 청구돼요.',
+      '해지는 Google Play 스토어 › 결제 및 정기 결제에서 할 수 있어요.',
     ],
+    heading: '구독 유의사항',
+    bullet: '•',
     terms: '이용약관',
     privacy: '개인정보처리방침',
+    /** 링크 사이 구분점·안내 항목의 글머리 — 장식이라 낭독하지 않는다 */
+    separator: '·',
   },
 
   /** 진행 상태 */

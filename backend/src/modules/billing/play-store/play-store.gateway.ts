@@ -52,6 +52,8 @@ export interface PlayPurchase {
   environment: SubscriptionEnvironment;
   /** 아직 확인(acknowledge)하지 않은 구매인가 — 3일 안에 확인하지 않으면 Google이 자동 환불한다 */
   needsAcknowledge: boolean;
+  /** 이 결제 주기의 주문 ID(`latestOrderId`) — 갱신·재청구 성공마다 바뀐다. 응답에 없으면 `null` */
+  orderId: string | null;
 }
 
 /** Pub/Sub push가 실어 온 실시간 개발자 알림(RTDN) — 검증·해독을 마친 것 */

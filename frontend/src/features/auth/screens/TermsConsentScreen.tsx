@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '@/shared/theme';
 import CheckIcon from '@/shared/ui/CheckIcon';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
+import { pillButton } from '@/shared/ui/pill-button.styles';
 import { Text } from '@/shared/ui/Typography';
 
 import { AUTH_COPY } from '../auth.copy';
@@ -93,7 +94,12 @@ export default function TermsConsentScreen({ route, navigation }: TermsConsentSc
       </View>
 
       <Pressable
-        style={[styles.submit, !canSubmit && styles.submitDisabled]}
+        style={[
+          pillButton.base,
+          pillButton.primary,
+          styles.submit,
+          !canSubmit && styles.submitDisabled,
+        ]}
         disabled={!canSubmit || isSubmitting}
         onPress={handleSubmit}
         accessibilityRole="button"
@@ -187,12 +193,9 @@ const styles = StyleSheet.create({
     marginVertical: theme.spacing.sm,
   },
   /** 온보딩 진행 버튼과 같은 알약 — 라벨은 법적 명시라 아이콘화하지 않는다 */
+  // 크기만 — 모양·색은 공용 알약(pillButton)
   submit: {
     minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
-    borderRadius: theme.radius.full,
-    backgroundColor: theme.color.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
     marginBottom: theme.spacing.lg,
   },
   submitDisabled: {

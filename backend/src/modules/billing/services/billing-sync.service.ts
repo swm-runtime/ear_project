@@ -410,6 +410,7 @@ export class BillingSyncService {
           environment: transaction.environment,
           originalTransactionId: transaction.originalTransactionId,
           latestReceipt: transaction.receipt,
+          latestOrderId: transaction.orderId ?? null,
           ...decision.state,
           startedAt: transaction.originalPurchasedAt,
           lastNotifiedAt: notifiedAt,
@@ -466,6 +467,10 @@ export class BillingSyncService {
     if (decision.kind === 'apply') {
       assignState(subscription, decision.state);
       subscription.latestReceipt = transaction.receipt;
+      // Play만 값이 있다 — App Store 거래(undefined)는 건드리지 않는다
+      if (transaction.orderId !== undefined) {
+        subscription.latestOrderId = transaction.orderId;
+      }
       subscription.environment = transaction.environment;
     }
 
@@ -544,6 +549,7 @@ function toStoredState(subscription: Subscription): StoredSubscriptionState {
     pendingTier: subscription.pendingTier,
     lastNotifiedAt: subscription.lastNotifiedAt,
     latestReceipt: subscription.latestReceipt,
+    latestOrderId: subscription.latestOrderId,
   };
 }
 
