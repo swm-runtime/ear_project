@@ -212,6 +212,81 @@ describe('PlanList — 요금제 카드(KAN-146)', () => {
     act(() => renderer.unmount());
   });
 
+  describe('무료 요금제로 바꾸기(cancel — PM 2026-10-08)', () => {
+    const FREE_CANCEL = makeCard(
+      { tier: 'light', name: '가벼운', description: '하루 2편까지 들을 수 있어요', action: 'cancel' },
+      SUBSCRIPTION_COPY.plans.freePrice,
+    );
+    const PAID_DOWNGRADE = makeCard(
+      { tier: 'daily', name: '매일', storeProductId: 'daily.monthly', action: 'downgrade' },
+      '₩3,900',
+    );
+    const PRO_CURRENT = makeCard({ tier: 'pro', name: '무제한', action: 'current' }, '₩9,900');
+    const HINT = '지금 요금제는 10월 8일까지 이용할 수 있어요';
+
+    const renderManage = (onCancel = jest.fn(), onPurchase = jest.fn()) =>
+      render(
+        <PlanList
+          state={{
+            kind: 'ready',
+            cards: [FREE_CANCEL, PAID_DOWNGRADE, PRO_CURRENT],
+            isEmailVerified: true,
+          }}
+          isBusy={false}
+          purchasingPlanId={null}
+          onPurchase={onPurchase}
+          onCancel={onCancel}
+          cancelHint={HINT}
+          onRetry={jest.fn()}
+          isRetrying={false}
+        />,
+      );
+
+    it('기본 선택은 유료 카드다 — 무료로 바꾸기는 직접 골라야만 선택된다', () => {
+      // when
+      const renderer = renderManage();
+
+      // then
+      expect(radioOf(renderer, '매일').props.accessibilityState).toMatchObject({ selected: true });
+      expect(radioOf(renderer, '가벼운').props.accessibilityState).toMatchObject({
+        selected: false,
+      });
+      act(() => renderer.unmount());
+    });
+
+    it('무료 카드를 고르면 보조 버튼 "<이름>(으)로 변경"과 이용 기한 안내, 누르면 해지 경로(onCancel)를 연다', () => {
+      // given
+      const onCancel = jest.fn();
+      const onPurchase = jest.fn();
+      const renderer = renderManage(onCancel, onPurchase);
+
+      // when
+      act(() => (radioOf(renderer, '가벼운').props.onPress as () => void)());
+      const cta = ctaOf(renderer, '가벼운으로 변경');
+      act(() => (cta[0].props.onPress as () => void)());
+
+      // then
+      const style = flat(
+        (cta[0].props.style as (state: { pressed: boolean }) => unknown)({ pressed: false }),
+      );
+      expect(style.backgroundColor).toBe(theme.color.background);
+      expect(textNodes(renderer, HINT)).toHaveLength(1);
+      expect(onCancel).toHaveBeenCalledTimes(1);
+      expect(onPurchase).not.toHaveBeenCalled();
+      act(() => renderer.unmount());
+    });
+
+    it('해지 경로를 받지 않은 화면(페이월)에서는 무료 카드를 고를 수 없다', () => {
+      // when
+      const renderer = renderList([FREE_CANCEL, PAID_DOWNGRADE, PRO_CURRENT]);
+
+      // then
+      expect(radioOf(renderer, '가벼운')).toBeUndefined();
+      expect(ctaOf(renderer, '가벼운으로 변경')).toHaveLength(0);
+      act(() => renderer.unmount());
+    });
+  });
+
   it('조사는 이름 마지막 글자로 고른다 — 받침 없음·ㄹ 받침·영문은 "로"', () => {
     expect(SUBSCRIPTION_COPY.plans.cta('Daily', 'downgrade')).toBe('Daily로 변경');
     expect(SUBSCRIPTION_COPY.plans.cta('매일', 'downgrade')).toBe('매일로 변경');

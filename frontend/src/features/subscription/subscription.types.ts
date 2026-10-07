@@ -19,7 +19,7 @@ export interface Entitlements {
  * 요금제 하나에 대해 이 사용자가 할 수 있는 일 — **서버가 판정한다**(subscription-api.md 4.1).
  * 클라이언트는 티어 순서를 비교하지 않는다.
  */
-export type PlanAction = 'purchase' | 'current' | 'upgrade' | 'downgrade' | 'none';
+export type PlanAction = 'purchase' | 'current' | 'upgrade' | 'downgrade' | 'cancel' | 'none';
 
 export interface Plan {
   planId: string;

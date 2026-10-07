@@ -48,6 +48,18 @@ export default function SubscriptionScreen() {
   const hasCurrentCard =
     catalogState.kind === 'ready' &&
     catalogState.cards.some((card) => card.plan.action === 'current');
+  /**
+   * 서버가 해지 카드(`cancel` — 유료 구독자의 무료 요금제)를 줬는가 — 줬으면 해지는 "그 요금제로 변경"이 맡고 이용 중 카드의
+   * [구독 해지]를 뺀다(PM 2026-10-08). 안 줬으면(서버 반영 전) 종전대로 카드 안 버튼이 해지 경로다
+   */
+  const hasCancelCard =
+    catalogState.kind === 'ready' &&
+    catalogState.cards.some((card) => card.plan.action === 'cancel');
+  const status = screen.status;
+  const cancelHint =
+    status !== null && status.kind === 'subscribed' && status.renewsAt !== null
+      ? SUBSCRIPTION_COPY.status.cancelUntil(status.renewsAt)
+      : null;
   const renderDetail = (standalone: boolean) => (
     <CurrentSubscriptionDetail
       status={screen.status}
@@ -56,6 +68,7 @@ export default function SubscriptionScreen() {
       isRetrying={screen.isStatusRetrying}
       onOpenStore={screen.openStoreManagement}
       standalone={standalone}
+      hideCancel={hasCancelCard}
     />
   );
 
@@ -88,6 +101,8 @@ export default function SubscriptionScreen() {
           isBusy={flow.isBusy}
           purchasingPlanId={flow.purchasingPlanId}
           onPurchase={(plan) => void flow.purchase(plan)}
+          onCancel={screen.openStoreManagement}
+          cancelHint={cancelHint}
           onRetry={screen.catalog.retry}
           isRetrying={screen.catalog.isRetrying}
           currentDetail={renderDetail(false)}

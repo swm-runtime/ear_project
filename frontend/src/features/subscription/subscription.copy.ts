@@ -31,6 +31,8 @@ export const SUBSCRIPTION_COPY = {
     renewsAt: (iso: string) => `다음 결제일 ${monthDay(iso)}`,
     /** 해지 예약 — 중립 톤. 사용자가 스스로 내린 결정이지 장애가 아니다 */
     cancelScheduled: (iso: string) => `${monthDay(iso)}까지 이용 가능해요`,
+    /** 무료 요금제로 바꾸기(해지)를 골랐을 때 버튼 밑 안내 — 날짜는 서버의 다음 결제일(그날까지는 지금 요금제다) */
+    cancelUntil: (iso: string) => `지금 요금제는 ${monthDay(iso)}까지 이용할 수 있어요`,
     /** 결제 문제(유예) — 경고색을 쓰는 유일한 상태 */
     paymentIssueTitle: '결제에 문제가 있어요',
     paymentIssueBody: '결제 수단을 확인하지 않으면 구독이 종료될 수 있어요',
@@ -64,7 +66,7 @@ export const SUBSCRIPTION_COPY = {
      * 카드 아래 버튼 하나 — 고른 요금제 이름을 붙인다("Daily 구독하기" · "Pro 업그레이드" · "Daily로 변경"). 이름은 서버 값이라
      * 조사는 마지막 글자로 고른다(받침 있으면 "으로", 없거나 ㄹ 받침·영문이면 "로")
      */
-    cta: (name: string, action: 'purchase' | 'upgrade' | 'downgrade') => {
+    cta: (name: string, action: 'purchase' | 'upgrade' | 'downgrade' | 'cancel') => {
       if (action === 'purchase') return `${name} 구독하기`;
       if (action === 'upgrade') return `${name} 업그레이드`;
       return `${name}${toParticle(name)} 변경`;
