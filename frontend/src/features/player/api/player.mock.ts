@@ -185,9 +185,19 @@ export const getMockSourceUrl = (contentId: string): string | null =>
 
 /** 발급 응답의 구간 제목 대역(KAN-127) — 실서버는 대본 단락 제목이다(player-api.md 4.1) */
 const MOCK_SECTIONS = [
-  { start_sec: 0, title: '인트로', kind: 'intro' },
+  {
+    start_sec: 0,
+    title: '인트로',
+    kind: 'intro',
+    summary: '회의가 왜 늘 길어지는지, 오늘 이야기할 주제를 짚어 본다',
+  },
   { start_sec: 20, title: '도입', kind: 'lead' },
-  { start_sec: 75, title: '회의가 길어지는 진짜 이유', kind: 'body' },
+  {
+    start_sec: 75,
+    title: '회의가 길어지는 진짜 이유',
+    kind: 'body',
+    summary: '안건보다 결정권자가 불분명할 때 회의가 길어진다는 연구를 살펴본다',
+  },
   { start_sec: 190, title: '결정권자를 먼저 정하면 달라지는 것', kind: 'body' },
   { start_sec: 330, title: '15분 안에 끝내는 안건 정리법', kind: 'body' },
   { start_sec: 480, title: '마무리', kind: 'outro' },

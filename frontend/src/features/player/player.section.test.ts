@@ -4,9 +4,9 @@ import { PLAYER_COPY } from './player.copy';
 import { currentSectionOf, sectionDisplayOf } from './player.section';
 
 const SECTIONS = [
-  { startSec: 0, title: '인트로', kind: 'intro' as const },
-  { startSec: 20, title: '도입', kind: 'lead' as const },
-  { startSec: 75, title: '회의가 길어지는 진짜 이유', kind: 'body' as const },
+  { startSec: 0, title: '인트로', kind: 'intro' as const, summary: null },
+  { startSec: 20, title: '도입', kind: 'lead' as const, summary: null },
+  { startSec: 75, title: '회의가 길어지는 진짜 이유', kind: 'body' as const, summary: null },
 ];
 
 describe('currentSectionOf — 지금 듣는 구간(KAN-127)', () => {
@@ -22,36 +22,48 @@ describe('currentSectionOf — 지금 듣는 구간(KAN-127)', () => {
   });
 
   it('첫 구간 시작 전이면 null 이다', () => {
-    expect(currentSectionOf([{ startSec: 5, title: '도입', kind: null }], 2)).toBeNull();
+    expect(
+      currentSectionOf([{ startSec: 5, title: '도입', kind: null, summary: null }], 2),
+    ).toBeNull();
   });
 });
 
-describe('sectionDisplayOf — 구역 라벨(PM 2026-10-07)', () => {
+describe('sectionDisplayOf — 구역 이름 + 요약(PM 2026-10-07)', () => {
   const copy = PLAYER_COPY.screen;
+  const SUMMARY = '결정권자를 먼저 정하고 안건을 줄이면 회의가 절반으로 짧아진다';
 
-  it('본문 단락은 라벨 "본론" + 단락 제목이다', () => {
+  it('위는 구역 이름, 아래는 서버 요약이다', () => {
     expect(
-      sectionDisplayOf({ startSec: 75, title: '회의가 길어지는 진짜 이유', kind: 'body' }, copy),
-    ).toEqual({ label: '본론', title: '회의가 길어지는 진짜 이유' });
+      sectionDisplayOf(
+        { startSec: 75, title: '회의가 길어지는 진짜 이유', kind: 'body', summary: SUMMARY },
+        copy,
+      ),
+    ).toEqual({ heading: '본론', detail: SUMMARY });
+    expect(
+      sectionDisplayOf({ startSec: 0, title: '인트로', kind: 'intro', summary: SUMMARY }, copy)
+        .heading,
+    ).toBe('개요');
+    expect(
+      sectionDisplayOf({ startSec: 480, title: '마무리', kind: 'outro', summary: SUMMARY }, copy)
+        .heading,
+    ).toBe('결론');
   });
 
-  it('인트로·도입은 "개요", 마무리는 "결론" 한 줄이다(라벨 없음)', () => {
-    expect(sectionDisplayOf({ startSec: 0, title: '인트로', kind: 'intro' }, copy)).toEqual({
-      label: null,
-      title: '개요',
-    });
-    expect(sectionDisplayOf({ startSec: 20, title: '도입', kind: 'lead' }, copy).title).toBe(
-      '개요',
-    );
-    expect(sectionDisplayOf({ startSec: 480, title: '마무리', kind: 'outro' }, copy).title).toBe(
-      '결론',
-    );
+  it('요약이 없으면 서버 제목으로 대신한다 — 아래 칸이 비지 않는다', () => {
+    expect(
+      sectionDisplayOf({ startSec: 20, title: '도입', kind: 'lead', summary: null }, copy),
+    ).toEqual({ heading: '개요', detail: '도입' });
+    expect(
+      sectionDisplayOf(
+        { startSec: 75, title: '회의가 길어지는 진짜 이유', kind: 'body', summary: null },
+        copy,
+      ).detail,
+    ).toBe('회의가 길어지는 진짜 이유');
   });
 
-  it('서버가 구역을 안 실었으면 "지금 듣는 구간" + 서버 제목이다', () => {
-    expect(sectionDisplayOf({ startSec: 0, title: '본문', kind: null }, copy)).toEqual({
-      label: '지금 듣는 구간',
-      title: '본문',
-    });
+  it('서버가 구역을 안 실었으면 위 "지금 듣는 구간"이다', () => {
+    expect(
+      sectionDisplayOf({ startSec: 0, title: '본문', kind: null, summary: null }, copy),
+    ).toEqual({ heading: '지금 듣는 구간', detail: '본문' });
   });
 });

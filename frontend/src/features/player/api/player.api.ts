@@ -81,6 +81,7 @@ const toAudioIssueResult = (dto: AudioUrlsResponseDto): AudioIssueResult => ({
     startSec: section.start_sec,
     title: section.title,
     kind: toSectionKind(section.kind),
+    summary: section.summary?.trim() ? section.summary.trim() : null,
   })),
   libraryItem: dto.library_item
     ? { id: dto.library_item.id, status: dto.library_item.status }
