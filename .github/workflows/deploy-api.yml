@@ -299,6 +299,22 @@ jobs:
           HOST="$API_HOST" SECRET_ID="$API_SECRET_ID" HEALTH_URL="$API_HEALTH_URL" API_IMAGE="$API_IMAGE" \
             PEM=~/.ssh/ci_deploy_api bash backend/deploy/push.sh
 
+      # 2026-10-07 운영 장애(모든 JSON 요청 400) 뒤 추가. push.sh 의 헬스 확인은 GET /health 뿐이라 본문 파싱이 깨져도
+      # 통과했다. 로그인 경로에 JSON 본문을 보내 **서버가 본문을 읽었는지**를 본다 — 가짜 토큰이라 정답은 401 이고,
+      # 400 이면 본문이 비어 들어간 것(=장애), 5xx 면 서버 문제. 어느 쪽이든 런을 실패시켜 바로 눈에 띄게 한다
+      - name: 배포 후 스모크 — 로그인 경로가 본문을 읽는가
+        if: steps.guard.outputs.ready == 'true' && env.API_HEALTH_URL != ''
+        run: |
+          BASE="${API_HEALTH_URL%/health}"
+          for i in 1 2 3 4 5 6; do
+            STATUS=$(curl -s -o /tmp/smoke.json -w '%{http_code}' -m 10 -X POST "$BASE/auth/token/refresh" \
+              -H 'Content-Type: application/json' -d '{"refresh_token":"smoke","device_id":"ci-smoke"}' || echo 000)
+            if [ "$STATUS" = "401" ]; then echo "smoke ok — 401 $(cat /tmp/smoke.json | head -c 120)"; exit 0; fi
+            echo "attempt $i: HTTP $STATUS $(cat /tmp/smoke.json 2>/dev/null | head -c 160)"; sleep 10
+          done
+          echo "::error::배포 후 스모크 실패 — POST /auth/token/refresh 가 401 이 아니다(400 이면 본문 파싱이 깨진 것)"
+          exit 1
+
       - name: 실패 시 최근 로그 — 원인을 런에서 바로 본다
         if: failure()
         run: aws logs tail "${{ vars.LOG_GROUP_PREFIX || '/ear' }}/api" --since 10m --format short || echo "(로그 조회 실패 — 역할에 logs 읽기 권한이 없다)"
