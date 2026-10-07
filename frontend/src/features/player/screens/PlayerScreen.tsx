@@ -74,6 +74,7 @@ import {
 import { sleepTimerService } from '../services/sleep-timer.service';
 import { useMiniPlayerLayoutStore } from '../store/mini-player-layout.store';
 import { usePlayerOpenGestureStore } from '../store/player-open-gesture.store';
+import { useScrubPositionStore } from '../store/scrub-position.store';
 import { useSleepTimerStore } from '../store/sleep-timer.store';
 
 /**
@@ -92,6 +93,7 @@ export default function PlayerScreen() {
   const hasScript = session?.hasScript ?? false;
   // 재생 바를 구간별로 나눌 경계(애플 팟캐스트 챕터 바) — 구간이 바뀔 때만 새 배열이다
   const sections = session?.sections;
+  const setScrubSec = useScrubPositionStore((state) => state.setScrubSec);
   const chapterStartsSec = useMemo(
     () => (sections ?? []).map((section) => section.startSec),
     [sections],
@@ -1665,7 +1667,12 @@ export default function PlayerScreen() {
             accessibilityElementsHidden={isQueueOpen}
             importantForAccessibility={isQueueOpen ? 'no-hide-descendants' : 'auto'}
           >
-            <PlayerCurrentSection sections={session.sections} positionSec={session.positionSec} />
+            <PlayerCurrentSection
+              sections={session.sections}
+              positionSec={session.positionSec}
+              // 발급 응답 전(콘텐츠 버전 미상)이고 막히지 않았으면 아직 구간을 모른다 — 카드 자리를 먼저 잡는다
+              isLoading={session.meta.contentVersion === null && session.blocked === null}
+            />
           </Animated.View>
           <View>
             <Animated.View
@@ -1679,6 +1686,7 @@ export default function PlayerScreen() {
                 onSeekTo={screen.seekTo}
                 onTrackCenter={setSeekTrackCenter}
                 chapterStartsSec={chapterStartsSec}
+                onScrub={setScrubSec}
               />
             </Animated.View>
             <Animated.View
@@ -1692,6 +1700,7 @@ export default function PlayerScreen() {
                 onSeekTo={screen.seekTo}
                 tone="onImage"
                 chapterStartsSec={chapterStartsSec}
+                onScrub={setScrubSec}
               />
             </Animated.View>
           </View>

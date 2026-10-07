@@ -23,6 +23,8 @@ interface SeekBarProps {
   onTrackCenter?: (center: number) => void;
   /** 구간 시작 시각(초) — 있으면 바를 구간별 조각으로 나눈다(애플 팟캐스트 챕터 바). 경계가 없으면 한 줄 바 */
   chapterStartsSec?: readonly number[];
+  /** 끄는 동안 손가락 아래 위치(초), 놓으면 null — 구간 카드가 따라간다 */
+  onScrub?: (sec: number | null) => void;
 }
 
 /**
@@ -40,21 +42,48 @@ export default function SeekBar({
   tone = 'default',
   onTrackCenter,
   chapterStartsSec = NO_CHAPTERS,
+  onScrub,
 }: SeekBarProps) {
   const onImage = tone === 'onImage';
   const [trackWidth, setTrackWidth] = useState(0);
   const [dragPositionSec, setDragPositionSec] = useState<number | null>(null);
+  // 구간 틈은 잡는 순간 벌어지고, 놓은 뒤 CHAPTER_HOLD_MS 가 지나면 닫힌다(애플 팟캐스트 — 평소엔 이어진 한 줄 바)
+  const [isChapterOpen, setIsChapterOpen] = useState(false);
+  // 조각으로 그리는 중인가 — 틈이 다 닫히면 이어진 바 하나로 돌아간다(조각끼리 맞닿은 소수점 경계에 이음선이 비쳐서)
+  const [isSegmented, setIsSegmented] = useState(false);
+  const chapterTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (chapterTimerRef.current !== null) clearTimeout(chapterTimerRef.current);
+    },
+    [],
+  );
 
   // PanResponder 콜백은 생성 시점의 값을 캡처한다 — 최신 값은 ref로 읽고, 갱신은 렌더 밖에서 한다
   const stateRef = useRef({ trackWidth, durationSec, disabled });
   const onSeekToRef = useRef(onSeekTo);
+  const onScrubRef = useRef(onScrub);
   useEffect(() => {
     stateRef.current = { trackWidth, durationSec, disabled };
     onSeekToRef.current = onSeekTo;
+    onScrubRef.current = onScrub;
   });
 
   const panResponder = useMemo(() => {
     const dragRef = { current: null as number | null };
+    const openChapters = () => {
+      if (chapterTimerRef.current !== null) clearTimeout(chapterTimerRef.current);
+      chapterTimerRef.current = null;
+      setIsSegmented(true);
+      setIsChapterOpen(true);
+    };
+    const closeChaptersLater = () => {
+      if (chapterTimerRef.current !== null) clearTimeout(chapterTimerRef.current);
+      chapterTimerRef.current = setTimeout(() => {
+        chapterTimerRef.current = null;
+        setIsChapterOpen(false);
+      }, CHAPTER_HOLD_MS);
+    };
     const positionFromX = (x: number): number => {
       const { trackWidth: width, durationSec: duration } = stateRef.current;
       if (width <= 0 || duration <= 0) return 0;
@@ -70,20 +99,27 @@ export default function SeekBar({
         const next = positionFromX(event.nativeEvent.locationX);
         dragRef.current = next;
         setDragPositionSec(next);
+        onScrubRef.current?.(next);
+        openChapters();
       },
       onPanResponderMove: (event) => {
         const next = positionFromX(event.nativeEvent.locationX);
         dragRef.current = next;
         setDragPositionSec(next);
+        onScrubRef.current?.(next);
       },
       onPanResponderRelease: () => {
         if (dragRef.current !== null) onSeekToRef.current(dragRef.current);
         dragRef.current = null;
         setDragPositionSec(null);
+        onScrubRef.current?.(null);
+        closeChaptersLater();
       },
       onPanResponderTerminate: () => {
         dragRef.current = null;
         setDragPositionSec(null);
+        onScrubRef.current?.(null);
+        closeChaptersLater();
       },
     });
   }, []);
@@ -114,6 +150,25 @@ export default function SeekBar({
   });
   const ratio = durationSec > 0 ? Math.min(1, Math.max(0, displaySec / durationSec)) : 0;
   const segments = chapterSegmentsOf(chapterStartsSec, durationSec, displaySec);
+  // 틈 폭 — 레이아웃 값이라 JS 구동. 닫히면 조각들이 맞닿아 한 줄 바로 보인다(맞닿는 모서리는 직각)
+  const chapterGap = useAnimatedValue(0);
+  useEffect(() => {
+    const animation = Animated.timing(chapterGap, {
+      toValue: isChapterOpen ? CHAPTER_GAP : 0,
+      duration: CHAPTER_GAP_MS,
+      easing: motion.easing.easeOut,
+      useNativeDriver: false,
+    });
+    animation.start(({ finished }) => {
+      if (finished && !isChapterOpen) setIsSegmented(false);
+    });
+    return () => animation.stop();
+  }, [isChapterOpen, chapterGap]);
+  // 닫혀 있을 때 조각을 살짝 겹친다 — 소수점 폭이 맞닿으면 경계에 가는 이음선이 비친다
+  const chapterMargin = chapterGap.interpolate({
+    inputRange: [0, CHAPTER_GAP],
+    outputRange: [-CHAPTER_SEAM_OVERLAP, CHAPTER_GAP],
+  });
   const trackStyle = [
     styles.track,
     onImage && styles.trackOnImage,
@@ -167,8 +222,8 @@ export default function SeekBar({
             onTrackCenter?.(event.nativeEvent.layout.y + event.nativeEvent.layout.height / 2)
           }
         >
-          {segments.length > 0 ? (
-            // 구간마다 조각 하나 — 조각 사이 틈이 구간 경계다(애플 팟캐스트). 지난 조각은 꽉, 지금 조각은 비율만큼 찬다
+          {isSegmented && segments.length > 0 ? (
+            // 구간마다 조각 하나 — 잡았을 때 벌어지는 틈이 구간 경계다(애플 팟캐스트). 지난 조각은 꽉, 지금 조각은 비율만큼 찬다
             <View style={styles.chapterRow}>
               {segments.map((segment, index) => (
                 <Animated.View
@@ -176,7 +231,7 @@ export default function SeekBar({
                   style={[
                     trackStyle,
                     segmentCorners(index, segments.length),
-                    { flex: segment.share },
+                    { flex: segment.share, marginLeft: index === 0 ? 0 : chapterMargin },
                   ]}
                 >
                   <Animated.View style={[fillStyle, { width: `${segment.fill * 100}%` }]} />
@@ -210,8 +265,14 @@ const TRACK_HEIGHT_ACTIVE = 12;
 const TRACK_SHRINK_MS = 160;
 /** 바(가장 굵을 때 기준)와 시간 숫자 사이 */
 const TIME_GAP = 6;
-/** 구간 조각 사이 틈 */
+/** 구간 조각 사이 틈 — 잡았을 때만 벌어진다 */
 const CHAPTER_GAP = 3;
+/** 닫힌 조각끼리 겹치는 폭 — 이음선 감춤 */
+const CHAPTER_SEAM_OVERLAP = 1;
+/** 놓은 뒤 틈이 닫히기까지 */
+const CHAPTER_HOLD_MS = 2000;
+/** 틈이 벌어지고 닫히는 시간 */
+const CHAPTER_GAP_MS = 220;
 const NO_CHAPTERS: readonly number[] = [];
 /*
  * 사진 위(재생 목록 열림) 트랙 — 선이 사진 밑변에 걸쳐 위 절반은 사진, 아래 절반은 플레이어의 검정 바탕이다.
@@ -233,7 +294,6 @@ const styles = StyleSheet.create({
   chapterRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: CHAPTER_GAP,
   },
   track: {
     overflow: 'hidden',
