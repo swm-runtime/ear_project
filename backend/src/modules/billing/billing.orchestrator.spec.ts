@@ -1042,6 +1042,25 @@ describe('끝난 구독의 재결제 — 다른 계정이 넘겨받는다(7장 �
     expect(world.users.get(USER)!.tier).toBe(UserTier.LIGHT);
   });
 
+  it('넘겨받기가 거절된 알림(끝난 채로 남는 반영)은 새 계정의 결제 의도를 확인된 것으로 찍지 않는다', async () => {
+    const { world, notify } = await setupExpiredOwnedByOther();
+
+    // USER 의 토큰이 실린 만료 알림 — 구독을 되살리지 않으므로 행은 OTHER 의 것 그대로다
+    await notify(
+      {
+        id: 'n-expired-again',
+        type: 'EXPIRED',
+        transaction: { ...REPURCHASE, accountToken: INTENT_A },
+      },
+      AFTER_EXPIRY,
+    );
+
+    expect(world.subscriptions[0].userId).toBe(OTHER);
+    expect(world.intents.find((intent) => intent.id === INTENT_A)!.status).toBe(
+      PurchaseIntentStatus.CREATED,
+    );
+  });
+
   it('예전 계정의 것으로 다시 결제된 알림은 예전 계정에 반영한다', async () => {
     const { world, notify } = await setupExpiredOwnedByOther();
 
@@ -1208,6 +1227,35 @@ describe('처음 연결하는 구독은 Apple에 지금 상태를 묻는다(4.4-
 
     expect(world.subscriptions[0].status).toBe(SubscriptionStatus.ACTIVE);
     expect(world.users.get(USER)!.tier).toBe(UserTier.PRO);
+  });
+
+  it('Apple 답의 거래가 제출된 거래와 다른 계정 토큰이면 그 답으로 반영하지 않고 거래로 연결한다 — 주인 확인은 제출 거래로 했다', async () => {
+    const { world, purchase } = setup();
+
+    world.addIntent(USER, INTENT_A);
+    world.addIntent(OTHER, INTENT_B);
+    // Apple 은 유효(해지 예약)라 답하지만 그 거래에는 다른 계정의 토큰이 실려 있다
+    world.gateway.statuses.set('otx-1', {
+      status: 'active',
+      transaction: buildTransaction({ ...THIS_PERIOD, accountToken: INTENT_B }),
+      renewal: {
+        isAutoRenew: false,
+        autoRenewProductId: PRODUCT_PRO,
+        gracePeriodExpiresAt: null,
+      },
+    });
+
+    await purchase(signTransaction({ ...THIS_PERIOD, accountToken: INTENT_A }));
+
+    // 스냅샷(해지 예약)이 아니라 제출 거래(자동 갱신)로 연결됐다
+    expect(world.subscriptions[0]).toMatchObject({
+      userId: USER,
+      status: SubscriptionStatus.ACTIVE,
+      isAutoRenew: true,
+    });
+    expect(world.intents.find((intent) => intent.id === INTENT_A)!.status).toBe(
+      PurchaseIntentStatus.VERIFIED,
+    );
   });
 
   it('이미 연결된 살아 있는 구독은 다시 묻지 않는다 — 환불·해지는 알림으로 들어온다', async () => {

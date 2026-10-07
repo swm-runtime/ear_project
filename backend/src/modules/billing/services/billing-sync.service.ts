@@ -192,8 +192,10 @@ export class BillingSyncService {
       input.signedAt,
     );
 
+    // 반영된 것이 없으면(끝난 구독의 넘겨받기 거절 등) 의도도 확인된 것이 아니다(2026-10-07)
     if (
       transaction.accountToken !== null &&
+      outcome.kind !== 'ignored' &&
       (existing === null || existing.userId !== userId)
     ) {
       await this.markIntentVerified(userId, transaction.accountToken, manager);

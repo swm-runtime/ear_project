@@ -439,6 +439,20 @@ export class BillingOrchestrator {
       return null;
     }
 
+    // 주인 확인은 제출된 거래의 계정 토큰으로 했다 — Apple 답의 거래가 다른 토큰(또는 없음)이면 그 답으로 반영하지
+    // 않고 제출된 거래로 판정한다(2026-10-07). 확인한 거래와 반영하는 거래가 달라지면 주인 확인이 무의미해진다
+    if (
+      status !== null &&
+      status.transaction.accountToken !== transaction.accountToken
+    ) {
+      this.logger.warn('store status carries a different account token', {
+        original_transaction_id: transaction.originalTransactionId,
+        environment: transaction.environment,
+      });
+
+      return null;
+    }
+
     return status;
   }
 
