@@ -137,6 +137,11 @@ export const SUBSCRIPTION_COPY = {
     storeMismatch: '다른 스토어에서 구독 중이에요. 구독한 기기에서 변경해주세요',
     receiptInvalid: '구독을 확인할 수 없어요. 문의하기로 알려 주시면 확인해 드릴게요',
     ownedByAnotherAccount: '이미 다른 계정에서 사용 중인 구독이에요',
+    /** Play 두 번째 구독 409(subscription-api.md 5장 표 문구 그대로) */
+    alreadySubscribed: '이미 구독 중이에요. 요금제는 변경으로 바꿔주세요',
+    /** Android 요금제 변경 — 바꿀 지금 구독이 이 기기의 Google 계정에 없다(교체 없이 결제하면 두 번째 구독이 된다) */
+    replaceSourceMissing:
+      '지금 구독을 이 기기에서 찾을 수 없어요. 구독한 Google 계정으로 다시 시도해주세요',
     storeUnavailable: '지금은 결제를 진행할 수 없어요. 잠시 후 다시 시도해주세요',
     network: '네트워크 연결을 확인해주세요',
     unknown: '결제를 완료하지 못했어요. 잠시 후 다시 시도해주세요',

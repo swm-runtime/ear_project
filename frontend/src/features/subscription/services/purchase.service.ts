@@ -27,6 +27,7 @@ import {
   StoreError,
   toStoreError,
   type IapAdapter,
+  type ReplaceSubscription,
   type StoreProduct,
   type StorePurchase,
 } from './iap-adapter';
@@ -46,6 +47,10 @@ export type PurchaseFailure =
   | 'storeMismatch'
   | 'receiptInvalid'
   | 'ownedByAnotherAccount'
+  /** Play 두 번째 구독(409) — 교체 없이 결제됐다 */
+  | 'alreadySubscribed'
+  /** Android 요금제 변경인데 바꿀 지금 구독이 기기에 없다 — 결제 시트를 열지 않는다 */
+  | 'replaceSourceMissing'
   | 'storeUnavailable'
   | 'network'
   | 'unknown';
@@ -137,6 +142,8 @@ const toFailure = (error: unknown): PurchaseFailure => {
       return 'receiptInvalid';
     case ERROR_CODES.SUBSCRIPTION_OWNED_BY_ANOTHER_ACCOUNT:
       return 'ownedByAnotherAccount';
+    case ERROR_CODES.SUBSCRIPTION_ALREADY_SUBSCRIBED:
+      return 'alreadySubscribed';
     case ERROR_CODES.SUBSCRIPTION_STORE_UNAVAILABLE:
       return 'storeUnavailable';
     case ERROR_CODES.NETWORK_ERROR:
@@ -378,6 +385,33 @@ export const createPurchaseService = (deps: PurchaseServiceDeps) => {
           return { kind: 'failed', reason: toFailure(toStoreError(error)) };
         }
 
+        /*
+         * Android 요금제 변경 — 지금 구독을 **교체**한다(KAN-158). Pro·Daily 는 Play 에서 독립 정기 결제라 교체 정보 없이
+         * 사면 두 번째 구독이 생기고 서버가 409 로 거부한다(Google 이 3일 뒤 자동 환불). 지금 구독의 토큰은 서버에 없어
+         * 기기에서 찾는다 — 없으면 시트를 열지 않는다. 방식은 서버가 준 action 으로 고른다(티어 순서를 비교하지 않는다):
+         * upgrade = 즉시 + 비례 정산, downgrade = 다음 갱신부터. iOS 는 구독 그룹이 알아서 바꾼다
+         */
+        let replace: ReplaceSubscription | undefined;
+        if (
+          deps.platform === 'android' &&
+          (plan.action === 'upgrade' || plan.action === 'downgrade')
+        ) {
+          let source: StorePurchase | null;
+          try {
+            source = await deps.adapter.findReplaceable(intent.storeProductId);
+          } catch (error) {
+            return { kind: 'failed', reason: toFailure(toStoreError(error)) };
+          }
+          if (source === null || source.token === null) {
+            return { kind: 'failed', reason: 'replaceSourceMissing' };
+          }
+          replace = {
+            purchaseToken: source.token,
+            oldProductId: source.productId,
+            mode: plan.action === 'upgrade' ? 'chargeProrated' : 'deferred',
+          };
+        }
+
         const outcome = new Promise<PurchaseOutcome>((resolve) => {
           activeAttempt = { productId: intent.storeProductId, intentId: intent.intentId, resolve };
         });
@@ -387,6 +421,7 @@ export const createPurchaseService = (deps: PurchaseServiceDeps) => {
           const purchases = await deps.adapter.requestSubscription({
             productId: intent.storeProductId,
             accountToken: intent.accountToken,
+            replace,
           });
           // 결과가 바로 왔으면(iOS) 그 거래로 확정한다. 리스너가 같은 거래를 또 들고 와도 한 번만 제출된다
           const purchase = purchases.find((p) => p.productId === intent.storeProductId);

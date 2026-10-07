@@ -31,6 +31,10 @@ export const failureMessage = (reason: PurchaseFailure): string => {
       return SUBSCRIPTION_COPY.error.receiptInvalid;
     case 'ownedByAnotherAccount':
       return SUBSCRIPTION_COPY.error.ownedByAnotherAccount;
+    case 'alreadySubscribed':
+      return SUBSCRIPTION_COPY.error.alreadySubscribed;
+    case 'replaceSourceMissing':
+      return SUBSCRIPTION_COPY.error.replaceSourceMissing;
     case 'storeUnavailable':
       return SUBSCRIPTION_COPY.error.storeUnavailable;
     case 'network':

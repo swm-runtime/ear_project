@@ -18,6 +18,7 @@ import {
   requestPurchase,
   syncIOS,
   type Purchase,
+  type SubscriptionReplacementModeAndroid,
 } from 'expo-iap';
 
 import { logger } from '@/shared/lib/logger';
@@ -57,6 +58,17 @@ export class StoreError extends Error {
   }
 }
 
+/**
+ * Android 요금제 변경의 교체 입력(KAN-158) — 지금 구독의 구매 토큰·상품과 방식. Google 이 새 구매에
+ * `linkedPurchaseToken` 을 붙여 서버가 같은 구독 행에 잇는다(subscription-api.md 4.4)
+ */
+export interface ReplaceSubscription {
+  purchaseToken: string;
+  oldProductId: string;
+  /** chargeProrated = 즉시 적용 + 남은 기간 비례 정산(업그레이드) · deferred = 다음 갱신부터(다운그레이드) */
+  mode: 'chargeProrated' | 'deferred';
+}
+
 export interface IapAdapter {
   connect(): Promise<void>;
   fetchSubscriptions(productIds: string[]): Promise<StoreProduct[]>;
@@ -64,7 +76,17 @@ export interface IapAdapter {
    * 결제 시트를 연다. 결과가 바로 오면 돌려주고, 리스너로만 오면(Android) 빈 배열이다.
    * 사용자 취소·결제 대기 등은 StoreError 로 던진다.
    */
-  requestSubscription(input: { productId: string; accountToken: string }): Promise<StorePurchase[]>;
+  requestSubscription(input: {
+    productId: string;
+    accountToken: string;
+    /** Android 요금제 변경에만 — iOS 는 무시한다(구독 그룹이 교체한다) */
+    replace?: ReplaceSubscription;
+  }): Promise<StorePurchase[]>;
+  /**
+   * Android — 교체할 지금 구독. 기기의 Play 구매 중 확인(acknowledge)된 것, 결제 대상과 다른 상품. 없으면 null.
+   * 확인되지 않은 구매(서버가 거부한 두 번째 구독 — 곧 자동 환불)는 고르지 않는다. iOS 는 늘 null
+   */
+  findReplaceable(targetProductId: string): Promise<StorePurchase | null>;
   /** iOS 거래 종료 — **서버가 200 을 준 뒤에만** 부른다. Android 에서는 부르지 않는다(확인은 서버 몫) */
   finish(purchase: StorePurchase): Promise<void>;
   /** 끝나지 않은 거래 — 앱 실행·포그라운드 복귀 때 서버에 제출한다 */
@@ -112,6 +134,12 @@ const toStorePurchase = (purchase: Purchase): StorePurchase => ({
   raw: purchase,
 });
 
+/** 교체 방식 → Play Billing 값(expo-iap 문자열) */
+const REPLACEMENT_MODE = {
+  chargeProrated: 'charge-prorated-price',
+  deferred: 'deferred',
+} as const satisfies Record<ReplaceSubscription['mode'], SubscriptionReplacementModeAndroid>;
+
 const isUnacknowledgedAndroid = (purchase: Purchase): boolean =>
   'isAcknowledgedAndroid' in purchase && purchase.isAcknowledgedAndroid === false;
 
@@ -142,7 +170,7 @@ export const createExpoIapAdapter = (platform: PurchasePlatform): IapAdapter => 
     }
   },
 
-  requestSubscription: async ({ productId, accountToken }) => {
+  requestSubscription: async ({ productId, accountToken, replace }) => {
     try {
       const result = await requestPurchase({
         type: 'subs',
@@ -150,13 +178,43 @@ export const createExpoIapAdapter = (platform: PurchasePlatform): IapAdapter => 
           platform === 'ios'
             ? // 계정 결속 토큰 — 서명 거래 안에 담겨 돌아와 서버가 거래의 주인을 확인한다(subscription-api.md 7장)
               { apple: { sku: productId, appAccountToken: accountToken } }
-            : { google: { skus: [productId], obfuscatedAccountId: accountToken } },
+            : {
+                google: {
+                  skus: [productId],
+                  obfuscatedAccountId: accountToken,
+                  // 요금제 변경 — 지금 구독 토큰 + 상품 단위 교체(expo-iap 5.8 · Play Billing 8.1). 없으면 새 구독
+                  ...(replace
+                    ? {
+                        purchaseToken: replace.purchaseToken,
+                        subscriptionProductReplacementParams: {
+                          oldProductId: replace.oldProductId,
+                          replacementMode: REPLACEMENT_MODE[replace.mode],
+                        },
+                      }
+                    : {}),
+                },
+              },
       });
       if (result === null) return [];
       return (Array.isArray(result) ? result : [result]).map(toStorePurchase);
     } catch (error) {
       throw toStoreError(error);
     }
+  },
+
+  findReplaceable: async (targetProductId) => {
+    if (platform === 'ios') return null;
+    const candidates = (await getAvailablePurchases()).filter(
+      (purchase) =>
+        purchase.productId !== targetProductId &&
+        purchase.purchaseState === 'purchased' &&
+        !isUnacknowledgedAndroid(purchase) &&
+        typeof purchase.purchaseToken === 'string',
+    );
+    if (candidates.length > 1) {
+      logger.warn('[subscription] several replaceable play subscriptions', candidates.length);
+    }
+    return candidates.length > 0 ? toStorePurchase(candidates[0]) : null;
   },
 
   finish: async (purchase) => {

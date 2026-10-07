@@ -76,6 +76,7 @@ const createHarness = (platform: PurchasePlatform = 'ios') => {
     finish: jest.fn<IapAdapter['finish']>().mockResolvedValue(undefined),
     getUnfinished: jest.fn<IapAdapter['getUnfinished']>().mockResolvedValue([]),
     getActiveForRestore: jest.fn<IapAdapter['getActiveForRestore']>().mockResolvedValue([]),
+    findReplaceable: jest.fn<IapAdapter['findReplaceable']>().mockResolvedValue(null),
     onPurchaseUpdated: jest.fn((listener: (purchase: StorePurchase) => void) => {
       updatedListener = listener;
       return () => {
@@ -414,6 +415,114 @@ describe('PurchaseService', () => {
       // then
       expect(outcome).toEqual({ kind: 'cancelled' });
       expect(h.api.submit).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Android 요금제 변경 — 지금 구독을 교체한다(KAN-158)', () => {
+    const CURRENT_DAILY = purchaseOf({
+      transactionId: 'tx-daily',
+      productId: 'com.runtime.ear.subscription.daily.monthly',
+      token: 'daily-token',
+    });
+
+    beforeEach(() => {
+      h = createHarness('android');
+    });
+
+    const resolveByListener = () =>
+      h.adapter.requestSubscription.mockImplementation(async () => {
+        setTimeout(() => h.emitUpdated(purchaseOf({ token: 'play-token' })), 0);
+        return [];
+      });
+
+    it('업그레이드는 지금 구독 토큰을 넘겨 즉시 + 비례 정산으로 교체한다', async () => {
+      // given
+      await h.service.start();
+      h.adapter.findReplaceable.mockResolvedValue(CURRENT_DAILY);
+      resolveByListener();
+
+      // when
+      const outcome = await h.service.purchase({ ...PRO_PLAN, action: 'upgrade' }, 'settings');
+
+      // then
+      expect(h.adapter.findReplaceable).toHaveBeenCalledWith(INTENT.storeProductId);
+      expect(h.adapter.requestSubscription).toHaveBeenCalledWith({
+        productId: INTENT.storeProductId,
+        accountToken: 'intent-1',
+        replace: {
+          purchaseToken: 'daily-token',
+          oldProductId: CURRENT_DAILY.productId,
+          mode: 'chargeProrated',
+        },
+      });
+      expect(outcome.kind).toBe('success');
+    });
+
+    it('다운그레이드는 다음 갱신부터(deferred)로 교체한다', async () => {
+      // given
+      await h.service.start();
+      h.adapter.findReplaceable.mockResolvedValue(CURRENT_DAILY);
+      resolveByListener();
+
+      // when
+      await h.service.purchase({ ...PRO_PLAN, action: 'downgrade' }, 'settings');
+
+      // then
+      expect(h.adapter.requestSubscription).toHaveBeenCalledWith(
+        expect.objectContaining({ replace: expect.objectContaining({ mode: 'deferred' }) }),
+      );
+    });
+
+    it('바꿀 지금 구독이 기기에 없으면 결제 시트를 열지 않는다 — 두 번째 구독을 만들지 않는다', async () => {
+      // given
+      await h.service.start();
+      h.adapter.findReplaceable.mockResolvedValue(null);
+
+      // when
+      const outcome = await h.service.purchase({ ...PRO_PLAN, action: 'upgrade' }, 'settings');
+
+      // then
+      expect(outcome).toEqual({ kind: 'failed', reason: 'replaceSourceMissing' });
+      expect(h.adapter.requestSubscription).not.toHaveBeenCalled();
+    });
+
+    it('새 구독(purchase)은 교체 없이 결제한다', async () => {
+      // given
+      await h.service.start();
+      resolveByListener();
+
+      // when
+      await h.service.purchase(PRO_PLAN, 'paywall');
+
+      // then
+      expect(h.adapter.findReplaceable).not.toHaveBeenCalled();
+      expect(h.adapter.requestSubscription.mock.calls[0][0].replace).toBeUndefined();
+    });
+
+    it('서버가 두 번째 구독(SUBSCRIPTION_ALREADY_SUBSCRIBED)으로 거부하면 alreadySubscribed 다 — "결제 실패"가 아니다', async () => {
+      // given
+      await h.service.start();
+      resolveByListener();
+      h.api.submit.mockRejectedValue(apiError(ERROR_CODES.SUBSCRIPTION_ALREADY_SUBSCRIBED));
+
+      // when
+      const outcome = await h.service.purchase(PRO_PLAN, 'paywall');
+
+      // then
+      expect(outcome).toEqual({ kind: 'failed', reason: 'alreadySubscribed' });
+      expect(h.adapter.finish).not.toHaveBeenCalled();
+    });
+
+    it('iOS 는 요금제 변경이어도 교체 입력을 만들지 않는다 — 구독 그룹이 바꾼다', async () => {
+      // given
+      h = createHarness('ios');
+
+      // when
+      await h.service.purchase({ ...PRO_PLAN, action: 'upgrade' }, 'settings');
+
+      // then
+      expect(h.adapter.findReplaceable).not.toHaveBeenCalled();
+      expect(h.adapter.requestSubscription.mock.calls[0][0].replace).toBeUndefined();
     });
   });
 
