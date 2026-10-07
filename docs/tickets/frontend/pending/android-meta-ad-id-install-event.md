@@ -95,3 +95,10 @@
   - 완료 조건 2: 묶음 빌드의 실제 `Info.plist` 로 iOS false·ATT 설명문 없음을 다시 본다(이번엔 introspect 로만 확인).
   - 완료 조건 3: 공개된 Android 빌드를 새로 설치해 이벤트 관리자 테스트 이벤트로 첫 실행 이벤트 확인.
   - 완료 조건 4: 프로덕션 공개일 — PM 결정에 따른다.
+
+### 2026-10-07 — 개발계 rt 32 빌드 산출물 확인 (완료 조건 1·2, 개발계 기준)
+
+- **Android** — Actions run 37600303674(`dev-app-build`, `e4b82d8f`)의 `ear-preview.aab`(`dev.runtime.ear` 1.2.0 vc 32)를 `bundletool dump manifest` 로 봤다: `uses-permission com.google.android.gms.permission.AD_ID` **있음**(+ `ACCESS_ADSERVICES_AD_ID`), `meta-data com.facebook.sdk.AdvertiserIDCollectionEnabled` = **`true`**.
+- **iOS** — EAS `fbb599f4`(preview-store, `dev.runtime.ear` 1.2.0 (43)) IPA 의 `Payload/preview.app/Info.plist`: `FacebookAdvertiserIDCollectionEnabled` = **`false`**, `NSUserTrackingUsageDescription` **없음**.
+- **남은 것**: 위는 개발계 변형이다. 완료 조건 1·2 의 문구는 운영 프로필이라, **운영 rt 32 빌드가 나오면 같은 방법으로 한 번 더 본다**(플러그인이 변형과 무관하게 같은 값을 쓰므로 결과는 같을 것으로 보나 확인 전이다). 완료 조건 3·4 는 11/1 이후 공개 빌드가 필요하다.
+- 확인 방법(재현용): Android `gh run download <run> -n ear-preview-aab` → `java -jar bundletool.jar dump manifest --bundle <aab>` / iOS `npx eas-cli build:list --platform ios --json` 의 `artifacts.buildUrl` IPA → `zipfile` + `plistlib` 로 `Payload/*.app/Info.plist`.
