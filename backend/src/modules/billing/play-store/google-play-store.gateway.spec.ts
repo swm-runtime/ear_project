@@ -240,6 +240,7 @@ describe('GooglePlayStoreGateway', () => {
         accountToken: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
         environment: SubscriptionEnvironment.PRODUCTION,
         needsAcknowledge: true,
+        orderId: 'GPA.1234-5678-9012-34567',
       });
       // 토큰은 경로에 들어가므로 인코딩한다 — `/`·`+`가 그대로 나가면 다른 경로가 된다
       expect(requests).toEqual([

@@ -92,4 +92,11 @@ export class Subscription extends BaseEntity {
    */
   @Column({ name: 'last_notified_at', type: 'timestamptz', nullable: true })
   lastNotifiedAt: Date | null;
+
+  /**
+   * 마지막으로 반영한 Play 주문 ID(`latestOrderId`) — 환불로 끝난 구독을 같은 결제 주기의 조회 결과로 되살리지
+   * 않는 판정의 식별자(`subscription-api.md` 4.7, 2026-10-07). Google은 갱신마다 새 값을 준다. App Store는 NULL
+   */
+  @Column({ name: 'latest_order_id', type: 'text', nullable: true })
+  latestOrderId: string | null;
 }

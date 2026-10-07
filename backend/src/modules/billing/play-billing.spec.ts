@@ -821,6 +821,56 @@ describe('Play — 환불로 끝난 구독은 같은 구매로 되살아나지 �
     expect(world.users.get(USER)!.tier).toBe(UserTier.PRO);
   });
 
+  it('유예 중 환불 뒤 재청구가 성공하면(주문 ID 변경) 만료일이 유예 종료일을 넘지 않아도 되살아난다(2026-10-07)', async () => {
+    const { world, play, submit, notify } = setup();
+    const graceEnd = new Date('2026-12-01T00:00:00Z'); // 30일 유예 — 결제 주기(1개월)와 같다
+
+    const purchase = play.put({ purchaseToken: 'token-1', orderId: 'GPA.1-0' });
+    await submit('token-1');
+    purchase.state = 'grace';
+    purchase.expiresAt = graceEnd;
+    await notify('msg-grace', { type: 6, purchaseToken: 'token-1' });
+    await notify('msg-voided', {
+      kind: 'voided',
+      type: null,
+      purchaseToken: 'token-1',
+    });
+    expect(world.subscriptions[0]).toMatchObject({
+      status: SubscriptionStatus.REFUNDED,
+      latestOrderId: 'GPA.1-0',
+    });
+
+    // 재청구 성공 — Google 은 원 만료일 기준으로 한 주기를 더해 유예 종료일과 같은 날이 된다
+    purchase.state = 'active';
+    purchase.expiresAt = graceEnd;
+    purchase.orderId = 'GPA.1-0..1';
+    await notify('msg-recovered', { type: 1, purchaseToken: 'token-1' });
+
+    expect(world.subscriptions[0]).toMatchObject({
+      status: SubscriptionStatus.ACTIVE,
+      latestOrderId: 'GPA.1-0..1',
+    });
+    expect(world.users.get(USER)!.tier).toBe(UserTier.PRO);
+  });
+
+  it('같은 주문의 알림이 다시 와도 환불은 그대로다(주문 ID 기준)', async () => {
+    const { world, play, submit, notify } = setup();
+
+    const purchase = play.put({ purchaseToken: 'token-1', orderId: 'GPA.2-0' });
+    await submit('token-1');
+    await notify('msg-voided', {
+      kind: 'voided',
+      type: null,
+      purchaseToken: 'token-1',
+    });
+
+    purchase.expiresAt = NEXT_EXPIRES_AT; // 만료일만 뒤로 갔다(유예 연장 등) — 주문은 같다
+    await notify('msg-after', { type: 4, purchaseToken: 'token-1' });
+
+    expect(world.subscriptions[0].status).toBe(SubscriptionStatus.REFUNDED);
+    expect(world.users.get(USER)!.tier).toBe(UserTier.LIGHT);
+  });
+
   it('새 구매 토큰으로 다시 구독하면 되살아난다', async () => {
     const { world, play, submit } = await setupRefunded();
 
