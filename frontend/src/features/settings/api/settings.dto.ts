@@ -45,10 +45,16 @@ export interface SettingsInterestSummaryDto {
   top_topics: SettingsTopicDto[];
 }
 
+export type AudioQualityDto = 'compressed' | 'aac' | 'lossless';
+
 export interface UserSettingsDto {
   default_playback_rate: number;
   is_auto_expand_enabled: boolean;
   is_drip_notification_enabled: boolean;
+  /** 적용 중인 음질(4.1·4.2, KAN-141). 옛 서버 응답에는 없다 */
+  preferred_audio_quality?: string;
+  /** 음질 선택지 — 조회(4.1)에만 있고 저장 응답(4.2)에는 없다 */
+  audio_qualities?: { quality: string; allowed: boolean }[];
 }
 
 export interface MarketingConsentDto {
@@ -78,6 +84,7 @@ export interface UpdateSettingsRequestDto {
   default_playback_rate?: number;
   is_auto_expand_enabled?: boolean;
   is_drip_notification_enabled?: boolean;
+  preferred_audio_quality?: AudioQualityDto;
   client_seq: number;
 }
 

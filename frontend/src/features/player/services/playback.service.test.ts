@@ -39,7 +39,8 @@ interface FakeNative {
 
 const mockNative: { current: FakeNative | null } = { current: null };
 const mockPlayers: FakePlayer[] = [];
-const mockIssue = jest.fn<(input: { contentId: string }) => Promise<AudioIssueResult>>();
+const mockIssue =
+  jest.fn<(input: { contentId: string; quality?: string | null }) => Promise<AudioIssueResult>>();
 
 const mockCreatePlayer = (source: { uri: string }): FakePlayer => {
   let listener: StatusListener | null = null;
@@ -89,7 +90,7 @@ jest.mock('expo-audio', () => ({
 }));
 
 jest.mock('../api/player.api', () => ({
-  issueAudioUrls: (input: { contentId: string }) => mockIssue(input),
+  issueAudioUrls: (input: { contentId: string; quality?: string | null }) => mockIssue(input),
   // 재생 시작 기록·위치 저장은 이 테스트의 관심 밖이다 — 끝나지 않게 둔다
   startPlay: () => new Promise(() => undefined),
   savePlaybackProgress: () => new Promise(() => undefined),
@@ -123,7 +124,7 @@ const issueOf = (url: string, contentVersion = 1): AudioIssueResult => ({
   sections: [],
   libraryItem: null,
   progress: null,
-  audio: { url, expiresAt: '2026-10-06T00:05:00Z', expiresInSec: 300 },
+  audio: { url, expiresAt: '2026-10-06T00:05:00Z', expiresInSec: 300, quality: 'lossless' },
 });
 
 const loadService = () => ({ service: playbackService, store: usePlaybackStore });
@@ -193,6 +194,17 @@ describe('서명 URL 갱신 — 고정 스트림(패치된 빌드)', () => {
     expect(player.seekTo).toHaveBeenCalledTimes(seekCalls);
     expect(player.play).toHaveBeenCalledTimes(playCalls);
     expect(player.source.uri).toBe(streamUri);
+  });
+
+  it('주기 갱신은 처음 받은 음질을 실어 보낸다 — 그 사이 설정을 바꿔도 이 편은 같은 파일이다(settings.md 4.6)', async () => {
+    mockIssue.mockResolvedValue(issueOf('https://cdn.example.com/a.flac?sig=1'));
+    const { service } = loadService();
+    await startPlaying(service);
+
+    await runUrlRefresh();
+
+    expect(mockIssue).toHaveBeenNthCalledWith(1, { contentId: CONTENT_ID });
+    expect(mockIssue).toHaveBeenNthCalledWith(2, { contentId: CONTENT_ID, quality: 'lossless' });
   });
 
   it('재발행(contentVersion 변경)이면 음원을 교체하고 위치를 0으로 둔다 — 새 고정 주소를 쓰고 옛 주소는 표에서 지운다', async () => {
