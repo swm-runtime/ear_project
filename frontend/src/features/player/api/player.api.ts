@@ -70,6 +70,10 @@ const toAudioIssueResult = (dto: AudioUrlsResponseDto): AudioIssueResult => ({
   },
   topicIds: dto.content.topics ? dto.content.topics.map((topic) => topic.id) : null,
   hasScript: dto.has_script === true,
+  sections: (dto.sections ?? []).map((section) => ({
+    startSec: section.start_sec,
+    title: section.title,
+  })),
   libraryItem: dto.library_item
     ? { id: dto.library_item.id, status: dto.library_item.status }
     : null,
