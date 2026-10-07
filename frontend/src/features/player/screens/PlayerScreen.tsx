@@ -80,11 +80,20 @@ import { useSleepTimerStore } from '../store/sleep-timer.store';
 
 /**
  * 플레이어(PL1~PL10) — 화면은 뷰만 담당하고 로직은 usePlayerScreen이 소유한다.
- * 컨트롤 위치는 모든 상태에서 동일하다 — 손끝 위치 기억만으로 조작할 수 있어야 한다(uiux 7장).
+ * 재생 가능한 상태의 컨트롤 위치를 유지하고, 로드 실패는 전용 재시도 화면으로 바꾼다(uiux 4.9).
  */
 export default function PlayerScreen() {
   const screen = usePlayerScreen();
   const { session } = screen;
+  // 재시도 중에는 실패 화면을 유지하고 준비 완료 후 플레이어를 복구한다.
+  const [retryContentId, setRetryContentId] = useState<string | null>(null);
+  if (
+    retryContentId !== null &&
+    (session?.contentId !== retryContentId ||
+      (session?.state !== 'loading' && session?.state !== 'load_failed'))
+  ) {
+    setRetryContentId(null);
+  }
   // 제목 아래 카테고리 — 주제 id를 관심사 feature의 주제 목록(같은 캐시)에서 이름으로 바꾼다(2026-09-16)
   const topicsQuery = useTopicsQuery();
   /*
@@ -1274,6 +1283,71 @@ export default function PlayerScreen() {
     return <View style={containerStyle} />;
   }
 
+  const isRetryingLoad = session.state === 'loading' && retryContentId === session.contentId;
+  if (session.state === 'load_failed' || isRetryingLoad) {
+    return (
+      <Animated.View
+        style={[
+          containerStyle,
+          styles.loadFailureScreen,
+          {
+            transform: [
+              {
+                translateY: dismissProgress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, windowHeight],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        <StatusBar style="light" />
+        <View style={styles.appBar}>
+          <Pressable
+            style={styles.appBarButton}
+            onPress={() => {
+              if (USE_NATIVE_PLAYER_ZOOM) {
+                dismissPlayer();
+                return;
+              }
+              if (isCollapsingRef.current) return;
+              isCollapsingRef.current = true;
+              runDismissSpring(1, () => screen.collapse());
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={PLAYER_COPY.screen.collapseA11y}
+          >
+            <ChevronIcon direction="down" size={APP_BAR_ICON_SIZE} color={playerColor.textPrimary} />
+          </Pressable>
+        </View>
+        <View style={styles.loadFailureBody} accessibilityLiveRegion="polite">
+          <Text style={styles.withdrawnTitle}>{PLAYER_COPY.loadFailed.title}</Text>
+          <Text style={styles.loadFailureDescription}>{PLAYER_COPY.loadFailed.description}</Text>
+          <Pressable
+            style={styles.bannerAction}
+            disabled={isRetryingLoad}
+            accessibilityRole="button"
+            accessibilityLabel={
+              isRetryingLoad ? PLAYER_COPY.loadFailed.retrying : PLAYER_COPY.loadFailed.retry
+            }
+            accessibilityState={{ disabled: isRetryingLoad, busy: isRetryingLoad }}
+            onPress={() => {
+              setRetryContentId(session.contentId);
+              screen.retryLoad();
+            }}
+          >
+            {isRetryingLoad ? (
+              <ActivityIndicator color={playerColor.primary} />
+            ) : (
+              <Text style={styles.bannerActionLabel}>{PLAYER_COPY.loadFailed.retry}</Text>
+            )}
+          </Pressable>
+        </View>
+      </Animated.View>
+    );
+  }
+
   /* ── PL9 회수 — 오류 톤·[다시 시도] 없이 사실만 말한다(uiux 4.10) ── */
   if (session.state === 'withdrawn') {
     return (
@@ -1307,7 +1381,7 @@ export default function PlayerScreen() {
   };
 
   const isEnded = session.state === 'ended';
-  const isControlDisabled = session.state === 'loading' || session.state === 'load_failed';
+  const isControlDisabled = session.state === 'loading';
 
   const playButtonA11y = isEnded
     ? PLAYER_COPY.screen.replayA11y
@@ -1317,22 +1391,6 @@ export default function PlayerScreen() {
 
   const renderBannerArea = () => {
     // 배너는 컨트롤 아래 한 곳 — 레이아웃을 밀지 않는다(uiux 5장)
-    if (session.state === 'load_failed') {
-      return (
-        <View style={styles.banner}>
-          <Text style={styles.bannerTitle}>{PLAYER_COPY.loadFailed.title}</Text>
-          <Text style={styles.bannerDescription}>{PLAYER_COPY.loadFailed.description}</Text>
-          <Pressable
-            style={styles.bannerAction}
-            onPress={screen.retryLoad}
-            accessibilityRole="button"
-            accessibilityLabel={PLAYER_COPY.loadFailed.retry}
-          >
-            <Text style={styles.bannerActionLabel}>{PLAYER_COPY.loadFailed.retry}</Text>
-          </Pressable>
-        </View>
-      );
-    }
     if (session.banner === 'network') {
       return (
         <View style={styles.banner} accessibilityLiveRegion="polite">
@@ -2604,11 +2662,6 @@ const styles = StyleSheet.create({
     gap: theme.spacing.xs,
     paddingVertical: theme.spacing.sm,
   },
-  bannerTitle: {
-    fontSize: theme.font.size.sm,
-    fontWeight: '600',
-    color: playerColor.textPrimary,
-  },
   bannerDescription: {
     fontSize: theme.font.size.xs,
     color: playerColor.textSecondary,
@@ -2622,6 +2675,22 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.sm,
     fontWeight: '600',
     color: playerColor.primary,
+  },
+  loadFailureScreen: {
+    backgroundColor: playerColor.background,
+  },
+  loadFailureBody: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.md,
+    padding: theme.spacing.lg,
+    paddingBottom: theme.spacing.lg + APP_BAR_HEIGHT,
+  },
+  loadFailureDescription: {
+    fontSize: theme.font.size.sm,
+    color: playerColor.textSecondary,
+    textAlign: 'center',
   },
   withdrawn: {
     flex: 1,
