@@ -17,7 +17,7 @@
 |---|---|---|
 | 빌드 플래그 | `EXPO_PUBLIC_SUBSCRIPTION_UI=on` | 구독을 한 글자도 언급하지 않는다(App Store 2.1(b) — KAN-66) |
 | 결제 네이티브 모듈 | 바이너리에 `ExpoIap` 가 있다(런타임 검사) | 같다 — 플래그가 켜진 번들이 OTA 로 옛 바이너리(runtime 31 이하)에 닿아도 결제 버튼만 보이는 상태가 되지 않는다 |
-| 플랫폼 | iOS, 또는 Android + `EXPO_PUBLIC_SUBSCRIPTION_ANDROID=on` | Android 는 Play 상품 등록(KAN-130) 전까지 꺼 둔다 |
+| 플랫폼 | iOS, 또는 Android + `EXPO_PUBLIC_SUBSCRIPTION_ANDROID=on` | **개발계(preview) `on`(2026-10-08 — dev 앱 정기 결제·RTDN 연결 완료, KAN-155 코멘트) · 운영(production) `off`**(운영 Play 상품 등록 KAN-130 전까지). `eas.json` 프로필 env 와 `eas-update.yml` 채널 env 두 곳이 같은 값이어야 한다 — production 은 preview 를 extends 하므로 `off` 를 명시한다 |
 
 꺼진 바이너리에서 이 문서의 화면은 하나도 그려지지 않는다 — 설정 구독 섹션·프로필 [구독 알아보기]·페이월 요금제 비교가 모두 빠지고, 한도 소진은 **한도 안내 시트**(`paywall.md` 5장) 그대로다.
 
