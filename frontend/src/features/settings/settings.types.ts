@@ -15,6 +15,15 @@ export type EmailStatus = 'unregistered' | 'unverified' | 'verified';
 /** 서버 허용값(settings-api.md 4.2) — 이 밖의 값은 400이다 */
 export type PlaybackRate = 0.8 | 1.0 | 1.2 | 1.5 | 2.0;
 
+/** 음질(domain.md 1.3-1) — 서버 enum 그대로. `aac`는 값만 예약이라 선택지로 오지 않는다 */
+export type AudioQuality = 'compressed' | 'aac' | 'lossless';
+
+/** 음질 선택지 한 칸 — 허용 여부는 서버 판정(plans.max_audio_quality)이다. 티어명으로 가르지 않는다 */
+export interface AudioQualityOption {
+  quality: AudioQuality;
+  allowed: boolean;
+}
+
 export interface SettingsAccount {
   /** null이면 미등록 — isEmailVerified와 항상 함께 판정한다(settings-api.md 4.1) */
   email: string | null;
@@ -56,6 +65,13 @@ export interface UserSettings {
   isAutoExpandEnabled: boolean;
   /** 이어 PICK 알림 앱 토글 — 필드명은 내부 용어를 유지한다(settings-api.md 4.1) */
   isDripNotificationEnabled: boolean;
+  /** 적용 중인 음질(settings-api.md 4.1). 필드를 안 보내는 옛 서버면 null — 음질 섹션을 그리지 않는다 */
+  preferredAudioQuality: AudioQuality | null;
+  /**
+   * 음질 선택지(오름차순 + 허용 여부). **조회 응답에만 있다** — 저장(PATCH) 응답에는 없어 null 로 오고,
+   * 화면은 조회 캐시의 목록을 그대로 둔다
+   */
+  audioQualities: AudioQualityOption[] | null;
 }
 
 /** consents의 최신 행 — append-only 이력의 현재 상태다(settings-api.md 4.1) */
@@ -93,4 +109,5 @@ export type SettingsToggleField =
   | 'default_playback_rate'
   | 'is_auto_expand_enabled'
   | 'is_drip_notification_enabled'
+  | 'preferred_audio_quality'
   | 'marketing_consent';

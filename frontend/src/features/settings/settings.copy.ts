@@ -32,6 +32,7 @@ export const SETTINGS_COPY = {
     subscription: '요금제 관리',
     content: '콘텐츠',
     playback: '재생',
+    audioQuality: '음질',
     notification: '알림',
     info: '정보',
     support: '지원',
@@ -83,6 +84,18 @@ export const SETTINGS_COPY = {
     rate: '기본 배속',
     rateValue: (rate: number) => `${rate}×`,
     sheetTitle: '기본 배속',
+  },
+
+  /** 음질 섹션(settings-uiux.md 4.1 "음질" — 2026-10-07, KAN-143). 티어명을 쓰지 않는다 */
+  audioQuality: {
+    label: { compressed: '압축', aac: '고음질', lossless: '무손실' },
+    footer:
+      '무손실은 원본 그대로예요. 압축보다 데이터를 더 많이 써요. 바꾼 음질은 다음 편부터 적용돼요.',
+    lockedA11y: (label: string) => `${label}, 구독하면 쓸 수 있어요`,
+    cellularTitle: '셀룰러 데이터를 더 많이 써요',
+    cellularMessage: '무손실은 압축보다 파일이 커요. Wi-Fi에서 듣는 걸 권해요.',
+    cellularCancel: '취소',
+    cellularConfirm: '무손실로 바꾸기',
   },
 
   notification: {
