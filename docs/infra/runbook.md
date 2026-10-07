@@ -112,6 +112,8 @@ AUDIO_BUCKET=earcast-audio-prod KVS_ARN=<값> deploy/upload-audio.sh <contentId(
   - `import skip` 만 반복되면 S3 덤프가 안 바뀐 것이다 — 운영 로그에서 `export skip`/`export ok` 를 먼저 본다
   - 검증 실패(`검증 실패: <표> 운영 N행 / 개발계 M행`)면 ETag 를 적지 않으므로 다음 알림·크론이 같은 덤프로 다시 시도한다
 
+- **표 목록은 `backend/deploy/sync-content-export.sh`·`sync-content-import.sh`의 `TABLES`가 원본이다.** 콘텐츠에 붙는 표가 새로 생기면 **둘 다**에 넣고 import 의 충돌 키 목록에도 추가한다. 빠뜨리면 개발계만 조용히 어긋난다 — 2026-10-07 `content_audio_renditions`(KAN-141)가 빠져 개발계 재생이 전부 실패했다(행이 옛 mp3 경로를 가리켰고 그 키는 운영 재발행으로 지워짐). 같은 날 추가했고, 서버도 압축 음질은 `contents.audio_path`를 믿도록 방어했다(`audio-url.service.ts`).
+
 ### 3.4 회수 (API 미구현 — 현재 SQL 수동)
 
 ```sql
