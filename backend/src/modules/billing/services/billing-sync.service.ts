@@ -342,6 +342,31 @@ export class BillingSyncService {
     return this.findOwnerByToken(accountToken, manager);
   }
 
+  /**
+   * 그 사용자가 **같은 스토어에 따로 가진 살아 있는 구독 행** — 있으면 지금 구매는 두 번째 구독이다(`subscription-api.md`
+   * 4.4, Play). 같은 `originalTransactionId`(= 교체로 이어진 구매)는 세지 않는다. 없으면 `null`
+   */
+  async findOtherLiveSubscription(
+    userId: string,
+    store: SubscriptionStore,
+    originalTransactionId: string,
+    manager?: EntityManager,
+  ): Promise<Subscription | null> {
+    const rows = await this.subscriptionService.findAllByUserId(
+      userId,
+      manager,
+    );
+
+    return (
+      rows.find(
+        (row) =>
+          row.store === store &&
+          row.originalTransactionId !== originalTransactionId &&
+          NON_TERMINAL_SUBSCRIPTION_STATUSES.includes(row.status),
+      ) ?? null
+    );
+  }
+
   /** 그 스토어 구독이 연결된 사용자 — 없으면 `null` */
   async findSubscriptionOwner(
     originalTransactionId: string,

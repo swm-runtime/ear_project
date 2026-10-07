@@ -34,4 +34,5 @@
 
 ## 처리 기록
 
+- 2026-10-07 — **4번 구현 완료**(문서 `subscription-api.md` 4.4·4.7·5장·7장 → 코드, 기록 `changes/archive/play-single-live-subscription.md`). 제출은 `SUBSCRIPTION_ALREADY_SUBSCRIBED` 409 + 미확인(3일 뒤 Google 자동 환불) + Slack, 알림은 반영·확인 없이 완료 처리. 복원은 거부하지 않는다. 남은 것은 종전 1~3번(사람 손 + 종단 테스트). dev 앱 Play 정기 결제 2개(`dev.runtime.ear.sub.pro.monthly` · `daily.monthly`) 생성·활성화 완료, 개발계 `plans.store_product_id_android` 반영 완료.
 - 2026-10-07 — 4번(살아 있는 Play 구독 둘 방지 서버 안전망) 추가. dev 앱(`dev.runtime.ear`) Play Console에 정기 결제 2개(`dev.runtime.ear.subscription.pro.monthly` · `daily.monthly`, 기본 요금제 `monthly`) 생성 중(박준현). 결제 라이브러리가 든 Android 빌드의 내부 테스트 업로드는 KAN-155(rt 32 묶음 빌드)와 함께.

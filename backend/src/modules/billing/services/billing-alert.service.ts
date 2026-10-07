@@ -8,7 +8,8 @@ export type BillingAlertKind =
   | 'receipt-rejected'
   | 'notification-rejected'
   | 'reconcile-failed'
-  | 'forced-expiry';
+  | 'forced-expiry'
+  | 'duplicate-subscription';
 
 /** 같은 종류의 알림을 묶는 창 — 위조 시도 수십 건이 채널을 덮지 않게. 창 안의 건수는 로그로만 */
 export const BILLING_ALERT_WINDOW_MS = 10 * 60 * 1000;
@@ -80,6 +81,19 @@ export class BillingAlertService {
       'reconcile-failed',
       null,
       `:hourglass: 구독 보정 실패 · ${detail}`,
+      now,
+    );
+  }
+
+  /**
+   * 살아 있는 Play 구독이 있는 계정이 교체 없이 다른 정기 결제를 샀다(`subscription-api.md` 4.4). 서버가 확인하지 않아
+   * Google이 3일 안에 자동 환불하지만, 앱이 교체 모드를 안 쓴 것이라 사람이 봐야 한다
+   */
+  duplicateSubscriptionRejected(store: SubscriptionStore, now = new Date()) {
+    this.send(
+      'duplicate-subscription',
+      store,
+      `:credit_card: 두 번째 구독 거부 · ${STORE_LABEL[store]} · 교체 없는 구매 — 3일 뒤 자동 환불, 앱 교체 모드 확인`,
       now,
     );
   }

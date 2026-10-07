@@ -464,6 +464,10 @@ export class BillingTestWorld {
       ),
     findByOriginalTransactionId: (originalTransactionId: string) =>
       Promise.resolve(this.findSubscription(originalTransactionId)),
+    findAllByUserId: (userId: string) =>
+      Promise.resolve(
+        this.subscriptions.filter((row) => row.userId === userId),
+      ),
     findByLatestReceipt: (store: SubscriptionStore, latestReceipt: string) =>
       Promise.resolve(
         this.subscriptions.find(

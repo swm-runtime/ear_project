@@ -181,6 +181,8 @@ export enum ErrorCode {
   SUBSCRIPTION_RECEIPT_INVALID = 'SUBSCRIPTION_RECEIPT_INVALID',
   /** 그 스토어 구독이 다른 계정에 연결돼 있다 */
   SUBSCRIPTION_OWNED_BY_ANOTHER_ACCOUNT = 'SUBSCRIPTION_OWNED_BY_ANOTHER_ACCOUNT',
+  /** 같은 스토어에 살아 있는 구독이 이미 있는데 교체가 아닌 두 번째 구독을 샀다(Play — `subscription-api.md` 4.4) */
+  SUBSCRIPTION_ALREADY_SUBSCRIBED = 'SUBSCRIPTION_ALREADY_SUBSCRIBED',
   /** 스토어 검증·조회의 일시 실패 — 거래를 끝내지 않고 재시도한다(retryable) */
   SUBSCRIPTION_STORE_UNAVAILABLE = 'SUBSCRIPTION_STORE_UNAVAILABLE',
 

@@ -326,6 +326,7 @@ NetworkState  { reachable, connection_type }                        // 클라이
 | `SUBSCRIPTION_STORE_MISMATCH` | 409 | false | "다른 스토어에서 구독 중이에요. 구독한 기기에서 변경해주세요" |
 | `SUBSCRIPTION_RECEIPT_INVALID` | 400 | false | "구독을 확인할 수 없어요". 스토어 거래를 끝내지 않는다. 문의 경로 안내 |
 | `SUBSCRIPTION_OWNED_BY_ANOTHER_ACCOUNT` | 409 | false | "이미 다른 계정에서 사용 중인 구독이에요" |
+| `SUBSCRIPTION_ALREADY_SUBSCRIBED` | 409 | false | "이미 구독 중이에요. 요금제는 변경으로 바꿔주세요". 스토어 거래를 끝내지 않는다(Google이 3일 안에 자동 환불). 요금제 변경 화면으로(신설 2026-10-07 — Play 두 번째 구독) |
 | `SUBSCRIPTION_STORE_UNAVAILABLE` | 503 | **true** | "잠시 후 자동으로 반영됩니다". 스토어 거래를 끝내지 않고 재시도 |
 
 - 신설 2026-10-02(KAN-106 · KAN-40). **enum 반영은 구현 PR에서 한다** — 그때까지 이 여섯 코드는 표에만 있다(`architecture.md` 7.5의 순서와 달리 계약을 먼저 확정했다. `interest-management` 때와 같은 방식).

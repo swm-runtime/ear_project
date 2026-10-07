@@ -270,6 +270,8 @@
 
 **Android의 검증은 iOS와 다르다** — 구매 토큰은 서명된 사실이 아니라 열쇠다. 서버가 그 토큰으로 Google에 **현재 상태를 조회해** 그대로 반영한다(4.7). 그래서 유효성도 Google의 상태로 판정한다: `ACTIVE`·`IN_GRACE_PERIOD`·만료 전 `CANCELED`만 받고, 결제 대기(`PENDING`)·보류(`ON_HOLD`)·만료는 `SUBSCRIPTION_RECEIPT_INVALID`다(복원에서는 무시). Google이 그 토큰을 모르면(400·404·410) 위조로 본다.
 
+- **한 계정에 살아 있는 Play 구독은 하나다**(2026-10-07, KAN-130). Apple은 구독 그룹이 "하나만"을 보장하지만 Google은 Pro·Daily가 독립 정기 결제라 둘 다 살 수 있다. 정상 경로는 요금제를 바꿀 때 앱이 **이전 구매 토큰을 넘겨 교체**하는 것이고, 그러면 Google이 새 토큰에 `linkedPurchaseToken`을 붙여 서버가 같은 구독 행에 이어 붙인다(4.7 "구독 행의 키"). 그 밖의 경우 — 요청자에게 **같은 스토어의 살아 있는 구독 행이 이미 있고 이 구매가 그 행에 이어지지 않으면**(`original_transaction_id`가 다름) — 두 번째 구독이다. 영수증 제출은 `SUBSCRIPTION_ALREADY_SUBSCRIBED`(409)로 거부하고 **구매를 확인(acknowledge)하지 않는다** — 확인되지 않은 구매는 Google이 3일 안에 자동 환불한다. Slack 결제 알림에 올린다(3-6). 복원(4.5)은 거부하지 않는다 — 이미 두 개를 산 사람의 연결을 막아도 돈이 돌아오지 않는다. iOS는 Apple이 막아 주므로 해당 없다
+
 - **같은 거래의 재전송은 같은 결과다**(멱등). 업그레이드처럼 같은 `original_transaction_id`에 새 거래가 오면 그 행을 갱신한다.
 - **업그레이드는 즉시 반영된다.** 다운그레이드는 스토어가 "다음 갱신부터"로 예약하므로, 제출된 거래의 티어는 그대로이고 `pending_plan`이 채워진다(S2S 알림으로도 들어온다 — 4.6).
 - 5번이 실패(DB)하면 5xx다 — 클라이언트는 거래를 끝내지 않고 재시도한다. **결제는 됐는데 티어가 안 붙은 채 거래가 닫히는 일이 없어야 한다**(`subscription.md` 7).
@@ -380,6 +382,7 @@ Google Cloud Pub/Sub **push 구독**이 호출한다. 본문은 Pub/Sub 메시�
 - **알림은 신호일 뿐이다.** 본문에는 `purchaseToken`과 유형 번호만 있으므로, 서버가 `purchases.subscriptionsv2.get`으로 **현재 상태를 조회해** 반영한다. 그래서 알림의 순서가 뒤바뀌어도 결과가 같다(마지막에 조회한 상태가 맞는 상태다). 조회 실패는 5xx로 답해 Pub/Sub가 재전송하게 한다
 - **처리 완료 표시는 구매 확인(acknowledge)까지 끝난 뒤에 한다.** 반영만 하고 완료로 표시하면, 확인이 실패했을 때 재전송된 알림이 "이미 처리함"으로 걸러져 그 구매를 다시 확인할 기회가 없다
 - **주인을 모르는 구매**(구독 행도 계정 토큰도 없음)는 반영도 확인도 하지 않고 `processed_at`을 비워 둔다 — 이후 영수증 제출·복원이 연결한다. 주인 없는 구매를 확인하면 "결제됐는데 아무 계정에도 없음"이 굳는다
+- **두 번째 구독의 알림**(2026-10-07) — 주인은 찾았지만 그 사용자에게 같은 스토어의 살아 있는 구독 행이 따로 있고 이 구매가 그 행에 이어지지 않으면(4.4의 규칙과 같다) 반영도 확인도 하지 않고 `processed_at`은 기록한다(재전송돼도 같은 판정이다). 확인하지 않으므로 Google이 3일 안에 자동 환불한다. Slack 결제 알림에 올린다
 - 응답: 4.6과 같다(성공·중복 200, 검증 실패 400, 일시 실패 5xx)
 
 **`subscriptionState` → `subscriptions.status`**
@@ -419,6 +422,7 @@ Google Cloud Pub/Sub **push 구독**이 호출한다. 본문은 Pub/Sub 메시�
 | `SUBSCRIPTION_STORE_MISMATCH` | 409 | false | "다른 스토어에서 구독 중이에요. 구독한 기기에서 변경해주세요" |
 | `SUBSCRIPTION_RECEIPT_INVALID` | 400 | false | "구독을 확인할 수 없어요". 거래를 `finish`하지 않는다 — 재시도해도 결과가 같으므로 자동 재시도 대상은 아니다. 문의 경로 안내 |
 | `SUBSCRIPTION_OWNED_BY_ANOTHER_ACCOUNT` | 409 | false | "이미 다른 계정에서 사용 중인 구독이에요"(`subscription.md` 4.6) |
+| `SUBSCRIPTION_ALREADY_SUBSCRIBED` | 409 | false | "이미 구독 중이에요. 요금제는 변경으로 바꿔주세요"(2026-10-07 — Play 두 번째 구독, 4.4). 거래를 `finish`하지 않는다 — 서버가 확인하지 않은 구매는 Google이 3일 안에 자동 환불한다. 요금제 변경 화면으로 보낸다 |
 | `SUBSCRIPTION_STORE_UNAVAILABLE` | 503 | **true** | "구독을 확인하고 있어요… 잠시 후 자동으로 반영됩니다". **거래를 끝내지 않고** 재시도 큐에 넣는다(다음 실행의 미완료 거래 처리도 같은 경로) |
 
 - 401·429·5xx는 `common-error-handling.md` 4.1~4.2의 공통 규칙을 따른다.
@@ -476,6 +480,7 @@ Google Cloud Pub/Sub **push 구독**이 호출한다. 본문은 Pub/Sub 메시�
 - **클라이언트가 보낸 값으로 티어를 바꾸지 않는다.** 티어를 바꾸는 근거는 ① 스토어가 서명한 거래(JWS)·스토어 API 응답 ② 스토어 서버 알림 둘뿐이다. 요청 본문의 평문 필드(`product_id`, `intent_id`)는 조회 열쇠·교차 확인용이다.
 - **`users.tier`를 쓰는 경로는 한 곳이다**(`domain.md` 3.1 — `BillingSyncService.syncUserTier`). 영수증 제출·복원·웹훅·만료 보정이 전부 같은 반영 함수를 거치고, 구독 행과 `users.tier`를 **한 트랜잭션에서** 고친다. `subscription` 모듈이 아니라 그 위의 `billing` 모듈에 있다 — `user` 모듈이 `subscription`을 의존해(탈퇴 시 결제 이력 판정) 반대 방향으로는 의존할 수 없어서다.
 - **거래의 주인 확인** — 결제에 실은 `account_token`(= `purchase_intents.id`)이 서명된 거래 안에 들어온다. 그 의도가 다른 사용자의 것이면 거부한다. 토큰이 없거나(복원·프로모션 코드·스토어 밖 구매) 의도 행이 이미 없으면(탈퇴로 파기) `original_transaction_id`의 유일성으로만 판정한다 — 살아 있는 다른 계정에 있으면 거부, 없으면 연결.
+  - **한 계정에 살아 있는 Play 구독은 하나다**(2026-10-07 — 4.4). 요청자에게 같은 스토어의 살아 있는 행이 따로 있고 새 구매가 그 행에 이어지지 않으면 두 번째 구독으로 보고 제출을 거부한다(`SUBSCRIPTION_ALREADY_SUBSCRIBED`). 교체로 산 구매는 `linkedPurchaseToken`으로 같은 행에 이어지므로 걸리지 않는다
   - **끝난 구독의 재결제는 결제한 계정의 것이다**(2026-10-06). 다른 계정의 행이 이미 끝난 구독(`expired`·`refunded`)이고, 지금 온 거래의 계정 토큰이 **요청자의** 결제 의도이며, 그 반영이 구독을 되살리는 것이면 → 행의 `user_id`를 요청자로 바꾼다(영수증 제출·복원·서버 알림 모두 같은 규칙). App Store는 같은 Apple 계정이 같은 구독 그룹을 다시 결제하면 예전 `originalTransactionId`를 이어 쓸 수 있어, 이 예외가 없으면 방금 결제한 계정이 409를 받고 결제하지 않은 예전 계정이 유료가 된다. **살아 있는 구독**(`active`·`grace`·`cancelled`)은 종전대로 거부한다. 토큰이 없거나 예전 계정의 의도면 넘기지 않는다 — 그 결제는 예전 계정이 시작한 것이다. **토큰은 있는데 그 의도가 없으면(탈퇴로 파기) 끝난 행의 주인에게도 반영하지 않고 `unlinked`로 둔다**(2026-10-07) — 결제한 계정은 이미 떠났고, 예전 주인은 결제하지 않았다. 그 사람이 재가입해 영수증을 제출·복원하면 그때 연결된다.
 - **거래 ID만으로 복원하지 않는다.** `archived_subscriptions`의 `original_transaction_id`는 보존 기록이지 권한이 아니다(`domain.md` 11.5). 재가입 복원은 **그 스토어 계정이 지금 제출한 서명된 거래**가 있을 때만 성립한다.
 - **환경 분리** — iOS 거래·알림의 `environment`(`Production` / `Sandbox`)를 본다. **서버가 받는 환경은 설정값이다**(`APP_STORE_ENVIRONMENTS`): 개발계 서버는 `Sandbox`, 운영 서버는 `Production`, 심사·TestFlight 결제까지 받으려면 `Production,Sandbox`다(App Store 심사와 TestFlight는 운영 빌드로 샌드박스 결제를 한다). 받지 않는 환경은 서명이 맞아도 `SUBSCRIPTION_RECEIPT_INVALID`다. **운영이 샌드박스를 함께 받을 때 시험 결제는 `subscriptions.environment = sandbox`로 구분된다**(`domain.md` 8.2) — 권한은 똑같이 주되(그래야 심사·시험이 된다) 매출·구독자 집계에서 뺀다.
