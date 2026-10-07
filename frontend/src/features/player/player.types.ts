@@ -62,10 +62,15 @@ export interface PlayerContentMeta {
   contentVersion: number;
 }
 
+/** 구간이 속한 대본 구역 — `## [인트로]` `## [도입]` `## [본문]` `## [마무리]`(ai/spec/04-script.md) */
+export type PlayerSectionKind = 'intro' | 'lead' | 'body' | 'outro';
+
 /** 구간 — 대본의 단락 단위(인트로 · 도입 · 본문 단락 제목 · 마무리). 현재 구간은 `startSec ≤ 재생 위치`인 마지막 항목 */
 export interface PlayerSection {
   startSec: number;
   title: string;
+  /** 구역. 서버가 안 실었거나 모르는 값이면 null — 구역 라벨 없이 "지금 듣는 구간"으로 그린다 */
+  kind: PlayerSectionKind | null;
 }
 
 /** POST /contents/:content_id/audio-urls 응답(player-api.md 4.1)의 도메인 모델 */
