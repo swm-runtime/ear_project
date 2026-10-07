@@ -80,12 +80,12 @@ import { useSleepTimerStore } from '../store/sleep-timer.store';
 
 /**
  * 플레이어(PL1~PL10) — 화면은 뷰만 담당하고 로직은 usePlayerScreen이 소유한다.
- * 재생 가능한 상태의 컨트롤 위치를 유지하고, 로드 실패는 전용 재시도 화면으로 바꾼다(uiux 4.9).
+ * 재생 오류는 컨트롤 줄을 재시도 안내로 바꾸고 아트워크·메타는 유지한다(uiux 4.9).
  */
 export default function PlayerScreen() {
   const screen = usePlayerScreen();
   const { session } = screen;
-  // 재시도 중에는 실패 화면을 유지하고 준비 완료 후 플레이어를 복구한다.
+  // 재시도 중에는 컨트롤 줄의 오류 안내를 유지하고 준비 완료 후 버튼을 복구한다.
   const [retryContentId, setRetryContentId] = useState<string | null>(null);
   if (
     retryContentId !== null &&
@@ -1284,69 +1284,8 @@ export default function PlayerScreen() {
   }
 
   const isRetryingLoad = session.state === 'loading' && retryContentId === session.contentId;
-  if (session.state === 'load_failed' || isRetryingLoad) {
-    return (
-      <Animated.View
-        style={[
-          containerStyle,
-          styles.loadFailureScreen,
-          {
-            transform: [
-              {
-                translateY: dismissProgress.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, windowHeight],
-                }),
-              },
-            ],
-          },
-        ]}
-      >
-        <StatusBar style="light" />
-        <View style={styles.appBar}>
-          <Pressable
-            style={styles.appBarButton}
-            onPress={() => {
-              if (USE_NATIVE_PLAYER_ZOOM) {
-                dismissPlayer();
-                return;
-              }
-              if (isCollapsingRef.current) return;
-              isCollapsingRef.current = true;
-              runDismissSpring(1, () => screen.collapse());
-            }}
-            accessibilityRole="button"
-            accessibilityLabel={PLAYER_COPY.screen.collapseA11y}
-          >
-            <ChevronIcon direction="down" size={APP_BAR_ICON_SIZE} color={playerColor.textPrimary} />
-          </Pressable>
-        </View>
-        <View style={styles.loadFailureBody} accessibilityLiveRegion="polite">
-          <Text style={styles.withdrawnTitle}>{PLAYER_COPY.loadFailed.title}</Text>
-          <Text style={styles.loadFailureDescription}>{PLAYER_COPY.loadFailed.description}</Text>
-          <Pressable
-            style={styles.bannerAction}
-            disabled={isRetryingLoad}
-            accessibilityRole="button"
-            accessibilityLabel={
-              isRetryingLoad ? PLAYER_COPY.loadFailed.retrying : PLAYER_COPY.loadFailed.retry
-            }
-            accessibilityState={{ disabled: isRetryingLoad, busy: isRetryingLoad }}
-            onPress={() => {
-              setRetryContentId(session.contentId);
-              screen.retryLoad();
-            }}
-          >
-            {isRetryingLoad ? (
-              <ActivityIndicator color={playerColor.primary} />
-            ) : (
-              <Text style={styles.bannerActionLabel}>{PLAYER_COPY.loadFailed.retry}</Text>
-            )}
-          </Pressable>
-        </View>
-      </Animated.View>
-    );
-  }
+  const hasLoadFailure = session.state === 'load_failed' || isRetryingLoad;
+  const hasPlaybackError = hasLoadFailure || session.banner === 'refresh_failed';
 
   /* ── PL9 회수 — 오류 톤·[다시 시도] 없이 사실만 말한다(uiux 4.10) ── */
   if (session.state === 'withdrawn') {
@@ -1381,7 +1320,7 @@ export default function PlayerScreen() {
   };
 
   const isEnded = session.state === 'ended';
-  const isControlDisabled = session.state === 'loading';
+  const isControlDisabled = session.state === 'loading' || hasPlaybackError;
 
   const playButtonA11y = isEnded
     ? PLAYER_COPY.screen.replayA11y
@@ -1395,21 +1334,6 @@ export default function PlayerScreen() {
       return (
         <View style={styles.banner} accessibilityLiveRegion="polite">
           <Text style={styles.bannerDescription}>{PLAYER_COPY.networkBanner}</Text>
-        </View>
-      );
-    }
-    if (session.banner === 'refresh_failed') {
-      return (
-        <View style={styles.banner} accessibilityLiveRegion="polite">
-          <Text style={styles.bannerDescription}>{PLAYER_COPY.refreshFailedBanner.message}</Text>
-          <Pressable
-            style={styles.bannerAction}
-            onPress={screen.retryUrlRefresh}
-            accessibilityRole="button"
-            accessibilityLabel={PLAYER_COPY.refreshFailedBanner.retry}
-          >
-            <Text style={styles.bannerActionLabel}>{PLAYER_COPY.refreshFailedBanner.retry}</Text>
-          </Pressable>
         </View>
       );
     }
@@ -1800,108 +1724,139 @@ export default function PlayerScreen() {
               { paddingVertical: controlRowPadding, transform: [{ translateY: controlRowShift }] },
             ]}
           >
-            {/* 배속은 컨트롤 줄 맨 왼쪽에 텍스트로만 둔다(2026-09-16 — 칩 배경 제거, 보조 줄에서 이동).
-                오른쪽에 같은 폭의 빈 자리를 두어 재생 버튼이 화면 가운데를 지키게 한다 */}
-            <Pressable
-              style={styles.rateButton}
-              onPress={screen.openRateSheet}
-              disabled={isControlDisabled}
-              accessibilityRole="button"
-              accessibilityLabel={PLAYER_COPY.screen.rateChipA11y(screen.rate)}
-            >
-              <Text style={[styles.rateLabel, isControlDisabled && styles.glyphDisabled]}>
-                {PLAYER_COPY.screen.rateChip(screen.rate)}
-              </Text>
-            </Pressable>
-
-            <Pressable
-              style={styles.stepButton}
-              onPress={() => {
-                setSeekSpin((prev) => ({ ...prev, back: prev.back + 1 }));
-                screen.seekBackward();
-              }}
-              disabled={isControlDisabled}
-              accessibilityRole="button"
-              accessibilityLabel={PLAYER_COPY.screen.seekBackA11y}
-            >
-              <SeekBackIcon
-                spinKey={seekSpin.back}
-                size={SEEK_ICON_SIZE}
-                color={isControlDisabled ? playerColor.border : playerColor.primary}
-              />
-            </Pressable>
-
-            <Pressable
-              style={styles.playButton}
-              onPress={screen.handlePlayPausePress}
-              disabled={isControlDisabled}
-              accessibilityRole="button"
-              accessibilityLabel={
-                screen.showBufferingIndicator ? PLAYER_COPY.screen.bufferingA11y : playButtonA11y
-              }
-            >
-              {screen.showBufferingIndicator ? (
-                // 로딩 표시는 재생 버튼 자리에만, 2초 초과 시만(uiux 4.3)
-                <ActivityIndicator color={playerColor.primary} />
-              ) : (
-                // 재생·±10초는 선명한 흰색, 배속·대본은 보조 흰색으로 위계를 둔다.
-                <PlayPauseSymbol
-                  kind={!isEnded && session.isPlaying ? 'pause' : 'play'}
-                  size={PLAY_ICON_SIZE}
-                  color={isControlDisabled ? playerColor.border : playerColor.primary}
-                />
-              )}
-            </Pressable>
-
-            <Pressable
-              style={styles.stepButton}
-              onPress={() => {
-                setSeekSpin((prev) => ({ ...prev, forward: prev.forward + 1 }));
-                screen.seekForward();
-              }}
-              disabled={isControlDisabled}
-              accessibilityRole="button"
-              accessibilityLabel={PLAYER_COPY.screen.seekForwardA11y}
-            >
-              <SeekForwardIcon
-                spinKey={seekSpin.forward}
-                size={SEEK_ICON_SIZE}
-                color={isControlDisabled ? playerColor.border : playerColor.primary}
-              />
-            </Pressable>
-
-            {/* 스크립트 열기/접기(2026-09-16, 재생 목록과 자리 교환) — 배속과 같은 폭이라 재생 버튼이
-                가운데를 지킨다. 스크립트가 없으면 자리만 비워 둔다(uiux 4.6 — 진입점 미노출) */}
-            {isScriptAvailable ? (
-              <Pressable
-                style={styles.rateButton}
-                onPress={() => setPanel(activePanel === 'script' ? null : 'script')}
-                disabled={isControlDisabled}
-                accessibilityRole="button"
-                accessibilityLabel={
-                  activePanel === 'script'
-                    ? PLAYER_COPY.screen.scriptCloseA11y
-                    : PLAYER_COPY.screen.scriptOpenA11y
-                }
-                accessibilityState={{ expanded: activePanel === 'script' }}
-              >
-                <ScriptIcon
-                  size={SEEK_ICON_SIZE}
-                  color={
-                    isControlDisabled
-                      ? playerColor.border
-                      : activePanel === 'script'
-                        ? playerColor.primary
-                        : playerColor.controlSecondary
+            {hasPlaybackError ? (
+              <View style={styles.playbackError} accessibilityLiveRegion="polite">
+                <Text style={styles.playbackErrorTitle}>{PLAYER_COPY.loadFailed.title}</Text>
+                <Pressable
+                  style={styles.bannerAction}
+                  disabled={isRetryingLoad}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    isRetryingLoad ? PLAYER_COPY.loadFailed.retrying : PLAYER_COPY.loadFailed.retry
                   }
-                />
-              </Pressable>
+                  accessibilityState={{ disabled: isRetryingLoad, busy: isRetryingLoad }}
+                  onPress={() => {
+                    if (hasLoadFailure) {
+                      setRetryContentId(session.contentId);
+                      screen.retryLoad();
+                    } else {
+                      screen.retryUrlRefresh();
+                    }
+                  }}
+                >
+                  {isRetryingLoad ? (
+                    <ActivityIndicator color={playerColor.primary} />
+                  ) : (
+                    <Text style={styles.bannerActionLabel}>{PLAYER_COPY.loadFailed.retry}</Text>
+                  )}
+                </Pressable>
+              </View>
             ) : (
-              <View
-                style={styles.rateButton}
-                accessibilityElementsHidden
-                importantForAccessibility="no"
-              />
+              <>
+                {/* 배속은 컨트롤 줄 맨 왼쪽에 텍스트로만 둔다(2026-09-16 — 칩 배경 제거, 보조 줄에서 이동).
+                    오른쪽에 같은 폭의 빈 자리를 두어 재생 버튼이 화면 가운데를 지키게 한다 */}
+                <Pressable
+                  style={styles.rateButton}
+                  onPress={screen.openRateSheet}
+                  disabled={isControlDisabled}
+                  accessibilityRole="button"
+                  accessibilityLabel={PLAYER_COPY.screen.rateChipA11y(screen.rate)}
+                >
+                  <Text style={[styles.rateLabel, isControlDisabled && styles.glyphDisabled]}>
+                    {PLAYER_COPY.screen.rateChip(screen.rate)}
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  style={styles.stepButton}
+                  onPress={() => {
+                    setSeekSpin((prev) => ({ ...prev, back: prev.back + 1 }));
+                    screen.seekBackward();
+                  }}
+                  disabled={isControlDisabled}
+                  accessibilityRole="button"
+                  accessibilityLabel={PLAYER_COPY.screen.seekBackA11y}
+                >
+                  <SeekBackIcon
+                    spinKey={seekSpin.back}
+                    size={SEEK_ICON_SIZE}
+                    color={isControlDisabled ? playerColor.border : playerColor.primary}
+                  />
+                </Pressable>
+
+                <Pressable
+                  style={styles.playButton}
+                  onPress={screen.handlePlayPausePress}
+                  disabled={isControlDisabled}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    screen.showBufferingIndicator ? PLAYER_COPY.screen.bufferingA11y : playButtonA11y
+                  }
+                >
+                  {screen.showBufferingIndicator ? (
+                    // 로딩 표시는 재생 버튼 자리에만, 2초 초과 시만(uiux 4.3)
+                    <ActivityIndicator color={playerColor.primary} />
+                  ) : (
+                    // 재생·±10초는 선명한 흰색, 배속·대본은 보조 흰색으로 위계를 둔다.
+                    <PlayPauseSymbol
+                      kind={!isEnded && session.isPlaying ? 'pause' : 'play'}
+                      size={PLAY_ICON_SIZE}
+                      color={isControlDisabled ? playerColor.border : playerColor.primary}
+                    />
+                  )}
+                </Pressable>
+
+                <Pressable
+                  style={styles.stepButton}
+                  onPress={() => {
+                    setSeekSpin((prev) => ({ ...prev, forward: prev.forward + 1 }));
+                    screen.seekForward();
+                  }}
+                  disabled={isControlDisabled}
+                  accessibilityRole="button"
+                  accessibilityLabel={PLAYER_COPY.screen.seekForwardA11y}
+                >
+                  <SeekForwardIcon
+                    spinKey={seekSpin.forward}
+                    size={SEEK_ICON_SIZE}
+                    color={isControlDisabled ? playerColor.border : playerColor.primary}
+                  />
+                </Pressable>
+
+                {/* 스크립트 열기/접기(2026-09-16, 재생 목록과 자리 교환) — 배속과 같은 폭이라 재생 버튼이
+                    가운데를 지킨다. 스크립트가 없으면 자리만 비워 둔다(uiux 4.6 — 진입점 미노출) */}
+                {isScriptAvailable ? (
+                  <Pressable
+                    style={styles.rateButton}
+                    onPress={() => setPanel(activePanel === 'script' ? null : 'script')}
+                    disabled={isControlDisabled}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      activePanel === 'script'
+                        ? PLAYER_COPY.screen.scriptCloseA11y
+                        : PLAYER_COPY.screen.scriptOpenA11y
+                    }
+                    accessibilityState={{ expanded: activePanel === 'script' }}
+                  >
+                    <ScriptIcon
+                      size={SEEK_ICON_SIZE}
+                      color={
+                        isControlDisabled
+                          ? playerColor.border
+                          : activePanel === 'script'
+                            ? playerColor.primary
+                            : playerColor.controlSecondary
+                      }
+                    />
+                  </Pressable>
+                ) : (
+                  <View
+                    style={styles.rateButton}
+                    accessibilityElementsHidden
+                    importantForAccessibility="no"
+                  />
+                )}
+              </>
             )}
           </Animated.View>
 
@@ -2295,6 +2250,7 @@ const MINI_FALLBACK_BOTTOM = 130;
 const MORPH_IMAGE_WAIT_MS = 800;
 /** 앱바 높이(터치 타깃 44) — 히어로가 쓸 수 있는 높이를 셈할 때 뺀다 */
 const APP_BAR_HEIGHT = 44;
+const PLAY_BUTTON_SIZE = 72;
 /**
  * 접힘 상태의 제목·카테고리 블록 높이 — 위 여백 24 + 제목 줄 36.4 + 간격 4 + 카테고리 20 = 84.4(숫자로 적지 않고
  * 같은 상수에서 셈한다 — 84 로 적었더니 두 상태의 간격이 0.4 어긋났다). **아래 여백은 두지 않는다**
@@ -2556,8 +2512,8 @@ const styles = StyleSheet.create({
   // 원 없이 기호만(PM 2026-10-07 — 애플 기본 play.fill·pause.fill, 애플 뮤직·팟캐스트와 같은 문법). 종전 흰 원 64(2026-09-18)는
   // 뺐다. 기호를 66 으로 키우며 누르는 자리도 64 → 72 — 가운데 기준이라 손끝 위치는 그대로다(uiux 7장)
   playButton: {
-    width: 72,
-    height: 72,
+    width: PLAY_BUTTON_SIZE,
+    height: PLAY_BUTTON_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2676,20 +2632,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: playerColor.primary,
   },
-  loadFailureScreen: {
-    backgroundColor: playerColor.background,
-  },
-  loadFailureBody: {
-    flex: 1,
+  playbackError: {
+    minHeight: PLAY_BUTTON_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: theme.spacing.md,
-    padding: theme.spacing.lg,
-    paddingBottom: theme.spacing.lg + APP_BAR_HEIGHT,
+    gap: theme.spacing.xs,
   },
-  loadFailureDescription: {
-    fontSize: theme.font.size.sm,
-    color: playerColor.textSecondary,
+  playbackErrorTitle: {
+    fontSize: theme.font.size.md,
+    fontWeight: '600',
+    color: playerColor.textPrimary,
     textAlign: 'center',
   },
   withdrawn: {
