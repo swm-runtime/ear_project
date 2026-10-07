@@ -49,10 +49,13 @@ jobs:
             echo "channel=production" >> "$GITHUB_OUTPUT"
             echo "api_base_url=https://api.earcast.co.kr/api/v1" >> "$GITHUB_OUTPUT"
             echo "app_variant=production" >> "$GITHUB_OUTPUT"
+            # 운영은 결제 화면을 끈다(PM 2026-10-07) — 스토어 상품·서버 결제 키·유료 앱 계약 전. 준비되면 'on'
+            echo "subscription_ui=off" >> "$GITHUB_OUTPUT"
           else
             echo "channel=preview" >> "$GITHUB_OUTPUT"
             echo "api_base_url=https://api-dev.earcast.co.kr/api/v1" >> "$GITHUB_OUTPUT"
             echo "app_variant=dev" >> "$GITHUB_OUTPUT"
+            echo "subscription_ui=on" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Checkout
@@ -91,9 +94,10 @@ jobs:
           APP_VARIANT: ${{ steps.channel.outputs.app_variant }}
           # 크래시 리포트 DSN(KAN-92) — 번들의 expoConfig.extra 로 실린다. 시크릿 미설정이면 빈 값 → 앱은 수집을 끈다
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
-          # 구독 UI(KAN-120) — 빌드 프로필 env 와 같은 값이어야 한다. runtime 32 바이너리(expo-iap 포함)만 이 OTA 를 받고,
-          # 앱은 네이티브 모듈 유무도 다시 확인한다. Android 결제는 EXPO_PUBLIC_SUBSCRIPTION_ANDROID 로 따로 켠다(KAN-130 뒤)
-          EXPO_PUBLIC_SUBSCRIPTION_UI: 'on'
+          # 구독 UI(KAN-120) — 빌드 프로필 env 와 같은 값이어야 한다(preview 'on' · production 'off', 채널 결정 단계).
+          # runtime 32 바이너리(expo-iap 포함)만 이 OTA 를 받고, 앱은 네이티브 모듈 유무도 다시 확인한다.
+          # Android 결제는 EXPO_PUBLIC_SUBSCRIPTION_ANDROID 로 따로 켠다(KAN-130 뒤)
+          EXPO_PUBLIC_SUBSCRIPTION_UI: ${{ steps.channel.outputs.subscription_ui }}
           # 커밋 메시지를 셸에 직접 보간하지 않는다 — 따옴표·개행이 섞여도 안전하게 env 로 받는다
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |

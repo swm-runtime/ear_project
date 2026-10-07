@@ -6,6 +6,7 @@ import { ConfigService } from '@nestjs/config';
 import { equalsInConstantTime } from '@/common/utils/hash.util';
 import { EnvironmentVariables } from '@/config/env.validation';
 
+import { SentryIssueClient } from './sentry-issue.client';
 import {
   formatSentryIssueText,
   parseSentryWebhook,
@@ -33,6 +34,7 @@ export class SentryWebhookService {
   constructor(
     configService: ConfigService<EnvironmentVariables, true>,
     private readonly slackAlertService: SlackAlertService,
+    private readonly sentryIssueClient: SentryIssueClient,
   ) {
     this.token =
       configService.get('SENTRY_WEBHOOK_TOKEN', { infer: true })?.trim() ?? '';
@@ -82,9 +84,18 @@ export class SentryWebhookService {
       this.logger.debug('sentry webhook ignored — no title in payload');
       return;
     }
-    this.slackAlertService.notify(
-      'sentry-issue',
-      formatSentryIssueText(notice),
-    );
+
+    // 이슈 단위 값(State · First Seen · 건수)은 Issue API 에만 있다 — 조회가 실패·지연해도 알림은 나간다(클라이언트 주석).
+    // 응답(200)은 이미 나갔으므로 여기서 기다려도 Sentry 재시도를 부르지 않는다
+    void (
+      notice.issueId
+        ? this.sentryIssueClient.fetch(notice.issueId)
+        : Promise.resolve(null)
+    ).then((extra) => {
+      this.slackAlertService.notify(
+        'sentry-issue',
+        formatSentryIssueText(notice, extra),
+      );
+    });
   }
 }

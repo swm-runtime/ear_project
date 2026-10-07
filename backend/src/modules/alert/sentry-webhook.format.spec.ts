@@ -1,4 +1,5 @@
 import {
+  formatIssueExtraLine,
   formatSentryIssueText,
   parseSentryWebhook,
 } from './sentry-webhook.format';
@@ -40,6 +41,11 @@ describe('parseSentryWebhook', () => {
       environment: 'production',
       release: 'ear-app@1.2.0',
       url: 'https://sentry.io/organizations/ear/issues/6253/',
+      location: 'PlayerScreen in render',
+      device: 'iOS',
+      rule: 'Send a notification for high priority issues',
+      frames: [],
+      issueId: '6253',
     });
     expect(JSON.stringify(notice)).not.toContain('example.com');
   });
@@ -120,14 +126,16 @@ describe('parseSentryWebhook — Internal Integration(Integration Platform) 모�
   };
 
   it('data.event 에서 꺼내고, 프로젝트 슬러그는 event.url 경로에서, 링크는 web_url 로', () => {
-    expect(parseSentryWebhook(PLATFORM_PAYLOAD)).toEqual({
-      project: 'ear-api',
-      level: 'warning',
-      title: 'Error: audio url expired',
-      environment: 'production',
-      release: 'ear-api@1.2.0',
-      url: 'https://sentry.io/organizations/runtime-gw/issues/999/events/e1/',
-    });
+    expect(parseSentryWebhook(PLATFORM_PAYLOAD)).toEqual(
+      expect.objectContaining({
+        project: 'ear-api',
+        level: 'warning',
+        title: 'Error: audio url expired',
+        environment: 'production',
+        release: 'ear-api@1.2.0',
+        url: 'https://sentry.io/organizations/runtime-gw/issues/999/events/e1/',
+      }),
+    );
   });
 
   it('통합 설치 웹훅(installation)은 제목이 없어 null — 조용히 버려진다', () => {
@@ -142,12 +150,85 @@ describe('parseSentryWebhook — Internal Integration(Integration Platform) 모�
 });
 
 describe('formatSentryIssueText', () => {
-  it('한 줄 + 링크 줄 — 프로젝트는 굵게, 레벨 이모지, 환경·릴리스', () => {
+  it('머리줄 + 제목 + 위치·기기·규칙 + 링크 — Sentry 자체 알림이 보여 주던 만큼', () => {
     const text = formatSentryIssueText(parseSentryWebhook(LEGACY_PAYLOAD)!);
 
     expect(text).toBe(
-      ':rotating_light: Sentry 이슈 · *ear-app* · error · TypeError: Cannot read property "duration" of undefined · env production · release ear-app@1.2.0\n' +
+      [
+        ':rotating_light: Sentry 이슈 · *ear-app* · error · env production · release ear-app@1.2.0',
+        '*TypeError: Cannot read property "duration" of undefined*',
+        '위치: PlayerScreen in render',
+        '기기: iOS',
+        '규칙: Send a notification for high priority issues',
         '<https://sentry.io/organizations/ear/issues/6253/|Sentry에서 열기>',
+      ].join('\n'),
+    );
+  });
+
+  it('스택이 있으면 in-app 프레임을 위에서부터 최대 3줄 코드 블록으로, 위치가 없으면 첫 프레임이 위치다', () => {
+    const notice = parseSentryWebhook({
+      project_slug: 'ear-app',
+      level: 'error',
+      event: {
+        title: 'TypeError: boom',
+        contexts: {
+          os: { name: 'iOS', version: '18.6' },
+          device: { model: 'iPhone15,2' },
+          app: { app_version: '1.1.0' },
+        },
+        exception: {
+          values: [
+            {
+              stacktrace: {
+                frames: [
+                  {
+                    filename: 'node_modules/react/index.js',
+                    lineno: 1,
+                    function: 'render',
+                    in_app: false,
+                  },
+                  {
+                    filename:
+                      '/Users/x/app/src/features/player/PlayerScreen.tsx',
+                    lineno: 10,
+                    function: 'a',
+                    in_app: true,
+                  },
+                  {
+                    filename: 'src/features/player/usePlayer.ts',
+                    lineno: 20,
+                    function: 'b',
+                    in_app: true,
+                  },
+                  {
+                    filename: 'src/features/player/useQueue.ts',
+                    lineno: 30,
+                    function: 'c',
+                    in_app: true,
+                  },
+                  {
+                    filename: 'src/shared/lib/time.ts',
+                    lineno: 40,
+                    function: 'd',
+                    in_app: true,
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      },
+    })!;
+
+    expect(notice.frames).toEqual([
+      'lib/time.ts:40 in d',
+      'player/useQueue.ts:30 in c',
+      'player/usePlayer.ts:20 in b',
+    ]);
+    expect(notice.location).toBe('lib/time.ts:40 in d');
+    expect(notice.device).toBe('iOS 18.6 · iPhone15,2 · 앱 1.1.0');
+    expect(formatSentryIssueText(notice)).toContain(
+      '```lib/time.ts:40 in d\nplayer/useQueue.ts:30 in c\nplayer/usePlayer.ts:20 in b```',
     );
   });
 
@@ -159,10 +240,15 @@ describe('formatSentryIssueText', () => {
       environment: null,
       release: null,
       url: null,
+      location: '<!here> in render',
+      device: null,
+      rule: null,
+      frames: [],
+      issueId: null,
     });
 
     expect(text).toBe(
-      ':red_circle: Sentry 이슈 · *ear-api* · fatal · Error: &lt;!channel&gt; payload &lt;https://evil|click&gt;',
+      ':red_circle: Sentry 이슈 · *ear-api* · fatal\n*Error: &lt;!channel&gt; payload &lt;https://evil|click&gt;*\n위치: &lt;!here&gt; in render',
     );
     expect(text).not.toContain('<!channel>');
   });
@@ -175,10 +261,81 @@ describe('formatSentryIssueText', () => {
       environment: null,
       release: null,
       url: null,
+      location: null,
+      device: null,
+      rule: null,
+      frames: [],
+      issueId: null,
     });
 
     expect(text).toContain(`${'x'.repeat(200)}…`);
     expect(text).not.toContain('x'.repeat(201));
     expect(text.startsWith(':warning:')).toBe(true);
+  });
+});
+
+describe('formatIssueExtraLine — Issue API 값으로 State · First Seen · 건수 줄', () => {
+  const now = new Date('2026-10-07T09:00:00Z');
+
+  it('있는 값만 · 로 잇고, 시각은 상대 표기', () => {
+    expect(
+      formatIssueExtraLine(
+        {
+          shortId: 'EAR-API-1A',
+          state: 'new',
+          firstSeen: new Date('2026-10-07T08:58:50Z'),
+          lastSeen: now,
+          count: 3,
+          userCount: 2,
+        },
+        now,
+      ),
+    ).toBe('State: New · First Seen: 1분 전 · 3건 · 사용자 2명 · EAR-API-1A');
+    expect(
+      formatIssueExtraLine(
+        {
+          shortId: null,
+          state: 'regressed',
+          firstSeen: new Date('2026-10-05T09:00:00Z'),
+          lastSeen: null,
+          count: null,
+          userCount: null,
+        },
+        now,
+      ),
+    ).toBe('State: Regressed · First Seen: 2일 전');
+    expect(
+      formatIssueExtraLine(
+        {
+          shortId: null,
+          state: null,
+          firstSeen: null,
+          lastSeen: null,
+          count: null,
+          userCount: null,
+        },
+        now,
+      ),
+    ).toBeNull();
+  });
+
+  it('formatSentryIssueText 는 extra 가 있으면 규칙 줄 다음에 끼운다', () => {
+    const text = formatSentryIssueText(
+      parseSentryWebhook(LEGACY_PAYLOAD)!,
+      {
+        shortId: 'EAR-APP-2',
+        state: 'new',
+        firstSeen: new Date('2026-10-07T08:30:00Z'),
+        lastSeen: null,
+        count: 1,
+        userCount: 1,
+      },
+      now,
+    );
+    const lines = text.split('\n');
+    expect(lines[4]).toBe('규칙: Send a notification for high priority issues');
+    expect(lines[5]).toBe(
+      'State: New · First Seen: 30분 전 · 1건 · 사용자 1명 · EAR-APP-2',
+    );
   });
 });
