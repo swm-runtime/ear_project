@@ -154,6 +154,21 @@ export class EnvironmentVariables {
   SLACK_SIGNUP_WEBHOOK_URL?: string;
 
   /**
+   * Sentry 레거시 웹훅 → Slack 릴레이의 주소 토큰(`modules/alert/sentry-webhook.*`, 2026-10-07) — **선택.**
+   * 비우면 `POST /webhooks/sentry/:token` 이 전부 404 로 꺼진다. 넣으면 Sentry 프로젝트의 WebHooks 플러그인에
+   * `https://<api>/api/v1/webhooks/sentry/<이 값>` 을 등록한다. 서명 헤더가 없는 연동이라 토큰이 유일한
+   * 인증이다 — 16자 이상, URL 에 그대로 들어가므로 영숫자·`-`·`_` 만.
+   */
+  @ValidateIf((env: EnvironmentVariables) =>
+    Boolean(env.SENTRY_WEBHOOK_TOKEN?.trim()),
+  )
+  @Matches(/^[A-Za-z0-9_-]{16,128}$/, {
+    message:
+      'SENTRY_WEBHOOK_TOKEN must be 16-128 chars of [A-Za-z0-9_-] (URL path safe)',
+  })
+  SENTRY_WEBHOOK_TOKEN?: string;
+
+  /**
    * 추천 테스트 콘솔(admin 웹 "추천 테스트" 탭)이 대신 행동하는 테스트 계정의 이메일 — **개발계 전용**.
    * 비우면 콘솔 엔드포인트가 409 로 꺼지고, `SENTRY_ENVIRONMENT=production` 이면 값이 있어도 꺼진다.
    * 행동 버튼은 실제 신호·라이브러리를 쓰므로 운영 DB 에는 절대 붙이지 않는다(`features/admin.md` 4.7).
