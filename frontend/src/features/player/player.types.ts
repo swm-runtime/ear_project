@@ -14,7 +14,7 @@ export interface PlayLimitSnapshot {
   dailyPlayLimit: number | null;
   /** 서버가 play_records를 집계한 파생값. 무제한이면 null */
   dailyPlayCount: number | null;
-  /** 04:00 KST 경계의 날짜 라벨. 팝업 억제 유효 기간 판정에만 쓴다(library.md 4.3) */
+  /** 05:00 KST 경계의 날짜 라벨. 팝업 억제 유효 기간 판정에만 쓴다(library.md 4.3) */
   serviceDate: string;
 }
 

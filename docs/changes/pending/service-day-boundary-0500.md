@@ -6,7 +6,7 @@
 | 요청 파트 | 프론트엔드(PM) |
 | 요청자 | 이주호(PM) |
 | 발행 날짜 | 2026-10-07 |
-| 관련 티켓 | `tickets/backend/pending/service-day-boundary-0500.md`(KAN-149, 서버 경계) · `tickets/frontend/pending/service-day-0500-copy.md`(KAN-150, 앱 문구) · `tickets/frontend/archive/terms-amendment-service-day-0500.md`(KAN-148 완료, 약관·전환 시각) |
+| 관련 티켓 | `tickets/backend/pending/service-day-boundary-0500.md`(KAN-149, 서버 경계) · `tickets/frontend/archive/service-day-0500-copy.md`(KAN-150 완료, 앱 문구) · `tickets/frontend/archive/terms-amendment-service-day-0500.md`(KAN-148 완료, 약관·전환 시각) |
 
 ## 수정 내용
 
@@ -14,7 +14,7 @@
 2. **새벽 배치** (`backend-monitoring.md` 3-2 · `drip-scheduling.md` 2) — **드립 편성·도착 알림은 05:00 그대로**(PM 2026-10-07). 통계 집계는 04:00 → **05:00 이후**(전날이 05:00에 닫힌다). 만료 04:10 · 주제 숨김 04:15 · 보존 삭제 04:30 · 구독 보정 04:45는 서비스 날짜를 계산하지 않아 그대로. 종전 설명 "04시대 순서는 경계(04:00) 뒤에 전날분을 확정하고 편성이 그 결과를 읽게 하려는 것"은 "통계는 경계 뒤, 드립은 누적값만 읽어 하루 늦은 집계를 감수한다"로
 3. **`already_placed` 예외** — "경계(04:00)와 배치(05:00) 사이 온보딩 첫 드립" 창이 없어진다(경계 = 배치 시각)
 4. **체험 종료** — "10/10 04:00부터 무료 한도" 등 예시를 05:00으로. 전환 전에 이미 쓴 `trial_ends_at` 처리(서버 티켓 3장 결정)를 `domain.md`에 예외로 기록
-5. **문구** — "매일 새벽 4시에 다시 채워져요" → "매일 새벽 5시에 다시 채워져요"(`paywall.md` · `spec/uiux/player-uiux.md` 등)
+5. **문구** — "매일 새벽 4시에 다시 채워져요" → "매일 새벽 5시에 다시 채워져요"(`paywall.md` 4.5·5장 · `spec/uiux/explore-uiux.md` 해소 기록). `spec/uiux/` library·player·subscription 은 KAN-150 에서 반영(2026-10-07)
 6. **반영 시점** — 서버 전환과 같은 PR(또는 같은 날). 먼저 고치면 문서와 운영이 어긋난다. 전환 시각은 **2026-10-12(월) 05:00 KST**(KAN-148 확정 2026-10-07)
 
 ## 사유

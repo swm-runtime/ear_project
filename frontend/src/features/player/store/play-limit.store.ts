@@ -26,11 +26,11 @@ interface PlayLimitStore {
  * 신선도 가드 — 탭 전환 시 렌더되는 낡은 쿼리 캐시가 최신 값을 역행 덮어쓰지 못하게 한다.
  * 시계를 쓰지 않고 도메인 성질로 판정한다: 같은 서비스 날짜 안에서 daily_play_count는
  * 단조 증가다(play_records는 추가만 되고, 삭제해도 재생 이력은 남는다 — library.md 4.5).
- * 줄어드는 유일한 경우는 04:00 경계인데 그때는 service_date 자체가 바뀐다.
+ * 줄어드는 유일한 경우는 05:00 경계인데 그때는 service_date 자체가 바뀐다.
  */
 const isFresher = (incoming: PlayLimitSnapshot, current: PlayLimitSnapshot | null): boolean => {
   if (current === null) return true;
-  // 날짜가 바뀌었다(04:00 경계) — 무조건 새 값이다
+  // 날짜가 바뀌었다(05:00 경계) — 무조건 새 값이다
   if (incoming.serviceDate !== current.serviceDate) return true;
   // 한도가 바뀌었다(티어 변경 — 결제·만료) — 새 값으로 본다
   if (incoming.dailyPlayLimit !== current.dailyPlayLimit) return true;
