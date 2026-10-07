@@ -31,12 +31,19 @@ const SCHEMA = {
   properties: { summaries: { type: "array", items: { type: "object", additionalProperties: false, required: ["index", "summary"], properties: { index: { type: "integer" }, summary: { type: "string" } } } } },
 } as const;
 
+/**
+ * 진행 서술 — 구간이 "무엇을 했다"만 말하고 내용이 없는 요약 (summary-v2, 2026-10-07: 소급 88편에서 "~를 살폈다·마친다·다룬다"가 CS 시리즈 마무리·본문에 나왔다).
+ * 규칙(자산)에도 있지만 안 지켜지면 코드가 잡아 그 구간만 다시 쓰게 한다
+ */
+export const NARRATION_RE = /(다룬다|다뤘다|살폈다|살펴본다|살펴봤다|마친다|마쳤다|이야기한다|이야기했다|이야기다|알아본다|알아봤다|정리한다|정리했다|소개한다|소개했다|짚는다|짚었다)[.!]?$|이야기$/; // "설명한다"는 뺀다 — "가설이 현상을 설명한다"처럼 내용 문장에도 쓴다
+
 /** 요약 한 줄이 규격 밖이면 사유, 맞으면 null */
 export function summaryProblem(s: string | null | undefined): string | null {
   if (!s || !s.trim()) return "비어 있음";
   if (/[\r\n]/.test(s)) return "줄바꿈";
   const n = [...s.trim()].length;
-  return n > SUMMARY_MAX ? `${n}자 (공백 포함 ${SUMMARY_MAX}자 이내)` : null;
+  if (n > SUMMARY_MAX) return `${n}자 (공백 포함 ${SUMMARY_MAX}자 이내)`;
+  return NARRATION_RE.test(s.trim()) ? "진행 서술 — 구간이 말한 내용을 쓴다" : null;
 }
 
 export function summaryCacheKey(version: string, item: SummaryItem): string {
@@ -57,8 +64,9 @@ async function loadRule(): Promise<{ version: string; body: string }> {
 }
 
 /** 구간 요약 — 캐시에 있는 구간은 다시 부르지 않는다. 반환 summaries 는 items 와 같은 길이(실패한 구간은 null) */
-export async function summarizeSections(episodeTitle: string, items: SummaryItem[], cache: Cache | null): Promise<{ summaries: (string | null)[]; cache: Cache; costUsd: number; called: boolean; failed: string[] }> {
-  const rule = await loadRule();
+/** opts.rule: 활성 자산 대신 이 규칙으로 (활성화 전 판 비교용 — 운영 경로는 넘기지 않는다) */
+export async function summarizeSections(episodeTitle: string, items: SummaryItem[], cache: Cache | null, opts: { rule?: { version: string; body: string } } = {}): Promise<{ summaries: (string | null)[]; cache: Cache; costUsd: number; called: boolean; failed: string[] }> {
+  const rule = opts.rule ?? (await loadRule());
   const keys = items.map((x) => summaryCacheKey(rule.version, x));
   const prev = cache?.version === rule.version ? cache.items : {};
   const summaries: (string | null)[] = keys.map((k) => (prev[k] && !summaryProblem(prev[k]) ? prev[k] : null));
