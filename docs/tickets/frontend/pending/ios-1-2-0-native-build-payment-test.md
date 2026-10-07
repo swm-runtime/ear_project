@@ -1,8 +1,8 @@
-# [FE] 1.2.0(rt 32) 네이티브 빌드 — preview 결제 테스트 → 운영 TestFlight → 심사 제출(구독 상품 포함)
+# [FE] 1.2.0(rt 32) 네이티브 빌드 — iOS: preview 결제 테스트 → TestFlight → 심사 제출(구독 상품 포함) · Android: preview 빌드 + 운영 내부 테스트 트랙 업로드
 
 | 항목 | 값 |
 |---|---|
-| 대상 | EAS 빌드(`preview` · `production` 프로필, iOS) · TestFlight 내부 테스트 · App Store 심사 제출. **코드 수정 없음** |
+| 대상 | EAS 빌드(`preview` · `production` 프로필, **iOS·Android**) · TestFlight 내부 테스트 · App Store 심사 제출 · Play 내부 테스트 트랙 업로드. **코드 수정 없음** |
 | 요청 파트 | 프론트엔드 |
 | 요청자 | 박준현(백엔드) |
 | 담당 | 이주호 |
@@ -49,6 +49,11 @@ iOS 결제 화면(KAN-120)·음질 선택(KAN-143)·서명 URL 무교체 갱신(
 4. **App Store 심사 제출** — 1.2.0 빌드와 **구독 상품 2개를 같은 제출에 포함**. 심사 통과 전에는 운영 실결제가 되지 않는다. 심사 중 Apple의 결제는 샌드박스로 들어오고 운영 서버가 `Sandbox`를 받게 돼 있다
 5. rt 32 빌드가 나오면 `production` 채널 OTA가 그 기기에 닿기 시작한다 — 스토어 1.1.0(rt 31)은 영향 없음(종전 JS 유지)
 
+**Android(추가 2026-10-07)** — 결제는 2단계(KAN-120 2단계·KAN-130)지만, **결제 라이브러리가 든 빌드가 Play에 올라가 있어야** 그 다음이 시작된다.
+
+6. **운영 앱(`com.runtime.ear`) — 내부 테스트 트랙 업로드만, 심사 아님.** `eas build -p android --profile production` → `eas submit`(내부 테스트 트랙). Play Console은 업로드된 AAB에 `com.android.vending.BILLING` 권한(Play Billing 라이브러리가 자동으로 넣음)이 있어야 "수익 창출 → 정기 결제" 메뉴를 열어 준다. 프로덕션 트랙 출시(심사)는 이 티켓 범위가 아니다
+7. **preview 앱(`dev.runtime.ear`) — rt 32 preview 빌드(APK) 내부 배포.** 개발계 Play 결제 테스트용. 대상 상품은 dev 앱 Play Console의 정기 결제 2개(`dev.runtime.ear.sub.pro.monthly` · `dev.runtime.ear.sub.daily.monthly`, 기본 요금제 `monthly` — 2026-10-07 생성). 구매 테스트는 Play Console → 설정 → **라이선스 테스트**에 등록한 Google 계정으로 하고, 서버 쪽 Play 설정(`GOOGLE_PLAY_*`)·`plans.store_product_id_android`는 백엔드가 KAN-130에서 넣는다 — 이 티켓은 빌드 업로드까지
+
 ## 완료 조건
 
 - Given preview rt 32 빌드를 깐 기기(샌드박스 로그인) / When Pro를 구매한다 / Then 과금 없이 구독 중이 되고 개발계 로그에 `purchase applied`, 5분 뒤 `DID_RENEW` 처리가 찍힌다
@@ -56,7 +61,10 @@ iOS 결제 화면(KAN-120)·음질 선택(KAN-143)·서명 URL 무교체 갱신(
 - Given Pro 계정 / When 무손실을 골라 FLAC 콘텐츠를 LTE에서 재생한다 / Then 재생 시작 지연 실측값이 KAN-141 처리 기록에 적혀 있다
 - Given 운영 TestFlight rt 32 빌드 / When 샌드박스로 구매·복원한다 / Then 운영 서버에 `environment = sandbox` 구독 행이 생기고 티어가 반영된다
 - Given App Store Connect / When 1.2.0을 제출한다 / Then 구독 상품 2개가 같은 제출에 묶여 있다
+- Given Play Console 운영 앱 / When 내부 테스트 트랙을 본다 / Then 결제 라이브러리가 든 rt 32 AAB가 올라가 있고 "정기 결제" 메뉴가 열린다(심사 제출 없이)
+- Given dev 앱 rt 32 preview APK / When 라이선스 테스터 계정으로 설치한다 / Then 페이월에서 Play 결제 시트가 뜬다(서버 반영은 KAN-130 완료 조건)
 
 ## 처리 기록
 
 - 2026-10-07 발행(마크다운 + Jira KAN-155). 서버·상품·테스터 준비는 백엔드가 같은 날 마쳤다(위 "서버 쪽 준비").
+- 2026-10-07 — Android 항목(6·7) 추가: 운영 앱 내부 테스트 트랙 업로드(심사 아님) · dev 앱 preview 빌드.
