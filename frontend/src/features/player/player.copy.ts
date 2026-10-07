@@ -79,6 +79,10 @@ export const PLAYER_COPY = {
     bufferingA11y: '재생 준비 중',
     /** 시크바 aria-valuetext — "09:12"가 "영 구 콜론 일 이"로 읽히지 않게 한다(uiux 7장) */
     seekBarA11yValue: (position: string, duration: string) => `${duration} 중 ${position}`,
+    /** 시크바 위 지금 듣는 구간(KAN-127) — "지금 · 회의를 줄이는 법". 구분점은 낭독하지 않는다 */
+    currentSectionLabel: '지금',
+    currentSectionSeparator: '·',
+    currentSectionA11y: (title: string) => `지금 듣는 구간, ${title}`,
   },
 
   /** PL6 스크립트 시트 — 현재 구간 하이라이트·문단 탭 seek(player-uiux.md 4.6). P1이라 지금은 dev mock만 채운다 */

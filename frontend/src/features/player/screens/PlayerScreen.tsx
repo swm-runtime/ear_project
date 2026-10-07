@@ -36,6 +36,7 @@ import { useTopicsQuery } from '@/features/interest';
 import { createAndroidPlayerZoom } from '../components/android-player-zoom';
 import { MINI_CARD_HEIGHT, MINI_CARD_RADIUS, MINI_THUMB_SIZE } from '../components/MiniPlayer';
 import PlayConfirmDialog from '../components/PlayConfirmDialog';
+import PlayerCurrentSection from '../components/PlayerCurrentSection';
 import {
   MoreIcon,
   PauseIcon,
@@ -1652,6 +1653,15 @@ export default function PlayerScreen() {
           ]}
           onLayout={onControlsLayout}
         >
+          {/* 지금 듣는 구간 — 시크바 바로 위 한 줄(KAN-127, PM 2026-10-07). 재생 목록이 열리면 사진 위라 걷는다 */}
+          <Animated.View
+            style={{ opacity: queueInverse }}
+            pointerEvents="none"
+            accessibilityElementsHidden={isQueueOpen}
+            importantForAccessibility={isQueueOpen ? 'no-hide-descendants' : 'auto'}
+          >
+            <PlayerCurrentSection sections={session.sections} positionSec={session.positionSec} />
+          </Animated.View>
           <View>
             <Animated.View
               style={{ opacity: queueInverse }}

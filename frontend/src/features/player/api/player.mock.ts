@@ -183,6 +183,16 @@ export const isMockAiGeneratedContent = (contentId: string): boolean => {
 export const getMockSourceUrl = (contentId: string): string | null =>
   isMockAiGeneratedContent(contentId) ? null : `https://example.com/original/${contentId}`;
 
+/** 발급 응답의 구간 제목 대역(KAN-127) — 실서버는 대본 단락 제목이다(player-api.md 4.1) */
+const MOCK_SECTIONS = [
+  { start_sec: 0, title: '인트로' },
+  { start_sec: 20, title: '도입' },
+  { start_sec: 75, title: '회의가 길어지는 진짜 이유' },
+  { start_sec: 190, title: '결정권자를 먼저 정하면 달라지는 것' },
+  { start_sec: 330, title: '15분 안에 끝내는 안건 정리법' },
+  { start_sec: 480, title: '마무리' },
+];
+
 /** POST /contents/:id/audio-urls의 대역 — 판정은 하되 차감하지 않는다(player-api.md 4.1) */
 export const mockIssueAudioUrls = async (contentId: string): Promise<AudioUrlsResponseDto> => {
   await delay(ISSUE_DELAY_MS);
@@ -195,6 +205,8 @@ export const mockIssueAudioUrls = async (contentId: string): Promise<AudioUrlsRe
     content: { ...content, source_url: getMockSourceUrl(contentId) },
     // 대본이 있는 mock 콘텐츠만 버튼이 뜬다 — getMockScript 와 같은 규칙이다
     has_script: !isMockAiGeneratedContent(contentId),
+    // 구간도 대본이 있는 콘텐츠만 — 실서버 구성(인트로 · 도입 · 단락 제목 · 마무리)을 흉내 낸다
+    sections: isMockAiGeneratedContent(contentId) ? [] : MOCK_SECTIONS,
     library_item: snapshot?.library_item ?? null,
     progress: snapshot?.progress ?? null,
     audio: {
