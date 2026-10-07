@@ -5,7 +5,7 @@ import path from "node:path";
 
 /**
  * 오디오 조립 (spec/06 7장) — ffmpeg 로: 본편[앞 무음 → 세그먼트 디코드·연결(문맥 겹침 경계는 그대로, 폴백 경계는 자연 쉼 길이의 무음) → 뒤 무음]
- * → 본편만 라우드니스 정규화(2패스 linear, -16 LUFS) → 스테레오(목소리는 양쪽 같게) → [인트로 | 본편 | 아웃트로] 연결
+ * → 본편만 라우드니스 정규화(2패스 linear, -16 LUFS — 피크 여유가 모자라면 피크 리미터를 먼저, 2026-10-08) → 스테레오(목소리는 양쪽 같게) → [인트로 | 본편 | 아웃트로] 연결
  * → 마스터 wav(스테레오) + 배포본 mp3 192kbps (2026-09-22: ElevenLabs 원본이 mp3 128k 라 배포본을 128k 로 다시 인코딩하면 손실을 두 번 거친다 —
  *   192k 는 그 두 번째 열화를 거의 없앤다. 원본이 pcm 이 되면(Pro 플랜) 다시 정한다). 재처리는 항상 마스터에서.
  * 징글은 업로드 때 한 번 음량·포맷을 맞춰 두고(cli/jingle.ts) 조립 때는 손대지 않는다 — 2026-10-05 KAN-122: 모노 합치기가 넓은 스테레오 징글의
@@ -180,7 +180,8 @@ async function loudnormJson(args: string[]): Promise<Record<string, string>> {
 
 export interface LoudnessResult {
   type: string;          // "linear" | "dynamic"(선형이 성립하지 않아 ffmpeg 가 바꾼 경우 — 경고 대상) | "skipped"(무음에 가까워 측정 불가)
-  targetI: number;       // 실제로 쓴 목표 (피크 여유가 없으면 요청 목표보다 낮춘다)
+  targetI: number;       // 실제로 쓴 목표 (리미터 상한으로도 피크 여유가 모자라면 요청 목표보다 낮춘다)
+  limitedDb?: number;    // 피크 리미터로 누른 최대량(dB) — 0/없음이면 리미터를 쓰지 않았다
   requestedI: number;
   measuredI: number; measuredTp: number; measuredLra: number;
   outputI: number; outputTp: number;
@@ -189,9 +190,12 @@ export interface LoudnessResult {
 /**
  * 2패스 라우드니스 정규화 (2026-10-05 KAN-122): 1패스로 재고, 2패스에 측정값을 넘겨 linear=true — 파일 전체에 고정 게인 한 번.
  * 1패스(동적) loudnorm 은 읽으면서 게인을 계속 바꿔 말소리가 출렁이고 쉼 뒤 바닥이 들뜬다. 고정 게인으로 목표에 닿으면 최대 피크가 TP 를 넘는 경우엔
- * ffmpeg 가 몰래 동적 모드로 바꾸므로, 그때는 목표를 피크 여유만큼 낮춰 선형을 지킨다(결과에 남긴다 — 리미터로 누르지 않는다).
+ * ffmpeg 가 몰래 동적 모드로 바꾸므로, 그때는 목표를 피크 여유만큼 낮춰 선형을 지킨다(결과에 남긴다).
+ * 피크 리미터 (2026-10-08 박수헌 "전체 음량은 높이자"): `limitMaxDb` 를 주면 피크 여유가 모자랄 때 먼저 피크만 누른다 — 목표까지 고정 게인을 건 뒤
+ * alimiter(미리 보기 5ms·복귀 50ms·자동 레벨 끔·지연 보정)로 샘플 피크를 TP-1dB 에 묶고, 그 결과를 다시 2패스 linear 로 맞춘다. 누르는 양은 limitMaxDb 까지 —
+ * 넘으면 그만큼 목표를 낮춘다. eleven_v4·stability 0 본편이 말소리에 비해 피크가 커서(PLR ~19dB) 리미터 없이 -20.7 LUFS 에 멈췄다(T260927-001 시험).
  */
-export async function normalizeLinear(src: string, outFile: string, o: { targetI: number; tp?: number; lra?: number; channels: 1 | 2 }): Promise<LoudnessResult> {
+export async function normalizeLinear(src: string, outFile: string, o: { targetI: number; tp?: number; lra?: number; channels: 1 | 2; limitMaxDb?: number }): Promise<LoudnessResult> {
   const tp = o.tp ?? -1.5;
   const p1 = await loudnormJson(["-i", src, "-af", `loudnorm=I=${o.targetI}:TP=${tp}:LRA=${o.lra ?? 11}:print_format=json`, "-f", "null", "-"]);
   const mi = Number(p1.input_i), mtp = Number(p1.input_tp), mlra = Number(p1.input_lra), mth = Number(p1.input_thresh);
@@ -200,6 +204,16 @@ export async function normalizeLinear(src: string, outFile: string, o: { targetI
     return { type: "skipped", targetI: o.targetI, requestedI: o.targetI, measuredI: mi, measuredTp: mtp, measuredLra: mlra, outputI: mi, outputTp: mtp };
   }
   const headroom = tp - 0.1 - mtp; // 고정 게인으로 올릴 수 있는 최대치
+  if (o.limitMaxDb && o.limitMaxDb > 0 && mi + headroom < o.targetI - 0.05) {
+    const ceilDb = tp - 1; // 샘플 피크 상한 — 표본 사이 피크(트루 피크)는 이보다 조금 높아 TP 안에 들도록 1dB 남긴다
+    const gainDb = Math.round(Math.min(o.targetI - mi, ceilDb - mtp + o.limitMaxDb) * 100) / 100;
+    const limitedDb = Math.round(Math.max(0, mtp + gainDb - ceilDb) * 10) / 10;
+    const limited = outFile.replace(/(\.wav)?$/, ".limited.wav");
+    await ffmpeg(["-i", src, "-af", `volume=${gainDb}dB,alimiter=limit=${Math.pow(10, ceilDb / 20).toFixed(4)}:attack=5:release=50:level=false:latency=true`, "-ar", "44100", "-ac", String(o.channels), "-c:a", "pcm_s16le", limited]);
+    const r = await normalizeLinear(limited, outFile, { ...o, limitMaxDb: 0 });
+    await fs.rm(limited, { force: true });
+    return { ...r, requestedI: o.targetI, measuredI: mi, measuredTp: mtp, measuredLra: mlra, limitedDb };
+  }
   const targetI = Math.round(Math.min(o.targetI, mi + headroom) * 100) / 100;
   const lra = Math.min(20, Math.max(o.lra ?? 11, Math.ceil(mlra) + 1)); // 측정 LRA 보다 작은 목표는 선형을 막는다
   const f = `loudnorm=I=${targetI}:TP=${tp}:LRA=${lra}:linear=true:measured_I=${mi}:measured_TP=${mtp}:measured_LRA=${mlra}:measured_thresh=${mth}:offset=${Number(p1.target_offset) || 0}:print_format=json`;
@@ -300,6 +314,8 @@ export async function encodeRenditions(masterFile: string, out: { distOut: strin
  *  배포본(스테레오)에서는 -13 LUFS 로 잰다. 이전 모노 배포본도 플레이어가 양쪽으로 내보내 같은 크기로 들렸다 — 청취 음량은 바뀌지 않는다 (2026-10-05) */
 export const VOICE_TARGET_LUFS = -16;
 export const VOICE_TARGET_TP = -1.5;
+/** 본편 피크 리미터 최대량 (2026-10-08) — 목표 음량까지 고정 게인으로 못 올릴 때 피크만 이만큼까지 누른다. 넘으면 목표를 낮춘다(run 결과에 남는다) */
+export const VOICE_PEAK_LIMIT_MAX_DB = 6;
 /** 배포본(스테레오)에서 본편의 라우드니스 = 모노 목표 + 3 */
 export const VOICE_STEREO_LUFS = VOICE_TARGET_LUFS + 3;
 /** 징글 목표 (스테레오로 잰 값) — 본편보다 2LU 작게 (KAN-122 "본편보다 크지 않게") */
@@ -325,7 +341,7 @@ export async function assemble(i: AssembleInput): Promise<{ durationSec: number;
   if (tailSec > 0) voice.push(await silenceWav(tailSec, path.join(tmp, "tail.wav")));
   const voiceRaw = await concatWavs(voice, path.join(tmp, "voice.wav"), tmp, "voice");
   // 2) 본편만 정규화 (앞뒤 무음은 게이트에 걸려 측정에 들어가지 않는다) → 스테레오
-  const loudness = await normalizeLinear(voiceRaw, path.join(tmp, "voice.norm.wav"), { targetI: VOICE_TARGET_LUFS, tp: VOICE_TARGET_TP, channels: 1 });
+  const loudness = await normalizeLinear(voiceRaw, path.join(tmp, "voice.norm.wav"), { targetI: VOICE_TARGET_LUFS, tp: VOICE_TARGET_TP, channels: 1, limitMaxDb: VOICE_PEAK_LIMIT_MAX_DB });
   const voiceSt = await monoToStereo(path.join(tmp, "voice.norm.wav"), path.join(tmp, "voice.st.wav"));
   // 3) 징글은 포맷만 맞춰 그대로 (스테레오 유지, 음량 처리 없음)
   const parts: string[] = [];

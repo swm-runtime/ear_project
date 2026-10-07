@@ -337,9 +337,9 @@ export async function runTts(job: Job) {
   const metered = u.credits > 0;
   const ttsCost = metered ? (u.credits / 1000) * cfg.ttsUsdPer1kCredits : cfg.ttsUsdPer1kChars != null ? ((totalChars + ctxChars) / 1000) * cfg.ttsUsdPer1kChars : undefined;
   const jingleNote = (jingle.introFile || jingle.outroFile ? ` · 징글 ${jingle.introFile ? `인트로 ${asm.introSec}초` : "인트로 없음"} / ${jingle.outroFile ? "아웃트로" : "아웃트로 없음"} (파일 앞뒤 무음 1초, 본편에 바로 붙임 · 스테레오 그대로)` : "") + ((jingle as { missing?: string }).missing ? ` · ⚠️ 징글 받기 실패: ${(jingle as { missing?: string }).missing}` : "");
-  // 정규화 기록 (KAN-122): 본편만 2패스 linear. 피크 여유가 없어 목표를 낮췄거나 선형이 성립하지 않았으면 표시한다
+  // 정규화 기록 (KAN-122): 본편만 2패스 linear. 피크 리미터를 썼거나(2026-10-08) 목표를 낮췄거나 선형이 성립하지 않았으면 표시한다
   const ln = asm.loudness;
-  const normNote = ` · 정규화 본편만 2패스 ${ln.type === "linear" ? "linear" : `⚠️ ${ln.type}`} ${ln.targetI} LUFS${ln.targetI < ln.requestedI ? `(피크 여유로 ${ln.requestedI}에서 낮춤)` : ""} — 측정 ${ln.measuredI}·TP ${ln.measuredTp} → 출력 ${ln.outputI}·TP ${ln.outputTp} · 스테레오`;
+  const normNote = ` · 정규화 본편만 2패스 ${ln.type === "linear" ? "linear" : `⚠️ ${ln.type}`} ${ln.targetI} LUFS${ln.limitedDb ? ` · 피크 리미터 최대 ${ln.limitedDb}dB` : ""}${ln.targetI < ln.requestedI - 0.05 ? `(피크 여유로 ${ln.requestedI}에서 낮춤)` : ""} — 측정 ${ln.measuredI}·TP ${ln.measuredTp} → 출력 ${ln.outputI}·TP ${ln.outputTp} · 스테레오`;
   const usageNote = `${tailNote ? ` · ${tailNote}` : tailGuardOn ? " · ⚠️ 끝 꼬리 가드 미적용(원속 폴백)" : ""}${jingleNote}${normNote} · 실제 차감 ${metered ? `${u.credits.toLocaleString()}크레딧` : "미계측"} (${u.requests}요청${u.unmetered ? `, 헤더 없음 ${u.unmetered}` : ""}${alignCalls ? ` · 그중 강제 정렬 ${alignCredits.toLocaleString()}크레딧` : ""})`;
   await insertRun({ backlog_id: backlogId, phase: "tts", result: result + usageNote, prompt_version: "tts-v1 (worker)", artifacts, executed_by: executedBy, model: cfg.ttsModel, cost_usd: ttsCost, tokens: { characters: totalChars, context_characters: ctxChars, chunks: chunks.length, duration_sec: Math.round(durationSec), credits: metered ? u.credits : null, requests: u.requests, unmetered: u.unmetered, align_calls: alignCalls, align_fails: alignFails, align_credits: alignCredits }, worker_rev: workerRev() });
   // 샘플은 발행 경로가 아니다 — 연쇄를 잇지 않는다
