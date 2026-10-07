@@ -2,7 +2,10 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { cfg, executedBy } from "../config.js";
 import { getBacklog, getEpisode, getSetting, insertRun, majorOfMidTopic, pool, setJobProgress, type Job } from "../db.js";
-import { THUMBNAIL_ANCHOR_PROMPT_KEY, THUMBNAIL_PROMPT_KEY, workerRev } from "../assets.js";
+import { THUMBNAIL_ANCHOR_PROMPT_KEY, THUMBNAIL_PROMPT_KEY, THUMBNAIL_SCENE_PROMPT_KEY, workerRev } from "../assets.js";
+import { makeExecutor } from "../executors/index.js";
+import { composeCorner, cornerContrast } from "./thumbnail-compose.js";
+import { buildScenePrompt, recentScenes, SCENE_FILE, SCENE_SCHEMA, type ThumbnailScene } from "./thumbnail-scene.js";
 import { advanceChain } from "../chain.js";
 import { exists, localPathOf, pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { log } from "../util.js";
@@ -18,6 +21,10 @@ import { log } from "../util.js";
  *
  * **재시도를 자동으로 하지 않는다.** 이미지 품질은 사람이 보고 판단할 일이라(요청자 2026-09-10),
  * 마음에 안 들면 웹의 [썸네일 다시 만들기]로 사람이 다시 부른다.
+ *
+ * **thumb-v4 장면 방식 (KAN-138, 2026-10-07)**: 활성 프롬프트에 {장면} 칸이 있으면 — ① 텍스트 모델이 대본을 읽고 장면을 쓰고
+ * (thumbnail-scene.ts, 규칙은 자산 skills/thumbnail/scene.md) ② 이미지 모델은 삼각형 없이 그림만 그리고(앵커 없음) ③ 코너 삼각형·그림자는
+ * 코드가 얹는다(thumbnail-compose.ts). 칸이 없으면(v3 이하) 종전 경로 — 자산만 되돌리면 배포 없이 v3 으로 돌아간다.
  */
 /**
  * 대분류별 띠 색 기본값 — 프롬프트 자산 하단 표(thumb-v1)와 같은 값이다.
@@ -83,11 +90,16 @@ export async function runThumbnail(job: Job) {
   const major = await majorOfMidTopic(cand.mid_topic);
   const colors = (await getSetting<Record<string, string>>("thumbnail.colors")) ?? {};
   const bandColor = (major && (colors[major] ?? DEFAULT_BAND_COLORS[major])) || FALLBACK_BAND_COLOR;
+  const template = await loadAsset(THUMBNAIL_PROMPT_KEY);
+  if (template.content.includes("{장면}")) {
+    return runSceneThumbnail({ job, episodeId, backlogId, rel, outFile, template, bandColor, major, progress,
+      title: cand.title, mid: cand.mid_topic, oneLiner: firstNonEmpty(row.rows[0]?.one_liner, cand.axis) });
+  }
+
+  // ── 종전 경로 (thumb-v3 이하) ──
   // 한 줄 요약이 없는 구 에피소드는 설계 축으로 대체한다(티켓 3-1) — 축도 없으면 후보 요약
   const oneLiner = firstNonEmpty(row.rows[0]?.one_liner, cand.axis, row.rows[0]?.summary);
   if (!oneLiner) throw new Error(`{핵심 개념}에 넣을 문장이 없다 (one_liner·axis·summary 모두 비었음): ${episodeId}`);
-
-  const template = await loadAsset(THUMBNAIL_PROMPT_KEY);
   const anchor = await loadAnchor();
   // 앵커가 있을 때만 참조 지시를 덧붙인다 — 없는데 붙이면 "첨부 이미지"를 가리키는 문장이 허공을 가리킨다
   const anchorRule = anchor ? await loadAsset(THUMBNAIL_ANCHOR_PROMPT_KEY) : null;
@@ -133,6 +145,67 @@ export async function runThumbnail(job: Job) {
   });
   const next = await advanceChain(job);
   return { episode_id: episodeId, thumbnail_key: key, bytes: png.length, model: cfg.thumbnailModel, anchor: !!anchor, next: next?.type ?? null };
+}
+
+/**
+ * thumb-v4 장면 경로 — 장면 쓰기 → 이미지(삼각형 없이) → 코너 삼각형·S2 그림자 합성. 원본 그림(thumbnail-raw.png)과 장면(thumbnail-scene.json)을
+ * 함께 남긴다: 원본이 있으면 코너 마감을 바꿀 때 다시 그리지 않고 합성만 다시 하고, 장면 파일은 다음 편의 [최근 장면]이 된다.
+ * 삼각형 대비(ΔE)가 20 미만이면 결과에 경고만 남긴다 — 다시 만들지는 사람이 정한다(재시도 자동화 금지, 위 머리말).
+ */
+async function runSceneThumbnail(a: {
+  job: Job; episodeId: string; backlogId: string; rel: string; outFile: string; template: { version: string; content: string };
+  bandColor: string; major: string | null; title: string; mid: string; oneLiner: string | null; progress: (detail: string) => Promise<unknown>;
+}) {
+  const dir = path.dirname(a.outFile);
+  const sceneRule = await loadAsset(THUMBNAIL_SCENE_PROMPT_KEY);
+  const script = await fs.readFile(path.join(dir, "script.md"), "utf8").catch(() => null);
+  await a.progress(`장면 쓰기 · ${cfg.thumbnailSceneModel}`);
+  const recent = await recentScenes(a.episodeId);
+  const sr = await makeExecutor("openai").run<ThumbnailScene>({
+    prompt: buildScenePrompt({ title: a.title, mid: a.mid, major: a.major, oneLiner: a.oneLiner, script }, recent),
+    systemPrompt: promptBody(sceneRule.content), schema: SCENE_SCHEMA, allowedTools: [], tools: [], cwd: cfg.workRoot, timeoutMs: 180_000, model: cfg.thumbnailSceneModel,
+  });
+  const scene = sr.output;
+  const promptVersion = `${a.template.version}+${sceneRule.version}`;
+  const prompt = fillSlots(promptBody(a.template.content), {
+    "{제목}": a.title, "{분야}": `${a.mid}${a.major ? ` (${a.major})` : ""}`, "{띠 색}": a.bandColor, "{장면}": scene.scene, "{빛}": scene.light,
+  });
+
+  await a.progress(`${cfg.thumbnailModel} · ${cfg.thumbnailQuality} · 장면`);
+  const started = Date.now();
+  const png = await generateImage(prompt);
+  const elapsedMs = Date.now() - started;
+  const rawFile = path.join(dir, "thumbnail-raw.png");
+  await fs.writeFile(rawFile, png);
+  await a.progress("코너 삼각형 합성");
+  const contrast = await cornerContrast(rawFile, a.bandColor);
+  await composeCorner(rawFile, a.outFile, a.bandColor);
+  await fs.writeFile(path.join(dir, SCENE_FILE), JSON.stringify({ ...scene, prompt_version: promptVersion, scene_model: sr.model, corner_delta_e: contrast, at: new Date().toISOString() }, null, 2) + "\n");
+
+  await a.progress("S3 업로드");
+  await pushPrefix(`${a.rel}/`);
+  const key = s3Key(`${a.rel}/thumbnail.png`);
+  await pool.query("update public.episodes set thumbnail_key = $2, updated_at = now() where id = $1", [a.episodeId, key]);
+
+  const imageCost = cfg.thumbnailUsdPerImage ?? PRICE_PER_IMAGE[cfg.thumbnailModel]?.[cfg.thumbnailQuality];
+  const kb = Math.round((await fs.stat(a.outFile)).size / 1024);
+  const corner = contrast < 20 ? `⚠️ 삼각형 대비 낮음(ΔE ${contrast}) — [썸네일 다시 만들기] 권장` : `삼각형 대비 ΔE ${contrast}`;
+  const result = `썸네일 생성(장면) — ${cfg.thumbnailModel}/${cfg.thumbnailQuality} ${cfg.thumbnailSize} · ${kb}KB · ${(elapsedMs / 1000).toFixed(1)}초 · 장면(${scene.has_people ? "사람" : "사물"}): ${scene.scene.slice(0, 140)} · 띠 ${a.bandColor} · ${corner} · 프롬프트 ${promptVersion} · 사람 확인 대기`;
+  log(`  thumbnail ${a.episodeId}: ${key} (장면 · ${kb}KB · ΔE ${contrast})`);
+  await insertRun({
+    backlog_id: a.backlogId,
+    phase: "thumbnail",
+    result,
+    prompt_version: promptVersion,
+    artifacts: [key, s3Key(`${a.rel}/${SCENE_FILE}`), s3Key(`${a.rel}/thumbnail-raw.png`)],
+    executed_by: executedBy,
+    model: cfg.thumbnailModel,
+    cost_usd: imageCost != null || sr.listCostUsd != null ? (imageCost ?? 0) + (sr.listCostUsd ?? 0) : null,
+    tokens: { images: 1, quality: cfg.thumbnailQuality, size: cfg.thumbnailSize, bytes: png.length, anchor: false, scene_model: sr.model, scene_usage: (sr.raw as { usage?: unknown } | undefined)?.usage, corner_delta_e: contrast },
+    worker_rev: workerRev(),
+  });
+  const next = await advanceChain(a.job);
+  return { episode_id: a.episodeId, thumbnail_key: key, bytes: png.length, model: cfg.thumbnailModel, anchor: false, scene: scene.scene, corner_delta_e: contrast, next: next?.type ?? null };
 }
 
 /** 프롬프트의 진실은 DB 다 (spec/10 3.2) — git 사본으로 조용히 폴백하지 않는다. 시딩: npm run assets:import */
@@ -239,7 +312,7 @@ async function callOpenAi(url: string, init: { body: BodyInit; headers?: Record<
     method: "POST",
     headers: { authorization: `Bearer ${cfg.openaiKey}`, ...(init.headers ?? {}) },
     body: init.body,
-    signal: AbortSignal.timeout(180_000), // 이미지 생성은 수십 초가 걸린다 — 기본 타임아웃으로는 끊긴다
+    signal: AbortSignal.timeout(300_000), // 이미지 생성은 수십 초가 걸린다 — 기본 타임아웃으로는 끊긴다 (2026-10-07 180 → 300초: 몰릴 때 4분 넘게 걸린 실측)
   });
   const text = await res.text();
   let parsed: ImageResponse;

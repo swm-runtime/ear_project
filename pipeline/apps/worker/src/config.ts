@@ -155,6 +155,8 @@ export const cfg = {
    * 비어 있으면 참조 없이 생성한다(초기 5편이 이 경로다).
    */
   thumbnailAnchorKey: process.env.THUMBNAIL_ANCHOR_KEY || "",
+  /** 장면 쓰기 모델 (KAN-138 thumb-v4, 2026-10-07) — OpenAI 실행기로 부른다(키는 썸네일과 같은 OPENAI_API_KEY). 편당 1센트 안팎 */
+  thumbnailSceneModel: process.env.THUMBNAIL_SCENE_MODEL || "gpt-5.6-terra",
   /** 1장당 USD — runs.cost_usd 환산용. 모델·품질을 바꾸면 THUMBNAIL_USD_PER_IMAGE 로 덮는다 */
   thumbnailUsdPerImage: process.env.THUMBNAIL_USD_PER_IMAGE ? Number(process.env.THUMBNAIL_USD_PER_IMAGE) : undefined,
 };
