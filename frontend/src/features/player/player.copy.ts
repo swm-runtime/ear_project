@@ -79,9 +79,8 @@ export const PLAYER_COPY = {
     bufferingA11y: '재생 준비 중',
     /** 시크바 aria-valuetext — "09:12"가 "영 구 콜론 일 이"로 읽히지 않게 한다(uiux 7장) */
     seekBarA11yValue: (position: string, duration: string) => `${duration} 중 ${position}`,
-    /** 시크바 위 지금 듣는 구간(KAN-127) — "지금 · 회의를 줄이는 법". 구분점은 낭독하지 않는다 */
-    currentSectionLabel: '지금',
-    currentSectionSeparator: '·',
+    /** 시크바 위 지금 듣는 구간 카드(KAN-127) — 위 작은 라벨 + 아래 구간 제목 최대 2줄(PM 2026-10-07) */
+    currentSectionLabel: '지금 듣는 구간',
     currentSectionA11y: (title: string) => `지금 듣는 구간, ${title}`,
   },
 

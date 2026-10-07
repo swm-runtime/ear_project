@@ -35,7 +35,7 @@ import {
   MINI_PLAYER_OPEN_START_DISTANCE,
 } from '../player.constants';
 import { PLAYER_COPY } from '../player.copy';
-import { PauseIcon, PlayIcon } from './PlayerIcons';
+import PlayPauseSymbol from './PlayPauseSymbol';
 import { playbackService } from '../services/playback.service';
 import { miniDropProgress, miniDropStyle, MINI_DROP_TRAVEL } from '../store/mini-drop-motion';
 import { useMiniPlayerLayoutStore } from '../store/mini-player-layout.store';
@@ -482,11 +482,11 @@ export default function MiniPlayer({
             view.isPlaying ? PLAYER_COPY.miniPlayer.pauseA11y : PLAYER_COPY.miniPlayer.playA11y
           }
         >
-          {view.isPlaying ? (
-            <PauseIcon size={MINI_PLAY_ICON_SIZE} color={theme.color.textPrimary} />
-          ) : (
-            <PlayIcon size={MINI_PLAY_ICON_SIZE} color={theme.color.textPrimary} />
-          )}
+          <PlayPauseSymbol
+            kind={view.isPlaying ? 'pause' : 'play'}
+            size={MINI_PLAY_ICON_SIZE}
+            color={theme.color.textPrimary}
+          />
         </Pressable>
       </View>
       {/* 진행바는 **아래 변**(2026-09-25 PM) — 유리 위 림의 흰 하이라이트 밑에 검정 선을 두면 테두리가 두 겹으로 읽혔다.
