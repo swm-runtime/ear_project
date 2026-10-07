@@ -9,8 +9,8 @@
 | Jira | [KAN-150](https://runtime364.atlassian.net/browse/KAN-150) |
 | 발행 날짜 | 2026-10-07 |
 | 시작 날짜 | 2026-10-07 |
-| 기한 | 2026-10-09 (Low — 이번 주 안에 PR 준비). **OTA 는 전환 시각에 맞춘다** — 먼저 나가면 04~05시에 문구와 실제 리셋이 어긋난다 |
-| 선행 | `tickets/backend/pending/service-day-boundary-0500.md`(KAN-149 — 서버 경계 전환) · 전환 시각은 `tickets/frontend/pending/terms-amendment-service-day-0500.md`(KAN-148, 상태: PM 결정 대기) |
+| 기한 | 2026-10-09 (Low — 이번 주 안에 PR 준비). **OTA 는 전환 시각(2026-10-12 05:00 KST)에 맞춘다** — 먼저 나가면 04~05시에 문구와 실제 리셋이 어긋난다 |
+| 선행 | `tickets/backend/pending/service-day-boundary-0500.md`(KAN-149 — 서버 경계 전환) · 전환 시각은 `tickets/frontend/archive/terms-amendment-service-day-0500.md`(KAN-148 완료 — 전환 **2026-10-12(월) 05:00 KST**) |
 | 근거 문서 | 팀 합의(2026-10-07) · `paywall.md` 4.5·5장(한도 안내 시트 문구) |
 | 중요도 | Low |
 | 상태 | 대기 |
