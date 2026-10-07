@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
+import { androidNavigationModeOf } from '@/shared/lib/android-navigation';
 import { traceJs } from '@/shared/monitoring/js-trace';
 import {
   dismissPlayerNatively,
@@ -385,9 +386,15 @@ export default function PlayerScreen() {
   // fullScreenModal에서는 SafeAreaView(네이티브 측정)가 상단 인셋 0을 돌려준다(검증 2026-08-11 —
   // 앱바가 상태바에 겹침). 루트 SafeAreaProvider 컨텍스트를 읽는 훅으로 직접 패딩한다
   const insets = useSafeAreaInsets();
+  // 아래 여백 — 재생 목록 손잡이가 홈 인디케이터·제스처 핸들 바로 위에 붙도록 안전영역을 다 쓰지 않는다(PM 2026-10-07
+  // "재생목록 팁이 맨 아래에"). Android 버튼 바는 덮을 수 없어 그대로, 인디케이터 없는 기기(안전영역 0)도 그대로
+  const bottomPadding =
+    Platform.OS === 'android' && androidNavigationModeOf(insets.bottom) === 'buttons'
+      ? insets.bottom
+      : Math.min(insets.bottom, PLAYER_BOTTOM_CLEARANCE);
   const containerStyle = [
     styles.container,
-    { paddingTop: insets.top, paddingBottom: insets.bottom },
+    { paddingTop: insets.top, paddingBottom: bottomPadding },
   ];
 
   /*
@@ -1392,7 +1399,7 @@ export default function PlayerScreen() {
         enabled={ANDROID_ZOOM}
         zoom={androidZoom}
         radius={morph.sheetRadius}
-        stage={{ width: windowWidth, height: windowHeight, paddingTop: insets.top, paddingBottom: insets.bottom }}
+        stage={{ width: windowWidth, height: windowHeight, paddingTop: insets.top, paddingBottom: bottomPadding }}
       >
       <Animated.View
         style={[
@@ -2223,6 +2230,11 @@ const HERO_COMPACT_META_TOP = 12;
 const HERO_MIN_ARTWORK = 120;
 /** 바닥 손잡이 높이(터치 타깃 44 + 아래 여백 8) */
 const SCRIPT_HANDLE_HEIGHT = 52;
+/**
+ * 플레이어 바닥 여백 상한 — 손잡이 글자가 홈 인디케이터(바닥 ~13pt)·Android 제스처 핸들 위로 ~9pt 뜬다(손잡이 자체
+ * 아래 여백 8 포함). 이보다 낮추면 손잡이를 위로 끄는 손가락이 시스템 홈 제스처와 겹친다
+ */
+const PLAYER_BOTTOM_CLEARANCE = 14;
 /**
  * 재생·일시정지 기호 — 원 없이 기호만(애플 뮤직·팟캐스트 재생 화면, PM 2026-10-07). 원이 빠지며 무게가 줄어 44 → 66 으로
  * 키웠다(PM 같은 날 — 삼각형 실제 높이 약 34pt, ±10초 아이콘의 1.5배쯤이라 주 동작으로 읽힌다)
