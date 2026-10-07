@@ -2552,7 +2552,8 @@ const styles = StyleSheet.create({
     minHeight: theme.touchTarget.minHeight,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: theme.spacing.xs,
+    // 막대(4pt)와 "재생 목록" 사이 — 4 는 붙어 보였다(PM 2026-10-07). 내용이 44 안에 들어가 손잡이 높이는 그대로다
+    gap: theme.spacing.sm,
     paddingBottom: theme.spacing.sm,
   },
   scriptHandleBar: {
