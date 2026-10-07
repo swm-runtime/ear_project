@@ -96,7 +96,17 @@ export default function PlayerCurrentSection({
 
   // 내용이 바뀌면 옛 내용을 밀어내고 새 내용을 들인다 — 교체(setState)는 애니메이션 완료 콜백에서만 일어난다
   useEffect(() => {
-    if (sameDisplay(display, shown)) return undefined;
+    if (sameDisplay(display, shown)) {
+      // 밀려나던 중에 원래 구간으로 돌아오면(끌다가 0.1초 안에 놓음 등) 앞 효과가 애니메이션을 멈춘 채 끝난다 —
+      // 내용은 그대로라 다시 그리지 않아 글자가 투명하게 남았다(PM 2026-10-07 "재생 목록 켜고 바를 움직였다 끄면 빈 상자").
+      // 같은 내용이어도 제자리·불투명으로 되돌린다
+      const restore = Animated.parallel([
+        Animated.timing(opacity, { toValue: 1, duration: FADE_IN_MS, useNativeDriver: true }),
+        Animated.spring(translateY, { toValue: 0, ...motion.spring.snappy, useNativeDriver: true }),
+      ]);
+      restore.start();
+      return () => restore.stop();
+    }
     if (reduceMotion !== false || shown === null || display === null) {
       opacity.setValue(1);
       translateY.setValue(0);
