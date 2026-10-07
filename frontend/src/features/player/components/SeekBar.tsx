@@ -144,6 +144,9 @@ export default function SeekBar({
     inputRange: [0, 1],
     outputRange: [TRACK_HEIGHT_IDLE, TRACK_HEIGHT_ACTIVE],
   });
+  // 잡으면 시간 숫자가 바에서 조금 떨어지며 커진다(애플 뮤직) — 바가 굵어지는 것과 같은 값으로 함께 움직인다
+  const timeShift = grow.interpolate({ inputRange: [0, 1], outputRange: [0, TIME_ACTIVE_SHIFT] });
+  const timeScale = grow.interpolate({ inputRange: [0, 1], outputRange: [1, TIME_ACTIVE_SCALE] });
   const trackRadius = grow.interpolate({
     inputRange: [0, 1],
     outputRange: [TRACK_HEIGHT_IDLE / 2, TRACK_HEIGHT_ACTIVE / 2],
@@ -245,15 +248,27 @@ export default function SeekBar({
           )}
         </View>
       </View>
-      <View style={styles.timeRow} importantForAccessibility="no-hide-descendants">
-        {/* 잡고 있는 동안 시간 숫자가 밝아진다 — 지금 고르는 위치를 읽게(애플 뮤직) */}
-        <Text style={[styles.timeLabel, isDragging && styles.timeLabelActive]}>
-          {formatPlaybackTime(displaySec)}
-        </Text>
-        <Text style={[styles.timeLabel, isDragging && styles.timeLabelActive]}>
-          {formatPlaybackTime(durationSec)}
-        </Text>
-      </View>
+      <Animated.View
+        style={[styles.timeRow, { transform: [{ translateY: timeShift }] }]}
+        importantForAccessibility="no-hide-descendants"
+      >
+        {/* 잡고 있는 동안 시간 숫자가 밝아지고 커진다 — 지금 고르는 위치를 읽게(애플 뮤직). 각자 바깥 끝을 기준으로
+            커져야 양 끝 정렬이 흔들리지 않는다 */}
+        <Animated.View
+          style={{ transformOrigin: 'left center', transform: [{ scale: timeScale }] }}
+        >
+          <Text style={[styles.timeLabel, isDragging && styles.timeLabelActive]}>
+            {formatPlaybackTime(displaySec)}
+          </Text>
+        </Animated.View>
+        <Animated.View
+          style={{ transformOrigin: 'right center', transform: [{ scale: timeScale }] }}
+        >
+          <Text style={[styles.timeLabel, isDragging && styles.timeLabelActive]}>
+            {formatPlaybackTime(durationSec)}
+          </Text>
+        </Animated.View>
+      </Animated.View>
     </View>
   );
 }
@@ -265,6 +280,9 @@ const TRACK_HEIGHT_ACTIVE = 12;
 const TRACK_SHRINK_MS = 160;
 /** 바(가장 굵을 때 기준)와 시간 숫자 사이 */
 const TIME_GAP = 6;
+/** 잡았을 때 시간 숫자가 더 내려가는 거리 · 커지는 배율 */
+const TIME_ACTIVE_SHIFT = 4;
+const TIME_ACTIVE_SCALE = 1.15;
 /** 구간 조각 사이 틈 — 잡았을 때만 벌어진다 */
 const CHAPTER_GAP = 3;
 /** 닫힌 조각끼리 겹치는 폭 — 이음선 감춤 */
