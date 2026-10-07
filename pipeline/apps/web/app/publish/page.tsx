@@ -6,6 +6,7 @@ import { enrichStates, latestPublishEvents, logPublishEvent, republishPlans, req
 import { EnrichCell, isStale, type EnrichState } from "./enrich-cell";
 import { ScriptCell, type ScriptState } from "./script-cell";
 import { StaleNote, StaleRepublishButton } from "./stale-republish";
+import { SectionsApplyButton } from "./sections-apply";
 import { Badge, LinkBtn, PageHeader, Panel, Toolbar, btnCls } from "@/components/ui";
 import { fmtTime } from "@/lib/format";
 import { EarGate, EarSession, earErrMsg } from "./ear-connect";
@@ -90,6 +91,7 @@ function ContentList() {
           }}>자막 없는 것 전부 뽑기</button>
         )}
         <StaleRepublishButton disabled={busy} onDone={() => void load()} />
+        <SectionsApplyButton disabled={busy} onDone={() => void load()} />
         <button className={btnCls()} onClick={() => void load()}>새로고침</button>
         {data && <span className="text-xs text-ink-soft">총 {data.total}건</span>}
       </Toolbar>

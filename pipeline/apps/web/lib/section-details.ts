@@ -1,10 +1,10 @@
 /**
  * 구간의 구역(kind)·요약(summary) 전송 (KAN-152, 2026-10-07) — 서버 KAN-151 이 받는 선택 키.
  *
- * **꺼 둔다** — KAN-151 은 dev 에만 있고 운영(main)에 아직 없다. 운영 서버는 모르는 키를 거부해 `script_file` 이 통째로(자막까지) 빠진다.
- * KAN-151 이 운영에 배포되면 true 로 바꾼다. 꺼져 있으면 구간은 `{ start_sec, title }` 만 나간다(KAN-144 형식).
+ * **2026-10-07 켬** — KAN-151 이 운영 v1.2.0+4 로 배포된 뒤(그 이전 서버는 모르는 키를 거부해 `script_file` 이 통째로 — 자막까지 — 빠졌다).
+ * 끄면 구간은 `{ start_sec, title }` 만 나간다(KAN-144 형식). 기존 발행분은 발행 목록의 [구간 일괄 반영]으로 보낸다.
  */
-export const SEND_SECTION_DETAILS = false;
+export const SEND_SECTION_DETAILS = true;
 
 export interface SectionIn { start_sec: number; title: string; kind?: unknown; summary?: unknown }
 export interface SectionOut { start_sec: number; title: string; kind?: "intro" | "lead" | "body" | "outro"; summary?: string }
