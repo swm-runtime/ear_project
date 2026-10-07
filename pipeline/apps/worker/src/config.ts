@@ -157,6 +157,8 @@ export const cfg = {
   thumbnailAnchorKey: process.env.THUMBNAIL_ANCHOR_KEY || "",
   /** 장면 쓰기 모델 (KAN-138 thumb-v4, 2026-10-07) — OpenAI 실행기로 부른다(키는 썸네일과 같은 OPENAI_API_KEY). 편당 1센트 안팎 */
   thumbnailSceneModel: process.env.THUMBNAIL_SCENE_MODEL || "gpt-5.6-terra",
+  /** 구간 요약 모델 (KAN-152, 2026-10-07) — OpenAI 실행기(키는 OPENAI_API_KEY). 한 편에 한 번 호출, 1센트 안팎. 키가 없으면 요약 없이 구간만 낸다 */
+  sectionSummaryModel: process.env.SECTION_SUMMARY_MODEL || "gpt-5.6-terra",
   /** 1장당 USD — runs.cost_usd 환산용. 모델·품질을 바꾸면 THUMBNAIL_USD_PER_IMAGE 로 덮는다 */
   thumbnailUsdPerImage: process.env.THUMBNAIL_USD_PER_IMAGE ? Number(process.env.THUMBNAIL_USD_PER_IMAGE) : undefined,
 };

@@ -57,6 +57,9 @@ export const THUMBNAIL_ANCHOR_PROMPT_KEY = "skills/thumbnail/anchor.md";
  *  이미지 프롬프트(THUMBNAIL_PROMPT_KEY)에 {장면} 칸이 있을 때만 읽는다 — v3 이하로 되돌리면 쓰이지 않는다 */
 export const THUMBNAIL_SCENE_PROMPT_KEY = "skills/thumbnail/scene.md";
 
+/** 구간 요약 규칙 (KAN-152, 2026-10-07) — 12번째 DB 자산. 구간마다 공백 포함 20자 이내 한 줄 요약을 쓰는 지시문(tts/section-summary.ts) */
+export const SECTION_SUMMARY_PROMPT_KEY = "skills/tts/section-summary.md";
+
 /** TTS 전역 음차 사전 (spec/06 6장) — 8번째 DB 자산. 프롬프트 번들에 넣지 않고 에피소드에 고정하지 않는다: 항상 active — 사전 수정 → 같은 에피소드 재합성에 즉시 적용 */
 export const TTS_DICT_KEY = "skills/tts/pronunciation.json";
 
@@ -100,8 +103,8 @@ export function versionOf(key: string, content: string): string {
     const d = head.match(/\d{4}-\d{2}-\d{2}/);
     return `gold@${d ? d[0] : new Date().toISOString().slice(0, 10)}`;
   }
-  const m = head.match(/(full|qa|critic|thumb|anchor|scene)-v\d+(?:\.\d+)*/);
-  if (!m) throw new Error(`${key}: 헤더에서 버전 라벨을 찾지 못했다 (full-vN · qa-vN · critic-vN · thumb-vN · anchor-vN · scene-vN)`);
+  const m = head.match(/(full|qa|critic|thumb|anchor|scene|summary)-v\d+(?:\.\d+)*/);
+  if (!m) throw new Error(`${key}: 헤더에서 버전 라벨을 찾지 못했다 (full-vN · qa-vN · critic-vN · thumb-vN · anchor-vN · scene-vN · summary-vN)`);
   return m[0];
 }
 

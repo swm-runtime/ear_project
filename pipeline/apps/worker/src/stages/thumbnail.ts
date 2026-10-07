@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { cfg, executedBy } from "../config.js";
 import { getBacklog, getEpisode, getSetting, insertRun, majorOfMidTopic, pool, setJobProgress, type Job } from "../db.js";
+import { promptBody } from "@ear/pipeline";
 import { THUMBNAIL_ANCHOR_PROMPT_KEY, THUMBNAIL_PROMPT_KEY, THUMBNAIL_SCENE_PROMPT_KEY, workerRev } from "../assets.js";
 import { makeExecutor } from "../executors/index.js";
 import { composeCorner, cornerContrast } from "./thumbnail-compose.js";
@@ -221,27 +222,6 @@ async function loadAsset(key: string): Promise<{ version: string; content: strin
   return row;
 }
 
-/**
- * 자산 파일에서 **모델에게 보낼 본문만** 잘라낸다.
- *
- * 자산은 사람이 읽는 문서이기도 해서 제목·개정 이력·부록 표가 함께 들어 있다. 그대로 보내면
- * **폐기된 지시가 프롬프트에 섞인다** — 개정 이력에는 "사선 띠", "둥근 모서리를 그려" 같은
- * 이전 판의 문구가 설명을 위해 그대로 인용돼 있다(2026-09-10 발견). 부록의 대분류 색 표도
- * 8색을 전부 보여주는데 정작 쓰는 것은 슬롯에 채운 하나뿐이다.
- *
- * 자르는 규칙: 맨 앞의 `# 제목`과 이어지는 `>` 인용 블록(메타·개정 이력)을 버리고,
- * 단독 `---` 줄이 나오면 그 뒤(부록)를 전부 버린다.
- */
-function promptBody(content: string): string {
-  const lines = content.split("\n");
-  let start = 0;
-  while (start < lines.length && (lines[start].startsWith("# ") || lines[start].startsWith(">") || lines[start].trim() === "")) {
-    start++;
-  }
-  const rest = lines.slice(start);
-  const endIndex = rest.findIndex((line) => line.trim() === "---");
-  return (endIndex === -1 ? rest : rest.slice(0, endIndex)).join("\n").trim();
-}
 
 /**
  * 슬롯을 채운다. **남은 슬롯이 있으면 중단한다** — 자리표시자가 그대로 실린 프롬프트로 이미지를 만들면

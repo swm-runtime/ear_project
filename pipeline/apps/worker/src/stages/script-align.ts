@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { cfg, executedBy } from "../config.js";
-import { getEpisode, insertRun, setJobProgress, type Job } from "../db.js";
+import { getBacklog, getEpisode, insertRun, setJobProgress, type Job } from "../db.js";
 import { localPathOf, pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { workerRev } from "../assets.js";
 import { log } from "../util.js";
@@ -13,6 +13,7 @@ import { forcedAlignment, locateTurnStarts, type TimestampedSynth } from "../tts
 import { probeDurationSec } from "../tts/audio.js";
 import { chunkSegments, joinChunkSegments, validateSegments } from "../tts/segments.js";
 import { buildSections } from "../tts/sections.js";
+import { attachSummaries } from "../tts/section-summary.js";
 
 /**
  * 자막 세그먼트 소급 (KAN-72 후속, spec/06 7장) — 발행본 dist.mp3 와 대본을 강제 정렬해 script-segments.json 을 만든다.
@@ -65,12 +66,14 @@ export async function runScriptAlign(job: Job) {
   await fs.writeFile(outFile, JSON.stringify(segments, null, 1), "utf-8");
   // 구간 제목 (KAN-137) — 세그먼트가 바뀌면 시각도 바뀌므로 같이 다시 만든다. 대조가 어긋나면 [] 로 덮는다(옛 시각을 남기지 않는다 — pushPrefix 는 S3 객체를 지우지 않는다)
   const built = buildSections(parsed.turns, segments);
-  await fs.writeFile(path.join(cfg.workRoot, rel, "script-sections.json"), JSON.stringify(built.sections, null, 1), "utf-8");
+  // 구역·요약 (KAN-152) — 요약은 대사에만 달려 캐시(section-summaries.json)가 있으면 다시 부르지 않는다
+  const sum = await attachSummaries(path.join(cfg.workRoot, rel), (await getBacklog(ep.backlog_id))?.title ?? episodeId, built.sections, built.texts);
+  await fs.writeFile(path.join(cfg.workRoot, rel, "script-sections.json"), JSON.stringify(sum.sections, null, 1), "utf-8");
   await progress("S3 업로드");
   await pushPrefix(`${rel}/`);
   const key = s3Key(`${rel}/script-segments.json`);
   const sec = Math.round((Date.now() - started) / 1000);
-  const secNote = built.sections.length ? ` · 구간 ${built.sections.length}개${built.missingTurns ? ` (자막에서 빠진 턴 ${built.missingTurns.join("·")})` : ""}` : ` · 구간 없음(${built.reason})`;
+  const secNote = built.sections.length ? ` · 구간 ${built.sections.length}개${built.missingTurns ? ` (자막에서 빠진 턴 ${built.missingTurns.join("·")})` : ""}${sum.note}` : ` · 구간 없음(${built.reason})`;
   const result = `자막 정렬 완료 — 강제 정렬(ElevenLabs) ${turns.length}턴 → 세그먼트 ${segments.length}건${secNote} · 배포본 ${Math.round(durSec)}초 · 정렬 손실 ${al.loss.toFixed(3)} · ${sec}초 · 사전 ${dictVersion}${Object.keys(epMap).length ? `+발음 맵 ${Object.keys(epMap).length}건` : ""}${contentId ? ` · 콘텐츠 ${contentId.slice(0, 8)}… (반영은 콘솔 [반영])` : ""}`;
   log(`  script_align ${episodeId}: ${result}`);
   await insertRun({ backlog_id: ep.backlog_id, phase: "script_align", result, prompt_version: "align-v1 (worker)", artifacts: [key, ...(built.sections.length ? [s3Key(`${rel}/script-sections.json`)] : [])], executed_by: executedBy, model: "elevenlabs/forced-alignment", worker_rev: workerRev() });
