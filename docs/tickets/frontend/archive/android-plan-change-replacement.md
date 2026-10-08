@@ -14,7 +14,7 @@
 | 관련 | `subscription-purchase-screen.md`([KAN-120](https://runtime364.atlassian.net/browse/KAN-120)) · 백엔드 `tickets/backend/archive/android-play-subscription-products.md`([KAN-130](https://runtime364.atlassian.net/browse/KAN-130) — 서버 쪽 "살아 있는 Play 구독은 하나" 가드) |
 | 근거 문서 | `features/subscription.md` 4.4 · `spec/api/subscription-api.md` 4.4(한 계정에 살아 있는 Play 구독은 하나)·5장(`SUBSCRIPTION_ALREADY_SUBSCRIBED`) |
 | 중요도 | Medium |
-| 상태 | 2차 반영(2026-10-08) — 업그레이드는 OTA 로 확인 가능, 다운그레이드 예약은 다음 Android 빌드(교체 모듈) 뒤 확인 |
+| 상태 | 완료(2026-10-08) |
 
 ## 현상 (2026-10-08 00:39 KST, 개발계 Android rt 32)
 
@@ -82,3 +82,5 @@ Android는 Pro·Daily가 **독립된 정기 결제**라 Google은 둘 다 살 �
 - 2026-10-08 12:40 PM 실측: Daily→Pro(즉시) 통과 추정 · **Pro→Daily 에서 무한 로딩**. Sentry EAR-APP-D: 다시 시도한 결제가 `5: There is an existing deferred replacement for the old product` — 첫 시도에서 **예약은 Google 에 섰는데 앱이 결과를 못 받아** 로딩이 멈췄다.
   - 원인: 교체 모듈은 자기 Billing 연결이라 결제 라이브러리의 구매 리스너가 울리지 않는다. 그런데 서비스는 반환값에서 **대상 상품(Daily)** 구매만 받아 확정하고 나머지는 리스너를 기다렸다. DEFERRED 교체는 대상이 아니라 지금 구독(Pro)의 구매가 오거나 빈 목록이라 영영 안 끝났다.
 - 2026-10-08 4차 반영(PR `fix(fe)/play-deferred-result`): 모듈 경로(`resolvesDirectly`)면 반환값이 전부 — 대상이 없으면 옛 구독 구매를 서버에 제출하고, 빈 목록이면 `delayed` 로 끝낸다. "이미 예약돼 있음"은 안내 톤 문구. 다운그레이드 성공인데 서버에 `pending_plan` 이 아직 없으면 "다음 결제일부터 바꾼 요금제가 적용돼요".
+- 2026-10-08 14:03~14:08 BE 최종 재실측 통과(Jira 10238, vc 34 + OTA `01a119b9`) — Daily 결제 → Daily→Pro(같은 행 pro, 비례 결제) → Pro→Daily DEFERRED(pro · active · `pending_tier=daily`, 앱 "10월 8일부터 Daily 요금제가 적용돼요") → Light 해지(cancelled, [구독 다시 시작]). 서버 쪽 함께 고친 것: #1277(교체된 옛 토큰 만료 무시) · #1281·#1282(DEFERRED 중 자동 갱신 판정). **이 셋은 다음 dev → main 배포에 함께 나가야 운영 결제 오픈이 안전하다**(BE).
+- **반영 날짜: 2026-10-08** — archive 로 옮김(KAN-160 PR 에서 함께), Jira 완료.

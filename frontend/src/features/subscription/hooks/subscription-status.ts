@@ -1,3 +1,4 @@
+import { SUBSCRIPTION_COPY } from '../subscription.copy';
 import type { MySubscription, PendingPlan, SubscriptionStore } from '../subscription.types';
 
 /**
@@ -49,4 +50,30 @@ export const toSubscriptionStatusVM = (
     case 'grace':
       return { kind: 'grace', planName: plan.planName, otherStore };
   }
+};
+
+/**
+ * 요금제 관리 제목 밑 알림 섹션의 문구(KAN-160 — 팀 결정 2026-10-08). **예약된 변경이 있을 때만** 문자열, 없으면 null(섹션 없음).
+ * 판정은 서버 값으로만 한다 — 다운그레이드 예약은 `pending_plan`, 해지 예약은 `plan.status = cancel_scheduled` 와 `expires_at`.
+ * `freePlanName` 은 요금제 목록에서 무료 요금제의 서버 이름(티어명을 앱이 만들지 않는다). 모르면 "무료"
+ */
+export const scheduledChangeNotice = (
+  status: SubscriptionStatusVM | null,
+  freePlanName: string | null,
+): string | null => {
+  if (status === null) return null;
+  if (status.kind === 'subscribed' && status.pendingPlan !== null) {
+    return SUBSCRIPTION_COPY.status.pendingPlan(
+      status.pendingPlan.effectiveAt,
+      status.pendingPlan.planName,
+    );
+  }
+  if (status.kind === 'cancelScheduled' && status.expiresAt !== null) {
+    return SUBSCRIPTION_COPY.status.cancelScheduledNotice(
+      status.expiresAt,
+      status.planName,
+      freePlanName,
+    );
+  }
+  return null;
 };
