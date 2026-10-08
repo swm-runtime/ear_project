@@ -63,20 +63,90 @@ export function firstQuietRun(db: number[], hopSec: number, minSec: number, opts
   return null;
 }
 
+/** s16le mono PCM → 20ms(882샘플@44.1kHz) RMS dB 궤적. 순수 함수 */
+export function pcmDb(buf: Buffer, win = 882): number[] {
+  const db: number[] = [];
+  for (let i = 0; i + win <= buf.length / 2; i += win) { let acc = 0; for (let k = 0; k < win; k++) { const v = buf.readInt16LE((i + k) * 2) / 32768; acc += v * v; } db.push(10 * Math.log10(acc / win + 1e-12)); }
+  return db;
+}
+async function fileDb(file: string, from: number, to: number): Promise<number[]> {
+  const { stdout } = await run("ffmpeg", ["-v", "error", "-ss", Math.max(0, from).toFixed(3), "-to", to.toFixed(3), "-i", file, "-f", "s16le", "-ac", "1", "-ar", "44100", "-"], { encoding: "buffer", maxBuffer: 1 << 26 });
+  return pcmDb(stdout as unknown as Buffer);
+}
+
 /**
  * 끝 꼬리 절단점 (2026-10-01 박수헌 "마지막 말이 끝나자마자 뚝 끊긴다"): ElevenLabs 출력은 요청의 마지막 음절 뒤 약 20ms 만에 −20dB 에서 0 으로 끊긴다(spec/06 7장).
  * 마지막 요청 끝에 버릴 덧말(가드)을 붙여 생성하면 마지막 낱말이 자연스럽게 감쇠하고 쉼이 생긴다 — [마지막 턴 마지막 글자 시작 −0.2초, 가드 첫 글자 시작 +1.5초]
  * 창에서 첫 쉼을 찾아, 쉼 시작 뒤 keepSec 만큼(감쇠 끝과 바닥 일부)만 남기고 자른다. 없으면 null.
+ * 2026-10-08: 이제 findGuardCut 이 먼저다 — 이 함수는 그것이 덧말을 못 가려낼 때의 폴백이다.
  */
 export async function findTailCut(file: string, from: number, to: number, minSec = 0.15, keepSec = 0.1): Promise<number | null> {
   if (!(to > from)) return null;
-  const { stdout } = await run("ffmpeg", ["-v", "error", "-ss", Math.max(0, from).toFixed(3), "-to", to.toFixed(3), "-i", file, "-f", "s16le", "-ac", "1", "-ar", "44100", "-"], { encoding: "buffer", maxBuffer: 1 << 26 });
-  const buf = stdout as unknown as Buffer;
-  const win = 882;
-  const db: number[] = [];
-  for (let i = 0; i + win <= buf.length / 2; i += win) { let acc = 0; for (let k = 0; k < win; k++) { const v = buf.readInt16LE((i + k) * 2) / 32768; acc += v * v; } db.push(10 * Math.log10(acc / win + 1e-12)); }
+  const db = await fileDb(file, from, to);
   const q = firstQuietRun(db, 0.02, minSec);
   return q ? Math.max(0, from) + q.start + Math.min(keepSec, (q.end - q.start) / 2) : null;
+}
+
+export interface Island { start: number; end: number; peak: number }
+/**
+ * dB 궤적의 말소리 덩어리 — 문턱은 창 안 최고값 − rangeDb(기본 30). mergeSec 이하 틈(낱말 안 폐쇄음 정지 0.03~0.08초)은 이어 붙인다. 순수 함수.
+ * 최고값 기준인 이유: 덧말을 판정하는 창은 바닥이 디지털 0·페이드 끝이라 "바닥 + 여유" 문턱은 숨소리까지 말로 센다. 말소리 봉우리는 −8~−23dB, 쉼은 −38dB 아래다(2026-10-08 56편 실측).
+ */
+export function speechIslands(db: number[], hopSec: number, opts: { rangeDb?: number; mergeSec?: number } = {}): Island[] {
+  const { rangeDb = 30, mergeSec = 0.1 } = opts;
+  if (!db.length) return [];
+  const th = Math.max(...db) - rangeDb;
+  const out: Island[] = [];
+  for (let i = 0; i < db.length; i++) {
+    if (db[i] <= th) continue;
+    const t = i * hopSec, last = out[out.length - 1];
+    if (last && t - last.end <= mergeSec + 1e-9) { last.end = t + hopSec; last.peak = Math.max(last.peak, db[i]); }
+    else out.push({ start: t, end: t + hopSec, peak: db[i] });
+  }
+  return out;
+}
+
+/**
+ * 끝 꼬리 절단 v2 (2026-10-08 박수헌 "마지막 인사 뒤 대본에 없는 '네~'가 들린다"): 가드 요청의 원본 오디오는 [마지막 턴 … 마지막 음절][쉼][덧말 "네."]로 끝나고
+ * ElevenLabs 는 마지막 음절 뒤 20ms 만에 끊으므로 **덧말은 오디오의 마지막 말소리 덩어리**다. 강제 정렬의 덧말 시작 시각은 실제보다 0.1~0.4초 늦게 잡혀
+ * 그 앞에서 자른 38편에 "네" 앞부분이 남았다 — 시각이 아니라 이 구조로 자른다: 마지막 덩어리 = 덧말, 그 앞 덩어리 = 마지막 음절, 절단 = 마지막 음절 끝 + min(keep, 쉼/2).
+ * 판정 불능이면 사유를 돌려준다(덧말이 안 들림·마지막 음절과 붙음·덧말이 너무 김) — 호출부가 종전 방식으로 폴백하고 검수(trailingBlip)로 확인한다. 순수 함수.
+ * @param lastCharStart 강제 정렬의 마지막 턴 마지막 글자 시작(창 기준) — 덧말 덩어리는 이보다 뒤에서 시작해야 한다
+ */
+export function guardCutFromIslands(isl: Island[], lastCharStart: number, opts: { keepSec?: number; guardMaxSec?: number; minGapSec?: number } = {}): { cut: number; gap: number; guardStart: number } | { fail: string } {
+  const { keepSec = 0.1, guardMaxSec = 0.9, minGapSec = 0.08 } = opts;
+  if (isl.length < 2) return { fail: `말소리 덩어리 ${isl.length}개` };
+  const guard = isl[isl.length - 1], prev = isl[isl.length - 2];
+  if (guard.start <= lastCharStart + 0.02) return { fail: "마지막 덩어리가 마지막 글자에서 시작 — 덧말이 안 들리거나 붙음" };
+  if (guard.end - guard.start > guardMaxSec) return { fail: `마지막 덩어리 ${(guard.end - guard.start).toFixed(2)}초 — 덧말이 마지막 음절과 붙은 것으로 보임` };
+  const gap = guard.start - prev.end;
+  if (gap < minGapSec) return { fail: `덧말 앞 쉼 ${gap.toFixed(2)}초` };
+  return { cut: prev.end + Math.min(keepSec, gap / 2), gap, guardStart: guard.start };
+}
+export async function findGuardCut(file: string, from: number, to: number, lastCharStart: number): Promise<{ cut: number; gap: number; guardStart: number } | { fail: string }> {
+  if (!(to > from)) return { fail: "창 없음" };
+  const f = Math.max(0, from);
+  const r = guardCutFromIslands(speechIslands(await fileDb(file, f, to), 0.02), lastCharStart - f);
+  return "fail" in r ? r : { cut: f + r.cut, gap: r.gap, guardStart: f + r.guardStart };
+}
+
+/**
+ * 끝 덧말 검수 (2026-10-08): 끝 창의 마지막 말소리 덩어리가 앞 덩어리와 minGap 이상 떨어져 있고 maxDur 이하로 짧고 창 끝에서 nearEnd 안에서 끝나면
+ * 덧말이 남은 것으로 본다(10-08 56편: 남은 38편을 전부 잡고 오탐 1편). 오탐은 대본이 쉼 뒤 짧은 낱말로 끝나는 경우("있지, 하고요." — T260831-002)라
+ * TTS 단계에서는 경고(⚠️ 청취 확인)로만 쓴다. 순수 함수. 시각은 창 기준.
+ */
+export function trailingBlip(isl: Island[], windowSec: number, opts: { minGapSec?: number; maxDurSec?: number; nearEndSec?: number } = {}): { start: number; end: number; gap: number; prevEnd: number } | null {
+  const { minGapSec = 0.12, maxDurSec = 0.6, nearEndSec = 0.3 } = opts;
+  if (isl.length < 2) return null;
+  const last = isl[isl.length - 1], prev = isl[isl.length - 2];
+  const gap = last.start - prev.end;
+  return gap >= minGapSec && last.end - last.start <= maxDurSec && last.end >= windowSec - nearEndSec ? { start: last.start, end: last.end, gap, prevEnd: prev.end } : null;
+}
+/** PCM(s16le mono) 끝 windowSec 의 덧말 검수 — trailingBlip 을 PCM 에 바로 */
+export function pcmTrailingBlip(pcm: Buffer, windowSec = 1.5, rate = 44100) {
+  const n = Math.floor(pcm.length / 2), w = Math.min(n, Math.round(windowSec * rate));
+  const win = pcm.subarray((n - w) * 2, n * 2);
+  return trailingBlip(speechIslands(pcmDb(win), 0.02), w / rate);
 }
 
 /** s16le mono PCM 끝에 선형 페이드아웃 — 절단점의 딸깍임·뚝 끊김을 지운다. 새 버퍼를 돌려준다 */
