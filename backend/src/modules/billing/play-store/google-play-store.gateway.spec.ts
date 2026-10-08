@@ -296,16 +296,38 @@ describe('GooglePlayStoreGateway', () => {
       });
     });
 
+    it('예약 줄에 autoRenewingPlan 이 아예 없어도 자동 갱신이다', async () => {
+      const { gateway } = buildGateway(FULL_ENV, {
+        respond: () =>
+          googlePurchase({
+            lineItems: [
+              {
+                productId: 'ear_pro_monthly',
+                expiryTime: '2026-11-01T00:00:00Z',
+                deferredItemReplacement: { productId: 'ear_daily_monthly' },
+              },
+            ],
+          }),
+      });
+
+      expect((await gateway.fetchPurchase('t'))?.isAutoRenew).toBe(true);
+    });
+
     it('다운그레이드 예약 중인 줄은 autoRenewingPlan 이 없어도 자동 갱신이다 — 다음 갱신이 예약 상품으로 이어진다(2026-10-08 실측 응답)', async () => {
       const { gateway } = buildGateway(FULL_ENV, {
         respond: () =>
           googlePurchase({
             lineItems: [
               // 실측: 예약된 상품의 자리표시 줄(만료 없음)과 지금 상품의 줄이 함께 온다
-              { productId: 'ear_daily_monthly' },
+              {
+                productId: 'ear_daily_monthly',
+                autoRenewingPlan: {},
+              },
               {
                 productId: 'ear_pro_monthly',
                 expiryTime: '2026-11-01T00:00:00Z',
+                // 실측: autoRenewEnabled 가 없는 빈 객체
+                autoRenewingPlan: {},
                 deferredItemReplacement: { productId: 'ear_daily_monthly' },
               },
             ],
