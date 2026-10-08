@@ -17,7 +17,12 @@ import {
   PlanStatus,
   SubscriptionStatus,
 } from '../subscription.enum';
-import { PlanView, TrialContext, TrialView } from '../subscription.types';
+import {
+  PendingPlanView,
+  PlanView,
+  TrialContext,
+  TrialView,
+} from '../subscription.types';
 import { moreGenerousLimit, PlanService } from './plan.service';
 
 /**
@@ -100,6 +105,21 @@ export class SubscriptionService {
             dailyPlayLimitAfter: baseLimit,
           }
         : null;
+    // 다운그레이드 예약(KAN-161) — 살아 있는 구독에만 있다. 결제 반영 정책이 종결 때 `pending_tier`를 비우지만,
+    // 무료로 그리는 상태에서는 값이 남아 있어도 보이지 않게 한 번 더 막는다
+    const pendingTier =
+      status !== PlanStatus.FREE ? (subscription?.pendingTier ?? null) : null;
+    const pendingPlanRow = pendingTier
+      ? await this.planService.findByTier(pendingTier, manager)
+      : null;
+    const pendingPlan: PendingPlanView | null = pendingTier
+      ? {
+          tier: pendingTier,
+          planName: pendingPlanRow?.name ?? pendingTier,
+          effectiveAt: subscription!.expiresAt,
+        }
+      : null;
+
     const showsTrialPlan = trial !== null && status === PlanStatus.FREE;
     const tier = showsTrialPlan ? UserTier.TRIAL : baseTier;
     const plan = showsTrialPlan ? trialPlan : basePlan;
@@ -121,6 +141,7 @@ export class SubscriptionService {
           ? subscription!.expiresAt
           : null,
       hasPaymentIssue: status === PlanStatus.GRACE,
+      pendingPlan,
     };
   }
 

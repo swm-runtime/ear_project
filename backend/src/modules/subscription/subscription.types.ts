@@ -43,6 +43,19 @@ export interface PlanView {
   hasPaymentIssue: boolean;
   /** 가입 체험 중일 때만 값이 있다(`subscription.md` 4.8). 체험이 없거나 끝났으면 `null` */
   trial: TrialView | null;
+  /**
+   * 다운그레이드 예약 — "언제부터 어느 요금제"(`subscription-api.md` 4.2 · `profile-api.md` 4.1, KAN-161).
+   * 예약이 없거나 구독이 없으면 `null`. 프로필·설정·구독 조회가 **이 값 하나**를 내보낸다 — 화면마다 따로
+   * 판정하면 한쪽만 예약을 보이는 어긋남이 생긴다
+   */
+  pendingPlan: PendingPlanView | null;
+}
+
+/** 다운그레이드 예약 — 적용 시각은 지금 결제 주기가 끝나는 시각(`expires_at`)이다 */
+export interface PendingPlanView {
+  tier: UserTier;
+  planName: string;
+  effectiveAt: Date;
 }
 
 /**

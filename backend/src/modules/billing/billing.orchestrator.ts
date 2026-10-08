@@ -500,26 +500,15 @@ export class BillingOrchestrator {
       }),
       this.findLiveSubscription(userId),
     ]);
-    const [entitlements, pendingPlan] = await Promise.all([
-      this.planService.getEntitlements(plan.tier),
-      current?.pendingTier
-        ? this.planService.findByTier(current.pendingTier)
-        : null,
-    ]);
+    const entitlements = await this.planService.getEntitlements(plan.tier);
 
     return {
       plan,
       // 한도는 플랜 요약과 같은 값을 싣는다 — 가입 체험 중인 구독자는 요금제 한도보다 넉넉하다(subscription.md 4.8)
       entitlements: { ...entitlements, dailyPlayLimit: plan.dailyPlayLimit },
       store: current?.store ?? null,
-      pendingPlan:
-        current === null || current.pendingTier === null
-          ? null
-          : {
-              tier: current.pendingTier,
-              planName: pendingPlan?.name ?? current.pendingTier,
-              effectiveAt: current.expiresAt,
-            },
+      // 예약은 플랜 요약과 같은 판정이다 — 프로필·설정이 내보내는 값과 어긋나지 않게(KAN-161)
+      pendingPlan: plan.pendingPlan,
     };
   }
 
