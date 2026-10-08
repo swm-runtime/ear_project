@@ -128,7 +128,7 @@
 {
   "items": [ /* AdminContentItem — 8장 */ ],
   "total": 137,
-  "current_enrichment_schema_version": 2   // 서버가 아는 현재 추천 메타 형식 버전 (4.6 schema_version 상한과 같은 값). 2026-09-11
+  "current_enrichment_schema_version": 3   // 서버가 아는 현재 추천 메타 형식 버전 (4.6 schema_version 상한과 같은 값). 2026-09-11
 }
 ```
 
@@ -174,13 +174,16 @@
 
 **`enrichment_file` — 추천 메타 파일** (`admin.md` 3.1의 계약 표현, 등재 2026-09-08)
 
-- 저장 대상: `difficulty` · `format` · `is_evergreen` · `keywords` · **`target_audiences`**(형식 v2, 2026-09-11) → `contents` 메타,
+- 저장 대상: `difficulty` · `format` · `is_evergreen` · `keywords` · **`target_audiences`**(형식 v2, 2026-09-11) · **`tags`**(형식 v3, 2026-10-08 KAN-162) → `contents` 메타,
   `embedding.vector` → `content_embeddings` upsert(콘텐츠당 1행). 생략된 키는 저장하지 않는다(재부여 시에는 기존 값을 유지한다 — 부분 갱신, 2026-09-26)
   (결손 = 스코어링 중립 — `domain.md` 5.1·5.6).
 - **`schema_version`**(정수, 생략 시 1)을 `contents.enrichment_schema_version`에, 적용 시각을 `enriched_at`에 기록한다.
-  현재 형식은 **2**다 — 서버가 아는 최신보다 높으면 파일을 거부한다(모르는 키가 결손으로 둔갑하는 것을 막는다).
+  현재 형식은 **3**이다 — 서버가 아는 최신보다 높으면 파일을 거부한다(모르는 키가 결손으로 둔갑하는 것을 막는다).
 - `target_audiences`는 `[{ "job_category", "years_of_experience" }]` — 직군은 `GET /job-categories` 목록, 연차는
   `0-1 | 2-3 | 4-6 | 7+`(온보딩 입력과 같은 값 집합). 최대 8세트, 중복은 하나로 접고, 목록 밖 값은 파일 거부.
+- `tags`(형식 v3)는 화면 해시태그 문자열 배열 **2~4개** — 각 항목 `^[가-힣A-Za-z0-9]{2,10}$`(띄어쓰기·'#' 없음),
+  대소문자 무시 중복 없음. 화면에 그대로 보이는 값이라 **고치거나 접지 않고 파일을 거부한다.** 탐색 카드(`explore-api.md`)·
+  상세(`content-detail-api.md` 4.1)의 `tags`로 나간다.
 - 검증: enum은 `domain.md` 5.1과 글자 일치, 벡터는 1536차원, `embedding.model`은 현재 모델
   (`text-embedding-3-small`)과 일치해야 한다. **모르는 최상위 키는 거부한다**(오타가 결손으로
   둔갑하는 것을 막는다 — 명세의 `source` 폴백 표식은 허용).
@@ -645,7 +648,7 @@ topics[{ topic_id, name }],
 enrichment_schema_version, enriched_at          // 마지막 적용 메타 파일의 형식 버전·시각. null = 받은 적 없음 (2026-09-11)
 ```
 
-- `enrichment_schema_version`이 현재 형식(목록 응답 최상위 `current_enrichment_schema_version` — 4.5, 지금 2)보다 낮거나 null이면 **구형 메타**다. 콘솔이 그 콘텐츠를 골라 메타를 다시 뽑아 4.10의 `enrichment_file` 단독 전송으로 갱신한다(콘솔 기능은 `tickets/ai/pending` 참조).
+- `enrichment_schema_version`이 현재 형식(목록 응답 최상위 `current_enrichment_schema_version` — 4.5, 지금 3 — 2026-10-08 KAN-162)보다 낮거나 null이면 **구형 메타**다. 콘솔이 그 콘텐츠를 골라 메타를 다시 뽑아 4.10의 `enrichment_file` 단독 전송으로 갱신한다(콘솔 기능은 `tickets/ai/pending` 참조).
 
 **`audio_path`는 싣지 않는다**(7장).
 

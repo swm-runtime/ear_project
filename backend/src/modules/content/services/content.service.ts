@@ -240,6 +240,9 @@ export class ContentService {
     if (enrichment.targetAudiences !== undefined) {
       content.targetAudiences = enrichment.targetAudiences;
     }
+    if (enrichment.tags !== undefined) {
+      content.tags = enrichment.tags;
+    }
     // 어떤 형식의 파일이 언제 적용됐는지 — 형식이 바뀌면 구형 메타의 콘텐츠를 골라 다시 뽑는 근거다
     content.enrichmentSchemaVersion = enrichment.schemaVersion;
     content.enrichedAt = now;
