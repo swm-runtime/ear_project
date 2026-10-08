@@ -212,6 +212,62 @@ describe('PlanList — 요금제 카드(KAN-146)', () => {
     act(() => renderer.unmount());
   });
 
+  describe('해지 예약 중 — 이용 중 카드를 골라 [구독 다시 시작](PM 2026-10-08)', () => {
+    const LIGHT_NONE = makeCard(
+      { tier: 'light', name: '가벼운', action: 'none' },
+      SUBSCRIPTION_COPY.plans.freePrice,
+    );
+    const DAILY_DOWN = makeCard(
+      { tier: 'daily', name: '매일', storeProductId: 'daily.monthly', action: 'downgrade' },
+      '₩3,900',
+    );
+    const PRO_CURRENT = makeCard({ tier: 'pro', name: '무제한', action: 'current' }, '₩9,900');
+
+    const renderResume = (onResume = jest.fn()) =>
+      render(
+        <PlanList
+          state={{ kind: 'ready', cards: [LIGHT_NONE, DAILY_DOWN, PRO_CURRENT], isEmailVerified: true }}
+          isBusy={false}
+          purchasingPlanId={null}
+          onPurchase={jest.fn()}
+          onResume={onResume}
+          onRetry={jest.fn()}
+          isRetrying={false}
+        />,
+      );
+
+    it('이용 중 카드가 기본 선택이고 아래 버튼은 [구독 다시 시작] — 누르면 onResume', () => {
+      // given
+      const onResume = jest.fn();
+      const renderer = renderResume(onResume);
+
+      // when
+      const cta = ctaOf(renderer, SUBSCRIPTION_COPY.manage.resume);
+      act(() => (cta[0].props.onPress as () => void)());
+
+      // then
+      expect(radioOf(renderer, '무제한').props.accessibilityState).toMatchObject({ selected: true });
+      expect(onResume).toHaveBeenCalledTimes(1);
+      act(() => renderer.unmount());
+    });
+
+    it('고를 수 없는 카드도 라디오 원은 그린다(흐린 빈 원) — 칸만 비우지 않는다', () => {
+      // when
+      const renderer = renderResume();
+
+      // then — 라디오 역할은 고를 수 있는 카드에만, 원은 세 카드 모두
+      expect(radioOf(renderer, '가벼운')).toBeUndefined();
+      const circles = renderer.root.findAll(
+        (node) =>
+          typeof node.type === 'string' &&
+          flat(node.props.style).width === 22 &&
+          flat(node.props.style).borderWidth === 2,
+      );
+      expect(circles).toHaveLength(3);
+      act(() => renderer.unmount());
+    });
+  });
+
   describe('무료 요금제로 바꾸기(cancel — PM 2026-10-08)', () => {
     const FREE_CANCEL = makeCard(
       { tier: 'light', name: '가벼운', description: '하루 2편까지 들을 수 있어요', action: 'cancel' },

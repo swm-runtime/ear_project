@@ -25,6 +25,8 @@ export interface CurrentSubscriptionDetailProps {
    * 맡는다(PM 2026-10-08). 구독 다시 시작·결제 수단 확인은 요금제 바꾸기가 아니라서 그대로 둔다
    */
   hideCancel?: boolean;
+  /** [구독 다시 시작]을 그리지 않는다 — 이용 중 카드를 골라 아래 버튼으로 다시 시작한다(PM 2026-10-08) */
+  hideResume?: boolean;
 }
 
 /**
@@ -42,6 +44,7 @@ export default function CurrentSubscriptionDetail({
   onOpenStore,
   standalone = false,
   hideCancel = false,
+  hideResume = false,
 }: CurrentSubscriptionDetailProps) {
   if (status === null) {
     if (!isError) return null;
@@ -115,7 +118,9 @@ export default function CurrentSubscriptionDetail({
           storeButton(SUBSCRIPTION_COPY.manage.cancel)
         )
       ) : status.kind === 'cancelScheduled' ? (
-        storeButton(SUBSCRIPTION_COPY.manage.resume)
+        hideResume ? null : (
+          storeButton(SUBSCRIPTION_COPY.manage.resume)
+        )
       ) : (
         storeButton(SUBSCRIPTION_COPY.manage.checkPayment)
       )}
