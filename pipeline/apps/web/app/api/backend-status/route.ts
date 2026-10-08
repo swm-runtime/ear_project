@@ -109,7 +109,8 @@ async function countRecentErrors(group: string, stream: string): Promise<number 
           nextToken: out.nextToken,
         };
       },
-      { windowFrom: now - 60 * 60_000, now, maxEvents: ERROR_COUNT_CAP, maxPages: ERROR_COUNT_PAGES_MAX },
+      // 1시간 창은 조각 1개라 병렬은 의미 없고, 예산 4초 — 상태 카드 하나 때문에 대시보드 전체가 기다리지 않게
+      { windowFrom: now - 60 * 60_000, now, maxEvents: ERROR_COUNT_CAP, maxPages: ERROR_COUNT_PAGES_MAX, budgetMs: 4_000 },
     );
     return events.length;
   } catch {

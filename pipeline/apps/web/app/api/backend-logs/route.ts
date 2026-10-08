@@ -55,6 +55,9 @@ const MAX_PAGES = 6;
  */
 const ERROR_EVENTS_MAX = 3_000;
 const ERROR_PAGES_MAX = 40;
+/** 조각 4개씩 병렬 + 8초 예산 — 순차로는 24시간 12회·7일 40회 왕복이 10~40초라 화면이 멈춘 듯 보였다(2026-10-08) */
+const ERROR_CONCURRENCY = 4;
+const ERROR_BUDGET_MS = 8_000;
 
 /** tail 한 페이지의 메시지 바이트가 이보다 작으면 1MB 상한에 잘린 것이 아니다(아래 `tailExhausted`) */
 const TAIL_FULL_PAGE_BYTES = 800_000;
@@ -122,7 +125,7 @@ export async function GET(req: NextRequest) {
             nextToken: out.nextToken,
           };
         },
-        { windowFrom, now, maxEvents: ERROR_EVENTS_MAX, maxPages: ERROR_PAGES_MAX },
+        { windowFrom, now, maxEvents: ERROR_EVENTS_MAX, maxPages: ERROR_PAGES_MAX, concurrency: ERROR_CONCURRENCY, budgetMs: ERROR_BUDGET_MS },
       );
       return NextResponse.json({ events, coveredFrom, windowFrom, exhausted, pages });
     }

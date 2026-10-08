@@ -131,3 +131,46 @@ test("호출마다 조각의 시간 범위가 그대로 전달되고 토큰이 �
   assert.deepEqual(first[1].range, first[0].range, "같은 조각 안에서 토큰만 바뀐다");
   assert.ok(first[1].token);
 });
+
+test("병렬(concurrency 4) — 결과는 순차와 같고, 묶음 단위로 동시에 부른다", async () => {
+  const from = NOW - 24 * HOUR_MS;
+  const all = errorsEvery(from, NOW, 7 * MIN);
+  const seq = filterApi(all, 90 * MIN);
+  const par = filterApi(all, 90 * MIN);
+  const a = await collectErrorLogs(seq.fetchPage, { windowFrom: from, now: NOW, maxEvents: 10_000, maxPages: 100 });
+  const b = await collectErrorLogs(par.fetchPage, { windowFrom: from, now: NOW, maxEvents: 10_000, maxPages: 100, concurrency: 4 });
+  assert.deepEqual(b.events, a.events);
+  assert.equal(b.exhausted, true);
+  assert.equal(b.coveredFrom, from);
+  assert.equal(b.pages, a.pages);
+  // 첫 묶음은 최신 4조각을 동시에 시작한다
+  const firstFour = new Set(par.calls.slice(0, 4).map((c) => c.range.endTime));
+  assert.equal(firstFour.size, 4);
+});
+
+test("병렬에서 상한에 걸리면 coveredFrom 은 앞에서부터 이어서 완주한 조각까지다", async () => {
+  const from = NOW - 24 * HOUR_MS;
+  const all = errorsEvery(from, NOW, MIN);
+  const { fetchPage } = filterApi(all, 30 * MIN);
+  // 24시간 = 2시간 조각 12개 × 조각당 4페이지. 왕복 상한 10이면 첫 묶음(4조각 = 16페이지)부터 다 못 끝낸다
+  const out = await collectErrorLogs(fetchPage, { windowFrom: from, now: NOW, maxEvents: 10_000, maxPages: 10, concurrency: 4 });
+  assert.equal(out.exhausted, false);
+  assert.ok(out.coveredFrom > from);
+  assert.ok(out.events.length > 0);
+});
+
+test("시간 예산이 다 되면 남은 조각을 포기하고 본 데까지 돌려준다", async () => {
+  const from = NOW - 24 * HOUR_MS;
+  const all = errorsEvery(from, NOW, 10 * MIN);
+  const slow = filterApi(all, 3 * HOUR_MS);
+  const fetchPage = async (range: TimeRange, token: string | undefined) => {
+    await new Promise((r) => setTimeout(r, 15));
+    return slow.fetchPage(range, token);
+  };
+  const out = await collectErrorLogs(fetchPage, { windowFrom: from, now: NOW, maxEvents: 10_000, maxPages: 100, concurrency: 2, budgetMs: 20 });
+  assert.equal(out.exhausted, false);
+  assert.ok(out.coveredFrom > from);
+  assert.ok(out.coveredFrom < NOW);
+  // 최신 조각은 봤으므로 10분 전 ERROR 는 들어 있다
+  assert.ok(out.events.some((e) => e.t >= NOW - 10 * MIN));
+});

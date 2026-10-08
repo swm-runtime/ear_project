@@ -60,35 +60,74 @@ export function sliceWindow(windowFrom: number, now: number, sliceMs: number): T
   return slices;
 }
 
+export interface CollectOptions {
+  windowFrom: number;
+  now: number;
+  /** 누적 이벤트 상한 — 닿으면 더 부르지 않는다 */
+  maxEvents: number;
+  /** 총 왕복 상한 */
+  maxPages: number;
+  sliceMs?: number;
+  /**
+   * 동시에 읽는 조각 수(기본 1 = 순차). FilterLogEvents 한 번이 0.3~1초라 24시간 창(12조각)을 순차로 돌면 10초를
+   * 넘기고 7일은 40초에 닿아 화면이 "무한 로딩"처럼 보였다(2026-10-08). 조각은 서로 독립이라 병렬이 가능하고,
+   * 결과는 모아서 시각순으로 정렬한다. CloudWatch 의 FilterLogEvents 한도(계정당 초 5회)를 넘기지 않게 4 안팎으로 둔다
+   */
+  concurrency?: number;
+  /** 시간 예산(ms) — 한 묶음을 끝낸 뒤 이만큼 지났으면 남은 조각은 포기한다(`exhausted: false`, 본 데까지 `coveredFrom`) */
+  budgetMs?: number;
+}
+
 export async function collectErrorLogs(
   fetchPage: FetchFilterPage,
-  opts: { windowFrom: number; now: number; maxEvents: number; maxPages: number; sliceMs?: number },
+  opts: CollectOptions,
 ): Promise<ErrorCollection> {
   const sliceMs = opts.sliceMs ?? sliceSizeFor(opts.now - opts.windowFrom);
   const slices = sliceWindow(opts.windowFrom, opts.now, sliceMs);
+  const concurrency = Math.max(1, Math.floor(opts.concurrency ?? 1));
+  const startedAt = Date.now();
   const events: LogEvent[] = [];
+  // 왕복 수는 병렬 조각이 함께 늘린다 — 상한 판정은 공유 카운터로
   let pages = 0;
   // 아직 완주한 조각이 없으면 "now 이후"만 봤다 = 아무것도 다 보지 못했다
   let coveredFrom = opts.now;
 
-  const stop = (): ErrorCollection => ({ events: sorted(events), coveredFrom, exhausted: false, pages });
+  const overCap = () => events.length >= opts.maxEvents || pages >= opts.maxPages;
 
-  for (const slice of slices) {
+  /** 조각 하나를 nextToken 끝까지 읽는다. 상한에 걸려 중간에 멈추면 `complete: false` */
+  const drain = async (slice: TimeRange): Promise<boolean> => {
     let token: string | undefined;
     for (;;) {
-      if (pages >= opts.maxPages) return stop();
-      const page = await fetchPage(slice, token);
+      if (pages >= opts.maxPages) return false;
       pages += 1;
+      const page = await fetchPage(slice, token);
       events.push(...page.events);
       // 빈 페이지라도 nextToken 이 있으면 끝이 아니다 — 1MB 를 읽었는데 ERROR 가 없었을 뿐이다.
       // (GetLogEvents 와 달리 FilterLogEvents 는 끝에서 nextToken 을 아예 주지 않는다.
       //  같은 토큰이 되돌아오는 경우도 끝으로 본다 — 무한 루프 방지)
-      if (!page.nextToken || page.nextToken === token) break;
+      if (!page.nextToken || page.nextToken === token) return true;
       token = page.nextToken;
-      if (events.length >= opts.maxEvents) return stop(); // 조각 중간 — coveredFrom 은 이 조각 이후까지만
+      if (events.length >= opts.maxEvents) return false; // 조각 중간 — coveredFrom 은 이 조각 이후까지만
     }
-    coveredFrom = slice.startTime;
-    if (events.length >= opts.maxEvents && slice !== slices[slices.length - 1]) return stop();
+  };
+
+  for (let i = 0; i < slices.length; i += concurrency) {
+    const batch = slices.slice(i, i + concurrency);
+    const completed = await Promise.all(batch.map((slice) => drain(slice)));
+
+    // 묶음은 최신→과거 순이다. 앞에서부터 이어서 완주한 조각까지만 "다 봤다"고 할 수 있다
+    for (let k = 0; k < batch.length; k++) {
+      if (!completed[k]) {
+        return { events: sorted(events), coveredFrom, exhausted: false, pages };
+      }
+      coveredFrom = batch[k].startTime;
+    }
+
+    const more = i + concurrency < slices.length;
+    const overBudget = opts.budgetMs !== undefined && Date.now() - startedAt >= opts.budgetMs;
+    if (more && (overCap() || overBudget)) {
+      return { events: sorted(events), coveredFrom, exhausted: false, pages };
+    }
   }
 
   return { events: sorted(events), coveredFrom: opts.windowFrom, exhausted: true, pages };
