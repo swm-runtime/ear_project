@@ -110,6 +110,32 @@ describe('AllExceptionsFilter — Sentry 보고 경계', () => {
     expect(Sentry.captureException).not.toHaveBeenCalled();
   });
 
+  it('클라이언트가 전송 중 끊은 요청(raw-body request.aborted)은 400 으로 답하고 info 로만 남기며 Sentry 로 보내지 않는다', () => {
+    const { host: h, response } = host();
+    const error = Object.assign(new Error('request aborted'), {
+      type: 'request.aborted',
+      code: 'ECONNABORTED',
+      status: 400,
+      expected: 120,
+      received: 48,
+    });
+
+    filter.catch(error, h);
+
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error_code: 'VALIDATION_FAILED',
+        message: '요청이 중단됐어요',
+        retryable: true,
+      }),
+    );
+    expect(filter['logger'].error).not.toHaveBeenCalled();
+    expect(filter['logger'].warn).not.toHaveBeenCalled();
+    expect(filter['logger'].log).toHaveBeenCalled();
+    expect(Sentry.captureException).not.toHaveBeenCalled();
+  });
+
   it('프레임워크 4xx(404 등)도 보내지 않는다', () => {
     filter.catch(new HttpException('nope', HttpStatus.NOT_FOUND), host().host);
 
