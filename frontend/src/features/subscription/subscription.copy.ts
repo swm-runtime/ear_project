@@ -58,9 +58,8 @@ export const SUBSCRIPTION_COPY = {
         : 'App Store에서 구독 중이에요. 구독한 기기에서 변경해주세요',
   },
 
-  /** 스토어로 보내는 버튼 — 해지 API 는 없다(subscription.md 4.5) */
+  /** 스토어로 보내는 목록 아래 버튼 — 해지 API 는 없다(subscription.md 4.5). 해지는 무료 요금제 카드의 [{이름}로 변경] */
   manage: {
-    cancel: '구독 해지',
     resume: '구독 다시 시작',
     checkPayment: '결제 수단 확인',
   },

@@ -11,7 +11,7 @@ import LoadingOverlay from '@/shared/ui/LoadingOverlay';
 import { Text } from '@/shared/ui/Typography';
 
 import CurrentSubscriptionDetail from '../components/CurrentSubscriptionDetail';
-import PlanList from '../components/PlanList';
+import PlanList, { type CurrentPlanCta } from '../components/PlanList';
 import PurchaseNotice from '../components/PurchaseNotice';
 import SubscriptionLegalNotice from '../components/SubscriptionLegalNotice';
 import { scheduledChangeNotice } from '../hooks/subscription-status';
@@ -49,13 +49,6 @@ export default function SubscriptionScreen() {
   const hasCurrentCard =
     catalogState.kind === 'ready' &&
     catalogState.cards.some((card) => card.plan.action === 'current');
-  /**
-   * 서버가 해지 카드(`cancel` — 유료 구독자의 무료 요금제)를 줬는가 — 줬으면 해지는 "그 요금제로 변경"이 맡고 이용 중 카드의
-   * [구독 해지]를 뺀다(PM 2026-10-08). 안 줬으면(서버 반영 전) 종전대로 카드 안 버튼이 해지 경로다
-   */
-  const hasCancelCard =
-    catalogState.kind === 'ready' &&
-    catalogState.cards.some((card) => card.plan.action === 'cancel');
   /** 낮출 수 있는 요금제가 있는가 — 있으면 제목 밑에 "기간 끝난 뒤 자동 변경"을 적는다(PM 2026-10-08 KAN-158) */
   const hasDowngradeCard =
     catalogState.kind === 'ready' &&
@@ -73,24 +66,22 @@ export default function SubscriptionScreen() {
       ? SUBSCRIPTION_COPY.status.cancelUntil(status.renewsAt)
       : null;
   /**
-   * 해지 예약 중이고 이 스토어에서 바꿀 수 있으면 — 이용 중 카드를 골라 아래 [구독 다시 시작]으로 되돌린다(PM 2026-10-08).
-   * 이용 중 카드가 없으면(목록 밑 따로 선 구독 정보) 종전대로 그 안의 버튼이 경로다
+   * 이용 중 카드를 골랐을 때 아래 버튼(서버 구독 상태로 정한다) — 해지 예약이면 [구독 다시 시작], 결제 문제면 [결제 수단 확인],
+   * 둘 다 스토어 구독 관리. 카드 안에는 버튼이 없다(PM 2026-10-08). 다른 스토어 구독·이용 중 카드 없음이면 없다
    */
-  const canResumeInList =
-    hasCurrentCard &&
-    status !== null &&
-    status.kind === 'cancelScheduled' &&
-    status.otherStore === null;
+  const currentCta: CurrentPlanCta | undefined =
+    !hasCurrentCard || status === null || status.kind === 'free' || status.otherStore !== null
+      ? undefined
+      : status.kind === 'cancelScheduled'
+        ? { label: SUBSCRIPTION_COPY.manage.resume, onPress: screen.openStoreManagement }
+        : status.kind === 'grace'
+          ? { label: SUBSCRIPTION_COPY.manage.checkPayment, onPress: screen.openStoreManagement }
+          : undefined;
   const renderDetail = (standalone: boolean) => (
     <CurrentSubscriptionDetail
       status={screen.status}
       isError={screen.isStatusError}
-      onRetry={screen.retryStatus}
-      isRetrying={screen.isStatusRetrying}
-      onOpenStore={screen.openStoreManagement}
       standalone={standalone}
-      hideCancel={hasCancelCard}
-      hideResume={!standalone && canResumeInList}
     />
   );
 
@@ -143,7 +134,7 @@ export default function SubscriptionScreen() {
           onPurchase={(plan) => void flow.purchase(plan)}
           onCancel={screen.openStoreManagement}
           cancelHint={cancelHint}
-          onResume={canResumeInList ? screen.openStoreManagement : undefined}
+          currentCta={currentCta}
           onRetry={screen.catalog.retry}
           isRetrying={screen.catalog.isRetrying}
           currentDetail={renderDetail(false)}

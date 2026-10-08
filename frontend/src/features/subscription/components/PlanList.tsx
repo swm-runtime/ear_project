@@ -23,8 +23,17 @@ const RADIO_GAP = 10;
 const SELECTED_BORDER_WIDTH = 2;
 
 type SelectableAction = Exclude<PlanAction, 'none' | 'current'>;
-/** 목록 아래 버튼이 하는 일 — 서버 action 에 더해, 해지 예약 중인 이용 중 카드를 고르면 "구독 다시 시작" */
-type CtaKind = SelectableAction | 'resume';
+/**
+ * 목록 아래 버튼이 하는 일 — 서버 action 에 더해 `current`: 이용 중 카드를 고르면 화면이 준 일(해지 예약이면 "구독 다시 시작",
+ * 결제 문제면 "결제 수단 확인" — 스토어 구독 관리). 카드 안에는 버튼을 두지 않는다(PM 2026-10-08)
+ */
+type CtaKind = SelectableAction | 'current';
+
+/** 이용 중 카드를 골랐을 때 아래 버튼 — 화면이 서버 구독 상태로 정한다 */
+export interface CurrentPlanCta {
+  label: string;
+  onPress: () => void;
+}
 
 /**
  * 고를 수 있는 카드 — action 은 서버 판정이다. 클라이언트가 티어 순서를 비교하지 않는다(subscription-api.md 4.1).
@@ -139,7 +148,7 @@ interface PlanCardsProps {
   onPurchase: (plan: Plan) => void;
   onCancel?: () => void;
   cancelHint?: string | null;
-  onResume?: () => void;
+  currentCta?: CurrentPlanCta;
   currentDetail?: ReactNode;
 }
 
@@ -150,22 +159,22 @@ function PlanCards({
   onPurchase,
   onCancel,
   cancelHint = null,
-  onResume,
+  currentCta,
   currentDetail,
 }: PlanCardsProps) {
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const canCancel = onCancel !== undefined;
   const ctaOf = (card: PlanCardVM): CtaKind | null => {
     if (isSelectableAction(card.plan.action, canCancel)) return card.plan.action;
-    if (card.plan.action === 'current' && onResume !== undefined) return 'resume';
+    if (card.plan.action === 'current' && currentCta !== undefined) return 'current';
     return null;
   };
   const selectable = cards.filter((card) => ctaOf(card) !== null);
-  // 기본 선택 — 해지 예약 중이면 이용 중 카드(지금 요금제를 이어 쓰기), 아니면 고를 수 있는 첫 유료 카드(서버 순서).
+  // 기본 선택 — 이용 중 카드에 할 일이 있으면(해지 예약·결제 문제) 그 카드, 아니면 고를 수 있는 첫 유료 카드(서버 순서).
   // 해지(무료로 바꾸기)는 사용자가 직접 골라야만 선택된다. 티어명으로 고르지 않는다. 고른 카드가 목록에서 빠지면 기본으로 돌아간다
   const selected =
     selectable.find((card) => card.plan.planId === selectedPlanId) ??
-    selectable.find((card) => ctaOf(card) === 'resume') ??
+    selectable.find((card) => ctaOf(card) === 'current') ??
     selectable.find((card) => card.plan.action !== 'cancel') ??
     selectable[0] ??
     null;
@@ -175,8 +184,8 @@ function PlanCards({
   const ctaLabel =
     selected === null || selectedAction === null
       ? ''
-      : selectedAction === 'resume'
-        ? SUBSCRIPTION_COPY.manage.resume
+      : selectedAction === 'current'
+        ? (currentCta?.label ?? '')
         : SUBSCRIPTION_COPY.plans.cta(selected.plan.name, selectedAction);
   const hint =
     selectedAction === 'downgrade'
@@ -219,8 +228,8 @@ function PlanCards({
             onPress={() =>
               selectedAction === 'cancel'
                 ? onCancel?.()
-                : selectedAction === 'resume'
-                  ? onResume?.()
+                : selectedAction === 'current'
+                  ? currentCta?.onPress()
                   : onPurchase(selected.plan)
             }
             disabled={isBusy}
@@ -260,10 +269,10 @@ interface PlanListProps {
   /** `cancel` 카드를 골랐을 때 버튼 밑 안내("지금 요금제는 N월 N일까지…") — 날짜를 모르면 null */
   cancelHint?: string | null;
   /**
-   * 해지 예약 중일 때만(요금제 관리 화면) — 이용 중 카드를 고를 수 있게 하고 버튼 "구독 다시 시작"이 이걸 부른다(스토어 구독
-   * 관리). 카드 안 [구독 다시 시작]을 대신한다(PM 2026-10-08 — 조작은 "카드 고르기 + 아래 버튼 하나")
+   * 이용 중 카드에 할 일이 있을 때만(요금제 관리 화면 — 해지 예약 "구독 다시 시작" · 결제 문제 "결제 수단 확인") 그 카드를
+   * 고를 수 있게 하고 아래 버튼이 이걸 부른다. 카드 안 버튼을 대신한다(PM 2026-10-08 — 조작은 "카드 고르기 + 아래 버튼 하나")
    */
-  onResume?: () => void;
+  currentCta?: CurrentPlanCta;
   onRetry: () => void;
   isRetrying: boolean;
   /**
@@ -286,7 +295,7 @@ export default function PlanList({
   onPurchase,
   onCancel,
   cancelHint,
-  onResume,
+  currentCta,
   onRetry,
   isRetrying,
   currentDetail,
@@ -324,14 +333,14 @@ export default function PlanList({
     <PlanCards
       // 서버 상태가 바뀌면(해지·다시 시작·변경 예약) 선택을 처음부터 다시 정한다 — 해지하러 스토어에 갔다 돌아오면
       // 종전 선택(Light)이 남아 "Light로 변경"이 그대로 떠 있었다(PM 2026-10-08)
-      key={`${state.cards.map((card) => card.plan.action).join(',')}|${onResume ? 'resume' : ''}`}
+      key={`${state.cards.map((card) => card.plan.action).join(',')}|${currentCta?.label ?? ''}`}
       cards={state.cards}
       isBusy={isBusy}
       purchasingPlanId={purchasingPlanId}
       onPurchase={onPurchase}
       onCancel={onCancel}
       cancelHint={cancelHint}
-      onResume={onResume}
+      currentCta={currentCta}
       currentDetail={currentDetail}
     />
   );
