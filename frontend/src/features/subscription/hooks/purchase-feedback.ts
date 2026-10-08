@@ -35,6 +35,8 @@ export const failureMessage = (reason: PurchaseFailure): string => {
       return SUBSCRIPTION_COPY.error.alreadySubscribed;
     case 'replaceSourceMissing':
       return SUBSCRIPTION_COPY.error.replaceSourceMissing;
+    case 'downgradeNeedsUpdate':
+      return SUBSCRIPTION_COPY.error.downgradeNeedsUpdate;
     case 'storeUnavailable':
       return SUBSCRIPTION_COPY.error.storeUnavailable;
     case 'network':

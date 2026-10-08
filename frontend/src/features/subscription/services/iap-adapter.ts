@@ -18,11 +18,15 @@ import {
   requestPurchase,
   syncIOS,
   type Purchase,
-  type SubscriptionReplacementModeAndroid,
 } from 'expo-iap';
 
 import { logger } from '@/shared/lib/logger';
 
+import {
+  PLAY_REPLACEMENT_MODE,
+  PlaySubscriptionChange,
+  type PlayChangedPurchase,
+} from '../../../../modules/play-subscription-change/src';
 import type { PurchasePlatform } from '../subscription.types';
 
 /** 스토어가 준 상품 — 화면은 이 현지 가격을 그린다(price_krw 는 참고값) */
@@ -60,7 +64,8 @@ export class StoreError extends Error {
 
 /**
  * Android 요금제 변경의 교체 입력(KAN-158) — 지금 구독의 구매 토큰·상품과 방식. Google 이 새 구매에
- * `linkedPurchaseToken` 을 붙여 서버가 같은 구독 행에 잇는다(subscription-api.md 4.4)
+ * `linkedPurchaseToken` 을 붙여 서버가 같은 구독 행에 잇는다(subscription-api.md 4.4).
+ * 방식은 교체 모듈(modules/play-subscription-change)이 있을 때만 지켜진다 — 없으면 결제 라이브러리가 즉시 적용으로 고정한다
  */
 export interface ReplaceSubscription {
   purchaseToken: string;
@@ -83,10 +88,19 @@ export interface IapAdapter {
     replace?: ReplaceSubscription;
   }): Promise<StorePurchase[]>;
   /**
-   * Android — 교체할 지금 구독. 기기의 Play 구매 중 확인(acknowledge)된 것, 결제 대상과 다른 상품. 없으면 null.
-   * 확인되지 않은 구매(서버가 거부한 두 번째 구독 — 곧 자동 환불)는 고르지 않는다. iOS 는 늘 null
+   * Android — 교체할 지금 구독. 기기의 Play 구매 중 결제 대상과 다른 상품, 가장 최근 것. 없으면 null. iOS 는 늘 null.
+   * `currentProductId`(서버의 지금 구독 상품)를 알면 그 상품만 고른다 — 기기 캐시에는 만료·환불된 구매도 남아 있다.
+   * 모르면 확인(acknowledge)된 구매만 고른다 — 서버가 거부한 두 번째 구독(미확인, 곧 자동 환불)을 집지 않게
    */
-  findReplaceable(targetProductId: string): Promise<StorePurchase | null>;
+  findReplaceable(
+    targetProductId: string,
+    currentProductId: string | null,
+  ): Promise<StorePurchase | null>;
+  /**
+   * 다운그레이드를 "다음 갱신부터"로 예약할 수 있는가 — iOS 는 늘 true(구독 그룹), Android 는 교체 모듈이 든 빌드만.
+   * 결제 라이브러리만으로는 교체가 즉시 적용으로 고정된다(PlaySubscriptionChangeModule 주석)
+   */
+  readonly supportsDeferredDowngrade: boolean;
   /** iOS 거래 종료 — **서버가 200 을 준 뒤에만** 부른다. Android 에서는 부르지 않는다(확인은 서버 몫) */
   finish(purchase: StorePurchase): Promise<void>;
   /** 끝나지 않은 거래 — 앱 실행·포그라운드 복귀 때 서버에 제출한다 */
@@ -114,6 +128,15 @@ const STORE_ERROR_KIND: Partial<Record<string, StoreErrorKind>> = {
   [ErrorCode.SkuNotFound]: 'unavailable',
   [ErrorCode.QueryProduct]: 'unavailable',
   [ErrorCode.InitConnection]: 'unavailable',
+  // 교체 모듈(PlaySubscriptionChange)의 코드 — E_BILLING_<Play responseCode>
+  E_USER_CANCELLED: 'cancelled',
+  E_BILLING_7: 'alreadyOwned',
+  E_BILLING_2: 'network',
+  'E_BILLING_-1': 'network',
+  E_SERVICE_DISCONNECTED: 'network',
+  E_BILLING_3: 'unavailable',
+  E_BILLING_4: 'unavailable',
+  E_PRODUCT_NOT_FOUND: 'unavailable',
 };
 
 export const toStoreError = (error: unknown): StoreError => {
@@ -122,7 +145,18 @@ export const toStoreError = (error: unknown): StoreError => {
     typeof error === 'object' && error !== null && 'code' in error
       ? String((error as { code: unknown }).code)
       : '';
-  const message = error instanceof Error ? error.message : String(error);
+  const base = error instanceof Error ? error.message : String(error);
+  // Play 의 responseCode · debugMessage 를 함께 남긴다 — code 만으로는 시트가 왜 끊겼는지 안 보였다(KAN-158 수정 3)
+  const detail =
+    typeof error === 'object' && error !== null
+      ? (error as { responseCode?: unknown; debugMessage?: unknown })
+      : {};
+  const extra = [
+    code !== '' ? `code=${code}` : null,
+    detail.responseCode != null ? `responseCode=${String(detail.responseCode)}` : null,
+    detail.debugMessage ? `debugMessage=${String(detail.debugMessage)}` : null,
+  ].filter((part) => part !== null);
+  const message = extra.length > 0 ? `${base} (${extra.join(' ')})` : base;
   return new StoreError(STORE_ERROR_KIND[code] ?? 'unknown', message);
 };
 
@@ -134,11 +168,23 @@ const toStorePurchase = (purchase: Purchase): StorePurchase => ({
   raw: purchase,
 });
 
-/** 교체 방식 → Play Billing 값(expo-iap 문자열) */
-const REPLACEMENT_MODE = {
-  chargeProrated: 'charge-prorated-price',
-  deferred: 'deferred',
-} as const satisfies Record<ReplaceSubscription['mode'], SubscriptionReplacementModeAndroid>;
+/** 교체 방식 → Play Billing 정수(교체 모듈) */
+const PLAY_MODE: Record<ReplaceSubscription['mode'], number> = {
+  chargeProrated: PLAY_REPLACEMENT_MODE.CHARGE_PRORATED_PRICE,
+  deferred: PLAY_REPLACEMENT_MODE.DEFERRED,
+};
+
+/** 교체 모듈이 돌려준 구매 → 스토어 거래. Android 는 finish 를 하지 않아 raw 는 보지 않는다 */
+const fromPlayChanged = (
+  purchase: PlayChangedPurchase,
+  fallbackProductId: string,
+): StorePurchase => ({
+  transactionId: purchase.orderId ?? purchase.purchaseToken,
+  productId: purchase.productId ?? fallbackProductId,
+  token: purchase.purchaseToken,
+  state: purchase.purchaseState,
+  raw: purchase,
+});
 
 const isUnacknowledgedAndroid = (purchase: Purchase): boolean =>
   'isAcknowledgedAndroid' in purchase && purchase.isAcknowledgedAndroid === false;
@@ -171,6 +217,20 @@ export const createExpoIapAdapter = (platform: PurchasePlatform): IapAdapter => 
   },
 
   requestSubscription: async ({ productId, accountToken, replace }) => {
+    // Android 요금제 변경 — 교체 모듈이 있으면 방식을 지정해 연다(업그레이드 즉시 + 비례 · 다운그레이드 다음 갱신부터)
+    if (platform === 'android' && replace && PlaySubscriptionChange !== null) {
+      try {
+        const purchases = await PlaySubscriptionChange.changeSubscription(
+          productId,
+          replace.purchaseToken,
+          PLAY_MODE[replace.mode],
+          accountToken,
+        );
+        return purchases.map((purchase) => fromPlayChanged(purchase, productId));
+      } catch (error) {
+        throw toStoreError(error);
+      }
+    }
     try {
       const result = await requestPurchase({
         type: 'subs',
@@ -182,16 +242,10 @@ export const createExpoIapAdapter = (platform: PurchasePlatform): IapAdapter => 
                 google: {
                   skus: [productId],
                   obfuscatedAccountId: accountToken,
-                  // 요금제 변경 — 지금 구독 토큰 + 상품 단위 교체(expo-iap 5.8 · Play Billing 8.1). 없으면 새 구독
-                  ...(replace
-                    ? {
-                        purchaseToken: replace.purchaseToken,
-                        subscriptionProductReplacementParams: {
-                          oldProductId: replace.oldProductId,
-                          replacementMode: REPLACEMENT_MODE[replace.mode],
-                        },
-                      }
-                    : {}),
+                  // 교체 모듈이 없는 빌드의 요금제 변경 — 구매 토큰만 넘기면 라이브러리가 즉시 적용(CHARGE_FULL_PRICE)으로
+                  // 교체한다. 상품 단위 교체(subscriptionProductReplacementParams)는 기기 Play 스토어가 몰라 시트가 끊겨
+                  // 쓰지 않는다(2026-10-08 실측). 다운그레이드는 서비스가 여기 오기 전에 막는다
+                  ...(replace ? { purchaseToken: replace.purchaseToken } : {}),
                 },
               },
       });
@@ -202,15 +256,23 @@ export const createExpoIapAdapter = (platform: PurchasePlatform): IapAdapter => 
     }
   },
 
-  findReplaceable: async (targetProductId) => {
+  supportsDeferredDowngrade: platform === 'ios' || PlaySubscriptionChange !== null,
+
+  findReplaceable: async (targetProductId, currentProductId) => {
     if (platform === 'ios') return null;
-    const candidates = (await getAvailablePurchases()).filter(
-      (purchase) =>
-        purchase.productId !== targetProductId &&
-        purchase.purchaseState === 'purchased' &&
-        !isUnacknowledgedAndroid(purchase) &&
-        typeof purchase.purchaseToken === 'string',
-    );
+    const candidates = (await getAvailablePurchases())
+      .filter(
+        (purchase) =>
+          purchase.productId !== targetProductId &&
+          purchase.purchaseState === 'purchased' &&
+          typeof purchase.purchaseToken === 'string' &&
+          // 서버의 지금 구독과 같은 상품이면 확인 전이어도 받는다(방금 산 구독이 서버 반영 직후 잠깐 미확인일 수 있다)
+          (currentProductId !== null
+            ? purchase.productId === currentProductId
+            : !isUnacknowledgedAndroid(purchase)),
+      )
+      // 기기 캐시엔 만료·환불된 구매도 남는다 — 가장 최근 구매를 고른다
+      .sort((a, b) => b.transactionDate - a.transactionDate);
     if (candidates.length > 1) {
       logger.warn('[subscription] several replaceable play subscriptions', candidates.length);
     }

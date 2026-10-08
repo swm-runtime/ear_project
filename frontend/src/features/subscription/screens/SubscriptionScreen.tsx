@@ -55,6 +55,10 @@ export default function SubscriptionScreen() {
   const hasCancelCard =
     catalogState.kind === 'ready' &&
     catalogState.cards.some((card) => card.plan.action === 'cancel');
+  /** 낮출 수 있는 요금제가 있는가 — 있으면 제목 밑에 "기간 끝난 뒤 자동 변경"을 적는다(PM 2026-10-08 KAN-158) */
+  const hasDowngradeCard =
+    catalogState.kind === 'ready' &&
+    catalogState.cards.some((card) => card.plan.action === 'downgrade');
   const status = screen.status;
   const cancelHint =
     status !== null && status.kind === 'subscribed' && status.renewsAt !== null
@@ -94,6 +98,9 @@ export default function SubscriptionScreen() {
           <Text style={styles.title} accessibilityRole="header">
             {SUBSCRIPTION_COPY.title}
           </Text>
+          {hasDowngradeCard ? (
+            <Text style={styles.subtitle}>{SUBSCRIPTION_COPY.downgradeNotice}</Text>
+          ) : null}
         </View>
 
         <PlanList
@@ -165,6 +172,11 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.xl,
     fontWeight: '700',
     color: theme.color.textPrimary,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: theme.font.size.sm,
+    color: theme.color.textSecondary,
     textAlign: 'center',
   },
 });

@@ -51,6 +51,8 @@ export type PurchaseFailure =
   | 'alreadySubscribed'
   /** Android 요금제 변경인데 바꿀 지금 구독이 기기에 없다 — 결제 시트를 열지 않는다 */
   | 'replaceSourceMissing'
+  /** Android 다운그레이드 예약은 교체 모듈이 든 빌드에서만 된다 — 앱 업데이트 안내 */
+  | 'downgradeNeedsUpdate'
   | 'storeUnavailable'
   | 'network'
   | 'unknown';
@@ -157,6 +159,10 @@ const toFailure = (error: unknown): PurchaseFailure => {
 /** 스토어 결제 시트의 실패 → 결과. 취소는 문구가 없는 정상 결과다 */
 const fromStoreError = (error: unknown): PurchaseOutcome => {
   const storeError = toStoreError(error);
+  if (storeError.kind !== 'cancelled') {
+    // 시트가 왜 끊겼는지 — Play responseCode · debugMessage 가 메시지에 실려 있다(KAN-158)
+    logger.warn('[subscription] store purchase failed', storeError.kind, storeError.message);
+  }
   switch (storeError.kind) {
     case 'cancelled':
       return { kind: 'cancelled' };
@@ -349,6 +355,9 @@ export const createPurchaseService = (deps: PurchaseServiceDeps) => {
     /** 포그라운드 복귀 — 미완료 거래를 다시 제출한다(재시도 대기 중이던 것도 즉시) */
     recoverUnfinished,
 
+    /** 다운그레이드를 이 빌드에서 "다음 갱신부터"로 예약할 수 있는가 — 화면이 확인 팝업 전에 본다 */
+    supportsDeferredDowngrade: deps.adapter.supportsDeferredDowngrade,
+
     /** 스토어 현지 가격 조회 — 화면은 이 값만 그린다. 실패하면 던진다("요금제를 불러올 수 없어요") */
     fetchStoreProducts: async (productIds: string[]): Promise<StoreProduct[]> => {
       if (productIds.length === 0) return [];
@@ -360,9 +369,17 @@ export const createPurchaseService = (deps: PurchaseServiceDeps) => {
      * [구독하기]·[업그레이드]·[변경] — 결제 의도 → 결제 시트 → 서버 제출 → 종료.
      * 결과는 한 번만 돌아온다. 화면은 결과 종류로 문구·닫기·자동 재생을 고른다.
      */
-    purchase: async (plan: Plan, entryPoint: PurchaseEntryPoint): Promise<PurchaseOutcome> => {
+    purchase: async (
+      plan: Plan,
+      entryPoint: PurchaseEntryPoint,
+      /** 서버의 지금 구독 상품(이용 중 카드) — Android 교체 대상을 고를 때만 쓴다 */
+      currentProductId: string | null = null,
+    ): Promise<PurchaseOutcome> => {
       if (phase !== 'idle') return { kind: 'busy' };
       if (plan.storeProductId === null) return { kind: 'failed', reason: 'planUnavailable' };
+      if (plan.action === 'downgrade' && !deps.adapter.supportsDeferredDowngrade) {
+        return { kind: 'failed', reason: 'downgradeNeedsUpdate' };
+      }
       setPhase('purchasing');
       try {
         let intent: PurchaseIntent;
@@ -398,7 +415,7 @@ export const createPurchaseService = (deps: PurchaseServiceDeps) => {
         ) {
           let source: StorePurchase | null;
           try {
-            source = await deps.adapter.findReplaceable(intent.storeProductId);
+            source = await deps.adapter.findReplaceable(intent.storeProductId, currentProductId);
           } catch (error) {
             return { kind: 'failed', reason: toFailure(toStoreError(error)) };
           }

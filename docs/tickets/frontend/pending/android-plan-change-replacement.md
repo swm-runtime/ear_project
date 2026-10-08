@@ -14,7 +14,7 @@
 | 관련 | `subscription-purchase-screen.md`([KAN-120](https://runtime364.atlassian.net/browse/KAN-120)) · 백엔드 `tickets/backend/archive/android-play-subscription-products.md`([KAN-130](https://runtime364.atlassian.net/browse/KAN-130) — 서버 쪽 "살아 있는 Play 구독은 하나" 가드) |
 | 근거 문서 | `features/subscription.md` 4.4 · `spec/api/subscription-api.md` 4.4(한 계정에 살아 있는 Play 구독은 하나)·5장(`SUBSCRIPTION_ALREADY_SUBSCRIBED`) |
 | 중요도 | Medium |
-| 상태 | 코드 반영(2026-10-08) — 개발계 Android 실기기 확인 대기 |
+| 상태 | 2차 반영(2026-10-08) — 업그레이드는 OTA 로 확인 가능, 다운그레이드 예약은 다음 Android 빌드(교체 모듈) 뒤 확인 |
 
 ## 현상 (2026-10-08 00:39 KST, 개발계 Android rt 32)
 
@@ -64,3 +64,12 @@ Android는 Pro·Daily가 **독립된 정기 결제**라 Google은 둘 다 살 �
   - 409 `SUBSCRIPTION_ALREADY_SUBSCRIBED` → 전용 문구(`subscription-uiux.md` 4.x 에러 표).
   - 다운그레이드 결과(`pending_plan` 토스트·이용 중 카드 "N월 N일부터 …")는 종전 코드 그대로.
   - **남은 것**: 개발계 Android(라이선스 테스터)로 완료 조건 1·2 확인. 확인되면 archive 로 옮기고 Jira 완료.
+- 2026-10-08 09:40 BE 실측(Jira 코멘트): 1차의 상품 단위 교체(`subscriptionProductReplacementParams`)는 Play 시트가 "정기 결제 요금제를 변경할 수 없습니다"로 끝났다 — 기기 Play 스토어가 그 파라미터를 모른다(Google Issue 561369347).
+- 2026-10-08 2차 반영(PR `feat(fe)/play-deferred-downgrade`).
+  - **BE 제안 수정 1(`google.replacementMode` 정수)은 이 라이브러리에서 안 된다** — expo-iap 5.8.2·5.8.3 의 네이티브 파서는 그 키를 읽지 않고, openiap-google 3.6 은 구매 토큰만 오면 방식을 5(CHARGE_FULL_PRICE)로 고정한다(소스 확인). 즉 라이브러리로는 업·다운 모두 즉시 적용뿐이다.
+  - PM 결정(2026-10-08): 업그레이드는 즉시, **다운그레이드는 기간 끝나면 자동** — 그래서 로컬 네이티브 모듈 `modules/play-subscription-change`(Android, Play Billing 9.1 직접)를 만들었다. 업그레이드 CHARGE_PRORATED_PRICE(2) · 다운그레이드 DEFERRED(6). runtime 은 32 유지(모듈 유무 분기).
+  - 모듈 없는 지금 빌드: 업그레이드 = 구매 토큰만(즉시 적용, 라이브러리 고정 5) · 다운그레이드 = "앱을 업데이트해주세요" 안내.
+  - 수정 2(교체 대상): 서버의 지금 구독 상품(이용 중 카드)과 같은 것만, 가장 최근 구매. 모르면 확인된 구매만.
+  - 수정 3(로그): 스토어 실패에 code · responseCode · debugMessage 를 싣고 경고 로그를 남긴다. 모듈은 Play responseCode·debugMessage 를 그대로 돌려준다.
+  - 다운그레이드 확인 팝업 + 요금제 관리 제목 밑 안내(PM).
+  - **Kotlin 은 Windows 에서 컴파일하지 못했다** — 다음 Android 빌드가 첫 컴파일이다.
