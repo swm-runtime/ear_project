@@ -1,5 +1,8 @@
 {
   "ignoreCommand": "node scripts/should-build.mjs",
+  "git": {
+    "deploymentEnabled": false
+  },
   "rewrites": [
     {
       "source": "/auth/apple/callback",

@@ -47,6 +47,7 @@ npm run build    # out/ 에 정적 파일 생성 (prebuild가 og:image를 먼저
 - API 주소는 두 개다. 빌드 시점 fetch(주제 목록)는 `LANDING_API_BASE_URL`, 브라우저에서 부르는 것(Try 샘플 플레이어)은 `NEXT_PUBLIC_API_BASE_URL`. **기본값은 둘 다 개발계 `https://api-dev.earcast.co.kr/api/v1`** — 랜딩은 `dev` 머지만으로 배포·확인한다(2026-09-18). 운영을 보게 하려면 두 변수를 `https://api.earcast.co.kr/api/v1`로 준다.
 - **실패해도 빌드는 멈추지 않는다** — 네트워크 오류·404·공개 주제 0개면 내장 기본 목록(주제 체계 v2)을 그리고 빌드 로그에 `[public-topics]` 경고를 남긴다.
 - 관리자에서 바꾼 주제는 **다시 빌드해야** 반영된다. `.github/workflows/landing-daily-rebuild.yml`이 매일 05:30 KST에 Vercel 배포 훅을 호출한다(repo secret `LANDING_VERCEL_DEPLOY_HOOK` 필요). 급하면 Actions에서 수동 실행한다.
+- **배포는 GitHub Actions 만 시작한다**(2026-10-08). Vercel 의 git 자동 배포는 꺼져 있다(`vercel.json` `git.deploymentEnabled: false`) — 커밋마다 배포가 만들어져 하루 한도에 걸렸기 때문이다. `landing-daily-rebuild.yml`이 ① dev 에 `landing-page/**`가 바뀌어 들어오면 ② 매일 05:30 KST 에 배포 훅을 부르고, 빌드 여부는 `scripts/should-build.mjs`가 정한다(랜딩 변경 또는 주제 데이터 변경). PR 미리보기 배포는 없다 — 확인은 로컬 `npm run dev`. 손으로 배포하려면 `gh workflow run landing-daily-rebuild.yml`.
 
 ## 배포 전 반드시 바꿀 것
 
