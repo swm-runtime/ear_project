@@ -506,8 +506,9 @@ contents
   format                    enum            NULL 허용 — news_analysis | howto | interview | opinion | case_study | overview ★추천 메타
   is_evergreen              boolean         NULL 허용 — true: 에버그린 / false: 시의성 ★추천 메타
   keywords                  jsonb           NULL 허용 — ["세부 키워드", ...] ★추천 메타
+  tags                      jsonb           NULL 허용 — ["ISA", "비과세", ...] 화면 해시태그 2~4개('#' 없이, 띄어쓰기 없는 한글·영문·숫자 2~10자). **추천 입력이 아니다** — 탐색 카드·상세 화면 표시용(신설 2026-10-08, KAN-162). NULL = 받은 적 없음(응답은 빈 배열)
   target_audiences          jsonb           NULL 허용 — [{ "jobCategory": "개발", "yearsOfExperience": "2-3" }, ...] ★추천 메타 5종째 (신설 2026-09-11) — 값 집합은 3.1의 커리어 입력과 동일(직군 목록 · 연차 구간 0-1|2-3|4-6|7+), 최대 8세트. 파일(`enrichment.json`)은 snake_case, 컬럼은 엔티티 필드명(camelCase)으로 저장한다
-  enrichment_schema_version int             NULL 허용 — 마지막으로 적용된 enrichment.json의 형식 버전(1: 메타 4종 / 2: target_audiences 추가). NULL = 메타 파일을 받은 적 없음 (신설 2026-09-11)
+  enrichment_schema_version int             NULL 허용 — 마지막으로 적용된 enrichment.json의 형식 버전(1: 메타 4종 / 2: target_audiences 추가 / 3: tags 추가 — 2026-10-08). NULL = 메타 파일을 받은 적 없음 (신설 2026-09-11)
   enriched_at               timestamptz     NULL 허용 — 마지막 메타 파일 적용 시각 (신설 2026-09-11)
   content_version           int             DEFAULT 1
   license_expires_at        timestamptz     NULL

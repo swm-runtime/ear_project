@@ -72,6 +72,8 @@ export interface EnrichmentInput {
   isEvergreen?: boolean;
   keywords?: string[];
   targetAudiences?: TargetAudience[];
+  /** 화면 해시태그 — 형식 3부터 (`MIN_CONTENT_TAGS`~`MAX_CONTENT_TAGS`개) */
+  tags?: string[];
   embedding?: { model: string; vector: number[] };
 }
 

@@ -8,11 +8,11 @@ describe('AdminContentListResponseDto', () => {
     expect(dto.current_enrichment_schema_version).toBe(
       CURRENT_ENRICHMENT_SCHEMA_VERSION,
     );
-    expect(dto.current_enrichment_schema_version).toBe(2);
+    expect(dto.current_enrichment_schema_version).toBe(3);
     expect(dto).toEqual({
       items: [],
       total: 0,
-      current_enrichment_schema_version: 2,
+      current_enrichment_schema_version: 3,
     });
   });
 });
