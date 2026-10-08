@@ -223,20 +223,20 @@ describe('PlanList — 요금제 카드(KAN-146)', () => {
     );
     const PRO_CURRENT = makeCard({ tier: 'pro', name: '무제한', action: 'current' }, '₩9,900');
 
-    const renderResume = (onResume = jest.fn()) =>
+    const renderResume = (onPress = jest.fn()) =>
       render(
         <PlanList
           state={{ kind: 'ready', cards: [LIGHT_NONE, DAILY_DOWN, PRO_CURRENT], isEmailVerified: true }}
           isBusy={false}
           purchasingPlanId={null}
           onPurchase={jest.fn()}
-          onResume={onResume}
+          currentCta={{ label: SUBSCRIPTION_COPY.manage.resume, onPress }}
           onRetry={jest.fn()}
           isRetrying={false}
         />,
       );
 
-    it('이용 중 카드가 기본 선택이고 아래 버튼은 [구독 다시 시작] — 누르면 onResume', () => {
+    it('이용 중 카드가 기본 선택이고 아래 버튼은 화면이 준 [구독 다시 시작] — 누르면 그 동작', () => {
       // given
       const onResume = jest.fn();
       const renderer = renderResume(onResume);
