@@ -60,7 +60,7 @@
 | POST | `/admin/notices` | 공지 작성 — `published_at` 없으면 초안 (4.13) |
 | PATCH | `/admin/notices/:noticeId` | 공지 부분 수정 — `published_at: null`은 발행 취소 (4.14) |
 | DELETE | `/admin/notices/:noticeId` | 공지 삭제(soft) (4.15) |
-| GET | `/admin/system-stats` | 서버 자원·DB 부하 스냅샷 (로그 콘솔 상태 탭) |
+| GET | `/admin/system-stats` | 서버 자원·DB 부하 스냅샷 (로그 콘솔 대시보드 — 옛 서버 상태 탭, 2026-10-08 통합) |
 | GET | `/admin/drip/preview` | 편성 미리보기 — 지금 데이터로 배치를 돌리면 갈 정규·탐험 편성분과 점수 분해, 읽기 전용 (4.16) |
 | GET | `/admin/recommend-test/account` | 추천 테스트 계정 상태 — 환경·계정·관심 주제·라이브러리. **개발계 전용** (4.17) |
 | GET | `/admin/recommend-test/feed` | 추천 테스트 계정의 탐색 피드 — `explore-api.md` 4.1과 같은 본문 (4.17) |
