@@ -268,6 +268,34 @@ describe('PlanList — 요금제 카드(KAN-146)', () => {
     });
   });
 
+  it('다음 결제일부터 바뀌도록 예약된 요금제는 [예약됨] 배지와 함께 고를 수 없다(EAR-APP-D)', () => {
+    // given — Pro 구독 중 Daily 로 예약
+    const daily = makeCard(
+      { tier: 'daily', name: '매일', storeProductId: 'daily.monthly', action: 'downgrade' },
+      '₩3,900',
+    );
+    const pro = makeCard({ tier: 'pro', name: '무제한', action: 'current' }, '₩9,900');
+
+    // when
+    const renderer = render(
+      <PlanList
+        state={{ kind: 'ready', cards: [daily, pro], isEmailVerified: true }}
+        isBusy={false}
+        purchasingPlanId={null}
+        onPurchase={jest.fn()}
+        scheduledTier="daily"
+        onRetry={jest.fn()}
+        isRetrying={false}
+      />,
+    );
+
+    // then
+    expect(radioOf(renderer, '매일')).toBeUndefined();
+    expect(textNodes(renderer, SUBSCRIPTION_COPY.plans.scheduled)).toHaveLength(1);
+    expect(ctaOf(renderer, '매일로 변경')).toHaveLength(0);
+    act(() => renderer.unmount());
+  });
+
   describe('무료 요금제로 바꾸기(cancel — PM 2026-10-08)', () => {
     const FREE_CANCEL = makeCard(
       { tier: 'light', name: '가벼운', description: '하루 2편까지 들을 수 있어요', action: 'cancel' },

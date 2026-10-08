@@ -169,7 +169,10 @@ const toFailure = (error: unknown): PurchaseFailure => {
 /** 스토어 결제 시트의 실패 → 결과. 취소는 문구가 없는 정상 결과다 */
 const fromStoreError = (error: unknown): PurchaseOutcome => {
   const storeError = toStoreError(error);
-  if (storeError.kind !== 'cancelled' && storeError.kind !== 'pending') {
+  // "이미 다음 갱신부터 예약됨"은 실패가 아니라 안내다 — Sentry 로 올리지 않는다(EAR-APP-D 가 이것만으로 10건 쌓였다)
+  const isAlreadyScheduled =
+    storeError.kind === 'rejected' && /existing deferred replacement/i.test(storeError.message);
+  if (storeError.kind !== 'cancelled' && storeError.kind !== 'pending' && !isAlreadyScheduled) {
     // 시트가 왜 끊겼는지 — Play responseCode · debugMessage 가 메시지에 실려 있다(KAN-158). warn 은 개발 빌드에만
     // 찍혀 preview 앱에서 아무 데도 안 남았다 — error + Sentry 로 올린다
     logger.error('[subscription] store purchase failed', storeError.kind, storeError.message);
