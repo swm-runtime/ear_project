@@ -322,6 +322,9 @@ export default function PlanList({
 
   return (
     <PlanCards
+      // 서버 상태가 바뀌면(해지·다시 시작·변경 예약) 선택을 처음부터 다시 정한다 — 해지하러 스토어에 갔다 돌아오면
+      // 종전 선택(Light)이 남아 "Light로 변경"이 그대로 떠 있었다(PM 2026-10-08)
+      key={`${state.cards.map((card) => card.plan.action).join(',')}|${onResume ? 'resume' : ''}`}
       cards={state.cards}
       isBusy={isBusy}
       purchasingPlanId={purchasingPlanId}
