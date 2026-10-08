@@ -153,7 +153,7 @@ export function scriptStats(md: string): { turns: number; chars: number; minutes
   return { turns: p.turns.length, chars, minutes: Math.round((chars / 350) * 10) / 10 };
 }
 
-/** 2단계 L0 — 구성안 계약(구간 수·순서)과 분량 하한(13분 ≈ 4,000자)을 기계로 검사한다. 위반은 재생성 연쇄로 */
+/** 2단계 L0 — 구성안 계약(구간 수·순서)과 분량 하한(13분 ≈ 4,300자)을 기계로 검사한다. 위반은 재생성 연쇄로. 하한은 2026-10-08 박수헌: eleven_v4 말 속도(실측 341자/분)에 맞춰 4,000 → 4,300 */
 /** @param opts.signoffHeads 템플릿 클로징 인사 골격들의 고정 머리(첫 {슬롯} 앞 문구, tpl-v2). 있으면 마지막 턴이 진행(Y) 턴이고 그중 하나를 담아야 한다 */
 export interface L0AttributionInput { claimsMd?: string; sourcesMd?: string; notesMd?: string; pronunciations?: Record<string, string> }
 export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { signoffHeads?: string[] } & L0AttributionInput = {}): string[] {
@@ -163,7 +163,7 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
   if (planned.length && written.length !== planned.length) v.push(`구성안 구간 ${planned.length}개인데 대본의 "### #n" 헤더가 ${written.length}개 — 구간 계약 위반 (outline.md 순서대로 전 구간을 써야 한다)`);
   else if (planned.length && written.some((n, i) => n !== planned[i])) v.push(`구간 번호 순서가 구성안과 다름 (구성안 ${planned.join(",")} / 대본 ${written.join(",")})`);
   const s = scriptStats(scriptMd);
-  if (s.chars < 4000) v.push(`분량 ${s.chars}자(약 ${s.minutes}분) — 하한 13분(약 4,000자) 미달. 채우기 없이 구성안 재료(예비 재료·역사 맥락)를 더 실행해 늘린다`);
+  if (s.chars < 4300) v.push(`분량 ${s.chars}자(약 ${s.minutes}분) — 하한 13분(약 4,300자) 미달. 채우기 없이 구성안 재료(예비 재료·역사 맥락)를 더 실행해 늘린다`);
   // 과다 분량: 설계 예상의 1.6배를 넘으면 풀어 쓰기가 길어진 것 (T260908-001: 예상 17분 → 31분). 초과 구간의 긴 해설 턴을 줄이는 방향으로 재생성
   const est = Number(outlineMd.match(/^예상 분량:\s*(\d+(?:\.\d+)?)\s*분/m)?.[1]);
   if (est && s.minutes > est * 1.6) v.push(`분량 ${s.chars}자(약 ${s.minutes}분) — 구성안 예상 ${est}분의 1.6배 초과. 재료를 빼지 말고 해설 턴의 풀어 쓰기를 줄여 예상 분량(±15%)에 맞춘다 (긴 턴부터: 7문장 이상 턴, 같은 말의 재서술)`);
