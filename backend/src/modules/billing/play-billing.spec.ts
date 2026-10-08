@@ -818,6 +818,91 @@ describe('Play — 한 계정에 살아 있는 구독은 하나(4.4 — 2026-10-
     expect(play.acknowledged).toEqual(['token-pro', 'token-daily']);
   });
 
+  /**
+   * 2026-10-08 개발계 실측 재현 — 요금제를 여러 번 바꾸면 토큰 사슬 A → B → C → D 가 생기고 행은 최초(A)·마지막(D)만
+   * 기억한다. 사슬 **중간** 토큰(C)의 늦은 만료 알림은 C 도, C 의 이전 토큰(B)도 행에 없어 "새 구독"으로 읽혔고,
+   * 살아 있는 행(A…D)이 있으니 "두 번째 구독"으로 거부되며 Slack 경보가 나갔다(거짓 경보). 끝난 토큰은 두 번째 구독이 아니다
+   */
+  it('요금제를 여러 번 바꾼 사슬의 중간 토큰이 늦게 만료돼도 두 번째 구독 경보를 내지 않고 행을 바꾸지 않는다', async () => {
+    const { world, play, submit, notify, slackTexts } = setup();
+    world.addIntent(USER, INTENT_A);
+    const chain = [
+      { purchaseToken: 'token-a', productId: PLAY_PRODUCT_PRO },
+      {
+        purchaseToken: 'token-b',
+        productId: PLAY_PRODUCT_DAILY,
+        linkedPurchaseToken: 'token-a',
+      },
+      {
+        purchaseToken: 'token-c',
+        productId: PLAY_PRODUCT_PRO,
+        linkedPurchaseToken: 'token-b',
+      },
+      {
+        purchaseToken: 'token-d',
+        productId: PLAY_PRODUCT_DAILY,
+        linkedPurchaseToken: 'token-c',
+      },
+    ];
+    const purchases = chain.map((p) =>
+      play.put({ ...p, accountToken: INTENT_A }),
+    );
+    for (const p of chain) {
+      await submit(p.purchaseToken);
+    }
+    expect(world.subscriptions).toHaveLength(1);
+    expect(world.subscriptions[0].tier).toBe(UserTier.DAILY);
+
+    // 교체된 옛 토큰들은 Google 에서 만료로 바뀌고, 그중 사슬 중간(C)의 만료 알림이 늦게 온다
+    purchases[0].state = 'expired';
+    purchases[1].state = 'expired';
+    purchases[2].state = 'expired';
+    await notify('msg-stale-c', { type: 13, purchaseToken: 'token-c' });
+
+    expect(world.subscriptions).toHaveLength(1);
+    expect(world.subscriptions[0].tier).toBe(UserTier.DAILY);
+    expect(world.subscriptions[0].status).toBe(SubscriptionStatus.ACTIVE);
+    expect(world.users.get(USER)!.tier).toBe(UserTier.DAILY);
+    expect(slackTexts.some((text) => text.includes('두 번째 구독 거부'))).toBe(
+      false,
+    );
+    expect(world.notificationLogs.at(-1)!.processedAt).not.toBeNull();
+  });
+
+  it('거부했던 진짜 두 번째 구독이 나중에 끝나도(자동 환불·만료) 행을 만들지 않고 경보를 다시 내지 않는다', async () => {
+    const { world, play, submit, notify, slackTexts } = setup();
+
+    play.put({ purchaseToken: 'token-pro', productId: PLAY_PRODUCT_PRO });
+    await submit('token-pro');
+    world.addIntent(USER, INTENT_A);
+    const second = play.put({
+      purchaseToken: 'token-daily',
+      productId: PLAY_PRODUCT_DAILY,
+      accountToken: INTENT_A,
+    });
+    await expectBusinessError(
+      submit('token-daily'),
+      ErrorCode.SUBSCRIPTION_ALREADY_SUBSCRIBED,
+      HttpStatus.CONFLICT,
+    );
+    const alertsAfterReject = slackTexts.filter((text) =>
+      text.includes('두 번째 구독 거부'),
+    ).length;
+    expect(alertsAfterReject).toBe(1);
+
+    second.state = 'expired';
+    await notify('msg-second-expired', {
+      type: 13,
+      purchaseToken: 'token-daily',
+    });
+
+    expect(world.subscriptions).toHaveLength(1);
+    expect(world.users.get(USER)!.tier).toBe(UserTier.PRO);
+    expect(
+      slackTexts.filter((text) => text.includes('두 번째 구독 거부')),
+    ).toHaveLength(alertsAfterReject);
+  });
+
   it('끝난 구독이 있을 때의 새 구매는 두 번째 구독이 아니다', async () => {
     const { world, play, submit, notify } = setup();
 
