@@ -5,6 +5,7 @@ import {
   FilterLogEventsCommand,
 } from "@aws-sdk/client-cloudwatch-logs";
 import { currentUser } from "@/lib/supabase-server";
+import { collectErrorLogs } from "@/lib/backend-error-collect";
 
 /**
  * 백엔드 서버 상태 요약 — 대시보드 상단 상태 카드의 데이터 원천 (Supabase 로그인 필수. 2026-10-08 서버 상태 탭을 대시보드에 합침).
@@ -18,6 +19,8 @@ const GROUPS: Record<string, string> = {
 };
 const HEALTH_TIMEOUT_MS = 4000;
 const ERROR_COUNT_CAP = 500;
+/** 1시간 창 = 조각 1개. api 로그는 1MB 가 한두 시간치라 보통 1~2회, 상한은 안전장치다 */
+const ERROR_COUNT_PAGES_MAX = 10;
 
 let client: CloudWatchLogsClient | undefined;
 const getClient = () =>
@@ -80,18 +83,36 @@ async function lastEventAt(group: string, stream: string): Promise<number | null
   }
 }
 
+/**
+ * 최근 1시간 ERROR 수. `FilterLogEvents` 는 창의 오래된 쪽부터 1MB 씩 읽고 끊으므로 한 번만 부르면
+ * "1시간 전부터 한두 시간치"가 아니라 그 중 앞부분만 세어진다(2026-10-08 — 에러 모아보기와 같은 원인).
+ * 수집기(`lib/backend-error-collect.ts`)로 창을 끝까지 따라가고, 상한(500)에 닿으면 멈춘다 —
+ * 응답의 `errorsCapped` 의미(500 이상 = "500+")는 그대로다.
+ */
 async function countRecentErrors(group: string, stream: string): Promise<number | null> {
   try {
-    const out = await getClient().send(
-      new FilterLogEventsCommand({
-        logGroupName: group,
-        logStreamNames: [stream],
-        startTime: Date.now() - 60 * 60_000,
-        filterPattern: "?ERROR ?FATAL",
-        limit: ERROR_COUNT_CAP,
-      }),
+    const now = Date.now();
+    const { events } = await collectErrorLogs(
+      async (range, token) => {
+        const out = await getClient().send(
+          new FilterLogEventsCommand({
+            logGroupName: group,
+            logStreamNames: [stream],
+            startTime: range.startTime,
+            endTime: range.endTime,
+            filterPattern: "?ERROR ?FATAL",
+            ...(token ? { nextToken: token } : {}),
+          }),
+        );
+        return {
+          events: (out.events ?? []).map((e) => ({ t: e.timestamp ?? 0, message: e.message ?? "" })),
+          nextToken: out.nextToken,
+        };
+      },
+      // 1시간 창은 조각 1개라 병렬은 의미 없고, 예산 4초 — 상태 카드 하나 때문에 대시보드 전체가 기다리지 않게
+      { windowFrom: now - 60 * 60_000, now, maxEvents: ERROR_COUNT_CAP, maxPages: ERROR_COUNT_PAGES_MAX, budgetMs: 4_000 },
     );
-    return (out.events ?? []).length;
+    return events.length;
   } catch {
     return null;
   }
