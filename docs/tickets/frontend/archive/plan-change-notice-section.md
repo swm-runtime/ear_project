@@ -41,3 +41,8 @@
 ## 처리 기록
 
 (담당자가 채운다)
+
+## 처리 기록 (FE)
+
+- 2026-10-08 반영(PR `feat(fe)/plan-change-notice-section`). 제목 아래 알림 섹션 — `scheduledChangeNotice`(서버 `pending_plan` · `cancel_scheduled`+`expires_at`, 무료 요금제 이름은 목록의 서버 `name`). 이용 중 카드 안의 같은 문구 제거. 알림이 있으면 제목 밑 일반 안내("요금제를 낮추면…")는 숨긴다. 해지 예약 문구는 조사 오류를 피하려 "{플랜명} 요금제를"로 썼다(티켓 예시의 "{plan_name}을"은 Pro·Daily 에 맞지 않는다). `subscription-uiux.md` SB1 갱신.
+- **반영 날짜: 2026-10-08** — archive 로 옮김, Jira 완료.

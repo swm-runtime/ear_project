@@ -89,21 +89,10 @@ export default function CurrentSubscriptionDetail({
           {status.renewsAt !== null ? (
             <Text style={styles.body}>{SUBSCRIPTION_COPY.status.renewsAt(status.renewsAt)}</Text>
           ) : null}
-          {status.pendingPlan !== null ? (
-            <Text style={styles.body}>
-              {SUBSCRIPTION_COPY.status.pendingPlan(
-                status.pendingPlan.effectiveAt,
-                status.pendingPlan.planName,
-              )}
-            </Text>
-          ) : null}
+          {/* 다운그레이드 예약 안내는 제목 밑 알림 섹션이 맡는다(KAN-160 — 같은 문구를 두 곳에 두지 않는다) */}
         </>
       ) : null}
-      {status.kind === 'cancelScheduled' && status.expiresAt !== null ? (
-        <Text style={styles.body}>
-          {SUBSCRIPTION_COPY.status.cancelScheduled(status.expiresAt)}
-        </Text>
-      ) : null}
+      {/* 해지 예약("N월 N일까지…")도 제목 밑 알림 섹션이 맡는다(KAN-160) */}
       {status.kind === 'grace' ? (
         // 결제 문제 — 경고색을 쓰는 유일한 상태. 색만이 아니라 제목 글자로도 밝힌다
         <View style={styles.warningBanner} accessibilityRole="alert">

@@ -14,6 +14,7 @@ import CurrentSubscriptionDetail from '../components/CurrentSubscriptionDetail';
 import PlanList from '../components/PlanList';
 import PurchaseNotice from '../components/PurchaseNotice';
 import SubscriptionLegalNotice from '../components/SubscriptionLegalNotice';
+import { scheduledChangeNotice } from '../hooks/subscription-status';
 import { useSubscriptionScreen } from '../hooks/useSubscriptionScreen';
 import { SUBSCRIPTION_COPY } from '../subscription.copy';
 
@@ -60,6 +61,13 @@ export default function SubscriptionScreen() {
     catalogState.kind === 'ready' &&
     catalogState.cards.some((card) => card.plan.action === 'downgrade');
   const status = screen.status;
+  /** 무료 요금제의 서버 이름 — 해지 예약 알림의 "이후 {이름} 요금제로" */
+  const freePlanName =
+    catalogState.kind === 'ready'
+      ? (catalogState.cards.find((card) => card.plan.priceKrw <= 0)?.plan.name ?? null)
+      : null;
+  /** 예약된 변경 — 있을 때만 제목 밑 알림 섹션(KAN-160) */
+  const notice = scheduledChangeNotice(status, freePlanName);
   const cancelHint =
     status !== null && status.kind === 'subscribed' && status.renewsAt !== null
       ? SUBSCRIPTION_COPY.status.cancelUntil(status.renewsAt)
@@ -108,10 +116,18 @@ export default function SubscriptionScreen() {
           <Text style={styles.title} accessibilityRole="header">
             {SUBSCRIPTION_COPY.title}
           </Text>
-          {hasDowngradeCard ? (
+          {/* 예약된 변경이 없을 때만 일반 안내 — 있으면 아래 알림 섹션이 대신 말한다 */}
+          {notice === null && hasDowngradeCard ? (
             <Text style={styles.subtitle}>{SUBSCRIPTION_COPY.downgradeNotice}</Text>
           ) : null}
         </View>
+
+        {/* 알림 섹션(KAN-160) — 다음 결제부터 무엇이 바뀌는지. 예약이 없으면 자리도 없다 */}
+        {notice !== null ? (
+          <View style={styles.notice} accessibilityRole="summary" accessibilityLiveRegion="polite">
+            <Text style={styles.noticeText}>{notice}</Text>
+          </View>
+        ) : null}
 
         <PlanList
           state={catalogState}
@@ -188,6 +204,21 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: theme.font.size.sm,
     color: theme.color.textSecondary,
+    textAlign: 'center',
+  },
+  // 알림 섹션 — 카드와 같은 면·모서리, 글자는 본문색. 카드 목록 바로 위
+  notice: {
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm + theme.spacing.xs,
+    borderRadius: theme.radius.lg,
+    borderCurve: 'continuous',
+    backgroundColor: theme.color.surface,
+    marginBottom: theme.spacing.xs,
+  },
+  noticeText: {
+    fontSize: theme.font.size.sm,
+    fontWeight: '600',
+    color: theme.color.textPrimary,
     textAlign: 'center',
   },
 });

@@ -84,7 +84,7 @@ describe('CurrentSubscriptionDetail — 이용 중 카드 안 구독 정보(KAN-
     act(() => renderer.unmount());
   });
 
-  it('해지 예약이면 "N월 N일까지 이용 가능해요"와 [구독 다시 시작]을 그린다', () => {
+  it('해지 예약이면 [구독 다시 시작]을 그린다 — "N월 N일까지" 안내는 제목 밑 알림 섹션 몫이라 카드엔 없다(KAN-160)', () => {
     // given · when
     const renderer = renderDetail({
       kind: 'cancelScheduled',
@@ -94,7 +94,7 @@ describe('CurrentSubscriptionDetail — 이용 중 카드 안 구독 정보(KAN-
     });
 
     // then
-    expect(allText(renderer)).toContain(
+    expect(allText(renderer)).not.toContain(
       SUBSCRIPTION_COPY.status.cancelScheduled('2026-11-01T03:00:00.000Z'),
     );
     expect(buttonByLabel(renderer, SUBSCRIPTION_COPY.manage.resume).length).toBeGreaterThan(0);
