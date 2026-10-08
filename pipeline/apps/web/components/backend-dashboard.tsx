@@ -8,6 +8,14 @@ import { Bucket, buildBuckets, chartWindow, percentile, tipAnchor } from "@/lib/
  * 대시보드 탭 — 요청 로그를 시간축 그래프로, 자원(CPU·메모리·DB 연결) 이력을 선 그래프로
  * 그린다. **자동 폴링하지 않는다** — 열 때 1회 + [새로고침] (사용자 결정 2026-09-06).
  *
+ * 2026-10-08 서버 상태 탭을 여기로 합쳤다(사용자 결정 — 두 탭의 내용이 거의 같았다). 상태 탭에만 있던
+ * ① API 응답(/health) ② api·caddy 로그 파이프 생존 ③ 최근 1시간 ERROR 로그 ④ DB 캐시 적중률을 상단 카드로 옮겼고,
+ * CPU·메모리·DB 연결은 이미 아래 이력 그래프가 보여 주므로 중복 카드는 두지 않는다.
+ *
+ * **"ERROR 로그"와 "4xx/5xx 요청"은 다른 것이다** — 전자는 로그 줄의 레벨(스케줄러 실패·외부 호출 실패 등, 요청이
+ * 아닌 것도 포함), 후자는 요청 완료 로그의 상태 코드(401 갱신·404 처럼 정상 흐름의 4xx 도 포함). 두 숫자가 다른
+ * 것이 정상이라 카드 이름으로 구분한다.
+ *
  * - 요청·응답시간: 서버가 **요청 건수 기준**으로 모아준 창 안의 근사치(`mode=requests`).
  *   목표 건수를 못 채우면 창 앞부분이 빠지고, 그때는 [요청 수] 카드가 어디부터인지 밝힌다.
  *   헬스체크(/health)는 서버가 조회 단계에서 뺀다 — 예전엔 그것이 예산의 60%를 먹었다
@@ -29,6 +37,23 @@ const RANGES = [
 ];
 
 type HistoryPoint = { t: number; cpu_used_percent: number | null; mem_used_percent: number | null; db_conn_total: number | null };
+/** `/api/backend-status` — health 핑·로그 파이프 생존·최근 1시간 ERROR 로그 수(상한 500) */
+type Status = {
+  health: { ok: boolean; status?: number; latencyMs?: number; error?: string };
+  pipes: { api: number | null; caddy: number | null };
+  errors1h: number | null;
+  errorsCapped: boolean;
+};
+/** 파이프가 이 시간 넘게 조용하면 주의 — api는 요청마다 찍히므로 오래 조용하면 파이프 단절 신호다 */
+const PIPE_STALE_MS = 30 * 60_000;
+function ago(ts: number | null, now: number): string {
+  if (ts === null) return "기록 없음";
+  const sec = Math.max(0, Math.round((now - ts) / 1000));
+  if (sec < 60) return `${sec}초 전`;
+  if (sec < 3600) return `${Math.floor(sec / 60)}분 전`;
+  if (sec < 86400) return `${Math.floor(sec / 3600)}시간 전`;
+  return `${Math.floor(sec / 86400)}일 전`;
+}
 type Metrics = {
   host: { load_1m: number; cpu_count: number; cpu_used_percent: number | null; mem_total_bytes: number; mem_available_bytes: number };
   db: { connections: { total: number; active: number; max: number }; cache_hit_ratio: number | null; size_bytes: number };
@@ -298,16 +323,19 @@ export function BackendDashboard() {
   const [minutes, setMinutes] = useState(60);
   const [body, setBody] = useState<RequestsBody | null>(null);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [status, setStatus] = useState<Status | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [loadedAt, setLoadedAt] = useState<number>(Date.now());
+  // 지연 초기화 — 렌더마다 Date.now() 를 부르지 않는다(react-hooks/purity). 실제 값은 load() 가 끝날 때 갱신한다
+  const [loadedAt, setLoadedAt] = useState<number>(() => Date.now());
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [logsRes, metricsRes] = await Promise.all([
+      const [logsRes, metricsRes, statusRes] = await Promise.all([
         fetch(`/api/backend-logs?mode=requests&group=api&minutes=${minutes}&target=${REQUEST_TARGET}&exclude=health`, { cache: "no-store" }),
         fetch("/api/backend-metrics", { cache: "no-store" }),
+        fetch("/api/backend-status", { cache: "no-store" }),
       ]);
       const logsBody = (await logsRes.json()) as Partial<RequestsBody> & { message?: string };
       if (!logsRes.ok) { setError(logsBody.message ?? `조회 실패 (${logsRes.status})`); return; }
@@ -315,6 +343,8 @@ export function BackendDashboard() {
         windowFrom: logsBody.windowFrom ?? 0, exhausted: logsBody.exhausted ?? true });
       // 자원 스냅샷·이력은 실패해도 요청 그래프는 그린다 (서버 미배포 등)
       setMetrics(metricsRes.ok ? ((await metricsRes.json()) as Metrics) : null);
+      // 상태 요약(health·파이프·ERROR 수)도 실패하면 카드만 "조회 불가"로 두고 나머지는 그린다
+      setStatus(statusRes.ok ? ((await statusRes.json()) as Status) : null);
       setError(null);
       setLoadedAt(Date.now());
     } catch {
@@ -324,7 +354,11 @@ export function BackendDashboard() {
     }
   }, [minutes]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    // 마운트·창 변경 시 1회 — 효과 안에서 바로 setState 하지 않도록 한 틱 미룬다(다른 탭과 같은 패턴)
+    const timer = setTimeout(() => void load(), 0);
+    return () => clearTimeout(timer);
+  }, [load]);
 
   const chip = (active: boolean) =>
     `rounded border px-2 py-1 text-xs ${active ? "border-ink bg-panel font-medium" : "border-line bg-panel text-ink-soft hover:text-ink"}`;
@@ -350,6 +384,8 @@ export function BackendDashboard() {
 
   const card = "rounded border border-line bg-panel p-3";
   const title = "mb-2 text-[12px] font-semibold text-ink";
+  const pipeTone = (ts: number | null) => (ts === null ? "text-ink-soft" : loadedAt - ts > PIPE_STALE_MS ? "text-amber-600" : "text-ink");
+  const cacheHit = metrics?.db.cache_hit_ratio ?? null;
 
   return (
     <div>
@@ -365,11 +401,45 @@ export function BackendDashboard() {
         </span>
       </div>
 
+      {/* 서버 상태 — 옛 서버 상태 탭의 카드(2026-10-08 통합). 전부 연 시점 기준 스냅샷 */}
+      <div className="mb-3 grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <Stat
+          label="API 응답 (/health)"
+          value={!status ? "조회 불가" : status.health.ok ? `정상 · ${status.health.latencyMs}ms` : "응답 없음"}
+          sub={!status ? "상태 요약 조회 실패" : status.health.ok ? `HTTP ${status.health.status}` : status.health.error ?? "타임아웃/연결 실패"}
+          tone={!status ? "text-ink-soft" : status.health.ok ? "text-brand-ink" : "text-red-600"}
+        />
+        <Stat
+          label="api 로그 파이프"
+          value={status ? ago(status.pipes.api, loadedAt) : "조회 불가"}
+          sub={status?.pipes.api == null ? "CloudWatch 전환 전이거나 권한 없음" : "마지막 로그 이벤트 · 30분 넘게 조용하면 주의"}
+          tone={status ? pipeTone(status.pipes.api) : "text-ink-soft"}
+        />
+        <Stat
+          label="caddy 로그 파이프"
+          value={status ? ago(status.pipes.caddy, loadedAt) : "조회 불가"}
+          sub={status?.pipes.caddy == null ? "CloudWatch 전환 전이거나 권한 없음" : "마지막 로그 이벤트"}
+          tone={status ? pipeTone(status.pipes.caddy) : "text-ink-soft"}
+        />
+        <Stat
+          label="ERROR 로그 (최근 1시간)"
+          value={!status || status.errors1h === null ? "조회 불가" : `${status.errors1h}${status.errorsCapped ? "+" : ""}줄`}
+          sub="api 로그 줄의 ERROR/FATAL 레벨 — 아래 4xx/5xx 요청과 다른 것. 유형은 에러 모아보기에서"
+          tone={!status || status.errors1h === null ? "text-ink-soft" : status.errors1h > 0 ? "text-red-600" : "text-brand-ink"}
+        />
+        <Stat
+          label="DB 캐시 적중률"
+          value={cacheHit === null ? (metrics ? "집계 전" : "—") : `${(cacheHit * 100).toFixed(1)}%`}
+          sub={metrics ? `DB 크기 ${(metrics.db.size_bytes / GiB).toFixed(1)}GB · 95% 미만이면 주의` : "조회 실패"}
+          tone={cacheHit !== null && cacheHit < 0.95 ? "text-amber-600" : "text-ink"}
+        />
+      </div>
+
       <div className="mb-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="요청 수" value={`${parsed.length}건`}
           sub={truncated ? `${hhmm(parsed[0].t)} 이후만 — 상한 ${REQUEST_TARGET.toLocaleString()}건` : `창 ${minutes}분 · 헬스체크 제외`}
           tone="text-ink" />
-        <Stat label="오류(4xx/5xx)" value={`${errorCount}건`} sub={parsed.length ? `${((errorCount / parsed.length) * 100).toFixed(1)}%` : "—"} tone={errorCount > 0 ? "text-red-600" : "text-brand-ink"} />
+        <Stat label="4xx/5xx 요청" value={`${errorCount}건`} sub={parsed.length ? `요청의 ${((errorCount / parsed.length) * 100).toFixed(1)}% · 401 갱신·404 같은 정상 4xx 포함` : "—"} tone={errorCount > 0 ? "text-red-600" : "text-brand-ink"} />
         <Stat label="현재 CPU" value={metrics?.host.cpu_used_percent === null || !metrics ? "—" : `${metrics.host.cpu_used_percent!.toFixed(0)}%`} sub={metrics ? `load ${metrics.host.load_1m.toFixed(2)} · ${metrics.host.cpu_count}코어` : "조회 실패"} tone="text-ink" />
         <Stat label="현재 메모리" value={memUsed === null ? "—" : `${memUsed.toFixed(0)}%`} sub={metrics ? `가용 ${(metrics.host.mem_available_bytes / GiB).toFixed(1)}GB / ${(metrics.host.mem_total_bytes / GiB).toFixed(1)}GB` : "조회 실패"} tone="text-ink" />
       </div>
