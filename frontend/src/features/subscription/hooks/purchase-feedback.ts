@@ -41,6 +41,8 @@ export const failureMessage = (reason: PurchaseFailure): string => {
       return SUBSCRIPTION_COPY.error.downgradeNeedsUpdate;
     case 'changeRejected':
       return SUBSCRIPTION_COPY.error.changeRejected;
+    case 'downgradeAlreadyScheduled':
+      return SUBSCRIPTION_COPY.result.downgradeAlreadyScheduled;
     case 'storeUnavailable':
       return SUBSCRIPTION_COPY.error.storeUnavailable;
     case 'network':
@@ -64,6 +66,10 @@ export const toPurchaseFeedback = (
           toast: SUBSCRIPTION_COPY.status.pendingPlan(pending.effectiveAt, pending.planName),
         };
       }
+      // 예약이 서버에 아직 안 보이면(RTDN 대기) 날짜 없이 알린다 — "구독했어요"로 잘못 말하지 않는다
+      if (action === 'downgrade') {
+        return { ...NONE, toast: SUBSCRIPTION_COPY.result.downgradeScheduled };
+      }
       return {
         ...NONE,
         toast:
@@ -84,6 +90,10 @@ export const toPurchaseFeedback = (
     case 'delayed':
       return { ...NONE, notice: { message: SUBSCRIPTION_COPY.result.delayed, tone: 'info' } };
     case 'failed':
+      // 이미 예약돼 있음은 실패가 아니다 — 안내 톤, 원문을 붙이지 않는다
+      if (outcome.reason === 'downgradeAlreadyScheduled') {
+        return { ...NONE, notice: { message: failureMessage(outcome.reason), tone: 'info' } };
+      }
       return {
         toast: null,
         notice: {
