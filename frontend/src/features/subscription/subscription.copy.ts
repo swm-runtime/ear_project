@@ -72,6 +72,8 @@ export const SUBSCRIPTION_COPY = {
     upgrade: '업그레이드',
     downgrade: '변경',
     current: '이용 중',
+    /** 다음 결제일부터 바뀌도록 예약된 요금제 — 이름 옆 배지(누를 수 없음, 2026-10-08) */
+    scheduled: '예약됨',
     downgradeHint: '다음 결제일부터 적용돼요',
     /** [변경](다운그레이드)을 누르면 결제 시트 전에 묻는다(PM 2026-10-08 KAN-158) — 시스템 알림창 */
     downgradeConfirmTitle: (name: string) => `${name}${toParticle(name)} 변경할까요?`,
@@ -91,8 +93,14 @@ export const SUBSCRIPTION_COPY = {
     /** 고를 수 있는 카드 묶음 — 스크린리더가 "요금제, 라디오 그룹"으로 읽는다 */
     groupA11y: '요금제',
     /** 카드 요약을 한 문장으로 — 이용 중이면 끝에 "이용 중"(색만으로 구분하지 않는다) */
-    cardA11y: (name: string, price: string, description: string, isCurrent: boolean) =>
-      [name, price, description, isCurrent ? '이용 중' : '']
+    cardA11y: (
+      name: string,
+      price: string,
+      description: string,
+      isCurrent: boolean,
+      isScheduled = false,
+    ) =>
+      [name, price, description, isCurrent ? '이용 중' : '', isScheduled ? '예약됨' : '']
         .filter((part) => part !== '')
         .join(', '),
   },

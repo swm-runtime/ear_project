@@ -135,6 +135,11 @@ export default function SubscriptionScreen() {
           onCancel={screen.openStoreManagement}
           cancelHint={cancelHint}
           currentCta={currentCta}
+          scheduledTier={
+            status !== null && status.kind === 'subscribed'
+              ? (status.pendingPlan?.tier ?? null)
+              : null
+          }
           onRetry={screen.catalog.retry}
           isRetrying={screen.catalog.isRetrying}
           currentDetail={renderDetail(false)}

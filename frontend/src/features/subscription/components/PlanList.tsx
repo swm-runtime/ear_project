@@ -61,11 +61,20 @@ interface PlanCardProps {
   onSelect?: () => void;
   isSelected: boolean;
   disabled: boolean;
-  /** 이용 중 카드에만 — 현재 구독 정보·스토어 버튼(CurrentSubscriptionDetail) */
+  /** 이용 중 카드에만 — 현재 구독 정보(CurrentSubscriptionDetail) */
   currentDetail?: ReactNode;
+  /** 다음 결제일부터 바뀌도록 예약된 요금제 — 이름 옆 [예약됨] 배지, 고를 수 없다 */
+  isScheduled?: boolean;
 }
 
-function PlanCard({ card, onSelect, isSelected, disabled, currentDetail }: PlanCardProps) {
+function PlanCard({
+  card,
+  onSelect,
+  isSelected,
+  disabled,
+  currentDetail,
+  isScheduled = false,
+}: PlanCardProps) {
   const { plan } = card;
   const price = priceText(card);
   const isCurrent = plan.action === 'current';
@@ -75,6 +84,7 @@ function PlanCard({ card, onSelect, isSelected, disabled, currentDetail }: PlanC
     price ?? '',
     plan.description,
     isCurrent,
+    isScheduled,
   );
 
   const summary = (
@@ -93,6 +103,11 @@ function PlanCard({ card, onSelect, isSelected, disabled, currentDetail }: PlanC
         </View>
         <View style={styles.nameGroup}>
           <Text style={[styles.planName, isCurrent ? styles.textMuted : null]}>{plan.name}</Text>
+          {isScheduled ? (
+            <View style={styles.currentBadge}>
+              <Text style={styles.currentBadgeLabel}>{SUBSCRIPTION_COPY.plans.scheduled}</Text>
+            </View>
+          ) : null}
           {isCurrent ? (
             // "이용 중"은 버튼이 아니라 상태 표시다 — 이름 옆 작은 배지. 색만이 아니라 글자로 밝힌다
             <View style={styles.currentBadge}>
@@ -149,6 +164,7 @@ interface PlanCardsProps {
   onCancel?: () => void;
   cancelHint?: string | null;
   currentCta?: CurrentPlanCta;
+  scheduledTier?: string | null;
   currentDetail?: ReactNode;
 }
 
@@ -160,11 +176,15 @@ function PlanCards({
   onCancel,
   cancelHint = null,
   currentCta,
+  scheduledTier = null,
   currentDetail,
 }: PlanCardsProps) {
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const canCancel = onCancel !== undefined;
   const ctaOf = (card: PlanCardVM): CtaKind | null => {
+    // 이미 다음 결제일부터 바뀌도록 예약된 요금제는 다시 고를 수 없다 — 누르면 Play 가 "existing deferred replacement"로
+    // 거절했다(EAR-APP-D). 예약 대상은 서버 pending_plan.tier 다
+    if (scheduledTier !== null && card.plan.tier === scheduledTier) return null;
     if (isSelectableAction(card.plan.action, canCancel)) return card.plan.action;
     if (card.plan.action === 'current' && currentCta !== undefined) return 'current';
     return null;
@@ -210,6 +230,7 @@ function PlanCards({
             isSelected={selected !== null && card.plan.planId === selected.plan.planId}
             disabled={isBusy}
             currentDetail={currentDetail}
+            isScheduled={scheduledTier !== null && card.plan.tier === scheduledTier}
           />
         ))}
       </View>
@@ -273,6 +294,8 @@ interface PlanListProps {
    * 고를 수 있게 하고 아래 버튼이 이걸 부른다. 카드 안 버튼을 대신한다(PM 2026-10-08 — 조작은 "카드 고르기 + 아래 버튼 하나")
    */
   currentCta?: CurrentPlanCta;
+  /** 다음 결제일부터 바뀌도록 예약된 요금제의 티어(서버 `pending_plan.tier`) — 그 카드는 [예약됨]·고를 수 없음 */
+  scheduledTier?: string | null;
   onRetry: () => void;
   isRetrying: boolean;
   /**
@@ -296,6 +319,7 @@ export default function PlanList({
   onCancel,
   cancelHint,
   currentCta,
+  scheduledTier,
   onRetry,
   isRetrying,
   currentDetail,
@@ -333,7 +357,7 @@ export default function PlanList({
     <PlanCards
       // 서버 상태가 바뀌면(해지·다시 시작·변경 예약) 선택을 처음부터 다시 정한다 — 해지하러 스토어에 갔다 돌아오면
       // 종전 선택(Light)이 남아 "Light로 변경"이 그대로 떠 있었다(PM 2026-10-08)
-      key={`${state.cards.map((card) => card.plan.action).join(',')}|${currentCta?.label ?? ''}`}
+      key={`${state.cards.map((card) => card.plan.action).join(',')}|${currentCta?.label ?? ''}|${scheduledTier ?? ''}`}
       cards={state.cards}
       isBusy={isBusy}
       purchasingPlanId={purchasingPlanId}
@@ -341,6 +365,7 @@ export default function PlanList({
       onCancel={onCancel}
       cancelHint={cancelHint}
       currentCta={currentCta}
+      scheduledTier={scheduledTier}
       currentDetail={currentDetail}
     />
   );
