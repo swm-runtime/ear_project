@@ -51,6 +51,7 @@ const purchaseOf = (overrides: Partial<StorePurchase> = {}): StorePurchase => ({
   transactionId: 'tx-1',
   productId: INTENT.storeProductId,
   token: 'signed-jws',
+  obfuscatedAccountId: null,
   state: 'purchased',
   raw: {},
   ...overrides,
@@ -424,6 +425,8 @@ describe('PurchaseService', () => {
       transactionId: 'tx-daily',
       productId: 'com.runtime.ear.subscription.daily.monthly',
       token: 'daily-token',
+      // Daily 를 살 때 실은 결제 의도 id — 교체 결제는 새 의도 id 가 아니라 이 값을 싣는다(Google 규칙)
+      obfuscatedAccountId: 'intent-daily',
     });
 
     beforeEach(() => {
@@ -436,7 +439,7 @@ describe('PurchaseService', () => {
         return [];
       });
 
-    it('업그레이드는 지금 구독 토큰을 넘겨 즉시 + 비례 정산으로 교체한다', async () => {
+    it('업그레이드는 지금 구독 토큰과 그 구독의 계정 id 를 넘겨 즉시 + 비례 정산으로 교체한다', async () => {
       // given
       await h.service.start();
       h.adapter.findReplaceable.mockResolvedValue(CURRENT_DAILY);
@@ -460,6 +463,7 @@ describe('PurchaseService', () => {
         replace: {
           purchaseToken: 'daily-token',
           oldProductId: CURRENT_DAILY.productId,
+          accountToken: 'intent-daily',
           mode: 'chargeProrated',
         },
       });
@@ -493,6 +497,25 @@ describe('PurchaseService', () => {
       expect(outcome).toEqual({ kind: 'failed', reason: 'downgradeNeedsUpdate' });
       expect(h.api.createIntent).not.toHaveBeenCalled();
       expect(h.adapter.requestSubscription).not.toHaveBeenCalled();
+    });
+
+    it('스토어가 교체를 거절하면(DEVELOPER_ERROR) changeRejected 이고 원문을 detail 로 싣는다', async () => {
+      // given
+      await h.service.start();
+      h.adapter.findReplaceable.mockResolvedValue(CURRENT_DAILY);
+      h.adapter.requestSubscription.mockRejectedValue(
+        new StoreError('rejected', "5: Account identifiers don't match"),
+      );
+
+      // when
+      const outcome = await h.service.purchase({ ...PRO_PLAN, action: 'upgrade' }, 'settings');
+
+      // then
+      expect(outcome).toEqual({
+        kind: 'failed',
+        reason: 'changeRejected',
+        detail: "5: Account identifiers don't match",
+      });
     });
 
     it('바꿀 지금 구독이 기기에 없으면 결제 시트를 열지 않는다 — 두 번째 구독을 만들지 않는다', async () => {

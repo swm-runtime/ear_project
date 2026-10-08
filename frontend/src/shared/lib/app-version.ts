@@ -1,4 +1,4 @@
-import { nativeApplicationVersion } from 'expo-application';
+import { nativeApplicationVersion, nativeBuildVersion } from 'expo-application';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as Updates from 'expo-updates';
 
@@ -56,5 +56,11 @@ export const resolveBundleLabel = (): string => {
  */
 export const IS_DEV_API = (process.env.EXPO_PUBLIC_API_BASE_URL ?? '').includes('://api-dev.');
 
-/** 설정 화면의 버전 행에 붙는 값 — `1.2.0 (01a0a3c9)` 꼴, 개발계면 `1.2.0 (01a0a3c9) · 개발계` */
-export const APP_VERSION_LABEL = `${APP_VERSION} (${resolveBundleLabel()})${IS_DEV_API ? ' · 개발계' : ''}`;
+/**
+ * 설정 화면의 버전 행에 붙는 값 — `1.2.0 (01a0a3c9)` 꼴, 개발계면 `1.2.0 (01a0a3c9) · 빌드 34 · 개발계`.
+ * 개발계에는 바이너리 빌드 번호(Android versionCode · iOS build)를 붙인다 — 같은 1.2.0 의 어느 빌드를 깔았는지 바로 보이게
+ * (KAN-158 — 모듈이 든 빌드인지 가를 때 필요했다)
+ */
+export const APP_VERSION_LABEL = `${APP_VERSION} (${resolveBundleLabel()})${
+  IS_DEV_API ? `${nativeBuildVersion ? ` · 빌드 ${nativeBuildVersion}` : ''} · 개발계` : ''
+}`;

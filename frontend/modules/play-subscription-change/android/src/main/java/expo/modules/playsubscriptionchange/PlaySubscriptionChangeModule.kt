@@ -40,7 +40,7 @@ class PlaySubscriptionChangeModule : Module() {
         productId: String,
         oldPurchaseToken: String,
         replacementMode: Int,
-        obfuscatedAccountId: String,
+        obfuscatedAccountId: String?,
         promise: Promise ->
       val activity = appContext.currentActivity
       if (activity == null) {
@@ -101,7 +101,7 @@ class PlaySubscriptionChangeModule : Module() {
     productId: String,
     oldPurchaseToken: String,
     replacementMode: Int,
-    obfuscatedAccountId: String,
+    obfuscatedAccountId: String?,
   ) {
     val query = QueryProductDetailsParams.newBuilder()
       .setProductList(
@@ -141,8 +141,9 @@ class PlaySubscriptionChangeModule : Module() {
               .build(),
           ),
         )
-        .setObfuscatedAccountId(obfuscatedAccountId)
         .setSubscriptionUpdateParams(updateParams)
+        // 교체되는 구독에 실린 값과 같아야 한다 — 다르면 Google 이 DEVELOPER_ERROR 로 거절한다(KAN-158). 없으면 싣지 않는다
+        .apply { obfuscatedAccountId?.let { setObfuscatedAccountId(it) } }
         .build()
 
       // 시트는 UI 스레드에서 연다

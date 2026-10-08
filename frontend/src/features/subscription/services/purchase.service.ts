@@ -13,6 +13,7 @@
 import { isApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
 import { logger } from '@/shared/lib/logger';
+import { reportError } from '@/shared/monitoring/sentry';
 
 import type { SubmittedTransaction } from '../api/subscription.api';
 import { RESTORE_MAX_ITEMS, SUBMIT_RETRY_DELAYS_MS } from '../subscription.constants';
@@ -53,6 +54,8 @@ export type PurchaseFailure =
   | 'replaceSourceMissing'
   /** Android 다운그레이드 예약은 교체 모듈이 든 빌드에서만 된다 — 앱 업데이트 안내 */
   | 'downgradeNeedsUpdate'
+  /** 스토어가 요금제 변경을 거절했다(Play DEVELOPER_ERROR) */
+  | 'changeRejected'
   | 'storeUnavailable'
   | 'network'
   | 'unknown';
@@ -69,7 +72,8 @@ export type PurchaseOutcome =
   | { kind: 'emailRequired' }
   /** 결제는 됐고 서버 반영만 늦다(503·네트워크) — 거래를 유지한 채 재시도 중 */
   | { kind: 'delayed' }
-  | { kind: 'failed'; reason: PurchaseFailure }
+  /** detail — 스토어 실패의 원문(코드·responseCode·debugMessage). 개발계 화면에만 덧붙인다 */
+  | { kind: 'failed'; reason: PurchaseFailure; detail?: string }
   /** 다른 결제·복원이 진행 중이다 — 연타 */
   | { kind: 'busy' };
 
@@ -132,7 +136,9 @@ const toFailure = (error: unknown): PurchaseFailure => {
       ? 'storeUnavailable'
       : error.kind === 'network'
         ? 'network'
-        : 'unknown';
+        : error.kind === 'rejected'
+          ? 'changeRejected'
+          : 'unknown';
   }
   if (!isApiError(error)) return 'unknown';
   switch (error.errorCode) {
@@ -159,9 +165,11 @@ const toFailure = (error: unknown): PurchaseFailure => {
 /** 스토어 결제 시트의 실패 → 결과. 취소는 문구가 없는 정상 결과다 */
 const fromStoreError = (error: unknown): PurchaseOutcome => {
   const storeError = toStoreError(error);
-  if (storeError.kind !== 'cancelled') {
-    // 시트가 왜 끊겼는지 — Play responseCode · debugMessage 가 메시지에 실려 있다(KAN-158)
-    logger.warn('[subscription] store purchase failed', storeError.kind, storeError.message);
+  if (storeError.kind !== 'cancelled' && storeError.kind !== 'pending') {
+    // 시트가 왜 끊겼는지 — Play responseCode · debugMessage 가 메시지에 실려 있다(KAN-158). warn 은 개발 빌드에만
+    // 찍혀 preview 앱에서 아무 데도 안 남았다 — error + Sentry 로 올린다
+    logger.error('[subscription] store purchase failed', storeError.kind, storeError.message);
+    reportError(storeError, { area: 'subscription', kind: storeError.kind });
   }
   switch (storeError.kind) {
     case 'cancelled':
@@ -171,7 +179,7 @@ const fromStoreError = (error: unknown): PurchaseOutcome => {
     case 'alreadyOwned':
       return { kind: 'alreadyOwned' };
     default:
-      return { kind: 'failed', reason: toFailure(storeError) };
+      return { kind: 'failed', reason: toFailure(storeError), detail: storeError.message };
   }
 };
 
@@ -425,6 +433,8 @@ export const createPurchaseService = (deps: PurchaseServiceDeps) => {
           replace = {
             purchaseToken: source.token,
             oldProductId: source.productId,
+            // 교체되는 구매의 계정 id — 새 의도 id(intent.accountToken)는 서버 제출에만 쓴다(Google 규칙, KAN-158)
+            accountToken: source.obfuscatedAccountId,
             mode: plan.action === 'upgrade' ? 'chargeProrated' : 'deferred',
           };
         }
