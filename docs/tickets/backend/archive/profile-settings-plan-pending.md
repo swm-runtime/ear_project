@@ -43,3 +43,5 @@ PM 2026-10-08: "Pro 했다가 다른 요금제로 바꾸면 해당 날짜까지 
 ## 처리 기록
 
 - 2026-10-08 발행(마크다운 + Jira KAN-161). 앱·문서는 `feat(fe)/plan-summary-pending-change` PR 에서 먼저 반영.
+- **2026-10-08 — 반영(반영 날짜 2026-10-08).** 예약 판정을 `SubscriptionService.buildPlanView` 하나로 모았다 — `PlanView.pendingPlan`(`{ tier, planName, effectiveAt }`)을 거기서 조립하고, 구독 조회(`billing.orchestrator` `buildView`)도 따로 계산하던 것을 지우고 `plan.pendingPlan` 을 그대로 쓴다. 그래서 프로필·설정·구독 조회 세 응답이 **같은 값**을 낸다. DTO 는 `subscription/dto/pending-plan.dto.ts` 하나를 세 곳이 쓴다(`plan.pending_plan` · 구독 조회 `pending_plan`). 무료로 그리는 상태(만료·환불)에는 값이 남아 있어도 싣지 않는다.
+  - 검증: `subscription.service.spec` 5건(예약 있음 → Daily·결제 주기 끝 / 없음 → null / 갱신 뒤 티어 Daily·null / 만료 행에 값이 남아도 null / 요금제 행 없으면 티어값) · `subscription-billing.e2e` 다운그레이드 예약 단계에서 프로필·설정의 `plan.pending_plan` 이 구독 조회의 `pending_plan` 과 같은지. 백엔드 단위 전체 1,539 · E2E 전체 71 통과.

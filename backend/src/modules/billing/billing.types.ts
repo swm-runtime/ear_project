@@ -25,12 +25,10 @@ export interface PlanCatalog {
   isEmailVerified: boolean;
 }
 
-/** 다운그레이드 예약 — "언제부터 어느 요금제"(`subscription-api.md` 4.2) */
-export interface PendingPlanView {
-  tier: UserTier;
-  planName: string;
-  effectiveAt: Date;
-}
+/** 다운그레이드 예약 — 정의는 `subscription.types`(프로필·설정과 같은 값, KAN-161) */
+import type { PendingPlanView } from '@/modules/subscription/subscription.types';
+
+export type { PendingPlanView };
 
 /** `GET /users/me/subscription`의 본문. 영수증 제출·복원도 같은 것을 돌려준다 */
 export interface SubscriptionView {

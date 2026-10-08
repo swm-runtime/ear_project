@@ -2,6 +2,7 @@ import {
   PlanStatus,
   SubscriptionStore,
 } from '@/modules/subscription/subscription.enum';
+import { PendingPlanDto } from '@/modules/subscription/dto/pending-plan.dto';
 import { TrialDto } from '@/modules/subscription/dto/trial.dto';
 import { UserTier } from '@/modules/user/user.enum';
 
@@ -19,13 +20,6 @@ class SubscriptionPlanDto {
   readonly has_payment_issue: boolean;
   /** 가입 체험 중일 때만 값이 있다 — 종료일·이후 한도(`subscription.md` 4.8). 아니면 `null` */
   readonly trial: TrialDto | null;
-}
-
-class PendingPlanDto {
-  readonly tier: UserTier;
-  readonly plan_name: string;
-  /** 현재 결제 주기가 끝나는 시각 — 이때부터 적용된다 */
-  readonly effective_at: string;
 }
 
 /** subscription-api.md 4.2 — 영수증 제출(4.4)·복원(4.5)도 같은 본문을 돌려준다 */
@@ -49,14 +43,7 @@ export class SubscriptionResponseDto {
       },
       entitlements: EntitlementsDto.from(view.entitlements),
       store: view.store,
-      pending_plan:
-        view.pendingPlan === null
-          ? null
-          : {
-              tier: view.pendingPlan.tier,
-              plan_name: view.pendingPlan.planName,
-              effective_at: view.pendingPlan.effectiveAt.toISOString(),
-            },
+      pending_plan: PendingPlanDto.from(view.pendingPlan),
     };
   }
 }
