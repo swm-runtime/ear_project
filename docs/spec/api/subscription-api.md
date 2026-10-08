@@ -407,6 +407,8 @@ Google Cloud Pub/Sub **push 구독**이 호출한다. 본문은 Pub/Sub 메시�
 2. 응답의 `linkedPurchaseToken`(이전 토큰)이 어느 행의 `original_transaction_id`이거나 `latest_receipt`이면 그 행 — 이전 토큰은 최초 토큰이 아니라 중간에 한 번 바뀐 토큰일 수 있어 둘 다로 찾는다
 3. 어디에도 없으면 새 구독 — 그 토큰이 키가 된다
 
+- **교체된 옛 토큰의 종결은 구독의 종결이 아니다**(2026-10-08 — 개발계 실측). 요금제 변경 직후 Google은 옛 토큰에 `SUBSCRIPTION_EXPIRED`(13)를 보내고, 그 알림은 사슬을 따라 **같은 행**으로 들어온다. 행이 이미 다른(새) 토큰으로 살아 있고 들어온 토큰이 그보다 먼저 끝나는 것이면, 그 토큰의 `EXPIRED`·결제 재시도·환불은 **무시한다**(`ignore: replaced_token`). 그대로 반영했더니 Daily→Pro 업그레이드가 3초 뒤 `expired`·light 로 떨어졌다. 지금 토큰의 종결, 더 늦게 끝나는 토큰, 이미 끝난 행은 종전 규칙대로다
+
 - **환경** — 응답에 `testPurchase`가 있으면(라이선스 테스터) `environment = sandbox`, 없으면 `production`이다. Play는 서비스 계정 하나로 둘 다 조회되므로 서버가 받는 환경을 따로 설정하지 않는다
 - **만료 보정**(4.2)은 그 행의 `latest_receipt`로 같은 조회를 한다
 
