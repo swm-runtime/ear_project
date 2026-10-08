@@ -1,5 +1,5 @@
 {
-  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- .",
+  "ignoreCommand": "node scripts/should-build.mjs",
   "rewrites": [
     {
       "source": "/auth/apple/callback",
