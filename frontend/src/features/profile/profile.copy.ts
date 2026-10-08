@@ -86,8 +86,11 @@ export const PROFILE_COPY = {
       dailyPlayLimit === null ? '무료 이용 중' : `무료 이용 중 · 하루 ${dailyPlayLimit}편`,
     freeAction: '구독 알아보기',
     renewsAt: (iso: string) => `다음 결제일 ${monthDay(iso)}`,
-    /** 해지 예약 — 중립 톤. 사용자가 스스로 내린 결정이지 장애가 아니다(profile-uiux.md 4.4) */
-    cancelScheduled: (iso: string) => `${monthDay(iso)}까지 이용 가능`,
+    /**
+     * 해지 예약 — 중립 톤. 사용자가 스스로 내린 결정이지 장애가 아니다(profile-uiux.md 4.4). 다운그레이드 예약과 같은 꼴로
+     * 그 뒤를 말한다(PM 2026-10-09). 무료 상태를 이 요약은 "무료"라 부른다(`free` 문구) — 티어명을 쓰지 않는다
+     */
+    cancelScheduled: (iso: string) => `${monthDay(iso)}까지 이용 · 이후 무료`,
     /** 다운그레이드 예약 — 지금 요금제는 적용일까지, 그 뒤 다음 요금제(PM 2026-10-08). 설정 요약과 같은 문자열 */
     pendingPlan: (iso: string, nextPlanName: string) =>
       `${monthDay(iso)}까지 이용 · 이후 ${nextPlanName}`,
