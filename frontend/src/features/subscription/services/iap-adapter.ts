@@ -117,6 +117,12 @@ export interface IapAdapter {
    * 다운그레이드를 "다음 갱신부터"로 예약할 수 있는가 — iOS 는 늘 true(구독 그룹), Android 는 교체 모듈이 든 빌드만.
    * 결제 라이브러리만으로는 교체가 즉시 적용으로 고정된다(PlaySubscriptionChangeModule 주석)
    */
+  /**
+   * 이 교체 결제의 결과가 **반환값으로만** 오는가 — Android 교체 모듈 경로(자기 Billing 연결)면 결제 라이브러리의 구매 리스너가
+   * 울리지 않는다. 서비스는 이때 리스너를 기다리지 않고 반환값으로 끝낸다(다음 갱신부터 교체는 옛 구독 구매가 오거나 빈 목록이다
+   * — 2026-10-08 Pro→Daily 무한 로딩)
+   */
+  resolvesDirectly(replace: ReplaceSubscription): boolean;
   readonly supportsDeferredDowngrade: boolean;
   /** iOS 거래 종료 — **서버가 200 을 준 뒤에만** 부른다. Android 에서는 부르지 않는다(확인은 서버 몫) */
   finish(purchase: StorePurchase): Promise<void>;
@@ -297,6 +303,10 @@ export const createExpoIapAdapter = (platform: PurchasePlatform): IapAdapter => 
   },
 
   supportsDeferredDowngrade: platform === 'ios' || PlaySubscriptionChange !== null,
+
+  // requestSubscription 의 모듈 경로 조건과 같아야 한다
+  resolvesDirectly: (replace) =>
+    platform === 'android' && PlaySubscriptionChange !== null && replace.accountToken !== null,
 
   findReplaceable: async (targetProductId, currentProductId) => {
     if (platform === 'ios') return null;

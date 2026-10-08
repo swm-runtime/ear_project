@@ -10,12 +10,15 @@ import { PartnerModule } from '@/modules/partner/partner.module';
 import { PlaybackModule } from '@/modules/playback/playback.module';
 
 import { AdminController } from './admin.controller';
+import { AdminInsightsController } from './admin-insights.controller';
 import { AudioProbe } from './audio-probe';
 import { ContentStorageClient } from './content-storage.client';
 import { LocalContentStorageClient } from './local-content-storage.client';
 import { S3ContentStorageClient } from './s3-content-storage.client';
 import { ThumbnailImage } from './thumbnail-image';
 import { AdminContentService } from './services/admin-content.service';
+import { AdminInsightsRepository } from './repositories/admin-insights.repository';
+import { AdminInsightsService } from './services/admin-insights.service';
 import { AdminSystemStatsService } from './services/admin-system-stats.service';
 import { ResourceAlertService } from './services/resource-alert.service';
 import { AdminTopicService } from './services/admin-topic.service';
@@ -48,10 +51,13 @@ import { Ga4Service } from './services/ga4.service';
     PartnerModule,
     PlaybackModule,
   ],
-  controllers: [AdminController],
+  // 서비스 지표 요약(admin-api 4.22) — 여러 모듈의 테이블을 한 화면으로 모으는 읽기 전용 집계라 소유 모듈이 없어 여기 둔다
+  controllers: [AdminController, AdminInsightsController],
   providers: [
     AdminContentService,
     AdminSystemStatsService,
+    AdminInsightsRepository,
+    AdminInsightsService,
     AdminTopicService,
     AdminNoticeService,
     TopicExposureService,

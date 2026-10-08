@@ -79,6 +79,7 @@ const createHarness = (platform: PurchasePlatform = 'ios', supportsDeferredDowng
     getActiveForRestore: jest.fn<IapAdapter['getActiveForRestore']>().mockResolvedValue([]),
     findReplaceable: jest.fn<IapAdapter['findReplaceable']>().mockResolvedValue(null),
     supportsDeferredDowngrade,
+    resolvesDirectly: jest.fn<IapAdapter['resolvesDirectly']>().mockReturnValue(false),
     onPurchaseUpdated: jest.fn((listener: (purchase: StorePurchase) => void) => {
       updatedListener = listener;
       return () => {
@@ -497,6 +498,59 @@ describe('PurchaseService', () => {
       expect(outcome).toEqual({ kind: 'failed', reason: 'downgradeNeedsUpdate' });
       expect(h.api.createIntent).not.toHaveBeenCalled();
       expect(h.adapter.requestSubscription).not.toHaveBeenCalled();
+    });
+
+    it('교체 모듈 경로에서 다음 갱신부터 교체가 옛 구독 구매를 돌려주면 그걸 제출해 끝낸다 — 리스너를 기다리지 않는다', async () => {
+      // given — DEFERRED 는 대상(Daily)이 아니라 지금 구독(Pro)의 구매가 온다
+      await h.service.start();
+      h.adapter.findReplaceable.mockResolvedValue(CURRENT_DAILY);
+      h.adapter.resolvesDirectly.mockReturnValue(true);
+      const oldPro = purchaseOf({
+        transactionId: 'tx-pro',
+        productId: 'pro.old',
+        token: 'pro-token',
+      });
+      h.adapter.requestSubscription.mockResolvedValue([oldPro]);
+
+      // when
+      const outcome = await h.service.purchase({ ...PRO_PLAN, action: 'downgrade' }, 'settings');
+
+      // then
+      expect(h.api.submit).toHaveBeenCalledWith(expect.objectContaining({ intentId: 'intent-1' }));
+      expect(outcome.kind).toBe('success');
+    });
+
+    it('교체 모듈 경로가 빈 목록을 돌려주면 로딩을 끝내고 delayed 다', async () => {
+      // given
+      await h.service.start();
+      h.adapter.findReplaceable.mockResolvedValue(CURRENT_DAILY);
+      h.adapter.resolvesDirectly.mockReturnValue(true);
+      h.adapter.requestSubscription.mockResolvedValue([]);
+
+      // when
+      const outcome = await h.service.purchase({ ...PRO_PLAN, action: 'downgrade' }, 'settings');
+
+      // then
+      expect(outcome).toEqual({ kind: 'delayed' });
+      expect(h.api.submit).not.toHaveBeenCalled();
+    });
+
+    it('이미 다음 갱신부터 교체가 예약돼 있으면 downgradeAlreadyScheduled 다', async () => {
+      // given
+      await h.service.start();
+      h.adapter.findReplaceable.mockResolvedValue(CURRENT_DAILY);
+      h.adapter.requestSubscription.mockRejectedValue(
+        new StoreError(
+          'rejected',
+          '5: There is an existing deferred replacement for the old product',
+        ),
+      );
+
+      // when
+      const outcome = await h.service.purchase({ ...PRO_PLAN, action: 'downgrade' }, 'settings');
+
+      // then
+      expect(outcome).toMatchObject({ kind: 'failed', reason: 'downgradeAlreadyScheduled' });
     });
 
     it('스토어가 교체를 거절하면(DEVELOPER_ERROR) changeRejected 이고 원문을 detail 로 싣는다', async () => {
