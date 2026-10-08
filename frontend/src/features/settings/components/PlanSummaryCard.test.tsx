@@ -26,7 +26,7 @@ describe('PlanSummaryCard valueText — 설정 요금제 요약 줄', () => {
     ).toBe(`Pro · ${SETTINGS_COPY.plan.renewsAt('2026-11-08T03:00:00Z')}`);
   });
 
-  it('해지 예약이면 "N월 N일까지 이용 가능"', () => {
+  it('해지 예약이면 "N월 N일까지 이용 · 이후 무료"', () => {
     expect(
       valueText({ kind: 'cancelScheduled', planName: 'Pro', expiresAt: '2026-11-08T03:00:00Z' }),
     ).toBe(`Pro · ${SETTINGS_COPY.plan.cancelScheduled('2026-11-08T03:00:00Z')}`);
