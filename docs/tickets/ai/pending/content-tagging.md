@@ -37,3 +37,7 @@
 - **2 부여**: 워커 메타 부여 단계가 태그를 함께 판정한다(`enrich-v2`). 서버가 형식 3을 받기 전까지 스위치 `ENRICH_TAGS`(기본 꺼짐)로 파일에 싣지 않고 리포트(`enrichment.report.json`의 `tags`)에만 남긴다 — 서버는 모르는 키·높은 형식을 파일째 거부한다(`admin-api.md` 4.6). 규칙 밖 태그는 그 태그만 빼고 2개 미만이면 키를 뺀다
 - **3 노출**: BE `content-hashtags-enrichment-v3.md`(형식 3 수용·저장·카드/라이브러리 응답) · FE `content-hashtags-display.md`(탐색 카드·상세 표시) 작성 · Jira 발행 KAN-162·KAN-163(2026-10-08, 선행 링크 KAN-162 → KAN-163 → KAN-139)
 - **남은 것**: BE 운영 배포 → `ENRICH_TAGS` 켬 + 콘솔 `ENRICHMENT_SCHEMA_VERSION_FALLBACK` 3 → 서비스 중 편 [다시 뽑기 → 반영]으로 소급(메타 단독 전송 — 버전·재생 위치 그대로) → FE 표시 확인 뒤 archive
+
+### 2026-10-09 — 소급을 KAN-164로 떼어 냄
+
+- PM 요청("개발계에서 보이게 하는 티켓")으로 "남은 것"의 스위치·소급·개발계 확인을 `content-tags-backfill-dev-visible.md`(KAN-164)로 발행했다. 개발계는 운영 콘텐츠 복사본이라 운영 소급이 유일한 지속 경로다. 이 티켓은 KAN-164 완료 뒤 archive
