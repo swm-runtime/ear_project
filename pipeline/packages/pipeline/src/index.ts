@@ -1408,6 +1408,10 @@ export const REINFORCE_SEARCH_SCHEMA = {
 // 값 집합은 backend domain.md 5.1 · user.constant.ts JOB_CATEGORIES 와 글자 단위로 같아야 한다 — 어긋나면 업로드 검증이 거부한다.
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 export const ENRICHMENT_SCHEMA_VERSION = 2;
+/** 화면 해시태그 `tags`(KAN-139, 2026-10-08)를 싣는 형식 — 서버가 3을 받기 전까지 워커 스위치(ENRICH_TAGS)로 끈다. 서버는 자기가 아는 최신보다 높은 형식·모르는 키를 파일째 거부한다(admin-api 4.6) */
+export const ENRICHMENT_SCHEMA_VERSION_TAGS = 3;
+/** 태그 한 개 — 띄어쓰기 없는 2~10자, 한글·영문·숫자. '#'은 화면이 붙인다 */
+export const ENRICH_TAG_RE = /^[가-힣A-Za-z0-9]{2,10}$/;
 export const ENRICH_DIFFICULTY = ["beginner", "intermediate", "advanced"] as const;
 export const ENRICH_FORMAT = ["news_analysis", "howto", "interview", "opinion", "case_study", "overview"] as const;
 export const ENRICH_YEARS = ["0-1", "2-3", "4-6", "7+"] as const;
@@ -1424,7 +1428,7 @@ export interface EnrichInput {
 }
 export function buildEnrichPrompt(i: EnrichInput): string {
   const fence = (s: string) => "````\n" + s.trim() + "\n````";
-  return `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 **추천 메타 판정 담당**이다. 대본을 근거로 메타 5종을 판정한다. 이 실행에는 도구가 없다 — 아래 입력만 본다.
+  return `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 **추천 메타 판정 담당**이다. 대본을 근거로 메타 5종과 화면 해시태그(tags)를 판정한다. 이 실행에는 도구가 없다 — 아래 입력만 본다.
 
 ## 원칙
 - **판정은 대본 근거로만.** 대본 밖 지식으로 값을 보강하지 않는다. 대본에 없는 개념은 키워드에 넣지 않는다.
@@ -1450,7 +1454,7 @@ ${fence(i.script)}` : `
 ## 대본 없음 — 폴백(명세 4.5)
 제목·설명만으로 판정한다. keywords 는 제목+설명에서 뽑고 source 는 "title_description" 으로 적는다. difficulty·format 은 얕은 근거로 판정하지 말고 불능이면 생략한다. is_evergreen 은 판정 가능하면 적는다.`}
 
-## 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. 판정 불능 키는 넣지 않는다. keywords 는 대본에 실제로 다뤄진 세부 개념의 명사구 3~8개(3개 미만이면 나온 만큼만, 0개면 생략). target_audiences 는 1~8세트, 직군·연차 무관한 범용 대본이면 생략.`;
+## 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. 판정 불능 키는 넣지 않는다. keywords 는 대본에 실제로 다뤄진 세부 개념의 명사구 3~8개(3개 미만이면 나온 만큼만, 0개면 생략). target_audiences 는 1~8세트, 직군·연차 무관한 범용 대본이면 생략. tags 는 2~4개 — 꼭 맞는 것만, 개수를 채우려고 덜 맞는 태그를 넣지 않는다.`;
 }
 export const ENRICH_SCHEMA = {
   type: "object", additionalProperties: false, required: ["evidence"],
@@ -1459,9 +1463,10 @@ export const ENRICH_SCHEMA = {
     format: { type: "string", enum: ENRICH_FORMAT },
     is_evergreen: { type: "boolean" },
     keywords: { type: "array", items: { type: "string" }, maxItems: 8 },
+    tags: { type: "array", items: { type: "string" }, maxItems: 4 },
     target_audiences: { type: "array", maxItems: 8, items: { type: "object", additionalProperties: false, required: ["job_category", "years_of_experience"], properties: { job_category: { type: "string" }, years_of_experience: { type: "string", enum: ENRICH_YEARS } } } },
     source: { type: "string", enum: ["title_description"] },
-    evidence: { type: "object", additionalProperties: false, properties: { difficulty: { type: "string" }, format: { type: "string" }, is_evergreen: { type: "string" }, keywords: { type: "string" }, target_audiences: { type: "string" } } },
+    evidence: { type: "object", additionalProperties: false, properties: { difficulty: { type: "string" }, format: { type: "string" }, is_evergreen: { type: "string" }, keywords: { type: "string" }, tags: { type: "string" }, target_audiences: { type: "string" } } },
   },
 } as const;
 /** 대본 임베딩 (metadata-pipeline 4.3 Phase B) — AI 서버 `POST /embeddings` 응답. BE 가 `content_embeddings` 에 upsert (admin-api 4.6). 벡터는 1536차원·model 은 현재 모델과 일치해야 한다 */
@@ -1499,11 +1504,12 @@ export async function fetchEmbedding(text: string, opts: { url: string; token: s
   } finally { clearTimeout(t); }
 }
 
-export interface EnrichmentFile { schema_version: number; difficulty?: string; format?: string; is_evergreen?: boolean; keywords?: string[]; embedding?: EnrichmentEmbedding; target_audiences?: { job_category: string; years_of_experience: string }[]; source?: "title_description" }
-/** finalize.py 와 같은 규칙: 키워드 NFC 정규화·공백 정리·중복 제거·주제명 반복 제거·상한 8, enum 글자 일치 검증. 실패면 errors 를 돌려주고 파일을 만들지 않는다 */
-export function normalizeEnrichment(raw: Record<string, unknown>, topicNames: string[], jobCategories: string[]): { file: EnrichmentFile | null; errors: string[]; warnings: string[] } {
+export interface EnrichmentFile { schema_version: number; difficulty?: string; format?: string; is_evergreen?: boolean; keywords?: string[]; tags?: string[]; embedding?: EnrichmentEmbedding; target_audiences?: { job_category: string; years_of_experience: string }[]; source?: "title_description" }
+/** finalize.py 와 같은 규칙: 키워드 NFC 정규화·공백 정리·중복 제거·주제명 반복 제거·상한 8, enum 글자 일치 검증. 실패면 errors 를 돌려주고 파일을 만들지 않는다.
+ *  tags(KAN-139)는 늘 정규화해 돌려주고(리포트용), opts.tags 일 때만 파일에 싣고 형식을 3으로 올린다. 규칙 밖 태그는 그 태그만 빼고, 2개 미만이면 키를 뺀다 — 태그 때문에 파일 전체를 버리지 않는다 */
+export function normalizeEnrichment(raw: Record<string, unknown>, topicNames: string[], jobCategories: string[], opts: { tags?: boolean } = {}): { file: EnrichmentFile | null; errors: string[]; warnings: string[]; tags: string[] } {
   const errors: string[] = [], warnings: string[] = [];
-  const file: EnrichmentFile = { schema_version: ENRICHMENT_SCHEMA_VERSION };
+  const file: EnrichmentFile = { schema_version: opts.tags ? ENRICHMENT_SCHEMA_VERSION_TAGS : ENRICHMENT_SCHEMA_VERSION };
   if (raw.difficulty != null) { if ((ENRICH_DIFFICULTY as readonly string[]).includes(String(raw.difficulty))) file.difficulty = String(raw.difficulty); else errors.push(`difficulty enum 불일치: ${String(raw.difficulty)}`); }
   if (raw.format != null) { if ((ENRICH_FORMAT as readonly string[]).includes(String(raw.format))) file.format = String(raw.format); else errors.push(`format enum 불일치: ${String(raw.format)}`); }
   if (raw.is_evergreen != null) { if (typeof raw.is_evergreen === "boolean") file.is_evergreen = raw.is_evergreen; else errors.push("is_evergreen 이 boolean 이 아님"); }
@@ -1534,9 +1540,24 @@ export function normalizeEnrichment(raw: Record<string, unknown>, topicNames: st
     if (out.length > 8) { warnings.push(`청자 세트 ${out.length} → 8`); out.length = 8; }
     if (out.length) file.target_audiences = out;
   }
-  const missing = ["difficulty", "format", "is_evergreen", "keywords", "target_audiences"].filter((k) => !(k in file));
+  const tags: string[] = [];
+  if (Array.isArray(raw.tags)) {
+    const topics = new Set(topicNames.map((t) => t.normalize("NFC").replace(/\s+/g, "").toLowerCase()));
+    for (const t of raw.tags) {
+      if (typeof t !== "string") continue;
+      const n = t.normalize("NFC").trim().replace(/^#+/, "");
+      if (!ENRICH_TAG_RE.test(n)) { warnings.push(`태그 규칙 밖 제외: ${n}`); continue; }
+      if (topics.has(n.toLowerCase())) { warnings.push(`주제명 반복 태그 제외: ${n}`); continue; }
+      if (tags.some((x) => x.toLowerCase() === n.toLowerCase())) continue;
+      tags.push(n);
+    }
+    if (tags.length > 4) { warnings.push(`태그 ${tags.length}개 → 4개로 자름`); tags.length = 4; }
+    if (tags.length === 1) { warnings.push(`태그 1개 — 2개 미만이라 뺌: ${tags[0]}`); tags.length = 0; }
+    if (opts.tags && tags.length) file.tags = [...tags];
+  }
+  const missing = ["difficulty", "format", "is_evergreen", "keywords", "target_audiences", ...(opts.tags ? ["tags"] : [])].filter((k) => !(k in file));
   if (missing.length) warnings.push(`생략된 키: ${missing.join(", ")} (partial)`);
-  return { file: errors.length ? null : file, errors, warnings };
+  return { file: errors.length ? null : file, errors, warnings, tags };
 }
 
 export const CLUSTER_SCHEMA_V2 = {
