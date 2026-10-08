@@ -113,6 +113,30 @@ describe('CurrentSubscriptionDetail — 이용 중 카드 안 구독 정보(KAN-
     act(() => renderer.unmount());
   });
 
+  it('Android 다운그레이드 예약 안내(note)는 글자 한 줄로 그린다 — 버튼 없음', () => {
+    // given · when
+    const note = SUBSCRIPTION_COPY.status.revertAfterChange('2026-11-08T03:00:00Z', 'Daily');
+    const renderer = render(
+      <CurrentSubscriptionDetail
+        status={{
+          kind: 'subscribed',
+          planName: 'Pro',
+          renewsAt: null,
+          pendingPlan: { tier: 'daily', planName: 'Daily', effectiveAt: '2026-11-08T03:00:00Z' },
+          otherStore: null,
+        }}
+        isError={false}
+        note={note}
+      />,
+    );
+
+    // then
+    expect(allText(renderer)).toContain(note);
+    expect(note).toContain('Daily로 바뀐 뒤 다시 올릴 수 있어요');
+    expect(pressables(renderer)).toHaveLength(0);
+    act(() => renderer.unmount());
+  });
+
   it('무료 이용자는 따로 그릴 것이 없다 — 이용 중 카드의 설명이 한도를 말한다', () => {
     // given · when
     const renderer = renderDetail({ kind: 'free', dailyPlayLimit: 2 });

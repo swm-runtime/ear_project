@@ -1,6 +1,6 @@
 import { useNavigation } from '@react-navigation/native';
 import { useEffect } from 'react';
-import { Image, ScrollView, StyleSheet, View } from 'react-native';
+import { Image, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
@@ -69,6 +69,14 @@ export default function SubscriptionScreen() {
    * 이용 중 카드를 골랐을 때 아래 버튼(서버 구독 상태로 정한다) — 해지 예약이면 [구독 다시 시작], 결제 문제면 [결제 수단 확인],
    * 둘 다 스토어 구독 관리. 카드 안에는 버튼이 없다(PM 2026-10-08). 다른 스토어 구독·이용 중 카드 없음이면 없다
    */
+  const currentPlan =
+    catalogState.kind === 'ready'
+      ? (catalogState.cards.find((card) => card.plan.action === 'current')?.plan ?? null)
+      : null;
+  /** 다운그레이드 예약 중인가 — iOS 는 [유지]로 되돌리고, Android 는 되돌릴 수 없어 카드에 안내만(PM 2026-10-08) */
+  const pendingPlan = status !== null && status.kind === 'subscribed' ? status.pendingPlan : null;
+  const canKeepCurrent =
+    pendingPlan !== null && Platform.OS === 'ios' && currentPlan?.storeProductId != null;
   const currentCta: CurrentPlanCta | undefined =
     !hasCurrentCard || status === null || status.kind === 'free' || status.otherStore !== null
       ? undefined
@@ -76,12 +84,24 @@ export default function SubscriptionScreen() {
         ? { label: SUBSCRIPTION_COPY.manage.resume, onPress: screen.openStoreManagement }
         : status.kind === 'grace'
           ? { label: SUBSCRIPTION_COPY.manage.checkPayment, onPress: screen.openStoreManagement }
-          : undefined;
+          : canKeepCurrent && currentPlan !== null
+            ? {
+                // 지금 요금제를 다시 산다 — Apple 이 예약된 다운그레이드를 취소한다
+                label: SUBSCRIPTION_COPY.plans.keepCurrent(currentPlan.name),
+                onPress: () => void flow.purchase(currentPlan),
+              }
+            : undefined;
+  /** Android 다운그레이드 예약 — Google Play 는 예약만 취소할 수 없어 바뀐 뒤 다시 올린다고 카드에 적는다 */
+  const currentNote =
+    pendingPlan !== null && Platform.OS === 'android'
+      ? SUBSCRIPTION_COPY.status.revertAfterChange(pendingPlan.effectiveAt, pendingPlan.planName)
+      : null;
   const renderDetail = (standalone: boolean) => (
     <CurrentSubscriptionDetail
       status={screen.status}
       isError={screen.isStatusError}
       standalone={standalone}
+      note={standalone ? null : currentNote}
     />
   );
 
