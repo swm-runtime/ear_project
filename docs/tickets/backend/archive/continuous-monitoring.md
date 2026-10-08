@@ -50,3 +50,8 @@
 
 - **2026-10-07 23:24 — Sentry → Slack 릴레이 운영 전환 완료.** Internal Integration `slack-relay`의 Webhook URL을 토큰 없는 서명 검증 주소(`https://api.earcast.co.kr/api/v1/webhooks/sentry`)로 바꾸고 `SENTRY_WEBHOOK_SECRET`(Client Secret)으로 검증(#1204, v1.2.0+4). ear-api 규칙의 "Send Test Notification" → `#ops-alerts`에 `:rotating_light: Sentry 이슈 · ear-api · …` 도착 확인. 종전 Slack 공식 연동(10-14 종료)은 더 필요 없다 — 중복을 피하려면 "Notify #ops-alerts via Slack" 규칙 2개를 지운다. 규칙 트리거가 이슈 상태 변화(생성·해결·악화·재발)라 Throttle "매번"으로도 한도 문제가 없다. ear-app 규칙에도 `slack-relay` 액션이 있는지는 확인 필요.
 
+
+### 2026-10-08 — 결제 알림 운영 실측 · **반영 날짜 2026-10-08 — 완료**
+
+- **마지막 완료 조건(결제 알림 운영 실측)** — 운영 `POST /api/v1/webhooks/play-store` 에 Pub/Sub 모양은 맞고 인증(OIDC 토큰)만 없는 테스트 알림을 1회 보냈다(17:00:33 KST, 데이터 `testNotification`, 패키지명 `kan132.alert.test`). 서버가 **400 으로 거부**하고 로그 `play store notification rejected { kind: 'invalid', reason: 'push_token_missing' }`, **`#ops-alerts` 에 "⚠️ 스토어 알림 거부 · Google Play · invalid: push_token_missing · 10. 08. 17:00" 도착**(17:00:34). 데이터 변경 없음. `BillingAlertService` → Slack 경로가 운영에서 끝까지 동작함을 확인했다 — 영수증 거부·보정 실패·두 번째 구독 거부도 같은 `send` 경로다.
+- 완료 조건 대조: ① runbook 표 ✅(10-06) ② 대상별 1회 이상 실측 ✅(자원·5xx·헬스체크·크론·Sentry 는 9월, 결제는 오늘) ③ 회고 주간 지표 ✅(2026-W5). 주간 지표는 앞으로 로그 콘솔 "서비스 지표" 탭(#1271, 운영은 다음 main 배포 뒤)으로도 뽑을 수 있다.
