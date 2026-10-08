@@ -64,6 +64,15 @@ export default function SubscriptionScreen() {
     status !== null && status.kind === 'subscribed' && status.renewsAt !== null
       ? SUBSCRIPTION_COPY.status.cancelUntil(status.renewsAt)
       : null;
+  /**
+   * 해지 예약 중이고 이 스토어에서 바꿀 수 있으면 — 이용 중 카드를 골라 아래 [구독 다시 시작]으로 되돌린다(PM 2026-10-08).
+   * 이용 중 카드가 없으면(목록 밑 따로 선 구독 정보) 종전대로 그 안의 버튼이 경로다
+   */
+  const canResumeInList =
+    hasCurrentCard &&
+    status !== null &&
+    status.kind === 'cancelScheduled' &&
+    status.otherStore === null;
   const renderDetail = (standalone: boolean) => (
     <CurrentSubscriptionDetail
       status={screen.status}
@@ -73,6 +82,7 @@ export default function SubscriptionScreen() {
       onOpenStore={screen.openStoreManagement}
       standalone={standalone}
       hideCancel={hasCancelCard}
+      hideResume={!standalone && canResumeInList}
     />
   );
 
@@ -110,6 +120,7 @@ export default function SubscriptionScreen() {
           onPurchase={(plan) => void flow.purchase(plan)}
           onCancel={screen.openStoreManagement}
           cancelHint={cancelHint}
+          onResume={canResumeInList ? screen.openStoreManagement : undefined}
           onRetry={screen.catalog.retry}
           isRetrying={screen.catalog.isRetrying}
           currentDetail={renderDetail(false)}

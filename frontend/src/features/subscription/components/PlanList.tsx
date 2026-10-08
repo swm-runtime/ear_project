@@ -17,12 +17,14 @@ const SKELETON_CARD_HEIGHT = 112;
 /** 라디오 원 — iOS 선택 목록 크기. 안 점은 선택일 때만 */
 const RADIO_SIZE = 22;
 const RADIO_DOT_SIZE = 10;
-/** 라디오 칸과 이름 사이. 고를 수 없는 카드도 라디오 칸만큼 비워 이름·설명 시작점을 세 카드에서 맞춘다 */
+/** 라디오 칸과 이름 사이 */
 const RADIO_GAP = 10;
 /** 선택 테두리 — 고르지 않은 카드·이용 중 카드에도 투명으로 깔아 안쪽 시작점이 선택에 따라 움직이지 않게 한다 */
 const SELECTED_BORDER_WIDTH = 2;
 
 type SelectableAction = Exclude<PlanAction, 'none' | 'current'>;
+/** 목록 아래 버튼이 하는 일 — 서버 action 에 더해, 해지 예약 중인 이용 중 카드를 고르면 "구독 다시 시작" */
+type CtaKind = SelectableAction | 'resume';
 
 /**
  * 고를 수 있는 카드 — action 은 서버 판정이다. 클라이언트가 티어 순서를 비교하지 않는다(subscription-api.md 4.1).
@@ -43,7 +45,10 @@ const priceText = (card: PlanCardVM): string | null => {
 
 interface PlanCardProps {
   card: PlanCardVM;
-  /** 고를 수 있는 카드에만 — 없으면 라디오 없이 칸만 비운다(이용 중 · 서버가 none 을 준 카드) */
+  /**
+   * 고를 수 있는 카드에만. 없어도 라디오는 그린다 — 흐린 빈 원(누를 수 없음). 칸만 비우면 그 카드만 라디오가 "사라진" 것처럼
+   * 보였다(PM 2026-10-08)
+   */
   onSelect?: () => void;
   isSelected: boolean;
   disabled: boolean;
@@ -67,11 +72,15 @@ function PlanCard({ card, onSelect, isSelected, disabled, currentDetail }: PlanC
     <>
       <View style={styles.cardHeader}>
         <View style={styles.radioSlot}>
-          {isSelectable ? (
-            <View style={[styles.radio, isSelected ? styles.radioSelected : null]}>
-              {isSelected ? <View style={styles.radioDot} /> : null}
-            </View>
-          ) : null}
+          <View
+            style={[
+              styles.radio,
+              isSelected ? styles.radioSelected : null,
+              isSelectable ? null : styles.radioDisabled,
+            ]}
+          >
+            {isSelected ? <View style={styles.radioDot} /> : null}
+          </View>
         </View>
         <View style={styles.nameGroup}>
           <Text style={[styles.planName, isCurrent ? styles.textMuted : null]}>{plan.name}</Text>
@@ -130,6 +139,7 @@ interface PlanCardsProps {
   onPurchase: (plan: Plan) => void;
   onCancel?: () => void;
   cancelHint?: string | null;
+  onResume?: () => void;
   currentDetail?: ReactNode;
 }
 
@@ -140,24 +150,34 @@ function PlanCards({
   onPurchase,
   onCancel,
   cancelHint = null,
+  onResume,
   currentDetail,
 }: PlanCardsProps) {
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const canCancel = onCancel !== undefined;
-  const selectable = cards.filter((card) => isSelectableAction(card.plan.action, canCancel));
-  // 기본은 고를 수 있는 첫 유료 카드(서버 순서) — 해지(무료로 바꾸기)는 사용자가 직접 골라야만 선택된다. 티어명으로 고르지
-  // 않는다. 고른 카드가 목록에서 빠지면(결제 후 이용 중으로 바뀜 등) 다시 기본으로 돌아간다
+  const ctaOf = (card: PlanCardVM): CtaKind | null => {
+    if (isSelectableAction(card.plan.action, canCancel)) return card.plan.action;
+    if (card.plan.action === 'current' && onResume !== undefined) return 'resume';
+    return null;
+  };
+  const selectable = cards.filter((card) => ctaOf(card) !== null);
+  // 기본 선택 — 해지 예약 중이면 이용 중 카드(지금 요금제를 이어 쓰기), 아니면 고를 수 있는 첫 유료 카드(서버 순서).
+  // 해지(무료로 바꾸기)는 사용자가 직접 골라야만 선택된다. 티어명으로 고르지 않는다. 고른 카드가 목록에서 빠지면 기본으로 돌아간다
   const selected =
     selectable.find((card) => card.plan.planId === selectedPlanId) ??
+    selectable.find((card) => ctaOf(card) === 'resume') ??
     selectable.find((card) => card.plan.action !== 'cancel') ??
     selectable[0] ??
     null;
-  const selectedAction =
-    selected !== null && isSelectableAction(selected.plan.action, canCancel)
-      ? selected.plan.action
-      : null;
-  // 변경(다운그레이드)·해지는 보조 버튼 — 주 버튼(검정)은 구독·업그레이드
+  const selectedAction = selected !== null ? ctaOf(selected) : null;
+  // 변경(다운그레이드)·해지는 보조 버튼 — 주 버튼(검정)은 구독·업그레이드·다시 시작
   const isSecondary = selectedAction === 'downgrade' || selectedAction === 'cancel';
+  const ctaLabel =
+    selected === null || selectedAction === null
+      ? ''
+      : selectedAction === 'resume'
+        ? SUBSCRIPTION_COPY.manage.resume
+        : SUBSCRIPTION_COPY.plans.cta(selected.plan.name, selectedAction);
   const hint =
     selectedAction === 'downgrade'
       ? SUBSCRIPTION_COPY.plans.downgradeHint
@@ -177,11 +197,7 @@ function PlanCards({
           <PlanCard
             key={card.plan.planId}
             card={card}
-            onSelect={
-              isSelectableAction(card.plan.action, canCancel)
-                ? () => setSelectedPlanId(card.plan.planId)
-                : undefined
-            }
+            onSelect={ctaOf(card) !== null ? () => setSelectedPlanId(card.plan.planId) : undefined}
             isSelected={selected !== null && card.plan.planId === selected.plan.planId}
             disabled={isBusy}
             currentDetail={currentDetail}
@@ -199,11 +215,17 @@ function PlanCards({
               pressed ? styles.buttonPressed : null,
               isBusy ? styles.buttonDisabled : null,
             ]}
-            // 해지는 스토어 구독 관리로 보낸다(해지 API 없음 — subscription.md 4.5). 나머지는 결제 흐름
-            onPress={() => (selectedAction === 'cancel' ? onCancel?.() : onPurchase(selected.plan))}
+            // 해지·다시 시작은 스토어 구독 관리로 보낸다(해지 API 없음 — subscription.md 4.5). 나머지는 결제 흐름
+            onPress={() =>
+              selectedAction === 'cancel'
+                ? onCancel?.()
+                : selectedAction === 'resume'
+                  ? onResume?.()
+                  : onPurchase(selected.plan)
+            }
             disabled={isBusy}
             accessibilityRole="button"
-            accessibilityLabel={SUBSCRIPTION_COPY.plans.cta(selected.plan.name, selectedAction)}
+            accessibilityLabel={ctaLabel}
             accessibilityState={{ disabled: isBusy, busy: isPurchasing }}
           >
             {isPurchasing ? (
@@ -212,7 +234,7 @@ function PlanCards({
               />
             ) : (
               <Text style={isSecondary ? pillButton.secondaryLabel : pillButton.primaryLabel}>
-                {SUBSCRIPTION_COPY.plans.cta(selected.plan.name, selectedAction)}
+                {ctaLabel}
               </Text>
             )}
           </Pressable>
@@ -237,6 +259,11 @@ interface PlanListProps {
   onCancel?: () => void;
   /** `cancel` 카드를 골랐을 때 버튼 밑 안내("지금 요금제는 N월 N일까지…") — 날짜를 모르면 null */
   cancelHint?: string | null;
+  /**
+   * 해지 예약 중일 때만(요금제 관리 화면) — 이용 중 카드를 고를 수 있게 하고 버튼 "구독 다시 시작"이 이걸 부른다(스토어 구독
+   * 관리). 카드 안 [구독 다시 시작]을 대신한다(PM 2026-10-08 — 조작은 "카드 고르기 + 아래 버튼 하나")
+   */
+  onResume?: () => void;
   onRetry: () => void;
   isRetrying: boolean;
   /**
@@ -259,6 +286,7 @@ export default function PlanList({
   onPurchase,
   onCancel,
   cancelHint,
+  onResume,
   onRetry,
   isRetrying,
   currentDetail,
@@ -300,6 +328,7 @@ export default function PlanList({
       onPurchase={onPurchase}
       onCancel={onCancel}
       cancelHint={cancelHint}
+      onResume={onResume}
       currentDetail={currentDetail}
     />
   );
@@ -341,6 +370,10 @@ const styles = StyleSheet.create({
     borderColor: theme.color.textMutedSecondary,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // 지금 고를 수 없는 카드 — 원은 그리되 흐리게(누를 수 없음)
+  radioDisabled: {
+    borderColor: theme.color.border,
   },
   radioSelected: {
     borderColor: theme.color.primary,
