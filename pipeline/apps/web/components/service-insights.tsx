@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { Panel, Stat, Table, Td, Tr, btnCls } from "@/components/ui";
-import { type EarChannel, type EarInsightsSummary, earChannelLabel, getEarInsightsSummary } from "@/lib/ear";
+import { EarApiError, type EarChannel, type EarInsightsSummary, earChannelLabel, getEarInsightsSummary } from "@/lib/ear";
 import { EarGate, EarSession, earErrMsg } from "@/app/publish/ear-connect";
 import {
   PROVIDER_LABEL, REASON_LABEL, TIER_LABEL,
@@ -36,26 +36,34 @@ export function ServiceInsights() {
         <span className="ml-auto"><EarSession channel={channel} /></span>
       </div>
       <EarGate key={channel} channel={channel}>
-        <InsightsView channel={channel} days={days} />
+        <InsightsView channel={channel} days={days} onSwitchToDev={channel === "prod" ? () => setChannel("dev") : undefined} />
       </EarGate>
     </div>
   );
 }
 
-function InsightsView({ channel, days }: { channel: EarChannel; days: number }) {
+/**
+ * `onSwitchToDev` — 운영 채널일 때만 넘어온다. 엔드포인트가 404(미배포)면 [개발계로 보기]로 부모 채널을 바꾼다.
+ */
+function InsightsView({ channel, days, onSwitchToDev }: { channel: EarChannel; days: number; onSwitchToDev?: () => void }) {
   const [data, setData] = useState<EarInsightsSummary | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // 404 = 이 서버에 엔드포인트가 아직 없다(dev 머지로 개발계에 먼저 나가고 운영은 다음 main 배포 때 들어감).
+  // 서버 메시지("찾을 수 없어요")만 띄우면 고장으로 읽혀서 별도 안내로 그린다(2026-10-08) — backend-metrics 라우트의 404 처리와 같은 취지
+  const [notDeployed, setNotDeployed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadedAt, setLoadedAt] = useState<Date | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setErr(null);
+    setNotDeployed(false);
     try {
       setData(await getEarInsightsSummary(channel, days));
       setLoadedAt(new Date());
     } catch (e) {
-      setErr(earErrMsg(e));
+      if (e instanceof EarApiError && e.status === 404) setNotDeployed(true);
+      else setErr(earErrMsg(e));
     } finally {
       setLoading(false);
     }
@@ -74,6 +82,19 @@ function InsightsView({ channel, days }: { channel: EarChannel; days: number }) 
     </span>
   );
 
+  if (notDeployed) {
+    return (
+      <div className="space-y-2">
+        <p className="text-[13px] text-amber-800">
+          이 서버({earChannelLabel(channel)})에는 서비스 지표 API 가 아직 배포되지 않았어요 — 개발계에 먼저 나가고 운영은 다음 main 배포 때 들어갑니다.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          {onSwitchToDev && <button type="button" className={btnCls("primary")} onClick={onSwitchToDev}>개발계로 보기</button>}
+          {refresh}
+        </div>
+      </div>
+    );
+  }
   if (err) return <div className="space-y-2"><p className="text-[13px] text-rose-700">{err}</p>{refresh}</div>;
   if (!data) return <p className="text-[13px] text-ink-soft">불러오는 중…</p>;
 
