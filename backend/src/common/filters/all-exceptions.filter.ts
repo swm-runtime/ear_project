@@ -125,18 +125,23 @@ export class AllExceptionsFilter implements ExceptionFilter {
     // 그 상태로 답한다(2026-10-07 운영 실측: Sentry 웹훅 본문이 한도를 넘겨 500 INTERNAL_ERROR 로 찍혔다)
     const bodyParserStatus = bodyParserErrorStatus(exception);
     if (bodyParserStatus !== null) {
+      // `request.aborted` — 클라이언트가 본문을 다 보내기 전에 연결을 끊었다(앱 백그라운드 전환·망 전환).
+      // 서버 잘못이 아니고 사용자 영향도 없어(다음 저장 때 다시 보낸다) info 로만 남긴다 — 2026-10-08 운영에서
+      // 재생 위치 저장 PUT 이 500 으로 뭉개져 Sentry high-priority 알림을 울렸다
+      const aborted = isRequestAborted(exception);
       return {
         status: bodyParserStatus,
-        logLevel: 'warn',
+        logLevel: aborted ? 'info' : 'warn',
         body: {
           error_code:
             STATUS_ERROR_CODES[bodyParserStatus] ?? ErrorCode.VALIDATION_FAILED,
-          message:
-            bodyParserStatus === PAYLOAD_TOO_LARGE_STATUS
+          message: aborted
+            ? '요청이 중단됐어요'
+            : bodyParserStatus === PAYLOAD_TOO_LARGE_STATUS
               ? '요청이 너무 커요'
               : (STATUS_MESSAGES[bodyParserStatus] ??
                 '요청을 처리할 수 없어요'),
-          retryable: false,
+          retryable: aborted,
           retry_after_sec: null,
           trace_id: traceId,
         },
@@ -231,9 +236,20 @@ export class AllExceptionsFilter implements ExceptionFilter {
   }
 }
 
+/** raw-body 가 클라이언트 전송 중단에 붙이는 `type` — `createError(400, 'request aborted', { type: 'request.aborted' })` */
+const REQUEST_ABORTED_TYPE = 'request.aborted';
+
+function isRequestAborted(exception: unknown): boolean {
+  return (
+    exception instanceof Error &&
+    (exception as Error & { type?: unknown }).type === REQUEST_ABORTED_TYPE
+  );
+}
+
 /**
- * body-parser(raw-body) 오류 판별 — `type` 이 `entity.*` 이고 4xx `status` 를 가진 Error. 그 밖의 Error 는 null.
- * 파서가 Nest 파이프라인 밖(미들웨어)에서 던져 HttpException 으로 감싸이지 않는다.
+ * body-parser(raw-body) 오류 판별 — `type` 이 `entity.*`(크기·형식) 또는 `request.aborted`(전송 중단)이고
+ * 4xx `status` 를 가진 Error. 그 밖의 Error 는 null. 파서가 Nest 파이프라인 밖(미들웨어)에서 던져
+ * HttpException 으로 감싸이지 않는다.
  */
 function bodyParserErrorStatus(exception: unknown): number | null {
   if (!(exception instanceof Error)) return null;
@@ -241,7 +257,11 @@ function bodyParserErrorStatus(exception: unknown): number | null {
     type?: unknown;
     status?: unknown;
   };
-  if (typeof type !== 'string' || !type.startsWith('entity.')) return null;
+  if (
+    typeof type !== 'string' ||
+    !(type.startsWith('entity.') || type === REQUEST_ABORTED_TYPE)
+  )
+    return null;
   return typeof status === 'number' && status >= 400 && status < 500
     ? status
     : null;
