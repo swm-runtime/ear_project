@@ -72,6 +72,8 @@ export const cfg = {
   qaModel: process.env.QA_MODEL || "claude-sonnet-5",
   /** 추천 메타 판정 (KAN-53) — 판정 5종은 분류 작업이라 Sonnet 으로 충분. 편당 $0.1~0.3 */
   enrichModel: process.env.ENRICH_MODEL || "claude-sonnet-5",
+  /** 화면 해시태그(KAN-139) — 켜면 enrichment.json 에 tags 를 싣고 형식을 3으로 올린다. 서버(BE)가 형식 3을 받기 전까지 끈다 — 모르는 키·높은 형식은 파일째 거부된다(admin-api 4.6). 꺼져 있어도 태그는 판정해 리포트에 남긴다 */
+  enrichTags: process.env.ENRICH_TAGS ? process.env.ENRICH_TAGS === "1" : false,
   /** QA 실행 형태 (2026-09-08 비용 절감 ②): single = 입력 인라인·도구 없음·리포트는 JSON 으로(기본) · agent = 구 방식(파일 읽기·리포트 쓰기 루프). QA_MODE=agent 로 복귀 */
   qaMode: (process.env.QA_MODE === "agent" ? "agent" : "single") as "single" | "agent",
   /** 단계별 생각 토큰 상한 (2026-09-08 비용 절감 ④). 비우면 모델 기본. 판정·대조(QA·비평·설계)는 상한을 걸어도 판정이 유지됨을 실측 후 기본값을 둔다 */
