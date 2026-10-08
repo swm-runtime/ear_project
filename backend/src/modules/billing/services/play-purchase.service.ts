@@ -74,7 +74,9 @@ export class PlayPurchaseService {
 
       // 같은 스토어에 살아 있는 구독이 따로 있는데 그 행에 이어지지 않는 구매 — 두 번째 구독이다(4.4). 거부하고
       // 확인하지 않는다(아래 `acknowledgeIfNeeded`에 닿지 않는다) — 확인되지 않은 구매는 Google이 3일 안에 자동 환불한다
-      if (await this.isDuplicateSubscription(userId, snapshot, manager)) {
+      if (
+        (await this.duplicateCheck(userId, snapshot, manager)) === 'duplicate'
+      ) {
         throw alreadySubscribed();
       }
 
@@ -218,9 +220,15 @@ export class PlayPurchaseService {
         }
 
         // 두 번째 구독의 알림(4.7) — 반영도 확인도 하지 않는다. 주인이 있으니 처리 완료로는 둔다(재전송돼도 같다)
-        if (await this.isDuplicateSubscription(ownerId, snapshot, manager)) {
+        const duplicate = await this.duplicateCheck(ownerId, snapshot, manager);
+        if (duplicate === 'duplicate') {
           acknowledge = false;
           return { kind: 'ignored', reason: 'duplicate_subscription' };
+        }
+        // 이미 끝난 옛 토큰(교체 사슬의 중간)의 알림 — 두 번째 구독이 아니다. 반영·경보 없이 넘긴다
+        if (duplicate === 'stale') {
+          acknowledge = false;
+          return { kind: 'ignored', reason: 'replaced_token' };
         }
 
         const result = await this.billingSyncService.applyStoreSnapshot(
@@ -305,13 +313,18 @@ export class PlayPurchaseService {
 
   /**
    * 그 사용자에게 같은 스토어의 살아 있는 구독 행이 따로 있는가(`subscription-api.md` 4.4). 교체로 산 구매는
-   * `resolvePlayOriginalId`가 기존 행의 키를 돌려주므로 여기 걸리지 않는다. 걸리면 Slack 결제 알림에 올린다
+   * `resolvePlayOriginalId`가 기존 행의 키를 돌려주므로 여기 걸리지 않는다. 걸리면 Slack 결제 알림에 올린다.
+   *
+   * **이 구매가 이미 끝났으면(만료·환불·결제 재시도) 두 번째 구독이 아니다 — `stale`**(2026-10-08 개발계 실측).
+   * 행은 최초 토큰(`original_transaction_id`)과 마지막 토큰(`latest_receipt`)만 기억해서, 요금제를 여러 번 바꾼 사슬의
+   * **중간 토큰**이 늦게 만료 알림(RTDN 13)을 받으면 어느 행에도 이어지지 않는다. 그걸 "두 번째 구독"으로 보면
+   * 요금제를 두세 번 바꿀 때마다 거짓 "중복 구독" 결제 경보가 Slack 에 간다. 살아 있는 두 번째 구독만 경보 대상이다
    */
-  private async isDuplicateSubscription(
+  private async duplicateCheck(
     userId: string,
     snapshot: PlaySnapshot,
     manager: EntityManager,
-  ): Promise<boolean> {
+  ): Promise<'none' | 'duplicate' | 'stale'> {
     const other = await this.billingSyncService.findOtherLiveSubscription(
       userId,
       SubscriptionStore.PLAY_STORE,
@@ -320,7 +333,16 @@ export class PlayPurchaseService {
     );
 
     if (other === null) {
-      return false;
+      return 'none';
+    }
+
+    if (!isEntitled(snapshot.status)) {
+      this.logger.log('stale play token ignored', {
+        user_id: userId,
+        existing_subscription_id: other.id,
+        status: snapshot.status,
+      });
+      return 'stale';
     }
 
     this.logger.warn('duplicate play subscription rejected', {
@@ -331,7 +353,7 @@ export class PlayPurchaseService {
       SubscriptionStore.PLAY_STORE,
     );
 
-    return true;
+    return 'duplicate';
   }
 
   /** 구매가 어느 구독 행의 것인지 정하고(토큰 사슬) 우리 의미로 환산한다 */
