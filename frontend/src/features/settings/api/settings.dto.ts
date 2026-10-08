@@ -26,6 +26,8 @@ export interface SettingsPlanDto {
    * 선택 필드로 둔다 — 필드를 아직 안 보내는 서버(운영 반영 전)에서는 없을 수 있고, 그때는 null로 읽는다
    */
   trial?: SettingsPlanTrialDto | null;
+  /** 예약된 요금제 변경(profile-api.md 4.1 "`plan.pending_plan`" — 같은 조립 함수, 2026-10-08 KAN-161). 없거나 null 이면 예약 없음 */
+  pending_plan?: { tier: string; plan_name: string; effective_at: string } | null;
 }
 
 export interface SettingsPlanTrialDto {

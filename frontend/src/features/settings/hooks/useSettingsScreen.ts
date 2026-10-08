@@ -47,7 +47,13 @@ export type PlanRowVM =
    * **무료 상태에만 싣는다** — 구독자가 체험 중이어도 줄은 구독 문구 그대로다(profile-uiux.md 4.2)
    */
   | { kind: 'free'; dailyPlayLimit: number | null; trialLastFreeDate: string | null }
-  | { kind: 'subscribed'; planName: string; renewsAt: string | null }
+  /** pendingPlan — 다운그레이드 예약이면 "N월 N일까지 이용 · 이후 {다음}"(PM 2026-10-08) */
+  | {
+      kind: 'subscribed';
+      planName: string;
+      renewsAt: string | null;
+      pendingPlan: { planName: string; effectiveAt: string } | null;
+    }
   | { kind: 'cancelScheduled'; planName: string; expiresAt: string | null }
   | { kind: 'grace'; planName: string };
 
@@ -78,7 +84,12 @@ const toPlanRowVM = (plan: SettingsPlan): PlanRowVM => {
         trialLastFreeDate: plan.trialLastFreeDate,
       };
     case 'subscribed':
-      return { kind: 'subscribed', planName: plan.planName, renewsAt: plan.renewsAt };
+      return {
+        kind: 'subscribed',
+        planName: plan.planName,
+        renewsAt: plan.renewsAt,
+        pendingPlan: plan.pendingPlan,
+      };
     case 'cancel_scheduled':
       return { kind: 'cancelScheduled', planName: plan.planName, expiresAt: plan.expiresAt };
     case 'grace':

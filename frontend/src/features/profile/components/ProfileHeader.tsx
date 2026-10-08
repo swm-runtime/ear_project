@@ -76,7 +76,7 @@ const AVATAR_ICON_SIZE = 36;
  * 진입점이다 — 프로필의 이메일 등록·인증 진입은 profile.md 4.3이 소유한다.
  */
 /** 상태별 문구 — 서버가 정규화한 4분기를 그대로 그린다(재판정 금지) */
-const planText = (vm: PlanCardVM): string => {
+export const planText = (vm: PlanCardVM): string => {
   switch (vm.kind) {
     case 'free':
       // 체험 여부는 서버의 plan.trial로만 본다 — tier === 'trial' 분기 금지(profile-api.md 4.1)
@@ -84,6 +84,9 @@ const planText = (vm: PlanCardVM): string => {
         ? PROFILE_COPY.plan.free(vm.dailyPlayLimit)
         : PROFILE_COPY.plan.trial(vm.trialLastFreeDate);
     case 'subscribed':
+      if (vm.pendingPlan !== null) {
+        return `${vm.planName} · ${PROFILE_COPY.plan.pendingPlan(vm.pendingPlan.effectiveAt, vm.pendingPlan.planName)}`;
+      }
       return vm.renewsAt === null
         ? vm.planName
         : `${vm.planName} · ${PROFILE_COPY.plan.renewsAt(vm.renewsAt)}`;

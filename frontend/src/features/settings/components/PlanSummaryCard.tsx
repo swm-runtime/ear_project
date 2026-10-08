@@ -18,7 +18,7 @@ interface PlanSummaryCardProps {
 }
 
 /** 상태별 본문 — 프로필 플랜 카드와 같은 문구·같은 톤을 쓴다(settings-uiux.md 4.1 표) */
-const valueText = (vm: PlanRowVM): string => {
+export const valueText = (vm: PlanRowVM): string => {
   switch (vm.kind) {
     case 'free':
       // 체험 여부는 서버의 plan.trial로만 본다 — tier === 'trial' 분기 금지(settings-api.md 4.1)
@@ -26,6 +26,9 @@ const valueText = (vm: PlanRowVM): string => {
         ? SETTINGS_COPY.plan.free(vm.dailyPlayLimit)
         : SETTINGS_COPY.plan.trial(vm.trialLastFreeDate);
     case 'subscribed':
+      if (vm.pendingPlan !== null) {
+        return `${vm.planName} · ${SETTINGS_COPY.plan.pendingPlan(vm.pendingPlan.effectiveAt, vm.pendingPlan.planName)}`;
+      }
       return vm.renewsAt === null
         ? vm.planName
         : `${vm.planName} · ${SETTINGS_COPY.plan.renewsAt(vm.renewsAt)}`;

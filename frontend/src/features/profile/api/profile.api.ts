@@ -84,6 +84,12 @@ const toProfileSummary = (dto: ProfileSummaryResponseDto): ProfileSummary => ({
           expiresAt: dto.plan.expires_at,
           hasPaymentIssue: dto.plan.has_payment_issue,
           trial: toPlanTrial(dto.plan.trial),
+          pendingPlan: dto.plan.pending_plan
+            ? {
+                planName: dto.plan.pending_plan.plan_name,
+                effectiveAt: dto.plan.pending_plan.effective_at,
+              }
+            : null,
         },
   interestSummary:
     dto.interest_summary === null

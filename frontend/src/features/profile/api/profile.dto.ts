@@ -32,6 +32,11 @@ export interface ProfilePlanDto {
    * 선택 필드로 둔다 — 필드를 아직 안 보내는 서버(운영 반영 전)에서는 없을 수 있고, 그때는 null로 읽는다
    */
   trial?: ProfilePlanTrialDto | null;
+  /**
+   * 예약된 요금제 변경(profile-api.md 4.1 "`plan.pending_plan`", 2026-10-08 KAN-161) — 다운그레이드 예약이면 다음 요금제와
+   * 적용 시각, 없으면 null. 선택 필드 — 아직 안 보내는 서버에서는 없고, 그때는 null 로 읽는다
+   */
+  pending_plan?: { tier: string; plan_name: string; effective_at: string } | null;
 }
 
 export interface ProfilePlanTrialDto {
