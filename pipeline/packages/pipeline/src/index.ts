@@ -192,7 +192,7 @@ d) **script.md** — 대본. 규격:
    - **발화 줄 형식 (TTS 파서 계약 — 정확히 지킬 것)**: 번호 턴은 \`[윤아] E1 · 문장\` / \`[이음] Y1 · 문장\` — 화자 라벨이 먼저, 번호 뒤 구분자는 **가운뎃점(·)**. \`Y1.\`(마침표)·\`E1 [윤아]\`(번호 선행) 같은 변형 금지 — 파싱이 실패해 합성이 중단된다.
 ${templateBlock(i)}
    - 도입 (규칙 13, v5.1 개정 — **주제를 먼저 소개하고 시작한다**. 에둘러 들어가지 말 것): 주제 선언 뒤 첫 해설 턴 사이에 짧은 진입 구간(두세 턴)을 둔다. 주제는 인트로가 이미 말했으므로 **다시 발견하는 척("그 질문이 오늘 주제랑 닿아 있어요" 류) 금지**. 그 진입 방식 (이 에피소드 전용 지정): **${i.introStyle.label}** — ${i.introStyle.hint} 골드의 [도입]은 구 규칙 판이라 자리표기로 비워 두었다 — 형태를 참조할 것이 없으니 규칙 13 문장대로 쓴다. 인트로 골격은 고정이지만 질문의 재료는 매번 새로.
-   - 분량: **공백·기호 제외 4,500자 이상 목표, 5,000자 내외 이상적** (350자/분 기준 약 13~15분). 채우기용 잡담·같은 말 반복 금지.
+   - 분량: **공백·기호 제외 4,500자 이상 목표, 5,000자 내외 이상적** (341자/분 기준 약 13~15분). 채우기용 잡담·같은 말 반복 금지.
 ${COMMON_RULES}
 
 ## 4. 마무리 자기 점검 (필수)
@@ -208,7 +208,7 @@ export const DRAFT_SCHEMA = {
   properties: {
     turns: { type: "integer", description: "본편 발화 턴 수 (템플릿 제외)" },
     chars: { type: "integer", description: "공백·기호 제외 글자 수" },
-    minutes: { type: "number", description: "350자/분 환산 분량" },
+    minutes: { type: "number", description: "341자/분 환산 분량" },
     sources_used: { type: "array", items: { type: "string" }, description: "사용한 소스 URL" },
     sources_excluded: { type: "array", items: { type: "object", additionalProperties: false, required: ["url", "reason"], properties: { url: { type: "string" }, reason: { type: "string" } } } },
     self_check_fixes: { type: "array", items: { type: "string" }, description: "자기 점검에서 발견·수정한 발췌 밖 주장" },
@@ -817,7 +817,7 @@ ${WRITE_FACT_RULES}
 - 제목은 구성안의 축에 맞게 새로 지어도 된다 (클릭베이트 금지).
 ${templateBlock({ templates: i.templates, majorTopic: i.majorTopic, signoffSeed: i.signoffSeed } as DraftInput)}
 - 도입 (규칙 13): 주제 선언 뒤 첫 해설 턴 사이에 청취자가 "대화에 앉는" 두세 턴. 주제를 다시 발견하는 척 금지. 이 에피소드의 진입 방식: **${i.introStyle.label}** — ${i.introStyle.hint}${isHistoryTopic(i.candidate.mid_topic) ? "\n" + HISTORY_WRITE_RULE : ""}
-- **이 에피소드의 목표: 약 ${i.estimatedMinutes ?? 15}분 = 공백·기호 제외 약 ${Math.round((i.estimatedMinutes ?? 15) * 350)}자 (±15%)** — 구성안의 "예상 분량"이다 (350자/분). 하한 13분(약 4,300자)은 필수이고 상한을 규칙으로 두지는 않지만, **예상 분량은 설계가 재료 총량으로 이미 정한 크기다** — 그보다 크게 쓰는 것은 재료가 많아서가 아니라 풀어 쓰기가 길어진 것이다.
+- **이 에피소드의 목표: 약 ${i.estimatedMinutes ?? 15}분 = 공백·기호 제외 약 ${Math.round((i.estimatedMinutes ?? 15) * 341)}자 (±15%)** — 구성안의 "예상 분량"이다 (341자/분). 하한 13분(약 4,300자)은 필수이고 상한을 규칙으로 두지는 않지만, **예상 분량은 설계가 재료 총량으로 이미 정한 크기다** — 그보다 크게 쓰는 것은 재료가 많아서가 아니라 풀어 쓰기가 길어진 것이다.
 
 ## 이 에피소드의 재료
 ### 구성안 — outline.md (계약: 구간 순서·목적·재료·진행자 질문·전환 장치를 그대로 실행한다)

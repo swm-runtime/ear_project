@@ -38,13 +38,13 @@ export async function runPackage(job: Job) {
     pool.query("select explainer from public.topics where mid = $1", [cand.mid_topic]).then((x) => (x.rows[0]?.explainer as string) ?? "이음"),
   ]);
 
-  // 분량: 오디오가 있으면 실측, 없으면 대본 글자수 환산 (350자/분 — spec/04 잠정값)
+  // 분량: 오디오가 있으면 실측, 없으면 대본 글자수 환산 (341자/분 — eleven_v4 실측, spec/04)
   let durationMin: number | null = null;
   const distLocal = localPathOf(r.audio_dist_key);
   if (distLocal && (await exists(distLocal))) durationMin = Math.round((await probeDurationSec(distLocal)) / 60);
   else if (localPathOf(ep.script_key) && (await exists(localPathOf(ep.script_key)!))) {
     const md = await fs.readFile(localPathOf(ep.script_key)!, "utf-8");
-    durationMin = Math.round(md.replace(/[^가-힣A-Za-z0-9]/g, "").length / 350);
+    durationMin = Math.round(md.replace(/[^가-힣A-Za-z0-9]/g, "").length / 341);
   }
 
   const meta = {
