@@ -146,11 +146,11 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
   };
 }
 
-/** 공백·기호 제외 글자 수·턴 수·분량 환산 (350자/분) — 모델 자기보고 대신 워커가 센다 */
+/** 공백·기호 제외 글자 수·턴 수·분량 환산 (341자/분 — eleven_v4 실측, 2026-10-08) — 모델 자기보고 대신 워커가 센다 */
 export function scriptStats(md: string): { turns: number; chars: number; minutes: number } {
   const p = parseScriptForTts(md);
   const chars = p.turns.reduce((n, t) => n + (t.text.match(/[가-힣A-Za-z0-9]/g)?.length ?? 0), 0);
-  return { turns: p.turns.length, chars, minutes: Math.round((chars / 350) * 10) / 10 };
+  return { turns: p.turns.length, chars, minutes: Math.round((chars / 341) * 10) / 10 };
 }
 
 /** 2단계 L0 — 구성안 계약(구간 수·순서)과 분량 하한(13분 ≈ 4,300자)을 기계로 검사한다. 위반은 재생성 연쇄로. 하한은 2026-10-08 박수헌: eleven_v4 말 속도(실측 341자/분)에 맞춰 4,000 → 4,300 */
