@@ -8,6 +8,9 @@ import { Text } from '@/shared/ui/Typography';
 import { EXPLORE_COPY } from '../explore.copy';
 import type { ExploreItem } from '../explore.types';
 
+/** 카드 하단 줄에 싣는 해시태그 수 — 한 줄에 길이와 함께 들어가야 한다 */
+const MAX_CARD_TAGS = 2;
+
 interface ExploreTileProps {
   item: ExploreItem;
   /** 타일 탭 = 곧장 재생 판정. 상세 화면을 끼우지 않는다(explore-uiux.md 4.1) */
@@ -58,8 +61,9 @@ export default function ExploreTile({
         <Text style={styles.title} numberOfLines={2}>
           {item.content.title}
         </Text>
+        {/* 콘텐츠 해시태그(최대 2) + 길이(KAN-163). 태그가 없으면 길이만 — 자리를 비우지 않는다. 표시만, 탭 없음 */}
         <Text style={styles.meta} numberOfLines={1}>
-          {EXPLORE_COPY.row.durationLabel(minutes)}
+          {EXPLORE_COPY.row.metaWithTags(item.content.tags.slice(0, MAX_CARD_TAGS), minutes)}
         </Text>
       </Pressable>
 

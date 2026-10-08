@@ -133,10 +133,16 @@ export default function ExploreFeaturedCard({
           거의 없었고, 작은 타일(ExploreTile)은 애초에 길이만 적어 대표 카드만 저자를 보여 주는 것도 어긋났다.
           주제는 탐색에서 고르는 축이라 같은 자리에 더 쓸모 있다
         */}
+        {/*
+          콘텐츠 해시태그가 있으면 그것을(KAN-163 — 타일과 같은 줄), 아직 없는 콘텐츠(소급 전)는 종전대로 주제 이름을 쓴다.
+          '#'이 둘을 가리키는 기간은 태그 소급이 끝나면 사라진다
+        */}
         <Text style={styles.meta} numberOfLines={1}>
-          {topicNames.length > 0
-            ? `${EXPLORE_COPY.row.hashtags(topicNames.slice(0, MAX_TOPIC_TAGS))} · ${EXPLORE_COPY.row.durationLabel(minutes)}`
-            : EXPLORE_COPY.row.durationLabel(minutes)}
+          {item.content.tags.length > 0
+            ? EXPLORE_COPY.row.metaWithTags(item.content.tags.slice(0, MAX_TOPIC_TAGS), minutes)
+            : topicNames.length > 0
+              ? `${EXPLORE_COPY.row.hashtags(topicNames.slice(0, MAX_TOPIC_TAGS))} · ${EXPLORE_COPY.row.durationLabel(minutes)}`
+              : EXPLORE_COPY.row.durationLabel(minutes)}
         </Text>
         <Pressable
           style={styles.moreButton}

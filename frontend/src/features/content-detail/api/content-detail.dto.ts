@@ -35,6 +35,8 @@ export interface ContentDetailContentDto {
   thumbnail_url: string;
   content_version: number;
   topics: ContentDetailTopicDto[];
+  /** 화면 해시태그('#' 없이, 2~4개 — content-detail-api.md 4.1, KAN-162). 없으면 빈 배열. 아직 안 보내는 서버면 없다 */
+  tags?: string[];
   series: ContentDetailSeriesDto | null;
   origin: 'partner' | 'ai_generated';
   author_name: string | null;

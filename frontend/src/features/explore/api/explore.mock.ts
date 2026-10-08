@@ -84,6 +84,13 @@ const POOL_TOPICS = [
  * 두 화면에서 같은 콘텐츠로 보이게 한다(제목 생성 규칙을 library.mock과 맞춘 값이다).
  * content-101~118은 탐색에만 노출되는 미담김 콘텐츠다.
  */
+/** mock 해시태그 묶음 — 띄어쓰기 없는 2~10자(explore-api.md 4.1) */
+const MOCK_TAGS: string[][] = [
+  ['협상', '앵커링'],
+  ['뱅크런', '예금보험', '금리'],
+  ['회의', '결정권', '안건정리', '시간관리'],
+];
+
 const makeContent = (seq: number, exploreOnly: boolean): ExploreContentDto => {
   const topic = POOL_TOPICS[seq % POOL_TOPICS.length];
   return {
@@ -99,6 +106,8 @@ const makeContent = (seq: number, exploreOnly: boolean): ExploreContentDto => {
     thumbnail_url: `https://picsum.photos/seed/content-${seq}/200`,
     content_version: 1,
     topic_ids: [topic.id],
+    // 해시태그 — 일부는 비워 "줄 숨김·길이만"을 검증한다(KAN-163)
+    tags: seq % 4 === 3 ? [] : MOCK_TAGS[seq % MOCK_TAGS.length],
   };
 };
 

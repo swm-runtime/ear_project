@@ -92,6 +92,13 @@ const makeContent = (seq: number): ContentDetailContentDto => {
     content_version: 1,
     // 주제 태그 — 첫 번째가 목록 mock의 topic_ids와 같은 주제다. 일부는 2개로 복수 태그를 검증한다
     topics: seq % 3 === 0 ? [topic, POOL_TOPICS[(seq + 2) % POOL_TOPICS.length]] : [topic],
+    // 해시태그 — 탐색 mock 과 같은 규칙(일부는 비워 줄 숨김을 검증, KAN-163)
+    tags:
+      seq % 4 === 3
+        ? []
+        : [['협상', '앵커링'], ['뱅크런', '예금보험', '금리'], ['회의', '결정권', '안건정리', '시간관리']][
+            seq % 3
+          ],
     series: hasSeries
       ? { series_id: `series-${seq}`, episode_no: (seq % 3) + 1, total_episodes: 3 }
       : null,
