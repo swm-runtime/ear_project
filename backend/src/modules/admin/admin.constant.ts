@@ -116,3 +116,14 @@ export const AUDIT_ACTION_NOTICE_DELETE = 'notice.delete';
 export const AUDIT_ACTION_TOPIC_AUTO_HIDE = 'topic.auto_hide';
 /** 자동 숨김을 배치가 수행했을 때의 감사 로그 actor — 사람이 아닌 실행 주체를 명시한다 */
 export const SYSTEM_AUDIT_ACTOR = 'system';
+
+/**
+ * 서비스 지표 요약(`admin-api.md` 4.22 — 로그 콘솔 "서비스 지표" 탭). 추이 창(일)의 기본·상한과 순위 길이.
+ * 순위 15 — 화면 한 표에 스크롤 없이 들어가는 길이이고, 그 아래는 개별 사용자·콘텐츠를 들여다보는 일이라
+ * 집계 대시보드의 몫이 아니다(2026-10-08 사용자 요청 "top 10~15").
+ */
+export const INSIGHTS_SUMMARY_DEFAULT_DAYS = 14;
+export const INSIGHTS_SUMMARY_MAX_DAYS = 90;
+export const INSIGHTS_RANK_LIMIT = 15;
+/** 리텐션을 재는 가입 뒤 일수 — D1·D7·D30(앱 업계 관행) */
+export const INSIGHTS_RETENTION_DAYS: readonly number[] = [1, 7, 30];

@@ -29,6 +29,8 @@ const LOG_NAV: NavItem[] = [
   { href: "/backend-logs/traffic", label: "요청 통계", icon: Chart },
   // 검색 질의 로그 요약 — 다른 탭과 달리 CloudWatch 가 아니라 제품 API 의 DB 를 읽는다(admin-api 4.21)
   { href: "/backend-logs/search", label: "검색 로그", icon: Search, note: "실배포" },
+  // 서비스 지표 — 가입·탈퇴·청취·순위·리텐션. 검색 로그처럼 제품 API 의 DB 를 읽는다(admin-api 4.22, 2026-10-08)
+  { href: "/backend-logs/insights", label: "서비스 지표", icon: Chart, note: "실배포" },
 ];
 
 /**
