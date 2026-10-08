@@ -18,6 +18,8 @@ class ExploreContentDto {
   /** 올라갔으면 클라이언트가 저장한 위치·오프라인 파일을 폐기한다 */
   readonly content_version: number;
   readonly topic_ids: string[];
+  /** 화면 해시태그('#' 없이 — 붙이는 것은 화면). 없으면 빈 배열 (KAN-162) */
+  readonly tags: string[];
 }
 
 /**
@@ -55,6 +57,7 @@ export class ExploreItemDto {
         thumbnail_url: view.content.thumbnailUrl,
         content_version: view.content.contentVersion,
         topic_ids: view.content.topicIds,
+        tags: view.content.tags,
       },
       library: view.library
         ? {

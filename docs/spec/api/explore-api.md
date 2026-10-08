@@ -123,7 +123,8 @@
             "duration_sec": 620,
             "thumbnail_url": "https://...",
             "content_version": 1,
-            "topic_ids": ["uuid"]
+            "topic_ids": ["uuid"],
+            "tags": ["협상", "앵커링"]
           },
           "library": null,
           "is_counted_today": false
@@ -156,6 +157,7 @@
 | `sections[].title` | **화면에 그대로 그리는 문자열.** 섹션 구성·순서·제목은 서버 제어다(`explore.md` 4.1) — 클라이언트가 `key`로 제목을 하드코딩하면 서버가 섹션을 바꿀 수 없다 |
 | `sections[].topic` | `topic_group` 섹션만 값이 있다. 탭 시 그 주제로 4.2를 호출하는 데 쓴다 |
 | `sections[].period` | **`popular` 섹션만 값이 있다**(`week` / `month` / `all`). 그 섹션이 어느 구간으로 만들어졌는지이며, **구간 토글의 선택 상태를 그리는 근거다**(`explore-uiux.md` 4.10). 다른 섹션에서는 생략하거나 `null`이다 |
+| `content.tags` | 화면 해시태그('#' 없이 — **'#'은 화면이 붙인다**). 2~4개, 받은 적 없는 콘텐츠는 **빈 배열**(`null`이 아니다). 표시용이며 탭 동작·필터 연결은 없다(추가 2026-10-08, KAN-162 — 저장은 `domain.md` 5.1 `contents.tags`). 4.2·4.4·검색 결과도 같은 항목 모양이라 함께 실린다 |
 | `library` | 이 콘텐츠의 라이브러리 상태. **없으면 `null`** — 라이브러리에 담기지 않은 상태다 |
 | `library.item_id` / `source` / `status` | `library_items` 원값. **더보기 시트의 담기/제거 분기와 완청 체크 마킹**에 쓴다(`explore-uiux.md` 4.1) — 완청은 `status == 'completed'`로 가르며, **행에 담김 표시는 두지 않는다** |
 | `is_counted_today` | 이 콘텐츠가 **재청취 창 안**에 있는가 — 최근 15일(당일 포함) 내 차감 행(`play_records.is_counted = true`)이 있어, 재생해도 차감이 없는 상태(개정 2026-08-10 — `paywall.md` 4.3-1 · `library-api.md` 4.1과 같은 필드, 같은 정의). 재생 확인 팝업을 **탭 즉시** 띄우기 위한 힌트다 |
