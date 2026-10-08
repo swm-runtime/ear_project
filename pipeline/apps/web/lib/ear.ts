@@ -337,3 +337,34 @@ export interface EarSearchQueryLogSummary {
 /** 옛 서버 응답(필드 없음)도 화면이 읽을 수 있게 채운다 — 규칙은 `search-query-log-normalize.ts` */
 export const getEarSearchQueryLogSummary = async (ch: EarChannel, days: number): Promise<EarSearchQueryLogSummary> =>
   normalizeSearchQueryLogSummary(await earFetch<RawSearchQueryLogSummary>(`/admin/search-query-logs/summary?days=${days}`, { cache: "no-store" }, ch));
+
+// ── 서비스 지표 요약 (admin-api 4.22 — 로그 콘솔 "서비스 지표" 탭, 2026-10-08) ──
+
+/** 전부 집계값과 user_id 뿐이다 — 서버가 이름·이메일을 싣지 않는다(루트 CLAUDE.md 개인정보 원칙) */
+export interface EarInsightsListening {
+  listen_sec: number; plays: number; completes: number; complete_rate: number | null; listeners: number; saves: number;
+  avg_listen_sec_per_play: number | null; avg_listen_sec_per_listener: number | null;
+}
+export interface EarInsightsSummary {
+  days: number; since: string; generated_at: string;
+  users: {
+    total_signups: number; current: number; withdrawals: number; withdrawal_rate: number | null;
+    onboarding_completed: number; onboarding_rate: number | null; trial_active: number;
+    tiers: { light: number; daily: number; pro: number }; paid_active: number; paid_rate: number | null;
+    activated: number; activation_rate: number | null;
+    active_1d: number; active_7d: number; active_30d: number; stickiness: number | null;
+    listeners_1d: number; listeners_7d: number; listeners_30d: number;
+    listener_rate_1d: number | null; listener_rate_7d: number | null; listener_rate_30d: number | null;
+    by_provider: { provider: string; count: number }[];
+  };
+  listening: { all_time: EarInsightsListening; window: EarInsightsListening };
+  daily: { date: string; signups: number; withdrawals: number; plays: number; listeners: number; listen_sec: number; completes: number }[];
+  hourly: { hour: number; plays: number; listen_sec: number }[];
+  top_users: { user_id: string; listen_sec: number; plays: number; completes: number; tier: string; signed_up_at: string; last_played_at: string }[];
+  top_contents: { content_id: string; title: string; duration_sec: number; listen_sec: number; plays: number; listeners: number; completes: number; complete_rate: number | null; saves: number }[];
+  withdrawal_reasons: { reason_code: string | null; count: number }[];
+  retention: { day: number; cohort_size: number; returned: number; rate: number | null }[];
+}
+/** 열 때 1회 + [새로고침] — 자동 폴링하지 않는다(backend-monitoring.md 3장). 서버도 no-store */
+export const getEarInsightsSummary = (ch: EarChannel, days: number) =>
+  earFetch<EarInsightsSummary>(`/admin/insights/summary?days=${days}`, { cache: "no-store" }, ch);

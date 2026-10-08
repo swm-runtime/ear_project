@@ -79,3 +79,6 @@ Android는 Pro·Daily가 **독립된 정기 결제**라 Google은 둘 다 살 �
   - **OTA 만으로 vc 34 에서 동작한다** — 모듈은 값을 받는 자리가 이미 있다. Kotlin 은 값이 null 이면 싣지 않도록 바꿨다(다음 빌드부터, 지금은 JS 가 null 을 보내지 않는다).
   - 거절(E_BILLING_5 · DeveloperError) → 전용 문구 `changeRejected`. 실패는 `logger.error` + Sentry(`reportError`)로 올린다(warn 은 개발 빌드에만 찍혀 preview 에서 안 남았다). 개발계 앱은 실패 안내에 스토어 원문을 덧붙인다.
   - 설정 버전 행: 개발계 앱에 ` · 빌드 <번호>`(nativeBuildVersion).
+- 2026-10-08 12:40 PM 실측: Daily→Pro(즉시) 통과 추정 · **Pro→Daily 에서 무한 로딩**. Sentry EAR-APP-D: 다시 시도한 결제가 `5: There is an existing deferred replacement for the old product` — 첫 시도에서 **예약은 Google 에 섰는데 앱이 결과를 못 받아** 로딩이 멈췄다.
+  - 원인: 교체 모듈은 자기 Billing 연결이라 결제 라이브러리의 구매 리스너가 울리지 않는다. 그런데 서비스는 반환값에서 **대상 상품(Daily)** 구매만 받아 확정하고 나머지는 리스너를 기다렸다. DEFERRED 교체는 대상이 아니라 지금 구독(Pro)의 구매가 오거나 빈 목록이라 영영 안 끝났다.
+- 2026-10-08 4차 반영(PR `fix(fe)/play-deferred-result`): 모듈 경로(`resolvesDirectly`)면 반환값이 전부 — 대상이 없으면 옛 구독 구매를 서버에 제출하고, 빈 목록이면 `delayed` 로 끝낸다. "이미 예약돼 있음"은 안내 톤 문구. 다운그레이드 성공인데 서버에 `pending_plan` 이 아직 없으면 "다음 결제일부터 바꾼 요금제가 적용돼요".

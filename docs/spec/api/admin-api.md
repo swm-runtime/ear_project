@@ -71,6 +71,7 @@
 | GET | `/admin/recommend-eval/snapshot` | 추천 평가 스냅샷 내보내기 — 발행 콘텐츠·익명 사용자 행동, 읽기 전용 (4.18) |
 | GET | `/admin/drip-feedback/versions` | 추천 알고리즘 버전별 별점 — 편성 수·평가 수·평균·분포, 버전 역순 (4.19) |
 | GET | `/admin/search-query-logs/summary` | 검색 질의 로그 요약 — 미스율·일별 추이·0건 질의·상위 질의, 읽기 전용 (4.21) |
+| GET | `/admin/insights/summary` | 서비스 지표 요약 — 가입·탈퇴·활성 사용자·청취 시간·완청률·사용자/콘텐츠 순위·리텐션·탈퇴 사유, 읽기 전용 (4.22) |
 
 ## 4. 엔드포인트 상세
 
@@ -540,6 +541,52 @@
 - `daily.date`는 **KST 달력일**이다(04시 서비스 날짜 경계를 쓰지 않는다 — 정책 판정이 아니라 운영자가 읽는 단위). 검색이 없던 날은 빠진다.
 - `missed`는 0건이 한 번이라도 있던 질의를 0건 수 내림차순으로, `top`은 검색 수 내림차순으로 각 최대 50개. `last_searched_at`은 그 질의의 마지막 요청 시각(`updated_at`).
 - 인증은 다른 `/admin/*`와 같다(2장). 400 `VALIDATION_FAILED` — `days` 범위 밖.
+
+### 4.22 `GET /admin/insights/summary` — 서비스 지표 요약 (읽기 전용)
+
+> 추가: 2026-10-08. 로그 콘솔 "서비스 지표" 탭(`backend-monitoring.md` 4장)이 읽는다 — 가입·탈퇴·청취를 수치로 보고 인사이트를 얻기 위한 화면. 다른 운영 지표 화면(일일 지표 Slack 보고 — GA4)과 달리 **전부 제품 DB 집계**다. **열 때 1회 + [새로고침]**만 호출하고 자동 폴링하지 않는다(3장) — 서버도 질의를 순차로 돌려 운영 DB 연결을 한 번에 하나만 쓴다.
+
+**Query** — `days` (선택, 정수 1~90, 기본 14): 추이(`daily`·`hourly`)와 창 집계(`listening.window`)의 일수. `now - days` 이후의 행만 센다. 누적 카드·순위·구조 표는 창과 무관하게 **전 기간**이다.
+
+**Response 200** (값은 예시)
+
+```json
+{
+  "days": 14, "since": "2026-09-24T03:00:00.000Z", "generated_at": "2026-10-08T03:00:00.000Z",
+  "users": {
+    "total_signups": 259, "current": 225, "withdrawals": 34, "withdrawal_rate": 0.131,
+    "onboarding_completed": 208, "onboarding_rate": 0.924, "trial_active": 139,
+    "tiers": { "light": 225, "daily": 0, "pro": 0 }, "paid_active": 0, "paid_rate": 0,
+    "activated": 149, "activation_rate": 0.662,
+    "active_1d": 63, "active_7d": 190, "active_30d": 220, "stickiness": 0.286,
+    "listeners_1d": 52, "listeners_7d": 130, "listeners_30d": 149,
+    "listener_rate_1d": 0.825, "listener_rate_7d": 0.684, "listener_rate_30d": 0.677,
+    "by_provider": [ { "provider": "kakao", "count": 180 } ]
+  },
+  "listening": {
+    "all_time": { "listen_sec": 122642, "plays": 373, "completes": 54, "complete_rate": 0.145, "listeners": 149, "saves": 119, "avg_listen_sec_per_play": 328.8, "avg_listen_sec_per_listener": 823.1 },
+    "window":   { "listen_sec": 70844, "plays": 233, "completes": 40, "complete_rate": 0.172, "listeners": 130, "saves": 61, "avg_listen_sec_per_play": 304.1, "avg_listen_sec_per_listener": 545.0 }
+  },
+  "daily":  [ { "date": "2026-10-08", "signups": 28, "withdrawals": 1, "plays": 88, "listeners": 52, "listen_sec": 25100, "completes": 9 } ],
+  "hourly": [ { "hour": 0, "plays": 3, "listen_sec": 900 } ],
+  "top_users":    [ { "user_id": "…", "listen_sec": 14953, "plays": 25, "completes": 6, "tier": "light", "signed_up_at": "…", "last_played_at": "…" } ],
+  "top_contents": [ { "content_id": "…", "title": "…", "duration_sec": 812, "listen_sec": 9000, "plays": 40, "listeners": 31, "completes": 8, "complete_rate": 0.2, "saves": 5 } ],
+  "withdrawal_reasons": [ { "reason_code": "low_usage", "count": 9 }, { "reason_code": null, "count": 3 } ],
+  "retention": [ { "day": 1, "cohort_size": 200, "returned": 50, "rate": 0.25 }, { "day": 7, "cohort_size": 150, "returned": 30, "rate": 0.2 }, { "day": 30, "cohort_size": 0, "returned": 0, "rate": null } ]
+}
+```
+
+- **개인 식별 정보는 어떤 필드에도 없다** — 사용자 순위는 `user_id`·티어·가입일·마지막 재생뿐이다(루트 CLAUDE.md 개인정보 원칙). 화면도 `user_id` 앞 8자만 적는다.
+- `total_signups` = `current`(`users` 행 수 — 탈퇴 행은 지워져 없으므로 `status` 필터를 두지 않는다) + `withdrawals`(`withdrawal_logs` 행 수). 탈퇴는 `users` 행을 지우므로(`domain.md` 12.3) 둘을 더해야 "가입한 적 있는 사람"이다. `withdrawal_rate` = `withdrawals / total_signups`.
+- `paid_active`는 `subscriptions`의 `status in (active, grace, cancelled)`(해지 예약은 만료일까지 유효 — `domain.md` 8.2) · `environment = production` · 미만료인 **사용자 수**(distinct)다. 샌드박스 결제는 세지 않는다. `trial_active`는 `users.trial_ends_at > now`.
+- `active_1d/7d/30d`는 **앱 사용 기준 DAU·WAU·MAU** — 그 창 안에 `sessions.issued_at`이 있는 사용자 수(distinct). 액세스 토큰이 30분(`ACCESS_TOKEN_TTL_SEC`)이라 앱을 열면 거의 매번 리프레시 회전으로 세션 행이 새로 생기므로, 서버가 가진 신호 중 "앱 실행"에 가장 가깝다(30분 안의 재실행은 안 잡히고, 세션 행 보존 30일이 창의 상한). `stickiness` = `active_1d / active_30d`.
+- `activated`는 `play_records`에 행이 하나라도 있는 사용자 수, `listeners_1d/7d/30d`는 그 창 안에 `played_at`이 있는 사용자 수(**재생** 기준). `listener_rate_*` = `listeners_* / active_*` — 활성 사용자 중 청취까지 간 비율(켜고 안 듣는 사람을 가른다).
+- 청취의 원천은 **`play_records`**(`listened_sec` 합·행 수·distinct 사용자)다. `content_stats`는 04시 배치 집계라 하루 뒤처지고 탈퇴자 몫이 남아 두 숫자는 다를 수 있다 — 이 응답은 전자다. `completes`는 `user_signals.action = complete` 수, `saves`는 `library_items.source = save` 수(삭제분 포함 — 담은 사실이 지표). 평균 두 개는 분모 0이면 `null`.
+- 모든 비율(`*_rate`·`stickiness`)은 **분모 0이면 `null`**(0%와 "셀 수 없음"을 구분). 표본이 작을 때의 "참고" 표시는 화면 몫이다.
+- `daily`는 `since`의 KST 날짜부터 오늘(KST)까지 **하루도 빠지지 않고**(기록 없는 날은 0), `hourly`는 0~23시 전부다. `daily.signups`는 `users.created_at`이라 그날 가입했다가 탈퇴한 사람은 빠진다(`withdrawal_logs`에는 가입일이 없다 — 생존 편향). 날짜는 **KST 달력일**이다(검색 로그 요약과 같은 기준 — 04/05시 서비스 날짜 경계를 쓰지 않는다. 정책 판정이 아니라 운영자가 읽는 단위).
+- `top_users`·`top_contents`는 전 기간 청취 시간 내림차순 각 최대 15. `top_contents.saves`는 그 콘텐츠를 직접 담은 수.
+- `retention`은 D1·D7·D30 — `cohort_size`는 가입한 지 `day`일이 지난 **현재 계정** 수, `returned`는 그중 가입 `day`일 뒤 이후 아무 때나 **앱을 쓴** 사람(토큰 갱신 `sessions.issued_at` 또는 재생 `play_records` — 세션 행은 30일만 보존되므로 영구 보존되는 재생을 합친다. 언바운디드). 탈퇴자는 분모에 없어 실제보다 높게 나온다(생존 편향). 하루만 보는(bounded) 방식은 수백 명 규모에서 표본이 너무 작아 쓰지 않는다.
+- 인증은 다른 `/admin/*`와 같다(2장). 400 `VALIDATION_FAILED` — `days` 범위 밖. 응답은 `Cache-Control: no-store`.
 
 ## 5. 에러 코드 표
 

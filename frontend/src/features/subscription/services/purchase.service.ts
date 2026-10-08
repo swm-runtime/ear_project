@@ -56,6 +56,8 @@ export type PurchaseFailure =
   | 'downgradeNeedsUpdate'
   /** 스토어가 요금제 변경을 거절했다(Play DEVELOPER_ERROR) */
   | 'changeRejected'
+  /** 이미 다음 갱신부터 바뀌는 예약이 있다(Play "existing deferred replacement") — 안내로 보인다 */
+  | 'downgradeAlreadyScheduled'
   | 'storeUnavailable'
   | 'network'
   | 'unknown';
@@ -137,7 +139,9 @@ const toFailure = (error: unknown): PurchaseFailure => {
       : error.kind === 'network'
         ? 'network'
         : error.kind === 'rejected'
-          ? 'changeRejected'
+          ? /existing deferred replacement/i.test(error.message)
+            ? 'downgradeAlreadyScheduled'
+            : 'changeRejected'
           : 'unknown';
   }
   if (!isApiError(error)) return 'unknown';
@@ -451,8 +455,25 @@ export const createPurchaseService = (deps: PurchaseServiceDeps) => {
             replace,
           });
           // 결과가 바로 왔으면(iOS) 그 거래로 확정한다. 리스너가 같은 거래를 또 들고 와도 한 번만 제출된다
-          const purchase = purchases.find((p) => p.productId === intent.storeProductId);
-          if (purchase) handlePurchaseUpdated(purchase);
+          const target = purchases.find((p) => p.productId === intent.storeProductId);
+          // Android 교체 모듈 경로는 리스너가 울리지 않는다 — 반환값이 전부다. 다음 갱신부터(DEFERRED) 교체는 대상 상품이 아니라
+          // 지금 구독(옛 상품)의 구매가 오거나 빈 목록이라, 대상만 기다리면 결과가 영영 안 와 로딩이 멈추지 않았다(2026-10-08)
+          const isDirect = replace !== undefined && deps.adapter.resolvesDirectly(replace);
+          if (target) {
+            handlePurchaseUpdated(target);
+          } else if (isDirect) {
+            const other = purchases.find((p) => p.state === 'purchased') ?? purchases[0];
+            if (other) {
+              // 옛 구독 구매를 서버에 다시 보낸다 — 서버가 Google 에서 예약(다음 갱신의 상품)을 읽어 반영한다
+              setPhase('verifying');
+              void submit(other, intent.intentId).then((result) =>
+                attempt?.resolve(result.kind === 'ignored' ? { kind: 'delayed' } : result),
+              );
+            } else {
+              // 돌려받은 구매가 없다 — 예약은 Google 쪽에 섰고, 서버는 RTDN 으로 받는다. 로딩을 끝내고 "반영 중"으로 둔다
+              attempt?.resolve({ kind: 'delayed' });
+            }
+          }
         } catch (error) {
           attempt?.resolve(fromStoreError(error));
         }
