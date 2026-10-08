@@ -152,7 +152,7 @@ describe('BillingOrchestrator — 요금제 목록(4.1)', () => {
     ]);
   });
 
-  it('해지 예약 중이면 무료 요금제는 버튼이 없다(none) — 되돌리기는 [구독 다시 시작]이 맡는다(KAN-159)', async () => {
+  it('해지 예약 중이어도 무료 요금제는 해지(cancel)다 — 스토어에서 종료일을 확인한다(2026-10-08 팀 결정)', async () => {
     const { orchestrator, purchase, notify } = setup();
 
     await purchase(signTransaction(THIS_PERIOD));
@@ -166,12 +166,12 @@ describe('BillingOrchestrator — 요금제 목록(4.1)', () => {
 
     const catalog = await orchestrator.listPlans(USER, DevicePlatform.IOS);
     expect(catalog.plans.map((plan) => plan.action)).toEqual([
-      PlanAction.NONE,
+      PlanAction.CANCEL,
       PlanAction.DOWNGRADE,
       PlanAction.CURRENT,
     ]);
 
-    // 다시 켜면 무료는 다시 해지 경로다
+    // 다시 켜도 무료는 해지 경로다
     await notify({
       id: 'n-resume',
       type: 'DID_CHANGE_RENEWAL_STATUS',

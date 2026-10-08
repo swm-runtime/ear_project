@@ -618,9 +618,10 @@ function hasVerifiedEmail(user: {
  * **무료 요금제는 유효한 구독이 없는 사용자에게 `current`다**(2026-10-06, KAN-147) — 요금제 화면이 "현재 구독"
  * 섹션 없이 목록의 `current`로 "이용 중"을 그린다.
  *
- * **유료 구독자에게 무료는 해지다**(2026-10-08, KAN-159) — 자동 갱신이 켜져 있으면 `cancel`(고를 수 있다 →
- * 스토어 구독 관리로 이동), 이미 해지 예약이면 `none`(되돌리기는 [구독 다시 시작]이 맡는다). "구독 중이니 무료는
- * 해지"를 앱이 스스로 판정하지 않도록 서버가 값으로 준다.
+ * **유료 구독자에게 무료는 해지다**(2026-10-08, KAN-159) — `cancel`(고를 수 있다 → 스토어 구독 관리로 이동).
+ * **이미 해지 예약이어도 `cancel`이다**(2026-10-08 팀 결정 — 박준현·이주호): 해지 예약 중 무료 카드가 막혀 있으면
+ * "언제 무료가 되는지"를 알 길이 없었다. 스토어 구독 관리로 가면 "언제 끝나는지"가 거기 보인다. 되돌리기는 여전히
+ * 이용 중 카드의 [구독 다시 시작]이 맡는다. "구독 중이니 무료는 해지"를 앱이 스스로 판정하지 않도록 서버가 값으로 준다.
  */
 export function resolvePlanAction(input: {
   plan: Plan;
@@ -642,10 +643,10 @@ export function resolvePlanAction(input: {
     return PlanAction.CURRENT;
   }
 
-  // 무료로 가는 것은 구매가 아니라 해지다(스토어로 이동). 다른 스토어 구독자는 여기서 바꿀 수 없고,
-  // 이미 해지 예약이면 더 할 일이 없다
+  // 무료로 가는 것은 구매가 아니라 해지다(스토어로 이동). 다른 스토어 구독자는 여기서 바꿀 수 없다.
+  // 해지 예약 중이어도 고를 수 있다 — 스토어에서 종료일을 확인하는 경로다(2026-10-08 팀 결정)
   if (plan.priceKrw <= 0) {
-    return !isOtherStore && current !== null && current.isAutoRenew
+    return !isOtherStore && current !== null
       ? PlanAction.CANCEL
       : PlanAction.NONE;
   }
