@@ -171,29 +171,33 @@ describe('서비스 지표 요약 E2E', () => {
     expect(res.headers['cache-control']).toBe('no-store');
     const body = res.body as SummaryBody;
 
-    // then — 가입·탈퇴: 관리자 + 청취자 2명이 늘고 탈퇴 1건이 늘었다. 탈퇴 포함 가입 = 현재 + 탈퇴
+    // then — 가입·탈퇴·청취 합계. **전역 합계는 "이상"으로만 본다** — CI 는 E2E 파일을 병렬로 돌려 다른 스위트가
+    // 동시에 사용자·재생 기록을 넣는다(2026-10-08 CI 실패: 재생 +2 를 기대했는데 +4). 정확한 수치는 아래
+    // 이 테스트만의 사용자·콘텐츠 순위 행으로 본다. 탈퇴 포함 가입 = 현재 + 탈퇴는 어느 순간에도 성립한다
     expect(body.days).toBe(7);
-    expect(body.users.current).toBe(before.users.current + 1); // admin 은 before 전에 만들어졌다
-    expect(body.users.withdrawals).toBe(before.users.withdrawals + 1);
+    expect(body.users.current).toBeGreaterThanOrEqual(before.users.current + 1);
+    expect(body.users.withdrawals).toBeGreaterThanOrEqual(
+      before.users.withdrawals + 1,
+    );
     expect(body.users.total_signups).toBe(
       body.users.current + body.users.withdrawals,
     );
-    expect(body.users.activated).toBe(before.users.activated + 1);
+    expect(body.users.activated).toBeGreaterThanOrEqual(
+      before.users.activated + 1,
+    );
     expect(body.users.listeners_1d).toBeGreaterThanOrEqual(1);
-    // 앱 사용(세션) 기준 — 이 테스트는 JWT 를 직접 민팅해 세션 행을 만들지 않으므로 늘어나지 않아야 한다
-    expect(body.users.active_1d).toBe(before.users.active_1d);
-
-    // then — 청취: 전 기간·창 둘 다 1,500초·재생 2·완청 1 만큼 늘었다
-    expect(body.listening.all_time.listen_sec).toBe(
+    expect(body.users.active_1d).toBeGreaterThanOrEqual(before.users.active_1d);
+    expect(body.listening.all_time.listen_sec).toBeGreaterThanOrEqual(
       before.listening.all_time.listen_sec + 9_000_000,
     );
-    expect(body.listening.all_time.plays).toBe(
+    expect(body.listening.all_time.plays).toBeGreaterThanOrEqual(
       before.listening.all_time.plays + 2,
     );
-    expect(body.listening.all_time.completes).toBe(
+    expect(body.listening.all_time.completes).toBeGreaterThanOrEqual(
       before.listening.all_time.completes + 1,
     );
     expect(body.listening.window.plays).toBeGreaterThanOrEqual(2);
+    expect(body.listening.window.listen_sec).toBeGreaterThanOrEqual(9_000_000);
 
     // then — 순위에 이 사용자·콘텐츠가 그 수치 그대로 있고, 사용자 행은 user_id·티어뿐이다
     const topUser = body.top_users.find((u) => u.user_id === listenerId);
