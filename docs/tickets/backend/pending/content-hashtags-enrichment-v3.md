@@ -7,9 +7,10 @@
 | 요청자 | 박수헌(KAN-139 담당 — PM 이주호 요청) |
 | 담당 | 박준현 |
 | 발행 날짜 | 2026-10-08 |
+| Jira | [KAN-162](https://runtime364.atlassian.net/browse/KAN-162) |
 | 시작 날짜 | 2026-10-08 |
 | 기한 | 2026-10-11 (Medium — 3일 안) |
-| 선행 | 없음. 후행: FE `content-hashtags-display.md` · AI KAN-139 `content-tagging.md`(소급) |
+| 선행 | 없음. 후행: FE `content-hashtags-display.md`(KAN-163) · AI `content-tagging.md`(KAN-139, 소급) |
 | 근거 문서 | `docs/ai/metadata-pipeline.md` 1장 3항·4.2 `tags` 행·4.4 형식 3 · `.claude/skills/metadata-enrichment/reference/judgment-criteria.md` tags 절 |
 | 중요도 | Medium — PM 이 화면 노출을 원한다(2026-10-08). 마감이 안 맞으면 등급을 내리지 말고 사유를 적는다 |
 | 상태 | 대기 |
