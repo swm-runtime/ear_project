@@ -33,9 +33,16 @@ export const SUBSCRIPTION_COPY = {
     renewsAt: (iso: string) => `다음 결제일 ${monthDay(iso)}`,
     /** 해지 예약 — 중립 톤. 사용자가 스스로 내린 결정이지 장애가 아니다 */
     cancelScheduled: (iso: string) => `${monthDay(iso)}까지 이용 가능해요`,
-    /** 해지 예약 — 제목 밑 알림 섹션(KAN-160). 무료 요금제 이름은 서버 값, 모르면 "무료" */
-    cancelScheduledNotice: (iso: string, planName: string, freePlanName: string | null) =>
-      `${monthDay(iso)}까지 ${planName} 요금제를 이용할 수 있어요. 이후 ${freePlanName ?? '무료'} 요금제로 바뀌어요`,
+    /**
+     * 제목 밑 알림 섹션(KAN-160) — 굵은 첫 줄 + 옅은 둘째 줄. 한 문장으로 두면 "이후"에서 어색하게 끊겼다(PM 2026-10-08).
+     * 무료 요금제 이름은 서버 값, 모르면 "무료"
+     */
+    cancelScheduledNotice: (iso: string, planName: string) =>
+      `${monthDay(iso)}까지 ${planName} 요금제를 이용할 수 있어요`,
+    cancelScheduledNoticeDetail: (freePlanName: string | null) =>
+      `이후 ${freePlanName ?? '무료'} 요금제로 바뀌어요`,
+    pendingPlanNoticeDetail: (currentPlanName: string) =>
+      `그때까지는 ${currentPlanName} 요금제를 그대로 이용할 수 있어요`,
     /** 무료 요금제로 바꾸기(해지)를 골랐을 때 버튼 밑 안내 — 날짜는 서버의 다음 결제일(그날까지는 지금 요금제다) */
     cancelUntil: (iso: string) => `지금 요금제는 ${monthDay(iso)}까지 이용할 수 있어요`,
     /** 결제 문제(유예) — 경고색을 쓰는 유일한 상태 */

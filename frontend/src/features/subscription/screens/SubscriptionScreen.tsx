@@ -124,8 +124,15 @@ export default function SubscriptionScreen() {
 
         {/* 알림 섹션(KAN-160) — 다음 결제부터 무엇이 바뀌는지. 예약이 없으면 자리도 없다 */}
         {notice !== null ? (
-          <View style={styles.notice} accessibilityRole="summary" accessibilityLiveRegion="polite">
-            <Text style={styles.noticeText}>{notice}</Text>
+          <View
+            style={styles.notice}
+            accessible
+            accessibilityRole="summary"
+            accessibilityLabel={`${notice.title}. ${notice.detail}`}
+            accessibilityLiveRegion="polite"
+          >
+            <Text style={styles.noticeTitle}>{notice.title}</Text>
+            <Text style={styles.noticeDetail}>{notice.detail}</Text>
           </View>
         ) : null}
 
@@ -206,19 +213,25 @@ const styles = StyleSheet.create({
     color: theme.color.textSecondary,
     textAlign: 'center',
   },
-  // 알림 섹션 — 카드와 같은 면·모서리, 글자는 본문색. 카드 목록 바로 위
+  // 알림 섹션 — 검정 면에 흰 글자(PM 2026-10-08). 회색 카드들 위에서 "바뀌는 것"이 먼저 읽힌다. 카드와 같은 모서리
   notice: {
+    gap: 2,
     paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm + theme.spacing.xs,
+    paddingVertical: theme.spacing.md - 2,
     borderRadius: theme.radius.lg,
     borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
+    backgroundColor: theme.color.primary,
     marginBottom: theme.spacing.xs,
   },
-  noticeText: {
+  noticeTitle: {
     fontSize: theme.font.size.sm,
-    fontWeight: '600',
-    color: theme.color.textPrimary,
+    fontWeight: '700',
+    color: theme.color.onPrimary,
+    textAlign: 'center',
+  },
+  noticeDetail: {
+    fontSize: theme.font.size.xs,
+    color: 'rgba(255, 255, 255, 0.7)',
     textAlign: 'center',
   },
 });
