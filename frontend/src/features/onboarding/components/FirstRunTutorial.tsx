@@ -93,6 +93,7 @@ const content = (i: number) => ({
   thumbnailUrl: THUMBS[i % THUMBS.length],
   contentVersion: 1,
   topicIds: [],
+  tags: [],
 });
 
 const exploreItem = (i: number): ExploreItem => ({

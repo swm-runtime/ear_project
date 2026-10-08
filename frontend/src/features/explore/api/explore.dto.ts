@@ -21,6 +21,11 @@ export interface ExploreContentDto {
   thumbnail_url: string;
   content_version: number;
   topic_ids: string[];
+  /**
+   * 화면 해시태그('#' 없이, 2~4개 — explore-api.md 4.1 `content.tags`, KAN-162). 없으면 빈 배열.
+   * 선택 필드 — 아직 안 보내는 서버에서는 없고, 그때는 빈 배열로 읽는다
+   */
+  tags?: string[];
 }
 
 export interface ExploreLibraryStateDto {

@@ -53,6 +53,8 @@ export interface ContentDetailContent {
   contentVersion: number;
   /** 헤더의 주제 태그 — 서버가 내려준 순서 그대로 그린다(재배열 금지) */
   topics: ContentDetailTopic[];
+  /** 콘텐츠 해시태그('#' 없이) — 주제(분류)와 별개인 내용 표시. 없으면 빈 배열(KAN-163) */
+  tags: string[];
   series: ContentDetailSeries | null;
   origin: ContentOrigin;
   authorName: string | null;
