@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
 
 import { useToastStore } from '@/shared/ui/toast.store';
 
@@ -88,7 +88,9 @@ export const usePurchaseFlow = (options: PurchaseFlowOptions) => {
         const confirmed = await new Promise<boolean>((resolve) => {
           Alert.alert(
             SUBSCRIPTION_COPY.plans.downgradeConfirmTitle(plan.name),
-            SUBSCRIPTION_COPY.plans.downgradeConfirmMessage,
+            Platform.OS === 'android'
+              ? SUBSCRIPTION_COPY.plans.downgradeConfirmMessageAndroid
+              : SUBSCRIPTION_COPY.plans.downgradeConfirmMessage,
             [
               {
                 text: SUBSCRIPTION_COPY.plans.downgradeConfirmCancel,

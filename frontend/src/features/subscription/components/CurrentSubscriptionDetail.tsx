@@ -15,6 +15,8 @@ export interface CurrentSubscriptionDetailProps {
    * subscription-api.md 4.1). 카드의 이름 줄이 없으니 플랜명을 제목으로 두고 면을 깐다
    */
   standalone?: boolean;
+  /** 카드 안 한 줄 안내(글자만) — Android 다운그레이드 예약 중 "N월 N일 Daily로 바뀐 뒤 다시 올릴 수 있어요" */
+  note?: string | null;
 }
 
 /**
@@ -30,6 +32,7 @@ export default function CurrentSubscriptionDetail({
   status,
   isError,
   standalone = false,
+  note = null,
 }: CurrentSubscriptionDetailProps) {
   if (status === null) {
     // 조회 실패 — 다시 받는 것은 화면 복귀(포커스) 때의 재조회가 한다. 카드 안에 [다시 시도]를 두지 않는다
@@ -44,7 +47,11 @@ export default function CurrentSubscriptionDetail({
 
   const renewsAt = status.kind === 'subscribed' ? status.renewsAt : null;
   const hasContent =
-    standalone || renewsAt !== null || status.kind === 'grace' || status.otherStore !== null;
+    standalone ||
+    renewsAt !== null ||
+    note !== null ||
+    status.kind === 'grace' ||
+    status.otherStore !== null;
   if (!hasContent) return null;
 
   return (
@@ -53,6 +60,7 @@ export default function CurrentSubscriptionDetail({
       {renewsAt !== null ? (
         <Text style={styles.body}>{SUBSCRIPTION_COPY.status.renewsAt(renewsAt)}</Text>
       ) : null}
+      {note !== null ? <Text style={styles.body}>{note}</Text> : null}
       {status.kind === 'grace' ? (
         // 결제 문제 — 경고색을 쓰는 유일한 상태. 색만이 아니라 제목 글자로도 밝힌다
         <View style={styles.warningBanner} accessibilityRole="alert">

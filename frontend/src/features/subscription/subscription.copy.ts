@@ -33,6 +33,9 @@ export const SUBSCRIPTION_COPY = {
     renewsAt: (iso: string) => `다음 결제일 ${monthDay(iso)}`,
     /** 해지 예약 — 중립 톤. 사용자가 스스로 내린 결정이지 장애가 아니다 */
     cancelScheduled: (iso: string) => `${monthDay(iso)}까지 이용 가능해요`,
+    /** Android — 다운그레이드 예약 중 이용 중 카드 안 안내(되돌릴 수 없어서 바뀐 뒤 다시 올린다, PM 2026-10-08) */
+    revertAfterChange: (iso: string, nextPlanName: string) =>
+      `${monthDay(iso)} ${nextPlanName}${toParticle(nextPlanName)} 바뀐 뒤 다시 올릴 수 있어요`,
     /**
      * 제목 밑 알림 섹션(KAN-160) — 굵은 첫 줄 + 옅은 둘째 줄. 한 문장으로 두면 "이후"에서 어색하게 끊겼다(PM 2026-10-08).
      * 무료 요금제 이름은 서버 값, 모르면 "무료"
@@ -79,6 +82,13 @@ export const SUBSCRIPTION_COPY = {
     downgradeConfirmTitle: (name: string) => `${name}${toParticle(name)} 변경할까요?`,
     downgradeConfirmMessage:
       '지금 요금제는 다음 결제일까지 그대로 쓸 수 있고, 그 뒤 자동으로 바뀌어요.',
+    /**
+     * Android — Google Play 는 예약된 변경만 취소하는 길이 없다(PM 2026-10-08 결정: 바뀐 뒤 다시 올린다). 확인 팝업에서 미리 알린다
+     */
+    downgradeConfirmMessageAndroid:
+      '지금 요금제는 다음 결제일까지 그대로 쓸 수 있고, 그 뒤 자동으로 바뀌어요. 예약한 변경은 되돌릴 수 없어요 — 바뀐 뒤 다시 올릴 수 있어요.',
+    /** iOS — 다운그레이드 예약 중 이용 중 카드를 고르면 아래 버튼. 지금 요금제를 다시 사면 Apple 이 예약을 취소한다 */
+    keepCurrent: (name: string) => `${name} 유지`,
     downgradeConfirmCancel: '취소',
     downgradeConfirmOk: '변경',
     /**
@@ -156,6 +166,8 @@ export const SUBSCRIPTION_COPY = {
     downgradeScheduled: '다음 결제일부터 바꾼 요금제가 적용돼요',
     /** 이미 다음 결제일 변경이 예약돼 있다(Play "existing deferred replacement") — 실패가 아니라 안내 */
     downgradeAlreadyScheduled: '이미 다음 결제일부터 요금제가 바뀌도록 예약돼 있어요',
+    /** iOS [유지] 성공 — 예약된 변경이 취소됐다 */
+    keptCurrent: '예약된 변경을 취소했어요',
   },
 
   /** 실패 — subscription-api.md 5장 문구 */

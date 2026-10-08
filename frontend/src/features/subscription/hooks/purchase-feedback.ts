@@ -66,6 +66,10 @@ export const toPurchaseFeedback = (
           toast: SUBSCRIPTION_COPY.status.pendingPlan(pending.effectiveAt, pending.planName),
         };
       }
+      // iOS [유지] — 지금 요금제를 다시 사서 예약된 변경을 취소했다
+      if (action === 'current') {
+        return { ...NONE, toast: SUBSCRIPTION_COPY.result.keptCurrent };
+      }
       // 예약이 서버에 아직 안 보이면(RTDN 대기) 날짜 없이 알린다 — "구독했어요"로 잘못 말하지 않는다
       if (action === 'downgrade') {
         return { ...NONE, toast: SUBSCRIPTION_COPY.result.downgradeScheduled };
