@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { currentUser } from "@/lib/supabase-server";
 
 /**
- * 서버 자원·DB 부하 — 서버 상태 탭의 두 번째 데이터 원천 (Supabase 로그인 필수).
+ * 서버 자원·DB 부하 — 대시보드의 자원·DB 데이터 원천 (Supabase 로그인 필수. 옛 서버 상태 탭은 2026-10-08 대시보드에 합침).
  *
  * 제품 서버의 `GET /admin/system-stats`(관리자 가드)를 서버에서 대신 호출한다.
  * 인증은 SSO 어서션(`/api/ear/sso`와 같은 서명 — EAR_SSO_SECRET)으로 제품 토큰을
