@@ -19,6 +19,8 @@ const toParticle = (word: string): '로' | '으로' => {
 export const SUBSCRIPTION_COPY = {
   /** 화면 제목 — 설정의 진입 항목 이름과 같다(KAN-146, settings.copy sections.subscription) */
   title: '요금제 관리',
+  /** 제목 밑 안내 — 낮출 수 있는 요금제가 있을 때만(PM 2026-10-08 KAN-158). 낮추기는 지금 기간이 끝난 뒤 적용된다 */
+  downgradeNotice: '요금제를 낮추면 지금 요금제 기간이 끝난 뒤 자동으로 바뀌어요',
   backA11y: '뒤로 가기',
   loadingA11y: '요금제를 불러오는 중',
 
@@ -62,6 +64,12 @@ export const SUBSCRIPTION_COPY = {
     downgrade: '변경',
     current: '이용 중',
     downgradeHint: '다음 결제일부터 적용돼요',
+    /** [변경](다운그레이드)을 누르면 결제 시트 전에 묻는다(PM 2026-10-08 KAN-158) — 시스템 알림창 */
+    downgradeConfirmTitle: (name: string) => `${name}${toParticle(name)} 변경할까요?`,
+    downgradeConfirmMessage:
+      '지금 요금제는 다음 결제일까지 그대로 쓸 수 있고, 그 뒤 자동으로 바뀌어요.',
+    downgradeConfirmCancel: '취소',
+    downgradeConfirmOk: '변경',
     /**
      * 카드 아래 버튼 하나 — 고른 요금제 이름을 붙인다("Daily 구독하기" · "Pro 업그레이드" · "Daily로 변경"). 이름은 서버 값이라
      * 조사는 마지막 글자로 고른다(받침 있으면 "으로", 없거나 ㄹ 받침·영문이면 "로")
@@ -140,6 +148,8 @@ export const SUBSCRIPTION_COPY = {
     /** Play 두 번째 구독 409(subscription-api.md 5장 표 문구 그대로) */
     alreadySubscribed: '이미 구독 중이에요. 요금제는 변경으로 바꿔주세요',
     /** Android 요금제 변경 — 바꿀 지금 구독이 이 기기의 Google 계정에 없다(교체 없이 결제하면 두 번째 구독이 된다) */
+    /** Android 다운그레이드 예약은 교체 모듈이 든 빌드에서만 된다(KAN-158) */
+    downgradeNeedsUpdate: '요금제를 낮추려면 앱을 최신 버전으로 업데이트해주세요',
     replaceSourceMissing:
       '지금 구독을 이 기기에서 찾을 수 없어요. 구독한 Google 계정으로 다시 시도해주세요',
     storeUnavailable: '지금은 결제를 진행할 수 없어요. 잠시 후 다시 시도해주세요',

@@ -1,0 +1,21 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.playsubscriptionchange'
+version = '1.0.0'
+
+android {
+  namespace "expo.modules.playsubscriptionchange"
+  defaultConfig {
+    versionCode 1
+    versionName "1.0.0"
+  }
+}
+
+dependencies {
+  // expo-iap(openiap-google 3.6.x)이 싣는 것과 **같은 판** — 두 판이 섞이면 Gradle 이 높은 쪽으로 올려 openiap 이
+  // 모르는 API 가 들어올 수 있다. expo-iap 을 올리면 openiap-google 의 playBillingVersion 을 보고 함께 맞춘다
+  implementation 'com.android.billingclient:billing:9.1.0'
+}

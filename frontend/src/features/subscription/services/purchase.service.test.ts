@@ -61,7 +61,7 @@ const apiError = (code: string, retryable = false) =>
 
 /* ── 가짜 스토어·서버 ── */
 
-const createHarness = (platform: PurchasePlatform = 'ios') => {
+const createHarness = (platform: PurchasePlatform = 'ios', supportsDeferredDowngrade = true) => {
   let updatedListener: ((purchase: StorePurchase) => void) | null = null;
   let errorListener: ((error: StoreError) => void) | null = null;
   const scheduled: { callback: () => void; delayMs: number; cancelled: boolean }[] = [];
@@ -77,6 +77,7 @@ const createHarness = (platform: PurchasePlatform = 'ios') => {
     getUnfinished: jest.fn<IapAdapter['getUnfinished']>().mockResolvedValue([]),
     getActiveForRestore: jest.fn<IapAdapter['getActiveForRestore']>().mockResolvedValue([]),
     findReplaceable: jest.fn<IapAdapter['findReplaceable']>().mockResolvedValue(null),
+    supportsDeferredDowngrade,
     onPurchaseUpdated: jest.fn((listener: (purchase: StorePurchase) => void) => {
       updatedListener = listener;
       return () => {
@@ -442,10 +443,17 @@ describe('PurchaseService', () => {
       resolveByListener();
 
       // when
-      const outcome = await h.service.purchase({ ...PRO_PLAN, action: 'upgrade' }, 'settings');
+      const outcome = await h.service.purchase(
+        { ...PRO_PLAN, action: 'upgrade' },
+        'settings',
+        CURRENT_DAILY.productId,
+      );
 
       // then
-      expect(h.adapter.findReplaceable).toHaveBeenCalledWith(INTENT.storeProductId);
+      expect(h.adapter.findReplaceable).toHaveBeenCalledWith(
+        INTENT.storeProductId,
+        CURRENT_DAILY.productId,
+      );
       expect(h.adapter.requestSubscription).toHaveBeenCalledWith({
         productId: INTENT.storeProductId,
         accountToken: 'intent-1',
@@ -471,6 +479,20 @@ describe('PurchaseService', () => {
       expect(h.adapter.requestSubscription).toHaveBeenCalledWith(
         expect.objectContaining({ replace: expect.objectContaining({ mode: 'deferred' }) }),
       );
+    });
+
+    it('다운그레이드를 예약할 수 없는 빌드(교체 모듈 없음)면 결제 의도도 시트도 없이 업데이트 안내다', async () => {
+      // given
+      h = createHarness('android', false);
+      await h.service.start();
+
+      // when
+      const outcome = await h.service.purchase({ ...PRO_PLAN, action: 'downgrade' }, 'settings');
+
+      // then
+      expect(outcome).toEqual({ kind: 'failed', reason: 'downgradeNeedsUpdate' });
+      expect(h.api.createIntent).not.toHaveBeenCalled();
+      expect(h.adapter.requestSubscription).not.toHaveBeenCalled();
     });
 
     it('바꿀 지금 구독이 기기에 없으면 결제 시트를 열지 않는다 — 두 번째 구독을 만들지 않는다', async () => {
