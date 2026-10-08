@@ -46,6 +46,8 @@ export interface SettingsPlan {
    * 요약 카드는 날짜만 그린다(이후 한도는 프로필·가입 직후 팝업 몫 — profile-uiux.md 4.2·4.11)
    */
   trialLastFreeDate: string | null;
+  /** 예약된 요금제 변경(다운그레이드) — 다음 요금제 이름과 적용 시각. 없으면 null */
+  pendingPlan: { planName: string; effectiveAt: string } | null;
 }
 
 export interface SettingsTopic {

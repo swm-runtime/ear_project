@@ -81,6 +81,13 @@ const toSettingsSummary = (dto: SettingsSummaryResponseDto): SettingsSummary => 
           hasPaymentIssue: dto.plan.has_payment_issue,
           // 필드가 없으면(운영 반영 전 서버) 체험 아님으로 읽는다
           trialLastFreeDate: dto.plan.trial?.last_free_date ?? null,
+          // 필드가 없으면(운영 반영 전 서버) 예약 없음으로 읽는다
+          pendingPlan: dto.plan.pending_plan
+            ? {
+                planName: dto.plan.pending_plan.plan_name,
+                effectiveAt: dto.plan.pending_plan.effective_at,
+              }
+            : null,
         },
   interestSummary:
     dto.interest_summary === null

@@ -67,6 +67,9 @@ export const SETTINGS_COPY = {
     renewsAt: (iso: string) => `다음 결제일 ${monthDay(iso)}`,
     /** 해지 예약 — 중립 톤. 사용자가 스스로 내린 결정이지 장애가 아니다(settings-uiux.md 4.1) */
     cancelScheduled: (iso: string) => `${monthDay(iso)}까지 이용 가능`,
+    /** 다운그레이드 예약 — 지금 요금제는 적용일까지, 그 뒤 다음 요금제(PM 2026-10-08). 프로필 플랜 줄과 같은 문자열 */
+    pendingPlan: (iso: string, nextPlanName: string) =>
+      `${monthDay(iso)}까지 이용 · 이후 ${nextPlanName}`,
     /** 결제 문제 — 경고색을 쓰는 유일한 플랜 상태(profile.md 4.2·subscription.md 4.7과 동일) */
     paymentIssue: '결제에 문제가 있어요',
     /** 가입 체험 중인 무료 계정 — 프로필 플랜 줄과 같은 문자열(settings-uiux.md 6장 · profile-uiux.md 4.2) */

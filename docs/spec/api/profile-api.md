@@ -173,6 +173,8 @@
 - `status = free`일 때 `tier = "light"` · `plan_name` · `daily_play_limit`(무료 한도)을 채워 내려준다. **"하루 N편"의 N은 `plans.daily_play_limit` 서버 값이다 — 2를 하드코딩하지 않는다**(`profile.md` 4.2 · `paywall.md` 5장과 같은 규칙).
 - `daily_play_limit`는 무료 카드의 문구 조립용이다. `null`은 무제한 티어(문구에 한도를 적지 않는다).
 
+**`plan.pending_plan` — 예약된 요금제 변경**(2026-10-08 PM — KAN-161). 다운그레이드 예약이면 `{ "tier": "daily", "plan_name": "Daily", "effective_at": "2026-11-08T03:00:00Z" }`, 없으면 `null`. 모양·판정은 `subscription-api.md` 4.2 의 `pending_plan` 과 같다(같은 값에서 조립). 화면은 "{plan_name} · N월 N일까지 이용 · 이후 {pending_plan.plan_name}"으로 그린다. 설정 응답의 `plan` 도 같은 조립 함수라 같은 필드를 싣는다.
+
 **`plan.trial` — 가입 체험**(`subscription.md` 4.8, 2026-10-03). 체험 중이 아니면 `null`이다.
 
 ```json
