@@ -42,6 +42,11 @@ export interface StorePurchase {
   productId: string;
   /** iOS: StoreKit 2 서명 거래(JWS) · Android: 구매 토큰. 없으면 제출할 수 없다 */
   token: string | null;
+  /**
+   * Android — 이 구매를 살 때 실은 obfuscatedAccountId(그때의 결제 의도 id). 교체 결제는 **이 값을 그대로** 실어야 한다 —
+   * 다르면 Google 이 시트에서 거절한다(DEVELOPER_ERROR — KAN-158). iOS·모르면 null
+   */
+  obfuscatedAccountId: string | null;
   /** pending = 결제 대기(iOS 승인 요청·Android 결제 보류) — 아직 구독이 아니라 제출하지 않는다 */
   state: 'purchased' | 'pending' | 'unknown';
   /** finish 에 원본을 되돌려 준다 — 서비스는 내용을 보지 않는다 */
@@ -49,7 +54,14 @@ export interface StorePurchase {
 }
 
 export type StoreErrorKind =
-  'cancelled' | 'pending' | 'alreadyOwned' | 'unavailable' | 'network' | 'unknown';
+  | 'cancelled'
+  | 'pending'
+  | 'alreadyOwned'
+  | 'unavailable'
+  | 'network'
+  /** 스토어가 요청을 거절했다(Play DEVELOPER_ERROR — 교체 조건 불일치 등) */
+  | 'rejected'
+  | 'unknown';
 
 /** 스토어 SDK 실패의 정규화 — 화면은 kind 로만 분기한다 */
 export class StoreError extends Error {
@@ -70,6 +82,11 @@ export class StoreError extends Error {
 export interface ReplaceSubscription {
   purchaseToken: string;
   oldProductId: string;
+  /**
+   * 교체되는 구매에 실린 obfuscatedAccountId — 교체 결제는 새 결제 의도 id 가 아니라 **이 값**을 싣는다(Google 규칙 — 다르면
+   * "Account identifiers don't match the previous subscription"). null 이면 싣지 않는다. 새 의도 id 는 서버 제출에만 쓴다
+   */
+  accountToken: string | null;
   /** chargeProrated = 즉시 적용 + 남은 기간 비례 정산(업그레이드) · deferred = 다음 갱신부터(다운그레이드) */
   mode: 'chargeProrated' | 'deferred';
 }
@@ -128,9 +145,11 @@ const STORE_ERROR_KIND: Partial<Record<string, StoreErrorKind>> = {
   [ErrorCode.SkuNotFound]: 'unavailable',
   [ErrorCode.QueryProduct]: 'unavailable',
   [ErrorCode.InitConnection]: 'unavailable',
+  [ErrorCode.DeveloperError]: 'rejected',
   // 교체 모듈(PlaySubscriptionChange)의 코드 — E_BILLING_<Play responseCode>
   E_USER_CANCELLED: 'cancelled',
   E_BILLING_7: 'alreadyOwned',
+  E_BILLING_5: 'rejected',
   E_BILLING_2: 'network',
   'E_BILLING_-1': 'network',
   E_SERVICE_DISCONNECTED: 'network',
@@ -164,6 +183,8 @@ const toStorePurchase = (purchase: Purchase): StorePurchase => ({
   transactionId: purchase.id,
   productId: purchase.productId,
   token: purchase.purchaseToken ?? null,
+  obfuscatedAccountId:
+    'obfuscatedAccountIdAndroid' in purchase ? (purchase.obfuscatedAccountIdAndroid ?? null) : null,
   state: purchase.purchaseState,
   raw: purchase,
 });
@@ -182,6 +203,7 @@ const fromPlayChanged = (
   transactionId: purchase.orderId ?? purchase.purchaseToken,
   productId: purchase.productId ?? fallbackProductId,
   token: purchase.purchaseToken,
+  obfuscatedAccountId: null,
   state: purchase.purchaseState,
   raw: purchase,
 });
@@ -218,18 +240,31 @@ export const createExpoIapAdapter = (platform: PurchasePlatform): IapAdapter => 
 
   requestSubscription: async ({ productId, accountToken, replace }) => {
     // Android 요금제 변경 — 교체 모듈이 있으면 방식을 지정해 연다(업그레이드 즉시 + 비례 · 다운그레이드 다음 갱신부터)
-    if (platform === 'android' && replace && PlaySubscriptionChange !== null) {
+    // 계정 id 는 교체되는 구매의 값이어야 한다 — 없으면 모듈(이 빌드는 값을 꼭 받는다) 대신 결제 라이브러리로, 값을 빼고 보낸다
+    if (
+      platform === 'android' &&
+      replace &&
+      PlaySubscriptionChange !== null &&
+      replace.accountToken !== null
+    ) {
       try {
         const purchases = await PlaySubscriptionChange.changeSubscription(
           productId,
           replace.purchaseToken,
           PLAY_MODE[replace.mode],
-          accountToken,
+          replace.accountToken,
         );
         return purchases.map((purchase) => fromPlayChanged(purchase, productId));
       } catch (error) {
         throw toStoreError(error);
       }
+    }
+    if (platform === 'android' && replace?.mode === 'deferred') {
+      // 다음 갱신부터는 모듈로만 된다 — 결제 라이브러리는 즉시 적용으로 고정한다. 즉시로 바꿔 버리지 않는다
+      throw new StoreError(
+        'unavailable',
+        'deferred plan change needs the play module and account id',
+      );
     }
     try {
       const result = await requestPurchase({
@@ -241,7 +276,12 @@ export const createExpoIapAdapter = (platform: PurchasePlatform): IapAdapter => 
             : {
                 google: {
                   skus: [productId],
-                  obfuscatedAccountId: accountToken,
+                  // 교체면 교체되는 구매의 값(없으면 빼고), 새 구독이면 새 결제 의도 id
+                  ...(replace
+                    ? replace.accountToken !== null
+                      ? { obfuscatedAccountId: replace.accountToken }
+                      : {}
+                    : { obfuscatedAccountId: accountToken }),
                   // 교체 모듈이 없는 빌드의 요금제 변경 — 구매 토큰만 넘기면 라이브러리가 즉시 적용(CHARGE_FULL_PRICE)으로
                   // 교체한다. 상품 단위 교체(subscriptionProductReplacementParams)는 기기 Play 스토어가 몰라 시트가 끊겨
                   // 쓰지 않는다(2026-10-08 실측). 다운그레이드는 서비스가 여기 오기 전에 막는다

@@ -148,6 +148,8 @@ export const SUBSCRIPTION_COPY = {
     /** Play 두 번째 구독 409(subscription-api.md 5장 표 문구 그대로) */
     alreadySubscribed: '이미 구독 중이에요. 요금제는 변경으로 바꿔주세요',
     /** Android 요금제 변경 — 바꿀 지금 구독이 이 기기의 Google 계정에 없다(교체 없이 결제하면 두 번째 구독이 된다) */
+    /** 스토어가 요금제 변경을 거절했다(Play DEVELOPER_ERROR, KAN-158) */
+    changeRejected: '지금은 요금제를 바꿀 수 없어요. 잠시 후 다시 시도해주세요',
     /** Android 다운그레이드 예약은 교체 모듈이 든 빌드에서만 된다(KAN-158) */
     downgradeNeedsUpdate: '요금제를 낮추려면 앱을 최신 버전으로 업데이트해주세요',
     replaceSourceMissing:

@@ -25,6 +25,7 @@ interface PlaySubscriptionChangeNative {
     productId: string,
     oldPurchaseToken: string,
     replacementMode: number,
+    /** 교체되는 구독에 실린 값. rt 32 vc 34 빌드는 null 을 받지 못한다 — 호출부는 값이 있을 때만 이 경로를 쓴다 */
     obfuscatedAccountId: string,
   ): Promise<PlayChangedPurchase[]>;
 }

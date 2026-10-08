@@ -1,3 +1,5 @@
+import { IS_DEV_API } from '@/shared/lib/app-version';
+
 import type {
   PurchaseFailure,
   PurchaseOutcome,
@@ -37,6 +39,8 @@ export const failureMessage = (reason: PurchaseFailure): string => {
       return SUBSCRIPTION_COPY.error.replaceSourceMissing;
     case 'downgradeNeedsUpdate':
       return SUBSCRIPTION_COPY.error.downgradeNeedsUpdate;
+    case 'changeRejected':
+      return SUBSCRIPTION_COPY.error.changeRejected;
     case 'storeUnavailable':
       return SUBSCRIPTION_COPY.error.storeUnavailable;
     case 'network':
@@ -82,7 +86,14 @@ export const toPurchaseFeedback = (
     case 'failed':
       return {
         toast: null,
-        notice: { message: failureMessage(outcome.reason), tone: 'error' },
+        notice: {
+          // 개발계 앱에는 스토어 실패 원문을 덧붙인다 — 테스트하는 사람이 로그 없이 원인을 본다(KAN-158)
+          message:
+            IS_DEV_API && outcome.detail
+              ? `${failureMessage(outcome.reason)}\n(${outcome.detail})`
+              : failureMessage(outcome.reason),
+          tone: 'error',
+        },
         shouldRefetchPlans: outcome.reason === 'planUnavailable',
       };
   }

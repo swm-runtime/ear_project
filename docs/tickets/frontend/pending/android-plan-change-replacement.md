@@ -73,3 +73,9 @@ Android는 Pro·Daily가 **독립된 정기 결제**라 Google은 둘 다 살 �
   - 수정 3(로그): 스토어 실패에 code · responseCode · debugMessage 를 싣고 경고 로그를 남긴다. 모듈은 Play responseCode·debugMessage 를 그대로 돌려준다.
   - 다운그레이드 확인 팝업 + 요금제 관리 제목 밑 안내(PM).
   - **Kotlin 은 Windows 에서 컴파일하지 못했다** — 다음 Android 빌드가 첫 컴파일이다.
+- 2026-10-08 10:15 · 12:25 BE 재실측(Jira 10231·10233): 2차(OTA `01a1190d`)·vc 34 모두 같은 거절. **진짜 원인은 `obfuscatedAccountId` 불일치** — 결제마다 새 결제 의도 id 를 실어, 교체되는 구독의 값과 달라 Google 이 DEVELOPER_ERROR(5) "Account identifiers don't match the previous subscription"으로 거절했다. (10231 은 2차 답글 직후 달려 효헌이가 놓친 채 vc 34 를 빌드했다 — 다음부터 빌드 전에 티켓 댓글을 다시 읽는다.)
+- 2026-10-08 3차 반영(PR `fix(fe)/play-change-account-id`).
+  - 교체 결제에는 교체되는 구매의 `obfuscatedAccountIdAndroid` 를 싣는다(모듈·결제 라이브러리 두 경로). 없으면 싣지 않는다(다운그레이드는 모듈 + 값이 있어야만). 새 의도 id 는 서버 제출에만.
+  - **OTA 만으로 vc 34 에서 동작한다** — 모듈은 값을 받는 자리가 이미 있다. Kotlin 은 값이 null 이면 싣지 않도록 바꿨다(다음 빌드부터, 지금은 JS 가 null 을 보내지 않는다).
+  - 거절(E_BILLING_5 · DeveloperError) → 전용 문구 `changeRejected`. 실패는 `logger.error` + Sentry(`reportError`)로 올린다(warn 은 개발 빌드에만 찍혀 preview 에서 안 남았다). 개발계 앱은 실패 안내에 스토어 원문을 덧붙인다.
+  - 설정 버전 행: 개발계 앱에 ` · 빌드 <번호>`(nativeBuildVersion).
