@@ -167,7 +167,8 @@ function InsightsView({ channel, days, onSwitchToDev }: { channel: EarChannel; d
             return (
               <div key={h.hour} className="flex min-w-[14px] flex-1 flex-col items-center justify-end gap-1" title={`${h.hour}시 · 재생 ${h.plays}회 · 청취 ${fmtListenSec(h.listen_sec)}`}>
                 <div className="w-full rounded-t bg-brand/60" style={{ height }} />
-                <span className="text-[10px] tabular-nums text-ink-soft">{h.hour % 3 === 0 ? h.hour : ""}</span>
+                {/* 라벨 칸은 비어 있어도 같은 높이를 차지한다 — 빈 span 이 0으로 접히면 막대 바닥이 칸마다 어긋난다. */}
+                <span className="block h-3 shrink-0 text-[10px] leading-3 tabular-nums text-ink-soft">{h.hour % 3 === 0 ? h.hour : ""}</span>
               </div>
             );
           })}
@@ -279,7 +280,8 @@ function DailyBars({ rows, primary, height, overlay, title, legend }: {
               <div className="relative w-full rounded-t bg-brand/40" style={{ height: h }}>
                 {o > 0 && <div className="absolute inset-x-0 bottom-0 bg-rose-400" style={{ height: o }} />}
               </div>
-              <span className="text-[10px] tabular-nums text-ink-soft">{rows.length > 31 ? (d.date.endsWith("01") || d.date.endsWith("15") ? shortDate(d.date) : "") : shortDate(d.date)}</span>
+              {/* 라벨 칸 높이 고정 — 라벨 없는 칸에서도 막대 바닥이 한 줄로 맞게. */}
+              <span className="block h-3 shrink-0 whitespace-nowrap text-[10px] leading-3 tabular-nums text-ink-soft">{rows.length > 31 ? (d.date.endsWith("01") || d.date.endsWith("15") ? shortDate(d.date) : "") : shortDate(d.date)}</span>
             </div>
           );
         })}
