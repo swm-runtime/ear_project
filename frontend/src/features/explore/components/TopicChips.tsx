@@ -103,10 +103,12 @@ export default function TopicChips({
     >
       {topics.map((topic) => {
         const isSelected = selectedTopicIds.includes(topic.id);
+        // 무언가 골랐으면 나머지 칩을 흐린다 — 고른 칩만 제 색으로 남는다
+        const isDimmed = selectedId !== null && !isSelected;
         return (
           <Pressable
             key={topic.id}
-            style={styles.chip}
+            style={[styles.chip, isDimmed && styles.chipDimmed]}
             onLayout={(event) => {
               const { x, width } = event.nativeEvent.layout;
               chipBoxes.current[topic.id] = { x, width };
@@ -119,8 +121,11 @@ export default function TopicChips({
             accessibilityState={{ checked: isSelected }}
           >
             <Image source={topicImageSource(topic.name)} resizeMode="cover" style={styles.photo} />
-            {/* 선택 표시는 짙어진 막이다 — 체크 글리프를 두지 않는다(온보딩 칩과 같다). 낭독은 위 accessibilityState 가 한다 */}
-            <View style={[styles.overlay, isSelected && styles.overlaySelected]} />
+            {/*
+              선택 표시는 **나머지 칩을 흐리는 것**이다(PM 2026-10-09) — 고른 칩의 막을 짙게 하던 방식은 사진이 원래 어두운 칩
+              (경제 상식·투자·IT·개발)에서 차이가 보이지 않았다. 체크 글리프는 두지 않는다. 낭독은 위 accessibilityState 가 한다
+            */}
+            <View style={styles.overlay} />
             <Text style={styles.label} numberOfLines={1}>
               {topic.name}
             </Text>
@@ -131,8 +136,8 @@ export default function TopicChips({
   );
 }
 
-/** 탐색 칩 선택 막 — 기본 막(0.34)과 차이를 크게 둬 어느 주제를 골랐는지 한눈에 보이게 */
-const SELECTED_SCRIM = 'rgba(0, 0, 0, 0.75)';
+/** 주제를 골랐을 때 나머지 칩의 불투명도 */
+const UNSELECTED_OPACITY = 0.4;
 
 const styles = StyleSheet.create({
   scroll: {
@@ -160,6 +165,10 @@ const styles = StyleSheet.create({
      * 좌우 여백은 아래 `label` 이 갖는다
      */
   },
+  // 다른 주제를 골랐을 때 — 사진 밝기와 무관하게 고른 칩이 튄다
+  chipDimmed: {
+    opacity: UNSELECTED_OPACITY,
+  },
   /** 배경 사진 — inset 과 퍼센트 크기를 함께 준다(웹에서 inset 만으로는 원본 800x320 이 남는다) */
   photo: {
     position: 'absolute',
@@ -178,13 +187,6 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.34)',
-  },
-  /**
-   * 선택 — 막만 짙어진다. 공용 토큰(photoScrim 0.62)으로는 어두운 사진 칩(IT·개발 등)과 구분이 약해 탐색 칩만 더 짙게 둔다
-   * (PM 2026-10-09). 온보딩·관심사 칩은 여러 개를 고르는 칩이라 그대로
-   */
-  overlaySelected: {
-    backgroundColor: SELECTED_SCRIM,
   },
   label: {
     // 칩이 아니라 라벨이 좌우 여백을 갖는다 — 위 chip 주석 참고
