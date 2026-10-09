@@ -22,3 +22,7 @@ KAN-121(PR #1126)로 앱이 기존 가입자에게도 팝업을 띄우게 됐고
 ## 완료 조건
 
 - Given `features/subscription.md` 4.8 "안내" / When 읽는다 / Then 앱이 기존 가입자에게도 팝업을 띄운다는 현재 상태와 `profile-uiux.md` 4.11 참조가 적혀 있고, `tickets/frontend/pending/` 경로가 남아 있지 않다
+
+## 처리 기록
+
+- **반영 날짜: 2026-10-09** — 브랜치 `docs/apply-changes-pending-1009`. features/subscription.md 4.8 반영.

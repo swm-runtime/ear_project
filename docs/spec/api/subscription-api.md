@@ -91,7 +91,7 @@
 
 ### 4.1 `GET /plans`
 
-페이월 시트·구독 관리 화면이 3티어 비교 카드를 그릴 때 호출한다. 응답을 받은 뒤 클라이언트는 `store_product_id`로 **스토어 SDK에서 현지 가격을 조회해 병합**한다(`subscription.md` 4.2-1).
+페이월 시트·요금제 관리 화면이 3티어 비교 카드를 그릴 때 호출한다. 응답을 받은 뒤 클라이언트는 `store_product_id`로 **스토어 SDK에서 현지 가격을 조회해 병합**한다(`subscription.md` 4.2-1).
 
 **Request** — `?platform=ios|android` (필수)
 
@@ -289,7 +289,7 @@
 
 ### 4.5 `POST /users/me/subscription/restore`
 
-설정 > 구독 관리 > [구매 복원], 페이월의 복원 링크. 클라이언트가 스토어 SDK에서 **현재 유효한 구독 거래**를 모아 보낸다(iOS `Transaction.currentEntitlements`, Android `queryPurchasesAsync`).
+요금제 관리·페이월 맨 아래 '이용약관 · 개인정보처리방침 · 구매 복원' 줄의 [구매 복원](개정 2026-10-09 — KAN-146). 클라이언트가 스토어 SDK에서 **현재 유효한 구독 거래**를 모아 보낸다(iOS `Transaction.currentEntitlements`, Android `queryPurchasesAsync`).
 
 **Request**
 
@@ -439,7 +439,7 @@ Google Cloud Pub/Sub **push 구독**이 호출한다. 본문은 Pub/Sub 메시�
 **구매**
 
 ```
-페이월 시트 / 구독 관리
+페이월 시트 / 요금제 관리
    ↓ GET /plans?platform=ios            → plans[](store_product_id · action) + is_email_verified
    ↓ 스토어 SDK로 현지 가격 조회 → 병합 표시
 [구독하기] 탭

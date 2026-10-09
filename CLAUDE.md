@@ -86,7 +86,7 @@ retrospective/ 주간 회고와 다음 주 계획 (YYYY-Wn.md). 회의 중에는
 
 **`spec/api/`** — HTTP 계약. 요청·응답·에러 코드의 확정본. 화면 9종 전부 작성됨 — `auth` · `onboarding` · `library` · `explore` · `player` · `profile` · `settings` · `interest-management` · `career` (각 `<화면>-api.md`). 운영 도구인 `admin-api.md`도 있다(2026-09-03 등재 — 사용자 화면이 아니라 관리자 웹 콘솔 계약이다). 화면에 묶이지 않는 기능 계약: `subscription-api.md`(구독·인앱 결제·스토어 서버 알림, 2026-10-02) · `drip-feedback-api.md`(추천 별점, 2026-09-30).
 
-**`spec/uiux/`** — 화면 ID·상태·확정 카피·접근성. 사용자 노출 문구는 이 문서와 1:1 대조. 화면 9종 전부 작성됨(각 `<화면>-uiux.md`) — 화면 ID는 `auth` A1–A19 · `library` L · `onboarding` O · `explore` E · `player` PL · `profile` P · `settings` S · `interest-management` IM · `career` CR 계열.
+**`spec/uiux/`** — 화면 ID·상태·확정 카피·접근성. 사용자 노출 문구는 이 문서와 1:1 대조. 화면 9종 전부 작성됨(각 `<화면>-uiux.md`) — 화면 ID는 `auth` A1–A19 · `library` L · `onboarding` O · `explore` E · `player` PL · `profile` P · `settings` S · `interest-management` IM · `career` CR 계열. 구독·페이월은 `subscription-uiux.md`(SB1–SB3 · PW1, 2026-10-06 — KAN-120).
 
 **`wireframe/`** — 화면 9종 html + `style.css`. uiux 화면 ID와 대응. **style.css 토큰 값은 임시값** — 디자인 확정 전까지 근거로 삼지 않는다.
 

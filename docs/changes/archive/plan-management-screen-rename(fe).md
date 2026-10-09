@@ -26,3 +26,7 @@ KAN-146(PM 미리보기 확정 2026-10-06)으로 화면 제목·설정 항목 �
 - Given 위 대상 문서 / When "구독 관리"를 찾는다 / Then 이 앱의 화면을 가리키는 곳은 모두 "요금제 관리"이고, 남은 것은 스토어 화면을 가리키는 곳뿐이다
 - Given `features/subscription.md` / When 복원 진입점·화면 구성을 읽는다 / Then 약관 줄의 [구매 복원]과 이용 중 카드 안의 구독 정보로 적혀 있다
 - Given `wireframe/auth.html` / When 탈퇴 안내 문구를 본다 / Then "설정 > 요금제 관리"다
+
+## 처리 기록
+
+- **반영 날짜: 2026-10-09** — 브랜치 `docs/apply-changes-pending-1009`. 대상 문서 전부 반영(features subscription·settings·profile·auth, spec/api subscription·settings·profile, wireframe/auth.html). 스토어 화면을 가리키는 "스토어 구독 관리 화면"(subscription.md 93 · subscription-api.md 28)은 그대로.
