@@ -153,6 +153,7 @@ export default function InterestManagementScreen() {
             <View style={styles.summaryBar}>
               <View style={styles.avatars}>
                 {selectedTopics.length === 0 ? (
+                  // 0개 — 점선 원 없이 자리만 비워 둔다(PM 2026-10-10 00:56). 자리는 남겨 옆 문구가 좌우로 뛰지 않게
                   <View style={styles.avatarEmpty} />
                 ) : (
                   selectedTopics
@@ -381,10 +382,6 @@ const styles = StyleSheet.create({
   avatarEmpty: {
     width: AVATAR_SIZE,
     height: AVATAR_SIZE,
-    borderRadius: AVATAR_SIZE / 2,
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: theme.color.border,
   },
   summaryLabel: {
     flex: 1,
