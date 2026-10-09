@@ -13,7 +13,7 @@
 | 선행 | 없음 — 개발계 앱 vc 34 + OTA `87f8890d`(#1310) 이후. 라이선스 테스터 계정 필요 |
 | 중요도 | **Medium**(3일 안) — PM 발행(2026-10-09). 운영 결제 오픈 전에 끝나야 한다 |
 | 근거 문서 | `features/subscription.md` 4.4 · `spec/api/subscription-api.md` 4.7 · `spec/uiux/subscription-uiux.md` · Google [Subscription lifecycle](https://developer.android.com/google/play/billing/lifecycle/subscriptions) · [Replacement modes](https://developer.android.com/google/play/billing/subscriptions) |
-| 상태 | 대기 |
+| 상태 | 완료 (2026-10-09) |
 
 ## 왜
 
@@ -45,3 +45,21 @@ Google 문서상:
 ## 처리 기록
 
 - 2026-10-09 발행(마크다운 + Jira KAN-165. PM 요청 — "이거 백엔드에서 QA 해달라고"). 개발계 로그(건수·시각만): 03:19:49 해지(3) → 03:23:49 만료(13), 이후 구독 3건 모두 `expired`.
+- 2026-10-09 12:41~12:46 KST 백엔드 QA(개발계 Android vc 34 + OTA, 라이선스 테스터, 앱 계정 `eb52d625…`). 서버 로그(RTDN 번호)와 `subscriptionsv2.get` 원문(토큰 제외)으로 대조했다.
+
+  | KST | 조작 | Google → 서버 |
+  |---|---|---|
+  | 12:41:01 | Pro 구매 | RTDN 4 → `active` |
+  | 12:41:38 | Play 해지 | RTDN 3 → `cancelled` |
+  | 12:41:46 | Play **[정기결제 재신청]**(버튼 보임) | **RTDN 7 → `active` · `is_auto_renew = true`**, 앱 요금제 관리·프로필·설정 구독 중 복귀 |
+  | 12:42:15 | 앱에서 Pro → Daily 예약(DEFERRED) | 새 토큰 RTDN 4, 옛 토큰 RTDN 13은 `replaced_token`으로 무시. `pending_tier = daily` |
+  | 12:43:31 | Play 해지 | RTDN 3 → `cancelled`, **`pending_tier` 비움** |
+  | 12:46:00 | 만료 | RTDN 13 → `expired` |
+
+  - **1. 예약 없는 해지 → 재신청: 통과.** 버튼이 보이고 RTDN 7로 되살아난다. 서버는 알림 종류를 따로 보지 않고 `subscriptionsv2.get` 결과(`ACTIVE` + `autoRenewEnabled`)를 반영하는 것으로 충분했다. 코드 수정 없음.
+  - **2. 다운그레이드 예약 중 해지 → 재신청: Google이 제공하지 않는다.** 해지 직후(만료 2분 29초 전) 원문: `subscriptionState = CANCELED`, Pro 줄 `expiryTime` 12:46:00 · `autoRenewingPlan = {}` · **`deferredItemReplacement` 없음**(해지가 예약을 지움), Daily 줄은 `expiryTime` 없는 빈 항목으로 남음. Play 정기 결제 화면은 "취소됨"만 보이고 재신청 버튼 없음. 어제 PM 세션(해지 03:19:47 · 만료 03:23:47, 4분 남음)도 같았다 — 만료 타이밍이 아니라 **예약 유무**가 차이다. 서버는 `pending_tier`를 비우고 `cancelled`로 두어 Google 상태와 일치한다. 재신청 뒤 `pending_tier`가 되살아나는지는 재신청이 없어 확인할 수 없다(해당 없음).
+  - **3. 해지 예약 중 화면(#1310): 통과(프로필·설정).** 해지 뒤 "Pro · N월 N일까지 이용 · 이후 무료"가 보였다. 요금제 관리의 Light [예약됨] 배지는 이번 세션에서 따로 보지 않았다.
+  - **4. 예약 되돌리기 경로: Play 화면에는 없다.** 예약 상태의 Pro 항목은 "요금제 변경"이라는 표시만 있고 변경·취소 메뉴가 없다. 앱에서도 되돌릴 길이 없다(Pro 카드 `current`, Daily 카드 [예약됨] — 10-08 "Android 되돌리기 불가" 결정대로). 즉 **Pro → Daily 예약은 사용자가 되돌릴 수 없고, 해지하면 재신청도 없다** — 예약 전 확인 팝업이 유일한 방어선이다. Google 문서의 "users can revert to the original plan"은 **앱에서 다시 교체 구매**하는 것을 뜻한다고 봐야 한다(FE 실측은 PM 승인 뒤, 이 티켓 범위 밖).
+  - **부수 발견(서버): 확인(acknowledge) 경쟁 409.** 2026-10-09 03:18:52 KST, 앱의 영수증 제출과 Google RTDN 4가 같은 순간 와서 알림 경로가 먼저 확인했고, 제출 경로의 확인은 409를 받아 `SUBSCRIPTION_STORE_UNAVAILABLE`(503)로 앱에 돌아갔다. DB는 이미 반영돼 앱이 5초 뒤 재제출로 정상 종료됐지만 사용자는 성공한 결제에 잠깐 오류를 본다. `GooglePlayStoreGateway.acknowledge`에서 "이미 확인됨"(409)을 성공으로 보면 된다 — 별도 수정 항목.
+  - **앱 화면(예약 뒤 해지 상태)**: 요금제 관리는 "Pro 이용 중" + "이후 Light로 바뀜" 안내만 보이고 **[구독 다시 시작] 버튼은 뜨지 않는다** — Play에 재신청이 없는 상태로 보내는 막다른 길은 없다. FE 수정 필요 없음(이 티켓에서 FE 티켓 미발행).
+- **반영 날짜: 2026-10-09.**
