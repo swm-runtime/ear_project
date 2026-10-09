@@ -1,5 +1,5 @@
-import { Image } from 'expo-image';
-import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
+import { Image, Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
 import MoreIcon from '@/shared/ui/MoreIcon';
@@ -90,18 +90,35 @@ export default function ExploreFeaturedCard({
   return (
     <View style={[styles.card, { width: cardWidth }]}>
       {/* 흐린 커버 바탕 — 카드 전체. 위 정사각형은 아래 선명한 커버가 덮어 하단만 "이어진" 흐림으로 남는다 */}
-      <Image
-        source={{ uri: item.content.thumbnailUrl }}
-        style={styles.backdrop}
-        blurRadius={BACKDROP_BLUR_RADIUS}
-        contentFit="cover"
-        // expo-image — 메모리 캐시로 구간 전환·피드 복귀 때 바로 뜬다. 종전 RN Image 는 다시 그릴 때마다 받아 흐리게 다시 그려
-        // 그동안 카드 바탕이 비었다(PM 2026-10-09 흰 깜빡임)
-        cachePolicy="memory-disk"
-        recyclingKey={item.content.id}
-        accessibilityElementsHidden
-        importantForAccessibility="no"
-      />
+      {Platform.OS === 'android' ? (
+        /*
+         * Android 는 기본 Image — expo-image 의 Android 흐림(glide-transformations BlurTransformation)은 RenderScript 를 쓰고,
+         * 카드 여러 장이 동시에 흐림을 만들면 한쪽이 RS 컨텍스트를 닫은 사이 다른 쪽이 써서 앱이 죽었다
+         * (Sentry EAR-APP-F RSInvalidStateException, 2026-10-09 — 주제 칩을 여러 번 오가며). 기본 Image 의 흐림은 RS 를 안 쓴다.
+         * 플레이어 배경도 같은 이유로 기본 Image 다
+         */
+        <Image
+          source={{ uri: item.content.thumbnailUrl }}
+          style={styles.backdrop}
+          blurRadius={BACKDROP_BLUR_RADIUS}
+          resizeMode="cover"
+          accessibilityElementsHidden
+          importantForAccessibility="no"
+        />
+      ) : (
+        <ExpoImage
+          source={{ uri: item.content.thumbnailUrl }}
+          style={styles.backdrop}
+          blurRadius={BACKDROP_BLUR_RADIUS}
+          contentFit="cover"
+          // iOS 는 expo-image — 메모리 캐시로 구간 전환·피드 복귀 때 바로 뜬다(종전 RN Image 는 다시 그릴 때마다 받아 흐리게
+          // 다시 그려 그동안 카드 바탕이 비었다 — PM 2026-10-09 흰 깜빡임). iOS 흐림은 RenderScript 와 무관하다
+          cachePolicy="memory-disk"
+          recyclingKey={item.content.id}
+          accessibilityElementsHidden
+          importantForAccessibility="no"
+        />
+      )}
       <View style={styles.backdropScrim} pointerEvents="none" />
       <Pressable
         style={styles.body}
