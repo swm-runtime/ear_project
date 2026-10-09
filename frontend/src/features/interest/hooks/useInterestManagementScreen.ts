@@ -119,7 +119,11 @@ export const useInterestManagementScreen = () => {
   const isBelowMin = selectedCount < 1;
   const canSave = hasChanges && !isBelowMin && !isOverLimit && !isLoading && !isError && !isSaving;
 
-  // 선택 개수 제한으로 칩을 비활성 처리하지 않는다(변경 2026-08-11) — 막는 것은 탭이 아니라 저장이다
+  /*
+   * 상한까지 고르면 **더 고를 수 없다** — 탭은 받되 선택하지 않고 상한 토스트를 띄운다(PM 2026-10-10 01:08, 온보딩과
+   * 같은 규칙·같은 문구). 종전(변경 2026-08-11)엔 넘겨 고르게 두고 저장만 막았다. 상한을 이미 넘겨 보유한 사람(IM6)은
+   * 해제만 할 수 있고, 저장 게이트(isOverLimit)는 그 경우를 위해 남는다
+   */
   const topics = (topicsQuery.data?.items ?? []).map((topic) => ({
     ...topic,
     isSelected: effectiveSelected.includes(topic.topicId),
@@ -128,6 +132,11 @@ export const useInterestManagementScreen = () => {
   const toggleTopic = (topicId: string) => {
     // 저장 인플라이트 동안 화면 조작을 차단한다 — 보낸 목록과 화면이 어긋나면 안 된다(uiux 4.3)
     if (isSaving || selectedIds === null) return;
+    const isAdding = !effectiveSelected.includes(topicId);
+    if (isAdding && effectiveSelected.length >= maxSelectable) {
+      showToast(INTEREST_COPY.limitNotice(maxSelectable));
+      return;
+    }
     setIsDirty(true);
     setSaveErrorMessage(null);
     // 편집이 달라졌으니 다음 저장은 새 저장이다 — 해제 확인도 다시 받는다
