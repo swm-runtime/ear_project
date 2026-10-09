@@ -35,13 +35,19 @@ export class DripBatchRunService {
     /**
      * `reclaimUnfinished` — 프로세스 재시작 직후의 재개 경로. 편성을 돌리는 프로세스는 스케줄러 워커
      * 하나뿐이라, 그 프로세스가 방금 떴다는 것은 미완료 행이 있다면 **죽은 실행**이라는 뜻이다.
-     * 나이를 따지지 않고 다시 집는다. 05:00 정규 경로는 종전대로 `DRIP_BATCH_STALE_MS`가 지난 행만.
+     * 나이를 따지지 않고 다시 집되, **행을 새로 만들지는 않는다**(UPDATE 전용 — 그날 행이 없으면 `null`).
+     * 종전에는 INSERT 경로를 함께 써서 경계 뒤·05:00 크론 전에 재시작하면 새 실행이 성립해 배치가 예정보다
+     * 먼저 돌았다(2026-10-09). 05:00 정규 경로는 종전대로 `DRIP_BATCH_STALE_MS`가 지난 행만 다시 집는다.
      */
-    const staleBefore = options.reclaimUnfinished
-      ? startedAt
-      : new Date(startedAt.getTime() - DRIP_BATCH_STALE_MS);
+    if (options.reclaimUnfinished) {
+      return this.dripBatchRunRepository.reclaimUnfinished(runDate, startedAt);
+    }
 
-    return this.dripBatchRunRepository.claim(runDate, startedAt, staleBefore);
+    return this.dripBatchRunRepository.claim(
+      runDate,
+      startedAt,
+      new Date(startedAt.getTime() - DRIP_BATCH_STALE_MS),
+    );
   }
 
   async finish(
