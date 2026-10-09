@@ -32,7 +32,7 @@ const toMinutes = (durationSec: number): number => Math.max(1, Math.round(durati
  */
 const WIDTH_RATIO = 0.72;
 const MAX_WIDTH = 312;
-/** 대표 카드 폭 — 인기 캐러셀 전환 모션(PeriodSwap)이 카드 두 장 거리를 셀 때도 쓴다 */
+/** 대표 카드 폭 — 화면 폭에서 정한다(카드 안 사진·제목 배치의 기준) */
 export const featuredCardWidth = (windowWidth: number): number =>
   Math.min(windowWidth * WIDTH_RATIO, MAX_WIDTH);
 /**
