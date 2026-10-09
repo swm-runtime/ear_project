@@ -35,7 +35,12 @@ import { Text, AnimatedText } from '@/shared/ui/Typography';
 import { useTopicsQuery } from '@/features/interest';
 
 import { createAndroidPlayerZoom } from '../components/android-player-zoom';
-import { MINI_CARD_HEIGHT, MINI_CARD_RADIUS, MINI_THUMB_SIZE } from '../components/MiniPlayer';
+import {
+  MINI_CARD_HEIGHT,
+  MINI_CARD_RADIUS,
+  MINI_PLAY_ICON_SIZE,
+  MINI_THUMB_SIZE,
+} from '../components/MiniPlayer';
 import PlayConfirmDialog from '../components/PlayConfirmDialog';
 import PlayerCurrentSection from '../components/PlayerCurrentSection';
 import {
@@ -2274,8 +2279,6 @@ interface LayoutBox {
   width: number;
   height: number;
 }
-/** 미니플레이어 ▶ 아이콘 크기(MiniPlayer.tsx 와 같은 값) */
-const MINI_PLAY_ICON_SIZE = 20;
 /** 미니플레이어 좌표가 없을 때 출발점을 두는 바닥 여백 — 탭 바 위쯤 */
 const MINI_FALLBACK_BOTTOM = 130;
 /** 모션 레이어 아트워크 로드를 기다리는 상한 — 보통은 onLoad가 먼저 온다(캐시). 실패·지연 시 이 뒤엔 그냥 출발 */
