@@ -4,7 +4,7 @@ import { Image, Pressable, StyleSheet, View } from 'react-native';
 
 import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
 import { theme } from '@/shared/theme';
-import ChevronIcon, { chevronTrailingGutter } from '@/shared/ui/ChevronIcon';
+import ChevronIcon from '@/shared/ui/ChevronIcon';
 import PersonIcon from '@/shared/ui/PersonIcon';
 import { Text } from '@/shared/ui/Typography';
 
@@ -255,8 +255,8 @@ export default function ProfileHeader({
   );
 }
 
-/** 플랜 줄 [>] — 설정 요금제 카드와 같은 크기 */
-const PLAN_CHEVRON_SIZE = 16;
+/** 플랜 줄 [>] — 아래 프로필 카드의 [>] 와 같은 크기(ProfileCard CHEVRON_SIZE) */
+const PLAN_CHEVRON_SIZE = 18;
 
 const styles = StyleSheet.create({
   identityRow: {
@@ -290,10 +290,11 @@ const styles = StyleSheet.create({
   planDanger: {
     color: theme.color.danger,
   },
-  // 줄 오른쪽 끝 — 글자가 짧아도 [>] 는 오른쪽에 붙는다. 아이콘 상자 여백만큼 바깥으로 빼 오른쪽 선을 맞춘다
+  // 줄 오른쪽 끝 — 글자가 짧아도 [>] 는 오른쪽에 붙는다. 아래 카드(ProfileCard)의 [>] 와 같은 세로선에 둔다(PM 2026-10-09
+  // "너무 오른쪽") — 카드 바깥 여백 + 안쪽 여백만큼 들인다
   planChevron: {
     marginLeft: 'auto',
-    marginRight: -chevronTrailingGutter(PLAN_CHEVRON_SIZE),
+    marginRight: theme.spacing.md,
   },
   avatarWrap: {
     // 배지가 아바타 밖으로 나가므로 줄어들지 않게 고정한다
