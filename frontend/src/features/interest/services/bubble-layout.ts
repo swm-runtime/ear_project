@@ -37,9 +37,18 @@ const COLUMNS = 3;
 const ITERATIONS = 140;
 /** 집으로 당기는 힘 — 작을수록 밀린 자리에 오래 머문다 */
 const HOME_PULL = 0.06;
-/** 지름 무늬(칸 대비 비율) — 크기가 섞여야 흩뿌린 느낌이 난다 */
+/**
+ * 격자 조임 — 집을 칸보다 촘촘히 둬서 원들이 서로 눌린 채 자리 잡게 한다. 크기가 섞여 있어 칸 그대로면 작은 원
+ * 둘레에 틈이 벌어졌다(PM 2026-10-09 23:17 "선택 안 됐을 때 간격이 너무 넓어" — 가까운 이웃 평균 빈틈 14pt)
+ */
+const LATTICE_SQUEEZE = 0.86;
+/** 마지막 몇 바퀴는 당기지 않고 겹침만 푼다 — 조인 집이 빈틈(GAP)을 파고들지 못하게 */
+const SETTLE_STEPS = 40;
+
+/** 지름 무늬(칸 대비 비율) — 크기가 섞여야 흩뿌린 느낌이 난다. 편차가 크면 작은 원 둘레에 틈이 생겨 0.94~1.02 로 좁혔다(10-09 23:17) */
 const SIZE_PATTERN = [
-  0.94, 1.0, 0.88, 0.97, 0.9, 1.02, 0.92, 0.86, 1.0, 0.89, 0.96, 1.01, 0.87, 0.95, 0.91, 0.98,
+  0.98, 1.013, 0.947, 0.996, 0.958, 1.024, 0.969, 0.936, 1.013, 0.953, 0.991, 1.018, 0.942, 0.986,
+  0.964, 1.002,
 ];
 
 /** 화면 폭에 맞는 칸(벌집 가로 간격) — 3.5 칸이 좌우 여백 안을 채운다 */
@@ -55,9 +64,11 @@ const homeOf = (index: number, width: number) => {
   const row = Math.floor(index / COLUMNS);
   const col = index % COLUMNS;
   const offset = row % 2 === 0 ? 0.5 : 1;
+  const center = width / 2;
+  const x = SIDE_MARGIN + (col + offset) * pitch;
   return {
-    x: SIDE_MARGIN + (col + offset) * pitch,
-    y: TOP_MARGIN + pitch / 2 + row * pitch * 0.866,
+    x: center + (x - center) * LATTICE_SQUEEZE,
+    y: TOP_MARGIN + pitch / 2 + row * pitch * 0.866 * LATTICE_SQUEEZE,
   };
 };
 
@@ -89,9 +100,10 @@ export const layoutBubbles = (bubbles: BubbleInput[], width: number): BubbleLayo
         ys[j] += uy * overlap * shareJ;
       }
     }
+    const pull = step < ITERATIONS - SETTLE_STEPS ? HOME_PULL : 0;
     for (let i = 0; i < bubbles.length; i += 1) {
-      xs[i] += (homes[i].x - xs[i]) * HOME_PULL;
-      ys[i] += (homes[i].y - ys[i]) * HOME_PULL;
+      xs[i] += (homes[i].x - xs[i]) * pull;
+      ys[i] += (homes[i].y - ys[i]) * pull;
       // 좌우·위 벽 — 화면 밖으로 밀려나가지 않는다(아래는 스크롤이라 열어 둔다)
       xs[i] = Math.min(width - SIDE_MARGIN - radii[i], Math.max(SIDE_MARGIN + radii[i], xs[i]));
       ys[i] = Math.max(TOP_MARGIN + radii[i], ys[i]);
