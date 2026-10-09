@@ -297,11 +297,23 @@ export async function latestSourceUrl(domainId: string): Promise<string | null> 
 export async function appendDomainNote(domainId: string, note: string) {
   await pool.query("update public.domains set note = coalesce(nullif(note,''),'') || ' | ' || $2 where id = $1", [domainId, note]);
 }
+/**
+ * 소스 발행일 → sources.published(date) 값 (2026-10-09 — 보강 검색 결과가 "2026"처럼 연도만 줘서 날짜 형식 오류로 C267 보강 작업이 통째로 실패했다).
+ * 연·월만 오면 그 해·그 달 첫날로, 날짜·시각이면 날짜만, 읽을 수 없거나 없는 날짜(2월 30일 등)는 null. 후보의 sources(jsonb)에는 받은 값이 그대로 남는다
+ */
+export function toPgDate(v: string | null | undefined): string | null {
+  const m = String(v ?? "").trim().match(/^(\d{4})(?:[-./](\d{1,2})(?:[-./](\d{1,2}))?)?/);
+  if (!m) return null;
+  const y = Number(m[1]), mo = m[2] ? Number(m[2]) : 1, d = m[3] ? Number(m[3]) : 1;
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (y < 1000 || dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) return null;
+  return `${m[1]}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
 export async function upsertSource(s: { domain_id: string; url: string; title: string; summary: string; author: string; published: string | null; swept_at: string; origin?: "feed" | "search" }) {
   await pool.query(
     `insert into public.sources (domain_id, url, title, summary, author, published, swept_at, origin) values ($1,$2,$3,$4,$5,$6,$7,$8)
      on conflict (url) do update set title = excluded.title, summary = excluded.summary, swept_at = excluded.swept_at`,
-    [s.domain_id, s.url, s.title, s.summary, s.author, s.published, s.swept_at, s.origin ?? "feed"],
+    [s.domain_id, s.url, s.title, s.summary, s.author, toPgDate(s.published), s.swept_at, s.origin ?? "feed"],
   );
 }
 /** 보강 스윕(0019)의 검색 범위 — 차단이 아니고 도메인째 접근 차단도 아닌 풀 도메인. 1·2군에 피드가 거의 없어 후보 도메인도 포함한다 (판정 전 소스는 승인 화면에서 tier 가 보인다) */
