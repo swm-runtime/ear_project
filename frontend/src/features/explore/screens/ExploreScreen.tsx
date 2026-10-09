@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Animated,
   FlatList,
+  InteractionManager,
   Platform,
   Pressable,
   RefreshControl,
@@ -84,6 +85,33 @@ export default function ExploreScreen() {
    * 돌아오며 바뀐다(PM 2026-10-09 깜빡임). 검색창·칩 줄은 흐리지 않는다
    */
   const switchDim = useAnimatedValue(1);
+  /*
+   * 화면 모드가 바뀐 순간(격자 ↔ 피드)엔 새 화면이 흐린 데서 시작해 밝아진다 — 칩을 풀어 피드로 돌아올 때도 같은 전환
+   * (PM 2026-10-09 "취소하면 원래 탐색이 끊기는 느낌"). 그리기 전(layout effect)에 낮춰야 한 프레임 밝게 번쩍이지 않는다
+   */
+  const shownModeRef = useRef(screen.isFiltered);
+  useLayoutEffect(() => {
+    if (shownModeRef.current === screen.isFiltered) return;
+    shownModeRef.current = screen.isFiltered;
+    switchDim.setValue(SWITCH_DIM_OPACITY);
+  }, [screen.isFiltered, switchDim]);
+  /*
+   * 피드로 돌아올 때 섹션을 한 번에 다 그리지 않는다 — 캐러셀마다 사진 목록이라 한 프레임에 몰리면 전환이 끊긴다.
+   * 첫 화면 몫만 먼저, 나머지는 전환 모션이 끝난 뒤(InteractionManager) 붙인다. 아래쪽이라 눈에 띄지 않는다
+   */
+  const [feedSectionLimit, setFeedSectionLimit] = useState(Number.POSITIVE_INFINITY);
+  const [limitedFor, setLimitedFor] = useState(screen.isFiltered);
+  if (limitedFor !== screen.isFiltered) {
+    setLimitedFor(screen.isFiltered);
+    if (!screen.isFiltered) setFeedSectionLimit(FEED_FIRST_SECTIONS);
+  }
+  useEffect(() => {
+    if (feedSectionLimit === Number.POSITIVE_INFINITY) return;
+    const task = InteractionManager.runAfterInteractions(() =>
+      setFeedSectionLimit(Number.POSITIVE_INFINITY),
+    );
+    return () => task.cancel();
+  }, [feedSectionLimit]);
   useEffect(() => {
     const animation = Animated.timing(switchDim, {
       toValue: screen.isSwitching ? SWITCH_DIM_OPACITY : 1,
@@ -92,7 +120,7 @@ export default function ExploreScreen() {
     });
     animation.start();
     return () => animation.stop();
-  }, [screen.isSwitching, switchDim]);
+  }, [screen.isSwitching, screen.isFiltered, switchDim]);
   // Android 서리 유리 띠의 블러 대상(AndroidBlurTarget)
   const blurTargetRef = useRef<View>(null);
   // 제자리 검색 모드(iOS 26·Android) — 아래 isSearching 분기
@@ -546,7 +574,7 @@ export default function ExploreScreen() {
           ) : null
         ) : (
           <Animated.View style={{ opacity: switchDim }}>
-            {screen.sections.map(renderSection)}
+            {screen.sections.slice(0, feedSectionLimit).map(renderSection)}
           </Animated.View>
         )}
       </Animated.ScrollView>
@@ -640,6 +668,8 @@ const ANDROID_IOS_HEADER = Platform.OS === 'android' && !HAS_NATIVE_TAB_BAR;
 
 /** 주제 전환 중 콘텐츠 흐림 */
 const SWITCH_DIM_OPACITY = 0.5;
+/** 피드로 돌아올 때 먼저 그리는 섹션 수 — 첫 화면 몫 */
+const FEED_FIRST_SECTIONS = 2;
 
 const styles = StyleSheet.create({
   // 고정 제목 아래로 목록이 지나가도 글자가 겹치지 않도록 화면 바탕을 채운다.
