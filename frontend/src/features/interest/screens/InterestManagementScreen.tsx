@@ -138,9 +138,6 @@ export default function InterestManagementScreen() {
 
           {/* 하단 고정 독 — 칩이 늘어 스크롤이 생겨도 [저장]이 묻히지 않는다(uiux 4.1) */}
           <View style={styles.dock}>
-            {screen.isBelowMin && !screen.isLoading ? (
-              <Text style={styles.dockNotice}>{INTEREST_COPY.minRequired}</Text>
-            ) : null}
             {/* 상한 초과 — 0개 사유와 같은 패턴으로 저장이 왜 잠겼는지 상시 노출한다(변경 2026-08-11) */}
             {screen.isOverLimit && !screen.isLoading ? (
               <Text style={styles.dockNotice}>
@@ -169,9 +166,20 @@ export default function InterestManagementScreen() {
                     ))
                 )}
               </View>
-              <Text style={styles.summaryLabel} numberOfLines={1}>
-                {selectedTopics.map((topic) => topic.name).join(' · ')}
-              </Text>
+              {/* 0개 사유는 [저장] 바로 왼쪽에 — 왜 잠겼는지가 버튼 옆에서 읽힌다(PM 2026-10-09 23:27, 종전 바 위 한 줄) */}
+              {screen.isBelowMin && !screen.isLoading ? (
+                <Text
+                  style={[styles.summaryLabel, styles.summaryNotice]}
+                  numberOfLines={2}
+                  accessibilityLiveRegion="polite"
+                >
+                  {INTEREST_COPY.minRequired}
+                </Text>
+              ) : (
+                <Text style={styles.summaryLabel} numberOfLines={1}>
+                  {selectedTopics.map((topic) => topic.name).join(' · ')}
+                </Text>
+              )}
               {screen.saveErrorMessage !== null ? (
                 /* IM8 — 같은 저장의 반복이라 확인 팝업 없이 다시 보낸다(uiux 4.7) */
                 <Pressable
@@ -384,6 +392,10 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.sm,
     fontWeight: '600',
     color: theme.color.textPrimary,
+  },
+  summaryNotice: {
+    fontWeight: '500',
+    color: theme.color.textSecondary,
   },
   dockNotice: {
     fontSize: theme.font.size.sm,
