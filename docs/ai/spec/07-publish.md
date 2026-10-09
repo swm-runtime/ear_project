@@ -42,7 +42,7 @@ TTS 다음에 돌며 정사각형 1024×1024 PNG 한 장을 만든다. 종전에
 | 모델 | `gpt-image-2` (확정 2026-09-10 — mini 와 비교 후. **화풍 일관성**이 기준이라 3배 비싼 쪽을 골랐다) |
 | 규격 | 1:1 · 1024×1024 · PNG · **full-bleed**(둥근 모서리는 앱이 표시할 때 깎는다) |
 | 프롬프트 | `prompt_assets` `skills/thumbnail/prompt.md` — **thumb-v4 부터(2026-10-07, KAN-138) 칸 5개**(제목·분야·띠 색·장면·빛). v3 이하는 칸 4개(제목·중분류·한 줄 요약·띠 색) — 워커는 활성 판에 `{장면}` 칸이 있는지로 경로를 고른다 |
-| 장면 (v4) | 자산 `skills/thumbnail/scene.md` 규칙으로 텍스트 모델(`THUMBNAIL_SCENE_MODEL`, 기본 gpt-5.6-terra · OpenAI 실행기)이 대본·제목·분야·[최근 장면]을 읽고 장면 한 문장과 시간·빛을 쓴다. [최근 장면] = 최근 썸네일 10편의 `thumbnail-scene.json` |
+| 장면 (v4) | 자산 `skills/thumbnail/scene.md` 규칙으로 텍스트 모델(`THUMBNAIL_SCENE_MODEL`, 기본 gpt-6.1-sol — 2026-10-09 terra 에서 교체 · OpenAI 실행기)이 대본·제목·분야·[최근 장면]을 읽고 장면 한 문장과 시간·빛을 쓴다. [최근 장면] = 최근 썸네일 10편의 `thumbnail-scene.json` |
 | 화풍 (v4) | **무광 점토 3D** (확정 2026-10-07 — 플랫·구아슈·시네마틱·아이소메트릭·정물·컨셉·고흐풍 시안과 비교, `pipeline/.work/thumb-test/`) |
 | 코너 삼각형 (v4) | **모델이 그리지 않는다** — 코드가 얹는다(`thumbnail-compose.ts`): 오른쪽 위 직각삼각형, 두 변 = 한 변의 30%, 대분류 색, 흰 경계선 없음, 빗변 바깥 검은 그림자 S2(28px@1024, 20% → 0 제곱 감쇠). 원본 대비 ΔE(빗변 바깥 40px 띠 중앙값)를 기록하고 20 미만이면 결과에 [다시 만들기] 권장 경고 |
 | 스타일 앵커 (v3 이하) | `settings.thumbnail.anchor`(콘솔 썸네일 탭에서 지정) → 없으면 env `THUMBNAIL_ANCHOR_KEY`. 참조 지시는 자산 `skills/thumbnail/anchor.md`. **v4 는 쓰지 않는다** — 소재까지 베껴 목록이 한 톤이 됐다 |

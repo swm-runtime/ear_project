@@ -50,28 +50,29 @@ export const cfg = {
    *  single = 구 방식(한 실행이 정독부터 대본까지). 비교 측정용 토글 — DRAFT_MODE=single 로 되돌린다 */
   draftMode: (process.env.DRAFT_MODE === "single" ? "single" : "two-stage") as "single" | "two-stage",
   /** 2단계 단계별 모델 — 미설정이면 CLAUDE_MODEL(=CLI 기본). 설계는 정독·구조 판단, 대본은 문장이라 따로 둘 수 있게 */
-  draftDesignModel: process.env.DRAFT_DESIGN_MODEL || "claude-opus-5", // 설계(구조·발췌 선택)는 opus 단발이 Fable 에이전트($5.45)의 절반 이하($2.26)로 같은 수준의 구성안을 냈다 (2026-09-08 C50)
+  /** Claude 단계 기본 모델은 2026-10-09 박수헌 지시로 Opus·Sonnet 5 → 5.5 (claude-opus-5-5 · claude-sonnet-5-5). 아래 근거 메모의 비용·판정 수치는 5 시절 실측이다 */
+  draftDesignModel: process.env.DRAFT_DESIGN_MODEL || "claude-opus-5-5", // 설계(구조·발췌 선택)는 opus 단발이 Fable 에이전트($5.45)의 절반 이하($2.26)로 같은 수준의 구성안을 냈다 (2026-09-08 C50)
   /** 수정 재생성 형태 (2026-09-09): single = 인라인·도구 없음·바꿀 턴만 받아 워커가 치환 · agent = 구 방식(Read·Edit 루프). 기본 agent — 판정 3편 동안 현행 유지, 이후 single 로 */
   revisionMode: (process.env.REVISION_MODE === "agent" ? "agent" : "single") as "single" | "agent", // 2026-09-10 기본 single (판정 3편 완료 후 전환 — 스모크 $1.92 → $0.89). 되돌리려면 REVISION_MODE=agent
-  revisionModel: process.env.REVISION_MODEL || process.env.DRAFT_WRITE_MODEL || "claude-opus-5",
+  revisionModel: process.env.REVISION_MODEL || process.env.DRAFT_WRITE_MODEL || "claude-opus-5-5",
   thinkingRevision: envInt("THINKING_REVISION", 4000),
   /** 설계 실행 형태 (2026-09-08 비용 절감 ③): single(기본) = 소스 본문을 코드가 가져와 인라인, 도구 없음, 발췌는 ID 선택 · agent = WebFetch·파일 쓰기 루프. DESIGN_MODE=agent 로 복귀 */
   designMode: (process.env.DESIGN_MODE === "agent" ? "agent" : "single") as "single" | "agent",
-  draftWriteModel: process.env.DRAFT_WRITE_MODEL || "claude-opus-5", // 2026-09-08 박수헌: 판정용 3편을 opus-5 로 만들어 사람 판정으로 확정 (Fable 대본 ≈$4.5 → opus ≈$2). 되돌리려면 DRAFT_WRITE_MODEL=claude-fable-5-1
+  draftWriteModel: process.env.DRAFT_WRITE_MODEL || "claude-opus-5-5", // 2026-09-08 박수헌: 판정용 3편을 opus-5 로 만들어 사람 판정으로 확정 (Fable 대본 ≈$4.5 → opus ≈$2). 되돌리려면 DRAFT_WRITE_MODEL=claude-fable-5-1
   /** 비평 전용 모델 — 2026-09-01 박수헌: 비평은 Opus 고정 (Fable 한도 부족). 판정자 모델은 회귀 세트 재검증 트리거이므로 바꾸면 spec/09 7.4 */
-  criticModel: process.env.CRITIC_MODEL || "claude-opus-5",
+  criticModel: process.env.CRITIC_MODEL || "claude-opus-5-5",
   /** 축 심사 (full-v8.1): 설계 직후 구성안의 구간이 축의 하위 질문에 답하는지 값싼 단발 호출로 보고, fail 이면 한 번 재설계. AXIS_CHECK=off 로 끔 */
   axisCheck: process.env.AXIS_CHECK !== "off",
-  axisCheckModel: process.env.AXIS_CHECK_MODEL || "claude-sonnet-5",
+  axisCheckModel: process.env.AXIS_CHECK_MODEL || "claude-sonnet-5-5",
   /** QA 통과 연쇄가 큐에 넣는 비평 루브릭 (spec/09 7.1 — 회귀 세트 판정은 critic-v2 배점으로, v1 5축에 사람 시간을 쓰지 않는다). 2026-09-07 기본 v2. 되돌리려면 CRITIC_RUBRIC=v1 */
   criticRubric: (process.env.CRITIC_RUBRIC === "v1" ? "v1" : "v2") as "v1" | "v2",
   /** 비평 실행 형태 (2026-09-16 비용): single = 루브릭·규칙·골드 인라인(시스템 블록 캐시)·도구 없음·리포트는 JSON 으로(기본 — 같은 루브릭 3편 대조에서 편향 −1.3 vs −2.7, 동의 플래그 유지 19/41 vs 18/41, ⭐ 10/19 vs 12/19, 비용 $1.23 vs $2.41) · agent = 파일 Read·Write 루프(CRITIC_MODE=agent). 측정 작업은 payload.mode 로 지정 */
   criticMode: (process.env.CRITIC_MODE === "agent" ? "agent" : "single") as "single" | "agent",
   /** QA·군집화 모델 — 2026-09-03 박수헌: 발췌 대조·구조 분석은 Fable 이 필요 없다 → Opus 기본 (속도·한도 절약). QA 도 평가자라 바꾸면 spec/09 7.4 */
   /** QA 모델 — 2026-09-08 Sonnet 5 기본 (비용 절감 ⑤): 심은 오류 프로브 8건 중 7건 검출·오탐 0(opus 상한판 8/8). 놓친 1건(시점 고정 표현)은 L0 코드 검사로 이관. 되돌리려면 QA_MODEL=claude-opus-5 */
-  qaModel: process.env.QA_MODEL || "claude-sonnet-5",
+  qaModel: process.env.QA_MODEL || "claude-sonnet-5-5",
   /** 추천 메타 판정 (KAN-53) — 판정 5종은 분류 작업이라 Sonnet 으로 충분. 편당 $0.1~0.3 */
-  enrichModel: process.env.ENRICH_MODEL || "claude-sonnet-5",
+  enrichModel: process.env.ENRICH_MODEL || "claude-sonnet-5-5",
   /** 화면 해시태그(KAN-139) — 켜면 enrichment.json 에 tags 를 싣고 형식을 3으로 올린다. 서버(BE)가 형식 3을 받기 전까지 끈다 — 모르는 키·높은 형식은 파일째 거부된다(admin-api 4.6). 꺼져 있어도 태그는 판정해 리포트에 남긴다 */
   enrichTags: process.env.ENRICH_TAGS ? process.env.ENRICH_TAGS === "1" : false,
   /** QA 실행 형태 (2026-09-08 비용 절감 ②): single = 입력 인라인·도구 없음·리포트는 JSON 으로(기본) · agent = 구 방식(파일 읽기·리포트 쓰기 루프). QA_MODE=agent 로 복귀 */
@@ -91,7 +92,7 @@ export const cfg = {
   effortRevision: envEffort("EFFORT_REVISION", "medium"),
   /** 비평 effort (2026-09-16): 기본 없음(CLI 기본 high) — 점수가 사람 판정에 보정된 상태라 바꾸려면 판정된 편 재비평(critic-measure)으로 편향·플래그 유지를 확인한 뒤. 측정은 EFFORT_CRITIC=medium 으로 */
   effortCritic: envEffort("EFFORT_CRITIC", null), // 비평은 회귀 세트로 편향을 재는 중 — 상한은 재검증(spec/09 7.4) 후에 (기본 없음)
-  clusterModel: process.env.CLUSTER_MODEL || "claude-opus-5",
+  clusterModel: process.env.CLUSTER_MODEL || "claude-opus-5-5",
   /** 군집화 방식 (2026-09-09 ①): v2 = 축 먼저·역할·다양성(단발) · v1 = 유사성 묶기(현행, 기본). ③ 판정 3편 후 v2 로 전환 */
   /** 군집화 기본은 v2(축 먼저, spec/03 2.1) — 2026-09-18 박수헌: 스윕 뒤 자동 군집화가 v1 으로 남아 있던 것을 v2 로. 되돌리려면 CLUSTER_MODE=v1 */
   clusterMode: (process.env.CLUSTER_MODE === "v1" ? "v1" : "v2") as "v1" | "v2",
@@ -162,9 +163,9 @@ export const cfg = {
    */
   thumbnailAnchorKey: process.env.THUMBNAIL_ANCHOR_KEY || "",
   /** 장면 쓰기 모델 (KAN-138 thumb-v4, 2026-10-07) — OpenAI 실행기로 부른다(키는 썸네일과 같은 OPENAI_API_KEY). 편당 1센트 안팎 */
-  thumbnailSceneModel: process.env.THUMBNAIL_SCENE_MODEL || "gpt-5.6-terra",
+  thumbnailSceneModel: process.env.THUMBNAIL_SCENE_MODEL || "gpt-6.1-sol", // 2026-10-09 gpt-5.6-terra → gpt-6.1-sol (GPT 전부 6.1-sol)
   /** 구간 요약 모델 (KAN-152, 2026-10-07) — OpenAI 실행기(키는 OPENAI_API_KEY). 한 편에 한 번 호출, 1센트 안팎. 키가 없으면 요약 없이 구간만 낸다 */
-  sectionSummaryModel: process.env.SECTION_SUMMARY_MODEL || "gpt-5.6-terra",
+  sectionSummaryModel: process.env.SECTION_SUMMARY_MODEL || "gpt-6.1-sol", // 2026-10-09 gpt-5.6-terra → gpt-6.1-sol
   /** 1장당 USD — runs.cost_usd 환산용. 모델·품질을 바꾸면 THUMBNAIL_USD_PER_IMAGE 로 덮는다 */
   thumbnailUsdPerImage: process.env.THUMBNAIL_USD_PER_IMAGE ? Number(process.env.THUMBNAIL_USD_PER_IMAGE) : undefined,
 };
