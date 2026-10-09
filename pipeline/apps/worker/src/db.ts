@@ -80,6 +80,28 @@ export async function majorOfMidTopic(mid: string): Promise<string | null> {
   const r = await pool.query("select major from public.topics where mid = $1", [mid]);
   return r.rows[0]?.major ?? null;
 }
+/**
+ * 스윕 뒤 군집화 중복 판정의 재료 (2026-10-09 박수헌) — 같은 대분류의 끝나지 않은 다른 모드 A 스윕 수와 대기 중인 대분류 군집화 수.
+ * 동시에 끝난 두 스윕이 서로를 "아직 안 끝남"으로 보고 둘 다 군집화를 건너뛰지 않도록, 대분류 잠금 아래에서 자기 작업에 끝남 표시(result.sweep_done)를
+ * 먼저 남긴 뒤 센다. 표시는 작업 완료 때 result 가 통째로 바뀌며 사라진다(그때는 status 가 done 이라 셀 대상이 아니다).
+ */
+export async function sweepClusterState(jobId: string, major: string): Promise<{ otherSweeps: number; queuedClusters: number }> {
+  const c = await pool.connect();
+  try {
+    await c.query("begin");
+    await c.query("select pg_advisory_xact_lock(hashtext('cluster-after-sweep:' || $1))", [major]);
+    await c.query(`update public.jobs set result = coalesce(result, '{}'::jsonb) || '{"sweep_done": true}'::jsonb where id = $1`, [jobId]);
+    const s = await c.query(
+      `select count(*)::int n from public.jobs j join public.topics t on t.mid = j.payload->>'mid_topic'
+        where j.type = 'sweep' and j.id <> $1 and coalesce(j.payload->>'mode', 'A') = 'A' and t.major = $2
+          and j.status in ('queued','claimed','running') and coalesce((j.result->>'sweep_done')::boolean, false) = false`,
+      [jobId, major],
+    );
+    const q = await c.query("select count(*)::int n from public.jobs where type = 'cluster' and status = 'queued' and payload->>'major_topic' = $1", [major]);
+    await c.query("commit");
+    return { otherSweeps: s.rows[0].n, queuedClusters: q.rows[0].n };
+  } catch (e) { await c.query("rollback").catch(() => {}); throw e; } finally { c.release(); }
+}
 export async function getBacklog(id: string): Promise<BacklogCandidate | null> {
   const r = await pool.query("select id, mid_topic, title, target_fit, angle, sources, axis, axis_type, gaps from public.backlog where id = $1", [id]);
   if (!r.rows[0]) return null;
