@@ -24,15 +24,11 @@ import { INTEREST_COPY } from '../interest.copy';
 export default function InterestManagementScreen() {
   const screen = useInterestManagementScreen();
 
-  const showBadge = screen.hasChanges;
-  // 개수 표기와 변경 배지는 하나의 라이브 리전으로 묶어 한 문장으로 읽힌다(uiux 7장)
   // 하단 독의 요약 — 고른 주제의 사진을 겹쳐 쌓고 이름을 잇는다(PM 2026-10-09 D안)
   const selectedTopics = screen.topics.filter((topic) => topic.isSelected);
   const isFull = screen.selectedCount >= screen.maxSelectable;
-  const countA11yLabel = [
-    INTEREST_COPY.countA11y(screen.selectedCount, screen.maxSelectable),
-    ...(showBadge ? [INTEREST_COPY.changeBadge(screen.changeCount)] : []),
-  ].join(', ');
+  // 진행 막대·"변경 사항 N개" 배지는 뺐다(PM 2026-10-10 00:57) — 개수는 "N/3 선택" 한 줄이 맡는다
+  const countA11yLabel = INTEREST_COPY.countA11y(screen.selectedCount, screen.maxSelectable);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -84,30 +80,8 @@ export default function InterestManagementScreen() {
                 <Text style={styles.countLabel}>
                   {INTEREST_COPY.countLabel(screen.selectedCount, screen.maxSelectable)}
                 </Text>
-                {showBadge ? (
-                  <View style={styles.changeBadge}>
-                    <Text style={styles.changeBadgeLabel}>
-                      {INTEREST_COPY.changeBadge(screen.changeCount)}
-                    </Text>
-                  </View>
-                ) : null}
               </View>
             )}
-            {/* 진행 막대 — 상한만큼의 칸이 고른 수만큼 찬다. 숫자(위 countRow)와 같은 값의 시각 표현이라 낭독에서 뺀다 */}
-            {!screen.isLoading ? (
-              <View
-                style={styles.segments}
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-              >
-                {Array.from({ length: screen.maxSelectable }, (_, index) => (
-                  <View
-                    key={index}
-                    style={[styles.segment, index < screen.selectedCount && styles.segmentOn]}
-                  />
-                ))}
-              </View>
-            ) : null}
             {/* IM6 — 초과 보유자 안내. "5/3 선택"을 거짓 클램프하지 않는다(uiux 4.5) */}
             {screen.overLimitCount > 0 ? (
               <View style={styles.overLimitBanner} accessibilityLiveRegion="polite">
@@ -295,19 +269,6 @@ const styles = StyleSheet.create({
     lineHeight: theme.font.size.xl * 1.25,
     marginTop: theme.spacing.sm,
   },
-  segments: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  segment: {
-    flex: 1,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: theme.color.border,
-  },
-  segmentOn: {
-    backgroundColor: theme.color.primary,
-  },
   field: {
     flex: 1,
   },
@@ -319,18 +280,6 @@ const styles = StyleSheet.create({
   countLabel: {
     fontSize: theme.font.size.sm,
     color: theme.color.textSecondary,
-  },
-  changeBadge: {
-    borderRadius: theme.radius.lg,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs / 2,
-  },
-  changeBadgeLabel: {
-    fontSize: theme.font.size.xs,
-    fontWeight: '600',
-    color: theme.color.primary,
   },
   overLimitBanner: {
     borderRadius: theme.radius.md,
