@@ -53,6 +53,24 @@ export function configureApp(
   app.use(json());
   app.use(urlencoded({ extended: true }));
 
+  /**
+   * LB 뒤에 배포할 때만 env로 켠다(`TRUST_PROXY_HOPS` — 기본 0).
+   *
+   * 켜야 `X-Forwarded-For`에서 진짜 클라이언트 IP를 읽어 `audio_access_logs.ip_hash` 이상 탐지(FR-33)와
+   * IP 단위 레이트 리밋(`RateLimitGuard`)이 동작한다. **프록시가 없는데 켜면 반대로 IP 위조 구멍이 된다** —
+   * 그래서 값은 코드가 아니라 배포 설정이 정한다(env.validation.ts 참조). 2026-10-07 `configureApp` 분리 때 이 블록이
+   * 빠져 Caddy 뒤의 모든 요청이 프록시 IP 하나로 보였다(로그인·갱신 20회/분 버킷이 전원 공용 — 2026-10-09 전체 검증).
+   * 부팅 스모크 e2e 가 `trust proxy` 값을 확인한다.
+   */
+  // 숫자로 고정한다 — env 검증기(`@Type(() => Number)`)를 거치지 않은 조립(부팅 스모크 e2e)에서는 문자열 "1"이
+  // 들어오고, Express 는 문자열을 홉 수가 아니라 IP 목록으로 읽는다
+  const trustProxyHops = Number(
+    configService.get('TRUST_PROXY_HOPS', { infer: true }) ?? 0,
+  );
+  if (Number.isInteger(trustProxyHops) && trustProxyHops > 0) {
+    app.set('trust proxy', trustProxyHops);
+  }
+
   // architecture.md 9.5 — 보안 헤더 전역 적용, CORS 허용 오리진 명시(`*` 금지)
   app.use(helmet());
   app.use(traceIdMiddleware);

@@ -4,7 +4,6 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import type { Request } from 'express';
 import request from 'supertest';
-import { App } from 'supertest/types';
 
 import { NEST_APP_OPTIONS, configureApp } from '@/main';
 
@@ -37,7 +36,7 @@ class SentryPathController {
 }
 
 describe('부팅 스모크 — main.ts 의 configureApp 으로 조립한 앱', () => {
-  let app: NestExpressApplication<App>;
+  let app: NestExpressApplication;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -45,10 +44,8 @@ describe('부팅 스모크 — main.ts 의 configureApp 으로 조립한 앱', (
       controllers: [EchoController, SentryPathController],
     }).compile();
 
-    app = moduleRef.createNestApplication<NestExpressApplication<App>>(
-      undefined,
-      NEST_APP_OPTIONS,
-    );
+    app =
+      moduleRef.createNestApplication<NestExpressApplication>(NEST_APP_OPTIONS);
     configureApp(app, app.get(ConfigService));
     await app.init();
   });
@@ -93,6 +90,40 @@ describe('부팅 스모크 — main.ts 의 configureApp 으로 조립한 앱', (
       .post('/api/v1/t/echo')
       .send(big);
     expect(other.status).toBe(HttpStatus.PAYLOAD_TOO_LARGE);
+  });
+
+  it('TRUST_PROXY_HOPS 가 Express trust proxy 에 들어간다 — 빠지면 Caddy 뒤의 모든 요청이 프록시 IP 하나로 보인다', async () => {
+    // 기본(env 없음)은 꺼짐 — 프록시가 없는데 켜면 IP 위조 구멍이다
+    expect(app.getHttpAdapter().getInstance().get('trust proxy')).toBeFalsy();
+
+    const key = 'TRUST_PROXY_HOPS';
+    const original = process.env[key];
+    process.env[key] = '1';
+    try {
+      const moduleRef = await Test.createTestingModule({
+        imports: [
+          ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true }),
+        ],
+        controllers: [EchoController],
+      }).compile();
+      const proxied =
+        moduleRef.createNestApplication<NestExpressApplication>(
+          NEST_APP_OPTIONS,
+        );
+      configureApp(proxied, proxied.get(ConfigService));
+      await proxied.init();
+      try {
+        // Express 는 숫자 홉을 그대로 저장한다(2026-10-07 configureApp 분리 때 이 설정이 빠졌다 — 2026-10-09 복구)
+        expect(proxied.getHttpAdapter().getInstance().get('trust proxy')).toBe(
+          1,
+        );
+      } finally {
+        await proxied.close();
+      }
+    } finally {
+      if (original === undefined) delete process.env[key];
+      else process.env[key] = original;
+    }
   });
 
   it('전역 프리픽스·보안 헤더가 붙는다', async () => {
