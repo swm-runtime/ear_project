@@ -490,7 +490,7 @@ export default function ExploreScreen() {
             ) : null
           }
           ListHeaderComponent={contentChips}
-          ListHeaderComponentStyle={contentChips ? styles.contentChips : undefined}
+          ListHeaderComponentStyle={contentChips ? styles.gridHeaderChips : undefined}
           ListFooterComponent={renderFooter()}
           contentContainerStyle={[
             screen.filteredItems.length === 0 ? styles.emptyContent : styles.gridContent,
@@ -662,6 +662,11 @@ const styles = StyleSheet.create({
   // 콘텐츠 첫 줄의 칩(시스템 바 갈래) — 좌우 여백은 칩 줄이 갖는다. 격자 목록은 gridContent 의 좌우 여백을 되돌린다
   contentChips: {
     marginHorizontal: -theme.spacing.md,
+  },
+  // 격자 위 칩 — 칩 줄 아래 여백(8)에 8 을 더해 첫 줄 사진과 16. 검색창 ↔ 칩 간격과 맞춘다(PM 2026-10-09 — 8 은 칩이 격자에 붙어 보였다)
+  gridHeaderChips: {
+    marginHorizontal: -theme.spacing.md,
+    marginBottom: theme.spacing.sm,
   },
   sectionHeaderRow: {
     flexDirection: 'row',

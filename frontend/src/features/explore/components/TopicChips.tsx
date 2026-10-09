@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
@@ -25,12 +26,48 @@ interface TopicChipsProps {
  * 카드도 같은 방식이다. 종전엔 흰 테두리 알약 / 선택 시 검정 채움이었다.
  */
 export default function TopicChips({ topics, selectedTopicIds, onToggle }: TopicChipsProps) {
+  /*
+   * **고른 칩이 화면 밖이면 보이게 민다**(PM 2026-10-09 — 칩을 고르면 화면이 격자로 바뀌며 칩 줄이 새로 그려져 맨 앞부터
+   * 보여, 뒤쪽 칩을 고르면 무엇이 골라졌는지 안 보였다). 새로 그려질 땐 애니메이션 없이, 이미 있는 줄에서 바뀌면 부드럽게.
+   * 이미 다 보이면 움직이지 않는다
+   */
+  const scrollRef = useRef<ScrollView>(null);
+  const chipBoxes = useRef<Record<string, { x: number; width: number }>>({});
+  const viewport = useRef({ offset: 0, width: 0 });
+  const revealedId = useRef<string | null>(null);
+  const selectedId = selectedTopicIds[0] ?? null;
+  const reveal = (id: string, animated: boolean) => {
+    const box = chipBoxes.current[id];
+    const { offset, width } = viewport.current;
+    if (!box || width === 0) return;
+    revealedId.current = id;
+    const margin = theme.spacing.md;
+    if (box.x - margin < offset) {
+      scrollRef.current?.scrollTo({ x: Math.max(0, box.x - margin), animated });
+    } else if (box.x + box.width + margin > offset + width) {
+      scrollRef.current?.scrollTo({ x: box.x + box.width + margin - width, animated });
+    }
+  };
+  useEffect(() => {
+    if (selectedId === null) revealedId.current = null;
+    else if (revealedId.current !== selectedId) reveal(selectedId, true);
+  });
+
   if (topics.length === 0) return null;
 
   return (
     <ScrollView
+      ref={scrollRef}
       horizontal
       showsHorizontalScrollIndicator={false}
+      scrollEventThrottle={16}
+      onScroll={(event) => {
+        viewport.current.offset = event.nativeEvent.contentOffset.x;
+      }}
+      onLayout={(event) => {
+        viewport.current.width = event.nativeEvent.layout.width;
+        if (selectedId !== null && revealedId.current !== selectedId) reveal(selectedId, false);
+      }}
       // ScrollView 기본값이 flexGrow: 1이라 본문이 비는 순간 칩 줄이 세로로 늘어난다 — 성장 금지
       style={styles.scroll}
       contentContainerStyle={styles.container}
@@ -41,6 +78,12 @@ export default function TopicChips({ topics, selectedTopicIds, onToggle }: Topic
           <Pressable
             key={topic.id}
             style={styles.chip}
+            onLayout={(event) => {
+              const { x, width } = event.nativeEvent.layout;
+              chipBoxes.current[topic.id] = { x, width };
+              if (topic.id === selectedId && revealedId.current !== selectedId)
+                reveal(topic.id, false);
+            }}
             onPress={() => onToggle(topic.id)}
             accessibilityRole="togglebutton"
             accessibilityLabel={topic.name}
@@ -59,6 +102,9 @@ export default function TopicChips({ topics, selectedTopicIds, onToggle }: Topic
     </ScrollView>
   );
 }
+
+/** 탐색 칩 선택 막 — 기본 막(0.34)과 차이를 크게 둬 어느 주제를 골랐는지 한눈에 보이게 */
+const SELECTED_SCRIM = 'rgba(0, 0, 0, 0.75)';
 
 const styles = StyleSheet.create({
   scroll: {
@@ -105,9 +151,12 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.34)',
   },
-  /** 선택 — 막만 짙어진다(온보딩 칩의 선택 상태와 같은 토큰) */
+  /**
+   * 선택 — 막만 짙어진다. 공용 토큰(photoScrim 0.62)으로는 어두운 사진 칩(IT·개발 등)과 구분이 약해 탐색 칩만 더 짙게 둔다
+   * (PM 2026-10-09). 온보딩·관심사 칩은 여러 개를 고르는 칩이라 그대로
+   */
   overlaySelected: {
-    backgroundColor: theme.color.photoScrim,
+    backgroundColor: SELECTED_SCRIM,
   },
   label: {
     // 칩이 아니라 라벨이 좌우 여백을 갖는다 — 위 chip 주석 참고
