@@ -22,6 +22,8 @@ interface PeriodSwapProps {
 const PERIOD_ORDER = ['week', 'month', 'all'];
 /** 조회 중 흐림 정도 */
 const DIMMED_OPACITY = 0.5;
+/** 조회가 이보다 빨리 끝나면 흐리지 않는다 */
+const DIM_DELAY_MS = 300;
 /** 한 번에 흘러가는 길이 — 두 단계(빠짐 → 들어옴)가 아니라 한 번이다 */
 const FLOW_MS = 420;
 /** 흐르기 전 새 줄을 화면 밖에 그려 두는 틈 — 썸네일이 뜰 시간 */
@@ -83,6 +85,8 @@ export default function PeriodSwap({
     Animated.timing(dim, {
       toValue: isDimmed ? DIMMED_OPACITY : 1,
       duration: motion.duration.fast,
+      // 금방 오면 흐리지 않는다 — 흰 바탕에서 짧게 흐렸다 돌아오는 게 깜빡임으로 읽혔다(PM 2026-10-09)
+      delay: isDimmed ? DIM_DELAY_MS : 0,
       easing: motion.easing.easeOut,
       useNativeDriver: true,
     }).start();
