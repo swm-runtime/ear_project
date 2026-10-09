@@ -14,8 +14,11 @@ interface PeriodCrossfadeProps {
 
 /** 조회 중 흐림 정도 */
 const DIMMED_OPACITY = 0.5;
-/** 조회가 이보다 빨리 끝나면 흐리지 않는다 — 흰 바탕에서 짧게 흐렸다 돌아오는 게 깜빡임으로 읽혔다(2026-10-09) */
-const DIM_DELAY_MS = 300;
+/**
+ * 조회가 이보다 빨리 끝나면 흐리지 않는다 — 흰 바탕에서 흐렸다 돌아오는 게 "흰색으로 바뀌었다 나타남"으로 읽혔다(2026-10-09).
+ * 전환은 조회 + 앞 카드 사진 올리기(최대 600ms, useExploreScreen POPULAR_WARM_MS)라 그보다 길게 잡는다 — 느린 망에서만 흐린다
+ */
+const DIM_DELAY_MS = 800;
 /** 직전 줄 ↔ 새 줄 교차 시간 */
 const CROSSFADE_MS = 200;
 
@@ -79,9 +82,15 @@ export default function PeriodCrossfade({ swapKey, isDimmed, children }: PeriodC
         easing: motion.easing.easeInOut,
         useNativeDriver: true,
       });
-    const animation = Animated.parallel([timing(incoming, 1), timing(outgoing, 0)]);
+    /*
+     * **새 줄만 직전 줄 위에서 나타난다** — 직전 줄은 끝까지 1 로 둔다. 둘을 함께 교차하면 중간에 둘 다 반투명이라 흰 바탕이
+     * 비쳐 "흰색으로 바뀌었다가 나타났다"(PM 2026-10-09). 다 나타나면 직전 줄을 바로 감추고(카드 사이 틈으로 비치지 않게) 뗀다
+     */
+    const animation = timing(incoming, 1);
     animation.start(({ finished }) => {
-      if (finished) setLeaving(null);
+      if (!finished) return;
+      outgoing.setValue(0);
+      setLeaving(null);
     });
     return () => animation.stop();
   }, [leaving, live, opacityA, opacityB]);
@@ -96,7 +105,7 @@ export default function PeriodCrossfade({ swapKey, isDimmed, children }: PeriodC
           <Animated.View
             key={slot}
             pointerEvents={isLive ? 'auto' : 'none'}
-            style={[isLive ? null : styles.leaving, { opacity: slotOpacity[slot] }]}
+            style={[isLive ? styles.live : styles.leaving, { opacity: slotOpacity[slot] }]}
           >
             {node}
           </Animated.View>
@@ -107,11 +116,16 @@ export default function PeriodCrossfade({ swapKey, isDimmed, children }: PeriodC
 }
 
 const styles = StyleSheet.create({
+  // 보이는(새) 줄 — 직전 줄 위에 그린다. 칸 순서는 고정이라 zIndex 로 올린다
+  live: {
+    zIndex: 1,
+  },
   // 사라지는 줄 — 새 줄과 같은 자리에 겹쳐 둔다(높이는 새 줄이 잡는다)
   leaving: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
+    zIndex: 0,
   },
 });
