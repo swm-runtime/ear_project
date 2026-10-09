@@ -472,6 +472,14 @@ export default function PlayerScreen() {
       useNativeDriver: false,
     }).start();
   }, [artScale, isArtRelaxed]);
+  /*
+   * 재생 목록을 **끄는 동안**에도 배율을 1 로 편다 — 위의 `activePanel === 'queue'` 는 놓아서 열린 뒤에야 참이라, 정지 상태에서
+   * 끌어올리고 버티면 화면을 채우는 사진이 0.85 로 줄어 위·양옆이 비었다(PM 2026-10-09 실기기). 끈 만큼(queueProgress) 1 에 다가간다
+   */
+  const artScaleShown = useMemo(
+    () => Animated.add(artScale, Animated.multiply(Animated.subtract(1, artScale), queueProgress)),
+    [artScale, queueProgress],
+  );
   // 진단 — 마운트 횟수(설정 > 스택 라우트 줄). 드래그 닫기 뒤 탭 전환 때 늘면 JS 가 다시 마운트한 것
   useEffect(() => {
     notePlayerMounted();
@@ -1454,7 +1462,7 @@ export default function PlayerScreen() {
               borderRadius: art.radius,
               borderCurve: 'continuous',
               opacity: morph.heroOpacity,
-              transform: [{ scale: artScale }],
+              transform: [{ scale: artScaleShown }],
             },
           ]}
           onLayout={onHeroArtLayout}
