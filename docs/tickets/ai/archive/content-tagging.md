@@ -13,7 +13,7 @@
 | 선행 | 앱 노출·소급: BE `content-hashtags-enrichment-v3.md`(KAN-162, 추천 메타 형식 3 수용) · FE `content-hashtags-display.md`(KAN-163) — 2026-10-08 발행 |
 | 근거 문서 | `ai/metadata-pipeline.md`(enrichment — keywords·target_audiences 등) · `features/explore.md` · `features/content-detail.md` |
 | 중요도 | Low — PM 발행(2026-10-05). 중요도 미지정이라 이번 주 마감으로 잡았다 — 바꾸려면 Jira·이 표를 함께 고친다 |
-| 상태 | 진행 중 — 체계·부여 규칙·파이프라인 부여 반영(스위치 꺼짐), BE 형식 3 반영 대기 |
+| 상태 | 완료(2026-10-09) — 체계·부여 규칙·파이프라인 부여(스위치 꺼짐)·BE·FE 티켓. 소급·개발계 확인은 KAN-164(`content-tags-backfill-dev-visible.md`)로 이관 |
 
 ## 무엇을 한다
 
@@ -40,4 +40,9 @@
 
 ### 2026-10-09 — 소급을 KAN-164로 떼어 냄
 
-- PM 요청("개발계에서 보이게 하는 티켓")으로 "남은 것"의 스위치·소급·개발계 확인을 `content-tags-backfill-dev-visible.md`(KAN-164)로 발행했다. 개발계는 운영 콘텐츠 복사본이라 운영 소급이 유일한 지속 경로다. 이 티켓은 KAN-164 완료 뒤 archive
+- PM 요청("개발계에서 보이게 하는 티켓")으로 "남은 것"의 스위치·소급·개발계 확인을 `content-tags-backfill-dev-visible.md`(KAN-164)로 발행했다. 개발계는 운영 콘텐츠 복사본이라 운영 소급이 유일한 지속 경로다. 이 티켓은 KAN-164 완료 뒤 archive(→ 같은 날 계획 변경, 아래)
+
+### 2026-10-09 — 완료 처리 (반영 날짜 2026-10-09)
+
+- 박수헌 결정: 소급이 KAN-164로 독립했으므로 KAN-164 완료를 기다리지 않고 이 티켓을 닫는다(Jira 완료 2026-10-09)
+- 완료 조건 1(체계·부여 규칙 — `ai/metadata-pipeline.md` 1장 3항·4.2·4.4, 스킬 `judgment-criteria.md`)·3(BE KAN-162 #1304 · FE KAN-163 #1308 발행·dev 반영) 충족. 2(기존 발행분 태그)는 KAN-164 완료 조건으로 넘겼다 — 운영 배포(dev → main 릴리즈 #1235 승인 대기) 뒤 스위치·소급
