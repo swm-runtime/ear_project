@@ -181,10 +181,10 @@ export default function SeekBar({
   // 틈 폭 — 레이아웃 값이라 JS 구동. 닫히면 조각들이 맞닿아 한 줄 바로 보인다(맞닿는 모서리는 직각)
   const chapterGap = useAnimatedValue(0);
   useEffect(() => {
-    const animation = Animated.timing(chapterGap, {
+    // 스프링(SwiftUI `.smooth`, 튕김 없음) — 닫히는 중에 다시 잡아도 지금 속도를 이어 방향만 바꾼다(PM 2026-10-09, 종전 220ms easeOut)
+    const animation = Animated.spring(chapterGap, {
       toValue: isChapterOpen ? CHAPTER_GAP : 0,
-      duration: CHAPTER_GAP_MS,
-      easing: motion.easing.easeOut,
+      ...motion.spring.smooth,
       useNativeDriver: false,
     });
     animation.start(({ finished }) => {
@@ -319,14 +319,12 @@ const TIME_ACTIVE_SHIFT = 4;
 const TIME_ACTIVE_SCALE = 1.15;
 /** 잡았을 때 바가 양옆으로 넓어지는 폭(한쪽) — 시간 숫자도 같은 만큼 바깥으로 */
 const ACTIVE_WIDEN = 8;
-/** 구간 조각 사이 틈 — 잡았을 때만 벌어진다 */
-const CHAPTER_GAP = 3;
+/** 구간 조각 사이 틈 — 잡았을 때만 벌어진다. 3 은 평소 바(6)의 절반이라 듬성듬성했다 → 2(PM 2026-10-09) */
+const CHAPTER_GAP = 2;
 /** 닫힌 조각끼리 겹치는 폭 — 이음선 감춤 */
 const CHAPTER_SEAM_OVERLAP = 1;
 /** 놓은 뒤 틈이 닫히기까지 */
 const CHAPTER_HOLD_MS = 2000;
-/** 틈이 벌어지고 닫히는 시간 */
-const CHAPTER_GAP_MS = 220;
 const NO_CHAPTERS: readonly number[] = [];
 /*
  * 사진 위(재생 목록 열림) 트랙 — 선이 사진 밑변에 걸쳐 위 절반은 사진, 아래 절반은 플레이어의 검정 바탕이다.
