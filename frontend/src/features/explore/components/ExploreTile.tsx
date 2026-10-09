@@ -97,6 +97,8 @@ const styles = StyleSheet.create({
     width: EXPLORE_TILE_WIDTH,
     height: EXPLORE_TILE_WIDTH,
     marginBottom: theme.spacing.sm,
+    // 사진이 뜨기 전 칸 — 흰 바탕에 흰 칸이면 비어 보여 깜빡임으로 읽힌다. 옅은 회색 면을 깐다
+    backgroundColor: theme.color.surface,
     borderRadius: theme.radius.md,
     borderCurve: 'continuous',
     overflow: 'hidden',
@@ -109,6 +111,7 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: 1,
     marginBottom: theme.spacing.sm,
+    backgroundColor: theme.color.surface,
     borderRadius: theme.radius.lg,
     borderCurve: 'continuous',
     overflow: 'hidden',
