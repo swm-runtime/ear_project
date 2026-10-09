@@ -309,7 +309,8 @@ export default function PlayerScreen() {
   };
   // 헤더 애니메이션의 기준 치수 — 화면 폭·컨트롤 높이는 실측한다(기기마다 다르다)
   const [contentSize, setContentSize] = useState({ width: 0, height: 0 });
-  const [controlsHeight, setControlsHeight] = useState(0);
+  /** 컨트롤 영역 실측 높이에서 렌더가 준 여백(줄 위아래 · 영역 아래)을 뺀 몫 — 여백은 커버에 맞춰 바뀐다(아래 controlRowPadding) */
+  const [controlsBaseHeight, setControlsBaseHeight] = useState(0);
   // 수면 타이머(FR-25 P1) — 시간은 서비스가 세고 화면은 스토어를 구독해 그린다(화면을 닫아도 타이머는 간다)
   const sleepTimerChoice = useSleepTimerStore((s) => s.choice);
   const sleepTimerRemainingSec = useSleepTimerStore((s) => s.remainingSec);
@@ -395,8 +396,6 @@ export default function PlayerScreen() {
   const onTitleLayout = (event: LayoutChangeEvent) => setTitleBox(event.nativeEvent.layout);
   const onCompactTitleLayout = (event: LayoutChangeEvent) =>
     setCompactTitleBox(event.nativeEvent.layout);
-  const onControlsLayout = (event: LayoutChangeEvent) =>
-    setControlsHeight(event.nativeEvent.layout.height);
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   // fullScreenModal에서는 SafeAreaView(네이티브 측정)가 상단 인셋 0을 돌려준다(검증 2026-08-11 —
   // 앱바가 상태바에 겹침). 루트 SafeAreaProvider 컨텍스트를 읽는 훅으로 직접 패딩한다
@@ -409,11 +408,37 @@ export default function PlayerScreen() {
     ? insets.bottom
     : Math.min(insets.bottom, PLAYER_BOTTOM_CLEARANCE);
   /*
-   * 컨트롤 줄 위아래 여백 — Android 버튼 바는 바닥 48dp 를 덮을 수 없어 커버가 화면 폭보다 31dp 작았다(PM 2026-10-07
-   * 실기기). 그 기기만 줄 여백 24 → 16, 컨트롤 영역 아래 8 → 0 으로 줄여 24dp 를 커버에 준다. iOS·제스처 바는 그대로
+   * 컨트롤 줄 위아래 여백 · 컨트롤 영역 아래 여백 — **커버가 제목·구간 카드·재생바와 같은 폭이 되도록 모자란 만큼 줄인다**
+   * (PM 2026-10-09 — 지금 듣는 구간 카드가 들어온 뒤 세로가 짧은 기기에서 커버가 폭보다 작아져 가운데로 모였다).
+   * 줄 여백(기본 24, Android 버튼 바 16 — 2026-10-07)을 먼저 위아래로 나눠 sm 까지, 그래도 모자라면 영역 아래 여백(8)을 0 까지.
+   * 그래도 모자란 기기는 종전대로 커버가 줄어든다(히어로 계산의 min). 실측 전(첫 프레임)에는 기본값이다
    */
-  const controlRowPadding = isAndroidButtonBar ? theme.spacing.md : theme.spacing.lg;
+  const rowPaddingFull = isAndroidButtonBar ? theme.spacing.md : theme.spacing.lg;
+  const areaBottomFull = isAndroidButtonBar ? 0 : theme.spacing.sm;
+  const coverShortfall =
+    contentSize.height > 0 && controlsBaseHeight > 0
+      ? Math.max(
+          0,
+          contentSize.width -
+            theme.spacing.lg * 2 -
+            (contentSize.height -
+              appBarHeight -
+              HERO_META_BLOCK_HEIGHT -
+              (controlsBaseHeight + rowPaddingFull * 2 + areaBottomFull) -
+              handleHeight -
+              theme.spacing.sm),
+        )
+      : 0;
+  const rowPaddingCut = Math.min(rowPaddingFull - theme.spacing.sm, Math.ceil(coverShortfall / 2));
+  const controlRowPadding = rowPaddingFull - rowPaddingCut;
+  const controlAreaBottom =
+    areaBottomFull - Math.min(areaBottomFull, Math.max(0, coverShortfall - rowPaddingCut * 2));
   const controlRowPaddingFold = controlRowPadding - theme.spacing.sm;
+  // 여백을 뺀 몫만 상태로 둔다 — 여백이 바뀌어 다시 불려도 같은 값이라 계산이 흔들리지 않는다
+  const controlsPadding = controlRowPadding * 2 + controlAreaBottom;
+  const controlsHeight = controlsBaseHeight > 0 ? controlsBaseHeight + controlsPadding : 0;
+  const onControlsLayout = (event: LayoutChangeEvent) =>
+    setControlsBaseHeight(Math.max(1, event.nativeEvent.layout.height - controlsPadding));
   const containerStyle = [
     styles.container,
     { paddingTop: insets.top, paddingBottom: bottomPadding },
@@ -1666,8 +1691,7 @@ export default function PlayerScreen() {
 
         <Animated.View
           style={[
-            styles.controlArea,
-            isAndroidButtonBar && styles.controlAreaTight,
+            { paddingBottom: controlAreaBottom },
             HERO_QUEUE_BY_TRANSFORM && { transform: [{ translateY: heroQueueDelta }] },
           ]}
           onLayout={onControlsLayout}
@@ -2484,20 +2508,13 @@ const styles = StyleSheet.create({
     color: playerColor.textSecondary,
   },
 
-  controlArea: {
-    paddingBottom: theme.spacing.sm,
-  },
-  // Android 버튼 바 — 아래 여백을 커버에 준다(위 controlRowPadding 주석)
-  controlAreaTight: {
-    paddingBottom: 0,
-  },
   controlRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     // 배속이 줄에 들어오면서 xl(32)은 양끝이 너무 벌어졌다 — md(16)로 줄임(2026-09-16)
     gap: theme.spacing.md,
-    // 위아래 여백(controlRowPadding)은 렌더에서 준다 — 고정이고, 재생 목록이 열릴 때 접히는 몫은 transform(controlRowShift).
+    // 위아래 여백(controlRowPadding)은 렌더에서 준다 — 커버 폭에 맞춰 정해지고, 재생 목록이 열릴 때 접히는 몫은 transform(controlRowShift).
     // 열리면 sm 까지 접힌다(controlRowPaddingFold = 여백 − sm, 한쪽 몫)
   },
   stepButton: {
