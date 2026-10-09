@@ -105,6 +105,8 @@ export default function ExploreScreen() {
     const animation = Animated.timing(switchDim, {
       toValue: screen.isSwitching ? SWITCH_DIM_OPACITY : 1,
       duration: motion.duration.fast,
+      // 금방 오면 흐리지 않는다 — 흰 바탕에서 짧게 흐렸다 돌아오는 게 깜빡임으로 읽혔다(PM 2026-10-09)
+      delay: screen.isSwitching ? DIM_DELAY_MS : 0,
       useNativeDriver: true,
     });
     animation.start();
@@ -301,7 +303,9 @@ export default function ExploreScreen() {
   // E13 인기 섹션의 인라인 상태 — 전환 중 로딩 · 전환 실패 · 추가 로딩(uiux 4.10)
   const renderPopularSectionFooter = (section: ExploreSection) => {
     if (section.period === null) return null;
-    if (screen.isPopularSwitching || screen.isFetchingPopularNextPage) {
+    // 구간 전환 중엔 스피너 줄을 넣지 않는다 — 캐러셀 아래에 줄이 끼었다 빠지며 그 아래 섹션 전체가 밀렸다 돌아와 깜빡였다
+    // (PM 2026-10-09 "인기 콘텐츠 아래가 전부 깜빡"). 전환 중 표시는 카드 줄의 흐림(PeriodSwap)이 맡는다
+    if (screen.isFetchingPopularNextPage) {
       return <ActivityIndicator style={styles.footer} color={theme.color.primary} />;
     }
     if (screen.isPopularSwitchFailed) {
@@ -679,6 +683,8 @@ const GridSeparator = () => <View style={styles.gridSeparator} />;
 
 /** 주제 전환 중 콘텐츠 흐림 */
 const SWITCH_DIM_OPACITY = 0.5;
+/** 이보다 빨리 오면 흐리지 않는다 — 스켈레톤 지연 표시(useDelayedVisible)와 같은 생각 */
+const DIM_DELAY_MS = 300;
 /** 피드로 돌아올 때 먼저 그리는 섹션 수 — 첫 화면 몫 */
 const FEED_FIRST_SECTIONS = 2;
 
