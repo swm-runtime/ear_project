@@ -101,7 +101,7 @@ export const EXPLORE_COPY = {
   },
 
   chips: {
-    /** 주제 칩은 다중 선택 토글이다(uiux 7) */
+    /** 주제 칩은 하나만 고르는 토글이다(uiux 7, 2026-10-09) */
     a11yHint: '주제 필터',
   },
 

@@ -528,11 +528,12 @@ export const useExploreScreen = () => {
     popularQuery.isFetchNextPageError &&
     !(isApiError(popularError) && popularError.errorCode === ERROR_CODES.EXPLORE_CURSOR_INVALID);
 
-  /* ── 주제 칩 — 다중 선택 OR. 선택이 생기면 단일 목록, 전부 해제하면 섹션형 복귀 ── */
+  /*
+   * ── 주제 칩 — **하나만 고른다**(PM 2026-10-09, 종전 다중 선택 OR). 다른 칩을 누르면 그 주제로 바뀌고, 고른 칩을 다시 누르면
+   * 해제돼 섹션형으로 돌아간다. 고르면 단일 목록. 요청은 종전처럼 목록으로 보낸다(explore-api 4.2 — 1개 이상) ──
+   */
   const toggleTopic = (topicId: string) => {
-    setSelectedTopicIds((prev) =>
-      prev.includes(topicId) ? prev.filter((id) => id !== topicId) : [...prev, topicId],
-    );
+    setSelectedTopicIds((prev) => (prev.includes(topicId) ? [] : [topicId]));
   };
 
   const clearTopicFilter = () => setSelectedTopicIds([]);
