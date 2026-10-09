@@ -79,7 +79,9 @@ export default function RemoteImage({
       source={{ uri }}
       style={style}
       contentFit="cover"
-      cachePolicy="disk"
+      // 메모리에도 둔다 — 디스크만 두면 목록이 새로 그려질 때마다(탐색 칩 해제 · 인기 구간 전환) 다시 읽어 풀어서
+      // 그동안 칸이 비어 흰 화면이 깜빡였다(PM 2026-10-09). 썸네일은 표시 크기로 줄여 담아(allowDownscaling) 부담이 작다
+      cachePolicy="memory-disk"
       // 잠그는 자리는 원본 해상도로 풀어 둔다 — 작을 때(미니플레이어 자리·압축 헤더) 로드돼 그 크기로 줄여진 채
       // 잠기면 커졌을 때 흐리다. 플레이어 아트워크 한두 장이라 메모리 부담은 작다(768px WebP)
       allowDownscaling={!isResized}
