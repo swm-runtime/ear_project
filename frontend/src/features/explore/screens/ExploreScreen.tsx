@@ -9,7 +9,6 @@ import {
   RefreshControl,
   StyleSheet,
   View,
-  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -38,16 +37,15 @@ import {
 
 import ExploreSearchScreen from './ExploreSearchScreen';
 import ExploreEmptyState from '../components/ExploreEmptyState';
-import ExploreFeaturedCard, { featuredCardWidth } from '../components/ExploreFeaturedCard';
+import ExploreFeaturedCard from '../components/ExploreFeaturedCard';
 import ExploreMoreSheet from '../components/ExploreMoreSheet';
 import ExploreRingPill from '../components/ExploreRingPill';
 import ExploreSearchBarRow from '../components/ExploreSearchBarRow';
 import ExploreSkeleton from '../components/ExploreSkeleton';
 import ExploreTile from '../components/ExploreTile';
-import PeriodSwap from '../components/PeriodSwap';
+import PeriodCrossfade from '../components/PeriodCrossfade';
 import PopularPeriodToggle from '../components/PopularPeriodToggle';
 import SearchToolbar from '../components/SearchToolbar';
-import StripSwapAndroid from '../components/StripSwapAndroid';
 import TopicChips from '../components/TopicChips';
 import { EXPLORE_COPY } from '../explore.copy';
 import { buildSectionListKey } from '../explore.section-key';
@@ -65,7 +63,6 @@ import { useExploreScreen } from '../hooks/useExploreScreen';
  */
 export default function ExploreScreen() {
   const screen = useExploreScreen();
-  const { width: windowWidth } = useWindowDimensions();
   const miniInset = useBottomDockInset();
   // 떠 있는 머리 줄(검색창·칩)의 높이 — 목록이 그만큼 위를 비운다(시스템 바 갈래에서는 0)
   const [headerHeight, setHeaderHeight] = useState(0);
@@ -133,15 +130,6 @@ export default function ExploreScreen() {
       screen.openSearch();
     }
   };
-  /*
-   * 인기 섹션의 **카드가 실제로 바뀐** 구간 — section.period 는 누르는 순간 조회 중인 구간으로 먼저 바뀌므로(토글 표시용), 목록을
-   * 새로 만드는 key 는 조회가 끝난 뒤의 값으로 둔다. 누르자마자 직전 카드로 목록이 다시 만들어져 깜빡였다(PM 2026-09-30 06:20)
-   */
-  const popularPeriod = screen.sections.find((section) => section.period !== null)?.period ?? null;
-  const [settledPopularPeriod, setSettledPopularPeriod] = useState(popularPeriod);
-  if (!screen.isPopularSwitching && popularPeriod !== settledPopularPeriod) {
-    setSettledPopularPeriod(popularPeriod);
-  }
 
   /*
    * 제자리 검색(iOS 26 — PM 2026-09-27 21:03 "검색 화면을 따로 두지 말고 그냥 탐색"): 검색창을 누르면 새 화면으로 가지 않고
@@ -304,7 +292,7 @@ export default function ExploreScreen() {
   const renderPopularSectionFooter = (section: ExploreSection) => {
     if (section.period === null) return null;
     // 구간 전환 중엔 스피너 줄을 넣지 않는다 — 캐러셀 아래에 줄이 끼었다 빠지며 그 아래 섹션 전체가 밀렸다 돌아와 깜빡였다
-    // (PM 2026-10-09 "인기 콘텐츠 아래가 전부 깜빡"). 전환 중 표시는 카드 줄의 흐림(PeriodSwap)이 맡는다
+    // (PM 2026-10-09 "인기 콘텐츠 아래가 전부 깜빡"). 전환 중 표시는 카드 줄의 흐림(PeriodCrossfade)이 맡는다
     if (screen.isFetchingPopularNextPage) {
       return <ActivityIndicator style={styles.footer} color={theme.color.primary} />;
     }
@@ -378,104 +366,39 @@ export default function ExploreScreen() {
           </Text>
         )}
 
-        {/* 구간 전환 중에는 직전 목록을 흐리게 유지한다 — 그 섹션만이다(uiux 4.10). 새 구간이 오면 옆에서 밀려 들어온다(PeriodSwap).
-            새 구간 줄은 PeriodSwap 이 새 칸에 만든다 — 넘기던 가로 위치와 무관하게 맨 앞에서 시작한다 */}
-        {isPopular && Platform.OS === 'android' ? (
-          // Android — 카드 두 장이 정적 줄로 이어져 흐른다(끊김·깜빡임 없이, StripSwapAndroid 주석)
-          <StripSwapAndroid
-            swapKey={section.period ?? 'static'}
-            isDimmed={screen.isPopularSwitching}
-            items={section.items}
-            renderCard={(item) => (
-              <ExploreFeaturedCard
-                item={item}
-                topicNames={topicNamesOf(item.content.topicIds)}
-                onPress={() => {}}
-                onMorePress={() => {}}
-              />
-            )}
-            itemExtent={featuredCardWidth(windowWidth) + theme.spacing.md}
-            leadingInset={theme.spacing.md}
-            gap={theme.spacing.md}
-          >
-            <FlatList
-              // 구간마다 새로 만든다 — 숨긴 채 먼저 그려 두고(흐르기 전) 맨 앞에서 시작한다
-              key={settledPopularPeriod ?? 'static'}
-              horizontal
-              // 인기 캐러셀은 목록 밖으로도 카드를 그린다 — 구간 전환 때 반쯤 보이던 카드가 잘린 채로 떠나지 않게(PeriodSwap).
-              // 화면 밖이라 평소엔 보이지 않는다. Android 는 화면 밖 셀을 떼는 최적화도 끈다
-              style={isPopular && POPULAR_WHOLE_CARDS ? styles.carouselUnclipped : undefined}
-              removeClippedSubviews={isPopular && POPULAR_WHOLE_CARDS ? false : undefined}
-              data={section.items}
-              keyExtractor={(item) => item.content.id}
-              renderItem={({ item }) =>
-                isPopular ? (
-                  <ExploreFeaturedCard
-                    item={item}
-                    topicNames={topicNamesOf(item.content.topicIds)}
-                    onPress={screen.handleRowPress}
-                    onMorePress={screen.openMoreSheet}
-                  />
-                ) : (
-                  <ExploreTile
-                    item={item}
-                    onPress={screen.handleRowPress}
-                    onMorePress={screen.openMoreSheet}
-                  />
-                )
-              }
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.carousel}
-              ItemSeparatorComponent={() => <View style={styles.carouselGap} />}
-              onEndReached={isPopular ? screen.loadMorePopular : undefined}
-              onEndReachedThreshold={0.5}
-            />
-          </StripSwapAndroid>
-        ) : (
-          <PeriodSwap
-            swapKey={section.period ?? 'static'}
-            isDimmed={isPopular && screen.isPopularSwitching}
-            // 카드 두 장씩 온전히 흐르기는 iOS 만 — Android 는 목록 밖 카드까지 그리니 심하게 끊기고 깜빡였다(PM 2026-09-30 05:52·06:02).
-            // Android 는 화면 폭만큼 흐른다(#1027)
-            itemExtent={
-              isPopular && POPULAR_WHOLE_CARDS
-                ? featuredCardWidth(windowWidth) + theme.spacing.md
-                : undefined
+        {/* 구간 전환 중에는 직전 줄을 흐리게 유지한다 — 그 섹션만이다(uiux 4.10). 새 구간이 오면 같은 자리에서 교차한다
+            (PeriodCrossfade). 새 줄은 새로 만들어져 넘기던 가로 위치와 무관하게 첫 카드부터 보인다 */}
+        <PeriodCrossfade
+          swapKey={section.period ?? 'static'}
+          isDimmed={isPopular && screen.isPopularSwitching}
+        >
+          <FlatList
+            horizontal
+            data={section.items}
+            keyExtractor={(item) => item.content.id}
+            renderItem={({ item }) =>
+              isPopular ? (
+                <ExploreFeaturedCard
+                  item={item}
+                  topicNames={topicNamesOf(item.content.topicIds)}
+                  onPress={screen.handleRowPress}
+                  onMorePress={screen.openMoreSheet}
+                />
+              ) : (
+                <ExploreTile
+                  item={item}
+                  onPress={screen.handleRowPress}
+                  onMorePress={screen.openMoreSheet}
+                />
+              )
             }
-            leadingInset={theme.spacing.md}
-          >
-            <FlatList
-              horizontal
-              // 인기 캐러셀은 목록 밖으로도 카드를 그린다 — 구간 전환 때 반쯤 보이던 카드가 잘린 채로 떠나지 않게(PeriodSwap).
-              // 화면 밖이라 평소엔 보이지 않는다. Android 는 화면 밖 셀을 떼는 최적화도 끈다
-              style={isPopular && POPULAR_WHOLE_CARDS ? styles.carouselUnclipped : undefined}
-              removeClippedSubviews={isPopular && POPULAR_WHOLE_CARDS ? false : undefined}
-              data={section.items}
-              keyExtractor={(item) => item.content.id}
-              renderItem={({ item }) =>
-                isPopular ? (
-                  <ExploreFeaturedCard
-                    item={item}
-                    topicNames={topicNamesOf(item.content.topicIds)}
-                    onPress={screen.handleRowPress}
-                    onMorePress={screen.openMoreSheet}
-                  />
-                ) : (
-                  <ExploreTile
-                    item={item}
-                    onPress={screen.handleRowPress}
-                    onMorePress={screen.openMoreSheet}
-                  />
-                )
-              }
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.carousel}
-              ItemSeparatorComponent={() => <View style={styles.carouselGap} />}
-              onEndReached={isPopular ? screen.loadMorePopular : undefined}
-              onEndReachedThreshold={0.5}
-            />
-          </PeriodSwap>
-        )}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.carousel}
+            ItemSeparatorComponent={CarouselGap}
+            onEndReached={isPopular ? screen.loadMorePopular : undefined}
+            onEndReachedThreshold={0.5}
+          />
+        </PeriodCrossfade>
 
         {renderPopularSectionFooter(section)}
       </View>
@@ -660,10 +583,10 @@ export default function ExploreScreen() {
 }
 
 /** Android — iOS 26 탐색 상단(큰 제목·검색창·칩이 목록 첫 줄 + 접히면 가운데 제목) 흉내. 옛 iOS 는 떠 있는 머리 줄 그대로 */
-/** 인기 캐러셀 전환에서 카드 두 장씩 온전히 흐르기(PeriodSwap itemExtent) — iOS 만 */
-const POPULAR_WHOLE_CARDS = Platform.OS === 'ios';
 
 const ANDROID_IOS_HEADER = Platform.OS === 'android' && !HAS_NATIVE_TAB_BAR;
+
+const CarouselGap = () => <View style={styles.carouselGap} />;
 
 /** 한 목록(피드 섹션 · 격자 줄)의 항목 */
 type ExploreListItem =
@@ -773,9 +696,6 @@ const styles = StyleSheet.create({
   // 캐러셀 좌우 여백은 섹션 제목과 같은 선에서 시작한다
   carousel: {
     paddingHorizontal: theme.spacing.md,
-  },
-  carouselUnclipped: {
-    overflow: 'visible',
   },
   carouselGap: {
     width: theme.spacing.md,
