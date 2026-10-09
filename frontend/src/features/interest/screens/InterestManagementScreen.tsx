@@ -94,7 +94,7 @@ export default function InterestManagementScreen() {
 
           {/*
             버블 밭(PM 2026-10-09 D안 — 종전 사진 알약 2열은 선택 여부가 보이지 않았다). 상한까지 고르면 남은 버블이
-            흐려지지만 **탭은 막지 않는다**(변경 2026-08-11 — 막는 것은 저장이고, 그 사유는 독의 상한 문구가 안내한다)
+            흐려지고, 누르면 고르지 않고 상한 토스트가 뜬다(PM 2026-10-10 01:08 — 종전 "탭 허용·저장만 막음"(08-11)을 바꿨다)
           */}
           <ScrollView style={styles.field} showsVerticalScrollIndicator={false}>
             {screen.isLoading ? (

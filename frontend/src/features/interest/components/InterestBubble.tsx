@@ -17,7 +17,7 @@ interface InterestBubbleProps {
   cx: number;
   cy: number;
   isSelected: boolean;
-  /** 상한까지 다 골랐을 때 남은 주제 — 흐려지지만 탭은 받는다(막는 것은 저장, uiux 4.1 · 변경 2026-08-11) */
+  /** 상한까지 다 골랐을 때 남은 주제 — 흐려진다. 탭하면 선택되지 않고 상한 토스트가 뜬다(PM 2026-10-10 01:08) */
   isDimmed: boolean;
   /** 둥실 모션의 박자를 버블마다 다르게 — 같은 박자로 떠다니면 한 덩어리처럼 출렁인다 */
   index: number;

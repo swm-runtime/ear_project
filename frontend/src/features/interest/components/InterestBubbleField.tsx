@@ -15,7 +15,7 @@ interface BubbleTopic {
 
 interface InterestBubbleFieldProps {
   topics: BubbleTopic[];
-  /** 상한까지 다 골랐는가 — 남은 주제를 흐린다(탭은 받는다) */
+  /** 상한까지 다 골랐는가 — 남은 주제를 흐린다(눌러도 고르지 않고 토스트 — 훅이 막는다) */
   isFull: boolean;
   onToggle: (topicId: string) => void;
 }
