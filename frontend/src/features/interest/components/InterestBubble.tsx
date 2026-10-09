@@ -10,6 +10,12 @@ interface InterestBubbleProps {
   name: string;
   /** 지름(pt) — 배치는 부모(InterestBubbleField)가 정한다 */
   size: number;
+  /**
+   * 원의 중심(밭 좌표) — 배치 계산(bubble-layout)이 이웃을 밀어낸 결과다. 바뀌면 스프링으로 옮겨 간다.
+   * 레이아웃이 아니라 translate 라 네이티브 드라이버로 돈다
+   */
+  cx: number;
+  cy: number;
   isSelected: boolean;
   /** 상한까지 다 골랐을 때 남은 주제 — 흐려지지만 탭은 받는다(막는 것은 저장, uiux 4.1 · 변경 2026-08-11) */
   isDimmed: boolean;
@@ -20,12 +26,12 @@ interface InterestBubbleProps {
   onPress: () => void;
 }
 
-/** 선택되면 커지고 상한 뒤 남은 주제는 물러난다 — 위치를 밀지 않도록 크기는 transform 으로만 바꾼다 */
-const SCALE_SELECTED = 1.16;
-const SCALE_DIMMED = 0.9;
+/** 선택되면 커지고 상한 뒤 남은 주제는 물러난다 — 배치 계산도 같은 배율로 이웃을 밀어낸다 */
+export const SCALE_SELECTED = 1.16;
+export const SCALE_DIMMED = 0.9;
 const DIMMED_OPACITY = 0.42;
-/** 위아래로 떠다니는 폭(pt) */
-const FLOAT_DISTANCE = 5;
+/** 위아래로 떠다니는 폭(pt) — 원끼리 빈틈이 6pt 라 그보다 훨씬 작게(붙어 있는 이웃과 겹쳐 보이지 않게) */
+const FLOAT_DISTANCE = 2;
 
 /**
  * 관심 주제 버블(PM 2026-10-09 "D로 가는데 설정 관심 주제 관리만") — 원형 사진 + 가운데 이름. 애플 뮤직 첫 실행의
@@ -39,6 +45,8 @@ const FLOAT_DISTANCE = 5;
 export default function InterestBubble({
   name,
   size,
+  cx,
+  cy,
   isSelected,
   isDimmed,
   index,
@@ -50,6 +58,24 @@ export default function InterestBubble({
   const press = useAnimatedValue(1);
   const fade = useAnimatedValue(isDimmed ? DIMMED_OPACITY : 1);
   const float = useAnimatedValue(0);
+  const posX = useAnimatedValue(cx - size / 2);
+  const posY = useAnimatedValue(cy - size / 2);
+
+  useEffect(() => {
+    // 밀려나는 이웃은 커지는 버블과 같은 박자로 비켜선다 — 위치는 출렁이지 않게 smooth
+    Animated.parallel([
+      Animated.spring(posX, {
+        toValue: cx - size / 2,
+        ...motion.spring.smooth,
+        useNativeDriver: true,
+      }),
+      Animated.spring(posY, {
+        toValue: cy - size / 2,
+        ...motion.spring.smooth,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [posX, posY, cx, cy, size]);
 
   useEffect(() => {
     Animated.spring(scale, {
@@ -109,10 +135,18 @@ export default function InterestBubble({
   return (
     <Animated.View
       style={{
+        position: 'absolute',
+        left: 0,
+        top: 0,
         width: size,
         height: size,
         opacity: fade,
-        transform: [{ translateY: float }, { scale: Animated.multiply(scale, press) }],
+        zIndex: isSelected ? 2 : 1,
+        transform: [
+          { translateX: posX },
+          { translateY: Animated.add(posY, float) },
+          { scale: Animated.multiply(scale, press) },
+        ],
       }}
     >
       <Pressable

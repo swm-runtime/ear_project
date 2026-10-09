@@ -1,8 +1,4 @@
-import {
-  useNavigation,
-  type NavigationAction,
-  type ParamListBase,
-} from '@react-navigation/native';
+import { useNavigation, type NavigationAction, type ParamListBase } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
@@ -121,8 +117,7 @@ export const useInterestManagementScreen = () => {
   const hasChanges = diff.changeCount > 0;
   /** 0개 상태는 탭이 아니라 저장을 막는다(개정 2026-08-09) — 비활성 사유 문구는 상시 노출 */
   const isBelowMin = selectedCount < 1;
-  const canSave =
-    hasChanges && !isBelowMin && !isOverLimit && !isLoading && !isError && !isSaving;
+  const canSave = hasChanges && !isBelowMin && !isOverLimit && !isLoading && !isError && !isSaving;
 
   // 선택 개수 제한으로 칩을 비활성 처리하지 않는다(변경 2026-08-11) — 막는 것은 탭이 아니라 저장이다
   const topics = (topicsQuery.data?.items ?? []).map((topic) => ({
