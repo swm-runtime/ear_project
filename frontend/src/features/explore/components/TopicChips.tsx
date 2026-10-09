@@ -13,6 +13,11 @@ interface TopicChipsProps {
   topics: ExploreTopic[];
   selectedTopicIds: string[];
   onToggle: (topicId: string) => void;
+  /**
+   * 칩 줄의 가로 위치를 담아 두는 곳(화면이 소유) — 칩을 고르거나 풀면 화면이 피드 ↔ 격자로 바뀌며 이 줄이 새로 그려진다.
+   * 위치를 여기 두고 새로 그려질 때 되돌린다(PM 2026-10-09 "뒤 알약을 골랐다 풀면 맨 앞으로 온다")
+   */
+  offsetRef?: { current: number };
 }
 
 /**
@@ -25,7 +30,12 @@ interface TopicChipsProps {
  * `topicImageSource`(주제 **이름**으로 찾는다 — id 는 mock 과 서버가 다르다)를 쓰고, 프로필의 관심 주제
  * 카드도 같은 방식이다. 종전엔 흰 테두리 알약 / 선택 시 검정 채움이었다.
  */
-export default function TopicChips({ topics, selectedTopicIds, onToggle }: TopicChipsProps) {
+export default function TopicChips({
+  topics,
+  selectedTopicIds,
+  onToggle,
+  offsetRef,
+}: TopicChipsProps) {
   /*
    * **고른 칩이 화면 밖이면 보이게 민다**(PM 2026-10-09 — 칩을 고르면 화면이 격자로 바뀌며 칩 줄이 새로 그려져 맨 앞부터
    * 보여, 뒤쪽 칩을 고르면 무엇이 골라졌는지 안 보였다). 새로 그려질 땐 애니메이션 없이, 이미 있는 줄에서 바뀌면 부드럽게.
@@ -33,8 +43,10 @@ export default function TopicChips({ topics, selectedTopicIds, onToggle }: Topic
    */
   const scrollRef = useRef<ScrollView>(null);
   const chipBoxes = useRef<Record<string, { x: number; width: number }>>({});
-  const viewport = useRef({ offset: 0, width: 0 });
+  const viewport = useRef({ offset: 0, width: 0, contentWidth: 0 });
   const revealedId = useRef<string | null>(null);
+  /** 새로 그려진 뒤 담아 둔 위치로 돌아갔는가 — 돌아가기 전에 고른 칩을 밀면 되돌리기가 그걸 덮는다 */
+  const isRestored = useRef(false);
   const selectedId = selectedTopicIds[0] ?? null;
   const reveal = (id: string, animated: boolean) => {
     const box = chipBoxes.current[id];
@@ -48,9 +60,21 @@ export default function TopicChips({ topics, selectedTopicIds, onToggle }: Topic
       scrollRef.current?.scrollTo({ x: box.x + box.width + margin - width, animated });
     }
   };
+  /** 크기를 다 알면 담아 둔 위치로 돌아간 뒤, 고른 칩이 밖이면 민다(레이아웃 이벤트 순서가 일정하지 않아 셋 다 여기로 모은다) */
+  const settle = () => {
+    const { width, contentWidth } = viewport.current;
+    if (width === 0 || contentWidth === 0) return;
+    if (!isRestored.current) {
+      isRestored.current = true;
+      const x = Math.min(offsetRef?.current ?? 0, Math.max(0, contentWidth - width));
+      viewport.current.offset = x;
+      scrollRef.current?.scrollTo({ x, animated: false });
+    }
+    if (selectedId !== null && revealedId.current !== selectedId) reveal(selectedId, false);
+  };
   useEffect(() => {
     if (selectedId === null) revealedId.current = null;
-    else if (revealedId.current !== selectedId) reveal(selectedId, true);
+    else if (isRestored.current && revealedId.current !== selectedId) reveal(selectedId, true);
   });
 
   if (topics.length === 0) return null;
@@ -63,10 +87,15 @@ export default function TopicChips({ topics, selectedTopicIds, onToggle }: Topic
       scrollEventThrottle={16}
       onScroll={(event) => {
         viewport.current.offset = event.nativeEvent.contentOffset.x;
+        if (offsetRef && isRestored.current) offsetRef.current = event.nativeEvent.contentOffset.x;
       }}
       onLayout={(event) => {
         viewport.current.width = event.nativeEvent.layout.width;
-        if (selectedId !== null && revealedId.current !== selectedId) reveal(selectedId, false);
+        settle();
+      }}
+      onContentSizeChange={(contentWidth) => {
+        viewport.current.contentWidth = contentWidth;
+        settle();
       }}
       // ScrollView 기본값이 flexGrow: 1이라 본문이 비는 순간 칩 줄이 세로로 늘어난다 — 성장 금지
       style={styles.scroll}
@@ -81,8 +110,7 @@ export default function TopicChips({ topics, selectedTopicIds, onToggle }: Topic
             onLayout={(event) => {
               const { x, width } = event.nativeEvent.layout;
               chipBoxes.current[topic.id] = { x, width };
-              if (topic.id === selectedId && revealedId.current !== selectedId)
-                reveal(topic.id, false);
+              if (topic.id === selectedId) settle();
             }}
             onPress={() => onToggle(topic.id)}
             accessibilityRole="togglebutton"

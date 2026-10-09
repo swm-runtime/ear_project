@@ -76,6 +76,8 @@ export default function ExploreScreen() {
   const nativeBarInset = useNativeHeaderInset();
   // 머리 줄(JS 탭 바 갈래)의 루트 ref — 종전 시스템 edge effect 연결용, 지금은 FloatingHeader 가 요구만 한다
   const headerRef = useRef<View>(null);
+  // 주제 칩 줄의 가로 위치 — 피드 ↔ 격자 전환으로 칩 줄이 새로 그려져도 제자리에 둔다(TopicChips offsetRef)
+  const chipsOffsetRef = useRef(0);
   // Android 서리 유리 띠의 블러 대상(AndroidBlurTarget)
   const blurTargetRef = useRef<View>(null);
   // 제자리 검색 모드(iOS 26·Android) — 아래 isSearching 분기
@@ -220,6 +222,7 @@ export default function ExploreScreen() {
       topics={screen.topics}
       selectedTopicIds={screen.selectedTopicIds}
       onToggle={screen.toggleTopic}
+      offsetRef={chipsOffsetRef}
     />
   ) : null;
   // 시스템 바 갈래에서는 제목 줄·검색 필드·칩이 콘텐츠의 첫 줄이다 — 목록과 같이 스크롤한다.
