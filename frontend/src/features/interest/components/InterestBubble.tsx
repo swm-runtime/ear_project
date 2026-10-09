@@ -29,7 +29,11 @@ interface InterestBubbleProps {
 /** 선택되면 커지고 상한 뒤 남은 주제는 물러난다 — 배치 계산도 같은 배율로 이웃을 밀어낸다 */
 export const SCALE_SELECTED = 1.16;
 export const SCALE_DIMMED = 0.9;
-const DIMMED_OPACITY = 0.42;
+/**
+ * 상한 뒤 남은 버블을 흐리는 흰 막의 농도. 버블 전체를 반투명하게 만들면 밑에 깔린 그림자가 사진을 뚫고 비쳤다 —
+ * Android 는 원 그림자를 다각형으로 근사해 육각형처럼 보였다(PM 2026-10-10 01:14). 그래서 투명도 대신 위에 흰 막을 덮는다
+ */
+const DIMMED_WASH = 0.62;
 /** 위아래로 떠다니는 폭(pt) — 원끼리 빈틈이 6pt 라 그보다 훨씬 작게(붙어 있는 이웃과 겹쳐 보이지 않게) */
 const FLOAT_DISTANCE = 2;
 
@@ -56,7 +60,7 @@ export default function InterestBubble({
   const targetScale = isSelected ? SCALE_SELECTED : isDimmed ? SCALE_DIMMED : 1;
   const scale = useAnimatedValue(targetScale);
   const press = useAnimatedValue(1);
-  const fade = useAnimatedValue(isDimmed ? DIMMED_OPACITY : 1);
+  const wash = useAnimatedValue(isDimmed ? DIMMED_WASH : 0);
   const float = useAnimatedValue(0);
   const posX = useAnimatedValue(cx - size / 2);
   const posY = useAnimatedValue(cy - size / 2);
@@ -86,12 +90,12 @@ export default function InterestBubble({
   }, [scale, targetScale]);
 
   useEffect(() => {
-    Animated.timing(fade, {
-      toValue: isDimmed ? DIMMED_OPACITY : 1,
+    Animated.timing(wash, {
+      toValue: isDimmed ? DIMMED_WASH : 0,
       duration: motion.duration.normal,
       useNativeDriver: true,
     }).start();
-  }, [fade, isDimmed]);
+  }, [wash, isDimmed]);
 
   useEffect(() => {
     if (reduceMotion !== false) {
@@ -140,7 +144,6 @@ export default function InterestBubble({
         top: 0,
         width: size,
         height: size,
-        opacity: fade,
         zIndex: isSelected ? 2 : 1,
         transform: [
           { translateX: posX },
@@ -162,7 +165,8 @@ export default function InterestBubble({
           style={[
             styles.photoFrame,
             { borderRadius: radius },
-            isSelected ? styles.shadowSelected : styles.shadow,
+            // 흐린 버블은 그림자를 두지 않는다 — 흰 막 아래로 그림자 윤곽이 비치지 않게
+            isSelected ? styles.shadowSelected : isDimmed ? null : styles.shadow,
           ]}
         >
           <View style={[styles.photoClip, { borderRadius: radius }]}>
@@ -180,6 +184,11 @@ export default function InterestBubble({
             {name}
           </Animated.Text>
         </View>
+        {/* 흰 막 — 사진·이름을 함께 덮어 한 덩어리로 물러난다(불투명 레이어라 밑이 비치지 않는다) */}
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.wash, { borderRadius: radius, opacity: wash }]}
+        />
       </Pressable>
     </Animated.View>
   );
@@ -224,6 +233,10 @@ const styles = StyleSheet.create({
   scrim: {
     ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0, 0, 0, 0.46)',
+  },
+  wash: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: theme.color.background,
   },
   labelBox: {
     ...StyleSheet.absoluteFill,
