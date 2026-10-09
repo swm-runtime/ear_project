@@ -58,7 +58,7 @@ export interface ExploreFeedResponseDto extends PlayLimitFieldsDto {
 
 /** GET /explore/contents (explore-api.md 4.2) */
 export interface ExploreContentsRequestDto {
-  /** uuid 콤마 구분, 1개 이상 필수. 다중 선택은 OR 조합 */
+  /** uuid 콤마 구분, 1개 이상 필수. 다중이면 OR 조합 — 앱은 2026-10-09 부터 하나만 보낸다(칩 단일 선택) */
   topic_ids: string;
   cursor?: string;
   limit?: number;
