@@ -4,8 +4,8 @@ import { Image, Pressable, StyleSheet, View } from 'react-native';
 
 import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
 import { theme } from '@/shared/theme';
+import ChevronIcon, { chevronTrailingGutter } from '@/shared/ui/ChevronIcon';
 import PersonIcon from '@/shared/ui/PersonIcon';
-import { pillButton } from '@/shared/ui/pill-button.styles';
 import { Text } from '@/shared/ui/Typography';
 
 import { ProviderIcon } from '@/features/auth';
@@ -237,16 +237,26 @@ export default function ProfileHeader({
           <Text style={[styles.planText, plan.data.kind === 'grace' && styles.planDanger]}>
             {planText(plan.data)}
           </Text>
-          {plan.data.kind === 'free' ? (
-            <View style={[pillButton.base, pillButton.primary, styles.planCta]}>
-              <Text style={styles.planCtaText}>{PROFILE_COPY.plan.freeAction}</Text>
-            </View>
-          ) : null}
+          {/* 구독 화면으로 가는 줄 — 상태와 무관하게 [>] 하나(PM 2026-10-09, 무료의 [구독 알아보기] 알약을 대신한다) */}
+          <View
+            style={styles.planChevron}
+            accessibilityElementsHidden
+            importantForAccessibility="no"
+          >
+            <ChevronIcon
+              direction="right"
+              size={PLAN_CHEVRON_SIZE}
+              color={theme.color.textSecondary}
+            />
+          </View>
         </Pressable>
       )}
     </View>
   );
 }
+
+/** 플랜 줄 [>] — 설정 요금제 카드와 같은 크기 */
+const PLAN_CHEVRON_SIZE = 16;
 
 const styles = StyleSheet.create({
   identityRow: {
@@ -280,15 +290,10 @@ const styles = StyleSheet.create({
   planDanger: {
     color: theme.color.danger,
   },
-  // 크기만 — 모양·색은 공용 알약(pillButton)
-  planCta: {
-    paddingHorizontal: theme.spacing.sm + theme.spacing.xs,
-    paddingVertical: theme.spacing.xs,
-  },
-  planCtaText: {
-    fontSize: theme.font.size.xs,
-    fontWeight: '700',
-    color: theme.color.onPrimary,
+  // 줄 오른쪽 끝 — 글자가 짧아도 [>] 는 오른쪽에 붙는다. 아이콘 상자 여백만큼 바깥으로 빼 오른쪽 선을 맞춘다
+  planChevron: {
+    marginLeft: 'auto',
+    marginRight: -chevronTrailingGutter(PLAN_CHEVRON_SIZE),
   },
   avatarWrap: {
     // 배지가 아바타 밖으로 나가므로 줄어들지 않게 고정한다

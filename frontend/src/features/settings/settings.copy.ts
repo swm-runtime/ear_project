@@ -63,7 +63,6 @@ export const SETTINGS_COPY = {
     /** N은 서버 daily_play_limit — 하드코딩하지 않는다(paywall.md 5장). null은 무제한 */
     free: (dailyPlayLimit: number | null) =>
       dailyPlayLimit === null ? '무료 이용 중' : `무료 이용 중 · 하루 ${dailyPlayLimit}편`,
-    freeAction: '구독 알아보기',
     renewsAt: (iso: string) => `다음 결제일 ${monthDay(iso)}`,
     /**
      * 해지 예약 — 중립 톤. 사용자가 스스로 내린 결정이지 장애가 아니다(settings-uiux.md 4.1). 다운그레이드 예약과 같은 꼴로
