@@ -248,20 +248,37 @@ export class AdminInsightsRepository {
     }));
   }
 
+  /**
+   * 순위는 **전 기간**이다(admin-api 4.22) — `play_records` 전체를 한 번 훑는 비용은 계약상 피할 수 없다. 대신 완청·담기
+   * 수는 상위 N 명을 고른 **뒤에** 그 사람들 것만 집계한다(2026-10-09 전체 검증) — 종전에는 select 목록의 상관
+   * 서브쿼리가 재생 기록이 있는 **모든** 사용자마다 돌아, 사용자 수에 비례해 질의 수가 늘었다
+   */
   async topUsers(limit: number): Promise<InsightsTopUser[]> {
     const rows = await this.dataSource.query<TopUserRow[]>(
-      `select p.user_id,
-              sum(p.listened_sec)::float8 as listen_sec,
-              count(*)::int as plays,
-              (select count(*) from user_signals s where s.user_id = p.user_id and s.action = 'complete')::int as completes,
+      `with ranked as (
+         select p.user_id,
+                sum(p.listened_sec)::float8 as listen_sec,
+                count(*)::int as plays,
+                max(p.played_at) as last_played_at
+           from play_records p
+          group by p.user_id
+          order by listen_sec desc, plays desc, last_played_at desc
+          limit $1
+       )
+       select r.user_id,
+              r.listen_sec,
+              r.plays,
+              coalesce(c.completes, 0)::int as completes,
               u.tier,
               u.created_at as signed_up_at,
-              max(p.played_at) as last_played_at
-         from play_records p
-         join users u on u.id = p.user_id
-        group by p.user_id, u.tier, u.created_at
-        order by listen_sec desc, plays desc, last_played_at desc
-        limit $1`,
+              r.last_played_at
+         from ranked r
+         join users u on u.id = r.user_id
+         left join lateral (
+           select count(*)::int as completes from user_signals s
+            where s.user_id = r.user_id and s.action = 'complete'
+         ) c on true
+        order by r.listen_sec desc, r.plays desc, r.last_played_at desc`,
       [limit],
     );
     return rows.map((r) => ({
@@ -277,19 +294,35 @@ export class AdminInsightsRepository {
 
   async topContents(limit: number): Promise<InsightsTopContent[]> {
     const rows = await this.dataSource.query<TopContentRow[]>(
-      `select c.id as content_id,
+      `with ranked as (
+         select p.content_id,
+                sum(p.listened_sec)::float8 as listen_sec,
+                count(*)::int as plays,
+                count(distinct p.user_id)::int as listeners
+           from play_records p
+          group by p.content_id
+          order by listen_sec desc, plays desc
+          limit $1
+       )
+       select r.content_id,
               c.title,
               c.duration_sec,
-              sum(p.listened_sec)::float8 as listen_sec,
-              count(*)::int as plays,
-              count(distinct p.user_id)::int as listeners,
-              (select count(*) from user_signals s where s.content_id = c.id and s.action = 'complete')::int as completes,
-              (select count(*) from library_items i where i.content_id = c.id and i.source = 'save')::int as saves
-         from play_records p
-         join contents c on c.id = p.content_id
-        group by c.id, c.title, c.duration_sec
-        order by listen_sec desc, plays desc
-        limit $1`,
+              r.listen_sec,
+              r.plays,
+              r.listeners,
+              coalesce(x.completes, 0)::int as completes,
+              coalesce(v.saves, 0)::int as saves
+         from ranked r
+         join contents c on c.id = r.content_id
+         left join lateral (
+           select count(*)::int as completes from user_signals s
+            where s.content_id = r.content_id and s.action = 'complete'
+         ) x on true
+         left join lateral (
+           select count(*)::int as saves from library_items i
+            where i.content_id = r.content_id and i.source = 'save'
+         ) v on true
+        order by r.listen_sec desc, r.plays desc`,
       [limit],
     );
     return rows.map((r) => ({

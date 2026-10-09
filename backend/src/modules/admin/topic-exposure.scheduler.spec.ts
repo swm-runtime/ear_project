@@ -1,9 +1,15 @@
+import { Logger } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 
 import { TopicExposureService } from './services/topic-exposure.service';
 import { TopicExposureScheduler } from './topic-exposure.scheduler';
 
 describe('TopicExposureScheduler', () => {
+  // "실패해도 던지지 않는다" 케이스가 의도적으로 남기는 오류 로그 — 테스트의 관심사가 아니라 출력만 어지럽힌다
+  beforeAll(() => {
+    jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+  });
+
   let scheduler: TopicExposureScheduler;
   let topicExposureService: jest.Mocked<TopicExposureService>;
   let manager: EntityManager;
