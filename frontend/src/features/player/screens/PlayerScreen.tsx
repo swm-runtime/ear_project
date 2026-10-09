@@ -2283,9 +2283,10 @@ const PLAYER_BOTTOM_CLEARANCE = 14;
  */
 /**
  * iOS 는 SF Symbols 라 크기 값이 **글자 크기**다 — 같은 값이면 기호가 Android 둥근 SVG(24 격자 안 삼각형)보다 크게
- * 그려져 iOS 만 줄였다(PM 2026-10-07 "애플에서 조금만 줄이자")
+ * 그려져 iOS 만 줄였다(PM 2026-10-07 "애플에서 조금만 줄이자"). 56 에서도 일시정지 높이가 약 42pt(실기기 스샷 실측)로
+ * Android 38.5pt(막대 14/24 × 66)보다 컸다 → 52 로 두 플랫폼을 맞춘다(PM 2026-10-09)
  */
-const PLAY_ICON_SIZE = Platform.OS === 'ios' ? 56 : 66;
+const PLAY_ICON_SIZE = Platform.OS === 'ios' ? 52 : 66;
 /** ±10초 아이콘 — 숫자 "10"이 아이콘 안에 박혀 있다(SeekBackIcon·SeekForwardIcon). player.constants의 이동 값과 같아야 한다 */
 const SEEK_ICON_SIZE = 32;
 
