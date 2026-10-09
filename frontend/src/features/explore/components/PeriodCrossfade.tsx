@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Animated, StyleSheet } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
@@ -20,6 +20,8 @@ const DIM_DELAY_MS = 300;
 const CROSSFADE_MS = 200;
 
 type Slot = 'a' | 'b';
+/** 두 칸을 늘 같은 순서로 둔다 — 칸이 자리를 옮기지 않아 직전 줄의 뷰가 그대로 남는다(사진이 비지 않는다) */
+const SLOTS: readonly Slot[] = ['a', 'b'];
 
 /**
  * 인기 콘텐츠 구간 전환 — **제자리 크로스페이드**(PM 2026-10-09, 애플 뮤직·앱스토어의 세그먼트 전환과 같은 문법).
@@ -32,14 +34,13 @@ type Slot = 'a' | 'b';
 export default function PeriodCrossfade({ swapKey, isDimmed, children }: PeriodCrossfadeProps) {
   const dim = useAnimatedValue(isDimmed ? DIMMED_OPACITY : 1);
   /*
-   * 교차 진행값 — **쉬는 동안 0** 이다. 바뀌는 렌더가 그려지는 첫 프레임에 직전 줄 1 · 새 줄 0 이 이미 맞아 있어야 한다.
-   * 종전엔 쉬는 값이 1 이라 바뀌는 순간 직전 줄이 0 으로 그려졌다가 효과에서 되돌아와 "깜빡였다가 다시 나왔다"(PM 2026-10-09)
+   * **칸마다 제 불투명도 값을 늘 붙잡는다** — 한 값을 두 줄이 나눠 쓰고 교차 끝에 스타일을 떼었다 붙이면, 네이티브 값이
+   * 연결·해제되는 순간이 그려지는 프레임과 어긋나 "깜빡였다 다시 나옴"(#1344) · "깜빡이다 사라짐"(#1345)이 났다(PM 2026-10-09).
+   * 쉬는 칸은 0, 보이는 칸은 1 이라 새 줄은 0 에서 태어나고 직전 줄은 1 에서 시작한다 — 렌더 중에 값을 고칠 일이 없다
    */
-  const fade = useAnimatedValue(0);
-  const leavingOpacity = useMemo(
-    () => fade.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
-    [fade],
-  );
+  const opacityA = useAnimatedValue(1);
+  const opacityB = useAnimatedValue(0);
+  const slotOpacity = { a: opacityA, b: opacityB };
 
   const lastChildrenRef = useRef<ReactNode>(children);
   const [renderedKey, setRenderedKey] = useState(swapKey);
@@ -68,37 +69,39 @@ export default function PeriodCrossfade({ swapKey, isDimmed, children }: PeriodC
   }, [dim, isDimmed]);
 
   useLayoutEffect(() => {
-    if (leaving === null) {
-      // 교차가 끝나 새 줄이 제 스타일(불투명)로 돌아간 뒤 — 다음 교차를 위해 0 으로 되돌린다
-      fade.setValue(0);
-      return undefined;
-    }
-    const animation = Animated.timing(fade, {
-      toValue: 1,
-      duration: CROSSFADE_MS,
-      easing: motion.easing.easeInOut,
-      useNativeDriver: true,
-    });
+    if (leaving === null) return undefined;
+    const incoming = live === 'a' ? opacityA : opacityB;
+    const outgoing = leaving.slot === 'a' ? opacityA : opacityB;
+    const timing = (value: Animated.Value, toValue: number) =>
+      Animated.timing(value, {
+        toValue,
+        duration: CROSSFADE_MS,
+        easing: motion.easing.easeInOut,
+        useNativeDriver: true,
+      });
+    const animation = Animated.parallel([timing(incoming, 1), timing(outgoing, 0)]);
     animation.start(({ finished }) => {
       if (finished) setLeaving(null);
     });
     return () => animation.stop();
-  }, [leaving, fade]);
+  }, [leaving, live, opacityA, opacityB]);
 
   return (
     <Animated.View style={{ opacity: dim }}>
-      {leaving !== null ? (
-        <Animated.View
-          key={leaving.slot}
-          pointerEvents="none"
-          style={[styles.leaving, { opacity: leavingOpacity }]}
-        >
-          {leaving.node}
-        </Animated.View>
-      ) : null}
-      <Animated.View key={live} style={leaving !== null ? { opacity: fade } : undefined}>
-        {children}
-      </Animated.View>
+      {SLOTS.map((slot) => {
+        const isLive = slot === live;
+        const node = isLive ? children : leaving?.slot === slot ? leaving.node : null;
+        if (node === null) return null;
+        return (
+          <Animated.View
+            key={slot}
+            pointerEvents={isLive ? 'auto' : 'none'}
+            style={[isLive ? null : styles.leaving, { opacity: slotOpacity[slot] }]}
+          >
+            {node}
+          </Animated.View>
+        );
+      })}
     </Animated.View>
   );
 }
