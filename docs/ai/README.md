@@ -21,6 +21,7 @@
 | [spec/08-infra.md](spec/08-infra.md) | 인프라 — Supabase 데이터 계층, S3 저장 계층, 실행기 로드맵(스킬 → API 워커 → 배치), 웹 UI, 로컬 모델 전환 설계 |
 | [spec/09-quality-cycle.md](spec/09-quality-cycle.md) | 품질 개선 사이클 v2 — 하한/상한 분리, L0~L3 4층 평가, 회귀 세트, κ 승격 조건, 프롬프트 버전 관리, 연동 자산 갱신 절차 |
 | [spec/10-webapp.md](spec/10-webapp.md) | 웹 UI·워커 — `jobs` 큐, 상태 연쇄, 실행기 규약(`claude -p` / API 실행기 목표), 화면, 저장소 구조(`pipeline/`), 마일스톤 M1~M6, `ai-server/`와의 역할 정렬 |
+| [spec/11-series.md](spec/11-series.md) | 시리즈 제작(기획 시리즈) — **설계 확정·구현 대기**(KAN-136). 설계안·게이트 S, 편별 B-② 후보, 회상·예고, 순서 발행, 데이터·콘솔·구현 순서, 미결 |
 | **skills/** — 프롬프트 자산 (spec의 실행 이식본) | |
 | [skills/draft/guidelines.md](skills/draft/guidelines.md) | 대본 생성 가이드라인 (`full-vN`) · [CHANGELOG](skills/draft/CHANGELOG.md) · [style-directions](skills/draft/style-directions.md) · [examples/](skills/draft/examples/) 골드 대본 3종 |
 | [skills/critic/rubric.md](skills/critic/rubric.md) · [rubric-v2.md](skills/critic/rubric-v2.md) | 비평 루브릭 (`critic-vN`) — v1.x 현행 · v2 초안(100점 12항목·판단 플래그 20·앵커 자리) |
