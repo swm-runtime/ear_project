@@ -57,6 +57,26 @@ describe('signup-trial.util', () => {
       }
     });
 
+    it('경계 전환일(04:00 시작 → 다음 날 05:00, 25시간)에 받은 체험도 마지막 날의 05:00 경계에 끝난다', () => {
+      const key = 'SERVICE_DAY_BOUNDARY_05_FROM';
+      const original = process.env[key];
+      process.env[key] = '2026-10-12T05:00:00+09:00';
+      try {
+        // 전환일 10월 12일 15:00 KST 가입 → 10월 12~18일 체험, 10월 19일 05:00 KST 종료.
+        // 시작(10/12 04:00) + 7×24h 로 더하면 10/19 04:00 이 되어 그날 경계(05:00)까지 한 시간이 한도에 잡힌다
+        const endsAt = resolveSignupTrialEndsAt(
+          new Date('2026-10-12T06:00:00.000Z'),
+          7,
+        );
+        expect(endsAt.toISOString()).toBe('2026-10-18T20:00:00.000Z');
+        expect(toSignupTrialLastFreeDate(endsAt)).toBe('2026-10-18');
+        expect(isSignupTrialActive(endsAt, new Date('2026-10-18T19:30:00.000Z'))).toBe(true);
+      } finally {
+        if (original === undefined) delete process.env[key];
+        else process.env[key] = original;
+      }
+    });
+
     it('일수를 바꾸면 그만큼의 서비스 날짜를 준다', () => {
       const signedUpAt = new Date('2026-10-03T06:00:00.000Z');
 
