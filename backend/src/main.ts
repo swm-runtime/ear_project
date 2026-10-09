@@ -62,10 +62,12 @@ export function configureApp(
    * 빠져 Caddy 뒤의 모든 요청이 프록시 IP 하나로 보였다(로그인·갱신 20회/분 버킷이 전원 공용 — 2026-10-09 전체 검증).
    * 부팅 스모크 e2e 가 `trust proxy` 값을 확인한다.
    */
-  const trustProxyHops = configService.get('TRUST_PROXY_HOPS', {
-    infer: true,
-  });
-  if (trustProxyHops > 0) {
+  // 숫자로 고정한다 — env 검증기(`@Type(() => Number)`)를 거치지 않은 조립(부팅 스모크 e2e)에서는 문자열 "1"이
+  // 들어오고, Express 는 문자열을 홉 수가 아니라 IP 목록으로 읽는다
+  const trustProxyHops = Number(
+    configService.get('TRUST_PROXY_HOPS', { infer: true }) ?? 0,
+  );
+  if (Number.isInteger(trustProxyHops) && trustProxyHops > 0) {
     app.set('trust proxy', trustProxyHops);
   }
 
