@@ -69,7 +69,6 @@ export const useExploreScreen = () => {
 
   /* ── 필터 상태 — 앱을 종료하면 초기화된다(메모리 보관) ── */
   const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>([]);
-  const isFiltered = selectedTopicIds.length > 0;
 
   /* ── E7 관련 주제 칩 복귀(explore.md 4.5-3) — 그 주제의 단일 목록(E2)으로 전환한다.
      파라미터 수신은 렌더 중 상태 조정으로 처리하고(effect 내 setState 금지 — lint 규칙),
@@ -113,8 +112,23 @@ export const useExploreScreen = () => {
   const isLatestSeq = (contentId: string, seq: number): boolean =>
     seqRef.current.get(contentId) === seq;
 
-  const feedQuery = useExploreFeedQuery(!isFiltered);
   const contentsQuery = useExploreContentsQuery(selectedTopicIds);
+  /*
+   * **화면 모드(격자/피드)는 고른 주제의 목록이 도착해야 바뀐다**(PM 2026-10-09 — 칩을 누르면 받는 동안 화면 전체가 비었다가
+   * 다시 그려져 깜빡였다). 그 사이엔 지금 화면(피드 또는 앞 주제의 격자)을 흐리게 두고(isSwitching), 오면 바꾼다.
+   * 칩 강조는 누른 즉시다(selectedTopicIds). 렌더 중 상태 조정 패턴 — effect 로 하면 한 프레임 빈 화면이 낀다
+   */
+  const hasFreshContents = contentsQuery.data !== undefined && !contentsQuery.isPlaceholderData;
+  const [isGridShown, setIsGridShown] = useState(false);
+  const nextGridShown =
+    selectedTopicIds.length > 0 && (isGridShown || hasFreshContents || contentsQuery.isError);
+  if (nextGridShown !== isGridShown) setIsGridShown(nextGridShown);
+  const isFiltered = nextGridShown;
+  const isSwitching =
+    selectedTopicIds.length > 0 &&
+    !contentsQuery.isError &&
+    (isFiltered ? contentsQuery.isPlaceholderData : !hasFreshContents);
+  const feedQuery = useExploreFeedQuery(!isFiltered);
   // 확정된 구간만 구독한다 — 전환 중 목록은 이 캐시(직전 구간)가 유지하고, 새 구간은 선조회로 채운다
   const popularQuery = useExplorePopularQuery(activePeriod);
   const topicsQuery = useExploreTopicsQuery();
@@ -301,7 +315,8 @@ export const useExploreScreen = () => {
   );
 
   const activeQuery = isFiltered ? contentsQuery : feedQuery;
-  const hasData = isFiltered ? contentsQuery.data !== undefined : feedData !== undefined;
+  // 앞 주제의 자리표시 목록은 데이터로 치지 않는다 — 새 주제가 실패하면 앞 주제 목록을 그대로 두지 않고 오류를 보인다
+  const hasData = isFiltered ? hasFreshContents : feedData !== undefined;
   const isInitialLoading = activeQuery.isPending;
   const showSkeleton = useDelayedVisible(isInitialLoading);
   // 캐시 피드를 노출하지 않는다(합의 2026-08-06) — 데이터 없는 실패는 전체 화면 에러 하나다
@@ -562,6 +577,7 @@ export const useExploreScreen = () => {
   return {
     // 모드·목록
     isFiltered,
+    isSwitching,
     sections,
     filteredItems,
     emptyKind,

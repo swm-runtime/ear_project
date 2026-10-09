@@ -20,6 +20,11 @@ interface RemoteImageProps {
    * 불러오지 않는다. 잠근 뷰는 주소가 바뀌어도 새로 불러오지 않으므로 **호출부가 `key={uri}` 로 새로 만든다.**
    */
   isResized?: boolean;
+  /**
+   * 로드되면 이 시간(ms)만큼 페이드인한다 — 목록이 통째로 바뀌는 자리(탐색 주제 격자)에서 사진이 툭 튀어나오지 않게
+   * (2026-10-09). 기본은 없음 — 아래 주석의 플레이어 열림 모션처럼 첫 컷이 비면 안 되는 자리가 있다
+   */
+  fadeInMs?: number;
 }
 
 /**
@@ -50,6 +55,7 @@ export default function RemoteImage({
   onLoad,
   onError,
   isResized = false,
+  fadeInMs,
 }: RemoteImageProps) {
   const imageRef = useRef<Image>(null);
   const handleLoad = useCallback(() => {
@@ -78,6 +84,7 @@ export default function RemoteImage({
       // 잠기면 커졌을 때 흐리다. 플레이어 아트워크 한두 장이라 메모리 부담은 작다(768px WebP)
       allowDownscaling={!isResized}
       recyclingKey={recyclingKey}
+      transition={fadeInMs}
       onLoad={handleLoad}
       onError={onError}
     />

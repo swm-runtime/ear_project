@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { theme } from '@/shared/theme';
+import { motion, theme } from '@/shared/theme';
 import MoreIcon from '@/shared/ui/MoreIcon';
 import RemoteImage from '@/shared/ui/RemoteImage';
 import { Text } from '@/shared/ui/Typography';
@@ -55,7 +55,13 @@ export default function ExploreTile({
         })}
       >
         <View style={isGrid ? styles.gridArtworkFrame : styles.artworkFrame}>
-          <RemoteImage uri={item.content.thumbnailUrl} recyclingKey={item.content.id} style={styles.artwork} />
+          <RemoteImage
+            uri={item.content.thumbnailUrl}
+            recyclingKey={item.content.id}
+            style={styles.artwork}
+            // 주제 격자는 목록이 통째로 바뀐다 — 사진이 툭 튀지 않게 짧게 페이드인(PM 2026-10-09)
+            fadeInMs={isGrid ? motion.duration.fast : undefined}
+          />
           {/* 완청 체크는 없다(2026-09-22 PM) — 사진 위 스티커라 뺐다. 완청은 낭독기 라벨(completed)로만 전한다 */}
         </View>
         <Text style={styles.title} numberOfLines={2}>

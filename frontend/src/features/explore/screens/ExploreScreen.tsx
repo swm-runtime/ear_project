@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -12,10 +12,11 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { useNativeHeaderInset } from '@/shared/navigation/useNativeHeaderInset';
 import { useSystemLargeTitle } from '@/shared/navigation/useSystemLargeTitle';
 import { useTabScrollToTop } from '@/shared/navigation/useTabScrollToTop';
-import { theme } from '@/shared/theme';
+import { motion, theme } from '@/shared/theme';
 import AndroidBlurTarget from '@/shared/ui/AndroidBlurTarget';
 import AndroidCollapsingBar from '@/shared/ui/AndroidCollapsingBar';
 import FloatingHeader, {
@@ -78,6 +79,20 @@ export default function ExploreScreen() {
   const headerRef = useRef<View>(null);
   // 주제 칩 줄의 가로 위치 — 피드 ↔ 격자 전환으로 칩 줄이 새로 그려져도 제자리에 둔다(TopicChips offsetRef)
   const chipsOffsetRef = useRef(0);
+  /*
+   * 주제를 바꾸는 동안 지금 콘텐츠를 흐리게 둔다(screen.isSwitching) — 새 목록이 오면 그 목록이 흐린 상태에서 제 밝기로
+   * 돌아오며 바뀐다(PM 2026-10-09 깜빡임). 검색창·칩 줄은 흐리지 않는다
+   */
+  const switchDim = useAnimatedValue(1);
+  useEffect(() => {
+    const animation = Animated.timing(switchDim, {
+      toValue: screen.isSwitching ? SWITCH_DIM_OPACITY : 1,
+      duration: motion.duration.fast,
+      useNativeDriver: true,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [screen.isSwitching, switchDim]);
   // Android 서리 유리 띠의 블러 대상(AndroidBlurTarget)
   const blurTargetRef = useRef<View>(null);
   // 제자리 검색 모드(iOS 26·Android) — 아래 isSearching 분기
@@ -474,12 +489,14 @@ export default function ExploreScreen() {
             item === null ? (
               <View style={styles.gridSpacer} />
             ) : (
-              <ExploreTile
-                item={item}
-                layout="grid"
-                onPress={screen.handleRowPress}
-                onMorePress={screen.openMoreSheet}
-              />
+              <Animated.View style={[styles.gridCell, { opacity: switchDim }]}>
+                <ExploreTile
+                  item={item}
+                  layout="grid"
+                  onPress={screen.handleRowPress}
+                  onMorePress={screen.openMoreSheet}
+                />
+              </Animated.View>
             )
           }
           ItemSeparatorComponent={() => <View style={styles.gridSeparator} />}
@@ -528,7 +545,9 @@ export default function ExploreScreen() {
             />
           ) : null
         ) : (
-          screen.sections.map(renderSection)
+          <Animated.View style={{ opacity: switchDim }}>
+            {screen.sections.map(renderSection)}
+          </Animated.View>
         )}
       </Animated.ScrollView>
     );
@@ -619,6 +638,9 @@ const POPULAR_WHOLE_CARDS = Platform.OS === 'ios';
 
 const ANDROID_IOS_HEADER = Platform.OS === 'android' && !HAS_NATIVE_TAB_BAR;
 
+/** 주제 전환 중 콘텐츠 흐림 */
+const SWITCH_DIM_OPACITY = 0.5;
+
 const styles = StyleSheet.create({
   // 고정 제목 아래로 목록이 지나가도 글자가 겹치지 않도록 화면 바탕을 채운다.
   androidTitle: {
@@ -640,6 +662,10 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm * 1.5,
   },
   gridSpacer: {
+    flex: 1,
+  },
+  // 격자 칸 — 주제 전환 흐림(opacity)을 칸마다 건다. 칸 폭은 타일(gridTile flex 1)이 아니라 이 칸이 나눈다
+  gridCell: {
     flex: 1,
   },
   gridSeparator: {
