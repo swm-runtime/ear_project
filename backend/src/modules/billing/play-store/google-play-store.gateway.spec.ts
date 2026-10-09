@@ -403,6 +403,18 @@ describe('GooglePlayStoreGateway', () => {
       ]);
     });
 
+    it('이미 확인된 구매(409)는 성공이다 — 영수증 제출과 알림이 같은 순간 와서 다른 경로가 먼저 확인했다', async () => {
+      const { gateway } = buildGateway(FULL_ENV, {
+        respond: () => {
+          throw new GoogleHttpError(409);
+        },
+      });
+
+      await expect(
+        gateway.acknowledge('ear_pro_monthly', 't'),
+      ).resolves.toBeUndefined();
+    });
+
     it('실패하면 재시도 대상으로 올린다 — 확인하지 못한 구매는 3일 뒤 환불된다', async () => {
       const { gateway } = buildGateway(FULL_ENV, {
         respond: () => {
