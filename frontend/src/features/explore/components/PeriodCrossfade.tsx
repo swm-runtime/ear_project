@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Animated, StyleSheet } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
@@ -31,7 +31,15 @@ type Slot = 'a' | 'b';
  */
 export default function PeriodCrossfade({ swapKey, isDimmed, children }: PeriodCrossfadeProps) {
   const dim = useAnimatedValue(isDimmed ? DIMMED_OPACITY : 1);
-  const fade = useAnimatedValue(1);
+  /*
+   * 교차 진행값 — **쉬는 동안 0** 이다. 바뀌는 렌더가 그려지는 첫 프레임에 직전 줄 1 · 새 줄 0 이 이미 맞아 있어야 한다.
+   * 종전엔 쉬는 값이 1 이라 바뀌는 순간 직전 줄이 0 으로 그려졌다가 효과에서 되돌아와 "깜빡였다가 다시 나왔다"(PM 2026-10-09)
+   */
+  const fade = useAnimatedValue(0);
+  const leavingOpacity = useMemo(
+    () => fade.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+    [fade],
+  );
 
   const lastChildrenRef = useRef<ReactNode>(children);
   const [renderedKey, setRenderedKey] = useState(swapKey);
@@ -59,10 +67,12 @@ export default function PeriodCrossfade({ swapKey, isDimmed, children }: PeriodC
     return () => animation.stop();
   }, [dim, isDimmed]);
 
-  // 그리기 전에 새 줄을 투명(0)으로 두고 교차한다 — 효과에서 하면 새 줄이 한 프레임 다 보인 뒤 사라졌다 나타난다
   useLayoutEffect(() => {
-    if (leaving === null) return undefined;
-    fade.setValue(0);
+    if (leaving === null) {
+      // 교차가 끝나 새 줄이 제 스타일(불투명)로 돌아간 뒤 — 다음 교차를 위해 0 으로 되돌린다
+      fade.setValue(0);
+      return undefined;
+    }
     const animation = Animated.timing(fade, {
       toValue: 1,
       duration: CROSSFADE_MS,
@@ -81,10 +91,7 @@ export default function PeriodCrossfade({ swapKey, isDimmed, children }: PeriodC
         <Animated.View
           key={leaving.slot}
           pointerEvents="none"
-          style={[
-            styles.leaving,
-            { opacity: fade.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) },
-          ]}
+          style={[styles.leaving, { opacity: leavingOpacity }]}
         >
           {leaving.node}
         </Animated.View>
