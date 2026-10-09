@@ -357,7 +357,7 @@
 ```
 프로필 탭 진입 ──> GET /users/me/profile ──> 헤더 + 4개 카드 + 통계 3영역 렌더
    ├─ [⚙ 설정]            → 설정 화면 (settings-api.md)
-   ├─ 플랜 카드            → 구독 관리 (subscription.md)
+   ├─ 플랜 카드            → 요금제 관리 (subscription.md)
    ├─ 이메일 카드          → 이메일 인증 화면 (auth-api.md 4.8~4.11)
    ├─ 관심 주제 관리 카드   → 관심사 관리 (interest-management.md)
    ├─ 커리어 정보 카드      → 커리어 정보 화면 (career.md)
@@ -401,7 +401,7 @@
 
 ## 9. 미결 사항
 
-- **`plan.status` 정규화 enum의 소유** — 이 4분기(`free` / `subscribed` / `cancel_scheduled` / `grace`)는 설정 화면의 구독 요약(`settings-api.md`)과 구독 관리 화면도 그대로 쓰게 된다. `subscription.md`의 API 명세가 작성될 때 그쪽으로 소유를 옮기고 이 문서는 참조로 바꾼다.
+- **`plan.status` 정규화 enum의 소유** — 이 4분기(`free` / `subscribed` / `cancel_scheduled` / `grace`)는 설정 화면의 구독 요약(`settings-api.md`)과 요금제 관리 화면도 그대로 쓰게 된다. `subscription.md`의 API 명세가 작성될 때 그쪽으로 소유를 옮기고 이 문서는 참조로 바꾼다.
 - **`renews_at`의 정확성** — 다음 결제일을 `subscriptions.expires_at`으로 표현했다. 스토어 유예 기간·플랜 변경 예약이 겹치면 실제 결제일과 어긋날 수 있어, 구독 API 설계 시 스토어 S2S 값과 대조가 필요하다.
 - ~~`top_topics` 정렬 기준~~ → **확정(합의 2026-08-06): 별도 선정 기준 없이 서버 응답 순서의 앞 3개**(4.1 · `profile.md` 4.4). **정렬은 `user_interests.created_at`(선택한 순서)이며 `explore-api.md` 4.2-2와 같은 규칙이다**(개정 2026-08-08 — 개정 전 `topics.display_order`는 아직 없는 관심사 관리 화면의 정렬을 추측한 것이었다).
 - ~~프로필 카드 구성(커리어 카드 제거 · `profile.md` 개정 필요)~~ → **확정(합의 2026-08-06): 4카드로 복원.** 커리어는 별도 카드·별도 화면(`career.md`)이다. `profile.md` 4.1·4.4 개정 완료 — 이 문서의 이전 판(커리어 미포함·3카드)은 폐기됐고, 응답에 `career` 요약이 복원됐다(4.1).

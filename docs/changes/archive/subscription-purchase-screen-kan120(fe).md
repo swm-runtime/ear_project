@@ -43,3 +43,7 @@ KAN-120 1단계(iOS StoreKit 2) 코드가 들어가면서 노출 조건이 플�
 - Given `frontend/architecture.md` 5.4 / When 영수증 재시도를 읽는다 / Then 스토어의 미완료 거래가 큐이고 영수증을 기기에 저장하지 않는다고 적혀 있다
 - Given `frontend/architecture.md` 4.4 / When 의존 표를 읽는다 / Then subscription 행이 있고 player 행이 PaywallPlansSection 의존을 말한다
 - Given 루트 `CLAUDE.md` / When `spec/uiux/` 인덱스를 읽는다 / Then `subscription-uiux.md` 가 있다
+
+## 처리 기록
+
+- **반영 날짜: 2026-10-09** — 브랜치 `docs/apply-changes-pending-1009`. A·C·D 반영. B는 **① 미구독과 동일(안내 없음)** 로 결정 — 만료 안내가 필요해지면 서버 계약 추가가 먼저라고 subscription.md 5장에 적었다. C 의 runtimeVersion 32 행은 2026-10-07 빌드로 적었다.

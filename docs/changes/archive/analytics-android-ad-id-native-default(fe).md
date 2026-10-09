@@ -25,3 +25,7 @@ KAN-118 로 Android 매니페스트의 광고 ID 수집 기본값이 `true` 가 
 
 - Given `features/analytics.md` 3.5 / When Android 광고 ID 항목을 읽는다 / Then 네이티브 기본값이 Android `true`(로컬 플러그인, fbsdk 플러그인보다 앞)이고 iOS 는 `false`·ATT 없음이라고 적혀 있으며, "네이티브 기본값은 false 를 유지한다" 문장이 남아 있지 않다
 - Given 같은 문서 4장 / When IDFA 항목을 읽는다 / Then fbsdk 의 `advertiserIDCollectionEnabled: false` 가 iOS 한정이라고 읽힌다
+
+## 처리 기록
+
+- **반영 날짜: 2026-10-09** — 브랜치 `docs/apply-changes-pending-1009`. features/analytics.md 3.5·4장 반영. 운영 공개 시점은 "처리방침 적용일 2026-11-01 이후, 확인은 KAN-156"으로 적었다.
