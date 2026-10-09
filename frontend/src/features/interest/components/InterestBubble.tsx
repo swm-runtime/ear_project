@@ -26,17 +26,15 @@ const SCALE_DIMMED = 0.9;
 const DIMMED_OPACITY = 0.42;
 /** 위아래로 떠다니는 폭(pt) */
 const FLOAT_DISTANCE = 5;
-const RING_INNER = 3;
-const RING_OUTER = 2.5;
-const BADGE_SIZE = 28;
 
 /**
  * 관심 주제 버블(PM 2026-10-09 "D로 가는데 설정 관심 주제 관리만") — 원형 사진 + 가운데 이름. 애플 뮤직 첫 실행의
- * 아티스트 버블 문법: 고르면 튕기며 커지고(흰·검정 이중 링 + 체크 배지), 상한까지 고르면 나머지가 작아지며 흐려진다.
+ * 아티스트 버블 문법: 고르면 튕기며 커지고 그림자가 깊어지며, 상한까지 고르면 나머지가 작아지며 흐려진다.
  * 버블마다 다른 박자로 5pt 떠다닌다. 크기·위치·불투명도 전부 transform·opacity 라 네이티브 드라이버로 돈다.
  *
- * 선택은 색이 아니라 **링·체크·크기**로 구분한다(design.md "색만으로 상태를 구분하지 않는다") — 종전 사진 알약은
- * 막 농도(34→62%)만 바뀌어 어두운 사진에서는 선택 여부가 보이지 않았다(PM 10-09 스샷).
+ * 선택은 색이 아니라 **크기·그림자**로 구분한다(design.md "색만으로 상태를 구분하지 않는다") — 종전 사진 알약은
+ * 막 농도(34→62%)만 바뀌어 어두운 사진에서는 선택 여부가 보이지 않았다(PM 10-09 스샷). 이중 링·체크 배지는
+ * PM 이 뺐다(2026-10-09 22:55 "체크 표시 없애, 겉에 칠해지는 거 없애")
  */
 export default function InterestBubble({
   name,
@@ -50,7 +48,6 @@ export default function InterestBubble({
   const targetScale = isSelected ? SCALE_SELECTED : isDimmed ? SCALE_DIMMED : 1;
   const scale = useAnimatedValue(targetScale);
   const press = useAnimatedValue(1);
-  const selection = useAnimatedValue(isSelected ? 1 : 0);
   const fade = useAnimatedValue(isDimmed ? DIMMED_OPACITY : 1);
   const float = useAnimatedValue(0);
 
@@ -61,14 +58,6 @@ export default function InterestBubble({
       useNativeDriver: true,
     }).start();
   }, [scale, targetScale]);
-
-  useEffect(() => {
-    Animated.spring(selection, {
-      toValue: isSelected ? 1 : 0,
-      ...motion.spring.snappy,
-      useNativeDriver: true,
-    }).start();
-  }, [selection, isSelected]);
 
   useEffect(() => {
     Animated.timing(fade, {
@@ -116,8 +105,6 @@ export default function InterestBubble({
     }).start();
 
   const radius = size / 2;
-  const outer = size + (RING_INNER + RING_OUTER) * 2;
-  const inner = size + RING_INNER * 2;
 
   return (
     <Animated.View
@@ -137,36 +124,6 @@ export default function InterestBubble({
         accessibilityLabel={name}
         style={styles.fill}
       >
-        {/* 이중 링(검정 바깥 · 흰 안쪽) — 사진 뒤에 깔아 사진 둘레로만 보인다 */}
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.ring,
-            {
-              width: outer,
-              height: outer,
-              borderRadius: outer / 2,
-              top: -(RING_INNER + RING_OUTER),
-              left: -(RING_INNER + RING_OUTER),
-              borderWidth: RING_OUTER,
-              opacity: selection,
-            },
-          ]}
-        />
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.ringInner,
-            {
-              width: inner,
-              height: inner,
-              borderRadius: inner / 2,
-              top: -RING_INNER,
-              left: -RING_INNER,
-              opacity: selection,
-            },
-          ]}
-        />
         <View
           style={[
             styles.photoFrame,
@@ -189,15 +146,6 @@ export default function InterestBubble({
             {name}
           </Animated.Text>
         </View>
-        <Animated.View
-          pointerEvents="none"
-          style={[styles.badge, { transform: [{ scale: selection }] }]}
-        >
-          <View style={styles.check}>
-            <View style={styles.checkShort} />
-            <View style={styles.checkLong} />
-          </View>
-        </Animated.View>
       </Pressable>
     </Animated.View>
   );
@@ -207,14 +155,6 @@ const styles = StyleSheet.create({
   fill: {
     width: '100%',
     height: '100%',
-  },
-  ring: {
-    position: 'absolute',
-    borderColor: theme.color.primary,
-  },
-  ringInner: {
-    position: 'absolute',
-    backgroundColor: theme.color.background,
   },
   photoFrame: {
     ...StyleSheet.absoluteFill,
@@ -269,42 +209,5 @@ const styles = StyleSheet.create({
   },
   labelLarge: {
     fontSize: 16,
-  },
-  badge: {
-    position: 'absolute',
-    top: 2,
-    right: 0,
-    width: BADGE_SIZE,
-    height: BADGE_SIZE,
-    borderRadius: BADGE_SIZE / 2,
-    backgroundColor: theme.color.primary,
-    borderWidth: 2.5,
-    borderColor: theme.color.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  // 체크 — 글리프(✓)는 폰트마다 굵기·위치가 달라 막대 두 개로 그린다(design.md §5)
-  check: {
-    width: 12,
-    height: 9,
-    transform: [{ rotate: '-45deg' }, { translateY: -1 }],
-  },
-  checkShort: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    width: 2.4,
-    height: 6,
-    borderRadius: 1.2,
-    backgroundColor: theme.color.onPrimary,
-  },
-  checkLong: {
-    position: 'absolute',
-    left: 0,
-    bottom: 3,
-    width: 12,
-    height: 2.4,
-    borderRadius: 1.2,
-    backgroundColor: theme.color.onPrimary,
   },
 });
