@@ -1,4 +1,5 @@
-import { Image, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Image } from 'expo-image';
+import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
 import MoreIcon from '@/shared/ui/MoreIcon';
@@ -93,7 +94,11 @@ export default function ExploreFeaturedCard({
         source={{ uri: item.content.thumbnailUrl }}
         style={styles.backdrop}
         blurRadius={BACKDROP_BLUR_RADIUS}
-        resizeMode="cover"
+        contentFit="cover"
+        // expo-image — 메모리 캐시로 구간 전환·피드 복귀 때 바로 뜬다. 종전 RN Image 는 다시 그릴 때마다 받아 흐리게 다시 그려
+        // 그동안 카드 바탕이 비었다(PM 2026-10-09 흰 깜빡임)
+        cachePolicy="memory-disk"
+        recyclingKey={item.content.id}
         accessibilityElementsHidden
         importantForAccessibility="no"
       />
@@ -199,7 +204,7 @@ const styles = StyleSheet.create({
   },
   artwork: {
     flex: 1,
-    backgroundColor: theme.color.background,
+    // 사진이 뜨기 전엔 비워 둔다 — 흰색이면 카드 위 정사각형이 하얗게 번쩍였다(PM 2026-10-09). 아래 흐린 바탕·막이 비친다
   },
   title: {
     marginHorizontal: theme.spacing.md,

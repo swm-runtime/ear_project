@@ -17,6 +17,7 @@ import { generateId } from '@/shared/lib/generate-id';
 import { logger } from '@/shared/lib/logger';
 import { toTab } from '@/shared/navigation/to-tab';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
+import { warmRemoteImages } from '@/shared/ui/RemoteImage';
 import { useToastStore } from '@/shared/ui/toast.store';
 
 import { libraryKeys } from '@/features/library';
@@ -39,6 +40,11 @@ import { explorePopularQueryOptions, useExplorePopularQuery } from './useExplore
 import { useExploreTopicsQuery } from './useExploreTopicsQuery';
 import { useSaveContentMutation } from './useSaveContentMutation';
 import { useUnsaveContentMutation } from './useUnsaveContentMutation';
+
+/** 구간 전환 전에 메모리에 올릴 인기 카드 수 — 화면에 보이는 1장 + 반쯤 보이는 2장째 + 흐름 중 드러나는 몫 */
+const POPULAR_WARM_COUNT = 3;
+/** 사진 올리기를 기다리는 상한 — 넘으면 그냥 바꾼다(느린 망에서 전환이 멈춘 듯 보이지 않게) */
+const POPULAR_WARM_MS = 600;
 
 type EmptyKind = 'none' | 'feed' | 'filtered';
 
@@ -504,7 +510,13 @@ export const useExploreScreen = () => {
     setPendingPeriod(period);
     queryClient
       .fetchInfiniteQuery(explorePopularQueryOptions(period))
-      .then((result) => {
+      .then(async (result) => {
+        // 새 카드 줄이 빈 칸으로 흘러 들어오지 않게 앞쪽 카드 사진을 메모리에 올린 뒤 바꾼다(최대 POPULAR_WARM_MS — 흐림이 그동안 이어진다)
+        const firstPage = result.pages[0]?.items ?? [];
+        await warmRemoteImages(
+          firstPage.slice(0, POPULAR_WARM_COUNT).map((item) => item.content.thumbnailUrl),
+          POPULAR_WARM_MS,
+        );
         setActivePeriod(period);
         // 전환 완료를 한 번만 알린다 — aria-live polite의 대역(uiux 7)
         const count = result.pages.reduce((sum, page) => sum + page.items.length, 0);

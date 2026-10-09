@@ -48,6 +48,21 @@ export const prefetchRemoteImages = (uris: readonly string[]): void => {
   Image.prefetch(targets, 'disk').catch(() => undefined);
 };
 
+/**
+ * 곧 **바꿔 그릴** 이미지를 메모리까지 올려 두고, 다 되거나 `timeoutMs` 가 지나면 끝난다. 화면을 바꾸기 직전에 기다려
+ * 새 카드가 빈 칸으로 들어오지 않게 한다(탐색 인기 구간 전환 — 2026-10-09 흰 깜빡임). 실패·지연은 조용히 넘긴다
+ */
+export const warmRemoteImages = (uris: readonly string[], timeoutMs: number): Promise<void> => {
+  const targets = [...new Set(uris.filter((uri) => uri.length > 0))];
+  if (targets.length === 0) return Promise.resolve();
+  const loaded = Image.prefetch(targets, 'memory-disk').then(
+    () => undefined,
+    () => undefined,
+  );
+  const timeout = new Promise<void>((resolve) => setTimeout(resolve, timeoutMs));
+  return Promise.race([loaded, timeout]);
+};
+
 export default function RemoteImage({
   uri,
   style,
