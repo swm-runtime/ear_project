@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -41,6 +42,8 @@ const SETTINGS_HIT_SLOP = (theme.touchTarget.minHeight - SETTINGS_GLASS_SIZE) / 
 export default function ProfileScreen() {
   const screen = useProfileScreen();
   const scrollRef = useTabScrollToTop();
+  // 주간 그래프를 가로로 끄는 동안 세로 스크롤을 잠근다(PM 2026-10-09)
+  const [isChartSwiping, setIsChartSwiping] = useState(false);
   // 탭 바가 목록 위에 떠 있으므로 그 높이만큼 바닥 여백(2026-09-22)
   const dockInset = useBottomDockInset();
   // 0.3초 미만 로딩은 표시하지 않는다(common-error-handling.md 5장)
@@ -79,6 +82,7 @@ export default function ProfileScreen() {
         <ScrollView
           ref={scrollRef}
           {...DOCK_SCROLL_PROPS}
+          scrollEnabled={!isChartSwiping}
           contentContainerStyle={[
             styles.scrollContent,
             { paddingBottom: theme.spacing.xxl + dockInset },
@@ -156,6 +160,7 @@ export default function ProfileScreen() {
                   <StatsSummaryRow summary={screen.stats.data.summary} />
                   <WeeklyChart
                     weekly={screen.weekly}
+                    onSwipingChange={setIsChartSwiping}
                     footer={(() => {
                       /*
                        * 주제 구획의 기간 — 막대를 탭했으면 그날(PM 2026-09-28 04:26), 아니면 고른 주, 서버가 주·일 분포를 아직

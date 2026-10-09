@@ -17,6 +17,11 @@ interface WeeklyChartProps {
   weekly: WeeklyNavigation;
   /** 카드 맨 아래 구획 — 주제 분포(PM 2026-09-28 00:47 합침). 주 전환·로딩·빈 주와 무관하게 늘 그린다 */
   footer?: ReactNode;
+  /**
+   * 그래프를 가로로 끄는 동안 true — 화면이 세로 스크롤을 잠근다(PM 2026-10-09 "그래프 스와이프할 때 화면 스크롤은 작동 안
+   * 하게"). 잡은 뒤 손이 세로로 흘러도 화면이 같이 움직이지 않는다
+   */
+  onSwipingChange?: (isSwiping: boolean) => void;
 }
 const CHART_HEIGHT = 144;
 const ZERO_BAR_HEIGHT = 3;
@@ -290,7 +295,7 @@ function useCountTo(target: number | null): number | null {
 }
 
 /** P8/P9: 서버 주 경계·상대 높이를 유지하고 탭한 요일의 값을 보여준다. */
-export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
+export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyChartProps) {
   const { displayed, weekLabelStart, selectedBarIndex: selectedIndex } = weekly;
   /*
    * 하루 평균은 **넘김 구획 밖에 고정**하고 숫자만 굴린다(PM 2026-09-28 03:22) — 차트만 옆 주로 미끄러지고, 평균은
@@ -388,9 +393,9 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
       go();
     });
   };
-  const swipeActionsRef = useRef({ settleSwipe, turnWeek, hideAxis });
+  const swipeActionsRef = useRef({ settleSwipe, turnWeek, hideAxis, onSwipingChange });
   useEffect(() => {
-    swipeActionsRef.current = { settleSwipe, turnWeek, hideAxis };
+    swipeActionsRef.current = { settleSwipe, turnWeek, hideAxis, onSwipingChange };
   });
   const swipeResponder = useMemo(
     () =>
@@ -410,6 +415,7 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
         onPanResponderGrant: () => {
           swipeX.stopAnimation();
           swipeActionsRef.current.hideAxis();
+          swipeActionsRef.current.onSwipingChange?.(true);
         },
         onPanResponderMove: (_, gesture) => {
           const current = weeklyRef.current;
@@ -420,6 +426,7 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
         onPanResponderRelease: (_, gesture) => {
           const current = weeklyRef.current;
           const { settleSwipe: settle, turnWeek: turn } = swipeActionsRef.current;
+          swipeActionsRef.current.onSwipingChange?.(false);
           const width = pageWidthRef.current;
           const commit = Math.min(SWIPE_COMMIT_DISTANCE, width * 0.3 || SWIPE_COMMIT_DISTANCE);
           const toPrev = gesture.dx > commit || gesture.vx > SWIPE_COMMIT_VELOCITY;
@@ -428,7 +435,10 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
           else if (!current.isSwitching && toNext && current.canGoNext) turn('next', gesture.vx);
           else settle(gesture.vx);
         },
-        onPanResponderTerminate: () => swipeActionsRef.current.settleSwipe(),
+        onPanResponderTerminate: () => {
+          swipeActionsRef.current.onSwipingChange?.(false);
+          swipeActionsRef.current.settleSwipe();
+        },
       }),
     [swipeX],
   );
