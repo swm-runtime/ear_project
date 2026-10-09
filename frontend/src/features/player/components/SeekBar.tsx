@@ -185,6 +185,8 @@ export default function SeekBar({
     const animation = Animated.spring(chapterGap, {
       toValue: isChapterOpen ? CHAPTER_GAP : 0,
       ...motion.spring.smooth,
+      // 닫힐 때 0.1pt 안쪽이면 끝난 것으로 본다 — 기본 문턱(0.001)은 꼬리가 길어 조각난 바가 그만큼 오래 남았다
+      restDisplacementThreshold: 0.1,
       useNativeDriver: false,
     });
     animation.start(({ finished }) => {
@@ -192,10 +194,11 @@ export default function SeekBar({
     });
     return () => animation.stop();
   }, [isChapterOpen, chapterGap]);
-  // 닫혀 있을 때 조각을 살짝 겹친다 — 소수점 폭이 맞닿으면 경계에 가는 이음선이 비친다
+  // 닫혀 있을 때 조각을 살짝 겹친다 — 소수점 폭이 맞닿으면 경계에 가는 이음선이 비친다. **사진 위(반투명 트랙)는 겹치지
+  // 않는다** — 겹친 1pt 만큼 흰색이 두 번 칠해져 경계마다 밝은 줄이 생겼다(PM 2026-10-09, 재생 목록 연 상태 실기기)
   const chapterMargin = chapterGap.interpolate({
     inputRange: [0, CHAPTER_GAP],
-    outputRange: [-CHAPTER_SEAM_OVERLAP, CHAPTER_GAP],
+    outputRange: [onImage ? 0 : -CHAPTER_SEAM_OVERLAP, CHAPTER_GAP],
   });
   const trackStyle = [
     styles.track,
