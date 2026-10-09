@@ -126,7 +126,11 @@ export default function TopicChip({
       <Image source={source} resizeMode="cover" style={styles.photo} />
       {/* 사진 위 가독성용 오버레이 — 선택은 짙은 면 + ✓, 상한 dim은 하얗게 물러난다 */}
       <View
-        style={[styles.overlay, isSelected && styles.overlaySelected, isDimmed && styles.overlayDimmed]}
+        style={[
+          styles.overlay,
+          isSelected && styles.overlaySelected,
+          isDimmed && styles.overlayDimmed,
+        ]}
       />
       {/* 선택 표시는 짙은 오버레이만 — 체크 글리프는 두지 않는다. 낭독은 accessibilityState가 한다 */}
       <Text style={[styles.label, isDimmed && styles.labelDimmed]} numberOfLines={1}>
