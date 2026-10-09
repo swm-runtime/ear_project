@@ -4,7 +4,6 @@ import {
   toServiceDate,
 } from './service-date.util';
 
-
 /**
  * 가입 체험(`subscription.md` 4.8 — 신규 가입자에게 일정 기간 무제한 청취)의 **시각 규칙을 이 파일에만 둔다.**
  *

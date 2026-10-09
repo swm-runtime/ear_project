@@ -70,7 +70,9 @@ describe('signup-trial.util', () => {
         );
         expect(endsAt.toISOString()).toBe('2026-10-18T20:00:00.000Z');
         expect(toSignupTrialLastFreeDate(endsAt)).toBe('2026-10-18');
-        expect(isSignupTrialActive(endsAt, new Date('2026-10-18T19:30:00.000Z'))).toBe(true);
+        expect(
+          isSignupTrialActive(endsAt, new Date('2026-10-18T19:30:00.000Z')),
+        ).toBe(true);
       } finally {
         if (original === undefined) delete process.env[key];
         else process.env[key] = original;
