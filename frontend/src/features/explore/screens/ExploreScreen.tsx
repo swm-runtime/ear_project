@@ -50,9 +50,8 @@ import SearchToolbar from '../components/SearchToolbar';
 import StripSwapAndroid from '../components/StripSwapAndroid';
 import TopicChips from '../components/TopicChips';
 import { EXPLORE_COPY } from '../explore.copy';
-import { exploreGridKey, toExploreGridData } from '../explore.grid';
 import { buildSectionListKey } from '../explore.section-key';
-import type { ExploreSection } from '../explore.types';
+import type { ExploreItem, ExploreSection } from '../explore.types';
 import { useExploreScreen } from '../hooks/useExploreScreen';
 
 /**
@@ -501,83 +500,89 @@ export default function ExploreScreen() {
     }
     if (screen.isInitialLoading) return <View style={styles.container} />;
 
-    // E2 — 주제 필터 단일 목록(무한 스크롤). 필터 결과는 캐러셀이 아니라 세로 목록이다 —
-    // 개수가 정해져 있지 않아 가로로 밀게 하면 끝을 가늠할 수 없다
-    if (screen.isFiltered) {
-      return (
-        <Animated.FlatList
-          ref={listRef}
-          {...DOCK_SCROLL_PROPS}
-          {...scrollProps}
-          data={toExploreGridData(screen.filteredItems)}
-          keyExtractor={exploreGridKey}
-          numColumns={2}
-          columnWrapperStyle={styles.gridRow}
-          renderItem={({ item }) =>
-            item === null ? (
-              <View style={styles.gridSpacer} />
-            ) : (
-              <Animated.View style={[styles.gridCell, { opacity: switchDim }]}>
-                <ExploreTile
-                  item={item}
-                  layout="grid"
-                  onPress={screen.handleRowPress}
-                  onMorePress={screen.openMoreSheet}
-                />
-              </Animated.View>
-            )
-          }
-          ItemSeparatorComponent={() => <View style={styles.gridSeparator} />}
-          ListEmptyComponent={
-            screen.emptyKind === 'filtered' ? (
-              <ExploreEmptyState
-                title={EXPLORE_COPY.empty.filtered.title}
-                actionLabel={EXPLORE_COPY.empty.filtered.action}
-                onActionPress={screen.clearTopicFilter}
-              />
-            ) : null
-          }
-          ListHeaderComponent={contentChips}
-          ListHeaderComponentStyle={contentChips ? styles.gridHeaderChips : undefined}
-          ListFooterComponent={renderFooter()}
-          contentContainerStyle={[
-            screen.filteredItems.length === 0 ? styles.emptyContent : styles.gridContent,
-            { paddingTop: headerInset, paddingBottom: miniInset },
-          ]}
-          refreshControl={refreshControl}
-          onEndReached={screen.loadMore}
-          onEndReachedThreshold={0.4}
-        />
-      );
-    }
-
-    // E1 — 섹션형 피드. 섹션 구성·순서·제목은 서버 응답 그대로다(explore.md 4.1)
+    /*
+     * **피드(E1)와 주제 격자(E2)는 한 목록이다**(PM 2026-10-09 — 칩을 고르고 풀 때 끊김). 종전엔 피드는 ScrollView, 격자는
+     * FlatList 라 모드가 바뀔 때마다 검색창·칩 줄까지 든 목록을 통째로 지우고 새로 만들었다. 이제 목록·머리(검색창·칩)는
+     * 그대로 두고 내용(data)만 섹션 ↔ 격자 줄로 바꾼다. 격자는 두 칸을 한 줄 항목으로 묶는다(numColumns 는 바꿀 수 없다).
+     * 섹션 구성·순서·제목은 서버 응답 그대로(explore.md 4.1), 격자는 무한 스크롤(필터 결과는 개수를 가늠할 수 없어 세로)
+     */
+    const listItems: ExploreListItem[] = screen.isFiltered
+      ? toGridRows(screen.filteredItems)
+      : screen.sections
+          .slice(0, feedSectionLimit)
+          .map((section, index) => ({ kind: 'section', section, index }));
+    const isListEmpty = screen.isFiltered
+      ? screen.filteredItems.length === 0
+      : screen.sections.length === 0;
     return (
-      <Animated.ScrollView
+      <Animated.FlatList
         ref={listRef}
         {...DOCK_SCROLL_PROPS}
         {...scrollProps}
-        contentContainerStyle={[
-          screen.sections.length === 0 ? styles.emptyContent : styles.feedContent,
-          { paddingTop: headerInset, paddingBottom: miniInset },
-        ]}
-        refreshControl={refreshControl}
-      >
-        {contentChips}
-        {screen.sections.length === 0 ? (
-          screen.emptyKind === 'feed' ? (
+        data={listItems}
+        keyExtractor={(item) =>
+          item.kind === 'section' ? buildSectionListKey(item.section) : item.key
+        }
+        renderItem={({ item }) =>
+          item.kind === 'section' ? (
+            <Animated.View style={{ opacity: switchDim }}>
+              {renderSection(item.section, item.index)}
+            </Animated.View>
+          ) : (
+            <Animated.View style={[styles.gridRow, { opacity: switchDim }]}>
+              {item.items.map((cell, column) =>
+                cell === null ? (
+                  <View key={`spacer-${column}`} style={styles.gridCell} />
+                ) : (
+                  <View key={cell.content.id} style={styles.gridCell}>
+                    <ExploreTile
+                      item={cell}
+                      layout="grid"
+                      onPress={screen.handleRowPress}
+                      onMorePress={screen.openMoreSheet}
+                    />
+                  </View>
+                ),
+              )}
+            </Animated.View>
+          )
+        }
+        ItemSeparatorComponent={screen.isFiltered ? GridSeparator : undefined}
+        // 첫 화면 몫만 먼저 — 섹션은 캐러셀이라 무겁다
+        initialNumToRender={screen.isFiltered ? 4 : FEED_FIRST_SECTIONS}
+        ListEmptyComponent={
+          screen.emptyKind === 'filtered' ? (
+            <ExploreEmptyState
+              title={EXPLORE_COPY.empty.filtered.title}
+              actionLabel={EXPLORE_COPY.empty.filtered.action}
+              onActionPress={screen.clearTopicFilter}
+            />
+          ) : screen.emptyKind === 'feed' ? (
             <ExploreEmptyState
               title={EXPLORE_COPY.empty.feed.title}
               actionLabel={EXPLORE_COPY.empty.feed.action}
               onActionPress={screen.goToLibrary}
             />
           ) : null
-        ) : (
-          <Animated.View style={{ opacity: switchDim }}>
-            {screen.sections.slice(0, feedSectionLimit).map(renderSection)}
-          </Animated.View>
-        )}
-      </Animated.ScrollView>
+        }
+        ListHeaderComponent={contentChips}
+        // 격자 위 칩 — 칩 줄 아래 여백(8)에 8 을 더해 첫 줄 사진과 16(#1335). 스타일만 바뀌고 머리는 다시 만들지 않는다
+        ListHeaderComponentStyle={
+          contentChips && screen.isFiltered ? styles.gridHeaderChips : undefined
+        }
+        ListFooterComponent={screen.isFiltered ? renderFooter() : null}
+        contentContainerStyle={[
+          isListEmpty
+            ? styles.emptyContent
+            : screen.isFiltered
+              ? styles.gridContent
+              : styles.feedContent,
+          { paddingTop: headerInset, paddingBottom: miniInset },
+        ]}
+        refreshControl={refreshControl}
+        onEndReached={screen.loadMore}
+        onEndReachedThreshold={0.4}
+      />
     );
   };
 
@@ -666,6 +671,22 @@ const POPULAR_WHOLE_CARDS = Platform.OS === 'ios';
 
 const ANDROID_IOS_HEADER = Platform.OS === 'android' && !HAS_NATIVE_TAB_BAR;
 
+/** 한 목록(피드 섹션 · 격자 줄)의 항목 */
+type ExploreListItem =
+  | { kind: 'section'; section: ExploreSection; index: number }
+  | { kind: 'gridRow'; key: string; items: (ExploreItem | null)[] };
+
+/** 격자 두 칸을 한 줄로 묶는다 — 홀수면 마지막 줄 오른쪽은 빈 칸 */
+const toGridRows = (items: ExploreItem[]): ExploreListItem[] => {
+  const rows: ExploreListItem[] = [];
+  for (let i = 0; i < items.length; i += 2) {
+    rows.push({ kind: 'gridRow', key: items[i].content.id, items: [items[i], items[i + 1] ?? null] });
+  }
+  return rows;
+};
+
+const GridSeparator = () => <View style={styles.gridSeparator} />;
+
 /** 주제 전환 중 콘텐츠 흐림 */
 const SWITCH_DIM_OPACITY = 0.5;
 /** 피드로 돌아올 때 먼저 그리는 섹션 수 — 첫 화면 몫 */
@@ -684,15 +705,14 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing.lg,
   },
   // 주제 필터 결과 — 라이브러리와 같은 두 칸 썸네일 격자(2026-09-18 PM). 좌우 여백은 검색 줄과 같은 선
+  // 좌우 여백은 격자 줄(gridRow)이 갖는다 — 머리(검색창·칩)는 피드와 같은 자리에 그대로 있어야 한다(한 목록)
   gridContent: {
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
+    paddingBottom: theme.spacing.sm,
   },
   gridRow: {
+    flexDirection: 'row',
     gap: theme.spacing.sm * 1.5,
-  },
-  gridSpacer: {
-    flex: 1,
+    paddingHorizontal: theme.spacing.md,
   },
   // 격자 칸 — 주제 전환 흐림(opacity)을 칸마다 건다. 칸 폭은 타일(gridTile flex 1)이 아니라 이 칸이 나눈다
   gridCell: {
@@ -718,13 +738,8 @@ const styles = StyleSheet.create({
     paddingTop: theme.spacing.lg,
     paddingBottom: theme.spacing.sm,
   },
-  // 콘텐츠 첫 줄의 칩(시스템 바 갈래) — 좌우 여백은 칩 줄이 갖는다. 격자 목록은 gridContent 의 좌우 여백을 되돌린다
-  contentChips: {
-    marginHorizontal: -theme.spacing.md,
-  },
   // 격자 위 칩 — 칩 줄 아래 여백(8)에 8 을 더해 첫 줄 사진과 16. 검색창 ↔ 칩 간격과 맞춘다(PM 2026-10-09 — 8 은 칩이 격자에 붙어 보였다)
   gridHeaderChips: {
-    marginHorizontal: -theme.spacing.md,
     marginBottom: theme.spacing.sm,
   },
   sectionHeaderRow: {
