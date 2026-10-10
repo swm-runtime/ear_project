@@ -3,11 +3,11 @@
 | 항목 | 값 |
 |---|---|
 | 대상 문서 | `spec/api/profile-api.md` 4.1·4.2(`weekly_listening.listening_top_percent`) · `features/profile.md` 4.6 · `spec/uiux/profile-uiux.md`(주간 카드 요약 줄·카피) |
-| 요청 파트 | 프론트엔드(화면) · 백엔드(계약 — `tickets/backend/pending/weekly-listening-top-percent.md`) |
+| 요청 파트 | 프론트엔드(화면) · 백엔드(계약 — `tickets/backend/archive/weekly-listening-top-percent.md`) |
 | 발행 날짜 | 2026-10-10 |
 | 시작 날짜 | 2026-10-10 |
 | 기한 | 2026-10-17 (Low — 다음 주 안) |
-| 선행 | `tickets/backend/pending/weekly-listening-top-percent.md`(KAN-168) — 계약 확정 |
+| 선행 | `tickets/backend/archive/weekly-listening-top-percent.md`(KAN-168) — 계약 확정 |
 | 중요도 | Low — FE 는 필드가 없으면 그리지 않아 서버 반영 전에도 깨지지 않는다 |
 
 ## 배경
