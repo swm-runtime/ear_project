@@ -34,8 +34,9 @@ interface ProfileCardProps {
 }
 
 /**
- * 요약 카드 셸(profile-uiux.md 5장) — 카드 전체가 탭 영역 + 우측 셰브론.
- * 카드별 독립 에러 상태를 가진다. 인라인 편집·토글·저장 버튼은 두지 않는다(8장 금지).
+ * 요약 그룹의 한 행(profile-uiux.md 5장) — 행 전체가 탭 영역 + 우측 셰브론.
+ * 바깥 면·모서리·구분선은 InsetGroup이 소유한다. 행별 독립 에러 상태를 가진다.
+ * 인라인 편집·토글·저장 버튼은 두지 않는다(8장 금지).
  */
 export default function ProfileCard({
   label,
@@ -96,12 +97,8 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.color.surface,
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.md,
-    marginHorizontal: theme.spacing.md,
     // 터치 타깃 최소 44pt(profile-uiux.md 7장)
     minHeight: theme.touchTarget.minHeight,
   },
@@ -111,7 +108,6 @@ const styles = StyleSheet.create({
   inlineCard: {
     minHeight: 72,
     paddingVertical: theme.spacing.sm + theme.spacing.xs,
-    borderRadius: theme.radius.lg,
   },
   body: {
     flex: 1,

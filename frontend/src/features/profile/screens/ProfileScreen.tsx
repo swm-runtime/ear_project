@@ -7,6 +7,7 @@ import { useTabScrollToTop } from '@/shared/navigation/useTabScrollToTop';
 import { theme } from '@/shared/theme';
 import ConfirmDialog from '@/shared/ui/ConfirmDialog';
 import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
+import InsetGroup from '@/shared/ui/InsetGroup';
 import SettingsIcon from '@/shared/ui/SettingsIcon';
 import { Text } from '@/shared/ui/Typography';
 
@@ -37,7 +38,7 @@ const SETTINGS_HIT_SLOP = (theme.touchTarget.minHeight - SETTINGS_GLASS_SIZE) / 
  * 프로필 탭(P1~P10) — 화면은 뷰만 담당하고 로직은 useProfileScreen이 소유한다.
  * 하나의 세로 스크롤: 헤더 / 플랜 / 관심 주제 / 커리어 / 통계 3영역(profile-uiux.md 4.1).
  * 카드 순서는 바꾸지 않는다 — 위는 계정·결제, 아래 둘은 추천에 쓰이는 값이다.
- * 구분선은 두지 않는다 — 이메일 카드가 빠져 위가 한 장뿐이라, 1대 2를 가르는 선이 됐다.
+ * 관심 주제·커리어는 하나의 그룹 면 안에 두 행으로 두며, 편집 진입과 오류 상태는 각각 유지한다.
  */
 export default function ProfileScreen() {
   const screen = useProfileScreen();
@@ -119,21 +120,25 @@ export default function ProfileScreen() {
                 두 번 쓰면 어느 쪽이 최신인지 묻게 된다. 프로필 쪽 등록·인증·변경 진입은
                 헤더의 이메일 줄이 갖는다(profile.md 4.3 — 설정 경로와 같은 화면) */}
 
-            {screen.interestCard !== null ? (
-              <InterestCard
-                state={screen.interestCard}
-                onPress={screen.openInterests}
-                onRetry={screen.retry}
-                isRetrying={screen.isRetrying}
-              />
-            ) : null}
-            {screen.careerCard !== null ? (
-              <CareerCard
-                state={screen.careerCard}
-                onPress={screen.openCareer}
-                onRetry={screen.retry}
-                isRetrying={screen.isRetrying}
-              />
+            {screen.interestCard !== null || screen.careerCard !== null ? (
+              <InsetGroup>
+                {screen.interestCard !== null ? (
+                  <InterestCard
+                    state={screen.interestCard}
+                    onPress={screen.openInterests}
+                    onRetry={screen.retry}
+                    isRetrying={screen.isRetrying}
+                  />
+                ) : null}
+                {screen.careerCard !== null ? (
+                  <CareerCard
+                    state={screen.careerCard}
+                    onPress={screen.openCareer}
+                    onRetry={screen.retry}
+                    isRetrying={screen.isRetrying}
+                  />
+                ) : null}
+              </InsetGroup>
             ) : null}
 
             {screen.stats !== null ? (
