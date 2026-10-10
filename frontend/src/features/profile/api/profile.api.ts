@@ -46,6 +46,7 @@ const toWeeklyListening = (dto: WeeklyListeningDto): WeeklyListening => ({
   dailyListenedSec: dto.daily_listened_sec,
   previousWeekStart: dto.previous_week_start,
   nextWeekStart: dto.next_week_start,
+  listeningTopPercent: dto.listening_top_percent ?? null,
   ...(dto.topic_distribution
     ? { topicDistribution: toTopicDistribution(dto.topic_distribution) }
     : {}),

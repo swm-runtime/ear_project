@@ -96,6 +96,8 @@ export interface WeeklyListening {
   topicDistribution?: TopicDistribution;
   /** 요일별(월~일 7개) 주제 분포 — 서버가 아직 안 보내면 undefined */
   dailyTopicDistributions?: TopicDistribution[];
+  /** 그 주 청취 시간 전체 가입자 중 상위 %(서버 판정). null 이면 표시하지 않는다 — 클라이언트가 다시 거르지 않는다 */
+  listeningTopPercent: number | null;
 }
 
 export interface TopicShare {
