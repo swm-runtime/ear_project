@@ -1,20 +1,18 @@
-import { Pressable, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 import { theme } from '@/shared/theme';
 import { Text } from '@/shared/ui/Typography';
 
 import { LIBRARY_COPY } from '../library.copy';
 
-export type LibraryBannerState = { type: 'offline' } | { type: 'newArrivals'; count: number };
+export type LibraryBannerState = { type: 'offline' };
 
 interface LibraryBannerProps {
   banner: LibraryBannerState;
-  /** 새 콘텐츠 도착 배너만 탭 대상이다 — 걸어둔 탭·주제 필터는 유지된다(uiux 4.1) */
-  onPress: () => void;
 }
 
-/** 상단 배너 — 한 번에 하나만 노출한다. 우선순위는 오프라인 > 드립 준비 중 > 새 콘텐츠 도착 */
-export default function LibraryBanner({ banner, onPress }: LibraryBannerProps) {
+/** 상단 오프라인 안내 — 새 도착은 하단 라이브러리 탭의 숫자 배지로 표시한다. */
+export default function LibraryBanner({ banner }: LibraryBannerProps) {
   if (banner.type === 'offline') {
     return (
       <Text style={[styles.banner, styles.offline]} accessibilityLiveRegion="polite">
@@ -23,18 +21,7 @@ export default function LibraryBanner({ banner, onPress }: LibraryBannerProps) {
     );
   }
 
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={LIBRARY_COPY.banner.newArrivals(banner.count)}
-      accessibilityLiveRegion="polite"
-    >
-      <Text style={[styles.banner, styles.newArrivals]}>
-        {LIBRARY_COPY.banner.newArrivals(banner.count)}
-      </Text>
-    </Pressable>
-  );
+  return null;
 }
 
 const styles = StyleSheet.create({
@@ -48,10 +35,5 @@ const styles = StyleSheet.create({
   offline: {
     backgroundColor: theme.color.surface,
     color: theme.color.textSecondary,
-  },
-  newArrivals: {
-    backgroundColor: theme.color.primary,
-    color: theme.color.onPrimary,
-    fontWeight: '600',
   },
 });

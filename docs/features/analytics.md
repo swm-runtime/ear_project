@@ -174,7 +174,8 @@
 
 - `content_remove` — 라이브러리 삭제는 `entry: 'library'`, 스낵바 5초가 지나 서버 요청이 나갈 때 `undone: false`, 실행취소를 누르면 `undone: true`(서버 호출 없음).
 - `drip_play` — 편성분(source `drip`·`discovery`) 중 **`lastPlayedAt`이 null 인 항목을 눌렀을 때**(첫 재생 시도). 실제 재생 여부는 `play_start`가 따로 말한다. `hours_since_arrival`은 `addedAt` 기준 기기 시각, 소수 1자리.
-- `drip_arrival_view` — 배너가 뜨는 시점. `hours_since_arrival`은 가장 최근 편성 `addedAt` 기준.
+- `drip_arrival_view` — 라이브러리 탭 배지에 새 편성 수가 더해지는 시점(2026-10-11, 종전 배너 노출). `hours_since_arrival`은 가장 최근 편성 `addedAt` 기준.
+- `push_foreground_banner` — 이벤트 이름은 분석 호환을 위해 유지한다. `view`는 포그라운드 푸시 수신, `tap`은 도착 배지가 있는 라이브러리 탭을 눌러 확인한 시점이다(2026-10-11).
 - `play_abandon` `background` — **멈춘 채** 앱을 떠났을 때만(소리가 나는 채로 나간 것은 이탈이 아니다). 세션당 한 번이라 나중에 교체(`switch`)해도 다시 세지 않는다. `pause_timeout`은 **타이머 자체가 없어 보내지 않는다** — 재생 서비스에 일시정지 만료 로직이 생기면 그때 붙인다.
 - `paywall_view` — MVP는 안내 토스트지만 노출 자체를 센다. `entry`는 연 화면(`library`·`explore`·`player`, 푸시 지연 경로는 그 진입점).
 - `onboarding_step` `tutorial` — 건너뛰기 버튼이 없어 마지막 장을 넘긴 것만 `next`로 센다. `notification`은 온보딩 경로의 프리프롬프트에서만(설정에서 다시 연 것은 `push_permission`만).

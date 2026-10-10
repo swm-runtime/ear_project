@@ -10,6 +10,7 @@ import { androidNavigationModeOf } from '@/shared/lib/android-navigation';
 import { motion, theme, LAUNCH_SCHEME } from '@/shared/theme';
 import GlassSurface, { GlassGroup, GlassPill } from '@/shared/ui/GlassSurface';
 import TabBarIcon, { type TabBarIconName } from '@/shared/ui/TabBarIcon';
+import TabIconBadge from '@/shared/ui/TabIconBadge';
 import { Text, AnimatedText } from '@/shared/ui/Typography';
 
 import {
@@ -483,6 +484,7 @@ export default function CapsuleTabBar({
                       size={ICON_SIZE}
                     />
                   </Animated.View>
+                  <TabIconBadge value={options.tabBarBadge} />
                 </View>
                 <View>
                   <Text style={styles.label} numberOfLines={1}>

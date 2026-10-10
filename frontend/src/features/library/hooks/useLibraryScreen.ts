@@ -1,7 +1,7 @@
 import { useNavigation } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, Linking } from 'react-native';
+import { Linking } from 'react-native';
 
 import { track } from '@/shared/analytics';
 import { isApiError } from '@/shared/api/api-error';
@@ -23,7 +23,7 @@ import { useDeferredSheetShare } from '@/features/share';
 import { libraryKeys } from '../api/library.api';
 import { DELETE_UNDO_DURATION_MS } from '../library.constants';
 import { LIBRARY_COPY } from '../library.copy';
-import { evaluateDripArrivals } from '../library.new-arrival';
+import { hoursSinceArrival } from '../library.new-arrival';
 import type {
   LibraryFilter,
   LibraryItem,
@@ -50,13 +50,6 @@ const isNetworkError = (error: unknown): boolean =>
   isApiError(error) &&
   (error.errorCode === ERROR_CODES.NETWORK_ERROR || error.errorCode === ERROR_CODES.TIMEOUT);
 
-/** 편성 도착(addedAt)부터 지금까지 — 분석 파라미터용이라 기기 시각으로 잰다. 소수 1자리, 음수·비정상은 0 */
-const hoursSince = (isoTime: string | null): number => {
-  if (isoTime === null) return 0;
-  const elapsedMs = Date.now() - new Date(isoTime).getTime();
-  return Number.isFinite(elapsedMs) && elapsedMs > 0 ? Math.round(elapsedMs / 360_000) / 10 : 0;
-};
-
 export const useLibraryScreen = () => {
   const navigation = useNavigation();
   const queryClient = useQueryClient();
@@ -79,12 +72,9 @@ export const useLibraryScreen = () => {
   const [pendingDeleteItem, setPendingDeleteItem] = useState<LibraryItem | null>(null);
   const [hasDeletedInSession, setHasDeletedInSession] = useState(false);
   const [dismissedResumeIds, setDismissedResumeIds] = useState<ReadonlySet<string>>(new Set());
-  const [newArrivalCount, setNewArrivalCount] = useState(0);
 
   const pendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingDeleteRef = useRef<LibraryItem | null>(null);
-  /** 직전에 노출한 목록에서 본 드립의 최대 addedAt — 배너 판정의 기준값(library-api.md 4.1) */
-  const dripBaselineRef = useRef<string | null>(null);
 
   const itemsQuery = useLibraryItemsQuery(filter, topicFilter.ids, sourceFilter);
   const resumeQuery = useResumeTargetQuery();
@@ -114,30 +104,6 @@ export const useLibraryScreen = () => {
     if (!resumeData) return;
     applyPlayLimit(resumeData.playLimit);
   }, [resumeData, applyPlayLimit]);
-
-  /* ── "새 콘텐츠 N개 도착" — 클라이언트가 직전 조회와 비교하되 드립 도착만 센다
-     (library-api.md 4.1 개정 2026-08-08 — 담기·자동 적립은 사용자의 조작이라 알리지 않는다) ── */
-  useEffect(() => {
-    const firstPage = pages?.[0];
-    if (!firstPage) return;
-    const { baseline, newCount } = evaluateDripArrivals(firstPage.items, dripBaselineRef.current);
-    dripBaselineRef.current = baseline;
-    if (newCount > 0) {
-      setNewArrivalCount(newCount);
-      // 배너 노출 = 도착을 봤다. 기준값(가장 최근 편성 addedAt)부터 지금까지의 시간 — 분석용이라 기기 시각으로 충분
-      track('drip_arrival_view', { count: newCount, hours_since_arrival: hoursSince(baseline) });
-    }
-  }, [pages]);
-
-  /* ── 포그라운드 복귀 시 조용한 재조회 — 인디케이터 없음(library.md 4.6) ── */
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') {
-        void queryClient.invalidateQueries({ queryKey: libraryKeys.all });
-      }
-    });
-    return () => subscription.remove();
-  }, [queryClient]);
 
   /* ── 커서 무효 — 커서를 버리고 첫 페이지부터. 사용자에게 노출하지 않는다(library-api.md 5장) ── */
   useEffect(() => {
@@ -212,13 +178,12 @@ export const useLibraryScreen = () => {
     return { remaining, limit: dailyPlayLimit, isExhausted: remaining === 0 };
   }, [storedPlayLimit, isOffline, isFullError, isInitialLoading]);
 
-  /* ── 상단 배너 — 한 번에 하나, 오프라인 > 드립 준비 중 > 새 콘텐츠 도착(uiux 4.1).
+  /* ── 상단 배너 — 오프라인 안내. 새 도착은 탭 내비게이터의 숫자 배지로 표시한다.
         드립 준비 중 배너는 서버 계약에 판정 신호가 없어 보류(미결 — 최종 보고 참조) ── */
   const banner = useMemo(() => {
     if (isOffline) return { type: 'offline' as const };
-    if (newArrivalCount > 0) return { type: 'newArrivals' as const, count: newArrivalCount };
     return null;
-  }, [isOffline, newArrivalCount]);
+  }, [isOffline]);
 
   /* ── 삭제 · 실행 취소(library-uiux.md 4.7) ── */
   useEffect(() => {
@@ -364,7 +329,7 @@ export const useLibraryScreen = () => {
       track('drip_play', {
         content_id: item.content.id,
         slot: item.source === 'drip' ? 'regular' : 'discovery',
-        hours_since_arrival: hoursSince(item.addedAt),
+        hours_since_arrival: hoursSinceArrival(item.addedAt),
       });
     }
     playGate.requestPlay(
@@ -455,15 +420,8 @@ export const useLibraryScreen = () => {
     itemsQuery.isFetchNextPageError &&
     !(isApiError(itemsError) && itemsError.errorCode === ERROR_CODES.LIBRARY_CURSOR_INVALID);
 
-  /* ── 필터 조작 — 배너 표시는 접지만 드립 기준값은 유지한다(library-api.md 4.1 개정 2026-08-08).
-     기준값을 버리면 드립이 안 보이는 필터를 풀었을 때 그동안 도착한 드립을 놓친다 —
-     드립 0건 조회의 기준값 미갱신은 evaluateDripArrivals가 맡는다 ── */
-  const resetArrivalBanner = () => {
-    setNewArrivalCount(0);
-  };
-
+  /* ── 필터 조작 — 새 도착 배지·기준값은 필터와 무관하게 유지한다 ── */
   const changeFilter = (next: LibraryFilter) => {
-    resetArrivalBanner();
     setFilter(next);
   };
 
@@ -472,7 +430,6 @@ export const useLibraryScreen = () => {
     source: LibrarySourceFilter | null,
     status: LibraryFilter,
   ) => {
-    resetArrivalBanner();
     setTopicFilter({ ids: selected.map((t) => t.id), names: selected.map((t) => t.name) });
     setSourceFilter(source);
     // 상태(전체·미청취·완료)도 시트에서 고른다(2026-09-25 PM — 세그먼트 탭 폐지)
@@ -481,17 +438,9 @@ export const useLibraryScreen = () => {
   };
 
   const resetFilters = () => {
-    resetArrivalBanner();
     setFilter('all');
     setTopicFilter(EMPTY_TOPIC_FILTER);
     setSourceFilter(null);
-  };
-
-  const handleBannerPress = () => {
-    if (banner?.type !== 'newArrivals') return;
-    // 탭·주제 필터는 유지한 채 목록만 최신으로 갱신한다(uiux 4.1)
-    setNewArrivalCount(0);
-    void refresh();
   };
 
   const goToExplore = () => {
@@ -526,7 +475,6 @@ export const useLibraryScreen = () => {
     // 앱바·배너
     remainingDisplay,
     banner,
-    handleBannerPress,
     openPaywall: playGate.openPaywall,
     // 필터 팝업(출처 + 주제) — 배지는 두 축의 선택 개수 합이다
     // 배지 = 상태(전체가 아니면 1) + 출처 + 주제 수
