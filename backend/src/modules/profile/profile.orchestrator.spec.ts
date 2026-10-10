@@ -49,6 +49,7 @@ function buildPlanView(): PlanView {
     hasPaymentIssue: false,
     trial: null,
     pendingPlan: null,
+    grant: null,
   };
 }
 
@@ -118,6 +119,7 @@ describe('ProfileOrchestrator', () => {
         hasPaymentIssue: false,
         trial: null,
         pendingPlan: null,
+        grant: null,
       };
       subscriptionService.buildPlanView.mockResolvedValue(planView);
 

@@ -27,6 +27,7 @@ export function assembleBilling(world = new BillingTestWorld()) {
     world.planService,
     world.purchaseIntentService,
     world.userService,
+    world.inviteCodeService,
   );
   const playPurchase = new PlayPurchaseService(
     world.playGateway,

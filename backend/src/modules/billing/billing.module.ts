@@ -14,6 +14,8 @@ import { SubscriptionController } from './controllers/subscription.controller';
 import { AppStoreWebhookService } from './services/app-store-webhook.service';
 import { BillingAlertService } from './services/billing-alert.service';
 import { BillingSyncService } from './services/billing-sync.service';
+import { InviteGrantExpiryScheduler } from './services/invite-grant-expiry.scheduler';
+import { InviteGrantExpiryService } from './services/invite-grant-expiry.service';
 import { PlayPurchaseService } from './services/play-purchase.service';
 import { PlayStoreWebhookService } from './services/play-store-webhook.service';
 import { GooglePlayStoreGateway } from './play-store/google-play-store.gateway';
@@ -45,6 +47,8 @@ import { SubscriptionReconcileService } from './services/subscription-reconcile.
     BillingSyncService,
     SubscriptionReconcileService,
     SubscriptionReconcileScheduler,
+    InviteGrantExpiryService,
+    InviteGrantExpiryScheduler,
     AppStoreWebhookService,
     { provide: AppStoreGateway, useClass: AppleAppStoreGateway },
     PlayPurchaseService,

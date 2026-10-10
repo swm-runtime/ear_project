@@ -15,6 +15,8 @@ import {
   resolveFromStoreStatus,
   resolveFromTransaction,
 } from '@/modules/subscription/policies/store-state.policy';
+import { higherTier } from '@/modules/subscription/policies/invite-code.policy';
+import { InviteCodeService } from '@/modules/subscription/services/invite-code.service';
 import { PlanService } from '@/modules/subscription/services/plan.service';
 import { PurchaseIntentService } from '@/modules/subscription/services/purchase-intent.service';
 import { SubscriptionService } from '@/modules/subscription/services/subscription.service';
@@ -62,6 +64,7 @@ export class BillingSyncService {
     private readonly planService: PlanService,
     private readonly purchaseIntentService: PurchaseIntentService,
     private readonly userService: UserService,
+    private readonly inviteCodeService: InviteCodeService,
   ) {}
 
   /**
@@ -382,26 +385,70 @@ export class BillingSyncService {
   }
 
   /**
-   * `users.tier` 캐시를 `subscriptions`에 맞춘다 — **이 값을 쓰는 유일한 경로다**(domain.md 3.1).
+   * `users.tier` 캐시를 `subscriptions`와 초대 코드 지급(domain.md 8.6)에 맞춘다 — **이 값을 쓰는 유일한 경로다**(domain.md 3.1).
    *
    * 방금 고친 행 하나가 아니라 그 사용자의 구독 전체에서 다시 고른다 — 한 사용자가 구독 행을 여럿 가질 수 있고
    * (스토어 구독 그룹이 다르거나 스토어가 다르다), 하나가 만료돼도 다른 하나가 살아 있으면 유료다.
+   *
+   * **사용자 행을 먼저 잠그고 읽는다**(2026-10-10 검토) — 잠그기 전에 구독·지급을 읽으면 동시에 커밋된 결제를 못 보고
+   * 옛 값으로 캐시를 덮는다(만료 배치·코드 입력이 구독 행 잠금 없이 이 함수를 부른다). 잠금 순서는 구독 행 → 사용자 행 →
+   * 지급 행으로 모든 경로가 같다.
+   *
+   * **구독과 지급 중 높은 쪽**을 쓴다. 단, 입력 때 유료 구독이 없던 지급(`subscribed_at_start = false`)인데 지금 살아 있는
+   * 구독이 있으면 **지급 기간 중에 결제한 것**이라 지급을 여기서 끝낸다 — 결제가 지급을 대체한다(`subscription-api.md` 4.8: Daily 이벤트 중 Pro 결제 → 이벤트 종료·Pro,
+   * Pro 이벤트 중 Daily 결제 → 이벤트 종료·Daily. 결제 전 확인 팝업은 클라이언트 몫이다). 입력 때 이미 구독 중이었으면
+   * 그 구독의 갱신·변경은 지급을 끝내지 않는다.
+   *
+   * `now`는 지급 판정 시각이다 — 테스트·배치가 시각을 고정할 때만 넘긴다.
    */
-  async syncUserTier(userId: string, manager: EntityManager): Promise<void> {
+  async syncUserTier(
+    userId: string,
+    manager: EntityManager,
+    now: Date = new Date(),
+  ): Promise<void> {
+    await this.userService.getByIdForUpdate(userId, manager);
     const current = await this.subscriptionService.findCurrent(userId, manager);
-    const tier =
+    const live =
       current !== null &&
       NON_TERMINAL_SUBSCRIPTION_STATUSES.includes(current.status)
-        ? current.tier
-        : UserTier.LIGHT;
+        ? current
+        : null;
+    const subscriptionTier = live?.tier ?? UserTier.LIGHT;
+
+    let grant = await this.inviteCodeService.findActiveGrant(
+      userId,
+      now,
+      manager,
+    );
+    if (
+      grant !== null &&
+      live !== null &&
+      !grant.redemption.subscribedAtStart
+    ) {
+      await this.inviteCodeService.endGrant(grant, now, manager);
+      this.logger.log('invite grant ended by purchase', {
+        user_id: userId,
+        redemption_id: grant.redemption.id,
+        grant_tier: grant.redemption.tier,
+        subscription_id: live.id,
+        subscription_tier: live.tier,
+      });
+      grant = null;
+    }
+
+    const tier =
+      grant === null
+        ? subscriptionTier
+        : higherTier(subscriptionTier, grant.redemption.tier);
 
     const changed = await this.userService.updateTier(userId, tier, manager);
 
     if (changed) {
-      this.logger.log('user tier synced from subscription', {
+      this.logger.log('user tier synced', {
         user_id: userId,
         tier,
-        subscription_id: current?.id ?? null,
+        subscription_id: live?.id ?? null,
+        invite_redemption_id: grant?.redemption.id ?? null,
       });
     }
   }

@@ -1473,3 +1473,134 @@ describe('만료 보정의 상한 — 확인할 수 없는 구독(4.2 — 2026-1
     expect(world.users.get(USER)!.tier).toBe(UserTier.PRO);
   });
 });
+
+describe('초대 코드 지급과 결제(subscription-api.md 4.8 — 2026-10-10)', () => {
+  /** 테스트 시각(NOW)과 실제 시각을 모두 덮는 지급 기간 — 결제 반영은 실제 시각으로 지급을 판정한다 */
+  const GRANT_WINDOW = {
+    startsAt: new Date('2026-10-08T00:00:00Z'),
+    endsAt: new Date('2026-11-30T19:00:00Z'),
+  };
+
+  it('구독 없이 Pro 지급 중이면 티어 캐시·플랜 요약·권한이 Pro이고, 구독 상태는 무료 그대로다', async () => {
+    const { world, orchestrator } = setup();
+    world.grantInvite(USER, UserTier.PRO, GRANT_WINDOW);
+
+    await world.dataSource.transaction((manager) =>
+      assembleBilling(world).sync.syncUserTier(USER, manager),
+    );
+    const view = await orchestrator.getSubscription(USER, NOW);
+
+    expect(world.users.get(USER)!.tier).toBe(UserTier.PRO);
+    expect(view.plan).toMatchObject({
+      status: PlanStatus.FREE,
+      tier: UserTier.PRO,
+      planName: 'Pro',
+      dailyPlayLimit: null,
+      grant: {
+        name: '테스트 PoC',
+        tier: UserTier.PRO,
+        planName: 'Pro',
+        endsAt: GRANT_WINDOW.endsAt,
+        lastDate: '2026-11-30',
+      },
+    });
+    expect(view.entitlements.dailyPlayLimit).toBeNull();
+  });
+
+  it('Daily 이벤트 중 Pro를 결제하면 이벤트가 끝나고 Pro 구독이 된다', async () => {
+    const { world, purchase } = setup();
+    const grant = world.grantInvite(USER, UserTier.DAILY, GRANT_WINDOW);
+
+    world.addIntent(USER, INTENT_A);
+    // 결제 반영은 실제 시각으로 지급을 끝낸다 — 응답 조립도 같은 시각이어야 끝난 지급이 보이지 않는다
+    const view = await purchase(
+      signTransaction({ ...THIS_PERIOD, accountToken: INTENT_A }),
+      USER,
+      new Date(),
+    );
+
+    expect(grant.redemption.tierReleasedAt).not.toBeNull();
+    expect(grant.redemption.endsAt.getTime()).toBeLessThan(
+      GRANT_WINDOW.endsAt.getTime(),
+    );
+    expect(world.users.get(USER)!.tier).toBe(UserTier.PRO);
+    expect(view.plan).toMatchObject({
+      status: PlanStatus.SUBSCRIBED,
+      tier: UserTier.PRO,
+      grant: null,
+    });
+  });
+
+  it('Pro 이벤트 중 Daily를 결제하면(확인은 앱 몫) 이벤트가 끝나고 Daily가 된다 — 결제가 지급을 대체한다', async () => {
+    const { world, purchase } = setup();
+    const grant = world.grantInvite(USER, UserTier.PRO, GRANT_WINDOW);
+
+    world.addIntent(USER, INTENT_A);
+    await purchase(
+      signTransaction({
+        ...THIS_PERIOD,
+        productId: PRODUCT_DAILY,
+        accountToken: INTENT_A,
+      }),
+    );
+
+    expect(grant.redemption.tierReleasedAt).not.toBeNull();
+    expect(world.users.get(USER)!.tier).toBe(UserTier.DAILY);
+  });
+
+  it('입력 때 이미 구독 중이었으면 그 구독의 갱신은 지급을 끝내지 않고, 높은 쪽(지급 Pro)을 쓴다', async () => {
+    const { world, purchase, notify } = setup();
+
+    world.addIntent(USER, INTENT_A);
+    await purchase(
+      signTransaction({
+        ...THIS_PERIOD,
+        productId: PRODUCT_DAILY,
+        accountToken: INTENT_A,
+      }),
+    );
+    // 입력할 때 이미 구독 중이었다
+    const grant = world.grantInvite(USER, UserTier.PRO, {
+      ...GRANT_WINDOW,
+      subscribedAtStart: true,
+    });
+
+    await notify({
+      id: 'renewal-1',
+      type: 'DID_RENEW',
+      transaction: { ...NEXT_PERIOD, productId: PRODUCT_DAILY },
+    });
+
+    expect(grant.redemption.tierReleasedAt).toBeNull();
+    expect(world.users.get(USER)!.tier).toBe(UserTier.PRO);
+  });
+
+  it('끝난 구독 행이 되살아나는 재구독(App Store 같은 구독 그룹)도 이벤트 중 결제로 보고 지급을 끝낸다', async () => {
+    const { world, purchase } = setup();
+
+    world.addIntent(USER, INTENT_A);
+    await purchase(signTransaction({ ...THIS_PERIOD, accountToken: INTENT_A }));
+    world.subscriptions[0].status = SubscriptionStatus.EXPIRED;
+    await world.dataSource.transaction((manager) =>
+      assembleBilling(world).sync.syncUserTier(USER, manager),
+    );
+    expect(world.users.get(USER)!.tier).toBe(UserTier.LIGHT);
+    const grant = world.grantInvite(USER, UserTier.PRO, GRANT_WINDOW);
+
+    // 같은 originalTransactionId 로 다시 구독 — 옛 행이 되살아난다
+    world.addIntent(USER, INTENT_B);
+    await purchase(
+      signTransaction({
+        ...NEXT_PERIOD,
+        productId: PRODUCT_DAILY,
+        accountToken: INTENT_B,
+      }),
+      USER,
+      new Date(),
+    );
+
+    expect(world.subscriptions).toHaveLength(1);
+    expect(grant.redemption.tierReleasedAt).not.toBeNull();
+    expect(world.users.get(USER)!.tier).toBe(UserTier.DAILY);
+  });
+});

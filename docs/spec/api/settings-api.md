@@ -102,7 +102,8 @@
     "renews_at": "2026-09-01T00:00:00Z",
     "expires_at": null,
     "has_payment_issue": false,
-    "trial": null
+    "trial": null,
+    "grant": null
   },
   "interest_summary": {
     "count": 3,

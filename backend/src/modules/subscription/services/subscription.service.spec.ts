@@ -2,10 +2,12 @@ import { Logger } from '@nestjs/common';
 
 import { UserTier } from '@/modules/user/user.enum';
 
+import { InviteCodeRedemption } from '../entities/invite-code-redemption.entity';
 import { Plan } from '../entities/plan.entity';
 import { Subscription } from '../entities/subscription.entity';
 import { SubscriptionRepository } from '../repositories/subscription.repository';
 import { PlanStatus, SubscriptionStatus } from '../subscription.enum';
+import { InviteCodeService } from './invite-code.service';
 import { PlanService } from './plan.service';
 import {
   selectCurrentSubscription,
@@ -50,16 +52,21 @@ describe('SubscriptionService', () => {
     Pick<SubscriptionRepository, 'findAllByUserId'>
   >;
   let planService: jest.Mocked<Pick<PlanService, 'findByTier'>>;
+  let inviteCodeService: jest.Mocked<
+    Pick<InviteCodeService, 'findActiveGrant'>
+  >;
 
   beforeEach(() => {
     subscriptionRepository = {
       findAllByUserId: jest.fn().mockResolvedValue([]),
     };
     planService = { findByTier: jest.fn().mockResolvedValue(buildPlan()) };
+    inviteCodeService = { findActiveGrant: jest.fn().mockResolvedValue(null) };
 
     service = new SubscriptionService(
       subscriptionRepository as unknown as SubscriptionRepository,
       planService as unknown as PlanService,
+      inviteCodeService as unknown as InviteCodeService,
     );
   });
 
@@ -85,6 +92,104 @@ describe('SubscriptionService', () => {
         hasPaymentIssue: false,
         trial: null,
         pendingPlan: null,
+        grant: null,
+      });
+    });
+
+    describe('초대 코드 지급(subscription-api.md 4.8)', () => {
+      const GRANT_ENDS_AT = new Date('2026-09-09T19:00:00.000Z');
+      const plans: Record<string, Plan> = {
+        [UserTier.LIGHT]: buildPlan({
+          tier: UserTier.LIGHT,
+          name: 'Light',
+          dailyPlayLimit: 2,
+        }),
+        [UserTier.DAILY]: buildPlan({
+          tier: UserTier.DAILY,
+          name: 'Daily',
+          dailyPlayLimit: 5,
+        }),
+        [UserTier.PRO]: buildPlan({ name: 'Pro' }),
+        [UserTier.TRIAL]: buildPlan({
+          tier: UserTier.TRIAL,
+          name: '무료 체험',
+        }),
+      };
+      const grantOf = (tier: UserTier) => ({
+        redemption: {
+          tier,
+          startsAt: new Date('2026-08-01T00:00:00.000Z'),
+          endsAt: GRANT_ENDS_AT,
+        } as InviteCodeRedemption,
+        codeName: '산군 PoC',
+      });
+
+      beforeEach(() => {
+        planService.findByTier.mockImplementation((tier: UserTier) =>
+          Promise.resolve(plans[tier] ?? null),
+        );
+      });
+
+      it('무료 사용자가 Pro를 지급받으면 상태는 무료 그대로, 티어·이름·한도는 Pro이고 grant가 실린다', async () => {
+        subscriptionRepository.findAllByUserId.mockResolvedValue([]);
+        inviteCodeService.findActiveGrant.mockResolvedValue(
+          grantOf(UserTier.PRO),
+        );
+
+        const plan = await service.buildPlanView(USER_ID, NO_TRIAL);
+
+        expect(plan).toMatchObject({
+          status: PlanStatus.FREE,
+          tier: UserTier.PRO,
+          planName: 'Pro',
+          dailyPlayLimit: null,
+          grant: {
+            name: '산군 PoC',
+            tier: UserTier.PRO,
+            planName: 'Pro',
+            endsAt: GRANT_ENDS_AT,
+            lastDate: '2026-09-09',
+          },
+        });
+      });
+
+      it('지급이 구독보다 낮으면 구독 표시를 그대로 두고 grant만 싣는다', async () => {
+        subscriptionRepository.findAllByUserId.mockResolvedValue([
+          buildSubscription(),
+        ]);
+        inviteCodeService.findActiveGrant.mockResolvedValue(
+          grantOf(UserTier.DAILY),
+        );
+
+        const plan = await service.buildPlanView(USER_ID, NO_TRIAL);
+
+        expect(plan).toMatchObject({
+          status: PlanStatus.SUBSCRIBED,
+          tier: UserTier.PRO,
+          planName: 'Pro',
+          dailyPlayLimit: null,
+          grant: { tier: UserTier.DAILY, planName: 'Daily' },
+        });
+      });
+
+      it('체험 중에 Daily를 지급받으면 지급이 표시를 이기고, 한도는 둘 중 넉넉한 쪽이다', async () => {
+        subscriptionRepository.findAllByUserId.mockResolvedValue([]);
+        inviteCodeService.findActiveGrant.mockResolvedValue(
+          grantOf(UserTier.DAILY),
+        );
+
+        const plan = await service.buildPlanView(USER_ID, {
+          trialEndsAt: TRIAL_ENDS_AT,
+          now: NOW,
+        });
+
+        expect(plan).toMatchObject({
+          status: PlanStatus.FREE,
+          tier: UserTier.DAILY,
+          planName: 'Daily',
+          dailyPlayLimit: null,
+        });
+        expect(plan.trial).not.toBeNull();
       });
     });
 

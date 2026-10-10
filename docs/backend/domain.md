@@ -186,7 +186,7 @@ users
   nickname                  varchar         NULL 허용 (가입 시 미정 · 온보딩에서 입력)
   profile_image_url         varchar(2048)   NULL 허용 — 제공자 프로필 사진 URL. 파일이 아니라 제공자 CDN 주소만 보관하며 로그인마다 제공자 값으로 덮어쓴다(auth.md 4.1). 애플은 항상 NULL (도입 2026-09-16 — profile.md 미결 확정)
   role                      enum            user | admin          DEFAULT 'user'
-  tier                      enum            light | daily | pro   DEFAULT 'light'   ★캐시
+  tier                      enum            light | daily | pro   DEFAULT 'light'   ★캐시 — 구독(8.2)과 초대 코드 지급(8.6) 중 높은 쪽(2026-10-10)
   trial_ends_at             timestamptz     NULL   가입 체험이 끝나는 시각. 한 번만 쓴다(가입 시, 또는 도입 전 가입자가 처음 앱을 열 때). NULL = 체험을 받지 않은 계정 (도입 2026-10-03 — `subscription.md` 4.8)
   status                    enum            active | withdrawn    DEFAULT 'active'   ※ 아래 주석
   onboarding_completed      boolean         DEFAULT false
@@ -1264,6 +1264,57 @@ uq_store_notification_logs_store_notification_id (store, notification_id)
 - 유니크 제약이 **같은 알림의 중복 처리를 막는다.** 스토어는 같은 알림을 여러 번 보낼 수 있다.
 - **`processed_at`이 "중복"의 기준이다**(2026-10-02). 적재는 처리보다 먼저, 처리 트랜잭션 밖에서 한다 — 처리가 실패해 롤백돼도 받았다는 기록은 남는다. 그래서 같은 `notification_id`가 다시 왔을 때 `processed_at`이 있으면 끝난 알림의 재전송이라 그대로 200이고, 없으면 받기만 하고 처리에 실패했던 것이라 다시 처리한다. 어느 계정의 구독인지 알 수 없던 알림(구독 행도 계정 토큰도 없음)도 `processed_at`이 비어 있다 — 이후 영수증 제출·복원이 그 구독을 연결한다.
 - **`payload`에는 검증을 마친 뒤 풀어낸 값만 둔다** — 알림 유형, 서명 시각, 환경, 거래(스토어 구독 ID·상품·기간·환불 시각·계정 토큰 유무), 갱신 설정. 계정 토큰 값은 싣지 않는다 — 결제 의도의 `id`라 살아 있는 계정을 가리키는데, 이 표는 탈퇴 뒤에도 남는다(12.3). **서명 원문(JWS)은 넣지 않는다.** `type`은 App Store의 `notificationType`에 `subtype`이 있으면 `:`로 이은 값이다(`DID_CHANGE_RENEWAL_STATUS:AUTO_RENEW_DISABLED`). **Play 알림**(2026-10-03)은 `notification_id`가 Pub/Sub `messageId`, `type`이 `SUBSCRIPTION:<유형 번호>` · `VOIDED_PURCHASE` · `TEST` · `OTHER`이고, `payload`에는 종류·유형·발생 시각과 **구매 토큰의 SHA-256**만 둔다 — 토큰 원문은 그것만으로 Google에 그 구매를 조회할 수 있는 열쇠라 넣지 않는다. Play 알림의 `processed_at`은 구매 확인(acknowledge)까지 끝난 뒤에 찍힌다.
+
+### 8.5 `invite_codes` — 초대 코드 (2026-10-10)
+
+> **구현 상태(2026-10-10)** — `InviteCodeService`(subscription 모듈). 규칙은 `subscription.md` 4.9, 계약은 `subscription-api.md` 4.8 · `admin-api.md` 4.23.
+
+```
+invite_codes
+  id                        uuid            PK
+  code                      varchar(32)     UNIQUE — 사용자가 입력하는 값. 대문자로 정규화해 저장(A-Z 0-9 -, 4~32자)
+  name                      varchar(100)    캠페인 이름(예: "산군 PoC") — 응답에도 실린다
+  tier                      enum            daily | pro   지급 요금제 (CHECK)
+  grant_days                int             NULL — 입력한 서비스 날짜를 1일째로 센 지급 일수(≥1)
+  grant_until_date          date            NULL — 지급 마지막 서비스 날짜(그날까지 포함)
+  max_redemptions           int             NULL — 사용 한도(계정 수, ≥1). NULL = 제한 없음
+  redeemed_count            int             DEFAULT 0 — 지금까지 사용한 계정 수(탈퇴해도 줄지 않는다)
+  redeemable_from           timestamptz     NULL — 입력 시작. NULL = 만든 즉시
+  redeemable_until          timestamptz     NULL — 입력 마감(배타). NULL = 기한 없음
+  is_active                 boolean         DEFAULT true — 끄면 새 입력만 막는다
+
+uq_invite_codes_code (code)
+ck_invite_codes_grant_period — grant_days 와 grant_until_date 중 정확히 하나
+```
+
+- **코드 하나가 캠페인 하나다.** 제휴·PoC가 여럿이라 코드도 여럿이고 코드마다 지급 요금제·기간·한도가 다르다.
+- `redeemed_count`를 두는 이유: 한도 판정을 **코드 행 잠금 하나**로 끝내려고 — 같은 코드에 동시에 들어온 입력이 한도를 넘지 않는다.
+- 만든 뒤 바꿀 수 있는 것은 이름·켜기/끄기·한도·입력 기간뿐이다. 코드 값·지급 요금제·기간은 바꾸지 않는다(이미 받은 사람과 조건이 갈린다).
+
+### 8.6 `invite_code_redemptions` — 초대 코드 사용·지급 기간 (2026-10-10)
+
+> **구현 상태(2026-10-10)** — `users.tier` 캐시는 결제 반영(`BillingSyncService.syncUserTier`)이 **구독과 이 표 중 높은 쪽**으로 맞춘다. 끝난 지급은 `invite-grant-expiry` 배치(10분 간격)가 캐시를 되돌리고 `tier_released_at`을 찍는다. `user_id`는 ON DELETE CASCADE라 12.3 즉시 파기는 DB 제약이 수행한다.
+
+```
+invite_code_redemptions
+  id                        uuid            PK
+  invite_code_id            uuid            FK → invite_codes (RESTRICT)
+  user_id                   uuid            FK → users (CASCADE)
+  tier                      enum            daily | pro — 입력 시점 코드 값의 사본
+  starts_at                 timestamptz     지급 시작(입력 시각)
+  ends_at                   timestamptz     지급 끝(배타 경계 — 서비스 날짜 경계). 결제로 대체되면 그 시각으로 당긴다
+  tier_released_at          timestamptz     NULL — 끝난 뒤 캐시를 되돌린 시각
+  subscribed_at_start       boolean         DEFAULT false — 입력 때 살아 있는 유료 구독이 있었는가
+
+uq_invite_code_redemptions_code_user (invite_code_id, user_id)     같은 코드는 계정당 한 번
+idx_invite_code_redemptions_user_id_ends_at (user_id, ends_at)
+idx_invite_code_redemptions_unreleased_ends_at (ends_at) WHERE tier_released_at IS NULL   만료 배치
+```
+
+- **한 계정에 지급은 동시에 하나**다(입력이 막는다 — `INVITE_GRANT_ALREADY_ACTIVE`).
+- **지급 기간 중 결제**: 입력 때 구독이 없던 지급(`subscribed_at_start = false`)인데 살아 있는 구독이 생기면 결제 반영이 지급을 끝낸다(`ends_at`·`tier_released_at` = 그 시각). 구독 행의 생성 시각으로 판정하지 않는다 — App Store 재구독·끝난 구독의 계정 이전은 옛 행을 되살려 생성 시각이 지급보다 앞선다. 입력 때 이미 구독 중이었으면 그 구독의 갱신·변경은 지급을 끝내지 않는다(그 구독이 끝난 뒤 다시 결제해도 끝내지 않는다 — 알려진 한계).
+- **잠금 순서**: 구독 행 → 사용자 행 → 지급·코드 행. 캐시를 맞추는 함수(`syncUserTier`)가 사용자 행을 먼저 잠그고 읽고, 코드 입력도 사용자 행을 먼저 잠근다(같은 계정의 동시 입력 두 건이 "지급은 하나"를 둘 다 통과하지 않게).
+- 지급 끝 시각은 **입력 시점의 경계 규칙**으로 저장한다 — 서비스 날짜 경계를 05:00으로 옮기면 그 전에 받은 지급은 마지막 날 04:00에 끝난다(가입 체험과 같다).
 
 ---
 
