@@ -1,15 +1,20 @@
+import type { ColorValue } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
+
+import { useResolvedColor } from '@/shared/theme';
 
 interface SettingsIconProps {
   size: number;
-  color: string;
+  color: ColorValue;
 }
 
 /**
  * 설정 톱니. 글리프(`⚙`)는 기기에 따라 컬러 이모지로 그려지고 모양도 제각각이라
  * 색을 지정할 수 없다 — 알림 종(BellIcon)과 같은 이유로 도형으로 그린다.
  */
-export default function SettingsIcon({ size, color }: SettingsIconProps) {
+export default function SettingsIcon({ size, color: colorValue }: SettingsIconProps) {
+  // 토큰(iOS 동적 색)을 지금 모드의 문자열로 — SVG·기호는 문자열 색만 받는다(다크 모드, 2026-10-10)
+  const color = useResolvedColor(colorValue);
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Path

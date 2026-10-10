@@ -30,6 +30,27 @@ HIG 원문: https://developer.apple.com/design/human-interface-guidelines/
 - **파괴적 항목은 의미색 빨강을 그대로 쓴다** — 설정의 회원 탈퇴는 다른 항목과 **같은 크기**이고 색만 `color.danger` 다(2026-09-27 PM, iOS 설정의 "계정 삭제" 문법). 작게 회색으로 흐리면 경고가 아니라 "덜 중요한 항목"으로 읽히고 찾기만 어려워진다 — 오탭 방어는 그 뒤의 확인 절차가 맡는다(`changes/archive/settings-withdraw-destructive.md`).
 - **예외 — 데이터 시각화의 범주 색**(주제 분포 막대 `color.chart` — 2026-09-28 도넛에서 누적 막대로). 강조가 아니라 구분이고, 애플의 스크린 타임·건강 차트도 색을 쓴다. 회색 단계로 만들지 않는다(2026-09-26 PM).
 
+### 1-1. 다크 모드 (HIG: Dark Mode — 신설 2026-10-10)
+
+**설정에서 시스템 설정 / 라이트 / 다크를 고른다**(기본 시스템 설정). 다크 값은 **iOS 시스템 의미색을 그대로** 쓴다 — 우리가 새 다크 색을 만들지 않는다. 원본은 `shared/theme/palette.ts`(`LIGHT_PALETTE` · `DARK_PALETTE`).
+
+| 토큰 | 라이트 | 다크 | iOS |
+|---|---|---|---|
+| background | `#FFFFFF` | `#000000` | systemBackground |
+| surface | `#F5F5F7` | `#1C1C1E` | secondarySystemBackground |
+| textPrimary / textSecondary | `#1A1A1E` / `#6E6E76` | `#FFFFFF` / `rgba(235,235,245,.6)` | label / secondaryLabel |
+| textMuted / textMutedSecondary / fillMuted | `#8E8E93` / `#AEAEB2` / `#E5E5EA` | `#8E8E93` / `#636366` / `#2C2C2E` | systemGray · Gray2 · Gray5 |
+| border | `#E3E3E8` | `#38383A` | opaqueSeparator |
+| **primary / onPrimary** | `#000` / `#FFF` | **`#FFF` / `#000`** | 주 버튼이 반전된다(애플 뮤직) |
+| danger / dangerSurface | `#E5484D` / `#FDECEC` | `#FF453A` / 빨강 18% | systemRed |
+| warning / warningSurface | `#8A5B00` / `#FFF3CD` | `#FF9F0A` / 주황 18% | systemOrange |
+| overlay | 검정 40% | 검정 60% | |
+| chart | 6색 | 한 단계 밝게 · 기타 systemGray | |
+
+- **색 값은 전부 JS** 다 — 네이티브 리소스(Android values-night)에 두면 색을 바꿀 때마다 빌드해야 한다. 바꾸는 법만 플랫폼별: iOS 는 `theme.color.*` 가 `DynamicColorIOS` 라 OS 가 즉시 다시 칠하고, Android 는 앱이 켜질 때 고른 팔레트로 칠한 뒤 모드가 바뀌면 JS 를 다시 불러 칠한다(설정에서 바꾸면 즉시, 시스템이 바뀐 것이면 앱이 앞으로 돌아올 때 — 재생 중이면 미룸). 네이티브는 `userInterfaceStyle: automatic` · `expo-system-ui` 뿐(runtime 34).
+- **색 문자열이 꼭 필요한 곳**(SVG 아이콘·그라데이션·애니메이션 색 보간)은 `useThemePalette()` / `useResolvedColor()` 로 지금 모드의 값을 받는다 — iOS 의 `theme.color.*` 는 문자열이 아니다.
+- 사진 위 막(photoScrim)·플레이어(`playerColor`, 원래 어두움)는 두 모드 같다. 유리(GlassView)·블러(BlurView)·상태 바·내비게이션 바탕·루트 뷰 바탕은 모드를 따른다.
+
 ## 2. 모서리 (HIG: Layout — corner concentricity)
 
 - **모든 둥근 모서리는 연속 곡률**(`borderCurve: 'continuous'`, iOS 만 적용·Android 는 원호). 원호는 곡률이 변 중간에서 갑자기 시작해 각져 보인다. 썸네일·카드·시트·다이얼로그·버튼·검색 상자 전부.

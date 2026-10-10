@@ -1,8 +1,11 @@
+import type { ColorValue } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
+
+import { useResolvedColor } from '@/shared/theme';
 
 interface ShareIconProps {
   size: number;
-  color: string;
+  color: ColorValue;
 }
 
 /**
@@ -10,7 +13,9 @@ interface ShareIconProps {
  * 플랫폼별 도형 분기 없이 공통 아이콘 하나다(uiux 9장 미결 — 시안 SH1·SH2의 제안을 따른다).
  * 장식이므로 이 컴포넌트를 쓰는 쪽(행·버튼)이 낭독 라벨을 갖는다(ChevronIcon과 같은 규칙).
  */
-export default function ShareIcon({ size, color }: ShareIconProps) {
+export default function ShareIcon({ size, color: colorValue }: ShareIconProps) {
+  // 토큰(iOS 동적 색)을 지금 모드의 문자열로 — SVG·기호는 문자열 색만 받는다(다크 모드, 2026-10-10)
+  const color = useResolvedColor(colorValue);
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Path

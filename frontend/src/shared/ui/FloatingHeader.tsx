@@ -4,6 +4,7 @@ import { Animated, Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
+import { useActiveScheme } from '@/shared/theme';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 
 /** 0 = 유리, 1 = 불투명 면. 스크롤 맨 위에서 1, 이만큼 내리면 0 */
@@ -55,6 +56,8 @@ export default function FloatingHeader({
   containerRef,
   androidFrostTarget,
 }: FloatingHeaderProps) {
+  // 블러 띠·흰 막도 화면 모드를 따른다(다크 모드, 2026-10-10)
+  const scheme = useActiveScheme();
   const insets = useSafeAreaInsets();
   const frostOpacity = useMemo(
     () => (solidness ? Animated.subtract(1, solidness) : null),
@@ -76,12 +79,17 @@ export default function FloatingHeader({
           >
             <BlurView
               style={StyleSheet.absoluteFill}
-              tint="light"
+              tint={scheme}
               intensity={FROST_BLUR_INTENSITY}
               blurTarget={androidFrostTarget}
               blurMethod="dimezisBlurView"
             />
-            <View style={[StyleSheet.absoluteFill, styles.frostWhite]} />
+            <View
+              style={[
+                StyleSheet.absoluteFill,
+                scheme === 'dark' ? styles.frostDark : styles.frostWhite,
+              ]}
+            />
             <View style={styles.frostEdge} />
           </Animated.View>
         ) : null}
@@ -143,6 +151,10 @@ const styles = StyleSheet.create({
   // 블러 틴트(25 → 약 19%) 위 흰 막 — 합쳐 약 30%(설정과 같다)
   frostWhite: {
     backgroundColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  // 다크 — 같은 세기의 검정 막
+  frostDark: {
+    backgroundColor: 'rgba(0, 0, 0, 0.12)',
   },
   // 띠 아래 끝 hairline — 판이 끊기는 자리를 정리한다
   frostEdge: {

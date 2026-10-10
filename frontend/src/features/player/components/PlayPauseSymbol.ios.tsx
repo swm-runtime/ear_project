@@ -1,4 +1,7 @@
 import { SymbolView } from 'expo-symbols';
+import type { ColorValue } from 'react-native';
+
+import { useResolvedColor } from '@/shared/theme';
 
 import PlayPauseGlyph from './PlayPauseGlyph';
 
@@ -16,10 +19,12 @@ const SYMBOL_NAME = {
 interface PlayPauseSymbolProps {
   kind: 'play' | 'pause';
   size: number;
-  color: string;
+  color: ColorValue;
 }
 
-export default function PlayPauseSymbol({ kind, size, color }: PlayPauseSymbolProps) {
+export default function PlayPauseSymbol({ kind, size, color: colorValue }: PlayPauseSymbolProps) {
+  // 토큰(iOS 동적 색)을 지금 모드의 문자열로 — SVG·기호는 문자열 색만 받는다(다크 모드, 2026-10-10)
+  const color = useResolvedColor(colorValue);
   return (
     <SymbolView
       name={SYMBOL_NAME[kind]}

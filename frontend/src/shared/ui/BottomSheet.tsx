@@ -12,6 +12,7 @@ import {
   type LayoutChangeEvent,
   type StyleProp,
   type ViewStyle,
+  type ColorValue,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -45,7 +46,7 @@ interface BottomSheetProps {
   /** 시트 면 — 바탕색·모서리·패딩은 각 화면이 준다(플레이어 시트는 어두운 팔레트) */
   sheetStyle?: StyleProp<ViewStyle>;
   /** 딤 색 — 기본은 `color.overlay`. 플레이어 시트는 자기 팔레트의 딤을 넘긴다 */
-  dimColor?: string;
+  dimColor?: ColorValue;
   children: ReactNode;
 }
 
