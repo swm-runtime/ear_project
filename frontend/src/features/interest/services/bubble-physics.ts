@@ -33,9 +33,15 @@ export interface BubbleSim {
   target: number[];
   /** 마지막으로 크게 움직인 뒤 흐른 시간(s) — 오래 고요하면 계산을 쉰다 */
   calmFor: number;
+  /** 밭 크기와 한 줄의 개수 — 크기가 바뀌어 자리를 다시 잡을 때 같은 줄 구성을 쓴다(줄이 바뀌면 순서가 섞여 보인다) */
+  width: number;
+  height: number;
+  perRow: number;
 }
 
 export const BUBBLE_GAP = 6;
+/** 자리 격자 조임 — 1 이면 평균 크기 칸이라 작은 원끼리 붙은 곳에 틈이 남는다(10-10 17:37 "간격이 너무 커 보인다") */
+const HOME_SQUEEZE = 0.88;
 /** 자기 자리로 당기는 용수철 세기(1/s²) — 클수록 빨리·단단히 돌아간다 */
 const HOME_SPRING = 70;
 /** 매초 속도가 e^-DAMPING 배가 된다 — 용수철과 짝지어 한 번 살짝 넘쳤다 가라앉는 정도 */
@@ -114,17 +120,33 @@ const resolveOverlaps = (
  * 자기 자리 — 주제 순서대로 벌집(엇갈린 줄)에 놓고, 크기가 섞여 겹친 곳을 풀어 빈틈 GAP 으로 붙인다. 덩어리는 밭 가운데.
  * 순서: 위 줄 왼쪽부터 오른쪽, 다음 줄 — 읽는 순서 그대로다
  */
+export const rowCountFor = (sizes: number[], width: number) => {
+  'worklet';
+  const n = sizes.length;
+  if (n === 0) return 2;
+  const mean = sizes.reduce((sum, size) => sum + size, 0) / n;
+  const pitch = mean + BUBBLE_GAP;
+  // 한 줄에 몇 개 — 폭에 들어가는 만큼(엇갈림 반 칸 포함). 최소 2
+  return Math.max(2, Math.floor((width - pitch / 2) / pitch));
+};
+
+/**
+ * `sizes` 는 **지금 보이는 지름**(기본 지름 × 배율)이다 — 고른 원이 커지고 남은 원이 작아지면 그 크기로 자리를 다시
+ * 잡아 옹기종기 붙는다(PM 2026-10-10 17:37 "나머지 원이 축소될 때 간격이 너무 커 보인다"). 줄 구성(perRow)은 처음 것을
+ * 그대로 쓴다
+ */
 export const layoutHomes = (
   sizes: number[],
   width: number,
   height: number,
+  perRow: number,
 ): { hx: number[]; hy: number[] } => {
+  'worklet';
   const n = sizes.length;
   if (n === 0) return { hx: [], hy: [] };
   const mean = sizes.reduce((sum, size) => sum + size, 0) / n;
-  const pitch = mean + BUBBLE_GAP;
-  // 한 줄에 몇 개 — 폭에 들어가는 만큼(엇갈림 반 칸 포함). 최소 2
-  const perRow = Math.max(2, Math.floor((width - pitch / 2) / pitch));
+  // 격자를 평균보다 조여 둔다 — 원들이 서로 눌린 채 자리 잡아야 크기가 섞여도 틈이 안 벌어진다(마지막엔 겹침만 풀어 GAP 을 지킨다)
+  const pitch = (mean + BUBBLE_GAP) * HOME_SQUEEZE;
   const rows = Math.ceil(n / perRow);
   const rowPitch = pitch * 0.88;
   const top = height / 2 - ((rows - 1) * rowPitch) / 2;
@@ -159,7 +181,8 @@ export const layoutHomes = (
  * 엇갈리지 않아 순서대로 모인다. 동작 줄이기면 settleBubbleSim 으로 끝 상태를 바로 만든다
  */
 export const createBubbleSim = (sizes: number[], width: number, height: number): BubbleSim => {
-  const { hx, hy } = layoutHomes(sizes, width, height);
+  const perRow = rowCountFor(sizes, width);
+  const { hx, hy } = layoutHomes(sizes, width, height, perRow);
   const cx = width / 2;
   const cy = height / 2;
   const ring = Math.max(width, height) * 0.8;
@@ -183,7 +206,28 @@ export const createBubbleSim = (sizes: number[], width: number, height: number):
     scale: sizes.map(() => 1),
     target: sizes.map(() => 1),
     calmFor: 0,
+    width,
+    height,
+    perRow,
   };
+};
+
+/**
+ * 목표 배율이 바뀌었을 때 — 그 배율로 보일 지름으로 자리를 다시 잡는다(순서·줄 구성 그대로). 원들은 새 자리로
+ * 용수철을 따라 옮겨 가며 서로 밀고 붙는다
+ */
+export const retargetBubbleSim = (sim: BubbleSim, targets: number[]) => {
+  'worklet';
+  const n = Math.min(sim.target.length, targets.length);
+  for (let i = 0; i < n; i += 1) sim.target[i] = targets[i];
+  const shown: number[] = [];
+  for (let i = 0; i < sim.size.length; i += 1) shown.push(sim.size[i] * sim.target[i]);
+  const homes = layoutHomes(shown, sim.width, sim.height, sim.perRow);
+  for (let i = 0; i < sim.size.length; i += 1) {
+    sim.hx[i] = homes.hx[i];
+    sim.hy[i] = homes.hy[i];
+  }
+  sim.calmFor = 0;
 };
 
 /** 한 프레임 — dt 초만큼 진행한다. 고요해졌으면 true */
