@@ -1512,7 +1512,7 @@ describe('초대 코드 지급과 결제(subscription-api.md 4.8 — 2026-10-10)
     const grant = world.grantInvite(USER, UserTier.DAILY, GRANT_WINDOW);
 
     world.addIntent(USER, INTENT_A);
-    // 결제 반영은 실제 시각으로 지급을 끝낸다 — 응답 조립도 같은 시각이어야 끝난 지급이 보이지 않는다
+    // 결제 반영은 요청 시각 하나로 지급을 끝내고 응답도 조립한다 — 끝난 지급이 응답에 남지 않는다
     const view = await purchase(
       signTransaction({ ...THIS_PERIOD, accountToken: INTENT_A }),
       USER,
