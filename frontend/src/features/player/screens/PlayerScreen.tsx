@@ -2463,10 +2463,10 @@ const PLAYER_BOTTOM_CLEARANCE = 14;
  * Android 38.5pt(막대 14/24 × 66)보다 컸다 → 52 로 두 플랫폼을 맞춘다(PM 2026-10-09)
  */
 /**
- * Android 는 1.15배(66 → 75.9). PM 2026-10-10 23:06 "1.25배만 키워 보자" → 23:14 "조금만 더 줄여 봐". 누르는 자리(72)는 그대로 —
- * 키우면 컨트롤 줄 높이가 바뀌어 재생 목록 시트 위치·히어로 높이가 다 다시 계산된다. 기호가 상자보다 크면 바깥으로 넘쳐 그린다
+ * Android 는 72(PM 2026-10-10 23:19 "iOS 처럼 72 로" — 23:06 1.25배 → 23:14 1.15배를 거쳐). 일시정지 막대 높이 14/24 × 72 = 42pt 로
+ * iOS 52(SF Symbols, 실측 약 42pt)와 같아진다. 누르는 자리(PLAY_BUTTON_SIZE 72)와 같은 크기라 넘치지 않는다
  */
-const PLAY_ICON_SIZE = Platform.OS === 'ios' ? 52 : 66 * 1.15;
+const PLAY_ICON_SIZE = Platform.OS === 'ios' ? 52 : 72;
 /** ±10초 아이콘 — 숫자 "10"이 아이콘 안에 박혀 있다(SeekBackIcon·SeekForwardIcon). player.constants의 이동 값과 같아야 한다 */
 const SEEK_ICON_SIZE = 32;
 
