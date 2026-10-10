@@ -610,12 +610,17 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
                 <AverageValue sec={Math.round(shownAverageSec)} />
               </View>
               {topPercent !== null ? (
-                <View style={styles.rankInline}>
-                  <RankUpIcon />
-                  {/* 좁으면 두 줄까지 접는다 — 평균 숫자와 같이 나눠 줄어든다 */}
-                  <Text style={styles.rankText} numberOfLines={2}>
-                    {PROFILE_COPY.stats.topPercent(topPercent)}
+                // 두 줄 고정(PM 2026-10-11 02:05) — 평균 길이와 무관하게 모양이 같고, 두 줄 높이가 큰 숫자 높이를 채운다
+                <View style={styles.rankBlock}>
+                  <Text style={styles.rankLead} numberOfLines={1}>
+                    {PROFILE_COPY.stats.topPercentLead}
                   </Text>
+                  <View style={styles.rankInline}>
+                    <RankUpIcon />
+                    <Text style={styles.rankText} numberOfLines={1}>
+                      {PROFILE_COPY.stats.topPercent(topPercent)}
+                    </Text>
+                  </View>
                 </View>
               ) : null}
             </View>
@@ -807,20 +812,26 @@ const styles = StyleSheet.create({
   valueBox: {
     flexShrink: 1,
   },
+  // 오른쪽 정렬 두 줄 — 숫자(34)의 글자 아래 여백만큼 올려 아랫줄 밑변을 숫자 밑변에 맞춘다
+  rankBlock: {
+    alignItems: 'flex-end',
+    marginBottom: 6,
+  },
+  // 윗줄 "다른 사용자 대비" — 라벨(하루 평균)과 같은 위계
+  rankLead: {
+    fontSize: theme.font.size.sm,
+    color: theme.color.textSecondary,
+  },
+  // 아랫줄 아이콘 + "상위 N%" — 아이콘은 이 줄에만(설명 문구가 아니라 순위를 가리킨다)
   rankInline: {
-    flexShrink: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.xs + 2,
-    // 숫자(34)의 글자 아래 여백만큼 올려 두 글자의 밑변을 맞춘다
-    marginBottom: 6,
   },
-  // 회색 보조 글자 — 스크린 타임 "지난주 대비 8%" 와 같은 위계(라벨보다 한 단계 큰 md)
+  // 회색 그대로 한 단계 크고 진하게 — 강조색 없이 굵기로만 위계(design.md §1)
   rankText: {
-    flexShrink: 1,
-    textAlign: 'right',
     fontSize: theme.font.size.md,
-    fontWeight: '500',
+    fontWeight: '600',
     fontVariant: ['tabular-nums'],
     color: theme.color.textSecondary,
   },
