@@ -2462,7 +2462,11 @@ const PLAYER_BOTTOM_CLEARANCE = 14;
  * 그려져 iOS 만 줄였다(PM 2026-10-07 "애플에서 조금만 줄이자"). 56 에서도 일시정지 높이가 약 42pt(실기기 스샷 실측)로
  * Android 38.5pt(막대 14/24 × 66)보다 컸다 → 52 로 두 플랫폼을 맞춘다(PM 2026-10-09)
  */
-const PLAY_ICON_SIZE = Platform.OS === 'ios' ? 52 : 66;
+/**
+ * Android 는 1.25배(66 → 82.5, PM 2026-10-10 23:06 "안드로이드에서 플레이 버튼 1.25배만 키워 보자"). 누르는 자리(72)는 그대로 —
+ * 키우면 컨트롤 줄 높이가 바뀌어 재생 목록 시트 위치·히어로 높이가 다 다시 계산된다. 기호가 상자보다 크면 바깥으로 넘쳐 그린다
+ */
+const PLAY_ICON_SIZE = Platform.OS === 'ios' ? 52 : 66 * 1.25;
 /** ±10초 아이콘 — 숫자 "10"이 아이콘 안에 박혀 있다(SeekBackIcon·SeekForwardIcon). player.constants의 이동 값과 같아야 한다 */
 const SEEK_ICON_SIZE = 32;
 
