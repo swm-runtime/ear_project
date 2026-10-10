@@ -6,7 +6,7 @@ import { SkeletonBlock, SkeletonCircle, SkeletonGroup, SkeletonLine } from '@/sh
 const AVATAR_SIZE = 64;
 
 /**
- * P6 최초 조회 스켈레톤(profile-uiux.md 4.9) — 헤더(사진·닉네임·이메일·플랜 자리) + 카드 2장 +
+ * P6 최초 조회 스켈레톤(profile-uiux.md 4.9) — 헤더(사진·닉네임·이메일·플랜 자리) + 요약 그룹 +
  * 통계 영역(요약 3분할 + 그래프 자리). 설정 아이콘·화면 제목은 화면이 스켈레톤 밖에 즉시
  * 노출하므로 여기 없다. 0.3초 미만 미표시는 화면이 useDelayedVisible로 감싼다.
  *
@@ -24,10 +24,8 @@ export default function ProfileSkeleton() {
         </View>
       </View>
       <SkeletonLine width={180} height={theme.font.size.sm} style={styles.planLine} />
-      {/* 관심 주제 · 커리어 카드 2장 */}
-      {[0, 1].map((cardIndex) => (
-        <SkeletonBlock key={cardIndex} height={72} radius="lg" />
-      ))}
+      {/* 관심 주제 · 커리어 두 행을 담은 그룹 면과 같은 크기 */}
+      <SkeletonBlock height={144 + StyleSheet.hairlineWidth} radius="xl" />
       <SkeletonBlock height={92} radius="lg" />
       <SkeletonBlock height={150} radius="md" />
     </SkeletonGroup>
