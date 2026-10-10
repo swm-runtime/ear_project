@@ -90,17 +90,6 @@ export class PlaybackService {
     );
   }
 
-  /** 미니플레이어 복원 후보 — 재생 위치가 0보다 큰 콘텐츠(library-api.md 4.3) */
-  async findStartedContentIds(
-    userId: string,
-    manager?: EntityManager,
-  ): Promise<string[]> {
-    return this.playbackProgressRepository.findAllStartedContentIdsByUserId(
-      userId,
-      manager,
-    );
-  }
-
   /**
    * 목록의 `is_counted_today` — **재청취 창 안이라 지금 틀어도 차감이 없는** `content_id`
    * 집합(`library-api.md` 4.1, 개정 2026-08-10 — 필드명은 유지하고 의미를 "오늘 카운트됨"

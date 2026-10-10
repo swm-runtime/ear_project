@@ -3,7 +3,6 @@ import { ContentService } from '@/modules/content/services/content.service';
 import { ContentStatService } from '@/modules/content/services/content-stat.service';
 import { ContentCandidateQuery } from '@/modules/content/content.types';
 import { DripBatchRunService } from '@/modules/drip/services/drip-batch-run.service';
-import { DripExclusionService } from '@/modules/drip/services/drip-exclusion.service';
 import { DripPlacementService } from '@/modules/drip/services/drip-placement.service';
 import { DripScoringService } from '@/modules/drip/services/drip-scoring.service';
 import { PreferenceVectorService } from '@/modules/drip/services/preference-vector.service';
@@ -70,7 +69,6 @@ describe('DripBatchOrchestrator', () => {
   let playbackService: jest.Mocked<PlaybackService>;
   let preferenceVectorService: jest.Mocked<PreferenceVectorService>;
   let dripPlacementService: jest.Mocked<DripPlacementService>;
-  let dripExclusionService: jest.Mocked<DripExclusionService>;
   let dripBatchRunService: jest.Mocked<DripBatchRunService>;
   let dripArrivalNotificationService: jest.Mocked<DripArrivalNotificationService>;
   let topicService: jest.Mocked<TopicService>;
@@ -158,7 +156,6 @@ describe('DripBatchOrchestrator', () => {
     libraryService = {
       countUnfinished: jest.fn().mockResolvedValue(0),
       countPlacedToday: jest.fn().mockResolvedValue(0),
-      findAllContentIds: jest.fn().mockResolvedValue([]),
       findCompletedSeriesMaxEpisodes: jest.fn().mockResolvedValue(new Map()),
       findRecentDripContentIds: jest.fn().mockResolvedValue([]),
       findIgnoredDripItems: jest.fn().mockResolvedValue([]),
@@ -188,10 +185,6 @@ describe('DripBatchOrchestrator', () => {
       placeItems: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<DripPlacementService>;
 
-    dripExclusionService = {
-      findExcludedContentIds: jest.fn().mockResolvedValue([]),
-    } as unknown as jest.Mocked<DripExclusionService>;
-
     dripBatchRunService = {
       claim: jest.fn().mockResolvedValue(run),
       finish: jest.fn().mockResolvedValue(undefined),
@@ -217,7 +210,6 @@ describe('DripBatchOrchestrator', () => {
       preferenceVectorService,
       new DripScoringService(),
       dripPlacementService,
-      dripExclusionService,
       dripBatchRunService,
       dripArrivalNotificationService,
       topicService,
@@ -483,7 +475,6 @@ describe('DripBatchOrchestrator', () => {
         preferenceVectorService,
         new DripScoringService(),
         dripPlacementService,
-        dripExclusionService,
         dripBatchRunService,
         dripArrivalNotificationService,
         topicService,
