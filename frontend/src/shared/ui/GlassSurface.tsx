@@ -3,7 +3,7 @@ import { GlassContainer, GlassView, isLiquidGlassAvailable } from 'expo-glass-ef
 import type { ReactNode } from 'react';
 import { Animated, Platform, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { theme } from '@/shared/theme';
+import { theme, useActiveScheme } from '@/shared/theme';
 
 interface GlassSurfaceProps {
   style?: StyleProp<ViewStyle>;
@@ -34,9 +34,11 @@ export const HAS_NATIVE_TAB_BAR = HAS_LIQUID_GLASS;
  * 자식은 그 위에 그려진다. 크기·위치는 호출부의 style 이 정한다(보통 absoluteFill)
  */
 export default function GlassSurface({ style, children }: GlassSurfaceProps) {
+  // 유리·블러도 화면 모드를 따른다(다크 모드, 2026-10-10)
+  const scheme = useActiveScheme();
   if (HAS_LIQUID_GLASS) {
     return (
-      <GlassView style={style} glassEffectStyle="regular" colorScheme="light">
+      <GlassView style={style} glassEffectStyle="regular" colorScheme={scheme}>
         {children}
       </GlassView>
     );
@@ -44,7 +46,7 @@ export default function GlassSurface({ style, children }: GlassSurfaceProps) {
   return (
     <BlurView
       style={style}
-      tint="light"
+      tint={scheme}
       intensity={BLUR_INTENSITY}
       experimentalBlurMethod="dimezisBlurView"
     >
@@ -102,6 +104,7 @@ interface GlassPillProps {
  * 만들면 스프링은 돌지만 끌기의 setValue 가 실기기에서 반영되지 않았다(2026-09-23, 세 번 확인)
  */
 export function GlassPill({ style, lens }: GlassPillProps) {
+  const scheme = useActiveScheme();
   /*
    * **유리 위에 유리를 올리지 않는다**(WWDC25 Meet Liquid Glass: "Always avoid glass on glass … use fills,
    * transparency, and vibrancy for the top elements"). 유리는 유리를 샘플링하지 않아, 알약을 두 번째 유리로 만들면
@@ -120,7 +123,7 @@ export function GlassPill({ style, lens }: GlassPillProps) {
           <View style={[StyleSheet.absoluteFill, styles.lensEdge]} pointerEvents="none" />
         </Animated.View>
       ) : HAS_LIQUID_GLASS ? (
-        <GlassView style={StyleSheet.absoluteFill} glassEffectStyle="clear" colorScheme="light" />
+        <GlassView style={StyleSheet.absoluteFill} glassEffectStyle="clear" colorScheme={scheme} />
       ) : null}
       {/* 림 — 같은 재질의 유리가 겹치면 iOS 가 경계를 그리지 않아 알약 윤곽이 사라진다. 위쪽 흰 하이라이트 +
           바깥 얇은 그림자로 렌즈의 가장자리를 직접 준다(PM 2026-09-23 "겹치면 안쪽에 보여야") */}

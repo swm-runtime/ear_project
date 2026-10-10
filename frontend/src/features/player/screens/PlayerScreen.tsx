@@ -34,7 +34,7 @@ import {
   SYSTEM_INTERACTIVE_DISMISS,
   USE_NATIVE_PLAYER_ZOOM,
 } from '@/shared/navigation/zoom-transition';
-import { motion, theme } from '@/shared/theme';
+import { motion, theme, useThemePalette } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import MarqueeText from '@/shared/ui/MarqueeText';
 import RemoteImage from '@/shared/ui/RemoteImage';
@@ -426,6 +426,8 @@ export default function PlayerScreen() {
   // fullScreenModal에서는 SafeAreaView(네이티브 측정)가 상단 인셋 0을 돌려준다(검증 2026-08-11 —
   // 앱바가 상태바에 겹침). 루트 SafeAreaProvider 컨텍스트를 읽는 훅으로 직접 패딩한다
   const insets = useSafeAreaInsets();
+  // 열림 모션의 출발 색(미니플레이어 면) — 색 보간은 문자열만 받아 토큰(iOS 동적 색)이 아닌 지금 모드의 값을 쓴다
+  const miniSurfaceColor = useThemePalette().surface;
   // 아래 여백 — 재생 목록 손잡이가 홈 인디케이터·제스처 핸들 바로 위에 붙도록 안전영역을 다 쓰지 않는다(PM 2026-10-07
   // "재생목록 팁이 맨 아래에"). Android 버튼 바는 덮을 수 없어 그대로, 인디케이터 없는 기기(안전영역 0)도 그대로
   const isAndroidButtonBar =
@@ -1336,8 +1338,8 @@ export default function PlayerScreen() {
     sheetColor: openProgress.interpolate({
       inputRange: [0, 0.12, 0.4, 1],
       outputRange: [
-        theme.color.surface,
-        theme.color.surface,
+        miniSurfaceColor,
+        miniSurfaceColor,
         playerColor.background,
         playerColor.background,
       ],
@@ -1370,7 +1372,7 @@ export default function PlayerScreen() {
       // 카드 색에서 플레이어 색으로 — 시작 직후 짧게 넘어간다(회색 판이 오래 보이지 않게)
       sheetColor: openProgress.interpolate({
         inputRange: [0, 0.15, 1],
-        outputRange: [theme.color.surface, playerColor.background, playerColor.background],
+        outputRange: [miniSurfaceColor, playerColor.background, playerColor.background],
       }),
       backdropOpacity: openProgress.interpolate({
         inputRange: [0, 0.15, 1],

@@ -1,6 +1,14 @@
-import { NavigationContainer, type NavigationState } from '@react-navigation/native';
+import {
+  DarkTheme,
+  DefaultTheme,
+  NavigationContainer,
+  type NavigationState,
+  type Theme as NavigationTheme,
+} from '@react-navigation/native';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { StatusBar } from 'expo-status-bar';
+import * as SystemUI from 'expo-system-ui';
+import { useEffect, useMemo } from 'react';
 import { StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -9,6 +17,7 @@ import { trackScreen } from '@/shared/analytics';
 import { AppErrorBoundary, initSentry, wrapWithSentry } from '@/shared/monitoring';
 import { installJsTraceErrorHook, loadJsTrace, traceJs } from '@/shared/monitoring/js-trace';
 import { startKeychainMigration } from '@/shared/storage/keychain-migration';
+import { useActiveScheme, useThemePalette } from '@/shared/theme';
 import FontProvider from '@/shared/theme/FontProvider';
 import Toast from '@/shared/ui/Toast';
 
@@ -63,6 +72,30 @@ const handleNavigationStateChange = (state: NavigationState | undefined): void =
 };
 
 function App() {
+  /*
+   * 화면 모드(다크 모드, 2026-10-10) — 상태 바 글자색·내비게이션 바탕(화면 전환 사이에 비치는 면)·루트 뷰 바탕을 지금 모드에
+   * 맞춘다. 상태 바는 "auto" 로 두면 Android 에서 시스템 모드를 따라가 앱에서 고른 모드와 어긋난다
+   */
+  const scheme = useActiveScheme();
+  const palette = useThemePalette();
+  const navigationTheme = useMemo<NavigationTheme>(() => {
+    const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
+    return {
+      ...base,
+      colors: {
+        ...base.colors,
+        primary: palette.primary,
+        background: palette.background,
+        card: palette.background,
+        text: palette.textPrimary,
+        border: palette.border,
+      },
+    };
+  }, [scheme, palette]);
+  useEffect(() => {
+    // 네이티브 루트 뷰 바탕 — 키보드가 올라오거나 화면이 바뀌는 순간 비치는 면(흰 번쩍임 방지)
+    SystemUI.setBackgroundColorAsync(palette.background).catch(() => undefined);
+  }, [palette.background]);
   return (
     // 제스처 루트(react-native-gesture-handler) — UI 스레드 제스처·물리(Reanimated)를 쓰려면 트리 맨 위에 있어야 한다
     // (runtime 33, 2026-10-10 — 관심 주제 버블 물리부터). 기존 PanResponder 는 그대로 동작한다
@@ -71,7 +104,11 @@ function App() {
         <FontProvider>
           <QueryClientProvider client={queryClient}>
             <SafeAreaProvider>
-              <NavigationContainer ref={navigationRef} onStateChange={handleNavigationStateChange}>
+              <NavigationContainer
+                ref={navigationRef}
+                theme={navigationTheme}
+                onStateChange={handleNavigationStateChange}
+              >
                 <RootNavigator />
               </NavigationContainer>
               {/* 줌 전환 소스 프록시(iOS 26) — 미니플레이어 자리의 투명 뷰. 액세서리 컨테이너 밖에 둬야 닫힌 뒤 잔여 이미지가 안 남는다 */}
@@ -82,7 +119,7 @@ function App() {
               구독 UI 가 켜진 바이너리에서는 이 시트가 페이월이다(요금제 비교·결제 — KAN-120) */}
               <LimitNoticeSheet />
               <Toast />
-              <StatusBar style="auto" />
+              <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
             </SafeAreaProvider>
           </QueryClientProvider>
         </FontProvider>

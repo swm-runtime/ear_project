@@ -21,6 +21,7 @@ import { Text } from '@/shared/ui/Typography';
 import { NotificationPrePromptModal } from '@/features/notification';
 
 import AudioQualitySection from '../components/AudioQualitySection';
+import ColorModeSection from '../components/ColorModeSection';
 import DevDiagnosticsRows from '../components/DevDiagnosticsRows';
 import DevPushTokenRow from '../components/DevPushTokenRow';
 import EmailRow from '../components/EmailRow';
@@ -190,6 +191,9 @@ export default function SettingsScreen() {
               onSelect={screen.selectAudioQuality}
             />
           ) : null}
+
+          {/* 화면 모드(다크 모드, 2026-10-10) — 기기 표시 설정이라 서버 응답과 무관하게 늘 보인다 */}
+          <ColorModeSection />
 
           <SettingsSection title={SETTINGS_COPY.sections.notification}>
             {screen.isNotificationBannerVisible ? (

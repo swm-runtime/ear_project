@@ -33,6 +33,8 @@ export const SETTINGS_COPY = {
     content: '콘텐츠',
     playback: '재생',
     audioQuality: '음질',
+    /** 화면 모드(다크 모드, 2026-10-10) */
+    colorMode: '화면',
     notification: '알림',
     info: '정보',
     support: '지원',
@@ -101,6 +103,15 @@ export const SETTINGS_COPY = {
     cellularMessage: '무손실은 압축보다 파일이 커요. Wi-Fi에서 듣는 걸 권해요.',
     cellularCancel: '취소',
     cellularConfirm: '무손실로 바꾸기',
+  },
+
+  /** 화면 모드 — 시스템 / 라이트 / 다크(PM 2026-10-10) */
+  colorMode: {
+    label: { system: '시스템 설정', light: '라이트', dark: '다크' },
+    footer: '시스템 설정을 고르면 기기의 라이트·다크 설정을 따라가요.',
+    /** Android 는 모드를 바꾸면 앱을 다시 불러 칠한다(shared/theme/color-mode) — 화면이 한 번 깜빡인다 */
+    footerAndroid:
+      '시스템 설정을 고르면 기기의 라이트·다크 설정을 따라가요. 바꾸면 화면을 한 번 다시 불러와요.',
   },
 
   notification: {

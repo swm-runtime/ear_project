@@ -1,4 +1,7 @@
+import type { ColorValue } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
+
+import { useResolvedColor } from '@/shared/theme';
 
 import type { SocialProvider } from '../auth.types';
 
@@ -6,7 +9,7 @@ interface ProviderIconProps {
   provider: SocialProvider;
   size: number;
   /** 단색 심볼(카카오·네이버)의 색. 구글은 브랜드 4색 고정이라 무시된다 */
-  color: string;
+  color: ColorValue;
 }
 
 /**
@@ -16,7 +19,9 @@ interface ProviderIconProps {
  * 색·형태는 브랜드 가이드 고정값이다. 임의로 바꾸면 심사 반려 사유가 된다(auth-uiux.md 4.1).
  * 구글 심볼은 4색이 규정이라 `color`를 받지 않는다.
  */
-export default function ProviderIcon({ provider, size, color }: ProviderIconProps) {
+export default function ProviderIcon({ provider, size, color: colorValue }: ProviderIconProps) {
+  // 토큰(iOS 동적 색)을 지금 모드의 문자열로 — SVG·기호는 문자열 색만 받는다(다크 모드, 2026-10-10)
+  const color = useResolvedColor(colorValue);
   if (provider === 'kakao') {
     return (
       <Svg width={size} height={size} viewBox="0 0 18 17">

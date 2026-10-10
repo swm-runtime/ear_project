@@ -1,6 +1,6 @@
 import Svg, { Path, Rect } from 'react-native-svg';
 
-import { theme } from '@/shared/theme';
+import { theme, useThemePalette } from '@/shared/theme';
 import CheckIcon from '@/shared/ui/CheckIcon';
 
 import { SETTINGS_COPY } from '../settings.copy';
@@ -59,16 +59,18 @@ export default function AudioQualitySection({
 
 /** 자물쇠 — SF Symbols `lock.fill` 인상의 둥근 몸통 + 고리. 장식이라 낭독은 줄 라벨이 맡는다 */
 function LockGlyph() {
+  // SVG 는 문자열 색만 받는다 — 지금 모드의 값(다크 모드, 2026-10-10)
+  const color = useThemePalette().textSecondary;
   return (
     <Svg width={MARK_SIZE} height={MARK_SIZE} viewBox="0 0 24 24">
       <Path
         d="M8 10.5V8a4 4 0 0 1 8 0v2.5"
         fill="none"
-        stroke={theme.color.textSecondary}
+        stroke={color}
         strokeWidth={2}
         strokeLinecap="round"
       />
-      <Rect x={5.5} y={10} width={13} height={10} rx={2.5} fill={theme.color.textSecondary} />
+      <Rect x={5.5} y={10} width={13} height={10} rx={2.5} fill={color} />
     </Svg>
   );
 }

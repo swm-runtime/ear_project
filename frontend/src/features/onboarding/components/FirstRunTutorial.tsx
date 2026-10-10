@@ -152,6 +152,9 @@ interface Rect {
  * 세우고 여기서 소비한다.
  * 문서 반영 요청: changes/pending/onboarding-o1-visual-refresh.md
  */
+/** 가려막 위 안내 화살표 색 */
+const TUTORIAL_ARROW_COLOR = '#FFFFFF';
+
 export default function FirstRunTutorial() {
   const pending = useWalkthroughStore((s) => s.pending);
   const clear = useWalkthroughStore((s) => s.clear);
@@ -419,7 +422,8 @@ export default function FirstRunTutorial() {
         {arrow ? (
           <Path
             d={arrow}
-            stroke={theme.color.onPrimary}
+            // 가려막(어두운 막) 위 화살표 — 화면 모드와 무관하게 흰색(다크 모드에서 onPrimary 는 검정이 된다)
+            stroke={TUTORIAL_ARROW_COLOR}
             strokeWidth={2}
             strokeDasharray="5 6"
             strokeLinecap="round"

@@ -1,8 +1,11 @@
+import type { ColorValue } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
+
+import { useResolvedColor } from '@/shared/theme';
 
 interface PersonIconProps {
   size: number;
-  color: string;
+  color: ColorValue;
   /** 면으로 채울지 선으로만 그릴지 */
   filled: boolean;
 }
@@ -20,7 +23,9 @@ const SHOULDERS =
  * 모양은 iOS 26 시스템 탭 바의 사람 아이콘 실측(PM 2026-09-29 — TabBarIcon 주석): 지름 9.7pt 머리 + 폭 19pt 돔 어깨.
  * 선 변형은 같은 도형을 획 굵기의 절반만큼 안쪽으로 그려 바깥 실루엣이 채운 변형과 같다
  */
-export default function PersonIcon({ size, color, filled }: PersonIconProps) {
+export default function PersonIcon({ size, color: colorValue, filled }: PersonIconProps) {
+  // 토큰(iOS 동적 색)을 지금 모드의 문자열로 — SVG·기호는 문자열 색만 받는다(다크 모드, 2026-10-10)
+  const color = useResolvedColor(colorValue);
   if (filled) {
     return (
       <Svg width={size} height={size} viewBox="0 0 24 24">
