@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Animated, PanResponder, Pressable, StyleSheet, View } from 'react-native';
+import Svg, { Circle, Path } from 'react-native-svg';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion, theme } from '@/shared/theme';
@@ -590,25 +591,31 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
           <View
             style={styles.summary}
             accessible
-            accessibilityLabel={PROFILE_COPY.stats.averageA11y(targetAverageSec ?? shownAverageSec)}
+            // 요약 줄은 한 덩어리로 읽힌다 — 상위 % 도 같은 낭독에 잇는다
+            accessibilityLabel={[
+              PROFILE_COPY.stats.averageA11y(targetAverageSec ?? shownAverageSec),
+              topPercent !== null ? PROFILE_COPY.stats.topPercentA11y(topPercent) : null,
+            ]
+              .filter(Boolean)
+              .join(', ')}
           >
+            {/* 점선 범례(─ ─)는 뺐다(PM 2026-09-28 00:23) — 라벨만 */}
+            <Text style={styles.summaryLabel}>{PROFILE_COPY.stats.dailyAverageTitle}</Text>
             {/*
-              점선 범례(─ ─)는 뺐다(PM 2026-09-28 00:23) — 라벨만. 상위 % 알약은 **라벨 줄 오른쪽**(PM 2026-10-10) — 큰 숫자
-              옆에 두면 "23시간 59분" 같은 긴 값과 부딪힌다. 큰 숫자는 폭을 혼자 쓴다
+              상위 % 는 **큰 숫자와 같은 줄 오른쪽, 회색 글자 + 원 화살표**(PM 2026-10-11 00:28 스크린 타임 스샷 "지난주 대비 8%"
+              처럼). 종전 라벨 줄 흰 알약에서 옮겼다. 긴 평균값이면 숫자 쪽이 줄어든다(오른쪽은 줄지 않는다)
             */}
-            <View style={styles.summaryHead}>
-              <Text style={styles.summaryLabel}>{PROFILE_COPY.stats.dailyAverageTitle}</Text>
+            <View style={styles.valueRow}>
+              <View style={styles.valueBox}>
+                <AverageValue sec={Math.round(shownAverageSec)} />
+              </View>
               {topPercent !== null ? (
-                <View
-                  style={styles.rankPill}
-                  accessible
-                  accessibilityLabel={PROFILE_COPY.stats.topPercentA11y(topPercent)}
-                >
+                <View style={styles.rankInline}>
+                  <RankUpIcon />
                   <Text style={styles.rankText}>{PROFILE_COPY.stats.topPercent(topPercent)}</Text>
                 </View>
               ) : null}
             </View>
-            <AverageValue sec={Math.round(shownAverageSec)} />
           </View>
         )}
         <View style={styles.chartStrip}>
@@ -709,6 +716,25 @@ function AverageValue({ sec }: { sec: number }) {
   );
 }
 
+/** 원 안 위 화살표 — 스크린 타임의 arrow.down.circle.fill 문법(채운 회색 원 + 카드 색 화살표) */
+function RankUpIcon() {
+  return (
+    <Svg width={RANK_ICON_SIZE} height={RANK_ICON_SIZE} viewBox="0 0 24 24">
+      <Circle cx={12} cy={12} r={12} fill={theme.color.textSecondary} />
+      <Path
+        d="M12 18V7M7 11.5l5-5 5 5"
+        stroke={theme.color.surface}
+        strokeWidth={2.6}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </Svg>
+  );
+}
+
+const RANK_ICON_SIZE = 18;
+
 const styles = StyleSheet.create({
   container: { paddingHorizontal: theme.spacing.md, gap: theme.spacing.sm },
   card: {
@@ -767,25 +793,30 @@ const styles = StyleSheet.create({
     gap: theme.spacing.xs,
   },
   summaryLabel: { fontSize: theme.font.size.sm, color: theme.color.textSecondary, flexShrink: 1 },
-  summaryHead: {
+  // 큰 숫자 + 상위 % — 아래 변을 맞춘다(스크린 타임처럼 오른쪽 글자가 숫자 밑줄에 앉는다)
+  valueRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     justifyContent: 'space-between',
     gap: theme.spacing.sm,
   },
-  // 상위 % — 카드(surface) 위 흰 알약, 작은 굵은 글자. 강조색 없이 모노톤(design.md §1)
-  rankPill: {
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: 3,
-    borderRadius: theme.radius.full,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.background,
+  // 숫자 쪽만 줄어든다 — 오른쪽 상위 % 는 제 폭을 지킨다
+  valueBox: {
+    flexShrink: 1,
   },
+  rankInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs + 2,
+    // 숫자(34)의 글자 아래 여백만큼 올려 두 글자의 밑변을 맞춘다
+    marginBottom: 6,
+  },
+  // 회색 보조 글자 — 스크린 타임 "지난주 대비 8%" 와 같은 위계(라벨보다 한 단계 큰 md)
   rankText: {
-    fontSize: theme.font.size.xs,
-    fontWeight: '700',
+    fontSize: theme.font.size.md,
+    fontWeight: '500',
     fontVariant: ['tabular-nums'],
-    color: theme.color.textPrimary,
+    color: theme.color.textSecondary,
   },
   // 단위 — 숫자(34) 옆 20pt 회색. 숫자와 같은 줄 기준선에 앉는다(중첩 Text)
   summaryUnit: {
