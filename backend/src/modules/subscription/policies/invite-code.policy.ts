@@ -18,12 +18,6 @@ export const INVITE_CODE_PATTERN = /^[A-Z0-9-]{4,32}$/;
 const GENERATED_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const GENERATED_CODE_LENGTH = 8;
 
-/** 지급할 수 있는 요금제 — 유료 티어만(무료·체험은 지급할 의미가 없다) */
-export const INVITE_GRANTABLE_TIERS: readonly UserTier[] = [
-  UserTier.DAILY,
-  UserTier.PRO,
-];
-
 /**
  * 티어의 높낮이 — `users.tier` 캐시를 구독과 지급 중 **높은 쪽**으로 맞출 때 쓴다. 체험은 저장되는 티어가 아니라
  * (`users.trial_ends_at`으로 판정) 무료와 같은 자리다.

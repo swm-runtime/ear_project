@@ -21,11 +21,6 @@ export interface ProfileUserView {
   isEmailVerified: boolean;
 }
 
-export interface ProfileTopicView {
-  id: string;
-  name: string;
-}
-
 /** 커리어 요약 — 세 값 모두 선택 입력이라 미입력이면 `null`이다 */
 export interface ProfileCareerView {
   jobCategory: string | null;

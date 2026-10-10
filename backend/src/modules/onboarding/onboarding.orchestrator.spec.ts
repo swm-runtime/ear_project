@@ -108,7 +108,6 @@ describe('OnboardingOrchestrator', () => {
     libraryService = {
       addItems: jest.fn().mockResolvedValue([]),
       countBySource: jest.fn().mockResolvedValue(0),
-      findAllContentIds: jest.fn(),
     } as unknown as jest.Mocked<LibraryService>;
 
     firstDripService = {

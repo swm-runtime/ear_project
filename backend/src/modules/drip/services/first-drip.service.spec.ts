@@ -60,7 +60,6 @@ describe('FirstDripService', () => {
     } as unknown as jest.Mocked<FirstDripJobRepository>;
 
     excludedRepository = {
-      findAllContentIdsByUserId: jest.fn().mockResolvedValue([]),
       insertIgnoringConflicts: jest.fn(),
       deleteByUserId: jest.fn(),
     } as unknown as jest.Mocked<DripExcludedContentRepository>;
@@ -86,7 +85,6 @@ describe('FirstDripService', () => {
 
     libraryService = {
       addItems: jest.fn().mockResolvedValue([]),
-      findAllContentIds: jest.fn().mockResolvedValue([]),
       countBySource: jest.fn(),
     } as unknown as jest.Mocked<LibraryService>;
 
@@ -214,10 +212,6 @@ describe('FirstDripService', () => {
 
     it('이미 본 콘텐츠 제외를 애플리케이션 목록이 아니라 SQL에 맡긴다', async () => {
       // given
-      libraryService.findAllContentIds.mockResolvedValue(['content-1']);
-      excludedRepository.findAllContentIdsByUserId.mockResolvedValue([
-        'content-2',
-      ]);
       contentService.findCandidates.mockResolvedValue([
         buildContent('content-3'),
         buildContent('content-4'),
