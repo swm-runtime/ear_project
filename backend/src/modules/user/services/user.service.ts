@@ -87,6 +87,14 @@ export class UserService {
     return user;
   }
 
+  /** `before` 이전에 가입한 계정 수 — 주간 청취 상위 %의 모집단(`profile-api.md` 4.1, KAN-168) */
+  async countJoinedBefore(
+    before: Date,
+    manager?: EntityManager,
+  ): Promise<number> {
+    return this.userRepository.countCreatedBefore(before, manager);
+  }
+
   async getById(id: string, manager?: EntityManager): Promise<User> {
     const user = await this.userRepository.findById(id, manager);
 

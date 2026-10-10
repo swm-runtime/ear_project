@@ -196,6 +196,19 @@ export class PlaybackService {
     );
   }
 
+  /** 지정한 서비스 날짜들에 청취 시간 합이 `listenedSec`보다 많은 사용자 수 — 주간 청취 상위 %(KAN-168) */
+  async countUsersListenedMoreByDates(
+    playDates: string[],
+    listenedSec: number,
+    manager?: EntityManager,
+  ): Promise<number> {
+    return this.playRecordRepository.countUsersListenedMoreInPlayDates(
+      playDates,
+      listenedSec,
+      manager,
+    );
+  }
+
   /**
    * 지정한 서비스 날짜들의 콘텐츠 × 날짜별 청취 시간 — 주간 카드의 그 주·요일별 주제 분포
    * 원천(`profile.md` 4.7, KAN-113)

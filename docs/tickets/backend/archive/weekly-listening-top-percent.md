@@ -5,12 +5,13 @@
 | 대상 | `GET /profile`(4.1) `weekly_listening` · `GET /profile/weekly-listening`(4.2) — 새 필드 `listening_top_percent` |
 | 요청 파트 | 백엔드 |
 | 요청자 | 이주호(PM) |
-| 담당 | 미정(BE) |
+| 담당 | 박준현(BE) |
 | Jira | [KAN-168](https://runtime364.atlassian.net/browse/KAN-168) |
 | 발행 날짜 | 2026-10-10 |
 | 시작 날짜 | 2026-10-10 |
 | 기한 | 2026-10-13 (Medium — 3일 안) |
 | 선행 | 없음 |
+| 반영 날짜 | 2026-10-10 |
 | 중요도 | Medium — PM 이 중요도를 따로 정하지 않아 기본값. 마감이 안 맞으면 등급을 내리지 말고 사유를 적는다 |
 
 ## 요청
@@ -48,4 +49,9 @@
 
 ## 처리 기록
 
-(없음)
+- **2026-10-10 반영** — 위 "계약(제안)"대로 구현하고 `profile-api.md` 4.1·4.2·9장에 확정 계약을 적었다. 4.1 `weekly_listening`과 4.2 응답에 `listening_top_percent`(정수 1~50 또는 `null`).
+  - 순위 = 1 + 그 주 청취 합이 나보다 많은 사용자 수(동점은 좋은 쪽), 상위 % = ceil(순위 / 모집단 × 100). 모집단 = 그 주 끝(다음 월요일 서비스 날짜 시작) 전 가입 계정 전체(0초 포함, 탈퇴자는 행 삭제로 빠짐).
+  - 판정은 순수 함수 `calculateListeningTopPercent`(`profile.stats.ts`), 집계는 `PlayRecordRepository.countUsersListenedMoreInPlayDates` · `UserRepository.countCreatedBefore`.
+  - 테스트: 단위(경계 — 1등 최소 1% · 동점 · 0초 · 50% 경계 · 모집단 0) · 오케스트레이터(이번 주·지난 주의 날짜와 주 끝 시각) · E2E `test/profile-weekly-top-percent.e2e-spec.ts`(실제 DB — 동점·0초·다른 주 기록 배제).
+- **"착수 전에 PM과 맞출 것" 세 항목은 잠정값으로 구현했다** — 50% 기준선(상수 `LISTENING_TOP_PERCENT_MAX`) · 운영·테스트 계정 제외 없음(구분 컬럼이 없다) · 소규모 모집단 하한 없음. PM이 다르게 정하면 상수·조건만 바꾼다(필드·`null` 의미 불변). `profile-api.md` 9장 미결에 남겼다.
+- 매 조회 집계다 — 그 주 `play_records`를 사용자별로 합산한다. 지금 규모에선 문제없고, 커지면 9장 "집계 캐시" 항목과 함께 판단한다.

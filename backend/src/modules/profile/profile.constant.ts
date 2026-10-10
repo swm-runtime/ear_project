@@ -20,3 +20,10 @@ export const TOPIC_DISTRIBUTION_TOTAL_RATIO = 100;
 
 /** 주간 그래프의 요일 수 — 월~일 고정 배열(`profile.md` 4.6) */
 export const WEEKLY_LISTENING_DAY_COUNT = 7;
+
+/**
+ * 주간 청취 상위 %를 **내려주는 상한**(`profile-api.md` 4.1 `listening_top_percent`, KAN-168).
+ * 이보다 뒤(하위권)면 `null`이다 — "상위 85%"는 사실상 하위라 기를 꺾는다. 티켓 제안값이며
+ * PM 확정 전이다(2026-10-10).
+ */
+export const LISTENING_TOP_PERCENT_MAX = 50;
