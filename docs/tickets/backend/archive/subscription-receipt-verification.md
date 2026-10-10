@@ -12,7 +12,7 @@
 | 발견 시점 | 2026-09-08 백엔드 전수 점검 — "미구현 5건" 중 유일하게 **지금 착수할 수 없는** 건이라 분리했다 |
 | 근거 문서 | `features/subscription.md` 4장 · `features/paywall.md` · `backend/domain.md` 1.3 · 8.3 · 8.4 |
 | 심각도 | **중** — 보안 문제는 아니다. **유료 기능을 켤 수 없는 상태**다 |
-| 상태 | 대기 — **외부 준비물이 있어 코드만으로 끝나지 않는다** |
+| 상태 | 완료(반영 날짜 2026-10-10) — iOS는 KAN-157 샌드박스 실측, Android는 KAN-130 종단 실측으로 완료 조건 확인 |
 
 ## 현재 상태
 
@@ -111,3 +111,15 @@
   4. Pub/Sub 주제 생성 → `google-play-developer-notifications@system.gserviceaccount.com`에 게시자 권한 → push 구독(대상 `https://api.earcast.co.kr/api/v1/webhooks/play-store`, OIDC 인증 켜기) → Play Console "수익 창출 설정"에 주제 이름 등록
   5. Secrets에 `GOOGLE_PLAY_PACKAGE_NAME` · `GOOGLE_PLAY_SERVICE_ACCOUNT_BASE64` · `GOOGLE_PLAY_PUBSUB_AUDIENCE` · `GOOGLE_PLAY_PUBSUB_SERVICE_ACCOUNT`
 
+
+### 2026-10-10 — 완료
+
+- **2026-10-10 — 반영(반영 날짜 2026-10-10).** 서버 구현(#1090 계약 · #1097 iOS · #1114 Play, 실측 중 수정 #1277·#1281·#1282·#1284·#1287·#1314)이 실제 스토어 결제로 확인돼 완료 조건 4개를 아래 근거로 닫는다.
+  | 완료 조건 | 근거 |
+  |---|---|
+  | 영수증 검증 → `subscriptions` 행 생성 · `users.tier` 변경 | **iOS** — KAN-157(2026-10-10, 개발계 앱 1.2.0(44) · Apple 샌드박스): ② Pro 결제 뒤 구독 중, ⑤ 재설치 뒤 [구매 복원] 없이도 구독 중(서버 계정 기준 — 행이 서버에 있다), ⑧ 승인 직후 강제 종료 뒤 미완료 거래 회복. **Android** — KAN-130(2026-10-08) 라이선스 테스터 구매에서 행 생성·`users.tier` 반영을 서버에서 확인 |
+  | 위조 영수증 → 티어 불변 | `apple-app-store.gateway.spec.ts`(다른 루트로 서명·변조된 거래와 알림 거부 — 진짜 Apple 라이브러리 경로) · `billing.orchestrator.spec.ts`(서명이 틀린 거래·위조가 섞인 요청은 오류, 아무것도 쓰지 않음) · E2E `subscription-billing.e2e-spec.ts` "받을 수 없는 거래는 오류이고 아무것도 쓰지 않는다". KAN-157 ⑥ 다른 계정의 [구매 복원]이 409로 거부(요청 6번 방어) |
+  | 유료 사용자 → 그 티어의 한도로 판정 | 재생 판정(`play-policy.service.ts`)은 `users.tier`로 한도 정책을 고른다(`play-policy.service.spec.ts` 무제한 티어·최상위 티어 사례). `users.tier`가 결제로 바뀌는 것은 위 1행. 앱에서 직접 보는 확인(KAN-157 ② 자동 재생 · ⑨ 페이월 재노출)은 **무료 제공 프로모션 중이라 확인 불가** — 프로모션 종료 뒤 재확인은 KAN-157 기록의 "남은 것"으로 넘긴다 |
+  | S2S 갱신 알림 중복 수신 → `store_notification_logs`로 걸러짐 | E2E `subscription-billing.e2e-spec.ts` "재전송은 한 번만 처리된다"(실제 DB). 실제 수신 — Play RTDN 5분 주기 갱신 알림 반영(KAN-130), App Store Sandbox 알림 URL 연결·테스트 알림 서명 검증(KAN-155 기록), KAN-157 ④ 해지 예약/재개 · ⑨ 만료 뒤 무료 전환 |
+- **추기(현재 구독 선택)** — `subscription.service.ts` `selectCurrentSubscription`이 비종결 상태를 우선하고 없을 때만 최근 행으로 폴백한다(`subscription.service.spec.ts` 환불된 연간 + 활성 월간 사례).
+- **이 티켓 밖으로 넘긴 것** — KAN-157 단계별 시각이 기록되지 않아 2026-10-10 수행분의 서버 로그 대조는 하지 않았다(앱 표시는 전부 서버 판정 결과라 완료 조건 확인에는 충분하다고 봤다). 운영 서버의 App Store 구성·프로덕션 알림 URL·Slack 결제 알림 첫 수신은 운영 결제 오픈 때 확인한다.
