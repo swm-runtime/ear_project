@@ -24,10 +24,12 @@ interface ProfileCardProps {
   onRetry: () => void;
   isRetrying: boolean;
   /**
-   * 라벨 오른쪽에 붙는 요약값(예: "2개 선택"). 라벨과 한 줄로 읽히는 짧은 값만 둔다 —
-   * 본문으로 내리면 요약 한 줄에 카드 높이를 한 줄 더 쓰게 된다. 에러 상태에서는 그리지 않는다.
+   * 라벨에 붙는 요약값(예: "2개 선택"). 기본은 라벨 오른쪽, inline 배치에서는 라벨 아래다.
+   * 긴 요약은 줄바꿈을 허용하며 에러 상태에서는 그리지 않는다.
    */
   labelAccessory?: ReactNode;
+  /** 제목·요약은 왼쪽, 사진은 오른쪽에 두는 요약 카드 배치. 에러 본문은 기존 세로 배치를 유지한다. */
+  inline?: boolean;
   children: ReactNode;
 }
 
@@ -43,20 +45,25 @@ export default function ProfileCard({
   onRetry,
   isRetrying,
   labelAccessory,
+  inline = false,
   children,
 }: ProfileCardProps) {
   const readsAsSingleUnit = a11yLabel !== null && !hasError;
   return (
     <Pressable
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+      style={({ pressed }) => [
+        styles.card,
+        inline && styles.inlineCard,
+        pressed && styles.cardPressed,
+      ]}
       onPress={onPress}
       accessible={readsAsSingleUnit}
       accessibilityRole={readsAsSingleUnit ? 'button' : undefined}
       accessibilityLabel={readsAsSingleUnit ? a11yLabel : undefined}
     >
-      <View style={styles.body}>
-        <View style={styles.labelRow}>
-          <Text style={styles.label}>{label}</Text>
+      <View style={[styles.body, inline && !hasError && styles.inlineBody]}>
+        <View style={[styles.labelRow, inline && !hasError && styles.inlineLabelRow]}>
+          <Text style={[styles.label, inline && styles.inlineLabel]}>{label}</Text>
           {!hasError && labelAccessory !== undefined ? labelAccessory : null}
         </View>
         {hasError ? (
@@ -101,9 +108,18 @@ const styles = StyleSheet.create({
   cardPressed: {
     opacity: 0.7,
   },
+  inlineCard: {
+    minHeight: 92,
+    borderRadius: theme.radius.lg,
+  },
   body: {
     flex: 1,
     gap: theme.spacing.xs,
+  },
+  inlineBody: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
   },
   labelRow: {
     flexDirection: 'row',
@@ -115,6 +131,19 @@ const styles = StyleSheet.create({
   label: {
     fontSize: theme.font.size.xs,
     color: theme.color.textSecondary,
+  },
+  inlineLabelRow: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    flexWrap: 'nowrap',
+    gap: theme.spacing.xs,
+  },
+  inlineLabel: {
+    fontSize: theme.font.size.md,
+    fontWeight: '600',
+    color: theme.color.textPrimary,
   },
   errorRow: {
     flexDirection: 'row',
