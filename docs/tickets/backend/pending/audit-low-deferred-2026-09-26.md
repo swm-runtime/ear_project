@@ -19,17 +19,17 @@
 
 ## 항목
 
-### 지금 규모에선 안 해도 되는 것 — 8건
+### 지금 규모에선 안 해도 되는 것 — 8건 (1·2·6·7 반영 2026-10-10 → 남은 4건)
 
 | # | 문제 | 위치 | 언제 의미가 생기는가 |
 |---|---|---|---|
-| 1 | `sessions` 파기 쿼리(`revoked_at < ? OR expires_at < ?`, 매시간)에 인덱스가 없다 | `auth/session.repository.ts` `deleteInactiveBefore` · `session.entity.ts` | 사용자 수천 명(리프레시마다 행이 늘어 수백만 행) — `(expires_at)`·`(revoked_at)` 인덱스 마이그레이션 |
-| 2 | 리프레시 회전이 `revokeIfActive` UPDATE → `issueSession` INSERT로 트랜잭션 없이 이어진다 | `auth/services/auth.service.ts` ~196-208 | INSERT 실패 순간에만. 결과는 그 기기 재로그인 1회(FE가 재시도하지 않아 전 기기 로그아웃 연쇄는 없음). `SessionRepository`가 manager를 받으므로 `dataSource.transaction`으로 감싸면 끝 |
+| 1 | ~~`sessions` 파기 쿼리(`revoked_at < ? OR expires_at < ?`, 매시간)에 인덱스가 없다~~ **→ 반영 2026-10-10** | `auth/session.repository.ts` `deleteInactiveBefore` · `session.entity.ts` | 사용자 수천 명(리프레시마다 행이 늘어 수백만 행) — `(expires_at)`·`(revoked_at)` 인덱스 마이그레이션 |
+| 2 | ~~리프레시 회전이 `revokeIfActive` UPDATE → `issueSession` INSERT로 트랜잭션 없이 이어진다~~ **→ 반영 2026-10-10** | `auth/services/auth.service.ts` ~196-208 | INSERT 실패 순간에만. 결과는 그 기기 재로그인 1회(FE가 재시도하지 않아 전 기기 로그아웃 연쇄는 없음). `SessionRepository`가 manager를 받으므로 `dataSource.transaction`으로 감싸면 끝 |
 | 3 | 파일만 반영(`applyFilesOnly`)·회수·복구가 `contents` 행을 잠그지 않고 저장한다 | `admin/services/admin-content.service.ts` ~515, ~706, ~773 | 관리자 1명이 같은 콘텐츠에 [반영]과 재발행을 같은 초에 눌러야 함. 세 경로에 `getByIdForUpdate` |
 | 4 | 주제 삭제가 잠금 없이 건수를 세어 동시 업로드와 겹치면 FK 위반 500 | `admin/services/admin-topic.service.ts` ~154-161 | 같은 조건. `FOR NO KEY UPDATE`로는 안 닫힘(FK 검사의 `FOR KEY SHARE`와 충돌 안 함) — `FOR UPDATE` 또는 23503 → 409 변환 |
 | 5 | 월 잠금(1일 04:00) 뒤 적산되는 `listened_sec`이 확정된 month 행에 반영되지 않아 `all` 합에서 빠진다 | `playback/repositories/play-record.repository.ts` ~83-106 · `content-stat-aggregation` `is_final` | 파트너 정산 시작 뒤. 경계를 걸친 세션의 초 단위. 전달 확정을 하루 늦추면 대부분 해소 |
-| 6 | `Idempotency-Key` 길이 미검증 — 256자 초과가 Postgres 22001 → 500 `INTERNAL_ERROR` | `idempotency/idempotency.interceptor.ts` ~93 | 정상 클라이언트(36자 UUID)는 못 만드는 요청. `MaxLength(255)` → 400 |
-| 7 | 본문 413(`entity.too.large`)이 `HttpException`이 아니라 500 + Sentry로 처리 | `common/filters/all-exceptions.filter.ts` ~143-153 | 기본 100kb를 넘는 비정상 요청만. 숫자 `status`가 있는 raw 에러를 4xx로 매핑하는 분기 하나 |
+| 6 | ~~`Idempotency-Key` 길이 미검증 — 256자 초과가 Postgres 22001 → 500 `INTERNAL_ERROR`~~ **→ 반영 2026-10-10** | `idempotency/idempotency.interceptor.ts` ~93 | 정상 클라이언트(36자 UUID)는 못 만드는 요청. `MaxLength(255)` → 400 |
+| 7 | ~~본문 413(`entity.too.large`)이 `HttpException`이 아니라 500 + Sentry로 처리~~ **→ 반영 2026-10-10** | `common/filters/all-exceptions.filter.ts` ~143-153 | 기본 100kb를 넘는 비정상 요청만. 숫자 `status`가 있는 raw 에러를 4xx로 매핑하는 분기 하나 |
 | 8 | `notification_logs.sent_at`·receipt 대기 기준 시각이 실제 발송 시각이 아니라 배치 시작 `now` | `drip-batch.orchestrator.ts` ~126,196 · `drip-arrival-notification.service.ts` ~154,249 | 배치가 수십 분 걸릴 때 지표 정확도만. 기능 영향 없음(receipt는 다음 틱에 다시 묻는다) |
 
 ### 안 해도 되는 것 — 4건
@@ -53,3 +53,8 @@
 ## 처리 기록
 
 - 2026-09-26 발행. Jira 미반영(의도). 하 22건 중 10건은 같은 날 `fix(be)/audit-low-batch-2026-09-26`에서 처리.
+- **2026-10-10 — 4건 반영(#1·#2·#6·#7, PR #<n>).** 남은 8건(#3·#4·#5·#8 · #9~#12)은 종전대로 보류 — 이 티켓은 `pending/`에 둔다.
+  - #1 마이그레이션 `1789600000000-AddSessionPurgeIndexes`로 `idx_sessions_expires_at`·`idx_sessions_revoked_at` 추가, `Session` 엔티티 `@Index` 선언(`migration:generate --dryrun`에 sessions 차이 없음). domain.md 3.3 인덱스 목록 갱신.
+  - #2 `AuthService.refresh`의 `revokeIfActive` → `issueSession`을 `dataSource.transaction`으로 묶고 manager를 넘긴다. KAN-167 사유 판정(rotated만 REUSED)·경합 패배 INVALID는 트랜잭션 앞/안에서 그대로. 유닛: 같은 manager로 UPDATE·INSERT, INSERT 실패가 콜백 밖으로 던져짐.
+  - #6 `IdempotencyInterceptor`가 키 길이 > 255(`IDEMPOTENCY_KEY_MAX_LENGTH` = 컬럼 `varchar(255)`)면 저장 전에 400 `VALIDATION_FAILED`. 유닛(255 통과·256 거절) + e2e(`onboarding.e2e-spec.ts` — 300자 키로 `POST /onboarding/picks` → 400).
+  - #7 `entity.too.large` 413은 2026-10-07(`ec3b7fac`)에 이미 처리돼 있었다. 남은 구멍인 `entity.*` 밖의 body-parser 클라이언트 오류(`charset.unsupported`·`encoding.unsupported` 415 · `parameters.too.many` 413 · `request.size.invalid`·`querystring.parse.rangeError` 400)를 같은 분기에 넣었다 — 종전엔 500 + Sentry. `type`으로 거르는 것은 유지(숫자 `status`만 보면 외부 HTTP 클라이언트 오류가 4xx로 둔갑). 새 error_code 없음(상태별 매핑, 없으면 `VALIDATION_FAILED`). e2e: 200kb 본문으로 `POST /onboarding/picks` → 413 `VALIDATION_FAILED`.

@@ -25,6 +25,7 @@ import { sha256Hex } from '@/common/utils/hash.util';
 import {
   ANONYMOUS_OWNER_KEY,
   IDEMPOTENCY_KEY_HEADER,
+  IDEMPOTENCY_KEY_MAX_LENGTH,
   toUserOwnerKey,
 } from './idempotency.constant';
 import { IdempotencyService } from './idempotency.service';
@@ -91,7 +92,8 @@ export class IdempotencyInterceptor implements NestInterceptor {
     const response = http.getResponse<Response>();
 
     const idempotencyKey = request.header(IDEMPOTENCY_KEY_HEADER)?.trim();
-    if (!idempotencyKey) {
+    // 컬럼 길이(varchar 255)를 넘는 키는 저장 단계에서 22001 → 500이 된다 — 형식 오류로 먼저 거절한다
+    if (!idempotencyKey || idempotencyKey.length > IDEMPOTENCY_KEY_MAX_LENGTH) {
       throw new BusinessException({
         status: HttpStatus.BAD_REQUEST,
         errorCode: ErrorCode.VALIDATION_FAILED,
