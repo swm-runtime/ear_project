@@ -2,8 +2,8 @@ import { Image, StyleSheet, View, type ImageSourcePropType } from 'react-native'
 
 import { theme } from '@/shared/theme';
 
-const PHOTO_SIZE = 24;
-const PHOTO_OVERLAP = 9;
+const PHOTO_SIZE = 28;
+const PHOTO_OVERLAP = 10;
 
 interface ProfilePhotoStackProps {
   photos: { id: string; source: ImageSourcePropType }[];
