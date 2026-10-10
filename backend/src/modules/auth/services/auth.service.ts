@@ -25,6 +25,8 @@ import {
 } from '../auth.types';
 import { SignupAlertService } from './signup-alert.service';
 import { SocialProviderRegistry } from '../providers/social-provider.registry';
+import { SessionRevokedReason } from '../auth.enum';
+import { Session } from '../session.entity';
 import { SessionRepository } from '../session.repository';
 import { TokenService } from './token.service';
 
@@ -161,6 +163,7 @@ export class AuthService {
   /**
    * auth-api.md 4.3 — 갱신 시 refresh token을 **회전**한다.
    * 이미 회전된 토큰이 다시 오면 탈취로 보고 해당 사용자 세션 전체를 무효화한다.
+   * 로그아웃 등 회전이 아닌 사유로 폐기된 토큰은 INVALID로만 끝낸다(KAN-167).
    */
   async refresh(
     command: RefreshTokenCommand,
@@ -171,6 +174,21 @@ export class AuthService {
       await this.sessionRepository.findByRefreshTokenHash(refreshTokenHash);
 
     if (!session) {
+      throw this.refreshTokenInvalid();
+    }
+
+    /**
+     * 폐기된 토큰은 **회전으로 폐기된 경우만** 탈취 의심이다(auth-api.md 4.3 "이미 회전된 토큰").
+     * 로그아웃으로 폐기된 토큰은 로그아웃 204 직후 로컬 삭제 전에 자동 갱신이 실어 보낼 수 있는 정상
+     * 경합이라, 다른 기기 세션을 건드리지 않고 INVALID로만 끝낸다(KAN-167). 재사용 감지로 끊긴 세션도
+     * 회전된 토큰이 아니므로 INVALID다 — 이미 전부 끊겼으니 다시 끊을 것도 없다.
+     * 사유가 NULL인 행은 컬럼 도입(2026-10-10) 전에 폐기돼 사유를 모른다 — 종전대로 회전으로 본다.
+     */
+    if (session.revokedAt && !this.isRotatedRevocation(session)) {
+      this.logger.log('refresh with non-rotated revoked token', {
+        user_id: session.userId,
+        revoked_reason: session.revokedReason,
+      });
       throw this.refreshTokenInvalid();
     }
 
@@ -298,6 +316,14 @@ export class AuthService {
   }
 
   /** 갱신 실패는 재갱신 여지 없이 명확히 실패시킨다 (architecture.md 9.1 — 무한 루프 방지) */
+  /** 회전으로 폐기된 세션인가 — 사유가 없는(컬럼 도입 전) 행도 종전대로 회전으로 본다 */
+  private isRotatedRevocation(session: Session): boolean {
+    return (
+      session.revokedReason === null ||
+      session.revokedReason === SessionRevokedReason.ROTATED
+    );
+  }
+
   private refreshTokenInvalid(): BusinessException {
     return new BusinessException({
       status: HttpStatus.UNAUTHORIZED,

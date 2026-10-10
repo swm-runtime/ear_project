@@ -12,6 +12,7 @@ import { SlackAlertService } from '@/modules/alert/slack-alert.service';
 import { SignupAlertService } from './signup-alert.service';
 import { SocialProviderClient } from '../providers/social-provider.client';
 import { SocialProviderRegistry } from '../providers/social-provider.registry';
+import { SessionRevokedReason } from '../auth.enum';
 import { Session } from '../session.entity';
 import { SessionRepository } from '../session.repository';
 import { TokenService } from './token.service';
@@ -38,6 +39,7 @@ function buildSession(overrides: Partial<Session> = {}): Session {
     issuedAt: new Date(NOW.getTime() - 1000),
     expiresAt: new Date(NOW.getTime() + 60_000),
     revokedAt: null,
+    revokedReason: null,
     ...overrides,
   } as Session;
 }
@@ -345,7 +347,81 @@ describe('AuthService', () => {
     it('이미 회전된 토큰이 다시 오면 해당 사용자 세션 전체를 무효화한다', async () => {
       // given
       sessionRepository.findByRefreshTokenHash.mockResolvedValue(
-        buildSession({ revokedAt: new Date(NOW.getTime() - 5000) }),
+        buildSession({
+          revokedAt: new Date(NOW.getTime() - 5000),
+          revokedReason: SessionRevokedReason.ROTATED,
+        }),
+      );
+
+      // when
+      const refreshing = service.refresh(
+        { refreshToken: REFRESH_TOKEN, deviceId: 'device-1' },
+        NOW,
+      );
+
+      // then
+      await expect(refreshing).rejects.toMatchObject({
+        errorCode: ErrorCode.AUTH_REFRESH_TOKEN_REUSED,
+      });
+      expect(sessionRepository.revokeAllByUserId).toHaveBeenCalledWith(
+        USER_ID,
+        NOW,
+      );
+      expect(sessionRepository.revokeIfActive).not.toHaveBeenCalled();
+    });
+
+    it('로그아웃으로 폐기된 토큰이 오면 INVALID만 돌려주고 다른 기기 세션은 건드리지 않는다', async () => {
+      // given — 로그아웃 204 직후, 로컬 삭제 전에 자동 갱신이 옛 토큰을 실어 보낸 경우(KAN-167)
+      sessionRepository.findByRefreshTokenHash.mockResolvedValue(
+        buildSession({
+          revokedAt: new Date(NOW.getTime() - 5),
+          revokedReason: SessionRevokedReason.LOGOUT,
+        }),
+      );
+
+      // when
+      const refreshing = service.refresh(
+        { refreshToken: REFRESH_TOKEN, deviceId: 'device-1' },
+        NOW,
+      );
+
+      // then
+      await expect(refreshing).rejects.toMatchObject({
+        errorCode: ErrorCode.AUTH_REFRESH_TOKEN_INVALID,
+      });
+      expect(sessionRepository.revokeAllByUserId).not.toHaveBeenCalled();
+      expect(sessionRepository.revokeIfActive).not.toHaveBeenCalled();
+    });
+
+    it('재사용 감지로 함께 끊긴 세션의 토큰은 회전된 토큰이 아니므로 INVALID다', async () => {
+      // given
+      sessionRepository.findByRefreshTokenHash.mockResolvedValue(
+        buildSession({
+          revokedAt: new Date(NOW.getTime() - 5000),
+          revokedReason: SessionRevokedReason.REUSE_DETECTED,
+        }),
+      );
+
+      // when
+      const refreshing = service.refresh(
+        { refreshToken: REFRESH_TOKEN, deviceId: 'device-1' },
+        NOW,
+      );
+
+      // then
+      await expect(refreshing).rejects.toMatchObject({
+        errorCode: ErrorCode.AUTH_REFRESH_TOKEN_INVALID,
+      });
+      expect(sessionRepository.revokeAllByUserId).not.toHaveBeenCalled();
+    });
+
+    it('폐기 사유가 없는 옛 폐기 행은 종전대로 재사용으로 판정한다', async () => {
+      // given — 컬럼 도입(2026-10-10) 전에 폐기돼 revoked_reason이 NULL인 행
+      sessionRepository.findByRefreshTokenHash.mockResolvedValue(
+        buildSession({
+          revokedAt: new Date(NOW.getTime() - 5000),
+          revokedReason: null,
+        }),
       );
 
       // when
