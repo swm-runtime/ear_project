@@ -559,7 +559,7 @@
   "users": {
     "total_signups": 259, "current": 225, "withdrawals": 34, "withdrawal_rate": 0.131,
     "onboarding_completed": 208, "onboarding_rate": 0.924, "trial_active": 139,
-    "tiers": { "light": 225, "daily": 0, "pro": 0 }, "paid_active": 0, "paid_rate": 0,
+    "tiers": { "light": 225, "daily": 0, "pro": 0 }, "tier_events": { "daily": 0, "pro": 0 }, "paid_active": 0, "paid_rate": 0,
     "activated": 149, "activation_rate": 0.662,
     "active_1d": 63, "active_7d": 190, "active_30d": 220, "stickiness": 0.286,
     "listeners_1d": 52, "listeners_7d": 130, "listeners_30d": 149,
@@ -581,6 +581,7 @@
 
 - **개인 식별 정보는 어떤 필드에도 없다** — 사용자 순위는 `user_id`·티어·가입일·마지막 재생뿐이다(루트 CLAUDE.md 개인정보 원칙). 화면도 `user_id` 앞 8자만 적는다.
 - `total_signups` = `current`(`users` 행 수 — 탈퇴 행은 지워져 없으므로 `status` 필터를 두지 않는다) + `withdrawals`(`withdrawal_logs` 행 수). 탈퇴는 `users` 행을 지우므로(`domain.md` 12.3) 둘을 더해야 "가입한 적 있는 사람"이다. `withdrawal_rate` = `withdrawals / total_signups`.
+- `tiers`는 `users.tier` 캐시 기준이라 **초대 코드 이벤트로 받은 요금제도 들어 있다**(`domain.md` 8.6). `tier_events`는 그중 이벤트로 그 티어인 계정 수다 — 지금 지급 중인 요금제가 그 티어이고 같은 티어 이상의 살아 있는 구독이 없는 계정(결제와 겹치면 결제로 센다, 2026-10-10). 콘솔은 "Pro 30명 (이벤트 11명)"으로 그린다. `paid_active`는 결제만 세므로 이벤트 계정이 들어가지 않는다.
 - `paid_active`는 `subscriptions`의 `status in (active, grace, cancelled)`(해지 예약은 만료일까지 유효 — `domain.md` 8.2) · `environment = production` · 미만료인 **사용자 수**(distinct)다. 샌드박스 결제는 세지 않는다. `trial_active`는 `users.trial_ends_at > now`.
 - `active_1d/7d/30d`는 **앱 사용 기준 DAU·WAU·MAU** — 그 창 안에 `sessions.issued_at`이 있는 사용자 수(distinct). 액세스 토큰이 30분(`ACCESS_TOKEN_TTL_SEC`)이라 앱을 열면 거의 매번 리프레시 회전으로 세션 행이 새로 생기므로, 서버가 가진 신호 중 "앱 실행"에 가장 가깝다(30분 안의 재실행은 안 잡히고, 세션 행 보존 30일이 창의 상한). `stickiness` = `active_1d / active_30d`.
 - `activated`는 `play_records`에 행이 하나라도 있는 사용자 수, `listeners_1d/7d/30d`는 그 창 안에 `played_at`이 있는 사용자 수(**재생** 기준). `listener_rate_*` = `listeners_* / active_*` — 활성 사용자 중 청취까지 간 비율(켜고 안 듣는 사람을 가른다).
