@@ -296,6 +296,7 @@ NetworkState  { reachable, connection_type }                        // 클라이
 | `ADMIN_TOPIC_HAS_NO_CONTENTS` | 409 | false | 노출 가능 콘텐츠가 0건인 주제의 노출 켜기 (`admin.md` 4.5, 2026-09-17). 서버 문구를 표시하고 주제 목록을 재조회한다 — 콘텐츠를 먼저 발행해야 하므로 재시도해도 같다 |
 | `ADMIN_STORAGE_FAILED` | 502 | **true** | 저장소 실패. 4.2의 자동 재시도 대상이다 |
 | `ADMIN_RECOMMEND_TEST_DISABLED` | 409 | false | 추천 테스트 API를 운영에서 호출(`admin-api.md` 4.17 — 개발계 전용, 2026-09-29). 콘솔은 탭을 숨기므로 정상 UI에서는 도달하지 않는다 |
+| `INVITE_CODE_DUPLICATE` | 409 | false | 초대 코드 생성 시 같은 값의 코드가 이미 있다(`admin-api.md` 4.23, 2026-10-10). 코드 값을 바꾸거나 비워서(서버 생성) 다시 만든다 |
 
 - 신설(2026-08-30 — 관리자 웹 콘솔 도입). **발행 요청서는 "6장"으로 적었으나 에러 코드 표는 9장이다** — 6장은 `ApiError`의 필드 규격만 정한다(9장 머리말). 여기 등재한다.
 - 이 코드들은 **운영자만 본다.** 일반 사용자 화면에는 도달하지 않으므로 9.1의 일반 안내 문구를 재사용하지 않고 콘솔이 필드별 인라인으로 표시한다(`admin.md` 5장).
@@ -334,7 +335,7 @@ NetworkState  { reachable, connection_type }                        // 클라이
 | `INVITE_CODE_ALREADY_USED` | 409 | false | "이미 사용한 코드예요" — 이 계정이 쓴 코드이고 지급이 끝났다(지급 중이면 200 재전송) |
 | `INVITE_GRANT_ALREADY_ACTIVE` | 409 | false | "다른 코드의 혜택이 아직 남아 있어요" — 지급은 계정당 동시에 하나 |
 
-- 신설 2026-10-02(KAN-106 · KAN-40). **enum 반영은 구현 PR에서 한다** — 그때까지 이 여섯 코드는 표에만 있다(`architecture.md` 7.5의 순서와 달리 계약을 먼저 확정했다. `interest-management` 때와 같은 방식).
+- 신설 2026-10-02(KAN-106 · KAN-40). 계약을 먼저 확정하고(`architecture.md` 7.5의 순서와 달리 — `interest-management` 때와 같은 방식) enum은 구현 PR에서 반영했다(구독 코드 2026-10-02 `4db2445f` · `SUBSCRIPTION_ALREADY_SUBSCRIBED` 2026-10-07 · 초대 코드 2026-10-10). 지금은 이 표의 코드가 전부 enum에 있다.
 - `SUBSCRIPTION_STORE_UNAVAILABLE`은 9.11의 "retryable은 5xx·429·외부 연동 실패뿐" 규칙의 외부 연동 실패다.
 
 ### 9.11 이 표를 읽는 규칙
@@ -343,7 +344,7 @@ NetworkState  { reachable, connection_type }                        // 클라이
 - **설정(`settings-api.md`)의 설정 값·동의에는 고유 코드가 없다.** `VALIDATION_FAILED`만 쓰며 9.1을 따른다. 같은 문서의 공지사항 코드는 9.10-1, 버전 관문의 `APP_UPDATE_REQUIRED`는 9.1에 있다.
 - **api 문서가 아직 없는 화면**(알림 등)의 코드는 그 문서를 작성할 때 여기에 함께 등재한다. 구독은 작성됐다(`subscription-api.md`, 2026-10-02 — 9.10-3). 플레이어는 작성됐고 **신규 코드가 없다**(`player-api.md` — 전 분기가 기존 코드로 표현됨).
 - **관리자 코드(9.10)는 웹 콘솔 전용이다.** 앱 클라이언트는 이 코드를 받을 일이 없으므로 앱의 분기 로직에 넣지 않는다.
-- **9장 표의 코드는 `error-code.enum.ts`와 1:1로 일치한다**(기계 대조 2026-09-08 — 어느 한쪽에만 있는 코드가 없다). 개수를 적지 않는 이유는 코드가 늘 때마다 이 문장이 낡기 때문이다 — 새로 세었다면 **대조 날짜를 함께** 적는다. 코드를 추가하는 순서는 `architecture.md` 7.5(enum → 9장 표 → 해당 api 문서 5장)를 따른다.
+- **9장 표의 코드는 `error-code.enum.ts`와 1:1로 일치한다**(기계 대조 2026-10-10 — 어느 한쪽에만 있는 코드가 없다. 직전 대조 2026-09-08 이후 빠져 있던 `INVITE_CODE_DUPLICATE`를 9.10에 등재했다). 개수를 적지 않는 이유는 코드가 늘 때마다 이 문장이 낡기 때문이다 — 새로 세었다면 **대조 날짜를 함께** 적는다. 코드를 추가하는 순서는 `architecture.md` 7.5(enum → 9장 표 → 해당 api 문서 5장)를 따른다.
 
 ## 미결 사항
 
