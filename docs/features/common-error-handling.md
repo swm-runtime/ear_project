@@ -328,6 +328,11 @@ NetworkState  { reachable, connection_type }                        // 클라이
 | `SUBSCRIPTION_OWNED_BY_ANOTHER_ACCOUNT` | 409 | false | "이미 다른 계정에서 사용 중인 구독이에요" |
 | `SUBSCRIPTION_ALREADY_SUBSCRIBED` | 409 | false | "이미 구독 중이에요. 요금제는 변경으로 바꿔주세요". 스토어 거래를 끝내지 않는다(Google이 3일 안에 자동 환불). 요금제 변경 화면으로(신설 2026-10-07 — Play 두 번째 구독) |
 | `SUBSCRIPTION_STORE_UNAVAILABLE` | 503 | **true** | "잠시 후 자동으로 반영됩니다". 스토어 거래를 끝내지 않고 재시도 |
+| `INVITE_CODE_NOT_FOUND` | 404 | false | "사용할 수 없는 코드예요" — 없는 코드·꺼진 코드·저장 규칙 밖 값(2026-10-10, 초대 코드 4.8) |
+| `INVITE_CODE_EXPIRED` | 409 | false | "사용 기간이 지난 코드예요" — 입력 기간 밖이거나 지급 마지막 날이 지났다 |
+| `INVITE_CODE_EXHAUSTED` | 409 | false | "선착순이 마감된 코드예요" — 사용 한도(계정 수)를 다 썼다 |
+| `INVITE_CODE_ALREADY_USED` | 409 | false | "이미 사용한 코드예요" — 이 계정이 쓴 코드이고 지급이 끝났다(지급 중이면 200 재전송) |
+| `INVITE_GRANT_ALREADY_ACTIVE` | 409 | false | "다른 코드의 혜택이 아직 남아 있어요" — 지급은 계정당 동시에 하나 |
 
 - 신설 2026-10-02(KAN-106 · KAN-40). **enum 반영은 구현 PR에서 한다** — 그때까지 이 여섯 코드는 표에만 있다(`architecture.md` 7.5의 순서와 달리 계약을 먼저 확정했다. `interest-management` 때와 같은 방식).
 - `SUBSCRIPTION_STORE_UNAVAILABLE`은 9.11의 "retryable은 5xx·429·외부 연동 실패뿐" 규칙의 외부 연동 실패다.

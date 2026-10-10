@@ -76,6 +76,7 @@
 | 5 | POST | `/users/me/subscription/restore` | 구매 복원 (4.5) | 필요 |
 | 6 | POST | `/webhooks/app-store` | App Store Server Notifications V2 수신 (4.6) | **스토어 서명** |
 | 7 | POST | `/webhooks/play-store` | Google Play RTDN(Pub/Sub push) 수신 (4.7) | **스토어 서명** |
+| 8 | POST | `/users/me/subscription/invite-codes` | 초대 코드 입력 → 요금제 지급 (4.8, 2026-10-10) | 필요 |
 
 **설계 메모**
 
@@ -446,6 +447,25 @@ Google Cloud Pub/Sub **push 구독**이 호출한다. 본문은 Pub/Sub 메시�
 - 요금제 목록(4.1)의 `action`은 **구독만 보고** 정한다 — 지급은 반영하지 않는다(구독이 없으면 무료가 `current`). 지급 중 표시는 `plan.grant`로 한다.
 - 지급이 끝나면 10분 안에 `users.tier`가 되돌아간다(`domain.md` 8.6 만료 배치). 그 사이 응답의 `plan`은 이미 지급 없이 조립된다.
 
+#### 4.8-1 `POST /users/me/subscription/invite-codes` — 코드 입력
+
+앱에서 코드를 입력받는 곳(화면·위치)은 클라이언트가 정한다. `Cache-Control: no-store`. 레이트 리밋 사용자 단위 **분당 10회**(`architecture.md` 9.6 — 코드 추측 대입의 앞단 방어).
+
+**Request**
+
+```json
+{ "code": "SANGUN-POC" }
+```
+
+- 대소문자·앞뒤 공백은 서버가 정규화한다(`sangun-poc`도 같은 코드). 빈 값·64자 초과만 400(`VALIDATION_FAILED`)이고, 저장 규칙 밖의 값은 "없는 코드"(404)와 같이 처리한다.
+
+**Response 200** — 4.2와 **같은 본문**이다. `plan.grant`에 지급 내용이 실린다(앱이 4.2를 다시 부르지 않는다).
+
+- **멱등키를 쓰지 않는다.** 같은 계정이 같은 코드를 다시 보내면 지급 중인 한 새로 만들지 않고 같은 결과(200)다 — 응답 유실 뒤 재전송이 안전하다.
+- 판정 순서(앞이 우선): 없음·꺼짐(404) → 이 계정이 쓴 코드(지급 중이면 200, 끝났으면 409 `INVITE_CODE_ALREADY_USED`) → 입력 기간 밖(409 `INVITE_CODE_EXPIRED`) → 다른 지급 진행 중(409 `INVITE_GRANT_ALREADY_ACTIVE`) → 한도 소진(409 `INVITE_CODE_EXHAUSTED`) → 지급 마지막 날 경과(409 `INVITE_CODE_EXPIRED`).
+- 유료 구독 중이어도 입력할 수 있다. 지급 요금제가 구독보다 높으면 그 기간 동안 지급 요금제를 쓰고, 낮거나 같으면 표시는 구독 그대로다(`grant`만 실린다). 입력 전부터 있던 구독은 지급을 끝내지 않는다.
+- 지급 행과 `users.tier`는 한 트랜잭션에서 고친다. 코드 행을 잠그고 판정해 동시 입력이 한도를 넘지 않는다.
+
 ## 5. 에러 코드 표
 
 **아래 코드는 이 문서가 신설했고 `common-error-handling.md` 9.10-3에 등재했다.** enum 반영은 백엔드 구현 PR에서 한다(`architecture.md` 7.5).
@@ -459,6 +479,11 @@ Google Cloud Pub/Sub **push 구독**이 호출한다. 본문은 Pub/Sub 메시�
 | `SUBSCRIPTION_OWNED_BY_ANOTHER_ACCOUNT` | 409 | false | "이미 다른 계정에서 사용 중인 구독이에요"(`subscription.md` 4.6) |
 | `SUBSCRIPTION_ALREADY_SUBSCRIBED` | 409 | false | "이미 구독 중이에요. 요금제는 변경으로 바꿔주세요"(2026-10-07 — Play 두 번째 구독, 4.4). 거래를 `finish`하지 않는다 — 서버가 확인하지 않은 구매는 Google이 3일 안에 자동 환불한다. 요금제 변경 화면으로 보낸다 |
 | `SUBSCRIPTION_STORE_UNAVAILABLE` | 503 | **true** | "구독을 확인하고 있어요… 잠시 후 자동으로 반영됩니다". **거래를 끝내지 않고** 재시도 큐에 넣는다(다음 실행의 미완료 거래 처리도 같은 경로) |
+| `INVITE_CODE_NOT_FOUND` | 404 | false | "사용할 수 없는 코드예요" — 없는 코드·꺼진 코드·저장 규칙 밖 값(4.8-1) |
+| `INVITE_CODE_EXPIRED` | 409 | false | "사용 기간이 지난 코드예요" — 입력 기간 밖이거나 지급 마지막 날이 지났다 |
+| `INVITE_CODE_EXHAUSTED` | 409 | false | "선착순이 마감된 코드예요" — 사용 한도(계정 수)를 다 썼다 |
+| `INVITE_CODE_ALREADY_USED` | 409 | false | "이미 사용한 코드예요" — 이 계정이 쓴 코드이고 지급이 끝났다(지급 중이면 200 재전송) |
+| `INVITE_GRANT_ALREADY_ACTIVE` | 409 | false | "다른 코드의 혜택이 아직 남아 있어요" — 지급은 계정당 동시에 하나 |
 
 - 401·429·5xx는 `common-error-handling.md` 4.1~4.2의 공통 규칙을 따른다.
 - **결제 취소**(사용자가 시트를 닫음)는 서버 호출이 없다 — 에러 문구도 없다(`subscription.md` 5장).
