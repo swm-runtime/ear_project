@@ -16,6 +16,7 @@ import {
   prefetchLibraryFirstPage,
   restoreLibraryItem,
   saveQueueOrder,
+  useLibraryArrivalStore,
 } from '@/features/library';
 import {
   clearPushState,
@@ -232,8 +233,9 @@ export const bootstrapApp = (): void => {
      */
     if (previous.status === 'authenticated' && state.status !== 'authenticated') {
       stopPlaybackForSignOut();
-      // 앞 사용자가 탭한 알림의 목적지·배너를 다음 사용자에게 넘기지 않는다
+      // 앞 사용자의 알림 목적지·새 도착 배지를 다음 사용자에게 넘기지 않는다
       clearPushState();
+      useLibraryArrivalStore.getState().reset();
       resetDeviceSync();
       // 반영이 미뤄진 거래의 재시도를 멈춘다 — 다음 계정의 세션으로 앞 사용자의 거래를 제출하지 않는다
       stopSubscriptionSync();

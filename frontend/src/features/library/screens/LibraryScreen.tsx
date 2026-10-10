@@ -156,28 +156,26 @@ export default function LibraryScreen() {
   const filterSummary = showTabBar ? (
     <LibraryFilterSummary conditions={screen.filteredConditions} onPress={screen.openTopicSheet} />
   ) : null;
-  // 배너는 목록 바로 위에 둔다 — 세 배너 모두 "이 목록에 무슨 일이 있었나"를 알리므로 목록에 붙어 있어야
-  // 무엇에 대한 통지인지 읽힌다(uiux 4.1)
-  const banner = screen.banner ? (
-    <LibraryBanner banner={screen.banner} onPress={screen.handleBannerPress} />
-  ) : null;
-  const contentHeader = HAS_NATIVE_TAB_BAR || ANDROID_IOS_HEADER ? (
-    <View style={styles.contentHeader}>
-      {/* Android — iOS 와 같이 큰 제목이 목록 첫 줄(PM 2026-09-29 23:11 "라이브러리도 통일"). 툴바는 떠 있는 바 오른쪽 */}
-      {ANDROID_IOS_HEADER ? <LargeTitleRow title={LIBRARY_COPY.tabTitle} /> : null}
-      {/* 콘텐츠 안 검색 필드 — 유리가 아니라 면(애플 뮤직 검색 탭). 받아 둔 목록을 그 자리에서 좁히는 규칙은 그대로 */}
-      {showTabBar ? (
-        <LibrarySearchBarRow
-          query={query}
-          onChangeQuery={setQuery}
-          trailing={null}
-          variant="fill"
-        />
-      ) : null}
-      {filterSummary}
-      {banner}
-    </View>
-  ) : null;
+  // 연결 상태는 목록 위에서 안내하고 새 도착은 하단 탭 배지로 알린다.
+  const banner = screen.banner ? <LibraryBanner banner={screen.banner} /> : null;
+  const contentHeader =
+    HAS_NATIVE_TAB_BAR || ANDROID_IOS_HEADER ? (
+      <View style={styles.contentHeader}>
+        {/* Android — iOS 와 같이 큰 제목이 목록 첫 줄(PM 2026-09-29 23:11 "라이브러리도 통일"). 툴바는 떠 있는 바 오른쪽 */}
+        {ANDROID_IOS_HEADER ? <LargeTitleRow title={LIBRARY_COPY.tabTitle} /> : null}
+        {/* 콘텐츠 안 검색 필드 — 유리가 아니라 면(애플 뮤직 검색 탭). 받아 둔 목록을 그 자리에서 좁히는 규칙은 그대로 */}
+        {showTabBar ? (
+          <LibrarySearchBarRow
+            query={query}
+            onChangeQuery={setQuery}
+            trailing={null}
+            variant="fill"
+          />
+        ) : null}
+        {filterSummary}
+        {banner}
+      </View>
+    ) : null;
   // 복원 스냅샷 폴백의 노출 조건 — 활성 재생 세션의 표시는 MiniPlayer가 스스로 판단한다
   const resumeTarget = screen.resumeTarget;
   const isResumeVisible = resumeTarget !== null && !screen.isFullError && !isWholeEmpty;

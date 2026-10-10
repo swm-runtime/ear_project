@@ -15,11 +15,10 @@ import { CareerInfoScreen } from '@/features/career';
 import { ContentDetailScreen } from '@/features/content-detail';
 import { ExploreScreen, ExploreSearchScreen } from '@/features/explore';
 import { InterestManagementScreen } from '@/features/interest';
-import { LibraryScreen } from '@/features/library';
+import { LibraryScreen, useLibraryArrivalBadge } from '@/features/library';
 import { NoticeDetailScreen, NoticeListScreen } from '@/features/notice';
 import {
   NotificationPrePromptModal,
-  PushArrivalBanner,
   usePrePromptGate,
   usePushLinkGate,
   useNotificationStore,
@@ -52,6 +51,7 @@ const MainStack = createNativeStackNavigator<MainStackParamList>();
  * 이전 기록보다 "고를 것이 많은 화면"이 먼저다.
  */
 function MainTabs() {
+  const arrivalBadge = useLibraryArrivalBadge();
   const justCompletedOnboarding = useSessionStore((s) => s.justCompletedOnboarding);
   // 마운트 시 한 번만 꺼낸다 — 리렌더마다 부르면 두 번째부터 null 이라 탭이 흔들린다
   const [restoredTab] = useState(takePrimedTab);
@@ -81,7 +81,10 @@ function MainTabs() {
         component={LibraryScreen}
         options={{
           tabBarLabel: '라이브러리',
+          tabBarBadge: arrivalBadge.value,
+          tabBarAccessibilityLabel: arrivalBadge.accessibilityLabel,
         }}
+        listeners={{ tabPress: arrivalBadge.acknowledge }}
       />
       <MainTab.Screen
         name="Explore"
@@ -234,9 +237,6 @@ export default function MainNavigator() {
         onCancel={pushGate.cancelConfirm}
         onSuppressToday={pushGate.suppressAndPlay}
       />
-
-      {/* 포그라운드 수신 — OS 배너 대신 그린다(notification.md 4.5). 어느 화면 위에도 얹힌다 */}
-      <PushArrivalBanner />
     </>
   );
 }
