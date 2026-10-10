@@ -3,7 +3,7 @@ import { Animated, PanResponder, Pressable, StyleSheet, View } from 'react-nativ
 import Svg, { Circle, Path } from 'react-native-svg';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
-import { motion, theme } from '@/shared/theme';
+import { motion, theme, useThemePalette } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import { pillButton } from '@/shared/ui/pill-button.styles';
 import { SkeletonBlock, SkeletonGroup } from '@/shared/ui/Skeleton';
@@ -726,12 +726,14 @@ function AverageValue({ sec }: { sec: number }) {
 
 /** 원 안 위 화살표 — 스크린 타임의 arrow.down.circle.fill 문법(채운 회색 원 + 카드 색 화살표) */
 function RankUpIcon() {
+  // SVG 는 문자열 색만 받는다 — 지금 모드의 값(다크 모드)
+  const palette = useThemePalette();
   return (
     <Svg width={RANK_ICON_SIZE} height={RANK_ICON_SIZE} viewBox="0 0 24 24">
-      <Circle cx={12} cy={12} r={12} fill={theme.color.textSecondary} />
+      <Circle cx={12} cy={12} r={12} fill={palette.textSecondary} />
       <Path
         d="M12 18V7M7 11.5l5-5 5 5"
-        stroke={theme.color.surface}
+        stroke={palette.surface}
         strokeWidth={2.6}
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -741,7 +743,7 @@ function RankUpIcon() {
   );
 }
 
-const RANK_ICON_SIZE = 18;
+const RANK_ICON_SIZE = 20;
 
 const styles = StyleSheet.create({
   container: { paddingHorizontal: theme.spacing.md, gap: theme.spacing.sm },
@@ -818,8 +820,9 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   // 윗줄 "다른 사용자 대비" — 라벨(하루 평균)과 같은 위계
+  // 한 단계 크게(PM 2026-10-11 "조금만 더 키우자") — 14 → 15
   rankLead: {
-    fontSize: theme.font.size.sm,
+    fontSize: 15,
     color: theme.color.textSecondary,
   },
   // 아랫줄 아이콘 + "상위 N%" — 아이콘은 이 줄에만(설명 문구가 아니라 순위를 가리킨다)
@@ -829,8 +832,9 @@ const styles = StyleSheet.create({
     gap: theme.spacing.xs + 2,
   },
   // 회색 그대로 한 단계 크고 진하게 — 강조색 없이 굵기로만 위계(design.md §1)
+  // 16 → 18(PM 2026-10-11) — 아이콘도 18 → 20
   rankText: {
-    fontSize: theme.font.size.md,
+    fontSize: 18,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
     color: theme.color.textSecondary,
