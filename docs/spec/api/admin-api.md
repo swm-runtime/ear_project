@@ -72,6 +72,8 @@
 | GET | `/admin/drip-feedback/versions` | 추천 알고리즘 버전별 별점 — 편성 수·평가 수·평균·분포, 버전 역순 (4.19) |
 | GET | `/admin/search-query-logs/summary` | 검색 질의 로그 요약 — 미스율·일별 추이·0건 질의·상위 질의, 읽기 전용 (4.21) |
 | GET | `/admin/insights/summary` | 서비스 지표 요약 — 가입·탈퇴·활성 사용자·청취 시간·완청률·사용자/콘텐츠 순위·리텐션·탈퇴 사유, 읽기 전용 (4.22) |
+| GET · POST | `/admin/invite-codes` | 초대 코드 목록(사용 현황 포함)·만들기 (4.23, 2026-10-10) |
+| PATCH | `/admin/invite-codes/:inviteCodeId` | 초대 코드 고치기 — 이름·켜기/끄기·한도·입력 기간만 (4.23) |
 
 ## 4. 엔드포인트 상세
 
@@ -591,6 +593,52 @@
 - `retention`은 D1·D7·D30 — `cohort_size`는 가입한 지 `day`일이 지난 **현재 계정** 수, `returned`는 그중 가입 `day`일 뒤 이후 아무 때나 **앱을 쓴** 사람(토큰 갱신 `sessions.issued_at` 또는 재생 `play_records` — 세션 행은 30일만 보존되므로 영구 보존되는 재생을 합친다. 언바운디드). 탈퇴자는 분모에 없어 실제보다 높게 나온다(생존 편향). 하루만 보는(bounded) 방식은 수백 명 규모에서 표본이 너무 작아 쓰지 않는다.
 - 인증은 다른 `/admin/*`와 같다(2장). 400 `VALIDATION_FAILED` — `days` 범위 밖. 응답은 `Cache-Control: no-store`.
 
+### 4.23 `/admin/invite-codes` — 초대 코드 관리 (2026-10-10)
+
+PoC·제휴 캠페인마다 코드를 만들고, 켜고 끄고, 사용 현황을 본다. 규칙의 원본은 `subscription.md` 4.9, 저장은 `domain.md` 8.5·8.6, 사용자 입력은 `subscription-api.md` 4.8-1이다. 콘솔 화면은 아직 없다(파이프라인 웹 몫 — 화면이 생기기 전에는 API로 직접 만든다). **삭제는 없다** — 끄면 새 입력만 막히고 지급 기록은 남는다.
+
+**`POST /admin/invite-codes`** → 201 항목
+
+```json
+{
+  "code": "SANGUN-POC",
+  "name": "산군 PoC",
+  "tier": "pro",
+  "grant_days": 30,
+  "max_redemptions": 50,
+  "redeemable_until": "2026-12-01T00:00:00+09:00"
+}
+```
+
+| 필드 | 필수 | 규칙 |
+|---|---|---|
+| `code` | 선택 | 영문·숫자·하이픈 4~32자. 대문자로 맞춰 저장한다. **비우면 서버가 8자로 만든다**(헷갈리는 0·O·1·I·L 제외). 같은 값이 있으면 409 `INVITE_CODE_DUPLICATE` |
+| `name` | 필수 | 캠페인 이름(100자). 사용자 응답 `plan.grant.name`으로도 나간다 |
+| `tier` | 필수 | `daily` \| `pro` |
+| `grant_days` · `grant_until_date` | **정확히 하나** | 입력한 날부터 N일(1~366, 입력한 서비스 날짜가 1일째) 또는 마지막 서비스 날짜(`YYYY-MM-DD`, 그날까지). 둘 다·둘 다 없음·이미 지난 마지막 날은 400 |
+| `max_redemptions` | 선택 | 사용 한도(계정 수, 1~1,000,000). 없으면 제한 없음 |
+| `redeemable_from` · `redeemable_until` | 선택 | 입력을 받는 기간(ISO 8601, **시간대 필수** — `Z` 또는 `+09:00`. 없으면 서버 시간대로 해석돼 어긋나므로 400). 뒤집혀 있으면 400 |
+
+**`GET /admin/invite-codes`** → 200 `{ "items": [항목] }` — 최근에 만든 순. `Cache-Control: no-store`.
+
+**`PATCH /admin/invite-codes/:inviteCodeId`** → 200 항목. 받는 필드: `name` · `is_active` · `max_redemptions` · `redeemable_from` · `redeemable_until`(한도·기간은 `null`로 풀 수 있다. `name`·`is_active`의 `null`은 400). **코드 값·지급 요금제·지급 기간은 받지 않는다**(400) — 이미 받은 사람과 앞으로 받을 사람의 조건이 갈린다. 바꾸려면 새 코드를 만든다. 없는 id는 404 `INVITE_CODE_NOT_FOUND`.
+
+**항목**
+
+```json
+{
+  "id": "uuid", "code": "SANGUN-POC", "name": "산군 PoC", "tier": "pro",
+  "grant_days": 30, "grant_until_date": null, "max_redemptions": 50,
+  "redeemed_count": 12, "active_count": 11,
+  "redeemable_from": null, "redeemable_until": "2026-11-30T15:00:00.000Z",
+  "is_active": true, "created_at": "…", "updated_at": "…"
+}
+```
+
+- `redeemed_count` — 지금까지 사용한 계정 수(탈퇴해도 줄지 않는다). `active_count` — 지금 지급 중인 계정 수(목록에서만, 만들기·고치기 응답은 `null`).
+- **사용자 식별 정보는 싣지 않는다** — 누가 썼는지는 집계만 본다(CLAUDE.md 개인정보 원칙). PoC 사용 데이터 분석이 계정 단위로 필요해지면 그때 `user_id` 목록 API를 따로 정한다.
+- 같은 코드를 동시에 만들어도 409다(유니크 인덱스). 만들기·고치기는 `audit_logs`에 `invite_code.create` · `invite_code.update`로 남는다(전후 값 — 코드 테이블에 작성자 컬럼이 없다).
+
 ## 5. 에러 코드 표
 
 | error_code | HTTP | retryable | 발생 지점 |
@@ -609,6 +657,8 @@
 | `NOTICE_NOT_FOUND` | 404 | false | 4.14·4.15 — 없거나 삭제된 공지 |
 | `NOT_FOUND` | 404 | false | 4.16 — 그 이메일의 사용자 없음 / 4.17 — 테스트 계정이 이 서버에 가입돼 있지 않음 · `delete` 대상이 라이브러리에 없음 |
 | `ADMIN_RECOMMEND_TEST_DISABLED` | 409 | false | 4.17 — 운영 환경(`SENTRY_ENVIRONMENT=production`)이거나 `RECOMMEND_TEST_EMAIL` 미설정 |
+| `INVITE_CODE_DUPLICATE` | 409 | false | 4.23 — 같은 값의 초대 코드가 이미 있다 |
+| `INVITE_CODE_NOT_FOUND` | 404 | false | 4.23 — 고치려는 초대 코드가 없다 |
 
 전체 목록·클라이언트 동작은 `common-error-handling.md` 9.10이 기준이다.
 
