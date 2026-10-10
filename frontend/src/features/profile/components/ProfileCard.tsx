@@ -109,7 +109,8 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   inlineCard: {
-    minHeight: 92,
+    minHeight: 72,
+    paddingVertical: theme.spacing.sm + theme.spacing.xs,
     borderRadius: theme.radius.lg,
   },
   body: {
