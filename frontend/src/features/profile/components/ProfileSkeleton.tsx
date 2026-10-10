@@ -28,11 +28,7 @@ export default function ProfileSkeleton() {
       {[0, 1].map((cardIndex) => (
         <SkeletonBlock key={cardIndex} height={72} radius="md" />
       ))}
-      <View style={styles.tilesRow}>
-        {[0, 1, 2].map((tileIndex) => (
-          <SkeletonBlock key={tileIndex} height={84} radius="md" style={styles.tile} />
-        ))}
-      </View>
+      <SkeletonBlock height={92} radius="lg" />
       <SkeletonBlock height={150} radius="md" />
     </SkeletonGroup>
   );
@@ -57,12 +53,5 @@ const styles = StyleSheet.create({
   },
   planLine: {
     marginLeft: AVATAR_SIZE + theme.spacing.md,
-  },
-  tilesRow: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-  },
-  tile: {
-    flex: 1,
   },
 });
