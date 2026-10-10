@@ -53,7 +53,7 @@
 ## 처리 기록
 
 - 2026-09-26 발행. Jira 미반영(의도). 하 22건 중 10건은 같은 날 `fix(be)/audit-low-batch-2026-09-26`에서 처리.
-- **2026-10-10 — 4건 반영(#1·#2·#6·#7, PR #<n>).** 남은 8건(#3·#4·#5·#8 · #9~#12)은 종전대로 보류 — 이 티켓은 `pending/`에 둔다.
+- **2026-10-10 — 4건 반영(#1·#2·#6·#7, PR #1385).** 남은 8건(#3·#4·#5·#8 · #9~#12)은 종전대로 보류 — 이 티켓은 `pending/`에 둔다.
   - #1 마이그레이션 `1789600000000-AddSessionPurgeIndexes`로 `idx_sessions_expires_at`·`idx_sessions_revoked_at` 추가, `Session` 엔티티 `@Index` 선언(`migration:generate --dryrun`에 sessions 차이 없음). domain.md 3.3 인덱스 목록 갱신.
   - #2 `AuthService.refresh`의 `revokeIfActive` → `issueSession`을 `dataSource.transaction`으로 묶고 manager를 넘긴다. KAN-167 사유 판정(rotated만 REUSED)·경합 패배 INVALID는 트랜잭션 앞/안에서 그대로. 유닛: 같은 manager로 UPDATE·INSERT, INSERT 실패가 콜백 밖으로 던져짐.
   - #6 `IdempotencyInterceptor`가 키 길이 > 255(`IDEMPOTENCY_KEY_MAX_LENGTH` = 컬럼 `varchar(255)`)면 저장 전에 400 `VALIDATION_FAILED`. 유닛(255 통과·256 거절) + e2e(`onboarding.e2e-spec.ts` — 300자 키로 `POST /onboarding/picks` → 400).
