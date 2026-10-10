@@ -29,6 +29,12 @@ const YEARS_OPTIONS: YearsOfExperienceRange[] = ['0-1', '2-3', '4-6', '7+'];
 export default function CareerInfoScreen() {
   const screen = useCareerInfoScreen();
   const [isJobTitleFocused, setIsJobTitleFocused] = useState(false);
+  /**
+   * 직군 칩은 **2열 같은 크기**다(PM 2026-10-10 18:09 "알약에 들어갈 때 사진이 잘린다") — 이름 길이대로 폭이 달라지면
+   * 같은 사진이 칩마다 다르게 잘렸다. 줄 폭을 재서 반씩 나누고, 높이를 고정해 비율(≈3:1)을 사진(3:1로 미리 자름)과 맞춘다
+   */
+  const [chipRowWidth, setChipRowWidth] = useState(0);
+  const chipWidth = chipRowWidth > 0 ? (chipRowWidth - theme.spacing.sm) / 2 : undefined;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -97,13 +103,20 @@ export default function CareerInfoScreen() {
                 <Text style={styles.fieldLabel}>{CAREER_COPY.jobCategoryLabel}</Text>
                 {/* 온보딩 O4와 같은 칩 선택형(변경 2026-08-12 — 바텀시트에서 통일). 선택지는
                     서버 목록을 받은 순서대로 그린다. 재탭 해제가 값을 비우는 경로다 */}
-                <View style={styles.chipRow}>
+                <View
+                  style={styles.chipRow}
+                  onLayout={(event) => setChipRowWidth(event.nativeEvent.layout.width)}
+                >
                   {screen.jobCategories.map((category) => {
                     const isSelected = screen.jobCategory === category.name;
                     return (
                       <Pressable
                         key={category.name}
-                        style={[styles.chip, isSelected && styles.chipSelected]}
+                        style={[
+                          styles.chip,
+                          { width: chipWidth },
+                          isSelected && styles.chipSelected,
+                        ]}
                         disabled={screen.isSaving}
                         onPress={() => screen.toggleJobCategory(category.name)}
                         accessibilityRole="checkbox"
@@ -275,6 +288,9 @@ const SEGMENT_INSET = 3;
 const CLEAR_DISC_SIZE = 18;
 const CLEAR_ICON_SIZE = 9;
 
+/** 직군 칩 높이 — 2열 칩 폭(≈168pt)과 사진 비율 3:1 이 맞는 값 */
+const JOB_CHIP_HEIGHT = 56;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -381,7 +397,7 @@ const styles = StyleSheet.create({
   },
   // 사진 알약 — 테두리 없이 배경 사진(PM 2026-10-10 17:47). 사진·막 클리핑은 칩이 한 번만 한다
   chip: {
-    minHeight: theme.touchTarget.minHeight,
+    height: JOB_CHIP_HEIGHT,
     paddingHorizontal: theme.spacing.md,
     borderRadius: theme.radius.lg + theme.radius.sm,
     borderCurve: 'continuous',
