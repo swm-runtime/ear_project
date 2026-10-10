@@ -26,7 +26,7 @@ export default function ProfileSkeleton() {
       <SkeletonLine width={180} height={theme.font.size.sm} style={styles.planLine} />
       {/* 관심 주제 · 커리어 카드 2장 */}
       {[0, 1].map((cardIndex) => (
-        <SkeletonBlock key={cardIndex} height={92} radius="lg" />
+        <SkeletonBlock key={cardIndex} height={72} radius="lg" />
       ))}
       <SkeletonBlock height={92} radius="lg" />
       <SkeletonBlock height={150} radius="md" />
