@@ -398,7 +398,10 @@ const styles = StyleSheet.create({
   // 사진 알약 — 테두리 없이 배경 사진(PM 2026-10-10 17:47). 사진·막 클리핑은 칩이 한 번만 한다
   chip: {
     height: JOB_CHIP_HEIGHT,
-    paddingHorizontal: theme.spacing.md,
+    /*
+     * **칩에 패딩을 두지 않는다**(PM 2026-10-10 18:35 "사진 비율이 안 맞잖아") — 배경 사진의 width/height '100%' 가
+     * 패딩을 뺀 콘텐츠 박스로 풀려 사진이 칩보다 좁게 그려졌다(TopicChip 이 iOS 에서 겪은 것과 같다). 좌우 여백은 글자가 갖는다
+     */
     borderRadius: theme.radius.lg + theme.radius.sm,
     borderCurve: 'continuous',
     overflow: 'hidden',
@@ -430,6 +433,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.42)',
   },
   chipLabel: {
+    paddingHorizontal: theme.spacing.md,
     fontSize: theme.font.size.sm,
     // 선택 여부와 무관하게 굵기를 고정한다 — 선택 시 굵어지면 글자 폭이 변해
     // flexWrap 줄의 뒤 칩들이 밀린다(주제 칩과 같은 규칙 — onboarding-uiux.md 7장)
