@@ -701,6 +701,15 @@ function RankUpIcon() {
 }
 
 const RANK_ICON_SIZE = 20;
+/**
+ * 요약 줄의 고정 치수(PM 2026-10-11 04:19 "요일 선택할 때 그래프가 위아래로 왔다갔다") — 라벨 14pt → 18, 큰 숫자 34pt → 40,
+ * 순위 윗줄 15pt → 18, 순위 아랫줄 18pt(아이콘 20) → 22, 순위 블록을 숫자 밑변에 맞추는 들림 6. 글꼴 측정에 맡기지 않는다
+ */
+const SUMMARY_LABEL_LINE_HEIGHT = 18;
+const SUMMARY_VALUE_LINE_HEIGHT = 40;
+const RANK_LEAD_LINE_HEIGHT = 18;
+const RANK_TEXT_LINE_HEIGHT = 22;
+const RANK_BASELINE_LIFT = 6;
 
 const styles = StyleSheet.create({
   container: { paddingHorizontal: theme.spacing.md, gap: theme.spacing.sm },
@@ -759,22 +768,37 @@ const styles = StyleSheet.create({
     paddingTop: theme.spacing.sm,
     gap: theme.spacing.xs,
   },
-  summaryLabel: { fontSize: theme.font.size.sm, color: theme.color.textSecondary, flexShrink: 1 },
-  // 큰 숫자 + 상위 % — 아래 변을 맞춘다(스크린 타임처럼 오른쪽 글자가 숫자 밑줄에 앉는다)
+  /*
+   * 요약 줄(라벨·큰 숫자·상위 %)은 **글자마다 줄 높이를 박고 값 줄은 고정 높이**다(PM 2026-10-11 04:19 "아직도 요일
+   * 선택할 때 그래프가 위아래로 왔다갔다"). 요일을 고르면 라벨·숫자·단위·순위 블록의 내용이 한꺼번에 바뀌는데, 줄 높이를
+   * 글꼴 측정에 맡기면(특히 34pt 숫자 안에 20pt 단위가 섞인 줄 · adjustsFontSizeToFit 로 줄어드는 숫자) 문장마다 몇 pt
+   * 달라져 밑의 그래프가 따라 움직인다. 높이가 내용에 좌우되지 않아야 그래프가 제자리에 있다
+   */
+  summaryLabel: {
+    fontSize: theme.font.size.sm,
+    lineHeight: SUMMARY_LABEL_LINE_HEIGHT,
+    color: theme.color.textSecondary,
+    flexShrink: 1,
+  },
+  // 큰 숫자 + 상위 % — 아래 변을 맞춘다(스크린 타임처럼 오른쪽 글자가 숫자 밑줄에 앉는다). 높이는 숫자 줄 높이로 고정
   valueRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
     gap: theme.spacing.sm,
+    height: SUMMARY_VALUE_LINE_HEIGHT,
   },
   // 숫자 쪽만 줄어든다 — 오른쪽 상위 % 는 제 폭을 지킨다
   valueBox: {
     flexShrink: 1,
   },
-  // 오른쪽 정렬 두 줄 — 숫자(34)의 글자 아래 여백만큼 올려 아랫줄 밑변을 숫자 밑변에 맞춘다
+  // 오른쪽 정렬 두 줄 — 숫자(34)의 글자 아래 여백만큼 올려 아랫줄 밑변을 숫자 밑변에 맞춘다.
+  // 두 줄(18 + 22)에 아래 6 을 더하면 46 으로 숫자 줄(40)보다 높다 — 위로 그만큼 빼서(음수 위 여백) 줄 높이 안에 들어오게
+  // 한다. 블록이 값 줄의 높이를 정하지 않으니 있든 없든(순위 없는 계정) 값 줄은 40 이다
   rankBlock: {
     alignItems: 'flex-end',
-    marginBottom: 6,
+    marginBottom: RANK_BASELINE_LIFT,
+    marginTop: -(RANK_LEAD_LINE_HEIGHT + RANK_TEXT_LINE_HEIGHT + RANK_BASELINE_LIFT - SUMMARY_VALUE_LINE_HEIGHT),
   },
   /** 요일 선택 중 — 자리는 지키고 보이지만 않는다(요약 줄 높이 고정) */
   rankHidden: { opacity: 0 },
@@ -782,30 +806,36 @@ const styles = StyleSheet.create({
   // 한 단계 크게(PM 2026-10-11 "조금만 더 키우자") — 14 → 15
   rankLead: {
     fontSize: 15,
+    lineHeight: RANK_LEAD_LINE_HEIGHT,
     color: theme.color.textSecondary,
   },
-  // 아랫줄 아이콘 + "상위 N%" — 아이콘은 이 줄에만(설명 문구가 아니라 순위를 가리킨다)
+  // 아랫줄 아이콘 + "상위 N%" — 아이콘은 이 줄에만(설명 문구가 아니라 순위를 가리킨다). 줄 높이 고정(아이콘 20 < 22)
   rankInline: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.xs + 2,
+    height: RANK_TEXT_LINE_HEIGHT,
   },
   // 회색 그대로 한 단계 크고 진하게 — 강조색 없이 굵기로만 위계(design.md §1)
   // 16 → 18(PM 2026-10-11) — 아이콘도 18 → 20
   rankText: {
     fontSize: 18,
+    lineHeight: RANK_TEXT_LINE_HEIGHT,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
     color: theme.color.textSecondary,
   },
-  // 단위 — 숫자(34) 옆 20pt 회색. 숫자와 같은 줄 기준선에 앉는다(중첩 Text)
+  // 단위 — 숫자(34) 옆 20pt 회색. 숫자와 같은 줄 기준선에 앉는다(중첩 Text). 줄 높이는 숫자와 같게 명시 — 다른 값을
+  // 물려받거나 글꼴 측정으로 돌아가 줄이 커지지 않게
   summaryUnit: {
     fontSize: theme.font.size.lg,
+    lineHeight: SUMMARY_VALUE_LINE_HEIGHT,
     fontWeight: '600',
     color: theme.color.textSecondary,
   },
   summaryValue: {
     fontSize: theme.font.size.xxl,
+    lineHeight: SUMMARY_VALUE_LINE_HEIGHT,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
     color: theme.color.textPrimary,
