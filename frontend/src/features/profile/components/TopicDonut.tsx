@@ -213,7 +213,7 @@ const styles = StyleSheet.create({
   rowTrack: {
     height: ROW_BAR_HEIGHT,
     borderRadius: ROW_BAR_HEIGHT / 2,
-    backgroundColor: 'rgba(118, 118, 128, 0.12)',
+    backgroundColor: theme.color.fillTertiary,
     overflow: 'hidden',
   },
   rowBar: {

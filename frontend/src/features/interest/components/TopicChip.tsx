@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
   },
   // 흐린 칩은 사진째 물러나야 한 덩어리로 읽힌다
   overlayDimmed: {
-    backgroundColor: 'rgba(255, 255, 255, 0.78)',
+    backgroundColor: theme.color.backgroundWash,
   },
   label: {
     // 칩이 아니라 라벨이 좌우 여백을 갖는다 — 위 chip 주석 참조
@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.md,
     // 선택 여부와 무관하게 굵기를 고정한다 — 선택 시 굵어지면 라벨 폭이 변해 시선이 튄다
     fontWeight: '700',
-    color: theme.color.onPrimary,
+    color: theme.color.onPhoto,
     textShadowColor: theme.color.photoTextShadow,
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,

@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
   },
   // 글라스 위 보조 동작 — 시스템 알림 버튼처럼 반투명 회색(흰 surface 면은 유리 위에서 뜬다)
   buttonOnGlass: {
-    backgroundColor: 'rgba(120, 120, 128, 0.16)',
+    backgroundColor: theme.color.fillSecondary,
   },
   buttonDisabled: {
     opacity: 0.5,

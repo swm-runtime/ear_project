@@ -55,6 +55,37 @@ export interface Palette {
   photoScrim: string;
   /** 사진 위 글자의 그림자 — 덮개와 함께 쓴다 */
   photoTextShadow: string;
+  /* ── 화면 테두리·막 — 종전 화면 코드에 직접 박혀 있던 값을 토큰으로(다크 모드, 2026-10-10) ── */
+  /** 유리·카드 바깥 얇은 테두리(검정 10%) */
+  hairline: string;
+  /** 조금 더 진한 테두리(검정 14%) — 유리 알약 윤곽 */
+  hairlineStrong: string;
+  /** 구분선 — iOS separator(띠 아래 끝·그래프 격자) */
+  separator: string;
+  /** 옅은 구분선 — 그래프 세로 격자 */
+  separatorFaint: string;
+  /** 트랙·옅은 면 — iOS tertiarySystemFill(세그먼트 트랙·도넛 바탕) */
+  fillTertiary: string;
+  /** 유리 위 보조 버튼 면 — iOS secondarySystemFill(확인 다이얼로그) */
+  fillSecondary: string;
+  /** 유리 캡슐 안 칸 나눔선 */
+  divider: string;
+  /** 유리 알약 채움(겹친 유리 위) */
+  glassPillFill: string;
+  /** 유리 림 하이라이트(흰 선) — 다크에선 훨씬 옅게 */
+  glassRim: string;
+  glassRimStrong: string;
+  /** 불투명 캡슐 탭 바 위 선택 알약 */
+  tabPillSolid: string;
+  /** 사진 칩을 배경 쪽으로 물리는 막 — 라이트 흰 막 · 다크 검정 막 */
+  backgroundWash: string;
+  /** 주 동작 면 위 보조 글자 — onPrimary 70% */
+  onPrimarySecondary: string;
+  /**
+   * 사진·어두운 막 위 글자·아이콘 — **두 모드 모두 흰색**. onPrimary(주 버튼 위 글자)는 다크에서 검정으로 뒤집히므로
+   * 사진 칩·썸네일 위 아이콘·튜토리얼 막·스위치 손잡이에는 이걸 쓴다(다크 모드, 2026-10-10)
+   */
+  onPhoto: string;
 }
 
 export const LIGHT_PALETTE: Palette = {
@@ -78,6 +109,20 @@ export const LIGHT_PALETTE: Palette = {
   chart: ['#4A6CF7', '#8A5CF6', '#39A9DB', '#4CBFA6', '#F2A65A', '#B8BCC9'],
   photoScrim: 'rgba(0, 0, 0, 0.62)',
   photoTextShadow: 'rgba(0, 0, 0, 0.45)',
+  hairline: 'rgba(0, 0, 0, 0.10)',
+  hairlineStrong: 'rgba(0, 0, 0, 0.14)',
+  separator: 'rgba(60, 60, 67, 0.2)',
+  separatorFaint: 'rgba(60, 60, 67, 0.1)',
+  fillTertiary: 'rgba(118, 118, 128, 0.12)',
+  fillSecondary: 'rgba(120, 120, 128, 0.16)',
+  divider: 'rgba(0, 0, 0, 0.12)',
+  glassPillFill: 'rgba(0, 0, 0, 0.08)',
+  glassRim: 'rgba(255, 255, 255, 0.6)',
+  glassRimStrong: 'rgba(255, 255, 255, 0.75)',
+  tabPillSolid: '#ECECF0',
+  backgroundWash: 'rgba(255, 255, 255, 0.76)',
+  onPrimarySecondary: 'rgba(255, 255, 255, 0.7)',
+  onPhoto: '#FFFFFF',
 };
 
 /** 다크 — iOS 시스템 의미색(2026-10-10 PM 확정 팔레트) */
@@ -102,4 +147,18 @@ export const DARK_PALETTE: Palette = {
   chart: ['#6F8BFF', '#A57FFF', '#5BC2F0', '#5FD3B8', '#FFB46E', '#8E8E93'],
   photoScrim: 'rgba(0, 0, 0, 0.62)',
   photoTextShadow: 'rgba(0, 0, 0, 0.45)',
+  hairline: 'rgba(255, 255, 255, 0.14)',
+  hairlineStrong: 'rgba(255, 255, 255, 0.18)',
+  separator: 'rgba(84, 84, 88, 0.65)', // separator(dark)
+  separatorFaint: 'rgba(84, 84, 88, 0.35)',
+  fillTertiary: 'rgba(118, 118, 128, 0.24)', // tertiarySystemFill(dark)
+  fillSecondary: 'rgba(120, 120, 128, 0.32)', // secondarySystemFill(dark)
+  divider: 'rgba(255, 255, 255, 0.15)',
+  glassPillFill: 'rgba(255, 255, 255, 0.12)',
+  glassRim: 'rgba(255, 255, 255, 0.18)',
+  glassRimStrong: 'rgba(255, 255, 255, 0.2)',
+  tabPillSolid: '#2C2C2E', // systemGray5(dark)
+  backgroundWash: 'rgba(0, 0, 0, 0.76)',
+  onPrimarySecondary: 'rgba(0, 0, 0, 0.6)',
+  onPhoto: '#FFFFFF',
 };

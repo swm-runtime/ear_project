@@ -558,7 +558,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: theme.font.size.xl,
     fontWeight: '700',
-    color: theme.color.onPrimary,
+    color: theme.color.onPhoto,
     lineHeight: theme.font.size.xl * 1.3,
     textShadowColor: 'rgba(0,0,0,0.9)',
     textShadowOffset: { width: 0, height: 2 },
@@ -580,7 +580,7 @@ const styles = StyleSheet.create({
   },
   skipLabel: {
     fontSize: theme.font.size.sm,
-    color: theme.color.onPrimary,
+    color: theme.color.onPhoto,
     textDecorationLine: 'underline',
   },
   dots: {
@@ -596,6 +596,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.38)',
   },
   dotActive: {
-    backgroundColor: theme.color.onPrimary,
+    backgroundColor: theme.color.onPhoto,
   },
 });

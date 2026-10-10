@@ -316,7 +316,7 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.sm,
     // 선택 여부와 무관하게 굵기를 고정한다 — 굵히면 칩 폭이 변해 뒤 칩들이 밀린다
     fontWeight: '700',
-    color: theme.color.onPrimary,
+    color: theme.color.onPhoto,
     textShadowColor: theme.color.photoTextShadow,
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,

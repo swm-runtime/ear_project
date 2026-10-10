@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     borderRadius: FILTER_CIRCLE_SIZE / 2,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(0, 0, 0, 0.10)',
+    borderColor: theme.color.hairline,
   },
   badge: {
     position: 'absolute',

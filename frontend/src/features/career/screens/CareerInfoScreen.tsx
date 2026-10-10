@@ -424,7 +424,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.74)',
+    backgroundColor: theme.color.backgroundWash,
   },
   chipScrimSelected: {
     backgroundColor: 'rgba(0, 0, 0, 0.42)',
@@ -438,7 +438,7 @@ const styles = StyleSheet.create({
     color: theme.color.textPrimary,
   },
   chipLabelSelected: {
-    color: theme.color.onPrimary,
+    color: theme.color.onPhoto,
     textShadowColor: theme.color.photoTextShadow,
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,

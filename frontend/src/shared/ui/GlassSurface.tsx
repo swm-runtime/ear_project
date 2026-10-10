@@ -3,7 +3,7 @@ import { GlassContainer, GlassView, isLiquidGlassAvailable } from 'expo-glass-ef
 import type { ReactNode } from 'react';
 import { Animated, Platform, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { theme, useActiveScheme } from '@/shared/theme';
+import { theme, useActiveScheme, LAUNCH_SCHEME } from '@/shared/theme';
 
 interface GlassSurfaceProps {
   style?: StyleProp<ViewStyle>;
@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
   pillTint: {
     backgroundColor: 'transparent',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(0, 0, 0, 0.14)',
+    borderColor: theme.color.hairlineStrong,
     boxShadow: '0 2px 8px rgba(0, 0, 0, 0.10)',
   },
   // 유리 자식이 알약 모양으로 잘리게 — 반지름은 호출부 style 이 준다. 그림자는 clip 밖으로 나가야 해서 림에 둔다
@@ -157,21 +157,25 @@ const styles = StyleSheet.create({
   },
   // 선택 채움 — 애플 탭 바의 선택 캡슐처럼 유리 위의 얇은 검정 틴트(systemFill 급). 유리가 아니다
   pillFill: {
-    backgroundColor: 'rgba(0, 0, 0, 0.08)',
+    backgroundColor: theme.color.glassPillFill,
   },
   // 용기의 테두리(CapsuleTabBar.capsuleBorder 와 같은 값) — 알약이 용기 밖으로 넘칠 때 렌즈 안에 보이는 경계
   lensEdge: {
     borderRadius: 999,
     borderCurve: 'continuous',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(0, 0, 0, 0.10)',
+    borderColor: theme.color.hairline,
   },
   pillRim: {
     borderRadius: 999,
     borderCurve: 'continuous',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.6)',
-    borderBottomColor: 'rgba(0, 0, 0, 0.10)',
-    boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 1px 3px rgba(0, 0, 0, 0.12)',
+    borderColor: theme.color.glassRim,
+    borderBottomColor: theme.color.hairline,
+    // 그림자 문자열은 동적 색을 못 쓴다 — 이 실행의 모드로 정한다(Android·iOS 26 미만, 다크에선 하이라이트를 옅게)
+    boxShadow:
+      LAUNCH_SCHEME === 'dark'
+        ? 'inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 1px 3px rgba(0, 0, 0, 0.4)'
+        : 'inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 1px 3px rgba(0, 0, 0, 0.12)',
   },
 });

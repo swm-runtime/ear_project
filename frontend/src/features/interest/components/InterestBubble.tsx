@@ -146,7 +146,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: -0.3,
     textAlign: 'center',
-    color: theme.color.onPrimary,
+    color: theme.color.onPhoto,
     textShadowColor: theme.color.photoTextShadow,
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 6,

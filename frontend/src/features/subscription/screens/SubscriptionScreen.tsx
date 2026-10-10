@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
   },
   noticeDetail: {
     fontSize: theme.font.size.xs,
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: theme.color.onPrimarySecondary,
     textAlign: 'center',
   },
 });

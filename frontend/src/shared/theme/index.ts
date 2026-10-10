@@ -91,6 +91,8 @@ export type Theme = typeof theme;
 
 export { motion } from './motion';
 export {
+  LAUNCH_SCHEME,
+  paletteOf,
   setColorModePreference,
   setColorModeReloadGuard,
   startColorModeSync,

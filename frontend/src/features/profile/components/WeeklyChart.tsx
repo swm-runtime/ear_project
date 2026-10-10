@@ -59,8 +59,8 @@ const AXIS_LABEL_HEIGHT = 14;
  * 격자선 — 1pt 회색. hairline(0.33pt)은 systemSeparator 색이어도 회색 카드 위에서 안 보였다(PM 2026-09-28 03:11 "격자 안 보인다").
  * 세로선(요일 경계)은 한 단 옅게 — 가로선(값 눈금)이 주인공이다
  */
-const GRID_COLOR = 'rgba(60, 60, 67, 0.2)';
-const GRID_COLUMN_COLOR = 'rgba(60, 60, 67, 0.1)';
+const GRID_COLOR = theme.color.separator;
+const GRID_COLUMN_COLOR = theme.color.separatorFaint;
 /** 주 이동 화살표 원 — 보이는 크기만 줄이고 터치는 hitSlop 으로 44 를 지킨다(PM 2026-09-28 00:32 "버튼 크기 줄이자") */
 const ARROW_SIZE = 28;
 const ARROW_HIT_SLOP = (theme.touchTarget.minHeight - ARROW_SIZE) / 2;
