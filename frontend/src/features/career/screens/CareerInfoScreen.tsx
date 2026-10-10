@@ -17,6 +17,7 @@ import { CAREER_COPY } from '../career.copy';
 import { jobCategoryImageSource } from '../career.images';
 import type { YearsOfExperienceRange } from '../career.types';
 import CareerDialog from '../components/CareerDialog';
+import YearsSegment from '../components/YearsSegment';
 import { useCareerInfoScreen } from '../hooks/useCareerInfoScreen';
 
 const YEARS_OPTIONS: YearsOfExperienceRange[] = ['0-1', '2-3', '4-6', '7+'];
@@ -188,29 +189,13 @@ export default function CareerInfoScreen() {
                 <Text style={styles.fieldLabel}>{CAREER_COPY.yearsLabel}</Text>
                 {/* 연차 — 칸이 고정된 4택이라 **한 줄 구간 선택**(세그먼트, PM 2026-10-10). 줄바꿈 칩보다 같은 질문의 답으로
                     읽힌다. 선택한 칸을 다시 누르면 해제(빈 값 저장 경로 — uiux 4.4)는 그대로다 */}
-                <View style={styles.segment}>
-                  {YEARS_OPTIONS.map((option) => {
-                    const isSelected = screen.yearsOfExperience === option;
-                    return (
-                      <Pressable
-                        key={option}
-                        style={[styles.segmentItem, isSelected && styles.segmentItemSelected]}
-                        disabled={screen.isSaving}
-                        onPress={() => screen.toggleYears(option)}
-                        accessibilityRole="radio"
-                        accessibilityState={{ checked: isSelected, disabled: screen.isSaving }}
-                        accessibilityLabel={CAREER_COPY.yearsChip[option]}
-                      >
-                        <Text
-                          style={[styles.segmentLabel, isSelected && styles.segmentLabelSelected]}
-                          numberOfLines={1}
-                        >
-                          {CAREER_COPY.yearsChip[option]}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
+                <YearsSegment
+                  options={YEARS_OPTIONS}
+                  labels={CAREER_COPY.yearsChip}
+                  value={screen.yearsOfExperience}
+                  onToggle={screen.toggleYears}
+                  disabled={screen.isSaving}
+                />
               </>
             )}
           </ScrollView>
@@ -284,9 +269,6 @@ const BACK_ICON_SIZE = 20;
 
 /** 보이는 40 을 터치 44 로 채운다(design.md §6) */
 const RESET_HIT_SLOP = 2;
-
-/** 구간 선택 트랙 안쪽 여백 */
-const SEGMENT_INSET = 3;
 
 /** 지우기 원 · 그 안 × 크기 */
 const CLEAR_DISC_SIZE = 18;
@@ -462,33 +444,6 @@ const styles = StyleSheet.create({
     textShadowRadius: 4,
   },
   // 연차 한 줄 구간 선택 — 옅은 트랙 위에 고른 칸만 검정(직군 칩의 선택과 같은 색)
-  segment: {
-    flexDirection: 'row',
-    padding: SEGMENT_INSET,
-    gap: SEGMENT_INSET,
-    borderRadius: theme.radius.full,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
-  },
-  segmentItem: {
-    flex: 1,
-    minHeight: theme.touchTarget.minHeight - SEGMENT_INSET * 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: theme.radius.full,
-    borderCurve: 'continuous',
-  },
-  segmentItemSelected: {
-    backgroundColor: theme.color.primary,
-  },
-  segmentLabel: {
-    fontSize: theme.font.size.sm,
-    fontWeight: '600',
-    color: theme.color.textPrimary,
-  },
-  segmentLabelSelected: {
-    color: theme.color.onPrimary,
-  },
   skeletonArea: {
     gap: theme.spacing.sm,
   },
