@@ -5,14 +5,18 @@ import {
   Dimensions,
   Modal,
   PanResponder,
+  Platform,
   Pressable,
   StyleSheet,
+  View,
   type LayoutChangeEvent,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
+import { androidNavigationModeOf } from '@/shared/lib/android-navigation';
 import { motion, theme } from '@/shared/theme';
 
 /**
@@ -70,6 +74,16 @@ export default function BottomSheet({
 }: BottomSheetProps) {
   const [isMounted, setIsMounted] = useState(isVisible);
   const [height, setHeight] = useState(0);
+  /*
+   * Android **버튼 내비게이션 바**(3버튼·2버튼, ~48dp)는 시트 아래를 덮는다 — 시트마다 바닥 여백(xl 32)은 iOS 홈 인디케이터·
+   * Android 제스처 바(16~24dp)엔 맞지만 버튼 바엔 모자라 마지막 버튼이 가려졌다(PM 2026-10-10). 그 기기만 바 높이만큼 시트
+   * 면을 늘린다(면 색이 바 밑까지 이어진다). 제스처 바·iOS 는 그대로
+   */
+  const insets = useSafeAreaInsets();
+  const buttonBarInset =
+    Platform.OS === 'android' && androidNavigationModeOf(insets.bottom) === 'buttons'
+      ? insets.bottom
+      : 0;
   /** 0 = 닫힘(화면 밖·딤 투명) · 1 = 열림. 끌 때도 이 값을 직접 움직인다 */
   const progress = useAnimatedValue(0);
   /** 제스처 콜백이 최신 값을 읽게 하는 ref — 갱신은 렌더 밖(effect)에서 한다 */
@@ -226,7 +240,10 @@ export default function BottomSheet({
         onLayout={handleLayout}
         {...pan.panHandlers}
       >
-        <Animated.View style={sheetStyle}>{children}</Animated.View>
+        <Animated.View style={sheetStyle}>
+          {children}
+          {buttonBarInset > 0 ? <View style={{ height: buttonBarInset }} /> : null}
+        </Animated.View>
       </Animated.View>
     </Modal>
   );
