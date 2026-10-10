@@ -11,7 +11,7 @@
 | 시작 날짜 | 2026-10-05 |
 | 기한 | 2026-10-09 (Low — 이번 주 안) |
 | 선행 | 없음 |
-| 근거 문서 | `features/backend-monitoring.md` · `infra/runbook.md` · KAN-98(Grafana 2단계 — `tickets/backend/pending/grafana-backend-metrics-later.md`) |
+| 근거 문서 | `features/backend-monitoring.md` · `infra/runbook.md` · KAN-98(Grafana 2단계 — `tickets/backend/archive/grafana-backend-metrics-later.md`) |
 | 중요도 | Low — PM 발행(2026-10-05). 중요도 미지정이라 이번 주 마감으로 잡았다 — 바꾸려면 Jira·이 표를 함께 고친다 |
 | 상태 | **진행 중** — 1(runbook 표)·3(결제 실패 알림)·4(첫 주간 지표) 반영(2026-10-06). 남은 것: 결제 알림 운영 실측 1회 |
 

@@ -94,7 +94,7 @@
 
 **테스트** — `useDelayedVisible.test.tsx`(0.3초 미만 미표시 · 이상 표시 후 즉시 거둠) · `Skeleton.test.tsx`(동작 줄이기 켬 → 루프 미시작 · 끔 → 시작 · 라벨 하나 + 블록 낭독 숨김) · `ExploreSearchScreen.test.tsx`(첫 검색 로딩에 `ExploreSkeleton`, `ActivityIndicator` 0개). tsc · eslint · jest(45 suites / 275) 통과. 스피너를 기대하던 기존 테스트·스냅샷은 없었다.
 
-**문서** — `frontend/design.md` §5 "스켈레톤" 신설(§4·§8 동작 줄이기 줄 갱신) · `frontend/architecture.md` 8.3 · `spec/uiux/` explore 4.6 · player PL6·PL12 · onboarding O4·O5 · library L2. `features/common-error-handling.md` 의 "스켈레톤(목록)" 문구 확장은 `changes/pending/loading-skeleton-content-regions.md` 로 요청했다(features 는 직접 고치지 않는다).
+**문서** — `frontend/design.md` §5 "스켈레톤" 신설(§4·§8 동작 줄이기 줄 갱신) · `frontend/architecture.md` 8.3 · `spec/uiux/` explore 4.6 · player PL6·PL12 · onboarding O4·O5 · library L2. `features/common-error-handling.md` 의 "스켈레톤(목록)" 문구 확장은 `changes/archive/loading-skeleton-content-regions.md` 로 요청했다(features 는 직접 고치지 않는다).
 
 **남은 사람 손(실기기)**
 - 라이트 화면에서 블록 대비 — 흰 바탕의 `surface` 면, 설정 그룹·주간 청취 카드 안

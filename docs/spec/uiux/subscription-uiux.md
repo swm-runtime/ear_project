@@ -195,5 +195,5 @@
 
 ## 7. 미결 사항
 
-- **"구독이 종료되었어요"(만료됨) 안내** — `subscription.md` 5장의 상태지만 `GET /users/me/subscription` 의 `status` 는 4분기(`free` 포함)라 만료와 미구독이 구분되지 않는다. 지금은 미구독과 같게 그린다(`changes/pending/subscription-purchase-screen-kan120(fe).md` B).
+- **"구독이 종료되었어요"(만료됨) 안내** — `subscription.md` 5장의 상태지만 `GET /users/me/subscription` 의 `status` 는 4분기(`free` 포함)라 만료와 미구독이 구분되지 않는다. 지금은 미구독과 같게 그린다(`changes/archive/subscription-purchase-screen-kan120(fe).md` B).
 - Android(2단계) — Play 상품 ID 확정(KAN-130) 후 오퍼 토큰·업/다운그레이드 교체 모드를 실기기로 확인하고 `EXPO_PUBLIC_SUBSCRIPTION_ANDROID=on`.

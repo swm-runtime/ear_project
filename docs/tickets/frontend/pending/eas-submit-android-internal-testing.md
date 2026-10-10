@@ -8,7 +8,7 @@
 | 발행 날짜 | 2026-09-20 |
 | Jira | [KAN-85](https://runtime364.atlassian.net/browse/KAN-85) |
 | 발견 시점 | 2026-09-20 — 직접 설치한 개발계 APK 에서 구글·카카오 로그인이 모두 막혀 원인을 추적하다 발견 |
-| 근거 문서 | `tickets/frontend/pending/preview-app-social-keys.md`(KAN-80 — 서명 키·콘솔 등록값) · `tickets/frontend/archive/dev-app-separate-bundle.md`(KAN-76) |
+| 근거 문서 | `tickets/frontend/archive/preview-app-social-keys.md`(KAN-80 — 서명 키·콘솔 등록값) · `tickets/frontend/archive/dev-app-separate-bundle.md`(KAN-76) |
 | 중요도 | Low(이번 주 안) |
 | 선결 조건 | 없음 |
 

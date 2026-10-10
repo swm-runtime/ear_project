@@ -569,7 +569,7 @@ GET /explore/feed                       → 섹션형 피드 + daily_play_limit/
 
 ## 9. 미결 사항
 
-- ~~주제 칩 목록을 내려줄 엔드포인트가 없다~~ → **확정(합의 2026-08-07): `GET /explore/topics` 신설**(3장 · 4.2-2). 관심 주제를 선택한 순서로 앞에 두고 나머지를 `display_order` 순으로 붙인다. 구현은 티켓으로 이관했다(`tickets/backend/pending/explore-topics-endpoint.md` · `tickets/frontend/pending/explore-topics-endpoint.md`). ~~숨김 처리된 관심 주제도 포함한다~~ → **개정(결정 2026-08-11): 숨김 주제는 관심 주제여도 제외한다**(4.2-2).
+- ~~주제 칩 목록을 내려줄 엔드포인트가 없다~~ → **확정(합의 2026-08-07): `GET /explore/topics` 신설**(3장 · 4.2-2). 관심 주제를 선택한 순서로 앞에 두고 나머지를 `display_order` 순으로 붙인다. 구현은 티켓으로 이관했다(`tickets/backend/archive/explore-topics-endpoint.md` · `tickets/frontend/archive/explore-topics-endpoint.md`). ~~숨김 처리된 관심 주제도 포함한다~~ → **개정(결정 2026-08-11): 숨김 주제는 관심 주제여도 제외한다**(4.2-2).
     - **관심사 관리 화면(`interest-management.md`)도 전체 주제 목록이 필요하다.** 같은 엔드포인트를 재사용할지는 그 화면의 API 명세를 쓸 때 정한다.
     - **프로필의 관심 주제 요약(`profile-api.md` 4.1)은 `display_order` 순이라 칩 줄과 순서가 다르다.** 목적이 달라(칩은 필터 조작, 카드는 요약) 의도된 차이로 두되, 어긋나 보인다는 지적이 나오면 함께 정한다.
 - ~~담기 UI의 features 개정 필요~~ → **해소(2026-08-06): `explore.md` 4.3 개정 완료.** 담기/제거는 더보기 시트가 소유하고 행에는 담기 버튼도 담김 표시도 없다(2026-08-07 개정 — `explore-uiux.md` 4.1) — 이 문서 4.3·4.4·6장이 그 확정과 정합하며, `library` 필드 계약은 그대로다.

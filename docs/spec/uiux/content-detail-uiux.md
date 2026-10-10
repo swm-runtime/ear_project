@@ -2,7 +2,7 @@
 
 > 기준 문서: [`docs/features/content-detail.md`](../../features/content-detail.md) · 재생 판정·확인 팝업·페이월은 [`docs/features/paywall.md`](../../features/paywall.md), 담기·삭제 규칙은 [`docs/features/explore.md`](../../features/explore.md) 4.3 · [`docs/features/library.md`](../../features/library.md) 4.5, 로딩·오류 표현은 [`docs/features/common-error-handling.md`](../../features/common-error-handling.md)
 > 와이어프레임: [`docs/wireframe/content-detail.html`](../../wireframe/content-detail.html) (화면 ID CD1–CD4 — 시안의 임시 ID를 정식 채택)
-> API: 단건 상세 조회 — `content-detail-api.md` 작성 시 이 문서의 표시 항목·담김 여부·소스 목록 형태와 대조한다. `ai_generated` 소스 목록은 계약 확정 전이며 FE는 `[{title, author|null, url|null}]` 가정 mock으로 선행한다(`tickets/backend/pending/content-sources-structured-list.md`)
+> API: 단건 상세 조회 — `content-detail-api.md` 작성 시 이 문서의 표시 항목·담김 여부·소스 목록 형태와 대조한다. `ai_generated` 소스 목록은 계약 확정 전이며 FE는 `[{title, author|null, url|null}]` 가정 mock으로 선행한다(`tickets/backend/archive/content-sources-structured-list.md`)
 
 ## 1. 범위
 
@@ -149,7 +149,7 @@ CD1 / CD2
 - **URL 문자열을 화면에 노출하지 않는다.** 링크가 있는 소스는 **항목 자체가 탭 대상**이다 — 탭하면 인앱 브라우저로 그 소스의 링크를 연다. 탭 가능함은 항목 우측의 외부 링크 아이콘으로 드러낸다.
 - **링크 없는 소스는 탭 대상이 아니다.** 아이콘 없이 정적 텍스트로만 표시하고, 탭해도 아무 일도 일어나지 않는다. **목록에서 빼지 않는다** — 나열은 전수다. 비활성(disabled) 스타일을 입히지 않는다 — 고장이 아니라 원래 링크가 없는 항목이다.
 - **저자 없는 소스는 제목 한 줄만 표시한다.** "저자 없음"·"미상"으로 채우지 않는다(조건부 생략 — `content-detail.md` 4.3-1).
-- 소스 데이터는 백엔드 계약 확정 전이다(`tickets/backend/pending/content-sources-structured-list.md`). FE는 `[{title, author|null, url|null}]` 가정 mock으로 그리고, 계약 확정 시 필드를 맞춘다 — **화면 구성은 계약과 무관하게 이 절이 기준이다.**
+- 소스 데이터는 백엔드 계약 확정 전이다(`tickets/backend/archive/content-sources-structured-list.md`). FE는 `[{title, author|null, url|null}]` 가정 mock으로 그리고, 계약 확정 시 필드를 맞춘다 — **화면 구성은 계약과 무관하게 이 절이 기준이다.**
 
 ### 4.7 CD3 로딩 · 조회 실패
 
@@ -262,7 +262,7 @@ CD1 / CD2
 ## 9. 미결 사항
 
 - **앱바 타이틀 카피 확정** — "상세 정보"는 더보기 시트 항목명을 그대로 쓴 시안 임시값이다(6장 TODO). 확정 시 6장 확정 표로 옮긴다.
-- **`ai_generated` 소스 목록의 계약·스키마** — 백엔드 티켓 `tickets/backend/pending/content-sources-structured-list.md` 대기. FE는 `[{title, author|null, url|null}]` 가정 mock으로 선행한다(4.6). 계약 확정 시 이 문서의 항목 구성(제목·저자·링크 유무)과 대조한다.
+- **`ai_generated` 소스 목록의 계약·스키마** — 백엔드 티켓 `tickets/backend/archive/content-sources-structured-list.md` 대기. FE는 `[{title, author|null, url|null}]` 가정 mock으로 선행한다(4.6). 계약 확정 시 이 문서의 항목 구성(제목·저자·링크 유무)과 대조한다.
 - **주제 태그의 탭 동작 유무** — 이 문서는 MVP 탭 없음(정적 칩)으로 제안했다(4.1). 탐색 필터 이동을 붙이려면 `explore.md`(필터 소유)와 함께 정한다.
 - **소개 접기/펼치기** — 이 문서는 전문 표시·접기 없음으로 제안했다(4.1). 소개가 수 문단 이상으로 길어지는 콘텐츠가 생기면 재검토한다.
 - ~~담기 토스트의 [보러가기] 포함 여부~~ → **확정(2026-08-23): explore와 동일하게 [보러가기] 포함**(4.3). 담기 피드백을 화면마다 다르게 두지 않는다.

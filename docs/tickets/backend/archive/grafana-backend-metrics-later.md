@@ -8,7 +8,7 @@
 | 발행 날짜 | 2026-09-25 |
 | 시작 날짜 | 2026-09-25 |
 | 기한 | 없음 (Lowest — 가장 나중에. 순서가 밀려도 된다) |
-| 선행 | `tickets/infra/pending/grafana-cloud-stage1.md` — [KAN-97](https://runtime364.atlassian.net/browse/KAN-97) (Grafana Cloud 조직·remote write 주소가 있어야 한다) |
+| 선행 | `tickets/infra/archive/grafana-cloud-stage1.md` — [KAN-97](https://runtime364.atlassian.net/browse/KAN-97) (Grafana Cloud 조직·remote write 주소가 있어야 한다) |
 | Jira | [KAN-98](https://runtime364.atlassian.net/browse/KAN-98) (담당: 박준현) |
 | 발견 시점 | 2026-09-25 — 모니터링 통합 검토. 넷 중 자체 모니터링만 시계열 저장소가 없어 Grafana 에 붙일 형태가 아니었다 |
 | 근거 문서 | `features/backend-monitoring.md`(어드민 콘솔 데이터 경로) · `spec/api/admin-api.md` 4.9(`/admin/system-stats`) · `infra/scaling.md`(Sentry 추적 CPU 비용 실측) · `backend/architecture.md` 9장(보안) |

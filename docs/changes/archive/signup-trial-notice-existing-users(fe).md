@@ -12,7 +12,7 @@
 
 `features/subscription.md` 4.8 "안내" 항목의 현재 상태 서술을 바꾼다.
 
-- 지울 것: **"앱은 아직 가입 직후에만 띄운다** — 기존 가입자 쪽은 `tickets/frontend/pending/signup-trial-notice-existing-users.md`(KAN-121)가 반영한다."
+- 지울 것: **"앱은 아직 가입 직후에만 띄운다** — 기존 가입자 쪽은 `tickets/frontend/archive/signup-trial-notice-existing-users.md`(KAN-121)가 반영한다."
 - 넣을 것: "앱은 **`plan.trial`이 있고 그 계정이 아직 안 본 경우** 한 번 띄운다 — 신규 가입자는 온보딩 직후(튜토리얼 → 알림 사전 안내 다음), 기존 가입자는 앱 시작(KAN-121 반영). 여는 조건·순서·문구는 `spec/uiux/profile-uiux.md` 4.11."
 
 ## 사유

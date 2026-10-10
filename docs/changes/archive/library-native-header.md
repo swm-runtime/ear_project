@@ -7,7 +7,7 @@
 | 발행 날짜 | 2026-09-26 |
 | 시작 날짜 | 2026-09-26 |
 | 기한 | 2026-09-26 (Low — 이번 주 안) |
-| 선행 | `changes/pending/explore-native-header-search-tab.md`(같은 결정의 탐색 쪽 — 함께 반영) |
+| 선행 | `changes/archive/explore-native-header-search-tab.md`(같은 결정의 탐색 쪽 — 함께 반영) |
 | 중요도 | Low — 배치가 바뀌었을 뿐 판정·데이터·검색 규칙은 그대로 |
 
 ## 배경

@@ -51,4 +51,4 @@ POST /auth/token/refresh                          → 401 AUTH_REFRESH_TOKEN_REU
 
 `ear.ts`의 `tryRefresh`를 제거하고 `reconnectEar`(SSO 재교환 + single-flight)로 교체했다.
 웹 tsc·production build 통과. **같은 계열의 앱(RN) 쪽 수정은 별건이다** —
-`tickets/frontend/pending/splash-gate-session-restore.md` 요청 3(갱신 single-flight)이 다룬다.
+`tickets/frontend/archive/splash-gate-session-restore.md` 요청 3(갱신 single-flight)이 다룬다.

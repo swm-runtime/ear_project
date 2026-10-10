@@ -6,7 +6,7 @@
 | 요청 파트 | 프론트엔드 |
 | 요청자 | 이주호(프론트엔드) |
 | 발행 날짜 | 2026-10-06 |
-| 관련 티켓 | `tickets/frontend/pending/android-meta-ad-id-install-event.md`([KAN-118](https://runtime364.atlassian.net/browse/KAN-118)) — 코드 반영, 묶음 빌드 대기 |
+| 관련 티켓 | `tickets/frontend/archive/android-meta-ad-id-install-event.md`([KAN-118](https://runtime364.atlassian.net/browse/KAN-118)) — 코드 반영, 묶음 빌드 대기 |
 
 ## 수정 내용
 

@@ -10,7 +10,7 @@
 | 발행 날짜 | 2026-10-05 |
 | 시작 날짜 | 2026-10-05 |
 | 기한 | 2026-10-09 (Low — 이번 주 안) |
-| 선행 | KAN-137(`tickets/ai/pending/section-summary-generation.md` — 구간 요약 생성·표시 디자인, 박수헌). 구현은 그 뒤 — 이번 주 목표인 데이터 출처 결정은 선행 없이 한다 |
+| 선행 | KAN-137(`tickets/ai/archive/section-summary-generation.md` — 구간 요약 생성·표시 디자인, 박수헌). 구현은 그 뒤 — 이번 주 목표인 데이터 출처 결정은 선행 없이 한다 |
 | 근거 문서 | `features/player.md` · `backend/domain.md` 5.3 `content_scripts`(자막 세그먼트) · `frontend/design.md` |
 | 중요도 | Low — PM 발행(2026-10-05). 이번 주에는 규칙·데이터 출처 확정까지가 목표다 — 구현은 데이터가 준비된 뒤 |
 | 상태 | 완료 — 반영 2026-10-07 |
@@ -44,7 +44,7 @@
 - 표시: "지금 · {구간 제목}" 14pt 한 줄 말줄임, 바뀔 때 교차 페이드(동작 줄이기면 즉시), 구간 없으면 줄 없음, 재생 목록이 열리면 걷힘, 누르는 동작 없음
 
 **반영**
-- 규칙 `features/player.md` 4.6-1 · 화면 `spec/uiux/player-uiux.md` 4.1·6장·7장 · `player-api.md` 설명 문구는 `changes/pending/player-api-sections-display-location(fe).md`
+- 규칙 `features/player.md` 4.6-1 · 화면 `spec/uiux/player-uiux.md` 4.1·6장·7장 · `player-api.md` 설명 문구는 `changes/archive/player-api-sections-display-location(fe).md`
 - 코드: 발급 DTO `sections` → `AudioIssueResult.sections` → 세션 `sections`(`playback.service.ts`), `player.section.ts` `currentSectionOf`(테스트), `components/PlayerCurrentSection.tsx`, `PlayerScreen` 컨트롤 영역 시크바 위. mock 발급에 구간 6개
 - 검증: `tsc` · `eslint` · `jest`
 

@@ -6,8 +6,8 @@
 | 요청 파트 | 백엔드 |
 | 발행 날짜 | 2026-08-26 |
 | 반영 날짜 | 2026-08-26 |
-| 발견 시점 | 2026-08-26 FE 소셜 로그인 4종 SDK 연동 병합(PR #63) 후 BE 대응 착수 — `changes/pending/auth-api-apple-android-web-flow(fe).md`가 "백엔드와 정할 것"으로 남긴 항목 검토 |
-| 근거 문서 | `features/auth.md` 1·4.1(제공자 버튼 4개 — 플랫폼 구분 없음) · `spec/api/auth-api.md` 4.1(`apple` 검증·nonce 계약) · `prd/ear_root_prd.md` FR-01 · `backend/architecture.md` 9.1 · 짝 문서 `changes/pending/auth-api-apple-android-web-flow(fe).md` |
+| 발견 시점 | 2026-08-26 FE 소셜 로그인 4종 SDK 연동 병합(PR #63) 후 BE 대응 착수 — `changes/archive/auth-api-apple-android-web-flow(fe).md`가 "백엔드와 정할 것"으로 남긴 항목 검토 |
+| 근거 문서 | `features/auth.md` 1·4.1(제공자 버튼 4개 — 플랫폼 구분 없음) · `spec/api/auth-api.md` 4.1(`apple` 검증·nonce 계약) · `prd/ear_root_prd.md` FR-01 · `backend/architecture.md` 9.1 · 짝 문서 `changes/archive/auth-api-apple-android-web-flow(fe).md` |
 | 심각도 | **중** — 안드로이드에서 애플 버튼이 네이티브 모듈 부재로 실패하는 상태가 유지된다. iOS 애플 로그인·나머지 3종은 영향 없다. 다만 **iOS에서 애플로 가입한 사용자가 안드로이드로 기기를 바꾸면 진입 경로가 없다** |
 | 상태 | **완료** — BE 요청 4건 전부 닫힘. 종단 검증은 짝 티켓(FE)이 소유 |
 
@@ -74,7 +74,7 @@ App Link(`https`)가 OS 검증으로 가로채기를 원천 차단하지만 **`a
 1. **Vercel 함수 실측** — 위 표의 두 방법 중 하나를 확정한다.
 2. **콜백 함수를 구현한다** — 애플의 `form_post`(`application/x-www-form-urlencoded`)를 받아 `id_token`·`state`를 꺼내고, **`ear://auth/apple`로 302**한다. **비밀값을 두지 않는다. 토큰을 검증하지 않는다**(검증은 NestJS 몫이다).
 3. **`aud` 허용값을 2개로 넓힌다** — `apple.client.ts:120`의 `audience`가 `APPLE_CLIENT_ID` 단일값이라 **Services ID(`com.runtime.ear.signin`)로 발급된 안드로이드 웹 플로우 토큰이 거부된다.** iOS 네이티브(`com.runtime.ear`)와 함께 둘 다 허용한다. `env.validation.ts`·`.env.example`의 `APPLE_CLIENT_ID` 서술도 "iOS Bundle ID"에서 "허용 `aud` 목록"으로 바꾼다.
-4. **FE 짝 티켓** — 발행 완료(2026-08-26, `tickets/frontend/pending/apple-android-web-oauth-app-flow.md`). **실측 결과(⑥)가 FE 구현의 전제다** — form_post냐 fragment냐에 따라 authorize 요청 파라미터가 달라져, 실측 전에 착수하면 다시 짠다. `spec/api/auth-api.md` 4.1에 `aud` 허용값 2개를 반영한다(`changes/pending/auth-api-apple-android-web-flow(fe).md` 처리).
+4. **FE 짝 티켓** — 발행 완료(2026-08-26, `tickets/frontend/archive/apple-android-web-oauth-app-flow.md`). **실측 결과(⑥)가 FE 구현의 전제다** — form_post냐 fragment냐에 따라 authorize 요청 파라미터가 달라져, 실측 전에 착수하면 다시 짠다. `spec/api/auth-api.md` 4.1에 `aud` 허용값 2개를 반영한다(`changes/archive/auth-api-apple-android-web-flow(fe).md` 처리).
 5. **범위 밖** — 구글 ID 토큰 검증·카카오 `app_id` 대조(`feat(be)/social-login`에서 처리 완료), 공유 링크용 `assetlinks.json`(`share-universal-links-hosting.md` 소유), iOS 네이티브 애플 로그인(이미 동작), ~~애플 nonce 인코딩 불일치~~ → **해소(2026-08-26)**: `tickets/backend/archive/apple-nonce-hash-encoding-mismatch.md`. 서버 해시를 소문자 hex로 맞췄다 — 이 티켓의 웹 플로우도 같은 nonce 규칙을 쓰므로 **선행 조건이 하나 사라졌다**
 
 ## 완료 조건
@@ -145,7 +145,7 @@ App Link(`https`)가 OS 검증으로 가로채기를 원천 차단하지만 **`a
 
 ### 남은 것 — FE 구현뿐이다
 
-**서버 쪽은 끝났다.** 짝 티켓(`tickets/frontend/pending/apple-android-web-oauth-app-flow.md`)의 착수 조건이 해소됐고, 확정 규약은 아래와 같다.
+**서버 쪽은 끝났다.** 짝 티켓(`tickets/frontend/archive/apple-android-web-oauth-app-flow.md`)의 착수 조건이 해소됐고, 확정 규약은 아래와 같다.
 
 | 항목 | 확정값 |
 |---|---|
@@ -156,7 +156,7 @@ App Link(`https`)가 OS 검증으로 가로채기를 원천 차단하지만 **`a
 | 취소·실패 | 같은 경로로 `?error=...` — **문구 판단은 앱이 한다**(미결이던 항목, 이 방향으로 확정) |
 | nonce | 원본은 앱 메모리에만. authorize에는 **SHA-256 소문자 hex**만 |
 
-**`aud` 확장이 반영됐으므로 `auth-api.md` 4.1도 이제 갱신할 수 있다**(`changes/pending/auth-api-apple-android-web-flow(fe).md` 처리 — 요청 4의 남은 절반).
+**`aud` 확장이 반영됐으므로 `auth-api.md` 4.1도 이제 갱신할 수 있다**(`changes/archive/auth-api-apple-android-web-flow(fe).md` 처리 — 요청 4의 남은 절반).
 
 ---
 
@@ -171,6 +171,6 @@ App Link(`https`)가 OS 검증으로 가로채기를 원천 차단하지만 **`a
 | 3. `aud` 허용값 2개 | `APPLE_SERVICES_ID` 신설, `apple.client.ts` 반영. 403건 통과 |
 | 4. FE 통지·문서 반영 | 짝 티켓 발행 + 확정 규약 기재. `auth-api.md` 4.1에 "`apple` — `aud` 허용값 2개" 절 신설, `changes/archive/auth-api-apple-android-web-flow(fe).md` |
 
-**남은 완료 조건 2건은 이 티켓이 소유하지 않는다** — "안드로이드 기기에서 애플 버튼을 눌러 로그인이 성립한다"와 "악성 앱이 딥링크를 가로채도 실패한다"는 **앱 구현이 있어야 확인되며, 같은 조건이 짝 티켓에 그대로 들어 있다**(`tickets/frontend/pending/apple-android-web-oauth-app-flow.md`). BE가 손댈 것이 없는 항목을 `pending/`에 남겨두면 할 일 목록이 거짓말이 되므로 archive로 옮긴다.
+**남은 완료 조건 2건은 이 티켓이 소유하지 않는다** — "안드로이드 기기에서 애플 버튼을 눌러 로그인이 성립한다"와 "악성 앱이 딥링크를 가로채도 실패한다"는 **앱 구현이 있어야 확인되며, 같은 조건이 짝 티켓에 그대로 들어 있다**(`tickets/frontend/archive/apple-android-web-oauth-app-flow.md`). BE가 손댈 것이 없는 항목을 `pending/`에 남겨두면 할 일 목록이 거짓말이 되므로 archive로 옮긴다.
 
 **배포 시 주의** — `APPLE_SERVICES_ID`가 없으면 서버가 기동하지 않는다(`env.validation.ts` 전수 검증).

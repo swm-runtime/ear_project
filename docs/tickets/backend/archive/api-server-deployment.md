@@ -61,7 +61,7 @@ FE는 소셜 로그인 4종 SDK 연동을 마쳐 dev에 병합했고(2026-08-26,
 | pepper·`JWT_SECRET`이 시크릿 매니저에만 있다 | ⚠️ **부분** — 아래 참고 |
 | `CORS_ORIGINS`가 `*`가 아니다 | ❌ 미확인 — 서버에서 확인 필요 |
 
-**소셜 로그인 3종은 한 번 크게 막혔다가 풀렸다.** Play App Signing 재서명으로 기기의 서명 지문이 EAS 업로드 키와 달라져 구글·카카오가 실패했고(네이버는 지문을 안 봐서 정상), Play의 앱 서명 키 지문을 콘솔에 등록해 복구했다. 경위는 `tickets/frontend/pending/prod-build-env-and-eas.md` 2026-09-03 진행 기록에 있다. **서버 쪽 원인은 아니었다.**
+**소셜 로그인 3종은 한 번 크게 막혔다가 풀렸다.** Play App Signing 재서명으로 기기의 서명 지문이 EAS 업로드 키와 달라져 구글·카카오가 실패했고(네이버는 지문을 안 봐서 정상), Play의 앱 서명 키 지문을 콘솔에 등록해 복구했다. 경위는 `tickets/frontend/archive/prod-build-env-and-eas.md` 2026-09-03 진행 기록에 있다. **서버 쪽 원인은 아니었다.**
 
 ### 시크릿 조건이 "부분"인 이유
 
@@ -166,7 +166,7 @@ cd /opt/ear/backend && docker compose -f docker-compose.prod.yml --env-file .env
 - **pepper·`JWT_SECRET` 시크릿 보관** — ✅ **서버 `.env.prod` 파일 보관을 합격으로 판정**
   (BE 담당 archive 지시로 확정, 2026-09-07). 판정 근거: 저장소·코드·로그에는 값이 없고
   전부 환경변수 주입이며, 파일은 EC2 안에서만 접근 가능하다. 시크릿 매니저 이전 여부는
-  infra와 상의할 별건으로 분리해 발행했다 — `tickets/infra/pending/prod-secrets-storage.md`.
+  infra와 상의할 별건으로 분리해 발행했다 — `tickets/infra/archive/prod-secrets-storage.md`.
 
 이로써 완료 조건 6개 전부 충족 — 공개 도메인 HTTPS 200, 환경변수 검증 기동, 소셜 3종
 실기기 로그인(2026-09-03), 애플 로그인(2026-09-07), 시크릿 판정, CORS 비와일드카드

@@ -15,7 +15,7 @@
 > - **제안 계약을 그대로 채택했다** — 경로 `GET /explore/topics`, 필드명 `is_interest`. 백엔드가 처음 제안했던 "피드 응답에 `topics` 필드를 얹는 안"은 철회했다(FE mock이 이미 이 계약으로 동작하고 있어 뒤집을 이유가 없다)
 > - **"함께 결정할 것" 두 항목에 답했다** — 소유 모듈은 **탐색 경로**(온보딩 주제 조회에 `is_interest`를 얹지 않는다. 온보딩 시점에는 관심 주제가 정해지지 않아 늘 거짓이다), 0건 주제는 **전부 노출**(FE 의견과 같다)
 > - 서버 규칙 문서는 `changes/archive/explore-topic-chip-list(be).md`에 함께 있다
-> - 구현: `tickets/backend/pending/explore-topics-endpoint.md` · `tickets/frontend/pending/explore-topics-endpoint.md`
+> - 구현: `tickets/backend/archive/explore-topics-endpoint.md` · `tickets/frontend/archive/explore-topics-endpoint.md`
 
 ## 왜 필요한가
 

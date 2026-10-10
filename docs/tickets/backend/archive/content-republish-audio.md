@@ -93,8 +93,8 @@
 ### 남은 것
 
 - **배포 후 파이프라인 왕복 1회** (마지막 완료 조건). 그때 `backlog.published_version`이 같이 오르는지 본다.
-- **FE 확인 항목 → 티켓 2건 발행.** `tickets/backend/pending/republish-stale-playback-position.md`(해결) ·
-  `tickets/frontend/pending/republish-version-gate-not-implemented.md`(죽은 분기·주석 정리). 아래 참조.
+- **FE 확인 항목 → 티켓 2건 발행.** `tickets/backend/archive/republish-stale-playback-position.md`(해결) ·
+  `tickets/frontend/archive/republish-version-gate-not-implemented.md`(죽은 분기·주석 정리). 아래 참조.
 
 ### FE 확인 항목 결과 — "앱이 `content_version` 증가를 감지해 저장 위치를 폐기하는가"
 

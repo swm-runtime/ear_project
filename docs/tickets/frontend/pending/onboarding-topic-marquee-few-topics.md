@@ -5,7 +5,7 @@
 | 대상 | `frontend/src/features/onboarding/components/TopicMarqueeRow.tsx` · `frontend/src/features/onboarding/screens/TopicSelectScreen.tsx`(`toRows`) · (부수) `frontend/src/features/onboarding/onboarding.copy.ts` · `frontend/src/features/interest/interest.copy.ts` |
 | 요청 파트 | 프론트엔드 |
 | 발행 날짜 | 2026-09-15 |
-| 발견 시점 | 백엔드 전체 검증 중 "0건 주제 노출 금지"(`tickets/backend/pending/topic-visibility-requires-content.md`)를 정하면서, 노출 주제가 적어질 때 온보딩 UI가 주제 수에 맞게 바뀌는지 별도 에이전트가 코드로 검증 — 코드 산술로 도출한 결론이며 **실기기 재현은 하지 않았다** |
+| 발견 시점 | 백엔드 전체 검증 중 "0건 주제 노출 금지"(`tickets/backend/archive/topic-visibility-requires-content.md`)를 정하면서, 노출 주제가 적어질 때 온보딩 UI가 주제 수에 맞게 바뀌는지 별도 에이전트가 코드로 검증 — 코드 산술로 도출한 결론이며 **실기기 재현은 하지 않았다** |
 | 근거 문서 | `features/onboarding.md` 3장 · `spec/uiux/onboarding-uiux.md` 4.1~4.2 · `spec/api/onboarding-api.md` 142·147행(`max_selectable`) |
 | 심각도 | **중** — 지금 운영 노출 주제 36건에서는 증상 없음. 운영이 `is_visible`을 소수만 켜는 시점(신규 주제 공개 초기, 노출 조건 강화 이후)에 첫 화면에서 드러난다 |
 | 우선순위 | Medium(3일 안) |

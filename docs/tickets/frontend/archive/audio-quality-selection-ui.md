@@ -10,8 +10,8 @@
 | 발행 날짜 | 2026-10-06 |
 | 시작 날짜 | 2026-10-06 |
 | 기한 | 2026-10-09 (Low — 이번 주 안) |
-| 선행 | KAN-141(`tickets/backend/pending/audio-quality-tiers.md` — 허용 음질 응답·재생 URL 음질 계약). 화면 규칙·카피 정리는 선행 없이 먼저 한다 |
-| 근거 문서 | `features/paywall.md`(업셀 여는 지점) · `features/subscription.md` · KAN-124(`tickets/frontend/pending/audio-url-refresh-gapless.md` — 음원 교체 제거) |
+| 선행 | KAN-141(`tickets/backend/archive/audio-quality-tiers.md` — 허용 음질 응답·재생 URL 음질 계약). 화면 규칙·카피 정리는 선행 없이 먼저 한다 |
+| 근거 문서 | `features/paywall.md`(업셀 여는 지점) · `features/subscription.md` · KAN-124(`tickets/frontend/archive/audio-url-refresh-gapless.md` — 음원 교체 제거) |
 | 중요도 | Low — PM 발행(2026-10-06). 중요도 미지정이라 이번 주 마감으로 잡았다 — 구현은 KAN-141 계약이 나온 뒤라 넘어가면 사유를 처리 기록에 적는다 |
 | 상태 | 완료(2026-10-07) |
 
