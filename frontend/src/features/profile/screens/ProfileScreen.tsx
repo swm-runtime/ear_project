@@ -222,6 +222,9 @@ export default function ProfileScreen() {
   );
 }
 
+/** 프로필 카드 사이 간격 */
+const CARD_GAP = theme.spacing.sm + theme.spacing.xs;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -259,9 +262,11 @@ const styles = StyleSheet.create({
   content: {
     gap: theme.spacing.sm,
   },
+  // 카드 사이 12 — 묶음 카드 ↔ 통계(위 content gap 8 + 4) · 통계 ↔ 주간 청취 모두 같게. 종전 24 는 카드끼리 떨어져
+  // 보였다(PM 2026-10-11 "박스 사이 간격이 너무 넓다")
   statsArea: {
-    gap: theme.spacing.lg,
-    marginTop: theme.spacing.md,
+    gap: CARD_GAP,
+    marginTop: CARD_GAP - theme.spacing.sm,
   },
   statsErrorBlock: {
     marginTop: theme.spacing.md,
