@@ -16,6 +16,7 @@ import {
   bubbleBaseSize,
   bubbleSizeAt,
   createBubbleSim,
+  retargetBubbleSim,
   settleBubbleSim,
   stepBubbleSim,
   type BubbleSim,
@@ -70,9 +71,7 @@ export function InterestBubbleField({ topics, isFull, onToggle }: InterestBubble
   useEffect(() => {
     if (box.width === 0 || box.height === 0 || sizes.length === 0 || reduceMotion === null) return;
     const next = createBubbleSim(sizes, box.width, box.height);
-    targetsKey.split(',').forEach((target, index) => {
-      next.target[index] = Number(target);
-    });
+    retargetBubbleSim(next, targetsKey.split(',').map(Number));
     if (reduceMotion) settleBubbleSim(next);
     sim.set(next);
     awake.set(!reduceMotion);
@@ -80,7 +79,8 @@ export function InterestBubbleField({ topics, isFull, onToggle }: InterestBubble
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [box.width, box.height, sizes, reduceMotion]);
 
-  // 선택·상한이 바뀌면 목표 배율만 바꾸고 물리를 깨운다 — 커지는 동안 이웃이 연쇄로 밀린다
+  // 선택·상한이 바뀌면 목표 배율과 **그 크기 기준의 자리**를 바꾸고 물리를 깨운다 — 커지고 줄어드는 동안 원들이 새 자리로
+  // 옮겨 가며 서로 밀고 붙는다(남은 원이 작아져도 옹기종기 — PM 2026-10-10 17:37)
   useEffect(() => {
     const nextTargets = targetsKey.split(',').map(Number);
     const settle = reduceMotion === true;
@@ -89,10 +89,7 @@ export function InterestBubbleField({ topics, isFull, onToggle }: InterestBubble
       sim.modify((current) => {
         'worklet';
         if (current === null) return current;
-        for (let i = 0; i < current.target.length && i < nextTargets.length; i += 1) {
-          current.target[i] = nextTargets[i];
-        }
-        current.calmFor = 0;
+        retargetBubbleSim(current, nextTargets);
         if (settle) settleBubbleSim(current);
         return current;
       });

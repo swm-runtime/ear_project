@@ -8,6 +8,7 @@ import {
   bubbleBaseSize,
   bubbleSizeAt,
   createBubbleSim,
+  retargetBubbleSim,
   settleBubbleSim,
   type BubbleSim,
 } from './bubble-physics';
@@ -23,9 +24,10 @@ const make = (selected: number[] = [], full = false) => {
     W,
     H,
   );
-  for (let i = 0; i < N; i += 1) {
-    sim.target[i] = selected.includes(i) ? 1.2 : full ? 0.88 : 1;
-  }
+  retargetBubbleSim(
+    sim,
+    Array.from({ length: N }, (_, i) => (selected.includes(i) ? 1.2 : full ? 0.88 : 1)),
+  );
   settleBubbleSim(sim);
   return sim;
 };
@@ -82,6 +84,15 @@ describe('관심 주제 버블 물리', () => {
     const base = bubbleBaseSize(N, W, H);
     const sizes = Array.from({ length: N }, (_, i) => bubbleSizeAt(i, base));
     expect(Math.max(...sizes) / Math.min(...sizes)).toBeGreaterThanOrEqual(1.4);
+  });
+
+  it('남은 원이 작아져도 옹기종기 붙어 있다 — 모든 원이 이웃과 빈틈 근처', () => {
+    const sim = make([1, 7, 12], true);
+    for (let i = 0; i < N; i += 1) {
+      let nearest = Infinity;
+      for (let j = 0; j < N; j += 1) if (i !== j) nearest = Math.min(nearest, clearance(sim, i, j));
+      expect(nearest).toBeLessThan(BUBBLE_GAP + 4);
+    }
   });
 
   it('주제가 많으면 원이 작아진다', () => {
