@@ -52,7 +52,7 @@
 
 `EXPO_PUBLIC_KAKAO_CHANNEL_URL`이 미지정이라 폴백 `https://pf.kakao.com/_ear_dev`가 그대로
 나간다(`settings.constants.ts`). **이 결정으로 그 링크가 이메일 변경의 유일한 경로가 됐다.**
-운영 채널 실값을 넣어야 한다(`tickets/frontend/pending/prod-build-env-and-eas.md` 2026-09-07 기록).
+운영 채널 실값을 넣어야 한다(`tickets/frontend/archive/prod-build-env-and-eas.md` 2026-09-07 기록).
 
 ## 완료 조건 (Given/When/Then)
 

@@ -587,7 +587,7 @@
 앱 재실행 시 **실행 관문(`splash.md` 4)의 2·3단계 판정 입력**이다. 기기에 refresh 토큰이
 남아 있으면 클라이언트는 갱신(4.3) 후 이 엔드포인트로 세션을 복원한다 — 사용자 객체를 받을
 곳이 없어 매 실행마다 로그인 화면으로 가던 문제를 닫는다
-(`tickets/backend/pending/session-restore-endpoint.md`).
+(`tickets/backend/archive/session-restore-endpoint.md`).
 
 ```jsonc
 // 200

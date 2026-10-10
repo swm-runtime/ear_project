@@ -5,11 +5,11 @@
 | 대상 | 플레이어 재생 세션 · 포그라운드 복귀 동기화 · `refreshAudioUrl()` |
 | 요청 파트 | 백엔드 (서버 신호 구현 완료 통지 — 2026-09-08) |
 | 발행 날짜 | 2026-09-08 |
-| 발견 시점 | `tickets/backend/pending/withdrawn-sync-stops-playback.md` 서버 몫 구현 완료 — 신호를 소비할 클라이언트 연결이 FE 몫으로 남았다 |
+| 발견 시점 | `tickets/backend/archive/withdrawn-sync-stops-playback.md` 서버 몫 구현 완료 — 신호를 소비할 클라이언트 연결이 FE 몫으로 남았다 |
 | 근거 문서 | `features/partner-control.md` 4.3 · `spec/api/player-api.md` 4.3(응답 `content_status`)·회수 동기화 절 |
 | 심각도 | **중** — 회수해도 재생 중인 사용자는 끝까지 듣고(실측: 5분 경과에도 재생), 재발행 순간 듣던 사용자는 서버가 지운 낡은 위치를 되살린다(실측: 03:48 재저장) |
 | 상태 | 대기 |
-| 연관 | `tickets/backend/pending/withdrawn-sync-stops-playback.md` — 이 티켓이 닫혀야 그쪽 완료 조건 2·3이 닫힌다 |
+| 연관 | `tickets/backend/archive/withdrawn-sync-stops-playback.md` — 이 티켓이 닫혀야 그쪽 완료 조건 2·3이 닫힌다 |
 
 ## 배경 — 서버가 준비된 신호 2개
 

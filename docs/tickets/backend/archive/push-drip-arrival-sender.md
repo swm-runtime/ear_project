@@ -7,7 +7,7 @@
 | 발행 날짜 | 2026-09-17 |
 | 발견 시점 | 2026-09-17 "앱에서 알림이 안 온다" 문의 조사 — 고장이 아니라 **발송 경로가 처음부터 없었다** |
 | 근거 문서 | `features/notification.md`(FR-19, P1) 4.2·4.3·8 · `features/drip-scheduling.md` 4.8(탐험 편) · `backend/domain.md` 3.6 `device_tokens` · 9.1 `notification_logs` · `spec/api/onboarding-api.md` 4.9 · `features/auth.md` 4.2(로그아웃 시 토큰 해제) · **`changes/archive/push-expo-and-discovery-in-drip-alert.md`(Expo Push·탐험 편 포함 결정 — 2026-09-17 문서 반영 완료)** |
-| 연관 | `tickets/frontend/pending/push-sdk-integration.md` — **앱이 실제 토큰을 보내야** 이 티켓의 발송이 닿는다. 두 티켓이 모두 끝나야 사용자에게 알림이 간다 |
+| 연관 | `tickets/frontend/archive/push-sdk-integration.md` — **앱이 실제 토큰을 보내야** 이 티켓의 발송이 닿는다. 두 티켓이 모두 끝나야 사용자에게 알림이 간다 |
 | 심각도 | **하** — P1 기능 미구현. 장애가 아니다 |
 | 우선순위 | Low(이번 주 안) |
 

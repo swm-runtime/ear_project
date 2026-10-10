@@ -29,8 +29,8 @@
 >
 > | 티켓 | 내용 |
 > |---|---|
-> | `tickets/backend/pending/settings-version-platform-param.md` | env 2→4개 · DTO에 `platform` 필수(`DevicePlatform` 재사용) · `buildVersion` 분기 · 테스트 |
-> | `tickets/frontend/pending/settings-version-platform-param.md` | `fetchSettingsSummary`에 파라미터 추가 · `Platform.OS` 전달 |
+> | `tickets/backend/archive/settings-version-platform-param.md` | env 2→4개 · DTO에 `platform` 필수(`DevicePlatform` 재사용) · `buildVersion` 분기 · 테스트 |
+> | `tickets/frontend/archive/settings-version-platform-param.md` | `fetchSettingsSummary`에 파라미터 추가 · `Platform.OS` 전달 |
 >
 > **배포 순서가 있다.** 서버가 `platform`을 필수로 만들기 전에 FE가 나가 있어야 한다 — 안 보내는 클라이언트는 400을 받고 설정 화면이 통째로 실패한다(`version`은 `failed_sections`가 흡수하지 않는다). 두 티켓 모두에 적어 뒀다.
 

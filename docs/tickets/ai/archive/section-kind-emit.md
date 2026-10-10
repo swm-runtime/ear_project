@@ -10,7 +10,7 @@
 | 발행 날짜 | 2026-10-07 |
 | 시작 날짜 | 2026-10-07 |
 | 기한 | 2026-10-09 (Low — 이번 주 안) |
-| 선행 | `tickets/backend/pending/section-kind-field.md`(KAN-151) — 서버 검증이 지금 **모르는 키를 거부**한다. 서버가 `kind`를 받기 전에 실어 보내면 대본 적재가 거부된다. 생성·소급 준비는 먼저 해도 된다 |
+| 선행 | `tickets/backend/archive/section-kind-field.md`(KAN-151) — 서버 검증이 지금 **모르는 키를 거부**한다. 서버가 `kind`를 받기 전에 실어 보내면 대본 적재가 거부된다. 생성·소급 준비는 먼저 해도 된다 |
 | 근거 문서 | PM 결정(2026-10-07) · `player.md` 4.6-1 · KAN-137(`tickets/ai/archive/section-summary-generation.md`) |
 | 중요도 | Low — PM 발행(2026-10-07). 중요도 미지정이라 이번 주 마감으로 잡았다 |
 | 상태 | **완료** (2026-10-07) — 1~4번 반영, 운영 확인 |

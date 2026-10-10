@@ -11,7 +11,7 @@
 | 시작 날짜 | 2026-10-06 |
 | 기한 | 2026-10-09 (Medium — 3일 안) |
 | 선행 | 없음 |
-| 근거 문서 | `backend/domain.md` 8.1(`plans` — "name·description 은 표시 문구라 DB 에서 고친다") · `spec/api/subscription-api.md` `action` 표 · 짝 FE 티켓 KAN-146(`tickets/frontend/pending/plan-management-redesign-pill-buttons.md`) |
+| 근거 문서 | `backend/domain.md` 8.1(`plans` — "name·description 은 표시 문구라 DB 에서 고친다") · `spec/api/subscription-api.md` `action` 표 · 짝 FE 티켓 KAN-146(`tickets/frontend/archive/plan-management-redesign-pill-buttons.md`) |
 | 중요도 | Medium — 1.2.0 묶음 빌드(결제 화면 첫 공개) 전에 맞춘다 |
 | 상태 | **완료**(2026-10-07) |
 

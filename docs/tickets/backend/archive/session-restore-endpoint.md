@@ -95,5 +95,5 @@ FE 가 로그인 시 사용자 객체를 기기에 캐시해 두고 복원하는
 | 만료·폐기 토큰 401·무재시도 | ✅ 실측 |
 | `auth-api.md` 확정 계약 | ✅ 4.13 신설 (`changes/archive/auth-api-get-users-me.md`) |
 
-FE 후속은 `tickets/frontend/pending/splash-gate-session-restore.md`로 발행했다 — 토큰 갱신
+FE 후속은 `tickets/frontend/archive/splash-gate-session-restore.md`로 발행했다 — 토큰 갱신
 single-flight 요구(2026-09-08 reuse detected 실측 근거)를 함께 실었다.

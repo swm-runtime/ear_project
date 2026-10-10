@@ -85,7 +85,7 @@
 
 ### 2026-10-06 — 코드 반영, 묶음 빌드 대기 (PR #1142)
 
-- **반영한 것**: `frontend/plugins/with-android-meta-advertiser-id.js` 추가, `app.json` plugins 에서 `react-native-fbsdk-next` **앞에** 등록(요청 1). fbsdk 옵션 `advertiserIDCollectionEnabled: false` 는 그대로. `meta.ts`는 이미 Android `true` — 동작은 그대로 두고 "네이티브 기본값은 false 유지" 주석만 정정(요청 2). `analytics.md` 3.5 정정은 `changes/pending/analytics-android-ad-id-native-default(fe).md`(요청 5).
+- **반영한 것**: `frontend/plugins/with-android-meta-advertiser-id.js` 추가, `app.json` plugins 에서 `react-native-fbsdk-next` **앞에** 등록(요청 1). fbsdk 옵션 `advertiserIDCollectionEnabled: false` 는 그대로. `meta.ts`는 이미 Android `true` — 동작은 그대로 두고 "네이티브 기본값은 false 유지" 주석만 정정(요청 2). `analytics.md` 3.5 정정은 `changes/archive/analytics-android-ad-id-native-default(fe).md`(요청 5).
 - **prebuild 확인(Windows 로컬, EAS 아님)**: `npx expo prebuild --platform android --no-install --clean` → `AndroidManifest.xml` 의 `com.facebook.sdk.AdvertiserIDCollectionEnabled` = **`true`**. 개발계 변형(`APP_VARIANT=dev`)도 `true` — 개발계는 `AutoInitEnabled`·`AutoLogAppEventsEnabled` false 와 JS 스텁이라 전송은 없다. iOS 는 Windows 에서 prebuild 가 안 돼 `npx expo config --type introspect` 로 봤다 → `FacebookAdvertiserIDCollectionEnabled` = **`false`**, `NSUserTrackingUsageDescription` **없음**. 생성된 `android/`·`ios/` 는 지웠다(gitignore, CNG).
 - **`runtimeVersion` 은 31 유지(요청 3)**: 매니페스트 meta-data 값 하나라 새 JS 가 옛 빌드에서 깨지지 않는다(2026-09-29 선례와 같음). 다음 스토어 빌드는 이 변경과 KAN-124(갭리스 오디오)·KAN-120(결제)·KAN-103(정리)을 함께 싣는 **묶음 네이티브 빌드**이고, 32 로 올리는 것은 그 빌드에서 한다(PM 결정 2026-10-05·06, `_runtimeVersionNote` 기록). 이 PR 에서 EAS 빌드는 돌리지 않았다.
 - **운영 공개 시점(요청 4)은 정하지 않았다** — "11/1 이후" 여부는 묶음 빌드 제출 때 PM 이 정한다. 그때 사람 손 1(Play Console 관리형 게시)의 필요 여부도 함께 정한다.

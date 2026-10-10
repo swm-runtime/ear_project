@@ -58,7 +58,7 @@
 
 전환 이후 팀에 공유할 것: dev 머지는 개발계에만 반영 · 운영 반영은 dev→main PR(작성자 외 리뷰 1명 승인) · main 배포마다 `v<package.json version>` 태그가 붙으니 운영 반영 전 version을 올린다 · **앱은 아직 두 채널 모두 운영 API를 본다**(`eas-update.yml` 미변경) — 개발계 API를 앱에서 보는 방법은 FE 티켓 KAN-65에서 FE가 선택(A preview 채널 전환 / B 앱 내 스위치). 그 전까지 개발계는 로컬 Metro(`EXPO_PUBLIC_API_BASE_URL`)로만.
 
-**미결(그 단계에서 결정)**: 앱 preview 빌드의 번들 ID 분리 여부·배포 시점 → **FE 티켓 [KAN-65](https://runtime364.atlassian.net/browse/KAN-65)로 이관(2026-09-16, `tickets/frontend/pending/dev-api-test-method.md` — preview 채널 전환 또는 앱 내 스위치, FE 담당 선택)** · 파이프라인·AI 서버 배포 트리거를 dev에 남길지(AI 파트와) · SSO 역할의 SSM 권한(후보 SSM 도입 시).
+**미결(그 단계에서 결정)**: 앱 preview 빌드의 번들 ID 분리 여부·배포 시점 → **FE 티켓 [KAN-65](https://runtime364.atlassian.net/browse/KAN-65)로 이관(2026-09-16, `tickets/frontend/archive/dev-api-test-method.md` — preview 채널 전환 또는 앱 내 스위치, FE 담당 선택)** · 파이프라인·AI 서버 배포 트리거를 dev에 남길지(AI 파트와) · SSO 역할의 SSM 권한(후보 SSM 도입 시).
 
 ## 후속 후보 (이 티켓 범위 밖)
 

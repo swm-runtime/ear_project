@@ -29,5 +29,5 @@
 
 ## 처리 기록
 
-- **반영 날짜**: 2026-09-11 (박수헌 · Claude) — 콘텐츠 목록에 추천 메타 배지(없음·구형 vN·v2)와 적용 시각, "구형·없음 메타만" 필터(전 페이지 수집 후 클라이언트 필터). 현재 형식 번호는 콘솔 상수(`ENRICHMENT_SCHEMA_VERSION_FALLBACK = 2`)로 두고 서버 값으로 바꾸는 BE 티켓을 냈다(`tickets/backend/pending/enrichment-current-version-in-list.md`). 백엔드 선행 PR #322 는 같은 날 오전 머지·배포됨.
+- **반영 날짜**: 2026-09-11 (박수헌 · Claude) — 콘텐츠 목록에 추천 메타 배지(없음·구형 vN·v2)와 적용 시각, "구형·없음 메타만" 필터(전 페이지 수집 후 클라이언트 필터). 현재 형식 번호는 콘솔 상수(`ENRICHMENT_SCHEMA_VERSION_FALLBACK = 2`)로 두고 서버 값으로 바꾸는 BE 티켓을 냈다(`tickets/backend/archive/enrichment-current-version-in-list.md`). 백엔드 선행 PR #322 는 같은 날 오전 머지·배포됨.
 - Jira KAN-54 → 완료로 전환.

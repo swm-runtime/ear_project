@@ -9,9 +9,9 @@
 | 발행 날짜 | 2026-10-04 |
 | 시작 날짜 | 2026-10-04 |
 | 기한 | 2026-10-07 (Medium — 3일 안). **범위가 커서 1단계(iOS)만으로도 3일을 넘길 수 있다** — 넘기면 중요도를 내리지 않고 사유를 처리 기록에 적는다(CLAUDE.md "중요도") |
-| 선행 | **1단계(iOS): 없음** — 서버 운영 배포·설정·App Store 알림 연결이 끝났다(2026-10-02, `v1.1.0+9`). **2단계(Android): KAN-130**(`tickets/backend/pending/android-play-subscription-products.md` — 2026-10-05 티켓화, 아래 ①②를 담는다) — ① Play Console 구독 상품 2개 생성(담당: 박준현 / 상태: 미완 — 이 티켓 2단계의 "결제 라이브러리가 든 빌드 업로드"가 먼저 있어야 상품 메뉴가 열린다) ② 그 상품 ID를 서버 DB에 등록(담당: 박준현 / 상태: 상품 ID 확정 대기) |
+| 선행 | **1단계(iOS): 없음** — 서버 운영 배포·설정·App Store 알림 연결이 끝났다(2026-10-02, `v1.1.0+9`). **2단계(Android): KAN-130**(`tickets/backend/archive/android-play-subscription-products.md` — 2026-10-05 티켓화, 아래 ①②를 담는다) — ① Play Console 구독 상품 2개 생성(담당: 박준현 / 상태: 미완 — 이 티켓 2단계의 "결제 라이브러리가 든 빌드 업로드"가 먼저 있어야 상품 메뉴가 열린다) ② 그 상품 ID를 서버 DB에 등록(담당: 박준현 / 상태: 상품 ID 확정 대기) |
 | Jira | [KAN-120](https://runtime364.atlassian.net/browse/KAN-120) |
-| 관련 | 백엔드 `tickets/backend/pending/subscription-receipt-verification.md`([KAN-40](https://runtime364.atlassian.net/browse/KAN-40)) · `google-ios-in-app-payment.md`([KAN-106](https://runtime364.atlassian.net/browse/KAN-106)) — 서버 쪽은 이 티켓의 선행이 아니라 **함께 닫히는 짝**이다(실제 결제로 확인해야 서버 티켓도 archive된다) |
+| 관련 | 백엔드 `tickets/backend/archive/subscription-receipt-verification.md`([KAN-40](https://runtime364.atlassian.net/browse/KAN-40)) · `google-ios-in-app-payment.md`([KAN-106](https://runtime364.atlassian.net/browse/KAN-106)) — 서버 쪽은 이 티켓의 선행이 아니라 **함께 닫히는 짝**이다(실제 결제로 확인해야 서버 티켓도 archive된다) |
 | 근거 문서 | `spec/api/subscription-api.md`(계약 전체 — **이 문서가 기준**) · `features/subscription.md` 4.2~4.7·5장 · `features/paywall.md` 4.5 · `features/common-error-handling.md` 9.10-3 |
 | 중요도 | Medium — 서버는 운영에서 결제를 받을 준비가 됐지만 앱에 화면이 없어 아무도 결제할 수 없다 |
 | 상태 | 1단계 코드 반영 — 묶음 빌드 대기 (PR #1146, 2026-10-06) |
@@ -148,7 +148,7 @@
 
 - 결제 서비스 `features/subscription/services/purchase.service.ts` — 이 티켓 "반드시 지켜야 하는 것" 1~6 을 그대로: account_token 실어 결제 / **서버 200 뒤에만 iOS finish** / Android acknowledge 안 함 / 시작·포그라운드 복귀 때 미완료 거래를 intent_id 없이 제출 / JWS / 이메일 관문. 503·네트워크는 거래를 유지한 채 5초→15초→30초→1분→5분 반복 재시도(폐기 없음). **영수증을 기기에 저장하지 않는다** — 스토어의 미완료 거래가 곧 큐다(`architecture.md` 5.4 정정은 changes 요청 C)
 - 화면 — 설정 > 구독 관리(신설, `SubscriptionScreen`) · 페이월 = 한도 안내 시트 위에 요금제 비교(`PaywallPlansSection`). 결제 확정 → 시트 닫힘 → 막혔던 콘텐츠를 **재생 게이트가 다시 요청**(서버 재판정). 이메일 미인증 → 인증 화면 → 인증 성공 시 같은 요금제로 결제 복귀(페이월은 시트를 다시 연다)
-- 확정 화면·카피: `docs/spec/uiux/subscription-uiux.md`(SB1–SB3 · PW1) 신설. `features/paywall.md` 4.5(가드 세 겹) · `features/subscription.md` 5장("만료됨" 안내 — 계약상 그릴 수 없음) · `frontend/architecture.md` · 루트 CLAUDE.md 정정은 `docs/changes/pending/subscription-purchase-screen-kan120(fe).md`
+- 확정 화면·카피: `docs/spec/uiux/subscription-uiux.md`(SB1–SB3 · PW1) 신설. `features/paywall.md` 4.5(가드 세 겹) · `features/subscription.md` 5장("만료됨" 안내 — 계약상 그릴 수 없음) · `frontend/architecture.md` · 루트 CLAUDE.md 정정은 `docs/changes/archive/subscription-purchase-screen-kan120(fe).md`
 - 기한(10-07) 안에 1단계 코드는 들어갔고, 완료 조건 확인은 묶음 빌드 일정에 달려 있다
 
 **묶음 빌드 때 할 일(사람 손 포함)**

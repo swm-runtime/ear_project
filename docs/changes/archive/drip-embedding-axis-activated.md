@@ -4,7 +4,7 @@
 |---|---|
 | 대상 문서 | `docs/features/drip-scheduling.md` 미결 사항 |
 | 발행 날짜 | 2026-09-07 |
-| 발견 시점 | `tickets/backend/pending/metadata-pipeline-after-script-quality.md` 개발 범위 3(스코어링 임베딩 축 활성화) 구현(PR #165) |
+| 발견 시점 | `tickets/backend/archive/metadata-pipeline-after-script-quality.md` 개발 범위 3(스코어링 임베딩 축 활성화) 구현(PR #165) |
 | 요청 파트 | 백엔드 |
 
 ## 수정 내용
@@ -12,7 +12,7 @@
 미결 사항의 임베딩 모델 항목이 이렇게 끝난다:
 
 > 스코어링의 임베딩 축 활성화(벡터 마이그레이션·`content_embeddings` 신설·소급 부여)는
-> `tickets/backend/pending/metadata-pipeline-after-script-quality.md`의 순서대로 진행한다 —
+> `tickets/backend/archive/metadata-pipeline-after-script-quality.md`의 순서대로 진행한다 —
 > **그 전까지 4.2는 임베딩 축 제외 재정규화로 동작**
 
 마지막 문장을 현행화한다:

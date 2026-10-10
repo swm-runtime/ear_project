@@ -11,7 +11,7 @@
 | 시작 날짜 | 2026-10-06 |
 | 기한 | 2026-10-09 (Low — 이번 주 안) |
 | 선행 | 없음(티켓). 동작 규칙 문서화(`features/` — 음질 단계·티어별 허용·기본값·미허용 처리)는 이 티켓 착수 때 함께 정한다 |
-| 근거 문서 | `features/subscription.md`(티어 정책) · `features/player.md` · `ai/spec/06-audio.md` 7장("Pro 이상 pcm 이면 배포 포맷(wav·AAC)을 다시 정한다") · `tickets/ai/pending/jingle-mono-loudnorm-degradation.md`(KAN-122 — 배포본 스테레오화) |
+| 근거 문서 | `features/subscription.md`(티어 정책) · `features/player.md` · `ai/spec/06-audio.md` 7장("Pro 이상 pcm 이면 배포 포맷(wav·AAC)을 다시 정한다") · `tickets/ai/archive/jingle-mono-loudnorm-degradation.md`(KAN-122 — 배포본 스테레오화) |
 | 중요도 | Low — PM 발행(2026-10-06). 중요도 미지정이라 이번 주 마감으로 잡았다 — 바꾸려면 Jira·이 표를 함께 고친다. 범위가 커서 이번 주에 스키마·계약 확정까지 가고 구현이 넘어가면 사유를 처리 기록에 적는다 |
 | 상태 | 백엔드 구현 완료(2026-10-06) · 같은 날 AI 파트 확정(FLAC·기본 음질) 반영 · 인프라 항목 일부 남음(아래) |
 
@@ -46,8 +46,8 @@ ElevenLabs Pro 결제로 TTS 원본을 **무손실(PCM → WAV)**로 받을 수 
 
 ## 짝 티켓
 
-- **AI(파이프라인) — KAN-142**(`tickets/ai/pending/lossless-master-three-renditions.md`, 박수헌) — 무손실 마스터(PCM 요청 — 지금 화자별 배속 경로는 `synthDialogueWithTimestamps`가 mp3 를 강제한다 `elevenlabs.ts`)에서 3종 렌더·업로드 패키지 확장
-- **FE — KAN-143**(`tickets/frontend/pending/audio-quality-selection-ui.md`, 이주호 — 이 티켓에 blocked) — 음질 선택 UI(설정/플레이어), 허용 안 된 음질 표시(잠금·업셀), 재생 URL 요청에 음질 전달
+- **AI(파이프라인) — KAN-142**(`tickets/ai/archive/lossless-master-three-renditions.md`, 박수헌) — 무손실 마스터(PCM 요청 — 지금 화자별 배속 경로는 `synthDialogueWithTimestamps`가 mp3 를 강제한다 `elevenlabs.ts`)에서 3종 렌더·업로드 패키지 확장
+- **FE — KAN-143**(`tickets/frontend/archive/audio-quality-selection-ui.md`, 이주호 — 이 티켓에 blocked) — 음질 선택 UI(설정/플레이어), 허용 안 된 음질 표시(잠금·업셀), 재생 URL 요청에 음질 전달
 
 ## 완료 조건
 

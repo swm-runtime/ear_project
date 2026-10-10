@@ -29,7 +29,7 @@
   따라서 "FE 먼저"도 안전하지 않으며 **FE·BE가 같은 릴리스로 나가야 한다** — 통합 브랜치
   동시 머지면 문제없다. 짝 티켓 반영 서버에서의 200 확인(완료 조건 4)은 통합 테스트에서 한다
 
-> **짝 티켓** — `tickets/backend/pending/settings-version-platform-param.md`. **이쪽이 먼저 나가거나 같은 릴리스에 함께 나가야 한다** — 서버가 `platform`을 필수로 만든 뒤에 클라이언트가 안 보내면 `VALIDATION_FAILED`다.
+> **짝 티켓** — `tickets/backend/archive/settings-version-platform-param.md`. **이쪽이 먼저 나가거나 같은 릴리스에 함께 나가야 한다** — 서버가 `platform`을 필수로 만든 뒤에 클라이언트가 안 보내면 `VALIDATION_FAILED`다.
 >
 > **작업량이 작다.** 쿼리 파라미터 한 줄이고 **응답 모양이 바뀌지 않아 화면 코드는 손대지 않는다.** 타입(`settings.dto.ts`)도 그대로다 — 요청은 인라인 파라미터라 DTO 타입이 없다.
 

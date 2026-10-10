@@ -583,7 +583,7 @@ RootStack
 - ~~크래시·에러 수집 도구 선정(Sentry / Firebase Crashlytics)과 마스킹 규칙~~ → **확정(2026-09-23): Sentry(8.4)**
 - 무료 티어 광고 형태(오디오 프리롤 / 배너 — PRD 결정 포인트 #20)에 따른 플레이어·광고 SDK 구조
 - Query 캐시의 디스크 영속(persistQueryClient) 도입 여부 — MVP는 수동 캐시(MMKV 1페이지)로 시작
-- Android 애플 로그인(웹 OAuth) — 네이티브 모듈이 iOS 전용이라 별도 구현 필요. 콘솔 준비(Services ID)는 완료, 콜백 처리 방식은 백엔드 협의 대기(`changes/pending/auth-api-apple-android-web-flow(fe).md`)
+- Android 애플 로그인(웹 OAuth) — 네이티브 모듈이 iOS 전용이라 별도 구현 필요. 콘솔 준비(Services ID)는 완료, 콜백 처리 방식은 백엔드 협의 대기(`changes/archive/auth-api-apple-android-web-flow(fe).md`)
 - ~~푸시 토큰 갱신·`UNREGISTERED` 처리 세부 흐름~~ → **확정(2026-09-17)**: 토큰 변경은 `addPushTokenListener`로 받아 `PUT /users/me/devices/:device_id`로 동기화하고, 무효 토큰(`DeviceNotRegistered`)은 서버가 Expo receipt로 판정해 무효화한다(`notification.md` 7)
 - 다크 모드 대응 범위(`auth-uiux.md` 미결) — theme 토큰 구조는 대응 가능하게 설계하되 MVP 범위 미정. 플레이어의 상시 어두운 팔레트(4.3 예외)는 이 미결과 무관하다
 - E2E 테스트 도구(Maestro / Detox) 도입 여부와 시점

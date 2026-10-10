@@ -5,7 +5,7 @@
 | 대상 문서 | `spec/uiux/onboarding-uiux.md` 2·3·4.2·8장 · `features/onboarding.md` 7 · `spec/api/onboarding-api.md` 4.2·9 · **`features/interest-management.md` 7** · `spec/uiux/interest-management-uiux.md` 4.7·9 |
 | 요청 파트 | 문서(FE 구현은 `fix(fe)/onboarding-empty-topic-list`·`fix(fe)/interest-empty-topic-list`에서 선반영) |
 | 발행 날짜 | 2026-09-09 (같은 날 4항 개정 — IM 처리가 (b)로 확정되어 미결 해소로 바뀌었다) |
-| 발견 시점 | KAN-41(`tickets/frontend/pending/onboarding-empty-topic-list-state.md`) 처리 중 — 빈 목록을 O6으로 그리라는 요청이 uiux의 **명시적 금지 항목**과 정면으로 충돌했다 |
+| 발견 시점 | KAN-41(`tickets/frontend/archive/onboarding-empty-topic-list-state.md`) 처리 중 — 빈 목록을 O6으로 그리라는 요청이 uiux의 **명시적 금지 항목**과 정면으로 충돌했다 |
 | 심각도 | **중** — 지금 문서대로 구현하면 서버가 만들지 않는 폴백을 클라이언트가 기다린다 |
 
 ## 왜 필요한가

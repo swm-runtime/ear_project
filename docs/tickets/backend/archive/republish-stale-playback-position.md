@@ -9,7 +9,7 @@
 | 근거 문서 | `features/player.md` 7 · `spec/api/player-api.md` 4.1·4.3 · `features/admin.md` 4.3 |
 | 심각도 | **중** — 사용자가 새 오디오의 엉뚱한 지점에서 재생을 시작한다. 데이터 손상은 아니다 |
 | 상태 | 반영 완료 (2026-09-07 — 안 A) |
-| 연관 | `tickets/frontend/pending/republish-version-gate-not-implemented.md` — FE의 죽은 분기·사실이 아닌 주석 정리(해결 자체는 이 티켓) |
+| 연관 | `tickets/frontend/archive/republish-version-gate-not-implemented.md` — FE의 죽은 분기·사실이 아닌 주석 정리(해결 자체는 이 티켓) |
 
 ## 문제
 
@@ -104,4 +104,4 @@
 
 - 문서 현행화는 `changes/archive/player-republish-progress-discard-owner.md`로 발행
   (`player.md` 7 · `player-api.md` 4.1 · `admin-api.md` 4.10 — 폐기 주체 서버로).
-- FE의 죽은 분기·주석 정리는 연관 티켓(`tickets/frontend/pending/republish-version-gate-not-implemented.md`) 몫 그대로.
+- FE의 죽은 분기·주석 정리는 연관 티켓(`tickets/frontend/archive/republish-version-gate-not-implemented.md`) 몫 그대로.
