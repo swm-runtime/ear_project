@@ -41,11 +41,6 @@ const DAY_BADGE_SIZE = theme.spacing.xl;
  * 바뀐다(KAN-149·150). 이 번들은 1.2.0 빌드부터 닿아 그 전환 뒤에 쓰인다 — 판정이 아니라 오늘 강조·평균의 표시용이다
  */
 const SERVICE_DAY_OFFSET_MS = 5 * 60 * 60 * 1000;
-/**
- * 막대 위 말풍선 자리의 **최소** 높이 — 실제 높이는 실측값이 이긴다(`annotationHeight`). 말풍선은 14pt 글자 +
- * 위아래 8 여백이라 34 안팎이므로 44 는 10 넘게 과하게 비웠고, 아무 막대도 고르지 않은 기본 상태에서는 그 자리가
- * 그냥 빈 공간으로 보였다(PM 2026-09-28 01:28 "하루 청취 시간 아래 공백이 많다"). 실측이 더 크면(200% 글꼴) 그 값을 쓴다
- */
 /** 맨 위 막대와 카드 위쪽 사이 — 말풍선 자리 대신 남기는 여백 */
 const BAR_TOP_INSET = 8;
 const GRID_RATIOS = [0, 0.5, 1] as const;
@@ -856,7 +851,9 @@ const styles = StyleSheet.create({
     backgroundColor: GRID_COLUMN_COLOR,
   },
   // [넘김 구획 | 고정 축] — 넘김 구획은 카드 왼쪽 여백부터 축 앞까지만 보이고 양옆 주는 잘린다
-  chartStrip: { flexDirection: 'row', paddingLeft: theme.spacing.md },
+  // 띠를 4 올려 평균 숫자(34pt) 글자 상자의 아래 빈 줄간(글리프 밑 ≈7)과 겹친다 — 숫자 밑과 막대 위 여백(8) 사이
+  // (PM 2026-10-11 03:29 "하루 평균 아래 공백 줄였으면"). 말풍선은 없어졌다(막대 탭 → 요약 줄이 그 요일로, 2026-10-11)
+  chartStrip: { flexDirection: 'row', paddingLeft: theme.spacing.md, marginTop: -theme.spacing.xs },
   pager: { flex: 1, overflow: 'hidden' },
   pagerRow: { flexDirection: 'row', alignItems: 'flex-start' },
   axis: {
