@@ -105,8 +105,9 @@ const styles = StyleSheet.create({
   cardPressed: {
     opacity: 0.7,
   },
+  // 72 → 56(PM 2026-10-11 04:15) — 한 줄짜리 관심 주제 행의 위아래가 휑했다. 두 줄인 커리어 행은 내용대로 더 높다(iOS 설정 부제 행처럼)
   inlineCard: {
-    minHeight: 72,
+    minHeight: 56,
     paddingVertical: theme.spacing.sm + theme.spacing.xs,
   },
   body: {
