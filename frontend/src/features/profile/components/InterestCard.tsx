@@ -1,8 +1,3 @@
-import { StyleSheet } from 'react-native';
-
-import { theme } from '@/shared/theme';
-import { Text } from '@/shared/ui/Typography';
-
 import { topicImageSource } from '@/features/interest';
 
 import type { InterestCardVM, SectionState } from '../hooks/useProfileScreen';
@@ -44,12 +39,8 @@ export default function InterestCard({ state, onPress, onRetry, isRetrying }: In
       hasError={hasError}
       onRetry={onRetry}
       isRetrying={isRetrying}
+      // 라벨 아래 "N개 선택"은 뺐다(PM 2026-10-11 03:28) — 사진이 이미 보여 준다. 개수는 낭독에만 남긴다
       inline
-      labelAccessory={
-        state.kind === 'data' ? (
-          <Text style={styles.count}>{PROFILE_COPY.interest.count(state.data.count)}</Text>
-        ) : undefined
-      }
     >
       {state.kind === 'data' ? (
         <ProfilePhotoStack
@@ -62,10 +53,3 @@ export default function InterestCard({ state, onPress, onRetry, isRetrying }: In
     </ProfileCard>
   );
 }
-
-const styles = StyleSheet.create({
-  count: {
-    fontSize: theme.font.size.xs,
-    color: theme.color.textSecondary,
-  },
-});

@@ -44,10 +44,8 @@ export default function CareerCard({ state, onPress, onRetry, isRetrying }: Care
       hasError={hasError}
       onRetry={onRetry}
       isRetrying={isRetrying}
+      // 라벨 아래 "기획 · 서비스 기획 · 4-6년" 줄은 뺐다(PM 2026-10-11 03:28) — 직군 사진만. 값은 낭독에만 남긴다
       inline={vm !== null && !vm.isEmpty}
-      labelAccessory={
-        vm !== null && !vm.isEmpty ? <Text style={styles.line}>{line}</Text> : undefined
-      }
     >
       {vm !== null ? (
         vm.isEmpty ? (
@@ -73,10 +71,6 @@ export default function CareerCard({ state, onPress, onRetry, isRetrying }: Care
 }
 
 const styles = StyleSheet.create({
-  line: {
-    fontSize: theme.font.size.xs,
-    color: theme.color.textSecondary,
-  },
   emptyRow: {
     flexDirection: 'row',
     alignItems: 'center',
