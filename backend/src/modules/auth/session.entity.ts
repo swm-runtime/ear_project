@@ -20,6 +20,9 @@ import { SessionRevokedReason } from './auth.enum';
 @Entity('sessions')
 @Index('idx_sessions_user_id', ['userId'])
 @Index('idx_sessions_refresh_token_hash', ['refreshTokenHash'])
+// 매시간 파기 배치(`deleteInactiveBefore`)의 `revoked_at < ? OR expires_at < ?` — 두 인덱스의 BitmapOr로 푼다
+@Index('idx_sessions_expires_at', ['expiresAt'])
+@Index('idx_sessions_revoked_at', ['revokedAt'])
 export class Session extends BaseEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;

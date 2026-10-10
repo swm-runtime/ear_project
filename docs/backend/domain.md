@@ -273,6 +273,8 @@ sessions
 
 idx_sessions_user_id
 idx_sessions_refresh_token_hash
+idx_sessions_expires_at           ★파기 배치용 (2026-10-10)
+idx_sessions_revoked_at           ★파기 배치용 (2026-10-10)
 ```
 
 - 다중 기기 동시 로그인을 허용한다. 로그아웃은 해당 기기 세션만 폐기한다(`auth.md` 7).

@@ -247,9 +247,30 @@ function isRequestAborted(exception: unknown): boolean {
 }
 
 /**
- * body-parser(raw-body) 오류 판별 — `type` 이 `entity.*`(크기·형식) 또는 `request.aborted`(전송 중단)이고
- * 4xx `status` 를 가진 Error. 그 밖의 Error 는 null. 파서가 Nest 파이프라인 밖(미들웨어)에서 던져
- * HttpException 으로 감싸이지 않는다.
+ * `entity.*` 밖에서 body-parser(raw-body)가 **클라이언트 잘못**으로 던지는 오류 `type`(body-parser 2.x 기준).
+ * 빠져 있으면 500 INTERNAL_ERROR + Sentry 로 뭉개진다(2026-09-26 감사 하 #7, 2026-10-10 보강).
+ * - `charset.unsupported` · `encoding.unsupported` — 415(지원하지 않는 문자셋·Content-Encoding)
+ * - `parameters.too.many` — 413(urlencoded 파라미터 1000개 초과)
+ * - `request.size.invalid` — 400(Content-Length 와 실제 본문 길이 불일치)
+ * - `querystring.parse.rangeError` — 400(urlencoded 중첩 깊이 초과)
+ *
+ * `stream.*`(500 — 서버 쪽 스트림 설정 잘못)는 넣지 않는다 — 진짜 서버 오류라 ERROR 로 남아야 한다.
+ */
+const BODY_PARSER_CLIENT_ERROR_TYPES = new Set<string>([
+  REQUEST_ABORTED_TYPE,
+  'charset.unsupported',
+  'encoding.unsupported',
+  'parameters.too.many',
+  'request.size.invalid',
+  'querystring.parse.rangeError',
+]);
+
+/**
+ * body-parser(raw-body) 오류 판별 — `type` 이 `entity.*`(크기·형식) 또는 위 목록이고 4xx `status` 를 가진 Error.
+ * 그 밖의 Error 는 null. 파서가 Nest 파이프라인 밖(미들웨어)에서 던져 HttpException 으로 감싸이지 않는다.
+ *
+ * `type` 으로 먼저 거르는 이유: 숫자 `status` 만 보면 외부 HTTP 클라이언트 오류(상대 서버의 404 등)처럼
+ * `status` 를 가진 다른 Error 까지 그 상태로 클라이언트에 내려간다 — 우리 서버의 500 이 404 로 둔갑한다.
  */
 function bodyParserErrorStatus(exception: unknown): number | null {
   if (!(exception instanceof Error)) return null;
@@ -259,7 +280,7 @@ function bodyParserErrorStatus(exception: unknown): number | null {
   };
   if (
     typeof type !== 'string' ||
-    !(type.startsWith('entity.') || type === REQUEST_ABORTED_TYPE)
+    !(type.startsWith('entity.') || BODY_PARSER_CLIENT_ERROR_TYPES.has(type))
   )
     return null;
   return typeof status === 'number' && status >= 400 && status < 500

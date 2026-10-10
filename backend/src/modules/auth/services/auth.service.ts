@@ -1,4 +1,5 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { DataSource, EntityManager } from 'typeorm';
 
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
@@ -42,6 +43,7 @@ export class AuthService {
     private readonly sessionRepository: SessionRepository,
     private readonly deviceTokenService: DeviceTokenService,
     private readonly signupAlertService: SignupAlertService,
+    private readonly dataSource: DataSource,
   ) {}
 
   /**
@@ -218,20 +220,27 @@ export class AuthService {
      * 성공하고 새 세션을 받는다. 경합에서 진 쪽은 **재사용 탐지로 다루지 않는다** —
      * 같은 밀리초에 겹친 요청은 탈취가 아니라 클라이언트 경합이고, 위의 `revokedAt`
      * 선검사가 진짜 재사용(이미 회전이 끝난 토큰의 재제출)을 계속 잡는다.
+     *
+     * 폐기(UPDATE)와 새 세션 발급(INSERT)은 한 트랜잭션이다 — INSERT가 실패하면 폐기도 되돌려
+     * 옛 토큰이 살아 있게 한다. 갈라지면 그 기기는 살아 있는 세션 없이 남아 재로그인해야 했다
+     * (2026-09-26 감사 하 #2).
      */
-    const revoked = await this.sessionRepository.revokeIfActive(
-      session.id,
-      now,
-    );
+    return this.dataSource.transaction(async (manager) => {
+      const revoked = await this.sessionRepository.revokeIfActive(
+        session.id,
+        now,
+        manager,
+      );
 
-    if (!revoked) {
-      this.logger.warn('refresh lost a concurrent rotation race', {
-        user_id: session.userId,
-      });
-      throw this.refreshTokenInvalid();
-    }
+      if (!revoked) {
+        this.logger.warn('refresh lost a concurrent rotation race', {
+          user_id: session.userId,
+        });
+        throw this.refreshTokenInvalid();
+      }
 
-    return this.issueSession(user, command.deviceId, now);
+      return this.issueSession(user, command.deviceId, now, manager);
+    });
   }
 
   /** auth-api.md 4.4 — 해당 기기 세션만 폐기한다. 다른 기기 세션은 유지된다 */
@@ -293,6 +302,7 @@ export class AuthService {
     user: User,
     deviceId: string,
     now: Date,
+    manager?: EntityManager,
   ): Promise<IssuedTokens> {
     const accessToken = this.tokenService.issueAccessToken(user, now);
     const refreshToken = this.tokenService.issueRefreshToken(now);
@@ -306,6 +316,7 @@ export class AuthService {
         issuedAt: now,
         expiresAt: refreshToken.expiresAt,
       }),
+      manager,
     );
 
     return {

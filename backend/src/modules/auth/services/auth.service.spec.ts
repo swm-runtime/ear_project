@@ -1,3 +1,5 @@
+import { DataSource, EntityManager } from 'typeorm';
+
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { sha256Hex } from '@/common/utils/hash.util';
 import { ConsentService } from '@/modules/user/services/consent.service';
@@ -20,6 +22,8 @@ import { TokenService } from './token.service';
 const USER_ID = '33333333-3333-4333-8333-333333333333';
 const NOW = new Date('2026-08-04T09:00:00.000Z');
 const REFRESH_TOKEN = 'refresh-token-value';
+/** 트랜잭션 안에서 넘겨받는 manager — 회전의 UPDATE·INSERT가 같은 manager를 쓰는지 본다 */
+const TX_MANAGER = { tx: true } as unknown as EntityManager;
 
 function buildUser(): User {
   return {
@@ -52,6 +56,7 @@ describe('AuthService', () => {
   let sessionRepository: jest.Mocked<SessionRepository>;
   let deviceTokenService: jest.Mocked<DeviceTokenService>;
   let providerClient: jest.Mocked<SocialProviderClient>;
+  let transaction: jest.Mock;
 
   beforeEach(() => {
     providerClient = {
@@ -115,6 +120,12 @@ describe('AuthService', () => {
     );
     jest.spyOn(signupAlertService, 'notify');
 
+    transaction = jest.fn(
+      (runInTransaction: (manager: EntityManager) => Promise<unknown>) =>
+        runInTransaction(TX_MANAGER),
+    );
+    const dataSource = { transaction } as unknown as DataSource;
+
     service = new AuthService(
       registry,
       userService,
@@ -123,6 +134,7 @@ describe('AuthService', () => {
       sessionRepository,
       deviceTokenService,
       signupAlertService,
+      dataSource,
     );
   });
 
@@ -320,8 +332,51 @@ describe('AuthService', () => {
       expect(sessionRepository.revokeIfActive).toHaveBeenCalledWith(
         session.id,
         NOW,
+        TX_MANAGER,
       );
       expect(tokens.refreshToken).not.toBe(REFRESH_TOKEN);
+    });
+
+    it('이전 세션 폐기와 새 세션 저장을 한 트랜잭션에서 한다', async () => {
+      // given
+      sessionRepository.findByRefreshTokenHash.mockResolvedValue(
+        buildSession(),
+      );
+
+      // when
+      await service.refresh(
+        { refreshToken: REFRESH_TOKEN, deviceId: 'device-1' },
+        NOW,
+      );
+
+      // then — UPDATE와 INSERT가 같은 manager로 나간다(INSERT 실패 시 폐기도 롤백)
+      expect(transaction).toHaveBeenCalledTimes(1);
+      expect(sessionRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: USER_ID, deviceId: 'device-1' }),
+        TX_MANAGER,
+      );
+    });
+
+    it('새 세션 저장이 실패하면 트랜잭션 밖으로 에러를 그대로 던진다', async () => {
+      // given
+      sessionRepository.findByRefreshTokenHash.mockResolvedValue(
+        buildSession(),
+      );
+      sessionRepository.save.mockRejectedValue(new Error('insert failed'));
+
+      // when
+      const refreshing = service.refresh(
+        { refreshToken: REFRESH_TOKEN, deviceId: 'device-1' },
+        NOW,
+      );
+
+      // then — 콜백이 거절되므로 dataSource.transaction이 폐기 UPDATE를 롤백한다
+      await expect(refreshing).rejects.toThrow('insert failed');
+      expect(sessionRepository.revokeIfActive).toHaveBeenCalledWith(
+        'session-1',
+        NOW,
+        TX_MANAGER,
+      );
     });
 
     it('동시 갱신 경합에서 지면 재사용으로 판정하지 않고 갱신만 실패시킨다', async () => {
