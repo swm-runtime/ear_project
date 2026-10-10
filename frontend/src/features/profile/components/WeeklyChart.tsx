@@ -612,7 +612,10 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
               {topPercent !== null ? (
                 <View style={styles.rankInline}>
                   <RankUpIcon />
-                  <Text style={styles.rankText}>{PROFILE_COPY.stats.topPercent(topPercent)}</Text>
+                  {/* 좁으면 두 줄까지 접는다 — 평균 숫자와 같이 나눠 줄어든다 */}
+                  <Text style={styles.rankText} numberOfLines={2}>
+                    {PROFILE_COPY.stats.topPercent(topPercent)}
+                  </Text>
                 </View>
               ) : null}
             </View>
@@ -805,6 +808,7 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   rankInline: {
+    flexShrink: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.xs + 2,
@@ -813,6 +817,8 @@ const styles = StyleSheet.create({
   },
   // 회색 보조 글자 — 스크린 타임 "지난주 대비 8%" 와 같은 위계(라벨보다 한 단계 큰 md)
   rankText: {
+    flexShrink: 1,
+    textAlign: 'right',
     fontSize: theme.font.size.md,
     fontWeight: '500',
     fontVariant: ['tabular-nums'],
