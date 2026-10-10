@@ -79,10 +79,11 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.lg,
     borderCurve: 'continuous',
   },
+  // 위아래 16 — 24 였을 땐 두 줄(숫자·라벨) 내용에 비해 카드가 두꺼워 위 묶음 카드보다 1.5배 넓어 보였다(PM 2026-10-11)
   row: {
     flexDirection: 'row',
     paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
   },
   rowStacked: {
     flexDirection: 'column',
