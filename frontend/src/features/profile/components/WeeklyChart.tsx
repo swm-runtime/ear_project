@@ -44,9 +44,11 @@ const SERVICE_DAY_OFFSET_MS = 5 * 60 * 60 * 1000;
 /**
  * 막대 위 말풍선 자리의 **최소** 높이 — 실제 높이는 실측값이 이긴다(`annotationHeight`). 말풍선은 14pt 글자 +
  * 위아래 8 여백이라 34 안팎이므로 44 는 10 넘게 과하게 비웠고, 아무 막대도 고르지 않은 기본 상태에서는 그 자리가
- * 그냥 빈 공간으로 보였다(PM 2026-09-28 01:28 "하루 청취 시간 아래 공백이 많다"). 실측이 더 크면(200% 글꼴) 그 값을 쓴다
+ * 그냥 빈 공간으로 보였다(PM 2026-09-28 01:28 "하루 청취 시간 아래 공백이 많다"). 실측이 더 크면(200% 글꼴) 그 값을 쓴다.
+ * 32 → 28(PM 2026-10-11 03:29 "하루 평균 아래 공백 줄였으면") — 말풍선 위아래 여백을 6 으로 줄여 실측이 ≈30 이 됐다.
+ * 최소값이 실측보다 크면 그만큼이 또 빈 공간이 되므로 실측 밑으로 둔다
  */
-const ANNOTATION_MIN_HEIGHT = 32;
+const ANNOTATION_MIN_HEIGHT = 28;
 const GRID_RATIOS = [0, 0.5, 1] as const;
 /**
  * 오른쪽 축(PM 2026-09-28 02:36 — 애플 건강) — 격자 오른쪽 끝에 **위 = 이 주의 최대값, 평균 점선 옆 = "평균", 아래 = 0**.
@@ -459,7 +461,12 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
    * 한 줄 말풍선이라 요일·값과 무관하게 높이가 같다. 실제 말풍선은 폭(가운데 맞춤)만 잰다
    */
   const [reserveHeight, setReserveHeight] = useState(ANNOTATION_MIN_HEIGHT);
-  const annotationHeight = Math.max(ANNOTATION_MIN_HEIGHT, reserveHeight) + theme.spacing.sm;
+  /*
+   * 말풍선 자리 = 말풍선 실측 높이 그대로(PM 2026-10-11 03:29 "하루 평균 아래 공백 줄였으면") — 종전엔 +8 을 더 비워
+   * 말풍선과 가장 높은 막대 사이를 띄웠는데, 막대를 고르지 않은 기본 상태에서는 그 8 이 평균 숫자 밑 빈 공간으로만
+   * 보였다. 말풍선 자체에 아래 여백 6 이 있어 가장 높은 막대와 글자가 붙지 않는다
+   */
+  const annotationHeight = Math.max(ANNOTATION_MIN_HEIGHT, reserveHeight);
   const selectedCenter = ((selectedIndex ?? 0) + 0.5) * (chartWidth / DAYS_IN_WEEK);
   // 축은 가운데 주가 그래프로 보일 때만 — 조회 중·실패·빈 주에는 비운다
   const axisView =
@@ -903,7 +910,9 @@ const styles = StyleSheet.create({
     backgroundColor: GRID_COLUMN_COLOR,
   },
   // [넘김 구획 | 고정 축] — 넘김 구획은 카드 왼쪽 여백부터 축 앞까지만 보이고 양옆 주는 잘린다
-  chartStrip: { flexDirection: 'row', paddingLeft: theme.spacing.md },
+  // 띠를 4 올려 평균 숫자(34pt) 글자 상자의 아래 빈 줄간(글리프 밑 ≈7)과 겹친다 — 말풍선이 떠도 숫자에 닿지 않는 범위
+  // (PM 2026-10-11 03:29 "하루 평균 아래 공백 줄였으면"). 더 올리면 선택 시 흰 말풍선 윗변이 숫자 밑선에 붙는다
+  chartStrip: { flexDirection: 'row', paddingLeft: theme.spacing.md, marginTop: -theme.spacing.xs },
   pager: { flex: 1, overflow: 'hidden' },
   pagerRow: { flexDirection: 'row', alignItems: 'flex-start' },
   axis: {
@@ -967,7 +976,9 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
     backgroundColor: theme.color.background,
     paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.sm,
+    // 위아래 8 → 6(2026-10-11) — 말풍선 높이가 곧 평균 숫자 밑 예약 공간이라 여백이 그대로 공백이 된다. 14pt 글자에 6 이면
+    // iOS 콜아웃과 같은 비율
+    paddingVertical: theme.spacing.xs + 2,
   },
   tooltipProbe: { opacity: 0 },
   tooltipText: {
