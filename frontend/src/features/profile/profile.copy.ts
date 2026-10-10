@@ -163,6 +163,19 @@ export const PROFILE_COPY = {
       ]
         .filter((part): part is string => part !== null)
         .join(' · '),
+    /**
+     * 행에 보이는 짧은 줄 — 직군은 오른쪽 사진이 보여 주니 빼고 "서비스 기획 · 4-6년"(PM 2026-10-11 03:35). 낭독은 위 line 전체
+     */
+    visibleLine: (parts: {
+      jobTitle: string | null;
+      yearsOfExperience: YearsOfExperience | null;
+    }) =>
+      [
+        parts.jobTitle,
+        parts.yearsOfExperience === null ? null : YEARS_LABELS[parts.yearsOfExperience],
+      ]
+        .filter((part): part is string => part !== null)
+        .join(' · '),
     emptyPrompt: '입력하면 추천이 정확해져요',
     emptyAction: '입력하기',
   },
