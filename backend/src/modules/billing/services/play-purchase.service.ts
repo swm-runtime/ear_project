@@ -87,7 +87,7 @@ export class PlayPurchaseService {
         throw this.invalid('refunded_token');
       }
 
-      await this.billingSyncService.syncUserTier(userId, manager);
+      await this.billingSyncService.syncUserTier(userId, manager, now);
 
       this.logger.log('play purchase applied', {
         user_id: userId,
@@ -159,7 +159,7 @@ export class PlayPurchaseService {
         applied.push(purchase);
       }
 
-      await this.billingSyncService.syncUserTier(userId, manager);
+      await this.billingSyncService.syncUserTier(userId, manager, now);
     });
 
     for (const purchase of applied) {

@@ -284,7 +284,7 @@ export class BillingOrchestrator {
         throw this.receiptInvalid(outcome.reason);
       }
 
-      await this.billingSyncService.syncUserTier(userId, manager);
+      await this.billingSyncService.syncUserTier(userId, manager, now);
 
       this.logger.log('purchase applied', {
         user_id: userId,
@@ -395,7 +395,7 @@ export class BillingOrchestrator {
         }
       }
 
-      await this.billingSyncService.syncUserTier(userId, manager);
+      await this.billingSyncService.syncUserTier(userId, manager, now);
 
       return linked;
     });
