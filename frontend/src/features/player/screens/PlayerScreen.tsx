@@ -1,7 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { LayoutChangeEvent } from 'react-native';
+import type { LayoutChangeEvent, ViewProps } from 'react-native';
 import {
   ActivityIndicator,
   Animated,
@@ -13,8 +13,16 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import Reanimated, {
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  type SharedValue,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
+import { scheduleOnRN } from 'react-native-worklets';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { androidNavigationModeOf } from '@/shared/lib/android-navigation';
@@ -150,16 +158,45 @@ export default function PlayerScreen() {
   /*
    * 펼침·접힘은 진행값 하나(0 접힘 → 1 펼침)로 아트워크·제목·패널을 함께 움직인다 —
    * 아트워크가 왼쪽 위 썸네일로 줄어드는 게 보여야 "같은 화면이 눌린 것"으로 읽힌다(2026-09-16).
-   * 높이·위치를 움직이므로 JS 드라이버다. 패널은 접힘 애니메이션이 끝난 뒤에 내린다.
-   * 열린 채로 다른 패널로 바꾸면 전환 없이 내용만 바뀐다
+   * 패널은 접힘 애니메이션이 끝난 뒤에 내린다. 열린 채로 다른 패널로 바꾸면 전환 없이 내용만 바뀐다.
+   *
+   * **UI 스레드(Reanimated) 값이다**(PM 2026-10-10 "Android 플레이어 대본 켜고 끌 때 렉" — runtime 33). 종전 RN Animated 는
+   * 높이·위치를 움직여 JS 드라이버로만 돌 수 있었고, Android 는 프레임마다 JS 계산 → 트리 갱신 → 레이아웃이 돌았다.
+   * 이제 스프링과 아래 보간(useAnimatedStyle)이 전부 UI 스레드에서 돌아 JS 가 바빠도 끊기지 않는다
    */
-  const panelProgress = useAnimatedValue(0);
+  const panelProgress = useSharedValue(0);
   /*
    * 재생 목록(2026-09-17 PM 확정) — 스크립트와 달리 **아래에서 올라오는 시트**다. 손잡이를 끌어올리면 시트가
    * 올라온 만큼 위의 플레이어가 세로 구조(아트워크·제목·시크바·컨트롤) 그대로 공백을 접으며 압축되고, 목록은
    * 컨트롤 **아래**에 선다(유튜브 뮤직). 값 하나(queueProgress, 0 닫힘 → 1 열림)가 시트 위치와 압축을 함께 몬다
    */
-  const queueProgress = useAnimatedValue(0);
+  const queueProgress = useSharedValue(0);
+  /**
+   * 진행값 스프링 — UI 스레드에서 돌고, 끝 콜백(finished)만 JS 로 돌려준다. 끝점에서 튀지 않는다(overshootClamping —
+   * 0·1 을 넘기면 아트워크가 좌표 밖으로 튄다)
+   */
+  const springTo = (
+    value: SharedValue<number>,
+    toValue: number,
+    spring: PanelSpring,
+    onDone?: (finished: boolean) => void,
+  ) => {
+    value.set(
+      withSpring(
+        toValue,
+        {
+          stiffness: spring.stiffness,
+          damping: spring.damping,
+          mass: spring.mass,
+          overshootClamping: true,
+        },
+        (finished) => {
+          'worklet';
+          if (onDone) scheduleOnRN(onDone, finished === true);
+        },
+      ),
+    );
+  };
   const [mountedPanel, setMountedPanel] = useState<PlayerPanelKind | null>(null);
   /*
    * 펼침·접힘 모션은 **상태 변경이 화면에 반영된 뒤에** 출발시킨다(2026-09-21 iOS 실기기 — 커버가 줄어드는
@@ -203,12 +240,7 @@ export default function PlayerScreen() {
     // 히어로(대본) 스프링 — 순서 전환에서는 목록이 닫힌 뒤에 따로(더 빠른 SEQUENCE_SPRING 으로) 출발한다
     const startPanelSpring = (spring: PanelSpring = motion.spring.smooth) => {
       holdArtLayout();
-      Animated.spring(panelProgress, {
-        toValue: isScriptOpen ? 1 : 0,
-        ...spring,
-        overshootClamping: true,
-        useNativeDriver: false,
-      }).start(({ finished }) => {
+      springTo(panelProgress, isScriptOpen ? 1 : 0, spring, (finished) => {
         releaseArtLayout();
         if (!finished) return;
         if (isScriptOpen) {
@@ -224,27 +256,18 @@ export default function PlayerScreen() {
      * 히어로를 먼저 편 뒤(panelProgress → 0) 목록을 올린다. 두 JS 스프링이 겹쳐 히어로 높이(레이아웃)와 목록 모션이 같은
      * 프레임에 돌던 것을 나눈다
      */
-    const isScriptToQueue = SEQUENCE_QUEUE_TO_SCRIPT && kind === 'queue' && activePanel === 'script';
+    const isScriptToQueue =
+      SEQUENCE_QUEUE_TO_SCRIPT && kind === 'queue' && activePanel === 'script';
     if (isScriptToQueue) {
       const startScriptToQueue = () => {
         panelMotionFrameRef.current = null;
         playbackService.holdPositionUpdates(SCRIPT_TOGGLE_DURATION_MS * 2);
         holdArtLayout();
-        Animated.spring(panelProgress, {
-          toValue: 0,
-          ...SEQUENCE_SPRING,
-          overshootClamping: true,
-          useNativeDriver: false,
-        }).start(({ finished }) => {
+        springTo(panelProgress, 0, SEQUENCE_SPRING, (finished) => {
           releaseArtLayout();
           if (!finished) return;
           holdArtLayout();
-          Animated.spring(queueProgress, {
-            toValue: 1,
-            ...SEQUENCE_SPRING,
-            overshootClamping: true,
-            useNativeDriver: false,
-          }).start(({ finished: queueFinished }) => {
+          springTo(queueProgress, 1, SEQUENCE_SPRING, (queueFinished) => {
             releaseArtLayout();
             if (queueFinished) setIsQueueSettled(true);
           });
@@ -261,12 +284,7 @@ export default function PlayerScreen() {
         panelMotionFrameRef.current = null;
         playbackService.holdPositionUpdates(SCRIPT_TOGGLE_DURATION_MS * 2);
         holdArtLayout();
-        Animated.spring(queueProgress, {
-          toValue: 0,
-          ...SEQUENCE_SPRING,
-          overshootClamping: true,
-          useNativeDriver: false,
-        }).start(({ finished }) => {
+        springTo(queueProgress, 0, SEQUENCE_SPRING, (finished) => {
           releaseArtLayout();
           // 끊겼으면(다른 전환이 이어받음) 대본을 붙이지 않는다 — 다음 setPanel 이 정리한다
           if (!finished) return;
@@ -294,12 +312,7 @@ export default function PlayerScreen() {
       // 시트와 같은 smooth 스프링(2026-09-22 PM — 전환 곡선 통일). 길이는 응답 0.45초에 감쇠까지 약 SCRIPT_TOGGLE_DURATION_MS
       // 두 스프링이 도는 동안 아트워크 실측을 보류한다(위 onHeroArtLayout 주석) — 끊겨도 콜백은 온다
       holdArtLayout();
-      Animated.spring(queueProgress, {
-        toValue: kind === 'queue' ? 1 : 0,
-        ...motion.spring.smooth,
-        overshootClamping: true,
-        useNativeDriver: false,
-      }).start(({ finished }) => {
+      springTo(queueProgress, kind === 'queue' ? 1 : 0, motion.spring.smooth, (finished) => {
         releaseArtLayout();
         // 앉은 뒤에 나머지 행을 올린다(위 isQueueSettled 주석). 중간에 끊긴 모션은 다음 모션이 정리한다
         if (finished) setIsQueueSettled(kind === 'queue');
@@ -320,11 +333,10 @@ export default function PlayerScreen() {
    * 반올림이 매번 달라 여백이 1dp 씩 오가며 제목·구간 카드·재생바가 덜덜 떨렸다(PM 2026-10-09). 조각은 여백이 바뀌어도 그대로다
    */
   const [controlParts, setControlParts] = useState({ seek: 0, row: 0, banner: 0 });
-  const measureControlPart =
-    (part: 'seek' | 'row' | 'banner') => (event: LayoutChangeEvent) => {
-      const height = Math.round(event.nativeEvent.layout.height);
-      setControlParts((prev) => (prev[part] === height ? prev : { ...prev, [part]: height }));
-    };
+  const measureControlPart = (part: 'seek' | 'row' | 'banner') => (event: LayoutChangeEvent) => {
+    const height = Math.round(event.nativeEvent.layout.height);
+    setControlParts((prev) => (prev[part] === height ? prev : { ...prev, [part]: height }));
+  };
   // 수면 타이머(FR-25 P1) — 시간은 서비스가 세고 화면은 스토어를 구독해 그린다(화면을 닫아도 타이머는 간다)
   const sleepTimerChoice = useSleepTimerStore((s) => s.choice);
   const sleepTimerRemainingSec = useSleepTimerStore((s) => s.remainingSec);
@@ -477,24 +489,17 @@ export default function PlayerScreen() {
    * 재생하면 살짝 튕기며 제자리로 커진다 — 화면 전체에서 재생 상태를 한눈에 알리는 애플의 방식. 모션(열림·닫힘) 중과
    * 재생 목록이 열려 사진이 화면을 채울 땐 1 로 고정한다 — 모션 레이어와 교차하는 순간 크기가 다르면 두 장으로 보인다
    */
-  const artScale = useAnimatedValue(1);
+  const artScale = useSharedValue(1);
   const isArtRelaxed = isMorphing || screen.activePanel === 'queue' || (session?.isPlaying ?? true);
   useEffect(() => {
-    Animated.spring(artScale, {
-      toValue: isArtRelaxed ? 1 : PAUSED_ART_SCALE,
-      ...motion.spring.smooth,
-      // 같은 뷰의 left·top 이 JS 드라이버라 transform 도 JS 로 — 한 노드에 두 드라이버를 섞을 수 없다
-      useNativeDriver: false,
-    }).start();
+    // 아트워크 틀(위치·크기)과 같은 노드라 같은 UI 스레드 값으로 — runtime 33
+    artScale.set(withSpring(isArtRelaxed ? 1 : PAUSED_ART_SCALE, motion.spring.smooth));
   }, [artScale, isArtRelaxed]);
   /*
    * 재생 목록을 **끄는 동안**에도 배율을 1 로 편다 — 위의 `activePanel === 'queue'` 는 놓아서 열린 뒤에야 참이라, 정지 상태에서
-   * 끌어올리고 버티면 화면을 채우는 사진이 0.85 로 줄어 위·양옆이 비었다(PM 2026-10-09 실기기). 끈 만큼(queueProgress) 1 에 다가간다
+   * 끌어올리고 버티면 화면을 채우는 사진이 0.85 로 줄어 위·양옆이 비었다(PM 2026-10-09 실기기). 끈 만큼(queueProgress) 1 에
+   * 다가간다 — 아래 artFrameStyle 이 계산한다
    */
-  const artScaleShown = useMemo(
-    () => Animated.add(artScale, Animated.multiply(Animated.subtract(1, artScale), queueProgress)),
-    [artScale, queueProgress],
-  );
   // 진단 — 마운트 횟수(설정 > 스택 라우트 줄). 드래그 닫기 뒤 탭 전환 때 늘면 JS 가 다시 마운트한 것
   useEffect(() => {
     notePlayerMounted();
@@ -847,71 +852,26 @@ export default function PlayerScreen() {
     QUEUE_TITLE_LINE_HEIGHT +
     (hasQueueCategory ? theme.spacing.xs + QUEUE_CATEGORY_LINE_HEIGHT : 0);
   const queueMetaTop = QUEUE_BANNER_HEIGHT - queueMetaHeight;
-  const queueShift = (from: number, to: number) => Animated.multiply(queueProgress, to - from);
-  const heroBase = {
-    height: panelProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [artAreaHeight + HERO_META_BLOCK_HEIGHT, HERO_COMPACT_HEIGHT],
-    }),
-    artSize: panelProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [artSizeCollapsed, COMPACT_ARTWORK_SIZE],
-    }),
-    // 접힘에서는 제목·카테고리를 시크바 바로 위에 붙이고, 아트워크는 그 위 남는 높이의 가운데에 둔다 —
-    // 제목과 시크바 사이에 공백을 두면 "위는 콘텐츠, 아래는 조작"의 경계가 흐려진다(2026-09-16, 폭 342pt에서
-    // 남는 세로 약 160pt를 아트워크 위아래로 나눈다)
-    artTop: panelProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [
-        theme.spacing.sm + (artAreaHeight - theme.spacing.sm - artSizeCollapsed) / 2,
-        theme.spacing.sm,
-      ],
-    }),
-    artLeft: panelProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [(innerWidth - artSizeCollapsed) / 2, 0],
-    }),
-    artRadius: panelProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [theme.radius.lg, theme.radius.md],
-    }),
-    metaTop: panelProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [artAreaHeight + HERO_META_GAP, HERO_COMPACT_META_TOP],
-    }),
-    metaLeft: panelProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0, COMPACT_ARTWORK_SIZE + theme.spacing.md],
-    }),
-    collapsedOpacity: panelProgress.interpolate({
-      inputRange: [0, 0.5, 1],
-      outputRange: [1, 0, 0],
-    }),
-    expandedOpacity: panelProgress.interpolate({
-      inputRange: [0, 0.5, 1],
-      outputRange: [0, 0, 1],
-    }),
-    panelOffset: panelProgress.interpolate({ inputRange: [0, 1], outputRange: [40, 0] }),
-  };
+  /*
+   * ── 대본(panelProgress)·재생 목록(queueProgress) 모션 — **UI 스레드 보간**(runtime 33, PM 2026-10-10) ──
+   * 아래 숫자들은 이 렌더의 실측 기준값이고, useAnimatedStyle 이 매 프레임 두 진행값으로 보간한다. 두 패널은 서로 배타라
+   * (동시에 열리지 않는다) 변위를 그냥 더한다. 종전 RN Animated 식(interpolate·add·multiply)을 같은 값으로 옮겼다
+   */
+  // 대본 접힘(0) ↔ 펼침(1)의 히어로 기준 — 접힘에서는 제목·카테고리를 시크바 바로 위에 붙이고, 아트워크는 그 위
+  // 남는 높이의 가운데에 둔다(2026-09-16 — 제목과 시크바 사이에 공백을 두면 "위는 콘텐츠, 아래는 조작"의 경계가 흐려진다)
+  const heroHeightOpen = artAreaHeight + HERO_META_BLOCK_HEIGHT;
   const collapsedArtTop =
     theme.spacing.sm + (artAreaHeight - theme.spacing.sm - artSizeCollapsed) / 2;
+  const collapsedArtLeft = (innerWidth - artSizeCollapsed) / 2;
+  const collapsedMetaTop = artAreaHeight + HERO_META_GAP;
+  const compactMetaLeft = COMPACT_ARTWORK_SIZE + theme.spacing.md;
   /*
    * 재생 목록이 열릴 때 히어로가 줄어드는 몫. **Android 는 이 몫을 레이아웃이 아니라 transform 으로** 준다(PM 2026-09-30 05:58
    * "재생목록 끌고 올라가고 내릴 때 굉장히 렉") — 히어로는 흐름 안이라 높이를 매 프레임 바꾸면 그 밑의 재생바·컨트롤·배너가
-   * 전부 매 프레임 다시 배치된다. 이 모션은 JS 드라이버라 Android(Fabric)는 프레임마다 트리 갱신 + 레이아웃이 돌았다.
-   * 레이아웃 높이는 대본 몫(heroBase.height — 대본 패널이 flex 로 빈 자리를 채우므로 레이아웃이어야 한다)만 두고,
+   * 전부 다시 배치된다. 레이아웃 높이는 대본 몫만 두고(대본 패널이 flex 로 빈 자리를 채우므로 레이아웃이어야 한다),
    * 줄어든 만큼 컨트롤 영역을 translateY 로 끌어올린다(controlArea 의 onLayout 높이는 transform 과 무관 — 시트 위치 계산 그대로)
    */
-  const heroQueueDelta = queueShift(artAreaHeight + HERO_META_BLOCK_HEIGHT, queueHeroHeight);
-  const hero = {
-    ...heroBase,
-    height: HERO_QUEUE_BY_TRANSFORM ? heroBase.height : Animated.add(heroBase.height, heroQueueDelta),
-    artLeft: Animated.add(heroBase.artLeft, queueShift((innerWidth - artSizeCollapsed) / 2, 0)),
-    metaTop: Animated.add(
-      heroBase.metaTop,
-      queueShift(artAreaHeight + HERO_META_GAP, queueMetaTop),
-    ),
-  };
+  const queueHeroDrop = queueHeroHeight - heroHeightOpen;
   // 시트의 위쪽 끝 — 닫힘: 손잡이만 남는다 / 열림: 압축된 플레이어(앱바 + 히어로 + 컨트롤) 바로 아래
   const queueClosedTop = Math.max(0, contentSize.height - handleHeight);
   const queueOpenTop = Math.min(
@@ -922,71 +882,115 @@ export default function PlayerScreen() {
       controlRowPaddingFold * 2 -
       currentSectionHeight,
   );
-  const queueInverse = Animated.subtract(1, queueProgress);
-  /*
-   * 컨트롤 줄 위아래 여백도 재생 목록이 올라온 만큼 접는다 — 목록에 자리를 더 준다(2026-09-17 PM).
-   * **여백(레이아웃)이 아니라 transform 으로 접는다**(PM 2026-09-27 23:53) — 여백을 움직이면 컨트롤 영역 높이가 매 프레임
-   * 바뀌어 onControlsLayout → 화면 전체 재렌더 → 모든 보간값 재생성이 프레임마다 돌았다. 레이아웃은 늘 여백 lg 로 두고,
-   * 줄은 위 여백 차이만큼·그 아래(배너)는 위아래 차이만큼 끌어올린다. 시트가 서는 선도 그만큼 올린다(queueOpenTop)
-   */
-  const controlRowShift = queueProgress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -controlRowPaddingFold - currentSectionHeight],
-  });
-  const belowControlRowShift = queueProgress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -controlRowPaddingFold * 2 - currentSectionHeight],
-  });
-  // 구간 박스가 걷힌 만큼 — 재생바가 히어로 바로 밑(아트워크 아래 변 = 시크바 트랙, queueArtHeight)으로 붙는다
-  const sectionFoldShift = queueProgress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -currentSectionHeight],
-  });
   /*
    * 아트워크의 content 좌표 — 히어로 원점(실측) + 히어로 안 좌표. 재생 목록이 열리면 (0,0)에서 화면 폭 ×
-   * (앱바 + 히어로 + 시크바 트랙 아래 변) 크기로 확대된다: 아래 변이 시크바 트랙 선과 맞고 시간 라벨은 커버 밖이다
+   * (앱바 + 히어로 + 시크바 트랙 아래 변) 크기로 확대된다: 아래 변이 시크바 트랙 선과 맞고 시간 라벨은 커버 밖이다.
+   * 열리면 상태바 영역(insets.top)까지 위로 덮는다 — 화면 꼭대기까지 사진이다(유튜브 뮤직)
    */
   const heroX = heroBox?.x ?? theme.spacing.lg;
   const heroY = heroBox?.y ?? appBarHeight;
   const queueArtHeight = appBarHeight + queueHeroHeight + seekTrackCenter;
-  const art = {
-    left: Animated.add(
-      Animated.add(heroBase.artLeft, heroX),
-      queueShift(heroX + (innerWidth - artSizeCollapsed) / 2, 0),
-    ),
-    // 열리면 상태바 영역(insets.top)까지 위로 덮는다 — 화면 꼭대기까지 사진이다(유튜브 뮤직)
-    top: Animated.add(
-      Animated.add(heroBase.artTop, heroY),
-      queueShift(heroY + collapsedArtTop, -insets.top),
-    ),
-    width: Animated.add(heroBase.artSize, queueShift(artSizeCollapsed, contentSize.width)),
-    height: Animated.add(
-      heroBase.artSize,
-      queueShift(artSizeCollapsed, queueArtHeight + insets.top),
-    ),
-    radius: Animated.add(heroBase.artRadius, queueShift(theme.radius.lg, 0)),
-  };
-  /** 사진 위에 얹히는 순간 색이 바뀌는 요소 — 어두운 것과 흰 것을 겹쳐 두고 진행값으로 교차한다 */
+  const contentWidth = contentSize.width;
+  const insetTop = insets.top;
+  const heroQueueByTransform = HERO_QUEUE_BY_TRANSFORM;
+  /*
+   * 컨트롤 줄 위아래 여백도 재생 목록이 올라온 만큼 접는다 — 목록에 자리를 더 준다(2026-09-17 PM). 여백(레이아웃)이 아니라
+   * transform 으로 접는다(PM 2026-09-27 23:53). 줄은 위 여백 차이만큼·그 아래(배너)는 위아래 차이만큼, 구간 박스가
+   * 걷힌 만큼 재생바도 끌어올린다(KAN-127). 시트가 서는 선도 그만큼 올린다(queueOpenTop)
+   */
+  const controlRowLift = -controlRowPaddingFold - currentSectionHeight;
+  const belowControlRowLift = -controlRowPaddingFold * 2 - currentSectionHeight;
+  const sectionLift = -currentSectionHeight;
+  // 시트는 열린 자리에 고정 크기로 두고 translateY 로 내린다(PM 2026-09-27 23:53) — 틀이 열린 자리부터 바닥까지를 자른다
+  const queueSheetTravel = queueClosedTop - queueOpenTop;
+
+  const artFrameStyle = useAnimatedStyle(() => {
+    const panel = panelProgress.get();
+    const queue = queueProgress.get();
+    const artSize = interpolate(panel, [0, 1], [artSizeCollapsed, COMPACT_ARTWORK_SIZE]);
+    const artTop = interpolate(panel, [0, 1], [collapsedArtTop, theme.spacing.sm]);
+    const artLeft = interpolate(panel, [0, 1], [collapsedArtLeft, 0]);
+    const artRadius = interpolate(panel, [0, 1], [theme.radius.lg, theme.radius.md]);
+    const scale = artScale.get();
+    return {
+      left: artLeft + heroX + queue * (0 - (heroX + collapsedArtLeft)),
+      top: artTop + heroY + queue * (-insetTop - (heroY + collapsedArtTop)),
+      width: artSize + queue * (contentWidth - artSizeCollapsed),
+      height: artSize + queue * (queueArtHeight + insetTop - artSizeCollapsed),
+      borderRadius: artRadius + queue * (0 - theme.radius.lg),
+      transform: [{ scale: scale + (1 - scale) * queue }],
+    };
+  });
+  const heroHeightStyle = useAnimatedStyle(() => {
+    const height = interpolate(panelProgress.get(), [0, 1], [heroHeightOpen, HERO_COMPACT_HEIGHT]);
+    return {
+      height: heroQueueByTransform ? height : height + queueProgress.get() * queueHeroDrop,
+    };
+  });
+  // 대본이 펼쳐져 작아진 커버의 탭 영역 — 히어로 안 좌표(재생 목록 몫 없음)
+  const heroArtTapStyle = useAnimatedStyle(() => {
+    const panel = panelProgress.get();
+    const size = interpolate(panel, [0, 1], [artSizeCollapsed, COMPACT_ARTWORK_SIZE]);
+    return {
+      left: interpolate(panel, [0, 1], [collapsedArtLeft, 0]),
+      top: interpolate(panel, [0, 1], [collapsedArtTop, theme.spacing.sm]),
+      width: size,
+      height: size,
+    };
+  });
+  const heroMetaStyle = useAnimatedStyle(() => {
+    const panel = panelProgress.get();
+    return {
+      top:
+        interpolate(panel, [0, 1], [collapsedMetaTop, HERO_COMPACT_META_TOP]) +
+        queueProgress.get() * (queueMetaTop - collapsedMetaTop),
+      left: interpolate(panel, [0, 1], [0, compactMetaLeft]),
+    };
+  });
+  // 제목은 크기가 달라 두 겹을 교차 페이드한다 — 접힘 제목은 재생 목록이 열리면 사진 위 흰 제목에 자리를 내준다
+  const titleCollapsedStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(panelProgress.get(), [0, 0.5, 1], [1, 0, 0]) * (1 - queueProgress.get()),
+  }));
+  const titleCompactStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(panelProgress.get(), [0, 0.5, 1], [0, 0, 1]),
+  }));
+  const scriptPanelStyle = useAnimatedStyle(() => {
+    const panel = panelProgress.get();
+    return {
+      opacity: interpolate(panel, [0, 0.5, 1], [0, 0, 1]),
+      transform: [{ translateY: interpolate(panel, [0, 1], [40, 0]) }],
+    };
+  });
+  const controlAreaStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: heroQueueByTransform ? queueProgress.get() * queueHeroDrop : 0 }],
+  }));
+  const sectionShiftStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: queueProgress.get() * sectionLift }],
+  }));
+  const controlRowStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: queueProgress.get() * controlRowLift }],
+  }));
+  const belowControlRowStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: queueProgress.get() * belowControlRowLift }],
+  }));
+  const queueSheetStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: (1 - queueProgress.get()) * queueSheetTravel }],
+  }));
+  /** 사진 위에 얹히는 순간 색이 바뀌는 요소 — 어두운 것과 흰 것을 겹쳐 두고 재생 목록 진행값으로 교차한다 */
   const dualTone = (dark: ReactNode, light: ReactNode) => (
     <View>
-      <Animated.View style={{ opacity: queueInverse }}>{dark}</Animated.View>
-      <Animated.View
+      <FadeByProgress progress={queueProgress} invert>
+        {dark}
+      </FadeByProgress>
+      <FadeByProgress
+        progress={queueProgress}
         pointerEvents="none"
-        style={[StyleSheet.absoluteFill, styles.dualToneOverlay, { opacity: queueProgress }]}
+        style={[StyleSheet.absoluteFill, styles.dualToneOverlay]}
       >
         {light}
-      </Animated.View>
+      </FadeByProgress>
     </View>
   );
-  /*
-   * 시트는 **열린 자리에 고정 크기로 두고 translateY 로 내린다**(PM 2026-09-27 23:53). 종전엔 top 을 움직여 시트 높이가
-   * 매 프레임 바뀌었고, 그때마다 목록과 행들의 레이아웃을 다시 계산했다. 대본 패널이 부드러운 것은 transform 이라서다.
-   * 틀(queueSheetFrame)이 열린 자리부터 바닥까지를 잘라, 닫힘엔 손잡이만 보인다
-   */
-  const queueSheetShift = queueProgress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [queueClosedTop - queueOpenTop, 0],
-  });
 
   // 재생 목록 손잡이 — 손가락이 곧 queueProgress 다. 위로 끌면 시트가 따라 올라오며 위가 압축되고, 놓으면
   // 거리(35%)·속도로 열림/닫힘을 확정한다(탭은 토글). 세로 드래그 전용이라 몇 px에 먼저 잡는다(화면 축소보다 우선)
@@ -1016,12 +1020,7 @@ export default function PlayerScreen() {
         setMountedPanel(null);
         setIsScriptSettled(false);
         playbackService.holdPositionUpdates(SCRIPT_TOGGLE_DURATION_MS);
-        Animated.spring(panelProgress, {
-          toValue: 0,
-          ...motion.spring.smooth,
-          overshootClamping: true,
-          useNativeDriver: false,
-        }).start();
+        springTo(panelProgress, 0, motion.spring.smooth);
       },
     };
   });
@@ -1054,7 +1053,7 @@ export default function PlayerScreen() {
           const { travel, isOpen } = queueGestureRef.current;
           // 위로 끌면 dy 가 음수다 — 열림 방향이 +1 이 되도록 부호를 뒤집는다
           const next = (isOpen ? 1 : 0) - gesture.dy / travel;
-          queueProgress.setValue(Math.min(1, Math.max(0, next)));
+          queueProgress.set(Math.min(1, Math.max(0, next)));
         },
         onPanResponderRelease: (_, gesture) => {
           const {
@@ -1307,9 +1306,15 @@ export default function PlayerScreen() {
         inputRange: [0, 0.15, 1],
         outputRange: [theme.color.surface, playerColor.background, playerColor.background],
       }),
-      backdropOpacity: openProgress.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 1, 1] }),
+      backdropOpacity: openProgress.interpolate({
+        inputRange: [0, 0.15, 1],
+        outputRange: [0, 1, 1],
+      }),
       // 플레이어는 처음부터 제자리에 완성돼 있고, 카드 내용과 교차하며 드러난다
-      contentOpacity: openProgress.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 1, 1] }),
+      contentOpacity: openProgress.interpolate({
+        inputRange: [0, 0.15, 1],
+        outputRange: [0, 1, 1],
+      }),
       contentTranslateY: 0,
       heroOpacity: 1,
     });
@@ -1323,7 +1328,16 @@ export default function PlayerScreen() {
         dismissProgress,
       ),
     // 재생 위치만 갱신될 때는 네이티브 이동·확대 그래프를 유지한다.
-    [openProgress, dismissProgress, mini.x, mini.y, mini.width, mini.height, windowWidth, windowHeight],
+    [
+      openProgress,
+      dismissProgress,
+      mini.x,
+      mini.y,
+      mini.width,
+      mini.height,
+      windowWidth,
+      windowHeight,
+    ],
   );
 
   if (!session) {
@@ -1396,11 +1410,15 @@ export default function PlayerScreen() {
       <StatusBar style="light" />
       {/* 뒤 화면 딤 + 미니플레이어 자리에서 자라나는 시트 — 0일 때는 카드 그 자체, 1일 때 풀 화면 */}
       <Animated.View
-        style={[StyleSheet.absoluteFill, styles.dim, {
-          opacity: ANDROID_ZOOM
-            ? Animated.multiply(morph.dimOpacity, Animated.subtract(1, dismissProgress))
-            : morph.dimOpacity,
-        }]}
+        style={[
+          StyleSheet.absoluteFill,
+          styles.dim,
+          {
+            opacity: ANDROID_ZOOM
+              ? Animated.multiply(morph.dimOpacity, Animated.subtract(1, dismissProgress))
+              : morph.dimOpacity,
+          },
+        ]}
         pointerEvents="none"
       />
       <Animated.View
@@ -1419,7 +1437,10 @@ export default function PlayerScreen() {
             borderTopRightRadius: morph.sheetRadius,
             // Android 줌은 카드가 통째로 부푼다 — 아래 모서리도 같이 둥글다(위에 얹힌 줌 무대와 같은 모양)
             ...(ANDROID_ZOOM
-              ? { borderBottomLeftRadius: morph.sheetRadius, borderBottomRightRadius: morph.sheetRadius }
+              ? {
+                  borderBottomLeftRadius: morph.sheetRadius,
+                  borderBottomRightRadius: morph.sheetRadius,
+                }
               : null),
             borderCurve: 'continuous',
             backgroundColor: morph.sheetColor,
@@ -1451,545 +1472,523 @@ export default function PlayerScreen() {
         enabled={ANDROID_ZOOM}
         zoom={androidZoom}
         radius={morph.sheetRadius}
-        stage={{ width: windowWidth, height: windowHeight, paddingTop: insets.top, paddingBottom: bottomPadding }}
+        stage={{
+          width: windowWidth,
+          height: windowHeight,
+          paddingTop: insets.top,
+          paddingBottom: bottomPadding,
+        }}
       >
-      <Animated.View
-        style={[
-          styles.content,
-          { opacity: morph.contentOpacity, transform: [{ translateY: morph.contentTranslateY }] },
-        ]}
-        onLayout={onContentLayout}
-        {...collapsePanResponder.panHandlers}
-      >
-        {/*
+        <Animated.View
+          style={[
+            styles.content,
+            { opacity: morph.contentOpacity, transform: [{ translateY: morph.contentTranslateY }] },
+          ]}
+          onLayout={onContentLayout}
+          {...collapsePanResponder.panHandlers}
+        >
+          {/*
           아트워크 — 히어로 밖, content 기준 절대 배치(2026-09-17 PM). 재생 목록이 올라오면 **이 아트워크가
           그대로 확대**돼 화면 가로를 꽉 채우고 위로는 앱바까지, 아래로는 시크바 시간 라벨 밑변까지 덮는다.
           히어로 안에 두면 overflow 에 잘려 그 밖으로 커질 수 없다. 앱바·제목·시크바보다 앞(먼저) 그려 그 밑에 깔린다
         */}
-        <Animated.View
-          style={[
-            styles.heroArtwork,
-            {
-              left: art.left,
-              top: art.top,
-              width: art.width,
-              height: art.height,
-              borderRadius: art.radius,
-              borderCurve: 'continuous',
-              opacity: morph.heroOpacity,
-              transform: [{ scale: artScaleShown }],
-            },
-          ]}
-          onLayout={onHeroArtLayout}
-        >
-          {session.meta.thumbnailUrl ? (
-            <RemoteImage
-              // 잠긴 뷰는 주소가 바뀌어도 다시 불러오지 않는다 — 콘텐츠가 바뀌면 새로 만든다
-              key={session.meta.thumbnailUrl}
-              uri={session.meta.thumbnailUrl}
-              style={styles.artwork}
-              isResized
-            />
-          ) : (
-            <View style={[styles.artwork, styles.artworkPlaceholder]} />
-          )}
-          {/* 완청 표식은 얹지 않는다(player-uiux.md 4.x 개정 2026-09-22 — 라이브러리 체크 마킹 폐기와 같이. 코드는 09-26 17:07 에 뒤늦게 뺐다) */}
-          {/* 사진 위 글자·시크바 대비용 어두운 막 — 열린 만큼만 */}
+          {/* 열림·닫힘 모핑의 불투명도(RN Animated)는 바깥 틀, 위치·크기·배율(UI 스레드)은 안쪽 — 한 노드에 두 엔진을 섞지 않는다.
+            바깥 틀은 content 를 그대로 덮어 안쪽의 onLayout 좌표가 종전(content 기준)과 같다 */}
           <Animated.View
+            style={[StyleSheet.absoluteFill, { opacity: morph.heroOpacity }]}
             pointerEvents="none"
-            style={[styles.queueTint, { opacity: queueProgress }]}
-          />
-          {/*
+          >
+            <Reanimated.View
+              style={[styles.heroArtwork, { borderCurve: 'continuous' }, artFrameStyle]}
+              onLayout={onHeroArtLayout}
+            >
+              {session.meta.thumbnailUrl ? (
+                <RemoteImage
+                  // 잠긴 뷰는 주소가 바뀌어도 다시 불러오지 않는다 — 콘텐츠가 바뀌면 새로 만든다
+                  key={session.meta.thumbnailUrl}
+                  uri={session.meta.thumbnailUrl}
+                  style={styles.artwork}
+                  isResized
+                />
+              ) : (
+                <View style={[styles.artwork, styles.artworkPlaceholder]} />
+              )}
+              {/* 완청 표식은 얹지 않는다(player-uiux.md 4.x 개정 2026-09-22 — 라이브러리 체크 마킹 폐기와 같이. 코드는 09-26 17:07 에 뒤늦게 뺐다) */}
+              {/* 사진 위 글자·시크바 대비용 어두운 막 — 열린 만큼만 */}
+              <FadeByProgress
+                progress={queueProgress}
+                pointerEvents="none"
+                style={styles.queueTint}
+              />
+              {/*
             아래쪽 그라데이션 — 사진 밑변으로 갈수록 플레이어 바탕색으로 잠긴다(유튜브 뮤직, 2026-09-19 PM).
             제목·카테고리·재생바가 놓이는 띠가 어떤 사진에서도 어둡고, 사진의 밑변이 칼같이 끊기지 않고 바탕으로
             녹아든다. 끝 불투명도는 1 이 아니다 — 사진 밖 바탕이 단색이 아니라 흐린 커버라, 완전히 덮으면 밑변이
             바탕보다 어두운 띠로 남는다. 밝은 테마 시절엔 아래가 흰 바탕이라 어울리지 않아 뺐었다(#440) — 검정 플레이어에서는 맞는다
           */}
-          <Animated.View
-            pointerEvents="none"
-            style={[styles.queueArtFade, { opacity: queueProgress }]}
-            accessibilityElementsHidden
-            importantForAccessibility="no"
-          >
-            {/* 폭은 **숫자**로 준다 — 네이티브 SVG 는 "100%" 를 퍼센트가 아니라 100 으로 받아, 실기기에서 그라데이션이
+              <FadeByProgress
+                progress={queueProgress}
+                pointerEvents="none"
+                style={styles.queueArtFade}
+                accessibilityElementsHidden
+                importantForAccessibility="no"
+              >
+                {/* 폭은 **숫자**로 준다 — 네이티브 SVG 는 "100%" 를 퍼센트가 아니라 100 으로 받아, 실기기에서 그라데이션이
                 왼쪽 100pt 에만 그려졌다(2026-09-19 아이폰 실기기). 웹은 퍼센트로 동작해 테스트에 안 잡혔다.
                 재생 목록이 열리면 아트워크 폭 = 화면 폭(contentSize.width)이다 */}
-            <Svg width={contentSize.width} height={QUEUE_ART_FADE_HEIGHT}>
-              <Defs>
-                <LinearGradient id="queueArtFade" x1="0" y1="0" x2="0" y2="1">
-                  <Stop offset="0" stopColor={playerColor.background} stopOpacity={0} />
-                  <Stop offset="0.45" stopColor={playerColor.background} stopOpacity={0.3} />
-                  <Stop offset="1" stopColor={playerColor.background} stopOpacity={0.68} />
-                </LinearGradient>
-              </Defs>
-              <Rect
-                x="0"
-                y="0"
-                width={contentSize.width}
-                height={QUEUE_ART_FADE_HEIGHT}
-                fill="url(#queueArtFade)"
-              />
-            </Svg>
+                <Svg width={contentSize.width} height={QUEUE_ART_FADE_HEIGHT}>
+                  <Defs>
+                    <LinearGradient id="queueArtFade" x1="0" y1="0" x2="0" y2="1">
+                      <Stop offset="0" stopColor={playerColor.background} stopOpacity={0} />
+                      <Stop offset="0.45" stopColor={playerColor.background} stopOpacity={0.3} />
+                      <Stop offset="1" stopColor={playerColor.background} stopOpacity={0.68} />
+                    </LinearGradient>
+                  </Defs>
+                  <Rect
+                    x="0"
+                    y="0"
+                    width={contentSize.width}
+                    height={QUEUE_ART_FADE_HEIGHT}
+                    fill="url(#queueArtFade)"
+                  />
+                </Svg>
+              </FadeByProgress>
+            </Reanimated.View>
           </Animated.View>
-        </Animated.View>
 
-        {/* 앱바 — 제목을 두지 않는다. 동적 텍스트 200%에서 앱바가 먼저 넘친다(uiux 4.1) */}
-        <View style={styles.appBar} onLayout={onAppBarLayout}>
-          <Pressable
-            style={styles.appBarButton}
-            onPress={dismissPlayer}
-            accessibilityRole="button"
-            accessibilityLabel={PLAYER_COPY.screen.collapseA11y}
-          >
-            {dualTone(
-              <ChevronIcon
-                direction="down"
-                size={APP_BAR_ICON_SIZE}
-                color={playerColor.textPrimary}
-              />,
-              <ChevronIcon direction="down" size={APP_BAR_ICON_SIZE} color={ON_IMAGE_COLOR} />,
-            )}
-          </Pressable>
-          <View style={styles.appBarActions}>
-            {/* 수면 타이머(FR-25 P1) — 재생 조작이 아니라 세션 설정이라 앱바에 둔다(2026-09-16).
-                걸려 있으면 달을 채워 그리고 왼쪽에 남은 시간 알약을 붙인다(2026-09-19) */}
-            <Pressable
-              style={styles.timerButton}
-              onPress={screen.openSleepTimerSheet}
-              accessibilityRole="button"
-              accessibilityLabel={sleepTimerA11y}
-            >
-              {sleepTimerPill !== null ? (
-                <Text style={styles.timerPill} allowFontScaling={false}>
-                  {sleepTimerPill}
-                </Text>
-              ) : null}
-              {dualTone(
-                <SleepTimerIcon
-                  size={APP_BAR_ICON_SIZE}
-                  color={playerColor.textPrimary}
-                  filled={sleepTimerChoice !== null}
-                />,
-                <SleepTimerIcon
-                  size={APP_BAR_ICON_SIZE}
-                  color={ON_IMAGE_COLOR}
-                  filled={sleepTimerChoice !== null}
-                />,
-              )}
-            </Pressable>
+          {/* 앱바 — 제목을 두지 않는다. 동적 텍스트 200%에서 앱바가 먼저 넘친다(uiux 4.1) */}
+          <View style={styles.appBar} onLayout={onAppBarLayout}>
             <Pressable
               style={styles.appBarButton}
-              onPress={screen.openMoreSheet}
+              onPress={dismissPlayer}
               accessibilityRole="button"
-              accessibilityLabel={PLAYER_COPY.screen.moreA11y}
+              accessibilityLabel={PLAYER_COPY.screen.collapseA11y}
             >
               {dualTone(
-                <MoreIcon size={APP_BAR_ICON_SIZE} color={playerColor.textPrimary} />,
-                <MoreIcon size={APP_BAR_ICON_SIZE} color={ON_IMAGE_COLOR} />,
+                <ChevronIcon
+                  direction="down"
+                  size={APP_BAR_ICON_SIZE}
+                  color={playerColor.textPrimary}
+                />,
+                <ChevronIcon direction="down" size={APP_BAR_ICON_SIZE} color={ON_IMAGE_COLOR} />,
               )}
             </Pressable>
+            <View style={styles.appBarActions}>
+              {/* 수면 타이머(FR-25 P1) — 재생 조작이 아니라 세션 설정이라 앱바에 둔다(2026-09-16).
+                걸려 있으면 달을 채워 그리고 왼쪽에 남은 시간 알약을 붙인다(2026-09-19) */}
+              <Pressable
+                style={styles.timerButton}
+                onPress={screen.openSleepTimerSheet}
+                accessibilityRole="button"
+                accessibilityLabel={sleepTimerA11y}
+              >
+                {sleepTimerPill !== null ? (
+                  <Text style={styles.timerPill} allowFontScaling={false}>
+                    {sleepTimerPill}
+                  </Text>
+                ) : null}
+                {dualTone(
+                  <SleepTimerIcon
+                    size={APP_BAR_ICON_SIZE}
+                    color={playerColor.textPrimary}
+                    filled={sleepTimerChoice !== null}
+                  />,
+                  <SleepTimerIcon
+                    size={APP_BAR_ICON_SIZE}
+                    color={ON_IMAGE_COLOR}
+                    filled={sleepTimerChoice !== null}
+                  />,
+                )}
+              </Pressable>
+              <Pressable
+                style={styles.appBarButton}
+                onPress={screen.openMoreSheet}
+                accessibilityRole="button"
+                accessibilityLabel={PLAYER_COPY.screen.moreA11y}
+              >
+                {dualTone(
+                  <MoreIcon size={APP_BAR_ICON_SIZE} color={playerColor.textPrimary} />,
+                  <MoreIcon size={APP_BAR_ICON_SIZE} color={ON_IMAGE_COLOR} />,
+                )}
+              </Pressable>
+            </View>
           </View>
-        </View>
 
-        {/*
+          {/*
           히어로 — 아트워크 + 제목·카테고리. 접힘(0)과 펼침(1) 사이를 panelProgress가 잇는다.
           접힘: 아트워크가 가운데 크게, 제목이 그 아래. 펼침: 56pt 썸네일 + 오른쪽 제목 한 줄 헤더.
           절대 배치로 두 배치 사이를 보간한다 — 레이아웃 전환이면 "다른 화면"으로 읽힌다.
         */}
-        <Animated.View
-          style={[styles.hero, { height: hero.height, opacity: morph.heroOpacity }]}
-          onLayout={onHeroLayout}
-          {...horizontalSwipeResponder.panHandlers}
-        >
-          {/* 대본이 펼쳐져 작아진 커버를 탭하면 대본을 접는다(PM 2026-09-26 17:00 스샷). 아트워크는 히어로 **밑**의 형제라
+          <Animated.View
+            style={{ opacity: morph.heroOpacity }}
+            onLayout={onHeroLayout}
+            {...horizontalSwipeResponder.panHandlers}
+          >
+            <Reanimated.View style={[styles.hero, heroHeightStyle]}>
+              {/* 대본이 펼쳐져 작아진 커버를 탭하면 대본을 접는다(PM 2026-09-26 17:00 스샷). 아트워크는 히어로 **밑**의 형제라
               그 안의 Pressable 은 터치를 못 받는다(#758 실패, 17:15) — 히어로 안 같은 자리에 탭 영역을 둔다. 평소엔 없다 */}
-          {activePanel === 'script' ? (
-            <Animated.View
-              style={[
-                styles.heroArtTapArea,
-                {
-                  left: heroBase.artLeft,
-                  top: heroBase.artTop,
-                  width: heroBase.artSize,
-                  height: heroBase.artSize,
-                },
-              ]}
-            >
-              <Pressable
-                style={StyleSheet.absoluteFill}
-                onPress={() => setPanel(null)}
-                accessibilityRole="button"
-                accessibilityLabel={PLAYER_COPY.screen.scriptCloseA11y}
-              />
-            </Animated.View>
-          ) : null}
-          <Animated.View style={[styles.heroMeta, { top: hero.metaTop, left: hero.metaLeft }]}>
-            {/* 제목은 크기가 달라 두 겹을 교차 페이드한다 — 글자 크기 자체는 보간하지 않는다 */}
-            <Animated.View
-              style={[
-                styles.heroTitleLayer,
-                { opacity: Animated.multiply(hero.collapsedOpacity, queueInverse) },
-              ]}
-              onLayout={onTitleLayout}
-            >
-              {/* 한 줄 고정 — 넘치면 흘러서 끝까지 보여준다(2026-09-16, 두 줄 접기에서 변경) */}
-              {/* 전환(모션 레이어) 동안은 0에 세워 둔다 — 가려진 채 흘러가 있으면 전환이 끝나는 순간 중간부터
+              {activePanel === 'script' ? (
+                <Reanimated.View style={[styles.heroArtTapArea, heroArtTapStyle]}>
+                  <Pressable
+                    style={StyleSheet.absoluteFill}
+                    onPress={() => setPanel(null)}
+                    accessibilityRole="button"
+                    accessibilityLabel={PLAYER_COPY.screen.scriptCloseA11y}
+                  />
+                </Reanimated.View>
+              ) : null}
+              <Reanimated.View style={[styles.heroMeta, heroMetaStyle]}>
+                {/* 제목은 크기가 달라 두 겹을 교차 페이드한다 — 글자 크기 자체는 보간하지 않는다 */}
+                <Reanimated.View
+                  style={[styles.heroTitleLayer, titleCollapsedStyle]}
+                  onLayout={onTitleLayout}
+                >
+                  {/* 한 줄 고정 — 넘치면 흘러서 끝까지 보여준다(2026-09-16, 두 줄 접기에서 변경) */}
+                  {/* 전환(모션 레이어) 동안은 0에 세워 둔다 — 가려진 채 흘러가 있으면 전환이 끝나는 순간 중간부터
                   나타나 정지 제목과 어긋난다. 다 올라오면 처음부터 흐른다(2026-09-18 PM) */}
-              <MarqueeText
-                text={session.meta.title ?? ''}
-                style={styles.title}
-                isPaused={isMorphing}
-              />
-              {categoryLabel !== null ? (
-                <Text style={styles.category} numberOfLines={1}>
-                  {categoryLabel}
-                </Text>
-              ) : null}
-            </Animated.View>
-            {/* 사진 위 제목 — 열림 진행값으로 흰 글자가 나타난다(유튜브 뮤직) */}
-            <Animated.View
-              style={[styles.heroTitleOnImageLayer, { opacity: queueProgress }]}
-              pointerEvents="none"
-            >
-              <MarqueeText
-                text={session.meta.title ?? ''}
-                style={[styles.title, styles.onImageTitle]}
-                isPaused={isMorphing}
-              />
-              {categoryLabel !== null ? (
-                <Text style={[styles.category, styles.onImageCategory]} numberOfLines={1}>
-                  {categoryLabel}
-                </Text>
-              ) : null}
-            </Animated.View>
-            <Animated.View
-              style={[styles.heroTitleCompactLayer, { opacity: hero.expandedOpacity }]}
-              pointerEvents="none"
-              onLayout={onCompactTitleLayout}
-            >
-              <MarqueeText
-                text={session.meta.title ?? ''}
-                style={styles.compactTitle}
-                isPaused={isMorphing}
-              />
-              {categoryLabel !== null ? (
-                <Text style={styles.category} numberOfLines={1}>
-                  {categoryLabel}
-                </Text>
-              ) : null}
-            </Animated.View>
-            {/*
+                  <MarqueeText
+                    text={session.meta.title ?? ''}
+                    style={styles.title}
+                    isPaused={isMorphing}
+                  />
+                  {categoryLabel !== null ? (
+                    <Text style={styles.category} numberOfLines={1}>
+                      {categoryLabel}
+                    </Text>
+                  ) : null}
+                </Reanimated.View>
+                {/* 사진 위 제목 — 열림 진행값으로 흰 글자가 나타난다(유튜브 뮤직) */}
+                <FadeByProgress
+                  progress={queueProgress}
+                  style={styles.heroTitleOnImageLayer}
+                  pointerEvents="none"
+                >
+                  <MarqueeText
+                    text={session.meta.title ?? ''}
+                    style={[styles.title, styles.onImageTitle]}
+                    isPaused={isMorphing}
+                  />
+                  {categoryLabel !== null ? (
+                    <Text style={[styles.category, styles.onImageCategory]} numberOfLines={1}>
+                      {categoryLabel}
+                    </Text>
+                  ) : null}
+                </FadeByProgress>
+                <Reanimated.View
+                  style={[styles.heroTitleCompactLayer, titleCompactStyle]}
+                  pointerEvents="none"
+                  onLayout={onCompactTitleLayout}
+                >
+                  <MarqueeText
+                    text={session.meta.title ?? ''}
+                    style={styles.compactTitle}
+                    isPaused={isMorphing}
+                  />
+                  {categoryLabel !== null ? (
+                    <Text style={styles.category} numberOfLines={1}>
+                      {categoryLabel}
+                    </Text>
+                  ) : null}
+                </Reanimated.View>
+                {/*
               저자·출처는 여기서 그리지 않는다(결정 2026-09-15) — 콘텐츠 상세에서만 보인다.
               FR-12의 고지는 "적합한 형태로"이며 오디오 멘트(content-pipeline.md 4.3)와
               상세 화면(content-detail.md 4.3)이 그 몫을 진다.
               [원문 보기] 칩도 뺐다(2026-09-16) — 더보기(⋯) 시트의 [원문 보기]가 유일한 진입점이다.
             */}
+              </Reanimated.View>
+            </Reanimated.View>
           </Animated.View>
-        </Animated.View>
 
-        {mountedPanel !== null ? (
-          <Animated.View
-            style={[
-              styles.scriptPanelWrap,
-              { opacity: hero.expandedOpacity, transform: [{ translateY: hero.panelOffset }] },
-            ]}
-            {...scrollAreaTouchHandlers}
-          >
-            {mountedPanel !== 'script' ? null : scriptSegments !== null ? (
-              <PlayerScriptPanel
-                segments={scriptSegments}
-                positionSec={session.positionSec}
-                onSeek={screen.seekTo}
-                onSwipeRight={() => setPanel(null)}
-                isSettled={isScriptSettled}
-              />
-            ) : (
-              <PlayerScriptStatus
-                isError={scriptQuery.isError}
-                onRetry={() => void scriptQuery.refetch()}
-              />
-            )}
-          </Animated.View>
-        ) : null}
-
-        <Animated.View
-          style={[
-            { paddingBottom: controlAreaBottom },
-            HERO_QUEUE_BY_TRANSFORM && { transform: [{ translateY: heroQueueDelta }] },
-          ]}
-        >
-          {/* 지금 듣는 구간 — 시크바 바로 위 한 줄(KAN-127, PM 2026-10-07). 재생 목록이 열리면 사진 위라 걷는다 */}
-          <Animated.View
-            style={{ opacity: queueInverse }}
-            pointerEvents="none"
-            accessibilityElementsHidden={isQueueOpen}
-            importantForAccessibility={isQueueOpen ? 'no-hide-descendants' : 'auto'}
-            onLayout={(event) => setCurrentSectionHeight(event.nativeEvent.layout.height)}
-          >
-            <PlayerCurrentSection
-              sections={session.sections}
-              positionSec={session.positionSec}
-              // 발급 응답 전(콘텐츠 버전 미상)이고 막히지 않았으면 아직 구간을 모른다 — 카드 자리를 먼저 잡는다
-              isLoading={session.meta.contentVersion === null && session.blocked === null}
-            />
-          </Animated.View>
-          <Animated.View
-            style={{ transform: [{ translateY: sectionFoldShift }] }}
-            onLayout={measureControlPart('seek')}
-          >
-            <Animated.View
-              style={{ opacity: queueInverse }}
-              pointerEvents={isQueueOpen ? 'none' : 'auto'}
+          {mountedPanel !== null ? (
+            <Reanimated.View
+              style={[styles.scriptPanelWrap, scriptPanelStyle]}
+              {...scrollAreaTouchHandlers}
             >
-              <SeekBar
-                positionSec={session.positionSec}
-                durationSec={session.durationSec}
-                disabled={isControlDisabled}
-                onSeekTo={screen.seekTo}
-                onTrackCenter={setSeekTrackCenter}
-                chapterStartsSec={chapterStartsSec}
-                onScrub={setScrubSec}
-              />
-            </Animated.View>
-            <Animated.View
-              style={[StyleSheet.absoluteFill, { opacity: queueProgress }]}
-              pointerEvents={isQueueOpen ? 'auto' : 'none'}
-            >
-              <SeekBar
-                positionSec={session.positionSec}
-                durationSec={session.durationSec}
-                disabled={isControlDisabled}
-                onSeekTo={screen.seekTo}
-                tone="onImage"
-                chapterStartsSec={chapterStartsSec}
-                onScrub={setScrubSec}
-              />
-            </Animated.View>
-          </Animated.View>
-
-          <Animated.View
-            style={{
-              paddingVertical: controlRowPadding,
-              transform: [{ translateY: controlRowShift }],
-            }}
-          >
-            {/* 줄 안쪽을 따로 잰다 — 바깥 여백은 이 높이로 정해지므로 잰 값에 들어가면 안 된다(위 controlParts) */}
-            <View style={styles.controlRow} onLayout={measureControlPart('row')}>
-              {hasPlaybackError ? (
-                <View style={styles.playbackError} accessibilityLiveRegion="polite">
-                  <Text style={styles.playbackErrorTitle}>{PLAYER_COPY.loadFailed.title}</Text>
-                  <Pressable
-                    style={styles.bannerAction}
-                    disabled={isRetryingLoad}
-                    accessibilityRole="button"
-                    accessibilityLabel={
-                      isRetryingLoad ? PLAYER_COPY.loadFailed.retrying : PLAYER_COPY.loadFailed.retry
-                    }
-                    accessibilityState={{ disabled: isRetryingLoad, busy: isRetryingLoad }}
-                    onPress={() => {
-                      if (hasLoadFailure) {
-                        setRetryContentId(session.contentId);
-                        screen.retryLoad();
-                      } else {
-                        screen.retryUrlRefresh();
-                      }
-                    }}
-                  >
-                    {isRetryingLoad ? (
-                      <ActivityIndicator color={playerColor.primary} />
-                    ) : (
-                      <Text style={styles.bannerActionLabel}>{PLAYER_COPY.loadFailed.retry}</Text>
-                    )}
-                  </Pressable>
-                </View>
+              {mountedPanel !== 'script' ? null : scriptSegments !== null ? (
+                <PlayerScriptPanel
+                  segments={scriptSegments}
+                  positionSec={session.positionSec}
+                  onSeek={screen.seekTo}
+                  onSwipeRight={() => setPanel(null)}
+                  isSettled={isScriptSettled}
+                />
               ) : (
-                <>
-                  {/* 배속은 컨트롤 줄 맨 왼쪽에 텍스트로만 둔다(2026-09-16 — 칩 배경 제거, 보조 줄에서 이동).
+                <PlayerScriptStatus
+                  isError={scriptQuery.isError}
+                  onRetry={() => void scriptQuery.refetch()}
+                />
+              )}
+            </Reanimated.View>
+          ) : null}
+
+          <Reanimated.View style={[{ paddingBottom: controlAreaBottom }, controlAreaStyle]}>
+            {/* 지금 듣는 구간 — 시크바 바로 위 한 줄(KAN-127, PM 2026-10-07). 재생 목록이 열리면 사진 위라 걷는다 */}
+            <FadeByProgress
+              progress={queueProgress}
+              invert
+              pointerEvents="none"
+              accessibilityElementsHidden={isQueueOpen}
+              importantForAccessibility={isQueueOpen ? 'no-hide-descendants' : 'auto'}
+              onLayout={(event) => setCurrentSectionHeight(event.nativeEvent.layout.height)}
+            >
+              <PlayerCurrentSection
+                sections={session.sections}
+                positionSec={session.positionSec}
+                // 발급 응답 전(콘텐츠 버전 미상)이고 막히지 않았으면 아직 구간을 모른다 — 카드 자리를 먼저 잡는다
+                isLoading={session.meta.contentVersion === null && session.blocked === null}
+              />
+            </FadeByProgress>
+            <Reanimated.View style={sectionShiftStyle} onLayout={measureControlPart('seek')}>
+              <FadeByProgress
+                progress={queueProgress}
+                invert
+                pointerEvents={isQueueOpen ? 'none' : 'auto'}
+              >
+                <SeekBar
+                  positionSec={session.positionSec}
+                  durationSec={session.durationSec}
+                  disabled={isControlDisabled}
+                  onSeekTo={screen.seekTo}
+                  onTrackCenter={setSeekTrackCenter}
+                  chapterStartsSec={chapterStartsSec}
+                  onScrub={setScrubSec}
+                />
+              </FadeByProgress>
+              <FadeByProgress
+                progress={queueProgress}
+                style={StyleSheet.absoluteFill}
+                pointerEvents={isQueueOpen ? 'auto' : 'none'}
+              >
+                <SeekBar
+                  positionSec={session.positionSec}
+                  durationSec={session.durationSec}
+                  disabled={isControlDisabled}
+                  onSeekTo={screen.seekTo}
+                  tone="onImage"
+                  chapterStartsSec={chapterStartsSec}
+                  onScrub={setScrubSec}
+                />
+              </FadeByProgress>
+            </Reanimated.View>
+
+            <Reanimated.View style={[{ paddingVertical: controlRowPadding }, controlRowStyle]}>
+              {/* 줄 안쪽을 따로 잰다 — 바깥 여백은 이 높이로 정해지므로 잰 값에 들어가면 안 된다(위 controlParts) */}
+              <View style={styles.controlRow} onLayout={measureControlPart('row')}>
+                {hasPlaybackError ? (
+                  <View style={styles.playbackError} accessibilityLiveRegion="polite">
+                    <Text style={styles.playbackErrorTitle}>{PLAYER_COPY.loadFailed.title}</Text>
+                    <Pressable
+                      style={styles.bannerAction}
+                      disabled={isRetryingLoad}
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        isRetryingLoad
+                          ? PLAYER_COPY.loadFailed.retrying
+                          : PLAYER_COPY.loadFailed.retry
+                      }
+                      accessibilityState={{ disabled: isRetryingLoad, busy: isRetryingLoad }}
+                      onPress={() => {
+                        if (hasLoadFailure) {
+                          setRetryContentId(session.contentId);
+                          screen.retryLoad();
+                        } else {
+                          screen.retryUrlRefresh();
+                        }
+                      }}
+                    >
+                      {isRetryingLoad ? (
+                        <ActivityIndicator color={playerColor.primary} />
+                      ) : (
+                        <Text style={styles.bannerActionLabel}>{PLAYER_COPY.loadFailed.retry}</Text>
+                      )}
+                    </Pressable>
+                  </View>
+                ) : (
+                  <>
+                    {/* 배속은 컨트롤 줄 맨 왼쪽에 텍스트로만 둔다(2026-09-16 — 칩 배경 제거, 보조 줄에서 이동).
                       오른쪽에 같은 폭의 빈 자리를 두어 재생 버튼이 화면 가운데를 지키게 한다 */}
-                  <Pressable
-                    style={styles.rateButton}
-                    onPress={screen.openRateSheet}
-                    disabled={isControlDisabled}
-                    accessibilityRole="button"
-                    accessibilityLabel={PLAYER_COPY.screen.rateChipA11y(screen.rate)}
-                  >
-                    <Text style={[styles.rateLabel, isControlDisabled && styles.glyphDisabled]}>
-                      {PLAYER_COPY.screen.rateChip(screen.rate)}
-                    </Text>
-                  </Pressable>
-
-                  <Pressable
-                    style={styles.stepButton}
-                    onPress={() => {
-                      setSeekSpin((prev) => ({ ...prev, back: prev.back + 1 }));
-                      screen.seekBackward();
-                    }}
-                    disabled={isControlDisabled}
-                    accessibilityRole="button"
-                    accessibilityLabel={PLAYER_COPY.screen.seekBackA11y}
-                  >
-                    <SeekBackIcon
-                      spinKey={seekSpin.back}
-                      size={SEEK_ICON_SIZE}
-                      color={isControlDisabled ? playerColor.border : playerColor.primary}
-                    />
-                  </Pressable>
-
-                  <Pressable
-                    style={styles.playButton}
-                    onPress={screen.handlePlayPausePress}
-                    disabled={isControlDisabled}
-                    accessibilityRole="button"
-                    accessibilityLabel={
-                      screen.showBufferingIndicator ? PLAYER_COPY.screen.bufferingA11y : playButtonA11y
-                    }
-                  >
-                    {screen.showBufferingIndicator ? (
-                      // 로딩 표시는 재생 버튼 자리에만, 2초 초과 시만(uiux 4.3)
-                      <ActivityIndicator color={playerColor.primary} />
-                    ) : (
-                      // 재생·±10초는 선명한 흰색, 배속·대본은 보조 흰색으로 위계를 둔다.
-                      <PlayPauseSymbol
-                        kind={!isEnded && session.isPlaying ? 'pause' : 'play'}
-                        size={PLAY_ICON_SIZE}
-                        color={isControlDisabled ? playerColor.border : playerColor.primary}
-                      />
-                    )}
-                  </Pressable>
-
-                  <Pressable
-                    style={styles.stepButton}
-                    onPress={() => {
-                      setSeekSpin((prev) => ({ ...prev, forward: prev.forward + 1 }));
-                      screen.seekForward();
-                    }}
-                    disabled={isControlDisabled}
-                    accessibilityRole="button"
-                    accessibilityLabel={PLAYER_COPY.screen.seekForwardA11y}
-                  >
-                    <SeekForwardIcon
-                      spinKey={seekSpin.forward}
-                      size={SEEK_ICON_SIZE}
-                      color={isControlDisabled ? playerColor.border : playerColor.primary}
-                    />
-                  </Pressable>
-
-                  {/* 스크립트 열기/접기(2026-09-16, 재생 목록과 자리 교환) — 배속과 같은 폭이라 재생 버튼이
-                      가운데를 지킨다. 스크립트가 없으면 자리만 비워 둔다(uiux 4.6 — 진입점 미노출) */}
-                  {isScriptAvailable ? (
                     <Pressable
                       style={styles.rateButton}
-                      onPress={() => setPanel(activePanel === 'script' ? null : 'script')}
+                      onPress={screen.openRateSheet}
+                      disabled={isControlDisabled}
+                      accessibilityRole="button"
+                      accessibilityLabel={PLAYER_COPY.screen.rateChipA11y(screen.rate)}
+                    >
+                      <Text style={[styles.rateLabel, isControlDisabled && styles.glyphDisabled]}>
+                        {PLAYER_COPY.screen.rateChip(screen.rate)}
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
+                      style={styles.stepButton}
+                      onPress={() => {
+                        setSeekSpin((prev) => ({ ...prev, back: prev.back + 1 }));
+                        screen.seekBackward();
+                      }}
+                      disabled={isControlDisabled}
+                      accessibilityRole="button"
+                      accessibilityLabel={PLAYER_COPY.screen.seekBackA11y}
+                    >
+                      <SeekBackIcon
+                        spinKey={seekSpin.back}
+                        size={SEEK_ICON_SIZE}
+                        color={isControlDisabled ? playerColor.border : playerColor.primary}
+                      />
+                    </Pressable>
+
+                    <Pressable
+                      style={styles.playButton}
+                      onPress={screen.handlePlayPausePress}
                       disabled={isControlDisabled}
                       accessibilityRole="button"
                       accessibilityLabel={
-                        activePanel === 'script'
-                          ? PLAYER_COPY.screen.scriptCloseA11y
-                          : PLAYER_COPY.screen.scriptOpenA11y
+                        screen.showBufferingIndicator
+                          ? PLAYER_COPY.screen.bufferingA11y
+                          : playButtonA11y
                       }
-                      accessibilityState={{ expanded: activePanel === 'script' }}
                     >
-                      <ScriptIcon
+                      {screen.showBufferingIndicator ? (
+                        // 로딩 표시는 재생 버튼 자리에만, 2초 초과 시만(uiux 4.3)
+                        <ActivityIndicator color={playerColor.primary} />
+                      ) : (
+                        // 재생·±10초는 선명한 흰색, 배속·대본은 보조 흰색으로 위계를 둔다.
+                        <PlayPauseSymbol
+                          kind={!isEnded && session.isPlaying ? 'pause' : 'play'}
+                          size={PLAY_ICON_SIZE}
+                          color={isControlDisabled ? playerColor.border : playerColor.primary}
+                        />
+                      )}
+                    </Pressable>
+
+                    <Pressable
+                      style={styles.stepButton}
+                      onPress={() => {
+                        setSeekSpin((prev) => ({ ...prev, forward: prev.forward + 1 }));
+                        screen.seekForward();
+                      }}
+                      disabled={isControlDisabled}
+                      accessibilityRole="button"
+                      accessibilityLabel={PLAYER_COPY.screen.seekForwardA11y}
+                    >
+                      <SeekForwardIcon
+                        spinKey={seekSpin.forward}
                         size={SEEK_ICON_SIZE}
-                        color={
-                          isControlDisabled
-                            ? playerColor.border
-                            : activePanel === 'script'
-                              ? playerColor.primary
-                              : playerColor.controlSecondary
-                        }
+                        color={isControlDisabled ? playerColor.border : playerColor.primary}
                       />
                     </Pressable>
-                  ) : (
-                    <View
-                      style={styles.rateButton}
-                      accessibilityElementsHidden
-                      importantForAccessibility="no"
-                    />
-                  )}
-                </>
-              )}
-            </View>
-          </Animated.View>
 
-          <Animated.View
-            style={{ transform: [{ translateY: belowControlRowShift }] }}
-            onLayout={measureControlPart('banner')}
-          >
-            {renderBannerArea()}
-          </Animated.View>
-        </Animated.View>
-
-        {/* 손잡이 자리 — 시트가 닫혀 있을 때 손잡이가 덮는 높이만큼 비워 컨트롤 위치를 고정한다 */}
-        <View style={{ height: handleHeight }} />
-
-        {/* 재생 목록 시트 — 화면 바닥에서 올라온다(2026-09-17 PM). 닫힘엔 손잡이만 보이고, 위로 끌면 시트가
-            따라 올라오며 위의 플레이어가 세로 구조 그대로 공백을 접는다. 목록은 컨트롤 아래에 선다 */}
-        <View style={[styles.queueSheetFrame, { top: queueOpenTop }]} pointerEvents="box-none">
-          <Animated.View
-            style={[styles.queueSheet, { transform: [{ translateY: queueSheetShift }] }]}
-          >
-            {
-              // 드래그 핸들러는 감싼 View에 — Pressable은 자기 press 응답자로 panHandlers를 덮어쓴다
-              <View
-                style={styles.scriptHandleWrap}
-                onLayout={onHandleLayout}
-                // 손잡이 끌기는 재생 목록 시트의 것 — 시스템 줌 닫기가 같이 잡히지 않게 목록과 같은 표시
-                {...scrollAreaTouchHandlers}
-                {...handlePanResponder.panHandlers}
-              >
-                <Pressable
-                  style={styles.scriptHandle}
-                  onPressIn={() => {
-                    handleDraggedRef.current = false;
-                  }}
-                  onPress={() => {
-                    if (handleDraggedRef.current) return;
-                    setPanel(activePanel === 'queue' ? null : 'queue');
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    activePanel === 'queue'
-                      ? PLAYER_COPY.screen.queueCollapseA11y
-                      : PLAYER_COPY.screen.queueHandleA11y
-                  }
-                  accessibilityState={{ expanded: activePanel === 'queue' }}
-                >
-                  <View style={styles.scriptHandleBar} />
-                  <Text style={styles.scriptHandleLabel}>{PLAYER_COPY.screen.queueHandle}</Text>
-                </Pressable>
+                    {/* 스크립트 열기/접기(2026-09-16, 재생 목록과 자리 교환) — 배속과 같은 폭이라 재생 버튼이
+                      가운데를 지킨다. 스크립트가 없으면 자리만 비워 둔다(uiux 4.6 — 진입점 미노출) */}
+                    {isScriptAvailable ? (
+                      <Pressable
+                        style={styles.rateButton}
+                        onPress={() => setPanel(activePanel === 'script' ? null : 'script')}
+                        disabled={isControlDisabled}
+                        accessibilityRole="button"
+                        accessibilityLabel={
+                          activePanel === 'script'
+                            ? PLAYER_COPY.screen.scriptCloseA11y
+                            : PLAYER_COPY.screen.scriptOpenA11y
+                        }
+                        accessibilityState={{ expanded: activePanel === 'script' }}
+                      >
+                        <ScriptIcon
+                          size={SEEK_ICON_SIZE}
+                          color={
+                            isControlDisabled
+                              ? playerColor.border
+                              : activePanel === 'script'
+                                ? playerColor.primary
+                                : playerColor.controlSecondary
+                          }
+                        />
+                      </Pressable>
+                    ) : (
+                      <View
+                        style={styles.rateButton}
+                        accessibilityElementsHidden
+                        importantForAccessibility="no"
+                      />
+                    )}
+                  </>
+                )}
               </View>
-            }
-            {/* 목록 위에서 시작한 세로 끌기는 축소 제스처가 가로채지 않는다(위 `isTouchOnScrollAreaRef`) */}
-            <View style={styles.queuePanelWrap} {...scrollAreaTouchHandlers}>
-              {/*
+            </Reanimated.View>
+
+            <Reanimated.View style={belowControlRowStyle} onLayout={measureControlPart('banner')}>
+              {renderBannerArea()}
+            </Reanimated.View>
+          </Reanimated.View>
+
+          {/* 손잡이 자리 — 시트가 닫혀 있을 때 손잡이가 덮는 높이만큼 비워 컨트롤 위치를 고정한다 */}
+          <View style={{ height: handleHeight }} />
+
+          {/* 재생 목록 시트 — 화면 바닥에서 올라온다(2026-09-17 PM). 닫힘엔 손잡이만 보이고, 위로 끌면 시트가
+            따라 올라오며 위의 플레이어가 세로 구조 그대로 공백을 접는다. 목록은 컨트롤 아래에 선다 */}
+          <View style={[styles.queueSheetFrame, { top: queueOpenTop }]} pointerEvents="box-none">
+            <Reanimated.View style={[styles.queueSheet, queueSheetStyle]}>
+              {
+                // 드래그 핸들러는 감싼 View에 — Pressable은 자기 press 응답자로 panHandlers를 덮어쓴다
+                <View
+                  style={styles.scriptHandleWrap}
+                  onLayout={onHandleLayout}
+                  // 손잡이 끌기는 재생 목록 시트의 것 — 시스템 줌 닫기가 같이 잡히지 않게 목록과 같은 표시
+                  {...scrollAreaTouchHandlers}
+                  {...handlePanResponder.panHandlers}
+                >
+                  <Pressable
+                    style={styles.scriptHandle}
+                    onPressIn={() => {
+                      handleDraggedRef.current = false;
+                    }}
+                    onPress={() => {
+                      if (handleDraggedRef.current) return;
+                      setPanel(activePanel === 'queue' ? null : 'queue');
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      activePanel === 'queue'
+                        ? PLAYER_COPY.screen.queueCollapseA11y
+                        : PLAYER_COPY.screen.queueHandleA11y
+                    }
+                    accessibilityState={{ expanded: activePanel === 'queue' }}
+                  >
+                    <View style={styles.scriptHandleBar} />
+                    <Text style={styles.scriptHandleLabel}>{PLAYER_COPY.screen.queueHandle}</Text>
+                  </Pressable>
+                </View>
+              }
+              {/* 목록 위에서 시작한 세로 끌기는 축소 제스처가 가로채지 않는다(위 `isTouchOnScrollAreaRef`) */}
+              <View style={styles.queuePanelWrap} {...scrollAreaTouchHandlers}>
+                {/*
               닫혀 있고 아직 받은 목록이 없으면 패널 내용을 그리지 않는다.
               열린 뒤에는 시트 모션 때문에 요청을 미루는 구간도 로딩이다 — 조회 전을 빈 목록으로 표시하면 안 된다.
               한 번 받아 둔 뒤에는 닫혀 있어도 그대로 둔다 — 다시 열 때 목록이 이미 있다.
             */}
-              {isQueueOpen || queueQuery.data !== undefined ? (
-                <PlayerQueuePanel
-                  // 모션 중에는 앞 몇 줄만 — 앉은 뒤 나머지가 올라온다(위 isQueueSettled 주석)
-                  items={
-                    isQueueSettled ? queueItems : queueItems.slice(0, QUEUE_MOTION_PREVIEW_COUNT)
-                  }
-                  // 첫 응답 전에는 모션 중의 요청 대기도 로딩으로 본다.
-                  // 캐시가 있으면 재조회 중에도 목록을 유지하고, 성공한 빈 응답만 빈 상태를 그린다.
-                  isLoading={queueQuery.isPending}
-                  isError={queueQuery.isError && queueQuery.data === undefined}
-                  currentContentId={session.contentId}
-                  showHeader={false}
-                  onSelect={screen.playQueueItem}
-                  onReorder={queueOrder.move}
-                  categoryOf={queueCategoryOf}
-                  onRetry={() => void queueQuery.refetch()}
-                  onSwipeRight={() => setPanel(null)}
-                />
-              ) : null}
-            </View>
-          </Animated.View>
-        </View>
-      </Animated.View>
+                {isQueueOpen || queueQuery.data !== undefined ? (
+                  <PlayerQueuePanel
+                    // 모션 중에는 앞 몇 줄만 — 앉은 뒤 나머지가 올라온다(위 isQueueSettled 주석)
+                    items={
+                      isQueueSettled ? queueItems : queueItems.slice(0, QUEUE_MOTION_PREVIEW_COUNT)
+                    }
+                    // 첫 응답 전에는 모션 중의 요청 대기도 로딩으로 본다.
+                    // 캐시가 있으면 재조회 중에도 목록을 유지하고, 성공한 빈 응답만 빈 상태를 그린다.
+                    isLoading={queueQuery.isPending}
+                    isError={queueQuery.isError && queueQuery.data === undefined}
+                    currentContentId={session.contentId}
+                    showHeader={false}
+                    onSelect={screen.playQueueItem}
+                    onReorder={queueOrder.move}
+                    categoryOf={queueCategoryOf}
+                    onRetry={() => void queueQuery.refetch()}
+                    onSwipeRight={() => setPanel(null)}
+                  />
+                ) : null}
+              </View>
+            </Reanimated.View>
+          </View>
+        </Animated.View>
       </AndroidZoomStage>
 
       {/* 모션 레이어 — 열리고 닫히는 동안만. 아트워크가 미니플레이어 자리와 풀 화면 자리 사이를 난다(제목은 제자리 페이드) */}
@@ -2238,6 +2237,34 @@ const SEQUENCE_SPRING: PanelSpring = {
   restDisplacementThreshold: 0.005,
   restSpeedThreshold: 0.1,
 };
+interface FadeByProgressProps extends ViewProps {
+  progress: SharedValue<number>;
+  /** true 면 1 − 진행값 — 열리는 만큼 사라진다 */
+  invert?: boolean;
+  children?: ReactNode;
+}
+
+/**
+ * 진행값만큼 나타나거나(invert 면 사라지는) 틀 — 재생 목록 진행값(UI 스레드)을 불투명도로 받는 곳이 열 군데가 넘어
+ * 하나로 묶었다. 애니메이션 스타일은 노드마다 따로 만든다(한 스타일을 여러 노드가 나눠 쓰지 않는다)
+ */
+function FadeByProgress({
+  progress,
+  invert = false,
+  style,
+  children,
+  ...rest
+}: FadeByProgressProps) {
+  const fadeStyle = useAnimatedStyle(() => ({
+    opacity: invert ? 1 - progress.get() : progress.get(),
+  }));
+  return (
+    <Reanimated.View {...rest} style={[style, fadeStyle]}>
+      {children}
+    </Reanimated.View>
+  );
+}
+
 /** 재생 목록의 히어로 축소를 transform 으로(hero 주석) — Android 만. iOS 는 종전 레이아웃 그대로 */
 const HERO_QUEUE_BY_TRANSFORM = Platform.OS === 'android';
 /** Android 줌 전환(아래 AndroidZoomStage) — iOS 는 종전 갈래 그대로(시스템 줌·JS 모핑) */
