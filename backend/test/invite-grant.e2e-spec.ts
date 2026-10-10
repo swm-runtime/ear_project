@@ -87,7 +87,9 @@ describe('초대 코드 지급 E2E', () => {
     });
     codeIds.push(code.id);
     const now = new Date();
-    const endsAt = new Date(now.getTime() + 10 * 86_400_000);
+    // 지급 끝을 1분 뒤로 둔다 — 배치는 DB 전체의 끝난 지급을 처리하므로, 배치 시각을 멀리 잡으면 병렬로 도는 다른
+    // E2E 가 심은 지급(하루 이상)까지 대상이 돼 횟수 단언이 흔들린다(2026-10-10 로컬 5회 중 3회 실패)
+    const endsAt = new Date(now.getTime() + 60_000);
     const redemptions = dataSource.getRepository(InviteCodeRedemption);
     const redemption = await redemptions.save({
       inviteCodeId: code.id,
@@ -123,15 +125,17 @@ describe('초대 코드 지급 E2E', () => {
       .get(InviteGrantExpiryService)
       .releaseEnded(afterEnd);
 
-    // then — 무료로 내려가고 표시가 찍힌다. 다시 돌려도 이 행은 대상이 아니다
+    // then — 무료로 내려가고 표시가 찍힌다. 다시 돌려도 이 행은 대상이 아니다 — 전체 처리 건수가 아니라 이 행의
+    // 표시 시각이 그대로인지로 본다(다른 스위트의 행이 그 사이 끝날 수 있다)
     expect(released).toBeGreaterThanOrEqual(1);
     expect(await tierOf(userId)).toBe(UserTier.LIGHT);
     const row = await redemptions.findOneByOrFail({ id: redemption.id });
     expect(row.tierReleasedAt?.toISOString()).toBe(afterEnd.toISOString());
-    const again = await app
-      .get(InviteGrantExpiryService)
-      .releaseEnded(afterEnd);
-    expect(again).toBe(0);
+    const later = new Date(afterEnd.getTime() + 60_000);
+    await app.get(InviteGrantExpiryService).releaseEnded(later);
+    const again = await redemptions.findOneByOrFail({ id: redemption.id });
+    expect(again.tierReleasedAt?.toISOString()).toBe(afterEnd.toISOString());
+    expect(await tierOf(userId)).toBe(UserTier.LIGHT);
   }, 60_000);
 
   async function tierOf(userId: string): Promise<UserTier> {
