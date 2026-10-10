@@ -21,7 +21,7 @@ export default function StartScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.intro}>
         <Image
-          source={require('../../../../assets/logo.png')}
+          source={require('../../../../assets/logo-mark.png')}
           style={styles.logo}
           resizeMode="contain"
           accessibilityRole="image"
@@ -88,6 +88,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   logo: {
+    // 로고는 투명 바탕 검정 한 색 — tintColor 로 모드에 맞춘다(라이트 검정 · 다크 흰색, 2026-10-11)
+    tintColor: theme.color.textPrimary,
     width: 200,
     height: 200,
   },
