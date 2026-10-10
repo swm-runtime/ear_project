@@ -320,6 +320,7 @@
 - **`UPDATE`하지 않고 행을 추가한다.** 철회도 `is_agreed: false` 행 추가다(`domain.md` 3.2).
 - **필수 동의(`terms`·`privacy`·`age_confirmation`)는 철회할 수 없다.** `is_agreed: false`를 보내면 **400 `CONSENT_REQUIRED`**(가입 4.2와 같은 코드 — 반영 2026-09-15)다. 약관을 거부하는 경로는 탈퇴(4.7)다. 철회 행 추가는 마케팅 같은 선택 동의에만 해당한다.
 - 마케팅 동의만 바꿨는데 약관 동의 이력이 함께 갱신되면 안 된다.
+- **`version`이 `null`이 아니면 현재 약관 버전과 같아야 한다.** 다르면 **409 `CONSENT_VERSION_STALE`**(가입 4.2와 같은 코드 — 최신 약관을 다시 조회해 재동의). **같은 `consent_type`이 한 요청에 두 번 오면 400 `VALIDATION_FAILED`**(`details.field = "consents"`)다(등재 2026-10-10 — 구현 2026-09-09 `67664c48`).
 
 ---
 

@@ -103,7 +103,8 @@
     "expires_at": null,
     "has_payment_issue": false,
     "trial": null,
-    "grant": null
+    "grant": null,
+    "pending_plan": null
   },
   "interest_summary": {
     "count": 3,

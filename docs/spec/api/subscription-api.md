@@ -47,7 +47,7 @@
 **`entitlements` — 기능 분기의 유일한 근거** (`subscription.md` 4.1)
 
 ```json
-{ "daily_play_limit": 5, "daily_drip_count": 2, "drip_enabled": true, "ads_enabled": false }
+{ "daily_play_limit": 5, "daily_drip_count": 2, "drip_enabled": true, "ads_enabled": false, "max_audio_quality": "aac" }
 ```
 
 | 필드 | 타입 | 의미 |
@@ -56,6 +56,7 @@
 | `daily_drip_count` | int | 하루 정규 편성 편수 |
 | `drip_enabled` | boolean | |
 | `ads_enabled` | boolean | |
+| `max_audio_quality` | enum `compressed` / `aac` / `lossless` | `plans.max_audio_quality` — 이 티어가 들을 수 있는 가장 높은 음질(`player.md` 4.9 · `domain.md` 1.3-1, KAN-141). 가입 체험은 반영하지 않는다(저장된 티어를 따른다). 등재 2026-10-10 — 구현 2026-10-06 `726e94ca` |
 
 - `plans`에서 **매번 조립**한다. 저장하는 컬럼이 아니다. 클라이언트는 티어명으로 분기하지 않고 이 객체로 분기한다(CLAUDE.md 공통 원칙).
 
@@ -285,6 +286,7 @@
 |---|---|---|---|
 | `SUBSCRIPTION_RECEIPT_INVALID` | 400 | false | 서명 불일치·번들 불일치·허용하지 않는 환경·모르는 상품·만료/환불된 거래 |
 | `SUBSCRIPTION_OWNED_BY_ANOTHER_ACCOUNT` | 409 | false | 다른 계정에 연결된 스토어 구독 |
+| `SUBSCRIPTION_ALREADY_SUBSCRIBED` | 409 | false | Android — 같은 스토어에 살아 있는 구독이 있는데 교체가 아닌 두 번째 구독(위 "한 계정에 살아 있는 Play 구독은 하나다"). 구매를 확인하지 않는다 |
 | `SUBSCRIPTION_STORE_UNAVAILABLE` | 503 | **true** | 스토어 API 조회 실패(주로 Android — iOS는 서명만으로 검증이 끝난다). 거래를 끝내지 않고 재시도 |
 
 ---

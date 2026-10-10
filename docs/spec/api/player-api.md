@@ -46,7 +46,7 @@
 | 요청·응답 필드 | **snake_case** |
 | 시각 | **ISO 8601 UTC 문자열** (epoch 정수 금지) |
 | 추적 | 모든 응답에 `X-Trace-Id` |
-| 멱등키 | **`replay` 신호(4.4)만 `Idempotency-Key` 필수.** 나머지는 결과가 수렴한다(3장 설계 메모) |
+| 멱등키 | **`replay` 신호(4.4)와 원문 유입 클릭(4.5)만 `Idempotency-Key` 필수.** 나머지는 결과가 수렴한다(3장 설계 메모) |
 
 - 성공 응답에 공통 봉투를 씌우지 않는다. **성공은 HTTP 상태로, 실패는 에러 규격으로 판단한다.** 에러 응답은 `architecture.md` 7.4 규격이다.
 - 클라이언트가 분기해야 하는 상황은 반드시 `error_code`로 구분한다. 403 하나에 페이월·한도 안내·회수가 겹친다(`convention.md` 5.4).
@@ -219,7 +219,7 @@
 | position_sec | int (≥ 0) | 필수 | 현재 재생 위치 |
 | max_reached_sec | int (≥ 0) | 필수 | 클라이언트가 추적한 **연속 도달 최대 위치.** 시크로 점프한 위치는 포함하지 않는다(`player.md` 4.4) |
 | listened_sec_delta | int (≥ 0) | 필수 | **직전 반영 성공 이후** 재생기가 실제로 소리를 낸 경과 시간(초). 배속과 무관한 실시간이며 시크로 건너뛴 구간은 제외한다(`player.md` 4.4-1). 0 허용 |
-| content_version | int | 필수 | 발급(4.1) 응답에서 받은 값. 재발행 감지용 |
+| content_version | int (≥ 1) | 필수 | 발급(4.1) 응답에서 받은 값. 재발행 감지용 |
 
 - **`listened_sec_delta`가 절대값이 아니라 증분인 이유** — `play_records.listened_sec`은 하루·콘텐츠당 1행에 **누적**되는 값이고(`domain.md` 6.3), 같은 행에 여러 기기가 적산할 수 있어 클라이언트는 서버의 현재 합을 알 수 없다. 절대값으로 보내면 다른 기기의 적산분을 덮어쓴다.
 - **오프라인 큐에서는 같은 콘텐츠의 최신 1건만 유지한다**(`common-error-handling.md` 4.5). 이때 **위치·도달값은 최신값으로 덮어쓰되, `listened_sec_delta`는 미반영 누적분을 합산해 담는다.** delta의 정의가 "직전 반영 성공 이후"이므로, 반영에 성공하기 전까지의 조작은 전부 한 delta에 쌓인다 — 덮어쓰기가 청취 시간을 유실시키지 않는다. 반영에 성공하면 클라이언트는 누적분을 0으로 되돌린다.
@@ -262,7 +262,7 @@
 
 | 코드 | HTTP | 상황 |
 |---|---|---|
-| `VALIDATION_FAILED` | 400 | 음수 값·필드 누락 |
+| `VALIDATION_FAILED` | 400 | 음수 값·`content_version` 0 이하·필드 누락 |
 | `CONTENT_NOT_FOUND` | 404 | `content_id`가 없음 |
 
 ---
@@ -285,6 +285,8 @@
 
 | 코드 | HTTP | 상황 |
 |---|---|---|
+| `VALIDATION_FAILED` | 400 | `Idempotency-Key` 누락·255자 초과 |
+| `CONFLICT` | 409 | 같은 `Idempotency-Key`에 다른 요청, 또는 같은 키의 첫 요청이 아직 처리 중(`idempotency.service.ts` — 등재 2026-10-10) |
 | `CONTENT_NOT_FOUND` | 404 | `content_id`가 없음 |
 
 ---
@@ -302,13 +304,14 @@
 - **인앱 브라우저 열기는 이 요청의 성공을 기다리지 않는다.** 기록 실패가 원문 보기를 막으면 파트너 유입(PRD 8.3)이 우리 장애에 볼모가 된다. 실패는 사용자에게 알리지 않는다(`common-error-handling.md` 4.3).
 - **실패분은 오프라인 큐에 적재해 재전송한다**(편입 확정 2026-08-10 — `common-error-handling.md` 4.5, 전부 보존·순서대로 전송). 정산 지표 원천이라 유실을 감수하지 않는다. 이에 따라 **`Idempotency-Key` 필수다** — 재전송 중복이 `content_stats.source_link_click_count`를 부풀리는 문제는 replay(4.4)와 같다.
 - **회수 여부는 검증하지 않는다.** 회수 직후 아직 화면에 남아 있던 버튼이 탭될 수 있고, 회수 전 소비분의 통계가 유지되는 것과 같은 논리로(`domain.md` 5.4) 클릭 사실의 적재를 막을 이유가 없다.
-- **오프라인 큐 적재 대상이 아니다.** `common-error-handling.md` 4.5의 큐 대상 표에 이 요청이 없다 — 실패분은 유실을 감수한다. 정산 지표의 원천이라는 성격과 충돌할 수 있어 9장 미결로 남긴다(큐 대상 표는 features 소유라 이 문서가 늘리지 않는다).
 - **204인 이유** — 만들어진 행은 클라이언트가 다시 조회·참조할 수 없는 적재 전용 기록이라 201 + 본문·Location이 성립하지 않는다. `replay`(4.4)도 같다.
 
 **에러**
 
 | 코드 | HTTP | 상황 |
 |---|---|---|
+| `VALIDATION_FAILED` | 400 | `Idempotency-Key` 누락·255자 초과 |
+| `CONFLICT` | 409 | 같은 `Idempotency-Key`에 다른 요청, 또는 같은 키의 첫 요청이 아직 처리 중(`idempotency.service.ts` — 등재 2026-10-10) |
 | `CONTENT_NOT_FOUND` | 404 | `content_id`가 없음 |
 
 ---
