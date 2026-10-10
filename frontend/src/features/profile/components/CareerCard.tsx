@@ -28,6 +28,7 @@ export default function CareerCard({ state, onPress, onRetry, isRetrying }: Care
   const hasError = state.kind === 'error';
   const vm = state.kind === 'data' ? state.data : null;
   const line = vm === null ? '' : PROFILE_COPY.career.line(vm.career);
+  const visibleLine = vm === null ? '' : PROFILE_COPY.career.visibleLine(vm.career);
   return (
     <ProfileCard
       label={PROFILE_COPY.cardLabels.career}
@@ -44,8 +45,15 @@ export default function CareerCard({ state, onPress, onRetry, isRetrying }: Care
       hasError={hasError}
       onRetry={onRetry}
       isRetrying={isRetrying}
-      // 라벨 아래 "기획 · 서비스 기획 · 4-6년" 줄은 뺐다(PM 2026-10-11 03:28) — 직군 사진만. 값은 낭독에만 남긴다
       inline={vm !== null && !vm.isEmpty}
+      // 라벨 아래 "직무 · 연차"만(PM 2026-10-11 03:35) — 직군은 사진이 보여 준다. 둘 다 없으면 줄을 그리지 않는다
+      labelAccessory={
+        vm !== null && !vm.isEmpty && visibleLine !== '' ? (
+          <Text style={styles.line} numberOfLines={1}>
+            {visibleLine}
+          </Text>
+        ) : undefined
+      }
     >
       {vm !== null ? (
         vm.isEmpty ? (
@@ -71,6 +79,10 @@ export default function CareerCard({ state, onPress, onRetry, isRetrying }: Care
 }
 
 const styles = StyleSheet.create({
+  line: {
+    fontSize: theme.font.size.xs,
+    color: theme.color.textSecondary,
+  },
   emptyRow: {
     flexDirection: 'row',
     alignItems: 'center',
