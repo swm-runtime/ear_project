@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
+import CloseIcon from '@/shared/ui/CloseIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
 import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
 import GlassIconButton from '@/shared/ui/GlassIconButton';
@@ -25,6 +27,7 @@ const YEARS_OPTIONS: YearsOfExperienceRange[] = ['0-1', '2-3', '4-6', '7+'];
  */
 export default function CareerInfoScreen() {
   const screen = useCareerInfoScreen();
+  const [isJobTitleFocused, setIsJobTitleFocused] = useState(false);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -116,16 +119,43 @@ export default function CareerInfoScreen() {
 
                 <Text style={styles.fieldLabel}>{CAREER_COPY.jobTitleLabel}</Text>
                 {/* 상한에서 추가 입력을 받지 않는다. 카운터·에러 문구는 두지 않는다(uiux 4.4) */}
-                <TextInput
-                  style={styles.input}
-                  value={screen.jobTitle}
-                  onChangeText={screen.changeJobTitle}
-                  editable={!screen.isSaving}
-                  placeholder={CAREER_COPY.jobTitlePlaceholder}
-                  placeholderTextColor={theme.color.textSecondary}
-                  maxLength={JOB_TITLE_MAX_LENGTH}
-                  accessibilityLabel={CAREER_COPY.jobTitleLabel}
-                />
+                {/*
+                  **테두리 없는 면 입력칸**(PM 2026-10-10) — 검색창·연차 트랙과 같은 연회색 면. 종전 1.5 테두리 상자는 이 화면과
+                  앱의 다른 입력칸(면)과 재질이 달랐다. 입력 중엔 면을 살짝 짙게, 글자가 있으면 오른쪽 지우기(iOS 기본 동작 —
+                  Android 엔 기본 지우기가 없어 직접 그린다)
+                */}
+                <View style={[styles.field, isJobTitleFocused && styles.fieldFocused]}>
+                  <TextInput
+                    style={styles.input}
+                    value={screen.jobTitle}
+                    onChangeText={screen.changeJobTitle}
+                    onFocus={() => setIsJobTitleFocused(true)}
+                    onBlur={() => setIsJobTitleFocused(false)}
+                    editable={!screen.isSaving}
+                    placeholder={CAREER_COPY.jobTitlePlaceholder}
+                    placeholderTextColor={theme.color.textSecondary}
+                    maxLength={JOB_TITLE_MAX_LENGTH}
+                    returnKeyType="done"
+                    clearButtonMode="never"
+                    accessibilityLabel={CAREER_COPY.jobTitleLabel}
+                  />
+                  {screen.jobTitle.length > 0 && !screen.isSaving ? (
+                    <Pressable
+                      style={styles.clearButton}
+                      onPress={() => screen.changeJobTitle('')}
+                      accessibilityRole="button"
+                      accessibilityLabel={CAREER_COPY.jobTitleClearA11y}
+                    >
+                      <View style={styles.clearDisc}>
+                        <CloseIcon
+                          size={CLEAR_ICON_SIZE}
+                          color={theme.color.onPrimary}
+                          strokeWidth={2.6}
+                        />
+                      </View>
+                    </Pressable>
+                  ) : null}
+                </View>
 
                 <Text style={styles.fieldLabel}>{CAREER_COPY.yearsLabel}</Text>
                 {/* 연차 — 칸이 고정된 4택이라 **한 줄 구간 선택**(세그먼트, PM 2026-10-10). 줄바꿈 칩보다 같은 질문의 답으로
@@ -230,6 +260,10 @@ const RESET_HIT_SLOP = 2;
 /** 구간 선택 트랙 안쪽 여백 */
 const SEGMENT_INSET = 3;
 
+/** 지우기 원 · 그 안 × 크기 */
+const CLEAR_DISC_SIZE = 18;
+const CLEAR_ICON_SIZE = 9;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -293,15 +327,41 @@ const styles = StyleSheet.create({
     color: theme.color.textPrimary,
     marginTop: theme.spacing.md,
   },
-  input: {
+  // 면 입력칸 — 연차 트랙과 같은 surface, 테두리 없음. 높이는 연차 줄과 같은 44
+  field: {
+    flexDirection: 'row',
+    alignItems: 'center',
     minHeight: theme.touchTarget.minHeight,
-    borderWidth: 1.5,
-    borderColor: theme.color.border,
     borderRadius: theme.radius.md,
     borderCurve: 'continuous',
-    paddingHorizontal: theme.spacing.md,
+    backgroundColor: theme.color.surface,
+    paddingLeft: theme.spacing.md,
+  },
+  // 입력 중 — 테두리 대신 면만 한 단계 짙게(지금 여기를 쓰고 있다)
+  fieldFocused: {
+    backgroundColor: theme.color.border,
+  },
+  input: {
+    flex: 1,
+    minHeight: theme.touchTarget.minHeight,
+    paddingRight: theme.spacing.md,
     fontSize: theme.font.size.md,
     color: theme.color.textPrimary,
+  },
+  clearButton: {
+    minWidth: theme.touchTarget.minWidth,
+    minHeight: theme.touchTarget.minHeight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // iOS 기본 지우기와 같은 회색 원 + 흰 ×
+  clearDisc: {
+    width: CLEAR_DISC_SIZE,
+    height: CLEAR_DISC_SIZE,
+    borderRadius: CLEAR_DISC_SIZE / 2,
+    backgroundColor: theme.color.textSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   chipRow: {
     flexDirection: 'row',

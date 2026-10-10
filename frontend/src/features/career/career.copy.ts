@@ -22,6 +22,8 @@ export const CAREER_COPY = {
   jobTitleLabel: '직무',
   /** 온보딩 O4와 같은 문자열(uiux 4.3) */
   jobTitlePlaceholder: '예) 서비스 기획자',
+  /** 직무 입력칸 오른쪽 지우기 버튼(2026-10-10) */
+  jobTitleClearA11y: '직무 지우기',
   yearsLabel: '연차',
   /**
    * enum(0-1/2-3/4-6/7+)의 화면 표기 — 온보딩 O4와 같은 표기를 쓴다(career.md 3장).
